@@ -14,6 +14,7 @@
 
 #include "nsContentUtils.h"
 #include "nsDOMClassInfo.h"
+#include "nsIDOMBluetoothDeviceAddressEvent.h"
 #include "nsIDOMBluetoothDeviceEvent.h"
 #include "nsTArrayHelpers.h"
 #include "DOMRequest.h"
@@ -286,6 +287,29 @@ BluetoothAdapter::Notify(const BluetoothSignal& aData)
     e->InitBluetoothDeviceEvent(NS_LITERAL_STRING("devicefound"),
                                 false, false, device);
     DispatchTrustedEvent(event);
+  } else if (aData.name().EqualsLiteral("DeviceDisappeared")) {
+    const nsAString& deviceAddress = aData.value().get_nsString();
+
+    nsCOMPtr<nsIDOMEvent> event;
+    NS_NewDOMBluetoothDeviceAddressEvent(getter_AddRefs(event), this, nullptr, nullptr);
+
+    nsCOMPtr<nsIDOMBluetoothDeviceAddressEvent> e = do_QueryInterface(event);
+    e->InitBluetoothDeviceAddressEvent(NS_LITERAL_STRING("devicedisappeared"),
+                                       false, false, deviceAddress);
+    DispatchTrustedEvent(e);
+  } else if (aData.name().EqualsLiteral("DeviceCreated")) {
+    NS_ASSERTION(aData.value().type() == BluetoothValue::TArrayOfBluetoothNamedValue,
+                 "DeviceCreated: Invalid value type");
+
+    nsRefPtr<BluetoothDevice> device =
+      BluetoothDevice::Create(GetOwner(), GetPath(), aData.value());
+    nsCOMPtr<nsIDOMEvent> event;
+    NS_NewDOMBluetoothDeviceEvent(getter_AddRefs(event), this, nullptr, nullptr);
+
+    nsCOMPtr<nsIDOMBluetoothDeviceEvent> e = do_QueryInterface(event);
+    e->InitBluetoothDeviceEvent(NS_LITERAL_STRING("devicecreated"),
+                                false, false, device);
+    DispatchTrustedEvent(e);
   } else if (aData.name().EqualsLiteral("PropertyChanged")) {
     NS_ASSERTION(v.type() == BluetoothValue::TArrayOfBluetoothNamedValue,
                  "PropertyChanged: Invalid value type");
@@ -345,6 +369,13 @@ NS_IMETHODIMP
 BluetoothAdapter::StopDiscovery(nsIDOMDOMRequest** aRequest)
 {
   return StartStopDiscovery(false, aRequest);
+}
+
+NS_IMETHODIMP
+BluetoothAdapter::GetEnabled(bool* aEnabled)
+{
+  *aEnabled = mEnabled;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -730,4 +761,12 @@ BluetoothAdapter::ConfirmReceivingFile(const nsAString& aDeviceAddress,
   return NS_OK;
 }
 
+NS_IMPL_EVENT_HANDLER(BluetoothAdapter, propertychanged)
 NS_IMPL_EVENT_HANDLER(BluetoothAdapter, devicefound)
+NS_IMPL_EVENT_HANDLER(BluetoothAdapter, devicedisappeared)
+NS_IMPL_EVENT_HANDLER(BluetoothAdapter, devicecreated)
+NS_IMPL_EVENT_HANDLER(BluetoothAdapter, requestconfirmation)
+NS_IMPL_EVENT_HANDLER(BluetoothAdapter, requestpincode)
+NS_IMPL_EVENT_HANDLER(BluetoothAdapter, requestpasskey)
+NS_IMPL_EVENT_HANDLER(BluetoothAdapter, authorize)
+NS_IMPL_EVENT_HANDLER(BluetoothAdapter, cancel)

@@ -47,6 +47,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 SVGStyleElement::SVGStyleElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : SVGStyleElementBase(aNodeInfo)
 {
+  SetIsDOMBinding();
   AddMutationObserver(this);
 }
 

@@ -723,7 +723,7 @@ ArrayBufferObject::sweep(JSCompartment *compartment)
         while (view) {
             JS_ASSERT(buffer->compartment() == view->compartment());
             JSObject *nextView = NextView(view);
-            if (!IsObjectAboutToBeFinalized(&view)) {
+            if (!JS_IsAboutToBeFinalized(view)) {
                 view->setFixedSlot(BufferView::NEXT_VIEW_SLOT, PrivateValue(prevLiveView));
                 prevLiveView = view;
             }

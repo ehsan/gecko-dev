@@ -840,8 +840,9 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
             if (!flat) {
                 flat = cache->WrapObject(lccx.GetJSContext(),
                                          xpcscope->GetGlobalJSObject());
-                if (!flat)
+                if (!flat && JS_IsExceptionPending(lccx.GetJSContext())) {
                     return false;
+                }
             }
 
             if (flat) {

@@ -2293,9 +2293,6 @@ CharIterator::Next()
 bool
 CharIterator::Next(uint32_t aCount)
 {
-  if (aCount == 0 && AtEnd()) {
-    return false;
-  }
   while (aCount) {
     if (!Next()) {
       return false;
@@ -2482,10 +2479,6 @@ CharIterator::GetGlyphPartialAdvance(uint32_t aPartOffset, uint32_t aPartLength,
 bool
 CharIterator::NextCharacter()
 {
-  if (AtEnd()) {
-    return false;
-  }
-
   mTextElementCharIndex++;
 
   // Advance within the current text run.
@@ -2831,18 +2824,12 @@ NS_IMETHODIMP
 GlyphMetricsUpdater::Run()
 {
   if (mFrame) {
-    Run(mFrame);
+    mFrame->mPositioningDirty = true;
+    nsSVGUtils::InvalidateBounds(mFrame, false);
+    nsSVGUtils::ScheduleReflowSVG(mFrame);
+    mFrame->mGlyphMetricsUpdater = nullptr;
   }
   return NS_OK;
-}
-
-void
-GlyphMetricsUpdater::Run(nsSVGTextFrame2* aFrame)
-{
-  aFrame->mPositioningDirty = true;
-  nsSVGUtils::InvalidateBounds(aFrame, false);
-  nsSVGUtils::ScheduleReflowSVG(aFrame);
-  aFrame->mGlyphMetricsUpdater = nullptr;
 }
 
 }
@@ -3653,10 +3640,9 @@ nsSVGTextFrame2::GetComputedTextLength(nsIContent* aContent)
  * Implements the SVG DOM GetSubStringLength method for the specified
  * text content element.
  */
-nsresult
+float
 nsSVGTextFrame2::GetSubStringLength(nsIContent* aContent,
-                                    uint32_t charnum, uint32_t nchars,
-                                    float* aResult)
+                                    uint32_t charnum, uint32_t nchars)
 {
   UpdateGlyphPositioning(false);
 
@@ -3664,16 +3650,11 @@ nsSVGTextFrame2::GetSubStringLength(nsIContent* aContent,
   // aContent to global character indices.
   CharIterator chit(this, CharIterator::eAddressable, aContent);
   if (!chit.AdvanceToSubtree() ||
+      chit.AtEnd() ||
       !chit.Next(charnum) ||
       chit.IsAfterSubtree()) {
-    return NS_ERROR_DOM_INDEX_SIZE_ERR;
+    return 0.0f;
   }
-
-  if (nchars == 0) {
-    *aResult = 0.0f;
-    return NS_OK;
-  }
-
   charnum = chit.TextElementCharIndex();
   chit.NextWithinSubtree(nchars);
   nchars = chit.TextElementCharIndex() - charnum;
@@ -3716,9 +3697,8 @@ nsSVGTextFrame2::GetSubStringLength(nsIContent* aContent,
   float cssPxPerDevPx = presContext->
     AppUnitsToFloatCSSPixels(presContext->AppUnitsPerDevPixel());
 
-  *aResult = presContext->AppUnitsToGfxUnits(textLength) *
-               cssPxPerDevPx / mFontSizeScaleFactor;
-  return NS_OK;
+  return presContext->AppUnitsToGfxUnits(textLength) *
+           cssPxPerDevPx / mFontSizeScaleFactor;
 }
 
 /**
@@ -3766,6 +3746,7 @@ nsSVGTextFrame2::GetStartPositionOfChar(nsIContent* aContent,
 
   CharIterator it(this, CharIterator::eAddressable, aContent);
   if (!it.AdvanceToSubtree() ||
+      it.AtEnd() ||
       !it.Next(aCharNum)) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
@@ -3790,6 +3771,7 @@ nsSVGTextFrame2::GetEndPositionOfChar(nsIContent* aContent,
 
   CharIterator it(this, CharIterator::eAddressable, aContent);
   if (!it.AdvanceToSubtree() ||
+      it.AtEnd() ||
       !it.Next(aCharNum)) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
@@ -3827,6 +3809,7 @@ nsSVGTextFrame2::GetExtentOfChar(nsIContent* aContent,
 
   CharIterator it(this, CharIterator::eAddressable, aContent);
   if (!it.AdvanceToSubtree() ||
+      it.AtEnd() ||
       !it.Next(aCharNum)) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
@@ -3878,6 +3861,7 @@ nsSVGTextFrame2::GetRotationOfChar(nsIContent* aContent,
 
   CharIterator it(this, CharIterator::eAddressable, aContent);
   if (!it.AdvanceToSubtree() ||
+      it.AtEnd() ||
       !it.Next(aCharNum)) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
@@ -4661,34 +4645,25 @@ nsSVGTextFrame2::ShouldRenderAsPath(nsRenderingContext* aContext,
 }
 
 void
-nsSVGTextFrame2::NotifyGlyphMetricsChange(uint32_t aFlags)
+nsSVGTextFrame2::NotifyGlyphMetricsChange()
 {
-  NS_ASSERTION(!aFlags || aFlags == ePositioningDirtyDueToMutation,
-               "unexpected aFlags value");
-
-  if (aFlags == ePositioningDirtyDueToMutation) {
-    // We need to perform the operations in GlyphMetricsUpdater in a
-    // script runner since we can get called just after a DOM mutation,
-    // before frames have been reconstructed, and UpdateGlyphPositioning
-    // will be called with out-of-date frames.  This occurs when the
-    // <text> element is being filtered, as the InvalidateBounds()
-    // call needs to call in to GetBBoxContribution() to determine the
-    // filtered region, and that needs to iterate over the text frames.
-    // We would flush frame construction, but that needs to be done
-    // inside a script runner.
-    //
-    // Much of the time, this will perform the GlyphMetricsUpdater
-    // operations immediately.
-    if (mGlyphMetricsUpdater) {
-      return;
-    }
-    mGlyphMetricsUpdater = new GlyphMetricsUpdater(this);
-    nsContentUtils::AddScriptRunner(mGlyphMetricsUpdater.get());
+  // We need to perform the operations in GlyphMetricsUpdater in a
+  // script runner since we can get called just after a DOM mutation,
+  // before frames have been reconstructed, and UpdateGlyphPositioning
+  // will be called with out-of-date frames.  This occurs when the
+  // <text> element is being filtered, as the InvalidateBounds()
+  // call needs to call in to GetBBoxContribution() to determine the
+  // filtered region, and that needs to iterate over the text frames.
+  // We would flush frame construction, but that needs to be done
+  // inside a script runner.
+  //
+  // Much of the time, this will perform the GlyphMetricsUpdater
+  // operations immediately.
+  if (mGlyphMetricsUpdater) {
     return;
   }
-
-  // Otherwise, we perform the glyph metrics update immediately.
-  GlyphMetricsUpdater::Run(this);
+  mGlyphMetricsUpdater = new GlyphMetricsUpdater(this);
+  nsContentUtils::AddScriptRunner(mGlyphMetricsUpdater.get());
 }
 
 void

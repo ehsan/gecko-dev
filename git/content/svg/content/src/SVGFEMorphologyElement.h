@@ -19,7 +19,8 @@ namespace dom {
 
 typedef nsSVGFE SVGFEMorphologyElementBase;
 
-class SVGFEMorphologyElement : public SVGFEMorphologyElementBase
+class SVGFEMorphologyElement : public SVGFEMorphologyElementBase,
+                               public nsIDOMSVGElement
 {
   friend nsresult (::NS_NewSVGFEMorphologyElement(nsIContent **aResult,
                                                   already_AddRefed<nsINodeInfo> aNodeInfo));
@@ -27,10 +28,14 @@ protected:
   SVGFEMorphologyElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : SVGFEMorphologyElementBase(aNodeInfo)
   {
+    SetIsDOMBinding();
   }
   virtual JSObject* WrapNode(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
 public:
+  // interfaces:
+  NS_DECL_ISUPPORTS_INHERITED
+
   virtual nsresult Filter(nsSVGFilterInstance* aInstance,
                           const nsTArray<const Image*>& aSources,
                           const Image* aTarget,
@@ -46,7 +51,14 @@ public:
   virtual nsIntRect ComputeChangeBBox(const nsTArray<nsIntRect>& aSourceChangeBoxes,
           const nsSVGFilterInstance& aInstance);
 
+  NS_FORWARD_NSIDOMSVGELEMENT(SVGFEMorphologyElementBase::)
+
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+
+  virtual nsIDOMNode* AsDOMNode() { return this; }
 
   // WebIDL
   already_AddRefed<nsIDOMSVGAnimatedString> In1();

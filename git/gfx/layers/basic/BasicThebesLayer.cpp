@@ -188,7 +188,6 @@ BasicThebesLayer::PaintThebes(gfxContext* aContext,
                   state.mRegionToDraw, extendedDrawRegion, state.mRegionToInvalidate,
                   state.mDidSelfCopy,
                   aCallback, aCallbackData);
-      MOZ_LAYERS_LOG_IF_SHADOWABLE(this, ("Layer::Mutated(%p) PaintThebes", this));
       Mutated();
 
       RenderTraceInvalidateEnd(this, "FFFF00");

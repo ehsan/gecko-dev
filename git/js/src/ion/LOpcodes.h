@@ -64,8 +64,6 @@
     _(TestDAndBranch)               \
     _(TestVAndBranch)               \
     _(TestOAndBranch)               \
-    _(FunctionDispatch)             \
-    _(TypeObjectDispatch)           \
     _(PolyInlineDispatch)           \
     _(Compare)                      \
     _(CompareAndBranch)             \

@@ -340,7 +340,7 @@ public:
       NS_NAMED_LITERAL_STRING(scriptSample,
          "Call to eval() or related function blocked by CSP.");
       csp->LogViolationDetails(nsIContentSecurityPolicy::VIOLATION_TYPE_EVAL,
-                               mFileName, scriptSample, mLineNum);
+                                mFileName, scriptSample, mLineNum);
     }
 
     nsRefPtr<LogViolationDetailsResponseRunnable> response =
@@ -359,28 +359,30 @@ ContentSecurityPolicyAllows(JSContext* aCx)
   WorkerPrivate* worker = GetWorkerPrivateFromContext(aCx);
   worker->AssertIsOnWorkerThread();
 
-  if (worker->GetReportCSPViolations()) {
-    nsString fileName;
-    uint32_t lineNum = 0;
-
-    JSScript* script;
-    const char* file;
-    if (JS_DescribeScriptedCaller(aCx, &script, &lineNum) &&
-        (file = JS_GetScriptFilename(aCx, script))) {
-      fileName.AssignASCII(file);
-    } else {
-      JS_ReportPendingException(aCx);
-    }
-
-    nsRefPtr<LogViolationDetailsRunnable> runnable =
-        new LogViolationDetailsRunnable(worker, fileName, lineNum);
-
-    if (!runnable->Dispatch(aCx)) {
-      JS_ReportPendingException(aCx);
-    }
+  if (worker->IsEvalAllowed()) {
+    return true;
   }
 
-  return worker->IsEvalAllowed();
+  nsString fileName;
+  uint32_t lineNum = 0;
+
+  JSScript* script;
+  const char* file;
+  if (JS_DescribeScriptedCaller(aCx, &script, &lineNum) &&
+      (file = JS_GetScriptFilename(aCx, script))) {
+    fileName.AssignASCII(file);
+  } else {
+    JS_ReportPendingException(aCx);
+  }
+
+  nsRefPtr<LogViolationDetailsRunnable> runnable =
+      new LogViolationDetailsRunnable(worker, fileName, lineNum);
+
+  if (!runnable->Dispatch(aCx)) {
+    JS_ReportPendingException(aCx);
+  }
+
+  return false;
 }
 
 void

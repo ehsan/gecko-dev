@@ -17,7 +17,8 @@ nsresult NS_NewSVGFEPointLightElement(nsIContent **aResult,
 namespace mozilla {
 namespace dom {
 
-class SVGFEPointLightElement : public SVGFEPointLightElementBase
+class SVGFEPointLightElement : public SVGFEPointLightElementBase,
+                               public nsIDOMSVGElement
 {
   friend nsresult (::NS_NewSVGFEPointLightElement(nsIContent **aResult,
                                                   already_AddRefed<nsINodeInfo> aNodeInfo));
@@ -25,14 +26,24 @@ protected:
   SVGFEPointLightElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : SVGFEPointLightElementBase(aNodeInfo)
   {
+    SetIsDOMBinding();
   }
   virtual JSObject* WrapNode(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
 
 public:
+  // interfaces:
+  NS_DECL_ISUPPORTS_INHERITED
+
+  NS_FORWARD_NSIDOMSVGELEMENT(SVGFEPointLightElementBase::)
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+
   virtual bool AttributeAffectsRendering(
           int32_t aNameSpaceID, nsIAtom* aAttribute) const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+
+  virtual nsIDOMNode* AsDOMNode() { return this; }
 
   // WebIDL
   already_AddRefed<nsIDOMSVGAnimatedNumber> X();

@@ -6,6 +6,7 @@
 #ifndef mozilla_dom_SVGTextPathElement_h
 #define mozilla_dom_SVGTextPathElement_h
 
+#include "nsIDOMSVGElement.h"
 #include "nsSVGEnum.h"
 #include "nsSVGLength2.h"
 #include "nsSVGString.h"
@@ -33,7 +34,8 @@ static const unsigned short TEXTPATH_SPACINGTYPE_EXACT   = 2;
 
 typedef SVGTextContentElement SVGTextPathElementBase;
 
-class SVGTextPathElement MOZ_FINAL : public SVGTextPathElementBase
+class SVGTextPathElement MOZ_FINAL : public SVGTextPathElementBase,
+                                     public nsIDOMSVGElement
 {
 friend class ::nsSVGTextPathFrame;
 friend class ::nsSVGTextFrame2;
@@ -45,10 +47,22 @@ protected:
   virtual JSObject* WrapNode(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
 
 public:
+  // interfaces:
+
+  NS_DECL_ISUPPORTS_INHERITED
+
+  // xxx If xpcom allowed virtual inheritance we wouldn't need to
+  // forward here :-(
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+  NS_FORWARD_NSIDOMSVGELEMENT(SVGTextPathElementBase::)
+
   // nsIContent interface
   NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+
+  virtual nsIDOMNode* AsDOMNode() { return this; }
 
   virtual bool IsEventAttributeName(nsIAtom* aName) MOZ_OVERRIDE;
 

@@ -20,7 +20,6 @@ nsDOMXULCommandEvent::nsDOMXULCommandEvent(mozilla::dom::EventTarget* aOwner,
     mEventIsInternal = true;
     mEvent->time = PR_Now();
   }
-  SetIsDOMBinding();
 }
 
 NS_IMPL_ADDREF_INHERITED(nsDOMXULCommandEvent, nsDOMUIEvent)
@@ -47,7 +46,7 @@ NS_IMETHODIMP
 nsDOMXULCommandEvent::GetAltKey(bool* aIsDown)
 {
   NS_ENSURE_ARG_POINTER(aIsDown);
-  *aIsDown = AltKey();
+  *aIsDown = Event()->IsAlt();
   return NS_OK;
 }
 
@@ -55,7 +54,7 @@ NS_IMETHODIMP
 nsDOMXULCommandEvent::GetCtrlKey(bool* aIsDown)
 {
   NS_ENSURE_ARG_POINTER(aIsDown);
-  *aIsDown = CtrlKey();
+  *aIsDown = Event()->IsControl();
   return NS_OK;
 }
 
@@ -63,7 +62,7 @@ NS_IMETHODIMP
 nsDOMXULCommandEvent::GetShiftKey(bool* aIsDown)
 {
   NS_ENSURE_ARG_POINTER(aIsDown);
-  *aIsDown = ShiftKey();
+  *aIsDown = Event()->IsShift();
   return NS_OK;
 }
 
@@ -71,7 +70,7 @@ NS_IMETHODIMP
 nsDOMXULCommandEvent::GetMetaKey(bool* aIsDown)
 {
   NS_ENSURE_ARG_POINTER(aIsDown);
-  *aIsDown = MetaKey();
+  *aIsDown = Event()->IsMeta();
   return NS_OK;
 }
 
@@ -79,7 +78,7 @@ NS_IMETHODIMP
 nsDOMXULCommandEvent::GetSourceEvent(nsIDOMEvent** aSourceEvent)
 {
   NS_ENSURE_ARG_POINTER(aSourceEvent);
-  *aSourceEvent = GetSourceEvent().get();
+  NS_IF_ADDREF(*aSourceEvent = mSourceEvent);
   return NS_OK;
 }
 

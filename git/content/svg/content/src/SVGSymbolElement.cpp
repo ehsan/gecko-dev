@@ -30,6 +30,7 @@ NS_IMPL_ISUPPORTS_INHERITED4(SVGSymbolElement, SVGSymbolElementBase,
 SVGSymbolElement::SVGSymbolElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : SVGSymbolElementBase(aNodeInfo)
 {
+  SetIsDOMBinding();
 }
 
 

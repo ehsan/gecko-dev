@@ -30,7 +30,8 @@ class SVGFragmentIdentifier;
 namespace dom {
 class SVGSVGElement;
 
-class SVGViewElement : public SVGViewElementBase
+class SVGViewElement : public SVGViewElementBase,
+                       public nsIDOMSVGElement
 {
 protected:
   friend class mozilla::SVGFragmentIdentifier;
@@ -42,7 +43,19 @@ protected:
   virtual JSObject* WrapNode(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
 
 public:
+  // interfaces:
+
+  NS_DECL_ISUPPORTS_INHERITED
+
+  // xxx If xpcom allowed virtual inheritance we wouldn't need to
+  // forward here :-(
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+  NS_FORWARD_NSIDOMSVGELEMENT(SVGViewElementBase::)
+
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+
+  virtual nsIDOMNode* AsDOMNode() { return this; }
 
   // WebIDL
   uint16_t ZoomAndPan() { return mEnumAttributes[ZOOMANDPAN].GetAnimValue(); }

@@ -50,6 +50,7 @@ CPPSRCS		= \
 		nsSVGPathGeometryElement.cpp \
 		nsSVGPolyElement.cpp \
 		nsSVGString.cpp \
+		nsSVGUnknownElement.cpp \
 		nsSVGViewBox.cpp \
 		SVGAElement.cpp \
 		SVGAltGlyphElement.cpp \

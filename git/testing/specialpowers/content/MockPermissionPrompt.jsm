@@ -30,7 +30,7 @@ var newFactory = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIFactory])
 };
 
-this.MockPermissionPrompt = {
+var MockPermissionPrompt = {
   init: function() {
     this.reset();
     if (!registrar.isCIDRegistered(newClassID)) {

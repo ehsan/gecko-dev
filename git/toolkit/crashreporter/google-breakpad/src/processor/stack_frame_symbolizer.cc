@@ -44,7 +44,7 @@
 #include "google_breakpad/processor/symbol_supplier.h"
 #include "google_breakpad/processor/system_info.h"
 #include "processor/linked_ptr.h"
-#include "common/logging.h"
+#include "processor/logging.h"
 
 namespace google_breakpad {
 

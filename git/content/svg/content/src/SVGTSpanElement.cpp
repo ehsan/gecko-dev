@@ -20,11 +20,19 @@ SVGTSpanElement::WrapNode(JSContext *aCx, JSObject *aScope)
 
 
 //----------------------------------------------------------------------
+// nsISupports methods
+
+NS_IMPL_ISUPPORTS_INHERITED3(SVGTSpanElement, SVGTSpanElementBase,
+                             nsIDOMNode, nsIDOMElement,
+                             nsIDOMSVGElement)
+
+//----------------------------------------------------------------------
 // Implementation
 
 SVGTSpanElement::SVGTSpanElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : SVGTSpanElementBase(aNodeInfo)
 {
+  SetIsDOMBinding();
 }
 
 

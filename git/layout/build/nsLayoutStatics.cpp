@@ -54,7 +54,7 @@
 #include "nsFocusManager.h"
 #include "nsFrameList.h"
 #include "nsListControlFrame.h"
-#include "mozilla/dom/HTMLInputElement.h"
+#include "nsHTMLInputElement.h"
 #include "SVGElementFactory.h"
 #include "nsSVGUtils.h"
 #include "nsMathMLAtoms.h"
@@ -375,7 +375,7 @@ nsLayoutStatics::Shutdown()
 
   nsFrameList::Shutdown();
 
-  HTMLInputElement::DestroyUploadLastDir();
+  nsHTMLInputElement::DestroyUploadLastDir();
 
   nsLayoutUtils::Shutdown();
 

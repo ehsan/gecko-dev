@@ -378,13 +378,6 @@ const Worker = EventEmitter.compose({
   on: Trait.required,
   _removeAllListeners: Trait.required,
 
-  // List of messages fired before worker is initialized
-  get _earlyEvents() {
-    delete this._earlyEvents;
-    this._earlyEvents = [];
-    return this._earlyEvents;
-  },
-
   /**
    * Sends a message to the worker's global scope. Method takes single
    * argument, which represents data to be sent to the worker. The data may
@@ -397,13 +390,13 @@ const Worker = EventEmitter.compose({
    * implementing `onMessage` function in the global scope of this worker.
    * @param {Number|String|JSON} data
    */
-  postMessage: function (data) {
-    let args = ['message'].concat(Array.slice(arguments));
-    if (!this._inited) {
-      this._earlyEvents.push(args);
-      return;
-    }
-    processMessage.apply(this, args);
+  postMessage: function postMessage(data) {
+    if (!this._contentWorker)
+      throw new Error(ERR_DESTROYED);
+    if (this._frozen)
+      throw new Error(ERR_FROZEN);
+
+    this._contentWorker.emit("message", data);
   },
 
   /**
@@ -417,8 +410,9 @@ const Worker = EventEmitter.compose({
     // before Worker.constructor gets called. (For ex: Panel)
 
     // create an event emitter that receive and send events from/to the worker
+    let self = this;
     this._port = EventEmitterTrait.create({
-      emit: this._emitEventToContent.bind(this)
+      emit: function () self._emitEventToContent(Array.slice(arguments))
     });
 
     // expose wrapped port, that exposes only public properties:
@@ -444,13 +438,24 @@ const Worker = EventEmitter.compose({
    * Emit a custom event to the content script,
    * i.e. emit this event on `self.port`
    */
-  _emitEventToContent: function () {
-    let args = ['event'].concat(Array.slice(arguments));
+  _emitEventToContent: function _emitEventToContent(args) {
+    // We need to save events that are emitted before the worker is
+    // initialized
     if (!this._inited) {
       this._earlyEvents.push(args);
       return;
     }
-    processMessage.apply(this, args);
+
+    if (this._frozen)
+      throw new Error(ERR_FROZEN);
+
+    // We throw exception when the worker has been destroyed
+    if (!this._contentWorker) {
+      throw new Error(ERR_DESTROYED);
+    }
+
+    // Forward the event to the WorkerSandbox object
+    this._contentWorker.emit.apply(null, ["event"].concat(args));
   },
 
   // Is worker connected to the content worker sandbox ?
@@ -459,6 +464,13 @@ const Worker = EventEmitter.compose({
   // Is worker being frozen? i.e related document is frozen in bfcache.
   // Content script should not be reachable if frozen.
   _frozen: true,
+
+  // List of custom events fired before worker is initialized
+  get _earlyEvents() {
+    delete this._earlyEvents;
+    this._earlyEvents = [];
+    return this._earlyEvents;
+  },
 
   constructor: function Worker(options) {
     options = options || {};
@@ -513,11 +525,9 @@ const Worker = EventEmitter.compose({
     this._inited = true;
     this._frozen = false;
 
-    // Process all events and messages that were fired before the
-    // worker was initialized.
-    this._earlyEvents.forEach((function (args) {
-      processMessage.apply(this, args);
-    }).bind(this));
+    // Flush all events that have been fired before the worker is initialized.
+    this._earlyEvents.forEach((function (args) this._emitEventToContent(args)).
+                              bind(this));
   },
 
   _documentUnload: function _documentUnload(subject, topic, data) {
@@ -580,7 +590,7 @@ const Worker = EventEmitter.compose({
     if (this._windowID) {
       this._windowID = null;
       observers.remove("inner-window-destroyed", this._documentUnload);
-      this._earlyEvents.length = 0;
+      this._earlyEvents.slice(0, this._earlyEvents.length);
       this._emit("detach");
     }
   },
@@ -612,20 +622,4 @@ const Worker = EventEmitter.compose({
    */
   _injectInDocument: false
 });
-
-/**
- * Fired from postMessage and _emitEventToContent, or from the _earlyMessage
- * queue when fired before the content is loaded. Sends arguments to
- * contentWorker if able
- */
-
-function processMessage () {
-  if (!this._contentWorker)
-    throw new Error(ERR_DESTROYED);
-  if (this._frozen)
-    throw new Error(ERR_FROZEN);
-
-  this._contentWorker.emit.apply(null, Array.slice(arguments));
-}
-
 exports.Worker = Worker;

@@ -141,8 +141,6 @@ public:
                                      nsISupports *aContext);
 
   void Close(DataChannel *aChannel);
-  // CloseInt() must be called with mLock held
-  void CloseInt(DataChannel *aChannel);
   void CloseAll();
 
   int32_t SendMsg(uint16_t stream, const nsACString &aMsg)
@@ -314,8 +312,7 @@ public:
 
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(DataChannel)
 
-  // Close this DataChannel.  Can be called multiple times.  MUST be called
-  // before destroying the DataChannel (state must be CLOSED or CLOSING).
+  // Close this DataChannel.  Can be called multiple times.
   void Close();
 
   // Set the listener (especially for channels created from the other side)

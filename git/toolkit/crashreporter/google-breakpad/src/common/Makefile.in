@@ -22,8 +22,6 @@ CPPSRCS	= \
   string_conversion.cc \
   module.cc \
   unique_string.cc \
-  pathname_stripper.cc \
-  logging.cc \
   $(NULL)
 
 ifneq (WINNT,$(OS_TARGET))
@@ -49,8 +47,6 @@ HOST_CPPSRCS = \
   stabs_to_module.cc \
   stabs_reader.cc \
   dwarf_line_to_module.cc \
-  pathname_stripper.cc \
-  logging.cc \
   $(NULL)
 endif
 endif

@@ -51,6 +51,7 @@
 #include "nsIDOMStorageIndexedDB.h"
 #include "nsIDOMOfflineResourceList.h"
 #include "nsIArray.h"
+#include "nsIIDBFactory.h"
 #include "nsFrameMessageManager.h"
 #include "mozilla/LinkedList.h"
 #include "mozilla/TimeStamp.h"
@@ -119,9 +120,6 @@ namespace mozilla {
 namespace dom {
 class Navigator;
 class URL;
-namespace indexedDB {
-class IDBFactory;
-} // namespace indexedDB
 } // namespace dom
 } // namespace mozilla
 
@@ -1150,7 +1148,7 @@ protected:
 
   nsCOMPtr<nsIDocument> mSuspendedDoc;
 
-  nsRefPtr<mozilla::dom::indexedDB::IDBFactory> mIndexedDB;
+  nsCOMPtr<nsIIDBFactory> mIndexedDB;
 
   // This counts the number of windows that have been opened in rapid succession
   // (i.e. within dom.successive_dialog_time_limit of each other). It is reset

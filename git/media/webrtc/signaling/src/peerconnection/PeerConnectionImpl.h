@@ -136,19 +136,6 @@ public:
     kRoleAnswerer
   };
 
-  enum Error {
-    kNoError                          = 0,
-    kInvalidConstraintsType           = 1,
-    kInvalidCandidateType             = 2,
-    kInvalidMediastreamTrack          = 3,
-    kInvalidState                     = 4,
-    kInvalidSessionDescription        = 5,
-    kIncompatibleSessionDescription   = 6,
-    kIncompatibleConstraints          = 7,
-    kIncompatibleMediaStreamTrack     = 8,
-    kInternalError                    = 9
-  };
-
   NS_DECL_ISUPPORTS
   NS_DECL_IPEERCONNECTION
 
@@ -235,9 +222,6 @@ public:
   // from a JS::Value.
   NS_IMETHODIMP CreateOffer(MediaConstraints& aConstraints);
   NS_IMETHODIMP CreateAnswer(MediaConstraints& aConstraints);
-
-  nsresult
-  InitializeDataChannel(uint16_t aLocalport, uint16_t aRemoteport, uint16_t aNumstreams);
 
   // Called whenever something is unrecognized by the parser
   // May be called more than once and does not necessarily mean

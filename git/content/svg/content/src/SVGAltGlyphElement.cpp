@@ -25,11 +25,19 @@ nsSVGElement::StringInfo SVGAltGlyphElement::sStringInfo[1] =
 
 
 //----------------------------------------------------------------------
+// nsISupports methods
+
+NS_IMPL_ISUPPORTS_INHERITED3(SVGAltGlyphElement, SVGAltGlyphElementBase,
+                             nsIDOMNode, nsIDOMElement,
+                             nsIDOMSVGElement)
+
+//----------------------------------------------------------------------
 // Implementation
 
 SVGAltGlyphElement::SVGAltGlyphElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : SVGAltGlyphElementBase(aNodeInfo)
 {
+  SetIsDOMBinding();
 }
 
 //----------------------------------------------------------------------

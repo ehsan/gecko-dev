@@ -75,9 +75,16 @@ SVGTextContentElement::GetSubStringLength(uint32_t charnum, uint32_t nchars, Err
     if (!textFrame)
       return 0.0f;
 
-    float length = 0.0f;
-    rv = textFrame->GetSubStringLength(this, charnum, nchars, &length);
-    return length;
+    uint32_t charcount = textFrame->GetNumberOfChars(this);
+    if (charcount <= charnum || nchars > charcount - charnum) {
+      rv.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
+      return 0.0f;
+    }
+
+    if (nchars == 0)
+      return 0.0f;
+
+    return textFrame->GetSubStringLength(this, charnum, nchars);
   } else {
     nsSVGTextContainerFrame* metrics = GetTextContainerFrame();
     if (!metrics)

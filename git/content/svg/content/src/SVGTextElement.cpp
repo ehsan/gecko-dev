@@ -18,11 +18,19 @@ SVGTextElement::WrapNode(JSContext *aCx, JSObject *aScope)
 }
 
 //----------------------------------------------------------------------
+// nsISupports methods
+
+NS_IMPL_ISUPPORTS_INHERITED3(SVGTextElement, SVGTextElementBase,
+                             nsIDOMNode, nsIDOMElement,
+                             nsIDOMSVGElement)
+
+//----------------------------------------------------------------------
 // Implementation
 
 SVGTextElement::SVGTextElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : SVGTextElementBase(aNodeInfo)
 {
+  SetIsDOMBinding();
 }
 
 //----------------------------------------------------------------------

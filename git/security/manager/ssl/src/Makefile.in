@@ -85,6 +85,8 @@ endif
 
 CSRCS += md4.c
 
+EXTRA_DEPS = $(NSS_DEP_LIBS)
+
 DEFINES += \
   -DNSS_ENABLE_ECC \
   -DDLL_PREFIX=\"$(DLL_PREFIX)\" \

@@ -142,10 +142,6 @@ public:
   ~PeerConnectionObserverDispatch(){}
 
   NS_IMETHOD Run() {
-
-    CSFLogInfo(logTag, "PeerConnectionObserverDispatch processing "
-                       "mCallState = %d (%s)", mCallState, mStateStr.c_str());
-
     switch (mCallState) {
       case CREATEOFFER:
         mObserver->OnCreateOfferSuccess(mSdpStr.c_str());
@@ -156,57 +152,47 @@ public:
         break;
 
       case CREATEOFFERERROR:
-        mObserver->OnCreateOfferError(
-          PeerConnectionImpl::kInternalError,
-          "Unspecified Error processing createOffer");
+        mObserver->OnCreateOfferError(mCode);
         break;
 
       case CREATEANSWERERROR:
-        mObserver->OnCreateAnswerError(
-          PeerConnectionImpl::kInternalError,
-          "Unspecified Error processing createAnswer");
+        mObserver->OnCreateAnswerError(mCode);
         break;
 
       case SETLOCALDESC:
         // TODO: The SDP Parse error list should be copied out and sent up
         // to the Javascript layer before being cleared here.
         mPC->ClearSdpParseErrorMessages();
-        mObserver->OnSetLocalDescriptionSuccess();
+        mObserver->OnSetLocalDescriptionSuccess(mCode);
         break;
 
       case SETREMOTEDESC:
         // TODO: The SDP Parse error list should be copied out and sent up
         // to the Javascript layer before being cleared here.
         mPC->ClearSdpParseErrorMessages();
-        mObserver->OnSetRemoteDescriptionSuccess();
+        mObserver->OnSetRemoteDescriptionSuccess(mCode);
         break;
 
       case SETLOCALDESCERROR:
         // TODO: The SDP Parse error list should be copied out and sent up
         // to the Javascript layer before being cleared here.
         mPC->ClearSdpParseErrorMessages();
-        mObserver->OnSetLocalDescriptionError(
-          PeerConnectionImpl::kInternalError,
-          "Unspecified Error processing setLocalDescription");
+        mObserver->OnSetLocalDescriptionError(mCode);
         break;
 
       case SETREMOTEDESCERROR:
         // TODO: The SDP Parse error list should be copied out and sent up
         // to the Javascript layer before being cleared here.
         mPC->ClearSdpParseErrorMessages();
-        mObserver->OnSetRemoteDescriptionError(
-          PeerConnectionImpl::kInternalError,
-          "Unspecified Error processing setRemoteDescription");
+        mObserver->OnSetRemoteDescriptionError(mCode);
         break;
 
       case ADDICECANDIDATE:
-        mObserver->OnAddIceCandidateSuccess();
+        mObserver->OnAddIceCandidateSuccess(mCode);
         break;
 
       case ADDICECANDIDATEERROR:
-        mObserver->OnAddIceCandidateError(
-          PeerConnectionImpl::kInternalError,
-          "Unspecified Error processing addIceCandidate");
+        mObserver->OnAddIceCandidateError(mCode);
         break;
 
       case REMOTESTREAMADD:
@@ -239,8 +225,7 @@ public:
         break;
 
       default:
-        CSFLogError(logTag, ": **** UNHANDLED CALL STATE : %d (%s)",
-                    mCallState, mStateStr.c_str());
+        CSFLogDebug(logTag, ": **** UNHANDLED CALL STATE : %s", mStateStr.c_str());
         break;
     }
 
@@ -625,22 +610,11 @@ PeerConnectionImpl::CreateFakeMediaStream(uint32_t aHint, nsIDOMMediaStream** aR
   return NS_OK;
 }
 
-// Stubbing this call out for now.
-// We can remove it when we are confident of datachannels being started
-// correctly on SDP negotiation
-NS_IMETHODIMP
-PeerConnectionImpl::ConnectDataConnection(uint16_t aLocalport,
-                                          uint16_t aRemoteport,
-                                          uint16_t aNumstreams)
-{
-  return NS_OK; // InitializeDataChannel(aLocalport, aRemoteport, aNumstreams);
-}
-
 // Data channels won't work without a window, so in order for the C++ unit
 // tests to work (it doesn't have a window available) we ifdef the following
 // two implementations.
-nsresult
-PeerConnectionImpl::InitializeDataChannel(uint16_t aLocalport,
+NS_IMETHODIMP
+PeerConnectionImpl::ConnectDataConnection(uint16_t aLocalport,
                                           uint16_t aRemoteport,
                                           uint16_t aNumstreams)
 {

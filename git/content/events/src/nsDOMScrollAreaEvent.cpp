@@ -20,7 +20,6 @@ nsDOMScrollAreaEvent::nsDOMScrollAreaEvent(mozilla::dom::EventTarget* aOwner,
   , mClientArea(nullptr)
 {
   mClientArea.SetLayoutRect(aEvent ? aEvent->mArea : nsRect());
-  SetIsDOMBinding();
 }
 
 nsDOMScrollAreaEvent::~nsDOMScrollAreaEvent()

@@ -86,7 +86,6 @@ class JS_FRIEND_API(CrossCompartmentWrapper) : public Wrapper
     virtual bool finalizeInBackground(Value priv) MOZ_OVERRIDE;
 
     /* ES5 Harmony fundamental wrapper traps. */
-    virtual bool preventExtensions(JSContext *cx, HandleObject wrapper) MOZ_OVERRIDE;
     virtual bool getPropertyDescriptor(JSContext *cx, HandleObject wrapper, HandleId id,
                                        PropertyDescriptor *desc, unsigned flags) MOZ_OVERRIDE;
     virtual bool getOwnPropertyDescriptor(JSContext *cx, HandleObject wrapper, HandleId id,
@@ -110,7 +109,6 @@ class JS_FRIEND_API(CrossCompartmentWrapper) : public Wrapper
                          MutableHandleValue vp) MOZ_OVERRIDE;
 
     /* Spidermonkey extensions. */
-    virtual bool isExtensible(JSObject *proxy) MOZ_OVERRIDE;
     virtual bool call(JSContext *cx, HandleObject wrapper, unsigned argc, Value *vp) MOZ_OVERRIDE;
     virtual bool construct(JSContext *cx, HandleObject wrapper, unsigned argc, Value *argv,
                            MutableHandleValue rval) MOZ_OVERRIDE;
@@ -145,8 +143,6 @@ class JS_FRIEND_API(SecurityWrapper) : public Base
   public:
     SecurityWrapper(unsigned flags);
 
-    virtual bool isExtensible(JSObject *wrapper) MOZ_OVERRIDE;
-    virtual bool preventExtensions(JSContext *cx, HandleObject wrapper) MOZ_OVERRIDE;
     virtual bool enter(JSContext *cx, HandleObject wrapper, HandleId id, Wrapper::Action act,
                        bool *bp) MOZ_OVERRIDE;
     virtual bool nativeCall(JSContext *cx, IsAcceptableThis test, NativeImpl impl,
@@ -154,8 +150,6 @@ class JS_FRIEND_API(SecurityWrapper) : public Base
     virtual bool objectClassIs(HandleObject obj, ESClassValue classValue,
                                JSContext *cx) MOZ_OVERRIDE;
     virtual bool regexp_toShared(JSContext *cx, HandleObject proxy, RegExpGuard *g) MOZ_OVERRIDE;
-    virtual bool defineProperty(JSContext *cx, HandleObject wrapper, HandleId id,
-                                PropertyDescriptor *desc) MOZ_OVERRIDE;
 
     /*
      * Allow our subclasses to select the superclass behavior they want without
@@ -176,7 +170,6 @@ class JS_FRIEND_API(DeadObjectProxy) : public BaseProxyHandler
     explicit DeadObjectProxy();
 
     /* ES5 Harmony fundamental wrapper traps. */
-    virtual bool preventExtensions(JSContext *cx, HandleObject proxy) MOZ_OVERRIDE;
     virtual bool getPropertyDescriptor(JSContext *cx, HandleObject wrapper, HandleId id,
                                        PropertyDescriptor *desc, unsigned flags) MOZ_OVERRIDE;
     virtual bool getOwnPropertyDescriptor(JSContext *cx, HandleObject wrapper, HandleId id,
@@ -189,7 +182,6 @@ class JS_FRIEND_API(DeadObjectProxy) : public BaseProxyHandler
     virtual bool enumerate(JSContext *cx, HandleObject wrapper, AutoIdVector &props) MOZ_OVERRIDE;
 
     /* Spidermonkey extensions. */
-    virtual bool isExtensible(JSObject *proxy) MOZ_OVERRIDE;
     virtual bool call(JSContext *cx, HandleObject proxy, unsigned argc, Value *vp);
     virtual bool construct(JSContext *cx, HandleObject proxy, unsigned argc,
                            Value *argv, MutableHandleValue rval);

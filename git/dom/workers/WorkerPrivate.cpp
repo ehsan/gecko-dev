@@ -1838,8 +1838,7 @@ WorkerPrivateParent<Derived>::WorkerPrivateParent(
                                      nsCOMPtr<nsIPrincipal>& aPrincipal,
                                      nsCOMPtr<nsIChannel>& aChannel,
                                      nsCOMPtr<nsIContentSecurityPolicy>& aCSP,
-                                     bool aEvalAllowed,
-                                     bool aReportCSPViolations)
+                                     bool aEvalAllowed)
 : EventTarget(aParent ? aCx : NULL), mMutex("WorkerPrivateParent Mutex"),
   mCondVar(mMutex, "WorkerPrivateParent CondVar"),
   mMemoryReportCondVar(mMutex, "WorkerPrivateParent Memory Report CondVar"),
@@ -1849,8 +1848,7 @@ WorkerPrivateParent<Derived>::WorkerPrivateParent(
   mJSRuntimeHeapSize(0), mJSWorkerAllocationThreshold(3),
   mGCZeal(0), mJSObjectRooted(false), mParentSuspended(false),
   mIsChromeWorker(aIsChromeWorker), mPrincipalIsSystem(false),
-  mMainThreadObjectsForgotten(false), mEvalAllowed(aEvalAllowed),
-  mReportCSPViolations(aReportCSPViolations)
+  mMainThreadObjectsForgotten(false), mEvalAllowed(aEvalAllowed)
 {
   MOZ_COUNT_CTOR(mozilla::dom::workers::WorkerPrivateParent);
 
@@ -2428,13 +2426,11 @@ WorkerPrivate::WorkerPrivate(JSContext* aCx, JSObject* aObject,
                              nsCOMPtr<nsIChannel>& aChannel,
                              nsCOMPtr<nsIContentSecurityPolicy>& aCSP,
                              bool aEvalAllowed,
-                             bool aReportCSPViolations,
                              bool aXHRParamsAllowed)
 : WorkerPrivateParent<WorkerPrivate>(aCx, aObject, aParent, aParentJSContext,
                                      aScriptURL, aIsChromeWorker, aDomain,
                                      aWindow, aParentScriptContext, aBaseURI,
-                                     aPrincipal, aChannel, aCSP, aEvalAllowed,
-                                     aReportCSPViolations),
+                                     aPrincipal, aChannel, aCSP, aEvalAllowed),
   mJSContext(nullptr), mErrorHandlerRecursionCount(0), mNextTimeoutId(1),
   mStatus(Pending), mSuspended(false), mTimerRunning(false),
   mRunningExpiredTimeouts(false), mCloseHandlerStarted(false),
@@ -2463,7 +2459,6 @@ WorkerPrivate::Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
   nsCOMPtr<nsIContentSecurityPolicy> csp;
 
   bool evalAllowed = true;
-  bool reportEvalViolations = false;
 
   JSContext* parentContext;
 
@@ -2628,7 +2623,7 @@ WorkerPrivate::Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
       return nullptr;
     }
 
-    if (csp && NS_FAILED(csp->GetAllowsEval(&reportEvalViolations, &evalAllowed))) {
+    if (csp && NS_FAILED(csp->GetAllowsEval(&evalAllowed))) {
       NS_ERROR("CSP: failed to get allowsEval");
       return nullptr;
     }
@@ -2687,8 +2682,7 @@ WorkerPrivate::Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
   nsRefPtr<WorkerPrivate> worker =
     new WorkerPrivate(aCx, aObj, aParent, parentContext, scriptURL,
                       aIsChromeWorker, domain, window, scriptContext, baseURI,
-                      principal, channel, csp, evalAllowed, reportEvalViolations,
-                      xhrParamsAllowed);
+                      principal, channel, csp, evalAllowed, xhrParamsAllowed);
 
   worker->SetIsDOMBinding();
   worker->SetWrapper(aObj);
@@ -3303,11 +3297,11 @@ WorkerPrivate::TraceInternal(JSTracer* aTrc)
 
   for (uint32_t index = 0; index < mTimeouts.Length(); index++) {
     TimeoutInfo* info = mTimeouts[index];
-    JS_CallValueTracer(aTrc, info->mTimeoutVal,
-                       "WorkerPrivate timeout value");
+    JS_CALL_VALUE_TRACER(aTrc, info->mTimeoutVal,
+                         "WorkerPrivate timeout value");
     for (uint32_t index2 = 0; index2 < info->mExtraArgVals.Length(); index2++) {
-      JS_CallValueTracer(aTrc, info->mExtraArgVals[index2],
-                         "WorkerPrivate timeout extra argument value");
+      JS_CALL_VALUE_TRACER(aTrc, info->mExtraArgVals[index2],
+                           "WorkerPrivate timeout extra argument value");
     }
   }
 }

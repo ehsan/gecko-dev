@@ -548,6 +548,8 @@ class JSObject : public js::ObjectImpl
     static inline unsigned getSealedOrFrozenAttributes(unsigned attrs, ImmutabilityType it);
 
   public:
+    bool preventExtensions(JSContext *cx);
+
     /* ES5 15.2.3.8: non-extensible, all props non-configurable */
     static inline bool seal(JSContext *cx, js::HandleObject obj) { return sealOrFreeze(cx, obj, SEAL); }
     /* ES5 15.2.3.9: non-extensible, all properties non-configurable, all data props read-only */
@@ -958,7 +960,7 @@ class JSObject : public js::ObjectImpl
     inline bool isObject() const;
     inline bool isPrimitive() const;
     inline bool isPropertyIterator() const;
-    using js::ObjectImpl::isProxy;
+    inline bool isProxy() const;
     inline bool isRegExp() const;
     inline bool isRegExpStatics() const;
     inline bool isScope() const;
@@ -1153,10 +1155,6 @@ js_AddNativeProperty(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
 extern JSBool
 js_DefineOwnProperty(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
                      const JS::Value &descriptor, JSBool *bp);
-
-extern JSBool
-js_DefineOwnProperty(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
-                     const js::PropertyDescriptor &descriptor, JSBool *bp);
 
 namespace js {
 

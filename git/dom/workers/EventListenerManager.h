@@ -8,7 +8,7 @@
 
 #include "mozilla/dom/workers/Workers.h"
 
-#include "mozilla/LinkedList.h"
+#include "prclist.h"
 
 #include "mozilla/ErrorResult.h"
 
@@ -20,15 +20,12 @@ class EventTarget;
 // XXX Current impl doesn't handle event target chains.
 class EventListenerManager
 {
-public:
-  struct ListenerCollection;
-
-private:
-  LinkedList<ListenerCollection> mCollections;
+  PRCList mCollectionHead;
 
 public:
   EventListenerManager()
   {
+    PR_INIT_CLIST(&mCollectionHead);
   }
 
 #ifdef DEBUG
@@ -38,7 +35,7 @@ public:
   void
   _trace(JSTracer* aTrc) const
   {
-    if (!mCollections.isEmpty()) {
+    if (!PR_CLIST_IS_EMPTY(&mCollectionHead)) {
       TraceInternal(aTrc);
     }
   }
@@ -46,7 +43,7 @@ public:
   void
   _finalize(JSFreeOp* aFop)
   {
-    if (!mCollections.isEmpty()) {
+    if (!PR_CLIST_IS_EMPTY(&mCollectionHead)) {
       FinalizeInternal(aFop);
     }
   }
@@ -71,7 +68,7 @@ public:
   RemoveEventListener(JSContext* aCx, const jsid& aType, JSObject* aListener,
                       bool aCapturing)
   {
-    if (mCollections.isEmpty()) {
+    if (PR_CLIST_IS_EMPTY(&mCollectionHead)) {
       return;
     }
     Remove(aCx, aType, aListener, aCapturing ? Capturing : Bubbling, true);
@@ -101,7 +98,7 @@ public:
   bool
   HasListeners() const
   {
-    return !mCollections.isEmpty();
+    return !PR_CLIST_IS_EMPTY(&mCollectionHead);
   }
 
   bool

@@ -26,7 +26,6 @@
 #include "transportflow.h"
 #include "transportlayerprsock.h"
 #include "transportlayerdtls.h"
-#include "mozilla/SyncRunnable.h"
 
 
 #include "mtransport_test_utils.h"
@@ -65,10 +64,9 @@ class TestAgent {
     res = audio_prsock_->Init();
     ASSERT_EQ((nsresult)NS_OK, res);
 
-    mozilla::SyncRunnable::DispatchToThread(
-      test_utils->sts_target(),
-      WrapRunnable(audio_prsock_, &TransportLayerPrsock::Import, fd, &res));
-
+    test_utils->sts_target()->Dispatch(
+        WrapRunnable(audio_prsock_, &TransportLayerPrsock::Import,
+                     fd, &res), NS_DISPATCH_SYNC);
     ASSERT_TRUE(NS_SUCCEEDED(res));
 
     ASSERT_EQ((nsresult)NS_OK, audio_flow_->PushLayer(audio_prsock_));
@@ -89,10 +87,10 @@ class TestAgent {
 
     MOZ_MTLOG(PR_LOG_DEBUG, "Starting");
 
-    mozilla::SyncRunnable::DispatchToThread(
-      test_utils->sts_target(),
-      WrapRunnableRet(audio_->GetStream(), &Fake_MediaStream::Start, &ret));
-
+    test_utils->sts_target()->Dispatch(
+        WrapRunnableRet(audio_->GetStream(),
+                        &Fake_MediaStream::Start, &ret),
+        NS_DISPATCH_SYNC);
     ASSERT_TRUE(NS_SUCCEEDED(ret));
   }
 
@@ -109,9 +107,9 @@ class TestAgent {
   void Stop() {
     MOZ_MTLOG(PR_LOG_DEBUG, "Stopping");
 
-    mozilla::SyncRunnable::DispatchToThread(
-      test_utils->sts_target(),
-      WrapRunnable(this, &TestAgent::StopInt));
+    test_utils->sts_target()->Dispatch(
+        WrapRunnable(this, &TestAgent::StopInt),
+        NS_DISPATCH_SYNC);
 
     if (audio_pipeline_)
       audio_pipeline_->ShutdownMedia_m();
@@ -214,21 +212,19 @@ class MediaPipelineTest : public ::testing::Test {
     PRStatus status = PR_NewTCPSocketPair(fds_);
     ASSERT_EQ(status, PR_SUCCESS);
 
-    mozilla::SyncRunnable::DispatchToThread(
-      test_utils->sts_target(),
-      WrapRunnable(&p1_, &TestAgent::ConnectSocket, fds_[0], false));
+    test_utils->sts_target()->Dispatch(
+      WrapRunnable(&p1_, &TestAgent::ConnectSocket, fds_[0], false),
+      NS_DISPATCH_SYNC);
+    test_utils->sts_target()->Dispatch(
+      WrapRunnable(&p2_, &TestAgent::ConnectSocket, fds_[1], false),
+      NS_DISPATCH_SYNC);
 
-    mozilla::SyncRunnable::DispatchToThread(
-      test_utils->sts_target(),
-      WrapRunnable(&p2_, &TestAgent::ConnectSocket, fds_[1], false));
-
-    mozilla::SyncRunnable::DispatchToThread(
-      test_utils->sts_target(),
-      WrapRunnable(&p1_, &TestAgent::CreatePipelines_s));
-
-    mozilla::SyncRunnable::DispatchToThread(
-      test_utils->sts_target(),
-      WrapRunnable(&p2_, &TestAgent::CreatePipelines_s));
+    test_utils->sts_target()->Dispatch(
+      WrapRunnable(&p1_, &TestAgent::CreatePipelines_s),
+      NS_DISPATCH_SYNC);
+    test_utils->sts_target()->Dispatch(
+      WrapRunnable(&p2_, &TestAgent::CreatePipelines_s),
+      NS_DISPATCH_SYNC);
   }
 
  protected:

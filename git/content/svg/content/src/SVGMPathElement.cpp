@@ -66,6 +66,7 @@ SVGMPathElement::SVGMPathElement(already_AddRefed<nsINodeInfo> aNodeInfo)
 #pragma warning(pop)
 #endif
 {
+  SetIsDOMBinding();
 }
 
 SVGMPathElement::~SVGMPathElement()

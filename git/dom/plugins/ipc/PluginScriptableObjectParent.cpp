@@ -1038,7 +1038,11 @@ PluginScriptableObjectParent::AnswerEnumerate(InfallibleTArray<PPluginIdentifier
     return true;
   }
 
-  aProperties->SetCapacity(idCount);
+  if (!aProperties->SetCapacity(idCount)) {
+    npn->memfree(ids);
+    *aSuccess = false;
+    return true;
+  }
 
   JSContext* cx = GetJSContext(instance->GetNPP());
   JSAutoRequest ar(cx);

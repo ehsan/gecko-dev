@@ -4,29 +4,21 @@
 
 <!-- contributed by Felipe Gomes [felipc@gmail.com]  -->
 
-The `windows` module provides basic functions for working with browser
-windows. With this module, you can:
 
-* [enumerate the currently opened browser windows](modules/sdk/windows.html#browserWindows)
-* [open new browser windows](modules/sdk/windows.html#open(options))
-* [listen for common window events such as open and close](modules/sdk/windows.html#Events)
+The `windows` module provides easy access to browser windows, their
+tabs, and open/close related functions and events.
 
-## Private Windows ##
-
-If your add-on has not opted into private browsing, then you won't see any
-private browser windows. Private browser windows won't appear in the
-[`browserWindows`](modules/sdk/windows.html#browserWindows) property, you
-won't receive any window events, and you won't be able to open private 
-windows.
-
-To learn more about private windows, how to opt into private browsing, and how
-to support private browsing, refer to the
-[documentation for the `private-browsing` module](modules/sdk/private-browsing.html).
+This module currently only supports browser windows and does not provide
+access to non-browser windows such as the Bookmarks Library, preferences
+or other non-browser windows created via add-ons.
 
 <api name="browserWindows">
 @property {List}
-`browserWindows` provides access to all the currently open browser windows as
-[BrowserWindow](modules/sdk/windows.html#BrowserWindow) objects.
+An object that contains various properties and methods to access
+functionality from browser windows, such as opening new windows, accessing
+their tabs or switching the current active window.
+
+`browserWindows` provides access to all the currently open browser windows:
 
     var windows = require("sdk/windows");
     for each (var window in windows.browserWindows) {
@@ -35,7 +27,9 @@ to support private browsing, refer to the
 
     console.log(windows.browserWindows.length);
 
-This object emits all the events listed under the "Events" section:
+Object emits all the events listed under "Events" section.
+
+####Examples####
 
     var windows = require("sdk/windows").browserWindows;
 
@@ -125,8 +119,8 @@ String URL to be opened in the new window.
 This is a required property.
 
 @prop isPrivate {boolean}
-Boolean which will determine whether the new window should be private or not.
-If your add-on does not support private browsing this will have no effect.
+Boolean which will determine if a private window should be opened.
+Private browsing mode must be supported in order to do this.
 See the [private-browsing](modules/sdk/private-browsing.html) documentation for more information.
 
 @prop [onOpen] {function}
@@ -191,7 +185,8 @@ Returns `true` if the window is in private browsing mode, and `false` otherwise.
 
 <div class="warning">
   This property is deprecated.
-  From version 1.14, use the <a href="modules/sdk/private-browsing.html#isPrivate()">private-browsing module's <code>isPrivate()</code></a> function instead.
+  From version 1.14, please consider using following code instead:<br/>
+  <code>require("private-browsing").isPrivate(browserWindow)</code>
 </div>
 
 </api>

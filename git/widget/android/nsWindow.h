@@ -185,7 +185,6 @@ protected:
     nsString mIMEComposingText;
     nsAutoTArray<nsTextRange, 4> mIMERanges;
     bool mIMEUpdatingContext;
-    nsAutoTArray<mozilla::AndroidGeckoEvent, 8> mIMEKeyEvents;
 
     struct IMEChange {
         int32_t mStart, mOldEnd, mNewEnd;

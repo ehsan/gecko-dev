@@ -127,7 +127,6 @@ class GlyphMetricsUpdater : public nsRunnable {
 public:
   NS_DECL_NSIRUNNABLE
   GlyphMetricsUpdater(nsSVGTextFrame2* aFrame) : mFrame(aFrame) { }
-  static void Run(nsSVGTextFrame2* aFrame);
   void Revoke() { mFrame = nullptr; }
 private:
   nsSVGTextFrame2* mFrame;
@@ -259,8 +258,7 @@ public:
   // SVG DOM text methods:
   uint32_t GetNumberOfChars(nsIContent* aContent);
   float GetComputedTextLength(nsIContent* aContent);
-  nsresult GetSubStringLength(nsIContent* aContent, uint32_t charnum,
-                              uint32_t nchars, float* aResult);
+  float GetSubStringLength(nsIContent* aContent, uint32_t charnum, uint32_t nchars);
   int32_t GetCharNumAtPosition(nsIContent* aContent, mozilla::nsISVGPoint* point);
 
   nsresult GetStartPositionOfChar(nsIContent* aContent, uint32_t aCharNum,
@@ -276,16 +274,9 @@ public:
 
   /**
    * Schedules mPositions to be recomputed and the covered region to be
-   * updated.  The aFlags argument can take the ePositioningDirtyDueToMutation
-   * value to indicate that glyph metrics need to be recomputed due to
-   * a DOM mutation in the <text> element on one of its descendants.
+   * updated.
    */
-  void NotifyGlyphMetricsChange(uint32_t aFlags = 0);
-
-  /**
-   * Enum for NotifyGlyphMetricsChange's aFlags argument.
-   */
-  enum { ePositioningDirtyDueToMutation = 1 };
+  void NotifyGlyphMetricsChange();
 
   /**
    * Updates the mFontSizeScaleFactor value by looking at the range of

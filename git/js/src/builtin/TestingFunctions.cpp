@@ -660,6 +660,8 @@ static const struct TraceKindPair {
 static JSBool
 CountHeap(JSContext *cx, unsigned argc, jsval *vp)
 {
+    void* startThing;
+    JSGCTraceKind startTraceKind;
     jsval v;
     int32_t traceKind;
     JSString *str;
@@ -667,11 +669,13 @@ CountHeap(JSContext *cx, unsigned argc, jsval *vp)
     JSCountHeapNode *node;
     size_t counter;
 
-    Value startValue = UndefinedValue();
+    startThing = NULL;
+    startTraceKind = JSTRACE_OBJECT;
     if (argc > 0) {
         v = JS_ARGV(cx, vp)[0];
         if (JSVAL_IS_TRACEABLE(v)) {
-            startValue = v;
+            startThing = JSVAL_TO_TRACEABLE(v);
+            startTraceKind = JSVAL_TRACE_KIND(v);
         } else if (!JSVAL_IS_NULL(v)) {
             JS_ReportError(cx,
                            "the first argument is not null or a heap-allocated "
@@ -711,10 +715,11 @@ CountHeap(JSContext *cx, unsigned argc, jsval *vp)
     countTracer.traceList = NULL;
     countTracer.recycleList = NULL;
 
-    if (startValue.isUndefined()) {
+    if (!startThing) {
         JS_TraceRuntime(&countTracer.base);
     } else {
-        JS_CallValueTracer(&countTracer.base, startValue, "root");
+        JS_SET_TRACING_NAME(&countTracer.base, "root");
+        JS_CallTracer(&countTracer.base, startThing, startTraceKind);
     }
 
     counter = 0;

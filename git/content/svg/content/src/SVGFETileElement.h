@@ -16,7 +16,8 @@ namespace dom {
 
 typedef nsSVGFE SVGFETileElementBase;
 
-class SVGFETileElement : public SVGFETileElementBase
+class SVGFETileElement : public SVGFETileElementBase,
+                         public nsIDOMSVGElement
 {
   friend nsresult (::NS_NewSVGFETileElement(nsIContent **aResult,
                                             already_AddRefed<nsINodeInfo> aNodeInfo));
@@ -24,11 +25,15 @@ protected:
   SVGFETileElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : SVGFETileElementBase(aNodeInfo)
   {
+    SetIsDOMBinding();
   }
   virtual JSObject* WrapNode(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
 
 public:
   virtual bool SubregionIsUnionOfRegions() { return false; }
+
+  // interfaces:
+  NS_DECL_ISUPPORTS_INHERITED
 
   virtual nsresult Filter(nsSVGFilterInstance* aInstance,
                           const nsTArray<const Image*>& aSources,
@@ -45,7 +50,14 @@ public:
   virtual nsIntRect ComputeChangeBBox(const nsTArray<nsIntRect>& aSourceChangeBoxes,
           const nsSVGFilterInstance& aInstance);
 
+  NS_FORWARD_NSIDOMSVGELEMENT(SVGFETileElementBase::)
+
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+
+  virtual nsIDOMNode* AsDOMNode() { return this; }
 
   // WebIDL
   already_AddRefed<nsIDOMSVGAnimatedString> In1();

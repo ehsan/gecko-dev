@@ -992,24 +992,6 @@ js_DefineOwnProperty(JSContext *cx, HandleObject obj, HandleId id, const Value &
     return true;
 }
 
-JSBool
-js_DefineOwnProperty(JSContext *cx, HandleObject obj, HandleId id,
-                     const PropertyDescriptor &descriptor, JSBool *bp)
-{
-    AutoPropDescArrayRooter descs(cx);
-    PropDesc *desc = descs.append();
-    if (!desc)
-        return false;
-
-    desc->initFromPropertyDescriptor(descriptor);
-
-    bool rval;
-    if (!DefineProperty(cx, obj, id, *desc, true, &rval))
-        return false;
-    *bp = !!rval;
-    return true;
-}
-
 
 bool
 js::ReadPropertyDescriptors(JSContext *cx, HandleObject props, bool checkAccessors,
@@ -1072,7 +1054,7 @@ JSObject::sealOrFreeze(JSContext *cx, HandleObject obj, ImmutabilityType it)
     assertSameCompartment(cx, obj);
     JS_ASSERT(it == SEAL || it == FREEZE);
 
-    if (obj->isExtensible() && !JSObject::preventExtensions(cx, obj))
+    if (obj->isExtensible() && !obj->preventExtensions(cx))
         return false;
 
     AutoIdVector props(cx);

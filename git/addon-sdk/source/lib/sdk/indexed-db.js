@@ -58,6 +58,7 @@ exports.IDBTransaction = Ci.nsIIDBTransaction;
 exports.IDBOpenDBRequest = Ci.nsIIDBOpenDBRequest;
 exports.IDBVersionChangeEvent = Ci.nsIIDBVersionChangeEvent;
 exports.IDBDatabase = Ci.nsIIDBDatabase;
+exports.IDBFactory = Ci.nsIIDBFactory;
 exports.IDBIndex = Ci.nsIIDBIndex;
 exports.IDBObjectStore = Ci.nsIIDBObjectStore;
 exports.IDBRequest = Ci.nsIIDBRequest;

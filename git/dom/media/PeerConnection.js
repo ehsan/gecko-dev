@@ -478,16 +478,26 @@ PeerConnection.prototype = {
     this._onCreateAnswerFailure = onError;
 
     if (!this.remoteDescription) {
+      this._observer.onCreateAnswerError(3); // PC_INVALID_REMOTE_SDP
+      /*
+        This needs to be matched to spec -- see bug 834270. The final
+        code will be of the form:
 
-      this._observer.onCreateAnswerError(Ci.IPeerConnection.kInvalidState,
+      this._observer.onCreateAnswerError(ci.IPeerConnection.kInvalidState,
                                          "setRemoteDescription not called");
+      */
       return;
     }
 
     if (this.remoteDescription.type != "offer") {
+      this._observer.onCreateAnswerError(3); // PC_INVALID_REMOTE_SDP
+      /*
+        This needs to be matched to spec -- see bug 834270. The final
+        code will be of the form:
 
-      this._observer.onCreateAnswerError(Ci.IPeerConnection.kInvalidState,
+      this._observer.onCreateAnswerError(ci.IPeerConnection.kInvalidState,
                                          "No outstanding offer");
+      */
       return;
     }
 
@@ -605,8 +615,11 @@ PeerConnection.prototype = {
   },
 
   removeStream: function(stream) {
-     //Bug844295: Not implemeting this functionality.
-     return Cr.NS_ERROR_NOT_IMPLEMENTED;
+    this._queueOrRun({
+      func: this._pc.removeStream,
+      args: [stream],
+      wait: false
+    });
   },
 
   close: function() {
@@ -650,34 +663,6 @@ PeerConnection.prototype = {
       type: this._remoteType, sdp: sdp,
       __exposedProps__: { type: "rw", sdp: "rw" }
     };
-  },
-
-  get readyState() {
-    // checking for our local pc closed indication
-    // before invoking the pc methods.
-    if(this._closed) {
-      return "closed";
-    }
-
-    var state="undefined";
-    switch (this._pc.readyState) {
-      case Ci.IPeerConnection.kNew:
-        state = "new";
-        break;
-      case Ci.IPeerConnection.kNegotiating:
-        state = "negotiating";
-        break;
-      case Ci.IPeerConnection.kActive:
-        state = "active";
-        break;
-      case Ci.IPeerConnection.kClosing:
-        state = "closing";
-        break;
-      case Ci.IPeerConnection.kClosed:
-        state = "closed";
-        break;
-    }
-    return state;
   },
 
   createDataChannel: function(label, dict) {
@@ -728,39 +713,6 @@ PeerConnectionObserver.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.IPeerConnectionObserver,
                                          Ci.nsISupportsWeakReference]),
 
-  // These strings must match those defined in the WebRTC spec.
-  reasonName: [
-    "NO_ERROR", // Should never happen -- only used for testing
-    "INVALID_CONSTRAINTS_TYPE",
-    "INVALID_CANDIDATE_TYPE",
-    "INVALID_MEDIASTREAM_TRACK",
-    "INVALID_STATE",
-    "INVALID_SESSION_DESCRIPTION",
-    "INCOMPATIBLE_SESSION_DESCRIPTION",
-    "INCOMPATIBLE_CONSTRAINTS",
-    "INCOMPATIBLE_MEDIASTREAMTRACK",
-    "INTERNAL_ERROR"
-  ],
-
-  callErrorCallback: function(callback, code, message) {
-    if (code > Ci.IPeerConnection.kMaxErrorType) {
-      code = Ci.IPeerConnection.kInternalError;
-    }
-
-    if (typeof message !== "string") {
-      message = this.reasonName[code];
-    }
-
-    if (callback) {
-      try {
-        callback.onCallback({
-          name: this.reasonName[code], message: message,
-          __exposedProps__: { name: "rw", message: "rw" }
-        });
-      } catch(e) {}
-    }
-  },
-
   onCreateOfferSuccess: function(offer) {
     if (this._dompc._onCreateOfferSuccess) {
       try {
@@ -773,8 +725,12 @@ PeerConnectionObserver.prototype = {
     this._dompc._executeNext();
   },
 
-  onCreateOfferError: function(code, message) {
-    this.callErrorCallback (this._dompc._onCreateOfferFailure, code, message);
+  onCreateOfferError: function(code) {
+    if (this._dompc._onCreateOfferFailure) {
+      try {
+        this._dompc._onCreateOfferFailure.onCallback(code);
+      } catch(e) {}
+    }
     this._dompc._executeNext();
   },
 
@@ -790,58 +746,68 @@ PeerConnectionObserver.prototype = {
     this._dompc._executeNext();
   },
 
-  onCreateAnswerError: function(code, message) {
-    this.callErrorCallback (this._dompc._onCreateAnswerFailure, code, message);
+  onCreateAnswerError: function(code) {
+    if (this._dompc._onCreateAnswerFailure) {
+      try {
+        this._dompc._onCreateAnswerFailure.onCallback(code);
+      } catch(e) {}
+    }
     this._dompc._executeNext();
   },
 
-  onSetLocalDescriptionSuccess: function() {
+  onSetLocalDescriptionSuccess: function(code) {
     this._dompc._localType = this._dompc._pendingType;
     this._dompc._pendingType = null;
     if (this._dompc._onSetLocalDescriptionSuccess) {
       try {
-        this._dompc._onSetLocalDescriptionSuccess.onCallback();
+        this._dompc._onSetLocalDescriptionSuccess.onCallback(code);
       } catch(e) {}
     }
     this._dompc._executeNext();
   },
 
-  onSetRemoteDescriptionSuccess: function() {
+  onSetRemoteDescriptionSuccess: function(code) {
     this._dompc._remoteType = this._dompc._pendingType;
     this._dompc._pendingType = null;
     if (this._dompc._onSetRemoteDescriptionSuccess) {
       try {
-        this._dompc._onSetRemoteDescriptionSuccess.onCallback();
+        this._dompc._onSetRemoteDescriptionSuccess.onCallback(code);
       } catch(e) {}
     }
     this._dompc._executeNext();
   },
 
-  onSetLocalDescriptionError: function(code, message) {
+  onSetLocalDescriptionError: function(code) {
     this._dompc._pendingType = null;
-    this.callErrorCallback (this._dompc._onSetLocalDescriptionFailure, code,
-                            message);
-    this._dompc._executeNext();
-  },
-
-  onSetRemoteDescriptionError: function(code, message) {
-    this._dompc._pendingType = null;
-    this.callErrorCallback (this._dompc._onSetRemoteDescriptionFailure, code,
-                            message);
-    this._dompc._executeNext();
-  },
-
-  onAddIceCandidateSuccess: function() {
-    this._dompc._pendingType = null;
-    if (this._dompc._onAddIceCandidateSuccess) {
-      this._dompc._onAddIceCandidateSuccess.onCallback();
+    if (this._dompc._onSetLocalDescriptionFailure) {
+      try {
+        this._dompc._onSetLocalDescriptionFailure.onCallback(code);
+      } catch(e) {}
     }
     this._dompc._executeNext();
   },
 
-  onAddIceCandidateError: function(code, message) {
+  onSetRemoteDescriptionError: function(code) {
     this._dompc._pendingType = null;
-    this.callErrorCallback (this._dompc._onAddIceCandidateError, code, message);
+    if (this._dompc._onSetRemoteDescriptionFailure) {
+      this._dompc._onSetRemoteDescriptionFailure.onCallback(code);
+    }
+    this._dompc._executeNext();
+  },
+
+  onAddIceCandidateSuccess: function(code) {
+    this._dompc._pendingType = null;
+    if (this._dompc._onAddIceCandidateSuccess) {
+      this._dompc._onAddIceCandidateSuccess.onCallback(code);
+    }
+    this._dompc._executeNext();
+  },
+
+  onAddIceCandidateError: function(code) {
+    this._dompc._pendingType = null;
+    if (this._dompc._onAddIceCandidateError) {
+      this._dompc._onAddIceCandidateError.onCallback(code);
+    }
     this._dompc._executeNext();
   },
 

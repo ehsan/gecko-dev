@@ -677,20 +677,8 @@ struct GetPropHelper {
 
     LookupStatus lookup() {
         RootedObject aobj(cx, obj);
-        if (IsCacheableListBase(obj)) {
-            Value expandoValue = obj->getFixedSlot(GetListBaseExpandoSlot());
-
-            // Expando objects just hold any extra properties the object has been given by a
-            // script, and have no prototype or anything else that will complicate property
-            // lookups on them.
-            JS_ASSERT_IF(expandoValue.isObject(),
-                         expandoValue.toObject().isNative() && !expandoValue.toObject().getProto());
-
-            if (expandoValue.isObject() && expandoValue.toObject().nativeContains(cx, name))
-                return Lookup_Uncacheable;
-
+        if (IsCacheableListBase(obj))
             aobj = obj->getTaggedProto().toObjectOrNull();
-        }
 
         if (!aobj->isNative())
             return ic.disable(f, "non-native");
@@ -1305,11 +1293,14 @@ class GetPropCompiler : public PICStubCompiler
             Address expandoAddress(pic.objReg, JSObject::getFixedSlotOffset(GetListBaseExpandoSlot()));
 
             Value expandoValue = obj->getFixedSlot(GetListBaseExpandoSlot());
-            if (expandoValue.isObject()) {
-                JS_ASSERT(!expandoValue.toObject().nativeContains(cx, name));
+            JSObject *expando = expandoValue.isObject() ? &expandoValue.toObject() : NULL;
 
-                // Reference object has an expando object that doesn't define the name. Check that
-                // the incoming object has an expando object with the same shape.
+            // Expando objects just hold any extra properties the object has
+            // been given by a script, and have no prototype or anything else
+            // that will complicate property lookups on them.
+            JS_ASSERT_IF(expando, expando->isNative() && expando->getProto() == NULL);
+
+            if (expando && !expando->nativeContains(cx, name)) {
                 Jump expandoGuard = masm.testObject(Assembler::NotEqual, expandoAddress);
                 if (!shapeMismatches.append(expandoGuard))
                     return error();
@@ -1319,12 +1310,10 @@ class GetPropCompiler : public PICStubCompiler
 
                 Jump shapeGuard = masm.branchPtr(Assembler::NotEqual,
                                                  Address(pic.shapeReg, JSObject::offsetOfShape()),
-                                                 ImmPtr(expandoValue.toObject().lastProperty()));
+                                                 ImmPtr(expando->lastProperty()));
                 if (!shapeMismatches.append(shapeGuard))
                     return error();
             } else {
-                // If the incoming object does not have an expando object then
-                // we're sure we're not shadowing.
                 Jump expandoGuard = masm.testUndefined(Assembler::NotEqual, expandoAddress);
                 if (!shapeMismatches.append(expandoGuard))
                     return error();

@@ -816,7 +816,16 @@ class Mochitest(object):
 
     options.logFile = options.logFile.replace("\\", "\\\\")
     options.testPath = options.testPath.replace("\\", "\\\\")
-    testRoot = self.getTestRoot(options)
+    testRoot = 'chrome'
+    if (options.browserChrome):
+      if (options.immersiveMode):
+        testRoot = 'metro'
+      else:
+        testRoot = 'browser'
+    elif (options.a11y):
+      testRoot = 'a11y'
+    elif (options.webapprtChrome):
+      testRoot = 'webapprtChrome'
 
     if "MOZ_HIDE_RESULTS_TABLE" in os.environ and os.environ["MOZ_HIDE_RESULTS_TABLE"] == "1":
       options.hideResultsTable = True
@@ -838,19 +847,6 @@ class Mochitest(object):
 
     with open(os.path.join(options.profilePath, "testConfig.js"), "w") as config:
       config.write(content)
-
-  def getTestRoot(self, options):
-    if (options.browserChrome):
-      if (options.immersiveMode):
-        return 'metro'
-      return 'browser'
-    elif (options.a11y):
-      return 'a11y'
-    elif (options.webapprtChrome):
-      return 'webapprtChrome'
-    elif (options.chrome):
-      return 'chrome'
-    return self.TEST_PATH
 
   def addChromeToProfile(self, options):
     "Adds MochiKit chrome tests to the profile."
@@ -943,9 +939,16 @@ overlay chrome://webapprt/content/webapp.xul chrome://mochikit/content/browser-t
         self.automation.log.warning("WARNING | runtests.py | Failed to copy %s to profile", abspath)
         continue
 
-  def getExtensionsToInstall(self, options):
-    "Return a list of extensions to install in the profile"
-    extensions = options.extensionsToInstall or []
+  def installExtensionFromPath(self, options, path, extensionID = None):
+    extensionPath = self.getFullPath(path)
+
+    self.automation.log.info("INFO | runtests.py | Installing extension at %s to %s." %
+                            (extensionPath, options.profilePath))
+    self.automation.installExtension(extensionPath, options.profilePath,
+                                     extensionID)
+
+  def installExtensionsToProfile(self, options):
+    "Install special testing extensions, application distributed extensions, and specified on the command line ones to testing profile."
     extensionDirs = [
       # Extensions distributed with the test harness.
       os.path.normpath(os.path.join(self.SCRIPT_DIRECTORY, "extensions")),
@@ -959,20 +962,10 @@ overlay chrome://webapprt/content/webapp.xul chrome://mochikit/content/browser-t
           if dirEntry not in options.extensionsToExclude:
             path = os.path.join(extensionDir, dirEntry)
             if os.path.isdir(path) or (os.path.isfile(path) and path.endswith(".xpi")):
-              extensions.append(path)
-    return extensions
+              self.installExtensionFromPath(options, path)
 
-  def installExtensionFromPath(self, options, path, extensionID = None):
-    extensionPath = self.getFullPath(path)
-
-    self.automation.log.info("INFO | runtests.py | Installing extension at %s to %s." %
-                            (extensionPath, options.profilePath))
-    self.automation.installExtension(extensionPath, options.profilePath,
-                                     extensionID)
-
-  def installExtensionsToProfile(self, options):
-    "Install special testing extensions, application distributed extensions, and specified on the command line ones to testing profile."
-    for path in self.getExtensionsToInstall(options):
+    # Install custom extensions passed on the command line.
+    for path in options.extensionsToInstall:
       self.installExtensionFromPath(options, path)
 
 def main():

@@ -7,7 +7,7 @@ const { Cc, Ci } = require('chrome');
 const { Class } = require('../core/heritage');
 const { tabNS, rawTabNS } = require('./namespace');
 const { EventTarget } = require('../event/target');
-const { activateTab, getTabTitle, setTabTitle, closeTab, getTabURL, getTabContentWindow,
+const { activateTab, getTabTitle, setTabTitle, closeTab, getTabURL, getContentWindowForTab,
         getTabForBrowser,
         setTabURL, getOwnerWindow, getTabContentType, getTabId } = require('./utils');
 const { emit } = require('../event/core');
@@ -129,7 +129,7 @@ const Tab = Class({
     // BUG 792946 https://bugzilla.mozilla.org/show_bug.cgi?id=792946
     // TODO: fix this circular dependency
     let { Worker } = require('./worker');
-    return Worker(options, getTabContentWindow(tabNS(this).tab));
+    return Worker(options, tabNS(this).tab.browser.contentWindow);
   },
 
   /**
@@ -194,5 +194,5 @@ function onTabClose(event) {
 };
 
 getPBOwnerWindow.define(Tab, function(tab) {
-  return getTabContentWindow(tabNS(tab).tab);
+  return getContentWindowForTab(tabNS(tab).tab);
 });

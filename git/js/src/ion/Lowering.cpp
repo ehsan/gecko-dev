@@ -646,24 +646,10 @@ LIRGenerator::visitTest(MTest *test)
 }
 
 bool
-LIRGenerator::visitFunctionDispatch(MFunctionDispatch *ins)
-{
-    LFunctionDispatch *lir = new LFunctionDispatch(useRegister(ins->input()));
-    return add(lir, ins);
-}
-
-bool
-LIRGenerator::visitTypeObjectDispatch(MTypeObjectDispatch *ins)
-{
-    LTypeObjectDispatch *lir = new LTypeObjectDispatch(useRegister(ins->input()), temp());
-    return add(lir, ins);
-}
-
-bool
 LIRGenerator::visitPolyInlineDispatch(MPolyInlineDispatch *ins)
 {
     LDefinition tempDef = LDefinition::BogusTemp();
-    if (ins->propTable())
+    if (ins->inlinePropertyTable())
         tempDef = temp();
     LPolyInlineDispatch *lir = new LPolyInlineDispatch(useRegister(ins->input()), tempDef);
     return add(lir, ins);

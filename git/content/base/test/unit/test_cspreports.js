@@ -45,6 +45,7 @@ function makeReportHandler(testpath, message, expectedJSON) {
     for (var i in expectedJSON)
       do_check_eq(expectedJSON[i], reportObj['csp-report'][i]);
 
+    // self-destroy
     testsToFinish--;
     httpServer.registerPathHandler(testpath, null);
     if (testsToFinish < 1)
@@ -54,12 +55,7 @@ function makeReportHandler(testpath, message, expectedJSON) {
   };
 }
 
-/**
- * Everything created by this assumes it will cause a report.  If you want to
- * add a test here that will *not* cause a report to go out, you're gonna have
- * to make sure the test cleans up after itself.
- */
-function makeTest(id, expectedJSON, useReportOnlyPolicy, callback) {
+function makeTest(id, expectedJSON, callback) {
   testsToFinish++;
   do_test_pending();
 
@@ -83,9 +79,6 @@ function makeTest(id, expectedJSON, useReportOnlyPolicy, callback) {
   // Load up the policy
   csp.refinePolicy(policy, selfuri, false);
 
-  // set as report-only if that's the case
-  if (useReportOnlyPolicy) csp.reportOnlyMode = true;
-
   // prime the report server
   var handler = makeReportHandler("/test" + id, "Test " + id, expectedJSON);
   httpServer.registerPathHandler("/test" + id, handler);
@@ -103,82 +96,32 @@ function run_test() {
   httpServer.start(REPORT_SERVER_PORT);
 
   // test that inline script violations cause a report.
-  makeTest(0, {"blocked-uri": "self"}, false,
+  makeTest(0, {"blocked-uri": "self"},
       function(csp) {
-        let inlineOK = true, oReportViolation = {};
-        inlineOK = csp.getAllowsInlineScript(oReportViolation);
-
-        // this is not a report only policy, so it better block inline scripts
-        do_check_false(inlineOK);
-        // ... and cause reports to go out
-        do_check_true(oReportViolation.value);
-
-        // force the logging, since the getter doesn't.
-        csp.logViolationDetails(Ci.nsIContentSecurityPolicy.VIOLATION_TYPE_INLINE_SCRIPT,
-                                selfuri.asciiSpec,
-                                "script sample",
-                                0);
+        if(!csp.allowsInlineScript) {
+          // force the logging, since the getter doesn't.
+          csp.logViolationDetails(Ci.nsIContentSecurityPolicy.VIOLATION_TYPE_INLINE_SCRIPT,
+                                  selfuri.asciiSpec,
+                                  "script sample",
+                                  0);
+        }
       });
 
-  // test that eval violations cause a report.
-  makeTest(1, {"blocked-uri": "self"}, false,
+  makeTest(1, {"blocked-uri": "self"},
       function(csp) {
-        let evalOK = true, oReportViolation = {};
-        evalOK = csp.getAllowsEval(oReportViolation);
-
-        // this is not a report only policy, so it better block eval
-        do_check_false(evalOK);
-        // ... and cause reports to go out
-        do_check_true(oReportViolation.value);
-
-        // force the logging, since the getter doesn't.
-        csp.logViolationDetails(Ci.nsIContentSecurityPolicy.VIOLATION_TYPE_INLINE_SCRIPT,
-                                selfuri.asciiSpec,
-                                "script sample",
-                                1);
+        if(!csp.allowsEval) {
+          // force the logging, since the getter doesn't.
+          csp.logViolationDetails(Ci.nsIContentSecurityPolicy.VIOLATION_TYPE_INLINE_SCRIPT,
+                                  selfuri.asciiSpec,
+                                  "script sample",
+                                  1);
+        }
       });
 
-  makeTest(2, {"blocked-uri": "http://blocked.test/foo.js"}, false,
+  makeTest(2, {"blocked-uri": "http://blocked.test/foo.js"},
       function(csp) {
-        // shouldLoad creates and sends out the report here.
         csp.shouldLoad(Ci.nsIContentPolicy.TYPE_SCRIPT,
                       NetUtil.newURI("http://blocked.test/foo.js"),
                       null, null, null, null);
-      });
-
-  // test that inline script violations cause a report in report-only policy
-  makeTest(3, {"blocked-uri": "self"}, true,
-      function(csp) {
-        let inlineOK = true, oReportViolation = {};
-        inlineOK = csp.getAllowsInlineScript(oReportViolation);
-
-        // this is a report only policy, so it better allow inline scripts
-        do_check_true(inlineOK);
-        // ... but still cause reports to go out
-        do_check_true(oReportViolation.value);
-
-        // force the logging, since the getter doesn't.
-        csp.logViolationDetails(Ci.nsIContentSecurityPolicy.VIOLATION_TYPE_INLINE_SCRIPT,
-                                selfuri.asciiSpec,
-                                "script sample",
-                                3);
-      });
-
-  // test that eval violations cause a report in report-only policy
-  makeTest(4, {"blocked-uri": "self"}, true,
-      function(csp) {
-        let evalOK = true, oReportViolation = {};
-        evalOK = csp.getAllowsEval(oReportViolation);
-
-        // this is a report only policy, so it better allow eval
-        do_check_true(evalOK);
-        // ... but still cause reports to go out
-        do_check_true(oReportViolation.value);
-
-        // force the logging, since the getter doesn't.
-        csp.logViolationDetails(Ci.nsIContentSecurityPolicy.VIOLATION_TYPE_INLINE_SCRIPT,
-                                selfuri.asciiSpec,
-                                "script sample",
-                                4);
       });
 }

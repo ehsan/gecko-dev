@@ -25,7 +25,6 @@ XPIDL_SOURCES += [
     'nsITraceRefcnt.idl',
     'nsIUUIDGenerator.idl',
     'nsIVersionComparator.idl',
-		'nsIVisualEventTracer.idl',
     'nsIWeakReference.idl',
     'nsrootidl.idl',
 ]

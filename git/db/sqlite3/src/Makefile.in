@@ -21,6 +21,7 @@ VISIBILITY_FLAGS =
 LIB_IS_C_ONLY    = 1
 
 ifeq ($(OS_ARCH),WINNT)
+ifndef GNU_CC
 DEFFILE = $(CURDIR)/sqlite-processed.def
 RCFILE  = sqlite.rc
 RESFILE = sqlite.res
@@ -41,6 +42,7 @@ $(DEFFILE): sqlite.def
 	  $(srcdir)/sqlite.def > $(DEFFILE)
 
 export:: sqlite-version.h
+endif
 endif
 
 ifeq (Darwin,$(OS_TARGET))

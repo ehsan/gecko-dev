@@ -33,7 +33,6 @@ using namespace std;
 #include "nsIDNSService.h"
 #include "nsWeakReference.h"
 #include "nricectx.h"
-#include "mozilla/SyncRunnable.h"
 
 #include "mtransport_test_utils.h"
 MtransportTestUtils *test_utils;
@@ -175,7 +174,7 @@ public:
 
   ResponseState state;
   char *lastString;
-  sipcc::PeerConnectionImpl::Error lastStatusCode;
+  uint32_t lastStatusCode;
   uint32_t lastStateType;
   int addIceSuccessCount;
   bool onAddStreamCalled;
@@ -199,12 +198,11 @@ TestObserver::OnCreateOfferSuccess(const char* offer)
 }
 
 NS_IMETHODIMP
-TestObserver::OnCreateOfferError(uint32_t code, const char *message)
+TestObserver::OnCreateOfferError(uint32_t code)
 {
-  lastStatusCode = static_cast<sipcc::PeerConnectionImpl::Error>(code);
+  lastStatusCode = code;
   state = stateError;
-  cout << "onCreateOfferError = " << code
-    << " (" << message << ")" << endl;
+  cout << "onCreateOfferError" << endl;
   return NS_OK;
 }
 
@@ -218,50 +216,47 @@ TestObserver::OnCreateAnswerSuccess(const char* answer)
 }
 
 NS_IMETHODIMP
-TestObserver::OnCreateAnswerError(uint32_t code, const char *message)
+TestObserver::OnCreateAnswerError(uint32_t code)
 {
-  lastStatusCode = static_cast<sipcc::PeerConnectionImpl::Error>(code);
-  cout << "onCreateAnswerError = " << code
-    << " (" << message << ")" << endl;
+  lastStatusCode = code;
+  cout << "onCreateAnswerError = " << code << endl;
   state = stateError;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-TestObserver::OnSetLocalDescriptionSuccess()
+TestObserver::OnSetLocalDescriptionSuccess(uint32_t code)
 {
-  lastStatusCode = sipcc::PeerConnectionImpl::kNoError;
+  lastStatusCode = code;
   state = stateSuccess;
-  cout << "onSetLocalDescriptionSuccess" << endl;
+  cout << "onSetLocalDescriptionSuccess = " << code << endl;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-TestObserver::OnSetRemoteDescriptionSuccess()
+TestObserver::OnSetRemoteDescriptionSuccess(uint32_t code)
 {
-  lastStatusCode = sipcc::PeerConnectionImpl::kNoError;
+  lastStatusCode = code;
   state = stateSuccess;
-  cout << "onSetRemoteDescriptionSuccess = " << endl;
+  cout << "onSetRemoteDescriptionSuccess = " << code << endl;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-TestObserver::OnSetLocalDescriptionError(uint32_t code, const char *message)
+TestObserver::OnSetLocalDescriptionError(uint32_t code)
 {
-  lastStatusCode = static_cast<sipcc::PeerConnectionImpl::Error>(code);
+  lastStatusCode = code;
   state = stateError;
-  cout << "onSetLocalDescriptionError = " << code
-    << " (" << message << ")" << endl;
+  cout << "onSetLocalDescriptionError = " << code << endl;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-TestObserver::OnSetRemoteDescriptionError(uint32_t code, const char *message)
+TestObserver::OnSetRemoteDescriptionError(uint32_t code)
 {
-  lastStatusCode = static_cast<sipcc::PeerConnectionImpl::Error>(code);
+  lastStatusCode = code;
   state = stateError;
-  cout << "onSetRemoteDescriptionError = " << code
-    << " (" << message << ")" << endl;
+  cout << "onSetRemoteDescriptionError = " << code << endl;
   return NS_OK;
 }
 
@@ -377,21 +372,20 @@ TestObserver::FoundIceCandidate(const char* strCandidate)
 }
 
 NS_IMETHODIMP
-TestObserver::OnAddIceCandidateSuccess()
+TestObserver::OnAddIceCandidateSuccess(uint32_t code)
 {
-  lastStatusCode = sipcc::PeerConnectionImpl::kNoError;
+  lastStatusCode = code;
   state = stateSuccess;
   addIceSuccessCount++;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-TestObserver::OnAddIceCandidateError(uint32_t code, const char *message)
+TestObserver::OnAddIceCandidateError(uint32_t code)
 {
-  lastStatusCode = static_cast<sipcc::PeerConnectionImpl::Error>(code);
+  lastStatusCode = code;
   state = stateError;
-  cout << "onAddIceCandidateError = " << code
-    << " (" << message << ")" << endl;
+  cout << "onAddIceCandidateError = " << code << endl;
   return NS_OK;
 }
 
@@ -531,8 +525,9 @@ class SignalingAgent {
   SignalingAgent() : pc(nullptr) {}
 
   ~SignalingAgent() {
-    mozilla::SyncRunnable::DispatchToThread(pc->GetMainThread(),
-      WrapRunnable(this, &SignalingAgent::Close));
+    pc->GetMainThread()->Dispatch(
+      WrapRunnable(this, &SignalingAgent::Close),
+      NS_DISPATCH_SYNC);
   }
 
   void Init_m(nsCOMPtr<nsIThread> thread)
@@ -551,8 +546,9 @@ class SignalingAgent {
 
   void Init(nsCOMPtr<nsIThread> thread)
   {
-    mozilla::SyncRunnable::DispatchToThread(thread,
-      WrapRunnable(this, &SignalingAgent::Init_m, thread));
+    thread->Dispatch(
+      WrapRunnable(this, &SignalingAgent::Init_m, thread),
+      NS_DISPATCH_SYNC);
 
     ASSERT_TRUE_WAIT(sipcc_state() == sipcc::PeerConnectionImpl::kStarted,
                      kDefaultTimeout);
@@ -562,8 +558,9 @@ class SignalingAgent {
 
   bool InitAllowFail(nsCOMPtr<nsIThread> thread)
   {
-    mozilla::SyncRunnable::DispatchToThread(thread,
-        WrapRunnable(this, &SignalingAgent::Init_m, thread));
+    thread->Dispatch(
+        WrapRunnable(this, &SignalingAgent::Init_m, thread),
+        NS_DISPATCH_SYNC);
 
     EXPECT_TRUE_WAIT(sipcc_state() == sipcc::PeerConnectionImpl::kStarted,
                      kDefaultTimeout);
@@ -636,9 +633,9 @@ class SignalingAgent {
       new Fake_AudioStreamSource();
 
     nsresult ret;
-    mozilla::SyncRunnable::DispatchToThread(
-      test_utils->sts_target(),
-      WrapRunnableRet(audio_stream, &Fake_MediaStream::Start, &ret));
+    test_utils->sts_target()->Dispatch(
+      WrapRunnableRet(audio_stream, &Fake_MediaStream::Start, &ret),
+        NS_DISPATCH_SYNC);
 
     ASSERT_TRUE(NS_SUCCEEDED(ret));
 

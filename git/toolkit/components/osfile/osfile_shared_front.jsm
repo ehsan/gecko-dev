@@ -54,7 +54,7 @@ AbstractFile.prototype = {
       bytes = this.stat().size;
     }
     let buffer = new Uint8Array(bytes);
-    let size = this.readTo(buffer, {bytes: bytes});
+    let size = this.readTo(buffer, bytes);
     if (size == bytes) {
       return buffer;
     } else {
@@ -350,12 +350,6 @@ AbstractFile.writeAtomic =
     throw OS.File.Error.exists("writeAtomic");
   }
 
-  if (typeof buffer == "string") {
-    // Normalize buffer to a C buffer by encoding it
-    let encoding = options.encoding || "utf-8";
-    buffer = new TextEncoder(encoding).encode(buffer);
-  }
-
   if ("flush" in options && !options.flush) {
     // Just write, without any renaming trick
     let dest;
@@ -366,6 +360,7 @@ AbstractFile.writeAtomic =
       dest.close();
     }
   }
+
 
   let tmpPath = options.tmpPath;
   if (!tmpPath) {

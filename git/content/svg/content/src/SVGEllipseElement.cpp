@@ -27,11 +27,19 @@ nsSVGElement::LengthInfo SVGEllipseElement::sLengthInfo[4] =
 };
 
 //----------------------------------------------------------------------
+// nsISupports methods
+
+NS_IMPL_ISUPPORTS_INHERITED3(SVGEllipseElement, SVGEllipseElementBase,
+                             nsIDOMNode, nsIDOMElement,
+                             nsIDOMSVGElement)
+
+//----------------------------------------------------------------------
 // Implementation
 
 SVGEllipseElement::SVGEllipseElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : SVGEllipseElementBase(aNodeInfo)
 {
+  SetIsDOMBinding();
 }
 
 //----------------------------------------------------------------------

@@ -23,6 +23,13 @@ nsSVGElement::StringInfo SVGFEMergeElement::sStringInfo[1] =
   { &nsGkAtoms::result, kNameSpaceID_None, true }
 };
 
+//----------------------------------------------------------------------
+// nsISupports methods
+
+NS_IMPL_ISUPPORTS_INHERITED3(SVGFEMergeElement, SVGFEMergeElementBase,
+                             nsIDOMNode, nsIDOMElement,
+                             nsIDOMSVGElement)
+
 NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFEMergeElement)
 
 nsresult

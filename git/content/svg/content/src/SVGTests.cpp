@@ -31,8 +31,7 @@ SVGTests::SVGTests()
 already_AddRefed<nsIDOMSVGStringList>
 SVGTests::RequiredFeatures()
 {
-  nsCOMPtr<nsIDOMSVGElement> elem = do_QueryInterface(this);
-  nsSVGElement* element = static_cast<nsSVGElement*>(elem.get());
+  nsCOMPtr<nsSVGElement> element = do_QueryInterface(this);
   return DOMSVGStringList::GetDOMWrapper(
            &mStringListAttributes[FEATURES], element, true, FEATURES).get();
 }
@@ -40,8 +39,7 @@ SVGTests::RequiredFeatures()
 already_AddRefed<nsIDOMSVGStringList>
 SVGTests::RequiredExtensions()
 {
-  nsCOMPtr<nsIDOMSVGElement> elem = do_QueryInterface(this);
-  nsSVGElement* element = static_cast<nsSVGElement*>(elem.get());
+  nsCOMPtr<nsSVGElement> element = do_QueryInterface(this);
   return DOMSVGStringList::GetDOMWrapper(
            &mStringListAttributes[EXTENSIONS], element, true, EXTENSIONS).get();
 }
@@ -49,8 +47,7 @@ SVGTests::RequiredExtensions()
 already_AddRefed<nsIDOMSVGStringList>
 SVGTests::SystemLanguage()
 {
-  nsCOMPtr<nsIDOMSVGElement> elem = do_QueryInterface(this);
-  nsSVGElement* element = static_cast<nsSVGElement*>(elem.get());
+  nsCOMPtr<nsSVGElement> element = do_QueryInterface(this);
   return DOMSVGStringList::GetDOMWrapper(
            &mStringListAttributes[LANGUAGE], element, true, LANGUAGE).get();
 }
@@ -232,8 +229,7 @@ SVGTests::GetAttrValue(uint8_t aAttrEnum, nsAttrValue& aValue) const
 void
 SVGTests::MaybeInvalidate()
 {
-  nsCOMPtr<nsIDOMSVGElement> elem = do_QueryInterface(this);
-  nsSVGElement* element = static_cast<nsSVGElement*>(elem.get());
+  nsCOMPtr<nsSVGElement> element = do_QueryInterface(this);
 
   nsIContent* parent = element->GetFlattenedTreeParent();
 

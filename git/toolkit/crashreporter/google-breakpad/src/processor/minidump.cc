@@ -63,7 +63,7 @@
 #include "common/scoped_ptr.h"
 #include "processor/basic_code_module.h"
 #include "processor/basic_code_modules.h"
-#include "common/logging.h"
+#include "processor/logging.h"
 
 
 

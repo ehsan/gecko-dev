@@ -282,18 +282,8 @@ EnableUniversalXPConnect(JSContext *cx)
 
     // Recompute all the cross-compartment wrappers leaving the newly-privileged
     // compartment.
-    bool ok = js::RecomputeWrappers(cx, js::SingleCompartment(compartment),
-                                    js::AllCompartments());
-    NS_ENSURE_TRUE(ok, false);
-
-    // The Components object normally isn't defined for unprivileged web content,
-    // but we define it when UniversalXPConnect is enabled to support legacy
-    // tests.
-    XPCWrappedNativeScope *scope = priv->scope;
-    if (!scope)
-        return true;
-    XPCCallContext ccx(NATIVE_CALLER, cx);
-    return nsXPCComponents::AttachComponentsObject(ccx, scope);
+    return js::RecomputeWrappers(cx, js::SingleCompartment(compartment),
+                                 js::AllCompartments());
 }
 
 }
@@ -403,7 +393,8 @@ void XPCJSRuntime::TraceGrayJS(JSTracer* trc, void* data)
 static void
 TraceJSObject(void *aScriptThing, const char *name, void *aClosure)
 {
-    JS_CallGenericTracer(static_cast<JSTracer*>(aClosure), aScriptThing, name);
+    JS_CALL_TRACER(static_cast<JSTracer*>(aClosure), aScriptThing,
+                   js::GCThingTraceKind(aScriptThing), name);
 }
 
 static PLDHashOperator
@@ -420,7 +411,7 @@ void XPCJSRuntime::TraceXPConnectRoots(JSTracer *trc)
     while (JSContext *acx = JS_ContextIterator(GetJSRuntime(), &iter)) {
         MOZ_ASSERT(js::HasUnrootedGlobal(acx));
         if (JSObject *global = JS_GetGlobalObject(acx))
-            JS_CallObjectTracer(trc, global, "XPC global object");
+            JS_CALL_OBJECT_TRACER(trc, global, "XPC global object");
     }
 
     XPCAutoLock lock(mMapLock);

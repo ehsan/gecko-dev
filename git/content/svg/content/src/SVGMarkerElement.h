@@ -86,7 +86,8 @@ private:
 
 typedef nsSVGElement SVGMarkerElementBase;
 
-class SVGMarkerElement : public SVGMarkerElementBase
+class SVGMarkerElement : public SVGMarkerElementBase,
+                         public nsIDOMSVGElement
 {
   friend class ::nsSVGMarkerFrame;
 
@@ -97,6 +98,15 @@ protected:
   virtual JSObject* WrapNode(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
 
 public:
+  // interfaces:
+
+  NS_DECL_ISUPPORTS_INHERITED
+
+  // xxx I wish we could use virtual inheritance
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+  NS_FORWARD_NSIDOMSVGELEMENT(nsSVGElement::)
+
   // nsIContent interface
   NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* name) const;
 
@@ -115,6 +125,8 @@ public:
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   nsSVGOrientType* GetOrientType() { return &mOrientType; }
+
+  virtual nsIDOMNode* AsDOMNode() { return this; }
 
   // WebIDL
   already_AddRefed<nsIDOMSVGAnimatedRect> ViewBox();

@@ -235,7 +235,6 @@ if CONFIG['ENABLE_TESTS']:
         'testing/xpcshell',
         'testing/tools/screenshot',
         'testing/peptest',
-        'testing/profiles',
         'testing/mozbase',
         'testing/modules',
     ])

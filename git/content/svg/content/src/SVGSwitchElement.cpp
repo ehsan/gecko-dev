@@ -47,6 +47,7 @@ NS_INTERFACE_MAP_END_INHERITING(SVGSwitchElementBase)
 SVGSwitchElement::SVGSwitchElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : SVGSwitchElementBase(aNodeInfo)
 {
+  SetIsDOMBinding();
 }
 
 void

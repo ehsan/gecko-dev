@@ -24,7 +24,8 @@ static const unsigned short SVG_FECOLORMATRIX_TYPE_SATURATE = 2;
 static const unsigned short SVG_FECOLORMATRIX_TYPE_HUE_ROTATE = 3;
 static const unsigned short SVG_FECOLORMATRIX_TYPE_LUMINANCE_TO_ALPHA = 4;
 
-class SVGFEColorMatrixElement : public SVGFEColorMatrixElementBase
+class SVGFEColorMatrixElement : public SVGFEColorMatrixElementBase,
+                                public nsIDOMSVGElement
 {
   friend nsresult (::NS_NewSVGFEColorMatrixElement(nsIContent **aResult,
                                                    already_AddRefed<nsINodeInfo> aNodeInfo));
@@ -32,10 +33,14 @@ protected:
   SVGFEColorMatrixElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : SVGFEColorMatrixElementBase(aNodeInfo)
   {
+    SetIsDOMBinding();
   }
   virtual JSObject* WrapNode(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
 public:
+  // interfaces:
+  NS_DECL_ISUPPORTS_INHERITED
+
   virtual nsresult Filter(nsSVGFilterInstance* aInstance,
                           const nsTArray<const Image*>& aSources,
                           const Image* aTarget,
@@ -45,7 +50,14 @@ public:
   virtual nsSVGString& GetResultImageName() { return mStringAttributes[RESULT]; }
   virtual void GetSourceImageNames(nsTArray<nsSVGStringInfo>& aSources);
 
+  NS_FORWARD_NSIDOMSVGELEMENT(SVGFEColorMatrixElementBase::)
+
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+
+  virtual nsIDOMNode* AsDOMNode() { return this; }
 
   // WebIDL
   already_AddRefed<nsIDOMSVGAnimatedString> In1();

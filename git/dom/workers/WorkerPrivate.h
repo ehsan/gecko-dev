@@ -284,7 +284,6 @@ private:
   bool mPrincipalIsSystem;
   bool mMainThreadObjectsForgotten;
   bool mEvalAllowed;
-  bool mReportCSPViolations;
 
 protected:
   WorkerPrivateParent(JSContext* aCx, JSObject* aObject, WorkerPrivate* aParent,
@@ -296,8 +295,7 @@ protected:
                       nsCOMPtr<nsIPrincipal>& aPrincipal,
                       nsCOMPtr<nsIChannel>& aChannel,
                       nsCOMPtr<nsIContentSecurityPolicy>& aCSP,
-                      bool aEvalAllowed,
-                      bool aReportCSPViolations);
+                      bool aEvalAllowed);
 
   ~WorkerPrivateParent();
 
@@ -560,12 +558,6 @@ public:
   SetEvalAllowed(bool aEvalAllowed)
   {
     mEvalAllowed = aEvalAllowed;
-  }
-
-  bool
-  GetReportCSPViolations() const
-  {
-    return mReportCSPViolations;
   }
 
   LocationInfo&
@@ -902,7 +894,7 @@ private:
                 nsCOMPtr<nsIURI>& aBaseURI, nsCOMPtr<nsIPrincipal>& aPrincipal,
                 nsCOMPtr<nsIChannel>& aChannel,
                 nsCOMPtr<nsIContentSecurityPolicy>& aCSP, bool aEvalAllowed,
-                bool aReportCSPViolations, bool aXHRParamsAllowed);
+                bool aXHRParamsAllowed);
 
   static bool
   GetContentSecurityPolicy(JSContext *aCx,

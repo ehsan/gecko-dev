@@ -105,7 +105,7 @@ nsDOMIdentity.prototype = {
       }
 
       // TODO: Bug 767610 - check email format.
-      // See HTMLInputElement::IsValidEmailAddress
+      // See nsHTMLInputElement::IsValidEmailAddress
       if (aOptions["loggedInUser"].indexOf("@") == -1
           || aOptions["loggedInUser"].length > MAX_STRING_LENGTH) {
         throw new Error("loggedInUser is not valid");

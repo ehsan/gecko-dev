@@ -48,7 +48,6 @@ const { isBrowser } = require("./window/utils");
 const { setTimeout } = require("./timers");
 const unload = require("./system/unload");
 const { uuid } = require("./util/uuid");
-const { getNodeView } = require("./view/core");
 
 // Data types definition
 const valid = {
@@ -363,6 +362,7 @@ const Widget = function Widget(options) {
 exports.Widget = Widget;
 
 
+
 /**
  * WidgetView is an instance of a widget for a specific window.
  *
@@ -432,10 +432,7 @@ const WidgetViewTrait = LightTrait.compose(EventEmitterTrait, LightTrait({
     // Special case for click events: if the widget doesn't have a click
     // handler, but it does have a panel, display the panel.
     if ("click" == type && !this._listeners("click").length && this.panel)
-      // This kind of ugly workaround, instead we should implement
-      // `getNodeView` for the `Widget` class itself, but that's kind of
-      // hard without cleaning things up.
-      this.panel.show(getNodeView.implement({}, function() domNode));
+      this.panel.show(domNode);
   },
 
   _isInWindow: function WidgetView__isInWindow(window) {
@@ -475,12 +472,12 @@ const WidgetViewTrait = LightTrait.compose(EventEmitterTrait, LightTrait({
 
 }));
 
-
 const WidgetView = function WidgetView(baseWidget) {
   let w = WidgetViewTrait.create(WidgetView.prototype);
   w._initWidgetView(baseWidget);
   return w;
 }
+
 
 
 /**

@@ -1631,9 +1631,9 @@ public:
     void TraceSelf(JSTracer *trc) {
         JSObject *obj = GetGlobalJSObjectPreserveColor();
         MOZ_ASSERT(obj);
-        JS_CallObjectTracer(trc, obj, "XPCWrappedNativeScope::mGlobalJSObject");
+        JS_CALL_OBJECT_TRACER(trc, obj, "XPCWrappedNativeScope::mGlobalJSObject");
         if (mXBLScope)
-            JS_CallObjectTracer(trc, mXBLScope, "XPCWrappedNativeScope::mXBLScope");
+            JS_CALL_OBJECT_TRACER(trc, mXBLScope, "XPCWrappedNativeScope::mXBLScope");
     }
 
     static void
@@ -2438,7 +2438,7 @@ public:
 
     void TraceSelf(JSTracer *trc) {
         if (mJSProtoObject)
-            JS_CallObjectTracer(trc, mJSProtoObject, "XPCWrappedNativeProto::mJSProtoObject");
+            JS_CALL_OBJECT_TRACER(trc, mJSProtoObject, "XPCWrappedNativeProto::mJSProtoObject");
     }
 
     void TraceInside(JSTracer *trc) {
@@ -2837,7 +2837,7 @@ public:
             GetScope()->TraceSelf(trc);
         JSObject* wrapper = GetWrapperPreserveColor();
         if (wrapper)
-            JS_CallObjectTracer(trc, wrapper, "XPCWrappedNative::mWrapper");
+            JS_CALL_OBJECT_TRACER(trc, wrapper, "XPCWrappedNative::mWrapper");
         if (mFlatJSObject && mFlatJSObject != INVALID_OBJECT &&
             JS_IsGlobalObject(mFlatJSObject))
         {
@@ -2856,8 +2856,8 @@ public:
         // normally somebody else is doing that. Be careful not to trace the
         // bogus INVALID_OBJECT value we can have during init, though.
         if (mFlatJSObject && mFlatJSObject != INVALID_OBJECT) {
-            JS_CallObjectTracer(trc, mFlatJSObject,
-                                "XPCWrappedNative::mFlatJSObject");
+            JS_CALL_OBJECT_TRACER(trc, mFlatJSObject,
+                                  "XPCWrappedNative::mFlatJSObject");
         }
     }
 
@@ -3186,7 +3186,6 @@ public:
     // category are only deleted when we see that their corresponding JSObject
     // is to be finalized.
     JSBool IsSubjectToFinalization() const {return IsValid() && mRefCnt == 1;}
-    JSBool IsObjectAboutToBeFinalized() {return JS_IsAboutToBeFinalized(&mJSObj);}
 
     JSBool IsAggregatedToNative() const {return mRoot->mOuter != nullptr;}
     nsISupports* GetAggregatedNativeObject() const {return mRoot->mOuter;}
@@ -3723,9 +3722,13 @@ public:
     NS_DECL_NSISECURITYCHECKEDCOMPONENT
 
 public:
+    // The target is the object upon which |Components| will be defined. If
+    // aTarget is left null, a default object will be computed. This is usually
+    // the right thing to do.
     static JSBool
     AttachComponentsObject(XPCCallContext& ccx,
-                           XPCWrappedNativeScope* aScope);
+                           XPCWrappedNativeScope* aScope,
+                           JSObject* aTarget = NULL);
 
     void SystemIsBeingShutDown() {ClearMembers();}
 
@@ -3894,7 +3897,7 @@ public:
     void Mark() {}
     void TraceJS(JSTracer* trc)
     {
-        JS_CallValueTracer(trc, *mValPtr, "XPCMarkableJSVal");
+        JS_CALL_VALUE_TRACER(trc, *mValPtr, "XPCMarkableJSVal");
     }
     void AutoTrace(JSTracer* trc) {}
 private:

@@ -11,6 +11,7 @@ const IDBTransaction = Ci.nsIIDBTransaction;
 const IDBOpenDBRequest = Ci.nsIIDBOpenDBRequest;
 const IDBVersionChangeEvent = Ci.nsIIDBVersionChangeEvent
 const IDBDatabase = Ci.nsIIDBDatabase
+const IDBFactory = Ci.nsIIDBFactory
 const IDBIndex = Ci.nsIIDBIndex
 const IDBObjectStore = Ci.nsIIDBObjectStore
 const IDBRequest = Ci.nsIIDBRequest

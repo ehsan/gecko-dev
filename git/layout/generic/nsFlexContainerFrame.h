@@ -60,6 +60,8 @@ protected:
   // Protected constructor & destructor
   nsFlexContainerFrame(nsStyleContext* aContext) :
     nsFlexContainerFrameSuper(aContext),
+    mCachedContentBoxCrossSize(nscoord_MIN),
+    mCachedAscent(nscoord_MIN),
     mChildrenHaveBeenReordered(false)
   {}
   virtual ~nsFlexContainerFrame();
@@ -119,6 +121,11 @@ protected:
     SingleLineCrossAxisPositionTracker& aLineCrossAxisPosnTracker,
     FlexItem& aItem);
 
+  // Cached values from running flexbox layout algorithm, used in setting our
+  // reflow metrics w/out actually reflowing all of our children, in any
+  // reflows where we're not dirty:
+  nscoord mCachedContentBoxCrossSize; // Cross size of our content-box.
+  nscoord mCachedAscent;              // Our ascent, in prev. reflow.
   bool    mChildrenHaveBeenReordered; // Have we ever had to reorder our kids
                                       // to satisfy their 'order' values?
 };

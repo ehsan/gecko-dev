@@ -4017,8 +4017,7 @@ already_AddRefed<Layer> nsDisplayTransform::BuildLayer(nsDisplayListBuilder *aBu
 
   nsRefPtr<ContainerLayer> container = aManager->GetLayerBuilder()->
     BuildContainerLayerFor(aBuilder, aManager, mFrame, this, *mStoredList.GetChildren(),
-                           aContainerParameters, &newTransformMatrix,
-                           FrameLayerBuilder::CONTAINER_NOT_CLIPPED_BY_ANCESTORS);
+                           aContainerParameters, &newTransformMatrix);
 
   if (!container) {
     return nullptr;

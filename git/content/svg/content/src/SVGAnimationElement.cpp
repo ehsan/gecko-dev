@@ -53,6 +53,7 @@ SVGAnimationElement::SVGAnimationElement(already_AddRefed<nsINodeInfo> aNodeInfo
 #pragma warning(pop)
 #endif
 {
+  SetIsDOMBinding();
 }
 
 nsresult

@@ -10,7 +10,6 @@ import org.mozilla.gecko.db.BrowserContract.Bookmarks;
 import org.mozilla.gecko.db.BrowserContract.Combined;
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.db.BrowserDB.URLColumns;
-import org.mozilla.gecko.util.GamepadUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 
 import android.app.Activity;
@@ -74,7 +73,6 @@ public class BookmarksTab extends AwesomeBarTab {
                     handleItemClick(parent, view, position, id);
                 }
             });
-            list.setOnKeyListener(GamepadUtils.getListItemClickDispatcher());
 
             if (mShowReadingList) {
                 String title = getResources().getString(R.string.bookmarks_folder_reading_list);

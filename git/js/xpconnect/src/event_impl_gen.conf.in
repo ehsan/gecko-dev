@@ -26,6 +26,7 @@ simple_events = [
     'SmartCardEvent',
 #ifdef MOZ_B2G_BT
     'BluetoothDeviceEvent',
+    'BluetoothDeviceAddressEvent',
 #endif
 #ifdef MOZ_B2G_RIL
     'CallEvent',

@@ -49,6 +49,7 @@ SVGAElement::SVGAElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : SVGAElementBase(aNodeInfo),
     Link(this)
 {
+  SetIsDOMBinding();
 }
 
 already_AddRefed<nsIDOMSVGAnimatedString>

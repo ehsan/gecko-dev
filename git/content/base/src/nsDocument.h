@@ -134,14 +134,13 @@ public:
   }
   ~nsIdentifierMapEntry();
 
+  void SetInvalidName();
+  bool IsInvalidName();
   void AddNameElement(nsIDocument* aDocument, Element* aElement);
   void RemoveNameElement(Element* aElement);
   bool IsEmpty();
   nsBaseContentList* GetNameContentList() {
     return mNameContentList;
-  }
-  bool HasNameElement() const {
-    return mNameContentList && !mNameContentList->Length() != 0;
   }
 
   /**

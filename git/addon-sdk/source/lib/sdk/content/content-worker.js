@@ -224,7 +224,7 @@ const ContentWorker = Object.freeze({
     });
   },
 
-  injectMessageAPI: function injectMessageAPI(exports, pipe, console) {
+  injectMessageAPI: function injectMessageAPI(exports, pipe) {
 
     let { eventEmitter: port, emit : portEmit } =
       ContentWorker.createEventEmitter(pipe.emit.bind(null, "event"));
@@ -293,7 +293,7 @@ const ContentWorker = Object.freeze({
 
     ContentWorker.injectConsole(exports, pipe);
     ContentWorker.injectTimers(exports, chromeAPI, pipe, exports.console);
-    ContentWorker.injectMessageAPI(exports, pipe, exports.console);
+    ContentWorker.injectMessageAPI(exports, pipe);
     if ( options !== undefined ) {
       ContentWorker.injectOptions(exports, options);
     }

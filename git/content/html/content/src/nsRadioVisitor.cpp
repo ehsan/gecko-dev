@@ -5,19 +5,18 @@
 
 #include "nsRadioVisitor.h"
 #include "nsAutoPtr.h"
-#include "mozilla/dom/HTMLInputElement.h"
+#include "nsHTMLInputElement.h"
 #include "nsEventStates.h"
 #include "nsIConstraintValidation.h"
 
-using namespace mozilla::dom;
 
 NS_IMPL_ISUPPORTS1(nsRadioVisitor, nsIRadioVisitor)
 
 bool
 nsRadioSetCheckedChangedVisitor::Visit(nsIFormControl* aRadio)
 {
-  nsRefPtr<HTMLInputElement> radio =
-    static_cast<HTMLInputElement*>(aRadio);
+  nsRefPtr<nsHTMLInputElement> radio =
+    static_cast<nsHTMLInputElement*>(aRadio);
   NS_ASSERTION(radio, "Visit() passed a null button!");
 
   radio->SetCheckedChangedInternal(mCheckedChanged);
@@ -31,8 +30,8 @@ nsRadioGetCheckedChangedVisitor::Visit(nsIFormControl* aRadio)
     return true;
   }
 
-  nsRefPtr<HTMLInputElement> radio =
-    static_cast<HTMLInputElement*>(aRadio);
+  nsRefPtr<nsHTMLInputElement> radio =
+    static_cast<nsHTMLInputElement*>(aRadio);
   NS_ASSERTION(radio, "Visit() passed a null button!");
 
   *mCheckedChanged = radio->GetCheckedChanged();
@@ -46,7 +45,7 @@ nsRadioSetValueMissingState::Visit(nsIFormControl* aRadio)
     return true;
   }
 
-  HTMLInputElement* input = static_cast<HTMLInputElement*>(aRadio);
+  nsHTMLInputElement* input = static_cast<nsHTMLInputElement*>(aRadio);
 
   input->SetValidityState(nsIConstraintValidation::VALIDITY_STATE_VALUE_MISSING,
                           mValidity);

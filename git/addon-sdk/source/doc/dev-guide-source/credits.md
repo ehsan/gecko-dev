@@ -135,7 +135,7 @@ We'd like to thank our many Jetpack project contributors!  They include:
 ### P ###
 
 * Robert Pankowecki
-* [Jamie Phelps](https://github.com/jxpx777)
+* [Jamie Phelps](https://github.com/ongaeshi)
 * [Alexandre Poirot](https://github.com/ochameau)
 * Nickolay Ponomarev
 
