@@ -59,6 +59,7 @@
 #include "nsIDOMNSDocument.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
+#include "nsISupportsArray.h"
 #include "nsIDOMText.h"
 #include "nsILookAndFeel.h"
 #include "nsIComponentManager.h"

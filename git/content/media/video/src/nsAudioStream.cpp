@@ -72,11 +72,6 @@ nsAudioStream::nsAudioStream() :
 {
 }
 
-nsAudioStream::~nsAudioStream()
-{
-  Shutdown();
-}
-
 void nsAudioStream::Init(PRInt32 aNumChannels, PRInt32 aRate, SampleFormat aFormat)
 {
   mRate = aRate;

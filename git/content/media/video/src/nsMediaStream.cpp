@@ -55,15 +55,17 @@
 #include "nsHTMLMediaElement.h"
 #include "nsIDocument.h"
 
-class nsMediaChannelStream : public nsMediaStream
+class nsDefaultStreamStrategy : public nsStreamStrategy
 {
 public:
-  nsMediaChannelStream(nsMediaDecoder* aDecoder, nsIChannel* aChannel, nsIURI* aURI) :
-    nsMediaStream(aDecoder, aChannel, aURI),
-    mPosition(0), mCancelled(PR_FALSE)
+  nsDefaultStreamStrategy(nsMediaDecoder* aDecoder, nsIChannel* aChannel, nsIURI* aURI) :
+    nsStreamStrategy(aDecoder, aChannel, aURI),
+    mPosition(0)
   {
   }
   
+  // These methods have the same thread calling requirements 
+  // as those with the same name in nsMediaStream
   virtual nsresult Open(nsIStreamListener** aStreamListener);
   virtual nsresult Close();
   virtual nsresult Read(char* aBuffer, PRUint32 aCount, PRUint32* aBytes);
@@ -74,14 +76,7 @@ public:
   virtual void     Suspend();
   virtual void     Resume();
 
-  // Return PR_TRUE if the stream has been cancelled.
-  PRBool IsCancelled() const { return mCancelled; }
-
-  // Opens the channel, using an HTTP byte range request to start at aOffset
-  // if possible
-  nsresult OpenAtOffset(nsIStreamListener** aStreamListener, PRInt64 aOffset);
-
-protected:
+private:
   // Listener attached to channel to constantly download the
   // media data asynchronously and store it in the pipe. The 
   // data is obtainable via the mPipeInput member. Use on 
@@ -92,44 +87,28 @@ protected:
   // and stored in the pipe. This can be used from any thread.
   nsCOMPtr<nsIInputStream>  mPipeInput;
 
-  // Current seek position. Need to compute this manually due to
-  // seeking with byte range requests meaning the position in the pipe
-  // is not valid. This is initially set on the main thread during the
-  // Open call. After that it is read and written by a single thread
-  // only (the thread that calls the read/seek operations).
+  // Current seek position. Need to compute this manually because
+  // the underlying channel may not offer this information.
   PRInt64 mPosition;
-
-  // PR_TRUE if the media stream requested this strategy is cancelled.
-  // This is read and written on the main thread only.
-  PRPackedBool mCancelled;
 };
 
-nsresult nsMediaChannelStream::Open(nsIStreamListener **aStreamListener)
+nsresult nsDefaultStreamStrategy::Open(nsIStreamListener** aStreamListener)
 {
-  return OpenAtOffset(aStreamListener, 0);
-}
-
-nsresult nsMediaChannelStream::OpenAtOffset(nsIStreamListener** aStreamListener,
-                                               PRInt64 aOffset)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
-  NS_ENSURE_TRUE(mChannel, NS_ERROR_NULL_POINTER);
-
   if (aStreamListener) {
     *aStreamListener = nsnull;
   }
 
-  mListener = new nsChannelToPipeListener(mDecoder, aOffset != 0);
+  mListener = new nsChannelToPipeListener(mDecoder);
   NS_ENSURE_TRUE(mListener, NS_ERROR_OUT_OF_MEMORY);
 
   nsresult rv = mListener->Init();
   NS_ENSURE_SUCCESS(rv, rv);
-  
-  nsCOMPtr<nsIStreamListener> listener = mListener.get();
+
+  nsCOMPtr<nsIStreamListener> listener = do_QueryInterface(mListener);
 
   if (aStreamListener) {
     *aStreamListener = mListener;
-    NS_ADDREF(*aStreamListener);
+    NS_ADDREF(mListener);
   } else {
     // Ensure that if we're loading cross domain, that the server is sending
     // an authorizing Access-Control header.
@@ -144,26 +123,14 @@ nsresult nsMediaChannelStream::OpenAtOffset(nsIStreamListener** aStreamListener,
       NS_ENSURE_TRUE(listener, NS_ERROR_OUT_OF_MEMORY);
       NS_ENSURE_SUCCESS(rv, rv);
     } else {
+      // Ensure that we never load a local file from some page on a 
+      // web server.
       rv = nsContentUtils::GetSecurityManager()->
              CheckLoadURIWithPrincipal(element->NodePrincipal(),
                                        mURI,
                                        nsIScriptSecurityManager::STANDARD);
       NS_ENSURE_SUCCESS(rv, rv);
-
     }
-    // Use a byte range request from the start of the resource.
-    // This enables us to detect if the stream supports byte range
-    // requests, and therefore seeking, early.
-    nsCOMPtr<nsIHttpChannel> hc = do_QueryInterface(mChannel);
-    if (hc) {
-      nsCAutoString rangeString("bytes=");
-      rangeString.AppendInt(aOffset);
-      rangeString.Append("-");
-      hc->SetRequestHeader(NS_LITERAL_CSTRING("Range"), rangeString, PR_FALSE);
-    } else {
-      NS_ASSERTION(aOffset == 0, "Don't know how to seek on this channel type");
-    }
- 
     rv = mChannel->AsyncOpen(listener, nsnull);
     NS_ENSURE_SUCCESS(rv, rv);
   }
@@ -171,14 +138,13 @@ nsresult nsMediaChannelStream::OpenAtOffset(nsIStreamListener** aStreamListener,
   rv = mListener->GetInputStream(getter_AddRefs(mPipeInput));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  mDecoder->NotifyDownloadSeeked(aOffset);
+  mPosition = 0;
 
   return NS_OK;
 }
 
-nsresult nsMediaChannelStream::Close()
+nsresult nsDefaultStreamStrategy::Close()
 {
-  NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
   nsAutoLock lock(mLock);
   if (mChannel) {
     mChannel->Cancel(NS_BINDING_ABORTED);
@@ -192,7 +158,7 @@ nsresult nsMediaChannelStream::Close()
   return NS_OK;
 }
 
-nsresult nsMediaChannelStream::Read(char* aBuffer, PRUint32 aCount, PRUint32* aBytes)
+nsresult nsDefaultStreamStrategy::Read(char* aBuffer, PRUint32 aCount, PRUint32* aBytes)
 {
   // The read request pulls from the pipe, not the channels input
   // stream. This allows calling from any thread as the pipe is
@@ -201,34 +167,31 @@ nsresult nsMediaChannelStream::Read(char* aBuffer, PRUint32 aCount, PRUint32* aB
   if (!mPipeInput)
     return NS_ERROR_FAILURE;
 
-  // If Cancel() is called then the read will fail with an error so we
-  // can bail out of the blocking call.
   nsresult rv = mPipeInput->Read(aBuffer, aCount, aBytes);
   NS_ENSURE_SUCCESS(rv, rv);
   mPosition += *aBytes;
 
-  return rv;
+  return NS_OK;
 }
 
-nsresult nsMediaChannelStream::Seek(PRInt32 aWhence, PRInt64 aOffset) 
+nsresult nsDefaultStreamStrategy::Seek(PRInt32 aWhence, PRInt64 aOffset) 
 {
   // Default streams cannot be seeked
   return NS_ERROR_FAILURE;
 }
 
-PRInt64 nsMediaChannelStream::Tell()
+PRInt64 nsDefaultStreamStrategy::Tell()
 {
   return mPosition;
 }
 
-void nsMediaChannelStream::Cancel()
+void nsDefaultStreamStrategy::Cancel()
 {
-  mCancelled = PR_TRUE;
   if (mListener)
     mListener->Cancel();
 }
 
-nsIPrincipal* nsMediaChannelStream::GetCurrentPrincipal()
+nsIPrincipal* nsDefaultStreamStrategy::GetCurrentPrincipal()
 {
   if (!mListener)
     return nsnull;
@@ -236,24 +199,26 @@ nsIPrincipal* nsMediaChannelStream::GetCurrentPrincipal()
   return mListener->GetCurrentPrincipal();
 }
 
-void nsMediaChannelStream::Suspend()
+void nsDefaultStreamStrategy::Suspend()
 {
   mChannel->Suspend();
 }
 
-void nsMediaChannelStream::Resume()
+void nsDefaultStreamStrategy::Resume()
 {
   mChannel->Resume();
 }
 
-class nsMediaFileStream : public nsMediaStream
+class nsFileStreamStrategy : public nsStreamStrategy
 {
 public:
-  nsMediaFileStream(nsMediaDecoder* aDecoder, nsIChannel* aChannel, nsIURI* aURI) :
-    nsMediaStream(aDecoder, aChannel, aURI)
+  nsFileStreamStrategy(nsMediaDecoder* aDecoder, nsIChannel* aChannel, nsIURI* aURI) :
+    nsStreamStrategy(aDecoder, aChannel, aURI)
   {
   }
   
+  // These methods have the same thread calling requirements 
+  // as those with the same name in nsMediaStream
   virtual nsresult Open(nsIStreamListener** aStreamListener);
   virtual nsresult Close();
   virtual nsresult Read(char* aBuffer, PRUint32 aCount, PRUint32* aBytes);
@@ -306,7 +271,7 @@ private:
   nsRefPtr<nsMediaDecoder> mDecoder;
 };
 
-nsresult nsMediaFileStream::Open(nsIStreamListener** aStreamListener)
+nsresult nsFileStreamStrategy::Open(nsIStreamListener** aStreamListener)
 {
   if (aStreamListener) {
     *aStreamListener = nsnull;
@@ -380,7 +345,7 @@ nsresult nsMediaFileStream::Open(nsIStreamListener** aStreamListener)
   return NS_OK;
 }
 
-nsresult nsMediaFileStream::Close()
+nsresult nsFileStreamStrategy::Close()
 {
   nsAutoLock lock(mLock);
   if (mChannel) {
@@ -393,7 +358,7 @@ nsresult nsMediaFileStream::Close()
   return NS_OK;
 }
 
-nsresult nsMediaFileStream::Read(char* aBuffer, PRUint32 aCount, PRUint32* aBytes)
+nsresult nsFileStreamStrategy::Read(char* aBuffer, PRUint32 aCount, PRUint32* aBytes)
 {
   nsAutoLock lock(mLock);
   if (!mInput)
@@ -401,7 +366,7 @@ nsresult nsMediaFileStream::Read(char* aBuffer, PRUint32 aCount, PRUint32* aByte
   return mInput->Read(aBuffer, aCount, aBytes);
 }
 
-nsresult nsMediaFileStream::Seek(PRInt32 aWhence, PRInt64 aOffset) 
+nsresult nsFileStreamStrategy::Seek(PRInt32 aWhence, PRInt64 aOffset) 
 {  
   PRUint32 size = 0;
   PRInt64 absoluteOffset = 0;
@@ -427,7 +392,7 @@ nsresult nsMediaFileStream::Seek(PRInt32 aWhence, PRInt64 aOffset)
   return rv;
 }
 
-PRInt64 nsMediaFileStream::Tell()
+PRInt64 nsFileStreamStrategy::Tell()
 {
   nsAutoLock lock(mLock);
   if (!mSeekable)
@@ -438,32 +403,46 @@ PRInt64 nsMediaFileStream::Tell()
   return offset;
 }
 
-nsIPrincipal* nsMediaFileStream::GetCurrentPrincipal()
+nsIPrincipal* nsFileStreamStrategy::GetCurrentPrincipal()
 {
   return mPrincipal;
 }
 
-void nsMediaFileStream::Suspend()
+void nsFileStreamStrategy::Suspend()
 {
   mChannel->Suspend();
 }
 
-void nsMediaFileStream::Resume()
+void nsFileStreamStrategy::Resume()
 {
   mChannel->Resume();
 }
 
-class nsMediaHttpStream : public nsMediaChannelStream
+class nsHttpStreamStrategy : public nsStreamStrategy
 {
 public:
-  nsMediaHttpStream(nsMediaDecoder* aDecoder, nsIChannel* aChannel, nsIURI* aURI) :
-    nsMediaChannelStream(aDecoder, aChannel, aURI),
-    mAtEOF(PR_FALSE)
+  nsHttpStreamStrategy(nsMediaDecoder* aDecoder, nsIChannel* aChannel, nsIURI* aURI) :
+    nsStreamStrategy(aDecoder, aChannel, aURI),
+    mPosition(0),
+    mAtEOF(PR_FALSE),
+    mCancelled(PR_FALSE)
   {
   }
-
+  
+  // These methods have the same thread calling requirements 
+  // as those with the same name in nsMediaStream.
+  virtual nsresult Open(nsIStreamListener** aListener);
+  virtual nsresult Close();
+  virtual nsresult Read(char* aBuffer, PRUint32 aCount, PRUint32* aBytes);
   virtual nsresult Seek(PRInt32 aWhence, PRInt64 aOffset);
   virtual PRInt64  Tell();
+  virtual void     Cancel();
+  virtual nsIPrincipal* GetCurrentPrincipal();
+  virtual void     Suspend();
+  virtual void     Resume();
+
+  // Return PR_TRUE if the stream has been cancelled.
+  PRBool IsCancelled() const;
 
   // This must be called on the main thread only, and at a time when the
   // strategy is not reading from the current channel/stream. It's primary
@@ -471,25 +450,153 @@ public:
   // request HTTP channel.
   nsresult OpenInternal(nsIChannel* aChannel, PRInt64 aOffset);
 
+  // Opens the HTTP channel, using a byte range request to start at aOffset.
+  nsresult OpenInternal(nsIStreamListener **aStreamListener, PRInt64 aOffset);
+
 private:
+  // Listener attached to channel to constantly download the
+  // media data asynchronously and store it in the pipe. The 
+  // data is obtainable via the mPipeInput member. Use on 
+  // main thread only.
+  nsCOMPtr<nsChannelToPipeListener> mListener;
+
+  // Input stream for the media data currently downloaded 
+  // and stored in the pipe. This can be used from any thread.
+  nsCOMPtr<nsIInputStream>  mPipeInput;
+
+  // Current seek position. Need to compute this manually due to
+  // seeking with byte range requests meaning the position in the pipe
+  // is not valid. This is initially set on the main thread during the
+  // Open call. After that it is read and written by a single thread
+  // only (the thread that calls the read/seek operations).
+  PRInt64 mPosition;
+
   // PR_TRUE if we are positioned at the end of the file.
   // This is written and read from a single thread only (the thread that
   // calls the read/seek operations).
   PRPackedBool mAtEOF;
+
+  // PR_TRUE if the media stream requested this strategy is cancelled.
+  // This is read and written on the main thread only.
+  PRPackedBool mCancelled;
 };
 
-nsresult nsMediaHttpStream::OpenInternal(nsIChannel* aChannel,
+nsresult nsHttpStreamStrategy::Open(nsIStreamListener **aStreamListener)
+{
+  return OpenInternal(aStreamListener, 0);
+}
+
+nsresult nsHttpStreamStrategy::OpenInternal(nsIChannel* aChannel,
                                             PRInt64 aOffset)
 {
   nsAutoLock lock(mLock);
   mChannel = aChannel;
-  return OpenAtOffset(static_cast<nsIStreamListener**>(nsnull), aOffset);
+  return OpenInternal(static_cast<nsIStreamListener**>(nsnull), aOffset);
+}
+
+nsresult nsHttpStreamStrategy::OpenInternal(nsIStreamListener **aStreamListener,
+                                            PRInt64 aOffset)
+{
+  NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
+  NS_ENSURE_TRUE(mChannel, NS_ERROR_NULL_POINTER);
+
+  if (aStreamListener) {
+    *aStreamListener = nsnull;
+  }
+
+  mListener = new nsChannelToPipeListener(mDecoder, aOffset != 0);
+  NS_ENSURE_TRUE(mListener, NS_ERROR_OUT_OF_MEMORY);
+
+  nsresult rv = mListener->Init();
+  NS_ENSURE_SUCCESS(rv, rv);
+  
+  nsCOMPtr<nsIStreamListener> listener = do_QueryInterface(mListener);
+
+  if (aStreamListener) {
+    *aStreamListener = mListener;
+    NS_ADDREF(*aStreamListener);
+  } else {
+    // Ensure that if we're loading cross domain, that the server is sending
+    // an authorizing Access-Control header.
+    nsHTMLMediaElement* element = mDecoder->GetMediaElement();
+    NS_ENSURE_TRUE(element, NS_ERROR_FAILURE);
+    if (element->ShouldCheckAllowOrigin()) {
+      listener = new nsCrossSiteListenerProxy(mListener,
+                                              element->NodePrincipal(),
+                                              mChannel, 
+                                              PR_FALSE,
+                                              &rv);
+      NS_ENSURE_TRUE(listener, NS_ERROR_OUT_OF_MEMORY);
+      NS_ENSURE_SUCCESS(rv, rv);
+    } else {
+      rv = nsContentUtils::GetSecurityManager()->
+             CheckLoadURIWithPrincipal(element->NodePrincipal(),
+                                       mURI,
+                                       nsIScriptSecurityManager::STANDARD);
+      NS_ENSURE_SUCCESS(rv, rv);
+
+    }
+    // Use a byte range request from the start of the resource.
+    // This enables us to detect if the stream supports byte range
+    // requests, and therefore seeking, early.
+    nsCOMPtr<nsIHttpChannel> hc = do_QueryInterface(mChannel);
+    if (hc) {
+      nsCAutoString rangeString("bytes=");
+      rangeString.AppendInt(aOffset);
+      rangeString.Append("-");
+      hc->SetRequestHeader(NS_LITERAL_CSTRING("Range"), rangeString, PR_FALSE);
+    }
+ 
+    rv = mChannel->AsyncOpen(listener, nsnull);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+  
+  rv = mListener->GetInputStream(getter_AddRefs(mPipeInput));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  mDecoder->NotifyDownloadSeeked(aOffset);
+
+  return NS_OK;
+}
+
+nsresult nsHttpStreamStrategy::Close()
+{
+  NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
+  nsAutoLock lock(mLock);
+  if (mChannel) {
+    mChannel->Cancel(NS_BINDING_ABORTED);
+    mChannel = nsnull;
+  }
+  if (mPipeInput) {
+    mPipeInput->Close();
+    mPipeInput = nsnull;
+  }
+  mListener = nsnull;
+  return NS_OK;
+}
+
+nsresult nsHttpStreamStrategy::Read(char* aBuffer, PRUint32 aCount, PRUint32* aBytes)
+{
+  // The read request pulls from the pipe, not the channels input
+  // stream. This allows calling from any thread as the pipe is
+  // threadsafe.
+  nsAutoLock lock(mLock);
+  if (!mPipeInput)
+    return NS_ERROR_FAILURE;
+
+  // If Cancel() is called then the read will fail with an error so we
+  // can bail out of the blocking call.
+  nsresult rv = mPipeInput->Read(aBuffer, aCount, aBytes);
+  NS_ENSURE_SUCCESS(rv, rv);
+  mPosition += *aBytes;
+
+  return rv;
 }
 
 class nsByteRangeEvent : public nsRunnable 
 {
 public:
-  nsByteRangeEvent(nsMediaHttpStream* aStrategy, 
+  nsByteRangeEvent(nsHttpStreamStrategy* aStrategy, 
                    nsIURI* aURI, 
                    PRInt64 aOffset) :
     mStrategy(aStrategy),
@@ -536,14 +643,14 @@ public:
   }
 
 private:
-  nsMediaHttpStream* mStrategy;
+  nsHttpStreamStrategy* mStrategy;
   nsMediaDecoder* mDecoder;
   nsIURI* mURI;
   PRInt64 mOffset;
   nsresult mResult;
 };
 
-nsresult nsMediaHttpStream::Seek(PRInt32 aWhence, PRInt64 aOffset)
+nsresult nsHttpStreamStrategy::Seek(PRInt32 aWhence, PRInt64 aOffset)
 {
   PRInt64 totalBytes = mDecoder->GetStatistics().mTotalBytes;
   {
@@ -652,17 +759,57 @@ nsresult nsMediaHttpStream::Seek(PRInt32 aWhence, PRInt64 aOffset)
   return rv;
 }
 
-PRInt64 nsMediaHttpStream::Tell()
+PRInt64 nsHttpStreamStrategy::Tell()
 {
   // Handle the case of a seek to EOF by liboggz
   // (See Seek for details)
   return mAtEOF ? mDecoder->GetStatistics().mTotalBytes : mPosition;
 }
 
-nsresult
-nsMediaStream::Open(nsMediaDecoder* aDecoder, nsIURI* aURI,
-                    nsIChannel* aChannel, nsMediaStream** aStream,
-                    nsIStreamListener** aListener)
+void nsHttpStreamStrategy::Cancel()
+{
+  mCancelled = PR_TRUE;
+  if (mListener)
+    mListener->Cancel();
+}
+
+PRBool nsHttpStreamStrategy::IsCancelled() const
+{
+  return mCancelled;
+}
+
+nsIPrincipal* nsHttpStreamStrategy::GetCurrentPrincipal()
+{
+  if (!mListener)
+    return nsnull;
+
+  return mListener->GetCurrentPrincipal();
+}
+
+void nsHttpStreamStrategy::Suspend()
+{
+  mChannel->Suspend();
+}
+
+void nsHttpStreamStrategy::Resume()
+{
+  mChannel->Resume();
+}
+
+nsMediaStream::nsMediaStream()
+{
+  NS_ASSERTION(NS_IsMainThread(), 
+	       "nsMediaStream created on non-main thread");
+  MOZ_COUNT_CTOR(nsMediaStream);
+}
+
+nsMediaStream::~nsMediaStream()
+{
+  MOZ_COUNT_DTOR(nsMediaStream);
+}
+
+nsresult nsMediaStream::Open(nsMediaDecoder* aDecoder, nsIURI* aURI,
+                             nsIChannel* aChannel, nsIStreamListener** aListener)
 {
   NS_ASSERTION(NS_IsMainThread(), 
 	       "nsMediaStream::Open called on non-main thread");
@@ -680,21 +827,84 @@ nsMediaStream::Open(nsMediaDecoder* aDecoder, nsIURI* aURI,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  nsMediaStream* stream;
+  nsCOMPtr<nsIFileChannel> fc = do_QueryInterface(channel);
   nsCOMPtr<nsIHttpChannel> hc = do_QueryInterface(channel);
-  if (hc) {
-    stream = new nsMediaHttpStream(aDecoder, channel, aURI);
-  } else {
-    nsCOMPtr<nsIFileChannel> fc = do_QueryInterface(channel);
-    if (fc) {
-      stream = new nsMediaFileStream(aDecoder, channel, aURI);
-    } else {
-      stream = new nsMediaChannelStream(aDecoder, channel, aURI);
-    }
-  }
-  if (!stream)
-    return NS_ERROR_OUT_OF_MEMORY;
+  if (hc) 
+    mStreamStrategy = new nsHttpStreamStrategy(aDecoder, channel, aURI);
+  else if (fc) 
+    mStreamStrategy = new nsFileStreamStrategy(aDecoder, channel, aURI);
+  else
+    mStreamStrategy = new nsDefaultStreamStrategy(aDecoder, channel, aURI);
 
-  *aStream = stream;
-  return stream->Open(aListener);
+  return mStreamStrategy->Open(aListener);
+}
+
+nsresult nsMediaStream::Close()
+{
+  NS_ASSERTION(NS_IsMainThread(), 
+	       "nsMediaStream::Close called on non-main thread");
+
+  return mStreamStrategy->Close();
+}
+
+nsresult nsMediaStream::Read(char* aBuffer, PRUint32 aCount, PRUint32* aBytes)
+{
+  nsresult rv = mStreamStrategy->Read(aBuffer, aCount, aBytes);
+  if (NS_SUCCEEDED(rv)) {
+    mStreamStrategy->Decoder()->NotifyBytesConsumed(*aBytes);
+  }
+  return rv;
+}
+
+nsresult nsMediaStream::Seek(PRInt32 aWhence, PRInt64 aOffset) 
+{
+  return mStreamStrategy->Seek(aWhence, aOffset);
+}
+
+PRInt64 nsMediaStream::Tell()
+{
+  return mStreamStrategy->Tell();
+}
+
+void nsMediaStream::Cancel()
+{
+  NS_ASSERTION(NS_IsMainThread(), 
+	       "nsMediaStream::Cancel called on non-main thread");
+
+  // In the Http strategy case the cancel will cause the http
+  // channel's listener to close the pipe, forcing an i/o error on any
+  // blocked read. This will allow the decode thread to complete the
+  // event.
+  // 
+  // In the case of a seek in progress, the byte range request creates
+  // a new listener. This is done on the main thread via seek
+  // synchronously dispatching an event. This avoids the issue of us
+  // closing the listener but an outstanding byte range request
+  // creating a new one. They run on the same thread so no explicit
+  // synchronisation is required. The byte range request checks for
+  // the cancel flag and does not create a new channel or listener if
+  // we are cancelling.
+  //
+  // The default strategy does not do any seeking - the only issue is
+  // a blocked read which it handles by causing the listener to close
+  // the pipe, as per the http case.
+  //
+  // The file strategy doesn't block for any great length of time so
+  // is fine for a no-op cancel.
+  mStreamStrategy->Cancel();
+}
+
+nsIPrincipal* nsMediaStream::GetCurrentPrincipal()
+{
+  return mStreamStrategy->GetCurrentPrincipal();
+}
+
+void nsMediaStream::Suspend()
+{
+  mStreamStrategy->Suspend();
+}
+
+void nsMediaStream::Resume()
+{
+  mStreamStrategy->Resume();
 }

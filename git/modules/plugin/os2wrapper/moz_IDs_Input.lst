@@ -321,6 +321,7 @@ nsIDOMNSHTMLTextAreaElement
 nsIDOMNSLocation
 nsIDOMNSRange
 nsIDOMNSUIEvent
+nsIDOMNSXBLFormControl
 nsIDOMParser
 nsIDOMPkcs11
 nsIDOMPlugin

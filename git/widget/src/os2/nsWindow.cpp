@@ -52,6 +52,7 @@
 #include "nsTransform2D.h"
 #include "nsGfxCIID.h"
 #include "prtime.h"
+#include "nsISupportsArray.h"
 #include "nsHashtable.h"
 #include "nsDragService.h"
 #include "nsILocalFile.h"
