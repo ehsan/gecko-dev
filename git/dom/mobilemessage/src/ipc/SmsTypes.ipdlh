@@ -48,7 +48,6 @@ struct MmsAttachmentData
 struct MmsMessageData
 {
   int32_t             id;
-  uint64_t            threadId;
   DeliveryState       delivery;
   DeliveryStatus[]    deliveryStatus;
   nsString            sender;

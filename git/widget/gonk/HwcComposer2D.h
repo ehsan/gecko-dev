@@ -18,11 +18,10 @@
 #define mozilla_HwcComposer2D
 
 #include "Composer2D.h"
+#include "HWComposer.h"
 #include "Layers.h"
 #include <vector>
 #include <list>
-
-#include "hardware/hwcomposer.h"
 
 namespace mozilla {
 
@@ -35,7 +34,8 @@ class Layer;
 //used to decribe the complex visible region of a layer
 typedef std::vector<hwc_rect_t> RectVector;
 
-class HwcComposer2D : public mozilla::layers::Composer2D {
+class HwcComposer2D : public android::HWComposer,
+                      public mozilla::layers::Composer2D {
 public:
     HwcComposer2D();
     virtual ~HwcComposer2D();
@@ -56,10 +56,7 @@ private:
     bool PrepareLayerList(layers::Layer* aContainer, const nsIntRect& aClip,
           const gfxMatrix& aParentTransform, const gfxMatrix& aGLWorldTransform);
 
-    hwc_composer_device_t*  mHwc;
     hwc_layer_list_t*       mList;
-    hwc_display_t           mDpy;
-    hwc_surface_t           mSur;
     nsIntRect               mScreenRect;
     int                     mMaxLayerCount;
     bool                    mColorFill;

@@ -15,9 +15,7 @@
  */
 
 #include <android/log.h>
-#include <string.h>
 
-#include "libdisplay/GonkDisplay.h"
 #include "Framebuffer.h"
 #include "HwcComposer2D.h"
 #include "LayerManagerOGL.h"
@@ -63,7 +61,6 @@ static StaticRefPtr<HwcComposer2D> sInstance;
 HwcComposer2D::HwcComposer2D()
     : mMaxLayerCount(0)
     , mList(nullptr)
-    , mHwc(nullptr)
 {
 }
 
@@ -76,10 +73,9 @@ HwcComposer2D::Init(hwc_display_t dpy, hwc_surface_t sur)
 {
     MOZ_ASSERT(!Initialized());
 
-    mHwc = (hwc_composer_device_t*)GetGonkDisplay()->GetHWCDevice();
-    if (!mHwc) {
+    if (int err = init()) {
         LOGE("Failed to initialize hwc");
-        return -1;
+        return err;
     }
 
     nsIntSize screenSize;
