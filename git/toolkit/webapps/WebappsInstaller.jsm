@@ -827,7 +827,7 @@ LinuxNativeApp.prototype = {
                     .getService(Ci.nsIToolkitProfileService);
 
     try {
-      this.appProfile = profSvc.createDefaultProfileForApp(this.uniqueName,
+      this.appProfile = profSvc.createDefaultProfileForApp(this.installDir.leafName,
                                                            null, null);
     } catch (ex if ex.result == Cr.NS_ERROR_ALREADY_INITIALIZED) {}
   },
