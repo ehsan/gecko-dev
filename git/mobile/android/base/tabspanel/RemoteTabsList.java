@@ -23,7 +23,7 @@ import android.widget.ExpandableListView;
 import android.widget.SimpleExpandableListAdapter;
 
 /**
- * The actual list of synced tabs. This serves as the only child view of {@link RemoteTabsContainerPanel}
+ * The actual list of synced tabs. This serves as the only child view of {@link RemoteTabsContainer}
  * so it can be refreshed using a swipe-to-refresh gesture.
  */
 class RemoteTabsList extends ExpandableListView

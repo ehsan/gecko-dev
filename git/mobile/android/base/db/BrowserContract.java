@@ -438,8 +438,6 @@ public class BrowserContract {
     public static final class SuggestedSites implements CommonColumns, URLColumns {
         private SuggestedSites() {}
 
-        public static final Uri CONTENT_URI = Uri.withAppendedPath(AUTHORITY_URI, "suggestedsites");
-
         public static final String IMAGE_URL = "image_url";
         public static final String BG_COLOR = "bg_color";
     }

@@ -17,7 +17,6 @@ import org.mozilla.gecko.fxa.authenticator.AndroidFxAccount;
 import org.mozilla.gecko.fxa.login.Married;
 import org.mozilla.gecko.fxa.login.State;
 import org.mozilla.gecko.fxa.sync.FxAccountSyncStatusHelper;
-import org.mozilla.gecko.fxa.tasks.FxAccountCodeResender;
 import org.mozilla.gecko.sync.SyncConfiguration;
 
 import android.accounts.Account;
@@ -143,7 +142,7 @@ public class FxAccountStatusFragment extends PreferenceFragment implements OnPre
     }
 
     if (preference == needsVerificationPreference) {
-      FxAccountCodeResender.resendCode(getActivity().getApplicationContext(), fxAccount);
+      FxAccountConfirmAccountActivity.resendCode(getActivity().getApplicationContext(), fxAccount);
 
       Intent intent = new Intent(getActivity(), FxAccountConfirmAccountActivity.class);
       // Per http://stackoverflow.com/a/8992365, this triggers a known bug with
