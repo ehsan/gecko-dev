@@ -53,10 +53,7 @@
 #include "builtin/Intl.h"
 #include "builtin/MapObject.h"
 #include "builtin/RegExp.h"
-#ifdef ENABLE_BINARYDATA
-#include "builtin/SIMD.h"
 #include "builtin/TypedObject.h"
-#endif
 #include "frontend/BytecodeCompiler.h"
 #include "frontend/FullParseHandler.h"  // for JS_BufferIsCompileableUnit
 #include "frontend/Parser.h" // for JS_BufferIsCompileableUnit
@@ -1221,10 +1218,6 @@ static const JSStdName builtin_property_names[] = {
     {js_InitStringClass,        EAGER_ATOM(encodeURIComponent), OCLASP(String)},
 #if JS_HAS_UNEVAL
     {js_InitStringClass,        EAGER_ATOM(uneval), OCLASP(String)},
-#endif
-#ifdef ENABLE_BINARYDATA
-    {js_InitSIMDClass,          EAGER_ATOM(SIMD), OCLASP(SIMD)},
-    {js_InitTypedObjectModuleObject, EAGER_ATOM(TypedObject), OCLASP(TypedObjectModule)},
 #endif
 
     {nullptr,                     0, nullptr}

@@ -18,7 +18,6 @@ PP_TARGETS += SYNC_PP
 sync_modules := \
   addonsreconciler.js \
   addonutils.js \
-  browserid_identity.js \
   engines.js \
   identity.js \
   jpakeclient.js \

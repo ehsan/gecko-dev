@@ -982,7 +982,6 @@ ScriptSource::getOffThreadCompressionChars(ExclusiveContext *cx)
 void
 WorkerThread::threadLoop()
 {
-    JS::AutoAssertNoGC nogc;
     WorkerThreadState &state = *runtime->workerThreadState;
     AutoLockWorkerThreadState lock(state);
 
