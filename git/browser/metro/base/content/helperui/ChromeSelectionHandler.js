@@ -6,8 +6,6 @@
  * Selection handler for chrome text inputs
  */
 
-let Ci = Components.interfaces;
-
 const kCaretMode = 1;
 const kSelectionMode = 2;
 
@@ -36,8 +34,7 @@ var ChromeSelectionHandler = {
     this._domWinUtils = Util.getWindowUtils(window);
     this._contentWindow = window;
     this._targetElement = aJson.target;
-    this._targetIsEditable = Util.isTextInput(this._targetElement) ||
-        this._targetElement instanceof Ci.nsIDOMXULTextBoxElement;
+    this._targetIsEditable = this._targetElement instanceof Components.interfaces.nsIDOMXULTextBoxElement;
     if (!this._targetIsEditable) {
       this._onFail("not an editable?", this._targetElement);
       return;
@@ -46,11 +43,6 @@ var ChromeSelectionHandler = {
     let selection = this._getSelection();
     if (!selection) {
       this._onFail("no selection.");
-      return;
-    }
-
-    if (!this._getTargetElementValue()) {
-      this._onFail("Target element does not contain any content to select.");
       return;
     }
 
@@ -388,36 +380,19 @@ var ChromeSelectionHandler = {
    */
 
   _getSelection: function _getSelection() {
-    let targetElementEditor = this._getTargetElementEditor();
-
-    return targetElementEditor ? targetElementEditor.selection : null;
-  },
-
-  _getTargetElementValue: function _getTargetElementValue() {
     if (this._targetElement instanceof Ci.nsIDOMXULTextBoxElement) {
-      return this._targetElement.inputField.value;
-    } else if (Util.isTextInput(this._targetElement)) {
-      return this._targetElement.value;
+      return this._targetElement
+                 .QueryInterface(Components.interfaces.nsIDOMXULTextBoxElement)
+                 .editor.selection;
     }
     return null;
   },
 
   _getSelectController: function _getSelectController() {
-    let targetElementEditor = this._getTargetElementEditor();
-
-    return targetElementEditor ? targetElementEditor.selectionController : null;
+    return this._targetElement
+                .QueryInterface(Components.interfaces.nsIDOMXULTextBoxElement)
+                .editor.selectionController;
   },
-
-  _getTargetElementEditor: function() {
-    if (this._targetElement instanceof Ci.nsIDOMXULTextBoxElement) {
-      return this._targetElement.QueryInterface(Ci.nsIDOMXULTextBoxElement)
-          .editor;
-    } else if (Util.isTextInput(this._targetElement)) {
-      return this._targetElement.QueryInterface(Ci.nsIDOMNSEditableElement)
-          .editor;
-    }
-    return null;
-  }
 };
 
 ChromeSelectionHandler.__proto__ = new SelectionPrototype();

@@ -58,11 +58,6 @@ struct AvailableStorageResponse
   nsString mountState;
 };
 
-struct StorageStatusResponse
-{
-  nsString storageStatus;
-};
-
 struct FormatStorageResponse
 {
   nsString mountState;
@@ -78,7 +73,6 @@ union DeviceStorageResponseValue
   FreeSpaceStorageResponse;
   UsedSpaceStorageResponse;
   AvailableStorageResponse;
-  StorageStatusResponse;
   FormatStorageResponse;
 };
 

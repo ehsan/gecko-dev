@@ -3656,7 +3656,7 @@ DebuggerServer.ObjectActorPreviewers.Object = [
   },
 
   function DOMNode({obj, threadActor}, aGrip, aRawObj) {
-    if (obj.class == "Object" || !aRawObj || !(aRawObj instanceof Ci.nsIDOMNode)) {
+    if (!aRawObj || !(aRawObj instanceof Ci.nsIDOMNode)) {
       return false;
     }
 

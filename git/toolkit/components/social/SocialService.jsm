@@ -574,13 +574,14 @@ this.SocialService = {
       },
     };
 
-    let options = {
-                    learnMoreURL: Services.urlFormatter.formatURLPref("app.support.baseURL") + "social-api",
-                  };
+    let link = chromeWin.document.getElementById("servicesInstall-learnmore-link");
+    link.value = browserBundle.GetStringFromName("service.install.learnmore");
+    link.href = Services.urlFormatter.formatURLPref("app.support.baseURL") + "social-api";
+
     let anchor = "servicesInstall-notification-icon";
     let notificationid = "servicesInstall";
     chromeWin.PopupNotifications.show(browser, notificationid, message, anchor,
-                                      action, [], options);
+                                      action, [], {});
   },
 
   installProvider: function(aDOMDocument, data, installCallback) {
