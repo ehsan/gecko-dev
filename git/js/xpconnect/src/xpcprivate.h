@@ -159,6 +159,8 @@
 #include "nsIScriptSecurityManager.h"
 #include "nsNetUtil.h"
 
+#include "nsIXPCScriptNotify.h"  // used to notify: ScriptEvaluated
+
 #include "nsIPrincipal.h"
 #include "nsJSPrincipals.h"
 #include "nsIScriptObjectPrincipal.h"

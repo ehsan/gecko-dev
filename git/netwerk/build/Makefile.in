@@ -122,6 +122,7 @@ LOCAL_INCLUDES += -I$(srcdir)/../wifi
 
 endif
 
+include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/config/rules.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
 

@@ -601,11 +601,6 @@ ProxyAutoConfig::SetupJS()
   JSAutoRequest ar(mJSRuntime->Context());
   JSAutoCompartment ac(mJSRuntime->Context(), mJSRuntime->Global());
 
-  // check if this is a data: uri so that we don't spam the js console with
-  // huge meaningless strings. this is not on the main thread, so it can't
-  // use nsIRUI scheme methods
-  bool isDataURI = nsDependentCSubstring(mPACURI, 0, 5).LowerCaseEqualsASCII("data:", 5);
-
   sRunning = this;
   JSScript *script = JS_CompileScript(mJSRuntime->Context(),
                                       mJSRuntime->Global(),
@@ -614,12 +609,7 @@ ProxyAutoConfig::SetupJS()
   if (!script ||
       !JS_ExecuteScript(mJSRuntime->Context(), mJSRuntime->Global(), script, nullptr)) {
     nsString alertMessage(NS_LITERAL_STRING("PAC file failed to install from "));
-    if (isDataURI) {
-      alertMessage += NS_LITERAL_STRING("data: URI");
-    }
-    else {
-      alertMessage += NS_ConvertUTF8toUTF16(mPACURI);
-    }
+    alertMessage += NS_ConvertUTF8toUTF16(mPACURI);
     PACLogToConsole(alertMessage);
     sRunning = nullptr;
     return NS_ERROR_FAILURE;
@@ -628,12 +618,7 @@ ProxyAutoConfig::SetupJS()
 
   mJSRuntime->SetOK();
   nsString alertMessage(NS_LITERAL_STRING("PAC file installed from "));
-  if (isDataURI) {
-    alertMessage += NS_LITERAL_STRING("data: URI");
-  }
-  else {
-    alertMessage += NS_ConvertUTF8toUTF16(mPACURI);
-  }
+  alertMessage += NS_ConvertUTF8toUTF16(mPACURI);
   PACLogToConsole(alertMessage);
 
   // we don't need these now

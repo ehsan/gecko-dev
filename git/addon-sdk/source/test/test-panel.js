@@ -129,12 +129,11 @@ exports["test Show Hide Panel"] = function(assert, done) {
 exports["test Document Reload"] = function(assert, done) {
   const { Panel } = require('sdk/panel');
 
-  let url2 = "data:text/html;charset=utf-8,page2";
   let content =
     "<script>" +
     "window.onload = function() {" +
     "  setTimeout(function () {" +
-    "    window.location = '" + url2 + "';" +
+    "    window.location = 'about:blank';" +
     "  }, 0);" +
     "}" +
     "</script>";
@@ -145,13 +144,11 @@ exports["test Document Reload"] = function(assert, done) {
     contentScript: "self.postMessage(window.location.href)",
     onMessage: function (message) {
       messageCount++;
-      assert.notEqual(message, 'about:blank', 'about:blank is not a message ' + messageCount);
-
       if (messageCount == 1) {
         assert.ok(/data:text\/html/.test(message), "First document had a content script " + message);
       }
       else if (messageCount == 2) {
-        assert.equal(message, url2, "Second document too");
+        assert.equal(message, "about:blank", "Second document too");
         panel.destroy();
         done();
       }

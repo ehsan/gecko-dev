@@ -42,6 +42,7 @@ function test_pause_frame()
       try {
         stopMe();
       } catch (e) {}
+      ")"
     } + ")()");
   });
 }

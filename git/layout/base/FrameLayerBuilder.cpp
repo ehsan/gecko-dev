@@ -2962,7 +2962,7 @@ FrameLayerBuilder::BuildContainerLayerFor(nsDisplayListBuilder* aBuilder,
   containerLayer->SetContentFlags(flags);
 
   mContainerLayerGeneration = oldGeneration;
-  nsPresContext::ClearNotifySubDocInvalidationData(containerLayer);
+  containerLayer->SetUserData(&gNotifySubDocInvalidationData, nullptr);
 
   return containerLayer.forget();
 }

@@ -834,29 +834,18 @@ exports.testAttachUnwrapped = function (test) {
 
 exports['test window focus changes active tab'] = function(test) {
   test.waitUntilDone();
-
-  let url1 = "data:text/html;charset=utf-8," + encodeURIComponent("test window focus changes active tab</br><h1>Window #1");
-
   let win1 = openBrowserWindow(function() {
-    test.pass("window 1 is open");
-
     let win2 = openBrowserWindow(function() {
-      test.pass("window 2 is open");
-
-      tabs.on("activate", function onActivate(tab) {
+      tabs.on("activate", function onActivate() {
         tabs.removeListener("activate", onActivate);
         test.pass("activate was called on windows focus change.");
-        test.assertEqual(tab.url, url1, 'the activated tab url is correct');
-
-        close(win2).then(function() {
-          test.pass('window 2 was closed');
-          return close(win1);
-        }).then(test.done.bind(test));
+        closeBrowserWindow(win1, function() {
+          closeBrowserWindow(win2, function() { test.done(); });
+        });
       });
-
       win1.focus();
     }, "data:text/html;charset=utf-8,test window focus changes active tab</br><h1>Window #2");
-  }, url1);
+  }, "data:text/html;charset=utf-8,test window focus changes active tab</br><h1>Window #1");
 };
 
 exports['test ready event on new window tab'] = function(test) {

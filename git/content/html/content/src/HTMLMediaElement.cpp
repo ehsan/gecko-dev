@@ -2597,14 +2597,12 @@ public:
   void DoNotifyFinished()
   {
     if (mElement) {
-      nsRefPtr<HTMLMediaElement> deathGrip = mElement;
       mElement->PlaybackEnded();
     }
   }
   void UpdateReadyStateForData()
   {
     if (mElement && mHaveCurrentData) {
-      nsRefPtr<HTMLMediaElement> deathGrip = mElement;
       mElement->UpdateReadyStateForData(
         mBlocked ? MediaDecoderOwner::NEXT_FRAME_UNAVAILABLE_BUFFERING :
                    MediaDecoderOwner::NEXT_FRAME_AVAILABLE);
@@ -2627,7 +2625,6 @@ public:
       mPendingNotifyOutput = false;
     }
     if (mElement && mHaveCurrentData) {
-      nsRefPtr<HTMLMediaElement> deathGrip = mElement;
       mElement->FireTimeUpdate(true);
     }
   }
@@ -2635,7 +2632,6 @@ public:
   {
     mHaveCurrentData = true;
     if (mElement) {
-      nsRefPtr<HTMLMediaElement> deathGrip = mElement;
       mElement->FirstFrameLoaded(false);
     }
     UpdateReadyStateForData();

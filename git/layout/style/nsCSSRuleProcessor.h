@@ -123,8 +123,8 @@ public:
   bool AppendFontFaceRules(nsPresContext* aPresContext,
                            nsTArray<nsFontFaceRuleContainer>& aArray);
 
-  nsCSSKeyframesRule* KeyframesRuleForName(nsPresContext* aPresContext,
-                                           const nsString& aName);
+  bool AppendKeyframesRules(nsPresContext* aPresContext,
+                            nsTArray<nsCSSKeyframesRule*>& aArray);
 
   bool AppendPageRules(nsPresContext* aPresContext,
                        nsTArray<nsCSSPageRule*>& aArray);
