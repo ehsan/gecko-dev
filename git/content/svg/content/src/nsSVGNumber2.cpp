@@ -151,8 +151,9 @@ nsSVGNumber2::SetAnimValue(float aValue, nsSVGElement *aSVGElement)
   aSVGElement->DidAnimateNumber(mAttrEnum);
 }
 
-already_AddRefed<nsIDOMSVGAnimatedNumber>
-nsSVGNumber2::ToDOMAnimatedNumber(nsSVGElement* aSVGElement)
+nsresult
+nsSVGNumber2::ToDOMAnimatedNumber(nsIDOMSVGAnimatedNumber **aResult,
+                                  nsSVGElement *aSVGElement)
 {
   nsRefPtr<DOMAnimatedNumber> domAnimatedNumber =
     sSVGAnimatedNumberTearoffTable.GetTearoff(this);
@@ -161,14 +162,7 @@ nsSVGNumber2::ToDOMAnimatedNumber(nsSVGElement* aSVGElement)
     sSVGAnimatedNumberTearoffTable.AddTearoff(this, domAnimatedNumber);
   }
 
-  return domAnimatedNumber.forget();
-}
-
-nsresult
-nsSVGNumber2::ToDOMAnimatedNumber(nsIDOMSVGAnimatedNumber **aResult,
-                                  nsSVGElement *aSVGElement)
-{
-  *aResult = ToDOMAnimatedNumber(aSVGElement).get();
+  domAnimatedNumber.forget(aResult);
   return NS_OK;
 }
 

@@ -62,11 +62,9 @@ GetXBLScope(JSContext *cx, JSObject *contentScope);
 void
 TraceXPCGlobal(JSTracer *trc, JSObject *obj);
 
-// XXX These should be moved into XPCJSRuntime!
-NS_EXPORT_(bool)
-xpc_LocalizeRuntime(JSRuntime *rt);
+// XXX where should this live?
 NS_EXPORT_(void)
-xpc_DelocalizeRuntime(JSRuntime *rt);
+xpc_LocalizeContext(JSContext *cx);
 
 nsresult
 xpc_MorphSlimWrapper(JSContext *cx, nsISupports *tomorph);

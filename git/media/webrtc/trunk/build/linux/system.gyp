@@ -112,28 +112,7 @@
           ],
         },
       ],  # targets
-    }, {  # chromeos==1
-      'targets': [
-        {
-          # TODO(satorux): Remove this once dbus-glib clients are gone.
-          'target_name': 'dbus-glib',
-          'type': 'none',
-          'direct_dependent_settings': {
-            'cflags': [
-              '<!@(<(pkg-config) --cflags dbus-glib-1)',
-            ],
-          },
-          'link_settings': {
-            'ldflags': [
-              '<!@(<(pkg-config) --libs-only-L --libs-only-other dbus-glib-1)',
-            ],
-            'libraries': [
-              '<!@(<(pkg-config) --libs-only-l dbus-glib-1)',
-            ],
-          },
-        },
-      ],
-    }]
+    }]  # chromeos==0
   ],  # conditions
   'targets': [
     {
@@ -494,6 +473,24 @@
         ],
         'libraries': [
           '<!@(<(pkg-config) --libs-only-l dbus-1)',
+        ],
+      },
+    },
+    {
+      # TODO(satorux): Remove this once dbus-glib clients are gone.
+      'target_name': 'dbus-glib',
+      'type': 'none',
+      'direct_dependent_settings': {
+        'cflags': [
+          '<!@(<(pkg-config) --cflags dbus-glib-1)',
+        ],
+      },
+      'link_settings': {
+        'ldflags': [
+          '<!@(<(pkg-config) --libs-only-L --libs-only-other dbus-glib-1)',
+        ],
+        'libraries': [
+          '<!@(<(pkg-config) --libs-only-l dbus-glib-1)',
         ],
       },
     },

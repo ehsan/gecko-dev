@@ -1481,6 +1481,12 @@ extern JSBool
 XPC_WN_JSOp_Enumerate(JSContext *cx, JSHandleObject obj, JSIterateOp enum_op,
                       JSMutableHandleValue statep, JSMutableHandleId idp);
 
+extern JSType
+XPC_WN_JSOp_TypeOf_Object(JSContext *cx, JSHandleObject obj);
+
+extern JSType
+XPC_WN_JSOp_TypeOf_Function(JSContext *cx, JSHandleObject obj);
+
 extern JSObject*
 XPC_WN_JSOp_ThisObject(JSContext *cx, JSHandleObject obj);
 
@@ -1516,6 +1522,7 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSHandleObject obj);
         nullptr, /* deleteElement */                                          \
         nullptr, /* deleteSpecial */                                          \
         XPC_WN_JSOp_Enumerate,                                                \
+        XPC_WN_JSOp_TypeOf_Function,                                          \
         XPC_WN_JSOp_ThisObject,                                               \
     }
 
@@ -1550,6 +1557,7 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSHandleObject obj);
         nullptr, /* deleteElement */                                          \
         nullptr, /* deleteSpecial */                                          \
         XPC_WN_JSOp_Enumerate,                                                \
+        XPC_WN_JSOp_TypeOf_Object,                                            \
         XPC_WN_JSOp_ThisObject,                                               \
     }
 

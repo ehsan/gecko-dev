@@ -1389,11 +1389,7 @@ NPP_StreamAsFile(NPP instance, NPStream* stream, const char* fname)
     instanceData->fileBuf = malloc((int32_t)size + 1);
     char* buf = reinterpret_cast<char *>(instanceData->fileBuf);
     fseek(file, 0, SEEK_SET);
-    size_t sizeRead = fread(instanceData->fileBuf, 1, size, file);
-    if (sizeRead != size) {
-      printf("Unable to read data from file\n");
-      instanceData->err << "Unable to read data from file " << fname;
-    }
+    fread(instanceData->fileBuf, 1, size, file);
     fclose(file);
     buf[size] = '\0';
     instanceData->fileBufSize = (int32_t)size;

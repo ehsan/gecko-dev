@@ -372,6 +372,9 @@ function checkWithBustedPrototype()
   }
 }
 
+SimpleTest.waitForExplicitFinish();
+SpecialPowers.pushPrefEnv({'set': [["dom.experimental_forms", true]]}, function() {
+
 checkAvailability();
 checkGarbageValues();
 checkWithBustedPrototype();
@@ -383,6 +386,9 @@ checkDateSet();
 // Test <input type='time'>.
 checkTimeGet();
 checkTimeSet();
+
+SimpleTest.finish();
+});
 
 </script>
 </pre>

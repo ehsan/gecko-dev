@@ -377,6 +377,7 @@ js::Atomize(JSContext *cx, const char *bytes, size_t length, InternBehavior ib)
     if (!JSString::validateLength(cx, length))
         return NULL;
 
+    UnrootedAtom atom;
     static const unsigned ATOMIZE_BUF_MAX = 32;
     if (length < ATOMIZE_BUF_MAX) {
         /*
@@ -389,13 +390,15 @@ js::Atomize(JSContext *cx, const char *bytes, size_t length, InternBehavior ib)
         jschar inflated[ATOMIZE_BUF_MAX];
         size_t inflatedLength = ATOMIZE_BUF_MAX - 1;
         InflateStringToBuffer(cx, bytes, length, inflated, &inflatedLength);
-        return AtomizeAndCopyStableChars<CanGC>(cx, inflated, inflatedLength, ib);
+        atom = AtomizeAndCopyStableChars<CanGC>(cx, inflated, inflatedLength, ib);
+    } else {
+        jschar *tbcharsZ = InflateString(cx, bytes, &length);
+        if (!tbcharsZ)
+            return UnrootedAtom();
+        atom = AtomizeAndTakeOwnership(cx, StableCharPtr(tbcharsZ, length), length, ib);
     }
 
-    jschar *tbcharsZ = InflateString(cx, bytes, &length);
-    if (!tbcharsZ)
-        return UnrootedAtom();
-    return AtomizeAndTakeOwnership(cx, StableCharPtr(tbcharsZ, length), length, ib);
+    return atom;
 }
 
 template <AllowGC allowGC>

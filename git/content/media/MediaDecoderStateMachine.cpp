@@ -987,41 +987,28 @@ void MediaDecoderStateMachine::AudioLoop()
   bool preservesPitch;
   bool setPreservesPitch;
   int32_t minWriteFrames = -1;
-  AudioChannelType audioChannelType;
-
   {
     ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
     mAudioCompleted = false;
     audioStartTime = mAudioStartTime;
     channels = mInfo.mAudioChannels;
     rate = mInfo.mAudioRate;
-    audioChannelType = mDecoder->GetAudioChannelType();
     NS_ASSERTION(audioStartTime != -1, "Should have audio start time by now");
 
-    volume = mVolume;
-    preservesPitch = mPreservesPitch;
-    playbackRate = mPlaybackRate;
-  }
+    mAudioStream = AudioStream::AllocateStream();
+    mAudioStream->Init(channels, rate, mDecoder->GetAudioChannelType());
 
-  {
-    // AudioStream initialization can block for extended periods in unusual
-    // circumstances, so we take care to drop the decoder monitor while
-    // initializing.
-    nsAutoPtr<AudioStream> audioStream(AudioStream::AllocateStream());
-    audioStream->Init(channels, rate, audioChannelType);
-    audioStream->SetPreservesPitch(preservesPitch);
+    volume = mVolume;
+    mAudioStream->SetVolume(volume);
+    preservesPitch = mPreservesPitch;
+    mAudioStream->SetPreservesPitch(preservesPitch);
+    playbackRate = mPlaybackRate;
     if (playbackRate != 1.0) {
       NS_ASSERTION(playbackRate != 0,
-                   "Don't set the playbackRate to 0 on an AudioStream.");
-      audioStream->SetPlaybackRate(playbackRate);
-    }
-
-    {
-      ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-      mAudioStream = audioStream;
+          "Don't set the playbackRate to 0 on an AudioStream.");
+      mAudioStream->SetPlaybackRate(playbackRate);
     }
   }
-
   while (1) {
     // Wait while we're not playing, and we're not shutting down, or we're
     // playing and we've got no audio to play.

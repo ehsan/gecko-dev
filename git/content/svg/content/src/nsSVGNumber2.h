@@ -48,8 +48,6 @@ public:
   bool IsExplicitlySet() const
     { return mIsAnimated || mIsBaseSet; }
 
-  already_AddRefed<nsIDOMSVGAnimatedNumber>
-  ToDOMAnimatedNumber(nsSVGElement* aSVGElement);
   nsresult ToDOMAnimatedNumber(nsIDOMSVGAnimatedNumber **aResult,
                                nsSVGElement* aSVGElement);
   // Returns a new nsISMILAttr object that the caller must delete

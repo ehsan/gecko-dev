@@ -800,29 +800,17 @@ nsBidiPresUtils::ResolveParagraph(nsBlockFrame* aBlockFrame,
               RemoveBidiContinuation(aBpd, frame,
                                      frameIndex, newIndex, lineOffset);
             }
-          } else if (runLength == fragmentLength) {
+          } else if (runLength == fragmentLength &&
+                     frame->GetNextSibling()) {
             /*
-             * If the directional run ends at the end of the frame, make sure
-             * that any continuation is non-fluid, and do the same up the
-             * parent chain
+             * If the directional run ends at the end of the frame, and this is
+             * not the containing frame's last child, make sure that the next
+             * frame is a non-fluid continuation
              */
             nsIFrame* next = frame->GetNextInFlow();
             if (next) {
-              nsIFrame* parent = frame;
-              nsIFrame* nextParent = next;
-              while (parent && nextParent) {
-                if (parent == nextParent ||
-                    nextParent != parent->GetNextInFlow() ||
-                    !parent->IsFrameOfType(nsIFrame::eLineParticipant) ||
-                    !nextParent->IsFrameOfType(nsIFrame::eLineParticipant)) {
-                  break;
-                }
-                parent->SetNextContinuation(nextParent);
-                nextParent->SetPrevContinuation(parent);
-
-                parent = parent->GetParent();
-                nextParent = nextParent->GetParent();
-              }
+              frame->SetNextContinuation(next);
+              next->SetPrevContinuation(frame);
             }
           }
           frame->AdjustOffsetsForBidi(contentOffset, contentOffset + fragmentLength);

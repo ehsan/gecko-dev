@@ -453,14 +453,12 @@ int nr_ice_peer_ctx_stream_done(nr_ice_peer_ctx *pctx, nr_ice_media_stream *stre
     /* OK, we're finished, one way or another */
     r_log(LOG_ICE,LOG_INFO,"ICE-PEER(%s): all checks completed success=%d fail=%d",pctx->label,succeeded,failed);
 
-    /* Schedule a done notification for the first done event.
+    /* Schedule a done notification
        IMPORTANT: This is done in a callback because we expect destructors
        of various kinds to be fired from here */
-    if (!pctx->reported_done) {
-      pctx->reported_done = 1;
-      assert(!pctx->done_cb_timer);
-      NR_ASYNC_TIMER_SET(0,nr_ice_peer_ctx_fire_done,pctx,&pctx->done_cb_timer);
-    }
+
+    assert(!pctx->done_cb_timer);
+    NR_ASYNC_TIMER_SET(0,nr_ice_peer_ctx_fire_done,pctx,&pctx->done_cb_timer);
 
   done:
     _status=0;

@@ -409,7 +409,7 @@ nsComponentManagerImpl::RegisterModule(const mozilla::Module* aModule,
         const mozilla::Module::ContractIDEntry* entry;
         for (entry = aModule->mContractIDs; entry->contractid; ++entry)
             RegisterContractID(entry);
-        MOZ_ASSERT(!entry->cid, "Incorrectly terminated contract list");
+        NS_ASSERTION(!entry->cid, "Incorrectly terminated contract list");
     }
             
     if (aModule->mCategoryEntries) {
@@ -1186,7 +1186,7 @@ nsComponentManagerImpl::GetService(const nsCID& aClass,
     }
 
     PRThread* currentPRThread = PR_GetCurrentThread();
-    MOZ_ASSERT(currentPRThread, "This should never be null!");
+    NS_ASSERTION(currentPRThread, "This should never be null!");
 
     // Needed to optimize the event loop below.
     nsIThread* currentThread = nullptr;
@@ -1202,7 +1202,7 @@ nsComponentManagerImpl::GetService(const nsCID& aClass,
 
         if (!currentThread) {
             currentThread = NS_GetCurrentThread();
-            MOZ_ASSERT(currentThread, "This should never be null!");
+            NS_ASSERTION(currentThread, "This should never be null!");
         }
 
         // This will process a single event or yield the thread if no event is
@@ -1240,8 +1240,8 @@ nsComponentManagerImpl::GetService(const nsCID& aClass,
 
 #ifdef DEBUG
     pendingPRThread = GetPendingServiceThread(aClass);
-    MOZ_ASSERT(pendingPRThread == currentPRThread,
-               "Pending service array has been changed!");
+    NS_ASSERTION(pendingPRThread == currentPRThread,
+                 "Pending service array has been changed!");
 #endif
     RemovePendingService(aClass);
 
@@ -1374,7 +1374,7 @@ nsComponentManagerImpl::GetServiceByContractID(const char* aContractID,
     }
 
     PRThread* currentPRThread = PR_GetCurrentThread();
-    MOZ_ASSERT(currentPRThread, "This should never be null!");
+    NS_ASSERTION(currentPRThread, "This should never be null!");
 
     // Needed to optimize the event loop below.
     nsIThread* currentThread = nullptr;
@@ -1390,7 +1390,7 @@ nsComponentManagerImpl::GetServiceByContractID(const char* aContractID,
 
         if (!currentThread) {
             currentThread = NS_GetCurrentThread();
-            MOZ_ASSERT(currentThread, "This should never be null!");
+            NS_ASSERTION(currentThread, "This should never be null!");
         }
 
         // This will process a single event or yield the thread if no event is
@@ -1429,8 +1429,8 @@ nsComponentManagerImpl::GetServiceByContractID(const char* aContractID,
 
 #ifdef DEBUG
     pendingPRThread = GetPendingServiceThread(*entry->mCIDEntry->cid);
-    MOZ_ASSERT(pendingPRThread == currentPRThread,
-               "Pending service array has been changed!");
+    NS_ASSERTION(pendingPRThread == currentPRThread,
+                 "Pending service array has been changed!");
 #endif
     RemovePendingService(*entry->mCIDEntry->cid);
 

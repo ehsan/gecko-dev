@@ -1004,6 +1004,8 @@ XPCShellEnvironment::Init()
         return false;
     }
 
+    xpc_LocalizeContext(cx);
+
     nsRefPtr<FullTrustSecMan> secman(new FullTrustSecMan());
     xpc->SetSecurityManagerForJSContext(cx, secman, 0xFFFF);
 

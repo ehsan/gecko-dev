@@ -34,6 +34,7 @@ CPPSRCS = \
   testDefineProperty.cpp \
   testEnclosingFunction.cpp \
   testErrorCopying.cpp \
+  testExtendedEq.cpp \
   testExternalStrings.cpp \
   testFindSCCs.cpp \
   testFuncCallback.cpp \

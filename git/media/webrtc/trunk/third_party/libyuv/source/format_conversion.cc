@@ -13,7 +13,7 @@
 #include "libyuv/basic_types.h"
 #include "libyuv/cpu_id.h"
 #include "libyuv/video_common.h"
-#include "libyuv/row.h"
+#include "source/row.h"
 
 #ifdef __cplusplus
 namespace libyuv {
@@ -134,7 +134,6 @@ static int MakeSelectors(const int blue_index,
 }
 
 // Converts 32 bit ARGB to Bayer RGB formats.
-LIBYUV_API
 int ARGBToBayer(const uint8* src_argb, int src_stride_argb,
                 uint8* dst_bayer, int dst_stride_bayer,
                 int width, int height,
@@ -297,7 +296,6 @@ static void BayerRowGR(const uint8* src_bayer0, int src_stride_bayer,
 }
 
 // Converts any Bayer RGB format to ARGB.
-LIBYUV_API
 int BayerToARGB(const uint8* src_bayer, int src_stride_bayer,
                 uint8* dst_argb, int dst_stride_argb,
                 int width, int height,
@@ -346,7 +344,6 @@ int BayerToARGB(const uint8* src_bayer, int src_stride_bayer,
 }
 
 // Converts any Bayer RGB format to ARGB.
-LIBYUV_API
 int BayerToI420(const uint8* src_bayer, int src_stride_bayer,
                 uint8* dst_y, int dst_stride_y,
                 uint8* dst_u, int dst_stride_u,
@@ -432,7 +429,6 @@ int BayerToI420(const uint8* src_bayer, int src_stride_bayer,
 }
 
 // Convert I420 to Bayer.
-LIBYUV_API
 int I420ToBayer(const uint8* src_y, int src_stride_y,
                 const uint8* src_u, int src_stride_u,
                 const uint8* src_v, int src_stride_v,
@@ -495,7 +491,6 @@ int I420ToBayer(const uint8* src_y, int src_stride_y,
 }
 
 #define MAKEBAYERFOURCC(BAYER)                                                 \
-LIBYUV_API                                                                     \
 int Bayer##BAYER##ToI420(const uint8* src_bayer, int src_stride_bayer,         \
                          uint8* dst_y, int dst_stride_y,                       \
                          uint8* dst_u, int dst_stride_u,                       \
@@ -509,7 +504,6 @@ int Bayer##BAYER##ToI420(const uint8* src_bayer, int src_stride_bayer,         \
                      FOURCC_##BAYER);                                          \
 }                                                                              \
                                                                                \
-LIBYUV_API                                                                     \
 int I420ToBayer##BAYER(const uint8* src_y, int src_stride_y,                   \
                        const uint8* src_u, int src_stride_u,                   \
                        const uint8* src_v, int src_stride_v,                   \
@@ -523,7 +517,6 @@ int I420ToBayer##BAYER(const uint8* src_y, int src_stride_y,                   \
                      FOURCC_##BAYER);                                          \
 }                                                                              \
                                                                                \
-LIBYUV_API                                                                     \
 int ARGBToBayer##BAYER(const uint8* src_argb, int src_stride_argb,             \
                        uint8* dst_bayer, int dst_stride_bayer,                 \
                        int width, int height) {                                \
@@ -533,7 +526,6 @@ int ARGBToBayer##BAYER(const uint8* src_argb, int src_stride_argb,             \
                      FOURCC_##BAYER);                                          \
 }                                                                              \
                                                                                \
-LIBYUV_API                                                                     \
 int Bayer##BAYER##ToARGB(const uint8* src_bayer, int src_stride_bayer,         \
                          uint8* dst_argb, int dst_stride_argb,                 \
                          int width, int height) {                              \

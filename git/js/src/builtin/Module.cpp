@@ -16,7 +16,7 @@ Class js::ModuleClass = {
 };
 
 Module *
-js_NewModule(JSContext *cx, HandleAtom atom)
+js_NewModule(JSContext *cx, JSAtom *atom)
 {
     RootedObject object(cx, NewBuiltinClassInstance(cx, &ModuleClass));
     if (!object)

@@ -2157,7 +2157,7 @@ ContentParent::RecvAddGeolocationListener(const IPC::Principal& aPrincipal)
   }
 
   nsRefPtr<nsGeolocation> geosvc = static_cast<nsGeolocation*>(geo.get());
-  nsAutoPtr<mozilla::idl::GeoPositionOptions> options(new mozilla::idl::GeoPositionOptions());
+  nsAutoPtr<mozilla::dom::GeoPositionOptions> options(new mozilla::dom::GeoPositionOptions());
   jsval null = JS::NullValue();
   options->Init(nullptr, &null);
   geosvc->WatchPosition(this, nullptr, options.forget(), &mGeolocationWatchID);

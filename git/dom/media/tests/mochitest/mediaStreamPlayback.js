@@ -2,63 +2,42 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-var TIMEOUT_LENGTH = 10000;
-
 /**
  * This class manages playback of a HTMLMediaElement with a MediaStream.
  * When constructed by a caller, an object instance is created with
  * a media element and a media stream object.
  *
  * @param {HTMLMediaElement} mediaElement the media element for playback
- * @param {MediaStream} mediaStream the media stream used in
- *                                  the mediaElement for playback
+ * @param {LocalMediaStream} mediaStream the media stream used in
+ *                                       the mediaElement for playback
  */
 function MediaStreamPlayback(mediaElement, mediaStream) {
+
+  /** The HTMLMediaElement used for media playback */
   this.mediaElement = mediaElement;
+
+  /** The LocalMediaStream used with the HTMLMediaElement */
   this.mediaStream = mediaStream;
-}
-
-MediaStreamPlayback.prototype = {
-
-  /**
-   * Starts media with a media stream, runs it until a canplaythrough and
-   * timeupdate event fires, and stops the media.
-   *
-   * @param {Boolean} isResume specifies if this media element is being resumed
-   *                           from a previous run
-   * @param {Function} onSuccess the success callback if the media playback
-   *                             start and stop cycle completes successfully
-   * @param {Function} onError the error callback if the media playback
-   *                           start and stop cycle fails
-   */
-  playMedia : function MSP_playMedia(isResume, onSuccess, onError) {
-    var self = this;
-
-    this.startMedia(isResume, function() {
-      self.stopMediaElement();
-      onSuccess();
-    }, onError);
-  },
 
   /**
    * Starts the media with the associated stream.
    *
-   * @param {Boolean} isResume specifies if the media element playback
-   *                           is being resumed from a previous run
+   * @param {Integer} timeoutLength the timeout length to wait for
+   *                                canplaythrough to fire in milliseconds
    * @param {Function} onSuccess the success function call back
    *                             if media starts correctly
    * @param {Function} onError the error function call back
    *                           if media fails to start
    */
-  startMedia : function MSP_startMedia(isResume, onSuccess, onError) {
+  this.startMedia = function(timeoutLength, onSuccess, onError) {
     var self = this;
     var canPlayThroughFired = false;
 
-    // If we're initially running this media, check that the time is zero
-    if (!isResume) {
-      is(this.mediaStream.currentTime, 0,
-         "Before starting the media element, currentTime = 0");
-    }
+    // Verifies we've received a correctly initialized LocalMediaStream
+    ok(this.mediaStream instanceof LocalMediaStream,
+      "Stream should be a LocalMediaStream");
+    is(this.mediaStream.currentTime, 0,
+      "Before starting the media element, currentTime = 0");
 
     /**
      * Callback fired when the canplaythrough event is fired. We only
@@ -102,11 +81,11 @@ MediaStreamPlayback.prototype = {
       var timeUpdateFired = false;
 
       var timeUpdateCallback = function() {
-        if (self.mediaStream.currentTime > 0 &&
-            self.mediaElement.currentTime > 0) {
+        if(self.mediaStream.currentTime > 0 &&
+           self.mediaElement.currentTime > 0) {
           timeUpdateFired = true;
-          self.mediaElement.removeEventListener('timeupdate',
-            timeUpdateCallback, false);
+          self.mediaElement.removeEventListener('timeupdate', timeUpdateCallback,
+            false);
           onSuccess();
         }
       };
@@ -118,13 +97,13 @@ MediaStreamPlayback.prototype = {
 
       // If timeupdate doesn't fire in enough time, we fail the test
       setTimeout(function() {
-        if (!timeUpdateFired) {
+        if(!timeUpdateFired) {
           self.mediaElement.removeEventListener('timeupdate',
             timeUpdateCallback, false);
           ok(false, "timeUpdate event never fired");
           onError();
         }
-      }, TIMEOUT_LENGTH);
+      }, timeoutLength);
     };
 
     // Adds a listener intended to be fired when playback is available
@@ -133,19 +112,19 @@ MediaStreamPlayback.prototype = {
       false);
 
     // Hooks up the media stream to the media element and starts playing it
-    this.mediaElement.mozSrcObject = this.mediaStream;
+    this.mediaElement.mozSrcObject = mediaStream;
     this.mediaElement.play();
 
     // If canplaythrough doesn't fire in enough time, we fail the test
     setTimeout(function() {
-      if (!canPlayThroughFired) {
+      if(!canPlayThroughFired) {
         self.mediaElement.removeEventListener('canplaythrough',
           canPlayThroughCallback, false);
         ok(false, "canplaythrough event never fired");
         onError();
       }
-    }, TIMEOUT_LENGTH);
-  },
+    }, timeoutLength);
+  };
 
   /**
    * Stops the media with the associated stream.
@@ -153,93 +132,28 @@ MediaStreamPlayback.prototype = {
    * Precondition: The media stream and element should both be actively
    *               being played.
    */
-  stopMediaElement : function MSP_stopMediaElement() {
+  this.stopMedia = function() {
     this.mediaElement.pause();
     this.mediaElement.mozSrcObject = null;
-  }
-}
-
-
-/**
- * This class is basically the same as MediaStreamPlayback except
- * ensures that the instance provided startMedia is a MediaStream.
- *
- * @param {HTMLMediaElement} mediaElement the media element for playback
- * @param {LocalMediaStream} mediaStream the media stream used in
- *                                       the mediaElement for playback
- */
-function LocalMediaStreamPlayback(mediaElement, mediaStream) {
-  ok(mediaStream instanceof LocalMediaStream,
-     "Stream should be a LocalMediaStream");
-  MediaStreamPlayback.call(this, mediaElement, mediaStream);
-}
-
-// Sets up the inheritance chain from LMSP --> MSP
-LocalMediaStreamPlayback.prototype = new MediaStreamPlayback();
-LocalMediaStreamPlayback.prototype.constructor = LocalMediaStreamPlayback;
-
-/**
- * Starts media with a media stream, runs it until a canplaythrough and
- * timeupdate event fires, and calls stop() on the stream.
- *
- * @param {Boolean} isResume specifies if this media element is being resumed
- *                           from a previous run
- * @param {Function} onSuccess the success callback if the media element
- *                             successfully fires ended on a stop() call
- *                             on the stream
- * @param {Function} onError the error callback if the media element fails
- *                           to fire an ended callback on a stop() call
- *                           on the stream
- */
-LocalMediaStreamPlayback.prototype.playMediaWithStreamStop = function(
-  isResume, onSuccess, onError) {
-  var self = this;
-
-  this.startMedia(isResume, function() {
-    self.stopStreamInMediaPlayback(function() {
-      self.stopMediaElement();
-      onSuccess();
-    }, onError);
-  }, onError);
-}
-
-/**
- * Stops the local media stream while it's currently in playback in
- * a media element.
- *
- * Precondition: The media stream and element should both be actively
- *               being played.
- *
- * @param {Function} onSuccess the success callback if the media element
- *                             fires an ended event from stop() being called
- * @param {Function} onError the error callback if the media element
- *                           fails to fire an ended event from stop() being
- *                           called
- */
-LocalMediaStreamPlayback.prototype.stopStreamInMediaPlayback = function(
-  onSuccess, onError) {
-  var endedFired = false;
-  var self = this;
-
-  /**
-   * Callback fired when the ended event fires when stop() is called on the
-   * stream.
-   */
-  var endedCallback = function() {
-    endedFired = true;
-    self.mediaElement.removeEventListener('ended', endedCallback, false);
-    ok(true, "ended event successfully fired");
-    onSuccess();
   };
 
-  this.mediaElement.addEventListener('ended', endedCallback, false);
-  this.mediaStream.stop();
+  /**
+   * Starts media with a media stream, runs it until a canplaythrough and
+   * timeupdate event fires, and stops the media.
+   *
+   * @param {Integer} timeoutLength the length of time to wait for certain
+   *                                media events to fire
+   * @param {Function} onSuccess the success callback if the media playback
+   *                             start and stop cycle completes successfully
+   * @param {Function} onError the error callback if the media playback
+   *                           start and stop cycle fails
+   */
+  this.playMedia = function(timeoutLength, onSuccess, onError) {
+    var self = this;
 
-  // If ended doesn't fire in enough time, then we fail the test
-  setTimeout(function() {
-    if (!endedFired) {
-      ok(false, "ended event never fired");
-      onError();
-    }
-  }, TIMEOUT_LENGTH);
+    this.startMedia(timeoutLength, function() {
+      self.stopMedia();
+      onSuccess();
+    }, onError);
+  };
 }

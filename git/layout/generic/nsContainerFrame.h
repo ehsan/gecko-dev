@@ -25,9 +25,6 @@
 #define NS_FRAME_INVALIDATE_ON_MOVE   0x0010 
 
 class nsOverflowContinuationTracker;
-namespace mozilla {
-class FramePropertyTable;
-}
 
 // Some macros for container classes to do sanity checking on
 // width/height/x/y values computed during reflow.
@@ -517,16 +514,6 @@ protected:
   nsresult SetPropTableFrames(nsPresContext*                 aPresContext,
                               nsFrameList*                   aFrameList,
                               const FramePropertyDescriptor* aProperty);
-
-  /**
-   * Safely destroy the frames on the nsFrameList stored on aProp for this
-   * frame then remove the property and delete the frame list.
-   * Nothing happens if the property doesn't exist.
-   */
-  void SafelyDestroyFrameListProp(nsIFrame* aDestructRoot,
-                                  mozilla::FramePropertyTable* aPropTable,
-                                  const FramePropertyDescriptor* aProp);
-
   // ==========================================================================
 
   nsFrameList mFrames;

@@ -662,7 +662,7 @@ GroupRule::EnumerateRulesForwards(RuleEnumFunc aFunc, void * aData) const
 }
 
 /*
- * The next two methods (DeleteStyleRuleAt and InsertStyleRuleAt)
+ * The next two methods (DeleteStyleRuleAt and InsertStyleRulesAt)
  * should never be called unless you have first called WillDirty() on
  * the parents stylesheet.  After they are called, DidDirty() needs to
  * be called on the sheet
@@ -679,11 +679,12 @@ GroupRule::DeleteStyleRuleAt(uint32_t aIndex)
 }
 
 nsresult
-GroupRule::InsertStyleRuleAt(uint32_t aIndex, Rule* aRule)
+GroupRule::InsertStyleRulesAt(uint32_t aIndex,
+                              nsCOMArray<Rule>& aRules)
 {
-  aRule->SetStyleSheet(GetStyleSheet());
-  aRule->SetParentRule(this);
-  if (! mRules.InsertObjectAt(aRule, aIndex)) {
+  aRules.EnumerateForwards(SetStyleSheetReference, GetStyleSheet());
+  aRules.EnumerateForwards(SetParentRuleReference, this);
+  if (! mRules.InsertObjectsAt(aRules, aIndex)) {
     return NS_ERROR_FAILURE;
   }
   return NS_OK;

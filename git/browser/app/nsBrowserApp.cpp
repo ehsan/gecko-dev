@@ -178,7 +178,6 @@ static int do_main(int argc, char* argv[], nsIFile *xreDirectory)
   }
   nsCOMPtr<nsIFile> appDir;
   exeFile->GetParent(getter_AddRefs(appDir));
-  appDir->Append(NS_LITERAL_STRING("browser"));
 
   SetStrongPtr(appData.directory, static_cast<nsIFile*>(appDir.get()));
   // xreDirectory already has a refcount from NS_NewLocalFile

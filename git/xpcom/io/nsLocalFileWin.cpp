@@ -114,7 +114,7 @@ public:
     }
 
     NS_IMETHOD Run() {
-        MOZ_ASSERT(!NS_IsMainThread(),
+        NS_ASSERTION(!NS_IsMainThread(),
             "AsyncLocalFileWinOperation should not be run on the main thread!");
 
         CoInitialize(NULL);

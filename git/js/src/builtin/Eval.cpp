@@ -163,8 +163,7 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, AbstractFrame
     JS_ASSERT_IF(evalType == INDIRECT_EVAL, scopeobj->isGlobal());
     AssertInnerizedScopeChain(cx, *scopeobj);
 
-    Rooted<GlobalObject*> scopeObjGlobal(cx, &scopeobj->global());
-    if (!GlobalObject::isRuntimeCodeGenEnabled(cx, scopeObjGlobal)) {
+    if (!scopeobj->global().isRuntimeCodeGenEnabled(cx)) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CSP_BLOCKED_EVAL);
         return false;
     }

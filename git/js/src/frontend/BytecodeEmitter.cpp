@@ -1473,8 +1473,12 @@ BindNameToSlot(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 static bool
 CheckSideEffects(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, bool *answer)
 {
+    bool ok;
+    ParseNode *pn2;
+
+    ok = true;
     if (!pn || *answer)
-        return true;
+        return ok;
 
     switch (pn->getArity()) {
       case PN_FUNC:
@@ -1485,8 +1489,8 @@ CheckSideEffects(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, bool *answe
          * (the object and binding can be detected and hijacked or captured).
          * This is a bug fix to ES3; it is fixed in ES3.1 drafts.
          */
-        MOZ_ASSERT(*answer == false);
-        return true;
+        *answer = false;
+        break;
 
       case PN_LIST:
         if (pn->isOp(JSOP_NOP) || pn->isOp(JSOP_OR) || pn->isOp(JSOP_AND) ||
@@ -1495,39 +1499,35 @@ CheckSideEffects(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, bool *answe
              * Non-operators along with ||, &&, ===, and !== never invoke
              * toString or valueOf.
              */
-            bool ok = true;
-            for (ParseNode *pn2 = pn->pn_head; pn2; pn2 = pn2->pn_next)
+            for (pn2 = pn->pn_head; pn2; pn2 = pn2->pn_next)
                 ok &= CheckSideEffects(cx, bce, pn2, answer);
-            return ok;
-        }
-
-        if (pn->isKind(PNK_GENEXP)) {
+        } else if (pn->isKind(PNK_GENEXP)) {
             /* Generator-expressions are harmless if the result is ignored. */
-            MOZ_ASSERT(*answer == false);
-            return true;
+            *answer = false;
+        } else {
+            /*
+             * All invocation operations (construct: PNK_NEW, call: PNK_CALL)
+             * are presumed to be useful, because they may have side effects
+             * even if their main effect (their return value) is discarded.
+             *
+             * PNK_ELEM binary trees of 3+ nodes are flattened into lists to
+             * avoid too much recursion. All such lists must be presumed to be
+             * useful because each index operation could invoke a getter.
+             *
+             * Likewise, array and object initialisers may call prototype
+             * setters (the __defineSetter__ built-in, and writable __proto__
+             * on Array.prototype create this hazard). Initialiser list nodes
+             * have JSOP_NEWINIT in their pn_op.
+             */
+            *answer = true;
         }
-
-        /*
-         * All invocation operations (construct: PNK_NEW, call: PNK_CALL)
-         * are presumed to be useful, because they may have side effects
-         * even if their main effect (their return value) is discarded.
-         *
-         * PNK_ELEM binary trees of 3+ nodes are flattened into lists to
-         * avoid too much recursion. All such lists must be presumed to be
-         * useful because each index operation could invoke a getter.
-         *
-         * Likewise, array and object initialisers may call prototype
-         * setters (the __defineSetter__ built-in, and writable __proto__
-         * on Array.prototype create this hazard). Initialiser list nodes
-         * have JSOP_NEWINIT in their pn_op.
-         */
-        *answer = true;
-        return true;
+        break;
 
       case PN_TERNARY:
-        return CheckSideEffects(cx, bce, pn->pn_kid1, answer) &&
-               CheckSideEffects(cx, bce, pn->pn_kid2, answer) &&
-               CheckSideEffects(cx, bce, pn->pn_kid3, answer);
+        ok = CheckSideEffects(cx, bce, pn->pn_kid1, answer) &&
+             CheckSideEffects(cx, bce, pn->pn_kid2, answer) &&
+             CheckSideEffects(cx, bce, pn->pn_kid3, answer);
+        break;
 
       case PN_BINARY:
         if (pn->isAssignment()) {
@@ -1540,7 +1540,7 @@ CheckSideEffects(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, bool *answe
              * The only exception is assignment of a useless value to a const
              * declared in the function currently being compiled.
              */
-            ParseNode *pn2 = pn->pn_left;
+            pn2 = pn->pn_left;
             if (!pn2->isKind(PNK_NAME)) {
                 *answer = true;
             } else {
@@ -1551,38 +1551,36 @@ CheckSideEffects(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, bool *answe
                 if (!*answer && (!pn->isOp(JSOP_NOP) || !pn2->isConst()))
                     *answer = true;
             }
-            return true;
+        } else {
+            if (pn->isOp(JSOP_OR) || pn->isOp(JSOP_AND) || pn->isOp(JSOP_STRICTEQ) ||
+                pn->isOp(JSOP_STRICTNE)) {
+                /*
+                 * ||, &&, ===, and !== do not convert their operands via
+                 * toString or valueOf method calls.
+                 */
+                ok = CheckSideEffects(cx, bce, pn->pn_left, answer) &&
+                     CheckSideEffects(cx, bce, pn->pn_right, answer);
+            } else {
+                /*
+                 * We can't easily prove that neither operand ever denotes an
+                 * object with a toString or valueOf method.
+                 */
+                *answer = true;
+            }
         }
-
-        if (pn->isOp(JSOP_OR) || pn->isOp(JSOP_AND) || pn->isOp(JSOP_STRICTEQ) ||
-            pn->isOp(JSOP_STRICTNE)) {
-            /*
-             * ||, &&, ===, and !== do not convert their operands via
-             * toString or valueOf method calls.
-             */
-            return CheckSideEffects(cx, bce, pn->pn_left, answer) &&
-                   CheckSideEffects(cx, bce, pn->pn_right, answer);
-        }
-
-        /*
-         * We can't easily prove that neither operand ever denotes an
-         * object with a toString or valueOf method.
-         */
-        *answer = true;
-        return true;
+        break;
 
       case PN_UNARY:
         switch (pn->getKind()) {
           case PNK_DELETE:
-          {
-            ParseNode *pn2 = pn->pn_kid;
+            pn2 = pn->pn_kid;
             switch (pn2->getKind()) {
               case PNK_NAME:
                 if (!BindNameToSlot(cx, bce, pn2))
                     return false;
                 if (pn2->isConst()) {
-                    MOZ_ASSERT(*answer == false);
-                    return true;
+                    *answer = false;
+                    break;
                 }
                 /* FALL THROUGH */
               case PNK_DOT:
@@ -1590,13 +1588,12 @@ CheckSideEffects(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, bool *answe
               case PNK_ELEM:
                 /* All these delete addressing modes have effects too. */
                 *answer = true;
-                return true;
+                break;
               default:
-                return CheckSideEffects(cx, bce, pn2, answer);
+                ok = CheckSideEffects(cx, bce, pn2, answer);
+                break;
             }
-            MOZ_NOT_REACHED("We have a returning default case");
-            return false;
-          }
+            break;
 
           case PNK_TYPEOF:
           case PNK_VOID:
@@ -1604,7 +1601,8 @@ CheckSideEffects(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, bool *answe
           case PNK_BITNOT:
             if (pn->isOp(JSOP_NOT)) {
                 /* ! does not convert its operand via toString or valueOf. */
-                return CheckSideEffects(cx, bce, pn->pn_kid, answer);
+                ok = CheckSideEffects(cx, bce, pn->pn_kid, answer);
+                break;
             }
             /* FALL THROUGH */
 
@@ -1616,10 +1614,9 @@ CheckSideEffects(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, bool *answe
              * toString or valueOf method.
              */
             *answer = true;
-            return true;
+            break;
         }
-        MOZ_NOT_REACHED("We have a returning default case");
-        return false;
+        break;
 
       case PN_NAME:
         /*
@@ -1643,14 +1640,15 @@ CheckSideEffects(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, bool *answe
             /* Dotted property references in general can call getters. */
             *answer = true;
         }
-        return CheckSideEffects(cx, bce, pn->maybeExpr(), answer);
+        ok = CheckSideEffects(cx, bce, pn->maybeExpr(), answer);
+        break;
 
       case PN_NULLARY:
         if (pn->isKind(PNK_DEBUGGER))
             *answer = true;
-        return true;
+        break;
     }
-    return true;
+    return ok;
 }
 
 bool
@@ -3453,23 +3451,23 @@ EmitNewInit(JSContext *cx, BytecodeEmitter *bce, JSProtoKey key, ParseNode *pn)
 }
 
 bool
-ParseNode::getConstantValue(JSContext *cx, bool strictChecks, MutableHandleValue vp)
+ParseNode::getConstantValue(JSContext *cx, bool strictChecks, Value *vp)
 {
     switch (getKind()) {
       case PNK_NUMBER:
-        vp.setNumber(pn_dval);
+        vp->setNumber(pn_dval);
         return true;
       case PNK_STRING:
-        vp.setString(pn_atom);
+        vp->setString(pn_atom);
         return true;
       case PNK_TRUE:
-        vp.setBoolean(true);
+        vp->setBoolean(true);
         return true;
       case PNK_FALSE:
-        vp.setBoolean(false);
+        vp->setBoolean(false);
         return true;
       case PNK_NULL:
-        vp.setNull();
+        vp->setNull();
         return true;
       case PNK_SPREAD:
         return false;
@@ -3484,7 +3482,7 @@ ParseNode::getConstantValue(JSContext *cx, bool strictChecks, MutableHandleValue
         RootedId id(cx);
         RootedValue value(cx);
         for (ParseNode *pn = pn_head; pn; idx++, pn = pn->pn_next) {
-            if (!pn->getConstantValue(cx, strictChecks, &value))
+            if (!pn->getConstantValue(cx, strictChecks, value.address()))
                 return false;
             id = INT_TO_JSID(idx);
             if (!JSObject::defineGeneric(cx, obj, id, value, NULL, NULL, JSPROP_ENUMERATE))
@@ -3493,7 +3491,7 @@ ParseNode::getConstantValue(JSContext *cx, bool strictChecks, MutableHandleValue
         JS_ASSERT(idx == pn_count);
 
         types::FixArrayType(cx, obj);
-        vp.setObject(*obj);
+        vp->setObject(*obj);
         return true;
       }
       case PNK_OBJECT: {
@@ -3506,7 +3504,7 @@ ParseNode::getConstantValue(JSContext *cx, bool strictChecks, MutableHandleValue
 
         for (ParseNode *pn = pn_head; pn; pn = pn->pn_next) {
             RootedValue value(cx);
-            if (!pn->pn_right->getConstantValue(cx, strictChecks, &value))
+            if (!pn->pn_right->getConstantValue(cx, strictChecks, value.address()))
                 return false;
 
             ParseNode *pnid = pn->pn_left;
@@ -3531,7 +3529,7 @@ ParseNode::getConstantValue(JSContext *cx, bool strictChecks, MutableHandleValue
         }
 
         types::FixObjectType(cx, obj);
-        vp.setObject(*obj);
+        vp->setObject(*obj);
         return true;
       }
       default:
@@ -3543,7 +3541,7 @@ ParseNode::getConstantValue(JSContext *cx, bool strictChecks, MutableHandleValue
 static bool
 EmitSingletonInitialiser(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
-    RootedValue value(cx);
+    Value value;
     if (!pn->getConstantValue(cx, bce->sc->needStrictChecks(), &value))
         return false;
 

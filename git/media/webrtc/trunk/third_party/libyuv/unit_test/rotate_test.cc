@@ -11,8 +11,9 @@
 #include <stdlib.h>
 #include <time.h>
 
+#include "../source/rotate_priv.h"
 #include "libyuv/rotate.h"
-#include "../unit_test/unit_test.h"
+#include "unit_test/unit_test.h"
 
 namespace libyuv {
 
@@ -29,7 +30,7 @@ TEST_F(libyuvTest, Transpose) {
   int iw, ih, ow, oh;
   int err = 0;
 
-  for (iw = 8; iw < rotate_max_w_ && !err; ++iw) {
+  for (iw = 8; iw < rotate_max_w_ && !err; ++iw)
     for (ih = 8; ih < rotate_max_h_ && !err; ++ih) {
       int i;
       ow = ih;
@@ -39,17 +40,15 @@ TEST_F(libyuvTest, Transpose) {
       align_buffer_16(output_1, ow * oh)
       align_buffer_16(output_2, iw * ih)
 
-      for (i = 0; i < iw * ih; ++i) {
+      for (i = 0; i < iw * ih; ++i)
         input[i] = i;
-      }
 
       TransposePlane(input,    iw, output_1, ow, iw, ih);
       TransposePlane(output_1, ow, output_2, oh, ow, oh);
 
       for (i = 0; i < iw * ih; ++i) {
-        if (input[i] != output_2[i]) {
+        if (input[i] != output_2[i])
           err++;
-        }
       }
 
       if (err) {
@@ -67,7 +66,6 @@ TEST_F(libyuvTest, Transpose) {
       free_aligned_buffer_16(output_1)
       free_aligned_buffer_16(output_2)
     }
-  }
 
   EXPECT_EQ(0, err);
 }
@@ -76,7 +74,7 @@ TEST_F(libyuvTest, TransposeUV) {
   int iw, ih, ow, oh;
   int err = 0;
 
-  for (iw = 16; iw < rotate_max_w_ && !err; iw += 2) {
+  for (iw = 16; iw < rotate_max_w_ && !err; iw += 2)
     for (ih = 8; ih < rotate_max_h_ && !err; ++ih) {
       int i;
 
@@ -100,12 +98,10 @@ TEST_F(libyuvTest, TransposeUV) {
       TransposePlane(output_b1, ow, output_b2, oh, ow, oh);
 
       for (i = 0; i < iw * ih; i += 2) {
-        if (input[i] != output_a2[i >> 1]) {
+        if (input[i] != output_a2[i >> 1])
           err++;
-        }
-        if (input[i + 1] != output_b2[i >> 1]) {
+        if (input[i + 1] != output_b2[i >> 1])
           err++;
-        }
       }
 
       if (err) {
@@ -127,7 +123,6 @@ TEST_F(libyuvTest, TransposeUV) {
       free_aligned_buffer_16(output_a2)
       free_aligned_buffer_16(output_b2)
     }
-  }
 
   EXPECT_EQ(0, err);
 }
@@ -136,7 +131,7 @@ TEST_F(libyuvTest, RotatePlane90) {
   int iw, ih, ow, oh;
   int err = 0;
 
-  for (iw = 8; iw < rotate_max_w_ && !err; ++iw) {
+  for (iw = 8; iw < rotate_max_w_ && !err; ++iw)
     for (ih = 8; ih < rotate_max_h_ && !err; ++ih) {
       int i;
 
@@ -149,9 +144,8 @@ TEST_F(libyuvTest, RotatePlane90) {
       align_buffer_16(output_180, iw * ih)
       align_buffer_16(output_270, ow * oh)
 
-      for (i = 0; i < iw * ih; ++i) {
+      for (i = 0; i < iw * ih; ++i)
         input[i] = i;
-      }
 
       RotatePlane90(input,      iw, output_90,  ow, iw, ih);
       RotatePlane90(output_90,  ow, output_180, oh, ow, oh);
@@ -159,9 +153,8 @@ TEST_F(libyuvTest, RotatePlane90) {
       RotatePlane90(output_270, ow, output_0,   iw, ow, oh);
 
       for (i = 0; i < iw * ih; ++i) {
-        if (input[i] != output_0[i]) {
+        if (input[i] != output_0[i])
           err++;
-        }
       }
 
       if (err) {
@@ -187,7 +180,6 @@ TEST_F(libyuvTest, RotatePlane90) {
       free_aligned_buffer_16(output_180)
       free_aligned_buffer_16(output_270)
     }
-  }
 
   EXPECT_EQ(0, err);
 }
@@ -196,7 +188,7 @@ TEST_F(libyuvTest, RotateUV90) {
   int iw, ih, ow, oh;
   int err = 0;
 
-  for (iw = 16; iw < rotate_max_w_ && !err; iw += 2) {
+  for (iw = 16; iw < rotate_max_w_ && !err; iw += 2)
     for (ih = 8; ih < rotate_max_h_ && !err; ++ih) {
       int i;
 
@@ -225,12 +217,10 @@ TEST_F(libyuvTest, RotateUV90) {
       RotatePlane180(output_180_v, ow, output_0_v, ow, ow, oh);
 
       for (i = 0; i < (ow * oh); ++i) {
-        if (output_0_u[i] != (uint8)i) {
+        if (output_0_u[i] != (uint8)i)
           err++;
-        }
-        if (output_0_v[i] != (uint8)(-i)) {
+        if (output_0_v[i] != (uint8)(-i))
           err++;
-        }
       }
 
       if (err) {
@@ -264,7 +254,6 @@ TEST_F(libyuvTest, RotateUV90) {
       free_aligned_buffer_16(output_180_u)
       free_aligned_buffer_16(output_180_v)
     }
-  }
 
   EXPECT_EQ(0, err);
 }
@@ -273,7 +262,7 @@ TEST_F(libyuvTest, RotateUV180) {
   int iw, ih, ow, oh;
   int err = 0;
 
-  for (iw = 16; iw < rotate_max_w_ && !err; iw += 2) {
+  for (iw = 16; iw < rotate_max_w_ && !err; iw += 2)
     for (ih = 8; ih < rotate_max_h_ && !err; ++ih) {
       int i;
 
@@ -302,12 +291,10 @@ TEST_F(libyuvTest, RotateUV180) {
       RotatePlane90(output_90_v, oh, output_0_v, ow, oh, ow);
 
       for (i = 0; i < (ow * oh); ++i) {
-        if (output_0_u[i] != (uint8)i) {
+        if (output_0_u[i] != (uint8)i)
           err++;
-        }
-        if (output_0_v[i] != (uint8)(-i)) {
+        if (output_0_v[i] != (uint8)(-i))
           err++;
-        }
       }
 
       if (err) {
@@ -341,7 +328,6 @@ TEST_F(libyuvTest, RotateUV180) {
       free_aligned_buffer_16(output_180_u)
       free_aligned_buffer_16(output_180_v)
     }
-  }
 
   EXPECT_EQ(0, err);
 }
@@ -350,7 +336,7 @@ TEST_F(libyuvTest, RotateUV270) {
   int iw, ih, ow, oh;
   int err = 0;
 
-  for (iw = 16; iw < rotate_max_w_ && !err; iw += 2) {
+  for (iw = 16; iw < rotate_max_w_ && !err; iw += 2)
     for (ih = 8; ih < rotate_max_h_ && !err; ++ih) {
       int i;
 
@@ -380,12 +366,10 @@ TEST_F(libyuvTest, RotateUV270) {
       RotatePlane180(output_180_v, ow, output_0_v, ow, ow, oh);
 
       for (i = 0; i < (ow * oh); ++i) {
-        if (output_0_u[i] != (uint8)i) {
+        if (output_0_u[i] != (uint8)i)
           err++;
-        }
-        if (output_0_v[i] != (uint8)(-i)) {
+        if (output_0_v[i] != (uint8)(-i))
           err++;
-        }
       }
 
       if (err) {
@@ -419,7 +403,6 @@ TEST_F(libyuvTest, RotateUV270) {
       free_aligned_buffer_16(output_180_u)
       free_aligned_buffer_16(output_180_v)
     }
-  }
 
   EXPECT_EQ(0, err);
 }
@@ -439,17 +422,15 @@ TEST_F(libyuvTest, RotatePlane180) {
       align_buffer_16(output_0, iw * ih)
       align_buffer_16(output_180, iw * ih)
 
-      for (i = 0; i < iw * ih; ++i) {
+      for (i = 0; i < iw * ih; ++i)
         input[i] = i;
-      }
 
       RotatePlane180(input,      iw, output_180, ow, iw, ih);
       RotatePlane180(output_180, ow, output_0,   iw, ow, oh);
 
       for (i = 0; i < iw * ih; ++i) {
-        if (input[i] != output_0[i]) {
+        if (input[i] != output_0[i])
           err++;
-        }
       }
 
       if (err) {
@@ -475,7 +456,7 @@ TEST_F(libyuvTest, RotatePlane270) {
   int iw, ih, ow, oh;
   int err = 0;
 
-  for (iw = 8; iw < rotate_max_w_ && !err; ++iw) {
+  for (iw = 8; iw < rotate_max_w_ && !err; ++iw)
     for (ih = 8; ih < rotate_max_h_ && !err; ++ih) {
       int i;
 
@@ -497,9 +478,8 @@ TEST_F(libyuvTest, RotatePlane270) {
       RotatePlane270(output_90,  ow, output_0,   iw, ow, oh);
 
       for (i = 0; i < iw * ih; ++i) {
-        if (input[i] != output_0[i]) {
+        if (input[i] != output_0[i])
           err++;
-        }
       }
 
       if (err) {
@@ -525,7 +505,6 @@ TEST_F(libyuvTest, RotatePlane270) {
       free_aligned_buffer_16(output_180)
       free_aligned_buffer_16(output_270)
     }
-  }
 
   EXPECT_EQ(0, err);
 }
@@ -545,17 +524,15 @@ TEST_F(libyuvTest, RotatePlane90and270) {
       align_buffer_16(output_0, iw * ih)
       align_buffer_16(output_90, ow * oh)
 
-      for (i = 0; i < iw * ih; ++i) {
+      for (i = 0; i < iw * ih; ++i)
         input[i] = i;
-      }
 
       RotatePlane90(input,      iw, output_90,  ow, iw, ih);
       RotatePlane270(output_90, ow, output_0,   iw, ow, oh);
 
       for (i = 0; i < iw * ih; ++i) {
-        if (input[i] != output_0[i]) {
+        if (input[i] != output_0[i])
           err++;
-        }
       }
 
       if (err) {
@@ -592,9 +569,8 @@ TEST_F(libyuvTest, RotatePlane90Pitch) {
       align_buffer_16(output_0, iw * ih)
       align_buffer_16(output_90, ow * oh)
 
-      for (i = 0; i < iw * ih; ++i) {
+      for (i = 0; i < iw * ih; ++i)
         input[i] = i;
-      }
 
       RotatePlane90(input, iw,
                     output_90 + (ow >> 1), ow,
@@ -612,9 +588,8 @@ TEST_F(libyuvTest, RotatePlane90Pitch) {
       RotatePlane270(output_90, ih, output_0,   iw, ow, oh);
 
       for (i = 0; i < iw * ih; ++i) {
-        if (input[i] != output_0[i]) {
+        if (input[i] != output_0[i])
           err++;
-        }
       }
 
       if (err) {
@@ -640,7 +615,7 @@ TEST_F(libyuvTest, RotatePlane270Pitch) {
   int iw, ih, ow, oh;
   int err = 0;
 
-  for (iw = 16; iw < rotate_max_w_ && !err; iw += 4) {
+  for (iw = 16; iw < rotate_max_w_ && !err; iw += 4)
     for (ih = 16; ih < rotate_max_h_ && !err; ih += 4) {
       int i;
 
@@ -651,9 +626,8 @@ TEST_F(libyuvTest, RotatePlane270Pitch) {
       align_buffer_16(output_0, iw * ih)
       align_buffer_16(output_270, ow * oh)
 
-      for (i = 0; i < iw * ih; ++i) {
+      for (i = 0; i < iw * ih; ++i)
         input[i] = i;
-      }
 
       RotatePlane270(input, iw,
                      output_270 + ow * (oh >> 1), ow,
@@ -671,9 +645,8 @@ TEST_F(libyuvTest, RotatePlane270Pitch) {
       RotatePlane90(output_270, ih, output_0,   iw, ow, oh);
 
       for (i = 0; i < iw * ih; ++i) {
-        if (input[i] != output_0[i]) {
+        if (input[i] != output_0[i])
           err++;
-        }
       }
 
       if (err) {
@@ -691,7 +664,6 @@ TEST_F(libyuvTest, RotatePlane270Pitch) {
       free_aligned_buffer_16(output_0)
       free_aligned_buffer_16(output_270)
     }
-  }
 
   EXPECT_EQ(0, err);
 }
@@ -789,18 +761,15 @@ TEST_F(libyuvTest, I420Rotate90) {
              kRotateClockwise);
 
   for (i = 0; i < y_plane_size; ++i) {
-    if (orig_y[i] != ro0_y[i]) {
+    if (orig_y[i] != ro0_y[i])
       ++err;
-    }
   }
 
   for (i = 0; i < uv_plane_size; ++i) {
-    if (orig_u[i] != ro0_u[i]) {
+    if (orig_u[i] != ro0_u[i])
       ++err;
-    }
-    if (orig_v[i] != ro0_v[i]) {
+    if (orig_v[i] != ro0_v[i])
       ++err;
-    }
   }
 
   free_aligned_buffer_16(orig_y)
@@ -912,18 +881,15 @@ TEST_F(libyuvTest, I420Rotate270) {
              kRotateCounterClockwise);
 
   for (i = 0; i < y_plane_size; ++i) {
-    if (orig_y[i] != ro0_y[i]) {
+    if (orig_y[i] != ro0_y[i])
       ++err;
-    }
   }
 
   for (i = 0; i < uv_plane_size; ++i) {
-    if (orig_u[i] != ro0_u[i]) {
+    if (orig_u[i] != ro0_u[i])
       ++err;
-    }
-    if (orig_v[i] != ro0_v[i]) {
+    if (orig_v[i] != ro0_v[i])
       ++err;
-    }
   }
 
   free_aligned_buffer_16(orig_y)
@@ -1025,17 +991,14 @@ TEST_F(libyuvTest, NV12ToI420Rotate90) {
   int zero_cnt = 0;
 
   for (i = 0; i < uv_plane_size; ++i) {
-    if ((signed char)ro0_u[i] != -(signed char)ro0_v[i]) {
+    if ((signed char)ro0_u[i] != -(signed char)ro0_v[i])
       ++err;
-    }
-    if (ro0_u[i] != 0) {
+    if (ro0_u[i] != 0)
       ++zero_cnt;
-    }
   }
 
-  if (!zero_cnt) {
+  if (!zero_cnt)
     ++err;
-  }
 
   free_aligned_buffer_16(orig_y)
   free_aligned_buffer_16(orig_uv)
@@ -1133,17 +1096,14 @@ TEST_F(libyuvTest, NV12ToI420Rotate270) {
   int zero_cnt = 0;
 
   for (i = 0; i < uv_plane_size; ++i) {
-    if ((signed char)ro0_u[i] != -(signed char)ro0_v[i]) {
+    if ((signed char)ro0_u[i] != -(signed char)ro0_v[i])
       ++err;
-    }
-    if (ro0_u[i] != 0) {
+    if (ro0_u[i] != 0)
       ++zero_cnt;
-    }
   }
 
-  if (!zero_cnt) {
+  if (!zero_cnt)
     ++err;
-  }
 
   free_aligned_buffer_16(orig_y)
   free_aligned_buffer_16(orig_uv)
@@ -1230,25 +1190,21 @@ TEST_F(libyuvTest, NV12ToI420Rotate180) {
              kRotate180);
 
   for (i = 0; i < y_plane_size; ++i) {
-    if (orig_y[i] != ro0_y[i]) {
+    if (orig_y[i] != ro0_y[i])
       ++err;
-    }
   }
 
   int zero_cnt = 0;
 
   for (i = 0; i < uv_plane_size; ++i) {
-    if ((signed char)ro0_u[i] != -(signed char)ro0_v[i]) {
+    if ((signed char)ro0_u[i] != -(signed char)ro0_v[i])
       ++err;
-    }
-    if (ro0_u[i] != 0) {
+    if (ro0_u[i] != 0)
       ++zero_cnt;
-    }
   }
 
-  if (!zero_cnt) {
+  if (!zero_cnt)
     ++err;
-  }
 
   free_aligned_buffer_16(orig_y)
   free_aligned_buffer_16(orig_uv)
@@ -1353,9 +1309,8 @@ TEST_F(libyuvTest, NV12ToI420RotateNegHeight90) {
              kRotate180);
 
   for (i = 0; i < y_plane_size; ++i) {
-    if (orig_y[i] != roc_y[i]) {
+    if (orig_y[i] != roc_y[i])
       ++y_err;
-    }
   }
 
   if (y_err) {
@@ -1375,17 +1330,14 @@ TEST_F(libyuvTest, NV12ToI420RotateNegHeight90) {
   int zero_cnt = 0;
 
   for (i = 0; i < uv_plane_size; ++i) {
-    if ((signed char)roc_u[i] != -(signed char)roc_v[i]) {
+    if ((signed char)roc_u[i] != -(signed char)roc_v[i])
       ++uv_err;
-    }
-    if (rob_u[i] != 0) {
+    if (rob_u[i] != 0)
       ++zero_cnt;
-    }
   }
 
-  if (!zero_cnt) {
+  if (!zero_cnt)
     ++uv_err;
-  }
 
   if (uv_err) {
     printf("input %dx%d \n", uvw * 2, uvh);
@@ -1509,17 +1461,14 @@ TEST_F(libyuvTest, NV12ToI420RotateNegHeight180) {
   int zero_cnt = 0;
 
   for (i = 0; i < uv_plane_size; ++i) {
-    if ((signed char)rob_u[i] != -(signed char)rob_v[i]) {
+    if ((signed char)rob_u[i] != -(signed char)rob_v[i])
       ++uv_err;
-    }
-    if (rob_u[i] != 0) {
+    if (rob_u[i] != 0)
       ++zero_cnt;
-    }
   }
 
-  if (!zero_cnt) {
+  if (!zero_cnt)
     ++uv_err;
-  }
 
   if (uv_err) {
     printf("input %dx%d \n", uvw * 2, uvh);

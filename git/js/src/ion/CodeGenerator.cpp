@@ -370,34 +370,30 @@ CodeGenerator::visitPolyInlineDispatch(LPolyInlineDispatch *lir)
 
     InlinePropertyTable *inlinePropTable = mir->inlinePropertyTable();
     if (inlinePropTable) {
-        // Temporary register is only assigned in the TypeObject case.
         Register tempReg = ToRegister(lir->temp());
-        masm.loadPtr(Address(inputReg, JSObject::offsetOfType()), tempReg);
 
-        // Detect functions by TypeObject.
+        masm.loadPtr(Address(inputReg, JSObject::offsetOfType()), tempReg);
         for (size_t i = 0; i < inlinePropTable->numEntries(); i++) {
             types::TypeObject *typeObj = inlinePropTable->getTypeObject(i);
             JSFunction *func = inlinePropTable->getFunction(i);
             LBlock *target = mir->getFunctionBlock(func)->lir();
             masm.branchPtr(Assembler::Equal, tempReg, ImmGCPtr(typeObj), target->label());
         }
-
-        // Unknown function: jump to fallback block.
+        // Jump to fallback block
         LBlock *fallback = mir->fallbackPrepBlock()->lir();
         masm.jump(fallback->label());
-        return true;
+    } else {
+        for (size_t i = 0; i < mir->numCallees(); i++) {
+            JSFunction *func = mir->getFunction(i);
+            LBlock *target = mir->getFunctionBlock(i)->lir();
+            if (i < mir->numCallees() - 1) {
+                masm.branchPtr(Assembler::Equal, inputReg, ImmGCPtr(func), target->label());
+            } else {
+                // Don't generate guard for final case
+                masm.jump(target->label());
+            }
+        }
     }
-
-    // Compare function pointers directly.
-    for (size_t i = 0; i < mir->numCallees() - 1; i++) {
-        JSFunction *func = mir->getFunction(i);
-        LBlock *target = mir->getFunctionBlock(i)->lir();
-        masm.branchPtr(Assembler::Equal, inputReg, ImmGCPtr(func), target->label());
-    }
-
-    // There's no fallback case, so a final guard isn't necessary.
-    LBlock *target = mir->getFunctionBlock(mir->numCallees() - 1)->lir();
-    masm.jump(target->label());
     return true;
 }
 

@@ -24,7 +24,7 @@ class ArchiveZipItem : public ArchiveItem
 public:
   ArchiveZipItem(const char* aFilename,
                  const ZipCentral& aCentralStruct,
-                 const mozilla::idl::ArchiveReaderOptions& aOptions);
+                 const ArchiveReaderOptions& aOptions);
   virtual ~ArchiveZipItem();
 
   nsresult GetFilename(nsString& aFilename);
@@ -45,7 +45,7 @@ private: // data
   nsString mFilenameU;
   ZipCentral mCentralStruct;
 
-  mozilla::idl::ArchiveReaderOptions mOptions;
+  ArchiveReaderOptions mOptions;
 };
 
 /**
@@ -55,12 +55,12 @@ class ArchiveReaderZipEvent : public ArchiveReaderEvent
 {
 public:
   ArchiveReaderZipEvent(ArchiveReader* aArchiveReader,
-                        const mozilla::idl::ArchiveReaderOptions& aOptions);
+                        const ArchiveReaderOptions& aOptions);
 
   nsresult Exec();
 
 private:
-  mozilla::idl::ArchiveReaderOptions mOptions;
+  ArchiveReaderOptions mOptions;
 };
 
 END_FILE_NAMESPACE

@@ -318,6 +318,7 @@
     padding-right: 1px;
   }
 
+  #allTabs-panel,
   #ctrlTab-panel {
     background: transparent;
     -moz-appearance: -moz-win-glass;

@@ -229,7 +229,7 @@ Startup()
   if (GeckoProcessType_Default != XRE_GetProcessType())
     return;
 
-  MOZ_ASSERT(!gMonitor, "Hang monitor already initialized");
+  NS_ASSERTION(!gMonitor, "Hang monitor already initialized");
   gMonitor = new Monitor("HangMonitor");
 
   Preferences::RegisterCallback(PrefChanged, kHangMonitorPrefName, NULL);
@@ -261,7 +261,7 @@ Shutdown()
   if (GeckoProcessType_Default != XRE_GetProcessType())
     return;
 
-  MOZ_ASSERT(gMonitor, "Hang monitor not started");
+  NS_ASSERTION(gMonitor, "Hang monitor not started");
 
   { // Scope the lock we're going to delete later
     MonitorAutoLock lock(*gMonitor);
@@ -302,8 +302,8 @@ IsUIMessageWaiting()
 void
 NotifyActivity(ActivityType activityType)
 {
-  MOZ_ASSERT(NS_IsMainThread(),
-             "HangMonitor::Notify called from off the main thread.");
+  NS_ASSERTION(NS_IsMainThread(),
+    "HangMonitor::Notify called from off the main thread.");
 
   // Determine the activity type more specifically
   if (activityType == kGeneralActivity) {
@@ -350,8 +350,7 @@ NotifyActivity(ActivityType activityType)
 void
 Suspend()
 {
-  MOZ_ASSERT(NS_IsMainThread(),
-             "HangMonitor::Suspend called from off the main thread.");
+  NS_ASSERTION(NS_IsMainThread(), "HangMonitor::Suspend called from off the main thread.");
 
   // Because gTimestamp changes this resets the wait count.
   gTimestamp = PR_INTERVAL_NO_WAIT;

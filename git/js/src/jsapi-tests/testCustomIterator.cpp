@@ -45,10 +45,11 @@ js::Class HasCustomIterClass = {
     NULL, /* hasInstance */
     NULL, /* mark */
     {
-        NULL,       /* outerObject */
-        NULL,       /* innerObject */
+        NULL,
+        NULL,
+        NULL,
         IterHook,
-        false        /* isWrappedNative */
+        NULL
     }
 };
 

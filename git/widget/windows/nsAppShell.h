@@ -10,9 +10,8 @@
 #include <windows.h>
 #include "mozilla/TimeStamp.h"
 
-// The maximum time we allow before forcing a native event callback.
-// In seconds.
-#define NATIVE_EVENT_STARVATION_LIMIT 1
+// The maximum time we allow before forcing a native event callback
+#define NATIVE_EVENT_STARVATION_LIMIT mozilla::TimeDuration::FromSeconds(1)
 
 /**
  * Native Win32 Application shell wrapper

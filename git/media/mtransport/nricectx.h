@@ -198,11 +198,7 @@ class NrIceCtx {
     ctx_(nullptr),
     peer_(nullptr),
     ice_handler_vtbl_(nullptr),
-    ice_handler_(nullptr)
-  {
-    // XXX: offerer_ will be used eventually;  placate clang in the meantime.
-    (void)offerer_;
-  }
+    ice_handler_(nullptr) {}
 
   DISALLOW_COPY_ASSIGN(NrIceCtx);
 

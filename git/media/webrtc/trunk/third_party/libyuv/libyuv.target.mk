@@ -5,7 +5,7 @@ TARGET := libyuv
 DEFS_Debug := \
 	'-D_FILE_OFFSET_BITS=64' \
 	'-DCHROMIUM_BUILD' \
-	'-DUSE_LIBJPEG_TURBO=1' \
+	'-DUSE_NSS=1' \
 	'-DENABLE_ONE_CLICK_SIGNIN' \
 	'-DGTK_DISABLE_SINGLE_INCLUDES=1' \
 	'-DENABLE_REMOTING=1' \
@@ -14,7 +14,6 @@ DEFS_Debug := \
 	'-DENABLE_INPUT_SPEECH' \
 	'-DENABLE_NOTIFICATIONS' \
 	'-DENABLE_GPU=1' \
-	'-DUSE_OPENSSL=1' \
 	'-DENABLE_EGLIMAGE=1' \
 	'-DUSE_SKIA=1' \
 	'-DENABLE_TASK_MANAGER=1' \
@@ -66,7 +65,7 @@ INCS_Debug := \
 DEFS_Release := \
 	'-D_FILE_OFFSET_BITS=64' \
 	'-DCHROMIUM_BUILD' \
-	'-DUSE_LIBJPEG_TURBO=1' \
+	'-DUSE_NSS=1' \
 	'-DENABLE_ONE_CLICK_SIGNIN' \
 	'-DGTK_DISABLE_SINGLE_INCLUDES=1' \
 	'-DENABLE_REMOTING=1' \
@@ -75,7 +74,6 @@ DEFS_Release := \
 	'-DENABLE_INPUT_SPEECH' \
 	'-DENABLE_NOTIFICATIONS' \
 	'-DENABLE_GPU=1' \
-	'-DUSE_OPENSSL=1' \
 	'-DENABLE_EGLIMAGE=1' \
 	'-DUSE_SKIA=1' \
 	'-DENABLE_TASK_MANAGER=1' \
@@ -198,7 +196,7 @@ $(obj).target/third_party/libyuv/libyuv.a: GYP_LDFLAGS := $(LDFLAGS_$(BUILDTYPE)
 $(obj).target/third_party/libyuv/libyuv.a: LIBS := $(LIBS)
 $(obj).target/third_party/libyuv/libyuv.a: TOOLSET := $(TOOLSET)
 $(obj).target/third_party/libyuv/libyuv.a: $(OBJS) FORCE_DO_CMD
-	$(call do_cmd,alink_thin)
+	$(call do_cmd,alink)
 
 all_deps += $(obj).target/third_party/libyuv/libyuv.a
 # Add target alias

@@ -1741,17 +1741,8 @@ CHECK_FROZEN_VARIABLES = $(foreach var,$(FREEZE_VARIABLES), \
 libs export::
 	$(CHECK_FROZEN_VARIABLES)
 
-PURGECACHES_DIRS ?= $(DIST)/bin
-ifdef MOZ_WEBAPP_RUNTIME
-PURGECACHES_DIRS += $(DIST)/bin/webapprt
-endif
-
-PURGECACHES_FILES = $(addsuffix /.purgecaches,$(PURGECACHES_DIRS))
-
-default all:: $(PURGECACHES_FILES)
-
-$(PURGECACHES_FILES):
-	if test -d $(@D) ; then touch $@ ; fi
+default all::
+	if test -d $(DIST)/bin ; then touch $(DIST)/bin/.purgecaches ; fi
 
 .DEFAULT_GOAL ?= default
 

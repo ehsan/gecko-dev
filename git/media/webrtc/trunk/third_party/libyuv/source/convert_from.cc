@@ -17,14 +17,13 @@
 #include "libyuv/planar_functions.h"
 #include "libyuv/rotate.h"
 #include "libyuv/video_common.h"
-#include "libyuv/row.h"
+#include "source/row.h"
 
 #ifdef __cplusplus
 namespace libyuv {
 extern "C" {
 #endif
 
-LIBYUV_API
 int I420ToI422(const uint8* src_y, int src_stride_y,
                const uint8* src_u, int src_stride_u,
                const uint8* src_v, int src_stride_v,
@@ -104,7 +103,6 @@ void ScalePlaneBilinear(int src_width, int src_height,
                         int src_stride, int dst_stride,
                         const uint8* src_ptr, uint8* dst_ptr);
 
-LIBYUV_API
 int I420ToI444(const uint8* src_y, int src_stride_y,
                const uint8* src_u, int src_stride_u,
                const uint8* src_v, int src_stride_v,
@@ -154,7 +152,6 @@ int I420ToI444(const uint8* src_y, int src_stride_y,
 
 // 420 chroma is 1/2 width, 1/2 height
 // 411 chroma is 1/4 width, 1x height
-LIBYUV_API
 int I420ToI411(const uint8* src_y, int src_stride_y,
                const uint8* src_u, int src_stride_u,
                const uint8* src_v, int src_stride_v,
@@ -204,7 +201,6 @@ int I420ToI411(const uint8* src_y, int src_stride_y,
 }
 
 // Copy to I400.  Source can be I420,422,444,400,NV12,NV21
-LIBYUV_API
 int I400Copy(const uint8* src_y, int src_stride_y,
              uint8* dst_y, int dst_stride_y,
              int width, int height) {
@@ -464,7 +460,6 @@ static void UYVYToV210Row_C(const uint8* src_uyvy, uint8* dst_v210, int width) {
 }
 
 // TODO(fbarchard): Deprecate, move or expand 422 support?
-LIBYUV_API
 int I422ToYUY2(const uint8* src_y, int src_stride_y,
                const uint8* src_u, int src_stride_u,
                const uint8* src_v, int src_stride_v,
@@ -502,7 +497,6 @@ int I422ToYUY2(const uint8* src_y, int src_stride_y,
   return 0;
 }
 
-LIBYUV_API
 int I420ToYUY2(const uint8* src_y, int src_stride_y,
                const uint8* src_u, int src_stride_u,
                const uint8* src_v, int src_stride_v,
@@ -546,7 +540,6 @@ int I420ToYUY2(const uint8* src_y, int src_stride_y,
 }
 
 // TODO(fbarchard): Deprecate, move or expand 422 support?
-LIBYUV_API
 int I422ToUYVY(const uint8* src_y, int src_stride_y,
                const uint8* src_u, int src_stride_u,
                const uint8* src_v, int src_stride_v,
@@ -584,14 +577,13 @@ int I422ToUYVY(const uint8* src_y, int src_stride_y,
   return 0;
 }
 
-LIBYUV_API
 int I420ToUYVY(const uint8* src_y, int src_stride_y,
                const uint8* src_u, int src_stride_u,
                const uint8* src_v, int src_stride_v,
                uint8* dst_frame, int dst_stride_frame,
                int width, int height) {
   if (!src_y || !src_u || !src_v || !dst_frame ||
-      width <= 0 || height == 0) {
+      width <= 0 || height <= 0 ) {
     return -1;
   }
   // Negative height means invert the image.
@@ -627,7 +619,6 @@ int I420ToUYVY(const uint8* src_y, int src_stride_y,
   return 0;
 }
 
-LIBYUV_API
 int I420ToV210(const uint8* src_y, int src_stride_y,
                const uint8* src_u, int src_stride_u,
                const uint8* src_v, int src_stride_v,
@@ -680,7 +671,6 @@ int I420ToV210(const uint8* src_y, int src_stride_y,
 }
 
 // Convert I420 to ARGB.
-LIBYUV_API
 int I420ToARGB(const uint8* src_y, int src_stride_y,
                const uint8* src_u, int src_stride_u,
                const uint8* src_v, int src_stride_v,
@@ -733,7 +723,6 @@ int I420ToARGB(const uint8* src_y, int src_stride_y,
 }
 
 // Convert I420 to BGRA.
-LIBYUV_API
 int I420ToBGRA(const uint8* src_y, int src_stride_y,
                const uint8* src_u, int src_stride_u,
                const uint8* src_v, int src_stride_v,
@@ -787,7 +776,6 @@ int I420ToBGRA(const uint8* src_y, int src_stride_y,
 }
 
 // Convert I420 to ABGR.
-LIBYUV_API
 int I420ToABGR(const uint8* src_y, int src_stride_y,
                const uint8* src_u, int src_stride_u,
                const uint8* src_v, int src_stride_v,
@@ -840,63 +828,7 @@ int I420ToABGR(const uint8* src_y, int src_stride_y,
   return 0;
 }
 
-// Convert I420 to RGBA.
-LIBYUV_API
-int I420ToRGBA(const uint8* src_y, int src_stride_y,
-               const uint8* src_u, int src_stride_u,
-               const uint8* src_v, int src_stride_v,
-               uint8* dst_rgba, int dst_stride_rgba,
-               int width, int height) {
-  if (!src_y || !src_u || !src_v ||
-      !dst_rgba ||
-      width <= 0 || height == 0) {
-    return -1;
-  }
-  // Negative height means invert the image.
-  if (height < 0) {
-    height = -height;
-    dst_rgba = dst_rgba + (height - 1) * dst_stride_rgba;
-    dst_stride_rgba = -dst_stride_rgba;
-  }
-  void (*I422ToRGBARow)(const uint8* y_buf,
-                        const uint8* u_buf,
-                        const uint8* v_buf,
-                        uint8* rgb_buf,
-                        int width) = I422ToRGBARow_C;
-#if defined(HAS_I422TORGBAROW_NEON)
-  if (TestCpuFlag(kCpuHasNEON)) {
-    I422ToRGBARow = I422ToRGBARow_Any_NEON;
-    if (IS_ALIGNED(width, 16)) {
-      I422ToRGBARow = I422ToRGBARow_NEON;
-    }
-  }
-#elif defined(HAS_I422TORGBAROW_SSSE3)
-  if (TestCpuFlag(kCpuHasSSSE3) && width >= 8) {
-    I422ToRGBARow = I422ToRGBARow_Any_SSSE3;
-    if (IS_ALIGNED(width, 8)) {
-      I422ToRGBARow = I422ToRGBARow_Unaligned_SSSE3;
-      if (IS_ALIGNED(dst_rgba, 16) && IS_ALIGNED(dst_stride_rgba, 16)) {
-        I422ToRGBARow = I422ToRGBARow_SSSE3;
-      }
-    }
-  }
-#endif
-
-  for (int y = 0; y < height; ++y) {
-    I422ToRGBARow(src_y, src_u, src_v, dst_rgba, width);
-    dst_rgba += dst_stride_rgba;
-    src_y += src_stride_y;
-    if (y & 1) {
-      src_u += src_stride_u;
-      src_v += src_stride_v;
-    }
-  }
-  return 0;
-}
-
 // Convert I420 to RGB24.
-// TODO(fbarchard): One step I420ToRGB24Row_NEON.
-LIBYUV_API
 int I420ToRGB24(const uint8* src_y, int src_stride_y,
                 const uint8* src_u, int src_stride_u,
                 const uint8* src_v, int src_stride_v,
@@ -942,16 +874,6 @@ int I420ToRGB24(const uint8* src_y, int src_stride_y,
     }
   }
 #endif
-#if defined(HAS_ARGBTORGB24ROW_NEON)
-  if (TestCpuFlag(kCpuHasNEON)) {
-    if (width * 3 <= kMaxStride) {
-      ARGBToRGB24Row = ARGBToRGB24Row_Any_NEON;
-    }
-    if (IS_ALIGNED(width, 8)) {
-      ARGBToRGB24Row = ARGBToRGB24Row_NEON;
-    }
-  }
-#endif
 
   for (int y = 0; y < height; ++y) {
     I422ToARGBRow(src_y, src_u, src_v, row, width);
@@ -967,8 +889,6 @@ int I420ToRGB24(const uint8* src_y, int src_stride_y,
 }
 
 // Convert I420 to RAW.
-// TODO(fbarchard): One step I420ToRAWRow_NEON.
-LIBYUV_API
 int I420ToRAW(const uint8* src_y, int src_stride_y,
               const uint8* src_u, int src_stride_u,
               const uint8* src_v, int src_stride_v,
@@ -1013,15 +933,6 @@ int I420ToRAW(const uint8* src_y, int src_stride_y,
       ARGBToRAWRow = ARGBToRAWRow_SSSE3;
     }
   }
-#elif defined(HAS_ARGBTORAWROW_NEON)
-  if (TestCpuFlag(kCpuHasNEON)) {
-    if (width * 3 <= kMaxStride) {
-      ARGBToRAWRow = ARGBToRAWRow_Any_NEON;
-    }
-    if (IS_ALIGNED(width, 8)) {
-      ARGBToRAWRow = ARGBToRAWRow_NEON;
-    }
-  }
 #endif
 
   for (int y = 0; y < height; ++y) {
@@ -1038,7 +949,6 @@ int I420ToRAW(const uint8* src_y, int src_stride_y,
 }
 
 // Convert I420 to RGB565.
-LIBYUV_API
 int I420ToRGB565(const uint8* src_y, int src_stride_y,
                  const uint8* src_u, int src_stride_u,
                  const uint8* src_v, int src_stride_v,
@@ -1098,7 +1008,6 @@ int I420ToRGB565(const uint8* src_y, int src_stride_y,
 }
 
 // Convert I420 to ARGB1555.
-LIBYUV_API
 int I420ToARGB1555(const uint8* src_y, int src_stride_y,
                    const uint8* src_u, int src_stride_u,
                    const uint8* src_v, int src_stride_v,
@@ -1158,7 +1067,6 @@ int I420ToARGB1555(const uint8* src_y, int src_stride_y,
 }
 
 // Convert I420 to ARGB4444.
-LIBYUV_API
 int I420ToARGB4444(const uint8* src_y, int src_stride_y,
                    const uint8* src_u, int src_stride_u,
                    const uint8* src_v, int src_stride_v,
@@ -1218,7 +1126,6 @@ int I420ToARGB4444(const uint8* src_y, int src_stride_y,
 }
 
 // Convert I420 to specified format
-LIBYUV_API
 int ConvertFromI420(const uint8* y, int y_stride,
                     const uint8* u, int u_stride,
                     const uint8* v, int v_stride,
@@ -1315,14 +1222,6 @@ int ConvertFromI420(const uint8* y, int y_stride,
       break;
     case FOURCC_ABGR:
       r = I420ToABGR(y, y_stride,
-                     u, u_stride,
-                     v, v_stride,
-                     dst_sample,
-                     dst_sample_stride ? dst_sample_stride : width * 4,
-                     width, height);
-      break;
-    case FOURCC_RGBA:
-      r = I420ToRGBA(y, y_stride,
                      u, u_stride,
                      v, v_stride,
                      dst_sample,

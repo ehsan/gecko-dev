@@ -46,6 +46,9 @@ var todoTypes = [
 
 var nonTrivialSanitizing = [ 'number', 'date', 'time' ];
 
+SimpleTest.waitForExplicitFinish();
+SpecialPowers.pushPrefEnv({'set': [["dom.experimental_forms", true]]}, function() {
+
 var length = testData.length;
 for (var i=0; i<length; ++i) {
   for (var j=0; j<length; ++j) {
@@ -97,6 +100,9 @@ for (var type of todoTypes) {
   e.type = type;
   todo_is(e.type, type, type + " type isn't supported yet");
 }
+
+SimpleTest.finish();
+});
 
 </script>
 </pre>

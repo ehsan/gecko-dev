@@ -396,6 +396,8 @@ function checkTimeSet()
   }
 }
 
+SimpleTest.waitForExplicitFinish();
+SpecialPowers.pushPrefEnv({'set': [["dom.experimental_forms", true]]}, function() {
 checkAvailability();
 
 // <input type='number'> test
@@ -409,6 +411,9 @@ checkDateSet();
 // <input type='time'> test
 checkTimeGet();
 checkTimeSet();
+
+SimpleTest.finish();
+});
 
 </script>
 </pre>

@@ -530,9 +530,11 @@ Class js::NormalArgumentsObjectClass = {
     NULL,                    /* hasInstance */
     ArgumentsObject::trace,
     {
+        NULL,       /* equality    */
         NULL,       /* outerObject */
         NULL,       /* innerObject */
         NULL,       /* iteratorObject  */
+        NULL,       /* unused      */
         false,      /* isWrappedNative */
     }
 };
@@ -561,9 +563,11 @@ Class js::StrictArgumentsObjectClass = {
     NULL,                    /* hasInstance */
     ArgumentsObject::trace,
     {
+        NULL,       /* equality    */
         NULL,       /* outerObject */
         NULL,       /* innerObject */
         NULL,       /* iteratorObject  */
+        NULL,       /* unused      */
         false,      /* isWrappedNative */
     }
 };

@@ -1013,6 +1013,12 @@ typedef JSBool
 typedef JSBool
 (* JSConvertOp)(JSContext *cx, JSHandleObject obj, JSType type, JSMutableHandleValue vp);
 
+/*
+ * Delegate typeof to an object so it can cloak a primitive or another object.
+ */
+typedef JSType
+(* JSTypeOfOp)(JSContext *cx, JSHandleObject obj);
+
 typedef struct JSFreeOp JSFreeOp;
 
 struct JSFreeOp {
@@ -1090,6 +1096,9 @@ typedef void
  */
 typedef void
 (* JSTraceNamePrinter)(JSTracer *trc, char *buf, size_t bufsize);
+
+typedef JSBool
+(* JSEqualityOp)(JSContext *cx, JSHandleObject obj, JSHandleValue v, JSBool *bp);
 
 typedef JSRawObject
 (* JSWeakmapKeyDelegateOp)(JSRawObject obj);
@@ -2497,10 +2506,6 @@ JS_updateMallocCounter(JSContext *cx, size_t nbytes);
 
 extern JS_PUBLIC_API(char *)
 JS_strdup(JSContext *cx, const char *s);
-
-/* Duplicate a string.  Does not report an error on failure. */
-extern JS_PUBLIC_API(char *)
-JS_strdup(JSRuntime *rt, const char *s);
 
 
 /*
@@ -4679,13 +4684,13 @@ JS_WriteTypedArray(JSStructuredCloneWriter *w, jsval v);
  * The locale string remains owned by the caller.
  */
 extern JS_PUBLIC_API(JSBool)
-JS_SetDefaultLocale(JSRuntime *rt, const char *locale);
+JS_SetDefaultLocale(JSContext *cx, const char *locale);
 
 /*
  * Reset the default locale to OS defaults.
  */
 extern JS_PUBLIC_API(void)
-JS_ResetDefaultLocale(JSRuntime *rt);
+JS_ResetDefaultLocale(JSContext *cx);
 
 /*
  * Locale specific string conversion and error message callbacks.
@@ -4700,17 +4705,17 @@ struct JSLocaleCallbacks {
 
 /*
  * Establish locale callbacks. The pointer must persist as long as the
- * JSRuntime.  Passing NULL restores the default behaviour.
+ * JSContext.  Passing NULL restores the default behaviour.
  */
 extern JS_PUBLIC_API(void)
-JS_SetLocaleCallbacks(JSRuntime *rt, JSLocaleCallbacks *callbacks);
+JS_SetLocaleCallbacks(JSContext *cx, JSLocaleCallbacks *callbacks);
 
 /*
  * Return the address of the current locale callbacks struct, which may
  * be NULL.
  */
 extern JS_PUBLIC_API(JSLocaleCallbacks *)
-JS_GetLocaleCallbacks(JSRuntime *rt);
+JS_GetLocaleCallbacks(JSContext *cx);
 
 /************************************************************************/
 

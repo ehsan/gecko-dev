@@ -82,8 +82,11 @@ public:
   {
     return IsComposing() && IsComposingWindow(aWindow);
   }
+  static bool IsStatusChanged() { return sIsStatusChanged; }
 
   static bool IsDoingKakuteiUndo(HWND aWnd);
+
+  static void NotifyEndStatusChange() { sIsStatusChanged = false; }
 
   static bool CanOptimizeKeyAndIMEMessages(MSG *aNextKeyOrIMEMessage);
 
@@ -289,6 +292,7 @@ protected:
   bool mIsComposingOnPlugin;
   bool mNativeCaretIsCreated;
 
+  static bool sIsStatusChanged;
   static bool sIsIME;
   static bool sIsIMEOpening;
 

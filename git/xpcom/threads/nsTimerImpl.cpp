@@ -136,7 +136,7 @@ NS_IMETHODIMP_(nsrefcnt) nsTimerImpl::Release(void)
 {
   nsrefcnt count;
 
-  MOZ_ASSERT(int32_t(mRefCnt) > 0, "dup release");
+  NS_PRECONDITION(0 != mRefCnt, "dup release");
   count = NS_AtomicDecrementRefcnt(mRefCnt);
   NS_LOG_RELEASE(this, count, "nsTimerImpl");
   if (count == 0) {
@@ -180,7 +180,7 @@ NS_IMETHODIMP_(nsrefcnt) nsTimerImpl::Release(void)
   if (count == 1 && mArmed) {
     mCanceled = true;
 
-    MOZ_ASSERT(gThread, "Armed timer exists after the thread timer stopped.");
+    NS_ASSERTION(gThread, "An armed timer exists after the thread timer stopped.");
     if (NS_SUCCEEDED(gThread->RemoveTimer(this)))
       return 0;
   }

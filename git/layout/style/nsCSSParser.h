@@ -108,7 +108,7 @@ public:
                      nsIURI*                 aSheetURL,
                      nsIURI*                 aBaseURL,
                      nsIPrincipal*           aSheetPrincipal,
-                     mozilla::css::Rule**    aResult);
+                     nsCOMArray<mozilla::css::Rule>& aResult);
 
   // Parse the value of a single CSS property, and add or replace that
   // property in aDeclaration.

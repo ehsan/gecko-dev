@@ -126,11 +126,7 @@ class NrIceMediaStream {
       ctx_(ctx),
       name_(name),
       components_(components),
-      stream_(nullptr)
-  {
-    // XXX: components_ will be used eventually;  placate clang in the meantime.
-    (void)components_;
-  }
+      stream_(nullptr)  {}
 
   DISALLOW_COPY_ASSIGN(NrIceMediaStream);
 
