@@ -1743,11 +1743,9 @@ skip:
         }
         for (; n != 0; fp = fp->down) {
             --n;
-            if (fp->callee) {
+            if (fp->callee) { // might not have it if the entry frame is global
                 JS_ASSERT(JSVAL_IS_OBJECT(fp->argv[-1]));
                 fp->thisp = JSVAL_TO_OBJECT(fp->argv[-1]);
-                if (fp->flags & JSFRAME_CONSTRUCTING) // constructors always compute 'this'
-                    fp->flags |= JSFRAME_COMPUTED_THIS;
             }
         }
     }
@@ -2557,7 +2555,6 @@ checktype_fail_2:
 JS_REQUIRES_STACK void
 TraceRecorder::compile(JSTraceMonitor* tm)
 {
-    JS_ASSERT(!tm->needFlush);
     Fragmento* fragmento = tm->fragmento;
     if (treeInfo->maxNativeStackSlots >= MAX_NATIVE_STACK_SLOTS) {
         debug_only_v(printf("Blacklist: excessive stack use.\n"));
@@ -2633,8 +2630,6 @@ TraceRecorder::closeLoop(JSTraceMonitor* tm, bool& demote)
      * meantime JSOP_NOP.
      */
     JS_ASSERT((*cx->fp->regs->pc == JSOP_LOOP || *cx->fp->regs->pc == JSOP_NOP) && !cx->fp->imacpc);
-
-    JS_ASSERT(!tm->needFlush);
 
     bool stable;
     LIns* exitIns;
@@ -3106,52 +3101,6 @@ nanojit::Fragment::onDestroy()
     delete (TreeInfo *)vmprivate;
 }
 
-static JS_REQUIRES_STACK void
-FlushJITCache(JSContext* cx)
-{
-    if (!TRACING_ENABLED(cx))
-        return;
-    JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
-    debug_only_v(printf("Flushing cache.\n");)
-    if (tm->recorder)
-        js_AbortRecording(cx, "flush cache");
-    TraceRecorder* tr;
-    while ((tr = tm->abortStack) != NULL) {
-        tr->removeFragmentoReferences();
-        tr->deepAbort();
-        tr->popAbortStack();
-    }
-    Fragmento* fragmento = tm->fragmento;
-    if (fragmento) {
-        if (tm->prohibitFlush) {
-            debug_only_v(printf("Deferring fragmento flush due to deep bail.\n");)
-            tm->needFlush = JS_TRUE;
-            return;
-        }
-
-        fragmento->clearFrags();
-#ifdef DEBUG
-        JS_ASSERT(fragmento->labels);
-        fragmento->labels->clear();
-#endif
-        tm->lirbuf->rewind();
-        for (size_t i = 0; i < FRAGMENT_TABLE_SIZE; ++i) {
-            VMFragment* f = tm->vmfragments[i];
-            while (f) {
-                VMFragment* next = f->next;
-                fragmento->clearFragment(f);
-                f = next;
-            }
-            tm->vmfragments[i] = NULL;
-        }
-        for (size_t i = 0; i < MONITOR_N_GLOBAL_STATES; ++i) {
-            tm->globalStates[i].globalShape = -1;
-            tm->globalStates[i].globalSlots->clear();
-        }
-    }
-    tm->needFlush = JS_FALSE;
-}
-
 static JS_REQUIRES_STACK bool
 js_DeleteRecorder(JSContext* cx)
 {
@@ -3166,7 +3115,7 @@ js_DeleteRecorder(JSContext* cx)
      */
     if (JS_TRACE_MONITOR(cx).fragmento->assm()->error() == OutOMem
         || js_OverfullFragmento(tm->fragmento, MAX_MEM_IN_MAIN_FRAGMENTO)) {
-        FlushJITCache(cx);
+        js_FlushJITCache(cx);
         return false;
     }
 
@@ -3180,8 +3129,10 @@ static inline bool
 js_CheckGlobalObjectShape(JSContext* cx, JSTraceMonitor* tm, JSObject* globalObj,
                           uint32 *shape=NULL, SlotList** slots=NULL)
 {
-    if (tm->needFlush)
+    if (tm->needFlush) {
+        tm->needFlush = JS_FALSE;
         return false;
+    }
 
     uint32 globalShape = OBJ_SHAPE(globalObj);
 
@@ -3238,7 +3189,7 @@ js_StartRecorder(JSContext* cx, VMSideExit* anchor, Fragment* f, TreeInfo* ti,
     JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
     JS_ASSERT(f->root != f || !cx->fp->imacpc);
 
-    if (JS_TRACE_MONITOR(cx).needFlush)
+    if (JS_TRACE_MONITOR(cx).prohibitRecording)
         return false;
 
     /* start recording if no exception during construction */
@@ -3392,7 +3343,7 @@ js_SynthesizeFrame(JSContext* cx, const FrameInfo& fi)
     newifp->frame.xmlNamespace = NULL;
     newifp->frame.blockChain = NULL;
     newifp->mark = newmark;
-    newifp->frame.thisp = NULL; // will be updated in FlushNativeStackFrame
+    newifp->frame.thisp = NULL; // will be set by js_ExecuteTree -> FlushNativeStackFrame
 
     newifp->frame.regs = fp->regs;
     newifp->frame.regs->pc = script->code;
@@ -3465,7 +3416,7 @@ js_RecordTree(JSContext* cx, JSTraceMonitor* tm, Fragment* f, jsbytecode* outer,
 
     /* Make sure the global type map didn't change on us. */
     if (!js_CheckGlobalObjectShape(cx, tm, globalObj)) {
-        FlushJITCache(cx);
+        js_FlushJITCache(cx);
         return false;
     }
 
@@ -3478,7 +3429,7 @@ js_RecordTree(JSContext* cx, JSTraceMonitor* tm, Fragment* f, jsbytecode* outer,
         f = getAnchor(&JS_TRACE_MONITOR(cx), f->root->ip, globalObj, globalShape);
 
     if (!f) {
-        FlushJITCache(cx);
+        js_FlushJITCache(cx);
         return false;
     }
 
@@ -3487,7 +3438,7 @@ js_RecordTree(JSContext* cx, JSTraceMonitor* tm, Fragment* f, jsbytecode* outer,
 
     if (f->lirbuf->outOMem() ||
         js_OverfullFragmento(tm->fragmento, MAX_MEM_IN_MAIN_FRAGMENTO)) {
-        FlushJITCache(cx);
+        js_FlushJITCache(cx);
         debug_only_v(printf("Out of memory recording new tree, flushing cache.\n");)
         return false;
     }
@@ -3501,12 +3452,9 @@ js_RecordTree(JSContext* cx, JSTraceMonitor* tm, Fragment* f, jsbytecode* outer,
     ti->typeMap.captureTypes(cx, *globalSlots, 0/*callDepth*/);
     ti->nStackTypes = ti->typeMap.length() - globalSlots->length();
 
-#ifdef DEBUG
-    /*
-     * Check for duplicate entry type maps.  This is always wrong and hints at
-     * trace explosion since we are trying to stabilize something without
-     * properly connecting peer edges.
-     */
+    /* Check for duplicate entry type maps.  This is always wrong and hints at trace explosion
+       since we are trying to stabilize something without properly connecting peer edges. */
+    #ifdef DEBUG
     TreeInfo* ti_other;
     for (Fragment* peer = getLoop(tm, f->root->ip, globalObj, globalShape); peer != NULL;
          peer = peer->peer) {
@@ -3519,7 +3467,7 @@ js_RecordTree(JSContext* cx, JSTraceMonitor* tm, Fragment* f, jsbytecode* outer,
     ti->treeFileName = cx->fp->script->filename;
     ti->treeLineNumber = js_FramePCToLineNumber(cx, cx->fp);
     ti->treePCOffset = FramePCOffset(cx->fp);
-#endif
+    #endif
 
     /* determine the native frame layout at the entry point */
     unsigned entryNativeStackSlots = ti->nStackTypes;
@@ -3555,7 +3503,6 @@ JS_REQUIRES_STACK static bool
 js_AttemptToStabilizeTree(JSContext* cx, VMSideExit* exit, jsbytecode* outer)
 {
     JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
-    JS_ASSERT(!tm->needFlush);
     VMFragment* from = (VMFragment*)exit->from->root;
     TreeInfo* from_ti = (TreeInfo*)from->vmprivate;
 
@@ -3654,8 +3601,6 @@ js_AttemptToStabilizeTree(JSContext* cx, VMSideExit* exit, jsbytecode* outer)
 static JS_REQUIRES_STACK bool
 js_AttemptToExtendTree(JSContext* cx, VMSideExit* anchor, VMSideExit* exitedFrom, jsbytecode* outer)
 {
-    JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
-    JS_ASSERT(!tm->needFlush);
     Fragment* f = anchor->from->root;
     JS_ASSERT(f->vmprivate);
     TreeInfo* ti = (TreeInfo*)f->vmprivate;
@@ -3801,7 +3746,7 @@ js_RecordLoopEdge(JSContext* cx, TraceRecorder* r, uintN& inlineCallCount)
         if (!f) {
             f = getAnchor(tm, cx->fp->regs->pc, globalObj, globalShape);
             if (!f) {
-                FlushJITCache(cx);
+                js_FlushJITCache(cx);
                 return false;
             }
         }
@@ -4128,10 +4073,6 @@ js_ExecuteTree(JSContext* cx, Fragment* f, uintN& inlineCallCount,
 
     AUDIT(traceTriggered);
 
-#ifdef DEBUG
-    cx->interpState = NULL;
-#endif
-
     JS_ASSERT(lr->exitType != LOOP_EXIT || !lr->calldepth);
     tm->onTrace = false;
     LeaveTree(*state, lr);
@@ -4225,9 +4166,7 @@ LeaveTree(InterpState& state, VMSideExit* lr)
                           typeMap[innermost->numStackSlots - 1],
                           (jsdouble *) state.sp + innermost->sp_adj / sizeof(jsdouble) - 1);
         }
-        JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
-        if (tm->prohibitFlush && --tm->prohibitFlush == 0 && tm->needFlush)
-            FlushJITCache(cx);
+        JS_TRACE_MONITOR(cx).prohibitRecording = false;
         return;
     }
 
@@ -4350,6 +4289,8 @@ LeaveTree(InterpState& state, VMSideExit* lr)
     // Verify that our state restoration worked.
     for (JSStackFrame* fp = cx->fp; fp; fp = fp->down) {
         JS_ASSERT_IF(fp->callee, JSVAL_IS_OBJECT(fp->argv[-1]));
+        JS_ASSERT_IF(fp->callee && fp->thisp != JSVAL_TO_OBJECT(fp->argv[-1]),
+                     !(fp->flags & JSFRAME_COMPUTED_THIS) && !fp->thisp);
     }
 #endif
 #ifdef JS_JIT_SPEW
@@ -4401,7 +4342,7 @@ js_MonitorLoopEdge(JSContext* cx, uintN& inlineCallCount)
     SlotList* globalSlots = NULL;
 
     if (!js_CheckGlobalObjectShape(cx, tm, globalObj, &globalShape, &globalSlots))
-        FlushJITCache(cx);
+        js_FlushJITCache(cx);
 
     /* Do not enter the JIT code with a pending operation callback. */
     if (cx->operationCallbackFlag)
@@ -4414,7 +4355,7 @@ js_MonitorLoopEdge(JSContext* cx, uintN& inlineCallCount)
         f = getAnchor(tm, pc, globalObj, globalShape);
 
     if (!f) {
-        FlushJITCache(cx);
+        js_FlushJITCache(cx);
         return false;
     }
 
@@ -4529,7 +4470,7 @@ TraceRecorder::monitorRecording(JSContext* cx, TraceRecorder* tr, JSOp op)
         js_OverfullFragmento(JS_TRACE_MONITOR(cx).fragmento, 
                              MAX_MEM_IN_MAIN_FRAGMENTO)) {
         js_AbortRecording(cx, "no more LIR memory");
-        FlushJITCache(cx);
+        js_FlushJITCache(cx);
         return JSMRS_STOP;
     }
 
@@ -4957,6 +4898,45 @@ js_OverfullFragmento(Fragmento *frago, size_t maxsz)
     return (frago->_stats.pages > (maxsz >> NJ_LOG2_PAGE_SIZE));
 }
 
+JS_REQUIRES_STACK void
+js_FlushJITCache(JSContext* cx)
+{
+    if (!TRACING_ENABLED(cx))
+        return;
+    debug_only_v(printf("Flushing cache.\n");)
+    JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
+    if (tm->recorder)
+        js_AbortRecording(cx, "flush cache");
+    TraceRecorder* tr;
+    while ((tr = tm->abortStack) != NULL) {
+        tr->removeFragmentoReferences();
+        tr->deepAbort();
+        tr->popAbortStack();
+    }
+    Fragmento* fragmento = tm->fragmento;
+    if (fragmento) {
+        fragmento->clearFrags();
+#ifdef DEBUG
+        JS_ASSERT(fragmento->labels);
+        fragmento->labels->clear();
+#endif
+        tm->lirbuf->rewind();
+        for (size_t i = 0; i < FRAGMENT_TABLE_SIZE; ++i) {
+            VMFragment* f = tm->vmfragments[i];
+            while(f) {
+                VMFragment* next = f->next;
+                fragmento->clearFragment(f);
+                f = next;
+            }
+            tm->vmfragments[i] = NULL;
+        }
+        for (size_t i = 0; i < MONITOR_N_GLOBAL_STATES; ++i) {
+            tm->globalStates[i].globalShape = -1;
+            tm->globalStates[i].globalSlots->clear();
+        }
+    }
+}
+
 JS_FORCES_STACK JS_FRIEND_API(void)
 js_DeepBail(JSContext *cx)
 {
@@ -4966,8 +4946,7 @@ js_DeepBail(JSContext *cx)
     JS_ASSERT(cx->bailExit);
 
     JS_TRACE_MONITOR(cx).onTrace = false;
-    JS_TRACE_MONITOR(cx).prohibitFlush++;
-    debug_only_v(printf("Deep bail.\n");)
+    JS_TRACE_MONITOR(cx).prohibitRecording = true;
     LeaveTree(*cx->interpState, cx->bailExit);
     cx->bailExit = NULL;
     cx->interpState->builtinStatus |= JSBUILTIN_BAILED;
@@ -6236,46 +6215,17 @@ TraceRecorder::unbox_jsval(jsval v, LIns*& v_ins, LIns* exit)
     }
 }
 
-static JSObject* FASTCALL
-ComputeThis_tn(JSContext* cx)
-{
-    VOUCH_DOES_NOT_REQUIRE_STACK();
-
-    return js_ComputeThisForFrame(cx, cx->fp);
-}
-
-JS_DEFINE_CALLINFO_1(static, OBJECT, ComputeThis_tn, CONTEXT, 1, 1) /* safe to CSE */
-
 JS_REQUIRES_STACK bool
 TraceRecorder::getThis(LIns*& this_ins)
 {
-    JSObject* thisObj = js_ComputeThisForFrame(cx, cx->fp);
-    if (!thisObj)
-        ABORT_TRACE("js_ComputeThis failed");
-    if (!cx->fp->callee || JSVAL_IS_NULL(cx->fp->argv[-1])) {
-        JS_ASSERT(callDepth == 0);
-        /*
-         * In global code, or if this is NULL, wrap the global object and bake it directly
-         * into the trace.
-         */
-        this_ins = INS_CONSTPTR(thisObj);
-        set(&cx->fp->argv[-1], this_ins);
-        return true;
+    if (cx->fp->callee) { /* in a function */
+        if (JSVAL_IS_NULL(cx->fp->argv[-1]))
+            return false;
+        this_ins = get(&cx->fp->argv[-1]);
+        guard(false, lir->ins_eq0(this_ins), MISMATCH_EXIT);
+    } else { /* in global code */
+        this_ins = scopeChain();
     }
-    if (callDepth == 0) {
-        /*
-         * Check that we computed the 'this' object for the entry frame. We only have to worry
-         * about this for callDepth == 0 since inlined function calls are not subject to
-         * deferred wrapping as we do not trace across global objects. Note that for nested
-         * tree calls the current cx->fp might not be the current entry frame of the called
-         * tree, however, since we don't cross global objects, we can call js_ComputeThis
-         * on that frame to ensure that the global object was wrapped, and that guarantee than
-         * inductively extends to our current 'this' object.
-         */
-        LIns* args = { cx_ins };
-        guard(false, lir->ins_eq0(lir->insCall(&ComputeThis_tn_ci, &args)), MISMATCH_EXIT);
-    }
-    this_ins = get(&cx->fp->argv[-1]);
     return true;
 }
 
