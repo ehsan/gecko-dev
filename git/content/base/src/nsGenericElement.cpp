@@ -1701,6 +1701,9 @@ nsStaticContentList::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
 }
 
 //----------------------------------------------------------------------
+
+PRUint32 nsMutationGuard::sMutationCount = 0;
+
 nsGenericElement::nsDOMSlots::nsDOMSlots(PtrBits aFlags)
   : nsINode::nsSlots(aFlags),
     mBindingParent(nsnull)
@@ -5159,10 +5162,6 @@ TryMatchingElementsInSubtree(nsINode* aRoot,
   nsIContent * const * kidSlot = aRoot->GetChildArray();
   nsIContent * const * end = kidSlot + count;
 
-#ifdef DEBUG
-  nsMutationGuard debugMutationGuard;
-#endif
-  
   PRBool continueIteration = PR_TRUE;
   for (; kidSlot != end; ++kidSlot) {
     nsIContent* kid = *kidSlot;
@@ -5224,11 +5223,6 @@ TryMatchingElementsInSubtree(nsINode* aRoot,
     /* Make sure to clean this up */
     prevSibling->~RuleProcessorData();
   }
-
-#ifdef DEBUG
-  NS_ASSERTION(!debugMutationGuard.Mutated(0), "Unexpected mutations happened");
-#endif
-
   return continueIteration;
 }
 
