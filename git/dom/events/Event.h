@@ -268,8 +268,7 @@ protected:
 class MOZ_STACK_CLASS WantsPopupControlCheck
 {
 public:
-  explicit WantsPopupControlCheck(nsIDOMEvent* aEvent) :
-    mEvent(aEvent->InternalDOMEvent())
+  WantsPopupControlCheck(nsIDOMEvent* aEvent) : mEvent(aEvent->InternalDOMEvent())
   {
     mOriginalWantsPopupControlCheck = mEvent->GetWantsPopupControlCheck();
     mEvent->SetWantsPopupControlCheck(mEvent->IsTrusted());

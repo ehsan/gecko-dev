@@ -16,7 +16,7 @@ add_test(function test_registration_returns_hawk_session_token() {
     response.finish();
   });
 
-  MozLoopService.promiseRegisteredWithServers().then(() => {
+  MozLoopService.register().then(() => {
     var hawkSessionPref;
     try {
       hawkSessionPref = Services.prefs.getCharPref("loop.hawk-session-token");

@@ -64,8 +64,6 @@ class WorkerPrivate;
 class WorkerRunnable;
 class WorkerDebugger;
 
-// If you change this, the corresponding list in nsIWorkerDebugger.idl needs to
-// be updated too.
 enum WorkerType
 {
   WorkerTypeDedicated,
@@ -665,12 +663,6 @@ public:
     return mIsChromeWorker;
   }
 
-  WorkerType
-  Type() const
-  {
-    return mWorkerType;
-  }
-
   bool
   IsDedicatedWorker() const
   {
@@ -745,11 +737,8 @@ class WorkerDebugger : public nsIWorkerDebugger {
   WorkerPrivate* mWorkerPrivate;
   bool mIsEnabled;
 
-  // Only touched on the main thread.
-  nsTArray<nsCOMPtr<nsIWorkerDebuggerListener>> mListeners;
-
 public:
-  explicit WorkerDebugger(WorkerPrivate* aWorkerPrivate);
+  WorkerDebugger(WorkerPrivate* aWorkerPrivate);
 
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIWORKERDEBUGGER
@@ -878,14 +867,6 @@ public:
   GetLoadInfo(JSContext* aCx, nsPIDOMWindow* aWindow, WorkerPrivate* aParent,
               const nsAString& aScriptURL, bool aIsChromeWorker,
               LoadInfo* aLoadInfo);
-
-  WorkerDebugger*
-  Debugger() const
-  {
-    AssertIsOnMainThread();
-    MOZ_ASSERT(mDebugger);
-    return mDebugger;
-  }
 
   void
   DoRunLoop(JSContext* aCx);

@@ -2975,8 +2975,8 @@ void MediaDecoderStateMachine::StartBuffering()
   // we just trigger UpdateReadyStateForData; when it runs, it
   // will check the current state and decide whether to tell
   // the element we're buffering or not.
-  SetState(DECODER_STATE_BUFFERING);
   UpdateReadyState();
+  SetState(DECODER_STATE_BUFFERING);
   DECODER_LOG("Changed state from DECODING to BUFFERING, decoded for %.3lfs",
               decodeDuration.ToSeconds());
 #ifdef PR_LOGGING

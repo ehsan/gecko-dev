@@ -18,6 +18,7 @@
 #include "nsIContent.h"
 #include "nsIPresShell.h"
 #include "nsCanvasFrame.h"
+#include "nsRenderingContext.h"
 #include "nsPresContext.h"
 #include "nsBlockFrame.h"
 #include "nsISelectionController.h"

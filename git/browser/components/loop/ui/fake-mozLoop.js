@@ -57,7 +57,6 @@ navigator.mozLoop = {
     }
   },
   releaseCallData: function() {},
-  copyString: function() {},
   contacts: {
     getAll: function(callback) {
       callback(null, []);

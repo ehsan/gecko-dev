@@ -156,7 +156,7 @@ public:
     static void Shutdown();
 
 private:
-    explicit txMozillaXSLTProcessor(nsISupports* aOwner);
+    txMozillaXSLTProcessor(nsISupports* aOwner);
     /**
      * Default destructor for txMozillaXSLTProcessor
      */

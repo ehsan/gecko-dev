@@ -602,7 +602,6 @@ CompositorParent::ResumeComposition()
 
   mPaused = false;
 
-  mLastCompose = TimeStamp::Now();
   CompositeToTarget(nullptr);
 
   // if anyone's waiting to make sure that composition really got resumed, tell them
@@ -916,7 +915,6 @@ CompositorParent::ForceComposeToTarget(DrawTarget* aTarget, const nsIntRect* aRe
   AutoRestore<bool> override(mOverrideComposeReadiness);
   mOverrideComposeReadiness = true;
 
-  mLastCompose = TimeStamp::Now();
   CompositeToTarget(aTarget, aRect);
 }
 

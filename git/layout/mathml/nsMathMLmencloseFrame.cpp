@@ -791,7 +791,8 @@ void nsDisplayNotation::Paint(nsDisplayListBuilder* aBuilder,
     }
     case NOTATION_ROUNDEDBOX: {
       Float radius = 3 * strokeWidth;
-      RectCornerRadii radii(radius, radius);
+      Size cornerRadii(radius, radius);
+      Size radii[] = { cornerRadii, cornerRadii, cornerRadii, cornerRadii };
       RefPtr<Path> roundedRect =
         MakePathForRoundedRect(aDrawTarget, rect, radii, true);
       aDrawTarget.Stroke(roundedRect, color, strokeOptions);

@@ -345,10 +345,6 @@ TabTarget.prototype = {
     return !!this._tab;
   },
 
-  get isMultiProcess() {
-    return !this.window;
-  },
-
   get isThreadPaused() {
     return !!this._isThreadPaused;
   },

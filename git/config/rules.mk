@@ -641,6 +641,8 @@ endif
 
 endif # NO_PROFILE_GUIDED_OPTIMIZE
 
+MOZ_PROGRAM_LDFLAGS += $(MOZ_GLUE_PROGRAM_LDFLAGS)
+
 ##############################################
 
 checkout:

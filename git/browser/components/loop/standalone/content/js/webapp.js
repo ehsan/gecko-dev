@@ -264,6 +264,7 @@ loop.webapp = (function($, _, OT, mozL10n) {
   var PendingConversationView = React.createClass({displayName: 'PendingConversationView',
     mixins: [sharedMixins.AudioMixin],
 
+
     getInitialState: function() {
       return {
         callState: "connecting"
@@ -570,12 +571,6 @@ loop.webapp = (function($, _, OT, mozL10n) {
   });
 
   var FailedConversationView = React.createClass({displayName: 'FailedConversationView',
-    mixins: [sharedMixins.AudioMixin],
-
-    componentDidMount: function() {
-      this.play("failure");
-    },
-
     render: function() {
       document.title = mozL10n.get("standalone_title_with_status",
                                    {clientShortname: mozL10n.get("clientShortname2"),

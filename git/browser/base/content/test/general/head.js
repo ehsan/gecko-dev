@@ -667,22 +667,7 @@ function assertWebRTCIndicatorStatus(expected) {
     let hasWindow = indicator.hasMoreElements();
     is(hasWindow, !!expected, "popup " + msg);
     if (hasWindow) {
-      let document = indicator.getNext().document;
-      let docElt = document.documentElement;
-
-      if (document.readyState != "complete") {
-        info("Waiting for the sharing indicator's document to load");
-        let deferred = Promise.defer();
-        document.addEventListener("readystatechange",
-                                  function onReadyStateChange() {
-          if (document.readyState != "complete")
-            return;
-          document.removeEventListener("readystatechange", onReadyStateChange);
-          deferred.resolve();
-        });
-        yield deferred.promise;
-      }
-
+      let docElt = indicator.getNext().document.documentElement;
       for (let item of ["video", "audio", "screen"]) {
         let expectedValue = (expected && expected[item]) ? "true" : "";
         is(docElt.getAttribute("sharing" + item), expectedValue,

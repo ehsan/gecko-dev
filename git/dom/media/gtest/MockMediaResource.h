@@ -15,7 +15,7 @@ namespace mozilla
 class MockMediaResource : public MediaResource
 {
 public:
-  explicit MockMediaResource(const char* aFileName);
+  MockMediaResource(const char* aFileName);
   virtual nsIURI* URI() const MOZ_OVERRIDE { return nullptr; }
   virtual nsresult Close() MOZ_OVERRIDE { return NS_OK; }
   virtual void Suspend(bool aCloseImmediately) MOZ_OVERRIDE {}

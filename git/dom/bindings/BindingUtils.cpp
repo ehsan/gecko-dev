@@ -528,9 +528,8 @@ CreateInterfaceObject(JSContext* cx, JS::Handle<JSObject*> global,
                           namedConstructors->mNargs));
       if (!namedConstructor ||
           !JS_DefineProperty(cx, namedConstructor, "prototype",
-                             proto,
-                             JSPROP_PERMANENT | JSPROP_READONLY,
-                             JS_STUBGETTER, JS_STUBSETTER) ||
+                             proto, JSPROP_PERMANENT | JSPROP_READONLY,
+                             JS_PropertyStub, JS_StrictPropertyStub) ||
           (defineOnGlobal &&
            !DefineConstructor(cx, global, namedConstructors->mName,
                               namedConstructor))) {
@@ -969,24 +968,24 @@ XrayResolveAttribute(JSContext* cx, JS::Handle<JSObject*> wrapper,
           // Because of centralization, we need to make sure we fault in the
           // JitInfos as well. At present, until the JSAPI changes, the easiest
           // way to do this is wrap them up as functions ourselves.
-          desc.setAttributes(attrSpec.flags);
+          desc.setAttributes(attrSpec.flags & ~JSPROP_NATIVE_ACCESSORS);
           // They all have getters, so we can just make it.
           JS::Rooted<JSFunction*> fun(cx,
-                                      JS_NewFunctionById(cx, attrSpec.getter.native.op,
+                                      JS_NewFunctionById(cx, (JSNative)attrSpec.getter.propertyOp.op,
                                                          0, 0, wrapper, id));
           if (!fun)
             return false;
-          SET_JITINFO(fun, attrSpec.getter.native.info);
+          SET_JITINFO(fun, attrSpec.getter.propertyOp.info);
           JSObject *funobj = JS_GetFunctionObject(fun);
           desc.setGetterObject(funobj);
           desc.attributesRef() |= JSPROP_GETTER;
-          if (attrSpec.setter.native.op) {
+          if (attrSpec.setter.propertyOp.op) {
             // We have a setter! Make it.
-            fun = JS_NewFunctionById(cx, attrSpec.setter.native.op, 1, 0,
+            fun = JS_NewFunctionById(cx, (JSNative)attrSpec.setter.propertyOp.op, 1, 0,
                                      wrapper, id);
             if (!fun)
               return false;
-            SET_JITINFO(fun, attrSpec.setter.native.info);
+            SET_JITINFO(fun, attrSpec.setter.propertyOp.info);
             funobj = JS_GetFunctionObject(fun);
             desc.setSetterObject(funobj);
             desc.attributesRef() |= JSPROP_SETTER;

@@ -2418,11 +2418,11 @@ this.AddonManagerPrivate = {
 
   backgroundUpdateTimerHandler() {
     // Don't call through to the real update check if no checks are enabled.
-    let checkHotfix = AddonManagerInternal.hotfixID &&
+    let checkHotfix = this.hotfixID &&
                       Services.prefs.getBoolPref(PREF_APP_UPDATE_ENABLED) &&
                       Services.prefs.getBoolPref(PREF_APP_UPDATE_AUTO);
 
-    if (!AddonManagerInternal.updateEnabled && !checkHotfix) {
+    if (!this.updateEnabled && !checkHotfix) {
       logger.info("Skipping background update check");
       return;
     }
