@@ -325,9 +325,6 @@ setUpdateTrackingId();
 (function setupAccessibility() {
   let accessibilityScope = {};
   SettingsListener.observe("accessibility.screenreader", false, function(value) {
-    if (!value) {
-      return;
-    }
     if (!('AccessFu' in accessibilityScope)) {
       Cu.import('resource://gre/modules/accessibility/AccessFu.jsm',
                 accessibilityScope);

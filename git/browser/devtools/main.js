@@ -91,39 +91,6 @@ Tools.options = {
   }
 }
 
-Tools.inspector = {
-  id: "inspector",
-  accesskey: l10n("inspector.accesskey", inspectorStrings),
-  key: l10n("inspector.commandkey", inspectorStrings),
-  ordinal: 1,
-  modifiers: osString == "Darwin" ? "accel,alt" : "accel,shift",
-  icon: "chrome://browser/skin/devtools/tool-inspector.svg",
-  invertIconForLightTheme: true,
-  url: "chrome://browser/content/devtools/inspector/inspector.xul",
-  label: l10n("inspector.label", inspectorStrings),
-  panelLabel: l10n("inspector.panelLabel", inspectorStrings),
-  tooltip: l10n("inspector.tooltip", inspectorStrings),
-  inMenu: true,
-  commands: [
-    "devtools/resize-commands",
-    "devtools/inspector/inspector-commands",
-    "devtools/eyedropper/commands.js"
-  ],
-
-  preventClosingOnKey: true,
-  onkey: function(panel) {
-    panel.toolbox.highlighterUtils.togglePicker();
-  },
-
-  isTargetSupported: function(target) {
-    return !target.isAddon;
-  },
-
-  build: function(iframeWindow, toolbox) {
-    return new InspectorPanel(iframeWindow, toolbox);
-  }
-};
-
 Tools.webConsole = {
   id: "webconsole",
   key: l10n("cmd.commandkey", webConsoleStrings),
@@ -154,6 +121,39 @@ Tools.webConsole = {
 
   build: function(iframeWindow, toolbox) {
     return new WebConsolePanel(iframeWindow, toolbox);
+  }
+};
+
+Tools.inspector = {
+  id: "inspector",
+  accesskey: l10n("inspector.accesskey", inspectorStrings),
+  key: l10n("inspector.commandkey", inspectorStrings),
+  ordinal: 1,
+  modifiers: osString == "Darwin" ? "accel,alt" : "accel,shift",
+  icon: "chrome://browser/skin/devtools/tool-inspector.svg",
+  invertIconForLightTheme: true,
+  url: "chrome://browser/content/devtools/inspector/inspector.xul",
+  label: l10n("inspector.label", inspectorStrings),
+  panelLabel: l10n("inspector.panelLabel", inspectorStrings),
+  tooltip: l10n("inspector.tooltip", inspectorStrings),
+  inMenu: true,
+  commands: [
+    "devtools/resize-commands",
+    "devtools/inspector/inspector-commands",
+    "devtools/eyedropper/commands.js"
+  ],
+
+  preventClosingOnKey: true,
+  onkey: function(panel) {
+    panel.toolbox.highlighterUtils.togglePicker();
+  },
+
+  isTargetSupported: function(target) {
+    return !target.isAddon;
+  },
+
+  build: function(iframeWindow, toolbox) {
+    return new InspectorPanel(iframeWindow, toolbox);
   }
 };
 
@@ -245,6 +245,26 @@ Tools.canvasDebugger = {
 
   build: function (iframeWindow, toolbox) {
     return new CanvasDebuggerPanel(iframeWindow, toolbox);
+  }
+};
+
+Tools.webAudioEditor = {
+  id: "webaudioeditor",
+  ordinal: 10,
+  visibilityswitch: "devtools.webaudioeditor.enabled",
+  icon: "chrome://browser/skin/devtools/tool-webaudio.svg",
+  invertIconForLightTheme: true,
+  url: "chrome://browser/content/devtools/webaudioeditor.xul",
+  label: l10n("ToolboxWebAudioEditor1.label", webAudioEditorStrings),
+  panelLabel: l10n("ToolboxWebAudioEditor1.panelLabel", webAudioEditorStrings),
+  tooltip: l10n("ToolboxWebAudioEditor1.tooltip", webAudioEditorStrings),
+
+  isTargetSupported: function(target) {
+    return !target.isAddon;
+  },
+
+  build: function(iframeWindow, toolbox) {
+    return new WebAudioEditorPanel(iframeWindow, toolbox);
   }
 };
 
@@ -346,29 +366,9 @@ Tools.storage = {
   }
 };
 
-Tools.webAudioEditor = {
-  id: "webaudioeditor",
-  ordinal: 11,
-  visibilityswitch: "devtools.webaudioeditor.enabled",
-  icon: "chrome://browser/skin/devtools/tool-webaudio.svg",
-  invertIconForLightTheme: true,
-  url: "chrome://browser/content/devtools/webaudioeditor.xul",
-  label: l10n("ToolboxWebAudioEditor1.label", webAudioEditorStrings),
-  panelLabel: l10n("ToolboxWebAudioEditor1.panelLabel", webAudioEditorStrings),
-  tooltip: l10n("ToolboxWebAudioEditor1.tooltip", webAudioEditorStrings),
-
-  isTargetSupported: function(target) {
-    return !target.isAddon;
-  },
-
-  build: function(iframeWindow, toolbox) {
-    return new WebAudioEditorPanel(iframeWindow, toolbox);
-  }
-};
-
 Tools.scratchpad = {
   id: "scratchpad",
-  ordinal: 12,
+  ordinal: 11,
   visibilityswitch: "devtools.scratchpad.enabled",
   icon: "chrome://browser/skin/devtools/tool-scratchpad.svg",
   invertIconForLightTheme: true,
