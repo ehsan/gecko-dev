@@ -443,21 +443,20 @@
       </field>
 
       <method name="setCreator">
-        <parameter name="aCreator"/>
-        <parameter name="aHomepageURL"/>
+        <parameter name="aName"/>
+        <parameter name="aURL"/>
         <body><![CDATA[
-          if (!aCreator) {
+          if (!aName) {
             this.collapsed = true;
             return;
           }
           this.collapsed = false;
-          var url = aCreator.url || aHomepageURL;
-          var showLink = !!url;
+          var showLink = !!aURL;
           if (showLink) {
-            this._creatorLink.value = aCreator.name;
-            this._creatorLink.href = url;
+            this._creatorLink.value = aName;
+            this._creatorLink.href = aURL;
           } else {
-            this._creatorName.value = aCreator.name;
+            this._creatorName.value = aName;
           }
           this._creatorLink.hidden = !showLink;
           this._creatorName.hidden = showLink;
@@ -737,8 +736,8 @@
                     label="&addon.restartNow.label;"
                     oncommand="document.getBindingParent(this).restart();"/>
         <xul:button anonid="undo" class="button-link"
-                    label="&addon.undoAction.label;"
-                    tooltipText="&addon.undoAction.tooltip;"
+                    label="&addon.undo.label;"
+                    tooltipText="&addon.undo.tooltip;"
                     oncommand="document.getBindingParent(this).undo();"/>
         <xul:spacer flex="5000"/> <!-- Necessary to allow the message to wrap -->
       </xul:hbox>
@@ -846,7 +845,11 @@
         else
           this._version.hidden = true;
 
-        this._creator.setCreator(this.mAddon.creator);
+        var homepageURL = this.mAddon.homepageURL;
+        var creator = this.mAddon.creator;
+        var creatorURL = this.mAddon.creatorURL;
+        // XXxunf api
+        this._creator.setCreator(creator, homepageURL || creatorURL);
 
         if (this.mAddon.description)
           this._description.value = this.mAddon.description;
@@ -1081,15 +1084,6 @@
               this._warningLink.value = gStrings.ext.GetStringFromName("notification.softblocked.link");
               this._warningLink.href = Services.urlFormatter.formatURLPref("extensions.blocklist.detailsURL");
               this._warningLink.hidden = false;
-            } else if (this.mAddon.blocklistState == Ci.nsIBlocklistService.STATE_OUTDATED) {
-              this.setAttribute("notification", "warning");
-              this._warning.textContent = gStrings.ext.formatStringFromName(
-                "notification.outdated",
-                [this.mAddon.name], 1
-              );
-              this._warningLink.value = gStrings.ext.GetStringFromName("notification.outdated.link");
-              this._warningLink.href = Services.urlFormatter.formatURLPref("plugins.update.url");
-              this._warningLink.hidden = false;
             } else {
               this.removeAttribute("notification");
             }
@@ -1262,7 +1256,19 @@
 
       <method name="undo">
         <body><![CDATA[
-          gViewController.commands["cmd_cancelOperation"].doCommand(this.mAddon);
+        if (this.isPending("install")) {
+          this.mInstall.cancel();
+          this.parentNode.removeChild(this);
+        } else if (this.isPending("enable")) {
+          this.userDisabled = true;
+        } else if (this.isPending("disable")) {
+          this.userDisabled = false;
+        } else if (this.isPending("uninstall")) {
+          this.mAddon.cancelUninstall();
+        } else if (this.isPending("upgrade")) {
+          this.mAddon.pendingUpgrade.install.cancel();
+          this._updateState();
+        }
         ]]></body>
       </method>
 
@@ -1417,8 +1423,8 @@
                     label="&addon.restartNow.label;"
                     command="cmd_restartApp"/>
         <xul:button anonid="undo-btn" class="button-link"
-                    label="&addon.undoRemove.label;"
-                    tooltiptext="&addon.undoRemove.tooltip;"
+                    label="&addon.undoUninstall.label;"
+                    tooltiptext="&addon.undoUninstall.tooltip;"
                     oncommand="document.getBindingParent(this).cancelUninstall();"/>
         <xul:spacer flex="5000"/> <!-- Necessary to allow the message to wrap -->
       </xul:hbox>
@@ -1536,27 +1542,6 @@
           }
         ]]></body>
       </method>
-    </implementation>
-  </binding>
-
-  <binding id="detail-row">
-    <content>
-      <xul:label class="detail-row-label" xbl:inherits="value=label"/>
-      <xul:label class="detail-row-value" xbl:inherits="value"/>
-    </content>
-
-    <implementation>
-      <property name="value">
-        <getter><![CDATA[
-          return this.getAttribute("value");
-        ]]></getter>
-        <setter><![CDATA[
-          if (!val)
-            this.removeAttribute("value");
-          else
-            this.setAttribute("value", val);
-        ]]></setter>
-      </property>
     </implementation>
   </binding>
 

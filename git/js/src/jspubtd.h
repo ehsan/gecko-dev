@@ -396,14 +396,15 @@ typedef void
 typedef JSBool
 (* JSEqualityOp)(JSContext *cx, JSObject *obj, const jsval *v, JSBool *bp);
 
-/*
- * Typedef for native functions called by the JS VM.
- *
- * See jsapi.h, the JS_CALLEE, JS_THIS, etc. macros.
- */
+/* Typedef for native functions called by the JS VM. */
 
 typedef JSBool
-(* JSNative)(JSContext *cx, uintN argc, jsval *vp);
+(* JSNative)(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
+             jsval *rval);
+
+/* See jsapi.h, the JS_CALLEE, JS_THIS, etc. macros. */
+typedef JSBool
+(* JSFastNative)(JSContext *cx, uintN argc, jsval *vp);
 
 /* Callbacks and their arguments. */
 

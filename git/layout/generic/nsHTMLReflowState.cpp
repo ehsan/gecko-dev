@@ -611,6 +611,17 @@ nsHTMLReflowState::ComputeRelativeOffsets(const nsHTMLReflowState* cbrs,
   PRBool  leftIsAuto = eStyleUnit_Auto == mStylePosition->mOffset.GetLeftUnit();
   PRBool  rightIsAuto = eStyleUnit_Auto == mStylePosition->mOffset.GetRightUnit();
 
+  // Check for percentage based values and an unconstrained containing
+  // block width. Treat them like 'auto'
+  if (NS_UNCONSTRAINEDSIZE == aContainingBlockWidth) {
+    if (mStylePosition->OffsetHasPercent(NS_SIDE_LEFT)) {
+      leftIsAuto = PR_TRUE;
+    }
+    if (mStylePosition->OffsetHasPercent(NS_SIDE_RIGHT)) {
+      rightIsAuto = PR_TRUE;
+    }
+  }
+
   // If neither 'left' not 'right' are auto, then we're over-constrained and
   // we ignore one of them
   if (!leftIsAuto && !rightIsAuto) {
@@ -2152,12 +2163,25 @@ nsCSSOffsetState::ComputeMargin(nscoord aContainingBlockWidth)
   const nsStyleMargin *styleMargin = frame->GetStyleMargin();
   if (!styleMargin->GetMargin(mComputedMargin)) {
     // We have to compute the value
-    mComputedMargin.left = nsLayoutUtils::
-      ComputeWidthDependentValue(aContainingBlockWidth,
-                                 styleMargin->mMargin.GetLeft());
-    mComputedMargin.right = nsLayoutUtils::
-      ComputeWidthDependentValue(aContainingBlockWidth,
-                                 styleMargin->mMargin.GetRight());
+    if (NS_UNCONSTRAINEDSIZE == aContainingBlockWidth) {
+      mComputedMargin.left = 0;
+      mComputedMargin.right = 0;
+
+      if (eStyleUnit_Coord == styleMargin->mMargin.GetLeftUnit()) {
+        mComputedMargin.left = styleMargin->mMargin.GetLeft().GetCoordValue();
+      }
+      if (eStyleUnit_Coord == styleMargin->mMargin.GetRightUnit()) {
+        mComputedMargin.right = styleMargin->mMargin.GetRight().GetCoordValue();
+      }
+
+    } else {
+      mComputedMargin.left = nsLayoutUtils::
+        ComputeWidthDependentValue(aContainingBlockWidth,
+                                   styleMargin->mMargin.GetLeft());
+      mComputedMargin.right = nsLayoutUtils::
+        ComputeWidthDependentValue(aContainingBlockWidth,
+                                   styleMargin->mMargin.GetRight());
+    }
 
     // According to the CSS2 spec, margin percentages are
     // calculated with respect to the *width* of the containing

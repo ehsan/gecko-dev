@@ -238,52 +238,26 @@ nsXULLinkAccessible::DoAction(PRUint8 aIndex)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsXULLinkAccessible: HyperLinkAccessible
+// nsXULLinkAccessible. nsIAccessibleHyperLink
 
-bool
-nsXULLinkAccessible::IsHyperLink()
+NS_IMETHODIMP
+nsXULLinkAccessible::GetURI(PRInt32 aIndex, nsIURI **aURI)
 {
-  // Expose HyperLinkAccessible unconditionally.
-  return true;
-}
+  NS_ENSURE_ARG_POINTER(aURI);
+  *aURI = nsnull;
 
-PRUint32
-nsXULLinkAccessible::StartOffset()
-{
-  // If XUL link accessible is not contained by hypertext accessible then
-  // start offset matches index in parent because the parent doesn't contains
-  // a text.
-  // XXX: accessible parent of XUL link accessible should be a hypertext
-  // accessible.
-  if (nsAccessible::IsHyperLink())
-    return nsAccessible::StartOffset();
-  return GetIndexInParent();
-}
+  if (aIndex != 0)
+    return NS_ERROR_INVALID_ARG;
 
-PRUint32
-nsXULLinkAccessible::EndOffset()
-{
-  if (nsAccessible::IsHyperLink())
-    return nsAccessible::EndOffset();
-  return GetIndexInParent() + 1;
-}
-
-already_AddRefed<nsIURI>
-nsXULLinkAccessible::GetAnchorURI(PRUint32 aAnchorIndex)
-{
-  if (aAnchorIndex != 0)
-    return nsnull;
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
 
   nsAutoString href;
   mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::href, href);
 
   nsCOMPtr<nsIURI> baseURI = mContent->GetBaseURI();
   nsIDocument* document = mContent->GetOwnerDoc();
-
-  nsIURI* anchorURI = nsnull;
-  NS_NewURI(&anchorURI, href,
-            document ? document->GetDocumentCharacterSet().get() : nsnull,
-            baseURI);
-
-  return anchorURI;
+  return NS_NewURI(aURI, href,
+                   document ? document->GetDocumentCharacterSet().get() : nsnull,
+                   baseURI);
 }
