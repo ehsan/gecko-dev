@@ -86,8 +86,6 @@
 
 gfxPlatform *gPlatform = nsnull;
 
-PRInt32 gfxPlatform::sDPI = -1;
-
 // These two may point to the same profile
 static qcms_profile *gCMSOutputProfile = nsnull;
 static qcms_profile *gCMSsRGBProfile = nsnull;
@@ -239,6 +237,15 @@ gfxPlatform::Init()
 #endif
     if (!gPlatform)
         return NS_ERROR_OUT_OF_MEMORY;
+
+    gPlatform->mScreenReferenceSurface =
+      gPlatform->CreateOffscreenSurface(gfxIntSize(1,1),
+                                        gfxASurface::ImageFormatARGB32);
+    if (!gPlatform->mScreenReferenceSurface) {
+      NS_ERROR("Could not initialize mScreenReferenceSurface");
+      Shutdown();
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
 
     nsresult rv;
 
@@ -1061,13 +1068,6 @@ static void MigratePrefs()
         prefs->ClearUserPref(CMPrefNameOld);
     }
 
-}
-
-void
-gfxPlatform::InitDisplayCaps()
-{
-    // Fall back to something sane
-    gfxPlatform::sDPI = 96;
 }
 
 // default SetupClusterBoundaries, based on Unicode properties;
