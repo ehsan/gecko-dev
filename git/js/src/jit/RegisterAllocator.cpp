@@ -268,7 +268,6 @@ AllocationIntegrityState::checkSafepointAllocation(LInstruction *ins,
         AnyRegister reg = alloc.toRegister();
         if (populateSafepoints)
             safepoint->addLiveRegister(reg);
-
         JS_ASSERT(safepoint->liveRegs().has(reg));
     }
 

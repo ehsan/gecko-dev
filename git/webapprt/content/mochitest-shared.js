@@ -59,7 +59,6 @@ function becomeWebapp(manifestURL, parameters, onBecome) {
     installRecord.mm = subj;
     installRecord.registryDir = Services.dirsvc.get("ProfD", Ci.nsIFile).path;
     WebappRT.config = installRecord;
-    WebappRT._configPromise = new Promise((resolve) => resolve());
 
     let win = Services.wm.getMostRecentWindow("webapprt:webapp");
     if (!win) {

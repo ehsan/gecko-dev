@@ -1258,12 +1258,6 @@ DOMCSSStyleRule::GetParentRule(nsIDOMCSSRule** aParentRule)
   return Rule()->GetParentRule(aParentRule);
 }
 
-css::Rule*
-DOMCSSStyleRule::GetCSSRule()
-{
-  return Rule();
-}
-
 NS_IMETHODIMP
 DOMCSSStyleRule::GetSelectorText(nsAString& aSelectorText)
 {
@@ -1309,12 +1303,13 @@ namespace mozilla {
 namespace css {
 
 StyleRule::StyleRule(nsCSSSelectorList* aSelector,
-                     Declaration* aDeclaration,
-                     uint32_t aLineNumber,
-                     uint32_t aColumnNumber)
-  : Rule(aLineNumber, aColumnNumber),
+                     Declaration* aDeclaration)
+  : Rule(),
     mSelector(aSelector),
-    mDeclaration(aDeclaration)
+    mDeclaration(aDeclaration),
+    mLineNumber(0),
+    mColumnNumber(0),
+    mWasMatched(false)
 {
   NS_PRECONDITION(aDeclaration, "must have a declaration");
 }
@@ -1323,7 +1318,10 @@ StyleRule::StyleRule(nsCSSSelectorList* aSelector,
 StyleRule::StyleRule(const StyleRule& aCopy)
   : Rule(aCopy),
     mSelector(aCopy.mSelector ? aCopy.mSelector->Clone() : nullptr),
-    mDeclaration(new Declaration(*aCopy.mDeclaration))
+    mDeclaration(new Declaration(*aCopy.mDeclaration)),
+    mLineNumber(aCopy.mLineNumber),
+    mColumnNumber(aCopy.mColumnNumber),
+    mWasMatched(false)
 {
   // rest is constructed lazily on existing data
 }
@@ -1334,7 +1332,10 @@ StyleRule::StyleRule(StyleRule& aCopy,
   : Rule(aCopy),
     mSelector(aCopy.mSelector),
     mDeclaration(aDeclaration),
-    mDOMRule(aCopy.mDOMRule.forget())
+    mDOMRule(aCopy.mDOMRule.forget()),
+    mLineNumber(aCopy.mLineNumber),
+    mColumnNumber(aCopy.mColumnNumber),
+    mWasMatched(false)
 {
   // The DOM rule is replacing |aCopy| with |this|, so transfer
   // the reverse pointer as well (and transfer ownership).

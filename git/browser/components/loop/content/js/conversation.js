@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* jshint newcap:false, esnext:true */
+/* jshint esnext:true */
 /* global loop:true */
 
 var loop = loop || {};
@@ -164,10 +164,10 @@ loop.conversation = (function(OT, mozL10n) {
         return;
       }
 
-      /*jshint newcap:false*/
-      this.loadReactComponent(sharedViews.ConversationView({
-        sdk: OT,
-        model: this._conversation
+      this.loadView(
+        new loop.shared.views.ConversationView({
+          sdk: OT,
+          model: this._conversation
       }));
     },
 

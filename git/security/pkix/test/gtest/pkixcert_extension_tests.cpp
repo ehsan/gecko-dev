@@ -85,9 +85,16 @@ private:
   SECStatus FindIssuer(const SECItem& /*encodedIssuerName*/,
                        IssuerChecker& /*checker*/, PRTime /*time*/)
   {
-    ADD_FAILURE();
+    PR_NOT_REACHED("FindIssuer should not be called");
     PR_SetError(SEC_ERROR_LIBRARY_FAILURE, 0);
     return SECFailure;
+  }
+
+  SECStatus VerifySignedData(const CERTSignedData& signedData,
+                             const SECItem& subjectPublicKeyInfo)
+  {
+    return ::mozilla::pkix::VerifySignedData(signedData, subjectPublicKeyInfo,
+                                             nullptr);
   }
 
   SECStatus CheckRevocation(EndEntityOrCA, const CertID&, PRTime,
@@ -100,20 +107,6 @@ private:
   virtual SECStatus IsChainValid(const DERArray&)
   {
     return SECSuccess;
-  }
-
-  SECStatus VerifySignedData(const SignedDataWithSignature& signedData,
-                             const SECItem& subjectPublicKeyInfo)
-  {
-    return ::mozilla::pkix::VerifySignedData(signedData, subjectPublicKeyInfo,
-                                             nullptr);
-  }
-
-  SECStatus DigestBuf(const SECItem&, /*out*/ uint8_t *, size_t)
-  {
-    ADD_FAILURE();
-    PR_SetError(SEC_ERROR_LIBRARY_FAILURE, 0);
-    return SECFailure;
   }
 };
 

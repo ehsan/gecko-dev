@@ -192,14 +192,6 @@ class FreeSpan
         return !first;
     }
 
-    static size_t offsetOfFirst() {
-        return offsetof(FreeSpan, first);
-    }
-
-    static size_t offsetOfLast() {
-        return offsetof(FreeSpan, last);
-    }
-
     // Like nextSpan(), but no checking of the following span is done.
     FreeSpan *nextSpanUnchecked() const {
         return reinterpret_cast<FreeSpan *>(last);

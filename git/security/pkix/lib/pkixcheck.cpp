@@ -22,7 +22,8 @@
  * limitations under the License.
  */
 
-#include "cert.h"
+#include <limits>
+
 #include "pkix/bind.h"
 #include "pkix/pkix.h"
 #include "pkix/ScopedPtr.h"

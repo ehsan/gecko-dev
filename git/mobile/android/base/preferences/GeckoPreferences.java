@@ -33,7 +33,6 @@ import org.mozilla.gecko.background.healthreport.HealthReportConstants;
 import org.mozilla.gecko.db.BrowserContract.SuggestedSites;
 import org.mozilla.gecko.home.HomePanelPicker;
 import org.mozilla.gecko.util.GeckoEventListener;
-import org.mozilla.gecko.util.HardwareUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.widget.FloatingHintEditText;
 
@@ -87,11 +86,6 @@ OnSharedPreferenceChangeListener
 {
     private static final String LOGTAG = "GeckoPreferences";
 
-    // We have a white background, which makes transitions on
-    // some devices look bad. Don't use transitions on those
-    // devices.
-    private static final boolean NO_TRANSITIONS = HardwareUtils.IS_KINDLE_DEVICE;
-
     private static final String NON_PREF_PREFIX = "android.not_a_preference.";
     public static final String INTENT_EXTRA_RESOURCES = "resource";
     public static String PREFS_HEALTHREPORT_UPLOAD_ENABLED = NON_PREF_PREFIX + "healthreport.uploadEnabled";
@@ -139,19 +133,6 @@ OnSharedPreferenceChangeListener
     private Locale lastLocale = Locale.getDefault();
     private boolean localeSwitchingIsEnabled;
 
-    private void startActivityForResultChoosingTransition(final Intent intent, final int requestCode) {
-        startActivityForResult(intent, requestCode);
-        if (NO_TRANSITIONS) {
-            overridePendingTransition(0, 0);
-        }
-    }
-
-    private void finishChoosingTransition() {
-        finish();
-        if (NO_TRANSITIONS) {
-            overridePendingTransition(0, 0);
-        }
-    }
     private void updateActionBarTitle(int title) {
         if (Build.VERSION.SDK_INT >= 14) {
             final String newTitle = getString(title);
@@ -269,10 +250,10 @@ OnSharedPreferenceChangeListener
         // We also don't need to update the title.
         final Intent intent = (Intent) getIntent().clone();
         intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
-        startActivityForResultChoosingTransition(intent, REQUEST_CODE_PREF_SCREEN);
+        startActivityForResult(intent, REQUEST_CODE_PREF_SCREEN);
 
         setResult(RESULT_CODE_LOCALE_DID_CHANGE);
-        finishChoosingTransition();
+        finish();
     }
 
     private void checkLocale() {
@@ -460,15 +441,6 @@ OnSharedPreferenceChangeListener
     }
 
     @Override
-    public void onBackPressed() {
-        super.onBackPressed();
-
-        if (NO_TRANSITIONS) {
-            overridePendingTransition(0, 0);
-        }
-    }
-
-    @Override
     protected void onDestroy() {
         super.onDestroy();
         EventDispatcher.getInstance().unregisterGeckoThreadListener(this,
@@ -522,7 +494,7 @@ OnSharedPreferenceChangeListener
         // the settings screens.
         // We need to start nested PreferenceScreens withStartActivityForResult().
         // Android doesn't let us do that (see Preference.onClick), so we're overriding here.
-        startActivityForResultChoosingTransition(intent, REQUEST_CODE_PREF_SCREEN);
+        startActivityForResult(intent, REQUEST_CODE_PREF_SCREEN);
     }
 
     @Override
@@ -533,12 +505,9 @@ OnSharedPreferenceChangeListener
         // Overriding because we want to use startActivityForResult for Fragment intents.
         Intent intent = onBuildStartFragmentIntent(fragmentName, args, titleRes, shortTitleRes);
         if (resultTo == null) {
-            startActivityForResultChoosingTransition(intent, REQUEST_CODE_PREF_SCREEN);
+            startActivityForResult(intent, REQUEST_CODE_PREF_SCREEN);
         } else {
             resultTo.startActivityForResult(intent, resultRequestCode);
-            if (NO_TRANSITIONS) {
-                overridePendingTransition(0, 0);
-            }
         }
     }
 
@@ -556,7 +525,7 @@ OnSharedPreferenceChangeListener
 
                   // Pass this result up to the parent activity.
                   setResult(RESULT_CODE_EXIT_SETTINGS);
-                  finishChoosingTransition();
+                  finish();
                   break;
               }
               break;
@@ -721,7 +690,7 @@ OnSharedPreferenceChangeListener
                         @Override
                         public boolean onPreferenceClick(Preference preference) {
                             Intent dialogIntent = new Intent(GeckoPreferences.this, HomePanelPicker.class);
-                            startActivityForResultChoosingTransition(dialogIntent, HomePanelPicker.REQUEST_CODE_ADD_PANEL);
+                            startActivityForResult(dialogIntent, HomePanelPicker.REQUEST_CODE_ADD_PANEL);
                             return true;
                         }
                     });
@@ -771,7 +740,7 @@ OnSharedPreferenceChangeListener
         int itemId = item.getItemId();
         switch (itemId) {
             case android.R.id.home:
-                finishChoosingTransition();
+                finish();
                 return true;
         }
 
@@ -1038,7 +1007,7 @@ OnSharedPreferenceChangeListener
             ((ListPreference) preference).setSummary(newEntry);
         } else if (preference instanceof LinkPreference) {
             setResult(RESULT_CODE_EXIT_SETTINGS);
-            finishChoosingTransition();
+            finish();
         } else if (preference instanceof FontSizePreference) {
             final FontSizePreference fontSizePref = (FontSizePreference) preference;
             fontSizePref.setSummary(fontSizePref.getSavedFontSizeName());

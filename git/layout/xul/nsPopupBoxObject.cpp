@@ -128,7 +128,7 @@ nsPopupBoxObject::MoveToAnchor(nsIDOMElement* aAnchorElement,
     nsCOMPtr<nsIContent> anchorContent(do_QueryInterface(aAnchorElement));
 
     nsMenuPopupFrame *menuPopupFrame = do_QueryFrame(mContent->GetPrimaryFrame());
-    if (menuPopupFrame && menuPopupFrame->IsVisible()) {
+    if (menuPopupFrame && menuPopupFrame->PopupState() == ePopupOpenAndVisible) {
       menuPopupFrame->MoveToAnchor(anchorContent, aPosition, aXPos, aYPos, aAttributesOverride);
     }
   }
@@ -226,13 +226,12 @@ nsPopupBoxObject::GetPopupState(nsAString& aState)
   nsMenuPopupFrame *menuPopupFrame = mContent ? do_QueryFrame(mContent->GetPrimaryFrame()) : nullptr;
   if (menuPopupFrame) {
     switch (menuPopupFrame->PopupState()) {
-      case ePopupShown:
-        aState.AssignLiteral("open");
-        break;
       case ePopupShowing:
-      case ePopupOpening:
-      case ePopupVisible:
+      case ePopupOpen:
         aState.AssignLiteral("showing");
+        break;
+      case ePopupOpenAndVisible:
+        aState.AssignLiteral("open");
         break;
       case ePopupHiding:
       case ePopupInvisible:
@@ -285,9 +284,13 @@ nsPopupBoxObject::GetOuterScreenRect(nsIDOMClientRect** aRect)
 
   NS_ADDREF(*aRect = rect);
 
-  // Return an empty rectangle if the popup is not open.
   nsMenuPopupFrame *menuPopupFrame = do_QueryFrame(GetFrame(false));
-  if (!menuPopupFrame || !menuPopupFrame->IsOpen())
+  if (!menuPopupFrame)
+    return NS_OK;
+
+  // Return an empty rectangle if the popup is not open.
+  nsPopupState state = menuPopupFrame->PopupState();
+  if (state != ePopupOpen && state != ePopupOpenAndVisible)
     return NS_OK;
 
   nsView* view = menuPopupFrame->GetView();

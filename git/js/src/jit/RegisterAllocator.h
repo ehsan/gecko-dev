@@ -322,8 +322,7 @@ class RegisterAllocator
         if (mir->compilingAsmJS()) {
             allRegisters_.take(AnyRegister(HeapReg));
             allRegisters_.take(AnyRegister(GlobalReg));
-            // Need to remove both NANReg, and its aliases.
-            allRegisters_.takeAllAliasedUnchecked(AnyRegister(NANReg));
+            allRegisters_.take(AnyRegister(NANReg));
         }
 #endif
     }

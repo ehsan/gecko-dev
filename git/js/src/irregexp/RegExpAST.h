@@ -65,7 +65,7 @@ class RegExpTree
     // expression.
     virtual Interval CaptureRegisters() { return Interval::Empty(); }
     virtual void AppendToText(RegExpText* text) {
-        MOZ_CRASH("Bad call");
+        MOZ_ASSUME_UNREACHABLE("Bad call");
     }
 #define MAKE_ASTYPE(Name)                                               \
     virtual RegExp##Name* As##Name();                                   \

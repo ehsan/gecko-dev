@@ -157,28 +157,23 @@ describe("loop.conversation", function() {
       });
 
       describe("#conversation", function() {
-        beforeEach(function() {
-          sandbox.stub(router, "loadReactComponent");
-        });
-
         it("should load the ConversationView if session is set", function() {
+          sandbox.stub(loop.shared.views.ConversationView.prototype,
+            "initialize");
           conversation.set("sessionId", "fakeSessionId");
 
           router.conversation();
 
-          sinon.assert.calledOnce(router.loadReactComponent);
-          sinon.assert.calledWith(router.loadReactComponent,
-            sinon.match(function(value) {
-              return React.addons.TestUtils.isComponentOfType(
-                value, loop.shared.views.ConversationView);
-            }));
+          sinon.assert.calledOnce(router.loadView);
+          sinon.assert.calledWith(router.loadView,
+            sinon.match.instanceOf(loop.shared.views.ConversationView));
         });
 
         it("should not load the ConversationView if session is not set",
           function() {
             router.conversation();
 
-            sinon.assert.notCalled(router.loadReactComponent);
+            sinon.assert.notCalled(router.loadView);
         });
 
         it("should notify the user when session is not set",

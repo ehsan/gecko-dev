@@ -160,7 +160,7 @@ CharacterRange::AddClassEscape(LifoAlloc *alloc, jschar type,
         AddClass(kLineTerminatorRanges, kLineTerminatorRangeCount, ranges);
         break;
       default:
-        MOZ_CRASH("Bad character class escape");
+        MOZ_ASSUME_UNREACHABLE("Bad character class escape");
     }
 }
 
@@ -1375,7 +1375,8 @@ TextElement::length() const
       case CHAR_CLASS:
         return 1;
     }
-    MOZ_CRASH("Bad text type");
+    MOZ_ASSUME_UNREACHABLE("Bad text type");
+    return 0;
 }
 
 class FrequencyCollator
@@ -1982,7 +1983,7 @@ RegExpAssertion::ToNode(RegExpCompiler* compiler,
         return result;
       }
       default:
-        MOZ_CRASH("Bad assertion type");
+        MOZ_ASSUME_UNREACHABLE("Bad assertion type");
     }
     return on_success;
 }
@@ -2513,7 +2514,8 @@ Trace::PerformDeferredActions(LifoAlloc *alloc,
                     break;
                   }
                   default:
-                    MOZ_CRASH("Bad action");
+                    MOZ_ASSUME_UNREACHABLE("Bad action");
+                    break;
                 }
             }
         }
@@ -2718,9 +2720,9 @@ EndNode::Emit(RegExpCompiler* compiler, Trace* trace)
         return;
     case NEGATIVE_SUBMATCH_SUCCESS:
         // This case is handled in a different virtual method.
-        MOZ_CRASH("Bad action: NEGATIVE_SUBMATCH_SUCCESS");
+        MOZ_ASSUME_UNREACHABLE("Bad action");
     }
-    MOZ_CRASH("Bad action");
+    MOZ_ASSUME_UNREACHABLE("Bad action");
 }
 
 // Emit the code to check for a ^ in multiline mode (1-character lookbehind
@@ -3542,7 +3544,8 @@ EmitAtomLetter(RegExpCompiler* compiler,
         macro_assembler->Bind(&ok);
         break;
       default:
-        MOZ_CRASH("Bad length");
+        MOZ_ASSUME_UNREACHABLE("Bad length");
+        break;
     }
     return true;
 }
@@ -4353,7 +4356,7 @@ ActionNode::Emit(RegExpCompiler* compiler, Trace* trace)
         return;
       }
       default:
-        MOZ_CRASH("Bad action");
+        MOZ_ASSUME_UNREACHABLE("Bad action");
     }
 }
 

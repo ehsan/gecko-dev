@@ -504,36 +504,21 @@ MacroAssembler::nurseryAllocate(Register result, Register slots, gc::AllocKind a
 #endif // JSGC_GENERATIONAL
 }
 
-// Inlined version of FreeList::allocate.
+// Inlined version of FreeSpan::allocate.
 void
-MacroAssembler::freeListAllocate(Register result, Register temp, gc::AllocKind allocKind, Label *fail)
+MacroAssembler::freeSpanAllocate(Register result, Register temp, gc::AllocKind allocKind, Label *fail)
 {
     CompileZone *zone = GetIonContext()->compartment->zone();
     int thingSize = int(gc::Arena::thingSize(allocKind));
 
-    Label fallback;
-    Label success;
-
-    // Load FreeList::head::first of |zone|'s freeLists for |allocKind|. If
-    // there is no room remaining in the span, fall back to get the next one.
+    // Load FreeList::first of |zone|'s freeLists for |allocKind|. If there is
+    // no room remaining in the span, we bail to finish the allocation. The
+    // interpreter will call |refillFreeLists|, setting up a new FreeSpan so
+    // that we can continue allocating in the jit.
     loadPtr(AbsoluteAddress(zone->addressOfFreeListFirst(allocKind)), result);
-    branchPtr(Assembler::BelowOrEqual, AbsoluteAddress(zone->addressOfFreeListLast(allocKind)), result, &fallback);
+    branchPtr(Assembler::BelowOrEqual, AbsoluteAddress(zone->addressOfFreeListLast(allocKind)), result, fail);
     computeEffectiveAddress(Address(result, thingSize), temp);
     storePtr(temp, AbsoluteAddress(zone->addressOfFreeListFirst(allocKind)));
-    jump(&success);
-
-    bind(&fallback);
-    // If there are no FreeSpans left, we bail to finish the allocation. The
-    // interpreter will call |refillFreeLists|, setting up a new FreeList so
-    // that we can continue allocating in the jit.
-    branchPtr(Assembler::Equal, result, ImmPtr(0), fail);
-    // Point the free list head at the subsequent span (which may be empty).
-    loadPtr(Address(result, js::gc::FreeSpan::offsetOfFirst()), temp);
-    storePtr(temp, AbsoluteAddress(zone->addressOfFreeListFirst(allocKind)));
-    loadPtr(Address(result, js::gc::FreeSpan::offsetOfLast()), temp);
-    storePtr(temp, AbsoluteAddress(zone->addressOfFreeListLast(allocKind)));
-
-    bind(&success);
 }
 
 void
@@ -581,7 +566,7 @@ MacroAssembler::allocateObject(Register result, Register slots, gc::AllocKind al
         return nurseryAllocate(result, slots, allocKind, nDynamicSlots, initialHeap, fail);
 
     if (!nDynamicSlots)
-        return freeListAllocate(result, slots, allocKind, fail);
+        return freeSpanAllocate(result, slots, allocKind, fail);
 
     callMallocStub(nDynamicSlots * sizeof(HeapValue), slots, fail);
 
@@ -589,7 +574,7 @@ MacroAssembler::allocateObject(Register result, Register slots, gc::AllocKind al
     Label success;
 
     push(slots);
-    freeListAllocate(result, slots, allocKind, &failAlloc);
+    freeSpanAllocate(result, slots, allocKind, &failAlloc);
     pop(slots);
     jump(&success);
 
@@ -636,7 +621,7 @@ void
 MacroAssembler::allocateNonObject(Register result, Register temp, gc::AllocKind allocKind, Label *fail)
 {
     checkAllocatorState(fail);
-    freeListAllocate(result, temp, allocKind, fail);
+    freeSpanAllocate(result, temp, allocKind, fail);
 }
 
 void
@@ -1578,14 +1563,9 @@ MacroAssembler::convertValueToFloatingPoint(ValueOperand value, FloatRegister ou
     jump(&done);
 
     bind(&isDouble);
-    FloatRegister tmp = output;
-    if (outputType == MIRType_Float32 && hasMultiAlias())
-        tmp = ScratchDoubleReg;
-
-    unboxDouble(value, tmp);
+    unboxDouble(value, output);
     if (outputType == MIRType_Float32)
-        convertDoubleToFloat32(tmp, output);
-
+        convertDoubleToFloat32(output, output);
     bind(&done);
 }
 

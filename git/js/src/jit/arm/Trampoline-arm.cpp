@@ -25,14 +25,14 @@ using namespace js;
 using namespace js::jit;
 
 static const FloatRegisterSet NonVolatileFloatRegs =
-    FloatRegisterSet((1ULL << FloatRegisters::d8) |
-                     (1ULL << FloatRegisters::d9) |
-                     (1ULL << FloatRegisters::d10) |
-                     (1ULL << FloatRegisters::d11) |
-                     (1ULL << FloatRegisters::d12) |
-                     (1ULL << FloatRegisters::d13) |
-                     (1ULL << FloatRegisters::d14) |
-                     (1ULL << FloatRegisters::d15));
+    FloatRegisterSet((1 << FloatRegisters::d8) |
+                     (1 << FloatRegisters::d9) |
+                     (1 << FloatRegisters::d10) |
+                     (1 << FloatRegisters::d11) |
+                     (1 << FloatRegisters::d12) |
+                     (1 << FloatRegisters::d13) |
+                     (1 << FloatRegisters::d14) |
+                     (1 << FloatRegisters::d15));
 
 static void
 GenerateReturn(MacroAssembler &masm, int returnCode, SPSProfiler *prof)
@@ -350,6 +350,7 @@ JitRuntime::generateInvalidator(JSContext *cx)
 {
     // See large comment in x86's JitRuntime::generateInvalidator.
     MacroAssembler masm(cx);
+    //masm.as_bkpt();
     // At this point, one of two things has happened:
     // 1) Execution has just returned from C code, which left the stack aligned
     // 2) Execution has just returned from Ion code, which left the stack unaligned.
@@ -364,17 +365,9 @@ JitRuntime::generateInvalidator(JSContext *cx)
         masm.transferReg(Register::FromCode(i));
     masm.finishDataTransfer();
 
-    // Since our datastructures for stack inspection are compile-time fixed,
-    // if there are only 16 double registers, then we need to reserve
-    // space on the stack for the missing 16.
-    if (FloatRegisters::ActualTotalPhys() != FloatRegisters::TotalPhys) {
-        int missingRegs = FloatRegisters::TotalPhys - FloatRegisters::ActualTotalPhys();
-        masm.ma_sub(Imm32(missingRegs * sizeof(double)), sp);
-    }
-
     masm.startFloatTransferM(IsStore, sp, DB, WriteBack);
-    for (uint32_t i = 0; i < FloatRegisters::ActualTotalPhys(); i++)
-        masm.transferFloatReg(FloatRegister(i, FloatRegister::Double));
+    for (uint32_t i = 0; i < FloatRegisters::Total; i++)
+        masm.transferFloatReg(FloatRegister::FromCode(i));
     masm.finishFloatTransfer();
 
     masm.ma_mov(sp, r0);
@@ -536,7 +529,6 @@ PushBailoutFrame(MacroAssembler &masm, uint32_t frameClass, Register spArg)
     // STEP 1a: Save our register sets to the stack so Bailout() can read
     // everything.
     // sp % 8 == 0
-
     masm.startDataTransferM(IsStore, sp, DB, WriteBack);
     // We don't have to push everything, but this is likely easier.
     // Setting regs_.
@@ -544,16 +536,9 @@ PushBailoutFrame(MacroAssembler &masm, uint32_t frameClass, Register spArg)
         masm.transferReg(Register::FromCode(i));
     masm.finishDataTransfer();
 
-    // Since our datastructures for stack inspection are compile-time fixed,
-    // if there are only 16 double registers, then we need to reserve
-    // space on the stack for the missing 16.
-    if (FloatRegisters::ActualTotalPhys() != FloatRegisters::TotalPhys) {
-        int missingRegs = FloatRegisters::TotalPhys - FloatRegisters::ActualTotalPhys();
-        masm.ma_sub(Imm32(missingRegs * sizeof(double)), sp);
-    }
     masm.startFloatTransferM(IsStore, sp, DB, WriteBack);
-    for (uint32_t i = 0; i < FloatRegisters::ActualTotalPhys(); i++)
-        masm.transferFloatReg(FloatRegister(i, FloatRegister::Double));
+    for (uint32_t i = 0; i < FloatRegisters::Total; i++)
+        masm.transferFloatReg(FloatRegister::FromCode(i));
     masm.finishFloatTransfer();
 
     // STEP 1b: Push both the "return address" of the function call (the address
@@ -606,7 +591,7 @@ GenerateBailoutThunk(JSContext *cx, MacroAssembler &masm, uint32_t frameClass)
     masm.ma_add(sp, Imm32(sizeOfBailoutInfo), sp);
     // Common size of a bailout frame.
     uint32_t bailoutFrameSize = sizeof(void *) + // frameClass
-                              sizeof(double) * FloatRegisters::TotalPhys +
+                              sizeof(double) * FloatRegisters::Total +
                               sizeof(void *) * Registers::Total;
 
     if (frameClass == NO_FRAME_SIZE_CLASS_ID) {
@@ -908,7 +893,7 @@ JitRuntime::generatePreBarrier(JSContext *cx, MIRType type)
     RegisterSet save;
     if (cx->runtime()->jitSupportsFloatingPoint) {
         save = RegisterSet(GeneralRegisterSet(Registers::VolatileMask),
-                           FloatRegisterSet(FloatRegisters::VolatileDoubleMask));
+                           FloatRegisterSet(FloatRegisters::VolatileMask));
     } else {
         save = RegisterSet(GeneralRegisterSet(Registers::VolatileMask),
                            FloatRegisterSet());

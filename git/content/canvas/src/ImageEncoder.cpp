@@ -19,7 +19,7 @@ class EncodingCompleteEvent : public nsRunnable
   virtual ~EncodingCompleteEvent() {}
 
 public:
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_THREADSAFE_ISUPPORTS
 
   EncodingCompleteEvent(nsIGlobalObject* aGlobal,
                         nsIThread* aEncoderThread,
@@ -85,14 +85,14 @@ private:
   bool mFailed;
 };
 
-NS_IMPL_ISUPPORTS_INHERITED0(EncodingCompleteEvent, nsRunnable);
+NS_IMPL_ISUPPORTS(EncodingCompleteEvent, nsIRunnable);
 
 class EncodingRunnable : public nsRunnable
 {
   virtual ~EncodingRunnable() {}
 
 public:
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_THREADSAFE_ISUPPORTS
 
   EncodingRunnable(const nsAString& aType,
                    const nsAString& aOptions,
@@ -180,7 +180,7 @@ private:
   bool mUsingCustomOptions;
 };
 
-NS_IMPL_ISUPPORTS_INHERITED0(EncodingRunnable, nsRunnable);
+NS_IMPL_ISUPPORTS(EncodingRunnable, nsIRunnable)
 
 /* static */
 nsresult

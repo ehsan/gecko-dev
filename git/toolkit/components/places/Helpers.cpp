@@ -370,9 +370,9 @@ PlacesEvent::Notify()
   }
 }
 
-NS_IMPL_ISUPPORTS_INHERITED0(
+NS_IMPL_ISUPPORTS(
   PlacesEvent
-, nsRunnable
+, nsIRunnable
 )
 
 ////////////////////////////////////////////////////////////////////////////////
