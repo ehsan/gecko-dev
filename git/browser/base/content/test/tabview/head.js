@@ -32,9 +32,6 @@ function createGroupItemWithTabs(win, width, height, padding, urls, animate) {
     ok(newItem.container, "Created element "+t+":"+newItem.container);
     ++t;
   });
-  // to set one of tabItem to be active since we load tabs into a group 
-  // in a non-standard flow.
-  contentWindow.UI.setActive(groupItem);
   return groupItem;
 }
 
@@ -136,13 +133,11 @@ function showTabView(callback, win) {
   win = win || window;
 
   if (win.TabView.isVisible()) {
-    waitForFocus(callback, win);
+    callback();
     return;
   }
 
-  whenTabViewIsShown(function() {
-    waitForFocus(callback, win);
-  }, win);
+  whenTabViewIsShown(callback, win);
   win.TabView.show();
 }
 
