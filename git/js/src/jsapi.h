@@ -737,8 +737,6 @@ JS_StringToVersion(const char *string);
                                                    leaving that up to the
                                                    embedding. */
 
-#define JSOPTION_METHODJIT      JS_BIT(14)      /* Whole-method JIT. */
-
 extern JS_PUBLIC_API(uint32)
 JS_GetOptions(JSContext *cx);
 
@@ -1545,11 +1543,13 @@ struct JSExtendedClass {
  * deleteable, for the most part.
  *
  * Implementing this efficiently requires that global objects have classes
- * with the following flags. Failure to use JSCLASS_GLOBAL_FLAGS was
- * prevously allowed, but is now an ES5 violation and thus unsupported.
+ * with the following flags.  Failure to use JSCLASS_GLOBAL_FLAGS won't break
+ * anything except the ECMA-262 "original prototype value" behavior, which was
+ * broken for years in SpiderMonkey.  In other words, without these flags you
+ * get backward compatibility.
  */
 #define JSCLASS_GLOBAL_FLAGS \
-    (JSCLASS_IS_GLOBAL | JSCLASS_HAS_RESERVED_SLOTS(JSProto_LIMIT * 2))
+    (JSCLASS_IS_GLOBAL | JSCLASS_HAS_RESERVED_SLOTS(JSProto_LIMIT))
 
 /* Fast access to the original value of each standard class's prototype. */
 #define JSCLASS_CACHED_PROTO_SHIFT      (JSCLASS_HIGH_FLAGS_SHIFT + 8)
