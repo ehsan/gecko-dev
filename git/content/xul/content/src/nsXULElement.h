@@ -621,7 +621,7 @@ protected:
     class nsXULSlots : public nsGenericElement::nsDOMSlots
     {
     public:
-       nsXULSlots();
+       nsXULSlots(PtrBits aFlags);
        virtual ~nsXULSlots();
 
        nsRefPtr<nsFrameLoader> mFrameLoader;

@@ -239,7 +239,7 @@ nsSVGElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                              aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (!MayHaveStyle()) {
+  if (!HasFlag(NODE_MAY_HAVE_STYLE)) {
     return NS_OK;
   }
   const nsAttrValue* oldVal = mAttrsAndChildren.GetAttr(nsGkAtoms::style);

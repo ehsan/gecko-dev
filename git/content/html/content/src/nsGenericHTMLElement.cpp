@@ -948,7 +948,7 @@ nsGenericHTMLElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aDocument) {
-    if (HasName()) {
+    if (HasFlag(NODE_HAS_NAME)) {
       aDocument->
         AddToNameTable(this, GetParsedAttr(nsGkAtoms::name)->GetAtomValue());
     }
@@ -1188,7 +1188,7 @@ nsGenericHTMLElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
   PRInt32 change;
   if (contentEditable) {
     change = GetContentEditableValue() == eTrue ? -1 : 0;
-    SetMayHaveContentEditableAttr();
+    SetFlags(NODE_MAY_HAVE_CONTENT_EDITABLE_ATTR);
   }
 
   nsresult rv = nsStyledElement::SetAttr(aNameSpaceID, aName, aPrefix, aValue,
@@ -1218,7 +1218,7 @@ nsGenericHTMLElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
     if (aAttribute == nsGkAtoms::name) {
       // Have to do this before clearing flag. See RemoveFromNameTable
       RemoveFromNameTable();
-      ClearHasName();
+      UnsetFlags(NODE_HAS_NAME);
     }
     else if (aAttribute == nsGkAtoms::contenteditable) {
       contentEditable = PR_TRUE;
@@ -1287,14 +1287,14 @@ nsGenericHTMLElement::ParseAttribute(PRInt32 aNamespaceID,
       // not that it has an emptystring as the name.
       RemoveFromNameTable();
       if (aValue.IsEmpty()) {
-        ClearHasName();
+        UnsetFlags(NODE_HAS_NAME);
         return PR_FALSE;
       }
 
       aResult.ParseAtom(aValue);
 
       if (CanHaveName(Tag())) {
-        SetHasName();
+        SetFlags(NODE_HAS_NAME);
         AddToNameTable(aResult.GetAtomValue());
       }
       

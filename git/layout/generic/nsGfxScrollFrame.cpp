@@ -1468,7 +1468,9 @@ nsGfxScrollFrameInner::nsGfxScrollFrameInner(nsContainerFrame* aOuter,
   , mMayHaveDirtyFixedChildren(PR_FALSE)
   , mUpdateScrollbarAttributes(PR_FALSE)
   , mCollapsedResizer(PR_FALSE)
+#ifdef MOZ_IPC
   , mShouldBuildLayer(PR_FALSE)
+#endif
 {
   // lookup if we're allowed to overlap the content from the look&feel object
   PRBool canOverlap;
@@ -1902,7 +1904,11 @@ nsGfxScrollFrameInner::AppendScrollPartsTo(nsDisplayListBuilder*          aBuild
 PRBool
 nsGfxScrollFrameInner::ShouldBuildLayer() const
 {
+#ifdef MOZ_IPC
   return mShouldBuildLayer;
+#else
+  return PR_FALSE;
+#endif
 }
 
 nsresult
@@ -1967,6 +1973,7 @@ nsGfxScrollFrameInner::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
   nsPresContext* presContext = mOuter->PresContext();
 
+#ifdef MOZ_IPC
   // Since making new layers is expensive, only use nsDisplayScrollLayer
   // if the area is scrollable.
   //
@@ -1999,6 +2006,7 @@ nsGfxScrollFrameInner::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       aBuilder, &list, mScrolledFrame, mOuter);
     set.Content()->AppendNewToTop(layerItem);
   } else
+#endif
   {
     rv = mOuter->BuildDisplayListForChild(aBuilder, mScrolledFrame, dirtyRect, set);
   }

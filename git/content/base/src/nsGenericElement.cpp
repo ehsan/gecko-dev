@@ -273,7 +273,7 @@ nsGenericElement::GetSystemEventGroup(nsIDOMEventGroup** aGroup)
 nsINode::nsSlots*
 nsINode::CreateSlots()
 {
-  return new nsSlots();
+  return new nsSlots(mFlagsOrSlots);
 }
 
 PRBool
@@ -2138,8 +2138,8 @@ nsNodeSelectorTearoff::QuerySelectorAll(const nsAString& aSelector,
 }
 
 //----------------------------------------------------------------------
-nsGenericElement::nsDOMSlots::nsDOMSlots()
-  : nsINode::nsSlots(),
+nsGenericElement::nsDOMSlots::nsDOMSlots(PtrBits aFlags)
+  : nsINode::nsSlots(aFlags),
     mBindingParent(nsnull)
 {
 }
@@ -2160,8 +2160,8 @@ nsGenericElement::nsGenericElement(already_AddRefed<nsINodeInfo> aNodeInfo)
 {
   // Set the default scriptID to JS - but skip SetScriptTypeID as it
   // does extra work we know isn't necessary here...
-  SetFlags((nsIProgrammingLanguage::JAVASCRIPT << NODE_SCRIPT_TYPE_OFFSET));
-  SetIsElement();
+  SetFlags(NODE_IS_ELEMENT |
+           (nsIProgrammingLanguage::JAVASCRIPT << NODE_SCRIPT_TYPE_OFFSET));
 }
 
 nsGenericElement::~nsGenericElement()
@@ -2943,16 +2943,15 @@ nsGenericElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 
   // Now set the parent and set the "Force attach xbl" flag if needed.
   if (aParent) {
-    mParent = aParent;
+    mParentPtrBits = reinterpret_cast<PtrBits>(aParent) | PARENT_BIT_PARENT_IS_CONTENT;
 
     if (aParent->HasFlag(NODE_FORCE_XBL_BINDINGS)) {
       SetFlags(NODE_FORCE_XBL_BINDINGS);
     }
   }
   else {
-    mParent = aDocument;
+    mParentPtrBits = reinterpret_cast<PtrBits>(aDocument);
   }
-  SetParentIsContent(aParent);
 
   // XXXbz sXBL/XBL2 issue!
 
@@ -2968,7 +2967,7 @@ nsGenericElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     //                                                   aDocument);
 
     // Being added to a document.
-    SetInDocument();
+    mParentPtrBits |= PARENT_BIT_INDOCUMENT;
 
     // Unset this flag since we now really are in a document.
     UnsetFlags(NODE_FORCE_XBL_BINDINGS |
@@ -3050,11 +3049,7 @@ nsGenericElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
   nsIDocument *document =
     HasFlag(NODE_FORCE_XBL_BINDINGS) ? GetOwnerDoc() : GetCurrentDoc();
 
-  if (aNullParent) {
-    mParent = nsnull;
-    SetParentIsContent(false);
-  }
-  ClearInDocument();
+  mParentPtrBits = aNullParent ? 0 : mParentPtrBits & ~PARENT_BIT_INDOCUMENT;
 
   if (document) {
     // Notify XBL- & nsIAnonymousContentCreator-generated
@@ -5292,7 +5287,7 @@ nsGenericElement::IndexOf(nsINode* aPossibleChild) const
 nsINode::nsSlots*
 nsGenericElement::CreateSlots()
 {
-  return new nsDOMSlots();
+  return new nsDOMSlots(mFlagsOrSlots);
 }
 
 PRBool

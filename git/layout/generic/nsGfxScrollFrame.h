@@ -323,9 +323,11 @@ public:
   // If true, the resizer is collapsed and not displayed
   PRPackedBool mCollapsedResizer:1;
 
+#ifdef MOZ_IPC
   // If true, the layer should always be active because we always build a layer.
   // Used for asynchronous scrolling.
   PRPackedBool mShouldBuildLayer:1;
+#endif
 };
 
 /**

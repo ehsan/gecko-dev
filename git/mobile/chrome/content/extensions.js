@@ -546,7 +546,6 @@ var ExtensionsView = {
   appendSearchResults: function(aAddons, aShowRating, aShowCount) {
     let urlproperties = [ "iconURL", "homepageURL" ];
     let foundItem = false;
-    let appendedAddons = 0;
     for (let i = 0; i < aAddons.length; i++) {
       let addon = aAddons[i];
 
@@ -564,7 +563,6 @@ var ExtensionsView = {
           continue;
       }
 
-      appendedAddons++;
       // Convert the numeric type to a string
       let types = {"2":"extension", "4":"theme", "8":"locale"};
       addon.type = types[addon.type];
@@ -586,7 +584,6 @@ var ExtensionsView = {
       if (aShowCount < 0)
         item.hidden = true;
     }
-    return appendedAddons;
   },
 
   showMoreSearchResults: function showMoreSearchResults() {
@@ -655,16 +652,15 @@ var ExtensionsView = {
     // We only show extra browse add-ons if the recommended count is small. Otherwise, the user
     // can see more by pressing the "Show More" button
     this.appendSearchResults(aRecommendedAddons, false, aRecommendedAddons.length);
-    let minOverflow = (aRecommendedAddons.length >= kAddonPageSize ? 0 : kAddonPageSize);
-    let numAdded = this.appendSearchResults(aBrowseAddons, true, minOverflow);
+    this.appendSearchResults(aBrowseAddons, true, (aRecommendedAddons.length >= kAddonPageSize ? 0 : kAddonPageSize));
 
-    let totalAddons = aRecommendedAddons.length + numAdded;
+    let totalAddons = aRecommendedAddons.length + aBrowseAddons.length;
 
     let showmore = document.createElement("richlistitem");
     showmore.setAttribute("typeName", "showmore");
     showmore.setAttribute("pagelabel", strings.GetStringFromName("addonsBrowseAll.seeMore"));
     showmore.setAttribute("onpagecommand", "ExtensionsView.showMoreSearchResults();");
-    showmore.setAttribute("hidepage", numAdded > minOverflow ? "false" : "true");
+    showmore.setAttribute("hidepage", totalAddons > kAddonPageSize ? "false" : "true");
     showmore.setAttribute("sitelabel", strings.GetStringFromName("addonsBrowseAll.browseSite"));
     showmore.setAttribute("onsitecommand", "ExtensionsView.showMoreResults('" + browseURL + "');");
     this.addItem(showmore, "repo");

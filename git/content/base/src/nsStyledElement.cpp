@@ -77,11 +77,11 @@ nsStyledElement::GetIDAttributeName() const
 nsIAtom*
 nsStyledElement::DoGetID() const
 {
-  NS_ASSERTION(HasID(), "Unexpected call");
+  NS_ASSERTION(HasFlag(NODE_HAS_ID), "Unexpected call");
 
   // The nullcheck here is needed because nsGenericElement::UnsetAttr calls
   // out to various code between removing the attribute and we get a chance to
-  // ClearHasID().
+  // clear the NODE_HAS_ID flag.
 
   const nsAttrValue* attr = mAttrsAndChildren.GetAttr(nsGkAtoms::id);
 
@@ -101,7 +101,7 @@ nsStyledElement::ParseAttribute(PRInt32 aNamespaceID, nsIAtom* aAttribute,
 {
   if (aNamespaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::style) {
-      SetMayHaveStyle();
+      SetFlags(NODE_MAY_HAVE_STYLE);
       ParseStyleAttribute(aValue, aResult, PR_FALSE);
       return PR_TRUE;
     }
@@ -115,11 +115,11 @@ nsStyledElement::ParseAttribute(PRInt32 aNamespaceID, nsIAtom* aAttribute,
       // not that it has an emptystring as the id.
       RemoveFromIdTable();
       if (aValue.IsEmpty()) {
-        ClearHasID();
+        UnsetFlags(NODE_HAS_ID);
         return PR_FALSE;
       }
       aResult.ParseAtom(aValue);
-      SetHasID();
+      SetFlags(NODE_HAS_ID);
       AddToIdTable(aResult.GetAtomValue());
       return PR_TRUE;
     }
@@ -151,7 +151,7 @@ nsStyledElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aAttribute,
     // The id has been removed when calling UnsetAttr but we kept it because
     // the id is used for some layout stuff between UnsetAttr and AfterSetAttr.
     // Now. the id is really removed so it would not be safe to keep this flag.
-    ClearHasID();
+    UnsetFlags(NODE_HAS_ID);
   }
 
   return nsGenericElement::AfterSetAttr(aNamespaceID, aAttribute, aValue,
@@ -161,7 +161,7 @@ nsStyledElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aAttribute,
 NS_IMETHODIMP
 nsStyledElement::SetInlineStyleRule(css::StyleRule* aStyleRule, PRBool aNotify)
 {
-  SetMayHaveStyle();
+  SetFlags(NODE_MAY_HAVE_STYLE);
   PRBool modification = PR_FALSE;
   nsAutoString oldValueStr;
 
@@ -200,7 +200,7 @@ nsStyledElement::SetInlineStyleRule(css::StyleRule* aStyleRule, PRBool aNotify)
 css::StyleRule*
 nsStyledElement::GetInlineStyleRule()
 {
-  if (!MayHaveStyle()) {
+  if (!HasFlag(NODE_MAY_HAVE_STYLE)) {
     return nsnull;
   }
   const nsAttrValue* attrVal = mAttrsAndChildren.GetAttr(nsGkAtoms::style);
@@ -222,7 +222,7 @@ nsStyledElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                                 aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (aDocument && HasID() && !GetBindingParent()) {
+  if (aDocument && HasFlag(NODE_HAS_ID) && !GetBindingParent()) {
     aDocument->AddToIdTable(this, DoGetID());
   }
 
@@ -270,7 +270,7 @@ nsStyledElement::GetStyle(nsresult* retval)
                                                      , PR_FALSE
 #endif // MOZ_SMIL
                                                      );
-    SetMayHaveStyle();
+    SetFlags(NODE_MAY_HAVE_STYLE);
   }
 
   *retval = NS_OK;
@@ -280,7 +280,7 @@ nsStyledElement::GetStyle(nsresult* retval)
 nsresult
 nsStyledElement::ReparseStyleAttribute(PRBool aForceInDataDoc)
 {
-  if (!MayHaveStyle()) {
+  if (!HasFlag(NODE_MAY_HAVE_STYLE)) {
     return NS_OK;
   }
   const nsAttrValue* oldVal = mAttrsAndChildren.GetAttr(nsGkAtoms::style);

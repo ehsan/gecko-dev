@@ -523,19 +523,19 @@ nsGenericDOMDataNode::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 
   // Set parent
   if (aParent) {
-    mParent = aParent;
+    mParentPtrBits =
+      reinterpret_cast<PtrBits>(aParent) | PARENT_BIT_PARENT_IS_CONTENT;
   }
   else {
-    mParent = aDocument;
+    mParentPtrBits = reinterpret_cast<PtrBits>(aDocument);
   }
-  SetParentIsContent(aParent);
 
   // XXXbz sXBL/XBL2 issue!
 
   // Set document
   if (aDocument) {
     // XXX See the comment in nsGenericElement::BindToTree
-    SetInDocument();
+    mParentPtrBits |= PARENT_BIT_INDOCUMENT;
     if (mText.IsBidi()) {
       aDocument->SetBidiEnabled();
     }
@@ -570,11 +570,7 @@ nsGenericDOMDataNode::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
     document->BindingManager()->RemovedFromDocument(this, document);
   }
 
-  if (aNullParent) {
-    mParent = nsnull;
-    SetParentIsContent(false);
-  }
-  ClearInDocument();
+  mParentPtrBits = aNullParent ? 0 : mParentPtrBits & ~PARENT_BIT_INDOCUMENT;
 
   nsDataSlots *slots = GetExistingDataSlots();
   if (slots) {
@@ -787,7 +783,7 @@ nsGenericDOMDataNode::IsLink(nsIURI** aURI) const
 nsINode::nsSlots*
 nsGenericDOMDataNode::CreateSlots()
 {
-  return new nsDataSlots();
+  return new nsDataSlots(mFlagsOrSlots);
 }
 
 //----------------------------------------------------------------------

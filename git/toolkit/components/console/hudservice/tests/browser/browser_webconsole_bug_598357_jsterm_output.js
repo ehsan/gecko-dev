@@ -17,7 +17,7 @@ let dateNow = Date.now();
 
 let inputValues = [
   // [showsPropertyPanel?, input value, expected output format,
-  //    print() output, console output, optional console API test]
+  //    print() output, optional console API test]
 
   // 0
   [false, "'hello \\nfrom \\rthe \\\"string world!'",
@@ -59,20 +59,17 @@ let inputValues = [
   // 11
   [false, "document.getElementById", "function getElementById() {[native code]}",
     "function getElementById() {\n    [native code]\n}",
-    "function getElementById() {[native code]}",
     "document.wrappedJSObject.getElementById"],
 
   // 12
   [false, "function() { return 42; }", "function () {return 42;}",
-    "function () {\n    return 42;\n}",
-    "(function () {return 42;})"],
+    "function () {\n    return 42;\n}"],
 
   // 13
   [false, "new Date(" + dateNow + ")", (new Date(dateNow)).toString()],
 
   // 14
   [true, "document.body", "[object HTMLBodyElement", "[object HTMLBodyElement",
-    "[object HTMLBodyElement",
     "document.wrappedJSObject.body"],
 
   // 15
@@ -80,13 +77,11 @@ let inputValues = [
 
   // 16
   [true, "[1,2,3,'a','b','c','4','5']", '[1, 2, 3, "a", "b", "c", "4", "5"]',
-    '1,2,3,a,b,c,4,5',
-    '[1, 2, 3, "a", "b", "c", "4", "5"]'],
+    '1,2,3,a,b,c,4,5'],
 
   // 17
   [true, "({a:'b', c:'d', e:1, f:'2'})", '({a:"b", c:"d", e:1, f:"2"})',
-    "[object Object",
-    '({a:"b", c:"d", e:1, f:"2"})'],
+    "[object Object"],
 ];
 
 let eventHandlers = [];
@@ -121,10 +116,7 @@ function testNext() {
   let printOutput = inputValues[cpos].length >= 4 ?
     inputValues[cpos][3] : expectedOutput;
 
-  let consoleOutput = inputValues[cpos].length >= 5 ?
-    inputValues[cpos][4] : printOutput;
-
-  let consoleTest = inputValues[cpos][5] || inputValue;
+  let consoleTest = inputValues[cpos][4] || inputValue;
 
   HUD.jsterm.clearOutput();
 
@@ -137,7 +129,7 @@ function testNext() {
     querySelector(".hud-log:last-child");
   ok(outputItem,
     "found the window.console output line for inputValues[" + cpos + "]");
-  ok(outputItem.textContent.indexOf(consoleOutput) > -1,
+  ok(outputItem.textContent.indexOf(expectedOutput) > -1,
     "console API output is correct for inputValues[" + cpos + "]");
 
   HUD.jsterm.clearOutput();

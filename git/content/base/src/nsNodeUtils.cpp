@@ -252,8 +252,9 @@ nsNodeUtils::LastRelease(nsINode* aNode)
                                          NodeWillBeDestroyed, (aNode));
     }
 
+    PtrBits flags = slots->mFlags | NODE_DOESNT_HAVE_SLOTS;
     delete slots;
-    aNode->mSlots = nsnull;
+    aNode->mFlagsOrSlots = flags;
   }
 
   // Kill properties first since that may run external code, so we want to
