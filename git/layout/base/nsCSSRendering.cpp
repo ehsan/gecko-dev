@@ -216,7 +216,7 @@ protected:
     nsIFrame* nextCont = aFrame->GetNextContinuation();
     if (!nextCont && (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL)) {
       // The {ib} properties are only stored on first continuations
-      aFrame = aFrame->FirstContinuation();
+      aFrame = aFrame->GetFirstContinuation();
       nsIFrame* block = static_cast<nsIFrame*>
         (aFrame->Properties().Get(nsIFrame::IBSplitSpecialSibling()));
       if (block) {
@@ -4473,7 +4473,7 @@ nsImageRenderer::PrepareImage()
       nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(targetURI), elementId,
                                                 mForFrame->GetContent()->GetCurrentDoc(), base);
       nsSVGPaintingProperty* property = nsSVGEffects::GetPaintingPropertyForURI(
-          targetURI, mForFrame->FirstContinuation(),
+          targetURI, mForFrame->GetFirstContinuation(),
           nsSVGEffects::BackgroundImageProperty());
       if (!property)
         return false;

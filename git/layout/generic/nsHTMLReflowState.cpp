@@ -5,8 +5,6 @@
 
 /* struct containing the input to nsIFrame::Reflow */
 
-#include "nsHTMLReflowState.h"
-
 #include "nsStyleConsts.h"
 #include "nsCSSAnonBoxes.h"
 #include "nsFrame.h"
@@ -529,7 +527,7 @@ nsHTMLReflowState::InitResizeFlags(nsPresContext* aPresContext, nsIAtom* aFrameT
   // at least nsBoxFrame).
   if (IS_TABLE_CELL(aFrameType) &&
       (mFlags.mSpecialHeightReflow ||
-       (frame->FirstInFlow()->GetStateBits() &
+       (frame->GetFirstInFlow()->GetStateBits() &
          NS_TABLE_CELL_HAD_SPECIAL_REFLOW)) &&
       (frame->GetStateBits() & NS_FRAME_CONTAINS_RELATIVE_HEIGHT)) {
     // Need to set the bit on the cell so that
@@ -874,9 +872,7 @@ nsHTMLReflowState::ApplyRelativePositioning(nsIFrame* aFrame,
   if (NS_STYLE_POSITION_RELATIVE == display->mPosition) {
     *aPosition += nsPoint(aComputedOffsets.left, aComputedOffsets.top);
   } else if (NS_STYLE_POSITION_STICKY == display->mPosition &&
-             !aFrame->GetNextContinuation() &&
-             !aFrame->GetPrevContinuation() &&
-             !(aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL)) {
+             !aFrame->GetNextContinuation() && !aFrame->GetPrevContinuation()) {
     // Sticky positioning for elements with multiple frames needs to be
     // computed all at once. We can't safely do that here because we might be
     // partway through (re)positioning the frames, so leave it until the scroll

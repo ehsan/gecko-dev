@@ -30,7 +30,7 @@ FRAGMENT(JSObject, simple) {
 }
 
 FRAGMENT(JSObject, null) {
-  JS::Rooted<JSObject *> null(cx, nullptr);
+  JS::Rooted<JSObject *> null(cx, NULL);
   JSObject *nullRaw = null;
 
   breakpoint();

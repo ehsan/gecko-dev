@@ -1088,12 +1088,13 @@ void GrallocDeprecatedTextureHostOGL::SetCompositor(Compositor* aCompositor)
 gfx::SurfaceFormat
 GrallocDeprecatedTextureHostOGL::GetFormat() const
 {
-  switch (mTextureTarget) {
-  case LOCAL_GL_TEXTURE_EXTERNAL: return gfx::FORMAT_R8G8B8A8;
-  case LOCAL_GL_TEXTURE_2D: return mFormat;
-  default: return gfx::FORMAT_UNKNOWN;
+  if (mTextureTarget == LOCAL_GL_TEXTURE_EXTERNAL) {
+    return gfx::FORMAT_R8G8B8A8;
   }
+  MOZ_ASSERT(mTextureTarget == LOCAL_GL_TEXTURE_2D);
+  return mFormat;
 }
+
 
 void
 GrallocDeprecatedTextureHostOGL::DeleteTextures()

@@ -18,6 +18,7 @@
 #include "nsIDOMMouseEvent.h"
 #include "nsFontMetrics.h"
 #include "nsIScrollableFrame.h"
+#include "nsGUIEvent.h"
 #include "nsCSSRendering.h"
 #include "nsIDOMEventListener.h"
 #include "nsLayoutUtils.h"
@@ -27,9 +28,7 @@
 #include "mozilla/dom/HTMLOptionsCollection.h"
 #include "mozilla/dom/HTMLSelectElement.h"
 #include "mozilla/LookAndFeel.h"
-#include "mozilla/MouseEvents.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/TextEvents.h"
 #include <algorithm>
 
 using namespace mozilla;

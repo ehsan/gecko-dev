@@ -31,6 +31,7 @@
 
 #include "nsIPresShell.h"
 #include "nsEventStates.h"
+#include "nsGUIEvent.h"
 
 #include "nsIChannel.h"
 #include "nsIStreamListener.h"

@@ -17,6 +17,7 @@
 #include "nsCOMPtr.h"
 #include "nsString.h"
 #include "nsGkAtoms.h"
+#include "nsGUIEvent.h"
 #include "nsObjCExceptions.h"
 #include "nsHashtable.h"
 #include "nsThreadUtils.h"

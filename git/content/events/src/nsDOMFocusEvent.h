@@ -7,7 +7,6 @@
 
 #include "nsDOMUIEvent.h"
 #include "nsIDOMFocusEvent.h"
-#include "mozilla/EventForwards.h"
 #include "mozilla/dom/FocusEventBinding.h"
 
 class nsDOMFocusEvent : public nsDOMUIEvent,

@@ -17,9 +17,7 @@ MOCHITEST_BROWSER_FILES := \
   browser_geolocation_privatebrowsing_perwindowpb.js \
   browser_localStorage_privatestorageevent.js \
   network_geolocation.sjs \
-  page_privatestorageevent.html \
-  browser_frame_elements.js \
-  browser_frame_elements.html
+  page_privatestorageevent.html
   $(NULL)
 
 ifdef MOZ_B2G

@@ -25,9 +25,9 @@ using namespace js::gc;
 
 using mozilla::DebugOnly;
 
-void * const js::NullPtr::constNullValue = nullptr;
+void * const js::NullPtr::constNullValue = NULL;
 
-JS_PUBLIC_DATA(void * const) JS::NullPtr::constNullValue = nullptr;
+JS_PUBLIC_DATA(void * const) JS::NullPtr::constNullValue = NULL;
 
 /*
  * There are two mostly separate mark paths. The first is a fast path used
@@ -194,8 +194,8 @@ MarkInternal(JSTracer *trc, T **thingp)
         JS_UNSET_TRACING_LOCATION(trc);
     }
 
-    trc->debugPrinter = nullptr;
-    trc->debugPrintArg = nullptr;
+    trc->debugPrinter = NULL;
+    trc->debugPrintArg = NULL;
 }
 
 #define JS_ROOT_MARKING_ASSERT(trc)                                     \
@@ -325,10 +325,11 @@ Mark##base##Unbarriered(JSTracer *trc, type **thingp, const char *name)         
     MarkUnbarriered<type>(trc, thingp, name);                                                     \
 }                                                                                                 \
                                                                                                   \
-/* Explicitly instantiate MarkUnbarriered<type>. It is referenced from */                         \
-/* other translation units and the instantiation might otherwise get */                           \
-/* inlined away. */                                                                               \
-template void MarkUnbarriered<type>(JSTracer *, type **, const char *);                           \
+/* This is a hack that forces the compiler to generate code for */                                \
+/* MarkUnbarriered<type>. Without it, some compilers will completely inline it */                 \
+/* away, causing linking errors in other translation units. */                                    \
+void (*Mark##base##type##UnbarrieredVar)(JSTracer *, type **, const char *) =                     \
+    MarkUnbarriered<type>;                                                                        \
                                                                                                   \
 void                                                                                              \
 Mark##base##Range(JSTracer *trc, size_t len, HeapPtr<type> *vec, const char *name)                \
@@ -366,9 +367,14 @@ Is##base##AboutToBeFinalized(EncapsulatedPtr<type> *thingp)                     
     return IsAboutToBeFinalized<type>(thingp->unsafeGet());                                       \
 }
 
+// The arguments to DeclMarkerImpl cannot be qualified names due to the
+// Mark##base##type##UnbarrieredVar hack in DeclMarkerImpl.
+using jit::IonCode;
+using js::types::TypeObject;
+
 DeclMarkerImpl(BaseShape, BaseShape)
 DeclMarkerImpl(BaseShape, UnownedBaseShape)
-DeclMarkerImpl(IonCode, jit::IonCode)
+DeclMarkerImpl(IonCode, IonCode)
 DeclMarkerImpl(Object, ArgumentsObject)
 DeclMarkerImpl(Object, ArrayBufferObject)
 DeclMarkerImpl(Object, ArrayBufferViewObject)
@@ -386,7 +392,7 @@ DeclMarkerImpl(String, JSString)
 DeclMarkerImpl(String, JSFlatString)
 DeclMarkerImpl(String, JSLinearString)
 DeclMarkerImpl(String, PropertyName)
-DeclMarkerImpl(TypeObject, js::types::TypeObject)
+DeclMarkerImpl(TypeObject, TypeObject)
 
 } /* namespace gc */
 } /* namespace js */
@@ -958,7 +964,7 @@ ScanRope(GCMarker *gcmarker, JSRope *rope)
         JS_DIAGNOSTICS_ASSERT(rope->JSString::isRope());
         JS_COMPARTMENT_ASSERT_STR(gcmarker->runtime, rope);
         JS_ASSERT(rope->isMarked());
-        JSRope *next = nullptr;
+        JSRope *next = NULL;
 
         JSString *right = rope->rightChild();
         if (right->markIfUnmarked()) {
@@ -1107,7 +1113,7 @@ MarkCycleCollectorChildren(JSTracer *trc, BaseShape *base, JSObject **prevParent
 void
 gc::MarkCycleCollectorChildren(JSTracer *trc, Shape *shape)
 {
-    JSObject *prevParent = nullptr;
+    JSObject *prevParent = NULL;
     do {
         MarkCycleCollectorChildren(trc, shape->base(), &prevParent);
         MarkId(trc, &shape->propidRef(), "propid");
@@ -1605,14 +1611,14 @@ struct UnmarkGrayTracer : public JSTracer
      * up any color mismatches involving weakmaps when it runs.
      */
     UnmarkGrayTracer(JSRuntime *rt)
-      : tracingShape(false), previousShape(nullptr), unmarkedAny(false)
+      : tracingShape(false), previousShape(NULL), unmarkedAny(false)
     {
         JS_TracerInit(this, rt, UnmarkGrayChildren);
         eagerlyTraceWeakMaps = DoNotTraceWeakMaps;
     }
 
     UnmarkGrayTracer(JSTracer *trc, bool tracingShape)
-      : tracingShape(tracingShape), previousShape(nullptr), unmarkedAny(false)
+      : tracingShape(tracingShape), previousShape(NULL), unmarkedAny(false)
     {
         JS_TracerInit(this, trc->runtime, UnmarkGrayChildren);
         eagerlyTraceWeakMaps = DoNotTraceWeakMaps;
@@ -1621,7 +1627,7 @@ struct UnmarkGrayTracer : public JSTracer
     /* True iff we are tracing the immediate children of a shape. */
     bool tracingShape;
 
-    /* If tracingShape, shape child or nullptr. Otherwise, nullptr. */
+    /* If tracingShape, shape child or NULL. Otherwise, NULL. */
     void *previousShape;
 
     /* Whether we unmarked anything. */
@@ -1707,7 +1713,7 @@ UnmarkGrayChildren(JSTracer *trc, void **thingp, JSGCTraceKind kind)
         JS_ASSERT(!JS::GCThingIsMarkedGray(thing));
         JS_TraceChildren(&childTracer, thing, JSTRACE_SHAPE);
         thing = childTracer.previousShape;
-        childTracer.previousShape = nullptr;
+        childTracer.previousShape = NULL;
     } while (thing);
     tracer->unmarkedAny |= childTracer.unmarkedAny;
 }

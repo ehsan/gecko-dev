@@ -311,7 +311,7 @@ struct CompileError {
     char *message;
     ErrorArgumentsType argumentsType;
     CompileError()
-      : message(nullptr), argumentsType(ArgumentsAreUnicode)
+      : message(NULL), argumentsType(ArgumentsAreUnicode)
     {
         mozilla::PodZero(&report);
     }
@@ -597,7 +597,7 @@ class MOZ_STACK_CLASS TokenStream
     }
 
     bool hasSourceURL() const {
-        return sourceURL_ != nullptr;
+        return sourceURL_ != NULL;
     }
 
     jschar *sourceURL() {
@@ -605,7 +605,7 @@ class MOZ_STACK_CLASS TokenStream
     }
 
     bool hasSourceMapURL() const {
-        return sourceMapURL_ != nullptr;
+        return sourceMapURL_ != NULL;
     }
 
     jschar *sourceMapURL() {
@@ -736,15 +736,15 @@ class MOZ_STACK_CLASS TokenStream
         }
 
         jschar getRawChar() {
-            return *ptr++;      // this will nullptr-crash if poisoned
+            return *ptr++;      // this will NULL-crash if poisoned
         }
 
         jschar peekRawChar() const {
-            return *ptr;        // this will nullptr-crash if poisoned
+            return *ptr;        // this will NULL-crash if poisoned
         }
 
         bool matchRawChar(jschar c) {
-            if (*ptr == c) {    // this will nullptr-crash if poisoned
+            if (*ptr == c) {    // this will NULL-crash if poisoned
                 ptr++;
                 return true;
             }
@@ -779,7 +779,7 @@ class MOZ_STACK_CLASS TokenStream
 #ifdef DEBUG
         // Poison the TokenBuf so it cannot be accessed again.
         void poison() {
-            ptr = nullptr;
+            ptr = NULL;
         }
 #endif
 
@@ -854,7 +854,7 @@ class MOZ_STACK_CLASS TokenStream
     unsigned            lineno;             // current line number
     Flags               flags;              // flags -- see above
     const jschar        *linebase;          // start of current line;  points into userbuf
-    const jschar        *prevLinebase;      // start of previous line;  nullptr if on the first line
+    const jschar        *prevLinebase;      // start of previous line;  NULL if on the first line
     TokenBuf            userbuf;            // user input buffer
     const char          *filename;          // input filename or null
     jschar              *sourceURL_;        // the user's requested source URL or null

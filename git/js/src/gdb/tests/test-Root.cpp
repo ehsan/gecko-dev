@@ -2,7 +2,7 @@
 #include "jsapi.h"
 
 FRAGMENT(Root, null) {
-  JS::Rooted<JSObject *> null(cx, nullptr);
+  JS::Rooted<JSObject *> null(cx, NULL);
 
   breakpoint();
 

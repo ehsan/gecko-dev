@@ -53,10 +53,10 @@ JS_UnsafeGetLastProfilingError()
 
 #ifdef __APPLE__
 static bool
-StartOSXProfiling(const char *profileName = nullptr)
+StartOSXProfiling(const char *profileName = NULL)
 {
     bool ok = true;
-    const char* profiler = nullptr;
+    const char* profiler = NULL;
 #ifdef MOZ_SHARK
     ok = Shark::Start();
     profiler = "Shark";
@@ -199,7 +199,7 @@ struct RequiredStringArg {
     JSContext *mCx;
     char *mBytes;
     RequiredStringArg(JSContext *cx, const CallArgs &args, size_t argi, const char *caller)
-        : mCx(cx), mBytes(nullptr)
+        : mCx(cx), mBytes(NULL)
     {
         if (args.length() <= argi) {
             JS_ReportError(cx, "%s: not enough arguments", caller);
@@ -222,7 +222,7 @@ StartProfiling(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (args.length() == 0) {
-        args.rval().setBoolean(JS_StartProfiling(nullptr));
+        args.rval().setBoolean(JS_StartProfiling(NULL));
         return true;
     }
 
@@ -238,7 +238,7 @@ StopProfiling(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (args.length() == 0) {
-        args.rval().setBoolean(JS_StopProfiling(nullptr));
+        args.rval().setBoolean(JS_StopProfiling(NULL));
         return true;
     }
 
@@ -254,7 +254,7 @@ PauseProfilers(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (args.length() == 0) {
-        args.rval().setBoolean(JS_PauseProfilers(nullptr));
+        args.rval().setBoolean(JS_PauseProfilers(NULL));
         return true;
     }
 
@@ -270,7 +270,7 @@ ResumeProfilers(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (args.length() == 0) {
-        args.rval().setBoolean(JS_ResumeProfilers(nullptr));
+        args.rval().setBoolean(JS_ResumeProfilers(NULL));
         return true;
     }
 
@@ -288,14 +288,14 @@ DumpProfile(JSContext *cx, unsigned argc, jsval *vp)
     bool ret;
     CallArgs args = CallArgsFromVp(argc, vp);
     if (args.length() == 0) {
-        ret = JS_DumpProfile(nullptr, nullptr);
+        ret = JS_DumpProfile(NULL, NULL);
     } else {
         RequiredStringArg filename(cx, args, 0, "dumpProfile");
         if (!filename)
             return false;
 
         if (args.length() == 1) {
-            ret = JS_DumpProfile(filename.mBytes, nullptr);
+            ret = JS_DumpProfile(filename.mBytes, NULL);
         } else {
             RequiredStringArg profileName(cx, args, 1, "dumpProfile");
             if (!profileName)
@@ -343,7 +343,7 @@ DumpCallgrind(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (args.length() == 0) {
-        args.rval().setBoolean(js_DumpCallgrind(nullptr));
+        args.rval().setBoolean(js_DumpCallgrind(NULL));
         return true;
     }
 
@@ -505,10 +505,10 @@ bool js_StartPerf()
         char *tok = strtok_r(strdup(flags), " ", &toksave);
         while (tok) {
             args.append(tok);
-            tok = strtok_r(nullptr, " ", &toksave);
+            tok = strtok_r(NULL, " ", &toksave);
         }
 
-        args.append((char*) nullptr);
+        args.append((char*) NULL);
 
         execvp("perf", const_cast<char**>(args.begin()));
 
@@ -540,10 +540,10 @@ bool js_StopPerf()
         UnsafeError("js_StopPerf: kill failed\n");
 
         // Try to reap the process anyway.
-        waitpid(perfPid, nullptr, WNOHANG);
+        waitpid(perfPid, NULL, WNOHANG);
     }
     else {
-        waitpid(perfPid, nullptr, 0);
+        waitpid(perfPid, NULL, 0);
     }
 
     perfPid = 0;

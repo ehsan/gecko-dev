@@ -250,7 +250,7 @@ class EncapsulatedPtr
     };
 
   public:
-    EncapsulatedPtr() : value(nullptr) {}
+    EncapsulatedPtr() : value(NULL) {}
     EncapsulatedPtr(T *v) : value(v) {}
     explicit EncapsulatedPtr(const EncapsulatedPtr<T> &v) : value(v.value) {}
 
@@ -261,10 +261,10 @@ class EncapsulatedPtr
         this->value = v;
     }
 
-    /* Use to set the pointer to nullptr. */
+    /* Use to set the pointer to NULL. */
     void clear() {
         pre();
-        value = nullptr;
+        value = NULL;
     }
 
     EncapsulatedPtr<T, Unioned> &operator=(T *v) {
@@ -306,7 +306,7 @@ template <class T, class Unioned = uintptr_t>
 class HeapPtr : public EncapsulatedPtr<T, Unioned>
 {
   public:
-    HeapPtr() : EncapsulatedPtr<T>(nullptr) {}
+    HeapPtr() : EncapsulatedPtr<T>(NULL) {}
     explicit HeapPtr(T *v) : EncapsulatedPtr<T>(v) { post(); }
     explicit HeapPtr(const HeapPtr<T> &v)
       : EncapsulatedPtr<T>(v) { post(); }
@@ -378,7 +378,7 @@ template <class T>
 class RelocatablePtr : public EncapsulatedPtr<T>
 {
   public:
-    RelocatablePtr() : EncapsulatedPtr<T>(nullptr) {}
+    RelocatablePtr() : EncapsulatedPtr<T>(NULL) {}
     explicit RelocatablePtr(T *v) : EncapsulatedPtr<T>(v) {
         if (v)
             post();
@@ -1049,13 +1049,13 @@ class ReadBarriered
     T *value;
 
   public:
-    ReadBarriered() : value(nullptr) {}
+    ReadBarriered() : value(NULL) {}
     ReadBarriered(T *value) : value(value) {}
     ReadBarriered(const Rooted<T*> &rooted) : value(rooted) {}
 
     T *get() const {
         if (!value)
-            return nullptr;
+            return NULL;
         T::readBarrier(value);
         return value;
     }

@@ -13,7 +13,6 @@
 #include "nsIThread.h"
 #include "mozilla/Monitor.h"
 #include "nsISupportsImpl.h"
-#include "nsObserverService.h"
 
 class AsyncLatencyLogger;
 class LogEvent;
@@ -21,13 +20,10 @@ class LogEvent;
 PRLogModuleInfo* GetLatencyLog();
 
 // This class is a singleton. It is refcounted.
-class AsyncLatencyLogger : public nsIObserver
+class AsyncLatencyLogger
 {
-  NS_DECL_THREADSAFE_ISUPPORTS
-  NS_DECL_NSIOBSERVER
-
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(AsyncLatencyLogger);
 public:
-
   enum LatencyLogIndex {
     AudioMediaStreamTrack,
     VideoMediaStreamTrack,
@@ -41,16 +37,12 @@ public:
 
   static AsyncLatencyLogger* Get(bool aStartTimer = false);
   static void InitializeStatics();
-  // After this is called, the global log object may go away
-  static void ShutdownLogger();
+  static void Shutdown();
 private:
   AsyncLatencyLogger();
-  virtual ~AsyncLatencyLogger();
+  ~AsyncLatencyLogger();
   int64_t GetTimeStamp();
   void Init();
-  // Shut down the thread associated with this, and make sure it doesn't
-  // start up again.
-  void Shutdown();
   // The thread on which the IO happens
   nsCOMPtr<nsIThread> mThread;
   // This can be initialized on multiple threads, but is protected by a

@@ -32,6 +32,7 @@
 #include "nsIPrincipal.h"
 #include "nsLayoutCID.h"
 #include "mozilla/dom/Attr.h"
+#include "nsGUIEvent.h"
 #include "nsCExternalHandlerService.h"
 #include "nsMimeTypes.h"
 #include "nsEventListenerManager.h"
@@ -49,7 +50,6 @@
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
 #include "nsIHTMLDocument.h"
-#include "mozilla/BasicEvents.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/XMLDocumentBinding.h"
 

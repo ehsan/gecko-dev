@@ -5,11 +5,10 @@
 
 /* rendering object for HTML <frameset> elements */
 
-#include "nsFrameSetFrame.h"
-
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Likely.h"
 
+#include "nsFrameSetFrame.h"
 #include "nsGenericHTMLElement.h"
 #include "nsAttrValueInlines.h"
 #include "nsLeafFrame.h"
@@ -20,6 +19,7 @@
 #include "nsStyleConsts.h"
 #include "nsStyleContext.h"
 #include "nsHTMLParts.h"
+#include "nsGUIEvent.h"
 #include "nsRenderingContext.h"
 #include "nsIDOMMutationEvent.h"
 #include "nsINameSpaceManager.h"
@@ -33,7 +33,6 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/HTMLFrameSetElement.h"
 #include "mozilla/LookAndFeel.h"
-#include "mozilla/MouseEvents.h"
 #include "nsSubDocumentFrame.h"
 
 using namespace mozilla;

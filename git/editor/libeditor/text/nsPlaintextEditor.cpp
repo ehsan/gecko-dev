@@ -7,7 +7,6 @@
 #include "mozilla/Assertions.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Selection.h"
-#include "mozilla/TextEvents.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/mozalloc.h"
 #include "nsAString.h"
@@ -23,6 +22,7 @@
 #include "nsEditRules.h"
 #include "nsEditorUtils.h"  // nsAutoEditBatch, nsAutoRules
 #include "nsError.h"
+#include "nsGUIEvent.h"
 #include "nsGkAtoms.h"
 #include "nsIClipboard.h"
 #include "nsIContent.h"

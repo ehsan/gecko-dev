@@ -6,9 +6,6 @@
 
 /* rendering objects for replaced elements implemented by a plugin */
 
-#include "nsObjectFrame.h"
-
-#include "mozilla/BasicEvents.h"
 #ifdef XP_WIN
 // This is needed for DoublePassRenderingEvent.
 #include "mozilla/plugins/PluginMessageUtils.h"
@@ -26,6 +23,7 @@
 #include "nsIPluginInstanceOwner.h"
 #include "nsNPAPIPluginInstance.h"
 #include "nsIDOMElement.h"
+#include "nsGUIEvent.h"
 #include "nsRenderingContext.h"
 #include "npapi.h"
 #include "nsIObjectLoadingContent.h"
@@ -38,6 +36,7 @@
 #include "GeckoProfiler.h"
 #include <algorithm>
 
+#include "nsObjectFrame.h"
 #include "nsIObjectFrame.h"
 #include "nsPluginNativeWindow.h"
 #include "FrameLayerBuilder.h"

@@ -10,6 +10,7 @@
 #include "nsIDOMKeyEvent.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsXBLPrototypeHandler.h"
+#include "nsGUIEvent.h"
 #include "nsContentUtils.h"
 #include "mozilla/dom/EventTarget.h"
 

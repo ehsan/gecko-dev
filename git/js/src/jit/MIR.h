@@ -3601,9 +3601,7 @@ class MMathFunction
         ATanH,
         Sign,
         Trunc,
-        Cbrt,
-        Floor,
-        Round
+        Cbrt
     };
 
   private:

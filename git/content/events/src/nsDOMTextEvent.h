@@ -7,7 +7,6 @@
 #define nsDOMTextEvent_h__
 
 #include "mozilla/Attributes.h"
-#include "mozilla/EventForwards.h"
 #include "nsDOMUIEvent.h"
 #include "nsIPrivateTextEvent.h"
 #include "nsPrivateTextRange.h"

@@ -417,9 +417,6 @@ class MacroAssemblerX86Shared : public Assembler
     void storeFloat(FloatRegister src, const BaseIndex &dest) {
         movss(src, Operand(dest));
     }
-    void storeFloat(FloatRegister src, const Operand &dest) {
-        movss(src, dest);
-    }
     void moveFloat(FloatRegister src, FloatRegister dest) {
         movss(src, dest);
     }

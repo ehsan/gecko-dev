@@ -48,7 +48,7 @@ class SyntaxParseHandler
     SyntaxParseHandler(ExclusiveContext *cx, LifoAlloc &alloc,
                        TokenStream &tokenStream, bool foldConstants,
                        Parser<SyntaxParseHandler> *syntaxParser, LazyScript *lazyOuterFunction)
-      : lastAtom(nullptr),
+      : lastAtom(NULL),
         tokenStream(tokenStream)
     {}
 
@@ -204,17 +204,17 @@ class SyntaxParseHandler
 
     bool isConstant(Node pn) { return false; }
     PropertyName *isName(Node pn) {
-        return (pn == NodeName) ? lastAtom->asPropertyName() : nullptr;
+        return (pn == NodeName) ? lastAtom->asPropertyName() : NULL;
     }
     PropertyName *isGetProp(Node pn) {
-        return (pn == NodeGetProp) ? lastAtom->asPropertyName() : nullptr;
+        return (pn == NodeGetProp) ? lastAtom->asPropertyName() : NULL;
     }
     JSAtom *isStringExprStatement(Node pn, TokenPos *pos) {
         if (pn == NodeStringExprStatement) {
             *pos = lastStringPos;
             return lastAtom;
         }
-        return nullptr;
+        return NULL;
     }
 
     Node makeAssignment(Node pn, Node rhs) { return NodeGeneric; }

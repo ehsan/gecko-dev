@@ -289,7 +289,7 @@ struct Zone : public JS::shadow::Zone,
         return runtimeFromMainThread()->onOutOfMemory(p, nbytes);
     }
     void reportAllocationOverflow() {
-        js_ReportAllocationOverflow(nullptr);
+        js_ReportAllocationOverflow(NULL);
     }
 
     void markTypes(JSTracer *trc);

@@ -430,7 +430,7 @@ static nsIFrame* GetSpecialSibling(nsIFrame* aFrame)
   // We only store the "special sibling" annotation with the first
   // frame in the continuation chain. Walk back to find that frame now.
   return static_cast<nsIFrame*>
-    (aFrame->FirstContinuation()->
+    (aFrame->GetFirstContinuation()->
        Properties().Get(nsIFrame::IBSplitSpecialSibling()));
 }
 
@@ -441,7 +441,7 @@ static nsIFrame* GetSpecialPrevSibling(nsIFrame* aFrame)
   // We only store the "special sibling" annotation with the first
   // frame in the continuation chain. Walk back to find that frame now.  
   return static_cast<nsIFrame*>
-    (aFrame->FirstContinuation()->
+    (aFrame->GetFirstContinuation()->
        Properties().Get(nsIFrame::IBSplitSpecialPrevSibling()));
 }
 
@@ -989,7 +989,7 @@ AdjustAbsoluteContainingBlock(nsIFrame* aContainingBlockIn)
   
   // Always use the container's first continuation. (Inline frames can have
   // non-fluid bidi continuations...)
-  return aContainingBlockIn->FirstContinuation();
+  return aContainingBlockIn->GetFirstContinuation();
 }
 
 void
@@ -5560,7 +5560,7 @@ nsCSSFrameConstructor::GetAbsoluteContainingBlock(nsIFrame* aFrame,
       absPosCBCandidate = scrollFrame->GetScrolledFrame();
     } else {
       // Only first continuations can be containing blocks.
-      absPosCBCandidate = frame->FirstContinuation();
+      absPosCBCandidate = frame->GetFirstContinuation();
     }
     // Is the frame really an absolute container?
     if (!absPosCBCandidate || !absPosCBCandidate->IsAbsoluteContainer()) {
@@ -5652,7 +5652,7 @@ AdjustAppendParentForAfterContent(nsPresContext* aPresContext,
     // other cases appending to the last nonempty continuation is fine
     // and in fact not doing that can confuse code that doesn't know
     // to pull kids from continuations other than its next one.
-    aParentFrame = aParentFrame->LastContinuation();
+    aParentFrame = aParentFrame->GetLastContinuation();
   }
 
   return aParentFrame;
@@ -5740,7 +5740,7 @@ nsCSSFrameConstructor::AppendFramesToParent(nsFrameConstructorState&       aStat
     // to do this little fixup here instead.
     if (aFrameList.NotEmpty() && !aFrameList.FirstChild()->IsInlineOutside()) {
       // See whether our trailing inline is empty
-      nsIFrame* firstContinuation = aParentFrame->FirstContinuation();
+      nsIFrame* firstContinuation = aParentFrame->GetFirstContinuation();
       if (firstContinuation->PrincipalChildList().IsEmpty()) {
         // Our trailing inline is empty.  Collect our starting blocks from
         // aFrameList, get the right parent frame for them, and put them in.
@@ -5750,7 +5750,7 @@ nsCSSFrameConstructor::AppendFramesToParent(nsFrameConstructorState&       aStat
         NS_ASSERTION(blockKids.NotEmpty(), "No blocks?");
 
         nsIFrame* prevBlock =
-          GetSpecialPrevSibling(firstContinuation)->LastContinuation();
+          GetSpecialPrevSibling(firstContinuation)->GetLastContinuation();
         NS_ASSERTION(prevBlock, "Should have previous block here");
 
         MoveChildrenTo(aState.mPresContext, aParentFrame, prevBlock, blockKids);
@@ -6060,7 +6060,7 @@ nsCSSFrameConstructor::GetInsertionPrevSibling(nsIFrame*& aParentFrame,
       }
       // Get continuation that parents the last child.  This MUST be done
       // before the AdjustAppendParentForAfterContent call.
-      aParentFrame = nsLayoutUtils::LastContinuationWithChild(aParentFrame);
+      aParentFrame = nsLayoutUtils::GetLastContinuationWithChild(aParentFrame);
       // Deal with fieldsets
       aParentFrame = ::GetAdjustedParentFrame(aParentFrame,
                                               aParentFrame->GetType(),
@@ -6547,7 +6547,7 @@ nsCSSFrameConstructor::ContentAppended(nsIContent*     aContainer,
 
   // Get continuation that parents the last child.  This MUST be done
   // before the AdjustAppendParentForAfterContent call.
-  parentFrame = nsLayoutUtils::LastContinuationWithChild(parentFrame);
+  parentFrame = nsLayoutUtils::GetLastContinuationWithChild(parentFrame);
 
   // We should never get here with fieldsets, since they have multiple
   // insertion points.
@@ -8276,7 +8276,7 @@ nsCSSFrameConstructor::MaybeRecreateContainerForFrameRemoval(nsIFrame* aFrame,
   NS_PRECONDITION(aFrame, "Must have a frame");
   NS_PRECONDITION(aFrame->GetParent(), "Frame shouldn't be root");
   NS_PRECONDITION(aResult, "Null out param?");
-  NS_PRECONDITION(aFrame == aFrame->FirstContinuation(),
+  NS_PRECONDITION(aFrame == aFrame->GetFirstContinuation(),
                   "aFrame not the result of GetPrimaryFrame()?");
 
   if (IsFrameSpecial(aFrame)) {
@@ -8308,12 +8308,12 @@ nsCSSFrameConstructor::MaybeRecreateContainerForFrameRemoval(nsIFrame* aFrame,
     (aFrame->GetStateBits() & NS_FRAME_OUT_OF_FLOW) ?
       GetPlaceholderFrameFor(aFrame) : aFrame;
   MOZ_ASSERT(inFlowFrame, "How did that happen?");
-  MOZ_ASSERT(inFlowFrame == inFlowFrame->FirstContinuation(),
+  MOZ_ASSERT(inFlowFrame == inFlowFrame->GetFirstContinuation(),
              "placeholder for primary frame has previous continuations?");
   nsIFrame* parent = inFlowFrame->GetParent();
   if (IsTablePseudo(parent)) {
     if (FindFirstNonWhitespaceChild(parent) == inFlowFrame ||
-        !FindNextNonWhitespaceSibling(inFlowFrame->LastContinuation()) ||
+        !FindNextNonWhitespaceSibling(inFlowFrame->GetLastContinuation()) ||
         // If we're a table-column-group, then the GetFirstChild check above is
         // not going to catch cases when we're the first child.
         (inFlowFrame->GetType() == nsGkAtoms::tableColGroupFrame &&
@@ -8332,7 +8332,7 @@ nsCSSFrameConstructor::MaybeRecreateContainerForFrameRemoval(nsIFrame* aFrame,
   // pseudo, since removal of this frame might mean that this pseudo needs to
   // get merged with the frame's prevSibling if that's also a table pseudo.
   nsIFrame* nextSibling =
-    FindNextNonWhitespaceSibling(inFlowFrame->LastContinuation());
+    FindNextNonWhitespaceSibling(inFlowFrame->GetLastContinuation());
   NS_ASSERTION(!IsTablePseudo(inFlowFrame), "Shouldn't happen here");
   if (nextSibling && IsTablePseudo(nextSibling)) {
     nsIFrame* prevSibling = FindPreviousNonWhitespaceSibling(inFlowFrame);
@@ -8430,14 +8430,14 @@ nsCSSFrameConstructor::MaybeRecreateContainerForFrameRemoval(nsIFrame* aFrame,
   // If inFlowFrame is not the only in-flow child of |parent|, then removing
   // it will change nothing about the {ib} split.
   if (inFlowFrame != parent->GetFirstPrincipalChild() ||
-      inFlowFrame->LastContinuation()->GetNextSibling()) {
+      inFlowFrame->GetLastContinuation()->GetNextSibling()) {
     return false;
   }
 
   // If the parent is the first or last part of the {ib} split, then
   // removing one of its kids will have no effect on the splitting.
   // Get the first continuation up front so we don't have to do it twice.
-  nsIFrame* parentFirstContinuation = parent->FirstContinuation();
+  nsIFrame* parentFirstContinuation = parent->GetFirstContinuation();
   if (!GetSpecialSibling(parentFirstContinuation) ||
       !GetSpecialPrevSibling(parentFirstContinuation)) {
     return false;
@@ -9882,7 +9882,7 @@ nsCSSFrameConstructor::RemoveFloatingFirstLetterFrames(
 
   // Destroy the old text frame's continuations (the old text frame
   // will be destroyed when its letter frame is destroyed).
-  nsIFrame* frameToDelete = textFrame->LastContinuation();
+  nsIFrame* frameToDelete = textFrame->GetLastContinuation();
   while (frameToDelete != textFrame) {
     nsIFrame* nextFrameToDelete = frameToDelete->GetPrevContinuation();
     RemoveFrame(kPrincipalList, frameToDelete);
@@ -9990,7 +9990,7 @@ nsCSSFrameConstructor::RemoveLetterFrames(nsPresContext* aPresContext,
                                           nsIPresShell* aPresShell,
                                           nsIFrame* aBlockFrame)
 {
-  aBlockFrame = aBlockFrame->FirstContinuation();
+  aBlockFrame = aBlockFrame->GetFirstContinuation();
   nsIFrame* continuation = aBlockFrame;
 
   bool stopLooking = false;
@@ -10014,7 +10014,7 @@ nsCSSFrameConstructor::RemoveLetterFrames(nsPresContext* aPresContext,
 void
 nsCSSFrameConstructor::RecoverLetterFrames(nsIFrame* aBlockFrame)
 {
-  aBlockFrame = aBlockFrame->FirstContinuation();
+  aBlockFrame = aBlockFrame->GetFirstContinuation();
   nsIFrame* continuation = aBlockFrame;
 
   nsIFrame* parentFrame = nullptr;
@@ -10342,7 +10342,7 @@ nsCSSFrameConstructor::CreateIBSiblings(nsFrameConstructorState& aState,
                                  nsCSSAnonBoxes::mozAnonymousBlock,
                                styleContext);
 
-  nsIFrame* lastNewInline = aInitialInline->FirstContinuation();
+  nsIFrame* lastNewInline = aInitialInline->GetFirstContinuation();
   do {
     // On entry to this loop aChildItems is not empty and the first frame in it
     // is block-level.

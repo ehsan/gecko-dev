@@ -550,7 +550,7 @@ protected:
                                    nsMargin             aBorderPadding);
 
   nsITableLayoutStrategy* LayoutStrategy() const {
-    return static_cast<nsTableFrame*>(FirstInFlow())->
+    return static_cast<nsTableFrame*>(GetFirstInFlow())->
       mTableLayoutStrategy;
   }
 
@@ -816,12 +816,12 @@ inline void nsTableFrame::SetRowInserted(bool aValue)
 
 inline void nsTableFrame::SetNeedToCollapse(bool aValue)
 {
-  static_cast<nsTableFrame*>(FirstInFlow())->mBits.mNeedToCollapse = (unsigned)aValue;
+  static_cast<nsTableFrame*>(GetFirstInFlow())->mBits.mNeedToCollapse = (unsigned)aValue;
 }
 
 inline bool nsTableFrame::NeedToCollapse() const
 {
-  return (bool) static_cast<nsTableFrame*>(FirstInFlow())->mBits.mNeedToCollapse;
+  return (bool) static_cast<nsTableFrame*>(GetFirstInFlow())->mBits.mNeedToCollapse;
 }
 
 inline void nsTableFrame::SetHasZeroColSpans(bool aValue)
@@ -847,7 +847,7 @@ inline bool nsTableFrame::NeedColSpanExpansion() const
 
 inline nsFrameList& nsTableFrame::GetColGroups()
 {
-  return static_cast<nsTableFrame*>(FirstInFlow())->mColGroups;
+  return static_cast<nsTableFrame*>(GetFirstInFlow())->mColGroups;
 }
 
 inline nsTArray<nsTableColFrame*>& nsTableFrame::GetColCache()

@@ -17,8 +17,6 @@
 #include "nsClipboard.h"
 #include "KeyboardLayout.h"
 
-#include "mozilla/MouseEvents.h"
-
 using namespace mozilla::widget;
 
 /* Define Class IDs */

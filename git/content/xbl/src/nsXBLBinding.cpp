@@ -47,6 +47,7 @@
 #include "nsXBLBinding.h"
 #include "nsIPrincipal.h"
 #include "nsIScriptSecurityManager.h"
+#include "nsGUIEvent.h"
 #include "mozilla/dom/XBLChildrenElement.h"
 
 #include "prprf.h"

@@ -31,8 +31,7 @@ class MoveEmitterX86
     int32_t pushedAtCycle_;
 
     void assertDone();
-    Address cycleSlot();
-    Address toAddress(const MoveOperand &operand) const;
+    Operand cycleSlot();
     Operand toOperand(const MoveOperand &operand) const;
     Operand toPopOperand(const MoveOperand &operand) const;
 

@@ -9,8 +9,6 @@
 #include "AudioSampleFormat.h"
 #include "AudioChannelCommon.h"
 #include "nsAutoPtr.h"
-#include "nsCOMPtr.h"
-#include "Latency.h"
 
 namespace soundtouch {
 class SoundTouch;
@@ -187,7 +185,6 @@ protected:
   int64_t mWritten;
   AudioClock mAudioClock;
   nsAutoPtr<soundtouch::SoundTouch> mTimeStretcher;
-  nsRefPtr<AsyncLatencyLogger> mLatencyLog;
 };
 
 } // namespace mozilla

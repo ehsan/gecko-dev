@@ -95,8 +95,8 @@ BytecodeEmitter::BytecodeEmitter(BytecodeEmitter *parent,
     current(&main),
     parser(parser),
     evalCaller(evalCaller),
-    topStmt(nullptr),
-    topScopeStmt(nullptr),
+    topStmt(NULL),
+    topScopeStmt(NULL),
     blockChain(sc->context),
     atomIndices(sc->context),
     firstLine(lineNum),
@@ -168,8 +168,7 @@ UpdateDepth(ExclusiveContext *cx, BytecodeEmitter *bce, ptrdiff_t target)
     /*
      * Specially handle any case in which StackUses or StackDefs would call
      * NumBlockSlots, since that requires a well-formed script. This allows us
-     * to safely pass nullptr as the 'script' parameter to StackUses and
-     * StackDefs.
+     * to safely pass NULL as the 'script' parameter to StackUses and StackDefs.
      */
     int nuses, ndefs;
     if (op == JSOP_ENTERBLOCK) {
@@ -180,8 +179,8 @@ UpdateDepth(ExclusiveContext *cx, BytecodeEmitter *bce, ptrdiff_t target)
     } else if (op == JSOP_ENTERLET1) {
         nuses = ndefs = CurrentBlock(bce->topStmt).slotCount() + 1;
     } else {
-        nuses = StackUses(nullptr, pc);
-        ndefs = StackDefs(nullptr, pc);
+        nuses = StackUses(NULL, pc);
+        ndefs = StackDefs(NULL, pc);
     }
 
     bce->stackDepth -= nuses;
@@ -667,7 +666,7 @@ EnclosingStaticScope(BytecodeEmitter *bce)
 
     if (!bce->sc->isFunctionBox()) {
         JS_ASSERT(!bce->parent);
-        return nullptr;
+        return NULL;
     }
 
     return bce->sc->asFunctionBox()->function();
@@ -753,7 +752,7 @@ EmitAtomOp(ExclusiveContext *cx, JSAtom *atom, JSOp op, BytecodeEmitter *bce)
 static bool
 EmitAtomOp(ExclusiveContext *cx, ParseNode *pn, JSOp op, BytecodeEmitter *bce)
 {
-    JS_ASSERT(pn->pn_atom != nullptr);
+    JS_ASSERT(pn->pn_atom != NULL);
     return EmitAtomOp(cx, pn->pn_atom, op, bce);
 }
 
@@ -1038,7 +1037,7 @@ AdjustBlockSlot(ExclusiveContext *cx, BytecodeEmitter *bce, int slot)
     if (bce->sc->isFunctionBox()) {
         slot += bce->script->bindings.numVars();
         if ((unsigned) slot >= SLOTNO_LIMIT) {
-            bce->reportError(nullptr, JSMSG_TOO_MANY_LOCALS);
+            bce->reportError(NULL, JSMSG_TOO_MANY_LOCALS);
             slot = -1;
         }
     }
@@ -1749,7 +1748,7 @@ BytecodeEmitter::tellDebuggerAboutCompiledScript(ExclusiveContext *cx)
     RootedFunction function(cx, script->function());
     CallNewScriptHook(cx->asJSContext(), script, function);
     if (!parent) {
-        GlobalObject *compileAndGoGlobal = nullptr;
+        GlobalObject *compileAndGoGlobal = NULL;
         if (script->compileAndGo)
             compileAndGoGlobal = &script->global();
         Debugger::onNewScript(cx->asJSContext(), script, compileAndGoGlobal);
@@ -1812,11 +1811,9 @@ IteratorResultShape(ExclusiveContext *cx, BytecodeEmitter *bce, unsigned *shape)
     Rooted<jsid> value_id(cx, AtomToId(cx->names().value));
     Rooted<jsid> done_id(cx, AtomToId(cx->names().done));
     RootedValue undefined(cx, UndefinedValue());
-    if (!DefineNativeProperty(cx, obj, value_id, undefined, nullptr, nullptr,
-                              JSPROP_ENUMERATE, 0, 0))
+    if (!DefineNativeProperty(cx, obj, value_id, undefined, NULL, NULL, JSPROP_ENUMERATE, 0, 0))
         return false;
-    if (!DefineNativeProperty(cx, obj, done_id, undefined, nullptr, nullptr,
-                              JSPROP_ENUMERATE, 0, 0))
+    if (!DefineNativeProperty(cx, obj, done_id, undefined, NULL, NULL, JSPROP_ENUMERATE, 0, 0))
         return false;
 
     ObjectBox *objbox = bce->parser->newObjectBox(obj);
@@ -1952,7 +1949,7 @@ EmitPropLHS(ExclusiveContext *cx, ParseNode *pn, JSOp op, BytecodeEmitter *bce)
      */
     if (pn2->isKind(PNK_DOT)) {
         ParseNode *pndot = pn2;
-        ParseNode *pnup = nullptr, *pndown;
+        ParseNode *pnup = NULL, *pndown;
         ptrdiff_t top = bce->offset();
         for (;;) {
             /* Reverse pndot->pn_expr to point up, not down. */
@@ -1979,7 +1976,7 @@ EmitPropLHS(ExclusiveContext *cx, ParseNode *pn, JSOp op, BytecodeEmitter *bce)
             pnup = pndot->pn_expr;
             pndot->pn_expr = pndown;
             pndown = pndot;
-        } while ((pndot = pnup) != nullptr);
+        } while ((pndot = pnup) != NULL);
         return true;
     }
 
@@ -2302,7 +2299,7 @@ EmitSwitch(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
     uint32_t caseCount = pn2->pn_count;
     uint32_t tableLength = 0;
-    ScopedJSFreePtr<ParseNode*> table(nullptr);
+    ScopedJSFreePtr<ParseNode*> table(NULL);
 
     if (caseCount > JS_BIT(16)) {
         bce->parser->tokenStream.reportError(JSMSG_TOO_MANY_CASES);
@@ -2319,7 +2316,7 @@ EmitSwitch(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         bool ok = true;
 #define INTMAP_LENGTH   256
         jsbitmap intmap_space[INTMAP_LENGTH];
-        jsbitmap *intmap = nullptr;
+        jsbitmap *intmap = NULL;
         int32_t intmap_bitlen = 0;
 
         low  = JSVAL_INT_MAX;
@@ -2544,7 +2541,7 @@ EmitSwitch(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
     /* Set the default offset (to end of switch if no default). */
     if (switchOp == JSOP_CONDSWITCH) {
-        pc = nullptr;
+        pc = NULL;
         JS_ASSERT(defaultOffset != -1);
         SET_JUMP_OFFSET(bce->code(defaultOffset), off - (defaultOffset - top));
     } else {
@@ -2742,7 +2739,7 @@ EmitDestructuringDecl(ExclusiveContext *cx, BytecodeEmitter *bce, JSOp prologOp,
         return false;
 
     JS_ASSERT(!pn->isOp(JSOP_CALLEE));
-    return MaybeEmitVarDecl(cx, bce, prologOp, pn, nullptr);
+    return MaybeEmitVarDecl(cx, bce, prologOp, pn, NULL);
 }
 
 static bool
@@ -3605,8 +3602,7 @@ ParseNode::getConstantValue(ExclusiveContext *cx, bool strictChecks, MutableHand
       case PNK_ARRAY: {
         JS_ASSERT(isOp(JSOP_NEWINIT) && !(pn_xflags & PNX_NONCONST));
 
-        RootedObject obj(cx,
-                         NewDenseAllocatedArray(cx, pn_count, nullptr, MaybeSingletonObject));
+        RootedObject obj(cx, NewDenseAllocatedArray(cx, pn_count, NULL, MaybeSingletonObject));
         if (!obj)
             return false;
 
@@ -3617,7 +3613,7 @@ ParseNode::getConstantValue(ExclusiveContext *cx, bool strictChecks, MutableHand
             if (!pn->getConstantValue(cx, strictChecks, &value))
                 return false;
             id = INT_TO_JSID(idx);
-            if (!JSObject::defineGeneric(cx, obj, id, value, nullptr, nullptr, JSPROP_ENUMERATE))
+            if (!JSObject::defineGeneric(cx, obj, id, value, NULL, NULL, JSPROP_ENUMERATE))
                 return false;
         }
         JS_ASSERT(idx == pn_count);
@@ -3651,7 +3647,7 @@ ParseNode::getConstantValue(ExclusiveContext *cx, bool strictChecks, MutableHand
 
             uint32_t index;
             if (IsDefinitelyIndex(idvalue, &index)) {
-                if (!JSObject::defineElement(cx, obj, index, value, nullptr, nullptr,
+                if (!JSObject::defineElement(cx, obj, index, value, NULL, NULL,
                                              JSPROP_ENUMERATE))
                 {
                     return false;
@@ -3665,12 +3661,11 @@ ParseNode::getConstantValue(ExclusiveContext *cx, bool strictChecks, MutableHand
                 return false;
 
             if (name->isIndex(&index)) {
-                if (!JSObject::defineElement(cx, obj, index, value,
-                                             nullptr, nullptr, JSPROP_ENUMERATE))
+                if (!JSObject::defineElement(cx, obj, index, value, NULL, NULL, JSPROP_ENUMERATE))
                     return false;
             } else {
-                if (!JSObject::defineProperty(cx, obj, name->asPropertyName(), value,
-                                              nullptr, nullptr, JSPROP_ENUMERATE))
+                if (!JSObject::defineProperty(cx, obj, name->asPropertyName(), value, NULL, NULL,
+                                              JSPROP_ENUMERATE))
                 {
                     return false;
                 }
@@ -3860,7 +3855,7 @@ EmitTry(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     ptrdiff_t tryEnd = bce->offset();
 
     /* If this try has a catch block, emit it. */
-    ParseNode *lastCatch = nullptr;
+    ParseNode *lastCatch = NULL;
     if (ParseNode *pn2 = pn->pn_kid2) {
         unsigned count = 0;    /* previous catch block's population */
 
@@ -4244,7 +4239,7 @@ EmitForIn(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t t
     JS_ASSERT_IF(letDecl, pn1->isLet());
 
     Rooted<StaticBlockObject*>
-        blockObj(cx, letDecl ? &pn1->pn_objbox->object->as<StaticBlockObject>() : nullptr);
+        blockObj(cx, letDecl ? &pn1->pn_objbox->object->as<StaticBlockObject>() : NULL);
     uint32_t blockObjCount = blockObj ? blockObj->slotCount() : 0;
 
     if (letDecl) {
@@ -4323,7 +4318,7 @@ EmitForIn(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t t
 
     top = bce->offset();
     SET_STATEMENT_TOP(&stmtInfo, top);
-    if (EmitLoopHead(cx, bce, nullptr) < 0)
+    if (EmitLoopHead(cx, bce, NULL) < 0)
         return false;
 
 #ifdef DEBUG
@@ -4338,7 +4333,7 @@ EmitForIn(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t t
      */
     if (Emit1(cx, bce, JSOP_ITERNEXT) < 0)
         return false;
-    if (!EmitAssignment(cx, bce, forHead->pn_kid2, JSOP_NOP, nullptr))
+    if (!EmitAssignment(cx, bce, forHead->pn_kid2, JSOP_NOP, NULL))
         return false;
 
     if (Emit1(cx, bce, JSOP_POP) < 0)
@@ -4355,13 +4350,13 @@ EmitForIn(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t t
     StmtInfoBCE *stmt = &stmtInfo;
     do {
         stmt->update = bce->offset();
-    } while ((stmt = stmt->down) != nullptr && stmt->type == STMT_LABEL);
+    } while ((stmt = stmt->down) != NULL && stmt->type == STMT_LABEL);
 
     /*
      * Fixup the goto that starts the loop to jump down to JSOP_MOREITER.
      */
     SetJumpOffsetAt(bce, jmp);
-    if (!EmitLoopEntry(cx, bce, nullptr))
+    if (!EmitLoopEntry(cx, bce, NULL))
         return false;
     if (Emit1(cx, bce, JSOP_MOREITER) < 0)
         return false;
@@ -4480,7 +4475,7 @@ EmitNormalFor(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff
     StmtInfoBCE *stmt = &stmtInfo;
     do {
         stmt->update = bce->offset();
-    } while ((stmt = stmt->down) != nullptr && stmt->type == STMT_LABEL);
+    } while ((stmt = stmt->down) != NULL && stmt->type == STMT_LABEL);
 
     /* Check for update code to do before the condition (if any). */
     pn3 = forHead->pn_kid3;
@@ -4718,7 +4713,7 @@ EmitDo(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     StmtInfoBCE stmtInfo(cx);
     PushStatementBCE(bce, &stmtInfo, STMT_DO_LOOP, top);
 
-    if (!EmitLoopEntry(cx, bce, nullptr))
+    if (!EmitLoopEntry(cx, bce, NULL))
         return false;
 
     if (!EmitTree(cx, bce, pn->pn_left))
@@ -4729,7 +4724,7 @@ EmitDo(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     StmtInfoBCE *stmt = &stmtInfo;
     do {
         stmt->update = off;
-    } while ((stmt = stmt->down) != nullptr && stmt->type == STMT_LABEL);
+    } while ((stmt = stmt->down) != NULL && stmt->type == STMT_LABEL);
 
     /* Compile the loop condition, now that continues know where to go. */
     if (!EmitTree(cx, bce, pn->pn_right))
@@ -4836,7 +4831,7 @@ EmitContinue(ExclusiveContext *cx, BytecodeEmitter *bce, PropertyName *label)
     StmtInfoBCE *stmt = bce->topStmt;
     if (label) {
         /* Find the loop statement enclosed by the matching label. */
-        StmtInfoBCE *loop = nullptr;
+        StmtInfoBCE *loop = NULL;
         while (stmt->type != STMT_LABEL || stmt->label != label) {
             if (stmt->isLoop())
                 loop = stmt;
@@ -4892,7 +4887,7 @@ EmitReturn(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
     if (Emit1(cx, bce, JSOP_RETURN) < 0)
         return false;
-    if (!EmitNonLocalJumpFixup(cx, bce, nullptr))
+    if (!EmitNonLocalJumpFixup(cx, bce, NULL))
         return false;
     if (top + JSOP_RETURN_LENGTH != bce->offset()) {
         bce->code()[top] = JSOP_SETRVAL;
@@ -5670,10 +5665,10 @@ EmitObject(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
                   op == JSOP_INITPROP_SETTER);
 
         if (op == JSOP_INITPROP_GETTER || op == JSOP_INITPROP_SETTER)
-            obj = nullptr;
+            obj = NULL;
 
         if (pn3->isKind(PNK_NUMBER)) {
-            obj = nullptr;
+            obj = NULL;
             switch (op) {
               case JSOP_INITPROP:        op = JSOP_INITELEM;        break;
               case JSOP_INITPROP_GETTER: op = JSOP_INITELEM_GETTER; break;
@@ -5693,19 +5688,19 @@ EmitObject(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
              * a non-standard setter on objects.
              */
             if (pn3->pn_atom == cx->names().proto)
-                obj = nullptr;
+                obj = NULL;
 
             if (obj) {
                 JS_ASSERT(!obj->inDictionaryMode());
                 Rooted<jsid> id(cx, AtomToId(pn3->pn_atom));
                 RootedValue undefinedValue(cx, UndefinedValue());
-                if (!DefineNativeProperty(cx, obj, id, undefinedValue, nullptr,
-                                          nullptr, JSPROP_ENUMERATE, 0, 0))
+                if (!DefineNativeProperty(cx, obj, id, undefinedValue, NULL, NULL,
+                                          JSPROP_ENUMERATE, 0, 0))
                 {
                     return false;
                 }
                 if (obj->inDictionaryMode())
-                    obj = nullptr;
+                    obj = NULL;
             }
 
             if (!EmitIndex32(cx, op, index, bce))
@@ -5933,7 +5928,7 @@ frontend::EmitTree(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         }
         bool hasDefaults = bce->sc->asFunctionBox()->hasDefaults();
         if (hasDefaults) {
-            ParseNode *rest = nullptr;
+            ParseNode *rest = NULL;
             bool restIsDefn = false;
             if (fun->hasRest()) {
                 JS_ASSERT(!bce->sc->asFunctionBox()->argumentsHasLocalBinding());
@@ -6159,7 +6154,7 @@ frontend::EmitTree(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
             if (!EmitTree(cx, bce, pn2))
                 return false;
             JSOp op = pn->getOp();
-            while ((pn2 = pn2->pn_next) != nullptr) {
+            while ((pn2 = pn2->pn_next) != NULL) {
                 if (!EmitTree(cx, bce, pn2))
                     return false;
                 if (Emit1(cx, bce, op) < 0)
@@ -6294,7 +6289,7 @@ frontend::EmitTree(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
       case PNK_MODULE:
         // TODO: Add emitter support for modules
-        bce->reportError(nullptr, JSMSG_SYNTAX_ERROR);
+        bce->reportError(NULL, JSMSG_SYNTAX_ERROR);
         return false;
 
       default:
@@ -6481,7 +6476,7 @@ DumpSrcNoteSizeHist()
         fp = fopen("/tmp/srcnotes.hist", "w");
         if (!fp)
             return;
-        setvbuf(fp, nullptr, _IONBF, 0);
+        setvbuf(fp, NULL, _IONBF, 0);
     }
     fprintf(fp, "SrcNote size histogram:\n");
     for (i = 0; i < NBINS; i++) {
@@ -6652,7 +6647,7 @@ CGObjectList::finish(ObjectArray *array)
         --cursor;
         JS_ASSERT(!*cursor);
         *cursor = objbox->object;
-    } while ((objbox = objbox->emitLink) != nullptr);
+    } while ((objbox = objbox->emitLink) != NULL);
     JS_ASSERT(cursor == array->vector);
 }
 
