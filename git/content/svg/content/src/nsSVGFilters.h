@@ -39,10 +39,10 @@
 
 #include "nsSVGStylableElement.h"
 #include "nsSVGLength2.h"
-#include "nsSVGString.h"
 #include "nsIFrame.h"
 
 class nsSVGFilterResource;
+class nsIDOMSVGAnimatedString;
 
 typedef nsSVGStylableElement nsSVGFEBase;
 
@@ -57,6 +57,7 @@ class nsSVGFE : public nsSVGFEBase
 
 protected:
   nsSVGFE(nsINodeInfo *aNodeInfo) : nsSVGFEBase(aNodeInfo) {}
+  nsresult Init();
 
   struct ScaleInfo {
     nsRefPtr<gfxImageSurface> mRealSource;
@@ -69,7 +70,7 @@ protected:
 
   nsresult SetupScalingFilter(nsSVGFilterInstance *aInstance,
                               nsSVGFilterResource *aResource,
-                              nsSVGString *aIn,
+                              nsIDOMSVGAnimatedString *aIn,
                               nsSVGNumber2 *aUnitX, nsSVGNumber2 *aUnitY,
                               ScaleInfo *aScaleInfo);
 
@@ -79,7 +80,7 @@ protected:
 
 public:
   nsSVGFilterInstance::ColorModel
-  GetColorModel(nsSVGFilterInstance* aInstance, nsSVGString* aIn) {
+  GetColorModel(nsSVGFilterInstance* aInstance, nsIDOMSVGAnimatedString* aIn) {
     return nsSVGFilterInstance::ColorModel (
           (OperatesOnSRGB(aInstance, aIn) ?
              nsSVGFilterInstance::ColorModel::SRGB :
@@ -98,10 +99,10 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDOMSVGFILTERPRIMITIVESTANDARDATTRIBUTES
 
-  virtual nsSVGString* GetResultImageName()=0;
+  nsIDOMSVGAnimatedString* GetResultImageName() { return mResult; }
   // Return a list of all image names used as sources. Default is to
   // return no sources.
-  virtual void GetSourceImageNames(nsTArray<nsSVGString*>* aSources);
+  virtual void GetSourceImageNames(nsTArray<nsIDOMSVGAnimatedString*>* aSources);
   // Compute the bounding-box of the filter output. The default is just the
   // union of the source bounding-boxes. The caller is
   // responsible for clipping this to the filter primitive subregion, so
@@ -134,7 +135,7 @@ protected:
   virtual PRBool OperatesOnPremultipledAlpha() { return PR_TRUE; }
 
   virtual PRBool OperatesOnSRGB(nsSVGFilterInstance*,
-                                nsSVGString*) {
+                                nsIDOMSVGAnimatedString*) {
     nsIFrame* frame = GetPrimaryFrame();
     if (!frame) return PR_FALSE;
 
@@ -150,6 +151,8 @@ protected:
   enum { X, Y, WIDTH, HEIGHT };
   nsSVGLength2 mLengthAttributes[4];
   static LengthInfo sLengthInfo[4];
+
+  nsCOMPtr<nsIDOMSVGAnimatedString> mResult;
 };
 
 #endif

@@ -3380,7 +3380,7 @@ nsRuleNode::ComputeVisibilityData(void* aStartStruct,
   if (eCSSUnit_Enumerated == displayData.mDirection.GetUnit()) {
     visibility->mDirection = displayData.mDirection.GetIntValue();
     if (NS_STYLE_DIRECTION_RTL == visibility->mDirection)
-      mPresContext->SetBidiEnabled();
+      mPresContext->SetBidiEnabled(PR_TRUE);
   }
   else if (eCSSUnit_Inherit == displayData.mDirection.GetUnit()) {
     inherited = PR_TRUE;

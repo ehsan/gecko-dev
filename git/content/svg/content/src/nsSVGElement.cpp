@@ -72,7 +72,6 @@
 #include "nsSVGAngle.h"
 #include "nsSVGBoolean.h"
 #include "nsSVGEnum.h"
-#include "nsSVGString.h"
 #include "nsIDOMSVGUnitTypes.h"
 #include "nsIDOMSVGLengthList.h"
 #include "nsIDOMSVGAnimatedLengthList.h"
@@ -84,8 +83,10 @@
 #include "nsIDOMSVGAnimPresAspRatio.h"
 #include "nsIDOMSVGTransformList.h"
 #include "nsIDOMSVGAnimTransformList.h"
+#include "nsIDOMSVGAnimatedString.h"
 #include "nsIDOMSVGAnimatedRect.h"
 #include "nsSVGRect.h"
+#include "nsSVGAnimatedString.h"
 #include "prdtoa.h"
 #include <stdarg.h>
 
@@ -141,12 +142,6 @@ nsSVGElement::Init()
 
   for (i = 0; i < enumInfo.mEnumCount; i++) {
     enumInfo.Reset(i);
-  }
-
-  StringAttributesInfo stringInfo = GetStringInfo();
-
-  for (i = 0; i < stringInfo.mStringCount; i++) {
-    stringInfo.Reset(i);
   }
 
   return NS_OK;
@@ -292,97 +287,81 @@ nsSVGElement::ParseAttribute(PRInt32 aNamespaceID,
     return PR_TRUE;
   }
 
-  PRBool foundMatch = PR_FALSE;
   if (aNamespaceID == kNameSpaceID_None) {
     nsresult rv;
+    PRBool foundMatch = PR_FALSE;
 
     // Check for nsSVGLength2 attribute
     LengthAttributesInfo lengthInfo = GetLengthInfo();
 
     PRUint32 i;
-    for (i = 0; i < lengthInfo.mLengthCount; i++) {
+    for (i = 0; i < lengthInfo.mLengthCount && !foundMatch; i++) {
       if (aAttribute == *lengthInfo.mLengthInfo[i].mName) {
         rv = lengthInfo.mLengths[i].SetBaseValueString(aValue, this, PR_FALSE);
         if (NS_FAILED(rv)) {
           lengthInfo.Reset(i);
         }
         foundMatch = PR_TRUE;
-        break;
       }
     }
 
-    if (!foundMatch) {
-      // Check for nsSVGNumber2 attribute
-      NumberAttributesInfo numberInfo = GetNumberInfo();
-      for (i = 0; i < numberInfo.mNumberCount; i++) {
-        if (aAttribute == *numberInfo.mNumberInfo[i].mName) {
-          rv = numberInfo.mNumbers[i].SetBaseValueString(aValue, this, PR_FALSE);
-          if (NS_FAILED(rv)) {
-            numberInfo.Reset(i);
-          }
-          foundMatch = PR_TRUE;
-          break;
+    // Check for nsSVGNumber2 attribute
+    NumberAttributesInfo numberInfo = GetNumberInfo();
+    for (i = 0; i < numberInfo.mNumberCount && !foundMatch; i++) {
+      if (aAttribute == *numberInfo.mNumberInfo[i].mName) {
+        rv = numberInfo.mNumbers[i].SetBaseValueString(aValue, this, PR_FALSE);
+        if (NS_FAILED(rv)) {
+          numberInfo.Reset(i);
         }
+        foundMatch = PR_TRUE;
       }
     }
 
-    if (!foundMatch) {
-      // Check for nsSVGInteger attribute
-      IntegerAttributesInfo integerInfo = GetIntegerInfo();
-      for (i = 0; i < integerInfo.mIntegerCount; i++) {
-        if (aAttribute == *integerInfo.mIntegerInfo[i].mName) {
-          rv = integerInfo.mIntegers[i].SetBaseValueString(aValue, this, PR_FALSE);
-          if (NS_FAILED(rv)) {
-            integerInfo.Reset(i);
-          }
-          foundMatch = PR_TRUE;
-          break;
+    // Check for nsSVGInteger attribute
+    IntegerAttributesInfo integerInfo = GetIntegerInfo();
+    for (i = 0; i < integerInfo.mIntegerCount && !foundMatch; i++) {
+      if (aAttribute == *integerInfo.mIntegerInfo[i].mName) {
+        rv = integerInfo.mIntegers[i].SetBaseValueString(aValue, this, PR_FALSE);
+        if (NS_FAILED(rv)) {
+          integerInfo.Reset(i);
         }
+        foundMatch = PR_TRUE;
       }
     }
 
-    if (!foundMatch) {
-      // Check for nsSVGAngle attribute
-      AngleAttributesInfo angleInfo = GetAngleInfo();
-      for (i = 0; i < angleInfo.mAngleCount; i++) {
-        if (aAttribute == *angleInfo.mAngleInfo[i].mName) {
-          rv = angleInfo.mAngles[i].SetBaseValueString(aValue, this, PR_FALSE);
-          if (NS_FAILED(rv)) {
-            angleInfo.Reset(i);
-          }
-          foundMatch = PR_TRUE;
-          break;
+    // Check for nsSVGAngle attribute
+    AngleAttributesInfo angleInfo = GetAngleInfo();
+    for (i = 0; i < angleInfo.mAngleCount && !foundMatch; i++) {
+      if (aAttribute == *angleInfo.mAngleInfo[i].mName) {
+        rv = angleInfo.mAngles[i].SetBaseValueString(aValue, this, PR_FALSE);
+        if (NS_FAILED(rv)) {
+          angleInfo.Reset(i);
         }
+        foundMatch = PR_TRUE;
       }
     }
 
-    if (!foundMatch) {
-      // Check for nsSVGBoolean attribute
-      BooleanAttributesInfo booleanInfo = GetBooleanInfo();
-      for (i = 0; i < booleanInfo.mBooleanCount; i++) {
-        if (aAttribute == *booleanInfo.mBooleanInfo[i].mName) {
-          rv = booleanInfo.mBooleans[i].SetBaseValueString(aValue, this, PR_FALSE);
-          if (NS_FAILED(rv)) {
-            booleanInfo.Reset(i);
-          }
-          foundMatch = PR_TRUE;
-          break;
+    // Check for nsSVGBoolean attribute
+    BooleanAttributesInfo booleanInfo = GetBooleanInfo();
+    for (i = 0; i < booleanInfo.mBooleanCount && !foundMatch; i++) {
+      if (aAttribute == *booleanInfo.mBooleanInfo[i].mName) {
+        rv = booleanInfo.mBooleans[i].SetBaseValueString(aValue, this, PR_FALSE);
+        if (NS_FAILED(rv)) {
+          booleanInfo.Reset(i);
         }
+        foundMatch = PR_TRUE;
       }
     }
 
-    if (!foundMatch) {
-      // Check for nsSVGEnum attribute
-      EnumAttributesInfo enumInfo = GetEnumInfo();
-      for (i = 0; i < enumInfo.mEnumCount; i++) {
-        if (aAttribute == *enumInfo.mEnumInfo[i].mName) {
-          rv = enumInfo.mEnums[i].SetBaseValueString(aValue, this, PR_FALSE);
-          if (NS_FAILED(rv)) {
-            enumInfo.Reset(i);
-          }
-          foundMatch = PR_TRUE;
-          break;
+    // Check for nsSVGEnum attribute
+    EnumAttributesInfo enumInfo = GetEnumInfo();
+    for (i = 0; i < enumInfo.mEnumCount && !foundMatch; i++) {
+      if (aAttribute == *enumInfo.mEnumInfo[i].mName) {
+        rv = enumInfo.mEnums[i].SetBaseValueString(aValue, this, PR_FALSE);
+        if (NS_FAILED(rv)) {
+          enumInfo.Reset(i);
         }
+        foundMatch = PR_TRUE;
       }
     }
 
@@ -396,19 +375,6 @@ nsSVGElement::ParseAttribute(PRInt32 aNamespaceID,
     }
   }
 
-  if (!foundMatch) {
-    // Check for nsSVGString attribute
-    StringAttributesInfo stringInfo = GetStringInfo();
-    for (PRUint32 i = 0; i < stringInfo.mStringCount; i++) {
-      if (aNamespaceID == stringInfo.mStringInfo[i].mNamespaceID &&
-          aAttribute == *stringInfo.mStringInfo[i].mName) {
-        stringInfo.mStrings[i].SetBaseValue(aValue, this, PR_FALSE);
-        foundMatch = PR_TRUE;
-        break;
-      }
-    }
-  }
-
   return nsSVGElementBase::ParseAttribute(aNamespaceID, aAttribute, aValue,
                                           aResult);
 }
@@ -417,8 +383,6 @@ nsresult
 nsSVGElement::UnsetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
                         PRBool aNotify)
 {
-  PRBool foundMatch = PR_FALSE;
-
   if (aNamespaceID == kNameSpaceID_None) {
     // If this is an svg presentation attribute, remove rule to force an update
     if (IsAttributeMapped(aName))
@@ -431,108 +395,73 @@ nsSVGElement::UnsetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
         nsIAtom* eventName = GetEventNameForAttr(aName);
         manager->RemoveScriptEventListener(eventName);
       }
-      foundMatch = PR_TRUE;
-    }
-    
-    if (!foundMatch) {
+    } else {
       // Check if this is a length attribute going away
       LengthAttributesInfo lenInfo = GetLengthInfo();
 
-      for (PRUint32 i = 0; i < lenInfo.mLengthCount; i++) {
+      PRUint32 i;
+      for (i = 0; i < lenInfo.mLengthCount; i++) {
         if (aName == *lenInfo.mLengthInfo[i].mName) {
           lenInfo.Reset(i);
           DidChangeLength(i, PR_FALSE);
-          foundMatch = PR_TRUE;
         }
       }
-    }
-
-    if (!foundMatch) {
       // Check if this is a number attribute going away
       NumberAttributesInfo numInfo = GetNumberInfo();
 
-      for (PRUint32 i = 0; i < numInfo.mNumberCount; i++) {
+      for (i = 0; i < numInfo.mNumberCount; i++) {
         if (aName == *numInfo.mNumberInfo[i].mName) {
           numInfo.Reset(i);
           DidChangeNumber(i, PR_FALSE);
-          foundMatch = PR_TRUE;
         }
       }
-    }
 
-    if (!foundMatch) {
       // Check if this is an integer attribute going away
       IntegerAttributesInfo intInfo = GetIntegerInfo();
 
-      for (PRUint32 i = 0; i < intInfo.mIntegerCount; i++) {
+      for (i = 0; i < intInfo.mIntegerCount; i++) {
         if (aName == *intInfo.mIntegerInfo[i].mName) {
           intInfo.Reset(i);
           DidChangeInteger(i, PR_FALSE);
-          foundMatch = PR_TRUE;
         }
       }
-    }
 
-    if (!foundMatch) {
       // Check if this is an angle attribute going away
       AngleAttributesInfo angleInfo = GetAngleInfo();
 
-      for (PRUint32 i = 0; i < angleInfo.mAngleCount; i++) {
+      for (i = 0; i < angleInfo.mAngleCount; i++) {
         if (aName == *angleInfo.mAngleInfo[i].mName) {
           angleInfo.Reset(i);
           DidChangeAngle(i, PR_FALSE);
-          foundMatch = PR_TRUE;
         }
       }
-    }
 
-    if (!foundMatch) {
       // Check if this is a boolean attribute going away
       BooleanAttributesInfo boolInfo = GetBooleanInfo();
 
-      for (PRUint32 i = 0; i < boolInfo.mBooleanCount; i++) {
+      for (i = 0; i < boolInfo.mBooleanCount; i++) {
         if (aName == *boolInfo.mBooleanInfo[i].mName) {
           boolInfo.Reset(i);
           DidChangeBoolean(i, PR_FALSE);
-          foundMatch = PR_TRUE;
         }
       }
-    }
 
-    if (!foundMatch) {
       // Check if this is an enum attribute going away
       EnumAttributesInfo enumInfo = GetEnumInfo();
 
-      for (PRUint32 i = 0; i < enumInfo.mEnumCount; i++) {
+      for (i = 0; i < enumInfo.mEnumCount; i++) {
         if (aName == *enumInfo.mEnumInfo[i].mName) {
           enumInfo.Reset(i);
           DidChangeEnum(i, PR_FALSE);
-          foundMatch = PR_TRUE;
         }
       }
-    }
-  }
 
-  if (!foundMatch) {
-    // Check if this is a string attribute going away
-    StringAttributesInfo stringInfo = GetStringInfo();
+      // Now check for one of the old style basetypes going away
+      nsCOMPtr<nsISVGValue> svg_value = GetMappedAttribute(aNamespaceID, aName);
 
-    for (PRUint32 i = 0; i < stringInfo.mStringCount; i++) {
-      if (aNamespaceID == stringInfo.mStringInfo[i].mNamespaceID &&
-          aName == *stringInfo.mStringInfo[i].mName) {
-        stringInfo.Reset(i);
-        DidChangeString(i, PR_FALSE);
-        foundMatch = PR_TRUE;
+      if (svg_value) {
+        ResetOldStyleBaseType(svg_value);
       }
-    }
-  }
-
-  if (!foundMatch) {
-    // Now check for one of the old style basetypes going away
-    nsCOMPtr<nsISVGValue> svg_value = GetMappedAttribute(aNamespaceID, aName);
-
-    if (svg_value) {
-      ResetOldStyleBaseType(svg_value);
     }
   }
 
@@ -554,6 +483,10 @@ nsSVGElement::ResetOldStyleBaseType(nsISVGValue *svg_value)
     ar->GetBaseVal(getter_AddRefs(par));
     par->SetAlign(nsIDOMSVGPreserveAspectRatio::SVG_PRESERVEASPECTRATIO_XMIDYMID);
     par->SetMeetOrSlice(nsIDOMSVGPreserveAspectRatio::SVG_MEETORSLICE_MEET);
+  }
+  nsCOMPtr<nsIDOMSVGAnimatedString> s = do_QueryInterface(svg_value);
+  if (s) {
+    s->Clear();
   }
   nsCOMPtr<nsIDOMSVGPointList> pl = do_QueryInterface(svg_value);
   if (pl) {
@@ -1344,35 +1277,6 @@ nsSVGElement::DidChangeEnum(PRUint8 aAttrEnum, PRBool aDoSetAttr)
 
   SetAttr(kNameSpaceID_None, *info.mEnumInfo[aAttrEnum].mName,
           newStr, PR_TRUE);
-}
-
-nsSVGElement::StringAttributesInfo
-nsSVGElement::GetStringInfo()
-{
-  return StringAttributesInfo(nsnull, nsnull, 0);
-}
-
-void nsSVGElement::StringAttributesInfo::Reset(PRUint8 aAttrEnum)
-{
-  mStrings[aAttrEnum].Init(aAttrEnum);
-}
-
-void
-nsSVGElement::DidChangeString(PRUint8 aAttrEnum, PRBool aDoSetAttr)
-{
-  if (!aDoSetAttr)
-    return;
-
-  StringAttributesInfo info = GetStringInfo();
-
-  NS_ASSERTION(info.mStringCount > 0,
-               "DidChangeString on element with no string attribs");
-
-  NS_ASSERTION(aAttrEnum < info.mStringCount, "aAttrEnum out of range");
-
-  SetAttr(info.mStringInfo[aAttrEnum].mNamespaceID,
-          *info.mStringInfo[aAttrEnum].mName,
-          info.mStrings[aAttrEnum].GetBaseValue(), PR_TRUE);
 }
 
 PRBool

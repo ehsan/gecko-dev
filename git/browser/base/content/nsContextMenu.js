@@ -1227,11 +1227,8 @@ nsContextMenu.prototype = {
   },
 
   isTargetAKeywordField: function(aNode) {
-    if (!(aNode instanceof HTMLInputElement))
-      return false;
-
     var form = aNode.form;
-    if (!form || aNode.type == "password")
+    if (!form)
       return false;
 
     var method = form.method.toUpperCase();

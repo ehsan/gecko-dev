@@ -42,7 +42,7 @@
 #include "nsIDOMSVGScriptElement.h"
 #include "nsIDOMSVGURIReference.h"
 #include "nsCOMPtr.h"
-#include "nsSVGString.h"
+#include "nsSVGAnimatedString.h"
 #include "nsIDocument.h"
 #include "nsIURI.h"
 #include "nsNetUtil.h"
@@ -60,6 +60,7 @@ protected:
   friend nsresult NS_NewSVGScriptElement(nsIContent **aResult,
                                          nsINodeInfo *aNodeInfo);
   nsSVGScriptElement(nsINodeInfo *aNodeInfo);
+  virtual nsresult Init();
   
 public:
   // interfaces:
@@ -83,8 +84,9 @@ public:
   // nsScriptElement
   virtual PRBool HasScriptContent();
 
-  // nsSVGElement specializations:
-  virtual void DidChangeString(PRUint8 aAttrEnum, PRBool aDoSetAttr);
+  // nsISVGValueObserver specializations:
+  NS_IMETHOD DidModifySVGObservable (nsISVGValue* observable,
+                                     nsISVGValue::modificationType aModType);
 
   // nsIContent specializations:
   virtual nsresult DoneAddingChildren(PRBool aHaveNotified);
@@ -95,20 +97,10 @@ public:
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
     
 protected:
-  virtual StringAttributesInfo GetStringInfo();
-
-  enum { HREF };
-  nsSVGString mStringAttributes[1];
-  static StringInfo sStringInfo[1];
-
+  nsCOMPtr<nsIDOMSVGAnimatedString> mHref;
   PRUint32 mLineNumber;
   PRPackedBool mIsEvaluated;
   PRPackedBool mEvaluating;
-};
-
-nsSVGElement::StringInfo nsSVGScriptElement::sStringInfo[1] =
-{
-  { &nsGkAtoms::href, kNameSpaceID_XLink }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(Script)
@@ -143,6 +135,25 @@ nsSVGScriptElement::nsSVGScriptElement(nsINodeInfo *aNodeInfo)
   AddMutationObserver(this);
 }
 
+nsresult
+nsSVGScriptElement::Init()
+{
+  nsresult rv;
+
+  // nsIDOMSVGURIReference properties
+
+  // DOM property: href , #REQUIRED attrib: xlink:href
+  // XXX: enforce requiredness
+  {
+    rv = NS_NewSVGAnimatedString(getter_AddRefs(mHref));
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = AddMappedSVGValue(nsGkAtoms::href, mHref, kNameSpaceID_XLink);
+    NS_ENSURE_SUCCESS(rv,rv);
+  }
+
+  return NS_OK;
+}
+
 //----------------------------------------------------------------------
 // nsIDOMNode methods
 
@@ -173,7 +184,9 @@ nsSVGScriptElement::SetType(const nsAString & aType)
 NS_IMETHODIMP
 nsSVGScriptElement::GetHref(nsIDOMSVGAnimatedString * *aHref)
 {
-  return mStringAttributes[HREF].ToDOMAnimatedString(aHref, this);
+  *aHref = mHref;
+  NS_IF_ADDREF(*aHref);
+  return NS_OK;
 }
 
 //----------------------------------------------------------------------
@@ -192,7 +205,8 @@ already_AddRefed<nsIURI>
 nsSVGScriptElement::GetScriptURI()
 {
   nsIURI *uri = nsnull;
-  const nsString &src = mStringAttributes[HREF].GetAnimValue();
+  nsAutoString src;
+  mHref->GetAnimVal(src);
   if (!src.IsEmpty()) {
     nsCOMPtr<nsIURI> baseURI = GetBaseURI();
     NS_NewURI(&uri, src, nsnull, baseURI);
@@ -218,28 +232,25 @@ nsSVGScriptElement::GetScriptCharset(nsAString& charset)
 PRBool
 nsSVGScriptElement::HasScriptContent()
 {
-  return !mStringAttributes[HREF].GetAnimValue().IsEmpty() ||
-         nsContentUtils::HasNonEmptyTextContent(this);
+  nsAutoString src;
+  mHref->GetAnimVal(src);
+  return !src.IsEmpty() || nsContentUtils::HasNonEmptyTextContent(this);
 }
 
 //----------------------------------------------------------------------
-// nsSVGElement methods
+// nsISVGValueObserver methods
 
-void
-nsSVGScriptElement::DidChangeString(PRUint8 aAttrEnum, PRBool aDoSetAttr)
+NS_IMETHODIMP
+nsSVGScriptElement::DidModifySVGObservable(nsISVGValue* aObservable,
+                                           nsISVGValue::modificationType aModType)
 {
-  nsSVGScriptElementBase::DidChangeString(aAttrEnum, aDoSetAttr);
-
-  if (aAttrEnum == HREF) {
-    MaybeProcessScript();
-  }
-}
-
-nsSVGElement::StringAttributesInfo
-nsSVGScriptElement::GetStringInfo()
-{
-  return StringAttributesInfo(mStringAttributes, sStringInfo,
-                              NS_ARRAY_LENGTH(sStringInfo));
+  nsresult rv = nsSVGScriptElementBase::DidModifySVGObservable(aObservable,
+                                                               aModType);
+  
+  // if aObservable==mHref:
+  MaybeProcessScript();
+  
+  return rv;
 }
 
 //----------------------------------------------------------------------

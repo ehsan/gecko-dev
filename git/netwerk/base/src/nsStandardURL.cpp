@@ -713,10 +713,6 @@ nsStandardURL::ParseURL(const char *spec, PRInt32 specLen)
                                      &mPort);
         if (NS_FAILED(rv)) return rv;
 
-        // Don't allow mPort to be set to this URI's default port
-        if (mPort == mDefaultPort)
-            mPort = -1;
-
         mUsername.mPos += mAuthority.mPos;
         mPassword.mPos += mAuthority.mPos;
         mHost.mPos += mAuthority.mPos;

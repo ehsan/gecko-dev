@@ -632,7 +632,7 @@ nsGenericDOMDataNode::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     // XXX See the comment in nsGenericElement::BindToTree
     mParentPtrBits |= PARENT_BIT_INDOCUMENT;
     if (mText.IsBidi()) {
-      aDocument->SetBidiEnabled();
+      aDocument->SetBidiEnabled(PR_TRUE);
     }
   }
 
@@ -1167,7 +1167,7 @@ void nsGenericDOMDataNode::SetBidiStatus()
   mText.SetBidiFlag();
 
   if (document && mText.IsBidi()) {
-    document->SetBidiEnabled();
+    document->SetBidiEnabled(PR_TRUE);
   }
 }
 

@@ -1253,12 +1253,12 @@ nsPresContext::BidiEnabledExternal() const
 }
 
 void
-nsPresContext::SetBidiEnabled() const
+nsPresContext::SetBidiEnabled(PRBool aBidiEnabled) const
 {
   if (mShell) {
     nsIDocument *doc = mShell->GetDocument();
     if (doc) {
-      doc->SetBidiEnabled();
+      doc->SetBidiEnabled(aBidiEnabled);
     }
   }
 }
@@ -1286,7 +1286,7 @@ nsPresContext::SetBidi(PRUint32 aSource, PRBool aForceRestyle)
   Document()->SetBidiOptions(aSource);
   if (IBMBIDI_TEXTDIRECTION_RTL == GET_BIDI_OPTION_DIRECTION(aSource)
       || IBMBIDI_NUMERAL_HINDI == GET_BIDI_OPTION_NUMERAL(aSource)) {
-    SetBidiEnabled();
+    SetBidiEnabled(PR_TRUE);
   }
   if (IBMBIDI_TEXTTYPE_VISUAL == GET_BIDI_OPTION_TEXTTYPE(aSource)) {
     SetVisualMode(PR_TRUE);

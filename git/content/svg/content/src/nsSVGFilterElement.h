@@ -44,7 +44,6 @@
 #include "nsSVGLength2.h"
 #include "nsSVGInteger.h"
 #include "nsSVGEnum.h"
-#include "nsSVGString.h"
 
 typedef nsSVGGraphicElement nsSVGFilterElementBase;
 
@@ -59,6 +58,7 @@ protected:
   friend nsresult NS_NewSVGFilterElement(nsIContent **aResult,
                                          nsINodeInfo *aNodeInfo);
   nsSVGFilterElement(nsINodeInfo* aNodeInfo);
+  nsresult Init();
 
   // nsISVGValue interface:
   NS_IMETHOD SetValueString(const nsAString &aValue) { return NS_OK; }
@@ -92,7 +92,6 @@ protected:
   virtual LengthAttributesInfo GetLengthInfo();
   virtual IntegerAttributesInfo GetIntegerInfo();
   virtual EnumAttributesInfo GetEnumInfo();
-  virtual StringAttributesInfo GetStringInfo();
 
   enum { X, Y, WIDTH, HEIGHT };
   nsSVGLength2 mLengthAttributes[4];
@@ -106,9 +105,7 @@ protected:
   nsSVGEnum mEnumAttributes[2];
   static EnumInfo sEnumInfo[2];
 
-  enum { HREF };
-  nsSVGString mStringAttributes[1];
-  static StringInfo sStringInfo[1];
+  nsCOMPtr<nsIDOMSVGAnimatedString> mHref;
 };
 
 #endif

@@ -1233,7 +1233,7 @@ nsresult nsCaret::UpdateHookRect(nsPresContext* aPresContext,
   if (isCaretRTL)
   {
     bidiEnabled = PR_TRUE;
-    aPresContext->SetBidiEnabled();
+    aPresContext->SetBidiEnabled(bidiEnabled);
   }
   else
     bidiEnabled = aPresContext->BidiEnabled();

@@ -38,7 +38,7 @@
 
 #include "nsGkAtoms.h"
 #include "nsSVGLength.h"
-#include "nsSVGString.h"
+#include "nsSVGAnimatedString.h"
 #include "nsCOMPtr.h"
 #include "nsIURI.h"
 #include "nsNetUtil.h"
@@ -53,6 +53,7 @@
 #include "nsSVGLength2.h"
 #include "gfxContext.h"
 
+class nsIDOMSVGAnimatedString;
 class nsIDOMSVGAnimatedPreserveAspectRatio;
 
 typedef nsSVGPathGeometryElement nsSVGImageElementBase;
@@ -81,8 +82,9 @@ public:
   NS_FORWARD_NSIDOMELEMENT(nsSVGImageElementBase::)
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGImageElementBase::)
 
-  // nsSVGElement specializations:
-  virtual void DidChangeString(PRUint8 aAttrEnum, PRBool aDoSetAttr);
+  // nsISVGValueObserver specializations:
+  NS_IMETHOD DidModifySVGObservable(nsISVGValue *observable,
+                                    nsISVGValue::modificationType aModType);
 
   // nsIContent interface
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
@@ -99,19 +101,16 @@ public:
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
 protected:
-  void GetSrc(nsAString& src);
 
   virtual LengthAttributesInfo GetLengthInfo();
-  virtual StringAttributesInfo GetStringInfo();
+
+  void GetSrc(nsAString& src);
 
   enum { X, Y, WIDTH, HEIGHT };
   nsSVGLength2 mLengthAttributes[4];
   static LengthInfo sLengthInfo[4];
-
-  enum { HREF };
-  nsSVGString mStringAttributes[1];
-  static StringInfo sStringInfo[1];
-
+  
+  nsCOMPtr<nsIDOMSVGAnimatedString> mHref;
   nsCOMPtr<nsIDOMSVGAnimatedPreserveAspectRatio> mPreserveAspectRatio;
 };
 
@@ -121,11 +120,6 @@ nsSVGElement::LengthInfo nsSVGImageElement::sLengthInfo[4] =
   { &nsGkAtoms::y, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, nsSVGUtils::Y },
   { &nsGkAtoms::width, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, nsSVGUtils::X },
   { &nsGkAtoms::height, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, nsSVGUtils::Y },
-};
-
-nsSVGElement::StringInfo nsSVGImageElement::sStringInfo[1] =
-{
-  { &nsGkAtoms::href, kNameSpaceID_XLink }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(Image)
@@ -167,6 +161,17 @@ nsSVGImageElement::Init()
   NS_ENSURE_SUCCESS(rv,rv);
 
   // Create mapped properties:
+
+  // nsIDOMSVGURIReference properties
+
+  // DOM property: href , #REQUIRED attrib: xlink:href
+  // XXX: enforce requiredness
+  {
+    rv = NS_NewSVGAnimatedString(getter_AddRefs(mHref));
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = AddMappedSVGValue(nsGkAtoms::href, mHref, kNameSpaceID_XLink);
+    NS_ENSURE_SUCCESS(rv,rv);
+  }
 
   // DOM property: preserveAspectRatio , #IMPLIED attrib: preserveAspectRatio
   {
@@ -236,7 +241,9 @@ nsSVGImageElement::GetPreserveAspectRatio(nsIDOMSVGAnimatedPreserveAspectRatio
 NS_IMETHODIMP
 nsSVGImageElement::GetHref(nsIDOMSVGAnimatedString * *aHref)
 {
-  return mStringAttributes[HREF].ToDOMAnimatedString(aHref, this);
+  *aHref = mHref;
+  NS_IF_ADDREF(*aHref);
+  return NS_OK;
 }
 
 //----------------------------------------------------------------------
@@ -249,12 +256,34 @@ nsSVGImageElement::GetLengthInfo()
                               NS_ARRAY_LENGTH(sLengthInfo));
 }
 
-void
-nsSVGImageElement::DidChangeString(PRUint8 aAttrEnum, PRBool aDoSetAttr)
-{
-  nsSVGImageElementBase::DidChangeString(aAttrEnum, aDoSetAttr);
+//----------------------------------------------------------------------
 
-  if (aAttrEnum == HREF) {
+void nsSVGImageElement::GetSrc(nsAString& src)
+{
+  // resolve href attribute
+
+  nsCOMPtr<nsIURI> baseURI = GetBaseURI();
+
+  nsAutoString relURIStr;
+  mHref->GetAnimVal(relURIStr);
+  relURIStr.Trim(" \t\n\r");
+
+  if (baseURI && !relURIStr.IsEmpty()) 
+    NS_MakeAbsoluteURI(src, relURIStr, baseURI);
+  else
+    src = relURIStr;
+}
+
+//----------------------------------------------------------------------
+// nsISVGValueObserver methods:
+
+NS_IMETHODIMP
+nsSVGImageElement::DidModifySVGObservable(nsISVGValue* aObservable,
+                                          nsISVGValue::modificationType aModType)
+{
+  nsCOMPtr<nsIDOMSVGAnimatedString> s = do_QueryInterface(aObservable);
+
+  if (s && mHref == s) {
     nsAutoString href;
     GetSrc(href);
 
@@ -266,28 +295,13 @@ nsSVGImageElement::DidChangeString(PRUint8 aAttrEnum, PRBool aDoSetAttr)
     // prevent setting image.src by exiting early
     if (nsContentUtils::GetBoolPref("dom.disable_image_src_set") &&
         !nsContentUtils::IsCallerChrome()) {
-      return;
+      return NS_OK;
     }
 
     LoadImage(href, PR_TRUE, PR_TRUE);
   }
-}
 
-//----------------------------------------------------------------------
-
-void nsSVGImageElement::GetSrc(nsAString& src)
-{
-  // resolve href attribute
-
-  nsCOMPtr<nsIURI> baseURI = GetBaseURI();
-
-  nsAutoString relURIStr(mStringAttributes[HREF].GetAnimValue());
-  relURIStr.Trim(" \t\n\r");
-
-  if (baseURI && !relURIStr.IsEmpty()) 
-    NS_MakeAbsoluteURI(src, relURIStr, baseURI);
-  else
-    src = relURIStr;
+  return nsSVGImageElementBase::DidModifySVGObservable(aObservable, aModType);
 }
 
 //----------------------------------------------------------------------
@@ -349,14 +363,4 @@ nsSVGImageElement::ConstructPath(gfxContext *aCtx)
     return;
 
   aCtx->Rectangle(gfxRect(x, y, width, height));
-}
-
-//----------------------------------------------------------------------
-// nsSVGElement methods
-
-nsSVGElement::StringAttributesInfo
-nsSVGImageElement::GetStringInfo()
-{
-  return StringAttributesInfo(mStringAttributes, sStringInfo,
-                              NS_ARRAY_LENGTH(sStringInfo));
 }

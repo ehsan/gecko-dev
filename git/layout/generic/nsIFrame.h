@@ -1509,18 +1509,11 @@ public:
   virtual nsPoint GetOffsetToExternal(const nsIFrame* aOther) const;
 
   /**
-   * Get the screen rect of the frame in pixels.
+   * Get the screen rect of the frame.
    * @return the pixel rect of the frame in screen coordinates.
    */
   nsIntRect GetScreenRect() const;
   virtual nsIntRect GetScreenRectExternal() const;
-
-  /**
-   * Get the screen rect of the frame in app units.
-   * @return the app unit rect of the frame in screen coordinates.
-   */
-  nsRect GetScreenRectInAppUnits() const;
-  virtual nsRect GetScreenRectInAppUnitsExternal() const;
 
   /**
    * Returns the offset from this frame to the closest geometric parent that

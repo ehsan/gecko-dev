@@ -371,9 +371,7 @@ nsPageFrame::DrawHeaderFooter(nsIRenderingContext& aRenderingContext,
       return; // bail if couldn't find the correct length
     }
     
-    if (HasRTLChars(str)) {
-      PresContext()->SetBidiEnabled();
-    }
+    PresContext()->SetBidiEnabled(HasRTLChars(str));
 
     // cacl the x and y positions of the text
     nscoord x = GetXPosition(aRenderingContext, aRect, aJust, str);
