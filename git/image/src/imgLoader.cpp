@@ -1611,16 +1611,11 @@ bool imgLoader::ValidateEntry(imgCacheEntry *aEntry,
                                 aCORSMode, aLoadingPrincipal))
     return false;
 
-  // data URIs are immutable and by their nature can't leak data, so we can
-  // just return true in that case.  Doing so would mean that shift-reload
-  // doesn't reload data URI documents/images though (which is handy for
-  // debugging during gecko development) so we make an exception in that case.
+  // Never validate data URIs.
   nsAutoCString scheme;
   aURI->GetScheme(scheme);
-  if (scheme.EqualsLiteral("data") &&
-      !(aLoadFlags & nsIRequest::LOAD_BYPASS_CACHE)) {
+  if (scheme.EqualsLiteral("data"))
     return true;
-  }
 
   bool validateRequest = false;
 

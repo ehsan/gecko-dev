@@ -886,7 +886,3 @@ bin/components/@DLL_PREFIX@nkgnomevfs@DLL_SUFFIX@
 @BINPATH@/gaia/*
 @BINPATH@/b2g-bin@BIN_SUFFIX@
 #endif
-
-#ifdef PACKAGE_MOZTT
-@BINPATH@/fonts/*
-#endif

@@ -229,7 +229,7 @@ class SyntaxParseHandler
     Node setInParens(Node pn) {
         // String literals enclosed by parentheses are ignored during
         // strict mode parsing.
-        return (pn == NodeString) ? NodeGeneric : pn;
+        return NodeGeneric;
     }
     void setPrologue(Node pn) {}
 

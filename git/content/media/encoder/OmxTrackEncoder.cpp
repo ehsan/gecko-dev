@@ -7,7 +7,6 @@
 #include "OMXCodecWrapper.h"
 #include "VideoUtils.h"
 #include "ISOTrackMetadata.h"
-#include "GeckoProfiler.h"
 
 #ifdef MOZ_WIDGET_GONK
 #include <android/log.h>
@@ -53,8 +52,6 @@ OmxVideoTrackEncoder::Init(int aWidth, int aHeight, int aDisplayWidth,
 already_AddRefed<TrackMetadataBase>
 OmxVideoTrackEncoder::GetMetadata()
 {
-  PROFILER_LABEL("OmxVideoTrackEncoder", "GetMetadata",
-    js::ProfileEntry::Category::OTHER);
   {
     // Wait if mEncoder is not initialized nor is being canceled.
     ReentrantMonitorAutoEnter mon(mReentrantMonitor);
@@ -79,8 +76,6 @@ OmxVideoTrackEncoder::GetMetadata()
 nsresult
 OmxVideoTrackEncoder::GetEncodedTrack(EncodedFrameContainer& aData)
 {
-  PROFILER_LABEL("OmxVideoTrackEncoder", "GetEncodedTrack",
-    js::ProfileEntry::Category::OTHER);
   VideoSegment segment;
   {
     // Move all the samples from mRawSegment to segment. We only hold the
@@ -202,8 +197,6 @@ OmxAudioTrackEncoder::AppendEncodedFrames(EncodedFrameContainer& aContainer)
 nsresult
 OmxAudioTrackEncoder::GetEncodedTrack(EncodedFrameContainer& aData)
 {
-  PROFILER_LABEL("OmxAACAudioTrackEncoder", "GetEncodedTrack",
-    js::ProfileEntry::Category::OTHER);
   AudioSegment segment;
   // Move all the samples from mRawSegment to segment. We only hold
   // the monitor in this block.
@@ -271,8 +264,6 @@ OmxAACAudioTrackEncoder::Init(int aChannels, int aSamplingRate)
 already_AddRefed<TrackMetadataBase>
 OmxAACAudioTrackEncoder::GetMetadata()
 {
-  PROFILER_LABEL("OmxAACAudioTrackEncoder", "GetMetadata",
-    js::ProfileEntry::Category::OTHER);
   {
     // Wait if mEncoder is not initialized nor is being canceled.
     ReentrantMonitorAutoEnter mon(mReentrantMonitor);
@@ -313,8 +304,6 @@ OmxAMRAudioTrackEncoder::Init(int aChannels, int aSamplingRate)
 already_AddRefed<TrackMetadataBase>
 OmxAMRAudioTrackEncoder::GetMetadata()
 {
-  PROFILER_LABEL("OmxAMRAudioTrackEncoder", "GetMetadata",
-    js::ProfileEntry::Category::OTHER);
   {
     // Wait if mEncoder is not initialized nor is being canceled.
     ReentrantMonitorAutoEnter mon(mReentrantMonitor);

@@ -3276,64 +3276,42 @@ IonBuilder::improveTypesAtCompare(MCompare *ins, bool trueBranch, MTest *test)
         return true;
     }
 
-    // altersUndefined/Null represents if we can filter/set Undefined/Null.
-    bool altersUndefined, altersNull;
-    JSOp op = ins->jsop();
+    MOZ_ASSERT(ins->jsop() == JSOP_STRICTNE || ins->jsop() == JSOP_NE ||
+               ins->jsop() == JSOP_STRICTEQ || ins->jsop() == JSOP_EQ);
 
-    switch(op) {
-      case JSOP_STRICTNE:
-      case JSOP_STRICTEQ:
-        altersUndefined = ins->compareType() == MCompare::Compare_Undefined;
-        altersNull = ins->compareType() == MCompare::Compare_Null;
-        break;
-      case JSOP_NE:
-      case JSOP_EQ:
-        altersUndefined = altersNull = true;
-        break;
-      default:
-        MOZ_CRASH("Relational compares not supported");
+    // JSOP_*NE only removes undefined/null from if/true branch
+    if (!trueBranch && (ins->jsop() == JSOP_STRICTNE || ins->jsop() == JSOP_NE))
+        return true;
+
+    // JSOP_*EQ only removes undefined/null from else/false branch
+    if (trueBranch && (ins->jsop() == JSOP_STRICTEQ || ins->jsop() == JSOP_EQ))
+        return true;
+
+    bool filtersUndefined = false;
+    bool filtersNull = false;
+    if (ins->jsop() == JSOP_STRICTEQ || ins->jsop() == JSOP_STRICTNE) {
+        filtersUndefined = (ins->compareType() == MCompare::Compare_Undefined);
+        filtersNull = (ins->compareType() == MCompare::Compare_Null);
+    } else {
+        filtersUndefined = filtersNull = true;
     }
-
-    MDefinition *subject = ins->lhs();
 
     MOZ_ASSERT(IsNullOrUndefined(ins->rhs()->type()));
 
+    MDefinition *subject = ins->lhs();
     if (!subject->resultTypeSet() || subject->resultTypeSet()->unknown())
         return true;
 
-    if (!subject->mightBeType(MIRType_Undefined) &&
-        !subject->mightBeType(MIRType_Null))
+    // Make sure the type is present we want to filter else this is a NOP.
+    if ((!filtersUndefined || !subject->mightBeType(MIRType_Undefined)) &&
+        (!filtersNull || !subject->mightBeType(MIRType_Null)))
     {
         return true;
     }
 
-    if (!altersUndefined && !altersNull)
-        return true;
-
-    types::TemporaryTypeSet *type;
-
-    // Decide if we need to filter the type or set it.
-    if ((op == JSOP_STRICTEQ || op == JSOP_EQ) ^ trueBranch) {
-        // Filter undefined/null
-        type = subject->resultTypeSet()->filter(alloc_->lifoAlloc(), altersUndefined,
-                                                                     altersNull);
-    } else {
-        // Set undefined/null.
-        uint32_t flags = 0;
-        if (altersUndefined) {
-            flags |= types::TYPE_FLAG_UNDEFINED;
-            // If TypeSet emulates undefined, then we cannot filter the objects.
-            if (subject->resultTypeSet()->maybeEmulatesUndefined())
-                flags |= types::TYPE_FLAG_ANYOBJECT;
-        }
-
-        if (altersNull)
-            flags |= types::TYPE_FLAG_NULL;
-
-        types::TemporaryTypeSet base(flags, static_cast<types::TypeObjectKey**>(nullptr));
-        type = types::TypeSet::intersectSets(&base, subject->resultTypeSet(), alloc_->lifoAlloc());
-    }
-
+    types::TemporaryTypeSet *type =
+        subject->resultTypeSet()->filter(alloc_->lifoAlloc(), filtersUndefined,
+                                                              filtersNull);
     if (!type)
         return false;
 
@@ -4271,10 +4249,11 @@ IonBuilder::inlineScriptedCall(CallInfo &callInfo, JSFunction *target)
 
     // Improve type information of |this| when not set.
     if (callInfo.constructing() &&
-        !callInfo.thisArg()->resultTypeSet())
+        !callInfo.thisArg()->resultTypeSet() &&
+        calleeScript->types)
     {
         types::StackTypeSet *types = types::TypeScript::ThisTypes(calleeScript);
-        if (types && !types->unknown()) {
+        if (!types->unknown()) {
             types::TemporaryTypeSet *clonedTypes = types->clone(alloc_->lifoAlloc());
             if (!clonedTypes)
                 return oom();
@@ -5206,8 +5185,9 @@ IonBuilder::createThisScriptedSingleton(JSFunction *target, MDefinition *callee)
     if (!templateObject->hasTenuredProto() || templateObject->getProto() != proto)
         return nullptr;
 
-    types::StackTypeSet *thisTypes = types::TypeScript::ThisTypes(target->nonLazyScript());
-    if (!thisTypes || !thisTypes->hasType(types::Type::ObjectType(templateObject)))
+    if (!target->nonLazyScript()->types)
+        return nullptr;
+    if (!types::TypeScript::ThisTypes(target->nonLazyScript())->hasType(types::Type::ObjectType(templateObject)))
         return nullptr;
 
     // Generate an inline path to create a new |this| object with
@@ -5578,9 +5558,6 @@ IonBuilder::testShouldDOMCall(types::TypeSet *inTypes,
 static bool
 ArgumentTypesMatch(MDefinition *def, types::StackTypeSet *calleeTypes)
 {
-    if (!calleeTypes)
-        return false;
-
     if (def->resultTypeSet()) {
         MOZ_ASSERT(def->type() == MIRType_Value || def->mightBeType(def->type()));
         return def->resultTypeSet()->isSubset(calleeTypes);
@@ -5605,6 +5582,9 @@ IonBuilder::testNeedsArgumentCheck(JSFunction *target, CallInfo &callInfo)
         return true;
 
     JSScript *targetScript = target->nonLazyScript();
+
+    if (!targetScript->types)
+        return true;
 
     if (!ArgumentTypesMatch(callInfo.thisArg(), types::TypeScript::ThisTypes(targetScript)))
         return true;

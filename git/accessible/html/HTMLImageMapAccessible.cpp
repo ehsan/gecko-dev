@@ -175,7 +175,7 @@ HTMLAreaAccessible::
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// HTMLAreaAccessible: Accessible
+// HTMLAreaAccessible: nsIAccessible
 
 ENameValueFlag
 HTMLAreaAccessible::NativeName(nsString& aName)
@@ -185,7 +185,7 @@ HTMLAreaAccessible::NativeName(nsString& aName)
     return nameFlag;
 
   if (!mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::alt, aName))
-    Value(aName);
+    GetValue(aName);
 
   return eNameOK;
 }

@@ -1938,6 +1938,8 @@ AttachFinishedCompilations(JSContext *cx)
     }
 }
 
+static const size_t BUILDER_LIFO_ALLOC_PRIMARY_CHUNK_SIZE = 1 << 12;
+
 static inline bool
 OffThreadCompilationAvailable(JSContext *cx)
 {
@@ -2002,7 +2004,7 @@ IonCompile(JSContext *cx, JSScript *script,
 
     TrackPropertiesForSingletonScopes(cx, script, baselineFrame);
 
-    LifoAlloc *alloc = cx->new_<LifoAlloc>(TempAllocator::PreferredLifoChunkSize);
+    LifoAlloc *alloc = cx->new_<LifoAlloc>(BUILDER_LIFO_ALLOC_PRIMARY_CHUNK_SIZE);
     if (!alloc)
         return AbortReason_Alloc;
 
@@ -2683,7 +2685,7 @@ InvalidateActivation(FreeOp *fop, const JitActivationIterator &activations, bool
     size_t frameno = 1;
 
     for (JitFrameIterator it(activations); !it.done(); ++it, ++frameno) {
-        MOZ_ASSERT_IF(frameno == 1, it.type() == JitFrame_Exit || it.type() == JitFrame_Bailout);
+        MOZ_ASSERT_IF(frameno == 1, it.type() == JitFrame_Exit);
 
 #ifdef DEBUG
         switch (it.type()) {
@@ -2725,7 +2727,7 @@ InvalidateActivation(FreeOp *fop, const JitActivationIterator &activations, bool
         }
 #endif
 
-        if (!it.isIonScripted())
+        if (!it.isIonJS())
             continue;
 
         bool calledFromLinkStub = false;
@@ -2793,9 +2795,8 @@ InvalidateActivation(FreeOp *fop, const JitActivationIterator &activations, bool
         }
         ionCode->setInvalidated();
 
-        // Don't adjust OSI points in the linkStub (which don't exist), or in a
-        // bailout path.
-        if (calledFromLinkStub || it.isBailoutJS())
+        // Don't adjust OSI points in the linkStub (which don't exist).
+        if (calledFromLinkStub)
             continue;
 
         // Write the delta (from the return address offset to the
@@ -2847,7 +2848,7 @@ jit::InvalidateAll(FreeOp *fop, Zone *zone)
 
 void
 jit::Invalidate(types::TypeZone &types, FreeOp *fop,
-                const types::RecompileInfoVector &invalid, bool resetUses,
+                const Vector<types::RecompileInfo> &invalid, bool resetUses,
                 bool cancelOffThread)
 {
     JitSpew(JitSpew_IonInvalidate, "Start invalidation.");
@@ -2856,24 +2857,23 @@ jit::Invalidate(types::TypeZone &types, FreeOp *fop,
     // to the traversal which frames have been invalidated.
     size_t numInvalidations = 0;
     for (size_t i = 0; i < invalid.length(); i++) {
-        const types::CompilerOutput *co = invalid[i].compilerOutput(types);
-        if (!co)
+        const types::CompilerOutput &co = *invalid[i].compilerOutput(types);
+        if (!co.isValid())
             continue;
-        MOZ_ASSERT(co->isValid());
 
         if (cancelOffThread)
-            CancelOffThreadIonCompile(co->script()->compartment(), co->script());
+            CancelOffThreadIonCompile(co.script()->compartment(), co.script());
 
-        if (!co->ion())
+        if (!co.ion())
             continue;
 
         JitSpew(JitSpew_IonInvalidate, " Invalidate %s:%u, IonScript %p",
-                co->script()->filename(), co->script()->lineno(), co->ion());
+                co.script()->filename(), co.script()->lineno(), co.ion());
 
         // Keep the ion script alive during the invalidation and flag this
         // ionScript as being invalidated.  This increment is removed by the
         // loop after the calls to InvalidateActivation.
-        co->ion()->incref();
+        co.ion()->incref();
         numInvalidations++;
     }
 
@@ -2889,20 +2889,19 @@ jit::Invalidate(types::TypeZone &types, FreeOp *fop,
     // IonScript will be immediately destroyed. Otherwise, it will be held live
     // until its last invalidated frame is destroyed.
     for (size_t i = 0; i < invalid.length(); i++) {
-        types::CompilerOutput *co = invalid[i].compilerOutput(types);
-        if (!co)
+        types::CompilerOutput &co = *invalid[i].compilerOutput(types);
+        if (!co.isValid())
             continue;
-        MOZ_ASSERT(co->isValid());
 
-        ExecutionMode executionMode = co->mode();
-        JSScript *script = co->script();
-        IonScript *ionScript = co->ion();
+        ExecutionMode executionMode = co.mode();
+        JSScript *script = co.script();
+        IonScript *ionScript = co.ion();
         if (!ionScript)
             continue;
 
         SetIonScript(nullptr, script, executionMode, nullptr);
         ionScript->decref(fop);
-        co->invalidate();
+        co.invalidate();
         numInvalidations--;
 
         // Wait for the scripts to get warm again before doing another
@@ -2926,7 +2925,7 @@ jit::Invalidate(types::TypeZone &types, FreeOp *fop,
 }
 
 void
-jit::Invalidate(JSContext *cx, const types::RecompileInfoVector &invalid, bool resetUses,
+jit::Invalidate(JSContext *cx, const Vector<types::RecompileInfo> &invalid, bool resetUses,
                 bool cancelOffThread)
 {
     jit::Invalidate(cx->zone()->types, cx->runtime()->defaultFreeOp(), invalid, resetUses,
@@ -2937,7 +2936,7 @@ bool
 jit::IonScript::invalidate(JSContext *cx, bool resetUses, const char *reason)
 {
     JitSpew(JitSpew_IonInvalidate, " Invalidate IonScript %p: %s", this, reason);
-    types::RecompileInfoVector list;
+    Vector<types::RecompileInfo> list(cx);
     if (!list.append(recompileInfo()))
         return false;
     Invalidate(cx, list, resetUses, true);
@@ -2971,7 +2970,7 @@ jit::Invalidate(JSContext *cx, JSScript *script, ExecutionMode mode, bool resetU
         js_free(buf);
     }
 
-    types::RecompileInfoVector scripts;
+    Vector<types::RecompileInfo> scripts(cx);
 
     switch (mode) {
       case SequentialExecution:
@@ -3378,8 +3377,3 @@ jit::JitSupportsSimd()
 {
     return js::jit::MacroAssembler::SupportsSimd();
 }
-
-// If you change these, please also change the comment in TempAllocator.
-/* static */ const size_t TempAllocator::BallastSize            = 16 * 1024;
-/* static */ const size_t TempAllocator::PreferredLifoChunkSize = 32 * 1024;
-

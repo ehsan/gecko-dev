@@ -43,10 +43,14 @@ AccessibleWrap::GetNativeObject()
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
-void
-AccessibleWrap::GetNativeInterface(void** aOutInterface)
+NS_IMETHODIMP
+AccessibleWrap::GetNativeInterface (void **aOutInterface) 
 {
+  NS_ENSURE_ARG_POINTER(aOutInterface);
+
   *aOutInterface = static_cast<void*>(GetNativeObject());
+    
+  return *aOutInterface ? NS_OK : NS_ERROR_FAILURE;
 }
 
 // overridden in subclasses to create the right kind of object. by default we create a generic

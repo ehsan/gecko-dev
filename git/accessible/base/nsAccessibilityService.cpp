@@ -35,8 +35,6 @@
 #include "Statistics.h"
 #include "TextLeafAccessibleWrap.h"
 #include "TreeWalker.h"
-#include "xpcAccessibleApplication.h"
-#include "xpcAccessibleDocument.h"
 
 #ifdef MOZ_ACCESSIBILITY_ATK
 #include "AtkSocketAccessible.h"
@@ -139,7 +137,6 @@ MustBeAccessible(nsIContent* aContent, DocAccessible* aDocument)
 
 nsAccessibilityService *nsAccessibilityService::gAccessibilityService = nullptr;
 ApplicationAccessible* nsAccessibilityService::gApplicationAccessible = nullptr;
-xpcAccessibleApplication* nsAccessibilityService::gXPCApplicationAccessible = nullptr;
 bool nsAccessibilityService::gIsShutdown = true;
 
 nsAccessibilityService::nsAccessibilityService() :
@@ -559,7 +556,8 @@ nsAccessibilityService::GetApplicationAccessible(nsIAccessible** aAccessibleAppl
 {
   NS_ENSURE_ARG_POINTER(aAccessibleApplication);
 
-  NS_IF_ADDREF(*aAccessibleApplication = XPCApplicationAcc());
+  NS_IF_ADDREF(*aAccessibleApplication = ApplicationAcc());
+
   return NS_OK;
 }
 
@@ -578,7 +576,7 @@ nsAccessibilityService::GetAccessibleFor(nsIDOMNode *aNode,
 
   DocAccessible* document = GetDocAccessible(node->OwnerDoc());
   if (document)
-    NS_IF_ADDREF(*aAccessible = ToXPC(document->GetAccessible(node)));
+    NS_IF_ADDREF(*aAccessible = document->GetAccessible(node));
 
   return NS_OK;
 }
@@ -782,7 +780,7 @@ nsAccessibilityService::GetAccessibleFromCache(nsIDOMNode* aNode,
       accessible = GetExistingDocAccessible(document);
   }
 
-  NS_IF_ADDREF(*aAccessible = ToXPC(accessible));
+  NS_IF_ADDREF(*aAccessible = accessible);
   return NS_OK;
 }
 
@@ -794,7 +792,7 @@ nsAccessibilityService::CreateAccessiblePivot(nsIAccessible* aRoot,
   NS_ENSURE_ARG(aRoot);
   *aPivot = nullptr;
 
-  Accessible* accessibleRoot = aRoot->ToInternalAccessible();
+  nsRefPtr<Accessible> accessibleRoot(do_QueryObject(aRoot));
   NS_ENSURE_TRUE(accessibleRoot, NS_ERROR_INVALID_ARG);
 
   nsAccessiblePivot* pivot = new nsAccessiblePivot(accessibleRoot);
@@ -1181,9 +1179,6 @@ nsAccessibilityService::Shutdown()
   gApplicationAccessible->Shutdown();
   NS_RELEASE(gApplicationAccessible);
   gApplicationAccessible = nullptr;
-
-  NS_IF_RELEASE(gXPCApplicationAccessible);
-  gXPCApplicationAccessible = nullptr;
 }
 
 already_AddRefed<Accessible>
@@ -1671,20 +1666,6 @@ nsAccessibilityService::RemoveNativeRootAccessible(Accessible* aAccessible)
 #endif
 }
 
-bool
-nsAccessibilityService::HasAccessible(nsIDOMNode* aDOMNode)
-{
-  nsCOMPtr<nsINode> node(do_QueryInterface(aDOMNode));
-  if (!node)
-    return false;
-
-  DocAccessible* document = GetDocAccessible(node->OwnerDoc());
-  if (!document)
-    return false;
-
-  return document->HasAccessible(node);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // NS_GetAccessibilityService
 ////////////////////////////////////////////////////////////////////////////////
@@ -1777,19 +1758,6 @@ ApplicationAccessible*
 ApplicationAcc()
 {
   return nsAccessibilityService::gApplicationAccessible;
-}
-
-xpcAccessibleApplication*
-XPCApplicationAcc()
-{
-  if (!nsAccessibilityService::gXPCApplicationAccessible &&
-      nsAccessibilityService::gApplicationAccessible) {
-    nsAccessibilityService::gXPCApplicationAccessible =
-      new xpcAccessibleApplication(nsAccessibilityService::gApplicationAccessible);
-    NS_ADDREF(nsAccessibilityService::gXPCApplicationAccessible);
-  }
-
-  return nsAccessibilityService::gXPCApplicationAccessible;
 }
 
 EPlatformDisabledState

@@ -170,9 +170,9 @@ public: // construction, destruction
    */
   Accessible* GetXPAccessibleFor(const VARIANT& aVarChild);
 
-  virtual void GetNativeInterface(void **aOutAccessible) MOZ_OVERRIDE;
+  NS_IMETHOD GetNativeInterface(void **aOutAccessible);
 
-  static IDispatch* NativeAccessible(Accessible* aAccessible);
+  static IDispatch *NativeAccessible(nsIAccessible *aXPAccessible);
 
 protected:
   virtual ~AccessibleWrap() { }

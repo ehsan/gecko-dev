@@ -334,11 +334,6 @@ public:
   void SetGraphImpl(MediaStreamGraphImpl* aGraph);
   void SetGraphImpl(MediaStreamGraph* aGraph);
 
-  /**
-   * Returns sample rate of the graph.
-   */
-  TrackRate GraphRate() { return mBuffer.GraphRate(); }
-
   // Control API.
   // Since a stream can be played multiple ways, we need to combine independent
   // volume settings. The aKey parameter is used to keep volume settings
@@ -494,6 +489,10 @@ public:
   int64_t StreamTimeToMicroseconds(StreamTime aTime)
   {
     return TimeToTicksRoundDown(1000000, aTime);
+  }
+  StreamTime SecondsToStreamTimeRoundDown(double aS)
+  {
+    return SecondsToTicksRoundDown(mBuffer.GraphRate(), aS);
   }
   TrackTicks TimeToTicksRoundUp(TrackRate aRate, StreamTime aTime)
   {

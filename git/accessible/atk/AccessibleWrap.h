@@ -55,14 +55,14 @@ public:
   virtual void Shutdown();
 
   // return the atk object for this AccessibleWrap
-  virtual void GetNativeInterface(void** aOutAccessible) MOZ_OVERRIDE;
+  NS_IMETHOD GetNativeInterface(void **aOutAccessible);
   virtual nsresult HandleAccEvent(AccEvent* aEvent);
 
   AtkObject * GetAtkObject(void);
-  static AtkObject* GetAtkObject(Accessible* aAccessible);
+  static AtkObject * GetAtkObject(nsIAccessible * acc);
 
   bool IsValidObject();
-
+    
   // get/set the MaiHyperlink object for this AccessibleWrap
   MaiHyperlink* GetMaiHyperlink(bool aCreate = true);
   void SetMaiHyperlink(MaiHyperlink* aMaiHyperlink);

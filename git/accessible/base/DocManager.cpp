@@ -11,7 +11,6 @@
 #include "DocAccessibleChild.h"
 #include "nsAccessibilityService.h"
 #include "RootAccessibleWrap.h"
-#include "xpcAccessibleDocument.h"
 
 #ifdef A11Y_LOG
 #include "Logging.h"
@@ -41,7 +40,7 @@ using namespace mozilla::dom;
 ////////////////////////////////////////////////////////////////////////////////
 
 DocManager::DocManager()
-  : mDocAccessibleCache(2), mXPCDocumentCache(0)
+  : mDocAccessibleCache(2)
 {
 }
 
@@ -74,34 +73,6 @@ DocManager::FindAccessibleInCache(nsINode* aNode) const
                                     static_cast<void*>(&arg));
 
   return arg.mAccessible;
-}
-
-void
-DocManager::NotifyOfDocumentShutdown(DocAccessible* aDocument,
-                                     nsIDocument* aDOMDocument)
-{
-  xpcAccessibleDocument* xpcDoc = mXPCDocumentCache.GetWeak(aDocument);
-  if (xpcDoc) {
-    xpcDoc->Shutdown();
-    mXPCDocumentCache.Remove(aDocument);
-  }
-
-  mDocAccessibleCache.Remove(aDOMDocument);
-  RemoveListeners(aDOMDocument);
-}
-
-xpcAccessibleDocument*
-DocManager::GetXPCDocument(DocAccessible* aDocument)
-{
-  if (!aDocument)
-    return nullptr;
-
-  xpcAccessibleDocument* xpcDoc = mXPCDocumentCache.GetWeak(aDocument);
-  if (!xpcDoc) {
-    xpcDoc = new xpcAccessibleDocument(aDocument);
-    mXPCDocumentCache.Put(aDocument, xpcDoc);
-  }
-  return xpcDoc;
 }
 
 #ifdef DEBUG
