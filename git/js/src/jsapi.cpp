@@ -2239,7 +2239,7 @@ JS_IdToValue(JSContext *cx, jsid id, MutableHandleValue vp)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    vp.set(IdToValue(id));
+    vp.set(IdToJsval(id));
     assertSameCompartment(cx, vp);
     return true;
 }

@@ -274,9 +274,6 @@ pref("browser.search.noCurrentEngine", true);
 pref("browser.search.official", true);
 #endif
 
-// Control media casting feature
-pref("browser.casting.enabled", false);
-
 // Enable sparse localization by setting a few package locale overrides
 pref("chrome.override_package.global", "browser");
 pref("chrome.override_package.mozapps", "browser");
@@ -817,9 +814,8 @@ pref("browser.snippets.geoUrl", "https://geo.mozilla.org/country.json");
 // URL used to ping metrics with stats about which snippets have been shown
 pref("browser.snippets.statsUrl", "https://snippets-stats.mozilla.org/mobile");
 
-// These prefs require a restart to take effect.
+// This pref requires a restart to take effect.
 pref("browser.snippets.enabled", false);
-pref("browser.snippets.syncPromo.enabled", false);
 
 #ifdef MOZ_ANDROID_SYNTHAPKS
 // The URL of the APK factory from which we obtain APKs for webapps.

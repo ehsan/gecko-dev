@@ -84,7 +84,9 @@ RootAccessible::Name(nsString& aName)
       return eNameOK;
   }
 
-  mDocumentNode->GetTitle(aName);
+  nsCOMPtr<nsIDOMDocument> document = do_QueryInterface(mDocumentNode);
+  NS_ENSURE_TRUE(document, eNameOK);
+  document->GetTitle(aName);
   return eNameOK;
 }
 

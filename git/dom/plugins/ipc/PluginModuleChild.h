@@ -84,32 +84,32 @@ protected:
     virtual bool ShouldContinueFromReplyTimeout() MOZ_OVERRIDE;
 
     // Implement the PPluginModuleChild interface
-    virtual bool AnswerNP_GetEntryPoints(NPError* rv) MOZ_OVERRIDE;
-    virtual bool AnswerNP_Initialize(const uint32_t& aFlags, NPError* rv) MOZ_OVERRIDE;
+    virtual bool AnswerNP_GetEntryPoints(NPError* rv);
+    virtual bool AnswerNP_Initialize(const uint32_t& aFlags, NPError* rv);
 
     virtual PPluginIdentifierChild*
     AllocPPluginIdentifierChild(const nsCString& aString,
                                 const int32_t& aInt,
-                                const bool& aTemporary) MOZ_OVERRIDE;
+                                const bool& aTemporary);
 
     virtual bool
     RecvPPluginIdentifierConstructor(PPluginIdentifierChild* actor,
                                      const nsCString& aString,
                                      const int32_t& aInt,
-                                     const bool& aTemporary) MOZ_OVERRIDE;
+                                     const bool& aTemporary);
 
     virtual bool
-    DeallocPPluginIdentifierChild(PPluginIdentifierChild* aActor) MOZ_OVERRIDE;
+    DeallocPPluginIdentifierChild(PPluginIdentifierChild* aActor);
 
     virtual PPluginInstanceChild*
     AllocPPluginInstanceChild(const nsCString& aMimeType,
                               const uint16_t& aMode,
                               const InfallibleTArray<nsCString>& aNames,
                               const InfallibleTArray<nsCString>& aValues,
-                              NPError* rv) MOZ_OVERRIDE;
+                              NPError* rv);
 
     virtual bool
-    DeallocPPluginInstanceChild(PPluginInstanceChild* aActor) MOZ_OVERRIDE;
+    DeallocPPluginInstanceChild(PPluginInstanceChild* aActor);
 
     virtual bool
     AnswerPPluginInstanceConstructor(PPluginInstanceChild* aActor,
@@ -117,44 +117,44 @@ protected:
                                      const uint16_t& aMode,
                                      const InfallibleTArray<nsCString>& aNames,
                                      const InfallibleTArray<nsCString>& aValues,
-                                     NPError* rv) MOZ_OVERRIDE;
+                                     NPError* rv);
     virtual bool
-    AnswerNP_Shutdown(NPError *rv) MOZ_OVERRIDE;
+    AnswerNP_Shutdown(NPError *rv);
 
     virtual bool
     AnswerOptionalFunctionsSupported(bool *aURLRedirectNotify,
                                      bool *aClearSiteData,
-                                     bool *aGetSitesWithData) MOZ_OVERRIDE;
+                                     bool *aGetSitesWithData);
 
     virtual bool
     AnswerNPP_ClearSiteData(const nsCString& aSite,
                             const uint64_t& aFlags,
                             const uint64_t& aMaxAge,
-                            NPError* aResult) MOZ_OVERRIDE;
+                            NPError* aResult);
 
     virtual bool
-    AnswerNPP_GetSitesWithData(InfallibleTArray<nsCString>* aResult) MOZ_OVERRIDE;
+    AnswerNPP_GetSitesWithData(InfallibleTArray<nsCString>* aResult);
 
     virtual bool
     RecvSetAudioSessionData(const nsID& aId,
                             const nsString& aDisplayName,
-                            const nsString& aIconPath) MOZ_OVERRIDE;
+                            const nsString& aIconPath);
 
     virtual bool
-    RecvSetParentHangTimeout(const uint32_t& aSeconds) MOZ_OVERRIDE;
+    RecvSetParentHangTimeout(const uint32_t& aSeconds);
 
     virtual PCrashReporterChild*
     AllocPCrashReporterChild(mozilla::dom::NativeThreadId* id,
-                             uint32_t* processType) MOZ_OVERRIDE;
+                             uint32_t* processType);
     virtual bool
-    DeallocPCrashReporterChild(PCrashReporterChild* actor) MOZ_OVERRIDE;
+    DeallocPCrashReporterChild(PCrashReporterChild* actor);
     virtual bool
     AnswerPCrashReporterConstructor(PCrashReporterChild* actor,
                                     mozilla::dom::NativeThreadId* id,
-                                    uint32_t* processType) MOZ_OVERRIDE;
+                                    uint32_t* processType);
 
     virtual void
-    ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
+    ActorDestroy(ActorDestroyReason why);
 
     MOZ_NORETURN void QuickExit();
 
@@ -162,7 +162,7 @@ protected:
     RecvProcessNativeEventsInInterruptCall() MOZ_OVERRIDE;
 
     virtual bool
-    AnswerGeckoGetProfile(nsCString* aProfile) MOZ_OVERRIDE;
+    AnswerGeckoGetProfile(nsCString* aProfile);
 
 public:
     PluginModuleChild();

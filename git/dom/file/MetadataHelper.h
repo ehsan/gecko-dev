@@ -12,6 +12,8 @@
 
 #include "nsIFileStreams.h"
 
+#include "DictionaryHelpers.h"
+
 #include "AsyncHelper.h"
 #include "FileHelper.h"
 
@@ -28,28 +30,35 @@ class MetadataParameters
 public:
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MetadataParameters)
 
-  MetadataParameters(bool aSizeRequested, bool aLastModifiedRequested)
-    : mSizeRequested(aSizeRequested)
-    , mLastModifiedRequested(aLastModifiedRequested)
+  nsresult
+  Init(JSContext* aCx, JS::Handle<JS::Value> aVal)
   {
+    return mConfig.Init(aCx, aVal.address());
+  }
+
+  void
+  Init(bool aRequestSize, bool aRequestLastModified)
+  {
+    mConfig.size = aRequestSize;
+    mConfig.lastModified = aRequestLastModified;
   }
 
   bool
   IsConfigured() const
   {
-    return mSizeRequested || mLastModifiedRequested;
+    return mConfig.size || mConfig.lastModified;
   }
 
   bool
   SizeRequested() const
   {
-    return mSizeRequested;
+    return mConfig.size;
   }
 
   bool
   LastModifiedRequested() const
   {
-    return mLastModifiedRequested;
+    return mConfig.lastModified;
   }
 
   uint64_t
@@ -65,10 +74,10 @@ public:
   }
 
 private:
+  mozilla::idl::DOMFileMetadataParameters mConfig;
+
   uint64_t mSize;
   int64_t mLastModified;
-  bool mSizeRequested;
-  bool mLastModifiedRequested;
 };
 
 class MetadataHelper : public FileHelper

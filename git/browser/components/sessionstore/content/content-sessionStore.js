@@ -342,14 +342,9 @@ let FormDataListener = {
  */
 let PageStyleListener = {
   init: function () {
-    Services.obs.addObserver(this, "author-style-disabled-changed", false);
-    Services.obs.addObserver(this, "style-sheet-applicable-state-changed", false);
+    Services.obs.addObserver(this, "author-style-disabled-changed", true);
+    Services.obs.addObserver(this, "style-sheet-applicable-state-changed", true);
     gFrameTree.addObserver(this);
-  },
-
-  uninit: function () {
-    Services.obs.removeObserver(this, "author-style-disabled-changed");
-    Services.obs.removeObserver(this, "style-sheet-applicable-state-changed");
   },
 
   observe: function (subject, topic) {
@@ -372,7 +367,8 @@ let PageStyleListener = {
     MessageQueue.push("pageStyle", () => null);
   },
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver])
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,
+                                         Ci.nsISupportsWeakReference])
 };
 
 /**
@@ -423,12 +419,8 @@ let DocShellCapabilitiesListener = {
 let SessionStorageListener = {
   init: function () {
     addEventListener("MozStorageChanged", this);
-    Services.obs.addObserver(this, "browser:purge-domain-data", false);
+    Services.obs.addObserver(this, "browser:purge-domain-data", true);
     gFrameTree.addObserver(this);
-  },
-
-  uninit: function () {
-    Services.obs.removeObserver(this, "browser:purge-domain-data");
   },
 
   handleEvent: function (event) {
@@ -458,7 +450,8 @@ let SessionStorageListener = {
     this.collect();
   },
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver])
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,
+                                         Ci.nsISupportsWeakReference])
 };
 
 /**
@@ -663,13 +656,3 @@ SessionStorageListener.init();
 ScrollPositionListener.init();
 DocShellCapabilitiesListener.init();
 PrivacyListener.init();
-
-addEventListener("unload", () => {
-  // Remove all registered nsIObservers.
-  PageStyleListener.uninit();
-  SessionStorageListener.uninit();
-
-  // We don't need to take care of any gFrameTree observers as the gFrameTree
-  // will die with the content script. The same goes for the privacy transition
-  // observer that will die with the docShell when the tab is closed.
-});

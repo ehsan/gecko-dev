@@ -20,6 +20,22 @@
 using namespace mozilla;
 using namespace mozilla::dom;
 
+namespace {
+
+bool
+IsChromeType(nsIDocShell *aDocShell)
+{
+  if (!aDocShell) {
+    return false;
+  }
+
+  int32_t itemType;
+  aDocShell->GetItemType(&itemType);
+  return itemType == nsIDocShellTreeItem::typeChrome;
+}
+
+} // anonymous namespace
+
 /* static */ already_AddRefed<nsScreen>
 nsScreen::Create(nsPIDOMWindow* aWindow)
 {
@@ -202,8 +218,7 @@ nsScreen::GetLockOrientationPermission() const
   }
 
   // Chrome can always lock the screen orientation.
-  nsIDocShell* docShell = owner->GetDocShell();
-  if (docShell && docShell->ItemType() == nsIDocShellTreeItem::typeChrome) {
+  if (IsChromeType(owner->GetDocShell())) {
     return LOCK_ALLOWED;
   }
 

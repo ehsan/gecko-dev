@@ -272,7 +272,6 @@ public:
 #ifdef MOZ_NFC
   static bool HasNfcSupport(JSContext* /* unused */, JSObject* aGlobal);
   static bool HasNfcPeerSupport(JSContext* /* unused */, JSObject* aGlobal);
-  static bool HasNfcManagerSupport(JSContext* /* unused */, JSObject* aGlobal);
 #endif // MOZ_NFC
 #ifdef MOZ_TIME_MANAGER
   static bool HasTimeSupport(JSContext* /* unused */, JSObject* aGlobal);

@@ -34,6 +34,7 @@
 #include "mozilla/EventForwards.h"
 #include "mozilla/layers/CompositorTypes.h"
 
+struct gfxMatrix;
 class nsICachedFileDescriptorListener;
 class nsIDOMWindowUtils;
 
