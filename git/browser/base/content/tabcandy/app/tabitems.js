@@ -209,60 +209,61 @@ window.TabItems = {
           $(this).find("canvas").data("link").tab.close(); }
         else {
           if(!$(this).data('isDragging')) {
-            // ZOOM! 
-            var orig = {
-              width: $(this).width(),
-              height:  $(this).height(),
-              pos: $(this).position()
-            }
-
-            var scale = window.innerWidth/orig.width;
-            
-            var tab = Tabs.tab(this);
-            var mirror = tab.mirror;
-            
-            var overflow = $("body").css("overflow");
-            $("body").css("overflow", "hidden");
-            
-            function onZoomDone(){
-              UI.tabBar.show(false);              
-              TabMirror.resumePainting();
-              $(this).find("canvas").data("link").tab.focus();
-              $(this).css({
-                top:   orig.pos.top,
-                left:  orig.pos.left,
-                width: orig.width,
-                height:orig.height,
-                })
-                .removeClass("front");  
-              Navbar.show();
-              
-              try{
-                var gID = self.getItemByTab(this).parent.id;
-                if(gID) {
-                  var group = Groups.group(gID);
-                  UI.tabBar.showOnlyTheseTabs( group._children );
-                }
+            var item = $(this).data('tabItem');
+            if(!item.parent || !item.parent.childHit(item)) {
+              // ZOOM! 
+              var orig = {
+                width: $(this).width(),
+                height:  $(this).height(),
+                pos: $(this).position()
               }
-              catch(e){
-                Utils.log(e);                
-              }
-              
-              
-              $("body").css("overflow", overflow);              
-            }
   
-            TabMirror.pausePainting();
-            $(this)
-              .addClass("front")
-              .animate({
-                top:    -10,
-                left:   0,
-                easing: "easein",
-                width:  orig.width*scale,
-                height: orig.height*scale
-                }, 200, onZoomDone);
-            
+              var scale = window.innerWidth/orig.width;
+              
+              var tab = Tabs.tab(this);
+              var mirror = tab.mirror;
+              
+              var overflow = $("body").css("overflow");
+              $("body").css("overflow", "hidden");
+              
+              function onZoomDone(){
+                UI.tabBar.show(false);              
+                TabMirror.resumePainting();
+                $(this).find("canvas").data("link").tab.focus();
+                $(this).css({
+                  top:   orig.pos.top,
+                  left:  orig.pos.left,
+                  width: orig.width,
+                  height:orig.height,
+                  })
+                  .removeClass("front");  
+                Navbar.show();    
+              
+                try{
+                  var gID = self.getItemByTab(this).parent.id;
+                  if(gID) {
+                    var group = Groups.group(gID);
+                    UI.tabBar.showOnlyTheseTabs( group._children );
+                  }
+                }
+                catch(e){
+                  Utils.log(e);                
+                }
+              
+                $("body").css("overflow", overflow);              
+              }
+    
+              TabMirror.pausePainting();
+              $(this)
+                .addClass("front")
+                .animate({
+                  top:    -10,
+                  left:   0,
+                  easing: "easein",
+                  width:  orig.width*scale,
+                  height: orig.height*scale
+                  }, 200, onZoomDone);
+            }
           } else {
             $(this).find("canvas").data("link").tab.raw.pos = $(this).position();
           }
