@@ -157,11 +157,11 @@ nsScriptLoader::~nsScriptLoader()
     mParserBlockingRequest->FireScriptAvailable(NS_ERROR_ABORT);
   }
 
-  for (PRUint32 i = 0; i < mDeferRequests.Length(); i++) {
+  for (PRInt32 i = 0; i < mDeferRequests.Count(); i++) {
     mDeferRequests[i]->FireScriptAvailable(NS_ERROR_ABORT);
   }
 
-  for (PRUint32 i = 0; i < mAsyncRequests.Length(); i++) {
+  for (PRInt32 i = 0; i < mAsyncRequests.Count(); i++) {
     mAsyncRequests[i]->FireScriptAvailable(NS_ERROR_ABORT);
   }
 
@@ -579,11 +579,11 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
       // parse is ongoing.
       NS_ASSERTION(mDocument->GetCurrentContentSink(),
           "Defer script on a document without an active parser; bug 592366.");
-      mDeferRequests.AppendElement(request);
+      mDeferRequests.AppendObject(request);
       return NS_OK;
     }
     if (async) {
-      mAsyncRequests.AppendElement(request);
+      mAsyncRequests.AppendObject(request);
       if (!request->mLoading) {
         // The script is available already. Run it ASAP when the event
         // loop gets a chance to spin.
@@ -847,7 +847,7 @@ nsScriptLoader::ProcessPendingRequestsAsync()
 void
 nsScriptLoader::ProcessPendingRequests()
 {
-  nsRefPtr<nsScriptLoadRequest> request;
+  nsCOMPtr<nsScriptLoadRequest> request;
   if (mParserBlockingRequest &&
       !mParserBlockingRequest->mLoading &&
       ReadyToExecuteScripts()) {
@@ -856,11 +856,11 @@ nsScriptLoader::ProcessPendingRequests()
     ProcessRequest(request);
   }
 
-  PRUint32 i = 0;
-  while (mEnabled && i < mAsyncRequests.Length()) {
+  PRInt32 i = 0;
+  while (mEnabled && i < mAsyncRequests.Count()) {
     if (!mAsyncRequests[i]->mLoading) {
-      request.swap(mAsyncRequests[i]);
-      mAsyncRequests.RemoveElementAt(i);
+      request = mAsyncRequests[i];
+      mAsyncRequests.RemoveObjectAt(i);
       ProcessRequest(request);
       continue;
     }
@@ -868,9 +868,9 @@ nsScriptLoader::ProcessPendingRequests()
   }
 
   if (mDocumentParsingDone) {
-    while (!mDeferRequests.IsEmpty() && !mDeferRequests[0]->mLoading) {
-      request.swap(mDeferRequests[0]);
-      mDeferRequests.RemoveElementAt(0);
+    while (mDeferRequests.Count() && !mDeferRequests[0]->mLoading) {
+      request = mDeferRequests[0];
+      mDeferRequests.RemoveObjectAt(0);
       ProcessRequest(request);
     }
   }
@@ -882,8 +882,8 @@ nsScriptLoader::ProcessPendingRequests()
   }
 
   if (mDocumentParsingDone && mDocument &&
-      !mParserBlockingRequest && mAsyncRequests.IsEmpty() &&
-      mDeferRequests.IsEmpty()) {
+      !mParserBlockingRequest && !mAsyncRequests.Count() &&
+      !mDeferRequests.Count()) {
     // No more pending scripts; time to unblock onload.
     // OK to unblock onload synchronously here, since callers must be
     // prepared for the world changing anyway.
@@ -1052,8 +1052,8 @@ nsScriptLoader::OnStreamComplete(nsIStreamLoader* aLoader,
   nsresult rv = PrepareLoadedRequest(request, aLoader, aStatus, aStringLen,
                                      aString);
   if (NS_FAILED(rv)) {
-    if (mDeferRequests.RemoveElement(request) ||
-        mAsyncRequests.RemoveElement(request)) {
+    if (mDeferRequests.RemoveObject(request) ||
+        mAsyncRequests.RemoveObject(request)) {
       FireScriptAvailable(rv, request);
     } else if (mParserBlockingRequest == request) {
       mParserBlockingRequest = nsnull;

@@ -99,7 +99,6 @@
 #include "nsWhitespaceTokenizer.h"
 #include "nsAttrName.h"
 #include "nsNetUtil.h"
-#include "nsIEventStateManager.h"
 
 #ifdef NS_DEBUG
 #include "nsIDOMCharacterData.h"
@@ -686,23 +685,24 @@ nsAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
   if (aExtraState)
     *aExtraState = 0;
 
-  nsEventStates intrinsicState = mContent->IntrinsicState();
-
-  if (intrinsicState.HasState(NS_EVENT_STATE_INVALID))
-    *aState |= nsIAccessibleStates::STATE_INVALID;
-
-  if (intrinsicState.HasState(NS_EVENT_STATE_REQUIRED))
-    *aState |= nsIAccessibleStates::STATE_REQUIRED;
-
-  PRBool disabled = mContent->IsHTML() ? 
-    (intrinsicState.HasState(NS_EVENT_STATE_DISABLED)) :
-    (mContent->AttrValueIs(kNameSpaceID_None,
-                           nsAccessibilityAtoms::disabled,
-                           nsAccessibilityAtoms::_true,
-                           eCaseMatters));
-
-  // Set unavailable state based on disabled state, otherwise set focus states
-  if (disabled) {
+  // Set STATE_UNAVAILABLE state based on disabled attribute
+  // The disabled attribute is mostly used in XUL elements and HTML forms, but
+  // if someone sets it on another attribute, 
+  // it seems reasonable to consider it unavailable
+  PRBool isDisabled;
+  if (mContent->IsHTML()) {
+    // In HTML, just the presence of the disabled attribute means it is disabled,
+    // therefore disabled="false" indicates disabled!
+    isDisabled = mContent->HasAttr(kNameSpaceID_None,
+                                   nsAccessibilityAtoms::disabled);
+  }
+  else {
+    isDisabled = mContent->AttrValueIs(kNameSpaceID_None,
+                                       nsAccessibilityAtoms::disabled,
+                                       nsAccessibilityAtoms::_true,
+                                       eCaseMatters);
+  }
+  if (isDisabled) {
     *aState |= nsIAccessibleStates::STATE_UNAVAILABLE;
   }
   else if (mContent->IsElement()) {
@@ -985,49 +985,39 @@ void nsAccessible::GetBoundsRect(nsRect& aTotalBounds, nsIFrame** aBoundingFrame
 
 
 /* void getBounds (out long x, out long y, out long width, out long height); */
-NS_IMETHODIMP
-nsAccessible::GetBounds(PRInt32* aX, PRInt32* aY,
-                        PRInt32* aWidth, PRInt32* aHeight)
+NS_IMETHODIMP nsAccessible::GetBounds(PRInt32 *x, PRInt32 *y, PRInt32 *width, PRInt32 *height)
 {
-  NS_ENSURE_ARG_POINTER(aX);
-  *aX = 0;
-  NS_ENSURE_ARG_POINTER(aY);
-  *aY = 0;
-  NS_ENSURE_ARG_POINTER(aWidth);
-  *aWidth = 0;
-  NS_ENSURE_ARG_POINTER(aHeight);
-  *aHeight = 0;
-
-  if (IsDefunct())
-    return NS_ERROR_FAILURE;
-
-  // Flush layout so that all the frame construction, reflow, and styles are
-  // up-to-date since we rely on frames, and styles when calculating state.
-  // We don't flush the display because we don't care about painting.
-  nsCOMPtr<nsIPresShell> presShell = GetPresShell();
-  presShell->FlushPendingNotifications(Flush_Layout);
-
-  // This routine will get the entire rectangle for all the frames in this node.
+  // This routine will get the entire rectange for all the frames in this node
   // -------------------------------------------------------------------------
   //      Primary Frame for node
   //  Another frame, same node                <- Example
   //  Another frame, same node
 
-  nsRect unionRectTwips;
-  nsIFrame* boundingFrame = nsnull;
-  GetBoundsRect(unionRectTwips, &boundingFrame);   // Unions up all primary frames for this node and all siblings after it
-  NS_ENSURE_STATE(boundingFrame);
+  nsPresContext *presContext = GetPresContext();
+  if (!presContext)
+  {
+    *x = *y = *width = *height = 0;
+    return NS_ERROR_FAILURE;
+  }
 
-  nsPresContext* presContext = presShell->GetPresContext();
-  *aX = presContext->AppUnitsToDevPixels(unionRectTwips.x);
-  *aY = presContext->AppUnitsToDevPixels(unionRectTwips.y);
-  *aWidth = presContext->AppUnitsToDevPixels(unionRectTwips.width);
-  *aHeight = presContext->AppUnitsToDevPixels(unionRectTwips.height);
+  nsRect unionRectTwips;
+  nsIFrame* aBoundingFrame = nsnull;
+  GetBoundsRect(unionRectTwips, &aBoundingFrame);   // Unions up all primary frames for this node and all siblings after it
+  if (!aBoundingFrame) {
+    *x = *y = *width = *height = 0;
+    return NS_ERROR_FAILURE;
+  }
+
+  *x      = presContext->AppUnitsToDevPixels(unionRectTwips.x); 
+  *y      = presContext->AppUnitsToDevPixels(unionRectTwips.y);
+  *width  = presContext->AppUnitsToDevPixels(unionRectTwips.width);
+  *height = presContext->AppUnitsToDevPixels(unionRectTwips.height);
 
   // We have the union of the rectangle, now we need to put it in absolute screen coords
-  nsIntRect orgRectPixels = boundingFrame->GetScreenRectExternal();
-  *aX += orgRectPixels.x;
-  *aY += orgRectPixels.y;
+
+  nsIntRect orgRectPixels = aBoundingFrame->GetScreenRectExternal();
+  *x += orgRectPixels.x;
+  *y += orgRectPixels.y;
 
   return NS_OK;
 }

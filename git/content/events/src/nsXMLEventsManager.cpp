@@ -118,7 +118,7 @@ PRBool nsXMLEventsListener::InitXMLEventsListener(nsIDocument * aDocument,
     aContent->AttrValueIs(nameSpaceID, nsGkAtoms::defaultAction,
                           nsGkAtoms::cancel, eCaseMatters);
 
-  nsIContent *observer = nsnull;
+  nsIContent *observer;
   if (!hasObserver) {
     if (!hasHandlerURI) //Parent should be the observer
       observer = aContent->GetParent();

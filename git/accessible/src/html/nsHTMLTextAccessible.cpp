@@ -46,7 +46,6 @@
 
 #include "nsIFrame.h"
 #include "nsPresContext.h"
-#include "nsBlockFrame.h"
 #include "nsISelection.h"
 #include "nsISelectionController.h"
 #include "nsComponentManagerUtils.h"
@@ -253,12 +252,13 @@ nsHTMLOutputAccessible::GetAttributesInternal(nsIPersistentProperties* aAttribut
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLLIAccessible::
-  nsHTMLLIAccessible(nsIContent* aContent, nsIWeakReference* aShell) :
+  nsHTMLLIAccessible(nsIContent *aContent, nsIWeakReference *aShell,
+                     const nsAString& aBulletText) :
   nsHyperTextAccessibleWrap(aContent, aShell)
 {
-  nsBlockFrame* blockFrame = do_QueryFrame(GetFrame());
-  if (blockFrame && !blockFrame->BulletIsEmptyExternal()) {
-    mBulletAccessible = new nsHTMLListBulletAccessible(mContent, mWeakShell);
+  if (!aBulletText.IsEmpty()) {
+    mBulletAccessible = new nsHTMLListBulletAccessible(mContent, mWeakShell, 
+                                                       aBulletText);
     if (mBulletAccessible)
       mBulletAccessible->Init();
   }
@@ -329,8 +329,9 @@ nsHTMLLIAccessible::CacheChildren()
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLListBulletAccessible::
-  nsHTMLListBulletAccessible(nsIContent* aContent, nsIWeakReference* aShell) :
-    nsLeafAccessible(aContent, aShell)
+  nsHTMLListBulletAccessible(nsIContent *aContent, nsIWeakReference *aShell,
+                             const nsAString& aBulletText) :
+    nsLeafAccessible(aContent, aShell), mBulletText(aBulletText)
 {
   mBulletText += ' '; // Otherwise bullets are jammed up against list text
 }
@@ -354,20 +355,8 @@ nsHTMLListBulletAccessible::Shutdown()
 NS_IMETHODIMP
 nsHTMLListBulletAccessible::GetName(nsAString &aName)
 {
-  aName.Truncate();
-
-  if (IsDefunct())
-    return NS_ERROR_FAILURE;
-
-  // Native anonymous content, ARIA can't be used. Get list bullet text.
-  nsBlockFrame* blockFrame = do_QueryFrame(mContent->GetPrimaryFrame());
-  if (blockFrame) {
-    blockFrame->GetBulletText(aName);
-
-    // Append space otherwise bullets are jammed up against list text.
-    aName.Append(' ');
-  }
-
+  // Native anonymous content, ARIA can't be used.
+  aName = mBulletText;
   return NS_OK;
 }
 
@@ -392,17 +381,11 @@ nsresult
 nsHTMLListBulletAccessible::AppendTextTo(nsAString& aText, PRUint32 aStartOffset,
                                          PRUint32 aLength)
 {
-  nsBlockFrame* blockFrame = do_QueryFrame(mContent->GetPrimaryFrame());
-  if (blockFrame) {
-    nsAutoString bulletText;
-    blockFrame->GetBulletText(bulletText);
-
-    PRUint32 maxLength = bulletText.Length() - aStartOffset;
-    if (aLength > maxLength)
-      aLength = maxLength;
-
-    aText += Substring(bulletText, aStartOffset, aLength);
+  PRUint32 maxLength = mBulletText.Length() - aStartOffset;
+  if (aLength > maxLength) {
+    aLength = maxLength;
   }
+  aText += Substring(mBulletText, aStartOffset, aLength);
   return NS_OK;
 }
 

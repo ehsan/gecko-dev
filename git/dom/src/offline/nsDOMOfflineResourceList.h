@@ -110,10 +110,7 @@ private:
 
   nsCOMPtr<nsIURI> mDocumentURI;
   nsCOMPtr<nsIApplicationCacheService> mApplicationCacheService;
-  nsCOMPtr<nsIApplicationCache> mAvailableApplicationCache;
   nsCOMPtr<nsIOfflineCacheUpdate> mCacheUpdate;
-  bool mExposeCacheUpdateStatus;
-  PRUint16 mStatus;
 
   // The set of dynamic keys for this application cache object.
   char **mCachedKeys;

@@ -47,6 +47,7 @@ XPIDL_MODULE	= content_htmldoc
 
 XPIDLSRCS 	= \
 		nsIImageDocument.idl \
+		nsIWyciwygChannel.idl \
         	$(NULL)
 
 include $(topsrcdir)/config/rules.mk

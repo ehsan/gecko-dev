@@ -84,7 +84,6 @@ protected:
 
   void                     LoadContentAreas();
   PRBool                   ExecuteCloseHandler();
-  void                     ConstrainToOpenerScreen(PRInt32* aX, PRInt32* aY);
 
   static nsEventStatus HandleEvent(nsGUIEvent *aEvent);
 

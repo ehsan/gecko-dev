@@ -139,20 +139,6 @@ struct VMFrame
 extern "C" void JaegerStubVeneer(void);
 #endif
 
-namespace mjit {
-namespace ic {
-# if defined JS_POLYIC
-    struct PICInfo;
-# endif
-# if defined JS_MONOIC
-    struct MICInfo;
-    struct EqualityICInfo;
-    struct TraceICInfo;
-    struct CallICInfo;
-# endif
-}
-}
-
 typedef void (JS_FASTCALL *VoidStub)(VMFrame &);
 typedef void (JS_FASTCALL *VoidVpStub)(VMFrame &, Value *);
 typedef void (JS_FASTCALL *VoidStubUInt32)(VMFrame &, uint32);
@@ -172,68 +158,27 @@ typedef JSString * (JS_FASTCALL *JSStrStubUInt32)(VMFrame &, uint32);
 typedef void (JS_FASTCALL *VoidStubJSObj)(VMFrame &, JSObject *);
 typedef void (JS_FASTCALL *VoidStubPC)(VMFrame &, jsbytecode *);
 typedef JSBool (JS_FASTCALL *BoolStubUInt32)(VMFrame &f, uint32);
-#ifdef JS_MONOIC
-typedef void (JS_FASTCALL *VoidStubCallIC)(VMFrame &, js::mjit::ic::CallICInfo *);
-typedef void * (JS_FASTCALL *VoidPtrStubCallIC)(VMFrame &, js::mjit::ic::CallICInfo *);
-typedef void (JS_FASTCALL *VoidStubMIC)(VMFrame &, js::mjit::ic::MICInfo *);
-typedef void * (JS_FASTCALL *VoidPtrStubMIC)(VMFrame &, js::mjit::ic::MICInfo *);
-typedef JSBool (JS_FASTCALL *BoolStubEqualityIC)(VMFrame &, js::mjit::ic::EqualityICInfo *);
-typedef void * (JS_FASTCALL *VoidPtrStubTraceIC)(VMFrame &, js::mjit::ic::TraceICInfo *);
-#endif
-#ifdef JS_POLYIC
-typedef void (JS_FASTCALL *VoidStubPIC)(VMFrame &, js::mjit::ic::PICInfo *);
-#endif
+
+#define JS_UNJITTABLE_METHOD (reinterpret_cast<void*>(1))
 
 namespace mjit {
 
-struct CallSite;
-
 struct JITScript {
-    typedef JSC::MacroAssemblerCodeRef CodeRef;
-    CodeRef         code;       /* pool & code addresses */
-    void            **nmap;     /* pc -> JIT code map, sparse */
-
+    JSC::ExecutablePool *execPool;   /* pool that contains |ncode|; script owns the pool */
+    uint32          inlineLength;    /* length of inline JIT'd code */
+    uint32          outOfLineLength; /* length of out of line JIT'd code */
     js::mjit::CallSite *callSites;
     uint32          nCallSites;
 #ifdef JS_MONOIC
-    ic::MICInfo     *mics;      /* MICs in this script. */
-    uint32          nMICs;      /* number of MonoICs */
-    ic::CallICInfo  *callICs;   /* CallICs in this script. */
-    uint32          nCallICs;   /* number of call ICs */
-    ic::EqualityICInfo *equalityICs;
-    uint32          nEqualityICs;
-    ic::TraceICInfo *traceICs;
-    uint32          nTraceICs;
-
-    // Additional ExecutablePools that IC stubs were generated into.
-    typedef Vector<JSC::ExecutablePool *, 0, SystemAllocPolicy> ExecPoolVector;
-    ExecPoolVector execPools;
+    uint32          nMICs;           /* number of MonoICs */
+    uint32          nCallICs;        /* number of call ICs */
 #endif
 #ifdef JS_POLYIC
-    ic::PICInfo     *pics;      /* PICs in this script */
-    uint32          nPICs;      /* number of PolyICs */
+    uint32          nPICs;           /* number of PolyICs */
 #endif
-    void            *invokeEntry;       /* invoke address */
-    void            *fastEntry;         /* cached entry, fastest */
-    void            *arityCheckEntry;   /* arity check address */
-
-    bool isValidCode(void *ptr) {
-        char *jitcode = (char *)code.m_code.executableAddress();
-        char *jcheck = (char *)ptr;
-        return jcheck >= jitcode && jcheck < jitcode + code.m_size;
-    }
-
-    void sweepCallICs();
-    void purgeMICs();
-    void purgePICs();
-    void release();
+    void            *invoke;         /* invoke address */
+    void            *arityCheck;     /* arity check address */
 };
-
-/*
- * Execute the given mjit code. This is a low-level call and callers must
- * provide the same guarantees as JaegerShot/CheckStackAndEnterMethodJIT.
- */
-JSBool EnterMethodJIT(JSContext *cx, JSStackFrame *fp, void *code, Value *stackLimit);
 
 /* Execute a method that has been JIT compiled. */
 JSBool JaegerShot(JSContext *cx);
@@ -252,21 +197,18 @@ void JS_FASTCALL
 ProfileStubCall(VMFrame &f);
 
 CompileStatus JS_NEVER_INLINE
-TryCompile(JSContext *cx, JSStackFrame *fp);
+TryCompile(JSContext *cx, JSScript *script, JSFunction *fun, JSObject *scopeChain);
 
 void
 ReleaseScriptCode(JSContext *cx, JSScript *script);
 
 static inline CompileStatus
-CanMethodJIT(JSContext *cx, JSScript *script, JSStackFrame *fp)
+CanMethodJIT(JSContext *cx, JSScript *script, JSFunction *fun, JSObject *scopeChain)
 {
-    if (!cx->methodJitEnabled)
+    if (!cx->methodJitEnabled || script->ncode == JS_UNJITTABLE_METHOD)
         return Compile_Abort;
-    JITScriptStatus status = script->getJITStatus(fp->isConstructing());
-    if (status == JITScript_Invalid)
-        return Compile_Abort;
-    if (status == JITScript_None)
-        return TryCompile(cx, fp);
+    if (script->ncode == NULL)
+        return TryCompile(cx, script, fun, scopeChain);
     return Compile_Okay;
 }
 
@@ -277,38 +219,9 @@ struct CallSite
     uint32 id;
 };
 
-/* Re-enables a tracepoint in the method JIT. */
-void
-EnableTraceHint(JSScript *script, jsbytecode *pc, uint16_t index);
-
 } /* namespace mjit */
 
 } /* namespace js */
-
-inline void *
-JSScript::maybeNativeCodeForPC(bool constructing, jsbytecode *pc)
-{
-    js::mjit::JITScript *jit = getJIT(constructing);
-    if (!jit)
-        return NULL;
-    JS_ASSERT(pc >= code && pc < code + length);
-    return jit->nmap[pc - code];
-}
-
-inline void **
-JSScript::nativeMap(bool constructing)
-{
-    return getJIT(constructing)->nmap;
-}
-
-inline void *
-JSScript::nativeCodeForPC(bool constructing, jsbytecode *pc)
-{
-    void **nmap = nativeMap(constructing);
-    JS_ASSERT(pc >= code && pc < code + length);
-    JS_ASSERT(nmap[pc - code]);
-    return nmap[pc - code];
-}
 
 #ifdef _MSC_VER
 extern "C" void *JaegerThrowpoline(js::VMFrame *vmFrame);

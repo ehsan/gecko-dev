@@ -230,10 +230,6 @@ static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 #include "nsIChannelPolicy.h"
 #include "nsIContentSecurityPolicy.h"
 
-#ifdef MOZ_IPC
-#include "nsXULAppAPI.h"
-#endif
-
 using namespace mozilla;
 
 // Number of documents currently loading
@@ -856,7 +852,6 @@ NS_INTERFACE_MAP_BEGIN(nsDocShell)
     NS_INTERFACE_MAP_ENTRY(nsIWebShellServices)
     NS_INTERFACE_MAP_ENTRY(nsILinkHandler)
     NS_INTERFACE_MAP_ENTRY(nsIClipboardCommands)
-    NS_INTERFACE_MAP_ENTRY(nsIDocShell_MOZILLA_2_0_BRANCH)
 NS_INTERFACE_MAP_END_INHERITING(nsDocLoader)
 
 ///*****************************************************************************
@@ -5932,13 +5927,7 @@ nsDocShell::OnRedirectStateChange(nsIChannel* aOldChannel,
     nsCOMPtr<nsIApplicationCacheChannel> appCacheChannel =
         do_QueryInterface(aNewChannel);
     if (appCacheChannel) {
-#ifdef MOZ_IPC
-        // Permission will be checked in the parent process.
-        if (GeckoProcessType_Default != XRE_GetProcessType())
-            appCacheChannel->SetChooseApplicationCache(PR_TRUE);
-        else
-#endif
-            appCacheChannel->SetChooseApplicationCache(ShouldCheckAppCache(newURI));
+        appCacheChannel->SetChooseApplicationCache(ShouldCheckAppCache(newURI));
     }
 
     if (!(aRedirectFlags & nsIChannelEventSink::REDIRECT_INTERNAL) && 
@@ -6472,12 +6461,6 @@ nsDocShell::CreateAboutBlankContentViewer(nsIPrincipal* aPrincipal,
   SetHistoryEntry(&mOSHE, nsnull);
 
   return rv;
-}
-
-NS_IMETHODIMP
-nsDocShell::CreateAboutBlankContentViewer(nsIPrincipal *aPrincipal)
-{
-    return CreateAboutBlankContentViewer(aPrincipal, nsnull);
 }
 
 PRBool
@@ -8591,14 +8574,7 @@ nsDocShell::DoURILoad(nsIURI * aURI,
 
         // Loads with the correct permissions should check for a matching
         // application cache.
-#ifdef MOZ_IPC
-        // Permission will be checked in the parent process
-        if (GeckoProcessType_Default != XRE_GetProcessType())
-            appCacheChannel->SetChooseApplicationCache(PR_TRUE);
-        else
-#endif
-            appCacheChannel->SetChooseApplicationCache(
-                ShouldCheckAppCache(aURI));
+        appCacheChannel->SetChooseApplicationCache(ShouldCheckAppCache(aURI));
     }
 
     // Make sure to give the caller a channel if we managed to create one

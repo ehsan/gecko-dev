@@ -165,7 +165,8 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
     // Return our desired size
     aDesiredSize.height  = mSize.height * PresContext()->GetPrintPreviewScale();
     aDesiredSize.width   = mSize.width * PresContext()->GetPrintPreviewScale();
-    aDesiredSize.SetOverflowAreasToDesiredBounds();
+    aDesiredSize.mOverflowArea = nsRect(0, 0, aDesiredSize.width,
+                                        aDesiredSize.height);
     FinishAndStoreOverflow(&aDesiredSize);
     return NS_OK;
   }
@@ -349,7 +350,8 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
   aDesiredSize.height  = y * PresContext()->GetPrintPreviewScale(); // includes page heights and dead space
   aDesiredSize.width   = w * PresContext()->GetPrintPreviewScale();
 
-  aDesiredSize.SetOverflowAreasToDesiredBounds();
+  aDesiredSize.mOverflowArea = nsRect(0, 0, aDesiredSize.width,
+                                      aDesiredSize.height);
   FinishAndStoreOverflow(&aDesiredSize);
 
   // cache the size so we can set the desired size 

@@ -170,13 +170,6 @@ public:
     virtual PContentPermissionRequestParent* AllocPContentPermissionRequest(const nsCString& aType, const IPC::URI& uri);
     virtual bool DeallocPContentPermissionRequest(PContentPermissionRequestParent* actor);
 
-    virtual POfflineCacheUpdateParent* AllocPOfflineCacheUpdate(
-            const URI& aManifestURI,
-            const URI& aDocumentURI,
-            const nsCString& aClientID,
-            const bool& stickDocument);
-    virtual bool DeallocPOfflineCacheUpdate(POfflineCacheUpdateParent* actor);
-
     JSBool GetGlobalJSObject(JSContext* cx, JSObject** globalp);
 
     NS_DECL_ISUPPORTS
@@ -220,7 +213,6 @@ protected:
     nsTArray<DelayedDialogData*> mDelayedDialogs;
 
     PRBool ShouldDelayDialogs();
-    PRBool AllowContentIME();
 
     NS_OVERRIDE
     virtual PRenderFrameParent* AllocPRenderFrame();

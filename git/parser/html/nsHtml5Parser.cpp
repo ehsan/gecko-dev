@@ -99,6 +99,7 @@ nsHtml5Parser::nsHtml5Parser()
 nsHtml5Parser::~nsHtml5Parser()
 {
   mTokenizer->end();
+  mFirstBuffer = nsnull;
 }
 
 NS_IMETHODIMP_(void)
@@ -511,7 +512,6 @@ nsHtml5Parser::Reset()
   mFirstBuffer->next = nsnull;
   mFirstBuffer->setStart(0);
   mFirstBuffer->setEnd(0);
-  mLastBuffer = mFirstBuffer;
 }
 
 PRBool

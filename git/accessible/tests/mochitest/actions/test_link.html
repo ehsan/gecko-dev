@@ -19,55 +19,18 @@
           src="../actions.js"></script>
 
   <script type="application/javascript">
-    function getAnchorTargetDocumentAcc()
-    {
-      var thisTabDocAcc = getTabDocAccessible();
-      var thisDocTabPanelAcc = thisTabDocAcc.parent.parent;
-      var tabPanelsAcc = thisDocTabPanelAcc.parent;
-      var newDocTabPanelAcc = tabPanelsAcc.lastChild.firstChild;
-      return newDocTabPanelAcc.firstChild;
-    }
-
-    function linkChecker(aID)
-    {
-      this.type = EVENT_DOCUMENT_LOAD_COMPLETE;
-      this.__defineGetter__("target", getAnchorTargetDocumentAcc);
-
-      this.check = function linkChecker_check()
-      {
-        var anchorTargetWindow =
-          getAccessible(getAnchorTargetDocumentAcc(), [nsIAccessibleDocument]).
-          window;
-        anchorTargetWindow.close();
-      }
-
-      this.getID = function linkChecker_getID()
-      {
-        return "link '" + aID + "' states check ";
-      }
-    }
-
-    //gA11yEventDumpID = "eventdump"; // debug stuff
-
     function doTest()
     {
       var actionsArray = [
         {
           ID: "link1",
           actionName: "jump",
-          events: CLICK_EVENTS,
-          eventSeq: [
-            new linkChecker("link1")
-          ]
+          events: CLICK_EVENTS
         },
         {
           ID: "img1",
-          targetID: "link1",
-          actionName: "jump",
-          events: CLICK_EVENTS,
-          eventSeq: [
-            new linkChecker("link1")
-          ]
+          actionName: "click",
+          events: CLICK_EVENTS
         },
         {
           ID: "link2",
@@ -76,8 +39,7 @@
         },
         {
           ID: "img2",
-          targetID: "link2",
-          actionName: "jump",
+          actionName: "click",
           events: CLICK_EVENTS
         },
         {
@@ -87,8 +49,7 @@
         },
         {
           ID: "img3",
-          targetID: "link3",
-          actionName: "jump",
+          actionName: "click",
           events: CLICK_EVENTS
         },
         {
@@ -98,8 +59,7 @@
         },
         {
           ID: "img4",
-          targetID: "link4",
-          actionName: "jump",
+          actionName: "click",
           events: CLICK_EVENTS
         }
       ];
@@ -123,7 +83,7 @@
   <pre id="test">
   </pre>
 
-  <a href="about:mozilla" id="link1" target="_blank">
+  <a href="http://mozilla.org" id="link1">
     <img src="../moz.png" id="img1">
   </a>
   <a id="link2" onmousedown="">
@@ -135,7 +95,5 @@
   <a id="link4" onmouseup="">
     <img src="../moz.png" id="img4">
   </a>
-
-  <div id="eventdump"></div>
 </body>
 </html>
