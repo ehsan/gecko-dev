@@ -473,8 +473,7 @@ txXPathNodeUtils::getNodeName(const txXPathNode& aNode, nsAString& aName)
             nodeInfo->GetQualifiedName(aName);
 
             // Check for html
-            if (aNode.Content()->IsHTML() &&
-                aNode.Content()->IsInHTMLDocument()) {
+            if (aNode.Content()->IsHTML()) {
                 ToUpperCase(aName);
             }
             return;

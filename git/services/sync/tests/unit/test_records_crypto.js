@@ -74,10 +74,9 @@ function run_test() {
 
     log.info("Creating a record");
 
-    let cryptoUri = "http://localhost:8080/crypto/steam";
     cryptoWrap = new CryptoWrapper("http://localhost:8080/steam/resource");
-    cryptoWrap.encryption = cryptoUri;
-    do_check_eq(cryptoWrap.encryption, cryptoUri);
+    cryptoWrap.encryption = "http://localhost:8080/crypto/steam";
+    do_check_eq(cryptoWrap.encryption, "http://localhost:8080/crypto/steam");
     do_check_eq(cryptoWrap.payload.encryption, "../crypto/steam");
 
     log.info("Encrypting a record");
@@ -88,7 +87,7 @@ function run_test() {
 
     log.info("Decrypting the record");
 
-    let payload = cryptoWrap.decrypt(passphrase, cryptoUri);
+    let payload = cryptoWrap.decrypt(passphrase);
     do_check_eq(payload.stuff, "my payload here");
     do_check_neq(payload, cryptoWrap.payload); // wrap.data.payload is the encrypted one
 
@@ -97,7 +96,7 @@ function run_test() {
     cryptoWrap.cleartext.stuff = "another payload";
     cryptoWrap.encrypt(passphrase);
     let secondIV = cryptoWrap.IV;
-    payload = cryptoWrap.decrypt(passphrase, cryptoUri);
+    payload = cryptoWrap.decrypt(passphrase);
     do_check_eq(payload.stuff, "another payload");
 
     log.info("Make sure multiple encrypts use different IVs");
@@ -108,7 +107,7 @@ function run_test() {
     cryptoWrap.data.id = "other";
     let error = "";
     try {
-      cryptoWrap.decrypt(passphrase, cryptoUri);
+      cryptoWrap.decrypt(passphrase);
     }
     catch(ex) {
       error = ex;
@@ -120,7 +119,7 @@ function run_test() {
     cryptoWrap.hmac = "foo";
     error = "";
     try {
-      cryptoWrap.decrypt(passphrase, cryptoUri);
+      cryptoWrap.decrypt(passphrase);
     }
     catch(ex) {
       error = ex;

@@ -49,12 +49,9 @@
 #include "mozilla/AutoRestore.h"
 #include "nsString.h"
 #include "nsIXMLHttpRequest.h"
-#include "prmem.h"
-#include "nsAutoPtr.h"
 
 class nsIFile;
 class nsIInputStream;
-class nsIClassInfo;
 
 class nsDOMFile : public nsIDOMFile,
                   public nsIXHRSendable,
@@ -62,53 +59,28 @@ class nsDOMFile : public nsIDOMFile,
 {
 public:
   NS_DECL_ISUPPORTS
-  NS_DECL_NSIDOMBLOB
   NS_DECL_NSIDOMFILE
   NS_DECL_NSIXHRSENDABLE
 
   nsDOMFile(nsIFile *aFile, const nsAString& aContentType)
     : mFile(aFile),
-      mContentType(aContentType),
-      mIsFullFile(true)
+      mContentType(aContentType)
   {}
 
   nsDOMFile(nsIFile *aFile)
-    : mFile(aFile),
-      mIsFullFile(true)
+    : mFile(aFile)
   {}
-
-  nsDOMFile(const nsDOMFile* aOther, PRUint64 aStart, PRUint64 aLength,
-            const nsAString& aContentType)
-    : mFile(aOther->mFile),
-      mStart(aOther->mIsFullFile ? aStart :
-                                   (aOther->mStart + aStart)),
-      mLength(aLength),
-      mContentType(aContentType),
-      mIsFullFile(false)
-  {
-    NS_ASSERTION(mFile, "must have file");
-    // Ensure non-null mContentType
-    mContentType.SetIsVoid(PR_FALSE);
-  }
 
   virtual ~nsDOMFile() {}
 
   // from nsICharsetDetectionObserver
   NS_IMETHOD Notify(const char *aCharset, nsDetectionConfident aConf);
 
-protected:
+private:
   nsCOMPtr<nsIFile> mFile;
-
-  // start and length in 
-  PRUint64 mStart;
-  PRUint64 mLength;
-
   nsString mContentType;
-  
-  bool mIsFullFile;
-
-  // Used during charset detection
   nsCString mCharset;
+
   nsresult GuessCharset(nsIInputStream *aStream,
                         nsACString &aCharset);
   nsresult ConvertStream(nsIInputStream *aStream, const char *aCharset,
@@ -123,52 +95,20 @@ public:
                   const nsAString& aName,
                   const nsAString& aContentType)
     : nsDOMFile(nsnull, aContentType),
-      mDataOwner(new DataOwner(aMemoryBuffer)),
-      mName(aName)
-  {
-    mStart = 0;
-    mLength = aLength;
-  }
+      mInternalData(aMemoryBuffer), mLength(aLength), mName(aName)
+  { }
 
-  nsDOMMemoryFile(const nsDOMMemoryFile* aOther, PRUint64 aStart,
-                  PRUint64 aLength, const nsAString& aContentType)
-    : nsDOMFile(nsnull, aContentType),
-      mDataOwner(aOther->mDataOwner)
-  {
-    NS_ASSERTION(mDataOwner && mDataOwner->mData, "must have data");
-
-    mIsFullFile = false;
-    mStart = aOther->mStart + aStart;
-    mLength = aLength;
-
-    // Ensure non-null mContentType
-    mContentType.SetIsVoid(PR_FALSE);
-  }
+  ~nsDOMMemoryFile();
 
   NS_IMETHOD GetName(nsAString&);
   NS_IMETHOD GetSize(PRUint64*);
   NS_IMETHOD GetInternalStream(nsIInputStream**);
+  NS_IMETHOD GetMozFullPath(nsAString&);
   NS_IMETHOD GetMozFullPathInternal(nsAString&);
-  NS_IMETHOD Slice(PRUint64 aStart, PRUint64 aLength,
-                   const nsAString& aContentType, nsIDOMBlob **aBlob);
 
 protected:
-  class DataOwner {
-  public:
-    NS_INLINE_DECL_REFCOUNTING(DataOwner)
-    DataOwner(void* aMemoryBuffer)
-      : mData(aMemoryBuffer)
-    {
-    }
-    ~DataOwner() {
-      PR_Free(mData);
-    }
-    void* mData;
-  };
-
-  // Used when backed by a memory store
-  nsRefPtr<DataOwner> mDataOwner;
-
+  void* mInternalData;
+  PRUint64 mLength;
   nsString mName;
 };
 
@@ -223,7 +163,7 @@ private:
 
 class NS_STACK_CLASS nsDOMFileInternalUrlHolder {
 public:
-  nsDOMFileInternalUrlHolder(nsIDOMBlob* aFile, nsIPrincipal* aPrincipal
+  nsDOMFileInternalUrlHolder(nsIDOMFile* aFile, nsIPrincipal* aPrincipal
                              MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM);
   ~nsDOMFileInternalUrlHolder();
   nsAutoString mUrl;

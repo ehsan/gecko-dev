@@ -108,9 +108,6 @@ function getMochitestJarListing(basePath, testPath, dir)
   var fileName = fileHandler.getFileFromURLSpec(getResolvedURI(basePath).JARFile.spec);
   zReader.open(fileName);
   //hardcoded 'content' as that is the root dir in the mochikit.jar file
-  var idx = basePath.indexOf('/content');
-  var basePath = basePath.slice(0, idx);
-
   var base = "content/" + dir + "/";
 
   var singleTestPath;
@@ -122,7 +119,7 @@ function getMochitestJarListing(basePath, testPath, dir)
       if (pathEntry.isDirectory) {
         base = pathToCheck;
       } else {
-        singleTestPath = basePath + '/' + base + testPath;
+        singleTestPath = '/' + base + testPath;
         var singleObject = {};
         singleObject[singleTestPath] = true;
         return [singleObject, singleTestPath];
@@ -132,7 +129,7 @@ function getMochitestJarListing(basePath, testPath, dir)
       base = pathToCheck + "/";
     }
   }
-  var [links, count] = zList(base, zReader, basePath, true);
+  var [links, count] = zList(base, zReader, true);
   return [links, null];
 }
 
@@ -146,7 +143,7 @@ function getMochitestJarListing(basePath, testPath, dir)
  * returns:
  *  [json object of {dir:{subdir:{file:true, file:true, ...}}}, count of tests]
  */
-function zList(base, zReader, baseJarName, recurse) {
+function zList(base, zReader, recurse) {
   var dirs = zReader.findEntries(base + "*");
   var links = {};
   var count = 0;
@@ -165,12 +162,12 @@ function zList(base, zReader, baseJarName, recurse) {
     var myFile = fileArray[i];
     if (myFile.substr(-1) === '/' && recurse) {
       var childCount = 0;
-      [links[myFile], childCount] = zList(myFile, zReader, baseJarName, recurse);
+      [links[myFile], childCount] = zList(myFile, zReader, recurse);
       count += childCount;
     } else {
       if (myFile.indexOf("SimpleTest") == -1) {
         //we add the '/' so we don't try to run content/content/chrome
-        links[baseJarName + '/' + myFile] = true;
+        links['/' + myFile] = true;
       }
     }
   }
@@ -237,14 +234,8 @@ function getRootDirectory(path, chromeURI) {
     chromeURI = getChromeURI(path);
   }
   var myURL = chromeURI.QueryInterface(Components.interfaces.nsIURL);
-  var mydir = myURL.directory;
 
-  if (mydir.match('/$') != '/')
-  {
-    mydir += '/';
-  }
-
-  return chromeURI.prePath + mydir;
+  return chromeURI.prePath + myURL.directory;
 }
 
 //used by tests to determine their directory based off window.location.path

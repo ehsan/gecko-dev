@@ -60,14 +60,6 @@
 #include "nsIAlertsService.h"
 #include "nsToolkitCompsCID.h"
 #include "nsIDOMGeoGeolocation.h"
-#include "nsIConsoleService.h"
-#include "nsIScriptError.h"
-#include "nsConsoleMessage.h"
-
-#ifdef MOZ_PERMISSIONS
-#include "nsPermission.h"
-#include "nsPermissionManager.h"
-#endif
 
 #include "mozilla/dom/ExternalHelperAppParent.h"
 
@@ -135,13 +127,6 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
         mRunToCompletionDepth = 0;
 
     mIsAlive = false;
-
-    if (obs) {
-        nsString context = NS_LITERAL_STRING("");
-        if (AbnormalShutdown == why)
-            context.AssignLiteral("abnormal");
-        obs->NotifyObservers(nsnull, "ipc:content-shutdown", context.get());
-    }
 }
 
 TabParent*
@@ -203,6 +188,23 @@ ContentParent::RecvReadPrefs(nsCString* prefs)
     return true;
 }
 
+bool
+ContentParent::RecvTestPermission(const IPC::URI&  aUri,
+                                   const nsCString& aType,
+                                   const PRBool&    aExact,
+                                   PRUint32*        retValue)
+{
+    EnsurePermissionService();
+
+    nsCOMPtr<nsIURI> uri(aUri);
+    if (aExact) {
+        mPermissionService->TestExactPermission(uri, aType.get(), retValue);
+    } else {
+        mPermissionService->TestPermission(uri, aType.get(), retValue);
+    }
+    return true;
+}
+
 void
 ContentParent::EnsurePrefService()
 {
@@ -214,47 +216,16 @@ ContentParent::EnsurePrefService()
     }
 }
 
-bool
-ContentParent::RecvReadPermissions(nsTArray<IPC::Permission>* aPermissions)
+void
+ContentParent::EnsurePermissionService()
 {
-#ifdef MOZ_PERMISSIONS
-    nsPermissionManager *permissionManager =
-        (nsPermissionManager*)nsPermissionManager::GetSingleton();
-    NS_ABORT_IF_FALSE(permissionManager,
-                 "We have no permissionManager in the Chrome process !");
-
-    nsISimpleEnumerator *enumerator;
-    nsresult rv = permissionManager->GetEnumerator(&enumerator);
-    NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv), "Could not get enumerator!");
-    while(1) {
-        PRBool hasMore;
-        enumerator->HasMoreElements(&hasMore);
-        if (!hasMore)
-            break;
-        nsISupports *supp;
-        enumerator->GetNext((nsISupports**)&supp);
-        nsCOMPtr<nsIPermission> perm = do_QueryInterface(supp);
-
-        nsCString host;
-        perm->GetHost(host);
-        nsCString type;
-        perm->GetType(type);
-        PRUint32 capability;
-        perm->GetCapability(&capability);
-        PRUint32 expireType;
-        perm->GetExpireType(&expireType);
-        PRInt64 expireTime;
-        perm->GetExpireTime(&expireTime);
-
-        aPermissions->AppendElement(IPC::Permission(host, type, capability,
-                                                    expireType, expireTime));
+    nsresult rv;
+    if (!mPermissionService) {
+        mPermissionService = do_GetService(
+            NS_PERMISSIONMANAGER_CONTRACTID, &rv);
+        NS_ASSERTION(NS_SUCCEEDED(rv), 
+                     "We lost permissionService in the Chrome process !");
     }
-
-    // Ask for future changes
-    permissionManager->ChildRequestPermissions();
-#endif
-
-    return true;
 }
 
 NS_IMPL_THREADSAFE_ISUPPORTS3(ContentParent,
@@ -574,41 +545,6 @@ ContentParent::HandleEvent(nsIDOMGeoPosition* postion)
 {
   SendGeolocationUpdate(GeoPosition(postion));
   return NS_OK;
-}
-
-bool
-ContentParent::RecvConsoleMessage(const nsString& aMessage)
-{
-  nsCOMPtr<nsIConsoleService> svc(do_GetService(NS_CONSOLESERVICE_CONTRACTID));
-  if (!svc)
-    return true;
-  
-  nsRefPtr<nsConsoleMessage> msg(new nsConsoleMessage(aMessage.get()));
-  svc->LogMessage(msg);
-  return true;
-}
-
-bool
-ContentParent::RecvScriptError(const nsString& aMessage,
-                                      const nsString& aSourceName,
-                                      const nsString& aSourceLine,
-                                      const PRUint32& aLineNumber,
-                                      const PRUint32& aColNumber,
-                                      const PRUint32& aFlags,
-                                      const nsCString& aCategory)
-{
-  nsCOMPtr<nsIConsoleService> svc(do_GetService(NS_CONSOLESERVICE_CONTRACTID));
-  if (!svc)
-      return true;
-
-  nsCOMPtr<nsIScriptError> msg(do_CreateInstance(NS_SCRIPTERROR_CONTRACTID));
-  nsresult rv = msg->Init(aMessage.get(), aSourceName.get(), aSourceLine.get(),
-                          aLineNumber, aColNumber, aFlags, aCategory.get());
-  if (NS_FAILED(rv))
-    return true;
-
-  svc->LogMessage(msg);
-  return true;
 }
 
 } // namespace dom

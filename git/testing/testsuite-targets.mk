@@ -74,12 +74,6 @@ mochitest-plain:
 	$(RUN_MOCHITEST)
 	$(CHECK_TEST_ERROR)
 
-# Allow mochitest-1 ... mochitest-5 for developer ease
-mochitest-1 mochitest-2 mochitest-3 mochitest-4 mochitest-5: mochitest-%:
-	echo "mochitest: $* / 5"
-	$(RUN_MOCHITEST) --chunk-by-dir=4 --total-chunks=5 --this-chunk=$*
-	$(CHECK_TEST_ERROR)
-
 mochitest-chrome:
 	$(RUN_MOCHITEST) --chrome
 	$(CHECK_TEST_ERROR)
@@ -148,13 +142,8 @@ PKG_STAGE = $(DIST)/universal/test-package-stage
 endif
 
 package-tests:
-	@rm -f "$(DIST)/$(PKG_PATH)$(TEST_PACKAGE)"
-ifndef UNIVERSAL_BINARY
 	$(NSINSTALL) -D $(DIST)/$(PKG_PATH)
-else
-	#building tests.jar (bug 543800) fails on unify, so we build tests.jar after unify is run
-	$(MAKE) -C $(DEPTH)/testing/mochitest stage-chromejar PKG_STAGE=$(DIST)/universal
-endif
+	@rm -f "$(DIST)/$(PKG_PATH)$(TEST_PACKAGE)"
 	cd $(PKG_STAGE) && \
 	  zip -r9D "$(call core_abspath,$(DIST)/$(PKG_PATH)$(TEST_PACKAGE))" *
 

@@ -43,7 +43,6 @@
 #include "mozilla/dom/PContentChild.h"
 
 #include "nsTArray.h"
-#include "nsIConsoleListener.h"
 
 struct ChromePackage;
 class nsIObserver;
@@ -55,7 +54,6 @@ namespace dom {
 
 class AlertObserver;
 class PrefObserver;
-class ConsoleListener;
 
 class ContentChild : public PContentChild
 {
@@ -66,7 +64,6 @@ public:
     bool Init(MessageLoop* aIOLoop,
               base::ProcessHandle aParentHandle,
               IPC::Channel* aChannel);
-    void InitXPCOM();
 
     static ContentChild* GetSingleton() {
         NS_ASSERTION(sSingleton, "not initialized");
@@ -112,8 +109,6 @@ public:
 
     virtual bool RecvGeolocationUpdate(const GeoPosition& somewhere);
 
-    virtual bool RecvAddPermission(const IPC::Permission& permission);
-
 private:
     NS_OVERRIDE
     virtual void ActorDestroy(ActorDestroyReason why);
@@ -128,7 +123,8 @@ private:
     NS_NORETURN void QuickExit();
 
     nsTArray<nsAutoPtr<AlertObserver> > mAlertObservers;
-    nsRefPtr<ConsoleListener> mConsoleListener;
+    nsTArray<nsAutoPtr<PrefObserver> > mPrefObservers;
+    bool mDead;
 
     static ContentChild* sSingleton;
 

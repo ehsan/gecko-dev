@@ -93,13 +93,7 @@ public:
    * The size, in bytes, occupied by the significant data portions of the image.
    * This includes both compressed source data and decoded frames.
    */
-  PRUint32 GetDataSize();
-
-  /**
-   * The components that make up GetDataSize().
-   */      
-  virtual PRUint32 GetDecodedDataSize() = 0;
-  virtual PRUint32 GetSourceDataSize() = 0;
+  virtual PRUint32 GetDataSize() = 0;
 
   // Mimetype translation
   enum eDecoderType {
@@ -136,7 +130,6 @@ protected:
   PRUint32                    mAnimationConsumers;
   PRPackedBool                mInitialized;   // Have we been initalized?
   PRPackedBool                mAnimating;
-  PRPackedBool                mError;         // Error handling
 
   /**
    * Extended by child classes, if they have additional

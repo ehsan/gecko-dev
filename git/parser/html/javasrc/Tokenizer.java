@@ -2354,13 +2354,14 @@ public class Tokenizer implements Locator {
                                 state = Tokenizer.MARKUP_DECLARATION_OCTYPE;
                                 continue stateloop;
                             case '[':
-                                if (tokenHandler.cdataSectionAllowed()) {
+                                if (tokenHandler.isInForeign()) {
                                     clearLongStrBufAndAppend(c);
                                     index = 0;
                                     state = Tokenizer.CDATA_START;
                                     continue stateloop;
+                                } else {
+                                    // fall through
                                 }
-                                // else fall through
                             default:
                                 errBogusComment();
                                 clearLongStrBuf();

@@ -133,6 +133,7 @@ HttpChannelParent::RecvAsyncOpen(const IPC::URI&            aURI,
     return SendCancelEarly(rv);
 
   nsHttpChannel *httpChan = static_cast<nsHttpChannel *>(mChannel.get());
+  httpChan->SetServicingRemoteChannel(PR_TRUE);
 
   if (doResumeAt)
     httpChan->ResumeAt(startPos, entityID);
@@ -188,11 +189,6 @@ HttpChannelParent::RecvSetPriority(const PRUint16& priority)
 {
   nsHttpChannel *httpChan = static_cast<nsHttpChannel *>(mChannel.get());
   httpChan->SetPriority(priority);
-
-  if (mChannelListener && mChannelListener->mRedirectChannel &&
-      mChannelListener->mRedirectChannel != this)
-    return mChannelListener->mRedirectChannel->RecvSetPriority(priority);
-  
   return true;
 }
 
@@ -255,7 +251,7 @@ HttpChannelParent::RecvUpdateAssociatedContentSecurity(const PRInt32& high,
 }
 
 bool
-HttpChannelParent::RecvRedirect2Verify(const nsresult& result, 
+HttpChannelParent::RecvRedirect2Result(const nsresult& result, 
                                        const RequestHeaderTuples& changedHeaders)
 {
   if (mChannelListener)
@@ -288,7 +284,7 @@ HttpChannelParent::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext)
 
   nsHttpChannel *chan = static_cast<nsHttpChannel *>(aRequest);
   nsHttpResponseHead *responseHead = chan->GetResponseHead();
-  nsHttpRequestHead  *requestHead = chan->GetRequestHead();
+
   PRBool isFromCache = false;
   chan->IsFromCache(&isFromCache);
   PRUint32 expirationTime = nsICache::NO_EXPIRATION_TIME;
@@ -313,21 +309,9 @@ HttpChannelParent::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext)
       NS_SerializeToString(secInfoSer, secInfoSerialization);
   }
 
-  RequestHeaderTuples headers;
-  nsHttpHeaderArray harray = requestHead->Headers();
-
-  for (PRUint32 i = 0; i < harray.Count(); i++) {
-    RequestHeaderTuple* tuple = headers.AppendElement();
-    tuple->mHeader = harray.Headers()[i].header;
-    tuple->mValue  = harray.Headers()[i].value;
-    tuple->mMerge  = false;
-  }
-
   if (mIPCClosed || 
       !SendOnStartRequest(responseHead ? *responseHead : nsHttpResponseHead(), 
-                          !!responseHead,
-                          headers,
-                          isFromCache,
+                          !!responseHead, isFromCache,
                           mCacheDescriptor ? PR_TRUE : PR_FALSE,
                           expirationTime, cachedCharset, secInfoSerialization)) 
   {

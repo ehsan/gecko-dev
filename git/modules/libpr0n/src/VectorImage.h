@@ -72,8 +72,7 @@ public:
                 const char* aURIString,
                 PRUint32 aFlags);
   void GetCurrentFrameRect(nsIntRect& aRect);
-  PRUint32 GetDecodedDataSize();
-  PRUint32 GetSourceDataSize();
+  PRUint32 GetDataSize();
 
   // Callback for SVGRootRenderingObserver
   void InvalidateObserver();
@@ -107,6 +106,8 @@ private:
                                           // (Only set after mIsFullyLoaded.)
   PRPackedBool   mHaveRestrictedRegion:1; // Are we a restricted-region clone
                                           // created via ExtractFrame?
+
+  PRPackedBool   mError:1;                // Error handling
 };
 
 } // namespace imagelib

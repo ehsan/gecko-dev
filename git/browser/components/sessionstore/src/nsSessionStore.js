@@ -214,9 +214,6 @@ SessionStoreService.prototype = {
   // The state from the previous session (after restoring pinned tabs)
   _lastSessionState: null,
 
-  // Whether we've been initialized
-  _initialized: false,
-
 /* ........ Public Getters .............. */
 
   get canRestoreLastSession() {
@@ -236,7 +233,15 @@ SessionStoreService.prototype = {
   /**
    * Initialize the component
    */
-  initService: function() {
+  init: function sss_init(aWindow) {
+    if (!aWindow || this._loadState == STATE_RUNNING) {
+      // make sure that all browser windows which try to initialize
+      // SessionStore are really tracked by it
+      if (aWindow && (!aWindow.__SSi || !this._windows[aWindow.__SSi]))
+        this.onLoad(aWindow);
+      return;
+    }
+
     this._prefBranch = Services.prefs.getBranch("browser.");
     this._prefBranch.QueryInterface(Ci.nsIPrefBranch2);
 
@@ -348,35 +353,7 @@ SessionStoreService.prototype = {
     if (this._loadState != STATE_QUITTING &&
         this._prefBranch.getBoolPref("sessionstore.resume_session_once"))
       this._prefBranch.setBoolPref("sessionstore.resume_session_once", false);
-
-    this._initialized = true;
-  },
-
-  /**
-   * Start tracking a window.
-   * Important note: despite its name, this function doesn't initialize
-   * the component!
-   */
-  init: function sss_init(aWindow) {
-    if (!aWindow || this._loadState == STATE_RUNNING) {
-      // make sure that all browser windows which try to initialize
-      // SessionStore are really tracked by it
-      if (aWindow && (!aWindow.__SSi || !this._windows[aWindow.__SSi]))
-        this.onLoad(aWindow);
-      // If init is being called with a null window, it's possible that we
-      // just want to tell sessionstore that a session is live (as is the case
-      // with starting Firefox with -private, for example; see bug 568816),
-      // so we should mark the load state as running to make sure that
-      // things like setBrowserState calls will succeed in restoring the session.
-      if (!aWindow && this._loadState == STATE_STOPPED)
-        this._loadState = STATE_RUNNING;
-      return;
-    }
-
-    // Initialize the service if needed.
-    if (!this._initialized)
-      this.initService();
-
+    
     // As this is called at delayedStartup, restoration must be initiated here
     this.onLoad(aWindow);
   },
@@ -2214,11 +2191,7 @@ SessionStoreService.prototype = {
         tabbrowser.pinTab(tabs[t]);
       else
         tabbrowser.unpinTab(tabs[t]);
-
-      if (winData.tabs[t].hidden)
-        tabbrowser.hideTab(tabs[t]);
-      else
-        tabbrowser.showTab(tabs[t]);
+      tabs[t].hidden = winData.tabs[t].hidden;
     }
 
     // If overwriting tabs, we want to remove __SS_restoring from the browser.
@@ -2380,11 +2353,7 @@ SessionStoreService.prototype = {
         tabbrowser.pinTab(tab);
       else
         tabbrowser.unpinTab(tab);
-
-      if (tabData.hidden)
-        tabbrowser.hideTab(tab);
-      else
-        tabbrowser.showTab(tab);
+      tab.hidden = tabData.hidden;
 
       tabData._tabStillLoading = true;
 
@@ -3515,7 +3484,7 @@ SessionStoreService.prototype = {
    * @returns aString that has been updated with the new title
    */
   _replaceLoadingTitle : function sss_replaceLoadingTitle(aString, aTabbrowser, aTab) {
-    if (aString == aTabbrowser.mStringBundle.getString("tabs.connecting")) {
+    if (aString == aTabbrowser.mStringBundle.getString("tabs.loading")) {
       aTabbrowser.setTabTitle(aTab);
       [aString, aTab.label] = [aTab.label, aString];
     }

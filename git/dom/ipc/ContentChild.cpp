@@ -41,10 +41,6 @@
 #include <gtk/gtk.h>
 #endif
 
-#ifdef MOZ_WIDGET_QT
-#include "nsQAppInstance.h"
-#endif
-
 #include "ContentChild.h"
 #include "TabChild.h"
 
@@ -61,8 +57,6 @@
 #include "nsServiceManagerUtils.h"
 #include "nsXULAppAPI.h"
 #include "nsWeakReference.h"
-#include "nsIScriptError.h"
-#include "nsIConsoleService.h"
 
 #include "History.h"
 #include "nsDocShellCID.h"
@@ -76,11 +70,6 @@
 #include "nsFrameMessageManager.h"
 
 #include "nsIGeolocationProvider.h"
-
-#ifdef MOZ_PERMISSIONS
-#include "nsPermission.h"
-#include "nsPermissionManager.h"
-#endif
 
 using namespace mozilla::ipc;
 using namespace mozilla::net;
@@ -123,59 +112,6 @@ private:
     nsString mData;
 };
 
-class ConsoleListener : public nsIConsoleListener
-{
-public:
-    ConsoleListener(ContentChild* aChild)
-    : mChild(aChild) {}
-
-    NS_DECL_ISUPPORTS
-    NS_DECL_NSICONSOLELISTENER
-
-private:
-    ContentChild* mChild;
-    friend class ContentChild;
-};
-
-NS_IMPL_ISUPPORTS1(ConsoleListener, nsIConsoleListener)
-
-NS_IMETHODIMP
-ConsoleListener::Observe(nsIConsoleMessage* aMessage)
-{
-    if (!mChild)
-        return NS_OK;
-    
-    nsCOMPtr<nsIScriptError> scriptError = do_QueryInterface(aMessage);
-    if (scriptError) {
-        nsString msg, sourceName, sourceLine;
-        nsXPIDLCString category;
-        PRUint32 lineNum, colNum, flags;
-
-        nsresult rv = scriptError->GetErrorMessage(msg);
-        NS_ENSURE_SUCCESS(rv, rv);
-        rv = scriptError->GetSourceName(sourceName);
-        NS_ENSURE_SUCCESS(rv, rv);
-        rv = scriptError->GetSourceLine(sourceLine);
-        NS_ENSURE_SUCCESS(rv, rv);
-        rv = scriptError->GetCategory(getter_Copies(category));
-        NS_ENSURE_SUCCESS(rv, rv);
-        rv = scriptError->GetLineNumber(&lineNum);
-        NS_ENSURE_SUCCESS(rv, rv);
-        rv = scriptError->GetColumnNumber(&colNum);
-        NS_ENSURE_SUCCESS(rv, rv);
-        rv = scriptError->GetFlags(&flags);
-        NS_ENSURE_SUCCESS(rv, rv);
-        mChild->SendScriptError(msg, sourceName, sourceLine,
-                               lineNum, colNum, flags, category);
-        return NS_OK;
-    }
-
-    nsXPIDLString msg;
-    nsresult rv = aMessage->GetMessageMoz(getter_Copies(msg));
-    NS_ENSURE_SUCCESS(rv, rv);
-    mChild->SendConsoleMessage(msg);
-    return NS_OK;
-}
 
 ContentChild* ContentChild::sSingleton;
 
@@ -197,11 +133,6 @@ ContentChild::Init(MessageLoop* aIOLoop,
     gtk_init(NULL, NULL);
 #endif
 
-#ifdef MOZ_WIDGET_QT
-    // sigh, seriously
-    nsQAppInstance::AddRef();
-#endif
-
 #ifdef MOZ_X11
     // Do this after initializing GDK, or GDK will install its own handler.
     XRE_InstallX11ErrorHandler();
@@ -213,20 +144,6 @@ ContentChild::Init(MessageLoop* aIOLoop,
     sSingleton = this;
 
     return true;
-}
-
-void
-ContentChild::InitXPCOM()
-{
-    nsCOMPtr<nsIConsoleService> svc(do_GetService(NS_CONSOLESERVICE_CONTRACTID));
-    if (!svc) {
-        NS_WARNING("Couldn't acquire console service");
-        return;
-    }
-
-    mConsoleListener = new ConsoleListener(this);
-    if (NS_FAILED(svc->RegisterListener(mConsoleListener)))
-        NS_WARNING("Couldn't register console listener for child process");
 }
 
 PBrowserChild*
@@ -336,13 +253,6 @@ ContentChild::ActorDestroy(ActorDestroyReason why)
 #endif
 
     mAlertObservers.Clear();
-    
-    nsCOMPtr<nsIConsoleService> svc(do_GetService(NS_CONSOLESERVICE_CONTRACTID));
-    if (svc) {
-        svc->UnregisterListener(mConsoleListener);
-        mConsoleListener->mChild = nsnull;
-    }
-
     XRE_ShutdownChildProcess();
 }
 
@@ -438,28 +348,6 @@ ContentChild::RecvGeolocationUpdate(const GeoPosition& somewhere)
   }
   nsCOMPtr<nsIDOMGeoPosition> position = somewhere;
   gs->Update(position);
-  return true;
-}
-
-bool
-ContentChild::RecvAddPermission(const IPC::Permission& permission)
-{
-#if MOZ_PERMISSIONS
-  nsPermissionManager *permissionManager =
-    (nsPermissionManager*)nsPermissionManager::GetSingleton();
-  NS_ABORT_IF_FALSE(permissionManager, 
-                   "We have no permissionManager in the Content process !");
-
-  permissionManager->AddInternal(nsCString(permission.host),
-                                 nsCString(permission.type),
-                                 permission.capability,
-                                 0,
-                                 permission.expireType,
-                                 permission.expireTime,
-                                 nsPermissionManager::eNotify,
-                                 nsPermissionManager::eNoDBOperation);
-#endif
-
   return true;
 }
 

@@ -1153,49 +1153,39 @@ let BookmarksMenuButton = {
     // handled in the onPopupShowing handler, so it does not hit Ts.
   },
 
-  _popupNeedsUpdate: {},
+  _popupInitialized: false,
+  _popupNeedsUpdating: true,
   onPopupShowing: function BMB_onPopupShowing(event) {
-    // Don't handle events for submenus.
-    if (event.target != event.currentTarget)
+    if (!this._popupNeedsUpdating)
       return;
+    this._popupNeedsUpdating = false;
 
-    let popup = event.target;
-    let needsUpdate = this._popupNeedsUpdate[popup.id];
-
-    // Check if popup contents need to be updated.  Note that if needsUpdate is
-    // undefined we have never seen the popup, thus it should be updated.
-    if (needsUpdate === false)
-      return;
-    this._popupNeedsUpdate[popup.id] = false;
-
-    function getPlacesAnonymousElement(aAnonId)
-      document.getAnonymousElementByAttribute(popup.parentNode,
-                                              "placesanonid",
-                                              aAnonId);
-
-    let viewToolbarMenuitem = getPlacesAnonymousElement("view-toolbar");
-    if (viewToolbarMenuitem) {
+    let viewToolbar = document.getElementById("BMB_viewBookmarksToolbar");
+    if (!this._popupInitialized) {
+      // First popupshowing event, initialize immutable attributes.
+      this._popupInitialized = true;
       // Update View bookmarks toolbar checkbox menuitem.
-      viewToolbarMenuitem.setAttribute("checked",
-                                       !this.personalToolbar.collapsed);
+      viewToolbar.setAttribute("toolbarId", this.personalToolbar.id);
+
+      // Need to set the label on Unsorted Bookmarks menu.
+      let unsortedBookmarksElt =
+        document.getElementById("BMB_unsortedBookmarksFolderMenu");
+      unsortedBookmarksElt.label =
+        PlacesUtils.getString("UnsortedBookmarksFolderTitle");
     }
 
-    let toolbarMenuitem = getPlacesAnonymousElement("toolbar-autohide");
-    if (toolbarMenuitem) {
-      // If bookmarks items are visible, hide Bookmarks Toolbar menu and the
-      // separator after it.
-      toolbarMenuitem.collapsed = toolbarMenuitem.nextSibling.collapsed =
-        isElementVisible(this.bookmarksToolbarItem);
-    }
+    // Update View Bookmarks Toolbar checkbox menuitem.
+    viewToolbar.setAttribute("checked", !this.personalToolbar.collapsed);
+
+    // Hide Bookmarks Toolbar menu if the button is next to the bookmarks
+    // toolbar item, show them otherwise.
+    let button = this.button;
+    document.getElementById("BMB_bookmarksToolbarFolderMenu").collapsed =
+      button && button.parentNode == this.bookmarksToolbarItem;
   },
 
   updatePosition: function BMB_updatePosition() {
-    // Popups will have to be updated when the user customizes the UI, or
-    // changes personal toolbar collapsed status.  Both of those location call
-    // updatePosition(), so this is the only point asking for popup updates.
-    for (let popupId in this._popupNeedsUpdate) {
-      this._popupNeedsUpdate[popupId] = true;
-    }
+    this._popupNeedsUpdating = true;
 
     let button = this.button;
     if (!button)

@@ -127,9 +127,13 @@ private:
 
     virtual bool RecvReadPrefs(nsCString* prefs);
 
-    void EnsurePrefService();
+    virtual bool RecvTestPermission(const IPC::URI&  aUri,
+                                    const nsCString& aType,
+                                    const PRBool&    aExact,
+                                    PRUint32*        retValue);
 
-    virtual bool RecvReadPermissions(nsTArray<IPC::Permission>* aPermissions);
+    void EnsurePrefService();
+    void EnsurePermissionService();
 
     virtual bool RecvStartVisitedQuery(const IPC::URI& uri);
 
@@ -153,15 +157,6 @@ private:
     virtual bool RecvGeolocationStart();
     virtual bool RecvGeolocationStop();
 
-    virtual bool RecvConsoleMessage(const nsString& aMessage);
-    virtual bool RecvScriptError(const nsString& aMessage,
-                                 const nsString& aSourceName,
-                                 const nsString& aSourceLine,
-                                 const PRUint32& aLineNumber,
-                                 const PRUint32& aColNumber,
-                                 const PRUint32& aFlags,
-                                 const nsCString& aCategory);
-
     mozilla::Monitor mMonitor;
 
     GeckoChildProcessHost* mSubprocess;
@@ -173,6 +168,7 @@ private:
 
     bool mIsAlive;
     nsCOMPtr<nsIPrefServiceInternal> mPrefService; 
+    nsCOMPtr<nsIPermissionManager> mPermissionService; 
 };
 
 } // namespace dom
