@@ -8,7 +8,6 @@
 
 #include "AppleVTLinker.h"
 #include "MainThreadUtils.h"
-#include "mozilla/ArrayUtils.h"
 #include "nsDebug.h"
 
 #ifdef PR_LOGGING
@@ -44,17 +43,9 @@ AppleVTLinker::Link()
     return sLinkStatus == LinkStatus_SUCCEEDED;
   }
 
-  const char* dlnames[] =
-    { "/System/Library/Frameworks/VideoToolbox.framework/VideoToolbox",
-      "/System/Library/PrivateFrameworks/VideoToolbox.framework/VideoToolbox" };
-  bool dlfound = false;
-  for (size_t i = 0; i < ArrayLength(dlnames); i++) {
-    if ((sLink = dlopen(dlnames[i], RTLD_NOW | RTLD_LOCAL))) {
-      dlfound = true;
-      break;
-    }
-  }
-  if (!dlfound) {
+  const char* dlname =
+    "/System/Library/Frameworks/VideoToolbox.framework/VideoToolbox";
+  if (!(sLink = dlopen(dlname, RTLD_NOW | RTLD_LOCAL))) {
     NS_WARNING("Couldn't load VideoToolbox framework");
     goto fail;
   }
@@ -98,7 +89,6 @@ AppleVTLinker::Unlink()
     dlclose(sLink);
     sLink = nullptr;
     skPropHWAccel = nullptr;
-    sLinkStatus = LinkStatus_INIT;
   }
 }
 
@@ -111,6 +101,12 @@ AppleVTLinker::GetIOConst(const char* symbol)
   }
 
   return *address;
+}
+
+/* static */ CFStringRef
+AppleVTLinker::GetPropHWAccel()
+{
+  return skPropHWAccel;
 }
 
 } // namespace mozilla

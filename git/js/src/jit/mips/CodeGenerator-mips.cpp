@@ -1893,7 +1893,6 @@ bool
 CodeGeneratorMIPS::visitAsmJSCall(LAsmJSCall *ins)
 {
     emitAsmJSCall(ins);
-    return true;
 }
 
 bool

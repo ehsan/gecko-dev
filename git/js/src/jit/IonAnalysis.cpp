@@ -1065,13 +1065,8 @@ TypeAnalyzer::adjustPhiInputs(MPhi *phi)
 bool
 TypeAnalyzer::adjustInputs(MDefinition *def)
 {
-    // Definitions such as MPhi have no type policy.
-    if (!def->isInstruction())
-        return true;
-
-    MInstruction *ins = def->toInstruction();
-    TypePolicy *policy = ins->typePolicy();
-    if (policy && !policy->adjustInputs(alloc(), ins))
+    TypePolicy *policy = def->typePolicy();
+    if (policy && !policy->adjustInputs(alloc(), def->toInstruction()))
         return false;
     return true;
 }

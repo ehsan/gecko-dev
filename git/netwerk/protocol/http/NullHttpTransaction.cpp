@@ -135,7 +135,7 @@ NullHttpTransaction::RequestHead()
     // CONNECT tunnels may also want Proxy-Authorization but that is a lot
     // harder to determine, so for now we will let those connections fail in
     // the NullHttpTransaction and let them be retried from the pending queue
-    // with a bound transaction
+    // with a bound transcation
   }
 
   return mRequestHead;

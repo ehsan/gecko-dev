@@ -368,6 +368,7 @@ let EventTargetParent = {
       return target;
     }
 
+    const XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
     if (target instanceof Ci.nsIDOMXULElement) {
       if (target.localName == "browser") {
         return target;
@@ -450,13 +451,12 @@ let EventTargetParent = {
   receiveMessage: function(msg) {
     switch (msg.name) {
       case "Addons:Event:Run":
-        this.dispatch(msg.target, msg.data.type, msg.data.capturing,
-                      msg.data.isTrusted, msg.objects.event);
+        this.dispatch(msg.target, msg.data.type, msg.data.isTrusted, msg.objects.event);
         break;
     }
   },
 
-  dispatch: function(browser, type, capturing, isTrusted, event) {
+  dispatch: function(browser, type, isTrusted, event) {
     let targets = this.getTargets(browser);
     for (let target of targets) {
       let listeners = this._listeners.get(target);
@@ -464,8 +464,8 @@ let EventTargetParent = {
         continue;
       }
       let forType = setDefault(listeners, type, []);
-      for (let {listener, wantsUntrusted, useCapture} of forType) {
-        if ((wantsUntrusted || isTrusted) && useCapture == capturing) {
+      for (let {listener, wantsUntrusted} of forType) {
+        if (wantsUntrusted || isTrusted) {
           try {
             if ("handleEvent" in listener) {
               listener.handleEvent(event);
@@ -482,42 +482,6 @@ let EventTargetParent = {
 };
 EventTargetParent.init();
 
-// This function returns a listener that will not fire on events where
-// the target is a remote xul:browser element itself. We'd rather let
-// the child process handle the event and pass it up via
-// EventTargetParent.
-let filteringListeners = new WeakMap();
-function makeFilteringListener(eventType, listener)
-{
-  if (filteringListeners.has(listener)) {
-    return filteringListeners.get(listener);
-  }
-
-  // Some events are actually targeted at the <browser> element
-  // itself, so we only handle the ones where know that won't happen.
-  let eventTypes = ["mousedown", "mouseup", "click"];
-  if (eventTypes.indexOf(eventType) == -1) {
-    return listener;
-  }
-
-  function filter(event) {
-    let target = event.originalTarget;
-    if (target instanceof Ci.nsIDOMXULElement &&
-        target.localName == "browser" &&
-        target.isRemoteBrowser) {
-      return;
-    }
-
-    if ("handleEvent" in listener) {
-      listener.handleEvent(event);
-    } else {
-      listener.call(event.target, event);
-    }
-  }
-  filteringListeners.set(listener, filter);
-  return filter;
-}
-
 // This interposition redirects addEventListener and
 // removeEventListener to EventTargetParent.
 let EventTargetInterposition = new Interposition("EventTargetInterposition");
@@ -525,13 +489,13 @@ let EventTargetInterposition = new Interposition("EventTargetInterposition");
 EventTargetInterposition.methods.addEventListener =
   function(addon, target, type, listener, useCapture, wantsUntrusted) {
     EventTargetParent.addEventListener(target, type, listener, useCapture, wantsUntrusted);
-    target.addEventListener(type, makeFilteringListener(type, listener), useCapture, wantsUntrusted);
+    target.addEventListener(type, listener, useCapture, wantsUntrusted);
   };
 
 EventTargetInterposition.methods.removeEventListener =
   function(addon, target, type, listener, useCapture) {
     EventTargetParent.removeEventListener(target, type, listener, useCapture);
-    target.removeEventListener(type, makeFilteringListener(type, listener), useCapture);
+    target.removeEventListener(type, listener, useCapture);
   };
 
 // This interposition intercepts accesses to |rootTreeItem| on a child

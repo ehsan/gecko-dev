@@ -1162,6 +1162,9 @@ AddShadowItems(double aCoeff1, const nsCSSValue &aValue1,
   resultArray->Item(5) = inset1;
 
   nsCSSValueList *resultItem = new nsCSSValueList;
+  if (!resultItem) {
+    return false;
+  }
   resultItem->mValue.SetArrayValue(resultArray, eCSSUnit_Array);
   *aResultTail = resultItem;
   aResultTail = &resultItem->mNext;
@@ -2232,6 +2235,9 @@ StyleAnimationValue::AddWeighted(nsCSSProperty aProperty,
         }
 
         nsCSSValueList *item = new nsCSSValueList;
+        if (!item) {
+          return false;
+        }
         *resultTail = item;
         resultTail = &item->mNext;
 
@@ -2409,6 +2415,9 @@ StyleAnimationValue::AddWeighted(nsCSSProperty aProperty,
       nsCSSValueList **resultTail = getter_Transfers(result);
       while (position1 && position2) {
         nsCSSValueList *item = new nsCSSValueList;
+        if (!item) {
+          return false;
+        }
         *resultTail = item;
         resultTail = &item->mNext;
 
@@ -2435,6 +2444,9 @@ StyleAnimationValue::AddWeighted(nsCSSProperty aProperty,
       nsCSSValuePairList **resultTail = getter_Transfers(result);
       do {
         nsCSSValuePairList *item = new nsCSSValuePairList;
+        if (!item) {
+          return false;
+        }
         *resultTail = item;
         resultTail = &item->mNext;
 
@@ -3023,6 +3035,9 @@ StyleAnimationValue::ExtractComputedValue(nsCSSProperty aProperty,
           const nsStyleTableBorder *styleTableBorder =
             static_cast<const nsStyleTableBorder*>(styleStruct);
           nsAutoPtr<nsCSSValuePair> pair(new nsCSSValuePair);
+          if (!pair) {
+            return false;
+          }
           nscoordToCSSValue(styleTableBorder->mBorderSpacingX, pair->mXValue);
           nscoordToCSSValue(styleTableBorder->mBorderSpacingY, pair->mYValue);
           aComputedValue.SetAndAdoptCSSValuePairValue(pair.forget(),
@@ -3034,7 +3049,8 @@ StyleAnimationValue::ExtractComputedValue(nsCSSProperty aProperty,
           const nsStyleDisplay *styleDisplay =
             static_cast<const nsStyleDisplay*>(styleStruct);
           nsAutoPtr<nsCSSValueTriplet> triplet(new nsCSSValueTriplet);
-          if (!StyleCoordToCSSValue(styleDisplay->mTransformOrigin[0],
+          if (!triplet ||
+              !StyleCoordToCSSValue(styleDisplay->mTransformOrigin[0],
                                     triplet->mXValue) ||
               !StyleCoordToCSSValue(styleDisplay->mTransformOrigin[1],
                                     triplet->mYValue) ||
@@ -3051,7 +3067,8 @@ StyleAnimationValue::ExtractComputedValue(nsCSSProperty aProperty,
           const nsStyleDisplay *styleDisplay =
             static_cast<const nsStyleDisplay*>(styleStruct);
           nsAutoPtr<nsCSSValuePair> pair(new nsCSSValuePair);
-          if (!StyleCoordToCSSValue(styleDisplay->mPerspectiveOrigin[0],
+          if (!pair ||
+              !StyleCoordToCSSValue(styleDisplay->mPerspectiveOrigin[0],
                                     pair->mXValue) ||
               !StyleCoordToCSSValue(styleDisplay->mPerspectiveOrigin[1],
                                     pair->mYValue)) {
@@ -3075,6 +3092,9 @@ StyleAnimationValue::ExtractComputedValue(nsCSSProperty aProperty,
             for (uint32_t i = 0, i_end = svg->mStrokeDasharrayLength;
                  i != i_end; ++i) {
               nsCSSValueList *item = new nsCSSValueList;
+              if (!item) {
+                return false;
+              }
               *resultTail = item;
               resultTail = &item->mNext;
 
@@ -3103,6 +3123,9 @@ StyleAnimationValue::ExtractComputedValue(nsCSSProperty aProperty,
             }
           } else {
             result = new nsCSSValueList;
+            if (!result) {
+              return false;
+            }
             result->mValue.SetNoneValue();
           }
           aComputedValue.SetAndAdoptCSSValueListValue(result.forget(),
@@ -3427,7 +3450,8 @@ StyleAnimationValue::ExtractComputedValue(nsCSSProperty aProperty,
       const nsStyleCoord &vert =
         corners->Get(NS_FULL_TO_HALF_CORNER(fullCorner, true));
       nsAutoPtr<nsCSSValuePair> pair(new nsCSSValuePair);
-      if (!StyleCoordToCSSValue(horiz, pair->mXValue) ||
+      if (!pair ||
+          !StyleCoordToCSSValue(horiz, pair->mXValue) ||
           !StyleCoordToCSSValue(vert, pair->mYValue)) {
         return false;
       }
@@ -3595,20 +3619,32 @@ StyleAnimationValue::operator=(const StyleAnimationValue& aOther)
                         "This clause is for handling nsCSSValue-backed units");
       NS_ABORT_IF_FALSE(aOther.mValue.mCSSValue, "values may not be null");
       mValue.mCSSValue = new nsCSSValue(*aOther.mValue.mCSSValue);
+      if (!mValue.mCSSValue) {
+        mUnit = eUnit_Null;
+      }
       break;
     case eUnit_CSSValuePair:
       NS_ABORT_IF_FALSE(aOther.mValue.mCSSValuePair,
                         "value pairs may not be null");
       mValue.mCSSValuePair = new nsCSSValuePair(*aOther.mValue.mCSSValuePair);
+      if (!mValue.mCSSValuePair) {
+        mUnit = eUnit_Null;
+      }
       break;
     case eUnit_CSSValueTriplet:
       NS_ABORT_IF_FALSE(aOther.mValue.mCSSValueTriplet,
                         "value triplets may not be null");
       mValue.mCSSValueTriplet = new nsCSSValueTriplet(*aOther.mValue.mCSSValueTriplet);
+      if (!mValue.mCSSValueTriplet) {
+        mUnit = eUnit_Null;
+      }
       break;
     case eUnit_CSSRect:
       NS_ABORT_IF_FALSE(aOther.mValue.mCSSRect, "rects may not be null");
       mValue.mCSSRect = new nsCSSRect(*aOther.mValue.mCSSRect);
+      if (!mValue.mCSSRect) {
+        mUnit = eUnit_Null;
+      }
       break;
     case eUnit_Filter:
     case eUnit_Dasharray:
@@ -3619,6 +3655,9 @@ StyleAnimationValue::operator=(const StyleAnimationValue& aOther)
                         "value lists other than shadows and filters may not be null");
       if (aOther.mValue.mCSSValueList) {
         mValue.mCSSValueList = aOther.mValue.mCSSValueList->Clone();
+        if (!mValue.mCSSValueList) {
+          mUnit = eUnit_Null;
+        }
       } else {
         mValue.mCSSValueList = nullptr;
       }
@@ -3631,6 +3670,9 @@ StyleAnimationValue::operator=(const StyleAnimationValue& aOther)
       NS_ABORT_IF_FALSE(aOther.mValue.mCSSValuePairList,
                         "value pair lists may not be null");
       mValue.mCSSValuePairList = aOther.mValue.mCSSValuePairList->Clone();
+      if (!mValue.mCSSValuePairList) {
+        mUnit = eUnit_Null;
+      }
       break;
     case eUnit_UnparsedString:
       NS_ABORT_IF_FALSE(aOther.mValue.mString, "expecting non-null string");

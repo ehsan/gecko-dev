@@ -492,8 +492,7 @@ JSObject::setProto(JSContext *cx, JS::HandleObject obj, JS::HandleObject proto, 
     }
 
     JS::Rooted<js::TaggedProto> taggedProto(cx, js::TaggedProto(proto));
-    *succeeded = SetClassAndProto(cx, obj, obj->getClass(), taggedProto, false);
-    return *succeeded;
+    return SetClassAndProto(cx, obj, obj->getClass(), taggedProto, succeeded);
 }
 
 inline bool

@@ -6,10 +6,11 @@
 
 #include "SourceBufferResource.h"
 
+#include <string.h>
 #include <algorithm>
 
 #include "nsISeekableStream.h"
-#include "nsISupports.h"
+#include "nsISupportsImpl.h"
 #include "prlog.h"
 
 #ifdef PR_LOGGING
@@ -30,6 +31,12 @@ PRLogModuleInfo* GetSourceBufferResourceLog()
 #endif
 
 namespace mozilla {
+
+namespace dom {
+
+class SourceBuffer;
+
+}  // namespace dom
 
 nsresult
 SourceBufferResource::Close()

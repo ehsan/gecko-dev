@@ -30,12 +30,6 @@ function log(msg) {
   //dump('ProcessGlobal: ' + msg + '\n');
 }
 
-function formatStackFrame(aFrame) {
-  let functionName = aFrame.functionName || '<anonymous>';
-  return '    at ' + functionName +
-         ' (' + aFrame.filename + ':' + aFrame.lineNumber + ')';
-}
-
 const gFactoryResetFile = "/persist/__post_reset_cmd__";
 
 function ProcessGlobal() {}
@@ -118,21 +112,11 @@ ProcessGlobal.prototype = {
       // Pipe `console` log messages to the nsIConsoleService which
       // writes them to logcat on Gonk.
       let message = subject.wrappedJSObject;
-      let args = message.arguments;
-      let stackTrace = '';
-
-      if (message.level == 'assert' || message.level == 'error' || message.level == 'trace') {
-        stackTrace = Array.map(message.stacktrace, formatStackFrame).join('\n');
-      } else {
-        stackTrace = formatStackFrame(message);
-      }
-
-      if (stackTrace) {
-        args.push('\n' + stackTrace);
-      }
-
-      let prefix = 'Content JS ' + message.level.toUpperCase() + ': ';
-      Services.console.logStringMessage(prefix + Array.join(args, ' '));
+      let prefix = ('Content JS ' + message.level.toUpperCase() +
+                    ' at ' + message.filename + ':' + message.lineNumber +
+                    ' in ' + (message.functionName || 'anonymous') + ': ');
+      Services.console.logStringMessage(prefix + Array.join(message.arguments,
+                                                            ' '));
       break;
     }
     }

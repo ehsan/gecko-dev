@@ -118,12 +118,13 @@ def get_debugger_info(debugger, debuggerArgs = None, debuggerInteractive = False
         ['path', 'interactive', 'args', 'requiresEscapedArgs']
     )
 
-    debugger_arguments = get_debugger_info('args', [])
+    debugger_arguments = get_debugger_info('args', '')
 
     # Extend the default arguments for the chosen debugger with the ones passed in, if any.
     if debuggerArgs:
-        # Append the provided debugger arguments at the end of the arguments list.
-        debugger_arguments += [debuggerArgs];
+        # Make sure to append the argument separator (if any) after the
+        # provided arguments.
+        debugger_arguments = debuggerArgs + debugger_arguments;
 
     # Override the default debugger interactive mode if needed.
     debugger_interactive = get_debugger_info('interactive', False)

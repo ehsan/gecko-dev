@@ -2451,10 +2451,11 @@ JSObject::ReserveForTradeGuts(JSContext *cx, JSObject *aArg, JSObject *bArg,
     const Class *bClass = b->getClass();
     Rooted<TaggedProto> aProto(cx, a->getTaggedProto());
     Rooted<TaggedProto> bProto(cx, b->getTaggedProto());
-    if (!SetClassAndProto(cx, a, bClass, bProto, true))
-        MOZ_CRASH();
-    if (!SetClassAndProto(cx, b, aClass, aProto, true))
-        MOZ_CRASH();
+    bool success;
+    if (!SetClassAndProto(cx, a, bClass, bProto, &success) || !success)
+        return false;
+    if (!SetClassAndProto(cx, b, aClass, aProto, &success) || !success)
+        return false;
 
     if (a->tenuredSizeOfThis() == b->tenuredSizeOfThis())
         return true;
@@ -2467,29 +2468,29 @@ JSObject::ReserveForTradeGuts(JSContext *cx, JSObject *aArg, JSObject *bArg,
      */
     if (a->isNative()) {
         if (!a->generateOwnShape(cx))
-            MOZ_CRASH();
+            return false;
     } else {
         reserved.newbshape = EmptyShape::getInitialShape(cx, aClass, aProto, a->getParent(), a->getMetadata(),
                                                          b->asTenured()->getAllocKind());
         if (!reserved.newbshape)
-            MOZ_CRASH();
+            return false;
     }
     if (b->isNative()) {
         if (!b->generateOwnShape(cx))
-            MOZ_CRASH();
+            return false;
     } else {
         reserved.newashape = EmptyShape::getInitialShape(cx, bClass, bProto, b->getParent(), b->getMetadata(),
                                                          a->asTenured()->getAllocKind());
         if (!reserved.newashape)
-            MOZ_CRASH();
+            return false;
     }
 
     /* The avals/bvals vectors hold all original values from the objects. */
 
     if (!reserved.avals.reserve(a->slotSpan()))
-        MOZ_CRASH();
+        return false;
     if (!reserved.bvals.reserve(b->slotSpan()))
-        MOZ_CRASH();
+        return false;
 
     /*
      * The newafixed/newbfixed hold the number of fixed slots in the objects
@@ -2524,13 +2525,13 @@ JSObject::ReserveForTradeGuts(JSContext *cx, JSObject *aArg, JSObject *bArg,
     if (adynamic) {
         reserved.newaslots = a->zone()->pod_malloc<HeapSlot>(adynamic);
         if (!reserved.newaslots)
-            MOZ_CRASH();
+            return false;
         Debug_SetSlotRangeToCrashOnTouch(reserved.newaslots, adynamic);
     }
     if (bdynamic) {
         reserved.newbslots = b->zone()->pod_malloc<HeapSlot>(bdynamic);
         if (!reserved.newbslots)
-            MOZ_CRASH();
+            return false;
         Debug_SetSlotRangeToCrashOnTouch(reserved.newbslots, bdynamic);
     }
 
@@ -3601,7 +3602,7 @@ JSObject::fixupAfterMovingGC()
 bool
 js::SetClassAndProto(JSContext *cx, HandleObject obj,
                      const Class *clasp, Handle<js::TaggedProto> proto,
-                     bool crashOnFailure)
+                     bool *succeeded)
 {
     /*
      * Regenerate shapes for all of the scopes along the old prototype chain,
@@ -3622,20 +3623,15 @@ js::SetClassAndProto(JSContext *cx, HandleObject obj,
      *
      * :XXX: bug 707717 make this code less brittle.
      */
+    *succeeded = false;
     RootedObject oldproto(cx, obj);
     while (oldproto && oldproto->isNative()) {
         if (oldproto->hasSingletonType()) {
-            if (!oldproto->generateOwnShape(cx)) {
-                if (crashOnFailure)
-                    MOZ_CRASH();
+            if (!oldproto->generateOwnShape(cx))
                 return false;
-            }
         } else {
-            if (!oldproto->setUncacheableProto(cx)) {
-                if (crashOnFailure)
-                    MOZ_CRASH();
+            if (!oldproto->setUncacheableProto(cx))
                 return false;
-            }
         }
         oldproto = oldproto->getProto();
     }
@@ -3645,30 +3641,22 @@ js::SetClassAndProto(JSContext *cx, HandleObject obj,
          * Just splice the prototype, but mark the properties as unknown for
          * consistent behavior.
          */
-        if (!obj->splicePrototype(cx, clasp, proto)) {
-            if (crashOnFailure)
-                MOZ_CRASH();
+        if (!obj->splicePrototype(cx, clasp, proto))
             return false;
-        }
         MarkTypeObjectUnknownProperties(cx, obj->type());
+        *succeeded = true;
         return true;
     }
 
     if (proto.isObject()) {
         RootedObject protoObj(cx, proto.toObject());
-        if (!JSObject::setNewTypeUnknown(cx, clasp, protoObj)) {
-            if (crashOnFailure)
-                MOZ_CRASH();
+        if (!JSObject::setNewTypeUnknown(cx, clasp, protoObj))
             return false;
-        }
     }
 
     TypeObject *type = cx->getNewType(clasp, proto);
-    if (!type) {
-        if (crashOnFailure)
-            MOZ_CRASH();
+    if (!type)
         return false;
-    }
 
     /*
      * Setting __proto__ on an object that has escaped and may be referenced by
@@ -3683,6 +3671,7 @@ js::SetClassAndProto(JSContext *cx, HandleObject obj,
 
     obj->setType(type);
 
+    *succeeded = true;
     return true;
 }
 

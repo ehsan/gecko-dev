@@ -22,11 +22,12 @@ class AppleVTLinker
 public:
   static bool Link();
   static void Unlink();
-  static CFStringRef skPropHWAccel;
+  static CFStringRef GetPropHWAccel();
 
 private:
   static void* sLink;
   static nsrefcnt sRefCount;
+  static CFStringRef skPropHWAccel;
 
   static enum LinkStatus {
     LinkStatus_INIT = 0,

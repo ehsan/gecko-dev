@@ -27,6 +27,7 @@ namespace js {
 class SharedTypedArrayObject : public JSObject
 {
   protected:
+    static const size_t TYPE_SLOT        = TypedArrayLayout::TYPE_SLOT;
     static const size_t BUFFER_SLOT      = TypedArrayLayout::BUFFER_SLOT;
     static const size_t BYTEOFFSET_SLOT  = TypedArrayLayout::BYTEOFFSET_SLOT;
     static const size_t LENGTH_SLOT      = TypedArrayLayout::LENGTH_SLOT;
@@ -59,7 +60,9 @@ class SharedTypedArrayObject : public JSObject
 
     SharedArrayBufferObject *buffer() const;
 
-    inline Scalar::Type type() const;
+    Scalar::Type type() const {
+        return (Scalar::Type) getFixedSlot(TYPE_SLOT).toInt32();
+    }
     void *viewData() const {
         return getPrivate(DATA_SLOT);
     }
@@ -106,13 +109,6 @@ IsSharedTypedArrayProtoClass(const Class *clasp)
 
 bool
 IsSharedTypedArrayConstructor(HandleValue v, uint32_t type);
-
-inline Scalar::Type
-SharedTypedArrayObject::type() const
-{
-    JS_ASSERT(IsSharedTypedArrayClass(getClass()));
-    return static_cast<Scalar::Type>(getClass() - &classes[0]);
-}
 
 }  // namespace js
 

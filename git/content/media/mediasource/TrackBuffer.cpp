@@ -13,6 +13,7 @@
 #include "SourceBufferResource.h"
 #include "VideoUtils.h"
 #include "mozilla/FloatingPoint.h"
+#include "mozilla/dom/MediaSourceBinding.h"
 #include "mozilla/dom/TimeRanges.h"
 #include "nsError.h"
 #include "nsIRunnable.h"

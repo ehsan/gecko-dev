@@ -21,6 +21,7 @@
 #include "nsContentTypeParser.h"
 #include "nsDebug.h"
 #include "nsError.h"
+#include "nsIEventTarget.h"
 #include "nsIRunnable.h"
 #include "nsPIDOMWindow.h"
 #include "nsString.h"
@@ -338,7 +339,7 @@ MediaSource::Detach()
   }
   mDecoder->DetachMediaSource();
   mDecoder = nullptr;
-  mFirstSourceBufferInitialized = false;
+  mFirstSourceBufferInitialization = false;
   SetReadyState(MediaSourceReadyState::Closed);
   mDuration = UnspecifiedNaN<double>();
   if (mActiveSourceBuffers) {
@@ -395,7 +396,7 @@ MediaSource::MediaSource(nsPIDOMWindow* aWindow)
   , mDuration(UnspecifiedNaN<double>())
   , mDecoder(nullptr)
   , mReadyState(MediaSourceReadyState::Closed)
-  , mFirstSourceBufferInitialized(false)
+  , mFirstSourceBufferInitialization(false)
 {
   MOZ_ASSERT(NS_IsMainThread());
   mSourceBuffers = new SourceBufferList(this);
@@ -487,10 +488,9 @@ void
 MediaSource::QueueInitializationEvent()
 {
   MOZ_ASSERT(NS_IsMainThread());
-  if (mFirstSourceBufferInitialized) {
-    return;
+  if (!mFirstSourceBufferInitialization) {
+    mFirstSourceBufferInitialization = true;
   }
-  mFirstSourceBufferInitialized = true;
   MSE_DEBUG("MediaSource(%p)::QueueInitializationEvent()", this);
   nsRefPtr<nsIRunnable> task =
     NS_NewRunnableMethod(this, &MediaSource::InitializationEvent);
