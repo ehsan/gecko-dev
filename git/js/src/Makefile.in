@@ -46,6 +46,7 @@ VPATH		+= \
 		$(srcdir)/ds \
 		$(srcdir)/frontend \
 		$(srcdir)/gc \
+		$(srcdir)/ion \
 		$(srcdir)/vm \
 		$(NULL)
 
@@ -144,6 +145,9 @@ CPPSRCS		= \
 		Unicode.cpp \
 		Xdr.cpp \
 		Module.cpp \
+		AsmJS.cpp \
+		AsmJSLink.cpp \
+		AsmJSSignalHandlers.cpp \
 		$(NULL)
 
 # Changes to internal header files, used externally, massively slow down
@@ -291,9 +295,6 @@ CPPSRCS +=	MIR.cpp \
 		ParallelArrayAnalysis.cpp \
 		UnreachableCodeElimination.cpp \
 		EffectiveAddressAnalysis.cpp \
-		AsmJS.cpp \
-		AsmJSLink.cpp \
-		AsmJSSignalHandlers.cpp \
 		$(NULL)
 endif #ENABLE_ION
 ifeq (86, $(findstring 86,$(TARGET_CPU)))

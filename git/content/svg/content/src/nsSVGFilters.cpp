@@ -53,13 +53,6 @@
 using namespace mozilla;
 using namespace mozilla::dom;
 
-static const unsigned short SVG_FECOMPONENTTRANSFER_TYPE_UNKNOWN  = 0;
-static const unsigned short SVG_FECOMPONENTTRANSFER_TYPE_IDENTITY = 1;
-static const unsigned short SVG_FECOMPONENTTRANSFER_TYPE_TABLE    = 2;
-static const unsigned short SVG_FECOMPONENTTRANSFER_TYPE_DISCRETE = 3;
-static const unsigned short SVG_FECOMPONENTTRANSFER_TYPE_LINEAR   = 4;
-static const unsigned short SVG_FECOMPONENTTRANSFER_TYPE_GAMMA    = 5;
-
 void
 CopyDataRect(uint8_t *aDest, const uint8_t *aSrc, uint32_t aStride,
              const nsIntRect& aDataRect)
@@ -1486,15 +1479,15 @@ nsSVGElement::NumberInfo SVGComponentTransferFunctionElement::sNumberInfo[5] =
 
 nsSVGEnumMapping SVGComponentTransferFunctionElement::sTypeMap[] = {
   {&nsGkAtoms::identity,
-   SVG_FECOMPONENTTRANSFER_TYPE_IDENTITY},
+   nsIDOMSVGComponentTransferFunctionElement::SVG_FECOMPONENTTRANSFER_TYPE_IDENTITY},
   {&nsGkAtoms::table,
-   SVG_FECOMPONENTTRANSFER_TYPE_TABLE},
+   nsIDOMSVGComponentTransferFunctionElement::SVG_FECOMPONENTTRANSFER_TYPE_TABLE},
   {&nsGkAtoms::discrete,
-   SVG_FECOMPONENTTRANSFER_TYPE_DISCRETE},
+   nsIDOMSVGComponentTransferFunctionElement::SVG_FECOMPONENTTRANSFER_TYPE_DISCRETE},
   {&nsGkAtoms::linear,
-   SVG_FECOMPONENTTRANSFER_TYPE_LINEAR},
+   nsIDOMSVGComponentTransferFunctionElement::SVG_FECOMPONENTTRANSFER_TYPE_LINEAR},
   {&nsGkAtoms::gamma,
-   SVG_FECOMPONENTTRANSFER_TYPE_GAMMA},
+   nsIDOMSVGComponentTransferFunctionElement::SVG_FECOMPONENTTRANSFER_TYPE_GAMMA},
   {nullptr, 0}
 };
 
@@ -1502,7 +1495,7 @@ nsSVGElement::EnumInfo SVGComponentTransferFunctionElement::sEnumInfo[1] =
 {
   { &nsGkAtoms::type,
     sTypeMap,
-    SVG_FECOMPONENTTRANSFER_TYPE_IDENTITY
+    nsIDOMSVGComponentTransferFunctionElement::SVG_FECOMPONENTTRANSFER_TYPE_IDENTITY
   }
 };
 
@@ -1528,7 +1521,7 @@ NS_INTERFACE_MAP_END_INHERITING(SVGComponentTransferFunctionElementBase)
 
 bool
 SVGComponentTransferFunctionElement::AttributeAffectsRendering(int32_t aNameSpaceID,
-                                                               nsIAtom* aAttribute) const
+                                                                 nsIAtom* aAttribute) const
 {
   return aNameSpaceID == kNameSpaceID_None &&
          (aAttribute == nsGkAtoms::tableValues ||
@@ -1541,48 +1534,91 @@ SVGComponentTransferFunctionElement::AttributeAffectsRendering(int32_t aNameSpac
 }
 
 //----------------------------------------------------------------------
+// nsIDOMSVGComponentTransferFunctionElement methods
 
+/* readonly attribute nsIDOMSVGAnimatedEnumeration type; */
 already_AddRefed<nsIDOMSVGAnimatedEnumeration>
 SVGComponentTransferFunctionElement::Type()
 {
   return mEnumAttributes[TYPE].ToDOMAnimatedEnum(this);
 }
+NS_IMETHODIMP SVGComponentTransferFunctionElement::GetType(nsIDOMSVGAnimatedEnumeration * *aType)
+{
+  *aType = Type().get();
+  return NS_OK;
+}
 
+/* readonly attribute DOMSVGAnimatedNumberList tableValues; */
 already_AddRefed<DOMSVGAnimatedNumberList>
 SVGComponentTransferFunctionElement::TableValues()
 {
   return DOMSVGAnimatedNumberList::GetDOMWrapper(
     &mNumberListAttributes[TABLEVALUES], this, TABLEVALUES);
 }
+NS_IMETHODIMP SVGComponentTransferFunctionElement::GetTableValues(nsISupports * *aTableValues)
+{
+  *aTableValues = TableValues().get();
+  return NS_OK;
+}
 
+/* readonly attribute nsIDOMSVGAnimatedNumber slope; */
 already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGComponentTransferFunctionElement::Slope()
 {
   return mNumberAttributes[SLOPE].ToDOMAnimatedNumber(this);
 }
+NS_IMETHODIMP SVGComponentTransferFunctionElement::GetSlope(nsIDOMSVGAnimatedNumber * *aSlope)
+{
+  *aSlope = Slope().get();
+  return NS_OK;
+}
 
+/* readonly attribute nsIDOMSVGAnimatedNumber intercept; */
 already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGComponentTransferFunctionElement::Intercept()
 {
   return mNumberAttributes[INTERCEPT].ToDOMAnimatedNumber(this);
 }
+NS_IMETHODIMP SVGComponentTransferFunctionElement::GetIntercept(nsIDOMSVGAnimatedNumber * *aIntercept)
+{
+  *aIntercept = Intercept().get();
+  return NS_OK;
+}
 
+/* readonly attribute nsIDOMSVGAnimatedNumber amplitude; */
 already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGComponentTransferFunctionElement::Amplitude()
 {
   return mNumberAttributes[AMPLITUDE].ToDOMAnimatedNumber(this);
 }
+NS_IMETHODIMP SVGComponentTransferFunctionElement::GetAmplitude(nsIDOMSVGAnimatedNumber * *aAmplitude)
+{
+  *aAmplitude = Amplitude().get();
+  return NS_OK;
+}
 
+/* readonly attribute nsIDOMSVGAnimatedNumber exponent; */
 already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGComponentTransferFunctionElement::Exponent()
 {
   return mNumberAttributes[EXPONENT].ToDOMAnimatedNumber(this);
 }
+NS_IMETHODIMP SVGComponentTransferFunctionElement::GetExponent(nsIDOMSVGAnimatedNumber * *aExponent)
+{
+  *aExponent = Exponent().get();
+  return NS_OK;
+}
 
+/* readonly attribute nsIDOMSVGAnimatedNumber offset; */
 already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGComponentTransferFunctionElement::Offset()
 {
   return mNumberAttributes[OFFSET].ToDOMAnimatedNumber(this);
+}
+NS_IMETHODIMP SVGComponentTransferFunctionElement::GetOffset(nsIDOMSVGAnimatedNumber * *aOffset)
+{
+  *aOffset = Offset().get();
+  return NS_OK;
 }
 
 bool
@@ -1601,7 +1637,7 @@ SVGComponentTransferFunctionElement::GenerateLookupTable(uint8_t *aTable)
   uint32_t i;
 
   switch (type) {
-  case SVG_FECOMPONENTTRANSFER_TYPE_TABLE:
+  case nsIDOMSVGComponentTransferFunctionElement::SVG_FECOMPONENTTRANSFER_TYPE_TABLE:
   {
     if (tableValues.Length() < 2)
       return false;
@@ -1619,7 +1655,7 @@ SVGComponentTransferFunctionElement::GenerateLookupTable(uint8_t *aTable)
     break;
   }
 
-  case SVG_FECOMPONENTTRANSFER_TYPE_DISCRETE:
+  case nsIDOMSVGComponentTransferFunctionElement::SVG_FECOMPONENTTRANSFER_TYPE_DISCRETE:
   {
     if (tableValues.Length() < 1)
       return false;
@@ -1636,7 +1672,7 @@ SVGComponentTransferFunctionElement::GenerateLookupTable(uint8_t *aTable)
     break;
   }
 
-  case SVG_FECOMPONENTTRANSFER_TYPE_LINEAR:
+  case nsIDOMSVGComponentTransferFunctionElement::SVG_FECOMPONENTTRANSFER_TYPE_LINEAR:
   {
     for (i = 0; i < 256; i++) {
       int32_t val = int32_t(slope * i + 255 * intercept);
@@ -1647,7 +1683,7 @@ SVGComponentTransferFunctionElement::GenerateLookupTable(uint8_t *aTable)
     break;
   }
 
-  case SVG_FECOMPONENTTRANSFER_TYPE_GAMMA:
+  case nsIDOMSVGComponentTransferFunctionElement::SVG_FECOMPONENTTRANSFER_TYPE_GAMMA:
   {
     for (i = 0; i < 256; i++) {
       int32_t val = int32_t(255 * (amplitude * pow(i / 255.0f, exponent) + offset));
@@ -1658,7 +1694,7 @@ SVGComponentTransferFunctionElement::GenerateLookupTable(uint8_t *aTable)
     break;
   }
 
-  case SVG_FECOMPONENTTRANSFER_TYPE_IDENTITY:
+  case nsIDOMSVGComponentTransferFunctionElement::SVG_FECOMPONENTTRANSFER_TYPE_IDENTITY:
   default:
     break;
   }
@@ -1689,10 +1725,12 @@ SVGComponentTransferFunctionElement::GetNumberInfo()
                               ArrayLength(sNumberInfo));
 }
 
-NS_IMPL_ISUPPORTS_INHERITED3(SVGFEFuncRElement,
+NS_IMPL_ISUPPORTS_INHERITED5(SVGFEFuncRElement,
                              SVGComponentTransferFunctionElement,
                              nsIDOMNode, nsIDOMElement,
-                             nsIDOMSVGElement)
+                             nsIDOMSVGElement,
+                             nsIDOMSVGComponentTransferFunctionElement,
+                             nsIDOMSVGFEFuncRElement)
 
 /* virtual */ JSObject*
 SVGFEFuncRElement::WrapNode(JSContext* aCx, JSObject* aScope)
@@ -1710,10 +1748,12 @@ namespace dom {
 
 NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFEFuncRElement)
 
-NS_IMPL_ISUPPORTS_INHERITED3(SVGFEFuncGElement,
+NS_IMPL_ISUPPORTS_INHERITED5(SVGFEFuncGElement,
                              SVGComponentTransferFunctionElement,
                              nsIDOMNode, nsIDOMElement,
-                             nsIDOMSVGElement)
+                             nsIDOMSVGElement,
+                             nsIDOMSVGComponentTransferFunctionElement,
+                             nsIDOMSVGFEFuncGElement)
 
 /* virtual */ JSObject*
 SVGFEFuncGElement::WrapNode(JSContext* aCx, JSObject* aScope)
@@ -1731,10 +1771,12 @@ namespace dom {
 
 NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFEFuncGElement)
 
-NS_IMPL_ISUPPORTS_INHERITED3(SVGFEFuncBElement,
+NS_IMPL_ISUPPORTS_INHERITED5(SVGFEFuncBElement,
                              SVGComponentTransferFunctionElement,
                              nsIDOMNode, nsIDOMElement,
-                             nsIDOMSVGElement)
+                             nsIDOMSVGElement,
+                             nsIDOMSVGComponentTransferFunctionElement,
+                             nsIDOMSVGFEFuncBElement)
 
 /* virtual */ JSObject*
 SVGFEFuncBElement::WrapNode(JSContext* aCx, JSObject* aScope)
@@ -1752,10 +1794,12 @@ namespace dom {
 
 NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFEFuncBElement)
 
-NS_IMPL_ISUPPORTS_INHERITED3(SVGFEFuncAElement,
+NS_IMPL_ISUPPORTS_INHERITED5(SVGFEFuncAElement,
                              SVGComponentTransferFunctionElement,
                              nsIDOMNode, nsIDOMElement,
-                             nsIDOMSVGElement)
+                             nsIDOMSVGElement,
+                             nsIDOMSVGComponentTransferFunctionElement,
+                             nsIDOMSVGFEFuncAElement)
 
 /* virtual */ JSObject*
 SVGFEFuncAElement::WrapNode(JSContext* aCx, JSObject* aScope)

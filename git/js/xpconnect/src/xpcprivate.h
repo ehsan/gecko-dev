@@ -897,8 +897,6 @@ public:
     void RemoveGCCallback(JSGCCallback cb);
 
     static void ActivityCallback(void *arg, JSBool active);
-    static void CTypesActivityCallback(JSContext *cx,
-                                       js::CTypesActivityType type);
 
     bool XBLScopesEnabled() {
         return gXBLScopesEnabled;

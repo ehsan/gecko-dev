@@ -11,7 +11,6 @@
 
 #include "mozilla/mozalloc_abort.h"
 #include "mozilla/mozalloc_oom.h"
-#include "mozilla/Assertions.h"
 
 static mozalloc_oom_abort_handler gAbortHandler;
 
@@ -28,7 +27,7 @@ void
 mozalloc_handle_oom(size_t size)
 {
     char oomMsg[] = OOM_MSG_LEADER OOM_MSG_DIGITS OOM_MSG_TRAILER;
-    size_t i;
+    int i;
 
     // NB: this is handle_oom() stage 1, which simply aborts on OOM.
     // we might proceed to a stage 2 in which an attempt is made to
@@ -36,9 +35,6 @@ mozalloc_handle_oom(size_t size)
 
     if (gAbortHandler)
         gAbortHandler(size);
-
-    MOZ_STATIC_ASSERT(OOM_MSG_FIRST_DIGIT_OFFSET > 0,
-                      "Loop below will never terminate (i can't go below 0)");
 
     // Insert size into the diagnostic message using only primitive operations
     for (i = OOM_MSG_LAST_DIGIT_OFFSET;
