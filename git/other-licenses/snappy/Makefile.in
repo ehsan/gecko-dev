@@ -56,6 +56,9 @@ CPPSRCS = \
   snappy.cc \
   snappy-sinksource.cc \
   snappy-stubs-internal.cc \
+  $(NULL)
+
+CSRCS = \
   snappy-c.cc \
   $(NULL)
 

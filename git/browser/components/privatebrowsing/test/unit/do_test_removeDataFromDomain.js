@@ -43,9 +43,7 @@
  */
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Globals
-
-Cu.import("resource://gre/modules/PlacesUtils.jsm");
+//// Constants
 
 let pb = Cc[PRIVATEBROWSING_CONTRACT_ID].
          getService(Ci.nsIPrivateBrowsingService);
@@ -90,9 +88,9 @@ function uri(aURIString)
 function add_visit(aURI)
 {
   check_visited(aURI, false);
-  PlacesUtils.history.addVisit(aURI, Date.now() * 1000, null,
-                               Ci.nsINavHistoryService.TRANSITION_LINK, false,
-                               0);
+  let bh = Cc["@mozilla.org/browser/global-history;2"].
+           getService(Ci.nsIBrowserHistory);
+  bh.addPageWithDetails(aURI, aURI.spec, Date.now() * 1000);
   check_visited(aURI, true);
 }
 
@@ -106,8 +104,10 @@ function add_visit(aURI)
  */
 function check_visited(aURI, aIsVisited)
 {
+  let gh = Cc["@mozilla.org/browser/global-history;2"].
+           getService(Ci.nsIGlobalHistory2);
   let checker = aIsVisited ? do_check_true : do_check_false;
-  checker(PlacesUtils.ghistory2.isVisited(aURI));
+  checker(gh.isVisited(aURI));
 }
 
 /**
@@ -362,7 +362,9 @@ function test_history_not_cleared_with_uri_contains_domain()
   check_visited(TEST_URI, true);
 
   // Clear history since we left something there from this test.
-  PlacesUtils.bhistory.removeAllPages();
+  let bh = Cc["@mozilla.org/browser/global-history;2"].
+           getService(Ci.nsIBrowserHistory);
+  bh.removeAllPages();
 }
 
 // Cookie Service

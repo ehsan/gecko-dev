@@ -36,10 +36,7 @@
 * ***** END LICENSE BLOCK ***** */
 
 #include "AndroidLayerViewWrapper.h"
-#include "AndroidBridge.h"
 #include "nsDebug.h"
-
-using namespace mozilla;
 
 #define ASSERT_THREAD() \
         NS_ASSERTION(pthread_self() == mThread, "Something is calling AndroidGLController from the wrong thread!")
@@ -80,7 +77,6 @@ void
 AndroidGLController::SetGLVersion(int aVersion)
 {
     ASSERT_THREAD();
-    AutoLocalJNIFrame jniFrame(mJEnv, 0);
     mJEnv->CallVoidMethod(mJObj, jSetGLVersionMethod, aVersion);
 }
 
@@ -88,7 +84,6 @@ EGLSurface
 AndroidGLController::ProvideEGLSurface()
 {
     ASSERT_THREAD();
-    AutoLocalJNIFrame jniFrame(mJEnv);
     jobject jObj = mJEnv->CallObjectMethod(mJObj, jProvideEGLSurfaceMethod);
     return reinterpret_cast<EGLSurface>(mJEnv->GetIntField(jObj, jEGLSurfacePointerField));
 }
@@ -97,6 +92,5 @@ void
 AndroidGLController::WaitForValidSurface()
 {
     ASSERT_THREAD();
-    AutoLocalJNIFrame jniFrame(mJEnv, 0);
     mJEnv->CallVoidMethod(mJObj, jWaitForValidSurfaceMethod);
 }

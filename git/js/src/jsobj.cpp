@@ -1055,14 +1055,10 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, StackFrame *c
         CurrentScriptFileLineOrigin(cx, &filename, &lineno, &originPrincipals,
                                     evalType == DIRECT_EVAL ? CALLED_FROM_JSOP_EVAL
                                                             : NOT_CALLED_FROM_JSOP_EVAL);
-
-        bool compileAndGo = true;
-        bool noScriptRval = false;
-        bool needScriptGlobal = false;
+        uint32_t tcflags = TCF_COMPILE_N_GO | TCF_COMPILE_FOR_EVAL;
         JSScript *compiled = frontend::CompileScript(cx, scopeobj, caller,
                                                      principals, originPrincipals,
-                                                     compileAndGo, noScriptRval, needScriptGlobal,
-                                                     chars, length, filename,
+                                                     tcflags, chars, length, filename,
                                                      lineno, cx->findVersion(), linearStr,
                                                      staticLevel);
         if (!compiled)
@@ -5915,10 +5911,11 @@ js_ValueToNonNullObject(JSContext *cx, const Value &v)
     return obj;
 }
 
+#ifdef DEBUG
 void
-js_GetObjectSlotName(JSTracer *trc, char *buf, size_t bufsize)
+js_PrintObjectSlotName(JSTracer *trc, char *buf, size_t bufsize)
 {
-    JS_ASSERT(trc->debugPrinter == js_GetObjectSlotName);
+    JS_ASSERT(trc->debugPrinter == js_PrintObjectSlotName);
 
     JSObject *obj = (JSObject *)trc->debugPrintArg;
     uint32_t slot = uint32_t(trc->debugPrintIndex);
@@ -5956,6 +5953,7 @@ js_GetObjectSlotName(JSTracer *trc, char *buf, size_t bufsize)
         }
     }
 }
+#endif
 
 static const Shape *
 LastConfigurableShape(JSObject *obj)

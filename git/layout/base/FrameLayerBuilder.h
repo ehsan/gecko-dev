@@ -534,7 +534,7 @@ public:
   public:
     ThebesLayerItemsEntry(const ThebesLayer *key) :
         nsPtrHashKey<ThebesLayer>(key), mContainerLayerFrame(nsnull),
-        mHasExplicitLastPaintOffset(false), mCommonClipCount(0) {}
+        mHasExplicitLastPaintOffset(false), mCommonClipCount(-1) {}
     ThebesLayerItemsEntry(const ThebesLayerItemsEntry &toCopy) :
       nsPtrHashKey<ThebesLayer>(toCopy.mKey), mItems(toCopy.mItems)
     {

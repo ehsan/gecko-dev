@@ -103,10 +103,7 @@ public:
 
     FT_Library GetFTLibrary();
 
-    virtual int GetScreenDepth() const;
-
 private:
-    int mScreenDepth;
     gfxImageFormat mOffscreenFormat;
 };
 

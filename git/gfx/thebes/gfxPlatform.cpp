@@ -86,7 +86,6 @@
 
 #include "mozilla/FunctionTimer.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Assertions.h"
 
 #include "nsIGfxInfo.h"
 
@@ -1437,11 +1436,4 @@ gfxPlatform::GetLog(eGfxLog aWhichLog)
 #else
     return nsnull;
 #endif
-}
-
-int
-gfxPlatform::GetScreenDepth() const
-{
-    MOZ_ASSERT(false, "Not implemented on this platform");
-    return 0;
 }

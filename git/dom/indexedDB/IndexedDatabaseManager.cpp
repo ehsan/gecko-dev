@@ -125,7 +125,7 @@ GetBaseFilename(const nsAString& aFilename,
   return true;
 }
 
-class QuotaCallback MOZ_FINAL : public mozIStorageQuotaCallback
+class QuotaCallback : public mozIStorageQuotaCallback
 {
 public:
   NS_DECL_ISUPPORTS

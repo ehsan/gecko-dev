@@ -195,7 +195,6 @@ public:
                 const nsRect* aRange = nsnull) {
     ScrollToWithOrigin(aScrollPosition, aMode, nsGkAtoms::other, aRange);
   }
-  void ScrollToCSSPixels(nsIntPoint aScrollPosition);
   void ScrollToImpl(nsPoint aScrollPosition, const nsRect& aRange);
   void ScrollVisual(nsPoint aOldScrolledFramePosition);
   void ScrollBy(nsIntPoint aDelta, nsIScrollableFrame::ScrollUnit aUnit,
@@ -506,9 +505,6 @@ public:
                         const nsRect* aRange = nsnull) {
     mInner.ScrollTo(aScrollPosition, aMode, aRange);
   }
-  virtual void ScrollToCSSPixels(nsIntPoint aScrollPosition) {
-    mInner.ScrollToCSSPixels(aScrollPosition);
-  }
   virtual void ScrollBy(nsIntPoint aDelta, ScrollUnit aUnit, ScrollMode aMode,
                         nsIntPoint* aOverflow, nsIAtom *aOrigin = nsnull) {
     mInner.ScrollBy(aDelta, aUnit, aMode, aOverflow, aOrigin);
@@ -750,9 +746,6 @@ public:
   virtual void ScrollTo(nsPoint aScrollPosition, ScrollMode aMode,
                         const nsRect* aRange = nsnull) {
     mInner.ScrollTo(aScrollPosition, aMode, aRange);
-  }
-  virtual void ScrollToCSSPixels(nsIntPoint aScrollPosition) {
-    mInner.ScrollToCSSPixels(aScrollPosition);
   }
   virtual void ScrollBy(nsIntPoint aDelta, ScrollUnit aUnit, ScrollMode aMode,
                         nsIntPoint* aOverflow, nsIAtom *aOrigin = nsnull) {

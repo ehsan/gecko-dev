@@ -132,19 +132,6 @@ JSCompartment::setNeedsBarrier(bool needs)
     needsBarrier_ = needs;
 }
 
-static bool
-WrapForSameCompartment(JSContext *cx, JSObject *obj, Value *vp)
-{
-    JS_ASSERT(cx->compartment == obj->compartment());
-    if (cx->runtime->sameCompartmentWrapObjectCallback) {
-        obj = cx->runtime->sameCompartmentWrapObjectCallback(cx, obj);
-        if (!obj)
-            return false;
-    }
-    vp->setObject(*obj);
-    return true;
-}
-
 bool
 JSCompartment::wrap(JSContext *cx, Value *vp)
 {
@@ -192,28 +179,40 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
     if (vp->isObject()) {
         JSObject *obj = &vp->toObject();
 
+        /* If the object is already in this compartment, we are done. */
         if (obj->compartment() == this)
-            return WrapForSameCompartment(cx, obj, vp);
+            return true;
 
         /* Translate StopIteration singleton. */
         if (obj->isStopIteration())
             return js_FindClassObject(cx, NULL, JSProto_StopIteration, vp);
 
-        /* Unwrap the object, but don't unwrap outer windows. */
-        obj = UnwrapObject(&vp->toObject(), /* stopAtOuter = */ true, &flags);
+        /* Don't unwrap an outer window proxy. */
+        if (!obj->getClass()->ext.innerObject) {
+            obj = UnwrapObject(&vp->toObject(), true, &flags);
+            vp->setObject(*obj);
+            if (obj->compartment() == this)
+                return true;
 
-        if (obj->compartment() == this)
-            return WrapForSameCompartment(cx, obj, vp);
+            if (cx->runtime->preWrapObjectCallback) {
+                obj = cx->runtime->preWrapObjectCallback(cx, global, obj, flags);
+                if (!obj)
+                    return false;
+            }
 
-        if (cx->runtime->preWrapObjectCallback) {
-            obj = cx->runtime->preWrapObjectCallback(cx, global, obj, flags);
-            if (!obj)
-                return false;
+            vp->setObject(*obj);
+            if (obj->compartment() == this)
+                return true;
+        } else {
+            if (cx->runtime->preWrapObjectCallback) {
+                obj = cx->runtime->preWrapObjectCallback(cx, global, obj, flags);
+                if (!obj)
+                    return false;
+            }
+
+            JS_ASSERT(!obj->isWrapper() || obj->getClass()->ext.innerObject);
+            vp->setObject(*obj);
         }
-
-        if (obj->compartment() == this)
-            return WrapForSameCompartment(cx, obj, vp);
-        vp->setObject(*obj);
 
 #ifdef DEBUG
         {
@@ -599,7 +598,7 @@ JSCompartment::hasScriptsOnStack()
 }
 
 bool
-JSCompartment::setDebugModeFromC(JSContext *cx, bool b, AutoDebugModeGC &dmgc)
+JSCompartment::setDebugModeFromC(JSContext *cx, bool b)
 {
     bool enabledBefore = debugMode();
     bool enabledAfter = (debugModeBits & ~unsigned(DebugFromC)) || b;
@@ -626,12 +625,12 @@ JSCompartment::setDebugModeFromC(JSContext *cx, bool b, AutoDebugModeGC &dmgc)
     debugModeBits = (debugModeBits & ~unsigned(DebugFromC)) | (b ? DebugFromC : 0);
     JS_ASSERT(debugMode() == enabledAfter);
     if (enabledBefore != enabledAfter)
-        updateForDebugMode(cx->runtime->defaultFreeOp(), dmgc);
+        updateForDebugMode(cx->runtime->defaultFreeOp());
     return true;
 }
 
 void
-JSCompartment::updateForDebugMode(FreeOp *fop, AutoDebugModeGC &dmgc)
+JSCompartment::updateForDebugMode(FreeOp *fop)
 {
     for (ContextIter acx(rt); !acx.done(); acx.next()) {
         if (acx->compartment == this) 
@@ -656,13 +655,10 @@ JSCompartment::updateForDebugMode(FreeOp *fop, AutoDebugModeGC &dmgc)
     // compartment. Because !hasScriptsOnStack(), it suffices to do a garbage
     // collection cycle or to finish the ongoing GC cycle. The necessary
     // cleanup happens in JSCompartment::sweep.
-    //
-    // dmgc makes sure we can't forget to GC, but it is also important not
-    // to run any scripts in this compartment until the dmgc is destroyed.
-    // That is the caller's responsibility.
-    //
-    if (!rt->gcRunning)
-        dmgc.scheduleGC(this);
+    if (!rt->gcRunning) {
+        PrepareCompartmentForGC(this);
+        GC(rt, GC_NORMAL, gcreason::DEBUG_MODE_GC);
+    }
 #endif
 }
 
@@ -675,10 +671,8 @@ JSCompartment::addDebuggee(JSContext *cx, js::GlobalObject *global)
         return false;
     }
     debugModeBits |= DebugFromJS;
-    if (!wasEnabled) {
-        AutoDebugModeGC dmgc(cx->runtime);
-        updateForDebugMode(cx->runtime->defaultFreeOp(), dmgc);
-    }
+    if (!wasEnabled)
+        updateForDebugMode(cx->runtime->defaultFreeOp());
     return true;
 }
 
@@ -696,10 +690,8 @@ JSCompartment::removeDebuggee(FreeOp *fop,
 
     if (debuggees.empty()) {
         debugModeBits &= ~DebugFromJS;
-        if (wasEnabled && !debugMode()) {
-            AutoDebugModeGC dmgc(rt);
-            updateForDebugMode(fop, dmgc);
-        }
+        if (wasEnabled && !debugMode())
+            updateForDebugMode(fop);
     }
 }
 

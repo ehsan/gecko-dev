@@ -23,7 +23,6 @@
  *   Roger B. Sidje <rbs@maths.uq.edu.au>
  *   David J. Fiddes <D.J.Fiddes@hw.ac.uk>
  *   Karl Tomlinson <karlt+@karlt.net>, Mozilla Corporation
- *   Frederic Wang <fred.wang@free.fr>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -107,9 +106,7 @@ nsMathMLmpaddedFrame::ProcessAttributes()
   There is one exceptional element, <mpadded>, whose attributes cannot be 
   set with <mstyle>. When the attributes width, height and depth are specified
   on an <mstyle> element, they apply only to the <mspace/> element. Similarly, 
-  when lspace is set with <mstyle>, it applies only to the <mo> element. To be
-  consistent, the voffset attribute of the mpadded element can not be set on
-  mstyle. 
+  when lspace is set with <mstyle>, it applies only to the <mo> element. 
   */
 
   // See if attributes are local, don't access mstyle !
@@ -188,6 +185,10 @@ nsMathMLmpaddedFrame::ParseAttribute(nsString&   aString,
   else
     aSign = NS_MATHML_SIGN_UNSPECIFIED;
 
+  // skip any space after the sign
+  if (i < stringLength && nsCRT::IsAsciiSpace(aString[i]))
+    i++;
+
   // get the number
   bool gotDot = false, gotPercent = false;
   for (; i < stringLength; i++) {
@@ -225,24 +226,40 @@ nsMathMLmpaddedFrame::ParseAttribute(nsString&   aString,
     return false;
   }
 
+  // skip any space after the number
+  if (i < stringLength && nsCRT::IsAsciiSpace(aString[i]))
+    i++;
+
   // see if this is a percentage-based value
   if (i < stringLength && aString[i] == '%') {
     i++;
     gotPercent = true;
+
+    // skip any space after the '%' sign
+    if (i < stringLength && nsCRT::IsAsciiSpace(aString[i]))
+      i++;
   }
 
   // the remainder now should be a css-unit, or a pseudo-unit, or a named-space
   aString.Right(unit, stringLength - i);
 
   if (unit.IsEmpty()) {
-    if (gotPercent) {
-      // case ["+"|"-"] unsigned-number "%" 
+    // also cater for the edge case of "0" for which the unit is optional
+    if (gotPercent || !floatValue) {
       aCSSValue.SetPercentValue(floatValue / 100.0f);
       aPseudoUnit = NS_MATHML_PSEUDO_UNIT_ITSELF;
       return true;
-    } else {
-      // The REC does not allow the case ["+"|"-"] unsigned-number
     }
+    /*
+    else {
+      // no explicit CSS unit and no explicit pseudo-unit...
+      // In this case, the MathML REC suggests taking ems for
+      // h-unit (width, lspace) or exs for v-unit (height, depth).
+      // Here, however, we explicitly request authors to specify
+      // the unit. This is more in line with the CSS REC (and
+      // it allows keeping the code simpler...)
+    }
+    */
   }
   else if (unit.EqualsLiteral("width"))  aPseudoUnit = NS_MATHML_PSEUDO_UNIT_WIDTH;
   else if (unit.EqualsLiteral("height")) aPseudoUnit = NS_MATHML_PSEUDO_UNIT_HEIGHT;
@@ -250,9 +267,8 @@ nsMathMLmpaddedFrame::ParseAttribute(nsString&   aString,
   else if (!gotPercent) { // percentage can only apply to a pseudo-unit
 
     // see if the unit is a named-space
-    if (nsMathMLElement::ParseNamedSpaceValue(unit, aCSSValue,
-                                              nsMathMLElement::
-                                              PARSE_ALLOW_NEGATIVE)) {
+    // XXX nsnull in ParseNamedSpacedValue()? don't access mstyle?
+    if (ParseNamedSpaceValue(nsnull, unit, aCSSValue)) {
       // re-scale properly, and we know that the unit of the named-space is 'em'
       floatValue *= aCSSValue.GetFloatValue();
       aCSSValue.SetFloatValue(floatValue, eCSSUnit_EM);
@@ -261,11 +277,8 @@ nsMathMLmpaddedFrame::ParseAttribute(nsString&   aString,
     }
 
     // see if the input was just a CSS value
-    // We use a specific flag to indicate that the call is made from mpadded.
-    // We are not supposed to have a unitless, percent, negative or namedspace
-    // value here.
     number.Append(unit); // leave the sign out if it was there
-    if (nsMathMLElement::ParseNumericValue(number, aCSSValue, 0))
+    if (ParseNumericValue(number, aCSSValue))
       return true;
   }
 

@@ -792,7 +792,6 @@ JSRuntime::JSRuntime()
     pendingProxyOperation(NULL),
     trustedPrincipals_(NULL),
     wrapObjectCallback(TransparentObjectWrapper),
-    sameCompartmentWrapObjectCallback(NULL),
     preWrapObjectCallback(NULL),
     preserveWrapperCallback(NULL),
 #ifdef DEBUG
@@ -1341,12 +1340,10 @@ JS_SetDestroyCompartmentCallback(JSRuntime *rt, JSDestroyCompartmentCallback cal
 JS_PUBLIC_API(JSWrapObjectCallback)
 JS_SetWrapObjectCallbacks(JSRuntime *rt,
                           JSWrapObjectCallback callback,
-                          JSSameCompartmentWrapObjectCallback sccallback,
                           JSPreWrapCallback precallback)
 {
     JSWrapObjectCallback old = rt->wrapObjectCallback;
     rt->wrapObjectCallback = callback;
-    rt->sameCompartmentWrapObjectCallback = sccallback;
     rt->preWrapObjectCallback = precallback;
     return old;
 }
@@ -1387,7 +1384,8 @@ JS_EnterCrossCompartmentCallScript(JSContext *cx, JSScript *target)
 {
     AssertNoGC(cx);
     CHECK_REQUEST(cx);
-    GlobalObject *global = target->getGlobalObjectOrNull();
+    JS_ASSERT(!target->isCachedEval);
+    GlobalObject *global = target->globalObject;
     if (!global) {
         SwitchToCompartment sc(cx, target->compartment());
         global = GlobalObject::create(cx, &dummy_class);
@@ -4797,6 +4795,13 @@ struct AutoLastFrameCheck {
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
+inline static uint32_t
+JS_OPTIONS_TO_TCFLAGS(JSContext *cx)
+{
+    return (cx->hasRunOption(JSOPTION_COMPILE_N_GO) ? TCF_COMPILE_N_GO : 0) |
+           (cx->hasRunOption(JSOPTION_NO_SCRIPT_RVAL) ? TCF_NO_SCRIPT_RVAL : 0);
+}
+
 static JSScript *
 CompileUCScriptForPrincipalsCommon(JSContext *cx, JSObject *obj,
                                    JSPrincipals *principals, JSPrincipals *originPrincipals,
@@ -4809,11 +4814,8 @@ CompileUCScriptForPrincipalsCommon(JSContext *cx, JSObject *obj,
     assertSameCompartment(cx, obj, principals);
     AutoLastFrameCheck lfc(cx);
 
-    bool compileAndGo = cx->hasRunOption(JSOPTION_COMPILE_N_GO);
-    bool noScriptRval = cx->hasRunOption(JSOPTION_NO_SCRIPT_RVAL);
-    bool needScriptGlobal = true;
-    return frontend::CompileScript(cx, obj, NULL, principals, originPrincipals,
-                                   compileAndGo, noScriptRval, needScriptGlobal,
+    uint32_t tcflags = JS_OPTIONS_TO_TCFLAGS(cx) | TCF_NEED_SCRIPT_GLOBAL;
+    return frontend::CompileScript(cx, obj, NULL, principals, originPrincipals, tcflags,
                                    chars, length, filename, lineno, version);
 }
 
@@ -5007,12 +5009,10 @@ CompileUTF8FileHelper(JSContext *cx, JSObject *obj, JSPrincipals *principals,
     size_t decodelen = len;
     jschar *decodebuf = (jschar *)cx->malloc_(decodelen * sizeof(jschar));
     if (JS_DecodeUTF8(cx, buf, len, decodebuf, &decodelen)) {
-        bool compileAndGo = cx->hasRunOption(JSOPTION_COMPILE_N_GO);
-        bool noScriptRval = cx->hasRunOption(JSOPTION_NO_SCRIPT_RVAL);
-        bool needScriptGlobal = true;
+        uint32_t tcflags = JS_OPTIONS_TO_TCFLAGS(cx) | TCF_NEED_SCRIPT_GLOBAL;
         script = frontend::CompileScript(cx, obj, NULL, principals, NULL,
-                                         compileAndGo, noScriptRval, needScriptGlobal,
-                                         decodebuf, decodelen, filename, 1, cx->findVersion());
+                                         tcflags, decodebuf, decodelen,
+                                         filename, 1, cx->findVersion());
     } else {
         script = NULL;
     }
@@ -5303,15 +5303,15 @@ EvaluateUCScriptForPrincipalsCommon(JSContext *cx, JSObject *obj_,
 
     RootedVarObject obj(cx, obj_);
 
-    bool compileAndGo = true;
-    bool noScriptRval = !rval;
-    bool needScriptGlobal = true;
+    uint32_t flags = TCF_COMPILE_N_GO | TCF_NEED_SCRIPT_GLOBAL;
+    if (!rval)
+        flags |= TCF_NO_SCRIPT_RVAL;
 
     CHECK_REQUEST(cx);
     AutoLastFrameCheck lfc(cx);
     JSScript *script = frontend::CompileScript(cx, obj, NULL, principals, originPrincipals,
-                                               compileAndGo, noScriptRval, needScriptGlobal,
-                                               chars, length, filename, lineno, compileVersion);
+                                               flags, chars, length, filename, lineno,
+                                               compileVersion);
     if (!script)
         return false;
 

@@ -52,11 +52,6 @@ public:
     return mValue;
   }
 
-  T& Value() {
-    MOZ_ASSERT(!mIsNull);
-    return mValue;
-  }
-
   bool IsNull() const {
     return mIsNull;
   }

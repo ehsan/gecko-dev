@@ -76,23 +76,22 @@ fast-package:
 	@$(MAKE) package MOZ_FAST_PACKAGE=1
 
 ifeq ($(OS_TARGET),Android)
-ifneq ($(MOZ_ANDROID_INSTALL_TARGET),)
-ANDROID_SERIAL = $(MOZ_ANDROID_INSTALL_TARGET)
-endif
-ifeq ($(ANDROID_SERIAL),)
+ifeq ($(MOZ_ANDROID_INSTALL_TARGET),)
 # Determine if there's more than one device connected
 android_devices=$(filter device,$(shell $(ANDROID_PLATFORM_TOOLS)/adb devices))
 ifneq ($(android_devices),device)
 install::
-	@echo "Multiple devices are connected. Define ANDROID_SERIAL to specify the install target."
+	@echo "Multiple devices are connected. Define MOZ_ANDROID_INSTALL_TARGET to specify the install target."
 	$(ANDROID_PLATFORM_TOOLS)/adb devices
 	@exit 1
-endif
-endif
-
-export ANDROID_SERIAL
+else
 install::
 	$(ANDROID_PLATFORM_TOOLS)/adb install -r $(DIST)/$(PKG_PATH)$(PKG_BASENAME).apk
+endif
+else
+install::
+	$(ANDROID_PLATFORM_TOOLS)/adb -s $(MOZ_ANDROID_INSTALL_TARGET) install -r $(DIST)/$(PKG_PATH)$(PKG_BASENAME).apk
+endif
 else
 	@echo "Mobile can't be installed directly."
 	@exit 1

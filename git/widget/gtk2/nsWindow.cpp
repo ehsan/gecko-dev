@@ -302,6 +302,9 @@ typedef struct _GdkDisplay GdkDisplay;
 // cursor cache
 static GdkCursor *gCursorCache[eCursorCount];
 
+// imported in nsWidgetFactory.cpp
+bool gDisableNativeTheme = false;
+
 static GtkWidget *gInvisibleContainer = NULL;
 
 // Sometimes this actually also includes the state of the modifier keys, but
@@ -5760,6 +5763,8 @@ initialize_prefs(void)
 {
     gRaiseWindows =
         Preferences::GetBool("mozilla.widget.raise-on-setfocus", true);
+    gDisableNativeTheme =
+        Preferences::GetBool("mozilla.widget.disable-native-theme", false);
 
     return NS_OK;
 }

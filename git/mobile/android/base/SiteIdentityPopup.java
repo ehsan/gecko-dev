@@ -80,13 +80,7 @@ public class SiteIdentityPopup extends PopupWindow {
     }
 
     public void show(int leftMargin) {
-        Tab selectedTab = Tabs.getInstance().getSelectedTab();
-        if (selectedTab == null) {
-            Log.e(LOGTAG, "Selected tab is null");
-            return;
-        }
-
-        JSONObject identityData = selectedTab.getIdentityData();
+        JSONObject identityData = Tabs.getInstance().getSelectedTab().getIdentityData();
         if (identityData == null) {
             Log.e(LOGTAG, "Tab has no identity data");
             return;

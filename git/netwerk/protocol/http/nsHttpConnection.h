@@ -165,7 +165,6 @@ public:
     void EndIdleMonitoring();
 
     bool UsingSpdy() { return mUsingSpdy; }
-    bool EverUsedSpdy() { return mEverUsedSpdy; }
 
     // true when connection SSL NPN phase is complete and we know
     // authoritatively whether UsingSpdy() or not.
@@ -182,8 +181,6 @@ public:
 
     // When the connection is active this is called every second
     void  ReadTimeoutTick();
-
-    PRInt64 BytesWritten() { return mTotalBytesWritten; }
 
 private:
     // called to cause the underlying socket to start speaking SSL
@@ -242,7 +239,6 @@ private:
     PRInt64                         mCurrentBytesRead;   // data read per activation
     PRInt64                         mMaxBytesRead;       // max read in 1 activation
     PRInt64                         mTotalBytesRead;     // total data read
-    PRInt64                         mTotalBytesWritten;  // does not include CONNECT tunnel
 
     nsRefPtr<nsIAsyncInputStream>   mInputOverflow;
 

@@ -91,7 +91,7 @@ public:
   bool HasTransactionsForDatabase(IDBDatabase* aDatabase);
 
 protected:
-  class TransactionQueue MOZ_FINAL : public nsIRunnable
+  class TransactionQueue : public nsIRunnable
   {
   public:
     NS_DECL_ISUPPORTS

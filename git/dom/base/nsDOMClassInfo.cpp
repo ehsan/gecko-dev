@@ -5877,7 +5877,7 @@ DefineIDBInterfaceConstants(JSContext *cx, JSObject *obj, const nsIID *aIID)
   return NS_OK;
 }
 
-class nsDOMConstructor MOZ_FINAL : public nsIDOMDOMConstructor
+class nsDOMConstructor : public nsIDOMDOMConstructor
 {
 protected:
   nsDOMConstructor(const PRUnichar* aName,

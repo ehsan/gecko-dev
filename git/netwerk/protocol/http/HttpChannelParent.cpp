@@ -330,6 +330,16 @@ HttpChannelParent::RecvUpdateAssociatedContentSecurity(const PRInt32& high,
   return true;
 }
 
+// Bug 621446 investigation, we don't want conditional PR_Aborts below to be
+// merged to a single address.
+#ifdef _MSC_VER
+#pragma warning(disable : 4068)
+#endif
+#ifdef ANDROID
+// Compiling this with GCC <= 4.4 fails with an internal compiler error
+#pragma GCC optimize ("O0")
+#endif
+
 bool
 HttpChannelParent::RecvRedirect2Verify(const nsresult& result, 
                                        const RequestHeaderTuples& changedHeaders)
@@ -348,31 +358,28 @@ HttpChannelParent::RecvRedirect2Verify(const nsresult& result,
   }
 
   if (!mRedirectCallback) {
-    // This should according the logic never happen, log the situation.
+    // Bug 621446 investigation (optimization turned off above)
     if (mReceivedRedirect2Verify)
-      LOG(("RecvRedirect2Verify[%p]: Duplicate fire", this));
+      NS_RUNTIMEABORT("Duplicate fire");
     if (mSentRedirect1BeginFailed)
-      LOG(("RecvRedirect2Verify[%p]: Send to child failed", this));
+      NS_RUNTIMEABORT("Send to child failed");
     if (mSentRedirect1Begin && NS_FAILED(result))
-      LOG(("RecvRedirect2Verify[%p]: Redirect failed", this));
+      NS_RUNTIMEABORT("Redirect failed");
     if (mSentRedirect1Begin && NS_SUCCEEDED(result))
-      LOG(("RecvRedirect2Verify[%p]: Redirect succeeded", this));
+      NS_RUNTIMEABORT("Redirect succeeded");
     if (!mRedirectChannel)
-      LOG(("RecvRedirect2Verify[%p]: Missing redirect channel", this));
-
-    NS_ERROR("Unexpcted call to HttpChannelParent::RecvRedirect2Verify, "
-             "mRedirectCallback null");
+      NS_RUNTIMEABORT("Missing redirect channel");
   }
 
   mReceivedRedirect2Verify = true;
 
-  if (mRedirectCallback) {
-    mRedirectCallback->OnRedirectVerifyCallback(result);
-    mRedirectCallback = nsnull;
-  }
-
+  mRedirectCallback->OnRedirectVerifyCallback(result);
+  mRedirectCallback = nsnull;
   return true;
 }
+
+// Bug 621446 investigation
+#pragma GCC reset_options
 
 bool
 HttpChannelParent::RecvDocumentChannelCleanup()

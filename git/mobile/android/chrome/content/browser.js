@@ -252,13 +252,13 @@ var BrowserApp = {
 
     let loadParams = {};
     let url = "about:home";
-    let restoreMode = 0;
+    let forceRestore = false;
     let pinned = false;
     if ("arguments" in window) {
       if (window.arguments[0])
         url = window.arguments[0];
       if (window.arguments[1])
-        restoreMode = window.arguments[1];
+        forceRestore = window.arguments[1];
       if (window.arguments[2])
         gScreenWidth = window.arguments[2];
       if (window.arguments[3])
@@ -278,12 +278,9 @@ var BrowserApp = {
     event.initEvent("UIReady", true, false);
     window.dispatchEvent(event);
 
-    // Restore the previous session
-    // restoreMode = 0 means no restore
-    // restoreMode = 1 means force restore (after an OOM kill)
-    // restoreMode = 2 means restore only if we haven't crashed multiple times
+    // restore the previous session
     let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
-    if (restoreMode || ss.shouldRestore()) {
+    if (forceRestore || ss.shouldRestore()) {
       // A restored tab should not be active if we are loading a URL
       let restoreToFront = false;
 
@@ -323,7 +320,7 @@ var BrowserApp = {
       Services.obs.addObserver(restoreCleanup, "sessionstore-windows-restored", false);
 
       // Start the restore
-      ss.restoreLastSession(restoreToFront, restoreMode == 1);
+      ss.restoreLastSession(restoreToFront, forceRestore);
     } else {
       loadParams.showProgress = (url != "about:home");
       loadParams.pinned = pinned;

@@ -25,7 +25,6 @@ const RIL_IPC_MSG_NAMES = [
   "RIL:DataInfoChanged",
   "RIL:EnumerateCalls",
   "RIL:CallStateChanged",
-  "RIL:CallError",
 ];
 
 const kVoiceChangedTopic     = "mobile-connection-voice-changed";
@@ -232,26 +231,22 @@ RILContentHelper.prototype = {
       case "RIL:CallStateChanged":
         this._deliverTelephonyCallback("callStateChanged",
                                        [msg.json.callIndex, msg.json.state,
-                                        msg.json.number, msg.json.isActive]);
-        break;
-      case "RIL:CallError":
-        this._deliverTelephonyCallback("notifyError",
-                                        [msg.json.callIndex, 
-                                         msg.json.error]);    	  
-    	break;
+                                        msg.json.number]);
     }
   },
 
-  handleEnumerateCalls: function handleEnumerateCalls(calls) {
-    debug("handleEnumerateCalls: " + JSON.stringify(calls));
+  handleEnumerateCalls: function handleEnumerateCalls(message) {
+    debug("handleEnumerateCalls: " + JSON.stringify(message));
     let callback = this._enumerationTelephonyCallbacks.shift();
+    let calls = message.calls;
+    let activeCallIndex = message.activeCallIndex;
     for (let i in calls) {
       let call = calls[i];
       let keepGoing;
       try {
         keepGoing =
           callback.enumerateCallState(call.callIndex, call.state, call.number,
-                                      call.isActive);
+                                      call.callIndex == activeCallIndex);
       } catch (e) {
         debug("callback handler for 'enumerateCallState' threw an " +
               " exception: " + e);

@@ -457,8 +457,6 @@ public:
 
     bool WorkAroundDriverBugs() const { return mWorkAroundDriverBugs; }
 
-    virtual int GetScreenDepth() const;
-
 protected:
     gfxPlatform();
     virtual ~gfxPlatform();

@@ -258,7 +258,6 @@ public:
   virtual bool IsPrimaryForNode() const;
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
   virtual void GetBoundsRect(nsRect& aBounds, nsIFrame** aBoundingFrame);
 

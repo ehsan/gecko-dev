@@ -51,7 +51,7 @@ class mozIStorageStatement;
 
 BEGIN_INDEXEDDB_NAMESPACE
 
-class IDBKeyRange MOZ_FINAL : public nsIIDBKeyRange
+class IDBKeyRange : public nsIIDBKeyRange
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS

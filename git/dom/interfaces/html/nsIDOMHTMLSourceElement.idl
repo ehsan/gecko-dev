@@ -48,10 +48,9 @@
  * @status UNDER_DEVELOPMENT
  */
 
-[scriptable, uuid(af4b7ca2-2694-4672-a182-8a63be79c826)]
+[scriptable, uuid(4BF58085-9986-47B5-BB03-62BAA0451497)]
 interface nsIDOMHTMLSourceElement : nsIDOMHTMLElement
 {
            attribute DOMString src;
            attribute DOMString type;
-           attribute DOMString media;
 };

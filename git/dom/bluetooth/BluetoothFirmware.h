@@ -11,11 +11,22 @@ namespace mozilla {
 namespace dom {
 namespace bluetooth {
 
-bool EnsureBluetoothInit();
-int IsBluetoothEnabled();
-int EnableBluetooth();
-int DisableBluetooth();
+static struct BluedroidFunctions {
+  bool initialized;
+  bool tried_initialization;
 
+  BluedroidFunctions() :
+    initialized(false),
+    tried_initialization(false)
+  {
+  }
+  
+  int (* bt_enable)();
+  int (* bt_disable)();
+  int (* bt_is_enabled)();
+} sBluedroidFunctions;
+
+bool EnsureBluetoothInit();
 }
 }
 }

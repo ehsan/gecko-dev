@@ -121,13 +121,6 @@ extern JS_PUBLIC_API(JSBool)
 JS_GetDebugMode(JSContext *cx);
 
 /*
- * Turn on/off debugging mode for all compartments. This returns false if any code
- * from any of the runtime's compartments is running or on the stack.
- */
-JS_FRIEND_API(JSBool)
-JS_SetDebugModeForAllCompartments(JSContext *cx, JSBool debug);
-
-/*
  * Turn on/off debugging mode for a single compartment. This should only be
  * used when no code from this compartment is running or on the stack in any
  * thread.

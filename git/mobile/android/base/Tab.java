@@ -139,7 +139,7 @@ public final class Tab {
 
     public void onDestroy() {
         mDoorHangers = new HashMap<String, DoorHanger>();
-        BrowserDB.unregisterContentObserver(mContentResolver, mContentObserver);
+        BrowserDB.unregisterBookmarkObserver(mContentResolver, mContentObserver);
     }
 
     public int getId() {
