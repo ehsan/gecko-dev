@@ -17,14 +17,6 @@ loop.shared.utils = (function(mozL10n) {
     AUDIO_ONLY: "audio"
   };
 
-  var FAILURE_REASONS = {
-    MEDIA_DENIED: "reason-media-denied",
-    COULD_NOT_CONNECT: "reason-could-not-connect",
-    NETWORK_DISCONNECTED: "reason-network-disconnected",
-    EXPIRED_OR_INVALID: "reason-expired-or-invalid",
-    UNKNOWN: "reason-unknown"
-  };
-
   /**
    * Format a given date into an l10n-friendly string.
    *
@@ -118,7 +110,6 @@ loop.shared.utils = (function(mozL10n) {
 
   return {
     CALL_TYPES: CALL_TYPES,
-    FAILURE_REASONS: FAILURE_REASONS,
     Helper: Helper,
     composeCallUrlEmail: composeCallUrlEmail,
     formatDate: formatDate,

@@ -54,7 +54,7 @@ nsVolume::nsVolume(const Volume* aVolume)
     mState(aVolume->State()),
     mMountGeneration(aVolume->MountGeneration()),
     mMountLocked(aVolume->IsMountLocked()),
-    mIsFake(!aVolume->CanBeShared()),
+    mIsFake(false),
     mIsMediaPresent(aVolume->MediaPresent()),
     mIsSharing(aVolume->IsSharing()),
     mIsFormatting(aVolume->IsFormatting()),

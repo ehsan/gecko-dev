@@ -10,7 +10,6 @@
 #include <sys/stat.h>
 #include <errno.h>
 
-#undef USE_DEBUG
 #define USE_DEBUG 0
 
 #undef LOG

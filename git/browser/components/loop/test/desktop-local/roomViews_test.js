@@ -65,7 +65,6 @@ describe("loop.roomViews", function () {
         roomState: ROOM_STATES.INIT,
         audioMuted: false,
         videoMuted: false,
-        failureReason: undefined,
         foo: "bar"
       });
     });

@@ -104,13 +104,7 @@ public:
     COPY_OPT_FIELD(mSessionId, -1)
     COPY_OPT_FIELD(mMajorVersion, -1)
     COPY_OPT_FIELD(mMinorVersion, -1)
-
-    if (mEvent.mRfState != -1) {
-      event.mRfState.Construct();
-      RFState rfState = static_cast<RFState>(mEvent.mRfState);
-      MOZ_ASSERT(rfState < RFState::EndGuard_);
-      event.mRfState.Value() = rfState;
-    }
+    COPY_OPT_FIELD(mPowerLevel, -1)
 
     if (mEvent.mErrorCode != -1) {
       event.mErrorMsg.Construct();

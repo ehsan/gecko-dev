@@ -26,7 +26,6 @@
         <item name="android:paddingTop">30dp</item>
         <item name="android:paddingLeft">32dp</item>
         <item name="android:paddingRight">32dp</item>
-        <item name="android:clipToPadding">false</item>
         <item name="topDivider">false</item>
     </style>
 

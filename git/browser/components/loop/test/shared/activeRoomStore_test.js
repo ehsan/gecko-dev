@@ -6,9 +6,7 @@ var sharedActions = loop.shared.actions;
 describe("loop.store.ActiveRoomStore", function () {
   "use strict";
 
-  var SERVER_CODES = loop.store.SERVER_CODES;
   var ROOM_STATES = loop.store.ROOM_STATES;
-  var FAILURE_REASONS = loop.shared.utils.FAILURE_REASONS;
   var sandbox, dispatcher, store, fakeMozLoop, fakeSdkDriver;
   var fakeMultiplexGum;
 
@@ -93,8 +91,8 @@ describe("loop.store.ActiveRoomStore", function () {
         sinon.match(ROOM_STATES.READY), fakeError);
     });
 
-    it("should set the state to `FULL` on server error room full", function() {
-      fakeError.errno = SERVER_CODES.ROOM_FULL;
+    it("should set the state to `FULL` on server errno 202", function() {
+      fakeError.errno = 202;
 
       store.roomFailure({error: fakeError});
 
@@ -105,28 +103,7 @@ describe("loop.store.ActiveRoomStore", function () {
       store.roomFailure({error: fakeError});
 
       expect(store._storeState.roomState).eql(ROOM_STATES.FAILED);
-      expect(store._storeState.failureReason).eql(FAILURE_REASONS.UNKNOWN);
     });
-
-    it("should set the failureReason to EXPIRED_OR_INVALID on server error: " +
-      "invalid token", function() {
-        fakeError.errno = SERVER_CODES.INVALID_TOKEN;
-
-        store.roomFailure({error: fakeError});
-
-        expect(store._storeState.roomState).eql(ROOM_STATES.FAILED);
-        expect(store._storeState.failureReason).eql(FAILURE_REASONS.EXPIRED_OR_INVALID);
-      });
-
-    it("should set the failureReason to EXPIRED_OR_INVALID on server error: " +
-      "expired", function() {
-        fakeError.errno = SERVER_CODES.EXPIRED;
-
-        store.roomFailure({error: fakeError});
-
-        expect(store._storeState.roomState).eql(ROOM_STATES.FAILED);
-        expect(store._storeState.failureReason).eql(FAILURE_REASONS.EXPIRED_OR_INVALID);
-      });
   });
 
   describe("#setupWindowData", function() {
@@ -267,14 +244,6 @@ describe("loop.store.ActiveRoomStore", function () {
       store.setStoreState({roomToken: "tokenFake"});
     });
 
-    it("should reset failureReason", function() {
-      store.setStoreState({failureReason: "Test"});
-
-      store.joinRoom();
-
-      expect(store.getStoreState().failureReason).eql(undefined);
-    });
-
     it("should call rooms.join on mozLoop", function() {
       store.joinRoom();
 
@@ -411,34 +380,22 @@ describe("loop.store.ActiveRoomStore", function () {
   });
 
   describe("#connectionFailure", function() {
-    var connectionFailureAction;
-
     beforeEach(function() {
       store.setStoreState({
         roomState: ROOM_STATES.JOINED,
         roomToken: "fakeToken",
         sessionToken: "1627384950"
       });
-
-      connectionFailureAction = new sharedActions.ConnectionFailure({
-        reason: "FAIL"
-      });
-    });
-
-    it("should store the failure reason", function() {
-      store.connectionFailure(connectionFailureAction);
-
-      expect(store.getStoreState().failureReason).eql("FAIL");
     });
 
     it("should reset the multiplexGum", function() {
-      store.connectionFailure(connectionFailureAction);
+      store.leaveRoom();
 
       sinon.assert.calledOnce(fakeMultiplexGum.reset);
     });
 
     it("should disconnect from the servers via the sdk", function() {
-      store.connectionFailure(connectionFailureAction);
+      store.connectionFailure();
 
       sinon.assert.calledOnce(fakeSdkDriver.disconnectSession);
     });
@@ -447,13 +404,13 @@ describe("loop.store.ActiveRoomStore", function () {
       sandbox.stub(window, "clearTimeout");
       store._timeout = {};
 
-      store.connectionFailure(connectionFailureAction);
+      store.connectionFailure();
 
       sinon.assert.calledOnce(clearTimeout);
     });
 
     it("should call mozLoop.rooms.leave", function() {
-      store.connectionFailure(connectionFailureAction);
+      store.connectionFailure();
 
       sinon.assert.calledOnce(fakeMozLoop.rooms.leave);
       sinon.assert.calledWithExactly(fakeMozLoop.rooms.leave,
@@ -461,7 +418,7 @@ describe("loop.store.ActiveRoomStore", function () {
     });
 
     it("should set the state to `FAILED`", function() {
-      store.connectionFailure(connectionFailureAction);
+      store.connectionFailure();
 
       expect(store.getStoreState().roomState).eql(ROOM_STATES.FAILED);
     });

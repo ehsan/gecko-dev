@@ -33,7 +33,7 @@ const kPrefRilNumRadioInterfaces = "ril.numRadioInterfaces";
 const kPrefRilDebuggingEnabled = "ril.debugging.enabled";
 const kPrefDefaultServiceId = "dom.telephony.defaultServiceId";
 
-const nsITelephonyAudioService = Ci.nsITelephonyAudioService;
+const nsIAudioManager = Ci.nsIAudioManager;
 const nsITelephonyService = Ci.nsITelephonyService;
 
 const CALL_WAKELOCK_TIMEOUT = 5000;
@@ -44,6 +44,12 @@ const CDMA_SECOND_CALL_INDEX = 2;
 const DIAL_ERROR_INVALID_STATE_ERROR = "InvalidStateError";
 const DIAL_ERROR_OTHER_CONNECTION_IN_USE = "OtherConnectionInUse";
 const DIAL_ERROR_BAD_NUMBER = RIL.GECKO_CALL_ERROR_BAD_NUMBER;
+
+const AUDIO_STATE_NAME = [
+  "PHONE_STATE_NORMAL",
+  "PHONE_STATE_RINGTONE",
+  "PHONE_STATE_IN_CALL"
+];
 
 const DEFAULT_EMERGENCY_NUMBERS = ["112", "911"];
 
@@ -62,6 +68,34 @@ function debug(s) {
   dump("TelephonyService: " + s + "\n");
 }
 
+XPCOMUtils.defineLazyGetter(this, "gAudioManager", function getAudioManager() {
+  try {
+    return Cc["@mozilla.org/telephony/audiomanager;1"]
+             .getService(nsIAudioManager);
+  } catch (ex) {
+    //TODO on the phone this should not fall back as silently.
+
+    // Fake nsIAudioManager implementation so that we can run the telephony
+    // code in a non-Gonk build.
+    if (DEBUG) debug("Using fake audio manager.");
+    return {
+      microphoneMuted: false,
+      masterVolume: 1.0,
+      masterMuted: false,
+      phoneState: nsIAudioManager.PHONE_STATE_CURRENT,
+      _forceForUse: {},
+
+      setForceForUse: function(usage, force) {
+        this._forceForUse[usage] = force;
+      },
+
+      getForceForUse: function(usage) {
+        return this._forceForUse[usage] || nsIAudioManager.FORCE_NONE;
+      }
+    };
+  }
+});
+
 XPCOMUtils.defineLazyServiceGetter(this, "gRadioInterfaceLayer",
                                    "@mozilla.org/ril;1",
                                    "nsIRadioInterfaceLayer");
@@ -73,10 +107,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "gPowerManagerService",
 XPCOMUtils.defineLazyServiceGetter(this, "gSystemMessenger",
                                    "@mozilla.org/system-message-internal;1",
                                    "nsISystemMessagesInternal");
-
-XPCOMUtils.defineLazyServiceGetter(this, "gAudioService",
-                                   "@mozilla.org/telephony/audio-service;1",
-                                   "nsITelephonyAudioService");
 
 XPCOMUtils.defineLazyServiceGetter(this, "gGonkMobileConnectionService",
                                    "@mozilla.org/mobileconnection/mobileconnectionservice;1",
@@ -249,14 +279,25 @@ TelephonyService.prototype = {
   _updateAudioState: function(aAudioState) {
     switch (aAudioState) {
       case RIL.AUDIO_STATE_NO_CALL:
-        gAudioService.setPhoneState(nsITelephonyAudioService.PHONE_STATE_NORMAL);
+        gAudioManager.phoneState = nsIAudioManager.PHONE_STATE_NORMAL;
         break;
+
       case RIL.AUDIO_STATE_INCOMING:
-        gAudioService.setPhoneState(nsITelephonyAudioService.PHONE_STATE_RINGTONE);
+        gAudioManager.phoneState = nsIAudioManager.PHONE_STATE_RINGTONE;
         break;
+
       case RIL.AUDIO_STATE_IN_CALL:
-        gAudioService.setPhoneState(nsITelephonyAudioService.PHONE_STATE_IN_CALL);
+        gAudioManager.phoneState = nsIAudioManager.PHONE_STATE_IN_CALL;
+        if (this.speakerEnabled) {
+          gAudioManager.setForceForUse(nsIAudioManager.USE_COMMUNICATION,
+                                       nsIAudioManager.FORCE_SPEAKER);
+        }
         break;
+    }
+
+    if (DEBUG) {
+      debug("Put audio system into " + AUDIO_STATE_NAME[aAudioState] + ": " +
+            aAudioState + ", result is: " + gAudioManager.phoneState);
     }
   },
 
@@ -1049,19 +1090,28 @@ TelephonyService.prototype = {
   },
 
   get microphoneMuted() {
-    return gAudioService.microphoneMuted;
+    return gAudioManager.microphoneMuted;
   },
 
   set microphoneMuted(aMuted) {
-    gAudioService.microphoneMuted = aMuted;
+    if (aMuted == this.microphoneMuted) {
+      return;
+    }
+    gAudioManager.microphoneMuted = aMuted;
   },
 
   get speakerEnabled() {
-    return gAudioService.speakerEnabled;
+    let force = gAudioManager.getForceForUse(nsIAudioManager.USE_COMMUNICATION);
+    return (force == nsIAudioManager.FORCE_SPEAKER);
   },
 
   set speakerEnabled(aEnabled) {
-    gAudioService.speakerEnabled = aEnabled;
+    if (aEnabled == this.speakerEnabled) {
+      return;
+    }
+    let force = aEnabled ? nsIAudioManager.FORCE_SPEAKER :
+                           nsIAudioManager.FORCE_NONE;
+    gAudioManager.setForceForUse(nsIAudioManager.USE_COMMUNICATION, force);
   },
 
   /**

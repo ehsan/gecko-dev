@@ -3224,9 +3224,10 @@ DocumentWalker.prototype = {
   }
 };
 
-function isXULElement(el) {
-  return el &&
-         el.namespaceURI === XUL_NS;
+function isXULDocument(doc) {
+  return doc &&
+         doc.documentElement &&
+         doc.documentElement.namespaceURI === XUL_NS;
 }
 
 /**
@@ -3246,7 +3247,7 @@ function nodeFilter(aNode) {
   //   2) ::before/::after - we do want this to show in the walker so
   //      they can be inspected.
   if (LayoutHelpers.isNativeAnonymous(aNode) &&
-      !isXULElement(aNode.parentNode) &&
+      !isXULDocument(aNode.ownerDocument) &&
       (
         aNode.nodeName !== "_moz_generated_content_before" &&
         aNode.nodeName !== "_moz_generated_content_after")
