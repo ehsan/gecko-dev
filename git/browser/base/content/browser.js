@@ -4008,6 +4008,7 @@ var XULBrowserWindow = {
   defaultStatus: "",
   jsStatus: "",
   jsDefaultStatus: "",
+  overLink: "",
   startTime: 0,
   statusText: "",
   isBusy: false,
@@ -4090,16 +4091,16 @@ var XULBrowserWindow = {
     this.updateStatusField();
   },
 
-  setOverLink: function (link) {
+  setOverLink: function (link, b) {
     // Encode bidirectional formatting characters.
     // (RFC 3987 sections 3.2 and 4.1 paragraph 6)
-    link = link.replace(/[\u200e\u200f\u202a\u202b\u202c\u202d\u202e]/g,
-                        encodeURIComponent);
-    gURLBar.setOverLink(link);
+    this.overLink = link.replace(/[\u200e\u200f\u202a\u202b\u202c\u202d\u202e]/g,
+                                 encodeURIComponent);
+    this.updateStatusField();
   },
 
   updateStatusField: function () {
-    var text = this.status || this.jsStatus || this.jsDefaultStatus || this.defaultStatus;
+    var text = this.overLink || this.status || this.jsStatus || this.jsDefaultStatus || this.defaultStatus;
 
     // check the current value so we don't trigger an attribute change
     // and cause needless (slow!) UI updates
