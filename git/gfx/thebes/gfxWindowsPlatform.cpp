@@ -54,6 +54,9 @@
 #include "nsIWindowsRegKey.h"
 #include "nsILocalFile.h"
 #include "plbase64.h"
+#include "nsIXULRuntime.h"
+
+#include "nsIGfxInfo.h"
 
 #ifdef MOZ_FT2_FONTS
 #include "ft2build.h"
@@ -107,6 +110,39 @@ public:
 }; 
 
 NS_IMPL_ISUPPORTS1(D2DCacheReporter, nsIMemoryReporter)
+
+class D2DVRAMReporter :
+    public nsIMemoryReporter
+{
+public:
+    D2DVRAMReporter()
+    { }
+
+    NS_DECL_ISUPPORTS
+
+    NS_IMETHOD GetPath(char **memoryPath) {
+        *memoryPath = strdup("gfx/d2d/surfacevram");
+        return NS_OK;
+    }
+
+    NS_IMETHOD GetDescription(char **desc) {
+        *desc = strdup("Video memory used by D2D surfaces");
+        return NS_OK;
+    }
+
+    NS_IMETHOD GetMemoryUsed(PRInt64 *memoryUsed) {
+        cairo_device_t *device =
+            gfxWindowsPlatform::GetPlatform()->GetD2DDevice();
+        if (device) {
+            *memoryUsed = cairo_d2d_get_surface_vram_usage(device);
+        } else {
+            *memoryUsed = 0;
+        }
+        return NS_OK;
+    }
+};
+
+NS_IMPL_ISUPPORTS1(D2DVRAMReporter, nsIMemoryReporter)
 #endif
 
 #ifdef WINCE
@@ -165,6 +201,13 @@ gfxWindowsPlatform::gfxWindowsPlatform()
     mUseClearTypeForDownloadableFonts = UNINITIALIZED_VALUE;
     mUseClearTypeAlways = UNINITIALIZED_VALUE;
 
+    /* 
+     * Initialize COM 
+     */ 
+    CoInitialize(NULL); 
+
+    mScreenDC = GetDC(NULL);
+
 #ifdef MOZ_FT2_FONTS
     FT_Init_FreeType(&gPlatformFTLibrary);
 #endif
@@ -187,11 +230,39 @@ gfxWindowsPlatform::gfxWindowsPlatform()
     ::GetVersionExA(&versionInfo);
     bool isVistaOrHigher = versionInfo.dwMajorVersion >= 6;
 
+    PRBool safeMode = PR_FALSE;
+    nsCOMPtr<nsIXULRuntime> xr = do_GetService("@mozilla.org/xre/runtime;1");
+    if (xr)
+      xr->GetInSafeMode(&safeMode);
+
 #ifdef CAIRO_HAS_D2D_SURFACE
+    PRBool d2dDisabled = PR_FALSE;
+    PRBool d2dBlocked = PR_FALSE;
+
+    nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
+    if (gfxInfo) {
+        PRInt32 status;
+        if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_DIRECT2D, &status))) {
+            if (status != nsIGfxInfo::FEATURE_STATUS_UNKNOWN &&
+                status != nsIGfxInfo::FEATURE_AVAILABLE)
+            {
+                d2dDisabled = PR_TRUE;
+                if (status == nsIGfxInfo::FEATURE_BLOCKED) {
+                    d2dBlocked = PR_TRUE;
+                }
+            }
+        }
+    }
+
     NS_RegisterMemoryReporter(new D2DCacheReporter());
+    NS_RegisterMemoryReporter(new D2DVRAMReporter());
     mD2DDevice = NULL;
 
-    if (isVistaOrHigher && 0) {
+    nsresult rv = pref->GetBoolPref("gfx.direct2d.disabled", &d2dDisabled);
+    if (NS_FAILED(rv))
+        d2dDisabled = PR_FALSE;
+
+    if (isVistaOrHigher && !d2dDisabled && !d2dBlocked && !safeMode) {
         // We need a DWriteFactory to work.
         HMODULE d3d10module = LoadLibraryA("d3d10_1.dll");
         D3D10CreateDevice1Func createD3DDevice = (D3D10CreateDevice1Func)
@@ -241,7 +312,6 @@ gfxWindowsPlatform::gfxWindowsPlatform()
 #endif
 
 #ifdef CAIRO_HAS_DWRITE_FONT
-    nsresult rv;
     PRBool useDirectWrite = PR_FALSE;
 
     rv = pref->GetBoolPref(
@@ -274,12 +344,13 @@ gfxWindowsPlatform::gfxWindowsPlatform()
 #endif
 
     PRInt32 rmode;
-    if (NS_SUCCEEDED(pref->GetIntPref("mozilla.widget.render-mode", &rmode))) {
+    if (!safeMode &&
+	NS_SUCCEEDED(pref->GetIntPref("mozilla.widget.render-mode", &rmode))) {
         if (rmode >= 0 && rmode < RENDER_MODE_MAX) {
 #ifdef CAIRO_HAS_DWRITE_FONT
-	    if (rmode != RENDER_DIRECT2D && !useDirectWrite) {
-		mDWriteFactory = nsnull;
-	    }
+            if (rmode != RENDER_DIRECT2D && !useDirectWrite) {
+                mDWriteFactory = nsnull;
+            }
 #endif
 #ifndef CAIRO_HAS_DDRAW_SURFACE
             if (rmode == RENDER_DDRAW || rmode == RENDER_DDRAW_GL)
@@ -289,8 +360,12 @@ gfxWindowsPlatform::gfxWindowsPlatform()
 #ifndef CAIRO_HAS_D2D_SURFACE
                 return;
 #else
+                if (d2dBlocked) {
+                    return;
+                }
+
                 if (!mD2DDevice) {
-		    mD2DDevice = cairo_d2d_create_device();
+                    mD2DDevice = cairo_d2d_create_device();
                     if (!mD2DDevice) {
                         return;
                     }
@@ -312,13 +387,20 @@ gfxWindowsPlatform::gfxWindowsPlatform()
 
 gfxWindowsPlatform::~gfxWindowsPlatform()
 {
+    ::ReleaseDC(NULL, mScreenDC);
     // not calling FT_Done_FreeType because cairo may still hold references to
     // these FT_Faces.  See bug 458169.
 #ifdef CAIRO_HAS_D2D_SURFACE
     if (mD2DDevice) {
-	cairo_release_device(mD2DDevice);
+        cairo_release_device(mD2DDevice);
     }
 #endif
+
+    /* 
+     * Uninitialize COM 
+     */ 
+    CoUninitialize(); 
+
 }
 
 gfxPlatformFontList*
@@ -595,16 +677,6 @@ gfxWindowsPlatform::WindowsOSVersion()
         }
     }
     return winVersion;
-}
-
-void
-gfxWindowsPlatform::InitDisplayCaps()
-{
-    HDC dc = GetDC((HWND)nsnull);
-
-    gfxPlatform::sDPI = GetDeviceCaps(dc, LOGPIXELSY);
-
-    ReleaseDC((HWND)nsnull, dc);
 }
 
 void

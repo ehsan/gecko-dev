@@ -535,6 +535,7 @@ nsFrameScriptExecutor::DestroyCx()
     JS_DestroyContext(mCx);
   }
   mCx = nsnull;
+  mGlobal = nsnull;
 }
 
 static PLDHashOperator
@@ -616,7 +617,7 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL)
   channel->Open(getter_AddRefs(input));
   nsString dataString;
   if (input) {
-    const PRUint32 bufferSize = 1024;
+    const PRUint32 bufferSize = 8192;
     char buffer[bufferSize];
     nsCString data;
     PRUint32 avail = 0;

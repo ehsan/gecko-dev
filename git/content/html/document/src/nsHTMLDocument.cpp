@@ -206,6 +206,19 @@ MyPrefChangedCallback(const char*aPrefName, void* instance_data)
 // ==================================================================
 // =
 // ==================================================================
+static void
+ReportUseOfDeprecatedMethod(nsHTMLDocument* aDoc, const char* aWarning)
+{
+  nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
+                                  aWarning,
+                                  nsnull, 0,
+                                  static_cast<nsIDocument*>(aDoc)->
+                                    GetDocumentURI(),
+                                  EmptyString(), 0, 0,
+                                  nsIScriptError::warningFlag,
+                                  "DOM Events");
+}
+
 nsresult
 NS_NewHTMLDocument(nsIDocument** aInstancePtrResult)
 {
@@ -2324,6 +2337,58 @@ nsHTMLDocument::GetNumFormsSynchronous()
   return mNumForms;
 }
 
+nsresult
+nsHTMLDocument::GetBodySize(PRInt32* aWidth,
+                            PRInt32* aHeight)
+{
+  *aWidth = *aHeight = 0;
+
+  FlushPendingNotifications(Flush_Layout);
+
+  // Find the <body> element: this is what we'll want to use for the
+  // document's width and height values.
+  Element* body = GetBodyElement();
+  if (!body) {
+    return NS_OK;
+  }
+
+  // Now grab its frame
+  nsIFrame* frame = body->GetPrimaryFrame();
+  if (!frame)
+    return NS_OK;
+  
+  nsSize size = frame->GetSize();
+
+  *aWidth = nsPresContext::AppUnitsToIntCSSPixels(size.width);
+  *aHeight = nsPresContext::AppUnitsToIntCSSPixels(size.height);
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsHTMLDocument::GetWidth(PRInt32* aWidth)
+{
+  NS_ENSURE_ARG_POINTER(aWidth);
+  if (!mWarnedWidthHeight) {
+    ReportUseOfDeprecatedMethod(this, "UseOfDocumentWidthWarning");
+    mWarnedWidthHeight = true;
+  }
+  PRInt32 height;
+  return GetBodySize(aWidth, &height);
+}
+
+NS_IMETHODIMP
+nsHTMLDocument::GetHeight(PRInt32* aHeight)
+{
+  NS_ENSURE_ARG_POINTER(aHeight);
+  if (!mWarnedWidthHeight) {
+    ReportUseOfDeprecatedMethod(this, "UseOfDocumentHeightWarning");
+    mWarnedWidthHeight = true;
+  }
+  PRInt32 width;
+  return GetBodySize(&width, aHeight);
+}
+
 NS_IMETHODIMP
 nsHTMLDocument::GetAlinkColor(nsAString& aAlinkColor)
 {
@@ -2492,19 +2557,6 @@ nsHTMLDocument::GetSelection(nsAString& aReturn)
   aReturn.Assign(str);
 
   return rv;
-}
-
-static void
-ReportUseOfDeprecatedMethod(nsHTMLDocument* aDoc, const char* aWarning)
-{
-  nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
-                                  aWarning,
-                                  nsnull, 0,
-                                  static_cast<nsIDocument*>(aDoc)->
-                                    GetDocumentURI(),
-                                  EmptyString(), 0, 0,
-                                  nsIScriptError::warningFlag,
-                                  "DOM Events");
 }
 
 NS_IMETHODIMP

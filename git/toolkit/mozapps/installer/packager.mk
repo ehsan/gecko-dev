@@ -203,8 +203,7 @@ INNER_UNMAKE_PACKAGE	= \
     hdiutil unflatten $(MOZ_PKG_APPNAME).tmp.dmg && \
     { /Developer/Tools/DeRez -skip plst -skip blkx $(MOZ_PKG_APPNAME).tmp.dmg > "$(MOZ_PKG_MAC_RSRC)" || { rm -f $(MOZ_PKG_APPNAME).tmp.dmg && false; }; } && \
     rm -f $(MOZ_PKG_APPNAME).tmp.dmg; \
-  fi; \
-  $(NULL)
+  fi
 # The plst and blkx resources are skipped because they belong to each
 # individual dmg and are created by hdiutil.
 SDK_SUFFIX = .tar.bz2
@@ -230,6 +229,7 @@ OMNIJAR_FILES	= \
 
 NON_OMNIJAR_FILES = \
   chrome/icons/\* \
+  defaults/pref/channel-prefs.js \
   res/cursors/\* \
   res/MainMenu.nib/\* \
   $(NULL)
@@ -237,7 +237,9 @@ NON_OMNIJAR_FILES = \
 PACK_OMNIJAR	= \
   rm -f omni.jar components/binary.manifest && \
   grep -h '^binary-component' components/*.manifest > binary.manifest ; \
-  zip -r9m omni.jar $(OMNIJAR_FILES) -x $(NON_OMNIJAR_FILES) && \
+  find . | xargs touch -t 201001010000 && \
+  zip -r9mX omni.jar $(OMNIJAR_FILES) -x $(NON_OMNIJAR_FILES) && \
+  $(OPTIMIZE_JARS_CMD) $(DIST)/jarlog/ ./ ./ && \
   mv binary.manifest components && \
   printf "manifest components/binary.manifest\n" > chrome.manifest
 UNPACK_OMNIJAR	= unzip -o omni.jar && rm -f components/binary.manifest
@@ -391,6 +393,9 @@ endif
 	@rm -rf $(DEPTH)/installer-stage $(DIST)/xpt
 	@echo "Staging installer files..."
 	@$(NSINSTALL) -D $(DEPTH)/installer-stage/core
+ifdef MOZ_OMNIJAR
+	@(cd $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && $(PACK_OMNIJAR))
+endif
 	@cp -av $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)/. $(DEPTH)/installer-stage/core
 ifdef MOZ_OPTIONAL_PKG_LIST
 	@$(NSINSTALL) -D $(DEPTH)/installer-stage/optional
@@ -398,9 +403,6 @@ ifdef MOZ_OPTIONAL_PKG_LIST
 	  "$(call core_abspath,$(DEPTH)/installer-stage/optional)", \
 	  "$(MOZ_PKG_MANIFEST)", "$(PKGCP_OS)", 1, 0, 1 \
 	  $(foreach pkg,$(MOZ_OPTIONAL_PKG_LIST),$(PKG_ARG)) )
-endif
-ifdef MOZ_OMNIJAR
-	@(cd $(DEPTH)/installer-stage/core && $(PACK_OMNIJAR))
 endif
 
 stage-package: $(MOZ_PKG_MANIFEST) $(MOZ_PKG_REMOVALS_GEN)
@@ -448,6 +450,7 @@ else
 endif # DMG
 endif # MOZ_PKG_MANIFEST
 endif # UNIVERSAL_BINARY
+	$(OPTIMIZE_JARS_CMD) $(DIST)/jarlog/ $(DIST)/bin/chrome $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)/chrome
 ifndef PKG_SKIP_STRIP
 	@echo "Stripping package directory..."
 	@cd $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR); find . ! -type d \

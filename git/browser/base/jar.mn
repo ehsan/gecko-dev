@@ -17,6 +17,9 @@ browser.jar:
 *       content/browser/aboutDialog.js                (content/aboutDialog.js)
         content/browser/aboutDialog.css               (content/aboutDialog.css)
 *       content/browser/aboutRobots.xhtml             (content/aboutRobots.xhtml)
+*       content/browser/aboutHome.xhtml               (content/aboutHome.xhtml)
+*       content/browser/aboutHome.js                  (content/aboutHome.js)
+*       content/browser/aboutHome.css                 (content/aboutHome.css)
         content/browser/aboutRobots-icon.png          (content/aboutRobots-icon.png)
         content/browser/aboutRobots-icon-rtl.png      (content/aboutRobots-icon-rtl.png)
         content/browser/aboutRobots-widget-left.png   (content/aboutRobots-widget-left.png)
@@ -64,6 +67,7 @@ browser.jar:
         content/browser/syncSetup.js                  (content/syncSetup.js)
 *       content/browser/syncGenericChange.xul         (content/syncGenericChange.xul)
         content/browser/syncGenericChange.js          (content/syncGenericChange.js)
+*       content/browser/syncNotification.xml          (content/syncNotification.xml)
         content/browser/syncUtils.js                  (content/syncUtils.js)
 #endif
 # XXX: We should exclude this one as well (bug 71895)

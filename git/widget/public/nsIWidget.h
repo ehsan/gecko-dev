@@ -111,8 +111,8 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 #endif
 
 #define NS_IWIDGET_IID \
-  { 0x21eff578, 0x942a, 0x40ff, \
-    { 0x98, 0xb9, 0x75, 0x49, 0x0b, 0x68, 0x24, 0xa2 } }
+  { 0xe1dda370, 0xdf16, 0x4c92, \
+    { 0x9b, 0x86, 0x4b, 0xd9, 0xcf, 0xff, 0x4e, 0xb1 } }
 
 /*
  * Window shadow styles
@@ -238,6 +238,31 @@ class nsIWidget : public nsISupports {
                       nsWidgetInitData *aInitData = nsnull) = 0;
 
     /**
+     * Allocate, initialize, and return a widget that is a child of
+     * |this|.  The returned widget (if nonnull) has gone through the
+     * equivalent of CreateInstance(widgetCID) + Create(...).
+     *
+     * |CreateChild()| lets widget backends decide whether to parent
+     * the new child widget to this, nonnatively parent it, or both.
+     * This interface exists to support the PuppetWidget backend,
+     * which is entirely non-native.  All other params are the same as
+     * for |Create()|.
+     *
+     * |aForceUseIWidgetParent| forces |CreateChild()| to only use the
+     * |nsIWidget*| this, not its native widget (if it exists), when
+     * calling |Create()|.  This is a timid hack around poorly
+     * understood code, and shouldn't be used in new code.
+     */
+    virtual already_AddRefed<nsIWidget>
+    CreateChild(const nsIntRect  &aRect,
+                EVENT_CALLBACK   aHandleEventFunction,
+                nsIDeviceContext *aContext,
+                nsIAppShell      *aAppShell = nsnull,
+                nsIToolkit       *aToolkit = nsnull,
+                nsWidgetInitData *aInitData = nsnull,
+                PRBool           aForceUseIWidgetParent = PR_FALSE) = 0;
+
+    /**
      * Attach to a top level widget. 
      *
      * In cases where a top level chrome widget is being used as a content
@@ -313,6 +338,20 @@ class nsIWidget : public nsISupports {
      *
      */
     virtual nsIWidget* GetSheetWindowParent(void) = 0;
+
+    /**
+     * Return the physical DPI of the screen containing the window ...
+     * the number of device pixels per inch.
+     */
+    virtual float GetDPI() = 0;
+
+    /**
+     * Return the default scale factor for the window. This is the
+     * default number of device pixels per CSS pixel to use. This should
+     * depend on OS/platform settings such as the Mac's "UI scale factor"
+     * or Windows' "font DPI".
+     */
+    virtual double GetDefaultScale() = 0;
 
     /**
      * Return the first child of this widget.  Will return null if
@@ -1197,6 +1236,8 @@ class nsIWidget : public nsISupports {
     NS_IMETHOD OverrideSystemMouseScrollSpeed(PRInt32 aOriginalDelta,
                                               PRBool aIsHorizontal,
                                               PRInt32 &aOverriddenDelta) = 0;
+
+    
 
 protected:
     // keep the list of children.  We also keep track of our siblings.

@@ -88,8 +88,13 @@
       <field name="tabs" readonly="true">
         this.tabContainer.childNodes;
       </field>
-      <property name="visibleTabs" readonly="true"
-                onget="return Array.filter(this.tabs, function(tab) !tab.hidden);"/>
+      <property name="visibleTabs" readonly="true">
+        <getter><![CDATA[
+          return Array.filter(this.tabs, function(tab) {
+            return !tab.hidden && this._removingTabs.indexOf(tab) == -1;
+          }, this);
+        ]]></getter>
+      </property>
       <field name="mURIFixup" readonly="true">
         Components.classes["@mozilla.org/docshell/urifixup;1"]
                   .getService(Components.interfaces.nsIURIFixup);
@@ -179,6 +184,7 @@
           this.moveTabTo(aTab, this._numPinnedTabs);
           aTab.setAttribute("pinned", "true");
           this.tabContainer._positionPinnedTabs();
+          this.tabContainer.adjustTabstrip();
         ]]></body>
       </method>
 
@@ -193,6 +199,7 @@
           aTab.removeAttribute("pinned");
           aTab.style.MozMarginStart = "";
           this.tabContainer._positionPinnedTabs();
+          this.tabContainer.adjustTabstrip();
         ]]></body>
       </method>
 
@@ -1197,8 +1204,6 @@
             b._fastFind = this.fastFind;
             b.droppedLinkHandler = handleDroppedLink;
 
-            this.tabContainer.adjustTabstrip();
-
             // Dispatch a new tab notification.  We do this once we're
             // entirely done, so that things are in a consistent state
             // even if the event listener opens or closes tabs.
@@ -1587,16 +1592,14 @@
               return;
             }
 
-            let removing = this._removingTabs;
-            function keepRemaining(tab) {
-              // A tab remains only if it's not being removed nor blurred
-              return removing.indexOf(tab) == -1 && tab != aTab;
+            // Switch to a visible tab unless there aren't any others remaining
+            let remainingTabs = this.visibleTabs;
+            let numTabs = remainingTabs.length;
+            if (numTabs == 0 || numTabs == 1 && remainingTabs[0] == aTab) {
+              remainingTabs = Array.filter(this.tabs, function(tab) {
+                return this._removingTabs.indexOf(tab) == -1;
+              }, this);
             }
-
-            // Switch to a visible tab unless there aren't any remaining
-            let remainingTabs = this.visibleTabs.filter(keepRemaining);
-            if (remainingTabs.length == 0)
-              remainingTabs = Array.filter(this.tabs, keepRemaining);
 
             // Try to find a remaining tab that comes after the given tab
             var tab = aTab;
@@ -1818,7 +1821,8 @@
         <parameter name="aTab"/>
         <body>
         <![CDATA[
-          if (!aTab.hidden && !aTab.pinned && !aTab.selected) {
+          if (!aTab.hidden && !aTab.pinned && !aTab.selected &&
+              this._removingTabs.indexOf(aTab) == -1) {
             aTab.hidden = true;
             let event = document.createEvent("Events");
             event.initEvent("TabHide", true, false);
@@ -2646,9 +2650,12 @@
               this.setAttribute("closebuttons", "activetab");
             break;
           case 1:
-            if (this.childNodes.length == 1 && this._closeWindowWithLastTab)
-              this.setAttribute("closebuttons", "noclose");
-            else {
+            if (this.childNodes.length == 1) {
+              if (this._closeWindowWithLastTab)
+                this.setAttribute("closebuttons", "noclose");
+              else
+                this.setAttribute("closebuttons", "alltabs");
+            } else {
               let tab = this.tabbrowser.visibleTabs[this.tabbrowser._numPinnedTabs];
               if (tab && tab.getBoundingClientRect().width > this.mTabClipWidth)
                 this.setAttribute("closebuttons", "alltabs");
@@ -2738,11 +2745,13 @@
             return;
 
           if (this.mTabstrip.smoothScroll) {
-            let selected = this.selectedItem.getBoundingClientRect();
+            let selected = !this.selectedItem.pinned &&
+                           this.selectedItem.getBoundingClientRect();
 
             // Can we make both the new tab and the selected tab completely visible?
-            if (Math.max(tab.right - selected.left, selected.right - tab.left) <=
-                scrollRect.width) {
+            if (!selected ||
+                Math.max(tab.right - selected.left, selected.right - tab.left) <=
+                  scrollRect.width) {
               this.mTabstrip.ensureElementIsVisible(aTab);
               return;
             }
@@ -2843,6 +2852,8 @@
           if (tab.parentNode != this)
             return;
 
+          this.adjustTabstrip();
+
           if (tab.getAttribute("selected") == "true") {
             this._fillTrailingGap();
             this._handleTabSelect();
@@ -2857,6 +2868,15 @@
           // overflowed.
           this.mTabstrip._updateScrollButtonsDisabledState();
         ]]></body>
+      </method>
+      
+      <method name="_canAdvanceToTab">
+        <parameter name="aTab"/>
+        <body>
+        <![CDATA[
+          return this.tabbrowser._removingTabs.indexOf(aTab) == -1;
+        ]]>
+        </body>
       </method>
 
       <!-- Deprecated stuff, implemented for backwards compatibility. -->

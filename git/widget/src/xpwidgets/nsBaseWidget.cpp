@@ -51,6 +51,7 @@
 #include "nsIPrefBranch2.h"
 #include "BasicLayers.h"
 #include "LayerManagerOGL.h"
+#include "nsIXULRuntime.h"
 
 #ifdef DEBUG
 #include "nsIObserver.h"
@@ -246,6 +247,46 @@ NS_IMETHODIMP nsBaseWidget::SetClientData(void* aClientData)
   return NS_OK;
 }
 
+already_AddRefed<nsIWidget>
+nsBaseWidget::CreateChild(const nsIntRect  &aRect,
+                          EVENT_CALLBACK   aHandleEventFunction,
+                          nsIDeviceContext *aContext,
+                          nsIAppShell      *aAppShell,
+                          nsIToolkit       *aToolkit,
+                          nsWidgetInitData *aInitData,
+                          PRBool           aForceUseIWidgetParent)
+{
+  nsIWidget* parent = this;
+  nsNativeWidget nativeParent = nsnull;
+
+  if (!aForceUseIWidgetParent) {
+    // Use only either parent or nativeParent, not both, to match
+    // existing code.  Eventually Create() should be divested of its
+    // nativeWidget parameter.
+    nativeParent = parent ? parent->GetNativeData(NS_NATIVE_WIDGET) : nsnull;
+    parent = nativeParent ? nsnull : parent;
+    NS_ABORT_IF_FALSE(!parent || !nativeParent, "messed up logic");
+  }
+
+  nsCOMPtr<nsIWidget> widget;
+  if (aInitData && aInitData->mWindowType == eWindowType_popup) {
+    widget = AllocateChildPopupWidget();
+  } else {
+    static NS_DEFINE_IID(kCChildCID, NS_CHILD_CID);
+    widget = do_CreateInstance(kCChildCID);
+  }
+
+  if (widget &&
+      NS_SUCCEEDED(widget->Create(parent, nativeParent, aRect,
+                                  aHandleEventFunction,
+                                  aContext, aAppShell, aToolkit,
+                                  aInitData))) {
+    return widget.forget();
+  }
+
+  return nsnull;
+}
+
 // Attach a view to our widget which we'll send events to. 
 NS_IMETHODIMP
 nsBaseWidget::AttachViewToTopLevel(EVENT_CALLBACK aViewEventFunction,
@@ -349,6 +390,16 @@ nsIWidget* nsBaseWidget::GetTopLevelWidget()
 nsIWidget* nsBaseWidget::GetSheetWindowParent(void)
 {
   return nsnull;
+}
+
+float nsBaseWidget::GetDPI()
+{
+  return 96.0f;
+}
+
+double nsBaseWidget::GetDefaultScale()
+{
+  return 1.0;
 }
 
 //-------------------------------------------------------------------------
@@ -483,9 +534,8 @@ NS_IMETHODIMP nsBaseWidget::PlaceBehind(nsTopLevelWidgetZPlacement aPlacement,
 // merely stores the state.
 //
 //-------------------------------------------------------------------------
-NS_IMETHODIMP nsBaseWidget::SetSizeMode(PRInt32 aMode) {
-
-
+NS_IMETHODIMP nsBaseWidget::SetSizeMode(PRInt32 aMode)
+{
   if (aMode == nsSizeMode_Normal ||
       aMode == nsSizeMode_Minimized ||
       aMode == nsSizeMode_Maximized ||
@@ -502,8 +552,8 @@ NS_IMETHODIMP nsBaseWidget::SetSizeMode(PRInt32 aMode) {
 // Get the size mode (minimized, maximized, that sort of thing...)
 //
 //-------------------------------------------------------------------------
-NS_IMETHODIMP nsBaseWidget::GetSizeMode(PRInt32* aMode) {
-
+NS_IMETHODIMP nsBaseWidget::GetSizeMode(PRInt32* aMode)
+{
   *aMode = mSizeMode;
   return NS_OK;
 }
@@ -713,13 +763,27 @@ LayerManager* nsBaseWidget::GetLayerManager()
   if (!mLayerManager) {
     nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
 
-    PRBool allowAcceleration = PR_TRUE;
+    PRBool disableAcceleration = PR_FALSE;
+    PRBool accelerateByDefault = PR_TRUE;
+
     if (prefs) {
-      prefs->GetBoolPref("mozilla.widget.accelerated-layers",
-                         &allowAcceleration);
+      prefs->GetBoolPref("layers.accelerate-all",
+                         &accelerateByDefault);
+      prefs->GetBoolPref("layers.accelerate-none",
+                         &disableAcceleration);
     }
 
-    if (mUseAcceleratedRendering && allowAcceleration) {
+    nsCOMPtr<nsIXULRuntime> xr = do_GetService("@mozilla.org/xre/runtime;1");
+    PRBool safeMode = PR_FALSE;
+    if (xr)
+      xr->GetInSafeMode(&safeMode);
+
+    if (disableAcceleration || safeMode)
+      mUseAcceleratedRendering = PR_FALSE;
+    else if (accelerateByDefault)
+      mUseAcceleratedRendering = PR_TRUE;
+
+    if (mUseAcceleratedRendering) {
       nsRefPtr<LayerManagerOGL> layerManager =
         new mozilla::layers::LayerManagerOGL(this);
       /**
@@ -1337,12 +1401,15 @@ nsBaseWidget::debug_DumpPaintEvent(FILE *                aFileOut,
   if (!debug_GetCachedBoolPref("nglayout.debug.paint_dumping"))
     return;
   
+  nsIntRect rect = aPaintEvent->region.GetBounds();
   fprintf(aFileOut,
-          "%4d PAINT      widget=%p name=%-12s id=%-8p rect=", 
+          "%4d PAINT      widget=%p name=%-12s id=%-8p bounds-rect=%3d,%-3d %3d,%-3d", 
           _GetPrintCount(),
           (void *) aWidget,
           aWidgetName.get(),
-          (void *) aWindowID);
+          (void *) aWindowID,
+          rect.x, rect.y, rect.width, rect.height
+    );
   
   fprintf(aFileOut,"\n");
 }

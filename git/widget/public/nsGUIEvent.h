@@ -271,6 +271,7 @@ class nsHashKey;
 #define NS_FORM_CHANGE                  (NS_FORM_EVENT_START + 2)
 #define NS_FORM_SELECTED                (NS_FORM_EVENT_START + 3)
 #define NS_FORM_INPUT                   (NS_FORM_EVENT_START + 4)
+#define NS_FORM_INVALID                 (NS_FORM_EVENT_START + 5)
 
 //Need separate focus/blur notifications for non-native widgets
 #define NS_FOCUS_EVENT_START            1300
@@ -417,6 +418,7 @@ class nsHashKey;
 #define NS_RATECHANGE          (NS_MEDIA_EVENT_START+17)
 #define NS_DURATIONCHANGE      (NS_MEDIA_EVENT_START+18)
 #define NS_VOLUMECHANGE        (NS_MEDIA_EVENT_START+19)
+#define NS_MOZAUDIOAVAILABLE   (NS_MEDIA_EVENT_START+20)
 #endif // MOZ_MEDIA
 
 // paint notification events

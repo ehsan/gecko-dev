@@ -88,7 +88,7 @@
 #include "nsFocusManager.h"
 #include "nsFrameList.h"
 #include "nsListControlFrame.h"
-#include "nsFileControlFrame.h"
+#include "nsHTMLInputElement.h"
 #ifdef MOZ_SVG
 #include "nsSVGUtils.h"
 #endif
@@ -100,9 +100,7 @@
 #include "nsXULPrototypeCache.h"
 #include "nsXULTooltipListener.h"
 
-#ifndef MOZ_NO_INSPECTOR_APIS
 #include "inDOMView.h"
-#endif
 #endif
 
 #ifdef MOZ_MATHML
@@ -216,9 +214,7 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
-#ifndef MOZ_NO_INSPECTOR_APIS
   inDOMView::InitAtoms();
-#endif
 
 #endif
 
@@ -320,10 +316,6 @@ nsLayoutStatics::Shutdown()
   nsCellMap::Shutdown();
   nsFrame::ShutdownLayerActivityTimer();
 
-#ifdef MOZ_SVG
-  nsSVGUtils::Shutdown();
-#endif
-
   // Release all of our atoms
   nsColorNames::ReleaseTable();
   nsCSSProps::ReleaseTable();
@@ -391,5 +383,5 @@ nsLayoutStatics::Shutdown()
 
   nsFrameList::Shutdown();
 
-  nsFileControlFrame::DestroyUploadLastDir();
+  nsHTMLInputElement::DestroyUploadLastDir();
 }

@@ -84,7 +84,7 @@
 #include "nsFrameLoader.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIFrame.h"
-#include "nsIFrameFrame.h"
+#include "nsSubDocumentFrame.h"
 #include "nsDOMError.h"
 #include "nsGUIEvent.h"
 #include "nsEventDispatcher.h"
@@ -645,7 +645,7 @@ class NS_STACK_CLASS AutoResetInShow {
 PRBool
 nsFrameLoader::Show(PRInt32 marginWidth, PRInt32 marginHeight,
                     PRInt32 scrollbarPrefX, PRInt32 scrollbarPrefY,
-                    nsIFrameFrame* frame)
+                    nsSubDocumentFrame* frame)
 {
   if (mInShow) {
     return PR_FALSE;
@@ -754,7 +754,7 @@ nsFrameLoader::Show(PRInt32 marginWidth, PRInt32 marginHeight,
 
 #ifdef MOZ_IPC
 bool
-nsFrameLoader::ShowRemoteFrame(nsIFrameFrame* frame, nsIView* view)
+nsFrameLoader::ShowRemoteFrame(nsSubDocumentFrame* frame, nsIView* view)
 {
   NS_ASSERTION(mRemoteFrame, "ShowRemote only makes sense on remote frames.");
 
@@ -767,75 +767,11 @@ nsFrameLoader::ShowRemoteFrame(nsIFrameFrame* frame, nsIView* view)
     return false;
   }
 
-  nsIWidget* w = view->GetWidget();
-  if (!w) {
-    NS_ERROR("Our view doesn't have a widget. Totally stuffed!");
-    return false;
-  }
+  nsIntSize size = GetSubDocumentSize(frame);
 
-  nsIntSize size = GetSubDocumentSize(frame->GetFrame());
-
-#ifdef XP_WIN
-  HWND parentwin =
-    static_cast<HWND>(w->GetNativeData(NS_NATIVE_WINDOW));
-
-  if (!mRemoteBrowser->SendCreateWidget(parentwin))
-    return false;
-#elif defined(MOZ_WIDGET_GTK2)
-  GdkWindow* parent_win =
-    static_cast<GdkWindow*>(w->GetNativeData(NS_NATIVE_WINDOW));
-
-  gpointer user_data = nsnull;
-  gdk_window_get_user_data(parent_win, &user_data);
-
-  MozContainer* parentMozContainer = MOZ_CONTAINER(user_data);
-  GtkContainer* container = GTK_CONTAINER(parentMozContainer);
-
-  // create the socket for the child and add it to our view's widget
-  mRemoteSocket = gtk_socket_new();
-  gtk_widget_set_parent_window(mRemoteSocket, parent_win);
-  gtk_container_add(container, mRemoteSocket);
-  gtk_widget_realize(mRemoteSocket);
-
-  // set the child window's size and position
-  GtkAllocation alloc = { 0, 0, size.width, size.height };
-  gtk_widget_size_allocate(mRemoteSocket, &alloc);
-
-  gtk_widget_show(mRemoteSocket);
-  GdkNativeWindow id = gtk_socket_get_id(GTK_SOCKET(mRemoteSocket));
-  if (!mRemoteBrowser->SendCreateWidget(id))
-    return false;
-
-#elif defined(MOZ_WIDGET_QT)
-  if (getenv("USE_XEMBED_PROXY")) {
-    // Very bad idea to use Xembedding for IPC, but test-ipc.xul still rendering with XEmbed
-    QGraphicsWidget *widget = static_cast<QGraphicsWidget*>(w->GetNativeData(NS_NATIVE_WINDOW));
-    NS_ENSURE_TRUE(widget, false);
-    QGraphicsProxyWidget *proxy = new QGraphicsProxyWidget(widget);
-    NS_ENSURE_TRUE(proxy, false);
-    mRemoteSocket = new QX11EmbedContainer();
-    NS_ENSURE_TRUE(mRemoteSocket, false);
-    proxy->setWidget(mRemoteSocket);
-    mRemoteSocket->show();
-    mRemoteSocket->resize(size.width, size.height);
-    if (!mRemoteBrowser->SendCreateWidget(0))
-      return false;
-  } else {
-    // Don't create any parent/child XEmbed, because we are painting with shared memory
-    if (!mRemoteBrowser->SendCreateWidget(0))
-      return false;
-  }
-#elif defined(ANDROID)
   // Painting with shared memory
-
   if (!mRemoteBrowser->SendCreateWidget(0))
     return false;
-#elif defined(XP_MACOSX)
-#  warning IMPLEMENT ME
-
-#else
-#error TODO for this platform
-#endif
 
   mRemoteBrowser->Move(0, 0, size.width, size.height);
   mRemoteWidgetCreated = PR_TRUE;
@@ -1049,7 +985,7 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
     return NS_ERROR_NOT_IMPLEMENTED;
   }
 
-  nsIFrameFrame* ourFrameFrame = do_QueryFrame(ourFrame);
+  nsSubDocumentFrame* ourFrameFrame = do_QueryFrame(ourFrame);
   if (!ourFrameFrame) {
     mInSwap = aOther->mInSwap = PR_FALSE;
     FirePageShowEvent(ourTreeItem, ourChromeEventHandler, PR_TRUE);

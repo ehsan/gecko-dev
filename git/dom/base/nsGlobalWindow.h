@@ -383,6 +383,11 @@ public:
     // Make sure this matches the casts we do in QueryInterface().
     return (nsGlobalWindow *)(nsIScriptGlobalObject *)supports;
   }
+  static nsISupports *ToSupports(nsGlobalWindow *win)
+  {
+    // Make sure this matches the casts we do in QueryInterface().
+    return (nsISupports *)(nsIScriptGlobalObject *)win;
+  }
   static nsGlobalWindow *FromWrapper(nsIXPConnectWrappedNative *wrapper)
   {
     return FromSupports(wrapper->Native());
@@ -475,6 +480,11 @@ public:
             mHavePendingClose ||
             mCleanedUp);
   }
+
+  static void FirePopupBlockedEvent(nsIDOMDocument* aDoc,
+                                    nsIDOMWindow *aRequestingWindow, nsIURI *aPopupURI,
+                                    const nsAString &aPopupWindowName,
+                                    const nsAString &aPopupWindowFeatures);
 
 protected:
   // Object Management

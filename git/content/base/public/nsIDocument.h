@@ -104,6 +104,7 @@ class mozAutoSubtreeModified;
 struct JSObject;
 class nsFrameLoader;
 class nsIBoxObject;
+class imgIRequest;
 
 namespace mozilla {
 namespace css {
@@ -118,8 +119,8 @@ class Element;
 
 
 #define NS_IDOCUMENT_IID      \
-{ 0xba594543, 0x95f6, 0x4160, \
-  { 0x90, 0x32, 0x82, 0x87, 0x16, 0x5d, 0x59, 0x7a } }
+{ 0xbd862a79, 0xc31b, 0x419b, \
+  { 0x92, 0x90, 0xa0, 0x77, 0x08, 0x62, 0xd4, 0xc4 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -1291,6 +1292,20 @@ public:
   PRBool IsDNSPrefetchAllowed() const { return mAllowDNSPrefetch; }
 
   /**
+   * Returns PR_TRUE if this document is allowed to contain XUL element and
+   * use non-builtin XBL bindings.
+   */
+  PRBool AllowXULXBL() {
+    return mAllowXULXBL == eTriTrue ? PR_TRUE :
+           mAllowXULXBL == eTriFalse ? PR_FALSE :
+           InternalAllowXULXBL();
+  }
+
+  void ForceEnableXULXBL() {
+    mAllowXULXBL = eTriTrue;
+  }
+
+  /**
    * PR_TRUE when this document is a static clone of a normal document.
    * For example print preview and printing use static documents.
    */
@@ -1427,6 +1442,28 @@ public:
 
   // This returns true when the document tree is being teared down.
   PRBool InUnlinkOrDeletion() { return mInUnlinkOrDeletion; }
+
+  /*
+   * Image Tracking
+   *
+   * Style and content images register their imgIRequests with their document
+   * so that the document can efficiently tell all descendant images when they
+   * are and are not visible. When an image is on-screen, we want to call
+   * LockImage() on it so that it doesn't do things like discarding frame data
+   * to save memory. The PresShell informs the document whether its images
+   * should be locked or not via SetImageLockingState().
+   *
+   * See bug 512260.
+   */
+
+  // Add/Remove images from the document image tracker
+  virtual nsresult AddImage(imgIRequest* aImage) = 0;
+  virtual nsresult RemoveImage(imgIRequest* aImage) = 0;
+
+  // Makes the images on this document locked/unlocked. By default, the locking
+  // state is unlocked/false.
+  virtual nsresult SetImageLockingState(PRBool aLocked) = 0;
+
 protected:
   ~nsIDocument()
   {
@@ -1446,6 +1483,9 @@ protected:
 
   // Never ever call this. Only call GetScriptHandlingObject!
   virtual nsIScriptGlobalObject* GetScriptHandlingObjectInternal() const = 0;
+
+  // Never ever call this. Only call AllowXULXBL!
+  virtual PRBool InternalAllowXULXBL() = 0;
 
   /**
    * These methods should be called before and after dispatching
@@ -1529,6 +1569,12 @@ protected:
 
   PRPackedBool mIsRegularHTML;
   PRPackedBool mIsXUL;
+
+  enum {
+    eTriUnset = 0,
+    eTriFalse,
+    eTriTrue
+  } mAllowXULXBL;
 
   // True if we're loaded as data and therefor has any dangerous stuff, such
   // as scripts and plugins, disabled.

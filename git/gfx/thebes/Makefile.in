@@ -199,6 +199,15 @@ CPPSRCS += \
 	$(NULL)
 endif
 
+ifeq (86,$(findstring 86,$(OS_TEST)))
+ifdef __GNUC__
+gfxAlphaRecovery.$(OBJ_SUFFIX): MODULE_OPTIMIZE_FLAGS += -msse2
+endif
+ifdef SOLARIS_SUNPRO_CXX
+gfxAlphaRecovery.$(OBJ_SUFFIX): OS_CXXFLAGS += -xarch=sse2 -xO4
+endif
+endif
+
 SHARED_LIBRARY_LIBS += \
 	../layers/$(LIB_PREFIX)layers.$(LIB_SUFFIX) \
 	$(NULL)
@@ -256,7 +265,7 @@ CPPSRCS	+= gfxGDIFont.cpp \
 	   gfxGDIShaper.cpp \
 	   gfxUniscribeShaper.cpp \
 	   $(NULL)
-_OS_LIBS = usp10 msimg32
+_OS_LIBS = usp10 msimg32 ole32
 endif
 
 CPPSRCS +=	gfxPDFSurface.cpp

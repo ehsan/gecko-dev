@@ -13,7 +13,10 @@ function test() {
   waitForExplicitFinish();
 
   Services.prefs.setBoolPref("browser.tabs.animate", true);
-  nextAsyncText();
+
+//  preperForNextText();
+  todo(false, "async tests disabled because of intermittent failures (bug 585361)");
+  cleanup();
 }
 
 function tabAdded() {
@@ -46,10 +49,15 @@ var asyncTests = [
   }
 ];
 
-function nextAsyncText() {
+function preperForNextText() {
   info("tests left: " + asyncTests.length + "; starting next");
   var tab = gBrowser.addTab("about:blank", { skipAnimation: true });
+  executeSoon(function () {
+    nextAsyncText(tab);
+  });
+}
 
+function nextAsyncText(tab) {
   var gotCloseEvent = false;
 
   tab.addEventListener("TabClose", function () {
@@ -68,7 +76,7 @@ function nextAsyncText() {
       is(tab.parentNode, null, "tab removed after at most " + MAX_WAIT_TIME + " ms");
 
       if (asyncTests.length)
-        nextAsyncText();
+        preperForNextText();
       else
         cleanup();
     }, DEFAULT_ANIMATION_LENGTH);

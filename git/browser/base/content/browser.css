@@ -58,6 +58,10 @@ tabbrowser {
   display: none;
 }
 
+.tabbrowser-tab[pinned] > .tab-icon-image {
+  vertical-align: middle;
+}
+
 #alltabs-popup {
   -moz-binding: url("chrome://browser/content/tabbrowser.xml#tabbrowser-alltabs-popup");
 }
@@ -83,8 +87,12 @@ toolbar[printpreview="true"] {
 }
 
 %ifdef MENUBAR_CAN_AUTOHIDE
-#main-window[inFullscreen] > #appmenu-button-container {
+#main-window[inFullscreen] > #titlebar {
   display: none;
+}
+
+#titlebar {
+  -moz-binding: url("chrome://global/content/bindings/general.xml#windowdragbox");
 }
 %endif
 
@@ -135,7 +143,7 @@ toolbar[mode="icons"] > #reload-button[displaystop] {
 
 /* For results that are actions, their description text is shown instead of
    the URL - this needs to follow the locale's direction, unlike URLs. */
-richlistitem[type="action"]:-moz-locale-dir(rtl) > .ac-url-box {
+richlistitem[type~="action"]:-moz-locale-dir(rtl) > .ac-url-box {
   direction: rtl;
 }
 
@@ -247,6 +255,17 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
 #mainPopupSet {
   min-width: 1px;
 }
+
+/* Sync statusbar UI */
+%ifdef MOZ_SERVICES_SYNC
+#sync-notifications-box {
+  -moz-binding: url("chrome://browser/content/syncNotification.xml#notificationbox");
+}
+
+#sync-notifications-box notification {
+  -moz-binding: url("chrome://browser/content/syncNotification.xml#notification");
+}
+%endif
 
 /* Identity UI */
 #identity-popup-content-box.unknownIdentity > #identity-popup-connectedToLabel ,

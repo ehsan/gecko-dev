@@ -70,7 +70,6 @@ TARGET_CPU="${target_cpu}"
 TARGET_VENDOR="${target_vendor}"
 TARGET_OS="${target_os}"
 
-
 MOZ_DEB_TIMESTAMP=`date +"%a, %d  %b %Y %T %z"   2>&1` 
 AC_SUBST(MOZ_DEB_TIMESTAMP)
 
@@ -119,7 +118,7 @@ dnl ========================================================
 GLIB_VERSION=1.2.0
 LIBIDL_VERSION=0.6.3
 PERL_VERSION=5.006
-PYTHON_VERSION=2.4
+PYTHON_VERSION=2.5
 CAIRO_VERSION=1.8.8
 PANGO_VERSION=1.14.0
 GTK2_VERSION=2.10.0
@@ -131,7 +130,7 @@ GCONF_VERSION=1.2.1
 GIO_VERSION=2.0
 STARTUP_NOTIFICATION_VERSION=0.8
 DBUS_VERSION=0.60
-SQLITE_VERSION=3.6.23.1
+SQLITE_VERSION=3.7.1
 LIBNOTIFY_VERSION=0.4
 
 MSMANIFEST_TOOL=
@@ -1089,10 +1088,20 @@ case "$target" in
         dnl Use the specified value
         export MACOSX_DEPLOYMENT_TARGET=$_MACOSX_DEPLOYMENT_TARGET
         AC_DEFINE_UNQUOTED(__ENVIRONMENT_MAC_OS_X_VERION_MIN_REQUIRED__,$_MACOSX_DEPLOYMENT_TARGET)
-    elif test -z "$MACOSX_DEPLOYMENT_TARGET" ; then
+    else
         dnl No value specified on the command line or in the environment,
         dnl use architecture minimum.
-        export MACOSX_DEPLOYMENT_TARGET=10.5
+        case "${target_cpu}" in
+          ppc*)
+            export MACOSX_DEPLOYMENT_TARGET=10.5
+            ;;
+          i*86)
+            export MACOSX_DEPLOYMENT_TARGET=10.5
+            ;;
+          x86_64)
+            export MACOSX_DEPLOYMENT_TARGET=10.6
+            ;;
+        esac
     fi
     ;;
 esac
@@ -2025,7 +2034,7 @@ case "$target" in
 *-darwin*) 
     MKSHLIB='$(CXX) $(CXXFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -o $@'
     MKCSHLIB='$(CC) $(CFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -o $@'
-    MOZ_OPTIMIZE_FLAGS="-O3"
+    MOZ_OPTIMIZE_FLAGS="-O3 -fomit-frame-pointer"
     _PEDANTIC=
     CFLAGS="$CFLAGS -fpascal-strings -fno-common"
     CXXFLAGS="$CXXFLAGS -fpascal-strings -fno-common"
@@ -2349,6 +2358,7 @@ ia64*-hpux*)
         AR_FLAGS=
         RANLIB='echo not_ranlib'
         STRIP='echo not_strip'
+        PKG_SKIP_STRIP=1
         XARGS=xargs
         ZIP=zip
         UNZIP=unzip
@@ -3462,6 +3472,14 @@ else
     fi
 
     dnl ========================================================
+    dnl = Check for Xss
+    dnl ========================================================
+    AC_CHECK_HEADER(X11/extensions/scrnsaver.h,
+        AC_CHECK_LIB(Xss, XScreenSaverQueryInfo,
+            [XSS_LIBS="-lXss $XEXT_LIBS $XLIBS"
+             AC_DEFINE(HAVE_LIBXSS)],, $XEXT_LIBS $XLIBS))
+
+    dnl ========================================================
     dnl = Check for XIE
     dnl ========================================================
     AC_CHECK_LIB(XIE, XieFloGeometry, [MOZ_XIE_LIBS="-lXIE"],,
@@ -3525,6 +3543,7 @@ AC_SUBST(XLDFLAGS)
 AC_SUBST(XLIBS)
 AC_SUBST(XEXT_LIBS)
 AC_SUBST(XT_LIBS)
+AC_SUBST(XSS_LIBS)
 
 AC_MSG_CHECKING(for ARM SIMD support in compiler)
 AC_TRY_COMPILE([],
@@ -4560,7 +4579,7 @@ MOZ_ARG_WITH_BOOL(system-nspr,
     _USE_SYSTEM_NSPR=1 )
 
 if test -n "$_USE_SYSTEM_NSPR"; then
-    AM_PATH_NSPR(4.8.0, [MOZ_NATIVE_NSPR=1], [MOZ_NATIVE_NSPR=])
+    AM_PATH_NSPR(4.8.6, [MOZ_NATIVE_NSPR=1], [MOZ_NATIVE_NSPR=])
 fi
 
 if test -n "$MOZ_NATIVE_NSPR"; then
@@ -4867,7 +4886,6 @@ MOZ_ACTIVEX_SCRIPTING_SUPPORT=
 MOZ_BRANDING_DIRECTORY=
 MOZ_OFFICIAL_BRANDING=
 MOZ_FEEDS=1
-MOZ_IMG_DECODERS_DEFAULT="png gif jpeg bmp icon"
 MOZ_IMG_ENCODERS_DEFAULT="png jpeg"
 MOZ_INSTALLER=1
 MOZ_IPC=1
@@ -4879,7 +4897,6 @@ MOZ_MORK=
 MOZ_MORKREADER=1
 MOZ_AUTH_EXTENSION=1
 MOZ_NO_ACTIVEX_SUPPORT=1
-MOZ_NO_INSPECTOR_APIS=
 MOZ_NO_FAST_LOAD=
 MOZ_OGG=1
 MOZ_RAW=1
@@ -4925,7 +4942,7 @@ NSS_DISABLE_DBM=
 NECKO_WIFI=1
 NECKO_COOKIES=1
 NECKO_DISK_CACHE=1
-NECKO_PROTOCOLS_DEFAULT="about data file ftp http res viewsource"
+NECKO_PROTOCOLS_DEFAULT="about data device file ftp http res viewsource"
 USE_ARM_KUSER=
 BUILD_CTYPES=1
 XPC_IDISPATCH_SUPPORT=
@@ -5201,7 +5218,7 @@ cairo-cocoa)
 cairo-android)
     AC_DEFINE(MOZ_WIDGET_ANDROID)
     MOZ_WIDGET_TOOLKIT=android
-    MOZ_WEBGL=
+    MOZ_WEBGL=1
     ;;
 
 esac
@@ -5742,7 +5759,7 @@ dnl ========================================================
 dnl = Disable building dbm
 dnl ========================================================
 MOZ_ARG_DISABLE_BOOL(dbm,
-[  --disable-dbm       Disable building dbm],
+[  --disable-dbm           Disable building dbm],
     NSS_DISABLE_DBM=1,
     NSS_DISABLE_DBM=)
 
@@ -5892,7 +5909,7 @@ dnl ========================================================
 dnl = Disable VP8 decoder support
 dnl ========================================================
 MOZ_ARG_DISABLE_BOOL(webm,
-[  --disable-webm         Disable support for WebM media (VP8 video and Vorbis audio)],
+[  --disable-webm          Disable support for WebM media (VP8 video and Vorbis audio)],
     MOZ_WEBM=,
     MOZ_WEBM=1)
 
@@ -6301,41 +6318,6 @@ for extension in $MOZ_EXTENSIONS; do
     fi
 done
 
-
-dnl ========================================================
-dnl Image decoders
-dnl ========================================================
-case "$MOZ_WIDGET_TOOLKIT" in
-beos|windows|os2|mac|cocoa)
-    ;;
-*)
-    if test -z "$MOZ_ENABLE_GTK2" -a -z "$MOZ_ENABLE_QT"; then
-       MOZ_IMG_DECODERS_DEFAULT=`echo $MOZ_IMG_DECODERS_DEFAULT | sed -e 's|icon||'`
-    fi
-    ;;
-esac
-
-MOZ_ARG_ENABLE_STRING(image-decoders,
-[  --enable-image-decoders[={mod1,mod2,default,all,none}]
-                          Enable specific image decoders],
-[ for option in `echo $enableval | sed 's/,/ /g'`; do
-    if test "$option" = "yes" -o "$option" = "all"; then
-        MOZ_IMG_DECODERS="$MOZ_IMG_DECODERS $MOZ_IMG_DECODERS_DEFAULT"
-    elif test "$option" = "no" -o "$option" = "none"; then
-        MOZ_IMG_DECODERS=""
-    elif test "$option" = "default"; then
-        MOZ_IMG_DECODERS="$MOZ_IMG_DECODERS $MOZ_IMG_DECODERS_DEFAULT"
-    elif test `echo "$option" | grep -c \^-` != 0; then
-        option=`echo $option | sed 's/^-//'`
-        MOZ_IMG_DECODERS=`echo "$MOZ_IMG_DECODERS" | sed "s/ ${option}//"`
-    else
-        MOZ_IMG_DECODERS="$MOZ_IMG_DECODERS $option"
-    fi
-done],
-    MOZ_IMG_DECODERS="$MOZ_IMG_DECODERS_DEFAULT")
-
-dnl Dupes are removed in the encoder section because it will also add decoders
-
 dnl ========================================================
 dnl Image encoders
 dnl ========================================================
@@ -6361,7 +6343,6 @@ done],
     MOZ_IMG_ENCODERS="$MOZ_IMG_ENCODERS_DEFAULT")
 
 dnl Remove dupes
-MOZ_IMG_DECODERS=`${PERL} ${srcdir}/build/unix/uniq.pl ${MOZ_IMG_DECODERS}`
 MOZ_IMG_ENCODERS=`${PERL} ${srcdir}/build/unix/uniq.pl ${MOZ_IMG_ENCODERS}`
 
 dnl ========================================================
@@ -6918,9 +6899,7 @@ if test $MOZ_PLATFORM_MAEMO; then
       if test -z "$_LIB_FOUND"; then
          AC_MSG_ERROR([libcontentaction is required when build for Maemo])
       fi
-   fi
-
-   if test "$MOZ_PLATFORM_MAEMO" -gt 5; then
+     
      MOZ_THUMB2=1
      PKG_CHECK_MODULES(MOZ_MEEGOTOUCH, meegotouchcore)
      MOZ_ENABLE_MEEGOTOUCH=1
@@ -8065,6 +8044,10 @@ if test -n "$MOZ_IPC" -a -z "$MOZ_ENABLE_LIBXUL"; then
     AC_MSG_ERROR([--enable-ipc requires --enable-libxul])
 fi
 
+if test -z "$MOZ_ENABLE_LIBXUL" -a -n "$MOZ_OMNIJAR"; then
+    AC_MSG_ERROR([Omnijar packaging is incompatible with --disable-libxul. Please either --enable-libxul or --enable-chrome-format=jar|flat|symlink]);
+fi
+
 AC_SUBST(LIBXUL_LIBS)
 
 if test -n "$MOZ_ENABLE_LIBXUL"; then
@@ -8700,7 +8683,6 @@ AC_SUBST(MOZ_AUTH_EXTENSION)
 AC_SUBST(MOZ_MATHML)
 AC_SUBST(MOZ_PERMISSIONS)
 AC_SUBST(MOZ_XTF)
-AC_SUBST(MOZ_NO_INSPECTOR_APIS)
 AC_SUBST(MOZ_PREF_EXTENSIONS)
 AC_SUBST(MOZ_SVG)
 AC_SUBST(MOZ_SMIL)
@@ -8715,7 +8697,6 @@ AC_SUBST(MOZ_DEBUG_FLAGS)
 AC_SUBST(MOZ_DEBUG_LDFLAGS)
 AC_SUBST(WARNINGS_AS_ERRORS)
 AC_SUBST(MOZ_EXTENSIONS)
-AC_SUBST(MOZ_IMG_DECODERS)
 AC_SUBST(MOZ_IMG_ENCODERS)
 AC_SUBST(MOZ_JSDEBUGGER)
 AC_SUBST(MOZ_PLUGINS)
@@ -8787,9 +8768,15 @@ AC_SUBST(OGLES_SDK_DIR)
 
 AC_SUBST(MOZ_APP_NAME)
 AC_SUBST(MOZ_APP_DISPLAYNAME)
+AC_DEFINE_UNQUOTED(MOZ_APP_UA_NAME, "$MOZ_APP_UA_NAME")
+AC_SUBST(MOZ_APP_UA_NAME)
+AC_DEFINE_UNQUOTED(MOZ_APP_UA_VERSION, "$MOZ_APP_VERSION")
 AC_SUBST(MOZ_APP_VERSION)
-AC_SUBST(MOZ_APP_UA_EXTRA)
+AC_DEFINE_UNQUOTED(MOZ_UA_FIREFOX_VERSION, "$FIREFOX_VERSION")
+AC_SUBST(MOZ_UA_FIREFOX_VERSION)
 AC_SUBST(FIREFOX_VERSION)
+AC_DEFINE_UNQUOTED(MOZ_UA_BUILDID, "$MOZ_UA_BUILDID")
+AC_SUBST(MOZ_UA_BUILDID)
 
 AC_SUBST(MOZ_PKG_SPECIAL)
 

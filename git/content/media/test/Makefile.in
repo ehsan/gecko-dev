@@ -91,7 +91,6 @@ _TEST_FILES = \
 		test_access_control.html \
 		test_audio1.html \
 		test_audio2.html \
-		test_autobuffer.html \
 		test_autoplay.html \
 		test_buffered.html \
 		test_bug448534.html \
@@ -114,7 +113,6 @@ _TEST_FILES = \
 		test_load_candidates.html \
 		test_load_source.html \
 		test_media_selection.html \
-		test_mixed_principals.html \
 		test_mozLoadFrom.html \
 		test_networkState.html \
 		test_new_audio.html \
@@ -125,6 +123,8 @@ _TEST_FILES = \
 		test_play_twice.html \
 		test_playback.html \
 		test_playback_errors.html \
+		test_preload_actions.html \
+		test_preload_attribute.html \
 		test_progress.html \
 		test_reactivate.html \
 		test_readyState.html \
@@ -139,6 +139,7 @@ _TEST_FILES = \
 		test_volume.html \
 		test_video_to_canvas.html \
 		use_large_cache.js \
+		test_audiowrite.html \
 		$(NULL)
 
 # These tests are disabled until we figure out random failures.
@@ -147,7 +148,9 @@ _TEST_FILES = \
 # Bug 492821:
 #   test_videoDocumentTitle.html
 # Bug 493692:
-#   test_autobuffer2.html
+#   test_preload_suspend.html
+# Bug 567954 and Bug 574586:
+#   test_mixed_principals.html
 # Disabled since we don't play Wave files standalone, for now
 #		test_audioDocumentTitle.html
 
@@ -187,6 +190,7 @@ _TEST_FILES += \
 		bug504843.ogv \
 		bug506094.ogv \
 		bug516323.ogv \
+		bug516323.indexed.ogv \
 		bug520493.ogg \
 		bug520500.ogg \
 		bug520908.ogv \
@@ -204,6 +208,7 @@ _TEST_FILES += \
 		small-shot.ogg \
 		sound.ogg \
 		video-overhang.ogg \
+		file_a4_tone.ogg \
 		$(NULL)
 
 # Wave sample files
@@ -242,6 +247,10 @@ _TEST_FILES += \
 		contentDuration5.sjs \
 		contentDuration6.sjs \
 		contentDuration7.sjs \
+		test_a4_tone.html \
+		file_audio_event_adopt_iframe.html \
+		test_audio_event_adopt.html \
+		test_framebuffer.html \
 		$(NULL)
 else
 _TEST_FILES += \

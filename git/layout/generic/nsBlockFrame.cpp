@@ -88,6 +88,7 @@
 #include "nsCSSAnonBoxes.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsCSSRendering.h"
+#include "FrameLayerBuilder.h"
 
 #ifdef IBMBIDI
 #include "nsBidiPresUtils.h"
@@ -315,6 +316,11 @@ nsBlockFrame::DestroyFrom(nsIFrame* aDestructRoot)
   nsLineBox::DeleteLineList(presContext, mLines, aDestructRoot);
   // Now clear mFrames, since we've destroyed all the frames in it.
   mFrames.Clear();
+
+  nsFrameList* pushedFloats = RemovePushedFloats();
+  if (pushedFloats) {
+    pushedFloats->DestroyFrom(aDestructRoot);
+  }
 
   // destroy overflow lines now
   nsLineList* overflowLines = RemoveOverflowLines();
@@ -564,7 +570,7 @@ nsBlockFrame::GetChildList(nsIAtom* aListName) const
     const nsFrameList* list = GetOverflowOutOfFlows();
     return list ? *list : nsFrameList::EmptyList();
   }
-  else if (aListName == nsGkAtoms::floatContinuationsList) {
+  else if (aListName == nsGkAtoms::pushedFloatsList) {
     const nsFrameList* list = GetPushedFloats();
     return list ? *list : nsFrameList::EmptyList();
   }
@@ -601,7 +607,7 @@ nsBlockFrame::GetAdditionalChildListName(PRInt32 aIndex) const
   case NS_BLOCK_FRAME_ABSOLUTE_LIST_INDEX:
     return nsGkAtoms::absoluteList;
   case NS_BLOCK_FRAME_PUSHED_FLOATS_LIST_INDEX:
-    return nsGkAtoms::floatContinuationsList;
+    return nsGkAtoms::pushedFloatsList;
   default:
     return nsnull;
   }
@@ -2454,6 +2460,7 @@ nsBlockFrame::ReflowLine(nsBlockReflowState& aState,
              this, dirtyRect.x, dirtyRect.y, dirtyRect.width, dirtyRect.height);
 #endif
       Invalidate(dirtyRect);
+      FrameLayerBuilder::InvalidateThebesLayersInSubtree(aLine->mFirstChild);
     } else {
       nsRect combinedAreaHStrip, combinedAreaVStrip;
       nsRect boundsHStrip, boundsVStrip;
@@ -2498,6 +2505,13 @@ nsBlockFrame::ReflowLine(nsBlockReflowState& aState,
       printf("  dirty line is %p\n", static_cast<void*>(aLine.get());
 #endif
     Invalidate(dirtyRect);
+    if (GetStateBits() & NS_FRAME_HAS_CONTAINER_LAYER_DESCENDANT) {
+      PRInt32 childCount = aLine->GetChildCount();
+      for (nsIFrame* f = aLine->mFirstChild; childCount;
+           --childCount, f = f->GetNextSibling()) {
+        FrameLayerBuilder::InvalidateThebesLayersInSubtree(f);
+      }
+    }
   }
 
   return rv;
@@ -2746,6 +2760,23 @@ IsPaddingZero(nsStyleUnit aUnit, const nsStyleCoord &aCoord)
             (aUnit == eStyleUnit_Percent && aCoord.GetPercentValue() == 0.0));
 }
 
+static inline PRBool
+IsNonAutoNonZeroHeight(const nsStyleCoord& aCoord)
+{
+  if (aCoord.GetUnit() == eStyleUnit_Auto)
+    return PR_FALSE;
+  if (aCoord.IsCoordPercentCalcUnit()) {
+    // If we evaluate the length/percent/calc at a percentage basis of
+    // both nscoord_MAX and 0, and it's zero both ways, then it's a zero
+    // length, percent, or combination thereof.  Test > 0 so we clamp
+    // negative calc() results to 0.
+    return nsRuleNode::ComputeCoordPercentCalc(aCoord, nscoord_MAX) > 0 ||
+           nsRuleNode::ComputeCoordPercentCalc(aCoord, 0) > 0;
+  }
+  NS_ABORT_IF_FALSE(PR_FALSE, "unexpected unit for height or min-height");
+  return PR_TRUE;
+}
+
 /* virtual */ PRBool
 nsBlockFrame::IsSelfEmpty()
 {
@@ -2757,33 +2788,9 @@ nsBlockFrame::IsSelfEmpty()
 
   const nsStylePosition* position = GetStylePosition();
 
-  switch (position->mMinHeight.GetUnit()) {
-    case eStyleUnit_Coord:
-      if (position->mMinHeight.GetCoordValue() != 0)
-        return PR_FALSE;
-      break;
-    case eStyleUnit_Percent:
-      if (position->mMinHeight.GetPercentValue() != 0.0f)
-        return PR_FALSE;
-      break;
-    default:
-      return PR_FALSE;
-  }
-
-  switch (position->mHeight.GetUnit()) {
-    case eStyleUnit_Auto:
-      break;
-    case eStyleUnit_Coord:
-      if (position->mHeight.GetCoordValue() != 0)
-        return PR_FALSE;
-      break;
-    case eStyleUnit_Percent:
-      if (position->mHeight.GetPercentValue() != 0.0f)
-        return PR_FALSE;
-      break;
-    default:
-      return PR_FALSE;
-  }
+  if (IsNonAutoNonZeroHeight(position->mMinHeight) ||
+      IsNonAutoNonZeroHeight(position->mHeight))
+    return PR_FALSE;
 
   const nsStyleBorder* border = GetStyleBorder();
   const nsStylePadding* padding = GetStylePadding();
@@ -3998,9 +4005,17 @@ nsBlockFrame::SplitLine(nsBlockReflowState& aState,
   if (0 != pushCount) {
     NS_ABORT_IF_FALSE(aLine->GetChildCount() > pushCount, "bad push");
     NS_ABORT_IF_FALSE(nsnull != aFrame, "whoops");
-    NS_ASSERTION(nsFrameList(aFrame, nsLayoutUtils::GetLastSibling(aFrame))
-                   .GetLength() >= pushCount,
-                 "Not enough frames to push");
+#ifdef DEBUG
+    {
+      nsIFrame *f = aFrame;
+      PRInt32 count = pushCount;
+      while (f && count > 0) {
+        f = f->GetNextSibling();
+        --count;
+      }
+      NS_ASSERTION(count == 0, "Not enough frames to push");
+    }
+#endif
 
     // Put frames being split out into their own line
     nsLineBox* newLine = aState.NewLineBox(aFrame, pushCount, PR_FALSE);
@@ -6678,10 +6693,18 @@ void nsBlockFrame::CollectFloats(nsIFrame* aFrame, nsFrameList& aList,
           if (outOfFlowFrame->GetParent() == this) {
             nsFrameList* list = GetPushedFloats();
             if (!list || !list->RemoveFrameIfPresent(outOfFlowFrame)) {
-              mFloats.RemoveFrame(outOfFlowFrame);
+              if (aFromOverflow) {
+                nsAutoOOFFrameList oofs(this);
+                oofs.mList.RemoveFrame(outOfFlowFrame);
+              } else {
+                mFloats.RemoveFrame(outOfFlowFrame);
+              }
             }
             aList.AppendFrame(nsnull, outOfFlowFrame);
           }
+          // FIXME: By not pulling floats whose parent is one of our
+          // later siblings, are we risking the pushed floats getting
+          // out-of-order?
         } else {
           // Make sure that its parent is us. Otherwise we don't want
           // to mess around with it because it belongs to someone

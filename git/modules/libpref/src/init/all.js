@@ -50,6 +50,7 @@
 pref("keyword.URL", "http://www.google.com/search?ie=UTF-8&oe=utf-8&q=");
 pref("keyword.enabled", false);
 pref("general.useragent.locale", "chrome://global/locale/intl.properties");
+pref("general.useragent.compatMode.firefox", false);
 
 pref("general.config.obscure_value", 13); // for MCD .cfg files
 
@@ -177,6 +178,8 @@ pref("media.autoplay.enabled", true);
 pref("gfx.color_management.mode", 2);
 pref("gfx.color_management.display_profile", "");
 pref("gfx.color_management.rendering_intent", 0);
+
+pref("gfx.3d_video.enabled", false);
 
 pref("gfx.downloadable_fonts.enabled", true);
 
@@ -997,6 +1000,7 @@ pref("security.xpconnect.plugin.unrestricted", true);
 pref("security.dialog_enable_delay", 2000);
 
 pref("security.csp.enable", true);
+pref("security.csp.debug", false);
 
 // Modifier key prefs: default to Windows settings,
 // menu access key = alt, accelerator key = control.
@@ -1194,17 +1198,19 @@ pref("layout.css.report_errors", true);
 // Should the :visited selector ever match (otherwise :link matches instead)?
 pref("layout.css.visited_links_enabled", true);
 
-// Override DPI. A value of -1 means use the maxium of 96 and the system DPI.
+// Override DPI. A value of -1 means use the maximum of 96 and the system DPI.
 // A value of 0 means use the system DPI. A positive value is used as the DPI.
 // This sets the physical size of a device pixel and thus controls the
 // interpretation of physical units such as "pt".
 pref("layout.css.dpi", -1);
 
 // Set the number of device pixels per CSS pixel. A value <= 0 means choose
-// automatically based on the DPI. A positive value is used as-is. This effectively
-// controls the size of a CSS "px". This is only used for pixel-based
-// (screen) output devices.
-pref("layout.css.devPixelsPerPx", "-1");
+// automatically based on user settings for the platform (e.g., "UI scale factor"
+// on Mac). A positive value is used as-is. This effectively controls the size
+// of a CSS "px". This is only used for windows on the screen, not for printing.
+// XXX the default value here should be 0, but before we can set it to 0,
+// we have to get this feature working on all platforms.
+pref("layout.css.devPixelsPerPx", "1.0");
 
 // pref for which side vertical scrollbars should be on
 // 0 = end-side in UI direction
@@ -1212,6 +1218,23 @@ pref("layout.css.devPixelsPerPx", "-1");
 // 2 = right
 // 3 = left
 pref("layout.scrollbar.side", 0);
+
+// pref to control browser frame rate, in Hz. A value <= 0 means choose
+// automatically based on knowledge of the platform (or 60Hz if no platform-
+// specific information is available).
+pref("layout.frame_rate", -1);
+
+// pref to control precision of the frame rate timer. When true,
+// we use a "precise" timer, which means each notification fires
+// Nms after the start of the last notification. That means if the
+// processing of the notification is slow, the timer can fire immediately
+// after we've just finished processing the last notification, which might
+// lead to starvation problems.
+// When false, we use a "slack" timer which fires Nms after the *end*
+// of the last notification. This can give less tight frame rates
+// but provides more time for other operations when the browser is
+// heavily loaded.
+pref("layout.frame_rate.precise", false);
 
 // pref to permit users to make verified SOAP calls by default
 pref("capability.policy.default.SOAPCall.invokeVerifySourceHeader", "allAccess");
@@ -3120,7 +3143,7 @@ pref("image.http.accept", "image/png,image/*;q=0.8,*/*;q=0.5");
 
 // Discards inactive image frames and re-decodes them on demand from
 // compressed data.
-pref("image.mem.discardable", false);
+pref("image.mem.discardable", true);
 
 // Prevents images from automatically being decoded on load, instead allowing
 // them to be decoded on demand when they are drawn.
@@ -3131,10 +3154,20 @@ pref("image.mem.decodeondraw", false);
 // value and twice this value.
 pref("image.mem.min_discard_timeout_ms", 10000);
 
+// Chunk size for calls to the image decoders
+pref("image.mem.decode_bytes_at_a_time", 200000);
+
+// The longest time we can spend in an iteration of an async decode
+pref("image.mem.max_ms_before_yield", 400);
+
+// The maximum source data size for which we auto sync decode
+pref("image.mem.max_bytes_for_sync_decode", 150000);
+
 // WebGL prefs
 pref("webgl.enabled_for_all_sites", false);
 pref("webgl.shader_validator", true);
-pref("webgl.software_render", false);
+pref("webgl.force_osmesa", false);
+pref("webgl.mochitest_native_gl", false);
 pref("webgl.osmesalib", "");
 
 #ifdef XP_WIN
@@ -3152,12 +3185,18 @@ pref("gfx.color_management.mode", 0);
 // Initialize default render-mode.
 pref("mozilla.widget.render-mode", -1);
 
-// Initialize default accelerated layers
-pref("mozilla.widget.accelerated-layers", true);
+// Default value of acceleration for all widgets.
+pref("layers.accelerate-all", false);
+
+// Whether to allow acceleration on layers at all.
+pref("layers.accelerate-none", false);
 
 #ifdef XP_WIN
 #ifndef WINCE
-pref("mozilla.layers.prefer-opengl", false);
+// Whether to disable the automatic detection and use of direct2d.
+pref("gfx.direct2d.disabled", false);
+
+pref("layers.prefer-opengl", false);
 #endif
 #endif
 

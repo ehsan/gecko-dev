@@ -297,6 +297,7 @@ public:
 
   NS_IMETHOD              SetParent(nsIWidget* aNewParent);
   virtual nsIWidget*      GetParent(void);
+  virtual float           GetDPI();
 
   LayerManager*           GetLayerManager();
 
@@ -401,6 +402,8 @@ public:
   nsCocoaTextInputHandler* TextInputHandler() { return &mTextInputHandler; }
   NSView<mozView>* GetEditorView();
 
+  PRBool IsPluginView() { return (mWindowType == eWindowType_plugin); }
+
 protected:
 
   PRBool            ReportDestroyEvent();
@@ -412,6 +415,14 @@ protected:
   virtual NSView*   CreateCocoaView(NSRect inFrame);
   void              TearDownView();
   nsCocoaWindow*    GetXULWindowWidget();
+
+  virtual already_AddRefed<nsIWidget>
+  AllocateChildPopupWidget()
+  {
+    static NS_DEFINE_IID(kCPopUpCID, NS_POPUP_CID);
+    nsCOMPtr<nsIWidget> widget = do_CreateInstance(kCPopUpCID);
+    return widget.forget();
+  }
 
 protected:
 

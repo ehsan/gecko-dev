@@ -1090,7 +1090,7 @@ nsTableFrame::GetAdditionalChildListName(PRInt32 aIndex) const
 
 nsRect
 nsDisplayTableItem::GetBounds(nsDisplayListBuilder* aBuilder) {
-  return mFrame->GetOverflowRect() + aBuilder->ToReferenceFrame(mFrame);
+  return mFrame->GetOverflowRect() + ToReferenceFrame();
 }
 
 PRBool
@@ -1121,7 +1121,9 @@ nsDisplayTableItem::UpdateForFrameBackground(nsIFrame* aFrame)
 
 class nsDisplayTableBorderBackground : public nsDisplayTableItem {
 public:
-  nsDisplayTableBorderBackground(nsTableFrame* aFrame) : nsDisplayTableItem(aFrame) {
+  nsDisplayTableBorderBackground(nsDisplayListBuilder* aBuilder,
+                                 nsTableFrame* aFrame) :
+    nsDisplayTableItem(aBuilder, aFrame) {
     MOZ_COUNT_CTOR(nsDisplayTableBorderBackground);
   }
 #ifdef NS_BUILD_REFCNT_LOGGING
@@ -1141,7 +1143,7 @@ nsDisplayTableBorderBackground::Paint(nsDisplayListBuilder* aBuilder,
 {
   static_cast<nsTableFrame*>(mFrame)->
     PaintTableBorderBackground(*aCtx, mVisibleRect,
-                               aBuilder->ToReferenceFrame(mFrame),
+                               ToReferenceFrame(),
                                aBuilder->GetBackgroundPaintFlags());
 }
 
@@ -1215,8 +1217,8 @@ nsTableFrame::DisplayGenericTablePart(nsDisplayListBuilder* aBuilder,
     // Paint the outset box-shadows for the table frames
     PRBool hasBoxShadow = aFrame->GetStyleBorder()->mBoxShadow != nsnull;
     if (hasBoxShadow) {
-      nsDisplayItem* item = new (aBuilder) nsDisplayBoxShadowOuter(aFrame);
-      nsresult rv = lists->BorderBackground()->AppendNewToTop(item);
+      nsresult rv = lists->BorderBackground()->AppendNewToTop(
+          new (aBuilder) nsDisplayBoxShadowOuter(aBuilder, aFrame));
       NS_ENSURE_SUCCESS(rv, rv);
     }
 
@@ -1224,15 +1226,15 @@ nsTableFrame::DisplayGenericTablePart(nsDisplayListBuilder* aBuilder,
     // handling events.
     // XXX how to handle collapsed borders?
     if (aBuilder->IsForEventDelivery()) {
-      nsresult rv = lists->BorderBackground()->AppendNewToTop(new (aBuilder)
-          nsDisplayBackground(aFrame));
+      nsresult rv = lists->BorderBackground()->AppendNewToTop(
+          new (aBuilder) nsDisplayBackground(aBuilder, aFrame));
       NS_ENSURE_SUCCESS(rv, rv);
     }
 
     // Paint the inset box-shadows for the table frames
     if (hasBoxShadow) {
-      nsDisplayItem* item = new (aBuilder) nsDisplayBoxShadowInner(aFrame);
-      nsresult rv = lists->BorderBackground()->AppendNewToTop(item);
+      nsresult rv = lists->BorderBackground()->AppendNewToTop(
+          new (aBuilder) nsDisplayBoxShadowInner(aBuilder, aFrame));
       NS_ENSURE_SUCCESS(rv, rv);
     }
   }
@@ -1320,7 +1322,7 @@ nsTableFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   if (aBuilder->IsForEventDelivery() ||
       AnyTablePartHasBorderOrBackground(this, GetNextSibling()) ||
       AnyTablePartHasBorderOrBackground(mColGroups.FirstChild(), nsnull)) {
-    item = new (aBuilder) nsDisplayTableBorderBackground(this);
+    item = new (aBuilder) nsDisplayTableBorderBackground(aBuilder, this);
     nsresult rv = aLists.BorderBackground()->AppendNewToTop(item);
     NS_ENSURE_SUCCESS(rv, rv);
   }
@@ -1587,7 +1589,9 @@ nsTableFrame::AncestorsHaveStyleHeight(const nsHTMLReflowState& aParentReflowSta
     if (IS_TABLE_CELL(frameType)                     ||
         (nsGkAtoms::tableRowFrame      == frameType) ||
         (nsGkAtoms::tableRowGroupFrame == frameType)) {
-      if (rs->mStylePosition->mHeight.GetUnit() != eStyleUnit_Auto) {
+      const nsStyleCoord &height = rs->mStylePosition->mHeight;
+      // calc() treated like 'auto' on internal table elements
+      if (height.GetUnit() != eStyleUnit_Auto && !height.IsCalcUnit()) {
         return PR_TRUE;
       }
     }
@@ -1606,6 +1610,11 @@ nsTableFrame::AncestorsHaveStyleHeight(const nsHTMLReflowState& aParentReflowSta
 void
 nsTableFrame::CheckRequestSpecialHeightReflow(const nsHTMLReflowState& aReflowState)
 {
+  NS_ASSERTION(IS_TABLE_CELL(aReflowState.frame->GetType()) ||
+               aReflowState.frame->GetType() == nsGkAtoms::tableRowFrame ||
+               aReflowState.frame->GetType() == nsGkAtoms::tableRowGroupFrame ||
+               aReflowState.frame->GetType() == nsGkAtoms::tableFrame,
+               "unexpected frame type");
   if (!aReflowState.frame->GetPrevInFlow() &&  // 1st in flow
       (NS_UNCONSTRAINEDSIZE == aReflowState.ComputedHeight() ||  // no computed height
        0                    == aReflowState.ComputedHeight()) &&
@@ -2872,12 +2881,12 @@ nsTableFrame::ReflowChildren(nsTableReflowState& aReflowState,
       nsRect kidRect = kidFrame->GetRect();
       if (kidRect.y != aReflowState.y) {
         // invalidate the old position
-        kidFrame->InvalidateOverflowRect();
+        kidFrame->InvalidateFrameSubtree();
         kidRect.y = aReflowState.y;
         kidFrame->SetRect(kidRect);        // move to the new position
         RePositionViews(kidFrame);
         // invalidate the new position
-        kidFrame->InvalidateOverflowRect();
+        kidFrame->InvalidateFrameSubtree();
       }
       aReflowState.y += kidRect.height;
 
@@ -3063,10 +3072,10 @@ nsTableFrame::DistributeHeightToRows(const nsHTMLReflowState& aReflowState,
         else {
           if (amountUsed > 0 && yOriginRow != rowRect.y &&
               !(GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
-            rowFrame->InvalidateOverflowRect();
+            rowFrame->InvalidateFrameSubtree();
             rowFrame->SetPosition(nsPoint(rowRect.x, yOriginRow));
             nsTableFrame::RePositionViews(rowFrame);
-            rowFrame->InvalidateOverflowRect();
+            rowFrame->InvalidateFrameSubtree();
           }
           yOriginRow += rowRect.height + cellSpacingY;
           yEndRG += rowRect.height + cellSpacingY;
@@ -3075,7 +3084,7 @@ nsTableFrame::DistributeHeightToRows(const nsHTMLReflowState& aReflowState,
       }
       if (amountUsed > 0) {
         if (rgRect.y != yOriginRG) {
-          rgFrame->InvalidateOverflowRect();
+          rgFrame->InvalidateFrameSubtree();
         }
 
         nsRect origRgRect = rgRect;
@@ -3091,11 +3100,11 @@ nsTableFrame::DistributeHeightToRows(const nsHTMLReflowState& aReflowState,
       }
     }
     else if (amountUsed > 0 && yOriginRG != rgRect.y) {
-      rgFrame->InvalidateOverflowRect();
+      rgFrame->InvalidateFrameSubtree();
       rgFrame->SetPosition(nsPoint(rgRect.x, yOriginRG));
       // Make sure child views are properly positioned
       nsTableFrame::RePositionViews(rgFrame);
-      rgFrame->InvalidateOverflowRect();
+      rgFrame->InvalidateFrameSubtree();
     }
     yOriginRG = yEndRG;
   }
@@ -3204,7 +3213,7 @@ nsTableFrame::DistributeHeightToRows(const nsHTMLReflowState& aReflowState,
           amountForRow = NS_MIN(amountForRow, aAmount - amountUsed);
 
           if (yOriginRow != rowRect.y) {
-            rowFrame->InvalidateOverflowRect();
+            rowFrame->InvalidateFrameSubtree();
           }
 
           // update the row height
@@ -3226,10 +3235,10 @@ nsTableFrame::DistributeHeightToRows(const nsHTMLReflowState& aReflowState,
         }
         else {
           if (amountUsed > 0 && yOriginRow != rowRect.y) {
-            rowFrame->InvalidateOverflowRect();
+            rowFrame->InvalidateFrameSubtree();
             rowFrame->SetPosition(nsPoint(rowRect.x, yOriginRow));
             nsTableFrame::RePositionViews(rowFrame);
-            rowFrame->InvalidateOverflowRect();
+            rowFrame->InvalidateFrameSubtree();
           }
           yOriginRow += rowRect.height + cellSpacingY;
           yEndRG += rowRect.height + cellSpacingY;
@@ -3238,7 +3247,7 @@ nsTableFrame::DistributeHeightToRows(const nsHTMLReflowState& aReflowState,
       }
       if (amountUsed > 0) {
         if (rgRect.y != yOriginRG) {
-          rgFrame->InvalidateOverflowRect();
+          rgFrame->InvalidateFrameSubtree();
         }
 
         rgFrame->SetRect(nsRect(rgRect.x, yOriginRG, rgRect.width,
@@ -3250,11 +3259,11 @@ nsTableFrame::DistributeHeightToRows(const nsHTMLReflowState& aReflowState,
       // Make sure child views are properly positioned
     }
     else if (amountUsed > 0 && yOriginRG != rgRect.y) {
-      rgFrame->InvalidateOverflowRect();
+      rgFrame->InvalidateFrameSubtree();
       rgFrame->SetPosition(nsPoint(rgRect.x, yOriginRG));
       // Make sure child views are properly positioned
       nsTableFrame::RePositionViews(rgFrame);
-      rgFrame->InvalidateOverflowRect();
+      rgFrame->InvalidateFrameSubtree();
     }
     yOriginRG = yEndRG;
   }
@@ -3347,26 +3356,11 @@ nsTableFrame::GetTableFrame(nsIFrame* aSourceFrame)
 PRBool
 nsTableFrame::IsAutoHeight()
 {
-  PRBool isAuto = PR_TRUE;  // the default
-
-  const nsStylePosition* position = GetStylePosition();
-
-  switch (position->mHeight.GetUnit()) {
-    case eStyleUnit_Auto:         // specified auto width
-      break;
-    case eStyleUnit_Coord:
-      isAuto = PR_FALSE;
-      break;
-    case eStyleUnit_Percent:
-      if (position->mHeight.GetPercentValue() > 0.0f) {
-        isAuto = PR_FALSE;
-      }
-      break;
-    default:
-      break;
-  }
-
-  return isAuto;
+  const nsStyleCoord &height = GetStylePosition()->mHeight;
+  // Don't consider calc() here like this quirk for percent.
+  return height.GetUnit() == eStyleUnit_Auto ||
+         (height.GetUnit() == eStyleUnit_Percent &&
+          height.GetPercentValue() <= 0.0f);
 }
 
 nscoord

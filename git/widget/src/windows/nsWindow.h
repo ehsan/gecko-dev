@@ -123,6 +123,7 @@ public:
   NS_IMETHOD              Destroy();
   NS_IMETHOD              SetParent(nsIWidget *aNewParent);
   virtual nsIWidget*      GetParent(void);
+  virtual float           GetDPI();
   NS_IMETHOD              Show(PRBool bState);
   NS_IMETHOD              IsVisible(PRBool & aState);
   NS_IMETHOD              ConstrainPosition(PRBool aAllowSlop, PRInt32 *aX, PRInt32 *aY);
@@ -290,9 +291,7 @@ protected:
   static LRESULT CALLBACK MozSpecialWndProc(int code, WPARAM wParam, LPARAM lParam);
   static LRESULT CALLBACK MozSpecialMouseProc(int code, WPARAM wParam, LPARAM lParam);
   static VOID    CALLBACK HookTimerForPopups( HWND hwnd, UINT uMsg, UINT idEvent, DWORD dwTime );
-#ifdef CAIRO_HAS_D2D_SURFACE
-  static BOOL    CALLBACK ClearD2DSurfaceCallback(HWND aChild, LPARAM aParam);
-#endif
+  static BOOL    CALLBACK ClearResourcesCallback(HWND aChild, LPARAM aParam);
 
   /**
    * Window utilities
@@ -309,6 +308,10 @@ protected:
 #if !defined(WINCE)
   static void             InitTrackPointHack();
 #endif
+  PRBool                  HasGlass() const {
+    return mTransparencyMode == eTransparencyGlass ||
+           mTransparencyMode == eTransparencyBorderlessGlass;
+  }
 
   /**
    * Event processing helpers
@@ -450,8 +453,9 @@ protected:
 #ifdef ACCESSIBILITY
   static STDMETHODIMP_(LRESULT) LresultFromObject(REFIID riid, WPARAM wParam, LPUNKNOWN pAcc);
 #endif // ACCESSIBILITY
-#ifdef CAIRO_HAS_D2D_SURFACE
-  void                    ClearD2DSurface();
+  void                    ClearCachedResources();
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+  void                    UpdateCaptionButtonsClippingRect();
 #endif
 
 protected:
@@ -504,10 +508,16 @@ protected:
   nsIntMargin           mNonClientOffset;
   // Margins set by the owner
   nsIntMargin           mNonClientMargins;
+
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+  // Represents the area taken by the caption buttons
+  // on dwm-enabled systems
+  nsIntRect             mCaptionButtons;
+  nsIntRegion           mCaptionButtonsRoundedRegion;
+#endif
+
   // Indicates custom frames are enabled
   PRPackedBool          mCustomNonClient;
-  // Disable non client margins on non-comsitor desktops
-  PRPackedBool          mCompositorFlag;
   // Cached copy of L&F's resize border  
   PRInt32               mHorResizeMargin;
   PRInt32               mVertResizeMargin;

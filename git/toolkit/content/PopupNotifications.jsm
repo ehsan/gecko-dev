@@ -189,6 +189,8 @@ PopupNotifications.prototype = {
    *        dismissed:   Whether the notification should be added as a dismissed
    *                     notification. Dismissed notifications can be activated
    *                     by clicking on their anchorElement.
+   *        neverShow:   Indicate that no popup should be shown for this
+   *                     notification. Useful for just showing the anchor icon.
    * @returns the Notification object corresponding to the added notification.
    */
   show: function PopupNotifications_show(browser, id, message, anchorID,
@@ -201,8 +203,6 @@ PopupNotifications.prototype = {
       throw "PopupNotifications_show: invalid browser";
     if (!id)
       throw "PopupNotifications_show: invalid ID";
-    if (!message)
-      throw "PopupNotifications_show: invalid message";
     if (mainAction && isInvalidAction(mainAction))
       throw "PopupNotifications_show: invalid mainAction";
     if (secondaryActions && secondaryActions.some(isInvalidAction))
@@ -336,7 +336,10 @@ PopupNotifications.prototype = {
       let doc = this.window.document;
       let popupnotification = doc.createElementNS(XUL_NS, "popupnotification");
       popupnotification.setAttribute("label", n.message);
-      popupnotification.setAttribute("id", n.id);
+      // Append "-notification" to the ID to try to avoid ID conflicts with other stuff
+      // in the document.
+      popupnotification.setAttribute("id", n.id + "-notification");
+      popupnotification.setAttribute("popupid", n.id);
       if (n.mainAction) {
         popupnotification.setAttribute("buttonlabel", n.mainAction.label);
         popupnotification.setAttribute("buttonaccesskey", n.mainAction.accessKey);
@@ -398,7 +401,8 @@ PopupNotifications.prototype = {
 
       // Also filter out notifications that have been dismissed.
       notificationsToShow = this._currentNotifications.filter(function (n) {
-        return !n.dismissed && n.anchorElement == anchorElement;
+        return !n.dismissed && n.anchorElement == anchorElement &&
+               !n.options.neverShow;
       });
     }
 
@@ -438,7 +442,10 @@ PopupNotifications.prototype = {
     if (this._currentNotifications.length == 0)
       return;
 
-    let anchor = event.originalTarget;
+    // Get the anchor that is the immediate child of the icon box
+    let anchor = event.target;
+    while (anchor && anchor.parentNode != this.iconBox)
+      anchor = anchor.parentNode;
 
     // Mark notifications anchored to this anchor as un-dismissed
     this._currentNotifications.forEach(function (n) {

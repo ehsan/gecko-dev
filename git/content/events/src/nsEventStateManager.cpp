@@ -133,7 +133,7 @@
 #include "nsILookAndFeel.h"
 #include "nsWidgetsCID.h"
 
-#include "nsIFrameFrame.h"
+#include "nsSubDocumentFrame.h"
 #include "nsIFrameTraversal.h"
 #include "nsLayoutCID.h"
 #include "nsLayoutUtils.h"
@@ -1790,8 +1790,10 @@ nsEventStateManager::FireContextClick()
         PRInt32 type = formCtrl->GetType();
 
         allowedToDispatch = (type == NS_FORM_INPUT_TEXT ||
+                             type == NS_FORM_INPUT_EMAIL ||
                              type == NS_FORM_INPUT_SEARCH ||
                              type == NS_FORM_INPUT_TEL ||
+                             type == NS_FORM_INPUT_URL ||
                              type == NS_FORM_INPUT_PASSWORD ||
                              type == NS_FORM_INPUT_FILE ||
                              type == NS_FORM_TEXTAREA);
@@ -3292,6 +3294,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
 
   //Reset target frame to null to avoid mistargeting after reentrant event
   mCurrentTarget = nsnull;
+  mCurrentTargetContent = nsnull;
 
   return ret;
 }
@@ -3610,6 +3613,8 @@ nsEventStateManager::DispatchMouseEvent(nsGUIEvent* aEvent, PRUint32 aMessage,
   event.relatedTarget = aRelatedContent;
   event.inputSource = static_cast<nsMouseEvent*>(aEvent)->inputSource;
 
+  nsWeakFrame previousTarget = mCurrentTarget;
+
   mCurrentTargetContent = aTargetContent;
 
   nsIFrame* targetFrame = nsnull;
@@ -3627,6 +3632,7 @@ nsEventStateManager::DispatchMouseEvent(nsGUIEvent* aEvent, PRUint32 aMessage,
   }
 
   mCurrentTargetContent = nsnull;
+  mCurrentTarget = previousTarget;
 
   return targetFrame;
 }
@@ -3643,7 +3649,7 @@ nsEventStateManager::NotifyMouseOut(nsGUIEvent* aEvent, nsIContent* aMovingInto)
   if (mLastMouseOverFrame) {
     // if the frame is associated with a subdocument,
     // tell the subdocument that we're moving out of it
-    nsIFrameFrame* subdocFrame = do_QueryFrame(mLastMouseOverFrame.GetFrame());
+    nsSubDocumentFrame* subdocFrame = do_QueryFrame(mLastMouseOverFrame.GetFrame());
     if (subdocFrame) {
       nsCOMPtr<nsIDocShell> docshell;
       subdocFrame->GetDocShell(getter_AddRefs(docshell));

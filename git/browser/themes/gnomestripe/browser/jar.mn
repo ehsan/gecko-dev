@@ -28,6 +28,7 @@ browser.jar:
   skin/classic/browser/Privacy-48.png
   skin/classic/browser/searchbar.css                  (searchbar.css)
   skin/classic/browser/section_collapsed.png
+  skin/classic/browser/section_collapsed-rtl.png
   skin/classic/browser/section_expanded.png
   skin/classic/browser/Secure.png
   skin/classic/browser/Security-broken.png
@@ -42,6 +43,7 @@ browser.jar:
   skin/classic/browser/feeds/audioFeedIcon.png        (feeds/audioFeedIcon.png)
   skin/classic/browser/feeds/audioFeedIcon16.png      (feeds/audioFeedIcon16.png)
   skin/classic/browser/feeds/subscribe.css            (feeds/subscribe.css)
+  skin/classic/browser/feeds/subscribe-ui.css         (feeds/subscribe-ui.css)
   skin/classic/browser/places/bookmarksMenu.png       (places/bookmarksMenu.png)
   skin/classic/browser/places/bookmarksToolbar.png    (places/bookmarksToolbar.png)
   skin/classic/browser/places/calendar.png            (places/calendar.png)
@@ -77,7 +79,6 @@ browser.jar:
   skin/classic/browser/tabview/tabview.css            (tabview/tabview.css)
   skin/classic/browser/tabview/stack-expander.png     (tabview/stack-expander.png)
   skin/classic/browser/tabview/tabview.png            (tabview/tabview.png)
-  skin/classic/browser/tabview/tabview-16.png         (tabview/tabview-16.png)
 #ifdef MOZ_SERVICES_SYNC
   skin/classic/browser/sync-16-throbber.png
   skin/classic/browser/sync-16.png

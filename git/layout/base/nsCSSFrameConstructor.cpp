@@ -428,15 +428,6 @@ ReparentFrame(nsFrameManager* aFrameManager,
 {
   aFrame->SetParent(aNewParentFrame);
   aFrameManager->ReparentStyleContext(aFrame);
-  if (aFrame->GetStateBits() &
-      (NS_FRAME_HAS_VIEW | NS_FRAME_HAS_CHILD_WITH_VIEW)) {
-    // No need to walk up the tree, since the bits are already set
-    // right on the parent of aNewParentFrame.
-    NS_ASSERTION(aNewParentFrame->GetParent()->GetStateBits() &
-                   NS_FRAME_HAS_CHILD_WITH_VIEW,
-                 "aNewParentFrame's parent should have this bit set!");
-    aNewParentFrame->AddStateBits(NS_FRAME_HAS_CHILD_WITH_VIEW);
-  }
 }
 
 static void
@@ -1317,12 +1308,13 @@ PRBool IsBorderCollapse(nsIFrame* aFrame)
 
 /**
  * Moves aFrameList from aOldParent to aNewParent.  This updates the parent
- * pointer of the frames in the list, reparents their views as needed, and sets
- * the NS_FRAME_HAS_VIEW bit on aNewParent and its ancestors as needed.  Then
- * it sets the list as the initial child list on aNewParent, unless aNewParent
- * either already has kids or has been reflowed; in that case it appends the
- * new frames.  Note that this method differs from ReparentFrames in that it
- * doesn't change the kids' style contexts.
+ * pointer of the frames in the list, and reparents their views as needed.
+ * nsFrame::SetParent sets the NS_FRAME_HAS_VIEW bit on aNewParent and its
+ * ancestors as needed. Then it sets the list as the initial child list
+ * on aNewParent, unless aNewParent either already has kids or has been
+ * reflowed; in that case it appends the new frames.  Note that this
+ * method differs from ReparentFrames in that it doesn't change the kids'
+ * style contexts.
  */
 // XXXbz Since this is only used for {ib} splits, could we just copy the view
 // bits from aOldParent to aNewParent and then use the
@@ -1344,26 +1336,8 @@ MoveChildrenTo(nsPresContext* aPresContext,
                                                 aOldParent, aNewParent);
   }
 
-  PRBool setHasChildWithView = PR_FALSE;
-
   for (nsFrameList::Enumerator e(aFrameList); !e.AtEnd(); e.Next()) {
-    if (!setHasChildWithView
-        && (e.get()->GetStateBits() &
-            (NS_FRAME_HAS_VIEW | NS_FRAME_HAS_CHILD_WITH_VIEW))) {
-      setHasChildWithView = PR_TRUE;
-    }
-
     e.get()->SetParent(aNewParent);
-  }
-
-  if (setHasChildWithView) {
-    aNewParent->AddStateBits(NS_FRAME_HAS_CHILD_WITH_VIEW);
-    if (!sameGrandParent) {
-      for (nsIFrame* ancestor = aNewParent->GetParent();
-           ancestor; ancestor = ancestor->GetParent()) {
-        ancestor->AddStateBits(NS_FRAME_HAS_CHILD_WITH_VIEW);
-      }
-    }
   }
 
   if (aNewParent->GetChildList(nsnull).IsEmpty() &&
@@ -3261,14 +3235,7 @@ nsCSSFrameConstructor::InitializeSelectFrame(nsFrameConstructorState& aState,
       nsWidgetInitData widgetData;
       widgetData.mWindowType  = eWindowType_popup;
       widgetData.mBorderStyle = eBorderStyle_default;
-
-#if defined(XP_MACOSX) || defined(XP_BEOS) 
-      static NS_DEFINE_IID(kCPopUpCID,  NS_POPUP_CID);
-      view->CreateWidget(kCPopUpCID, &widgetData, nsnull);
-#else
-      static NS_DEFINE_IID(kCChildCID, NS_CHILD_CID);
-      view->CreateWidget(kCChildCID, &widgetData, nsnull);
-#endif
+      view->CreateWidgetForPopup(&widgetData);
     }
   }
 
@@ -3599,7 +3566,6 @@ nsCSSFrameConstructor::FindHTMLData(nsIContent* aContent,
     SIMPLE_TAG_CREATE(legend, NS_NewLegendFrame),
     SIMPLE_TAG_CREATE(frameset, NS_NewHTMLFramesetFrame),
     SIMPLE_TAG_CREATE(iframe, NS_NewSubDocumentFrame),
-    SIMPLE_TAG_CREATE(spacer, NS_NewSpacerFrame),
     COMPLEX_TAG_CREATE(button, &nsCSSFrameConstructor::ConstructButtonFrame),
     SIMPLE_TAG_CREATE(canvas, NS_NewHTMLCanvasFrame),
 #if defined(MOZ_MEDIA)
@@ -3651,9 +3617,11 @@ nsCSSFrameConstructor::FindInputData(nsIContent* aContent,
     SIMPLE_INT_CREATE(NS_FORM_INPUT_FILE, NS_NewFileControlFrame),
     SIMPLE_INT_CHAIN(NS_FORM_INPUT_IMAGE,
                      nsCSSFrameConstructor::FindImgControlData),
+    SIMPLE_INT_CREATE(NS_FORM_INPUT_EMAIL, NS_NewTextControlFrame),
     SIMPLE_INT_CREATE(NS_FORM_INPUT_SEARCH, NS_NewTextControlFrame),
     SIMPLE_INT_CREATE(NS_FORM_INPUT_TEXT, NS_NewTextControlFrame),
     SIMPLE_INT_CREATE(NS_FORM_INPUT_TEL, NS_NewTextControlFrame),
+    SIMPLE_INT_CREATE(NS_FORM_INPUT_URL, NS_NewTextControlFrame),
     SIMPLE_INT_CREATE(NS_FORM_INPUT_PASSWORD, NS_NewTextControlFrame),
     COMPLEX_INT_CREATE(NS_FORM_INPUT_SUBMIT,
                        &nsCSSFrameConstructor::ConstructButtonFrame),
@@ -7775,7 +7743,7 @@ InvalidateCanvasIfNeeded(nsIPresShell* presShell, nsIContent* node)
 
   nsIViewManager::UpdateViewBatch batch(presShell->GetViewManager());
   nsIFrame* rootFrame = presShell->GetRootFrame();
-  rootFrame->InvalidateOverflowRect();
+  rootFrame->InvalidateFrameSubtree();
   batch.EndUpdateViewBatch(NS_VMREFRESH_DEFERRED);
 }
 
@@ -8125,12 +8093,11 @@ nsCSSFrameConstructor::DoContentStateChanged(Element* aElement,
 }
 
 void
-nsCSSFrameConstructor::AttributeWillChange(nsIContent* aContent,
+nsCSSFrameConstructor::AttributeWillChange(Element* aElement,
                                            PRInt32 aNameSpaceID,
                                            nsIAtom* aAttribute,
                                            PRInt32 aModType)
 {
-  Element* aElement = aContent->AsElement();
   nsRestyleHint rshint =
     mPresShell->StyleSet()->HasAttributeDependentStyle(mPresShell->GetPresContext(),
                                                        aElement,
@@ -8141,12 +8108,11 @@ nsCSSFrameConstructor::AttributeWillChange(nsIContent* aContent,
 }
 
 void
-nsCSSFrameConstructor::AttributeChanged(nsIContent* aContent,
+nsCSSFrameConstructor::AttributeChanged(Element* aElement,
                                         PRInt32 aNameSpaceID,
                                         nsIAtom* aAttribute,
                                         PRInt32 aModType)
 {
-  Element* aElement = aContent->AsElement();
   // Hold onto the PresShell to prevent ourselves from being destroyed.
   // XXXbz how, exactly, would this attribute change cause us to be
   // destroyed from inside this function?

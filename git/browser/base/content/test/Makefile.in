@@ -136,23 +136,31 @@ _BROWSER_FILES = \
                  browser_bug555224.js \
                  browser_bug555767.js \
                  browser_bug556061.js \
+                 browser_bug561623.js \
                  browser_bug562649.js \
                  browser_bug563588.js \
                  browser_bug577121.js \
                  browser_bug580956.js \
                  browser_bug581242.js \
+                 browser_bug581947.js \
+                 browser_bug585830.js \
                  browser_contextSearchTabPosition.js \
                  browser_ctrlTab.js \
                  browser_discovery.js \
                  browser_drag.js \
+                 browser_duplicateIDs.js \
                  browser_gestureSupport.js \
                  browser_getshortcutoruri.js \
+                 browser_hide_removing.js \
                  browser_inspector_initialization.js \
                  browser_inspector_treeSelection.js \
                  browser_inspector_highlighter.js \
                  browser_inspector_stylePanel.js \
+                 browser_inspector_domPanel.js \
                  browser_inspector_iframeTest.js \
                  browser_inspector_scrolling.js \
+                 browser_inspector_store.js \
+                 browser_inspector_tab_switch.js \
                  browser_pageInfo.js \
                  browser_page_style_menu.js \
                  browser_pinnedTabs.js \

@@ -12,11 +12,6 @@
 <!ENTITY mainWindow.titlePrivateBrowsingSuffix "(Private Browsing)">
 
 <!-- Tab context menu -->
-<!ENTITY  moveTabTo.label                    "Move This Tab To…">
-<!ENTITY  moveTabTo.accesskey                "M">
-<!ENTITY  createNewGroup.label               "Create New Group">
-<!ENTITY  createNewGroup.accesskey           "C">
-<!ENTITY  namedGroups.label                  "Named Groups">
 <!ENTITY  reloadTab.label                    "Reload Tab">
 <!ENTITY  reloadTab.accesskey                "R">
 <!ENTITY  reloadAllTabs.label                "Reload All Tabs">
@@ -29,6 +24,9 @@
 <!ENTITY  pinTab.accesskey                   "p">
 <!ENTITY  unpinTab.label                     "Make into Normal Tab">
 <!ENTITY  unpinTab.accesskey                 "k">
+<!ENTITY  moveToGroup.label                  "Move to Group">
+<!ENTITY  moveToGroup.accesskey              "M">
+<!ENTITY  moveToNewGroup.label               "New Group">
 <!ENTITY  bookmarkThisTab.label              "Bookmark This Tab">
 <!ENTITY  bookmarkThisTab.accesskey          "B">
 <!ENTITY  bookmarkAllTabs.label              "Bookmark All Tabs…">
@@ -193,6 +191,12 @@
 <!ENTITY inspectStyleButton.label     "Style">
 <!ENTITY inspectStyleButton.accesskey "S">
 <!ENTITY inspectStylePanelTitle.label  "Style">
+<!-- LOCALIZATION NOTE (inspectObjectButton.label): This button label
+  -  appears on the Inspector's toolbar. It is used to open and close the Object
+  -  panel. There is also a label in inspector.properties for the panel
+  -  titlebar: object.objectPanelTitle. -->
+<!ENTITY inspectObjectButton.label       "Object">
+<!ENTITY inspectObjectButton.accesskey   "O">
 
 <!ENTITY fileMenu.label         "File"> 
 <!ENTITY fileMenu.accesskey       "F">
@@ -261,11 +265,12 @@
 <!ENTITY showAllHistoryCmd2.label "Show All History">
 <!ENTITY showAllHistoryCmd.commandkey "H">
 
-<!ENTITY appMenuPrintCmd.label "Print">
 <!ENTITY appMenuCustomize.label "Customize">
 <!ENTITY appMenuToolbarLayout.label "Toolbar Layout…">
 <!ENTITY appMenuSidebars.label "Sidebars">
-<!ENTITY appMenuHelp.label "Help">
+<!ENTITY appMenuFind.label "Find…">
+<!ENTITY appMenuUnsorted.label "Unsorted Bookmarks">
+<!ENTITY appMenuGettingStarted.label "Getting Started">
 
 <!ENTITY developerMenu.label "Developer">
 
