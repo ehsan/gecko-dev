@@ -48,7 +48,7 @@ let DebuggerView = {
     this.Variables = new VariablesView(document.getElementById("variables"));
     this.Variables.searchPlaceholder = L10N.getStr("emptyVariablesFilterText");
     this.Variables.emptyText = L10N.getStr("emptyVariablesText");
-    this.Variables.onlyEnumVisible = Prefs.variablesOnlyEnumVisible;
+    this.Variables.nonEnumVisible = Prefs.variablesNonEnumVisible;
     this.Variables.searchEnabled = Prefs.variablesSearchboxVisible;
     this.Variables.eval = DebuggerController.StackFrames.evaluate;
     this.Variables.lazyEmpty = true;
@@ -263,6 +263,8 @@ let DebuggerView = {
 
       // Get the source text from the active thread.
       DebuggerController.SourceScripts.getText(aSource, function(aUrl, aText) {
+        aSource.loaded = true;
+        aSource.text = aText;
         this.setEditorSource(aSource, aOptions);
       }.bind(this));
     }
@@ -900,7 +902,8 @@ MenuContainer.prototype = {
    * @return MenuItem
    *         The matched item, or null if nothing is found.
    */
-  getItemForElement: function DVMC_getItemForElement(aElement) {
+  getItemForElement:
+  function DVMC_getItemForElement(aElement) {
     while (aElement) {
       let item = this._itemsByElement.get(aElement);
       if (item) {
@@ -1034,7 +1037,8 @@ MenuContainer.prototype = {
    * @return MenuItem
    *         The item associated with the displayed element, null if rejected.
    */
-  _appendItem: function DVMC__appendItem(aItem, aOptions = {}) {
+  _appendItem:
+  function DVMC__appendItem(aItem, aOptions = {}) {
     if (!aOptions.relaxed && !this.isEligible(aItem)) {
       return null;
     }
@@ -1056,7 +1060,8 @@ MenuContainer.prototype = {
    * @return MenuItem
    *         The item associated with the displayed element, null if rejected.
    */
-  _insertItemAt: function DVMC__insertItemAt(aIndex, aItem, aOptions) {
+  _insertItemAt:
+  function DVMC__insertItemAt(aIndex, aItem, aOptions) {
     if (!aOptions.relaxed && !this.isEligible(aItem)) {
       return null;
     }

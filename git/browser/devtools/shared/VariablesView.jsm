@@ -139,7 +139,6 @@ VariablesView.prototype = {
 
   /**
    * Specifies if enumerable properties and variables should be displayed.
-   * These variables and properties are visible by default.
    * @param boolean aFlag
    */
   set enumVisible(aFlag) {
@@ -152,7 +151,6 @@ VariablesView.prototype = {
 
   /**
    * Specifies if non-enumerable properties and variables should be displayed.
-   * These variables and properties are visible by default.
    * @param boolean aFlag
    */
   set nonEnumVisible(aFlag) {
@@ -160,21 +158,6 @@ VariablesView.prototype = {
 
     for (let [, scope] in this) {
       scope._nonEnumVisible = aFlag;
-    }
-  },
-
-  /**
-   * Specifies if only enumerable properties and variables should be displayed.
-   * Both types of these variables and properties are visible by default.
-   * @param boolean aFlag
-   */
-  set onlyEnumVisible(aFlag) {
-    if (aFlag) {
-      this.enumVisible = true;
-      this.nonEnumVisible = false;
-    } else {
-      this.enumVisible = true;
-      this.nonEnumVisible = true;
     }
   },
 
@@ -548,11 +531,7 @@ Scope.prototype = {
   /**
    * Toggles between the scope's collapsed and expanded state.
    */
-  toggle: function S_toggle(e) {
-    if (e && e.button != 0) {
-      // Only allow left-click to trigger this event.
-      return;
-    }
+  toggle: function S_toggle() {
     this._wasToggled = true;
     this.expanded ^= 1;
 
@@ -679,11 +658,6 @@ Scope.prototype = {
   allowDeletion: false,
 
   /**
-   * Specifies the context menu attribute set on variables and properties.
-   */
-  contextMenu: "",
-
-  /**
    * Gets the id associated with this item.
    * @return string
    */
@@ -730,7 +704,7 @@ Scope.prototype = {
     let document = this.document;
 
     let element = this._target = document.createElement("vbox");
-    element.id = this._idString;
+    element.id = this._id;
     element.className = aClassName;
 
     let arrow = this._arrow = document.createElement("hbox");
@@ -1237,9 +1211,6 @@ create({ constructor: Variable, proto: Scope.prototype }, {
       closeNode.addEventListener("click", this._onClose, false);
       this._title.appendChild(closeNode);
     }
-    if (this.ownerView.contextMenu) {
-      this._title.setAttribute("context", this.ownerView.contextMenu);
-    }
   },
 
   /**
@@ -1402,11 +1373,7 @@ create({ constructor: Variable, proto: Scope.prototype }, {
   /**
    * Makes this variable's name editable.
    */
-  _activateNameInput: function V__activateNameInput(e) {
-    if (e && e.button != 0) {
-      // Only allow left-click to trigger this event.
-      return;
-    }
+  _activateNameInput: function V__activateNameInput() {
     if (!this.ownerView.allowNameInput || !this.switch) {
       return;
     }
@@ -1433,11 +1400,7 @@ create({ constructor: Variable, proto: Scope.prototype }, {
   /**
    * Makes this variable's value editable.
    */
-  _activateValueInput: function V__activateValueInput(e) {
-    if (e && e.button != 0) {
-      // Only allow left-click to trigger this event.
-      return;
-    }
+  _activateValueInput: function V__activateValueInput() {
     if (!this.ownerView.allowValueInput || !this.eval) {
       return;
     }

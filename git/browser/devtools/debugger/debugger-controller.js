@@ -151,12 +151,10 @@ let DebuggerController = {
     }
 
     let client;
-
     // Remote debugging gets the debuggee from a RemoteTarget object.
     if (this._target && this._target.isRemote) {
-      window._isRemoteDebugger = true;
-
       client = this.client = this._target.client;
+
       this._target.on("close", this._onTabDetached);
       this._target.on("navigate", this._onTabNavigated);
 
@@ -169,13 +167,13 @@ let DebuggerController = {
       return;
     }
 
-    // Content or chrome debugging can connect directly to the debuggee.
+    // Content debugging can connect directly to the page.
     // TODO: convert this to use a TabTarget.
     let transport = window._isChromeDebugger
       ? debuggerSocketConnect(Prefs.remoteHost, Prefs.remotePort)
       : DebuggerServer.connectPipe();
-
     client = this.client = new DebuggerClient(transport);
+
     client.addListener("tabNavigated", this._onTabNavigated);
     client.addListener("tabDetached", this._onTabDetached);
 
@@ -203,12 +201,11 @@ let DebuggerController = {
     this.client.removeListener("tabNavigated", this._onTabNavigated);
     this.client.removeListener("tabDetached", this._onTabDetached);
 
-    // When remote debugging, the connection is closed by the RemoteTarget.
-    if (!window._isRemoteDebugger) {
+    if (!this._target.isRemote) {
       this.client.close();
+      this.client = null;
     }
 
-    this.client = null;
     this.tabClient = null;
     this.activeThread = null;
   },
@@ -238,7 +235,8 @@ let DebuggerController = {
    * @param object aTabGrip
    *        The remote protocol grip of the tab.
    */
-  _startDebuggingTab: function DC__startDebuggingTab(aClient, aTabGrip, aCallback) {
+  _startDebuggingTab: function DC__startDebuggingTab
+      (aClient, aTabGrip, aCallback=function(){}) {
     if (!aClient) {
       Cu.reportError("No client found!");
       return;
@@ -264,9 +262,7 @@ let DebuggerController = {
         this.SourceScripts.connect();
         aThreadClient.resume();
 
-        if (aCallback) {
-          aCallback();
-        }
+        aCallback();
       }.bind(this));
     }.bind(this));
   },
@@ -279,7 +275,8 @@ let DebuggerController = {
    * @param object aChromeDebugger
    *        The remote protocol grip of the chrome debugger.
    */
-  _startChromeDebugging: function DC__startChromeDebugging(aClient, aChromeDebugger, aCallback) {
+  _startChromeDebugging: function DC__startChromeDebugging
+      (aClient, aChromeDebugger, aCallback=function(){}) {
     if (!aClient) {
       Cu.reportError("No client found!");
       return;
@@ -298,9 +295,7 @@ let DebuggerController = {
       this.SourceScripts.connect();
       aThreadClient.resume();
 
-      if (aCallback) {
-        aCallback();
-      }
+      aCallback();
     }.bind(this));
   },
 
@@ -639,7 +634,6 @@ StackFrames.prototype = {
       scope.separator = arrow;
       scope.allowNameInput = true;
       scope.allowDeletion = true;
-      scope.contextMenu = "debuggerWatchExpressionsContextMenu";
       scope.switch = DebuggerView.WatchExpressions.switchExpression;
       scope.delete = DebuggerView.WatchExpressions.deleteExpression;
 
@@ -1179,8 +1173,6 @@ SourceScripts.prototype = {
         Cu.reportError("Error loading " + aUrl);
         return;
       }
-      aSource.loaded = true;
-      aSource.text = aResponse.source;
       aCallback(aSource.url, aResponse.source);
     });
   }
@@ -1606,7 +1598,7 @@ Prefs.map("Int", "stackframesWidth", "devtools.debugger.ui.stackframes-width");
 Prefs.map("Int", "variablesWidth", "devtools.debugger.ui.variables-width");
 Prefs.map("Bool", "panesVisibleOnStartup", "devtools.debugger.ui.panes-visible-on-startup");
 Prefs.map("Bool", "variablesSortingEnabled", "devtools.debugger.ui.variables-sorting-enabled");
-Prefs.map("Bool", "variablesOnlyEnumVisible", "devtools.debugger.ui.variables-only-enum-visible");
+Prefs.map("Bool", "variablesNonEnumVisible", "devtools.debugger.ui.variables-non-enum-visible");
 Prefs.map("Bool", "variablesSearchboxVisible", "devtools.debugger.ui.variables-searchbox-visible");
 Prefs.map("Char", "remoteHost", "devtools.debugger.remote-host");
 Prefs.map("Int", "remotePort", "devtools.debugger.remote-port");

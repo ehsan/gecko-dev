@@ -93,9 +93,9 @@ this.Tilt = function Tilt(aWindow)
 Tilt.prototype = {
 
   /**
-   * Initializes a visualizer for the current tab or closes it if already open.
+   * Initializes a visualizer for the current tab.
    */
-  toggle: function T_toggle()
+  initializeForCurrentTab: function T_initializeForCurrentTab()
   {
     let contentWindow = this.chromeWindow.gBrowser.selectedBrowser.contentWindow;
     let id = this.currentWindowId;

@@ -151,7 +151,7 @@ function createTilt(callbacks, close, suddenDeath) {
 
   info("Attempting to start Tilt.");
   Services.obs.addObserver(onTiltOpen, INITIALIZING, false);
-  Tilt.toggle();
+  Tilt.initializeForCurrentTab();
 
   function onTiltOpen() {
     info("Tilt was opened.");
