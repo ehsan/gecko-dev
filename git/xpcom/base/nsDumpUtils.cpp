@@ -12,7 +12,6 @@
 #include "mozilla/Services.h"
 #include "nsIObserverService.h"
 #include "mozilla/ClearOnShutdown.h"
-#include "mozilla/unused.h"
 
 #ifdef XP_UNIX // {
 #include "mozilla/Preferences.h"
@@ -60,7 +59,7 @@ DumpSignalHandler(int aSignum)
 
   if (sDumpPipeWriteFd != -1) {
     uint8_t signum = static_cast<int>(aSignum);
-    unused << write(sDumpPipeWriteFd, &signum, sizeof(signum));
+    write(sDumpPipeWriteFd, &signum, sizeof(signum));
   }
 }
 

@@ -85,7 +85,6 @@ struct PRSocketOptionData;
 namespace mozilla { namespace net {
 
 class nsHttpRequestHead;
-class NullHttpTransaction;
 class TLSFilterTransaction;
 
 class NudgeTunnelCallback : public nsISupports
@@ -128,7 +127,6 @@ public:
   // nsAHttpTransaction overloads
   nsHttpPipeline *QueryPipeline() MOZ_OVERRIDE;
   bool IsNullTransaction() MOZ_OVERRIDE;
-  NullHttpTransaction *QueryNullTransaction() MOZ_OVERRIDE;
   nsHttpTransaction *QueryHttpTransaction() MOZ_OVERRIDE;
   SpdyConnectTransaction *QuerySpdyConnectTransaction() MOZ_OVERRIDE;
 

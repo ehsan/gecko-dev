@@ -410,14 +410,16 @@ FontFaceSet::StartLoad(gfxUserFontEntry* aUserFontEntry,
     return NS_ERROR_OUT_OF_MEMORY;
 
 #ifdef PR_LOGGING
-  if (LOG_ENABLED()) {
+  if (PR_LOG_TEST(nsFontFaceLoader::GetFontDownloaderLog(),
+                  PR_LOG_DEBUG)) {
     nsAutoCString fontURI, referrerURI;
     aFontFaceSrc->mURI->GetSpec(fontURI);
     if (aFontFaceSrc->mReferrer)
       aFontFaceSrc->mReferrer->GetSpec(referrerURI);
-    LOG(("userfonts (%p) download start - font uri: (%s) "
-         "referrer uri: (%s)\n",
-         fontLoader.get(), fontURI.get(), referrerURI.get()));
+    PR_LOG(nsFontFaceLoader::GetFontDownloaderLog(), PR_LOG_DEBUG,
+           ("fontdownloader (%p) download start - font uri: (%s) "
+            "referrer uri: (%s)\n",
+            fontLoader.get(), fontURI.get(), referrerURI.get()));
   }
 #endif
 
@@ -610,12 +612,10 @@ FontFaceSet::UpdateRules(const nsTArray<nsFontFaceRuleContainer>& aRules)
   mUserFontSet->mLocalRulesUsed = false;
 
 #if PR_LOGGING
-  if (LOG_ENABLED() && !mRuleFaces.IsEmpty()) {
-    LOG(("userfonts (%p) userfont rules update (%s) rule count: %d",
-         mUserFontSet.get(),
-         (modified ? "modified" : "not modified"),
-         mRuleFaces.Length()));
-  }
+  LOG(("userfonts (%p) userfont rules update (%s) rule count: %d",
+       mUserFontSet.get(),
+       (modified ? "modified" : "not modified"),
+       mRuleFaces.Length()));
 #endif
 
   return modified;
@@ -1073,8 +1073,9 @@ FontFaceSet::LogMessage(gfxUserFontEntry* aUserFontEntry,
   message.Append(fontURI);
 
 #ifdef PR_LOGGING
-  if (LOG_ENABLED()) {
-    LOG(("userfonts (%p) %s", mUserFontSet.get(), message.get()));
+  if (PR_LOG_TEST(gfxUserFontSet::GetUserFontsLog(), PR_LOG_DEBUG)) {
+    PR_LOG(gfxUserFontSet::GetUserFontsLog(), PR_LOG_DEBUG,
+           ("userfonts (%p) %s", mUserFontSet.get(), message.get()));
   }
 #endif
 

@@ -402,10 +402,6 @@ class JitRuntime
     bool isProfilerInstrumentationEnabled(JSRuntime *rt) {
         return rt->spsProfiler.enabled();
     }
-
-    bool isOptimizationTrackingEnabled(JSRuntime *rt) {
-        return isProfilerInstrumentationEnabled(rt);
-    }
 };
 
 class JitZone

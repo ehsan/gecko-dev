@@ -138,12 +138,7 @@ nsresult
 MediaEngineGonkVideoSource::Deallocate()
 {
   LOG((__FUNCTION__));
-  bool empty;
-  {
-    MonitorAutoLock lock(mMonitor);
-    empty = mSources.IsEmpty();
-  }
-  if (empty) {
+  if (mSources.IsEmpty()) {
 
     ReentrantMonitorAutoEnter sync(mCallbackMonitor);
 
@@ -176,10 +171,7 @@ MediaEngineGonkVideoSource::Start(SourceMediaStream* aStream, TrackID aID)
     return NS_ERROR_FAILURE;
   }
 
-  {
-    MonitorAutoLock lock(mMonitor);
-    mSources.AppendElement(aStream);
-  }
+  mSources.AppendElement(aStream);
 
   aStream->AddTrack(aID, 0, new VideoSegment());
   aStream->AdvanceKnownTracksTime(STREAM_TIME_MAX);
@@ -247,16 +239,12 @@ nsresult
 MediaEngineGonkVideoSource::Stop(SourceMediaStream* aSource, TrackID aID)
 {
   LOG((__FUNCTION__));
-  {
-    MonitorAutoLock lock(mMonitor);
-
-    if (!mSources.RemoveElement(aSource)) {
-      // Already stopped - this is allowed
-      return NS_OK;
-    }
-    if (!mSources.IsEmpty()) {
-      return NS_OK;
-    }
+  if (!mSources.RemoveElement(aSource)) {
+    // Already stopped - this is allowed
+    return NS_OK;
+  }
+  if (!mSources.IsEmpty()) {
+    return NS_OK;
   }
 
   ReentrantMonitorAutoEnter sync(mCallbackMonitor);
@@ -307,19 +295,8 @@ MediaEngineGonkVideoSource::Shutdown()
   ReentrantMonitorAutoEnter sync(mCallbackMonitor);
 
   if (mState == kStarted) {
-    SourceMediaStream *source;
-    bool empty;
-
-    while (1) {
-      {
-        MonitorAutoLock lock(mMonitor);
-        empty = mSources.IsEmpty();
-        if (empty) {
-          break;
-        }
-        source = mSources[0];
-      }
-      Stop(source, kVideoTrack); // XXX change to support multiple tracks
+    while (!mSources.IsEmpty()) {
+      Stop(mSources[0], kVideoTrack); // XXX change to support multiple tracks
     }
     MOZ_ASSERT(mState == kStopped);
   }
