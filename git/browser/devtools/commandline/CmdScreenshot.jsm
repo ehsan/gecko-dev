@@ -41,7 +41,7 @@ gcli.addCommand({
       manual: gcli.lookup("screenshotFullPageManual")
     },
     {
-      name: "selector",
+      name: "node",
       type: "node",
       defaultValue: null,
       description: gcli.lookup("inspectNodeDesc"),
@@ -59,7 +59,7 @@ gcli.addCommand({
       return promise;
     }
     else {
-      return this.grabScreen(document, args.filename, args.fullpage, args.selector);
+      return this.grabScreen(document, args.filename, args.fullpage, args.node);
     }
   },
   grabScreen:

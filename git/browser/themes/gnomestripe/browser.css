@@ -2488,7 +2488,8 @@ html|*#gcli-output-frame {
 /* Responsive Mode */
 
 .browserContainer[responsivemode] {
-  background: #222 url("chrome://browser/skin/devtools/responsive-background.png");
+  background: #2a3643 url("chrome://browser/skin/devtools/responsive-background.png");
+  box-shadow: 0 0 7px black inset;
   padding: 0 20px 20px 20px;
 }
 

@@ -108,8 +108,8 @@ define('gclitest/index', ['require', 'exports', 'module' , 'gclitest/suite', 'gc
    * @param options Lookup of options that customize test running. Includes:
    * - window (default=undefined) A reference to the DOM window. If left
    *   undefined then a reduced set of tests will run.
-   * - isJsdom (default=false) Are we running under JSDom, specifically, which
-   *   isn't a 100% complete DOM implementation.
+   * - isNode (default=false) Are we running under NodeJS, specifically, are we
+   *   using JSDom, which isn't a 100% complete DOM implementation.
    *   Some tests are skipped when using NodeJS.
    * - display (default=undefined) A reference to a Display implementation.
    *   A reduced set of tests will run if left undefined
@@ -119,12 +119,12 @@ define('gclitest/index', ['require', 'exports', 'module' , 'gclitest/suite', 'gc
    *   |requisition.exec()| which prevents the display from becoming messed up,
    *   however use of hideExec restricts the set of tests that are run
    */
-  exports.runAsync = function(options, callback) {
+  exports.run = function(options) {
     options = options || {};
     examiner.mergeDefaultOptions(options);
 
     examiner.reset();
-    examiner.runAsync(options, callback);
+    examiner.run(options);
 
     // A better set of default than those specified above, come from the set
     // that are passed to run().
@@ -155,6 +155,13 @@ define('gclitest/index', ['require', 'exports', 'module' , 'gclitest/suite', 'gc
 
     // setTimeout keeps stack traces clear of RequireJS frames
     window.setTimeout(function() {
+      var options = {
+        window: window,
+        display: window.display,
+        hideExec: true
+      };
+      exports.run(options);
+
       window.createDebugCheck = function() {
         require([ 'gclitest/helpers' ], function(helpers) {
           helpers.setup(options);
@@ -191,15 +198,7 @@ define('gclitest/index', ['require', 'exports', 'module' , 'gclitest/suite', 'gc
           mockCommands.setup();
         });
       };
-
-      var options = {
-        window: window,
-        display: window.display,
-        hideExec: true
-      };
-      exports.runAsync(options, function() {
-        window.testCommands();
-      });
+      window.testCommands();
     }, 10);
 
     return {
@@ -325,6 +324,25 @@ examiner.mergeDefaultOptions = function(options) {
       options[name] = examiner.defaultOptions[name];
     }
   });
+};
+
+/**
+ * Run the tests defined in the test suite synchronously
+ */
+examiner.run = function(options) {
+  Object.keys(examiner.suites).forEach(function(suiteName) {
+    var suite = examiner.suites[suiteName];
+    suite.run(options);
+  }.bind(this));
+
+  if (options.detailedResultLog) {
+    examiner.detailedResultLog();
+  }
+  else {
+    console.log('Completed test suite');
+  }
+
+  return examiner.suites;
 };
 
 /**
@@ -457,6 +475,21 @@ Suite.prototype.reset = function() {
   Object.keys(this.tests).forEach(function(testName) {
     this.tests[testName].reset();
   }, this);
+};
+
+/**
+ * Run all the tests in this suite synchronously
+ */
+Suite.prototype.run = function(options) {
+  if (!this._setup(options)) {
+    return;
+  }
+
+  Object.keys(this.tests).forEach(function(testName) {
+    this.tests[testName].run(options);
+  }, this);
+
+  this._shutdown(options);
 };
 
 /**
@@ -603,9 +636,6 @@ function Test(suite, name, func) {
   this.func = func;
   this.title = name.replace(/^test/, '').replace(/([A-Z])/g, ' $1');
 
-  this.outstanding = [];
-  this.callback = undefined;
-
   this.failures = [];
   this.status = stati.notrun;
   this.checks = 0;
@@ -615,20 +645,16 @@ function Test(suite, name, func) {
  * Reset the test to its original state
  */
 Test.prototype.reset = function() {
-  this.outstanding = [];
-  this.callback = undefined;
-
   this.failures = [];
   this.status = stati.notrun;
   this.checks = 0;
 };
 
 /**
- * Run all the tests in this suite asynchronously
+ * Run just a single test
  */
-Test.prototype.runAsync = function(options, callback) {
+Test.prototype.run = function(options) {
   assert.currentTest = this;
-  this.callback = callback;
   this.status = stati.executing;
   this.failures = [];
   this.checks = 0;
@@ -649,20 +675,18 @@ Test.prototype.runAsync = function(options, callback) {
   }
 
   assert.currentTest = null;
-
-  this.checkFinish();
 };
 
 /**
- * Check to see if the currently executing test is completed (i.e. the list of
- * outstanding tasks has all been completed)
+ * Run all the tests in this suite asynchronously
  */
-Test.prototype.checkFinish = function() {
-  if (this.outstanding.length == 0) {
-    if (typeof this.callback === 'function') {
-      this.callback();
+Test.prototype.runAsync = function(options, callback) {
+  setTimeout(function() {
+    this.run(options);
+    if (typeof callback === 'function') {
+      callback();
     }
-  }
+  }.bind(this), delay);
 };
 
 /**
@@ -868,25 +892,21 @@ define('gclitest/testCanon', ['require', 'exports', 'module' , 'gclitest/helpers
  * limitations under the License.
  */
 
-define('gclitest/helpers', ['require', 'exports', 'module' , 'test/assert'], function(require, exports, module) {
+define('gclitest/helpers', ['require', 'exports', 'module' , 'test/assert', 'gcli/util'], function(require, exports, module) {
 
 
 var test = require('test/assert');
-// A copy of this code exists in firefox mochitests; when updated here it
-// should be updated there too. Hence the use of an exports synonym for non
-// AMD contexts.
+var util = require('gcli/util');
+
 var helpers = exports;
 
 helpers._display = undefined;
-helpers._options = undefined;
 
 helpers.setup = function(options) {
-  helpers._options = options;
   helpers._display = options.display;
 };
 
 helpers.shutdown = function(options) {
-  helpers._options = undefined;
   helpers._display = undefined;
 };
 
@@ -1004,16 +1024,6 @@ helpers.setInput = function(typed, cursor) {
 
   if (cursor) {
     helpers._display.inputter.setCursor({ start: cursor, end: cursor });
-  }
-  else {
-    // This is a hack because jsdom appears to not handle cursor updates
-    // in the same way as most browsers.
-    if (helpers._options.isJsdom) {
-      helpers._display.inputter.setCursor({
-        start: typed.length,
-        end: typed.length
-      });
-    }
   }
 
   helpers._display.focusManager.onInputChange();
@@ -1579,7 +1589,7 @@ exports.testElement = function(options) {
   test.ok(assign1.arg.type === 'BlankArgument');
   test.is(undefined, assign1.value);
 
-  if (!options.isJsdom) {
+  if (!options.isNode) {
     update({ typed: 'tse :root', cursor: { start: 9, end: 9 } });
     test.is(        'VVVVVVVVV', statuses);
     test.is(Status.VALID, status);
@@ -1615,7 +1625,7 @@ exports.testElement = function(options) {
     test.is(undefined, assign1.value);
   }
   else {
-    test.log('Skipping :root test due to jsdom');
+    test.log('Skipping :root test due to jsdom (from isNode)');
   }
 
   update({ typed: 'tse #', cursor: { start: 5, end: 5 } });
@@ -2350,7 +2360,7 @@ exports.testActivate = function(options) {
 
   helpers.setInput('tsg d');
   helpers.check({
-    hints: ' [options] -> ccc'
+    hints: ' [options]'
   });
 
   helpers.setInput('tsg aa');
@@ -2764,10 +2774,9 @@ var mockDoc = {
  * http://opensource.org/licenses/BSD-3-Clause
  */
 
-define('gclitest/testFocus', ['require', 'exports', 'module' , 'test/assert', 'gclitest/helpers', 'gclitest/mockCommands'], function(require, exports, module) {
+define('gclitest/testFocus', ['require', 'exports', 'module' , 'gclitest/helpers', 'gclitest/mockCommands'], function(require, exports, module) {
 
 
-var test = require('test/assert');
 var helpers = require('gclitest/helpers');
 var mockCommands = require('gclitest/mockCommands');
 
@@ -2782,11 +2791,6 @@ exports.shutdown = function(options) {
 };
 
 exports.testBasic = function(options) {
-  if (options.isJsdom) {
-    test.log('jsdom does not pass on focus events properly, skipping testBasic');
-    return;
-  }
-
   helpers.focusInput();
   helpers.exec(options, 'help');
 
@@ -3339,8 +3343,9 @@ exports.testHidden = function(options) {
   helpers.setInput('tshidde');
   helpers.check({
     input:  'tshidde',
-    hints:         ' -> tse',
-    status: 'ERROR'
+    markup: 'EEEEEEE',
+    status: 'ERROR',
+    hints:  '',
   });
 
   helpers.setInput('tshidden');
@@ -3465,11 +3470,10 @@ exports.testHidden = function(options) {
  * limitations under the License.
  */
 
-define('gclitest/testIntro', ['require', 'exports', 'module' , 'gclitest/helpers', 'test/assert', 'gcli/canon'], function(require, exports, module) {
+define('gclitest/testIntro', ['require', 'exports', 'module' , 'gclitest/helpers', 'test/assert'], function(require, exports, module) {
 
   var helpers = require('gclitest/helpers');
   var test = require('test/assert');
-  var canon = require('gcli/canon');
 
   exports.setup = function(options) {
     helpers.setup(options);
@@ -3480,8 +3484,8 @@ define('gclitest/testIntro', ['require', 'exports', 'module' , 'gclitest/helpers
   };
 
   exports.testIntroStatus = function(options) {
-    if (canon.getCommand('intro') == null) {
-      test.log('Skipping testIntroStatus; missing intro command.');
+    if (options.isFirefox) {
+      test.log('Skipping testIntroStatus in Firefox.');
       return;
     }
 
@@ -3503,8 +3507,8 @@ define('gclitest/testIntro', ['require', 'exports', 'module' , 'gclitest/helpers
   };
 
   exports.testIntroExec = function(options) {
-    if (canon.getCommand('intro') == null) {
-      test.log('Skipping testIntroStatus; missing intro command.');
+    if (options.isFirefox) {
+      test.log('Skipping testIntroExec in Firefox.');
       return;
     }
 
@@ -3679,10 +3683,7 @@ exports.testBasic = function(options) {
   input('{ document.title');
   check('VVVVVVVVVVVVVVVV', Status.VALID, 'document.title', 0);
 
-  if (!options.isJsdom) {
-    // jsdom causes an eval here, maybe that's node/v8?
-    test.ok('donteval' in options.window, 'donteval exists');
-  }
+  test.ok('donteval' in options.window, 'donteval exists');
 
   input('{ don');
   check('VVIII', Status.ERROR, 'don', 'donteval');
@@ -3831,12 +3832,12 @@ exports.testComplete = function(options) {
     check('{ wind', COMPLETES_TO, '{ window', 0);
     check('{ window.docum', COMPLETES_TO, '{ window.document', 0);
 
-    // Bug 717228: This fails under jsdom
-    if (!options.isJsdom) {
+    // Bug 717228: This fails under node
+    if (!options.isNode) {
       check('{ window.document.titl', COMPLETES_TO, '{ window.document.title ', 0);
     }
     else {
-      test.log('Skipping tests due to jsdom and bug 717228.');
+      test.log('Running under Node. Skipping tests due to bug 717228.');
     }
   }
 };
@@ -4007,66 +4008,61 @@ exports.testNode = function(options) {
     }
   });
 
-  if (options.isJsdom) {
-    test.log('skipping node tests because jsdom');
-  }
-  else {
-    helpers.setInput('tse :root');
-    helpers.check({
-      input:  'tse :root',
-      hints:           ' [options]',
-      markup: 'VVVVVVVVV',
-      cursor: 9,
-      current: 'node',
-      status: 'VALID',
-      args: {
-        command: { name: 'tse' },
-        node: { arg: ' :root', status: 'VALID' },
-        nodes: { status: 'VALID' },
-        nodes2: { status: 'VALID' }
-      }
-    });
+  helpers.setInput('tse :root');
+  helpers.check({
+    input:  'tse :root',
+    hints:           ' [options]',
+    markup: 'VVVVVVVVV',
+    cursor: 9,
+    current: 'node',
+    status: 'VALID',
+    args: {
+      command: { name: 'tse' },
+      node: { arg: ' :root', status: 'VALID' },
+      nodes: { status: 'VALID' },
+      nodes2: { status: 'VALID' }
+    }
+  });
 
-    helpers.setInput('tse :root ');
-    helpers.check({
-      input:  'tse :root ',
-      hints:            '[options]',
-      markup: 'VVVVVVVVVV',
-      cursor: 10,
-      current: 'node',
-      status: 'VALID',
-      args: {
-        command: { name: 'tse' },
-        node: { arg: ' :root ', status: 'VALID' },
-        nodes: { status: 'VALID' },
-        nodes2: { status: 'VALID' }
-      }
-    });
-    test.is(requisition.getAssignment('node').value.tagName,
-            'HTML',
-            'root id');
+  helpers.setInput('tse :root ');
+  helpers.check({
+    input:  'tse :root ',
+    hints:            '[options]',
+    markup: 'VVVVVVVVVV',
+    cursor: 10,
+    current: 'node',
+    status: 'VALID',
+    args: {
+      command: { name: 'tse' },
+      node: { arg: ' :root ', status: 'VALID' },
+      nodes: { status: 'VALID' },
+      nodes2: { status: 'VALID' }
+    }
+  });
+  test.is(requisition.getAssignment('node').value.tagName,
+          'HTML',
+          'root id');
 
-    helpers.setInput('tse #gcli-nomatch');
-    helpers.check({
-      input:  'tse #gcli-nomatch',
-      hints:                   ' [options]',
-      markup: 'VVVVIIIIIIIIIIIII',
-      cursor: 17,
-      current: 'node',
-      status: 'ERROR',
-      args: {
-        command: { name: 'tse' },
-        node: {
-          value: undefined,
-          arg: ' #gcli-nomatch',
-          status: 'INCOMPLETE',
-          message: 'No matches'
-        },
-        nodes: { status: 'VALID' },
-        nodes2: { status: 'VALID' }
-      }
-    });
-  }
+  helpers.setInput('tse #gcli-nomatch');
+  helpers.check({
+    input:  'tse #gcli-nomatch',
+    hints:                   ' [options]',
+    markup: 'VVVVIIIIIIIIIIIII',
+    cursor: 17,
+    current: 'node',
+    status: 'ERROR',
+    args: {
+      command: { name: 'tse' },
+      node: {
+        value: undefined,
+        arg: ' #gcli-nomatch',
+        status: 'INCOMPLETE',
+        message: 'No matches'
+      },
+      nodes: { status: 'VALID' },
+      nodes2: { status: 'VALID' }
+    }
+  });
 
   helpers.setInput('tse #');
   helpers.check({
@@ -4134,11 +4130,6 @@ exports.testNode = function(options) {
 
 exports.testNodes = function(options) {
   var requisition = options.display.requisition;
-
-  if (options.isJsdom) {
-    test.log('skipping node tests because jsdom');
-    return;
-  }
 
   helpers.setInput('tse :root --nodes *');
   helpers.check({
@@ -4245,14 +4236,13 @@ exports.testNodes = function(options) {
  * limitations under the License.
  */
 
-define('gclitest/testPref', ['require', 'exports', 'module' , 'gcli/commands/pref', 'gclitest/helpers', 'gclitest/mockSettings', 'test/assert', 'gcli/canon'], function(require, exports, module) {
+define('gclitest/testPref', ['require', 'exports', 'module' , 'gcli/commands/pref', 'gclitest/helpers', 'gclitest/mockSettings', 'test/assert'], function(require, exports, module) {
 
 
 var pref = require('gcli/commands/pref');
 var helpers = require('gclitest/helpers');
 var mockSettings = require('gclitest/mockSettings');
 var test = require('test/assert');
-var canon = require('gcli/canon');
 
 
 exports.setup = function(options) {
@@ -4277,11 +4267,6 @@ exports.shutdown = function(options) {
 exports.testPrefShowStatus = function(options) {
   if (options.isFirefox) {
     test.log('Skipping testPrefShowStatus in Firefox.');
-    return;
-  }
-
-  if (canon.getCommand('intro') == null) {
-    test.log('Skipping testIntroStatus; missing intro command.');
     return;
   }
 
@@ -4348,11 +4333,6 @@ exports.testPrefSetStatus = function(options) {
     return;
   }
 
-  if (canon.getCommand('intro') == null) {
-    test.log('Skipping testIntroStatus; missing intro command.');
-    return;
-  }
-
   helpers.setInput('pref s');
   helpers.check({
     typed:  'pref s',
@@ -4372,7 +4352,7 @@ exports.testPrefSetStatus = function(options) {
   helpers.setInput('pref xxx');
   helpers.check({
     typed:  'pref xxx',
-    markup: 'IIIIVIII',
+    markup: 'EEEEVEEE',
     status: 'ERROR'
   });
 
@@ -4412,11 +4392,6 @@ exports.testPrefSetStatus = function(options) {
 exports.testPrefExec = function(options) {
   if (options.isFirefox) {
     test.log('Skipping testPrefExec in Firefox.');
-    return;
-  }
-
-  if (canon.getCommand('intro') == null) {
-    test.log('Skipping testIntroStatus; missing intro command.');
     return;
   }
 
@@ -4769,11 +4744,12 @@ exports.testPredictions = function(options) {
   var resource3 = types.getType({ name: 'resource', include: 'text/css' });
   var options3 = resource3.getLookup();
   // jsdom fails to support digging into stylesheets
-  if (!options.isJsdom) {
+  if (!options.isNode) {
     test.ok(options3.length >= 1, 'have resources');
   }
   else {
-    test.log('Skipping checks due to jsdom document.stylsheets support.');
+    test.log('Running under Node. ' +
+             'Skipping checks due to jsdom document.stylsheets support.');
   }
   options3.forEach(function(prediction) {
     checkPrediction(resource3, prediction);
@@ -5042,7 +5018,7 @@ exports.testChange = function(options) {
 define('gclitest/testSpell', ['require', 'exports', 'module' , 'test/assert', 'gcli/types/spell'], function(require, exports, module) {
 
 var test = require('test/assert');
-var spell = require('gcli/types/spell');
+var Speller = require('gcli/types/spell').Speller;
 
 exports.setup = function() {
 };
@@ -5056,14 +5032,15 @@ exports.testSpellerSimple = function(options) {
     return;
   }
 
-  var alternatives = Object.keys(options.window);
+  var speller = new Speller();
+  speller.train(Object.keys(options.window));
 
-  test.is(spell.correct('document', alternatives), 'document');
-  test.is(spell.correct('documen', alternatives), 'document');
-  test.is(spell.correct('ocument', alternatives), 'document');
-  test.is(spell.correct('odcument', alternatives), 'document');
+  test.is(speller.correct('document'), 'document');
+  test.is(speller.correct('documen'), 'document');
+  test.is(speller.correct('ocument'), 'document');
+  test.is(speller.correct('odcument'), 'document');
 
-  test.is(spell.correct('=========', alternatives), undefined);
+  test.is(speller.correct('========='), null);
 };
 
 
@@ -5481,7 +5458,7 @@ function type(typed, tests, options) {
     inputter.setCursor({ start: tests.cursor, end: tests.cursor });
   }
 
-  if (!options.isJsdom) {
+  if (!options.isNode) {
     if (tests.important) {
       test.ok(tooltip.field.isImportant, 'Important for ' + typed);
     }
@@ -5511,8 +5488,8 @@ exports.testActivate = function(options) {
     return;
   }
 
-  if (options.isJsdom) {
-    test.log('Reduced checks due to JSDom.textContent');
+  if (options.isNode) {
+    test.log('Running under Node. Reduced checks due to JSDom.textContent');
   }
 
   type(' ', { }, options);
@@ -5529,8 +5506,10 @@ exports.testActivate = function(options) {
 
   type('tsb tt', {
     important: true,
-    options: [ 'true' ]
+    options: [ ],
+    error: 'Can\'t use \'tt\'.'
   }, options);
+
 
   type('asdf', {
     important: false,
@@ -5593,8 +5572,9 @@ function forEachType(options, callback) {
 }
 
 exports.testDefault = function(options) {
-  if (options.isJsdom) {
-    test.log('Skipping tests due to issues with resource type.');
+  if (options.isNode) {
+    test.log('Running under Node. ' +
+             'Skipping tests due to issues with resource type.');
     return;
   }
 
