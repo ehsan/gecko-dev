@@ -1,14 +1,12 @@
 package org.mozilla.gecko.tests;
 
+import org.mozilla.gecko.*;
 import org.mozilla.gecko.tests.helpers.JavascriptMessageParser;
 
 import android.util.Log;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.json.JSONObject;
-import org.mozilla.gecko.Actions;
-import org.mozilla.gecko.Assert;
+
 
 public class JavascriptTest extends BaseTest {
     private static final String LOGTAG = "JavascriptTest";
@@ -19,6 +17,11 @@ public class JavascriptTest extends BaseTest {
     public JavascriptTest(String javascriptUrl) {
         super();
         this.javascriptUrl = javascriptUrl;
+    }
+
+    @Override
+    protected int getTestType() {
+        return TEST_MOCHITEST;
     }
 
     public void testJavascript() throws Exception {

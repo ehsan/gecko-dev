@@ -1,15 +1,14 @@
 package org.mozilla.gecko.tests;
 
-import java.util.ArrayList;
-
-import org.mozilla.gecko.Actions;
-import org.mozilla.gecko.GeckoProfile;
-
-import android.content.ContentResolver;
+import org.mozilla.gecko.*;
+import android.app.Activity;
+import android.provider.Browser;
 import android.content.ContentValues;
+import android.content.ContentResolver;
 import android.database.Cursor;
 import android.net.Uri;
-import android.provider.Browser;
+import java.util.ArrayList;
+import java.util.Arrays;
 
 /**
   * This test covers the Import from Android feature
@@ -23,6 +22,11 @@ public class testImportFromAndroid extends AboutHomeTest {
     private static final int MAX_WAIT_TIMEOUT = 15000;
     ArrayList<String> androidData = new ArrayList<String>();
     ArrayList<String> firefoxHistory = new ArrayList<String>();
+
+    @Override
+    protected int getTestType() {
+        return TEST_MOCHITEST;
+    }
 
     public void testImportFromAndroid() {
         ArrayList<String> firefoxBookmarks = new ArrayList<String>();

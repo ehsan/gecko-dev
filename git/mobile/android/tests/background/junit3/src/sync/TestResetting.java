@@ -163,9 +163,9 @@ public class TestResetting extends AndroidSyncTestCase {
     final SharedPreferences prefs = new MockSharedPreferences();
     final SyncConfiguration config = new SyncConfiguration(TEST_USERNAME, authHeaderProvider, prefs);
     config.syncKeyBundle = keyBundle;
-    return new GlobalSession(config, callback, getApplicationContext(), null, callback) {
+    return new GlobalSession(config, callback, getApplicationContext(), null, null, callback) {
       @Override
-      public boolean isEngineRemotelyEnabled(String engineName,
+      public boolean engineIsEnabled(String engineName,
                                      EngineSettings engineSettings)
         throws MetaGlobalException {
         return true;

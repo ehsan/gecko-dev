@@ -1,8 +1,9 @@
 package org.mozilla.gecko.tests;
 
-import org.mozilla.gecko.Actions;
-
 import com.jayway.android.robotium.solo.Condition;
+import org.mozilla.gecko.*;
+
+import android.content.Intent;
 
 /**
  * Tests session OOM save behavior.

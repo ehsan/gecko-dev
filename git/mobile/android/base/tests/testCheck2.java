@@ -1,10 +1,9 @@
 package org.mozilla.gecko.tests;
 
-
 public class testCheck2 extends PixelTest {
     @Override
-    protected Type getTestType() {
-        return Type.TALOS;
+    protected int getTestType() {
+        return TEST_TALOS;
     }
 
     public void testCheck2() {

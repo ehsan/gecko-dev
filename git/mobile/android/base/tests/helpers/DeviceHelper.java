@@ -4,16 +4,17 @@
 
 package org.mozilla.gecko.tests.helpers;
 
-import static org.mozilla.gecko.tests.helpers.AssertionHelper.fAssertTrue;
+import static org.mozilla.gecko.tests.helpers.AssertionHelper.*;
 
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.tests.UITestContext;
 
+import com.jayway.android.robotium.solo.Solo;
+
 import android.app.Activity;
+import android.content.pm.ActivityInfo;
 import android.os.Build;
 import android.util.DisplayMetrics;
-
-import com.jayway.android.robotium.solo.Solo;
 
 /**
  * Provides general hardware (ex: configuration) and software (ex: version) information

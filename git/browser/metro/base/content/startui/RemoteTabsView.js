@@ -3,12 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-"use strict";
-
-const Cu = Components.utils;
-
-Cu.import("resource://services-sync/main.js");
-Cu.import("resource://gre/modules/PlacesUtils.jsm", this);
+'use strict';
+Components.utils.import("resource://services-sync/main.js");
 
 /**
  * Wraps a list/grid control implementing nsIDOMXULSelectControlElement and
@@ -67,18 +63,6 @@ RemoteTabsView.prototype = Util.extend(Object.create(View.prototype), {
     }
   },
 
-  getIcon: function (iconUri, defaultIcon) {
-    try {
-      let iconURI = Weave.Utils.makeURI(iconUri);
-      return PlacesUtils.favicons.getFaviconLinkForIcon(iconURI).spec;
-    } catch(ex) {
-      // Do nothing.
-    }
-
-    // Just give the provided default icon or the system's default.
-    return defaultIcon || PlacesUtils.favicons.defaultFavicon.spec;
-  },
-
   populateGrid: function populateGrid() {
 
     let tabsEngine = Weave.Service.engineManager.get("tabs");
@@ -104,7 +88,7 @@ RemoteTabsView.prototype = Util.extend(Object.create(View.prototype), {
         //  need to readd logic to reset seenURLs for each client.
 
         let item = this._set.appendItem((title || url), url);
-        item.setAttribute("iconURI", this.getIcon(icon));
+        item.setAttribute("iconURI", Weave.Utils.getIcon(icon));
 
       }, this);
     }

@@ -1,14 +1,18 @@
 package org.mozilla.gecko.tests;
 
-import org.mozilla.gecko.Actions;
-import org.mozilla.gecko.Element;
-import org.mozilla.gecko.PaintedSurface;
-import org.mozilla.gecko.R;
+import org.mozilla.gecko.*;
+import android.app.Activity;
+import android.graphics.Color;
 
 public class testFindInPage extends PixelTest {
     private static final int WAIT_FOR_TEST = 3000;
     protected Element next, close;
     int height,width;
+
+    @Override
+    protected int getTestType() {
+        return TEST_MOCHITEST;
+    }
 
     public void testFindInPage() {
         blockForGeckoReady();

@@ -1,7 +1,7 @@
 package org.mozilla.gecko.tests;
 
-import android.content.ContentUris;
 import android.content.ContentValues;
+import android.content.ContentUris;
 import android.database.Cursor;
 import android.net.Uri;
 
@@ -17,6 +17,11 @@ public class testHomeListsProvider extends ContentProviderTest {
         public static final String PROVIDER_ID = null;
         public static final String TITLE = null;
         public static final String URL = null;
+    }
+
+    @Override
+    protected int getTestType() {
+        return TEST_MOCHITEST;
     }
 
     @SuppressWarnings("unused")
