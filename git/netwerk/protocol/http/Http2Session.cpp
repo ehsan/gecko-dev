@@ -216,10 +216,10 @@ Http2Session::LogIO(Http2Session *self, Http2Stream *stream,
                     const char *label,
                     const char *data, uint32_t datalen)
 {
-  if (!LOG5_ENABLED())
+  if (!LOG4_ENABLED())
     return;
 
-  LOG5(("Http2Session::LogIO %p stream=%p id=0x%X [%s]",
+  LOG4(("Http2Session::LogIO %p stream=%p id=0x%X [%s]",
         self, stream, stream ? stream->StreamID() : 0, label));
 
   // Max line is (16 * 3) + 10(prefix) + newline + null
@@ -233,7 +233,7 @@ Http2Session::LogIO(Http2Session *self, Http2Stream *stream,
     if (!(index % 16)) {
       if (index) {
         *line = 0;
-        LOG5(("%s", linebuf));
+        LOG4(("%s", linebuf));
       }
       line = linebuf;
       PR_snprintf(line, 128, "%08X: ", index);
@@ -245,7 +245,7 @@ Http2Session::LogIO(Http2Session *self, Http2Stream *stream,
   }
   if (index) {
     *line = 0;
-    LOG5(("%s", linebuf));
+    LOG4(("%s", linebuf));
   }
 }
 
