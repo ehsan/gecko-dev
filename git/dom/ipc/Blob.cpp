@@ -55,9 +55,9 @@
 #define DISABLE_ASSERTS_FOR_FUZZING 0
 
 #if DISABLE_ASSERTS_FOR_FUZZING
-#define ASSERT_UNLESS_FUZZING(...) do { } while (0)
+#define ASSERT_UNLESS_FUZZING() do { } while (0)
 #else
-#define ASSERT_UNLESS_FUZZING(...) MOZ_ASSERT(false, __VA_ARGS__)
+#define ASSERT_UNLESS_FUZZING() MOZ_ASSERT(false)
 #endif
 
 #define PRIVATE_REMOTE_INPUT_STREAM_IID \
@@ -1926,9 +1926,6 @@ public:
   virtual int64_t
   GetLastModified(ErrorResult& aRv) MOZ_OVERRIDE;
 
-  virtual void
-  SetLastModified(int64_t aLastModified) MOZ_OVERRIDE;
-
   virtual nsresult
   SetMutable(bool aMutable) MOZ_OVERRIDE;
 
@@ -2064,9 +2061,6 @@ public:
 
   virtual int64_t
   GetLastModified(ErrorResult& aRv) MOZ_OVERRIDE;
-
-  virtual void
-  SetLastModified(int64_t aLastModified) MOZ_OVERRIDE;
 
   virtual void
   GetMozFullPath(nsAString& aName, ErrorResult& aRv) MOZ_OVERRIDE;
@@ -2414,13 +2408,6 @@ RemoteBlobImpl::GetLastModified(ErrorResult& aRv)
   return mLastModificationDate;
 }
 
-void
-BlobChild::
-RemoteBlobImpl::SetLastModified(int64_t aLastModified)
-{
-  MOZ_CRASH("SetLastModified of a remote blob is not allowed!");
-}
-
 nsresult
 BlobChild::
 RemoteBlobImpl::SetMutable(bool aMutable)
@@ -2749,13 +2736,6 @@ BlobParent::
 RemoteBlobImpl::GetLastModified(ErrorResult& aRv)
 {
   return mBlobImpl->GetLastModified(aRv);
-}
-
-void
-BlobParent::
-RemoteBlobImpl::SetLastModified(int64_t aLastModified)
-{
-  MOZ_CRASH("SetLastModified of a remote blob is not allowed!");
 }
 
 void

@@ -90,8 +90,7 @@ TEST_F(pkixcheck_CheckValidity, NotAfterEmptyNull)
     0x17/*UTCTime*/, 0x00/*length*/,
   };
   static const Input validity(DER);
-  ASSERT_EQ(Result::ERROR_NOT_YET_VALID_CERTIFICATE,
-            CheckValidity(validity, NOW));
+  ASSERT_EQ(Result::ERROR_EXPIRED_CERTIFICATE, CheckValidity(validity, NOW));
 }
 
 static const uint8_t OLDER_UTCTIME_NEWER_UTCTIME_DATA[] = {
@@ -138,7 +137,7 @@ TEST_F(pkixcheck_CheckValidity, Valid_UTCTIME_GENERALIZEDTIME)
 
 TEST_F(pkixcheck_CheckValidity, InvalidBeforeNotBefore)
 {
-  ASSERT_EQ(Result::ERROR_NOT_YET_VALID_CERTIFICATE,
+  ASSERT_EQ(Result::ERROR_EXPIRED_CERTIFICATE,
             CheckValidity(OLDER_UTCTIME_NEWER_UTCTIME, PAST_TIME));
 }
 
@@ -155,6 +154,5 @@ TEST_F(pkixcheck_CheckValidity, InvalidNotAfterBeforeNotBefore)
     OLDER_UTCTIME,
   };
   static const Input validity(DER);
-  ASSERT_EQ(Result::ERROR_NOT_YET_VALID_CERTIFICATE,
-            CheckValidity(validity, NOW));
+  ASSERT_EQ(Result::ERROR_EXPIRED_CERTIFICATE, CheckValidity(validity, NOW));
 }

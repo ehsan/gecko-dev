@@ -1172,21 +1172,22 @@ js::TestIntegrityLevel(JSContext *cx, HandleObject obj, IntegrityLevel level, bo
     if (!GetPropertyKeys(cx, obj, JSITER_HIDDEN | JSITER_OWNONLY | JSITER_SYMBOLS, &props))
         return false;
 
-    // Step 11.
+    // Steps 9-11. The spec does not permit stopping as soon as we find out the
+    // answer is false, so we are cheating a little here (bug 1120512).
     RootedId id(cx);
     Rooted<PropertyDescriptor> desc(cx);
     for (size_t i = 0, len = props.length(); i < len; i++) {
         id = props[i];
 
-        // Steps 11.a-b.
         if (!GetOwnPropertyDescriptor(cx, obj, id, &desc))
             return false;
 
-        // Step 11.c.
         if (!desc.object())
             continue;
 
-        // Steps 11.c.i-ii.
+        // If the property is configurable, this object is neither sealed nor
+        // frozen. If the property is a writable data property, this object is
+        // not frozen.
         if (!desc.isPermanent() ||
             (level == IntegrityLevel::Frozen && desc.isDataDescriptor() && desc.isWritable()))
         {
@@ -1195,7 +1196,7 @@ js::TestIntegrityLevel(JSContext *cx, HandleObject obj, IntegrityLevel level, bo
         }
     }
 
-    // Step 12.
+    // All properties checked out. This object is sealed/frozen.
     *result = true;
     return true;
 }
@@ -1388,7 +1389,7 @@ FindClassPrototype(ExclusiveContext *cx, MutableHandleObject protop, const Class
         if (shape->hasSlot()) {
             RootedValue v(cx, pobj->as<NativeObject>().getSlot(shape->slot()));
             if (v.isObject())
-                ctor = &v.toObject();
+                ctor.set(&v.toObject());
         }
     }
 

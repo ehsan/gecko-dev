@@ -227,6 +227,9 @@ class ShapeTable {
     bool change(int log2Delta, ExclusiveContext *cx);
     Entry &search(jsid id, bool adding);
 
+    /* Update entries whose shapes have been moved */
+    void fixupAfterMovingGC();
+
   private:
     Entry &getEntry(uint32_t i) const {
         MOZ_ASSERT(i < capacity());
@@ -529,7 +532,7 @@ class BaseShape : public gc::TenuredCell
             gc::MarkObject(trc, &metadata, "metadata");
     }
 
-    void fixupAfterMovingGC() {}
+    void fixupAfterMovingGC();
     bool fixupBaseShapeTableEntry();
 
   private:

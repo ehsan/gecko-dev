@@ -1009,9 +1009,6 @@ class GCRuntime
     /* Whether all compartments are being collected in first GC slice. */
     bool isFull;
 
-    /* Whether the heap will be compacted at the end of GC. */
-    bool isCompacting;
-
     /* The invocation kind of the current GC, taken from the first slice. */
     JSGCInvocationKind invocationKind;
 

@@ -880,7 +880,6 @@ TabChild::TabChild(nsIContentChild* aManager,
   , mDPI(0)
   , mDefaultScale(0)
   , mIPCOpen(true)
-  , mParentIsActive(false)
 {
   if (!sActiveDurationMsSet) {
     Preferences::AddIntVarCache(&sActiveDurationMs,
@@ -1890,8 +1889,7 @@ TabChild::DoFakeShow(const ScrollingBehavior& aScrolling,
                      PRenderFrameChild* aRenderFrame)
 {
   ShowInfo info(EmptyString(), false, false, 0, 0);
-  RecvShow(nsIntSize(0, 0), info, aScrolling, aTextureFactoryIdentifier,
-           aLayersId, aRenderFrame, mParentIsActive);
+  RecvShow(nsIntSize(0, 0), info, aScrolling, aTextureFactoryIdentifier, aLayersId, aRenderFrame);
   mDidFakeShow = true;
 }
 
@@ -1993,14 +1991,12 @@ TabChild::RecvShow(const nsIntSize& aSize,
                    const ScrollingBehavior& aScrolling,
                    const TextureFactoryIdentifier& aTextureFactoryIdentifier,
                    const uint64_t& aLayersId,
-                   PRenderFrameChild* aRenderFrame,
-                   const bool& aParentIsActive)
+                   PRenderFrameChild* aRenderFrame)
 {
     MOZ_ASSERT((!mDidFakeShow && aRenderFrame) || (mDidFakeShow && !aRenderFrame));
 
     if (mDidFakeShow) {
         ApplyShowInfo(aInfo);
-        RecvParentActivated(aParentIsActive);
         return true;
     }
 
@@ -2026,7 +2022,6 @@ TabChild::RecvShow(const nsIntSize& aSize,
 
     bool res = InitTabChildGlobal();
     ApplyShowInfo(aInfo);
-    RecvParentActivated(aParentIsActive);
     return res;
 }
 
@@ -2277,8 +2272,6 @@ bool TabChild::RecvDeactivate()
 
 bool TabChild::RecvParentActivated(const bool& aActivated)
 {
-  mParentIsActive = aActivated;
-
   nsFocusManager* fm = nsFocusManager::GetFocusManager();
   NS_ENSURE_TRUE(fm, true);
 
@@ -3179,8 +3172,8 @@ TabChild::InitRenderingState(const ScrollingBehavior& aScrolling,
     ShadowLayerForwarder* lf =
         mWidget->GetLayerManager(shadowManager, mTextureFactoryIdentifier.mParentBackend)
                ->AsShadowForwarder();
-    NS_ABORT_IF_FALSE(lf && lf->HasShadowManager(),
-                      "PuppetWidget should have shadow manager");
+    MOZ_ASSERT(lf && lf->HasShadowManager(),
+               "PuppetWidget should have shadow manager");
     lf->IdentifyTextureHost(mTextureFactoryIdentifier);
     ImageBridgeChild::IdentifyCompositorTextureHost(mTextureFactoryIdentifier);
 

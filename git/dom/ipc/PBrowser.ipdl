@@ -468,8 +468,7 @@ child:
          ScrollingBehavior scrolling,
          TextureFactoryIdentifier textureFactoryIdentifier,
          uint64_t layersId,
-         nullable PRenderFrame renderFrame,
-         bool parentIsActive);
+         nullable PRenderFrame renderFrame);
 
     LoadURL(nsCString uri);
 
