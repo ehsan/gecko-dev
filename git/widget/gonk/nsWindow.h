@@ -109,8 +109,6 @@ public:
     virtual nsIntRect GetNaturalBounds() MOZ_OVERRIDE;
     virtual bool NeedsPaint();
 
-    virtual Composer2D* GetComposer2D() MOZ_OVERRIDE;
-
 protected:
     nsWindow* mParent;
     bool mVisible;

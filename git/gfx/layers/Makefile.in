@@ -31,7 +31,6 @@ EXPORTS = \
         BasicLayers.h \
         BasicTiledThebesLayer.h \
         BasicImplData.h \
-        Composer2D.h \
         GonkIOSurfaceImage.h \
         FrameMetrics.h \
         CompositorChild.h \
