@@ -167,24 +167,26 @@ let SlowSQL = {
 
   /**
    * Creates a header row for a Slow SQL table
+   * Tabs & newlines added to cells to make it easier to copy-paste.
    *
    * @param aTable Parent table element
    * @param aTitle Table's title
    */
   renderTableHeader: function SlowSQL_renderTableHeader(aTable, aTitle) {
     let caption = document.createElement("caption");
-    caption.appendChild(document.createTextNode(aTitle));
+    caption.appendChild(document.createTextNode(aTitle + "\n"));
     aTable.appendChild(caption);
 
     let headings = document.createElement("tr");
-    this.appendColumn(headings, "th", this.slowSqlHits);
-    this.appendColumn(headings, "th", this.slowSqlAverage);
-    this.appendColumn(headings, "th", this.slowSqlStatement);
+    this.appendColumn(headings, "th", this.slowSqlHits + "\t");
+    this.appendColumn(headings, "th", this.slowSqlAverage + "\t");
+    this.appendColumn(headings, "th", this.slowSqlStatement + "\n");
     aTable.appendChild(headings);
   },
 
   /**
    * Fills out the table body
+   * Tabs & newlines added to cells to make it easier to copy-paste.
    *
    * @param aTable Parent table element
    * @param aSql SQL stats object
@@ -195,9 +197,9 @@ let SlowSQL = {
 
       let sqlRow = document.createElement("tr");
 
-      this.appendColumn(sqlRow, "td", hitCount);
-      this.appendColumn(sqlRow, "td", averageTime.toFixed(0));
-      this.appendColumn(sqlRow, "td", sql);
+      this.appendColumn(sqlRow, "td", hitCount + "\t");
+      this.appendColumn(sqlRow, "td", averageTime.toFixed(0) + "\t");
+      this.appendColumn(sqlRow, "td", sql + "\n");
 
       aTable.appendChild(sqlRow);
     }
@@ -212,19 +214,65 @@ let SlowSQL = {
    */
   appendColumn: function SlowSQL_appendColumn(aRowElement, aColType, aColText) {
     let colElement = document.createElement(aColType);
-    let aColTextElement = document.createTextNode(aColText);
-    colElement.appendChild(aColTextElement);
+    let colTextElement = document.createTextNode(aColText);
+    colElement.appendChild(colTextElement);
     aRowElement.appendChild(colElement);
+  }
+};
+
+/**
+ * Removes child elements from the supplied div
+ *
+ * @param aDiv Element to be cleared
+ */
+function clearDivData(aDiv) {
+  while (aDiv.hasChildNodes()) {
+    aDiv.removeChild(aDiv.lastChild);
+  }
+};
+
+let StackRenderer = {
+
+  stackTitle: bundle.GetStringFromName("stackTitle"),
+
+  memoryMapTitle: bundle.GetStringFromName("memoryMapTitle"),
+
+  /**
+   * Outputs the memory map associated with this hang report
+   *
+   * @param aDiv Output div
+   */
+  renderMemoryMap: function StackRenderer_renderMemoryMap(aDiv, memoryMap) {
+    aDiv.appendChild(document.createTextNode(this.memoryMapTitle));
+    aDiv.appendChild(document.createElement("br"));
+
+    for (let currentModule of memoryMap) {
+      aDiv.appendChild(document.createTextNode(currentModule.join(" ")));
+      aDiv.appendChild(document.createElement("br"));
+    }
+
+    aDiv.appendChild(document.createElement("br"));
+  },
+
+  /**
+   * Outputs the raw PCs from the hang's stack
+   *
+   * @param aDiv Output div
+   * @param aStack Array of PCs from the hang stack
+   */
+  renderStack: function StackRenderer_renderStack(aDiv, aStack) {
+    aDiv.appendChild(document.createTextNode(this.stackTitle));
+    let stackText = " " + aStack.join(" ");
+    aDiv.appendChild(document.createTextNode(stackText));
+
+    aDiv.appendChild(document.createElement("br"));
+    aDiv.appendChild(document.createElement("br"));
   }
 };
 
 let ChromeHangs = {
 
   symbolRequest: null,
-
-  stackTitle: bundle.GetStringFromName("stackTitle"),
-
-  memoryMapTitle: bundle.GetStringFromName("memoryMapTitle"),
 
   errorMessage: bundle.GetStringFromName("errorFetchingSymbols"),
 
@@ -233,7 +281,7 @@ let ChromeHangs = {
    */
   render: function ChromeHangs_render() {
     let hangsDiv = document.getElementById("chrome-hangs-data");
-    this.clearHangData(hangsDiv);
+    clearDivData(hangsDiv);
     document.getElementById("fetch-symbols").classList.remove("hidden");
     document.getElementById("hide-symbols").classList.add("hidden");
 
@@ -244,13 +292,14 @@ let ChromeHangs = {
       return;
     }
 
-    this.renderMemoryMap(hangsDiv);
+    let memoryMap = hangs.memoryMap;
+    StackRenderer.renderMemoryMap(hangsDiv, memoryMap);
 
     let durations = hangs.durations;
     for (let i = 0; i < stacks.length; ++i) {
       let stack = stacks[i];
       this.renderHangHeader(hangsDiv, i + 1, durations[i]);
-      this.renderStack(hangsDiv, stack)
+      StackRenderer.renderStack(hangsDiv, stack)
     }
   },
 
@@ -270,40 +319,6 @@ let ChromeHangs = {
     titleElement.appendChild(document.createTextNode(titleText));
 
     aDiv.appendChild(titleElement);
-    aDiv.appendChild(document.createElement("br"));
-  },
-
-  /**
-   * Outputs the raw PCs from the hang's stack
-   *
-   * @param aDiv Output div
-   * @param aStack Array of PCs from the hang stack
-   */
-  renderStack: function ChromeHangs_renderStack(aDiv, aStack) {
-    aDiv.appendChild(document.createTextNode(this.stackTitle));
-    let stackText = " " + aStack.join(" ");
-    aDiv.appendChild(document.createTextNode(stackText));
-
-    aDiv.appendChild(document.createElement("br"));
-    aDiv.appendChild(document.createElement("br"));
-  },
-
-  /**
-   * Outputs the memory map associated with this hang report
-   *
-   * @param aDiv Output div
-   */
-  renderMemoryMap: function ChromeHangs_renderMemoryMap(aDiv) {
-    aDiv.appendChild(document.createTextNode(this.memoryMapTitle));
-    aDiv.appendChild(document.createElement("br"));
-
-    let hangs = Telemetry.chromeHangs;
-    let memoryMap = hangs.memoryMap;
-    for (let currentModule of memoryMap) {
-      aDiv.appendChild(document.createTextNode(currentModule.join(" ")));
-      aDiv.appendChild(document.createElement("br"));
-    }
-
     aDiv.appendChild(document.createElement("br"));
   },
 
@@ -343,7 +358,7 @@ let ChromeHangs = {
     document.getElementById("hide-symbols").classList.remove("hidden");
 
     let hangsDiv = document.getElementById("chrome-hangs-data");
-    this.clearHangData(hangsDiv);
+    clearDivData(hangsDiv);
 
     if (this.symbolRequest.status != 200) {
       hangsDiv.appendChild(document.createTextNode(this.errorMessage));
@@ -371,17 +386,6 @@ let ChromeHangs = {
         hangsDiv.appendChild(document.createElement("br"));
       }
       hangsDiv.appendChild(document.createElement("br"));
-    }
-  },
-
-  /**
-   * Removes child elements from the supplied div
-   *
-   * @param aDiv Element to be cleared
-   */
-  clearHangData: function ChromeHangs_clearHangData(aDiv) {
-    while (aDiv.hasChildNodes()) {
-      aDiv.removeChild(aDiv.lastChild);
     }
   }
 };
@@ -527,6 +531,7 @@ let KeyValueTable = {
 
   /**
    * Create the table header
+   * Tabs & newlines added to cells to make it easier to copy-paste.
    *
    * @param aTable Table element
    */
@@ -535,9 +540,9 @@ let KeyValueTable = {
     aTable.appendChild(headerRow);
 
     let keysColumn = document.createElement("th");
-    keysColumn.appendChild(document.createTextNode(this.keysHeader));
+    keysColumn.appendChild(document.createTextNode(this.keysHeader + "\t"));
     let valuesColumn = document.createElement("th");
-    valuesColumn.appendChild(document.createTextNode(this.valuesHeader));
+    valuesColumn.appendChild(document.createTextNode(this.valuesHeader + "\n"));
 
     headerRow.appendChild(keysColumn);
     headerRow.appendChild(valuesColumn);
@@ -545,6 +550,7 @@ let KeyValueTable = {
 
   /**
    * Create the table body
+   * Tabs & newlines added to cells to make it easier to copy-paste.
    *
    * @param aTable Table element
    * @param aMeasurements Key/value map
@@ -559,11 +565,11 @@ let KeyValueTable = {
       aTable.appendChild(newRow);
 
       let keyField = document.createElement("td");
-      keyField.appendChild(document.createTextNode(key));
+      keyField.appendChild(document.createTextNode(key + "\t"));
       newRow.appendChild(keyField);
 
       let valueField = document.createElement("td");
-      valueField.appendChild(document.createTextNode(value));
+      valueField.appendChild(document.createTextNode(value + "\n"));
       newRow.appendChild(valueField);
     }
   }
@@ -712,13 +718,17 @@ function onLoad() {
   }
 
   // Show addon histogram data
-  histograms = Telemetry.addonHistogramSnapshots;
-  if (Object.keys(histograms).length) {
-    let addonDiv = document.getElementById("addon-histograms");
+  let addonDiv = document.getElementById("addon-histograms");
+  let addonHistogramsRendered = false;
+  let addonData = Telemetry.addonHistogramSnapshots;
+  for (let [addon, histograms] of Iterator(addonData)) {
     for (let [name, hgram] of Iterator(histograms)) {
-      Histogram.render(addonDiv, "ADDON_" + name, hgram);
+      addonHistogramsRendered = true;
+      Histogram.render(addonDiv, addon + ": " + name, hgram);
     }
-  } else {
+  }
+
+  if (!addonHistogramsRendered) {
     showEmptySectionMessage("addon-histograms-section");
   }
 

@@ -1299,6 +1299,9 @@ nsRuleNode::nsRuleNode(nsPresContext* aContext, nsRuleNode* aParent,
     mNoneBits(0),
     mRefCnt(0)
 {
+  NS_ABORT_IF_FALSE(IsRoot() == !aRule,
+                    "non-root rule nodes must have a rule");
+
   mChildren.asVoid = nullptr;
   MOZ_COUNT_CTOR(nsRuleNode);
   NS_IF_ADDREF(mRule);
@@ -7139,7 +7142,12 @@ nsRuleNode::ComputeColumnData(void* aStartStruct,
     canStoreInRuleTree = false;
     column->mColumnRuleColorIsForeground = false;
     if (parent->mColumnRuleColorIsForeground) {
-      column->mColumnRuleColor = parentContext->GetStyleColor()->mColor;
+      if (parentContext) {
+        column->mColumnRuleColor = parentContext->GetStyleColor()->mColor;
+      } else {
+        nsStyleColor defaultColumnRuleColor(mPresContext);
+        column->mColumnRuleColor = defaultColumnRuleColor.mColor;
+      }
     } else {
       column->mColumnRuleColor = parent->mColumnRuleColor;
     }

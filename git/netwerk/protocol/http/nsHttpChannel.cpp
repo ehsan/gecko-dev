@@ -77,22 +77,6 @@ AccumulateCacheHitTelemetry(Telemetry::ID deviceHistogram,
     }
 }
 
-const char *
-GetCacheSessionNameForStoragePolicy(nsCacheStoragePolicy storagePolicy,
-                                    bool isPrivate)
-{
-    MOZ_ASSERT(!isPrivate || storagePolicy == nsICache::STORE_IN_MEMORY);
-
-    switch (storagePolicy) {
-    case nsICache::STORE_IN_MEMORY:
-        return isPrivate ? "HTTP-memory-only-PB" : "HTTP-memory-only";
-    case nsICache::STORE_OFFLINE:
-        return "HTTP-offline";
-    default:
-        return "HTTP";
-    }
-}
-
 // Computes and returns a SHA1 hash of the input buffer. The input buffer
 // must be a null-terminated string.
 nsresult
@@ -2480,6 +2464,18 @@ nsHttpChannel::OnOfflineCacheEntryAvailable(nsICacheEntryDescriptor *aEntry,
     return OpenNormalCacheEntry(usingSSL);
 }
 
+static void
+GetAppInfo(nsIChannel* aChannel, uint32_t* aAppId, bool* aIsInBrowser)
+{
+    nsCOMPtr<nsILoadContext> loadContext;
+    NS_QueryNotificationCallbacks(aChannel, loadContext);
+    *aAppId = NECKO_NO_APP_ID;
+    *aIsInBrowser = false;
+    if (loadContext) {
+        loadContext->GetAppId(aAppId);
+        loadContext->GetIsInBrowserElement(aIsInBrowser);
+    }
+}
 
 nsresult
 nsHttpChannel::OpenNormalCacheEntry(bool usingSSL)
@@ -2488,9 +2484,14 @@ nsHttpChannel::OpenNormalCacheEntry(bool usingSSL)
 
     nsresult rv;
 
+    uint32_t appId;
+    bool isInBrowser;
+    GetAppInfo(this, &appId, &isInBrowser);
+
     nsCacheStoragePolicy storagePolicy = DetermineStoragePolicy();
-    nsDependentCString clientID(
-        GetCacheSessionNameForStoragePolicy(storagePolicy, mPrivateBrowsing));
+    nsAutoCString clientID;
+    nsHttpHandler::GetCacheSessionNameForStoragePolicy(storagePolicy, mPrivateBrowsing,
+                                                       appId, isInBrowser, clientID);
 
     nsAutoCString cacheKey;
     GenerateCacheKey(mPostID, cacheKey);
@@ -3780,16 +3781,9 @@ nsHttpChannel::InstallCacheListener(uint32_t offset)
     NS_ASSERTION(mCacheEntry, "no cache entry");
     NS_ASSERTION(mListener, "no listener");
 
-    nsCacheStoragePolicy policy;
-    rv = mCacheEntry->GetStoragePolicy(&policy);
-    if (NS_FAILED(rv)) {
-        policy = nsICache::STORE_ON_DISK_AS_FILE;
-    }
-
     // If the content is compressible and the server has not compressed it,
     // mark the cache entry for compression.
     if ((mResponseHead->PeekHeader(nsHttp::Content_Encoding) == nullptr) && (
-         policy != nsICache::STORE_ON_DISK_AS_FILE) && (
          mResponseHead->ContentType().EqualsLiteral(TEXT_HTML) ||
          mResponseHead->ContentType().EqualsLiteral(TEXT_PLAIN) ||
          mResponseHead->ContentType().EqualsLiteral(TEXT_CSS) ||
@@ -3835,10 +3829,9 @@ nsHttpChannel::InstallCacheListener(uint32_t offset)
     nsCOMPtr<nsIEventTarget> cacheIOTarget;
     serv->GetCacheIOTarget(getter_AddRefs(cacheIOTarget));
 
-    if (policy == nsICache::STORE_ON_DISK_AS_FILE ||
-        !cacheIOTarget) {
-        LOG(("nsHttpChannel::InstallCacheListener sync tee %p rv=%x policy=%d "
-             "cacheIOTarget=%p", tee.get(), rv, policy, cacheIOTarget.get()));
+    if (!cacheIOTarget) {
+        LOG(("nsHttpChannel::InstallCacheListener sync tee %p rv=%x "
+             "cacheIOTarget=%p", tee.get(), rv, cacheIOTarget.get()));
         rv = tee->Init(mListener, out, nullptr);
     } else {
         LOG(("nsHttpChannel::InstallCacheListener async tee %p", tee.get()));
@@ -4455,10 +4448,8 @@ nsHttpChannel::BeginConnect()
     // Force-Reload should reset the persistent connection pool for this host
     if (mLoadFlags & LOAD_FRESH_CONNECTION) {
         // just the initial document resets the whole pool
-        if (mLoadFlags & LOAD_INITIAL_DOCUMENT_URI) {
+        if (mLoadFlags & LOAD_INITIAL_DOCUMENT_URI)
             gHttpHandler->ConnMgr()->ClosePersistentConnections();
-            gHttpHandler->ConnMgr()->ResetIPFamillyPreference(mConnectionInfo);
-        }
         // each sub resource gets a fresh connection
         mCaps &= ~(NS_HTTP_ALLOW_KEEPALIVE | NS_HTTP_ALLOW_PIPELINING);
     }
@@ -5029,25 +5020,6 @@ nsHttpChannel::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult st
         mListener->OnStopRequest(this, mListenerContext, status);
     }
 
-    if (mCacheEntry) {
-        bool asFile = false;
-        if (mInitedCacheEntry && !mCachedContentIsPartial &&
-            (NS_SUCCEEDED(mStatus) || contentComplete) &&
-            (mCacheAccess & nsICache::ACCESS_WRITE) &&
-            NS_SUCCEEDED(GetCacheAsFile(&asFile)) && asFile) {
-            // We can allow others access to the cache entry
-            // because we don't write to the cache anymore.
-            // CloseCacheEntry may not actually close the cache
-            // entry immediately because someone (such as XHR2
-            // blob response) may hold the token to the cache
-            // entry. So we mark the cache valid here.
-            // We also need to check the entry is stored as file
-            // because we write to the cache asynchronously when
-            // it isn't stored in the file and it isn't completely
-            // written to the disk yet.
-            mCacheEntry->MarkValid();
-        }
-    }
     CloseCacheEntry(!contentComplete);
 
     if (mOfflineCacheEntry)
@@ -5388,39 +5360,6 @@ nsHttpChannel::SetCacheKey(nsISupports *key)
         if (NS_FAILED(rv)) return rv;
     }
     return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHttpChannel::GetCacheAsFile(bool *value)
-{
-    NS_ENSURE_ARG_POINTER(value);
-    if (!mCacheEntry)
-        return NS_ERROR_NOT_AVAILABLE;
-    nsCacheStoragePolicy storagePolicy;
-    mCacheEntry->GetStoragePolicy(&storagePolicy);
-    *value = (storagePolicy == nsICache::STORE_ON_DISK_AS_FILE);
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHttpChannel::SetCacheAsFile(bool value)
-{
-    if (!mCacheEntry || mLoadFlags & INHIBIT_PERSISTENT_CACHING)
-        return NS_ERROR_NOT_AVAILABLE;
-    nsCacheStoragePolicy policy;
-    if (value)
-        policy = nsICache::STORE_ON_DISK_AS_FILE;
-    else
-        policy = nsICache::STORE_ANYWHERE;
-    return mCacheEntry->SetStoragePolicy(policy);
-}
-
-NS_IMETHODIMP
-nsHttpChannel::GetCacheFile(nsIFile **cacheFile)
-{
-    if (!mCacheEntry)
-        return NS_ERROR_NOT_AVAILABLE;
-    return mCacheEntry->GetFile(cacheFile);
 }
 
 //-----------------------------------------------------------------------------
@@ -5897,20 +5836,25 @@ nsHttpChannel::DoInvalidateCacheEntry(const nsCString &key)
     // The logic below deviates from the original logic in OpenCacheEntry on
     // one point by using only READ_ONLY access-policy. I think this is safe.
 
+    uint32_t appId;
+    bool isInBrowser;
+    GetAppInfo(this, &appId, &isInBrowser);
+
     // First, find session holding the cache-entry - use current storage-policy
     nsCacheStoragePolicy storagePolicy = DetermineStoragePolicy();
-    const char * clientID =
-        GetCacheSessionNameForStoragePolicy(storagePolicy, mPrivateBrowsing);
+    nsAutoCString clientID;
+    nsHttpHandler::GetCacheSessionNameForStoragePolicy(storagePolicy, mPrivateBrowsing,
+                                                       appId, isInBrowser, clientID);
 
     LOG(("DoInvalidateCacheEntry [channel=%p session=%s policy=%d key=%s]",
-         this, clientID, int(storagePolicy), key.get()));
+         this, clientID.get(), int(storagePolicy), key.get()));
 
     nsresult rv;
     nsCOMPtr<nsICacheService> serv =
         do_GetService(NS_CACHESERVICE_CONTRACTID, &rv);
     nsCOMPtr<nsICacheSession> session;
     if (NS_SUCCEEDED(rv)) {
-        rv = serv->CreateSession(clientID, storagePolicy,  
+        rv = serv->CreateSession(clientID.get(), storagePolicy,
                                  nsICache::STREAM_BASED,
                                  getter_AddRefs(session));
     }
@@ -5922,7 +5866,7 @@ nsHttpChannel::DoInvalidateCacheEntry(const nsCString &key)
     }
 
     LOG(("DoInvalidateCacheEntry [channel=%p session=%s policy=%d key=%s rv=%d]",
-         this, clientID, int(storagePolicy), key.get(), int(rv)));
+         this, clientID.get(), int(storagePolicy), key.get(), int(rv)));
 }
 
 nsCacheStoragePolicy

@@ -186,6 +186,12 @@ public:
           }
           break;
         }
+
+      case UPDATELOCALDESC:
+      case UPDATEREMOTEDESC:
+        /* No action necessary */
+        break;
+
       default:
         CSFLogDebugS(logTag, ": **** UNHANDLED CALL STATE : " << mStateStr);
         break;
@@ -225,17 +231,13 @@ PeerConnectionImpl::~PeerConnectionImpl()
   PeerConnectionCtx::GetInstance()->mPeerConnections.erase(mHandle);
   CloseInt(false);
 
-#if 0
-  // TODO(ekr@rtfm.com): figure out how to shut down PCCtx.
-  // bug 820011.
-
   // Since this and Initialize() occur on MainThread, they can't both be
   // running at once
-  // Might be more optimal to release off a timer (and XPCOM Shutdown)
-  // to avoid churn
-  if (PeerConnectionCtx::GetInstance()->mPeerConnections.empty())
-    Shutdown();
-#endif
+
+  // Right now, we delete PeerConnectionCtx at XPCOM shutdown only, but we
+  // probably want to shut it down more aggressively to save memory.  We
+  // could shut down here when there are no uses.  It might be more optimal
+  // to release off a timer (and XPCOM Shutdown) to avoid churn
 
   /* We should release mPCObserver on the main thread, but also prevent a double free.
   nsCOMPtr<nsIThread> mainThread;
@@ -502,6 +504,9 @@ PeerConnectionImpl::CreateDataChannel(const nsACString& aLabel,
 
   CSFLogDebugS(logTag, __FUNCTION__ << ": making DOMDataChannel");
 
+  // TODO -- need something like "mCall->addStream(stream_id, 0, DATA);" so
+  // the SDP can be generated correctly
+
   return NS_NewDOMDataChannel(dataChannel.forget(), mWindow, aRetval);
 #else
   return NS_OK;
@@ -563,7 +568,7 @@ PeerConnectionImpl::NotifyDataChannel(mozilla::DataChannel *aChannel)
    nsCOMPtr<nsIDOMDataChannel> domchannel;
    nsresult rv = NS_NewDOMDataChannel(aChannel, mWindow,
                                       getter_AddRefs(domchannel));
-  NS_ENSURE_SUCCESS(rv,);
+  NS_ENSURE_SUCCESS_VOID(rv);
 
   RUN_ON_THREAD(mThread,
                 WrapRunnableNM(NotifyDataChannel_m,
@@ -594,7 +599,7 @@ PeerConnectionImpl::ConvertConstraints(
 
   // Mandatory constraints.
   if (JS_GetProperty(aCx, &constraints, "mandatory", &mandatory)) {
-    if (JSVAL_IS_PRIMITIVE(mandatory) && mandatory.isObject() && !JSVAL_IS_NULL(mandatory)) {
+    if (mandatory.isObject()) {
       JSObject* opts = JSVAL_TO_OBJECT(mandatory);
       JS::AutoIdArray mandatoryOpts(aCx, JS_Enumerate(aCx, opts));
 
@@ -617,7 +622,7 @@ PeerConnectionImpl::ConvertConstraints(
 
   // Optional constraints.
   if (JS_GetProperty(aCx, &constraints, "optional", &optional)) {
-    if (JSVAL_IS_PRIMITIVE(optional) && optional.isObject() && !JSVAL_IS_NULL(optional)) {
+    if (optional.isObject()) {
       JSObject* opts = JSVAL_TO_OBJECT(optional);
       if (JS_IsArrayObject(aCx, opts)) {
         uint32_t length;
@@ -627,7 +632,7 @@ PeerConnectionImpl::ConvertConstraints(
         for (i = 0; i < length; i++) {
           jsval val;
           JS_GetElement(aCx, opts, i, &val);
-          if (JSVAL_IS_PRIMITIVE(val)) {
+          if (val.isObject()) {
             // Extract name & value and store.
             // FIXME: MediaConstraints does not support optional constraints?
           }
@@ -896,6 +901,8 @@ PeerConnectionImpl::CheckApiState(bool assert_ice_ready) const
 
   if (mReadyState == kClosed)
     return NS_ERROR_FAILURE;
+  if (!mMedia)
+    return NS_ERROR_FAILURE;
   return NS_OK;
 }
 
@@ -903,7 +910,7 @@ NS_IMETHODIMP
 PeerConnectionImpl::Close(bool aIsSynchronous)
 {
   CSFLogDebugS(logTag, __FUNCTION__);
-  PC_AUTO_ENTER_API_CALL(false);
+  PC_AUTO_ENTER_API_CALL_NO_CHECK();
 
   return CloseInt(aIsSynchronous);
 }
@@ -954,12 +961,6 @@ PeerConnectionImpl::ShutdownMedia(bool aIsSynchronous)
 }
 
 void
-PeerConnectionImpl::Shutdown()
-{
-  PeerConnectionCtx::Destroy();
-}
-
-void
 PeerConnectionImpl::onCallEvent(ccapi_call_event_e aCallEvent,
                                 CSF::CC_CallPtr aCall, CSF::CC_CallInfoPtr aInfo)
 {
@@ -978,11 +979,15 @@ PeerConnectionImpl::onCallEvent(ccapi_call_event_e aCallEvent,
 
   switch (event) {
     case SETLOCALDESC:
-      mLocalSDP = mLocalRequestedSDP;
+    case UPDATELOCALDESC:
+      mLocalSDP = aInfo->getSDP();
       break;
+
     case SETREMOTEDESC:
-      mRemoteSDP = mRemoteRequestedSDP;
+    case UPDATEREMOTEDESC:
+      mRemoteSDP = aInfo->getSDP();
       break;
+
     case CONNECTED:
       CSFLogDebugS(logTag, "Setting PeerConnnection state to kActive");
       ChangeReadyState(kActive);
@@ -1045,17 +1050,19 @@ PeerConnectionImpl::GetHandle()
 void
 PeerConnectionImpl::IceGatheringCompleted(NrIceCtx *aCtx)
 {
+  // Do an async call here to unwind the stack. refptr keeps the PC alive.
+  nsRefPtr<PeerConnectionImpl> pc(this);
   RUN_ON_THREAD(mThread,
-                WrapRunnable(this,
+                WrapRunnable(pc,
                              &PeerConnectionImpl::IceGatheringCompleted_m,
                              aCtx),
-                NS_DISPATCH_SYNC);
+                NS_DISPATCH_NORMAL);
 }
 
-void
+nsresult
 PeerConnectionImpl::IceGatheringCompleted_m(NrIceCtx *aCtx)
 {
-  PC_AUTO_ENTER_API_CALL_NO_CHECK();
+  PC_AUTO_ENTER_API_CALL(false);
   MOZ_ASSERT(aCtx);
 
   CSFLogDebugS(logTag, __FUNCTION__ << ": ctx: " << static_cast<void*>(aCtx));
@@ -1072,22 +1079,25 @@ PeerConnectionImpl::IceGatheringCompleted_m(NrIceCtx *aCtx)
                   NS_DISPATCH_NORMAL);
   }
 #endif
+  return NS_OK;
 }
 
 void
 PeerConnectionImpl::IceCompleted(NrIceCtx *aCtx)
 {
+  // Do an async call here to unwind the stack. refptr keeps the PC alive.
+  nsRefPtr<PeerConnectionImpl> pc(this);
   RUN_ON_THREAD(mThread,
-                WrapRunnable(this,
+                WrapRunnable(pc,
                              &PeerConnectionImpl::IceCompleted_m,
                              aCtx),
-                NS_DISPATCH_SYNC);
+                NS_DISPATCH_NORMAL);
 }
 
-void
+nsresult
 PeerConnectionImpl::IceCompleted_m(NrIceCtx *aCtx)
 {
-  PC_AUTO_ENTER_API_CALL_NO_CHECK();
+  PC_AUTO_ENTER_API_CALL(false);
   MOZ_ASSERT(aCtx);
 
   CSFLogDebugS(logTag, __FUNCTION__ << ": ctx: " << static_cast<void*>(aCtx));
@@ -1104,6 +1114,7 @@ PeerConnectionImpl::IceCompleted_m(NrIceCtx *aCtx)
                   NS_DISPATCH_NORMAL);
   }
 #endif
+  return NS_OK;
 }
 
 void
