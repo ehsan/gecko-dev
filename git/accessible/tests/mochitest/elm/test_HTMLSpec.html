@@ -733,29 +733,17 @@
         states: STATE_PROTECTED,
         extraStates: EXT_STATE_EDITABLE,
         actions: "activate",
-        children: [
-        {
-            role: ROLE_TEXT_LEAF
-          }
-        ]
+        children: [ ]
       };
       testElm("input_password", obj);
-      ok(getAccessible("input_password").firstChild.name != "44",
-         "text leaf for password shouldn't have its real value as its name!");
 
       obj = {
         role: ROLE_PASSWORD_TEXT,
         states: STATE_PROTECTED | STATE_READONLY,
         actions: "activate",
-        children: [
-        {
-            role: ROLE_TEXT_LEAF
-          }
-        ]
+        children: [ ]
       };
       testElm("input_password_readonly", obj);
-      ok(getAccessible("input_password_readonly").firstChild.name != "44",
-         "text leaf for password shouldn't have its real value as its name!");
 
       //////////////////////////////////////////////////////////////////////////
       // HTML:input@type="radio"

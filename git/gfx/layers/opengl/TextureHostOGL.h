@@ -269,7 +269,7 @@ public:
 
   void DetachSharedHandle();
 
-  virtual void SetCompositor(Compositor* aCompositor) MOZ_OVERRIDE;
+  void SetCompositor(CompositorOGL* aCompositor);
 
   gl::GLContext* gl() const;
 

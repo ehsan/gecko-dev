@@ -4,17 +4,18 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-SOURCES += [
-    'OmxPluginKitKat.cpp',
+XPIDL_SOURCES += [
+    'nsIXULAppInstall.idl',
 ]
 
-LIBRARY_NAME = 'omxpluginkk'
+XPIDL_MODULE = 'xulapp_setup'
 
-FORCE_SHARED_LIB = True
-
-LOCAL_INCLUDES += [
-    '../../../content/media/plugins',
-    '../include/ics',
-    '../include/ics/media/stagefright/openmax',
+EXTRA_COMPONENTS += [
+    'nsXULAppInstall.manifest',
 ]
 
+EXTRA_PP_COMPONENTS += [
+    'nsXULAppInstall.js',
+]
+
+DEFINES['BIN_SUFFIX'] = CONFIG['BIN_SUFFIX']
