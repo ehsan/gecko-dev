@@ -212,21 +212,15 @@ bool ReadConnectRequest(server_info_t* server_info,
            *(buffer.buffertail-1));
     return false;
   }
-  
-  printf(" parsing initial connect request, dump:\n%.*s\n", (int)buffer.present(), buffer.bufferhead);
 
   *result = 400;
 
   char* token;
   token = strtok(buffer.bufferhead, " ");
-  if (!token) {
-    printf(" no space found");
+  if (!token) 
     return true;
-  }
-  if (strcmp(token, "CONNECT")) {
-    printf(" not CONNECT request but %s", token);
+  if (strcmp(token, "CONNECT")) 
     return true;
-  }
 
   token = strtok(NULL, " ");
   void* c = PL_HashTableLookup(server_info->host_cert_table, token);
@@ -243,10 +237,8 @@ bool ReadConnectRequest(server_info_t* server_info,
     *clientauth = caNone;
 
   token = strtok(NULL, "/");
-  if (strcmp(token, "HTTP")) {  
-    printf(" not tailed with HTTP but with %s", token);
+  if (strcmp(token, "HTTP"))
     return true;
-  }
 
   *result = 200;
   return true;
@@ -500,7 +492,6 @@ void HandleConnection(void* data)
               // Store response to the oposite buffer
               if (response != 200)
               {
-                printf(" could not read the connect request, closing connection with %d", response);
                 client_done = true;
                 sprintf(buffers[s2].buffer, "HTTP/1.1 %d ERROR\r\nConnection: close\r\n\r\n", response);
                 buffers[s2].buffertail = buffers[s2].buffer + strlen(buffers[s2].buffer);

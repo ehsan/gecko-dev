@@ -44,8 +44,6 @@
 #include "nsMenuBaseX.h"
 #include "nsIMutationObserver.h"
 #include "nsHashtable.h"
-#include "nsHashKeys.h"
-#include "nsDataHashtable.h"
 #include "nsINativeMenuService.h"
 #include "nsAutoPtr.h"
 #include "nsString.h"
@@ -164,12 +162,7 @@ protected:
   PRUint32           mCurrentCommandID;    // unique command id (per menu-bar) to give to next item that asks
   nsIDocument*       mDocument;            // pointer to document
   GeckoNSMenu*       mNativeMenu;            // root menu, representing entire menu bar
-
-  // stores observers for content change notification
-  nsDataHashtable<nsPtrHashKey<nsIContent>, nsChangeObserver *> mContentToObserverTable;
-
-  // stores mapping of command IDs to menu objects
-  nsDataHashtable<nsUint32HashKey, nsMenuItemX *> mCommandToMenuObjectTable;
+  nsHashtable        mObserverTable;       // stores observers for content change notification
 };
 
 #endif // nsMenuBarX_h_

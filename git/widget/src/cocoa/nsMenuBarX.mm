@@ -104,8 +104,6 @@ nsMenuBarX::nsMenuBarX()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  mContentToObserverTable.Init();
-  mCommandToMenuObjectTable.Init();
   mNativeMenu = [[GeckoNSMenu alloc] initWithTitle:@"MainMenuBar"];
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
@@ -791,21 +789,20 @@ void nsMenuBarX::ParentChainChanged(nsIContent *aContent)
 // strong refs.
 void nsMenuBarX::RegisterForContentChanges(nsIContent *aContent, nsChangeObserver *aMenuObject)
 {
-  mContentToObserverTable.Put(aContent, aMenuObject);
+  nsVoidKey key(aContent);
+  mObserverTable.Put(&key, aMenuObject);
 }
 
 void nsMenuBarX::UnregisterForContentChanges(nsIContent *aContent)
 {
-  mContentToObserverTable.Remove(aContent);
+  nsVoidKey key(aContent);
+  mObserverTable.Remove(&key);
 }
 
 nsChangeObserver* nsMenuBarX::LookupContentChangeObserver(nsIContent* aContent)
 {
-  nsChangeObserver * result;
-  if (mContentToObserverTable.Get(aContent, &result))
-    return result;
-  else
-    return nsnull;
+  nsVoidKey key(aContent);
+  return reinterpret_cast<nsChangeObserver*>(mObserverTable.Get(&key));
 }
 
 // Given a menu item, creates a unique 4-character command ID and
@@ -820,7 +817,9 @@ PRUint32 nsMenuBarX::RegisterForCommand(nsMenuItemX* inMenuItem)
   // make id unique
   ++mCurrentCommandID;
 
-  mCommandToMenuObjectTable.Put(mCurrentCommandID, inMenuItem);
+  // put it in the table, set out param for client
+  nsPRUint32Key key(mCurrentCommandID);
+  mObserverTable.Put(&key, inMenuItem);
 
   return mCurrentCommandID;
 }
@@ -829,16 +828,14 @@ PRUint32 nsMenuBarX::RegisterForCommand(nsMenuItemX* inMenuItem)
 // and its associated menu item.
 void nsMenuBarX::UnregisterCommand(PRUint32 inCommandID)
 {
-  mCommandToMenuObjectTable.Remove(inCommandID);
+  nsPRUint32Key key(inCommandID);
+  mObserverTable.Remove(&key);
 }
 
 nsMenuItemX* nsMenuBarX::GetMenuItemForCommandID(PRUint32 inCommandID)
 {
-  nsMenuItemX * result;
-  if (mCommandToMenuObjectTable.Get(inCommandID, &result))
-    return result;
-  else
-    return nsnull;
+  nsPRUint32Key key(inCommandID);
+  return reinterpret_cast<nsMenuItemX*>(mObserverTable.Get(&key));
 }
 
 //

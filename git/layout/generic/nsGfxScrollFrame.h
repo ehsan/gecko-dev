@@ -206,10 +206,6 @@ public:
   nsRect GetScrolledRectInternal(const nsRect& aScrolledOverflowArea,
                                  const nsSize& aScrollPortSize) const;
 
-  PRUint32 GetScrollbarVisibility() const {
-    return (mHasVerticalScrollbar ? nsIScrollableFrame::VERTICAL : 0) |
-           (mHasHorizontalScrollbar ? nsIScrollableFrame::HORIZONTAL : 0);
-  }
   nsMargin GetActualScrollbarSizes() const;
   nsMargin GetDesiredScrollbarSizes(nsBoxLayoutState* aState);
   PRBool IsLTR() const;
@@ -379,9 +375,6 @@ public:
   }
   virtual nsGfxScrollFrameInner::ScrollbarStyles GetScrollbarStyles() const {
     return mInner.GetScrollbarStylesFromFrame();
-  }
-  virtual PRUint32 GetScrollbarVisibility() const {
-    return mInner.GetScrollbarVisibility();
   }
   virtual nsMargin GetActualScrollbarSizes() const {
     return mInner.GetActualScrollbarSizes();
@@ -604,9 +597,6 @@ public:
   }
   virtual nsGfxScrollFrameInner::ScrollbarStyles GetScrollbarStyles() const {
     return mInner.GetScrollbarStylesFromFrame();
-  }
-  virtual PRUint32 GetScrollbarVisibility() const {
-    return mInner.GetScrollbarVisibility();
   }
   virtual nsMargin GetActualScrollbarSizes() const {
     return mInner.GetActualScrollbarSizes();

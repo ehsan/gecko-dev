@@ -2656,16 +2656,16 @@ nsEventStateManager::DecideGestureEvent(nsGestureNotifyEvent* aEvent,
           displayPanFeedback = PR_FALSE;
         }
       } else { //Not a XUL box
-        PRUint32 scrollbarVisibility = scrollableFrame->GetScrollbarVisibility();
+        nsMargin scrollbarSizes = scrollableFrame->GetActualScrollbarSizes();
 
         //Check if we have visible scrollbars
-        if (scrollbarVisibility & nsIScrollableFrame::VERTICAL) {
+        if (scrollbarSizes.LeftRight()) {
           panDirection = nsGestureNotifyEvent::ePanVertical;
           displayPanFeedback = PR_TRUE;
           break;
         }
 
-        if (scrollbarVisibility & nsIScrollableFrame::HORIZONTAL) {
+        if (scrollbarSizes.TopBottom()) {
           panDirection = nsGestureNotifyEvent::ePanHorizontal;
           displayPanFeedback = PR_TRUE;
         }
