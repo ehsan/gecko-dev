@@ -217,6 +217,7 @@ typedef enum JSShellErrNum {
 #include "jsshell.msg"
 #undef MSG_DEF
     JSShellErr_Limit
+#undef MSGDEF
 } JSShellErrNum;
 
 static JSContext *
@@ -4567,7 +4568,7 @@ its_setter(JSContext *cx, JSObject *obj, jsid id, JSBool strict, jsval *vp)
     return JS_TRUE;
 }
 
-JSErrorFormatString jsShell_ErrorFormatString[JSShellErr_Limit] = {
+JSErrorFormatString jsShell_ErrorFormatString[JSErr_Limit] = {
 #define MSG_DEF(name, number, count, exception, format) \
     { format, count, JSEXN_ERR } ,
 #include "jsshell.msg"
@@ -4577,10 +4578,9 @@ JSErrorFormatString jsShell_ErrorFormatString[JSShellErr_Limit] = {
 static const JSErrorFormatString *
 my_GetErrorMessage(void *userRef, const char *locale, const uintN errorNumber)
 {
-    if (errorNumber == 0 || errorNumber >= JSShellErr_Limit)
-        return NULL;
-
-    return &jsShell_ErrorFormatString[errorNumber];
+    if ((errorNumber > 0) && (errorNumber < JSShellErr_Limit))
+        return &jsShell_ErrorFormatString[errorNumber];
+    return NULL;
 }
 
 static void
