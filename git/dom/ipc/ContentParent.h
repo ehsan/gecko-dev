@@ -222,6 +222,7 @@ private:
     virtual bool DeallocPTestShell(PTestShellParent* shell);
 
     virtual PAudioParent* AllocPAudio(const int32_t&,
+                                     const int32_t&,
                                      const int32_t&);
     virtual bool DeallocPAudio(PAudioParent*);
 

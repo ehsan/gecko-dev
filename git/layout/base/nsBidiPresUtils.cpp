@@ -872,10 +872,9 @@ nsBidiPresUtils::ResolveParagraph(nsBlockFrame* aBlockFrame,
       if (child) {
         parent = child->GetParent();
         if (parent && IsBidiSplittable(parent)) {
-          nsIFrame* prev = child->GetPrevSibling();
-          if (prev) {
-            SplitInlineAncestors(parent, prev);
-          }
+          // no need to null-check the result of GetPrevSibling, because
+          // SplitInlineAncestors accepts a null parameter
+          SplitInlineAncestors(parent, child->GetPrevSibling());
         }
       }
     }

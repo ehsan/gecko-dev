@@ -142,9 +142,10 @@ namespace {
   StaticRefPtr<BluetoothHfpManager> gBluetoothHfpManager;
   StaticRefPtr<BluetoothHfpManagerObserver> sHfpObserver;
   bool gInShutdown = false;
+  static nsCOMPtr<nsIThread> sHfpCommandThread;
   static bool sStopSendingRingFlag = true;
 
-  static int sRingInterval = 3000; //unit: ms
+  static int kRingInterval = 3000000;  //unit: us
 } // anonymous namespace
 
 NS_IMPL_ISUPPORTS1(BluetoothHfpManagerObserver, nsIObserver)
@@ -166,7 +167,7 @@ BluetoothHfpManagerObserver::Observe(nsISupports* aSubject,
   return NS_ERROR_UNEXPECTED;
 }
 
-class SendRingIndicatorTask : public Task
+class SendRingIndicatorTask : public nsRunnable
 {
 public:
   SendRingIndicatorTask()
@@ -174,27 +175,17 @@ public:
     MOZ_ASSERT(NS_IsMainThread());
   }
 
-  void Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_ASSERT(!NS_IsMainThread());
 
-    if (sStopSendingRingFlag) {
-      return;
+    while (!sStopSendingRingFlag) {
+      gBluetoothHfpManager->SendLine("RING");
+
+      usleep(kRingInterval);
     }
 
-    if (!gBluetoothHfpManager) {
-      NS_WARNING("BluetoothHfpManager no longer exists, cannot send ring!");
-      return;
-    }
-
-    gBluetoothHfpManager->SendLine("RING");
-
-    MessageLoop::current()->
-      PostDelayedTask(FROM_HERE,
-                      new SendRingIndicatorTask(),
-                      sRingInterval);
-
-    return;
+    return NS_OK;
   }
 };
 
@@ -228,9 +219,9 @@ CloseScoSocket()
 }
 
 BluetoothHfpManager::BluetoothHfpManager()
-  : mCurrentCallIndex(0)
+  : mCurrentVgs(-1)
+  , mCurrentCallIndex(0)
   , mCurrentCallState(nsIRadioInterfaceLayer::CALL_STATE_DISCONNECTED)
-  , mReceiveVgsFlag(false)
 {
   sCINDItems[CINDType::CALL].value = CallState::NO_CALL;
   sCINDItems[CINDType::CALLSETUP].value = CallSetupState::NO_CALLSETUP;
@@ -251,17 +242,12 @@ BluetoothHfpManager::Init()
     return false;
   }
 
-  float volume;
-  nsCOMPtr<nsIAudioManager> am = do_GetService("@mozilla.org/telephony/audiomanager;1");
-  if (!am) {
-    NS_WARNING("Failed to get AudioManager Service!");
-    return false;
+  if (!sHfpCommandThread) {
+    if (NS_FAILED(NS_NewThread(getter_AddRefs(sHfpCommandThread)))) {
+      NS_ERROR("Failed to new thread for sHfpCommandThread");
+      return false;
+    }
   }
-  am->GetMasterVolume(&volume);
-
-  // AG volume range: [0.0, 1.0]
-  // HS volume range: [0, 15]
-  mCurrentVgs = floor(volume * 15);
 
   return true;
 }
@@ -278,6 +264,15 @@ BluetoothHfpManager::Cleanup()
     NS_WARNING("Failed to stop listening RIL");
   }
   mListener = nullptr;
+
+  // Shut down the command thread if it still exists.
+  if (sHfpCommandThread) {
+    nsCOMPtr<nsIThread> thread;
+    sHfpCommandThread.swap(thread);
+    if (NS_FAILED(thread->Shutdown())) {
+      NS_WARNING("Failed to shut down the bluetooth hfpmanager command thread!");
+    }
+  }
 
   sHfpObserver->Shutdown();
   sHfpObserver = nullptr;
@@ -359,6 +354,10 @@ BluetoothHfpManager::HandleVolumeChanged(const nsAString& aData)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
+  if (GetConnectionStatus() != SocketConnectionStatus::SOCKET_CONNECTED) {
+    return NS_OK;
+  }
+
   // The string that we're interested in will be a JSON string that looks like:
   //  {"key":"volumeup", "value":1.0}
   //  {"key":"volumedown", "value":0.2}
@@ -412,16 +411,7 @@ BluetoothHfpManager::HandleVolumeChanged(const nsAString& aData)
   // AG volume range: [0.0, 1.0]
   // HS volume range: [0, 15]
   float volume = value.toNumber();
-  mCurrentVgs = floor(volume * 15);
-
-  if (mReceiveVgsFlag) {
-    mReceiveVgsFlag = false;
-    return NS_OK;
-  }
-
-  if (GetConnectionStatus() != SocketConnectionStatus::SOCKET_CONNECTED) {
-    return NS_OK;
-  }
+  mCurrentVgs = ceil(volume * 15);
 
   SendCommand("+VGS: ", mCurrentVgs);
 
@@ -468,34 +458,30 @@ BluetoothHfpManager::ReceiveSocketData(UnixSocketRawData* aMessage)
   } else if (!strncmp(msg, "AT+CHLD=", 8)) {
     SendLine("OK");
   } else if (!strncmp(msg, "AT+VGS=", 7)) {
-    mReceiveVgsFlag = true;
+    // HS volume range: [0, 15]
+    int newVgs = msg[7] - '0';
 
-    int length = strlen(msg) - 8;
-    nsAutoCString vgsString(nsDependentCSubstring(msg+7, length));
-
-    nsresult rv;
-    int newVgs = vgsString.ToInteger(&rv);
-    if (NS_FAILED(rv)) {
-      NS_WARNING("Failed to extract volume value from bluetooth headset!");
-    }
-
-    if (newVgs == mCurrentVgs) {
-      SendLine("OK");
-      return;
+    if (strlen(msg) > 8) {
+      newVgs *= 10;
+      newVgs += (msg[8] - '0');
     }
 
 #ifdef DEBUG
     NS_ASSERTION(newVgs >= 0 && newVgs <= 15, "Received invalid VGS value");
 #endif
 
-    // HS volume range: [0, 15]
-    // sound_manager volume range: [0, 10]
-    nsString data;
-    int volume;
+    // Currently, we send volume up/down commands to represent that
+    // volume has been changed by Bluetooth headset, and that will affect
+    // the main stream volume of our device. In the future, we may want to
+    // be able to set volume by stream.
     nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
-    volume = ceil((float)newVgs / 15.0 * 10.0);
-    data.AppendInt(volume);
-    os->NotifyObservers(nullptr, "bluetooth-volume-change", data.get());
+    if (newVgs > mCurrentVgs) {
+      os->NotifyObservers(nullptr, "bluetooth-volume-change", NS_LITERAL_STRING("up").get());
+    } else if (newVgs < mCurrentVgs) {
+      os->NotifyObservers(nullptr, "bluetooth-volume-change", NS_LITERAL_STRING("down").get());
+    }
+
+    mCurrentVgs = newVgs;
 
     SendLine("OK");
   } else if (!strncmp(msg, "AT+BLDN", 7)) {
@@ -714,8 +700,12 @@ BluetoothHfpManager::SetupCIND(int aCallIndex, int aCallState, bool aInitial)
 
       // Start sending RING indicator to HF
       sStopSendingRingFlag = false;
-      MessageLoop::current()->PostTask(FROM_HERE,
-                                       new SendRingIndicatorTask());
+      sendRingTask = new SendRingIndicatorTask();
+
+      if (NS_FAILED(sHfpCommandThread->Dispatch(sendRingTask, NS_DISPATCH_NORMAL))) {
+        NS_WARNING("Cannot dispatch ring task!");
+        return;
+      };
       break;
     case nsIRadioInterfaceLayer::CALL_STATE_DIALING:
       sCINDItems[CINDType::CALLSETUP].value = CallSetupState::OUTGOING;

@@ -5,18 +5,16 @@
 
 PYTHON=$1
 
-# Store the current working directory so we can change back into it after
-# preparing the Marionette virtualenv
-CWD=$(pwd)
-
 if [ -z "${PYTHON}" ]
 then
     echo "No python found"
     exit 1
 fi
 
-# Determine the absolute path of the Marionette home folder
-MARIONETTE_HOME=$(cd `dirname $BASH_SOURCE`; dirname `pwd`)
+# Determine the absolute path of our location.
+MARIONETTE_HOME=`dirname $0`
+cd $MARIONETTE_HOME
+MARIONETTE_HOME=`dirname $PWD`
 echo "Detected Marionette home in $MARIONETTE_HOME"
 
 # If a GECKO_OBJDIR environemnt variable exists, we will create the Python
@@ -33,24 +31,24 @@ fi
 if [ -d $VENV_DIR ]
 then
   echo "Using virtual environment in $VENV_DIR"
-  . $VENV_DIR/bin/activate
+  cd $VENV_DIR
+  . bin/activate
 else
   echo "Creating a virtual environment in $VENV_DIR"
   curl https://raw.github.com/pypa/virtualenv/develop/virtualenv.py | ${PYTHON} - $VENV_DIR
-  . $VENV_DIR/bin/activate
-
+  cd $VENV_DIR
+  . bin/activate
   # set up mozbase
-  git clone git://github.com/mozilla/mozbase.git $VENV_DIR/mozbase
-  python $VENV_DIR/mozbase/setup_development.py
+  git clone git://github.com/mozilla/mozbase.git
+  cd mozbase
+  python setup_development.py
 fi
 
-# Updating the marionette_client needs us to change into its package folder.
-# Otherwise the call to setup.py will hang
+# update the marionette_client
 cd $MARIONETTE_HOME
 python setup.py develop
-cd $CWD
+cd marionette
 
 # pop off the python parameter
 shift
-
-python $MARIONETTE_HOME/marionette/runtests.py $@
+python runtests.py $@

@@ -552,15 +552,25 @@ void MediaPipelineTransmit::ProcessAudioChunk(AudioSessionConduit *conduit,
 
   if (chunk.mBuffer) {
     switch(chunk.mBufferFormat) {
-      case AUDIO_FORMAT_FLOAT32:
+      case nsAudioStream::FORMAT_U8:
+      case nsAudioStream::FORMAT_FLOAT32:
         MOZ_MTLOG(PR_LOG_ERROR, "Can't process audio except in 16-bit PCM yet");
         MOZ_ASSERT(PR_FALSE);
         return;
         break;
-      case AUDIO_FORMAT_S16:
+      case nsAudioStream::FORMAT_S16:
         {
+          // Code based on nsAudioStream
           const short* buf = static_cast<const short *>(chunk.mBuffer->Data());
-          ConvertAudioSamplesWithScale(buf, samples, chunk.mDuration, chunk.mVolume);
+
+          int32_t volume = int32_t((1 << 16) * chunk.mVolume);
+          for (uint32_t i = 0; i < chunk.mDuration; ++i) {
+            int16_t s = buf[i];
+#if defined(IS_BIG_ENDIAN)
+            s = ((s & 0x00ff) << 8) | ((s & 0xff00) >> 8);
+#endif
+            samples[i] = short((int32_t(s) * volume) >> 16);
+          }
         }
         break;
       default:
@@ -699,7 +709,7 @@ NotifyPull(MediaStreamGraph* graph, StreamTime total) {
     AudioSegment segment;
     segment.Init(1);
     segment.AppendFrames(samples.forget(), samples_length,
-                         0, samples_length, AUDIO_FORMAT_S16);
+                         0, samples_length, nsAudioStream::FORMAT_S16);
 
     char buf[32];
     PR_snprintf(buf, 32, "%p", source);

@@ -481,7 +481,7 @@ nsStorageInputStream::Tell(int64_t *aResult)
     if (NS_FAILED(mStatus))
         return mStatus;
 
-    *aResult = mLogicalCursor;
+    LL_UI2L(*aResult, mLogicalCursor);
     return NS_OK;
 }
 

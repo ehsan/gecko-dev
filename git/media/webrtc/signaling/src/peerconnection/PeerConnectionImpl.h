@@ -95,7 +95,7 @@ Fake_AudioGenerator(nsDOMMediaStream* aStream) : mStream(aStream), mCount(0) {
     mozilla::AudioSegment segment;
     segment.Init(1);
     segment.AppendFrames(samples.forget(), 1600,
-      0, 1600, AUDIO_FORMAT_S16);
+      0, 1600, nsAudioStream::FORMAT_S16);
 
     gen->mStream->GetStream()->AsSourceStream()->AppendToTrack(1, &segment);
   }
@@ -396,12 +396,9 @@ public:
 
   nsPIDOMWindow* GetWindow() const { return mWindow; }
 
-  // Validate constraints and construct a MediaConstraints object
-  // from a JS::Value.
-  nsresult ConvertConstraints(
-    const JS::Value& aConstraints, MediaConstraints* aObj, JSContext* aCx);
-  NS_IMETHODIMP CreateOffer(MediaConstraints& aConstraints);
-  NS_IMETHODIMP CreateAnswer(MediaConstraints& aConstraints);
+  NS_IMETHODIMP CreateOffer(MediaConstraints& constraints);
+
+  NS_IMETHODIMP CreateAnswer(MediaConstraints& constraints);
 
 private:
   PeerConnectionImpl(const PeerConnectionImpl&rhs);

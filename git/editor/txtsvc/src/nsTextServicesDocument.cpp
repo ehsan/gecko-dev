@@ -1383,14 +1383,13 @@ nsTextServicesDocument::DeleteSelection()
 
       nsCOMPtr<nsIContent> curContent;
 
-      if (mIteratorStatus != nsTextServicesDocument::eIsDone) {
+      if (mIteratorStatus != nsTextServicesDocument::eIsDone &&
+          mIterator->GetCurrentNode()->IsContent()) {
         // The old iterator is still pointing to something valid,
         // so get its current node so we can restore it after we
         // create the new iterator!
 
-        curContent = mIterator->GetCurrentNode()
-                     ? mIterator->GetCurrentNode()->AsContent()
-                     : nullptr;
+        curContent = mIterator->GetCurrentNode()->AsContent();
       }
 
       // Create the new iterator.

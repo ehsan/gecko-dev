@@ -31,6 +31,7 @@
 #ifndef nsHtml5TreeBuilder_h__
 #define nsHtml5TreeBuilder_h__
 
+#include "prtypes.h"
 #include "nsIAtom.h"
 #include "nsHtml5AtomTable.h"
 #include "nsITimer.h"

@@ -170,9 +170,8 @@
 
 #include "nsIXPCScriptNotify.h"  // used to notify: ScriptEvaluated
 
-#include "nsIPrincipal.h"
-#include "nsJSPrincipals.h"
 #include "nsIScriptObjectPrincipal.h"
+#include "nsIPrincipal.h"
 #include "nsISecurityCheckedComponent.h"
 #include "xpcObjectHelper.h"
 #include "nsIThreadInternal.h"
@@ -266,6 +265,12 @@ extern const char XPC_CONSOLE_CONTRACTID[];
 extern const char XPC_SCRIPT_ERROR_CONTRACTID[];
 extern const char XPC_ID_CONTRACTID[];
 extern const char XPC_XPCONNECT_CONTRACTID[];
+
+typedef js::HashSet<JSCompartment *,
+                    js::DefaultHasher<JSCompartment *>,
+                    js::SystemAllocPolicy> XPCCompartmentSet;
+
+typedef XPCCompartmentSet::Range XPCCompartmentRange;
 
 /***************************************************************************/
 // Useful macros...
@@ -712,6 +717,9 @@ public:
     XPCWrappedNativeProtoMap* GetDetachedWrappedNativeProtoMap() const
         {return mDetachedWrappedNativeProtoMap;}
 
+    XPCCompartmentSet& GetCompartmentSet()
+        {return mCompartmentSet;}
+
     XPCLock* GetMapLock() const {return mMapLock;}
 
     JSBool OnJSContextNew(JSContext* cx);
@@ -949,6 +957,7 @@ private:
     XPCNativeScriptableSharedMap* mNativeScriptableSharedMap;
     XPCWrappedNativeProtoMap* mDyingWrappedNativeProtoMap;
     XPCWrappedNativeProtoMap* mDetachedWrappedNativeProtoMap;
+    XPCCompartmentSet        mCompartmentSet;
     XPCLock* mMapLock;
     PRThread* mThreadRunningGC;
     nsTArray<nsXPCWrappedJS*> mWrappedJSToReleaseArray;
@@ -1593,10 +1602,10 @@ class XPCWrappedNativeScope : public PRCList
 public:
 
     static XPCWrappedNativeScope*
-    GetNewOrUsed(JSContext *cx, JSObject* aGlobal);
+    GetNewOrUsed(XPCCallContext& ccx, JSObject* aGlobal, nsISupports* aNative = nullptr);
 
     XPCJSRuntime*
-    GetRuntime() const {return XPCJSRuntime::Get();}
+    GetRuntime() const {return mRuntime;}
 
     Native2WrappedNativeMap*
     GetWrappedNativeMap() const {return mWrappedNativeMap;}
@@ -1621,20 +1630,37 @@ public:
     JSObject*
     GetGlobalJSObjectPreserveColor() const {return mGlobalJSObject;}
 
+    JSObject*
+    GetPrototypeJSObject() const
+        {return xpc_UnmarkGrayObject(mPrototypeJSObject);}
+
+    JSObject*
+    GetPrototypeJSObjectPreserveColor() const {return mPrototypeJSObject;}
+
     // Getter for the prototype that we use for wrappers that have no
     // helper.
     JSObject*
     GetPrototypeNoHelper(XPCCallContext& ccx);
 
     nsIPrincipal*
-    GetPrincipal() const {
-        if (!mGlobalJSObject)
-            return nullptr;
-        JSCompartment *c = js::GetObjectCompartment(mGlobalJSObject);
-        return nsJSPrincipals::get(JS_GetCompartmentPrincipals(c));
-    }
+    GetPrincipal() const
+    {return mScriptObjectPrincipal ?
+         mScriptObjectPrincipal->GetPrincipal() : nullptr;}
 
     void RemoveWrappedNativeProtos();
+
+    static XPCWrappedNativeScope*
+    FindInJSObjectScope(JSContext* cx, JSObject* obj,
+                        JSBool OKIfNotInitialized = false,
+                        XPCJSRuntime* runtime = nullptr);
+
+    static XPCWrappedNativeScope*
+    FindInJSObjectScope(XPCCallContext& ccx, JSObject* obj,
+                        JSBool OKIfNotInitialized = false)
+    {
+        return FindInJSObjectScope(ccx, obj, OKIfNotInitialized,
+                                   ccx.GetRuntime());
+    }
 
     static void
     SystemIsBeingShutDown();
@@ -1646,6 +1672,10 @@ public:
         JSObject *obj = GetGlobalJSObjectPreserveColor();
         MOZ_ASSERT(obj);
         JS_CALL_OBJECT_TRACER(trc, obj, "XPCWrappedNativeScope::mGlobalJSObject");
+
+        JSObject *proto = GetPrototypeJSObjectPreserveColor();
+        if (proto)
+            JS_CALL_OBJECT_TRACER(trc, proto, "XPCWrappedNativeScope::mPrototypeJSObject");
     }
 
     static void
@@ -1689,7 +1719,7 @@ public:
     static JSBool
     IsDyingScope(XPCWrappedNativeScope *scope);
 
-    void SetGlobal(JSContext *cx, JSObject* aGlobal);
+    void SetGlobal(XPCCallContext& ccx, JSObject* aGlobal, nsISupports* aNative);
 
     static void InitStatics() { gScopes = nullptr; gDyingScopes = nullptr; }
 
@@ -1701,6 +1731,15 @@ public:
         return mCachedDOMPrototypes;
     }
 
+    static XPCWrappedNativeScope *GetNativeScope(JSObject *obj)
+    {
+        MOZ_ASSERT(js::GetObjectClass(obj)->flags & JSCLASS_XPCONNECT_GLOBAL);
+
+        const js::Value &v = js::GetObjectSlot(obj, JSCLASS_GLOBAL_SLOT_COUNT);
+        return v.isUndefined()
+               ? nullptr
+               : static_cast<XPCWrappedNativeScope *>(v.toPrivate());
+    }
     void TraceDOMPrototypes(JSTracer *trc);
 
     JSBool ExperimentalBindingsEnabled()
@@ -1708,25 +1747,8 @@ public:
         return mExperimentalBindingsEnabled;
     }
 
-    typedef nsTHashtable<nsPtrHashKey<JSObject> > DOMExpandoMap;
-
-    bool RegisterDOMExpandoObject(JSObject *expando) {
-        if (!mDOMExpandoMap) {
-            mDOMExpandoMap = new DOMExpandoMap();
-            mDOMExpandoMap->Init(8);
-        }
-        return mDOMExpandoMap->PutEntry(expando, mozilla::fallible_t());
-    }
-    void RemoveDOMExpandoObject(JSObject *expando) {
-        if (mDOMExpandoMap)
-            mDOMExpandoMap->RemoveEntry(expando);
-    }
-
-    XPCWrappedNativeScope(JSContext *cx, JSObject* aGlobal);
-
-    nsAutoPtr<JSObject2JSObjectMap> mWaiverWrapperMap;
-
 protected:
+    XPCWrappedNativeScope(XPCCallContext& ccx, JSObject* aGlobal, nsISupports* aNative);
     virtual ~XPCWrappedNativeScope();
 
     static void KillDyingScopes();
@@ -1749,13 +1771,21 @@ private:
     // constructor).
     js::ObjectPtr                    mGlobalJSObject;
 
+    // Cached value of Object.prototype
+    js::ObjectPtr                    mPrototypeJSObject;
     // Prototype to use for wrappers with no helper.
     JSObject*                        mPrototypeNoHelper;
 
     XPCContext*                      mContext;
 
+    // The script object principal instance corresponding to our current global
+    // JS object.
+    // XXXbz what happens if someone calls JS_SetPrivate on mGlobalJSObject.
+    // How do we deal?  Do we need to?  I suspect this isn't worth worrying
+    // about, since all of our scope objects are verified as not doing that.
+    nsIScriptObjectPrincipal* mScriptObjectPrincipal;
+
     nsDataHashtable<nsDepCharHashKey, JSObject*> mCachedDOMPrototypes;
-    nsAutoPtr<DOMExpandoMap> mDOMExpandoMap;
 
     JSBool mExperimentalBindingsEnabled;
 };
@@ -2838,8 +2868,8 @@ public:
         JSObject* wrapper = GetWrapperPreserveColor();
         if (wrapper)
             JS_CALL_OBJECT_TRACER(trc, wrapper, "XPCWrappedNative::mWrapper");
-        if (mFlatJSObject && mFlatJSObject != INVALID_OBJECT &&
-            JS_IsGlobalObject(mFlatJSObject))
+        if (mScriptableInfo &&
+            (mScriptableInfo->GetJSClass()->flags & JSCLASS_XPCONNECT_GLOBAL))
         {
             TraceXPCGlobal(trc, mFlatJSObject);
         }
@@ -4235,9 +4265,6 @@ struct SandboxOptions {
     JSObject* proto;
     nsCString sandboxName;
 };
-
-JSObject *
-CreateGlobalObject(JSContext *cx, JSClass *clasp, nsIPrincipal *principal);
 }
 
 // Helper for creating a sandbox object to use for evaluating
@@ -4276,6 +4303,14 @@ xpc_ForcePropertyResolve(JSContext* cx, JSObject* obj, jsid id);
 inline jsid
 GetRTIdByIndex(JSContext *cx, unsigned index);
 
+// Wrapper for JS_NewObject to mark the new object as system when parent is
+// also a system object. If uniqueType is specified then a new type object will
+// be created which is used only by the result, so that its property types
+// will be tracked precisely.
+inline JSObject*
+xpc_NewSystemInheritingJSObject(JSContext *cx, JSClass *clasp, JSObject *proto,
+                                bool uniqueType, JSObject *parent);
+
 nsISupports *
 XPC_GetIdentityObject(JSContext *cx, JSObject *obj);
 
@@ -4284,10 +4319,11 @@ namespace xpc {
 class CompartmentPrivate
 {
 public:
-    CompartmentPrivate()
-        : wantXrays(false)
+    typedef nsTHashtable<nsPtrHashKey<JSObject> > DOMExpandoMap;
+
+    CompartmentPrivate(bool wantXrays)
+        : wantXrays(wantXrays)
         , universalXPConnectEnabled(false)
-        , scope(nullptr)
     {
         MOZ_COUNT_CTOR(xpc::CompartmentPrivate);
     }
@@ -4302,9 +4338,20 @@ public:
     // the old scoping rules of enablePrivilege). Using it is inherently unsafe.
     bool universalXPConnectEnabled;
 
-    // Our XPCWrappedNativeScope. This is non-null if and only if this is an
-    // XPConnect compartment.
-    XPCWrappedNativeScope *scope;
+    nsAutoPtr<JSObject2JSObjectMap> waiverWrapperMap;
+    nsAutoPtr<DOMExpandoMap> domExpandoMap;
+
+    bool RegisterDOMExpandoObject(JSObject *expando) {
+        if (!domExpandoMap) {
+            domExpandoMap = new DOMExpandoMap();
+            domExpandoMap->Init(8);
+        }
+        return domExpandoMap->PutEntry(expando, mozilla::fallible_t());
+    }
+    void RemoveDOMExpandoObject(JSObject *expando) {
+        if (domExpandoMap)
+            domExpandoMap->RemoveEntry(expando);
+    }
 
     const nsACString& GetLocation() {
         if (locationURI) {
@@ -4333,9 +4380,6 @@ private:
     nsCString location;
     nsCOMPtr<nsIURI> locationURI;
 };
-
-CompartmentPrivate*
-EnsureCompartmentPrivate(JSObject *obj);
 
 inline CompartmentPrivate*
 GetCompartmentPrivate(JSCompartment *compartment)
@@ -4387,13 +4431,6 @@ inline bool EnableUniversalXPConnect(JSContext *cx)
                                  js::AllCompartments());
 }
 
-// This returns null if and only if it is called on an object in a non-XPConnect
-// compartment.
-inline XPCWrappedNativeScope*
-GetObjectScope(JSObject *obj)
-{
-    return EnsureCompartmentPrivate(obj)->scope;
-}
 }
 
 /***************************************************************************/

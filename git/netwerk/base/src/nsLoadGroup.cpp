@@ -18,7 +18,6 @@
 #include "nsString.h"
 #include "nsTArray.h"
 #include "mozilla/Telemetry.h"
-#include "mozilla/Util.h"
 
 using namespace mozilla;
 
@@ -133,7 +132,9 @@ nsLoadGroup::nsLoadGroup(nsISupports* outer)
 
 nsLoadGroup::~nsLoadGroup()
 {
-    DebugOnly<nsresult> rv = Cancel(NS_BINDING_ABORTED);
+    nsresult rv;
+
+    rv = Cancel(NS_BINDING_ABORTED);
     NS_ASSERTION(NS_SUCCEEDED(rv), "Cancel failed");
 
     if (mRequests.ops) {

@@ -312,24 +312,32 @@ XPCWrappedNative::WrapNewGlobal(XPCCallContext &ccx, xpcObjectHelper &nativeHelp
     MOZ_ASSERT(clasp->flags & JSCLASS_IS_GLOBAL);
 
     // Create the global.
-    JSObject *global = xpc::CreateGlobalObject(ccx, clasp, principal);
-    if (!global)
-        return NS_ERROR_FAILURE;
-    XPCWrappedNativeScope *scope = GetCompartmentPrivate(global)->scope;
+    JSObject *global;
+    JSCompartment *compartment;
+    nsresult rv = xpc::CreateGlobalObject(ccx, clasp, principal, false, &global,
+                                          &compartment);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     // Immediately enter the global's compartment, so that everything else we
     // create ends up there.
     JSAutoCompartment ac(ccx, global);
 
-    // If requested, initialize the standard classes on the global.
+    // If requested, immediately initialize the standard classes on the global.
+    // We need to do this before creating a scope, because
+    // XPCWrappedNativeScope::SetGlobal resolves |Object| via
+    // JS_ResolveStandardClass. JS_InitStandardClasses asserts if any of the
+    // standard classes are already initialized, so this is a problem.
     if (initStandardClasses && ! JS_InitStandardClasses(ccx, global))
         return NS_ERROR_FAILURE;
 
+    // Create a scope, but don't do any extra stuff like initializing |Components|.
+    // All of that stuff happens in the caller.
+    XPCWrappedNativeScope *scope = XPCWrappedNativeScope::GetNewOrUsed(ccx, global, identity);
+    MOZ_ASSERT(scope);
+
     // Make a proto.
     XPCWrappedNativeProto *proto =
-        XPCWrappedNativeProto::GetNewOrUsed(ccx,
-                                            scope,
-                                            nativeHelper.GetClassInfo(), &sciProto,
+        XPCWrappedNativeProto::GetNewOrUsed(ccx, scope, nativeHelper.GetClassInfo(), &sciProto,
                                             UNKNOWN_OFFSETS, /* callPostCreatePrototype = */ false);
     if (!proto)
         return NS_ERROR_FAILURE;
@@ -525,7 +533,8 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
         ac.construct(ccx, parent);
 
         if (parent != plannedParent) {
-            XPCWrappedNativeScope* betterScope = GetObjectScope(parent);
+            XPCWrappedNativeScope* betterScope =
+                XPCWrappedNativeScope::FindInJSObjectScope(ccx, parent);
             if (betterScope != Scope)
                 return GetNewOrUsed(ccx, helper, betterScope, Interface, resultWrapper);
 
@@ -1137,7 +1146,7 @@ XPCWrappedNative::Init(XPCCallContext& ccx, JSObject* parent,
         return false;
     }
 
-    mFlatJSObject = JS_NewObject(ccx, jsclazz, protoJSObject, parent);
+    mFlatJSObject = xpc_NewSystemInheritingJSObject(ccx, jsclazz, protoJSObject, false, parent);
     if (!mFlatJSObject)
         return false;
 
@@ -1787,8 +1796,11 @@ XPCWrappedNative::RescueOrphans(XPCCallContext& ccx)
     JSObject *parentGhost = js::GetObjectParent(mFlatJSObject);
     JSObject *realParent = js::UnwrapObject(parentGhost);
     nsRefPtr<XPCWrappedNative> ignored;
-    return ReparentWrapperIfFound(ccx, GetObjectScope(parentGhost),
-                                  GetObjectScope(realParent),
+    return ReparentWrapperIfFound(ccx,
+                                  XPCWrappedNativeScope::
+                                    FindInJSObjectScope(ccx, parentGhost),
+                                  XPCWrappedNativeScope::
+                                    FindInJSObjectScope(ccx, realParent),
                                   realParent, mIdentity, getter_AddRefs(ignored));
 }
 
@@ -2205,9 +2217,11 @@ XPCWrappedNative::InitTearOffJSObject(XPCCallContext& ccx,
 {
     // This is only called while locked (during XPCWrappedNative::FindTearOff).
 
-    JSObject* obj = JS_NewObject(ccx, Jsvalify(&XPC_WN_Tearoff_JSClass),
-                                 JS_GetObjectPrototype(ccx, mFlatJSObject),
-                                 mFlatJSObject);
+    JSObject* obj =
+        xpc_NewSystemInheritingJSObject(ccx, Jsvalify(&XPC_WN_Tearoff_JSClass),
+                                        GetScope()->GetPrototypeJSObject(),
+                                        false, mFlatJSObject);
+
     if (!obj)
         return false;
 
@@ -3812,7 +3826,8 @@ ConstructSlimWrapper(XPCCallContext &ccx,
     JSAutoCompartment ac(ccx, parent);
 
     if (parent != plannedParent) {
-        XPCWrappedNativeScope *newXpcScope = GetObjectScope(parent);
+        XPCWrappedNativeScope *newXpcScope =
+            XPCWrappedNativeScope::FindInJSObjectScope(ccx, parent);
         if (newXpcScope != xpcScope) {
             SLIM_LOG_NOT_CREATED(ccx, identityObj, "crossing origins");
 
@@ -3847,7 +3862,9 @@ ConstructSlimWrapper(XPCCallContext &ccx,
     if (!jsclazz)
         return false;
 
-    wrapper = JS_NewObject(ccx, jsclazz, xpcproto->GetJSProtoObject(), parent);
+    wrapper = xpc_NewSystemInheritingJSObject(ccx, jsclazz,
+                                              xpcproto->GetJSProtoObject(),
+                                              false, parent);
     if (!wrapper)
         return false;
 

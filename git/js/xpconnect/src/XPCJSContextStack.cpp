@@ -181,7 +181,12 @@ XPCJSContextStack::GetSafeJSContext()
 
         JS_SetErrorReporter(mSafeJSContext, mozJSLoaderErrorReporter);
 
-        glob = xpc::CreateGlobalObject(mSafeJSContext, &global_class, principal);
+        JSCompartment *compartment;
+        nsresult rv = xpc::CreateGlobalObject(mSafeJSContext, &global_class,
+                                              principal, false, &glob,
+                                              &compartment);
+        if (NS_FAILED(rv))
+            glob = nullptr;
 
         if (glob) {
             // Make sure the context is associated with a proper compartment

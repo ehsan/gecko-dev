@@ -156,7 +156,6 @@ public:
     static void ScheduleComposite();
     static void SchedulePauseComposition();
     static void ScheduleResumeComposition(int width, int height);
-    static float ComputeRenderIntegrity();
 
     virtual bool WidgetPaintsBackground();
 #endif

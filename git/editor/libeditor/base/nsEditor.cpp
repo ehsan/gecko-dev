@@ -314,8 +314,8 @@ nsEditor::PostCreate()
     NS_ENSURE_TRUE(ps, NS_ERROR_UNEXPECTED);
     nsPresContext* pc = ps->GetPresContext(); 
 
-    nsIMEStateManager::OnChangeFocus(pc, focusedContent,
-                                     InputContextAction::CAUSE_UNKNOWN);
+    nsIMEStateManager::OnTextStateBlur(pc, nullptr);
+    nsIMEStateManager::OnTextStateFocus(pc, focusedContent);
 
     nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(focusedContent);
     if (target) {

@@ -98,11 +98,6 @@ let SocialUI = {
     toggleCommand.setAttribute("label", label);
     toggleCommand.setAttribute("accesskey", accesskey);
 
-    let kbMenuitem = document.getElementById("menu_socialAmbientMenu");
-    kbMenuitem.hidden = !Social.enabled;
-    kbMenuitem.setAttribute("label", label);
-    kbMenuitem.setAttribute("accesskey", accesskey);
-
     SocialToolbar.init();
     SocialShareButton.init();
     SocialSidebar.init();
@@ -119,9 +114,9 @@ let SocialUI = {
   // This handles "ActivateSocialFeature" events fired against content documents
   // in this window.
   _activationEventHandler: function SocialUI_activationHandler(e) {
-    // Nothing to do if Social is already enabled, or we don't have a provider
+    // Nothing to do if Social is already active, or we don't have a provider
     // to enable yet.
-    if (Social.enabled || !Social.provider)
+    if (Social.active || !Social.provider)
       return;
 
     let targetDoc = e.target;
@@ -612,7 +607,7 @@ let SocialShareButton = {
       shareButton.setAttribute("tooltiptext", this.promptMessages['shareTooltip']);
       imageURL = this.promptImages["share"]
     }
-    shareButton.src = imageURL;
+    shareButton.style.backgroundImage = 'url("' + encodeURI(imageURL) + '")';
   }
 };
 
@@ -623,17 +618,14 @@ var SocialMenu = {
     let ambientMenuItems = submenu.getElementsByClassName("ambient-menuitem");
     for (let ambientMenuItem of ambientMenuItems)
       submenu.removeChild(ambientMenuItem);
-
-    let separator = document.getElementById("socialAmbientMenuSeparator");
-    separator.hidden = true;
     let provider = Social.provider;
     if (Social.active && provider) {
       let iconNames = Object.keys(provider.ambientNotificationIcons);
+      let separator = document.getElementById("socialAmbientMenuSeparator");
       for (let name of iconNames) {
         let icon = provider.ambientNotificationIcons[name];
         if (!icon.label || !icon.menuURL)
           continue;
-        separator.hidden = false;
         let menuitem = document.createElement("menuitem");
         menuitem.setAttribute("label", icon.label);
         menuitem.classList.add("ambient-menuitem");
@@ -642,7 +634,9 @@ var SocialMenu = {
         }, false);
         submenu.insertBefore(menuitem, separator);
       }
+      separator.hidden = !iconNames.length;
     }
+    document.getElementById("menu_socialAmbientMenu").hidden = !Social.enabled;
   }
 };
 

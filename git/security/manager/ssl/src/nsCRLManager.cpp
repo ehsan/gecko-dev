@@ -390,13 +390,15 @@ nsCRLManager::ComputeNextAutoUpdateTime(nsICRLInfo *info,
   int64_t secsInDay = 86400UL;
   int64_t temp;
   int64_t cycleCnt = 0;
+  int64_t secsInDayCnt;
   double tmpData = double(secsInDay);
   tmpData *= dayCnt;
-  microsecInDayCnt = int64_t(tmpData) * PR_USEC_PER_SEC;
-
+  LL_F2L(secsInDayCnt,tmpData);
+  microsecInDayCnt = secsInDayCnt * PR_USEC_PER_SEC;
+    
   PRTime lastUpdate;
   PRTime nextUpdate;
-
+  
   nsresult rv;
 
   rv = info->GetLastUpdate(&lastUpdate);

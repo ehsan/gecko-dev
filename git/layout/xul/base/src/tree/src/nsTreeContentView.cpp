@@ -176,7 +176,7 @@ bool
 nsTreeContentView::CanTrustTreeSelection(nsISupports* aValue)
 {
   // Untrusted content is only allowed to specify known-good views
-  if (nsContentUtils::IsCallerChrome())
+  if (nsContentUtils::IsCallerTrustedForWrite())
     return true;
   nsCOMPtr<nsINativeTreeSelection> nativeTreeSel = do_QueryInterface(aValue);
   return nativeTreeSel && NS_SUCCEEDED(nativeTreeSel->EnsureNative());

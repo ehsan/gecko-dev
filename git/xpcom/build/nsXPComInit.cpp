@@ -96,7 +96,6 @@ extern nsresult nsStringInputStreamConstructor(nsISupports *, REFNSIID, void **)
 
 #include "nsSystemInfo.h"
 #include "nsMemoryReporterManager.h"
-#include "nsMessageLoop.h"
 
 #include <locale.h>
 #include "mozilla/Services.h"

@@ -1533,6 +1533,13 @@ nsContentUtils::Shutdown()
   nsTextEditorState::ShutDown();
 }
 
+// static
+bool
+nsContentUtils::CallerHasUniversalXPConnect()
+{
+  return IsCallerChrome();
+}
+
 /**
  * Checks whether two nodes come from the same origin. aTrustedNode is
  * considered 'safe' in that a user can operate on it and that it isn't
@@ -1606,8 +1613,8 @@ nsContentUtils::CanCallerAccess(nsIPrincipal* aSubjectPrincipal,
   }
 
   // The subject doesn't subsume aPrincipal. Allow access only if the subject
-  // is chrome.
-  return IsCallerChrome();
+  // has UniversalXPConnect.
+  return CallerHasUniversalXPConnect();
 }
 
 // static
@@ -1777,6 +1784,18 @@ nsContentUtils::IsCallerChrome()
 
   // If the check failed, look for UniversalXPConnect on the cx compartment.
   return xpc::IsUniversalXPConnectEnabled(GetCurrentJSContext());
+}
+
+bool
+nsContentUtils::IsCallerTrustedForRead()
+{
+  return CallerHasUniversalXPConnect();
+}
+
+bool
+nsContentUtils::IsCallerTrustedForWrite()
+{
+  return CallerHasUniversalXPConnect();
 }
 
 bool
@@ -6908,7 +6927,8 @@ nsContentUtils::ReleaseWrapper(void* aScriptObjectHolder,
     // from both here.
     JSObject* obj = aCache->GetWrapperPreserveColor();
     if (aCache->IsDOMBinding() && obj) {
-      xpc::GetObjectScope(obj)->RemoveDOMExpandoObject(obj);
+      xpc::CompartmentPrivate *priv = xpc::GetCompartmentPrivate(obj);
+      priv->RemoveDOMExpandoObject(obj);
     }
     DropJSObjects(aScriptObjectHolder);
 

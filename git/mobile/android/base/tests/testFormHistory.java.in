@@ -33,8 +33,9 @@ public class testFormHistory extends BaseTest {
         ContentValues[] cvs = new ContentValues[1];
         cvs[0] = new ContentValues();
   
-	blockForGeckoReady();
-
+        Actions.EventExpecter contentEventExpecter = mActions.expectGeckoEvent("Gecko:Ready");
+        contentEventExpecter.blockForEvent();
+  
         Uri formHistoryUri;
         Uri insertUri;
         Uri expectedUri;

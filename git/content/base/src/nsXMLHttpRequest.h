@@ -11,7 +11,6 @@
 #include "nsString.h"
 #include "nsIURI.h"
 #include "nsIHttpChannel.h"
-#include "nsIJARChannel.h"
 #include "nsIDocument.h"
 #include "nsIStreamListener.h"
 #include "nsWeakReference.h"
@@ -515,7 +514,6 @@ protected:
   nsIURI *GetBaseURI();
 
   already_AddRefed<nsIHttpChannel> GetCurrentHttpChannel();
-  already_AddRefed<nsIJARChannel> GetCurrentJARChannel();
 
   bool IsSystemXHR();
 

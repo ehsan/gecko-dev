@@ -2456,7 +2456,7 @@ nsWebBrowserPersist::CalcTotalProgress()
     }
 
     // XXX this code seems pretty bogus and pointless
-    if (mTotalCurrentProgress == 0 && mTotalMaxProgress == 0)
+    if (mTotalCurrentProgress == LL_ZERO && mTotalMaxProgress == LL_ZERO)
     {
         // No output streams so we must be complete
         mTotalCurrentProgress = 10000;

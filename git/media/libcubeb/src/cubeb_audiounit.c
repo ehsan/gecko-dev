@@ -222,14 +222,19 @@ cubeb_stream_init(cubeb * context, cubeb_stream ** stream, char const * stream_n
 void
 cubeb_stream_destroy(cubeb_stream * stm)
 {
-  int r;
+  OSStatus r;
 
   stm->shutdown = 1;
 
   if (stm->unit) {
-    AudioOutputUnitStop(stm->unit);
-    AudioUnitUninitialize(stm->unit);
-    CloseComponent(stm->unit);
+    r = AudioOutputUnitStop(stm->unit);
+    assert(r == 0);
+
+    r = AudioUnitUninitialize(stm->unit);
+    assert(r == 0);
+
+    r = CloseComponent(stm->unit);
+    assert(r == 0);
   }
 
   r = pthread_mutex_destroy(&stm->mutex);

@@ -53,7 +53,6 @@ private:
   int mCurrentVgs;
   int mCurrentCallIndex;
   int mCurrentCallState;
-  bool mReceiveVgsFlag;
   nsAutoPtr<BluetoothRilListener> mListener;
 };
 

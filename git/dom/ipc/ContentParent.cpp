@@ -1228,9 +1228,7 @@ ContentParent::GetOrCreateActorForBlob(nsIDOMBlob* aBlob)
         static_cast<PBlobParent*>(remoteBlob->GetPBlob()));
     NS_ASSERTION(actor, "Null actor?!");
 
-    if (static_cast<ContentParent*>(actor->Manager()) == this) {
-      return actor;
-    }
+    return actor;
   }
 
   // XXX This is only safe so long as all blob implementations in our tree
@@ -1438,10 +1436,11 @@ ContentParent::DeallocPTestShell(PTestShellParent* shell)
  
 PAudioParent*
 ContentParent::AllocPAudio(const int32_t& numChannels,
-                           const int32_t& rate)
+                           const int32_t& rate,
+                           const int32_t& format)
 {
 #if defined(MOZ_SYDNEYAUDIO)
-    AudioParent *parent = new AudioParent(numChannels, rate);
+    AudioParent *parent = new AudioParent(numChannels, rate, format);
     NS_ADDREF(parent);
     return parent;
 #else

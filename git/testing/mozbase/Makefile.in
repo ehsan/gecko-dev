@@ -26,7 +26,6 @@ MOZBASE_PACKAGES = \
   mozprocess \
   mozprofile \
   mozrunner \
-  mozdevice \
   $(NULL)
 
 MOZBASE_EXTRAS = \

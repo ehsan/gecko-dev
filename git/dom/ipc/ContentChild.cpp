@@ -655,7 +655,8 @@ ContentChild::RecvPTestShellConstructor(PTestShellChild* actor)
 
 PAudioChild*
 ContentChild::AllocPAudio(const int32_t& numChannels,
-                          const int32_t& rate)
+                          const int32_t& rate,
+                          const int32_t& format)
 {
 #if defined(MOZ_SYDNEYAUDIO)
     AudioChild *child = new AudioChild();

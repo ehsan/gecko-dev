@@ -60,7 +60,8 @@ SpdySession3::SpdySession3(nsAHttpTransaction *aHttpTransaction,
     mOutputQueueSent(0),
     mLastReadEpoch(PR_IntervalNow()),
     mPingSentEpoch(0),
-    mNextPingID(1)
+    mNextPingID(1),
+    mPingThresholdExperiment(false)
 {
   NS_ABORT_IF_FALSE(PR_GetCurrentThread() == gSocketThread, "wrong thread");
 
@@ -81,7 +82,40 @@ SpdySession3::SpdySession3(nsAHttpTransaction *aHttpTransaction,
     AddStream(aHttpTransaction, firstPriority);
   mLastDataReadEpoch = mLastReadEpoch;
   
+  DeterminePingThreshold();
+}
+
+void
+SpdySession3::DeterminePingThreshold()
+{
   mPingThreshold = gHttpHandler->SpdyPingThreshold();
+
+  if (!mPingThreshold || !gHttpHandler->AllowExperiments())
+    return;
+
+  uint32_t randomVal = gHttpHandler->Get32BitsOfPseudoRandom();
+  
+  // Use the lower 10 bits to select 1 in 1024 sessions for the
+  // ping threshold experiment. Somewhat less than that will actually be
+  // used because random values greater than the total http idle timeout
+  // for the session are discarded.
+  if ((randomVal & 0x3ff) != 1)  // lottery
+    return;
+  
+  randomVal = randomVal >> 10; // those bits are used up
+
+  // This session has been selected - use a random ping threshold of 10 +
+  // a random number from 0 to 255, based on the next 8 bits of the
+  // random buffer
+  PRIntervalTime randomThreshold =
+    PR_SecondsToInterval((randomVal & 0xff) + 10);
+  if (randomThreshold > gHttpHandler->IdleTimeout())
+    return;
+  
+  mPingThreshold = randomThreshold;
+  mPingThresholdExperiment = true;
+  LOG3(("SpdySession3 %p Ping Threshold Experimental Selection : %dsec\n",
+        this, PR_IntervalToSeconds(mPingThreshold)));
 }
 
 PLDHashOperator
@@ -208,7 +242,7 @@ SpdySession3::ReadTimeoutTick(PRIntervalTime now)
     if ((now - mLastReadEpoch) < mPingThreshold) {
       // recent activity means ping is not an issue
       if (mPingSentEpoch)
-        mPingSentEpoch = 0;
+        ClearPing(true);
       return;
     }
 
@@ -217,7 +251,7 @@ SpdySession3::ReadTimeoutTick(PRIntervalTime now)
       if ((now - mPingSentEpoch) >= gHttpHandler->SpdyPingTimeout()) {
         LOG(("SpdySession3::ReadTimeoutTick %p Ping Timer Exhaustion\n",
              this));
-        mPingSentEpoch = 0;
+        ClearPing(false);
         Close(NS_ERROR_NET_TIMEOUT);
       }
       return;
@@ -244,6 +278,27 @@ SpdySession3::ReadTimeoutTick(PRIntervalTime now)
            "ping ids exhausted marking goaway\n", this));
       mShouldGoAway = true;
     }
+}
+
+void
+SpdySession3::ClearPing(bool pingOK)
+{
+  mPingSentEpoch = 0;
+
+  if (mPingThresholdExperiment) {
+    LOG3(("SpdySession3::ClearPing %p mPingThresholdExperiment %dsec %s\n",
+          this, PR_IntervalToSeconds(mPingThreshold),
+          pingOK ? "pass" :"fail"));
+
+    if (pingOK)
+      Telemetry::Accumulate(Telemetry::SPDY_PING_EXPERIMENT_PASS,
+                            PR_IntervalToSeconds(mPingThreshold));
+    else
+      Telemetry::Accumulate(Telemetry::SPDY_PING_EXPERIMENT_FAIL,
+                            PR_IntervalToSeconds(mPingThreshold));
+    mPingThreshold = gHttpHandler->SpdyPingThreshold();
+    mPingThresholdExperiment = false;
+  }
 }
 
 uint32_t
@@ -1161,7 +1216,7 @@ SpdySession3::HandlePing(SpdySession3 *self)
 
   if (pingID & 0x01) {
     // presumably a reply to our timeout ping
-    self->mPingSentEpoch = 0;
+    self->ClearPing(true);
   }
   else {
     // Servers initiate even numbered pings, go ahead and echo it back
