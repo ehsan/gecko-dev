@@ -176,7 +176,6 @@ EXPORTS		= \
 		jsscript.h \
 		jsstddef.h \
 		jsstr.h \
-		jstracer.h \
 		jstracerinlines.h \
 		jstypes.h \
 		jsutil.h \
