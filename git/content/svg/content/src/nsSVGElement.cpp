@@ -1250,8 +1250,9 @@ nsSVGElement::UpdateAnimatedContentStyleRule()
 
   MappedAttrParser mappedAttrParser(doc->CSSLoader(), doc->GetDocumentURI(),
                                     GetBaseURI(), NodePrincipal());
-  doc->PropertyTable(SMIL_MAPPED_ATTR_ANIMVAL)->
-    Enumerate(this, ParseMappedAttrAnimValueCallback, &mappedAttrParser);
+  doc->PropertyTable()->Enumerate(this, SMIL_MAPPED_ATTR_ANIMVAL,
+                                  ParseMappedAttrAnimValueCallback,
+                                  &mappedAttrParser);
  
   nsRefPtr<nsICSSStyleRule>
     animContentStyleRule(mappedAttrParser.CreateStyleRule());

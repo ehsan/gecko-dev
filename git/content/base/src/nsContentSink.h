@@ -306,6 +306,7 @@ protected:
   nsCOMPtr<nsIDocument>         mDocument;
   nsCOMPtr<nsIParser>           mParser;
   nsCOMPtr<nsIURI>              mDocumentURI;
+  nsCOMPtr<nsIURI>              mDocumentBaseURI;
   nsCOMPtr<nsIDocShell>         mDocShell;
   nsRefPtr<mozilla::css::Loader> mCSSLoader;
   nsRefPtr<nsNodeInfoManager>   mNodeInfoManager;

@@ -4101,9 +4101,7 @@ PresShell::ScrollFrameRectIntoView(nsIFrame*     aFrame,
       ScrollToShowRect(sf, rect - sf->GetScrolledFrame()->GetPosition(),
                        aVPercent, aHPercent, aFlags);
       nsPoint newPosition = sf->GetScrollPosition();
-      // If the scroll position increased, that means our content moved up,
-      // so our rect's offset should decrease
-      rect += oldPosition - newPosition;
+      rect += newPosition - oldPosition;
 
       if (oldPosition != newPosition) {
         didScroll = PR_TRUE;
@@ -4131,9 +4129,7 @@ PresShell::ScrollFrameRectIntoView(nsIFrame*     aFrame,
       rect.IntersectRect(rect, sf->GetScrollPortRect());
     }
     rect += container->GetPosition();
-    nsPoint extraOffset(0,0);
-    container = nsLayoutUtils::GetCrossDocParentFrame(container, &extraOffset);
-    rect += extraOffset;
+    container = container->GetParent();
   } while (container);
 
   return didScroll;
@@ -5659,11 +5655,8 @@ PresShell::Paint(nsIView*        aDisplayRoot,
           nsPoint offsetToRoot = aViewToPaint->GetOffsetTo(aDisplayRoot);
           nsRegion dirtyRegion = aDirtyRegion;
           dirtyRegion.MoveBy(offsetToRoot);
-
-          nsPoint translate = -offsetToRoot + aViewToPaint->ViewToWidgetOffset();
           nsIRenderingContext::AutoPushTranslation
-            push(rc, translate.x, translate.y);
-
+            push(rc, -offsetToRoot.x, -offsetToRoot.y);
           nsLayoutUtils::PaintFrame(rc, frame, dirtyRegion, bgcolor);
         }
       } else {
@@ -5930,15 +5923,6 @@ PresShell::HandleEvent(nsIView         *aView,
     return NS_OK;
   }
 
-  if (aEvent->message == NS_UISTATECHANGED && mDocument) {
-    nsPIDOMWindow* win = mDocument->GetWindow();
-    if (win) {
-      nsUIStateChangeEvent* event = (nsUIStateChangeEvent*)aEvent;
-      win->SetKeyboardIndicators(event->showAccelerators, event->showFocusRings);
-    }
-    return NS_OK;
-  }
-
   // Check for a system color change up front, since the frame type is
   // irrelevant
   if ((aEvent->message == NS_SYSCOLORCHANGED) && mPresContext) {
@@ -6170,6 +6154,7 @@ PresShell::HandleEvent(nsIView         *aView,
       if (!mCurrentEventContent || !GetCurrentEventFrame())
         mCurrentEventContent = mDocument->GetRootContent();
       mCurrentEventFrame = nsnull;
+
         
       if (!mCurrentEventContent || !GetCurrentEventFrame() ||
           InZombieDocument(mCurrentEventContent)) {
@@ -6415,11 +6400,6 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
 
     // 2. Give event to the DOM for third party and JS use.
     if (GetCurrentEventFrame() && NS_SUCCEEDED(rv)) {
-      PRBool wasHandlingKeyBoardEvent =
-        nsContentUtils::IsHandlingKeyBoardEvent();
-      if (aEvent->eventStructType == NS_KEY_EVENT) {
-        nsContentUtils::SetIsHandlingKeyBoardEvent(PR_TRUE);
-      }
       // We want synthesized mouse moves to cause mouseover and mouseout
       // DOM events (PreHandleEvent above), but not mousemove DOM events.
       // Synthesized button up events also do not cause DOM events
@@ -6443,8 +6423,6 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
           }
         }
       }
-
-      nsContentUtils::SetIsHandlingKeyBoardEvent(wasHandlingKeyBoardEvent);
 
       // 3. Give event to event manager for post event state changes and
       //    generation of synthetic events.

@@ -585,13 +585,13 @@ _cairo_d2d_create_strokestyle_for_stroke_style(const cairo_stroke_style_t *style
     return strokeStyle;
 }
 
-cairo_user_data_key_t bitmap_key_nonextend;
-cairo_user_data_key_t bitmap_key_extend;
-cairo_user_data_key_t bitmap_key_snapshot;
+cairo_user_data_key_t bitmap_key;
 
 struct cached_bitmap {
     /** The cached bitmap */
     RefPtr<ID2D1Bitmap> bitmap;
+    /** The cached bitmap was created with a transparent rectangle around it */
+    bool isNoneExtended;
     /** The cached bitmap is dirty and needs its data refreshed */
     bool dirty;
     /** Order of snapshot detach/release bitmap called not guaranteed, single threaded refcount for now */
@@ -616,7 +616,7 @@ static void _d2d_release_bitmap(void *bitmap)
  */
 static void _d2d_snapshot_detached(cairo_surface_t *surface)
 {
-    cached_bitmap *existingBitmap = (cached_bitmap*)cairo_surface_get_user_data(surface, &bitmap_key_snapshot);
+    cached_bitmap *existingBitmap = (cached_bitmap*)cairo_surface_get_user_data(surface, &bitmap_key);
     if (existingBitmap) {
 	existingBitmap->dirty = true;
     }
@@ -760,12 +760,10 @@ _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf,
 	cairo_surface_pattern_t *surfacePattern =
 	    (cairo_surface_pattern_t*)pattern;
 	D2D1_EXTEND_MODE extendMode;
-
-	cairo_user_data_key_t *key = &bitmap_key_extend;
-
+	bool nonExtended = false;
 	if (pattern->extend == CAIRO_EXTEND_NONE) {
 	    extendMode = D2D1_EXTEND_MODE_CLAMP;
-	    key = &bitmap_key_nonextend;
+	    nonExtended = true;
 	    /** 
 	     * For image surfaces we create a slightly larger bitmap with
 	     * a transparent border around it for this case. Need to translate
@@ -864,20 +862,19 @@ _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf,
 	    }
 
 	    cached_bitmap *cachebitmap = NULL;
-
 	    if (!tiled) {
 		cachebitmap = 
 		    (cached_bitmap*)cairo_surface_get_user_data(
 		    surfacePattern->surface,
-		    key);
+		    &bitmap_key);
 	    }
 
-	    if (cachebitmap) {
+	    if (cachebitmap && cachebitmap->isNoneExtended == nonExtended) {
 		sourceBitmap = cachebitmap->bitmap;
 		if (cachebitmap->dirty) {
 		    D2D1_RECT_U rect;
 		    /** No need to take tiling into account - tiled surfaces are never cached. */
-		    if (pattern->extend == CAIRO_EXTEND_NONE) {
+		    if (nonExtended) {
 			rect = D2D1::RectU(1, 1, srcSurf->width + 1, srcSurf->height + 1);
 		    } else {
 			rect = D2D1::RectU(0, 0, srcSurf->width, srcSurf->height);
@@ -890,7 +887,7 @@ _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf,
 		    cachebitmap->refs++;
 		    cachebitmap->dirty = false;
 		    cairo_surface_set_user_data(nullSurf,
-						&bitmap_key_snapshot,
+						&bitmap_key,
 						cachebitmap,
 						NULL);
 		    _cairo_surface_attach_snapshot(surfacePattern->surface,
@@ -899,6 +896,7 @@ _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf,
 		}
 	    } else {
 		cached_bitmap *cachebitmap = new cached_bitmap;
+		cachebitmap->isNoneExtended = nonExtended;
 		if (pattern->extend != CAIRO_EXTEND_NONE) {
 		    d2dsurf->rt->CreateBitmap(D2D1::SizeU(width, height),
 							  srcSurf->data + yoffset * srcSurf->stride + xoffset,
@@ -939,13 +937,13 @@ _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf,
 		cachebitmap->bitmap = sourceBitmap;
 		cachebitmap->refs = 2;
 		cairo_surface_set_user_data(surfacePattern->surface,
-					    key,
+					    &bitmap_key,
 					    cachebitmap,
 					    _d2d_release_bitmap);
 		cairo_surface_t *nullSurf =
 		    _cairo_null_surface_create(CAIRO_CONTENT_COLOR_ALPHA);
 		cairo_surface_set_user_data(nullSurf,
-					    &bitmap_key_snapshot,
+					    &bitmap_key,
 					    cachebitmap,
 					    NULL);
 		_cairo_surface_attach_snapshot(surfacePattern->surface,

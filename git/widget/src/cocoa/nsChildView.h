@@ -105,8 +105,8 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
 // Support for pixel scroll deltas, not part of NSEvent.h
 // See http://lists.apple.com/archives/cocoa-dev/2007/Feb/msg00050.html
 @interface NSEvent (DeviceDelta)
-  - (CGFloat)deviceDeltaX;
-  - (CGFloat)deviceDeltaY;
+  - (float)deviceDeltaX;
+  - (float)deviceDeltaY;
 @end
 
 @interface ChildView : NSView<

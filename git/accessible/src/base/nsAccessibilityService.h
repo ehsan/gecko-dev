@@ -106,9 +106,11 @@ public:
    * 
    * @param aNode       [in] the given node.
    * @param aPresShell  [in] the presentation shell of the given node.
+   * @param aAccessible [out] the nsIAccessible for the given node.
    */
-  already_AddRefed<nsAccessible>
-    GetAccessibleInWeakShell(nsIDOMNode *aNode, nsIWeakReference *aPresShell);
+  nsresult GetAccessibleInWeakShell(nsIDOMNode *aNode,
+                                    nsIWeakReference *aPresShell,
+                                    nsIAccessible **aAccessible);
 
   /**
    * Return an access node for the DOM node in the given presentation shell if

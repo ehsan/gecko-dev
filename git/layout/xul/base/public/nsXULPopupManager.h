@@ -271,7 +271,7 @@ public:
                         PRBool aAlt,
                         PRBool aMeta,
                         PRBool aUserInput,
-                        PRBool aFlipChecked)
+                        CloseMenuMode aCloseMenuMode)
     : mMenu(aMenu),
       mIsTrusted(aIsTrusted),
       mShift(aShift),
@@ -279,15 +279,12 @@ public:
       mAlt(aAlt),
       mMeta(aMeta),
       mUserInput(aUserInput),
-      mFlipChecked(aFlipChecked),
-      mCloseMenuMode(CloseMenuMode_Auto)
+      mCloseMenuMode(aCloseMenuMode)
   {
     NS_ASSERTION(aMenu, "null menu supplied to nsXULMenuCommandEvent constructor");
   }
 
   NS_IMETHOD Run();
-
-  void SetCloseMenuMode(CloseMenuMode aCloseMenuMode) { mCloseMenuMode = aCloseMenuMode; }
 
 private:
   nsCOMPtr<nsIContent> mMenu;
@@ -297,7 +294,6 @@ private:
   PRBool mAlt;
   PRBool mMeta;
   PRBool mUserInput;
-  PRBool mFlipChecked;
   CloseMenuMode mCloseMenuMode;
 };
 
@@ -484,10 +480,10 @@ public:
    * Execute a menu command from the triggering event aEvent.
    *
    * aMenu - a menuitem to execute
-   * aEvent - an nsXULMenuCommandEvent that contains all the info from the mouse
-   *          event which triggered the menu to be executed, may not be null
+   * aEvent - the mouse event which triggered the menu to be executed,
+   *          may be null
    */
-  void ExecuteMenu(nsIContent* aMenu, nsXULMenuCommandEvent* aEvent);
+  void ExecuteMenu(nsIContent* aMenu, nsEvent* aEvent);
 
   /**
    * Return true if the popup for the supplied content node is open.

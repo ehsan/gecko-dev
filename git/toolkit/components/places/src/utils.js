@@ -114,15 +114,6 @@ var PlacesUtils = {
   POST_DATA_ANNO: "bookmarkProperties/POSTData",
   READ_ONLY_ANNO: "placesInternal/READ_ONLY",
 
-  TOPIC_SHUTDOWN: "places-shutdown",
-  TOPIC_INIT_COMPLETE: "places-init-complete",
-  TOPIC_DATABASE_LOCKED: "places-database-locked",
-  TOPIC_EXPIRATION_FINISHED: "places-expiration-finished",
-  TOPIC_FEEDBACK_UPDATED: "places-autocomplete-feedback-updated",
-  TOPIC_SYNC_FINISHED: "places-sync-finished",
-  TOPIC_FAVICONS_EXPIRED: "places-favicons-expired",
-  TOPIC_VACUUM_STARTING: "places-vacuum-starting",
-
   asVisit: function(aNode) asVisit(aNode),
   asFullVisit: function(aNode) asFullVisit(aNode),
   asContainer: function(aNode) asContainer(aNode),
@@ -246,7 +237,7 @@ var PlacesUtils = {
     this.annotations.addObserver(this, false);
 
     // observe shutdown, so we can remove the anno observer
-    Services.obs.addObserver(this, this.TOPIC_SHUTDOWN, false);
+    Services.obs.addObserver(this, "xpcom-shutdown", false);
 
     var readOnly = this.annotations.getItemsWithAnnotation(this.READ_ONLY_ANNO);
     this.__defineGetter__("_readOnly", function() readOnly);
@@ -258,9 +249,9 @@ var PlacesUtils = {
 
   // nsIObserver
   observe: function PU_observe(aSubject, aTopic, aData) {
-    if (aTopic == this.TOPIC_SHUTDOWN) {
+    if (aTopic == "xpcom-shutdown") {
       this.annotations.removeObserver(this);
-      Services.obs.removeObserver(this, this.TOPIC_SHUTDOWN);
+      Services.obs.removeObserver(this, "xpcom-shutdown");
     }
   },
 

@@ -160,7 +160,7 @@ nsDOMAttribute::SetOwnerDocument(nsIDocument* aDocument)
   nsIDocument *doc = GetOwnerDoc();
   NS_ASSERTION(doc != aDocument, "bad call to nsDOMAttribute::SetOwnerDocument");
   if (doc) {
-    doc->DeleteAllPropertiesFor(this);
+    doc->PropertyTable()->DeleteAllPropertiesFor(this);
   }
 
   nsCOMPtr<nsINodeInfo> newNodeInfo;

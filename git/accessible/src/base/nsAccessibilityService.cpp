@@ -1233,15 +1233,25 @@ nsAccessibilityService::GetAccessibleInShell(nsIDOMNode *aNode,
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessibilityService public
 
-already_AddRefed<nsAccessible>
+nsresult
 nsAccessibilityService::GetAccessibleInWeakShell(nsIDOMNode *aNode, 
-                                                 nsIWeakReference *aWeakShell) 
+                                                 nsIWeakReference *aWeakShell,
+                                                 nsIAccessible **aAccessible) 
 {
-  if (!aNode || !aWeakShell)
-    return nsnull;
+  NS_ENSURE_ARG_POINTER(aAccessible);
+  *aAccessible = nsnull;
+
+  NS_ENSURE_ARG(aNode);
+  NS_ENSURE_ARG(aWeakShell);
 
   nsCOMPtr<nsIPresShell> presShell(do_QueryReferent(aWeakShell));
-  return GetAccessible(aNode, presShell, aWeakShell);
+  nsRefPtr<nsAccessible> accessible =
+    GetAccessible(aNode, presShell, aWeakShell);
+
+  if (accessible)
+    CallQueryInterface(accessible.get(), aAccessible);
+
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1486,8 +1496,9 @@ nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
 
         if (tableFrame->GetType() == nsAccessibilityAtoms::tableOuterFrame) {
           nsCOMPtr<nsIDOMNode> tableNode(do_QueryInterface(tableContent));
-          nsRefPtr<nsAccessible> tableAccessible =
-            GetAccessibleInWeakShell(tableNode, aWeakShell);
+          nsCOMPtr<nsIAccessible> tableAccessible;
+          GetAccessibleInWeakShell(tableNode, aWeakShell,
+                                   getter_AddRefs(tableAccessible));
 
           if (tableAccessible) {
             if (!roleMapEntry) {
