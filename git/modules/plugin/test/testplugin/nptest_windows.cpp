@@ -41,33 +41,28 @@ using namespace Gdiplus;
 
 #pragma comment(lib, "gdiplus.lib")
 
-bool
-pluginSupportsWindowMode()
-{
-  return false;
-}
-
-bool
-pluginSupportsWindowlessMode()
-{
-  return true;
-}
-
 NPError
 pluginInstanceInit(InstanceData* instanceData)
 {
   return NPERR_NO_ERROR;
 }
 
-void
-pluginInstanceShutdown(InstanceData* instanceData)
+int16_t
+pluginHandleEvent(InstanceData* instanceData, void* event)
 {
-}
+  NPEvent * pe = (NPEvent*) event;
 
-void
-pluginWidgetInit(InstanceData* instanceData, void* oldWindow)
-{
-  // Should never be called since we don't support window mode (yet)
+  if (pe == NULL || instanceData == NULL ||
+      instanceData->window.type != NPWindowTypeDrawable)
+    return 0;   
+
+  switch((UINT)pe->event) {
+    case WM_PAINT:   
+      pluginDraw(instanceData);   
+      return 1;   
+  }
+  
+  return 0;
 }
 
 static Color
@@ -167,22 +162,4 @@ pluginDraw(InstanceData* instanceData)
 
   // Pop our hdc changes off the resource stack
   RestoreDC(hdc, savedDCID);
-}
-
-int16_t
-pluginHandleEvent(InstanceData* instanceData, void* event)
-{
-  NPEvent * pe = (NPEvent*) event;
-
-  if (pe == NULL || instanceData == NULL ||
-      instanceData->window.type != NPWindowTypeDrawable)
-    return 0;   
-
-  switch((UINT)pe->event) {
-    case WM_PAINT:   
-      pluginDraw(instanceData);   
-      return 1;   
-  }
-  
-  return 0;
 }
