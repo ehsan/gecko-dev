@@ -33,24 +33,35 @@ function test()
 function testScriptsDisplay() {
   gPane.activeThread.addOneTimeListener("scriptsadded", function() {
     Services.tm.currentThread.dispatch({ run: function() {
-      gScripts = gDebugger.DebuggerView.Scripts._scripts;
-
-      is(gDebugger.StackFrames.activeThread.state, "paused",
-        "Should only be getting stack frames while paused.");
-
-      is(gScripts.itemCount, 2, "Found the expected number of scripts.");
-
-      ok(gDebugger.editor.getText().search(/debugger/) != -1,
-        "The correct script was loaded initially.");
-
+      let count = 0;
       gDebugger.editor.addEventListener(SourceEditor.EVENTS.TEXT_CHANGED,
-                                        function onChange() {
+                                        function onScriptLoad() {
+        // Skip the first change event, since we're only interested in the
+        // second.
+        if (count++ < 1) {
+          return;
+        }
         gDebugger.editor.removeEventListener(SourceEditor.EVENTS.TEXT_CHANGED,
-                                             onChange);
-        testSwitchPaused();
+                                             onScriptLoad);
+        gScripts = gDebugger.DebuggerView.Scripts._scripts;
+
+        is(gDebugger.StackFrames.activeThread.state, "paused",
+          "Should only be getting stack frames while paused.");
+
+        is(gScripts.itemCount, 2, "Found the expected number of scripts.");
+
+        ok(gDebugger.editor.getText().search(/debugger/) != -1,
+          "The correct script was loaded initially.");
+
+        gDebugger.editor.addEventListener(SourceEditor.EVENTS.TEXT_CHANGED,
+                                          function onChange() {
+          gDebugger.editor.removeEventListener(SourceEditor.EVENTS.TEXT_CHANGED,
+                                               onChange);
+          testSwitchPaused();
+        });
+        gScripts.selectedIndex = 0;
+        gDebugger.SourceScripts.onChange({ target: gScripts });
       });
-      gScripts.selectedIndex = 0;
-      gDebugger.SourceScripts.onChange({ target: gScripts });
     }}, 0);
   });
 

@@ -60,7 +60,6 @@ const WIREFRAME_COLOR = [0, 0, 0, 0.25];
 const INTRO_TRANSITION_DURATION = 50;
 const OUTRO_TRANSITION_DURATION = 40;
 const INITIAL_Z_TRANSLATION = 400;
-const MOVE_INTO_VIEW_ACCURACY = 50;
 
 const MOUSE_CLICK_THRESHOLD = 10;
 const MOUSE_INTRO_DELAY = 10;
@@ -251,7 +250,7 @@ TiltVisualizer.Presenter = function TV_Presenter(
    * Modified by events in the controller through delegate functions.
    */
   this.transforms = {
-    zoom: 1,
+    zoom: TiltUtils.getDocumentZoom(aChromeWindow),
     offset: vec3.create(),      // mesh offset, aligned to the viewport center
     translation: vec3.create(), // scene translation, on the [x, y, z] axis
     rotation: quat4.create()    // scene rotation, expressed as a quaternion
@@ -281,7 +280,6 @@ TiltVisualizer.Presenter = function TV_Presenter(
   let setup = function TVP_setup()
   {
     let renderer = this.renderer;
-    let inspector = this.chromeWindow.InspectorUI;
 
     // if the renderer was destroyed, don't continue setup
     if (!renderer || !renderer.context) {
@@ -295,11 +293,6 @@ TiltVisualizer.Presenter = function TV_Presenter(
       attributes: ["vertexPosition", "vertexTexCoord", "vertexColor"],
       uniforms: ["mvMatrix", "projMatrix", "sampler"]
     });
-
-    // get the document zoom to properly scale the visualization
-    if (inspector.highlighter) {
-      this.transforms.zoom = inspector.highlighter.zoom;
-    }
 
     this.setupTexture();
     this.setupMeshData();
@@ -553,8 +546,9 @@ TiltVisualizer.Presenter.prototype = {
     if (!this._initialMeshConfiguration) {
       this._initialMeshConfiguration = true;
 
-      let width = renderer.width;
-      let height = renderer.height;
+      let zoom = this.transforms.zoom;
+      let width = Math.min(aData.meshWidth * zoom, renderer.width);
+      let height = Math.min(aData.meshHeight * zoom, renderer.height);
 
       // set the necessary mesh offsets
       this.transforms.offset[0] = -width * 0.5;
@@ -626,7 +620,7 @@ TiltVisualizer.Presenter.prototype = {
    */
   onResize: function TVP_onResize(e)
   {
-    let zoom = this.chromeWindow.InspectorUI.highlighter.zoom;
+    let zoom = TiltUtils.getDocumentZoom(this.chromeWindow);
     let width = e.target.innerWidth * zoom;
     let height = e.target.innerHeight * zoom;
 
@@ -642,12 +636,10 @@ TiltVisualizer.Presenter.prototype = {
    *
    * @param {Element} aNode
    *                  the html node to be highlighted
-   * @param {String} aFlags
-   *                 flags specifying highlighting options
    */
-  highlightNode: function TVP_highlightNode(aNode, aFlags)
+  highlightNode: function TVP_highlightNode(aNode)
   {
-    this.highlightNodeFor(this.traverseData.nodes.indexOf(aNode), aFlags);
+    this.highlightNodeFor(this.traverseData.nodes.indexOf(aNode));
   },
 
   /**
@@ -706,10 +698,8 @@ TiltVisualizer.Presenter.prototype = {
    *
    * @param {Number} aNodeIndex
    *                 the index of the node in the this.traverseData array
-   * @param {String} aFlags
-   *                 flags specifying highlighting options
    */
-  highlightNodeFor: function TVP_highlightNodeFor(aNodeIndex, aFlags)
+  highlightNodeFor: function TVP_highlightNodeFor(aNodeIndex)
   {
     this.redraw = true;
 
@@ -753,17 +743,6 @@ TiltVisualizer.Presenter.prototype = {
     this.chromeWindow.InspectorUI.inspectNode(node,
       this.contentWindow.innerHeight < y ||
       this.contentWindow.pageYOffset > 0);
-
-    // if something is highlighted, make sure it's inside the current viewport;
-    // the point which should be moved into view is considered the center [x, y]
-    // position along the top edge of the currently selected node
-
-    if (aFlags && aFlags.indexOf("moveIntoView") !== -1)
-    {
-      this.controller.arcball.moveIntoView(vec3.lerp(
-        vec3.scale(this.highlight.v0, this.transforms.zoom, []),
-        vec3.scale(this.highlight.v1, this.transforms.zoom, []), 0.5));
-    }
 
     Services.obs.notifyObservers(null, this.NOTIFICATIONS.HIGHLIGHTING, null);
   },
@@ -834,7 +813,7 @@ TiltVisualizer.Presenter.prototype = {
       }
     }, false);
 
-    let zoom = this.chromeWindow.InspectorUI.highlighter.zoom;
+    let zoom = TiltUtils.getDocumentZoom(this.chromeWindow);
     let width = this.renderer.width * zoom;
     let height = this.renderer.height * zoom;
     let mesh = this.meshStacks;
@@ -1018,7 +997,6 @@ TiltVisualizer.Controller = function TV_Controller(aCanvas, aPresenter)
    * Save a reference to the presenter to modify its model-view transforms.
    */
   this.presenter = aPresenter;
-  this.presenter.controller = this;
 
   /**
    * The initial controller dimensions and offset, in pixels.
@@ -1278,7 +1256,7 @@ TiltVisualizer.Controller.prototype = {
    */
   onResize: function TVC_onResize(e)
   {
-    let zoom = this.presenter.chromeWindow.InspectorUI.highlighter.zoom;
+    let zoom = TiltUtils.getDocumentZoom(this.presenter.chromeWindow);
     let width = e.target.innerWidth * zoom;
     let height = e.target.innerHeight * zoom;
 
@@ -1748,25 +1726,6 @@ TiltVisualizer.Arcball.prototype = {
   {
     this._rotating = false;
     this._mouseButton = -1;
-  },
-
-  /**
-   * Moves a target point into view only if it's outside the currently visible
-   * area bounds (in which case it also resets any additional transforms).
-   *
-   * @param {Arary} aPoint
-   *                the [x, y] point which should be brought into view
-   */
-  moveIntoView: function TVA_moveIntoView(aPoint) {
-    let visiblePointX = -(this._currentTrans[0] + this._additionalTrans[0]);
-    let visiblePointY = -(this._currentTrans[1] + this._additionalTrans[1]);
-
-    if (aPoint[1] - visiblePointY - MOVE_INTO_VIEW_ACCURACY > this.height ||
-        aPoint[1] - visiblePointY + MOVE_INTO_VIEW_ACCURACY < 0 ||
-        aPoint[0] - visiblePointX > this.width ||
-        aPoint[0] - visiblePointX < 0) {
-      this.reset([0, -aPoint[1]]);
-    }
   },
 
   /**

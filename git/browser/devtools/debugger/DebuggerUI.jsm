@@ -40,6 +40,8 @@
  * ***** END LICENSE BLOCK ***** */
 "use strict";
 
+/*global Components, NetUtil, Services, XPCOMUtils */
+/*global DebuggerServer, DebuggerClient, SourceEditor */
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
@@ -293,7 +295,7 @@ DebuggerUI.prototype = {
               return this.logError(url, aStatusCode);
             }
 
-            this._onSourceLoaded(url, chunks.join(""), channel.contentType);
+            this._onSourceLoaded(url, chunks.join(""));
           }.bind(this)
         };
 
@@ -323,14 +325,14 @@ DebuggerUI.prototype = {
    *        The URL of the source script.
    * @param string aSourceText
    *        The text of the source script.
-   * @param string aContentType
-   *        The content type of the source script.
    */
-  _onSourceLoaded: function DebuggerUI__onSourceLoaded(aSourceUrl,
-                                                       aSourceText,
-                                                       aContentType) {
+  _onSourceLoaded: function DebuggerUI__onSourceLoaded(aSourceUrl, aSourceText) {
     let dbg = this.getDebugger(this.aWindow.gBrowser.selectedTab);
-    dbg.debuggerWindow.SourceScripts.setEditorMode(aSourceUrl, aContentType);
+    if (aSourceUrl.slice(-3) == ".js") {
+      dbg.editor.setMode(SourceEditor.MODES.JAVASCRIPT);
+    } else {
+      dbg.editor.setMode(SourceEditor.MODES.HTML);
+    }
     dbg.editor.setText(aSourceText);
     let doc = dbg.frame.contentDocument;
     let scripts = doc.getElementById("scripts");
@@ -338,7 +340,6 @@ DebuggerUI.prototype = {
     let script = elt.getUserData("sourceScript");
     script.loaded = true;
     script.text = aSourceText;
-    script.contentType = aContentType;
     elt.setUserData("sourceScript", script, null);
   }
 };

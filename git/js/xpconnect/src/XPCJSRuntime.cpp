@@ -584,7 +584,7 @@ UnmarkJSHolder(JSDHashTable *table, JSDHashEntryHdr *hdr, uint32_t number,
                void *arg)
 {
     ObjectHolder* entry = reinterpret_cast<ObjectHolder*>(hdr);
-    entry->tracer->CanSkip(entry->holder, true);
+    entry->tracer->CanSkip(entry->holder);
     return JS_DHASH_NEXT;
 }
 
