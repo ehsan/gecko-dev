@@ -324,8 +324,7 @@ ContentChild::AllocPExternalHelperApp(const IPC::URI& uri,
                                       const nsCString& aMimeContentType,
                                       const nsCString& aContentDisposition,
                                       const bool& aForceSave,
-                                      const PRInt64& aContentLength,
-                                      const IPC::URI& aReferrer)
+                                      const PRInt64& aContentLength)
 {
     ExternalHelperAppChild *child = new ExternalHelperAppChild();
     child->AddRef();

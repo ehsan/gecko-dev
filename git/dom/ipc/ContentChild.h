@@ -96,8 +96,7 @@ public:
             const nsCString& aMimeContentType,
             const nsCString& aContentDisposition,
             const bool& aForceSave,
-            const PRInt64& aContentLength,
-            const IPC::URI& aReferrer);
+            const PRInt64& aContentLength);
     virtual bool DeallocPExternalHelperApp(PExternalHelperAppChild *aService);
 
     virtual bool RecvRegisterChrome(const InfallibleTArray<ChromePackage>& packages,
