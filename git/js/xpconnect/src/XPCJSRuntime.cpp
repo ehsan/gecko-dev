@@ -2310,9 +2310,6 @@ XPCJSRuntime::newXPCJSRuntime(nsXPConnect* aXPConnect)
     return nsnull;
 }
 
-// DefineStaticDictionaryJSVals is automatically generated.
-bool DefineStaticDictionaryJSVals(JSContext* aCx);
-
 JSBool
 XPCJSRuntime::OnJSContextNew(JSContext *cx)
 {
@@ -2338,10 +2335,6 @@ XPCJSRuntime::OnJSContextNew(JSContext *cx)
         }
 
         ok = mozilla::dom::binding::DefineStaticJSVals(cx);
-        if (!ok)
-            return false;
-        
-        ok = DefineStaticDictionaryJSVals(cx);
     }
     if (!ok)
         return false;
