@@ -209,10 +209,6 @@ public:
     uint32_t mIndex;
   };
 
-  void RemoveLeading(TrackTicks aDuration)
-  {
-    RemoveLeading(aDuration, 0);
-  }
 protected:
   MediaSegmentBase(Type aType) : MediaSegment(aType) {}
 

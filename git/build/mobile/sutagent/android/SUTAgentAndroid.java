@@ -38,7 +38,6 @@ import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiManager.WifiLock;
 import android.os.BatteryManager;
-import android.os.Build;
 import android.os.Build.VERSION;
 import android.os.Bundle;
 import android.os.Handler;
@@ -66,7 +65,6 @@ public class SUTAgentAndroid extends Activity
     public static String sPowerStatus = null;
     public static int    nChargeLevel = 0;
     public static int    nBatteryTemp = 0;
-    public static long   nCreateTimeMillis = System.currentTimeMillis();
 
     String lineSep = System.getProperty("line.separator");
     public PrintWriter dataOut = null;
@@ -76,7 +74,6 @@ public class SUTAgentAndroid extends Activity
     private static String RegSvrIPPort = "";
     private static String HardwareID = "";
     private static String Pool = "";
-    private static String Abi = "";
     private static String sRegString = "";
     private static boolean LogCommands = false;
 
@@ -162,8 +159,6 @@ public class SUTAgentAndroid extends Activity
 
         DoCommand dc = new DoCommand(getApplication());
 
-        dc.FixDataLocalPermissions();
-
         // Get configuration settings from "ini" file
         File dir = getFilesDir();
         File iniFile = new File(dir, "SUTAgent.ini");
@@ -177,7 +172,6 @@ public class SUTAgentAndroid extends Activity
         SUTAgentAndroid.RegSvrIPPort = dc.GetIniData("Registration Server", "PORT", sIniFile);
         SUTAgentAndroid.HardwareID = dc.GetIniData("Registration Server", "HARDWARE", sIniFile);
         SUTAgentAndroid.Pool = dc.GetIniData("Registration Server", "POOL", sIniFile);
-        SUTAgentAndroid.Abi = android.os.Build.CPU_ABI;
         log(dc, "onCreate");
 
         tv = (TextView) this.findViewById(R.id.Textview01);
@@ -283,7 +277,6 @@ public class SUTAgentAndroid extends Activity
 
         String sConfig = "Unique ID: " + sUniqueID + lineSep;
         sConfig += "HWID: " + hwid + lineSep;
-        sConfig += "ABI: " + Abi + lineSep;
         sConfig += "OS Info" + lineSep;
         sConfig += "\t" + dc.GetOSInfo() + lineSep;
         sConfig += "Screen Info" + lineSep;
@@ -309,7 +302,6 @@ public class SUTAgentAndroid extends Activity
         sRegString += "&MEMORY=" + dc.GetMemoryConfig();
         sRegString += "&HARDWARE=" + HardwareID;
         sRegString += "&POOL=" + Pool;
-        sRegString += "&ABI=" + Abi;
 
         String sTemp = Uri.encode(sRegString,"=&");
         sRegString = "register " + sTemp;
@@ -398,12 +390,14 @@ public class SUTAgentAndroid extends Activity
             }
         }
 
-    private void logMemory(String caller)
+    @Override
+    public void onLowMemory()
         {
+        System.gc();
         DoCommand dc = new DoCommand(getApplication());
         if (dc != null)
             {
-            log(dc, caller);
+            log(dc, "onLowMemory");
             log(dc, dc.GetMemoryInfo());
             String procInfo = dc.GetProcessInfo();
             if (procInfo != null)
@@ -425,22 +419,8 @@ public class SUTAgentAndroid extends Activity
             }
         else
             {
-            Log.e("SUTAgentAndroid", "logMemory: unable to log to file!");
+            Log.e("SUTAgentAndroid", "onLowMemory: unable to log to file!");
             }
-        }
-
-    @Override
-    public void onLowMemory()
-        {
-        System.gc();
-        logMemory("onLowMemory");
-        }
-
-    @Override
-    public void onTrimMemory(int level)
-        {
-        System.gc();
-        logMemory("onTrimMemory"+level);
         }
 
     private void monitorBatteryState()

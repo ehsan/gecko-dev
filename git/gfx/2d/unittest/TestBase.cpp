@@ -44,5 +44,5 @@ TestBase::RunTests(int *aFailures)
 void
 TestBase::LogMessage(string aMessage)
 {
-  printf("%s", aMessage.c_str());
+  printf(aMessage.c_str());
 }

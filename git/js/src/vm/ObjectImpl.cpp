@@ -1,18 +1,23 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=78:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/Assertions.h"
+#include "mozilla/Attributes.h"
+
+#include "js/TemplateLib.h"
 #include "js/Value.h"
 #include "vm/Debugger.h"
 #include "vm/ObjectImpl.h"
 
-#include "jsobjinlines.h"
+#include "jsatominlines.h"
 
 #include "gc/Barrier-inl.h"
-#include "gc/Marking.h"
 #include "vm/ObjectImpl-inl.h"
+#include "vm/Shape-inl.h"
 
 using namespace js;
 
@@ -126,7 +131,7 @@ PropDesc::wrapInto(JSContext *cx, HandleObject obj, const jsid &id, jsid *wrappe
 {
     MOZ_ASSERT(!isUndefined());
 
-    JSCompartment *comp = cx->compartment();
+    JSCompartment *comp = cx->compartment;
 
     *wrappedId = id;
     if (!comp->wrapId(cx, wrappedId))
@@ -192,8 +197,8 @@ js::ObjectImpl::checkShapeConsistency()
 
     MOZ_ASSERT(isNative());
 
-    Shape *shape = lastProperty();
-    Shape *prev = NULL;
+    RawShape shape = lastProperty();
+    RawShape prev = NULL;
 
     if (inDictionaryMode()) {
         MOZ_ASSERT(shape->hasTable());
@@ -243,24 +248,6 @@ js::ObjectImpl::checkShapeConsistency()
 #endif
 
 void
-js::ObjectImpl::initializeSlotRange(uint32_t start, uint32_t length)
-{
-    /*
-     * No bounds check, as this is used when the object's shape does not
-     * reflect its allocated slots (updateSlotsForSpan).
-     */
-    HeapSlot *fixedStart, *fixedEnd, *slotsStart, *slotsEnd;
-    getSlotRangeUnchecked(start, length, &fixedStart, &fixedEnd, &slotsStart, &slotsEnd);
-
-    JSRuntime *rt = runtime();
-    uint32_t offset = start;
-    for (HeapSlot *sp = fixedStart; sp < fixedEnd; sp++)
-        sp->init(rt, this->asObjectPtr(), HeapSlot::Slot, offset++, UndefinedValue());
-    for (HeapSlot *sp = slotsStart; sp < slotsEnd; sp++)
-        sp->init(rt, this->asObjectPtr(), HeapSlot::Slot, offset++, UndefinedValue());
-}
-
-void
 js::ObjectImpl::initSlotRange(uint32_t start, const Value *vector, uint32_t length)
 {
     JSRuntime *rt = runtime();
@@ -308,7 +295,7 @@ js::ObjectImpl::slotInRange(uint32_t slot, SentinelAllowed sentinel) const
  */
 MOZ_NEVER_INLINE
 #endif
-Shape *
+RawShape
 js::ObjectImpl::nativeLookup(JSContext *cx, jsid id)
 {
     MOZ_ASSERT(isNative());
@@ -319,13 +306,6 @@ js::ObjectImpl::nativeLookup(JSContext *cx, jsid id)
 #if defined(_MSC_VER)
 # pragma optimize("", on)
 #endif
-
-Shape *
-js::ObjectImpl::nativeLookupPure(jsid id)
-{
-    MOZ_ASSERT(isNative());
-    return Shape::searchNoHashify(lastProperty(), id);
-}
 
 void
 js::ObjectImpl::markChildren(JSTracer *trc)
@@ -508,7 +488,7 @@ DenseElementsHeader::defineElement(JSContext *cx, Handle<ObjectImpl*> obj, uint3
 JSObject *
 js::ArrayBufferDelegate(JSContext *cx, Handle<ObjectImpl*> obj)
 {
-    MOZ_ASSERT(obj->hasClass(&ArrayBufferObject::class_));
+    MOZ_ASSERT(obj->hasClass(&ArrayBufferClass));
     if (obj->getPrivate())
         return static_cast<JSObject *>(obj->getPrivate());
     JSObject *delegate = NewObjectWithGivenProto(cx, &ObjectClass, obj->getProto(), NULL);
@@ -657,8 +637,9 @@ js::GetProperty(JSContext *cx, Handle<ObjectImpl*> obj, Handle<ObjectImpl*> rece
             return false;
         }
 
-        AutoPropDescRooter desc(cx);
-        if (!GetOwnProperty(cx, current, pid, resolveFlags, &desc.getPropDesc()))
+        PropDesc desc;
+        PropDesc::AutoRooter rootDesc(cx, &desc);
+        if (!GetOwnProperty(cx, current, pid, resolveFlags, &desc))
             return false;
 
         /* No property?  Recur or bottom out. */
@@ -685,8 +666,8 @@ js::GetProperty(JSContext *cx, Handle<ObjectImpl*> obj, Handle<ObjectImpl*> rece
                 return true;
             }
 
-            InvokeArgs args(cx);
-            if (!args.init(0))
+            InvokeArgsGuard args;
+            if (!cx->stack.pushInvokeArgs(cx, 0, &args))
                 return false;
 
             args.setCallee(get);
@@ -751,8 +732,8 @@ js::GetElement(JSContext *cx, Handle<ObjectImpl*> obj, Handle<ObjectImpl*> recei
                 return true;
             }
 
-            InvokeArgs args(cx);
-            if (!args.init(0))
+            InvokeArgsGuard args;
+            if (!cx->stack.pushInvokeArgs(cx, 0, &args))
                 return false;
 
             /* Push getter, receiver, and no args. */
@@ -986,8 +967,8 @@ js::SetElement(JSContext *cx, Handle<ObjectImpl*> obj, Handle<ObjectImpl*> recei
                     return true;
                 }
 
-                InvokeArgs args(cx);
-                if (!args.init(1))
+                InvokeArgsGuard args;
+                if (!cx->stack.pushInvokeArgs(cx, 1, &args))
                     return false;
 
                 /* Push set, receiver, and v as the sole argument. */
@@ -1013,13 +994,4 @@ js::SetElement(JSContext *cx, Handle<ObjectImpl*> obj, Handle<ObjectImpl*> recei
 
     MOZ_NOT_REACHED("buggy control flow");
     return false;
-}
-
-void
-AutoPropDescRooter::trace(JSTracer *trc)
-{
-    gc::MarkValueRoot(trc, &propDesc.pd_, "AutoPropDescRooter pd");
-    gc::MarkValueRoot(trc, &propDesc.value_, "AutoPropDescRooter value");
-    gc::MarkValueRoot(trc, &propDesc.get_, "AutoPropDescRooter get");
-    gc::MarkValueRoot(trc, &propDesc.set_, "AutoPropDescRooter set");
 }

@@ -6,7 +6,6 @@
 #ifndef nsDOMUIEvent_h
 #define nsDOMUIEvent_h
 
-#include "mozilla/Attributes.h"
 #include "nsIDOMUIEvent.h"
 #include "nsDOMEvent.h"
 #include "nsLayoutUtils.h"
@@ -28,9 +27,12 @@ public:
   
   // Forward to nsDOMEvent
   NS_FORWARD_TO_NSDOMEVENT_NO_SERIALIZATION_NO_DUPLICATION
-  NS_IMETHOD DuplicatePrivateData() MOZ_OVERRIDE;
-  NS_IMETHOD_(void) Serialize(IPC::Message* aMsg, bool aSerializeInterfaceType) MOZ_OVERRIDE;
-  NS_IMETHOD_(bool) Deserialize(const IPC::Message* aMsg, void** aIter) MOZ_OVERRIDE;
+  NS_IMETHOD DuplicatePrivateData();
+  NS_IMETHOD_(void) Serialize(IPC::Message* aMsg, bool aSerializeInterfaceType);
+  NS_IMETHOD_(bool) Deserialize(const IPC::Message* aMsg, void** aIter);
+
+  virtual nsresult InitFromCtor(const nsAString& aType,
+                                JSContext* aCx, JS::Value* aVal);
 
   static nsIntPoint CalculateScreenPoint(nsPresContext* aPresContext,
                                          nsEvent* aEvent)
@@ -90,60 +92,89 @@ public:
                                                     const mozilla::dom::UIEventInit& aParam,
                                                     mozilla::ErrorResult& aRv);
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope)
   {
     return mozilla::dom::UIEventBinding::Wrap(aCx, aScope, this);
   }
 
-  nsIDOMWindow* GetView() const
+  already_AddRefed<nsIDOMWindow> GetView()
   {
-    return mView;
+    nsCOMPtr<nsIDOMWindow> view = mView;
+    return view.forget();
   }
 
-  int32_t Detail() const
+  int32_t Detail()
   {
     return mDetail;
   }
 
-  int32_t LayerX() const
+  int32_t LayerX()
   {
     return GetLayerPoint().x;
   }
 
-  int32_t LayerY() const
+  int32_t LayerY()
   {
     return GetLayerPoint().y;
   }
 
-  int32_t PageX() const;
-  int32_t PageY() const;
-
-  virtual uint32_t Which()
+  int32_t PageX()
   {
-    MOZ_ASSERT(mEvent->eventStructType != NS_KEY_EVENT,
-               "Key events should override Which()");
-    MOZ_ASSERT(mEvent->eventStructType != NS_MOUSE_EVENT,
-               "Mouse events should override Which()");
-    return 0;
+    int32_t x;
+    GetPageX(&x);
+    return x;
+  }
+
+  int32_t PageY()
+  {
+    int32_t y;
+    GetPageY(&y);
+    return y;
+  }
+
+  uint32_t Which()
+  {
+    uint32_t w;
+    GetWhich(&w);
+    return w;
   }
 
   already_AddRefed<nsINode> GetRangeParent();
 
-  int32_t RangeOffset() const;
+  int32_t RangeOffset()
+  {
+    int32_t offset;
+    GetRangeOffset(&offset);
+    return offset;
+  }
 
-  bool CancelBubble() const
+  bool CancelBubble()
   {
     return mEvent->mFlags.mPropagationStopped;
   }
 
-  bool IsChar() const;
+  bool IsChar()
+  {
+    bool isChar;
+    GetIsChar(&isChar);
+    return isChar;
+  }
 
 protected:
   // Internal helper functions
   nsIntPoint GetClientPoint();
   nsIntPoint GetMovementPoint();
-  nsIntPoint GetLayerPoint() const;
+  nsIntPoint GetLayerPoint();
+  nsIntPoint GetPagePoint();
+
+  // Allow specializations.
+  virtual nsresult Which(uint32_t* aWhich)
+  {
+    NS_ENSURE_ARG_POINTER(aWhich);
+    // Usually we never reach here, as this is reimplemented for mouse and keyboard events.
+    *aWhich = 0;
+    return NS_OK;
+  }
 
   nsCOMPtr<nsIDOMWindow> mView;
   int32_t mDetail;

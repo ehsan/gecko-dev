@@ -330,10 +330,10 @@ SettingsManager.prototype = {
           if (DEBUG) debug('data:' + msg.key + ':' + msg.value + '\n');
 
           if (this._onsettingchange) {
-            let event = new this._window.MozSettingsEvent("settingchanged", this._wrap({
+            let event = new this._window.MozSettingsEvent("settingchanged", {
               settingName: msg.key,
               settingValue: msg.value
-            }));
+            });
             this._onsettingchange.handleEvent(event);
           }
           if (this._callbacks && this._callbacks[msg.key]) {
@@ -379,6 +379,10 @@ SettingsManager.prototype = {
   },
 
   init: function(aWindow) {
+    // Set navigator.mozSettings to null.
+    if (!Services.prefs.getBoolPref("dom.mozSettings.enabled"))
+      return null;
+
     cpmm.addMessageListener("Settings:Change:Return:OK", this);
     this._window = aWindow;
     Services.obs.addObserver(this, "inner-window-destroyed", false);

@@ -16,12 +16,26 @@ FAIL_ON_WARNINGS := 1
 
 include $(topsrcdir)/dom/dom-config.mk
 
-DISABLED_EXTRA_COMPONENTS = \
+CPPSRCS = \
+  Activity.cpp \
+  $(NULL)
+
+EXPORTS_NAMESPACES = mozilla/dom
+EXPORTS_mozilla/dom = \
+  Activity.h \
+  $(NULL)
+
+EXTRA_COMPONENTS = \
   ActivityOptions.js \
   ActivityProxy.js \
   ActivityRequestHandler.js \
   ActivityWrapper.js \
   Activities.manifest \
+  $(NULL)
+
+EXTRA_JS_MODULES =   \
+  ActivitiesService.jsm \
+  ActivitiesServiceFilter.jsm \
   $(NULL)
 
 include $(topsrcdir)/config/config.mk

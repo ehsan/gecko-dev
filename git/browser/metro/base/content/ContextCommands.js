@@ -45,7 +45,7 @@ var ContextCommands = {
       if (ContextMenuUI.popupState.string) {
         this.sendCommand("cut");
 
-        SelectionHelperUI.closeEditSession(true);
+        SelectionHelperUI.closeEditSessionAndClear();
       }
     } else {
       // chrome
@@ -66,7 +66,7 @@ var ContextCommands = {
       if (ContextMenuUI.popupState.string) {
         this.sendCommand("copy");
 
-        SelectionHelperUI.closeEditSession(true);
+        SelectionHelperUI.closeEditSessionAndClear();
       }
     } else {
       // chrome
@@ -84,7 +84,7 @@ var ContextCommands = {
       let y = ContextMenuUI.popupState.y;
       let json = {x: x, y: y, command: "paste" };
       target.messageManager.sendAsyncMessage("Browser:ContextCommand", json);
-      SelectionHelperUI.closeEditSession();
+      SelectionHelperUI.closeEditSessionAndClear();
     } else {
       // chrome
       target.editor.paste(Ci.nsIClipboard.kGlobalClipboard);
@@ -214,6 +214,11 @@ var ContextCommands = {
 
   openVideoInNewTab: function cc_openVideoInNewTab() {
     BrowserUI.newTab(ContextMenuUI.popupState.mediaURL, Browser.selectedTab);
+  },
+
+  openVideoInFullscreen: function cc_openVideoInFullscreen() {
+    // XXX currently isn't working.
+    this.sendCommand('videotab');
   },
 
   // Bookmarks

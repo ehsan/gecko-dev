@@ -73,10 +73,11 @@ exports.remove = function remove(array, element) {
  * @returns {Array}
  */
 exports.unique = function unique(array) {
-  return array.reduce(function(values, element) {
-    add(values, element);
-    return values;
-  }, []);
+  var value = [];
+  return array.forEach(function(element) {
+    add(value, element);
+  });
+  return value;
 };
 
 exports.flatten = function flatten(array){
@@ -100,15 +101,3 @@ function fromIterator(iterator) {
   return array;
 }
 exports.fromIterator = fromIterator;
-
-
-function find(array, predicate) {
-  var index = 0;
-  var count = array.length;
-  while (index < count) {
-    var value = array[index];
-    if (predicate(value)) return value;
-    else index = index + 1;
-  }
-}
-exports.find = find;

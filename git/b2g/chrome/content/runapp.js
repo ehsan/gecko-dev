@@ -31,9 +31,7 @@ window.addEventListener('load', function() {
 });
 
 window.addEventListener('unload', function() {
-  if (runAppObj) {
-    Services.obs.removeObserver(runAppObj, 'browser-ui-startup-complete');
-  }
+  Services.obs.removeObserver(runAppObj, 'browser-ui-startup-complete');
 });
 
 function AppRunner(aName) {

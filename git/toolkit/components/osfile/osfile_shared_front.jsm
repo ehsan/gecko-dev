@@ -16,6 +16,9 @@ if (typeof Components != "undefined") {
 
 let LOG = exports.OS.Shared.LOG.bind(OS.Shared, "Shared front-end");
 
+const noOptions = {};
+
+
 /**
  * Code shared by implementations of File.
  *
@@ -77,7 +80,8 @@ AbstractFile.prototype = {
    * @return {number} The number of bytes actually read, which may be
    * less than |bytes| if the file did not contain that many bytes left.
    */
-  readTo: function readTo(buffer, options = {}) {
+  readTo: function readTo(buffer, options) {
+    options = options || noOptions;
     let {ptr, bytes} = AbstractFile.normalizeToPointer(buffer, options.bytes);
     let pos = 0;
     while (pos < bytes) {
@@ -109,7 +113,8 @@ AbstractFile.prototype = {
    *
    * @return {number} The number of bytes actually written.
    */
-  write: function write(buffer, options = {}) {
+  write: function write(buffer, options) {
+    options = options || noOptions;
 
     let {ptr, bytes} = AbstractFile.normalizeToPointer(buffer, options.bytes);
 
@@ -337,12 +342,9 @@ AbstractFile.read = function read(path, bytes) {
  * @return {number} The number of bytes actually written.
  */
 AbstractFile.writeAtomic =
-     function writeAtomic(path, buffer, options = {}) {
+     function writeAtomic(path, buffer, options) {
+  options = options || noOptions;
 
-  // Verify that path is defined and of the correct type
-  if (typeof path != "string" || path == "") {
-    throw new TypeError("File path should be a (non-empty) string");
-  }
   let noOverwrite = options.noOverwrite;
   if (noOverwrite && OS.File.exists(path)) {
     throw OS.File.Error.exists("writeAtomic");

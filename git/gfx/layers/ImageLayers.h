@@ -20,12 +20,11 @@ class ImageContainer;
 /**
  * A Layer which renders an Image.
  */
-class ImageLayer : public Layer {
+class THEBES_API ImageLayer : public Layer {
 public:
   enum ScaleMode {
     SCALE_NONE,
-    SCALE_STRETCH,
-    SCALE_SENTINEL
+    SCALE_STRETCH
   // Unimplemented - SCALE_PRESERVE_ASPECT_RATIO_CONTAIN
   };
 
@@ -34,7 +33,7 @@ public:
    * Set the ImageContainer. aContainer must have the same layer manager
    * as this layer.
    */
-  virtual void SetContainer(ImageContainer* aContainer);
+  void SetContainer(ImageContainer* aContainer);
 
   /**
    * CONSTRUCTION PHASE ONLY
@@ -55,11 +54,8 @@ public:
    */
   void SetScaleToSize(const gfxIntSize &aSize, ScaleMode aMode)
   {
-    if (mScaleToSize != aSize || mScaleMode != aMode) {
-      mScaleToSize = aSize;
-      mScaleMode = aMode;
-      Mutated();
-    }
+    mScaleToSize = aSize;
+    mScaleMode = aMode;
   }
 
 

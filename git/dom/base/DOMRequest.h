@@ -8,9 +8,9 @@
 #define mozilla_dom_domrequest_h__
 
 #include "nsIDOMDOMRequest.h"
+#include "nsIDOMDOMError.h"
 #include "nsDOMEventTargetHelper.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/dom/DOMError.h"
 #include "mozilla/dom/DOMRequestBinding.h"
 
 #include "nsCOMPtr.h"
@@ -22,15 +22,15 @@ class DOMRequest : public nsDOMEventTargetHelper,
                    public nsIDOMDOMRequest
 {
 protected:
-  JS::Heap<JS::Value> mResult;
-  nsRefPtr<DOMError> mError;
+  jsval mResult;
+  nsCOMPtr<nsIDOMDOMError> mError;
   bool mDone;
   bool mRooted;
 
 public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDOMDOMREQUEST
-  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper)
+  NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
 
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(DOMRequest,
                                                          nsDOMEventTargetHelper)
@@ -41,14 +41,14 @@ public:
     return GetOwner();
   }
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject*
+  WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
   // WebIDL Interface
   DOMRequestReadyState ReadyState() const
   {
-    return mDone ? DOMRequestReadyState::Done
-                 : DOMRequestReadyState::Pending;
+    return mDone ? DOMRequestReadyStateValues::Done
+                 : DOMRequestReadyStateValues::Pending;
   }
 
   JS::Value Result(JSContext* = nullptr) const
@@ -58,7 +58,7 @@ public:
     return mResult;
   }
 
-  DOMError* GetError() const
+  nsIDOMDOMError* GetError() const
   {
     NS_ASSERTION(mDone || !mError,
                  "Error should be null when pending");
@@ -69,7 +69,7 @@ public:
   IMPL_EVENT_HANDLER(error)
 
 
-  void FireSuccess(JS::Handle<JS::Value> aResult);
+  void FireSuccess(jsval aResult);
   void FireError(const nsAString& aError);
   void FireError(nsresult aError);
 

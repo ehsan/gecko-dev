@@ -108,7 +108,7 @@ SignFile(FILE *outFile, PRFileDesc *inFile, CERTCertificate *cert)
     char *data;
     SECKEYPrivateKey *privKey;
     SECOidTag algID;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     CERTSignedData sd;
     SECItem *result;
 
@@ -116,8 +116,7 @@ SignFile(FILE *outFile, PRFileDesc *inFile, CERTCertificate *cert)
         return -1;
 
     /* suck the file in */
-    if (SECU_ReadDERFromFile(&data2sign, inFile, PR_FALSE,
-                             PR_FALSE) != SECSuccess)
+    if (SECU_ReadDERFromFile(&data2sign, inFile, PR_FALSE) != SECSuccess)
         return -1;
 
     privKey = NULL;    

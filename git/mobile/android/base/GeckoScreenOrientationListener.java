@@ -13,8 +13,6 @@ import android.view.Surface;
 import java.util.Arrays;
 import java.util.List;
 
-import android.app.Activity;
-
 public class GeckoScreenOrientationListener {
     private static final String LOGTAG = "GeckoScreenOrientationListener";
 
@@ -53,7 +51,7 @@ public class GeckoScreenOrientationListener {
     private static final String DEFAULT_ORIENTATION_PREF = "app.orientation.default";
 
     private GeckoScreenOrientationListener() {
-        mListener = new OrientationEventListenerImpl(GeckoAppShell.getContext());
+        mListener = new OrientationEventListenerImpl(GeckoApp.mAppContext);
 
         PrefsHelper.getPref(DEFAULT_ORIENTATION_PREF, new PrefsHelper.PrefHandlerBase() {
             @Override public void prefValue(String pref, String value) {
@@ -143,11 +141,7 @@ public class GeckoScreenOrientationListener {
     }
 
     private void updateScreenOrientation() {
-      Context context = GeckoAppShell.getContext();
-      int rotation = mDefaultOrientation;
-      if (context instanceof Activity) {
-        rotation = ((Activity)context).getWindowManager().getDefaultDisplay().getRotation();
-      }
+        int rotation = GeckoApp.mAppContext.getWindowManager().getDefaultDisplay().getRotation();
         short previousOrientation = mOrientation;
 
         if (rotation == Surface.ROTATION_0) {
@@ -198,18 +192,16 @@ public class GeckoScreenOrientationListener {
             Log.e(LOGTAG, "Unexpected value received! (" + aOrientation + ")");
             return;
         }
-	if (GeckoAppShell.getContext() instanceof Activity)
-	  ((Activity)GeckoAppShell.getContext()).setRequestedOrientation(orientation);
+
+        GeckoApp.mAppContext.setRequestedOrientation(orientation);
         updateScreenOrientation();
     }
 
     public void unlockScreenOrientation() {
-      if (!(GeckoAppShell.getContext() instanceof Activity))
-	return;
-      if (((Activity)GeckoAppShell.getContext()).getRequestedOrientation() == mDefaultOrientation)
-	return;
+        if (GeckoApp.mAppContext.getRequestedOrientation() == mDefaultOrientation)
+            return;
 
-      ((Activity)GeckoAppShell.getContext()).setRequestedOrientation(mDefaultOrientation);
+        GeckoApp.mAppContext.setRequestedOrientation(mDefaultOrientation);
         updateScreenOrientation();
     }
 }

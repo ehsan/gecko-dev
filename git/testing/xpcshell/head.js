@@ -45,17 +45,6 @@ try {
 } 
 catch (e) { }
 
-// Only if building of places is enabled.
-if (runningInParent &&
-    "mozIAsyncHistory" in Components.interfaces) {
-  // Ensure places history is enabled for xpcshell-tests as some non-FF
-  // apps disable it.
-  let (prefs = Components.classes["@mozilla.org/preferences-service;1"]
-               .getService(Components.interfaces.nsIPrefBranch)) {
-    prefs.setBoolPref("places.history.enabled", true);
-  };
-}
-
 try {
   if (runningInParent) {
     let prefs = Components.classes["@mozilla.org/preferences-service;1"]
@@ -122,8 +111,8 @@ function _Timer(func, delay) {
 }
 _Timer.prototype = {
   QueryInterface: function(iid) {
-    if (iid.equals(Components.interfaces.nsITimerCallback) ||
-        iid.equals(Components.interfaces.nsISupports))
+    if (iid.Equals(Components.interfaces.nsITimerCallback) ||
+        iid.Equals(Components.interfaces.nsISupports))
       return this;
 
     throw Components.results.NS_ERROR_NO_INTERFACE;
@@ -200,7 +189,7 @@ function _dump_exception_stack(stack) {
  * @note Idle service is overridden by default.  If a test requires it, it will
  *       have to call do_get_idle() function at least once before use.
  */
-var _fakeIdleService = {
+_fakeIdleService = {
   get registrar() {
     delete this.registrar;
     return this.registrar =
@@ -332,9 +321,9 @@ function _execute_test() {
   _load_files(_TEST_FILE);
 
   try {
-    do_test_pending("MAIN run_test");
+    do_test_pending();
     run_test();
-    do_test_finished("MAIN run_test");
+    do_test_finished();
     _do_main();
   } catch (e) {
     _passed = false;
@@ -403,9 +392,6 @@ function _load_files(aFiles) {
   aFiles.forEach(loadTailFile);
 }
 
-function _wrap_with_quotes_if_necessary(val) {
-  return typeof val == "string" ? '"' + val + '"' : val;
-}
 
 /************** Functions to be used from the tests **************/
 
@@ -414,7 +400,6 @@ function _wrap_with_quotes_if_necessary(val) {
  */
 function do_print(msg) {
   var caller_stack = Components.stack.caller;
-  msg = _wrap_with_quotes_if_necessary(msg);
   _dump("TEST-INFO | " + caller_stack.filename + " | " + msg + "\n");
 }
 
@@ -432,9 +417,8 @@ function do_timeout(delay, func) {
   new _Timer(func, Number(delay));
 }
 
-function do_execute_soon(callback, aName) {
-  let funcName = (aName ? aName : callback.name);
-  do_test_pending(funcName);
+function do_execute_soon(callback) {
+  do_test_pending();
   var tm = Components.classes["@mozilla.org/thread-manager;1"]
                      .getService(Components.interfaces.nsIThreadManager);
 
@@ -461,51 +445,25 @@ function do_execute_soon(callback, aName) {
         }
       }
       finally {
-        do_test_finished(funcName);
+        do_test_finished();
       }
     }
   }, Components.interfaces.nsIThread.DISPATCH_NORMAL);
 }
 
-/**
- * Shows an error message and the current stack and aborts the test.
- *
- * @param error  A message string or an Error object.
- * @param stack  null or nsIStackFrame object or a string containing
- *               \n separated stack lines (as in Error().stack).
- */
-function do_throw(error, stack) {
-  let filename = "";
-  if (!stack) {
-    if (error instanceof Error) {
-      // |error| is an exception object
-      filename = error.fileName;
-      stack = error.stack;
-    } else {
-      stack = Components.stack.caller;
-    }
-  }
-
-  if (stack instanceof Components.interfaces.nsIStackFrame)
-    filename = stack.filename;
-
-  _dump("TEST-UNEXPECTED-FAIL | " + filename + " | " + error +
-        " - See following stack:\n");
-
-  if (stack instanceof Components.interfaces.nsIStackFrame) {
-    let frame = stack;
-    while (frame != null) {
-      _dump(frame + "\n");
-      frame = frame.caller;
-    }
-  } else if (typeof stack == "string") {
-    let stackLines = stack.split("\n");
-    for (let line of stackLines) {
-      _dump(line + "\n");
-    }
-  }
+function do_throw(text, stack) {
+  if (!stack)
+    stack = Components.stack.caller;
 
   _passed = false;
+  _dump("TEST-UNEXPECTED-FAIL | " + stack.filename + " | " + text +
+        " - See following stack:\n");
+  var frame = Components.stack;
+  while (frame != null) {
+    _dump(frame + "\n");
+    frame = frame.caller;
+  }
+
   _do_quit();
   throw Components.results.NS_ERROR_ABORT;
 }
@@ -553,9 +511,24 @@ function _do_check_neq(left, right, stack, todo) {
   if (!stack)
     stack = Components.stack.caller;
 
-  var text = _wrap_with_quotes_if_necessary(left) + " != " +
-             _wrap_with_quotes_if_necessary(right);
-  do_report_result(left != right, text, stack, todo);
+  var text = left + " != " + right;
+  if (left == right) {
+    if (!todo) {
+      do_throw(text, stack);
+    } else {
+      ++_todoChecks;
+      _dump("TEST-KNOWN-FAIL | " + stack.filename + " | [" + stack.name +
+            " : " + stack.lineNumber + "] " + text +"\n");
+    }
+  } else {
+    if (!todo) {
+      ++_passedChecks;
+      _dump("TEST-PASS | " + stack.filename + " | [" + stack.name + " : " +
+            stack.lineNumber + "] " + text + "\n");
+    } else {
+      do_throw_todo(text, stack);
+    }
+  }
 }
 
 function do_check_neq(left, right, stack) {
@@ -596,8 +569,7 @@ function _do_check_eq(left, right, stack, todo) {
   if (!stack)
     stack = Components.stack.caller;
 
-  var text = _wrap_with_quotes_if_necessary(left) + " == " +
-             _wrap_with_quotes_if_necessary(right);
+  var text = left + " == " + right;
   do_report_result(left == right, text, stack, todo);
 }
 
@@ -802,16 +774,16 @@ function format_pattern_match_failure(diagnosis, indent="") {
   return indent + a;
 }
 
-function do_test_pending(aName) {
+function do_test_pending() {
   ++_tests_pending;
 
-  _dump("TEST-INFO | (xpcshell/head.js) | test" + (aName ? " " + aName : "") +
-         " pending (" + _tests_pending + ")\n");
+  _dump("TEST-INFO | (xpcshell/head.js) | test " + _tests_pending +
+         " pending\n");
 }
 
-function do_test_finished(aName) {
-  _dump("TEST-INFO | (xpcshell/head.js) | test" + (aName ? " " + aName : "") +
-         " finished (" + _tests_pending + ")\n");
+function do_test_finished() {
+  _dump("TEST-INFO | (xpcshell/head.js) | test " + _tests_pending +
+         " finished\n");
 
   if (--_tests_pending == 0)
     _do_quit();
@@ -1005,21 +977,28 @@ function do_load_child_test_harness()
   if (typeof do_load_child_test_harness.alreadyRun != "undefined")
     return;
   do_load_child_test_harness.alreadyRun = 1;
+  
+  function addQuotes (str)  { 
+    return '"' + str + '"'; 
+  }
+  var quoted_head_files = _HEAD_FILES.map(addQuotes);
+  var quoted_tail_files = _TAIL_FILES.map(addQuotes);
 
   _XPCSHELL_PROCESS = "parent";
 
   let command =
-        "const _HEAD_JS_PATH=" + uneval(_HEAD_JS_PATH) + "; "
-      + "const _HTTPD_JS_PATH=" + uneval(_HTTPD_JS_PATH) + "; "
-      + "const _HEAD_FILES=" + uneval(_HEAD_FILES) + "; "
-      + "const _TAIL_FILES=" + uneval(_TAIL_FILES) + "; "
+        "const _HEAD_JS_PATH='" + _HEAD_JS_PATH + "'; "
+      + "const _HTTPD_JS_PATH='" + _HTTPD_JS_PATH + "'; "
+      + "const _HEAD_FILES=[" + quoted_head_files.join() + "];"
+      + "const _TAIL_FILES=[" + quoted_tail_files.join() + "];"
       + "const _XPCSHELL_PROCESS='child';";
 
   if (this._TESTING_MODULES_DIR) {
-    command += " const _TESTING_MODULES_DIR=" + uneval(_TESTING_MODULES_DIR) + ";";
+    normalized = this._TESTING_MODULES_DIR.replace('\\', '\\\\', 'g');
+    command += "const _TESTING_MODULES_DIR='" + normalized + "'; ";
   }
 
-  command += " load(_HEAD_JS_PATH);";
+  command += "load(_HEAD_JS_PATH);";
 
   sendCommand(command);
 }
@@ -1044,7 +1023,7 @@ function run_test_in_child(testFile, optionalCallback)
   do_load_child_test_harness();
 
   var testPath = do_get_file(testFile).path.replace(/\\/g, "/");
-  do_test_pending("run in child");
+  do_test_pending();
   sendCommand("_dump('CHILD-TEST-STARTED'); "
               + "const _TEST_FILE=['" + testPath + "']; _execute_test(); "
               + "_dump('CHILD-TEST-COMPLETED');", 
@@ -1126,10 +1105,10 @@ function run_next_test()
   function _run_next_test()
   {
     if (_gTestIndex < _gTests.length) {
+      do_test_pending();
       let _isTask;
       [_isTask, _gRunningTest] = _gTests[_gTestIndex++];
       print("TEST-INFO | " + _TEST_FILE + " | Starting " + _gRunningTest.name);
-      do_test_pending(_gRunningTest.name);
 
       if (_isTask) {
         _Task.spawn(_gRunningTest)
@@ -1149,10 +1128,10 @@ function run_next_test()
   // We do this now, before we call do_test_finished(), to ensure the pending
   // counter (_tests_pending) never reaches 0 while we still have tests to run
   // (do_execute_soon bumps that counter).
-  do_execute_soon(_run_next_test, "run_next_test " + _gTestIndex);
+  do_execute_soon(_run_next_test);
 
   if (_gRunningTest !== null) {
     // Close the previous test do_test_pending call.
-    do_test_finished(_gRunningTest.name);
+    do_test_finished();
   }
 }

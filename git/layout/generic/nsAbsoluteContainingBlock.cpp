@@ -18,7 +18,6 @@
 #include "nsPresContext.h"
 #include "nsFrameManager.h"
 #include "nsCSSFrameConstructor.h"
-#include "nsIDocumentInlines.h"
 
 #ifdef DEBUG
 #include "nsBlockFrame.h"
@@ -116,7 +115,8 @@ nsAbsoluteContainingBlock::Reflow(nsContainerFrame*        aDelegatingFrame,
                                   nsPresContext*           aPresContext,
                                   const nsHTMLReflowState& aReflowState,
                                   nsReflowStatus&          aReflowStatus,
-                                  const nsRect&            aContainingBlock,
+                                  nscoord                  aContainingBlockWidth,
+                                  nscoord                  aContainingBlockHeight,
                                   bool                     aConstrainHeight,
                                   bool                     aCBWidthChanged,
                                   bool                     aCBHeightChanged,
@@ -135,7 +135,7 @@ nsAbsoluteContainingBlock::Reflow(nsContainerFrame*        aDelegatingFrame,
       // Reflow the frame
       nsReflowStatus  kidStatus = NS_FRAME_COMPLETE;
       ReflowAbsoluteFrame(aDelegatingFrame, aPresContext, aReflowState,
-                          aContainingBlock,
+                          aContainingBlockWidth, aContainingBlockHeight,
                           aConstrainHeight, kidFrame, kidStatus,
                           aOverflowAreas);
       nsIFrame* nextFrame = kidFrame->GetNextInFlow();
@@ -156,7 +156,7 @@ nsAbsoluteContainingBlock::Reflow(nsContainerFrame*        aDelegatingFrame,
       else {
         // Delete any continuations
         if (nextFrame) {
-          nsOverflowContinuationTracker::AutoFinish fini(&tracker, kidFrame);
+          tracker.Finish(kidFrame);
           static_cast<nsContainerFrame*>(nextFrame->GetParent())
             ->DeleteNextInFlowChild(aPresContext, nextFrame, true);
         }
@@ -348,9 +348,10 @@ nsAbsoluteContainingBlock::DoMarkFramesDirty(bool aMarkAllDirty)
 
 nsresult
 nsAbsoluteContainingBlock::ReflowAbsoluteFrame(nsIFrame*                aDelegatingFrame,
-                                               nsPresContext*           aPresContext,
+                                               nsPresContext*          aPresContext,
                                                const nsHTMLReflowState& aReflowState,
-                                               const nsRect&            aContainingBlock,
+                                               nscoord                  aContainingBlockWidth,
+                                               nscoord                  aContainingBlockHeight,
                                                bool                     aConstrainHeight,
                                                nsIFrame*                aKidFrame,
                                                nsReflowStatus&          aStatus,
@@ -378,7 +379,21 @@ nsAbsoluteContainingBlock::ReflowAbsoluteFrame(nsIFrame*                aDelegat
   AutoNoisyIndenter indent(nsBlockFrame::gNoisy);
 #endif // DEBUG
 
-  nscoord availWidth = aContainingBlock.width;
+  nsresult  rv;
+  // Get the border values
+  nsMargin border = aReflowState.mStyleBorder->GetComputedBorder();
+
+  // Respect fixed position margins.
+  if (aDelegatingFrame->GetAbsoluteListID() == nsIFrame::kFixedList) {
+    const nsMargin& fixedMargins = aPresContext->PresShell()->
+      GetContentDocumentFixedPositionMargins();
+
+    border += fixedMargins;
+    aContainingBlockWidth -= fixedMargins.left + fixedMargins.right;
+    aContainingBlockHeight -= fixedMargins.top + fixedMargins.bottom;
+  }
+
+  nscoord availWidth = aContainingBlockWidth;
   if (availWidth == -1) {
     NS_ASSERTION(aReflowState.ComputedWidth() != NS_UNCONSTRAINEDSIZE,
                  "Must have a useful width _somewhere_");
@@ -389,14 +404,11 @@ nsAbsoluteContainingBlock::ReflowAbsoluteFrame(nsIFrame*                aDelegat
   nsHTMLReflowMetrics kidDesiredSize;
   nsHTMLReflowState kidReflowState(aPresContext, aReflowState, aKidFrame,
                                    nsSize(availWidth, NS_UNCONSTRAINEDSIZE),
-                                   aContainingBlock.width,
-                                   aContainingBlock.height);
+                                   aContainingBlockWidth,
+                                   aContainingBlockHeight);
 
   // Send the WillReflow() notification and position the frame
   aKidFrame->WillReflow(aPresContext);
-
-  // Get the border values
-  const nsMargin& border = aReflowState.mStyleBorder->GetComputedBorder();
 
   bool constrainHeight = (aReflowState.availableHeight != NS_UNCONSTRAINEDSIZE)
     && aConstrainHeight
@@ -415,15 +427,12 @@ nsAbsoluteContainingBlock::ReflowAbsoluteFrame(nsIFrame*                aDelegat
   }
 
   // Do the reflow
-  nsresult rv = aKidFrame->Reflow(aPresContext, kidDesiredSize, kidReflowState, aStatus);
+  rv = aKidFrame->Reflow(aPresContext, kidDesiredSize, kidReflowState, aStatus);
 
   // If we're solving for 'left' or 'top', then compute it now that we know the
   // width/height
   if ((NS_AUTOOFFSET == kidReflowState.mComputedOffsets.left) ||
       (NS_AUTOOFFSET == kidReflowState.mComputedOffsets.top)) {
-    nscoord aContainingBlockWidth = aContainingBlock.width;
-    nscoord aContainingBlockHeight = aContainingBlock.height;
-
     if (-1 == aContainingBlockWidth) {
       // Get the containing block width/height
       kidReflowState.ComputeContainingBlockRectangle(aPresContext,
@@ -454,21 +463,6 @@ nsAbsoluteContainingBlock::ReflowAbsoluteFrame(nsIFrame*                aDelegat
   nsRect  rect(border.left + kidReflowState.mComputedOffsets.left + kidReflowState.mComputedMargin.left,
                border.top + kidReflowState.mComputedOffsets.top + kidReflowState.mComputedMargin.top,
                kidDesiredSize.width, kidDesiredSize.height);
-
-  // Offset the frame rect by the given origin of the absolute containing block.
-  // If the frame is auto-positioned on both sides of an axis, it will be
-  // positioned based on its containing block and we don't need to offset.
-  if (aContainingBlock.TopLeft() != nsPoint(0, 0)) {
-    if (!(kidReflowState.mStylePosition->mOffset.GetLeftUnit() == eStyleUnit_Auto &&
-          kidReflowState.mStylePosition->mOffset.GetRightUnit() == eStyleUnit_Auto)) {
-      rect.x += aContainingBlock.x;
-    }
-    if (!(kidReflowState.mStylePosition->mOffset.GetTopUnit() == eStyleUnit_Auto &&
-          kidReflowState.mStylePosition->mOffset.GetBottomUnit() == eStyleUnit_Auto)) {
-      rect.y += aContainingBlock.y;
-    }
-  }
-
   aKidFrame->SetRect(rect);
 
   nsView* view = aKidFrame->GetView();

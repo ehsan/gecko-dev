@@ -213,18 +213,9 @@ void
 HTMLTableCellAccessible::ColHeaderCells(nsTArray<Accessible*>* aCells)
 {
   IDRefsIterator itr(mDoc, mContent, nsGkAtoms::headers);
-  while (Accessible* cell = itr.Next()) {
-    a11y::role cellRole = cell->Role();
-    if (cellRole == roles::COLUMNHEADER) {
+  while (Accessible* cell = itr.Next())
+    if (cell->Role() == roles::COLUMNHEADER)
       aCells->AppendElement(cell);
-    } else if (cellRole != roles::ROWHEADER) {
-      // If referred table cell is at the same column then treat it as a column
-      // header.
-      TableCellAccessible* tableCell = cell->AsTableCell();
-      if (tableCell && tableCell->ColIdx() == ColIdx())
-        aCells->AppendElement(cell);
-    }
-  }
 
   if (aCells->IsEmpty())
     TableCellAccessible::ColHeaderCells(aCells);
@@ -234,18 +225,9 @@ void
 HTMLTableCellAccessible::RowHeaderCells(nsTArray<Accessible*>* aCells)
 {
   IDRefsIterator itr(mDoc, mContent, nsGkAtoms::headers);
-  while (Accessible* cell = itr.Next()) {
-    a11y::role cellRole = cell->Role();
-    if (cellRole == roles::ROWHEADER) {
+  while (Accessible* cell = itr.Next())
+    if (cell->Role() == roles::ROWHEADER)
       aCells->AppendElement(cell);
-    } else if (cellRole != roles::COLUMNHEADER) {
-      // If referred table cell is at the same row then treat it as a column
-      // header.
-      TableCellAccessible* tableCell = cell->AsTableCell();
-      if (tableCell && tableCell->RowIdx() == RowIdx())
-        aCells->AppendElement(cell);
-    }
-  }
 
   if (aCells->IsEmpty())
     TableCellAccessible::RowHeaderCells(aCells);
@@ -312,7 +294,7 @@ HTMLTableHeaderCellAccessible::NativeRole()
       return roles::ROWHEADER;
   }
 
-  // Assume it's columnheader if there are headers in siblings, otherwise
+  // Assume it's columnheader if there are headers in siblings, oterwise
   // rowheader.
   nsIContent* parentContent = mContent->GetParent();
   if (!parentContent) {
@@ -324,7 +306,7 @@ HTMLTableHeaderCellAccessible::NativeRole()
        siblingContent = siblingContent->GetPreviousSibling()) {
     if (siblingContent->IsElement()) {
       return nsCoreUtils::IsHTMLTableHeader(siblingContent) ?
-        roles::COLUMNHEADER : roles::ROWHEADER;
+	     roles::COLUMNHEADER : roles::ROWHEADER;
     }
   }
 
@@ -332,7 +314,7 @@ HTMLTableHeaderCellAccessible::NativeRole()
        siblingContent = siblingContent->GetNextSibling()) {
     if (siblingContent->IsElement()) {
       return nsCoreUtils::IsHTMLTableHeader(siblingContent) ?
-       roles::COLUMNHEADER : roles::ROWHEADER;
+	     roles::COLUMNHEADER : roles::ROWHEADER;
     }
   }
 

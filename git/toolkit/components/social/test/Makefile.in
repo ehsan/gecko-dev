@@ -10,9 +10,8 @@ relativesrcdir = @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-ifdef MOZ_SOCIAL
-# social is turned off for android
-
-endif
+XPCSHELL_TESTS = \
+  xpcshell \
+  $(NULL)
 
 include $(topsrcdir)/config/rules.mk

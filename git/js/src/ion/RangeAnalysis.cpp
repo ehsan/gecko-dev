@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -22,10 +23,6 @@ using namespace js;
 using namespace js::ion;
 
 using mozilla::Abs;
-using mozilla::ExponentComponent;
-using mozilla::IsInfinite;
-using mozilla::IsNaN;
-using mozilla::IsNegative;
 
 // This algorithm is based on the paper "Eliminating Range Checks Using
 // Static Single Assignment Form" by Gough and Klaren.
@@ -84,6 +81,11 @@ using mozilla::IsNegative;
 // usefully used for other forms of bounds check elimination) and remove them
 // after range analysis is performed. The remaining compiler phases do not ever
 // encounter beta nodes.
+
+RangeAnalysis::RangeAnalysis(MIRGraph &graph)
+  : graph_(graph)
+{
+}
 
 static bool
 IsDominatedUse(MBasicBlock *block, MUse *use)
@@ -578,14 +580,14 @@ MConstant::computeRange()
     int exp = Range::MaxDoubleExponent;
 
     // NaN is estimated as a Double which covers everything.
-    if (IsNaN(d)) {
+    if (MOZ_DOUBLE_IS_NaN(d)) {
         setRange(new Range(RANGE_INF_MIN, RANGE_INF_MAX, true, exp));
         return;
     }
 
     // Infinity is used to set both lower and upper to the range boundaries.
-    if (IsInfinite(d)) {
-        if (IsNegative(d))
+    if (MOZ_DOUBLE_IS_INFINITE(d)) {
+        if (MOZ_DOUBLE_IS_NEGATIVE(d))
             setRange(new Range(RANGE_INF_MIN, RANGE_INF_MIN, false, exp));
         else
             setRange(new Range(RANGE_INF_MAX, RANGE_INF_MAX, false, exp));
@@ -593,10 +595,10 @@ MConstant::computeRange()
     }
 
     // Extract the exponent, to approximate it with the range analysis.
-    exp = ExponentComponent(d);
+    exp = MOZ_DOUBLE_EXPONENT(d);
     if (exp < 0) {
         // This double only has a decimal part.
-        if (IsNegative(d))
+        if (MOZ_DOUBLE_IS_NEGATIVE(d))
             setRange(new Range(-1, 0, true, 0));
         else
             setRange(new Range(0, 1, true, 0));
@@ -613,7 +615,7 @@ MConstant::computeRange()
     } else {
         // This double has a precision loss. This also mean that it cannot
         // encode any decimals.
-        if (IsNegative(d))
+        if (MOZ_DOUBLE_IS_NEGATIVE(d))
             setRange(new Range(RANGE_INF_MIN, RANGE_INF_MIN, false, exp));
         else
             setRange(new Range(RANGE_INF_MAX, RANGE_INF_MAX, false, exp));
@@ -721,11 +723,6 @@ MMod::computeRange()
         return;
     Range lhs(getOperand(0));
     Range rhs(getOperand(1));
-
-    // Infinite % x is NaN
-    if (lhs.isInfinite())
-        return;
-
     int64_t a = Abs<int64_t>(rhs.lower());
     int64_t b = Abs<int64_t>(rhs.upper());
     if (a == 0 && b == 0)
@@ -744,13 +741,7 @@ void
 MTruncateToInt32::computeRange()
 {
     Range input(getOperand(0));
-    int32_t lower = input.lower();
-    int32_t upper = input.upper();
-    if (input.isLowerInfinite() || input.isUpperInfinite()) {
-        lower = JSVAL_INT_MIN;
-        upper = JSVAL_INT_MAX;
-    }
-    setRange(new Range(lower, upper));
+    setRange(new Range(input.lower(), input.upper()));
 }
 
 void
@@ -758,12 +749,6 @@ MToInt32::computeRange()
 {
     Range input(getOperand(0));
     setRange(new Range(input.lower(), input.upper()));
-}
-
-void
-MLoadTypedArrayElementStatic::computeRange()
-{
-    setRange(new Range(this));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1353,13 +1338,6 @@ MToDouble::truncate()
 }
 
 bool
-MLoadTypedArrayElementStatic::truncate()
-{
-    setInfallible();
-    return false;
-}
-
-bool
 MDefinition::isOperandTruncated(size_t index) const
 {
     return false;
@@ -1403,21 +1381,13 @@ MToDouble::isOperandTruncated(size_t index) const
     return type() == MIRType_Int32;
 }
 
-// Ensure that all observables uses can work with a truncated
+// Ensure that all observables (non-resume point) uses can work with a truncated
 // version of the |candidate|'s result.
 static bool
 AllUsesTruncate(MInstruction *candidate)
 {
-    for (MUseIterator use(candidate->usesBegin()); use != candidate->usesEnd(); use++) {
-        if (!use->consumer()->isDefinition()) {
-            // We can only skip testing resume points, if all original uses are still present.
-            // Only than testing all uses is enough to guarantee the truncation isn't observerable.
-            if (candidate->isUseRemoved())
-                return false;
-            continue;
-        }
-
-        if (!use->consumer()->toDefinition()->isOperandTruncated(use->index()))
+    for (MUseDefIterator use(candidate); use; use++) {
+        if (!use.def()->isOperandTruncated(use.index()))
             return false;
     }
 
@@ -1477,23 +1447,9 @@ RangeAnalysis::truncate()
     IonSpew(IonSpew_Range, "Do range-base truncation (backward loop)");
 
     Vector<MInstruction *, 16, SystemAllocPolicy> worklist;
-    Vector<MBinaryBitwiseInstruction *, 16, SystemAllocPolicy> bitops;
 
     for (PostorderIterator block(graph_.poBegin()); block != graph_.poEnd(); block++) {
         for (MInstructionReverseIterator iter(block->rbegin()); iter != block->rend(); iter++) {
-            // Remember all bitop instructions for folding after range analysis.
-            switch (iter->op()) {
-              case MDefinition::Op_BitAnd:
-              case MDefinition::Op_BitOr:
-              case MDefinition::Op_BitXor:
-              case MDefinition::Op_Lsh:
-              case MDefinition::Op_Rsh:
-              case MDefinition::Op_Ursh:
-                if (!bitops.append(static_cast<MBinaryBitwiseInstruction*>(*iter)))
-                    return false;
-              default:;
-            }
-
             // Set truncated flag if range analysis ensure that it has no
             // rounding errors and no freactional part.
             const Range *r = iter->range();
@@ -1523,16 +1479,6 @@ RangeAnalysis::truncate()
         ins->setNotInWorklist();
         RemoveTruncatesOnOutput(ins);
         AdjustTruncatedInputs(ins);
-    }
-
-    // Fold any unnecessary bitops in the graph, such as (x | 0) on an integer
-    // input. This is done after range analysis rather than during GVN as the
-    // presence of the bitop can change which instructions are truncated.
-    for (size_t i = 0; i < bitops.length(); i++) {
-        MBinaryBitwiseInstruction *ins = bitops[i];
-        MDefinition *folded = ins->foldUnnecessaryBitop();
-        if (folded != ins)
-            ins->replaceAllUsesWith(folded);
     }
 
     return true;

@@ -136,7 +136,16 @@ this.SignInToWebsiteUX = {
    * Return the chrome window and <browser> for the given outer window ID.
    */
   _getUIForWindowID: function(aWindowID) {
-    let content = Services.wm.getOuterWindowWithId(aWindowID);
+    let someWindow = Services.wm.getMostRecentWindow("navigator:browser");
+    if (!someWindow) {
+      Logger.reportError("SignInToWebsiteUX", "no window");
+      return [null, null];
+    }
+
+    let windowUtils = someWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                                .getInterface(Ci.nsIDOMWindowUtils);
+    let content = windowUtils.getOuterWindowWithId(aWindowID);
+
     if (content) {
       let browser = content.QueryInterface(Ci.nsIInterfaceRequestor)
                            .getInterface(Ci.nsIWebNavigation)
@@ -144,8 +153,8 @@ this.SignInToWebsiteUX = {
       let chromeWin = browser.ownerDocument.defaultView;
       return [chromeWin, browser];
     }
-
     Logger.reportError("SignInToWebsiteUX", "no content");
+
     return [null, null];
   },
 

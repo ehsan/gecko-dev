@@ -12,9 +12,9 @@
 #include "nsXPIDLString.h"
 #include "nsISaveAsCharset.h"
 #include "nsNativeCharsetUtils.h"
-#include "nsServiceManagerUtils.h"
 
 #ifndef MOZ_DISABLE_CRYPTOLEGACY
+#include "nsNSSComponent.h"
 #include "nsKeygenHandler.h"
 #include "nsKeygenThread.h"
 #include "nsNSSCertificate.h"
@@ -34,10 +34,7 @@
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIScriptContext.h"
 #include "nsIScriptGlobalObject.h"
-#include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "nsDOMJSUtils.h"
-#include "nsJSUtils.h"
 #include "nsIXPConnect.h"
 #include "nsIRunnable.h"
 #include "nsIWindowWatcher.h"
@@ -49,6 +46,7 @@
 #include "nsIGenKeypairInfoDlg.h"
 #include "nsIDOMCryptoDialogs.h"
 #include "nsIFormSigningDialog.h"
+#include "nsIJSContextStack.h"
 #include "jsapi.h"
 #include "jsdbgapi.h"
 #include <ctype.h>
@@ -340,53 +338,53 @@ cryptojs_convert_to_mechanism(nsKeyGenType keyGenType)
 }
 
 /*
- * This function takes a string read through JavaScript parameters
+ * This function converts a string read through JavaScript parameters
  * and translates it to the internal enumeration representing the
- * key gen type. Leading and trailing whitespace must be already removed.
+ * key gen type.
  */
 static nsKeyGenType
-cryptojs_interpret_key_gen_type(const nsAString& keyAlg)
+cryptojs_interpret_key_gen_type(char *keyAlg)
 {
-  if (keyAlg.EqualsLiteral("rsa-ex")) {
+  char *end;
+  if (!keyAlg) {
+    return invalidKeyGen;
+  }
+  /* First let's remove all leading and trailing white space */
+  while (isspace(keyAlg[0])) keyAlg++;
+  end = strchr(keyAlg, '\0');
+  if (!end) {
+    return invalidKeyGen;
+  }
+  end--;
+  while (isspace(*end)) end--;
+  end[1] = '\0';
+  if (strcmp(keyAlg, "rsa-ex") == 0) {
     return rsaEnc;
-  }
-  if (keyAlg.EqualsLiteral("rsa-dual-use")) {
+  } else if (strcmp(keyAlg, "rsa-dual-use") == 0) {
     return rsaDualUse;
-  }
-  if (keyAlg.EqualsLiteral("rsa-sign")) {
+  } else if (strcmp(keyAlg, "rsa-sign") == 0) {
     return rsaSign;
-  }
-  if (keyAlg.EqualsLiteral("rsa-sign-nonrepudiation")) {
+  } else if (strcmp(keyAlg, "rsa-sign-nonrepudiation") == 0) {
     return rsaSignNonrepudiation;
-  }
-  if (keyAlg.EqualsLiteral("rsa-nonrepudiation")) {
+  } else if (strcmp(keyAlg, "rsa-nonrepudiation") == 0) {
     return rsaNonrepudiation;
-  }
-  if (keyAlg.EqualsLiteral("ec-ex")) {
+  } else if (strcmp(keyAlg, "ec-ex") == 0) {
     return ecEnc;
-  }
-  if (keyAlg.EqualsLiteral("ec-dual-use")) {
+  } else if (strcmp(keyAlg, "ec-dual-use") == 0) {
     return ecDualUse;
-  }
-  if (keyAlg.EqualsLiteral("ec-sign")) {
+  } else if (strcmp(keyAlg, "ec-sign") == 0) {
     return ecSign;
-  }
-  if (keyAlg.EqualsLiteral("ec-sign-nonrepudiation")) {
+  } else if (strcmp(keyAlg, "ec-sign-nonrepudiation") == 0) {
     return ecSignNonrepudiation;
-  }
-  if (keyAlg.EqualsLiteral("ec-nonrepudiation")) {
+  } else if (strcmp(keyAlg, "ec-nonrepudiation") == 0) {
     return ecNonrepudiation;
-  }
-  if (keyAlg.EqualsLiteral("dsa-sign-nonrepudiation")) {
+  } else if (strcmp(keyAlg, "dsa-sign-nonrepudiation") == 0) {
     return dsaSignNonrepudiation;
-  }
-  if (keyAlg.EqualsLiteral("dsa-sign")) {
+  } else if (strcmp(keyAlg, "dsa-sign") ==0 ){
     return dsaSign;
-  }
-  if (keyAlg.EqualsLiteral("dsa-nonrepudiation")) {
+  } else if (strcmp(keyAlg, "dsa-nonrepudiation") == 0) {
     return dsaNonrepudiation;
-  }
-  if (keyAlg.EqualsLiteral("dh-ex")) {
+  } else if (strcmp(keyAlg, "dh-ex") == 0) {
     return dhEx;
   }
   return invalidKeyGen;
@@ -917,7 +915,7 @@ cryptojs_ReadArgsAndGenerateKey(JSContext *cx,
                                 PK11SlotInfo **slot, bool willEscrow)
 {
   JSString  *jsString;
-  JSAutoByteString params;
+  JSAutoByteString params, keyGenAlg;
   int    keySize;
   nsresult  rv;
 
@@ -943,16 +941,13 @@ cryptojs_ReadArgsAndGenerateKey(JSContext *cx,
   jsString = JS_ValueToString(cx, argv[2]);
   NS_ENSURE_TRUE(jsString, NS_ERROR_OUT_OF_MEMORY);
   argv[2] = STRING_TO_JSVAL(jsString);
-  nsDependentJSString dependentKeyGenAlg;
-  NS_ENSURE_TRUE(dependentKeyGenAlg.init(cx, jsString), NS_ERROR_UNEXPECTED);
-  nsAutoString keyGenAlg(dependentKeyGenAlg);
-  keyGenAlg.Trim("\r\n\t ");
-  keyGenType->keyGenType = cryptojs_interpret_key_gen_type(keyGenAlg);
+  keyGenAlg.encodeLatin1(cx, jsString);
+  NS_ENSURE_TRUE(!!keyGenAlg, NS_ERROR_OUT_OF_MEMORY);
+  keyGenType->keyGenType = cryptojs_interpret_key_gen_type(keyGenAlg.ptr());
   if (keyGenType->keyGenType == invalidKeyGen) {
-    NS_LossyConvertUTF16toASCII keyGenAlgNarrow(dependentKeyGenAlg);
     JS_ReportError(cx, "%s%s%s", JS_ERROR,
                    "invalid key generation argument:",
-                   keyGenAlgNarrow.get());
+                   keyGenAlg.ptr());
     goto loser;
   }
   if (!*slot) {
@@ -965,10 +960,9 @@ cryptojs_ReadArgsAndGenerateKey(JSContext *cx,
                                    *slot,willEscrow);
 
   if (rv != NS_OK) {
-    NS_LossyConvertUTF16toASCII keyGenAlgNarrow(dependentKeyGenAlg);
     JS_ReportError(cx,"%s%s%s", JS_ERROR,
                    "could not generate the key for algorithm ",
-                   keyGenAlgNarrow.get());
+                   keyGenAlg.ptr());
     goto loser;
   }
   return NS_OK;
@@ -1862,7 +1856,10 @@ nsCrypto::GenerateCRMFRequest(nsIDOMCRMFObject** aReturn)
   nrv = ncc->GetJSContext(&cx);
   NS_ENSURE_SUCCESS(nrv, nrv);
 
+  JSObject* script_obj = nullptr;
   nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
+
+  JSAutoRequest ar(cx);
 
   /*
    * Get all of the parameters.
@@ -1919,13 +1916,13 @@ nsCrypto::GenerateCRMFRequest(nsIDOMCRMFObject** aReturn)
   JSAutoByteString jsCallback(cx, jsString);
   NS_ENSURE_TRUE(!!jsCallback, NS_ERROR_OUT_OF_MEMORY);
 
-  nrv = xpc->WrapNative(cx, JS_GetGlobalForScopeChain(cx),
+  nrv = xpc->WrapNative(cx, ::JS_GetGlobalObject(cx),
                         static_cast<nsIDOMCrypto *>(this),
                         NS_GET_IID(nsIDOMCrypto), getter_AddRefs(holder));
   NS_ENSURE_SUCCESS(nrv, nrv);
 
-  JS::RootedObject script_obj(cx, holder->GetJSObject());
-  NS_ENSURE_STATE(script_obj);
+  nrv = holder->GetJSObject(&script_obj);
+  NS_ENSURE_SUCCESS(nrv, nrv);
 
   //Put up some UI warning that someone is trying to 
   //escrow the private key.
@@ -2179,9 +2176,16 @@ NS_IMETHODIMP
 nsCryptoRunnable::Run()
 {
   nsNSSShutDownPreventionLock locker;
-  AutoPushJSContext cx(m_args->m_cx);
+  JSContext *cx = m_args->m_cx;
+
   JSAutoRequest ar(cx);
   JSAutoCompartment ac(cx, m_args->m_scope);
+
+  // make sure the right context is on the stack. must not return w/out popping
+  nsCOMPtr<nsIJSContextStack> stack(do_GetService("@mozilla.org/js/xpc/ContextStack;1"));
+  if (!stack || NS_FAILED(stack->Push(cx))) {
+    return NS_ERROR_FAILURE;
+  }
 
   JSBool ok =
     JS_EvaluateScriptForPrincipals(cx, m_args->m_scope,
@@ -2189,6 +2193,7 @@ nsCryptoRunnable::Run()
                                    m_args->m_jsCallback, 
                                    strlen(m_args->m_jsCallback),
                                    nullptr, 0, nullptr);
+  stack->Pop(nullptr);
   return ok ? NS_OK : NS_ERROR_FAILURE;
 }
 

@@ -11,6 +11,7 @@
  */
 
 interface SVGAnimatedNumber;
+interface SVGAnimatedString;
 
 interface SVGFEGaussianBlurElement : SVGElement {
   readonly attribute SVGAnimatedString in1;

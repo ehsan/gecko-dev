@@ -15,7 +15,7 @@
 
 #include "mozilla/dom/FragmentOrElement.h"
 
-#include "mozilla/dom/Attr.h"
+#include "nsDOMAttribute.h"
 #include "nsDOMAttributeMap.h"
 #include "nsIAtom.h"
 #include "nsINodeInfo.h"
@@ -72,6 +72,7 @@
 #include "nsLayoutUtils.h"
 #include "nsGkAtoms.h"
 #include "nsContentUtils.h"
+#include "nsIJSContextStack.h"
 
 #include "nsIDOMEventListener.h"
 #include "nsIWebNavigation.h"
@@ -125,6 +126,8 @@
 
 using namespace mozilla;
 using namespace mozilla::dom;
+
+NS_DEFINE_IID(kThisPtrOffsetsSID, NS_THISPTROFFSETS_SID);
 
 int32_t nsIContent::sTabFocusModel = eTabFocus_any;
 bool nsIContent::sTabFocusModelAppliesToXUL = false;
@@ -212,7 +215,7 @@ nsIContent::HasIndependentSelection()
 dom::Element*
 nsIContent::GetEditingHost()
 {
-  // If this isn't editable, return nullptr.
+  // If this isn't editable, return NULL.
   NS_ENSURE_TRUE(IsEditableInternal(), nullptr);
 
   nsIDocument* doc = GetCurrentDoc();
@@ -337,14 +340,14 @@ nsIContent::GetBaseURI() const
 static inline JSObject*
 GetJSObjectChild(nsWrapperCache* aCache)
 {
-  return aCache->PreservingWrapper() ? aCache->GetWrapperPreserveColor() : nullptr;
+  return aCache->PreservingWrapper() ? aCache->GetWrapperPreserveColor() : NULL;
 }
 
 static bool
-NeedsScriptTraverse(nsINode* aNode)
+NeedsScriptTraverse(nsWrapperCache* aCache)
 {
-  return aNode->PreservingWrapper() && aNode->GetWrapperPreserveColor() &&
-         !aNode->IsBlackAndDoesNotNeedTracing(aNode);
+  JSObject* o = GetJSObjectChild(aCache);
+  return o && xpc_IsGrayGCThing(o);
 }
 
 //----------------------------------------------------------------------
@@ -360,11 +363,11 @@ NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_0(nsChildContentList)
 // nsChildContentList only ever has a single child, its wrapper, so if
 // the wrapper is black, the list can't be part of a garbage cycle.
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsChildContentList)
-  return tmp->IsBlack();
+  return !NeedsScriptTraverse(tmp);
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_END
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_BEGIN(nsChildContentList)
-  return tmp->IsBlackAndDoesNotNeedTracing(tmp);
+  return !NeedsScriptTraverse(tmp);
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_END
 
 // CanSkipThis returns false to avoid problems with incomplete unlinking.
@@ -378,7 +381,7 @@ NS_INTERFACE_TABLE_HEAD(nsChildContentList)
 NS_INTERFACE_MAP_END
 
 JSObject*
-nsChildContentList::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
+nsChildContentList::WrapObject(JSContext *cx, JSObject *scope)
 {
   return NodeListBinding::Wrap(cx, scope, this);
 }
@@ -688,7 +691,9 @@ FragmentOrElement::GetChildren(uint32_t aFilter)
     }
   }
 
-  return list.forget();
+  nsINodeList* returnList = nullptr;
+  list.forget(&returnList);
+  return returnList;
 }
 
 static nsIContent*
@@ -1154,7 +1159,9 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(FragmentOrElement)
   }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
-NS_IMPL_CYCLE_COLLECTION_TRACE_WRAPPERCACHE(FragmentOrElement)
+NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(FragmentOrElement)
+  nsINode::Trace(tmp, aCallback, aClosure);
+NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 void
 FragmentOrElement::MarkUserData(void* aObject, nsIAtom* aKey, void* aChild,

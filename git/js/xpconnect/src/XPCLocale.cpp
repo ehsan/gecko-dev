@@ -22,8 +22,6 @@
 
 #include "xpcpublic.h"
 
-using namespace JS;
-
 /**
  * JS locale callbacks implemented by XPCOM modules.  These are theoretically
  * safe for use on multiple threads.  Unfortunately, the intl code underlying
@@ -74,32 +72,32 @@ struct XPCLocaleCallbacks : public JSLocaleCallbacks
   }
 
   static JSBool
-  LocaleToUpperCase(JSContext *cx, HandleString src, MutableHandleValue rval)
+  LocaleToUpperCase(JSContext *cx, JSString *src, jsval *rval)
   {
     return ChangeCase(cx, src, rval, ToUpperCase);
   }
 
   static JSBool
-  LocaleToLowerCase(JSContext *cx, HandleString src, MutableHandleValue rval)
+  LocaleToLowerCase(JSContext *cx, JSString *src, jsval *rval)
   {
     return ChangeCase(cx, src, rval, ToLowerCase);
   }
 
   static JSBool
-  LocaleToUnicode(JSContext* cx, const char* src, MutableHandleValue rval)
+  LocaleToUnicode(JSContext* cx, const char* src, jsval* rval)
   {
     return This(JS_GetRuntime(cx))->ToUnicode(cx, src, rval);
   }
 
   static JSBool
-  LocaleCompare(JSContext *cx, HandleString src1, HandleString src2, MutableHandleValue rval)
+  LocaleCompare(JSContext *cx, JSString *src1, JSString *src2, jsval *rval)
   {
     return This(JS_GetRuntime(cx))->Compare(cx, src1, src2, rval);
   }
 
 private:
   static JSBool
-  ChangeCase(JSContext* cx, HandleString src, MutableHandleValue rval,
+  ChangeCase(JSContext* cx, JSString* src, jsval* rval,
              void(*changeCaseFnc)(const nsAString&, nsAString&))
   {
     nsDependentJSString depStr;
@@ -116,12 +114,12 @@ private:
       return false;
     }
 
-    rval.set(STRING_TO_JSVAL(ucstr));
+    *rval = STRING_TO_JSVAL(ucstr);
     return true;
   }
 
   JSBool
-  Compare(JSContext *cx, HandleString src1, HandleString src2, MutableHandleValue rval)
+  Compare(JSContext *cx, JSString *src1, JSString *src2, jsval *rval)
   {
     nsresult rv;
 
@@ -163,12 +161,12 @@ private:
       return false;
     }
 
-    rval.set(INT_TO_JSVAL(result));
+    *rval = INT_TO_JSVAL(result);
     return true;
   }
 
   JSBool
-  ToUnicode(JSContext* cx, const char* src, MutableHandleValue rval)
+  ToUnicode(JSContext* cx, const char* src, jsval* rval)
   {
     nsresult rv;
 
@@ -203,7 +201,8 @@ private:
       }
     }
 
-    int32_t srcLength = strlen(src);
+    JSString *str = nullptr;
+    int32_t srcLength = PL_strlen(src);
 
     if (mDecoder) {
       int32_t unicharLength = srcLength;
@@ -223,18 +222,22 @@ private:
             if (shrunkUnichars)
               unichars = shrunkUnichars;
           }
-          JSString *str = JS_NewUCString(cx, reinterpret_cast<jschar*>(unichars), unicharLength);
-          if (str) {
-            rval.setString(str);
-            return true;
-          }
+          str = JS_NewUCString(cx,
+                               reinterpret_cast<jschar*>(unichars),
+                               unicharLength);
         }
-        JS_free(cx, unichars);
+        if (!str)
+          JS_free(cx, unichars);
       }
     }
 
-    xpc::Throw(cx, NS_ERROR_OUT_OF_MEMORY);
-    return false;
+    if (!str) {
+      xpc::Throw(cx, NS_ERROR_OUT_OF_MEMORY);
+      return false;
+    }
+
+    *rval = STRING_TO_JSVAL(str);
+    return true;
   }
 
   void AssertThreadSafety()

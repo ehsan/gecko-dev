@@ -325,7 +325,7 @@ GetAppShell()
     }
   }
 
-  return nullptr;
+  return NULL;
 }
 
 void

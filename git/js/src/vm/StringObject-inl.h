@@ -1,15 +1,14 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=78:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_StringObject_inl_h
-#define vm_StringObject_inl_h
+#ifndef StringObject_inl_h___
+#define StringObject_inl_h___
 
 #include "StringObject.h"
-
-#include "jsobjinlines.h"
 
 namespace js {
 
@@ -41,12 +40,12 @@ StringObject::init(JSContext *cx, HandleString str)
 }
 
 inline StringObject *
-StringObject::create(JSContext *cx, HandleString str, NewObjectKind newKind)
+StringObject::create(JSContext *cx, HandleString str)
 {
-    JSObject *obj = NewBuiltinClassInstance(cx, &class_, newKind);
+    JSObject *obj = NewBuiltinClassInstance(cx, &StringClass);
     if (!obj)
         return NULL;
-    Rooted<StringObject*> strobj(cx, &obj->as<StringObject>());
+    Rooted<StringObject*> strobj(cx, &obj->asString());
     if (!strobj->init(cx, str))
         return NULL;
     return strobj;
@@ -54,4 +53,4 @@ StringObject::create(JSContext *cx, HandleString str, NewObjectKind newKind)
 
 } // namespace js
 
-#endif /* vm_StringObject_inl_h */
+#endif /* StringObject_inl_h__ */

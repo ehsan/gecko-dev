@@ -119,25 +119,17 @@ nsBulletFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
         newURI->Equals(oldURI, &same);
         if (same) {
           needNewRequest = false;
+        } else {
+          nsLayoutUtils::DeregisterImageRequest(PresContext(), mImageRequest,
+                                                &mRequestRegistered);
+          mImageRequest->CancelAndForgetObserver(NS_ERROR_FAILURE);
+          mImageRequest = nullptr;
         }
       }
     }
 
     if (needNewRequest) {
-      nsRefPtr<imgRequestProxy> oldRequest = mImageRequest;
       newRequest->Clone(mListener, getter_AddRefs(mImageRequest));
-
-      // Deregister the old request. We wait until after Clone is done in case
-      // the old request and the new request are the same underlying image
-      // accessed via different URLs.
-      if (oldRequest) {
-        nsLayoutUtils::DeregisterImageRequest(PresContext(), oldRequest,
-                                              &mRequestRegistered);
-        oldRequest->CancelAndForgetObserver(NS_ERROR_FAILURE);
-        oldRequest = nullptr;
-      }
-
-      // Register the new request.
       if (mImageRequest) {
         nsLayoutUtils::RegisterImageRequestIfAnimated(PresContext(),
                                                       mImageRequest,
@@ -186,7 +178,7 @@ public:
   nsDisplayBulletGeometry(nsDisplayItem* aItem, nsDisplayListBuilder* aBuilder)
     : nsDisplayItemGenericGeometry(aItem, aBuilder)
   {
-    nsBulletFrame* f = static_cast<nsBulletFrame*>(aItem->Frame());
+    nsBulletFrame* f = static_cast<nsBulletFrame*>(aItem->GetUnderlyingFrame());
     mOrdinal = f->GetOrdinal();
   }
 
@@ -242,15 +234,6 @@ public:
       return;
     }
 
-    nsCOMPtr<imgIContainer> image = f->GetImage();
-    if (aBuilder->ShouldSyncDecodeImages() && image && !image->IsDecoded()) {
-      // If we are going to do a sync decode and we are not decoded then we are
-      // going to be drawing something different from what is currently there,
-      // so we add our bounds to the invalid region.
-      bool snap;
-      aInvalidRegion->Or(*aInvalidRegion, GetBounds(aBuilder, &snap));
-    }
-
     return nsDisplayItem::ComputeInvalidationRegion(aBuilder, aGeometry, aInvalidRegion);
   }
 };
@@ -258,12 +241,8 @@ public:
 void nsDisplayBullet::Paint(nsDisplayListBuilder* aBuilder,
                             nsRenderingContext* aCtx)
 {
-  uint32_t flags = imgIContainer::FLAG_NONE;
-  if (aBuilder->ShouldSyncDecodeImages()) {
-    flags |= imgIContainer::FLAG_SYNC_DECODE;
-  }
   static_cast<nsBulletFrame*>(mFrame)->
-    PaintBullet(*aCtx, ToReferenceFrame(), mVisibleRect, flags);
+    PaintBullet(*aCtx, ToReferenceFrame(), mVisibleRect);
 }
 
 void
@@ -282,7 +261,7 @@ nsBulletFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
 void
 nsBulletFrame::PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
-                           const nsRect& aDirtyRect, uint32_t aFlags)
+                           const nsRect& aDirtyRect)
 {
   const nsStyleList* myList = StyleList();
   uint8_t listStyleType = myList->mListStyleType;
@@ -300,7 +279,7 @@ nsBulletFrame::PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
                     mRect.height - (mPadding.top + mPadding.bottom));
         nsLayoutUtils::DrawSingleImage(&aRenderingContext,
              imageCon, nsLayoutUtils::GetGraphicsFilterForFrame(this),
-             dest + aPt, aDirtyRect, nullptr, aFlags);
+             dest + aPt, aDirtyRect, nullptr, imgIContainer::FLAG_NONE);
         return;
       }
     }
@@ -468,12 +447,8 @@ static bool DecimalLeadingZeroToText(int32_t ordinal, nsString& result)
 static bool OtherDecimalToText(int32_t ordinal, PRUnichar zeroChar, nsString& result)
 {
    PRUnichar diff = zeroChar - PRUnichar('0');
-   // We're going to be appending to whatever is in "result" already, so make
-   // sure to only munge the new bits.  Note that we can't just grab the pointer
-   // to the new stuff here, since appending to the string can realloc.
-   size_t offset = result.Length();
    DecimalToText(ordinal, result);
-   PRUnichar* p = result.BeginWriting() + offset;
+   PRUnichar* p = result.BeginWriting();
    if (ordinal < 0) {
      // skip the leading '-'
      ++p;
@@ -485,16 +460,12 @@ static bool OtherDecimalToText(int32_t ordinal, PRUnichar zeroChar, nsString& re
 static bool TamilToText(int32_t ordinal,  nsString& result)
 {
    PRUnichar diff = 0x0BE6 - PRUnichar('0');
-   // We're going to be appending to whatever is in "result" already, so make
-   // sure to only munge the new bits.  Note that we can't just grab the pointer
-   // to the new stuff here, since appending to the string can realloc.
-   size_t offset = result.Length();
    DecimalToText(ordinal, result); 
    if (ordinal < 1 || ordinal > 9999) {
      // Can't do those in this system.
      return false;
    }
-   PRUnichar* p = result.BeginWriting() + offset;
+   PRUnichar* p = result.BeginWriting();
    for(; '\0' != *p ; p++) 
       if(*p != PRUnichar('0'))
          *p += diff;
@@ -1621,18 +1592,6 @@ nsBulletFrame::SetFontSizeInflation(float aInflation)
   VoidPtrOrFloat u;
   u.f = aInflation;
   Properties().Set(FontSizeInflationProperty(), u.p);
-}
-
-already_AddRefed<imgIContainer>
-nsBulletFrame::GetImage() const
-{
-  if (mImageRequest && StyleList()->GetListStyleImage()) {
-    nsCOMPtr<imgIContainer> imageCon;
-    mImageRequest->GetImage(getter_AddRefs(imageCon));
-    return imageCon.forget();
-  }
-
-  return nullptr;
 }
 
 nscoord

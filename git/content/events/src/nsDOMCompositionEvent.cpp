@@ -5,6 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsDOMCompositionEvent.h"
+#include "nsDOMClassInfoID.h"
 
 nsDOMCompositionEvent::nsDOMCompositionEvent(mozilla::dom::EventTarget* aOwner,
                                              nsPresContext* aPresContext,
@@ -29,6 +30,8 @@ nsDOMCompositionEvent::nsDOMCompositionEvent(mozilla::dom::EventTarget* aOwner,
 
   mData = static_cast<nsCompositionEvent*>(mEvent)->data;
   // TODO: Native event should have locale information.
+
+  SetIsDOMBinding();
 }
 
 nsDOMCompositionEvent::~nsDOMCompositionEvent()
@@ -42,8 +45,11 @@ nsDOMCompositionEvent::~nsDOMCompositionEvent()
 NS_IMPL_ADDREF_INHERITED(nsDOMCompositionEvent, nsDOMUIEvent)
 NS_IMPL_RELEASE_INHERITED(nsDOMCompositionEvent, nsDOMUIEvent)
 
+DOMCI_DATA(CompositionEvent, nsDOMCompositionEvent)
+
 NS_INTERFACE_MAP_BEGIN(nsDOMCompositionEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCompositionEvent)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CompositionEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMUIEvent)
 
 NS_IMETHODIMP

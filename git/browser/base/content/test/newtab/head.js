@@ -62,10 +62,9 @@ let TestRunner = {
    */
   finish: function () {
     function cleanupAndFinish() {
-      clearHistory(function () {
-        whenPagesUpdated(finish);
-        NewTabUtils.restore();
-      });
+      clearHistory();
+      whenPagesUpdated(finish);
+      NewTabUtils.restore();
     }
 
     let callbacks = NewTabUtils.links._populateCallbacks;
@@ -129,28 +128,16 @@ function setLinks(aLinks) {
     });
   }
 
-  // Call populateCache() once to make sure that all link fetching that is
-  // currently in progress has ended. We clear the history, fill it with the
-  // given entries and call populateCache() now again to make sure the cache
-  // has the desired contents.
-  NewTabUtils.links.populateCache(function () {
-    clearHistory(function () {
-      fillHistory(links, function () {
-        NewTabUtils.links.populateCache(function () {
-          NewTabUtils.allPages.update();
-          TestRunner.next();
-        }, true);
-      });
-    });
+  clearHistory();
+  fillHistory(links, function () {
+    NewTabUtils.links.populateCache(function () {
+      NewTabUtils.allPages.update();
+      TestRunner.next();
+    }, true);
   });
 }
 
-function clearHistory(aCallback) {
-  Services.obs.addObserver(function observe(aSubject, aTopic, aData) {
-    Services.obs.removeObserver(observe, aTopic);
-    executeSoon(aCallback);
-  }, PlacesUtils.TOPIC_EXPIRATION_FINISHED, false);
-
+function clearHistory() {
   PlacesUtils.history.removeAllPages();
 }
 
@@ -227,10 +214,7 @@ function addNewTabPageTab() {
         executeSoon(TestRunner.next);
       });
     } else {
-      // It's important that we call next() asynchronously.
-      // 'yield addNewTabPageTab()' would fail if next() is called
-      // synchronously because the iterator is already executing.
-      executeSoon(TestRunner.next);
+      TestRunner.next();
     }
   }
 

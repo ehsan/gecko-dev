@@ -22,7 +22,6 @@ EXPORT_LIBRARY = 1
 ##
 IPDLDIRS =  \
   uriloader/exthandler \
-  content/media/webspeech/synth/ipc \
   dom/devicestorage \
   dom/indexedDB/ipc \
   dom/bluetooth/ipc \
@@ -65,6 +64,13 @@ PROTOCOLS :=
 
 $(foreach IPDLDIR,$(IPDLDIRS),$(eval $(ADD_IPDLDIR)))
 
+
+CPPSRCS =					\
+  $(PROTOCOLS:%.ipdl=%Parent.cpp)		\
+  $(PROTOCOLS:%.ipdl=%Child.cpp)		\
+  $(PROTOCOLS:%.ipdl=%.cpp)			\
+  $(PROTOCOLS:%.ipdlh=%.cpp)			\
+  $(NULL)
 
 GARBAGE += $(CPPSRCS)
 

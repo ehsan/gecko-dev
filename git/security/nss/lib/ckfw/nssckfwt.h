@@ -5,6 +5,10 @@
 #ifndef NSSCKFWT_H
 #define NSSCKFWT_H
 
+#ifdef DEBUG
+static const char NSSCKFWT_CVS_ID[] = "@(#) $RCSfile: nssckfwt.h,v $ $Revision: 1.6 $ $Date: 2012/04/25 14:49:28 $";
+#endif /* DEBUG */
+
 /*
  * nssckfwt.h
  *

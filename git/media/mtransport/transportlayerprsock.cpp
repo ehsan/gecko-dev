@@ -6,7 +6,6 @@
 
 // Original author: ekr@rtfm.com
 
-#include "logging.h"
 #include "nspr.h"
 #include "prerror.h"
 #include "prio.h"
@@ -18,6 +17,7 @@
 #include "nsServiceManagerUtils.h"
 #include "nsXPCOM.h"
 
+#include "logging.h"
 #include "transportflow.h"
 #include "transportlayerprsock.h"
 

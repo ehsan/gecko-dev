@@ -67,7 +67,7 @@ public:
                         bool aUnique,
                         bool aMultiEntry,
                         JSContext* aCx,
-                        JS::Handle<JS::Value> aObject,
+                        jsval aObject,
                         nsTArray<IndexUpdateInfo>& aUpdateInfoArray);
 
   static nsresult
@@ -94,12 +94,12 @@ public:
   static bool
   DeserializeValue(JSContext* aCx,
                    StructuredCloneReadInfo& aCloneReadInfo,
-                   JS::MutableHandle<JS::Value> aValue);
+                   jsval* aValue);
 
   static bool
   SerializeValue(JSContext* aCx,
                  StructuredCloneWriteInfo& aCloneWriteInfo,
-                 JS::Handle<JS::Value> aValue);
+                 jsval aValue);
 
   template <class DeserializationTraits>
   static JSObject*
@@ -111,7 +111,7 @@ public:
   static JSBool
   StructuredCloneWriteCallback(JSContext* aCx,
                                JSStructuredCloneWriter* aWriter,
-                               JS::Handle<JSObject*> aObj,
+                               JSObject* aObj,
                                void* aClosure);
 
   static nsresult
@@ -257,8 +257,8 @@ protected:
   ~IDBObjectStore();
 
   nsresult GetAddInfo(JSContext* aCx,
-                      JS::Handle<JS::Value> aValue,
-                      JS::Handle<JS::Value> aKeyVal,
+                      jsval aValue,
+                      jsval aKeyVal,
                       StructuredCloneWriteInfo& aCloneWriteInfo,
                       Key& aKey,
                       nsTArray<IndexUpdateInfo>& aUpdateInfoArray);
@@ -287,7 +287,7 @@ private:
   int64_t mId;
   nsString mName;
   KeyPath mKeyPath;
-  JS::Heap<JS::Value> mCachedKeyPath;
+  JS::Value mCachedKeyPath;
   bool mRooted;
   bool mAutoIncrement;
   nsCOMPtr<nsIAtom> mDatabaseId;

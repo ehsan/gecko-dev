@@ -214,10 +214,10 @@ public:
 
     /**
      * If this TextureImage has a permanent gfxASurface backing,
-     * return it.  Otherwise return nullptr.
+     * return it.  Otherwise return NULL.
      */
     virtual already_AddRefed<gfxASurface> GetBackingSurface()
-    { return nullptr; }
+    { return NULL; }
 
     const nsIntSize& GetSize() const { return mSize; }
     ContentType GetContentType() const { return mContentType; }
@@ -322,7 +322,7 @@ protected:
 
     GLuint mTexture;
     TextureState mTextureState;
-    nsRefPtr<GLContext> mGLContext;
+    GLContext* mGLContext;
     nsRefPtr<gfxASurface> mUpdateSurface;
     nsIntRegion mUpdateRegion;
 
@@ -379,18 +379,6 @@ protected:
     nsIntRegion mUpdateRegion;
     TextureState mTextureState;
 };
-
-/**
- * Creates a TextureImage of the basic implementation, can be useful in cases
- * where we know we don't want to use platform-specific TextureImage.
- * In doubt, use GLContext::CreateTextureImage instead.
- */
-already_AddRefed<TextureImage>
-CreateBasicTextureImage(GLContext* aGL,
-                        const nsIntSize& aSize,
-                        TextureImage::ContentType aContentType,
-                        GLenum aWrapMode,
-                        TextureImage::Flags aFlags);
 
 } // namespace gl
 } // namespace mozilla

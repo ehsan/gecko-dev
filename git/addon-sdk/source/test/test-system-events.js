@@ -6,7 +6,7 @@ const events = require("sdk/system/events");
 const self = require("sdk/self");
 const { Cc, Ci, Cu } = require("chrome");
 const { setTimeout } = require("sdk/timers");
-const { Loader, LoaderWithHookedConsole2 } = require("sdk/test/loader");
+const { LoaderWithHookedConsole2 } = require("sdk/test/loader");
 const nsIObserverService = Cc["@mozilla.org/observer-service;1"].
                            getService(Ci.nsIObserverService);
 
@@ -64,10 +64,7 @@ exports["test error reporting"] = function(assert) {
 exports["test listeners are GC-ed"] = function(assert, done) {
   let receivedFromWeak = [];
   let receivedFromStrong = [];
-  let loader = Loader(module);
-  let events = loader.require('sdk/system/events');
-
-  let type = 'test-listeners-are-garbage-collected';
+  let type = Date.now().toString(32);
   function handler(event) { receivedFromStrong.push(event); }
   function weakHandler(event) { receivedFromWeak.push(event); }
 
@@ -80,15 +77,14 @@ exports["test listeners are GC-ed"] = function(assert, done) {
 
   handler = weakHandler = null;
 
-  Cu.schedulePreciseGC(function() {
+  Cu.forceGC();
+  setTimeout(function() {
+    Cu.forceGC();
     events.emit(type, { data: 2 });
-
     assert.equal(receivedFromWeak.length, 1, "weak listener was GC-ed");
     assert.equal(receivedFromStrong.length, 2, "strong listener was invoked");
-
-    loader.unload();
     done();
-  });
+  }, 300);
 };
 
 exports["test handle nsIObserverService notifications"] = function(assert) {
@@ -195,7 +191,7 @@ exports["test emit to nsIObserverService observers"] = function(assert) {
                "event.subject is notification subject");
   assert.equal(lastData, customData, "event.data is notification data");
 
-  nsIObserverService.removeObserver(nsIObserver, topic);
+  nsIObserverService.removeObserver(nsIObserver, topic, false);
 
   events.emit(topic, { data: "more data" });
 

@@ -535,8 +535,7 @@ nsHttpServer.prototype =
       dumpn(">>> listening on port " + socket.port + ", " + maxConnections +
             " pending connections");
       socket.asyncListen(this);
-      this._port = socket.port;
-      this._identity._initialize(socket.port, host, true);
+      this._identity._initialize(port, host, true);
       this._socket = socket;
     }
     catch (e)
@@ -2728,7 +2727,7 @@ ServerHandler.prototype =
           // getting the line number where we evaluate the SJS file.  Don't
           // separate these two lines!
           var line = new Error().lineNumber;
-          Cu.evalInSandbox(sis.read(file.fileSize), s, "latest");
+          Cu.evalInSandbox(sis.read(file.fileSize), s);
         }
         catch (e)
         {

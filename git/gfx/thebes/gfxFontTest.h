@@ -14,7 +14,7 @@
 #include "gfxFont.h"
 #include "gfxUserFontSet.h"
 
-struct gfxFontTestItem {
+struct THEBES_API gfxFontTestItem {
     gfxFontTestItem(const nsCString& fontName,
                     cairo_glyph_t *cglyphs, int nglyphs)
         : platformFont(fontName)
@@ -41,7 +41,7 @@ struct gfxFontTestItem {
 };
 
 
-class gfxFontTestStore {
+class THEBES_API gfxFontTestStore {
 public:
     gfxFontTestStore() { }
 

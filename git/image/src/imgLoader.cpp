@@ -150,6 +150,17 @@ public:
     return NS_OK;
   }
 
+  NS_IMETHOD GetExplicitNonHeap(int64_t *n)
+  {
+    size_t n2 = 0;
+    for (uint32_t i = 0; i < mKnownLoaders.Length(); i++) {
+      mKnownLoaders[i]->mChromeCache.EnumerateRead(EntryExplicitNonHeapSize, &n2);
+      mKnownLoaders[i]->mCache.EnumerateRead(EntryExplicitNonHeapSize, &n2);
+    }
+    *n = n2;
+    return NS_OK;
+  }
+
   static int64_t GetImagesContentUsedUncompressed()
   {
     size_t n = 0;
@@ -206,6 +217,20 @@ private:
           image->HeapSizeOfDecodedWithComputedFallback(ImagesMallocSizeOf);
         sizes->mUsedUncompressedNonheap += image->NonHeapSizeOfDecoded();
       }
+    }
+
+    return PL_DHASH_NEXT;
+  }
+
+  static PLDHashOperator EntryExplicitNonHeapSize(const nsACString&,
+                                                  imgCacheEntry *entry,
+                                                  void *userArg)
+  {
+    size_t *n = static_cast<size_t*>(userArg);
+    nsRefPtr<imgRequest> req = entry->GetRequest();
+    Image *image = static_cast<Image*>(req->mImage.get());
+    if (image) {
+      *n += image->NonHeapSizeOfDecoded();
     }
 
     return PL_DHASH_NEXT;
@@ -611,7 +636,9 @@ already_AddRefed<imgCacheEntry> imgCacheQueue::Pop()
   mQueue.pop_back();
 
   mSize -= entry->GetDataSize();
-  return entry.forget();
+  imgCacheEntry *ret = entry;
+  NS_ADDREF(ret);
+  return ret;
 }
 
 void imgCacheQueue::Refresh()
@@ -2013,6 +2040,16 @@ nsresult imgLoader::GetMimeTypeFromContent(const char* aContents, uint32_t aLeng
                             !memcmp(aContents, "\000\000\002\000", 4))) {
     aContentType.AssignLiteral(IMAGE_ICO);
   }
+
+#ifdef MOZ_WBMP
+  // A well-defined type 0 WBMP file starts with an "0000 0000b" byte followed
+  // by an "0xx0 0000b" byte (x = don't care).
+  else if (aLength >= 2 && (static_cast<unsigned char>(aContents[0]) == 0x00 &&
+                            (static_cast<unsigned char>(aContents[1]) & 0x9F) == 0x00))
+  {
+    aContentType.AssignLiteral(IMAGE_WBMP);
+  }
+#endif
 
   else {
     /* none of the above?  I give up */

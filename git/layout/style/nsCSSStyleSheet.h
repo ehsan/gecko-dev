@@ -118,7 +118,7 @@ public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_CSS_STYLE_SHEET_IMPL_CID)
 
   // nsIStyleSheet interface
-  virtual nsIURI* GetSheetURI() const MOZ_OVERRIDE;
+  virtual nsIURI* GetSheetURI() const;
   virtual nsIURI* GetBaseURI() const MOZ_OVERRIDE;
   virtual void GetTitle(nsString& aTitle) const MOZ_OVERRIDE;
   virtual void GetType(nsString& aType) const MOZ_OVERRIDE;
@@ -211,7 +211,7 @@ public:
 
   // nsICSSLoaderObserver interface
   NS_IMETHOD StyleSheetLoaded(nsCSSStyleSheet* aSheet, bool aWasAlternate,
-                              nsresult aStatus) MOZ_OVERRIDE;
+                              nsresult aStatus);
 
   enum EnsureUniqueInnerResult {
     // No work was needed to ensure a unique inner.
@@ -297,8 +297,7 @@ public:
     return mozilla::dom::ParentObject(static_cast<nsIStyleSheet*>(mParent),
                                       mParent);
   }
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
 private:
   nsCSSStyleSheet(const nsCSSStyleSheet& aCopy,

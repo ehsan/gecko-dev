@@ -407,13 +407,6 @@ public:
   // on failure.
   virtual nsresult Init(MediaDecoderReader* aCloneDonor) = 0;
 
-  // True if this reader is waiting media resource allocation
-  virtual bool IsWaitingMediaResources() { return false; }
-  // True when this reader need to become dormant state
-  virtual bool IsDormantNeeded() { return false; }
-  // Release media resources they should be released in dormant state
-  virtual void ReleaseMediaResources() {};
-
   // Resets all state related to decoding, emptying all buffers etc.
   virtual nsresult ResetDecode();
 
@@ -423,10 +416,8 @@ public:
   // or an un-recoverable read error has occured.
   virtual bool DecodeAudioData() = 0;
 
-#ifdef MOZ_DASH
   // Steps to carry out at the start of the |DecodeLoop|.
   virtual void PrepareToDecode() { }
-#endif
 
   // Reads and decodes one video frame. Packets with a timestamp less
   // than aTimeThreshold will be decoded (unless they're not keyframes

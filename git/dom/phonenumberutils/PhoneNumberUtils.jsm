@@ -30,7 +30,7 @@ this.PhoneNumberUtils = {
   // mcc for Brasil
   _mcc: '724',
 
-  getCountryName: function getCountryName() {
+  _getCountryName: function() {
     let mcc;
     let countryName;
 
@@ -66,7 +66,7 @@ this.PhoneNumberUtils = {
 
   parse: function(aNumber) {
     if (DEBUG) debug("call parse: " + aNumber);
-    let result = PhoneNumber.Parse(aNumber, this.getCountryName());
+    let result = PhoneNumber.Parse(aNumber, this._getCountryName());
     if (DEBUG) {
       if (result) {
         debug("InternationalFormat: " + result.internationalFormat);
@@ -92,9 +92,9 @@ this.PhoneNumberUtils = {
     return isPlain;
   },
 
-  normalize: function Normalize(aNumber, aNumbersOnly) {
-    var normalized = PhoneNumber.Normalize(aNumber, aNumbersOnly);
-    if (DEBUG) debug("normalize(" + aNumber + "): " + normalized + ", " + aNumbersOnly);
+  normalize: function Normalize(aNumber) {
+    var normalized = PhoneNumber.Normalize(aNumber);
+    if (DEBUG) debug("normalize(" + aNumber + "): " + normalized);
     return normalized;
   }
 };

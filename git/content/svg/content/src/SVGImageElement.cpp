@@ -20,7 +20,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGImageElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+SVGImageElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return SVGImageElementBinding::Wrap(aCx, aScope, this);
 }
@@ -103,7 +103,7 @@ SVGImageElement::PreserveAspectRatio()
   return ratio.forget();
 }
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGImageElement::Href()
 {
   return mStringAttributes[HREF].ToDOMAnimatedString(this);

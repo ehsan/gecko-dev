@@ -1,8 +1,10 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
- * This Source Code Form is subject to the terms of the Mozilla Public
+ * vim: set ts=8 sw=4 et tw=99:
+ */
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 
 #include "tests.h"
 #include "jsscript.h"
@@ -36,7 +38,7 @@ CompileScriptForPrincipalsVersionOrigin(JSContext *cx, JS::HandleObject obj,
 }
 
 JSScript *
-FreezeThaw(JSContext *cx, JS::HandleScript script)
+FreezeThaw(JSContext *cx, JSScript *script)
 {
     // freeze
     uint32_t nbytes;
@@ -45,10 +47,9 @@ FreezeThaw(JSContext *cx, JS::HandleScript script)
         return NULL;
 
     // thaw
-    JSScript *script2 = JS_DecodeScript(cx, memory, nbytes,
-                                        script->principals(), script->originPrincipals);
+    script = JS_DecodeScript(cx, memory, nbytes, script->principals(), script->originPrincipals);
     js_free(memory);
-    return script2;
+    return script;
 }
 
 static JSScript *
@@ -121,10 +122,10 @@ JSScript *createScriptViaXDR(JSPrincipals *prin, JSPrincipals *orig, int testCas
         "function f() { return 1; }\n"
         "f;\n";
 
-    JS::RootedObject global(cx, JS_GetGlobalForScopeChain(cx));
-    JS::RootedScript script(cx, CompileScriptForPrincipalsVersionOrigin(cx, global, prin, orig,
-                                                                        src, strlen(src), "test", 1,
-                                                                        JSVERSION_DEFAULT));
+    JS::RootedObject global(cx, JS_GetGlobalObject(cx));
+    JSScript *script = CompileScriptForPrincipalsVersionOrigin(cx, global, prin, orig,
+                                                               src, strlen(src), "test", 1,
+                                                               JSVERSION_DEFAULT);
     if (!script)
         return NULL;
 
@@ -162,7 +163,7 @@ BEGIN_TEST(testXDR_bug506491)
         "var f = makeClosure('0;', 'status', 'ok');\n";
 
     // compile
-    JS::RootedScript script(cx, JS_CompileScript(cx, global, s, strlen(s), __FILE__, __LINE__));
+    JSScript *script = JS_CompileScript(cx, global, s, strlen(s), __FILE__, __LINE__);
     CHECK(script);
 
     script = FreezeThaw(cx, script);
@@ -186,7 +187,7 @@ END_TEST(testXDR_bug506491)
 BEGIN_TEST(testXDR_bug516827)
 {
     // compile an empty script
-    JS::RootedScript script(cx, JS_CompileScript(cx, global, "", 0, __FILE__, __LINE__));
+    JSScript *script = JS_CompileScript(cx, global, "", 0, __FILE__, __LINE__);
     CHECK(script);
 
     script = FreezeThaw(cx, script);
@@ -207,7 +208,7 @@ BEGIN_TEST(testXDR_source)
         NULL
     };
     for (const char **s = samples; *s; s++) {
-        JS::RootedScript script(cx, JS_CompileScript(cx, global, *s, strlen(*s), __FILE__, __LINE__));
+        JSScript *script = JS_CompileScript(cx, global, *s, strlen(*s), __FILE__, __LINE__);
         CHECK(script);
         script = FreezeThaw(cx, script);
         CHECK(script);

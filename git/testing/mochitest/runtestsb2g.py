@@ -64,7 +64,6 @@ mm.addMessageListener("SPPrefService", specialPowersObserver);
 mm.addMessageListener("SPProcessCrashService", specialPowersObserver);
 mm.addMessageListener("SPPingService", specialPowersObserver);
 mm.addMessageListener("SpecialPowers.Quit", specialPowersObserver);
-mm.addMessageListener("SpecialPowers.Focus", specialPowersObserver);
 mm.addMessageListener("SPPermissionManager", specialPowersObserver);
 
 mm.loadFrameScript(CHILD_LOGGER_SCRIPT, true);
@@ -84,27 +83,8 @@ const CHILD_LOGGER_SCRIPT = "chrome://specialpowers/content/MozillaLogger.js";
 
 let homescreen = document.getElementById('homescreen');
 let container = homescreen.contentWindow.document.getElementById('test-container');
+container.setAttribute('mozapp', 'http://mochi.test:8888/manifest.webapp');
 
-function openWindow(aEvent) {
-  var popupIframe = aEvent.detail.frameElement;
-  popupIframe.setAttribute('style', 'position: absolute; left: 0; top: 300px; background: white; ');
-
-  popupIframe.addEventListener('mozbrowserclose', function(e) {
-    container.parentNode.removeChild(popupIframe);
-    container.focus();
-  });
-
-  // yes, the popup can call window.open too!
-  popupIframe.addEventListener('mozbrowseropenwindow', openWindow);
-
-  popupIframe.addEventListener('mozbrowserloadstart', function(e) {
-    popupIframe.focus();
-  });
-
-  container.parentNode.appendChild(popupIframe);
-}
-
-container.addEventListener('mozbrowseropenwindow', openWindow);
 %s
 
 container.src = '%s';
@@ -127,21 +107,12 @@ container.src = '%s';
         interpolation = { "server": "%s:%s" % (options.webServer, options.httpPort),
                           "OOP": "true" if self.OOP else "false" }
         prefs = json.loads(json.dumps(prefs) % interpolation)
-        for pref in prefs:
-            prefs[pref] = Preferences.cast(prefs[pref])
 
-        kwargs = {
-            'addons': self.getExtensionsToInstall(options),
-            'apps': self.webapps,
-            'locations': self.locations,
-            'preferences': prefs,
-            'proxy': {"remote": options.webServer}
-        }
-
-        if options.profile:
-            self.profile = Profile.clone(options.profile, **kwargs)
-        else:
-            self.profile = Profile(**kwargs)
+        self.profile = Profile(addons=self.getExtensionsToInstall(options),
+                               apps=self.webapps,
+                               locations=self.locations,
+                               preferences=prefs,
+                               proxy={"remote": options.webServer})
 
         options.profilePath = self.profile.profile
         # TODO bug 839108 - mozprofile should probably handle this
@@ -475,11 +446,6 @@ class B2GDeviceMochitest(B2GMochitest):
         if options.utilityPath == None:
             print "ERROR: unable to find utility path for %s, please specify with --utility-path" % (os.name)
             sys.exit(1)
-        # httpd-path is specified by standard makefile targets and may be specified
-        # on the command line to select a particular version of httpd.js. If not
-        # specified, try to select the one from xre.zip, as required in bug 882932.
-        if not options.httpdPath:
-            options.httpdPath = os.path.join(options.utilityPath, "components")
 
         options.profilePath = tempfile.mkdtemp()
         self.server = MochitestServer(localAutomation, options)

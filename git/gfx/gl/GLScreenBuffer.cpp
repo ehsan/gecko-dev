@@ -10,10 +10,6 @@
 #include "GLContext.h"
 #include "SharedSurfaceGL.h"
 #include "SurfaceStream.h"
-#ifdef MOZ_WIDGET_GONK
-#include "SharedSurfaceGralloc.h"
-#include "nsXULAppAPI.h"
-#endif
 
 using namespace mozilla::gfx;
 
@@ -31,20 +27,7 @@ GLScreenBuffer::Create(GLContext* gl,
         return nullptr;
     }
 
-    SurfaceFactory_GL* factory = nullptr;
-
-#ifdef MOZ_WIDGET_GONK
-    /* On B2G, we want a Gralloc factory, and we want one right at the start */
-    if (!factory &&
-        XRE_GetProcessType() != GeckoProcessType_Default)
-    {
-        factory = new SurfaceFactory_Gralloc(gl, caps);
-    }
-#endif
-
-    if (!factory)
-        factory = new SurfaceFactory_Basic(gl, caps);
-
+    SurfaceFactory_GL* factory = new SurfaceFactory_Basic(gl, caps);
     SurfaceStream* stream = SurfaceStream::CreateForType(
         SurfaceStream::ChooseGLStreamType(SurfaceStream::MainThread,
                                           caps.preserve),
@@ -385,14 +368,18 @@ GLScreenBuffer::Swap(const gfxIntSize& size)
 {
     SharedSurface* nextSurf = mStream->SwapProducer(mFactory, size);
     if (!nextSurf) {
-        SurfaceFactory_Basic basicFactory(mGL, mFactory->Caps());
-        nextSurf = mStream->SwapProducer(&basicFactory, size);
-        if (!nextSurf)
-          return false;
+        SurfaceFactory_GL* basicFactory =
+            new SurfaceFactory_Basic(mGL, mFactory->Caps());
+        nextSurf = mStream->SwapProducer(basicFactory, size);
+        if (!nextSurf) {
+            delete basicFactory;
+            return false;
+        }
 
-        NS_WARNING("SwapProd failed for sophisticated Factory type, fell back to Basic.");
+        // Swap out the apparently defective old factory.
+        delete mFactory;
+        mFactory = basicFactory;
     }
-    MOZ_ASSERT(nextSurf);
 
     Attach(nextSurf, size);
 

@@ -5,54 +5,55 @@
 %filter substitution
 %include defines.inc
 
-%define forward_transition_length 200ms
-%define forward_spacing 50px
-
-/* Progress meter ------------------------------------------------- */
-
-#progress-container {
-  display: block;
-  position: absolute;
-  top: -@progress_height@;
-  height: @progress_height@;
-  width: 100%;
-  background-color: hsla(210,5%,80%,1);
-  box-shadow: 0 1px 0 hsla(210,5%,50%,.1) inset;
-  -moz-user-focus: ignore;
-}
-
-#progress-control {
-  display: block;
-  height: @progress_height@;
-  background-image: -moz-linear-gradient(left, hsla(200,100%,83%,.5), hsla(200,100%,83%,0)), -moz-linear-gradient(top, #1ab2ff, #0091ff);
-  border-right: 1px solid #0082e5;
-  transition: width .3s ease-in;
-  -moz-user-focus: ignore;
-}
-
-#progress-control:-moz-dir(rtl) {
-  transform: scaleX(-1);
-}
-
-#progress-control[fade] {
-  opacity: 0;
-  transition: width .3s ease-in, .5s opacity ease-in;
-}
+%define forward_transition_length 150ms
+%define forward_width 51px
+%define back_width 62px
+%define clipped_url_back_width 71px
 
 /* Sliding Toolbar/Tab Tray ------------------------------------------------- */
 
 #tray {
   transition: transform @metro_animation_duration@ @metro_animation_easing@;
-  transform: translateY(-@tabs_height@);
+  transform: translateY(-@tray_slide_height@);
   width: 100%;
 }
 
-#tray {
+#progress-control {
+  display: block;
+  height: @progress_height@;
+  max-height: @progress_height@;
+  margin-bottom: -@progress_height@;
+  opacity: 1;
+  background: linear-gradient(to right,  @progress_start_color@,  @progress_end_color@);
+  transition-property: width;
+  transition-duration: .3s;
+  -moz-user-focus: ignore;
+}
+
+#progress-control:-moz-dir(rtl) {
+  background: linear-gradient(to left,  @progress_start_color@,  @progress_end_color@);
+}
+
+#progress-control[fade] {
+  opacity: 0;
+  transition-property: width, opacity;
+  transition-duration: .3s, .5s;
+  transition-timing-function: ease-in, ease-in;
+}
+
+/* in non-tabsonly mode the navigation bar and tab tray float over content. In
+   tabsonly mode they are always visible and offset content. */
+#tray:not([tabsonly]) {
   position: fixed;
 }
 
-#tray[expanded]:not([viewstate="snapped"]) {
+#tray[visible][expanded] {
   transform: none;
+}
+
+#tray[startpage],
+#tray[visible]:not([expanded])  {
+  transform: translateY(-@tabs_height@);
 }
 
 /* Tabs --------------------------------------------------------------------- */
@@ -113,9 +114,6 @@
   -moz-image-region: rect(73px 196px 121px 152px) !important;
 }
 
-#tabs-container[viewstate="snapped"] {
-  visibility: hidden;
-}
 
 @-moz-keyframes open-documenttab {
   0% {
@@ -129,28 +127,13 @@
   }
 }
 
-@-moz-keyframes close-documenttab {
-  0% {
-    opacity: 1;
-    transform: scale(1, 1);
-  }
-
-  100% {
-    opacity: 0;
-    transform: scale(0, 0);
-  }
+#tray:not([tabsonly]) documenttab > .documenttab-container {
+  animation: open-documenttab;
+  animation-duration: 0.4s;
+  animation-timing-function: ease-out;
 }
 
-.documenttab-container {
-  animation: open-documenttab 0.4s ease-out;
-}
-
-documenttab[closing] > .documenttab-container {
-  animation: close-documenttab 0.4s ease-out;
-  animation-fill-mode: forwards;
-}
-
-.documenttab-favicon {
+#tray:not([tabsonly]) .documenttab-favicon {
   visibility: collapse;
 }
 
@@ -200,6 +183,104 @@ documenttab[selected] .documenttab-selection {
   display: none;
 }
 
+#tray[tabsonly] {
+  transform: none !important;
+}
+
+#tray[tabsonly] #tabs {
+  -moz-padding-start: @metro_spacing_small@;
+}
+
+#tray[tabsonly] #tabs-controls {
+  -moz-box-align: center;
+  -moz-box-orient: horizontal;
+  -moz-box-pack: end;
+  margin: 0;
+}
+
+#tray[tabsonly] #tabs-controls toolbarbutton {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+#tray[tabsonly] documenttab {
+  height: @toolbar_height@;
+  margin: 0 -@tab_compression@;
+}
+
+#tray[tabsonly] documenttab:first-child {
+  -moz-margin-start: 0;
+}
+
+#tray[tabsonly] documenttab:last-child {
+  -moz-margin-end: 0;
+}
+
+#tray[tabsonly] .documenttab-thumbnail,
+#tray[tabsonly] .documenttab-selection,
+#tray[tabsonly] .documenttab-crop {
+  visibility: collapse;
+}
+
+#tray[tabsonly] .documenttab-container {
+  display: -moz-box;
+  -moz-box-orient: horizontal;
+  -moz-box-align: center;
+  padding: 0 @tab_spacing@;
+}
+
+#tray[tabsonly] .documenttab-favicon {
+  -moz-margin-start: @metro_spacing_normal@;
+  -moz-margin-end: @metro_spacing_snormal@;
+}
+
+#tray[tabsonly] .documenttab-title {
+  padding: 0;
+  margin: 0;
+  height: auto;
+  background: 0 none;
+  opacity: 1;
+  box-shadow: none;
+  width: @tab_inner_width@;
+}
+
+#tray[tabsonly] .documenttab-close {
+  list-style-image: url("chrome://browser/skin/images/closetab-tab.png");
+  position: relative;
+  padding: 0 !important;
+  z-index: 1;
+}
+
+#tray[tabsonly] documenttab[selected=true] {
+  background-color: @panel_light_color@;
+  background-image: url("chrome://browser/skin/images/tab-selection-left.png"),
+                    url("chrome://browser/skin/images/tab-selection-right.png"),
+                    @panel_light_background@;
+  background-position: left top, right top, center center;
+  background-repeat: no-repeat, no-repeat, repeat;
+}
+
+#tray[tabsonly] documenttab[selected=true] .documenttab-close {
+  list-style-image: url("chrome://browser/skin/images/closetab-tabselected.png");
+}
+
+#page,
+.selection-overlay {
+  -moz-stack-sizing: ignore;
+}
+
+.selection-overlay:-moz-focusring {
+  outline: 0 !important;
+}
+
+.selection-overlay-hidden {
+  display: none;
+}
+
+#tray[tabsonly] documenttab[selected=true] .documenttab-title {
+  color: #000;
+}
+
 #tabs-controls {
   margin-top: @metro_spacing_small@;
   -moz-box-align: start;
@@ -212,105 +293,140 @@ documenttab[selected] .documenttab-selection {
 }
 
 #newtab-button {
-  list-style-image: url(chrome://browser/skin/images/newtab-default.png);
-}
-
-/* Selection overlay and monocles ----------------------------------------------- */
-
-#page,
-.selection-overlay {
-  -moz-stack-sizing: ignore;
-}
-
-.selection-overlay {
-  pointer-events: none;  
-}
-
-.selection-overlay:-moz-focusring {
-  outline: 0 !important;
-}
-
-.selection-overlay-hidden {
-  display: none;
-}
-
-.selectionhandle {
-  list-style-image: url("chrome://browser/skin/images/selection-monocle.png");
-  border: 0px solid gray;
-  padding: 0px;
-  margin-top: -30px;
-  margin-left: -18px;
-  pointer-events: auto;
+  list-style-image: url("images/newtab-default.png");
 }
 
 /* Toolbar ------------------------------------------------------------------ */
 
-#toolbar {
-  background-color: @panel_light_color@;
+#toolbar-container {
+  background: @panel_dark_color@ @panel_dark_background@;
+  border-bottom: @border_width_small@ solid @border_color@;
+  -moz-padding-end: @padding_large@;
+  width: 100%;
 }
 
-#toolbar > #back-button {
-  list-style-image: url(chrome://browser/skin/images/appbar-back.png);
+#toolbar-container[filtering],
+#toolbar-container[startpage] {
+  border-bottom-width: 0;
+}
+
+#toolbar {
+  -moz-appearance: none;
+  -moz-box-align: center;
+  padding: 0;
+  -moz-padding-end: @metro_spacing_xxxlarge@;
+  -moz-padding-start: @metro_spacing_xxnormal@;
+  border: none;
+  border-top: @metro_border_thin@ solid #293642;
+  background-color: @panel_light_color@;
+  background-image: url("chrome://browser/skin/images/tab-selection-right.png"),
+                    linear-gradient(rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0.5)),
+                    @panel_light_background@;
+  background-repeat: no-repeat, repeat-x;
+  background-position: right bottom;
+  min-height: @toolbar_height@;
+}
+
+#toolbar[dir=ltr] {
+  background-position: left bottom;
+}
+
+#toolbar toolbarbutton {
+  margin: 0 @toolbar_horizontal_spacing@;
+}
+
+/* Unified back-forward buttons */
+/* TODO: Pull code from mainline firefox to support RTL. */
+#unified-back-forward-button {
+  -moz-box-align: center;
   position: relative;
   z-index: 1;
+}
+
+#back-button {
+  -moz-appearance: none;
+  margin: 0 !important;
+  margin-right: -@metro_spacing_normal@ !important;
+  list-style-image: url(chrome://browser/skin/images/back.png);
+  -moz-image-region: rect(0 48px 48px 0);
+  position: relative;
+  z-index: 1;
+  padding: 0 !important;
+  min-height: 48px !important;
+  max-height: 48px !important;
+}
+
+#back-button[disabled] {
+  -moz-image-region: rect(0 96px 48px 48px);
+}
+
+#forward-button {
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.5)), @panel_light_background@;
+  border: @metro_border_thick@ solid rgb(192, 198, 204);
+  margin: 0 !important;
+  padding: 0 !important;
+  -moz-padding-start: 17px !important;
+  -moz-padding-end: 7px !important;
   transition: opacity @forward_transition_length@ ease-out;
+  list-style-image: url(chrome://browser/skin/images/forward.png);
 }
 
-#toolbar > #back-button[disabled] {
-  visibility: visible;
-  opacity: 0.5;
+/* XXX: Hack to move the image up one pixel because
+        it's not vertically centered for some reason. */
+#forward-button image {
+  margin: -1px 0 1px 0 !important;
 }
 
-#toolbar > #forward-button {
-  list-style-image: url(chrome://browser/skin/images/appbar-forward.png);
-  transition: margin @forward_transition_length@ ease-out,
-              visibility @forward_transition_length@ ease-out,
-              opacity @forward_transition_length@ ease-out;
-}
-
-#toolbar > #forward-button[disabled] {
-  -moz-margin-start: -@forward_spacing@;
-  visibility: hidden;
+#unified-back-forward-button > #forward-button[disabled] {
   opacity: 0;
-  pointer-events: none;
 }
 
-@media (min-resolution: 130dpi) {
-  #toolbar > #back-button {
-    list-style-image: url(chrome://browser/skin/images/appbar-back@1.4x.png);
-  }
-
-  #toolbar > #forward-button {
-    list-style-image: url(chrome://browser/skin/images/appbar-forward@1.4x.png);
-  }
-}
-+
 /* URL bar */
-#urlbar-container {
-  border: @metro_border_thick@ solid @urlbar_border_color@;
-  margin: 0 @toolbar_horizontal_spacing@;
+#unified-back-forward-button + #urlbar-container {
+  margin: 0;
   padding: 0;
-  background-color: @field_background_color@;
-  overflow: hidden;
+  padding-left: @back_width@;
+  -moz-margin-start: -@forward_width@;
+  -moz-margin-end: @metro_spacing_normal@;
+  position: relative;
+  pointer-events: none;
+  
+  border: @metro_border_thick@ solid @urlbar_border_color@;
+  -moz-border-start: 0 none;
+  background: @field_background_color@;
 }
 
-#urlbar-container[mode="edit"] {
-  border-color: @metro_orange@;
+#unified-back-forward-button + #urlbar-container > #urlbar {
+  -moz-border-start: none;
+  pointer-events: all;
+  transition: margin-left @forward_transition_length@ ease-out;
+}
+
+#unified-back-forward-button[forwarddisabled] + #urlbar-container {
+  clip-path: url("chrome://browser/content/browser.xul#back-button-clip-path");
+  padding-left: @clipped_url_back_width@;
+}
+
+#unified-back-forward-button[forwarddisabled] + #urlbar-container > #urlbar {
+  margin-left: -@forward_width@;
 }
 
 /* Identity widget */
 #identity-icon {
+  width: @metro_spacing_xxnormal@;
+  height: @metro_spacing_xxnormal@;
   margin: 0;
-  padding: 0 @metro_spacing_snormal@;
-  list-style-image: url("chrome://browser/skin/images/identity-icons-generic.png");
+  -moz-margin-end: @metro_spacing_small@;
+  padding: 0;
+  list-style-image: url(chrome://browser/skin/images/identity-icons-generic.png);
 }
 
-#identity-box-inner.verifiedDomain > #identity-icon {
-  list-style-image: url("chrome://browser/skin/images/identity-icons-https.png");
+#identity-box[mode="verifiedDomain"] > #identity-icon[pageproxystate="valid"] {
+  list-style-image: url(chrome://browser/skin/images/identity-icons-https.png);
 }
-
-#identity-box-inner.verifiedIdentity > #identity-icon {
-  list-style-image: url("chrome://browser/skin/images/identity-icons-https-ev.png");
+ 
+#identity-box[mode="verifiedIdentity"] > #identity-icon[pageproxystate="valid"] {
+  list-style-image: url(chrome://browser/skin/identity-icons-https-ev.png);
 }
 
 /* Main URL textbox */
@@ -323,30 +439,74 @@ documenttab[selected] .documenttab-selection {
   padding: 0 !important;
 }
 
-#urlbar-edit > hbox > .textbox-input-box > .textbox-input::-moz-selection {
-  color: white;
-  background-color: @metro_orange@;
-}
-
-#urlbar-edit > hbox > .textbox-input-box > .textbox-input:invalid {
-  /* Hide error glow around the address bar that shows by default
-   * when URLs are made invalid by trmming. */
-  box-shadow: none !important;
+#urlbar-edit :invalid {
+  box-shadow: none;
 }
 
 /* Combined stop-reload button */
-#reload-button {
-  list-style-image: url(chrome://browser/skin/images/appbar-reload.png);
+#tool-reload {
+  list-style-image: url("chrome://browser/skin/images/reload.png");
 }
 
-#stop-button {
-  list-style-image: url(chrome://browser/skin/images/appbar-stop.png);
+#tool-stop {
+  list-style-image: url("chrome://browser/skin/images/stop-hdpi.png");
 }
 
-#toolbar[mode="loading"] > #urlbar-container > #reload-button,
-#toolbar:-moz-any([mode="edit"], [mode="view"]) > #urlbar-container > #stop-button,
-#toolbar[viewstate="snapped"] > #urlbar-container ~ toolbarbutton {
+#urlbar-icons[mode="loading"] > #tool-reload {
   visibility: collapse;
+}
+
+#urlbar-icons[mode="edit"] > #tool-stop,
+#urlbar-icons[mode="view"] > #tool-stop {
+  visibility: collapse;
+}
+
+/* Toggle that displays the tab bar */
+#toolbar-transition {
+  -moz-padding-end: @metro_spacing_snormal@;
+  background: @panel_dark_color@ @panel_dark_background@;
+}
+
+#tool-new-tab {
+  margin: 0;
+  -moz-margin-start: -@metro_spacing_normal@;
+  list-style-image: url("images/newtab-default.png");
+  transition: opacity ease-out 0.2s;
+}
+
+/* Hide the tab toggle if the tabs are visible */
+#tray[visible][expanded] #tool-new-tab {
+  opacity: 0;
+}
+
+/* Hide the tab toggle if we're showing classic tabs or we're snap-viewed. */
+#toolbar[viewstate="snapped"],
+#tray[tabsonly] #toolbar {
+  background: @panel_light_color@ @panel_light_background@;
+  -moz-padding-end: 0;
+}
+
+#toolbar-container[viewstate="snapped"],
+#tray[tabsonly] #toolbar-container {
+  -moz-padding-end: 0;
+}
+
+#toolbar-transition[viewstate="snapped"],
+#tray[tabsonly] #toolbar-transition {
+  visibility: collapse;
+}
+
+/* If we're in the small snap view, compress and simplify the UI. */
+#tray[visible][expanded][viewstate="snapped"] {
+  margin-top: -@tabs_height@ !important;
+}
+
+#toolbar[viewstate="snapped"] {
+  -moz-padding-end: 0;
+}
+
+#unified-back-forward-button[viewstate="snapped"] + #urlbar-container {
+  -moz-margin-end: 0;
 }
 
 /* App Bar ----------------------------------------------------------------- */
@@ -354,94 +514,49 @@ documenttab[selected] .documenttab-selection {
 appbar {
   display: block;
   position: fixed;
+  height: @toolbar_height@;
   bottom: 0;
-  width: 100%;
-  transform: translateY(100%);
+  transform: translateY(@toolbar_height@);
   transition: transform @metro_animation_duration@ @metro_animation_easing@;
-  font-size: 0;
-}
-
-appbar > toolbar {
-  -moz-appearance: none;
-  -moz-box-align: center;
-  border: 0;
   width: 100%;
-  min-height: @toolbar_height@;
-  font-size: 1rem;
 }
 
-appbar > toolbar > toolbarbutton {
-  border: 0;
+appbar toolbar {
+  border-top: 1px solid @appbar_top_border@;
+  border-bottom: 0px;
+  height: @toolbar_height@;
+  -moz-appearance: none;
+  background-color: @appbar_color@;
+  -moz-box-align: center;
+  width: 100%;
+}
+
+appbar toolbarbutton {
+  float: left;
+  border-width: 0px;
   margin: 0 @toolbar_horizontal_spacing@;
   padding: 0;
   /* Don't inherit background-color from toolbarbutton[checked="true"] */
   background-color: transparent;
 }
 
-appbar > toolbar > toolbarbutton[disabled] {
+appbar toolbarbutton[disabled] {
   visibility: collapse;
 }
 
-#navbar[startpage],
-appbar[visible] {
+#appbar:not([viewstate="snapped"])[visible] {
   transform: none;
 }
 
-#stack[keyboardVisible] > appbar {
-  /* Slow the bottom up transition since it's impossible to match the system's
-     soft keyboard movement. */
-  transition: transform @metro_animation_duration@ @metro_animation_easing@,
-              bottom @appbar_keyboard_slideup_duration@ @metro_animation_easing@;
-}
-
-appbar > toolbar > toolbarbutton {
+#appbar toolbarbutton {
   list-style-image: url(chrome://browser/skin/images/appbar-icons.png);
   -moz-image-region: rect(0px, 200px, 40px, 160px); /* Gear icon is default. */
 }
-appbar > toolbar > toolbarbutton:hover {
+#appbar toolbarbutton:hover {
   -moz-image-region: rect(40px, 200px, 80px, 160px);
 }
-appbar > toolbar > toolbarbutton:active {
+#appbar toolbarbutton:active {
   -moz-image-region: rect(80px, 200px, 120px, 160px);
-}
-
-#toolbar > .appbar-primary {
-  -moz-image-region: rect(0 40px 40px 0);
-}
-
-#toolbar > .appbar-primary:not([checked]):hover:not(:active) {
-  -moz-image-region: rect(0 80px 40px 40px);
-}
-
-#toolbar > .appbar-primary:not([checked]):active {
-  -moz-image-region: rect(0 120px 40px 80px);
-}
-
-#toolbar > .appbar-primary[checked]:hover:not(:active) {
-  -moz-image-region: rect(0 160px 40px 120px);
-}
-
-@media (min-resolution: 130dpi) {
-  #toolbar > .appbar-primary > .toolbarbutton-icon {
-    width: 40px;
-    height: 40px;
-  }
-
-  #toolbar > .appbar-primary {
-    -moz-image-region: rect(0 56px 56px 0);
-  }
-
-  #toolbar > .appbar-primary:not([checked]):hover:not(:active) {
-    -moz-image-region: rect(0 112px 56px 56px);
-  }
-
-  #toolbar > .appbar-primary:not([checked]):active {
-    -moz-image-region: rect(0 168px 56px 112px);
-  }
-
-  #toolbar > .appbar-primary[checked]:hover:not(:active) {
-    -moz-image-region: rect(0 224px 56px 168px);
-  }
 }
 
 /* Application-Specific */
@@ -466,51 +581,50 @@ appbar > toolbar > toolbarbutton:active {
 }
 
 /* Page-Specific */
+#zoomout-button {
+  -moz-image-region: rect(0px, 120px, 40px, 80px) !important;
+}
+#zoomout-button:hover {
+  -moz-image-region: rect(40px, 120px, 80px, 80px) !important;
+}
+#zoomout-button:active {
+  -moz-image-region: rect(80px, 120px, 120px, 80px) !important;
+}
+
+#zoomin-button {
+  -moz-image-region: rect(0px, 160px, 40px, 120px) !important;
+}
+#zoomin-button:hover {
+  -moz-image-region: rect(40px, 160px, 80px, 120px) !important;
+}
+#zoomin-button:active {
+  -moz-image-region: rect(80px, 160px, 120px, 120px) !important;
+}
 
 #pin-button {
-  list-style-image: url(chrome://browser/skin/images/appbar-pin.png);
+  -moz-image-region: rect(0px, 240px, 40px, 200px) !important;
+}
+#pin-button:hover {
+  -moz-image-region: rect(40px, 240px, 80px, 200px) !important;
+}
+#pin-button:active {
+  -moz-image-region: rect(80px, 240px, 120px, 200px) !important;
+}
+#pin-button[checked] {
+  -moz-image-region: rect(0px, 280px, 40px, 240px) !important;
 }
 
 #star-button {
-  list-style-image: url(chrome://browser/skin/images/appbar-star.png);
+  -moz-image-region: rect(0px, 360px, 40px, 320px) !important;
 }
-
-#menu-button {
-  list-style-image: url(chrome://browser/skin/images/appbar-menu.png);
+#star-button:hover {
+  -moz-image-region: rect(40px, 360px, 80px, 320px) !important;
 }
-
-@media (min-resolution: 130dpi) {
-  #pin-button {
-    list-style-image: url(chrome://browser/skin/images/appbar-pin@1.4x.png);
-  }
-
-  #star-button {
-    list-style-image: url(chrome://browser/skin/images/appbar-star@1.4x.png);
-  }
-
-  #menu-button {
-    list-style-image: url(chrome://browser/skin/images/appbar-menu@1.4x.png);
-  }
+#star-button:active,
+#star-button[checked] {
+  -moz-image-region: rect(80px, 360px, 120px, 320px) !important;
 }
-
-
-#contextualactions-tray {
-  background-color: @metro_orange@;
-}
-
-#contextualactions-tray > toolbarbutton {
-  opacity: 1;
-}
-#contextualactions-tray > toolbarbutton[fade] {
-  opacity: 0;
-}
-#contextualactions-tray > toolbarbutton:not([immediate]) {
-  transition-property: opacity;
-  transition-duration: .3s;
-  transition-timing-function: ease-in;
-  transition-delay: 80ms;
-}
-
+/* Tile-selection-Specific */
 #pin-selected-button {
   -moz-image-region: rect(0px, 240px, 40px, 200px) !important;
 }
@@ -520,15 +634,17 @@ appbar > toolbar > toolbarbutton:active {
 #pin-selected-button:active {
   -moz-image-region: rect(80px, 240px, 120px, 200px) !important;
 }
+
 #unpin-selected-button {
-  -moz-image-region: rect(0px, 280px, 40px, 240px) !important;
+  -moz-image-region: rect(80px, 240px, 120px, 200px) !important;
 }
 #unpin-selected-button:hover {
-  -moz-image-region: rect(40px, 280px, 80px, 240px) !important;
+  -moz-image-region: rect(40px, 240px, 80px, 200px) !important;
 }
 #unpin-selected-button:active {
-  -moz-image-region: rect(80px, 280px, 120px, 240px) !important;
+  -moz-image-region: rect(0px, 240px, 40px, 200px) !important;
 }
+
 #delete-selected-button {
   -moz-image-region: rect(0px, 480px, 40px, 440px) !important;
 }
@@ -537,25 +653,6 @@ appbar > toolbar > toolbarbutton:active {
 }
 #delete-selected-button:active {
   -moz-image-region: rect(80px, 480px, 120px, 440px) !important;
-}
-#clear-selected-button {
-  -moz-image-region: rect(0px, 520px, 40px, 480px) !important;
-}
-#clear-selected-button:hover {
-  -moz-image-region: rect(40px, 520px, 80px, 480px) !important;
-}
-#clear-selected-button:active {
-  -moz-image-region: rect(80px, 520px, 120px, 480px) !important;
-}
-
-#restore-selected-button {
-  -moz-image-region: rect(0px, 560px, 40px, 520px) !important;
-}
-#restore-selected-button:hover {
-  -moz-image-region: rect(40px, 560px, 80px, 520px) !important;
-}
-#restore-selected-button:active {
-  -moz-image-region: rect(80px, 560px, 120px, 520px) !important;
 }
 
 /* Flyouts ---------------------------------------------------------------- */
@@ -568,31 +665,6 @@ flyoutpanel > settings:first-child {
 
 #sync-flyoutpanel {
   width: 400px;
-}
-
-#sync-disconnectwarntitle {
-  font-weight: bold;
-}
-
-#sync-disconnectthrobber {
-  margin-top: 25px;
-}
-
-#disconnectthrobber {
-  width: 25px;
-  height: 25px;
-}
-
-#syncdisconnectthrobber .progressContainer {
-  width: 25px;
-  height: 25px;
-  margin-right: 10px;
-}
-
-#syncdisconnectthrobber .progressBall {
-  margin: 2px;
-  width: 22px;
-  height: 22px;
 }
 
 /* About flyout pane */
@@ -615,12 +687,6 @@ flyoutpanel > settings:first-child {
 
 #about-policy-label {
  margin-top: 24pt;
-}
-
-#currentChannel {
-  margin: 0;
-  padding: 0;
-  font-weight: bold;
 }
 
 /* Preferences flyout */
@@ -672,11 +738,6 @@ setting[type="string"] > .preferences-alignment {
 setting[type="file"] > .preferences-alignment,
 setting[type="directory"] > .preferences-alignment {
   -moz-box-align: center;
-}
-
-/* Removes the left side title vbox on radio setting */
-setting[type="radio"] > vbox {
-  display: none;
 }
 
 #prefs-homepage-options, #prefs-homepage-popup {
@@ -736,10 +797,8 @@ setting[type="radio"] > vbox {
   display: -moz-box;
 }
 
-#start-scrollbox[input="precise"] {
-  overflow-x: scroll;
-  /* Move scrollbar above toolbar, discount padding added by .meta in #start-container */
-  margin-bottom: calc(@toolbar_height@ - @metro_spacing_normal@);
+#start-scrollbox {
+  overflow: hidden;
 }
 
 /* if autocomplete is set, hide both start pages,
@@ -749,37 +808,12 @@ setting[type="radio"] > vbox {
   visibility: collapse;
 }
 
-/*tile content should be on same line in snapped view */
-#snapped-topsites-grid > richgriditem > .richgrid-item-content {
-  -moz-box-orient: horizontal;
-}
-
-[viewstate="snapped"] .canSnapTiles .richgrid-item-desc {
- -moz-margin-start: 8px;
-}
-
 /* if snapped, hide the fullscreen awesome screen, if viewstate is anything
  *  other than snapped, hide the snapped awesome screen */
 #start[viewstate="snapped"],
 #snapped-start:not([viewstate="snapped"]) {
   visibility: collapse;
 }
-
-/*Formatting for the limited horizontal space of snapped*/
-#start-autocomplete[viewstate="snapped"] .richgrid-item-content {
-  -moz-box-orient: horizontal;
-}
-
-#start-container,
-#start-autocomplete {
-  padding-left: 0;
-  padding-right: 0;
-}
-
-#start-container[viewstate="snapped"] .meta-section {
-  margin: 0px;
-}
-
 
 /* Browser Content Areas ----------------------------------------------------- */
 
@@ -789,20 +823,8 @@ setting[type="radio"] > vbox {
   visibility: collapse;
 }
 
-/* a 'margin-top' is applied dynamically in ContentAreaObserver */
 #browsers {
   background: white;
-  transition-property: margin-top;
-  transition-duration: .3s;
-  transition-timing-function: ease-in-out;
-}
-
-#browsers browser {
-  transition: padding-bottom @metro_animation_duration@ @metro_animation_easing@;
-}
-
-#browsers[findbar] browser {
-  padding-bottom: @findbar_height@;
 }
 
 /* Panel UI ---------------------------------------------------------------- */
@@ -811,33 +833,22 @@ setting[type="radio"] > vbox {
   padding: 60px 40px;
 }
 
-#panel-container[viewstate="snapped"] .canSnapTiles .richgrid-item-content {
-  -moz-box-orient: horizontal;
-}
-
 #panel-close-button {
   background: transparent;
   border: 0 none;
   -moz-appearance: none;
   margin: 0;
   -moz-margin-end: 40px;
-  list-style-image: url(chrome://browser/skin/images/appbar-back.png);
-  -moz-image-region: rect(0 40px 40px 0);
+  list-style-image: url(chrome://browser/skin/images/back.png);
+  -moz-image-region: rect(0 48px 48px 0);
   padding: 0;
-  min-height: 40px;
-  max-height: 40px;
+  min-height: 48px;
+  max-height: 48px;
   -moz-box-pack: center;
 }
 
-@media (min-resolution: 130dpi) {
-  #panel-close-button {
-    list-style-image: url(chrome://browser/skin/images/appbar-back@1.4x.png);
-    width: 40px;
-  }
-}
-
 #panel-close-button[disabled] {
-  opacity: .5;
+  -moz-image-region: rect(0 96px 48px 48px);
 }
 
 #panel-view-switcher {
@@ -850,17 +861,9 @@ setting[type="radio"] > vbox {
   margin: 0;
 }
 
-#panel-container[viewstate="snapped"] #panel-view-switcher {
-  font-size: @metro_font_large@;
-}
-
 #panel-items {
   padding-top: 20px;
   -moz-padding-start: 88px;
-}
-
-#panel-container[viewstate="snapped"] #panel-items {
-  padding-left: 0px;
 }
 
 /* Console Section - Panel UI ---------------------------------------------- */
@@ -918,102 +921,6 @@ setting[type="radio"] > vbox {
 #alerts-container {
   -moz-margin-end: @margin_large@;
 }
-
-/* overlay buttons */
-
-.overlay-button {
-  position: fixed;
-  top: 50%;
-  margin-top: -65px;
-  width: 118px;
-  height: 118px;
-  background-color: hsla(210,30%,10%,.2);
-  background-size: 60px;
-  background-repeat: no-repeat;
-  background-origin: padding-box;
-  background-clip: padding-box;
-  border: 6px solid hsla(0,0%,100%,.7);
-  border-radius: 50%;
-  box-shadow: 0 0 0 1px hsla(0,0%,0%,.04),
-              0 0 9px 0 hsla(0,0%,0%,.1);
-  transition-property: left, right, transform, background-position, background-color, background-size, border-color, visibility, box-shadow, top;
-  transition-duration: 550ms;
-  transition-timing-function: cubic-bezier(0.1, 0.9, 0.2, 1);
-}
-
-#overlay-back {
-  background-image: url(chrome://browser/skin/images/overlay-back.png);
-}
-
-#overlay-plus {
-  background-image: url(chrome://browser/skin/images/overlay-plus.png);
-}
-
-#overlay-back:-moz-locale-dir(ltr),
-#overlay-plus:-moz-locale-dir(rtl) {
-  left: -70px;
-  background-position: right 6px center;
-}
-
-#overlay-plus:-moz-locale-dir(ltr),
-#overlay-back:-moz-locale-dir(rtl) {
-  right: -70px;
-  background-position: left 6px center;
-}
-
-#stack[keyboardVisible] > .overlay-button,
-#stack[fullscreen] > .overlay-button,
-#appbar[visible] ~ .overlay-button,
-.overlay-button[disabled] {
-  box-shadow: none;
-  visibility: collapse;
-}
-
-#stack[keyboardVisible] > #overlay-back:-moz-locale-dir(ltr),
-#stack[keyboardVisible] > #overlay-plus:-moz-locale-dir(rtl),
-#stack[fullscreen] > #overlay-back:-moz-locale-dir(ltr),
-#stack[fullscreen] > #overlay-plus:-moz-locale-dir(rtl),
-#appbar[visible] ~ #overlay-back:-moz-locale-dir(ltr),
-#appbar[visible] ~ #overlay-plus:-moz-locale-dir(rtl),
-#overlay-back[disabled]:-moz-locale-dir(ltr),
-#overlay-plus[disabled]:-moz-locale-dir(rtl) {
-  transform: translateX(-60px);
-}
-
-#stack[keyboardVisible] > #overlay-plus:-moz-locale-dir(ltr),
-#stack[keyboardVisible] > #overlay-back:-moz-locale-dir(rtl),
-#stack[fullscreen] > #overlay-plus:-moz-locale-dir(ltr),
-#stack[fullscreen] > #overlay-back:-moz-locale-dir(rtl),
-#appbar[visible] ~ #overlay-plus:-moz-locale-dir(ltr),
-#appbar[visible] ~ #overlay-back:-moz-locale-dir(rtl),
-#overlay-plus[disabled]:-moz-locale-dir(ltr),
-#overlay-back[disabled]:-moz-locale-dir(rtl) {
-  transform: translateX(60px);
-}
-
-.overlay-button:hover {
-  background-color: hsla(210,30%,10%,.4);
-  background-size: 90px;
-  border-color: hsla(0,0%,100%,.9);
-}
-
-#overlay-back:-moz-locale-dir(ltr):hover,
-#overlay-plus:-moz-locale-dir(rtl):hover {
-  background-position: right 12px center;
-  transform: translateX(40px) scale(1.2);
-}
-
-#overlay-plus:-moz-locale-dir(ltr):hover,
-#overlay-back:-moz-locale-dir(rtl):hover {
-  background-position: left 12px center;
-  transform: translateX(-40px) scale(1.2);
-}
-
-#overlay-back[mousedrag],
-#overlay-plus[mousedrag] {
-  transition-property: left, right, transform, background-position, background-color, background-size, border-color, visibility, box-shadow;
-}
-
 
 /* helperapp (save-as) popup ----------------------------------------------- */
 #helperapp-target {
@@ -1079,33 +986,33 @@ setting[type="radio"] > vbox {
   min-width: @scroller_minimum@;
 }
 
-#browsers[input="imprecise"] browser {
-  overflow: hidden;
+/* Text selection handles */
+
+#selectionhandle-mark1,
+#selectionhandle-mark2,
+#selectionhandle-mark3 {
+  border: 0px solid gray;
+  padding: 0px;
+  margin-top: -30px;
+  margin-left: -18px;
 }
 
-/* :::::: autoscroll popup ::::: */
-
-.autoscroller {
-  height: 28px;
-  width: 28px;
-  border: none;
-  margin: -14px;
-  padding: 0;
-  background-image: url("chrome://browser/skin/images/autoscroll.png");
-  background-color: transparent;
-  position: fixed;
-  visibility: hidden;
-  background-repeat: no-repeat;
-  background-origin: padding-box;
-  background-clip: padding-box;
-  background-position: right top;
-  -moz-appearance: none;
+#selectionhandle-mark1,
+#selectionhandle-mark2,
+#selectionhandle-mark3 {
+  list-style-image: url("chrome://browser/skin/images/selection-monocle.png");
 }
 
-.autoscroller[scrolldir="NS"] {
-  background-position: right center;
+/* Capture picker ------------------------------------------------------------- */
+
+#capturepicker-video {
+  border: @border_width_tiny@ solid white;
 }
 
-.autoscroller[scrolldir="EW"] {
-  background-position: right bottom;
+#capturepicker-container {
+  margin: @margin_normal@;
+}
+
+#capturepicker-container.vertical {
+  height: 330px;
 }

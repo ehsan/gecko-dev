@@ -19,6 +19,20 @@
   -moz-border-start-color: transparent;
 }
 
+/* Watch expressions, variables and other instruments pane */
+
+#instruments-pane {
+  min-width: 50px;
+  -moz-margin-start: 0px !important;
+  /* Unfortunately, transitions don't work properly with locale-aware properties,
+     so both the left and right margins are set via js, while the start margin
+     is always overridden here. */
+}
+
+#instruments-pane[animated] {
+  transition: margin 0.25s ease-in-out;
+}
+
 /* ListWidget items */
 
 .list-widget-item {
@@ -85,12 +99,13 @@
 
 .dbg-expression {
   height: 20px;
+  -moz-padding-start: 8px;
 }
 
 .dbg-expression-arrow {
-  width: 16px;
+  width: 10px;
   height: auto;
-  background: -moz-image-rect(url("chrome://browser/skin/devtools/commandline-icon.png"), 0, 32, 16, 16);
+  background: url("chrome://browser/skin/devtools/commandline.png") 0px 4px no-repeat;
 }
 
 .dbg-expression-input {
@@ -250,14 +265,6 @@
 
 /* Toolbar Controls */
 
-#resumption-panel-desc {
-  width: 200px;
-}
-
-#resumption-order-panel {
-  -moz-margin-start: -8px;
-}
-
 #resume {
   list-style-image: url("chrome://browser/skin/devtools/debugger-play.png");
   -moz-image-region: rect(0px,16px,16px,0px);
@@ -305,12 +312,12 @@
   background: none;
   box-shadow: none;
   border: none;
-  list-style-image: url("chrome://browser/skin/devtools/debugger-collapse.png");
+  list-style-image: url("chrome://browser/skin/devtools/debugger-expand.png");
   -moz-image-region: rect(0px,16px,16px,0px);
 }
 
-#instruments-pane-toggle[pane-collapsed] {
-  list-style-image: url("chrome://browser/skin/devtools/debugger-expand.png");
+#instruments-pane-toggle:not([toggled]) {
+  list-style-image: url("chrome://browser/skin/devtools/debugger-collapse.png");
 }
 
 #instruments-pane-toggle:active {

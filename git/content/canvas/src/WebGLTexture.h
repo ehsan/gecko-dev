@@ -7,13 +7,17 @@
 #define WEBGLTEXTURE_H_
 
 #include "WebGLObjectModel.h"
+#include "WebGLRenderbuffer.h"
 
 #include "nsWrapperCache.h"
 
 #include "mozilla/LinkedList.h"
+#include "mozilla/CheckedInt.h"
 #include <algorithm>
 
 namespace mozilla {
+
+enum FakeBlackStatus { DoNotNeedFakeBlack, DoNeedFakeBlack, DontKnowIfNeedFakeBlack };
 
 // Zero is not an integer power of two.
 inline bool is_pot_assuming_nonnegative(WebGLsizei x)
@@ -48,8 +52,7 @@ public:
         return Context();
     }
 
-    virtual JSObject* WrapObject(JSContext *cx,
-                                 JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
+    virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
 
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
     NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(WebGLTexture)

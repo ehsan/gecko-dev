@@ -107,8 +107,6 @@ var test = {
 }
 
 function run_test() {
-  do_test_pending();
-
   do_check_eq(typeof PlacesUtils, "object");
 
   // make json file
@@ -123,41 +121,38 @@ function run_test() {
   // populate db
   test.populate();
 
-  Task.spawn(function() {
-    try {
-      yield BookmarkJSONUtils.exportToFile(jsonFile);
-    } catch(ex) {
-      do_throw("couldn't export to file: " + ex);
-    }
+  try {
+    PlacesUtils.backups.saveBookmarksToJSONFile(jsonFile);
+  } catch(ex) {
+    do_throw("couldn't export to file: " + ex);
+  }
 
-    // restore json file
-    try {
-      yield BookmarkJSONUtils.importFromFile(jsonFile, true);
-    } catch(ex) {
-      do_throw("couldn't import the exported file: " + ex);
-    }
+  // restore json file
+  try {
+    PlacesUtils.restoreBookmarksFromJSONFile(jsonFile);
+  } catch(ex) {
+    do_throw("couldn't import the exported file: " + ex);
+  }
 
-    // validate without removing all bookmarks
-    // restore do not remove backup exclude entries
-    test.validate(false);
+  // validate without removing all bookmarks
+  // restore do not remove backup exclude entries
+  test.validate(false);
 
-    // cleanup
-    remove_all_bookmarks();
-    // manually remove the excluded root
-    PlacesUtils.bookmarks.removeItem(test._excludeRootId);
-    // restore json file
-    try {
-      yield BookmarkJSONUtils.importFromFile(jsonFile, true);
-    } catch(ex) {
-      do_throw("couldn't import the exported file: " + ex);
-    }
+  // cleanup
+  remove_all_bookmarks();
+  // manually remove the excluded root
+  PlacesUtils.bookmarks.removeItem(test._excludeRootId);
 
-    // validate after a complete bookmarks cleanup
-    test.validate(true);
+  // restore json file
+  try {
+    PlacesUtils.restoreBookmarksFromJSONFile(jsonFile);
+  } catch(ex) {
+    do_throw("couldn't import the exported file: " + ex);
+  }
 
-    // clean up
-    jsonFile.remove(false);
+  // validate after a complete bookmarks cleanup
+  test.validate(true);
 
-    do_test_finished();
-  });
+  // clean up
+  jsonFile.remove(false);
 }

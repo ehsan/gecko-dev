@@ -109,16 +109,13 @@ function doInternalRequest() {
             method: 'login',
             assertion: assertion,
             _internalParams: internalParams});
-        } else {
-          identityCall({
-            method: 'cancel'
-          });
         }
         closeIdentityDialog();
       },
       stringifiedOptions);
   }
 }
+
 function doInternalLogout(aOptions) {
   log("doInternalLogout:", (options && isLoaded));
   if (options && isLoaded) {

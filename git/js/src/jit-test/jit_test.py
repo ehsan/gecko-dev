@@ -142,11 +142,17 @@ def main(argv):
     if options.tbpl:
         # Running all bits would take forever. Instead, we test a few interesting combinations.
         flags = [
-                      ['--ion-eager'], # implies --baseline-eager
-                      ['--baseline-eager'],
-                      ['--baseline-eager', '--no-ti', '--no-fpu'],
-                      ['--no-baseline', '--no-ion'],
-                      ['--no-baseline', '--no-ion', '--no-ti'],
+                      ['--no-jm'],
+                      ['--ion-eager'],
+                      # Below, equivalents the old shell flags: ,m,am,amd,n,mn,amn,amdn,mdn
+                      ['--no-ion', '--no-jm', '--no-ti'],
+                      ['--no-ion', '--no-ti'],
+                      ['--no-ion', '--no-ti', '--always-mjit', '--debugjit'],
+                      ['--no-ion', '--no-jm'],
+                      ['--no-ion'],
+                      ['--no-ion', '--always-mjit'],
+                      ['--no-ion', '--always-mjit', '--debugjit'],
+                      ['--no-ion', '--debugjit']
                     ]
         for test in test_list:
             for variant in flags:
@@ -154,7 +160,7 @@ def main(argv):
                 new_test.jitflags.extend(variant)
                 job_list.append(new_test)
     elif options.ion:
-        flags = [['--baseline-eager'], ['--ion-eager']]
+        flags = [['--no-jm'], ['--ion-eager']]
         for test in test_list:
             for variant in flags:
                 new_test = test.copy()

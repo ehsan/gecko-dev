@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 var framer = exports;
 
 var spdy = require('../../../spdy'),
@@ -11,7 +15,6 @@ var spdy = require('../../../spdy'),
 // Framer constructor
 //
 function Framer(deflate, inflate) {
-  this.version = 2;
   this.deflate = deflate;
   this.inflate = inflate;
 }
@@ -33,8 +36,6 @@ Framer.prototype.execute = function execute(header, body, callback) {
     body = body.slice(frame._offset);
 
     this.inflate(body, function(err, chunks, length) {
-      if (err) return callback(err);
-
       var pairs = new Buffer(length);
       for (var i = 0, offset = 0; i < chunks.length; i++) {
         chunks[i].copy(pairs, offset);
@@ -42,7 +43,6 @@ Framer.prototype.execute = function execute(header, body, callback) {
       }
 
       frame.headers = protocol.parseHeaders(pairs);
-      frame.url = frame.headers.url || '';
 
       callback(null, frame);
     });
@@ -130,7 +130,7 @@ function headersToDict(headers, preprocess) {
   return result;
 };
 
-Framer.prototype._synFrame = function _synFrame(type, id, assoc, priority, dict,
+Framer.prototype._synFrame = function _synFrame(type, id, assoc, dict,
                                                 callback) {
   // Compress headers
   this.deflate(dict, function (err, chunks, size) {
@@ -149,8 +149,6 @@ Framer.prototype._synFrame = function _synFrame(type, id, assoc, priority, dict,
       frame[4] = 2;
       frame.writeUInt32BE(assoc & 0x7fffffff, 12, true); // Stream-ID
     }
-
-    frame.writeUInt8(priority & 0x3, 16, true); // Priority
 
     for (var i = 0; i < chunks.length; i++) {
       chunks[i].copy(frame, offset);
@@ -173,11 +171,11 @@ Framer.prototype._synFrame = function _synFrame(type, id, assoc, priority, dict,
 Framer.prototype.replyFrame = function replyFrame(id, code, reason, headers,
                                                   callback) {
   var dict = headersToDict(headers, function(headers) {
-    headers.status = code + ' ' + reason;
-    headers.version = 'HTTP/1.1';
-  });
+        headers.status = code + ' ' + reason;
+        headers.version = 'HTTP/1.1';
+      });
 
-  this._synFrame('SYN_REPLY', id, null, 0, dict, callback);
+  this._synFrame('SYN_REPLY', id, null, dict, callback);
 };
 
 //
@@ -198,7 +196,7 @@ Framer.prototype.streamFrame = function streamFrame(id, assoc, meta, headers,
     headers.url = meta.url;
   });
 
-  this._synFrame('SYN_STREAM', id, assoc, meta.priority, dict, callback);
+  this._synFrame('SYN_STREAM', id, assoc, dict, callback);
 };
 
 //
@@ -262,23 +260,23 @@ Framer.prototype.rstFrame = function rstFrame(id, code) {
 Framer.rstCache = {};
 
 //
-// ### function settingsFrame (options)
-// #### @options {Object} settings frame options
+// ### function maxStreamsFrame (count)
+// #### @count {Number} Max Concurrent Streams count
 // Sends SETTINGS frame with MAX_CONCURRENT_STREAMS
 //
-Framer.prototype.settingsFrame = function settingsFrame(options) {
+Framer.prototype.maxStreamsFrame = function maxStreamsFrame(count) {
   var settings;
 
-  if (!(settings = Framer.settingsCache[options.maxStreams])) {
+  if (!(settings = Framer.settingsCache[count])) {
     settings = new Buffer(20);
 
     settings.writeUInt32BE(0x80020004, 0, true); // Version and type
     settings.writeUInt32BE(0x0000000C, 4, true); // length
     settings.writeUInt32BE(0x00000001, 8, true); // Count of entries
     settings.writeUInt32LE(0x01000004, 12, true); // Entry ID and Persist flag
-    settings.writeUInt32BE(options.maxStreams, 16, true);
+    settings.writeUInt32BE(count, 16, true); // 100 Streams
 
-    Framer.settingsCache[options.maxStreams] = settings;
+    Framer.settingsCache[count] = settings;
   }
 
   return settings;

@@ -6,13 +6,15 @@
 #define SHAREDRGBIMAGE_H_
 
 #include "ImageContainer.h"
-#include "ISurfaceAllocator.h"
 
 namespace mozilla {
 namespace ipc {
 class Shmem;
 }
 namespace layers {
+
+class ImageContainerChild;
+class SharedImage;
 
 /**
  * Stores RGB data in shared memory
@@ -26,10 +28,10 @@ public:
     gfxImageFormat mImageFormat;
   };
 
-  SharedRGBImage(ISurfaceAllocator *aAllocator);
+  SharedRGBImage(ImageContainerChild *aImageContainerChild);
   ~SharedRGBImage();
 
-  static already_AddRefed<SharedRGBImage> Create(ImageContainer* aImageContainer,
+  static already_AddRefed<SharedRGBImage> Create(ImageContainer *aImageContainer,
                                                  nsIntSize aSize,
                                                  gfxImageFormat aImageFormat);
   uint8_t *GetBuffer();
@@ -40,33 +42,14 @@ public:
   static uint8_t BytesPerPixel(gfxImageFormat aImageFormat);
   already_AddRefed<gfxASurface> GetAsSurface();
 
-  /**
-   * Setup the Surface descriptor to contain this image's shmem, while keeping
-   * ownership of the shmem.
-   * if the operation succeeds, return true and AddRef this SharedRGBImage.
-   */
-  bool ToSurfaceDescriptor(SurfaceDescriptor& aResult);
-
-  /**
-   * Setup the Surface descriptor to contain this image's shmem, and loose
-   * ownership of the shmem.
-   * if the operation succeeds, return true (and does _not_ AddRef this
-   * SharedRGBImage).
-   */
-  bool DropToSurfaceDescriptor(SurfaceDescriptor& aResult);
-
-  /**
-   * Returns a SharedRGBImage* iff the descriptor was initialized with
-   * ToSurfaceDescriptor.
-   */
-  static SharedRGBImage* FromSurfaceDescriptor(const SurfaceDescriptor& aDescriptor);
+  SharedImage *ToSharedImage();
 
 private:
   bool AllocateBuffer(nsIntSize aSize, gfxImageFormat aImageFormat);
 
   gfxIntSize mSize;
   gfxImageFormat mImageFormat;
-  ISurfaceAllocator* mSurfaceAllocator;
+  ImageContainerChild *mImageContainerChild;
 
   bool mAllocated;
   ipc::Shmem *mShmem;

@@ -1,11 +1,12 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsweakmap_h
-#define jsweakmap_h
+#ifndef jsweakmap_h___
+#define jsweakmap_h___
 
 #include "jsapi.h"
 #include "jsfriendapi.h"
@@ -49,7 +50,7 @@ class WeakMapBase {
             // many keys as possible have been marked, and add ourselves to the list of
             // known-live WeakMaps to be scanned in the iterative marking phase, by
             // markAllIteratively.
-            JS_ASSERT(tracer->eagerlyTraceWeakMaps == DoNotTraceWeakMaps);
+            JS_ASSERT(!tracer->eagerlyTraceWeakMaps);
 
             // Add ourselves to the list if we are not already in the list. We can already
             // be in the list if the weak map is marked more than once due delayed marking.
@@ -62,12 +63,8 @@ class WeakMapBase {
             // nicely as needed by the true ephemeral marking algorithm --- custom tracers
             // such as the cycle collector must use their own means for cycle detection.
             // So here we do a conservative approximation: pretend all keys are live.
-            if (tracer->eagerlyTraceWeakMaps == DoNotTraceWeakMaps)
-                return;
-
-            nonMarkingTraceValues(tracer);
-            if (tracer->eagerlyTraceWeakMaps == TraceWeakMapKeysValues)
-                nonMarkingTraceKeys(tracer);
+            if (tracer->eagerlyTraceWeakMaps)
+                nonMarkingTrace(tracer);
         }
     }
 
@@ -103,8 +100,7 @@ class WeakMapBase {
   protected:
     // Instance member functions called by the above. Instantiations of WeakMap override
     // these with definitions appropriate for their Key and Value types.
-    virtual void nonMarkingTraceKeys(JSTracer *tracer) = 0;
-    virtual void nonMarkingTraceValues(JSTracer *tracer) = 0;
+    virtual void nonMarkingTrace(JSTracer *tracer) = 0;
     virtual bool markIteratively(JSTracer *tracer) = 0;
     virtual void sweep() = 0;
     virtual void traceMappings(WeakMapTracer *tracer) = 0;
@@ -134,7 +130,7 @@ class WeakMap : public HashMap<Key, Value, HashPolicy, RuntimeAllocPolicy>, publ
     typedef typename Base::Range Range;
 
     explicit WeakMap(JSContext *cx, JSObject *memOf=NULL)
-        : Base(cx), WeakMapBase(memOf, cx->compartment()) { }
+        : Base(cx), WeakMapBase(memOf, cx->compartment) { }
 
   private:
     bool markValue(JSTracer *trc, Value *x) {
@@ -145,16 +141,7 @@ class WeakMap : public HashMap<Key, Value, HashPolicy, RuntimeAllocPolicy>, publ
         return true;
     }
 
-    void nonMarkingTraceKeys(JSTracer *trc) {
-        for (Enum e(*this); !e.empty(); e.popFront()) {
-            Key key(e.front().key);
-            gc::Mark(trc, &key, "WeakMap Key");
-            if (key != e.front().key)
-                e.rekeyFront(key, key);
-        }
-    }
-
-    void nonMarkingTraceValues(JSTracer *trc) {
+    void nonMarkingTrace(JSTracer *trc) {
         for (Range r = Base::all(); !r.empty(); r.popFront())
             gc::Mark(trc, &r.front().value, "WeakMap entry");
     }
@@ -203,8 +190,6 @@ class WeakMap : public HashMap<Key, Value, HashPolicy, RuntimeAllocPolicy>, publ
             Key k(e.front().key);
             if (gc::IsAboutToBeFinalized(&k))
                 e.removeFront();
-            else if (k != e.front().key)
-                e.rekeyFront(k, k);
         }
         /*
          * Once we've swept, all remaining edges should stay within the
@@ -244,4 +229,4 @@ protected:
 extern JSObject *
 js_InitWeakMapClass(JSContext *cx, js::HandleObject obj);
 
-#endif /* jsweakmap_h */
+#endif

@@ -12,14 +12,6 @@
 #include "mozilla/Attributes.h"
 #include <algorithm>
 
-#define NS_DOMMULTIPARTBLOB_CID { 0x47bf0b43, 0xf37e, 0x49ef, \
-  { 0x81, 0xa0, 0x18, 0xba, 0xc0, 0x57, 0xb5, 0xcc } }
-#define NS_DOMMULTIPARTBLOB_CONTRACTID "@mozilla.org/dom/multipart-blob;1"
-
-#define NS_DOMMULTIPARTFILE_CID { 0xc3361f77, 0x60d1, 0x4ea9, \
-  { 0x94, 0x96, 0xdf, 0x5d, 0x6f, 0xcd, 0xd7, 0x8f } }
-#define NS_DOMMULTIPARTFILE_CONTRACTID "@mozilla.org/dom/multipart-file;1"
-
 class nsDOMMultipartFile : public nsDOMFile,
                            public nsIJSNativeInitializer
 {
@@ -59,7 +51,8 @@ public:
   NS_IMETHOD Initialize(nsISupports* aOwner,
                         JSContext* aCx,
                         JSObject* aObj,
-                        const JS::CallArgs& aArgs) MOZ_OVERRIDE;
+                        uint32_t aArgc,
+                        JS::Value* aArgv);
 
   typedef nsIDOMBlob* (*UnwrapFuncPtr)(JSContext*, JSObject*);
   nsresult InitBlob(JSContext* aCx,
@@ -71,10 +64,10 @@ public:
                     JS::Value* aArgv);
 
   already_AddRefed<nsIDOMBlob>
-  CreateSlice(uint64_t aStart, uint64_t aLength, const nsAString& aContentType) MOZ_OVERRIDE;
+  CreateSlice(uint64_t aStart, uint64_t aLength, const nsAString& aContentType);
 
-  NS_IMETHOD GetSize(uint64_t*) MOZ_OVERRIDE;
-  NS_IMETHOD GetInternalStream(nsIInputStream**) MOZ_OVERRIDE;
+  NS_IMETHOD GetSize(uint64_t*);
+  NS_IMETHOD GetInternalStream(nsIInputStream**);
 
   static nsresult
   NewFile(const nsAString& aName, nsISupports* *aNewObject);
@@ -94,7 +87,7 @@ public:
   }
 
   virtual const nsTArray<nsCOMPtr<nsIDOMBlob> >*
-  GetSubBlobs() const MOZ_OVERRIDE { return &mBlobs; }
+  GetSubBlobs() const { return &mBlobs; }
 
 protected:
   nsTArray<nsCOMPtr<nsIDOMBlob> > mBlobs;

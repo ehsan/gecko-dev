@@ -11,7 +11,6 @@
 
 #include "AccessibleWrap.h"
 #include "States.h"
-#include "IUnknownImpl.h"
 
 #include "nsIFrame.h"
 
@@ -22,7 +21,7 @@ using namespace mozilla::a11y;
 STDMETHODIMP
 ia2AccessibleComponent::QueryInterface(REFIID iid, void** ppv)
 {
-  *ppv = nullptr;
+  *ppv = NULL;
 
   if (IID_IAccessibleComponent == iid) {
     *ppv = static_cast<IAccessibleComponent*>(this);

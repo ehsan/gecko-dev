@@ -34,8 +34,7 @@ var data = [
   { type: 'time', apply: true },
   { type: 'datetime-local', apply: true, todo: true },
   { type: 'number', apply: true },
-  { type: 'range', apply: true },
-  { type: 'color', apply: false },
+  { type: 'color', apply: false, todo: true },
   { type: 'checkbox', apply: false },
   { type: 'radio', apply: false },
   { type: 'file', apply: false },
@@ -125,7 +124,6 @@ for (var test of data) {
     case 'reset':
     case 'button':
     case 'image':
-    case 'color':
       input.max = '-1';
       break;
     case 'date':

@@ -955,15 +955,12 @@
           }
 
           var doc = win.document;
-          if (!doc || !doc.documentElement)
-           return textFound;
-
-          var body = (doc instanceof HTMLDocument && doc.body) ?
-                     doc.body : doc.documentElement;
+          if (!doc || !(doc instanceof HTMLDocument))
+            return textFound;
 
           if (aHighlight) {
             var searchRange = doc.createRange();
-             searchRange.selectNodeContents(body);
+            searchRange.selectNodeContents(doc.body);
 
             var startPt = searchRange.cloneRange();
             startPt.collapse(true);
@@ -1355,7 +1352,6 @@
           return /^text\/|\+xml$/.test(aMimeType) ||
                  aMimeType == "application/x-javascript" ||
                  aMimeType == "application/javascript" ||
-                 aMimeType == "application/json" ||
                  aMimeType == "application/xml";
         ]]></body>
       </method>

@@ -9,7 +9,6 @@
 #define nsCSSValue_h___
 
 #include "mozilla/Attributes.h"
-#include "mozilla/FloatingPoint.h"
 
 #include "nsCOMPtr.h"
 #include "nsCRTGlue.h"
@@ -22,6 +21,7 @@
 #include "nsStringBuffer.h"
 #include "nsTArray.h"
 #include "nsStyleConsts.h"
+#include "mozilla/FloatingPoint.h"
 
 class imgRequestProxy;
 class nsIDocument;
@@ -164,7 +164,6 @@ enum nsCSSUnit {
   eCSSUnit_Steps        = 24,     // (nsCSSValue::Array*) a list of (integer, enumerated)
   eCSSUnit_Function     = 25,     // (nsCSSValue::Array*) a function with
                                   //  parameters.  First elem of array is name,
-                                  //  an nsCSSKeyword as eCSSUnit_Enumerated,
                                   //  the rest of the values are arguments.
 
   // The top level of a calc() expression is eCSSUnit_Calc.  All
@@ -347,12 +346,6 @@ public:
     return mValue.mInt;
   }
 
-  nsCSSKeyword GetKeywordValue() const
-  {
-    NS_ABORT_IF_FALSE(mUnit == eCSSUnit_Enumerated, "not a keyword value");
-    return static_cast<nsCSSKeyword>(mValue.mInt);
-  }
-
   float GetPercentValue() const
   {
     NS_ABORT_IF_FALSE(mUnit == eCSSUnit_Percent, "not a percent value");
@@ -362,7 +355,7 @@ public:
   float GetFloatValue() const
   {
     NS_ABORT_IF_FALSE(eCSSUnit_Number <= mUnit, "not a float value");
-    MOZ_ASSERT(!mozilla::IsNaN(mValue.mFloat));
+    MOZ_ASSERT(!MOZ_DOUBLE_IS_NaN(mValue.mFloat));
     return mValue.mFloat;
   }
 

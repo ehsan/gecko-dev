@@ -50,6 +50,7 @@ RecordingCmdLineHandler.prototype =
         var prefs = Components.classes["@mozilla.org/preferences-service;1"].
                     getService(Components.interfaces.nsIPrefService);
         var branch = prefs.getDefaultBranch("");
+        branch.setBoolPref("gfx.2d.recording", true);
 
         try {
             var outputstr = cmdLine.handleFlagWithParam("recording-output", false);
@@ -57,8 +58,6 @@ RecordingCmdLineHandler.prototype =
                 branch.setCharPref("gfx.2d.recordingfile", outputstr);
             }
         } catch (e) { }
-
-        branch.setBoolPref("gfx.2d.recording", true);
 
         var wwatch = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
                                .getService(nsIWindowWatcher);

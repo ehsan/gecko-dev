@@ -16,11 +16,6 @@ const WebProgress = {
     messageManager.addMessageListener("Content:LocationChange", this);
     messageManager.addMessageListener("Content:SecurityChange", this);
     Elements.progress.addEventListener("transitionend", this._progressTransEnd, true);
-    Elements.tabList.addEventListener("TabSelect", this._onTabSelect, true);
-
-    let urlBar = document.getElementById("urlbar-edit");
-    urlBar.addEventListener("input", this._onUrlBarInput, false);
-
     return this;
   },
 
@@ -63,21 +58,12 @@ const WebProgress = {
   },
 
   _securityChange: function _securityChange(aJson, aTab) {
-    let state = aJson.state;
-    let nsIWebProgressListener = Ci.nsIWebProgressListener;
+    // Don't need to do anything if the data we use to update the UI hasn't changed
+    if (aTab.state == aJson.state && !aTab.hostChanged)
+      return;
 
-    if (state & nsIWebProgressListener.STATE_IDENTITY_EV_TOPLEVEL) {
-      aTab._identityState = "verifiedIdentity";
-    } else if (state & nsIWebProgressListener.STATE_IS_SECURE) {
-      aTab._identityState = "verifiedDomain";
-    } else {
-      aTab._identityState = "";
-    }
-
-    if (aTab == Browser.selectedTab) {
-      let identityBox = document.getElementById("identity-box-inner");
-      identityBox.className = aTab._identityState;
-    }
+    aTab.hostChanged = false;
+    aTab.state = aJson.state;
   },
 
   _locationChange: function _locationChange(aJson, aTab) {
@@ -91,6 +77,7 @@ const WebProgress = {
     if (locationHasChanged) {
       Browser.getNotificationBox(aTab.browser).removeTransientNotifications();
       aTab.resetZoomLevel();
+      aTab.hostChanged = true;
       aTab.browser.lastLocation = location;
       aTab.browser.userTypedValue = "";
       aTab.browser.appIcon = { href: null, size:-1 };
@@ -157,9 +144,6 @@ const WebProgress = {
 
     this._progressActive = true;
 
-    // display the track
-    Elements.progressContainer.removeAttribute("collapsed");
-
     // 'Whoosh' in
     this._progressCount = kProgressMarginStart;
     Elements.progress.style.width = this._progressCount + "%"; 
@@ -214,18 +198,8 @@ const WebProgress = {
     // Close out fade finished, reset
     if (data.propertyName == "opacity") {
       Elements.progress.style.width = "0px"; 
-      Elements.progressContainer.setAttribute("collapsed", true);
     }
   },
-
-  _onTabSelect: function(aEvent) {
-    let identityBox = document.getElementById("identity-box-inner");
-    let tab = Browser.getTabFromChrome(aEvent.originalTarget);
-    identityBox.className = tab._identityState || "";
-  },
-
-  _onUrlBarInput: function(aEvent) {
-    let identityBox = document.getElementById("identity-box-inner");
-    Browser.selectedTab._identityState = identityBox.className = "";
-  },
 };
+
+

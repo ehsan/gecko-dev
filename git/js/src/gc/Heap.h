@@ -1,19 +1,17 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef gc_Heap_h
-#define gc_Heap_h
+#ifndef gc_heap_h___
+#define gc_heap_h___
 
 #include "mozilla/Attributes.h"
-#include "mozilla/PodOperations.h"
 #include "mozilla/StandardInteger.h"
 
 #include <stddef.h>
 
-#include "jspubtd.h"
 #include "jstypes.h"
 #include "jsutil.h"
 
@@ -27,9 +25,6 @@ struct JSRuntime;
 }
 
 namespace js {
-
-// Defined in vm/ForkJoin.cpp
-extern bool InSequentialOrExclusiveParallelSection();
 
 class FreeOp;
 
@@ -65,7 +60,6 @@ enum AllocKind {
     FINALIZE_OBJECT16_BACKGROUND,
     FINALIZE_OBJECT_LAST = FINALIZE_OBJECT16_BACKGROUND,
     FINALIZE_SCRIPT,
-    FINALIZE_LAZY_SCRIPT,
     FINALIZE_SHAPE,
     FINALIZE_BASE_SHAPE,
     FINALIZE_TYPE_OBJECT,
@@ -90,7 +84,6 @@ static const size_t MAX_BACKGROUND_FINALIZE_KINDS = FINALIZE_LIMIT - FINALIZE_OB
  */
 struct Cell
 {
-  public:
     inline ArenaHeader *arenaHeader() const;
     inline AllocKind tenuredGetAllocKind() const;
     MOZ_ALWAYS_INLINE bool isMarked(uint32_t color = BLACK) const;
@@ -102,13 +95,19 @@ struct Cell
 
 #ifdef DEBUG
     inline bool isAligned() const;
-    inline bool isTenured() const;
+    bool isTenured() const;
 #endif
 
   protected:
     inline uintptr_t address() const;
     inline Chunk *chunk() const;
 };
+
+/*
+ * This is the maximum number of arenas we allow in the FreeCommitted state
+ * before we trigger a GC_SHRINK to release free arenas to the OS.
+ */
+const static uint32_t FreeCommittedArenasThreshold = (32 << 20) / ArenaSize;
 
 /*
  * The mark bitmap has one bit per each GC cell. For multi-cell GC things this
@@ -666,9 +665,6 @@ struct ChunkBitmap
 {
     volatile uintptr_t bitmap[ArenaBitmapWords * ArenasPerChunk];
 
-  public:
-    ChunkBitmap() { }
-
     MOZ_ALWAYS_INLINE void getMarkWordAndMask(const Cell *cell, uint32_t color,
                                               uintptr_t **wordp, uintptr_t *maskp)
     {
@@ -829,7 +825,6 @@ struct Chunk
 
 JS_STATIC_ASSERT(sizeof(Chunk) == ChunkSize);
 JS_STATIC_ASSERT(js::gc::ChunkMarkBitmapOffset == offsetof(Chunk, bitmap));
-JS_STATIC_ASSERT(js::gc::ChunkRuntimeOffset == offsetof(Chunk, info) + offsetof(ChunkInfo, runtime));
 
 inline uintptr_t
 ArenaHeader::address() const
@@ -951,7 +946,6 @@ Cell::arenaHeader() const
 inline JSRuntime *
 Cell::runtime() const
 {
-    JS_ASSERT(InSequentialOrExclusiveParallelSection());
     return chunk()->info.runtime;
 }
 
@@ -989,7 +983,6 @@ Cell::unmark(uint32_t color) const
 Zone *
 Cell::tenuredZone() const
 {
-    JS_ASSERT(InSequentialOrExclusiveParallelSection());
     JS_ASSERT(isTenured());
     return arenaHeader()->zone;
 }
@@ -999,16 +992,6 @@ bool
 Cell::isAligned() const
 {
     return Arena::isAligned(address(), arenaHeader()->getThingSize());
-}
-
-bool
-Cell::isTenured() const
-{
-#ifdef JSGC_GENERATIONAL
-    JS::shadow::Runtime *rt = js::gc::GetGCThingRuntime(this);
-    return uintptr_t(this) < rt->gcNurseryStart_ || uintptr_t(this) >= rt->gcNurseryEnd_;
-#endif
-    return true;
 }
 #endif
 
@@ -1063,4 +1046,4 @@ InFreeList(ArenaHeader *aheader, void *thing)
 } /* namespace gc */
 } /* namespace js */
 
-#endif /* gc_Heap_h */
+#endif /* gc_heap_h___ */

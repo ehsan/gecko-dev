@@ -204,6 +204,15 @@ ImageWrapper::GetImageContainer(LayerManager* aManager, ImageContainer** _retval
 }
 
 NS_IMETHODIMP
+ImageWrapper::ExtractFrame(uint32_t aWhichFrame,
+                           const nsIntRect& aRegion,
+                           uint32_t aFlags,
+                           imgIContainer** _retval)
+{
+  return mInnerImage->ExtractFrame(aWhichFrame, aRegion, aFlags, _retval);
+}
+
+NS_IMETHODIMP
 ImageWrapper::Draw(gfxContext* aContext,
                    gfxPattern::GraphicsFilter aFilter,
                    const gfxMatrix& aUserSpaceToImageSpace,
@@ -229,12 +238,6 @@ NS_IMETHODIMP
 ImageWrapper::StartDecoding()
 {
   return mInnerImage->StartDecoding();
-}
-
-bool
-ImageWrapper::IsDecoded()
-{
-  return mInnerImage->IsDecoded();
 }
 
 NS_IMETHODIMP
@@ -277,24 +280,6 @@ NS_IMETHODIMP
 ImageWrapper::ResetAnimation()
 {
   return mInnerImage->ResetAnimation();
-}
-
-NS_IMETHODIMP_(float)
-ImageWrapper::GetFrameIndex(uint32_t aWhichFrame)
-{
-  return mInnerImage->GetFrameIndex(aWhichFrame);
-}
-
-NS_IMETHODIMP_(int32_t)
-ImageWrapper::GetFirstFrameDelay()
-{
-  return mInnerImage->GetFirstFrameDelay();
-}
-
-NS_IMETHODIMP_(void)
-ImageWrapper::SetAnimationStartTime(const mozilla::TimeStamp& aTime)
-{
-  mInnerImage->SetAnimationStartTime(aTime);
 }
 
 } // namespace image

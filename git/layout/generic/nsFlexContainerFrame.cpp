@@ -12,14 +12,12 @@
 #include "nsCSSAnonBoxes.h"
 #include "nsDisplayList.h"
 #include "nsLayoutUtils.h"
-#include "nsPlaceholderFrame.h"
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
 #include "prlog.h"
 #include <algorithm>
 
 using namespace mozilla::css;
-using namespace mozilla::layout;
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo*
@@ -164,7 +162,7 @@ MarginComponentForSide(nsMargin& aMargin, Side aSide)
 }
 
 // Encapsulates our flex container's main & cross axes.
-class MOZ_STACK_CLASS FlexboxAxisTracker {
+NS_STACK_CLASS class FlexboxAxisTracker {
 public:
   FlexboxAxisTracker(nsFlexContainerFrame* aFlexContainerFrame);
 
@@ -467,47 +465,34 @@ protected:
                       // in our constructor).
 };
 
-// Helper-function to find the first non-anonymous-box descendent of aFrame.
-static nsIFrame*
-GetFirstNonAnonBoxDescendant(nsIFrame* aFrame)
+/**
+ * Helper-function to find the nsIContent* that we should use for comparing the
+ * DOM tree position of the given flex-item frame.
+ *
+ * In most cases, this will be aFrame->GetContent(), but if aFrame is an
+ * anonymous container, then its GetContent() won't be what we want. In such
+ * cases, we need to find aFrame's first non-anonymous-container descendant.
+ */
+static nsIContent*
+GetContentForComparison(const nsIFrame* aFrame)
 {
-  while (aFrame) {
+  MOZ_ASSERT(aFrame, "null frame passed to GetContentForComparison()");
+  MOZ_ASSERT(aFrame->IsFlexItem(), "only intended for flex items");
+
+  while (true) {
     nsIAtom* pseudoTag = aFrame->StyleContext()->GetPseudo();
 
     // If aFrame isn't an anonymous container, then it'll do.
     if (!pseudoTag ||                                 // No pseudotag.
         !nsCSSAnonBoxes::IsAnonBox(pseudoTag) ||      // Pseudotag isn't anon.
         pseudoTag == nsCSSAnonBoxes::mozNonElement) { // Text, not a container.
-      break;
+      return aFrame->GetContent();
     }
 
     // Otherwise, descend to its first child and repeat.
-
-    // SPECIAL CASE: if we're dealing with an anonymous table, then it might
-    // be wrapping something non-anonymous in its caption or col-group lists
-    // (instead of its principal child list), so we have to look there.
-    // (Note: For anonymous tables that have a non-anon cell *and* a non-anon
-    // column, we'll always return the column. This is fine; we're really just
-    // looking for a handle to *anything* with a meaningful content node inside
-    // the table, for use in DOM comparisons to things outside of the table.)
-    if (MOZ_UNLIKELY(aFrame->GetType() == nsGkAtoms::tableOuterFrame)) {
-      nsIFrame* captionDescendant =
-        GetFirstNonAnonBoxDescendant(aFrame->GetFirstChild(kCaptionList));
-      if (captionDescendant) {
-        return captionDescendant;
-      }
-    } else if (MOZ_UNLIKELY(aFrame->GetType() == nsGkAtoms::tableFrame)) {
-      nsIFrame* colgroupDescendant =
-        GetFirstNonAnonBoxDescendant(aFrame->GetFirstChild(kColGroupList));
-      if (colgroupDescendant) {
-        return colgroupDescendant;
-      }
-    }
-
-    // USUAL CASE: Descend to the first child in principal list.
     aFrame = aFrame->GetFirstPrincipalChild();
+    MOZ_ASSERT(aFrame, "why do we have an anonymous box without any children?");
   }
-  return aFrame;
 }
 
 /**
@@ -529,9 +514,6 @@ bool
 IsOrderLEQWithDOMFallback(nsIFrame* aFrame1,
                           nsIFrame* aFrame2)
 {
-  MOZ_ASSERT(aFrame1->IsFlexItem() && aFrame2->IsFlexItem(),
-             "this method only intended for comparing flex items");
-
   if (aFrame1 == aFrame2) {
     // Anything is trivially LEQ itself, so we return "true" here... but it's
     // probably bad if we end up actually needing this, so let's assert.
@@ -539,51 +521,16 @@ IsOrderLEQWithDOMFallback(nsIFrame* aFrame1,
     return true;
   }
 
-  // If we've got a placeholder frame, use its out-of-flow frame's 'order' val.
-  {
-    nsIFrame* aRealFrame1 = nsPlaceholderFrame::GetRealFrameFor(aFrame1);
-    nsIFrame* aRealFrame2 = nsPlaceholderFrame::GetRealFrameFor(aFrame2);
+  int32_t order1 = aFrame1->StylePosition()->mOrder;
+  int32_t order2 = aFrame2->StylePosition()->mOrder;
 
-    int32_t order1 = aRealFrame1->StylePosition()->mOrder;
-    int32_t order2 = aRealFrame2->StylePosition()->mOrder;
-
-    if (order1 != order2) {
-      return order1 < order2;
-    }
+  if (order1 != order2) {
+    return order1 < order2;
   }
 
-  // The "order" values are equal, so we need to fall back on DOM comparison.
-  // For that, we need to dig through any anonymous box wrapper frames to find
-  // the actual frame that corresponds to our child content.
-  aFrame1 = GetFirstNonAnonBoxDescendant(aFrame1);
-  aFrame2 = GetFirstNonAnonBoxDescendant(aFrame2);
-  MOZ_ASSERT(aFrame1 && aFrame2,
-             "why do we have an anonymous box without any "
-             "non-anonymous descendants?");
-
-
-  // Special case:
-  // If either frame is for generated content from ::before or ::after, then
-  // we can't use nsContentUtils::PositionIsBefore(), since that method won't
-  // recognize generated content as being an actual sibling of other nodes.
-  // We know where ::before and ::after nodes *effectively* insert in the DOM
-  // tree, though (at the beginning & end), so we can just special-case them.
-  nsIAtom* pseudo1 = aFrame1->StyleContext()->GetPseudo();
-  nsIAtom* pseudo2 = aFrame2->StyleContext()->GetPseudo();
-  if (pseudo1 == nsCSSPseudoElements::before ||
-      pseudo2 == nsCSSPseudoElements::after) {
-    // frame1 is ::before and/or frame2 is ::after => frame1 is LEQ frame2.
-    return true;
-  }
-  if (pseudo1 == nsCSSPseudoElements::after ||
-      pseudo2 == nsCSSPseudoElements::before) {
-    // frame1 is ::after and/or frame2 is ::before => frame1 is not LEQ frame2.
-    return false;
-  }
-
-  // Usual case: Compare DOM position.
-  nsIContent* content1 = aFrame1->GetContent();
-  nsIContent* content2 = aFrame2->GetContent();
+  // Same "order" value --> use DOM position.
+  nsIContent* content1 = GetContentForComparison(aFrame1);
+  nsIContent* content2 = GetContentForComparison(aFrame2);
   MOZ_ASSERT(content1 != content2,
              "Two different flex items are using the same nsIContent node for "
              "comparison, so we may be sorting them in an arbitrary order");
@@ -607,15 +554,8 @@ bool
 IsOrderLEQ(nsIFrame* aFrame1,
            nsIFrame* aFrame2)
 {
-  MOZ_ASSERT(aFrame1->IsFlexItem() && aFrame2->IsFlexItem(),
-             "this method only intended for comparing flex items");
-
-  // If we've got a placeholder frame, use its out-of-flow frame's 'order' val.
-  nsIFrame* aRealFrame1 = nsPlaceholderFrame::GetRealFrameFor(aFrame1);
-  nsIFrame* aRealFrame2 = nsPlaceholderFrame::GetRealFrameFor(aFrame2);
-
-  int32_t order1 = aRealFrame1->StylePosition()->mOrder;
-  int32_t order2 = aRealFrame2->StylePosition()->mOrder;
+  int32_t order1 = aFrame1->StylePosition()->mOrder;
+  int32_t order2 = aFrame2->StylePosition()->mOrder;
 
   return order1 <= order2;
 }
@@ -900,7 +840,8 @@ FlexItem::GetNumAutoMarginsInAxis(AxisOrientationType aAxis) const
 // corresponds to the 'start' edge of that axis).
 // This class shouldn't be instantiated directly -- rather, it should only be
 // instantiated via its subclasses defined below.
-class MOZ_STACK_CLASS PositionTracker {
+NS_STACK_CLASS
+class PositionTracker {
 public:
   // Accessor for the current value of the position that we're tracking.
   inline nscoord GetPosition() const { return mPosition; }
@@ -963,7 +904,8 @@ protected:
 };
 
 // Tracks our position in the main axis, when we're laying out flex items.
-class MOZ_STACK_CLASS MainAxisPositionTracker : public PositionTracker {
+NS_STACK_CLASS
+class MainAxisPositionTracker : public PositionTracker {
 public:
   MainAxisPositionTracker(nsFlexContainerFrame* aFlexContainerFrame,
                           const FlexboxAxisTracker& aAxisTracker,
@@ -994,7 +936,8 @@ private:
 // Utility class for managing our position along the cross axis along
 // the whole flex container (at a higher level than a single line)
 class SingleLineCrossAxisPositionTracker;
-class MOZ_STACK_CLASS CrossAxisPositionTracker : public PositionTracker {
+NS_STACK_CLASS
+class CrossAxisPositionTracker : public PositionTracker {
 public:
   CrossAxisPositionTracker(nsFlexContainerFrame* aFlexContainerFrame,
                            const FlexboxAxisTracker& aAxisTracker,
@@ -1009,7 +952,8 @@ public:
 
 // Utility class for managing our position along the cross axis, *within* a
 // single flex line.
-class MOZ_STACK_CLASS SingleLineCrossAxisPositionTracker : public PositionTracker {
+NS_STACK_CLASS
+class SingleLineCrossAxisPositionTracker : public PositionTracker {
 public:
   SingleLineCrossAxisPositionTracker(nsFlexContainerFrame* aFlexContainerFrame,
                                      const FlexboxAxisTracker& aAxisTracker,
@@ -1098,26 +1042,6 @@ nsFlexContainerFrame::GetType() const
   return nsGkAtoms::flexContainerFrame;
 }
 
-/* virtual */
-int
-nsFlexContainerFrame::GetSkipSides() const
-{
-  // (same as nsBlockFrame's GetSkipSides impl)
-  if (IS_TRUE_OVERFLOW_CONTAINER(this)) {
-    return (1 << NS_SIDE_TOP) | (1 << NS_SIDE_BOTTOM);
-  }
-
-  int skip = 0;
-  if (GetPrevInFlow()) {
-    skip |= 1 << NS_SIDE_TOP;
-  }
-  nsIFrame* nif = GetNextInFlow();
-  if (nif && !IS_TRUE_OVERFLOW_CONTAINER(nif)) {
-    skip |= 1 << NS_SIDE_BOTTOM;
-  }
-  return skip;
-}
-
 #ifdef DEBUG
 NS_IMETHODIMP
 nsFlexContainerFrame::GetFrameName(nsAString& aResult) const
@@ -1141,7 +1065,7 @@ GetDisplayFlagsForFlexItem(nsIFrame* aFrame)
   if (pos->mZIndex.GetUnit() == eStyleUnit_Integer) {
     return nsIFrame::DISPLAY_CHILD_FORCE_STACKING_CONTEXT;
   }
-  return nsIFrame::DISPLAY_CHILD_FORCE_PSEUDO_STACKING_CONTEXT;
+  return 0;
 }
 
 void
@@ -1149,9 +1073,8 @@ nsFlexContainerFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                        const nsRect&           aDirtyRect,
                                        const nsDisplayListSet& aLists)
 {
-  NS_ASSERTION(
-    nsLayoutUtils::IsFrameListSorted<IsOrderLEQWithDOMFallback>(mFrames),
-    "Child frames aren't sorted correctly");
+  MOZ_ASSERT(nsLayoutUtils::IsFrameListSorted<IsOrderLEQWithDOMFallback>(mFrames),
+             "Frame list should've been sorted in reflow");
 
   DisplayBorderBackgroundOutline(aBuilder, aLists);
 
@@ -2245,7 +2168,7 @@ nsFlexContainerFrame::Reflow(nsPresContext*           aPresContext,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  // Calculate the cross size of our (single) flex line:
+  // SIZE & POSITION THE FLEX LINE (IN CROSS AXIS)
   // Set up state for cross-axis alignment, at a high level (outside the
   // scope of a particular flex line)
   CrossAxisPositionTracker
@@ -2263,7 +2186,7 @@ nsFlexContainerFrame::Reflow(nsPresContext*           aPresContext,
   // additional share of our flex container's desired cross-size. (if it's
   // not NS_AUTOHEIGHT and there's any cross-size left over to distribute)
 
-  // Calculate the content-box cross size of our flex container:
+  // Figure out our flex container's cross size
   nscoord contentBoxCrossSize =
     axisTracker.GetCrossComponent(nsSize(aReflowState.ComputedWidth(),
                                          aReflowState.ComputedHeight()));
@@ -2294,9 +2217,10 @@ nsFlexContainerFrame::Reflow(nsPresContext*           aPresContext,
   frameCrossSize = contentBoxCrossSize +
     axisTracker.GetMarginSizeInCrossAxis(aReflowState.mComputedBorderPadding);
 
-  // Set the flex container's baseline, from its baseline-aligned items.
-  // (This might give us nscoord_MIN if we don't have any baseline-aligned
-  // flex items.  That's OK, we'll update it below.)
+  // Might be nscoord_MIN if we don't have any baseline-aligned flex items;
+  // that's OK, we'll correct it below.
+  // This is w.r.t. the top of our content box; we'll add borderpadding when
+  // we actually stick it in |aDesiredSize|.
   nscoord flexContainerAscent =
     lineCrossAxisPosnTracker.GetCrossStartToFurthestBaseline();
   if (flexContainerAscent != nscoord_MIN) {

@@ -500,12 +500,6 @@
   ERROR(NS_ERROR_DOM_RETVAL_UNDEFINED,             FAILURE(1013)),
   ERROR(NS_ERROR_DOM_QUOTA_REACHED,                FAILURE(1014)),
   ERROR(NS_ERROR_DOM_JS_EXCEPTION,                 FAILURE(1015)),
-
-  /* May be used to indicate when e.g. setting a property value didn't
-   * actually change the value, like for obj.foo = "bar"; obj.foo = "bar";
-   * the second assignment throws NS_SUCCESS_DOM_NO_OPERATION.
-   */
-  ERROR(NS_SUCCESS_DOM_NO_OPERATION,               SUCCESS(1)),
 #undef MODULE
 
 
@@ -592,7 +586,6 @@
   ERROR(NS_ERROR_XPC_HAS_BEEN_SHUTDOWN,                FAILURE(51)),
   ERROR(NS_ERROR_XPC_CANT_MODIFY_PROP_ON_WN,           FAILURE(52)),
   ERROR(NS_ERROR_XPC_BAD_CONVERT_JS_ZERO_ISNOT_NULL,   FAILURE(53)),
-  ERROR(NS_ERROR_XPC_CANT_PASS_CPOW_TO_NATIVE,         FAILURE(54)),
   /* any new errors here should have an associated entry added in xpc.msg */
 
   ERROR(NS_SUCCESS_I_DID_SOMETHING,      SUCCESS(1)),
@@ -600,6 +593,13 @@
    * filename begins with chrome://global/) shoudl return this from their
    * scriptable helper's PreCreate hook. */
   ERROR(NS_SUCCESS_CHROME_ACCESS_ONLY,   SUCCESS(2)),
+  /* Classes that want slim wrappers should return
+   * NS_SUCCESS_ALLOW_SLIM_WRAPPERS from their scriptable helper's PreCreate
+   * hook. They must also force a parent for their wrapper (from the PreCreate
+   * hook), they must implement nsWrapperCache and their scriptable helper must
+   * implement nsXPCClassInfo and must return DONT_ASK_INSTANCE_FOR_SCRIPTABLE
+   * in the flags. */
+  ERROR(NS_SUCCESS_ALLOW_SLIM_WRAPPERS,  SUCCESS(3)),
 #undef MODULE
 
 

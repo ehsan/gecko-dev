@@ -9,21 +9,13 @@
 
 using namespace mozilla::ipc;
 
-bool RawDBusConnection::sDBusIsInit(false);
-
 RawDBusConnection::RawDBusConnection() {
 }
 
 RawDBusConnection::~RawDBusConnection() {
 }
 
-nsresult RawDBusConnection::EstablishDBusConnection()
-{
-  if (!sDBusIsInit) {
-    dbus_bool_t success = dbus_threads_init_default();
-    NS_ENSURE_TRUE(success == TRUE, NS_ERROR_FAILURE);
-    sDBusIsInit = true;
-  }
+nsresult RawDBusConnection::EstablishDBusConnection() {
   DBusError err;
   dbus_error_init(&err);
   mConnection = dbus_bus_get(DBUS_BUS_SYSTEM, &err);
@@ -37,7 +29,5 @@ nsresult RawDBusConnection::EstablishDBusConnection()
 
 void RawDBusConnection::ScopedDBusConnectionPtrTraits::release(DBusConnection* ptr)
 {
-  if (ptr) {
-    dbus_connection_unref(ptr);
-  }
+  if (ptr) dbus_connection_unref(ptr);
 }

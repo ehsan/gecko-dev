@@ -22,7 +22,8 @@ interface nsIInputStream;
  *
  * Implementers should return the following:
  *
- * @throws <any-error> if not interested in consuming any data
+ * @return NS_OK and (*aWriteCount > 0) if consumed some data
+ * @return <any-error> if not interested in consuming any data
  *
  * Errors are never passed to the caller of ReadSegments.
  *

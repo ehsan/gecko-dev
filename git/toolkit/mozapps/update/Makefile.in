@@ -9,15 +9,20 @@ VPATH     = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-DISABLED_EXTRA_COMPONENTS = \
+EXTRA_COMPONENTS = \
   nsUpdateTimerManager.js \
   nsUpdateTimerManager.manifest \
   $(NULL)
 
 ifdef MOZ_UPDATER
 
-DISABLED_EXTRA_COMPONENTS += \
+EXTRA_PP_COMPONENTS += \
+  nsUpdateService.js \
+  $(NULL)
+
+EXTRA_COMPONENTS += \
   nsUpdateService.manifest \
+  nsUpdateServiceStub.js \
   $(NULL)
 
 endif

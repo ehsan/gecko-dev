@@ -1,20 +1,23 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=79 ft=cpp:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_String_inl_h
-#define vm_String_inl_h
-
-#include "vm/String.h"
-
-#include "mozilla/PodOperations.h"
+#ifndef String_inl_h__
+#define String_inl_h__
 
 #include "jscntxt.h"
+#include "jsprobes.h"
+
 #include "gc/Marking.h"
+#include "String.h"
 
 #include "jsgcinlines.h"
+#include "jsobjinlines.h"
+#include "gc/Barrier-inl.h"
+#include "gc/StoreBuffer.h"
 
 namespace js {
 
@@ -24,7 +27,7 @@ NewShortString(JSContext *cx, JS::Latin1Chars chars)
 {
     size_t len = chars.length();
     JS_ASSERT(JSShortString::lengthFits(len));
-    JSInlineString *str = JSInlineString::lengthFits(len)
+    RawInlineString str = JSInlineString::lengthFits(len)
                           ? JSInlineString::new_<allowGC>(cx)
                           : JSShortString::new_<allowGC>(cx);
     if (!str)
@@ -55,7 +58,7 @@ NewShortString(JSContext *cx, JS::StableTwoByteChars chars)
         return NULL;
 
     jschar *storage = str->init(len);
-    mozilla::PodCopy(storage, chars.start().get(), len);
+    PodCopy(storage, chars.start().get(), len);
     storage[len] = 0;
     return str;
 }
@@ -78,12 +81,12 @@ NewShortString(JSContext *cx, JS::TwoByteChars chars)
         if (!allowGC)
             return NULL;
         jschar tmp[JSShortString::MAX_SHORT_LENGTH];
-        mozilla::PodCopy(tmp, chars.start().get(), len);
+        PodCopy(tmp, chars.start().get(), len);
         return NewShortString<CanGC>(cx, JS::StableTwoByteChars(tmp, len));
     }
 
     jschar *storage = str->init(len);
-    mozilla::PodCopy(storage, chars.start().get(), len);
+    PodCopy(storage, chars.start().get(), len);
     storage[len] = 0;
     return str;
 }
@@ -104,7 +107,7 @@ inline void
 JSString::writeBarrierPre(JSString *str)
 {
 #ifdef JSGC_INCREMENTAL
-    if (!str || !str->runtime()->needsBarrier())
+    if (!str)
         return;
 
     JS::Zone *zone = str->zone();
@@ -347,7 +350,7 @@ JSExternalString::new_(JSContext *cx, const jschar *chars, size_t length,
     if (!str)
         return NULL;
     str->init(chars, length, fin);
-    cx->runtime()->updateMallocCounter(cx->zone(), (length + 1) * sizeof(jschar));
+    cx->runtime->updateMallocCounter(cx->compartment->zone(), (length + 1) * sizeof(jschar));
     return str;
 }
 
@@ -400,10 +403,10 @@ inline JSLinearString *
 js::StaticStrings::getUnitStringForElement(JSContext *cx, JSString *str, size_t index)
 {
     JS_ASSERT(index < str->length());
-
-    jschar c;
-    if (!str->getChar(cx, index, &c))
+    const jschar *chars = str->getChars(cx);
+    if (!chars)
         return NULL;
+    jschar c = chars[index];
     if (c < UNIT_STATIC_LIMIT)
         return getUnit(c);
     return js_NewDependentString(cx, str, index, 1);
@@ -509,4 +512,4 @@ JSExternalString::finalize(js::FreeOp *fop)
     fin->finalize(fin, const_cast<jschar *>(chars()));
 }
 
-#endif /* vm_String_inl_h */
+#endif

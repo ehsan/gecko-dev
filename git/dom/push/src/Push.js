@@ -39,9 +39,6 @@ Push.prototype = {
   init: function(aWindow) {
     debug("init()");
 
-    if (!Services.prefs.getBoolPref("services.push.enabled"))
-      return null;
-
     let principal = aWindow.document.nodePrincipal;
 
     this._pageURL = principal.URI;
@@ -121,13 +118,6 @@ Push.prototype = {
   register: function() {
     debug("register()");
     var req = this.createRequest();
-    if (!Services.prefs.getBoolPref("services.push.connection.enabled")) {
-      // If push socket is disabled by the user, immediately error rather than
-      // timing out.
-      Services.DOMRequest.fireErrorAsync(req, "NetworkError");
-      return req;
-    }
-
     this._cpmm.sendAsyncMessage("Push:Register", {
                                   pageURL: this._pageURL.spec,
                                   manifestURL: this._manifestURL,

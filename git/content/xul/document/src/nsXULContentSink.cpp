@@ -429,6 +429,8 @@ XULContentSinkImpl::NormalizeAttributeString(const PRUnichar *aExpatName,
     ni = mNodeInfoManager->GetNodeInfo(localName, prefix,
                                        nameSpaceID,
                                        nsIDOMNode::ATTRIBUTE_NODE);
+    NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
+
     aName.SetTo(ni);
 
     return NS_OK;
@@ -481,6 +483,7 @@ XULContentSinkImpl::HandleStartElement(const PRUnichar *aName,
   nsCOMPtr<nsINodeInfo> nodeInfo;
   nodeInfo = mNodeInfoManager->GetNodeInfo(localName, prefix, nameSpaceID,
                                            nsIDOMNode::ELEMENT_NODE);
+  NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
   
   nsresult rv = NS_OK;
   switch (mState) {
@@ -565,8 +568,7 @@ XULContentSinkImpl::HandleEndElement(const PRUnichar *aName)
             script->mOutOfLine = false;
             if (doc)
                 script->Compile(mText, mTextLength, mDocumentURL,
-                                script->mLineNo, doc,
-                                mPrototype->GetScriptGlobalObject());
+                                script->mLineNo, doc, mPrototype);
         }
 
         FlushText(false);
@@ -945,9 +947,9 @@ XULContentSinkImpl::OpenScript(const PRUnichar** aAttributes,
 
   // Don't process scripts that aren't known
   if (langID != nsIProgrammingLanguage::UNKNOWN) {
-      nsCOMPtr<nsIScriptGlobalObject> globalObject;
+      nsIScriptGlobalObject* globalObject = nullptr; // borrowed reference
       if (doc)
-          globalObject = do_QueryInterface(doc->GetWindow());
+          globalObject = doc->GetScriptGlobalObject();
       nsRefPtr<nsXULPrototypeScript> script =
           new nsXULPrototypeScript(aLineNumber, version);
       if (! script)

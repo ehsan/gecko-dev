@@ -737,8 +737,7 @@ void sftk_MACConstantTime_DestroyContext(void *pctx, PRBool);
 extern CK_RV
 sftk_TLSPRFInit(SFTKSessionContext *context, 
 		  SFTKObject *        key, 
-		  CK_KEY_TYPE         key_type,
-		  HASH_HashType       hash_alg);
+		  CK_KEY_TYPE         key_type);
 
 SEC_END_PROTOS
 

@@ -1,4 +1,3 @@
-# -*- Mode: python; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 40 -*-
 # vim: set filetype=python:
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -13,6 +12,7 @@ XPIDL_SOURCES += [
     'nsIContentViewerFile.idl',
     'nsIDocCharset.idl',
     'nsIDocShell.idl',
+    'nsIDocShellHistory.idl',
     'nsIDocShellLoadInfo.idl',
     'nsIDocShellTreeItem.idl',
     'nsIDocShellTreeNode.idl',
@@ -23,7 +23,6 @@ XPIDL_SOURCES += [
     'nsILoadContext.idl',
     'nsIMarkupDocumentViewer.idl',
     'nsIPrivacyTransitionObserver.idl',
-    'nsIReflowObserver.idl',
     'nsIRefreshURI.idl',
     'nsIScrollable.idl',
     'nsITextScroll.idl',
@@ -34,31 +33,4 @@ XPIDL_SOURCES += [
 ]
 
 MODULE = 'docshell'
-
-EXPORTS += [
-    'SerializedLoadContext.h',
-    'nsDocShellLoadTypes.h',
-    'nsILinkHandler.h',
-    'nsIWebShellServices.h',
-]
-
-EXPORTS.mozilla += [
-    'IHistory.h',
-    'LoadContext.h',
-]
-
-CPP_SOURCES += [
-    'LoadContext.cpp',
-    'SerializedLoadContext.cpp',
-    'nsAboutRedirector.cpp',
-    'nsDSURIContentListener.cpp',
-    'nsDefaultURIFixup.cpp',
-    'nsDocShell.cpp',
-    'nsDocShellEditorData.cpp',
-    'nsDocShellEnumerator.cpp',
-    'nsDocShellLoadInfo.cpp',
-    'nsDocShellTransferableHooks.cpp',
-    'nsDownloadHistory.cpp',
-    'nsWebNavigationInfo.cpp',
-]
 

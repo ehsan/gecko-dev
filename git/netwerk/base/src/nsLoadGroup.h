@@ -8,7 +8,6 @@
 
 #include "nsILoadGroup.h"
 #include "nsILoadGroupChild.h"
-#include "nsPILoadGroupInternal.h"
 #include "nsIChannel.h"
 #include "nsIStreamListener.h"
 #include "nsAgg.h"
@@ -22,13 +21,13 @@
 #include "pldhash.h"
 #include "mozilla/TimeStamp.h"
 
+class  nsISupportsArray;
 class  nsILoadGroupConnectionInfo;
 
 class nsLoadGroup : public nsILoadGroup,
                     public nsILoadGroupChild,
                     public nsISupportsPriority,
-                    public nsSupportsWeakReference,
-                    public nsPILoadGroupInternal
+                    public nsSupportsWeakReference
 {
 public:
     NS_DECL_AGGREGATED
@@ -40,7 +39,6 @@ public:
     ////////////////////////////////////////////////////////////////////////////
     // nsILoadGroup methods:
     NS_DECL_NSILOADGROUP
-    NS_DECL_NSPILOADGROUPINTERNAL
 
     ////////////////////////////////////////////////////////////////////////////
     // nsILoadGroupChild methods:
@@ -90,9 +88,6 @@ protected:
     bool                            mDefaultLoadIsTimed;
     uint32_t                        mTimedRequests;
     uint32_t                        mCachedRequests;
-
-    /* For nsPILoadGroupInternal */
-    uint32_t                        mTimedNonCachedRequestsUntilOnEndPageLoad;
 };
 
 #endif // nsLoadGroup_h__

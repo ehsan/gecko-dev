@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=99 ft=cpp:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Copyright (C) 2010 Apple Inc. All rights reserved.
@@ -27,12 +27,13 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef yarr_PageBlock_h
-#define yarr_PageBlock_h
+#ifndef PageBlock_h
+#define PageBlock_h
 
 #include "mozilla/StandardInteger.h"
 
-#include <stddef.h>
+#include <stdlib.h>
+#include "assembler/wtf/Platform.h"
 
 namespace WTF {
 
@@ -88,4 +89,4 @@ using WTF::isPageAligned;
 using WTF::isPageAligned;
 using WTF::isPowerOfTwo;
 
-#endif /* yarr_PageBlock_h */
+#endif // PageBlock_h

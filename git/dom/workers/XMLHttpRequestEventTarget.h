@@ -35,8 +35,7 @@ public:
   }                                                                            \
                                                                                \
   void                                                                         \
-  SetOn##_type(JSContext* /* unused */, JS::Handle<JSObject*> aListener,       \
-               ErrorResult& aRv)                                               \
+  SetOn##_type(JSContext* /* unused */, JSObject* aListener, ErrorResult& aRv) \
   {                                                                            \
     SetEventListener(NS_LITERAL_STRING(#_type), aListener, aRv);               \
   }

@@ -128,6 +128,11 @@ public class AnnouncementsService extends BackgroundService implements Announcem
   }
 
   @Override
+  public void onDestroy() {
+    super.onDestroy();
+  }
+
+  @Override
   public IBinder onBind(Intent intent) {
     return null;
   }

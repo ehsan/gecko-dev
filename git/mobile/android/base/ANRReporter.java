@@ -7,8 +7,6 @@ package org.mozilla.gecko;
 
 import org.mozilla.gecko.util.ThreadUtils;
 
-import org.json.JSONObject;
-
 import android.app.ActivityManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -20,22 +18,22 @@ import android.os.Looper;
 import android.util.Base64;
 import android.util.Log;
 
+import org.json.JSONObject;
+
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileReader;
-import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.io.Reader;
-import java.io.StringReader;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
-import java.util.UUID;
-import java.util.Locale;
 import java.util.regex.Pattern;
+import java.util.UUID;
 
 public final class ANRReporter extends BroadcastReceiver
 {
@@ -62,10 +60,6 @@ public final class ANRReporter extends BroadcastReceiver
     private static int sRegisteredCount;
     private Handler mHandler;
     private volatile boolean mPendingANR;
-
-    private static native boolean requestNativeStack();
-    private static native String getNativeStack();
-    private static native void releaseNativeStack();
 
     public static void register(Context context) {
         if (sRegisteredCount++ != 0) {
@@ -186,10 +180,10 @@ public final class ANRReporter extends BroadcastReceiver
     }
 
     private static File getPingFile() {
-        if (GeckoAppShell.getContext() == null) {
+        if (GeckoApp.mAppContext == null) {
             return null;
         }
-        GeckoProfile profile = GeckoAppShell.getGeckoInterface().getProfile();
+        GeckoProfile profile = GeckoApp.mAppContext.getProfile();
         if (profile == null) {
             return null;
         }
@@ -212,9 +206,9 @@ public final class ANRReporter extends BroadcastReceiver
             // Regex for finding our package name in the traces file
             Pattern pkgPattern = Pattern.compile(Pattern.quote(pkgName) + END_OF_PACKAGE_NAME);
             Pattern mangledPattern = null;
-            if (!AppConstants.MANGLED_ANDROID_PACKAGE_NAME.equals(pkgName)) {
+            if (!GeckoAppInfo.getMangledPackageName().equals(pkgName)) {
                 mangledPattern = Pattern.compile(Pattern.quote(
-                    AppConstants.MANGLED_ANDROID_PACKAGE_NAME) + END_OF_PACKAGE_NAME);
+                    GeckoAppInfo.getMangledPackageName()) + END_OF_PACKAGE_NAME);
             }
             if (DEBUG) {
                 Log.d(LOGTAG, "trying to match package: " + pkgName);
@@ -268,9 +262,9 @@ public final class ANRReporter extends BroadcastReceiver
 
     private static long getTotalMem() {
 
-        if (Build.VERSION.SDK_INT >= 16 && GeckoAppShell.getContext() != null) {
+        if (Build.VERSION.SDK_INT >= 16 && GeckoApp.mAppContext != null) {
             ActivityManager am = (ActivityManager)
-                GeckoAppShell.getContext().getSystemService(Context.ACTIVITY_SERVICE);
+                GeckoApp.mAppContext.getSystemService(Context.ACTIVITY_SERVICE);
             ActivityManager.MemoryInfo mi = new ActivityManager.MemoryInfo();
             am.getMemoryInfo(mi);
             mi.totalMem /= 1024L * 1024L;
@@ -282,12 +276,6 @@ public final class ANRReporter extends BroadcastReceiver
             Log.d(LOGTAG, "totalMem unavailable");
         }
         return 0L;
-    }
-
-    private static String getLocale() {
-        // Having a different locale than system locale is not
-        // supported right now; assume we are using the system locale
-        return Locale.getDefault().toString().replace('_', '-');
     }
 
     /*
@@ -346,16 +334,15 @@ public final class ANRReporter extends BroadcastReceiver
             "}," +
             "\"info\":{" +
                 "\"reason\":\"android-anr-report\"," +
-                "\"OS\":" + JSONObject.quote(AppConstants.OS_TARGET) + "," +
+                "\"OS\":" + JSONObject.quote(GeckoAppInfo.getOS()) + "," +
                 "\"version\":\"" + String.valueOf(Build.VERSION.SDK_INT) + "\"," +
-                "\"appID\":" + JSONObject.quote(AppConstants.MOZ_APP_ID) + "," +
-                "\"appVersion\":" + JSONObject.quote(AppConstants.MOZ_APP_VERSION)+ "," +
-                "\"appName\":" + JSONObject.quote(AppConstants.MOZ_APP_BASENAME) + "," +
-                "\"appBuildID\":" + JSONObject.quote(AppConstants.MOZ_APP_BUILDID) + "," +
-                "\"appUpdateChannel\":" + JSONObject.quote(AppConstants.MOZ_UPDATE_CHANNEL) + "," +
-                // Technically the platform build ID may be different, but we'll never know
-                "\"platformBuildID\":" + JSONObject.quote(AppConstants.MOZ_APP_BUILDID) + "," +
-                "\"locale\":" + JSONObject.quote(getLocale()) + "," +
+                "\"appID\":" + JSONObject.quote(GeckoAppInfo.getID()) + "," +
+                "\"appVersion\":" + JSONObject.quote(GeckoAppInfo.getVersion()) + "," +
+                "\"appName\":" + JSONObject.quote(GeckoAppInfo.getName()) + "," +
+                "\"appBuildID\":" + JSONObject.quote(GeckoAppInfo.getBuildID()) + "," +
+                "\"appUpdateChannel\":" + JSONObject.quote(GeckoAppInfo.getUpdateChannel()) + "," +
+                "\"platformBuildID\":" + JSONObject.quote(GeckoAppInfo.getPlatformBuildID()) + "," +
+                "\"locale\":" + JSONObject.quote(GeckoAppInfo.getLocale()) + "," +
                 "\"cpucount\":" + String.valueOf(Runtime.getRuntime().availableProcessors()) + "," +
                 "\"memsize\":" + String.valueOf(getTotalMem()) + "," +
                 "\"arch\":" + JSONObject.quote(System.getProperty("os.arch")) + "," +
@@ -446,8 +433,7 @@ public final class ANRReporter extends BroadcastReceiver
         return total;
     }
 
-    private static void fillPingFooter(OutputStream ping, MessageDigest checksum,
-                                       boolean haveNativeStack)
+    private static void fillPingFooter(OutputStream ping, MessageDigest checksum)
             throws IOException {
 
         // We are at the end of ANR data
@@ -475,17 +461,6 @@ public final class ANRReporter extends BroadcastReceiver
             Log.w(LOGTAG, e);
         }
 
-        if (haveNativeStack) {
-            total += writePingPayload(ping, checksum, ("\"," +
-                    "\"androidNativeStack\":\""));
-
-            String nativeStack = String.valueOf(getNativeStack());
-            int size = fillPingBlock(ping, checksum, new StringReader(nativeStack), null);
-            if (DEBUG) {
-                Log.d(LOGTAG, "wrote native stack, size = " + String.valueOf(size));
-            }
-        }
-
         total += writePingPayload(ping, checksum, "\"}");
 
         String base64Checksum = Base64.encodeToString(checksum.digest(), Base64.NO_WRAP);
@@ -503,8 +478,6 @@ public final class ANRReporter extends BroadcastReceiver
     }
 
     private static void processTraces(Reader traces, File pingFile) {
-
-        boolean haveNativeStack = requestNativeStack();
         try {
             OutputStream ping = new BufferedOutputStream(
                 new FileOutputStream(pingFile), TRACES_BLOCK_SIZE);
@@ -526,16 +499,13 @@ public final class ANRReporter extends BroadcastReceiver
                 if (DEBUG) {
                     Log.d(LOGTAG, "wrote traces, size = " + String.valueOf(size));
                 }
-                fillPingFooter(ping, checksum, haveNativeStack);
+                fillPingFooter(ping, checksum);
                 if (DEBUG) {
                     Log.d(LOGTAG, "finished creating ping file");
                 }
                 return;
             } finally {
                 ping.close();
-                if (haveNativeStack) {
-                    releaseNativeStack();
-                }
             }
         } catch (GeneralSecurityException e) {
             Log.w(LOGTAG, e);

@@ -50,7 +50,11 @@ HTMLTemplateElement::Init()
     NS_ENSURE_TRUE(contentsOwner, NS_ERROR_UNEXPECTED);
   }
 
-  mContent = contentsOwner->CreateDocumentFragment();
+  ErrorResult rv;
+  mContent = contentsOwner->CreateDocumentFragment(rv);
+  if (rv.Failed()) {
+    return rv.ErrorCode();
+  }
   mContent->SetHost(this);
 
   return NS_OK;
@@ -71,14 +75,16 @@ NS_IMPL_CYCLE_COLLECTION_INHERITED_1(HTMLTemplateElement,
                                      mContent)
 
 // QueryInterface implementation for HTMLTemplateElement
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(HTMLTemplateElement)
-  NS_HTML_CONTENT_INTERFACES(nsGenericHTMLElement)
-NS_ELEMENT_INTERFACE_MAP_END
+NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(HTMLTemplateElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE0(HTMLTemplateElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLTemplateElement,
+                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
 
 NS_IMPL_ELEMENT_CLONE_WITH_INIT(HTMLTemplateElement)
 
 JSObject*
-HTMLTemplateElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+HTMLTemplateElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return HTMLTemplateElementBinding::Wrap(aCx, aScope, this);
 }

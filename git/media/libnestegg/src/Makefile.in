@@ -9,13 +9,13 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-MSVC_ENABLE_PGO := 1
+LIBRARY_NAME	= nestegg
 FORCE_STATIC_LIB= 1
 ifeq (WINNT,$(OS_TARGET))
 VISIBILITY_FLAGS =
 endif
 
-DISABLED_CSRCS		= \
+CSRCS		= \
 		nestegg.c \
 		halloc.c \
 		$(NULL)

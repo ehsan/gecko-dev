@@ -10,7 +10,9 @@
  * liability, trademark and document use rules apply.
  */
 
+interface SVGAnimatedString;
 interface SVGViewSpec;
+interface SVGPoint;
 
 interface SVGSVGElement : SVGGraphicsElement {
 

@@ -40,7 +40,7 @@ function testWithFrame()
     gDebugger.removeEventListener("Debugger:FetchedVariables", test, false);
     Services.tm.currentThread.dispatch({ run: function() {
 
-      var frames = gDebugger.DebuggerView.StackFrames.widget._list,
+      var frames = gDebugger.DebuggerView.StackFrames._container._list,
           scopes = gDebugger.DebuggerView.Variables._list,
           innerScope = scopes.querySelectorAll(".variables-view-scope")[0],
           globalScope = scopes.querySelectorAll(".variables-view-scope")[4],
@@ -61,20 +61,17 @@ function testWithFrame()
       is(innerNodes[1].querySelector(".value").getAttribute("value"), "1",
         "Should have the right property value for |one|.");
 
-      let globalScopeObject = gDebugger.DebuggerView.Variables.getScopeForNode(globalScope);
-      let documentNode = globalScopeObject.get("document");
+      is(globalNodes[0].querySelector(".name").getAttribute("value"), "InstallTrigger",
+        "Should have the right property name for |InstallTrigger|.");
 
-      is(documentNode.target.querySelector(".name").getAttribute("value"), "document",
-        "Should have the right property name for |document|.");
-
-      is(documentNode.target.querySelector(".value").getAttribute("value"), "[object HTMLDocument]",
-        "Should have the right property value for |document|.");
+      is(globalNodes[0].querySelector(".value").getAttribute("value"), "",
+        "Should have the right property value for |InstallTrigger|.");
 
       let len = globalNodes.length - 1;
       is(globalNodes[len].querySelector(".name").getAttribute("value"), "window",
         "Should have the right property name for |window|.");
 
-      is(globalNodes[len].querySelector(".value").getAttribute("value"), "[object Window]",
+      is(globalNodes[len].querySelector(".value").getAttribute("value"), "[object Proxy]",
         "Should have the right property value for |window|.");
 
       resumeAndFinish();
@@ -90,7 +87,7 @@ function resumeAndFinish() {
   gDebugger.addEventListener("Debugger:AfterFramesCleared", function listener() {
     gDebugger.removeEventListener("Debugger:AfterFramesCleared", listener, true);
     Services.tm.currentThread.dispatch({ run: function() {
-      var frames = gDebugger.DebuggerView.StackFrames.widget._list;
+      var frames = gDebugger.DebuggerView.StackFrames._container._list;
 
       is(frames.querySelectorAll(".dbg-stackframe").length, 0,
         "Should have no frames.");

@@ -1,15 +1,19 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=79:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jscompartment_h
-#define jscompartment_h
+#ifndef jscompartment_h___
+#define jscompartment_h___
 
+#include "mozilla/Attributes.h"
+#include "mozilla/GuardObjects.h"
 #include "mozilla/Util.h"
 
 #include "jscntxt.h"
+#include "jsfun.h"
 #include "jsgc.h"
 #include "jsobj.h"
 
@@ -62,7 +66,6 @@ struct CrossCompartmentKey
         ObjectWrapper,
         StringWrapper,
         DebuggerScript,
-        DebuggerSource,
         DebuggerObject,
         DebuggerEnvironment
     };
@@ -120,7 +123,6 @@ class DebugScopes;
 struct JSCompartment
 {
     JS::Zone                     *zone_;
-    JS::CompartmentOptions       options_;
 
     JSRuntime                    *rt;
     JSPrincipals                 *principals;
@@ -139,12 +141,9 @@ struct JSCompartment
   public:
     void enter() { enterCompartmentDepth++; }
     void leave() { enterCompartmentDepth--; }
-    bool hasBeenEntered() { return !!enterCompartmentDepth; }
 
     JS::Zone *zone() { return zone_; }
     const JS::Zone *zone() const { return zone_; }
-    JS::CompartmentOptions &options() { return options_; }
-    const JS::CompartmentOptions &options() const { return options_; }
 
     /*
      * Nb: global_ might be NULL, if (a) it's the atoms compartment, or (b) the
@@ -183,8 +182,6 @@ struct JSCompartment
 
     void                         *data;
 
-    js::ObjectMetadataCallback   objectMetadataCallback;
-
   private:
     js::WrapperMap               crossCompartmentWrappers;
 
@@ -201,8 +198,7 @@ struct JSCompartment
     void sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *compartmentObject,
                              JS::TypeInferenceSizes *tiSizes,
                              size_t *shapesCompartmentTables, size_t *crossCompartmentWrappers,
-                             size_t *regexpCompartment, size_t *debuggeesSet,
-                             size_t *baselineStubsOptimized);
+                             size_t *regexpCompartment, size_t *debuggeesSet);
 
     /*
      * Shared scope property tree, and arena-pool for allocating its nodes.
@@ -216,7 +212,6 @@ struct JSCompartment
     /* Set of initial shapes in the compartment. */
     js::InitialShapeSet          initialShapes;
     void sweepInitialShapeTable();
-    void markAllInitialShapeTableEntries(JSTracer *trc);
 
     /* Set of default 'new' or lazy types in the compartment. */
     js::types::TypeObjectSet     newTypeObjects;
@@ -246,7 +241,7 @@ struct JSCompartment
      * debugger wrapper objects.  The list link is either in the second extra
      * slot for the former, or a special slot for the latter.
      */
-    JSObject                     *gcIncomingGrayPointers;
+    js::RawObject                gcIncomingGrayPointers;
 
     /* Linked list of live array buffers with >1 view. */
     JSObject                     *gcLiveArrayBuffers;
@@ -260,14 +255,13 @@ struct JSCompartment
     unsigned                     debugModeBits;  // see debugMode() below
 
   public:
-    JSCompartment(JS::Zone *zone, const JS::CompartmentOptions &options);
+    JSCompartment(JS::Zone *zone);
     ~JSCompartment();
 
     bool init(JSContext *cx);
 
     /* Mark cross-compartment wrappers. */
     void markCrossCompartmentWrappers(JSTracer *trc);
-    void markAllCrossCompartmentWrappers(JSTracer *trc);
 
     bool wrap(JSContext *cx, JS::MutableHandleValue vp, JS::HandleObject existing = js::NullPtr());
     bool wrap(JSContext *cx, JSString **strp);
@@ -412,7 +406,7 @@ class js::AutoDebugModeGC
 inline bool
 JSContext::typeInferenceEnabled() const
 {
-    return compartment()->zone()->types.inferenceEnabled;
+    return compartment->zone()->types.inferenceEnabled;
 }
 
 inline js::Handle<js::GlobalObject*>
@@ -424,7 +418,7 @@ JSContext::global() const
      * barrier on it. Once the compartment is popped, the handle is no longer
      * safe to use.
      */
-    return js::Handle<js::GlobalObject*>::fromMarkedLocation(compartment()->global_.unsafeGet());
+    return js::Handle<js::GlobalObject*>::fromMarkedLocation(compartment->global_.unsafeGet());
 }
 
 namespace js {
@@ -434,13 +428,13 @@ class AssertCompartmentUnchanged
   public:
     AssertCompartmentUnchanged(JSContext *cx
                                 MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : cx(cx), oldCompartment(cx->compartment())
+      : cx(cx), oldCompartment(cx->compartment)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     ~AssertCompartmentUnchanged() {
-        JS_ASSERT(cx->compartment() == oldCompartment);
+        JS_ASSERT(cx->compartment == oldCompartment);
     }
 
   protected:
@@ -456,7 +450,6 @@ class AutoCompartment
 
   public:
     inline AutoCompartment(JSContext *cx, JSObject *target);
-    inline AutoCompartment(JSContext *cx, JSCompartment *target);
     inline ~AutoCompartment();
 
     JSContext *context() const { return cx_; }
@@ -563,4 +556,5 @@ class AutoWrapperRooter : private AutoGCRooter {
 
 } /* namespace js */
 
-#endif /* jscompartment_h */
+#endif /* jscompartment_h___ */
+

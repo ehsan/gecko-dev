@@ -50,6 +50,10 @@ NS_NewDOMDocumentType(nsNodeInfoManager* aNodeInfoManager,
                                   kNameSpaceID_None,
                                   nsIDOMNode::DOCUMENT_TYPE_NODE,
                                   aName);
+  if (!ni) {
+    rv.Throw(NS_ERROR_OUT_OF_MEMORY);
+    return nullptr;
+  }
 
   nsRefPtr<mozilla::dom::DocumentType> docType =
     new mozilla::dom::DocumentType(ni.forget(), aPublicId, aSystemId, aInternalSubset);
@@ -60,7 +64,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-DocumentType::WrapNode(JSContext *cx, JS::Handle<JSObject*> scope)
+DocumentType::WrapNode(JSContext *cx, JSObject *scope)
 {
   return DocumentTypeBinding::Wrap(cx, scope, this);
 }
@@ -129,13 +133,6 @@ NS_IMETHODIMP
 DocumentType::GetInternalSubset(nsAString& aInternalSubset)
 {
   aInternalSubset = mInternalSubset;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-DocumentType::MozRemove()
-{
-  Remove();
   return NS_OK;
 }
 

@@ -1,11 +1,12 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99 ft=cpp:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ds_InlineMap_h
-#define ds_InlineMap_h
+#ifndef InlineMap_h__
+#define InlineMap_h__
 
 #include "js/HashTable.h"
 
@@ -22,7 +23,7 @@ template <typename K, typename V, size_t InlineElems>
 class InlineMap
 {
   public:
-    typedef HashMap<K, V, DefaultHasher<K>, SystemAllocPolicy> WordMap;
+    typedef HashMap<K, V, DefaultHasher<K>, TempAllocPolicy> WordMap;
 
     struct InlineElem
     {
@@ -79,8 +80,8 @@ class InlineMap
     }
 
   public:
-    explicit InlineMap()
-      : inlNext(0), inlCount(0) {
+    explicit InlineMap(JSContext *cx)
+      : inlNext(0), inlCount(0), map(cx) {
         checkStaticInvariants(); /* Force the template to instantiate the static invariants. */
     }
 
@@ -373,4 +374,4 @@ class InlineMap
 
 } /* namespace js */
 
-#endif /* ds_InlineMap_h */
+#endif

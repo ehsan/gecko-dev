@@ -15,7 +15,6 @@
 #include "nsGUIEvent.h"
 #include "nsAutoPtr.h"
 #include "nsIRollupListener.h"
-#include "nsIObserver.h"
 #include <algorithm>
 class nsIContent;
 class nsAutoRollup;
@@ -38,21 +37,6 @@ class CompositorParent;
 namespace base {
 class Thread;
 }
-
-class nsBaseWidget;
-
-class WidgetShutdownObserver MOZ_FINAL : public nsIObserver
-{
-public:
-  WidgetShutdownObserver(nsBaseWidget* aWidget)
-    : mWidget(aWidget)
-  { }
-
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIOBSERVER
-
-  nsBaseWidget *mWidget;
-};
 
 /**
  * Common widget implementation used as base class for native
@@ -100,10 +84,7 @@ public:
                                       nsIWidget *aWidget, bool aActivate);
 
   NS_IMETHOD              SetSizeMode(int32_t aMode);
-  virtual int32_t         SizeMode() MOZ_OVERRIDE
-  {
-    return mSizeMode;
-  }
+  NS_IMETHOD              GetSizeMode(int32_t* aMode);
 
   virtual nscolor         GetForegroundColor(void);
   NS_IMETHOD              SetForegroundColor(const nscolor &aColor);
@@ -124,17 +105,13 @@ public:
   NS_IMETHOD              HideWindowChrome(bool aShouldHide);
   NS_IMETHOD              MakeFullScreen(bool aFullScreen);
   virtual nsDeviceContext* GetDeviceContext();
-  virtual LayerManager*   GetLayerManager(PLayerTransactionChild* aShadowManager = nullptr,
+  virtual LayerManager*   GetLayerManager(PLayersChild* aShadowManager = nullptr,
                                           LayersBackend aBackendHint = mozilla::layers::LAYERS_NONE,
                                           LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
                                           bool* aAllowRetaining = nullptr);
 
-  virtual CompositorParent* NewCompositorParent(int aSurfaceWidth, int aSurfaceHeight);
   virtual void            CreateCompositor();
   virtual void            CreateCompositor(int aWidth, int aHeight);
-  virtual void            PrepareWindowEffects() {}
-  virtual void            CleanupWindowEffects() {}
-  virtual void            PreRender(LayerManager* aManager) {}
   virtual void            DrawWindowUnderlay(LayerManager* aManager, nsIntRect aRect) {}
   virtual void            DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect) {}
   virtual void            UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries) {}
@@ -164,6 +141,8 @@ public:
   NS_IMETHOD              GetAttention(int32_t aCycleCount);
   virtual bool            HasPendingInputEvent();
   NS_IMETHOD              SetIcon(const nsAString &anIconSpec);
+  NS_IMETHOD              BeginSecureKeyboardInput();
+  NS_IMETHOD              EndSecureKeyboardInput();
   NS_IMETHOD              SetWindowTitlebarColor(nscolor aColor, bool aActive);
   virtual void            SetDrawsInTitlebar(bool aState) {}
   virtual bool            ShowsResizeIndicator(nsIntRect* aResizerRect);
@@ -270,8 +249,6 @@ public:
 
   static nsIRollupListener* GetActiveRollupListener();
 
-  void Shutdown();
-
 protected:
 
   virtual void            ResolveIconName(const nsAString &aIconName,
@@ -353,8 +330,6 @@ protected:
 
   virtual CompositorChild* GetRemoteRenderer() MOZ_OVERRIDE;
 
-  virtual mozilla::layers::LayersBackend GetPreferredCompositorBackend();
-
 protected:
   /**
    * Starts the OMTC compositor destruction sequence.
@@ -374,7 +349,6 @@ protected:
   nsRefPtr<LayerManager> mBasicLayerManager;
   nsRefPtr<CompositorChild> mCompositorChild;
   nsRefPtr<CompositorParent> mCompositorParent;
-  nsCOMPtr<WidgetShutdownObserver> mShutdownObserver;
   nscolor           mBackground;
   nscolor           mForeground;
   nsCursor          mCursor;

@@ -3,6 +3,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 IPDLSRCS = \
-  JavaScriptTypes.ipdlh \
-  PJavaScript.ipdl \
+  PContextWrapper.ipdl \
+  PObjectWrapper.ipdl \
   $(NULL)

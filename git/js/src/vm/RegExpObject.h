@@ -1,11 +1,12 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99 ft=cpp:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_RegExpObject_h
-#define vm_RegExpObject_h
+#ifndef RegExpObject_h__
+#define RegExpObject_h__
 
 #include "mozilla/Attributes.h"
 
@@ -294,8 +295,6 @@ class RegExpObject : public JSObject
   public:
     static const unsigned RESERVED_SLOTS = 6;
 
-    static Class class_;
-
     /*
      * Note: The regexp statics flags are OR'd into the provided flags,
      * so this function is really meant for object creation during code
@@ -357,7 +356,7 @@ class RegExpObject : public JSObject
      * encoding their initial properties. Return the shape after
      * changing this regular expression object's last property to it.
      */
-    Shape *assignInitialShape(JSContext *cx);
+    RawShape assignInitialShape(JSContext *cx);
 
     bool init(JSContext *cx, HandleAtom source, RegExpFlag flags);
 
@@ -401,4 +400,4 @@ CloneScriptRegExpObject(JSContext *cx, RegExpObject &re);
 
 } /* namespace js */
 
-#endif /* vm_RegExpObject_h */
+#endif

@@ -1,11 +1,12 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_shared_CodeGenerator_x86_shared_h
-#define ion_shared_CodeGenerator_x86_shared_h
+#ifndef jsion_codegen_x86_shared_h__
+#define jsion_codegen_x86_shared_h__
 
 #include "ion/shared/CodeGenerator-shared.h"
 
@@ -15,6 +16,7 @@ namespace ion {
 class OutOfLineBailout;
 class OutOfLineUndoALUOperation;
 class MulNegativeZeroCheck;
+class OutOfLineTruncate;
 class OutOfLineTableSwitch;
 
 class CodeGeneratorX86Shared : public CodeGeneratorShared
@@ -65,7 +67,7 @@ class CodeGeneratorX86Shared : public CodeGeneratorShared
     // Emits a branch that directs control flow to the true block if |cond| is
     // true, and the false block if |cond| is false.
     void emitBranch(Assembler::Condition cond, MBasicBlock *ifTrue, MBasicBlock *ifFalse,
-                    Assembler::NaNCond ifNaN = Assembler::NaN_HandledByCond);
+                    Assembler::NaNCond ifNaN = Assembler::NaN_Unexpected);
     void emitBranch(Assembler::DoubleCondition cond, MBasicBlock *ifTrue, MBasicBlock *ifFalse);
 
     bool emitTableSwitchDispatch(MTableSwitch *mir, const Register &index, const Register &base);
@@ -84,7 +86,6 @@ class CodeGeneratorX86Shared : public CodeGeneratorShared
     virtual bool visitSubI(LSubI *ins);
     virtual bool visitMulI(LMulI *ins);
     virtual bool visitDivI(LDivI *ins);
-    virtual bool visitDivPowTwoI(LDivPowTwoI *ins);
     virtual bool visitModI(LModI *ins);
     virtual bool visitModPowTwoI(LModPowTwoI *ins);
     virtual bool visitBitNotI(LBitNotI *ins);
@@ -104,19 +105,17 @@ class CodeGeneratorX86Shared : public CodeGeneratorShared
     virtual bool visitFloor(LFloor *lir);
     virtual bool visitRound(LRound *lir);
     virtual bool visitGuardShape(LGuardShape *guard);
-    virtual bool visitGuardObjectType(LGuardObjectType *guard);
     virtual bool visitGuardClass(LGuardClass *guard);
+    virtual bool visitTruncateDToInt32(LTruncateDToInt32 *ins);
     virtual bool visitEffectiveAddress(LEffectiveAddress *ins);
     virtual bool visitAsmJSDivOrMod(LAsmJSDivOrMod *ins);
     virtual bool visitAsmJSPassStackArg(LAsmJSPassStackArg *ins);
-
-    bool visitNegI(LNegI *lir);
-    bool visitNegD(LNegD *lir);
 
     // Out of line visitors.
     bool visitOutOfLineBailout(OutOfLineBailout *ool);
     bool visitOutOfLineUndoALUOperation(OutOfLineUndoALUOperation *ool);
     bool visitMulNegativeZeroCheck(MulNegativeZeroCheck *ool);
+    bool visitOutOfLineTruncate(OutOfLineTruncate *ool);
     bool visitOutOfLineTableSwitch(OutOfLineTableSwitch *ool);
     bool generateInvalidateEpilogue();
 };
@@ -141,4 +140,5 @@ class OutOfLineBailout : public OutOfLineCodeBase<CodeGeneratorX86Shared>
 } // namespace ion
 } // namespace js
 
-#endif /* ion_shared_CodeGenerator_x86_shared_h */
+#endif // jsion_codegen_x86_shared_h__
+

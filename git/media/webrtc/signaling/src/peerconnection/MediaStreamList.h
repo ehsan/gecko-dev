@@ -9,7 +9,7 @@
 #include "nsISupportsImpl.h"
 #include "nsAutoPtr.h"
 #include "jspubtd.h"
-#include "nsWrapperCache.h"
+#include "mozilla/dom/NonRefcountedDOMObject.h"
 
 #ifdef USE_FAKE_MEDIA_STREAMS
 #include "FakeMediaStreams.h"
@@ -24,8 +24,7 @@ class PeerConnectionImpl;
 namespace mozilla {
 namespace dom {
 
-class MediaStreamList : public nsISupports,
-                        public nsWrapperCache
+class MediaStreamList : public NonRefcountedDOMObject
 {
 public:
   enum StreamType {
@@ -34,14 +33,9 @@ public:
   };
 
   MediaStreamList(sipcc::PeerConnectionImpl* peerConnection, StreamType type);
-  virtual ~MediaStreamList();
+  ~MediaStreamList();
 
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(MediaStreamList)
-
-  virtual JSObject* WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
-    MOZ_OVERRIDE;
-  nsISupports* GetParentObject();
+  JSObject* WrapObject(JSContext* cx, ErrorResult& error);
 
   DOMMediaStream* IndexedGetter(uint32_t index, bool& found);
   uint32_t Length();

@@ -5,7 +5,7 @@
 
 #include "necko-config.h"
 
-#define ALLOW_LATE_HTTPLOG_H_INCLUDE 1
+#define ALLOW_LATE_NSHTTP_H_INCLUDE 1
 #include "base/basictypes.h"
 
 #include "nsCOMPtr.h"
@@ -37,7 +37,6 @@
 #include "nsCategoryCache.h"
 #include "nsIContentSniffer.h"
 #include "nsNetUtil.h"
-#include "mozilla/net/NeckoChild.h"
 
 #include "nsNetCID.h"
 
@@ -109,9 +108,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsSafeFileOutputStream)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsFileStream)
 
 NS_GENERIC_AGGREGATED_CONSTRUCTOR_INIT(nsLoadGroup, Init)
-
-#include "ArrayBufferInputStream.h"
-NS_GENERIC_FACTORY_CONSTRUCTOR(ArrayBufferInputStream)
 
 #include "nsEffectiveTLDService.h"
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsEffectiveTLDService, Init)
@@ -712,7 +708,6 @@ NS_DEFINE_NAMED_CID(NS_STDURLPARSER_CID);
 NS_DEFINE_NAMED_CID(NS_NOAUTHURLPARSER_CID);
 NS_DEFINE_NAMED_CID(NS_AUTHURLPARSER_CID);
 NS_DEFINE_NAMED_CID(NS_STANDARDURL_CID);
-NS_DEFINE_NAMED_CID(NS_ARRAYBUFFERINPUTSTREAM_CID);
 NS_DEFINE_NAMED_CID(NS_BUFFEREDINPUTSTREAM_CID);
 NS_DEFINE_NAMED_CID(NS_BUFFEREDOUTPUTSTREAM_CID);
 NS_DEFINE_NAMED_CID(NS_MIMEINPUTSTREAM_CID);
@@ -851,7 +846,6 @@ static const mozilla::Module::CIDEntry kNeckoCIDs[] = {
     { &kNS_NOAUTHURLPARSER_CID, false, NULL, nsNoAuthURLParserConstructor },
     { &kNS_AUTHURLPARSER_CID, false, NULL, nsAuthURLParserConstructor },
     { &kNS_STANDARDURL_CID, false, NULL, nsStandardURLConstructor },
-    { &kNS_ARRAYBUFFERINPUTSTREAM_CID, false, NULL, ArrayBufferInputStreamConstructor },
     { &kNS_BUFFEREDINPUTSTREAM_CID, false, NULL, nsBufferedInputStream::Create },
     { &kNS_BUFFEREDOUTPUTSTREAM_CID, false, NULL, nsBufferedOutputStream::Create },
     { &kNS_MIMEINPUTSTREAM_CID, false, NULL, nsMIMEInputStreamConstructor },
@@ -992,7 +986,6 @@ static const mozilla::Module::ContractIDEntry kNeckoContracts[] = {
     { NS_NOAUTHURLPARSER_CONTRACTID, &kNS_NOAUTHURLPARSER_CID },
     { NS_AUTHURLPARSER_CONTRACTID, &kNS_AUTHURLPARSER_CID },
     { NS_STANDARDURL_CONTRACTID, &kNS_STANDARDURL_CID },
-    { NS_ARRAYBUFFERINPUTSTREAM_CONTRACTID, &kNS_ARRAYBUFFERINPUTSTREAM_CID },
     { NS_BUFFEREDINPUTSTREAM_CONTRACTID, &kNS_BUFFEREDINPUTSTREAM_CID },
     { NS_BUFFEREDOUTPUTSTREAM_CONTRACTID, &kNS_BUFFEREDOUTPUTSTREAM_CID },
     { NS_MIMEINPUTSTREAM_CONTRACTID, &kNS_MIMEINPUTSTREAM_CID },

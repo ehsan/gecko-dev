@@ -173,7 +173,7 @@ inline int ChannelId(const int moduleId) {
 
 // Linux specific.
 #ifndef WEBRTC_ANDROID
-#if defined(WEBRTC_LINUX) || defined(WEBRTC_BSD)
+#ifdef WEBRTC_LINUX
   //  Build information macros.
   #if defined(_DEBUG)
   #define BUILDMODE "d"

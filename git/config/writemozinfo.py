@@ -15,38 +15,32 @@ import re
 import sys
 import json
 
-import buildconfig
 
-def build_dict(env=None):
+def build_dict(env=os.environ):
     """
     Build a dict containing data about the build configuration from
     the environment.
     """
-    substs = env or buildconfig.substs
-    env = env or os.environ
-
+    d = {}
     # Check that all required variables are present first.
     required = ["TARGET_CPU", "OS_TARGET", "MOZ_WIDGET_TOOLKIT"]
-    missing = [r for r in required if r not in substs]
+    missing = [r for r in required if r not in env]
     if missing:
         raise Exception("Missing required environment variables: %s" %
                         ', '.join(missing))
 
-    d = {}
-    d['topsrcdir'] = substs.get('TOPSRCDIR', buildconfig.topsrcdir)
-
     if 'MOZCONFIG' in env:
-        mozconfig = env["MOZCONFIG"]
-        if 'TOPSRCDIR' in env:
-            mozconfig = os.path.join(env["TOPSRCDIR"], mozconfig)
-        d['mozconfig'] = os.path.normpath(mozconfig)
+        d["mozconfig"] = env["MOZCONFIG"]
+
+    if 'TOPSRCDIR' in env:
+        d["topsrcdir"] = env["TOPSRCDIR"]
 
     # os
-    o = substs["OS_TARGET"]
+    o = env["OS_TARGET"]
     known_os = {"Linux": "linux",
                 "WINNT": "win",
                 "Darwin": "mac",
-                "Android": "b2g" if substs["MOZ_WIDGET_TOOLKIT"] == "gonk" else "android"}
+                "Android": "b2g" if env["MOZ_WIDGET_TOOLKIT"] == "gonk" else "android"}
     if o in known_os:
         d["os"] = known_os[o]
     else:
@@ -54,16 +48,16 @@ def build_dict(env=None):
         d["os"] = o.lower()
 
     # Widget toolkit, just pass the value directly through.
-    d["toolkit"] = substs["MOZ_WIDGET_TOOLKIT"]
+    d["toolkit"] = env["MOZ_WIDGET_TOOLKIT"]
 
     # Application name
-    if 'MOZ_APP_NAME' in substs:
-        d["appname"] = substs["MOZ_APP_NAME"]
+    if 'MOZ_APP_NAME' in env:
+        d["appname"] = env["MOZ_APP_NAME"]
 
     # processor
-    p = substs["TARGET_CPU"]
+    p = env["TARGET_CPU"]
     # for universal mac builds, put in a special value
-    if d["os"] == "mac" and "UNIVERSAL_BINARY" in substs and substs["UNIVERSAL_BINARY"] == "1":
+    if d["os"] == "mac" and "UNIVERSAL_BINARY" in env and env["UNIVERSAL_BINARY"] == "1":
         p = "universal-x86-x86_64"
     else:
         # do some slight massaging for some values
@@ -81,22 +75,21 @@ def build_dict(env=None):
         d["bits"] = 32
     # other CPUs will wind up with unknown bits
 
-    d['debug'] = substs.get('MOZ_DEBUG') == '1'
-    d['crashreporter'] = substs.get('MOZ_CRASHREPORTER') == '1'
-    d['asan'] = substs.get('MOZ_ASAN') == '1'
-    d['tests_enabled'] = substs.get('ENABLE_TESTS') == "1"
-    d['bin_suffix'] = substs.get('BIN_SUFFIX', '')
+    # debug
+    d["debug"] = 'MOZ_DEBUG' in env and env['MOZ_DEBUG'] == '1'
 
+    # crashreporter
+    d["crashreporter"] = 'MOZ_CRASHREPORTER' in env and env['MOZ_CRASHREPORTER'] == '1'
     return d
 
-def write_json(file, env=None):
+def write_json(file, env=os.environ):
     """
     Write JSON data about the configuration specified in |env|
     to |file|, which may be a filename or file-like object.
     See build_dict for information about what  environment variables are used,
     and what keys are produced.
     """
-    build_conf = build_dict(env=env)
+    build_conf = build_dict(env)
     if isinstance(file, basestring):
         with open(file, "w") as f:
             json.dump(build_conf, f)

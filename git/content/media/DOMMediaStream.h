@@ -33,7 +33,6 @@ namespace mozilla {
 class MediaStream;
 
 namespace dom {
-class AudioNode;
 class MediaStreamTrack;
 class AudioStreamTrack;
 class VideoStreamTrack;
@@ -63,8 +62,7 @@ public:
   {
     return mWindow;
   }
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
   // WebIDL
   double CurrentTime();
@@ -146,7 +144,6 @@ public:
   void OnTracksAvailable(OnTracksAvailableCallback* aCallback);
 
 protected:
-  void Destroy();
   void InitSourceStream(nsIDOMWindow* aWindow, TrackTypeHints aHintContents);
   void InitTrackUnionStream(nsIDOMWindow* aWindow, TrackTypeHints aHintContents);
   void InitStreamCommon(MediaStream* aStream);
@@ -189,8 +186,7 @@ public:
 
   NS_DECL_ISUPPORTS_INHERITED
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
   virtual void Stop();
 
@@ -205,29 +201,6 @@ public:
    */
   static already_AddRefed<DOMLocalMediaStream>
   CreateTrackUnionStream(nsIDOMWindow* aWindow, TrackTypeHints aHintContents = 0);
-};
-
-class DOMAudioNodeMediaStream : public DOMMediaStream
-{
-  typedef dom::AudioNode AudioNode;
-public:
-  DOMAudioNodeMediaStream(AudioNode* aNode);
-
-  NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(DOMAudioNodeMediaStream, DOMMediaStream)
-
-  /**
-   * Create a DOMAudioNodeMediaStream whose underlying stream is a TrackUnionStream.
-   */
-  static already_AddRefed<DOMAudioNodeMediaStream>
-  CreateTrackUnionStream(nsIDOMWindow* aWindow,
-                         AudioNode* aNode,
-                         TrackTypeHints aHintContents = 0);
-
-private:
-  // If this object wraps a stream owned by an AudioNode, we need to ensure that
-  // the node isn't cycle-collected too early.
-  nsRefPtr<AudioNode> mStreamNode;
 };
 
 }

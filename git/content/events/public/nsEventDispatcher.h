@@ -10,13 +10,12 @@
 #include "nsCOMPtr.h"
 #include "nsEvent.h"
 
-class nsEventTargetChainItem;
+class nsPresContext;
 class nsIDOMEvent;
 class nsIScriptGlobalObject;
-class nsPresContext;
-
+class nsIDOMEventTarget;
+class nsEventTargetChainItem;
 template<class E> class nsCOMArray;
-
 namespace mozilla {
 namespace dom {
 class EventTarget;
@@ -172,13 +171,13 @@ public:
   /**
    * Parent item in the event target chain.
    */
-  mozilla::dom::EventTarget* mParentTarget;
+  nsIDOMEventTarget*   mParentTarget;
 
   /**
    * If the event needs to be retargeted, this is the event target,
    * which should be used when the event is handled at mParentTarget.
    */
-  mozilla::dom::EventTarget* mEventTargetAtParent;
+  nsIDOMEventTarget*   mEventTargetAtParent;
 };
 
 class nsEventChainPostVisitor : public nsEventChainVisitor {
@@ -195,7 +194,7 @@ public:
  * before handling the system event group.
  * This is used in nsPresShell.
  */
-class MOZ_STACK_CLASS nsDispatchingCallback {
+class NS_STACK_CLASS nsDispatchingCallback {
 public:
   virtual void HandleEvent(nsEventChainPostVisitor& aVisitor) = 0;
 };
@@ -208,7 +207,7 @@ class nsEventDispatcher
 {
 public:
   /**
-   * aTarget should QI to EventTarget.
+   * aTarget should QI to nsIDOMEventTarget.
    * If the target of aEvent is set before calling this method, the target of 
    * aEvent is used as the target (unless there is event
    * retargeting) and the originalTarget of the DOM Event.
@@ -229,7 +228,7 @@ public:
                            nsIDOMEvent* aDOMEvent = nullptr,
                            nsEventStatus* aEventStatus = nullptr,
                            nsDispatchingCallback* aCallback = nullptr,
-                           nsCOMArray<mozilla::dom::EventTarget>* aTargets = nullptr);
+                           nsCOMArray<nsIDOMEventTarget>* aTargets = nullptr);
 
   /**
    * Dispatches an event.

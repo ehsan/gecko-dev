@@ -143,11 +143,11 @@ Accessible::QueryInterface(REFNSIID aIID, void** aInstancePtr)
     return NS_ERROR_NO_INTERFACE;
   }
 
-  return nsAccessNode::QueryInterface(aIID, aInstancePtr);
+  return nsAccessNodeWrap::QueryInterface(aIID, aInstancePtr);
 }
 
 Accessible::Accessible(nsIContent* aContent, DocAccessible* aDoc) :
-  nsAccessNode(aContent, aDoc),
+  nsAccessNodeWrap(aContent, aDoc),
   mParent(nullptr), mIndexInParent(-1), mChildrenFlags(eChildrenUninitialized),
   mStateFlags(0), mType(0), mGenericTypes(0), mIndexOfEmbeddedChild(-1),
   mRoleMapEntry(nullptr)
@@ -630,9 +630,6 @@ Accessible::VisibilityState()
     if (view && view->GetVisibility() == nsViewVisibility_kHide)
       return states::INVISIBLE;
 
-    if (nsLayoutUtils::IsPopup(curFrame))
-      return 0;
-
     // Offscreen state for background tab content and invisible for not selected
     // deck panel.
     nsIFrame* parentFrame = curFrame->GetParent();
@@ -846,7 +843,7 @@ Accessible::ChildAtPoint(int32_t aX, int32_t aY,
   DocAccessible* contentDocAcc = GetAccService()->
     GetDocAccessible(content->OwnerDoc());
 
-  // contentDocAcc in some circumstances can be nullptr. See bug 729861
+  // contentDocAcc in some circumstances can be NULL. See bug 729861
   NS_ASSERTION(contentDocAcc, "could not get the document accessible");
   if (!contentDocAcc)
     return fallbackAnswer;
@@ -1511,9 +1508,9 @@ Accessible::State()
   const uint32_t kExpandCollapseStates = states::COLLAPSED | states::EXPANDED;
   if ((state & kExpandCollapseStates) == kExpandCollapseStates) {
     // Cannot be both expanded and collapsed -- this happens in ARIA expanded
-    // combobox because of limitation of ARIAMap.
+    // combobox because of limitation of nsARIAMap.
     // XXX: Perhaps we will be able to make this less hacky if we support
-    // extended states in ARIAMap, e.g. derive COLLAPSED from
+    // extended states in nsARIAMap, e.g. derive COLLAPSED from
     // EXPANDABLE && !EXPANDED.
     state &= ~states::COLLAPSED;
   }
@@ -2024,8 +2021,7 @@ Accessible::RelationByType(uint32_t aType)
 
       // This is an ARIA tree or treegrid that doesn't use owns, so we need to
       // get the parent the hard way.
-      if (mRoleMapEntry && (mRoleMapEntry->role == roles::OUTLINEITEM ||
-                            mRoleMapEntry->role == roles::LISTITEM ||
+      if (mRoleMapEntry && (mRoleMapEntry->role == roles::OUTLINEITEM || 
                             mRoleMapEntry->role == roles::ROW)) {
         rel.AppendTarget(GetGroupInfo()->ConceptualParent());
       }
@@ -2056,10 +2052,8 @@ Accessible::RelationByType(uint32_t aType)
       // also can be organized by groups.
       if (mRoleMapEntry &&
           (mRoleMapEntry->role == roles::OUTLINEITEM ||
-           mRoleMapEntry->role == roles::LISTITEM ||
            mRoleMapEntry->role == roles::ROW ||
            mRoleMapEntry->role == roles::OUTLINE ||
-           mRoleMapEntry->role == roles::LIST ||
            mRoleMapEntry->role == roles::TREE_TABLE)) {
         rel.AppendIter(new ItemIterator(this));
       }
@@ -2556,7 +2550,7 @@ Accessible::Shutdown()
   if (mParent)
     mParent->RemoveChild(this);
 
-  nsAccessNode::Shutdown();
+  nsAccessNodeWrap::Shutdown();
 }
 
 // Accessible protected
@@ -2853,7 +2847,9 @@ Accessible::SelectedItems()
   while ((selected = iter.Next()))
     selectedItems->AppendElement(selected, false);
 
-  return selectedItems.forget();
+  nsIMutableArray* items = nullptr;
+  selectedItems.forget(&items);
+  return items;
 }
 
 uint32_t
@@ -3259,11 +3255,10 @@ Accessible::GetLevelInternal()
     }
 
   } else if (role == roles::LISTITEM) {
-    // Expose 'level' attribute on nested lists. We support two hierarchies:
-    // a) list -> listitem -> list -> listitem (nested list is a last child
-    //   of listitem of the parent list);
-    // b) list -> listitem -> group -> listitem (nested listitems are contained
-    //   by group that is a last child of the parent listitem).
+    // Expose 'level' attribute on nested lists. We assume nested list is a last
+    // child of listitem of parent list. We don't handle the case when nested
+    // lists have more complex structure, for example when there are accessibles
+    // between parent listitem and nested list.
 
     // Calculate 'level' attribute based on number of parent listitems.
     level = 0;
@@ -3273,8 +3268,9 @@ Accessible::GetLevelInternal()
 
       if (parentRole == roles::LISTITEM)
         ++ level;
-      else if (parentRole != roles::LIST && parentRole != roles::GROUPING)
+      else if (parentRole != roles::LIST)
         break;
+
     }
 
     if (level == 0) {
@@ -3286,11 +3282,8 @@ Accessible::GetLevelInternal()
         Accessible* sibling = parent->GetChildAt(siblingIdx);
 
         Accessible* siblingChild = sibling->LastChild();
-        if (siblingChild) {
-          roles::Role lastChildRole = siblingChild->Role();
-          if (lastChildRole == roles::LIST || lastChildRole == roles::GROUPING)
-            return 1;
-        }
+        if (siblingChild && siblingChild->Role() == roles::LIST)
+          return 1;
       }
     } else {
       ++ level; // level is 1-index based

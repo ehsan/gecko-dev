@@ -1,16 +1,16 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_shared_Assembler_shared_h
-#define ion_shared_Assembler_shared_h
+#ifndef jsion_assembler_shared_h__
+#define jsion_assembler_shared_h__
 
 #include <limits.h>
 
 #include "mozilla/DebugOnly.h"
-#include "mozilla/PodOperations.h"
 
 #include "ion/IonAllocPolicy.h"
 #include "ion/Registers.h"
@@ -121,20 +121,6 @@ struct ImmGCPtr
     explicit ImmGCPtr(const gc::Cell *ptr) : value(reinterpret_cast<uintptr_t>(ptr))
     {
         JS_ASSERT(!IsPoisonedPtr(ptr));
-        JS_ASSERT_IF(ptr, ptr->isTenured());
-    }
-
-  protected:
-    ImmGCPtr() : value(0) {}
-};
-
-// Used for immediates which require relocation and may be traced during minor GC.
-struct ImmMaybeNurseryPtr : public ImmGCPtr
-{
-    explicit ImmMaybeNurseryPtr(gc::Cell *ptr)
-    {
-        this->value = reinterpret_cast<uintptr_t>(ptr);
-        JS_ASSERT(!IsPoisonedPtr(ptr));
     }
 };
 
@@ -161,11 +147,11 @@ struct Address
     Address(Register base, int32_t offset) : base(base), offset(offset)
     { }
 
-    Address() { mozilla::PodZero(this); }
+    Address() { PodZero(this); }
 };
 
-// Specifies an address computed in the form of a register base, a register
-// index with a scale, and a constant, 32-bit offset.
+// Specifies an address computed in the form of a register base and a constant,
+// 32-bit offset.
 struct BaseIndex
 {
     Register base;
@@ -177,7 +163,7 @@ struct BaseIndex
       : base(base), index(index), scale(scale), offset(offset)
     { }
 
-    BaseIndex() { mozilla::PodZero(this); }
+    BaseIndex() { PodZero(this); }
 };
 
 class Relocation {
@@ -275,16 +261,9 @@ class Label : public LabelBase
         // Note: the condition is a hack to silence this assert when OOM testing,
         // see bug 756614.
         if (!js_IonOptions.parallelCompilation)
-            JS_ASSERT_IF(MaybeGetIonContext() && !GetIonContext()->runtime->hadOutOfMemory, !used());
+            JS_ASSERT_IF(!GetIonContext()->runtime->hadOutOfMemory, !used());
 #endif
     }
-};
-
-// Wrapper around Label, on the heap, to avoid a bogus assert with OOM.
-struct HeapLabel
-  : public TempObject,
-    public Label
-{
 };
 
 class RepatchLabel
@@ -402,7 +381,7 @@ class CodeOffsetJump
 #endif
 
     CodeOffsetJump() {
-        mozilla::PodZero(this);
+        PodZero(this);
     }
 
     size_t offset() const {
@@ -476,16 +455,12 @@ class CodeLocationJump
 
     void repoint(IonCode *code, MacroAssembler* masm = NULL);
 
-    bool isSet() const {
-        return raw_ != (uint8_t *) 0xdeadc0de;
-    }
-
     uint8_t *raw() const {
-        JS_ASSERT(absolute_ && isSet());
+        JS_ASSERT(absolute_ && raw_ != (uint8_t *) 0xdeadc0de);
         return raw_;
     }
     uint8_t *offset() const {
-        JS_ASSERT(!absolute_ && isSet());
+        JS_ASSERT(!absolute_ && raw_ != (uint8_t *) 0xdeadc0de);
         return raw_;
     }
 
@@ -543,16 +518,12 @@ class CodeLocationLabel
 
     void repoint(IonCode *code, MacroAssembler *masm = NULL);
 
-    bool isSet() {
-        return raw_ != (uint8_t *) 0xdeadc0de;
-    }
-
     uint8_t *raw() {
-        JS_ASSERT(absolute_ && isSet());
+        JS_ASSERT(absolute_ && raw_ != (uint8_t *) 0xdeadc0de);
         return raw_;
     }
     uint8_t *offset() {
-        JS_ASSERT(!absolute_ && isSet());
+        JS_ASSERT(!absolute_ && raw_ != (uint8_t *) 0xdeadc0de);
         return raw_;
     }
 };
@@ -561,4 +532,5 @@ class CodeLocationLabel
 } // namespace ion
 } // namespace js
 
-#endif /* ion_shared_Assembler_shared_h */
+#endif // jsion_assembler_shared_h__
+

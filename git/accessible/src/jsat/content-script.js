@@ -2,26 +2,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-let Ci = Components.interfaces;
-let Cu = Components.utils;
+var Cc = Components.classes;
+var Ci = Components.interfaces;
+var Cu = Components.utils;
+var Cr = Components.results;
 
-Cu.import('resource://gre/modules/XPCOMUtils.jsm');
-XPCOMUtils.defineLazyModuleGetter(this, 'Logger',
-  'resource://gre/modules/accessibility/Utils.jsm');
-XPCOMUtils.defineLazyModuleGetter(this, 'Presentation',
-  'resource://gre/modules/accessibility/Presentation.jsm');
-XPCOMUtils.defineLazyModuleGetter(this, 'TraversalRules',
-  'resource://gre/modules/accessibility/TraversalRules.jsm');
-XPCOMUtils.defineLazyModuleGetter(this, 'Utils',
-  'resource://gre/modules/accessibility/Utils.jsm');
-XPCOMUtils.defineLazyModuleGetter(this, 'EventManager',
-  'resource://gre/modules/accessibility/EventManager.jsm');
-XPCOMUtils.defineLazyModuleGetter(this, 'ObjectWrapper',
-  'resource://gre/modules/ObjectWrapper.jsm');
+Cu.import('resource://gre/modules/accessibility/Utils.jsm');
+Cu.import('resource://gre/modules/accessibility/EventManager.jsm');
+Cu.import('resource://gre/modules/accessibility/TraversalRules.jsm');
+Cu.import('resource://gre/modules/Services.jsm');
 
 Logger.debug('content-script.js');
-
-let eventManager = null;
 
 function virtualCursorControl(aMessage) {
   if (Logger.logLevel >= Logger.DEBUG)
@@ -61,21 +52,14 @@ function virtualCursorControl(aMessage) {
       }
       break;
     case 'moveToPoint':
-      if (!this._ppcp) {
-        this._ppcp = Utils.getPixelsPerCSSPixel(content);
-      }
-      moved = vc.moveToPoint(rule,
-                             details.x * this._ppcp, details.y * this._ppcp,
-                             true);
+      moved = vc.moveToPoint(rule, details.x, details.y, true);
       break;
     case 'whereIsIt':
       if (!forwardMessage(vc, aMessage)) {
         if (!vc.position && aMessage.json.move)
           vc.moveFirst(TraversalRules.Simple);
-        else {
-          sendAsyncMessage('AccessFu:Present', Presentation.pivotChanged(
-            vc.position, null, Ci.nsIAccessiblePivot.REASON_NONE));
-        }
+        else
+          EventManager.presentVirtualCursorPosition(vc);
       }
 
       break;
@@ -104,12 +88,10 @@ function forwardMessage(aVirtualCursor, aMessage) {
       let mm = Utils.getMessageManager(acc.DOMNode);
       mm.addMessageListener(aMessage.name, virtualCursorControl);
       aMessage.json.origin = 'parent';
-      if (Utils.isContentProcess) {
-        // XXX: OOP content's screen offset is 0,
-        // so we remove the real screen offset here.
-        aMessage.json.x -= content.mozInnerScreenX;
-        aMessage.json.y -= content.mozInnerScreenY;
-      }
+      // XXX: OOP content's screen offset is 0,
+      // so we remove the real screen offset here.
+      aMessage.json.x -= content.mozInnerScreenX;
+      aMessage.json.y -= content.mozInnerScreenY;
       mm.sendAsyncMessage(aMessage.name, aMessage.json);
       return true;
     }
@@ -139,89 +121,16 @@ function activateCurrent(aMessage) {
       let x = Math.round((objX.value - docX.value) + objW.value / 2);
       let y = Math.round((objY.value - docY.value) + objH.value / 2);
 
-      let node = aAccessible.DOMNode || aAccessible.parent.DOMNode;
-
-      function dispatchMouseEvent(aEventType) {
-        let evt = content.document.createEvent('MouseEvents');
-        evt.initMouseEvent(aEventType, true, true, content,
-                           x, y, 0, 0, 0, false, false, false, false, 0, null);
-        node.dispatchEvent(evt);
-      }
-
-      dispatchMouseEvent('mousedown');
-      dispatchMouseEvent('mouseup');
+      let cwu = content.QueryInterface(Ci.nsIInterfaceRequestor).
+        getInterface(Ci.nsIDOMWindowUtils);
+      cwu.sendMouseEventToWindow('mousedown', x, y, 0, 1, 0, false);
+      cwu.sendMouseEventToWindow('mouseup', x, y, 0, 1, 0, false);
     }
   }
 
   let vc = Utils.getVirtualCursor(content.document);
   if (!forwardMessage(vc, aMessage))
     activateAccessible(vc.position);
-}
-
-function activateContextMenu(aMessage) {
-  function sendContextMenuCoordinates(aAccessible) {
-    let objX = {}, objY = {}, objW = {}, objH = {};
-    aAccessible.getBounds(objX, objY, objW, objH);
-    let x = objX.value + objW.value / 2;
-    let y = objY.value + objH.value / 2;
-    sendAsyncMessage('AccessFu:ActivateContextMenu', {x: x, y: y});
-  }
-
-  let vc = Utils.getVirtualCursor(content.document);
-  if (!forwardMessage(vc, aMessage))
-    sendContextMenuCoordinates(vc.position);
-}
-
-function moveCaret(aMessage) {
-  const MOVEMENT_GRANULARITY_CHARACTER = 1;
-  const MOVEMENT_GRANULARITY_WORD = 2;
-  const MOVEMENT_GRANULARITY_PARAGRAPH = 8;
-
-  let direction = aMessage.json.direction;
-  let granularity = aMessage.json.granularity;
-  let accessible = Utils.getVirtualCursor(content.document).position;
-  let accText = accessible.QueryInterface(Ci.nsIAccessibleText);
-  let oldOffset = accText.caretOffset;
-  let text = accText.getText(0, accText.characterCount);
-
-  let start = {}, end = {};
-  if (direction === 'Previous' && !aMessage.json.atStart) {
-    switch (granularity) {
-      case MOVEMENT_GRANULARITY_CHARACTER:
-        accText.caretOffset--;
-        break;
-      case MOVEMENT_GRANULARITY_WORD:
-        accText.getTextBeforeOffset(accText.caretOffset,
-                                    Ci.nsIAccessibleText.BOUNDARY_WORD_START, start, end);
-        accText.caretOffset = end.value === accText.caretOffset ? start.value : end.value;
-        break;
-      case MOVEMENT_GRANULARITY_PARAGRAPH:
-        let startOfParagraph = text.lastIndexOf('\n', accText.caretOffset - 1);
-        accText.caretOffset = startOfParagraph !== -1 ? startOfParagraph : 0;
-        break;
-    }
-  } else if (direction === 'Next' && !aMessage.json.atEnd) {
-    switch (granularity) {
-      case MOVEMENT_GRANULARITY_CHARACTER:
-        accText.caretOffset++;
-        break;
-      case MOVEMENT_GRANULARITY_WORD:
-        accText.getTextAtOffset(accText.caretOffset,
-                                Ci.nsIAccessibleText.BOUNDARY_WORD_END, start, end);
-        accText.caretOffset = end.value;
-        break;
-      case MOVEMENT_GRANULARITY_PARAGRAPH:
-        accText.caretOffset = text.indexOf('\n', accText.caretOffset + 1);
-        break;
-    }
-  }
-
-  let newOffset = accText.caretOffset;
-  if (oldOffset !== newOffset) {
-    let msg = Presentation.textSelectionChanged(text, newOffset, newOffset,
-                                                oldOffset, oldOffset);
-    sendAsyncMessage('AccessFu:Present', msg);
-  }
 }
 
 function scroll(aMessage) {
@@ -235,21 +144,6 @@ function scroll(aMessage) {
     let acc = vc.position;
     while (acc) {
       let elem = acc.DOMNode;
-
-      // This is inspired by IndieUI events. Once they are
-      // implemented, it should be easy to transition to them.
-      // https://dvcs.w3.org/hg/IndieUI/raw-file/tip/src/indie-ui-events.html#scrollrequest
-      let uiactions = elem.getAttribute ? elem.getAttribute('uiactions') : '';
-      if (uiactions && uiactions.split(' ').indexOf('scroll') >= 0) {
-        let evt = elem.ownerDocument.createEvent('CustomEvent');
-        let details = horiz ? { deltaX: page * elem.clientWidth } :
-          { deltaY: page * elem.clientHeight };
-        evt.initCustomEvent(
-          'scrollrequest', true, true,
-          ObjectWrapper.wrap(details, elem.ownerDocument.defaultView));
-        if (!elem.dispatchEvent(evt))
-          return;
-      }
 
       // We will do window scrolling next.
       if (elem == content.document)
@@ -268,6 +162,25 @@ function scroll(aMessage) {
           let s = content.getComputedStyle(elem);
           if (s.overflowX == 'scroll' || s.overflowX == 'auto') {
             elem.scrollLeft += page * elem.clientWidth;
+            return true;
+          }
+        }
+
+        let controllers = acc.
+          getRelationByType(
+            Ci.nsIAccessibleRelation.RELATION_CONTROLLED_BY);
+        for (let i = 0; controllers.targetsCount > i; i++) {
+          let controller = controllers.getTarget(i);
+          // If the section has a controlling slider, it should be considered
+          // the page-turner.
+          if (controller.role == Ci.nsIAccessibleRole.ROLE_SLIDER) {
+            // Sliders are controlled with ctrl+right/left. I just decided :)
+            let evt = content.document.createEvent('KeyboardEvent');
+            evt.initKeyEvent(
+              'keypress', true, true, null,
+              true, false, false, false,
+              (page > 0) ? evt.DOM_VK_RIGHT : evt.DOM_VK_LEFT, 0);
+            controller.DOMNode.dispatchEvent(evt);
             return true;
           }
         }
@@ -303,23 +216,30 @@ function scroll(aMessage) {
   }
 }
 
+addMessageListener('AccessFu:VirtualCursor', virtualCursorControl);
+addMessageListener('AccessFu:Activate', activateCurrent);
+addMessageListener('AccessFu:Scroll', scroll);
+
 addMessageListener(
   'AccessFu:Start',
   function(m) {
-    Logger.debug('AccessFu:Start');
     if (m.json.buildApp)
       Utils.MozBuildApp = m.json.buildApp;
 
-    addMessageListener('AccessFu:VirtualCursor', virtualCursorControl);
-    addMessageListener('AccessFu:Activate', activateCurrent);
-    addMessageListener('AccessFu:ContextMenu', activateContextMenu);
-    addMessageListener('AccessFu:Scroll', scroll);
-    addMessageListener('AccessFu:MoveCaret', moveCaret);
+    EventManager.start(
+      function sendMessage(aName, aDetails) {
+        sendAsyncMessage(aName, aDetails);
+      });
 
-    if (!eventManager) {
-      eventManager = new EventManager(this);
-    }
-    eventManager.start();
+    docShell.QueryInterface(Ci.nsIInterfaceRequestor).
+      getInterface(Ci.nsIWebProgress).
+      addProgressListener(EventManager,
+                          (Ci.nsIWebProgress.NOTIFY_STATE_ALL |
+                           Ci.nsIWebProgress.NOTIFY_LOCATION));
+    addEventListener('scroll', EventManager, true);
+    addEventListener('resize', EventManager, true);
+    // XXX: Ideally this would be an a11y event. Bug #742280.
+    addEventListener('DOMActivate', EventManager, true);
   });
 
 addMessageListener(
@@ -327,13 +247,15 @@ addMessageListener(
   function(m) {
     Logger.debug('AccessFu:Stop');
 
-    removeMessageListener('AccessFu:VirtualCursor', virtualCursorControl);
-    removeMessageListener('AccessFu:Activate', activateCurrent);
-    removeMessageListener('AccessFu:ContextMenu', activateContextMenu);
-    removeMessageListener('AccessFu:Scroll', scroll);
-    removeMessageListener('AccessFu:MoveCaret', moveCaret);
+    EventManager.stop();
 
-    eventManager.stop();
+    docShell.QueryInterface(Ci.nsIInterfaceRequestor).
+      getInterface(Ci.nsIWebProgress).
+      removeProgressListener(EventManager);
+    removeEventListener('scroll', EventManager, true);
+    removeEventListener('resize', EventManager, true);
+    // XXX: Ideally this would be an a11y event. Bug #742280.
+    removeEventListener('DOMActivate', EventManager, true);
   });
 
 sendAsyncMessage('AccessFu:Ready');

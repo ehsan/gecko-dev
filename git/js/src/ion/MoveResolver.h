@@ -1,11 +1,12 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_MoveResolver_h
-#define ion_MoveResolver_h
+#ifndef jsion_move_group_resolver_h__
+#define jsion_move_group_resolver_h__
 
 #include "Registers.h"
 #include "InlineList.h"
@@ -25,7 +26,6 @@ class MoveResolver
             REG,
             FLOAT_REG,
             ADDRESS,
-            FLOAT_ADDRESS,
             EFFECTIVE_ADDRESS
         };
 
@@ -36,8 +36,7 @@ class MoveResolver
       public:
         enum AddressKind {
             MEMORY = ADDRESS,
-            EFFECTIVE = EFFECTIVE_ADDRESS,
-            FLOAT = FLOAT_ADDRESS
+            EFFECTIVE = EFFECTIVE_ADDRESS
         };
 
         MoveOperand()
@@ -63,13 +62,10 @@ class MoveResolver
             return kind_ == REG;
         }
         bool isDouble() const {
-            return kind_ == FLOAT_REG || kind_ == FLOAT_ADDRESS;
+            return kind_ == FLOAT_REG;
         }
         bool isMemory() const {
             return kind_ == ADDRESS;
-        }
-        bool isFloatAddress() const {
-            return kind_ == FLOAT_ADDRESS;
         }
         bool isEffectiveAddress() const {
             return kind_ == EFFECTIVE_ADDRESS;
@@ -83,7 +79,7 @@ class MoveResolver
             return FloatRegister::FromCode(code_);
         }
         Register base() const {
-            JS_ASSERT(isMemory() || isEffectiveAddress() || isFloatAddress());
+            JS_ASSERT(isMemory() || isEffectiveAddress());
             return Register::FromCode(code_);
         }
         int32_t disp() const {
@@ -213,4 +209,5 @@ class MoveResolver
 } // namespace ion
 } // namespace js
 
-#endif /* ion_MoveResolver_h */
+#endif // jsion_move_group_resolver_h__
+

@@ -3,15 +3,16 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsHtml5Atom.h"
-#include "nsAutoPtr.h"
 
 nsHtml5Atom::nsHtml5Atom(const nsAString& aString)
 {
   mLength = aString.Length();
-  nsRefPtr<nsStringBuffer> buf = nsStringBuffer::FromString(aString);
+  nsStringBuffer* buf = nsStringBuffer::FromString(aString);
   if (buf) {
+    buf->AddRef();
     mString = static_cast<PRUnichar*>(buf->Data());
-  } else {
+  }
+  else {
     buf = nsStringBuffer::Alloc((mLength + 1) * sizeof(PRUnichar));
     mString = static_cast<PRUnichar*>(buf->Data());
     CopyUnicodeTo(aString, 0, mString, mLength);
@@ -22,9 +23,6 @@ nsHtml5Atom::nsHtml5Atom(const nsAString& aString)
   NS_ASSERTION(buf && buf->StorageSize() >= (mLength+1) * sizeof(PRUnichar),
                "enough storage");
   NS_ASSERTION(Equals(aString), "correct data");
-
-  // Take ownership of buffer
-  buf.forget();
 }
 
 nsHtml5Atom::~nsHtml5Atom()

@@ -6,7 +6,6 @@
 #ifndef mozilla_dom_XMLStylesheetProcessingInstruction_h
 #define mozilla_dom_XMLStylesheetProcessingInstruction_h
 
-#include "mozilla/Attributes.h"
 #include "mozilla/dom/ProcessingInstruction.h"
 #include "nsStyleLinkElement.h"
 
@@ -22,21 +21,9 @@ public:
     : ProcessingInstruction(aNodeInfo, aData)
   {
   }
-
-  XMLStylesheetProcessingInstruction(nsNodeInfoManager* aNodeInfoManager,
-                                     const nsAString& aData)
-    : ProcessingInstruction(aNodeInfoManager->GetNodeInfo(
-                                       nsGkAtoms::processingInstructionTagName,
-                                       nullptr, kNameSpaceID_None,
-                                       nsIDOMNode::PROCESSING_INSTRUCTION_NODE,
-                                       nsGkAtoms::xml_stylesheet), aData)
-  {
-  }
-
   virtual ~XMLStylesheetProcessingInstruction();
 
-  virtual JSObject* WrapNode(JSContext *aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope) MOZ_OVERRIDE;
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -47,32 +34,32 @@ public:
 
   // nsIDOMNode
   virtual void SetNodeValueInternal(const nsAString& aNodeValue,
-                                    mozilla::ErrorResult& aError) MOZ_OVERRIDE;
+                                    mozilla::ErrorResult& aError);
 
   // nsIContent
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
-                              bool aCompileEventHandlers) MOZ_OVERRIDE;
+                              bool aCompileEventHandlers);
   virtual void UnbindFromTree(bool aDeep = true,
-                              bool aNullParent = true) MOZ_OVERRIDE;
+                              bool aNullParent = true);
 
   // nsIStyleSheetLinkingElement
-  virtual void OverrideBaseURI(nsIURI* aNewBaseURI) MOZ_OVERRIDE;
+  virtual void OverrideBaseURI(nsIURI* aNewBaseURI);
 
   // nsStyleLinkElement
-  NS_IMETHOD GetCharset(nsAString& aCharset) MOZ_OVERRIDE;
+  NS_IMETHOD GetCharset(nsAString& aCharset);
 
 protected:
   nsCOMPtr<nsIURI> mOverriddenBaseURI;
 
-  already_AddRefed<nsIURI> GetStyleSheetURL(bool* aIsInline) MOZ_OVERRIDE;
+  already_AddRefed<nsIURI> GetStyleSheetURL(bool* aIsInline);
   void GetStyleSheetInfo(nsAString& aTitle,
                          nsAString& aType,
                          nsAString& aMedia,
                          bool* aIsScoped,
-                         bool* aIsAlternate) MOZ_OVERRIDE;
+                         bool* aIsAlternate);
   virtual nsGenericDOMDataNode* CloneDataNode(nsINodeInfo *aNodeInfo,
-                                              bool aCloneText) const MOZ_OVERRIDE;
+                                              bool aCloneText) const;
 };
 
 } // namespace dom

@@ -18,12 +18,12 @@ struct ANPEvent;
 
 namespace mozilla {
     class AndroidGeckoEvent;
+    class AndroidKeyEvent;
 
     namespace layers {
         class CompositorParent;
         class CompositorChild;
         class LayerManager;
-        class AsyncPanZoomController;
     }
 }
 
@@ -134,7 +134,7 @@ public:
                                      uint32_t aNewEnd) MOZ_OVERRIDE;
     virtual nsIMEUpdatePreference GetIMEUpdatePreference();
 
-    LayerManager* GetLayerManager (PLayerTransactionChild* aShadowManager = nullptr,
+    LayerManager* GetLayerManager (PLayersChild* aShadowManager = nullptr,
                                    LayersBackend aBackendHint = mozilla::layers::LAYERS_NONE,
                                    LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
                                    bool* aAllowRetaining = nullptr);
@@ -145,8 +145,6 @@ public:
     virtual void DrawWindowUnderlay(LayerManager* aManager, nsIntRect aRect);
     virtual void DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect);
 
-    virtual mozilla::layers::CompositorParent* NewCompositorParent(int aSurfaceWidth, int aSurfaceHeight) MOZ_OVERRIDE;
-
     static void SetCompositor(mozilla::layers::LayerManager* aLayerManager,
                               mozilla::layers::CompositorParent* aCompositorParent,
                               mozilla::layers::CompositorChild* aCompositorChild);
@@ -154,8 +152,6 @@ public:
     static void ScheduleResumeComposition(int width, int height);
     static void ForceIsFirstPaint();
     static float ComputeRenderIntegrity();
-    static void SetPanZoomController(mozilla::layers::AsyncPanZoomController* apzc);
-    static mozilla::layers::AsyncPanZoomController* GetPanZoomController();
 
     virtual bool WidgetPaintsBackground();
 
@@ -219,6 +215,8 @@ protected:
 private:
     void InitKeyEvent(nsKeyEvent& event, mozilla::AndroidGeckoEvent& key,
                       ANPEvent* pluginEvent);
+    bool DispatchMultitouchEvent(nsTouchEvent &event,
+                             mozilla::AndroidGeckoEvent *ae);
     void DispatchMotionEvent(nsInputEvent &event,
                              mozilla::AndroidGeckoEvent *ae,
                              const nsIntPoint &refPoint);
@@ -234,7 +232,6 @@ private:
     static nsRefPtr<mozilla::layers::CompositorParent> sCompositorParent;
     static nsRefPtr<mozilla::layers::CompositorChild> sCompositorChild;
     static bool sCompositorPaused;
-    static nsRefPtr<mozilla::layers::AsyncPanZoomController> sApzc;
 };
 
 #endif /* NSWINDOW_H_ */

@@ -16,7 +16,7 @@
 CMMFKeyRecRepContent*
 CMMF_CreateKeyRecRepContent(void)
 {
-    PLArenaPool          *poolp;
+    PRArenaPool          *poolp;
     CMMFKeyRecRepContent *keyRecContent;
 
     poolp = PORT_NewArena(CRMF_DEFAULT_ARENA_SIZE);
@@ -122,7 +122,7 @@ CMMF_KeyRecRepContentSetCertifiedKeyPair(CMMFKeyRecRepContent *inKeyRecRep,
 {
     CMMFCertifiedKeyPair *keyPair;
     CRMFEncryptedValue   *dummy;
-    PLArenaPool          *poolp;
+    PRArenaPool          *poolp;
     void                 *mark;
     SECStatus             rv;
 

@@ -12,7 +12,7 @@ namespace mozilla {
 namespace layers {
 namespace compositor {
 
-LayerManagerComposite*
+LayerManager*
 GetLayerManager(CompositorParent* aParent)
 {
   return aParent->GetLayerManager();

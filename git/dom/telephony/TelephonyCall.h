@@ -10,7 +10,6 @@
 #include "TelephonyCommon.h"
 
 #include "nsIDOMTelephonyCall.h"
-#include "mozilla/dom/DOMError.h"
 
 class nsPIDOMWindow;
 
@@ -23,8 +22,7 @@ class TelephonyCall : public nsDOMEventTargetHelper,
 
   nsString mNumber;
   nsString mState;
-  bool mEmergency;
-  nsRefPtr<mozilla::dom::DOMError> mError;
+  nsCOMPtr<nsIDOMDOMError> mError;
 
   uint32_t mCallIndex;
   uint16_t mCallState;
@@ -34,19 +32,25 @@ class TelephonyCall : public nsDOMEventTargetHelper,
 public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDOMTELEPHONYCALL
-  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper)
+  NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(TelephonyCall,
                                            nsDOMEventTargetHelper)
 
   static already_AddRefed<TelephonyCall>
   Create(Telephony* aTelephony, const nsAString& aNumber, uint16_t aCallState,
-         uint32_t aCallIndex = kOutgoingPlaceholderCallIndex,
-         bool aEmergency = false);
+         uint32_t aCallIndex = kOutgoingPlaceholderCallIndex);
+
+  nsIDOMEventTarget*
+  ToIDOMEventTarget() const
+  {
+    return static_cast<nsDOMEventTargetHelper*>(
+             const_cast<TelephonyCall*>(this));
+  }
 
   nsISupports*
-  ToISupports()
+  ToISupports() const
   {
-    return static_cast<EventTarget*>(this);
+    return ToIDOMEventTarget();
   }
 
   void
@@ -73,12 +77,6 @@ public:
   CallState() const
   {
     return mCallState;
-  }
-
-  void
-  UpdateEmergency(bool aEmergency)
-  {
-    mEmergency = aEmergency;
   }
 
   bool

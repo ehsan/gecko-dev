@@ -1,23 +1,25 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_IonLinker_h
-#define ion_IonLinker_h
+#ifndef jsion_linker_h__
+#define jsion_linker_h__
 
 #include "jscntxt.h"
 #include "jscompartment.h"
-#include "jsgc.h"
 #include "ion/IonCode.h"
 #include "ion/IonCompartment.h"
 #include "assembler/jit/ExecutableAllocator.h"
 #include "ion/IonMacroAssembler.h"
+#include "jsgcinlines.h"
 
 namespace js {
 namespace ion {
 
+static const int CodeAlignment = 8;
 class Linker
 {
     MacroAssembler &masm;
@@ -58,10 +60,6 @@ class Linker
             return fail(cx);
         code->copyFrom(masm);
         masm.link(code);
-#ifdef JSGC_GENERATIONAL
-        if (masm.embedsNurseryPointers())
-            cx->runtime()->gcStoreBuffer.putWholeCell(code);
-#endif
         return code;
     }
 
@@ -73,11 +71,12 @@ class Linker
     }
 
     IonCode *newCode(JSContext *cx, JSC::CodeKind kind) {
-        return newCode(cx, cx->compartment()->ionCompartment(), kind);
+        return newCode(cx, cx->compartment->ionCompartment(), kind);
     }
 };
 
 } // namespace ion
 } // namespace js
 
-#endif /* ion_IonLinker_h */
+#endif // jsion_linker_h__
+

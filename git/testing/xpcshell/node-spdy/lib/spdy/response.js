@@ -1,6 +1,9 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 var spdy = require('../spdy'),
-    http = require('http'),
-    res = http.ServerResponse.prototype;
+    http = require('http');
 
 //
 // ### function _renderHeaders ()
@@ -12,13 +15,15 @@ exports._renderHeaders = function() {
     throw new Error("Can't render headers after they are sent to the client.");
   }
 
-  var keys = Object.keys(this._headerNames);
+  if (!this._headers) return {};
+
+  var headers = {};
+  var keys = Object.keys(this._headers);
   for (var i = 0, l = keys.length; i < l; i++) {
     var key = keys[i];
-    this._headerNames[key] = this._headerNames[key].toLowerCase();
+    headers[(this._headerNames[key] || '').toLowerCase()] = this._headers[key];
   }
-
-  return res._renderHeaders.call(this);
+  return headers;
 };
 
 //
@@ -66,12 +71,12 @@ exports.writeHead = function(statusCode) {
   this._header = '';
 
   // Do not send data to new connections after GOAWAY
-  if (this.socket._isGoaway()) return;
+  if (this.socket.isGoaway()) return;
 
-  this.socket._lock(function() {
+  this.socket.lock(function() {
     var socket = this;
 
-    this._framer.replyFrame(
+    this.framer.replyFrame(
       this.id,
       statusCode,
       reasonPhrase,
@@ -79,7 +84,7 @@ exports.writeHead = function(statusCode) {
       function (err, frame) {
         // TODO: Handle err
         socket.connection.write(frame);
-        socket._unlock();
+        socket.unlock();
       }
     );
   });
@@ -92,45 +97,38 @@ exports.writeHead = function(statusCode) {
 // #### @callbacks {Function} continuation that will receive stream object
 // Initiates push stream
 //
-exports.push = function push(url, headers, priority, callback) {
+exports.push = function push(url, headers, callback) {
   if (this.socket._destroyed) {
     return callback(Error('Can\'t open push stream, parent socket destroyed'));
   }
 
-  if (!callback && typeof priority === 'function') {
-    callback = priority;
-    priority = 0;
-  }
-
-  if (!callback) callback = function() {};
-
-  this.socket._lock(function() {
+  this.socket.lock(function() {
     var socket = this,
         id = socket.connection.pushId += 2,
-        scheme = this._frame.headers.scheme,
-        host = this._frame.headers.host || 'localhost',
-        fullUrl = /^\//.test(url) ? scheme + '://' + host + url : url;
+        fullUrl = /^\//.test(url) ?
+                      this.frame.headers.scheme + '://' +
+                      (this.frame.headers.host || 'localhost') +
+                      url
+                      :
+                      url;
 
-    this._framer.streamFrame(
+    this.framer.streamFrame(
       id,
       this.id,
       {
         method: 'GET',
-        path: url,
         url: fullUrl,
-        scheme: scheme,
-        host: host,
-        version: 'HTTP/1.1',
-        priority: priority || 0
+        schema: 'https',
+        version: 'HTTP/1.1'
       },
       headers,
       function(err, frame) {
         if (err) {
-          socket._unlock();
+          socket.unlock();
           callback(err);
         } else {
           socket.connection.write(frame);
-          socket._unlock();
+          socket.unlock();
 
           var stream = new spdy.server.Stream(socket.connection, {
             type: 'SYN_STREAM',

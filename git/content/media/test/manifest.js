@@ -154,16 +154,6 @@ var gPlayTests = [
   // Opus data in an ogg container
   { name:"detodos.opus", type:"audio/ogg; codecs=opus", duration:2.9135 },
 
-  // Multichannel Opus in an ogg container
-  { name:"test-1-mono.opus", type:"audio/ogg; codecs=opus", duration:1.044 },
-  { name:"test-2-stereo.opus", type:"audio/ogg; codecs=opus", duration:2.925 },
-  { name:"test-3-LCR.opus", type:"audio/ogg; codecs=opus", duration:4.214 },
-  { name:"test-4-quad.opus", type:"audio/ogg; codecs=opus", duration:6.234 },
-  { name:"test-5-5.0.opus", type:"audio/ogg; codecs=opus", duration:7.558 },
-  { name:"test-6-5.1.opus", type:"audio/ogg; codecs=opus", duration:10.333 },
-  { name:"test-7-6.1.opus", type:"audio/ogg; codecs=opus", duration:11.690 },
-  { name:"test-8-7.1.opus", type:"audio/ogg; codecs=opus", duration:13.478 },
-
   { name:"gizmo.mp4", type:"video/mp4", duration:5.56 },
 
   { name:"small-shot.m4a", type:"audio/mp4", duration:0.29 },
@@ -314,27 +304,6 @@ var gSeekTests = [
   { name:"owl.mp3", type:"audio/mpeg", duration:3.29 },
   { name:"bogus.duh", type:"bogus/duh", duration:123 }
 ];
-
-function IsWindows8OrLater() {
-  var re = /Windows NT (\d.\d)/;
-  var winver = navigator.userAgent.match(re);
-  return winver && winver.length == 2 && parseFloat(winver[1]) >= 6.2;
-}
-
-// These are files that are non seekable, due to problems with the media,
-// for example broken or missing indexes.
-var gUnseekableTests = [
-  { name:"no-cues.webm", type:"video/webm" },
-  { name:"bogus.duh", type:"bogus/duh"}
-];
-// Unfortunately big-buck-bunny-unseekable.mp4 is doesn't play on Windows 7, so
-// only include it in the unseekable tests if we're on later versions of Windows.
-if (navigator.userAgent.indexOf("Windows") == -1 ||
-    IsWindows8OrLater()) {
-  gUnseekableTests = gUnseekableTests.concat([
-    { name:"big-buck-bunny-unseekable.mp4", type:"video/mp4" }
-  ]);
-}
 
 // These are files suitable for using with a "new Audio" constructor.
 var gAudioTests = [
@@ -676,25 +645,19 @@ function mediaTestCleanup() {
   var branch = prefService.getBranch("media.");
   var oldDefault = 2;
   var oldAuto = 3;
-  var oldGStreamer = undefined;
   var oldOpus = undefined;
-
-  try { oldGStreamer = branch.getBoolPref("gstreamer.enabled"); } catch(ex) { }
-  try { oldDefault   = branch.getIntPref("preload.default"); } catch(ex) { }
-  try { oldAuto      = branch.getIntPref("preload.auto"); } catch(ex) { }
-  try { oldOpus      = branch.getBoolPref("opus.enabled"); } catch(ex) { }
-
+  try {
+    oldDefault = branch.getIntPref("preload.default");
+    oldAuto    = branch.getIntPref("preload.auto");
+    oldOpus    = branch.getBoolPref("opus.enabled");
+  } catch(ex) { }
   branch.setIntPref("preload.default", 2); // preload_metadata
   branch.setIntPref("preload.auto", 3); // preload_enough
   // test opus playback iff the pref exists
   if (oldOpus !== undefined)
     branch.setBoolPref("opus.enabled", true);
-  if (oldGStreamer !== undefined)
-    branch.setBoolPref("gstreamer.enabled", true);
 
   window.addEventListener("unload", function() {
-    if (oldGStreamer !== undefined)
-      branch.setBoolPref("gstreamer.enabled", oldGStreamer);
     branch.setIntPref("preload.default", oldDefault);
     branch.setIntPref("preload.auto", oldAuto);
     if (oldOpus !== undefined)

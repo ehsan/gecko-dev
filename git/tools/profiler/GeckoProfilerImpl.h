@@ -19,7 +19,7 @@
 #include "jsfriendapi.h"
 #include "GeckoProfilerFunc.h"
 #include "PseudoStack.h"
-#include "nsISupports.h"
+
 
 /* QT has a #define for the word "slots" and jsfriendapi.h has a struct with
  * this variable name, causing compilation problems. Alleviate this for now by
@@ -52,9 +52,9 @@ extern bool stack_key_initialized;
 #endif
 
 static inline
-void profiler_init(void* stackTop)
+void profiler_init()
 {
-  mozilla_sampler_init(stackTop);
+  mozilla_sampler_init();
 }
 
 static inline
@@ -65,10 +65,9 @@ void profiler_shutdown()
 
 static inline
 void profiler_start(int aProfileEntries, int aInterval,
-                       const char** aFeatures, uint32_t aFeatureCount,
-                       const char** aThreadNameFilters, uint32_t aFilterCount)
+                       const char** aFeatures, uint32_t aFeatureCount)
 {
-  mozilla_sampler_start(aProfileEntries, aInterval, aFeatures, aFeatureCount, aThreadNameFilters, aFilterCount);
+  mozilla_sampler_start(aProfileEntries, aInterval, aFeatures, aFeatureCount);
 }
 
 static inline
@@ -141,45 +140,6 @@ void profiler_unlock()
   return mozilla_sampler_unlock();
 }
 
-static inline
-void profiler_register_thread(const char* name, void* stackTop)
-{
-  mozilla_sampler_register_thread(name, stackTop);
-}
-
-static inline
-void profiler_unregister_thread()
-{
-  mozilla_sampler_unregister_thread();
-}
-
-static inline
-void profiler_js_operation_callback()
-{
-  PseudoStack *stack = tlsPseudoStack.get();
-  if (!stack) {
-    return;
-  }
-
-  stack->jsOperationCallback();
-}
-
-static inline
-double profiler_time()
-{
-  return mozilla_sampler_time();
-}
-
-static inline
-bool profiler_in_privacy_mode()
-{
-  PseudoStack *stack = tlsPseudoStack.get();
-  if (!stack) {
-    return false;
-  }
-  return stack->mPrivacyMode;
-}
-
 // we want the class and function name but can't easily get that using preprocessor macros
 // __func__ doesn't have the class name and __PRETTY_FUNCTION__ has the parameters
 
@@ -193,7 +153,6 @@ bool profiler_in_privacy_mode()
 #define PROFILER_MAIN_THREAD_LABEL(name_space, info)  MOZ_ASSERT(NS_IsMainThread(), "This can only be called on the main thread"); mozilla::SamplerStackFrameRAII SAMPLER_APPEND_LINE_NUMBER(sampler_raii)(name_space "::" info, __LINE__)
 #define PROFILER_MAIN_THREAD_LABEL_PRINTF(name_space, info, ...)  MOZ_ASSERT(NS_IsMainThread(), "This can only be called on the main thread"); mozilla::SamplerStackFramePrintfRAII SAMPLER_APPEND_LINE_NUMBER(sampler_raii)(name_space "::" info, __LINE__, __VA_ARGS__)
 #define PROFILER_MAIN_THREAD_MARKER(info)  MOZ_ASSERT(NS_IsMainThread(), "This can only be called on the main thread"); mozilla_sampler_add_marker(info)
-
 
 /* FIXME/bug 789667: memory constraints wouldn't much of a problem for
  * this small a sample buffer size, except that serializing the
@@ -234,7 +193,7 @@ bool profiler_in_privacy_mode()
 
 namespace mozilla {
 
-class MOZ_STACK_CLASS SamplerStackFrameRAII {
+class NS_STACK_CLASS SamplerStackFrameRAII {
 public:
   // we only copy the strings at save time, so to take multiple parameters we'd need to copy them then.
   SamplerStackFrameRAII(const char *aInfo, uint32_t line) {
@@ -248,11 +207,11 @@ private:
 };
 
 static const int SAMPLER_MAX_STRING = 128;
-class MOZ_STACK_CLASS SamplerStackFramePrintfRAII {
+class NS_STACK_CLASS SamplerStackFramePrintfRAII {
 public:
   // we only copy the strings at save time, so to take multiple parameters we'd need to copy them then.
   SamplerStackFramePrintfRAII(const char *aDefault, uint32_t line, const char *aFormat, ...) {
-    if (profiler_is_active() && !profiler_in_privacy_mode()) {
+    if (profiler_is_active()) {
       va_list args;
       va_start(args, aFormat);
       char buff[SAMPLER_MAX_STRING];
@@ -332,11 +291,6 @@ inline void mozilla_sampler_add_marker(const char *aMarker)
   // Don't insert a marker if we're not profiling to avoid
   // the heap copy (malloc).
   if (!profiler_is_active()) {
-    return;
-  }
-
-  // Don't add a marker if we don't want to include personal information
-  if (profiler_in_privacy_mode()) {
     return;
   }
 

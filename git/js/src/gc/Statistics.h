@@ -1,17 +1,21 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=78:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef gc_Statistics_h
-#define gc_Statistics_h
+#ifndef jsgc_statistics_h___
+#define jsgc_statistics_h___
+
+#include <string.h>
 
 #include "mozilla/DebugOnly.h"
-#include "mozilla/PodOperations.h"
+#include "mozilla/GuardObjects.h"
 
 #include "jsfriendapi.h"
 #include "jspubtd.h"
+#include "jsutil.h"
 
 #include "js/GCAPI.h"
 
@@ -122,7 +126,7 @@ struct Statistics {
         SliceData(JS::gcreason::Reason reason, int64_t start, size_t startFaults)
           : reason(reason), resetReason(NULL), start(start), startFaults(startFaults)
         {
-            mozilla::PodArrayZero(phaseTimes);
+            PodArrayZero(phaseTimes);
         }
 
         JS::gcreason::Reason reason;
@@ -228,4 +232,4 @@ struct AutoSCC
 } /* namespace gcstats */
 } /* namespace js */
 
-#endif /* gc_Statistics_h */
+#endif /* jsgc_statistics_h___ */

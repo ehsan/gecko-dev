@@ -321,7 +321,7 @@ function whenDelayedStartupFinished(win, callback) {
     if (win != aSubject)
       return;
 
-    Services.obs.removeObserver(onStartup, topic);
+    Services.obs.removeObserver(onStartup, topic, false);
     executeSoon(callback);
   }, topic, false);
 }

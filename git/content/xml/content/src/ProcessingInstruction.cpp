@@ -7,38 +7,45 @@
 #include "nsUnicharUtils.h"
 #include "mozilla/dom/ProcessingInstruction.h"
 #include "mozilla/dom/ProcessingInstructionBinding.h"
-#include "mozilla/dom/XMLStylesheetProcessingInstruction.h"
+#include "nsContentCreatorFunctions.h"
 #include "nsContentUtils.h"
 
-already_AddRefed<mozilla::dom::ProcessingInstruction>
-NS_NewXMLProcessingInstruction(nsNodeInfoManager *aNodeInfoManager,
+nsresult
+NS_NewXMLProcessingInstruction(nsIContent** aInstancePtrResult,
+                               nsNodeInfoManager *aNodeInfoManager,
                                const nsAString& aTarget,
                                const nsAString& aData)
 {
   using mozilla::dom::ProcessingInstruction;
-  using mozilla::dom::XMLStylesheetProcessingInstruction;
 
   NS_PRECONDITION(aNodeInfoManager, "Missing nodeinfo manager");
 
   nsCOMPtr<nsIAtom> target = do_GetAtom(aTarget);
-  MOZ_ASSERT(target);
+  NS_ENSURE_TRUE(target, NS_ERROR_OUT_OF_MEMORY);
 
   if (target == nsGkAtoms::xml_stylesheet) {
-    nsRefPtr<XMLStylesheetProcessingInstruction> pi =
-      new XMLStylesheetProcessingInstruction(aNodeInfoManager, aData);
-    return pi.forget();
+    return NS_NewXMLStylesheetProcessingInstruction(aInstancePtrResult,
+                                                    aNodeInfoManager, aData);
   }
+
+  *aInstancePtrResult = nullptr;
 
   nsCOMPtr<nsINodeInfo> ni;
   ni = aNodeInfoManager->GetNodeInfo(nsGkAtoms::processingInstructionTagName,
                                      nullptr, kNameSpaceID_None,
                                      nsIDOMNode::PROCESSING_INSTRUCTION_NODE,
                                      target);
+  NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
 
-  nsRefPtr<ProcessingInstruction> instance =
+  ProcessingInstruction *instance =
     new ProcessingInstruction(ni.forget(), aData);
+  if (!instance) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
-  return instance.forget();
+  NS_ADDREF(*aInstancePtrResult = instance);
+
+  return NS_OK;
 }
 
 namespace mozilla {
@@ -68,7 +75,7 @@ NS_IMPL_ISUPPORTS_INHERITED3(ProcessingInstruction, nsGenericDOMDataNode,
                              nsIDOMProcessingInstruction)
 
 JSObject*
-ProcessingInstruction::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+ProcessingInstruction::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return ProcessingInstructionBinding::Wrap(aCx, aScope, this);
 }

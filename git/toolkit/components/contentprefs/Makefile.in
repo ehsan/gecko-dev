@@ -9,7 +9,7 @@ VPATH = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-DISABLED_EXTRA_COMPONENTS = \
+EXTRA_COMPONENTS = \
   nsContentPrefService.js \
   nsContentPrefService.manifest \
   $(NULL)

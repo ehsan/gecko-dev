@@ -58,18 +58,30 @@ function reflectString(aParameters)
   element.removeAttribute(contentAttr);
 
   element[idlAttr] = null;
-  if (treatNullAs == "EmptyString") {
-    is(element.getAttribute(contentAttr), "",
-       "null should have been stringified to '' for '" + contentAttr + "'");
-    is(element[idlAttr], "",
-       "null should have been stringified to '' for '" + idlAttr + "'");
+  // TODO: remove this ugly hack when null stringification will work as expected.
+  var todoAttrs = {
+    form: [ "acceptCharset", "name", "target" ],
+  };
+  if (!(element.localName in todoAttrs) || todoAttrs[element.localName].indexOf(idlAttr) == -1) {
+    if (treatNullAs == "EmptyString") {
+      is(element.getAttribute(contentAttr), "",
+         "null should have been stringified to '' for '" + contentAttr + "'");
+      is(element[idlAttr], "",
+         "null should have been stringified to '' for '" + idlAttr + "'");
+    } else {
+      is(element.getAttribute(contentAttr), "null",
+         "null should have been stringified to 'null' for '" + contentAttr + "'");
+      is(element[idlAttr], "null",
+         "null should have been stringified to 'null' for '" + contentAttr + "'");
+    }
+    element.removeAttribute(contentAttr);
   } else {
-    is(element.getAttribute(contentAttr), "null",
+    todo_is(element.getAttribute(contentAttr), "null",
        "null should have been stringified to 'null' for '" + contentAttr + "'");
-    is(element[idlAttr], "null",
+    todo_is(element[idlAttr], "null",
        "null should have been stringified to 'null' for '" + contentAttr + "'");
+    element.removeAttribute(contentAttr);
   }
-  element.removeAttribute(contentAttr);
 
   // Tests various strings.
   var stringsToTest = [

@@ -9,8 +9,13 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+LIBRARY_NAME	= linker
 FORCE_STATIC_LIB= 1
 STL_FLAGS =
+
+CPPSRCS = \
+  Zip.cpp \
+  $(NULL)
 
 HOST_PROGRAM = szip
 
@@ -21,7 +26,12 @@ HOST_CPPSRCS = \
 
 HOST_LIBS = -lz
 
-DEFINES += -DIMPL_MFBT
+CPPSRCS += \
+  ElfLoader.cpp \
+  CustomElf.cpp \
+  Mappable.cpp \
+  SeekableZStream.cpp \
+  $(NULL)
 
 include $(topsrcdir)/config/rules.mk
 

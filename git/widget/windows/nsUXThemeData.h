@@ -62,8 +62,7 @@ enum WindowsTheme {
   WINTHEME_AERO         = 2,
   WINTHEME_LUNA         = 3,
   WINTHEME_ROYALE       = 4,
-  WINTHEME_ZUNE         = 5,
-  WINTHEME_AERO_LITE    = 6
+  WINTHEME_ZUNE         = 5
 };
 enum WindowsThemeColor {
   WINTHEMECOLOR_UNRECOGNIZED = 0,

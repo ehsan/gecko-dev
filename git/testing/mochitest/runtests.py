@@ -226,13 +226,6 @@ class MochitestOptions(optparse.OptionParser):
                     help = "repeats the test or set of tests the given number of times, ie: repeat=1 will run the test twice.")                   
     defaults["repeat"] = 0
 
-    self.add_option("--run-until-failure",
-                    action = "store_true", dest="runUntilFailure",
-                    help = "Run a test repeatedly and stops on the first time the test fails. "
-                           "Only available when running a single test. Default cap is 30 runs, "
-                           "which can be overwritten with the --repeat parameter.")
-    defaults["runUntilFailure"] = False
-
     self.add_option("--run-only-tests",
                     action = "store", type="string", dest = "runOnlyTests",
                     help = "JSON list of tests that we only want to run, cannot be specified with --exclude-tests. [DEPRECATED- please use --test-manifest]")
@@ -262,11 +255,6 @@ class MochitestOptions(optparse.OptionParser):
                     action = "store_true", dest = "immersiveMode",
                     help = "launches tests in immersive browser")
     defaults["immersiveMode"] = False
-
-    self.add_option("--httpd-path", action = "store",
-                    type = "string", dest = "httpdPath",
-                    help = "path to the httpd.js file")
-    defaults["httpdPath"] = None
 
     # -h, --help are automatically handled by OptionParser
 
@@ -370,7 +358,7 @@ See <http://mochikit.com/doc/html/MochiKit/Logging.html> for details on the logg
       options.testingModulesDir = os.path.normpath(options.testingModulesDir)
 
       if not os.path.isabs(options.testingModulesDir):
-        options.testingModulesDir = os.path.abspath(options.testingModulesDir)
+        options.testingModulesDir = os.path.abspath(testingModulesDir)
 
       if not os.path.isdir(options.testingModulesDir):
         self.error('--testing-modules-dir not a directory: %s' %
@@ -388,12 +376,6 @@ See <http://mochikit.com/doc/html/MochiKit/Logging.html> for details on the logg
       if not os.path.exists(mochitest.immersiveHelperPath):
         self.error("%s not found, cannot launch immersive tests." %
                    mochitest.immersiveHelperPath)
-
-    if options.runUntilFailure:
-      if not os.path.isfile(os.path.join(mochitest.oldcwd, os.path.dirname(__file__), mochitest.getTestRoot(options), options.testPath)):
-        self.error("--run-until-failure can only be used together with --test-path specifying a single test.")
-      if not options.repeat:
-        options.repeat = 29
 
     return options
 
@@ -415,11 +397,6 @@ class MochitestServer:
     self.httpPort = options.httpPort
     self.shutdownURL = "http://%(server)s:%(port)s/server/shutdown" % { "server" : self.webServer, "port" : self.httpPort }
     self.testPrefix = "'webapprt_'" if options.webapprtContent else "undefined"
-    if options.httpdPath:
-        self._httpdPath = options.httpdPath
-    else:
-        self._httpdPath = '.'
-    self._httpdPath = os.path.abspath(self._httpdPath)
 
   def start(self):
     "Run the Mochitest server, returning the process ID of the server."
@@ -438,7 +415,7 @@ class MochitestServer:
 
     args = ["-g", self._xrePath,
             "-v", "170",
-            "-f", self._httpdPath + "/httpd.js",
+            "-f", "./" + "httpd.js",
             "-e", """const _PROFILE_PATH = '%(profile)s';const _SERVER_PORT = '%(port)s'; const _SERVER_ADDR = '%(server)s';
                      const _TEST_PREFIX = %(testPrefix)s; const _DISPLAY_RESULTS = %(displayResults)s;""" %
                    {"profile" : self._profileDir.replace('\\', '\\\\'), "port" : self.httpPort, "server" : self.webServer,
@@ -522,6 +499,7 @@ class Mochitest(object):
   # Path to the test script on the server
   TEST_PATH = "tests"
   CHROME_PATH = "redirect.html"
+  PLAIN_LOOP_PATH = "plain-loop.html"
   urlOpts = []
   runSSLTunnel = True
   vmwareHelper = None
@@ -551,7 +529,7 @@ class Mochitest(object):
     testHost = "http://mochi.test:8888"
     testURL = ("/").join([testHost, self.TEST_PATH, options.testPath])
     if os.path.isfile(os.path.join(self.oldcwd, os.path.dirname(__file__), self.TEST_PATH, options.testPath)) and options.repeat > 0:
-       testURL = ("/").join([testHost, self.TEST_PATH, os.path.dirname(options.testPath)])
+       testURL = ("/").join([testHost, self.PLAIN_LOOP_PATH])
     if options.chrome or options.a11y:
        testURL = ("/").join([testHost, self.CHROME_PATH])
     elif options.browserChrome:
@@ -610,9 +588,7 @@ class Mochitest(object):
       options.extraPrefs.append("testing.browserTestHarness.timeout=%d" % options.timeout)
     self.automation.initializeProfile(options.profilePath,
                                       options.extraPrefs,
-                                      useServerLocations=True,
-                                      prefsPath=os.path.join(self.SCRIPT_DIRECTORY,
-                                                        'profile_data', 'prefs_general.js'))
+                                      useServerLocations=True)
     manifest = self.addChromeToProfile(options)
     self.copyExtraFilesToProfile(options)
     self.installExtensionsToProfile(options)
@@ -681,8 +657,6 @@ class Mochitest(object):
         self.urlOpts.append("shuffle=1")
       if "MOZ_HIDE_RESULTS_TABLE" in env and env["MOZ_HIDE_RESULTS_TABLE"] == "1":
         self.urlOpts.append("hideResultsTable=1")
-      if options.runUntilFailure:
-        self.urlOpts.append("runUntilFailure=1")
       if options.repeat:
         self.urlOpts.append("repeat=%d" % options.repeat)
       if os.path.isfile(os.path.join(self.oldcwd, os.path.dirname(__file__), self.TEST_PATH, options.testPath)) and options.repeat > 0:

@@ -26,7 +26,7 @@ public:
   nsDOMMessageEvent(mozilla::dom::EventTarget* aOwner,
                     nsPresContext* aPresContext, nsEvent* aEvent);
   ~nsDOMMessageEvent();
-
+                     
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(nsDOMMessageEvent,
                                                          nsDOMEvent)
@@ -36,13 +36,17 @@ public:
   // Forward to base class
   NS_FORWARD_TO_NSDOMEVENT
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope)
   {
     return mozilla::dom::MessageEventBinding::Wrap(aCx, aScope, this);
   }
 
-  JS::Value GetData(JSContext* aCx, mozilla::ErrorResult& aRv);
+  JS::Value GetData(JSContext* aCx, mozilla::ErrorResult& aRv)
+  {
+    JS::Value data;
+    aRv = GetData(aCx, &data);
+    return data;
+  }
 
   already_AddRefed<nsIDOMWindow> GetSource()
   {
@@ -54,7 +58,7 @@ public:
                         const nsAString& aType,
                         bool aCanBubble,
                         bool aCancelable,
-                        JS::Handle<JS::Value> aData,
+                        JS::Value& aData,
                         const nsAString& aOrigin,
                         const nsAString& aLastEventId,
                         nsIDOMWindow* aSource,
@@ -65,7 +69,7 @@ public:
   }
 
 private:
-  JS::Heap<JS::Value> mData;
+  JS::Value mData;
   nsString mOrigin;
   nsString mLastEventId;
   nsCOMPtr<nsIDOMWindow> mSource;

@@ -92,41 +92,19 @@ XPCOMUtils.defineLazyGetter(this, "DownloadsLocalFileCtor", function () {
 
 const kPartialDownloadSuffix = ".part";
 
-const kPrefBranch = Services.prefs.getBranch("browser.download.");
+const kPrefDebug = "browser.download.debug";
 
-let PrefObserver = {
+let DebugPrefObserver = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,
                                          Ci.nsISupportsWeakReference]),
-  getPref: function PO_getPref(name) {
-    try {
-      switch (typeof this.prefs[name]) {
-        case "boolean":
-          return kPrefBranch.getBoolPref(name);
-      }
-    } catch (ex) { }
-    return this.prefs[name];
-  },
-  observe: function PO_observe(aSubject, aTopic, aData) {
-    if (this.prefs.hasOwnProperty(aData)) {
-      return this[aData] = this.getPref(aData);
-    }
-  },
-  register: function PO_register(prefs) {
-    this.prefs = prefs;
-    kPrefBranch.addObserver("", this, true);
-    for (let key in prefs) {
-      let name = key;
-      XPCOMUtils.defineLazyGetter(this, name, function () {
-        return PrefObserver.getPref(name);
-      });
-    }
-  },
-};
+  observe: function PDO_observe(aSubject, aTopic, aData) {
+    this.debugEnabled = Services.prefs.getBoolPref(kPrefDebug);
+  }
+}
 
-PrefObserver.register({
-  // prefName: defaultValue
-  debug: false,
-  animateNotifications: true
+XPCOMUtils.defineLazyGetter(DebugPrefObserver, "debugEnabled", function () {
+  Services.prefs.addObserver(kPrefDebug, DebugPrefObserver, true);
+  return Services.prefs.getBoolPref(kPrefDebug);
 });
 
 
@@ -141,7 +119,7 @@ this.DownloadsCommon = {
   log: function DC_log(...aMessageArgs) {
     delete this.log;
     this.log = function DC_log(...aMessageArgs) {
-      if (!PrefObserver.debug) {
+      if (!DebugPrefObserver.debugEnabled) {
         return;
       }
       DownloadsLogger.log.apply(DownloadsLogger, aMessageArgs);
@@ -152,7 +130,7 @@ this.DownloadsCommon = {
   error: function DC_error(...aMessageArgs) {
     delete this.error;
     this.error = function DC_error(...aMessageArgs) {
-      if (!PrefObserver.debug) {
+      if (!DebugPrefObserver.debugEnabled) {
         return;
       }
       DownloadsLogger.reportError.apply(DownloadsLogger, aMessageArgs);
@@ -237,15 +215,6 @@ this.DownloadsCommon = {
       return Services.prefs.getBoolPref("browser.download.useToolkitUI");
     } catch (ex) { }
     return false;
-  },
-
-  /**
-   * Indicates whether we should show visual notification on the indicator
-   * when a download event is triggered.
-   */
-  get animateNotifications()
-  {
-    return PrefObserver.animateNotifications;
   },
 
   /**

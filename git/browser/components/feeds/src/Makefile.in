@@ -9,6 +9,8 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+LIBRARY_NAME = browser_feeds_s
+
 FORCE_STATIC_LIB = 1
 USE_STATIC_LIBS = 1
 
@@ -17,11 +19,18 @@ DEFINES += \
 	-DMOZ_MACBUNDLE_NAME=$(MOZ_MACBUNDLE_NAME) \
 	$(NULL)
 
-DISABLED_EXTRA_COMPONENTS = \
+EXTRA_COMPONENTS = \
   BrowserFeeds.manifest \
 	FeedConverter.js \
 	WebContentConverter.js \
   $(NULL)
+
+EXTRA_PP_COMPONENTS = \
+	FeedWriter.js \
+	$(NULL)
+
+
+CPPSRCS = nsFeedSniffer.cpp
 
 LOCAL_INCLUDES = -I$(srcdir)/../../build
 

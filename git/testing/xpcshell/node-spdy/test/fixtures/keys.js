@@ -5,8 +5,7 @@ var keysDir = require('path').resolve(__dirname, '../../keys/'),
     options = {
       key: fs.readFileSync(keysDir + '/spdy-key.pem'),
       cert: fs.readFileSync(keysDir + '/spdy-cert.pem'),
-      ca: fs.readFileSync(keysDir + '/spdy-csr.pem'),
-      rejectUnauthorized: false
+      ca: fs.readFileSync(keysDir + '/spdy-csr.pem')
     };
 
 module.exports = options;

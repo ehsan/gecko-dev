@@ -167,13 +167,23 @@ XULButtonAccessible::CacheChildren()
 {
   // In general XUL button has not accessible children. Nevertheless menu
   // buttons can have button (@type="menu-button") and popup accessibles
-  // (@type="menu-button", @type="menu" or columnpicker.
+  // (@type="menu-button" or @type="menu").
 
   // XXX: no children until the button is menu button. Probably it's not
   // totally correct but in general AT wants to have leaf buttons.
+  bool isMenu = mContent->AttrValueIs(kNameSpaceID_None,
+                                       nsGkAtoms::type,
+                                       nsGkAtoms::menu,
+                                       eCaseMatters);
 
-  bool isMenuButton = mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
-                                            nsGkAtoms::menuButton, eCaseMatters);
+  bool isMenuButton = isMenu ?
+    false :
+    mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
+                          nsGkAtoms::menuButton, eCaseMatters);
+
+  NS_ENSURE_TRUE_VOID(mDoc);
+  if (!isMenu && !isMenuButton)
+    return;
 
   Accessible* menupopup = nullptr;
   Accessible* button = nullptr;
@@ -854,6 +864,9 @@ XULTextFieldAccessible::GetInputField() const
 
   NS_ASSERTION(inputFieldDOMNode, "No input field for XULTextFieldAccessible");
 
-  nsCOMPtr<nsIContent> inputField = do_QueryInterface(inputFieldDOMNode);
-  return inputField.forget();
+  nsIContent* inputField = nullptr;
+  if (inputFieldDOMNode)
+    CallQueryInterface(inputFieldDOMNode, &inputField);
+
+  return inputField;
 }

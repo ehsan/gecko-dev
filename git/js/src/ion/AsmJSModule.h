@@ -1,13 +1,12 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_AsmJSModule_h
-#define ion_AsmJSModule_h
-
-#ifdef JS_ION
+#if !defined(jsion_asmjsmodule_h__)
+#define jsion_asmjsmodule_h__
 
 #include "gc/Marking.h"
 #include "ion/RegisterSets.h"
@@ -15,11 +14,10 @@
 #include "jsscript.h"
 #include "jstypedarrayinlines.h"
 
-#include "IonMacroAssembler.h"
-
 namespace js {
 
-// These EcmaScript-defined coercions form the basis of the asm.js type system.
+// The basis of the asm.js type system is the EcmaScript-defined coercions
+// ToInt32 and ToNumber.
 enum AsmJSCoercion
 {
     AsmJS_ToInt32,
@@ -62,7 +60,7 @@ class AsmJSModule
                 uint32_t index_;
                 VarInitKind initKind_;
                 union {
-                    Value constant_; // will only contain int32/double
+                    Value constant_;
                     AsmJSCoercion coercion_;
                 } init;
             } var;
@@ -71,7 +69,7 @@ class AsmJSModule
             AsmJSMathBuiltin mathBuiltin_;
             double constantValue_;
         } u;
-        RelocatablePtr<PropertyName> name_;
+        HeapPtrPropertyName name_;
 
         friend class AsmJSModule;
         Global(Which which) : which_(which) {}
@@ -79,8 +77,6 @@ class AsmJSModule
         void trace(JSTracer *trc) {
             if (name_)
                 MarkString(trc, &name_, "asm.js global name");
-            JS_ASSERT_IF(which_ == Variable && u.var.initKind_ == InitConstant,
-                         !u.var.init.constant_.isMarkable());
         }
 
       public:
@@ -147,51 +143,33 @@ class AsmJSModule
     class Exit
     {
         unsigned ffiIndex_;
-
         union {
             unsigned codeOffset_;
             uint8_t *code_;
-        } interp;
-
-        union {
-            unsigned codeOffset_;
-            uint8_t *code_;
-        } ion;
+        } u;
 
       public:
         Exit(unsigned ffiIndex)
           : ffiIndex_(ffiIndex)
         {
-          interp.codeOffset_ = 0;
-          ion.codeOffset_ = 0;
+          u.codeOffset_ = 0;
         }
         unsigned ffiIndex() const {
             return ffiIndex_;
         }
-        void initInterpOffset(unsigned off) {
-            JS_ASSERT(!interp.codeOffset_);
-            interp.codeOffset_ = off;
-        }
-        void initIonOffset(unsigned off) {
-            JS_ASSERT(!ion.codeOffset_);
-            ion.codeOffset_ = off;
+        void initCodeOffset(unsigned off) {
+            JS_ASSERT(!u.codeOffset_);
+            u.codeOffset_ = off;
         }
         void patch(uint8_t *baseAddress) {
-            interp.code_ = baseAddress + interp.codeOffset_;
-            ion.code_ = baseAddress + ion.codeOffset_;
+            u.code_ = baseAddress + u.codeOffset_;
         }
-        uint8_t *interpCode() const {
-            return interp.code_;
-        }
-        uint8_t *ionCode() const {
-            return ion.code_;
+        uint8_t *code() const {
+            return u.code_;
         }
     };
-#ifdef JS_CPU_ARM
-    typedef int32_t (*CodePtr)(uint64_t *args, uint8_t *global);
-#else
+
     typedef int32_t (*CodePtr)(uint64_t *args);
-#endif
 
     typedef Vector<AsmJSCoercion, 0, SystemAllocPolicy> ArgCoercionVector;
 
@@ -203,8 +181,8 @@ class AsmJSModule
 
       private:
 
-        RelocatablePtr<JSFunction> fun_;
-        RelocatablePtr<PropertyName> maybeFieldName_;
+        HeapPtrFunction fun_;
+        HeapPtrPropertyName maybeFieldName_;
         ArgCoercionVector argCoercions_;
         ReturnType returnType_;
         bool hasCodePtr_;
@@ -280,20 +258,6 @@ class AsmJSModule
         }
     };
 
-#if defined(MOZ_VTUNE)
-    // Function information to add to the VTune JIT profiler following linking.
-    struct ProfiledFunction
-    {
-        JSAtom *name;
-        unsigned startCodeOffset;
-        unsigned endCodeOffset;
-
-        ProfiledFunction(JSAtom *name, unsigned start, unsigned end)
-          : name(name), startCodeOffset(start), endCodeOffset(end)
-        { }
-    };
-#endif
-
     // If linking fails, we recompile the function as if it's ordinary JS.
     // This struct holds the data required to do this.
     struct PostLinkFailureInfo
@@ -332,25 +296,11 @@ class AsmJSModule
     typedef Vector<Global, 0, SystemAllocPolicy> GlobalVector;
     typedef Vector<Exit, 0, SystemAllocPolicy> ExitVector;
     typedef Vector<ion::AsmJSHeapAccess, 0, SystemAllocPolicy> HeapAccessVector;
-#if defined(JS_CPU_ARM)
-    typedef Vector<ion::AsmJSBoundsCheck, 0, SystemAllocPolicy> BoundsCheckVector;
-#endif
-    typedef Vector<ion::IonScriptCounts *, 0, SystemAllocPolicy> FunctionCountsVector;
-#if defined(MOZ_VTUNE)
-    typedef Vector<ProfiledFunction, 0, SystemAllocPolicy> ProfiledFunctionVector;
-#endif
 
     GlobalVector                          globals_;
     ExitVector                            exits_;
     ExportedFunctionVector                exports_;
     HeapAccessVector                      heapAccesses_;
-#if defined(JS_CPU_ARM)
-    BoundsCheckVector                     boundsChecks_;
-#endif
-#if defined(MOZ_VTUNE)
-    ProfiledFunctionVector                profiledFunctions_;
-#endif
-
     uint32_t                              numGlobalVars_;
     uint32_t                              numFFIs_;
     uint32_t                              numFuncPtrTableElems_;
@@ -372,10 +322,13 @@ class AsmJSModule
 
     PostLinkFailureInfo                   postLinkFailureInfo_;
 
-    FunctionCountsVector                  functionCounts_;
+    uint8_t *globalData() const {
+        JS_ASSERT(code_);
+        return code_ + codeBytes_;
+    }
 
   public:
-    explicit AsmJSModule(JSContext *cx)
+    AsmJSModule(JSContext *cx)
       : numGlobalVars_(0),
         numFFIs_(0),
         numFuncPtrTableElems_(0),
@@ -389,8 +342,6 @@ class AsmJSModule
         maybeHeap_(),
         postLinkFailureInfo_(cx)
     {}
-
-    ~AsmJSModule();
 
     void trace(JSTracer *trc) {
         for (unsigned i = 0; i < globals_.length(); i++)
@@ -413,7 +364,6 @@ class AsmJSModule
     }
 
     bool addGlobalVarInitConstant(const Value &v, uint32_t *globalIndex) {
-        JS_ASSERT(!v.isMarkable());
         if (numGlobalVars_ == UINT32_MAX)
             return false;
         Global g(Global::Variable);
@@ -467,11 +417,8 @@ class AsmJSModule
         *exitIndex = unsigned(exits_.length());
         return exits_.append(Exit(ffiIndex));
     }
-    bool addFunctionCounts(ion::IonScriptCounts *counts) {
-        return functionCounts_.append(counts);
-    }
 
-    bool addExportedFunction(JSFunction *fun, PropertyName *maybeFieldName,
+    bool addExportedFunction(RawFunction fun, PropertyName *maybeFieldName,
                              MoveRef<ArgCoercionVector> argCoercions, ReturnType returnType)
     {
         ExportedFunction func(fun, maybeFieldName, argCoercions, returnType);
@@ -486,18 +433,6 @@ class AsmJSModule
     ExportedFunction &exportedFunction(unsigned i) {
         return exports_[i];
     }
-#ifdef MOZ_VTUNE
-    bool trackProfiledFunction(JSAtom *name, unsigned startCodeOffset, unsigned endCodeOffset) {
-        ProfiledFunction func(name, startCodeOffset, endCodeOffset);
-        return profiledFunctions_.append(func);
-    }
-    unsigned numProfiledFunctions() const {
-        return profiledFunctions_.length();
-    }
-    const ProfiledFunction &profiledFunction(unsigned i) const {
-        return profiledFunctions_[i];
-    }
-#endif
     bool hasArrayView() const {
         return hasArrayView_;
     }
@@ -510,7 +445,7 @@ class AsmJSModule
     unsigned numGlobals() const {
         return globals_.length();
     }
-    Global &global(unsigned i) {
+    Global global(unsigned i) const {
         return globals_[i];
     }
     unsigned numFuncPtrTableElems() const {
@@ -524,12 +459,6 @@ class AsmJSModule
     }
     const Exit &exit(unsigned i) const {
         return exits_[i];
-    }
-    unsigned numFunctionCounts() const {
-        return functionCounts_.length();
-    }
-    ion::IonScriptCounts *functionCounts(unsigned i) {
-        return functionCounts_[i];
     }
 
     // An Exit holds bookkeeping information about an exit; the ExitDatum
@@ -553,11 +482,6 @@ class AsmJSModule
     //
     // NB: The list of exits is extended while emitting function bodies and
     // thus exits must be at the end of the list to avoid invalidating indices.
-    uint8_t *globalData() const {
-        JS_ASSERT(code_);
-        return code_ + codeBytes_;
-    }
-
     size_t globalDataBytes() const {
         return sizeof(void*) +
                numGlobalVars_ * sizeof(uint64_t) +
@@ -598,12 +522,12 @@ class AsmJSModule
     }
 
     void setFunctionBytes(size_t functionBytes) {
-        JS_ASSERT(functionBytes % AsmJSPageSize == 0);
+        JS_ASSERT(functionBytes % gc::PageSize == 0);
         functionBytes_ = functionBytes;
     }
     size_t functionBytes() const {
         JS_ASSERT(functionBytes_);
-        JS_ASSERT(functionBytes_ % AsmJSPageSize == 0);
+        JS_ASSERT(functionBytes_ % gc::PageSize == 0);
         return functionBytes_;
     }
     bool containsPC(void *pc) const {
@@ -612,7 +536,11 @@ class AsmJSModule
     }
 
     bool addHeapAccesses(const ion::AsmJSHeapAccessVector &accesses) {
-        return heapAccesses_.append(accesses);
+        if (!heapAccesses_.reserve(heapAccesses_.length() + accesses.length()))
+            return false;
+        for (size_t i = 0; i < accesses.length(); i++)
+            heapAccesses_.infallibleAppend(accesses[i]);
+        return true;
     }
     unsigned numHeapAccesses() const {
         return heapAccesses_.length();
@@ -623,40 +551,9 @@ class AsmJSModule
     const ion::AsmJSHeapAccess &heapAccess(unsigned i) const {
         return heapAccesses_[i];
     }
-#if defined(JS_CPU_ARM)
-    bool addBoundsChecks(const ion::AsmJSBoundsCheckVector &checks) {
-        return boundsChecks_.append(checks);
-    }
-    void convertBoundsChecksToActualOffset(ion::MacroAssembler &masm) {
-        for (unsigned i = 0; i < boundsChecks_.length(); i++)
-            boundsChecks_[i].setOffset(masm.actualOffset(boundsChecks_[i].offset()));
-    }
-
-    void patchBoundsChecks(unsigned heapSize) {
-        ion::AutoFlushCache afc("patchBoundsCheck");
-        int bits = -1;
-        JS_CEILING_LOG2(bits, heapSize);
-        if (bits == -1) {
-            // tried to size the array to 0, that is bad, but not horrible
-            return;
-        }
-
-        for (unsigned i = 0; i < boundsChecks_.length(); i++)
-            ion::Assembler::updateBoundsCheck(bits, (ion::Instruction*)(boundsChecks_[i].offset() + code_));
-
-    }
-    unsigned numBoundsChecks() const {
-        return boundsChecks_.length();
-    }
-    const ion::AsmJSBoundsCheck &boundsCheck(unsigned i) const {
-        return boundsChecks_[i];
-    }
-#endif
-
-
 
     void takeOwnership(JSC::ExecutablePool *pool, uint8_t *code, size_t codeBytes, size_t totalBytes) {
-        JS_ASSERT(uintptr_t(code) % AsmJSPageSize == 0);
+        JS_ASSERT(uintptr_t(code) % gc::PageSize == 0);
         codePool_ = pool;
         code_ = code;
         codeBytes_ = codeBytes;
@@ -664,7 +561,7 @@ class AsmJSModule
     }
     uint8_t *functionCode() const {
         JS_ASSERT(code_);
-        JS_ASSERT(uintptr_t(code_) % AsmJSPageSize == 0);
+        JS_ASSERT(uintptr_t(code_) % gc::PageSize == 0);
         return code_;
     }
 
@@ -703,34 +600,18 @@ class AsmJSModule
 
     void initPostLinkFailureInfo(CompileOptions options,
                                  ScriptSource *scriptSource, uint32_t bufStart, uint32_t bufEnd) {
-        options.filename = scriptSource->filename();
         postLinkFailureInfo_.init(options, scriptSource, bufStart, bufEnd);
     }
 
     const PostLinkFailureInfo &postLinkFailureInfo() const {
         return postLinkFailureInfo_;
     }
-
-    size_t exitDatumToExitIndex(ExitDatum *exit) const {
-        ExitDatum *first = &exitIndexToGlobalDatum(0);
-        JS_ASSERT(exit >= first && exit < first + numExits());
-        return exit - first;
-    }
-
-    void detachIonCompilation(size_t exitIndex) const {
-        ExitDatum &exitDatum = exitIndexToGlobalDatum(exitIndex);
-        exitDatum.exit = exit(exitIndex).interpCode();
-    }
 };
-
 
 // The AsmJSModule C++ object is held by a JSObject that takes care of calling
 // 'trace' and the destructor on finalization.
 extern AsmJSModule &
 AsmJSModuleObjectToModule(JSObject *obj);
-
-extern bool
-IsAsmJSModuleObject(JSObject *obj);
 
 extern JSObject &
 AsmJSModuleObject(JSFunction *moduleFun);
@@ -740,6 +621,5 @@ SetAsmJSModuleObject(JSFunction *moduleFun, JSObject *moduleObj);
 
 }  // namespace js
 
-#endif  // JS_ION
+#endif  // jsion_asmjsmodule_h__
 
-#endif /* ion_AsmJSModule_h */

@@ -57,6 +57,6 @@ function run_test()
     prefs.setBoolPref("geo.testing.ignore_ipc_principal", true);
   }
 
-  geolocation = Cc["@mozilla.org/geolocation;1"].getService(Ci.nsISupports);
+  geolocation = Cc["@mozilla.org/geolocation;1"].getService(Ci.nsIDOMGeoGeolocation);
   geolocation.getCurrentPosition(successCallback, errorCallback, {timeout: 2000});
 }

@@ -16,7 +16,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGFEImageElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+SVGFEImageElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return SVGFEImageElementBinding::Wrap(aCx, aScope, this);
 }
@@ -30,10 +30,15 @@ nsSVGElement::StringInfo SVGFEImageElement::sStringInfo[2] =
 //----------------------------------------------------------------------
 // nsISupports methods
 
-NS_IMPL_ISUPPORTS_INHERITED6(SVGFEImageElement, SVGFEImageElementBase,
-                             nsIDOMNode, nsIDOMElement, nsIDOMSVGElement,
-                             imgINotificationObserver, nsIImageLoadingContent,
-                             imgIOnloadBlocker)
+NS_IMPL_ADDREF_INHERITED(SVGFEImageElement,SVGFEImageElementBase)
+NS_IMPL_RELEASE_INHERITED(SVGFEImageElement,SVGFEImageElementBase)
+
+NS_INTERFACE_TABLE_HEAD(SVGFEImageElement)
+  NS_NODE_INTERFACE_TABLE6(SVGFEImageElement, nsIDOMNode, nsIDOMElement,
+                           nsIDOMSVGElement,
+                           imgINotificationObserver, nsIImageLoadingContent,
+                           imgIOnloadBlocker)
+NS_INTERFACE_MAP_END_INHERITING(SVGFEImageElementBase)
 
 //----------------------------------------------------------------------
 // Implementation
@@ -175,7 +180,7 @@ SVGFEImageElement::IntrinsicState() const
 
 NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFEImageElement)
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGFEImageElement::Href()
 {
   return mStringAttributes[HREF].ToDOMAnimatedString(this);

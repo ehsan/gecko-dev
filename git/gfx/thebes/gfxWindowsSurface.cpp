@@ -178,7 +178,10 @@ gfxWindowsSurface::GetAsImageSurface()
     if (!isurf)
         return nullptr;
 
-	return gfxASurface::Wrap(isurf).downcast<gfxImageSurface>();
+    nsRefPtr<gfxASurface> asurf = gfxASurface::Wrap(isurf);
+    gfxImageSurface *imgsurf = (gfxImageSurface*) asurf.get();
+    NS_ADDREF(imgsurf);
+    return imgsurf;
 }
 
 already_AddRefed<gfxWindowsSurface>
@@ -199,11 +202,14 @@ gfxWindowsSurface::OptimizeToDDB(HDC dc, const gfxIntSize& size, gfxImageFormat 
     tmpCtx.SetSource(this);
     tmpCtx.Paint();
 
+    gfxWindowsSurface *raw = (gfxWindowsSurface*) (wsurf.get());
+    NS_ADDREF(raw);
+
     // we let the new DDB surfaces be converted back to dibsections if
     // acquire_source_image is called on them
-    cairo_win32_surface_set_can_convert_to_dib(wsurf->CairoSurface(), TRUE);
+    cairo_win32_surface_set_can_convert_to_dib(raw->CairoSurface(), TRUE);
 
-    return wsurf.forget().downcast<gfxWindowsSurface>();
+    return raw;
 }
 
 nsresult

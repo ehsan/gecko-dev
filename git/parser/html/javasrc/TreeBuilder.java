@@ -163,7 +163,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
 
     final static int IFRAME = 47;
 
-    final static int EMBED = 48;
+    final static int EMBED_OR_IMG = 48;
 
     final static int AREA_OR_WBR = 49;
 
@@ -202,8 +202,6 @@ public abstract class TreeBuilder<T> implements TokenHandler,
     final static int MENUITEM = 66;
 
     final static int TEMPLATE = 67;
-
-    final static int IMG = 68;
 
     // start insertion modes
 
@@ -1595,8 +1593,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                         case RUBY_OR_SPAN_OR_SUB_OR_SUP_OR_VAR:
                         case DD_OR_DT:
                         case UL_OR_OL_OR_DL:
-                        case EMBED:
-                        case IMG:
+                        case EMBED_OR_IMG:
                         case H1_OR_H2_OR_H3_OR_H4_OR_H5_OR_H6:
                         case HEAD:
                         case HR:
@@ -1980,8 +1977,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                         case TABLE:
                         case AREA_OR_WBR:
                         case BR:
-                        case EMBED:
-                        case IMG:
+                        case EMBED_OR_IMG:
                         case INPUT:
                         case KEYGEN:
                         case HR:
@@ -2212,7 +2208,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                                 attributes = null; // CPP
                                 break starttagloop;
                             case BR:
-                            case EMBED:
+                            case EMBED_OR_IMG:
                             case AREA_OR_WBR:
                                 reconstructTheActiveFormattingElements();
                                 // FALL THROUGH to PARAM_OR_SOURCE_OR_TRACK
@@ -2236,7 +2232,6 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                                 errImage();
                                 elementName = ElementName.IMG;
                                 continue starttagloop;
-                            case IMG:
                             case KEYGEN:
                             case INPUT:
                                 reconstructTheActiveFormattingElements();
@@ -3687,8 +3682,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                         case AREA_OR_WBR:
                         // CPPONLY: case MENUITEM:
                         case PARAM_OR_SOURCE_OR_TRACK:
-                        case EMBED:
-                        case IMG:
+                        case EMBED_OR_IMG:
                         case IMAGE:
                         case INPUT:
                         case KEYGEN: // XXX??

@@ -985,8 +985,9 @@ moz_gtk_toggle_paint(cairo_t *cr, GdkRectangle* rect,
       
     if (isradio) {
         gtk_style_context_add_class(style, GTK_STYLE_CLASS_RADIO);
-        gtk_style_context_set_state(style, selected ? GTK_STATE_FLAG_ACTIVE :
-                                                      GTK_STATE_FLAG_NORMAL);
+        if (selected) {
+            gtk_style_context_set_state(style, GTK_STATE_FLAG_ACTIVE);
+        }
         gtk_render_option(style, cr, x, y, width, height);
         if (state->focused) {
             gtk_render_focus(style, cr, focus_x, focus_y,
@@ -1406,6 +1407,23 @@ moz_gtk_vpaned_paint(cairo_t *cr, GdkRectangle* rect,
                       rect->x, rect->y, rect->width, rect->height);                     
     gtk_style_context_restore(style);
 
+    return MOZ_GTK_SUCCESS;
+}
+
+static gint
+moz_gtk_caret_paint(cairo_t *cr, GdkRectangle* rect,
+                    GtkTextDirection direction)
+{
+    GdkRectangle location = *rect;
+
+    if (direction == GTK_TEXT_DIR_RTL) {
+        /* gtk_draw_insertion_cursor ignores location.width */
+        location.x = rect->x + rect->width;
+    }
+
+    ensure_entry_widget();
+    gtk_draw_insertion_cursor(gEntryWidget, cr,
+                              &location, TRUE, direction, FALSE);
     return MOZ_GTK_SUCCESS;
 }
 
@@ -2801,6 +2819,7 @@ moz_gtk_get_widget_border(GtkThemeWidgetType widget, gint* left, gint* top,
     case MOZ_GTK_TOOLBAR:
     case MOZ_GTK_MENUBAR:
     case MOZ_GTK_TAB_SCROLLARROW:
+    case MOZ_GTK_ENTRY_CARET:
         *left = *top = *right = *bottom = 0;
         return MOZ_GTK_SUCCESS;
     default:
@@ -3078,7 +3097,7 @@ moz_gtk_widget_paint(GtkThemeWidgetType widget, cairo_t *cr,
                                               flags, direction);
         break;
     case MOZ_GTK_TREE_HEADER_SORTARROW:
-        return moz_gtk_tree_header_sort_arrow_paint(cr, rect, 
+        return moz_gtk_tree_header_sort_arrow_paint(cr, rect, cliprect,
                                                     state,
                                                     (GtkArrowType) flags,
                                                     direction);
@@ -3096,12 +3115,15 @@ moz_gtk_widget_paint(GtkThemeWidgetType widget, cairo_t *cr,
         return moz_gtk_entry_paint(cr, rect, state,
                                    gEntryWidget, direction);
         break;
+    case MOZ_GTK_ENTRY_CARET:
+        return moz_gtk_caret_paint(cr, rect, direction);
+        break;
     case MOZ_GTK_DROPDOWN:
         return moz_gtk_combo_box_paint(cr, rect, state,
                                        (gboolean) flags, direction);
         break;
     case MOZ_GTK_DROPDOWN_ARROW:
-        return moz_gtk_combo_box_entry_button_paint(cr, rect,
+        return moz_gtk_combo_box_entry_button_paint(cr, rect, cliprect,
                                                     state, flags, direction);
         break;
     case MOZ_GTK_DROPDOWN_ENTRY:
@@ -3125,7 +3147,7 @@ moz_gtk_widget_paint(GtkThemeWidgetType widget, cairo_t *cr,
         return moz_gtk_toolbar_paint(cr, rect, direction);
         break;
     case MOZ_GTK_TOOLBAR_SEPARATOR:
-        return moz_gtk_toolbar_separator_paint(cr, rect,
+        return moz_gtk_toolbar_separator_paint(cr, rect, cliprect,
                                                direction);
         break;
     case MOZ_GTK_TOOLTIP:
@@ -3144,7 +3166,7 @@ moz_gtk_widget_paint(GtkThemeWidgetType widget, cairo_t *cr,
     case MOZ_GTK_PROGRESS_CHUNK:
     case MOZ_GTK_PROGRESS_CHUNK_INDETERMINATE:
     case MOZ_GTK_PROGRESS_CHUNK_VERTICAL_INDETERMINATE:
-        return moz_gtk_progress_chunk_paint(cr, rect,
+        return moz_gtk_progress_chunk_paint(cr, rect, cliprect,
                                             direction, widget);
         break;
     case MOZ_GTK_TAB:
@@ -3165,7 +3187,7 @@ moz_gtk_widget_paint(GtkThemeWidgetType widget, cairo_t *cr,
         return moz_gtk_menu_popup_paint(cr, rect, direction);
         break;
     case MOZ_GTK_MENUSEPARATOR:
-        return moz_gtk_menu_separator_paint(cr, rect,
+        return moz_gtk_menu_separator_paint(cr, rect, cliprect,
                                             direction);
         break;
     case MOZ_GTK_MENUITEM:

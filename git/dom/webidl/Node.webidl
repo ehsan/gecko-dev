@@ -96,9 +96,9 @@ interface Node : EventTarget {
   readonly attribute DOMString? localName;
 
   boolean hasAttributes();
-  [Throws, Func="nsINode::IsChromeOrXBL"]
+  [Throws, Func="nsINode::ShouldExposeUserData"]
   any setUserData(DOMString key, any data, UserDataHandler? handler);
-  [Throws, Func="nsINode::IsChromeOrXBL"]
+  [Throws, Func="nsINode::ShouldExposeUserData"]
   any getUserData(DOMString key);
   [ChromeOnly]
   readonly attribute Principal nodePrincipal;

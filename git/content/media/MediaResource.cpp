@@ -60,13 +60,11 @@ ChannelMediaResource::ChannelMediaResource(MediaDecoder* aDecoder,
     mLock("ChannelMediaResource.mLock"),
     mIgnoreResume(false),
     mSeekingForMetadata(false),
-#ifdef MOZ_DASH
     mByteRangeDownloads(false),
     mByteRangeFirstOpen(true),
+    mIsTransportSeekable(true),
     mSeekOffsetMonitor("media.dashseekmonitor"),
-    mSeekOffset(-1),
-#endif
-    mIsTransportSeekable(true)
+    mSeekOffset(-1)
 {
 #ifdef PR_LOGGING
   if (!gMediaResourceLog) {
@@ -409,7 +407,6 @@ ChannelMediaResource::OnStopRequest(nsIRequest* aRequest, nsresult aStatus)
     mChannelStatistics->Stop();
   }
 
-#ifdef MOZ_DASH
   // If we were loading a byte range, notify decoder and return.
   // Skip this for unterminated byte range requests, e.g. seeking for whole
   // file downloads.
@@ -417,7 +414,6 @@ ChannelMediaResource::OnStopRequest(nsIRequest* aRequest, nsresult aStatus)
     mDecoder->NotifyDownloadEnded(aStatus);
     return NS_OK;
   }
-#endif
 
   // Note that aStatus might have succeeded --- this might be a normal close
   // --- even in situations where the server cut us off because we were
@@ -482,7 +478,6 @@ ChannelMediaResource::CopySegmentToCache(nsIInputStream *aInStream,
 
   closure->mResource->mDecoder->NotifyDataArrived(aFromSegment, aCount, closure->mResource->mOffset);
 
-#ifdef MOZ_DASH
   // For byte range downloads controlled by |DASHDecoder|, there are cases in
   // which the reader's offset is different enough from the channel offset that
   // |MediaCache| requests a |CacheClientSeek| to the reader's offset. This
@@ -492,7 +487,6 @@ ChannelMediaResource::CopySegmentToCache(nsIInputStream *aInStream,
   if (closure->mResource->mByteRangeDownloads) {
     closure->mResource->mCacheStream.NotifyDataStarted(closure->mResource->mOffset);
   }
-#endif
 
   // Keep track of where we're up to.
   LOG("%p [ChannelMediaResource]: CopySegmentToCache at mOffset [%lld] add "
@@ -540,7 +534,6 @@ ChannelMediaResource::OnDataAvailable(nsIRequest* aRequest,
   return NS_OK;
 }
 
-#ifdef MOZ_DASH
 /* |OpenByteRange|
  * For terminated byte range requests, use this function.
  * Callback is |MediaDecoder|::|NotifyByteRangeDownloaded|().
@@ -571,7 +564,6 @@ ChannelMediaResource::OpenByteRange(nsIStreamListener** aStreamListener,
 
   return OpenChannel(aStreamListener);
 }
-#endif
 
 nsresult ChannelMediaResource::Open(nsIStreamListener **aStreamListener)
 {
@@ -605,20 +597,6 @@ nsresult ChannelMediaResource::OpenChannel(nsIStreamListener** aStreamListener)
 
   if (aStreamListener) {
     *aStreamListener = nullptr;
-  }
-
-  if (mByteRange.IsNull()) {
-    // We're not making a byte range request, so set the content length,
-    // if it's available as an HTTP header. This ensures that MediaResource
-    // wrapping objects for platform libraries that expect to know
-    // the length of a resource can get it before OnStartRequest() fires.
-    nsCOMPtr<nsIHttpChannel> hc = do_QueryInterface(mChannel);
-    if (hc) {
-      int64_t cl = -1;
-      if (NS_SUCCEEDED(hc->GetContentLength(&cl)) && cl != -1) {
-        mCacheStream.NotifyDataLength(cl);
-      }
-    }
   }
 
   mListener = new Listener(this);
@@ -805,13 +783,12 @@ nsresult ChannelMediaResource::Seek(int32_t aWhence, int64_t aOffset)
 
   CMLOG("Seek requested for aOffset [%lld] for decoder [%p]",
         aOffset, mDecoder);
-#ifdef MOZ_DASH
   // Remember |aOffset|, because Media Cache may request a diff offset later.
   if (mByteRangeDownloads) {
     ReentrantMonitorAutoEnter mon(mSeekOffsetMonitor);
     mSeekOffset = aOffset;
   }
-#endif
+
   return mCacheStream.Seek(aWhence, aOffset);
 }
 
@@ -1018,9 +995,6 @@ ChannelMediaResource::CacheClientSeek(int64_t aOffset, bool aResume)
   CMLOG("CacheClientSeek requested for aOffset [%lld] for decoder [%p]",
         aOffset, mDecoder);
 
-#ifndef MOZ_DASH
-  CloseChannel();
-#else
   // |CloseChannel| immediately for non-byte-range downloads.
   if (!mByteRangeDownloads) {
     CloseChannel();
@@ -1033,7 +1007,6 @@ ChannelMediaResource::CacheClientSeek(int64_t aOffset, bool aResume)
       CloseChannel();
     }
   }
-#endif
 
   if (aResume) {
     NS_ASSERTION(mSuspendCount > 0, "Too many resumes!");
@@ -1041,7 +1014,7 @@ ChannelMediaResource::CacheClientSeek(int64_t aOffset, bool aResume)
     --mSuspendCount;
   }
 
-#ifdef MOZ_DASH  // Note: For chunked downloads, e.g. DASH, we need to determine which chunk
+  // Note: For chunked downloads, e.g. DASH, we need to determine which chunk
   // contains the requested offset, |mOffset|. This is either previously
   // requested in |Seek| or updated to the most recent bytes downloaded.
   // So the process below is:
@@ -1118,7 +1091,6 @@ ChannelMediaResource::CacheClientSeek(int64_t aOffset, bool aResume)
     mByteRange.mStart = mOffset = aOffset;
     return OpenByteRange(nullptr, mByteRange);
   }
-#endif
 
   mOffset = aOffset;
 

@@ -10,9 +10,20 @@ srcdir      = @srcdir@
 VPATH       = $(srcdir)
 relativesrcdir = @relativesrcdir@
 
+XPCSHELL_TESTS = tests
+
 include $(DEPTH)/config/autoconf.mk
 
+EXPORTS = GeckoProfiler.h
+
 ifdef MOZ_ENABLE_PROFILER_SPS
+EXPORTS += \
+  GeckoProfilerImpl.h \
+  GeckoProfilerFunc.h \
+  PseudoStack.h \
+  shared-libraries.h \
+  $(NULL)
+
 LOCAL_INCLUDES += \
   -I$(topsrcdir)/mozglue/linker \
   -I$(topsrcdir)/ipc/chromium/src \
@@ -24,6 +35,7 @@ DEFINES += -DARCH_ARMV6
 endif
 
 MODULE_NAME     = nsProfilerModule
+LIBRARY_NAME    = profiler
 EXPORT_LIBRARY  = 1
 LIBXUL_LIBRARY  = 1
 IS_COMPONENT    = 1
@@ -31,16 +43,44 @@ ifndef _MSC_VER
 FAIL_ON_WARNINGS = 1
 endif # !_MSC_VER
 
-# Uncomment for better debugging in opt builds
-#MOZ_OPTIMIZE_FLAGS += -O0 -g
+CPPSRCS		= \
+  platform.cpp \
+  nsProfilerFactory.cpp \
+  nsProfiler.cpp \
+  TableTicker.cpp \
+  BreakpadSampler.cpp \
+  UnwinderThread2.cpp \
+  ProfileEntry.cpp \
+  local_debug_info_symbolizer.cc \
+  JSObjectBuilder.cpp \
+  JSCustomObjectBuilder.cpp \
+  $(NULL)
 
 EXTRA_JS_MODULES = \
   Profiler.jsm \
   $(NULL)
 
+ifneq (,$(filter Android Linux,$(OS_TARGET)))
+CPPSRCS += \
+  shared-libraries-linux.cc \
+  platform-linux.cc \
+  $(NULL)
+endif
+
 ifeq ($(OS_TARGET),Darwin)
+CPPSRCS += \
+  shared-libraries-macos.cc \
+  platform-macos.cc \
+  $(NULL)
 CMMSRCS += \
   shim_mac_dump_syms.mm
+endif
+
+ifeq ($(OS_TARGET),WINNT)
+CPPSRCS += \
+  shared-libraries-win32.cc \
+  platform-win32.cc \
+  $(NULL)
 endif
 
 endif

@@ -36,8 +36,8 @@ class Blob
   ~Blob();
 
   static JSClass sClass;
-  static const JSPropertySpec sProperties[];
-  static const JSFunctionSpec sFunctions[];
+  static JSPropertySpec sProperties[];
+  static JSFunctionSpec sFunctions[];
 
 public:
   static JSObject*
@@ -65,7 +65,7 @@ public:
 
 private:
   static nsIDOMBlob*
-  GetInstancePrivate(JSContext* aCx, JS::Handle<JSObject*> aObj, const char* aFunctionName)
+  GetInstancePrivate(JSContext* aCx, JSObject* aObj, const char* aFunctionName)
   {
     nsIDOMBlob* blob = GetPrivate(aObj);
     if (blob) {
@@ -113,8 +113,7 @@ private:
   }
 
   static JSBool
-  GetSize(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
-          JS::MutableHandle<JS::Value> aVp)
+  GetSize(JSContext* aCx, JSHandleObject aObj, JSHandleId aIdval, JSMutableHandleValue aVp)
   {
     nsIDOMBlob* blob = GetInstancePrivate(aCx, aObj, "size");
     if (!blob) {
@@ -133,8 +132,7 @@ private:
   }
 
   static JSBool
-  GetType(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
-          JS::MutableHandle<JS::Value> aVp)
+  GetType(JSContext* aCx, JSHandleObject aObj, JSHandleId aIdval, JSMutableHandleValue aVp)
   {
     nsIDOMBlob* blob = GetInstancePrivate(aCx, aObj, "type");
     if (!blob) {
@@ -160,7 +158,7 @@ private:
   static JSBool
   Slice(JSContext* aCx, unsigned aArgc, jsval* aVp)
   {
-    JS::Rooted<JSObject*> obj(aCx, JS_THIS_OBJECT(aCx, aVp));
+    JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
     if (!obj) {
       return false;
     }
@@ -171,9 +169,9 @@ private:
     }
 
     double start = 0, end = 0;
-    JS::Rooted<JSString*> jsContentType(aCx, JS_GetEmptyString(JS_GetRuntime(aCx)));
+    JSString* jsContentType = JS_GetEmptyString(JS_GetRuntime(aCx));
     if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "/IIS", &start,
-                             &end, jsContentType.address())) {
+                             &end, &jsContentType)) {
       return false;
     }
 
@@ -205,17 +203,17 @@ private:
 JSClass Blob::sClass = {
   "Blob",
   JSCLASS_HAS_PRIVATE,
-  JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+  JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
   JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize
 };
 
-const JSPropertySpec Blob::sProperties[] = {
+JSPropertySpec Blob::sProperties[] = {
   { "size", 0, PROPERTY_FLAGS, JSOP_WRAPPER(GetSize), JSOP_WRAPPER(js_GetterOnlyPropertyStub) },
   { "type", 0, PROPERTY_FLAGS, JSOP_WRAPPER(GetType), JSOP_WRAPPER(js_GetterOnlyPropertyStub) },
   { 0, 0, 0, JSOP_NULLWRAPPER, JSOP_NULLWRAPPER }
 };
 
-const JSFunctionSpec Blob::sFunctions[] = {
+JSFunctionSpec Blob::sFunctions[] = {
   JS_FN("slice", Slice, 1, JSPROP_ENUMERATE),
   JS_FS_END
 };
@@ -227,7 +225,7 @@ class File : public Blob
   ~File();
 
   static JSClass sClass;
-  static const JSPropertySpec sProperties[];
+  static JSPropertySpec sProperties[];
 
 public:
   static JSObject*
@@ -273,7 +271,7 @@ public:
 
 private:
   static nsIDOMFile*
-  GetInstancePrivate(JSContext* aCx, JS::Handle<JSObject*> aObj, const char* aFunctionName)
+  GetInstancePrivate(JSContext* aCx, JSObject* aObj, const char* aFunctionName)
   {
     nsIDOMFile* file = GetPrivate(aObj);
     if (file) {
@@ -304,8 +302,7 @@ private:
   }
 
   static JSBool
-  GetMozFullPath(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
-                 JS::MutableHandle<JS::Value> aVp)
+  GetMozFullPath(JSContext* aCx, JSHandleObject aObj, JSHandleId aIdval, JSMutableHandleValue aVp)
   {
     nsIDOMFile* file = GetInstancePrivate(aCx, aObj, "mozFullPath");
     if (!file) {
@@ -331,8 +328,7 @@ private:
   }
 
   static JSBool
-  GetName(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
-          JS::MutableHandle<JS::Value> aVp)
+  GetName(JSContext* aCx, JSHandleObject aObj, JSHandleId aIdval, JSMutableHandleValue aVp)
   {
     nsIDOMFile* file = GetInstancePrivate(aCx, aObj, "name");
     if (!file) {
@@ -354,16 +350,15 @@ private:
   }
 
   static JSBool
-  GetLastModifiedDate(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
-                      JS::MutableHandle<JS::Value> aVp)
+  GetLastModifiedDate(JSContext* aCx, JSHandleObject aObj, JSHandleId aIdval, JSMutableHandleValue aVp)
   {
     nsIDOMFile* file = GetInstancePrivate(aCx, aObj, "lastModifiedDate");
     if (!file) {
       return false;
     }
 
-    JS::Rooted<JS::Value> value(aCx);
-    if (NS_FAILED(file->GetLastModifiedDate(aCx, value.address()))) {
+    JS::Value value;
+    if (NS_FAILED(file->GetLastModifiedDate(aCx, &value))) {
       return false;
     }
 
@@ -375,11 +370,11 @@ private:
 JSClass File::sClass = {
   "File",
   JSCLASS_HAS_PRIVATE,
-  JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+  JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
   JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize
 };
 
-const JSPropertySpec File::sProperties[] = {
+JSPropertySpec File::sProperties[] = {
   { "name", 0, PROPERTY_FLAGS, JSOP_WRAPPER(GetName),
     JSOP_WRAPPER(js_GetterOnlyPropertyStub) },
   { "lastModifiedDate", 0, PROPERTY_FLAGS, JSOP_WRAPPER(GetLastModifiedDate),
@@ -417,7 +412,7 @@ CreateBlob(JSContext* aCx, nsIDOMBlob* aBlob)
 }
 
 bool
-InitClasses(JSContext* aCx, JS::Handle<JSObject*> aGlobal)
+InitClasses(JSContext* aCx, JSObject* aGlobal)
 {
   JSObject* blobProto = Blob::InitClass(aCx, aGlobal);
   return blobProto && File::InitClass(aCx, aGlobal, blobProto);

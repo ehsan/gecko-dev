@@ -95,10 +95,6 @@ typedef struct _nsCocoaWindowList {
 - (void)updateTrackingArea;
 - (NSView*)trackingAreaView;
 
-- (ChildView*)mainChildView;
-
-- (NSArray*)titlebarControls;
-
 @end
 
 @interface NSWindow (Undocumented)
@@ -116,10 +112,6 @@ typedef struct _nsCocoaWindowList {
 // rounded bottom corners, so this call doesn't have any effect there.
 - (void)setBottomCornerRounded:(BOOL)rounded;
 - (BOOL)bottomCornerRounded;
-
-// Present in the same form on OS X since at least OS X 10.5.
-- (NSRect)contentRectForFrameRect:(NSRect)windowFrame styleMask:(NSUInteger)windowStyle;
-- (NSRect)frameRectForContentRect:(NSRect)windowContentRect styleMask:(NSUInteger)windowStyle;
 
 @end
 
@@ -185,19 +177,20 @@ typedef struct _nsCocoaWindowList {
 @interface ToolbarWindow : BaseWindow
 {
   TitlebarAndBackgroundColor *mColor;
-  CGFloat mUnifiedToolbarHeight;
+  float mUnifiedToolbarHeight;
   NSColor *mBackgroundColor;
   NSView *mTitlebarView; // strong
 }
 // Pass nil here to get the default appearance.
 - (void)setTitlebarColor:(NSColor*)aColor forActiveWindow:(BOOL)aActive;
-- (void)setUnifiedToolbarHeight:(CGFloat)aHeight;
-- (CGFloat)unifiedToolbarHeight;
-- (CGFloat)titlebarHeight;
+- (void)setUnifiedToolbarHeight:(float)aHeight;
+- (float)unifiedToolbarHeight;
+- (float)titlebarHeight;
 - (NSRect)titlebarRect;
 - (void)setTitlebarNeedsDisplayInRect:(NSRect)aRect sync:(BOOL)aSync;
 - (void)setTitlebarNeedsDisplayInRect:(NSRect)aRect;
 - (void)setDrawsContentsIntoWindowFrame:(BOOL)aState;
+- (ChildView*)mainChildView;
 @end
 
 class nsCocoaWindow : public nsBaseWidget, public nsPIWidgetCocoa
@@ -262,7 +255,7 @@ public:
 
     NS_IMETHOD Invalidate(const nsIntRect &aRect);
     virtual nsresult ConfigureChildren(const nsTArray<Configuration>& aConfigurations);
-    virtual LayerManager* GetLayerManager(PLayerTransactionChild* aShadowManager = nullptr,
+    virtual LayerManager* GetLayerManager(PLayersChild* aShadowManager = nullptr,
                                           LayersBackend aBackendHint = mozilla::layers::LAYERS_NONE,
                                           LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
                                           bool* aAllowRetaining = nullptr);
@@ -295,10 +288,11 @@ public:
     void SetMenuBar(nsMenuBarX* aMenuBar);
     nsMenuBarX *GetMenuBar();
 
-    NS_IMETHOD NotifyIME(NotificationToIME aNotification) MOZ_OVERRIDE;
-    NS_IMETHOD_(void) SetInputContext(
-                        const InputContext& aContext,
-                        const InputContextAction& aAction) MOZ_OVERRIDE;
+    NS_IMETHOD_(void) SetInputContext(const InputContext& aContext,
+                                      const InputContextAction& aAction)
+    {
+      mInputContext = aContext;
+    }
     NS_IMETHOD_(InputContext) GetInputContext()
     {
       NSView* view = mWindow ? [mWindow contentView] : nil;
@@ -313,6 +307,8 @@ public:
       }
       return mInputContext;
     }
+    NS_IMETHOD BeginSecureKeyboardInput();
+    NS_IMETHOD EndSecureKeyboardInput();
 
     void SetPopupWindowLevel();
 

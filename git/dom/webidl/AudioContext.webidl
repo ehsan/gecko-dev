@@ -14,7 +14,7 @@ callback DecodeSuccessCallback = void (AudioBuffer decodedData);
 callback DecodeErrorCallback = void ();
 
 [Constructor, PrefControlled]
-interface AudioContext : EventTarget {
+interface AudioContext {
 
     readonly attribute AudioDestinationNode destination;
     readonly attribute float sampleRate;
@@ -24,6 +24,9 @@ interface AudioContext : EventTarget {
     [Creator, Throws]
     AudioBuffer createBuffer(unsigned long numberOfChannels, unsigned long length, float sampleRate);
 
+    // [Creator, Throws]
+    // AudioBuffer createBuffer(ArrayBuffer buffer, boolean mixToMono);
+
     void decodeAudioData(ArrayBuffer audioData,
                          DecodeSuccessCallback successCallback,
                          optional DecodeErrorCallback errorCallback);
@@ -32,16 +35,6 @@ interface AudioContext : EventTarget {
     [Creator]
     AudioBufferSourceNode createBufferSource();
 
-    [Creator, Throws]
-    MediaStreamAudioDestinationNode createMediaStreamDestination();
-
-    [Creator, Throws]
-    ScriptProcessorNode createScriptProcessor(optional unsigned long bufferSize = 0,
-                                              optional unsigned long numberOfInputChannels = 2,
-                                              optional unsigned long numberOfOutputChannels = 2);
-
-    [Creator]
-    AnalyserNode createAnalyser();
     [Creator]
     GainNode createGain();
     [Creator, Throws]
@@ -49,47 +42,10 @@ interface AudioContext : EventTarget {
     [Creator]
     BiquadFilterNode createBiquadFilter();
     [Creator]
-    WaveShaperNode createWaveShaper();
-    [Creator]
     PannerNode createPanner();
-    [Creator]
-    ConvolverNode createConvolver();
-
-    [Creator, Throws]
-    ChannelSplitterNode createChannelSplitter(optional unsigned long numberOfOutputs = 6);
-    [Creator, Throws]
-    ChannelMergerNode createChannelMerger(optional unsigned long numberOfInputs = 6);
 
     [Creator]
     DynamicsCompressorNode createDynamicsCompressor();
 
-    [Creator, Throws]
-    PeriodicWave createPeriodicWave(Float32Array real, Float32Array imag);
-
 };
-
-/*
- * The origin of this IDL file is
- * https://dvcs.w3.org/hg/audio/raw-file/tip/webaudio/specification.html#AlternateNames
- */
-[PrefControlled]
-partial interface AudioContext {
-    [Creator, Throws]
-    AudioBuffer? createBuffer(ArrayBuffer buffer, boolean mixToMono);
-
-    // Same as createGain()
-    [Creator,Pref="media.webaudio.legacy.AudioContext"]
-    GainNode createGainNode();
-
-    // Same as createDelay()
-    [Creator, Throws, Pref="media.webaudio.legacy.AudioContext"]
-    DelayNode createDelayNode(optional double maxDelayTime = 1);
-
-    // Same as createScriptProcessor()
-    [Creator, Throws, Pref="media.webaudio.legacy.AudioContext"]
-    ScriptProcessorNode createJavaScriptNode(optional unsigned long bufferSize = 0,
-                                             optional unsigned long numberOfInputChannels = 2,
-                                             optional unsigned long numberOfOutputChannels = 2);
-};
-
 

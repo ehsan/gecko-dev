@@ -79,11 +79,11 @@ PR_STATIC_ASSERT(XBLBinding_Serialize_CustomNamespace >= kNameSpaceID_LastBuilti
 nsresult
 XBL_SerializeFunction(nsIScriptContext* aContext,
                       nsIObjectOutputStream* aStream,
-                      JS::Handle<JSObject*> aFunctionObject);
+                      JSObject* aFunctionObject);
 
 nsresult
 XBL_DeserializeFunction(nsIScriptContext* aContext,
                         nsIObjectInputStream* aStream,
-                        JS::MutableHandle<JSObject*> aFunctionObject);
+                        JSObject** aFunctionObject);
 
 #endif // nsXBLSerialize_h__

@@ -88,6 +88,13 @@ Link::ElementHasHref() const
   return false; // suppress compiler warning
 }
 
+nsLinkState
+Link::GetLinkState() const
+{
+  NS_NOTREACHED("Unexpected call to Link::GetLinkState");
+  return eLinkState_NotLink; // suppress compiler warning
+}
+
 void
 Link::SetLinkState(nsLinkState aState)
 {

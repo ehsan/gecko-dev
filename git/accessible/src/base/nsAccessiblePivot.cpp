@@ -6,6 +6,7 @@
 
 #include "nsAccessiblePivot.h"
 
+#include "Accessible-inl.h"
 #include "DocAccessible.h"
 #include "HyperTextAccessible.h"
 #include "nsAccUtils.h"
@@ -44,7 +45,7 @@ private:
 // nsAccessiblePivot
 
 nsAccessiblePivot::nsAccessiblePivot(Accessible* aRoot) :
-  mRoot(aRoot), mModalRoot(nullptr), mPosition(nullptr),
+  mRoot(aRoot), mPosition(nullptr),
   mStartOffset(-1), mEndOffset(-1)
 {
   NS_ASSERTION(aRoot, "A root accessible is required");
@@ -94,7 +95,7 @@ nsAccessiblePivot::SetPosition(nsIAccessible* aPosition)
 
   if (aPosition) {
     secondPosition = do_QueryObject(aPosition);
-    if (!secondPosition || !IsDescendantOf(secondPosition, GetActiveRoot()))
+    if (!secondPosition || !IsRootDescendant(secondPosition))
       return NS_ERROR_INVALID_ARG;
   }
 
@@ -104,32 +105,6 @@ nsAccessiblePivot::SetPosition(nsIAccessible* aPosition)
   mStartOffset = mEndOffset = -1;
   NotifyOfPivotChange(secondPosition, oldStart, oldEnd,
                       nsIAccessiblePivot::REASON_NONE);
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsAccessiblePivot::GetModalRoot(nsIAccessible** aModalRoot)
-{
-  NS_ENSURE_ARG_POINTER(aModalRoot);
-
-  NS_IF_ADDREF(*aModalRoot = mModalRoot);
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsAccessiblePivot::SetModalRoot(nsIAccessible* aModalRoot)
-{
-  nsRefPtr<Accessible> modalRoot;
-
-  if (aModalRoot) {
-    modalRoot = do_QueryObject(aModalRoot);
-    if (!modalRoot || !IsDescendantOf(modalRoot, mRoot))
-      return NS_ERROR_INVALID_ARG;
-  }
-
-  mModalRoot.swap(modalRoot);
 
   return NS_OK;
 }
@@ -171,7 +146,7 @@ nsAccessiblePivot::SetTextRange(nsIAccessibleText* aTextAccessible,
     return NS_ERROR_INVALID_ARG;
 
   HyperTextAccessible* newPosition = acc->AsHyperText();
-  if (!newPosition || !IsDescendantOf(newPosition, GetActiveRoot()))
+  if (!newPosition || !IsRootDescendant(newPosition))
     return NS_ERROR_INVALID_ARG;
 
   // Make sure the given offsets don't exceed the character count.
@@ -205,10 +180,9 @@ nsAccessiblePivot::MoveNext(nsIAccessibleTraversalRule* aRule,
 
   *aResult = false;
 
-  Accessible* root = GetActiveRoot();
   nsRefPtr<Accessible> anchor =
     (aArgc > 0) ? do_QueryObject(aAnchor) : mPosition;
-  if (anchor && (anchor->IsDefunct() || !IsDescendantOf(anchor, root)))
+  if (anchor && (anchor->IsDefunct() || !IsRootDescendant(anchor)))
     return NS_ERROR_NOT_IN_TREE;
 
   nsresult rv = NS_OK;
@@ -233,10 +207,9 @@ nsAccessiblePivot::MovePrevious(nsIAccessibleTraversalRule* aRule,
 
   *aResult = false;
 
-  Accessible* root = GetActiveRoot();
   nsRefPtr<Accessible> anchor =
     (aArgc > 0) ? do_QueryObject(aAnchor) : mPosition;
-  if (anchor && (anchor->IsDefunct() || !IsDescendantOf(anchor, root)))
+  if (anchor && (anchor->IsDefunct() || !IsRootDescendant(anchor)))
     return NS_ERROR_NOT_IN_TREE;
 
   nsresult rv = NS_OK;
@@ -256,11 +229,11 @@ nsAccessiblePivot::MoveFirst(nsIAccessibleTraversalRule* aRule, bool* aResult)
   NS_ENSURE_ARG(aResult);
   NS_ENSURE_ARG(aRule);
 
-  Accessible* root = GetActiveRoot();
-  NS_ENSURE_TRUE(root && !root->IsDefunct(), NS_ERROR_NOT_IN_TREE);
+  if (mRoot && mRoot->IsDefunct())
+    return NS_ERROR_NOT_IN_TREE;
 
   nsresult rv = NS_OK;
-  Accessible* accessible = SearchForward(root, aRule, true, &rv);
+  Accessible* accessible = SearchForward(mRoot, aRule, true, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (accessible)
@@ -270,21 +243,20 @@ nsAccessiblePivot::MoveFirst(nsIAccessibleTraversalRule* aRule, bool* aResult)
 }
 
 NS_IMETHODIMP
-nsAccessiblePivot::MoveLast(nsIAccessibleTraversalRule* aRule,
-                            bool* aResult)
+nsAccessiblePivot::MoveLast(nsIAccessibleTraversalRule* aRule, bool* aResult)
 {
   NS_ENSURE_ARG(aResult);
   NS_ENSURE_ARG(aRule);
 
-  Accessible* root = GetActiveRoot();
-  NS_ENSURE_TRUE(root && !root->IsDefunct(), NS_ERROR_NOT_IN_TREE);
+  if (mRoot && mRoot->IsDefunct())
+    return NS_ERROR_NOT_IN_TREE;
 
   *aResult = false;
   nsresult rv = NS_OK;
-  Accessible* lastAccessible = root;
+  Accessible* lastAccessible = mRoot;
   Accessible* accessible = nullptr;
 
-  // First go to the last accessible in pre-order
+  // First got to the last accessible in pre-order
   while (lastAccessible->HasChildren())
     lastAccessible = lastAccessible->LastChild();
 
@@ -330,13 +302,13 @@ nsAccessiblePivot::MoveToPoint(nsIAccessibleTraversalRule* aRule,
 
   *aResult = false;
 
-  Accessible* root = GetActiveRoot();
-  NS_ENSURE_TRUE(root && !root->IsDefunct(), NS_ERROR_NOT_IN_TREE);
+  if (mRoot && mRoot->IsDefunct())
+    return NS_ERROR_NOT_IN_TREE;
 
   RuleCache cache(aRule);
   Accessible* match = nullptr;
-  Accessible* child = root->ChildAtPoint(aX, aY, Accessible::eDeepestChild);
-  while (child && root != child) {
+  Accessible* child = mRoot->ChildAtPoint(aX, aY, Accessible::eDeepestChild);
+  while (child && mRoot != child) {
     uint16_t filtered = nsIAccessibleTraversalRule::FILTER_IGNORE;
     nsresult rv = cache.ApplyFilter(child, &filtered);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -388,15 +360,15 @@ nsAccessiblePivot::RemoveObserver(nsIAccessiblePivotObserver* aObserver)
 // Private utility methods
 
 bool
-nsAccessiblePivot::IsDescendantOf(Accessible* aAccessible, Accessible* aAncestor)
+nsAccessiblePivot::IsRootDescendant(Accessible* aAccessible)
 {
-  if (!aAncestor || aAncestor->IsDefunct())
+  if (!mRoot || mRoot->IsDefunct())
     return false;
 
   // XXX Optimize with IsInDocument() when appropriate. Blocked by bug 759875.
   Accessible* accessible = aAccessible;
   do {
-    if (accessible == aAncestor)
+    if (accessible == mRoot)
       return true;
   } while ((accessible = accessible->Parent()));
 
@@ -439,8 +411,7 @@ nsAccessiblePivot::SearchBackward(Accessible* aAccessible,
       return accessible;
   }
 
-  Accessible* root = GetActiveRoot();
-  while (accessible != root) {
+  while (accessible != mRoot) {
     Accessible* parent = accessible->Parent();
     int32_t idxInParent = accessible->IndexInParent();
     while (idxInParent > 0) {
@@ -486,8 +457,7 @@ nsAccessiblePivot::SearchForward(Accessible* aAccessible,
   *aResult = NS_OK;
 
   // Initial position could be not set, in that case begin search from root.
-  Accessible* root = GetActiveRoot();
-  Accessible* accessible = (!aAccessible) ? root : aAccessible;
+  Accessible* accessible = (!aAccessible) ? mRoot.get() : aAccessible;
 
   RuleCache cache(aRule);
 
@@ -512,7 +482,7 @@ nsAccessiblePivot::SearchForward(Accessible* aAccessible,
     Accessible* sibling = nullptr;
     Accessible* temp = accessible;
     do {
-      if (temp == root)
+      if (temp == mRoot)
         break;
 
       sibling = temp->NextSibling();
@@ -579,17 +549,6 @@ RuleCache::ApplyFilter(Accessible* aAccessible, uint16_t* aResult)
     if ((nsIAccessibleTraversalRule::PREFILTER_NOT_FOCUSABLE & mPreFilter) &&
         !(state & states::FOCUSABLE))
       return NS_OK;
-
-    if (nsIAccessibleTraversalRule::PREFILTER_ARIA_HIDDEN & mPreFilter) {
-      nsIContent* content = aAccessible->GetContent();
-      if (content &&
-          nsAccUtils::HasDefinedARIAToken(content, nsGkAtoms::aria_hidden) &&
-          !content->AttrValueIs(kNameSpaceID_None, nsGkAtoms::aria_hidden,
-                                nsGkAtoms::_false, eCaseMatters)) {
-        *aResult |= nsIAccessibleTraversalRule::FILTER_IGNORE_SUBTREE;
-        return NS_OK;
-      }
-    }
   }
 
   if (mAcceptRolesLength > 0) {

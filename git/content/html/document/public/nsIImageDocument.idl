@@ -11,7 +11,7 @@
 
 interface imgIRequest;
 
-[scriptable, uuid(87c27f98-37dc-4b64-a8cd-92003624bcee)]
+[scriptable, uuid(7b80eebc-c98e-4461-8bdb-6e3b6e828890)]
 interface nsIImageDocument : nsISupports {
 
   /* Whether the pref for image resizing has been set. */
@@ -27,17 +27,14 @@ interface nsIImageDocument : nsISupports {
   readonly attribute imgIRequest imageRequest;
 
   /* Resize the image to fit visible area. */
-  [binaryname(DOMShrinkToFit)]
   void shrinkToFit();
 
   /* Restore image original size. */
-  [binaryname(DOMRestoreImage)]
   void restoreImage();
 
   /* Restore the image, trying to keep a certain pixel in the same position.
    * The coordinate system is that of the shrunken image.
    */
-  [binaryname(DOMRestoreImageTo)]
   void restoreImageTo(in long x, in long y);
 
   /* A helper method for switching between states.
@@ -45,6 +42,5 @@ interface nsIImageDocument : nsISupports {
    * restore image original size, otherwise if the image is overflowing
    * current visible area resize the image to fit the area.
    */
-  [binaryname(DOMToggleImageSize)]
   void toggleImageSize();
 };  

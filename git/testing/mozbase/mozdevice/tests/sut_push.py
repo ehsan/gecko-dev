@@ -1,6 +1,5 @@
 from sut import MockAgent
 import mozdevice
-import mozlog
 import unittest
 import hashlib
 import tempfile
@@ -69,8 +68,8 @@ class PushTest(unittest.TestCase):
 
             exceptionThrown = False
             try:
-                d = mozdevice.DroidSUT("127.0.0.1", port=a.port,
-                                       logLevel=mozlog.DEBUG)
+                mozdevice.DroidSUT.debug = 4
+                d = mozdevice.DroidSUT("127.0.0.1", port=a.port)
                 d.pushDir(tempdir, "/mnt/sdcard")
             except mozdevice.DMError, e:
                 exceptionThrown = True

@@ -228,9 +228,7 @@ nsColumnSetFrame::ChooseColumnStrategy(const nsHTMLReflowState& aReflowState,
         && numColumns > 0) {
       // This expression uses truncated rounding, which is what we
       // want
-      int32_t maxColumns =
-        std::min(nscoord(nsStyleColumn::kMaxColumnCount),
-                 (availContentWidth + colGap)/(colGap + colWidth));
+      int32_t maxColumns = (availContentWidth + colGap)/(colGap + colWidth);
       numColumns = std::max(1, std::min(numColumns, maxColumns));
     }
   } else if (numColumns > 0 && availContentWidth != NS_INTRINSICSIZE) {
@@ -256,9 +254,6 @@ nsColumnSetFrame::ChooseColumnStrategy(const nsHTMLReflowState& aReflowState,
       // make sure to round down
       if (colGap + colWidth > 0) {
         numColumns = (availContentWidth + colGap)/(colGap + colWidth);
-        // The number of columns should never exceed kMaxColumnCount.
-        numColumns = std::min(nscoord(nsStyleColumn::kMaxColumnCount),
-                              numColumns);
       }
       if (numColumns <= 0) {
         numColumns = 1;
@@ -440,9 +435,7 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
 
   DrainOverflowColumns();
 
-  const bool colHeightChanged = mLastBalanceHeight != aConfig.mColMaxHeight;
-
-  if (colHeightChanged) {
+  if (mLastBalanceHeight != aConfig.mColMaxHeight) {
     mLastBalanceHeight = aConfig.mColMaxHeight;
     // XXX Seems like this could fire if incremental reflow pushed the column set
     // down so we reflow incrementally with a different available height.
@@ -543,10 +536,6 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
       kidReflowState.mFlags.mIsTopOfPage = true;
       kidReflowState.mFlags.mTableIsSplittable = false;
       kidReflowState.mFlags.mIsColumnBalancing = aConfig.mBalanceColCount < INT32_MAX;
-
-      // We need to reflow any float placeholders, even if our column height
-      // hasn't changed.
-      kidReflowState.mFlags.mMustReflowPlaceholders = !colHeightChanged;
 
 #ifdef DEBUG_roc
       printf("*** Reflowing child #%d %p: availHeight=%d\n",

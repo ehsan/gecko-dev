@@ -10,7 +10,6 @@
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsIServiceManager.h"
-#include "nsIXPConnect.h"
 #include "nsProxyRelease.h"
 #include "nsReadableUtils.h"
 #include "nsString.h"
@@ -232,8 +231,7 @@ nsDNSRecord::ReportUnusable(uint16_t aPort)
     // ignore the report.
 
     if (mHostRecord->addr_info &&
-        mIterGenCnt == mHostRecord->addr_info_gencnt &&
-        mIter) {
+        mIterGenCnt == mHostRecord->addr_info_gencnt) {
         mHostRecord->ReportUnusable(&mIter->mAddress);
     }
 
@@ -587,14 +585,13 @@ NS_IMETHODIMP
 nsDNSService::AsyncResolve(const nsACString  &hostname,
                            uint32_t           flags,
                            nsIDNSListener    *listener,
-                           nsIEventTarget    *target_,
+                           nsIEventTarget    *target,
                            nsICancelable    **result)
 {
     // grab reference to global host resolver and IDN service.  beware
     // simultaneous shutdown!!
     nsRefPtr<nsHostResolver> res;
     nsCOMPtr<nsIIDNService> idn;
-    nsCOMPtr<nsIEventTarget> target = target_;
     bool localDomain = false;
     {
         MutexAutoLock lock(mLock);
@@ -623,13 +620,6 @@ nsDNSService::AsyncResolve(const nsACString  &hostname,
     if (idn && !IsASCII(*hostPtr)) {
         if (NS_SUCCEEDED(idn->ConvertUTF8toACE(*hostPtr, hostACE)))
             hostPtr = &hostACE;
-    }
-
-    nsCOMPtr<nsIXPConnectWrappedJS> wrappedListener = do_QueryInterface(listener);
-    if (wrappedListener && !target) {
-        nsCOMPtr<nsIThread> mainThread;
-        NS_GetMainThread(getter_AddRefs(mainThread));
-        target = do_QueryInterface(mainThread);
     }
 
     if (target) {

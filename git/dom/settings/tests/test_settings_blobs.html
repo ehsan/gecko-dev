@@ -21,8 +21,9 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=821630
 
 "use strict";
 
-if (SpecialPowers.isMainProcess()) {
+if (!SpecialPowers.getBoolPref("dom.mozSettings.enabled")) {
   SpecialPowers.Cu.import("resource://gre/modules/SettingsChangeNotifier.jsm");
+  SpecialPowers.setBoolPref("dom.mozSettings.enabled", true);
 }
 
 SpecialPowers.addPermission("settings-read", true, document);
@@ -144,8 +145,18 @@ function next() {
   }
 }
 
+function permissionTest() {
+  if (gSettingsEnabled) {
+    next();
+  } else {
+    is(mozSettings, null, "mozSettings is null when not enabled.");
+    SimpleTest.finish();
+  }
+}
+
+let gSettingsEnabled = SpecialPowers.getBoolPref("dom.mozSettings.enabled");
 SimpleTest.waitForExplicitFinish();
-addLoadEvent(next);
+addLoadEvent(permissionTest);
 </script>
 </pre>
 </body>

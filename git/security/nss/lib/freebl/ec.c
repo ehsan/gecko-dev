@@ -204,7 +204,7 @@ ec_NewKey(ECParams *ecParams, ECPrivateKey **privKey,
 {
     SECStatus rv = SECFailure;
 #ifdef NSS_ENABLE_ECC
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     ECPrivateKey *key;
     mp_int k;
     mp_err err = MP_OKAY;

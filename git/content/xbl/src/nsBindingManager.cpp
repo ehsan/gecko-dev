@@ -41,7 +41,6 @@
 
 #include "nsIScriptContext.h"
 #include "nsBindingManager.h"
-#include "nsCxPusher.h"
 
 #include "nsThreadUtils.h"
 #include "mozilla/dom/NodeListBinding.h"
@@ -80,8 +79,7 @@ public:
   nsXBLInsertionPoint* GetInsertionPointAt(int32_t i) { return static_cast<nsXBLInsertionPoint*>(mElements->ElementAt(i)); }
   void RemoveInsertionPointAt(int32_t i) { mElements->RemoveElementAt(i); }
 
-  virtual JSObject* WrapObject(JSContext *cx,
-                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE
   {
     return mozilla::dom::NodeListBinding::Wrap(cx, scope, this);
   }
@@ -1172,8 +1170,7 @@ nsBindingManager::GetBindingImplementation(nsIContent* aContent, REFNSIID aIID,
 
       nsIDocument* doc = aContent->OwnerDoc();
 
-      nsCOMPtr<nsIScriptGlobalObject> global =
-        do_QueryInterface(doc->GetWindow());
+      nsIScriptGlobalObject *global = doc->GetScriptGlobalObject();
       if (!global)
         return NS_NOINTERFACE;
 

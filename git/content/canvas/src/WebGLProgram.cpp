@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "WebGLContext.h"
-#include "WebGLShader.h"
 #include "WebGLProgram.h"
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
 #include "nsContentUtils.h"
@@ -45,7 +44,7 @@ static bool SplitLastSquareBracket(nsACString& string, nsCString& bracketPart)
 }
 
 JSObject*
-WebGLProgram::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope) {
+WebGLProgram::WrapObject(JSContext *cx, JSObject *scope) {
     return dom::WebGLProgramBinding::Wrap(cx, scope, this);
 }
 
@@ -225,6 +224,19 @@ WebGLProgram::ReverseMapIdentifier(const nsACString& name, nsCString *reverseMap
 
 WebGLUniformInfo
 WebGLProgram::GetUniformInfoForMappedIdentifier(const nsACString& name) {
+    if (!mUniformInfoMap) {
+        // if the identifier-to-array-size map doesn't exist yet, build it now
+        mUniformInfoMap = new CStringToUniformInfoMap;
+        mUniformInfoMap->Init();
+        for (size_t i = 0; i < mAttachedShaders.Length(); i++) {
+            for (size_t j = 0; j < mAttachedShaders[i]->mUniforms.Length(); j++) {
+                const WebGLMappedIdentifier& uniform = mAttachedShaders[i]->mUniforms[j];
+                const WebGLUniformInfo& info = mAttachedShaders[i]->mUniformInfos[j];
+                mUniformInfoMap->Put(uniform.mapped, info);
+            }
+        }
+    }
+
     nsCString mutableName(name);
     nsCString bracketPart;
     bool hadBracketPart = SplitLastSquareBracket(mutableName, bracketPart);

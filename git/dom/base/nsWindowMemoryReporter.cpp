@@ -4,7 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "amIAddonManager.h"
 #include "nsWindowMemoryReporter.h"
 #include "nsGlobalWindow.h"
 #include "nsIDocument.h"
@@ -57,9 +56,9 @@ static already_AddRefed<nsIURI>
 GetWindowURI(nsIDOMWindow *aWindow)
 {
   nsCOMPtr<nsPIDOMWindow> pWindow = do_QueryInterface(aWindow);
-  NS_ENSURE_TRUE(pWindow, nullptr);
+  NS_ENSURE_TRUE(pWindow, NULL);
 
-  nsCOMPtr<nsIDocument> doc = pWindow->GetExtantDoc();
+  nsCOMPtr<nsIDocument> doc = do_QueryInterface(pWindow->GetExtantDocument());
   nsCOMPtr<nsIURI> uri;
 
   if (doc) {
@@ -69,7 +68,7 @@ GetWindowURI(nsIDOMWindow *aWindow)
   if (!uri) {
     nsCOMPtr<nsIScriptObjectPrincipal> scriptObjPrincipal =
       do_QueryInterface(aWindow);
-    NS_ENSURE_TRUE(scriptObjPrincipal, nullptr);
+    NS_ENSURE_TRUE(scriptObjPrincipal, NULL);
 
     // GetPrincipal() will print a warning if the window does not have an outer
     // window, so check here for an outer window first.  This code is
@@ -115,7 +114,6 @@ typedef nsDataHashtable<nsUint64HashKey, nsCString> WindowPaths;
 
 static nsresult
 CollectWindowReports(nsGlobalWindow *aWindow,
-                     amIAddonManager *addonManager,
                      nsWindowSizes *aWindowTotalSizes,
                      nsTHashtable<nsUint64HashKey> *aGhostWindowIDs,
                      WindowPaths *aWindowPaths,
@@ -123,34 +121,16 @@ CollectWindowReports(nsGlobalWindow *aWindow,
                      nsIMemoryMultiReporterCallback *aCb,
                      nsISupports *aClosure)
 {
-  nsAutoCString windowPath("explicit/");
+  nsAutoCString windowPath("explicit/window-objects/");
 
   // Avoid calling aWindow->GetTop() if there's no outer window.  It will work
   // just fine, but will spew a lot of warnings.
   nsGlobalWindow *top = NULL;
-  nsCOMPtr<nsIURI> location;
   if (aWindow->GetOuterWindow()) {
     // Our window should have a null top iff it has a null docshell.
     MOZ_ASSERT(!!aWindow->GetTop() == !!aWindow->GetDocShell());
     top = aWindow->GetTop();
-    if (top) {
-      location = GetWindowURI(top);
-    }
   }
-  if (!location) {
-    location = GetWindowURI(aWindow);
-  }
-
-  if (location) {
-    bool ok;
-    nsAutoCString id;
-    if (NS_SUCCEEDED(addonManager->MapURIToAddonID(location, id, &ok)) && ok) {
-      windowPath += NS_LITERAL_CSTRING("add-ons/") + id +
-                    NS_LITERAL_CSTRING("/");
-    }
-  }
-
-  windowPath += NS_LITERAL_CSTRING("window-objects/");
 
   if (top) {
     windowPath += NS_LITERAL_CSTRING("top(");
@@ -343,13 +323,10 @@ nsWindowMemoryReporter::CollectReports(nsIMemoryMultiReporterCallback* aCb,
 
   // Collect window memory usage.
   nsWindowSizes windowTotalSizes(NULL);
-  nsCOMPtr<amIAddonManager> addonManager =
-    do_GetService("@mozilla.org/addons/integration;1");
   for (uint32_t i = 0; i < windows.Length(); i++) {
-    nsresult rv = CollectWindowReports(windows[i], addonManager,
-                                       &windowTotalSizes, &ghostWindows,
-                                       &windowPaths, &topWindowPaths, aCb,
-                                       aClosure);
+    nsresult rv = CollectWindowReports(windows[i], &windowTotalSizes,
+                                       &ghostWindows, &windowPaths, &topWindowPaths,
+                                       aCb, aClosure);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -431,6 +408,14 @@ nsWindowMemoryReporter::CollectReports(nsIMemoryMultiReporterCallback* aCb,
 #undef REPORT
 
   return NS_OK;
+}
+
+NS_IMETHODIMP
+nsWindowMemoryReporter::GetExplicitNonHeap(int64_t* aAmount)
+{
+  // This reporter only measures heap memory, so we don't need to report any
+  // bytes for it.  However, the JS multi-reporter needs to be invoked.
+  return xpc::JSMemoryMultiReporter::GetExplicitNonHeap(aAmount);
 }
 
 uint32_t
@@ -680,6 +665,14 @@ nsWindowMemoryReporter::
 GhostURLsReporter::GetName(nsACString& aName)
 {
   aName.AssignLiteral("ghost-windows");
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsWindowMemoryReporter::
+GhostURLsReporter::GetExplicitNonHeap(int64_t* aOut)
+{
+  *aOut = 0;
   return NS_OK;
 }
 

@@ -21,7 +21,7 @@ class gfxFontFamily;
 
 namespace mozilla { namespace gfx { class DrawTarget; }}
 
-class gfxPlatformMac : public gfxPlatform {
+class THEBES_API gfxPlatformMac : public gfxPlatform {
 public:
     gfxPlatformMac();
     virtual ~gfxPlatformMac();
@@ -88,8 +88,6 @@ public:
     CreateThebesSurfaceAliasForDrawTarget_hack(mozilla::gfx::DrawTarget *aTarget);
 private:
     virtual qcms_profile* GetPlatformCMSOutputProfile();
-
-    virtual bool SupportsOffMainThreadCompositing();
 
     // read in the pref value for the lower threshold on font anti-aliasing
     static uint32_t ReadAntiAliasingThreshold();

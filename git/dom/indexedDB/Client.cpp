@@ -15,7 +15,6 @@
 #include "TransactionThreadPool.h"
 
 USING_INDEXEDDB_NAMESPACE
-using mozilla::dom::quota::AssertIsOnIOThread;
 using mozilla::dom::quota::QuotaManager;
 
 namespace {
@@ -47,8 +46,6 @@ NS_IMPL_RELEASE(mozilla::dom::indexedDB::Client)
 nsresult
 Client::InitOrigin(const nsACString& aOrigin, UsageRunnable* aUsageRunnable)
 {
-  AssertIsOnIOThread();
-
   nsCOMPtr<nsIFile> directory;
   nsresult rv = GetDirectory(aOrigin, getter_AddRefs(directory));
   NS_ENSURE_SUCCESS(rv, rv);
@@ -165,7 +162,6 @@ nsresult
 Client::GetUsageForOrigin(const nsACString& aOrigin,
                           UsageRunnable* aUsageRunnable)
 {
-  AssertIsOnIOThread();
   NS_ASSERTION(aUsageRunnable, "Null pointer!");
 
   nsCOMPtr<nsIFile> directory;
@@ -178,33 +174,9 @@ Client::GetUsageForOrigin(const nsACString& aOrigin,
   return NS_OK;
 }
 
-void
-Client::OnOriginClearCompleted(const nsACString& aPattern)
-{
-  AssertIsOnIOThread();
-
-  IndexedDatabaseManager* mgr = IndexedDatabaseManager::Get();
-  if (mgr) {
-    mgr->InvalidateFileManagersForPattern(aPattern);
-  }
-}
-
-void
-Client::ReleaseIOThreadObjects()
-{
-  AssertIsOnIOThread();
-
-  IndexedDatabaseManager* mgr = IndexedDatabaseManager::Get();
-  if (mgr) {
-    mgr->InvalidateAllFileManagers();
-  }
-}
-
 bool
 Client::IsTransactionServiceActivated()
 {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
   return !!TransactionThreadPool::Get();
 }
 
@@ -212,19 +184,16 @@ void
 Client::WaitForStoragesToComplete(nsTArray<nsIOfflineStorage*>& aStorages,
                                   nsIRunnable* aCallback)
 {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(!aStorages.IsEmpty(), "No storages to wait on!");
   NS_ASSERTION(aCallback, "Passed null callback!");
 
   TransactionThreadPool* pool = TransactionThreadPool::Get();
   NS_ASSERTION(pool, "Should have checked if transaction service is active!");
 
-  nsTArray<nsRefPtr<IDBDatabase> > databases(aStorages.Length());
+  nsTArray<IDBDatabase*> databases(aStorages.Length());
   for (uint32_t index = 0; index < aStorages.Length(); index++) {
     IDBDatabase* database = IDBDatabase::FromStorage(aStorages[index]);
-    if (!database) {
-      MOZ_CRASH();
-    }
+    NS_ASSERTION(database, "This shouldn't be null!");
 
     databases.AppendElement(database);
   }
@@ -235,7 +204,6 @@ Client::WaitForStoragesToComplete(nsTArray<nsIOfflineStorage*>& aStorages,
 void
 Client::AbortTransactionsForStorage(nsIOfflineStorage* aStorage)
 {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(aStorage, "Passed null storage!");
 
   TransactionThreadPool* pool = TransactionThreadPool::Get();
@@ -250,8 +218,6 @@ Client::AbortTransactionsForStorage(nsIOfflineStorage* aStorage)
 bool
 Client::HasTransactionsForStorage(nsIOfflineStorage* aStorage)
 {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
   TransactionThreadPool* pool = TransactionThreadPool::Get();
   NS_ASSERTION(pool, "Should have checked if transaction service is active!");
 
@@ -262,11 +228,27 @@ Client::HasTransactionsForStorage(nsIOfflineStorage* aStorage)
 }
 
 void
+Client::OnOriginClearCompleted(const nsACString& aPattern)
+{
+  IndexedDatabaseManager* mgr = IndexedDatabaseManager::Get();
+  if (mgr) {
+    mgr->InvalidateFileManagersForPattern(aPattern);
+  }
+}
+
+void
 Client::ShutdownTransactionService()
 {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
   TransactionThreadPool::Shutdown();
+}
+
+void
+Client::OnShutdownCompleted()
+{
+  IndexedDatabaseManager* mgr = IndexedDatabaseManager::Get();
+  if (mgr) {
+    mgr->InvalidateAllFileManagers();
+  }
 }
 
 nsresult

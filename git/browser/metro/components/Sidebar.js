@@ -70,6 +70,14 @@ Sidebar.prototype = {
   },
 
   // =========================== nsISidebar ===========================
+  addPanel: function addPanel(aTitle, aContentURL, aCustomizeURL) {
+    // not supported
+  },
+
+  addPersistentPanel: function addPersistentPanel(aTitle, aContentURL, aCustomizeURL) {
+    // not supported
+  },
+
   // The suggestedTitle and suggestedCategory parameters are ignored, but remain
   // for backward compatibility.
   addSearchEngine: function addSearchEngine(engineURL, iconURL, suggestedTitle,

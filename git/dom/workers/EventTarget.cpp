@@ -39,8 +39,7 @@ EventTarget::GetEventListener(const nsAString& aType, ErrorResult& aRv) const
 }
 
 void
-EventTarget::SetEventListener(const nsAString& aType,
-                              JS::Handle<JSObject*> aListener,
+EventTarget::SetEventListener(const nsAString& aType, JSObject* aListener,
                               ErrorResult& aRv)
 {
   JSContext* cx = GetJSContext();
@@ -57,8 +56,7 @@ EventTarget::SetEventListener(const nsAString& aType,
 }
 
 void
-EventTarget::AddEventListener(const nsAString& aType,
-                              JS::Handle<JSObject*> aListener,
+EventTarget::AddEventListener(const nsAString& aType, JSObject* aListener,
                               bool aCapturing, Nullable<bool> aWantsUntrusted,
                               ErrorResult& aRv)
 {
@@ -82,8 +80,7 @@ EventTarget::AddEventListener(const nsAString& aType,
 }
 
 void
-EventTarget::RemoveEventListener(const nsAString& aType,
-                                 JS::Handle<JSObject*> aListener,
+EventTarget::RemoveEventListener(const nsAString& aType, JSObject* aListener,
                                  bool aCapturing, ErrorResult& aRv)
 {
   if (!aListener) {

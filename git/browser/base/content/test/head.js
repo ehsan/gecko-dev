@@ -97,38 +97,25 @@ function waitForCondition(condition, nextTest, errorMsg) {
   var moveOn = function() { clearInterval(interval); nextTest(); };
 }
 
-function getTestPlugin(aName) {
-  var pluginName = aName || "Test Plug-in";
+function getTestPlugin() {
   var ph = Cc["@mozilla.org/plugin/host;1"].getService(Ci.nsIPluginHost);
   var tags = ph.getPluginTags();
 
   // Find the test plugin
   for (var i = 0; i < tags.length; i++) {
-    if (tags[i].name == pluginName)
+    if (tags[i].name == "Test Plug-in")
       return tags[i];
   }
   ok(false, "Unable to find plugin");
   return null;
 }
 
-// after a test is done using the plugin doorhanger, we should just clear
-// any permissions that may have crept in
-function clearAllPluginPermissions() {
-  let perms = Services.perms.enumerator;
-  while (perms.hasMoreElements()) {
-    let perm = perms.getNext();
-    if (perm.type.startsWith('plugin')) {
-      Services.perms.remove(perm.host, perm.type);
-    }
-  }
-}
-
 function updateBlocklist(aCallback) {
   var blocklistNotifier = Cc["@mozilla.org/extensions/blocklist;1"]
                           .getService(Ci.nsITimerCallback);
   var observer = function() {
+    aCallback();
     Services.obs.removeObserver(observer, "blocklist-updated");
-    SimpleTest.executeSoon(aCallback);
   };
   Services.obs.addObserver(observer, "blocklist-updated", false);
   blocklistNotifier.notify(null);
@@ -207,21 +194,6 @@ function promiseIsURIVisited(aURI, aExpectedValue) {
   });
 
   return deferred.promise;
-}
-
-function whenNewTabLoaded(aWindow, aCallback) {
-  aWindow.BrowserOpenTab();
-
-  let browser = aWindow.gBrowser.selectedBrowser;
-  if (browser.contentDocument.readyState === "complete") {
-    aCallback();
-    return;
-  }
-
-  browser.addEventListener("load", function onLoad() {
-    browser.removeEventListener("load", onLoad, true);
-    aCallback();
-  }, true);
 }
 
 function addVisits(aPlaceInfo, aCallback) {

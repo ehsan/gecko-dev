@@ -14,9 +14,8 @@ const { merge } = require("./util/object");
 const { stringify } = require("./querystring");
 const { EventTarget } = require("./event/target");
 const { Class } = require("./core/heritage");
-const { XMLHttpRequest, forceAllowThirdPartyCookie } = require("./net/xhr");
+const { XMLHttpRequest } = require("./net/xhr");
 const apiUtils = require("./deprecated/api-utils");
-const { isValidURI } = require("./url.js");
 
 const response = ns();
 const request = ns();
@@ -25,9 +24,8 @@ const request = ns();
 // reuse it.
 const { validateOptions, validateSingleOption } = new OptionsValidator({
   url: {
-    // Also converts a URL instance to string, bug 857902
-    map: function (url) url.toString(),
-    ok: isValidURI
+    //XXXzpao should probably verify that url is a valid url as well
+    is:  ["string"]
   },
   headers: {
     map: function (v) v || {},
@@ -50,13 +48,11 @@ const { validateOptions, validateSingleOption } = new OptionsValidator({
 const REUSE_ERROR = "This request object has been used already. You must " +
                     "create a new one to make a new request."
 
-// Utility function to prep the request since it's the same between
-// request types
+// Utility function to prep the request since it's the same between GET and
+// POST
 function runRequest(mode, target) {
   let source = request(target)
   let { xhr, url, content, contentType, headers, overrideMimeType } = source;
-
-  let isGetOrHead = (mode == "GET" || mode == "HEAD");
 
   // If this request has already been used, then we can't reuse it.
   // Throw an error.
@@ -65,18 +61,17 @@ function runRequest(mode, target) {
 
   xhr = source.xhr = new XMLHttpRequest();
 
-  // Build the data to be set. For GET or HEAD requests, we want to append that
-  // to the URL before opening the request.
+  // Build the data to be set. For GET requests, we want to append that to
+  // the URL before opening the request.
   let data = stringify(content);
   // If the URL already has ? in it, then we want to just use &
-  if (isGetOrHead && data)
+  if (mode == "GET" && data)
     url = url + (/\?/.test(url) ? "&" : "?") + data;
 
   // open the request
   xhr.open(mode, url);
 
-
-  forceAllowThirdPartyCookie(xhr);
+  xhr.forceAllowThirdPartyCookie();
 
   // request header must be set after open, but before send
   xhr.setRequestHeader("Content-Type", contentType);
@@ -100,8 +95,8 @@ function runRequest(mode, target) {
   };
 
   // actually send the request.
-  // We don't want to send data on GET or HEAD requests.
-  xhr.send(!isGetOrHead ? data : null);
+  // We don't want to send data on GET requests.
+  xhr.send(mode !== "GET" ? data : null);
 }
 
 const Request = Class({
@@ -140,10 +135,6 @@ const Request = Class({
   },
   put: function() {
     runRequest('PUT', this);
-    return this;
-  },
-  head: function() {
-    runRequest('HEAD', this);
     return this;
   }
 });

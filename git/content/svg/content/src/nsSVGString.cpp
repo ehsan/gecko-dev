@@ -9,26 +9,22 @@
 #include "SMILStringType.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
-NS_SVG_VAL_IMPL_CYCLE_COLLECTION_WRAPPERCACHED(nsSVGString::DOMAnimatedString, mSVGElement)
+NS_SVG_VAL_IMPL_CYCLE_COLLECTION(nsSVGString::DOMAnimatedString, mSVGElement)
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsSVGString::DOMAnimatedString)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGString::DOMAnimatedString)
 
+DOMCI_DATA(SVGAnimatedString, nsSVGString::DOMAnimatedString)
+
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGString::DOMAnimatedString)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedString)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAnimatedString)
 NS_INTERFACE_MAP_END
 
-static inline
-nsSVGAttrTearoffTable<nsSVGString, nsSVGString::DOMAnimatedString>&
-SVGAnimatedStringTearoffTable()
-{
-  static nsSVGAttrTearoffTable<nsSVGString, nsSVGString::DOMAnimatedString>
-    sSVGAnimatedStringTearoffTable;
-  return sSVGAnimatedStringTearoffTable;
-}
+static nsSVGAttrTearoffTable<nsSVGString, nsSVGString::DOMAnimatedString>
+  sSVGAnimatedStringTearoffTable;
 
 /* Implementation */
 
@@ -76,14 +72,22 @@ nsSVGString::SetAnimValue(const nsAString& aValue, nsSVGElement *aSVGElement)
   }
 }
 
-already_AddRefed<SVGAnimatedString>
+nsresult
+nsSVGString::ToDOMAnimatedString(nsIDOMSVGAnimatedString **aResult,
+                                 nsSVGElement *aSVGElement)
+{
+  *aResult = ToDOMAnimatedString(aSVGElement).get();
+  return NS_OK;
+}
+
+already_AddRefed<nsIDOMSVGAnimatedString>
 nsSVGString::ToDOMAnimatedString(nsSVGElement* aSVGElement)
 {
   nsRefPtr<DOMAnimatedString> domAnimatedString =
-    SVGAnimatedStringTearoffTable().GetTearoff(this);
+    sSVGAnimatedStringTearoffTable.GetTearoff(this);
   if (!domAnimatedString) {
     domAnimatedString = new DOMAnimatedString(this, aSVGElement);
-    SVGAnimatedStringTearoffTable().AddTearoff(this, domAnimatedString);
+    sSVGAnimatedStringTearoffTable.AddTearoff(this, domAnimatedString);
   }
 
   return domAnimatedString.forget();
@@ -91,7 +95,7 @@ nsSVGString::ToDOMAnimatedString(nsSVGElement* aSVGElement)
 
 nsSVGString::DOMAnimatedString::~DOMAnimatedString()
 {
-  SVGAnimatedStringTearoffTable().RemoveTearoff(mVal);
+  sSVGAnimatedStringTearoffTable.RemoveTearoff(mVal);
 }
 
 nsISMILAttr*
@@ -106,7 +110,7 @@ nsSVGString::SMILString::ValueFromString(const nsAString& aStr,
                                          nsSMILValue& aValue,
                                          bool& aPreventCachingOfSandwich) const
 {
-  nsSMILValue val(SMILStringType::Singleton());
+  nsSMILValue val(&SMILStringType::sSingleton);
 
   *static_cast<nsAString*>(val.mU.mPtr) = aStr;
   aValue.Swap(val);
@@ -117,7 +121,7 @@ nsSVGString::SMILString::ValueFromString(const nsAString& aStr,
 nsSMILValue
 nsSVGString::SMILString::GetBaseValue() const
 {
-  nsSMILValue val(SMILStringType::Singleton());
+  nsSMILValue val(&SMILStringType::sSingleton);
   mSVGElement->GetStringBaseValue(mVal->mAttrEnum, *static_cast<nsAString*>(val.mU.mPtr));
   return val;
 }
@@ -134,9 +138,9 @@ nsSVGString::SMILString::ClearAnimValue()
 nsresult
 nsSVGString::SMILString::SetAnimValue(const nsSMILValue& aValue)
 {
-  NS_ASSERTION(aValue.mType == SMILStringType::Singleton(),
+  NS_ASSERTION(aValue.mType == &SMILStringType::sSingleton,
                "Unexpected type to assign animated value");
-  if (aValue.mType == SMILStringType::Singleton()) {
+  if (aValue.mType == &SMILStringType::sSingleton) {
     mVal->SetAnimValue(*static_cast<nsAString*>(aValue.mU.mPtr), mSVGElement);
   }
   return NS_OK;

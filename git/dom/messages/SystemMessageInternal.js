@@ -21,10 +21,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "gUUIDGenerator",
                                    "@mozilla.org/uuid-generator;1",
                                    "nsIUUIDGenerator");
 
-XPCOMUtils.defineLazyServiceGetter(this, "powerManagerService",
-                                   "@mozilla.org/power/powermanagerservice;1",
-                                   "nsIPowerManagerService");
-
 // Limit the number of pending messages for a given page.
 let kMaxPendingMessages;
 try {
@@ -40,7 +36,6 @@ const kMessages =["SystemMessageManager:GetPendingMessages",
                   "SystemMessageManager:Unregister",
                   "SystemMessageManager:Message:Return:OK",
                   "SystemMessageManager:AskReadyToRegister",
-                  "SystemMessageManager:HandleMessagesDone",
                   "child-process-shutdown"]
 
 function debug(aMsg) {
@@ -64,8 +59,6 @@ function SystemMessageInternal() {
   this._webappsRegistryReady = false;
   this._bufferedSysMsgs = [];
 
-  this._cpuWakeLocks = {};
-
   Services.obs.addObserver(this, "xpcom-shutdown", false);
   Services.obs.addObserver(this, "webapps-registry-start", false);
   Services.obs.addObserver(this, "webapps-registry-ready", false);
@@ -77,68 +70,6 @@ function SystemMessageInternal() {
 }
 
 SystemMessageInternal.prototype = {
-
-  _cancelCpuWakeLock: function _cancelCpuWakeLock(aPageKey) {
-    let cpuWakeLock = this._cpuWakeLocks[aPageKey];
-    if (cpuWakeLock) {
-      debug("Releasing the CPU wake lock for page key = " + aPageKey);
-      cpuWakeLock.wakeLock.unlock();
-      cpuWakeLock.timer.cancel();
-      delete this._cpuWakeLocks[aPageKey];
-    }
-  },
-
-  _acquireCpuWakeLock: function _acquireCpuWakeLock(aPageKey) {
-    let cpuWakeLock = this._cpuWakeLocks[aPageKey];
-    if (!cpuWakeLock) {
-      // We have to ensure the CPU doesn't sleep during the process of the page
-      // handling the system messages, so that they can be handled on time.
-      debug("Acquiring a CPU wake lock for page key = " + aPageKey);
-      cpuWakeLock = this._cpuWakeLocks[aPageKey] = {
-        wakeLock: powerManagerService.newWakeLock("cpu"),
-        timer: Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer),
-        lockCount: 1
-      };
-    } else {
-      // We've already acquired the CPU wake lock for this page,
-      // so just add to the lock count and extend the timeout.
-      cpuWakeLock.lockCount++;
-    }
-
-    // Set a watchdog to avoid locking the CPU wake lock too long,
-    // because it'd exhaust the battery quickly which is very bad.
-    // This could probably happen if the app failed to launch or
-    // handle the system messages due to any unexpected reasons.
-    cpuWakeLock.timer.initWithCallback(function timerCb() {
-      debug("Releasing the CPU wake lock because the system messages " +
-            "were not handled by its registered page before time out.");
-      this._cancelCpuWakeLock(aPageKey);
-    }.bind(this), 30000, Ci.nsITimer.TYPE_ONE_SHOT);
-  },
-
-  _releaseCpuWakeLock: function _releaseCpuWakeLock(aPageKey, aHandledCount) {
-    let cpuWakeLock = this._cpuWakeLocks[aPageKey];
-    if (cpuWakeLock) {
-      cpuWakeLock.lockCount -= aHandledCount;
-      if (cpuWakeLock.lockCount <= 0) {
-        debug("Unlocking the CPU wake lock now that the system messages " +
-              "have been successfully handled by its registered page.");
-        this._cancelCpuWakeLock(aPageKey);
-      }
-    }
-  },
-
-  _findPage: function _findPage(aType, aPageURL, aManifestURL) {
-    let page = null;
-    this._pages.some(function(aPage) {
-      if (this._isPageMatched(aPage, aType, aPageURL, aManifestURL)) {
-        page = aPage;
-      }
-      return page !== null;
-    }, this);
-    return page;
-  },
-
   sendMessage: function sendMessage(aType, aMessage, aPageURI, aManifestURI) {
     // Buffer system messages until the webapps' registration is ready,
     // so that we can know the correct pages registered to be sent.
@@ -168,14 +99,23 @@ SystemMessageInternal.prototype = {
       return;
     }
 
-    let page = this._findPage(aType, aPageURI.spec, aManifestURI.spec);
-    if (page) {
+    let pagesToOpen = {};
+    this._pages.forEach(function(aPage) {
+      if (!this._isPageMatched(aPage, aType, aPageURI.spec, aManifestURI.spec)) {
+        return;
+      }
+
       // Queue this message in the corresponding pages.
-      this._queueMessage(page, aMessage, messageID);
+      this._queueMessage(aPage, aMessage, messageID);
 
       // Open app pages to handle their pending messages.
-      this._openAppPage(page, aMessage);
-    }
+      // Note that we only need to open each app page once.
+      let key = this._createKeyForPage(aPage);
+      if (!pagesToOpen.hasOwnProperty(key)) {
+        this._openAppPage(aPage, aMessage);
+        pagesToOpen[key] = true;
+      }
+    }, this);
   },
 
   broadcastMessage: function broadcastMessage(aType, aMessage) {
@@ -194,6 +134,7 @@ SystemMessageInternal.prototype = {
 
     debug("Broadcasting " + aType + " " + JSON.stringify(aMessage));
     // Find pages that registered an handler for this type.
+    let pagesToOpen = {};
     this._pages.forEach(function(aPage) {
       if (aPage.type == aType) {
         // Don't need to open the pages and queue the system message
@@ -210,7 +151,12 @@ SystemMessageInternal.prototype = {
         this._queueMessage(aPage, aMessage, messageID);
 
         // Open app pages to handle their pending messages.
-        this._openAppPage(aPage, aMessage);
+        // Note that we only need to open each app page once.
+        let key = this._createKeyForPage(aPage);
+        if (!pagesToOpen.hasOwnProperty(key)) {
+          this._openAppPage(aPage, aMessage);
+          pagesToOpen[key] = true;
+        }
       }
     }, this);
   },
@@ -220,20 +166,9 @@ SystemMessageInternal.prototype = {
       throw Cr.NS_ERROR_INVALID_ARG;
     }
 
-    let pageURL = aPageURI.spec;
-    let manifestURL = aManifestURI.spec;
-
-    // Don't register duplicates for this tuple.
-    let page = this._findPage(aType, pageURL, manifestURL);
-    if (page) {
-      debug("Ignoring duplicate registration of " +
-            [aType, pageURL, manifestURL]);
-      return;
-    }
-
     this._pages.push({ type: aType,
-                       uri: pageURL,
-                       manifest: manifestURL,
+                       uri: aPageURI.spec,
+                       manifest: aManifestURI.spec,
                        pendingMessages: [] });
   },
 
@@ -250,17 +185,7 @@ SystemMessageInternal.prototype = {
     return -1;
   },
 
-  _isEmptyObject: function _isEmptyObject(aObj) {
-    for (let name in aObj) {
-      return false;
-    }
-    return true;
-  },
-
-  _removeTargetFromListener: function _removeTargetFromListener(aTarget,
-                                                                aManifest,
-                                                                aRemoveListener,
-                                                                aUri) {
+  _removeTargetFromListener: function _removeTargetFromListener(aTarget, aManifest, aRemoveListener) {
     let targets = this._listeners[aManifest];
     if (!targets) {
       return false;
@@ -277,13 +202,7 @@ SystemMessageInternal.prototype = {
       return true;
     }
 
-    let target = targets[index];
-    if (aUri && target.winCounts[aUri] !== undefined &&
-        --target.winCounts[aUri] === 0) {
-      delete target.winCounts[aUri];
-    }
-
-    if (this._isEmptyObject(target.winCounts)) {
+    if (--targets[index].winCount === 0) {
       if (targets.length === 1) {
         // If it's the only one, get rid of this manifest entirely.
         debug("remove the listener for " + aManifest);
@@ -305,8 +224,7 @@ SystemMessageInternal.prototype = {
          "SystemMessageManager:Unregister",
          "SystemMessageManager:GetPendingMessages",
          "SystemMessageManager:HasPendingMessages",
-         "SystemMessageManager:Message:Return:OK",
-         "SystemMessageManager:HandleMessagesDone"].indexOf(aMessage.name) != -1) {
+         "SystemMessageManager:Message:Return:OK"].indexOf(aMessage.name) != -1) {
       if (!aMessage.target.assertContainApp(msg.manifest)) {
         debug("Got message from a child process containing illegal manifest URL.");
         return null;
@@ -319,26 +237,16 @@ SystemMessageInternal.prototype = {
         break;
       case "SystemMessageManager:Register":
       {
-        debug("Got Register from " + msg.uri + " @ " + msg.manifest);
-        let uri = msg.uri;
+        debug("Got Register from " + msg.manifest);
         let targets, index;
         if (!(targets = this._listeners[msg.manifest])) {
-          let winCounts = {};
-          winCounts[uri] = 1;
           this._listeners[msg.manifest] = [{ target: aMessage.target,
-                                             winCounts: winCounts }];
+                                             winCount: 1 }];
         } else if ((index = this._findTargetIndex(targets, aMessage.target)) === -1) {
-          let winCounts = {};
-          winCounts[uri] = 1;
           targets.push({ target: aMessage.target,
-                         winCounts: winCounts });
+                         winCount: 1 });
         } else {
-          let winCounts = targets[index].winCounts;
-          if (winCounts[uri] === undefined) {
-            winCounts[uri] = 1;
-          } else {
-            winCounts[uri]++;
-          }
+          targets[index].winCount++;
         }
 
         debug("listeners for " + msg.manifest + " innerWinID " + msg.innerWindowID);
@@ -349,7 +257,7 @@ SystemMessageInternal.prototype = {
         debug("Got child-process-shutdown from " + aMessage.target);
         for (let manifest in this._listeners) {
           // See if any processes in this manifest have this target.
-          if (this._removeTargetFromListener(aMessage.target, manifest, true, null)) {
+          if (this._removeTargetFromListener(aMessage.target, manifest, true)) {
             break;
           }
         }
@@ -358,7 +266,7 @@ SystemMessageInternal.prototype = {
       case "SystemMessageManager:Unregister":
       {
         debug("Got Unregister from " + aMessage.target + "innerWinID " + msg.innerWindowID);
-        this._removeTargetFromListener(aMessage.target, msg.manifest, false, msg.uri);
+        this._removeTargetFromListener(aMessage.target, msg.manifest, false);
         break;
       }
       case "SystemMessageManager:GetPendingMessages":
@@ -368,7 +276,13 @@ SystemMessageInternal.prototype = {
 
         // This is a sync call used to return the pending messages for a page.
         // Find the right page to get its corresponding pending messages.
-        let page = this._findPage(msg.type, msg.uri, msg.manifest);
+        let page = null;
+        this._pages.some(function(aPage) {
+          if (this._isPageMatched(aPage, msg.type, msg.uri, msg.manifest)) {
+            page = aPage;
+          }
+          return page !== null;
+        }, this);
         if (!page) {
           return;
         }
@@ -384,12 +298,11 @@ SystemMessageInternal.prototype = {
         page.pendingMessages.length = 0;
 
         // Send the array of pending messages.
-        aMessage.target
-                .sendAsyncMessage("SystemMessageManager:GetPendingMessages:Return",
-                                  { type: msg.type,
-                                    manifest: msg.manifest,
-                                    uri: msg.uri,
-                                    msgQueue: pendingMessages });
+        aMessage.target.sendAsyncMessage("SystemMessageManager:GetPendingMessages:Return",
+                                         { type: msg.type,
+                                           manifest: msg.manifest,
+                                           uri: msg.uri,
+                                           msgQueue: pendingMessages });
         break;
       }
       case "SystemMessageManager:HasPendingMessages":
@@ -399,7 +312,13 @@ SystemMessageInternal.prototype = {
 
         // This is a sync call used to return if a page has pending messages.
         // Find the right page to get its corresponding pending messages.
-        let page = this._findPage(msg.type, msg.uri, msg.manifest);
+        let page = null;
+        this._pages.some(function(aPage) {
+          if (this._isPageMatched(aPage, msg.type, msg.uri, msg.manifest)) {
+            page = aPage;
+          }
+          return page !== null;
+        }, this);
         if (!page) {
           return false;
         }
@@ -414,26 +333,19 @@ SystemMessageInternal.prototype = {
 
         // We need to clean up the pending message since the app has already
         // received it, thus avoiding the re-lanunched app handling it again.
-        let page = this._findPage(msg.type, msg.uri, msg.manifest);
-        if (page) {
-          let pendingMessages = page.pendingMessages;
+        this._pages.forEach(function(aPage) {
+          if (!this._isPageMatched(aPage, msg.type, msg.uri, msg.manifest)) {
+            return;
+          }
+
+          let pendingMessages = aPage.pendingMessages;
           for (let i = 0; i < pendingMessages.length; i++) {
             if (pendingMessages[i].msgID === msg.msgID) {
               pendingMessages.splice(i, 1);
               break;
             }
           }
-        }
-        break;
-      }
-      case "SystemMessageManager:HandleMessagesDone":
-      {
-        debug("received SystemMessageManager:HandleMessagesDone " + msg.type +
-          " with " + msg.handledCount + " for " + msg.uri + " @ " + msg.manifest);
-
-        // A page has finished handling some of its system messages, so we try
-        // to release the CPU wake lock we acquired on behalf of that page.
-        this._releaseCpuWakeLock(this._createKeyForPage(msg), msg.handledCount);
+        }, this);
         break;
       }
     }
@@ -528,49 +440,17 @@ SystemMessageInternal.prototype = {
       return false;
     }
 
-    let appPageIsRunning = false;
-    let pageKey = this._createKeyForPage({ type: aType,
-                                           manifest: aManifestURI,
-                                           uri: aPageURI })
-
     let targets = this._listeners[aManifestURI];
     if (targets) {
       for (let index = 0; index < targets.length; ++index) {
-        let target = targets[index];
-        // We only need to send the system message to the targets (processes)
-        // which contain the window page that matches the manifest/page URL of
-        // the destination of system message.
-        if (target.winCounts[aPageURI] === undefined) {
-          continue;
-        }
-
-        appPageIsRunning = true;
-        // We need to acquire a CPU wake lock for that page and expect that
-        // we'll receive a "SystemMessageManager:HandleMessagesDone" message
-        // when the page finishes handling the system message. At that point,
-        // we'll release the lock we acquired.
-        this._acquireCpuWakeLock(pageKey);
-
-        // Multiple windows can share the same target (process), the content
-        // window needs to check if the manifest/page URL is matched. Only
-        // *one* window should handle the system message.
-        let manager = target.target;
-        manager.sendAsyncMessage("SystemMessageManager:Message",
-                                 { type: aType,
-                                   msg: aMessage,
-                                   manifest: aManifestURI,
-                                   uri: aPageURI,
-                                   msgID: aMessageID });
+          let manager = targets[index].target;
+          manager.sendAsyncMessage("SystemMessageManager:Message",
+                                   { type: aType,
+                                     msg: aMessage,
+                                     manifest: aManifestURI,
+                                     uri: aPageURI,
+                                     msgID: aMessageID });
       }
-    }
-
-    if (!appPageIsRunning) {
-      // The app page isn't running and relies on the 'open-app' chrome event to
-      // wake it up. We still need to acquire a CPU wake lock for that page and
-      // expect that we will receive a "SystemMessageManager:HandleMessagesDone"
-      // message when the page finishes handling the system message with other
-      // pending messages. At that point, we'll release the lock we acquired.
-      this._acquireCpuWakeLock(pageKey);
     }
 
     return true;

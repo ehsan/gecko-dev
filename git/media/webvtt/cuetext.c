@@ -29,9 +29,10 @@
 #include <string.h>
 #include "parser_internal.h"
 #include "cuetext_internal.h"
-#include "node_internal.h"
 #include "cue_internal.h"
 #include "string_internal.h"
+
+static void webvtt_skipwhite( webvtt_byte **position );
 
 #ifdef min
 # undef min
@@ -66,11 +67,23 @@ do \
     goto dealloc; \
   } \
 
+/**
+ * This will only work on null-terminated strings, remember that!
+ */
+static void
+webvtt_skipwhite( webvtt_byte **position )
+{
+  webvtt_byte *p = *position;
+  while( *p && webvtt_iswhite(*p) ) {
+    ++p;
+  }
+  *position = p;
+}
+
 WEBVTT_INTERN webvtt_status
 webvtt_create_token( webvtt_cuetext_token **token, webvtt_token_type token_type )
 {
-  webvtt_cuetext_token *temp_token =
-    (webvtt_cuetext_token *)webvtt_alloc0( sizeof(*temp_token) );
+  webvtt_cuetext_token *temp_token = (webvtt_cuetext_token *)webvtt_alloc0( sizeof(*temp_token) );
 
   if( !temp_token ) {
     return WEBVTT_OUT_OF_MEMORY;
@@ -83,23 +96,22 @@ webvtt_create_token( webvtt_cuetext_token **token, webvtt_token_type token_type 
 }
 
 WEBVTT_INTERN webvtt_status
-webvtt_create_start_token( webvtt_cuetext_token **token, webvtt_string
-                           *tag_name, webvtt_stringlist *css_classes,
-                           webvtt_string *annotation )
+webvtt_create_start_token( webvtt_cuetext_token **token, webvtt_string *tag_name,
+    webvtt_stringlist *css_classes, webvtt_string *annotation )
 {
   webvtt_status status;
   webvtt_start_token_data sd;
-
+  
   if( WEBVTT_FAILED( status = webvtt_create_token( token, START_TOKEN ) ) ) {
     return status;
   }
-
+  
   webvtt_copy_string( &(*token)->tag_name, tag_name );
   webvtt_copy_stringlist( &sd.css_classes, css_classes );
   webvtt_copy_string( &sd.annotations, annotation );
-
+  
   (*token)->start_token_data = sd;
-
+    
   return WEBVTT_SUCCESS;
 }
 
@@ -113,7 +125,7 @@ webvtt_create_end_token( webvtt_cuetext_token **token, webvtt_string *tag_name )
   }
 
   webvtt_copy_string( &(*token)->tag_name, tag_name );
-
+  
   return WEBVTT_SUCCESS;
 }
 
@@ -132,13 +144,11 @@ webvtt_create_text_token( webvtt_cuetext_token **token, webvtt_string *text )
 }
 
 WEBVTT_INTERN webvtt_status
-webvtt_create_timestamp_token( webvtt_cuetext_token **token,
-                               webvtt_timestamp time_stamp )
+webvtt_create_timestamp_token( webvtt_cuetext_token **token, webvtt_timestamp time_stamp )
 {
   webvtt_status status;
 
-  if( WEBVTT_FAILED( status = webvtt_create_token( token,
-                                                   TIME_STAMP_TOKEN ) ) ) {
+  if( WEBVTT_FAILED( status = webvtt_create_token( token, TIME_STAMP_TOKEN ) ) ) {
     return status;
   }
 
@@ -152,28 +162,32 @@ webvtt_delete_token( webvtt_cuetext_token **token )
 {
   webvtt_start_token_data data;
   webvtt_cuetext_token *t;
-
+  
   if( !token ) {
     return;
   }
   if( !*token ) {
     return;
-  }
+  }  
   t = *token;
-
-  /**
-   * Note that time stamp tokens do not need to free any internal data because
-   * they do not allocate anything.
+  
+  /** 
+   * Note that time stamp tokens do not need to free any internal data because 
+   * they do not allocate anything. 
    */
-  if( t->token_type == START_TOKEN ) {
-    data = t->start_token_data;
-    webvtt_release_stringlist( &data.css_classes );
-    webvtt_release_string( &data.annotations );
-    webvtt_release_string( &t->tag_name );
-  } else if( t->token_type == END_TOKEN ) {
-    webvtt_release_string( &t->tag_name );
-  } else if( t->token_type == TEXT_TOKEN ) {
-    webvtt_release_string( &t->text );
+  switch( t->token_type ) {
+    case START_TOKEN:
+      data = t->start_token_data;
+      webvtt_release_stringlist( &data.css_classes );
+      webvtt_release_string( &data.annotations );
+      webvtt_release_string( &t->tag_name );
+      break;
+    case END_TOKEN:
+      webvtt_release_string( &t->tag_name );
+      break;
+    case TEXT_TOKEN:
+      webvtt_release_string( &t->text );
+      break;
   }
   webvtt_free( t );
   *token = 0;
@@ -182,13 +196,11 @@ webvtt_delete_token( webvtt_cuetext_token **token )
 WEBVTT_INTERN int
 tag_accepts_annotation( webvtt_string *tag_name )
 {
-  return webvtt_string_is_equal( tag_name, "v", 1 ) ||
-         webvtt_string_is_equal( tag_name, "lang", 4 );
+  return webvtt_string_is_equal( tag_name, "v", 1 );
 }
 
 WEBVTT_INTERN webvtt_status
-webvtt_node_kind_from_tag_name( webvtt_string *tag_name,
-                                webvtt_node_kind *kind )
+webvtt_node_kind_from_tag_name( webvtt_string *tag_name, webvtt_node_kind *kind )
 {
   if( !tag_name || !kind ) {
     return WEBVTT_INVALID_PARAM;
@@ -196,19 +208,19 @@ webvtt_node_kind_from_tag_name( webvtt_string *tag_name,
 
   if( webvtt_string_length(tag_name) == 1 ) {
     switch( webvtt_string_text(tag_name)[0] ) {
-      case 'b':
+      case( UTF8_B ):
         *kind = WEBVTT_BOLD;
         break;
-      case 'i':
+      case( UTF8_I ):
         *kind = WEBVTT_ITALIC;
         break;
-      case 'u':
+      case( UTF8_U ):
         *kind = WEBVTT_UNDERLINE;
         break;
-      case 'c':
+      case( UTF8_C ):
         *kind = WEBVTT_CLASS;
         break;
-      case 'v':
+      case( UTF8_V ):
         *kind = WEBVTT_VOICE;
         break;
     }
@@ -216,8 +228,6 @@ webvtt_node_kind_from_tag_name( webvtt_string *tag_name,
     *kind = WEBVTT_RUBY;
   } else if( webvtt_string_is_equal( tag_name, "rt", 2 ) ) {
     *kind = WEBVTT_RUBY_TEXT;
-  } else if ( webvtt_string_is_equal( tag_name, "lang", 4 ) ) {
-    *kind = WEBVTT_LANG;
   } else {
     return WEBVTT_INVALID_TAG_NAME;
   }
@@ -226,8 +236,7 @@ webvtt_node_kind_from_tag_name( webvtt_string *tag_name,
 }
 
 WEBVTT_INTERN webvtt_status
-webvtt_create_node_from_token( webvtt_cuetext_token *token, webvtt_node **node,
-                               webvtt_node *parent )
+webvtt_create_node_from_token( webvtt_cuetext_token *token, webvtt_node **node, webvtt_node *parent )
 {
   webvtt_node_kind kind;
 
@@ -235,35 +244,28 @@ webvtt_create_node_from_token( webvtt_cuetext_token *token, webvtt_node **node,
     return WEBVTT_INVALID_PARAM;
   }
 
-  /**
+  /** 
    * We've recieved a node that is not null.
-   * In order to prevent memory leaks caused by overwriting a node which the
+   * In order to prevent memory leaks caused by overwriting a node which the 
    * caller has not released return unsuccessful.
    */
   if( *node ) {
     return WEBVTT_UNSUCCESSFUL;
   }
-
+  
   switch ( token->token_type ) {
-    case TEXT_TOKEN:
+    case( TEXT_TOKEN ):
       return webvtt_create_text_node( node, parent, &token->text );
       break;
-    case START_TOKEN:
-      CHECK_MEMORY_OP( webvtt_node_kind_from_tag_name( &token->tag_name,
-                                                       &kind) );
-      if( kind == WEBVTT_LANG ) {
-        return webvtt_create_lang_node( node, parent,
-                                        token->start_token_data.css_classes,
-                                        &token->start_token_data.annotations );
-      }
-      else {
-        return webvtt_create_internal_node( node, parent, kind,
-                                        token->start_token_data.css_classes,
-                                        &token->start_token_data.annotations );
-      }
+    case( START_TOKEN ):
+
+      CHECK_MEMORY_OP( webvtt_node_kind_from_tag_name( &token->tag_name, &kind) );
+
+      return webvtt_create_internal_node( node, parent, kind,
+        token->start_token_data.css_classes, &token->start_token_data.annotations );
 
       break;
-    case TIME_STAMP_TOKEN:
+    case ( TIME_STAMP_TOKEN ):
       return webvtt_create_timestamp_node( node, parent, token->time_stamp );
       break;
     default:
@@ -272,22 +274,22 @@ webvtt_create_node_from_token( webvtt_cuetext_token *token, webvtt_node **node,
 }
 
 WEBVTT_INTERN webvtt_status
-webvtt_data_state( const char **position, webvtt_token_state *token_state,
+webvtt_data_state( webvtt_byte **position, webvtt_token_state *token_state, 
                    webvtt_string *result )
 {
   for ( ; *token_state == DATA; (*position)++ ) {
     switch( **position ) {
-      case '&':
+      case UTF8_AMPERSAND:
         *token_state = ESCAPE;
         break;
-      case '<':
+      case UTF8_LESS_THAN:
         if( webvtt_string_length(result) == 0 ) {
           *token_state = TAG;
         } else {
           return WEBVTT_SUCCESS;
         }
         break;
-      case '\0':
+      case UTF8_NULL_BYTE:
         return WEBVTT_SUCCESS;
         break;
       default:
@@ -302,19 +304,19 @@ webvtt_data_state( const char **position, webvtt_token_state *token_state,
 /**
  * Definitions for escape sequence replacement strings.
  */
-#define RLM_LENGTH    3
-#define LRM_LENGTH    3
-#define NBSP_LENGTH   2
-
-char rlm_replace[RLM_LENGTH] = { UTF8_RIGHT_TO_LEFT_1, UTF8_RIGHT_TO_LEFT_2,
-                                 UTF8_RIGHT_TO_LEFT_3 };
-char lrm_replace[LRM_LENGTH] = { UTF8_LEFT_TO_RIGHT_1, UTF8_LEFT_TO_RIGHT_2,
-                                 UTF8_LEFT_TO_RIGHT_3 };
-char nbsp_replace[NBSP_LENGTH] = { UTF8_NO_BREAK_SPACE_1,
-                                   UTF8_NO_BREAK_SPACE_2 };
-
+#define RLM_REPLACE_LENGTH    3
+#define LRM_REPLACE_LENGTH    3
+#define NBSP_REPLACE_LENGTH   2
+ 
+webvtt_byte rlm_replace[RLM_REPLACE_LENGTH] = { UTF8_RIGHT_TO_LEFT_1, 
+    UTF8_RIGHT_TO_LEFT_2, UTF8_RIGHT_TO_LEFT_3 };
+webvtt_byte lrm_replace[LRM_REPLACE_LENGTH] = { UTF8_LEFT_TO_RIGHT_1,
+  UTF8_LEFT_TO_RIGHT_2, UTF8_LEFT_TO_RIGHT_3 };
+webvtt_byte nbsp_replace[NBSP_REPLACE_LENGTH] = { UTF8_NO_BREAK_SPACE_1,
+  UTF8_NO_BREAK_SPACE_2 };
+  
 WEBVTT_INTERN webvtt_status
-webvtt_escape_state( const char **position, webvtt_token_state *token_state,
+webvtt_escape_state( webvtt_byte **position, webvtt_token_state *token_state, 
                      webvtt_string *result )
 {
   webvtt_string buffer;
@@ -326,16 +328,15 @@ webvtt_escape_state( const char **position, webvtt_token_state *token_state,
    * Append ampersand here because the algorithm is not able to add it to the
    * buffer when it reads it in the DATA state tokenizer.
    */
-  CHECK_MEMORY_OP_JUMP( status, webvtt_string_putc( &buffer, '&' ) );
+  CHECK_MEMORY_OP_JUMP( status, webvtt_string_putc( &buffer, UTF8_AMPERSAND ) );
 
   for( ; *token_state == ESCAPE; (*position)++ ) {
     /**
      * We have encountered a token termination point.
      * Append buffer to result and return success.
      */
-    if( **position == '\0' || **position == '<' ) {
-      CHECK_MEMORY_OP_JUMP( status, webvtt_string_append_string( result,
-                                                                 &buffer ) );
+    if( **position == UTF8_NULL_BYTE || **position == UTF8_LESS_THAN ) {
+      CHECK_MEMORY_OP_JUMP( status, webvtt_string_append_string( result, &buffer ) );
       goto dealloc;
     }
     /**
@@ -343,20 +344,18 @@ webvtt_escape_state( const char **position, webvtt_token_state *token_state,
      * This means that we need to add that malformed text to the result and
      * recreate the buffer to prepare for a new escape sequence.
      */
-    else if( **position == '&' ) {
-      CHECK_MEMORY_OP_JUMP( status, webvtt_string_append_string( result,
-                                                                 &buffer ) );
+    else if( **position == UTF8_AMPERSAND ) {
+      CHECK_MEMORY_OP_JUMP( status, webvtt_string_append_string( result, &buffer ) );
       webvtt_release_string( &buffer );
       CHECK_MEMORY_OP_JUMP( status, webvtt_create_string( 1, &buffer ) );
-      CHECK_MEMORY_OP_JUMP( status, webvtt_string_putc( &buffer,
-                                                        *position[0] ) );
+      CHECK_MEMORY_OP_JUMP( status, webvtt_string_putc( &buffer, *position[0] ) );
     }
     /**
      * We've encountered the semicolon which is the end of an escape sequence.
      * Check if buffer contains a valid escape sequence and if it does append
      * the interpretation to result and change the state to DATA.
      */
-    else if( **position == ';' ) {
+    else if( **position == UTF8_SEMI_COLON ) {
       if( webvtt_string_is_equal( &buffer, "&amp", 4 ) ) {
         CHECK_MEMORY_OP_JUMP( status, webvtt_string_putc( result, '&' ) );
       } else if( webvtt_string_is_equal( &buffer, "&lt", 3 ) ) {
@@ -364,20 +363,14 @@ webvtt_escape_state( const char **position, webvtt_token_state *token_state,
       } else if( webvtt_string_is_equal( &buffer, "&gt", 3 ) ) {
         CHECK_MEMORY_OP_JUMP( status, webvtt_string_putc( result, '>' ) );
       } else if( webvtt_string_is_equal( &buffer, "&rlm", 4 ) ) {
-        CHECK_MEMORY_OP_JUMP( status, webvtt_string_append( result, rlm_replace,
-                                                            RLM_LENGTH ) );
+        CHECK_MEMORY_OP_JUMP( status, webvtt_string_append( result, rlm_replace, RLM_REPLACE_LENGTH ) );
       } else if( webvtt_string_is_equal( &buffer, "&lrm", 4 ) ) {
-        CHECK_MEMORY_OP_JUMP( status, webvtt_string_append( result, lrm_replace,
-                                                            LRM_LENGTH ) );
+        CHECK_MEMORY_OP_JUMP( status, webvtt_string_append( result, lrm_replace, LRM_REPLACE_LENGTH ) );
       } else if( webvtt_string_is_equal( &buffer, "&nbsp", 5 ) ) {
-        CHECK_MEMORY_OP_JUMP( status, webvtt_string_append( result,
-                                                            nbsp_replace,
-                                                            NBSP_LENGTH ) );
+        CHECK_MEMORY_OP_JUMP( status, webvtt_string_append( result, nbsp_replace, NBSP_REPLACE_LENGTH ) );
       } else {
-        CHECK_MEMORY_OP_JUMP( status, webvtt_string_append_string( result,
-                                                                   &buffer ) );
-        CHECK_MEMORY_OP_JUMP( status, webvtt_string_putc( result,
-                                                          **position ) );
+        CHECK_MEMORY_OP_JUMP( status, webvtt_string_append_string( result, &buffer ) );
+        CHECK_MEMORY_OP_JUMP( status, webvtt_string_putc( result, **position ) );
       }
 
       *token_state = DATA;
@@ -396,10 +389,8 @@ webvtt_escape_state( const char **position, webvtt_token_state *token_state,
      * in DATA state.
      */
     else {
-      CHECK_MEMORY_OP_JUMP( status, webvtt_string_append_string( result,
-                                                                 &buffer ) );
-      CHECK_MEMORY_OP_JUMP( status, webvtt_string_putc( result,
-                                                        **position ) );
+      CHECK_MEMORY_OP_JUMP( status, webvtt_string_append_string( result, &buffer ) );
+      CHECK_MEMORY_OP_JUMP( status, webvtt_string_putc( result, **position ) );
       status = WEBVTT_UNFINISHED;
       *token_state = DATA;
     }
@@ -412,29 +403,29 @@ dealloc:
 }
 
 WEBVTT_INTERN webvtt_status
-webvtt_tag_state( const char **position, webvtt_token_state *token_state,
+webvtt_tag_state( webvtt_byte **position, webvtt_token_state *token_state, 
                   webvtt_string *result )
 {
   for( ; *token_state == TAG; (*position)++ ) {
-    if( **position == '\t' || **position == '\n' ||
-        **position == '\r' || **position == '\f' ||
-        **position == ' ' ) {
+    if( **position == UTF8_TAB || **position == UTF8_LINE_FEED ||
+        **position == UTF8_CARRIAGE_RETURN || **position == UTF8_FORM_FEED ||
+        **position == UTF8_SPACE ) {
       *token_state = START_TAG_ANNOTATION;
     } else if( webvtt_isdigit( **position )  ) {
       CHECK_MEMORY_OP( webvtt_string_putc( result, **position ) );
       *token_state = TIME_STAMP_TAG;
     } else {
       switch( **position ) {
-        case '.':
+        case UTF8_FULL_STOP:
           *token_state = START_TAG_CLASS;
           break;
-        case '/':
+        case UTF8_SOLIDUS:
           *token_state = END_TAG;
           break;
-        case '>':
+        case UTF8_GREATER_THAN:
           return WEBVTT_SUCCESS;
           break;
-        case '\0':
+        case UTF8_NULL_BYTE:
           return WEBVTT_SUCCESS;
           break;
         default:
@@ -448,22 +439,23 @@ webvtt_tag_state( const char **position, webvtt_token_state *token_state,
 }
 
 WEBVTT_INTERN webvtt_status
-webvtt_start_tag_state( const char **position, webvtt_token_state *token_state,
+webvtt_start_tag_state( webvtt_byte **position, webvtt_token_state *token_state, 
                         webvtt_string *result )
 {
   for( ; *token_state == START_TAG; (*position)++ ) {
-    if( **position == '\t' || **position == '\f' ||
-        **position == ' ' || **position == '\n' ||
-        **position == '\r' ) {
+    if( **position == UTF8_TAB || **position == UTF8_FORM_FEED ||
+        **position == UTF8_SPACE || **position == UTF8_LINE_FEED ||
+        **position == UTF8_CARRIAGE_RETURN ) {
       *token_state = START_TAG_ANNOTATION;
     } else {
       switch( **position ) {
-        case '.':
+        case UTF8_TAB:
+          *token_state = START_TAG_ANNOTATION;
+          break;
+        case UTF8_FULL_STOP:
           *token_state = START_TAG_CLASS;
           break;
-        case '\0':
-          return WEBVTT_SUCCESS;
-        case '>':
+        case UTF8_GREATER_THAN:
           return WEBVTT_SUCCESS;
           break;
         default:
@@ -477,7 +469,7 @@ webvtt_start_tag_state( const char **position, webvtt_token_state *token_state,
 }
 
 WEBVTT_INTERN webvtt_status
-webvtt_class_state( const char **position, webvtt_token_state *token_state,
+webvtt_class_state( webvtt_byte **position, webvtt_token_state *token_state, 
                     webvtt_stringlist *css_classes )
 {
   webvtt_string buffer;
@@ -486,24 +478,18 @@ webvtt_class_state( const char **position, webvtt_token_state *token_state,
   CHECK_MEMORY_OP( webvtt_create_string( 1, &buffer ) );
 
   for( ; *token_state == START_TAG_CLASS; (*position)++ ) {
-    if( **position == '\t' || **position == '\f' ||
-        **position == ' ' || **position == '\n' ||
-        **position == '\r') {
-      if( webvtt_string_length( &buffer ) > 0 ) {
-        CHECK_MEMORY_OP_JUMP( status, webvtt_stringlist_push( css_classes,
-                                                              &buffer ) );
-      }
+    if( **position == UTF8_TAB || **position == UTF8_FORM_FEED ||
+        **position == UTF8_SPACE || **position == UTF8_LINE_FEED ||
+        **position == UTF8_CARRIAGE_RETURN) {
+      CHECK_MEMORY_OP_JUMP( status, webvtt_stringlist_push( css_classes, &buffer ) );
       *token_state = START_TAG_ANNOTATION;
+      return WEBVTT_SUCCESS;
+    } else if( **position == UTF8_GREATER_THAN || **position == UTF8_NULL_BYTE ) {
+      CHECK_MEMORY_OP_JUMP( status, webvtt_stringlist_push( css_classes, &buffer ) );
       webvtt_release_string( &buffer );
       return WEBVTT_SUCCESS;
-    } else if( **position == '>' || **position == '\0' ) {
-      CHECK_MEMORY_OP_JUMP( status, webvtt_stringlist_push( css_classes,
-                                                            &buffer ) );
-      webvtt_release_string( &buffer );
-      return WEBVTT_SUCCESS;
-    } else if( **position == '.' ) {
-      CHECK_MEMORY_OP_JUMP( status, webvtt_stringlist_push( css_classes,
-                                                            &buffer ) );
+    } else if( **position == UTF8_FULL_STOP ) {
+      CHECK_MEMORY_OP_JUMP( status, webvtt_stringlist_push( css_classes, &buffer ) );
       webvtt_release_string( &buffer );
       CHECK_MEMORY_OP( webvtt_create_string( 1, &buffer ) );
     } else {
@@ -518,11 +504,11 @@ dealloc:
 }
 
 WEBVTT_INTERN webvtt_status
-webvtt_annotation_state( const char **position, webvtt_token_state *token_state,
+webvtt_annotation_state( webvtt_byte **position, webvtt_token_state *token_state, 
                          webvtt_string *annotation )
 {
   for( ; *token_state == START_TAG_ANNOTATION; (*position)++ ) {
-    if( **position == '\0' || **position == '>' ) {
+    if( **position == UTF8_NULL_BYTE || **position == UTF8_GREATER_THAN ) {
       return WEBVTT_SUCCESS;
     }
     CHECK_MEMORY_OP( webvtt_string_putc( annotation, **position ) );
@@ -532,11 +518,11 @@ webvtt_annotation_state( const char **position, webvtt_token_state *token_state,
 }
 
 WEBVTT_INTERN webvtt_status
-webvtt_end_tag_state( const char **position, webvtt_token_state *token_state,
+webvtt_end_tag_state( webvtt_byte **position, webvtt_token_state *token_state, 
                       webvtt_string *result )
 {
   for( ; *token_state == END_TAG; (*position)++ ) {
-    if( **position == '>' || **position == '\0' ) {
+    if( **position == UTF8_GREATER_THAN || **position == UTF8_NULL_BYTE ) {
       return WEBVTT_SUCCESS;
     }
     CHECK_MEMORY_OP( webvtt_string_putc( result, **position ) );
@@ -546,11 +532,11 @@ webvtt_end_tag_state( const char **position, webvtt_token_state *token_state,
 }
 
 WEBVTT_INTERN webvtt_status
-webvtt_timestamp_state( const char **position, webvtt_token_state *token_state,
+webvtt_timestamp_state( webvtt_byte **position, webvtt_token_state *token_state, 
                         webvtt_string *result )
 {
   for( ; *token_state == TIME_STAMP_TAG; (*position)++ ) {
-    if( **position == '>' || **position == '\0' ) {
+    if( **position == UTF8_GREATER_THAN || **position == UTF8_NULL_BYTE ) {
       return WEBVTT_SUCCESS;
     }
     CHECK_MEMORY_OP( webvtt_string_putc( result, **position ) );
@@ -564,7 +550,7 @@ webvtt_timestamp_state( const char **position, webvtt_token_state *token_state,
  * Get a status in order to return at end and release memeory.
  */
 WEBVTT_INTERN webvtt_status
-webvtt_cuetext_tokenizer( const char **position, webvtt_cuetext_token **token )
+webvtt_cuetext_tokenizer( webvtt_byte **position, webvtt_cuetext_token **token )
 {
   webvtt_token_state token_state = DATA;
   webvtt_string result, annotation;
@@ -579,7 +565,7 @@ webvtt_cuetext_tokenizer( const char **position, webvtt_cuetext_token **token )
   webvtt_create_string( 10, &result );
   webvtt_create_string( 10, &annotation );
   webvtt_create_stringlist( &css_classes );
-
+  
   /**
    * Loop while the tokenizer is not finished.
    * Based on the state of the tokenizer enter a function to handle that
@@ -613,11 +599,15 @@ webvtt_cuetext_tokenizer( const char **position, webvtt_cuetext_token **token )
         status = webvtt_timestamp_state( position, &token_state, &result );
         break;
     }
+
+    if( token_state == START_TAG_ANNOTATION ) {
+      webvtt_skipwhite( position );
+    }
   }
 
-  if( **position == '>' )
+  if( **position == UTF8_GREATER_THAN )
   { (*position)++; }
-
+  
   if( status == WEBVTT_SUCCESS ) {
     /**
      * The state that the tokenizer left off on will tell us what kind of token
@@ -625,19 +615,17 @@ webvtt_cuetext_tokenizer( const char **position, webvtt_cuetext_token **token )
      */
     if( token_state == DATA || token_state == ESCAPE ) {
       status = webvtt_create_text_token( token, &result );
-    } else if( token_state == TAG || token_state == START_TAG ||
-               token_state == START_TAG_CLASS ||
+    } else if(token_state == TAG || token_state == START_TAG || token_state == START_TAG_CLASS ||
               token_state == START_TAG_ANNOTATION) {
       /**
-      * If the tag does not accept an annotation then release the current
+      * If the tag does not accept an annotation then release the current 
       * annotation and intialize annotation to a safe empty state
       */
       if( !tag_accepts_annotation( &result ) ) {
         webvtt_release_string( &annotation );
         webvtt_init_string( &annotation );
       }
-      status = webvtt_create_start_token( token, &result, css_classes,
-                                          &annotation );
+      status = webvtt_create_start_token( token, &result, css_classes, &annotation );
     } else if( token_state == END_TAG ) {
       status = webvtt_create_end_token( token, &result );
     } else if( token_state == TIME_STAMP_TAG ) {
@@ -647,11 +635,11 @@ webvtt_cuetext_tokenizer( const char **position, webvtt_cuetext_token **token )
       status = WEBVTT_INVALID_TOKEN_STATE;
     }
   }
-
+  
   webvtt_release_stringlist( &css_classes );
   webvtt_release_string( &result );
   webvtt_release_string( &annotation );
-
+  
   return status;
 }
 
@@ -661,30 +649,17 @@ webvtt_cuetext_tokenizer( const char **position, webvtt_cuetext_token **token )
  * internally.
  */
 WEBVTT_INTERN webvtt_status
-webvtt_parse_cuetext( webvtt_parser self, webvtt_cue *cue,
-                      webvtt_string *payload, int finished )
+webvtt_parse_cuetext( webvtt_parser self, webvtt_cue *cue, webvtt_string *payload, int finished )
 {
 
-  const char *cue_text;
+  const webvtt_byte *cue_text;
   webvtt_status status;
-  const char *position;
+  webvtt_byte *position;
   webvtt_node *node_head;
   webvtt_node *current_node;
   webvtt_node *temp_node;
   webvtt_cuetext_token *token;
   webvtt_node_kind kind;
-  webvtt_stringlist *lang_stack;
-  webvtt_string temp;
-
-  /**
-   *  TODO: Use these parameters! 'finished' isn't really important
-   * here, but 'self' certainly is as it lets us report syntax errors.
-   *
-   * However, for the time being we can trick the compiler into not
-   * warning us about unused variables by doing this.
-   */
-  ( void )self;
-  ( void )finished;
 
   if( !cue ) {
     return WEBVTT_INVALID_PARAM;
@@ -700,115 +675,87 @@ webvtt_parse_cuetext( webvtt_parser self, webvtt_cue *cue,
     return status;
   }
 
-  position = cue_text;
+  position = (webvtt_byte *)cue_text;
   node_head = cue->node_head;
   current_node = node_head;
   temp_node = NULL;
   token = NULL;
-  webvtt_create_stringlist( &lang_stack );
 
   /**
    * Routine taken from the W3C specification
    * http://dev.w3.org/html5/webvtt/#webvtt-cue-text-parsing-rules
    */
-  while( *position != '\0' ) {
-    webvtt_status status = WEBVTT_SUCCESS;
+  while( *position != UTF8_NULL_BYTE ) {
+    
     webvtt_delete_token( &token );
 
     /* Step 7. */
-    if( WEBVTT_FAILED( status = webvtt_cuetext_tokenizer( &position,
-                                                          &token ) ) ) {
-      /* Error here. */
-    } else {
-      /* Succeeded... Process token */
-      if( token->token_type == END_TOKEN ) {
+    switch( webvtt_cuetext_tokenizer( &position, &token ) ) {
+      case( WEBVTT_UNFINISHED ):
+        /* Error here. */
+        break;
+        /* Step 8. */
+      case( WEBVTT_SUCCESS ):
+
         /**
          * If we've found an end token which has a valid end token tag name and
          * a tag name that is equal to the current node then set current to the
          * parent of current.
          */
-       if( current_node->kind == WEBVTT_HEAD_NODE ) {
+        if( token->token_type == END_TOKEN ) {
           /**
            * We have encountered an end token but we are at the top of the list
            * and thus have not encountered any start tokens yet, throw away the
            * token.
            */
-          continue;
-        }
+          if( current_node->kind == WEBVTT_HEAD_NODE ) {
+            continue;
+          }
 
-        if( webvtt_node_kind_from_tag_name( &token->tag_name, &kind ) ==
-            WEBVTT_INVALID_TAG_NAME ) {
           /**
            * We have encountered an end token but it is not in a format that is
            * supported, throw away the token.
            */
-          continue;
-        }
-
-        if( current_node->kind == kind ||
-            ( current_node->kind == WEBVTT_RUBY_TEXT
-              && kind == WEBVTT_RUBY ) ) {
-          /**
-           * We have encountered a valid end tag to our current tag. Move back
-           * up the tree of nodes and continue parsing.
-           */
-          current_node = current_node->parent;
-
-          if( kind == WEBVTT_LANG ) {
-            webvtt_stringlist_pop( lang_stack, &temp );
-            webvtt_release_string( &temp );
+          if( webvtt_node_kind_from_tag_name( &token->tag_name, &kind ) == WEBVTT_INVALID_TAG_NAME ) {
+            continue;
           }
-        }
-      } else {
-        /**
-         * Attempt to create a valid node from the token.
-         * If successful then attach the node to the current nodes list and
-         * also set current to the newly created node if it is an internal
-         * node type.
-         */
-        if( webvtt_create_node_from_token( token, &temp_node, current_node ) !=
-            WEBVTT_SUCCESS ) {
-          /* Do something here? */
+
+          /**
+           * We have encountered an end token and it matches the start token of
+           * the node that we are currently on. Move back up the list of nodes
+           * and continue parsing.
+           */
+          if( current_node->kind == kind ) {
+            current_node = current_node->parent;
+          }
         } else {
-          /**
-           * If the parsed node is ruby text and we are not currently on a ruby
-           * node then do not attach the ruby text node.
-           */
-          if( temp_node->kind == WEBVTT_RUBY_TEXT &&
-              current_node->kind != WEBVTT_RUBY ) {
-            webvtt_release_node( &temp_node );
-            continue;
-          }
-
-          webvtt_attach_node( current_node, temp_node );
 
           /**
-           * If the child node is a leaf node then we are done.
+           * Attempt to create a valid node from the token.
+           * If successful then attach the node to the current nodes list and
+           * also set current to the newly created node if it is an internal
+           * node type.
            */
-          if( WEBVTT_IS_VALID_LEAF_NODE( temp_node->kind ) ) {
+          if( webvtt_create_node_from_token( token, &temp_node, current_node ) != WEBVTT_SUCCESS ) { 
+            /* Do something here? */ 
+          }
+          else {
+            webvtt_attach_node( current_node, temp_node );
+            
+            if( WEBVTT_IS_VALID_INTERNAL_NODE( temp_node->kind ) ) { 
+              current_node = temp_node; 
+            }
+            
+            /* Release the node as attach internal node increases the count. */
             webvtt_release_node( &temp_node );
-            continue;
           }
-
-          if( temp_node->kind == WEBVTT_LANG ) {
-            webvtt_stringlist_push( lang_stack,
-                                    &temp_node->data.internal_data->lang );
-          } else if( lang_stack->length >= 1 ) {
-            webvtt_release_string( &temp_node->data.internal_data->lang );
-            webvtt_copy_string( &temp_node->data.internal_data->lang,
-                                lang_stack->items + lang_stack->length - 1 );
-          }
-
-          current_node = temp_node;
-          /* Release the node as attach internal node increases the count. */
-          webvtt_release_node( &temp_node );
         }
-      }
+        break;
     }
+    webvtt_skipwhite( &position );
   }
-
+  
   webvtt_delete_token( &token );
-  webvtt_release_stringlist( &lang_stack );
-
+  
   return WEBVTT_SUCCESS;
 }

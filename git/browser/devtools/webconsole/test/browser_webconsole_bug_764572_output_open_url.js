@@ -23,87 +23,122 @@ function consoleOpened(aHud) {
   outputNode = aHud.outputNode;
   contextMenu = HUD.iframeWindow.document.getElementById("output-contextmenu");
 
-  registerCleanupFunction(() => {
-    HUD = outputNode = contextMenu = null;
-  });
-
-  HUD.jsterm.clearOutput();
-
-  content.console.log("bug 764572");
-
-  waitForMessages({
-    webconsole: HUD,
-    messages: [{
-      text: "bug 764572",
-      category: CATEGORY_WEBDEV,
-      severity: SEVERITY_LOG,
-    }],
-  }).then(onConsoleMessage);
+  executeSoon(testOnNotNetActivity);
 }
 
-function onConsoleMessage(aResults) {
+function testOnNotNetActivity() {
+  HUD.jsterm.clearOutput();
+
+  outputNode = HUD.outputNode;
+  let console = content.wrappedJSObject.console;
+  console.log("bug 764572");
+
+  testOnNotNetActivity_command();
+}
+function testOnNotNetActivity_command () {
+  waitForSuccess({
+    name: "show no net activity in console",
+    validatorFn: function () {
+      return outputNode.textContent.indexOf("bug 764572") > -1;
+    },
+    successFn: function () {
+      outputNode.focus();
+      outputNode.selectedItem = outputNode.querySelector(".webconsole-msg-log");
+
+      // check whether the command is disable
+      goUpdateCommand(COMMAND_NAME);
+      let controller = top.document.commandDispatcher.
+        getControllerForCommand(COMMAND_NAME);
+
+      let isDisabled = !controller || !controller.isCommandEnabled("consoleCmd_openURL");
+      ok(isDisabled, COMMAND_NAME + " should be disabled.");
+      executeSoon(testOnNotNetActivity_contextmenu);
+    },
+    failureFn: testOnNotNetActivity_contextmenu,
+  });
+}
+function testOnNotNetActivity_contextmenu() {
+  let target = outputNode.querySelector(".webconsole-msg-log");
+
   outputNode.focus();
-  outputNode.selectedItem = [...aResults[0].matched][0];
+  outputNode.selectedItem = target;
 
-  // Check if the command is disabled non-network messages.
-  goUpdateCommand(COMMAND_NAME);
-  let controller = top.document.commandDispatcher
-                   .getControllerForCommand(COMMAND_NAME);
+  waitForOpenContextMenu(contextMenu, {
+    target: target,
+    successFn: function () {
+      let isHidden = contextMenu.querySelector(CONTEXT_MENU_ID).hidden;
+      ok(isHidden, CONTEXT_MENU_ID + "should be hidden.");
 
-  let isDisabled = !controller || !controller.isCommandEnabled(COMMAND_NAME);
-  ok(isDisabled, COMMAND_NAME + " should be disabled.");
-
-  waitForContextMenu(contextMenu, outputNode.selectedItem, () => {
-    let isHidden = contextMenu.querySelector(CONTEXT_MENU_ID).hidden;
-    ok(isHidden, CONTEXT_MENU_ID + " should be hidden.");
-  }, testOnNetActivity);
+      closeContextMenu(contextMenu);
+      executeSoon(testOnNetActivity);
+    },
+    failureFn: function(){
+      closeContextMenu(contextMenu);
+      executeSoon(testOnNetActivity);
+    },
+  });
 }
 
 function testOnNetActivity() {
   HUD.jsterm.clearOutput();
 
-  // Reload the url to show net activity in console.
+  // reload the url to show net activity in console.
   content.location.reload();
 
-  waitForMessages({
-    webconsole: HUD,
-    messages: [{
-      text: "test-console.html",
-      category: CATEGORY_NETWORK,
-      severity: SEVERITY_LOG,
-    }],
-  }).then(onNetworkMessage);
+  testOnNetActivity_command();
 }
 
-function onNetworkMessage(aResults) {
-  outputNode.focus();
-  outputNode.selectedItem = [...aResults[0].matched][0];
+function testOnNetActivity_command() {
+  waitForSuccess({
+    name: "show TEST_URI's net activity in console",
+    validatorFn: function () {
+      outputNode.focus();
+      outputNode.selectedItem = outputNode.querySelector(".webconsole-msg-network");
 
-  let currentTab = gBrowser.selectedTab;
-  let newTab = null;
+      let item = outputNode.selectedItem;
+      return item && item.url;
+    },
+    successFn: function () {
+      outputNode.focus();
 
-  gBrowser.tabContainer.addEventListener("TabOpen", function onOpen(aEvent) {
-    gBrowser.tabContainer.removeEventListener("TabOpen", onOpen, true);
-    newTab = aEvent.target;
-    newTab.linkedBrowser.addEventListener("load", onTabLoaded, true);
-  }, true);
+      // set up the event handler for TabOpen
+      gBrowser.tabContainer.addEventListener("TabOpen", function onOpen(aEvent) {
+        gBrowser.tabContainer.removeEventListener("TabOpen", onOpen, true);
 
-  function onTabLoaded() {
-    newTab.linkedBrowser.removeEventListener("load", onTabLoaded, true);
-    gBrowser.removeTab(newTab);
-    gBrowser.selectedTab = currentTab;
-    executeSoon(testOnNetActivity_contextmenu);
-  }
+        let tab = aEvent.target;
+        onTabOpen(tab);
+      }, true);
 
-  // Check if the command is enabled for a network message.
-  goUpdateCommand(COMMAND_NAME);
-  let controller = top.document.commandDispatcher
-                   .getControllerForCommand(COMMAND_NAME);
-  ok(controller.isCommandEnabled(COMMAND_NAME),
-     COMMAND_NAME + " should be enabled.");
+      // check whether the command is enable
+      goUpdateCommand(COMMAND_NAME);
+      let controller = top.document.commandDispatcher.
+        getControllerForCommand(COMMAND_NAME);
+      ok(controller.isCommandEnabled("consoleCmd_openURL"), COMMAND_NAME + " should be enabled.");
 
-  // Try to open the URL.
-  goDoCommand(COMMAND_NAME);
+      // try to open url.
+      goDoCommand(COMMAND_NAME);
+    },
+    failureFn: testOnNetActivity_contextmenu,
+  });
+}
+
+// check TabOpen event
+function onTabOpen(aTab) {
+  waitForSuccess({
+    name: "complete to initialize the opening tab",
+    validatorFn: function()
+    {
+      // wait to complete initializing the opend tab.
+      let url = aTab.linkedBrowser.currentURI.spec;
+      return url === TEST_URI;
+    },
+    successFn: function()
+    {
+      gBrowser.removeTab(aTab);
+      executeSoon(testOnNetActivity_contextmenu);
+    },
+    failureFn: testOnNetActivity_contextmenu,
+  });
 }
 
 function testOnNetActivity_contextmenu() {
@@ -112,8 +147,29 @@ function testOnNetActivity_contextmenu() {
   outputNode.focus();
   outputNode.selectedItem = target;
 
-  waitForContextMenu(contextMenu, target, () => {
-    let isShown = !contextMenu.querySelector(CONTEXT_MENU_ID).hidden;
-    ok(isShown, CONTEXT_MENU_ID + " should be shown.");
-  }, finishTest);
+  waitForOpenContextMenu(contextMenu, {
+    target: target,
+    successFn: function () {
+      let isShown = !contextMenu.querySelector(CONTEXT_MENU_ID).hidden;
+      ok(isShown, CONTEXT_MENU_ID + "should be shown.");
+
+      closeContextMenu(contextMenu);
+      executeSoon(finalizeTest);
+    },
+    failureFn: function(){
+      closeContextMenu(contextMenu);
+      executeSoon(finalizeTest);
+    },
+  });
+}
+
+function finalizeTest() {
+  HUD = null;
+  outputNode = null;
+  contextMenu = null
+  finishTest();
+}
+
+function closeContextMenu (aContextMenu) {
+  aContextMenu.hidePopup();
 }

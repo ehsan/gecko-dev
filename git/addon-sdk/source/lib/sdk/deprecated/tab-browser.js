@@ -566,7 +566,7 @@ ModuleTabTracker.prototype = {
   _TAB_EVENTS: ["TabOpen", "TabClose", "TabSelect", "DOMContentLoaded",
                 "load", "MozAfterPaint"],
   _safeTrackTab: function safeTrackTab(tab) {
-    tab.linkedBrowser.addEventListener("load", this, true);
+    tab.addEventListener("load", this, false);
     tab.linkedBrowser.addEventListener("MozAfterPaint", this, false);
     this._tabs.push(tab);
     try {
@@ -576,7 +576,7 @@ ModuleTabTracker.prototype = {
     }
   },
   _safeUntrackTab: function safeUntrackTab(tab) {
-    tab.linkedBrowser.removeEventListener("load", this, true);
+    tab.removeEventListener("load", this, false);
     tab.linkedBrowser.removeEventListener("MozAfterPaint", this, false);
     var index = this._tabs.indexOf(tab);
     if (index == -1)
@@ -617,11 +617,7 @@ ModuleTabTracker.prototype = {
     }
   },
   _safeLoad: function safeLoad(event) {
-    let win = event.currentTarget.ownerDocument.defaultView;
-    let tabIndex = win.gBrowser.getBrowserIndexForDocument(event.target);
-    if (tabIndex == -1)
-      return;
-    let tab = win.gBrowser.tabContainer.getItemAtIndex(tabIndex);
+    let tab = event.target;
     let index = this._tabs.indexOf(tab);
     if (index == -1)
       console.error("internal error: tab not found");

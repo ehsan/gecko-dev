@@ -1,17 +1,17 @@
 <!DOCTYPE html>
 <html>
 <!--
-https://bugzilla.mozilla.org/show_bug.cgi?id=815833
+https://bugzilla.mozilla.org/show_bug.cgi?id={815833}
 -->
 <head>
-  <title>Test for Bug 815833 WebContacts</title>
+  <title>Test for Bug {815833} WebContacts</title>
   <script type="text/javascript" src="/MochiKit/MochiKit.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
 <body>
 
-<a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=815833">Mozilla Bug 815833</a>
+<a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id={815833}">Mozilla Bug {815833}</a>
 <p id="display"></p>
 <div id="content" style="display: none">
 
@@ -21,11 +21,14 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=815833
 
 "use strict";
 
-if (SpecialPowers.isMainProcess()) {
-  SpecialPowers.Cu.import("resource://gre/modules/ContactService.jsm");
-  SpecialPowers.Cu.import("resource://gre/modules/PermissionPromptHelper.jsm");
+// this shouldn't be necessary when bug 792594 is fixed
+if (!SpecialPowers.getBoolPref("dom.mozContacts.enabled")) {
+  var comp = SpecialPowers.wrap(SpecialPowers.Components);
+  comp.utils.import("resource://gre/modules/ContactService.jsm");
+  comp.utils.import("resource://gre/modules/PermissionPromptHelper.jsm");
+  SpecialPowers.setBoolPref("dom.mozContacts.enabled", true);
 }
-
+    
 SpecialPowers.addPermission("contacts-write", true, document);
 SpecialPowers.addPermission("contacts-read", true, document);
 SpecialPowers.addPermission("contacts-create", true, document);
@@ -99,7 +102,7 @@ var steps = [
   function () {
     ok(true, "Searching for local number");
     var options = {filterBy: ["tel"],
-                   filterOp: "startsWith",
+                   filterOp: "contains",
                    filterValue: number1.local};
     req = mozContacts.find(options);
     req.onsuccess = function () {
@@ -113,11 +116,13 @@ var steps = [
   function () {
     ok(true, "Searching for international number");
     var options = {filterBy: ["tel"],
-                   filterOp: "startsWith",
+                   filterOp: "contains",
                    filterValue: number1.international};
     req = mozContacts.find(options);
     req.onsuccess = function () {
-      ok(req.result.length == 0, "Found exactly 0 contacts.");
+      ok(req.result.length == 1, "Found exactly 1 contact.");
+      findResult1 = req.result[0];
+      ok(findResult1.id == sample_id1, "Same ID");
       next();
     };
     req.onerror = onFailure;
@@ -171,7 +176,7 @@ var steps = [
   function () {
     ok(true, "Searching for local number");
     var options = {filterBy: ["tel"],
-                   filterOp: "startsWith",
+                   filterOp: "contains",
                    filterValue: number1.local};
     req = mozContacts.find(options);
     req.onsuccess = function () {
@@ -183,7 +188,7 @@ var steps = [
   function () {
     ok(true, "Searching for local number");
     var options = {filterBy: ["tel"],
-                   filterOp: "startsWith",
+                   filterOp: "contains",
                    filterValue: number1.international};
     req = mozContacts.find(options);
     req.onsuccess = function () {
@@ -195,7 +200,7 @@ var steps = [
   function () {
     ok(true, "Searching for local number");
     var options = {filterBy: ["tel"],
-                   filterOp: "startsWith",
+                   filterOp: "contains",
                    filterValue: number2.local};
     req = mozContacts.find(options);
     req.onsuccess = function () {
@@ -209,22 +214,15 @@ var steps = [
   function () {
     ok(true, "Searching for local number");
     var options = {filterBy: ["tel"],
-                   filterOp: "startsWith",
+                   filterOp: "contains",
                    filterValue: number2.international};
     req = mozContacts.find(options);
     req.onsuccess = function () {
-      ok(req.result.length == 0, "Found exactly 1 contact.");
+      ok(req.result.length == 1, "Found exactly 1 contact.");
+      findResult1 = req.result[0];
+      ok(findResult1.id == sample_id1, "Same ID");
       next();
     };
-    req.onerror = onFailure;
-  },
-  function () {
-    ok(true, "Deleting database");
-    req = mozContacts.clear()
-    req.onsuccess = function () {
-      ok(true, "Deleted the database");
-      next();
-    }
     req.onerror = onFailure;
   },
   function () {
@@ -247,8 +245,20 @@ function next() {
   index += 1;
 }
 
+function permissionTest() {
+  if (gContactsEnabled) {
+    next();
+  } else {
+    is(mozContacts, null, "mozContacts is null when not enabled.");
+    SimpleTest.finish();
+  }
+}
+
+var gContactsEnabled = SpecialPowers.getBoolPref("dom.mozContacts.enabled");
 SimpleTest.waitForExplicitFinish();
-addLoadEvent(next);
+addLoadEvent(permissionTest);
+
+ok(true, "test passed");
 </script>
 </pre>
 </body>

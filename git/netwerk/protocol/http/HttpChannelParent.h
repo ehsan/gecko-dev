@@ -49,34 +49,29 @@ public:
                     PBOverrideStatus aStatus);
   virtual ~HttpChannelParent();
 
-  bool Init(const HttpChannelCreationArgs& aOpenArgs);
-
 protected:
-  // used to connect redirected-to channel in parent with just created
-  // ChildChannel.  Used during redirects.
-  bool ConnectChannel(const uint32_t& channelId);
+  virtual bool RecvAsyncOpen(const URIParams&           uri,
+                             const OptionalURIParams&   originalUri,
+                             const OptionalURIParams&   docUri,
+                             const OptionalURIParams&   referrerUri,
+                             const OptionalURIParams&   internalRedirectUri,
+                             const uint32_t&            loadFlags,
+                             const RequestHeaderTuples& requestHeaders,
+                             const nsHttpAtom&          requestMethod,
+                             const OptionalInputStreamParams& uploadStream,
+                             const bool&              uploadStreamHasHeaders,
+                             const uint16_t&            priority,
+                             const uint8_t&             redirectionLimit,
+                             const bool&              allowPipelining,
+                             const bool&              forceAllowThirdPartyCookie,
+                             const bool&                doResumeAt,
+                             const uint64_t&            startPos,
+                             const nsCString&           entityID,
+                             const bool&                chooseApplicationCache,
+                             const nsCString&           appCacheClientID,
+                             const bool&                allowSpdy) MOZ_OVERRIDE;
 
-  bool DoAsyncOpen(const URIParams&           uri,
-                   const OptionalURIParams&   originalUri,
-                   const OptionalURIParams&   docUri,
-                   const OptionalURIParams&   referrerUri,
-                   const OptionalURIParams&   internalRedirectUri,
-                   const uint32_t&            loadFlags,
-                   const RequestHeaderTuples& requestHeaders,
-                   const nsHttpAtom&          requestMethod,
-                   const OptionalInputStreamParams& uploadStream,
-                   const bool&                uploadStreamHasHeaders,
-                   const uint16_t&            priority,
-                   const uint8_t&             redirectionLimit,
-                   const bool&                allowPipelining,
-                   const bool&                forceAllowThirdPartyCookie,
-                   const bool&                doResumeAt,
-                   const uint64_t&            startPos,
-                   const nsCString&           entityID,
-                   const bool&                chooseApplicationCache,
-                   const nsCString&           appCacheClientID,
-                   const bool&                allowSpdy);
-
+  virtual bool RecvConnectChannel(const uint32_t& channelId);
   virtual bool RecvSetPriority(const uint16_t& priority);
   virtual bool RecvSetCacheTokenCachedCharset(const nsCString& charset);
   virtual bool RecvSuspend();

@@ -59,6 +59,7 @@ function addValues_3(obj)
           catch (e)
           {
             sum += 1;
+            print(e);
           }
         }
       }
@@ -121,6 +122,7 @@ function addValues_4(obj)
           catch (e)
           {
             sum += 1;
+            print(e);
           }
         }
       }

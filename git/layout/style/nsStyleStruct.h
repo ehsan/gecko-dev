@@ -256,13 +256,6 @@ struct nsStyleImage {
     return !(*this == aOther);
   }
 
-  bool ImageDataEquals(const nsStyleImage& aOther) const
-  {
-    return GetType() == eStyleImageType_Image &&
-           aOther.GetType() == eStyleImageType_Image &&
-           GetImageData() == aOther.GetImageData();
-  }
-
 private:
   void DoCopy(const nsStyleImage& aOther);
 
@@ -1098,8 +1091,11 @@ struct nsStylePosition {
   nsStyleCoord  mHeight;                // [reset] coord, percent, calc, auto
   nsStyleCoord  mMinHeight;             // [reset] coord, percent, calc
   nsStyleCoord  mMaxHeight;             // [reset] coord, percent, calc, none
+#ifdef MOZ_FLEXBOX
   nsStyleCoord  mFlexBasis;             // [reset] coord, percent, enum, calc, auto
+#endif // MOZ_FLEXBOX
   uint8_t       mBoxSizing;             // [reset] see nsStyleConsts.h
+#ifdef MOZ_FLEXBOX
   uint8_t       mAlignItems;            // [reset] see nsStyleConsts.h
   uint8_t       mAlignSelf;             // [reset] see nsStyleConsts.h
   uint8_t       mFlexDirection;         // [reset] see nsStyleConsts.h
@@ -1107,6 +1103,7 @@ struct nsStylePosition {
   int32_t       mOrder;                 // [reset] integer
   float         mFlexGrow;              // [reset] float
   float         mFlexShrink;            // [reset] float
+#endif // MOZ_FLEXBOX
   nsStyleCoord  mZIndex;                // [reset] integer, auto
 
   bool WidthDependsOnContainer() const
@@ -1336,15 +1333,10 @@ struct nsStyleText {
   }
 
   // These are defined in nsStyleStructInlines.h.
-
-  // The aContextFrame argument on each of these is the frame this
-  // style struct is for.  If the frame is for SVG text, the return
-  // value will be massaged to be something that makes sense for
-  // SVG text.
-  inline bool HasTextShadow(const nsIFrame* aContextFrame) const;
-  inline nsCSSShadowArray* GetTextShadow(const nsIFrame* aContextFrame) const;
-  inline bool WhiteSpaceCanWrap(const nsIFrame* aContextFrame) const;
-  inline bool WordCanWrap(const nsIFrame* aContextFrame) const;
+  inline bool HasTextShadow(const nsIFrame* aFrame) const;
+  inline nsCSSShadowArray* GetTextShadow(const nsIFrame* aFrame) const;
+  inline bool WhiteSpaceCanWrap(const nsIFrame* aFrame) const;
+  inline bool WordCanWrap(const nsIFrame* aFrame) const;
 };
 
 struct nsStyleVisibility {
@@ -1370,7 +1362,6 @@ struct nsStyleVisibility {
   uint8_t mDirection;                  // [inherited] see nsStyleConsts.h NS_STYLE_DIRECTION_*
   uint8_t mVisible;                    // [inherited]
   uint8_t mPointerEvents;              // [inherited] see nsStyleConsts.h
-  uint8_t mWritingMode;                // [inherited] see nsStyleConsts.h
 
   bool IsVisible() const {
     return (mVisible == NS_STYLE_VISIBILITY_VISIBLE);
@@ -1639,7 +1630,9 @@ struct nsStyleDisplay {
 
   bool IsBlockOutsideStyle() const {
     return NS_STYLE_DISPLAY_BLOCK == mDisplay ||
+#ifdef MOZ_FLEXBOX
            NS_STYLE_DISPLAY_FLEX == mDisplay ||
+#endif // MOZ_FLEXBOX
            NS_STYLE_DISPLAY_LIST_ITEM == mDisplay ||
            NS_STYLE_DISPLAY_TABLE == mDisplay;
   }
@@ -1649,7 +1642,9 @@ struct nsStyleDisplay {
            NS_STYLE_DISPLAY_INLINE_BLOCK == aDisplay ||
            NS_STYLE_DISPLAY_INLINE_TABLE == aDisplay ||
            NS_STYLE_DISPLAY_INLINE_BOX == aDisplay ||
+#ifdef MOZ_FLEXBOX
            NS_STYLE_DISPLAY_INLINE_FLEX == aDisplay ||
+#endif // MOZ_FLEXBOX
            NS_STYLE_DISPLAY_INLINE_GRID == aDisplay ||
            NS_STYLE_DISPLAY_INLINE_STACK == aDisplay;
   }
@@ -1691,24 +1686,18 @@ struct nsStyleDisplay {
   }
 
   // These are defined in nsStyleStructInlines.h.
-
-  // The aContextFrame argument on each of these is the frame this
-  // style struct is for.  If the frame is for SVG text, the return
-  // value will be massaged to be something that makes sense for
-  // SVG text.
-  inline bool IsBlockInside(const nsIFrame* aContextFrame) const;
-  inline bool IsBlockOutside(const nsIFrame* aContextFrame) const;
-  inline bool IsInlineOutside(const nsIFrame* aContextFrame) const;
-  inline bool IsOriginalDisplayInlineOutside(const nsIFrame* aContextFrame) const;
-  inline uint8_t GetDisplay(const nsIFrame* aContextFrame) const;
-  inline bool IsFloating(const nsIFrame* aContextFrame) const;
-  inline bool IsPositioned(const nsIFrame* aContextFrame) const;
-  inline bool IsRelativelyPositioned(const nsIFrame* aContextFrame) const;
-  inline bool IsAbsolutelyPositioned(const nsIFrame* aContextFrame) const;
-
+  inline bool IsBlockInside(const nsIFrame* aFrame) const;
+  inline bool IsBlockOutside(const nsIFrame* aFrame) const;
+  inline bool IsInlineOutside(const nsIFrame* aFrame) const;
+  inline bool IsOriginalDisplayInlineOutside(const nsIFrame* aFrame) const;
+  inline uint8_t GetDisplay(const nsIFrame* aFrame) const;
+  inline bool IsFloating(const nsIFrame* aFrame) const;
+  inline bool IsPositioned(const nsIFrame* aFrame) const;
+  inline bool IsRelativelyPositioned(const nsIFrame* aFrame) const;
+  inline bool IsAbsolutelyPositioned(const nsIFrame* aFrame) const;
   /* Returns whether the element has the -moz-transform property
    * or a related property, and supports CSS transforms. */
-  inline bool HasTransform(const nsIFrame* aContextFrame) const;
+  inline bool HasTransform(const nsIFrame* aFrame) const;
 };
 
 struct nsStyleTable {
@@ -2128,12 +2117,6 @@ struct nsStyleColumn {
     return NS_STYLE_HINT_FRAMECHANGE;
   }
 
-  /**
-   * This is the maximum number of columns we can process. It's used in both
-   * nsColumnSetFrame and nsRuleNode.
-   */
-  static const uint32_t kMaxColumnCount;
-
   uint32_t     mColumnCount; // [reset] see nsStyleConsts.h
   nsStyleCoord mColumnWidth; // [reset] coord, auto
   nsStyleCoord mColumnGap;   // [reset] coord, normal
@@ -2209,7 +2192,7 @@ struct nsStyleSVG {
   nsChangeHint CalcDifference(const nsStyleSVG& aOther) const;
   static nsChangeHint MaxDifference() {
     return NS_CombineHint(NS_CombineHint(nsChangeHint_UpdateEffects,
-             NS_CombineHint(nsChangeHint_NeedReflow, nsChangeHint_NeedDirtyReflow)), // XXX remove nsChangeHint_NeedDirtyReflow: bug 876085
+                                         nsChangeHint_AllReflowHints),
                                          nsChangeHint_RepaintFrame);
   }
 

@@ -12,7 +12,6 @@
 
 #include "sigslot.h"
 
-#include "logging.h"
 #include "nspr.h"
 #include "nss.h"
 #include "ssl.h"
@@ -30,6 +29,7 @@
 #include "transportlayerlog.h"
 #include "transportlayerloopback.h"
 
+#include "logging.h"
 #include "mtransport_test_utils.h"
 #include "runnable_utils.h"
 

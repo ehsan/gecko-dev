@@ -21,7 +21,10 @@ DOMCI_NODE_DATA(Element, nsXMLElement)
 
 // QueryInterface implementation for nsXMLElement
 NS_INTERFACE_TABLE_HEAD(nsXMLElement)
-  NS_INTERFACE_TABLE_INHERITED2(nsXMLElement, nsIDOMNode, nsIDOMElement)
+  NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsXMLElement)
+    NS_INTERFACE_TABLE_ENTRY(nsXMLElement, nsIDOMNode)
+    NS_INTERFACE_TABLE_ENTRY(nsXMLElement, nsIDOMElement)
+  NS_OFFSET_AND_INTERFACE_TABLE_END
   NS_ELEMENT_INTERFACE_TABLE_TO_MAP_SEGUE
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Element)
 NS_ELEMENT_INTERFACE_MAP_END
@@ -30,7 +33,7 @@ NS_IMPL_ADDREF_INHERITED(nsXMLElement, Element)
 NS_IMPL_RELEASE_INHERITED(nsXMLElement, Element)
 
 JSObject*
-nsXMLElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+nsXMLElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return ElementBinding::Wrap(aCx, aScope, this);
 }

@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -351,9 +352,16 @@ VirtualRegister::getFirstInterval()
     return intervals_[0];
 }
 
-// Instantiate LiveRangeAllocator for each template instance.
-template bool LiveRangeAllocator<LinearScanVirtualRegister>::buildLivenessInfo();
-template bool LiveRangeAllocator<BacktrackingVirtualRegister>::buildLivenessInfo();
+// Dummy function to instantiate LiveRangeAllocator for each template instance.
+void
+EnsureLiveRangeAllocatorInstantiation(MIRGenerator *mir, LIRGenerator *lir, LIRGraph &graph)
+{
+    LiveRangeAllocator<LinearScanVirtualRegister> lsra(mir, lir, graph, true);
+    lsra.buildLivenessInfo();
+
+    LiveRangeAllocator<BacktrackingVirtualRegister> backtracking(mir, lir, graph, false);
+    backtracking.buildLivenessInfo();
+}
 
 #ifdef DEBUG
 static inline bool
@@ -453,19 +461,6 @@ LiveRangeAllocator<VREG>::init()
     }
 
     return true;
-}
-
-static void
-AddRegisterToSafepoint(LSafepoint *safepoint, AnyRegister reg, const LDefinition &def)
-{
-    safepoint->addLiveRegister(reg);
-
-    JS_ASSERT(def.type() == LDefinition::GENERAL ||
-              def.type() == LDefinition::DOUBLE ||
-              def.type() == LDefinition::OBJECT);
-
-    if (def.type() == LDefinition::OBJECT)
-        safepoint->addGcRegister(reg.gpr());
 }
 
 /*
@@ -624,19 +619,13 @@ LiveRangeAllocator<VREG>::buildLivenessInfo()
                         AnyRegister reg = temp->output()->toRegister();
                         if (!addFixedRangeAtHead(reg, inputOf(*ins), outputOf(*ins)))
                             return false;
-
-                        // Fixed intervals are not added to safepoints, so do it
-                        // here.
-                        if (LSafepoint *safepoint = ins->safepoint())
-                            AddRegisterToSafepoint(safepoint, reg, *temp);
                     } else {
                         JS_ASSERT(!ins->isCall());
                         if (!vregs[temp].getInterval(0)->addRangeAtHead(inputOf(*ins), outputOf(*ins)))
                             return false;
                     }
                 } else {
-                    CodePosition to =
-                        ins->isCall() ? outputOf(*ins) : outputOf(*ins).next();
+                    CodePosition to = ins->isCall() ? outputOf(*ins) : outputOf(*ins).next();
                     if (!vregs[temp].getInterval(0)->addRangeAtHead(inputOf(*ins), to))
                         return false;
                 }
@@ -692,18 +681,11 @@ LiveRangeAllocator<VREG>::buildLivenessInfo()
                             if (!addFixedRangeAtHead(reg, inputOf(*ins), outputOf(*ins)))
                                 return false;
                             to = inputOf(*ins);
-
-                            // Fixed intervals are not added to safepoints, so do it
-                            // here.
-                            LSafepoint *safepoint = ins->safepoint();
-                            if (!ins->isCall() && safepoint)
-                                AddRegisterToSafepoint(safepoint, reg, *vregs[use].def());
                         } else {
                             to = use->usedAtStart() ? inputOf(*ins) : outputOf(*ins);
                         }
                     } else {
-                        to = (use->usedAtStart() || ins->isCall())
-                           ? inputOf(*ins) : outputOf(*ins);
+                        to = (use->usedAtStart() || ins->isCall()) ? inputOf(*ins) : outputOf(*ins);
                         if (use->isFixedRegister()) {
                             LAllocation reg(AnyRegister::FromCode(use->registerCode()));
                             for (size_t i = 0; i < ins->numDefs(); i++) {
@@ -786,17 +768,9 @@ LiveRangeAllocator<VREG>::buildLivenessInfo()
                     break;
 
                 // Grab the next block off the work list, skipping any OSR block.
-                while (!loopWorkList.empty()) {
+                do {
                     loopBlock = loopWorkList.popCopy();
-                    if (loopBlock->lir() != graph.osrBlock())
-                        break;
-                }
-
-                // If end is reached without finding a non-OSR block, then no more work items were found.
-                if (loopBlock->lir() == graph.osrBlock()) {
-                    JS_ASSERT(loopWorkList.empty());
-                    break;
-                }
+                } while (loopBlock->lir() == graph.osrBlock());
             }
 
             // Clear the done set for other loops

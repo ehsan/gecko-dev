@@ -1,6 +1,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* $Id: rijndael.c,v 1.30 2013/01/25 18:02:53 rrelyea%redhat.com Exp $ */
 
 #ifdef FREEBL_NO_DEPEND
 #include "stubs.h"
@@ -1220,7 +1221,7 @@ AES_Encrypt(AESContext *cx, unsigned char *output,
 {
     int blocksize;
     /* Check args */
-    if (cx == NULL || output == NULL || (input == NULL && inputLen != 0)) {
+    if (cx == NULL || output == NULL || input == NULL) {
 	PORT_SetError(SEC_ERROR_INVALID_ARGS);
 	return SECFailure;
     }
@@ -1251,7 +1252,7 @@ AES_Decrypt(AESContext *cx, unsigned char *output,
 {
     int blocksize;
     /* Check args */
-    if (cx == NULL || output == NULL || (input == NULL && inputLen != 0)) {
+    if (cx == NULL || output == NULL || input == NULL) {
 	PORT_SetError(SEC_ERROR_INVALID_ARGS);
 	return SECFailure;
     }

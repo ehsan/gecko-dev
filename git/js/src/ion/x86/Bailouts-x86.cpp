@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -65,7 +66,7 @@ class BailoutStack
 # pragma pack(pop)
 #endif
 
-IonBailoutIterator::IonBailoutIterator(const JitActivationIterator &activations,
+IonBailoutIterator::IonBailoutIterator(const IonActivationIterator &activations,
                                        BailoutStack *bailout)
   : IonFrameIterator(activations),
     machine_(bailout->machine())
@@ -76,7 +77,7 @@ IonBailoutIterator::IonBailoutIterator(const JitActivationIterator &activations,
     current_ = fp;
     type_ = IonFrame_OptimizedJS;
     topFrameSize_ = current_ - sp;
-    topIonScript_ = script()->ionScript();
+    topIonScript_ = script()->ion;
 
     if (bailout->frameClass() == FrameSizeClass::None()) {
         snapshotOffset_ = bailout->snapshotOffset();
@@ -84,7 +85,7 @@ IonBailoutIterator::IonBailoutIterator(const JitActivationIterator &activations,
     }
 
     // Compute the snapshot offset from the bailout ID.
-    JitActivation *activation = activations.activation()->asJit();
+    IonActivation *activation = activations.activation();
     JSCompartment *jsCompartment = activation->compartment();
     IonCompartment *ionCompartment = jsCompartment->ionCompartment();
     IonCode *code = ionCompartment->getBailoutTable(bailout->frameClass());
@@ -101,7 +102,7 @@ IonBailoutIterator::IonBailoutIterator(const JitActivationIterator &activations,
     snapshotOffset_ = topIonScript_->bailoutToSnapshot(bailoutId);
 }
 
-IonBailoutIterator::IonBailoutIterator(const JitActivationIterator &activations,
+IonBailoutIterator::IonBailoutIterator(const IonActivationIterator &activations,
                                        InvalidationBailoutStack *bailout)
   : IonFrameIterator(activations),
     machine_(bailout->machine())

@@ -13,11 +13,15 @@
 #include "nsIPluginDocument.h"
 #include "nsIDOMDocument.h"
 #include "nsThreadUtils.h"
+#include "nsIDOMSVGDocument.h"
 #include "nsIScriptError.h"
 #include "nsIWidget.h"
 #include "nsContentUtils.h"
 
 NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(SharedObject)
+
+DOMCI_DATA(HTMLAppletElement, mozilla::dom::HTMLSharedObjectElement)
+DOMCI_DATA(HTMLEmbedElement, mozilla::dom::HTMLSharedObjectElement)
 
 namespace mozilla {
 namespace dom {
@@ -90,22 +94,39 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_ADDREF_INHERITED(HTMLSharedObjectElement, Element)
 NS_IMPL_RELEASE_INHERITED(HTMLSharedObjectElement, Element)
 
+nsIClassInfo*
+HTMLSharedObjectElement::GetClassInfoInternal()
+{
+  if (mNodeInfo->Equals(nsGkAtoms::applet)) {
+    return NS_GetDOMClassInfoInstance(eDOMClassInfo_HTMLAppletElement_id);
+  }
+  if (mNodeInfo->Equals(nsGkAtoms::embed)) {
+    return NS_GetDOMClassInfoInstance(eDOMClassInfo_HTMLEmbedElement_id);
+  }
+  return nullptr;
+}
+
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(HTMLSharedObjectElement)
-  NS_HTML_CONTENT_INTERFACES_AMBIGUOUS(nsGenericHTMLElement,
-                                       nsIDOMHTMLAppletElement)
-  NS_INTERFACE_TABLE_INHERITED8(HTMLSharedObjectElement,
-                                nsIRequestObserver,
-                                nsIStreamListener,
-                                nsIFrameLoaderOwner,
-                                nsIObjectLoadingContent,
-                                imgINotificationObserver,
-                                nsIImageLoadingContent,
-                                imgIOnloadBlocker,
-                                nsIChannelEventSink)
-  NS_INTERFACE_TABLE_TO_MAP_SEGUE
+  NS_HTML_CONTENT_INTERFACE_TABLE_AMBIGUOUS_BEGIN(HTMLSharedObjectElement,
+                                                  nsIDOMHTMLAppletElement)
+    NS_INTERFACE_TABLE_ENTRY(HTMLSharedObjectElement, nsIRequestObserver)
+    NS_INTERFACE_TABLE_ENTRY(HTMLSharedObjectElement, nsIStreamListener)
+    NS_INTERFACE_TABLE_ENTRY(HTMLSharedObjectElement, nsIFrameLoaderOwner)
+    NS_INTERFACE_TABLE_ENTRY(HTMLSharedObjectElement, nsIObjectLoadingContent)
+    NS_INTERFACE_TABLE_ENTRY(HTMLSharedObjectElement, imgINotificationObserver)
+    NS_INTERFACE_TABLE_ENTRY(HTMLSharedObjectElement, nsIImageLoadingContent)
+    NS_INTERFACE_TABLE_ENTRY(HTMLSharedObjectElement, imgIOnloadBlocker)
+    NS_INTERFACE_TABLE_ENTRY(HTMLSharedObjectElement, nsIInterfaceRequestor)
+    NS_INTERFACE_TABLE_ENTRY(HTMLSharedObjectElement, nsIChannelEventSink)
+  NS_OFFSET_AND_INTERFACE_TABLE_END
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE_AMBIGUOUS(HTMLSharedObjectElement,
+                                                         nsGenericHTMLElement,
+                                                         nsIDOMHTMLAppletElement)
   NS_INTERFACE_MAP_ENTRY_IF_TAG(nsIDOMHTMLAppletElement, applet)
   NS_INTERFACE_MAP_ENTRY_IF_TAG(nsIDOMHTMLEmbedElement, embed)
-NS_ELEMENT_INTERFACE_MAP_END
+  NS_INTERFACE_MAP_ENTRY_IF_TAG(nsIDOMGetSVGDocument, embed)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_GETTER(GetClassInfoInternal)
+NS_HTML_CONTENT_INTERFACE_MAP_END
 
 NS_IMPL_ELEMENT_CLONE(HTMLSharedObjectElement)
 
@@ -221,7 +242,27 @@ NS_IMPL_STRING_ATTR(HTMLSharedObjectElement, Width, width)
 int32_t
 HTMLSharedObjectElement::TabIndexDefault()
 {
-  return -1;
+  return -1; 
+}
+
+NS_IMETHODIMP
+HTMLSharedObjectElement::GetSVGDocument(nsIDOMDocument **aResult)
+{
+  NS_ENSURE_ARG_POINTER(aResult);
+
+  *aResult = nullptr;
+
+  if (!IsInDoc()) {
+    return NS_OK;
+  }
+
+  // XXXbz should this use GetCurrentDoc()?  sXBL/XBL2 issue!
+  nsIDocument *sub_doc = OwnerDoc()->GetSubDocumentFor(this);
+  if (!sub_doc) {
+    return NS_OK;
+  }
+
+  return CallQueryInterface(sub_doc, aResult);
 }
 
 bool
@@ -244,28 +285,13 @@ HTMLSharedObjectElement::ParseAttribute(int32_t aNamespaceID,
 }
 
 static void
-MapAttributesIntoRuleBase(const nsMappedAttributes *aAttributes,
-                          nsRuleData *aData)
+MapAttributesIntoRule(const nsMappedAttributes *aAttributes,
+                      nsRuleData *aData)
 {
   nsGenericHTMLElement::MapImageBorderAttributeInto(aAttributes, aData);
   nsGenericHTMLElement::MapImageMarginAttributeInto(aAttributes, aData);
   nsGenericHTMLElement::MapImageSizeAttributesInto(aAttributes, aData);
   nsGenericHTMLElement::MapImageAlignAttributeInto(aAttributes, aData);
-}
-
-static void
-MapAttributesIntoRuleExceptHidden(const nsMappedAttributes *aAttributes,
-                                  nsRuleData *aData)
-{
-  MapAttributesIntoRuleBase(aAttributes, aData);
-  nsGenericHTMLElement::MapCommonAttributesIntoExceptHidden(aAttributes, aData);
-}
-
-static void
-MapAttributesIntoRule(const nsMappedAttributes *aAttributes,
-                      nsRuleData *aData)
-{
-  MapAttributesIntoRuleBase(aAttributes, aData);
   nsGenericHTMLElement::MapCommonAttributesInto(aAttributes, aData);
 }
 
@@ -286,10 +312,6 @@ HTMLSharedObjectElement::IsAttributeMapped(const nsIAtom *aAttribute) const
 nsMapRuleToAttributesFunc
 HTMLSharedObjectElement::GetAttributeMappingFunction() const
 {
-  if (mNodeInfo->Equals(nsGkAtoms::embed)) {
-    return &MapAttributesIntoRuleExceptHidden;
-  }
-
   return &MapAttributesIntoRule;
 }
 
@@ -344,7 +366,7 @@ HTMLSharedObjectElement::CopyInnerTo(Element* aDest)
 }
 
 JSObject*
-HTMLSharedObjectElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+HTMLSharedObjectElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   JSObject* obj;
   if (mNodeInfo->Equals(nsGkAtoms::applet)) {
@@ -356,9 +378,18 @@ HTMLSharedObjectElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
   if (!obj) {
     return nullptr;
   }
-  JS::Rooted<JSObject*> rootedObj(aCx, obj);
-  SetupProtoChain(aCx, rootedObj);
-  return rootedObj;
+  SetupProtoChain(aCx, obj);
+  return obj;
+}
+
+JSObject*
+HTMLSharedObjectElement::GetCanonicalPrototype(JSContext* aCx, JSObject* aGlobal)
+{
+  if (mNodeInfo->Equals(nsGkAtoms::applet)) {
+    return HTMLAppletElementBinding::GetProtoObject(aCx, aGlobal);
+  }
+  MOZ_ASSERT(mNodeInfo->Equals(nsGkAtoms::embed));
+  return HTMLEmbedElementBinding::GetProtoObject(aCx, aGlobal);
 }
 
 } // namespace dom

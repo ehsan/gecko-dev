@@ -5,7 +5,7 @@ MARIONETTE_TIMEOUT = 30000;
 
 SpecialPowers.addPermission("mobileconnection", true, document);
 
-let icc = navigator.mozIccManager;
+let icc = navigator.mozMobileConnection.icc;
 ok(icc instanceof MozIccManager, "icc is instanceof " + icc.constructor);
 
 function testSelectItem(command, expect) {

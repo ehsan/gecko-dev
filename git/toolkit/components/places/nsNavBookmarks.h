@@ -104,7 +104,7 @@ public:
   /**
    * Obtains the service's object.
    */
-  static already_AddRefed<nsNavBookmarks> GetSingleton();
+  static nsNavBookmarks* GetSingleton();
 
   /**
    * Initializes the service's object.  This should only be called once.

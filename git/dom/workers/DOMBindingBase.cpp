@@ -5,6 +5,8 @@
 
 #include "DOMBindingBase.h"
 
+#include "nsIJSContextStack.h"
+
 #include "jsfriendapi.h"
 #include "mozilla/dom/DOMJSClass.h"
 #include "nsContentUtils.h"
@@ -39,7 +41,10 @@ NS_INTERFACE_MAP_END
 void
 DOMBindingBase::_trace(JSTracer* aTrc)
 {
-  TraceJSObject(aTrc, "cached wrapper");
+  JSObject* obj = GetJSObject();
+  if (obj) {
+    JS_CallObjectTracer(aTrc, obj, "cached wrapper");
+  }
 }
 
 void
@@ -50,8 +55,23 @@ DOMBindingBase::_finalize(JSFreeOp* aFop)
 }
 
 JSContext*
-DOMBindingBase::GetJSContext() const {
-  return mJSContext ? mJSContext : nsContentUtils::GetCurrentJSContext();
+DOMBindingBase::GetJSContextFromContextStack() const
+{
+  AssertIsOnMainThread();
+  MOZ_ASSERT(!mJSContext);
+
+  if (!mContextStack) {
+    mContextStack = nsContentUtils::ThreadJSContextStack();
+    MOZ_ASSERT(mContextStack);
+  }
+
+  JSContext* cx;
+  if (NS_FAILED(mContextStack->Peek(&cx))) {
+    MOZ_NOT_REACHED("This should never fail!");
+  }
+
+  MOZ_ASSERT(cx);
+  return cx;
 }
 
 #ifdef DEBUG
@@ -60,8 +80,8 @@ DOMBindingBase::GetJSObject() const
 {
   // Make sure that the public method results in the same bits as our private
   // method.
-  MOZ_ASSERT(GetWrapperJSObject() == GetWrapperPreserveColor());
-  return GetWrapperJSObject();
+  MOZ_ASSERT(GetJSObjectFromBits() == GetWrapperPreserveColor());
+  return GetJSObjectFromBits();
 }
 
 void
@@ -71,10 +91,10 @@ DOMBindingBase::SetJSObject(JSObject* aObject)
   // method.
   SetWrapper(aObject);
 
-  uint8_t oldFlags = mFlags;
+  uintptr_t oldWrapperPtrBits = mWrapperPtrBits;
 
-  SetWrapperJSObject(aObject);
+  SetWrapperBits(aObject);
 
-  MOZ_ASSERT(oldFlags == mFlags && aObject == mWrapper);
+  MOZ_ASSERT(oldWrapperPtrBits == mWrapperPtrBits);
 }
 #endif

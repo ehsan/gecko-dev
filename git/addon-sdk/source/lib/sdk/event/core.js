@@ -17,8 +17,6 @@ const { ns } = require('../core/namespace');
 
 const event = ns();
 
-const EVENT_TYPE_PATTERN = /^on([A-Z]\w+$)/;
-
 // Utility function to access given event `target` object's event listeners for
 // the specific event `type`. If listeners for this type does not exists they
 // will be created.
@@ -97,8 +95,7 @@ function emit(target, type, message /*, ...*/) {
  */
 emit.lazy = function lazy(target, type, message /*, ...*/) {
   let args = Array.slice(arguments, 2);
-  let state = observers(target, type);
-  let listeners = state.slice();
+  let listeners = observers(target, type).slice();
   let index = 0;
   let count = listeners.length;
 
@@ -106,11 +103,7 @@ emit.lazy = function lazy(target, type, message /*, ...*/) {
   // into a console.
   if (count === 0 && type === 'error') console.exception(message);
   while (index < count) {
-    try {
-      let listener = listeners[index];
-      // Dispatch only if listener is still registered.
-      if (~state.indexOf(listener)) yield listener.apply(target, args);
-    }
+    try { yield listeners[index].apply(target, args); }
     catch (error) {
       // If exception is not thrown by a error listener and error listener is
       // registered emit `error` event. Otherwise dump exception to the console.
@@ -160,26 +153,3 @@ function count(target, type) {
   return observers(target, type).length;
 }
 exports.count = count;
-
-/**
- * Registers listeners on the given event `target` from the given `listeners`
- * dictionary. Iterates over the listeners and if property name matches name
- * pattern `onEventType` and property is a function, then registers it as
- * an `eventType` listener on `target`.
- *
- * @param {Object} target
- *    The type of event.
- * @param {Object} listeners
- *    Dictionary of listeners.
- */
-function setListeners(target, listeners) {
-  Object.keys(listeners || {}).forEach(function onEach(key) {
-    let match = EVENT_TYPE_PATTERN.exec(key);
-    let type = match && match[1].toLowerCase();
-    let listener = listeners[key];
-
-    if (type && typeof(listener) === 'function')
-      on(target, type, listener);
-  });
-}
-exports.setListeners = setListeners;

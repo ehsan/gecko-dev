@@ -6,6 +6,7 @@
 
 #include "IDBEvents.h"
 
+#include "nsDOMClassInfoID.h"
 #include "nsDOMException.h"
 #include "nsJSON.h"
 #include "nsThreadUtils.h"
@@ -14,14 +15,13 @@
 #include "IDBTransaction.h"
 
 USING_INDEXEDDB_NAMESPACE
-using namespace mozilla::dom;
 
 namespace {
 
 class EventFiringRunnable : public nsRunnable
 {
 public:
-  EventFiringRunnable(EventTarget* aTarget,
+  EventFiringRunnable(nsIDOMEventTarget* aTarget,
                       nsIDOMEvent* aEvent)
   : mTarget(aTarget), mEvent(aEvent)
   { }
@@ -32,7 +32,7 @@ public:
   }
 
 private:
-  nsCOMPtr<EventTarget> mTarget;
+  nsCOMPtr<nsIDOMEventTarget> mTarget;
   nsCOMPtr<nsIDOMEvent> mEvent;
 };
 
@@ -96,7 +96,10 @@ NS_IMPL_RELEASE_INHERITED(IDBVersionChangeEvent, nsDOMEvent)
 
 NS_INTERFACE_MAP_BEGIN(IDBVersionChangeEvent)
   NS_INTERFACE_MAP_ENTRY(nsIIDBVersionChangeEvent)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(IDBVersionChangeEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
+
+DOMCI_DATA(IDBVersionChangeEvent, IDBVersionChangeEvent)
 
 NS_IMETHODIMP
 IDBVersionChangeEvent::GetOldVersion(uint64_t* aOldVersion)

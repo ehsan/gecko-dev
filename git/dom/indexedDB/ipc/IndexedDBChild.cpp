@@ -45,7 +45,7 @@ public:
   SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
-  GetSuccessResult(JSContext* aCx, JS::MutableHandle<JS::Value> aVal) MOZ_OVERRIDE;
+  GetSuccessResult(JSContext* aCx, jsval* aVal) MOZ_OVERRIDE;
 
   virtual nsresult
   OnSuccess() MOZ_OVERRIDE
@@ -96,7 +96,7 @@ public:
   CreateSuccessEvent(mozilla::dom::EventTarget* aOwner) MOZ_OVERRIDE;
 
   virtual nsresult
-  GetSuccessResult(JSContext* aCx, JS::MutableHandle<JS::Value> aVal) MOZ_OVERRIDE;
+  GetSuccessResult(JSContext* aCx, jsval* aVal) MOZ_OVERRIDE;
 };
 
 class IPCDeleteDatabaseHelper : public AsyncConnectionHelper
@@ -114,7 +114,7 @@ public:
   SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
-  GetSuccessResult(JSContext* aCx, JS::MutableHandle<JS::Value> aVal) MOZ_OVERRIDE;
+  GetSuccessResult(JSContext* aCx, jsval* aVal) MOZ_OVERRIDE;
 
   virtual nsresult
   DoDatabaseWork(mozIStorageConnection* aConnection) MOZ_OVERRIDE;
@@ -1294,9 +1294,9 @@ IPCOpenDatabaseHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 }
 
 nsresult
-IPCOpenDatabaseHelper::GetSuccessResult(JSContext* aCx, JS::MutableHandle<JS::Value> aVal)
+IPCOpenDatabaseHelper::GetSuccessResult(JSContext* aCx, jsval* aVal)
 {
-  return WrapNative(aCx, NS_ISUPPORTS_CAST(EventTarget*, mDatabase),
+  return WrapNative(aCx, NS_ISUPPORTS_CAST(nsIDOMEventTarget*, mDatabase),
                     aVal);
 }
 
@@ -1331,11 +1331,11 @@ IPCSetVersionHelper::CreateSuccessEvent(mozilla::dom::EventTarget* aOwner)
 }
 
 nsresult
-IPCSetVersionHelper::GetSuccessResult(JSContext* aCx, JS::MutableHandle<JS::Value> aVal)
+IPCSetVersionHelper::GetSuccessResult(JSContext* aCx, jsval* aVal)
 {
   mOpenRequest->SetTransaction(mTransaction);
 
-  return WrapNative(aCx, NS_ISUPPORTS_CAST(EventTarget*, mDatabase),
+  return WrapNative(aCx, NS_ISUPPORTS_CAST(nsIDOMEventTarget*, mDatabase),
                     aVal);
 }
 
@@ -1355,9 +1355,9 @@ IPCDeleteDatabaseHelper::SendResponseToChildProcess(nsresult aResultCode)
 }
 
 nsresult
-IPCDeleteDatabaseHelper::GetSuccessResult(JSContext* aCx, JS::MutableHandle<JS::Value> aVal)
+IPCDeleteDatabaseHelper::GetSuccessResult(JSContext* aCx, jsval* aVal)
 {
-  aVal.setUndefined();
+  *aVal = JSVAL_VOID;
   return NS_OK;
 }
 

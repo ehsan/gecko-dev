@@ -24,12 +24,7 @@ class nsIURI;
 class nsIPrincipal;
 class nsSupportsHashtable;
 class nsHashtable;
-
-namespace mozilla {
-namespace dom {
-class EventTarget;
-}
-}
+class nsIDOMEventTarget;
 
 class nsXBLService : public nsIObserver,
                      public nsSupportsWeakReference
@@ -68,8 +63,8 @@ class nsXBLService : public nsIObserver,
                                    nsXBLDocumentInfo** aResult);
 
   // Used by XUL key bindings and for window XBL.
-  static nsresult AttachGlobalKeyHandler(mozilla::dom::EventTarget* aTarget);
-  static nsresult DetachGlobalKeyHandler(mozilla::dom::EventTarget* aTarget);
+  static nsresult AttachGlobalKeyHandler(nsIDOMEventTarget* aTarget);
+  static nsresult DetachGlobalKeyHandler(nsIDOMEventTarget* aTarget);
 
   NS_DECL_NSIOBSERVER
 

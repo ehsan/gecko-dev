@@ -16,7 +16,6 @@
 #include "mozilla/dom/ipc/Blob.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/HalTypes.h"
-#include "mozilla/LinkedList.h"
 
 #include "nsFrameMessageManager.h"
 #include "nsIObserver.h"
@@ -44,10 +43,6 @@ class URIParams;
 class TestShellParent;
 } // namespace ipc
 
-namespace jsipc {
-class JavaScriptParent;
-}
-
 namespace layers {
 class PCompositorParent;
 } // namespace layers
@@ -63,7 +58,6 @@ class ContentParent : public PContentParent
                     , public nsIThreadObserver
                     , public nsIDOMGeoPositionCallback
                     , public mozilla::dom::ipc::MessageManagerCallback
-                    , public mozilla::LinkedListElement<ContentParent>
 {
     typedef mozilla::ipc::GeckoChildProcessHost GeckoChildProcessHost;
     typedef mozilla::ipc::OptionalURIParams OptionalURIParams;
@@ -87,13 +81,7 @@ public:
      */
     static void JoinAllSubprocesses();
 
-    static already_AddRefed<ContentParent>
-    GetNewOrUsed(bool aForBrowserElement = false);
-
-    /**
-     * Create a subprocess suitable for use as a preallocated app process.
-     */
-    static already_AddRefed<ContentParent> PreallocateAppProcess();
+    static ContentParent* GetNewOrUsed(bool aForBrowserElement = false);
 
     /**
      * Get or create a content process for the given TabContext.  aFrameElement
@@ -115,10 +103,10 @@ public:
      * MessageManagerCallback methods that we override.
      */
     virtual bool DoSendAsyncMessage(const nsAString& aMessage,
-                                    const mozilla::dom::StructuredCloneData& aData) MOZ_OVERRIDE;
-    virtual bool CheckPermission(const nsAString& aPermission) MOZ_OVERRIDE;
-    virtual bool CheckManifestURL(const nsAString& aManifestURL) MOZ_OVERRIDE;
-    virtual bool CheckAppHasPermission(const nsAString& aPermission) MOZ_OVERRIDE;
+                                    const mozilla::dom::StructuredCloneData& aData);
+    virtual bool CheckPermission(const nsAString& aPermission);
+    virtual bool CheckManifestURL(const nsAString& aManifestURL);
+    virtual bool CheckAppHasPermission(const nsAString& aPermission);
 
     /** Notify that a tab is beginning its destruction sequence. */
     void NotifyTabDestroying(PBrowserParent* aTab);
@@ -129,7 +117,6 @@ public:
     TestShellParent* CreateTestShell();
     bool DestroyTestShell(TestShellParent* aTestShell);
     TestShellParent* GetTestShellSingleton();
-    jsipc::JavaScriptParent *GetCPOWManager();
 
     void ReportChildAlreadyBlocked();
     bool RequestRunToCompletion();
@@ -141,10 +128,6 @@ public:
 
     GeckoChildProcessHost* Process() {
         return mSubprocess;
-    }
-
-    int32_t Pid() {
-        return base::GetProcId(mSubprocess->GetChildProcessHandle());
     }
 
     bool NeedsPermissionsUpdate() {
@@ -161,28 +144,22 @@ public:
     void KillHard();
 
     uint64_t ChildID() { return mChildID; }
-    bool IsPreallocated();
-
-    /**
-     * Get a user-friendly name for this ContentParent.  We make no guarantees
-     * about this name: It might not be unique, apps can spoof special names,
-     * etc.  So please don't use this name to make any decisions about the
-     * ContentParent based on the value returned here.
-     */
-    void FriendlyName(nsAString& aName);
 
 protected:
-    void OnChannelConnected(int32_t pid) MOZ_OVERRIDE;
+    void OnChannelConnected(int32_t pid);
     virtual void ActorDestroy(ActorDestroyReason why);
 
 private:
-    static nsDataHashtable<nsStringHashKey, ContentParent*> *sAppContentParents;
-    static nsTArray<ContentParent*>* sNonAppContentParents;
-    static nsTArray<ContentParent*>* sPrivateContent;
-    static LinkedList<ContentParent> sContentParents;
+    static nsDataHashtable<nsStringHashKey, ContentParent*> *gAppContentParents;
+    static nsTArray<ContentParent*>* gNonAppContentParents;
+    static nsTArray<ContentParent*>* gPrivateContent;
 
     static void JoinProcessesIOThread(const nsTArray<ContentParent*>* aProcesses,
                                       Monitor* aMonitor, bool* aDone);
+
+    static void PreallocateAppProcess();
+    static void DelayedPreallocateAppProcess();
+    static void ScheduleDelayedPreallocateAppProcess();
 
     // Take the preallocated process and transform it into a "real" app process,
     // for the specified manifest URL.  If there is no preallocated process (or
@@ -194,23 +171,23 @@ private:
 
     static hal::ProcessPriority GetInitialProcessPriority(nsIDOMElement* aFrameElement);
 
+    static void FirstIdle();
+
     // Hide the raw constructor methods since we don't want client code
     // using them.
     using PContentParent::SendPBrowserConstructor;
     using PContentParent::SendPTestShellConstructor;
-    using PContentParent::SendPJavaScriptConstructor;
 
-    // No more than one of !!aApp, aIsForBrowser, and aIsForPreallocated may be
-    // true.
-    ContentParent(mozIApplication* aApp,
-                  bool aIsForBrowser,
-                  bool aIsForPreallocated,
+    ContentParent(const nsAString& aAppManifestURL, bool aIsForBrowser,
                   ChildPrivileges aOSPrivileges = base::PRIVILEGES_DEFAULT,
                   hal::ProcessPriority aInitialPriority = hal::PROCESS_PRIORITY_FOREGROUND);
-
     virtual ~ContentParent();
 
     void Init();
+
+    // Set the child process's priority.  Once the child starts up, it will
+    // manage its own priority via the ProcessPriorityManager.
+    void SetProcessPriority(hal::ProcessPriority aInitialPriority);
 
     // If the frame element indicates that the child process is "critical" and
     // has a pending system message, this function acquires the CPU wake lock on
@@ -255,9 +232,6 @@ private:
                                           bool* aIsForApp,
                                           bool* aIsForBrowser) MOZ_OVERRIDE;
     virtual bool RecvGetXPCOMProcessAttributes(bool* aIsOffline) MOZ_OVERRIDE;
-
-    virtual mozilla::jsipc::PJavaScriptParent* AllocPJavaScript();
-    virtual bool DeallocPJavaScript(mozilla::jsipc::PJavaScriptParent*);
 
     virtual PBrowserParent* AllocPBrowser(const IPCTabContext& aContext,
                                           const uint32_t& aChromeFlags);
@@ -310,16 +284,12 @@ private:
     virtual PSmsParent* AllocPSms();
     virtual bool DeallocPSms(PSmsParent*);
 
-    virtual PStorageParent* AllocPStorage();
+    virtual PStorageParent* AllocPStorage(const StorageConstructData& aData);
     virtual bool DeallocPStorage(PStorageParent* aActor);
 
     virtual PBluetoothParent* AllocPBluetooth();
     virtual bool DeallocPBluetooth(PBluetoothParent* aActor);
     virtual bool RecvPBluetoothConstructor(PBluetoothParent* aActor);
-
-    virtual PSpeechSynthesisParent* AllocPSpeechSynthesis();
-    virtual bool DeallocPSpeechSynthesis(PSpeechSynthesisParent* aActor);
-    virtual bool RecvPSpeechSynthesisConstructor(PSpeechSynthesisParent* aActor);
 
     virtual bool RecvReadPrefsArray(InfallibleTArray<PrefSetting>* aPrefs);
     virtual bool RecvReadFontList(InfallibleTArray<FontListEntry>* retValue);
@@ -376,7 +346,6 @@ private:
                                   const ClonedMessageData& aData);
 
     virtual bool RecvFilePathUpdateNotify(const nsString& aType,
-                                          const nsString& aStorageName,
                                           const nsString& aFilePath,
                                           const nsCString& aReason);
 
@@ -422,6 +391,8 @@ private:
 
     uint64_t mChildID;
     int32_t mGeolocationWatchID;
+    int mRunToCompletionDepth;
+    bool mShouldCallUnblockChild;
 
     // This is a cache of all of the memory reporters
     // registered in the child process.  To update this, one
@@ -429,15 +400,7 @@ private:
     // the nsIObserverService.
     nsCOMArray<nsIMemoryReporter> mMemoryReporters;
 
-    nsString mAppManifestURL;
-
-    /**
-     * We cache mAppName instead of looking it up using mAppManifestURL when we
-     * need it because it turns out that getting an app from the apps service is
-     * expensive.
-     */
-    nsString mAppName;
-
+    const nsString mAppManifestURL;
     nsRefPtr<nsFrameMessageManager> mMessageManager;
 
     // After we initiate shutdown, we also start a timer to ensure

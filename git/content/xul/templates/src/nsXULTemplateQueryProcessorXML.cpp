@@ -9,6 +9,7 @@
 #include "nsIDOMNode.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMEvent.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIDOMXPathNSResolver.h"
 #include "nsIDocument.h"
 #include "nsIContent.h"
@@ -20,13 +21,10 @@
 #include "nsArrayUtils.h"
 #include "nsPIDOMWindow.h"
 #include "nsXULContentUtils.h"
-#include "nsXMLHttpRequest.h"
 
 #include "nsXULTemplateQueryProcessorXML.h"
 #include "nsXULTemplateResultXML.h"
 #include "nsXULSortService.h"
-
-using namespace mozilla::dom;
 
 NS_IMPL_ISUPPORTS1(nsXMLQuery, nsXMLQuery)
 
@@ -176,16 +174,15 @@ nsXULTemplateQueryProcessorXML::GetDatasource(nsIArray* aDataSources,
         do_CreateInstance(NS_XMLHTTPREQUEST_CONTRACTID, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = req->Init(docPrincipal, context,
-                   scriptObject ? scriptObject : doc->GetScopeObject(),
-                   nullptr);
-    NS_ENSURE_SUCCESS(rv, rv);
+    nsCOMPtr<nsPIDOMWindow> owner = do_QueryInterface(scriptObject);
+    req->Init(docPrincipal, context, owner ? owner->GetOuterWindow() : nullptr,
+              nullptr);
 
     rv = req->Open(NS_LITERAL_CSTRING("GET"), uriStr, true,
                    EmptyString(), EmptyString());
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCOMPtr<EventTarget> target(do_QueryInterface(req));
+    nsCOMPtr<nsIDOMEventTarget> target(do_QueryInterface(req));
     rv = target->AddEventListener(NS_LITERAL_STRING("load"), this, false);
     NS_ENSURE_SUCCESS(rv, rv);
 

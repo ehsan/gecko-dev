@@ -13,6 +13,12 @@ MODULES_LIBJAR_LCPPSRCS = \
 		nsJARURI.cpp  \
 		$(NULL)
 
+MODULES_LIBJAR_LEXPORTS = \
+		zipstruct.h \
+		nsJARURI.h \
+		nsZipArchive.h \
+		$(NULL)
+
 MODULES_LIBJAR_LXPIDLSRCS = \
 		nsIZipReader.idl \
 		nsIJARChannel.idl \

@@ -4,7 +4,7 @@
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 <?xml-stylesheet href="chrome://browser/skin/" type="text/css"?>
 <?xml-stylesheet href="chrome://browser/content/devtools/widgets.css" type="text/css"?>
-<?xml-stylesheet href="chrome://browser/content/devtools/debugger.css" type="text/css"?>
+<?xml-stylesheet href="chrome://browser/content/debugger.css" type="text/css"?>
 <?xml-stylesheet href="chrome://browser/skin/devtools/common.css" type="text/css"?>
 <?xml-stylesheet href="chrome://browser/skin/devtools/widgets.css" type="text/css"?>
 <?xml-stylesheet href="chrome://browser/skin/devtools/debugger.css" type="text/css"?>
@@ -13,15 +13,9 @@
   %debuggerDTD;
 ]>
 <?xul-overlay href="chrome://global/content/editMenuOverlay.xul"?>
-<?xul-overlay href="chrome://browser/content/devtools/source-editor-overlay.xul"?>
+<?xul-overlay href="chrome://browser/content/source-editor-overlay.xul"?>
 
-<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
-        macanimationtype="document"
-        fullscreenbutton="true"
-        screenX="4" screenY="4"
-        width="960" height="480"
-        persist="screenX screenY width height sizemode">
-
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
   <script type="text/javascript" src="chrome://global/content/globalOverlay.js"/>
   <script type="text/javascript" src="debugger-controller.js"/>
   <script type="text/javascript" src="debugger-view.js"/>
@@ -32,10 +26,6 @@
   <commandset id="sourceEditorCommands"/>
 
   <commandset id="debuggerCommands">
-    <command id="nextSourceCommand"
-             oncommand="DebuggerView.Sources.selectNextItem()"/>
-    <command id="prevSourceCommand"
-             oncommand="DebuggerView.Sources.selectPrevItem()"/>
     <command id="resumeCommand"
              oncommand="DebuggerView.Toolbar._onResumePressed()"/>
     <command id="stepOverCommand"
@@ -74,8 +64,6 @@
              oncommand="DebuggerView.Options._toggleShowVariablesOnlyEnum()"/>
     <command id="toggleShowVariablesFilterBox"
              oncommand="DebuggerView.Options._toggleShowVariablesFilterBox()"/>
-    <command id="toggleShowOriginalSource"
-             oncommand="DebuggerView.Options._toggleShowOriginalSource()"/>
   </commandset>
 
   <popupset id="debuggerPopupset">
@@ -151,8 +139,7 @@
     <menupopup id="debuggerPrefsContextMenu"
                position="before_end"
                onpopupshowing="DebuggerView.Options._onPopupShowing()"
-               onpopuphiding="DebuggerView.Options._onPopupHiding()"
-               onpopuphidden="DebuggerView.Options._onPopupHidden()">
+               onpopuphiding="DebuggerView.Options._onPopupHiding()">
       <menuitem id="pause-on-exceptions"
                 type="checkbox"
                 label="&debuggerUI.pauseExceptions;"
@@ -173,23 +160,10 @@
                 label="&debuggerUI.showVarsFilter;"
                 accesskey="&debuggerUI.showVarsFilter.key;"
                 command="toggleShowVariablesFilterBox"/>
-      <menuitem id="show-original-source"
-                type="checkbox"
-                label="&debuggerUI.showOriginalSource;"
-                accesskey="&debuggerUI.showOriginalSource.key;"
-                command="toggleShowOriginalSource"/>
     </menupopup>
   </popupset>
 
   <keyset id="debuggerKeys">
-    <key id="nextSourceKey"
-         keycode="VK_DOWN"
-         modifiers="accel alt"
-         command="nextSourceCommand"/>
-    <key id="prevSourceKey"
-         keycode="VK_UP"
-         modifiers="accel alt"
-         command="prevSourceCommand"/>
     <key id="resumeKey"
          keycode="&debuggerUI.stepping.resume;"
          command="resumeCommand"/>
@@ -218,6 +192,10 @@
     <key id="functionSearchKey"
          key="&debuggerUI.searchFunction.key;"
          modifiers="accel"
+         command="functionSearchCommand"/>
+    <key id="functionSearchKey"
+         key="&debuggerUI.searchFunction.altkey;"
+         modifiers="accel shift"
          command="functionSearchCommand"/>
     <key id="tokenSearchKey"
          key="&debuggerUI.searchToken.key;"
@@ -295,7 +273,7 @@
         <splitter class="devtools-side-splitter"/>
         <vbox id="editor" flex="1"/>
         <splitter class="devtools-side-splitter"/>
-        <vbox id="instruments-pane" hidden="true">
+        <vbox id="instruments-pane">
           <vbox id="expressions"/>
           <splitter class="devtools-horizontal-splitter"/>
           <vbox id="variables" flex="1"/>
@@ -360,16 +338,6 @@
              value="&debuggerUI.condBreakPanelTitle;"/>
       <textbox id="conditional-breakpoint-panel-textbox"/>
     </vbox>
-  </panel>
-
-  <panel id="resumption-order-panel"
-         type="arrow"
-         noautofocus="true"
-         position="before_start">
-    <hbox align="start">
-      <image class="alert-icon"/>
-      <label id="resumption-panel-desc" class="description"/>
-    </hbox>
   </panel>
 
 </window>

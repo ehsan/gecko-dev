@@ -44,7 +44,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <string>
 #include <vector>
 
-#include "logging.h"
 #include "nsError.h"
 
 // nICEr includes
@@ -65,6 +64,7 @@ extern "C" {
 }
 
 // Local includes
+#include "logging.h"
 #include "nricectx.h"
 #include "nricemediastream.h"
 

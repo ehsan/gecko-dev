@@ -8,7 +8,6 @@
 #define mozilla_a11y_EnumVariant_h__
 
 #include "AccessibleWrap.h"
-#include "IUnknownImpl.h"
 
 namespace mozilla {
 namespace a11y {
@@ -19,7 +18,7 @@ namespace a11y {
 class ChildrenEnumVariant MOZ_FINAL : public IEnumVARIANT
 {
 public:
-  ChildrenEnumVariant(AccessibleWrap* aAnchor) : mAnchorAcc(aAnchor),
+  ChildrenEnumVariant(AccessibleWrap* aAnchor) : mRefCnt(0), mAnchorAcc(aAnchor),
     mCurAcc(mAnchorAcc->GetChildAt(0)), mCurIndex(0) { }
 
   // IUnknown
@@ -44,7 +43,7 @@ private:
   ChildrenEnumVariant& operator =(const ChildrenEnumVariant&) MOZ_DELETE;
 
   ChildrenEnumVariant(const ChildrenEnumVariant& aEnumVariant) :
-    mAnchorAcc(aEnumVariant.mAnchorAcc), mCurAcc(aEnumVariant.mCurAcc),
+    mRefCnt(0), mAnchorAcc(aEnumVariant.mAnchorAcc), mCurAcc(aEnumVariant.mCurAcc),
     mCurIndex(aEnumVariant.mCurIndex) { }
   virtual ~ChildrenEnumVariant() { }
 

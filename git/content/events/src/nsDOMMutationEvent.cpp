@@ -4,6 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsCOMPtr.h"
+#include "nsDOMClassInfoID.h"
 #include "nsDOMMutationEvent.h"
 
 class nsPresContext;
@@ -15,6 +16,7 @@ nsDOMMutationEvent::nsDOMMutationEvent(mozilla::dom::EventTarget* aOwner,
                aEvent ? aEvent : new nsMutationEvent(false, 0))
 {
   mEventIsInternal = (aEvent == nullptr);
+  SetIsDOMBinding();
 }
 
 nsDOMMutationEvent::~nsDOMMutationEvent()
@@ -26,8 +28,11 @@ nsDOMMutationEvent::~nsDOMMutationEvent()
   }
 }
 
+DOMCI_DATA(MutationEvent, nsDOMMutationEvent)
+
 NS_INTERFACE_MAP_BEGIN(nsDOMMutationEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMutationEvent)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(MutationEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
 
 NS_IMPL_ADDREF_INHERITED(nsDOMMutationEvent, nsDOMEvent)

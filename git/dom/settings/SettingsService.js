@@ -218,12 +218,6 @@ SettingsService.prototype = {
 
   classID : SETTINGSSERVICE_CID,
   QueryInterface : XPCOMUtils.generateQI([Ci.nsISettingsService]),
-  classInfo: XPCOMUtils.generateCI({
-    classID: SETTINGSSERVICE_CID,
-    contractID: "@mozilla.org/settingsService;1",
-    interfaces: [Ci.nsISettingsService],
-    flags: nsIClassInfo.DOM_OBJECT
-  })
 }
 
 this.NSGetFactory = XPCOMUtils.generateNSGetFactory([SettingsService, SettingsServiceLock])

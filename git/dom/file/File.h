@@ -7,7 +7,6 @@
 #ifndef mozilla_dom_file_file_h__
 #define mozilla_dom_file_file_h__
 
-#include "mozilla/Attributes.h"
 #include "FileCommon.h"
 
 #include "nsDOMFile.h"
@@ -49,10 +48,10 @@ public:
 
   // Overrides
   NS_IMETHOD
-  GetMozFullPathInternal(nsAString& aFullPath) MOZ_OVERRIDE;
+  GetMozFullPathInternal(nsAString& aFullPath);
 
   NS_IMETHOD
-  GetInternalStream(nsIInputStream** aStream) MOZ_OVERRIDE;
+  GetInternalStream(nsIInputStream** aStream);
 
 protected:
   // Create slice
@@ -64,22 +63,22 @@ protected:
 
   virtual already_AddRefed<nsIDOMBlob>
   CreateSlice(uint64_t aStart, uint64_t aLength,
-              const nsAString& aContentType) MOZ_OVERRIDE;
+              const nsAString& aContentType);
 
   virtual bool
-  IsStoredFile() const MOZ_OVERRIDE
+  IsStoredFile() const
   {
     return mStoredFile;
   }
 
   virtual bool
-  IsWholeFile() const MOZ_OVERRIDE
+  IsWholeFile() const
   {
     return mWholeFile;
   }
 
   virtual bool
-  IsSnapshot() const MOZ_OVERRIDE
+  IsSnapshot() const
   {
     return true;
   }

@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=79:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Copyright (C) 2009 University of Szeged
@@ -28,8 +28,8 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef assembler_assembler_AssemblerBufferWithConstantPool_h
-#define assembler_assembler_AssemblerBufferWithConstantPool_h
+#ifndef AssemblerBufferWithConstantPool_h
+#define AssemblerBufferWithConstantPool_h
 
 #include "assembler/wtf/Platform.h"
 
@@ -39,6 +39,8 @@
 #include "assembler/wtf/SegmentedVector.h"
 #include "assembler/wtf/Assertions.h"
 
+#include "methodjit/Logging.h"
+#include "jsnum.h"
 #define ASSEMBLER_HAS_CONSTANT_POOL 1
 
 namespace JSC {
@@ -238,7 +240,7 @@ public:
 
         union DoublePun {
             struct {
-#if defined(IS_LITTLE_ENDIAN)
+#if defined(IS_LITTLE_ENDIAN) && !defined(FPU_IS_ARM_FPA)
                 uint32_t lo, hi;
 #else
                 uint32_t hi, lo;
@@ -383,4 +385,4 @@ private:
 
 #endif // ENABLE(ASSEMBLER)
 
-#endif /* assembler_assembler_AssemblerBufferWithConstantPool_h */
+#endif // AssemblerBufferWithConstantPool_h

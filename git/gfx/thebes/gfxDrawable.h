@@ -22,7 +22,7 @@ class gfxContext;
  * An Interface representing something that has an intrinsic size and can draw
  * itself repeatedly.
  */
-class gfxDrawable {
+class THEBES_API gfxDrawable {
     NS_INLINE_DECL_REFCOUNTING(gfxDrawable)
 public:
     gfxDrawable(const gfxIntSize aSize)
@@ -51,7 +51,7 @@ protected:
  * gfxSurfaceDrawable
  * A convenience implementation of gfxDrawable for surfaces.
  */
-class gfxSurfaceDrawable : public gfxDrawable {
+class THEBES_API gfxSurfaceDrawable : public gfxDrawable {
 public:
     gfxSurfaceDrawable(gfxASurface* aSurface, const gfxIntSize aSize,
                        const gfxMatrix aTransform = gfxMatrix());
@@ -72,7 +72,7 @@ protected:
  * gfxDrawingCallback
  * A simple drawing functor.
  */
-class gfxDrawingCallback {
+class THEBES_API gfxDrawingCallback {
     NS_INLINE_DECL_REFCOUNTING(gfxDrawingCallback)
 public:
     virtual ~gfxDrawingCallback() {}
@@ -92,10 +92,10 @@ public:
 };
 
 /**
- * gfxCallbackDrawable
+ * gfxSurfaceDrawable
  * A convenience implementation of gfxDrawable for callbacks.
  */
-class gfxCallbackDrawable : public gfxDrawable {
+class THEBES_API gfxCallbackDrawable : public gfxDrawable {
 public:
     gfxCallbackDrawable(gfxDrawingCallback* aCallback, const gfxIntSize aSize);
     virtual ~gfxCallbackDrawable() {}
@@ -117,7 +117,7 @@ protected:
  * gfxPatternDrawable
  * A convenience implementation of gfxDrawable for patterns.
  */
-class gfxPatternDrawable : public gfxDrawable {
+class THEBES_API gfxPatternDrawable : public gfxDrawable {
 public:
     gfxPatternDrawable(gfxPattern* aPattern,
                        const gfxIntSize aSize);

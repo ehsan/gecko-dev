@@ -64,13 +64,7 @@ nsGenericHTMLFrameElement::GetContentDocument()
     return nullptr;
   }
 
-  nsIDocument *doc = win->GetDoc();
-
-  // Return null for cross-origin contentDocument.
-  if (!nsContentUtils::GetSubjectPrincipal()->Subsumes(doc->NodePrincipal())) {
-    return nullptr;
-  }
-  return doc;
+  return win->GetDoc();
 }
 
 nsresult

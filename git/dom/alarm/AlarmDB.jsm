@@ -139,13 +139,15 @@ AlarmDB.prototype = {
       "readonly",
       ALARMSTORE_NAME,
       function txnCb(aTxn, aStore) {
-        if (!aTxn.result) {
+        if (!aTxn.result)
           aTxn.result = [];
-        }
 
-        let index = aStore.index("manifestURL");
-        index.mozGetAll(aManifestURL).onsuccess = function setTxnResult(aEvent) {
-          aTxn.result = aEvent.target.result;
+        aStore.mozGetAll().onsuccess = function setTxnResult(aEvent) {
+          aEvent.target.result.forEach(function addAlarm(aAlarm) {
+            if (!aManifestURL || aManifestURL == aAlarm.manifestURL)
+              aTxn.result.push(aAlarm);
+          });
+
           debug("Request successful. Record count: " + aTxn.result.length);
         };
       },

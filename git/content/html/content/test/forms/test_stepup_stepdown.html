@@ -47,14 +47,16 @@ function checkAvailability()
     ["reset", false],
     ["button", false],
     ["number", true],
-    ["range", true],
     ["date", true],
     ["time", true],
+    // The next types have not been implemented but will fallback to "text"
+    // which has the same value.
     ["color", false],
   ];
 
   var todoList =
   [
+    ["range", true],
     ["datetime", true],
     ["month", true],
     ["week", true],
@@ -178,6 +180,7 @@ function checkStepDown()
     // With @value = step base.
     [ '1',  '2',    null,  null,  null, '-1',   false ],
   ]},
+/* disabled on branch
   { type: 'range', data: [
     // Regular case.
     [ '1',   null,  null,  null,  null, '0',    false ],
@@ -245,6 +248,7 @@ function checkStepDown()
     // With @value = step base.
     [ '1',  '2',    null,  null,  null, '1',    false ],
   ]},
+*/
   { type: 'date', data: [
     // Regular case.
     [ '2012-07-09',  null,  null,  null,  null, '2012-07-08',   false ],
@@ -493,6 +497,7 @@ function checkStepUp()
     // With @value = step base.
     [ '1',  '2',    null,  null,  null, '3',   false ],
   ]},
+/* disabled on branch
   { type: 'range', data: [
     // Regular case.
     [ '1',   null,  null,  null,  null, '2',   false ],
@@ -557,6 +562,7 @@ function checkStepUp()
     // With @value = step base.
     [ '1',  '2',    null,  null,  null, '3',   false ],
   ]},
+*/
   { type: 'date', data: [
     // Regular case.
     [ '2012-07-09',  null,  null,  null,  null, '2012-07-10',   false ],

@@ -1,13 +1,12 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=78:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_Xdr_h
-#define vm_Xdr_h
-
-#include "mozilla/Endian.h"
+#ifndef Xdr_h___
+#define Xdr_h___
 
 #include "jsapi.h"
 #include "jsprvtd.h"
@@ -26,7 +25,7 @@ namespace js {
  * and saved versions. If deserialization fails, the data should be
  * invalidated if possible.
  */
-static const uint32_t XDR_BYTECODE_VERSION = uint32_t(0xb973c0de - 148);
+static const uint32_t XDR_BYTECODE_VERSION = uint32_t(0xb973c0de - 141);
 
 class XDRBuffer {
   public:
@@ -89,9 +88,40 @@ class XDRBuffer {
     uint8_t     *limit;
 };
 
-/*
- * XDR serialization state.  All data is encoded in little endian.
- */
+/* We use little-endian byteorder for all encoded data */
+
+#if defined IS_LITTLE_ENDIAN
+
+inline uint32_t
+NormalizeByteOrder32(uint32_t x)
+{
+    return x;
+}
+
+inline uint16_t
+NormalizeByteOrder16(uint16_t x)
+{
+    return x;
+}
+
+#elif defined IS_BIG_ENDIAN
+
+inline uint32_t
+NormalizeByteOrder32(uint32_t x)
+{
+    return (x >> 24) | ((x >> 8) & 0xff00) | ((x << 8) & 0xff0000) | (x << 24);
+}
+
+inline uint16_t
+NormalizeByteOrder16(uint16_t x)
+{
+    return (x >> 8) | (x << 8);
+}
+
+#else
+#error "unknown byte order"
+#endif
+
 template <XDRMode mode>
 class XDRState {
   public:
@@ -123,27 +153,31 @@ class XDRState {
     }
 
     bool codeUint16(uint16_t *n) {
+        uint16_t tmp;
         if (mode == XDR_ENCODE) {
-            uint8_t *ptr = buf.write(sizeof *n);
+            uint8_t *ptr = buf.write(sizeof tmp);
             if (!ptr)
                 return false;
-            mozilla::LittleEndian::writeUint16(ptr, *n);
+            tmp = NormalizeByteOrder16(*n);
+            memcpy(ptr, &tmp, sizeof tmp);
         } else {
-            const uint8_t *ptr = buf.read(sizeof *n);
-            *n = mozilla::LittleEndian::readUint16(ptr);
+            memcpy(&tmp, buf.read(sizeof tmp), sizeof tmp);
+            *n = NormalizeByteOrder16(tmp);
         }
         return true;
     }
 
     bool codeUint32(uint32_t *n) {
+        uint32_t tmp;
         if (mode == XDR_ENCODE) {
-            uint8_t *ptr = buf.write(sizeof *n);
+            uint8_t *ptr = buf.write(sizeof tmp);
             if (!ptr)
                 return false;
-            mozilla::LittleEndian::writeUint32(ptr, *n);
+            tmp = NormalizeByteOrder32(*n);
+            memcpy(ptr, &tmp, sizeof tmp);
         } else {
-            const uint8_t *ptr = buf.read(sizeof *n);
-            *n = mozilla::LittleEndian::readUint32(ptr);
+            memcpy(&tmp, buf.read(sizeof tmp), sizeof tmp);
+            *n = NormalizeByteOrder32(tmp);
         }
         return true;
     }
@@ -153,10 +187,24 @@ class XDRState {
             uint8_t *ptr = buf.write(sizeof(*n));
             if (!ptr)
                 return false;
-            mozilla::LittleEndian::writeUint64(ptr, *n);
+            ptr[0] = (*n >>  0) & 0xFF;
+            ptr[1] = (*n >>  8) & 0xFF;
+            ptr[2] = (*n >> 16) & 0xFF;
+            ptr[3] = (*n >> 24) & 0xFF;
+            ptr[4] = (*n >> 32) & 0xFF;
+            ptr[5] = (*n >> 40) & 0xFF;
+            ptr[6] = (*n >> 48) & 0xFF;
+            ptr[7] = (*n >> 56) & 0xFF;
         } else {
             const uint8_t *ptr = buf.read(sizeof(*n));
-            *n = mozilla::LittleEndian::readUint64(ptr);
+            *n = (uint64_t(ptr[0]) <<  0) |
+                 (uint64_t(ptr[1]) <<  8) |
+                 (uint64_t(ptr[2]) << 16) |
+                 (uint64_t(ptr[3]) << 24) |
+                 (uint64_t(ptr[4]) << 32) |
+                 (uint64_t(ptr[5]) << 40) |
+                 (uint64_t(ptr[6]) << 48) |
+                 (uint64_t(ptr[7]) << 56);
         }
         return true;
     }
@@ -208,10 +256,23 @@ class XDRState {
 
     bool codeChars(jschar *chars, size_t nchars);
 
-    bool codeFunction(JS::MutableHandleObject objp);
-    bool codeScript(MutableHandleScript scriptp);
+    bool codeFunction(JSMutableHandleObject objp);
+    bool codeScript(JSMutableHandleScript scriptp);
 
-    void initScriptPrincipals(JSScript *script);
+    void initScriptPrincipals(JSScript *script) {
+        JS_ASSERT(mode == XDR_DECODE);
+
+        /* The origin principals must be normalized at this point. */
+        JS_ASSERT_IF(principals, originPrincipals);
+        JS_ASSERT(!script->originPrincipals);
+        if (principals)
+            JS_ASSERT(script->principals() == principals);
+
+        if (originPrincipals) {
+            script->originPrincipals = originPrincipals;
+            JS_HoldPrincipals(originPrincipals);
+        }
+    }
 };
 
 class XDREncoder : public XDRState<XDR_ENCODE> {
@@ -244,4 +305,4 @@ class XDRDecoder : public XDRState<XDR_DECODE> {
 
 } /* namespace js */
 
-#endif /* vm_Xdr_h */
+#endif /* Xdr_h___ */

@@ -401,8 +401,7 @@ nsLocalFile::OpenNSPRFileDesc(int32_t flags, int32_t mode, PRFileDesc **_retval)
 
 #if defined(LINUX) && !defined(ANDROID)
     if (flags & OS_READAHEAD) {
-        posix_fadvise(PR_FileDesc2NativeHandle(*_retval), 0, 0,
-                      POSIX_FADV_SEQUENTIAL);
+        readahead(PR_FileDesc2NativeHandle(*_retval), 0, 0);
     }
 #endif
     return NS_OK;

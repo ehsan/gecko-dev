@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "WebGLContext.h"
-#include "WebGLShaderPrecisionFormat.h"
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
 
 using namespace mozilla;
@@ -17,7 +16,7 @@ NS_IMPL_ADDREF(WebGLShaderPrecisionFormat)
 NS_IMPL_RELEASE(WebGLShaderPrecisionFormat)
 
 JSObject*
-WebGLShaderPrecisionFormat::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
+WebGLShaderPrecisionFormat::WrapObject(JSContext *cx, JSObject *scope)
 {
     return dom::WebGLShaderPrecisionFormatBinding::Wrap(cx, scope, this);
 }

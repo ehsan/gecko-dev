@@ -1,11 +1,12 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_IonAllocPolicy_h
-#define ion_IonAllocPolicy_h
+#ifndef jsion_ion_alloc_policy_h__
+#define jsion_ion_alloc_policy_h__
 
 #include "mozilla/GuardObjects.h"
 
@@ -20,27 +21,34 @@ namespace ion {
 
 class TempAllocator
 {
-    LifoAllocScope lifoScope_;
+    LifoAlloc *lifoAlloc_;
+    void *mark_;
 
     // Linked list of GCThings rooted by this allocator.
     CompilerRootNode *rootList_;
 
   public:
     TempAllocator(LifoAlloc *lifoAlloc)
-      : lifoScope_(lifoAlloc),
+      : lifoAlloc_(lifoAlloc),
+        mark_(lifoAlloc->mark()),
         rootList_(NULL)
     { }
 
+    ~TempAllocator()
+    {
+        lifoAlloc_->release(mark_);
+    }
+
     void *allocateInfallible(size_t bytes)
     {
-        void *p = lifoScope_.alloc().allocInfallible(bytes);
+        void *p = lifoAlloc_->allocInfallible(bytes);
         JS_ASSERT(p);
         return p;
     }
 
     void *allocate(size_t bytes)
     {
-        void *p = lifoScope_.alloc().alloc(bytes);
+        void *p = lifoAlloc_->alloc(bytes);
         if (!ensureBallast())
             return NULL;
         return p;
@@ -48,7 +56,7 @@ class TempAllocator
 
     LifoAlloc *lifoAlloc()
     {
-        return &lifoScope_.alloc();
+        return lifoAlloc_;
     }
 
     CompilerRootNode *&rootList()
@@ -59,7 +67,7 @@ class TempAllocator
     bool ensureBallast() {
         // Most infallible Ion allocations are small, so we use a ballast of
         // ~16K for now.
-        return lifoScope_.alloc().ensureUnusedApproximate(16 * 1024);
+        return lifoAlloc_->ensureUnusedApproximate(16 * 1024);
     }
 };
 
@@ -161,4 +169,5 @@ class TempObjectPool
 } // namespace ion
 } // namespace js
 
-#endif /* ion_IonAllocPolicy_h */
+#endif // jsion_temp_alloc_policy_h__
+

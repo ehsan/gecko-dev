@@ -10,6 +10,7 @@
 #include "nsViewManager.h"
 #include "nsGfxCIID.h"
 #include "nsView.h"
+#include "nsISupportsArray.h"
 #include "nsCOMPtr.h"
 #include "nsGUIEvent.h"
 #include "nsRegion.h"
@@ -24,8 +25,6 @@
 #include "nsRefreshDriver.h"
 #include "mozilla/Preferences.h"
 #include "nsContentUtils.h"
-#include "nsLayoutUtils.h"
-#include "mozilla/layers/Compositor.h"
 
 /**
    XXX TODO XXX
@@ -42,8 +41,6 @@
    We do NOT assume anything about the relative z-ordering of sibling widgets. Even though
    we ask for a specific z-order, we don't assume that widget z-ordering actually works.
 */
-
-using namespace mozilla::layers;
 
 #define NSCOORD_NONE      INT32_MIN
 
@@ -328,23 +325,13 @@ void nsViewManager::Refresh(nsView *aView, const nsIntRegion& aRegion)
                  "Widgets that we paint must all be display roots");
 
     if (mPresShell) {
-#ifdef MOZ_DUMP_PAINTING
-      if (nsLayoutUtils::InvalidationDebuggingIsEnabled()) {
-        printf("--COMPOSITE-- %p\n", mPresShell);
-      }
+#ifdef DEBUG_INVALIDATIONS
+      printf("--COMPOSITE-- %p\n", mPresShell);
 #endif
-      uint32_t paintFlags = nsIPresShell::PAINT_COMPOSITE;
-      LayerManager *manager = widget->GetLayerManager();
-      if (!manager->NeedsWidgetInvalidation()) {
-        manager->FlushRendering();
-      } else {
-        mPresShell->Paint(aView, damageRegion,
-                          paintFlags);
-      }
-#ifdef MOZ_DUMP_PAINTING
-      if (nsLayoutUtils::InvalidationDebuggingIsEnabled()) {
-        printf("--ENDCOMPOSITE--\n");
-      }
+      mPresShell->Paint(aView, damageRegion,
+                        nsIPresShell::PAINT_COMPOSITE);
+#ifdef DEBUG_INVALIDATIONS
+      printf("--ENDCOMPOSITE--\n");
 #endif
       mozilla::StartupTimeline::RecordOnce(mozilla::StartupTimeline::FIRST_PAINT);
     }
@@ -393,25 +380,23 @@ void nsViewManager::ProcessPendingUpdatesForView(nsView* aView,
             vm->mRootView->IsEffectivelyVisible() &&
             mPresShell && mPresShell->IsVisible()) {
           vm->FlushDelayedResize(true);
+          vm->InvalidateView(vm->mRootView);
         }
       }
 
       NS_ASSERTION(aView->HasWidget(), "Must have a widget!");
 
-#ifdef MOZ_DUMP_PAINTING
-      if (nsLayoutUtils::InvalidationDebuggingIsEnabled()) {
-        printf("---- PAINT START ----PresShell(%p), nsView(%p), nsIWidget(%p)\n", mPresShell, aView, widget);
-      }
+#ifdef DEBUG_INVALIDATIONS
+      printf("---- PAINT START ----PresShell(%p), nsView(%p), nsIWidget(%p)\n", mPresShell, aView, widget);
 #endif
       nsAutoScriptBlocker scriptBlocker;
       NS_ASSERTION(aView->HasWidget(), "Must have a widget!");
+      aView->GetWidget()->WillPaint();
       SetPainting(true);
       mPresShell->Paint(aView, nsRegion(),
                         nsIPresShell::PAINT_LAYERS);
-#ifdef MOZ_DUMP_PAINTING
-      if (nsLayoutUtils::InvalidationDebuggingIsEnabled()) {
-        printf("---- PAINT END ----\n");
-      }
+#ifdef DEBUG_INVALIDATIONS
+      printf("---- PAINT END ----\n");
 #endif
       aView->SetForcedRepaint(false);
       SetPainting(false);
@@ -629,9 +614,7 @@ void nsViewManager::WillPaintWindow(nsIWidget* aWidget)
 {
   if (aWidget) {
     nsView* view = nsView::GetViewFor(aWidget);
-    LayerManager *manager = aWidget->GetLayerManager();
-    if (view &&
-        (view->ForcedRepaint() || !manager->NeedsWidgetInvalidation())) {
+    if (view && view->ForcedRepaint()) {
       ProcessPendingUpdates();
       // Re-get the view pointer here since the ProcessPendingUpdates might have
       // destroyed it during CallWillPaintOnObservers.
@@ -648,7 +631,8 @@ void nsViewManager::WillPaintWindow(nsIWidget* aWidget)
   }
 }
 
-bool nsViewManager::PaintWindow(nsIWidget* aWidget, nsIntRegion aRegion)
+bool nsViewManager::PaintWindow(nsIWidget* aWidget, nsIntRegion aRegion,
+                                uint32_t aFlags)
 {
   if (!aWidget || !mContext)
     return false;
@@ -852,6 +836,11 @@ nsViewManager::InsertChild(nsView *aParent, nsView *aChild, nsView *aSibling,
       // if the parent view is marked as "floating", make the newly added view float as well.
       if (aParent->GetFloating())
         aChild->SetFloating(true);
+
+      //and mark this area as dirty if the view is visible...
+
+      if (nsViewVisibility_kHide != aChild->GetVisibility())
+        aChild->GetViewManager()->InvalidateView(aChild);
     }
 }
 
@@ -874,6 +863,7 @@ nsViewManager::RemoveChild(nsView *aChild)
   if (nullptr != parent) {
     NS_ASSERTION(aChild->GetViewManager() == this ||
                  parent->GetViewManager() == this, "wrong view manager");
+    aChild->GetViewManager()->InvalidateView(aChild);
     parent->RemoveChild(aChild);
   }
 }
@@ -882,7 +872,53 @@ void
 nsViewManager::MoveViewTo(nsView *aView, nscoord aX, nscoord aY)
 {
   NS_ASSERTION(aView->GetViewManager() == this, "wrong view manager");
+  nsPoint oldPt = aView->GetPosition();
+  nsRect oldBounds = aView->GetBoundsInParentUnits();
   aView->SetPosition(aX, aY);
+
+  // only do damage control if the view is visible
+
+  if ((aX != oldPt.x) || (aY != oldPt.y)) {
+    if (aView->GetVisibility() != nsViewVisibility_kHide) {
+      nsView* parentView = aView->GetParent();
+      if (parentView) {
+        nsViewManager* parentVM = parentView->GetViewManager();
+        parentVM->InvalidateView(parentView, oldBounds);
+        parentVM->InvalidateView(parentView, aView->GetBoundsInParentUnits());
+      }
+    }
+  }
+}
+
+void nsViewManager::InvalidateHorizontalBandDifference(nsView *aView, const nsRect& aRect, const nsRect& aCutOut,
+  nscoord aY1, nscoord aY2, bool aInCutOut) {
+  nscoord height = aY2 - aY1;
+  if (aRect.x < aCutOut.x) {
+    nsRect r(aRect.x, aY1, aCutOut.x - aRect.x, height);
+    InvalidateView(aView, r);
+  }
+  if (!aInCutOut && aCutOut.x < aCutOut.XMost()) {
+    nsRect r(aCutOut.x, aY1, aCutOut.width, height);
+    InvalidateView(aView, r);
+  }
+  if (aCutOut.XMost() < aRect.XMost()) {
+    nsRect r(aCutOut.XMost(), aY1, aRect.XMost() - aCutOut.XMost(), height);
+    InvalidateView(aView, r);
+  }
+}
+
+void nsViewManager::InvalidateRectDifference(nsView *aView, const nsRect& aRect, const nsRect& aCutOut) {
+  NS_ASSERTION(aView->GetViewManager() == this,
+               "InvalidateRectDifference called on view we don't own");
+  if (aRect.y < aCutOut.y) {
+    InvalidateHorizontalBandDifference(aView, aRect, aCutOut, aRect.y, aCutOut.y, false);
+  }
+  if (aCutOut.y < aCutOut.YMost()) {
+    InvalidateHorizontalBandDifference(aView, aRect, aCutOut, aCutOut.y, aCutOut.YMost(), true);
+  }
+  if (aCutOut.YMost() < aRect.YMost()) {
+    InvalidateHorizontalBandDifference(aView, aRect, aCutOut, aCutOut.YMost(), aRect.YMost(), false);
+  }
 }
 
 void
@@ -892,7 +928,28 @@ nsViewManager::ResizeView(nsView *aView, const nsRect &aRect, bool aRepaintExpos
 
   nsRect oldDimensions = aView->GetDimensions();
   if (!oldDimensions.IsEqualEdges(aRect)) {
-    aView->SetDimensions(aRect, true);
+    // resize the view.
+    // Prevent Invalidation of hidden views 
+    if (aView->GetVisibility() == nsViewVisibility_kHide) {
+      aView->SetDimensions(aRect, false);
+    } else {
+      nsView* parentView = aView->GetParent();
+      if (!parentView) {
+        parentView = aView;
+      }
+      nsRect oldBounds = aView->GetBoundsInParentUnits();
+      aView->SetDimensions(aRect, true);
+      nsViewManager* parentVM = parentView->GetViewManager();
+      if (!aRepaintExposedAreaOnly) {
+        // Invalidate the union of the old and new size
+        InvalidateView(aView, aRect);
+        parentVM->InvalidateView(parentView, oldBounds);
+      } else {
+        InvalidateRectDifference(aView, aRect, oldDimensions);
+        nsRect newBounds = aView->GetBoundsInParentUnits();
+        parentVM->InvalidateRectDifference(parentView, oldBounds, newBounds);
+      } 
+    }
   }
 
   // Note that if layout resizes the view and the view has a custom clip
@@ -917,6 +974,21 @@ nsViewManager::SetViewVisibility(nsView *aView, nsViewVisibility aVisible)
 
   if (aVisible != aView->GetVisibility()) {
     aView->SetVisibility(aVisible);
+
+    if (IsViewInserted(aView)) {
+      if (!aView->HasWidget()) {
+        if (nsViewVisibility_kHide == aVisible) {
+          nsView* parentView = aView->GetParent();
+          if (parentView) {
+            parentView->GetViewManager()->
+              InvalidateView(parentView, aView->GetBoundsInParentUnits());
+          }
+        }
+        else {
+          InvalidateView(aView);
+        }
+      }
+    }
   }
 }
 
@@ -949,11 +1021,27 @@ nsViewManager::SetViewZIndex(nsView *aView, bool aAutoZIndex, int32_t aZIndex, b
     return;
   }
 
+  bool oldTopMost = aView->IsTopMost();
+  bool oldIsAuto = aView->GetZIndexIsAuto();
+
   if (aAutoZIndex) {
     aZIndex = 0;
   }
 
+  int32_t oldidx = aView->GetZIndex();
   aView->SetZIndex(aAutoZIndex, aZIndex, aTopMost);
+
+  if (oldidx != aZIndex || oldTopMost != aTopMost ||
+      oldIsAuto != aAutoZIndex) {
+    InvalidateView(aView);
+  }
+}
+
+void
+nsViewManager::GetDeviceContext(nsDeviceContext *&aContext)
+{
+  aContext = mContext;
+  NS_IF_ADDREF(aContext);
 }
 
 nsViewManager*

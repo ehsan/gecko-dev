@@ -28,13 +28,14 @@ public:
 
     static already_AddRefed<nsIdleServiceWin> GetInstance()
     {
-        nsRefPtr<nsIdleServiceWin> idleService =
-            nsIdleService::GetInstance().downcast<nsIdleServiceWin>();
+        nsIdleServiceWin* idleService =
+            static_cast<nsIdleServiceWin*>(nsIdleService::GetInstance().get());
         if (!idleService) {
             idleService = new nsIdleServiceWin();
+            NS_ADDREF(idleService);
         }
         
-        return idleService.forget();
+        return idleService;
     }
 
 protected:

@@ -7,7 +7,6 @@
 #include "mozilla/dom/HTMLTextAreaElement.h"
 #include "mozilla/dom/HTMLTextAreaElementBinding.h"
 #include "mozilla/Util.h"
-#include "base/compiler_specific.h"
 
 #include "nsIControllers.h"
 #include "nsFocusManager.h"
@@ -18,6 +17,7 @@
 #include "nsIFormControl.h"
 #include "nsIForm.h"
 #include "nsFormSubmission.h"
+#include "nsIDOMEventTarget.h"
 #include "nsAttrValueInlines.h"
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
@@ -59,7 +59,7 @@ HTMLTextAreaElement::HTMLTextAreaElement(already_AddRefed<nsINodeInfo> aNodeInfo
     mDisabledChanged(false),
     mCanShowInvalidUI(true),
     mCanShowValidUI(true),
-    ALLOW_THIS_IN_INITIALIZER_LIST(mState(this))
+    mState(this)
 {
   AddMutationObserver(this);
 
@@ -76,10 +76,18 @@ HTMLTextAreaElement::HTMLTextAreaElement(already_AddRefed<nsINodeInfo> aNodeInfo
 }
 
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_3(HTMLTextAreaElement, nsGenericHTMLFormElement,
-                                     mValidity,
-                                     mControllers,
-                                     mState)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(HTMLTextAreaElement,
+                                                nsGenericHTMLFormElement)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mValidity)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mControllers)
+  tmp->mState.Unlink();
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(HTMLTextAreaElement,
+                                                  nsGenericHTMLFormElement)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mValidity)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mControllers)
+  tmp->mState.Traverse(cb);
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(HTMLTextAreaElement, Element)
 NS_IMPL_RELEASE_INHERITED(HTMLTextAreaElement, Element)
@@ -87,15 +95,15 @@ NS_IMPL_RELEASE_INHERITED(HTMLTextAreaElement, Element)
 
 // QueryInterface implementation for HTMLTextAreaElement
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(HTMLTextAreaElement)
-  NS_HTML_CONTENT_INTERFACES(nsGenericHTMLFormElement)
-  NS_INTERFACE_TABLE_INHERITED5(HTMLTextAreaElement,
-                                nsIDOMHTMLTextAreaElement,
-                                nsITextControlElement,
-                                nsIDOMNSEditableElement,
-                                nsIMutationObserver,
-                                nsIConstraintValidation)
-  NS_INTERFACE_TABLE_TO_MAP_SEGUE
-NS_ELEMENT_INTERFACE_MAP_END
+  NS_HTML_CONTENT_INTERFACE_TABLE5(HTMLTextAreaElement,
+                                   nsIDOMHTMLTextAreaElement,
+                                   nsITextControlElement,
+                                   nsIDOMNSEditableElement,
+                                   nsIMutationObserver,
+                                   nsIConstraintValidation)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLTextAreaElement,
+                                               nsGenericHTMLFormElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
 
 
 // nsIDOMHTMLTextAreaElement
@@ -447,7 +455,7 @@ bool
 HTMLTextAreaElement::IsDisabledForEvents(uint32_t aMessage)
 {
   nsIFormControlFrame* formControlFrame = GetFormControlFrame(false);
-  nsIFrame* formFrame = nullptr;
+  nsIFrame* formFrame = NULL;
   if (formControlFrame) {
     formFrame = do_QueryFrame(formControlFrame);
   }
@@ -1428,7 +1436,7 @@ HTMLTextAreaElement::FieldSetDisabledChanged(bool aNotify)
 }
 
 JSObject*
-HTMLTextAreaElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+HTMLTextAreaElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return HTMLTextAreaElementBinding::Wrap(aCx, aScope, this);
 }

@@ -15,7 +15,6 @@ Cu.import("resource://gre/modules/NetUtil.jsm");
 Cu.import("resource://gre/modules/LightweightThemeManager.jsm");
 #endif
 Cu.import("resource://gre/modules/ctypes.jsm");
-Cu.import("resource://gre/modules/ThirdPartyCookieProbe.jsm");
 
 // When modifying the payload in incompatible ways, please bump this version number
 const PAYLOAD_VERSION = 1;
@@ -59,13 +58,12 @@ const RWX_OWNER = 0700;
 //   * MEMORY_JS_GC_HEAP, and
 //   * MEMORY_JS_COMPARTMENTS_SYSTEM.
 //
-// We used to measure "explicit" too, but it could cause hangs, and the data
-// was always really noisy anyway.  See bug 859657.
 const MEM_HISTOGRAMS = {
   "js-gc-heap": "MEMORY_JS_GC_HEAP",
   "js-compartments/system": "MEMORY_JS_COMPARTMENTS_SYSTEM",
   "js-compartments/user": "MEMORY_JS_COMPARTMENTS_USER",
   "js-main-runtime-temporary-peak": "MEMORY_JS_MAIN_RUNTIME_TEMPORARY_PEAK",
+  "explicit": "MEMORY_EXPLICIT",
   "resident-fast": "MEMORY_RESIDENT",
   "vsize": "MEMORY_VSIZE",
   "storage-sqlite": "MEMORY_STORAGE_SQLITE",
@@ -175,6 +173,7 @@ TelemetryPing.prototype = {
   _pendingPings: [],
   _doLoadSaveNotifications: false,
   _startupIO : {},
+  _hashID: Ci.nsICryptoHash.SHA256,
   // The number of outstanding saved pings that we have issued loading
   // requests for.
   _pingsLoaded: 0,
@@ -244,10 +243,6 @@ TelemetryPing.prototype = {
     let failedProfileLockCount = Telemetry.failedProfileLockCount;
     if (failedProfileLockCount)
       ret.failedProfileLockCount = failedProfileLockCount;
-
-    let maximalNumberOfConcurrentThreads = Telemetry.maximalNumberOfConcurrentThreads;
-    if (maximalNumberOfConcurrentThreads)
-      ret.maximalNumberOfConcurrentThreads = maximalNumberOfConcurrentThreads;
 
     for (let ioCounter in this._startupIO)
       ret[ioCounter] = this._startupIO[ioCounter];
@@ -424,7 +419,7 @@ TelemetryPing.prototype = {
                      "adapterDriverDate", "adapterDescription2",
                      "adapterVendorID2", "adapterDeviceID2", "adapterRAM2",
                      "adapterDriver2", "adapterDriverVersion2",
-                     "adapterDriverDate2", "isGPU2Active", "D2DEnabled",
+                     "adapterDriverDate2", "isGPU2Active", "D2DEnabled;",
                      "DWriteEnabled", "DWriteVersion"
                     ];
 
@@ -571,10 +566,10 @@ TelemetryPing.prototype = {
     };
 
     if (Object.keys(this._slowSQLStartup.mainThread).length
-      || Object.keys(this._slowSQLStartup.otherThreads).length) {
+	|| Object.keys(this._slowSQLStartup.otherThreads).length) {
       payloadObj.slowSQLStartup = this._slowSQLStartup;
     }
-
+    
     return payloadObj;
   },
 
@@ -586,7 +581,7 @@ TelemetryPing.prototype = {
 
   assemblePing: function assemblePing(payloadObj, reason) {
     let slug = this._uuid;
-    return { slug: slug, reason: reason, payload: payloadObj };
+    return { slug: slug, reason: reason, payload: JSON.stringify(payloadObj) };
   },
 
   getSessionPayloadAndSlug: function getSessionPayloadAndSlug(reason) {
@@ -609,6 +604,17 @@ TelemetryPing.prototype = {
 
     let payloadIterWithThis = payloadIter.bind(this);
     return { __iterator__: payloadIterWithThis };
+  },
+
+  hashString: function hashString(s) {
+    let digest = Cc["@mozilla.org/security/hash;1"]
+                 .createInstance(Ci.nsICryptoHash);
+    digest.init(this._hashID);
+    let stream = Cc["@mozilla.org/io/string-input-stream;1"]
+                 .createInstance(Ci.nsIStringInputStream);
+    stream.data = s;
+    digest.updateFromStream(stream, stream.available());
+    return digest.finish(/*base64encode=*/true);
   },
 
   /**
@@ -675,22 +681,11 @@ TelemetryPing.prototype = {
     }
   },
 
-  submissionPath: function submissionPath(ping) {
-    let slug;
-    if (!ping) {
-      slug = this._uuid;
-    } else {
-      let info = ping.payload.info;
-      let pathComponents = [ping.slug, info.reason, info.appName,
-                            info.appVersion, info.appUpdateChannel,
-                            info.appBuildID];
-      slug = pathComponents.join("/");
-    }
-    return "/submit/telemetry/" + slug;
-  },
-
   doPing: function doPing(server, ping, onSuccess, onError) {
-    let url = server + this.submissionPath(ping);
+    let submitPath = "/submit/telemetry/" + (ping.reason == "test-ping"
+                                             ? "test-ping"
+                                             : ping.slug);
+    let url = server + submitPath;
     let request = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
                   .createInstance(Ci.nsIXMLHttpRequest);
     request.mozBackgroundRequest = true;
@@ -712,7 +707,7 @@ TelemetryPing.prototype = {
     request.setRequestHeader("Content-Encoding", "gzip");
     let payloadStream = Cc["@mozilla.org/io/string-input-stream;1"]
                         .createInstance(Ci.nsIStringInputStream);
-    payloadStream.data = this.gzipCompressString(JSON.stringify(ping.payload));
+    payloadStream.data = this.gzipCompressString(ping.payload);
     request.send(payloadStream);
   },
 
@@ -762,10 +757,6 @@ TelemetryPing.prototype = {
    * Initializes telemetry within a timer. If there is no PREF_SERVER set, don't turn on telemetry.
    */
   setup: function setup() {
-    // Initialize some probes that are kept in their own modules
-    this._thirdPartyCookies = new ThirdPartyCookieProbe();
-    this._thirdPartyCookies.init();
-
     // Record old value and update build ID preference if this is the first
     // run with a new build ID.
     let previousBuildID = undefined;
@@ -804,7 +795,7 @@ TelemetryPing.prototype = {
       Telemetry.canRecord = false;
       return;
     }
-    Services.obs.addObserver(this, "profile-before-change2", false);
+    Services.obs.addObserver(this, "profile-before-change", false);
     Services.obs.addObserver(this, "sessionstore-windows-restored", false);
     Services.obs.addObserver(this, "quit-application-granted", false);
 #ifdef MOZ_WIDGET_ANDROID
@@ -832,6 +823,18 @@ TelemetryPing.prototype = {
                                  Ci.nsITimer.TYPE_ONE_SHOT);
   },
 
+  ensurePingChecksum: function ensurePingChecksum(ping) {
+    /* A ping from the current session won't have a checksum.  */
+    if (!ping.checksum) {
+      return;
+    }
+
+    let checksumNow = this.hashString(ping.payload);
+    if (ping.checksum != checksumNow) {
+      throw new Error("Invalid ping checksum")
+    }
+  },
+
   addToPendingPings: function addToPendingPings(file, stream) {
     let success = false;
 
@@ -839,11 +842,9 @@ TelemetryPing.prototype = {
       let string = NetUtil.readInputStreamToString(stream, stream.available(), { charset: "UTF-8" });
       stream.close();
       let ping = JSON.parse(string);
-      // The ping's payload used to be stringified JSON.  Deal with that.
-      if (typeof(ping.payload) == "string") {
-        ping.payload = JSON.parse(ping.payload);
-      }
       this._pingLoadsCompleted++;
+      // This will throw if checksum is invalid.
+      this.ensurePingChecksum(ping);
       this._pendingPings.push(ping);
       if (this._doLoadSaveNotifications &&
           this._pingLoadsCompleted == this._pingsLoaded) {
@@ -851,7 +852,7 @@ TelemetryPing.prototype = {
       }
       success = true;
     } catch (e) {
-      // An error reading the file, or an error parsing the contents.
+      // An error reading the file, or an error parsing/checksumming the contents.
       stream.close();           // close is idempotent.
       file.remove(true);
     }
@@ -980,6 +981,9 @@ TelemetryPing.prototype = {
   },
 
   saveFileForPing: function saveFileForPing(ping) {
+    if (!('checksum' in ping)) {
+      ping.checksum = this.hashString(ping.payload);
+    }
     let file = this.ensurePingDirectory();
     file.append(ping.slug);
     return file;
@@ -1007,7 +1011,7 @@ TelemetryPing.prototype = {
    * Remove observers to avoid leaks
    */
   uninstall: function uninstall() {
-    this.detachObservers();
+    this.detachObservers()
     if (this._hasWindowRestoredObserver) {
       Services.obs.removeObserver(this, "sessionstore-windows-restored");
       this._hasWindowRestoredObserver = false;
@@ -1016,7 +1020,7 @@ TelemetryPing.prototype = {
       Services.obs.removeObserver(this, "xul-window-visible");
       this._hasXulWindowVisibleObserver = false;
     }
-    Services.obs.removeObserver(this, "profile-before-change2");
+    Services.obs.removeObserver(this, "profile-before-change");
     Services.obs.removeObserver(this, "quit-application-granted");
 #ifdef MOZ_WIDGET_ANDROID
     Services.obs.removeObserver(this, "application-background", false);
@@ -1081,6 +1085,9 @@ TelemetryPing.prototype = {
       this.setup();
       this.cacheProfileDirectory();
       break;
+    case "profile-before-change":
+      this.uninstall();
+      break;
     case "cycle-collector-begin":
       let now = new Date();
       if (!gLastMemoryPoll
@@ -1120,8 +1127,7 @@ TelemetryPing.prototype = {
     case "idle":
       this.sendIdlePing(false, this._server);
       break;
-    case "profile-before-change2":
-      this.uninstall();
+    case "quit-application-granted":
       if (Telemetry.canSend) {
         this.savePendingPings();
       }

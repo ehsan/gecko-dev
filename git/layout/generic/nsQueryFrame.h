@@ -6,15 +6,9 @@
 #define nsQueryFrame_h
 
 #include "nscore.h"
-#include "mozilla/Assertions.h"
-#include "mozilla/TypeTraits.h"
-
-// NOTE: the long lines in this file are intentional to make compiler error
-// messages more readable.
 
 #define NS_DECL_QUERYFRAME_TARGET(classname)                    \
-  static const nsQueryFrame::FrameIID kFrameIID = nsQueryFrame::classname##_id; \
-  typedef classname Has_NS_DECL_QUERYFRAME_TARGET;
+  static const nsQueryFrame::FrameIID kFrameIID = nsQueryFrame::classname##_id;
 
 #define NS_DECL_QUERYFRAME                                      \
   virtual void* QueryFrame(FrameIID id);
@@ -23,19 +17,11 @@
   void* class::QueryFrame(FrameIID id) { switch (id) {
 
 #define NS_QUERYFRAME_ENTRY(class)                              \
-  case class::kFrameIID: {                                      \
-    MOZ_STATIC_ASSERT((mozilla::IsSame<class, class::Has_NS_DECL_QUERYFRAME_TARGET>::value), \
-                      #class " must declare itself as a queryframe target"); \
-    return static_cast<class*>(this);                           \
-  }
+  case class::kFrameIID: return static_cast<class*>(this);
 
 #define NS_QUERYFRAME_ENTRY_CONDITIONAL(class, condition)       \
   case class::kFrameIID:                                        \
-  if (condition) {                                              \
-    MOZ_STATIC_ASSERT((mozilla::IsSame<class, class::Has_NS_DECL_QUERYFRAME_TARGET>::value), \
-                      #class " must declare itself as a queryframe target"); \
-    return static_cast<class*>(this);                           \
-  }                                                             \
+  if (condition) return static_cast<class*>(this);              \
   break;
 
 #define NS_QUERYFRAME_TAIL_INHERITING(class)                    \
@@ -47,11 +33,7 @@
 #define NS_QUERYFRAME_TAIL_INHERITANCE_ROOT                     \
   default: break;                                               \
   }                                                             \
-  MOZ_ASSERT(id != GetFrameId(),                                \
-    "A frame failed to QueryFrame to its *own type*. "          \
-    "It may be missing NS_DECL_QUERYFRAME, or a "               \
-    "NS_QUERYFRAME_ENTRY() line with its own type name");       \
-  return nullptr;                                               \
+  return nullptr;                                                \
 }
 
 class nsQueryFrame
@@ -81,8 +63,6 @@ public:
 
   template<class Dest>
   operator Dest*() {
-    MOZ_STATIC_ASSERT((mozilla::IsSame<Dest, typename Dest::Has_NS_DECL_QUERYFRAME_TARGET>::value),
-                      "Dest must declare itself as a queryframe target");
     if (!mRawPtr)
       return nullptr;
 

@@ -93,29 +93,41 @@ nsSVGForeignObjectFrame::AttributeChanged(int32_t  aNameSpaceID,
   if (aNameSpaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::width ||
         aAttribute == nsGkAtoms::height) {
-      nsSVGEffects::InvalidateRenderingObservers(this);
+      nsSVGUtils::InvalidateBounds(this, false);
       nsSVGUtils::ScheduleReflowSVG(this);
       // XXXjwatt: why mark intrinsic widths dirty? can't we just use eResize?
       RequestReflow(nsIPresShell::eStyleChange);
     } else if (aAttribute == nsGkAtoms::x ||
-               aAttribute == nsGkAtoms::y) {
+               aAttribute == nsGkAtoms::y ||
+               aAttribute == nsGkAtoms::transform) {
       // make sure our cached transform matrix gets (lazily) updated
       mCanvasTM = nullptr;
-      nsSVGEffects::InvalidateRenderingObservers(this);
+      nsSVGUtils::InvalidateBounds(this, false);
       nsSVGUtils::ScheduleReflowSVG(this);
-    } else if (aAttribute == nsGkAtoms::transform) {
-      // We don't invalidate for transform changes (the layers code does that).
-      // Also note that SVGTransformableElement::GetAttributeChangeHint will
-      // return nsChangeHint_UpdateOverflow for "transform" attribute changes
-      // and cause DoApplyRenderingChangeToTree to make the SchedulePaint call.
-      mCanvasTM = nullptr;
     } else if (aAttribute == nsGkAtoms::viewBox ||
                aAttribute == nsGkAtoms::preserveAspectRatio) {
-      nsSVGEffects::InvalidateRenderingObservers(this);
+      nsSVGUtils::InvalidateBounds(this);
     }
   }
 
   return NS_OK;
+}
+
+/* virtual */ void
+nsSVGForeignObjectFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
+{
+  nsSVGForeignObjectFrameBase::DidSetStyleContext(aOldStyleContext);
+
+  // No need to invalidate before first reflow - that will happen elsewhere.
+  // Moreover we haven't been initialised properly yet so we may not have the
+  // right state bits.
+  if (!(GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
+    // XXXperf: probably only need a bounds update if 'font-size' changed and
+    // we have em unit width/height. Or, once we map 'transform' into style,
+    // if some transform property changed.
+    nsSVGUtils::InvalidateBounds(this, false);
+    nsSVGUtils::ScheduleReflowSVG(this);
+  }
 }
 
 NS_IMETHODIMP
@@ -167,7 +179,7 @@ nsSVGForeignObjectFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
 bool
 nsSVGForeignObjectFrame::IsSVGTransformed(gfxMatrix *aOwnTransform,
-                                          gfxMatrix *aFromParentTransform) const
+                                         gfxMatrix *aFromParentTransform) const
 {
   bool foundTransform = false;
 
@@ -180,10 +192,9 @@ nsSVGForeignObjectFrame::IsSVGTransformed(gfxMatrix *aOwnTransform,
   }
 
   nsSVGElement *content = static_cast<nsSVGElement*>(mContent);
-  nsSVGAnimatedTransformList* transformList =
+  SVGAnimatedTransformList* transformList =
     content->GetAnimatedTransformList();
-  if ((transformList && transformList->HasTransform()) ||
-      content->GetAnimateMotionTransform()) {
+  if (transformList && transformList->HasTransform()) {
     if (aOwnTransform) {
       *aOwnTransform = content->PrependLocalTransformsTo(gfxMatrix(),
                                   nsSVGElement::eUserSpaceToParent);

@@ -534,14 +534,8 @@ nsCSSScanner::GatherEscape(nsString& aOutput, bool aInString)
   MOZ_ASSERT(Peek() == '\\', "should not have been called");
   int32_t ch = Peek(1);
   if (ch < 0) {
-    // If we are in a string (or a url() containing a string), we want to drop
-    // the backslash on the floor.  Otherwise, we want to treat it as a U+FFFD
-    // character.
-    Advance();
-    if (!aInString) {
-      aOutput.Append(0xFFFD);
-    }
-    return true;
+    // Backslash followed by EOF is not an escape.
+    return false;
   }
   if (IsVertSpace(ch)) {
     if (aInString) {

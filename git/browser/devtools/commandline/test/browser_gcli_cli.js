@@ -63,7 +63,7 @@ exports.testBlank = function(options) {
         status: 'ERROR'
       },
       post: function() {
-        assert.is(requisition.commandAssignment.value, undefined);
+        assert.is(undefined, requisition.commandAssignment.value);
       }
     },
     {
@@ -77,7 +77,7 @@ exports.testBlank = function(options) {
         status: 'ERROR'
       },
       post: function() {
-        assert.is(requisition.commandAssignment.value, undefined);
+        assert.is(undefined, requisition.commandAssignment.value);
       }
     },
     {
@@ -94,7 +94,7 @@ exports.testBlank = function(options) {
         status: 'ERROR'
       },
       post: function() {
-        assert.is(requisition.commandAssignment.value, undefined);
+        assert.is(undefined, requisition.commandAssignment.value);
       }
     }
   ]);
@@ -310,7 +310,7 @@ exports.testTsv = function(options) {
         status: 'ERROR',
         predictions: [ ],
         unassigned: [ ],
-        tooltipState: 'false:default',
+        tooltipState: 'true:isError',
         args: {
           command: { name: 'tsv' },
           optionType: {
@@ -531,6 +531,7 @@ exports.testSingleString = function(options) {
         cursor: 3,
         current: '__command',
         status: 'ERROR',
+        predictions: [ ],
         unassigned: [ ],
         args: {
           command: { name: 'tsr' },
@@ -757,6 +758,7 @@ exports.testSingleFloat = function(options) {
         current: '__command',
         status: 'ERROR',
         error: '',
+        predictions: [ ],
         unassigned: [ ],
         args: {
           command: { name: 'tsf' },

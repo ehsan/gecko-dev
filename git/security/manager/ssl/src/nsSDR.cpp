@@ -8,7 +8,6 @@
 #include "plstr.h"
 #include "plbase64.h"
 
-#include "mozilla/Services.h"
 #include "nsMemory.h"
 #include "nsString.h"
 #include "nsCOMPtr.h"
@@ -19,7 +18,6 @@
 #include "nsITokenPasswordDialogs.h"
 
 #include "nsISecretDecoderRing.h"
-#include "nsCRT.h"
 #include "nsSDR.h"
 #include "nsNSSComponent.h"
 #include "nsNSSShutDown.h"
@@ -143,7 +141,7 @@ EncryptString(const char *text, char **_retval)
     goto loser;
   }
 
-  rv = Encrypt((unsigned char *)text, strlen(text), &encrypted, &eLen);
+  rv = Encrypt((unsigned char *)text, PL_strlen(text), &encrypted, &eLen);
   if (rv != NS_OK) { goto loser; }
 
   rv = encode(encrypted, eLen, _retval);
@@ -306,7 +304,7 @@ nsresult nsSecretDecoderRing::
 decode(const char *data, unsigned char **result, int32_t * _retval)
 {
   nsresult rv = NS_OK;
-  uint32_t len = strlen(data);
+  uint32_t len = PL_strlen(data);
   int adjust = 0;
 
   /* Compute length adjustment */

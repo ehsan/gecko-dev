@@ -1,11 +1,10 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsclone_h
-#define jsclone_h
+#ifndef jsclone_h___
+#define jsclone_h___
 
 #include "jsapi.h"
 #include "jscntxt.h"
@@ -111,9 +110,8 @@ struct JSStructuredCloneReader {
 
     bool checkDouble(double d);
     JSString *readString(uint32_t nchars);
-    bool readTypedArray(uint32_t arrayType, uint32_t nelems, js::Value *vp, bool v1Read = false);
+    bool readTypedArray(uint32_t tag, uint32_t nelems, js::Value *vp);
     bool readArrayBuffer(uint32_t nbytes, js::Value *vp);
-    bool readV1ArrayBuffer(uint32_t arrayType, uint32_t nelems, js::Value *vp);
     bool readId(jsid *idp);
     bool startRead(js::Value *vp);
 
@@ -159,11 +157,11 @@ struct JSStructuredCloneWriter {
 
     bool writeString(uint32_t tag, JSString *str);
     bool writeId(jsid id);
-    bool writeArrayBuffer(JS::HandleObject obj);
-    bool writeTypedArray(JS::HandleObject obj);
-    bool startObject(JS::HandleObject obj, bool *backref);
+    bool writeArrayBuffer(JSHandleObject obj);
+    bool writeTypedArray(JSHandleObject obj);
+    bool startObject(JSHandleObject obj, bool *backref);
     bool startWrite(const js::Value &v);
-    bool traverseObject(JS::HandleObject obj);
+    bool traverseObject(JSHandleObject obj);
 
     bool parseTransferable();
     void reportErrorTransferable();
@@ -204,4 +202,4 @@ struct JSStructuredCloneWriter {
     friend JSBool JS_WriteTypedArray(JSStructuredCloneWriter *w, jsval v);
 };
 
-#endif /* jsclone_h */
+#endif /* jsclone_h___ */

@@ -26,14 +26,7 @@ namespace {
 
 class MemoryPressureRunnable : public nsRunnable
 {
-  const char *mTopic;
-  const PRUnichar *mData;
 public:
-  MemoryPressureRunnable(const char *aTopic, const PRUnichar *aData) :
-    mTopic(aTopic), mData(aData)
-  {
-  }
-
   NS_IMETHOD Run()
   {
     MOZ_ASSERT(NS_IsMainThread());
@@ -41,19 +34,14 @@ public:
 
     nsCOMPtr<nsIObserverService> os = services::GetObserverService();
     if (os) {
-      os->NotifyObservers(nullptr, mTopic, mData);
+      // We use low-memory-no-forward because each process has its own watcher
+      // and thus there is no need for the main process to forward this event.
+      os->NotifyObservers(nullptr, "memory-pressure",
+                          NS_LITERAL_STRING("low-memory-no-forward").get());
     }
     return NS_OK;
   }
 };
-
-static void
-Dispatch(const char *aTopic, const PRUnichar *aData)
-{
-  nsRefPtr<MemoryPressureRunnable> memoryPressureRunnable =
-    new MemoryPressureRunnable(aTopic, aData);
-  NS_DispatchToMainThread(memoryPressureRunnable);
-}
 
 /**
  * MemoryPressureWatcher watches sysfs from its own thread to notice when the
@@ -184,17 +172,13 @@ public:
       // sometimes completes after the memory-pressure event is over, so let's
       // just believe the result of poll().
 
-      // We use low-memory-no-forward because each process has its own watcher
-      // and thus there is no need for the main process to forward this event.
-      Dispatch("memory-pressure",
-               NS_LITERAL_STRING("low-memory-no-forward").get());
+      nsRefPtr<MemoryPressureRunnable> memoryPressureRunnable =
+        new MemoryPressureRunnable();
+      NS_DispatchToMainThread(memoryPressureRunnable);
 
       // Manually check lowMemFd until we observe that memory pressure is over.
-      // We won't fire any more low-memory events until we observe that
-      // we're no longer under pressure. Instead, we fire low-memory-ongoing
-      // events, which cause processes to keep flushing caches but will not
-      // trigger expensive GCs and other attempts to save memory that are
-      // likely futile at this point.
+      // We won't fire any more memory-pressure events until we observe that
+      // we're no longer under pressure.
       bool memoryPressure;
       do {
         {
@@ -217,13 +201,7 @@ public:
         LOG("Checking to see if memory pressure is over.");
         rv = CheckForMemoryPressure(lowMemFd, &memoryPressure);
         NS_ENSURE_SUCCESS(rv, rv);
-
-        if (memoryPressure) {
-          Dispatch("memory-pressure",
-                   NS_LITERAL_STRING("low-memory-ongoing-no-forward").get());
-          continue;
-        }
-      } while (false);
+      } while (memoryPressure);
 
       LOG("Memory pressure is over.");
     }

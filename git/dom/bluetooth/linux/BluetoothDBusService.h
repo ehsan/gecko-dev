@@ -7,7 +7,6 @@
 #ifndef mozilla_dom_bluetooth_bluetoothdbuseventservice_h__
 #define mozilla_dom_bluetooth_bluetoothdbuseventservice_h__
 
-#include "mozilla/Attributes.h"
 #include "BluetoothCommon.h"
 #include "mozilla/ipc/RawDBusConnection.h"
 #include "BluetoothService.h"
@@ -27,35 +26,31 @@ class BluetoothDBusService : public BluetoothService
 public:
   bool IsReady();
 
-  virtual nsresult StartInternal() MOZ_OVERRIDE;
+  virtual nsresult StartInternal();
 
-  virtual nsresult StopInternal() MOZ_OVERRIDE;
+  virtual nsresult StopInternal();
 
-  virtual bool IsEnabledInternal() MOZ_OVERRIDE;
+  virtual nsresult GetDefaultAdapterPathInternal(BluetoothReplyRunnable* aRunnable);
 
-  virtual nsresult GetDefaultAdapterPathInternal(
-                                             BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
+  virtual nsresult GetPairedDevicePropertiesInternal(const nsTArray<nsString>& aDeviceAddresses,
+                                                     BluetoothReplyRunnable* aRunnable);
 
-  virtual nsresult GetConnectedDevicePropertiesInternal(uint16_t aProfileId,
-                                             BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
+  virtual nsresult StartDiscoveryInternal(BluetoothReplyRunnable* aRunnable);
 
-  virtual nsresult GetPairedDevicePropertiesInternal(
-                                     const nsTArray<nsString>& aDeviceAddresses,
-                                     BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
+  virtual nsresult StopDiscoveryInternal(BluetoothReplyRunnable* aRunnable);
 
-  virtual nsresult StartDiscoveryInternal(BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
-
-  virtual nsresult StopDiscoveryInternal(BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
+  virtual nsresult
+  GetDevicePropertiesInternal(const BluetoothSignal& aSignal);
 
   virtual nsresult
   SetProperty(BluetoothObjectType aType,
               const BluetoothNamedValue& aValue,
-              BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
+              BluetoothReplyRunnable* aRunnable);
 
   virtual bool
   GetDevicePath(const nsAString& aAdapterPath,
                 const nsAString& aDeviceAddress,
-                nsAString& aDevicePath) MOZ_OVERRIDE;
+                nsAString& aDevicePath);
 
   static bool
   AddServiceRecords(const char* serviceName,
@@ -80,41 +75,51 @@ public:
   GetScoSocket(const nsAString& aObjectPath,
                bool aAuth,
                bool aEncrypt,
-               mozilla::ipc::UnixSocketConsumer* aConsumer) MOZ_OVERRIDE;
+               mozilla::ipc::UnixSocketConsumer* aConsumer);
 
   virtual nsresult
-  GetServiceChannel(const nsAString& aDeviceAddress,
-                    const nsAString& aServiceUuid,
-                    BluetoothProfileManagerBase* aManager) MOZ_OVERRIDE;
+  GetSocketViaService(const nsAString& aObjectPath,
+                      const nsAString& aService,
+                      BluetoothSocketType aType,
+                      bool aAuth,
+                      bool aEncrypt,
+                      mozilla::ipc::UnixSocketConsumer* aConsumer,
+                      BluetoothReplyRunnable* aRunnable);
 
-  virtual bool
-  UpdateSdpRecords(const nsAString& aDeviceAddress,
-                   BluetoothProfileManagerBase* aManager) MOZ_OVERRIDE;
+  virtual nsresult
+  ListenSocketViaService(int aChannel,
+                         BluetoothSocketType aType,
+                         bool aAuth,
+                         bool aEncrypt,
+                         mozilla::ipc::UnixSocketConsumer* aConsumer);
 
   virtual nsresult
   CreatePairedDeviceInternal(const nsAString& aDeviceAddress,
                              int aTimeout,
-                             BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
+                             BluetoothReplyRunnable* aRunnable);
 
   virtual nsresult
   RemoveDeviceInternal(const nsAString& aDeviceObjectPath,
-                       BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
+                       BluetoothReplyRunnable* aRunnable);
 
   virtual bool
   SetPinCodeInternal(const nsAString& aDeviceAddress, const nsAString& aPinCode,
-                     BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
+                     BluetoothReplyRunnable* aRunnable);
 
   virtual bool
   SetPasskeyInternal(const nsAString& aDeviceAddress, uint32_t aPasskey,
-                     BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
+                     BluetoothReplyRunnable* aRunnable);
 
   virtual bool
   SetPairingConfirmationInternal(const nsAString& aDeviceAddress, bool aConfirm,
-                                 BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
+                                 BluetoothReplyRunnable* aRunnable);
 
   virtual bool
   SetAuthorizationInternal(const nsAString& aDeviceAddress, bool aAllow,
-                           BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
+                           BluetoothReplyRunnable* aRunnable);
+
+  virtual nsresult
+  PrepareAdapterInternal();
 
   virtual void
   Connect(const nsAString& aDeviceAddress,
@@ -122,7 +127,7 @@ public:
           BluetoothReplyRunnable* aRunnable);
 
   virtual bool
-  IsConnected(uint16_t aProfileId) MOZ_OVERRIDE;
+  IsConnected(uint16_t aProfileId);
 
   virtual void
   Disconnect(const uint16_t aProfileId, BluetoothReplyRunnable* aRunnable);
@@ -131,28 +136,15 @@ public:
   SendFile(const nsAString& aDeviceAddress,
            BlobParent* aBlobParent,
            BlobChild* aBlobChild,
-           BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
+           BluetoothReplyRunnable* aRunnable);
 
   virtual void
   StopSendingFile(const nsAString& aDeviceAddress,
-                  BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
+                  BluetoothReplyRunnable* aRunnable);
 
   virtual void
   ConfirmReceivingFile(const nsAString& aDeviceAddress, bool aConfirm,
-                       BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
-
-  virtual void
-  ConnectSco(BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
-
-  virtual void
-  DisconnectSco(BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
-
-  virtual void
-  IsScoConnected(BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
-
-  virtual nsresult
-  SendSinkMessage(const nsAString& aDeviceAddresses,
-                  const nsAString& aMessage) MOZ_OVERRIDE;
+                       BluetoothReplyRunnable* aRunnable);
 
 private:
   nsresult SendGetPropertyMessage(const nsAString& aPath,

@@ -10,14 +10,14 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-MSVC_ENABLE_PGO := 1
+LIBRARY_NAME	= mozpng
 FORCE_STATIC_LIB= 1
 ifeq ($(OS_ARCH),WINNT)
 VISIBILITY_FLAGS=
 endif
 
 
-DISABLED_CSRCS		= \
+CSRCS		= \
 		png.c \
 		pngerror.c \
 		pngget.c \
@@ -27,7 +27,7 @@ DISABLED_CSRCS		= \
 		$(NULL)
 
 # These files enable support for reading/writing PNGs
-DISABLED_CSRCS		+= \
+CSRCS		+= \
 		pngpread.c \
 		pngread.c \
 		pngrio.c \
@@ -41,6 +41,8 @@ DISABLED_CSRCS		+= \
 
 DEFINES		+= -DMOZ_PNG_READ \
 		-DMOZ_PNG_WRITE
+
+EXPORTS		= png.h pngconf.h mozpngconf.h
 
 LOCAL_INCLUDES	= -I$(srcdir)
 

@@ -155,7 +155,6 @@
 @BINPATH@/components/content_xslt.xpt
 @BINPATH@/components/cookie.xpt
 @BINPATH@/components/directory.xpt
-@BINPATH@/components/diskspacewatcher.xpt
 @BINPATH@/components/docshell.xpt
 @BINPATH@/components/dom.xpt
 @BINPATH@/components/dom_activities.xpt
@@ -170,7 +169,6 @@
 @BINPATH@/components/dom_system_gonk.xpt
 @BINPATH@/components/dom_icc.xpt
 @BINPATH@/components/dom_cellbroadcast.xpt
-@BINPATH@/components/dom_wappush.xpt
 #endif
 #ifdef MOZ_B2G_FM
 @BINPATH@/components/dom_fm.xpt
@@ -198,6 +196,9 @@
 @BINPATH@/components/dom_payment.xpt
 @BINPATH@/components/dom_push.xpt
 @BINPATH@/components/dom_json.xpt
+#ifdef MOZ_B2G_RIL
+@BINPATH@/components/dom_mms.xpt
+#endif
 @BINPATH@/components/dom_browserelement.xpt
 @BINPATH@/components/dom_messages.xpt
 @BINPATH@/components/dom_power.xpt
@@ -213,7 +214,7 @@
 @BINPATH@/components/dom_traversal.xpt
 @BINPATH@/components/dom_views.xpt
 #ifdef MOZ_WEBSPEECH
-@BINPATH@/components/dom_webspeechrecognition.xpt
+@BINPATH@/components/dom_webspeech.xpt
 #endif
 @BINPATH@/components/dom_xbl.xpt
 @BINPATH@/components/dom_xpath.xpt
@@ -444,7 +445,6 @@
 @BINPATH@/components/satchel.manifest
 @BINPATH@/components/nsFormAutoComplete.js
 @BINPATH@/components/nsFormHistory.js
-@BINPATH@/components/FormHistoryStartup.js
 @BINPATH@/components/nsInputListAutoComplete.js
 @BINPATH@/components/contentSecurityPolicy.manifest
 @BINPATH@/components/contentSecurityPolicy.js
@@ -472,8 +472,6 @@
 @BINPATH@/components/DOMWifiManager.manifest
 @BINPATH@/components/NetworkStatsManager.js
 @BINPATH@/components/NetworkStatsManager.manifest
-@BINPATH@/components/NetworkInterfaceListService.manifest
-@BINPATH@/components/NetworkInterfaceListService.js
 #endif
 #ifdef MOZ_B2G_FM
 @BINPATH@/components/DOMFMRadioChild.js
@@ -510,7 +508,8 @@
 @BINPATH@/components/AppsService.manifest
 @BINPATH@/components/Push.js
 @BINPATH@/components/Push.manifest
-@BINPATH@/components/PushServiceLauncher.js
+@BINPATH@/components/PushService.js
+@BINPATH@/components/PushService.manifest
 
 @BINPATH@/components/nsDOMIdentity.js
 @BINPATH@/components/nsIDService.js
@@ -567,6 +566,9 @@
 @BINPATH@/extensions/{972ce4c6-7e08-4474-a285-3208198ce6fd}/install.rdf
 @BINPATH@/extensions/{972ce4c6-7e08-4474-a285-3208198ce6fd}/icon.png
 @BINPATH@/extensions/{972ce4c6-7e08-4474-a285-3208198ce6fd}/preview.png
+#if MOZ_UPDATE_CHANNEL == beta
+@BINPATH@/extensions/testpilot@labs.mozilla.com/*
+#endif
 @BINPATH@/chrome/toolkit@JAREXT@
 @BINPATH@/chrome/toolkit.manifest
 #ifdef XP_UNIX
@@ -601,7 +603,7 @@
 #endif
 
 ; [Layout Engine Resources]
-; Style Sheets, Graphics and other Resources used by the layout engine.
+; Style Sheets, Graphics and other Resources used by the layout engine. 
 @BINPATH@/res/EditorOverride.css
 @BINPATH@/res/contenteditable.css
 @BINPATH@/res/designmode.css
@@ -748,10 +750,6 @@ bin/components/@DLL_PREFIX@nkgnomevfs@DLL_SUFFIX@
 @BINPATH@/components/TelProtocolHandler.js
 @BINPATH@/components/B2GAboutRedirector.js
 @BINPATH@/components/FilePicker.js
-
-#ifdef MOZ_WEBSPEECH
-@BINPATH@/components/dom_webspeechsynth.xpt
-#endif
 
 #ifdef XP_MACOSX
 @BINPATH@/@DLL_PREFIX@plugin_child_interpose@DLL_SUFFIX@

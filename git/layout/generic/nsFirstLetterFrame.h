@@ -35,7 +35,7 @@ public:
 
   bool IsFloating() const { return GetStateBits() & NS_FRAME_OUT_OF_FLOW; }
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
+  virtual bool IsFrameOfType(uint32_t aFlags) const
   {
     if (!IsFloating())
       aFlags = aFlags & ~(nsIFrame::eLineParticipant);

@@ -1,10 +1,9 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-MARIONETTE_TIMEOUT = 60000;
+MARIONETTE_TIMEOUT = 10000;
 
 SpecialPowers.setBoolPref("dom.sms.enabled", true);
-SpecialPowers.setBoolPref("dom.sms.requestStatusReport", true);
 SpecialPowers.addPermission("sms", true, document);
 
 const SENDER = "15555215554"; // the emulator's number
@@ -33,7 +32,6 @@ function sendSms() {
     ok(sentSms.id, "sms id");
     smsId = sentSms.id;
     log("Sent SMS (id: " + smsId + ").");
-    ok(sentSms.threadId, "thread id");
     is(sentSms.body, msgText, "msg body");
     is(sentSms.delivery, "sent", "delivery");
     is(sentSms.deliveryStatus, "pending", "deliveryStatus");
@@ -153,8 +151,7 @@ function verifySmsDeleted(smsId) {
 function cleanUp() {
   sms.onsent = null;
   SpecialPowers.removePermission("sms", document);
-  SpecialPowers.clearUserPref("dom.sms.enabled", false);
-  SpecialPowers.clearUserPref("dom.sms.requestStatusReport");
+  SpecialPowers.setBoolPref("dom.sms.enabled", false);
   finish();
 }
 

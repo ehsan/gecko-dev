@@ -34,8 +34,6 @@ public:
   typedef mozilla::layers::LayerManager LayerManager;
   typedef mozilla::FrameLayerBuilder::ContainerParameters ContainerParameters;
 
-  NS_DECL_QUERYFRAME_TARGET(nsHTMLCanvasFrame)
-  NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
 
   nsHTMLCanvasFrame(nsStyleContext* aContext) : nsContainerFrame(aContext) {}
@@ -78,7 +76,7 @@ public:
 
   virtual nsIAtom* GetType() const MOZ_OVERRIDE;
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
+  virtual bool IsFrameOfType(uint32_t aFlags) const
   {
     return nsSplittableFrame::IsFrameOfType(aFlags & ~(nsIFrame::eReplaced));
   }
@@ -88,7 +86,7 @@ public:
 #endif
 
   // Inserted child content gets its frames parented by our child block
-  virtual nsIFrame* GetContentInsertionFrame() MOZ_OVERRIDE {
+  virtual nsIFrame* GetContentInsertionFrame() {
     return GetFirstPrincipalChild()->GetContentInsertionFrame();
   }
 

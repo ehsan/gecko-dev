@@ -46,3 +46,11 @@ interface nsIDOMWheelEvent : nsIDOMMouseEvent
                                  in double deltaZArg,
                                  in unsigned long deltaMode);
 };
+
+dictionary WheelEventInit : MouseEventInit
+{
+  double deltaX;
+  double deltaY;
+  double deltaZ;
+  unsigned long deltaMode;
+};

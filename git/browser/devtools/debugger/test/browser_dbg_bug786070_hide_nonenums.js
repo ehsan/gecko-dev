@@ -24,9 +24,9 @@ function testNonEnumProperties() {
     Services.tm.currentThread.dispatch({ run: function() {
 
       let testScope = gDebugger.DebuggerView.Variables.addScope("test-scope");
-      let testVar = testScope.addItem("foo");
+      let testVar = testScope.addVar("foo");
 
-      testVar.addItems({
+      testVar.addProperties({
         foo: {
           value: "bar",
           enumerable: true

@@ -90,11 +90,6 @@ class nsIntervalSet;
 // (including <BR CLEAR="..."> frames)
 #define NS_BLOCK_HAS_CLEAR_CHILDREN         NS_FRAME_STATE_BIT(27)
 
-// This block has had a child marked dirty, so before we reflow we need
-// to look through the lines to find any such children and mark
-// appropriate lines dirty.
-#define NS_BLOCK_LOOK_FOR_DIRTY_FRAMES      NS_FRAME_STATE_BIT(61)
-
 // Are our cached intrinsic widths intrinsic widths for font size
 // inflation?  i.e., what was the current state of
 // GetPresContext()->mInflationDisabledForShrinkWrap at the time they
@@ -174,7 +169,7 @@ public:
   virtual void InvalidateFrameWithRect(const nsRect& aRect, uint32_t aDisplayItemKey = 0);
 
 #ifdef DEBUG
-  void List(FILE* out, int32_t aIndent, uint32_t aFlags = 0) const;
+  NS_IMETHOD List(FILE* out, int32_t aIndent, uint32_t aFlags = 0) const;
   NS_IMETHOD_(nsFrameState) GetDebugStateBits() const;
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
@@ -414,10 +409,10 @@ protected:
 
   virtual int GetSkipSides() const MOZ_OVERRIDE;
 
-  void ComputeFinalSize(const nsHTMLReflowState& aReflowState,
-                        nsBlockReflowState&      aState,
-                        nsHTMLReflowMetrics&     aMetrics,
-                        nscoord*                 aBottomEdgeOfChildren);
+  virtual void ComputeFinalSize(const nsHTMLReflowState& aReflowState,
+                                nsBlockReflowState&      aState,
+                                nsHTMLReflowMetrics&     aMetrics,
+                                nscoord*                 aBottomEdgeOfChildren);
 
   void ComputeOverflowAreas(const nsRect&         aBounds,
                             const nsStyleDisplay* aDisplay,
@@ -547,9 +542,9 @@ protected:
 
   /** Reflow pushed floats
    */
-  void ReflowPushedFloats(nsBlockReflowState& aState,
-                          nsOverflowAreas&    aOverflowAreas,
-                          nsReflowStatus&     aStatus);
+  nsresult ReflowPushedFloats(nsBlockReflowState& aState,
+                              nsOverflowAreas&    aOverflowAreas,
+                              nsReflowStatus&     aStatus);
 
   /** Find any trailing BR clear from the last line of the block (or its PIFs)
    */
@@ -579,7 +574,7 @@ protected:
   /** set up the conditions necessary for an resize reflow
     * the primary task is to mark the minimumly sufficient lines dirty. 
     */
-  void PrepareResizeReflow(nsBlockReflowState& aState);
+  nsresult PrepareResizeReflow(nsBlockReflowState& aState);
 
   /** reflow all lines that have been marked dirty */
   nsresult ReflowDirtyLines(nsBlockReflowState& aState);
@@ -610,12 +605,6 @@ protected:
                    nsRect&             aFloatAvailableSpace, /* in-out */
                    nscoord&            aAvailableSpaceHeight, /* in-out */
                    bool*             aKeepReflowGoing);
-
-  /**
-    * If NS_BLOCK_LOOK_FOR_DIRTY_FRAMES is set, call MarkLineDirty
-    * on any line with a child frame that is dirty.
-    */
-  void LazyMarkLinesDirty();
 
   /**
    * Mark |aLine| dirty, and, if necessary because of possible
@@ -697,11 +686,13 @@ protected:
    * @param aState the block reflow state
    * @param aLine where to put a new frame
    * @param aFrame the frame
-   * @return true if a new frame was created, false if not
+   * @param aMadeNewFrame true if a new frame was created, false if not
+   * @return NS_OK if a next-in-flow already exists or is successfully created
    */
-  bool CreateContinuationFor(nsBlockReflowState& aState,
-                             nsLineBox*          aLine,
-                             nsIFrame*           aFrame);
+  virtual nsresult CreateContinuationFor(nsBlockReflowState& aState,
+                                         nsLineBox*          aLine,
+                                         nsIFrame*           aFrame,
+                                         bool&             aMadeNewFrame);
 
   /**
    * Push aLine (and any after it), since it cannot be placed on this
@@ -712,11 +703,11 @@ protected:
                          line_iterator       aLine,
                          bool*               aKeepReflowGoing);
 
-  void SplitLine(nsBlockReflowState& aState,
-                 nsLineLayout& aLineLayout,
-                 line_iterator aLine,
-                 nsIFrame* aFrame,
-                 LineReflowStatus* aLineReflowStatus);
+  nsresult SplitLine(nsBlockReflowState& aState,
+                     nsLineLayout& aLineLayout,
+                     line_iterator aLine,
+                     nsIFrame* aFrame,
+                     LineReflowStatus* aLineReflowStatus);
 
   /**
    * Pull a frame from the next available location (one of our lines or

@@ -6,7 +6,6 @@
 #ifndef mozilla_dom_SVGAnimateTransformElement_h
 #define mozilla_dom_SVGAnimateTransformElement_h
 
-#include "mozilla/Attributes.h"
 #include "mozilla/dom/SVGAnimationElement.h"
 #include "nsSMILAnimationFunction.h"
 
@@ -26,18 +25,17 @@ protected:
     (::NS_NewSVGAnimateTransformElement(nsIContent **aResult,
                                         already_AddRefed<nsINodeInfo> aNodeInfo));
 
-  virtual JSObject* WrapNode(JSContext *aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope) MOZ_OVERRIDE;
 
 public:
   // nsIDOMNode specializations
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   // Element specializations
   bool ParseAttribute(int32_t aNamespaceID,
                         nsIAtom* aAttribute,
                         const nsAString& aValue,
-                        nsAttrValue& aResult) MOZ_OVERRIDE;
+                        nsAttrValue& aResult);
 
   // SVGAnimationElement
   virtual nsSMILAnimationFunction& AnimationFunction();

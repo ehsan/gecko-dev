@@ -25,7 +25,7 @@ public:
     {
     }
 
-    JSObject* WrapObject(JSContext *cx, JS::Handle<JSObject*> scope);
+    virtual JSObject* WrapObject(JSContext *cx, JSObject *scope);
 
     NS_DECL_ISUPPORTS
 

@@ -1,5 +1,6 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set sw=4 ts=8 et tw=80:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -12,7 +13,7 @@ static const struct {
     const char  *name;
     int         length;
 } pairs[] = {
-#define OPDEF(op,val,name,token,length,nuses,ndefs,format)               \
+#define OPDEF(op,val,name,token,length,nuses,ndefs,prec,format)               \
     { #op, length } ,
 #include "jsopcode.tbl"
 #undef OPDEF
@@ -41,8 +42,6 @@ main(int argc, char **argv)
         perror("fopen");
         return EXIT_FAILURE;
     }
-    fputs("#ifndef JSAUTOOPLEN_H___\n", fp);
-    fputs("#define JSAUTOOPLEN_H___\n", fp);
     fputs("/*\n"
           " * Automatically generated header with JS opcode length constants.\n"
           " *\n"
@@ -79,8 +78,6 @@ main(int argc, char **argv)
             exit(EXIT_FAILURE);
         }
     }
-
-    fputs("#endif  // JSAUTOOPLEN_H___\n", fp);
 
     if (fclose(fp)) {
         perror("fclose");

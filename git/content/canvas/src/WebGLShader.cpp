@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "WebGLObjectModel.h"
 #include "WebGLShader.h"
 #include "WebGLContext.h"
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
@@ -12,7 +11,7 @@
 using namespace mozilla;
 
 JSObject*
-WebGLShader::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope) {
+WebGLShader::WrapObject(JSContext *cx, JSObject *scope) {
     return dom::WebGLShaderBinding::Wrap(cx, scope, this);
 }
 

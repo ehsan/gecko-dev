@@ -10,13 +10,13 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-MSVC_ENABLE_PGO := 1
+LIBRARY_NAME	= mozjpeg
 
 ifeq ($(OS_ARCH),WINNT)
 VISIBILITY_FLAGS	=
 endif
 
-DISABLED_CSRCS		= \
+CSRCS		= \
 		jcomapi.c \
 		jdapimin.c \
 		jdapistd.c \
@@ -51,7 +51,7 @@ DISABLED_CSRCS		= \
 		$(NULL)
 
 # These files enable support for writing JPEGs
-DISABLED_CSRCS		+= \
+CSRCS		+= \
 		jcapimin.c \
 		jcapistd.c \
 		jccoefct.c \
@@ -80,17 +80,17 @@ endif
 
 # No SIMD support?
 ifeq (,$(LIBJPEG_TURBO_X86_ASM)$(LIBJPEG_TURBO_X64_ASM)$(LIBJPEG_TURBO_ARM_ASM))
-  DISABLED_CSRCS += jsimd_none.c
+  CSRCS += jsimd_none.c
 endif
 
 ifeq (1,$(LIBJPEG_TURBO_ARM_ASM))
-  DISABLED_CSRCS += simd/jsimd_arm.c
+  CSRCS += simd/jsimd_arm.c
   SSRCS += simd/jsimd_arm_neon.S
 endif
 
 ifeq (1,$(LIBJPEG_TURBO_X64_ASM))
-  DISABLED_CSRCS   += simd/jsimd_x86_64.c
-  DISABLED_ASFILES += \
+  CSRCS   += simd/jsimd_x86_64.c
+  ASFILES += \
 	simd/jccolss2-64.asm \
 	simd/jcgrass2-64.asm \
 	simd/jcqnts2f-64.asm \
@@ -110,8 +110,8 @@ ifeq (1,$(LIBJPEG_TURBO_X64_ASM))
 endif
 
 ifeq (1,$(LIBJPEG_TURBO_X86_ASM))
-  DISABLED_CSRCS   +=simd/jsimd_i386.c
-  DISABLED_ASFILES += \
+  CSRCS   +=simd/jsimd_i386.c
+  ASFILES += \
 	simd/jccolmmx.asm \
 	simd/jccolss2.asm \
 	simd/jcgrammx.asm \
@@ -147,6 +147,15 @@ ifeq (1,$(LIBJPEG_TURBO_X86_ASM))
 	simd/jsimdcpu.asm \
 	$(NULL)
 endif
+
+EXPORTS	= \
+	jconfig.h \
+	jerror.h \
+	jinclude.h \
+	jmorecfg.h \
+	jpegint.h \
+	jpeglib.h \
+	$(NULL)
 
 # need static lib for some of the libimg componentry to link properly
 FORCE_STATIC_LIB = 1

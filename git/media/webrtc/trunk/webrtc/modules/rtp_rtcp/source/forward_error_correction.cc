@@ -12,7 +12,6 @@
 
 #include <algorithm>
 #include <cassert>
-#include <cstdlib> // for abs()
 #include <cstring>
 #include <iterator>
 

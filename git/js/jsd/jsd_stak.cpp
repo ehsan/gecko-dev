@@ -1,6 +1,5 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
- * This Source Code Form is subject to the terms of the Mozilla Public
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
@@ -10,9 +9,6 @@
 
 #include "jsd.h"
 #include "jsfriendapi.h"
-#include "nsCxPusher.h"
-
-using mozilla::AutoPushJSContext;
 
 #ifdef DEBUG
 void JSD_ASSERT_VALID_THREAD_STATE(JSDThreadState* jsdthreadstate)
@@ -96,7 +92,7 @@ jsd_NewThreadState(JSDContext* jsdc, JSContext *cx )
     while(!iter.done())
     {
         JSAbstractFramePtr frame = iter.abstractFramePtr();
-        JS::RootedScript script(cx, frame.script());
+        JSScript* script = frame.script();
         uintptr_t  pc = (uintptr_t)iter.pc();
         JS::RootedValue dummyThis(cx);
 
@@ -285,7 +281,7 @@ jsd_GetScopeChainForStackFrame(JSDContext* jsdc,
                                JSDThreadState* jsdthreadstate,
                                JSDStackFrameInfo* jsdframe)
 {
-    JS::RootedObject obj(jsdthreadstate->context);
+    JSObject* obj;
     JSDValue* jsdval = NULL;
 
     JSD_LOCK_THREADSTATES(jsdc);
@@ -401,6 +397,7 @@ jsd_EvaluateUCScriptInStackFrame(JSDContext* jsdc,
     JSBool retval;
     JSBool valid;
     JSExceptionState* exceptionState = NULL;
+    JSContext* cx;
 
     JS_ASSERT(JSD_CURRENT_THREAD() == jsdthreadstate->thread);
 
@@ -411,7 +408,7 @@ jsd_EvaluateUCScriptInStackFrame(JSDContext* jsdc,
     if( ! valid )
         return JS_FALSE;
 
-    AutoPushJSContext cx(jsdthreadstate->context);
+    cx = jsdthreadstate->context;
     JS_ASSERT(cx);
 
     if (eatExceptions)
@@ -438,6 +435,7 @@ jsd_EvaluateScriptInStackFrame(JSDContext* jsdc,
     JSBool retval;
     JSBool valid;
     JSExceptionState* exceptionState = NULL;
+    JSContext *cx;
 
     JS_ASSERT(JSD_CURRENT_THREAD() == jsdthreadstate->thread);
 
@@ -448,7 +446,7 @@ jsd_EvaluateScriptInStackFrame(JSDContext* jsdc,
     if (!valid)
         return JS_FALSE;
 
-    AutoPushJSContext cx(jsdthreadstate->context);
+    cx = jsdthreadstate->context;
     JS_ASSERT(cx);
 
     if (eatExceptions)

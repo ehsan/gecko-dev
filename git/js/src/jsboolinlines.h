@@ -1,37 +1,40 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsboolinlines_h
-#define jsboolinlines_h
+#ifndef jsboolinlines_h___
+#define jsboolinlines_h___
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Likely.h"
 
 #include "js/RootingAPI.h"
 
+#include "jsobjinlines.h"
+
 #include "vm/BooleanObject-inl.h"
 
 namespace js {
 
-bool
-BooleanGetPrimitiveValueSlow(HandleObject, JSContext *);
+bool BooleanGetPrimitiveValueSlow(JSContext *, HandleObject, Value *);
 
 inline bool
-BooleanGetPrimitiveValue(HandleObject obj, JSContext *cx)
+BooleanGetPrimitiveValue(JSContext *cx, HandleObject obj, Value *vp)
 {
-    if (obj->is<BooleanObject>())
-        return obj->as<BooleanObject>().unbox();
+    if (obj->isBoolean()) {
+        *vp = BooleanValue(obj->asBoolean().unbox());
+        return true;
+    }
 
-    return BooleanGetPrimitiveValueSlow(obj, cx);
+    return BooleanGetPrimitiveValueSlow(cx, obj, vp);
 }
 
 inline bool
-EmulatesUndefined(JSObject *obj)
+EmulatesUndefined(RawObject obj)
 {
-    JSObject *actual = MOZ_LIKELY(!obj->isWrapper()) ? obj : UncheckedUnwrap(obj);
+    RawObject actual = MOZ_LIKELY(!obj->isWrapper()) ? obj : UnwrapObject(obj);
     bool emulatesUndefined = actual->getClass()->emulatesUndefined();
     MOZ_ASSERT_IF(emulatesUndefined, obj->type()->flags & types::OBJECT_FLAG_EMULATES_UNDEFINED);
     return emulatesUndefined;
@@ -39,4 +42,4 @@ EmulatesUndefined(JSObject *obj)
 
 } /* namespace js */
 
-#endif /* jsboolinlines_h */
+#endif /* jsboolinlines_h___ */

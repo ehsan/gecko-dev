@@ -26,6 +26,18 @@ function test() {
   });
 }
 
+function getCleoControls(doc) {
+  return [
+    doc.querySelector("#startWrapper button"),
+    doc.querySelector("#profilerMessage")
+  ];
+}
+
+function sendFromProfile(uid, msg) {
+  let [win, doc] = getProfileInternals(uid);
+  win.parent.postMessage({ uid: uid, status: msg }, "*");
+}
+
 function startProfiling() {
   gPanel.profiles.get(gPanel.activeProfile.uid).once("started", function () {
     setTimeout(function () {
@@ -33,27 +45,36 @@ function startProfiling() {
       gPanel.profiles.get(2).once("started", function () setTimeout(stopProfiling, 50));
     }, 50);
   });
-
   sendFromProfile(gPanel.activeProfile.uid, "start");
 }
 
 function stopProfiling() {
-  is(getSidebarItem(1).attachment.state, PROFILE_RUNNING);
-  is(getSidebarItem(2).attachment.state, PROFILE_RUNNING);
+  let [win, doc] = getProfileInternals(gUid);
+  let [btn, msg] = getCleoControls(doc);
+
+  is(gPanel.document.querySelector("li#profile-1 > h1").textContent,
+    "Profile 1 *", "Profile 1 has a star next to it.");
+  is(gPanel.document.querySelector("li#profile-2 > h1").textContent,
+    "Profile 2 *", "Profile 2 has a star next to it.");
 
   gPanel.profiles.get(gPanel.activeProfile.uid).once("stopped", function () {
-    is(getSidebarItem(1).attachment.state, PROFILE_COMPLETED);
+    is(gPanel.document.querySelector("li#profile-1 > h1").textContent,
+      "Profile 1", "Profile 1 doesn't have a star next to it anymore.");
 
     sendFromProfile(2, "stop");
     gPanel.profiles.get(2).once("stopped", confirmAndFinish);
   });
-
   sendFromProfile(gPanel.activeProfile.uid, "stop");
 }
 
 function confirmAndFinish(ev, data) {
-  is(getSidebarItem(1).attachment.state, PROFILE_COMPLETED);
-  is(getSidebarItem(2).attachment.state, PROFILE_COMPLETED);
+  let [win, doc] = getProfileInternals(gUid);
+  let [btn, msg] = getCleoControls(doc);
+
+  is(gPanel.document.querySelector("li#profile-1 > h1").textContent,
+    "Profile 1", "Profile 1 doesn't have a star next to it.");
+  is(gPanel.document.querySelector("li#profile-2 > h1").textContent,
+    "Profile 2", "Profile 2 doesn't have a star next to it.");  
 
   tearDown(gTab, function onTearDown() {
     gPanel = null;

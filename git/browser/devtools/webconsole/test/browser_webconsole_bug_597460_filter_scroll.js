@@ -23,26 +23,31 @@ function consoleOpened(aHud) {
   hud.ui.filterBox.value = "test message";
   hud.ui.adjustVisibilityOnSearchStringChange();
 
-  waitForMessages({
-    webconsole: hud,
-    messages: [{
-      name: "console messages displayed",
-      text: "test message 199",
-      category: CATEGORY_WEBDEV,
-      severity: SEVERITY_LOG,
-    }],
-  }).then(() => {
-    waitForMessages({
-      webconsole: hud,
-      messages: [{
-        text: "test-network.html",
-        category: CATEGORY_NETWORK,
-        severity: SEVERITY_LOG,
-        successFn: testScroll,
-        failureFn: finishTest,
-      }],
-    }).then(testScroll);
-    content.location.reload();
+  let waitForNetwork = {
+    name: "network message",
+    validatorFn: function()
+    {
+      return hud.outputNode.querySelector(".webconsole-msg-network");
+    },
+    successFn: testScroll,
+    failureFn: finishTest,
+  };
+
+  waitForSuccess({
+    name: "console messages displayed",
+    validatorFn: function()
+    {
+      return hud.outputNode.textContent.indexOf("test message 199") > -1;
+    },
+    successFn: function()
+    {
+      browser.addEventListener("load", function onReload() {
+        browser.removeEventListener("load", onReload, true);
+        waitForSuccess(waitForNetwork);
+      }, true);
+      content.location.reload();
+    },
+    failureFn: finishTest,
   });
 }
 
@@ -69,13 +74,10 @@ function testScroll() {
 }
 
 function test() {
-  const PREF = "devtools.webconsole.persistlog";
-  Services.prefs.setBoolPref(PREF, true);
-  registerCleanupFunction(() => Services.prefs.clearUserPref(PREF));
-
   addTab(TEST_URI);
   browser.addEventListener("load", function onLoad() {
     browser.removeEventListener("load", onLoad, true);
     openConsole(null, consoleOpened);
   }, true);
 }
+

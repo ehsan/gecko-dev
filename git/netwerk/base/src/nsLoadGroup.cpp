@@ -21,7 +21,6 @@
 #include "nsReadableUtils.h"
 #include "nsString.h"
 #include "nsTArray.h"
-#include "nsIHttpChannelInternal.h"
 #include "mozilla/Telemetry.h"
 
 using namespace mozilla;
@@ -118,7 +117,6 @@ nsLoadGroup::nsLoadGroup(nsISupports* outer)
     , mDefaultLoadIsTimed(false)
     , mTimedRequests(0)
     , mCachedRequests(0)
-    , mTimedNonCachedRequestsUntilOnEndPageLoad(0)
 {
     NS_INIT_AGGREGATED(outer);
 
@@ -157,7 +155,6 @@ nsLoadGroup::~nsLoadGroup()
 NS_IMPL_AGGREGATED(nsLoadGroup)
 NS_INTERFACE_MAP_BEGIN_AGGREGATED(nsLoadGroup)
     NS_INTERFACE_MAP_ENTRY(nsILoadGroup)
-    NS_INTERFACE_MAP_ENTRY(nsPILoadGroupInternal)
     NS_INTERFACE_MAP_ENTRY(nsILoadGroupChild)
     NS_INTERFACE_MAP_ENTRY(nsIRequest)
     NS_INTERFACE_MAP_ENTRY(nsISupportsPriority)
@@ -634,12 +631,8 @@ nsLoadGroup::RemoveRequest(nsIRequest *request, nsISupports* ctxt,
             ++mTimedRequests;
             TimeStamp timeStamp;
             rv = timedChannel->GetCacheReadStart(&timeStamp);
-            if (NS_SUCCEEDED(rv) && !timeStamp.IsNull()) {
+            if (NS_SUCCEEDED(rv) && !timeStamp.IsNull())
                 ++mCachedRequests;
-            }
-            else {
-                mTimedNonCachedRequestsUntilOnEndPageLoad++;
-            }
 
             rv = timedChannel->GetAsyncOpen(&timeStamp);
             if (NS_SUCCEEDED(rv) && !timeStamp.IsNull()) {
@@ -715,7 +708,9 @@ NS_IMETHODIMP
 nsLoadGroup::GetRequests(nsISimpleEnumerator * *aRequests)
 {
     nsCOMArray<nsIRequest> requests;
-    requests.SetCapacity(mRequests.entryCount);
+    if (!requests.SetCapacity(mRequests.entryCount)) {
+        return NS_ERROR_OUT_OF_MEMORY;
+    }
 
     PL_DHashTableEnumerate(&mRequests, AppendRequestsToCOMArray, &requests);
 
@@ -816,16 +811,6 @@ nsLoadGroup::GetRootLoadGroup(nsILoadGroup * *aRootLoadGroup)
 
     // finally just return this
     NS_ADDREF(*aRootLoadGroup = this);
-    return NS_OK;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// nsPILoadGroupInternal methods:
-
-NS_IMETHODIMP
-nsLoadGroup::OnEndPageLoad(nsIChannel *aDefaultChannel)
-{
-    // for the moment, nothing to do here.
     return NS_OK;
 }
 
@@ -1054,7 +1039,6 @@ public:
     nsLoadGroupConnectionInfo();
 private:
     int32_t       mBlockingTransactionCount; // signed for PR_ATOMIC_*
-    nsAutoPtr<mozilla::net::SpdyPushCache3> mSpdyCache3;
 };
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsLoadGroupConnectionInfo, nsILoadGroupConnectionInfo)
@@ -1085,20 +1069,6 @@ nsLoadGroupConnectionInfo::RemoveBlockingTransaction(uint32_t *_retval)
     NS_ENSURE_ARG_POINTER(_retval);
     *_retval =
         static_cast<uint32_t>(PR_ATOMIC_DECREMENT(&mBlockingTransactionCount));
-    return NS_OK;
-}
-
-/* [noscript] attribute SpdyPushCache3Ptr spdyPushCache3; */
-NS_IMETHODIMP
-nsLoadGroupConnectionInfo::GetSpdyPushCache3(mozilla::net::SpdyPushCache3 **aSpdyPushCache3)
-{
-    *aSpdyPushCache3 = mSpdyCache3.get();
-    return NS_OK;
-}
-NS_IMETHODIMP
-nsLoadGroupConnectionInfo::SetSpdyPushCache3(mozilla::net::SpdyPushCache3 *aSpdyPushCache3)
-{
-    mSpdyCache3 = aSpdyPushCache3;
     return NS_OK;
 }
 

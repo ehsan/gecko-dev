@@ -15,13 +15,8 @@ const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
 
 function run_test() {
-  run_next_test();
+  makeFakeAppDir().then(run_next_test, do_throw);
 }
-
-// run_test() needs to finish synchronously, so we do async init here.
-add_task(function test_init() {
-  yield makeFakeAppDir();
-});
 
 let gPending = {};
 let gSubmitted = {};
@@ -131,17 +126,13 @@ add_task(function test_collect() {
   let tomorrow = new Date(now.getTime() + MILLISECONDS_PER_DAY);
   let yesterday = new Date(now.getTime() - MILLISECONDS_PER_DAY);
 
-  createFakeCrash(false, yesterday);
-
-  // Create multiple to test that multiple are handled properly.
-  createFakeCrash(false, tomorrow);
-  createFakeCrash(false, tomorrow);
-  createFakeCrash(false, tomorrow);
+  let yesterdayID = createFakeCrash(false, yesterday);
+  let tomorrowID = createFakeCrash(false, tomorrow);
 
   yield provider.collectConstantData();
   values = yield m.getValues();
   do_check_eq(values.days.size, 11);
-  do_check_eq(values.days.getDay(tomorrow).get("pending"), 3);
+  do_check_eq(values.days.getDay(tomorrow).get("pending"), 1);
 
   for each (let date in gPending) {
     let day = values.days.getDay(date);

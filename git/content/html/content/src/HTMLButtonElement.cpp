@@ -7,6 +7,7 @@
 
 #include "mozilla/dom/HTMLButtonElementBinding.h"
 #include "nsIDOMHTMLFormElement.h"
+#include "nsIDOMEventTarget.h"
 #include "nsAttrValueInlines.h"
 #include "nsGkAtoms.h"
 #include "nsIPresShell.h"
@@ -29,7 +30,7 @@
 #include "nsPresState.h"
 #include "nsError.h"
 #include "nsFocusManager.h"
-#include "mozilla/dom/HTMLFormElement.h"
+#include "nsHTMLFormElement.h"
 #include "mozAutoDocUpdate.h"
 
 #define NS_IN_SUBMIT_CLICK      (1 << 0)
@@ -75,8 +76,14 @@ HTMLButtonElement::~HTMLButtonElement()
 
 // nsISupports
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_1(HTMLButtonElement, nsGenericHTMLFormElement,
-                                     mValidity)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(HTMLButtonElement,
+                                                  nsGenericHTMLFormElement)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mValidity)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(HTMLButtonElement,
+                                                nsGenericHTMLFormElement)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mValidity)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(HTMLButtonElement, Element)
 NS_IMPL_RELEASE_INHERITED(HTMLButtonElement, Element)
@@ -84,12 +91,12 @@ NS_IMPL_RELEASE_INHERITED(HTMLButtonElement, Element)
 
 // QueryInterface implementation for HTMLButtonElement
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(HTMLButtonElement)
-  NS_HTML_CONTENT_INTERFACES(nsGenericHTMLFormElement)
-  NS_INTERFACE_TABLE_INHERITED2(HTMLButtonElement,
-                                nsIDOMHTMLButtonElement,
-                                nsIConstraintValidation)
-  NS_INTERFACE_TABLE_TO_MAP_SEGUE
-NS_ELEMENT_INTERFACE_MAP_END
+  NS_HTML_CONTENT_INTERFACE_TABLE2(HTMLButtonElement,
+                                   nsIDOMHTMLButtonElement,
+                                   nsIConstraintValidation)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLButtonElement,
+                                               nsGenericHTMLFormElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
 
 // nsIConstraintValidation
 NS_IMPL_NSICONSTRAINTVALIDATION(HTMLButtonElement)
@@ -180,7 +187,7 @@ bool
 HTMLButtonElement::IsDisabledForEvents(uint32_t aMessage)
 {
   nsIFormControlFrame* formControlFrame = GetFormControlFrame(false);
-  nsIFrame* formFrame = nullptr;
+  nsIFrame* formFrame = NULL;
   if (formControlFrame) {
     formFrame = do_QueryFrame(formControlFrame);
   }
@@ -371,7 +378,7 @@ HTMLButtonElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
           // TODO: removing this code and have the submit event sent by the form
           // see bug 592124.
           // Hold a strong ref while dispatching
-          nsRefPtr<HTMLFormElement> form(mForm);
+          nsRefPtr<nsHTMLFormElement> form(mForm);
           presShell->HandleDOMEventWithTarget(mForm, &event, &status);
           aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
         }
@@ -541,7 +548,7 @@ HTMLButtonElement::IntrinsicState() const
 }
 
 JSObject*
-HTMLButtonElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+HTMLButtonElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return HTMLButtonElementBinding::Wrap(aCx, aScope, this);
 }

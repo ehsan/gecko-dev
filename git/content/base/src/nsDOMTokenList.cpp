@@ -231,9 +231,7 @@ nsDOMTokenList::Remove(const nsAString& aToken, ErrorResult& aError)
 }
 
 bool
-nsDOMTokenList::Toggle(const nsAString& aToken,
-                       const Optional<bool>& aForce,
-                       ErrorResult& aError)
+nsDOMTokenList::Toggle(const nsAString& aToken, ErrorResult& aError)
 {
   aError = CheckToken(aToken);
   if (aError.Failed()) {
@@ -241,24 +239,14 @@ nsDOMTokenList::Toggle(const nsAString& aToken,
   }
 
   const nsAttrValue* attr = GetParsedAttr();
-  const bool forceOn = aForce.WasPassed() && aForce.Value();
-  const bool forceOff = aForce.WasPassed() && !aForce.Value();
 
-  bool isPresent = attr && attr->Contains(aToken);
-
-  if (isPresent) {
-    if (!forceOn) {
-      RemoveInternal(attr, aToken);
-      isPresent = false;
-    }
-  } else {
-    if (!forceOff) {
-      AddInternal(attr, aToken);
-      isPresent = true;
-    }
+  if (attr && attr->Contains(aToken)) {
+    RemoveInternal(attr, aToken);
+    return false;
   }
 
-  return isPresent;
+  AddInternal(attr, aToken);
+  return true;
 }
 
 void
@@ -273,7 +261,7 @@ nsDOMTokenList::Stringify(nsAString& aResult)
 }
 
 JSObject*
-nsDOMTokenList::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
+nsDOMTokenList::WrapObject(JSContext *cx, JSObject *scope)
 {
   return DOMTokenListBinding::Wrap(cx, scope, this);
 }

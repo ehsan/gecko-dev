@@ -7,6 +7,7 @@
 #define nsCCUncollectableMarker_h_
 
 #include "nsIObserver.h"
+#include "nsCycleCollectionParticipant.h"
 #include "mozilla/Attributes.h"
 
 struct JSTracer;
@@ -29,8 +30,8 @@ class nsCCUncollectableMarker MOZ_FINAL : public nsIObserver
     return aGeneration && aGeneration == sGeneration;
   }
 
-  template <class CCCallback>
-  static bool InGeneration(CCCallback& aCb, uint32_t aGeneration)
+  static bool InGeneration(nsCycleCollectionTraversalCallback& aCb,
+                           uint32_t aGeneration)
   {
     return InGeneration(aGeneration) && !aCb.WantAllTraces();
   }

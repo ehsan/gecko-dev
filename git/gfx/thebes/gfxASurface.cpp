@@ -126,13 +126,14 @@ gfxASurface::SetSurfaceWrapper(cairo_surface_t *csurf, gfxASurface *asurf)
 already_AddRefed<gfxASurface>
 gfxASurface::Wrap (cairo_surface_t *csurf)
 {
-    nsRefPtr<gfxASurface> result;
+    gfxASurface *result;
 
     /* Do we already have a wrapper for this surface? */
     result = GetSurfaceWrapper(csurf);
     if (result) {
         // fprintf(stderr, "Existing wrapper for %p -> %p\n", csurf, result);
-        return result.forget();
+        NS_ADDREF(result);
+        return result;
     }
 
     /* No wrapper; figure out the surface type and create it */
@@ -176,7 +177,8 @@ gfxASurface::Wrap (cairo_surface_t *csurf)
 
     // fprintf(stderr, "New wrapper for %p -> %p\n", csurf, result);
 
-    return result.forget();
+    NS_ADDREF(result);
+    return result;
 }
 
 void
@@ -632,6 +634,12 @@ public:
 
         return NS_OK;
     }
+
+    NS_IMETHOD GetExplicitNonHeap(int64_t *n)
+    {
+        *n = 0; // this reporter makes neither "explicit" non NONHEAP reports
+        return NS_OK;
+    }
 };
 
 NS_IMPL_ISUPPORTS1(SurfaceMemoryReporter, nsIMemoryMultiReporter)
@@ -704,6 +712,7 @@ gfxASurface::BytesPerPixel(gfxImageFormat aImageFormat)
   }
 }
 
+#ifdef MOZ_DUMP_IMAGES
 void
 gfxASurface::WriteAsPNG(const char* aFile)
 {
@@ -883,3 +892,5 @@ gfxASurface::WriteAsPNG_internal(FILE* aFile, bool aBinary)
 
   return;
 }
+#endif
+

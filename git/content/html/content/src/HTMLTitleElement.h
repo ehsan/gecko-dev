@@ -55,22 +55,22 @@ public:
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
 
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   virtual nsresult BindToTree(nsIDocument *aDocument, nsIContent *aParent,
                               nsIContent *aBindingParent,
-                              bool aCompileEventHandlers) MOZ_OVERRIDE;
+                              bool aCompileEventHandlers);
 
   virtual void UnbindFromTree(bool aDeep = true,
-                              bool aNullParent = true) MOZ_OVERRIDE;
+                              bool aNullParent = true);
 
-  virtual void DoneAddingChildren(bool aHaveNotified) MOZ_OVERRIDE;
+  virtual void DoneAddingChildren(bool aHaveNotified);
 
-  virtual nsIDOMNode* AsDOMNode() MOZ_OVERRIDE { return this; }
+  virtual nsIDOMNode* AsDOMNode() { return this; }
 
 protected:
 
-  virtual JSObject* WrapNode(JSContext* cx, JS::Handle<JSObject*> scope)
+  virtual JSObject* WrapNode(JSContext* cx, JSObject* scope)
     MOZ_OVERRIDE MOZ_FINAL;
 
 private:

@@ -47,7 +47,7 @@ class SVGFilterElement;
  * The definition of "filter region" can be found here:
  * http://www.w3.org/TR/SVG11/filters.html#FilterEffectsRegion
  */
-class nsSVGFilterInstance
+class NS_STACK_CLASS nsSVGFilterInstance
 {
 public:
   /**

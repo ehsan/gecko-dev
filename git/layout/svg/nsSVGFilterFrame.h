@@ -6,7 +6,6 @@
 #ifndef __NS_SVGFILTERFRAME_H__
 #define __NS_SVGFILTERFRAME_H__
 
-#include "mozilla/Attributes.h"
 #include "nsFrame.h"
 #include "nsQueryFrame.h"
 #include "nsRect.h"
@@ -54,7 +53,7 @@ public:
 
   NS_IMETHOD AttributeChanged(int32_t         aNameSpaceID,
                               nsIAtom*        aAttribute,
-                              int32_t         aModType) MOZ_OVERRIDE;
+                              int32_t         aModType);
 
   /**
    * Paint the given filtered frame.
@@ -108,7 +107,7 @@ public:
    *
    * @see nsGkAtoms::svgFilterFrame
    */
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
 
 private:
   // Parse our xlink:href and set up our nsSVGPaintingProperty if we

@@ -286,6 +286,36 @@ WebappsRegistry.prototype = {
 }
 
 /**
+  * nsIDOMDOMError object
+  */
+function createDOMError(aError) {
+  let error = Cc["@mozilla.org/dom-error;1"]
+                .createInstance(Ci.nsIDOMDOMError);
+  error.wrappedJSObject.init(aError);
+  return error;
+}
+
+function DOMError() {
+  this.wrappedJSObject = this;
+}
+
+DOMError.prototype = {
+  init: function domerror_init(aError) {
+    this.name = aError;
+  },
+
+  classID: Components.ID("{dcc1d5b7-43d8-4740-9244-b3d8db0f503d}"),
+
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMDOMError]),
+
+  classInfo: XPCOMUtils.generateCI({classID: Components.ID("{dcc1d5b7-43d8-4740-9244-b3d8db0f503d}"),
+                                    contractID: "@mozilla.org/dom-error;1",
+                                    interfaces: [Ci.nsIDOMDOMError],
+                                    flags: Ci.nsIClassInfo.DOM_OBJECT,
+                                    classDescription: "DOMError object"})
+}
+
+/**
   * mozIDOMApplication object
   */
 
@@ -368,8 +398,7 @@ WebappsApplication.prototype = {
                               "Webapps:CheckForUpdate:Return:OK",
                               "Webapps:CheckForUpdate:Return:KO",
                               "Webapps:Launch:Return:KO",
-                              "Webapps:PackageEvent",
-                              "Webapps:ClearBrowserData:Return"]);
+                              "Webapps:PackageEvent"]);
 
     cpmm.sendAsyncMessage("Webapps:RegisterForMessages",
                           ["Webapps:OfflineCache",
@@ -430,7 +459,7 @@ WebappsApplication.prototype = {
   },
 
   get downloadError() {
-    return new this._window.DOMError(this._downloadError || '');
+    return createDOMError(this._downloadError);
   },
 
   download: function() {
@@ -465,26 +494,11 @@ WebappsApplication.prototype = {
   },
 
   clearBrowserData: function() {
-    let request = this.createRequest();
     let browserChild =
       BrowserElementPromptService.getBrowserElementChildForWindow(this._window);
     if (browserChild) {
-      browserChild.messageManager.sendAsyncMessage(
-        "Webapps:ClearBrowserData",
-        { manifestURL: this.manifestURL,
-          oid: this._id,
-          requestID: this.getRequestId(request) }
-      );
-    } else {
-      let runnable = {
-        run: function run() {
-          Services.DOMRequest.fireError(request, "NO_CLEARABLE_BROWSER");
-        }
-      }
-      Services.tm.currentThread.dispatch(runnable,
-                                         Ci.nsIThread.DISPATCH_NORMAL);
+      browserChild.messageManager.sendAsyncMessage("Webapps:ClearBrowserData");
     }
-    return request;
   },
 
   uninit: function() {
@@ -525,25 +539,9 @@ WebappsApplication.prototype = {
         if (msg.manifestURL != this.manifestURL)
           return;
 
-        manifestCache.evict(this.manifestURL, this.innerWindowID);
-
-        let hiddenProps = ["manifest", "updateManifest"];
-        let updatableProps = ["installOrigin", "installTime", "installState",
-            "lastUpdateCheck", "updateTime", "progress", "downloadAvailable",
-            "downloading", "readyToApplyDownload", "downloadSize"];
-        // Props that we don't update: origin, receipts, manifestURL, removable.
-
-        updatableProps.forEach(function(prop) {
-          if (msg.app[prop]) {
-            this[prop] = msg.app[prop];
-          }
-        }, this);
-
-        hiddenProps.forEach(function(prop) {
-          if (msg.app[prop]) {
-            this["_" + prop] = msg.app[prop];
-          }
-        }, this);
+        for (let prop in msg.app) {
+          this[prop] = msg.app[prop];
+        }
 
         if (msg.event == "downloadapplied") {
           this._fireEvent("downloadapplied", this._ondownloadapplied);
@@ -565,7 +563,6 @@ WebappsApplication.prototype = {
           if (this.installState == "installed") {
             this._downloadError = null;
             this.downloading = false;
-            this.downloadAvailable = false;
             this._fireEvent("downloadsuccess", this._ondownloadsuccess);
             this._fireEvent("downloadapplied", this._ondownloadapplied);
           } else {
@@ -591,7 +588,6 @@ WebappsApplication.prototype = {
         this.progress = app.progress || msg.progress || 0;
         this.readyToApplyDownload = app.readyToApplyDownload;
         this.updateTime = app.updateTime;
-        this.origin = app.origin;
 
         switch(msg.type) {
           case "error":
@@ -623,9 +619,6 @@ WebappsApplication.prototype = {
             this._fireEvent("downloadapplied", this._ondownloadapplied);
             break;
         }
-        break;
-      case "Webapps:ClearBrowserData:Return":
-        Services.DOMRequest.fireSuccess(req, null);
         break;
     }
   },
@@ -694,7 +687,6 @@ WebappsApplicationMgmt.prototype = {
     dump("-- webapps.js uninstall " + aApp.manifestURL + "\n");
     let request = this.createRequest();
     cpmm.sendAsyncMessage("Webapps:Uninstall", { origin: aApp.origin,
-                                                 manifestURL: aApp.manifestURL,
                                                  oid: this._id,
                                                  requestID: this.getRequestId(request) });
     return request;
@@ -793,4 +785,5 @@ WebappsApplicationMgmt.prototype = {
 }
 
 this.NSGetFactory = XPCOMUtils.generateNSGetFactory([WebappsRegistry,
-                                                     WebappsApplication]);
+                                                     WebappsApplication,
+                                                     DOMError]);

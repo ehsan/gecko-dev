@@ -19,7 +19,6 @@
 #ifdef MOZILLA_INTERNAL_API
 #include "MediaStreamList.h"
 #include "nsIScriptGlobalObject.h"
-#include "mozilla/Preferences.h"
 #include "jsapi.h"
 #endif
 
@@ -132,8 +131,7 @@ PeerConnectionMedia::PeerConnectionMedia(PeerConnectionImpl *parent)
       mMainThread(mParent->GetMainThread()),
       mSTSThread(mParent->GetSTSThread()) {}
 
-nsresult PeerConnectionMedia::Init(const std::vector<NrIceStunServer>& stun_servers,
-                                   const std::vector<NrIceTurnServer>& turn_servers)
+nsresult PeerConnectionMedia::Init(const std::vector<NrIceStunServer>& stun_servers)
 {
   // TODO(ekr@rtfm.com): need some way to set not offerer later
   // Looks like a bug in the NrIceCtx API.
@@ -146,20 +144,6 @@ nsresult PeerConnectionMedia::Init(const std::vector<NrIceStunServer>& stun_serv
   if (NS_FAILED(rv = mIceCtx->SetStunServers(stun_servers))) {
     CSFLogError(logTag, "%s: Failed to set stun servers", __FUNCTION__);
     return rv;
-  }
-  // Give us a way to globally turn off TURN support
-#ifdef MOZILLA_INTERNAL_API
-  bool disabled = Preferences::GetBool("media.peerconnection.turn.disable", false);
-#else
-  bool disabled = false;
-#endif
-  if (!disabled) {
-    if (NS_FAILED(rv = mIceCtx->SetTurnServers(turn_servers))) {
-      CSFLogError(logTag, "%s: Failed to set turn servers", __FUNCTION__);
-      return rv;
-    }
-  } else if (turn_servers.size() != 0) {
-    CSFLogError(logTag, "%s: Setting turn servers disabled", __FUNCTION__);
   }
   if (NS_FAILED(rv = mDNSResolver->Init())) {
     CSFLogError(logTag, "%s: Failed to initialize dns resolver", __FUNCTION__);
@@ -179,12 +163,9 @@ nsresult PeerConnectionMedia::Init(const std::vector<NrIceStunServer>& stun_serv
   // Create three streams to start with.
   // One each for audio, video and DataChannel
   // TODO: this will be re-visited
-  RefPtr<NrIceMediaStream> audioStream =
-    mIceCtx->CreateStream((mParent->GetHandle()+"/stream1/audio").c_str(), 2);
-  RefPtr<NrIceMediaStream> videoStream =
-    mIceCtx->CreateStream((mParent->GetHandle()+"/stream2/video").c_str(), 2);
-  RefPtr<NrIceMediaStream> dcStream =
-    mIceCtx->CreateStream((mParent->GetHandle()+"/stream3/data").c_str(), 2);
+  RefPtr<NrIceMediaStream> audioStream = mIceCtx->CreateStream("stream1", 2);
+  RefPtr<NrIceMediaStream> videoStream = mIceCtx->CreateStream("stream2", 2);
+  RefPtr<NrIceMediaStream> dcStream = mIceCtx->CreateStream("stream3", 2);
 
   if (!audioStream) {
     CSFLogError(logTag, "%s: audio stream is NULL", __FUNCTION__);
@@ -389,26 +370,6 @@ PeerConnectionMedia::AddRemoteStream(nsRefPtr<RemoteSourceStreamInfo> aInfo,
   *aIndex = mRemoteSourceStreams.Length();
 
   mRemoteSourceStreams.AppendElement(aInfo);
-
-  return NS_OK;
-}
-
-nsresult
-PeerConnectionMedia::AddRemoteStreamHint(int aIndex, bool aIsVideo)
-{
-  if (aIndex < 0 ||
-      static_cast<unsigned int>(aIndex) >= mRemoteSourceStreams.Length()) {
-    return NS_ERROR_ILLEGAL_VALUE;
-  }
-
-  RemoteSourceStreamInfo *pInfo = mRemoteSourceStreams.ElementAt(aIndex);
-  MOZ_ASSERT(pInfo);
-
-  if (aIsVideo) {
-    pInfo->mTrackTypeHints |= DOMMediaStream::HINT_CONTENTS_VIDEO;
-  } else {
-    pInfo->mTrackTypeHints |= DOMMediaStream::HINT_CONTENTS_AUDIO;
-  }
 
   return NS_OK;
 }

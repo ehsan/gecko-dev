@@ -26,18 +26,15 @@ public:
   static void DestroyNeckoChild();
 
 protected:
-  virtual PHttpChannelChild*
-    AllocPHttpChannel(PBrowserChild*, const SerializedLoadContext&,
-                      const HttpChannelCreationArgs& aOpenArgs);
+  virtual PHttpChannelChild* AllocPHttpChannel(PBrowserChild*,
+                                              const SerializedLoadContext&);
   virtual bool DeallocPHttpChannel(PHttpChannelChild*);
   virtual PCookieServiceChild* AllocPCookieService();
   virtual bool DeallocPCookieService(PCookieServiceChild*);
   virtual PWyciwygChannelChild* AllocPWyciwygChannel();
   virtual bool DeallocPWyciwygChannel(PWyciwygChannelChild*);
-  virtual PFTPChannelChild*
-    AllocPFTPChannel(PBrowserChild* aBrowser,
-                     const SerializedLoadContext& aSerialized,
-                     const FTPChannelCreationArgs& aOpenArgs);
+  virtual PFTPChannelChild* AllocPFTPChannel(PBrowserChild* aBrowser,
+                                             const SerializedLoadContext& aSerialized);
   virtual bool DeallocPFTPChannel(PFTPChannelChild*);
   virtual PWebSocketChild* AllocPWebSocket(PBrowserChild*, const SerializedLoadContext&);
   virtual bool DeallocPWebSocket(PWebSocketChild*);

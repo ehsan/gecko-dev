@@ -7,7 +7,6 @@
 #include "cpr_stdio.h"
 #include "cpr_string.h"
 #include "util_ios_queue.h"
-#include "CSFLog.h"
 
 /* Forward function declarations */
 void enqueue_inline(queuetype *qptr, void *eaddr);
@@ -87,8 +86,8 @@ enqueue_inline (queuetype *qptr, void *eaddr)
      * element in this list
      */
     if ((ptr->next != NULL) || (p == ptr)) {
-        CSFLogError("src-common", "Queue: Error, queue corrupted %p %p",
-                qptr, eaddr);
+        err_msg("Queue: Error, queue corrupted %d %d\n", (long)qptr,
+                (long) eaddr);
         return;
     }
     if (!p)                     /* q empty */
@@ -118,8 +117,7 @@ dequeue_inline (queuetype * qptr)
         p->next = NULL;         /* clear link, just in case */
     }
     if (p && (--qptr->count < 0) && qptr->maximum) {
-        CSFLogError("src-common",
-          "Queue: Error, queue count under or over %d\n", qptr->count);
+        err_msg("Queue: Error, queue count under or over %d\n", qptr->count);
         qptr->count = 0;
     }
     return (p);

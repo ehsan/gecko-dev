@@ -19,10 +19,10 @@ Cu.import("resource://services-common/bagheeraclient.js");
 #endif
 
 Cu.import("resource://services-common/log4moz.js");
+Cu.import("resource://services-common/preferences.js");
 Cu.import("resource://services-common/utils.js");
-Cu.import("resource://gre/modules/Promise.jsm");
+Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 Cu.import("resource://gre/modules/osfile.jsm");
-Cu.import("resource://gre/modules/Preferences.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://gre/modules/TelemetryStopwatch.jsm");
@@ -101,10 +101,6 @@ HealthReporterState.prototype = Object.freeze({
     return this._s.remoteIDs;
   },
 
-  get _lastPayloadPath() {
-    return OS.Path.join(this._stateDir, "lastpayload.json");
-  },
-
   init: function () {
     return Task.spawn(function init() {
       try {
@@ -120,7 +116,6 @@ HealthReporterState.prototype = Object.freeze({
           v: 1,
           remoteIDs: [],
           lastPingTime: 0,
-          removedOutdatedLastpayload: false,
         };
       }.bind(this);
 
@@ -143,13 +138,21 @@ HealthReporterState.prototype = Object.freeze({
 
       if (typeof(this._s) != "object") {
         this._log.warn("Read state is not an object. Resetting state.");
-        resetObjectState();
+        this._s = {
+          v: 1,
+          remoteIDs: [],
+          lastPingTime: 0,
+        };
         yield this.save();
       }
 
       if (this._s.v != 1) {
         this._log.warn("Unknown version in state file: " + this._s.v);
-        resetObjectState();
+        this._s = {
+          v: 1,
+          remoteIDs: [],
+          lastPingTime: 0,
+        };
         // We explicitly don't save here in the hopes an application re-upgrade
         // comes along and fixes us.
       }
@@ -174,17 +177,8 @@ HealthReporterState.prototype = Object.freeze({
   },
 
   removeRemoteID: function (id) {
-    return this.removeRemoteIDs(id ? [id] : []);
-  },
-
-  removeRemoteIDs: function (ids) {
-    if (!ids || !ids.length) {
-      this._log.warn("No IDs passed for removal.");
-      return Promise.resolve();
-    }
-
-    this._log.warn("Removing documents from remote ID list: " + ids);
-    let filtered = this._s.remoteIDs.filter((x) => ids.indexOf(x) === -1);
+    this._log.warn("Removing document from remote ID list: " + id);
+    let filtered = this._s.remoteIDs.filter((x) => x != id);
 
     if (filtered.length == this._s.remoteIDs.length) {
       return Promise.resolve();
@@ -201,17 +195,13 @@ HealthReporterState.prototype = Object.freeze({
   },
 
   updateLastPingAndRemoveRemoteID: function (date, id) {
-    return this.updateLastPingAndRemoveRemoteIDs(date, id ? [id] : []);
-  },
-
-  updateLastPingAndRemoveRemoteIDs: function (date, ids) {
-    if (!ids) {
+    if (!id) {
       return this.setLastPingDate(date);
     }
 
     this._log.info("Recording last ping time and deleted remote document.");
     this._s.lastPingTime = date.getTime();
-    return this.removeRemoteIDs(ids);
+    return this.removeRemoteID(id);
   },
 
   _migratePrefs: function () {
@@ -353,52 +343,16 @@ AbstractHealthReporter.prototype = Object.freeze({
   },
 
   _onStateInitialized: function () {
-    return Task.spawn(function onStateInitialized () {
-      try {
-        if (!this._state._s.removedOutdatedLastpayload) {
-          yield this._deleteOldLastPayload();
-          this._state._s.removedOutdatedLastpayload = true;
-          // Normally we should save this to a file but it directly conflicts with
-          //  the "application re-upgrade" decision in HealthReporterState::init()
-          //  which specifically does not save the state to a file.
-        }
-      } catch (ex) {
-        this._log.error("Error deleting last payload: " +
-                        CommonUtils.exceptionStr(ex));
-      }
-      // As soon as we have could storage, we need to register cleanup or
-      // else bad things happen on shutdown.
-      Services.obs.addObserver(this, "quit-application", false);
-      Services.obs.addObserver(this, "profile-before-change", false);
+    // As soon as we have could storage, we need to register cleanup or
+    // else bad things happen on shutdown.
+    Services.obs.addObserver(this, "quit-application", false);
+    Services.obs.addObserver(this, "profile-before-change", false);
 
-      this._storageInProgress = true;
-      TelemetryStopwatch.start(this._dbOpenHistogram, this);
+    this._storageInProgress = true;
+    TelemetryStopwatch.start(this._dbOpenHistogram, this);
 
-      Metrics.Storage(this._dbName).then(this._onStorageCreated.bind(this),
-                                         this._onInitError.bind(this));
-    }.bind(this));
-  },
-
-
-  /**
-   * Removes the outdated lastpaylaod.json and lastpayload.json.tmp files
-   * @see Bug #867902
-   * @return a promise for when all the files have been deleted
-   */
-  _deleteOldLastPayload: function () {
-    let paths = [this._state._lastPayloadPath, this._state._lastPayloadPath + ".tmp"];
-    return Task.spawn(function removeAllFiles () {
-      for (let path of paths) {
-        try {
-          OS.File.remove(path);
-        } catch (ex) {
-          if (!ex.becauseNoSuchFile) {
-            this._log.error("Exception when removing outdated payload files: " +
-                            CommonUtils.exceptionStr(ex));
-          }
-        }
-      }
-    }.bind(this));
+    Metrics.Storage(this._dbName).then(this._onStorageCreated.bind(this),
+                                       this._onInitError.bind(this));
   },
 
   // Called when storage has been opened.
@@ -1351,10 +1305,10 @@ HealthReporter.prototype = Object.freeze({
 
       if (isDelete) {
         this._log.warn("Marking delete as successful.");
-        yield this._state.removeRemoteIDs([result.id]);
+        yield this._state.removeRemoteID(result.id);
       } else {
         this._log.warn("Marking upload as successful.");
-        yield this._state.updateLastPingAndRemoveRemoteIDs(date, result.deleteIDs);
+        yield this._state.updateLastPingAndRemoveRemoteID(date, result.deleteID);
       }
 
       request.onSubmissionSuccess(this._now());
@@ -1401,7 +1355,7 @@ HealthReporter.prototype = Object.freeze({
       let result;
       try {
         let options = {
-          deleteIDs: this._state.remoteIDs.filter((x) => { return x != id; }),
+          deleteID: lastID,
           telemetryCompressed: TELEMETRY_PAYLOAD_SIZE_COMPRESSED,
         };
         result = yield client.uploadJSON(this.serverNamespace, id, payload,

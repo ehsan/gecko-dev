@@ -1,13 +1,13 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_arm_Assembler_arm_h
-#define ion_arm_Assembler_arm_h
+#ifndef jsion_cpu_arm_assembler_h__
+#define jsion_cpu_arm_assembler_h__
 
-#include "mozilla/Attributes.h"
 #include "mozilla/MathAlgorithms.h"
 #include "mozilla/Util.h"
 
@@ -27,98 +27,69 @@ namespace ion {
 // clearer than bl r14).  HOWEVER, this register can
 // easily be a gpr when it is not busy holding the return
 // address.
-static const MOZ_CONSTEXPR Register r0  = { Registers::r0 };
-static const MOZ_CONSTEXPR Register r1  = { Registers::r1 };
-static const MOZ_CONSTEXPR Register r2  = { Registers::r2 };
-static const MOZ_CONSTEXPR Register r3  = { Registers::r3 };
-static const MOZ_CONSTEXPR Register r4  = { Registers::r4 };
-static const MOZ_CONSTEXPR Register r5  = { Registers::r5 };
-static const MOZ_CONSTEXPR Register r6  = { Registers::r6 };
-static const MOZ_CONSTEXPR Register r7  = { Registers::r7 };
-static const MOZ_CONSTEXPR Register r8  = { Registers::r8 };
-static const MOZ_CONSTEXPR Register r9  = { Registers::r9 };
-static const MOZ_CONSTEXPR Register r10 = { Registers::r10 };
-static const MOZ_CONSTEXPR Register r11 = { Registers::r11 };
-static const MOZ_CONSTEXPR Register r12 = { Registers::ip };
-static const MOZ_CONSTEXPR Register ip  = { Registers::ip };
-static const MOZ_CONSTEXPR Register sp  = { Registers::sp };
-static const MOZ_CONSTEXPR Register r14 = { Registers::lr };
-static const MOZ_CONSTEXPR Register lr  = { Registers::lr };
-static const MOZ_CONSTEXPR Register pc  = { Registers::pc };
+static const Register r0  = { Registers::r0 };
+static const Register r1  = { Registers::r1 };
+static const Register r2  = { Registers::r2 };
+static const Register r3  = { Registers::r3 };
+static const Register r4  = { Registers::r4 };
+static const Register r5  = { Registers::r5 };
+static const Register r6  = { Registers::r6 };
+static const Register r7  = { Registers::r7 };
+static const Register r8  = { Registers::r8 };
+static const Register r9  = { Registers::r9 };
+static const Register r10 = { Registers::r10 };
+static const Register r11 = { Registers::r11 };
+static const Register r12 = { Registers::ip };
+static const Register ip  = { Registers::ip };
+static const Register sp  = { Registers::sp };
+static const Register r14 = { Registers::lr };
+static const Register lr  = { Registers::lr };
+static const Register pc  = { Registers::pc };
 
-static const MOZ_CONSTEXPR Register ScratchRegister = {Registers::ip};
+static const Register ScratchRegister = {Registers::ip};
 
-static const MOZ_CONSTEXPR Register OsrFrameReg = r3;
-static const MOZ_CONSTEXPR Register ArgumentsRectifierReg = r8;
-static const MOZ_CONSTEXPR Register CallTempReg0 = r5;
-static const MOZ_CONSTEXPR Register CallTempReg1 = r6;
-static const MOZ_CONSTEXPR Register CallTempReg2 = r7;
-static const MOZ_CONSTEXPR Register CallTempReg3 = r8;
-static const MOZ_CONSTEXPR Register CallTempReg4 = r0;
-static const MOZ_CONSTEXPR Register CallTempReg5 = r1;
-static const MOZ_CONSTEXPR Register CallTempReg6 = r2;
+static const Register OsrFrameReg = r3;
+static const Register ArgumentsRectifierReg = r8;
+static const Register CallTempReg0 = r5;
+static const Register CallTempReg1 = r6;
+static const Register CallTempReg2 = r7;
+static const Register CallTempReg3 = r8;
+static const Register CallTempReg4 = r0;
+static const Register CallTempReg5 = r1;
 
-static const MOZ_CONSTEXPR Register IntArgReg0 = r0;
-static const MOZ_CONSTEXPR Register IntArgReg1 = r1;
-static const MOZ_CONSTEXPR Register IntArgReg2 = r2;
-static const MOZ_CONSTEXPR Register IntArgReg3 = r3;
-static const MOZ_CONSTEXPR Register GlobalReg = r10;
-static const MOZ_CONSTEXPR Register HeapReg = r11;
-static const MOZ_CONSTEXPR Register CallTempNonArgRegs[] = { r5, r6, r7, r8 };
+static const Register CallTempNonArgRegs[] = { r5, r6, r7, r8 };
 static const uint32_t NumCallTempNonArgRegs =
     mozilla::ArrayLength(CallTempNonArgRegs);
-class ABIArgGenerator
-{
-#if defined(JS_CPU_ARM_HARDFP)
-    unsigned intRegIndex_;
-    unsigned floatRegIndex_;
-#else
-    unsigned argRegIndex_;
-#endif
-    uint32_t stackOffset_;
-    ABIArg current_;
 
-  public:
-    ABIArgGenerator();
-    ABIArg next(MIRType argType);
-    ABIArg &current() { return current_; }
-    uint32_t stackBytesConsumedSoFar() const { return stackOffset_; }
-    static const Register NonArgReturnVolatileReg0;
-    static const Register NonArgReturnVolatileReg1;
+static const Register PreBarrierReg = r1;
 
-};
+static const Register InvalidReg = { Registers::invalid_reg };
+static const FloatRegister InvalidFloatReg = { FloatRegisters::invalid_freg };
 
-static const MOZ_CONSTEXPR Register PreBarrierReg = r1;
+static const Register JSReturnReg_Type = r3;
+static const Register JSReturnReg_Data = r2;
+static const Register StackPointer = sp;
+static const Register FramePointer = InvalidReg;
+static const Register ReturnReg = r0;
+static const FloatRegister ReturnFloatReg = { FloatRegisters::d0 };
+static const FloatRegister ScratchFloatReg = { FloatRegisters::d1 };
 
-static const MOZ_CONSTEXPR Register InvalidReg = { Registers::invalid_reg };
-static const MOZ_CONSTEXPR FloatRegister InvalidFloatReg = { FloatRegisters::invalid_freg };
-
-static const MOZ_CONSTEXPR Register JSReturnReg_Type = r3;
-static const MOZ_CONSTEXPR Register JSReturnReg_Data = r2;
-static const MOZ_CONSTEXPR Register StackPointer = sp;
-static const MOZ_CONSTEXPR Register FramePointer = InvalidReg;
-static const MOZ_CONSTEXPR Register ReturnReg = r0;
-static const MOZ_CONSTEXPR FloatRegister ReturnFloatReg = { FloatRegisters::d0 };
-static const MOZ_CONSTEXPR FloatRegister ScratchFloatReg = { FloatRegisters::d1 };
-
-static const MOZ_CONSTEXPR FloatRegister NANReg = { FloatRegisters::d15 };
-
-static const MOZ_CONSTEXPR FloatRegister d0  = {FloatRegisters::d0};
-static const MOZ_CONSTEXPR FloatRegister d1  = {FloatRegisters::d1};
-static const MOZ_CONSTEXPR FloatRegister d2  = {FloatRegisters::d2};
-static const MOZ_CONSTEXPR FloatRegister d3  = {FloatRegisters::d3};
-static const MOZ_CONSTEXPR FloatRegister d4  = {FloatRegisters::d4};
-static const MOZ_CONSTEXPR FloatRegister d5  = {FloatRegisters::d5};
-static const MOZ_CONSTEXPR FloatRegister d6  = {FloatRegisters::d6};
-static const MOZ_CONSTEXPR FloatRegister d7  = {FloatRegisters::d7};
-static const MOZ_CONSTEXPR FloatRegister d8  = {FloatRegisters::d8};
-static const MOZ_CONSTEXPR FloatRegister d9  = {FloatRegisters::d9};
-static const MOZ_CONSTEXPR FloatRegister d10 = {FloatRegisters::d10};
-static const MOZ_CONSTEXPR FloatRegister d11 = {FloatRegisters::d11};
-static const MOZ_CONSTEXPR FloatRegister d12 = {FloatRegisters::d12};
-static const MOZ_CONSTEXPR FloatRegister d13 = {FloatRegisters::d13};
-static const MOZ_CONSTEXPR FloatRegister d14 = {FloatRegisters::d14};
-static const MOZ_CONSTEXPR FloatRegister d15 = {FloatRegisters::d15};
+static const FloatRegister d0  = {FloatRegisters::d0};
+static const FloatRegister d1  = {FloatRegisters::d1};
+static const FloatRegister d2  = {FloatRegisters::d2};
+static const FloatRegister d3  = {FloatRegisters::d3};
+static const FloatRegister d4  = {FloatRegisters::d4};
+static const FloatRegister d5  = {FloatRegisters::d5};
+static const FloatRegister d6  = {FloatRegisters::d6};
+static const FloatRegister d7  = {FloatRegisters::d7};
+static const FloatRegister d8  = {FloatRegisters::d8};
+static const FloatRegister d9  = {FloatRegisters::d9};
+static const FloatRegister d10 = {FloatRegisters::d10};
+static const FloatRegister d11 = {FloatRegisters::d11};
+static const FloatRegister d12 = {FloatRegisters::d12};
+static const FloatRegister d13 = {FloatRegisters::d13};
+static const FloatRegister d14 = {FloatRegisters::d14};
+static const FloatRegister d15 = {FloatRegisters::d15};
 
 // For maximal awesomeness, 8 should be sufficent.
 // ldrd/strd (dual-register load/store) operate in a single cycle
@@ -126,12 +97,9 @@ static const MOZ_CONSTEXPR FloatRegister d15 = {FloatRegisters::d15};
 // Also, the ARM abi wants the stack to be 8 byte aligned at
 // function boundaries.  I'm trying to make sure this is always true.
 static const uint32_t StackAlignment = 8;
-static const uint32_t CodeAlignment = 8;
 static const bool StackKeptAligned = true;
 static const uint32_t NativeFrameSize = sizeof(void*);
-static const uint32_t AlignmentAtPrologue = 0;
-static const uint32_t AlignmentMidPrologue = 4;
-
+static const uint32_t AlignmentAtPrologue = sizeof(void*);
 
 static const Scale ScalePointer = TimesFour;
 
@@ -404,7 +372,7 @@ bool condsAreSafe(ALUOp op);
 ALUOp getDestVariant(ALUOp op);
 
 static const ValueOperand JSReturnOperand = ValueOperand(JSReturnReg_Type, JSReturnReg_Data);
-static const ValueOperand softfpReturnOperand = ValueOperand(r1, r0);
+
 // All of these classes exist solely to shuffle data into the various operands.
 // For example Operand2 can be an imm8, a register-shifted-by-a-constant or
 // a register-shifted-by-a-register.  I represent this in C++ by having a
@@ -423,9 +391,6 @@ static const ValueOperand softfpReturnOperand = ValueOperand(r1, r0);
 // but have all of them take up only a single word of storage.
 // I also wanted to avoid passing around raw integers at all
 // since they are error prone.
-class Op2Reg;
-class O2RegImmShift;
-class O2RegRegShift;
 namespace datastore {
 struct Reg
 {
@@ -445,9 +410,6 @@ struct Reg
 
     uint32_t encode() {
         return RM | RRS << 4 | Type << 5 | ShiftAmount << 7;
-    }
-    explicit Reg(const Op2Reg &op) {
-        memcpy(this, &op, sizeof(*this));
     }
 };
 
@@ -572,7 +534,6 @@ struct RIS
     {
         JS_ASSERT(ShiftAmount == imm);
     }
-    explicit RIS(Reg r) : ShiftAmount(ShiftAmount) { }
 };
 
 struct RRS
@@ -596,21 +557,15 @@ struct RRS
 
 class MacroAssemblerARM;
 class Operand;
+
 class Operand2
 {
     friend class Operand;
     friend class MacroAssemblerARM;
-    friend class InstALU;
+
   public:
     uint32_t oper : 31;
     uint32_t invalid : 1;
-    bool isO2Reg() {
-        return !(oper & IsImmOp2);
-    }
-    Op2Reg toOp2Reg();
-    bool isImm8() {
-        return oper & IsImmOp2;
-    }
 
   protected:
     Operand2(datastore::Imm8mData base)
@@ -696,30 +651,6 @@ class Op2Reg : public Operand2
     Op2Reg(Register rm, ShiftType type, datastore::RRS shiftReg)
       : Operand2(datastore::Reg(rm.code(), type, 1, shiftReg.encode()))
     { }
-    bool isO2RegImmShift() {
-        datastore::Reg r(*this);
-        return !r.RRS;
-    }
-    O2RegImmShift toO2RegImmShift();
-    bool isO2RegRegShift() {
-        datastore::Reg r(*this);
-        return r.RRS;
-    }
-    O2RegRegShift toO2RegRegShift();
-
-    bool checkType(ShiftType type) {
-        datastore::Reg r(*this);
-        return r.Type == type;
-    }
-    bool checkRM(Register rm) {
-        datastore::Reg r(*this);
-        return r.RM == rm.code();
-    }
-    bool getRM(Register *rm) {
-        datastore::Reg r(*this);
-        *rm = Register::FromCode(r.RM);
-        return true;
-    }
 };
 
 class O2RegImmShift : public Op2Reg
@@ -728,12 +659,6 @@ class O2RegImmShift : public Op2Reg
     O2RegImmShift(Register rn, ShiftType type, uint32_t shift)
       : Op2Reg(rn, type, datastore::RIS(shift))
     { }
-    int getShift() {
-        datastore::Reg r(*this);
-        datastore::RIS ris(r);
-        return ris.ShiftAmount;
-        
-    }
 };
 
 class O2RegRegShift : public Op2Reg
@@ -1254,11 +1179,19 @@ class Assembler
 
     // TODO: this should actually be a pool-like object
     //       It is currently a big hack, and probably shouldn't exist
+    class JumpPool;
     js::Vector<CodeLabel, 0, SystemAllocPolicy> codeLabels_;
     js::Vector<RelativePatch, 8, SystemAllocPolicy> jumps_;
+    js::Vector<JumpPool *, 0, SystemAllocPolicy> jumpPools_;
     js::Vector<BufferOffset, 0, SystemAllocPolicy> tmpJumpRelocations_;
     js::Vector<BufferOffset, 0, SystemAllocPolicy> tmpDataRelocations_;
     js::Vector<BufferOffset, 0, SystemAllocPolicy> tmpPreBarriers_;
+    class JumpPool : TempObject
+    {
+        BufferOffset start;
+        uint32_t size;
+        bool fixup(IonCode *code, uint8_t *data);
+    };
 
     CompactBufferWriter jumpRelocations_;
     CompactBufferWriter dataRelocations_;
@@ -1302,13 +1235,13 @@ class Assembler
         m_buffer.initWithAllocator();
 
         // Set up the backwards double region
-        new (&pools_[2]) Pool (1024, 8, 4, 8, 8, m_buffer.LifoAlloc_, true);
+        new (&pools_[2]) Pool (1024, 8, 4, 8, 8, true);
         // Set up the backwards 32 bit region
-        new (&pools_[3]) Pool (4096, 4, 4, 8, 4, m_buffer.LifoAlloc_, true, true);
+        new (&pools_[3]) Pool (4096, 4, 4, 8, 4, true, true);
         // Set up the forwards double region
-        new (doublePool) Pool (1024, 8, 4, 8, 8, m_buffer.LifoAlloc_, false, false, &pools_[2]);
+        new (doublePool) Pool (1024, 8, 4, 8, 8, false, false, &pools_[2]);
         // Set up the forwards 32 bit region
-        new (int32Pool) Pool (4096, 4, 4, 8, 4, m_buffer.LifoAlloc_, false, true, &pools_[3]);
+        new (int32Pool) Pool (4096, 4, 4, 8, 4, false, true, &pools_[3]);
         for (int i = 0; i < 4; i++) {
             if (pools_[i].poolData == NULL) {
                 m_buffer.fail_oom();
@@ -1368,6 +1301,7 @@ class Assembler
   public:
     void finish();
     void executableCopy(void *buffer);
+    void processCodeLabels(uint8_t *rawCode);
     void copyJumpRelocationTable(uint8_t *dest);
     void copyDataRelocationTable(uint8_t *dest);
     void copyPreBarrierTable(uint8_t *dest);
@@ -1400,10 +1334,10 @@ class Assembler
     BufferOffset align(int alignment);
     BufferOffset as_nop();
     BufferOffset as_alu(Register dest, Register src1, Operand2 op2,
-                ALUOp op, SetCond_ sc = NoSetCond, Condition c = Always, Instruction *instdest = NULL);
+                ALUOp op, SetCond_ sc = NoSetCond, Condition c = Always);
 
     BufferOffset as_mov(Register dest,
-                Operand2 op2, SetCond_ sc = NoSetCond, Condition c = Always, Instruction *instdest = NULL);
+                Operand2 op2, SetCond_ sc = NoSetCond, Condition c = Always);
     BufferOffset as_mvn(Register dest, Operand2 op2,
                 SetCond_ sc = NoSetCond, Condition c = Always);
     // logical operations
@@ -1514,8 +1448,6 @@ class Assembler
     BufferOffset as_bl(Label *l, Condition c);
     BufferOffset as_bl(BOffImm off, Condition c, BufferOffset inst);
 
-    BufferOffset as_mrs(Register r, Condition c = Always);
-    BufferOffset as_msr(Register r, Condition c = Always);
     // VFP instructions!
   private:
 
@@ -1607,7 +1539,6 @@ class Assembler
     BufferOffset as_vimm(VFPRegister vd, VFPImm imm, Condition c = Always);
 
     BufferOffset as_vmrs(Register r, Condition c = Always);
-    BufferOffset as_vmsr(Register r, Condition c = Always);
     // label operations
     bool nextLink(BufferOffset b, BufferOffset *next);
     void bind(Label *label, BufferOffset boff = BufferOffset());
@@ -1618,7 +1549,6 @@ class Assembler
     void retarget(Label *label, Label *target);
     // I'm going to pretend this doesn't exist for now.
     void retarget(Label *label, void *target, Relocation::Kind reloc);
-    //    void Bind(IonCode *code, AbsoluteLabel *label, const void *address);
     void Bind(uint8_t *rawCode, AbsoluteLabel *label, const void *address);
 
     void call(Label *label);
@@ -1788,10 +1718,6 @@ class Assembler
     static void ToggleToCmp(CodeLocationLabel inst_);
 
     static void ToggleCall(CodeLocationLabel inst_, bool enabled);
-
-    static void updateBoundsCheck(uint32_t logHeapSize, Instruction *inst);
-    void processCodeLabels(uint8_t *rawCode);
-
 }; // Assembler
 
 // An Instruction is a structure for both encoding and decoding any and all ARM instructions.
@@ -2030,7 +1956,7 @@ class InstALU : public Instruction
     static const int32_t ALUMask = 0xc << 24;
   public:
     InstALU (Register rd, Register rn, Operand2 op2, ALUOp op, SetCond_ sc, Assembler::Condition c)
-        : Instruction(maybeRD(rd) | maybeRN(rn) | op2.encode() | op | sc, c)
+        : Instruction(RD(rd) | RN(rn) | op2.encode() | op | sc | c)
     { }
     static bool isTHIS (const Instruction &i);
     static InstALU *asTHIS (const Instruction &i);
@@ -2040,9 +1966,8 @@ class InstALU : public Instruction
     bool checkDest(Register rd);
     void extractOp1(Register *ret);
     bool checkOp1(Register rn);
-    Operand2 extractOp2();
+    void extractOp2(Operand2 *ret);
 };
-
 class InstCMP : public InstALU
 {
   public:
@@ -2050,19 +1975,12 @@ class InstCMP : public InstALU
     static InstCMP *asTHIS (const Instruction &i);
 };
 
-class InstMOV : public InstALU
-{
-  public:
-    static bool isTHIS (const Instruction &i);
-    static InstMOV *asTHIS (const Instruction &i);
-};
-
 
 class InstructionIterator {
   private:
     Instruction *i;
   public:
-    InstructionIterator(Instruction *i_);
+    InstructionIterator(Instruction *i_) : i(i_) {}
     Instruction *next() {
         i = i->next();
         return cur();
@@ -2249,4 +2167,4 @@ class AutoForbidPools {
 } // namespace ion
 } // namespace js
 
-#endif /* ion_arm_Assembler_arm_h */
+#endif // jsion_cpu_arm_assembler_h__

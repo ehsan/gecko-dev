@@ -1,11 +1,12 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_UnreachableCodeElimination_h
-#define ion_UnreachableCodeElimination_h
+#ifndef jsion_unreachable_code_elimination_h__
+#define jsion_unreachable_code_elimination_h__
 
 #include "MIR.h"
 #include "MIRGraph.h"
@@ -17,8 +18,6 @@ class MIRGraph;
 
 class UnreachableCodeElimination
 {
-    typedef Vector<MBasicBlock *, 16, SystemAllocPolicy> BlockList;
-
     MIRGenerator *mir_;
     MIRGraph &graph_;
     uint32_t marked_;
@@ -29,9 +28,6 @@ class UnreachableCodeElimination
     void checkDependencyAndRemoveUsesFromUnmarkedBlocks(MDefinition *instr);
     bool removeUnmarkedBlocksAndClearDominators();
     bool removeUnmarkedBlocksAndCleanup();
-
-    bool enqueue(MBasicBlock *block, BlockList &list);
-    MBasicBlock *optimizableSuccessor(MBasicBlock *block);
 
   public:
     UnreachableCodeElimination(MIRGenerator *mir, MIRGraph &graph)
@@ -54,4 +50,4 @@ class UnreachableCodeElimination
 } /* namespace ion */
 } /* namespace js */
 
-#endif /* ion_UnreachableCodeElimination_h */
+#endif

@@ -1,11 +1,10 @@
-# vim: set ts=4 sw=4 tw=99 et:
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import os, sys
 
-from ipdl.ast import CxxInclude, Decl, Loc, QualifiedId, State, StructDecl, TransitionStmt, TypeSpec, UnionDecl, UsingStmt, Visitor, ASYNC, SYNC, RPC, IN, OUT, INOUT, ANSWER, CALL, RECV, SEND, URGENT
+from ipdl.ast import CxxInclude, Decl, Loc, QualifiedId, State, StructDecl, TransitionStmt, TypeSpec, UnionDecl, UsingStmt, Visitor, ASYNC, SYNC, RPC, IN, OUT, INOUT, ANSWER, CALL, RECV, SEND
 import ipdl.builtin as builtin
 
 _DELETE_MSG = '__delete__'
@@ -204,8 +203,7 @@ class IPDLType(Type):
 
     def isAsync(self): return self.sendSemantics is ASYNC
     def isSync(self): return self.sendSemantics is SYNC
-    def isRpc(self): return self.sendSemantics is RPC or self.sendSemantics is URGENT
-    def isUrgent(self): return self.sendSemantics is URGENT
+    def isRpc(self): return self.sendSemantics is RPC
 
     def talksAsync(self): return True
     def talksSync(self): return self.isSync() or self.isRpc()
@@ -307,15 +305,6 @@ class ProtocolType(IPDLType):
         for mgr in self.managers:
             if mgr is not self:
                 return mgr.toplevel()
-
-    def toplevels(self):
-        if self.isToplevel():
-            return [self]
-        toplevels = list()
-        for mgr in self.managers:
-            if mgr is not self:
-                toplevels.extend(mgr.toplevels())
-        return set(toplevels)
 
     def isManagerOf(self, pt):
         for managed in self.manages:
@@ -1778,7 +1767,7 @@ class BuildProcessGraph(TcheckVisitor):
                 if parentSideActor is not None:
                     self.error(bridges.loc,
                                "ambiguous bridge `%s' between `%s' and `%s'",
-                               bridgeProto.name(),
+                               bridgeProto.type.name(),
                                parentSideProto.name(),
                                childSideProto.name())
                 else:

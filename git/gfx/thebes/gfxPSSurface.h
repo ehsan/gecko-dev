@@ -13,7 +13,7 @@
 #include "nsIOutputStream.h"
 #include "gfxContext.h"
 
-class gfxPSSurface : public gfxASurface {
+class THEBES_API gfxPSSurface : public gfxASurface {
 public:
     enum PageOrientation {
         PORTRAIT,

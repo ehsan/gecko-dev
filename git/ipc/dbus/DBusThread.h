@@ -7,14 +7,12 @@
 #ifndef mozilla_ipc_dbus_gonk_dbusthread_h__
 #define mozilla_ipc_dbus_gonk_dbusthread_h__
 
-#include "nscore.h"
-
-class nsIRunnable;
+struct DBusMessage;
 
 namespace mozilla {
 namespace ipc {
 
-/**
+/** 
  * Starts the DBus thread, which handles returning signals to objects
  * that call asynchronous functions. This should be called from the
  * main thread at startup.
@@ -23,7 +21,7 @@ namespace ipc {
  */
 bool StartDBus();
 
-/**
+/** 
  * Stop the DBus thread, assuming it's currently running. Should be
  * called from main thread.
  *
@@ -31,16 +29,7 @@ bool StartDBus();
  */
 bool StopDBus();
 
-/**
- * Dispatch an event to the DBus thread
- *
- * @param event An nsIRunnable to run in the DBus thread
- * @return NS_OK on success, or an error code otherwise
- */
-nsresult
-DispatchToDBusThread(nsIRunnable* event);
-
 }
 }
-
 #endif
+

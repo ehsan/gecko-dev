@@ -1,11 +1,12 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_JSONSpewer_h
-#define ion_JSONSpewer_h
+#ifndef js_ion_jsonspewer_h__
+#define js_ion_jsonspewer_h__
 
 #include <stdio.h>
 
@@ -60,7 +61,7 @@ class JSONSpewer
     ~JSONSpewer();
 
     bool init(const char *path);
-    void beginFunction(JSScript *script);
+    void beginFunction(RawScript script);
     void beginPass(const char * pass);
     void spewMDef(MDefinition *def);
     void spewMResumePoint(MResumePoint *rp);
@@ -76,4 +77,5 @@ class JSONSpewer
 } // namespace ion
 } // namespace js
 
-#endif /* ion_JSONSpewer_h */
+#endif // js_ion_jsonspewer_h__
+

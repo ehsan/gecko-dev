@@ -157,8 +157,8 @@ private:
 
   Key mLower;
   Key mUpper;
-  JS::Heap<JS::Value> mCachedLowerVal;
-  JS::Heap<JS::Value> mCachedUpperVal;
+  jsval mCachedLowerVal;
+  jsval mCachedUpperVal;
   bool mLowerOpen;
   bool mUpperOpen;
   bool mIsOnly;

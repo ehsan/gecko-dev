@@ -1,28 +1,21 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=78:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef gc_Barrier_inl_h
-#define gc_Barrier_inl_h
+#ifndef jsgc_barrier_inl_h___
+#define jsgc_barrier_inl_h___
 
 #include "gc/Barrier.h"
 #include "gc/Marking.h"
 #include "gc/StoreBuffer.h"
 
+#include "vm/ObjectImpl-inl.h"
 #include "vm/String-inl.h"
 
 namespace js {
-
-JS_ALWAYS_INLINE JS::Zone *
-ZoneOfValue(const JS::Value &value)
-{
-    JS_ASSERT(value.isMarkable());
-    if (value.isObject())
-        return value.toObject().zone();
-    return static_cast<js::gc::Cell *>(value.toGCThing())->tenuredZone();
-}
 
 template <typename T, typename Unioned>
 void
@@ -56,20 +49,6 @@ EncapsulatedValue::~EncapsulatedValue()
     pre();
 }
 
-inline void
-EncapsulatedValue::init(const Value &v)
-{
-    JS_ASSERT(!IsPoisonedValue(v));
-    value = v;
-}
-
-inline void
-EncapsulatedValue::init(JSRuntime *rt, const Value &v)
-{
-    JS_ASSERT(!IsPoisonedValue(v));
-    value = v;
-}
-
 inline EncapsulatedValue &
 EncapsulatedValue::operator=(const Value &v)
 {
@@ -92,7 +71,7 @@ inline void
 EncapsulatedValue::writeBarrierPre(const Value &value)
 {
 #ifdef JSGC_INCREMENTAL
-    if (value.isMarkable() && runtime(value)->needsBarrier())
+    if (value.isMarkable())
         writeBarrierPre(ZoneOfValue(value), value);
 #endif
 }
@@ -102,7 +81,6 @@ EncapsulatedValue::writeBarrierPre(Zone *zone, const Value &value)
 {
 #ifdef JSGC_INCREMENTAL
     if (zone->needsBarrier()) {
-        JS_ASSERT_IF(value.isMarkable(), runtime(value)->needsBarrier());
         Value tmp(value);
         js::gc::MarkValueUnbarriered(zone->barrierTracer(), &tmp, "write barrier");
         JS_ASSERT(tmp == value);
@@ -244,8 +222,7 @@ RelocatableValue::RelocatableValue(const Value &v)
     : EncapsulatedValue(v)
 {
     JS_ASSERT(!IsPoisonedValue(v));
-    if (v.isMarkable())
-        post();
+    post();
 }
 
 inline
@@ -253,15 +230,14 @@ RelocatableValue::RelocatableValue(const RelocatableValue &v)
     : EncapsulatedValue(v.value)
 {
     JS_ASSERT(!IsPoisonedValue(v.value));
-    if (v.value.isMarkable())
-        post();
+    post();
 }
 
 inline
 RelocatableValue::~RelocatableValue()
 {
-    if (value.isMarkable())
-        relocate(runtime(value));
+    pre();
+    relocate();
 }
 
 inline RelocatableValue &
@@ -269,16 +245,8 @@ RelocatableValue::operator=(const Value &v)
 {
     pre();
     JS_ASSERT(!IsPoisonedValue(v));
-    if (v.isMarkable()) {
-        value = v;
-        post();
-    } else if (value.isMarkable()) {
-        JSRuntime *rt = runtime(value);
-        value = v;
-        relocate(rt);
-    } else {
-        value = v;
-    }
+    value = v;
+    post();
     return *this;
 }
 
@@ -287,16 +255,8 @@ RelocatableValue::operator=(const RelocatableValue &v)
 {
     pre();
     JS_ASSERT(!IsPoisonedValue(v.value));
-    if (v.value.isMarkable()) {
-        value = v.value;
-        post();
-    } else if (value.isMarkable()) {
-        JSRuntime *rt = runtime(value);
-        value = v.value;
-        relocate(rt);
-    } else {
-        value = v.value;
-    }
+    value = v.value;
+    post();
     return *this;
 }
 
@@ -304,16 +264,26 @@ inline void
 RelocatableValue::post()
 {
 #ifdef JSGC_GENERATIONAL
-    JS_ASSERT(value.isMarkable());
-    runtime(value)->gcStoreBuffer.putRelocatableValue(&value);
+    if (value.isMarkable())
+        runtime(value)->gcStoreBuffer.putRelocatableValue(&value);
 #endif
 }
 
 inline void
-RelocatableValue::relocate(JSRuntime *rt)
+RelocatableValue::post(JSRuntime *rt)
 {
 #ifdef JSGC_GENERATIONAL
-    rt->gcStoreBuffer.removeRelocatableValue(&value);
+    if (value.isMarkable())
+        rt->gcStoreBuffer.putRelocatableValue(&value);
+#endif
+}
+
+inline void
+RelocatableValue::relocate()
+{
+#ifdef JSGC_GENERATIONAL
+    if (value.isMarkable())
+        runtime(value)->gcStoreBuffer.removeRelocatableValue(&value);
 #endif
 }
 
@@ -418,6 +388,12 @@ class DenseRangeRef : public gc::BufferableRef
       : owner(obj), start(start), end(end)
     {
         JS_ASSERT(start < end);
+    }
+
+    bool match(void *location) {
+        uint32_t len = owner->getDenseInitializedLength();
+        return location >= &owner->getDenseElement(Min(start, len)) &&
+               location <= &owner->getDenseElement(Min(end, len)) - 1;
     }
 
     void mark(JSTracer *trc) {
@@ -593,4 +569,4 @@ ReadBarrieredValue::toObject() const
 
 } /* namespace js */
 
-#endif /* gc_Barrier_inl_h */
+#endif /* jsgc_barrier_inl_h___ */

@@ -186,10 +186,6 @@ public:
     eIntID_SubmenuDelay,
     // can popups overlap menu/task bar?
     eIntID_MenusCanOverlapOSBar,
-    // should overlay scrollbars be used?
-    eIntID_UseOverlayScrollbars,
-    // allow H and V overlay scrollbars to overlap?
-    eIntID_AllowOverlayScrollbarsOverlap,
     // show/hide scrollbars based on activity
     eIntID_ShowHideScrollbars,
     // skip navigating to disabled menu item?
@@ -359,20 +355,7 @@ public:
     /**
      * Dealy before showing a tooltip.
      */
-    eIntID_TooltipDelay,
-
-    /*
-     * A Boolean value to determine whether Mac OS X Lion style swipe animations
-     * should be used.
-     */
-    eIntID_SwipeAnimationEnabled,
-
-    /*
-     * A boolean value indicating whether or not the device has a hardware
-     * home button. Used on gaia to determine whether a home button
-     * is shown.
-     */
-    eIntID_PhysicalHomeButton
+    eIntID_TooltipDelay
   };
 
   /**
@@ -386,8 +369,7 @@ public:
     eWindowsTheme_LunaOlive,
     eWindowsTheme_LunaSilver,
     eWindowsTheme_Royale,
-    eWindowsTheme_Zune,
-    eWindowsTheme_AeroLite
+    eWindowsTheme_Zune
   };
 
   enum {

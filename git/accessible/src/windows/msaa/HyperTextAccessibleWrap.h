@@ -11,7 +11,6 @@
 #include "HyperTextAccessible.h"
 #include "ia2AccessibleEditableText.h"
 #include "ia2AccessibleHypertext.h"
-#include "IUnknownImpl.h"
 
 namespace mozilla {
 template<class T> class StaticAutoPtr;

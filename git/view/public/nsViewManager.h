@@ -232,11 +232,9 @@ public:
 
   /**
    * Get the device context associated with this manager
+   * @result device context
    */
-  nsDeviceContext* GetDeviceContext() const
-  {
-    return mContext;
-  }
+  void GetDeviceContext(nsDeviceContext *&aContext);
 
   /**
    * A stack class for disallowing changes that would enter painting. For
@@ -250,7 +248,7 @@ public:
    * since popup widget geometry is observable from script and expected to
    * update synchronously.
    */
-  class MOZ_STACK_CLASS AutoDisableRefresh {
+  class NS_STACK_CLASS AutoDisableRefresh {
   public:
     AutoDisableRefresh(nsViewManager* aVM) {
       if (aVM) {
@@ -344,6 +342,10 @@ private:
   // aView is the view for aWidget and aRegion is relative to aWidget.
   void Refresh(nsView *aView, const nsIntRegion& aRegion);
 
+  void InvalidateRectDifference(nsView *aView, const nsRect& aRect, const nsRect& aCutOut);
+  void InvalidateHorizontalBandDifference(nsView *aView, const nsRect& aRect, const nsRect& aCutOut,
+                                          nscoord aY1, nscoord aY2, bool aInCutOut);
+
   // Utilities
 
   bool IsViewInserted(nsView *aView);
@@ -376,7 +378,8 @@ private:
   bool IsPaintingAllowed() { return RootViewManager()->mRefreshDisableCount == 0; }
 
   void WillPaintWindow(nsIWidget* aWidget);
-  bool PaintWindow(nsIWidget* aWidget, nsIntRegion aRegion);
+  bool PaintWindow(nsIWidget* aWidget, nsIntRegion aRegion,
+                   uint32_t aFlags);
   void DidPaintWindow();
 
   // Call this when you need to let the viewmanager know that it now has

@@ -1,7 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-"use strict";
 
 this.EXPORTED_SYMBOLS = ['Log4Moz'];
 
@@ -14,8 +13,8 @@ const ONE_MEGABYTE = 1024 * ONE_KILOBYTE;
 const STREAM_SEGMENT_SIZE = 4096;
 const PR_UINT32_MAX = 0xffffffff;
 
-Cu.import("resource://gre/modules/osfile.jsm");
-Cu.import("resource://gre/modules/Task.jsm");
+Cu.import("resource://gre/modules/NetUtil.jsm");
+Cu.import("resource://gre/modules/FileUtils.jsm");
 
 this.Log4Moz = {
   Level: {
@@ -59,10 +58,12 @@ this.Log4Moz = {
   Appender: Appender,
   DumpAppender: DumpAppender,
   ConsoleAppender: ConsoleAppender,
+  BlockingStreamAppender: BlockingStreamAppender,
   StorageStreamAppender: StorageStreamAppender,
 
+  // Discouraged due to blocking I/O.
   FileAppender: FileAppender,
-  BoundedFileAppender: BoundedFileAppender,
+  RotatingFileAppender: RotatingFileAppender,
 
   // Logging helper:
   // let logger = Log4Moz.repository.getLogger("foo");
@@ -111,8 +112,8 @@ this.Log4Moz = {
  */
 function LogMessage(loggerName, level, message){
   this.loggerName = loggerName;
-  this.level = level;
   this.message = message;
+  this.level = level;
   this.time = Date.now();
 }
 LogMessage.prototype = {
@@ -219,13 +220,14 @@ Logger.prototype = {
     // an appender that's responsible.
     let message;
     let appenders = this.appenders;
-    for (let appender of appenders) {
-      if (appender.level > level) {
+    for (let i = 0; i < appenders.length; i++){
+      let appender = appenders[i];
+      if (appender.level > level)
         continue;
-      }
-      if (!message) {
+
+      if (!message)
         message = new LogMessage(this._name, level, string);
-      }
+
       appender.append(message);
     }
   },
@@ -333,10 +335,8 @@ BasicFormatter.prototype = {
   __proto__: Formatter.prototype,
 
   format: function BF_format(message) {
-    return message.time + "\t" +
-      message.loggerName + "\t" +
-      message.levelDesc + "\t" +
-      message.message + "\n";
+    return message.time + "\t" + message.loggerName + "\t" + message.levelDesc
+           + "\t" + message.message + "\n";
   }
 };
 
@@ -354,9 +354,7 @@ Appender.prototype = {
   level: Log4Moz.Level.All,
 
   append: function App_append(message) {
-    if (message) {
-      this.doAppend(this._formatter.format(message));
-    }
+    this.doAppend(this._formatter.format(message));
   },
   toString: function App_toString() {
     return this._name + " [level=" + this._level +
@@ -405,26 +403,30 @@ ConsoleAppender.prototype = {
 };
 
 /**
- * Append to an nsIStorageStream
+ * Base implementation for stream based appenders.
  *
- * This writes logging output to an in-memory stream which can later be read
- * back as an nsIInputStream. It can be used to avoid expensive I/O operations
- * during logging. Instead, one can periodically consume the input stream and
- * e.g. write it to disk asynchronously.
+ * Caution: This writes to the output stream synchronously, thus logging calls
+ * block as the data is written to the stream. This can have negligible impact
+ * for in-memory streams, but should be taken into account for I/O streams
+ * (files, network, etc.)
  */
-function StorageStreamAppender(formatter) {
-  this._name = "StorageStreamAppender";
+function BlockingStreamAppender(formatter) {
+  this._name = "BlockingStreamAppender";
   Appender.call(this, formatter);
 }
-
-StorageStreamAppender.prototype = {
+BlockingStreamAppender.prototype = {
   __proto__: Appender.prototype,
 
   _converterStream: null, // holds the nsIConverterOutputStream
   _outputStream: null,    // holds the underlying nsIOutputStream
 
-  _ss: null,
-
+  /**
+   * Output stream to write to.
+   *
+   * This will automatically open the stream if it doesn't exist yet by
+   * calling newOutputStream. The resulting raw stream is wrapped in a
+   * nsIConverterOutputStream to ensure text is written as UTF-8.
+   */
   get outputStream() {
     if (!this._outputStream) {
       // First create a raw stream. We can bail out early if that fails.
@@ -447,6 +449,55 @@ StorageStreamAppender.prototype = {
   },
 
   newOutputStream: function newOutputStream() {
+    throw "Stream-based appenders need to implement newOutputStream()!";
+  },
+
+  reset: function reset() {
+    if (!this._outputStream) {
+      return;
+    }
+    this.outputStream.close();
+    this._outputStream = null;
+  },
+
+  doAppend: function doAppend(message) {
+    if (!message) {
+      return;
+    }
+    try {
+      this.outputStream.writeString(message);
+    } catch(ex) {
+      if (ex.result == Cr.NS_BASE_STREAM_CLOSED) {
+        // The underlying output stream is closed, so let's open a new one
+        // and try again.
+        this._outputStream = null;
+        try {
+          this.outputStream.writeString(message);
+        } catch (ex) {
+          // Ah well, we tried, but something seems to be hosed permanently.
+        }
+      }
+    }
+  }
+};
+
+/**
+ * Append to an nsIStorageStream
+ *
+ * This writes logging output to an in-memory stream which can later be read
+ * back as an nsIInputStream. It can be used to avoid expensive I/O operations
+ * during logging. Instead, one can periodically consume the input stream and
+ * e.g. write it to disk asynchronously.
+ */
+function StorageStreamAppender(formatter) {
+  this._name = "StorageStreamAppender";
+  BlockingStreamAppender.call(this, formatter);
+}
+StorageStreamAppender.prototype = {
+  __proto__: BlockingStreamAppender.prototype,
+
+  _ss: null,
+  newOutputStream: function newOutputStream() {
     let ss = this._ss = Cc["@mozilla.org/storagestream;1"]
                           .createInstance(Ci.nsIStorageStream);
     ss.init(STREAM_SEGMENT_SIZE, PR_UINT32_MAX, null);
@@ -461,153 +512,93 @@ StorageStreamAppender.prototype = {
   },
 
   reset: function reset() {
-    if (!this._outputStream) {
-      return;
-    }
-    this.outputStream.close();
-    this._outputStream = null;
+    BlockingStreamAppender.prototype.reset.call(this);
     this._ss = null;
-  },
-
-  doAppend: function (message) {
-    if (!message) {
-      return;
-    }
-    try {
-      this.outputStream.writeString(message);
-    } catch(ex) {
-      if (ex.result == Cr.NS_BASE_STREAM_CLOSED) {
-        // The underlying output stream is closed, so let's open a new one
-        // and try again.
-        this._outputStream = null;
-      } try {
-          this.outputStream.writeString(message);
-      } catch (ex) {
-        // Ah well, we tried, but something seems to be hosed permanently.
-      }
-    }
   }
 };
 
 /**
- * File appender
+ * File appender (discouraged)
  *
- * Writes output to file using OS.File.
+ * Writes otuput to a file using a regular nsIFileOutputStream (as opposed
+ * to nsISafeFileOutputStream, since immediate durability is typically not
+ * needed for logs.) Note that I/O operations block the logging caller.
  */
-function FileAppender(path, formatter) {
+function FileAppender(file, formatter) {
   this._name = "FileAppender";
-  this._encoder = new TextEncoder();
-  this._path = path;
-  this._file = null;
-  this._fileReadyPromise = null;
-
-  // This is a promise exposed for testing/debugging the logger itself.
-  this._lastWritePromise = null;
-  Appender.call(this, formatter);
+  this._file = file; // nsIFile
+  BlockingStreamAppender.call(this, formatter);
 }
-
 FileAppender.prototype = {
-  __proto__: Appender.prototype,
+  __proto__: BlockingStreamAppender.prototype,
 
-  _openFile: function () {
-    return Task.spawn(function _openFile() {
-      try {
-        this._file = yield OS.File.open(this._path,
-                                        {truncate: true});
-      } catch (err) {
-        if (err instanceof OS.File.Error) {
-          this._file = null;
-        } else {
-          throw err;
-        }
-      }
-    }.bind(this));
-  },
-
-  _getFile: function() {
-    if (!this._fileReadyPromise) {
-      this._fileReadyPromise = this._openFile();
-      return this._fileReadyPromise;
-    }
-
-    return this._fileReadyPromise.then(_ => {
-      if (!this._file) {
-        return this._openFile();
-      }
-    });
-  },
-
-  doAppend: function (message) {
-    let array = this._encoder.encode(message);
-    if (this._file) {
-      this._lastWritePromise = this._file.write(array);
-    } else {
-      this._lastWritePromise = this._getFile().then(_ => {
-        this._fileReadyPromise = null;
-        if (this._file) {
-          return this._file.write(array);
-        }
-      });
+  newOutputStream: function newOutputStream() {
+    try {
+      return FileUtils.openFileOutputStream(this._file);
+    } catch(e) {
+      return null;
     }
   },
 
-  reset: function () {
-    let fileClosePromise = this._file.close();
-    return fileClosePromise.then(_ => {
-      this._file = null;
-      return OS.File.remove(this._path);
-    });
+  reset: function reset() {
+    BlockingStreamAppender.prototype.reset.call(this);
+    try {
+      this._file.remove(false);
+    } catch (e) {
+      // File didn't exist in the first place, or we're on Windows. Meh.
+    }
   }
 };
 
 /**
- * Bounded File appender
+ * Rotating file appender (discouraged)
  *
- * Writes output to file using OS.File. After the total message size
- * (as defined by message.length) exceeds maxSize, existing messages
- * will be discarded, and subsequent writes will be appended to a new log file.
+ * Similar to FileAppender, but rotates logs when they become too large.
  */
-function BoundedFileAppender(path, formatter, maxSize=2*ONE_MEGABYTE) {
-  this._name = "BoundedFileAppender";
-  this._size = 0;
-  this._maxSize = maxSize;
-  this._closeFilePromise = null;
-  FileAppender.call(this, path, formatter);
-}
+function RotatingFileAppender(file, formatter, maxSize, maxBackups) {
+  if (maxSize === undefined)
+    maxSize = ONE_MEGABYTE * 2;
 
-BoundedFileAppender.prototype = {
+  if (maxBackups === undefined)
+    maxBackups = 0;
+
+  this._name = "RotatingFileAppender";
+  FileAppender.call(this, file, formatter);
+  this._maxSize = maxSize;
+  this._maxBackups = maxBackups;
+}
+RotatingFileAppender.prototype = {
   __proto__: FileAppender.prototype,
 
-  doAppend: function (message) {
-    if (!this._removeFilePromise) {
-      if (this._size < this._maxSize) {
-        this._size += message.length;
-        return FileAppender.prototype.doAppend.call(this, message);
-      }
-      this._removeFilePromise = this.reset();
+  doAppend: function doAppend(message) {
+    FileAppender.prototype.doAppend.call(this, message);
+    try {
+      this.rotateLogs();
+    } catch(e) {
+      dump("Error writing file:" + e + "\n");
     }
-    this._removeFilePromise.then(_ => {
-      this._removeFilePromise = null;
-      this.doAppend(message);
-    });
   },
 
-  reset: function () {
-    let fileClosePromise;
-    if (this._fileReadyPromise) {
-      // An attempt to open the file may still be in progress.
-      fileClosePromise = this._fileReadyPromise.then(_ => {
-        return this._file.close();
-      });
-    } else {
-      fileClosePromise = this._file.close();
+  rotateLogs: function rotateLogs() {
+    if (this._file.exists() && this._file.fileSize < this._maxSize) {
+      return;
     }
 
-    return fileClosePromise.then(_ => {
-      this._size = 0;
-      this._file = null;
-      return OS.File.remove(this._path);
-    });
+    BlockingStreamAppender.prototype.reset.call(this);
+
+    for (let i = this.maxBackups - 1; i > 0; i--) {
+      let backup = this._file.parent.clone();
+      backup.append(this._file.leafName + "." + i);
+      if (backup.exists()) {
+        backup.moveTo(this._file.parent, this._file.leafName + "." + (i + 1));
+      }
+    }
+
+    let cur = this._file.clone();
+    if (cur.exists()) {
+      cur.moveTo(cur.parent, cur.leafName + ".1");
+    }
+
+    // Note: this._file still points to the same file
   }
 };
-

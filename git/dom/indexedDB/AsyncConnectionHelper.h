@@ -41,7 +41,7 @@ public:
   virtual nsresult GetResultCode() = 0;
 
   virtual nsresult GetSuccessResult(JSContext* aCx,
-                                    JS::MutableHandle<JS::Value> aVal) = 0;
+                                    jsval* aVal) = 0;
 
   IDBRequest* GetRequest() const
   {
@@ -61,7 +61,7 @@ protected:
    */
   nsresult WrapNative(JSContext* aCx,
                       nsISupports* aNative,
-                      JS::MutableHandle<JS::Value> aResult);
+                      jsval* aResult);
 
   /**
    * Gives the subclass a chance to release any objects that must be released
@@ -201,7 +201,7 @@ protected:
    * accesses the result property of the request.
    */
   virtual nsresult GetSuccessResult(JSContext* aCx,
-                                    JS::MutableHandle<JS::Value> aVal) MOZ_OVERRIDE;
+                                    jsval* aVal) MOZ_OVERRIDE;
 
   /**
    * Gives the subclass a chance to release any objects that must be released
@@ -216,7 +216,7 @@ protected:
   static nsresult ConvertToArrayAndCleanup(
                                 JSContext* aCx,
                                 nsTArray<StructuredCloneReadInfo>& aReadInfos,
-                                JS::MutableHandle<JS::Value> aResult);
+                                jsval* aResult);
 
   /**
    * This should only be called by AutoSetCurrentTransaction.
@@ -241,19 +241,20 @@ private:
   bool mDispatched;
 };
 
-class MOZ_STACK_CLASS StackBasedEventTarget : public nsIEventTarget
+NS_STACK_CLASS
+class StackBasedEventTarget : public nsIEventTarget
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
 };
 
-class MOZ_STACK_CLASS ImmediateRunEventTarget : public StackBasedEventTarget
+class ImmediateRunEventTarget : public StackBasedEventTarget
 {
 public:
   NS_DECL_NSIEVENTTARGET
 };
 
-class MOZ_STACK_CLASS NoDispatchEventTarget : public StackBasedEventTarget
+class NoDispatchEventTarget : public StackBasedEventTarget
 {
 public:
   NS_DECL_NSIEVENTTARGET

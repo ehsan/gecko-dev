@@ -45,7 +45,7 @@ public:
   GetPropertyCSSValue(const nsAString& aProp, mozilla::ErrorResult& aRv)
     MOZ_OVERRIDE;
   using nsICSSDeclaration::GetPropertyCSSValue;
-  virtual void IndexedGetter(uint32_t aIndex, bool& aFound, nsAString& aPropName) MOZ_OVERRIDE;
+  virtual void IndexedGetter(uint32_t aIndex, bool& aFound, nsAString& aPropName);
 
   enum StyleType {
     eDefaultOnly, // Only includes UA and user sheets
@@ -93,17 +93,13 @@ public:
   virtual nsIDocument* DocToUpdate() MOZ_OVERRIDE;
   virtual void GetCSSParsingEnvironment(CSSParsingEnvironment& aCSSParseEnv) MOZ_OVERRIDE;
 
-  static nsROCSSPrimitiveValue* MatrixToCSSValue(gfx3DMatrix& aMatrix);
-
 private:
   void AssertFlushedPendingReflows() {
     NS_ASSERTION(mFlushedPendingReflows,
                  "property getter should have been marked layout-dependent");
   }
 
-  nsMargin GetAdjustedValuesForBoxSizing();
-
-#define STYLE_STRUCT(name_, checkdata_cb_)                              \
+#define STYLE_STRUCT(name_, checkdata_cb_, ctor_args_)                  \
   const nsStyle##name_ * Style##name_() {                               \
     return mStyleContextHolder->Style##name_();                         \
   }
@@ -190,21 +186,13 @@ private:
   mozilla::dom::CSSValue* DoGetColor();
   mozilla::dom::CSSValue* DoGetFontFamily();
   mozilla::dom::CSSValue* DoGetFontFeatureSettings();
-  mozilla::dom::CSSValue* DoGetFontKerning();
   mozilla::dom::CSSValue* DoGetFontLanguageOverride();
   mozilla::dom::CSSValue* DoGetFontSize();
   mozilla::dom::CSSValue* DoGetFontSizeAdjust();
   mozilla::dom::CSSValue* DoGetFontStretch();
   mozilla::dom::CSSValue* DoGetFontStyle();
-  mozilla::dom::CSSValue* DoGetFontSynthesis();
-  mozilla::dom::CSSValue* DoGetFontVariant();
-  mozilla::dom::CSSValue* DoGetFontVariantAlternates();
-  mozilla::dom::CSSValue* DoGetFontVariantCaps();
-  mozilla::dom::CSSValue* DoGetFontVariantEastAsian();
-  mozilla::dom::CSSValue* DoGetFontVariantLigatures();
-  mozilla::dom::CSSValue* DoGetFontVariantNumeric();
-  mozilla::dom::CSSValue* DoGetFontVariantPosition();
   mozilla::dom::CSSValue* DoGetFontWeight();
+  mozilla::dom::CSSValue* DoGetFontVariant();
 
   /* Background properties */
   mozilla::dom::CSSValue* DoGetBackgroundAttachment();
@@ -327,7 +315,6 @@ private:
   mozilla::dom::CSSValue* DoGetOpacity();
   mozilla::dom::CSSValue* DoGetPointerEvents();
   mozilla::dom::CSSValue* DoGetVisibility();
-  mozilla::dom::CSSValue* DoGetWritingMode();
 
   /* Direction properties */
   mozilla::dom::CSSValue* DoGetDirection();
@@ -389,6 +376,7 @@ private:
   mozilla::dom::CSSValue* DoGetAnimationIterationCount();
   mozilla::dom::CSSValue* DoGetAnimationPlayState();
 
+#ifdef MOZ_FLEXBOX
   /* CSS Flexbox properties */
   mozilla::dom::CSSValue* DoGetAlignItems();
   mozilla::dom::CSSValue* DoGetAlignSelf();
@@ -398,6 +386,7 @@ private:
   mozilla::dom::CSSValue* DoGetFlexShrink();
   mozilla::dom::CSSValue* DoGetOrder();
   mozilla::dom::CSSValue* DoGetJustifyContent();
+#endif // MOZ_FLEXBOX
 
   /* SVG properties */
   mozilla::dom::CSSValue* DoGetFill();
@@ -440,6 +429,7 @@ private:
   mozilla::dom::CSSValue* DoGetMaskType();
   mozilla::dom::CSSValue* DoGetPaintOrder();
 
+  nsROCSSPrimitiveValue* GetROCSSPrimitiveValue();
   nsDOMCSSValueList* GetROCSSValueList(bool aCommaDelimited);
   void SetToRGBAColor(nsROCSSPrimitiveValue* aValue, nscolor aColor);
   void SetValueToStyleImage(const nsStyleImage& aStyleImage,

@@ -5,7 +5,6 @@
 
 package org.mozilla.gecko;
 
-import android.app.Notification;
 import android.app.Service;
 import android.content.Intent;
 import android.os.Binder;
@@ -13,25 +12,18 @@ import android.os.IBinder;
 
 public class NotificationService extends Service {
     private final IBinder mBinder = new NotificationBinder();
-    private NotificationHandler mHandler;
+    private final NotificationHandler mHandler = new NotificationHandler(this) {
+        @Override
+        protected void setForegroundNotification(AlertNotification notification) {
+            super.setForegroundNotification(notification);
 
-    @Override
-    public void onCreate() {
-        // This has to be initialized in onCreate in order to ensure that the NotificationHandler can
-        // access the NotificationManager service.
-        mHandler = new NotificationHandler(this) {
-            @Override
-            protected void setForegroundNotification(int id, Notification notification) {
-                super.setForegroundNotification(id, notification);
-
-                if (notification == null) {
-                    stopForeground(true);
-                } else {
-                    startForeground(id, notification);
-                }
+            if (notification == null) {
+                stopForeground(true);
+            } else {
+                startForeground(notification.getId(), notification);
             }
-        };
-    }
+        }
+    };
 
     public class NotificationBinder extends Binder {
         NotificationService getService() {

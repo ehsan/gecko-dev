@@ -13,7 +13,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGFEOffsetElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+SVGFEOffsetElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return SVGFEOffsetElementBinding::Wrap(aCx, aScope, this);
 }
@@ -39,7 +39,7 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFEOffsetElement)
 
 //----------------------------------------------------------------------
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGFEOffsetElement::In1()
 {
   return mStringAttributes[IN1].ToDOMAnimatedString(this);

@@ -26,7 +26,6 @@ NS_IMPL_ADDREF(SmsMessage)
 NS_IMPL_RELEASE(SmsMessage)
 
 SmsMessage::SmsMessage(int32_t aId,
-                       const uint64_t aThreadId,
                        DeliveryState aDelivery,
                        DeliveryStatus aDeliveryStatus,
                        const nsString& aSender,
@@ -35,7 +34,7 @@ SmsMessage::SmsMessage(int32_t aId,
                        MessageClass aMessageClass,
                        uint64_t aTimestamp,
                        bool aRead)
-  : mData(aId, aThreadId, aDelivery, aDeliveryStatus, aSender, aReceiver, aBody,
+  : mData(aId, aDelivery, aDeliveryStatus, aSender, aReceiver, aBody,
           aMessageClass, aTimestamp, aRead)
 {
 }
@@ -47,14 +46,13 @@ SmsMessage::SmsMessage(const SmsMessageData& aData)
 
 /* static */ nsresult
 SmsMessage::Create(int32_t aId,
-                   const uint64_t aThreadId,
                    const nsAString& aDelivery,
                    const nsAString& aDeliveryStatus,
                    const nsAString& aSender,
                    const nsAString& aReceiver,
                    const nsAString& aBody,
                    const nsAString& aMessageClass,
-                   const JS::Value& aTimestamp,
+                   const jsval& aTimestamp,
                    const bool aRead,
                    JSContext* aCx,
                    nsIDOMMozSmsMessage** aMessage)
@@ -65,7 +63,6 @@ SmsMessage::Create(int32_t aId,
   // to them.
   SmsMessageData data;
   data.id() = aId;
-  data.threadId() = aThreadId;
   data.sender() = nsString(aSender);
   data.receiver() = nsString(aReceiver);
   data.body() = nsString(aBody);
@@ -111,11 +108,11 @@ SmsMessage::Create(int32_t aId,
 
   // We support both a Date object and a millisecond timestamp as a number.
   if (aTimestamp.isObject()) {
-    JS::Rooted<JSObject*> obj(aCx, &aTimestamp.toObject());
-    if (!JS_ObjectIsDate(aCx, obj)) {
+    JSObject& obj = aTimestamp.toObject();
+    if (!JS_ObjectIsDate(aCx, &obj)) {
       return NS_ERROR_INVALID_ARG;
     }
-    data.timestamp() = js_DateGetMsecSinceEpoch(obj);
+    data.timestamp() = js_DateGetMsecSinceEpoch(&obj);
   } else {
     if (!aTimestamp.isNumber()) {
       return NS_ERROR_INVALID_ARG;
@@ -149,13 +146,6 @@ NS_IMETHODIMP
 SmsMessage::GetId(int32_t* aId)
 {
   *aId = mData.id();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-SmsMessage::GetThreadId(uint64_t* aThreadId)
-{
-  *aThreadId = mData.threadId();
   return NS_OK;
 }
 
@@ -259,12 +249,9 @@ SmsMessage::GetMessageClass(nsAString& aMessageClass)
 }
 
 NS_IMETHODIMP
-SmsMessage::GetTimestamp(JSContext* cx, JS::Value* aDate)
+SmsMessage::GetTimestamp(JSContext* cx, jsval* aDate)
 {
-  JSObject *obj = JS_NewDateObjectMsec(cx, mData.timestamp());
-  NS_ENSURE_TRUE(obj, NS_ERROR_FAILURE);
-
-  *aDate = OBJECT_TO_JSVAL(obj);
+  *aDate = OBJECT_TO_JSVAL(JS_NewDateObjectMsec(cx, mData.timestamp()));
   return NS_OK;
 }
 

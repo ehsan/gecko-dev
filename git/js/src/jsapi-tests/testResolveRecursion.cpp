@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=99:
  */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -20,8 +20,8 @@ BEGIN_TEST(testResolveRecursion)
         JSCLASS_NEW_RESOLVE | JSCLASS_HAS_PRIVATE,
 
         JS_PropertyStub,       // add
-        JS_DeletePropertyStub, // delete
-        JS_PropertyStub,       // get
+        JS_PropertyStub,       // delete
+        JS_PropertyStub,         // get
         JS_StrictPropertyStub, // set
         JS_EnumerateStub,
         (JSResolveOp) my_resolve,
@@ -69,7 +69,7 @@ struct AutoIncrCounters {
 };
 
 bool
-doResolve(JS::HandleObject obj, JS::HandleId id, unsigned flags, JS::MutableHandleObject objp)
+doResolve(JSHandleObject obj, JSHandleId id, unsigned flags, JSMutableHandleObject objp)
 {
     CHECK_EQUAL(resolveExitCount, 0);
     AutoIncrCounters incr(this);
@@ -127,8 +127,8 @@ doResolve(JS::HandleObject obj, JS::HandleId id, unsigned flags, JS::MutableHand
 }
 
 static JSBool
-my_resolve(JSContext *cx, JS::HandleObject obj, JS::HandleId id, unsigned flags,
-           JS::MutableHandleObject objp)
+my_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id, unsigned flags,
+           JSMutableHandleObject objp)
 {
     return static_cast<cls_testResolveRecursion *>(JS_GetPrivate(obj))->
            doResolve(obj, id, flags, objp);

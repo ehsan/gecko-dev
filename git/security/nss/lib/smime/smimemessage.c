@@ -4,6 +4,8 @@
 
 /*
  * SMIME message methods
+ *
+ * $Id: smimemessage.c,v 1.7 2012/04/25 14:50:09 gerv%gerv.net Exp $
  */
 
 #include "cmslocal.h"

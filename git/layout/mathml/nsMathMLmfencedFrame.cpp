@@ -317,7 +317,7 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
   containerSize.ascent = delta + axisHeight;
   containerSize.descent = delta - axisHeight;
 
-  bool isRTL = StyleVisibility()->mDirection;
+  bool isRTL = NS_MATHML_IS_RTL(mPresentationData.flags);
 
   /////////////////
   // opening fence ...

@@ -7,15 +7,14 @@
 #ifndef AudioBufferSourceNode_h_
 #define AudioBufferSourceNode_h_
 
-#include "AudioNode.h"
+#include "AudioSourceNode.h"
 #include "AudioBuffer.h"
-#include "AudioParam.h"
 #include "mozilla/dom/BindingUtils.h"
 
 namespace mozilla {
 namespace dom {
 
-class AudioBufferSourceNode : public AudioNode,
+class AudioBufferSourceNode : public AudioSourceNode,
                               public MainThreadMediaStreamListener
 {
 public:
@@ -27,55 +26,31 @@ public:
     if (mStream) {
       mStream->RemoveMainThreadListener(this);
     }
-    AudioNode::DestroyMediaStream();
+    AudioSourceNode::DestroyMediaStream();
   }
-  virtual uint16_t NumberOfInputs() const MOZ_FINAL MOZ_OVERRIDE
+  virtual bool SupportsMediaStreams() const MOZ_OVERRIDE
   {
-    return 0;
+    return true;
   }
-  virtual AudioBufferSourceNode* AsAudioBufferSourceNode() MOZ_OVERRIDE
-  {
-    return this;
-  }
+
   NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(AudioBufferSourceNode, AudioNode)
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(AudioBufferSourceNode, AudioSourceNode)
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope);
 
-  void Start(double aWhen, double aOffset,
+  void Start(JSContext* aCx, double aWhen, double aOffset,
              const Optional<double>& aDuration, ErrorResult& aRv);
-  void NoteOn(double aWhen, ErrorResult& aRv)
-  {
-    Start(aWhen, 0.0, Optional<double>(), aRv);
-  }
-  void NoteGrainOn(double aWhen, double aOffset,
-                   double aDuration, ErrorResult& aRv)
-  {
-    Optional<double> duration;
-    duration.Construct(aDuration);
-    Start(aWhen, aOffset, duration, aRv);
-  }
-  void Stop(double aWhen, ErrorResult& aRv, bool aShuttingDown = false);
-  void NoteOff(double aWhen, ErrorResult& aRv)
-  {
-    Stop(aWhen, aRv);
-  }
+  void Stop(double aWhen, ErrorResult& aRv);
 
-  AudioBuffer* GetBuffer(JSContext* aCx) const
+  AudioBuffer* GetBuffer() const
   {
     return mBuffer;
   }
-  void SetBuffer(JSContext* aCx, AudioBuffer* aBuffer)
+  void SetBuffer(AudioBuffer* aBuffer)
   {
     mBuffer = aBuffer;
-    SendBufferParameterToStream(aCx);
-    SendLoopParametersToStream();
   }
-  AudioParam* PlaybackRate() const
-  {
-    return mPlaybackRate;
-  }
+
   bool Loop() const
   {
     return mLoop;
@@ -83,7 +58,6 @@ public:
   void SetLoop(bool aLoop)
   {
     mLoop = aLoop;
-    SendLoopParametersToStream();
   }
   double LoopStart() const
   {
@@ -92,7 +66,6 @@ public:
   void SetLoopStart(double aStart)
   {
     mLoopStart = aStart;
-    SendLoopParametersToStream();
   }
   double LoopEnd() const
   {
@@ -101,50 +74,16 @@ public:
   void SetLoopEnd(double aEnd)
   {
     mLoopEnd = aEnd;
-    SendLoopParametersToStream();
   }
-  void SendDopplerShiftToStream(double aDopplerShift);
-
-  IMPL_EVENT_HANDLER(ended)
 
   virtual void NotifyMainThreadStateChanged() MOZ_OVERRIDE;
 
 private:
-  friend class AudioBufferSourceNodeEngine;
-  // START, OFFSET and DURATION are always set by start() (along with setting
-  // mBuffer to something non-null).
-  // STOP is set by stop().
-  enum EngineParameters {
-    SAMPLE_RATE,
-    START,
-    STOP,
-    OFFSET,
-    DURATION,
-    LOOP,
-    LOOPSTART,
-    LOOPEND,
-    PLAYBACKRATE,
-    DOPPLERSHIFT
-  };
-
-  void SendLoopParametersToStream();
-  void SendBufferParameterToStream(JSContext* aCx);
-  void SendOffsetAndDurationParametersToStream(AudioNodeStream* aStream,
-                                               double aOffset,
-                                               double aDuration);
-  static void SendPlaybackRateToStream(AudioNode* aNode);
-
-private:
+  nsRefPtr<AudioBuffer> mBuffer;
   double mLoopStart;
   double mLoopEnd;
-  double mOffset;
-  double mDuration;
-  nsRefPtr<AudioBuffer> mBuffer;
-  nsRefPtr<AudioParam> mPlaybackRate;
-  SelfReference<AudioBufferSourceNode> mPlayingRef; // a reference to self while playing
   bool mLoop;
   bool mStartCalled;
-  bool mStopped;
 };
 
 }

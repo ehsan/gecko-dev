@@ -10,7 +10,7 @@
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
 #include "nsIServiceManager.h"
-#include "nsISimpleEnumerator.h"
+#include "nsISupportsArray.h"
 
 #include "prcvar.h"
 #include "pratom.h"

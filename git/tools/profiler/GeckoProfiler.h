@@ -79,7 +79,7 @@
 // Initilize the profiler TLS, signal handlers on linux. If MOZ_PROFILER_STARTUP
 // is set the profiler will be started. This call must happen before any other
 // sampler calls. Particularly sampler_label/sampler_marker.
-static inline void profiler_init(void* stackTop) {};
+static inline void profiler_init() {};
 
 // Clean up the profiler module, stopping it if required. This function may
 // also save a shutdown profile if requested. No profiler calls should happen
@@ -95,8 +95,7 @@ static inline void profiler_shutdown() {};
 //       best to sample at this interval. The profiler visualization
 //       should represent the actual sampling accuracy.
 static inline void profiler_start(int aProfileEntries, int aInterval,
-                              const char** aFeatures, uint32_t aFeatureCount,
-                              const char** aThreadNameFilters, uint32_t aFilterCount) {}
+                              const char** aFeatures, uint32_t aFeatureCount) {}
 
 // Stop the profiler and discard the profile. Call 'profiler_save' before this
 // to retrieve the profile.
@@ -136,31 +135,10 @@ static inline void profiler_lock() {}
 // Re-enable the profiler and notify 'profiler-unlocked'.
 static inline void profiler_unlock() {}
 
-static inline void profiler_register_thread(const char* name, void* stackTop) {}
-static inline void profiler_unregister_thread() {}
-
-// Call by the JSRuntime's operation callback. This is used to enable
-// profiling on auxilerary threads.
-static inline void profiler_js_operation_callback() {}
-
-static inline double profiler_time() { return 0; }
-
-static inline bool profiler_in_privacy_mode() { return false; }
-
 #else
 
 #include "GeckoProfilerImpl.h"
 
 #endif
-
-class GeckoProfilerInitRAII {
-public:
-  GeckoProfilerInitRAII(void* stackTop) {
-    profiler_init(stackTop);
-  }
-  ~GeckoProfilerInitRAII() {
-    profiler_shutdown();
-  }
-};
 
 #endif // ifndef SAMPLER_H

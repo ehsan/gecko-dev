@@ -92,11 +92,12 @@ nsEntityConverter::LoadEntityBundle(uint32_t version)
   LossyAppendUTF16toASCII(versionName, url);
   url.Append(".properties");
 
-  nsCOMPtr<nsIStringBundle> bundle;
-  rv = bundleService->CreateBundle(url.get(), getter_AddRefs(bundle));
+  nsIStringBundle* bundle;
+  rv = bundleService->CreateBundle(url.get(), &bundle);
   NS_ENSURE_SUCCESS(rv, nullptr);
   
-  return bundle.forget();
+  // does this addref right?
+  return bundle;
 }
 
 const PRUnichar*

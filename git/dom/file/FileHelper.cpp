@@ -149,7 +149,7 @@ FileHelper::GetCurrentLockedFile()
 
 nsresult
 FileHelper::GetSuccessResult(JSContext* aCx,
-                             JS::Value* aVal)
+                             jsval* aVal)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 

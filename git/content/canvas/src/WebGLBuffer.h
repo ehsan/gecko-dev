@@ -6,17 +6,14 @@
 #ifndef WEBGLBUFFER_H_
 #define WEBGLBUFFER_H_
 
-#include "WebGLObjectModel.h"
 #include "WebGLElementArrayCache.h"
-#include "GLDefs.h"
+#include "WebGLObjectModel.h"
 
 #include "nsWrapperCache.h"
 
 #include "mozilla/LinkedList.h"
 
 namespace mozilla {
-
-class WebGLElementArrayCache;
 
 class WebGLBuffer MOZ_FINAL
     : public nsISupports
@@ -59,8 +56,7 @@ public:
         return Context();
     }
 
-    virtual JSObject* WrapObject(JSContext *cx,
-                                 JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
+    virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
 
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
     NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(WebGLBuffer)

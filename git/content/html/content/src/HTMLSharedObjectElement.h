@@ -7,13 +7,13 @@
 #ifndef mozilla_dom_HTMLSharedObjectElement_h
 #define mozilla_dom_HTMLSharedObjectElement_h
 
-#include "mozilla/Attributes.h"
 #include "nsGenericHTMLElement.h"
 #include "nsObjectLoadingContent.h"
 #include "nsGkAtoms.h"
 #include "nsError.h"
 #include "nsIDOMHTMLAppletElement.h"
 #include "nsIDOMHTMLEmbedElement.h"
+#include "nsIDOMGetSVGDocument.h"
 
 namespace mozilla {
 namespace dom {
@@ -22,6 +22,7 @@ class HTMLSharedObjectElement : public nsGenericHTMLElement
                               , public nsObjectLoadingContent
                               , public nsIDOMHTMLAppletElement
                               , public nsIDOMHTMLEmbedElement
+                              , public nsIDOMGetSVGDocument
 {
 public:
   HTMLSharedObjectElement(already_AddRefed<nsINodeInfo> aNodeInfo,
@@ -49,39 +50,42 @@ public:
   // NS_DECL_NSIDOMHTMLAPPLETELEMENT.
 
   // nsIDOMHTMLEmbedElement
-  NS_IMETHOD GetSrc(nsAString &aSrc) MOZ_OVERRIDE;
-  NS_IMETHOD SetSrc(const nsAString &aSrc) MOZ_OVERRIDE;
-  NS_IMETHOD GetType(nsAString &aType) MOZ_OVERRIDE;
-  NS_IMETHOD SetType(const nsAString &aType) MOZ_OVERRIDE;
+  NS_IMETHOD GetSrc(nsAString &aSrc);
+  NS_IMETHOD SetSrc(const nsAString &aSrc);
+  NS_IMETHOD GetType(nsAString &aType);
+  NS_IMETHOD SetType(const nsAString &aType);
+
+  // nsIDOMGetSVGDocument
+  NS_DECL_NSIDOMGETSVGDOCUMENT
 
   virtual nsresult BindToTree(nsIDocument *aDocument, nsIContent *aParent,
                               nsIContent *aBindingParent,
-                              bool aCompileEventHandlers) MOZ_OVERRIDE;
+                              bool aCompileEventHandlers);
   virtual void UnbindFromTree(bool aDeep = true,
-                              bool aNullParent = true) MOZ_OVERRIDE;
+                              bool aNullParent = true);
   virtual nsresult SetAttr(int32_t aNameSpaceID, nsIAtom *aName,
                            nsIAtom *aPrefix, const nsAString &aValue,
-                           bool aNotify) MOZ_OVERRIDE;
+                           bool aNotify);
 
-  virtual bool IsHTMLFocusable(bool aWithMouse, bool *aIsFocusable, int32_t *aTabIndex) MOZ_OVERRIDE;
-  virtual IMEState GetDesiredIMEState() MOZ_OVERRIDE;
+  virtual bool IsHTMLFocusable(bool aWithMouse, bool *aIsFocusable, int32_t *aTabIndex);
+  virtual IMEState GetDesiredIMEState();
 
-  virtual void DoneAddingChildren(bool aHaveNotified) MOZ_OVERRIDE;
-  virtual bool IsDoneAddingChildren() MOZ_OVERRIDE;
+  virtual void DoneAddingChildren(bool aHaveNotified);
+  virtual bool IsDoneAddingChildren();
 
   virtual bool ParseAttribute(int32_t aNamespaceID,
                                 nsIAtom *aAttribute,
                                 const nsAString &aValue,
-                                nsAttrValue &aResult) MOZ_OVERRIDE;
-  virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const MOZ_OVERRIDE;
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom *aAttribute) const MOZ_OVERRIDE;
-  virtual nsEventStates IntrinsicState() const MOZ_OVERRIDE;
-  virtual void DestroyContent() MOZ_OVERRIDE;
+                                nsAttrValue &aResult);
+  virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
+  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom *aAttribute) const;
+  virtual nsEventStates IntrinsicState() const;
+  virtual void DestroyContent();
 
   // nsObjectLoadingContent
-  virtual uint32_t GetCapabilities() const MOZ_OVERRIDE;
+  virtual uint32_t GetCapabilities() const;
 
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   nsresult CopyInnerTo(Element* aDest);
 
@@ -90,7 +94,13 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(HTMLSharedObjectElement,
                                                      nsGenericHTMLElement)
 
-  virtual nsIDOMNode* AsDOMNode() MOZ_OVERRIDE
+  virtual nsXPCClassInfo* GetClassInfo()
+  {
+    return static_cast<nsXPCClassInfo*>(GetClassInfoInternal());
+  }
+  nsIClassInfo* GetClassInfoInternal();
+
+  virtual nsIDOMNode* AsDOMNode()
   {
     return static_cast<nsIDOMHTMLAppletElement*>(this);
   }
@@ -143,11 +153,11 @@ public:
   }
   uint32_t Hspace()
   {
-    return GetUnsignedIntAttr(nsGkAtoms::hspace, 0);
+    return GetHTMLUnsignedIntAttr(nsGkAtoms::hspace, 0);
   }
   void SetHspace(uint32_t aValue, ErrorResult& aRv)
   {
-    SetUnsignedIntAttr(nsGkAtoms::hspace, aValue, aRv);
+    SetHTMLUnsignedIntAttr(nsGkAtoms::hspace, aValue, aRv);
   }
   void GetName(DOMString& aValue)
   {
@@ -162,13 +172,13 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::object, aValue, aRv);
   }
-  uint32_t Vspace()
+    uint32_t Vspace()
   {
-    return GetUnsignedIntAttr(nsGkAtoms::vspace, 0);
+    return GetHTMLUnsignedIntAttr(nsGkAtoms::vspace, 0);
   }
   void SetVspace(uint32_t aValue, ErrorResult& aRv)
   {
-    SetUnsignedIntAttr(nsGkAtoms::vspace, aValue, aRv);
+    SetHTMLUnsignedIntAttr(nsGkAtoms::vspace, aValue, aRv);
   }
   void GetWidth(DOMString& aValue)
   {
@@ -232,11 +242,12 @@ private:
   // always true for <embed>, per the documentation in nsIContent.h.
   bool mIsDoneAddingChildren;
 
-  virtual void GetItemValueText(nsAString& text) MOZ_OVERRIDE;
-  virtual void SetItemValueText(const nsAString& text) MOZ_OVERRIDE;
+  virtual void GetItemValueText(nsAString& text);
+  virtual void SetItemValueText(const nsAString& text);
 
-  virtual JSObject* WrapNode(JSContext *aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope) MOZ_OVERRIDE;
+  virtual JSObject* GetCanonicalPrototype(JSContext* aCx,
+                                          JSObject* aGlobal) MOZ_OVERRIDE;
 };
 
 } // namespace dom

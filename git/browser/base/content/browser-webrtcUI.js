@@ -44,12 +44,9 @@ let WebrtcIndicator = {
     if (!streamData)
       return;
 
-    let browserWindow = streamData.browser.ownerDocument.defaultView;
-    if (streamData.tab) {
-      browserWindow.gBrowser.selectedTab = streamData.tab;
-    } else {
-      streamData.browser.focus();
-    }
+    let tab = streamData.tab;
+    let browserWindow = tab.ownerDocument.defaultView;
+    browserWindow.gBrowser.selectedTab = tab;
     browserWindow.focus();
   }
 }

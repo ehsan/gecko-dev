@@ -35,12 +35,6 @@ namespace net {
 // C++ file contents
 NeckoParent::NeckoParent()
 {
-  // Init HTTP protocol handler now since we need atomTable up and running very
-  // early (IPDL argument handling for PHttpChannel constructor needs it) so
-  // normal init (during 1st Http channel request) isn't early enough.
-  nsCOMPtr<nsIProtocolHandler> proto =
-    do_GetService("@mozilla.org/network/protocol;1?name=http");
-
   if (UsingNeckoIPCSecurity()) {
     // cache values for core/packaged apps basepaths
     nsAutoString corePath, webPath;
@@ -94,8 +88,7 @@ NeckoParent::GetValidatedAppInfo(const SerializedLoadContext& aSerialized,
     nsRefPtr<TabParent> tabParent = static_cast<TabParent*>(aBrowser);
 
     *aAppId = tabParent->OwnOrContainingAppId();
-    *aInBrowserElement = aSerialized.IsNotNull() ? aSerialized.mIsInBrowserElement
-                                                 : tabParent->IsBrowserElement();
+    *aInBrowserElement = tabParent->IsBrowserElement();
 
     if (*aAppId == NECKO_UNKNOWN_APP_ID) {
       return "TabParent reports appId=NECKO_UNKNOWN_APP_ID!";
@@ -159,8 +152,7 @@ NeckoParent::CreateChannelLoadContext(PBrowserParent* aBrowser,
 
 PHttpChannelParent*
 NeckoParent::AllocPHttpChannel(PBrowserParent* aBrowser,
-                               const SerializedLoadContext& aSerialized,
-                               const HttpChannelCreationArgs& aOpenArgs)
+                               const SerializedLoadContext& aSerialized)
 {
   nsCOMPtr<nsILoadContext> loadContext;
   const char *error = CreateChannelLoadContext(aBrowser, aSerialized,
@@ -185,21 +177,9 @@ NeckoParent::DeallocPHttpChannel(PHttpChannelParent* channel)
   return true;
 }
 
-bool
-NeckoParent::RecvPHttpChannelConstructor(
-                      PHttpChannelParent* aActor,
-                      PBrowserParent* aBrowser,
-                      const SerializedLoadContext& aSerialized,
-                      const HttpChannelCreationArgs& aOpenArgs)
-{
-  HttpChannelParent* p = static_cast<HttpChannelParent*>(aActor);
-  return p->Init(aOpenArgs);
-}
-
 PFTPChannelParent*
 NeckoParent::AllocPFTPChannel(PBrowserParent* aBrowser,
-                              const SerializedLoadContext& aSerialized,
-                              const FTPChannelCreationArgs& aOpenArgs)
+                              const SerializedLoadContext& aSerialized)
 {
   nsCOMPtr<nsILoadContext> loadContext;
   const char *error = CreateChannelLoadContext(aBrowser, aSerialized,
@@ -222,17 +202,6 @@ NeckoParent::DeallocPFTPChannel(PFTPChannelParent* channel)
   FTPChannelParent *p = static_cast<FTPChannelParent *>(channel);
   p->Release();
   return true;
-}
-
-bool
-NeckoParent::RecvPFTPChannelConstructor(
-                      PFTPChannelParent* aActor,
-                      PBrowserParent* aBrowser,
-                      const SerializedLoadContext& aSerialized,
-                      const FTPChannelCreationArgs& aOpenArgs)
-{
-  FTPChannelParent* p = static_cast<FTPChannelParent*>(aActor);
-  return p->Init(aOpenArgs);
 }
 
 PCookieServiceParent* 

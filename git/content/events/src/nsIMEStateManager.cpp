@@ -31,7 +31,7 @@
 #include "mozilla/Services.h"
 #include "nsIFormControl.h"
 #include "nsIForm.h"
-#include "mozilla/dom/HTMLFormElement.h"
+#include "nsHTMLFormElement.h"
 #include "mozilla/Attributes.h"
 #include "nsEventDispatcher.h"
 #include "TextComposition.h"
@@ -90,6 +90,7 @@ private:
 nsIContent*    nsIMEStateManager::sContent      = nullptr;
 nsPresContext* nsIMEStateManager::sPresContext  = nullptr;
 bool           nsIMEStateManager::sInstalledMenuKeyboardListener = false;
+bool           nsIMEStateManager::sInSecureInputMode = false;
 bool           nsIMEStateManager::sIsTestingIME = false;
 
 nsTextStateManager* nsIMEStateManager::sTextStateObserver = nullptr;
@@ -240,6 +241,29 @@ nsIMEStateManager::OnChangeFocusInternal(nsPresContext* aPresContext,
                                      aPresContext->GetRootWidget();
   if (!widget) {
     return NS_OK;
+  }
+
+  // Handle secure input mode for password field input.
+  bool contentIsPassword = false;
+  if (aContent && aContent->GetNameSpaceID() == kNameSpaceID_XHTML) {
+    if (aContent->Tag() == nsGkAtoms::input) {
+      nsAutoString type;
+      aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::type, type);
+      contentIsPassword = type.LowerCaseEqualsLiteral("password");
+    }
+  }
+  if (sInSecureInputMode) {
+    if (!contentIsPassword) {
+      if (NS_SUCCEEDED(widget->EndSecureKeyboardInput())) {
+        sInSecureInputMode = false;
+      }
+    }
+  } else {
+    if (contentIsPassword) {
+      if (NS_SUCCEEDED(widget->BeginSecureKeyboardInput())) {
+        sInSecureInputMode = true;
+      }
+    }
   }
 
   IMEState newState = GetNewIMEState(aPresContext, aContent);
@@ -460,12 +484,8 @@ nsIMEStateManager::SetIMEState(const IMEState &aState,
   if (aContent && aContent->GetNameSpaceID() == kNameSpaceID_XHTML &&
       (aContent->Tag() == nsGkAtoms::input ||
        aContent->Tag() == nsGkAtoms::textarea)) {
-    if (aContent->Tag() != nsGkAtoms::textarea) {
-      aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::type,
-                        context.mHTMLInputType);
-    } else {
-      context.mHTMLInputType.Assign(nsGkAtoms::textarea->GetUTF16String());
-    }
+    aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::type,
+                      context.mHTMLInputType);
 
     if (Preferences::GetBool("dom.forms.inputmode", false)) {
       aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::inputmode,
@@ -487,7 +507,7 @@ nsIMEStateManager::SetIMEState(const IMEState &aState,
           willSubmit = true;
         // is this an html form and does it only have a single text input element?
         } else if (formElement && formElement->Tag() == nsGkAtoms::form && formElement->IsHTML() &&
-                   static_cast<dom::HTMLFormElement*>(formElement)->HasSingleTextControl()) {
+                   static_cast<nsHTMLFormElement*>(formElement)->HasSingleTextControl()) {
           willSubmit = true;
         }
       }

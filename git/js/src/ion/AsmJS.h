@@ -1,15 +1,24 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_AsmJS_h
-#define ion_AsmJS_h
+#if !defined(jsion_asmjs_h__)
+#define jsion_asmjs_h__
 
 #ifdef XP_MACOSX
 # include <pthread.h>
 # include <mach/mach.h>
+#endif
+
+// asm.js compilation is only available on desktop x86/x64 at the moment.
+// Don't panic, mobile support is coming soon.
+#if defined(JS_ION) && \
+    !defined(ANDROID) && \
+    (defined(JS_CPU_X86) || defined(JS_CPU_X64))
+# define JS_ASMJS
 #endif
 
 namespace js {
@@ -19,6 +28,11 @@ class SPSProfiler;
 class AsmJSModule;
 namespace frontend { struct TokenStream; struct ParseNode; }
 namespace ion { class MIRGenerator; class LIRGraph; }
+
+// Return whether asm.js optimization is inhibitted by the platform or
+// dynamically disabled. (Exposed as JSNative for shell testing.)
+extern JSBool
+IsAsmJSCompilationAvailable(JSContext *cx, unsigned argc, Value *vp);
 
 // Called after parsing a function 'fn' which contains the "use asm" directive.
 // This function performs type-checking and code-generation. If type-checking
@@ -41,11 +55,6 @@ CompileAsmJS(JSContext *cx, frontend::TokenStream &ts, frontend::ParseNode *fn,
 // exception thrown when executing GetProperty on the arguments) is pending.
 extern JSBool
 LinkAsmJS(JSContext *cx, unsigned argc, JS::Value *vp);
-
-// The js::Native for the functions nested in an asm.js module. Calling this
-// native will trampoline into generated code.
-extern JSBool
-CallAsmJS(JSContext *cx, unsigned argc, JS::Value *vp);
 
 // Force any currently-executing asm.js code to call
 // js_HandleExecutionInterrupt.
@@ -75,7 +84,6 @@ class AsmJSActivation
     AsmJSActivation(JSContext *cx, const AsmJSModule &module);
     ~AsmJSActivation();
 
-    JSContext *cx() { return cx_; }
     const AsmJSModule &module() const { return module_; }
 
     // Read by JIT code:
@@ -88,9 +96,6 @@ class AsmJSActivation
     // Set from SIGSEGV handler:
     void setResumePC(void *pc) { resumePC_ = pc; }
 };
-
-// The assumed page size; dynamically checked in CompileAsmJS.
-const size_t AsmJSPageSize = 4096;
 
 // The asm.js spec requires that the ArrayBuffer's byteLength be a multiple of 4096.
 static const size_t AsmJSAllocationGranularity = 4096;
@@ -122,17 +127,6 @@ class AsmJSMachExceptionHandler
 };
 #endif
 
-struct DependentAsmJSModuleExit
-{
-    const AsmJSModule *module;
-    size_t exitIndex;
-
-    DependentAsmJSModuleExit(const AsmJSModule *module, size_t exitIndex)
-      : module(module),
-        exitIndex(exitIndex)
-    { }
-};
-
 // Struct type for passing parallel compilation data between the main thread
 // and compilation workers.
 struct AsmJSParallelTask
@@ -142,11 +136,10 @@ struct AsmJSParallelTask
     uint32_t funcNum;       // Index |i| of function in |Module.function(i)|.
     ion::MIRGenerator *mir; // Passed from main thread to worker.
     ion::LIRGraph *lir;     // Passed from worker to main thread.
-    unsigned compileTime;
 
     AsmJSParallelTask(size_t defaultChunkSize)
       : lifo(defaultChunkSize),
-        funcNum(0), mir(NULL), lir(NULL), compileTime(0)
+        funcNum(0), mir(NULL), lir(NULL)
     { }
 
     void init(uint32_t newFuncNum, ion::MIRGenerator *newMir) {
@@ -158,34 +151,17 @@ struct AsmJSParallelTask
 
 // Returns true if the given native is the one that is used to implement asm.js
 // module functions.
-#ifdef JS_ION
-extern bool
+#ifdef JS_ASMJS
+bool
 IsAsmJSModuleNative(js::Native native);
 #else
-inline bool
+static inline bool
 IsAsmJSModuleNative(js::Native native)
 {
     return false;
 }
 #endif
 
-// Exposed for shell testing:
-
-// Return whether asm.js optimization is inhibitted by the platform or
-// dynamically disabled:
-extern JSBool
-IsAsmJSCompilationAvailable(JSContext *cx, unsigned argc, Value *vp);
-
-// Return whether the given value is a function containing "use asm" that has
-// been validated according to the asm.js spec.
-extern JSBool
-IsAsmJSModule(JSContext *cx, unsigned argc, Value *vp);
-
-// Return whether the given value is a nested function in an asm.js module that
-// has been both compile- and link-time validated.
-extern JSBool
-IsAsmJSFunction(JSContext *cx, unsigned argc, Value *vp);
-
 } // namespace js
 
-#endif /* ion_AsmJS_h */
+#endif // jsion_asmjs_h__

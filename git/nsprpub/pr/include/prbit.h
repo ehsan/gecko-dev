@@ -9,12 +9,8 @@
 #include "prtypes.h"
 PR_BEGIN_EXTERN_C
 
-/*
-** Replace compare/jump/add/shift sequence with compiler built-in/intrinsic
-** functions.
-*/
-#if defined(_WIN32) && (_MSC_VER >= 1300) && \
-    (defined(_M_IX86) || defined(_M_AMD64) || defined(_M_ARM))
+/* replace compare/jump/add/shift sequence with x86 BSF/BSR instruction */
+#if defined(_WIN32) && (_MSC_VER >= 1300) && (defined(_M_IX86) || defined(_M_AMD64))
   unsigned char _BitScanForward(unsigned long * Index, unsigned long Mask);
   unsigned char _BitScanReverse(unsigned long * Index, unsigned long Mask);
 # pragma  intrinsic(_BitScanForward,_BitScanReverse)
@@ -137,7 +133,7 @@ NSPR_API(PRIntn) PR_FloorLog2(PRUint32 i);
 */
 
 #if defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_AMD64) || \
-    defined(_M_X64) || defined(_M_ARM))
+    defined(_M_X64))
 #include <stdlib.h>
 #pragma intrinsic(_rotl, _rotr)
 #define PR_ROTATE_LEFT32(a, bits) _rotl(a, bits)

@@ -79,7 +79,6 @@ Tester.prototype = {
   SimpleTest: {},
 
   repeat: 0,
-  runUntilFailure: false,
   checker: null,
   currentTestIndex: -1,
   lastStartTime: null,
@@ -105,13 +104,7 @@ Tester.prototype = {
     //if testOnLoad was not called, then gConfig is not defined
     if (!gConfig)
       gConfig = readConfig();
-
-    if (gConfig.runUntilFailure)
-      this.runUntilFailure = true;
-
-    if (gConfig.repeat)
-      this.repeat = gConfig.repeat;
-
+    this.repeat = gConfig.repeat;
     this.dumper.dump("*** Start BrowserChrome Test Results ***\n");
     Services.console.registerListener(this);
     Services.obs.addObserver(this, "chrome-document-global-created", false);
@@ -176,13 +169,6 @@ Tester.prototype = {
   },
 
   finish: function Tester_finish(aSkipSummary) {
-    var passCount = this.tests.reduce(function(a, f) a + f.passCount, 0);
-    var failCount = this.tests.reduce(function(a, f) a + f.failCount, 0);
-    var todoCount = this.tests.reduce(function(a, f) a + f.todoCount, 0);
-
-    if (failCount > 0 && this.runUntilFailure)
-      this.repeat = 0;
-
     if (this.repeat > 0) {
       --this.repeat;
       this.currentTestIndex = -1;
@@ -196,6 +182,11 @@ Tester.prototype = {
       this.dumper.dump("\nINFO TEST-START | Shutdown\n");
       if (this.tests.length) {
         this.dumper.dump("Browser Chrome Test Summary\n");
+  
+        function sum(a,b) a+b;
+        var passCount = this.tests.map(function (f) f.passCount).reduce(sum);
+        var failCount = this.tests.map(function (f) f.failCount).reduce(sum);
+        var todoCount = this.tests.map(function (f) f.todoCount).reduce(sum);
   
         this.dumper.dump("\tPassed: " + passCount + "\n" +
                          "\tFailed: " + failCount + "\n" +
@@ -329,47 +320,22 @@ Tester.prototype = {
 
         // Schedule GC and CC runs before finishing in order to detect
         // DOM windows leaked by our tests or the tested code.
-
-        let checkForLeakedGlobalWindows = aCallback => {
-          Cu.schedulePreciseGC(() => {
-            let analyzer = new CCAnalyzer();
-            analyzer.run(() => {
-              let results = [];
-              for (let obj of analyzer.find("nsGlobalWindow ")) {
-                let m = obj.name.match(/^nsGlobalWindow #(\d+)/);
-                if (m && m[1] in this.openedWindows)
-                  results.push({ name: obj.name, url: m[1] });
+        Cu.schedulePreciseGC((function () {
+          let analyzer = new CCAnalyzer();
+          analyzer.run(function () {
+            for (let obj of analyzer.find("nsGlobalWindow ")) {
+              let m = obj.name.match(/^nsGlobalWindow #(\d+)/);
+              if (m && m[1] in this.openedWindows) {
+                let test = this.openedWindows[m[1]];
+                let msg = "leaked until shutdown [" + obj.name +
+                          " " + (this.openedURLs[m[1]] || "NULL") + "]";
+                test.addResult(new testResult(false, msg, "", false));
               }
-              aCallback(results);
-            });
-          });
-        };
+            }
 
-        let reportLeaks = aResults => {
-          for (let result of aResults) {
-            let test = this.openedWindows[result.url];
-            let msg = "leaked until shutdown [" + result.name +
-                      " " + (this.openedURLs[result.url] || "NULL") + "]";
-            test.addResult(new testResult(false, msg, "", false));
-          }
-        };
-
-        checkForLeakedGlobalWindows(aResults => {
-          if (aResults.length == 0) {
             this.finish();
-            return;
-          }
-          // After the first check, if there are reported leaked windows, sleep
-          // for a while, to allow off-main-thread work to complete and free up
-          // main-thread objects.  Then check again.
-          setTimeout(() => {
-            checkForLeakedGlobalWindows(aResults => {
-              reportLeaks(aResults);
-              this.finish();
-            });
-          }, 1000);
-        });
-
+          }.bind(this));
+        }).bind(this));
         return;
       }
 

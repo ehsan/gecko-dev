@@ -361,7 +361,7 @@ nsresult
 UndoContentAppend::RedoTransaction()
 {
   for (int32_t i = 0; i < mChildren.Count(); i++) {
-    if (!mChildren[i]->GetParentNode()) {
+    if (!mChildren[i]->GetParent()) {
       mContent->AppendChildTo(mChildren[i], true);
     }
   }
@@ -373,7 +373,7 @@ nsresult
 UndoContentAppend::UndoTransaction()
 {
   for (int32_t i = mChildren.Count() - 1; i >= 0; i--) {
-    if (mChildren[i]->GetParentNode() == mContent) {
+    if (mChildren[i]->GetParent() == mContent) {
       ErrorResult error;
       mContent->RemoveChild(*mChildren[i], error);
     }
@@ -428,12 +428,12 @@ UndoContentInsert::RedoTransaction()
   }
 
   // Check if node already has parent.
-  if (mChild->GetParentNode()) {
+  if (mChild->GetParent()) {
     return NS_OK;
   }
 
   // Check to see if next sibling has same parent.
-  if (mNextNode && mNextNode->GetParentNode() != mContent) {
+  if (mNextNode && mNextNode->GetParent() != mContent) {
     return NS_OK;
   }
 
@@ -450,12 +450,12 @@ UndoContentInsert::UndoTransaction()
   }
 
   // Check if the parent is the same.
-  if (mChild->GetParentNode() != mContent) {
+  if (mChild->GetParent() != mContent) {
     return NS_OK;
   }
 
   // Check of the parent of the next node is the same.
-  if (mNextNode && mNextNode->GetParentNode() != mContent) {
+  if (mNextNode && mNextNode->GetParent() != mContent) {
     return NS_OK;
   }
 
@@ -521,12 +521,12 @@ UndoContentRemove::UndoTransaction()
   }
 
   // Check if child has a parent.
-  if (mChild->GetParentNode()) {
+  if (mChild->GetParent()) {
     return NS_OK;
   }
 
   // Make sure next sibling is still under same parent.
-  if (mNextNode && mNextNode->GetParentNode() != mContent) {
+  if (mNextNode && mNextNode->GetParent() != mContent) {
     return NS_OK;
   }
 
@@ -543,12 +543,12 @@ UndoContentRemove::RedoTransaction()
   }
 
   // Check that the parent has not changed.
-  if (mChild->GetParentNode() != mContent) {
+  if (mChild->GetParent() != mContent) {
     return NS_OK;
   }
 
   // Check that the next node still has the same parent.
-  if (mNextNode && mNextNode->GetParentNode() != mContent) {
+  if (mNextNode && mNextNode->GetParent() != mContent) {
     return NS_OK;
   }
 
@@ -598,17 +598,17 @@ NS_IMPL_ISUPPORTS1(UndoMutationObserver, nsIMutationObserver)
 bool
 UndoMutationObserver::IsManagerForMutation(nsIContent* aContent)
 {
-  nsCOMPtr<nsINode> currentNode = aContent;
+  nsCOMPtr<nsIContent> content = aContent;
   nsRefPtr<UndoManager> undoManager;
 
   // Get the UndoManager of nearest ancestor with an UndoManager.
-  while (currentNode && !undoManager) {
-    nsCOMPtr<Element> htmlElem = do_QueryInterface(currentNode);
+  while (content && !undoManager) {
+    nsCOMPtr<Element> htmlElem = do_QueryInterface(content);
     if (htmlElem) {
       undoManager = htmlElem->GetUndoManager();
     }
 
-    currentNode = currentNode->GetParentNode();
+    content = content->GetParent();
   }
 
   if (!undoManager) {
@@ -617,9 +617,6 @@ UndoMutationObserver::IsManagerForMutation(nsIContent* aContent)
     nsIDocument* doc = aContent->OwnerDoc();
     NS_ENSURE_TRUE(doc, false);
     undoManager = doc->GetUndoManager();
-    // The document will not have an undoManager if the
-    // documentElement is removed.
-    NS_ENSURE_TRUE(undoManager, false);
   }
 
   // Check if the nsITransactionManager is the same for both the
@@ -1166,8 +1163,8 @@ UndoManager::DispatchTransactionEvent(JSContext* aCx, const nsAString& aType,
   nsCOMArray<nsIVariant> keepAlive;
   nsTArray<nsIVariant*> transactionItems;
   for (uint32_t i = 0; i < items.Length(); i++) {
-    JS::Rooted<JS::Value> txVal(aCx, JS::ObjectValue(*items[i]->Callback()));
-    if (!JS_WrapValue(aCx, txVal.address())) {
+    JS::Value txVal = JS::ObjectValue(*items[i]->Callback());
+    if (!JS_WrapValue(aCx, &txVal)) {
       aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
       return;
     }

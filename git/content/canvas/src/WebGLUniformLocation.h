@@ -7,11 +7,8 @@
 #define WEBGLUNIFORMLOCATION_H_
 
 #include "WebGLObjectModel.h"
-#include "WebGLUniformInfo.h"
 
 namespace mozilla {
-
-class WebGLProgram;
 
 class WebGLUniformLocation MOZ_FINAL
     : public nsISupports
@@ -34,7 +31,7 @@ public:
     uint32_t ProgramGeneration() const { return mProgramGeneration; }
     int ElementSize() const { return mElementSize; }
 
-    JSObject* WrapObject(JSContext *cx, JS::Handle<JSObject*> scope);
+    virtual JSObject* WrapObject(JSContext *cx, JSObject *scope);
 
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
     NS_DECL_CYCLE_COLLECTION_CLASS(WebGLUniformLocation)

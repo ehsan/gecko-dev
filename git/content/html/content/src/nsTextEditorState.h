@@ -284,19 +284,4 @@ private:
   bool mPlaceholderVisibility;
 };
 
-inline void
-ImplCycleCollectionUnlink(nsTextEditorState& aField)
-{
-  aField.Unlink();
-}
-
-inline void
-ImplCycleCollectionTraverse(nsCycleCollectionTraversalCallback& aCallback,
-                            nsTextEditorState& aField,
-                            const char* aName,
-                            uint32_t aFlags = 0)
-{
-  aField.Traverse(aCallback);
-}
-
 #endif

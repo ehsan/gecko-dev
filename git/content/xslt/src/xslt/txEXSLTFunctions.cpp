@@ -22,11 +22,8 @@
 #include "nsIContent.h"
 #include "nsIDOMDocumentFragment.h"
 #include "txMozillaXMLOutput.h"
-#include "nsTextNode.h"
-#include "mozilla/dom/DocumentFragment.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 class txStylesheetCompilerState;
 
@@ -48,13 +45,15 @@ convertRtfToNode(txIEvalContext *aContext, txResultTreeFragment *aRtf)
     const txXPathNode& document = es->getSourceDocument();
 
     nsIDocument *doc = txXPathNativeNode::getDocument(document);
-    nsCOMPtr<nsIDOMDocumentFragment> domFragment =
-      new DocumentFragment(doc->NodeInfoManager());
+    nsCOMPtr<nsIDOMDocumentFragment> domFragment;
+    nsresult rv = NS_NewDocumentFragment(getter_AddRefs(domFragment),
+                                         doc->NodeInfoManager());
+    NS_ENSURE_SUCCESS(rv, rv);
 
     txOutputFormat format;
     txMozillaXMLOutput mozHandler(&format, domFragment, true);
 
-    nsresult rv = aRtf->flushToHandler(&mozHandler);
+    rv = aRtf->flushToHandler(&mozHandler);
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = mozHandler.closePrevious(true);
@@ -85,9 +84,11 @@ createTextNode(txIEvalContext *aContext, nsString& aValue,
     const txXPathNode& document = es->getSourceDocument();
 
     nsIDocument *doc = txXPathNativeNode::getDocument(document);
-    nsCOMPtr<nsIContent> text = new nsTextNode(doc->NodeInfoManager());
+    nsCOMPtr<nsIContent> text;
+    nsresult rv = NS_NewTextNode(getter_AddRefs(text), doc->NodeInfoManager());
+    NS_ENSURE_SUCCESS(rv, rv);
 
-    nsresult rv = text->SetText(aValue, false);
+    rv = text->SetText(aValue, false);
     NS_ENSURE_SUCCESS(rv, rv);
 
     *aResult = txXPathNativeNode::createXPathNode(text, true);
@@ -96,23 +97,25 @@ createTextNode(txIEvalContext *aContext, nsString& aValue,
     return NS_OK;
 }
 
-static already_AddRefed<DocumentFragment>
-createDocFragment(txIEvalContext *aContext)
+static nsresult
+createDocFragment(txIEvalContext *aContext, nsIContent** aResult)
 {
     txExecutionState* es = 
         static_cast<txExecutionState*>(aContext->getPrivateContext());
     if (!es) {
         NS_ERROR("Need txExecutionState!");
 
-        return nullptr;
+        return NS_ERROR_UNEXPECTED;
     }
 
     const txXPathNode& document = es->getSourceDocument();
     nsIDocument *doc = txXPathNativeNode::getDocument(document);
-    nsRefPtr<DocumentFragment> fragment =
-      new DocumentFragment(doc->NodeInfoManager());
+    nsCOMPtr<nsIDOMDocumentFragment> domFragment;
+    nsresult rv = NS_NewDocumentFragment(getter_AddRefs(domFragment),
+                                         doc->NodeInfoManager());
+    NS_ENSURE_SUCCESS(rv, rv);
 
-    return fragment.forget();
+    return CallQueryInterface(domFragment, aResult);
 }
 
 static nsresult
@@ -130,7 +133,9 @@ createAndAddToResult(nsIAtom* aName, const nsSubstring& aValue,
                                   getter_AddRefs(elem));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsRefPtr<nsTextNode> text = new nsTextNode(doc->NodeInfoManager());
+    nsCOMPtr<nsIContent> text;
+    rv = NS_NewTextNode(getter_AddRefs(text), doc->NodeInfoManager());
+    NS_ENSURE_SUCCESS(rv, rv);
 
     rv = text->SetText(aValue, false);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -488,8 +493,9 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
             }
 
             // Set up holders for the result
-            nsRefPtr<DocumentFragment> docFrag = createDocFragment(aContext);
-            NS_ENSURE_STATE(docFrag);
+            nsCOMPtr<nsIContent> docFrag;
+            rv = createDocFragment(aContext, getter_AddRefs(docFrag));
+            NS_ENSURE_SUCCESS(rv, rv);
 
             nsRefPtr<txNodeSet> resultSet;
             rv = aContext->recycler()->getNodeSet(getter_AddRefs(resultSet));
@@ -568,20 +574,20 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
 
             if (nodes->isEmpty()) {
                 return aContext->recycler()->
-                    getNumberResult(UnspecifiedNaN(), aResult);
+                    getNumberResult(MOZ_DOUBLE_NaN(), aResult);
             }
 
             bool findMax = mType == MAX;
 
-            double res = findMax ? mozilla::NegativeInfinity() :
-                                   mozilla::PositiveInfinity();
+            double res = findMax ? MOZ_DOUBLE_NEGATIVE_INFINITY() :
+                                   MOZ_DOUBLE_POSITIVE_INFINITY();
             int32_t i, len = nodes->size();
             for (i = 0; i < len; ++i) {
                 nsAutoString str;
                 txXPathNodeUtils::appendNodeValue(nodes->get(i), str);
                 double val = txDouble::toDouble(str);
-                if (mozilla::IsNaN(val)) {
-                    res = UnspecifiedNaN();
+                if (MOZ_DOUBLE_IS_NaN(val)) {
+                    res = MOZ_DOUBLE_NaN();
                     break;
                 }
 
@@ -611,15 +617,15 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
             NS_ENSURE_SUCCESS(rv, rv);
 
             bool findMax = mType == HIGHEST;
-            double res = findMax ? mozilla::NegativeInfinity() :
-                                   mozilla::PositiveInfinity();
+            double res = findMax ? MOZ_DOUBLE_NEGATIVE_INFINITY() :
+                                   MOZ_DOUBLE_POSITIVE_INFINITY();
             int32_t i, len = nodes->size();
             for (i = 0; i < len; ++i) {
                 nsAutoString str;
                 const txXPathNode& node = nodes->get(i);
                 txXPathNodeUtils::appendNodeValue(node, str);
                 double val = txDouble::toDouble(str);
-                if (mozilla::IsNaN(val)) {
+                if (MOZ_DOUBLE_IS_NaN(val)) {
                     resultSet->clear();
                     break;
                 }

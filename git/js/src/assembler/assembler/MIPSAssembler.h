@@ -26,8 +26,8 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef assembler_assembler_MIPSAssembler_h
-#define assembler_assembler_MIPSAssembler_h
+#ifndef MIPSAssembler_h
+#define MIPSAssembler_h
 
 #if ENABLE(ASSEMBLER) && CPU(MIPS)
 
@@ -1070,4 +1070,4 @@ private:
 
 #endif // ENABLE(ASSEMBLER) && CPU(MIPS)
 
-#endif /* assembler_assembler_MIPSAssembler_h */
+#endif // MIPSAssembler_h

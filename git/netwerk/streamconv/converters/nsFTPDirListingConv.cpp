@@ -154,7 +154,7 @@ nsFTPDirListingConv::OnDataAvailable(nsIRequest* request, nsISupports *ctxt,
     if (line && *line) {
         mBuffer.Append(line);
         PR_LOG(gFTPDirListConvLog, PR_LOG_DEBUG, ("::OnData() buffering the following %d bytes...\n\n%s\n\n",
-            strlen(line), line) );
+            PL_strlen(line), line) );
     }
 
     // send the converted data out.

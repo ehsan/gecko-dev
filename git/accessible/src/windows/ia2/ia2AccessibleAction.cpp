@@ -10,7 +10,6 @@
 #include "AccessibleAction_i.c"
 
 #include "AccessibleWrap.h"
-#include "IUnknownImpl.h"
 
 using namespace mozilla::a11y;
 
@@ -19,7 +18,7 @@ using namespace mozilla::a11y;
 STDMETHODIMP
 ia2AccessibleAction::QueryInterface(REFIID iid, void** ppv)
 {
-  *ppv = nullptr;
+  *ppv = NULL;
 
   if (IID_IAccessibleAction == iid) {
     *ppv = static_cast<IAccessibleAction*>(this);
@@ -73,7 +72,7 @@ ia2AccessibleAction::get_description(long aActionIndex, BSTR *aDescription)
 {
   A11Y_TRYBLOCK_BEGIN
 
-  *aDescription = nullptr;
+  *aDescription = NULL;
 
   AccessibleWrap* acc = static_cast<AccessibleWrap*>(this);
   if (acc->IsDefunct())
@@ -104,7 +103,7 @@ ia2AccessibleAction::get_keyBinding(long aActionIndex, long aNumMaxBinding,
 
   if (!aKeyBinding)
     return E_INVALIDARG;
-  *aKeyBinding = nullptr;
+  *aKeyBinding = NULL;
 
   if (!aNumBinding)
     return E_INVALIDARG;
@@ -150,7 +149,7 @@ ia2AccessibleAction::get_name(long aActionIndex, BSTR *aName)
 {
   A11Y_TRYBLOCK_BEGIN
 
-  *aName = nullptr;
+  *aName = NULL;
 
   AccessibleWrap* acc = static_cast<AccessibleWrap*>(this);
   if (acc->IsDefunct())
@@ -176,8 +175,9 @@ ia2AccessibleAction::get_localizedName(long aActionIndex, BSTR *aLocalizedName)
 {
   A11Y_TRYBLOCK_BEGIN
 
-  *aLocalizedName = nullptr;
+  *aLocalizedName = NULL;
   return E_NOTIMPL;
 
   A11Y_TRYBLOCK_END
 }
+

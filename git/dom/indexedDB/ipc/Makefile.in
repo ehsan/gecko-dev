@@ -15,6 +15,15 @@ LIBRARY_NAME = dom_indexeddb_ipc_s
 LIBXUL_LIBRARY = 1
 FORCE_STATIC_LIB = 1
 
+EXPORTS_NAMESPACES = mozilla/dom/indexedDB
+
+CPPSRCS += \
+  IndexedDBChild.cpp \
+  IndexedDBParent.cpp \
+  $(NULL)
+
+EXPORTS_mozilla/dom/indexedDB = SerializationHelpers.h
+
 LOCAL_INCLUDES += \
   -I$(topsrcdir)/dom/indexedDB \
   -I$(topsrcdir)/content/events/src \
@@ -24,10 +33,8 @@ DEFINES += -D_IMPL_NS_LAYOUT
 
 MOCHITEST_FILES = test_ipc.html
 
-# bug: 866734 - move XPCSHEL_TESTS to moz.build
-
 # Need to enable these tests sometime soon.
-#DISABLED_XPCSHELL_TESTS = unit
+#XPCSHELL_TESTS = unit
 
 # We're copying tests from another directory so this check is wrong for us.
 #NO_XPCSHELL_MANIFEST_CHECK = 1
@@ -36,11 +43,9 @@ include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk
 
-xpcshell_tests = unit
-
 # Copy all the normal xpcshell tests from the regular unit directory.
 copy-xpcshell-tests:
 	$(call install_cmd,$(wildcard $(topsrcdir)/dom/indexedDB/test/unit/test_*.js) \
-		$(testxpcobjdir)/$(relativesrcdir)/$(xpcshell_tests))
+		$(testxpcobjdir)/$(relativesrcdir)/$(XPCSHELL_TESTS))
 
 libs-xpcshell-tests: copy-xpcshell-tests

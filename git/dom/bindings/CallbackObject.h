@@ -25,32 +25,50 @@
 #include "mozilla/Assertions.h"
 #include "mozilla/ErrorResult.h"
 #include "mozilla/Util.h"
-#include "nsContentUtils.h"
-#include "nsCxPusher.h"
+#include "nsContentUtils.h" // nsCxPusher
 #include "nsWrapperCache.h"
 #include "nsJSEnvironment.h"
 #include "xpcpublic.h"
 #include "nsLayoutStatics.h"
-#include "js/RootingAPI.h"
 
 namespace mozilla {
 namespace dom {
 
-#define DOM_CALLBACKOBJECT_IID \
-{ 0xbe74c190, 0x6d76, 0x4991, \
- { 0x84, 0xb9, 0x65, 0x06, 0x99, 0xe6, 0x93, 0x2b } }
-
 class CallbackObject : public nsISupports
 {
 public:
-  NS_DECLARE_STATIC_IID_ACCESSOR(DOM_CALLBACKOBJECT_IID)
-
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(CallbackObject)
 
-  explicit CallbackObject(JSObject* aCallback)
+  /**
+   * Create a CallbackObject.  aCallback is the callback object we're wrapping.
+   * aOwner is the object that will be receiving this CallbackObject as a method
+   * argument, if any.  We need this so we can store our callback object in the
+   * same compartment as our owner.  If *aInited is set to false, an exception
+   * has been thrown.
+   */
+  CallbackObject(JSContext* cx, JSObject* aOwner, JSObject* aCallback,
+                 bool* aInited)
+    : mCallback(nullptr)
   {
-    Init(aCallback);
+    // If aOwner is not null, enter the compartment of aOwner's
+    // underlying object.
+    if (aOwner) {
+      aOwner = js::UnwrapObject(aOwner);
+      JSAutoCompartment ac(cx, aOwner);
+      if (!JS_WrapObject(cx, &aCallback)) {
+        *aInited = false;
+        return;
+      }
+    }
+
+    // Set mCallback before we hold, on the off chance that a GC could somehow
+    // happen in there... (which would be pretty odd, granted).
+    mCallback = aCallback;
+    // Make sure we'll be able to drop as needed
+    nsLayoutStatics::AddRef();
+    NS_HOLD_JS_OBJECTS(this, CallbackObject);
+    *aInited = true;
   }
 
   virtual ~CallbackObject()
@@ -58,10 +76,10 @@ public:
     DropCallback();
   }
 
-  JS::Handle<JSObject*> Callback() const
+  JSObject* Callback() const
   {
     xpc_UnmarkGrayObject(mCallback);
-    return CallbackPreserveColor();
+    return mCallback;
   }
 
   /*
@@ -71,10 +89,8 @@ public:
    * This should only be called if you are certain that the return value won't
    * be passed into a JS API function and that it won't be stored without being
    * rooted (or otherwise signaling the stored value to the CC).
-   *
-   * This can return a handle because we trace our mCallback.
    */
-  JS::Handle<JSObject*> CallbackPreserveColor() const
+  JSObject* CallbackPreserveColor() const
   {
     return mCallback;
   }
@@ -85,23 +101,16 @@ public:
   };
 
 protected:
-  explicit CallbackObject(CallbackObject* aCallbackObject)
-  {
-    Init(aCallbackObject->mCallback);
-  }
-
-private:
-  inline void Init(JSObject* aCallback)
+  explicit CallbackObject(CallbackObject* aCallbackFunction)
+    : mCallback(aCallbackFunction->mCallback)
   {
     // Set mCallback before we hold, on the off chance that a GC could somehow
     // happen in there... (which would be pretty odd, granted).
-    mCallback = aCallback;
     // Make sure we'll be able to drop as needed
     nsLayoutStatics::AddRef();
     NS_HOLD_JS_OBJECTS(this, CallbackObject);
   }
 
-protected:
   void DropCallback()
   {
     if (mCallback) {
@@ -111,9 +120,9 @@ protected:
     }
   }
 
-  JS::Heap<JSObject*> mCallback;
+  JSObject* mCallback;
 
-  class MOZ_STACK_CLASS CallSetup
+  class NS_STACK_CLASS CallSetup
   {
     /**
      * A class that performs whatever setup we need to safely make a
@@ -122,7 +131,7 @@ protected:
      * non-null.
      */
   public:
-    CallSetup(JS::Handle<JSObject*> aCallable, ErrorResult& aRv,
+    CallSetup(JSObject* const aCallable, ErrorResult& aRv,
               ExceptionHandling aExceptionHandling);
     ~CallSetup();
 
@@ -145,11 +154,15 @@ protected:
     // is gone
     nsAutoMicroTask mMt;
 
-    nsCxPusher mCxPusher;
+    // Can't construct an XPCAutoRequest until we have a JSContext, so
+    // this needs to be a Maybe.
+    Maybe<XPCAutoRequest> mAr;
 
-    // Constructed the rooter within the scope of mCxPusher above, so that it's
-    // always within a request during its lifetime.
-    Maybe<JS::Rooted<JSObject*> > mRootedCallable;
+    // Can't construct a TerminationFuncHolder without an nsJSContext.  But we
+    // generally want its destructor to come after the destructor of mCxPusher.
+    Maybe<nsJSContext::TerminationFuncHolder> mTerminationFuncHolder;
+
+    nsCxPusher mCxPusher;
 
     // Can't construct a JSAutoCompartment without a JSContext either.  Also,
     // Put mAc after mCxPusher so that we exit the compartment before we pop the
@@ -176,7 +189,7 @@ class CallbackObjectHolderBase
 protected:
   // Returns null on all failures
   already_AddRefed<nsISupports> ToXPCOMCallback(CallbackObject* aCallback,
-                                                const nsIID& aIID) const;
+                                                const nsIID& aIID);
 };
 
 template<class WebIDLCallbackT, class XPCOMCallbackT>
@@ -219,36 +232,9 @@ public:
     UnlinkSelf();
   }
 
-  void operator=(WebIDLCallbackT* aCallback)
-  {
-    UnlinkSelf();
-    mPtrBits = reinterpret_cast<uintptr_t>(aCallback);
-    NS_IF_ADDREF(aCallback);
-  }
-
-  void operator=(XPCOMCallbackT* aCallback)
-  {
-    UnlinkSelf();
-    mPtrBits = reinterpret_cast<uintptr_t>(aCallback) | XPCOMCallbackFlag;
-    NS_IF_ADDREF(aCallback);
-  }
-
-  void operator=(const CallbackObjectHolder& aOther)
-  {
-    UnlinkSelf();
-    mPtrBits = aOther.mPtrBits;
-    NS_IF_ADDREF(GetISupports());
-  }
-
   nsISupports* GetISupports() const
   {
     return reinterpret_cast<nsISupports*>(mPtrBits & ~XPCOMCallbackFlag);
-  }
-
-  // Boolean conversion operator so people can use this in boolean tests
-  operator bool() const
-  {
-    return GetISupports();
   }
 
   // Even if HasWebIDLCallback returns true, GetWebIDLCallback() might still
@@ -284,9 +270,9 @@ public:
     }
 
     JSObject* thisObj =
-      js::UncheckedUnwrap(GetWebIDLCallback()->CallbackPreserveColor());
+      js::UnwrapObject(GetWebIDLCallback()->CallbackPreserveColor());
     JSObject* otherObj =
-      js::UncheckedUnwrap(aOtherCallback->CallbackPreserveColor());
+      js::UnwrapObject(aOtherCallback->CallbackPreserveColor());
     return thisObj == otherObj;
   }
 
@@ -306,7 +292,7 @@ public:
   }
 
   // Try to return an XPCOMCallbackT version of this object.
-  already_AddRefed<XPCOMCallbackT> ToXPCOMCallback() const
+  already_AddRefed<XPCOMCallbackT> ToXPCOMCallback()
   {
     if (!HasWebIDLCallback()) {
       nsRefPtr<XPCOMCallbackT> callback = GetXPCOMCallback();
@@ -317,11 +303,11 @@ public:
       CallbackObjectHolderBase::ToXPCOMCallback(GetWebIDLCallback(),
                                                 NS_GET_TEMPLATE_IID(XPCOMCallbackT));
     // ToXPCOMCallback already did the right QI for us.
-    return supp.forget().downcast<XPCOMCallbackT>();
+    return static_cast<XPCOMCallbackT*>(supp.forget().get());
   }
 
   // Try to return a WebIDLCallbackT version of this object.
-  already_AddRefed<WebIDLCallbackT> ToWebIDLCallback() const
+  already_AddRefed<WebIDLCallbackT> ToWebIDLCallback()
   {
     if (HasWebIDLCallback()) {
       nsRefPtr<WebIDLCallbackT> callback = GetWebIDLCallback();
@@ -338,16 +324,20 @@ public:
       return nullptr;
     }
 
-    AutoSafeJSContext cx;
-
-    JS::Rooted<JSObject*> obj(cx, wrappedJS->GetJSObject());
-    if (!obj) {
+    JSObject* obj;
+    if (NS_FAILED(wrappedJS->GetJSObject(&obj)) || !obj) {
       return nullptr;
     }
 
+    SafeAutoJSContext cx;
     JSAutoCompartment ac(cx, obj);
 
-    nsRefPtr<WebIDLCallbackT> newCallback = new WebIDLCallbackT(obj);
+    bool inited;
+    nsRefPtr<WebIDLCallbackT> newCallback =
+      new WebIDLCallbackT(cx, nullptr, obj, &inited);
+    if (!inited) {
+      return nullptr;
+    }
     return newCallback.forget();
   }
 
@@ -368,8 +358,6 @@ private:
 
   uintptr_t mPtrBits;
 };
-
-NS_DEFINE_STATIC_IID_ACCESSOR(CallbackObject, DOM_CALLBACKOBJECT_IID)
 
 template<class T, class U>
 inline void

@@ -16,22 +16,20 @@ function init(aEvent)
     var distroId = Services.prefs.getCharPref("distribution.id");
     if (distroId) {
       var distroVersion = Services.prefs.getCharPref("distribution.version");
+      var distroAbout = Services.prefs.getComplexValue("distribution.about",
+        Components.interfaces.nsISupportsString);
+
+      var distroField = document.getElementById("distribution");
+      distroField.value = distroAbout;
+      distroField.style.display = "block";
 
       var distroIdField = document.getElementById("distributionId");
       distroIdField.value = distroId + " - " + distroVersion;
       distroIdField.style.display = "block";
-
-      // This must be set last because it might not exist due to bug 895473.
-      var distroAbout = Services.prefs.getComplexValue("distribution.about",
-        Components.interfaces.nsISupportsString);
-      var distroField = document.getElementById("distribution");
-      distroField.value = distroAbout;
-      distroField.style.display = "block";
     }
   }
   catch (e) {
     // Pref is unset
-    Components.utils.reportError(e);
   }
 
   // Include the build ID and display warning if this is an "a#" (nightly or aurora) build
@@ -97,6 +95,9 @@ function appUpdater()
   XPCOMUtils.defineLazyServiceGetter(this, "um",
                                      "@mozilla.org/updates/update-manager;1",
                                      "nsIUpdateManager");
+  XPCOMUtils.defineLazyServiceGetter(this, "bs",
+                                     "@mozilla.org/extensions/blocklist;1",
+                                     "nsIBlocklistService");
 
   this.bundle = Services.strings.
                 createBundle("chrome://browser/locale/browser.properties");
@@ -123,11 +124,6 @@ function appUpdater()
     return;
   }
 
-  if (this.aus.isOtherInstanceHandlingUpdates) {
-    this.selectPanel("otherInstanceHandlingUpdates");
-    return;
-  }
-
   if (this.isDownloading) {
     this.startDownload();
     return;
@@ -149,7 +145,7 @@ appUpdater.prototype =
   // true when there is an update already staged / ready to be applied.
   get isPending() {
     if (this.update) {
-      return this.update.state == "pending" ||
+      return this.update.state == "pending" || 
              this.update.state == "pending-service";
     }
     return this.um.activeUpdate &&
@@ -304,15 +300,6 @@ appUpdater.prototype =
         return;
       }
 
-      if (gAppUpdater.update.unsupported) {
-        if (gAppUpdater.update.detailsURL) {
-          let unsupportedLink = document.getElementById("unsupportedLink");
-          unsupportedLink.href = gAppUpdater.update.detailsURL;
-        }
-        gAppUpdater.selectPanel("unsupportedSystem");
-        return;
-      }
-
       if (!gAppUpdater.aus.canApplyUpdates) {
         gAppUpdater.selectPanel("manualUpdate");
         return;
@@ -446,9 +433,9 @@ appUpdater.prototype =
    * See XPIProvider.jsm
    */
   onUpdateAvailable: function(aAddon, aInstall) {
-    if (!Services.blocklist.isAddonBlocklisted(aAddon.id, aInstall.version,
-                                               this.update.appVersion,
-                                               this.update.platformVersion)) {
+    if (!this.bs.isAddonBlocklisted(aAddon.id, aInstall.version,
+                                    this.update.appVersion,
+                                    this.update.platformVersion)) {
       // Compatibility or new version updates mean the same thing here.
       this.onCompatibilityUpdateAvailable(aAddon);
     }
@@ -486,7 +473,7 @@ appUpdater.prototype =
     this.aus.pauseDownload();
     let state = this.aus.downloadUpdate(this.update, false);
     if (state == "failed") {
-      this.selectPanel("downloadFailed");
+      this.selectPanel("downloadFailed");      
       return;
     }
 

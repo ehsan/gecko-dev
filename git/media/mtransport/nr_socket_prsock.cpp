@@ -330,7 +330,7 @@ int NrSocket::create(nr_transport_addr *addr) {
     ABORT(R_INTERNAL);
   }
 
-  r_log(LOG_GENERIC,LOG_DEBUG,"Creating socket %p with addr %s",
+  r_log(LOG_GENERIC,LOG_DEBUG,"Creating socket %d with addr %s",
         fd_, addr->as_string);
   nr_transport_addr_copy(&my_addr_,addr);
 
@@ -391,10 +391,8 @@ int NrSocket::sendto(const void *msg, size_t len,
   // TODO: Convert flags?
   status = PR_SendTo(fd_, msg, len, flags, &naddr, PR_INTERVAL_NO_WAIT);
   if (status < 0 || (size_t)status != len) {
-    if (PR_GetError() == PR_WOULD_BLOCK_ERROR)
-      ABORT(R_WOULDBLOCK);
-
     r_log_e(LOG_GENERIC, LOG_INFO, "Error in sendto %s", to->as_string);
+
     ABORT(R_IO_ERROR);
   }
 

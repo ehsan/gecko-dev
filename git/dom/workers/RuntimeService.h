@@ -12,7 +12,6 @@
 #include "nsIObserver.h"
 
 #include "jsapi.h"
-#include "mozilla/Attributes.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/TimeStamp.h"
 #include "nsAutoPtr.h"
@@ -21,6 +20,7 @@
 #include "nsHashKeys.h"
 #include "nsStringGlue.h"
 #include "nsTArray.h"
+#include "mozilla/Attributes.h"
 
 class nsIThread;
 class nsITimer;
@@ -71,7 +71,14 @@ class RuntimeService MOZ_FINAL : public nsIObserver
   nsCString mDetectorName;
   nsCString mSystemCharset;
 
-  static JSSettings sDefaultJSSettings;
+  static uint32_t sDefaultJSContextOptions;
+  static uint32_t sDefaultJSRuntimeHeapSize;
+  static uint32_t sDefaultJSAllocationThreshold;
+  static int32_t sCloseHandlerTimeoutSeconds;
+
+#ifdef JS_GC_ZEAL
+  static uint8_t sDefaultGCZeal;
+#endif
 
 public:
   struct NavigatorStrings
@@ -113,7 +120,7 @@ public:
   SuspendWorkersForWindow(JSContext* aCx, nsPIDOMWindow* aWindow);
 
   void
-  ResumeWorkersForWindow(nsIScriptContext* aCx, nsPIDOMWindow* aWindow);
+  ResumeWorkersForWindow(JSContext* aCx, nsPIDOMWindow* aWindow);
 
   const nsACString&
   GetDetectorName() const
@@ -136,71 +143,100 @@ public:
   void
   NoteIdleThread(nsIThread* aThread);
 
-  static void
-  GetDefaultJSSettings(JSSettings& aSettings)
+  static uint32_t
+  GetDefaultJSContextOptions()
   {
     AssertIsOnMainThread();
-    aSettings = sDefaultJSSettings;
+    return sDefaultJSContextOptions;
   }
 
   static void
-  SetDefaultJSContextOptions(uint32_t aContentOptions, uint32_t aChromeOptions)
+  SetDefaultJSContextOptions(uint32_t aOptions)
   {
     AssertIsOnMainThread();
-    sDefaultJSSettings.content.options = aContentOptions;
-    sDefaultJSSettings.chrome.options = aChromeOptions;
+    sDefaultJSContextOptions = aOptions;
   }
 
   void
   UpdateAllWorkerJSContextOptions();
 
-  static void
-  SetDefaultJSGCSettings(JSGCParamKey aKey, uint32_t aValue)
+  static uint32_t
+  GetDefaultJSWorkerMemoryParameter(JSGCParamKey aKey)
   {
     AssertIsOnMainThread();
-    sDefaultJSSettings.ApplyGCSetting(aKey, aValue);
+    switch (aKey) {
+      case JSGC_ALLOCATION_THRESHOLD:
+        return sDefaultJSAllocationThreshold;
+      case JSGC_MAX_BYTES:
+        return sDefaultJSRuntimeHeapSize;
+      default:
+        MOZ_NOT_REACHED("Unknown Worker Memory Parameter.");
+    }
+  }
+
+  static void
+  SetDefaultJSWorkerMemoryParameter(JSGCParamKey aKey, uint32_t aValue)
+  {
+    AssertIsOnMainThread();
+    switch(aKey) {
+      case JSGC_ALLOCATION_THRESHOLD:
+        sDefaultJSAllocationThreshold = aValue;
+        break;
+      case JSGC_MAX_BYTES:
+        sDefaultJSRuntimeHeapSize = aValue;
+        break;
+      default:
+        MOZ_NOT_REACHED("Unknown Worker Memory Parameter.");
+    }
   }
 
   void
-  UpdateAllWorkerMemoryParameter(JSGCParamKey aKey, uint32_t aValue);
+  UpdateAllWorkerMemoryParameter(JSGCParamKey aKey);
 
   static uint32_t
-  GetContentCloseHandlerTimeoutSeconds()
+  GetCloseHandlerTimeoutSeconds()
   {
-    return sDefaultJSSettings.content.maxScriptRuntime;
-  }
-
-  static uint32_t
-  GetChromeCloseHandlerTimeoutSeconds()
-  {
-    return sDefaultJSSettings.chrome.maxScriptRuntime;
+    return sCloseHandlerTimeoutSeconds > 0 ? sCloseHandlerTimeoutSeconds : 0;
   }
 
 #ifdef JS_GC_ZEAL
-  static void
-  SetDefaultGCZeal(uint8_t aGCZeal, uint32_t aFrequency)
+  static uint8_t
+  GetDefaultGCZeal()
   {
     AssertIsOnMainThread();
-    sDefaultJSSettings.gcZeal = aGCZeal;
-    sDefaultJSSettings.gcZealFrequency = aFrequency;
+    return sDefaultGCZeal;
+  }
+
+  static void
+  SetDefaultGCZeal(uint8_t aGCZeal)
+  {
+    AssertIsOnMainThread();
+    sDefaultGCZeal = aGCZeal;
   }
 
   void
   UpdateAllWorkerGCZeal();
 #endif
 
-  static void
-  SetDefaultJITHardening(bool aJITHardening)
-  {
-    AssertIsOnMainThread();
-    sDefaultJSSettings.jitHardening = aJITHardening;
-  }
-
-  void
-  UpdateAllWorkerJITHardening(bool aJITHardening);
-
   void
   GarbageCollectAllWorkers(bool aShrinking);
+
+  class AutoSafeJSContext
+  {
+    JSContext* mContext;
+
+  public:
+    AutoSafeJSContext(JSContext* aCx = nullptr);
+    ~AutoSafeJSContext();
+
+    operator JSContext*() const
+    {
+      return mContext;
+    }
+
+    static JSContext*
+    GetSafeContext();
+  };
 
 private:
   RuntimeService();

@@ -3,7 +3,6 @@
 
 const URL = "data:text/html;charset=utf8,<p>JavaScript Profiler test</p>";
 
-let gcli = Cu.import("resource://gre/modules/devtools/gcli.jsm", {}).gcli;
 let gTarget, gPanel, gOptions;
 
 function cmd(typed, expected="") {
@@ -26,7 +25,6 @@ function test() {
       .then(testProfilerList)
       .then(testProfilerStop)
       .then(testProfilerClose)
-      .then(testProfilerCloseWhenClosed)
   }).then(finishUp);
 }
 
@@ -48,7 +46,7 @@ function testProfilerStart() {
     deferred.resolve();
   });
 
-  cmd("profiler start", gcli.lookup("profilerStarting2"));
+  cmd("profiler start", "Starting...");
   return deferred.promise;
 }
 
@@ -70,12 +68,12 @@ function testProfilerStop() {
     cmd('profiler stop "Profile 2"', "This profile has already been completed. " +
       "Use 'profile show' command to see its results");
     cmd('profiler stop "Profile 1"', "This profile has not been started yet. " +
-      "Use 'profile start' to start profiling");
+      "Use 'profile start' to start profliling");
     cmd('profiler stop "invalid"', "Profile not found")
     deferred.resolve();
   });
 
-  cmd('profiler stop "Profile 2"', gcli.lookup("profilerStopping2"));
+  cmd('profiler stop "Profile 2"', "Stopping...");
   return deferred.promise;
 }
 
@@ -97,33 +95,6 @@ function testProfilerShow() {
 }
 
 function testProfilerClose() {
-  let deferred = Promise.defer();
-
-  helpers.audit(gOptions, [{
-    setup: "profiler close",
-    completed: false,
-    exec: { output: "" }
-  }]);
-
-  let toolbox = gDevTools.getToolbox(gOptions.target);
-  if (!toolbox) {
-    ok(true, "Profiler was closed.");
-    deferred.resolve();
-  } else {
-    toolbox.on("destroyed", function () {
-      ok(true, "Profiler was closed.");
-      deferred.resolve();
-    });
-  }
-
-  return deferred.promise;
-}
-
-function testProfilerCloseWhenClosed() {
-  // We need to call this test to make sure there are no
-  // errors when executing 'profiler close' on a closed
-  // toolbox. See bug 863636 for more info.
-
   let deferred = Promise.defer();
 
   helpers.audit(gOptions, [{

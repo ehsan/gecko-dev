@@ -6,7 +6,6 @@
 #ifndef nsJSEventListener_h__
 #define nsJSEventListener_h__
 
-#include "mozilla/Attributes.h"
 #include "nsIDOMKeyEvent.h"
 #include "nsIJSEventListener.h"
 #include "nsIDOMEventListener.h"
@@ -33,7 +32,7 @@ public:
 
   // nsIJSEventListener
 
-  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
   {
     return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
   }
@@ -41,7 +40,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_SKIPPABLE_SCRIPT_HOLDER_CLASS(nsJSEventListener)
 
 protected:
-  virtual void UpdateScopeObject(JS::Handle<JSObject*> aScopeObject);
+  virtual void UpdateScopeObject(JSObject* aScopeObject);
 
   bool IsBlackForCC();
 };

@@ -20,7 +20,7 @@
 #include "nsSVGGeometryFrame.h"
 #include "mozilla/dom/SVGPatternElement.h"
 #include "nsSVGUtils.h"
-#include "nsSVGAnimatedTransformList.h"
+#include "SVGAnimatedTransformList.h"
 #include "SVGContentUtils.h"
 
 using namespace mozilla;
@@ -61,6 +61,13 @@ NS_IMPL_FRAMEARENA_HELPERS(nsSVGPatternFrame)
 
 //----------------------------------------------------------------------
 // nsIFrame methods:
+
+/* virtual */ void
+nsSVGPatternFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
+{
+  nsSVGEffects::InvalidateDirectRenderingObservers(this);
+  nsSVGPatternFrameBase::DidSetStyleContext(aOldStyleContext);
+}
 
 NS_IMETHODIMP
 nsSVGPatternFrame::AttributeChanged(int32_t         aNameSpaceID,
@@ -436,10 +443,10 @@ nsSVGPatternFrame::GetEnumValue(uint32_t aIndex, nsIContent *aDefault)
       mEnumAttributes[aIndex].GetAnimValue();
 }
 
-nsSVGAnimatedTransformList*
+SVGAnimatedTransformList*
 nsSVGPatternFrame::GetPatternTransformList(nsIContent* aDefault)
 {
-  nsSVGAnimatedTransformList *thisTransformList =
+  SVGAnimatedTransformList *thisTransformList =
     static_cast<SVGPatternElement *>(mContent)->GetAnimatedTransformList();
 
   if (thisTransformList && thisTransformList->IsExplicitlySet())
@@ -455,7 +462,7 @@ nsSVGPatternFrame::GetPatternTransformList(nsIContent* aDefault)
 gfxMatrix
 nsSVGPatternFrame::GetPatternTransform()
 {
-  nsSVGAnimatedTransformList* animTransformList =
+  SVGAnimatedTransformList* animTransformList =
     GetPatternTransformList(mContent);
   if (!animTransformList)
     return gfxMatrix();

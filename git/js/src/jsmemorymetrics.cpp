@@ -1,11 +1,13 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "js/MemoryMetrics.h"
 
+#include "mozilla/Assertions.h"
 #include "mozilla/DebugOnly.h"
 
 #include "jsapi.h"
@@ -15,8 +17,8 @@
 #include "jsobj.h"
 #include "jsscript.h"
 
-#include "ion/BaselineJIT.h"
 #include "ion/Ion.h"
+#include "ion/IonCode.h"
 #include "vm/Shape.h"
 
 #include "jsobjinlines.h"
@@ -56,7 +58,6 @@ ZoneStats::GCHeapThingsSize()
     size_t n = 0;
     n += gcHeapStringsNormal;
     n += gcHeapStringsShort;
-    n += gcHeapLazyScripts;
     n += gcHeapTypeObjects;
     n += gcHeapIonCodes;
 
@@ -118,8 +119,7 @@ StatsCompartmentCallback(JSRuntime *rt, void *data, JSCompartment *compartment)
                                      &cStats.shapesCompartmentTables,
                                      &cStats.crossCompartmentWrappersTable,
                                      &cStats.regexpCompartment,
-                                     &cStats.debuggeesSet,
-                                     &cStats.baselineStubsOptimized);
+                                     &cStats.debuggeesSet);
 }
 
 static void
@@ -173,7 +173,7 @@ StatsCellCallback(JSRuntime *rt, void *data, void *thing, JSGCTraceKind traceKin
       case JSTRACE_OBJECT: {
         JSObject *obj = static_cast<JSObject *>(thing);
         CompartmentStats *cStats = GetCompartmentStats(obj->compartment());
-        if (obj->is<JSFunction>())
+        if (obj->isFunction())
             cStats->gcHeapObjectsFunction += thingSize;
         else if (obj->isArray())
             cStats->gcHeapObjectsDenseArray += thingSize;
@@ -221,7 +221,7 @@ StatsCellCallback(JSRuntime *rt, void *data, void *thing, JSGCTraceKind traceKin
       }
 
       case JSTRACE_SHAPE: {
-        Shape *shape = static_cast<Shape *>(thing);
+        RawShape shape = static_cast<RawShape>(thing);
         CompartmentStats *cStats = GetCompartmentStats(shape->compartment());
         size_t propTableSize, kidsSize;
         shape->sizeOfExcludingThis(rtStats->mallocSizeOf_, &propTableSize, &kidsSize);
@@ -242,7 +242,7 @@ StatsCellCallback(JSRuntime *rt, void *data, void *thing, JSGCTraceKind traceKin
       }
 
       case JSTRACE_BASE_SHAPE: {
-        BaseShape *base = static_cast<BaseShape *>(thing);
+        RawBaseShape base = static_cast<RawBaseShape>(thing);
         CompartmentStats *cStats = GetCompartmentStats(base->compartment());
         cStats->gcHeapShapesBase += thingSize;
         break;
@@ -253,13 +253,11 @@ StatsCellCallback(JSRuntime *rt, void *data, void *thing, JSGCTraceKind traceKin
         CompartmentStats *cStats = GetCompartmentStats(script->compartment());
         cStats->gcHeapScripts += thingSize;
         cStats->scriptData += script->sizeOfData(rtStats->mallocSizeOf_);
-#ifdef JS_ION
-        size_t baselineData = 0, baselineStubsFallback = 0;
-        ion::SizeOfBaselineData(script, rtStats->mallocSizeOf_, &baselineData,
-                                &baselineStubsFallback);
-        cStats->baselineData += baselineData;
-        cStats->baselineStubsFallback += baselineStubsFallback;
-        cStats->ionData += ion::SizeOfIonData(script, rtStats->mallocSizeOf_);
+#ifdef JS_METHODJIT
+        cStats->jaegerData += script->sizeOfJitScripts(rtStats->mallocSizeOf_);
+# ifdef JS_ION
+        cStats->ionData += ion::MemoryUsed(script, rtStats->mallocSizeOf_);
+# endif
 #endif
 
         ScriptSource *ss = script->scriptSource();
@@ -271,17 +269,12 @@ StatsCellCallback(JSRuntime *rt, void *data, void *thing, JSGCTraceKind traceKin
         break;
       }
 
-      case JSTRACE_LAZY_SCRIPT: {
-        LazyScript *lazy = static_cast<LazyScript *>(thing);
-        zStats->gcHeapLazyScripts += thingSize;
-        zStats->lazyScripts += lazy->sizeOfExcludingThis(rtStats->mallocSizeOf_);
-        break;
-      }
-
       case JSTRACE_IONCODE: {
-#ifdef JS_ION
+#ifdef JS_METHODJIT
+# ifdef JS_ION
         zStats->gcHeapIonCodes += thingSize;
         // The code for a script is counted in ExecutableAllocator::sizeOfCode().
+# endif
 #endif
         break;
       }
@@ -373,6 +366,26 @@ JS::CollectRuntimeStats(JSRuntime *rt, RuntimeStats *rtStats, ObjectPrivateVisit
                                   rtStats->zTotals.gcHeapArenaAdmin -
                                   rtStats->gcHeapGcThings;
     return true;
+}
+
+JS_PUBLIC_API(int64_t)
+JS::GetExplicitNonHeapForRuntime(JSRuntime *rt, JSMallocSizeOfFun mallocSizeOf)
+{
+    // explicit/*/gc-heap/*
+    size_t n = size_t(JS_GetGCParameter(rt, JSGC_TOTAL_CHUNKS)) * gc::ChunkSize;
+
+    // Subtract decommitted arenas, which aren't included in "explicit".
+    size_t decommittedArenas = 0;
+    IterateChunks(rt, &decommittedArenas, DecommittedArenasChunkCallback);
+    n -= decommittedArenas;
+
+    // explicit/runtime/mjit-code
+    // explicit/runtime/regexp-code
+    // explicit/runtime/stack-committed
+    // explicit/runtime/unused-code-memory
+    n += rt->sizeOfExplicitNonHeap();
+
+    return int64_t(n);
 }
 
 JS_PUBLIC_API(size_t)

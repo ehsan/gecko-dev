@@ -235,7 +235,6 @@ function startup(data, reasonCode) {
           stopOnError: options.stopOnError,
           verbose: options.verbose,
           parseable: options.parseable,
-          checkMemory: options.check_memory,
         }
       }
     });

@@ -6,7 +6,6 @@
 /* Implementation of xptiInterfaceEntry and xptiInterfaceInfo. */
 
 #include "xptiprivate.h"
-#include "mozilla/XPTInterfaceInfoManager.h"
 #include "nsAtomicRefcnt.h"
 
 using namespace mozilla;
@@ -71,7 +70,7 @@ xptiInterfaceEntry::xptiInterfaceEntry(const char* name,
 bool 
 xptiInterfaceEntry::Resolve()
 {
-    MutexAutoLock lock(XPTInterfaceInfoManager::GetResolveLock());
+    MutexAutoLock lock(xptiInterfaceInfoManager::GetResolveLock());
     return ResolveLocked();
 }
 
@@ -127,7 +126,7 @@ nsresult
 xptiInterfaceEntry::GetName(char **name)
 {
     // It is not necessary to Resolve because this info is read from manifest.
-    *name = (char*) nsMemory::Clone(mName, strlen(mName)+1);
+    *name = (char*) nsMemory::Clone(mName, PL_strlen(mName)+1);
     return *name ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
@@ -315,8 +314,12 @@ xptiInterfaceEntry::GetInfoForParam(uint16_t methodIndex,
     if(NS_FAILED(rv))
         return rv;
 
-    *info = entry->InterfaceInfo().get();
+    xptiInterfaceInfo* theInfo;
+    rv = entry->GetInterfaceInfo(&theInfo);    
+    if(NS_FAILED(rv))
+        return rv;
 
+    *info = static_cast<nsIInterfaceInfo*>(theInfo);
     return NS_OK;
 }
 
@@ -533,11 +536,11 @@ xptiInterfaceEntry::HasAncestor(const nsIID * iid, bool *_retval)
 
 /***************************************************/
 
-already_AddRefed<xptiInterfaceInfo> 
-xptiInterfaceEntry::InterfaceInfo()
+nsresult 
+xptiInterfaceEntry::GetInterfaceInfo(xptiInterfaceInfo** info)
 {
 #ifdef DEBUG
-    XPTInterfaceInfoManager::GetSingleton()->mWorkingSet.mTableReentrantMonitor.
+    xptiInterfaceInfoManager::GetSingleton()->GetWorkingSet()->mTableReentrantMonitor.
         AssertCurrentThreadIn();
 #endif
     LOG_INFO_MONITOR_ENTRY;
@@ -545,10 +548,15 @@ xptiInterfaceEntry::InterfaceInfo()
     if(!mInfo)
     {
         mInfo = new xptiInterfaceInfo(this);
+        if(!mInfo)
+        {
+            *info = nullptr;    
+            return NS_ERROR_OUT_OF_MEMORY;
+        }
     }
     
-    nsRefPtr<xptiInterfaceInfo> info = mInfo;
-    return info.forget();
+    NS_ADDREF(*info = mInfo);
+    return NS_OK;    
 }
     
 void     
@@ -564,15 +572,14 @@ xptiInterfaceEntry::LockedInvalidateInterfaceInfo()
 bool
 xptiInterfaceInfo::BuildParent()
 {
-    mozilla::ReentrantMonitorAutoEnter monitor(XPTInterfaceInfoManager::GetSingleton()->
-                                    mWorkingSet.mTableReentrantMonitor);
+    mozilla::ReentrantMonitorAutoEnter monitor(xptiInterfaceInfoManager::GetSingleton()->
+                                    GetWorkingSet()->mTableReentrantMonitor);
     NS_ASSERTION(mEntry && 
                  mEntry->IsFullyResolved() && 
                  !mParent &&
                  mEntry->Parent(),
                 "bad BuildParent call");
-    mParent = mEntry->Parent()->InterfaceInfo().get();
-    return true;
+    return NS_SUCCEEDED(mEntry->Parent()->GetInterfaceInfo(&mParent));
 }
 
 /***************************************************************************/
@@ -608,12 +615,12 @@ xptiInterfaceInfo::Release(void)
     NS_LOG_RELEASE(this, cnt, "xptiInterfaceInfo");
     if(!cnt)
     {
-        mozilla::ReentrantMonitorAutoEnter monitor(XPTInterfaceInfoManager::
-                                          GetSingleton()->mWorkingSet.
+        mozilla::ReentrantMonitorAutoEnter monitor(xptiInterfaceInfoManager::
+                                          GetSingleton()->GetWorkingSet()->
                                           mTableReentrantMonitor);
         LOG_INFO_MONITOR_ENTRY;
 
-        // If InterfaceInfo added and *released* a reference before we 
+        // If GetInterfaceInfo added and *released* a reference before we 
         // acquired the monitor then 'this' might already be dead. In that
         // case we would not want to try to access any instance data. We
         // would want to bail immediately. If 'this' is already dead then the
@@ -622,7 +629,7 @@ xptiInterfaceInfo::Release(void)
         if(entry && !entry->InterfaceInfoEquals(this))
             return 0;
 
-        // If InterfaceInfo added a reference before we acquired the monitor
+        // If GetInterfaceInfo added a reference before we acquired the monitor
         // then we want to bail out of here without destorying the object.
         if(mRefCnt)
             return 1;

@@ -5,13 +5,12 @@
 
 package org.mozilla.gecko;
 
-import android.app.Notification;
+import java.util.LinkedList;
+import java.util.concurrent.ConcurrentHashMap;
+
 import android.app.PendingIntent;
 import android.text.TextUtils;
 import android.util.Log;
-
-import java.util.LinkedList;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Client for posting notifications through a NotificationHandler.
@@ -90,25 +89,6 @@ public abstract class NotificationClient {
     }
 
     /**
-     * Adds a notification.
-     *
-     * @see NotificationHandler#add(int, Notification)
-     */
-    public synchronized void add(final int notificationID, final Notification notification) {
-        mTaskQueue.add(new Runnable() {
-            @Override
-            public void run() {
-                mHandler.add(notificationID, notification);
-            }
-        });
-        notify();
-
-        if (!mReady) {
-            bind();
-        }
-    }
-
-    /**
      * Updates a notification.
      *
      * @see NotificationHandler#update(int, long, long, String)
@@ -161,9 +141,9 @@ public abstract class NotificationClient {
      *
      * @see NotificationHandler#isProgressStyle(int)
      */
-    public boolean isOngoing(int notificationID) {
+    public boolean isProgressStyle(int notificationID) {
         final NotificationHandler handler = mHandler;
-        return handler != null && handler.isOngoing(notificationID);
+        return handler != null && handler.isProgressStyle(notificationID);
     }
 
     protected void bind() {

@@ -13,9 +13,6 @@
 
 #include "AccessibleText.h"
 
-namespace mozilla {
-namespace a11y {
-
 class ia2AccessibleText: public IAccessibleText
 {
 public:
@@ -123,9 +120,6 @@ private:
   HRESULT GetModifiedText(bool aGetInsertedText, IA2TextSegment *aNewText);
   AccessibleTextBoundary GetGeckoTextBoundary(enum IA2TextBoundaryType coordinateType);
 };
-
-} // namespace a11y
-} // namespace mozilla
 
 
 #define FORWARD_IACCESSIBLETEXT(Class)                                         \

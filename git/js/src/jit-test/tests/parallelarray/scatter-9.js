@@ -1,6 +1,6 @@
 load(libdir + "parallelarray-helpers.js");
 
-function testScatter9() {
+function testScatter() {
   // Ignore the rest of the scatter vector if longer than source
   var p = new ParallelArray([1,2,3,4,5]);
   var r = p.scatter([1,0,3,2,4,1,2,3]);
@@ -8,5 +8,4 @@ function testScatter9() {
   assertEqParallelArray(r, p2);
 }
 
-if (getBuildConfiguration().parallelJS)
-  testScatter9();
+if (getBuildConfiguration().parallelJS) testScatter();

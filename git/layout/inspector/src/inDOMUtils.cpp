@@ -132,7 +132,14 @@ inDOMUtils::GetChildrenForNode(nsIDOMNode* aNode,
   if (aShowingAnonymousContent) {
     nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
     if (content) {
-      kids = content->GetChildren(nsIContent::eAllChildren);
+      nsRefPtr<nsBindingManager> bindingManager =
+        inLayoutUtils::GetBindingManagerFor(aNode);
+      if (bindingManager) {
+        bindingManager->GetAnonymousNodesFor(content, getter_AddRefs(kids));
+        if (!kids) {
+          bindingManager->GetContentListFor(content, getter_AddRefs(kids));
+        }
+      }
     }
   }
 
@@ -220,18 +227,6 @@ inDOMUtils::GetRuleLine(nsIDOMCSSStyleRule *aRule, uint32_t *_retval)
   }
 
   *_retval = rule->GetLineNumber();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-inDOMUtils::GetRuleColumn(nsIDOMCSSStyleRule *aRule, uint32_t *_retval)
-{
-  ErrorResult rv;
-  nsRefPtr<StyleRule> rule = GetRuleFromDOMRule(aRule, rv);
-  if (rv.Failed()) {
-    return rv.ErrorCode();
-  }
-  *_retval = rule->GetColumnNumber();
   return NS_OK;
 }
 
@@ -389,8 +384,8 @@ inDOMUtils::GetCSSPropertyNames(uint32_t aFlags, uint32_t* aCount,
   // we've put into props so far.
   uint32_t prop = 0, propCount = 0;
   for ( ; prop < eCSSProperty_COUNT_no_shorthands; ++prop) {
-    if (nsCSSProps::PropertyParseType(nsCSSProperty(prop)) !=
-        CSS_PROPERTY_PARSE_INACCESSIBLE) {
+    if (!nsCSSProps::PropHasFlags(nsCSSProperty(prop),
+                                  CSS_PROPERTY_PARSE_INACCESSIBLE)) {
       DO_PROP(prop);
     }
   }
@@ -434,8 +429,7 @@ inDOMUtils::ColorNameToRGB(const nsAString& aColorName, JSContext* aCx,
   triple.mG = NS_GET_G(color);
   triple.mB = NS_GET_B(color);
 
-  if (!triple.ToObject(aCx, JS::NullPtr(),
-                       JS::MutableHandle<JS::Value>::fromMarkedLocation(aValue))) {
+  if (!triple.ToObject(aCx, nullptr, aValue)) {
     return NS_ERROR_FAILURE;
   }
 

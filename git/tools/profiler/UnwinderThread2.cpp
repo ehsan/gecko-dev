@@ -26,7 +26,7 @@
 #include "PlatformMacros.h"
 
 #include "platform.h"
-#include <ostream>
+#include <iostream>
 
 #include "ProfileEntry.h"
 #include "UnwinderThread2.h"
@@ -71,19 +71,11 @@ void uwt__init()
 {
 }
 
-void uwt__stop()
-{
-}
-
 void uwt__deinit()
 {
 }
 
 void uwt__register_thread_for_profiling ( void* stackTop )
-{
-}
-
-void uwt__unregister_thread_for_profiling()
 {
 }
 
@@ -126,9 +118,6 @@ static int       unwind_thr_exit_now = 0; // RACED ON
 // registered thread.
 static void thread_register_for_profiling ( void* stackTop );
 
-// Unregister a thread.
-static void thread_unregister_for_profiling();
-
 // Frees some memory when the unwinder thread is shut down.
 static void do_breakpad_unwind_Buffer_free_singletons();
 
@@ -164,28 +153,19 @@ void uwt__init()
   MOZ_ALWAYS_TRUE(r==0);
 }
 
-void uwt__stop()
+void uwt__deinit()
 {
   // Shut down the unwinder thread.
   MOZ_ASSERT(unwind_thr_exit_now == 0);
   unwind_thr_exit_now = 1;
   do_MBAR();
   int r = pthread_join(unwind_thr, NULL); MOZ_ALWAYS_TRUE(r==0);
-}
-
-void uwt__deinit()
-{
   do_breakpad_unwind_Buffer_free_singletons();
 }
 
 void uwt__register_thread_for_profiling(void* stackTop)
 {
   thread_register_for_profiling(stackTop);
-}
-
-void uwt__unregister_thread_for_profiling()
-{
-  thread_unregister_for_profiling();
 }
 
 // RUNS IN SIGHANDLER CONTEXT
@@ -360,29 +340,21 @@ typedef
 /*SL*/ static uint64_t               g_seqNo       = 0;
 /*SL*/ static SpinLock               g_spinLock    = { 0 };
 
-/* Globals -- the thread array.  The array is dynamically expanded on
-   demand.  The spinlock must be held when accessing g_stackLimits,
-   g_stackLimits[some index], g_stackLimitsUsed and g_stackLimitsSize.
-   However, the spinlock must not be held when calling malloc to
-   allocate or expand the array, as that would risk deadlock against a
-   sampling thread that holds the malloc lock and is trying to acquire
-   the spinlock. */
-/*SL*/ static StackLimit* g_stackLimits     = NULL;
-/*SL*/ static size_t      g_stackLimitsUsed = 0;
-/*SL*/ static size_t      g_stackLimitsSize = 0;
+/* Globals -- the thread array */
+#define N_SAMPLING_THREADS 10
+/*SL*/ static StackLimit g_stackLimits[N_SAMPLING_THREADS];
+/*SL*/ static int        g_stackLimitsUsed = 0;
 
 /* Stats -- atomically incremented, no lock needed */
 static uintptr_t g_stats_totalSamples = 0; // total # sample attempts
 static uintptr_t g_stats_noBuffAvail  = 0; // # failed due to no buffer avail
-static uintptr_t g_stats_thrUnregd    = 0; // # failed due to unregistered thr
 
 /* We must be VERY CAREFUL what we do with the spinlock held.  The
    only thing it is safe to do with it held is modify (viz, read or
    write) g_buffers, g_buffers[], g_seqNo, g_buffers[]->state,
-   g_stackLimits, g_stackLimits[], g_stackLimitsUsed and
-   g_stackLimitsSize.  No arbitrary computations, no syscalls, no
-   printfs, no file IO, and absolutely no dynamic memory allocation
-   (else we WILL eventually deadlock).
+   g_stackLimits[] and g_stackLimitsUsed.  No arbitrary computations,
+   no syscalls, no printfs, no file IO, and absolutely no dynamic
+   memory allocation (else we WILL eventually deadlock).
 
    This applies both to the signal handler and to the unwinder thread.
 */
@@ -496,175 +468,44 @@ static void atomic_INC(uintptr_t* loc)
   }
 }
 
-// Registers a thread for profiling.  Detects and ignores duplicate
-// registration.
+/* Register a thread for profiling.  It must not be allowed to receive
+   signals before this is done, else the signal handler will
+   MOZ_ASSERT. */
 static void thread_register_for_profiling(void* stackTop)
 {
-  pthread_t me = pthread_self();
+  int i;
+  /* Minimal sanity check on stackTop */
+  MOZ_ASSERT( (void*)&i < stackTop );
 
   spinLock_acquire(&g_spinLock);
 
-  // tmp copy of g_stackLimitsUsed, to avoid racing in message printing
-  int n_used;
-
-  // Ignore spurious calls which aren't really registering anything.
-  if (stackTop == NULL) {
-    n_used = g_stackLimitsUsed;
-    spinLock_release(&g_spinLock);
-    LOGF("BPUnw: [%d total] thread_register_for_profiling"
-         "(me=%p, stacktop=NULL) (IGNORED)", n_used, (void*)me);
-    return;
+  pthread_t me = pthread_self();
+  for (i = 0; i < g_stackLimitsUsed; i++) {
+    /* check for duplicate registration */
+    MOZ_ASSERT(g_stackLimits[i].thrId != me);
   }
-
-  /* Minimal sanity check on stackTop */
-  MOZ_ASSERT((void*)&n_used/*any auto var will do*/ < stackTop);
-
-  bool is_dup = false;
-  for (size_t i = 0; i < g_stackLimitsUsed; i++) {
-    if (g_stackLimits[i].thrId == me) {
-      is_dup = true;
-      break;
-    }
-  }
-
-  if (is_dup) {
-    /* It's a duplicate registration.  Ignore it: drop the lock and
-       return. */
-    n_used = g_stackLimitsUsed;
-    spinLock_release(&g_spinLock);
-
-    LOGF("BPUnw: [%d total] thread_register_for_profiling"
-         "(me=%p, stacktop=%p) (DUPLICATE)", n_used, (void*)me, stackTop);
-    return;
-  }
-
-  /* Make sure the g_stackLimits array is large enough to accommodate
-     this new entry.  This is tricky.  If it isn't large enough, we
-     can malloc a larger version, but we have to do that without
-     holding the spinlock, else we risk deadlock.  The deadlock
-     scenario is:
-
-     Some other thread that is being sampled
-                                        This thread
-
-     call malloc                        call this function
-     acquire malloc lock                acquire the spinlock
-     (sampling signal)                  discover thread array not big enough,
-     call uwt__acquire_empty_buffer       call malloc to make it larger
-     acquire the spinlock               acquire malloc lock
-
-     This gives an inconsistent lock acquisition order on the malloc
-     lock and spinlock, hence risk of deadlock.
-
-     Allocating more space for the array without holding the spinlock
-     implies tolerating races against other thread(s) who are also
-     trying to expand the array.  How can we detect if we have been
-     out-raced?  Every successful expansion of g_stackLimits[] results
-     in an increase in g_stackLimitsSize.  Hence we can detect if we
-     got out-raced by remembering g_stackLimitsSize before we dropped
-     the spinlock and checking if it has changed after the spinlock is
-     reacquired. */
-
-  MOZ_ASSERT(g_stackLimitsUsed <= g_stackLimitsSize);
-
-  if (g_stackLimitsUsed == g_stackLimitsSize) {
-    /* g_stackLimits[] is full; resize it. */
-
-    size_t old_size = g_stackLimitsSize;
-    size_t new_size = old_size == 0 ? 4 : (2 * old_size);
-
-    spinLock_release(&g_spinLock);
-    StackLimit* new_arr  = (StackLimit*)malloc(new_size * sizeof(StackLimit));
-    if (!new_arr)
-      return;
-
-    spinLock_acquire(&g_spinLock);
-
-    if (old_size != g_stackLimitsSize) {
-      /* We've been outraced.  Instead of trying to deal in-line with
-         this extremely rare case, just start all over again by
-         tail-calling this routine. */
-      spinLock_release(&g_spinLock);
-      free(new_arr);
-      thread_register_for_profiling(stackTop);
-      return;
-    }
-
-    memcpy(new_arr, g_stackLimits, old_size * sizeof(StackLimit));
-    if (g_stackLimits)
-      free(g_stackLimits);
-
-    g_stackLimits = new_arr;
-
-    MOZ_ASSERT(g_stackLimitsSize < new_size);
-    g_stackLimitsSize = new_size;
-  }
-
-  MOZ_ASSERT(g_stackLimitsUsed < g_stackLimitsSize);
-
-  /* Finally, we have a safe place to put the new entry. */
-
-  // Round |stackTop| up to the end of the containing page.  We may
-  // as well do this -- there's no danger of a fault, and we might
-  // get a few more base-of-the-stack frames as a result.  This
-  // assumes that no target has a page size smaller than 4096.
-  uintptr_t stackTopR = (uintptr_t)stackTop;
-  stackTopR = (stackTopR & ~(uintptr_t)4095) + (uintptr_t)4095;
-
+  if (!(g_stackLimitsUsed < N_SAMPLING_THREADS))
+    MOZ_CRASH();  // Don't continue -- we'll get memory corruption.
   g_stackLimits[g_stackLimitsUsed].thrId    = me;
-  g_stackLimits[g_stackLimitsUsed].stackTop = (void*)stackTopR;
+  g_stackLimits[g_stackLimitsUsed].stackTop = stackTop;
   g_stackLimits[g_stackLimitsUsed].nSamples = 0;
   g_stackLimitsUsed++;
 
-  n_used = g_stackLimitsUsed;
   spinLock_release(&g_spinLock);
-
-  LOGF("BPUnw: [%d total] thread_register_for_profiling"
-       "(me=%p, stacktop=%p)", n_used, (void*)me, stackTop);
-}
-
-// Deregisters a thread from profiling.  Detects and ignores attempts
-// to deregister a not-registered thread.
-static void thread_unregister_for_profiling()
-{
-  spinLock_acquire(&g_spinLock);
-
-  // tmp copy of g_stackLimitsUsed, to avoid racing in message printing
-  size_t n_used;
-
-  size_t i;
-  bool found = false;
-  pthread_t me = pthread_self();
-  for (i = 0; i < g_stackLimitsUsed; i++) {
-    if (g_stackLimits[i].thrId == me)
-      break;
-  }
-  if (i < g_stackLimitsUsed) {
-    // found this entry.  Slide the remaining ones down one place.
-    for (; i+1 < g_stackLimitsUsed; i++) {
-      g_stackLimits[i] = g_stackLimits[i+1];
-    }
-    g_stackLimitsUsed--;
-    found = true;
-  }
-
-  n_used = g_stackLimitsUsed;
-
-  spinLock_release(&g_spinLock);
-  LOGF("BPUnw: [%d total] thread_unregister_for_profiling(me=%p) %s", 
-       (int)n_used, (void*)me, found ? "" : " (NOT REGISTERED) ");
+  LOGF("BPUnw: thread_register_for_profiling(stacktop %p, me %p)", 
+       stackTop, (void*)me);
 }
 
 
 __attribute__((unused))
 static void show_registered_threads()
 {
-  size_t i;
+  int i;
   spinLock_acquire(&g_spinLock);
   for (i = 0; i < g_stackLimitsUsed; i++) {
     LOGF("[%d]  pthread_t=%p  nSamples=%lld",
-         (int)i, (void*)g_stackLimits[i].thrId, 
-                 (unsigned long long int)g_stackLimits[i].nSamples);
+         i, (void*)g_stackLimits[i].thrId, 
+            (unsigned long long int)g_stackLimits[i].nSamples);
   }
   spinLock_release(&g_spinLock);
 }
@@ -680,7 +521,7 @@ static UnwinderThreadBuffer* acquire_empty_buffer()
      fillseqno++; and remember it
      rel lock
   */
-  size_t i;
+  int i;
 
   atomic_INC( &g_stats_totalSamples );
 
@@ -700,20 +541,11 @@ static UnwinderThreadBuffer* acquire_empty_buffer()
      is safe to call in a signal handler, which strikes me as highly
      likely. */
   pthread_t me = pthread_self();
-  MOZ_ASSERT(g_stackLimitsUsed <= g_stackLimitsSize);
+  MOZ_ASSERT(g_stackLimitsUsed >= 0 && g_stackLimitsUsed <= N_SAMPLING_THREADS);
   for (i = 0; i < g_stackLimitsUsed; i++) {
     if (g_stackLimits[i].thrId == me)
       break;
   }
-
-  /* If the thread isn't registered for profiling, just ignore the call
-     and return NULL. */
-  if (i == g_stackLimitsUsed) {
-    spinLock_release(&g_spinLock);
-    atomic_INC( &g_stats_thrUnregd );
-    return NULL;
-  }
-
   /* "this thread is registered for profiling" */
   MOZ_ASSERT(i < g_stackLimitsUsed);
 
@@ -734,7 +566,7 @@ static UnwinderThreadBuffer* acquire_empty_buffer()
     if (g_buffers[i]->state == S_EMPTY)
       break;
   }
-  MOZ_ASSERT(i <= N_UNW_THR_BUFFERS);
+  MOZ_ASSERT(i >= 0 && i <= N_UNW_THR_BUFFERS);
 
   if (i == N_UNW_THR_BUFFERS) {
     /* Again, no free buffers .. give up. */
@@ -985,9 +817,14 @@ static void* unwind_thr_fn(void* exit_nowV)
     MOZ_ASSERT(buffers);
     int i;
     for (i = 0; i < N_UNW_THR_BUFFERS; i++) {
-      /* These calloc-ations are shared between the sampler and the unwinder.
-       * They must be free after both threads have terminated.
-       */
+      /* These calloc-ations are never freed, even when the unwinder
+         thread is shut down.  The reason is that sampler threads
+         might still be filling them up even after this thread is shut
+         down.  The buffers themselves are not protected by the
+         spinlock, so we have no way to stop them being accessed
+         whilst we free them.  It doesn't matter much since they will
+         not be reallocated if a new unwinder thread is restarted
+         later. */
       buffers[i] = (UnwinderThreadBuffer*)
                    calloc(sizeof(UnwinderThreadBuffer), 1);
       MOZ_ASSERT(buffers[i]);
@@ -1029,16 +866,9 @@ static void* unwind_thr_fn(void* exit_nowV)
   */
   int* exit_now = (int*)exit_nowV;
   int ms_to_sleep_if_empty = 1;
-
-  const int longest_sleep_ms = 1000;
-  bool show_sleep_message = true;
-
   while (1) {
 
-    if (*exit_now != 0) {
-      *exit_now = 0;
-      break;
-    }
+    if (*exit_now != 0) break;
 
     spinLock_acquire(&g_spinLock);
 
@@ -1059,21 +889,15 @@ static void* unwind_thr_fn(void* exit_nowV)
       MOZ_ASSERT(oldest_seqNo == ~0ULL);
       spinLock_release(&g_spinLock);
       if (ms_to_sleep_if_empty > 100 && LOGLEVEL >= 2) {
-        if (show_sleep_message)
-          LOGF("BPUnw: unwinder: sleep for %d ms", ms_to_sleep_if_empty);
-        /* If we've already shown the message for the longest sleep,
-           don't show it again, until the next round of sleeping
-           starts. */
-        if (ms_to_sleep_if_empty == longest_sleep_ms)
-          show_sleep_message = false;
+        LOGF("BPUnw: unwinder: sleep for %d ms", ms_to_sleep_if_empty);
       }
       sleep_ms(ms_to_sleep_if_empty);
       if (ms_to_sleep_if_empty < 20) {
         ms_to_sleep_if_empty += 2;
       } else {
         ms_to_sleep_if_empty = (15 * ms_to_sleep_if_empty) / 10;
-        if (ms_to_sleep_if_empty > longest_sleep_ms)
-          ms_to_sleep_if_empty = longest_sleep_ms;
+        if (ms_to_sleep_if_empty > 1000)
+          ms_to_sleep_if_empty = 1000;
       }
       continue;
     }
@@ -1187,11 +1011,6 @@ static void* unwind_thr_fn(void* exit_nowV)
           do_breakpad_unwind_Buffer(&pairs, &nPairs, buff, oldest_ix);
           buff->aProfile->addTag( ProfileEntry('s', "(root)") );
           for (unsigned int i = 0; i < nPairs; i++) {
-            /* Skip any outermost frames that
-               do_breakpad_unwind_Buffer didn't give us.  See comments
-               on that function for details. */
-            if (pairs[i].pc == 0 && pairs[i].sp == 0)
-              continue;
             buff->aProfile
                 ->addTag( ProfileEntry('l', reinterpret_cast<void*>(pairs[i].pc)) );
           }
@@ -1263,12 +1082,6 @@ static void* unwind_thr_fn(void* exit_nowV)
       if (0) LOGF("at mergeloop: n_pairs %llu ix_last_hQ %llu",
                   (unsigned long long int)n_pairs,
                   (unsigned long long int)ix_last_hQ);
-      /* Skip any outermost frames that do_breakpad_unwind_Buffer
-         didn't give us.  See comments on that function for
-         details. */
-      while (next_N < n_pairs && pairs[next_N].pc == 0 && pairs[next_N].sp == 0)
-        next_N++;
-
       while (true) {
         if (next_P <= ix_last_hQ) {
           // Assert that next_P points at the start of an P entry
@@ -1422,7 +1235,6 @@ static void* unwind_thr_fn(void* exit_nowV)
     buff->state = S_EMPTY;
     spinLock_release(&g_spinLock);
     ms_to_sleep_if_empty = 1;
-    show_sleep_message = true;
   }
   return NULL;
 }
@@ -1672,10 +1484,7 @@ class MyCodeModules : public google_breakpad::CodeModules
    responsible for deallocating it.
 
    The first pair is for the outermost frame, the last for the
-   innermost frame.  There may be some leading section of the array
-   containing (zero, zero) values, in the case where the stack got
-   truncated because breakpad started stack-scanning, or for whatever
-   reason.  Users of this function need to be aware of that.
+   innermost frame.
 */
 
 MyCodeModules* sModules = NULL;
@@ -1693,47 +1502,6 @@ void do_breakpad_unwind_Buffer_free_singletons()
   if (sModules) {
     delete sModules;
     sModules = NULL;
-  }
-
-  g_stackLimitsUsed = 0;
-  g_seqNo = 0;
-  free(g_buffers);
-  g_buffers = NULL;
-}
-
-static void stats_notify_frame(google_breakpad::StackFrame::FrameTrust tr)
-{
-  // Gather stats in intervals.
-  static int nf_NONE     = 0;
-  static int nf_SCAN     = 0;
-  static int nf_CFI_SCAN = 0;
-  static int nf_FP       = 0;
-  static int nf_CFI      = 0;
-  static int nf_CONTEXT  = 0;
-  static int nf_total    = 0; // total frames since last printout
-
-  nf_total++;
-  switch (tr) {
-    case google_breakpad::StackFrame::FRAME_TRUST_NONE: nf_NONE++; break;
-    case google_breakpad::StackFrame::FRAME_TRUST_SCAN: nf_SCAN++; break;
-    case google_breakpad::StackFrame::FRAME_TRUST_CFI_SCAN:
-      nf_CFI_SCAN++; break;
-    case google_breakpad::StackFrame::FRAME_TRUST_FP: nf_FP++; break;
-    case google_breakpad::StackFrame::FRAME_TRUST_CFI: nf_CFI++; break;
-    case google_breakpad::StackFrame::FRAME_TRUST_CONTEXT: nf_CONTEXT++; break;
-    default: break;
-  }
-  if (nf_total >= 5000) {
-    LOGF("BPUnw frame stats: TOTAL %5u"
-         "    CTX %4u    CFI %4u    FP %4u    SCAN %4u    NONE %4u",
-         nf_total, nf_CONTEXT, nf_CFI, nf_FP, nf_CFI_SCAN+nf_SCAN, nf_NONE);
-    nf_NONE     = 0;
-    nf_SCAN     = 0;
-    nf_CFI_SCAN = 0;
-    nf_FP       = 0;
-    nf_CFI      = 0;
-    nf_CONTEXT  = 0;
-    nf_total    = 0;
   }
 }
 
@@ -1842,21 +1610,14 @@ void do_breakpad_unwind_Buffer(/*OUT*/PCandSP** pairs,
 
   std::vector<const google_breakpad::CodeModule*>* modules_without_symbols
     = new std::vector<const google_breakpad::CodeModule*>();
-
-  // Set the max number of frames to a reasonably low level.  By
-  // default Breakpad's limit is 1024, which means it can wind up
-  // spending a lot of time looping on corrupted stacks.
-  sw->set_max_frames(256);
-
   bool b = sw->Walk(stack, modules_without_symbols);
   (void)b;
   delete modules_without_symbols;
 
   unsigned int n_frames = stack->frames()->size();
   unsigned int n_frames_good = 0;
-  unsigned int n_frames_dubious = 0;
 
-  *pairs  = (PCandSP*)calloc(n_frames, sizeof(PCandSP));
+  *pairs  = (PCandSP*)malloc(n_frames * sizeof(PCandSP));
   *nPairs = n_frames;
   if (*pairs == NULL) {
     *nPairs = 0;
@@ -1868,28 +1629,10 @@ void do_breakpad_unwind_Buffer(/*OUT*/PCandSP** pairs,
          frame_index < n_frames; ++frame_index) {
       google_breakpad::StackFrame *frame = stack->frames()->at(frame_index);
 
-      bool dubious
-        = frame->trust == google_breakpad::StackFrame::FRAME_TRUST_SCAN
-          || frame->trust == google_breakpad::StackFrame::FRAME_TRUST_CFI_SCAN
-          || frame->trust == google_breakpad::StackFrame::FRAME_TRUST_NONE;
-
-      if (dubious) {
-        n_frames_dubious++;
-      } else {
+      if (frame->trust == google_breakpad::StackFrame::FRAME_TRUST_CFI
+          || frame->trust == google_breakpad::StackFrame::FRAME_TRUST_CONTEXT) {
         n_frames_good++;
       }
-
-      /* Once we've seen more than some threshhold number of dubious
-         frames, give up.  Doing that gives better results than
-         polluting the profiling results with junk frames.  Because
-         the entries are put into the pairs array starting at the end,
-         this will leave some initial section of pairs containing
-         (0,0) values, which correspond to the skipped frames. */
-      if (n_frames_dubious > (unsigned int)sUnwindStackScan)
-        break;
-
-      if (LOGLEVEL >= 2)
-        stats_notify_frame(frame->trust);
 
 #     if defined(SPS_ARCH_amd64)
       google_breakpad::StackFrameAMD64* frame_amd64
@@ -1944,11 +1687,9 @@ void do_breakpad_unwind_Buffer(/*OUT*/PCandSP** pairs,
 
   if (LOGLEVEL >= 2) {
     if (0 == (g_stats_totalSamples % 1000))
-      LOGF("BPUnw: %llu total samples, %llu failed (buffer unavail), "
-                   "%llu failed (thread unreg'd), ",
+      LOGF("BPUnw: %llu total samples, %llu failed due to buffer unavail",
            (unsigned long long int)g_stats_totalSamples,
-           (unsigned long long int)g_stats_noBuffAvail,
-           (unsigned long long int)g_stats_thrUnregd);
+           (unsigned long long int)g_stats_noBuffAvail);
   }
 
   delete stack;

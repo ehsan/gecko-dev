@@ -1,4 +1,5 @@
-const gTestRoot = "http://mochi.test:8888/browser/browser/base/content/test/";
+var rootDir = getRootDirectory(gTestPath);
+const gTestRoot = rootDir;
 
 var gTestBrowser = null;
 var gNextTest = null;
@@ -7,15 +8,8 @@ Components.utils.import("resource://gre/modules/Services.jsm");
 
 function test() {
   waitForExplicitFinish();
-  registerCleanupFunction(function() {
-    clearAllPluginPermissions();
-    Services.prefs.clearUserPref("plugins.click_to_play");
-    var plugin = getTestPlugin();
-    plugin.enabledState = Ci.nsIPluginTag.STATE_ENABLED;
-  });
+  registerCleanupFunction(function() { Services.prefs.clearUserPref("plugins.click_to_play"); });
   Services.prefs.setBoolPref("plugins.click_to_play", true);
-  var plugin = getTestPlugin();
-  plugin.enabledState = Ci.nsIPluginTag.STATE_CLICKTOPLAY;
 
   var newTab = gBrowser.addTab();
   gBrowser.selectedTab = newTab;
@@ -46,7 +40,7 @@ function prepareTest(nextTest, url) {
 function test1a() {
   var popupNotification = PopupNotifications.getNotification("click-to-play-plugins", gTestBrowser);
   ok(!popupNotification, "Test 1a, Should not have a click-to-play notification");
-  var plugin = new XPCNativeWrapper(XPCNativeWrapper.unwrap(gTestBrowser.contentWindow).addPlugin());
+  var plugin = gTestBrowser.contentWindow.addPlugin();
 
   var condition = function() PopupNotifications.getNotification("click-to-play-plugins", gTestBrowser);
   waitForCondition(condition, test1b, "Test 1a, Waited too long for plugin notification");
@@ -59,19 +53,14 @@ function test1b() {
   var objLoadingContent = plugin.QueryInterface(Ci.nsIObjectLoadingContent);
   ok(!objLoadingContent.activated, "Test 1b, Plugin should not be activated");
 
-  // Click the activate button on doorhanger to make sure it works
-  popupNotification.reshow();
-  PopupNotifications.panel.firstChild._primaryButton.click();
-
-  ok(objLoadingContent.activated, "Test 1b, Doorhanger should activate plugin");
-
+  popupNotification.mainAction.callback();
   test1c();
 }
 
 function test1c() {
   var popupNotification = PopupNotifications.getNotification("click-to-play-plugins", gTestBrowser);
-  ok(popupNotification, "Test 1c, Should still have a click-to-play notification");
-  var plugin = new XPCNativeWrapper(XPCNativeWrapper.unwrap(gTestBrowser.contentWindow).addPlugin());
+  ok(!popupNotification, "Test 1c, Should not have a click-to-play notification");
+  var plugin = gTestBrowser.contentWindow.addPlugin();
 
   var objLoadingContent = plugin.QueryInterface(Ci.nsIObjectLoadingContent);
   var condition = function() objLoadingContent.activated;
@@ -79,6 +68,8 @@ function test1c() {
 }
 
 function test1d() {
+  var popupNotification = PopupNotifications.getNotification("click-to-play-plugins", gTestBrowser);
+  ok(!popupNotification, "Test 1d, Should not have a click-to-play notification");
   var plugin = gTestBrowser.contentDocument.getElementsByTagName("embed")[1];
   var objLoadingContent = plugin.QueryInterface(Ci.nsIObjectLoadingContent);
   ok(objLoadingContent.activated, "Test 1d, Plugin should be activated");
@@ -90,8 +81,9 @@ function test1d() {
 
 function test1e() {
   gTestBrowser.contentWindow.removeEventListener("hashchange", test1e, false);
-
-  var plugin = new XPCNativeWrapper(XPCNativeWrapper.unwrap(gTestBrowser.contentWindow).addPlugin());
+  var popupNotification = PopupNotifications.getNotification("click-to-play-plugins", gTestBrowser);
+  ok(!popupNotification, "Test 1e, Should not have a click-to-play notification");
+  var plugin = gTestBrowser.contentWindow.addPlugin();
 
   var objLoadingContent = plugin.QueryInterface(Ci.nsIObjectLoadingContent);
   var condition = function() objLoadingContent.activated;
@@ -99,18 +91,22 @@ function test1e() {
 }
 
 function test1f() {
+  var popupNotification = PopupNotifications.getNotification("click-to-play-plugins", gTestBrowser);
+  ok(!popupNotification, "Test 1f, Should not have a click-to-play notification");
   var plugin = gTestBrowser.contentDocument.getElementsByTagName("embed")[2];
   var objLoadingContent = plugin.QueryInterface(Ci.nsIObjectLoadingContent);
   ok(objLoadingContent.activated, "Test 1f, Plugin should be activated");
 
   gTestBrowser.contentWindow.history.replaceState({}, "", "replacedState");
-  var plugin = new XPCNativeWrapper(XPCNativeWrapper.unwrap(gTestBrowser.contentWindow).addPlugin());
+  var plugin = gTestBrowser.contentWindow.addPlugin();
   var objLoadingContent = plugin.QueryInterface(Ci.nsIObjectLoadingContent);
   var condition = function() objLoadingContent.activated;
   waitForCondition(condition, test1g, "Test 1f, Waited too long for plugin activation");
 }
 
 function test1g() {
+  var popupNotification2 = PopupNotifications.getNotification("click-to-play-plugins", gTestBrowser);
+  ok(!popupNotification2, "Test 1g, Should not have a click-to-play notification after replaceState");
   var plugin = gTestBrowser.contentDocument.getElementsByTagName("embed")[3];
   var objLoadingContent2 = plugin.QueryInterface(Ci.nsIObjectLoadingContent);
   ok(objLoadingContent2.activated, "Test 1g, Plugin should be activated");

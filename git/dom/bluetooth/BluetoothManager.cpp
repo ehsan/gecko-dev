@@ -44,7 +44,7 @@ public:
   }
 
   bool
-  ParseSuccessfulReply(JS::Value* aValue)
+  ParseSuccessfulReply(jsval* aValue)
   {
     *aValue = JSVAL_VOID;
 
@@ -68,10 +68,10 @@ public:
       return false;
     }
 
-    AutoPushJSContext cx(sc->GetNativeContext());
-
-    JS::Rooted<JSObject*> global(cx, sc->GetNativeGlobal());
-    rv = nsContentUtils::WrapNative(cx, global, adapter, aValue);
+    rv = nsContentUtils::WrapNative(sc->GetNativeContext(),
+                                    sc->GetNativeGlobal(),
+                                    adapter,
+                                    aValue);
     if (NS_FAILED(rv)) {
       NS_WARNING("Cannot create native object!");
       SetError(NS_LITERAL_STRING("BluetoothNativeObjectError"));
@@ -87,7 +87,7 @@ public:
     BluetoothReplyRunnable::ReleaseMembers();
     mManagerPtr = nullptr;
   }
-
+  
 private:
   nsRefPtr<BluetoothManager> mManagerPtr;
 };

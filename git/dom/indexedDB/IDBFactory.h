@@ -64,7 +64,7 @@ public:
   // Called when using IndexedDB from a JS component or a JSM in the current
   // process.
   static nsresult Create(JSContext* aCx,
-                         JS::Handle<JSObject*> aOwningObject,
+                         JSObject* aOwningObject,
                          ContentParent* aContentParent,
                          IDBFactory** aFactory);
 
@@ -79,9 +79,6 @@ public:
   static already_AddRefed<mozIStorageConnection>
   GetConnection(const nsAString& aDatabaseFilePath,
                 const nsACString& aOrigin);
-
-  static nsresult
-  SetDefaultPragmas(mozIStorageConnection* aConnection);
 
   static nsresult
   LoadDatabaseInformation(mozIStorageConnection* aConnection,
@@ -99,15 +96,18 @@ public:
                int64_t aVersion,
                const nsACString& aASCIIOrigin,
                bool aDeleting,
+               JSContext* aCallingCx,
                IDBOpenDBRequest** _retval);
 
   nsresult
   OpenInternal(const nsAString& aName,
                int64_t aVersion,
                bool aDeleting,
+               JSContext* aCallingCx,
                IDBOpenDBRequest** _retval)
   {
-    return OpenInternal(aName, aVersion, mASCIIOrigin, aDeleting, _retval);
+    return OpenInternal(aName, aVersion, mASCIIOrigin, aDeleting, aCallingCx,
+                        _retval);
   }
 
   void
@@ -136,41 +136,42 @@ public:
     return mWindow;
   }
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject*
+  WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
   // WebIDL
   already_AddRefed<nsIIDBOpenDBRequest>
-  Open(const NonNull<nsAString>& aName, const Optional<uint64_t>& aVersion,
-       ErrorResult& aRv)
+  Open(JSContext* aCx, const NonNull<nsAString>& aName,
+       const Optional<uint64_t>& aVersion, ErrorResult& aRv)
   {
-    return Open(nullptr, aName, aVersion, false, aRv);
+    return Open(aCx, nullptr, aName, aVersion, false, aRv);
   }
 
   already_AddRefed<nsIIDBOpenDBRequest>
-  DeleteDatabase(const NonNull<nsAString>& aName, ErrorResult& aRv)
+  DeleteDatabase(JSContext* aCx, const NonNull<nsAString>& aName,
+                 ErrorResult& aRv)
   {
-    return Open(nullptr, aName, Optional<uint64_t>(), true, aRv);
+    return Open(aCx, nullptr, aName, Optional<uint64_t>(), true, aRv);
   }
 
   int16_t
-  Cmp(JSContext* aCx, JS::Handle<JS::Value> aFirst,
-      JS::Handle<JS::Value> aSecond, ErrorResult& aRv);
+  Cmp(JSContext* aCx, JS::Value aFirst, JS::Value aSecond, ErrorResult& aRv);
 
   already_AddRefed<nsIIDBOpenDBRequest>
-  OpenForPrincipal(nsIPrincipal* aPrincipal, const NonNull<nsAString>& aName,
+  OpenForPrincipal(JSContext* aCx, nsIPrincipal* aPrincipal,
+                   const NonNull<nsAString>& aName,
                    const Optional<uint64_t>& aVersion, ErrorResult& aRv);
 
   already_AddRefed<nsIIDBOpenDBRequest>
-  DeleteForPrincipal(nsIPrincipal* aPrincipal, const NonNull<nsAString>& aName,
-                     ErrorResult& aRv);
+  DeleteForPrincipal(JSContext* aCx, nsIPrincipal* aPrincipal,
+                     const NonNull<nsAString>& aName, ErrorResult& aRv);
 
 private:
   IDBFactory();
   ~IDBFactory();
 
   already_AddRefed<nsIIDBOpenDBRequest>
-  Open(nsIPrincipal* aPrincipal, const nsAString& aName,
+  Open(JSContext* aCx, nsIPrincipal* aPrincipal, const nsAString& aName,
        const Optional<uint64_t>& aVersion, bool aDelete, ErrorResult& aRv);
 
   nsCString mASCIIOrigin;
@@ -178,7 +179,7 @@ private:
   // If this factory lives on a window then mWindow must be non-null. Otherwise
   // mOwningObject must be non-null.
   nsCOMPtr<nsPIDOMWindow> mWindow;
-  JS::Heap<JSObject*> mOwningObject;
+  JSObject* mOwningObject;
 
   IndexedDBChild* mActorChild;
   IndexedDBParent* mActorParent;

@@ -6,7 +6,6 @@
 #ifndef __NS_SVGMASKFRAME_H__
 #define __NS_SVGMASKFRAME_H__
 
-#include "mozilla/Attributes.h"
 #include "gfxPattern.h"
 #include "gfxMatrix.h"
 #include "nsSVGContainerFrame.h"
@@ -38,9 +37,11 @@ public:
                                                 const gfxMatrix &aMatrix,
                                                 float aOpacity = 1.0f);
 
+  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
+
   NS_IMETHOD AttributeChanged(int32_t         aNameSpaceID,
                               nsIAtom*        aAttribute,
-                              int32_t         aModType) MOZ_OVERRIDE;
+                              int32_t         aModType);
 
 #ifdef DEBUG
   virtual void Init(nsIContent*      aContent,
@@ -57,10 +58,10 @@ public:
    *
    * @see nsGkAtoms::svgMaskFrame
    */
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
 
 #ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE
+  NS_IMETHOD GetFrameName(nsAString& aResult) const
   {
     return MakeFrameName(NS_LITERAL_STRING("SVGMask"), aResult);
   }
@@ -92,7 +93,7 @@ private:
   bool mInUse;
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM(uint32_t aFor) MOZ_OVERRIDE;
+  virtual gfxMatrix GetCanvasTM(uint32_t aFor);
 };
 
 #endif

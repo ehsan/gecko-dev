@@ -30,7 +30,6 @@
 #include "nsIDOMHTMLScriptElement.h"
 #include "nsIDocShell.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "nsUnicharUtils.h"
 #include "nsAutoPtr.h"
 #include "nsIXPConnect.h"
@@ -273,7 +272,7 @@ nsScriptLoader::StartLoad(nsScriptLoadRequest *aRequest, const nsAString &aType,
 
   nsCOMPtr<nsILoadGroup> loadGroup = mDocument->GetDocumentLoadGroup();
 
-  nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(mDocument->GetWindow()));
+  nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(mDocument->GetScriptGlobalObject()));
   if (!window) {
     return NS_ERROR_NULL_POINTER;
   }
@@ -430,8 +429,7 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
   // For now though, if JS is disabled we assume every language is
   // disabled.
   // XXX is this different from the mDocument->IsScriptEnabled() call?
-  nsCOMPtr<nsIScriptGlobalObject> globalObject =
-    do_QueryInterface(mDocument->GetWindow());
+  nsIScriptGlobalObject *globalObject = mDocument->GetScriptGlobalObject();
   if (!globalObject) {
     return false;
   }
@@ -807,7 +805,7 @@ nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
   }
 
   nsPIDOMWindow *pwin = mDocument->GetInnerWindow();
-  if (!pwin) {
+  if (!pwin || !pwin->IsInnerWindow()) {
     return NS_ERROR_FAILURE;
   }
   nsCOMPtr<nsIScriptGlobalObject> globalObject = do_QueryInterface(pwin);
@@ -850,14 +848,14 @@ nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
     if (aRequest->mOriginPrincipal) {
       options.setOriginPrincipals(nsJSPrincipals::get(aRequest->mOriginPrincipal));
     }
-    JS::Rooted<JSObject*> global(cx, globalObject->GetGlobalJSObject());
-    rv = context->EvaluateString(aScript, global,
+    rv = context->EvaluateString(aScript, *globalObject->GetGlobalJSObject(),
                                  options, /* aCoerceToString = */ false, nullptr);
   }
 
   // Put the old script back in case it wants to do anything else.
   mCurrentScript = oldCurrent;
 
+  JSAutoRequest ar(cx);
   context->SetProcessingScriptTag(oldProcessingScriptTag);
   return rv;
 }
@@ -1064,7 +1062,7 @@ nsScriptLoader::ConvertToUTF16(nsIChannel* aChannel, const uint8_t* aData,
                                  aLength, &unicodeLength);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (!aString.SetLength(unicodeLength, fallible_t())) {
+  if (!EnsureStringLength(aString, unicodeLength)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 

@@ -38,10 +38,10 @@ class ProfileResetCleanupAsyncTask : public nsRunnable
 {
 public:
   ProfileResetCleanupAsyncTask(nsIFile* aProfileDir, nsIFile* aProfileLocalDir,
-                               nsIFile* aTargetDir, const nsAString &aLeafName)
+                               nsIFile* aDesktop, const nsAString &aLeafName)
     : mProfileDir(aProfileDir)
     , mProfileLocalDir(aProfileLocalDir)
-    , mTargetDir(aTargetDir)
+    , mDesktop(aDesktop)
     , mLeafName(aLeafName)
   { }
 
@@ -51,7 +51,7 @@ public:
   NS_IMETHOD Run()
   {
     // Copy to the destination then delete the profile. A move doesn't follow links.
-    nsresult rv = mProfileDir->CopyToFollowingLinks(mTargetDir, mLeafName);
+    nsresult rv = mProfileDir->CopyToFollowingLinks(mDesktop, mLeafName);
     if (NS_SUCCEEDED(rv))
       rv = mProfileDir->Remove(true);
     else
@@ -75,6 +75,6 @@ public:
 private:
   nsCOMPtr<nsIFile> mProfileDir;
   nsCOMPtr<nsIFile> mProfileLocalDir;
-  nsCOMPtr<nsIFile> mTargetDir;
+  nsCOMPtr<nsIFile> mDesktop;
   nsAutoString mLeafName;
 };

@@ -1,5 +1,7 @@
 #!/usr/bin/env python
-
+#
+# $Id: _osx.py 1498 2012-07-24 21:41:28Z g.rodola $
+#
 # Copyright (c) 2009, Jay Loden, Giampaolo Rodola'. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
@@ -20,7 +22,7 @@ from test_psutil import reap_children, get_test_subprocess, sh
 
 
 PAGESIZE = os.sysconf("SC_PAGE_SIZE")
-TOLERANCE = 500 * 1024  # 500 KB
+TOLERANCE = 200 * 1024  # 200 KB
 
 
 def sysctl(cmdline):
@@ -59,7 +61,7 @@ class OSXSpecificTestCase(unittest.TestCase):
         difference = abs(first - second)
         if difference <= tolerance:
             return
-        msg = '%r != %r (tolerance=%r, difference=%s)' \
+        msg = '%r != %r within %r delta (%r difference)' \
               % (first, second, tolerance, difference)
         raise AssertionError(msg)
 

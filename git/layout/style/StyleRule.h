@@ -281,7 +281,7 @@ public:
   NS_DECL_ISUPPORTS
 
   // nsIStyleRule interface
-  virtual void MapRuleInfoInto(nsRuleData* aRuleData) MOZ_OVERRIDE;
+  virtual void MapRuleInfoInto(nsRuleData* aRuleData);
 #ifdef DEBUG
   virtual void List(FILE* out = stdout, int32_t aIndent = 0) const MOZ_OVERRIDE;
 #endif
@@ -317,10 +317,7 @@ public:
   nsCSSSelectorList* Selector() { return mSelector; }
 
   uint32_t GetLineNumber() const { return mLineNumber; }
-  uint32_t GetColumnNumber() const { return mColumnNumber; }
-  void SetLineNumberAndColumnNumber(uint32_t aLineNumber,
-                                    uint32_t aColumnNumber)
-  { mLineNumber = aLineNumber; mColumnNumber = aColumnNumber; }
+  void SetLineNumber(uint32_t aLineNumber) { mLineNumber = aLineNumber; }
 
   Declaration* GetDeclaration() const { return mDeclaration; }
 
@@ -359,10 +356,10 @@ public:
   virtual nsIDOMCSSRule* GetExistingDOMRule();
 
   // The new mapping function.
-  virtual void MapRuleInfoInto(nsRuleData* aRuleData) MOZ_OVERRIDE;
+  virtual void MapRuleInfoInto(nsRuleData* aRuleData);
 
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const MOZ_OVERRIDE;
+  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const;
 #endif
 
   virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
@@ -376,8 +373,7 @@ private:
   ImportantRule*          mImportantRule; // initialized by RuleMatched
   DOMCSSStyleRule*        mDOMRule;
   // Keep the same type so that MSVC packs them.
-  uint32_t                mLineNumber;
-  uint32_t                mColumnNumber : 31;
+  uint32_t                mLineNumber : 31;
   uint32_t                mWasMatched : 1;
 
 private:

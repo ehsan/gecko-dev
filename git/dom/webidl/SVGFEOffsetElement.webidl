@@ -11,6 +11,7 @@
  */
 
 interface SVGAnimatedNumber;
+interface SVGAnimatedString;
 
 interface SVGFEOffsetElement : SVGElement {
   readonly attribute SVGAnimatedString in1;

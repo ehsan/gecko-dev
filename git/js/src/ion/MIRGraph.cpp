@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -9,6 +10,7 @@
 #include "MIR.h"
 #include "MIRGraph.h"
 #include "IonBuilder.h"
+#include "frontend/BytecodeEmitter.h"
 #include "jsscriptinlines.h"
 
 using namespace js;
@@ -62,61 +64,13 @@ MIRGraph::insertBlockAfter(MBasicBlock *at, MBasicBlock *block)
 }
 
 void
-MIRGraph::removeBlocksAfter(MBasicBlock *start)
-{
-    MBasicBlockIterator iter(begin());
-    iter++;
-    while (iter != end()) {
-        MBasicBlock *block = *iter;
-        iter++;
-
-        if (block->id() <= start->id())
-            continue;
-
-        // removeBlock will not remove the resumepoints, since
-        // it can be shared with outer blocks. So remove them now.
-        block->discardAllResumePoints();
-        removeBlock(block);
-    }
-}
-
-void
-MIRGraph::removeBlock(MBasicBlock *block)
-{
-    // Remove a block from the graph. It will also cleanup the block,
-    // except for removing the resumepoints, since multiple blocks can
-    // share the same resumepoints and we cannot distinguish between them.
-
-    if (block == osrBlock_)
-        osrBlock_ = NULL;
-
-    if (exitAccumulator_) {
-        size_t i = 0;
-        while (i < exitAccumulator_->length()) {
-            if ((*exitAccumulator_)[i] == block)
-                exitAccumulator_->erase(exitAccumulator_->begin() + i);
-            else
-                i++;
-        }
-    }
-
-    block->discardAllInstructions();
-    block->discardAllPhis();
-    block->markAsDead();
-    blocks_.remove(block);
-    numBlocks_--;
-}
-
-void
-MIRGraph::unmarkBlocks()
-{
+MIRGraph::unmarkBlocks() {
     for (MBasicBlockIterator i(blocks_.begin()); i != blocks_.end(); i++)
         i->unmark();
 }
 
 MDefinition *
-MIRGraph::parSlice()
-{
+MIRGraph::parSlice() {
     // Search the entry block to find a par slice instruction.  If we do not
     // find one, add one after the Start instruction.
     //
@@ -208,21 +162,17 @@ MBasicBlock::NewSplitEdge(MIRGraph &graph, CompileInfo &info, MBasicBlock *pred)
 
 MBasicBlock *
 MBasicBlock::NewParBailout(MIRGraph &graph, CompileInfo &info,
-                           MBasicBlock *pred, jsbytecode *entryPc,
-                           MResumePoint *resumePoint)
+                           MBasicBlock *pred, jsbytecode *entryPc)
 {
-    MBasicBlock *block = new MBasicBlock(graph, info, entryPc, NORMAL);
-
-    resumePoint->block_ = block;
-    block->entryResumePoint_ = resumePoint;
-
-    if (!block->init())
+    MBasicBlock *block = MBasicBlock::New(graph, info, pred, entryPc, NORMAL);
+    if (!block)
         return NULL;
 
-    if (!block->addPredecessorWithoutPhis(pred))
+    MParBailout *bailout = new MParBailout();
+    if (!bailout)
         return NULL;
 
-    block->end(new MParBailout());
+    block->end(bailout);
     return block;
 }
 
@@ -318,13 +268,6 @@ MBasicBlock::inherit(MBasicBlock *pred, uint32_t popped)
             for (size_t i = 0; i < stackDepth(); i++)
                 entryResumePoint()->setOperand(i, getSlot(i));
         }
-    } else if (entryResumePoint()) {
-        /*
-         * Don't leave the operands uninitialized for the caller, as it may not
-         * initialize them later on.
-         */
-        for (size_t i = 0; i < stackDepth(); i++)
-            entryResumePoint()->clearOperand(i);
     }
 
     return true;
@@ -404,14 +347,10 @@ MBasicBlock::linkOsrValues(MStart *start)
 
     for (uint32_t i = 0; i < stackDepth(); i++) {
         MDefinition *def = slots_[i];
-        if (i == info().scopeChainSlot()) {
-            if (def->isOsrScopeChain())
-                def->toOsrScopeChain()->setResumePoint(res);
-        } else if (info().hasArguments() && i == info().argsObjSlot()) {
-            JS_ASSERT(def->isConstant() && def->toConstant()->value() == UndefinedValue());
-        } else {
+        if (i == info().scopeChainSlot())
+            def->toOsrScopeChain()->setResumePoint(res);
+        else
             def->toOsrValue()->setResumePoint(res);
-        }
     }
 }
 
@@ -512,22 +451,10 @@ MBasicBlock::scopeChain()
     return getSlot(info().scopeChainSlot());
 }
 
-MDefinition *
-MBasicBlock::argumentsObject()
-{
-    return getSlot(info().argsObjSlot());
-}
-
 void
 MBasicBlock::setScopeChain(MDefinition *scopeObj)
 {
     setSlot(info().scopeChainSlot(), scopeObj);
-}
-
-void
-MBasicBlock::setArgumentsObject(MDefinition *argsObj)
-{
-    setSlot(info().argsObjSlot(), argsObj);
 }
 
 void
@@ -644,45 +571,6 @@ MBasicBlock::discardDefAt(MDefinitionIterator &old)
         iter.iter_ = iter.block_->discardAt(iter.iter_);
 
     return iter;
-}
-
-void
-MBasicBlock::discardAllInstructions()
-{
-    for (MInstructionIterator iter = begin(); iter != end(); ) {
-        for (size_t i = 0; i < iter->numOperands(); i++)
-            iter->discardOperand(i);
-        iter = instructions_.removeAt(iter);
-    }
-    lastIns_ = NULL;
-}
-
-void
-MBasicBlock::discardAllPhis()
-{
-    for (MPhiIterator iter = phisBegin(); iter != phisEnd(); ) {
-        MPhi *phi = *iter;
-        for (size_t i = 0; i < phi->numOperands(); i++)
-            phi->discardOperand(i);
-        iter = phis_.removeAt(iter);
-    }
-
-    for (MBasicBlock **pred = predecessors_.begin(); pred != predecessors_.end(); pred++)
-        (*pred)->setSuccessorWithPhis(NULL, 0);
-}
-
-void
-MBasicBlock::discardAllResumePoints(bool discardEntry)
-{
-    for (MResumePointIterator iter = resumePointsBegin(); iter != resumePointsEnd(); ) {
-        MResumePoint *rp = *iter;
-        if (rp == entryResumePoint() && !discardEntry) {
-            iter++;
-        } else {
-            rp->discardUses();
-            iter = resumePoints_.removeAt(iter);
-        }
-    }
 }
 
 void
@@ -834,7 +722,7 @@ MBasicBlock::dominates(MBasicBlock *other)
     return other->domIndex() >= low && other->domIndex() <= high;
 }
 
-AbortReason
+bool
 MBasicBlock::setBackedge(MBasicBlock *pred)
 {
     // Predecessors must be finished, and at the correct stack depth.
@@ -844,8 +732,6 @@ MBasicBlock::setBackedge(MBasicBlock *pred)
 
     // We must be a pending loop header
     JS_ASSERT(kind_ == PENDING_LOOP_HEADER);
-
-    bool hadTypeChange = false;
 
     // Add exit definitions to each corresponding phi at the entry.
     for (MPhiIterator phi = phisBegin(); phi != phisEnd(); phi++) {
@@ -866,30 +752,17 @@ MBasicBlock::setBackedge(MBasicBlock *pred)
             exitDef = entryDef->getOperand(0);
         }
 
-        bool typeChange = false;
-
-        if (!entryDef->addInputSlow(exitDef, &typeChange))
-            return AbortReason_Alloc;
-
-        hadTypeChange |= typeChange;
+        if (!entryDef->addInputSlow(exitDef))
+            return false;
 
         JS_ASSERT(entryDef->slot() < pred->stackDepth());
         setSlot(entryDef->slot(), entryDef);
     }
 
-    if (hadTypeChange) {
-        for (MPhiIterator phi = phisBegin(); phi != phisEnd(); phi++)
-            phi->removeOperand(phi->numOperands() - 1);
-        return AbortReason_Disable;
-    }
-
     // We are now a loop header proper
     kind_ = LOOP_HEADER;
 
-    if (!predecessors_.append(pred))
-        return AbortReason_Alloc;
-
-    return AbortReason_NoAbort;
+    return predecessors_.append(pred);
 }
 
 void
@@ -1011,15 +884,6 @@ MBasicBlock::inheritPhis(MBasicBlock *header)
         // phi down to this successor. This chance was missed as part of
         // setBackedge() because exits are not captured in resume points.
         setSlot(phi->slot(), phi);
-    }
-}
-
-void
-MBasicBlock::specializePhis()
-{
-    for (MPhiIterator iter = phisBegin(); iter != phisEnd(); iter++) {
-        MPhi *phi = *iter;
-        phi->specializeType();
     }
 }
 

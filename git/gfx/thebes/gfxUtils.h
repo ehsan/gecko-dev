@@ -17,7 +17,7 @@ class gfxDrawable;
 class nsIntRegion;
 struct nsIntRect;
 
-class gfxUtils {
+class THEBES_API gfxUtils {
 public:
     /*
      * Premultiply or Unpremultiply aSourceSurface, writing the result
@@ -70,11 +70,6 @@ public:
      * Clip aContext to the region aRegion, snapping the rectangles.
      */
     static void ClipToRegionSnapped(gfxContext* aContext, const nsIntRegion& aRegion);
-
-    /**
-     * Clip aContext to the region aRegion, snapping the rectangles.
-     */
-    static void ClipToRegionSnapped(mozilla::gfx::DrawTarget* aTarget, const nsIntRegion& aRegion);
 
     /**
      * Create a path consisting of rectangles in |aRegion|.

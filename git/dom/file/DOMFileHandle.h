@@ -7,7 +7,6 @@
 #ifndef mozilla_dom_file_domfilehandle_h__
 #define mozilla_dom_file_domfilehandle_h__
 
-#include "mozilla/Attributes.h"
 #include "FileCommon.h"
 
 #include "FileHandle.h"
@@ -23,10 +22,10 @@ public:
          nsIFile* aFile);
 
   virtual already_AddRefed<nsISupports>
-  CreateStream(nsIFile* aFile, bool aReadOnly) MOZ_OVERRIDE;
+  CreateStream(nsIFile* aFile, bool aReadOnly);
 
   virtual already_AddRefed<nsIDOMFile>
-  CreateFileObject(LockedFile* aLockedFile, uint32_t aFileSize) MOZ_OVERRIDE;
+  CreateFileObject(LockedFile* aLockedFile, uint32_t aFileSize);
 
 protected:
   DOMFileHandle()

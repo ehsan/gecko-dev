@@ -21,8 +21,8 @@
 #include "nsComponentManagerUtils.h"
 #include "nsTArray.h"
 #include "nsAutoPtr.h"
+#include "nsIStreamBufferAccess.h"
 #include "mozilla/Likely.h"
-#include "mozilla/Endian.h"
 
 #include "zlib.h"
 #include <algorithm>
@@ -32,8 +32,6 @@
 #undef min
 #undef max
 #endif
-
-typedef struct hb_blob_t hb_blob_t;
 
 class gfxSparseBitSet {
 private:
@@ -341,125 +339,58 @@ namespace mozilla {
 struct AutoSwap_PRUint16 {
 #ifdef __SUNPRO_CC
     AutoSwap_PRUint16& operator = (const uint16_t aValue)
-    {
-        this->value = mozilla::NativeEndian::swapToBigEndian(aValue);
-        return *this;
-    }
+      { this->value = NS_SWAP16(aValue); return *this; }
 #else
-    AutoSwap_PRUint16(uint16_t aValue)
-    {
-        value = mozilla::NativeEndian::swapToBigEndian(aValue);
-    }
+    AutoSwap_PRUint16(uint16_t aValue) { value = NS_SWAP16(aValue); }
 #endif
-    operator uint16_t() const
-    {
-        return mozilla::NativeEndian::swapFromBigEndian(value);
-    }
-
-    operator uint32_t() const
-    {
-        return mozilla::NativeEndian::swapFromBigEndian(value);
-    }
-
-    operator uint64_t() const
-    {
-        return mozilla::NativeEndian::swapFromBigEndian(value);
-    }
-
-private:
+    operator uint16_t() const { return NS_SWAP16(value); }
+    operator uint32_t() const { return NS_SWAP16(value); }
+    operator uint64_t() const { return NS_SWAP16(value); }
     uint16_t value;
 };
 
 struct AutoSwap_PRInt16 {
 #ifdef __SUNPRO_CC
     AutoSwap_PRInt16& operator = (const int16_t aValue)
-    {
-        this->value = mozilla::NativeEndian::swapToBigEndian(aValue);
-        return *this;
-    }
+      { this->value = NS_SWAP16(aValue); return *this; }
 #else
-    AutoSwap_PRInt16(int16_t aValue)
-    {
-        value = mozilla::NativeEndian::swapToBigEndian(aValue);
-    }
+    AutoSwap_PRInt16(int16_t aValue) { value = NS_SWAP16(aValue); }
 #endif
-    operator int16_t() const
-    {
-        return mozilla::NativeEndian::swapFromBigEndian(value);
-    }
-
-    operator uint32_t() const
-    {
-        return mozilla::NativeEndian::swapFromBigEndian(value);
-    }
-
-private:
+    operator int16_t() const { return NS_SWAP16(value); }
+    operator uint32_t() const { return NS_SWAP16(value); }
     int16_t  value;
 };
 
 struct AutoSwap_PRUint32 {
 #ifdef __SUNPRO_CC
     AutoSwap_PRUint32& operator = (const uint32_t aValue)
-    {
-        this->value = mozilla::NativeEndian::swapToBigEndian(aValue);
-        return *this;
-    }
+      { this->value = NS_SWAP32(aValue); return *this; }
 #else
-    AutoSwap_PRUint32(uint32_t aValue)
-    {
-        value = mozilla::NativeEndian::swapToBigEndian(aValue);
-    }
+    AutoSwap_PRUint32(uint32_t aValue) { value = NS_SWAP32(aValue); }
 #endif
-    operator uint32_t() const
-    {
-        return mozilla::NativeEndian::swapFromBigEndian(value);
-    }
-
-private:
+    operator uint32_t() const { return NS_SWAP32(value); }
     uint32_t  value;
 };
 
 struct AutoSwap_PRInt32 {
 #ifdef __SUNPRO_CC
     AutoSwap_PRInt32& operator = (const int32_t aValue)
-    {
-        this->value = mozilla::NativeEndian::swapToBigEndian(aValue);
-        return *this;
-    }
+      { this->value = NS_SWAP32(aValue); return *this; }
 #else
-    AutoSwap_PRInt32(int32_t aValue)
-    {
-        value = mozilla::NativeEndian::swapToBigEndian(aValue);
-    }
+    AutoSwap_PRInt32(int32_t aValue) { value = NS_SWAP32(aValue); }
 #endif
-    operator int32_t() const
-    {
-        return mozilla::NativeEndian::swapFromBigEndian(value);
-    }
-
-private:
+    operator int32_t() const { return NS_SWAP32(value); }
     int32_t  value;
 };
 
 struct AutoSwap_PRUint64 {
 #ifdef __SUNPRO_CC
     AutoSwap_PRUint64& operator = (const uint64_t aValue)
-    {
-        this->value = mozilla::NativeEndian::swapToBigEndian(aValue);
-        return *this;
-    }
+      { this->value = NS_SWAP64(aValue); return *this; }
 #else
-    AutoSwap_PRUint64(uint64_t aValue)
-    {
-        value = mozilla::NativeEndian::swapToBigEndian(aValue);
-    }
+    AutoSwap_PRUint64(uint64_t aValue) { value = NS_SWAP64(aValue); }
 #endif
-    operator uint64_t() const
-    {
-        return mozilla::NativeEndian::swapFromBigEndian(value);
-    }
-
-private:
+    operator uint64_t() const { return NS_SWAP64(value); }
     uint64_t  value;
 };
 
@@ -649,7 +580,7 @@ enum gfxUserFontType {
     GFX_USERFONT_WOFF = 3
 };
 
-class gfxFontUtils {
+class THEBES_API gfxFontUtils {
 
 public:
     // these are public because gfxFont.cpp also looks into the name table
@@ -831,12 +762,12 @@ public:
     // helper to get fullname from name table, constructing from family+style
     // if no explicit fullname is present
     static nsresult
-    GetFullNameFromTable(hb_blob_t *aNameTable,
+    GetFullNameFromTable(FallibleTArray<uint8_t>& aNameTable,
                          nsAString& aFullName);
 
     // helper to get family name from name table
     static nsresult
-    GetFamilyNameFromTable(hb_blob_t *aNameTable,
+    GetFamilyNameFromTable(FallibleTArray<uint8_t>& aNameTable,
                            nsAString& aFamilyName);
 
     // create a new name table and build a new font with that name table
@@ -847,20 +778,20 @@ public:
     
     // read all names matching aNameID, returning in aNames array
     static nsresult
-    ReadNames(hb_blob_t *aNameTable, uint32_t aNameID, 
+    ReadNames(FallibleTArray<uint8_t>& aNameTable, uint32_t aNameID, 
               int32_t aPlatformID, nsTArray<nsString>& aNames);
       
     // reads English or first name matching aNameID, returning in aName
     // platform based on OS
     static nsresult
-    ReadCanonicalName(hb_blob_t *aNameTable, uint32_t aNameID, 
+    ReadCanonicalName(FallibleTArray<uint8_t>& aNameTable, uint32_t aNameID, 
                       nsString& aName);
       
     // convert a name from the raw name table data into an nsString,
     // provided we know how; return true if successful, or false
     // if we can't handle the encoding
     static bool
-    DecodeFontName(const char *aBuf, int32_t aLength, 
+    DecodeFontName(const uint8_t *aBuf, int32_t aLength, 
                    uint32_t aPlatformCode, uint32_t aScriptCode,
                    uint32_t aLangCode, nsAString& dest);
 
@@ -924,6 +855,8 @@ public:
         // otherwise we know this char cannot trigger bidi reordering
         return false;
     }
+
+    static uint8_t CharRangeBit(uint32_t ch);
     
     // for a given font list pref name, set up a list of font names
     static void GetPrefsFontList(const char *aPrefName, 
@@ -934,7 +867,7 @@ public:
 
 protected:
     static nsresult
-    ReadNames(hb_blob_t *aNameTable, uint32_t aNameID, 
+    ReadNames(FallibleTArray<uint8_t>& aNameTable, uint32_t aNameID, 
               int32_t aLangID, int32_t aPlatformID, nsTArray<nsString>& aNames);
 
     // convert opentype name-table platform/encoding/language values to a charset name

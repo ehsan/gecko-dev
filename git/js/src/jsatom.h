@@ -1,23 +1,29 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsatom_h
-#define jsatom_h
+#ifndef jsatom_h___
+#define jsatom_h___
 
 #include "mozilla/HashFunctions.h"
 
 #include <stddef.h>
 #include "jsalloc.h"
 #include "jsapi.h"
+#include "jsfriendapi.h"
+#include "jsprototypes.h"
 #include "jsprvtd.h"
 #include "jspubtd.h"
+#include "jslock.h"
+#include "jsversion.h"
 
 #include "gc/Barrier.h"
 #include "js/HashTable.h"
 #include "vm/CommonPropertyNames.h"
+
+ForwardDeclareJS(Atom);
 
 struct JSIdArray {
     int length;
@@ -75,7 +81,7 @@ class AtomStateEntry
   public:
     AtomStateEntry() : bits(0) {}
     AtomStateEntry(const AtomStateEntry &other) : bits(other.bits) {}
-    AtomStateEntry(JSAtom *ptr, bool tagged)
+    AtomStateEntry(RawAtom ptr, bool tagged)
       : bits(uintptr_t(ptr) | uintptr_t(tagged))
     {
         JS_ASSERT((uintptr_t(ptr) & 0x1) == 0);
@@ -177,7 +183,7 @@ extern const char   js_send_str[];
 
 namespace js {
 
-extern const char * const TypeStrings[];
+extern const char * TypeStrings[];
 
 /*
  * Initialize atom state. Return true on success, false on failure to allocate
@@ -216,22 +222,37 @@ enum InternBehavior
     InternAtom = true
 };
 
-extern JSAtom *
+extern RawAtom
 Atomize(JSContext *cx, const char *bytes, size_t length,
         js::InternBehavior ib = js::DoNotInternAtom);
 
 template <AllowGC allowGC>
-extern JSAtom *
+extern RawAtom
 AtomizeChars(JSContext *cx, const jschar *chars, size_t length,
              js::InternBehavior ib = js::DoNotInternAtom);
 
 template <AllowGC allowGC>
-extern JSAtom *
+extern RawAtom
 AtomizeString(JSContext *cx, JSString *str, js::InternBehavior ib = js::DoNotInternAtom);
 
 template <AllowGC allowGC>
-extern JSAtom *
-ToAtom(JSContext *cx, typename MaybeRooted<Value, allowGC>::HandleType v);
+inline JSAtom *
+ToAtom(JSContext *cx, const js::Value &v);
+
+template <AllowGC allowGC>
+bool
+InternNonIntElementId(JSContext *cx, JSObject *obj, const Value &idval,
+                      typename MaybeRooted<jsid, allowGC>::MutableHandleType idp,
+                      typename MaybeRooted<Value, allowGC>::MutableHandleType vp);
+
+template <AllowGC allowGC>
+inline bool
+InternNonIntElementId(JSContext *cx, JSObject *obj, const Value &idval,
+                      typename MaybeRooted<jsid, allowGC>::MutableHandleType idp)
+{
+    typename MaybeRooted<Value, allowGC>::RootType dummy(cx);
+    return InternNonIntElementId<allowGC>(cx, obj, idval, idp, &dummy);
+}
 
 template<XDRMode mode>
 bool
@@ -239,4 +260,4 @@ XDRAtom(XDRState<mode> *xdr, js::MutableHandleAtom atomp);
 
 } /* namespace js */
 
-#endif /* jsatom_h */
+#endif /* jsatom_h___ */

@@ -5,7 +5,7 @@
 MOZ_APP_BASENAME=Fennec
 MOZ_APP_VENDOR=Mozilla
 
-MOZ_APP_VERSION=24.0
+MOZ_APP_VERSION=22.0
 MOZ_APP_UA_NAME=Firefox
 
 MOZ_BRANDING_DIRECTORY=mobile/android/branding/unofficial
@@ -19,8 +19,8 @@ MOZ_DISABLE_CRYPTOLEGACY=1
 # Enable getUserMedia
 MOZ_MEDIA_NAVIGATOR=1
 
-# Enable NFC permission
-MOZ_ANDROID_BEAM=1
+# Enable SET_WALLPAPER permission
+MOZ_ANDROID_WALLPAPER=0
 
 if test "$LIBXUL_SDK"; then
 MOZ_XULRUNNER=1
@@ -31,7 +31,6 @@ fi
 MOZ_CAPTURE=1
 MOZ_RAW=1
 MOZ_PLACES=
-MOZ_SOCIAL=
 MOZ_ANDROID_HISTORY=1
 
 # Needed for building our components as part of libxul
@@ -52,19 +51,4 @@ MOZ_APP_STATIC_INI=1
 
 MOZ_FENNEC=1
 
-# Enable on-demand decompression
-MOZ_ENABLE_SZIP=1
-
 MOZ_FOLD_LIBS=1
-
-# Enable navigator.mozPay
-MOZ_PAY=1
-
-# Enable UI for healthreporter
-MOZ_SERVICES_HEALTHREPORT=1
-
-# Wifi-AP/cell tower data reporting is always enabled.
-MOZ_DATA_REPORTING=1
-
-# Enable the production cert for verifying signed packaged apps.
-MOZ_B2G_CERTDATA=1

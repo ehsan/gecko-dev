@@ -14,7 +14,8 @@ PARALLEL_DIRS_export = $(addsuffix _export,$(PARALLEL_DIRS))
 ###############
 export_tier_%:
 	@$(ECHO) "$@"
-	$(foreach dir,$(tier_$*_dirs),$(call TIER_DIR_SUBMAKE,export,$(dir)))
+	@$(MAKE_TIER_SUBMAKEFILES)
+	$(foreach dir,$(tier_$*_dirs),$(call SUBMAKE,export,$(dir)))
 
 #################
 ## Common targets

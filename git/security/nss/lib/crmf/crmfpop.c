@@ -35,7 +35,7 @@ CRMF_CertReqMsgSetRAVerifiedPOP(CRMFCertReqMsg *inCertReqMsg)
 {
     SECItem               *dummy;
     CRMFProofOfPossession *pop;
-    PLArenaPool           *poolp;
+    PRArenaPool           *poolp;
     void                  *mark;
 
     PORT_Assert(inCertReqMsg != NULL && inCertReqMsg->pop == NULL);
@@ -73,7 +73,7 @@ crmf_get_key_sign_tag(SECKEYPublicKey *inPubKey)
 }
 
 static SECAlgorithmID*
-crmf_create_poposignkey_algid(PLArenaPool      *poolp,
+crmf_create_poposignkey_algid(PRArenaPool      *poolp,
 			      SECKEYPublicKey  *inPubKey)
 {
     SECAlgorithmID *algID;
@@ -102,7 +102,7 @@ crmf_create_poposignkey_algid(PLArenaPool      *poolp,
 }
 
 static CRMFPOPOSigningKeyInput*
-crmf_create_poposigningkeyinput(PLArenaPool *poolp, CERTCertificate *inCert,
+crmf_create_poposigningkeyinput(PRArenaPool *poolp, CERTCertificate *inCert,
 				CRMFMACPasswordCallback fn, void *arg)
 {
   /* PSM isn't going to do this, so we'll fail here for now.*/
@@ -147,7 +147,7 @@ crmf_encode_certreq(CRMFCertRequest *inCertReq, SECItem *derDest)
 }
 
 static SECStatus
-crmf_sign_certreq(PLArenaPool        *poolp,
+crmf_sign_certreq(PRArenaPool        *poolp, 
 		  CRMFPOPOSigningKey *crmfSignKey, 
 		  CRMFCertRequest    *certReq,
 		  SECKEYPrivateKey   *inKey,
@@ -183,7 +183,7 @@ crmf_sign_certreq(PLArenaPool        *poolp,
 }
 
 static SECStatus
-crmf_create_poposignkey(PLArenaPool             *poolp,
+crmf_create_poposignkey(PRArenaPool             *poolp, 
 			CRMFCertReqMsg          *inCertReqMsg, 
 			CRMFPOPOSigningKeyInput *signKeyInput, 
 			SECKEYPrivateKey        *inPrivKey,
@@ -228,7 +228,7 @@ CRMF_CertReqMsgSetSignaturePOP(CRMFCertReqMsg   *inCertReqMsg,
 			       void                    *arg)
 {
     SECAlgorithmID  *algID;
-    PLArenaPool     *poolp;
+    PRArenaPool     *poolp;
     SECItem          derTemp = {siBuffer, NULL, 0};
     void            *mark;
     SECStatus        rv;
@@ -320,7 +320,7 @@ crmf_get_popoprivkey_subtemplate(CRMFPOPOPrivKey *inPrivKey)
 }
 
 static SECStatus
-crmf_encode_popoprivkey(PLArenaPool            *poolp,
+crmf_encode_popoprivkey(PRArenaPool            *poolp, 
 			CRMFCertReqMsg         *inCertReqMsg,
 			CRMFPOPOPrivKey        *popoPrivKey,
 			const SEC_ASN1Template *privKeyTemplate)
@@ -394,7 +394,7 @@ static SECStatus
 crmf_add_privkey_thismessage(CRMFCertReqMsg *inCertReqMsg, SECItem *encPrivKey,
 			     CRMFPOPChoice inChoice)
 {
-    PLArenaPool           *poolp;
+    PRArenaPool           *poolp;
     void                  *mark;
     CRMFPOPOPrivKey       *popoPrivKey;
     CRMFProofOfPossession *pop;
@@ -441,7 +441,7 @@ static SECStatus
 crmf_add_privkey_dhmac(CRMFCertReqMsg *inCertReqMsg, SECItem *dhmac,
                              CRMFPOPChoice inChoice)
 {
-    PLArenaPool           *poolp;
+    PRArenaPool           *poolp;
     void                  *mark;
     CRMFPOPOPrivKey       *popoPrivKey;
     CRMFProofOfPossession *pop;
@@ -484,7 +484,7 @@ crmf_add_privkey_subseqmessage(CRMFCertReqMsg        *inCertReqMsg,
 			       CRMFPOPChoice          inChoice)
 {
     void                  *mark;
-    PLArenaPool           *poolp;
+    PRArenaPool           *poolp;
     CRMFProofOfPossession *pop;
     CRMFPOPOPrivKey       *popoPrivKey;
     SECStatus              rv;

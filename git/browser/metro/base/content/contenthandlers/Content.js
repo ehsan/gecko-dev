@@ -28,9 +28,6 @@ XPCOMUtils.defineLazyGetter(this, "Point", function() {
   return Point;
 });
 
-XPCOMUtils.defineLazyModuleGetter(this, "LoginManagerContent",
-  "resource://gre/modules/LoginManagerContent.jsm");
-
 XPCOMUtils.defineLazyServiceGetter(this, "gFocusManager",
   "@mozilla.org/focus-manager;1", "nsIFocusManager");
 
@@ -48,6 +45,161 @@ let HTMLOptionElement = Ci.nsIDOMHTMLOptionElement;
 const kReferenceDpi = 240; // standard "pixel" size used in some preferences
 
 const kStateActive = 0x00000001; // :active pseudoclass for elements
+
+/*
+ * ElementTouchHelper
+ *
+ * Assists users by watching for mouse clicks in content and redirect
+ * them to the best found target.
+ */
+const ElementTouchHelper = {
+  get radius() {
+    let prefs = Services.prefs;
+    delete this.radius;
+    return this.radius = { "top": prefs.getIntPref("ui.touch.radius.topmm"),
+                           "right": prefs.getIntPref("ui.touch.radius.rightmm"),
+                           "bottom": prefs.getIntPref("ui.touch.radius.bottommm"),
+                           "left": prefs.getIntPref("ui.touch.radius.leftmm")
+                         };
+  },
+
+  get weight() {
+    delete this.weight;
+    return this.weight = { "visited": Services.prefs.getIntPref("ui.touch.radius.visitedWeight")
+                         };
+  },
+
+  /* Retrieve the closest element to a point by looking at borders position */
+  getClosest: function getClosest(aWindowUtils, aX, aY) {
+    if (!this.dpiRatio)
+      this.dpiRatio = aWindowUtils.displayDPI / kReferenceDpi;
+
+    let dpiRatio = this.dpiRatio;
+
+    let target = aWindowUtils.elementFromPoint(aX, aY,
+                                               true,   /* ignore root scroll frame*/
+                                               false); /* don't flush layout */
+
+    // return early if the click is just over a clickable element
+    if (this._isElementClickable(target))
+      return target;
+
+    let nodes = aWindowUtils.nodesFromRect(aX, aY, this.radius.top * dpiRatio,
+                                                   this.radius.right * dpiRatio,
+                                                   this.radius.bottom * dpiRatio,
+                                                   this.radius.left * dpiRatio, true, false);
+
+    let threshold = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < nodes.length; i++) {
+      let current = nodes[i];
+      if (!current.mozMatchesSelector || !this._isElementClickable(current))
+        continue;
+
+      let rect = current.getBoundingClientRect();
+      let distance = this._computeDistanceFromRect(aX, aY, rect);
+
+      // increase a little bit the weight for already visited items
+      if (current && current.mozMatchesSelector("*:visited"))
+        distance *= (this.weight.visited / 100);
+
+      if (distance < threshold) {
+        target = current;
+        threshold = distance;
+      }
+    }
+
+    return target;
+  },
+
+  _isElementClickable: function _isElementClickable(aElement) {
+    const selector = "a,:link,:visited,[role=button],button,input,select,textarea,label";
+    for (let elem = aElement; elem; elem = elem.parentNode) {
+      if (this._hasMouseListener(elem))
+        return true;
+      if (elem.mozMatchesSelector && elem.mozMatchesSelector(selector))
+        return true;
+    }
+    return false;
+  },
+
+  _computeDistanceFromRect: function _computeDistanceFromRect(aX, aY, aRect) {
+    let x = 0, y = 0;
+    let xmost = aRect.left + aRect.width;
+    let ymost = aRect.top + aRect.height;
+
+    // compute horizontal distance from left/right border depending if X is
+    // before/inside/after the element's rectangle
+    if (aRect.left < aX && aX < xmost)
+      x = Math.min(xmost - aX, aX - aRect.left);
+    else if (aX < aRect.left)
+      x = aRect.left - aX;
+    else if (aX > xmost)
+      x = aX - xmost;
+
+    // compute vertical distance from top/bottom border depending if Y is
+    // above/inside/below the element's rectangle
+    if (aRect.top < aY && aY < ymost)
+      y = Math.min(ymost - aY, aY - aRect.top);
+    else if (aY < aRect.top)
+      y = aRect.top - aY;
+    if (aY > ymost)
+      y = aY - ymost;
+
+    return Math.sqrt(Math.pow(x, 2) + Math.pow(y, 2));
+  },
+
+  _els: Cc["@mozilla.org/eventlistenerservice;1"].getService(Ci.nsIEventListenerService),
+  _clickableEvents: ["mousedown", "mouseup", "click"],
+  _hasMouseListener: function _hasMouseListener(aElement) {
+    let els = this._els;
+    let listeners = els.getListenerInfoFor(aElement, {});
+    for (let i = 0; i < listeners.length; i++) {
+      if (this._clickableEvents.indexOf(listeners[i].type) != -1)
+        return true;
+    }
+    return false;
+  }
+};
+
+
+/*
+ * Global functions
+ */
+
+/*
+ * elementFromPoint - find the closes element at a point. searches
+ * sub-frames.
+ *
+ * @param aX, aY browser coordinates
+ * @return
+ *  element - element at the position, or null if no active browser or
+ *            element was found.
+ *  frameX - x position within the subframe element was found. aX if no
+ *           sub-frame was found.
+ *  frameY - y position within the subframe element was found. aY if no
+ *           sub-frame was found.
+ */
+function elementFromPoint(aX, aY) {
+  // browser's elementFromPoint expect browser-relative client coordinates.
+  // subtract browser's scroll values to adjust
+  let cwu = Util.getWindowUtils(content);
+  let elem = ElementTouchHelper.getClosest(cwu, aX, aY);
+
+  // step through layers of IFRAMEs and FRAMES to find innermost element
+  while (elem && (elem instanceof HTMLIFrameElement ||
+                  elem instanceof HTMLFrameElement)) {
+    // adjust client coordinates' origin to be top left of iframe viewport
+    let rect = elem.getBoundingClientRect();
+    aX -= rect.left;
+    aY -= rect.top;
+    let windowUtils = elem.contentDocument
+                          .defaultView
+                          .QueryInterface(Ci.nsIInterfaceRequestor)
+                          .getInterface(Ci.nsIDOMWindowUtils);
+    elem = ElementTouchHelper.getClosest(windowUtils, aX, aY);
+  }
+  return { element: elem, frameX: aX, frameY: aY };
+}
 
 /*
  * getBoundingContentRect
@@ -139,8 +291,6 @@ let Content = {
     // Synchronous events caught during the bubbling phase
     addEventListener("MozApplicationManifest", this, false);
     addEventListener("DOMContentLoaded", this, false);
-    addEventListener("DOMAutoComplete", this, false);
-    addEventListener("blur", this, false);
     addEventListener("pagehide", this, false);
     // Attach a listener to watch for "click" events bubbling up from error
     // pages and other similar page. This lets us fix bugs like 401575 which
@@ -148,7 +298,7 @@ let Content = {
     // pages have any privilege themselves.
     addEventListener("click", this, false);
 
-    docShell.useGlobalHistory = true;
+    docShell.QueryInterface(Ci.nsIDocShellHistory).useGlobalHistory = true;
   },
 
   /*******************************************
@@ -188,15 +338,9 @@ let Content = {
         else
           this._onClickCapture(aEvent);
         break;
-
+      
       case "DOMContentLoaded":
-        LoginManagerContent.onContentLoaded(aEvent);
         this._maybeNotifyErrorPage();
-        break;
-
-      case "DOMAutoComplete":
-      case "blur":
-        LoginManagerContent.onUsernameInput(aEvent);
         break;
 
       case "pagehide":
@@ -205,7 +349,8 @@ let Content = {
         break;
 
       case "touchstart":
-        this._onTouchStart(aEvent);
+        let touch = aEvent.changedTouches[0];
+        this._onTouchStart(touch.clientX, touch.clientY);
         break;
     }
   },
@@ -258,8 +403,10 @@ let Content = {
    * Event handlers
    */
 
-  _onTouchStart: function _onTouchStart(aEvent) {
-    let element = aEvent.target;
+  _onTouchStart: function _onTouchStart(x, y) {
+    let { element } = elementFromPoint(x, y);
+    if (!element)
+      return;
 
     // There is no need to have a feedback for disabled element
     let isDisabled = element instanceof HTMLOptionElement ?
@@ -272,9 +419,11 @@ let Content = {
   },
 
   _onClickCapture: function _onClickCapture(aEvent) {
-    let element = aEvent.target;
-
     ContextMenuHandler.reset();
+
+    let { element: element } = elementFromPoint(aEvent.clientX, aEvent.clientY);
+    if (!element)
+      return;
 
     // Only show autocomplete after the item is clicked
     if (!this.lastClickElement || this.lastClickElement != element) {
@@ -293,10 +442,9 @@ let Content = {
     // A tap on a form input triggers touch input caret selection
     if (Util.isTextInput(element) &&
         aEvent.mozInputSource == Ci.nsIDOMMouseEvent.MOZ_SOURCE_TOUCH) {
-      let { offsetX, offsetY } = Util.translateToTopLevelWindow(element);
       sendAsyncMessage("Content:SelectionCaret", {
-        xPos: aEvent.clientX + offsetX,
-        yPos: aEvent.clientY + offsetY
+        xPos: aEvent.clientX,
+        yPos: aEvent.clientY
       });
     }
   },
@@ -497,7 +645,7 @@ var FormSubmitObserver = {
         Services.obs.addObserver(this, "formsubmit", false);
         break;
       case "Browser:TabClose":
-        Services.obs.removeObserver(this, "formsubmit");
+        Services.obs.removeObserver(this, "formsubmit", false);
         break;
     }
   },

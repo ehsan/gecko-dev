@@ -14,7 +14,6 @@
 #include "AccessibleWrap.h"
 #include "TableAccessible.h"
 #include "TableCellAccessible.h"
-#include "IUnknownImpl.h"
 
 #include "nsCOMPtr.h"
 #include "nsString.h"
@@ -26,7 +25,7 @@ using namespace mozilla::a11y;
 STDMETHODIMP
 ia2AccessibleTableCell::QueryInterface(REFIID iid, void** ppv)
 {
-  *ppv = nullptr;
+  *ppv = NULL;
 
   if (IID_IAccessibleTableCell == iid) {
     *ppv = static_cast<IAccessibleTableCell*>(this);
@@ -45,7 +44,7 @@ ia2AccessibleTableCell::get_table(IUnknown** aTable)
 {
   A11Y_TRYBLOCK_BEGIN
 
-  *aTable = nullptr;
+  *aTable = NULL;
   if (!mTableCell)
     return CO_E_OBJNOTCONNECTED;
 
@@ -83,7 +82,7 @@ ia2AccessibleTableCell::get_columnHeaderCells(IUnknown*** aCellAccessibles,
 {
   A11Y_TRYBLOCK_BEGIN
 
-  *aCellAccessibles = nullptr;
+  *aCellAccessibles = NULL;
   *aNColumnHeaderCells = 0;
   if (!mTableCell)
     return CO_E_OBJNOTCONNECTED;
@@ -146,7 +145,7 @@ ia2AccessibleTableCell::get_rowHeaderCells(IUnknown*** aCellAccessibles,
 {
   A11Y_TRYBLOCK_BEGIN
 
-  *aCellAccessibles = nullptr;
+  *aCellAccessibles = NULL;
   *aNRowHeaderCells = 0;
   if (!mTableCell)
     return CO_E_OBJNOTCONNECTED;

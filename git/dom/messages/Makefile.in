@@ -11,10 +11,14 @@ relativesrcdir   = @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-DISABLED_EXTRA_COMPONENTS = \
+EXTRA_COMPONENTS = \
   SystemMessageManager.js \
   SystemMessageInternal.js \
   SystemMessageManager.manifest \
+  $(NULL)
+
+EXTRA_JS_MODULES += \
+  SystemMessagePermissionsChecker.jsm \
   $(NULL)
 
 include $(topsrcdir)/config/rules.mk

@@ -110,9 +110,8 @@ function testVariablesFiltering()
     is(gSearchBox.value, "*",
       "Searchbox value is incorrect after 3 backspaces");
 
-    // variable count includes `__proto__` for object scopes
-    is(innerScope.querySelectorAll(".variables-view-variable:not([non-match])").length, 4,
-      "There should be 4 variables displayed in the inner scope");
+    is(innerScope.querySelectorAll(".variables-view-variable:not([non-match])").length, 3,
+      "There should be 3 variables displayed in the inner scope");
     isnot(mathScope.querySelectorAll(".variables-view-variable:not([non-match])").length, 0,
       "There should be some variables displayed in the math scope");
     isnot(testScope.querySelectorAll(".variables-view-variable:not([non-match])").length, 0,
@@ -128,8 +127,8 @@ function testVariablesFiltering()
       "There should be 0 properties displayed in the math scope");
     is(testScope.querySelectorAll(".variables-view-property:not([non-match])").length, 0,
       "There should be 0 properties displayed in the test scope");
-    ok(loadScope.querySelectorAll(".variables-view-property:not([non-match])").length > 1,
-      "There should be more than one property displayed in the load scope");
+    is(loadScope.querySelectorAll(".variables-view-property:not([non-match])").length, 1,
+      "There should be 1 property displayed in the load scope");
     isnot(globalScope.querySelectorAll(".variables-view-property:not([non-match])").length, 0,
       "There should be some properties displayed in the global scope");
   }
@@ -141,9 +140,8 @@ function testVariablesFiltering()
     is(gSearchBox.value, "",
       "Searchbox value is incorrect after 1 backspace");
 
-    // variable count includes `__proto__` for object scopes
-    is(innerScope.querySelectorAll(".variables-view-variable:not([non-match])").length, 4,
-      "There should be 4 variables displayed in the inner scope");
+    is(innerScope.querySelectorAll(".variables-view-variable:not([non-match])").length, 3,
+      "There should be 3 variables displayed in the inner scope");
     isnot(mathScope.querySelectorAll(".variables-view-variable:not([non-match])").length, 0,
       "There should be some variables displayed in the math scope");
     isnot(testScope.querySelectorAll(".variables-view-variable:not([non-match])").length, 0,
@@ -159,8 +157,8 @@ function testVariablesFiltering()
       "There should be 0 properties displayed in the math scope");
     is(testScope.querySelectorAll(".variables-view-property:not([non-match])").length, 0,
       "There should be 0 properties displayed in the test scope");
-    ok(loadScope.querySelectorAll(".variables-view-property:not([non-match])").length > 1,
-      "There should be more than one properties displayed in the load scope");
+    is(loadScope.querySelectorAll(".variables-view-property:not([non-match])").length, 1,
+      "There should be 1 property displayed in the load scope");
     isnot(globalScope.querySelectorAll(".variables-view-property:not([non-match])").length, 0,
       "There should be some properties displayed in the global scope");
   }
@@ -215,7 +213,7 @@ function prepareVariables(aCallback)
     gDebugger.removeEventListener("Debugger:FetchedVariables", test, false);
     Services.tm.currentThread.dispatch({ run: function() {
 
-      var frames = gDebugger.DebuggerView.StackFrames.widget._list,
+      var frames = gDebugger.DebuggerView.StackFrames._container._list,
           scopes = gDebugger.DebuggerView.Variables._list,
           innerScope = scopes.querySelectorAll(".variables-view-scope")[0],
           mathScope = scopes.querySelectorAll(".variables-view-scope")[1],

@@ -87,10 +87,15 @@ this.NetworkHelper =
    */
   convertToUnicode: function NH_convertToUnicode(aText, aCharset)
   {
+    if (!aCharset) {
+      return aText;
+    }
+
     let conv = Cc["@mozilla.org/intl/scriptableunicodeconverter"].
                createInstance(Ci.nsIScriptableUnicodeConverter);
+    conv.charset = aCharset;
+
     try {
-      conv.charset = aCharset || "UTF-8";
       return conv.ConvertToUnicode(aText);
     }
     catch (ex) {
@@ -209,10 +214,7 @@ this.NetworkHelper =
   {
     try {
       return this.getRequestLoadContext(aRequest).associatedWindow;
-    } catch (ex) {
-      // TODO: bug 802246 - getWindowForRequest() throws on b2g: there is no
-      // associatedWindow property.
-    }
+    } catch (ex) { }
     return null;
   },
 

@@ -13,7 +13,8 @@
 !verbose 3
 
 SetDatablockOptimize on
-SetCompress off
+SetCompress force
+SetCompressor /FINAL /SOLID lzma
 CRCCheck on
 
 RequestExecutionLevel user
@@ -238,10 +239,10 @@ Var ControlRightPX
 !insertmacro UnloadUAC
 
 VIAddVersionKey "FileDescription" "${BrandShortName} Stub Installer"
-VIAddVersionKey "OriginalFilename" "setup-stub.exe"
+VIAddVersionKey "OriginalFilename" "stub.exe"
 
 Name "$BrandFullName"
-OutFile "setup-stub.exe"
+OutFile "stub.exe"
 icon "setup.ico"
 XPStyle on
 BrandingText " "
@@ -263,13 +264,13 @@ ChangeUI all "nsisui.exe"
 !if "${AB_CD}" == "en-US"
   ; Custom strings for en-US. This is done here so they aren't translated.
   !define INDENT "     "
-  !define INTRO_BLURB "Thanks for choosing $BrandFullName. We’re not just designed to be different, we’re different by design."
+  !define INTRO_BLURB "Thanks for choosing $BrandFullName. We’re not just designed to be different, we’re different by design. Click to install."
   !define INSTALL_BLURB1 "You're about to enjoy the very latest in speed, flexibility and security so you're always in control."
   !define INSTALL_BLURB2 "And you're joining a global community of users, contributors and developers working to make the best browser in the world."
   !define INSTALL_BLURB3 "You even get a haiku:$\n${INDENT}Proudly non-profit$\n${INDENT}Free to innovate for you$\n${INDENT}And a better Web"
   !undef INDENT
 !else
-  !define INTRO_BLURB "$(INTRO_BLURB1)"
+  !define INTRO_BLURB "$(INTRO_BLURB)"
   !define INSTALL_BLURB1 "$(INSTALL_BLURB1)"
   !define INSTALL_BLURB2 "$(INSTALL_BLURB2)"
   !define INSTALL_BLURB3 "$(INSTALL_BLURB3)"
@@ -697,11 +698,7 @@ Function createIntro
   ${NSD_SetStretchedImage} $2 $PLUGINSDIR\bgintro.bmp $1
 
   GetDlgItem $0 $HWNDPARENT 1 ; Install button
-  ${If} ${FileExists} "$INSTDIR\${FileMainEXE}"
-    SendMessage $0 ${WM_SETTEXT} 0 "STR:$(UPGRADE_BUTTON)"
-  ${Else}
-    SendMessage $0 ${WM_SETTEXT} 0 "STR:$(INSTALL_BUTTON)"
-  ${EndIf}
+  SendMessage $0 ${WM_SETTEXT} 0 "STR:$(INSTALL_BUTTON)"
   ${NSD_SetFocus} $0
 
   GetDlgItem $0 $HWNDPARENT 2 ; Cancel button
@@ -952,11 +949,7 @@ Function createOptions
 !endif
 
   GetDlgItem $0 $HWNDPARENT 1 ; Install button
-  ${If} ${FileExists} "$INSTDIR\${FileMainEXE}"
-    SendMessage $0 ${WM_SETTEXT} 0 "STR:$(UPGRADE_BUTTON)"
-  ${Else}
-    SendMessage $0 ${WM_SETTEXT} 0 "STR:$(INSTALL_BUTTON)"
-  ${EndIf}
+  SendMessage $0 ${WM_SETTEXT} 0 "STR:$(INSTALL_BUTTON)"
   ${NSD_SetFocus} $0
 
   GetDlgItem $0 $HWNDPARENT 2 ; Cancel button
@@ -976,7 +969,7 @@ Function createOptions
     ${EndIf}
   ${EndIf}
 
-  StrCpy $OptionsPageShownCount "1"
+  IntOp $OptionsPageShownCount $OptionsPageShownCount + 1
 
   System::Call "kernel32::GetTickCount()l .s"
   Pop $StartOptionsPhaseTickCount
@@ -1688,13 +1681,6 @@ Function OnChange_DirRequest
   System::Call 'user32::GetWindowTextW(i $DirRequest, w .r0, i ${NSIS_MAX_STRLEN})'
   StrCpy $INSTDIR "$0"
   Call UpdateFreeSpaceLabel
-
-  GetDlgItem $0 $HWNDPARENT 1 ; Install button
-  ${If} ${FileExists} "$INSTDIR\${FileMainEXE}"
-    SendMessage $0 ${WM_SETTEXT} 0 "STR:$(UPGRADE_BUTTON)"
-  ${Else}
-    SendMessage $0 ${WM_SETTEXT} 0 "STR:$(INSTALL_BUTTON)"
-  ${EndIf}
 FunctionEnd
 
 Function OnClick_ButtonBrowse

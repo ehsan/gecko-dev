@@ -16,7 +16,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGFEColorMatrixElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+SVGFEColorMatrixElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return SVGFEColorMatrixElementBinding::Wrap(aCx, aScope, this);
 }
@@ -57,7 +57,7 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFEColorMatrixElement)
 
 //----------------------------------------------------------------------
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGFEColorMatrixElement::In1()
 {
   return mStringAttributes[IN1].ToDOMAnimatedString(this);

@@ -14,11 +14,8 @@ import android.net.Uri;
 import android.util.Base64;
 import android.util.Log;
 
-import org.mozilla.gecko.R;
-
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.Field;
 import java.net.MalformedURLException;
 import java.net.URL;
 
@@ -132,63 +129,48 @@ public final class BitmapUtils {
     }
 
     public static int getDominantColor(Bitmap source, boolean applyThreshold) {
+      int[] colors = new int[37];
+      int[] sat = new int[11];
+      int[] val = new int[11];
+      int maxH = 0;
+      int maxS = 0;
+      int maxV = 0;
       if (source == null)
         return Color.argb(255,255,255,255);
-
-      // Keep track of how many times a hue in a given bin appears in the image.
-      // Hue values range [0 .. 360), so dividing by 10, we get 36 bins.
-      int[] colorBins = new int[36];
-
-      // The bin with the most colors. Initialize to -1 to prevent accidentally
-      // thinking the first bin holds the dominant color.
-      int maxBin = -1;
-
-      // Keep track of sum hue/saturation/value per hue bin, which we'll use to
-      // compute an average to for the dominant color.
-      float[] sumHue = new float[36];
-      float[] sumSat = new float[36];
-      float[] sumVal = new float[36];
 
       for (int row = 0; row < source.getHeight(); row++) {
         for (int col = 0; col < source.getWidth(); col++) {
           int c = source.getPixel(col, row);
-          // Ignore pixels with a certain transparency.
           if (Color.alpha(c) < 128)
             continue;
 
           float[] hsv = new float[3];
           Color.colorToHSV(c, hsv);
 
-          // If a threshold is applied, ignore arbitrarily chosen values for "white" and "black".
-          if (applyThreshold && (hsv[1] <= 0.35f || hsv[2] <= 0.35f))
+          // arbitrarily chosen values for "white" and "black"
+          if (applyThreshold && hsv[1] <= 0.35f && hsv[2] <= 0.35f)
             continue;
 
-          // We compute the dominant color by putting colors in bins based on their hue.
-          int bin = (int) Math.floor(hsv[0] / 10.0f);
+          int h = Math.round(hsv[0] / 10.0f);
+          int s = Math.round(hsv[1] * 10.0f);
+          int v = Math.round(hsv[2] * 10.0f);
+          colors[h]++;
+          sat[s]++;
+          val[v]++;
 
-          // Update the sum hue/saturation/value for this bin.
-          sumHue[bin] = sumHue[bin] + hsv[0];
-          sumSat[bin] = sumSat[bin] + hsv[1];
-          sumVal[bin] = sumVal[bin] + hsv[2];
-
-          // Increment the number of colors in this bin.
-          colorBins[bin]++;
-
-          // Keep track of the bin that holds the most colors.
-          if (maxBin < 0 || colorBins[bin] > colorBins[maxBin])
-            maxBin = bin;
+          // we only care about the most unique non white or black hue - if threshold is applied
+          // we also store its saturation and value params to match the color better
+          if (colors[h] > colors[maxH]) {
+            maxH = h;
+            maxS = s;
+            maxV = v;
+          }
         }
       }
-
-      // maxBin may never get updated if the image holds only transparent and/or black/white pixels.
-      if (maxBin < 0)
-        return Color.argb(255,255,255,255);
-
-      // Return a color with the average hue/saturation/value of the bin with the most colors.
       float[] hsv = new float[3];
-      hsv[0] = sumHue[maxBin]/colorBins[maxBin];
-      hsv[1] = sumSat[maxBin]/colorBins[maxBin];
-      hsv[2] = sumVal[maxBin]/colorBins[maxBin];
+      hsv[0] = maxH*10.0f;
+      hsv[1] = (float)maxS/10.0f;
+      hsv[2] = (float)maxV/10.0f;
       return Color.HSVToColor(hsv);
     }
 
@@ -207,23 +189,6 @@ public final class BitmapUtils {
             Log.e(LOGTAG, "exception decoding bitmap from data URI: " + dataURI, e);
         }
         return null;
-    }
-
-    public static int getResource(Uri resourceUrl, int defaultIcon) {
-        int icon = defaultIcon;
-
-        final String scheme = resourceUrl.getScheme();
-        if ("drawable".equals(scheme)) {
-            String resource = resourceUrl.getSchemeSpecificPart();
-            resource = resource.substring(resource.lastIndexOf('/') + 1);
-            try {
-                final Class<R.drawable> drawableClass = R.drawable.class;
-                final Field f = drawableClass.getField(resource);
-                icon = f.getInt(null);
-            } catch (final Exception e) {} // just means the resource doesn't exist
-            resourceUrl = null;
-        }
-        return icon;
     }
 }
 

@@ -11,7 +11,11 @@
  * and create derivative works of this document.
  */
 
+interface CanvasGradient;
+interface CanvasPattern;
 interface HitRegionOptions;
+interface HTMLCanvasElement;
+interface TextMetrics;
 interface Window;
 
 enum CanvasWindingRule { "nonzero", "evenodd" };
@@ -50,11 +54,11 @@ interface CanvasRenderingContext2D {
            attribute any strokeStyle; // (default black)
            [GetterThrows]
            attribute any fillStyle; // (default black)
-  [Creator]
+  [Throws]
   CanvasGradient createLinearGradient(double x0, double y0, double x1, double y1);
-  [Creator, Throws]
+  [Throws]
   CanvasGradient createRadialGradient(double x0, double y0, double r0, double x1, double y1, double r1);
-  [Creator, Throws]
+  [Throws]
   CanvasPattern createPattern((HTMLImageElement or HTMLCanvasElement or HTMLVideoElement) image, [TreatNullAs=EmptyString] DOMString repetition);
 
   // shadows
@@ -76,7 +80,7 @@ interface CanvasRenderingContext2D {
 
   // path API (see also CanvasPathMethods)
   void beginPath();
-  void fill([TreatUndefinedAs=Missing] optional CanvasWindingRule winding = "nonzero");
+  void fill(optional CanvasWindingRule winding = "nonzero");
 // NOT IMPLEMENTED  void fill(Path path);
   void stroke();
 // NOT IMPLEMENTED  void stroke(Path path);
@@ -86,10 +90,10 @@ interface CanvasRenderingContext2D {
 // NOT IMPLEMENTED  boolean drawCustomFocusRing(Path path, Element element);
 // NOT IMPLEMENTED  void scrollPathIntoView();
 // NOT IMPLEMENTED  void scrollPathIntoView(Path path);
-  void clip([TreatUndefinedAs=Missing] optional CanvasWindingRule winding = "nonzero");
+  void clip(optional CanvasWindingRule winding = "nonzero");
 // NOT IMPLEMENTED  void clip(Path path);
 // NOT IMPLEMENTED  void resetClip();
-  boolean isPointInPath(unrestricted double x, unrestricted double y, [TreatUndefinedAs=Missing] optional CanvasWindingRule winding = "nonzero");
+  boolean isPointInPath(unrestricted double x, unrestricted double y, optional CanvasWindingRule winding = "nonzero");
 // NOT IMPLEMENTED  boolean isPointInPath(Path path, unrestricted double x, unrestricted double y);
   boolean isPointInStroke(double x, double y);
 
@@ -98,7 +102,7 @@ interface CanvasRenderingContext2D {
   void fillText(DOMString text, double x, double y, optional double maxWidth);
   [Throws, LenientFloat]
   void strokeText(DOMString text, double x, double y, optional double maxWidth);
-  [Creator, Throws]
+  [Throws]
   TextMetrics measureText(DOMString text);
 
   // drawing images
@@ -261,41 +265,3 @@ interface CanvasPathMethods {
   void arc(double x, double y, double radius, double startAngle, double endAngle, optional boolean anticlockwise = false); 
 // NOT IMPLEMENTED  [LenientFloat] void ellipse(double x, double y, double radiusX, double radiusY, double rotation, double startAngle, double endAngle, boolean anticlockwise);
 };
-
-interface CanvasGradient {
-  // opaque object
-  [Throws]
-  // addColorStop should take a double
-  void addColorStop(float offset, DOMString color);
-};
-
-interface CanvasPattern {
-  // opaque object
-  // void setTransform(SVGMatrix transform);
-};
-
-interface TextMetrics {
-
-  // x-direction
-  readonly attribute double width; // advance width
-
-  /*
-   * NOT IMPLEMENTED YET
-
-  readonly attribute double actualBoundingBoxLeft;
-  readonly attribute double actualBoundingBoxRight;
-
-  // y-direction
-  readonly attribute double fontBoundingBoxAscent;
-  readonly attribute double fontBoundingBoxDescent;
-  readonly attribute double actualBoundingBoxAscent;
-  readonly attribute double actualBoundingBoxDescent;
-  readonly attribute double emHeightAscent;
-  readonly attribute double emHeightDescent;
-  readonly attribute double hangingBaseline;
-  readonly attribute double alphabeticBaseline;
-  readonly attribute double ideographicBaseline;
-  */
-
-};
-

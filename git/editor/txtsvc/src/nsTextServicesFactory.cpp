@@ -21,7 +21,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsTextServicesDocument)
 // class name.
 //
 static const nsModuleComponentInfo components[] = {
-  { nullptr, NS_TEXTSERVICESDOCUMENT_CID, "@mozilla.org/textservices/textservicesdocument;1", nsTextServicesDocumentConstructor },
+  { NULL, NS_TEXTSERVICESDOCUMENT_CID, "@mozilla.org/textservices/textservicesdocument;1", nsTextServicesDocumentConstructor },
 };
 
 ////////////////////////////////////////////////////////////////////////

@@ -1,7 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-MARIONETTE_TIMEOUT = 60000;
+MARIONETTE_TIMEOUT = 20000;
 
 SpecialPowers.addPermission("sms", true, document);
 SpecialPowers.setBoolPref("dom.sms.enabled", true);
@@ -25,14 +25,16 @@ function deleteAllMsgs(nextFunction) {
   let msgList = new Array();
   let smsFilter = new MozSmsFilter;
 
-  let cursor = sms.getMessages(smsFilter, false);
-  ok(cursor instanceof DOMCursor,
-      "cursor is instanceof " + cursor.constructor);
+  let request = sms.getMessages(smsFilter, false);
+  ok(request instanceof MozSmsRequest,
+      "request is instanceof " + request.constructor);
 
-  cursor.onsuccess = function(event) {
+  request.onsuccess = function(event) {
+    ok(event.target.result, "smsrequest event.target.result");
+    cursor = event.target.result;
     // Check if message was found
-    if (cursor.result) {
-      msgList.push(cursor.result.id);
+    if (cursor.message) {
+      msgList.push(cursor.message.id);
       // Now get next message in the list
       cursor.continue();
     } else {
@@ -47,8 +49,8 @@ function deleteAllMsgs(nextFunction) {
     }
   };
 
-  cursor.onerror = function(event) {
-    log("Received 'onerror' event.");
+  request.onerror = function(event) {
+    log("Received 'onerror' smsrequest event.");
     ok(event.target.error, "domerror obj");
     log("sms.getMessages error: " + event.target.error.name);
     ok(false,"Could not get SMS messages");
@@ -61,7 +63,7 @@ function deleteMsgs(msgList, nextFunction) {
 
   log("Deleting SMS (id: " + smsId + ").");
   let request = sms.delete(smsId);
-  ok(request instanceof DOMRequest,
+  ok(request instanceof MozSmsRequest,
       "request is instanceof " + request.constructor);
 
   request.onsuccess = function(event) {
@@ -142,19 +144,21 @@ function getMsgs(reverse) {
 
   // Note: This test is intended for getMessages, so just a basic test with
   // no filter (default); separate tests will be written for sms filtering
-  let cursor = sms.getMessages(smsFilter, reverse);
-  ok(cursor instanceof DOMCursor,
-      "cursor is instanceof " + cursor.constructor);
+  let request = sms.getMessages(smsFilter, reverse);
+  ok(request instanceof MozSmsRequest,
+      "request is instanceof " + request.constructor);
 
-  cursor.onsuccess = function(event) {
-    log("Received 'onsuccess' event.");
+  request.onsuccess = function(event) {
+    log("Received 'onsuccess' smsrequest event.");
+    ok(event.target.result, "smsrequest event.target.result");
+    cursor = event.target.result;
 
-    if (cursor.result) {
+    if (cursor.message) {
       // Another message found
-      log("Got SMS (id: " + cursor.result.id + ").");
+      log("Got SMS (id: " + cursor.message.id + ").");
       foundSmsCount++;
       // Store found message
-      foundSmsList.push(cursor.result);
+      foundSmsList.push(cursor.message);
       // Now get next message in the list
       cursor.continue();
     } else {
@@ -171,8 +175,8 @@ function getMsgs(reverse) {
     }
   };
 
-  cursor.onerror = function(event) {
-    log("Received 'onerror' event.");
+  request.onerror = function(event) {
+    log("Received 'onerror' smsrequest event.");
     ok(event.target.error, "domerror obj");
     log("sms.getMessages error: " + event.target.error.name);
     ok(false,"Could not get SMS messages");
@@ -186,7 +190,6 @@ function verifyFoundMsgs(foundSmsList, reverse) {
   }
   for (var x = 0; x < numberMsgs; x++) {
     is(foundSmsList[x].id, smsList[x].id, "id");
-    is(foundSmsList[x].threadId, smsList[x].threadId, "thread id");
     is(foundSmsList[x].body, smsList[x].body, "body");
     is(foundSmsList[x].delivery, smsList[x].delivery, "delivery");
     is(foundSmsList[x].read, smsList[x].read, "read");

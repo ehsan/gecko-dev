@@ -100,22 +100,7 @@ public:
 
   bool IsFloat() const
   {
-    return !IsUnset() && mBuffer.First() == eFloat;
-  }
-
-  bool IsDate() const
-  {
-    return !IsUnset() && mBuffer.First() == eDate;
-  }
-
-  bool IsString() const
-  {
-    return !IsUnset() && mBuffer.First() == eString;
-  }
-
-  bool IsArray() const
-  {
-    return !IsUnset() && mBuffer.First() >= eArray;
+    return !mBuffer.IsVoid() && mBuffer.First() == eFloat;
   }
 
   double ToFloat() const
@@ -125,23 +110,6 @@ public:
     double res = DecodeNumber(pos, BufferEnd());
     NS_ASSERTION(pos >= BufferEnd(), "Should consume whole buffer");
     return res;
-  }
-
-  double ToDateMsec() const
-  {
-    NS_ASSERTION(IsDate(), "Why'd you call this?");
-    const unsigned char* pos = BufferStart();
-    double res = DecodeNumber(pos, BufferEnd());
-    NS_ASSERTION(pos >= BufferEnd(), "Should consume whole buffer");
-    return res;
-  }
-
-  void ToString(nsString& aString) const
-  {
-    NS_ASSERTION(IsString(), "Why'd you call this?");
-    const unsigned char* pos = BufferStart();
-    DecodeString(pos, BufferEnd(), aString);
-    NS_ASSERTION(pos >= BufferEnd(), "Should consume whole buffer");
   }
 
   void SetFromString(const nsAString& aString)
@@ -179,10 +147,10 @@ public:
   }
 
   nsresult ToJSVal(JSContext* aCx,
-                   JS::MutableHandle<JS::Value> aVal) const
+                   jsval* aVal) const
   {
     if (IsUnset()) {
-      aVal.set(JSVAL_VOID);
+      *aVal = JSVAL_VOID;
       return NS_OK;
     }
 
@@ -194,17 +162,6 @@ public:
                  "Didn't consume whole buffer");
 
     return NS_OK;
-  }
-
-  nsresult ToJSVal(JSContext* aCx,
-                   JS::Heap<JS::Value>& aVal) const
-  {
-    JS::Rooted<JS::Value> value(aCx);
-    nsresult rv = ToJSVal(aCx, &value);
-    if (NS_SUCCEEDED(rv)) {
-      aVal = value;
-    }
-    return rv;
   }
 
   nsresult AppendItem(JSContext* aCx,
@@ -315,7 +272,7 @@ private:
   // past the consumed value.
   static inline nsresult DecodeJSVal(const unsigned char*& aPos,
                                      const unsigned char* aEnd, JSContext* aCx,
-                                     uint8_t aTypeOffset, JS::MutableHandle<JS::Value> aVal)
+                                     uint8_t aTypeOffset, jsval* aVal)
   {
     return DecodeJSValInternal(aPos, aEnd, aCx, aTypeOffset, aVal, 0);
   }
@@ -335,7 +292,7 @@ private:
   static nsresult DecodeJSValInternal(const unsigned char*& aPos,
                                       const unsigned char* aEnd,
                                       JSContext* aCx, uint8_t aTypeOffset,
-                                      JS::MutableHandle<JS::Value> aVal, uint16_t aRecursionDepth);
+                                      jsval* aVal, uint16_t aRecursionDepth);
 };
 
 END_INDEXEDDB_NAMESPACE

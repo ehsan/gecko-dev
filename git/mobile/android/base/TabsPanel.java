@@ -5,14 +5,11 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.animation.PropertyAnimator;
-import org.mozilla.gecko.animation.ViewHelper;
 import org.mozilla.gecko.widget.IconTabWidget;
 
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Rect;
-import android.os.Build;
 import android.util.AttributeSet;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -48,7 +45,6 @@ public class TabsPanel extends LinearLayout
 
     private Context mContext;
     private GeckoApp mActivity;
-    private RelativeLayout mHeader;
     private TabsListContainer mTabsContainer;
     private PanelView mPanel;
     private PanelView mPanelNormal;
@@ -83,7 +79,6 @@ public class TabsPanel extends LinearLayout
     }
 
     private void initialize() {
-        mHeader = (RelativeLayout) findViewById(R.id.tabs_panel_header);
         mTabsContainer = (TabsListContainer) findViewById(R.id.tabs_container);
 
         mPanelNormal = (TabsTray) findViewById(R.id.normal_tabs);
@@ -156,6 +151,7 @@ public class TabsPanel extends LinearLayout
         listContainer.getWindowVisibleDisplayFrame(windowRect);
         int windowHeight = windowRect.bottom - windowRect.top;
 
+
         // The web content area should have at least 1.5x the height of the action bar.
         // The tabs panel shouldn't take less than 50% of the screen height and can take
         // up to 80% of the window height.
@@ -222,7 +218,7 @@ public class TabsPanel extends LinearLayout
 
         @Override
         protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-            if (!GeckoAppShell.getGeckoInterface().hasTabsSideBar()) {
+            if (!GeckoApp.mAppContext.hasTabsSideBar()) {
                 int heightSpec = MeasureSpec.makeMeasureSpec(getTabContainerHeight(TabsListContainer.this), MeasureSpec.EXACTLY);
                 super.onMeasure(widthMeasureSpec, heightSpec);
             } else {
@@ -340,6 +336,11 @@ public class TabsPanel extends LinearLayout
         if (mVisible) {
             mVisible = false;
             dispatchLayoutChange(0, 0);
+
+            if (mPanel != null) {
+                mPanel.hide();
+                mPanel = null;
+            }
         }
     }
 
@@ -372,76 +373,6 @@ public class TabsPanel extends LinearLayout
 
     public Panel getCurrentPanel() {
         return mCurrentPanel;
-    }
-
-    public void prepareTabsAnimation(PropertyAnimator animator) {
-        // Not worth doing this on pre-Honeycomb without proper
-        // hardware accelerated animations.
-        if (Build.VERSION.SDK_INT < 11) {
-            return;
-        }
-
-        final Resources resources = getContext().getResources();
-        final int toolbarHeight = resources.getDimensionPixelSize(R.dimen.browser_toolbar_height);
-        final int tabsPanelWidth = getWidth();
-
-        if (mVisible) {
-            if (mIsSideBar) {
-                ViewHelper.setTranslationX(mHeader, -tabsPanelWidth);
-            } else {
-                ViewHelper.setTranslationY(mHeader, -toolbarHeight);
-            }
-
-            if (mIsSideBar) {
-                ViewHelper.setTranslationX(mTabsContainer, -tabsPanelWidth);
-            } else {
-                ViewHelper.setTranslationY(mTabsContainer, -toolbarHeight);
-                ViewHelper.setAlpha(mTabsContainer, 0);
-            }
-
-            // The footer view is only present on the sidebar
-            if (mIsSideBar) {
-                ViewHelper.setTranslationX(mFooter, -tabsPanelWidth);
-            }
-        }
-
-        if (mIsSideBar) {
-            final int translationX = (mVisible ? 0 : -tabsPanelWidth);
-
-            animator.attach(mTabsContainer,
-                            PropertyAnimator.Property.TRANSLATION_X,
-                            translationX);
-            animator.attach(mHeader,
-                            PropertyAnimator.Property.TRANSLATION_X,
-                            translationX);
-            animator.attach(mFooter,
-                            PropertyAnimator.Property.TRANSLATION_X,
-                            translationX);
-        } else {
-            final int translationY = (mVisible ? 0 : -toolbarHeight);
-
-            animator.attach(mTabsContainer,
-                            PropertyAnimator.Property.ALPHA,
-                            mVisible ? 1.0f : 0.0f);
-            animator.attach(mTabsContainer,
-                            PropertyAnimator.Property.TRANSLATION_Y,
-                            translationY);
-            animator.attach(mHeader,
-                            PropertyAnimator.Property.TRANSLATION_Y,
-                            translationY);
-        }
-
-        mHeader.setLayerType(View.LAYER_TYPE_HARDWARE, null);
-        mTabsContainer.setLayerType(View.LAYER_TYPE_HARDWARE, null);
-    }
-
-    public void finishTabsAnimation() {
-        if (Build.VERSION.SDK_INT < 11) {
-            return;
-        }
-
-        mHeader.setLayerType(View.LAYER_TYPE_NONE, null);
-        mTabsContainer.setLayerType(View.LAYER_TYPE_NONE, null);
     }
 
     public void setTabsLayoutChangeListener(TabsLayoutChangeListener listener) {

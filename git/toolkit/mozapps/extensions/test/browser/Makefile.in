@@ -40,7 +40,6 @@ MOCHITEST_BROWSER_MAIN = \
   browser_bug618502.js \
   browser_bug679604.js \
   browser_bug714593.js \
-  browser_bug590347.js \
   browser_details.js \
   browser_discovery.js \
   browser_dragdrop.js \
@@ -62,7 +61,6 @@ MOCHITEST_BROWSER_MAIN = \
   browser_inlinesettings_info.js \
   browser_tabsettings.js \
   browser_pluginprefs.js \
-  browser_CTP_plugins.js \
   $(NULL)
 
 MOCHITEST_BROWSER_SECONDARY = \
@@ -108,11 +106,8 @@ MOCHITEST_BROWSER_RESOURCES = \
   unsigned_hotfix.xpi \
   more_options.xul \
   options.xul \
-  plugin_test.html \
   redirect.sjs \
   releaseNotes.xhtml \
-  blockNoPlugins.xml \
-  blockPluginHard.xml \
   $(NULL)
 
 MOCHITEST_BROWSER_FILES_PARTS = $(foreach s,MAIN SECONDARY RESOURCES,MOCHITEST_BROWSER_$(s))
@@ -129,6 +124,6 @@ libs::
 		$(EXIT_ON_ERROR) \
 		for dir in $(ADDONSRC)/*; do \
 			base=`basename $$dir` ; \
-			(cd $$dir && zip -q $(TESTXPI)/$$base.xpi *) \
+			(cd $$dir && zip $(TESTXPI)/$$base.xpi *) \
 		done \
 	fi

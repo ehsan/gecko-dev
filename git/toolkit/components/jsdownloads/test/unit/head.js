@@ -19,10 +19,6 @@ const Cr = Components.results;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "DownloadPaths",
-                                  "resource://gre/modules/DownloadPaths.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "DownloadIntegration",
-                                  "resource://gre/modules/DownloadIntegration.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Downloads",
                                   "resource://gre/modules/Downloads.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "FileUtils",
@@ -31,25 +27,17 @@ XPCOMUtils.defineLazyModuleGetter(this, "HttpServer",
                                   "resource://testing-common/httpd.js");
 XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
                                   "resource://gre/modules/NetUtil.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
-                                  "resource://gre/modules/PlacesUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Promise",
                                   "resource://gre/modules/commonjs/sdk/core/promise.js");
 XPCOMUtils.defineLazyModuleGetter(this, "Services",
                                   "resource://gre/modules/Services.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
                                   "resource://gre/modules/Task.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "OS",
-                                  "resource://gre/modules/osfile.jsm");
 
 const ServerSocket = Components.Constructor(
                                 "@mozilla.org/network/server-socket;1",
                                 "nsIServerSocket",
                                 "init");
-const BinaryOutputStream = Components.Constructor(
-                                      "@mozilla.org/binaryoutputstream;1",
-                                      "nsIBinaryOutputStream",
-                                      "setOutputStream")
 
 const HTTP_SERVER_PORT = 4444;
 const HTTP_BASE = "http://localhost:" + HTTP_SERVER_PORT;
@@ -57,7 +45,6 @@ const HTTP_BASE = "http://localhost:" + HTTP_SERVER_PORT;
 const FAKE_SERVER_PORT = 4445;
 const FAKE_BASE = "http://localhost:" + FAKE_SERVER_PORT;
 
-const TEST_REFERRER_URI = NetUtil.newURI(HTTP_BASE + "/referrer.html");
 const TEST_SOURCE_URI = NetUtil.newURI(HTTP_BASE + "/source.txt");
 const TEST_EMPTY_URI = NetUtil.newURI(HTTP_BASE + "/empty.txt");
 const TEST_FAKE_SOURCE_URI = NetUtil.newURI(FAKE_BASE + "/source.txt");
@@ -70,70 +57,40 @@ const TEST_INTERRUPTIBLE_PATH = "/interruptible.txt";
 const TEST_INTERRUPTIBLE_URI = NetUtil.newURI(HTTP_BASE +
                                               TEST_INTERRUPTIBLE_PATH);
 
-const TEST_INTERRUPTIBLE_GZIP_PATH = "/interruptible_gzip.txt";
-const TEST_INTERRUPTIBLE_GZIP_URI = NetUtil.newURI(HTTP_BASE +
-                                                   TEST_INTERRUPTIBLE_GZIP_PATH);
-
 const TEST_TARGET_FILE_NAME = "test-download.txt";
 const TEST_DATA_SHORT = "This test string is downloaded.";
-// Generate using gzipCompressString in TelemetryPing.js.
-const TEST_DATA_SHORT_GZIP_ENCODED_FIRST = [
- 31,139,8,0,0,0,0,0,0,3,11,201,200,44,86,40,73,45,46,81,40,46,41,202,204
-];
-const TEST_DATA_SHORT_GZIP_ENCODED_SECOND = [
-  75,87,0,114,83,242,203,243,114,242,19,83,82,83,244,0,151,222,109,43,31,0,0,0
-];
-const TEST_DATA_SHORT_GZIP_ENCODED =
-  TEST_DATA_SHORT_GZIP_ENCODED_FIRST.concat(TEST_DATA_SHORT_GZIP_ENCODED_SECOND);
 
 /**
  * All the tests are implemented with add_task, this starts them automatically.
  */
 function run_test()
 {
-  do_get_profile();
   run_next_test();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Support functions
 
-// While the previous test file should have deleted all the temporary files it
-// used, on Windows these might still be pending deletion on the physical file
-// system.  Thus, start from a new base number every time, to make a collision
-// with a file that is still pending deletion highly unlikely.
-let gFileCounter = Math.floor(Math.random() * 1000000);
-
 /**
- * Returns a reference to a temporary file, that is guaranteed not to exist, and
- * to have never been created before.
- *
- * @param aLeafName
- *        Suggested leaf name for the file to be created.
- *
- * @return nsIFile pointing to a non-existent file in a temporary directory.
- *
- * @note It is not enough to delete the file if it exists, or to delete the file
- *       after calling nsIFile.createUnique, because on Windows the delete
- *       operation in the file system may still be pending, preventing a new
- *       file with the same name to be created.
+ * Returns a reference to a temporary file.  The file is deleted if it already
+ * exists.  If the file is then created by the test suite, it will be removed
+ * when tests in this file finish.
  */
 function getTempFile(aLeafName)
 {
-  // Prepend a serial number to the extension in the suggested leaf name.
-  let [base, ext] = DownloadPaths.splitBaseNameAndExtension(aLeafName);
-  let leafName = base + "-" + gFileCounter + ext;
-  gFileCounter++;
-
-  // Get a file reference under the temporary directory for this test file.
-  let file = FileUtils.getFile("TmpD", [leafName]);
-  do_check_false(file.exists());
-
-  do_register_cleanup(function () {
+  let file = FileUtils.getFile("TmpD", [aLeafName]);
+  function GTF_removeFile()
+  {
     if (file.exists()) {
       file.remove(false);
     }
-  });
+  }
+
+  // Remove the file in case a previous test created it.
+  GTF_removeFile();
+
+  // Remove the file at the end of the test suite.
+  do_register_cleanup(GTF_removeFile);
 
   return file;
 }
@@ -153,21 +110,8 @@ function promiseExecuteSoon()
 }
 
 /**
- * Waits for a pending events to be processed after a timeout.
- *
- * @return {Promise}
- * @resolves When pending events have been processed.
- * @rejects Never.
- */
-function promiseTimeout(aTime)
-{
-  let deferred = Promise.defer();
-  do_timeout(aTime, deferred.resolve);
-  return deferred.promise;
-}
-
-/**
- * Creates a new Download object, setting a temporary file as the target.
+ * Creates a new Download object, using TEST_TARGET_FILE_NAME as the target.
+ * The target is deleted by getTempFile when this function is called.
  *
  * @param aSourceURI
  *        The nsIURI for the download source, or null to use TEST_SOURCE_URI.
@@ -212,39 +156,6 @@ function promiseVerifyContents(aFile, aExpectedContents)
     }
     deferred.resolve();
   });
-  return deferred.promise;
-}
-
-/**
- * Adds entry for download.
- *
- * @param aSourceURI
- *        The nsIURI for the download source, or null to use TEST_SOURCE_URI.
- *
- * @return {Promise}
- * @rejects JavaScript exception.
- */
-function promiseAddDownloadToHistory(aSourceURI) {
-  let deferred = Promise.defer();
-  PlacesUtils.asyncHistory.updatePlaces(
-    {
-      uri: aSourceURI || TEST_SOURCE_URI,
-      visits: [{
-        transitionType: Ci.nsINavHistoryService.TRANSITION_DOWNLOAD,
-        visitDate:  Date.now()
-      }]
-    },
-    {
-      handleError: function handleError(aResultCode, aPlaceInfo) {
-        let ex = new Components.Exception("Unexpected error in adding visits.",
-                                          aResultCode);
-        deferred.reject(ex);
-      },
-      handleResult: function () {},
-      handleCompletion: function handleCompletion() {
-        deferred.resolve();
-      }
-    });
   return deferred.promise;
 }
 
@@ -368,16 +279,6 @@ function registerInterruptibleHandler(aPath, aFirstPartFn, aSecondPartFn)
   });
 }
 
-/**
- * Ensure the given date object is valid.
- *
- * @param aDate
- *        The date object to be checked. This value can be null.
- */
-function isValidDate(aDate) {
-  return aDate && aDate.getTime && !isNaN(aDate.getTime());
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 //// Initialization functions common to all tests
 
@@ -404,20 +305,4 @@ add_task(function test_common_initialize()
     function firstPart(aRequest, aResponse) {
       aResponse.setHeader("Content-Type", "text/plain", false);
     }, function secondPart(aRequest, aResponse) { });
-
-
-  registerInterruptibleHandler(TEST_INTERRUPTIBLE_GZIP_PATH,
-    function firstPart(aRequest, aResponse) {
-      aResponse.setHeader("Content-Type", "text/plain", false);
-      aResponse.setHeader("Content-Encoding", "gzip", false);
-      aResponse.setHeader("Content-Length", "" + TEST_DATA_SHORT_GZIP_ENCODED.length);
-
-      let bos =  new BinaryOutputStream(aResponse.bodyOutputStream);
-      bos.writeByteArray(TEST_DATA_SHORT_GZIP_ENCODED_FIRST,
-                         TEST_DATA_SHORT_GZIP_ENCODED_FIRST.length);
-    }, function secondPart(aRequest, aResponse) {
-      let bos =  new BinaryOutputStream(aResponse.bodyOutputStream);
-      bos.writeByteArray(TEST_DATA_SHORT_GZIP_ENCODED_SECOND,
-                         TEST_DATA_SHORT_GZIP_ENCODED_SECOND.length);
-    });
 });

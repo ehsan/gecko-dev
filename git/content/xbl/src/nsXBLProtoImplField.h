@@ -32,12 +32,12 @@ public:
   void SetNext(nsXBLProtoImplField* aNext) { mNext = aNext; }
 
   nsresult InstallField(nsIScriptContext* aContext,
-                        JS::Handle<JSObject*> aBoundNode,
+                        JSObject* aBoundNode,
                         nsIURI* aBindingDocURI,
                         bool* aDidInstall) const;
 
   nsresult InstallAccessors(JSContext* aCx,
-                            JS::Handle<JSObject*> aTargetClassObject);
+                            JSObject* aTargetClassObject);
 
   nsresult Read(nsIScriptContext* aContext, nsIObjectInputStream* aStream);
   nsresult Write(nsIScriptContext* aContext, nsIObjectOutputStream* aStream);

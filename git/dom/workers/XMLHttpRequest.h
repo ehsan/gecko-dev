@@ -29,7 +29,7 @@ public:
   {
     nsString mResponseText;
     uint32_t mStatus;
-    nsCString mStatusText;
+    nsString mStatusText;
     uint16_t mReadyState;
     jsval mResponse;
     nsresult mResponseTextResult;
@@ -83,7 +83,7 @@ public:
   {
     // Pretend like someone passed null, so we can pick up the default values
     MozXMLHttpRequestParametersWorkers params;
-    if (!params.Init(aGlobal.GetContext(), JS::NullHandleValue)) {
+    if (!params.Init(aGlobal.GetContext(), nullptr, JS::NullValue())) {
       aRv.Throw(NS_ERROR_UNEXPECTED);
       return nullptr;
     }
@@ -105,8 +105,7 @@ public:
   }                                                                            \
                                                                                \
   void                                                                         \
-  SetOn##_type(JSContext* /* unused */,  JS::Handle<JSObject*> aListener,      \
-               ErrorResult& aRv)                                               \
+  SetOn##_type(JSContext* /* unused */, JSObject* aListener, ErrorResult& aRv) \
   {                                                                            \
     SetEventListener(NS_LITERAL_STRING(#_type), aListener, aRv);               \
   }
@@ -122,12 +121,12 @@ public:
   }
 
   void
-  Open(const nsACString& aMethod, const nsAString& aUrl, bool aAsync,
+  Open(const nsAString& aMethod, const nsAString& aUrl, bool aAsync,
        const Optional<nsAString>& aUser, const Optional<nsAString>& aPassword,
        ErrorResult& aRv);
 
   void
-  SetRequestHeader(const nsACString& aHeader, const nsACString& aValue,
+  SetRequestHeader(const nsAString& aHeader, const nsAString& aValue,
                    ErrorResult& aRv);
 
   uint32_t
@@ -199,17 +198,17 @@ public:
   }
 
   void
-  GetStatusText(nsACString& aStatusText) const
+  GetStatusText(nsAString& aStatusText) const
   {
     aStatusText = mStateData.mStatusText;
   }
 
   void
-  GetResponseHeader(const nsACString& aHeader, nsACString& aResponseHeader,
+  GetResponseHeader(const nsAString& aHeader, nsAString& aResponseHeader,
                     ErrorResult& aRv);
 
   void
-  GetAllResponseHeaders(nsACString& aResponseHeaders, ErrorResult& aRv);
+  GetAllResponseHeaders(nsAString& aResponseHeaders, ErrorResult& aRv);
 
   void
   OverrideMimeType(const nsAString& aMimeType, ErrorResult& aRv);
@@ -242,7 +241,7 @@ public:
   }
 
   JS::Value
-  GetInterface(JSContext* cx, JS::Handle<JSObject*> aIID, ErrorResult& aRv)
+  GetInterface(JSContext* cx, JSObject* aIID, ErrorResult& aRv)
   {
     aRv.Throw(NS_ERROR_FAILURE);
     return JSVAL_NULL;
@@ -290,7 +289,7 @@ private:
   MaybeDispatchPrematureAbortEvents(ErrorResult& aRv);
 
   void
-  DispatchPrematureAbortEvent(JS::Handle<JSObject*> aTarget, uint8_t aEventType,
+  DispatchPrematureAbortEvent(JSObject* aTarget, uint8_t aEventType,
                               bool aUploadTarget, ErrorResult& aRv);
 
   bool

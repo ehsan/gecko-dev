@@ -90,6 +90,7 @@ StartupCache::GetSingleton()
 {
   if (!gStartupCache) {
     if (XRE_GetProcessType() != GeckoProcessType_Default) {
+      NS_WARNING("Startup cache is only available in the chrome process");
       return nullptr;
     }
 

@@ -30,15 +30,6 @@ public:
   virtual void *mmap(const void *addr, size_t length, int prot, int flags,
                      off_t offset) = 0;
 
-  enum Kind {
-    MAPPABLE_FILE,
-    MAPPABLE_EXTRACT_FILE,
-    MAPPABLE_DEFLATE,
-    MAPPABLE_SEEKABLE_ZSTREAM
-  };
-
-  virtual Kind GetKind() const = 0;
-
 private:
   virtual void munmap(void *addr, size_t length) {
     ::munmap(addr, length);
@@ -46,7 +37,6 @@ private:
   /* Limit use of Mappable::munmap to classes that keep track of the address
    * and size of the mapping. This allows to ignore ::munmap return value. */
   friend class Mappable1stPagePtr;
-  friend class LibHandle;
 
 public:
   /**
@@ -70,12 +60,6 @@ public:
    * the stats call is made.
    */
   virtual void stats(const char *when, const char *name) const { }
-
-  /**
-   * Returns the maximum length that can be mapped from this Mappable for
-   * offset = 0.
-   */
-  virtual size_t GetLength() const = 0;
 };
 
 /**
@@ -94,9 +78,7 @@ public:
   /* Inherited from Mappable */
   virtual void *mmap(const void *addr, size_t length, int prot, int flags, off_t offset);
   virtual void finalize();
-  virtual size_t GetLength() const;
 
-  virtual Kind GetKind() const { return MAPPABLE_FILE; };
 protected:
   MappableFile(int fd): fd(fd) { }
 
@@ -120,7 +102,6 @@ public:
    */
   static Mappable *Create(const char *name, Zip *zip, Zip::Stream *stream);
 
-  virtual Kind GetKind() const { return MAPPABLE_EXTRACT_FILE; };
 private:
   MappableExtractFile(int fd, char *path)
   : MappableFile(fd), path(path), pid(getpid()) { }
@@ -169,9 +150,7 @@ public:
   /* Inherited from Mappable */
   virtual void *mmap(const void *addr, size_t length, int prot, int flags, off_t offset);
   virtual void finalize();
-  virtual size_t GetLength() const;
 
-  virtual Kind GetKind() const { return MAPPABLE_DEFLATE; };
 private:
   MappableDeflate(_MappableBuffer *buf, Zip *zip, Zip::Stream *stream);
 
@@ -209,9 +188,7 @@ public:
   virtual void finalize();
   virtual bool ensure(const void *addr);
   virtual void stats(const char *when, const char *name) const;
-  virtual size_t GetLength() const;
 
-  virtual Kind GetKind() const { return MAPPABLE_SEEKABLE_ZSTREAM; };
 private:
   MappableSeekableZStream(Zip *zip);
 
@@ -265,7 +242,7 @@ private:
   mozilla::ScopedDeleteArray<unsigned char> chunkAvail;
 
   /* Number of chunks that have already been decompressed. */
-  mozilla::Atomic<size_t> chunkAvailNum;
+  size_t chunkAvailNum;
 
   /* Mutex protecting decompression */
   pthread_mutex_t mutex;

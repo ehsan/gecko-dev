@@ -10,7 +10,25 @@ VPATH = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+LIBRARY_NAME = accessibility_xul_s
 LIBXUL_LIBRARY = 1
+
+
+
+CPPSRCS = \
+  XULAlertAccessible.cpp \
+  XULColorPickerAccessible.cpp \
+  XULComboboxAccessible.cpp \
+  XULElementAccessibles.cpp \
+  XULFormControlAccessible.cpp \
+  XULListboxAccessible.cpp \
+  XULMenuAccessible.cpp \
+  XULSelectControlAccessible.cpp \
+  XULSliderAccessible.cpp \
+  XULTabAccessible.cpp \
+  XULTreeAccessible.cpp \
+  XULTreeGridAccessible.cpp \
+  $(NULL)
 
 # we don't want the shared lib, but we want to force the creation of a static lib.
 FORCE_STATIC_LIB = 1
@@ -28,7 +46,7 @@ LOCAL_INCLUDES = \
   -I$(srcdir)/../../../layout/xul/tree// \
   $(NULL)
 
-ifdef MOZ_ENABLE_GTK
+ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 LOCAL_INCLUDES += \
   -I$(srcdir)/../atk \
   $(NULL)

@@ -8,13 +8,11 @@
 
 #include "IDBDatabase.h"
 
-#include "DictionaryHelpers.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/storage.h"
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/quota/Client.h"
 #include "mozilla/dom/quota/QuotaManager.h"
-#include "nsContentUtils.h"
 #include "nsDOMClassInfo.h"
 #include "nsDOMLists.h"
 #include "nsJSUtils.h"
@@ -30,20 +28,17 @@
 #include "IDBObjectStore.h"
 #include "IDBTransaction.h"
 #include "IDBFactory.h"
-#include "ProfilerHelpers.h"
 #include "TransactionThreadPool.h"
+#include "DictionaryHelpers.h"
+#include "nsContentUtils.h"
 
 #include "ipc/IndexedDBChild.h"
 #include "ipc/IndexedDBParent.h"
 
-#include "mozilla/dom/IDBDatabaseBinding.h"
-
 USING_INDEXEDDB_NAMESPACE
 using mozilla::dom::ContentParent;
-using mozilla::dom::quota::AssertIsOnIOThread;
 using mozilla::dom::quota::Client;
 using mozilla::dom::quota::QuotaManager;
-using namespace mozilla::dom;
 
 namespace {
 
@@ -118,7 +113,7 @@ public:
 
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
   nsresult GetSuccessResult(JSContext* aCx,
-                            JS::MutableHandle<JS::Value> aVal);
+                            jsval* aVal);
   void ReleaseMainThreadObjects()
   {
     mFileInfo = nullptr;
@@ -149,7 +144,8 @@ private:
   nsRefPtr<FileInfo> mFileInfo;
 };
 
-class MOZ_STACK_CLASS AutoRemoveObjectStore
+NS_STACK_CLASS
+class AutoRemoveObjectStore
 {
 public:
   AutoRemoveObjectStore(DatabaseInfo* aInfo, const nsAString& aName)
@@ -432,14 +428,6 @@ IDBDatabase::CreateObjectStoreInternal(IDBTransaction* aTransaction,
   }
 
   autoRemove.forget();
-
-  IDB_PROFILER_MARK("IndexedDB Pseudo-request: "
-                    "database(%s).transaction(%s).createObjectStore(%s)",
-                    "MT IDBDatabase.createObjectStore()",
-                    IDB_PROFILER_STRING(this),
-                    IDB_PROFILER_STRING(aTransaction),
-                    IDB_PROFILER_STRING(objectStore));
-
   objectStore.forget(_retval);
 
   return NS_OK;
@@ -532,22 +520,36 @@ IDBDatabase::CreateObjectStore(const nsAString& aName,
 
   DatabaseInfo* databaseInfo = transaction->DBInfo();
 
-  RootedDictionary<IDBObjectStoreParameters> params(aCx);
-  JS::Rooted<JS::Value> options(aCx, aOptions);
-  if (!params.Init(aCx, options)) {
-    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-  }
-
+  mozilla::idl::IDBObjectStoreParameters params;
   KeyPath keyPath(0);
-  if (NS_FAILED(KeyPath::Parse(aCx, params.mKeyPath, &keyPath))) {
-    return NS_ERROR_DOM_SYNTAX_ERR;
+
+  nsresult rv;
+
+  if (!JSVAL_IS_VOID(aOptions) && !JSVAL_IS_NULL(aOptions)) {
+    rv = params.Init(aCx, &aOptions);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+
+    // We need a default value here, which the XPIDL dictionary stuff doesn't
+    // support.  WebIDL shall save us all!
+    JSBool hasProp = false;
+    JSObject* obj = JSVAL_TO_OBJECT(aOptions);
+    if (!JS_HasProperty(aCx, obj, "keyPath", &hasProp)) {
+      return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+    }
+
+    if (NS_FAILED(KeyPath::Parse(aCx, hasProp ? params.keyPath : JSVAL_NULL,
+                                 &keyPath))) {
+      return NS_ERROR_DOM_SYNTAX_ERR;
+    }
   }
 
   if (databaseInfo->ContainsStoreName(aName)) {
     return NS_ERROR_DOM_INDEXEDDB_CONSTRAINT_ERR;
   }
 
-  if (!keyPath.IsAllowedForObjectStore(params.mAutoIncrement)) {
+  if (!keyPath.IsAllowedForObjectStore(params.autoIncrement)) {
     return NS_ERROR_DOM_INVALID_ACCESS_ERR;
   }
 
@@ -556,11 +558,11 @@ IDBDatabase::CreateObjectStore(const nsAString& aName,
   guts.name = aName;
   guts.id = databaseInfo->nextObjectStoreId++;
   guts.keyPath = keyPath;
-  guts.autoIncrement = params.mAutoIncrement;
+  guts.autoIncrement = params.autoIncrement;
 
   nsRefPtr<IDBObjectStore> objectStore;
-  nsresult rv = CreateObjectStoreInternal(transaction, guts,
-                                          getter_AddRefs(objectStore));
+  rv = CreateObjectStoreInternal(transaction, guts,
+                                 getter_AddRefs(objectStore));
   NS_ENSURE_SUCCESS(rv, rv);
 
   objectStore.forget(_retval);
@@ -603,13 +605,6 @@ IDBDatabase::DeleteObjectStore(const nsAString& aName)
 
   transaction->RemoveObjectStore(aName);
 
-  IDB_PROFILER_MARK("IndexedDB Pseudo-request: "
-                    "database(%s).transaction(%s).deleteObjectStore(\"%s\")",
-                    "MT IDBDatabase.deleteObjectStore()",
-                    IDB_PROFILER_STRING(this),
-                    IDB_PROFILER_STRING(transaction),
-                    NS_ConvertUTF16toUTF8(aName).get());
-
   return NS_OK;
 }
 
@@ -648,7 +643,7 @@ IDBDatabase::Transaction(const jsval& aStoreNames,
   nsTArray<nsString> storesToOpen;
 
   if (!JSVAL_IS_PRIMITIVE(aStoreNames)) {
-    JS::Rooted<JSObject*> obj(aCx, JSVAL_TO_OBJECT(aStoreNames));
+    JSObject* obj = JSVAL_TO_OBJECT(aStoreNames);
 
     // See if this is a JS array.
     if (JS_IsArrayObject(aCx, obj)) {
@@ -664,10 +659,10 @@ IDBDatabase::Transaction(const jsval& aStoreNames,
       storesToOpen.SetCapacity(length);
 
       for (uint32_t index = 0; index < length; index++) {
-        JS::Rooted<JS::Value> val(aCx);
+        jsval val;
         JSString* jsstr;
         nsDependentJSString str;
-        if (!JS_GetElement(aCx, obj, index, val.address()) ||
+        if (!JS_GetElement(aCx, obj, index, &val) ||
             !(jsstr = JS_ValueToString(aCx, val)) ||
             !str.init(aCx, jsstr)) {
           return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
@@ -747,11 +742,6 @@ IDBDatabase::Transaction(const jsval& aStoreNames,
     IDBTransaction::Create(this, storesToOpen, transactionMode, false);
   NS_ENSURE_TRUE(transaction, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-  IDB_PROFILER_MARK("IndexedDB Transaction %llu: database(%s).transaction(%s)",
-                    "IDBTransaction[%llu] MT Started",
-                    transaction->GetSerialNumber(), IDB_PROFILER_STRING(this),
-                    IDB_PROFILER_STRING(transaction));
-
   transaction.forget(_retval);
   return NS_OK;
 }
@@ -777,7 +767,7 @@ IDBDatabase::MozCreateFileHandle(const nsAString& aName,
     return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
   }
 
-  nsRefPtr<IDBRequest> request = IDBRequest::Create(nullptr, this, nullptr);
+  nsRefPtr<IDBRequest> request = IDBRequest::Create(nullptr, this, nullptr, aCx);
 
   nsRefPtr<CreateFileHelper> helper =
     new CreateFileHelper(this, request, aName, aType);
@@ -890,17 +880,6 @@ NoRequestDatabaseHelper::OnError()
 nsresult
 CreateObjectStoreHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-
-  PROFILER_LABEL("IndexedDB", "CreateObjectStoreHelper::DoDatabaseWork");
-
-  if (IndexedDatabaseManager::InLowDiskSpaceMode()) {
-    NS_WARNING("Refusing to create additional objectStore because disk space "
-               "is low!");
-    return NS_ERROR_DOM_INDEXEDDB_QUOTA_ERR;
-  }
-
   nsCOMPtr<mozIStorageStatement> stmt =
     mTransaction->GetCachedStatement(NS_LITERAL_CSTRING(
     "INSERT INTO object_store (id, auto_increment, name, key_path) "
@@ -950,11 +929,6 @@ CreateObjectStoreHelper::ReleaseMainThreadObjects()
 nsresult
 DeleteObjectStoreHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-
-  PROFILER_LABEL("IndexedDB", "DeleteObjectStoreHelper::DoDatabaseWork");
-
   nsCOMPtr<mozIStorageStatement> stmt =
     mTransaction->GetCachedStatement(NS_LITERAL_CSTRING(
     "DELETE FROM object_store "
@@ -976,16 +950,6 @@ DeleteObjectStoreHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 nsresult
 CreateFileHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 {
-  AssertIsOnIOThread();
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-
-  PROFILER_LABEL("IndexedDB", "CreateFileHelper::DoDatabaseWork");
-
-  if (IndexedDatabaseManager::InLowDiskSpaceMode()) {
-    NS_WARNING("Refusing to create file because disk space is low!");
-    return NS_ERROR_DOM_INDEXEDDB_QUOTA_ERR;
-  }
-
   FileManager* fileManager = mDatabase->Manager();
 
   mFileInfo = fileManager->GetNewFileInfo();
@@ -1016,7 +980,7 @@ CreateFileHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 
 nsresult
 CreateFileHelper::GetSuccessResult(JSContext* aCx,
-                                   JS::MutableHandle<JS::Value> aVal)
+                                   jsval* aVal)
 {
   nsRefPtr<IDBFileHandle> fileHandle =
     IDBFileHandle::Create(mDatabase, mName, mType, mFileInfo.forget());

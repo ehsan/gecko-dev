@@ -28,7 +28,6 @@ function createNewTab() {
 
   tab1 = createTab(function() {
     Services.obs.addObserver(finalize, DESTROYED, false);
-    Services.obs.addObserver(tab_STARTUP, STARTUP, false);
     Services.obs.addObserver(tab_INITIALIZING, INITIALIZING, false);
     Services.obs.addObserver(tab_DESTROYING, DESTROYING, false);
     Services.obs.addObserver(tab_SHOWN, SHOWN, false);
@@ -49,33 +48,23 @@ function createNewTab() {
   });
 }
 
-function tab_STARTUP(win) {
-  info("Handling the STARTUP notification.");
-  is(win, tab1.linkedBrowser.contentWindow, "Saw the correct window");
-  tabEvents += "STARTUP;";
-}
-
-function tab_INITIALIZING(win) {
+function tab_INITIALIZING() {
   info("Handling the INITIALIZING notification.");
-  is(win, tab1.linkedBrowser.contentWindow, "Saw the correct window");
   tabEvents += "INITIALIZING;";
 }
 
-function tab_DESTROYING(win) {
+function tab_DESTROYING() {
   info("Handling the DESTROYING notification.");
-  is(win, tab1.linkedBrowser.contentWindow, "Saw the correct window");
   tabEvents += "DESTROYING;";
 }
 
-function tab_SHOWN(win) {
+function tab_SHOWN() {
   info("Handling the SHOWN notification.");
-  is(win, tab1.linkedBrowser.contentWindow, "Saw the correct window");
   tabEvents += "SHOWN;";
 }
 
-function tab_HIDDEN(win) {
+function tab_HIDDEN() {
   info("Handling the HIDDEN notification.");
-  is(win, tab1.linkedBrowser.contentWindow, "Saw the correct window");
   tabEvents += "HIDDEN;";
 }
 
@@ -94,14 +83,12 @@ let testSteps = [
   }
 ];
 
-function finalize(win) {
+function finalize() {
   if (!tabEvents) {
     return;
   }
 
-  is(win, tab1.linkedBrowser.contentWindow, "Saw the correct window");
-
-  is(tabEvents, "STARTUP;INITIALIZING;HIDDEN;SHOWN;DESTROYING;",
+  is(tabEvents, "INITIALIZING;HIDDEN;SHOWN;DESTROYING;",
     "The notifications weren't fired in the correct order.");
 
   cleanup();

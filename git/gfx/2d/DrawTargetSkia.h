@@ -75,10 +75,6 @@ public:
   virtual void Mask(const Pattern &aSource,
                     const Pattern &aMask,
                     const DrawOptions &aOptions = DrawOptions());
-  virtual void MaskSurface(const Pattern &aSource,
-                           SourceSurface *aMask,
-                           Point aOffset,
-                           const DrawOptions &aOptions = DrawOptions()) { MOZ_ASSERT(0); };
   virtual void PushClip(const Path *aPath);
   virtual void PushClipRect(const Rect& aRect);
   virtual void PopClip();
@@ -106,7 +102,6 @@ public:
     stream << "DrawTargetSkia(" << this << ")";
     return stream.str();
   }
-
 private:
   friend class SourceSurfaceSkia;
   void AppendSnapshot(SourceSurfaceSkia* aSnapshot);
@@ -115,7 +110,9 @@ private:
   void MarkChanged();
 
   IntSize mSize;
+  SkBitmap mBitmap;
   SkRefPtr<SkCanvas> mCanvas;
+  SkRefPtr<SkDevice> mDevice;
   std::vector<SourceSurfaceSkia*> mSnapshots;
 };
 

@@ -19,7 +19,7 @@ class DroidMixin(object):
         return []
 
     def launchApplication(self, appName, activityName, intent, url=None,
-                          extras=None, wait=True, failIfRunning=True):
+                          extras=None):
         """
         Launches an Android application
 
@@ -28,20 +28,14 @@ class DroidMixin(object):
         :param intent: Intent to launch application with
         :param url: URL to open
         :param extras: Dictionary of extra arguments to launch application with
-        :param wait: If True, wait for application to start before returning
-        :param failIfRunning: Raise an exception if instance of application is already running
         """
-
-        # If failIfRunning is True, we throw an exception here. Only one
-        # instance of an application can be running at once on Android,
-        # starting a new instance may not be what we want depending on what
-        # we want to do
-        if failIfRunning and self.processExist(appName):
+        # only one instance of an application may be running at once
+        if self.processExist(appName):
             raise DMError("Only one instance of an application may be running "
                           "at once")
 
         acmd = [ "am", "start" ] + self._getExtraAmStartArgs() + \
-            ["-W" if wait else '', "-n", "%s/%s" % (appName, activityName)]
+            ["-W", "-n", "%s/%s" % (appName, activityName)]
 
         if intent:
             acmd.extend(["-a", intent])
@@ -70,8 +64,7 @@ class DroidMixin(object):
         raise DMError("Unable to launch application (shell output: '%s')" % shellOutput.read())
 
     def launchFennec(self, appName, intent="android.intent.action.VIEW",
-                     mozEnv=None, extraArgs=None, url=None, wait=True,
-                     failIfRunning=True):
+                     mozEnv=None, extraArgs=None, url=None):
         """
         Convenience method to launch Fennec on Android with various debugging
         arguments
@@ -81,8 +74,6 @@ class DroidMixin(object):
         :param mozEnv: Mozilla specific environment to pass into application
         :param extraArgs: Extra arguments to be parsed by fennec
         :param url: URL to open
-        :param wait: If True, wait for application to start before returning
-        :param failIfRunning: Raise an exception if instance of application is already running
         """
         extras = {}
 
@@ -97,32 +88,10 @@ class DroidMixin(object):
         if extraArgs:
             extras['args'] = " ".join(extraArgs)
 
-        self.launchApplication(appName, ".App", intent, url=url, extras=extras,
-                               wait=wait, failIfRunning=failIfRunning)
+        self.launchApplication(appName, ".App", intent, url=url, extras=extras)
 
 class DroidADB(DeviceManagerADB, DroidMixin):
-
-    def getTopActivity(self):
-        package = None
-        data = self.shellCheckOutput(["dumpsys", "window", "windows"])
-        # "dumpsys window windows" produces many lines of input. The top/foreground
-        # activity is indicated by something like:
-        #   mFocusedApp=AppWindowToken{483e6db0 token=HistoryRecord{484dcad8 com.mozilla.SUTAgentAndroid/.SUTAgentAndroid}}
-        # or, on other devices:
-        #   FocusedApplication: name='AppWindowToken{41a65340 token=ActivityRecord{418fbd68 org.mozilla.fennec_mozdev/.App}}', dispatchingTimeout=5000.000ms
-        # Extract this line, ending in the forward slash:
-        m = re.search('mFocusedApp(.+)/', data)
-        if not m:
-            m = re.search('FocusedApplication(.+)/', data)
-        if m:
-            line = m.group(0)
-            # Extract package name: string of non-whitespace ending in forward slash
-            m = re.search('(\S+)/$', line)
-            if m:
-                package = m.group(1)
-        if not package:
-            raise DMError("unable to find focused app")
-        return package
+    pass
 
 class DroidSUT(DeviceManagerSUT, DroidMixin):
 
@@ -131,7 +100,7 @@ class DroidSUT(DeviceManagerSUT, DroidMixin):
         # a different process than the one that started the app. In this case,
         # we need to get back the original user serial number and then pass
         # that to the 'am start' command line
-        if not hasattr(self, '_userSerial'):
+        if not hasattr(self, 'userSerial'):
             infoDict = self.getInfo(directive="sutuserinfo")
             if infoDict.get('sutuserinfo') and \
                     len(infoDict['sutuserinfo']) > 0:
@@ -139,19 +108,14 @@ class DroidSUT(DeviceManagerSUT, DroidMixin):
                # user serial always an integer, see: http://developer.android.com/reference/android/os/UserManager.html#getSerialNumberForUser%28android.os.UserHandle%29
                m = re.match('User Serial:([0-9]+)', userSerialString)
                if m:
-                   self._userSerial = m.group(1)
+                   self.userSerial = m.group(1)
                else:
-                   self._userSerial = None
-            else:
-                self._userSerial = None
+                   self.userSerial = None
 
-        if self._userSerial is not None:
-            return [ "--user", self._userSerial ]
+        if self.userSerial is not None:
+            return [ "--user", self.userSerial ]
 
         return []
-
-    def getTopActivity(self):
-        return self._runCmds([{ 'cmd': "activity" }]).strip()
 
 def DroidConnectByHWID(hwid, timeout=30, **kwargs):
     """Try to connect to the given device by waiting for it to show up using mDNS with the given timeout."""

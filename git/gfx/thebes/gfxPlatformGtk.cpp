@@ -9,7 +9,6 @@
 #endif
 
 #include "gfxPlatformGtk.h"
-#include "prenv.h"
 
 #include "nsUnicharUtils.h"
 #include "nsUnicodeProperties.h"
@@ -92,7 +91,7 @@ gfxPlatformGtk::gfxPlatformGtk()
     UpdateFontList();
 #endif
     uint32_t canvasMask = (1 << BACKEND_CAIRO) | (1 << BACKEND_SKIA);
-    uint32_t contentMask = 0;
+    uint32_t contentMask = (1 << BACKEND_CAIRO);
     InitBackendPrefs(canvasMask, contentMask);
 }
 
@@ -479,35 +478,6 @@ gfxPlatformGtk::GetOffscreenFormat()
     }
 
     return gfxASurface::ImageFormatRGB24;
-}
-
-static int sDepth = 0;
-
-int
-gfxPlatformGtk::GetScreenDepth() const
-{
-    if (!sDepth) {
-        GdkScreen *screen = gdk_screen_get_default();
-        if (screen) {
-            sDepth = gdk_visual_get_depth(gdk_visual_get_system());
-        } else {
-            sDepth = 24;
-        }
-
-    }
-
-    return sDepth;
-}
-
-bool
-gfxPlatformGtk::SupportsOffMainThreadCompositing()
-{
-#ifdef MOZ_X11
-  return (PR_GetEnv("MOZ_USE_OMTC") != nullptr) ||
-         (PR_GetEnv("MOZ_OMTC_ENABLED") != nullptr);
-#else
-  return true;
-#endif
 }
 
 qcms_profile *

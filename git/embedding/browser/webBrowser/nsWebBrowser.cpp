@@ -25,6 +25,7 @@
 #include "nsIWebBrowserFocus.h"
 #include "nsIWebBrowserStream.h"
 #include "nsIPresShell.h"
+#include "nsIDocShellHistory.h"
 #include "nsIURIContentListener.h"
 #include "nsGUIEvent.h"
 #include "nsISHistoryListener.h"
@@ -313,9 +314,13 @@ NS_IMETHODIMP nsWebBrowser::UnBindListener(nsISupports *aListener, const nsIID& 
 
 NS_IMETHODIMP nsWebBrowser::EnableGlobalHistory(bool aEnable)
 {
-    NS_ENSURE_STATE(mDocShell);
+    nsresult rv;
     
-    return mDocShell->SetUseGlobalHistory(aEnable);
+    NS_ENSURE_STATE(mDocShell);
+    nsCOMPtr<nsIDocShellHistory> dsHistory(do_QueryInterface(mDocShell, &rv));
+    if (NS_FAILED(rv)) return rv;
+    
+    return dsHistory->SetUseGlobalHistory(aEnable);
 }
 
 NS_IMETHODIMP nsWebBrowser::GetContainerWindow(nsIWebBrowserChrome** aTopWindow)
@@ -1682,7 +1687,7 @@ void nsWebBrowser::WindowLowered(nsIWidget* aWidget)
   Deactivate();
 }
 
-bool nsWebBrowser::PaintWindow(nsIWidget* aWidget, nsIntRegion aRegion)
+bool nsWebBrowser::PaintWindow(nsIWidget* aWidget, nsIntRegion aRegion, uint32_t aFlags)
 {
   LayerManager* layerManager = aWidget->GetLayerManager();
   NS_ASSERTION(layerManager, "Must be in paint event");

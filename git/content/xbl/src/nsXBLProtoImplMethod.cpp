@@ -15,7 +15,6 @@
 #include "nsIScriptContext.h"
 #include "nsJSUtils.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIXPConnect.h"
 #include "xpcpublic.h"
@@ -24,8 +23,8 @@
 using namespace mozilla;
 
 nsXBLProtoImplMethod::nsXBLProtoImplMethod(const PRUnichar* aName) :
-  nsXBLProtoImplMember(aName),
-  mMethod()
+  nsXBLProtoImplMember(aName), 
+  mUncompiledMethod(BIT_UNCOMPILED)
 {
   MOZ_COUNT_CTOR(nsXBLProtoImplMethod);
 }
@@ -97,24 +96,23 @@ nsXBLProtoImplMethod::SetLineNumber(uint32_t aLineNumber)
 
 nsresult
 nsXBLProtoImplMethod::InstallMember(JSContext* aCx,
-                                    JS::Handle<JSObject*> aTargetClassObject)
+                                    JSObject* aTargetClassObject)
 {
   NS_PRECONDITION(IsCompiled(),
                   "Should not be installing an uncompiled method");
   MOZ_ASSERT(js::IsObjectInContextCompartment(aTargetClassObject, aCx));
 
-  JS::Rooted<JSObject*> globalObject(aCx, JS_GetGlobalForObject(aCx, aTargetClassObject));
-  JS::Rooted<JSObject*> scopeObject(aCx, xpc::GetXBLScope(aCx, globalObject));
+  JSObject* globalObject = JS_GetGlobalForObject(aCx, aTargetClassObject);
+  JSObject* scopeObject = xpc::GetXBLScope(aCx, globalObject);
   NS_ENSURE_TRUE(scopeObject, NS_ERROR_OUT_OF_MEMORY);
 
   // now we want to reevaluate our property using aContext and the script object for this window...
-  JS::Rooted<JSObject*> jsMethodObject(aCx, GetCompiledMethod());
-  if (jsMethodObject) {
+  if (mJSMethodObject) {
     nsDependentString name(mName);
 
     // First, make the function in the compartment of the scope object.
     JSAutoCompartment ac(aCx, scopeObject);
-    JS::Rooted<JSObject*> method(aCx, ::JS_CloneFunctionObject(aCx, jsMethodObject, scopeObject));
+    JSObject * method = ::JS_CloneFunctionObject(aCx, mJSMethodObject, scopeObject);
     if (!method) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -122,14 +120,11 @@ nsXBLProtoImplMethod::InstallMember(JSContext* aCx,
     // Then, enter the content compartment, wrap the method pointer, and define
     // the wrapped version on the class object.
     JSAutoCompartment ac2(aCx, aTargetClassObject);
-    if (!JS_WrapObject(aCx, method.address()))
-      return NS_ERROR_OUT_OF_MEMORY;
-
-    JS::Rooted<JS::Value> value(aCx, JS::ObjectValue(*method));
-    if (!::JS_DefineUCProperty(aCx, aTargetClassObject,
+    if (!JS_WrapObject(aCx, &method) ||
+        !::JS_DefineUCProperty(aCx, aTargetClassObject,
                                static_cast<const jschar*>(mName),
-                               name.Length(), value,
-                               nullptr, nullptr, JSPROP_ENUMERATE)) {
+                               name.Length(), OBJECT_TO_JSVAL(method),
+                               NULL, NULL, JSPROP_ENUMERATE)) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
   }
@@ -138,7 +133,7 @@ nsXBLProtoImplMethod::InstallMember(JSContext* aCx,
 
 nsresult 
 nsXBLProtoImplMethod::CompileMember(nsIScriptContext* aContext, const nsCString& aClassStr,
-                                    JS::Handle<JSObject*> aClassObject)
+                                    JSObject* aClassObject)
 {
   NS_PRECONDITION(!IsCompiled(),
                   "Trying to compile an already-compiled method");
@@ -150,7 +145,7 @@ nsXBLProtoImplMethod::CompileMember(nsIScriptContext* aContext, const nsCString&
   // No parameters or body was supplied, so don't install method.
   if (!uncompiledMethod) {
     // Early return after which we consider ourselves compiled.
-    SetCompiledMethod(nullptr);
+    mJSMethodObject = nullptr;
 
     return NS_OK;
   }
@@ -160,7 +155,7 @@ nsXBLProtoImplMethod::CompileMember(nsIScriptContext* aContext, const nsCString&
     delete uncompiledMethod;
 
     // Early return after which we consider ourselves compiled.
-    SetCompiledMethod(nullptr);
+    mJSMethodObject = nullptr;
 
     return NS_OK;
   }
@@ -199,18 +194,20 @@ nsXBLProtoImplMethod::CompileMember(nsIScriptContext* aContext, const nsCString&
     functionUri.Truncate(hash);
   }
 
+  JSObject* methodObject = nullptr;
   AutoPushJSContext cx(aContext->GetNativeContext());
+  JSAutoRequest ar(cx);
   JSAutoCompartment ac(cx, aClassObject);
   JS::CompileOptions options(cx);
   options.setFileAndLine(functionUri.get(),
                          uncompiledMethod->mBodyText.GetLineNumber())
-         .setVersion(JSVERSION_LATEST);
+         .setVersion(JSVERSION_LATEST)
+         .setUserBit(true); // Flag us as XBL
   JS::RootedObject rootedNull(cx, nullptr); // See bug 781070.
-  JS::RootedObject methodObject(cx);
   nsresult rv = nsJSUtils::CompileFunction(cx, rootedNull, options, cname,
                                            paramCount,
                                            const_cast<const char**>(args),
-                                           body, methodObject.address());
+                                           body, &methodObject);
 
   // Destroy our uncompiled method and delete our arg list.
   delete uncompiledMethod;
@@ -220,16 +217,16 @@ nsXBLProtoImplMethod::CompileMember(nsIScriptContext* aContext, const nsCString&
     return rv;
   }
 
-  SetCompiledMethod(methodObject);
+  mJSMethodObject = methodObject;
 
   return NS_OK;
 }
 
 void
-nsXBLProtoImplMethod::Trace(const TraceCallbacks& aCallbacks, void *aClosure)
+nsXBLProtoImplMethod::Trace(TraceCallback aCallback, void *aClosure) const
 {
-  if (IsCompiled() && GetCompiledMethod()) {
-    aCallbacks.Trace(&mMethod.AsHeapObject(), "mMethod", aClosure);
+  if (IsCompiled() && mJSMethodObject) {
+    aCallback(mJSMethodObject, "mJSMethodObject", aClosure);
   }
 }
 
@@ -237,14 +234,15 @@ nsresult
 nsXBLProtoImplMethod::Read(nsIScriptContext* aContext,
                            nsIObjectInputStream* aStream)
 {
-  JS::Rooted<JSObject*> methodObject(aContext->GetNativeContext());
-  nsresult rv = XBL_DeserializeFunction(aContext, aStream, &methodObject);
+  nsresult rv = XBL_DeserializeFunction(aContext, aStream, &mJSMethodObject);
   if (NS_FAILED(rv)) {
     SetUncompiledMethod(nullptr);
     return rv;
   }
 
-  SetCompiledMethod(methodObject);
+#ifdef DEBUG
+  mIsCompiled = true;
+#endif
 
   return NS_OK;
 }
@@ -253,15 +251,14 @@ nsresult
 nsXBLProtoImplMethod::Write(nsIScriptContext* aContext,
                             nsIObjectOutputStream* aStream)
 {
-  MOZ_ASSERT(IsCompiled());
-  if (GetCompiledMethod()) {
+  if (mJSMethodObject) {
     nsresult rv = aStream->Write8(XBLBinding_Serialize_Method);
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = aStream->WriteWStringZ(mName);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    return XBL_SerializeFunction(aContext, aStream, mMethod.AsHeapObject());
+    return XBL_SerializeFunction(aContext, aStream, mJSMethodObject);
   }
 
   return NS_OK;
@@ -272,7 +269,7 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
 {
   NS_PRECONDITION(IsCompiled(), "Can't execute uncompiled method");
   
-  if (!GetCompiledMethod()) {
+  if (!mJSMethodObject) {
     // Nothing to do here
     return NS_OK;
   }
@@ -281,8 +278,7 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
   // nsXBLProtoImpl::InstallImplementation does.
   nsIDocument* document = aBoundElement->OwnerDoc();
 
-  nsCOMPtr<nsIScriptGlobalObject> global =
-    do_QueryInterface(document->GetWindow());
+  nsIScriptGlobalObject* global = document->GetScriptGlobalObject();
   if (!global) {
     return NS_OK;
   }
@@ -296,12 +292,12 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
 
   AutoPushJSContext cx(context->GetNativeContext());
 
-  JS::Rooted<JSObject*> globalObject(cx, global->GetGlobalJSObject());
+  JSObject* globalObject = global->GetGlobalJSObject();
 
   nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
-  JS::Rooted<JS::Value> v(cx);
+  JS::Value v;
   nsresult rv =
-    nsContentUtils::WrapNative(cx, globalObject, aBoundElement, v.address(),
+    nsContentUtils::WrapNative(cx, globalObject, aBoundElement, &v,
                                getter_AddRefs(wrapper));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -310,22 +306,22 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
   // Make sure to do this before entering the compartment, since pushing Push()
   // may call JS_SaveFrameChain(), which puts us back in an unentered state.
   nsCxPusher pusher;
-  if (!pusher.Push(aBoundElement))
-    return NS_ERROR_UNEXPECTED;
+  NS_ENSURE_STATE(pusher.Push(aBoundElement));
   MOZ_ASSERT(cx == nsContentUtils::GetCurrentJSContext());
 
-  JS::Rooted<JSObject*> thisObject(cx, &v.toObject());
-  JS::Rooted<JSObject*> scopeObject(cx, xpc::GetXBLScope(cx, globalObject));
+  JSObject* thisObject = JSVAL_TO_OBJECT(v);
+  JSObject* scopeObject = xpc::GetXBLScope(cx, globalObject);
   NS_ENSURE_TRUE(scopeObject, NS_ERROR_OUT_OF_MEMORY);
 
+  JSAutoRequest ar(cx);
   JSAutoCompartment ac(cx, scopeObject);
-  if (!JS_WrapObject(cx, thisObject.address()))
+  if (!JS_WrapObject(cx, &thisObject))
       return NS_ERROR_OUT_OF_MEMORY;
 
   // Clone the function object, using thisObject as the parent so "this" is in
   // the scope chain of the resulting function (for backwards compat to the
   // days when this was an event handler).
-  JS::Rooted<JSObject*> method(cx, ::JS_CloneFunctionObject(cx, GetCompiledMethod(), thisObject));
+  JSObject* method = ::JS_CloneFunctionObject(cx, mJSMethodObject, thisObject);
   if (!method)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -337,9 +333,9 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
 
   JSBool ok = JS_TRUE;
   if (NS_SUCCEEDED(rv)) {
-    JS::Rooted<JS::Value> retval(cx);
+    JS::Value retval;
     ok = ::JS_CallFunctionValue(cx, thisObject, OBJECT_TO_JSVAL(method),
-                                0 /* argc */, nullptr /* argv */, retval.address());
+                                0 /* argc */, nullptr /* argv */, &retval);
   }
 
   if (!ok) {
@@ -347,7 +343,10 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
     // anything else.  We just report it.  Note that we need to set aside the
     // frame chain here, since the constructor invocation is not related to
     // whatever is on the stack right now, really.
-    nsJSUtils::ReportPendingException(cx);
+    JSBool saved = JS_SaveFrameChain(cx);
+    JS_ReportPendingException(cx);
+    if (saved)
+        JS_RestoreFrameChain(cx);
     return NS_ERROR_FAILURE;
   }
 
@@ -359,12 +358,11 @@ nsXBLProtoImplAnonymousMethod::Write(nsIScriptContext* aContext,
                                      nsIObjectOutputStream* aStream,
                                      XBLBindingSerializeDetails aType)
 {
-  MOZ_ASSERT(IsCompiled());
-  if (GetCompiledMethod()) {
+  if (mJSMethodObject) {
     nsresult rv = aStream->Write8(aType);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = XBL_SerializeFunction(aContext, aStream, mMethod.AsHeapObject());
+    rv = XBL_SerializeFunction(aContext, aStream, mJSMethodObject);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 

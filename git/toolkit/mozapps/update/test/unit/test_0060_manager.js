@@ -71,6 +71,7 @@ function run_test() {
   do_check_true(update.showPrompt);
   do_check_true(update.showNeverForVersion);
   do_check_eq(update.promptWaitTime, "345600");
+  do_check_true(update.showSurvey);
   do_check_eq(update.previousAppVersion, "3.0");
   // Custom attributes
   do_check_eq(update.getProperty("custom1_attr"), "custom1 value");
@@ -104,6 +105,7 @@ function run_test() {
   do_check_true(update.showPrompt);
   do_check_true(update.showNeverForVersion);
   do_check_eq(update.promptWaitTime, "691200");
+  do_check_false(update.showSurvey);
   do_check_eq(update.previousAppVersion, null);
   // Custom attributes
   do_check_eq(update.getProperty("custom3_attr"), "custom3 value");
@@ -170,6 +172,7 @@ function run_test() {
   do_check_true(update.showPrompt);
   do_check_true(update.showNeverForVersion);
   do_check_eq(update.promptWaitTime, "100");
+  do_check_true(update.showSurvey);
   do_check_eq(update.previousAppVersion, "3.0");
 
   patch = update.selectedPatch;
@@ -200,6 +203,7 @@ function run_test() {
   do_check_false(update.showPrompt);
   do_check_false(update.showNeverForVersion);
   do_check_eq(update.promptWaitTime, "200");
+  do_check_false(update.showSurvey);
   do_check_eq(update.previousAppVersion, null);
 
   patch = update.selectedPatch;

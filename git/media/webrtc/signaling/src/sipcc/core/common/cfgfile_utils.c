@@ -163,7 +163,7 @@ cfgfile_parse_str (const var_t *entry, const char *value)
 
     str_len = strlen(value);
     if (str_len + 1 > entry->length) {
-        CSFLogError("common", get_debug_string(DEBUG_PARSER_STRING_TOO_LARGE),
+        err_msg(get_debug_string(DEBUG_PARSER_STRING_TOO_LARGE),
                 entry->length, str_len);
         return (1);
     }
@@ -273,8 +273,7 @@ cfgfile_parse_key (const var_t *entry, const char *value)
     keytable = entry->key_table;
 
     if (keytable == NULL) {
-        CSFLogError("common", "%s",
-          get_debug_string(DEBUG_PARSER_NULL_KEY_TABLE));
+        err_msg(get_debug_string(DEBUG_PARSER_NULL_KEY_TABLE));
         return (1);
     }
 
@@ -282,7 +281,7 @@ cfgfile_parse_key (const var_t *entry, const char *value)
 //    /* check for nulled out keys and set to the default value */
 //    if ((cpr_strcasecmp(value,"UNPROVISIONED") == 0) ||
 //        (value[0] == 0)) {
-//       CSFLogError("common", get_debug_string(DEBUG_PARSER_SET_DEFAULT),
+//       err_msg(get_debug_string(DEBUG_PARSER_SET_DEFAULT),
 //                  entry->name, entry->default_value);
 //       cfgfile_set_default(entry);
 //       return(0);
@@ -296,7 +295,7 @@ cfgfile_parse_key (const var_t *entry, const char *value)
         keytable++;
     }
 
-    CSFLogError("common", get_debug_string(DEBUG_PARSER_UNKNOWN_KEY), value);
+    err_msg(get_debug_string(DEBUG_PARSER_UNKNOWN_KEY), value);
     return (1);
 }
 
@@ -320,8 +319,7 @@ cfgfile_print_key (const var_t *entry, char *buf, int len)
         keytable++;
     }
 
-    CSFLogError("common", get_debug_string(DEBUG_PARSER_UNKNOWN_KEY_ENUM),
-                value);
+    err_msg(get_debug_string(DEBUG_PARSER_UNKNOWN_KEY_ENUM), value);
     return (0);
 }
 
@@ -374,8 +372,7 @@ cfgfile_parse_key_entry (const var_t *entry, const char *value)
     keytable = entry->key_table;
 
     if (keytable == NULL) {
-        CSFLogError("common", "%s",
-                    get_debug_string(DEBUG_PARSER_NULL_KEY_TABLE));
+        err_msg(get_debug_string(DEBUG_PARSER_NULL_KEY_TABLE));
         return (1);
     }
 
@@ -388,7 +385,7 @@ cfgfile_parse_key_entry (const var_t *entry, const char *value)
         keytable++;
     }
 
-    CSFLogError("common", get_debug_string(DEBUG_PARSER_UNKNOWN_KEY), value);
+    err_msg(get_debug_string(DEBUG_PARSER_UNKNOWN_KEY), value);
     return (1);
 }
 

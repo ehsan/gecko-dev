@@ -1,13 +1,12 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=79 ft=cpp:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsstr_h
-#define jsstr_h
-
-#include "mozilla/PodOperations.h"
+#ifndef jsstr_h___
+#define jsstr_h___
 
 #include <ctype.h>
 #include "jsapi.h"
@@ -60,8 +59,8 @@ struct JSSubString {
     const jschar    *chars;
 };
 
-extern const jschar js_empty_ucstr[];
-extern const JSSubString js_EmptySubString;
+extern jschar      js_empty_ucstr[];
+extern JSSubString js_EmptySubString;
 
 /*
  * Shorthands for ASCII (7-bit) decimal and hex conversion.
@@ -126,7 +125,7 @@ namespace js {
  */
 template <AllowGC allowGC>
 extern JSString *
-ToStringSlow(JSContext *cx, typename MaybeRooted<Value, allowGC>::HandleType arg);
+ToStringSlow(JSContext *cx, const Value &v);
 
 /*
  * Convert the given value to a string.  This method includes an inline
@@ -135,7 +134,7 @@ ToStringSlow(JSContext *cx, typename MaybeRooted<Value, allowGC>::HandleType arg
  */
 template <AllowGC allowGC>
 static JS_ALWAYS_INLINE JSString *
-ToString(JSContext *cx, JS::HandleValue v)
+ToString(JSContext *cx, const js::Value &v)
 {
 #ifdef DEBUG
     if (allowGC) {
@@ -214,7 +213,7 @@ js_strchr_limit(const jschar *s, jschar c, const jschar *limit);
 static JS_ALWAYS_INLINE void
 js_strncpy(jschar *dst, const jschar *src, size_t nelem)
 {
-    return mozilla::PodCopy(dst, src, nelem);
+    return js::PodCopy(dst, src, nelem);
 }
 
 extern jschar *
@@ -350,4 +349,4 @@ str_split(JSContext *cx, unsigned argc, Value *vp);
 extern JSBool
 js_String(JSContext *cx, unsigned argc, js::Value *vp);
 
-#endif /* jsstr_h */
+#endif /* jsstr_h___ */

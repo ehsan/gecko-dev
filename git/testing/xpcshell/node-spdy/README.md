@@ -1,84 +1,79 @@
 # SPDY Server for node.js [![Build Status](https://secure.travis-ci.org/indutny/node-spdy.png)](http://travis-ci.org/indutny/node-spdy)
 
-<a href="http://flattr.com/thing/758213/indutnynode-spdy-on-GitHub" target="_blank">
-<img src="http://api.flattr.com/button/flattr-badge-large.png" alt="Flattr this" title="Flattr this" border="0" /></a>
-
 With this module you can create [SPDY](http://www.chromium.org/spdy) servers
 in node.js with natural http module interface and fallback to regular https
 (for browsers that doesn't support SPDY yet).
 
+## Node+OpenSSL building
+
+At the moment node-spdy requires zlib dictionary support, which will come to
+node.js only in 0.7.x version. To build 0.7.x version follow instructions below:
+
+```bash
+git clone git://github.com/joyent/node.git
+cd node
+./configure --prefix=$HOME/.node/dev # <- or any other dir
+
+make install -j4 # in -jN, N is number of CPU cores on your machine
+
+# Add node's bin to PATH env variable
+echo 'export PATH=$HOME/.node/dev/bin:$PATH' >> ~/.bashrc
+
+#
+# You have working node 0.7.x + NPN now !!!
+#
+```
+
 ## Usage
 
 ```javascript
-var spdy = require('spdy'),
-    fs = require('fs');
+var spdy = require('spdy');
 
 var options = {
   key: fs.readFileSync(__dirname + '/keys/spdy-key.pem'),
   cert: fs.readFileSync(__dirname + '/keys/spdy-cert.pem'),
-  ca: fs.readFileSync(__dirname + '/keys/spdy-csr.pem'),
-
-  // SPDY-specific options
-  windowSize: 1024, // Server's window size
+  ca: fs.readFileSync(__dirname + '/keys/spdy-csr.pem')
 };
 
-var server = spdy.createServer(options, function(req, res) {
+spdy.createServer(options, function(req, res) {
   res.writeHead(200);
   res.end('hello world!');
 });
 
-server.listen(443);
-```
-
-And by popular demand - usage with
-[express](https://github.com/visionmedia/express):
-
-```javascript
-var spdy = require('spdy'),
-    express = require('express'),
-    fs = require('fs');
-
-var options = { /* the same as above */ };
-
-var app = express();
-
-app.use(/* your favorite middleware */);
-
-var server = spdy.createServer(options, app);
-
-server.listen(443);
+spdy.listen(443);
 ```
 
 ## API
 
 API is compatible with `http` and `https` module, but you can use another
-function as base class for SPDYServer.
+function as base class for SPDYServer. For example,
+`require('express').HTTPSServer` given that as base class you'll get a server
+compatible with [express](https://github.com/visionmedia/express) API.
 
 ```javascript
 spdy.createServer(
-  [base class constructor, i.e. https.Server],
+  [base class constructor, i.e. https.Server or express.HTTPSServer],
   { /* keys and options */ }, // <- the only one required argument
   [request listener]
 ).listen([port], [host], [callback]);
 ```
 
 Request listener will receive two arguments: `request` and `response`. They're
-both instances of `http`'s `IncomingMessage` and `OutgoingMessage`. But three
-custom properties are added to both of them: `streamID`, `isSpdy`,
-`spdyVersion`. The first one indicates on which spdy stream are sitting request
-and response. Second is always true and can be checked to ensure that incoming
-request wasn't received by HTTPS fallback and last one is a number representing
-used SPDY protocol version (2 or 3 for now).
+both instances of `http`'s `IncomingMessage` and `OutgoingMessage`. But two
+custom properties are added to both of them: `streamID` and `isSpdy`. The first
+one indicates on which spdy stream are sitting request and response. Latter one
+is always true and can be checked to ensure that incoming request wasn't
+received by HTTPS callback.
 
 ### Push streams
 
-It is possible to initiate 'push' streams to send content to clients _before_
-the client requests it.
+It's possible to initiate 'push' stream to send content to client, before one'll
+request it.
 
 ```javascript
 spdy.createServer(options, function(req, res) {
   var headers = { 'content-type': 'application/javascript' };
-  res.push('/main.js', headers, function(err, stream) {
+  res.send('/main.js', headers, function(err, stream) {
     if (err) return;
 
     stream.end('alert("hello from push stream!");');
@@ -88,11 +83,7 @@ spdy.createServer(options, function(req, res) {
 }).listen(443);
 ```
 
-Push is accomplished via the `push()` method invoked on the current response
-object (this works for express.js response objects as well).  The format of the
-`push()` method is:
-
-`.push('full or relative url', { ... headers ... }, optional priority, callback)`
+`.push('full or relative url', { ... headers ... }, callback)`
 
 You can use either full ( `http://host/path` ) or relative ( `/path` ) urls with
 `.push()`. `headers` are the same as for regular response object. `callback`
@@ -109,20 +100,11 @@ controlling [maximum concurrent streams][http://www.chromium.org/spdy/spdy-proto
 protocol option (if client will start more streams than that limit, RST_STREAM
 will be sent for each additional stream).
 
-Additional options:
-
-* `plain` - if defined, server will accept only plain (non-encrypted)
-  connections.
-
 #### Contributors
 
 * [Fedor Indutny](https://github.com/indutny)
-* [Chris Strom](https://github.com/eee-c)
+* [Chris Storm](https://github.com/eee-c)
 * [François de Metz](https://github.com/francois2metz)
-* [Ilya Grigorik](https://github.com/igrigorik)
-* [Roberto Peon](https://github.com/grmocg)
-* [Tatsuhiro Tsujikawa](https://github.com/tatsuhiro-t)
-* [Jesse Cravens](https://github.com/jessecravens)
 
 #### LICENSE
 

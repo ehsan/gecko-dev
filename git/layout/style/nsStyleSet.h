@@ -23,12 +23,11 @@
 #include "nsAutoPtr.h"
 #include "nsIStyleRule.h"
 #include "nsCSSPseudoElements.h"
-#include "gfxFontFeatures.h"
+#include "mozilla/Attributes.h"
 
 class nsIURI;
 class nsCSSFontFaceRule;
 class nsCSSKeyframesRule;
-class nsCSSFontFeatureValuesRule;
 class nsCSSPageRule;
 class nsRuleWalker;
 struct ElementDependentRuleProcessorData;
@@ -37,7 +36,7 @@ struct TreeMatchContext;
 class nsEmptyStyleRule MOZ_FINAL : public nsIStyleRule
 {
   NS_DECL_ISUPPORTS
-  virtual void MapRuleInfoInto(nsRuleData* aRuleData) MOZ_OVERRIDE;
+  virtual void MapRuleInfoInto(nsRuleData* aRuleData);
 #ifdef DEBUG
   virtual void List(FILE* out = stdout, int32_t aIndent = 0) const MOZ_OVERRIDE;
 #endif
@@ -46,7 +45,7 @@ class nsEmptyStyleRule MOZ_FINAL : public nsIStyleRule
 class nsInitialStyleRule MOZ_FINAL : public nsIStyleRule
 {
   NS_DECL_ISUPPORTS
-  virtual void MapRuleInfoInto(nsRuleData* aRuleData) MOZ_OVERRIDE;
+  virtual void MapRuleInfoInto(nsRuleData* aRuleData);
 #ifdef DEBUG
   virtual void List(FILE* out = stdout, int32_t aIndent = 0) const MOZ_OVERRIDE;
 #endif
@@ -63,7 +62,10 @@ class nsStyleSet
 
   size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
-  void Init(nsPresContext *aPresContext);
+  // Initialize the object.  You must check the return code and not use
+  // the nsStyleSet if Init() fails.
+
+  nsresult Init(nsPresContext *aPresContext);
 
   nsRuleNode* GetRuleTree() { return mRuleTree; }
 
@@ -138,7 +140,7 @@ class nsStyleSet
                           nsCSSPseudoElements::Type aType,
                           nsStyleContext* aParentContext,
                           TreeMatchContext& aTreeMatchContext);
-
+  
   // Get a style context for an anonymous box.  aPseudoTag is the
   // pseudo-tag to use and must be non-null.
   already_AddRefed<nsStyleContext>
@@ -164,14 +166,6 @@ class nsStyleSet
   // true for success and false for failure.
   bool AppendKeyframesRules(nsPresContext* aPresContext,
                               nsTArray<nsCSSKeyframesRule*>& aArray);
-
-  // Fetch object for looking up font feature values
-  already_AddRefed<gfxFontFeatureValueSet> GetFontFeatureValuesLookup();
-
-  // Append all the currently-active font feature values rules to aArray.
-  // Return true for success and false for failure.
-  bool AppendFontFeatureValuesRules(nsPresContext* aPresContext,
-                              nsTArray<nsCSSFontFeatureValuesRule*>& aArray);
 
   // Append all the currently-active page rules to aArray.  Return
   // true for success and false for failure.
@@ -258,8 +252,6 @@ class nsStyleSet
                          const nsCOMArray<nsIStyleSheet> &aNewSheets);
   nsresult InsertStyleSheetBefore(sheetType aType, nsIStyleSheet *aNewSheet,
                                   nsIStyleSheet *aReferenceSheet);
-
-  nsresult DirtyRuleProcessors(sheetType aType);
 
   // Enable/Disable entire author style level (Doc, ScopedDoc & PresHint levels)
   bool GetAuthorStyleDisabled();
@@ -394,9 +386,6 @@ class nsStyleSet
 
   // The sheets in each array in mSheets are stored with the most significant
   // sheet last.
-  // The arrays for ePresHintSheet, eStyleAttrSheet, eTransitionSheet,
-  // and eAnimationSheet are always empty.  (FIXME:  We should reduce
-  // the storage needed for them.)
   nsCOMArray<nsIStyleSheet> mSheets[eSheetTypeCount];
 
   // mRuleProcessors[eScopedDocSheet] is always null; rule processors
@@ -420,7 +409,6 @@ class nsStyleSet
   unsigned mInShutdown : 1;
   unsigned mAuthorStyleDisabled: 1;
   unsigned mInReconstruct : 1;
-  unsigned mInitFontFeatureValuesLookup : 1;
   unsigned mDirty : 9;  // one dirty bit is used per sheet type
 
   uint32_t mUnusedRuleNodeCount; // used to batch rule node GC
@@ -438,9 +426,6 @@ class nsStyleSet
   // BeginReconstruct and EndReconstruct, but in case of bugs that cause
   // style contexts to exist too long, may last longer.
   nsTArray<nsRuleNode*> mOldRuleTrees;
-
-  // whether font feature values lookup object needs initialization
-  nsRefPtr<gfxFontFeatureValueSet> mFontFeatureValuesLookup;
 };
 
 #ifdef _IMPL_NS_LAYOUT

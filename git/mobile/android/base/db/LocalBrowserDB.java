@@ -8,8 +8,8 @@ package org.mozilla.gecko.db;
 import org.mozilla.gecko.db.BrowserContract.Bookmarks;
 import org.mozilla.gecko.db.BrowserContract.Combined;
 import org.mozilla.gecko.db.BrowserContract.ExpirePriority;
-import org.mozilla.gecko.db.BrowserContract.FaviconColumns;
 import org.mozilla.gecko.db.BrowserContract.Favicons;
+import org.mozilla.gecko.db.BrowserContract.FaviconColumns;
 import org.mozilla.gecko.db.BrowserContract.History;
 import org.mozilla.gecko.db.BrowserContract.SyncColumns;
 import org.mozilla.gecko.db.BrowserContract.Thumbnails;
@@ -237,9 +237,8 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     public Cursor getTopSites(ContentResolver cr, int limit) {
         // Filter out sites that are pinned
         String selection = DBUtils.concatenateWhere("", Combined.URL + " NOT IN (SELECT " +
-                                             Bookmarks.URL + " FROM bookmarks WHERE " +
-                                             DBUtils.qualifyColumn("bookmarks", Bookmarks.PARENT) + " == ? AND " +
-                                             DBUtils.qualifyColumn("bookmarks", Bookmarks.IS_DELETED) + " == 0)");
+                                             Bookmarks.URL + " FROM bookmarks WHERE bookmarks." +
+                                             Bookmarks.PARENT + " == ?)");
         String[] selectionArgs = DBUtils.appendSelectionArgs(new String[0], new String[] { String.valueOf(Bookmarks.FIXED_PINNED_LIST_ID) });
         return filterAllSites(cr,
                               new String[] { Combined._ID,
@@ -470,26 +469,6 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         // Cache result for future queries
         mReadingListItemsExist = (count > 0);
         return mReadingListItemsExist;
-    }
-
-    @Override
-    public int getReadingListCount(ContentResolver cr) {
-        // This method is about the Reading List, not normal bookmarks
-        Cursor c = null;
-        int count = 0;
-
-        try {
-            c = cr.query(mBookmarksUriWithProfile,
-                         new String[] { Bookmarks._ID },
-                         Bookmarks.PARENT + " = ?",
-                         new String[] { String.valueOf(Bookmarks.FIXED_READING_LIST_ID) },
-                         null);
-            count = c.getCount();
-        } finally {
-            c.close();
-        }
-
-        return count;
     }
 
     @Override
@@ -731,9 +710,8 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         byte[] b = c.getBlob(faviconIndex);
         c.close();
 
-        if (b == null) {
+        if (b == null || b.length == 0)
             return null;
-        }
 
         return BitmapUtils.decodeByteArray(b);
     }
@@ -782,18 +760,13 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     @Override
     public void updateFaviconForUrl(ContentResolver cr, String pageUri,
             Bitmap favicon, String faviconUri) {
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        favicon.compress(Bitmap.CompressFormat.PNG, 100, stream);
+
         ContentValues values = new ContentValues();
         values.put(Favicons.URL, faviconUri);
+        values.put(Favicons.DATA, stream.toByteArray());
         values.put(Favicons.PAGE_URL, pageUri);
-
-        byte[] data = null;
-        ByteArrayOutputStream stream = new ByteArrayOutputStream();
-        if (favicon.compress(Bitmap.CompressFormat.PNG, 100, stream)) {
-            data = stream.toByteArray();
-        } else {
-            Log.w(LOGTAG, "Favicon compression failed.");
-        }
-        values.put(Favicons.DATA, data);
 
         // Update or insert
         Uri faviconsUri = getAllFaviconsUri().buildUpon().
@@ -813,16 +786,11 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
             BitmapDrawable thumbnail) {
         Bitmap bitmap = thumbnail.getBitmap();
 
-        byte[] data = null;
         ByteArrayOutputStream stream = new ByteArrayOutputStream();
-        if (bitmap.compress(Bitmap.CompressFormat.PNG, 0, stream)) {
-            data = stream.toByteArray();
-        } else {
-            Log.w(LOGTAG, "Favicon compression failed.");
-        }
+        bitmap.compress(Bitmap.CompressFormat.PNG, 0, stream);
 
         ContentValues values = new ContentValues();
-        values.put(Thumbnails.DATA, data);
+        values.put(Thumbnails.DATA, stream.toByteArray());
         values.put(Thumbnails.URL, uri);
 
         int updated = cr.update(mThumbnailsUriWithProfile,
@@ -1252,24 +1220,5 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         }
 
         return (count > 0);
-    }
-
-    public Cursor getBookmarkForUrl(ContentResolver cr, String url) {
-        Cursor c = cr.query(bookmarksUriWithLimit(1),
-                            new String[] { Bookmarks._ID,
-                                           Bookmarks.URL,
-                                           Bookmarks.TITLE,
-                                           Bookmarks.KEYWORD },
-                            Bookmarks.URL + " = ?",
-                            new String[] { url },
-                            null);
-        if (c == null) {
-            return c;
-        } else if (c.getCount() == 0) {
-            c.close();
-            c = null;
-        }
-
-        return c;
     }
 }

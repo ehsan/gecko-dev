@@ -31,7 +31,8 @@ enum {
   HTML_ANCHOR_DNS_PREFETCH_DEFERRED =     ANCHOR_ELEMENT_FLAG_BIT(1)
 };
 
-ASSERT_NODE_FLAGS_SPACE(ELEMENT_TYPE_SPECIFIC_BITS_OFFSET + 2);
+// Make sure we have enough space for those bits
+PR_STATIC_ASSERT(ELEMENT_TYPE_SPECIFIC_BITS_OFFSET + 1 < 32);
 
 #undef ANCHOR_ELEMENT_FLAG_BIT
 
@@ -44,19 +45,19 @@ NS_IMPL_RELEASE_INHERITED(HTMLAnchorElement, Element)
 
 // QueryInterface implementation for HTMLAnchorElement
 NS_INTERFACE_TABLE_HEAD(HTMLAnchorElement)
-  NS_HTML_CONTENT_INTERFACES(nsGenericHTMLElement)
-  NS_INTERFACE_TABLE_INHERITED3(HTMLAnchorElement,
-                                nsIDOMHTMLAnchorElement,
-                                nsILink,
-                                Link)
-  NS_INTERFACE_TABLE_TO_MAP_SEGUE
-NS_ELEMENT_INTERFACE_MAP_END
+  NS_HTML_CONTENT_INTERFACE_TABLE3(HTMLAnchorElement,
+                                   nsIDOMHTMLAnchorElement,
+                                   nsILink,
+                                   Link)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLAnchorElement,
+                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
 
 
 NS_IMPL_ELEMENT_CLONE(HTMLAnchorElement)
 
 JSObject*
-HTMLAnchorElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+HTMLAnchorElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return HTMLAnchorElementBinding::Wrap(aCx, aScope, this);
 }
@@ -329,12 +330,19 @@ HTMLAnchorElement::SetPing(const nsAString& aValue)
   return SetAttr(kNameSpaceID_None, nsGkAtoms::ping, aValue, true);
 }
 
+nsLinkState
+HTMLAnchorElement::GetLinkState() const
+{
+  return Link::GetLinkState();
+}
+
 already_AddRefed<nsIURI>
 HTMLAnchorElement::GetHrefURI() const
 {
-  nsCOMPtr<nsIURI> uri = Link::GetCachedURI();
+  nsIURI* uri = Link::GetCachedURI();
   if (uri) {
-    return uri.forget();
+    NS_ADDREF(uri);
+    return uri;
   }
 
   return GetHrefURIForAnchors();

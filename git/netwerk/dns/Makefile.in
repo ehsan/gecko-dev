@@ -10,15 +10,29 @@ VPATH     = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-MSVC_ENABLE_PGO := 1
+LIBRARY_NAME   = neckodns_s
 LIBXUL_LIBRARY = 1
 FAIL_ON_WARNINGS := 1
 
-DISABLED_CSRCS = \
+CPPSRCS = \
+  DNS.cpp \
+  nsIDNService.cpp \
+  nsHostResolver.cpp \
+  nsDNSService2.cpp \
+  nsEffectiveTLDService.cpp \
+  $(NULL)
+
+CSRCS = \
   race.c \
   nameprep.c \
   punycode.c \
   $(NULL)
+
+EXPORTS_NAMESPACES = mozilla/net
+
+EXPORTS_mozilla/net = \
+  DNS.h \
+  $(null)
 
 # we don't want the shared lib, but we want to force the creation of a
 # static lib.

@@ -4,6 +4,8 @@
 
 /*
  * Moved from secpkcs7.c
+ *
+ * $Id: crl.c,v 1.73 2012/04/25 14:49:26 gerv%gerv.net Exp $
  */
  
 #include "cert.h"
@@ -304,12 +306,12 @@ SECStatus cert_check_crl_version (CERTCrl *crl)
  * DER crl.
  */
 SECStatus
-CERT_KeyFromDERCrl(PLArenaPool *arena, SECItem *derCrl, SECItem *key)
+CERT_KeyFromDERCrl(PRArenaPool *arena, SECItem *derCrl, SECItem *key)
 {
     SECStatus rv;
     CERTSignedData sd;
     CERTCrlKey crlkey;
-    PLArenaPool* myArena;
+    PRArenaPool* myArena;
 
     if (!arena) {
         /* arena needed for QuickDER */
@@ -392,10 +394,10 @@ SECStatus CERT_CompleteCRLDecodeEntries(CERTSignedCrl* crl)
  * allow reusing the input DER without making a copy
  */
 CERTSignedCrl *
-CERT_DecodeDERCrlWithFlags(PLArenaPool *narena, SECItem *derSignedCrl,
+CERT_DecodeDERCrlWithFlags(PRArenaPool *narena, SECItem *derSignedCrl,
                           int type, PRInt32 options)
 {
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     CERTSignedCrl *crl;
     SECStatus rv;
     OpaqueCRLFields* extended = NULL;
@@ -532,7 +534,7 @@ loser:
  * take a DER CRL and decode it into a CRL structure
  */
 CERTSignedCrl *
-CERT_DecodeDERCrl(PLArenaPool *narena, SECItem *derSignedCrl, int type)
+CERT_DecodeDERCrl(PRArenaPool *narena, SECItem *derSignedCrl, int type)
 {
     return CERT_DecodeDERCrlWithFlags(narena, derSignedCrl, type,
                                       CRL_DECODE_DEFAULT_OPTIONS);
@@ -720,7 +722,7 @@ SEC_NewCrl(CERTCertDBHandle *handle, char *url, SECItem *derCrl, int type)
 CERTSignedCrl *
 SEC_FindCrlByDERCert(CERTCertDBHandle *handle, SECItem *derCrl, int type)
 {
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     SECItem crlKey;
     SECStatus rv;
     CERTSignedCrl *crl = NULL;
@@ -781,7 +783,7 @@ SECStatus
 SEC_LookupCrls(CERTCertDBHandle *handle, CERTCrlHeadNode **nodes, int type)
 {
     CERTCrlHeadNode *head;
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     SECStatus rv;
 
     *nodes = NULL;
@@ -959,7 +961,7 @@ void PreAllocator_Destroy(PreAllocator* PreAllocator)
 /* constructor for PreAllocator object */
 PreAllocator* PreAllocator_Create(PRSize size)
 {
-    PLArenaPool* arena = NULL;
+    PRArenaPool* arena = NULL;
     PreAllocator* prebuffer = NULL;
     arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
     if (!arena)
@@ -1693,7 +1695,7 @@ static SECStatus DPCache_FetchFromTokens(CRLDPCache* cache, PRTime vfdate,
     return rv;
 }
 
-static SECStatus CachedCrl_GetEntry(CachedCrl* crl, const SECItem* sn,
+static SECStatus CachedCrl_GetEntry(CachedCrl* crl, SECItem* sn,
                                     CERTCrlEntry** returned)
 {
     CERTCrlEntry* acrlEntry;
@@ -1720,7 +1722,7 @@ static SECStatus CachedCrl_GetEntry(CachedCrl* crl, const SECItem* sn,
 }
 
 /* check if a particular SN is in the CRL cache and return its entry */
-dpcacheStatus DPCache_Lookup(CRLDPCache* cache, const SECItem* sn,
+dpcacheStatus DPCache_Lookup(CRLDPCache* cache, SECItem* sn,
                          CERTCrlEntry** returned)
 {
     SECStatus rv;
@@ -2629,7 +2631,7 @@ cert_CheckCertRevocationStatus(CERTCertificate* cert, CERTCertificate* issuer,
         *revReason = reason;
     }
 
-    if (t && secCertTimeValid != CERT_CheckCertValidTimes(issuer, t, PR_FALSE))
+    if (t && SECSuccess != CERT_CheckCertValidTimes(issuer, t, PR_FALSE))
     {
         /* we won't be able to check the CRL's signature if the issuer cert
            is expired as of the time we are verifying. This may cause a valid

@@ -13,9 +13,9 @@
 #ifndef NSOBJECTLOADINGCONTENT_H_
 #define NSOBJECTLOADINGCONTENT_H_
 
-#include "mozilla/Attributes.h"
 #include "nsImageLoadingContent.h"
 #include "nsIStreamListener.h"
+#include "nsIInterfaceRequestor.h"
 #include "nsIChannelEventSink.h"
 #include "nsIObjectLoadingContent.h"
 #include "nsIRunnable.h"
@@ -35,6 +35,7 @@ class nsObjectLoadingContent : public nsImageLoadingContent
                              , public nsIStreamListener
                              , public nsIFrameLoaderOwner
                              , public nsIObjectLoadingContent
+                             , public nsIInterfaceRequestor
                              , public nsIChannelEventSink
 {
   friend class AutoSetInstantiatingToFalse;
@@ -98,6 +99,7 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     NS_DECL_NSISTREAMLISTENER
     NS_DECL_NSIFRAMELOADEROWNER
     NS_DECL_NSIOBJECTLOADINGCONTENT
+    NS_DECL_NSIINTERFACEREQUESTOR
     NS_DECL_NSICHANNELEVENTSINK
 
     /**
@@ -134,6 +136,8 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      * object by placing it on the prototype chain of our element,
      * between the element itself and its most-derived DOM prototype.
      *
+     * GetCanonicalPrototype returns this most-derived DOM prototype.
+     *
      * SetupProtoChain handles actually inserting the plug-in
      * scriptable object into the proto chain if needed.
      *
@@ -141,15 +145,22 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      * page is looking up a property name on our object and make sure
      * that our plug-in, if any, is instantiated.
      */
+
+    /**
+     * Get the canonical prototype for this content for the given global.  Only
+     * returns non-null for objects that are on WebIDL bindings.
+     */
+    virtual JSObject* GetCanonicalPrototype(JSContext* aCx, JSObject* aGlobal);
+
     // Helper for WebIDL node wrapping
-    void SetupProtoChain(JSContext* aCx, JS::Handle<JSObject*> aObject);
+    void SetupProtoChain(JSContext* aCx, JSObject* aObject);
 
     // Remove plugin from protochain
     void TeardownProtoChain();
 
     // Helper for WebIDL newResolve
-    bool DoNewResolve(JSContext* aCx, JS::Handle<JSObject*> aObject, JS::Handle<jsid> aId,
-                      unsigned aFlags, JS::MutableHandle<JSObject*> aObjp);
+    bool DoNewResolve(JSContext* aCx, JSHandleObject aObject, JSHandleId aId,
+                      unsigned aFlags, JSMutableHandleObject aObjp);
 
     // WebIDL API
     nsIDocument* GetContentDocument();
@@ -177,13 +188,6 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     {
       return mURI;
     }
-  
-    /**
-     * The default state that this plugin would be without manual activation.
-     * @returns PLUGIN_ACTIVE if the default state would be active.
-     */
-    uint32_t DefaultFallbackType();
-
     uint32_t PluginFallbackType() const
     {
       return mFallbackType;
@@ -200,7 +204,7 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     {
       aRv.Throw(NS_ERROR_NOT_IMPLEMENTED);
     }
-    JS::Value LegacyCall(JSContext* aCx, JS::Handle<JS::Value> aThisVal,
+    JS::Value LegacyCall(JSContext* aCx, JS::Value aThisVal,
                          const mozilla::dom::Sequence<JS::Value>& aArguments,
                          mozilla::ErrorResult& aRv);
 
@@ -344,14 +348,10 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      * 
      * NOTE This function does not perform security checks, only determining the
      *      requested type and parameters of the object.
-     *
-     * @param aJavaURI Specify that the URI will be consumed by java, which
-     *                 changes codebase parsing and URI construction. Used
-     *                 internally.
-     *
+     * 
      * @return Returns a bitmask of ParameterUpdateFlags values
      */
-    ParameterUpdateFlags UpdateObjectParameters(bool aJavaURI = false);
+    ParameterUpdateFlags UpdateObjectParameters();
 
     /**
      * Queue a CheckPluginStopEvent and track it in mPendingCheckPluginStopEvent
@@ -374,14 +374,8 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      * If this object is allowed to play plugin content, or if it would display
      * click-to-play instead.
      * NOTE that this does not actually check if the object is a loadable plugin
-     * NOTE This ignores the current activated state. The caller should check this if appropriate.
      */
-    bool ShouldPlay(FallbackType &aReason, bool aIgnoreCurrentType);
-
-    /*
-     * Helper to check if mBaseURI can be used by java as a codebase
-     */
-    bool CheckJavaCodebase();
+    bool ShouldPlay(FallbackType &aReason);
 
     /**
      * Helper to check if our current URI passes policy
@@ -453,35 +447,6 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      * Does not flush.
      */
     nsObjectFrame* GetExistingFrame();
-
-    // Helper class for SetupProtoChain
-    class SetupProtoChainRunner MOZ_FINAL : public nsIRunnable
-    {
-    public:
-      NS_DECL_ISUPPORTS
-
-      SetupProtoChainRunner(nsIScriptContext* scriptContext,
-                            nsObjectLoadingContent* aContent);
-
-      NS_IMETHOD Run() MOZ_OVERRIDE;
-
-    private:
-      nsCOMPtr<nsIScriptContext> mContext;
-      // We store an nsIObjectLoadingContent because we can
-      // unambiguously refcount that.
-      nsRefPtr<nsIObjectLoadingContent> mContent;
-    };
-
-    // Utility getter for getting our nsNPAPIPluginInstance in a safe way.
-    nsresult ScriptRequestPluginInstance(JSContext* aCx,
-                                         nsNPAPIPluginInstance** aResult);
-
-    // Utility method for getting our plugin JSObject
-    static nsresult GetPluginJSObject(JSContext *cx,
-                                      JS::Handle<JSObject*> obj,
-                                      nsNPAPIPluginInstance *plugin_inst,
-                                      JSObject **plugin_obj,
-                                      JSObject **plugin_proto);
 
     // The final listener for mChannel (uriloader, pluginstreamlistener, etc.)
     nsCOMPtr<nsIStreamListener> mFinalListener;

@@ -8,7 +8,7 @@
 
 #include "nsIDOMCallEvent.h"
 
-#include "mozilla/dom/DOMError.h"
+#include "DOMError.h"
 #include "GeneratedEvents.h"
 #include "nsDOMClassInfo.h"
 #include "Telephony.h"
@@ -19,7 +19,7 @@ USING_TELEPHONY_NAMESPACE
 // static
 already_AddRefed<TelephonyCall>
 TelephonyCall::Create(Telephony* aTelephony, const nsAString& aNumber,
-                      uint16_t aCallState, uint32_t aCallIndex, bool aEmergency)
+                      uint16_t aCallState, uint32_t aCallIndex)
 {
   NS_ASSERTION(aTelephony, "Null pointer!");
   NS_ASSERTION(!aNumber.IsEmpty(), "Empty number!");
@@ -33,7 +33,6 @@ TelephonyCall::Create(Telephony* aTelephony, const nsAString& aNumber,
   call->mNumber = aNumber;
   call->mCallIndex = aCallIndex;
   call->mError = nullptr;
-  call->mEmergency = aEmergency;
 
   call->ChangeStateInternal(aCallState, false);
 
@@ -149,7 +148,7 @@ TelephonyCall::NotifyError(const nsAString& aError)
   // Set the error string
   NS_ASSERTION(!mError, "Already have an error?");
 
-  mError = new mozilla::dom::DOMError(GetOwner(), aError);
+  mError = DOMError::CreateWithName(aError);
 
   // Do the state transitions
   ChangeStateInternal(nsITelephonyProvider::CALL_STATE_DISCONNECTED, true);
@@ -160,10 +159,9 @@ TelephonyCall::NotifyError(const nsAString& aError)
   }
 }
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_2(TelephonyCall,
+NS_IMPL_CYCLE_COLLECTION_INHERITED_1(TelephonyCall,
                                      nsDOMEventTargetHelper,
-                                     mTelephony,
-                                     mError);
+                                     mTelephony)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(TelephonyCall)
   NS_INTERFACE_MAP_ENTRY(nsIDOMTelephonyCall)
@@ -190,14 +188,7 @@ TelephonyCall::GetState(nsAString& aState)
 }
 
 NS_IMETHODIMP
-TelephonyCall::GetEmergency(bool* aEmergency)
-{
-  *aEmergency = mEmergency;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-TelephonyCall::GetError(nsISupports** aError)
+TelephonyCall::GetError(nsIDOMDOMError** aError)
 {
   NS_IF_ADDREF(*aError = mError);
   return NS_OK;

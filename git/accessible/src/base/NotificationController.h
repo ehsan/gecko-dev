@@ -212,7 +212,6 @@ private:
   enum eObservingState {
     eNotObservingRefresh,
     eRefreshObserving,
-    eRefreshProcessing,
     eRefreshProcessingForUpdate
   };
   eObservingState mObservingState;

@@ -10,6 +10,8 @@
 
 const TEST_URI = "data:text/html;charset=utf-8,<p>test for bug 642108.";
 const LOG_LIMIT = 20;
+const CATEGORY_CSS = 1;
+const SEVERITY_WARNING = 1;
 
 function test() {
   addTab(TEST_URI);
@@ -53,13 +55,13 @@ function testCSSPruning(hudRef) {
     },
     successFn: function()
     {
-      is(Object.keys(hudRef.ui._repeatNodes).length, LOG_LIMIT,
-         "repeated nodes pruned from repeatNodes");
+      is(Object.keys(hudRef.ui._cssNodes).length, LOG_LIMIT,
+         "repeated nodes pruned from cssNodes");
 
       let msg = hudRef.outputNode.querySelector(".webconsole-msg-cssparser " +
                                                 ".webconsole-msg-repeat");
       is(msg.getAttribute("value"), 1,
-         "repeated nodes pruned from repeatNodes (confirmed)");
+         "repeated nodes pruned from cssNodes (confirmed)");
 
       finishTest();
     },
@@ -72,6 +74,9 @@ function testCSSPruning(hudRef) {
     {
       let msg = hudRef.outputNode.querySelector(".webconsole-msg-cssparser " +
                                                 ".webconsole-msg-repeat");
+      if (msg) {
+        console.debug(msg, msg.getAttribute("value"));
+      }
       return msg && msg.getAttribute("value") == 5;
     },
     successFn: function()

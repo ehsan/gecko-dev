@@ -1,7 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-MARIONETTE_TIMEOUT = 60000;
+MARIONETTE_TIMEOUT = 20000;
 
 // Copied from ril_consts.js. Some entries are commented out in ril_const.js,
 // but we still want to test them here.
@@ -116,40 +116,15 @@ SpecialPowers.addPermission("sms", true, document);
 let sms = window.navigator.mozSms;
 ok(sms instanceof MozSmsManager);
 
-let tasks = {
-  // List of test fuctions. Each of them should call |tasks.next()| when
-  // completed or |tasks.finish()| to jump to the last one.
-  _tasks: [],
-  _nextTaskIndex: 0,
+function repeat(func, array, oncomplete) {
+  (function do_call(index) {
+    let next = index < (array.length - 1) ? do_call.bind(null, index + 1) : oncomplete;
+    array[index].push(next);
+    func.apply(null, array[index]);
+  })(0);
+}
 
-  push: function push(func) {
-    this._tasks.push(func);
-  },
-
-  next: function next() {
-    let index = this._nextTaskIndex++;
-    let task = this._tasks[index];
-    try {
-      task();
-    } catch (ex) {
-      ok(false, "test task[" + index + "] throws: " + ex);
-      // Run last task as clean up if possible.
-      if (index != this._tasks.length - 1) {
-        this.finish();
-      }
-    }
-  },
-
-  finish: function finish() {
-    this._tasks[this._tasks.length - 1]();
-  },
-
-  run: function run() {
-    this.next();
-  }
-};
-
-function testStrict7BitEncodingHelper(sent, received) {
+function testStrict7BitEncodingHelper(sent, received, next) {
   // The log message contains unicode and Marionette seems unable to process
   // it and throws: |UnicodeEncodeError: 'ascii' codec can't encode character
   // u'\xa5' in position 14: ordinal not in range(128)|.
@@ -160,7 +135,7 @@ function testStrict7BitEncodingHelper(sent, received) {
   function done(step) {
     count += step;
     if (count >= 2) {
-      window.setTimeout(tasks.next.bind(tasks), 0);
+      window.setTimeout(next, 0);
     }
   }
 
@@ -186,75 +161,53 @@ function testStrict7BitEncodingHelper(sent, received) {
   });
 }
 
-// Bug 877141 - If you send several spaces together in a sms, the other
-//              dipositive receives a "*" for each space.
-//
-// This function is called twice, with strict 7bit encoding enabled or
-// disabled.  Expect the same result in both sent and received text and with
-// either strict 7bit encoding enabled or disabled.
-function testBug877141() {
-  log("Testing bug 877141");
-  let sent = "1 2     3";
-  testStrict7BitEncodingHelper(sent, sent);
-}
-
-tasks.push(function () {
+function test_enabled() {
   log("Testing with dom.sms.strict7BitEncoding enabled");
+
   SpecialPowers.setBoolPref("dom.sms.strict7BitEncoding", true);
-  tasks.next();
-});
 
+  let cases = [];
 
-// Test for combined string.
-tasks.push(function () {
+  // Test for combined string.
   let sent = "", received = "";
   for (let c in GSM_SMS_STRICT_7BIT_CHARMAP) {
     sent += c;
     received += GSM_SMS_STRICT_7BIT_CHARMAP[c];
   }
-  testStrict7BitEncodingHelper(sent, received);
-});
+  cases.push([sent, received]);
 
-// When strict7BitEncoding is enabled, we should replace characters that
-// can't be encoded with GSM 7-Bit alphabets with '*'.
-tasks.push(function () {
-  // "Happy New Year" in Chinese.
-  let sent = "\u65b0\u5e74\u5feb\u6a02", received = "****";
-  testStrict7BitEncodingHelper(sent, received);
-});
+  // When strict7BitEncoding is enabled, we should replace characters that
+  // can't be encoded with GSM 7-Bit alphabets with '*'.
+  cases.push(["\u65b0\u5e74\u5feb\u6a02", "****"]); // "Happy New Year" in Chinese.
 
-tasks.push(testBug877141);
+  repeat(testStrict7BitEncodingHelper, cases, test_disabled);
+}
 
-tasks.push(function () {
+function test_disabled() {
   log("Testing with dom.sms.strict7BitEncoding disabled");
-  SpecialPowers.setBoolPref("dom.sms.strict7BitEncoding", false);
-  tasks.next();
-});
 
-// Test for combined string.
-tasks.push(function () {
+  SpecialPowers.setBoolPref("dom.sms.strict7BitEncoding", false);
+
+  let cases = [];
+
+  // Test for combined string.
   let sent = "";
   for (let c in GSM_SMS_STRICT_7BIT_CHARMAP) {
     sent += c;
   }
-  testStrict7BitEncodingHelper(sent, sent);
-});
+  cases.push([sent, sent]);
 
-tasks.push(function () {
-  // "Happy New Year" in Chinese.
-  let sent = "\u65b0\u5e74\u5feb\u6a02";
-  testStrict7BitEncodingHelper(sent, sent);
-});
+  cases.push(["\u65b0\u5e74\u5feb\u6a02", "\u65b0\u5e74\u5feb\u6a02"]);
 
-tasks.push(testBug877141);
+  repeat(testStrict7BitEncodingHelper, cases, cleanUp);
+}
 
-// WARNING: All tasks should be pushed before this!!!
-tasks.push(function cleanUp() {
+function cleanUp() {
   SpecialPowers.removePermission("sms", document);
   SpecialPowers.clearUserPref("dom.sms.enabled");
   SpecialPowers.clearUserPref("dom.sms.strict7BitEncoding");
 
   finish();
-});
+}
 
-tasks.run();
+test_enabled();

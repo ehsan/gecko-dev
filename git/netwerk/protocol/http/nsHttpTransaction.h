@@ -10,7 +10,6 @@
 #include "nsHttpHeaderArray.h"
 #include "nsAHttpTransaction.h"
 #include "nsAHttpConnection.h"
-#include "EventTokenBucket.h"
 #include "nsCOMPtr.h"
 
 #include "nsIPipe.h"
@@ -38,7 +37,6 @@ class UpdateSecurityCallbacks;
 //-----------------------------------------------------------------------------
 
 class nsHttpTransaction : public nsAHttpTransaction
-                        , public mozilla::net::ATokenBucketEvent
                         , public nsIInputStreamCallback
                         , public nsIOutputStreamCallback
 {
@@ -53,7 +51,7 @@ public:
 
     //
     // called to initialize the transaction
-    //
+    // 
     // @param caps
     //        the transaction capabilities (see nsHttp.h)
     // @param connInfo
@@ -115,9 +113,8 @@ public:
     const mozilla::TimeStamp GetPendingTime() { return mPendingTime; }
     bool UsesPipelining() const { return mCaps & NS_HTTP_ALLOW_PIPELINING; }
 
-    // overload of nsAHttpTransaction::LoadGroupConnectionInfo()
+    void SetLoadGroupConnectionInfo(nsILoadGroupConnectionInfo *aLoadGroupCI) { mLoadGroupCI = aLoadGroupCI; } 
     nsILoadGroupConnectionInfo *LoadGroupConnectionInfo() { return mLoadGroupCI.get(); }
-    void SetLoadGroupConnectionInfo(nsILoadGroupConnectionInfo *aLoadGroupCI) { mLoadGroupCI = aLoadGroupCI; }
     void DispatchedAsBlocking();
     void RemoveDispatchedAsBlocking();
 
@@ -251,7 +248,7 @@ private:
     // The time when the transaction was submitted to the Connection Manager
     mozilla::TimeStamp              mPendingTime;
 
-    class RestartVerifier
+    class RestartVerifier 
     {
 
         // When a idemptotent transaction has received part of its response body
@@ -270,7 +267,7 @@ private:
             , mSetup(false)
         {}
         ~RestartVerifier() {}
-
+        
         void Set(int64_t contentLength, nsHttpResponseHead *head);
         bool Verify(int64_t contentLength, nsHttpResponseHead *head);
         bool IsDiscardingContent() { return mToReadBeforeRestart != 0; }
@@ -283,8 +280,8 @@ private:
         int64_t ToReadBeforeRestart() { return mToReadBeforeRestart; }
         void HaveReadBeforeRestart(uint32_t amt)
         {
-            MOZ_ASSERT(amt <= mToReadBeforeRestart,
-                       "too large of a HaveReadBeforeRestart deduction");
+            NS_ABORT_IF_FALSE(amt <= mToReadBeforeRestart,
+                              "too large of a HaveReadBeforeRestart deduction");
             mToReadBeforeRestart -= amt;
         }
 
@@ -312,32 +309,6 @@ private:
         // true when ::Set has been called with a response header
         bool                            mSetup;
     } mRestartInProgressVerifier;
-
-// For Rate Pacing via an EventTokenBucket
-public:
-    // called by the connection manager to run this transaction through the
-    // token bucket. If the token bucket admits the transaction immediately it
-    // returns true. The function is called repeatedly until it returns true.
-    bool TryToRunPacedRequest();
-
-    // ATokenBucketEvent pure virtual implementation. Called by the token bucket
-    // when the transaction is ready to run. If this happens asynchrounously to
-    // token bucket submission the transaction just posts an event that causes
-    // the pending transaction queue to be rerun (and TryToRunPacedRequest() to
-    // be run again.
-    void OnTokenBucketAdmitted(); // ATokenBucketEvent
-
-    // CancelPacing() can be used to tell the token bucket to remove this
-    // transaction from the list of pending transactions. This is used when a
-    // transaction is believed to be HTTP/1 (and thus subject to rate pacing)
-    // but later can be dispatched via spdy (not subject to rate pacing).
-    void CancelPacing(nsresult reason);
-
-private:
-    bool mSubmittedRatePacing;
-    bool mPassedRatePacing;
-    bool mSynchronousRatePaceRequest;
-    nsCOMPtr<nsICancelable> mTokenBucketCancel;
 };
 
 #endif // nsHttpTransaction_h__

@@ -13,7 +13,7 @@
 #include <stdio.h>
 #include "nsArrayEnumerator.h"
 #include "nsCOMArray.h"
-#include "nsISupportsArray.h"
+#include "nsIEnumerator.h"
 #include "nsIRDFDataSource.h"
 #include "nsIRDFObserver.h"
 #include "nsIServiceManager.h"
@@ -733,10 +733,12 @@ FileSystemDataSource::ArcLabelsOut(nsIRDFResource *source,
     if (! labels)
     return NS_ERROR_NULL_POINTER;
 
+    nsresult rv;
+
     if (source == mNC_FileSystemRoot)
     {
         nsCOMArray<nsIRDFResource> resources;
-        resources.SetCapacity(2);
+        if (!resources.SetCapacity(2)) return NS_ERROR_OUT_OF_MEMORY;
 
         resources.AppendObject(mNC_Child);
         resources.AppendObject(mNC_pulse);
@@ -746,7 +748,7 @@ FileSystemDataSource::ArcLabelsOut(nsIRDFResource *source,
     else if (isFileURI(source))
     {
         nsCOMArray<nsIRDFResource> resources;
-        resources.SetCapacity(2);
+        if (!resources.SetCapacity(2)) return NS_ERROR_OUT_OF_MEMORY;
 
         if (isDirURI(source))
         {

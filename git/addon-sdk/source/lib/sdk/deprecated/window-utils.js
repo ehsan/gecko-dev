@@ -11,7 +11,6 @@ const { Cc, Ci } = require('chrome');
 const { EventEmitter } = require('../deprecated/events');
 const { Trait } = require('../deprecated/traits');
 const { when } = require('../system/unload');
-const events = require('../system/events');
 const { getInnerId, getOuterId, windows, isDocumentLoaded, isBrowser,
         getMostRecentBrowserWindow, getMostRecentWindow } = require('../window/utils');
 const errors = require('../deprecated/errors');
@@ -69,8 +68,6 @@ function WindowTracker(delegate) {
   for each (let window in getWindows())
     this._regWindow(window);
   windowWatcher.registerNotification(this);
-  this._onToplevelWindowReady = this._onToplevelWindowReady.bind(this);
-  events.on('toplevel-window-ready', this._onToplevelWindowReady);
 
   require('../system/unload').ensure(this);
 
@@ -119,7 +116,6 @@ WindowTracker.prototype = {
 
   unload: function unload() {
     windowWatcher.unregisterNotification(this);
-    events.off('toplevel-window-ready', this._onToplevelWindowReady);
     for each (let window in getWindows())
       this._unregWindow(window);
   },
@@ -132,20 +128,14 @@ WindowTracker.prototype = {
     }
   }),
 
-  _onToplevelWindowReady: function _onToplevelWindowReady({subject}) {
-    let window = subject;
-    // ignore private windows if they are not supported
-    if (ignoreWindow(window))
-      return;
-    this._regWindow(window);
-  },
-
   observe: errors.catchAndLog(function observe(subject, topic, data) {
     var window = subject.QueryInterface(Ci.nsIDOMWindow);
     // ignore private windows if they are not supported
     if (ignoreWindow(window))
       return;
-    if (topic == 'domwindowclosed')
+    if (topic == 'domwindowopened')
+      this._regWindow(window);
+    else
       this._unregWindow(window);
   })
 };
@@ -205,17 +195,17 @@ Object.defineProperties(exports, {
  */
 exports.getInnerId = deprecateFunction(getInnerId,
   'require("window-utils").getInnerId is deprecated, ' +
-  'please use require("sdk/window/utils").getInnerId instead'
+  'please use require("window/utils").getInnerId instead'
 );
 
 exports.getOuterId = deprecateFunction(getOuterId,
   'require("window-utils").getOuterId is deprecated, ' +
-  'please use require("sdk/window/utils").getOuterId instead'
+  'please use require("window/utils").getOuterId instead'
 );
 
 exports.isBrowser = deprecateFunction(isBrowser,
   'require("window-utils").isBrowser is deprecated, ' +
-  'please use require("sdk/window/utils").isBrowser instead'
+  'please use require("window/utils").isBrowser instead'
 );
 
 exports.hiddenWindow = appShellService.hiddenDOMWindow;

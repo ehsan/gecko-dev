@@ -121,46 +121,40 @@ BaseWebSocketChannel::SetProtocol(const nsACString &aProtocol)
 }
 
 NS_IMETHODIMP
-BaseWebSocketChannel::GetPingInterval(uint32_t *aSeconds)
+BaseWebSocketChannel::GetPingInterval(uint32_t *aMilliSeconds)
 {
-  // stored in ms but should only have second resolution
-  MOZ_ASSERT(!(mPingInterval % 1000));
-
-  *aSeconds = mPingInterval / 1000;
+  *aMilliSeconds = mPingInterval;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-BaseWebSocketChannel::SetPingInterval(uint32_t aSeconds)
+BaseWebSocketChannel::SetPingInterval(uint32_t aMilliSeconds)
 {
   if (mWasOpened) {
     return NS_ERROR_IN_PROGRESS;
   }
 
-  mPingInterval = aSeconds * 1000;
+  mPingInterval = aMilliSeconds;
   mClientSetPingInterval = 1;
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-BaseWebSocketChannel::GetPingTimeout(uint32_t *aSeconds)
+BaseWebSocketChannel::GetPingTimeout(uint32_t *aMilliSeconds)
 {
-  // stored in ms but should only have second resolution
-  MOZ_ASSERT(!(mPingResponseTimeout % 1000));
-
-  *aSeconds = mPingResponseTimeout / 1000;
+  *aMilliSeconds = mPingResponseTimeout;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-BaseWebSocketChannel::SetPingTimeout(uint32_t aSeconds)
+BaseWebSocketChannel::SetPingTimeout(uint32_t aMilliSeconds)
 {
   if (mWasOpened) {
     return NS_ERROR_IN_PROGRESS;
   }
 
-  mPingResponseTimeout = aSeconds * 1000;
+  mPingResponseTimeout = aMilliSeconds;
   mClientSetPingTimeout = 1;
 
   return NS_OK;

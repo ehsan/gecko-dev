@@ -34,7 +34,7 @@ function test() {
 }
 
 function testConsoleData(aMessageObject) {
-  let messageWindow = Services.wm.getOuterWindowWithId(aMessageObject.ID);
+  let messageWindow = getWindowByWindowId(aMessageObject.ID);
   is(messageWindow, gWindow, "found correct window by window ID");
 
   is(aMessageObject.level, gLevel, "expected level received");
@@ -48,14 +48,7 @@ function testConsoleData(aMessageObject) {
   else {
     is(aMessageObject.arguments.length, gArgs.length, "arguments.length matches");
     gArgs.forEach(function (a, i) {
-      // Waive Xray so that we don't get messed up by Xray ToString.
-      //
-      // It'd be nice to just use XPCNativeWrapper.unwrap here, but there are
-      // a number of dumb reasons we can't. See bug 868675.
-      var arg = aMessageObject.arguments[i];
-      if (Components.utils.isXrayWrapper(arg))
-        arg = arg.wrappedJSObject;
-      is(arg, a, "correct arg " + i);
+      is(aMessageObject.arguments[i], a, "correct arg " + i);
     });
   }
 
@@ -63,7 +56,7 @@ function testConsoleData(aMessageObject) {
 }
 
 function testLocationData(aMessageObject) {
-  let messageWindow = Services.wm.getOuterWindowWithId(aMessageObject.ID);
+  let messageWindow = getWindowByWindowId(aMessageObject.ID);
   is(messageWindow, gWindow, "found correct window by window ID");
 
   is(aMessageObject.level, gLevel, "expected level received");
@@ -97,7 +90,7 @@ function startGroupTest() {
 }
 
 function testConsoleGroup(aMessageObject) {
-  let messageWindow = Services.wm.getOuterWindowWithId(aMessageObject.ID);
+  let messageWindow = getWindowByWindowId(aMessageObject.ID);
   is(messageWindow, gWindow, "found correct window by window ID");
 
   ok(aMessageObject.level == "group" ||
@@ -278,7 +271,7 @@ function startTimeTest() {
 }
 
 function testConsoleTime(aMessageObject) {
-  let messageWindow = Services.wm.getOuterWindowWithId(aMessageObject.ID);
+  let messageWindow = getWindowByWindowId(aMessageObject.ID);
   is(messageWindow, gWindow, "found correct window by window ID");
 
   is(aMessageObject.level, gLevel, "expected level received");
@@ -321,7 +314,7 @@ function startTimeEndTest() {
 }
 
 function testConsoleTimeEnd(aMessageObject) {
-  let messageWindow = Services.wm.getOuterWindowWithId(aMessageObject.ID);
+  let messageWindow = getWindowByWindowId(aMessageObject.ID);
   is(messageWindow, gWindow, "found correct window by window ID");
 
   is(aMessageObject.level, gLevel, "expected level received");
@@ -333,8 +326,7 @@ function testConsoleTimeEnd(aMessageObject) {
   is(aMessageObject.arguments.length, gArgs[0].arguments.length, "arguments.length matches");
   is(aMessageObject.timer.name, gArgs[0].timer.name, "timer name matches");
   is(typeof aMessageObject.timer.duration, "number", "timer duration is a number");
-  info("timer duration: " + aMessageObject.timer.duration);
-  ok(aMessageObject.timer.duration >= 0, "timer duration is positive");
+  ok(aMessageObject.timer.duration > 0, "timer duration is positive");
 
   gArgs[0].arguments.forEach(function (a, i) {
     is(aMessageObject.arguments[i], a, "correct arg " + i);
@@ -361,7 +353,7 @@ function startEmptyTimerTest() {
 }
 
 function testEmptyTimer(aMessageObject) {
-  let messageWindow = Services.wm.getOuterWindowWithId(aMessageObject.ID);
+  let messageWindow = getWindowByWindowId(aMessageObject.ID);
   is(messageWindow, gWindow, "found correct window by window ID");
 
   ok(aMessageObject.level == "time" || aMessageObject.level == "timeEnd",
@@ -404,4 +396,14 @@ function getWindowId(aWindow)
   return aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
                 .getInterface(Ci.nsIDOMWindowUtils)
                 .outerWindowID;
+}
+
+function getWindowByWindowId(aId) {
+  let someWindow = Services.wm.getMostRecentWindow("navigator:browser");
+  if (someWindow) {
+    let windowUtils = someWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                                .getInterface(Ci.nsIDOMWindowUtils);
+    return windowUtils.getOuterWindowWithId(aId);
+  }
+  return null;
 }

@@ -1,13 +1,14 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=99 ft=cpp:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef builtin_Eval_h
-#define builtin_Eval_h
-
 #include "vm/Stack.h"
+
+#ifndef Eval_h__
+#define Eval_h__
 
 namespace js {
 
@@ -47,4 +48,4 @@ extern JSPrincipals *
 PrincipalsForCompiledCode(const CallReceiver &call, JSContext *cx);
 
 }  // namespace js
-#endif /* builtin_Eval_h */
+#endif  // Eval_h__

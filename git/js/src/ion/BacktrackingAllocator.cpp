@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -1373,33 +1374,26 @@ BacktrackingAllocator::minimalInterval(const LiveInterval *interval, bool *pfixe
         return minimalDef(interval, reg.ins());
     }
 
-    bool fixed = false, minimal = false;
-
     for (UsePositionIterator iter = interval->usesBegin(); iter != interval->usesEnd(); iter++) {
         LUse *use = iter->use;
 
         switch (use->policy()) {
           case LUse::FIXED:
-            if (fixed)
-                return false;
-            fixed = true;
-            if (minimalUse(interval, insData[iter->pos].ins()))
-                minimal = true;
-            break;
+            if (pfixed)
+                *pfixed = true;
+            return minimalUse(interval, insData[iter->pos].ins());
 
           case LUse::REGISTER:
-            if (minimalUse(interval, insData[iter->pos].ins()))
-                minimal = true;
-            break;
+            if (pfixed)
+                *pfixed = false;
+            return minimalUse(interval, insData[iter->pos].ins());
 
           default:
             break;
         }
     }
 
-    if (pfixed)
-        *pfixed = fixed;
-    return minimal;
+    return false;
 }
 
 size_t
@@ -1655,9 +1649,8 @@ BacktrackingAllocator::splitAtAllRegisterUses(LiveInterval *interval)
             CodePosition from = inputOf(ins);
             CodePosition to = iter->pos.next();
 
-            // Use the same interval for duplicate use positions, except when
-            // the uses are fixed (they may require incompatible registers).
-            if (newIntervals.empty() || newIntervals.back()->end() != to || iter->use->policy() == LUse::FIXED) {
+            // Watch for duplicate register use positions.
+            if (newIntervals.empty() || newIntervals.back()->end() != to) {
                 if (!addLiveInterval(newIntervals, vreg, from, to))
                     return false;
             }

@@ -23,8 +23,7 @@ tinybool sdp_verify_conf_ptr (sdp_conf_options_t *conf_p)
     if ((conf_p != NULL) && (conf_p->magic_num == SDP_MAGIC_NUM)) {
         return (TRUE);
     } else {
-        CSFLogError(logTag, "SDP: Invalid Config pointer: %p (magic=0x%X)",
-                    conf_p, conf_p ? conf_p->magic_num : 0);
+        CSFLogError(logTag, "SDP: Invalid Config pointer.");
         return (FALSE);
     }
 }
@@ -96,9 +95,6 @@ void *sdp_init_config ()
     conf_p->num_invalid_token_order = 0;
     conf_p->num_invalid_param       = 0;
     conf_p->num_no_resource         = 0;
-
-    CSFLogInfo(logTag, "SDP: Initialized config pointer: %p (magic=0x%X)",
-                conf_p, conf_p ? conf_p->magic_num : 0);
 
     return (conf_p);
 }

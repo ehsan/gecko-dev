@@ -12,51 +12,29 @@ include $(DEPTH)/config/autoconf.mk
 
 BROWSER_TESTS = \
   head.js \
-  browser_bookmarks.js \
+  browser_test.js \
   browser_canonizeURL.js \
+  browser_context_ui.js \
+  browser_tiles.js \
+  browser_tilegrid.xul \
+  browser_onscreen_keyboard.js \
+  browser_onscreen_keyboard.html \
+  browser_remotetabs.js \
+  browser_downloads.js \
+  browser_plugin_input.html \
+  browser_plugin_input_mouse.js \
+  browser_plugin_input_keyboard.js \
   browser_context_menu_tests.js \
   browser_context_menu_tests_01.html \
   browser_context_menu_tests_02.html \
   browser_context_menu_tests_03.html \
-  browser_context_ui.js \
-  browser_downloads.js \
-  browser_history.js \
-  browser_onscreen_keyboard.js \
-  browser_onscreen_keyboard.html \
-  browser_prefs_ui.js \
-  browser_remotetabs.js \
-  browser_tabs.js \
-  browser_test.js \
-  browser_tiles.js \
-  browser_tilegrid.xul \
+  text-block.html \
+  browser_sanitize_ui.js \
   browser_topsites.js \
-  browser_form_auto_complete.js \
-  browser_form_auto_complete.html \
   $(NULL)
-
-ifndef MOZ_DEBUG
-BROWSER_TESTS += \
-  browser_selection_basic.js \
-  browser_selection_basic.html \
-  browser_selection_textarea.js \
-  browser_selection_textarea.html \
-  browser_selection_frame_content.js \
-  browser_selection_frame_content.html \
-  browser_selection_inputs.js \
-  browser_selection_inputs.html \
-  browser_selection_frame_textarea.js \
-  browser_selection_frame_textarea.html \
-  browser_selection_frame_inputs.js \
-  browser_selection_frame_inputs.html \
-  browser_selection_urlbar.js \
-  $(NULL)
-endif
 
 BROWSER_TEST_RESOURCES = \
   res/image01.png \
-  res/textblock01.html \
-  res/textinput01.html \
-  res/textarea01.html \
   $(NULL)
 
 libs:: $(BROWSER_TESTS)

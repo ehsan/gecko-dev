@@ -88,7 +88,7 @@ XMLUtils::splitExpatName(const PRUnichar *aExpatName, nsIAtom **aPrefix,
         nameStart = (uriEnd + 1);
         if (nameEnd)  {
             const PRUnichar *prefixStart = nameEnd + 1;
-            *aPrefix = NS_NewAtom(Substring(prefixStart, pos)).get();
+            *aPrefix = NS_NewAtom(Substring(prefixStart, pos));
             if (!*aPrefix) {
                 return NS_ERROR_OUT_OF_MEMORY;
             }
@@ -105,7 +105,7 @@ XMLUtils::splitExpatName(const PRUnichar *aExpatName, nsIAtom **aPrefix,
         *aPrefix = nullptr;
     }
 
-    *aLocalName = NS_NewAtom(Substring(nameStart, nameEnd)).get();
+    *aLocalName = NS_NewAtom(Substring(nameStart, nameEnd));
 
     return *aLocalName ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
@@ -125,15 +125,27 @@ XMLUtils::splitQName(const nsAString& aName, nsIAtom** aPrefix,
         const PRUnichar *end;
         qName.EndReading(end);
 
-        *aPrefix = NS_NewAtom(Substring(qName.get(), colon)).get();
-        *aLocalName = NS_NewAtom(Substring(colon + 1, end)).get();
+        *aPrefix = NS_NewAtom(Substring(qName.get(), colon));
+        *aLocalName = NS_NewAtom(Substring(colon + 1, end));
     }
     else {
         *aPrefix = nullptr;
-        *aLocalName = NS_NewAtom(aName).get();
+        *aLocalName = NS_NewAtom(aName);
     }
 
     return NS_OK;
+}
+
+const nsDependentSubstring XMLUtils::getLocalPart(const nsAString& src)
+{
+    // Anything after ':' is the local part of the name
+    int32_t idx = src.FindChar(':');
+    if (idx == kNotFound) {
+        return Substring(src, 0, src.Length());
+    }
+
+    NS_ASSERTION(idx > 0, "This QName looks invalid.");
+    return Substring(src, idx + 1, src.Length() - (idx + 1));
 }
 
 /**

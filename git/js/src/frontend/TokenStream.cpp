@@ -1,5 +1,6 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -7,42 +8,40 @@
 /*
  * JS lexical scanner.
  */
-
-#include "frontend/TokenStream.h"
-
-#include "mozilla/PodOperations.h"
-
-#include <stdio.h>
+#include <stdio.h>      /* first to avoid trouble on some systems */
+#include <errno.h>
+#include <limits.h>
+#include <math.h>
+#ifdef HAVE_MEMORY_H
+#include <memory.h>
+#endif
 #include <stdarg.h>
+#include <stdlib.h>
 #include <string.h>
-
+#include "jstypes.h"
+#include "jsutil.h"
+#include "jsprf.h"
 #include "jsapi.h"
 #include "jsatom.h"
 #include "jscntxt.h"
+#include "jsversion.h"
 #include "jsexn.h"
 #include "jsnum.h"
 #include "jsopcode.h"
 #include "jsscript.h"
 
-#include "frontend/BytecodeCompiler.h"
+#include "frontend/Parser.h"
+#include "frontend/TokenStream.h"
 #include "js/CharacterEncoding.h"
 #include "vm/Keywords.h"
+#include "vm/RegExpObject.h"
 #include "vm/StringBuffer.h"
+
+#include "jsscriptinlines.h"
 
 using namespace js;
 using namespace js::frontend;
 using namespace js::unicode;
-
-using mozilla::PodAssign;
-using mozilla::PodCopy;
-using mozilla::PodZero;
-
-struct KeywordInfo {
-    const char  *chars;         /* C string with keyword text */
-    TokenKind   tokentype;
-    JSOp        op;             /* JSOp */
-    JSVersion   version;        /* JSVersion */
-};
 
 static const KeywordInfo keywords[] = {
 #define KEYWORD_INFO(keyword, name, type, op, version) \
@@ -51,17 +50,13 @@ static const KeywordInfo keywords[] = {
 #undef KEYWORD_INFO
 };
 
-/*
- * Returns a KeywordInfo for the specified characters, or NULL if the string is
- * not a keyword.
- */
-static const KeywordInfo *
-FindKeyword(const jschar *s, size_t length)
+const KeywordInfo *
+frontend::FindKeyword(const jschar *s, size_t length)
 {
     JS_ASSERT(length != 0);
 
     register size_t i;
-    const KeywordInfo *kw;
+    const struct KeywordInfo *kw;
     const char *chars;
 
 #define JSKW_LENGTH()           length
@@ -112,12 +107,6 @@ frontend::IsIdentifier(JSLinearString *str)
     return true;
 }
 
-bool
-frontend::IsKeyword(JSLinearString *str)
-{
-    return FindKeyword(str->chars(), str->length()) != NULL;
-}
-
 TokenStream::SourceCoords::SourceCoords(JSContext *cx, uint32_t ln)
   : lineStartOffsets_(cx), initialLineNum_(ln), lastLineIndex_(0)
 {
@@ -161,22 +150,6 @@ TokenStream::SourceCoords::add(uint32_t lineNum, uint32_t lineStartOffset)
         // than checking it hasn't mysteriously changed).
         JS_ASSERT(lineStartOffsets_[lineIndex] == lineStartOffset);
     }
-}
-
-JS_ALWAYS_INLINE void
-TokenStream::SourceCoords::fill(const TokenStream::SourceCoords &other)
-{
-    JS_ASSERT(lineStartOffsets_.back() == MAX_PTR);
-    JS_ASSERT(other.lineStartOffsets_.back() == MAX_PTR);
-
-    if (lineStartOffsets_.length() >= other.lineStartOffsets_.length())
-        return;
-
-    uint32_t sentinelIndex = lineStartOffsets_.length() - 1;
-    lineStartOffsets_[sentinelIndex] = other.lineStartOffsets_[sentinelIndex];
-
-    for (size_t i = sentinelIndex + 1; i < other.lineStartOffsets_.length(); i++)
-        (void)lineStartOffsets_.append(other.lineStartOffsets_[i]);
 }
 
 JS_ALWAYS_INLINE uint32_t
@@ -264,17 +237,16 @@ TokenStream::SourceCoords::lineNumAndColumnIndex(uint32_t offset, uint32_t *line
 
 /* Initialize members that aren't initialized in |init|. */
 TokenStream::TokenStream(JSContext *cx, const CompileOptions &options,
-                         const jschar *base, size_t length, StrictModeGetter *smg,
-                         AutoKeepAtoms& keepAtoms)
+                         const jschar *base, size_t length, StrictModeGetter *smg)
   : srcCoords(cx, options.lineno),
     tokens(),
     cursor(),
     lookahead(),
     lineno(options.lineno),
     flags(),
-    linebase(base - options.column),
+    linebase(base),
     prevLinebase(NULL),
-    userbuf(cx, base - options.column, length + options.column), // See comment below
+    userbuf(cx, base, length),
     filename(options.filename),
     sourceMap(NULL),
     listenerTSData(),
@@ -284,22 +256,15 @@ TokenStream::TokenStream(JSContext *cx, const CompileOptions &options,
     originPrincipals(JSScript::normalizeOriginPrincipals(options.principals,
                                                          options.originPrincipals)),
     strictModeGetter(smg),
-    lastFunctionKeyword(keepAtoms),
     tokenSkip(cx, &tokens),
     linebaseSkip(cx, &linebase),
     prevLinebaseSkip(cx, &prevLinebase)
 {
-    // Column numbers are computed as offsets from the current line's base, so the
-    // initial line's base must be included in the buffer. linebase and userbuf
-    // were adjusted above, and if we are starting tokenization part way through
-    // this line then adjust the next character.
-    userbuf.setAddressOfNextRawChar(base);
-
     if (originPrincipals)
         JS_HoldPrincipals(originPrincipals);
 
-    JSSourceHandler listener = cx->runtime()->debugHooks.sourceHandler;
-    void *listenerData = cx->runtime()->debugHooks.sourceHandlerData;
+    JSSourceHandler listener = cx->runtime->debugHooks.sourceHandler;
+    void *listenerData = cx->runtime->debugHooks.sourceHandlerData;
 
     if (listener)
         listener(options.filename, options.lineno, base, length, &listenerTSData, listenerData);
@@ -357,7 +322,7 @@ TokenStream::~TokenStream()
     if (sourceMap)
         js_free(sourceMap);
     if (originPrincipals)
-        JS_DropPrincipals(cx->runtime(), originPrincipals);
+        JS_DropPrincipals(cx->runtime, originPrincipals);
 }
 
 /* Use the fastest available getc. */
@@ -529,22 +494,9 @@ TokenStream::TokenBuf::findEOLMax(const jschar *p, size_t max)
 }
 
 void
-TokenStream::advance(size_t position)
-{
-    const jschar *end = userbuf.base() + position;
-    while (userbuf.addressOfNextRawChar() < end)
-        getChar();
-
-    Token *cur = &tokens[cursor];
-    cur->pos.begin = userbuf.addressOfNextRawChar() - userbuf.base();
-    cur->type = TOK_ERROR;
-    lookahead = 0;
-}
-
-void
 TokenStream::tell(Position *pos)
 {
-    pos->buf = userbuf.addressOfNextRawChar(/* allowPoisoned = */ true);
+    pos->buf = userbuf.addressOfNextRawChar();
     pos->flags = flags;
     pos->lineno = lineno;
     pos->linebase = linebase;
@@ -558,7 +510,7 @@ TokenStream::tell(Position *pos)
 void
 TokenStream::seek(const Position &pos)
 {
-    userbuf.setAddressOfNextRawChar(pos.buf, /* allowPoisoned = */ true);
+    userbuf.setAddressOfNextRawChar(pos.buf);
     flags = pos.flags;
     lineno = pos.lineno;
     linebase = pos.linebase;
@@ -568,14 +520,6 @@ TokenStream::seek(const Position &pos)
     tokens[cursor] = pos.currentToken;
     for (unsigned i = 0; i < lookahead; i++)
         tokens[(cursor + 1 + i) & ntokensMask] = pos.lookaheadTokens[i];
-}
-
-void
-TokenStream::seek(const Position &pos, const TokenStream &other)
-{
-    srcCoords.fill(other.srcCoords);
-    lastFunctionKeyword = other.lastFunctionKeyword;
-    seek(pos);
 }
 
 void
@@ -593,7 +537,7 @@ TokenStream::reportStrictModeErrorNumberVA(uint32_t offset, bool strictMode, uns
     unsigned flags = JSREPORT_STRICT;
     if (strictMode)
         flags |= JSREPORT_ERROR;
-    else if (cx->hasExtraWarningsOption())
+    else if (cx->hasStrictOption())
         flags |= JSREPORT_WARNING;
     else
         return true;
@@ -623,8 +567,8 @@ CompileError::throwError()
          * sending the error on to the regular error reporter.
          */
         bool reportError = true;
-        if (JSDebugErrorHook hook = cx->runtime()->debugHooks.debugErrorHook) {
-            reportError = hook(cx, message, &report, cx->runtime()->debugHooks.debugErrorHookData);
+        if (JSDebugErrorHook hook = cx->runtime->debugHooks.debugErrorHook) {
+            reportError = hook(cx, message, &report, cx->runtime->debugHooks.debugErrorHookData);
         }
 
         /* Report the error */
@@ -671,7 +615,6 @@ TokenStream::reportCompileErrorNumberVA(uint32_t offset, unsigned flags, unsigne
     err.report.filename = filename;
     err.report.originPrincipals = originPrincipals;
     err.report.lineno = srcCoords.lineNum(offset);
-    err.report.column = srcCoords.columnIndex(offset);
 
     err.argumentsType = (flags & JSREPORT_UC) ? ArgumentsAreUnicode : ArgumentsAreASCII;
 
@@ -772,7 +715,7 @@ TokenStream::reportWarning(unsigned errorNumber, ...)
 bool
 TokenStream::reportStrictWarningErrorNumberVA(uint32_t offset, unsigned errorNumber, va_list args)
 {
-    if (!cx->hasExtraWarningsOption())
+    if (!cx->hasStrictOption())
         return true;
 
     return reportCompileErrorNumberVA(offset, JSREPORT_STRICT|JSREPORT_WARNING, errorNumber, args);
@@ -845,24 +788,21 @@ CharsMatch(const jschar *p, const char *q) {
 }
 
 bool
-TokenStream::getSourceMappingURL(bool isMultiline, bool shouldWarnDeprecated)
+TokenStream::getAtSourceMappingURL(bool isMultiline)
 {
-    /* Match comments of the form "//# sourceMappingURL=<url>" or
-     * "/\* //# sourceMappingURL=<url> *\/"
+    /* Match comments of the form "//@ sourceMappingURL=<url>" or
+     * "/\* //@ sourceMappingURL=<url> *\/"
      *
-     * To avoid a crashing bug in IE, several JavaScript transpilers wrap single
-     * line comments containing a source mapping URL inside a multiline
-     * comment. To avoid potentially expensive lookahead and backtracking, we
-     * only check for this case if we encounter a '#' character.
+     * To avoid a crashing bug in IE, several JavaScript transpilers
+     * wrap single line comments containing a source mapping URL
+     * inside a multiline comment to avoid a crashing bug in IE. To
+     * avoid potentially expensive lookahead and backtracking, we
+     * only check for this case if we encounter an '@' character.
      */
     jschar peeked[18];
     int32_t c;
 
     if (peekChars(18, peeked) && CharsMatch(peeked, " sourceMappingURL=")) {
-        if (shouldWarnDeprecated && !reportWarning(JSMSG_DEPRECATED_SOURCE_MAP)) {
-            return false;
-        }
-
         skipChars(18);
         tokenbuf.clear();
 
@@ -1591,11 +1531,8 @@ TokenStream::getTokenInternal()
          * Look for a single-line comment.
          */
         if (matchChar('/')) {
-            c = peekChar();
-            if (c == '@' || c == '#') {
-                if (!getSourceMappingURL(false, getChar() == '@'))
-                    goto error;
-            }
+            if (matchChar('@') && !getAtSourceMappingURL(false))
+                goto error;
 
   skipline:
             /* Optimize line skipping if we are not in an HTML comment. */
@@ -1620,10 +1557,8 @@ TokenStream::getTokenInternal()
             unsigned linenoBefore = lineno;
             while ((c = getChar()) != EOF &&
                    !(c == '*' && matchChar('/'))) {
-                if (c == '@' || c == '#') {
-                    if (!getSourceMappingURL(true, c == '@'))
-                        goto error;
-                }
+                if (c == '@' && !getAtSourceMappingURL(true))
+                   goto error;
             }
             if (c == EOF) {
                 reportError(JSMSG_UNTERMINATED_COMMENT);
@@ -1861,6 +1796,7 @@ TokenKindToString(TokenKind tt)
       case TOK_INSTANCEOF:      return "TOK_INSTANCEOF";
       case TOK_DEBUGGER:        return "TOK_DEBUGGER";
       case TOK_YIELD:           return "TOK_YIELD";
+      case TOK_LEXICALSCOPE:    return "TOK_LEXICALSCOPE";
       case TOK_LET:             return "TOK_LET";
       case TOK_RESERVED:        return "TOK_RESERVED";
       case TOK_STRICT_RESERVED: return "TOK_STRICT_RESERVED";

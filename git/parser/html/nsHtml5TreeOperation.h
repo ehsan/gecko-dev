@@ -351,7 +351,7 @@ class nsHtml5TreeOperation {
 
     inline already_AddRefed<nsIAtom> Reget(nsIAtom* aAtom) {
       if (!aAtom || aAtom->IsStaticAtom()) {
-        return dont_AddRef(aAtom);
+        return aAtom;
       }
       nsAutoString str;
       aAtom->ToString(str);

@@ -8,7 +8,6 @@ srcdir           = @srcdir@
 VPATH            = @srcdir@
 
 LIBRARY_NAME     = dombindings_s
-MSVC_ENABLE_PGO := 1
 LIBXUL_LIBRARY   = 1
 FORCE_STATIC_LIB = 1
 EXPORT_LIBRARY   = 1
@@ -34,15 +33,6 @@ all_webidl_files += $(test_webidl_files)
 binding_header_files := $(subst .webidl,Binding.h,$(all_webidl_files))
 binding_cpp_files := $(subst .webidl,Binding.cpp,$(all_webidl_files))
 
-# We want to be able to only regenerate the .cpp and .h files that really need
-# to change when a .webidl file changes.  We do this by making the
-# binding_dependency_trackers targets have dependencies on the right .webidl
-# files via generated .pp files, having a .BindingGen target that depends on the
-# binding_dependency_trackers and which has all the generated binding .h/.cpp
-# depending on it, and then in the make commands for that target being able to
-# check which exact binding_dependency_trackers changed.
-binding_dependency_trackers := $(subst .webidl,Binding,$(all_webidl_files))
-
 globalgen_targets := \
   PrototypeList.h \
   RegisterBindings.h \
@@ -52,18 +42,6 @@ globalgen_targets := \
   UnionConversions.h \
   $(NULL)
 
-# Nasty hack: when the test/Makefile.in invokes us to do codegen, it
-# uses a target of
-# "export TestExampleInterface-example TestExampleProxyInterface-example".
-# We don't actually need to load our .o.pp files in that case, so just
-# pretend like we have no CPPSRCS if that's the target.  It makes the
-# test cycle much faster, which is why we're doing it.
-#
-# XXXbz We could try to cheat even more and only include our CPPSRCS
-# when $(MAKECMDGOALS) contains libs, so that we can skip loading all
-# those .o.pp when trying to make a single .cpp file too, but that
-# would break |make FooBinding.o(bj)|.  Ah, well.
-ifneq (export TestExampleInterface-example TestExampleProxyInterface-example,$(MAKECMDGOALS))
 CPPSRCS = \
   $(linked_binding_cpp_files) \
   $(filter %.cpp, $(globalgen_targets)) \
@@ -72,7 +50,31 @@ CPPSRCS = \
   CallbackObject.cpp \
   DOMJSProxyHandler.cpp \
   $(NULL)
-endif
+
+EXPORTS_NAMESPACES = $(binding_include_path) mozilla
+
+EXPORTS_mozilla = \
+  ErrorResult.h \
+  $(NULL)
+
+EXPORTS_$(binding_include_path) = \
+  BindingDeclarations.h \
+  BindingUtils.h \
+  CallbackFunction.h \
+  CallbackInterface.h \
+  CallbackObject.h \
+  DOMJSClass.h \
+  DOMJSProxyHandler.h \
+  Errors.msg \
+  NonRefcountedDOMObject.h \
+  Nullable.h \
+  PrimitiveConversions.h \
+  PrototypeList.h \
+  RegisterBindings.h \
+  TypedArray.h \
+  UnionConversions.h \
+  UnionTypes.h \
+  $(NULL)
 
 LOCAL_INCLUDES += -I$(topsrcdir)/js/xpconnect/src \
   -I$(topsrcdir)/js/xpconnect/wrappers \
@@ -96,17 +98,27 @@ LOCAL_INCLUDES += \
   $(NULL)
 endif
 
-ifdef MOZ_B2G_RIL
-LOCAL_INCLUDES += \
-  -I$(topsrcdir)/dom/icc/src \
-  $(NULL)
-endif
+# XXXkhuey this is a terrible hack to avoid blowing out the command line
+ifneq (,$(filter-out all chrome default export realchrome tools clean clobber clobber_all distclean realclean,$(MAKECMDGOALS)))
+$(shell echo "$(addsuffix .pp,$(binding_header_files))" > hpp.list)
+$(shell echo "$(addsuffix .pp,$(binding_cpp_files))" > cpp.list)
 
-EXTRA_EXPORT_MDDEPEND_FILES := $(addsuffix .pp,$(binding_dependency_trackers))
+# The script mddepend.pl checks the dependencies and writes to stdout
+# one rule to force out-of-date objects. For example,
+#   foo.o boo.o: FORCE
+# The script has an advantage over including the *.pp files directly
+# because it handles the case when header files are removed from the build.
+# 'make' would complain that there is no way to build missing headers.
+HPP_PP_RESULTS = $(shell cat hpp.list | $(PERL) $(BUILD_TOOLS)/mddepend.pl)
+$(eval $(HPP_PP_RESULTS))
+CPP_PP_RESULTS = $(shell cat cpp.list | $(PERL) $(BUILD_TOOLS)/mddepend.pl)
+$(eval $(CPP_PP_RESULTS))
+
+endif
 
 EXPORTS_GENERATED_FILES := $(exported_binding_headers)
 EXPORTS_GENERATED_DEST := $(DIST)/include/$(binding_include_path)
-EXPORTS_GENERATED_TARGET := export
+EXPORTS_GENERATED_TARGET := webidl-export
 INSTALL_TARGETS += EXPORTS_GENERATED
 
 ifdef GNU_CC
@@ -115,6 +127,14 @@ endif
 
 include $(topsrcdir)/config/rules.mk
 
+# edmorley is sick of clobbering everytime someone adds an interface
+$(CPPOBJS): PrototypeList.h
+
+# We need to create a separate target so we can ensure that the pickle is
+# done before generating headers.
+export:: ParserResults.pkl
+	$(MAKE) webidl-export
+
 # If you change bindinggen_dependencies here, change it in
 # dom/bindings/test/Makefile.in too.
 bindinggen_dependencies := \
@@ -122,7 +142,6 @@ bindinggen_dependencies := \
   Bindings.conf \
   Configuration.py \
   Codegen.py \
-  ParserResults.pkl \
   parser/WebIDL.py \
   $(GLOBAL_DEPS) \
   $(NULL)
@@ -143,20 +162,35 @@ $(webidl_files): %: $(webidl_base)/%
 $(test_webidl_files): %: $(srcdir)/test/%
 	$(INSTALL) $(IFLAGS1) $(srcdir)/test/$* .
 
-$(binding_header_files): .BindingGen
+$(binding_header_files): %Binding.h: $(bindinggen_dependencies) \
+                                     %.webidl \
+                                     $(call mkdir_deps,$(MDDEPDIR)) \
+                                     $(NULL)
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) $(topsrcdir)/config/pythonpath.py \
+	  $(PLY_INCLUDE) -I$(srcdir)/parser \
+	  $(srcdir)/BindingGen.py header \
+	  $(srcdir)/Bindings.conf \
+	  $*Binding \
+	  $(topsrcdir)/dom/webidl/ \
+	  $*.webidl
 
-$(binding_cpp_files): .BindingGen
-
-# $(binding_dependency_trackers) pick up additional dependencies via .pp files
-$(binding_dependency_trackers):
-	# Just bring it up to date, if it's out of date, so that we'll know that
-	# we have to redo binding generation and flag this prerequisite there as
-	# being newer than the bindinggen target.
-	@$(TOUCH) $@
+$(binding_cpp_files): %Binding.cpp: $(bindinggen_dependencies) \
+                                    %.webidl \
+                                    $(call mkdir_deps,$(MDDEPDIR)) \
+                                    $(NULL)
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) $(topsrcdir)/config/pythonpath.py \
+	  $(PLY_INCLUDE) -I$(srcdir)/parser \
+	  $(srcdir)/BindingGen.py cpp \
+	  $(srcdir)/Bindings.conf \
+	  $*Binding \
+	  $(topsrcdir)/dom/webidl/ \
+	  $*.webidl
 
 $(globalgen_targets): ParserResults.pkl
 
-%-example: .BindingGen
+%-example: $(bindinggen_dependencies) \
+           ParserResults.pkl \
+           $(NULL)
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) $(topsrcdir)/config/pythonpath.py \
 	  $(PLY_INCLUDE) -I$(srcdir)/parser \
 	  $(srcdir)/ExampleGen.py \
@@ -181,52 +215,24 @@ $(CACHE_DIR)/.done:
 	@$(TOUCH) $@
 
 ParserResults.pkl: $(globalgen_dependencies)
-	# Running GlobalGen.py updates ParserResults.pkl as a side-effect
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) $(topsrcdir)/config/pythonpath.py \
     $(PLY_INCLUDE) -I$(srcdir)/parser \
     $(srcdir)/GlobalGen.py $(srcdir)/Bindings.conf . \
     --cachedir=$(CACHE_DIR) \
     $(all_webidl_files)
 
-.BindingGen: $(bindinggen_dependencies) $(binding_dependency_trackers)
-	# Make sure .deps actually exists, since we'll try to write to it from
-	# BindingGen.py but we're typically running in the export phase, which
-	# is before anyone has bothered creating .deps.
-	$(MKDIR) -p .deps
-	# Pass our long lists through files to try to avoid blowing
-	# out the command line
-	echo $(all_webidl_files) > .all-webidl-file-list
-	echo $? > .changed-dependency-list
-	# BindingGen.py will examine the changed dependency list to figure out
-	# what it really needs to regenerate.
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) $(topsrcdir)/config/pythonpath.py \
-    $(PLY_INCLUDE) -I$(srcdir)/parser \
-    $(srcdir)/BindingGen.py \
-    $(srcdir)/Bindings.conf \
-    $(CURDIR) \
-    .all-webidl-file-list \
-    .changed-dependency-list
-	# Now touch the .BindingGen file so that we don't have to keep redoing
-	# all that until something else actually changes.
-	@$(TOUCH) $@
-
 GARBAGE += \
   webidlyacc.py \
   parser.out \
   $(wildcard *-example.h) \
   $(wildcard *-example.cpp) \
-  .BindingGen \
-  .all-webidl-file-list \
-  .changed-dependency-list \
-  $(binding_dependency_trackers) \
   $(NULL)
 
 # Make sure all binding header files are created during the export stage, so we
 # don't have issues with .cpp files being compiled before we've generated the
 # headers they depend on.  This is really only needed for the test files, since
-# the non-test headers are all exported above anyway.  Note that this means that
-# we do all of our codegen during export.
-export:: $(binding_header_files)
+# the non-test headers are all exported above anyway.
+webidl-export:: $(binding_header_files)
 
 distclean::
 	-$(RM) \
@@ -234,5 +240,6 @@ distclean::
         $(binding_cpp_files) \
         $(all_webidl_files) \
         $(globalgen_targets) \
-        ParserResults.pkl \
-        $(NULL)
+        ParserResults.pkl
+
+.PHONY: webidl-export

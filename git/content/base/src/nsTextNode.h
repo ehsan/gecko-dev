@@ -10,12 +10,9 @@
  * Implementation of DOM Core's nsIDOMText node.
  */
 
-#include "mozilla/Attributes.h"
 #include "mozilla/dom/Text.h"
 #include "nsIDOMText.h"
 #include "nsDebug.h"
-
-class nsNodeInfoManager;
 
 /**
  * Class used to implement DOM text nodes
@@ -23,25 +20,13 @@ class nsNodeInfoManager;
 class nsTextNode : public mozilla::dom::Text,
                    public nsIDOMText
 {
-private:
-  void Init()
-  {
-    NS_ABORT_IF_FALSE(mNodeInfo->NodeType() == nsIDOMNode::TEXT_NODE,
-                      "Bad NodeType in aNodeInfo");
-    SetIsDOMBinding();
-  }
-
 public:
   nsTextNode(already_AddRefed<nsINodeInfo> aNodeInfo)
     : mozilla::dom::Text(aNodeInfo)
   {
-    Init();
-  }
-
-  nsTextNode(nsNodeInfoManager* aNodeInfoManager)
-    : mozilla::dom::Text(aNodeInfoManager->GetTextNodeInfo())
-  {
-    Init();
+    NS_ABORT_IF_FALSE(mNodeInfo->NodeType() == nsIDOMNode::TEXT_NODE,
+                      "Bad NodeType in aNodeInfo");
+    SetIsDOMBinding();
   }
 
   virtual ~nsTextNode();
@@ -62,27 +47,26 @@ public:
   virtual bool IsNodeOfType(uint32_t aFlags) const;
 
   virtual nsGenericDOMDataNode* CloneDataNode(nsINodeInfo *aNodeInfo,
-                                              bool aCloneText) const MOZ_OVERRIDE;
+                                              bool aCloneText) const;
 
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
-                              bool aCompileEventHandlers) MOZ_OVERRIDE;
+                              bool aCompileEventHandlers);
   virtual void UnbindFromTree(bool aDeep = true,
-                              bool aNullParent = true) MOZ_OVERRIDE;
+                              bool aNullParent = true);
 
   nsresult AppendTextForNormalize(const PRUnichar* aBuffer, uint32_t aLength,
                                   bool aNotify, nsIContent* aNextSibling);
 
-  virtual nsIDOMNode* AsDOMNode() MOZ_OVERRIDE { return this; }
+  virtual nsIDOMNode* AsDOMNode() { return this; }
 
 #ifdef DEBUG
-  virtual void List(FILE* out, int32_t aIndent) const MOZ_OVERRIDE;
-  virtual void DumpContent(FILE* out, int32_t aIndent, bool aDumpAll) const MOZ_OVERRIDE;
+  virtual void List(FILE* out, int32_t aIndent) const;
+  virtual void DumpContent(FILE* out, int32_t aIndent, bool aDumpAll) const;
 #endif
 
 protected:
-  virtual JSObject* WrapNode(JSContext *aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope) MOZ_OVERRIDE;
 };
 
 #endif // nsTextNode_h

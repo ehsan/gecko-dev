@@ -1,11 +1,11 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jspubtd_h
-#define jspubtd_h
+#ifndef jspubtd_h___
+#define jspubtd_h___
 
 /*
  * JS public API typedefs.
@@ -13,6 +13,7 @@
 
 #include "jsprototypes.h"
 #include "jstypes.h"
+
 
 namespace JS {
 
@@ -44,6 +45,8 @@ struct Zone;
  * oblivious to the change. This feature can be explicitly disabled in debug
  * builds by defining JS_NO_JSVAL_JSID_STRUCT_TYPES.
  */
+#ifdef __cplusplus
+
 # if defined(DEBUG) && !defined(JS_NO_JSVAL_JSID_STRUCT_TYPES)
 #  define JS_USE_JSID_STRUCT_TYPES
 # endif
@@ -60,6 +63,10 @@ struct jsid
 typedef ptrdiff_t jsid;
 #  define JSID_BITS(id) (id)
 # endif  /* defined(JS_USE_JSID_STRUCT_TYPES) */
+#else  /* defined(__cplusplus) */
+typedef ptrdiff_t jsid;
+# define JSID_BITS(id) (id)
+#endif
 
 #ifdef WIN32
 typedef wchar_t   jschar;
@@ -68,9 +75,9 @@ typedef uint16_t  jschar;
 #endif
 
 /*
- * Run-time version enumeration.  For compile-time version checking, please use
- * the JS_HAS_* macros in jsversion.h, or use MOZJS_MAJOR_VERSION,
- * MOZJS_MINOR_VERSION, MOZJS_PATCH_VERSION, and MOZJS_ALPHA definitions.
+ * Run-time version enumeration.  See jsversion.h for compile-time counterparts
+ * to these values that may be selected by the JS_VERSION macro, and tested by
+ * #if expressions.
  */
 typedef enum JSVersion {
     JSVERSION_ECMA_3  = 148,
@@ -150,10 +157,9 @@ typedef enum {
     JSTRACE_SCRIPT,
 
     /*
-     * Trace kinds internal to the engine. The embedding can only see them if
-     * it implements JSTraceCallback.
+     * Trace kinds internal to the engine. The embedding can only them if it
+     * implements JSTraceCallback.
      */
-    JSTRACE_LAZY_SCRIPT,
     JSTRACE_IONCODE,
     JSTRACE_SHAPE,
     JSTRACE_BASE_SHAPE,
@@ -184,12 +190,20 @@ typedef struct JSStructuredCloneReader      JSStructuredCloneReader;
 typedef struct JSStructuredCloneWriter      JSStructuredCloneWriter;
 typedef struct JSTracer                     JSTracer;
 
+#ifdef __cplusplus
 class                                       JSFlatString;
 class                                       JSFunction;
 class                                       JSObject;
 class                                       JSScript;
 class                                       JSStableString;  // long story
 class                                       JSString;
+#else
+typedef struct JSFlatString                 JSFlatString;
+typedef struct JSFunction                   JSFunction;
+typedef struct JSObject                     JSObject;
+typedef struct JSScript                     JSScript;
+typedef struct JSString                     JSString;
+#endif /* !__cplusplus */
 
 #ifdef JS_THREADSAFE
 typedef struct PRCallOnceType    JSCallOnceType;
@@ -198,35 +212,9 @@ typedef JSBool                   JSCallOnceType;
 #endif
 typedef JSBool                 (*JSInitCallback)(void);
 
-namespace JS {
-namespace shadow {
-
-struct Runtime
-{
-    /* Restrict zone access during Minor GC. */
-    bool needsBarrier_;
-
-#ifdef JSGC_GENERATIONAL
-    /* Allow inlining of Nursery::isInside. */
-    uintptr_t gcNurseryStart_;
-    uintptr_t gcNurseryEnd_;
-#endif
-
-    Runtime()
-      : needsBarrier_(false)
-#ifdef JSGC_GENERATIONAL
-      , gcNurseryStart_(0)
-      , gcNurseryEnd_(0)
-#endif
-    {}
-};
-
-} /* namespace shadow */
-} /* namespace JS */
+#ifdef __cplusplus
 
 namespace js {
-
-struct ThreadSafeContext;
 
 class Allocator;
 
@@ -246,7 +234,6 @@ enum ThingRootKind
     THING_ROOT_VALUE,
     THING_ROOT_TYPE,
     THING_ROOT_BINDINGS,
-    THING_ROOT_PROPERTY_DESCRIPTOR,
     THING_ROOT_LIMIT
 };
 
@@ -265,27 +252,23 @@ struct SpecificRootKind
 };
 
 template <> struct RootKind<JSObject *> : SpecificRootKind<JSObject *, THING_ROOT_OBJECT> {};
-template <> struct RootKind<JSFlatString *> : SpecificRootKind<JSFlatString *, THING_ROOT_STRING> {};
 template <> struct RootKind<JSFunction *> : SpecificRootKind<JSFunction *, THING_ROOT_OBJECT> {};
 template <> struct RootKind<JSString *> : SpecificRootKind<JSString *, THING_ROOT_STRING> {};
 template <> struct RootKind<JSScript *> : SpecificRootKind<JSScript *, THING_ROOT_SCRIPT> {};
 template <> struct RootKind<jsid> : SpecificRootKind<jsid, THING_ROOT_ID> {};
 template <> struct RootKind<JS::Value> : SpecificRootKind<JS::Value, THING_ROOT_VALUE> {};
 
-struct ContextFriendFields
-{
-  protected:
-    JSRuntime *const     runtime_;
+struct ContextFriendFields {
+    JSRuntime *const    runtime;
 
     /* The current compartment. */
-    JSCompartment       *compartment_;
+    JSCompartment       *compartment;
 
     /* The current zone. */
     JS::Zone            *zone_;
 
-  public:
     explicit ContextFriendFields(JSRuntime *rt)
-      : runtime_(rt), compartment_(NULL), zone_(NULL)
+      : runtime(rt), compartment(NULL), zone_(NULL)
     { }
 
     static const ContextFriendFields *get(const JSContext *cx) {
@@ -315,10 +298,21 @@ struct ContextFriendFields
      */
     SkipRoot *skipGCRooters;
 #endif
+};
 
-    friend JSRuntime *GetRuntime(const JSContext *cx);
-    friend JSCompartment *GetContextCompartment(const JSContext *cx);
-    friend JS::Zone *GetContextZone(const JSContext *cx);
+struct RuntimeFriendFields {
+    /*
+     * If non-zero, we were been asked to call the operation callback as soon
+     * as possible.
+     */
+    volatile int32_t    interrupt;
+
+    RuntimeFriendFields()
+      : interrupt(0) { }
+
+    static const RuntimeFriendFields *get(const JSRuntime *rt) {
+        return reinterpret_cast<const RuntimeFriendFields *>(rt);
+    }
 };
 
 class PerThreadData;
@@ -329,7 +323,7 @@ struct PerThreadDataFriendFields
     // Note: this type only exists to permit us to derive the offset of
     // the perThread data within the real JSRuntime* type in a portable
     // way.
-    struct RuntimeDummy : JS::shadow::Runtime
+    struct RuntimeDummy : RuntimeFriendFields
     {
         struct PerThreadDummy {
             void *field1;
@@ -374,14 +368,14 @@ struct PerThreadDataFriendFields
     }
 
     static inline PerThreadDataFriendFields *getMainThread(JSRuntime *rt) {
-        // mainThread must always appear directly after |JS::shadow::Runtime|.
+        // mainThread must always appear directly after |RuntimeFriendFields|.
         // Tested by a JS_STATIC_ASSERT in |jsfriendapi.cpp|
         return reinterpret_cast<PerThreadDataFriendFields *>(
             reinterpret_cast<char*>(rt) + RuntimeMainThreadOffset);
     }
 
     static inline const PerThreadDataFriendFields *getMainThread(const JSRuntime *rt) {
-        // mainThread must always appear directly after |JS::shadow::Runtime|.
+        // mainThread must always appear directly after |RuntimeFriendFields|.
         // Tested by a JS_STATIC_ASSERT in |jsfriendapi.cpp|
         return reinterpret_cast<const PerThreadDataFriendFields *>(
             reinterpret_cast<const char*>(rt) + RuntimeMainThreadOffset);
@@ -390,4 +384,6 @@ struct PerThreadDataFriendFields
 
 } /* namespace js */
 
-#endif /* jspubtd_h */
+#endif /* __cplusplus */
+
+#endif /* jspubtd_h___ */

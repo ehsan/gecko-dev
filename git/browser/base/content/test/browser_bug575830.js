@@ -21,7 +21,7 @@ function test() {
 
     is(ZoomManager.zoom, 1, "initial zoom level for first should be 1");
 
-    FullZoom.enlarge();
+    yield FullZoomHelper.enlarge();
     let zoom = ZoomManager.zoom;
     isnot(zoom, 1, "zoom level should have changed");
 

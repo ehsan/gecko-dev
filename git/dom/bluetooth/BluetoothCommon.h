@@ -51,24 +51,15 @@ extern bool gBluetoothDebugFlag;
 #define KEY_MANAGER      "/B2G/bluetooth/manager"
 #define KEY_ADAPTER      "/B2G/bluetooth/adapter"
 
-/**
- * When connection status of Bluetooth profiles change, we'll notify observers
- * of following topics.
- */
-#define BLUETOOTH_SCO_STATUS_CHANGED_ID      "bluetooth-sco-status-changed"
-#define BLUETOOTH_A2DP_STATUS_CHANGED_ID     "bluetooth-a2dp-status-changed"
-
 // Bluetooth address format: xx:xx:xx:xx:xx:xx (or xx_xx_xx_xx_xx_xx)
 #define BLUETOOTH_ADDRESS_LENGTH 17
-#define BLUETOOTH_ADDRESS_NONE   "00:00:00:00:00:00"
 
 BEGIN_BLUETOOTH_NAMESPACE
 
 enum BluetoothSocketType {
   RFCOMM = 1,
-  SCO    = 2,
-  L2CAP  = 3,
-  EL2CAP = 4
+  SCO = 2,
+  L2CAP = 3
 };
 
 class BluetoothSignal;

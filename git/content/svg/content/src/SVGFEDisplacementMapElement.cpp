@@ -21,7 +21,7 @@ static const unsigned short SVG_CHANNEL_B = 3;
 static const unsigned short SVG_CHANNEL_A = 4;
 
 JSObject*
-SVGFEDisplacementMapElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+SVGFEDisplacementMapElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return SVGFEDisplacementMapElementBinding::Wrap(aCx, aScope, this);
 }
@@ -65,13 +65,13 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFEDisplacementMapElement)
 
 //----------------------------------------------------------------------
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGFEDisplacementMapElement::In1()
 {
   return mStringAttributes[IN1].ToDOMAnimatedString(this);
 }
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGFEDisplacementMapElement::In2()
 {
   return mStringAttributes[IN2].ToDOMAnimatedString(this);

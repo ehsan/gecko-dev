@@ -7,10 +7,8 @@
 const NUMBER_OF_BACKUPS = 1;
 
 function run_test() {
-  do_test_pending();
-
   // Get bookmarkBackups directory
-  var bookmarksBackupDir = PlacesBackups.folder;
+  var bookmarksBackupDir = PlacesUtils.backups.folder;
 
   // Create an html dummy backup in the past
   var htmlBackupFile = bookmarksBackupDir.clone();
@@ -31,26 +29,21 @@ function run_test() {
   do_check_true(jsonBackupFile.exists());
 
   // Export bookmarks to JSON.
-  var backupFilename = PlacesBackups.getFilenameForDate();
+  var backupFilename = PlacesUtils.backups.getFilenameForDate();
   var lastBackupFile = bookmarksBackupDir.clone();
   lastBackupFile.append(backupFilename);
   if (lastBackupFile.exists())
     lastBackupFile.remove(false);
   do_check_false(lastBackupFile.exists());
+  PlacesUtils.backups.create(NUMBER_OF_BACKUPS);
+  do_check_true(lastBackupFile.exists());
 
-  Task.spawn(function() {
-    yield PlacesBackups.create(NUMBER_OF_BACKUPS);
-    do_check_true(lastBackupFile.exists());
+  // Check that last backup has been retained
+  do_check_false(htmlBackupFile.exists());
+  do_check_false(jsonBackupFile.exists());
+  do_check_true(lastBackupFile.exists());
 
-    // Check that last backup has been retained
-    do_check_false(htmlBackupFile.exists());
-    do_check_false(jsonBackupFile.exists());
-    do_check_true(lastBackupFile.exists());
-
-    // cleanup
-    lastBackupFile.remove(false);
-    do_check_false(lastBackupFile.exists());
-
-    do_test_finished();
-  });
+  // cleanup
+  lastBackupFile.remove(false);
+  do_check_false(lastBackupFile.exists());
 }

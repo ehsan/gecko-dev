@@ -70,7 +70,6 @@ public class testDistribution extends ContentProviderTest {
             Actions.EventExpecter distributionSetExpecter = mActions.expectGeckoEvent("Distribution:Set:OK");
             init.invoke(null, mActivity, aPackagePath);
             distributionSetExpecter.blockForEvent();
-            distributionSetExpecter.unregisterListener();
         } catch (Exception e) {
             mAsserter.ok(false, "exception initializing distribution", e.toString());
         }
@@ -109,7 +108,6 @@ public class testDistribution extends ContentProviderTest {
                 data = new JSONObject(eventExpecter.blockForEventData());
                 requestId = data.getString("requestId");
             }
-            eventExpecter.unregisterListener();
 
             JSONArray preferences = data.getJSONArray("preferences");
             for (int i = 0; i < preferences.length(); i++) {
@@ -142,7 +140,6 @@ public class testDistribution extends ContentProviderTest {
 
         try {
             JSONObject data = new JSONObject(eventExpecter.blockForEventData());
-            eventExpecter.unregisterListener();
             JSONArray searchEngines = data.getJSONArray("searchEngines");
             boolean foundEngine = false;
             for (int i = 0; i < searchEngines.length(); i++) {
@@ -190,7 +187,6 @@ public class testDistribution extends ContentProviderTest {
                 data = new JSONObject(eventExpecter.blockForEventData());
                 requestId = data.getString("requestId");
             }
-            eventExpecter.unregisterListener();
 
         } catch (Exception e) {
             mAsserter.ok(false, "exception setting test locale", e.toString());
@@ -224,7 +220,6 @@ public class testDistribution extends ContentProviderTest {
                 data = new JSONObject(eventExpecter.blockForEventData());
                 requestId = data.getString("requestId");
             }
-            eventExpecter.unregisterListener();
 
             JSONArray preferences = data.getJSONArray("preferences");
             for (int i = 0; i < preferences.length(); i++) {
@@ -293,7 +288,7 @@ public class testDistribution extends ContentProviderTest {
     @Override
     public void setUp() throws Exception {
         // TODO: Set up the content provider after setting the distribution.
-        super.setUp("org.mozilla.gecko.db.BrowserProvider", "AUTHORITY");
+        super.setUp("@ANDROID_PACKAGE_NAME@.db.BrowserProvider", "AUTHORITY");
     }
 
     private void delete(File file) throws Exception {

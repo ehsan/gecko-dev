@@ -66,7 +66,7 @@ using namespace QtMobility;
 #include "mozilla/Services.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Likely.h"
-#include "mozilla/layers/LayersTypes.h"
+#include "LayersTypes.h"
 #include "nsIWidgetListener.h"
 
 #include "nsIStringBundle.h"
@@ -1011,13 +1011,14 @@ nsWindow::GetAttention(int32_t aCycleCount)
 static already_AddRefed<gfxASurface>
 GetSurfaceForQWidget(QWidget* aDrawable)
 {
-    nsRefPtr<gfxASurface> result =
+    gfxASurface* result =
         new gfxXlibSurface(gfxQtPlatform::GetXDisplay(aDrawable),
                            aDrawable->winId(),
                            DefaultVisualOfScreen(gfxQtPlatform::GetXScreen(aDrawable)),
                            gfxIntSize(aDrawable->size().width(),
                            aDrawable->size().height()));
-    return result.forget();
+    NS_IF_ADDREF(result);
+    return result;
 }
 #endif
 
@@ -1076,7 +1077,7 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
 #endif //MOZ_ENABLE_QTMOBILITY
 
         if (mWidgetListener)
-          painted = mWidgetListener->PaintWindow(this, region);
+          painted = mWidgetListener->PaintWindow(this, region, 0);
         aPainter->endNativePainting();
         if (mWidgetListener)
           mWidgetListener->DidPaintWindow();
@@ -1134,7 +1135,7 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
             setupLayerManager(this, ctx, mozilla::layers::BUFFER_NONE);
         if (mWidgetListener) {
           nsIntRegion region(rect);
-          painted = mWidgetListener->PaintWindow(this, region);
+          painted = mWidgetListener->PaintWindow(this, region, 0);
         }
     }
 
@@ -1609,10 +1610,6 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
     if (aEvent->text().length() && aEvent->text()[0].isPrint())
         domCharCode = (int32_t) aEvent->text()[0].unicode();
 
-    KeyNameIndex keyNameIndex =
-        domCharCode ? KEY_NAME_INDEX_PrintableKey :
-                      QtKeyCodeToDOMKeyNameIndex(aEvent->key());
-
     // If the key isn't autorepeat, we need to send the initial down event
     if (!aEvent->isAutoRepeat() && !IsKeyDown(domKeyCode)) {
         // send the key down event
@@ -1623,7 +1620,6 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
         InitKeyEvent(downEvent, aEvent);
 
         downEvent.keyCode = domKeyCode;
-        downEvent.mKeyNameIndex = keyNameIndex;
 
         nsEventStatus status = DispatchEvent(&downEvent);
 
@@ -1833,7 +1829,6 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
     }
 
     event.keyCode = domCharCode ? 0 : domKeyCode;
-    event.mKeyNameIndex = keyNameIndex;
     // send the key press event
     return DispatchEvent(&event);
 #else
@@ -1857,10 +1852,6 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
     if (aEvent->text().length() && aEvent->text()[0].isPrint())
         domCharCode = (int32_t) aEvent->text()[0].unicode();
 
-    KeyNameIndex keyNameIndex =
-        domCharCode ? KEY_NAME_INDEX_PrintableKey :
-                      QtKeyCodeToDOMKeyNameIndex(aEvent->key());
-
     // If the key isn't autorepeat, we need to send the initial down event
     if (!aEvent->isAutoRepeat() && !IsKeyDown(domKeyCode)) {
         // send the key down event
@@ -1871,7 +1862,6 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
         InitKeyEvent(downEvent, aEvent);
 
         downEvent.keyCode = domKeyCode;
-        downEvent.mKeyNameIndex = keyNameIndex;
 
         nsEventStatus status = DispatchEvent(&downEvent);
 
@@ -1886,7 +1876,6 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
     event.charCode = domCharCode;
 
     event.keyCode = domCharCode ? 0 : domKeyCode;
-    event.mKeyNameIndex = keyNameIndex;
 
     if (setNoDefault)
         event.mFlags.mDefaultPrevented = true;
@@ -1943,10 +1932,6 @@ nsWindow::OnKeyReleaseEvent(QKeyEvent *aEvent)
     }
 
     event.keyCode = domKeyCode;
-    event.mKeyNameIndex =
-        (aEvent->text().length() && aEvent->text()[0].isPrint()) ?
-            KEY_NAME_INDEX_PrintableKey :
-            QtKeyCodeToDOMKeyNameIndex(aEvent->key());
 
     // unset the key down flag
     ClearKeyDownFlag(event.keyCode);
@@ -3264,10 +3249,10 @@ nsWindow::GetInputContext()
     mInputContext.mIMEState.mOpen = IMEState::OPEN_STATE_NOT_SUPPORTED;
     // Our qt widget looks like using only one context per process.
     // However, it's better to set the context's pointer.
-#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
+#if (QT_VERSION <= QT_VERSION_CHECK(5, 0, 0))
     mInputContext.mNativeIMEContext = qApp->inputContext();
 #else
-    mInputContext.mNativeIMEContext = qApp->inputMethod();
+    mInputContext.mNativeIMEContext = nullptr;
 #endif
     return mInputContext;
 }

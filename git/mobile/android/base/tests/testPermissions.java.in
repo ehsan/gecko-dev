@@ -7,6 +7,8 @@ import android.widget.CheckBox;
 import java.util.ArrayList;
 
 public class testPermissions extends PixelTest {
+    private Actions.RepeatedEventExpecter mPaintExpecter;
+
     @Override
     protected int getTestType() {
         return TEST_MOCHITEST;
@@ -19,8 +21,6 @@ public class testPermissions extends PixelTest {
     }
 
     private void geolocationTest() {
-        Actions.RepeatedEventExpecter paintExpecter;
-
         // Test geolocation notification
         loadAndPaint(getAbsoluteUrl("/robocop/robocop_geolocation.html"));
         waitForText("wants your location");
@@ -33,10 +33,9 @@ public class testPermissions extends PixelTest {
         mAsserter.ok(!mSolo.isCheckBoxChecked(0), "checkbox not checked", "checkbox is not checked");
 
         // Test "Share" button functionality with unchecked checkbox
-        paintExpecter = mActions.expectPaint();
+        mPaintExpecter = mActions.expectPaint();
         mSolo.clickOnText("Share");
-        PaintedSurface painted = waitForPaint(paintExpecter);
-        paintExpecter.unregisterListener();
+        PaintedSurface painted = waitForPaint(mPaintExpecter);
         try {
             mAsserter.ispixel(painted.getPixelAt(10, 10), 0, 0x80, 0, "checking page background is green");
         } finally {
@@ -51,10 +50,9 @@ public class testPermissions extends PixelTest {
         mAsserter.ok(mSolo.isCheckBoxChecked(0), "checkbox checked", "checkbox is checked");
 
         // Test "Share" button functionality with checked checkbox
-        paintExpecter = mActions.expectPaint();
+        mPaintExpecter = mActions.expectPaint();
         mSolo.clickOnText("Share");
-        painted = waitForPaint(paintExpecter);
-        paintExpecter.unregisterListener();
+        painted = waitForPaint(mPaintExpecter);
         try {
             mAsserter.ispixel(painted.getPixelAt(10, 10), 0, 0x80, 0, "checking page background is green");
         } finally {

@@ -1,6 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
- *
+/*
  * Copyright (C) 2009, 2010 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -25,12 +23,11 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
-#ifndef yarr_YarrInterpreter_h
-#define yarr_YarrInterpreter_h
+#ifndef YarrInterpreter_h
+#define YarrInterpreter_h
 
 #include "jscntxt.h"
-
-#include "yarr/YarrPattern.h"
+#include "YarrPattern.h"
 
 namespace WTF {
 class BumpPointerAllocator;
@@ -394,4 +391,4 @@ unsigned interpret(JSContext *cx, BytecodePattern*, const UChar* input, unsigned
 
 } } // namespace JSC::Yarr
 
-#endif /* yarr_YarrInterpreter_h */
+#endif // YarrInterpreter_h

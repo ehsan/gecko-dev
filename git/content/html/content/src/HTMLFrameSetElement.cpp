@@ -18,7 +18,7 @@ HTMLFrameSetElement::~HTMLFrameSetElement()
 }
 
 JSObject*
-HTMLFrameSetElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+HTMLFrameSetElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return HTMLFrameSetElementBinding::Wrap(aCx, aScope, this);
 }
@@ -28,11 +28,11 @@ NS_IMPL_RELEASE_INHERITED(HTMLFrameSetElement, Element)
 
 // QueryInterface implementation for HTMLFrameSetElement
 NS_INTERFACE_TABLE_HEAD(HTMLFrameSetElement)
-  NS_HTML_CONTENT_INTERFACES(nsGenericHTMLElement)
-  NS_INTERFACE_TABLE_INHERITED1(HTMLFrameSetElement,
-                                nsIDOMHTMLFrameSetElement)
-  NS_INTERFACE_TABLE_TO_MAP_SEGUE
-NS_ELEMENT_INTERFACE_MAP_END
+  NS_HTML_CONTENT_INTERFACE_TABLE1(HTMLFrameSetElement,
+                                   nsIDOMHTMLFrameSetElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLFrameSetElement,
+                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
 
 
 NS_IMPL_ELEMENT_CLONE(HTMLFrameSetElement)
@@ -365,17 +365,26 @@ HTMLFrameSetElement::IsEventAttributeName(nsIAtom *aName)
   HTMLFrameSetElement::GetOn##name_(JSContext *cx, JS::Value *vp)              \
   {                                                                            \
     getter_type_ h = forwardto_::GetOn##name_();                               \
-    vp->setObjectOrNull(h ? h->Callable().get() : nullptr);                    \
+    vp->setObjectOrNull(h ? h->Callable() : nullptr);                          \
     return NS_OK;                                                              \
   }                                                                            \
   NS_IMETHODIMP                                                                \
   HTMLFrameSetElement::SetOn##name_(JSContext *cx, const JS::Value &v)         \
   {                                                                            \
+    JSObject *obj = GetWrapper();                                              \
+    if (!obj) {                                                                \
+      /* Just silently do nothing */                                           \
+      return NS_OK;                                                            \
+    }                                                                          \
     nsRefPtr<type_> handler;                                                   \
     JSObject *callable;                                                        \
     if (v.isObject() &&                                                        \
         JS_ObjectIsCallable(cx, callable = &v.toObject())) {                   \
-      handler = new type_(callable);                                           \
+      bool ok;                                                                 \
+      handler = new type_(cx, obj, callable, &ok);                             \
+      if (!ok) {                                                               \
+        return NS_ERROR_OUT_OF_MEMORY;                                         \
+      }                                                                        \
     }                                                                          \
     ErrorResult rv;                                                            \
     forwardto_::SetOn##name_(handler, rv);                                     \
@@ -392,7 +401,7 @@ HTMLFrameSetElement::IsEventAttributeName(nsIAtom *aName)
   HTMLFrameSetElement::GetOn##name_()                                          \
   {                                                                            \
     nsPIDOMWindow* win = OwnerDoc()->GetInnerWindow();                         \
-    if (win) {                                                                 \
+    if (win && win->IsInnerWindow()) {                                         \
       nsCOMPtr<nsISupports> supports = do_QueryInterface(win);                 \
       nsGlobalWindow* globalWin = nsGlobalWindow::FromSupports(supports);      \
       return globalWin->GetOn##name_();                                        \
@@ -403,7 +412,7 @@ HTMLFrameSetElement::IsEventAttributeName(nsIAtom *aName)
   HTMLFrameSetElement::SetOn##name_(type_* handler, ErrorResult& error)        \
   {                                                                            \
     nsPIDOMWindow* win = OwnerDoc()->GetInnerWindow();                         \
-    if (!win) {                                                                \
+    if (!win || !win->IsInnerWindow()) {                                       \
       return;                                                                  \
     }                                                                          \
                                                                                \

@@ -17,10 +17,9 @@
 
 const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 
-Cu.import("resource://gre/modules/DOMRequestHelper.jsm");
-Cu.import("resource://gre/modules/ObjectWrapper.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/DOMRequestHelper.jsm");
 
 var RIL = {};
 Cu.import("resource://gre/modules/ril_consts.js", RIL);
@@ -32,16 +31,7 @@ var DEBUG = RIL.DEBUG_CONTENT_HELPER;
 try {
   let debugPref = Services.prefs.getBoolPref("ril.debugging.enabled");
   DEBUG = RIL.DEBUG_CONTENT_HELPER || debugPref;
-} catch (e) {}
-
-let debug;
-if (DEBUG) {
-  debug = function (s) {
-    dump("-*- RILContentHelper: " + s + "\n");
-  };
-} else {
-  debug = function (s) {};
-}
+} catch (e) {};
 
 const RILCONTENTHELPER_CID =
   Components.ID("{472816e1-1fd6-4405-996c-806f9ea68174}");
@@ -87,16 +77,11 @@ const RIL_IPC_MSG_NAMES = [
   "RIL:DataError",
   "RIL:SetCallForwardingOption",
   "RIL:GetCallForwardingOption",
-  "RIL:SetCallBarringOption",
-  "RIL:GetCallBarringOption",
-  "RIL:SetCallWaitingOption",
-  "RIL:GetCallWaitingOption",
   "RIL:CellBroadcastReceived",
   "RIL:CfStateChanged",
   "RIL:IccOpenChannel",
   "RIL:IccCloseChannel",
   "RIL:IccExchangeAPDU",
-  "RIL:ReadIccContacts",
   "RIL:UpdateIccContact"
 ];
 
@@ -108,20 +93,21 @@ XPCOMUtils.defineLazyServiceGetter(this, "gUUIDGenerator",
                                    "@mozilla.org/uuid-generator;1",
                                    "nsIUUIDGenerator");
 
-function MobileIccCardLockResult(options) {
+function MobileICCCardLockResult(options) {
   this.lockType = options.lockType;
   this.enabled = options.enabled;
   this.retryCount = options.retryCount;
   this.success = options.success;
-}
-MobileIccCardLockResult.prototype = {
+};
+MobileICCCardLockResult.prototype = {
   __exposedProps__ : {lockType: 'r',
                       enabled: 'r',
                       retryCount: 'r',
                       success: 'r'}
 };
 
-function MobileICCInfo() {}
+function MobileICCInfo() {
+};
 MobileICCInfo.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMMozMobileICCInfo]),
   classID:        MOBILEICCINFO_CID,
@@ -321,23 +307,9 @@ CellBroadcastEtwsInfo.prototype = {
   popup: null
 };
 
-function CallBarringOption(option) {
-  this.program = option.program;
-  this.enabled = option.enabled;
-  this.password = option.password;
-  this.serviceClass = option.serviceClass;
-}
-CallBarringOption.prototype = {
-  __exposedProps__ : {program: 'r',
-                      enabled: 'r',
-                      password: 'r',
-                      serviceClass: 'r'}
-};
-
 function RILContentHelper() {
   this.rilContext = {
     cardState:            RIL.GECKO_CARDSTATE_UNKNOWN,
-    retryCount:           0,
     networkSelectionMode: RIL.GECKO_NETWORK_SELECTION_UNKNOWN,
     iccInfo:              new MobileICCInfo(),
     voiceConnectionInfo:  new MobileConnectionInfo(),
@@ -347,7 +319,6 @@ function RILContentHelper() {
 
   this.initRequests();
   this.initMessageListener(RIL_IPC_MSG_NAMES);
-  this._windowsMap = [];
   Services.obs.addObserver(this, "xpcom-shutdown", false);
 }
 
@@ -410,8 +381,6 @@ RILContentHelper.prototype = {
     this.updateInfo(srcNetwork, network);
  },
 
-  _windowsMap: null,
-
   // nsIRILContentHelper
 
   rilContext: null,
@@ -430,7 +399,6 @@ RILContentHelper.prototype = {
       return;
     }
     this.rilContext.cardState = rilContext.cardState;
-    this.rilContext.retryCount = rilContext.retryCount;
     this.rilContext.networkSelectionMode = rilContext.networkSelectionMode;
     this.updateInfo(rilContext.iccInfo, this.rilContext.iccInfo);
     this.updateConnectionInfo(rilContext.voice, this.rilContext.voiceConnectionInfo);
@@ -440,33 +408,23 @@ RILContentHelper.prototype = {
   },
 
   get iccInfo() {
-    let context = this.getRilContext();
-    return context && context.iccInfo;
+    return this.getRilContext().iccInfo;
   },
 
   get voiceConnectionInfo() {
-    let context = this.getRilContext();
-    return context && context.voiceConnectionInfo;
+    return this.getRilContext().voiceConnectionInfo;
   },
 
   get dataConnectionInfo() {
-    let context = this.getRilContext();
-    return context && context.dataConnectionInfo;
+    return this.getRilContext().dataConnectionInfo;
   },
 
   get cardState() {
-    let context = this.getRilContext();
-    return context && context.cardState;
-  },
-
-  get retryCount() {
-    let context = this.getRilContext();
-    return context && context.retryCount;
+    return this.getRilContext().cardState;
   },
 
   get networkSelectionMode() {
-    let context = this.getRilContext();
-    return context && context.networkSelectionMode;
+    return this.getRilContext().networkSelectionMode;
   },
 
   /**
@@ -559,14 +517,14 @@ RILContentHelper.prototype = {
     return request;
   },
 
-  getCardLockState: function getCardLockState(window, lockType) {
+  getCardLock: function getCardLock(window, lockType) {
     if (window == null) {
       throw Components.Exception("Can't get window object",
                                   Cr.NS_ERROR_UNEXPECTED);
     }
     let request = Services.DOMRequest.createRequest(window);
     let requestId = this.getRequestId(request);
-    cpmm.sendAsyncMessage("RIL:GetCardLockState", {lockType: lockType, requestId: requestId});
+    cpmm.sendAsyncMessage("RIL:GetCardLock", {lockType: lockType, requestId: requestId});
     return request;
   },
 
@@ -702,21 +660,6 @@ RILContentHelper.prototype = {
     return request;
   },
 
-  readContacts: function readContacts(window, contactType) {
-    if (window == null) {
-      throw Components.Exception("Can't get window object",
-                                  Cr.NS_ERROR_UNEXPECTED);
-    }
-
-    let request = Services.DOMRequest.createRequest(window);
-    let requestId = this.getRequestId(request);
-    this._windowsMap[requestId] = window;
-
-    cpmm.sendAsyncMessage("RIL:ReadIccContacts", {requestId: requestId,
-                                                  contactType: contactType});
-    return request;
-  },
-
   updateContact: function updateContact(window, contactType, contact, pin2) {
     if (window == null) {
       throw Components.Exception("Can't get window object",
@@ -735,14 +678,6 @@ RILContentHelper.prototype = {
 
     if (contact.tel) {
       iccContact.number = contact.tel[0].value;
-    }
-
-    if (contact.email) {
-      iccContact.email = contact.email[0].value;
-    }
-
-    if (contact.tel.length > 1) {
-      iccContact.anr = contact.tel.slice(1);
     }
 
     cpmm.sendAsyncMessage("RIL:UpdateIccContact", {requestId: requestId,
@@ -796,84 +731,6 @@ RILContentHelper.prototype = {
       reason: cfInfo.reason,
       number: cfInfo.number,
       timeSeconds: cfInfo.timeSeconds
-    });
-
-    return request;
-  },
-
-  getCallBarringOption: function getCallBarringOption(window, option) {
-    if (window == null) {
-      throw Components.Exception("Can't get window object",
-                                  Cr.NS_ERROR_UNEXPECTED);
-    }
-    let request = Services.DOMRequest.createRequest(window);
-    let requestId = this.getRequestId(request);
-
-    if (DEBUG) debug("getCallBarringOption: " + JSON.stringify(option));
-    if (!this._isValidCallBarringOption(option)) {
-      this.dispatchFireRequestError(requestId, "InvalidCallBarringOption");
-      return request;
-    }
-
-    cpmm.sendAsyncMessage("RIL:GetCallBarringOption", {
-      requestId: requestId,
-      program: option.program,
-      password: option.password,
-      serviceClass: option.serviceClass
-    });
-    return request;
-  },
-
-  setCallBarringOption: function setCallBarringOption(window, option) {
-    if (window == null) {
-      throw Components.Exception("Can't get window object",
-                                  Cr.NS_ERROR_UNEXPECTED);
-    }
-    let request = Services.DOMRequest.createRequest(window);
-    let requestId = this.getRequestId(request);
-
-    if (DEBUG) debug("setCallBarringOption: " + JSON.stringify(option));
-    if (!this._isValidCallBarringOption(option)) {
-      this.dispatchFireRequestError(requestId, "InvalidCallBarringOption");
-      return request;
-    }
-
-    cpmm.sendAsyncMessage("RIL:SetCallBarringOption", {
-      requestId: requestId,
-      program: option.program,
-      enabled: option.enabled,
-      password: option.password,
-      serviceClass: option.serviceClass
-    });
-    return request;
-  },
-
-  getCallWaitingOption: function getCallWaitingOption(window) {
-    if (window == null) {
-      throw Components.Exception("Can't get window object",
-                                  Cr.NS_ERROR_UNEXPECTED);
-    }
-    let request = Services.DOMRequest.createRequest(window);
-    let requestId = this.getRequestId(request);
-
-    cpmm.sendAsyncMessage("RIL:GetCallWaitingOption", {
-      requestId: requestId
-    });
-
-    return request;
-  },
-
-  setCallWaitingOption: function setCallWaitingOption(window, enabled) {
-    if (window == null) {
-      throw Components.Exception("Can't get window object",
-                                  Cr.NS_ERROR_UNEXPECTED);
-    }
-    let request = Services.DOMRequest.createRequest(window);
-    let requestId = this.getRequestId(request);
-
-    cpmm.sendAsyncMessage("RIL:SetCallWaitingOption", {
-      requestId: requestId,
-      enabled: enabled
     });
 
     return request;
@@ -1068,6 +925,7 @@ RILContentHelper.prototype = {
     if (topic == "xpcom-shutdown") {
       this.removeMessageListener();
       Services.obs.removeObserver(this, "xpcom-shutdown");
+      cpmm = null;
     }
   },
 
@@ -1126,7 +984,6 @@ RILContentHelper.prototype = {
     debug("Received message '" + msg.name + "': " + JSON.stringify(msg.json));
     switch (msg.name) {
       case "RIL:CardStateChanged":
-        this.rilContext.retryCount = msg.json.retryCount;
         if (this.rilContext.cardState != msg.json.cardState) {
           this.rilContext.cardState = msg.json.cardState;
           this._deliverEvent("_mobileConnectionListeners",
@@ -1172,8 +1029,7 @@ RILContentHelper.prototype = {
         this._deliverEvent("_telephonyListeners",
                            "callStateChanged",
                            [msg.json.callIndex, msg.json.state,
-                            msg.json.number, msg.json.isActive,
-                            msg.json.isOutgoing, msg.json.isEmergency]);
+                            msg.json.number, msg.json.isActive]);
         break;
       case "RIL:CallError":
         this._deliverEvent("_telephonyListeners",
@@ -1188,12 +1044,12 @@ RILContentHelper.prototype = {
         break;
       case "RIL:CardLockResult":
         if (msg.json.success) {
-          let result = new MobileIccCardLockResult(msg.json);
+          let result = new MobileICCCardLockResult(msg.json);
           this.fireRequestSuccess(msg.json.requestId, result);
         } else {
           if (msg.json.rilMessageType == "iccSetCardLock" ||
               msg.json.rilMessageType == "iccUnlockCardLock") {
-            this._deliverEvent("_iccListeners",
+            this._deliverEvent("_mobileConnectionListeners",
                                "notifyIccCardLockError",
                                [msg.json.lockType, msg.json.retryCount]);
           }
@@ -1201,6 +1057,8 @@ RILContentHelper.prototype = {
         }
         break;
       case "RIL:USSDReceived":
+        let res = JSON.stringify({message: msg.json.message,
+                                  sessionEnded: msg.json.sessionEnded});
         this._deliverEvent("_mobileConnectionListeners",
                            "notifyUssdReceived",
                            [msg.json.message, msg.json.sessionEnded]);
@@ -1232,9 +1090,6 @@ RILContentHelper.prototype = {
       case "RIL:IccExchangeAPDU":
         this.handleIccExchangeAPDU(msg.json);
         break;
-      case "RIL:ReadIccContacts":
-        this.handleReadIccContacts(msg.json);
-        break;
       case "RIL:UpdateIccContact":
         this.handleUpdateIccContact(msg.json);
         break;
@@ -1248,18 +1103,6 @@ RILContentHelper.prototype = {
         break;
       case "RIL:SetCallForwardingOption":
         this.handleSetCallForwardingOption(msg.json);
-        break;
-      case "RIL:GetCallBarringOption":
-        this.handleGetCallBarringOption(msg.json);
-        break;
-      case "RIL:SetCallBarringOption":
-        this.handleSetCallBarringOption(msg.json);
-        break;
-      case "RIL:GetCallWaitingOption":
-        this.handleGetCallWaitingOption(msg.json);
-        break;
-      case "RIL:SetCallWaitingOption":
-        this.handleSetCallWaitingOption(msg.json);
         break;
       case "RIL:CfStateChanged":
         this._deliverEvent("_mobileConnectionListeners",
@@ -1280,19 +1123,13 @@ RILContentHelper.prototype = {
   handleEnumerateCalls: function handleEnumerateCalls(calls) {
     debug("handleEnumerateCalls: " + JSON.stringify(calls));
     let callback = this._enumerateTelephonyCallbacks.shift();
-    if (!calls.length) {
-      callback.enumerateCallStateComplete();
-      return;
-    }
-
     for (let i in calls) {
       let call = calls[i];
       let keepGoing;
       try {
         keepGoing =
           callback.enumerateCallState(call.callIndex, call.state, call.number,
-                                      call.isActive, call.isOutgoing,
-                                      call.isEmergency);
+                                      call.isActive);
       } catch (e) {
         debug("callback handler for 'enumerateCallState' threw an " +
               " exception: " + e);
@@ -1302,8 +1139,6 @@ RILContentHelper.prototype = {
         break;
       }
     }
-
-    callback.enumerateCallStateComplete();
   },
 
   handleGetAvailableNetworks: function handleGetAvailableNetworks(message) {
@@ -1369,37 +1204,6 @@ RILContentHelper.prototype = {
     }
   },
 
-  handleReadIccContacts: function handleReadIccContacts(message) {
-    if (message.errorMsg) {
-      this.fireRequestError(message.requestId, message.errorMsg);
-      return;
-    }
-
-    let window = this._windowsMap[message.requestId];
-    delete this._windowsMap[message.requestId];
-    let contacts = message.contacts;
-    let result = contacts.map(function(c) {
-      let contact = Cc["@mozilla.org/contact;1"].createInstance(Ci.nsIDOMContact);
-      let prop = {name: [c.alphaId], tel: [{value: c.number}]};
-
-      if (c.email) {
-        prop.email = [{value: c.email}];
-      }
-
-      // ANR - Additional Number
-      let anrLen = c.anr ? c.anr.length : 0;
-      for (let i = 0; i < anrLen; i++) {
-        prop.tel.push({value: c.anr[i]});
-      }
-
-      contact.init(prop);
-      return contact;
-    });
-
-    this.fireRequestSuccess(message.requestId,
-                            ObjectWrapper.wrap(result, window));
-  },
-
   handleUpdateIccContact: function handleUpdateIccContact(message) {
     if (message.errorMsg) {
       this.fireRequestError(message.requestId, message.errorMsg);
@@ -1422,9 +1226,6 @@ RILContentHelper.prototype = {
     if (this.voicemailStatus.messageCount != message.msgCount) {
       changed = true;
       this.voicemailStatus.messageCount = message.msgCount;
-    } else if (message.msgCount == -1) {
-      // For MWI using DCS the message count is not available
-      changed = true;
     }
 
     if (this.voicemailStatus.returnNumber != message.returnNumber) {
@@ -1483,51 +1284,6 @@ RILContentHelper.prototype = {
     Services.DOMRequest.fireSuccess(request, null);
   },
 
-  handleGetCallBarringOption: function handleGetCallBarringOption(message) {
-    if (!message.success) {
-      this.fireRequestError(message.requestId, message.errorMsg);
-    } else {
-      let option = new CallBarringOption(message);
-      this.fireRequestSuccess(message.requestId, option);
-    }
-  },
-
-  handleSetCallBarringOption: function handleSetCallBarringOption(message) {
-    if (!message.success) {
-      this.fireRequestError(message.requestId, message.errorMsg);
-    } else {
-      this.fireRequestSuccess(message.requestId, null);
-    }
-  },
-
-  handleGetCallWaitingOption: function handleGetCallWaitingOption(message) {
-    let requestId = message.requestId;
-    let request = this.takeRequest(requestId);
-    if (!request) {
-      return;
-    }
-
-    if (!message.success) {
-      Services.DOMRequest.fireError(request, message.errorMsg);
-      return;
-    }
-    Services.DOMRequest.fireSuccess(request, message.enabled);
-  },
-
-  handleSetCallWaitingOption: function handleSetCallWaitingOption(message) {
-    let requestId = message.requestId;
-    let request = this.takeRequest(requestId);
-    if (!request) {
-      return;
-    }
-
-    if (!message.success) {
-      Services.DOMRequest.fireError(request, message.errorMsg);
-      return;
-    }
-    Services.DOMRequest.fireSuccess(request, null);
-  },
-
   handleSendCancelMMIOK: function handleSendCancelMMIOK(message) {
     let request = this.takeRequest(message.requestId);
     if (!request) {
@@ -1556,7 +1312,7 @@ RILContentHelper.prototype = {
     }
 
     let listeners = thisListeners.slice();
-    for (let listener of listeners) {
+    for each (let listener in listeners) {
       if (thisListeners.indexOf(listener) == -1) {
         continue;
       }
@@ -1575,60 +1331,43 @@ RILContentHelper.prototype = {
   /**
    * Helper for guarding us again invalid reason values for call forwarding.
    */
-  _isValidCFReason: function _isValidCFReason(reason) {
-    switch (reason) {
-      case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_REASON_UNCONDITIONAL:
-      case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_REASON_MOBILE_BUSY:
-      case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_REASON_NO_REPLY:
-      case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_REASON_NOT_REACHABLE:
-      case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_REASON_ALL_CALL_FORWARDING:
-      case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_REASON_ALL_CONDITIONAL_CALL_FORWARDING:
-        return true;
-      default:
-        return false;
-    }
+   _isValidCFReason: function _isValidCFReason(reason) {
+     switch (reason) {
+       case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_REASON_UNCONDITIONAL:
+       case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_REASON_MOBILE_BUSY:
+       case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_REASON_NO_REPLY:
+       case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_REASON_NOT_REACHABLE:
+       case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_REASON_ALL_CALL_FORWARDING:
+       case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_REASON_ALL_CONDITIONAL_CALL_FORWARDING:
+         return true;
+       default:
+         return false;
+     }
   },
 
   /**
    * Helper for guarding us again invalid action values for call forwarding.
    */
-  _isValidCFAction: function _isValidCFAction(action) {
-    switch (action) {
-      case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_ACTION_DISABLE:
-      case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_ACTION_ENABLE:
-      case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_ACTION_REGISTRATION:
-      case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_ACTION_ERASURE:
-        return true;
-      default:
-        return false;
-    }
-  },
-
-  /**
-   * Helper for guarding us against invalid program values for call barring.
-   */
-  _isValidCallBarringProgram: function _isValidCallBarringProgram(program) {
-    switch (program) {
-      case Ci.nsIDOMMozMobileConnection.CALL_BARRING_PROGRAM_ALL_OUTGOING:
-      case Ci.nsIDOMMozMobileConnection.CALL_BARRING_PROGRAM_OUTGOING_INTERNATIONAL:
-      case Ci.nsIDOMMozMobileConnection.CALL_BARRING_PROGRAM_OUTGOING_INTERNATIONAL_EXCEPT_HOME:
-      case Ci.nsIDOMMozMobileConnection.CALL_BARRING_PROGRAM_ALL_INCOMING:
-      case Ci.nsIDOMMozMobileConnection.CALL_BARRING_PROGRAM_INCOMING_ROAMING:
-        return true;
-      default:
-        return false;
-    }
-  },
-
-  /**
-   * Helper for guarding us against invalid option for call barring.
-   */
-  _isValidCallBarringOption: function _isValidCallBarringOption(option) {
-    return (option
-            && option.serviceClass != null
-            && this._isValidCallBarringProgram(option.program));
+   _isValidCFAction: function _isValidCFAction(action) {
+     switch (action) {
+       case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_ACTION_DISABLE:
+       case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_ACTION_ENABLE:
+       case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_ACTION_REGISTRATION:
+       case Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_ACTION_ERASURE:
+         return true;
+       default:
+         return false;
+     }
   }
 };
 
 this.NSGetFactory = XPCOMUtils.generateNSGetFactory([RILContentHelper]);
 
+let debug;
+if (DEBUG) {
+  debug = function (s) {
+    dump("-*- RILContentHelper: " + s + "\n");
+  };
+} else {
+  debug = function (s) {};
+}

@@ -429,6 +429,8 @@ nsSimpleUnicharStreamFactory::CreateInstanceFromUTF8Stream(nsIInputStream* aStre
 nsSimpleUnicharStreamFactory*
 nsSimpleUnicharStreamFactory::GetInstance()
 {
-  static const nsSimpleUnicharStreamFactory kInstance;
   return const_cast<nsSimpleUnicharStreamFactory*>(&kInstance);
 }
+
+const nsSimpleUnicharStreamFactory
+nsSimpleUnicharStreamFactory::kInstance;

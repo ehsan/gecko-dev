@@ -103,6 +103,22 @@ GetClassicWindowFrameButtonState(nsEventStates eventState)
   return DFCS_BUTTONPUSH;
 }
 
+static void
+QueryForButtonData(nsIFrame *aFrame)
+{
+  if (nsUXThemeData::sTitlebarInfoPopulatedThemed && nsUXThemeData::sTitlebarInfoPopulatedAero)
+    return;
+  nsIWidget* widget = aFrame->GetNearestWidget();
+  nsWindow * window = static_cast<nsWindow*>(widget);
+  if (!window)
+    return;
+  if (!window->IsTopLevelWidget() &&
+      !(window = window->GetParentWindow(false)))
+    return;
+
+  nsUXThemeData::UpdateTitlebarInfo(window->GetWindowHandle());
+}
+
 static bool
 IsTopLevelMenu(nsIFrame *aFrame)
 {
@@ -769,8 +785,6 @@ nsNativeThemeWin::GetTheme(uint8_t aWidgetType)
     case NS_THEME_SCROLLBAR_THUMB_VERTICAL:
     case NS_THEME_SCROLLBAR_THUMB_HORIZONTAL:
       return nsUXThemeData::GetTheme(eUXScrollbar);
-    case NS_THEME_RANGE:
-    case NS_THEME_RANGE_THUMB:
     case NS_THEME_SCALE_HORIZONTAL:
     case NS_THEME_SCALE_VERTICAL:
     case NS_THEME_SCALE_THUMB_HORIZONTAL:
@@ -1113,33 +1127,18 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, uint8_t aWidgetType,
       }
       return NS_OK;
     }
-    case NS_THEME_RANGE:
     case NS_THEME_SCALE_HORIZONTAL:
     case NS_THEME_SCALE_VERTICAL: {
-      if (aWidgetType == NS_THEME_SCALE_HORIZONTAL ||
-          (aWidgetType == NS_THEME_RANGE &&
-           IsRangeHorizontal(aFrame))) {
-        aPart = TKP_TRACK;
-        aState = TRS_NORMAL;
-      } else {
-        aPart = TKP_TRACKVERT;
-        aState = TRVS_NORMAL;
-      }
+      aPart = (aWidgetType == NS_THEME_SCALE_HORIZONTAL) ?
+              TKP_TRACK : TKP_TRACKVERT;
+
+      aState = TS_NORMAL;
       return NS_OK;
     }
-    case NS_THEME_RANGE_THUMB:
     case NS_THEME_SCALE_THUMB_HORIZONTAL:
     case NS_THEME_SCALE_THUMB_VERTICAL: {
-      if (aWidgetType == NS_THEME_RANGE_THUMB) {
-        if (IsRangeHorizontal(aFrame)) {
-          aPart = TKP_THUMBBOTTOM;
-        } else {
-          aPart = IsFrameRTL(aFrame) ? TKP_THUMBLEFT : TKP_THUMBRIGHT;
-        }
-      } else {
-        aPart = (aWidgetType == NS_THEME_SCALE_THUMB_HORIZONTAL) ?
-                TKP_THUMB : TKP_THUMBVERT;
-      }
+      aPart = (aWidgetType == NS_THEME_SCALE_THUMB_HORIZONTAL) ?
+              TKP_THUMB : TKP_THUMBVERT;
       nsEventStates eventState = GetContentState(aFrame, aWidgetType);
       if (!aFrame)
         aState = TS_NORMAL;
@@ -1676,8 +1675,7 @@ RENDER_AGAIN:
   // widgetRect is the bounding box for a widget, yet the scale track is only
   // a small portion of this size, so the edges of the scale need to be
   // adjusted to the real size of the track.
-  if (aWidgetType == NS_THEME_RANGE ||
-      aWidgetType == NS_THEME_SCALE_HORIZONTAL ||
+  if (aWidgetType == NS_THEME_SCALE_HORIZONTAL ||
       aWidgetType == NS_THEME_SCALE_VERTICAL) {
     RECT contentRect;
     GetThemeBackgroundContentRect(theme, hdc, part, state, &widgetRect, &contentRect);
@@ -1685,21 +1683,17 @@ RENDER_AGAIN:
     SIZE siz;
     GetThemePartSize(theme, hdc, part, state, &widgetRect, TS_TRUE, &siz);
 
-    // When rounding is necessary, we round the position of the track
-    // away from the chevron of the thumb to make it look better.
-    if (aWidgetType == NS_THEME_SCALE_HORIZONTAL ||
-        (aWidgetType == NS_THEME_RANGE && IsRangeHorizontal(aFrame))) {
-      contentRect.top += (contentRect.bottom - contentRect.top - siz.cy) / 2;
-      contentRect.bottom = contentRect.top + siz.cy;
+    if (aWidgetType == NS_THEME_SCALE_HORIZONTAL) {
+      int32_t adjustment = (contentRect.bottom - contentRect.top - siz.cy) / 2 + 1;
+      contentRect.top += adjustment;
+      contentRect.bottom -= adjustment;
     }
     else {
-      if (!IsFrameRTL(aFrame)) {
-        contentRect.left += (contentRect.right - contentRect.left - siz.cx) / 2;
-        contentRect.right = contentRect.left + siz.cx;
-      } else {
-        contentRect.right -= (contentRect.right - contentRect.left - siz.cx) / 2;
-        contentRect.left = contentRect.right - siz.cx;
-      }
+      int32_t adjustment = (contentRect.right - contentRect.left - siz.cx) / 2 + 1;
+      // need to subtract one from the left position, otherwise the scale's
+      // border isn't visible
+      contentRect.left += adjustment - 1;
+      contentRect.right -= adjustment;
     }
 
     DrawThemeBackground(theme, hdc, part, state, &contentRect, &clipRect);
@@ -1820,7 +1814,6 @@ RENDER_AGAIN:
   // XXX it'd be nice to draw these outside of the frame
   if (((aWidgetType == NS_THEME_CHECKBOX || aWidgetType == NS_THEME_RADIO) &&
         aFrame->GetContent()->IsHTML()) ||
-      aWidgetType == NS_THEME_RANGE ||
       aWidgetType == NS_THEME_SCALE_HORIZONTAL ||
       aWidgetType == NS_THEME_SCALE_VERTICAL) {
       nsEventStates contentState = GetContentState(aFrame, aWidgetType);
@@ -2295,7 +2288,6 @@ nsNativeThemeWin::GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* a
       *aIsOverridable = false;
       break;
 
-    case NS_THEME_RANGE_THUMB:
     case NS_THEME_SCALE_THUMB_HORIZONTAL:
     case NS_THEME_SCALE_THUMB_VERTICAL:
     {
@@ -2303,8 +2295,7 @@ nsNativeThemeWin::GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* a
       // on Vista, GetThemePartAndState returns odd values for
       // scale thumbs, so use a hardcoded size instead.
       if (WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION) {
-        if (aWidgetType == NS_THEME_SCALE_THUMB_HORIZONTAL ||
-            (aWidgetType == NS_THEME_RANGE_THUMB && IsRangeHorizontal(aFrame))) {
+        if (aWidgetType == NS_THEME_SCALE_THUMB_HORIZONTAL) {
           aResult->width = 12;
           aResult->height = 20;
         }
@@ -2338,6 +2329,7 @@ nsNativeThemeWin::GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* a
       // The only way to get accurate titlebar button info is to query a
       // window w/buttons when it's visible. nsWindow takes care of this and
       // stores that info in nsUXThemeData.
+      QueryForButtonData(aFrame);
       aResult->width = nsUXThemeData::sCommandButtons[CMDBUTTONIDX_RESTORE].cx;
       aResult->height = nsUXThemeData::sCommandButtons[CMDBUTTONIDX_RESTORE].cy;
       // For XP, subtract 4 from system metrics dimensions.
@@ -2350,6 +2342,7 @@ nsNativeThemeWin::GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* a
       return NS_OK;
 
     case NS_THEME_WINDOW_BUTTON_MINIMIZE:
+      QueryForButtonData(aFrame);
       aResult->width = nsUXThemeData::sCommandButtons[CMDBUTTONIDX_MINIMIZE].cx;
       aResult->height = nsUXThemeData::sCommandButtons[CMDBUTTONIDX_MINIMIZE].cy;
       if (WinUtils::GetWindowsVersion() == WinUtils::WINXP_VERSION) {
@@ -2361,6 +2354,7 @@ nsNativeThemeWin::GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* a
       return NS_OK;
 
     case NS_THEME_WINDOW_BUTTON_CLOSE:
+      QueryForButtonData(aFrame);
       aResult->width = nsUXThemeData::sCommandButtons[CMDBUTTONIDX_CLOSE].cx;
       aResult->height = nsUXThemeData::sCommandButtons[CMDBUTTONIDX_CLOSE].cy;
       if (WinUtils::GetWindowsVersion() == WinUtils::WINXP_VERSION) {
@@ -2382,6 +2376,7 @@ nsNativeThemeWin::GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* a
     case NS_THEME_WINDOW_BUTTON_BOX:
     case NS_THEME_WINDOW_BUTTON_BOX_MAXIMIZED:
       if (nsUXThemeData::CheckForCompositor()) {
+        QueryForButtonData(aFrame);
         aResult->width = nsUXThemeData::sCommandButtons[CMDBUTTONIDX_BUTTONBOX].cx;
         aResult->height = nsUXThemeData::sCommandButtons[CMDBUTTONIDX_BUTTONBOX].cy
                           - GetSystemMetrics(SM_CYFRAME)
@@ -2562,7 +2557,7 @@ nsNativeThemeWin::WidgetIsContainer(uint8_t aWidgetType)
 }
 
 bool
-nsNativeThemeWin::ThemeDrawsFocusForWidget(uint8_t aWidgetType)
+nsNativeThemeWin::ThemeDrawsFocusForWidget(nsPresContext* aPresContext, nsIFrame* aFrame, uint8_t aWidgetType)
 {
   return false;
 }
@@ -2593,7 +2588,6 @@ nsNativeThemeWin::GetWidgetTransparency(nsIFrame* aFrame, uint8_t aWidgetType)
   case NS_THEME_PROGRESSBAR_VERTICAL:
   case NS_THEME_PROGRESSBAR_CHUNK:
   case NS_THEME_PROGRESSBAR_CHUNK_VERTICAL:
-  case NS_THEME_RANGE:
     return eTransparent;
   }
 
@@ -2649,8 +2643,6 @@ nsNativeThemeWin::ClassicThemeSupportsWidget(nsPresContext* aPresContext,
     case NS_THEME_TEXTFIELD_MULTILINE:
     case NS_THEME_CHECKBOX:
     case NS_THEME_RADIO:
-    case NS_THEME_RANGE:
-    case NS_THEME_RANGE_THUMB:
     case NS_THEME_GROUPBOX:
     case NS_THEME_SCROLLBAR_BUTTON_UP:
     case NS_THEME_SCROLLBAR_BUTTON_DOWN:
@@ -2836,17 +2828,6 @@ nsNativeThemeWin::ClassicGetMinimumWidgetSize(nsRenderingContext* aContext, nsIF
 
         //      (*aResult).height = ::GetSystemMetrics(SM_CYVTHUMB) << 1;
       break;
-    case NS_THEME_RANGE_THUMB: {
-      if (IsRangeHorizontal(aFrame)) {
-        (*aResult).width = 12;
-        (*aResult).height = 20;
-      } else {
-        (*aResult).width = 20;
-        (*aResult).height = 12;
-      }
-      *aIsOverridable = false;
-      break;
-    }
     case NS_THEME_SCALE_THUMB_HORIZONTAL:
       (*aResult).width = 12;
       (*aResult).height = 20;
@@ -3109,8 +3090,6 @@ nsresult nsNativeThemeWin::ClassicGetThemePartAndState(nsIFrame* aFrame, uint8_t
     case NS_THEME_TEXTFIELD_MULTILINE:
     case NS_THEME_DROPDOWN:
     case NS_THEME_DROPDOWN_TEXTFIELD:
-    case NS_THEME_RANGE:
-    case NS_THEME_RANGE_THUMB:
     case NS_THEME_SCROLLBAR_THUMB_VERTICAL:
     case NS_THEME_SCROLLBAR_THUMB_HORIZONTAL:     
     case NS_THEME_SCROLLBAR_TRACK_VERTICAL:
@@ -3606,7 +3585,6 @@ RENDER_AGAIN:
       ::DrawEdge(hdc, &widgetRect, EDGE_RAISED, BF_RECT | BF_MIDDLE);
 
       break;
-    case NS_THEME_RANGE_THUMB:
     case NS_THEME_SCALE_THUMB_VERTICAL:
     case NS_THEME_SCALE_THUMB_HORIZONTAL: {
       nsEventStates eventState = GetContentState(aFrame, aWidgetType);
@@ -3645,25 +3623,17 @@ RENDER_AGAIN:
       break;
     }
     // Draw scale track background
-    case NS_THEME_RANGE:
     case NS_THEME_SCALE_VERTICAL:
-    case NS_THEME_SCALE_HORIZONTAL: { 
-      const int32_t trackWidth = 4;
-      // When rounding is necessary, we round the position of the track
-      // away from the chevron of the thumb to make it look better.
-      if (aWidgetType == NS_THEME_SCALE_HORIZONTAL ||
-          (aWidgetType == NS_THEME_RANGE && IsRangeHorizontal(aFrame))) {
-        widgetRect.top += (widgetRect.bottom - widgetRect.top - trackWidth) / 2;
-        widgetRect.bottom = widgetRect.top + trackWidth;
+    case NS_THEME_SCALE_HORIZONTAL: {
+      if (aWidgetType == NS_THEME_SCALE_HORIZONTAL) {
+        int32_t adjustment = (widgetRect.bottom - widgetRect.top) / 2 - 2;
+        widgetRect.top += adjustment;
+        widgetRect.bottom -= adjustment;
       }
       else {
-        if (!IsFrameRTL(aFrame)) {
-          widgetRect.left += (widgetRect.right - widgetRect.left - trackWidth) / 2;
-          widgetRect.right = widgetRect.left + trackWidth;
-        } else {
-          widgetRect.right -= (widgetRect.right - widgetRect.left - trackWidth) / 2;
-          widgetRect.left = widgetRect.right - trackWidth;
-        }
+        int32_t adjustment = (widgetRect.right - widgetRect.left) / 2 - 2;
+        widgetRect.left += adjustment;
+        widgetRect.right -= adjustment;
       }
 
       ::DrawEdge(hdc, &widgetRect, EDGE_SUNKEN, BF_RECT | BF_ADJUST);
@@ -3915,8 +3885,6 @@ nsNativeThemeWin::GetWidgetNativeDrawingFlags(uint8_t aWidgetType)
         gfxWindowsNativeDrawing::CANNOT_COMPLEX_TRANSFORM;
 
     // need to check these others
-    case NS_THEME_RANGE:
-    case NS_THEME_RANGE_THUMB:
     case NS_THEME_SCROLLBAR_BUTTON_UP:
     case NS_THEME_SCROLLBAR_BUTTON_DOWN:
     case NS_THEME_SCROLLBAR_BUTTON_LEFT:

@@ -15,7 +15,6 @@
 #include "nsPresContext.h"
 #include "mozilla/dom/Element.h"
 #include "nsDebug.h"
-#include "nsStyleUtil.h"
 
 using namespace mozilla::dom;
 
@@ -151,7 +150,7 @@ nsSMILCSSValueType::Destroy(nsSMILValue& aValue) const
 {
   NS_ABORT_IF_FALSE(aValue.mType == this, "Unexpected SMIL value type");
   delete static_cast<ValueWrapper*>(aValue.mU.mPtr);
-  aValue.mType = nsSMILNullType::Singleton();
+  aValue.mType = &nsSMILNullType::sSingleton;
 }
 
 nsresult
@@ -389,13 +388,6 @@ nsSMILCSSValueType::ValueFromString(nsCSSProperty aPropID,
   nsPresContext* presContext = GetPresContextForElement(aTargetElement);
   if (!presContext) {
     NS_WARNING("Not parsing animation value; unable to get PresContext");
-    return;
-  }
-
-  nsIDocument* doc = aTargetElement->GetCurrentDoc();
-  if (doc && !nsStyleUtil::CSPAllowsInlineStyle(doc->NodePrincipal(),
-                                                doc->GetDocumentURI(),
-                                                0, aString, nullptr)) {
     return;
   }
 

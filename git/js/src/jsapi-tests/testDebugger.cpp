@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=99:
  */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -131,7 +131,10 @@ ThrowHook(JSContext *cx, JSScript *, jsbytecode *, jsval *rval, void *closure)
 
 BEGIN_TEST(testDebugger_throwHook)
 {
-    CHECK(JS_SetDebugMode(cx, true));
+    uint32_t newopts =
+        JS_GetOptions(cx) | JSOPTION_METHODJIT | JSOPTION_METHODJIT_ALWAYS;
+    uint32_t oldopts = JS_SetOptions(cx, newopts);
+
     CHECK(JS_SetThrowHook(rt, ThrowHook, NULL));
     EXEC("function foo() { throw 3 };\n"
          "for (var i = 0; i < 10; ++i) { \n"
@@ -142,6 +145,7 @@ BEGIN_TEST(testDebugger_throwHook)
          "}\n");
     CHECK(called);
     CHECK(JS_SetThrowHook(rt, NULL, NULL));
+    JS_SetOptions(cx, oldopts);
     return true;
 }
 END_TEST(testDebugger_throwHook)
@@ -239,8 +243,12 @@ END_TEST(testDebugger_newScriptHook)
 
 BEGIN_TEST(testDebugger_singleStepThrow)
     {
-        CHECK(JS_SetDebugModeForCompartment(cx, cx->compartment(), true));
+        CHECK(JS_SetDebugModeForCompartment(cx, cx->compartment, true));
         CHECK(JS_SetInterrupt(rt, onStep, NULL));
+
+        uint32_t opts = JS_GetOptions(cx);
+        opts |= JSOPTION_METHODJIT | JSOPTION_METHODJIT_ALWAYS;
+        JS_SetOptions(cx, opts);
 
         CHECK(JS_DefineFunction(cx, global, "setStepMode", setStepMode, 0, 0));
         EXEC("var e;\n"

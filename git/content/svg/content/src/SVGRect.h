@@ -8,7 +8,6 @@
 
 #include "gfxRect.h"
 #include "mozilla/dom/SVGIRect.h"
-#include "nsSVGElement.h"
 
 ////////////////////////////////////////////////////////////////////////
 // SVGRect class
@@ -19,11 +18,10 @@ namespace dom {
 class SVGRect MOZ_FINAL : public SVGIRect
 {
 public:
-  SVGRect(nsIContent* aParent, float x=0.0f, float y=0.0f, float w=0.0f,
-          float h=0.0f);
+  SVGRect(float x=0.0f, float y=0.0f, float w=0.0f, float h=0.0f);
 
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(SVGRect)
+  // nsISupports interface:
+  NS_DECL_ISUPPORTS
 
   // WebIDL
   virtual float X() const MOZ_OVERRIDE MOZ_FINAL
@@ -66,24 +64,24 @@ public:
     mHeight = aHeight;
   }
 
-  virtual nsIContent* GetParentObject() const
-  {
-    return mParent;
-  }
+  using mozilla::dom::SVGIRect::SetX;
+  using mozilla::dom::SVGIRect::SetY;
+  using mozilla::dom::SVGIRect::SetWidth;
+  using mozilla::dom::SVGIRect::SetHeight;
 
 protected:
-  nsCOMPtr<nsIContent> mParent;
   float mX, mY, mWidth, mHeight;
 };
 
 } // namespace dom
 } // namespace mozilla
 
-already_AddRefed<mozilla::dom::SVGRect>
-NS_NewSVGRect(nsIContent* aParent, float x=0.0f, float y=0.0f,
+nsresult
+NS_NewSVGRect(mozilla::dom::SVGRect** result,
+              float x=0.0f, float y=0.0f,
               float width=0.0f, float height=0.0f);
 
-already_AddRefed<mozilla::dom::SVGRect>
-NS_NewSVGRect(nsIContent* aParent, const gfxRect& rect);
+nsresult
+NS_NewSVGRect(mozilla::dom::SVGRect** result, const gfxRect& rect);
 
 #endif //mozilla_dom_SVGRect_h

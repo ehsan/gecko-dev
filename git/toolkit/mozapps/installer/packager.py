@@ -10,7 +10,6 @@ from mozpack.packager.formats import (
 from mozpack.packager import (
     preprocess_manifest,
     preprocess,
-    Component,
     SimpleManifestSink,
 )
 from mozpack.files import (
@@ -316,7 +315,7 @@ def main():
         if args.manifest:
             preprocess_manifest(sink, args.manifest, defines)
         else:
-            sink.add(Component(''), 'bin/*')
+            sink.add('', 'bin/*')
         sink.close(args.manifest is not None)
 
         if args.removals:

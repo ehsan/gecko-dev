@@ -24,9 +24,6 @@ simple_events = [
     'DeviceLightEvent',
     'MozApplicationEvent',
     'SmartCardEvent',
-    'StyleRuleChangeEvent',
-    'StyleSheetChangeEvent',
-    'StyleSheetApplicableStateChangeEvent',
 #ifdef MOZ_B2G_BT
     'BluetoothDeviceEvent',
 #endif
@@ -34,7 +31,7 @@ simple_events = [
     'CallEvent',
     'CFStateChangeEvent',
     'DataErrorEvent',
-    'IccCardLockErrorEvent',
+    'ICCCardLockErrorEvent',
     'MozWifiStatusChangeEvent',
     'MozWifiConnectionInfoEvent',
     'MozCellBroadcastEvent',
@@ -44,9 +41,6 @@ simple_events = [
     'ElementReplaceEvent',
     'MozSmsEvent',
     'MozMmsEvent',
-#ifdef MOZ_WEBSPEECH
-    'SpeechSynthesisEvent',
-#endif
     'DeviceStorageChangeEvent',
     'PopupBlockedEvent',
     'BlobEvent',
@@ -75,12 +69,3 @@ exclude_automatic_type_include = [
     'mozIDOMApplication',
     'nsIDOMBlob'
   ]
-
-""" Map xpidl interface names to implementation classes. The third column is the canonical interface. """
-xpidl_to_native = [
-    ['nsIDOMDocument', 'nsIDocument', 'nsIDocument'],
-    ['nsIDOMElement', 'mozilla::dom::Element', 'mozilla::dom::Element'],
-    ['nsIDOMCSSStyleSheet', 'nsCSSStyleSheet', 'nsIStyleSheet'],
-    ['nsIDOMGamepad', 'Gamepad', 'nsIDOMGamepad']
-  ]
-

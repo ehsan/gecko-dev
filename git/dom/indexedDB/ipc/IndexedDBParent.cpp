@@ -9,6 +9,7 @@
 #include "nsIDOMFile.h"
 #include "nsIDOMEvent.h"
 #include "nsIIDBVersionChangeEvent.h"
+#include "nsIJSContextStack.h"
 #include "nsIXPConnect.h"
 
 #include "mozilla/AppProcessChecker.h"
@@ -19,7 +20,6 @@
 #include "mozilla/dom/TabParent.h"
 #include "mozilla/dom/ipc/Blob.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 
 #include "AsyncConnectionHelper.h"
 #include "DatabaseInfo.h"
@@ -162,7 +162,8 @@ IndexedDBParent::RecvPIndexedDBDatabaseConstructor(
 
   nsRefPtr<IDBOpenDBRequest> request;
   nsresult rv =
-    mFactory->OpenInternal(aName, aVersion, false, getter_AddRefs(request));
+    mFactory->OpenInternal(aName, aVersion, false, nullptr,
+                           getter_AddRefs(request));
   NS_ENSURE_SUCCESS(rv, false);
 
   IndexedDBDatabaseParent* actor =
@@ -198,7 +199,7 @@ IndexedDBParent::RecvPIndexedDBDeleteDatabaseRequestConstructor(
   nsRefPtr<IDBOpenDBRequest> request;
 
   nsresult rv =
-    mFactory->OpenInternal(aName, 0, true, getter_AddRefs(request));
+    mFactory->OpenInternal(aName, 0, true, nullptr, getter_AddRefs(request));
   NS_ENSURE_SUCCESS(rv, false);
 
   rv = actor->SetOpenRequest(request);
@@ -256,20 +257,22 @@ IndexedDBDatabaseParent::SetOpenRequest(IDBOpenDBRequest* aRequest)
   MOZ_ASSERT(aRequest);
   MOZ_ASSERT(!mOpenRequest);
 
-  nsresult rv = aRequest->EventTarget::AddEventListener(NS_LITERAL_STRING(SUCCESS_EVT_STR),
-                                                        mEventListener, false);
+  nsIDOMEventTarget* target = static_cast<nsIDOMEventTarget*>(aRequest);
+
+  nsresult rv = target->AddEventListener(NS_LITERAL_STRING(SUCCESS_EVT_STR),
+                                         mEventListener, false);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = aRequest->EventTarget::AddEventListener(NS_LITERAL_STRING(ERROR_EVT_STR),
-                                               mEventListener, false);
+  rv = target->AddEventListener(NS_LITERAL_STRING(ERROR_EVT_STR),
+                                mEventListener, false);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = aRequest->EventTarget::AddEventListener(NS_LITERAL_STRING(BLOCKED_EVT_STR),
-                                               mEventListener, false);
+  rv = target->AddEventListener(NS_LITERAL_STRING(BLOCKED_EVT_STR),
+                                mEventListener, false);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = aRequest->EventTarget::AddEventListener(NS_LITERAL_STRING(UPGRADENEEDED_EVT_STR),
-                                               mEventListener, false);
+  rv = target->AddEventListener(NS_LITERAL_STRING(UPGRADENEEDED_EVT_STR),
+                                mEventListener, false);
   NS_ENSURE_SUCCESS(rv, rv);
 
   mOpenRequest = aRequest;
@@ -290,10 +293,12 @@ IndexedDBDatabaseParent::HandleEvent(nsIDOMEvent* aEvent)
   nsresult rv = aEvent->GetType(type);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<EventTarget> target = aEvent->InternalDOMEvent()->GetTarget();
+  nsCOMPtr<nsIDOMEventTarget> target;
+  rv = aEvent->GetTarget(getter_AddRefs(target));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (mDatabase &&
-      SameCOMIdentity(target, NS_ISUPPORTS_CAST(EventTarget*,
+      SameCOMIdentity(target, NS_ISUPPORTS_CAST(nsIDOMEventTarget*,
                                                 mDatabase))) {
     rv = HandleDatabaseEvent(aEvent, type);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -302,7 +307,7 @@ IndexedDBDatabaseParent::HandleEvent(nsIDOMEvent* aEvent)
   }
 
   if (mOpenRequest &&
-      SameCOMIdentity(target, NS_ISUPPORTS_CAST(EventTarget*,
+      SameCOMIdentity(target, NS_ISUPPORTS_CAST(nsIDOMEventTarget*,
                                                 mOpenRequest))) {
     rv = HandleRequestEvent(aEvent, type);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -384,16 +389,17 @@ IndexedDBDatabaseParent::HandleRequestEvent(nsIDOMEvent* aEvent,
     return NS_OK;
   }
 
-  nsIXPConnect* xpc = nsContentUtils::XPConnect();
-  MOZ_ASSERT(xpc);
-
-  AutoSafeJSContext cx;
-
-  JS::Rooted<JS::Value> result(cx);
-  rv = mOpenRequest->GetResult(result.address());
+  jsval result;
+  rv = mOpenRequest->GetResult(&result);
   NS_ENSURE_SUCCESS(rv, rv);
 
   MOZ_ASSERT(!JSVAL_IS_PRIMITIVE(result));
+
+  nsIXPConnect* xpc = nsContentUtils::XPConnect();
+  MOZ_ASSERT(xpc);
+
+  JSContext* cx =  nsContentUtils::ThreadJSContextStack()->GetSafeJSContext();
+  MOZ_ASSERT(cx);
 
   nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
   rv = xpc->GetWrappedNativeOfJSObject(cx, JSVAL_TO_OBJECT(result),
@@ -434,8 +440,8 @@ IndexedDBDatabaseParent::HandleRequestEvent(nsIDOMEvent* aEvent,
     nsRefPtr<IDBOpenDBRequest> request;
     mOpenRequest.swap(request);
 
-    EventTarget* target =
-      static_cast<EventTarget*>(databaseConcrete);
+    nsIDOMEventTarget* target =
+      static_cast<nsIDOMEventTarget*>(databaseConcrete);
 
 #ifdef DEBUG
     {
@@ -526,7 +532,7 @@ IndexedDBDatabaseParent::HandleDatabaseEvent(nsIDOMEvent* aEvent,
   nsresult rv;
 
   if (aType.EqualsLiteral(VERSIONCHANGE_EVT_STR)) {
-    AutoSafeJSContext cx;
+    JSContext* cx = nsContentUtils::GetSafeJSContext();
     NS_ENSURE_TRUE(cx, NS_ERROR_FAILURE);
 
     nsCOMPtr<nsIIDBVersionChangeEvent> changeEvent = do_QueryInterface(aEvent);
@@ -536,8 +542,8 @@ IndexedDBDatabaseParent::HandleDatabaseEvent(nsIDOMEvent* aEvent,
     rv = changeEvent->GetOldVersion(&oldVersion);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    JS::Rooted<JS::Value> newVersionVal(cx);
-    rv = changeEvent->GetNewVersion(cx, newVersionVal.address());
+    JS::Value newVersionVal;
+    rv = changeEvent->GetNewVersion(cx, &newVersionVal);
     NS_ENSURE_SUCCESS(rv, rv);
 
     uint64_t newVersion;
@@ -668,7 +674,7 @@ IndexedDBTransactionParent::SetTransaction(IDBTransaction* aTransaction)
   MOZ_ASSERT(aTransaction);
   MOZ_ASSERT(!mTransaction);
 
-  EventTarget* target = static_cast<EventTarget*>(aTransaction);
+  nsIDOMEventTarget* target = static_cast<nsIDOMEventTarget*>(aTransaction);
 
   NS_NAMED_LITERAL_STRING(complete, COMPLETE_EVT_STR);
   nsresult rv = target->AddEventListener(complete, mEventListener, false);
@@ -709,9 +715,14 @@ IndexedDBTransactionParent::HandleEvent(nsIDOMEvent* aEvent)
   else if (type.EqualsLiteral(ABORT_EVT_STR)) {
 #ifdef DEBUG
     {
-      nsCOMPtr<EventTarget> target = aEvent->InternalDOMEvent()->GetTarget();
-      MOZ_ASSERT(SameCOMIdentity(target, NS_ISUPPORTS_CAST(EventTarget*,
-                                                           mTransaction)));
+      nsCOMPtr<nsIDOMEventTarget> target;
+      if (NS_FAILED(aEvent->GetTarget(getter_AddRefs(target)))) {
+        NS_WARNING("Failed to get target!");
+      }
+      else {
+        MOZ_ASSERT(SameCOMIdentity(target, NS_ISUPPORTS_CAST(nsIDOMEventTarget*,
+                                                             mTransaction)));
+      }
     }
 #endif
     params = AbortResult(mTransaction->GetAbortCode());
@@ -2005,7 +2016,8 @@ IndexedDBIndexRequestParent::OpenCursor(const OpenCursorParams& aParams)
     AutoSetCurrentTransaction asct(mIndex->ObjectStore()->Transaction());
 
     nsresult rv =
-      mIndex->OpenCursorInternal(keyRange, direction, getter_AddRefs(request));
+      mIndex->OpenCursorInternal(keyRange, direction, nullptr,
+                                 getter_AddRefs(request));
     NS_ENSURE_SUCCESS(rv, false);
   }
 
@@ -2175,7 +2187,7 @@ IndexedDBDeleteDatabaseRequestParent::SetOpenRequest(
   MOZ_ASSERT(aOpenRequest);
   MOZ_ASSERT(!mOpenRequest);
 
-  EventTarget* target = static_cast<EventTarget*>(aOpenRequest);
+  nsIDOMEventTarget* target = static_cast<nsIDOMEventTarget*>(aOpenRequest);
 
   nsresult rv = target->AddEventListener(NS_LITERAL_STRING(SUCCESS_EVT_STR),
                                          mEventListener, false);

@@ -40,7 +40,7 @@ function testFrameParameters()
     gDebugger.removeEventListener("Debugger:FetchedVariables", test, false);
     Services.tm.currentThread.dispatch({ run: function() {
 
-      var frames = gDebugger.DebuggerView.StackFrames.widget._list,
+      var frames = gDebugger.DebuggerView.StackFrames._container._list,
           globalScope = gDebugger.DebuggerView.Variables._list.querySelectorAll(".variables-view-scope")[2],
           globalNodes = globalScope.querySelector(".variables-view-element-details").childNodes;
 
@@ -50,26 +50,23 @@ function testFrameParameters()
       is(frames.querySelectorAll(".dbg-stackframe").length, 3,
         "Should have three frames.");
 
+      is(globalNodes[0].querySelector(".name").getAttribute("value"), "InstallTrigger",
+        "Should have the right property name for |InstallTrigger|.");
+
+      is(globalNodes[0].querySelector(".value").getAttribute("value"), "",
+        "Should have the right property value for |InstallTrigger|.");
+
       is(globalNodes[1].querySelector(".name").getAttribute("value"), "SpecialPowers",
         "Should have the right property name for |SpecialPowers|.");
 
-      is(globalNodes[1].querySelector(".value").getAttribute("value"), "[object Object]",
+      is(globalNodes[1].querySelector(".value").getAttribute("value"), "[object Proxy]",
         "Should have the right property value for |SpecialPowers|.");
-
-      let globalScopeObject = gDebugger.DebuggerView.Variables.getScopeForNode(globalScope);
-      let documentNode = globalScopeObject.get("document");
-
-      is(documentNode.target.querySelector(".name").getAttribute("value"), "document",
-        "Should have the right property name for |document|.");
-
-      is(documentNode.target.querySelector(".value").getAttribute("value"), "[object HTMLDocument]",
-        "Should have the right property value for |document|.");
 
       let len = globalNodes.length - 1;
       is(globalNodes[len].querySelector(".name").getAttribute("value"), "window",
         "Should have the right property name for |window|.");
 
-      is(globalNodes[len].querySelector(".value").getAttribute("value"), "[object Window]",
+      is(globalNodes[len].querySelector(".value").getAttribute("value"), "[object Proxy]",
         "Should have the right property value for |window|.");
 
       resumeAndFinish();
@@ -85,7 +82,7 @@ function resumeAndFinish() {
   gDebugger.addEventListener("Debugger:AfterFramesCleared", function listener() {
     gDebugger.removeEventListener("Debugger:AfterFramesCleared", listener, true);
     Services.tm.currentThread.dispatch({ run: function() {
-      var frames = gDebugger.DebuggerView.StackFrames.widget._list;
+      var frames = gDebugger.DebuggerView.StackFrames._container._list;
 
       is(frames.querySelectorAll(".dbg-stackframe").length, 0,
         "Should have no frames.");

@@ -5,7 +5,6 @@
 #ifndef mozilla_system_nsvolumeservice_h__
 #define mozilla_system_nsvolumeservice_h__
 
-#include "mozilla/Monitor.h"
 #include "mozilla/RefPtr.h"
 #include "mozilla/StaticPtr.h"
 #include "nsCOMPtr.h"
@@ -13,12 +12,12 @@
 #include "nsIVolume.h"
 #include "nsIVolumeService.h"
 #include "nsVolume.h"
+#include "Volume.h"
 
 namespace mozilla {
 namespace system {
 
 class WakeLockCallback;
-class Volume;
 
 /***************************************************************************
 * The nsVolumeData class encapsulates the data that is updated/maintained
@@ -40,19 +39,16 @@ public:
   //static nsVolumeService* GetSingleton();
   static void Shutdown();
 
-  void UpdateVolume(nsIVolume* aVolume);
+  void CheckMountLock(const nsAString& aMountLockName,
+                      const nsAString& aMountLockState);
+  already_AddRefed<nsVolume> FindVolumeByName(const nsAString& aName);
+  already_AddRefed<nsVolume> FindAddVolumeByName(const nsAString& aName);
+  void UpdateVolume(const nsVolume* aVolume);
   void UpdateVolumeIOThread(const Volume* aVolume);
 
 private:
   ~nsVolumeService();
 
-  void CheckMountLock(const nsAString& aMountLockName,
-                      const nsAString& aMountLockState);
-  already_AddRefed<nsVolume> FindVolumeByMountLockName(const nsAString& aMountLockName);
-  already_AddRefed<nsVolume> FindVolumeByName(const nsAString& aName);
-  already_AddRefed<nsVolume> CreateOrFindVolumeByName(const nsAString& aName);
-
-  Monitor mArrayMonitor;
   nsVolume::Array mVolumeArray;
 
   static StaticRefPtr<nsVolumeService> sSingleton;

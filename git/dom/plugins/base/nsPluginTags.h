@@ -6,7 +6,6 @@
 #ifndef nsPluginTags_h_
 #define nsPluginTags_h_
 
-#include "mozilla/Attributes.h"
 #include "nscore.h"
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
@@ -28,12 +27,10 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPLUGINTAG
 
-  // These must match the STATE_* values in nsIPluginTag.idl
   enum PluginState {
     ePluginState_Disabled = 0,
     ePluginState_Clicktoplay = 1,
     ePluginState_Enabled = 2,
-    ePluginState_MaxValue = 3,
   };
 
   nsPluginTag(nsPluginTag* aPluginTag);
@@ -85,14 +82,8 @@ public:
   nsCString     mVersion;  // UTF-8
   int64_t       mLastModifiedTime;
   nsCOMPtr<nsITimer> mUnloadTimer;
-
-  uint32_t      GetBlocklistState();
-  void          InvalidateBlocklistState();
-
 private:
   nsCString     mNiceFileName; // UTF-8
-  uint16_t      mCachedBlocklistState;
-  bool          mCachedBlocklistStateValid;
 
   void InitMime(const char* const* aMimeTypes,
                 const char* const* aMimeDescriptions,
@@ -117,26 +108,26 @@ public:
   virtual ~DOMMimeTypeImpl() {
   }
 
-  NS_METHOD GetDescription(nsAString& aDescription) MOZ_OVERRIDE
+  NS_METHOD GetDescription(nsAString& aDescription)
   {
     aDescription.Assign(mDescription);
     return NS_OK;
   }
 
-  NS_METHOD GetEnabledPlugin(nsIDOMPlugin** aEnabledPlugin) MOZ_OVERRIDE
+  NS_METHOD GetEnabledPlugin(nsIDOMPlugin** aEnabledPlugin)
   {
     // this has to be implemented by the DOM version.
     *aEnabledPlugin = nullptr;
     return NS_OK;
   }
 
-  NS_METHOD GetSuffixes(nsAString& aSuffixes) MOZ_OVERRIDE
+  NS_METHOD GetSuffixes(nsAString& aSuffixes)
   {
     aSuffixes.Assign(mSuffixes);
     return NS_OK;
   }
 
-  NS_METHOD GetType(nsAString& aType) MOZ_OVERRIDE
+  NS_METHOD GetType(nsAString& aType)
   {
     aType.Assign(mType);
     return NS_OK;

@@ -19,8 +19,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
                                   "resource://gre/modules/PlacesUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
                                   "resource://gre/modules/NetUtil.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "FormHistory",
-                                  "resource://gre/modules/FormHistory.jsm");
 
 function Bookmarks(aBookmarksFile) {
   this._file = aBookmarksFile;
@@ -542,11 +540,11 @@ SearchStrings.prototype = {
         if (aDict.has("RecentSearchStrings")) {
           let recentSearchStrings = aDict.get("RecentSearchStrings");
           if (recentSearchStrings && recentSearchStrings.length > 0) {
-            let changes = [{op: "add",
-                            fieldname: "searchbar-history",
-                            value: searchString}
-                           for (searchString of recentSearchStrings)];
-            FormHistory.update(changes);
+            let formHistory = Cc["@mozilla.org/satchel/form-history;1"].
+                              getService(Ci.nsIFormHistory2);
+            for (let searchString of recentSearchStrings) {
+              formHistory.addEntry("searchbar-history", searchString);
+            }
           }
         }
       }.bind(this), aCallback));

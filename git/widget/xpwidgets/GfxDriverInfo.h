@@ -77,7 +77,6 @@ enum DeviceVendor {
   VendorNVIDIA,
   VendorAMD,
   VendorATI,
-  VendorMicrosoft,
   DeviceVendorMax
 };
 

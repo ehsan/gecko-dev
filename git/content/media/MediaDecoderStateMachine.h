@@ -76,7 +76,6 @@ hardware (via AudioStream).
 #if !defined(MediaDecoderStateMachine_h__)
 #define MediaDecoderStateMachine_h__
 
-#include "mozilla/Attributes.h"
 #include "nsThreadUtils.h"
 #include "MediaDecoder.h"
 #include "AudioAvailableEventManager.h"
@@ -116,8 +115,6 @@ public:
   // Enumeration for the valid decoding states
   enum State {
     DECODER_STATE_DECODING_METADATA,
-    DECODER_STATE_WAIT_FOR_RESOURCES,
-    DECODER_STATE_DORMANT,
     DECODER_STATE_DECODING,
     DECODER_STATE_SEEKING,
     DECODER_STATE_BUFFERING,
@@ -134,11 +131,6 @@ public:
   // calling this.
   void SetVolume(double aVolume);
   void SetAudioCaptured(bool aCapture);
-
-  // Check if the decoder needs to become dormant state.
-  bool IsDormantNeeded();
-  // Set/Unset dormant state.
-  void SetDormant(bool aDormant);
   void Shutdown();
 
   // Called from the main thread to get the duration. The decoder monitor
@@ -212,7 +204,7 @@ public:
   void StartBuffering();
 
   // State machine thread run function. Defers to RunStateMachine().
-  NS_IMETHOD Run() MOZ_OVERRIDE;
+  NS_IMETHOD Run();
 
   // This is called on the state machine thread and audio thread.
   // The decoder monitor must be obtained before calling this.
@@ -337,7 +329,7 @@ private:
   public:
     WakeDecoderRunnable(MediaDecoderStateMachine* aSM)
       : mMutex("WakeDecoderRunnable"), mStateMachine(aSM) {}
-    NS_IMETHOD Run() MOZ_OVERRIDE
+    NS_IMETHOD Run()
     {
       nsRefPtr<MediaDecoderStateMachine> stateMachine;
       {
@@ -499,10 +491,6 @@ private:
   // Moves the decoder into decoding state. Called on the state machine
   // thread. The decoder monitor must be held.
   void StartDecoding();
-
-  void StartWaitForResources();
-
-  void StartDecodeMetadata();
 
   // Returns true if we're currently playing. The decoder monitor must
   // be held.

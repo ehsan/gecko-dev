@@ -4,9 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// HttpLog.h should generally be included first
-#include "HttpLog.h"
-
 #include "nsHttp.h"
 #include "nsHttpHandler.h"
 
@@ -27,9 +24,9 @@ ASpdySession::NewSpdySession(uint32_t version,
 {
   // This is a necko only interface, so we can enforce version
   // requests as a precondition
-  MOZ_ASSERT(version == SpdyInformation::SPDY_VERSION_2 ||
-             version == SpdyInformation::SPDY_VERSION_3,
-             "Unsupported spdy version");
+  NS_ABORT_IF_FALSE(version == SpdyInformation::SPDY_VERSION_2 ||
+                    version == SpdyInformation::SPDY_VERSION_3,
+                    "Unsupported spdy version");
 
   // Don't do a runtime check of IsSpdyV?Enabled() here because pref value
   // may have changed since starting negotiation. The selected protocol comes
@@ -37,7 +34,7 @@ ASpdySession::NewSpdySession(uint32_t version,
   // versions, so there is no risk of the server ignoring our prefs.
 
   Telemetry::Accumulate(Telemetry::SPDY_VERSION2, version);
-
+    
   if (version == SpdyInformation::SPDY_VERSION_2)
     return new SpdySession2(aTransaction, aTransport, aPriority);
 
@@ -49,9 +46,11 @@ SpdyInformation::SpdyInformation()
   // list the preferred version first
   Version[0] = SPDY_VERSION_3;
   VersionString[0] = NS_LITERAL_CSTRING("spdy/3");
+  AlternateProtocolString[0] = NS_LITERAL_CSTRING("443:npn-spdy/3");
 
   Version[1] = SPDY_VERSION_2;
   VersionString[1] = NS_LITERAL_CSTRING("spdy/2");
+  AlternateProtocolString[1] = NS_LITERAL_CSTRING("443:npn-spdy/2");
 }
 
 bool
@@ -63,7 +62,7 @@ SpdyInformation::ProtocolEnabled(uint32_t index)
   if (index == 1)
     return gHttpHandler->IsSpdyV2Enabled();
 
-  MOZ_ASSERT(false, "index out of range");
+  NS_ABORT_IF_FALSE(false, "index out of range");
   return false;
 }
 
@@ -77,6 +76,27 @@ SpdyInformation::GetNPNVersionIndex(const nsACString &npnString,
   if (npnString.Equals(VersionString[0]))
     *result = Version[0];
   else if (npnString.Equals(VersionString[1]))
+    *result = Version[1];
+  else
+    return NS_ERROR_FAILURE;
+
+  return NS_OK;
+}
+
+nsresult
+SpdyInformation::GetAlternateProtocolVersionIndex(const char *val,
+                                                  uint8_t *result)
+{
+  if (!val || !val[0])
+    return NS_ERROR_FAILURE;
+
+  if (ProtocolEnabled(0) && nsHttp::FindToken(val,
+                                              AlternateProtocolString[0].get(),
+                                              HTTP_HEADER_VALUE_SEPS))
+    *result = Version[0];
+  else if (ProtocolEnabled(1) && nsHttp::FindToken(val,
+                                                   AlternateProtocolString[1].get(),
+                                                   HTTP_HEADER_VALUE_SEPS))
     *result = Version[1];
   else
     return NS_ERROR_FAILURE;

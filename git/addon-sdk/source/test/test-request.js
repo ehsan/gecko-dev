@@ -5,8 +5,7 @@
 const { Request } = require("sdk/request");
 const { pathFor } = require("sdk/system");
 const file = require("sdk/io/file");
-const { URL } = require("sdk/url");
-const { extend } = require("sdk/util/object");
+
 const { Loader } = require("sdk/test/loader");
 const options = require("@test/options");
 
@@ -31,7 +30,7 @@ exports.testOptionsValidator = function(test) {
     Request({
       url: null
     });
-  }, 'The option "url" is invalid.');
+  }, 'The option "url" must be one of the following types: string');
 
   // Next we'll have a Request that doesn't throw from c'tor, but from a setter.
   let req = Request({
@@ -39,21 +38,22 @@ exports.testOptionsValidator = function(test) {
     onComplete: function () {}
   });
   test.assertRaises(function () {
-    req.url = 'www.mozilla.org';
-  }, 'The option "url" is invalid.');
+    req.url = null;
+  }, 'The option "url" must be one of the following types: string');
   // The url shouldn't have changed, so check that
   test.assertEqual(req.url, "http://playground.zpao.com/jetpack/request/text.php");
 }
 
 exports.testContentValidator = function(test) {
   test.waitUntilDone();
-  runMultipleURLs(null, test, {
+  Request({
     url: "data:text/html;charset=utf-8,response",
     content: { 'key1' : null, 'key2' : 'some value' },
     onComplete: function(response) {
       test.assertEqual(response.text, "response?key1=null&key2=some+value");
+      test.done();
     }
-  });
+  }).get();
 };
 
 // This is a request to a file that exists.
@@ -82,14 +82,15 @@ exports.testStatus404 = function (test) {
   var srv = startServerAsync(port, basePath);
 
   test.waitUntilDone();
-  runMultipleURLs(srv, test, {
+  Request({
     // the following URL doesn't exist
     url: "http://localhost:" + port + "/test-request-404.txt",
     onComplete: function (response) {
       test.assertEqual(response.status, 404);
       test.assertEqual(response.statusText, "Not Found");
+      srv.stop(function() test.done());
     }
-  });
+  }).get();
 }
 
 // a simple file with a known header
@@ -105,12 +106,13 @@ exports.testKnownHeader = function (test) {
   prepareFile(headerBasename, headerContent);
 
   test.waitUntilDone();
-  runMultipleURLs(srv, test, {
+  Request({
     url: "http://localhost:" + port + "/test-request-headers.txt",
     onComplete: function (response) {
       test.assertEqual(response.headers["x-jetpack-header"], "Jamba Juice");
+      srv.stop(function() test.done());
     }
-  });
+  }).get();
 }
 
 // complex headers
@@ -130,14 +132,15 @@ exports.testComplexHeader = function (test) {
   }
 
   test.waitUntilDone();
-  runMultipleURLs(srv, test, {
+  Request({
     url: "http://localhost:" + port + "/test-request-complex-headers.sjs",
     onComplete: function (response) {
       for (k in headers) {
         test.assertEqual(response.headers[k], headers[k]);
       }
+      srv.stop(function() test.done());
     }
-  });
+  }).get();
 }
 
 // Force Allow Third Party cookies
@@ -196,12 +199,13 @@ exports.testSimpleJSON = function (test) {
   prepareFile(basename, JSON.stringify(json));
 
   test.waitUntilDone();
-  runMultipleURLs(srv, test, {
+  Request({
     url: "http://localhost:" + port + "/" + basename,
     onComplete: function (response) {
       assertDeepEqual(test, response.json, json);
+      srv.stop(function() test.done());
     }
-  });
+  }).get();
 }
 
 exports.testInvalidJSON = function (test) {
@@ -210,46 +214,13 @@ exports.testInvalidJSON = function (test) {
   prepareFile(basename, '"this": "isn\'t JSON"');
 
   test.waitUntilDone();
-  runMultipleURLs(srv, test, {
+  Request({
     url: "http://localhost:" + port + "/" + basename,
     onComplete: function (response) {
       test.assertEqual(response.json, null);
-    }
-  });
-}
-
-exports.testHead = function (test) {
-  let srv = startServerAsync(port, basePath);
-
-  srv.registerPathHandler("/test-head",
-      function handle(request, response) {
-    response.setHeader("Content-Type", "text/plain", false);
-  });
-
-  test.waitUntilDone();
-  Request({
-    url: "http://localhost:" + port + "/test-head",
-    onComplete: function (response) {
-      test.assertEqual(response.text, "");
-      test.assertEqual(response.statusText, "OK");
-      test.assertEqual(response.headers["Content-Type"], "text/plain");
       srv.stop(function() test.done());
     }
-  }).head();
-}
-
-function runMultipleURLs (srv, test, options) {
-  let urls = [options.url, URL(options.url)];
-  let cb = options.onComplete;
-  let ran = 0;
-  let onComplete = function (res) {
-    cb(res);
-    if (++ran === urls.length)
-      srv ? srv.stop(function () test.done()) : test.done();
-  }
-  urls.forEach(function (url) {
-    Request(extend(options, { url: url, onComplete: onComplete })).get();
-  });
+  }).get();
 }
 
 // All tests below here require a network connection. They will be commented out

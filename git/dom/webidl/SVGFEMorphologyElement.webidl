@@ -12,6 +12,7 @@
 
 interface SVGAnimatedEnumeration;
 interface SVGAnimatedNumber;
+interface SVGAnimatedString;
 
 interface SVGFEMorphologyElement : SVGElement {
 

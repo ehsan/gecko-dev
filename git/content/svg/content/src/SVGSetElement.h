@@ -6,7 +6,6 @@
 #ifndef mozilla_dom_SVGSetElement_h
 #define mozilla_dom_SVGSetElement_h
 
-#include "mozilla/Attributes.h"
 #include "mozilla/dom/SVGAnimationElement.h"
 #include "nsSMILSetAnimationFunction.h"
 
@@ -26,12 +25,11 @@ protected:
   friend nsresult (::NS_NewSVGSetElement(nsIContent **aResult,
                                          already_AddRefed<nsINodeInfo> aNodeInfo));
 
-  virtual JSObject* WrapNode(JSContext *aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope) MOZ_OVERRIDE;
 
 public:
   // nsIDOMNode
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   // SVGAnimationElement
   virtual nsSMILAnimationFunction& AnimationFunction();

@@ -9,8 +9,9 @@ VPATH		= @srcdir@
 relativesrcdir  = @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_BROWSER_FILES := \
+_BROWSER_TEST_FILES = \
                  browser_styleeditor_enabled.js \
                  browser_styleeditor_filesave.js \
                  browser_styleeditor_cmd_edit.js \
@@ -20,17 +21,20 @@ MOCHITEST_BROWSER_FILES := \
                  browser_styleeditor_init.js \
                  browser_styleeditor_loading.js \
                  browser_styleeditor_new.js \
+                 browser_styleeditor_passedinsheet.js \
                  browser_styleeditor_pretty.js \
                  browser_styleeditor_private_perwindowpb.js \
+                 browser_styleeditor_readonly.js \
+                 browser_styleeditor_reopen.js \
                  browser_styleeditor_sv_keynav.js \
                  browser_styleeditor_sv_resize.js \
-                 browser_styleeditor_bug_740541_iframes.js \
+                 browser_styleeditor_bug_826982_location_changed.js \
                  browser_styleeditor_bug_851132_middle_click.js \
-                 browser_styleeditor_nostyle.js \
-                 browser_styleeditor_reload.js \
                  head.js \
+                 helpers.js \
                  four.html \
                  head.js \
+                 helpers.js \
                  import.css \
                  import.html \
                  import2.css \
@@ -38,7 +42,6 @@ MOCHITEST_BROWSER_FILES := \
                  media.html \
                  media-small.css \
                  minified.html \
-                 nostyle.html \
                  resources_inpage.jsi \
                  resources_inpage1.css \
                  resources_inpage2.css \
@@ -51,4 +54,5 @@ MOCHITEST_BROWSER_FILES := \
                  test_private.css \
                  $(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs::	$(_BROWSER_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)

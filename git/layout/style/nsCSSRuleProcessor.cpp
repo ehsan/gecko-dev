@@ -9,16 +9,17 @@
  * matching and cascading
  */
 
-#define PL_ARENA_CONST_ALIGN_MASK 7
-// We want page-sized arenas so there's no fragmentation involved.
-// Including plarena.h must come first to avoid it being included by some
-// header file thereby making PL_ARENA_CONST_ALIGN_MASK ineffective.
-#define NS_CASCADEENUMDATA_ARENA_BLOCK_SIZE (4096)
-#include "plarena.h"
+#include "mozilla/Util.h"
 
 #include "nsCSSRuleProcessor.h"
 #include "nsRuleProcessorData.h"
 #include <algorithm>
+
+#define PL_ARENA_CONST_ALIGN_MASK 7
+// We want page-sized arenas so there's no fragmentation involved.
+#define NS_CASCADEENUMDATA_ARENA_BLOCK_SIZE (4096)
+#include "plarena.h"
+
 #include "nsCRT.h"
 #include "nsIAtom.h"
 #include "pldhash.h"
@@ -59,7 +60,6 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/LookAndFeel.h"
 #include "mozilla/Likely.h"
-#include "mozilla/Util.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -649,7 +649,7 @@ void RuleHash::AppendRule(const RuleSelectorPair& aRuleInfo)
     }
     AppendRuleToTagTable(&mTagTable, selector->mLowercaseTag, ruleValue);
     RULE_HASH_STAT_INCREMENT(mTagSelectors);
-    if (selector->mCasedTag &&
+    if (selector->mCasedTag && 
         selector->mCasedTag != selector->mLowercaseTag) {
       AppendRuleToTagTable(&mTagTable, selector->mCasedTag, ruleValue);
       RULE_HASH_STAT_INCREMENT(mTagSelectors);
@@ -978,7 +978,6 @@ struct RuleCascadeData {
 
   nsTArray<nsFontFaceRuleContainer> mFontFaceRules;
   nsTArray<nsCSSKeyframesRule*> mKeyframesRules;
-  nsTArray<nsCSSFontFeatureValuesRule*> mFontFeatureValuesRules;
   nsTArray<nsCSSPageRule*> mPageRules;
 
   // Looks up or creates the appropriate list in |mAttributeSelectors|.
@@ -1030,7 +1029,6 @@ RuleCascadeData::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 
   n += mFontFaceRules.SizeOfExcludingThis(aMallocSizeOf);
   n += mKeyframesRules.SizeOfExcludingThis(aMallocSizeOf);
-  n += mFontFeatureValuesRules.SizeOfExcludingThis(aMallocSizeOf);
   n += mPageRules.SizeOfExcludingThis(aMallocSizeOf);
 
   return n;
@@ -1136,12 +1134,6 @@ InitSystemMetrics()
   }
 
   metricResult =
-    LookAndFeel::GetInt(LookAndFeel::eIntID_UseOverlayScrollbars);
-  if (metricResult) {
-    sSystemMetrics->AppendElement(nsGkAtoms::overlay_scrollbars);
-  }
-
-  metricResult =
     LookAndFeel::GetInt(LookAndFeel::eIntID_MenuBarDrag);
   if (metricResult) {
     sSystemMetrics->AppendElement(nsGkAtoms::menubar_drag);
@@ -1188,18 +1180,6 @@ InitSystemMetrics()
     sSystemMetrics->AppendElement(nsGkAtoms::maemo_classic);
   }
 
-  rv = LookAndFeel::GetInt(LookAndFeel::eIntID_SwipeAnimationEnabled,
-                           &metricResult);
-  if (NS_SUCCEEDED(rv) && metricResult) {
-    sSystemMetrics->AppendElement(nsGkAtoms::swipe_animation_enabled);
-  }
-
-  rv = LookAndFeel::GetInt(LookAndFeel::eIntID_PhysicalHomeButton,
-                           &metricResult);
-  if (NS_SUCCEEDED(rv) && metricResult) {
-    sSystemMetrics->AppendElement(nsGkAtoms::physical_home_button);
-  }
-
 #ifdef XP_WIN
   if (NS_SUCCEEDED(
         LookAndFeel::GetInt(LookAndFeel::eIntID_WindowsThemeIdentifier,
@@ -1208,9 +1188,6 @@ InitSystemMetrics()
     switch(metricResult) {
       case LookAndFeel::eWindowsTheme_Aero:
         sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_aero);
-        break;
-      case LookAndFeel::eWindowsTheme_AeroLite:
-        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_aero_lite);
         break;
       case LookAndFeel::eWindowsTheme_LunaBlue:
         sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_luna_blue);
@@ -1448,11 +1425,11 @@ static bool AttrMatchesValue(const nsAttrSelector* aAttrSelector,
                 : static_cast<const nsStringComparator&>(ciComparator);
 
   switch (aAttrSelector->mFunction) {
-    case NS_ATTR_FUNC_EQUALS:
+    case NS_ATTR_FUNC_EQUALS: 
       return aValue.Equals(aAttrSelector->mValue, comparator);
-    case NS_ATTR_FUNC_INCLUDES:
+    case NS_ATTR_FUNC_INCLUDES: 
       return ValueIncludes(aValue, aAttrSelector->mValue, comparator);
-    case NS_ATTR_FUNC_DASHMATCH:
+    case NS_ATTR_FUNC_DASHMATCH: 
       return nsStyleUtil::DashMatchCompare(aValue, aAttrSelector->mValue, comparator);
     case NS_ATTR_FUNC_ENDSMATCH:
       return StringEndsWith(aValue, aAttrSelector->mValue, comparator);
@@ -2104,7 +2081,7 @@ static bool SelectorMatches(Element* aElement,
         if (aTreeMatchContext.mForStyling &&
             statesToCheck.HasAtLeastOneOfStates(NS_EVENT_STATE_HOVER)) {
           // Mark the element as having :hover-dependent style
-          aElement->SetHasRelevantHoverRules();
+          aElement->SetFlags(NODE_HAS_RELEVANT_HOVER_RULES);
         }
         if (aNodeMatchContext.mStateMask.HasAtLeastOneOfStates(statesToCheck)) {
           if (aDependence)
@@ -2323,16 +2300,10 @@ static bool SelectorMatchesTree(Element* aPrevElement,
         // it tests from the top of the content tree, down.  This
         // doesn't matter much for performance since most selectors
         // don't match.  (If most did, it might be faster...)
-        Element* styleScope = aTreeMatchContext.mCurrentStyleScope;
         if (SelectorMatchesTree(element, selector, aTreeMatchContext,
                                 aLookForRelevantLink)) {
           return true;
         }
-        // We want to reset mCurrentStyleScope on aTreeMatchContext
-        // back to its state before the SelectorMatchesTree call, in
-        // case that call happens to traverse past the style scope element
-        // and sets it to null.
-        aTreeMatchContext.mCurrentStyleScope = styleScope;
       }
       selector = selector->mNext;
     }
@@ -2471,10 +2442,6 @@ static inline nsRestyleHint RestyleHintForOp(PRUnichar oper)
 nsRestyleHint
 nsCSSRuleProcessor::HasStateDependentStyle(StateRuleProcessorData* aData)
 {
-  MOZ_ASSERT(!aData->mTreeMatchContext.mForScopedStyle,
-             "mCurrentStyleScope will need to be saved and restored after the "
-             "SelectorMatchesTree call");
-
   RuleCascadeData* cascade = GetRuleCascade(aData->mPresContext);
 
   // Look up the content node in the state rule list, which points to
@@ -2505,14 +2472,14 @@ nsCSSRuleProcessor::HasStateDependentStyle(StateRuleProcessorData* aData)
           states.HasAtLeastOneOfStates(aData->mStateMask) &&
           // We can optimize away testing selectors that only involve :hover, a
           // namespace, and a tag name against nodes that don't have the
-          // NodeHasRelevantHoverRules flag: such a selector didn't match
+          // NODE_HAS_RELEVANT_HOVER_RULES flag: such a selector didn't match
           // the tag name or namespace the first time around (since the :hover
-          // didn't set the NodeHasRelevantHoverRules flag), so it won't
+          // didn't set the NODE_HAS_RELEVANT_HOVER_RULES flag), so it won't
           // match it now.  Check for our selector only having :hover states, or
           // the element having the hover rules flag, or the selector having
           // some sort of non-namespace, non-tagname data in it.
           (states != NS_EVENT_STATE_HOVER ||
-           aData->mElement->HasRelevantHoverRules() ||
+           aData->mElement->HasFlag(NODE_HAS_RELEVANT_HOVER_RULES) ||
            selector->mIDList || selector->mClassList ||
            // We generally expect an mPseudoClassList, since we have a :hover.
            // The question is whether we have anything else in there.
@@ -2767,21 +2734,6 @@ nsCSSRuleProcessor::AppendPageRules(
     }
   }
   
-  return true;
-}
-
-bool
-nsCSSRuleProcessor::AppendFontFeatureValuesRules(
-                              nsPresContext *aPresContext,
-                              nsTArray<nsCSSFontFeatureValuesRule*>& aArray)
-{
-  RuleCascadeData* cascade = GetRuleCascade(aPresContext);
-
-  if (cascade) {
-    if (!aArray.AppendElements(cascade->mFontFeatureValuesRules))
-      return false;
-  }
-
   return true;
 }
 
@@ -3083,14 +3035,12 @@ struct CascadeEnumData {
   CascadeEnumData(nsPresContext* aPresContext,
                   nsTArray<nsFontFaceRuleContainer>& aFontFaceRules,
                   nsTArray<nsCSSKeyframesRule*>& aKeyframesRules,
-                  nsTArray<nsCSSFontFeatureValuesRule*>& aFontFeatureValuesRules,
                   nsTArray<nsCSSPageRule*>& aPageRules,
                   nsMediaQueryResultCacheKey& aKey,
                   uint8_t aSheetType)
     : mPresContext(aPresContext),
       mFontFaceRules(aFontFaceRules),
       mKeyframesRules(aKeyframesRules),
-      mFontFeatureValuesRules(aFontFeatureValuesRules),
       mPageRules(aPageRules),
       mCacheKey(aKey),
       mSheetType(aSheetType)
@@ -3114,7 +3064,6 @@ struct CascadeEnumData {
   nsPresContext* mPresContext;
   nsTArray<nsFontFaceRuleContainer>& mFontFaceRules;
   nsTArray<nsCSSKeyframesRule*>& mKeyframesRules;
-  nsTArray<nsCSSFontFeatureValuesRule*>& mFontFeatureValuesRules;
   nsTArray<nsCSSPageRule*>& mPageRules;
   nsMediaQueryResultCacheKey& mCacheKey;
   PLArenaPool mArena;
@@ -3132,9 +3081,7 @@ struct CascadeEnumData {
  *      but kept in order per-weight, and
  *  (2) add any @font-face rules, in order, into data->mFontFaceRules.
  *  (3) add any @keyframes rules, in order, into data->mKeyframesRules.
- *  (4) add any @font-feature-value rules, in order,
- *      into data->mFontFeatureValuesRules.
- *  (5) add any @page rules, in order, into data->mPageRules.
+ *  (4) add any @page rules, in order, into data->mPageRules.
  */
 static bool
 CascadeRuleEnumFunc(css::Rule* aRule, void* aData)
@@ -3184,13 +3131,6 @@ CascadeRuleEnumFunc(css::Rule* aRule, void* aData)
     nsCSSKeyframesRule *keyframesRule =
       static_cast<nsCSSKeyframesRule*>(aRule);
     if (!data->mKeyframesRules.AppendElement(keyframesRule)) {
-      return false;
-    }
-  }
-  else if (css::Rule::FONT_FEATURE_VALUES_RULE == type) {
-    nsCSSFontFeatureValuesRule *fontFeatureValuesRule =
-      static_cast<nsCSSFontFeatureValuesRule*>(aRule);
-    if (!data->mFontFeatureValuesRules.AppendElement(fontFeatureValuesRule)) {
       return false;
     }
   }
@@ -3300,7 +3240,6 @@ nsCSSRuleProcessor::RefreshRuleCascade(nsPresContext* aPresContext)
     if (newCascade) {
       CascadeEnumData data(aPresContext, newCascade->mFontFaceRules,
                            newCascade->mKeyframesRules,
-                           newCascade->mFontFeatureValuesRules,
                            newCascade->mPageRules,
                            newCascade->mCacheKey,
                            mSheetType);
@@ -3346,10 +3285,6 @@ nsCSSRuleProcessor::SelectorListMatches(Element* aElement,
                                         TreeMatchContext& aTreeMatchContext,
                                         nsCSSSelectorList* aSelectorList)
 {
-  MOZ_ASSERT(!aTreeMatchContext.mForScopedStyle,
-             "mCurrentStyleScope will need to be saved and restored after the "
-             "SelectorMatchesTree call");
-
   while (aSelectorList) {
     nsCSSSelector* sel = aSelectorList->mSelectors;
     NS_ASSERTION(sel, "Should have *some* selectors");

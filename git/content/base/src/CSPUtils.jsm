@@ -13,9 +13,6 @@
 const Cu = Components.utils;
 const Ci = Components.interfaces;
 
-const WARN_FLAG = Ci.nsIScriptError.warningFlag;
-const ERROR_FLAG = Ci.nsIScriptError.ERROR_FLAG;
-
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
@@ -184,9 +181,6 @@ this.CSPRep = function CSPRep(aSpecCompliant) {
   // Is this a 1.0 spec compliant CSPRep ?
   // Default to false if not specified.
   this._specCompliant = (aSpecCompliant !== undefined) ? aSpecCompliant : false;
-
-  // Only CSP 1.0 spec compliant policies block inline styles by default.
-  this._allowInlineStyles = !aSpecCompliant;
 }
 
 // Source directives for our original CSP implementation.
@@ -472,13 +466,12 @@ CSPRep.fromString = function(aStr, self, docRequest, csp) {
 
   } // end directive: loop
 
-  // the X-Content-Security-Policy syntax requires an allow or default-src
-  // directive to be present.
-  if (!aCSPR._directives[SD.DEFAULT_SRC]) {
-    cspWarn(aCSPR, CSPLocalizer.getStr("allowOrDefaultSrcRequired"));
-    return CSPRep.fromString("default-src 'none'", selfUri);
-  }
-  return aCSPR;
+  // TODO : clean this up using patch in bug 780978
+  // if makeExplicit fails for any reason, default to default-src 'none'.  This
+  // includes the case where "default-src" is not present.
+  if (aCSPR.makeExplicit())
+    return aCSPR;
+  return CSPRep.fromString("default-src 'none'", selfUri);
 };
 
 /**
@@ -517,49 +510,15 @@ CSPRep.fromStringSpecCompliant = function(aStr, self, docRequest, csp) {
     } catch (ex) {}
   }
 
-  var dirs_list = aStr.split(";");
-  var dirs = {};
-  for each(var dir in dirs_list) {
+  var dirs = aStr.split(";");
+
+  directive:
+  for each(var dir in dirs) {
     dir = dir.trim();
     if (dir.length < 1) continue;
 
     var dirname = dir.split(/\s+/)[0];
     var dirvalue = dir.substring(dirname.length).trim();
-    dirs[dirname] = dirvalue;
-  }
-
-  // Spec compliant policies have different default behavior for inline
-  // scripts, styles, and eval. Bug 885433
-  aCSPR._allowEval = true;
-  aCSPR._allowInlineScripts = true;
-  aCSPR._allowInlineStyles = true;
-
-  // In CSP 1.0, you need to opt-in to blocking inline scripts and eval by
-  // specifying either default-src or script-src, and to blocking inline
-  // styles by specifying either default-src or style-src.
-  if ("default-src" in dirs) {
-    // Parse the source list (look ahead) so we can set the defaults properly,
-    // honoring the 'unsafe-inline' and 'unsafe-eval' keywords
-    var defaultSrcValue = CSPSourceList.fromString(dirs["default-src"], null, self);
-    if (!defaultSrcValue._allowUnsafeInline) {
-      aCSPR._allowInlineScripts = false;
-      aCSPR._allowInlineStyles = false;
-    }
-    if (!defaultSrcValue._allowUnsafeEval) {
-      aCSPR._allowEval = false;
-    }
-  }
-  if ("script-src" in dirs) {
-    aCSPR._allowInlineScripts = false;
-    aCSPR._allowEval = false;
-  }
-  if ("style-src" in dirs) {
-    aCSPR._allowInlineStyles = false;
-  }
-
-  directive:
-  for (var dirname in dirs) {
-    var dirvalue = dirs[dirname];
 
     if (aCSPR._directives.hasOwnProperty(dirname)) {
       // Check for (most) duplicate directives
@@ -582,8 +541,7 @@ CSPRep.fromStringSpecCompliant = function(aStr, self, docRequest, csp) {
             // Check for unsafe-inline and unsafe-eval in script-src
             if (dv._allowUnsafeInline) {
               aCSPR._allowInlineScripts = true;
-            }
-            if (dv._allowUnsafeEval) {
+            } else if (dv._allowUnsafeEval) {
               aCSPR._allowEval = true;
             }
           }
@@ -726,7 +684,12 @@ CSPRep.fromStringSpecCompliant = function(aStr, self, docRequest, csp) {
 
   } // end directive: loop
 
-  return aCSPR;
+  // TODO : clean this up using patch in bug 780978
+  // if makeExplicit fails for any reason, default to default-src 'none'.  This
+  // includes the case where "default-src" is not present.
+  if (aCSPR.makeExplicit())
+    return aCSPR;
+  return CSPRep.fromStringSpecCompliant("default-src 'none'", self);
 };
 
 CSPRep.prototype = {
@@ -754,8 +717,7 @@ CSPRep.prototype = {
       }
     }
     return (this.allowsInlineScripts === that.allowsInlineScripts)
-        && (this.allowsEvalInScripts === that.allowsEvalInScripts)
-        && (this.allowsInlineStyles === that.allowsInlineStyles);
+        && (this.allowsEvalInScripts === that.allowsEvalInScripts);
   },
 
   /**
@@ -794,53 +756,21 @@ CSPRep.prototype = {
     if (aURI instanceof Ci.nsIURI && aURI.scheme === "about")
       return true;
 
-    // make sure the right directive set is used
+    // make sure the context is valid
     let DIRS = this._specCompliant ? CSPRep.SRC_DIRECTIVES_NEW : CSPRep.SRC_DIRECTIVES_OLD;
 
-    let contextIsSrcDir = false;
     for (var i in DIRS) {
       if (DIRS[i] === aContext) {
-        // for catching calls with invalid contexts (below)
-        contextIsSrcDir = true;
-        if (this._directives.hasOwnProperty(aContext)) {
-          return this._directives[aContext].permits(aURI);
-        }
-        //found matching dir, can stop looking
-        break;
+        return this._directives[aContext].permits(aURI);
       }
     }
 
-    // frame-ancestors is a special case; it doesn't fall back to default-src.
-    if (aContext === DIRS.FRAME_ANCESTORS)
-      return true;
-
-    // All directives that don't fall back to default-src should have an escape
-    // hatch above (like frame-ancestors).
-    if (!contextIsSrcDir) {
-      // if this code runs, there's probably something calling permits() that
-      // shouldn't be calling permits().
-      CSPdebug("permits called with invalid load type: " + aContext);
-      return false;
-    }
-
-    // no directives specifically matched, fall back to default-src.
-    // (default-src may not be present for CSP 1.0-compliant policies, and
-    // indicates no relevant directives were present and the load should be
-    // permitted).
-    if (this._directives.hasOwnProperty(DIRS.DEFAULT_SRC)) {
-      return this._directives[DIRS.DEFAULT_SRC].permits(aURI);
-    }
-
-    // no relevant directives present -- this means for CSP 1.0 that the load
-    // should be permitted (and for the old CSP, to block it).
-    return this._specCompliant;
+    return false;
   },
 
   /**
    * Intersects with another CSPRep, deciding the subset policy
    * that should be enforced, and returning a new instance.
-   * This assumes that either both CSPReps are specCompliant or they are both
-   * not.
    * @param aCSPRep
    *        a CSPRep instance to use as "other" CSP
    * @returns
@@ -853,71 +783,12 @@ CSPRep.prototype = {
     let DIRS = aCSPRep._specCompliant ? CSPRep.SRC_DIRECTIVES_NEW :
                                         CSPRep.SRC_DIRECTIVES_OLD;
 
-    // one or more of the two CSPReps may not have any given directive.  In
-    // these cases, we need to pick "all" or "none" based on the type of CSPRep
-    // (spec compliant or not).
-    let thisHasDefault = this._directives.hasOwnProperty(DIRS.DEFAULT_SRC),
-        thatHasDefault = aCSPRep._directives.hasOwnProperty(DIRS.DEFAULT_SRC);
     for (var dir in DIRS) {
-      let dirv = DIRS[dir];
-      let thisHasDir = this._directives.hasOwnProperty(dirv),
-          thatHasDir = aCSPRep._directives.hasOwnProperty(dirv);
-
-
-      // if both specific src directives are absent, skip this (new policy will
-      // rely on default-src)
-      if (!thisHasDir && !thatHasDir) {
-        continue;
-      }
-
-      // frame-ancestors is a special case; it doesn't fall back to
-      // default-src, so only add it to newRep if one or both of the policies
-      // have it.
-      if (dirv === DIRS.FRAME_ANCESTORS) {
-        if (thisHasDir && thatHasDir) {
-          // both have frame-ancestors, intersect them.
-          newRep._directives[dirv] =
-            aCSPRep._directives[dirv].intersectWith(this._directives[dirv]);
-        } else if (thisHasDir || thatHasDir) {
-          // one or the other has frame-ancestors, copy it.
-          newRep._directives[dirv] =
-            ( thisHasDir ? this : aCSPRep )._directives[dirv].clone();
-        }
-      }
-      else if (aCSPRep._specCompliant) {
-        // CSP 1.0 doesn't require default-src, so an intersection only makes
-        // sense if there is a default-src or both policies have the directive.
-
-        if (!thisHasDir && !thisHasDefault) {
-          // only aCSPRep has a relevant directive
-          newRep._directives[dirv] = aCSPRep._directives[dirv].clone();
-        }
-        else if (!thatHasDir && !thatHasDefault) {
-          // only "this" has a relevant directive
-          newRep._directives[dirv] = this._directives[dirv].clone();
-        }
-        else {
-          // both policies have a relevant directive (may be default-src)
-          var isect1 = thisHasDir ?
-                       this._directives[dirv] :
-                       this._directives[DIRS.DEFAULT_SRC];
-          var isect2 = thatHasDir ?
-                       aCSPRep._directives[dirv] :
-                       aCSPRep._directives[DIRS.DEFAULT_SRC];
-          newRep._directives[dirv] = isect1.intersectWith(isect2);
-        }
-      }
-      else {
-        // pre-1.0 CSP requires a default-src, so we can assume it's here
-        // (since the parser created one).
-        var isect1 = thisHasDir ?
-                     this._directives[dirv] :
-                     this._directives[DIRS.DEFAULT_SRC];
-        var isect2 = thatHasDir ?
-                     aCSPRep._directives[dirv] :
-                     aCSPRep._directives[DIRS.DEFAULT_SRC];
-        newRep._directives[dirv] = isect1.intersectWith(isect2);
-      }
+      var dirv = DIRS[dir];
+      if (this._directives.hasOwnProperty(dirv))
+        newRep._directives[dirv] = this._directives[dirv].intersectWith(aCSPRep._directives[dirv]);
+      else
+        newRep._directives[dirv] = aCSPRep._directives[dirv];
     }
 
     // REPORT_URI
@@ -941,13 +812,49 @@ CSPRep.prototype = {
     newRep._allowInlineScripts = this.allowsInlineScripts
                            && aCSPRep.allowsInlineScripts;
 
-    newRep._allowInlineStyles = this.allowsInlineStyles
-                           && aCSPRep.allowsInlineStyles;
-
     newRep._innerWindowID = this._innerWindowID ?
                               this._innerWindowID : aCSPRep._innerWindowID;
 
     return newRep;
+  },
+
+  /**
+   * Copies default source list to each unspecified directive.
+   * @returns
+   *      true  if the makeExplicit succeeds
+   *      false if it fails (for some weird reason)
+   */
+  makeExplicit:
+  function cspsd_makeExplicit() {
+    let SD = this._specCompliant ? CSPRep.SRC_DIRECTIVES_NEW : CSPRep.SRC_DIRECTIVES_OLD;
+
+    var defaultSrcDir = this._directives[SD.DEFAULT_SRC];
+
+    // It's ok for a 1.0 spec compliant policy to not have a default source,
+    // in this case it should use default-src *
+    // However, our original CSP implementation required a default src
+    // or an allow directive.
+    if (!defaultSrcDir && !this._specCompliant) {
+      this.warn(CSPLocalizer.getStr("allowOrDefaultSrcRequired"));
+      return false;
+    }
+
+    for (var dir in SD) {
+      var dirv = SD[dir];
+      if (dirv === SD.DEFAULT_SRC) continue;
+      if (!this._directives[dirv]) {
+        // implicit directive, make explicit.
+        // All but frame-ancestors directive inherit from 'allow' (bug 555068)
+        if (dirv === SD.FRAME_ANCESTORS)
+          this._directives[dirv] = CSPSourceList.fromString("*",this);
+        else
+          this._directives[dirv] = defaultSrcDir.clone();
+        this._directives[dirv]._isImplicit = true;
+      }
+    }
+
+    this._isInitialized = true;
+    return true;
   },
 
   /**
@@ -966,17 +873,7 @@ CSPRep.prototype = {
   },
 
   /**
-   * Returns true if inline styles are enabled through the "inline-style"
-   * keyword.
-   */
-  get allowsInlineStyles () {
-    return this._allowInlineStyles;
-  },
-
-  /**
-   * Sends a message to the error console and web developer console.
-   * @param aFlag
-   *        The nsIScriptError flag constant indicating severity
+   * Sends a warning message to the error console and web developer console.
    * @param aMsg
    *        The message to send
    * @param aSource (optional)
@@ -986,25 +883,50 @@ CSPRep.prototype = {
    * @param aLineNum (optional)
    *        The number of the line where the error occurred
    */
-  log:
-  function cspd_log(aFlag, aMsg, aSource, aScriptLine, aLineNum) {
-    var textMessage = "Content Security Policy: " + aMsg;
+  warn:
+  function cspd_warn(aMsg, aSource, aScriptLine, aLineNum) {
+    var textMessage = 'CSP WARN:  ' + aMsg + "\n";
+
     var consoleMsg = Components.classes["@mozilla.org/scripterror;1"]
                                .createInstance(Ci.nsIScriptError);
     if (this._innerWindowID) {
       consoleMsg.initWithWindowID(textMessage, aSource, aScriptLine, aLineNum,
-                                  0, aFlag,
-                                  "CSP",
+                                  0, Ci.nsIScriptError.warningFlag,
+                                  "Content Security Policy",
                                   this._innerWindowID);
     } else {
       consoleMsg.init(textMessage, aSource, aScriptLine, aLineNum, 0,
-                      aFlag,
-                      "CSP");
+                      Ci.nsIScriptError.warningFlag,
+                      "Content Security Policy");
     }
     Components.classes["@mozilla.org/consoleservice;1"]
               .getService(Ci.nsIConsoleService).logMessage(consoleMsg);
   },
 
+  /**
+   * Sends an error message to the error console and web developer console.
+   * @param aMsg
+   *        The message to send
+   */
+  error:
+  function cspsd_error(aMsg) {
+    var textMessage = 'CSP ERROR:  ' + aMsg + "\n";
+
+    var consoleMsg = Components.classes["@mozilla.org/scripterror;1"]
+                               .createInstance(Ci.nsIScriptError);
+    if (this._innerWindowID) {
+      consoleMsg.initWithWindowID(textMessage, null, null, 0, 0,
+                                  Ci.nsIScriptError.errorFlag,
+                                  "Content Security Policy",
+                                  this._innerWindowID);
+    }
+    else {
+      consoleMsg.init(textMessage, null, null, 0, 0,
+                      Ci.nsIScriptError.errorFlag, "Content Security Policy");
+    }
+    Components.classes["@mozilla.org/consoleservice;1"]
+              .getService(Ci.nsIConsoleService).logMessage(consoleMsg);
+  },
 };
 
 //////////////////////////////////////////////////////////////////////
@@ -1014,6 +936,10 @@ CSPRep.prototype = {
 this.CSPSourceList = function CSPSourceList() {
   this._sources = [];
   this._permitAllSources = false;
+
+  // Set to true when this list is created using "makeExplicit()"
+  // It's useful to know this when reporting the directive that was violated.
+  this._isImplicit = false;
 
   // When this is true, the source list contains 'unsafe-inline'.
   this._allowUnsafeInline = false;
@@ -1243,6 +1169,9 @@ CSPSourceList.prototype = {
       newCSPSrcList = new CSPSourceList();
       newCSPSrcList._sources = isrcs;
     }
+
+    // if either was explicit, so is this.
+    newCSPSrcList._isImplicit = this._isImplicit && that._isImplicit;
 
     if ((!newCSPSrcList._CSPRep) && that._CSPRep) {
       newCSPSrcList._CSPRep = that._CSPRep;
@@ -2023,17 +1952,17 @@ function innerWindowFromRequest(docRequest) {
 
 function cspError(aCSPRep, aMessage) {
   if (aCSPRep) {
-    aCSPRep.log(ERROR_FLAG, aMessage);
+    aCSPRep.error(aMessage);
   } else {
-    (new CSPRep()).log(ERROR_FLAG, aMessage);
+    (new CSPRep()).error(aMessage);
   }
 }
 
 function cspWarn(aCSPRep, aMessage) {
   if (aCSPRep) {
-    aCSPRep.log(WARN_FLAG, aMessage);
+    aCSPRep.warn(aMessage);
   } else {
-    (new CSPRep()).log(WARN_FLAG, aMessage);
+    (new CSPRep()).warn(aMessage);
   }
 }
 

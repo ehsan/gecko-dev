@@ -30,8 +30,8 @@ namespace dom {
 //----------------------------------------------------------------------
 
 BodyRule::BodyRule(HTMLBodyElement* aPart)
-  : mPart(aPart)
 {
+  mPart = aPart;
 }
 
 BodyRule::~BodyRule()
@@ -194,7 +194,7 @@ HTMLBodyElement::~HTMLBodyElement()
 }
 
 JSObject*
-HTMLBodyElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+HTMLBodyElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return HTMLBodyElementBinding::Wrap(aCx, aScope, this);
 }
@@ -204,10 +204,10 @@ NS_IMPL_RELEASE_INHERITED(HTMLBodyElement, Element)
 
 // QueryInterface implementation for HTMLBodyElement
 NS_INTERFACE_TABLE_HEAD(HTMLBodyElement)
-  NS_HTML_CONTENT_INTERFACES(nsGenericHTMLElement)
-  NS_INTERFACE_TABLE_INHERITED1(HTMLBodyElement, nsIDOMHTMLBodyElement)
-  NS_INTERFACE_TABLE_TO_MAP_SEGUE
-NS_ELEMENT_INTERFACE_MAP_END
+  NS_HTML_CONTENT_INTERFACE_TABLE1(HTMLBodyElement, nsIDOMHTMLBodyElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLBodyElement,
+                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
 
 NS_IMPL_ELEMENT_CLONE(HTMLBodyElement)
 
@@ -349,7 +349,9 @@ HTMLBodyElement::UnbindFromTree(bool aDeep, bool aNullParent)
 {
   if (mContentStyleRule) {
     mContentStyleRule->mPart = nullptr;
-    mContentStyleRule = nullptr;
+
+    // destroy old style rule
+    NS_RELEASE(mContentStyleRule);
   }
 
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);  
@@ -418,6 +420,7 @@ HTMLBodyElement::WalkContentStyleRules(nsRuleWalker* aRuleWalker)
     // XXXbz should this use OwnerDoc() or GetCurrentDoc()?
     // sXBL/XBL2 issue!
     mContentStyleRule = new BodyRule(this);
+    NS_IF_ADDREF(mContentStyleRule);
   }
   if (aRuleWalker && mContentStyleRule) {
     aRuleWalker->Forward(mContentStyleRule);
@@ -497,17 +500,26 @@ HTMLBodyElement::IsEventAttributeName(nsIAtom *aName)
   HTMLBodyElement::GetOn##name_(JSContext *cx, JS::Value *vp)                  \
   {                                                                            \
     getter_type_ h = forwardto_::GetOn##name_();                               \
-    vp->setObjectOrNull(h ? h->Callable().get() : nullptr);                    \
+    vp->setObjectOrNull(h ? h->Callable() : nullptr);                          \
     return NS_OK;                                                              \
   }                                                                            \
   NS_IMETHODIMP                                                                \
   HTMLBodyElement::SetOn##name_(JSContext *cx, const JS::Value &v)             \
   {                                                                            \
+    JSObject *obj = GetWrapper();                                              \
+    if (!obj) {                                                                \
+      /* Just silently do nothing */                                           \
+      return NS_OK;                                                            \
+    }                                                                          \
     nsRefPtr<type_> handler;                                                   \
     JSObject *callable;                                                        \
     if (v.isObject() &&                                                        \
         JS_ObjectIsCallable(cx, callable = &v.toObject())) {                   \
-      handler = new type_(callable);                                           \
+      bool ok;                                                                 \
+      handler = new type_(cx, obj, callable, &ok);                             \
+      if (!ok) {                                                               \
+        return NS_ERROR_OUT_OF_MEMORY;                                         \
+      }                                                                        \
     }                                                                          \
     ErrorResult rv;                                                            \
     forwardto_::SetOn##name_(handler, rv);                                     \
@@ -524,7 +536,7 @@ HTMLBodyElement::IsEventAttributeName(nsIAtom *aName)
   HTMLBodyElement::GetOn##name_()                                              \
   {                                                                            \
     nsPIDOMWindow* win = OwnerDoc()->GetInnerWindow();                         \
-    if (win) {                                                                 \
+    if (win && win->IsInnerWindow()) {                                         \
       nsCOMPtr<nsISupports> supports = do_QueryInterface(win);                 \
       nsGlobalWindow* globalWin = nsGlobalWindow::FromSupports(supports);      \
       return globalWin->GetOn##name_();                                        \
@@ -535,7 +547,7 @@ HTMLBodyElement::IsEventAttributeName(nsIAtom *aName)
   HTMLBodyElement::SetOn##name_(type_* handler, ErrorResult& error)            \
   {                                                                            \
     nsPIDOMWindow* win = OwnerDoc()->GetInnerWindow();                         \
-    if (!win) {                                                                \
+    if (!win || !win->IsInnerWindow()) {                                       \
       return;                                                                  \
     }                                                                          \
                                                                                \

@@ -95,9 +95,12 @@ already_AddRefed<gfxASurface>
 gfxPlatformMac::CreateOffscreenSurface(const gfxIntSize& size,
                                        gfxASurface::gfxContentType contentType)
 {
-    nsRefPtr<gfxASurface> newSurface =
-      new gfxQuartzSurface(size, OptimalFormatForContent(contentType));
-    return newSurface.forget();
+    gfxASurface *newSurface = nullptr;
+
+    newSurface = new gfxQuartzSurface(size, OptimalFormatForContent(contentType));
+
+    NS_IF_ADDREF(newSurface);
+    return newSurface;
 }
 
 already_AddRefed<gfxASurface>
@@ -124,8 +127,8 @@ gfxPlatformMac::OptimizeImage(gfxImageSurface *aSurface,
         isurf = new gfxImageSurface (surfaceSize, format);
         if (!isurf->CopyFrom (aSurface)) {
             // don't even bother doing anything more
-            nsRefPtr<gfxASurface> ret = aSurface;
-            return ret.forget();
+            NS_ADDREF(aSurface);
+            return aSurface;
         }
     }
 
@@ -384,8 +387,8 @@ gfxPlatformMac::CreateThebesSurfaceAliasForDrawTarget_hack(mozilla::gfx::DrawTar
     size_t stride = CGBitmapContextGetBytesPerRow(cg);
     gfxIntSize size(aTarget->GetSize().width, aTarget->GetSize().height);
     nsRefPtr<gfxImageSurface> imageSurface = new gfxImageSurface(data, size, stride, bpp == 2
-                                                                                     ? gfxASurface::ImageFormatRGB16_565
-                                                                                     : gfxASurface::ImageFormatARGB32);
+                                                                                     ? gfxImageFormat::ImageFormatRGB16_565
+                                                                                     : gfxImageFormat::ImageFormatARGB32);
     // Here we should return a gfxQuartzImageSurface but quartz will assumes that image surfaces
     // don't change which wont create a proper alias to the draw target, therefore we have to
     // return a plain image surface.
@@ -429,17 +432,6 @@ gfxPlatformMac::UseAcceleratedCanvas()
 {
   // Lion or later is required
   return OSXVersion() >= 0x1070 && Preferences::GetBool("gfx.canvas.azure.accelerated", false);
-}
-
-bool
-gfxPlatformMac::SupportsOffMainThreadCompositing()
-{
-  // 10.6.X has crashes on tinderbox with OMTC, so disable it
-  // for now.
-  if (OSXVersion() >= 0x1070) {
-    return true;
-  }
-  return GetPrefLayersOffMainThreadCompositionForceEnabled();
 }
 
 qcms_profile *

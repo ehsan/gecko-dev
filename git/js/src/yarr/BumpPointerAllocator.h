@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=99 ft=cpp:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Copyright (C) 2010 Apple Inc. All rights reserved.
@@ -27,8 +27,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef yarr_BumpPointerAllocator_h
-#define yarr_BumpPointerAllocator_h
+#ifndef BumpPointerAllocator_h
+#define BumpPointerAllocator_h
 
 #include "PageAllocation.h"
 
@@ -274,4 +274,4 @@ private:
 
 using WTF::BumpPointerAllocator;
 
-#endif /* yarr_BumpPointerAllocator_h */
+#endif // BumpPointerAllocator_h

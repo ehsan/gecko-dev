@@ -2,7 +2,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import mozlog
 import subprocess
 from devicemanager import DeviceManager, DMError, _pop_last_line
 import re
@@ -30,9 +29,7 @@ class DeviceManagerADB(DeviceManager):
     default_timeout = 300
 
     def __init__(self, host=None, port=5555, retryLimit=5, packageName='fennec',
-                 adbPath='adb', deviceSerial=None, deviceRoot=None,
-                 logLevel=mozlog.ERROR, **kwargs):
-        DeviceManager.__init__(self, logLevel)
+                 adbPath='adb', deviceSerial=None, deviceRoot=None, **kwargs):
         self.host = host
         self.port = port
         self.retryLimit = retryLimit
@@ -171,8 +168,6 @@ class DeviceManagerADB(DeviceManager):
         if self.dirExists(destname):
             raise DMError("Attempted to push a file (%s) to a directory (%s)!" %
                           (localname, destname))
-        if not os.access(localname, os.F_OK):
-            raise DMError("File not found: %s" % localname)
 
         if self._useRunAs:
             remoteTmpFile = self.getTempDir() + "/" + os.path.basename(localname)
@@ -211,7 +206,7 @@ class DeviceManagerADB(DeviceManager):
                 if re.search("unzip: exiting", data) or re.search("Operation not permitted", data):
                     raise Exception("unzip failed, or permissions error")
             except:
-                self._logger.info("zip/unzip failure: falling back to normal push")
+                print "zip/unzip failure: falling back to normal push"
                 self._useZip = False
                 self.pushDir(localDir, remoteDir, retryLimit=retryLimit)
         else:
@@ -235,9 +230,8 @@ class DeviceManagerADB(DeviceManager):
     def fileExists(self, filepath):
         p = self._runCmd(["shell", "ls", "-a", filepath])
         data = p.stdout.readlines()
-        if len(data) == 1:
-            foundpath = data[0].decode('utf-8').rstrip()
-            if foundpath == filepath:
+        if (len(data) == 1):
+            if (data[0].rstrip() == filepath):
                 return True
         return False
 
@@ -341,7 +335,7 @@ class DeviceManagerADB(DeviceManager):
         if uri != "":
             acmd.append("-d")
             acmd.append(''.join(['\'',uri, '\'']));
-        self._logger.info(acmd)
+        print acmd
         self._checkCmd(acmd)
         return outputFile
 
@@ -435,7 +429,7 @@ class DeviceManagerADB(DeviceManager):
                 try:
                     self.mkDir(self.deviceRoot)
                 except:
-                    self._logger.error("Unable to create device root %s" % self.deviceRoot)
+                    print "Unable to create device root %s" % self.deviceRoot
                     raise
             return
 
@@ -518,7 +512,7 @@ class DeviceManagerADB(DeviceManager):
             ret["process"] = self._runCmd(["shell", "ps"]).stdout.read()
         if (directive == "systime" or directive == "all"):
             ret["systime"] = self._runCmd(["shell", "date"]).stdout.read()
-        self._logger.info(ret)
+        print ret
         return ret
 
     def uninstallApp(self, appName, installPath=None):
@@ -625,12 +619,12 @@ class DeviceManagerADB(DeviceManager):
                     self.chmodDir(remoteEntry)
                 else:
                     self._checkCmdAs(["shell", "chmod", mask, remoteEntry])
-                    self._logger.info("chmod %s" % remoteEntry)
+                    print "chmod " + remoteEntry
             self._checkCmdAs(["shell", "chmod", mask, remoteDir])
-            self._logger.info("chmod %s" % remoteDir)
+            print "chmod " + remoteDir
         else:
             self._checkCmdAs(["shell", "chmod", mask, remoteDir.strip()])
-            self._logger.info("chmod %s" % remoteDir.strip())
+            print "chmod " + remoteDir.strip()
 
     def _verifyADB(self):
         """
@@ -696,7 +690,7 @@ class DeviceManagerADB(DeviceManager):
             self._checkCmd(["push", tmpfile.name, tmpDir + "/tmpfile"])
             self._checkCmd(["shell", "run-as", self._packageName, "dd", "if=" + tmpDir + "/tmpfile", "of=" + devroot + "/sanity/tmpfile"])
             if (self.fileExists(devroot + "/sanity/tmpfile")):
-                self._logger.info("will execute commands via run-as %s" % self._packageName)
+                print "will execute commands via run-as " + self._packageName
                 self._useRunAs = True
             self._checkCmd(["shell", "rm", devroot + "/tmp/tmpfile"])
             self._checkCmd(["shell", "run-as", self._packageName, "rm", "-r", devroot + "/sanity"])
@@ -749,7 +743,7 @@ class DeviceManagerADB(DeviceManager):
         # optimization for large directories.
         self._useZip = False
         if (self._isUnzipAvailable() and self._isLocalZipAvailable()):
-            self._logger.info("will use zip to push directories")
+            print "will use zip to push directories"
             self._useZip = True
         else:
             raise DMError("zip not available")

@@ -23,11 +23,10 @@
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/ContentChild.h"
 
+#include "mozilla/Util.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/Likely.h"
-#include "mozilla/Poison.h"
 #include "mozilla/Telemetry.h"
-#include "mozilla/Util.h"
 
 #include "nsAppRunner.h"
 #include "mozilla/AppData.h"
@@ -196,7 +195,7 @@ using mozilla::scache::StartupCache;
 #endif
 
 #include "base/command_line.h"
-#ifdef MOZ_ENABLE_TESTS
+#ifdef MOZ_ENABLE_GTEST
 #include "GTestRunner.h"
 #endif
 
@@ -241,10 +240,6 @@ static char **gQtOnlyArgv;
 #include "nsGTKToolkit.h"
 #endif
 #include "BinaryPath.h"
-
-namespace mozilla {
-int (*RunGTest)() = 0;
-}
 
 using mozilla::dom::ContentParent;
 using mozilla::dom::ContentChild;
@@ -297,7 +292,7 @@ static already_AddRefed<nsIFile>
 GetFileFromEnv(const char *name)
 {
   nsresult rv;
-  nsCOMPtr<nsIFile> file;
+  nsIFile *file = nullptr;
 
 #ifdef XP_WIN
   WCHAR path[_MAX_PATH];
@@ -305,22 +300,21 @@ GetFileFromEnv(const char *name)
                                path, _MAX_PATH))
     return nullptr;
 
-  rv = NS_NewLocalFile(nsDependentString(path), true, getter_AddRefs(file));
+  rv = NS_NewLocalFile(nsDependentString(path), true, &file);
   if (NS_FAILED(rv))
     return nullptr;
 
-  return file.forget();
+  return file;
 #else
   const char *arg = PR_GetEnv(name);
   if (!arg || !*arg)
     return nullptr;
 
-  rv = NS_NewNativeLocalFile(nsDependentCString(arg), true,
-                             getter_AddRefs(file));
+  rv = NS_NewNativeLocalFile(nsDependentCString(arg), true, &file);
   if (NS_FAILED(rv))
     return nullptr;
 
-  return file.forget();
+  return file;
 #endif
 }
 
@@ -430,9 +424,8 @@ static void RemoveArg(char **argv)
  * @param aArg the parameter to check. Must be lowercase.
  * @param aCheckOSInt if true returns ARG_BAD if the osint argument is present
  *        when aArg is also present.
- * @param aParam if non-null, the -arg <data> will be stored in this pointer.
- *        This is *not* allocated, but rather a pointer to the argv data.
- * @param aRemArg if true, the argument is removed from the gArgv array.
+ * @param if non-null, the -arg <data> will be stored in this pointer. This is *not*
+ *        allocated, but rather a pointer to the argv data.
  */
 static ArgResult
 CheckArg(const char* aArg, bool aCheckOSInt = false, const char **aParam = nullptr, bool aRemArg = true)
@@ -624,6 +617,7 @@ NS_IMETHODIMP
 nsXULAppInfo::GetVendor(nsACString& aResult)
 {
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
+    NS_WARNING("Attempt to get unavailable information in content process.");
     return NS_ERROR_NOT_AVAILABLE;
   }
   aResult.Assign(gAppData->vendor);
@@ -635,6 +629,7 @@ NS_IMETHODIMP
 nsXULAppInfo::GetName(nsACString& aResult)
 {
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
+    NS_WARNING("Attempt to get unavailable information in content process.");
     return NS_ERROR_NOT_AVAILABLE;
   }
   aResult.Assign(gAppData->name);
@@ -646,6 +641,7 @@ NS_IMETHODIMP
 nsXULAppInfo::GetID(nsACString& aResult)
 {
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
+    NS_WARNING("Attempt to get unavailable information in content process.");
     return NS_ERROR_NOT_AVAILABLE;
   }
   aResult.Assign(gAppData->ID);
@@ -699,6 +695,7 @@ NS_IMETHODIMP
 nsXULAppInfo::GetUAName(nsACString& aResult)
 {
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
+    NS_WARNING("Attempt to get unavailable information in content process.");
     return NS_ERROR_NOT_AVAILABLE;
   }
   aResult.Assign(gAppData->UAName);
@@ -783,7 +780,7 @@ nsXULAppInfo::EnsureContentProcess()
   if (XRE_GetProcessType() != GeckoProcessType_Default)
     return NS_ERROR_NOT_AVAILABLE;
 
-  nsRefPtr<ContentParent> unused = ContentParent::GetNewOrUsed();
+  unused << ContentParent::GetNewOrUsed();
   return NS_OK;
 }
 
@@ -923,10 +920,6 @@ nsXULAppInfo::SetEnabled(bool aEnabled)
       if (!xreDirectory)
         return NS_ERROR_FAILURE;
     }
-    AnnotateCrashReport(NS_LITERAL_CSTRING("FramePoisonBase"),
-                        nsPrintfCString("%.16llx", uint64_t(gMozillaPoisonBase)));
-    AnnotateCrashReport(NS_LITERAL_CSTRING("FramePoisonSize"),
-                        nsPrintfCString("%lu", uint32_t(gMozillaPoisonSize)));
     return CrashReporter::SetExceptionHandler(xreDirectory, true);
   }
   else {
@@ -2614,52 +2607,73 @@ static void MOZ_gdk_display_close(GdkDisplay *display)
     g_free(theme_name);
   }
 
+  // gdk_display_close was broken prior to gtk+-2.10.0.
+  // (http://bugzilla.gnome.org/show_bug.cgi?id=85715)
+  // gdk_display_manager_set_default_display (gdk_display_manager_get(), NULL)
+  // was also broken.
+  if (gtk_check_version(2,10,0) != NULL) {
+#ifdef MOZ_X11
+    // Version check failed - broken gdk_display_close.
+    //
+    // Let the gdk structures leak but at least close the Display,
+    // assuming that gdk will not use it again.
+    Display* dpy = GDK_DISPLAY_XDISPLAY(display);
+    if (!theme_is_qt)
+      XCloseDisplay(dpy);
+#else
+    gdk_display_close(display);
+#endif /* MOZ_X11 */
+  }
+  else {
 #if CLEANUP_MEMORY
-  // Get a (new) Pango context that holds a reference to the fontmap that
-  // GTK has been using.  gdk_pango_context_get() must be called while GTK
-  // has a default display.
-  PangoContext *pangoContext = gdk_pango_context_get();
+    // Get a (new) Pango context that holds a reference to the fontmap that
+    // GTK has been using.  gdk_pango_context_get() must be called while GTK
+    // has a default display.
+    PangoContext *pangoContext = gdk_pango_context_get();
 #endif
 
-  bool buggyCairoShutdown = cairo_version() < CAIRO_VERSION_ENCODE(1, 4, 0);
+    bool buggyCairoShutdown = cairo_version() < CAIRO_VERSION_ENCODE(1, 4, 0);
 
-  if (!buggyCairoShutdown) {
-    // We should shut down GDK before we shut down libraries it depends on
-    // like Pango and cairo. But if cairo shutdown is buggy, we should
-    // shut down cairo first otherwise it may crash because of dangling
-    // references to Display objects (see bug 469831).
-    if (!theme_is_qt)
-      gdk_display_close(display);
-  }
+    if (!buggyCairoShutdown) {
+      // We should shut down GDK before we shut down libraries it depends on
+      // like Pango and cairo. But if cairo shutdown is buggy, we should
+      // shut down cairo first otherwise it may crash because of dangling
+      // references to Display objects (see bug 469831).
+      if (!theme_is_qt)
+        gdk_display_close(display);
+    }
 
 #if CLEANUP_MEMORY
-  // This doesn't take a reference.
-  PangoFontMap *fontmap = pango_context_get_font_map(pangoContext);
-  // Do some shutdown of the fontmap, which releases the fonts, clearing a
-  // bunch of circular references from the fontmap through the fonts back to
-  // itself.  The shutdown that this does is much less than what's done by
-  // the fontmap's finalize, though.
-  if (PANGO_IS_FC_FONT_MAP(fontmap))
-      pango_fc_font_map_shutdown(PANGO_FC_FONT_MAP(fontmap));
-  g_object_unref(pangoContext);
-  // PangoCairo still holds a reference to the fontmap.
-  // Now that we have finished with GTK and Pango, we could unref fontmap,
-  // which would allow us to call FcFini, but removing what is really
-  // Pango's ref feels a bit evil.  Pango-1.22 will have support for
-  // pango_cairo_font_map_set_default(NULL), which would release the
-  // reference on the old fontmap.
+    // This doesn't take a reference.
+    PangoFontMap *fontmap = pango_context_get_font_map(pangoContext);
+    // Do some shutdown of the fontmap, which releases the fonts, clearing a
+    // bunch of circular references from the fontmap through the fonts back to
+    // itself.  The shutdown that this does is much less than what's done by
+    // the fontmap's finalize, though.
+    if (PANGO_IS_FC_FONT_MAP(fontmap))
+        pango_fc_font_map_shutdown(PANGO_FC_FONT_MAP(fontmap));
+    g_object_unref(pangoContext);
+    // PangoCairo still holds a reference to the fontmap.
+    // Now that we have finished with GTK and Pango, we could unref fontmap,
+    // which would allow us to call FcFini, but removing what is really
+    // Pango's ref feels a bit evil.  Pango-1.22 will have support for
+    // pango_cairo_font_map_set_default(NULL), which would release the
+    // reference on the old fontmap.
 
-  // cairo_debug_reset_static_data() is prototyped through cairo.h included
-  // by gtk.h.
+#if GTK_CHECK_VERSION(2,8,0)
+    // cairo_debug_reset_static_data() is prototyped through cairo.h included
+    // by gtk.h.
 #ifdef cairo_debug_reset_static_data
 #error "Looks like we're including Mozilla's cairo instead of system cairo"
 #endif
-  cairo_debug_reset_static_data();
+    cairo_debug_reset_static_data();
+#endif // 2.8.0
 #endif // CLEANUP_MEMORY
 
-  if (buggyCairoShutdown) {
-    if (!theme_is_qt)
-      gdk_display_close(display);
+    if (buggyCairoShutdown) {
+      if (!theme_is_qt)
+        gdk_display_close(display);
+    }
   }
 }
 #endif // MOZ_WIDGET_GTK2
@@ -3181,15 +3195,14 @@ XREMain::XRE_mainInit(bool* aExitFlag)
     return 0;
   }
 
-  if (PR_GetEnv("MOZ_RUN_GTEST")) {
-    int result;
-    // RunGTest will only be set if we're in xul-unit
-    if (mozilla::RunGTest) {
-      result = mozilla::RunGTest();
-    } else {
-      result = 1;
-      printf("TEST-UNEXPECTED-FAIL | gtest | Not compiled with enable-tests\n");
-    }
+  ar = CheckArg("unittest", true);
+  if (ar == ARG_FOUND) {
+#if MOZ_ENABLE_GTEST
+    int result = mozilla::RunGTest();
+#else
+    int result = 1;
+    printf("TEST-UNEXPECTED-FAIL | Not compiled with GTest enabled\n");
+#endif
     *aExitFlag = true;
     return result;
   }
@@ -3374,8 +3387,7 @@ XREMain::XRE_mainStartup(bool* aExitFlag)
   // An environment variable is used instead of a pref on X11 platforms because we start having 
   // access to prefs long after the first call to XOpenDisplay which is hard to change due to 
   // interdependencies in the initialization.
-  if (PR_GetEnv("MOZ_USE_OMTC") ||
-      PR_GetEnv("MOZ_OMTC_ENABLED")) {
+  if (PR_GetEnv("MOZ_USE_OMTC")) {
     XInitThreads();
   }
 #endif
@@ -3869,8 +3881,7 @@ XREMain::XRE_mainRun()
 int
 XREMain::XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 {
-  char aLocal;
-  GeckoProfilerInitRAII profilerGuard(&aLocal);
+  profiler_init();
   PROFILER_LABEL("Startup", "XRE_Main");
 
   nsresult rv = NS_OK;
@@ -3971,6 +3982,7 @@ XREMain::XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     MOZ_gdk_display_close(mGdkDisplay);
 #endif
 
+    profiler_shutdown();
     rv = LaunchChild(mNativeApp, true);
 
 #ifdef MOZ_CRASHREPORTER
@@ -3992,6 +4004,8 @@ XREMain::XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 #endif
 
   XRE_DeinitCommandLine();
+
+  profiler_shutdown();
 
   return NS_FAILED(rv) ? 1 : 0;
 }
@@ -4065,8 +4079,7 @@ public:
 int
 XRE_mainMetro(int argc, char* argv[], const nsXREAppData* aAppData)
 {
-  char aLocal;
-  GeckoProfilerInitRAII profilerGuard(&aLocal);
+  profiler_init();
   PROFILER_LABEL("Startup", "XRE_Main");
 
   nsresult rv = NS_OK;
@@ -4107,6 +4120,7 @@ XRE_mainMetro(int argc, char* argv[], const nsXREAppData* aAppData)
   // thread that called XRE_metroStartup.
   NS_ASSERTION(!xreMainPtr->mScopedXPCom,
                "XPCOM Shutdown hasn't occured, and we are exiting.");
+  profiler_shutdown();
   return 0;
 }
 

@@ -43,8 +43,8 @@ def print_extra(extra):
 
 @CommandProvider
 class MozbuildFileCommands(object):
-    @Command('mozbuild-reference', category='build-dev',
-        description='View reference documentation on mozbuild files.')
+    @Command('mozbuild-reference',
+        help='View reference documentation on mozbuild files.')
     @CommandArgument('symbol', default=None, nargs='*',
         help='Symbol to view help on. If not specified, all will be shown.')
     @CommandArgument('--name-only', '-n', default=False, action='store_true',
@@ -112,7 +112,7 @@ class MozbuildFileCommands(object):
         return 0
 
     def variable_reference(self, v):
-        st_typ, in_type, default, doc = VARIABLES[v]
+        typ, default, doc = VARIABLES[v]
 
         print(v)
         print('=' * len(v))
@@ -122,8 +122,7 @@ class MozbuildFileCommands(object):
 
         print(summary)
         print('')
-        print('Storage Type: %s' % st_typ.__name__)
-        print('Input Type: %s' % in_type.__name__)
+        print('Type: %s' % typ.__name__)
         print('Default Value: %s' % default)
         print('')
         print_extra(extra)

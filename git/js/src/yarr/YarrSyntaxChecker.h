@@ -1,6 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
- *
+/*
  * Copyright (C) 2011 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -25,8 +23,8 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
-#ifndef yarr_YarrSyntaxChecker_h
-#define yarr_YarrSyntaxChecker_h
+#ifndef YarrSyntaxChecker_h
+#define YarrSyntaxChecker_h
 
 #include "wtfbridge.h"
 #include "YarrParser.h"
@@ -37,4 +35,5 @@ ErrorCode checkSyntax(const String& pattern);
 
 }} // JSC::YARR
 
-#endif /* yarr_YarrSyntaxChecker_h */
+#endif // YarrSyntaxChecker_h
+

@@ -1,40 +1,53 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jscompartment.h"
-
 #include "mozilla/DebugOnly.h"
 
 #include "jscntxt.h"
+#include "jsdate.h"
+#include "jscompartment.h"
 #include "jsgc.h"
 #include "jsiter.h"
+#include "jsmath.h"
 #include "jsproxy.h"
 #include "jswatchpoint.h"
 #include "jswrapper.h"
 
+#if ENABLE_YARR_JIT
+#include "assembler/jit/ExecutableAllocator.h"
+#endif
+#include "assembler/wtf/Platform.h"
 #include "gc/Marking.h"
 #ifdef JS_ION
 #include "ion/IonCompartment.h"
+#include "ion/Ion.h"
 #endif
+#include "js/MemoryMetrics.h"
 #include "js/RootingAPI.h"
-#include "vm/StopIterationObject.h"
+#include "methodjit/MethodJIT.h"
+#include "methodjit/PolyIC.h"
+#include "methodjit/MonoIC.h"
+#include "methodjit/Retcon.h"
+#include "vm/Debugger.h"
+#include "vm/ForkJoin.h"
+#include "yarr/BumpPointerAllocator.h"
 
 #include "jsgcinlines.h"
 #include "jsobjinlines.h"
 
-#include "gc/Barrier-inl.h"
+#include "vm/Shape-inl.h"
 
 using namespace js;
 using namespace js::gc;
 
 using mozilla::DebugOnly;
 
-JSCompartment::JSCompartment(Zone *zone, const JS::CompartmentOptions &options = JS::CompartmentOptions())
+JSCompartment::JSCompartment(Zone *zone)
   : zone_(zone),
-    options_(options),
     rt(zone->rt),
     principals(NULL),
     isSystem(false),
@@ -44,7 +57,6 @@ JSCompartment::JSCompartment(Zone *zone, const JS::CompartmentOptions &options =
     lastCodeRelease(0),
     analysisLifoAlloc(ANALYSIS_LIFO_ALLOC_PRIMARY_CHUNK_SIZE),
     data(NULL),
-    objectMetadataCallback(NULL),
     lastAnimationTime(0),
     regExps(rt),
     propertyTree(thisForCtor()),
@@ -91,7 +103,7 @@ JSCompartment::init(JSContext *cx)
      * (unless they also create tons of iframes, which seems unlikely).
      */
     if (cx)
-        cx->runtime()->dateTimeInfo.updateTimeZoneAdjustment();
+        cx->runtime->dateTimeInfo.updateTimeZoneAdjustment();
 
     activeAnalysis = false;
 
@@ -100,6 +112,9 @@ JSCompartment::init(JSContext *cx)
 
     if (!regExps.init(cx))
         return false;
+
+    if (cx)
+        InitRandom(cx->runtime, &rngState);
 
     enumerators = NativeIterator::allocateSentinel(cx);
     if (!enumerators)
@@ -121,9 +136,9 @@ JSRuntime::createIonRuntime(JSContext *cx)
         js_delete(ionRuntime_);
         ionRuntime_ = NULL;
 
-        if (cx->runtime()->atomsCompartment->ionCompartment_) {
-            js_delete(cx->runtime()->atomsCompartment->ionCompartment_);
-            cx->runtime()->atomsCompartment->ionCompartment_ = NULL;
+        if (cx->runtime->atomsCompartment->ionCompartment_) {
+            js_delete(cx->runtime->atomsCompartment->ionCompartment_);
+            cx->runtime->atomsCompartment->ionCompartment_ = NULL;
         }
 
         return NULL;
@@ -139,7 +154,7 @@ JSCompartment::ensureIonCompartmentExists(JSContext *cx)
     if (ionCompartment_)
         return true;
 
-    IonRuntime *ionRuntime = cx->runtime()->getIonRuntime(cx);
+    IonRuntime *ionRuntime = cx->runtime->getIonRuntime(cx);
     if (!ionRuntime)
         return false;
 
@@ -162,13 +177,13 @@ JSCompartment::ensureIonCompartmentExists(JSContext *cx)
 static bool
 WrapForSameCompartment(JSContext *cx, HandleObject obj, MutableHandleValue vp)
 {
-    JS_ASSERT(cx->compartment() == obj->compartment());
-    if (!cx->runtime()->sameCompartmentWrapObjectCallback) {
+    JS_ASSERT(cx->compartment == obj->compartment());
+    if (!cx->runtime->sameCompartmentWrapObjectCallback) {
         vp.setObject(*obj);
         return true;
     }
 
-    JSObject *wrapped = cx->runtime()->sameCompartmentWrapObjectCallback(cx, obj);
+    JSObject *wrapped = cx->runtime->sameCompartmentWrapObjectCallback(cx, obj);
     if (!wrapped)
         return false;
     vp.setObject(*wrapped);
@@ -190,9 +205,8 @@ JSCompartment::putWrapper(const CrossCompartmentKey &wrapped, const js::Value &w
 bool
 JSCompartment::wrap(JSContext *cx, MutableHandleValue vp, HandleObject existingArg)
 {
-    JS_ASSERT(cx->compartment() == this);
-    JS_ASSERT(this != rt->atomsCompartment);
-    JS_ASSERT_IF(existingArg, existingArg->compartment() == cx->compartment());
+    JS_ASSERT(cx->compartment == this);
+    JS_ASSERT_IF(existingArg, existingArg->compartment() == cx->compartment);
     JS_ASSERT_IF(existingArg, vp.isObject());
     JS_ASSERT_IF(existingArg, IsDeadProxyObject(existingArg));
 
@@ -207,7 +221,7 @@ JSCompartment::wrap(JSContext *cx, MutableHandleValue vp, HandleObject existingA
         return true;
 
     if (vp.isString()) {
-        JSString *str = vp.toString();
+        RawString str = vp.toString();
 
         /* If the string is already in this compartment, we are done. */
         if (str->zone() == zone())
@@ -215,7 +229,7 @@ JSCompartment::wrap(JSContext *cx, MutableHandleValue vp, HandleObject existingA
 
         /* If the string is an atom, we don't have to copy. */
         if (str->isAtom()) {
-            JS_ASSERT(str->zone() == cx->runtime()->atomsCompartment->zone());
+            JS_ASSERT(str->zone() == cx->runtime->atomsCompartment->zone());
             return true;
         }
     }
@@ -237,17 +251,17 @@ JSCompartment::wrap(JSContext *cx, MutableHandleValue vp, HandleObject existingA
             return WrapForSameCompartment(cx, obj, vp);
 
         /* Translate StopIteration singleton. */
-        if (obj->is<StopIterationObject>())
+        if (obj->isStopIteration())
             return js_FindClassObject(cx, JSProto_StopIteration, vp);
 
         /* Unwrap the object, but don't unwrap outer windows. */
-        obj = UncheckedUnwrap(obj, /* stopAtOuter = */ true, &flags);
+        obj = UnwrapObject(obj, /* stopAtOuter = */ true, &flags);
 
         if (obj->compartment() == this)
             return WrapForSameCompartment(cx, obj, vp);
 
-        if (cx->runtime()->preWrapObjectCallback) {
-            obj = cx->runtime()->preWrapObjectCallback(cx, global, obj, flags);
+        if (cx->runtime->preWrapObjectCallback) {
+            obj = cx->runtime->preWrapObjectCallback(cx, global, obj, flags);
             if (!obj)
                 return false;
         }
@@ -270,7 +284,7 @@ JSCompartment::wrap(JSContext *cx, MutableHandleValue vp, HandleObject existingA
     if (WrapperMap::Ptr p = crossCompartmentWrappers.lookup(key)) {
         vp.set(p->value);
         if (vp.isObject()) {
-            DebugOnly<JSObject *> obj = &vp.toObject();
+            DebugOnly<RawObject> obj = &vp.toObject();
             JS_ASSERT(obj->isCrossCompartmentWrapper());
             JS_ASSERT(obj->getParent() == global);
         }
@@ -282,7 +296,7 @@ JSCompartment::wrap(JSContext *cx, MutableHandleValue vp, HandleObject existingA
         if (!str)
             return false;
 
-        JSString *wrapped = js_NewStringCopyN<CanGC>(cx, str->chars(), str->length());
+        RawString wrapped = js_NewStringCopyN<CanGC>(cx, str->chars(), str->length());
         if (!wrapped)
             return false;
 
@@ -325,7 +339,7 @@ JSCompartment::wrap(JSContext *cx, MutableHandleValue vp, HandleObject existingA
      * to the object.
      */
     RootedObject wrapper(cx);
-    wrapper = cx->runtime()->wrapObjectCallback(cx, existing, obj, proto, global, flags);
+    wrapper = cx->runtime->wrapObjectCallback(cx, existing, obj, proto, global, flags);
     if (!wrapper)
         return false;
 
@@ -380,7 +394,7 @@ JSCompartment::wrapId(JSContext *cx, jsid *idp)
     if (!wrap(cx, &value))
         return false;
     RootedId id(cx);
-    if (!ValueToId<CanGC>(cx, value, &id))
+    if (!ValueToId<CanGC>(cx, value.get(), &id))
         return false;
 
     *idp = id;
@@ -467,26 +481,6 @@ JSCompartment::markCrossCompartmentWrappers(JSTracer *trc)
     }
 }
 
-/*
- * This method marks and keeps live all pointers in the cross compartment
- * wrapper map. It should be called only for minor GCs, since minor GCs cannot,
- * by their nature, apply the weak constraint to safely remove items from the
- * wrapper map.
- */
-void
-JSCompartment::markAllCrossCompartmentWrappers(JSTracer *trc)
-{
-    for (WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront()) {
-        CrossCompartmentKey key = e.front().key;
-        MarkGCThingRoot(trc, (void **)&key.wrapped, "CrossCompartmentKey::wrapped");
-        if (key.debugger)
-            MarkObjectRoot(trc, &key.debugger, "CrossCompartmentKey::debugger");
-        MarkValueRoot(trc, e.front().value.unsafeGet(), "CrossCompartmentWrapper");
-        if (key.wrapped != e.front().key.wrapped || key.debugger != e.front().key.debugger)
-            e.rekeyFront(key);
-    }
-}
-
 void
 JSCompartment::mark(JSTracer *trc)
 {
@@ -520,6 +514,7 @@ JSCompartment::sweep(FreeOp *fop, bool releaseTypes)
         sweepInitialShapeTable();
         sweepNewTypeObjectTable(newTypeObjects);
         sweepNewTypeObjectTable(lazyTypeObjects);
+        sweepBreakpoints(fop);
         sweepCallsiteClones();
 
         if (global_ && IsObjectAboutToBeFinalized(global_.unsafeGet()))
@@ -599,84 +594,22 @@ JSCompartment::purge()
 bool
 JSCompartment::hasScriptsOnStack()
 {
-    for (ActivationIterator iter(rt); !iter.done(); ++iter) {
-        if (iter.activation()->compartment() == this)
+    for (AllFramesIter afi(rt); !afi.done(); ++afi) {
+#ifdef JS_ION
+        // If this is an Ion frame, check the IonActivation instead
+        if (afi.isIon())
+            continue;
+#endif
+        if (afi.interpFrame()->script()->compartment() == this)
             return true;
     }
-
+#ifdef JS_ION
+    for (ion::IonActivationIterator iai(rt); iai.more(); ++iai) {
+        if (iai.activation()->compartment() == this)
+            return true;
+    }
+#endif
     return false;
-}
-
-static bool
-AddInnerLazyFunctionsFromScript(JSScript *script, AutoObjectVector &lazyFunctions)
-{
-    if (!script->hasObjects())
-        return true;
-    ObjectArray *objects = script->objects();
-    for (size_t i = script->innerObjectsStart(); i < objects->length; i++) {
-        JSObject *obj = objects->vector[i];
-        if (obj->is<JSFunction>() && obj->as<JSFunction>().isInterpretedLazy()) {
-            if (!lazyFunctions.append(obj))
-                return false;
-        }
-    }
-    return true;
-}
-
-static bool
-CreateLazyScriptsForCompartment(JSContext *cx)
-{
-    AutoObjectVector lazyFunctions(cx);
-
-    // Find all root lazy functions in the compartment: those which have not been
-    // compiled and which have a source object, indicating that their parent has
-    // been compiled.
-    for (gc::CellIter i(cx->zone(), JSFunction::FinalizeKind); !i.done(); i.next()) {
-        JSObject *obj = i.get<JSObject>();
-        if (obj->compartment() == cx->compartment() && obj->is<JSFunction>()) {
-            JSFunction *fun = &obj->as<JSFunction>();
-            if (fun->isInterpretedLazy()) {
-                LazyScript *lazy = fun->lazyScriptOrNull();
-                if (lazy && lazy->sourceObject() && !lazy->maybeScript()) {
-                    if (!lazyFunctions.append(fun))
-                        return false;
-                }
-            }
-        }
-    }
-
-    // Create scripts for each lazy function, updating the list of functions to
-    // process with any newly exposed inner functions in created scripts.
-    // A function cannot be delazified until its outer script exists.
-    for (size_t i = 0; i < lazyFunctions.length(); i++) {
-        JSFunction *fun = &lazyFunctions[i]->as<JSFunction>();
-
-        // lazyFunctions may have been populated with multiple functions for
-        // a lazy script.
-        if (!fun->isInterpretedLazy())
-            continue;
-
-        JSScript *script = fun->getOrCreateScript(cx);
-        if (!script)
-            return false;
-        if (!AddInnerLazyFunctionsFromScript(script, lazyFunctions))
-            return false;
-    }
-
-    // Repoint any clones of the original functions to their new script.
-    for (gc::CellIter i(cx->zone(), JSFunction::FinalizeKind); !i.done(); i.next()) {
-        JSObject *obj = i.get<JSObject>();
-        if (obj->compartment() == cx->compartment() && obj->is<JSFunction>()) {
-            JSFunction *fun = &obj->as<JSFunction>();
-            if (fun->isInterpretedLazy()) {
-                LazyScript *lazy = fun->lazyScriptOrNull();
-                if (lazy && lazy->maybeScript())
-                    fun->existingScript();
-            }
-        }
-    }
-
-    return true;
 }
 
 bool
@@ -702,14 +635,12 @@ JSCompartment::setDebugModeFromC(JSContext *cx, bool b, AutoDebugModeGC &dmgc)
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_DEBUG_NOT_IDLE);
             return false;
         }
-        if (enabledAfter && !CreateLazyScriptsForCompartment(cx))
-            return false;
     }
 
     debugModeBits = (debugModeBits & ~unsigned(DebugFromC)) | (b ? DebugFromC : 0);
     JS_ASSERT(debugMode() == enabledAfter);
     if (enabledBefore != enabledAfter) {
-        updateForDebugMode(cx->runtime()->defaultFreeOp(), dmgc);
+        updateForDebugMode(cx->runtime->defaultFreeOp(), dmgc);
         if (!enabledAfter)
             DebugScopes::onCompartmentLeaveDebugMode(this);
     }
@@ -720,12 +651,20 @@ void
 JSCompartment::updateForDebugMode(FreeOp *fop, AutoDebugModeGC &dmgc)
 {
     for (ContextIter acx(rt); !acx.done(); acx.next()) {
-        if (acx->compartment() == this)
+        if (acx->compartment == this)
             acx->updateJITEnabled();
     }
 
-#ifdef JS_ION
-    JS_ASSERT_IF(debugMode(), !hasScriptsOnStack());
+#ifdef JS_METHODJIT
+    bool enabled = debugMode();
+
+    JS_ASSERT_IF(enabled, !hasScriptsOnStack());
+
+    for (gc::CellIter i(zone(), gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
+        JSScript *script = i.get<JSScript>();
+        if (script->compartment() == this)
+            script->debugMode = enabled;
+    }
 
     // When we change a compartment's debug mode, whether we're turning it
     // on or off, we must always throw away all analyses: debug mode
@@ -749,27 +688,23 @@ JSCompartment::updateForDebugMode(FreeOp *fop, AutoDebugModeGC &dmgc)
 bool
 JSCompartment::addDebuggee(JSContext *cx, js::GlobalObject *global)
 {
-    AutoDebugModeGC dmgc(cx->runtime());
+    AutoDebugModeGC dmgc(cx->runtime);
     return addDebuggee(cx, global, dmgc);
 }
 
 bool
 JSCompartment::addDebuggee(JSContext *cx,
-                           GlobalObject *globalArg,
+                           js::GlobalObject *global,
                            AutoDebugModeGC &dmgc)
 {
-    Rooted<GlobalObject*> global(cx, globalArg);
-
     bool wasEnabled = debugMode();
-    if (!wasEnabled && !CreateLazyScriptsForCompartment(cx))
-        return false;
     if (!debuggees.put(global)) {
         js_ReportOutOfMemory(cx);
         return false;
     }
     debugModeBits |= DebugFromJS;
     if (!wasEnabled) {
-        updateForDebugMode(cx->runtime()->defaultFreeOp(), dmgc);
+        updateForDebugMode(cx->runtime->defaultFreeOp(), dmgc);
     }
     return true;
 }
@@ -818,7 +753,6 @@ JSCompartment::clearBreakpointsIn(FreeOp *fop, js::Debugger *dbg, JSObject *hand
 void
 JSCompartment::clearTraps(FreeOp *fop)
 {
-    MinorGC(rt, JS::gcreason::EVICT_NURSERY);
     for (gc::CellIter i(zone(), gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
         JSScript *script = i.get<JSScript>();
         if (script->compartment() == this && script->hasAnyBreakpointsOrStepMode())
@@ -827,10 +761,40 @@ JSCompartment::clearTraps(FreeOp *fop)
 }
 
 void
+JSCompartment::sweepBreakpoints(FreeOp *fop)
+{
+    gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_SWEEP_TABLES_BREAKPOINT);
+
+    if (rt->debuggerList.isEmpty())
+        return;
+
+    for (CellIterUnderGC i(zone(), FINALIZE_SCRIPT); !i.done(); i.next()) {
+        JSScript *script = i.get<JSScript>();
+        if (script->compartment() != this || !script->hasAnyBreakpointsOrStepMode())
+            continue;
+        bool scriptGone = IsScriptAboutToBeFinalized(&script);
+        JS_ASSERT(script == i.get<JSScript>());
+        for (unsigned i = 0; i < script->length; i++) {
+            BreakpointSite *site = script->getBreakpointSite(script->code + i);
+            if (!site)
+                continue;
+            // nextbp is necessary here to avoid possibly reading *bp after
+            // destroying it.
+            Breakpoint *nextbp;
+            for (Breakpoint *bp = site->firstBreakpoint(); bp; bp = nextbp) {
+                nextbp = bp->nextInSite();
+                if (scriptGone || IsObjectAboutToBeFinalized(&bp->debugger->toJSObjectRef()))
+                    bp->destroy(fop);
+            }
+        }
+    }
+}
+
+void
 JSCompartment::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *compartmentObject,
                                    JS::TypeInferenceSizes *tiSizes, size_t *shapesCompartmentTables,
                                    size_t *crossCompartmentWrappersArg, size_t *regexpCompartment,
-                                   size_t *debuggeesSet, size_t *baselineStubsOptimized)
+                                   size_t *debuggeesSet)
 {
     *compartmentObject = mallocSizeOf(this);
     sizeOfTypeInferenceData(tiSizes, mallocSizeOf);
@@ -841,13 +805,6 @@ JSCompartment::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *compa
     *crossCompartmentWrappersArg = crossCompartmentWrappers.sizeOfExcludingThis(mallocSizeOf);
     *regexpCompartment = regExps.sizeOfExcludingThis(mallocSizeOf);
     *debuggeesSet = debuggees.sizeOfExcludingThis(mallocSizeOf);
-#ifdef JS_ION
-    *baselineStubsOptimized = ionCompartment()
-        ? ionCompartment()->optimizedStubSpace()->sizeOfExcludingThis(mallocSizeOf)
-        : 0;
-#else
-    *baselineStubsOptimized = 0;
-#endif
 }
 
 void

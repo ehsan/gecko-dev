@@ -1,6 +1,5 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
- * This Source Code Form is subject to the terms of the Mozilla Public
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
@@ -9,10 +8,6 @@
  */
 
 #include "jsd.h"
-#include "nsCxPusher.h"
-#include "nsContentUtils.h"
-
-using mozilla::AutoSafeJSContext;
 
 /***************************************************************************/
 
@@ -37,27 +32,15 @@ void JSD_ASSERT_VALID_CONTEXT(JSDContext* jsdc)
 {
     JS_ASSERT(jsdc->inited);
     JS_ASSERT(jsdc->jsrt);
+    JS_ASSERT(jsdc->dumbContext);
     JS_ASSERT(jsdc->glob);
 }
 #endif
 
-/***************************************************************************/
-/* xpconnect related utility functions implemented in jsd_xpc.cpp */
-
-extern void
-global_finalize(JSFreeOp* fop, JSObject* obj);
-
-extern JSObject*
-CreateJSDGlobal(JSContext *cx, JSClass *clasp);
-
-/***************************************************************************/
-
-
 static JSClass global_class = {
-    "JSDGlobal", JSCLASS_GLOBAL_FLAGS |
-    JSCLASS_HAS_PRIVATE | JSCLASS_PRIVATE_IS_NSISUPPORTS,
-    JS_PropertyStub,  JS_DeletePropertyStub,  JS_PropertyStub,  JS_StrictPropertyStub,
-    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   global_finalize
+    "JSDGlobal", JSCLASS_GLOBAL_FLAGS,
+    JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_StrictPropertyStub,
+    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub
 };
 
 static JSBool
@@ -74,8 +57,8 @@ _newJSDContext(JSRuntime*         jsrt,
                JSObject*          scopeobj)
 {
     JSDContext* jsdc = NULL;
-    bool ok = true;
-    AutoSafeJSContext cx;
+    JSCompartment *oldCompartment = NULL;
+    JSBool ok;
 
     if( ! jsrt )
         return NULL;
@@ -118,19 +101,30 @@ _newJSDContext(JSRuntime*         jsrt,
     if( ! jsd_InitScriptManager(jsdc) )
         goto label_newJSDContext_failure;
 
+    jsdc->dumbContext = JS_NewContext(jsdc->jsrt, 256);
+    if( ! jsdc->dumbContext )
+        goto label_newJSDContext_failure;
 
-    jsdc->glob = CreateJSDGlobal(cx, &global_class);
+    JS_BeginRequest(jsdc->dumbContext);
+    JS_SetOptions(jsdc->dumbContext, JS_GetOptions(jsdc->dumbContext));
+
+    jsdc->glob = JS_NewGlobalObject(jsdc->dumbContext, &global_class, NULL);
 
     if( ! jsdc->glob )
         goto label_newJSDContext_failure;
 
-    {
-        JSAutoCompartment ac(cx, jsdc->glob);
-        ok = JS_AddNamedObjectRoot(cx, &jsdc->glob, "JSD context global") &&
-             JS_InitStandardClasses(cx, jsdc->glob);
-    }
+    oldCompartment = JS_EnterCompartment(jsdc->dumbContext, jsdc->glob);
+
+    if ( ! JS_AddNamedObjectRoot(jsdc->dumbContext, &jsdc->glob, "JSD context global") )
+        goto label_newJSDContext_failure;
+
+    ok = JS_InitStandardClasses(jsdc->dumbContext, jsdc->glob);
+
+    JS_LeaveCompartment(jsdc->dumbContext, oldCompartment);
     if( ! ok )
         goto label_newJSDContext_failure;
+
+    JS_EndRequest(jsdc->dumbContext);
 
     jsdc->data = NULL;
     jsdc->inited = JS_TRUE;
@@ -143,10 +137,12 @@ _newJSDContext(JSRuntime*         jsrt,
 
 label_newJSDContext_failure:
     if( jsdc ) {
-        if ( jsdc->glob )
-            JS_RemoveObjectRootRT(JS_GetRuntime(cx), &jsdc->glob);
+        if ( jsdc->dumbContext && jsdc->glob )
+            JS_RemoveObjectRootRT(JS_GetRuntime(jsdc->dumbContext), &jsdc->glob);
         jsd_DestroyObjectManager(jsdc);
         jsd_DestroyAtomTable(jsdc);
+        if( jsdc->dumbContext )
+            JS_EndRequest(jsdc->dumbContext);
         free(jsdc);
     }
     return NULL;
@@ -161,8 +157,8 @@ _destroyJSDContext(JSDContext* jsdc)
     JS_REMOVE_LINK(&jsdc->links);
     JSD_UNLOCK();
 
-    if ( jsdc->glob ) {
-        JS_RemoveObjectRootRT(jsdc->jsrt, &jsdc->glob);
+    if ( jsdc->dumbContext && jsdc->glob ) {
+        JS_RemoveObjectRootRT(JS_GetRuntime(jsdc->dumbContext), &jsdc->glob);
     }
     jsd_DestroyObjectManager(jsdc);
     jsd_DestroyAtomTable(jsdc);
@@ -175,6 +171,8 @@ _destroyJSDContext(JSDContext* jsdc)
     *
     * XXX we also leak the locks
     */
+    JS_DestroyContext(jsdc->dumbContext);
+    jsdc->dumbContext = NULL;
 }
 
 /***************************************************************************/

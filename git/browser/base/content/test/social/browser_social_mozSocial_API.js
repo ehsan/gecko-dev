@@ -28,13 +28,15 @@ var tests = {
     }
 
     function triggerIconPanel() {
+      let statusIcon = document.getElementById("social-provider-button").nextSibling;
+      info("status icon is " + statusIcon);
       waitForCondition(function() {
-        let button = document.getElementById("social-toolbar-item");
-        // by default, button has two children.  wait for a 3rd to be added
-        return button.childNodes.length > 2;
+        statusIcon = document.getElementById("social-provider-button").nextSibling;
+        info("status icon is " + statusIcon);
+        return !!statusIcon;
       }, function() {
         // Click the button to trigger its contentPanel
-        let statusIcon = document.getElementById("social-provider-button").nextSibling;
+        let panel = document.getElementById("social-notification-panel");
         EventUtils.synthesizeMouseAtCenter(statusIcon, {});
       }, "Status icon didn't become non-hidden");
     }

@@ -192,13 +192,8 @@ public:
   static void SetFullScreenState(mozilla::dom::Element* aElement, bool aIsFullScreen);
 
   static bool IsRemoteTarget(nsIContent* aTarget);
-  static nsIntPoint GetChildProcessOffset(nsFrameLoader* aFrameLoader,
-                                          const nsEvent& aEvent);
 
   static void MapEventCoordinatesForChildProcess(nsFrameLoader* aFrameLoader,
-                                                 nsEvent* aEvent);
-
-  static void MapEventCoordinatesForChildProcess(const nsIntPoint& aOffset,
                                                  nsEvent* aEvent);
 
   // Holds the point in screen coords that a mouse event was dispatched to,
@@ -531,7 +526,7 @@ protected:
    * @param aScrollableFrame    A frame which will be scrolled by the event.
    *                            The result of ComputeScrollTarget() is
    *                            expected for this value.
-   *                            This can be nullptr if there is no scrollable
+   *                            This can be NULL if there is no scrollable
    *                            frame.  Then, this method uses root frame's
    *                            line height or visible area's width and height.
    */

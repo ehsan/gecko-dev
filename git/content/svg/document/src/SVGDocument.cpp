@@ -13,14 +13,46 @@
 
 using namespace mozilla::dom;
 
+DOMCI_NODE_DATA(SVGDocument, SVGDocument)
+
 namespace mozilla {
 namespace dom {
 
 //----------------------------------------------------------------------
 // Implementation
 
+SVGDocument::SVGDocument()
+{
+}
+
+SVGDocument::~SVGDocument()
+{
+}
+
 //----------------------------------------------------------------------
 // nsISupports methods:
+
+NS_INTERFACE_TABLE_HEAD(SVGDocument)
+  NS_INTERFACE_TABLE_INHERITED1(SVGDocument,
+                                nsIDOMSVGDocument)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGDocument)
+NS_INTERFACE_MAP_END_INHERITING(XMLDocument)
+
+NS_IMPL_ADDREF_INHERITED(SVGDocument, XMLDocument)
+NS_IMPL_RELEASE_INHERITED(SVGDocument, XMLDocument)
+
+//----------------------------------------------------------------------
+// nsIDOMSVGDocument methods:
+
+/* readonly attribute DOMString domain; */
+NS_IMETHODIMP
+SVGDocument::GetDomain(nsAString& aDomain)
+{
+  ErrorResult rv;
+  GetDomain(aDomain, rv);
+  return rv.ErrorCode();
+}
 
 void
 SVGDocument::GetDomain(nsAString& aDomain, ErrorResult& aRv)
@@ -39,6 +71,16 @@ SVGDocument::GetDomain(nsAString& aDomain, ErrorResult& aRv)
     }
     CopyUTF8toUTF16(domain, aDomain);
   }
+}
+
+/* readonly attribute SVGSVGElement rootElement; */
+NS_IMETHODIMP
+SVGDocument::GetRootElement(nsIDOMSVGElement** aRootElement)
+{
+  ErrorResult rv;
+  nsCOMPtr<nsIDOMSVGElement> retval = GetRootElement(rv);
+  retval.forget(aRootElement);
+  return rv.ErrorCode();
 }
 
 nsSVGElement*
@@ -70,9 +112,13 @@ SVGDocument::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 }
 
 JSObject*
-SVGDocument::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+SVGDocument::WrapNode(JSContext *aCx, JSObject *aScope)
 {
-  return SVGDocumentBinding::Wrap(aCx, aScope, this);
+  JSObject* obj = SVGDocumentBinding::Wrap(aCx, aScope, this);
+  if (obj && !PostCreateWrapper(aCx, obj)) {
+    return nullptr;
+  }
+  return obj;
 }
 
 } // namespace dom
@@ -91,6 +137,6 @@ NS_NewSVGDocument(nsIDocument** aInstancePtrResult)
     return rv;
   }
 
-  doc.forget(aInstancePtrResult);
+  *aInstancePtrResult = doc.forget().get();
   return rv;
 }

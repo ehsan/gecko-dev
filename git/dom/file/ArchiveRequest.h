@@ -7,7 +7,6 @@
 #ifndef mozilla_dom_file_domarchiverequest_h__
 #define mozilla_dom_file_domarchiverequest_h__
 
-#include "mozilla/Attributes.h"
 #include "ArchiveReader.h"
 #include "DOMRequest.h"
 
@@ -28,8 +27,8 @@ public:
     return ArchiveReader::PrefEnabled();
   }
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject*
+  WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
   ArchiveReader* Reader() const;
 
@@ -41,7 +40,7 @@ public:
                  ArchiveReader* aReader);
 
   // nsIDOMEventTarget
-  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
+  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
 
 public:
   // This is called by the DOMArchiveRequestEvent

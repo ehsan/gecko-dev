@@ -5,16 +5,6 @@
 
 #include "WebGLContext.h"
 #include "WebGLContextUtils.h"
-#include "WebGLBuffer.h"
-#include "WebGLVertexAttribData.h"
-#include "WebGLShader.h"
-#include "WebGLProgram.h"
-#include "WebGLUniformLocation.h"
-#include "WebGLFramebuffer.h"
-#include "WebGLRenderbuffer.h"
-#include "WebGLShaderPrecisionFormat.h"
-#include "WebGLTexture.h"
-#include "WebGLExtensions.h"
 
 #include "nsString.h"
 #include "nsDebug.h"
@@ -44,22 +34,14 @@
 
 using namespace mozilla;
 using namespace mozilla::dom;
-using namespace mozilla::gl;
 
 static bool BaseTypeAndSizeFromUniformType(WebGLenum uType, WebGLenum *baseType, WebGLint *unitSize);
 static WebGLenum InternalFormatForFormatAndType(WebGLenum format, WebGLenum type, bool isGLES2);
-
-// For a Tegra workaround.
-static const int MAX_DRAW_CALLS_SINCE_FLUSH = 100;
 
 //
 //  WebGL API
 //
 
-inline const WebGLRectangleObject *WebGLContext::FramebufferRectangleObject() const {
-    return mBoundFramebuffer ? mBoundFramebuffer->RectangleObject()
-                             : static_cast<const WebGLRectangleObject*>(this);
-}
 
 void
 WebGLContext::ActiveTexture(WebGLenum texture)
@@ -247,7 +229,6 @@ WebGLContext::BindTexture(WebGLenum target, WebGLTexture *tex)
         return ErrorInvalidEnumInfo("bindTexture: target", target);
     }
 
-    SetDontKnowIfNeedFakeBlack();
     MakeContextCurrent();
 
     if (tex)
@@ -333,7 +314,7 @@ GLenum WebGLContext::CheckedBufferData(GLenum target,
         return LOCAL_GL_INVALID_VALUE;
     }
 #endif
-    WebGLBuffer *boundBuffer = nullptr;
+    WebGLBuffer *boundBuffer = NULL;
     if (target == LOCAL_GL_ARRAY_BUFFER) {
         boundBuffer = mBoundArrayBuffer;
     } else if (target == LOCAL_GL_ELEMENT_ARRAY_BUFFER) {
@@ -361,7 +342,7 @@ WebGLContext::BufferData(WebGLenum target, WebGLsizeiptr size,
     if (!IsContextStable())
         return;
 
-    WebGLBuffer *boundBuffer = nullptr;
+    WebGLBuffer *boundBuffer = NULL;
 
     if (target == LOCAL_GL_ARRAY_BUFFER) {
         boundBuffer = mBoundArrayBuffer;
@@ -380,16 +361,10 @@ WebGLContext::BufferData(WebGLenum target, WebGLsizeiptr size,
     if (!boundBuffer)
         return ErrorInvalidOperation("bufferData: no buffer bound!");
 
-    void* zeroBuffer = calloc(size, 1);
-    if (!zeroBuffer)
-        return ErrorOutOfMemory("bufferData: out of memory");
-
     MakeContextCurrent();
     InvalidateCachedMinInUseAttribArrayLength();
 
-    GLenum error = CheckedBufferData(target, size, zeroBuffer, usage);
-    free(zeroBuffer);
-
+    GLenum error = CheckedBufferData(target, size, 0, usage);
     if (error) {
         GenerateWarning("bufferData generated error %s", ErrorName(error));
         return;
@@ -412,7 +387,7 @@ WebGLContext::BufferData(WebGLenum target, ArrayBuffer *data, WebGLenum usage)
         return ErrorInvalidValue("bufferData: null object passed");
     }
 
-    WebGLBuffer *boundBuffer = nullptr;
+    WebGLBuffer *boundBuffer = NULL;
 
     if (target == LOCAL_GL_ARRAY_BUFFER) {
         boundBuffer = mBoundArrayBuffer;
@@ -450,7 +425,7 @@ WebGLContext::BufferData(WebGLenum target, ArrayBufferView& data, WebGLenum usag
     if (!IsContextStable())
         return;
 
-    WebGLBuffer *boundBuffer = nullptr;
+    WebGLBuffer *boundBuffer = NULL;
 
     if (target == LOCAL_GL_ARRAY_BUFFER) {
         boundBuffer = mBoundArrayBuffer;
@@ -493,7 +468,7 @@ WebGLContext::BufferSubData(GLenum target, WebGLsizeiptr byteOffset,
         return;
     }
 
-    WebGLBuffer *boundBuffer = nullptr;
+    WebGLBuffer *boundBuffer = NULL;
 
     if (target == LOCAL_GL_ARRAY_BUFFER) {
         boundBuffer = mBoundArrayBuffer;
@@ -511,10 +486,10 @@ WebGLContext::BufferSubData(GLenum target, WebGLsizeiptr byteOffset,
 
     CheckedUint32 checked_neededByteLength = CheckedUint32(byteOffset) + data->Length();
     if (!checked_neededByteLength.isValid())
-        return ErrorInvalidValue("bufferSubData: integer overflow computing the needed byte length");
+        return ErrorInvalidOperation("bufferSubData: integer overflow computing the needed byte length");
 
     if (checked_neededByteLength.value() > boundBuffer->ByteLength())
-        return ErrorInvalidValue("bufferSubData: not enough data - operation requires %d bytes, but buffer only has %d bytes",
+        return ErrorInvalidOperation("bufferSubData: not enough data - operation requires %d bytes, but buffer only has %d bytes",
                                      checked_neededByteLength.value(), boundBuffer->ByteLength());
 
     MakeContextCurrent();
@@ -531,7 +506,7 @@ WebGLContext::BufferSubData(WebGLenum target, WebGLsizeiptr byteOffset,
     if (!IsContextStable())
         return;
 
-    WebGLBuffer *boundBuffer = nullptr;
+    WebGLBuffer *boundBuffer = NULL;
 
     if (target == LOCAL_GL_ARRAY_BUFFER) {
         boundBuffer = mBoundArrayBuffer;
@@ -549,10 +524,10 @@ WebGLContext::BufferSubData(WebGLenum target, WebGLsizeiptr byteOffset,
 
     CheckedUint32 checked_neededByteLength = CheckedUint32(byteOffset) + data.Length();
     if (!checked_neededByteLength.isValid())
-        return ErrorInvalidValue("bufferSubData: integer overflow computing the needed byte length");
+        return ErrorInvalidOperation("bufferSubData: integer overflow computing the needed byte length");
 
     if (checked_neededByteLength.value() > boundBuffer->ByteLength())
-        return ErrorInvalidValue("bufferSubData: not enough data -- operation requires %d bytes, but buffer only has %d bytes",
+        return ErrorInvalidOperation("bufferSubData: not enough data -- operation requires %d bytes, but buffer only has %d bytes",
                                      checked_neededByteLength.value(), boundBuffer->ByteLength());
 
     boundBuffer->ElementArrayCacheBufferSubData(byteOffset, data.Data(), data.Length());
@@ -579,31 +554,8 @@ WebGLContext::CheckFramebufferStatus(WebGLenum target)
         return LOCAL_GL_FRAMEBUFFER_COMPLETE;
     if(mBoundFramebuffer->HasDepthStencilConflict())
         return LOCAL_GL_FRAMEBUFFER_UNSUPPORTED;
-
-    bool hasImages = false;
-    hasImages |= mBoundFramebuffer->DepthAttachment().IsDefined();
-    hasImages |= mBoundFramebuffer->StencilAttachment().IsDefined();
-    hasImages |= mBoundFramebuffer->DepthStencilAttachment().IsDefined();
-
-    if (!hasImages) {
-        int32_t colorAttachmentCount = mBoundFramebuffer->mColorAttachments.Length();
-
-        for(int32_t i = 0; i < colorAttachmentCount; i++) {
-            if (mBoundFramebuffer->ColorAttachment(i).IsDefined()) {
-                hasImages = true;
-                break;
-            }
-        }
-
-        /* http://www.khronos.org/registry/gles/specs/2.0/es_full_spec_2.0.25.pdf section 4.4.5 (page 118)
-         GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT
-         No images are attached to the framebuffer.
-         */
-        if (!hasImages) {
-            return LOCAL_GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT;
-        }
-    }
-
+    if(!mBoundFramebuffer->ColorAttachment().IsDefined())
+        return LOCAL_GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT;
     if(mBoundFramebuffer->HasIncompleteAttachment())
         return LOCAL_GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT;
     if(mBoundFramebuffer->HasAttachmentsOfMismatchedDimensions())
@@ -779,7 +731,7 @@ WebGLContext::CopyTexSubImage2D_base(WebGLenum target,
         // now that the size is known, create the buffer
 
         // We need some zero pages, because GL doesn't guarantee the
-        // contents of a texture allocated with nullptr data.
+        // contents of a texture allocated with NULL data.
         // Hopefully calloc will just mmap zero pages here.
         void *tempZeroData = calloc(1, bytesNeeded);
         if (!tempZeroData)
@@ -882,8 +834,8 @@ WebGLContext::CopyTexImage2D(WebGLenum target,
     bool texFormatRequiresAlpha = internalformat == LOCAL_GL_RGBA ||
                                     internalformat == LOCAL_GL_ALPHA ||
                                     internalformat == LOCAL_GL_LUMINANCE_ALPHA;
-    bool fboFormatHasAlpha = mBoundFramebuffer ? mBoundFramebuffer->ColorAttachment(0).HasAlpha()
-                                               : bool(gl->GetPixelFormat().alpha > 0);
+    bool fboFormatHasAlpha = mBoundFramebuffer ? mBoundFramebuffer->ColorAttachment().HasAlpha()
+                                                 : bool(gl->GetPixelFormat().alpha > 0);
     if (texFormatRequiresAlpha && !fboFormatHasAlpha)
         return ErrorInvalidOperation("copyTexImage2D: texture format requires an alpha channel "
                                      "but the framebuffer doesn't have one");
@@ -992,8 +944,8 @@ WebGLContext::CopyTexSubImage2D(WebGLenum target,
     bool texFormatRequiresAlpha = format == LOCAL_GL_RGBA ||
                                   format == LOCAL_GL_ALPHA ||
                                   format == LOCAL_GL_LUMINANCE_ALPHA;
-    bool fboFormatHasAlpha = mBoundFramebuffer ? mBoundFramebuffer->ColorAttachment(0).HasAlpha()
-                                               : bool(gl->GetPixelFormat().alpha > 0);
+    bool fboFormatHasAlpha = mBoundFramebuffer ? mBoundFramebuffer->ColorAttachment().HasAlpha()
+                                                 : bool(gl->GetPixelFormat().alpha > 0);
 
     if (texFormatRequiresAlpha && !fboFormatHasAlpha)
         return ErrorInvalidOperation("copyTexSubImage2D: texture format requires an alpha channel "
@@ -1381,22 +1333,23 @@ WebGLContext::NeedFakeBlack()
     if (mFakeBlackStatus == DoNotNeedFakeBlack)
         return false;
 
-    if (mFakeBlackStatus == DoNeedFakeBlack)
-        return true;
-
-    for (int32_t i = 0; i < mGLMaxTextureUnits; ++i) {
-        if ((mBound2DTextures[i] && mBound2DTextures[i]->NeedFakeBlack()) ||
-            (mBoundCubeMapTextures[i] && mBoundCubeMapTextures[i]->NeedFakeBlack()))
-        {
-            mFakeBlackStatus = DoNeedFakeBlack;
-            return true;
+    if (mFakeBlackStatus == DontKnowIfNeedFakeBlack) {
+        for (int32_t i = 0; i < mGLMaxTextureUnits; ++i) {
+            if ((mBound2DTextures[i] && mBound2DTextures[i]->NeedFakeBlack()) ||
+                (mBoundCubeMapTextures[i] && mBoundCubeMapTextures[i]->NeedFakeBlack()))
+            {
+                mFakeBlackStatus = DoNeedFakeBlack;
+                break;
+            }
         }
+
+        // we have exhausted all cases where we do need fakeblack, so if the status is still unknown,
+        // that means that we do NOT need it.
+        if (mFakeBlackStatus == DontKnowIfNeedFakeBlack)
+            mFakeBlackStatus = DoNotNeedFakeBlack;
     }
 
-    // we have exhausted all cases where we do need fakeblack, so if the status is still unknown,
-    // that means that we do NOT need it.
-    mFakeBlackStatus = DoNotNeedFakeBlack;
-    return false;
+    return mFakeBlackStatus == DoNeedFakeBlack;
 }
 
 void
@@ -1509,9 +1462,9 @@ WebGLContext::DrawArrays(GLenum mode, WebGLint first, WebGLsizei count)
             return ErrorInvalidFramebufferOperation("drawArrays: incomplete framebuffer");
     }
 
+    BindFakeBlackTextures();
     if (!DoFakeVertexAttrib0(checked_firstPlusCount.value()))
         return;
-    BindFakeBlackTextures();
 
     SetupContextLossTimer();
     gl->fDrawArrays(mode, first, count);
@@ -1523,17 +1476,6 @@ WebGLContext::DrawArrays(GLenum mode, WebGLint first, WebGLsizei count)
         Invalidate();
         mShouldPresent = true;
         mIsScreenCleared = false;
-    }
-
-    if (gl->WorkAroundDriverBugs()) {
-        if (gl->Renderer() == gl::GLContext::RendererTegra) {
-            mDrawCallsSinceLastFlush++;
-
-            if (mDrawCallsSinceLastFlush >= MAX_DRAW_CALLS_SINCE_FLUSH) {
-                gl->fFlush();
-                mDrawCallsSinceLastFlush = 0;
-            }
-        }
     }
 }
 
@@ -1569,11 +1511,6 @@ WebGLContext::DrawElements(WebGLenum mode, WebGLsizei count, WebGLenum type,
     } else if (type == LOCAL_GL_UNSIGNED_BYTE) {
         checked_byteCount = count;
         first = byteOffset;
-    } else if (type == LOCAL_GL_UNSIGNED_INT && IsExtensionEnabled(OES_element_index_uint)) {
-        checked_byteCount = 4 * CheckedUint32(count);
-        if (byteOffset % 4 != 0)
-            return ErrorInvalidOperation("drawElements: invalid byteOffset for UNSIGNED_INT (must be a multiple of 4)");
-        first = byteOffset / 4;
     } else {
         return ErrorInvalidEnum("drawElements: type must be UNSIGNED_SHORT or UNSIGNED_BYTE");
     }
@@ -1619,9 +1556,9 @@ WebGLContext::DrawElements(WebGLenum mode, WebGLsizei count, WebGLenum type,
             return ErrorInvalidFramebufferOperation("drawElements: incomplete framebuffer");
     }
 
+    BindFakeBlackTextures();
     if (!DoFakeVertexAttrib0(maxAllowedCount))
         return;
-    BindFakeBlackTextures();
 
     SetupContextLossTimer();
     gl->fDrawElements(mode, count, type, reinterpret_cast<GLvoid*>(byteOffset));
@@ -1633,17 +1570,6 @@ WebGLContext::DrawElements(WebGLenum mode, WebGLsizei count, WebGLenum type,
         Invalidate();
         mShouldPresent = true;
         mIsScreenCleared = false;
-    }
-
-    if (gl->WorkAroundDriverBugs()) {
-        if (gl->Renderer() == gl::GLContext::RendererTegra) {
-            mDrawCallsSinceLastFlush++;
-
-            if (mDrawCallsSinceLastFlush >= MAX_DRAW_CALLS_SINCE_FLUSH) {
-                gl->fFlush();
-                mDrawCallsSinceLastFlush = 0;
-            }
-        }
     }
 }
 
@@ -1729,10 +1655,10 @@ WebGLContext::FramebufferTexture2D(WebGLenum target,
     if (!IsContextStable())
         return;
 
-    if (!mBoundFramebuffer)
-        return ErrorInvalidOperation("framebufferRenderbuffer: cannot modify framebuffer 0");
-
-    return mBoundFramebuffer->FramebufferTexture2D(target, attachment, textarget, tobj, level);
+    if (mBoundFramebuffer)
+        return mBoundFramebuffer->FramebufferTexture2D(target, attachment, textarget, tobj, level);
+    else
+        return ErrorInvalidOperation("framebufferTexture2D: cannot modify framebuffer 0");
 }
 
 void
@@ -1993,37 +1919,7 @@ WebGLContext::GetParameter(JSContext* cx, WebGLenum pname, ErrorResult& rv)
                 break;
         }
     }
-
-    if (IsExtensionEnabled(WEBGL_draw_buffers))
-    {
-        if (pname == LOCAL_GL_MAX_COLOR_ATTACHMENTS)
-        {
-            return JS::Int32Value(mGLMaxColorAttachments);
-        }
-        else if (pname == LOCAL_GL_MAX_DRAW_BUFFERS)
-        {
-            return JS::Int32Value(mGLMaxDrawBuffers);
-        }
-        else if (pname >= LOCAL_GL_DRAW_BUFFER0 &&
-                 pname < WebGLenum(LOCAL_GL_DRAW_BUFFER0 + mGLMaxDrawBuffers))
-        {
-            if (mBoundFramebuffer) {
-                GLint iv = 0;
-                gl->fGetIntegerv(pname, &iv);
-                return JS::Int32Value(iv);
-            }
-            
-            GLint iv = 0;
-            gl->fGetIntegerv(pname, &iv);
-            
-            if (iv == GLint(LOCAL_GL_COLOR_ATTACHMENT0 + pname - LOCAL_GL_DRAW_BUFFER0)) {
-                return JS::Int32Value(LOCAL_GL_BACK);
-            }
-            
-            return JS::Int32Value(LOCAL_GL_NONE);
-        }
-    }
-
+    
     switch (pname) {
         //
         // String params
@@ -2370,26 +2266,15 @@ WebGLContext::GetFramebufferAttachmentParameter(JSContext* cx,
         return JS::NullValue();
     }
 
-    if (attachment != LOCAL_GL_DEPTH_ATTACHMENT &&
-        attachment != LOCAL_GL_STENCIL_ATTACHMENT &&
-        attachment != LOCAL_GL_DEPTH_STENCIL_ATTACHMENT)
-    {
-        if (IsExtensionEnabled(WEBGL_draw_buffers))
-        {
-            if (attachment < LOCAL_GL_COLOR_ATTACHMENT0 ||
-                attachment >= WebGLenum(LOCAL_GL_COLOR_ATTACHMENT0 + mGLMaxColorAttachments))
-            {
-                ErrorInvalidEnumInfo("getFramebufferAttachmentParameter: attachment", attachment);
-                return JS::NullValue();
-            }
-
-            mBoundFramebuffer->EnsureColorAttachments(attachment - LOCAL_GL_COLOR_ATTACHMENT0);
-        }
-        else if (attachment != LOCAL_GL_COLOR_ATTACHMENT0)
-        {
+    switch (attachment) {
+        case LOCAL_GL_COLOR_ATTACHMENT0:
+        case LOCAL_GL_DEPTH_ATTACHMENT:
+        case LOCAL_GL_STENCIL_ATTACHMENT:
+        case LOCAL_GL_DEPTH_STENCIL_ATTACHMENT:
+            break;
+        default:
             ErrorInvalidEnumInfo("getFramebufferAttachmentParameter: attachment", attachment);
             return JS::NullValue();
-        }
     }
 
     if (!mBoundFramebuffer) {
@@ -2931,15 +2816,16 @@ WebGLContext::GetUniformLocation(WebGLProgram *prog, const nsAString& name)
     MakeContextCurrent();
     GLint intlocation = gl->fGetUniformLocation(progname, mappedName.get());
 
-    nsRefPtr<WebGLUniformLocation> loc;
+    WebGLUniformLocation *loc = nullptr;
     if (intlocation >= 0) {
         WebGLUniformInfo info = prog->GetUniformInfoForMappedIdentifier(mappedName);
         loc = new WebGLUniformLocation(this,
                                        prog,
                                        intlocation,
                                        info);
+        NS_ADDREF(loc);
     }
-    return loc.forget();
+    return loc;
 }
 
 JS::Value
@@ -3002,10 +2888,6 @@ WebGLContext::GetVertexAttrib(JSContext* cx, WebGLuint index, WebGLenum pname,
         }
 
         case LOCAL_GL_VERTEX_ATTRIB_ARRAY_ENABLED:
-        {
-            return JS::BooleanValue(mAttribBuffers[index].enabled);
-        }
-
         case LOCAL_GL_VERTEX_ATTRIB_ARRAY_NORMALIZED:
         {
             GLint i = 0;
@@ -3419,8 +3301,9 @@ WebGLContext::ReadPixels(WebGLint x, WebGLint y, WebGLsizei width,
         // the buffer to zero and compute the parameters to pass to OpenGL. We have to use an intermediate buffer
         // to accomodate the potentially different strides (widths).
 
-        // Zero the whole pixel dest area in the destination buffer.
-        memset(data, 0, checked_neededByteLength.value());
+        // zero the whole destination buffer. Too bad for the part that's going to be overwritten, we're not
+        // 100% efficient here, but in practice this is a quite rare case anyway.
+        memset(data, 0, dataByteLen);
 
         if (   x >= framebufferWidth
             || x+width <= 0
@@ -3478,7 +3361,7 @@ WebGLContext::ReadPixels(WebGLint x, WebGLint y, WebGLsizei width,
     {
         bool needAlphaFixup;
         if (mBoundFramebuffer) {
-            needAlphaFixup = !mBoundFramebuffer->ColorAttachment(0).HasAlpha();
+            needAlphaFixup = !mBoundFramebuffer->ColorAttachment().HasAlpha();
         } else {
             needAlphaFixup = gl->GetPixelFormat().alpha == 0;
         }
@@ -4367,17 +4250,9 @@ WebGLContext::CompileShader(WebGLShader *shader)
         resources.MaxCombinedTextureImageUnits = mGLMaxTextureUnits;
         resources.MaxTextureImageUnits = mGLMaxTextureImageUnits;
         resources.MaxFragmentUniformVectors = mGLMaxFragmentUniformVectors;
-        resources.MaxDrawBuffers = mGLMaxDrawBuffers;
-
+        resources.MaxDrawBuffers = 1;
         if (IsExtensionEnabled(OES_standard_derivatives))
             resources.OES_standard_derivatives = 1;
-
-        if (IsExtensionEnabled(WEBGL_draw_buffers))
-            resources.EXT_draw_buffers = 1;
-
-        // Tell ANGLE to allow highp in frag shaders. (unless disabled)
-        // If underlying GLES doesn't have highp in frag shaders, it should complain anyways.
-        resources.FragmentPrecisionHigh = mDisableFragHighP ? 0 : 1;
 
         // We're storing an actual instance of StripComments because, if we don't, the 
         // cleanSource nsAString instance will be destroyed before the reference is
@@ -4408,10 +4283,12 @@ WebGLContext::CompileShader(WebGLShader *shader)
         int compileOptions = SH_ATTRIBUTES_UNIFORMS |
                              SH_ENFORCE_PACKING_RESTRICTIONS;
 
-        // We want to do this everywhere, but:
-#ifndef XP_MACOSX // To do this on Mac, we need to do it only on Mac OSX > 10.6 as this
+        // we want to do this everywhere, but:
+#ifndef XP_WIN // to do this on Windows, we need ANGLE r1719, 1733, 1734.
+#ifndef XP_MACOSX // to do this on Mac, we need to do it only on Mac OSX > 10.6 as this
                   // causes the shader compiler in 10.6 to crash
         compileOptions |= SH_CLAMP_INDIRECT_ARRAY_BOUNDS;
+#endif
 #endif
 
         if (useShaderSourceTranslation) {
@@ -4433,7 +4310,7 @@ WebGLContext::CompileShader(WebGLShader *shader)
         }
 
         if (!ShCompile(compiler, &s, 1, compileOptions)) {
-            size_t len = 0;
+            int len = 0;
             ShGetInfo(compiler, SH_INFO_LOG_LENGTH, &len);
 
             if (len) {
@@ -4449,15 +4326,15 @@ WebGLContext::CompileShader(WebGLShader *shader)
             return;
         }
 
-        size_t num_attributes = 0;
+        int num_attributes = 0;
         ShGetInfo(compiler, SH_ACTIVE_ATTRIBUTES, &num_attributes);
-        size_t num_uniforms = 0;
+        int num_uniforms = 0;
         ShGetInfo(compiler, SH_ACTIVE_UNIFORMS, &num_uniforms);
-        size_t attrib_max_length = 0;
+        int attrib_max_length = 0;
         ShGetInfo(compiler, SH_ACTIVE_ATTRIBUTE_MAX_LENGTH, &attrib_max_length);
-        size_t uniform_max_length = 0;
+        int uniform_max_length = 0;
         ShGetInfo(compiler, SH_ACTIVE_UNIFORM_MAX_LENGTH, &uniform_max_length);
-        size_t mapped_max_length = 0;
+        int mapped_max_length = 0;
         ShGetInfo(compiler, SH_MAPPED_NAME_MAX_LENGTH, &mapped_max_length);
 
         shader->mAttribMaxNameLength = attrib_max_length;
@@ -4470,11 +4347,10 @@ WebGLContext::CompileShader(WebGLShader *shader)
         nsAutoArrayPtr<char> uniform_name(new char[uniform_max_length+1]);
         nsAutoArrayPtr<char> mapped_name(new char[mapped_max_length+1]);
 
-        for (size_t i = 0; i < num_uniforms; i++) {
-            size_t length;
-            int size;
+        for (int i = 0; i < num_uniforms; i++) {
+            int length, size;
             ShDataType type;
-            ShGetActiveUniform(compiler, (int)i,
+            ShGetActiveUniform(compiler, i,
                                 &length, &size, &type,
                                 uniform_name,
                                 mapped_name);
@@ -4499,11 +4375,10 @@ WebGLContext::CompileShader(WebGLShader *shader)
 
         if (useShaderSourceTranslation) {
 
-            for (size_t i = 0; i < num_attributes; i++) {
-                size_t length;
-                int size;
+            for (int i = 0; i < num_attributes; i++) {
+                int length, size;
                 ShDataType type;
-                ShGetActiveAttrib(compiler, (int)i,
+                ShGetActiveAttrib(compiler, i,
                                   &length, &size, &type,
                                   attribute_name,
                                   mapped_name);
@@ -4512,7 +4387,7 @@ WebGLContext::CompileShader(WebGLShader *shader)
                                                     nsDependentCString(mapped_name)));
             }
 
-            size_t len = 0;
+            int len = 0;
             ShGetInfo(compiler, SH_OBJECT_CODE_LENGTH, &len);
 
             nsAutoCString translatedSrc;
@@ -4521,12 +4396,12 @@ WebGLContext::CompileShader(WebGLShader *shader)
 
             const char *ts = translatedSrc.get();
 
-            gl->fShaderSource(shadername, 1, &ts, nullptr);
+            gl->fShaderSource(shadername, 1, &ts, NULL);
         } else { // not useShaderSourceTranslation
             // we just pass the raw untranslated shader source. We then can't use ANGLE idenfier mapping.
             // that's really bad, as that means we can't be 100% conformant. We should work towards always
             // using ANGLE identifier mapping.
-            gl->fShaderSource(shadername, 1, &s, nullptr);
+            gl->fShaderSource(shadername, 1, &s, NULL);
         }
 
         shader->SetTranslationSuccess();
@@ -4795,23 +4670,14 @@ WebGLContext::GetShaderPrecisionFormat(WebGLenum shadertype, WebGLenum precision
     }
 
     MakeContextCurrent();
+
     GLint range[2], precision;
+    gl->fGetShaderPrecisionFormat(shadertype, precisiontype, range, &precision);
 
-    if (mDisableFragHighP &&
-        shadertype == LOCAL_GL_FRAGMENT_SHADER &&
-        (precisiontype == LOCAL_GL_HIGH_FLOAT ||
-         precisiontype == LOCAL_GL_HIGH_INT))
-    {
-      precision = 0;
-      range[0] = 0;
-      range[1] = 0;
-    } else {
-      gl->fGetShaderPrecisionFormat(shadertype, precisiontype, range, &precision);
-    }
-
-    nsRefPtr<WebGLShaderPrecisionFormat> retShaderPrecisionFormat
+    WebGLShaderPrecisionFormat *retShaderPrecisionFormat
         = new WebGLShaderPrecisionFormat(this, range[0], range[1], precision);
-    return retShaderPrecisionFormat.forget();
+    NS_ADDREF(retShaderPrecisionFormat);
+    return retShaderPrecisionFormat;
 }
 
 void
@@ -5009,11 +4875,11 @@ WebGLContext::TexImage2D_base(WebGLenum target, WebGLint level, WebGLenum intern
 
     if (format == LOCAL_GL_DEPTH_COMPONENT || format == LOCAL_GL_DEPTH_STENCIL) {
         if (IsExtensionEnabled(WEBGL_depth_texture)) {
-            if (target != LOCAL_GL_TEXTURE_2D || data != nullptr || level != 0)
+            if (target != LOCAL_GL_TEXTURE_2D || data != NULL || level != 0)
                 return ErrorInvalidOperation("texImage2D: "
                                              "with format of DEPTH_COMPONENT or DEPTH_STENCIL "
                                              "target must be TEXTURE_2D, "
-                                             "data must be nullptr, "
+                                             "data must be NULL, "
                                              "level must be zero");
         }
         else
@@ -5088,7 +4954,7 @@ WebGLContext::TexImage2D_base(WebGLenum target, WebGLint level, WebGLenum intern
         }
     } else {
         // We need some zero pages, because GL doesn't guarantee the
-        // contents of a texture allocated with nullptr data.
+        // contents of a texture allocated with NULL data.
         // Hopefully calloc will just mmap zero pages here.
         void *tempZeroData = calloc(1, bytesNeeded);
         if (!tempZeroData)
@@ -5538,30 +5404,22 @@ WebGLContext::ReattachTextureToAnyFramebufferToWorkAroundBugs(WebGLTexture *tex,
         framebuffer;
         framebuffer = framebuffer->getNext())
     {
-        size_t colorAttachmentCount = framebuffer->mColorAttachments.Length();
-        for (size_t i = 0; i < colorAttachmentCount; i++)
-        {
-            if (framebuffer->ColorAttachment(i).Texture() == tex) {
-                ScopedBindFramebuffer autoFB(gl, framebuffer->GLName());
-                framebuffer->FramebufferTexture2D(
-                  LOCAL_GL_FRAMEBUFFER, LOCAL_GL_COLOR_ATTACHMENT0 + i,
-                  tex->Target(), tex, level);
-            }
+        if (framebuffer->ColorAttachment().Texture() == tex) {
+            framebuffer->FramebufferTexture2D(
+              LOCAL_GL_FRAMEBUFFER, LOCAL_GL_COLOR_ATTACHMENT0,
+              tex->Target(), tex, level);
         }
         if (framebuffer->DepthAttachment().Texture() == tex) {
-            ScopedBindFramebuffer autoFB(gl, framebuffer->GLName());
             framebuffer->FramebufferTexture2D(
               LOCAL_GL_FRAMEBUFFER, LOCAL_GL_DEPTH_ATTACHMENT,
               tex->Target(), tex, level);
         }
         if (framebuffer->StencilAttachment().Texture() == tex) {
-            ScopedBindFramebuffer autoFB(gl, framebuffer->GLName());
             framebuffer->FramebufferTexture2D(
               LOCAL_GL_FRAMEBUFFER, LOCAL_GL_STENCIL_ATTACHMENT,
               tex->Target(), tex, level);
         }
         if (framebuffer->DepthStencilAttachment().Texture() == tex) {
-            ScopedBindFramebuffer autoFB(gl, framebuffer->GLName());
             framebuffer->FramebufferTexture2D(
               LOCAL_GL_FRAMEBUFFER, LOCAL_GL_DEPTH_STENCIL_ATTACHMENT,
               tex->Target(), tex, level);

@@ -1,13 +1,12 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99 ft=cpp:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_MatchPairs_h
-#define vm_MatchPairs_h
-
-#include "ds/LifoAlloc.h"
+#ifndef MatchPairs_h__
+#define MatchPairs_h__
 
 /*
  * RegExp match results are succinctly represented by pairs of integer
@@ -100,13 +99,19 @@ class MatchPairs
 /* MatchPairs allocated into temporary storage, removed when out of scope. */
 class ScopedMatchPairs : public MatchPairs
 {
-    LifoAllocScope lifoScope_;
+    LifoAlloc *lifoAlloc_;
+    void      *mark_;        /* Saved original position in bump allocator. */
 
   public:
     /* Constructs an implicit LifoAllocScope. */
     ScopedMatchPairs(LifoAlloc *lifoAlloc)
-      : lifoScope_(lifoAlloc)
+      : lifoAlloc_(lifoAlloc),
+        mark_(lifoAlloc->mark())
     { }
+
+    ~ScopedMatchPairs() {
+        lifoAlloc_->release(mark_);
+    }
 
     const MatchPair &operator[](size_t i) const { return pair(i); }
 
@@ -158,4 +163,4 @@ struct MatchConduit
 
 } /* namespace js */
 
-#endif /* vm_MatchPairs_h */
+#endif /* MatchPairs_h__ */

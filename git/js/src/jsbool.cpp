@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -8,18 +8,27 @@
  * JS boolean implementation.
  */
 
-#include "jsbool.h"
+#include "mozilla/FloatingPoint.h"
 
 #include "jstypes.h"
+#include "jsutil.h"
 #include "jsapi.h"
 #include "jsatom.h"
+#include "jsbool.h"
 #include "jscntxt.h"
+#include "jsinfer.h"
+#include "jsversion.h"
+#include "jslock.h"
+#include "jsnum.h"
 #include "jsobj.h"
+#include "jsstr.h"
 
 #include "vm/GlobalObject.h"
 #include "vm/StringBuffer.h"
 
 #include "jsboolinlines.h"
+#include "jsinferinlines.h"
+#include "jsobjinlines.h"
 
 #include "vm/BooleanObject-inl.h"
 #include "vm/GlobalObject-inl.h"
@@ -27,11 +36,10 @@
 using namespace js;
 using namespace js::types;
 
-Class BooleanObject::class_ = {
+Class js::BooleanClass = {
     "Boolean",
-    JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_HAS_CACHED_PROTO(JSProto_Boolean),
-    JS_PropertyStub,         /* addProperty */
-    JS_DeletePropertyStub,   /* delProperty */
+    JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_HAS_CACHED_PROTO(JSProto_Boolean),    JS_PropertyStub,         /* addProperty */
+    JS_PropertyStub,         /* delProperty */
     JS_PropertyStub,         /* getProperty */
     JS_StrictPropertyStub,   /* setProperty */
     JS_EnumerateStub,
@@ -42,7 +50,7 @@ Class BooleanObject::class_ = {
 JS_ALWAYS_INLINE bool
 IsBoolean(const Value &v)
 {
-    return v.isBoolean() || (v.isObject() && v.toObject().is<BooleanObject>());
+    return v.isBoolean() || (v.isObject() && v.toObject().hasClass(&BooleanClass));
 }
 
 #if JS_HAS_TOSOURCE
@@ -52,7 +60,7 @@ bool_toSource_impl(JSContext *cx, CallArgs args)
     const Value &thisv = args.thisv();
     JS_ASSERT(IsBoolean(thisv));
 
-    bool b = thisv.isBoolean() ? thisv.toBoolean() : thisv.toObject().as<BooleanObject>().unbox();
+    bool b = thisv.isBoolean() ? thisv.toBoolean() : thisv.toObject().asBoolean().unbox();
 
     StringBuffer sb(cx);
     if (!sb.append("(new Boolean(") || !BooleanToStringBuffer(cx, b, sb) || !sb.append("))"))
@@ -79,7 +87,7 @@ bool_toString_impl(JSContext *cx, CallArgs args)
     const Value &thisv = args.thisv();
     JS_ASSERT(IsBoolean(thisv));
 
-    bool b = thisv.isBoolean() ? thisv.toBoolean() : thisv.toObject().as<BooleanObject>().unbox();
+    bool b = thisv.isBoolean() ? thisv.toBoolean() : thisv.toObject().asBoolean().unbox();
     args.rval().setString(js_BooleanToString(cx, b));
     return true;
 }
@@ -97,7 +105,7 @@ bool_valueOf_impl(JSContext *cx, CallArgs args)
     const Value &thisv = args.thisv();
     JS_ASSERT(IsBoolean(thisv));
 
-    bool b = thisv.isBoolean() ? thisv.toBoolean() : thisv.toObject().as<BooleanObject>().unbox();
+    bool b = thisv.isBoolean() ? thisv.toBoolean() : thisv.toObject().asBoolean().unbox();
     args.rval().setBoolean(b);
     return true;
 }
@@ -109,7 +117,7 @@ bool_valueOf(JSContext *cx, unsigned argc, Value *vp)
     return CallNonGenericMethod<IsBoolean, bool_valueOf_impl>(cx, args);
 }
 
-static const JSFunctionSpec boolean_methods[] = {
+static JSFunctionSpec boolean_methods[] = {
 #if JS_HAS_TOSOURCE
     JS_FN(js_toSource_str,  bool_toSource,  0, 0),
 #endif
@@ -140,9 +148,9 @@ js_InitBooleanClass(JSContext *cx, HandleObject obj)
 {
     JS_ASSERT(obj->isNative());
 
-    Rooted<GlobalObject*> global(cx, &obj->as<GlobalObject>());
+    Rooted<GlobalObject*> global(cx, &obj->asGlobal());
 
-    RootedObject booleanProto (cx, global->createBlankPrototype(cx, &BooleanObject::class_));
+    RootedObject booleanProto (cx, global->createBlankPrototype(cx, &BooleanClass));
     if (!booleanProto)
         return NULL;
     booleanProto->setFixedSlot(BooleanObject::PRIMITIVE_VALUE_SLOT, BooleanValue(false));
@@ -171,6 +179,8 @@ js_InitBooleanClass(JSContext *cx, HandleObject obj)
         return NULL;
     }
 
+    global->setBooleanValueOf(valueOf);
+
     if (!DefineConstructorAndPrototype(cx, global, JSProto_Boolean, ctor, booleanProto))
         return NULL;
 
@@ -180,7 +190,7 @@ js_InitBooleanClass(JSContext *cx, HandleObject obj)
 JSString *
 js_BooleanToString(JSContext *cx, JSBool b)
 {
-    return b ? cx->runtime()->atomState.true_ : cx->runtime()->atomState.false_;
+    return b ? cx->runtime->atomState.true_ : cx->runtime->atomState.false_;
 }
 
 JS_PUBLIC_API(bool)
@@ -193,15 +203,16 @@ js::ToBooleanSlow(const Value &v)
     return !EmulatesUndefined(&v.toObject());
 }
 
-/*
- * This slow path is only ever taken for proxies wrapping Boolean objects
- * The only caller of the fast path, JSON's PreprocessValue, ensures that.
- */
 bool
-js::BooleanGetPrimitiveValueSlow(HandleObject wrappedBool, JSContext *cx)
+js::BooleanGetPrimitiveValueSlow(JSContext *cx, HandleObject obj, Value *vp)
 {
-    JS_ASSERT(wrappedBool->isProxy());
-    JSObject *obj = Wrapper::wrappedObject(wrappedBool);
-    JS_ASSERT(obj);
-    return obj->as<BooleanObject>().unbox();
+    InvokeArgsGuard ag;
+    if (!cx->stack.pushInvokeArgs(cx, 0, &ag))
+        return false;
+    ag.setCallee(cx->compartment->maybeGlobal()->booleanValueOf());
+    ag.setThis(ObjectValue(*obj));
+    if (!Invoke(cx, ag))
+        return false;
+    *vp = ag.rval();
+    return true;
 }

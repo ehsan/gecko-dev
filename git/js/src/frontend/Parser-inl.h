@@ -1,13 +1,13 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef frontend_Parser_inl
-#define frontend_Parser_inl
+#ifndef Parser_inl_h__
+#define Parser_inl_h__
 
-#include "frontend/BytecodeCompiler.h"
 #include "frontend/Parser.h"
 
 #include "frontend/SharedContext-inl.h"
@@ -29,23 +29,11 @@ ParseContext<ParseHandler>::atBodyLevel()
     return !topStmt;
 }
 
-inline
-GenericParseContext::GenericParseContext(GenericParseContext *parent, SharedContext *sc)
-  : parent(parent),
-    sc(sc),
-    funHasReturnExpr(false),
-    funHasReturnVoid(false),
-    parsingForInit(false),
-    parsingWith(parent ? parent->parsingWith : false)
-{
-}
-
 template <typename ParseHandler>
 inline
-ParseContext<ParseHandler>::ParseContext(Parser<ParseHandler> *prs,
-                                         GenericParseContext *parent, SharedContext *sc,
-                                         unsigned staticLevel, uint32_t bodyid)
-  : GenericParseContext(parent, sc),
+ParseContext<ParseHandler>::ParseContext(Parser<ParseHandler> *prs, SharedContext *sc,
+                                      unsigned staticLevel, uint32_t bodyid)
+  : sc(sc),
     bodyid(0),           // initialized in init()
     blockidGen(bodyid),  // used to set |bodyid| and subsequently incremented in init()
     topStmt(NULL),
@@ -60,10 +48,13 @@ ParseContext<ParseHandler>::ParseContext(Parser<ParseHandler> *prs,
     vars_(prs->context),
     yieldOffset(0),
     parserPC(&prs->pc),
-    oldpc(prs->pc),
     lexdeps(prs->context),
+    parent(prs->pc),
     funcStmts(NULL),
-    innerFunctions(prs->context),
+    funHasReturnExpr(false),
+    funHasReturnVoid(false),
+    parsingForInit(false),
+    parsingWith(prs->pc ? prs->pc->parsingWith : false), // inherit from parent context
     inDeclDestructuring(false),
     funBecameStrict(false)
 {
@@ -87,7 +78,7 @@ ParseContext<ParseHandler>::~ParseContext()
     // |*parserPC| pointed to this object.  Now that this object is about to
     // die, make |*parserPC| point to this object's parent.
     JS_ASSERT(*parserPC == this);
-    *parserPC = this->oldpc;
+    *parserPC = this->parent;
     js_delete(funcStmts);
 }
 
@@ -105,7 +96,10 @@ CheckStrictBinding(JSContext *cx, ParseHandler *handler, ParseContext<ParseHandl
     if (!pc->sc->needStrictChecks())
         return true;
 
-    if (name == cx->names().eval || name == cx->names().arguments || IsKeyword(name)) {
+    if (name == cx->names().eval ||
+        name == cx->names().arguments ||
+        FindKeyword(name->charsZ(), name->length()))
+    {
         JSAutoByteString bytes;
         if (!js_AtomToPrintableString(cx, name, &bytes))
             return false;
@@ -118,4 +112,5 @@ CheckStrictBinding(JSContext *cx, ParseHandler *handler, ParseContext<ParseHandl
 } // namespace frontend
 } // namespace js
 
-#endif /* frontend_Parser_inl */
+#endif // Parser_inl_h__
+

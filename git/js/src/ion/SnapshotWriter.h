@@ -1,11 +1,12 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_SnapshotWriter_h
-#define ion_SnapshotWriter_h
+#ifndef jsion_snapshot_writer_h__
+#define jsion_snapshot_writer_h__
 
 #include "Ion.h"
 #include "IonCode.h"
@@ -33,7 +34,7 @@ class SnapshotWriter
 
   public:
     SnapshotOffset startSnapshot(uint32_t frameCount, BailoutKind kind, bool resumeAfter);
-    void startFrame(JSFunction *fun, JSScript *script, jsbytecode *pc, uint32_t exprStack);
+    void startFrame(JSFunction *fun, RawScript script, jsbytecode *pc, uint32_t exprStack);
 #ifdef TRACK_SNAPSHOTS
     void trackFrame(uint32_t pcOpcode, uint32_t mirOpcode, uint32_t mirId,
                                      uint32_t lirOpcode, uint32_t lirId);
@@ -73,4 +74,5 @@ class SnapshotWriter
 }
 }
 
-#endif /* ion_SnapshotWriter_h */
+#endif // jsion_snapshot_writer_h__
+

@@ -116,7 +116,6 @@ public class testPrefsObserver extends BaseTest {
             // will do nothing.
             removePrefObserver();
         }
-        mExpecter.unregisterListener();
     }
 }
 

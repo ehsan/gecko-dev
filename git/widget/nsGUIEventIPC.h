@@ -7,7 +7,7 @@
 #define nsGUIEventIPC_h__
 
 #include "ipc/IPCMessageUtils.h"
-#include "mozilla/dom/Touch.h"
+#include "nsDOMTouchEvent.h"
 #include "nsGUIEvent.h"
 
 namespace IPC
@@ -204,12 +204,12 @@ struct ParamTraits<nsTouchEvent>
   static void Write(Message* aMsg, const paramType& aParam)
   {
     WriteParam(aMsg, static_cast<const nsInputEvent&>(aParam));
-    // Sigh, Touch bites us again!  We want to be able to do
+    // Sigh, nsDOMTouch bites us again!  We want to be able to do
     //   WriteParam(aMsg, aParam.touches);
     const nsTArray<nsCOMPtr<nsIDOMTouch> >& touches = aParam.touches;
     WriteParam(aMsg, touches.Length());
     for (uint32_t i = 0; i < touches.Length(); ++i) {
-      mozilla::dom::Touch* touch = static_cast<mozilla::dom::Touch*>(touches[i].get());
+      nsDOMTouch* touch = static_cast<nsDOMTouch*>(touches[i].get());
       WriteParam(aMsg, touch->mIdentifier);
       WriteParam(aMsg, touch->mRefPoint);
       WriteParam(aMsg, touch->mRadius);
@@ -239,7 +239,7 @@ struct ParamTraits<nsTouchEvent>
           return false;
         }
         aResult->touches.AppendElement(
-          new mozilla::dom::Touch(identifier, refPoint, radius, rotationAngle, force));
+          new nsDOMTouch(identifier, refPoint, radius, rotationAngle, force));
     }
     return true;
   }
@@ -253,7 +253,6 @@ struct ParamTraits<nsKeyEvent>
   static void Write(Message* aMsg, const paramType& aParam)
   {
     WriteParam(aMsg, static_cast<nsInputEvent>(aParam));
-    WriteParam(aMsg, static_cast<uint32_t>(aParam.mKeyNameIndex));
     WriteParam(aMsg, aParam.keyCode);
     WriteParam(aMsg, aParam.charCode);
     WriteParam(aMsg, aParam.isChar);
@@ -262,18 +261,11 @@ struct ParamTraits<nsKeyEvent>
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
-    uint32_t keyNameIndex = 0;
-    if (ReadParam(aMsg, aIter, static_cast<nsInputEvent*>(aResult)) &&
-        ReadParam(aMsg, aIter, &keyNameIndex) &&
-        ReadParam(aMsg, aIter, &aResult->keyCode) &&
-        ReadParam(aMsg, aIter, &aResult->charCode) &&
-        ReadParam(aMsg, aIter, &aResult->isChar) &&
-        ReadParam(aMsg, aIter, &aResult->location)) {
-      aResult->mKeyNameIndex =
-        static_cast<mozilla::widget::KeyNameIndex>(keyNameIndex);
-      return true;
-    }
-    return false;
+    return ReadParam(aMsg, aIter, static_cast<nsInputEvent*>(aResult)) &&
+           ReadParam(aMsg, aIter, &aResult->keyCode) &&
+           ReadParam(aMsg, aIter, &aResult->charCode) &&
+           ReadParam(aMsg, aIter, &aResult->isChar) &&
+           ReadParam(aMsg, aIter, &aResult->location);
   }
 };
 

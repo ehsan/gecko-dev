@@ -17,11 +17,9 @@
 #include "DOMCameraCapabilities.h"
 #include "DOMCameraControl.h"
 #include "CameraCommon.h"
-#include "mozilla/dom/CameraManagerBinding.h"
-#include "mozilla/dom/BindingUtils.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
+using namespace dom;
 
 DOMCI_DATA(CameraControl, nsICameraControl)
 
@@ -284,8 +282,7 @@ nsDOMCameraControl::StartRecording(const JS::Value& aOptions, nsIDOMDeviceStorag
   #endif
 
   nsCOMPtr<nsIFile> folder;
-  rv = storageArea->GetRootDirectoryForFile(filename, getter_AddRefs(folder));
-  NS_ENSURE_SUCCESS(rv, rv);
+  storageArea->GetRootDirectory(getter_AddRefs(folder));
   return mCameraControl->StartRecording(&options, folder, filename, onSuccess, onError);
 }
 
@@ -352,16 +349,14 @@ nsDOMCameraControl::TakePicture(const JS::Value& aOptions, nsICameraTakePictureC
 {
   NS_ENSURE_TRUE(onSuccess, NS_ERROR_INVALID_ARG);
 
-  RootedDictionary<CameraPictureOptions> options(cx);
+  mozilla::idl::CameraPictureOptions options;
   mozilla::idl::CameraSize           size;
   mozilla::idl::CameraPosition       pos;
 
-  JS::Rooted<JS::Value> optionVal(cx, aOptions);
-  if (!options.Init(cx, optionVal)) {
-    return NS_ERROR_FAILURE;
-  }
+  nsresult rv = options.Init(cx, &aOptions);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  nsresult rv = size.Init(cx, &options.mPictureSize);
+  rv = size.Init(cx, &options.pictureSize);
   NS_ENSURE_SUCCESS(rv, rv);
 
   /**
@@ -372,10 +367,10 @@ nsDOMCameraControl::TakePicture(const JS::Value& aOptions, nsICameraTakePictureC
   pos.longitude = NAN;
   pos.altitude = NAN;
   pos.timestamp = NAN;
-  rv = pos.Init(cx, &options.mPosition);
+  rv = pos.Init(cx, &options.position);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return mCameraControl->TakePicture(size, options.mRotation, options.mFileFormat, pos, options.mDateTime, onSuccess, onError);
+  return mCameraControl->TakePicture(size, options.rotation, options.fileFormat, pos, options.dateTime, onSuccess, onError);
 }
 
 /* [implicit_jscontext] void GetPreviewStreamVideoMode (in jsval aOptions, in nsICameraPreviewStreamCallback onSuccess, [optional] in nsICameraErrorCallback onError); */
@@ -400,11 +395,7 @@ nsDOMCameraControl::ReleaseHardware(nsICameraReleaseCallback* onSuccess, nsICame
 class GetCameraResult : public nsRunnable
 {
 public:
-  GetCameraResult(nsDOMCameraControl* aDOMCameraControl,
-    nsresult aResult,
-    const nsMainThreadPtrHandle<nsICameraGetCameraCallback>& onSuccess,
-    const nsMainThreadPtrHandle<nsICameraErrorCallback>& onError,
-    uint64_t aWindowId)
+  GetCameraResult(nsDOMCameraControl* aDOMCameraControl, nsresult aResult, nsICameraGetCameraCallback* onSuccess, nsICameraErrorCallback* onError, uint64_t aWindowId)
     : mDOMCameraControl(aDOMCameraControl)
     , mResult(aResult)
     , mOnSuccessCb(onSuccess)
@@ -419,11 +410,11 @@ public:
     if (nsDOMCameraManager::IsWindowStillActive(mWindowId)) {
       DOM_CAMERA_LOGT("%s : this=%p -- BEFORE CALLBACK\n", __func__, this);
       if (NS_FAILED(mResult)) {
-        if (mOnErrorCb.get()) {
+        if (mOnErrorCb) {
           mOnErrorCb->HandleEvent(NS_LITERAL_STRING("FAILURE"));
         }
       } else {
-        if (mOnSuccessCb.get()) {
+        if (mOnSuccessCb) {
           mOnSuccessCb->HandleEvent(mDOMCameraControl);
         }
       }
@@ -446,16 +437,13 @@ protected:
    */
   nsDOMCameraControl* mDOMCameraControl;
   nsresult mResult;
-  nsMainThreadPtrHandle<nsICameraGetCameraCallback> mOnSuccessCb;
-  nsMainThreadPtrHandle<nsICameraErrorCallback> mOnErrorCb;
+  nsCOMPtr<nsICameraGetCameraCallback> mOnSuccessCb;
+  nsCOMPtr<nsICameraErrorCallback> mOnErrorCb;
   uint64_t mWindowId;
 };
 
 nsresult
-nsDOMCameraControl::Result(nsresult aResult,
-                           const nsMainThreadPtrHandle<nsICameraGetCameraCallback>& onSuccess,
-                           const nsMainThreadPtrHandle<nsICameraErrorCallback>& onError,
-                           uint64_t aWindowId)
+nsDOMCameraControl::Result(nsresult aResult, nsICameraGetCameraCallback* onSuccess, nsICameraErrorCallback* onError, uint64_t aWindowId)
 {
   nsCOMPtr<GetCameraResult> getCameraResult = new GetCameraResult(this, aResult, onSuccess, onError, aWindowId);
   return NS_DispatchToMainThread(getCameraResult);
@@ -466,10 +454,4 @@ nsDOMCameraControl::Shutdown()
 {
   DOM_CAMERA_LOGI("%s:%d\n", __func__, __LINE__);
   mCameraControl->Shutdown();
-}
-
-nsRefPtr<ICameraControl>
-nsDOMCameraControl::GetNativeCameraControl()
-{
-  return mCameraControl;
 }

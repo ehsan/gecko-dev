@@ -42,18 +42,16 @@ public:
 
   FileReaderSync(JSContext* aCx);
 
-  JSObject* ReadAsArrayBuffer(JSContext* aCx, JS::Handle<JSObject*> aBlob,
+  JSObject* ReadAsArrayBuffer(JSContext* aCx, JSObject* aBlob,
                               ErrorResult& aRv);
-  void ReadAsBinaryString(JS::Handle<JSObject*> aBlob, nsAString& aResult,
+  void ReadAsBinaryString(JSObject* aBlob, nsAString& aResult,
                           ErrorResult& aRv);
-  void ReadAsText(JS::Handle<JSObject*> aBlob,
-                  const Optional<nsAString>& aEncoding,
+  void ReadAsText(JSObject* aBlob, const Optional<nsAString>& aEncoding,
                   nsAString& aResult, ErrorResult& aRv);
-  void ReadAsDataURL(JS::Handle<JSObject*> aBlob, nsAString& aResult,
-                     ErrorResult& aRv);
+  void ReadAsDataURL(JSObject* aBlob, nsAString& aResult, ErrorResult& aRv);
 
   // From nsICharsetDetectionObserver
-  NS_IMETHOD Notify(const char *aCharset, nsDetectionConfident aConf) MOZ_OVERRIDE;
+  NS_IMETHOD Notify(const char *aCharset, nsDetectionConfident aConf);
 };
 
 END_WORKERS_NAMESPACE

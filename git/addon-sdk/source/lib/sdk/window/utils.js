@@ -22,7 +22,7 @@ const WM = Cc['@mozilla.org/appshell/window-mediator;1'].
 const BROWSER = 'navigator:browser',
       URI_BROWSER = 'chrome://browser/content/browser.xul',
       NAME = '_blank',
-      FEATURES = 'chrome,all,dialog=no,non-private';
+      FEATURES = 'chrome,all,dialog=no';
 
 function isWindowPrivate(win) {
   if (!win)
@@ -112,19 +112,6 @@ function getBaseWindow(window) {
     QueryInterface(Ci.nsIBaseWindow);
 }
 exports.getBaseWindow = getBaseWindow;
-
-/**
- * Returns the `nsIDOMWindow` toplevel window for any child/inner window
- */
-function getToplevelWindow(window) {
-  return window.QueryInterface(Ci.nsIInterfaceRequestor)
-               .getInterface(Ci.nsIWebNavigation)
-               .QueryInterface(Ci.nsIDocShellTreeItem)
-               .rootTreeItem
-               .QueryInterface(Ci.nsIInterfaceRequestor)
-               .getInterface(Ci.nsIDOMWindow);
-}
-exports.getToplevelWindow = getToplevelWindow;
 
 function getWindowDocShell(window) window.gBrowser.docShell;
 exports.getWindowDocShell = getWindowDocShell;
@@ -243,21 +230,9 @@ function openDialog(options) {
   options = options || {};
 
   let features = options.features || FEATURES;
-  let featureAry = features.toLowerCase().split(',');
-
-  if (!!options.private) {
-    // add private flag if private window is desired
-    if (!array.has(featureAry, 'private')) {
-      featureAry.push('private');
-    }
-
-    // remove the non-private flag ig a private window is desired
-    let nonPrivateIndex = featureAry.indexOf('non-private');
-    if (nonPrivateIndex >= 0) {
-      featureAry.splice(nonPrivateIndex, 1);
-    }
-
-    features = featureAry.join(',');
+  if (!!options.private &&
+      !array.has(features.toLowerCase().split(','), 'private')) {
+    features = features.split(',').concat('private').join(',');
   }
 
   let browser = getMostRecentBrowserWindow();
@@ -299,15 +274,6 @@ function windows(type, options) {
   return list;
 }
 exports.windows = windows;
-
-/**
- * Check if the given window is interactive.
- * i.e. if its "DOMContentLoaded" event has already been fired.
- * @params {nsIDOMWindow} window
- */
-function isInteractive(window)
-  window.document.readyState === "interactive" || isDocumentLoaded(window)
-exports.isInteractive = isInteractive;
 
 /**
  * Check if the given window is completely loaded.
@@ -365,27 +331,3 @@ function getFrames(window) {
   }, [])
 }
 exports.getFrames = getFrames;
-
-function getScreenPixelsPerCSSPixel(window) {
-  return window.QueryInterface(Ci.nsIInterfaceRequestor).
-                getInterface(Ci.nsIDOMWindowUtils).screenPixelsPerCSSPixel;
-}
-exports.getScreenPixelsPerCSSPixel = getScreenPixelsPerCSSPixel;
-
-function getOwnerBrowserWindow(node) {
-  /**
-  Takes DOM node and returns browser window that contains it.
-  **/
-
-  let window = node.ownerDocument.defaultView.top;
-  // If anchored window is browser then it's target browser window.
-  if (isBrowser(window)) return window;
-  // Otherwise iterate over each browser window and find a one that
-  // contains browser for the anchored window document.
-  let document = window.document;
-  let browsers = windows("navigator:browser", { includePrivate: true });
-  return array.find(browsers, function isTargetBrowser(window) {
-    return !!window.gBrowser.getBrowserForDocument(document);
-  });
-}
-exports.getOwnerBrowserWindow = getOwnerBrowserWindow;

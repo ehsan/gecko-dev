@@ -4,6 +4,8 @@
 
 /*
  * secport.h - portability interfaces for security libraries
+ *
+ * $Id: secport.h,v 1.29 2012/11/14 01:14:12 wtc%google.com Exp $
  */
 
 #ifndef _SECPORT_H_

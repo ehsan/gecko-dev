@@ -10,15 +10,13 @@ from glob import glob
 from optparse import OptionParser
 from subprocess import Popen, PIPE, STDOUT
 from tempfile import mkdtemp, gettempdir
-from threading import Timer
+import manifestparser
+import mozinfo
 import random
 import socket
 import time
 
-from automation import Automation, getGlobalLog, resetGlobalLog
 from automationutils import *
-
-HARNESS_TIMEOUT = 5 * 60
 
 # --------------------------------------------------------------
 # TODO: this is a hack for mozbase without virtualenv, remove with bug 849900
@@ -26,15 +24,19 @@ HARNESS_TIMEOUT = 5 * 60
 here = os.path.dirname(__file__)
 mozbase = os.path.realpath(os.path.join(os.path.dirname(here), 'mozbase'))
 
-if os.path.isdir(mozbase):
-    for package in os.listdir(mozbase):
-        sys.path.append(os.path.join(mozbase, package))
-
-import manifestparser
-import mozcrash
-import mozinfo
-
+try:
+    import mozcrash
+except:
+    deps = ['mozcrash',
+            'mozfile',
+            'mozlog']
+    for dep in deps:
+        module = os.path.join(mozbase, dep)
+        if module not in sys.path:
+            sys.path.append(module)
+    import mozcrash
 # ---------------------------------------------------------------
+
 #TODO: replace this with json.loads when Python 2.6 is required.
 def parse_json(j):
     """
@@ -50,13 +52,14 @@ def markGotSIGINT(signum, stackFrame):
 
 class XPCShellTests(object):
 
-    log = getGlobalLog()
+    log = logging.getLogger()
     oldcwd = os.getcwd()
 
-    def __init__(self, log=None):
+    def __init__(self, log=sys.stdout):
         """ Init logging and node status """
-        if log:
-            resetGlobalLog(log)
+        handler = logging.StreamHandler(log)
+        self.log.setLevel(logging.INFO)
+        self.log.addHandler(handler)
         self.nodeProc = None
 
     def buildTestList(self):
@@ -570,10 +573,6 @@ class XPCShellTests(object):
 
         doc.writexml(fh, addindent="  ", newl="\n", encoding="utf-8")
 
-    def testTimeout(self, test, processPID):
-        self.log.error("TEST-UNEXPECTED-FAIL | %s | Test timed out" % test)
-        Automation().killAndGetStackNoScreenshot(processPID, self.appPath, self.debuggerInfo)
-
     def post_to_autolog(self, results, name):
         from moztest.results import TestContext, TestResult, TestResultCollection
         from moztest.output.autolog import AutologOutput
@@ -884,11 +883,6 @@ class XPCShellTests(object):
 
         completeCmd = cmdH + cmdT + args
 
-        testTimer = None
-        if not interactive and not self.debuggerInfo:
-            testTimer = Timer(HARNESS_TIMEOUT, lambda: self.testTimeout(name, proc.pid))
-            testTimer.start()
-
         proc = None
 
         try:
@@ -912,10 +906,7 @@ class XPCShellTests(object):
 
             if interactive:
                 # Not sure what else to do here...
-                return True, xunit_result
-
-            if testTimer:
-                testTimer.cancel()
+                return True
 
             def print_stdout(stdout):
                 """Print stdout line-by-line to avoid overflowing buffers."""

@@ -12,6 +12,11 @@
 
 namespace mozilla {
 namespace dom {
+
+namespace icc {
+  class IccManager;
+} // namespace icc
+
 namespace network {
 
 class MobileConnection : public nsDOMEventTargetHelper
@@ -32,7 +37,7 @@ public:
   NS_DECL_NSIDOMMOZMOBILECONNECTION
   NS_DECL_NSIMOBILECONNECTIONLISTENER
 
-  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper)
+  NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
 
   MobileConnection();
 
@@ -45,9 +50,14 @@ public:
 private:
   nsCOMPtr<nsIMobileConnectionProvider> mProvider;
   nsRefPtr<Listener> mListener;
-  nsWeakPtr mWindow;
+  nsRefPtr<icc::IccManager> mIccManager;
 
-  bool CheckPermission(const char* type);
+  nsIDOMEventTarget*
+  ToIDOMEventTarget() const
+  {
+    return static_cast<nsDOMEventTargetHelper*>(
+           const_cast<MobileConnection*>(this));
+  }
 };
 
 } // namespace network

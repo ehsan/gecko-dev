@@ -9,7 +9,6 @@
 #include "nsDebug.h"
 #include "nsPoint.h"
 #include "nsTArray.h"
-#include "Units.h"
 
 class nsTouchEvent;
 class nsMouseEvent;
@@ -68,26 +67,26 @@ protected:
 };
 
 /**
- * Data container for a single touch input. Similar to dom::Touch, but used in
+ * Data container for a single touch input. Similar to nsDOMTouch, but used in
  * off-main-thread situations. This is more for just storing touch data, whereas
- * dom::Touch derives from nsIDOMTouch so it is more useful for dispatching
- * through the DOM (which can only happen on the main thread). dom::Touch also
+ * nsDOMTouch derives from nsIDOMTouch so it is more useful for dispatching
+ * through the DOM (which can only happen on the main thread). nsDOMTouch also
  * bears the problem of storing pointers to nsIWidget instances which can only
- * be used on the main thread, so if instead we used dom::Touch and ever set
+ * be used on the main thread, so if instead we used nsDOMTouch and ever set
  * these pointers off-main-thread, Bad Things Can Happen(tm).
  *
  * Note that this doesn't inherit from InputData because this itself is not an
  * event. It is only a container/struct that should have any number of instances
  * within a MultiTouchInput.
  *
- * fixme/bug 775746: Make dom::Touch inherit from this class.
+ * fixme/bug 775746: Make nsDOMTouch inherit from this class.
  */
 class SingleTouchData
 {
 public:
   SingleTouchData(int32_t aIdentifier,
-                  ScreenIntPoint aScreenPoint,
-                  ScreenSize aRadius,
+                  nsIntPoint aScreenPoint,
+                  nsIntPoint aRadius,
                   float aRotationAngle,
                   float aForce)
     : mIdentifier(aIdentifier),
@@ -110,14 +109,14 @@ public:
 
   // Point on the screen that the touch hit, in device pixels. They are
   // coordinates on the screen.
-  ScreenIntPoint mScreenPoint;
+  nsIntPoint mScreenPoint;
 
   // Radius that the touch covers, i.e. if you're using your thumb it will
   // probably be larger than using your pinky, even with the same force.
   // Radius can be different along x and y. For example, if you press down with
   // your entire finger vertically, the y radius will be much larger than the x
   // radius.
-  ScreenSize mRadius;
+  nsIntPoint mRadius;
 
   float mRotationAngle;
 
@@ -190,7 +189,7 @@ public:
 
   PinchGestureInput(PinchGestureType aType,
                     uint32_t aTime,
-                    const ScreenPoint& aFocusPoint,
+                    const nsIntPoint& aFocusPoint,
                     float aCurrentSpan,
                     float aPreviousSpan)
     : InputData(PINCHGESTURE_INPUT, aTime),
@@ -210,7 +209,7 @@ public:
   // point is implementation-specific, but can for example be the midpoint
   // between the very first and very last touch. This is in device pixels and
   // are the coordinates on the screen of this midpoint.
-  ScreenPoint mFocusPoint;
+  nsIntPoint mFocusPoint;
 
   // The distance in device pixels (though as a float for increased precision
   // and because it is the distance along both the x and y axis) between the
@@ -240,7 +239,7 @@ public:
     TAPGESTURE_CANCEL
   };
 
-  TapGestureInput(TapGestureType aType, uint32_t aTime, const ScreenIntPoint& aPoint)
+  TapGestureInput(TapGestureType aType, uint32_t aTime, const nsIntPoint& aPoint)
     : InputData(TAPGESTURE_INPUT, aTime),
       mType(aType),
       mPoint(aPoint)
@@ -250,7 +249,7 @@ public:
   }
 
   TapGestureType mType;
-  ScreenIntPoint mPoint;
+  nsIntPoint mPoint;
 };
 
 }

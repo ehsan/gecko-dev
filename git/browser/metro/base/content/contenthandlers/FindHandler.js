@@ -40,9 +40,6 @@ var FindHandler = {
       return;
     }
 
-    if (!this._fastFind.currentWindow)
-      return;
-
     let selection = this._fastFind.currentWindow.getSelection();
     if (!selection.rangeCount || selection.isCollapsed) {
       // The selection can be into an input or a textarea element

@@ -17,13 +17,11 @@
 #include "nsWrapperCache.h"
 #include "AccessCheck.h"
 #include "nsJSUtils.h"
-#include "WrapperFactory.h"
 
 #include "nsWrapperCacheInlines.h"
 
 #include "jsapi.h"
 #include "jsfriendapi.h"
-#include "JavaScriptParent.h"
 
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/PrimitiveConversions.h"
@@ -31,7 +29,6 @@
 using namespace xpc;
 using namespace mozilla;
 using namespace mozilla::dom;
-using namespace JS;
 
 //#define STRICT_CHECK_OF_UNICODE
 #ifdef STRICT_CHECK_OF_UNICODE
@@ -63,18 +60,6 @@ XPCConvert::IsMethodReflectable(const XPTMethodDescriptor& info)
     return true;
 }
 
-static JSObject*
-UnwrapNativeCPOW(nsISupports* wrapper)
-{
-    nsCOMPtr<nsIXPConnectWrappedJS> underware = do_QueryInterface(wrapper);
-    if (underware) {
-        JSObject* mainObj = underware->GetJSObject();
-        if (mainObj && mozilla::jsipc::JavaScriptParent::IsCPOW(mainObj))
-            return mainObj;
-    }
-    return nullptr;
-}
-
 /***************************************************************************/
 
 // static
@@ -89,21 +74,27 @@ XPCConvert::GetISupportsFromJSObject(JSObject* obj, nsISupports** iface)
         *iface = (nsISupports*) xpc_GetJSPrivate(obj);
         return true;
     }
-    *iface = UnwrapDOMObjectToISupports(obj);
-    return !!*iface;
+    return UnwrapDOMObjectToISupports(obj, *iface);
 }
 
 /***************************************************************************/
 
 // static
 JSBool
-XPCConvert::NativeData2JS(jsval* d, const void* s,
+XPCConvert::NativeData2JS(XPCLazyCallContext& lccx, jsval* d, const void* s,
                           const nsXPTType& type, const nsID* iid, nsresult* pErr)
 {
     NS_PRECONDITION(s, "bad param");
     NS_PRECONDITION(d, "bad param");
 
-    AutoJSContext cx;
+   JSContext* cx = lccx.GetJSContext();
+
+    // Allow wrong compartment or unset ScopeForNewObject when the caller knows
+    // the value is primitive (viz., XPCNativeMember::GetConstantValue).
+    NS_ABORT_IF_FALSE(type.IsArithmetic() ||
+                      js::IsObjectInContextCompartment(lccx.GetScopeForNewJSObjects(), cx),
+                      "bad scope for new JSObjects");
+
     if (pErr)
         *pErr = NS_ERROR_XPC_BAD_CONVERT_NATIVE;
 
@@ -178,9 +169,8 @@ XPCConvert::NativeData2JS(jsval* d, const void* s,
                 nsID* iid2 = *((nsID**)s);
                 if (!iid2)
                     break;
-                RootedObject scope(cx, JS_GetGlobalForScopeChain(cx));
                 JSObject* obj;
-                if (!(obj = xpc_NewIDObject(cx, scope, *iid2)))
+                if (!(obj = xpc_NewIDObject(cx, lccx.GetScopeForNewJSObjects(), *iid2)))
                     return false;
                 *d = OBJECT_TO_JSVAL(obj);
                 break;
@@ -324,12 +314,12 @@ XPCConvert::NativeData2JS(jsval* d, const void* s,
                         if (!variant)
                             return false;
 
-                        return XPCVariant::VariantDataToJS(variant,
+                        return XPCVariant::VariantDataToJS(lccx, variant,
                                                            pErr, d);
                     }
                     // else...
                     xpcObjectHelper helper(iface);
-                    if (!NativeInterface2JSObject(d, nullptr, helper, iid,
+                    if (!NativeInterface2JSObject(lccx, d, nullptr, helper, iid,
                                                   nullptr, true, pErr))
                         return false;
 
@@ -371,14 +361,14 @@ CheckJSCharInCharRange(jschar c)
 #endif
 
 template<typename T>
-bool ConvertToPrimitive(JSContext *cx, HandleValue v, T *retval)
+bool ConvertToPrimitive(JSContext *cx, const JS::Value& v, T *retval)
 {
     return ValueToPrimitive<T, eDefault>(cx, v, retval);
 }
 
 // static
 JSBool
-XPCConvert::JSData2Native(void* d, HandleValue s,
+XPCConvert::JSData2Native(JSContext* cx, void* d, jsval s,
                           const nsXPTType& type,
                           JSBool useAllocator, const nsID* iid,
                           nsresult* pErr)
@@ -387,7 +377,6 @@ XPCConvert::JSData2Native(void* d, HandleValue s,
 
     JSBool isDOMString = true;
 
-    AutoJSContext cx;
     if (pErr)
         *pErr = NS_ERROR_XPC_BAD_CONVERT_JS;
 
@@ -743,10 +732,12 @@ XPCConvert::JSData2Native(void* d, HandleValue s,
                 return false;
             }
             uint32_t length = JS_GetStringLength(str);
-            nsCOMPtr<nsIAtom> atom =
-                NS_NewAtom(nsDependentSubstring(chars, chars + length));
-            atom.forget((nsISupports**)d);
-            return true;
+            nsIAtom* atom = NS_NewAtom(nsDependentSubstring(chars,
+                                                            chars + length));
+            if (!atom && pErr)
+                *pErr = NS_ERROR_OUT_OF_MEMORY;
+            *((nsISupports**)d) = atom;
+            return atom != nullptr;
         }
         //else ...
 
@@ -762,8 +753,8 @@ XPCConvert::JSData2Native(void* d, HandleValue s,
             return false;
         }
 
-        RootedObject src(cx, &s.toObject());
-        return JSObject2NativeInterface((void**)d, src, iid, nullptr, pErr);
+        return JSObject2NativeInterface(cx, (void**)d, &s.toObject(), iid,
+                                        nullptr, pErr);
     }
     default:
         NS_ERROR("bad type");
@@ -773,11 +764,11 @@ XPCConvert::JSData2Native(void* d, HandleValue s,
 }
 
 inline JSBool
-CreateHolderIfNeeded(HandleObject obj, jsval* d,
+CreateHolderIfNeeded(XPCCallContext& ccx, JSObject* obj, jsval* d,
                      nsIXPConnectJSObjectHolder** dest)
 {
     if (dest) {
-        XPCJSObjectHolder* objHolder = XPCJSObjectHolder::newHolder(obj);
+        XPCJSObjectHolder* objHolder = XPCJSObjectHolder::newHolder(ccx, obj);
         if (!objHolder)
             return false;
 
@@ -792,7 +783,8 @@ CreateHolderIfNeeded(HandleObject obj, jsval* d,
 /***************************************************************************/
 // static
 JSBool
-XPCConvert::NativeInterface2JSObject(jsval* d,
+XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
+                                     jsval* d,
                                      nsIXPConnectJSObjectHolder** dest,
                                      xpcObjectHelper& aHelper,
                                      const nsID* iid,
@@ -806,7 +798,8 @@ XPCConvert::NativeInterface2JSObject(jsval* d,
     *d = JSVAL_NULL;
     if (dest)
         *dest = nullptr;
-    if (!aHelper.Object())
+    nsISupports *src = aHelper.Object();
+    if (!src)
         return true;
     if (pErr)
         *pErr = NS_ERROR_XPC_BAD_CONVERT_NATIVE;
@@ -818,8 +811,12 @@ XPCConvert::NativeInterface2JSObject(jsval* d,
     // (that means an XPCWrappedNative around an nsXPCWrappedJS). This isn't
     // optimal -- we could detect this and roll the functionality into a
     // single wrapper, but the current solution is good enough for now.
-    AutoJSContext cx;
-    XPCWrappedNativeScope* xpcscope = GetObjectScope(JS_GetGlobalForScopeChain(cx));
+    JSContext* cx = lccx.GetJSContext();
+    NS_ABORT_IF_FALSE(js::IsObjectInContextCompartment(lccx.GetScopeForNewJSObjects(), cx),
+                      "bad scope for new JSObjects");
+
+    JSObject *jsscope = lccx.GetScopeForNewJSObjects();
+    XPCWrappedNativeScope* xpcscope = GetObjectScope(jsscope);
     if (!xpcscope)
         return false;
 
@@ -831,49 +828,83 @@ XPCConvert::NativeInterface2JSObject(jsval* d,
     // object will create (and fill the cache) from its WrapObject call.
     nsWrapperCache *cache = aHelper.GetWrapperCache();
 
-    RootedObject flat(cx);
+    bool tryConstructSlimWrapper = false;
+    JSObject *flat;
     if (cache) {
         flat = cache->GetWrapper();
         if (cache->IsDOMBinding()) {
+            XPCCallContext &ccx = lccx.GetXPCCallContext();
+            if (!ccx.IsValid())
+                return false;
+
             if (!flat) {
-                JS::Rooted<JSObject*> global(cx, xpcscope->GetGlobalJSObject());
-                flat = cache->WrapObject(cx, global);
+                flat = cache->WrapObject(lccx.GetJSContext(),
+                                         xpcscope->GetGlobalJSObject());
                 if (!flat)
                     return false;
             }
 
-            if (allowNativeWrapper && !JS_WrapObject(cx, flat.address()))
-                return false;
+            if (flat) {
+                if (allowNativeWrapper && !JS_WrapObject(ccx, &flat))
+                    return false;
 
-            return CreateHolderIfNeeded(flat, d, dest);
+                return CreateHolderIfNeeded(ccx, flat, d, dest);
+            }
+        }
+
+        if (!dest) {
+            if (!flat) {
+                tryConstructSlimWrapper = true;
+            } else if (IS_SLIM_WRAPPER_OBJECT(flat)) {
+                if (js::IsObjectInContextCompartment(flat, cx)) {
+                    *d = OBJECT_TO_JSVAL(flat);
+                    return true;
+                }
+            }
         }
     } else {
         flat = nullptr;
     }
 
-    // Don't double wrap CPOWs. This is a temporary measure for compatibility
-    // with objects that don't provide necessary QIs (such as objects under
-    // the new DOM bindings). We expect the other side of the CPOW to have
-    // the appropriate wrappers in place.
-    if (JSObject *cpow = UnwrapNativeCPOW(aHelper.Object())) {
-        if (!JS_WrapObject(cx, &cpow))
+    // If we're not handing this wrapper to an nsIXPConnectJSObjectHolder, and
+    // the object supports slim wrappers, try to create one here.
+    if (tryConstructSlimWrapper) {
+        XPCCallContext &ccx = lccx.GetXPCCallContext();
+        if (!ccx.IsValid())
             return false;
-        *d = OBJECT_TO_JSVAL(cpow);
-        return true;
+
+        jsval slim;
+        if (ConstructSlimWrapper(ccx, aHelper, xpcscope, &slim)) {
+            *d = slim;
+            return true;
+        }
+
+        if (JS_IsExceptionPending(cx))
+            return false;
+
+        // Even if ConstructSlimWrapper returns false it might have created a
+        // wrapper (while calling the PreCreate hook). In that case we need to
+        // fall through because we either have a slim wrapper that needs to be
+        // morphed or an XPCWrappedNative.
+        flat = cache->GetWrapper();
     }
+
+    XPCCallContext &ccx = lccx.GetXPCCallContext();
+    if (!ccx.IsValid())
+        return false;
 
     // We can't simply construct a slim wrapper. Go ahead and create an
     // XPCWrappedNative for this object. At this point, |flat| could be
     // non-null, meaning that either we already have a wrapped native from
     // the cache (which might need to be QI'd to the new interface) or that
     // we found a slim wrapper that we'll have to morph.
-    AutoMarkingNativeInterfacePtr iface(cx);
+    AutoMarkingNativeInterfacePtr iface(ccx);
     if (iid) {
         if (Interface)
             iface = *Interface;
 
         if (!iface) {
-            iface = XPCNativeInterface::GetNewOrUsed(iid);
+            iface = XPCNativeInterface::GetNewOrUsed(ccx, iid);
             if (!iface)
                 return false;
 
@@ -882,30 +913,43 @@ XPCConvert::NativeInterface2JSObject(jsval* d,
         }
     }
 
-    NS_ASSERTION(!flat || IS_WN_REFLECTOR(flat), "What kind of wrapper is this?");
+    NS_ASSERTION(!flat || IS_WRAPPER_CLASS(js::GetObjectClass(flat)),
+                 "What kind of wrapper is this?");
 
     nsresult rv;
     XPCWrappedNative* wrapper;
     nsRefPtr<XPCWrappedNative> strongWrapper;
     if (!flat) {
-        rv = XPCWrappedNative::GetNewOrUsed(aHelper, xpcscope, iface,
+        rv = XPCWrappedNative::GetNewOrUsed(ccx, aHelper, xpcscope, iface,
                                             getter_AddRefs(strongWrapper));
 
         wrapper = strongWrapper;
-    } else {
-        MOZ_ASSERT(IS_WN_REFLECTOR(flat));
-
-        wrapper = XPCWrappedNative::Get(flat);
+    } else if (IS_WN_WRAPPER_OBJECT(flat)) {
+        wrapper = static_cast<XPCWrappedNative*>(xpc_GetJSPrivate(flat));
 
         // If asked to return the wrapper we'll return a strong reference,
         // otherwise we'll just return its JSObject in d (which should be
         // rooted in that case).
         if (dest)
             strongWrapper = wrapper;
+        // If iface is not null we know lccx.GetXPCCallContext() returns
+        // a valid XPCCallContext because we checked when calling Init on
+        // iface.
         if (iface)
-            wrapper->FindTearOff(iface, false, &rv);
+            wrapper->FindTearOff(ccx, iface, false, &rv);
         else
             rv = NS_OK;
+    } else {
+        NS_ASSERTION(IS_SLIM_WRAPPER(flat),
+                     "What kind of wrapper is this?");
+
+        SLIM_LOG(("***** morphing from XPCConvert::NativeInterface2JSObject"
+                  "(%p)\n",
+                  static_cast<nsISupports*>(xpc_GetJSPrivate(flat))));
+
+        rv = XPCWrappedNative::Morph(ccx, flat, iface, cache,
+                                     getter_AddRefs(strongWrapper));
+        wrapper = strongWrapper;
     }
 
     if (NS_FAILED(rv) && pErr)
@@ -930,8 +974,8 @@ XPCConvert::NativeInterface2JSObject(jsval* d,
 
     // The call to wrap here handles both cross-compartment and same-compartment
     // security wrappers.
-    RootedObject original(cx, flat);
-    if (!JS_WrapObject(cx, flat.address()))
+    JSObject *original = flat;
+    if (!JS_WrapObject(ccx, &flat))
         return false;
 
     *d = OBJECT_TO_JSVAL(flat);
@@ -942,7 +986,7 @@ XPCConvert::NativeInterface2JSObject(jsval* d,
             *dest = strongWrapper.forget().get();
         } else {
             nsRefPtr<XPCJSObjectHolder> objHolder =
-                XPCJSObjectHolder::newHolder(flat);
+                XPCJSObjectHolder::newHolder(ccx, flat);
             if (!objHolder)
                 return false;
 
@@ -960,7 +1004,8 @@ XPCConvert::NativeInterface2JSObject(jsval* d,
 
 // static
 JSBool
-XPCConvert::JSObject2NativeInterface(void** dest, HandleObject src,
+XPCConvert::JSObject2NativeInterface(JSContext* cx,
+                                     void** dest, JSObject* src,
                                      const nsID* iid,
                                      nsISupports* aOuter,
                                      nsresult* pErr)
@@ -969,7 +1014,6 @@ XPCConvert::JSObject2NativeInterface(void** dest, HandleObject src,
     NS_ASSERTION(src, "bad param");
     NS_ASSERTION(iid, "bad param");
 
-    AutoJSContext cx;
     JSAutoCompartment ac(cx, src);
 
     *dest = nullptr;
@@ -987,7 +1031,7 @@ XPCConvert::JSObject2NativeInterface(void** dest, HandleObject src,
         // If we're looking at a security wrapper, see now if we're allowed to
         // pass it to C++. If we are, then fall through to the code below. If
         // we aren't, throw an exception eagerly.
-        JSObject* inner = js::CheckedUnwrap(src, /* stopAtOuter = */ false);
+        JSObject* inner = js::UnwrapObjectChecked(src, /* stopAtOuter = */ false);
 
         // Hack - For historical reasons, wrapped chrome JS objects have been
         // passable as native interfaces. We'd like to fix this, but it
@@ -995,7 +1039,7 @@ XPCConvert::JSObject2NativeInterface(void** dest, HandleObject src,
         // COWs. This needs to happen, but for now just preserve the old
         // behavior.
         if (!inner && MOZ_UNLIKELY(xpc::WrapperFactory::IsCOW(src)))
-            inner = js::UncheckedUnwrap(src);
+            inner = js::UnwrapObject(src);
         if (!inner) {
             if (pErr)
                 *pErr = NS_ERROR_XPC_SECURITY_MANAGER_VETO;
@@ -1004,7 +1048,7 @@ XPCConvert::JSObject2NativeInterface(void** dest, HandleObject src,
 
         // Is this really a native xpcom object with a wrapper?
         XPCWrappedNative* wrappedNative = nullptr;
-        if (IS_WN_REFLECTOR(inner))
+        if (IS_WN_WRAPPER(inner))
             wrappedNative = XPCWrappedNative::Get(inner);
         if (wrappedNative) {
             iface = wrappedNative->GetIdentityObject();
@@ -1024,7 +1068,7 @@ XPCConvert::JSObject2NativeInterface(void** dest, HandleObject src,
     // else...
 
     nsXPCWrappedJS* wrapper;
-    nsresult rv = nsXPCWrappedJS::GetNewOrUsed(src, *iid, aOuter, &wrapper);
+    nsresult rv = nsXPCWrappedJS::GetNewOrUsed(cx, src, *iid, aOuter, &wrapper);
     if (pErr)
         *pErr = rv;
     if (NS_SUCCEEDED(rv) && wrapper) {
@@ -1092,10 +1136,10 @@ XPCConvert::ConstructException(nsresult rv, const char* message,
 
 /********************************/
 
-class MOZ_STACK_CLASS AutoExceptionRestorer
+class AutoExceptionRestorer
 {
 public:
-    AutoExceptionRestorer(JSContext *cx, Value v)
+    AutoExceptionRestorer(JSContext *cx, jsval v)
         : mContext(cx), tvr(cx, v)
     {
         JS_ClearPendingException(mContext);
@@ -1103,28 +1147,28 @@ public:
 
     ~AutoExceptionRestorer()
     {
-        JS_SetPendingException(mContext, tvr);
+        JS_SetPendingException(mContext, tvr.jsval_value());
     }
 
 private:
     JSContext * const mContext;
-    RootedValue tvr;
+    JS::AutoValueRooter tvr;
 };
 
 // static
 nsresult
-XPCConvert::JSValToXPCException(jsval sArg,
+XPCConvert::JSValToXPCException(XPCCallContext& ccx,
+                                jsval s,
                                 const char* ifaceName,
                                 const char* methodName,
                                 nsIException** exceptn)
 {
-    AutoJSContext cx;
-    RootedValue s(cx, sArg);
+    JSContext* cx = ccx.GetJSContext();
     AutoExceptionRestorer aer(cx, s);
 
     if (!JSVAL_IS_PRIMITIVE(s)) {
         // we have a JSObject
-        RootedObject obj(cx, JSVAL_TO_OBJECT(s));
+        JSObject* obj = JSVAL_TO_OBJECT(s);
 
         if (!obj) {
             NS_ERROR("when is an object not an object?");
@@ -1132,11 +1176,11 @@ XPCConvert::JSValToXPCException(jsval sArg,
         }
 
         // is this really a native xpcom object with a wrapper?
-        JSObject *unwrapped = js::CheckedUnwrap(obj, /* stopAtOuter = */ false);
+        JSObject *unwrapped = js::UnwrapObjectChecked(obj, /* stopAtOuter = */ false);
         if (!unwrapped)
             return NS_ERROR_XPC_SECURITY_MANAGER_VETO;
-        XPCWrappedNative* wrapper = IS_WN_REFLECTOR(unwrapped) ? XPCWrappedNative::Get(unwrapped)
-                                                               : nullptr;
+        XPCWrappedNative* wrapper = IS_WN_WRAPPER(unwrapped) ? XPCWrappedNative::Get(unwrapped)
+                                                             : nullptr;
         if (wrapper) {
             nsISupports* supports = wrapper->GetIdentityObject();
             nsCOMPtr<nsIException> iface = do_QueryInterface(supports);
@@ -1163,7 +1207,7 @@ XPCConvert::JSValToXPCException(jsval sArg,
                 JSString* str;
                 if (nullptr != (str = JS_ValueToString(cx, s)))
                     message.encodeLatin1(cx, str);
-                return JSErrorToXPCException(message.ptr(), ifaceName,
+                return JSErrorToXPCException(ccx, message.ptr(), ifaceName,
                                              methodName, report, exceptn);
             }
 
@@ -1182,7 +1226,8 @@ XPCConvert::JSValToXPCException(jsval sArg,
                 // lets try to build a wrapper around the JSObject
                 nsXPCWrappedJS* jswrapper;
                 nsresult rv =
-                    nsXPCWrappedJS::GetNewOrUsed(obj, NS_GET_IID(nsIException),
+                    nsXPCWrappedJS::GetNewOrUsed(ccx, obj,
+                                                 NS_GET_IID(nsIException),
                                                  nullptr, &jswrapper);
                 if (NS_FAILED(rv))
                     return rv;
@@ -1209,14 +1254,14 @@ XPCConvert::JSValToXPCException(jsval sArg,
 
             return ConstructException(NS_ERROR_XPC_JS_THREW_JS_OBJECT,
                                       strBytes.ptr(), ifaceName, methodName,
-                                      nullptr, exceptn, cx, s.address());
+                                      nullptr, exceptn, cx, &s);
         }
     }
 
     if (JSVAL_IS_VOID(s) || JSVAL_IS_NULL(s)) {
         return ConstructException(NS_ERROR_XPC_JS_THREW_NULL,
                                   nullptr, ifaceName, methodName, nullptr,
-                                  exceptn, cx, s.address());
+                                  exceptn, cx, &s);
     }
 
     if (JSVAL_IS_NUMBER(s)) {
@@ -1247,7 +1292,7 @@ XPCConvert::JSValToXPCException(jsval sArg,
 
         if (isResult)
             return ConstructException(rv, nullptr, ifaceName, methodName,
-                                      nullptr, exceptn, cx, s.address());
+                                      nullptr, exceptn, cx, &s);
         else {
             // XXX all this nsISupportsDouble code seems a little redundant
             // now that we're storing the jsval in the exception...
@@ -1261,7 +1306,7 @@ XPCConvert::JSValToXPCException(jsval sArg,
                 return NS_ERROR_FAILURE;
             data->SetData(number);
             rv = ConstructException(NS_ERROR_XPC_JS_THREW_NUMBER, nullptr,
-                                    ifaceName, methodName, data, exceptn, cx, s.address());
+                                    ifaceName, methodName, data, exceptn, cx, &s);
             NS_RELEASE(data);
             return rv;
         }
@@ -1276,7 +1321,7 @@ XPCConvert::JSValToXPCException(jsval sArg,
         if (!!strBytes) {
             return ConstructException(NS_ERROR_XPC_JS_THREW_STRING,
                                       strBytes.ptr(), ifaceName, methodName,
-                                      nullptr, exceptn, cx, s.address());
+                                      nullptr, exceptn, cx, &s);
         }
     }
     return NS_ERROR_FAILURE;
@@ -1286,13 +1331,13 @@ XPCConvert::JSValToXPCException(jsval sArg,
 
 // static
 nsresult
-XPCConvert::JSErrorToXPCException(const char* message,
+XPCConvert::JSErrorToXPCException(XPCCallContext& ccx,
+                                  const char* message,
                                   const char* ifaceName,
                                   const char* methodName,
                                   const JSErrorReport* report,
                                   nsIException** exceptn)
 {
-    AutoJSContext cx;
     nsresult rv = NS_ERROR_FAILURE;
     nsRefPtr<nsScriptError> data;
     if (report) {
@@ -1316,7 +1361,7 @@ XPCConvert::JSErrorToXPCException(const char* message,
             report->lineno,
             report->uctokenptr - report->uclinebuf, report->flags,
             "XPConnect JavaScript",
-            nsJSUtils::GetCurrentlyRunningCodeInnerWindowID(cx));
+            nsJSUtils::GetCurrentlyRunningCodeInnerWindowID(ccx.GetJSContext()));
     }
 
     if (data) {
@@ -1345,36 +1390,49 @@ XPCConvert::JSErrorToXPCException(const char* message,
 
 // static
 JSBool
-XPCConvert::NativeArray2JS(jsval* d, const void** s,
+XPCConvert::NativeArray2JS(XPCLazyCallContext& lccx,
+                           jsval* d, const void** s,
                            const nsXPTType& type, const nsID* iid,
                            uint32_t count, nsresult* pErr)
 {
     NS_PRECONDITION(s, "bad param");
     NS_PRECONDITION(d, "bad param");
 
-    AutoJSContext cx;
+    XPCCallContext& ccx = lccx.GetXPCCallContext();
+    if (!ccx.IsValid())
+        return false;
+
+    JSContext* cx = ccx.GetJSContext();
+    NS_ABORT_IF_FALSE(js::IsObjectInContextCompartment(lccx.GetScopeForNewJSObjects(), cx),
+                      "bad scope for new JSObjects");
 
     // XXX add support for putting chars in a string rather than an array
 
     // XXX add support to indicate *which* array element was not convertable
 
-    RootedObject array(cx, JS_NewArrayObject(cx, count, nullptr));
+    JSObject *array = JS_NewArrayObject(cx, count, nullptr);
+
     if (!array)
         return false;
+
+    // root this early
+    *d = OBJECT_TO_JSVAL(array);
+    AUTO_MARK_JSVAL(ccx, d);
 
     if (pErr)
         *pErr = NS_ERROR_XPC_BAD_CONVERT_NATIVE;
 
     uint32_t i;
-    RootedValue current(cx, JSVAL_NULL);
+    jsval current = JSVAL_NULL;
+    AUTO_MARK_JSVAL(ccx, &current);
 
-#define POPULATE(_t)                                                                    \
-    PR_BEGIN_MACRO                                                                      \
-        for (i = 0; i < count; i++) {                                                   \
-            if (!NativeData2JS(current.address(), ((_t*)*s)+i, type, iid, pErr) ||      \
-                !JS_SetElement(cx, array, i, current.address()))                        \
-                goto failure;                                                           \
-        }                                                                               \
+#define POPULATE(_t)                                                          \
+    PR_BEGIN_MACRO                                                            \
+        for (i = 0; i < count; i++) {                                         \
+            if (!NativeData2JS(ccx, &current, ((_t*)*s)+i, type, iid, pErr) ||\
+                !JS_SetElement(cx, array, i, &current))                       \
+                goto failure;                                                 \
+        }                                                                     \
     PR_END_MACRO
 
     // XXX check IsPtr - esp. to handle array of nsID (as opposed to nsID*)
@@ -1408,7 +1466,6 @@ XPCConvert::NativeArray2JS(jsval* d, const void** s,
 
     if (pErr)
         *pErr = NS_OK;
-    *d = OBJECT_TO_JSVAL(array);
     return true;
 
 failure:
@@ -1575,13 +1632,11 @@ XPCConvert::JSTypedArray2Native(void** d,
 
 // static
 JSBool
-XPCConvert::JSArray2Native(void** d, JS::Value s,
+XPCConvert::JSArray2Native(JSContext* cx, void** d, JS::Value s,
                            uint32_t count, const nsXPTType& type,
                            const nsID* iid, nsresult* pErr)
 {
     NS_ABORT_IF_FALSE(d, "bad param");
-
-    AutoJSContext cx;
 
     // XXX add support for getting chars from strings
 
@@ -1604,7 +1659,7 @@ XPCConvert::JSArray2Native(void** d, JS::Value s,
         return false;
     }
 
-    RootedObject jsarray(cx, &s.toObject());
+    JSObject* jsarray = &s.toObject();
 
     // If this is a typed array, then try a fast conversion with memcpy.
     if (JS_IsTypedArrayObject(jsarray)) {
@@ -1627,22 +1682,22 @@ XPCConvert::JSArray2Native(void** d, JS::Value s,
     if (pErr)
         *pErr = NS_ERROR_XPC_BAD_CONVERT_JS;
 
-#define POPULATE(_mode, _t)                                                    \
-    PR_BEGIN_MACRO                                                             \
-        cleanupMode = _mode;                                                   \
-        size_t max = UINT32_MAX / sizeof(_t);                                  \
-        if (count > max ||                                                     \
+#define POPULATE(_mode, _t)                                                   \
+    PR_BEGIN_MACRO                                                            \
+        cleanupMode = _mode;                                                  \
+        size_t max = UINT32_MAX / sizeof(_t);                              \
+        if (count > max ||                                                    \
             nullptr == (array = nsMemory::Alloc(count * sizeof(_t)))) {        \
-            if (pErr)                                                          \
-                *pErr = NS_ERROR_OUT_OF_MEMORY;                                \
-            goto failure;                                                      \
-        }                                                                      \
-        for (initedCount = 0; initedCount < count; initedCount++) {            \
-            if (!JS_GetElement(cx, jsarray, initedCount, current.address()) || \
-                !JSData2Native(((_t*)array)+initedCount, current, type,        \
-                               true, iid, pErr))                               \
-                goto failure;                                                  \
-        }                                                                      \
+            if (pErr)                                                         \
+                *pErr = NS_ERROR_OUT_OF_MEMORY;                               \
+            goto failure;                                                     \
+        }                                                                     \
+        for (initedCount = 0; initedCount < count; initedCount++) {           \
+            if (!JS_GetElement(cx, jsarray, initedCount, &current) ||         \
+                !JSData2Native(cx, ((_t*)array)+initedCount, current, type,  \
+                               true, iid, pErr))                              \
+                goto failure;                                                 \
+        }                                                                     \
     PR_END_MACRO
 
     // No Action, FRee memory, RElease object
@@ -1652,7 +1707,7 @@ XPCConvert::JSArray2Native(void** d, JS::Value s,
 
     void *array = nullptr;
     uint32_t initedCount;
-    RootedValue current(cx);
+    jsval current;
 
     // XXX check IsPtr - esp. to handle array of nsID (as opposed to nsID*)
     // XXX make extra space at end of char* and wchar* and null termintate
@@ -1715,7 +1770,8 @@ failure:
 
 // static
 JSBool
-XPCConvert::NativeStringWithSize2JS(jsval* d, const void* s,
+XPCConvert::NativeStringWithSize2JS(JSContext* cx,
+                                    jsval* d, const void* s,
                                     const nsXPTType& type,
                                     uint32_t count,
                                     nsresult* pErr)
@@ -1723,7 +1779,6 @@ XPCConvert::NativeStringWithSize2JS(jsval* d, const void* s,
     NS_PRECONDITION(s, "bad param");
     NS_PRECONDITION(d, "bad param");
 
-    AutoJSContext cx;
     if (pErr)
         *pErr = NS_ERROR_XPC_BAD_CONVERT_NATIVE;
 
@@ -1759,14 +1814,15 @@ XPCConvert::NativeStringWithSize2JS(jsval* d, const void* s,
 
 // static
 JSBool
-XPCConvert::JSStringWithSize2Native(void* d, jsval s,
+XPCConvert::JSStringWithSize2Native(XPCCallContext& ccx, void* d, jsval s,
                                     uint32_t count, const nsXPTType& type,
                                     nsresult* pErr)
 {
     NS_PRECONDITION(!JSVAL_IS_NULL(s), "bad param");
     NS_PRECONDITION(d, "bad param");
 
-    AutoJSContext cx;
+    JSContext* cx = ccx.GetJSContext();
+
     uint32_t len;
 
     if (pErr)

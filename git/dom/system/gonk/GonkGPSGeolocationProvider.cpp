@@ -48,7 +48,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS3(GonkGPSGeolocationProvider,
                               nsIRILDataCallback,
                               nsISettingsServiceCallback)
 
-/* static */ GonkGPSGeolocationProvider* GonkGPSGeolocationProvider::sSingleton = nullptr;
+GonkGPSGeolocationProvider* GonkGPSGeolocationProvider::sSingleton;
 GpsCallbacks GonkGPSGeolocationProvider::mCallbacks = {
   sizeof(GpsCallbacks),
   LocationCallback,
@@ -250,20 +250,13 @@ GonkGPSGeolocationProvider::AGPSRILSetIDCallback(uint32_t flags)
 void
 GonkGPSGeolocationProvider::AGPSRILRefLocCallback(uint32_t flags)
 {
-  class RequestRefLocEvent : public nsRunnable {
-  public:
-    RequestRefLocEvent()
-    {}
-    NS_IMETHOD Run() {
-      nsRefPtr<GonkGPSGeolocationProvider> provider =
-        GonkGPSGeolocationProvider::GetSingleton();
-      provider->SetReferenceLocation();
-      return NS_OK;
-    }
-  };
+  nsRefPtr<GonkGPSGeolocationProvider> provider =
+    GonkGPSGeolocationProvider::GetSingleton();
 
   if (flags & AGPS_RIL_REQUEST_REFLOC_CELLID) {
-    NS_DispatchToMainThread(new RequestRefLocEvent());
+    nsCOMPtr<nsIRunnable> event =
+      NS_NewRunnableMethod(provider, &GonkGPSGeolocationProvider::SetReferenceLocation);
+    NS_DispatchToMainThread(event);
   }
 }
 
@@ -294,8 +287,8 @@ GonkGPSGeolocationProvider::GetSingleton()
   if (!sSingleton)
     sSingleton = new GonkGPSGeolocationProvider();
 
-  nsRefPtr<GonkGPSGeolocationProvider> provider = sSingleton;
-  return provider.forget();
+  NS_ADDREF(sSingleton);
+  return sSingleton;
 }
 
 const GpsInterface*
@@ -462,13 +455,13 @@ GonkGPSGeolocationProvider::SetReferenceLocation()
       iccInfo->GetMcc(mcc);
       iccInfo->GetMnc(mnc);
 
-      location.u.cellID.mcc = mcc.ToInteger(&result);
+      location.u.cellID.mcc = mcc.ToInteger(&result, 10);
       if (result != NS_OK) {
         NS_WARNING("Cannot parse mcc to integer");
         location.u.cellID.mcc = 0;
       }
 
-      location.u.cellID.mnc = mnc.ToInteger(&result);
+      location.u.cellID.mnc = mnc.ToInteger(&result, 10);
       if (result != NS_OK) {
         NS_WARNING("Cannot parse mnc to integer");
         location.u.cellID.mnc = 0;
@@ -602,7 +595,7 @@ GonkGPSGeolocationProvider::Startup()
 }
 
 NS_IMETHODIMP
-GonkGPSGeolocationProvider::Watch(nsIGeolocationUpdate* aCallback)
+GonkGPSGeolocationProvider::Watch(nsIGeolocationUpdate* aCallback, bool aPrivate)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -679,10 +672,10 @@ GonkGPSGeolocationProvider::Handle(const nsAString& aName,
   if (aName.EqualsLiteral("ril.supl.apn")) {
     JSContext *cx = nsContentUtils::GetCurrentJSContext();
     NS_ENSURE_TRUE(cx, NS_OK);
-
+    JSAutoRequest ar(cx);
+    JSAutoCompartment ac(cx, JSVAL_TO_OBJECT(aResult));
     // When we get the APN, we attempt to call data_call_open of AGPS.
     if (aResult.isString()) {
-      // NB: No need to enter a compartment to read the contents of a string.
       nsDependentJSString apn;
       apn.init(cx, aResult.toString());
       if (!apn.IsEmpty()) {

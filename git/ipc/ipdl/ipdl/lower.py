@@ -1554,14 +1554,14 @@ class _GenerateProtocolCode(ipdl.ast.Visitor):
         typedefs = self.protocol.decl.cxxtypedefs
         for md in p.messageDecls:
             ns.addstmts([
-                _generateMessageClass(md, md.msgClass(), md.msgId(),
+                _generateMessageClass(md.msgClass(), md.msgId(),
                                       typedefs, md.prettyMsgName(p.name+'::'),
                                       md.decl.type.compress),
                 Whitespace.NL ])
             if md.hasReply():
                 ns.addstmts([
                     _generateMessageClass(
-                        md, md.replyClass(), md.replyId(),
+                        md.replyClass(), md.replyId(),
                         typedefs, md.prettyReplyName(p.name+'::'),
                         md.decl.type.compress),
                     Whitespace.NL ])
@@ -1751,7 +1751,7 @@ class _GenerateProtocolCode(ipdl.ast.Visitor):
 
 ##--------------------------------------------------
 
-def _generateMessageClass(md, clsname, msgid, typedefs, prettyName, compress):
+def _generateMessageClass(clsname, msgid, typedefs, prettyName, compress):
     cls = Class(name=clsname, inherits=[ Inherit(Type('IPC::Message')) ])
     cls.addstmt(Label.PRIVATE)
     cls.addstmts(typedefs)
@@ -1768,16 +1768,12 @@ def _generateMessageClass(md, clsname, msgid, typedefs, prettyName, compress):
         compression = ExprVar('COMPRESSION_ENABLED')
     else:
         compression = ExprVar('COMPRESSION_NONE')
-    if md.decl.type.isUrgent():
-        priority = 'PRIORITY_HIGH'
-    else:
-        priority = 'PRIORITY_NORMAL'
     ctor = ConstructorDefn(
         ConstructorDecl(clsname),
         memberinits=[ ExprMemberInit(ExprVar('IPC::Message'),
                                      [ ExprVar('MSG_ROUTING_NONE'),
                                        ExprVar('ID'),
-                                       ExprVar(priority),
+                                       ExprVar('PRIORITY_NORMAL'),
                                        compression,
                                        ExprLiteral.String(prettyName) ]) ])
     cls.addstmts([ ctor, Whitespace.NL ])
@@ -2398,8 +2394,7 @@ class _FindFriends(ipdl.ast.Visitor):
 
     def findFriends(self, ptype):
         self.mytype = ptype
-        for toplvl in ptype.toplevels():
-            self.walkDownTheProtocolTree(toplvl);
+        self.walkDownTheProtocolTree(ptype.toplevel())
         return self.friends
 
     # TODO could make this into a _iterProtocolTreeHelper ...
@@ -3195,6 +3190,22 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
             self.cls.addstmts([ otherpid, Whitespace.NL,
                                 getdump, Whitespace.NL ])
 
+        if (ptype.isToplevel() and self.side is 'parent'
+            and ptype.talksRpc()):
+            # offer BlockChild() and UnblockChild().
+            # See ipc/glue/RPCChannel.h
+            blockchild = MethodDefn(MethodDecl(
+                'BlockChild', ret=Type.BOOL))
+            blockchild.addstmt(StmtReturn(ExprCall(
+                ExprSelect(p.channelVar(), '.', 'BlockChild'))))
+
+            unblockchild = MethodDefn(MethodDecl(
+                'UnblockChild', ret=Type.BOOL))
+            unblockchild.addstmt(StmtReturn(ExprCall(
+                ExprSelect(p.channelVar(), '.', 'UnblockChild'))))
+
+            self.cls.addstmts([ blockchild, unblockchild, Whitespace.NL ])
+
         ## private methods
         self.cls.addstmt(Label.PRIVATE)
 
@@ -3840,11 +3851,6 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
 
         # bool DeallocShmem(Shmem& mem):
         #   bool ok = DestroySharedMemory(mem);
-        ##ifdef DEBUG
-        #   if (!ok) {
-        #     NS_RUNTIMEABORT("bad Shmem");
-        #   }
-        ##endif // DEBUG
         #   mem.forget();
         #   return ok;
         deallocShmem = MethodDefn(MethodDecl(
@@ -3853,16 +3859,10 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
             ret=Type.BOOL))
         okvar = ExprVar('ok')
 
-        ifbad = StmtIf(ExprNot(okvar))
-        ifbad.addifstmt(_runtimeAbort('bad Shmem'))
-
         deallocShmem.addstmts([
             StmtDecl(Decl(Type.BOOL, okvar.name),
                      init=ExprCall(p.destroySharedMemory(),
                                    args=[ memvar ])),
-            CppDirective('ifdef', 'DEBUG'),
-            ifbad,
-            CppDirective('endif', '// DEBUG'),
             StmtExpr(_shmemForget(memvar)),
             StmtReturn(okvar)
         ])
@@ -4516,7 +4516,7 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
                 self.asyncSwitch.addcase(lbl, case)
             elif sems is ipdl.ast.SYNC:
                 self.syncSwitch.addcase(lbl, case)
-            elif sems is ipdl.ast.RPC or sems is ipdl.ast.URGENT:
+            elif sems is ipdl.ast.RPC:
                 self.rpcSwitch.addcase(lbl, case)
             else: assert 0
 
@@ -4641,15 +4641,9 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
         actorvar = md.actorDecl().var()
         type = md.decl.type.constructedType()
         failif = StmtIf(cond)
-        
-        if self.side=='child':
-            # in the child process this should not fail
-            failif.addifstmt(_runtimeAbort('constructor for actor failed'))
-        else:
-            failif.addifstmts(self.destroyActor(md, actorvar,
-                              why=_DestroyReason.FailedConstructor))
-
-        failif.addifstmt(StmtReturn(ExprLiteral.NULL))
+        failif.addifstmts(self.destroyActor(md, actorvar,
+                                            why=_DestroyReason.FailedConstructor)
+                          + [ StmtReturn(ExprLiteral.NULL) ])
         return [ failif ]
 
     def genHelperCtor(self, md):

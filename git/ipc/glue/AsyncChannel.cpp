@@ -271,13 +271,12 @@ AsyncChannel::ThreadLink::SendClose()
 }
 
 AsyncChannel::AsyncChannel(AsyncListener* aListener)
-  : mListener(aListener->asWeakPtr()),
+  : mListener(aListener),
     mChannelState(ChannelClosed),
     mWorkerLoop(),
     mChild(false),
     mChannelErrorTask(NULL),
-    mLink(NULL),
-    mWorkerLoopID(-1)
+    mLink(NULL)
 {
     MOZ_COUNT_CTOR(AsyncChannel);
 }
@@ -297,7 +296,6 @@ AsyncChannel::Open(Transport* aTransport,
     NS_PRECONDITION(!mLink, "Open() called > once");
     mMonitor = new RefCountedMonitor();
     mWorkerLoop = MessageLoop::current();
-    mWorkerLoopID = mWorkerLoop->id();
     mLink = link = new ProcessLink(this);
     link->Open(aTransport, aIOLoop, aSide); // n.b.: sets mChild
     return true;
@@ -355,7 +353,6 @@ void
 AsyncChannel::CommonThreadOpenInit(AsyncChannel *aTargetChan, Side aSide)
 {
     mWorkerLoop = MessageLoop::current();
-    mWorkerLoopID = mWorkerLoop->id();
     mLink = new ThreadLink(this, aTargetChan);
     mChild = (aSide == Child); 
 }
@@ -386,7 +383,12 @@ AsyncChannel::Close()
     AssertWorkerThread();
 
     {
-        MonitorAutoLock lock(*mMonitor);
+        // n.b.: We increase the ref count of monitor temporarily
+        //       for the duration of this block.  Otherwise, the
+        //       function NotifyMaybeChannelError() will call
+        //       ::Clear() which can free the monitor.
+        nsRefPtr<RefCountedMonitor> monitor(mMonitor);
+        MonitorAutoLock lock(*monitor);
 
         if (ChannelError == mChannelState ||
             ChannelTimeout == mChannelState) {
@@ -396,7 +398,7 @@ AsyncChannel::Close()
             // also be deleted and the listener will never be notified
             // of the channel error.
             if (mListener) {
-                MonitorAutoUnlock unlock(*mMonitor);
+                MonitorAutoUnlock unlock(*monitor);
                 NotifyMaybeChannelError();
             }
             return;
@@ -573,20 +575,12 @@ AsyncChannel::NotifyMaybeChannelError()
 void
 AsyncChannel::Clear()
 {
-    // Don't clear mWorkerLoopID; we use it in AssertLinkThread() and
-    // AssertWorkerThread().
-    //
-    // Also don't clear mListener.  If we clear it, then sending a message
-    // through this channel after it's Clear()'ed can cause this process to
-    // crash.
-    //
-    // In practice, mListener owns the channel, so the channel gets deleted
-    // before mListener.  But just to be safe, mListener is a weak pointer.
-
+    mListener = 0;
     mWorkerLoop = 0;
 
     delete mLink;
     mLink = 0;
+    mMonitor = 0;
 
     if (mChannelErrorTask) {
         mChannelErrorTask->Cancel();

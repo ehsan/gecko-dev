@@ -175,7 +175,6 @@
 @BINPATH@/components/dom_wifi.xpt
 @BINPATH@/components/dom_system_gonk.xpt
 @BINPATH@/components/dom_icc.xpt
-@BINPATH@/components/dom_wappush.xpt
 #endif
 @BINPATH@/components/dom_battery.xpt
 #ifdef MOZ_B2G_BT
@@ -185,7 +184,6 @@
 @BINPATH@/components/dom_canvas.xpt
 @BINPATH@/components/dom_contacts.xpt
 @BINPATH@/components/dom_alarm.xpt
-@BINPATH@/components/dom_push.xpt
 @BINPATH@/components/dom_core.xpt
 @BINPATH@/components/dom_css.xpt
 @BINPATH@/components/dom_devicestorage.xpt
@@ -199,6 +197,10 @@
 @BINPATH@/components/dom_indexeddb.xpt
 @BINPATH@/components/dom_offline.xpt
 @BINPATH@/components/dom_json.xpt
+@BINPATH@/components/dom_push.xpt
+#ifdef MOZ_B2G_RIL
+@BINPATH@/components/dom_mms.xpt
+#endif
 @BINPATH@/components/dom_browserelement.xpt
 @BINPATH@/components/dom_power.xpt
 @BINPATH@/components/dom_quota.xpt
@@ -211,7 +213,7 @@
 @BINPATH@/components/dom_stylesheets.xpt
 @BINPATH@/components/dom_traversal.xpt
 #ifdef MOZ_WEBSPEECH
-@BINPATH@/components/dom_webspeechrecognition.xpt
+@BINPATH@/components/dom_webspeech.xpt
 #endif
 @BINPATH@/components/dom_xbl.xpt
 @BINPATH@/components/dom_xpath.xpt
@@ -227,7 +229,7 @@
 @BINPATH@/components/exthelper.xpt
 @BINPATH@/components/fastfind.xpt
 @BINPATH@/components/feeds.xpt
-#ifdef MOZ_GTK
+#ifdef MOZ_GTK2
 @BINPATH@/components/filepicker.xpt
 #endif
 @BINPATH@/components/find.xpt
@@ -354,8 +356,6 @@
 @BINPATH@/browser/components/DownloadsStartup.js
 @BINPATH@/browser/components/DownloadsUI.js
 @BINPATH@/browser/components/BrowserPlaces.manifest
-@BINPATH@/components/Downloads.manifest
-@BINPATH@/components/DownloadLegacy.js
 @BINPATH@/components/BrowserPageThumbs.manifest
 @BINPATH@/components/SiteSpecificUserAgent.js
 @BINPATH@/components/SiteSpecificUserAgent.manifest
@@ -371,7 +371,7 @@
 @BINPATH@/components/crypto-SDR.js
 @BINPATH@/components/jsconsole-clhandler.manifest
 @BINPATH@/components/jsconsole-clhandler.js
-#ifdef MOZ_GTK
+#ifdef MOZ_GTK2
 @BINPATH@/components/nsFilePicker.manifest
 @BINPATH@/components/nsFilePicker.js
 #endif
@@ -381,6 +381,8 @@
 @BINPATH@/components/nsDownloadManagerUI.js
 @BINPATH@/components/NetworkGeolocationProvider.manifest
 @BINPATH@/components/NetworkGeolocationProvider.js
+@BINPATH@/components/GPSDGeolocationProvider.manifest
+@BINPATH@/components/GPSDGeolocationProvider.js
 @BINPATH@/browser/components/nsSidebar.manifest
 @BINPATH@/browser/components/nsSidebar.js
 @BINPATH@/components/extensions.manifest
@@ -431,7 +433,6 @@
 @BINPATH@/components/satchel.manifest
 @BINPATH@/components/nsFormAutoComplete.js
 @BINPATH@/components/nsFormHistory.js
-@BINPATH@/components/FormHistoryStartup.js
 @BINPATH@/components/nsInputListAutoComplete.js
 @BINPATH@/components/contentSecurityPolicy.manifest
 @BINPATH@/components/contentSecurityPolicy.js
@@ -500,12 +501,14 @@
 @BINPATH@/components/messageWakeupService.manifest
 @BINPATH@/components/SettingsManager.js
 @BINPATH@/components/SettingsManager.manifest
-@BINPATH@/components/SettingsService.js
-@BINPATH@/components/SettingsService.manifest
 @BINPATH@/components/Webapps.js
 @BINPATH@/components/Webapps.manifest
 @BINPATH@/components/AppsService.js
 @BINPATH@/components/AppsService.manifest
+@BINPATH@/components/Push.js
+@BINPATH@/components/Push.manifest
+@BINPATH@/components/PushService.js
+@BINPATH@/components/PushService.manifest
 @BINPATH@/components/nsDOMIdentity.js
 @BINPATH@/components/nsIDService.js
 @BINPATH@/components/Identity.manifest
@@ -518,9 +521,6 @@
 @BINPATH@/components/ContactManager.manifest
 @BINPATH@/components/AlarmsManager.js
 @BINPATH@/components/AlarmsManager.manifest
-@BINPATH@/components/Push.js
-@BINPATH@/components/Push.manifest
-@BINPATH@/components/PushServiceLauncher.js
 @BINPATH@/components/TCPSocket.js
 @BINPATH@/components/TCPSocketParentIntermediary.js
 @BINPATH@/components/TCPSocket.manifest
@@ -533,13 +533,11 @@
 @BINPATH@/components/PeerConnection.manifest
 #endif
 
+#ifdef ENABLE_MARIONETTE
 @BINPATH@/chrome/marionette@JAREXT@
 @BINPATH@/chrome/marionette.manifest
 @BINPATH@/components/MarionetteComponents.manifest
 @BINPATH@/components/marionettecomponent.js
-
-#ifdef MOZ_WEBSPEECH
-@BINPATH@/components/dom_webspeechsynth.xpt
 #endif
 
 ; Modules
@@ -570,11 +568,14 @@
 @BINPATH@/browser/chrome/pdfjs/*
 @BINPATH@/browser/extensions/{972ce4c6-7e08-4474-a285-3208198ce6fd}/install.rdf
 @BINPATH@/browser/extensions/{972ce4c6-7e08-4474-a285-3208198ce6fd}/icon.png
+#ifdef SHIP_FEEDBACK
+@BINPATH@/browser/distribution/extensions/testpilot@labs.mozilla.com.xpi
+#endif
 @BINPATH@/chrome/toolkit@JAREXT@
 @BINPATH@/chrome/toolkit.manifest
 @BINPATH@/chrome/recording.manifest
 @BINPATH@/chrome/recording/*
-#ifdef MOZ_GTK
+#ifdef MOZ_GTK2
 @BINPATH@/browser/chrome/icons/default/default16.png
 @BINPATH@/browser/chrome/icons/default/default32.png
 @BINPATH@/browser/chrome/icons/default/default48.png
@@ -620,11 +621,10 @@
 #endif
 
 ; [Layout Engine Resources]
-; Style Sheets, Graphics and other Resources used by the layout engine.
+; Style Sheets, Graphics and other Resources used by the layout engine. 
 @BINPATH@/res/EditorOverride.css
 @BINPATH@/res/contenteditable.css
 @BINPATH@/res/designmode.css
-@BINPATH@/res/ImageDocument.css
 @BINPATH@/res/TopLevelImageDocument.css
 @BINPATH@/res/TopLevelVideoDocument.css
 @BINPATH@/res/table-add-column-after-active.gif
@@ -775,8 +775,6 @@ bin/libfreebl_32int64_3.so
 @BINPATH@/metro/chrome.manifest
 @BINPATH@/metro/searchplugins
 @BINPATH@/metro/metroapp.ini
-@BINPATH@/metro/chrome/browser@JAREXT@
-@BINPATH@/metro/chrome/browser.manifest
 @BINPATH@/metro/chrome/chrome@JAREXT@
 @BINPATH@/metro/chrome/chrome.manifest
 @BINPATH@/metro/chrome/@AB_CD@@JAREXT@

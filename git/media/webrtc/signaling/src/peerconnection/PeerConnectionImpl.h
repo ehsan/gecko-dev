@@ -68,37 +68,19 @@ private:
 class IceConfiguration
 {
 public:
-  bool addStunServer(const std::string& addr, uint16_t port)
+  bool addServer(const std::string& addr, uint16_t port)
   {
     NrIceStunServer* server(NrIceStunServer::Create(addr, port));
     if (!server) {
       return false;
     }
-    addStunServer(*server);
+    addServer(*server);
     return true;
   }
-  bool addTurnServer(const std::string& addr, uint16_t port,
-                     const std::string& username,
-                     const std::string& pwd)
-  {
-    // TODO(ekr@rtfm.com): Need support for SASLprep for
-    // username and password. Bug # ???
-    std::vector<unsigned char> password(pwd.begin(), pwd.end());
-
-    NrIceTurnServer* server(NrIceTurnServer::Create(addr, port, username, password));
-    if (!server) {
-      return false;
-    }
-    addTurnServer(*server);
-    return true;
-  }
-  void addStunServer(const NrIceStunServer& server) { mStunServers.push_back (server); }
-  void addTurnServer(const NrIceTurnServer& server) { mTurnServers.push_back (server); }
-  const std::vector<NrIceStunServer>& getStunServers() const { return mStunServers; }
-  const std::vector<NrIceTurnServer>& getTurnServers() const { return mTurnServers; }
+  void addServer(const NrIceStunServer& server) { mServers.push_back (server); }
+  const std::vector<NrIceStunServer>& getServers() const { return mServers; }
 private:
-  std::vector<NrIceStunServer> mStunServers;
-  std::vector<NrIceTurnServer> mTurnServers;
+  std::vector<NrIceStunServer> mServers;
 };
 
 class PeerConnectionWrapper;
@@ -131,18 +113,6 @@ public:
     kActive,
     kClosing,
     kClosed
-  };
-
-  /* Must match constants in IPeerConnection.idl */
-  /* Must also be int the same order as in fsmdef_states.h */
-  enum SignalingState {
-    kSignalingInvalid            = 0,
-    kSignalingStable             = 1,
-    kSignalingHaveLocalOffer     = 2,
-    kSignalingHaveRemoteOffer    = 3,
-    kSignalingHaveLocalPranswer  = 4,
-    kSignalingHaveRemotePranswer = 5,
-    kSignalingClosed             = 6
   };
 
   enum SipccState {
@@ -280,9 +250,6 @@ public:
   // Called to retreive the list of parsing errors.
   const std::vector<std::string> &GetSdpParseErrors();
 
-  // Sets the RTC Signaling State
-  void SetSignalingState_m(SignalingState aSignalingState);
-
 private:
   PeerConnectionImpl(const PeerConnectionImpl&rhs);
   PeerConnectionImpl& operator=(PeerConnectionImpl);
@@ -330,7 +297,6 @@ private:
   // The call
   CSF::CC_CallPtr mCall;
   ReadyState mReadyState;
-  SignalingState mSignalingState;
 
   // ICE State
   IceState mIceState;

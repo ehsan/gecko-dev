@@ -213,7 +213,7 @@ void AndroidCameraInputStream::NotifyListeners() {
   if (mCallback && (mAvailable > sizeof(RawVideoHeader))) {
     nsCOMPtr<nsIInputStreamCallback> callback;
     if (mCallbackTarget) {
-      callback = NS_NewInputStreamReadyEvent(mCallback, mCallbackTarget);
+      NS_NewInputStreamReadyEvent(getter_AddRefs(callback), mCallback, mCallbackTarget);
     } else {
       callback = mCallback;
     }
@@ -296,6 +296,6 @@ already_AddRefed<AndroidCaptureProvider> GetAndroidCaptureProvider() {
   if (!AndroidCaptureProvider::sInstance) {
     AndroidCaptureProvider::sInstance = new AndroidCaptureProvider();
   }
-  nsRefPtr<AndroidCaptureProvider> ret = AndroidCaptureProvider::sInstance;
-  return ret.forget();
+  AndroidCaptureProvider::sInstance->AddRef();
+  return AndroidCaptureProvider::sInstance;
 }

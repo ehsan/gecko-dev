@@ -10,7 +10,8 @@
 
 function startTest() {
   document.addEventListener("MozReftestInvalidate", boom, false);
-  setTimeout(doTest, 4000); // fallback for running outside reftest
+  // in case we're not gecko
+  setTimeout(boom, 5000);
 }
 
 function boom() {

@@ -41,7 +41,7 @@ SVGTransformList::CopyFrom(const SVGTransformList& rhs)
 }
 
 nsresult
-SVGTransformList::CopyFrom(const nsTArray<nsSVGTransform>& aTransformArray)
+SVGTransformList::CopyFrom(const nsTArray<SVGTransform>& aTransformArray)
 {
   if (!mItems.SetCapacity(aTransformArray.Length())) {
     // Yes, we do want fallible alloc here

@@ -51,30 +51,15 @@ public:
                            nsCOMPtr<nsILoadContext> &aResult);
 
 protected:
-  virtual PHttpChannelParent*
-    AllocPHttpChannel(PBrowserParent*, const SerializedLoadContext&,
-                      const HttpChannelCreationArgs& aOpenArgs);
-  virtual bool
-    RecvPHttpChannelConstructor(
-                      PHttpChannelParent* aActor,
-                      PBrowserParent* aBrowser,
-                      const SerializedLoadContext& aSerialized,
-                      const HttpChannelCreationArgs& aOpenArgs);
+  virtual PHttpChannelParent* AllocPHttpChannel(PBrowserParent*,
+                                                const SerializedLoadContext&);
   virtual bool DeallocPHttpChannel(PHttpChannelParent*);
   virtual PCookieServiceParent* AllocPCookieService();
   virtual bool DeallocPCookieService(PCookieServiceParent*);
   virtual PWyciwygChannelParent* AllocPWyciwygChannel();
   virtual bool DeallocPWyciwygChannel(PWyciwygChannelParent*);
-  virtual PFTPChannelParent*
-    AllocPFTPChannel(PBrowserParent* aBrowser,
-                     const SerializedLoadContext& aSerialized,
-                     const FTPChannelCreationArgs& aOpenArgs);
-  virtual bool
-    RecvPFTPChannelConstructor(
-                      PFTPChannelParent* aActor,
-                      PBrowserParent* aBrowser,
-                      const SerializedLoadContext& aSerialized,
-                      const FTPChannelCreationArgs& aOpenArgs);
+  virtual PFTPChannelParent* AllocPFTPChannel(PBrowserParent* aBrowser,
+                                              const SerializedLoadContext& aSerialized);
   virtual bool DeallocPFTPChannel(PFTPChannelParent*);
   virtual PWebSocketParent* AllocPWebSocket(PBrowserParent* browser,
                                             const SerializedLoadContext& aSerialized);

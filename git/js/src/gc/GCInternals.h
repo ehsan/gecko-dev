@@ -1,11 +1,12 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=78:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef gc_GCInternals_h
-#define gc_GCInternals_h
+#ifndef jsgc_internal_h___
+#define jsgc_internal_h___
 
 #include "jsapi.h"
 
@@ -105,43 +106,9 @@ EndVerifyPostBarriers(JSRuntime *rt);
 
 void
 FinishVerifier(JSRuntime *rt);
-
-class AutoStopVerifyingBarriers
-{
-    JSRuntime *runtime;
-    bool restartPreVerifier;
-    bool restartPostVerifier;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
-
-  public:
-    AutoStopVerifyingBarriers(JSRuntime *rt, bool isShutdown
-                       MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : runtime(rt)
-    {
-        restartPreVerifier = !isShutdown && rt->gcVerifyPreData;
-        restartPostVerifier = !isShutdown && rt->gcVerifyPostData;
-        if (rt->gcVerifyPreData)
-            EndVerifyPreBarriers(rt);
-        if (rt->gcVerifyPostData)
-            EndVerifyPostBarriers(rt);
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-    }
-
-    ~AutoStopVerifyingBarriers() {
-        if (restartPreVerifier)
-            StartVerifyPreBarriers(runtime);
-        if (restartPostVerifier)
-            StartVerifyPostBarriers(runtime);
-    }
-};
-#else
-struct AutoStopVerifyingBarriers
-{
-    AutoStopVerifyingBarriers(JSRuntime *, bool) {}
-};
 #endif /* JS_GC_ZEAL */
 
 } /* namespace gc */
 } /* namespace js */
 
-#endif /* gc_GCInternals_h */
+#endif /* jsgc_internal_h___ */

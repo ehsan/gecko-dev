@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=79:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Copyright (C) 2008 Apple Inc. All rights reserved.
@@ -27,8 +27,8 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef assembler_assembler_AssemblerBuffer_h
-#define assembler_assembler_AssemblerBuffer_h
+#ifndef AssemblerBuffer_h
+#define AssemblerBuffer_h
 
 #include "assembler/wtf/Platform.h"
 
@@ -45,6 +45,7 @@
 
 #include "ion/IonSpewer.h"
 #include "js/RootingAPI.h"
+#include "methodjit/Logging.h"
 
 #define PRETTY_PRINT_OFFSET(os) (((os)<0)?"-":""), (((os)<0)?-(os):(os))
 
@@ -285,7 +286,8 @@ namespace JSC {
             __attribute__ ((format (printf, 2, 3)))
 #endif
         {
-            if (printer
+            if (printer ||
+                js::IsJaegerSpewChannelActive(js::JSpew_Insns)
 #ifdef JS_ION
                 || js::ion::IonSpewEnabled(js::ion::IonSpew_Codegen)
 #endif
@@ -304,8 +306,14 @@ namespace JSC {
                     if (printer)
                         printer->printf("%s\n", buf);
 
+                    // The assembler doesn't know which compiler it is for, so if
+                    // both JM and Ion spew are on, just print via one channel
+                    // (Use JM to pick up isOOLPath).
+                    if (js::IsJaegerSpewChannelActive(js::JSpew_Insns))
+                        js::JaegerSpew(js::JSpew_Insns, "%s       %s\n", isOOLPath ? ">" : " ", buf);
 #ifdef JS_ION
-                    js::ion::IonSpew(js::ion::IonSpew_Codegen, "%s", buf);
+                    else
+                        js::ion::IonSpew(js::ion::IonSpew_Codegen, "%s", buf);
 #endif
                 }
             }
@@ -316,8 +324,12 @@ namespace JSC {
             __attribute__ ((format (printf, 1, 2)))
 #endif
         {
+            if (js::IsJaegerSpewChannelActive(js::JSpew_Insns)
 #ifdef JS_ION
-            if (js::ion::IonSpewEnabled(js::ion::IonSpew_Codegen)) {
+                || js::ion::IonSpewEnabled(js::ion::IonSpew_Codegen)
+#endif
+                )
+            {
                 char buf[200];
 
                 va_list va;
@@ -325,10 +337,15 @@ namespace JSC {
                 int i = vsnprintf(buf, sizeof(buf), fmt, va);
                 va_end(va);
 
-                if (i > -1)
-                    js::ion::IonSpew(js::ion::IonSpew_Codegen, "%s", buf);
-            }
+                if (i > -1) {
+                    if (js::IsJaegerSpewChannelActive(js::JSpew_Insns))
+                        js::JaegerSpew(js::JSpew_Insns, "        %s\n", buf);
+#ifdef JS_ION
+                    else
+                        js::ion::IonSpew(js::ion::IonSpew_Codegen, "%s", buf);
 #endif
+                }
+            }
         }
     };
 
@@ -336,4 +353,4 @@ namespace JSC {
 
 #endif // ENABLE(ASSEMBLER)
 
-#endif /* assembler_assembler_AssemblerBuffer_h */
+#endif // AssemblerBuffer_h

@@ -52,6 +52,9 @@ uint32_t GetDataForFlavor (const nsTArray<DataStruct>& aArray,
 DataStruct::~DataStruct() 
 { 
   if (mCacheFileName) nsCRT::free(mCacheFileName); 
+
+    //nsIFileSpec * cacheFile = GetFileSpec(mCacheFileName);
+    //cacheFile->Remove();
 }
 
 //-------------------------------------------------------------------------

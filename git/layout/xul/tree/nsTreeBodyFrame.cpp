@@ -60,7 +60,6 @@
 #include "nsRenderingContext.h"
 #include "nsIScriptableRegion.h"
 #include <algorithm>
-#include "ScrollbarActivity.h"
 
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
@@ -70,7 +69,6 @@
 #endif
 
 using namespace mozilla;
-using namespace mozilla::layout;
 
 // Enumeration function that cancels all the image requests in our cache
 static PLDHashOperator
@@ -104,7 +102,6 @@ NS_IMPL_FRAMEARENA_HELPERS(nsTreeBodyFrame)
 
 NS_QUERYFRAME_HEAD(nsTreeBodyFrame)
   NS_QUERYFRAME_ENTRY(nsIScrollbarMediator)
-  NS_QUERYFRAME_ENTRY(nsIScrollbarOwner)
   NS_QUERYFRAME_ENTRY(nsTreeBodyFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsLeafBoxFrame)
 
@@ -115,7 +112,6 @@ nsTreeBodyFrame::nsTreeBodyFrame(nsIPresShell* aPresShell, nsStyleContext* aCont
  mTopRowIndex(0),
  mPageLength(0),
  mHorzPosition(0),
- mOriginalHorzWidth(-1),
  mHorzWidth(0),
  mAdjustWidth(0),
  mRowHeight(0),
@@ -173,11 +169,6 @@ nsTreeBodyFrame::Init(nsIContent*     aContent,
 
   mImageCache.Init(16);
   EnsureBoxObject();
-
-  if (LookAndFeel::GetInt(LookAndFeel::eIntID_UseOverlayScrollbars) != 0) {
-    mScrollbarActivity = new ScrollbarActivity(
-                           static_cast<nsIScrollbarOwner*>(this));
-  }
 }
 
 nsSize
@@ -275,11 +266,6 @@ nsTreeBodyFrame::CalcMaxRowWidth()
 void
 nsTreeBodyFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
-  if (mScrollbarActivity) {
-    mScrollbarActivity->Destroy();
-    mScrollbarActivity = nullptr;
-  }
-
   mScrollEvent.Revoke();
   // Make sure we cancel any posted callbacks. 
   if (mReflowCallbackPosted) {
@@ -387,28 +373,15 @@ nsTreeBodyFrame::EnsureView()
 }
 
 void
-nsTreeBodyFrame::ManageReflowCallback(const nsRect& aRect, nscoord aHorzWidth)
-{
-  if (!mReflowCallbackPosted &&
-      (!aRect.IsEqualEdges(mRect) || mHorzWidth != aHorzWidth)) {
-    PresContext()->PresShell()->PostReflowCallback(this);
-    mReflowCallbackPosted = true;
-    mOriginalHorzWidth = mHorzWidth;
-  }
-  else if (mReflowCallbackPosted &&
-           mHorzWidth != aHorzWidth && mOriginalHorzWidth == aHorzWidth) {
-    PresContext()->PresShell()->CancelReflowCallback(this);
-    mReflowCallbackPosted = false;
-    mOriginalHorzWidth = -1;
-  }
-}
-
-void
 nsTreeBodyFrame::SetBounds(nsBoxLayoutState& aBoxLayoutState, const nsRect& aRect,
                            bool aRemoveOverflowArea)
 {
   nscoord horzWidth = CalcHorzWidth(GetScrollParts());
-  ManageReflowCallback(aRect, horzWidth);
+  if ((!aRect.IsEqualEdges(mRect) || mHorzWidth != horzWidth) && !mReflowCallbackPosted) {
+    mReflowCallbackPosted = true;
+    PresContext()->PresShell()->PostReflowCallback(this);
+  }
+
   mHorzWidth = horzWidth;
 
   nsLeafBoxFrame::SetBounds(aBoxLayoutState, aRect, aRemoveOverflowArea);
@@ -864,26 +837,23 @@ nsTreeBodyFrame::UpdateScrollbars(const ScrollParts& aParts)
 {
   nscoord rowHeightAsPixels = nsPresContext::AppUnitsToIntCSSPixels(mRowHeight);
 
-  nsWeakFrame weakFrame(this);
-
   if (aParts.mVScrollbar) {
+    nsWeakFrame self(this);
     nsAutoString curPos;
     curPos.AppendInt(mTopRowIndex*rowHeightAsPixels);
     aParts.mVScrollbarContent->
       SetAttr(kNameSpaceID_None, nsGkAtoms::curpos, curPos, true);
-    // 'this' might be deleted here
+    if (!self.IsAlive()) {
+      return;
+    }
   }
 
-  if (weakFrame.IsAlive() && aParts.mHScrollbar) {
+  if (aParts.mHScrollbar) {
     nsAutoString curPos;
     curPos.AppendInt(mHorzPosition);
     aParts.mHScrollbarContent->
       SetAttr(kNameSpaceID_None, nsGkAtoms::curpos, curPos, true);
     // 'this' might be deleted here
-  }
-
-  if (weakFrame.IsAlive() && mScrollbarActivity) {
-    mScrollbarActivity->ActivityOccurred();
   }
 }
 
@@ -986,10 +956,6 @@ nsTreeBodyFrame::InvalidateScrollbars(const ScrollParts& aParts, nsWeakFrame& aW
     pageStr.AppendInt(nsPresContext::CSSPixelsToAppUnits(16));
     aParts.mHScrollbarContent->
       SetAttr(kNameSpaceID_None, nsGkAtoms::increment, pageStr, true);
-  }
-
-  if (weakFrame.IsAlive() && mScrollbarActivity) {
-    mScrollbarActivity->ActivityOccurred();
   }
 }
 
@@ -2790,7 +2756,7 @@ nsTreeBodyFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
   // Bail out now if there's no view or we can't run script because the
   // document is a zombie
-  if (!mView || !GetContent()->GetCurrentDoc()->GetWindow())
+  if (!mView || !GetContent()->GetCurrentDoc()->GetScriptGlobalObject())
     return;
 
   aLists.Content()->AppendNewToTop(new (aBuilder)

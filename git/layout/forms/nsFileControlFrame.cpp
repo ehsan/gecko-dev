@@ -26,6 +26,7 @@
 #include "nsIFilePicker.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsINodeInfo.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIFile.h"
 #include "mozilla/dom/HTMLInputElement.h"
 #include "nsNodeInfoManager.h"
@@ -49,7 +50,6 @@
 #include "nsIDOMDragEvent.h"
 #include "nsContentList.h"
 #include "nsIDOMMutationEvent.h"
-#include "nsTextNode.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -123,12 +123,14 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 
   // Set the browse button text. It's a bit of a pain to do because we want to
   // make sure we are not notifying.
-  nsRefPtr<nsTextNode> textContent =
-    new nsTextNode(mBrowse->NodeInfo()->NodeInfoManager());
+  nsCOMPtr<nsIContent> textContent;
+  nsresult rv = NS_NewTextNode(getter_AddRefs(textContent),
+                               mBrowse->NodeInfo()->NodeInfoManager());
+  NS_ENSURE_SUCCESS(rv, rv);
 
   textContent->SetText(buttonTxt, false);
 
-  nsresult rv = mBrowse->AppendChildTo(textContent, false);
+  rv = mBrowse->AppendChildTo(textContent, false);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Make sure access key and tab order for the element actually redirect to the
@@ -205,7 +207,7 @@ nsFileControlFrame::DnDListener::HandleEvent(nsIDOMEvent* aEvent)
   NS_ASSERTION(mFrame, "We should have been unregistered");
 
   bool defaultPrevented = false;
-  aEvent->GetDefaultPrevented(&defaultPrevented);
+  aEvent->GetPreventDefault(&defaultPrevented);
   if (defaultPrevented) {
     return NS_OK;
   }

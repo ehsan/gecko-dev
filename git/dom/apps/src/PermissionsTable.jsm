@@ -27,6 +27,7 @@ const DENY_ACTION = Ci.nsIPermissionManager.DENY_ACTION;
 const PROMPT_ACTION = Ci.nsIPermissionManager.PROMPT_ACTION;
 
 // Permissions Matrix: https://docs.google.com/spreadsheet/ccc?key=0Akyz_Bqjgf5pdENVekxYRjBTX0dCXzItMnRyUU1RQ0E#gid=0
+// Also, keep in sync with https://mxr.mozilla.org/mozilla-central/source/extensions/cookie/Permission.txt
 
 // Permissions that are implicit:
 // battery-status, network-information, vibration,
@@ -116,11 +117,6 @@ this.PermissionsTable =  { geolocation: {
                            mobileconnection: {
                              app: DENY_ACTION,
                              privileged: DENY_ACTION,
-                             certified: ALLOW_ACTION
-                           },
-                           mobilenetwork: {
-                             app: DENY_ACTION,
-                             privileged: ALLOW_ACTION,
                              certified: ALLOW_ACTION
                            },
                            power: {
@@ -304,7 +300,7 @@ this.appendAccessToPermName = function appendAccessToPermName(aPermName, aAccess
  **/
 this.expandPermissions = function expandPermissions(aPermName, aAccess) {
   if (!PermissionsTable[aPermName]) {
-    let errorMsg =
+    let errorMsg = 
       "PermissionsTable.jsm: expandPermissions: Unknown Permission: " + aPermName;
     Cu.reportError(errorMsg);
     dump(errorMsg);
@@ -314,7 +310,7 @@ this.expandPermissions = function expandPermissions(aPermName, aAccess) {
   const tableEntry = PermissionsTable[aPermName];
 
   if (tableEntry.substitute && tableEntry.additional) {
-    let errorMsg =
+    let errorMsg = 
       "PermissionsTable.jsm: expandPermissions: Can't handle both 'substitute' " +
       "and 'additional' entries for permission: " + aPermName;
     Cu.reportError(errorMsg);
@@ -324,12 +320,12 @@ this.expandPermissions = function expandPermissions(aPermName, aAccess) {
 
   if (!aAccess && tableEntry.access ||
       aAccess && !tableEntry.access) {
-    let errorMsg =
-      "PermissionsTable.jsm: expandPermissions: Invalid access for permission " +
-      aPermName + ": " + aAccess + "\n";
+    let errorMsg = 
+      "PermissionsTable.jsm: expandPermissions: Invalid Manifest : " +
+      aPermName + " " + aAccess + "\n";
     Cu.reportError(errorMsg);
     dump(errorMsg);
-    return [];
+    throw new Error(errorMsg);
   }
 
   let expandedPermNames = [];
@@ -427,7 +423,7 @@ this.isExplicitInPermissionsTable = function(aPermName, aIntStatus) {
   let realPerm = PermissionsReverseTable[aPermName];
 
   if (realPerm) {
-    return (PermissionsTable[realPerm][appStatus] ==
+    return (PermissionsTable[realPerm][appStatus] == 
             Ci.nsIPermissionManager.PROMPT_ACTION);
   } else {
     return false;

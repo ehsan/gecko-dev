@@ -178,7 +178,7 @@ MarFile *mar_open(const char *path) {
 MarFile *mar_wopen(const wchar_t *path) {
   FILE *fp;
 
-  _wfopen_s(&fp, path, L"rb");
+  fp = _wfopen(path, L"rb");
   if (!fp)
     return NULL;
 
@@ -386,7 +386,7 @@ int
 mar_read_product_info_block(MarFile *mar, 
                             struct ProductInformationBlock *infoBlock)
 {
-  int i, hasAdditionalBlocks,
+  int i, hasAdditionalBlocks, offset, 
     offsetAdditionalBlocks, numAdditionalBlocks,
     additionalBlockSize, additionalBlockID;
   /* The buffer size is 97 bytes because the MAR channel name < 64 bytes, and 

@@ -1,11 +1,12 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=78:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_BooleanObject_h
-#define vm_BooleanObject_h
+#ifndef BooleanObject_h___
+#define BooleanObject_h___
 
 #include "jsbool.h"
 
@@ -18,8 +19,6 @@ class BooleanObject : public JSObject
 
   public:
     static const unsigned RESERVED_SLOTS = 1;
-
-    static Class class_;
 
     /*
      * Creates a new Boolean object boxing the given primitive bool.  The
@@ -43,4 +42,4 @@ class BooleanObject : public JSObject
 
 } // namespace js
 
-#endif /* vm_BooleanObject_h */
+#endif /* BooleanObject_h__ */

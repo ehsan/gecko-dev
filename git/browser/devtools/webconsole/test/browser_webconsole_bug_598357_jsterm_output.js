@@ -23,12 +23,12 @@ let initialString = longString.substring(0,
   tempScope.DebuggerServer.LONG_STRING_INITIAL_LENGTH);
 
 let inputValues = [
-  // [showsVariablesView?, input value, expected output format,
-  //    print() output, console API output, optional console API test]
+  // [showsPropertyPanel?, input value, expected output format,
+  //    print() output, console output, optional console API test]
 
   // 0
   [false, "'hello \\nfrom \\rthe \\\"string world!'",
-    '"hello \nfrom \rthe "string world!"',
+    '"hello \\nfrom \\rthe \\"string world!"',
     "hello \nfrom \rthe \"string world!"],
 
   // 1
@@ -52,7 +52,7 @@ let inputValues = [
   [false, "'42'", '"42"', "42"],
 
   // 7
-  [true, "/foobar/", "[object RegExp]", '"/foobar/"', "[object RegExp]"],
+  [false, "/foobar/", "/foobar/"],
 
   // 8
   [false, "null", "null"],
@@ -64,30 +64,36 @@ let inputValues = [
   [false, "true", "true"],
 
   // 11
-  [true, "document.getElementById", "[object Function]",
+  [false, "document.getElementById", "function getElementById() {\n    [native code]\n}",
     "function getElementById() {\n    [native code]\n}",
-    "[object Function]"],
+    "function getElementById() {\n    [native code]\n}",
+    "document.wrappedJSObject.getElementById"],
 
   // 12
-  [true, "(function() { return 42; })", "[object Function]",
-    "function () { return 42; }", "[object Function]"],
+  [false, "(function() { return 42; })", "function () { return 42; }",
+    "function () { return 42; }",
+    "(function () { return 42; })"],
 
   // 13
-  [true, "new Date(" + dateNow + ")", "[object Date]", (new Date(dateNow)).toString(), "[object Date]"],
+  [false, "new Date(" + dateNow + ")", (new Date(dateNow)).toString()],
 
   // 14
-  [true, "document.body", "[object HTMLBodyElement]"],
+  [true, "document.body", "[object HTMLBodyElement", "[object HTMLBodyElement",
+    "[object HTMLBodyElement",
+    "document.wrappedJSObject.body"],
 
   // 15
-  [true, "window.location", "[object Location]", TEST_URI, "[object Location]"],
+  [true, "window.location", TEST_URI],
 
   // 16
-  [true, "[1,2,3,'a','b','c','4','5']", '[object Array]',
+  [true, "[1,2,3,'a','b','c','4','5']", '[1, 2, 3, "a", "b", "c", "4", "5"]',
     '1,2,3,a,b,c,4,5',
-    "[object Array]"],
+    '[1, 2, 3, "a", "b", "c", "4", "5"]'],
 
   // 17
-  [true, "({a:'b', c:'d', e:1, f:'2'})", "[object Object]"],
+  [true, "({a:'b', c:'d', e:1, f:'2'})", '({a:"b", c:"d", e:1, f:"2"})',
+    "[object Object",
+    '({a:"b", c:"d", e:1, f:"2"})'],
 
   // 18
   [false, "'" + longString + "'",
@@ -132,7 +138,7 @@ function testNext() {
 function testGen() {
   let cpos = pos;
 
-  let showsVariablesView = inputValues[cpos][0];
+  let showsPropertyPanel = inputValues[cpos][0];
   let inputValue = inputValues[cpos][1];
   let expectedOutput = inputValues[cpos][2];
 
@@ -148,7 +154,10 @@ function testGen() {
 
   // Test the console.log() output.
 
-  HUD.jsterm.execute("console.log(" + consoleTest + ")");
+  // Ugly but it does the job.
+  with (content) {
+    eval("content.console.log(" + consoleTest + ")");
+  }
 
   waitForSuccess({
     name: "console.log message for test #" + cpos,
@@ -224,35 +233,37 @@ function testGen() {
   // Test click on output.
   let eventHandlerID = eventHandlers.length + 1;
 
-  let variablesViewShown = function(aEvent, aView, aOptions) {
-    if (aOptions.label.indexOf(expectedOutput) == -1) {
+  let propertyPanelShown = function(aEvent) {
+    let label = aEvent.target.getAttribute("label");
+    if (!label || label.indexOf(inputValue) == -1) {
       return;
     }
 
-    HUD.jsterm.off("variablesview-open", variablesViewShown);
-
+    document.removeEventListener(aEvent.type, propertyPanelShown, false);
     eventHandlers[eventHandlerID] = null;
 
-    ok(showsVariablesView,
-      "the variables view shown for inputValues[" + cpos + "]");
+    ok(showsPropertyPanel,
+      "the property panel shown for inputValues[" + cpos + "]");
+
+    aEvent.target.hidePopup();
 
     popupShown[cpos] = true;
 
-    if (showsVariablesView) {
-      executeSoon(subtestNext);
+    if (showsPropertyPanel) {
+      subtestNext();
     }
   };
 
-  HUD.jsterm.on("variablesview-open", variablesViewShown);
+  document.addEventListener("popupshown", propertyPanelShown, false);
 
-  eventHandlers.push(variablesViewShown);
+  eventHandlers.push(propertyPanelShown);
 
-  // Send the mousedown, mouseup and click events to check if the variables
-  // view opens.
+  // Send the mousedown, mouseup and click events to check if the property
+  // panel opens.
   EventUtils.sendMouseEvent({ type: "mousedown" }, messageBody, window);
   EventUtils.sendMouseEvent({ type: "click" }, messageBody, window);
 
-  if (showsVariablesView) {
+  if (showsPropertyPanel) {
     yield; // wait for the panel to open if we need to.
   }
 
@@ -270,13 +281,13 @@ function testEnd() {
 
   for (let i = 0; i < eventHandlers.length; i++) {
     if (eventHandlers[i]) {
-      HUD.jsterm.off("variablesview-open", eventHandlers[i]);
+      document.removeEventListener("popupshown", eventHandlers[i], false);
     }
   }
 
   for (let i = 0; i < inputValues.length; i++) {
     if (inputValues[i][0] && !popupShown[i]) {
-      ok(false, "the variables view failed to show for inputValues[" + i + "]");
+      ok(false, "the property panel failed to show for inputValues[" + i + "]");
     }
   }
 
@@ -285,7 +296,6 @@ function testEnd() {
 }
 
 function test() {
-  requestLongerTimeout(2);
   addTab(TEST_URI);
   browser.addEventListener("load", tabLoad, true);
 }

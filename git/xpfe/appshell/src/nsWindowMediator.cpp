@@ -18,7 +18,6 @@
 #include "nsWindowMediator.h"
 #include "nsIWindowMediatorListener.h"
 #include "nsXPIDLString.h"
-#include "nsGlobalWindow.h"
 
 #include "nsIDocShell.h"
 #include "nsIInterfaceRequestor.h"
@@ -319,37 +318,6 @@ nsWindowMediator::MostRecentWindowInfo(const PRUnichar* inType)
     listEnd = mOldestWindow;
   }
   return foundInfo;
-}
-
-NS_IMETHODIMP
-nsWindowMediator::GetOuterWindowWithId(uint64_t aWindowID,
-                                       nsIDOMWindow** aWindow)
-{
-  *aWindow = nsGlobalWindow::GetOuterWindowWithId(aWindowID);
-  NS_IF_ADDREF(*aWindow);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsWindowMediator::GetCurrentInnerWindowWithId(uint64_t aWindowID,
-                                              nsIDOMWindow** aWindow)
-{
-  nsCOMPtr<nsPIDOMWindow> inner = nsGlobalWindow::GetInnerWindowWithId(aWindowID);
-
-  // not found
-  if (!inner)
-    return NS_OK;
-
-  nsCOMPtr<nsPIDOMWindow> outer = inner->GetOuterWindow();
-  NS_ENSURE_TRUE(outer, NS_ERROR_UNEXPECTED);
-
-  // outer is already using another inner, so it's same as not found
-  if (outer->GetCurrentInnerWindow() != inner)
-    return NS_OK;
-
-  nsCOMPtr<nsIDOMWindow> ret = do_QueryInterface(outer);
-  ret.forget(aWindow);
-  return NS_OK;
 }
 
 NS_IMETHODIMP

@@ -1,13 +1,14 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99 ft=cpp:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /* A higher-order macro for enumerating all cached property names. */
 
-#ifndef vm_CommonPropertyNames_h
-#define vm_CommonPropertyNames_h
+#ifndef CommonPropertyNames_h__
+#define CommonPropertyNames_h__
 
 #include "jsprototypes.h"
 #include "jsversion.h"
@@ -110,7 +111,6 @@
     macro(objectUndefined, objectUndefined, "[object Undefined]") \
     macro(of, of, "of") \
     macro(offset, offset, "offset") \
-    macro(outOfMemory, outOfMemory, "out of memory") \
     macro(parseFloat, parseFloat, "parseFloat") \
     macro(parseInt, parseInt, "parseInt") \
     macro(pattern, pattern, "pattern") \
@@ -159,4 +159,4 @@
     macro(boolean, boolean, "boolean") \
     macro(null, null, "null")
 
-#endif /* vm_CommonPropertyNames_h */
+#endif /* CommonPropertyNames_h__ */

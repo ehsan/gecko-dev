@@ -136,6 +136,7 @@ public:
 
   nsresult OpenCursorInternal(IDBKeyRange* aKeyRange,
                               size_t aDirection,
+                              JSContext* aCx,
                               IDBRequest** _retval);
 
   nsresult OpenCursorFromChildProcess(
@@ -156,7 +157,7 @@ private:
   int64_t mId;
   nsString mName;
   KeyPath mKeyPath;
-  JS::Heap<JS::Value> mCachedKeyPath;
+  JS::Value mCachedKeyPath;
 
   IndexedDBIndexChild* mActorChild;
   IndexedDBIndexParent* mActorParent;

@@ -29,6 +29,7 @@ try
 }
 catch(ex)
 {
+  print(ex + '');
 }
 
 if (SavedReferenceError == ReferenceError)

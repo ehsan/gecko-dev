@@ -567,13 +567,14 @@ bool nsVoidArray::MoveElement(int32_t aFrom, int32_t aTo)
   return true;
 }
 
-void nsVoidArray::RemoveElementsAt(int32_t aIndex, int32_t aCount)
+bool nsVoidArray::RemoveElementsAt(int32_t aIndex, int32_t aCount)
 {
   int32_t oldCount = Count();
   NS_ASSERTION(aIndex >= 0,"RemoveElementsAt(negative index)");
   if (uint32_t(aIndex) >= uint32_t(oldCount))
   {
-    return;
+    // An invalid index causes the replace to fail
+    return false;
   }
   // Limit to available entries starting at aIndex
   if (aCount + aIndex > oldCount)
@@ -588,17 +589,14 @@ void nsVoidArray::RemoveElementsAt(int32_t aIndex, int32_t aCount)
   }
 
   mImpl->mCount -= aCount;
-  return;
+  return true;
 }
 
 bool nsVoidArray::RemoveElement(void* aElement)
 {
   int32_t theIndex = IndexOf(aElement);
   if (theIndex != -1)
-  {
-    RemoveElementAt(theIndex);
-    return true;
-  }
+    return RemoveElementAt(theIndex);
 
   return false;
 }
@@ -899,21 +897,23 @@ nsSmallVoidArray::RemoveElement(void* aElement)
   return AsArray()->RemoveElement(aElement);
 }
 
-void
+bool
 nsSmallVoidArray::RemoveElementAt(int32_t aIndex)
 {
   if (HasSingle()) {
     if (aIndex == 0) {
       mImpl = nullptr;
+
+      return true;
     }
     
-    return;
+    return false;
   }
 
-  AsArray()->RemoveElementAt(aIndex);
+  return AsArray()->RemoveElementAt(aIndex);
 }
 
-void
+bool
 nsSmallVoidArray::RemoveElementsAt(int32_t aIndex, int32_t aCount)
 {
   if (HasSingle()) {
@@ -921,12 +921,14 @@ nsSmallVoidArray::RemoveElementsAt(int32_t aIndex, int32_t aCount)
       if (aCount > 0) {
         mImpl = nullptr;
       }
+
+      return true;
     }
 
-    return;
+    return false;
   }
 
-  AsArray()->RemoveElementsAt(aIndex, aCount);
+  return AsArray()->RemoveElementsAt(aIndex, aCount);
 }
 
 void

@@ -13,6 +13,7 @@ let loader = Cc["@mozilla.org/moz/jssubscript-loader;1"]
 
 loader.loadSubScript("chrome://marionette/content/marionette-simpletest.js");
 loader.loadSubScript("chrome://marionette/content/marionette-log-obj.js");
+loader.loadSubScript("chrome://marionette/content/marionette-perf.js");
 Cu.import("chrome://marionette/content/marionette-elements.js");
 Cu.import("resource://gre/modules/FileUtils.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
@@ -29,6 +30,7 @@ loader.loadSubScript("chrome://specialpowers/content/specialpowersAPI.js");
 loader.loadSubScript("chrome://specialpowers/content/specialpowers.js");
 
 let marionetteLogObj = new MarionetteLogObj();
+let marionettePerf = new MarionettePerfData();
 
 let isB2G = false;
 
@@ -57,21 +59,15 @@ let originalOnError;
 let checkTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
 // Send move events about this often
 let EVENT_INTERVAL = 30; // milliseconds
+// The current array of all pending touches
+let touches = [];
 // For assigning unique ids to all touches
 let nextTouchId = 1000;
-//Keep track of active Touches
 let touchIds = {};
 // last touch for each fingerId
 let multiLast = {};
-let lastCoordinates = null;
-let isTap = false;
-// whether to send mouse event
-let mouseEventsOnly = false;
-
-Cu.import("resource://gre/modules/services-common/log4moz.js");
-let logger = Log4Moz.repository.getLogger("Marionette");
-logger.info("loaded marionette-listener.js");
-
+// last touch for single finger
+let lastTouch = null;
 /**
  * Called when listener is first started up. 
  * The listener sends its unique window ID and its current URI to the actor.
@@ -111,8 +107,13 @@ function startListeners() {
   addMessageListenerId("Marionette:executeAsyncScript", executeAsyncScript);
   addMessageListenerId("Marionette:executeJSScript", executeJSScript);
   addMessageListenerId("Marionette:singleTap", singleTap);
+  addMessageListenerId("Marionette:doubleTap", doubleTap);
+  addMessageListenerId("Marionette:press", press);
+  addMessageListenerId("Marionette:release", release);
+  addMessageListenerId("Marionette:cancelTouch", cancelTouch);
   addMessageListenerId("Marionette:actionChain", actionChain);
   addMessageListenerId("Marionette:multiAction", multiAction);
+  addMessageListenerId("Marionette:setSearchTimeout", setSearchTimeout);
   addMessageListenerId("Marionette:goUrl", goUrl);
   addMessageListenerId("Marionette:getUrl", getUrl);
   addMessageListenerId("Marionette:getTitle", getTitle);
@@ -128,7 +129,6 @@ function startListeners() {
   addMessageListenerId("Marionette:getElementText", getElementText);
   addMessageListenerId("Marionette:getElementTagName", getElementTagName);
   addMessageListenerId("Marionette:isElementDisplayed", isElementDisplayed);
-  addMessageListenerId("Marionette:getElementValueOfCssProperty", getElementValueOfCssProperty)
   addMessageListenerId("Marionette:getElementSize", getElementSize);
   addMessageListenerId("Marionette:isElementEnabled", isElementEnabled);
   addMessageListenerId("Marionette:isElementSelected", isElementSelected);
@@ -142,6 +142,7 @@ function startListeners() {
   addMessageListenerId("Marionette:importScript", importScript);
   addMessageListenerId("Marionette:getAppCacheStatus", getAppCacheStatus);
   addMessageListenerId("Marionette:setTestName", setTestName);
+  addMessageListenerId("Marionette:setState", setState);
   addMessageListenerId("Marionette:screenShot", screenShot);
   addMessageListenerId("Marionette:addCookie", addCookie);
   addMessageListenerId("Marionette:getAllCookies", getAllCookies);
@@ -169,6 +170,21 @@ function sleepSession(msg) {
 }
 
 /**
+ * Sets script-wide state variables; used after frame switching.
+ */
+function setState(msg) {
+  marionetteTimeout = msg.json.scriptTimeout;
+  try {
+    elementManager.setSearchTimeout(msg.json.searchTimeout);
+  }
+  catch (e) {
+    sendError(e.message, e.code, e.stack, msg.json.command_id);
+    return;
+  }
+  sendOk(msg.json.command_id);
+}
+
+/**
  * Restarts all our listeners after this listener was put to sleep
  */
 function restart(msg) {
@@ -185,8 +201,13 @@ function deleteSession(msg) {
   removeMessageListenerId("Marionette:executeAsyncScript", executeAsyncScript);
   removeMessageListenerId("Marionette:executeJSScript", executeJSScript);
   removeMessageListenerId("Marionette:singleTap", singleTap);
+  removeMessageListenerId("Marionette:doubleTap", doubleTap);
+  removeMessageListenerId("Marionette:press", press);
+  removeMessageListenerId("Marionette:release", release);
+  removeMessageListenerId("Marionette:cancelTouch", cancelTouch);
   removeMessageListenerId("Marionette:actionChain", actionChain);
   removeMessageListenerId("Marionette:multiAction", multiAction);
+  removeMessageListenerId("Marionette:setSearchTimeout", setSearchTimeout);
   removeMessageListenerId("Marionette:goUrl", goUrl);
   removeMessageListenerId("Marionette:getTitle", getTitle);
   removeMessageListenerId("Marionette:getPageSource", getPageSource);
@@ -201,7 +222,6 @@ function deleteSession(msg) {
   removeMessageListenerId("Marionette:getElementAttribute", getElementAttribute);
   removeMessageListenerId("Marionette:getElementTagName", getElementTagName);
   removeMessageListenerId("Marionette:isElementDisplayed", isElementDisplayed);
-  removeMessageListenerId("Marionette:getElementValueOfCssProperty", getElementValueOfCssProperty);
   removeMessageListenerId("Marionette:getElementSize", getElementSize);
   removeMessageListenerId("Marionette:isElementEnabled", isElementEnabled);
   removeMessageListenerId("Marionette:isElementSelected", isElementSelected);
@@ -215,6 +235,7 @@ function deleteSession(msg) {
   removeMessageListenerId("Marionette:importScript", importScript);
   removeMessageListenerId("Marionette:getAppCacheStatus", getAppCacheStatus);
   removeMessageListenerId("Marionette:setTestName", setTestName);
+  removeMessageListenerId("Marionette:setState", setState);
   removeMessageListenerId("Marionette:screenShot", screenShot);
   removeMessageListenerId("Marionette:addCookie", addCookie);
   removeMessageListenerId("Marionette:getAllCookies", getAllCookies);
@@ -224,6 +245,7 @@ function deleteSession(msg) {
   // reset frame to the top-most frame
   curWindow = content;
   curWindow.focus();
+  touches = [];
   touchIds = {};
 }
 
@@ -276,37 +298,6 @@ function sendError(message, status, trace, command_id) {
 function resetValues() {
   sandbox = null;
   curWindow = content;
-  mouseEventsOnly = false;
-}
-
-/**
- * Creates an error message for a JavaScript exception thrown during
- * execute_(async_)script.
- *
- * This will generate a [msg, trace] pair like:
- *
- * ['ReferenceError: foo is not defined',
- *  'execute_script @test_foo.py, line 10
- *   inline javascript, line 2
- *   src: "return foo;"']
- *
- * @param error An Error object passed to a catch() clause.
-          fnName The name of the function to use in the stack trace message
-                 (e.g., 'execute_script').
-          pythonFile The filename of the test file containing the Marionette
-                  command that caused this exception to occur.
-          pythonLine The line number of the above test file.
-          script The JS script being executed in text form.
- */
-function createStackMessage(error, fnName, pythonFile, pythonLine, script) {
-  let python_stack = fnName + " @" + pythonFile + ", line " + pythonLine;
-  let stack = error.stack.split("\n");
-  let line = stack[0].substr(stack[0].lastIndexOf(':') + 1);
-  let msg = error.name + ": " + error.message;
-  let trace = python_stack +
-              "\ninline javascript, line " + line +
-              "\nsrc: \"" + script.split("\n")[line] + "\"";
-  return [msg, trace];
 }
 
 /*
@@ -326,7 +317,7 @@ function createExecuteContentSandbox(aWindow, timeout) {
   sandbox.asyncTestCommandId = asyncTestCommandId;
 
   let marionette = new Marionette(this, aWindow, "content",
-                                  marionetteLogObj,
+                                  marionetteLogObj, marionettePerf,
                                   timeout, marionetteTestName);
   sandbox.marionette = marionette;
   marionette.exports.forEach(function(fn) {
@@ -347,9 +338,10 @@ function createExecuteContentSandbox(aWindow, timeout) {
       curWindow.removeEventListener("unload", onunload, false);
       curWindow.clearTimeout(asyncTestTimeoutId);
 
-      sendSyncMessage("Marionette:shareData",
-                      {log: elementManager.wrapValue(marionetteLogObj.getLogs())});
+      sendSyncMessage("Marionette:shareData", {log: elementManager.wrapValue(marionetteLogObj.getLogs()),
+                                               perf: elementManager.wrapValue(marionettePerf.getPerfData())});
       marionetteLogObj.clearLogs();
+      marionettePerf.clearPerfData();
 
       if (status == 0){
         if (Object.keys(_emu_cbs).length) {
@@ -414,11 +406,11 @@ function executeScript(msg, directInject) {
         let data = NetUtil.readInputStreamToString(stream, stream.available());
         script = data + script;
       }
-      let res = Cu.evalInSandbox(script, sandbox, "1.8", "dummy file" ,0);
-      sendSyncMessage("Marionette:shareData",
-                      {log: elementManager.wrapValue(marionetteLogObj.getLogs())});
+      let res = Cu.evalInSandbox(script, sandbox, "1.8");
+      sendSyncMessage("Marionette:shareData", {log: elementManager.wrapValue(marionetteLogObj.getLogs()),
+                                               perf: elementManager.wrapValue(marionettePerf.getPerfData())});
       marionetteLogObj.clearLogs();
-
+      marionettePerf.clearPerfData();
       if (res == undefined || res.passed == undefined) {
         sendError("Marionette.finish() not called", 17, null, asyncTestCommandId);
       }
@@ -436,30 +428,26 @@ function executeScript(msg, directInject) {
         return;
       }
 
-      script = "let __marionetteFunc = function(){" + script + "};" +
-                   "__marionetteFunc.apply(null, __marionetteParams);";
+      let scriptSrc = "let __marionetteFunc = function(){" + script + "};" +
+                      "__marionetteFunc.apply(null, __marionetteParams);";
       if (importedScripts.exists()) {
         let stream = Components.classes["@mozilla.org/network/file-input-stream;1"].  
                       createInstance(Components.interfaces.nsIFileInputStream);
         stream.init(importedScripts, -1, 0, 0);
         let data = NetUtil.readInputStreamToString(stream, stream.available());
-        script = data + script;
+        scriptSrc = data + scriptSrc;
       }
-      let res = Cu.evalInSandbox(script, sandbox, "1.8", "dummy file", 0);
-      sendSyncMessage("Marionette:shareData",
-                      {log: elementManager.wrapValue(marionetteLogObj.getLogs())});
+      let res = Cu.evalInSandbox(scriptSrc, sandbox, "1.8");
+      sendSyncMessage("Marionette:shareData", {log: elementManager.wrapValue(marionetteLogObj.getLogs()),
+                                               perf: elementManager.wrapValue(marionettePerf.getPerfData())});
       marionetteLogObj.clearLogs();
+      marionettePerf.clearPerfData();
       sendResponse({value: elementManager.wrapValue(res)}, asyncTestCommandId);
     }
   }
   catch (e) {
     // 17 = JavascriptException
-    let error = createStackMessage(e,
-                                   "execute_script",
-                                   msg.json.filename,
-                                   msg.json.line,
-                                   script);
-    sendError(error[0], 17, error[1], asyncTestCommandId);
+    sendError(e.name + ': ' + e.message, 17, e.stack, asyncTestCommandId);
   }
 }
 
@@ -531,7 +519,7 @@ function executeWithCallback(msg, useFinish) {
 
   originalOnError = curWindow.onerror;
   curWindow.onerror = function errHandler(errMsg, url, line) {
-    sandbox.asyncComplete(errMsg, 17, "@" + url + ", line " + line, asyncTestCommandId);
+    sandbox.asyncComplete(errMsg, 17, null, asyncTestCommandId);
     curWindow.onerror = originalOnError;
   };
 
@@ -566,15 +554,11 @@ function executeWithCallback(msg, useFinish) {
       let data = NetUtil.readInputStreamToString(stream, stream.available());
       scriptSrc = data + scriptSrc;
     }
-    Cu.evalInSandbox(scriptSrc, sandbox, "1.8", "dummy file", 0);
+    Cu.evalInSandbox(scriptSrc, sandbox, "1.8");
   } catch (e) {
     // 17 = JavascriptException
-    let error = createStackMessage(e,
-                                   "execute_async_script",
-                                   msg.json.filename,
-                                   msg.json.line,
-                                   scriptSrc);
-    sandbox.asyncComplete(error[0], 17, error[1], asyncTestCommandId);
+    sandbox.asyncComplete(e.name + ': ' + e.message, 17,
+                          e.stack, asyncTestCommandId);
   }
 }
 
@@ -588,48 +572,146 @@ function emitTouchEvent(type, touch) {
 }
 
 /**
- * This function emit mouse event
- *   @param: doc is the current document
- *           type is the type of event to dispatch
- *           detail is the number of clicks, button notes the mouse button
- *           elClientX and elClientY are the coordinates of the mouse relative to the viewport
+ * This function creates a touch and emit touch events
+ * @param 'xt' and 'yt' are two-element array [from, to] and then is a callback that will be invoked after touchend event is sent
  */
-function emitMouseEvent(doc, type, elClientX, elClientY, detail, button) {
-  detail = detail || 1;
-  button = button || 0;
-  var win = doc.defaultView;
-  // Figure out the element the mouse would be over at (x, y)
-  var target = doc.elementFromPoint(elClientX, elClientY);
-  utils.synthesizeMouseAtPoint(elClientX, elClientY, {type: type, button: button, clickCount: detail}, win);
+function touch(target, duration, xt, yt, then) {
+  let doc = target.ownerDocument;
+  let win = doc.defaultView;
+  let touchId = nextTouchId++;
+  let x = xt;
+  if (typeof xt !== 'function') {
+    x = function(t) { return xt[0] + t / duration * (xt[1] - xt[0]); };
+  }
+  let y = yt;
+  if (typeof yt !== 'function') {
+    y = function(t) { return yt[0] + t / duration * (yt[1] - yt[0]); };
+  }
+  // viewport coordinates
+  let clientX = Math.round(x(0)), clientY = Math.round(y(0));
+  // document coordinates
+  let pageX = clientX + win.pageXOffset,
+      pageY = clientY + win.pageYOffset;
+  // screen coordinates
+  let screenX = clientX + win.mozInnerScreenX,
+      screenY = clientY + win.mozInnerScreenY;
+  // Remember the coordinates
+  let lastX = clientX, lastY = clientY;
+  // Create the touch object
+  let touch = doc.createTouch(win, target, touchId,
+                              pageX, pageY,
+                              screenX, screenY,
+                              clientX, clientY);
+  // Add this new touch to the list of touches
+  touches.push(touch);
+  // Send the start event
+  emitTouchEvent('touchstart', touch);
+  let startTime = Date.now();
+  checkTimer.initWithCallback(nextEvent, EVENT_INTERVAL, Ci.nsITimer.TYPE_ONE_SHOT);
+  function nextEvent() {
+  // Figure out if this is the last of the touchmove events
+    let time = Date.now();
+    let dt = time - startTime;
+    let last = dt + EVENT_INTERVAL / 2 > duration;
+    // Find our touch object in the touches[] array.
+    // Note that its index may have changed since we pushed it
+    let touchIndex = touches.indexOf(touch);
+    // If this is the last move event, make sure we move all the way
+    if (last)
+       dt = duration;
+    // New coordinates of the touch
+    clientX = Math.round(x(dt));
+    clientY = Math.round(y(dt));
+    // If we've moved, send a move event
+    if (clientX !== lastX || clientY !== lastY) { // If we moved
+      lastX = clientX;
+      lastY = clientY;
+      pageX = clientX + win.pageXOffset;
+      pageY = clientY + win.pageYOffset;
+      screenX = clientX + win.mozInnerScreenX;
+      screenY = clientY + win.mozInnerScreenY;
+      // Since we moved, we've got to create a new Touch object
+      // with the new coordinates
+      touch = doc.createTouch(win, target, touchId,
+                              pageX, pageY,
+                              screenX, screenY,
+                              clientX, clientY);
+      // Replace the old touch object with the new one
+      touches[touchIndex] = touch;
+      // And send the touchmove event
+      emitTouchEvent('touchmove', touch);
+    }
+    // If that was the last move, send the touchend event
+    // and call the callback 
+    if (last) {
+      touches.splice(touchIndex, 1);
+      emitTouchEvent('touchend', touch);
+      if (then)
+        checkTimer.initWithCallback(then, 0, Ci.nsITimer.TYPE_ONE_SHOT);
+    }
+    // Otherwise, schedule the next event
+    else {
+      checkTimer.initWithCallback(nextEvent, EVENT_INTERVAL, Ci.nsITimer.TYPE_ONE_SHOT);
+    }
+  }
 }
 
 /**
- * Helper function that perform a mouse tap
- */
-function mousetap(doc, x, y) {
-  emitMouseEvent(doc, 'mousemove', x, y);
-  emitMouseEvent(doc, 'mousedown', x, y);
-  emitMouseEvent(doc, 'mouseup', x, y);
-}
-
-
-/**
- * This function generates a pair of coordinates relative to the viewport given a
- * target element and coordinates relative to that element's top-left corner.
- * @param 'x', and 'y' are the relative to the target.
+ * This function generates the coordinates of the element
+ * @param 'x0', 'y0', 'x1', and 'y1' are the relative to the viewport.
  *        If they are not specified, then the center of the target is used.
  */
-function coordinates(target, x, y) {
-  let box = target.getBoundingClientRect();
-  if (x == null) {
-    x = box.width / 2;
-  }
-  if (y == null) {
-    y = box.height / 2;
-  }
+function coordinates(target, x0, y0, x1, y1) {
   let coords = {};
-  coords.x = box.left + x;
-  coords.y = box.top + y;
+  let box = target.getBoundingClientRect();
+  let tx0 = typeof x0;
+  let ty0 = typeof y0;
+  let tx1 = typeof x1;
+  let ty1 = typeof y1; 
+  function percent(s, x) {
+    s = s.trim();
+    let f = parseFloat(s);
+    if (s[s.length - 1] === '%')
+      f = f * x / 100;
+      return f;
+  }
+  function relative(s, x) {
+    let factor;
+    if (s[0] === '+')
+      factor = 1;
+    else
+      factor = -1;
+      return factor * percent(s.substring(1), x);
+  }
+  if (tx0 === 'number')
+    coords.x0 = box.left + x0;
+  else if (tx0 === 'string')
+    coords.x0 = box.left + percent(x0, box.width);
+  //check tx1 point
+  if (tx1 === 'number')
+    coords.x1 = box.left + x1;
+  else if (tx1 === 'string') {
+    x1 = x1.trim();
+    if (x1[0] === '+' || x1[0] === '-')
+      coords.x1 = coords.x0 + relative(x1, box.width);
+    else
+      coords.x1 = box.left + percent(x1, box.width);
+  }
+  // check ty0
+  if (ty0 === 'number')
+    coords.y0 = box.top + y0;
+  else if (ty0 === 'string')
+    coords.y0 = box.top + percent(y0, box.height);
+  //check ty1
+  if (ty1 === 'number')
+    coords.y1 = box.top + y1;
+  else if (ty1 === 'string') {
+    y1 = y1.trim();
+    if (y1[0] === '+' || y1[0] === '-')
+      coords.y1 = coords.y0 + relative(y1, box.height);
+    else
+      coords.y1 = box.top + percent(y1, box.height);
+  }
   return coords;
 }
 
@@ -637,46 +719,30 @@ function coordinates(target, x, y) {
  * This function returns if the element is in viewport 
  */
 function elementInViewport(el) {
-  let rect = el.getBoundingClientRect();
-  return  (/* Top left corner is in view */
-           (rect.top >= curWindow.pageYOffset &&
-            rect.top <= (curWindow.pageYOffset + curWindow.innerHeight) &&
-            rect.left >= curWindow.pageXOffset &&
-            rect.left <= (curWindow.pageXOffset + curWindow.innerWidth)) ||
-           /* Top right corner is in view */ 
-           (rect.top >= curWindow.pageYOffset &&
-            rect.top <= (curWindow.pageYOffset + curWindow.innerHeight) &&
-            rect.right >= curWindow.pageXOffset &&
-            rect.right <= (curWindow.pageXOffset + curWindow.innerWidth)) ||
-           /* Bottom right corner is in view */
-           (rect.bottom >= curWindow.pageYOffset &&
-            rect.bottom <= (curWindow.pageYOffset + curWindow.innerHeight)  &&
-            rect.right >= curWindow.pageXOffset &&
-            rect.right <= (curWindow.pageXOffset + curWindow.innerWidth)) ||
-           /* Bottom left corner is in view */
-           (rect.bottom >= curWindow.pageYOffset &&
-            rect.bottom <= (curWindow.pageYOffset + curWindow.innerHeight)  &&
-            rect.left >= curWindow.pageXOffset &&
-            rect.left <= (curWindow.pageXOffset + curWindow.innerWidth)) ||
-           /* Center of the element is in view if element larger than viewport */
-           ((rect.top + (rect.height/2)) <= curWindow.pageYOffset &&
-            (rect.top + (rect.height/2)) >= (curWindow.pageYOffset + curWindow.innerHeight) &&
-            (rect.left + (rect.width/2)) <= curWindow.pageXOffset &&
-            (rect.left + (rect.width/2)) >= (curWindow.pageXOffset + curWindow.innerWidth))
+  let top = el.offsetTop;
+  let left = el.offsetLeft;
+  let width = el.offsetWidth;
+  let height = el.offsetHeight;
+  while(el.offsetParent) {
+    el = el.offsetParent;
+    top += el.offsetTop;
+    left += el.offsetLeft;
+  }
+  return (top >= curWindow.pageYOffset &&
+          left >= curWindow.pageXOffset &&
+          (top + height) <= (curWindow.pageYOffset + curWindow.innerHeight) &&
+          (left + width) <= (curWindow.pageXOffset + curWindow.innerWidth)
          );
 }
 
 /**
  * This function throws the visibility of the element error
  */
-function checkVisible(el) {
+function checkVisible(el, command_id) {
   //check if the element is visible
   let visible = utils.isElementDisplayed(el);
   if (!visible) {
     return false;
-  }
-  if (el.tagName.toLowerCase() === 'body') {
-    return true;
   }
   if (!elementInViewport(el)) {
     //check if scroll function exist. If so, call it.
@@ -693,110 +759,63 @@ function checkVisible(el) {
   return true;
 }
 
-//x and y are coordinates relative to the viewport
-function generateEvents(type, x, y, touchId, target) {
-  lastCoordinates = [x, y];
-  let doc = curWindow.document;
-  switch (type) {
-    case 'tap':
-      if (mouseEventsOnly) {
-        mousetap(target.ownerDocument, x, y);
-      }
-      else {
-        let touchId = nextTouchId++;
-        let touch = createATouch(target, x, y, touchId);
-        emitTouchEvent('touchstart', touch);
-        emitTouchEvent('touchend', touch);
-        mousetap(target.ownerDocument, x, y);
-      }
-      lastCoordinates = null;
-      break;
-    case 'press':
-      isTap = true;
-      if (mouseEventsOnly) {
-        emitMouseEvent(doc, 'mousemove', x, y);
-        emitMouseEvent(doc, 'mousedown', x, y);
-      }
-      else {
-        let touchId = nextTouchId++;
-        let touch = createATouch(target, x, y, touchId);
-        emitTouchEvent('touchstart', touch);
-        touchIds[touchId] = touch;
-        return touchId;
-      }
-      break;
-    case 'release':
-      if (mouseEventsOnly) {
-        emitMouseEvent(doc, 'mouseup', lastCoordinates[0], lastCoordinates[1]);
-      }
-      else {
-        let touch = touchIds[touchId];
-        touch = createATouch(touch.target, lastCoordinates[0], lastCoordinates[1], touchId);
-        emitTouchEvent('touchend', touch);
-        if (isTap) {
-          mousetap(touch.target.ownerDocument, touch.clientX, touch.clientY);
-        }
-        delete touchIds[touchId];
-      }
-      isTap = false;
-      lastCoordinates = null;
-      break;
-    case 'cancel':
-      isTap = false;
-      if (mouseEventsOnly) {
-        emitMouseEvent(doc, 'mouseup', lastCoordinates[0], lastCoordinates[1]);
-      }
-      else {
-        emitTouchEvent('touchcancel', touchIds[touchId]);
-        delete touchIds[touchId];
-      }
-      lastCoordinates = null;
-      break;
-    case 'move':
-      isTap = false;
-      if (mouseEventsOnly) {
-        emitMouseEvent(doc, 'mousemove', x, y);
-      }
-      else {
-        touch = createATouch(touchIds[touchId].target, x, y, touchId);
-        touchIds[touchId] = touch;
-        emitTouchEvent('touchmove', touch);
-      }
-      break;
-    case 'contextmenu':
-      isTap = false;
-      let event = curWindow.document.createEvent('HTMLEvents');
-      event.initEvent('contextmenu', true, true);
-      if (mouseEventsOnly) {
-        target = doc.elementFromPoint(lastCoordinates[0], lastCoordinates[1]);
-      }
-      else {
-        target = touchIds[touchId].target;
-      }
-      target.dispatchEvent(event);
-      break;
-    default:
-      throw {message:"Unknown event type: " + type, code: 500, stack:null};
-  }
-}
-
 /**
  * Function that perform a single tap
  */
 function singleTap(msg) {
   let command_id = msg.json.command_id;
+  let el;
   try {
-    let el = elementManager.getKnownElement(msg.json.value, curWindow);
-    // after this block, the element will be scrolled into view
-    if (!checkVisible(el)) {
-       sendError("Element is not currently visible and may not be manipulated", 11, null, command_id);
-       return;
+    el = elementManager.getKnownElement(msg.json.value, curWindow);
+    let x = msg.json.corx;
+    let y = msg.json.cory;
+    if (!checkVisible(el, command_id)) {
+      sendError("Element is not currently visible and may not be manipulated", 11, null, command_id);
+      return;
     }
-    if (!curWindow.document.createTouch) {
-      mouseEventsOnly = true;
+    if (x == null) {
+      x = '50%';
     }
-    let c = coordinates(el, msg.json.corx, msg.json.cory);
-    generateEvents('tap', c.x, c.y, null, el);
+    if (y == null) {
+      y = '50%';
+    }
+    let c = coordinates(el, x, y);
+    touch(el, 3000, [c.x0, c.x0], [c.y0, c.y0], null);
+    sendOk(msg.json.command_id);
+  }
+  catch (e) {
+    sendError(e.message, e.code, e.stack, msg.json.command_id);
+  }
+}
+
+/**
+ * Function that performs a double tap
+ */
+function doubleTap(msg) {
+  let command_id = msg.json.command_id;
+  let el;
+  try {
+    el = elementManager.getKnownElement(msg.json.value, curWindow);
+    let x = msg.json.corx;
+    let y = msg.json.cory;
+    if (!checkVisible(el, command_id)) {
+      sendError("Element is not currently visible and may not be manipulated", 11, null, command_id);
+      return;
+    }
+    if (x == null){
+      x = '50%';
+    }
+    if (y == null){
+      y = '50%';
+    }
+    let c = coordinates(el, x, y);
+    touch(el, 25, [c.x0, c.x0], [c.y0, c.y0], function() {
+      // When the first tap is done, start a timer for interval ms
+      checkTimer.initWithCallback(function() {
+          //After interval ms, send the second tap
+          touch(el, 25, [c.x0, c.x0], [c.y0, c.y0], null);
+      }, 50, Ci.nsITimer.TYPE_ONE_SHOT);
+    });
     sendOk(msg.json.command_id);
   }
   catch (e) {
@@ -806,101 +825,207 @@ function singleTap(msg) {
 
 /**
  * Function to create a touch based on the element
- * corx and cory are relative to the viewport, id is the touchId
+ * corx and cory are related to the el, id is the touchId
  */
-function createATouch(el, corx, cory, touchId) {
+function createATouch(el, corx, cory, id) {
   let doc = el.ownerDocument;
   let win = doc.defaultView;
-  let clientX = corx;
-  let clientY = cory;
+  if (corx == null) {
+    corx = '50%';
+  }
+  if (cory == null){
+    cory = '50%';
+  }
+  // corx and cory are relative to the el target. They must be within the same viewport
+  // c are the coordinates relative to the current viewport
+  let c = coordinates(el, corx, cory);
+  let clientX = Math.round(c.x0),
+      clientY = Math.round(c.y0);
   let pageX = clientX + win.pageXOffset,
       pageY = clientY + win.pageYOffset;
   let screenX = clientX + win.mozInnerScreenX,
       screenY = clientY + win.mozInnerScreenY;
-  let atouch = doc.createTouch(win, el, touchId, pageX, pageY, screenX, screenY, clientX, clientY);
+  let atouch = doc.createTouch(win, el, id, pageX, pageY, screenX, screenY, clientX, clientY);
   return atouch;
 }
 
 /**
- * Function to emit touch events for each finger. e.g. finger=[['press', id], ['wait', 5], ['release']]
- * touchId represents the finger id, i keeps track of the current action of the chain 
+ * Function to start a touch event
+ * corx and cory are relative to the element
  */
-function actions(chain, touchId, command_id, i) {
+function press(msg) {
+  let command_id = msg.json.command_id;
+  let el;
+  try {
+    el = elementManager.getKnownElement(msg.json.value, curWindow);
+    let corx = msg.json.corx;
+    let cory = msg.json.cory;
+    if (!checkVisible(el, command_id)) {
+      sendError("Element is not currently visible and may not be manipulated", 11, null, command_id);
+      return;
+    }
+    let touchId = nextTouchId++;
+    let touch = createATouch(el, corx, cory, touchId);
+    emitTouchEvent('touchstart', touch);
+    touchIds[touchId] = touch;
+    sendResponse({value: touch.identifier}, command_id);
+  }
+  catch (e) {
+    sendError(e.message, e.code, e.stack, msg.json.command_id);
+  }
+}
+
+/**
+ * Function to end a touch event
+ */
+function release(msg) {
+  let command_id = msg.json.command_id;
+  let el;
+  try {
+    let id = msg.json.touchId;
+    if (id in touchIds) {
+      let startTouch = touchIds[id];
+      el = startTouch.target;
+      let corx = msg.json.corx;
+      let cory = msg.json.cory;
+      if (!checkVisible(el, command_id)) {
+        sendError("Element is not currently visible and may not be manipulated", 11, null, command_id);
+        return;
+      }
+      let touch = createATouch(el, corx, cory, id);
+      if (touch.clientX != startTouch.clientX ||
+          touch.clientY != startTouch.clientY) {
+        emitTouchEvent('touchmove', touch);
+      }
+      emitTouchEvent('touchend', touch);
+      delete touchIds[id];
+      sendOk(msg.json.command_id);
+    }
+    else {
+      sendError("Element has not been pressed: no such element", 7, null, command_id);
+    }
+  }
+  catch (e) {
+    sendError(e.message, e.code, e.stack, msg.json.command_id);
+  }
+}
+
+/**
+ * Function to cancel a touch event
+ */
+function cancelTouch(msg) {
+  let command_id = msg.json.command_id;
+  try {
+    let id = msg.json.touchId;
+    if (id in touchIds) {
+      let startTouch = touchIds[id];
+      emitTouchEvent('touchcancel', startTouch);
+      delete touchIds[id];
+      sendOk(msg.json.command_id);
+    }
+    else {
+      sendError("Element not previously interacted with", 7, null, command_id);
+    }
+  }
+  catch (e) {
+    sendError(e.message, e.code, e.stack, msg.json.command_id);
+  }
+}
+
+/**
+ * Function to emit touch events for each finger. e.g. finger=[['press', id], ['wait', 5], ['release']]
+ * touchId represents the finger id, i keeps track of the current action of the finger
+ */
+function actions(finger, touchId, command_id, i){
   if (typeof i === "undefined") {
     i = 0;
   }
-  if (i == chain.length) {
+  if (i == finger.length) {
     sendResponse({value: touchId}, command_id);
     return;
   }
-  let pack = chain[i];
+  let pack = finger[i];
   let command = pack[0];
+  // el has the id
   let el;
-  let c;
+  let corx;
+  let cory;
+  let touch;
   i++;
-  if (command != 'press') {
-    //if mouseEventsOnly, then touchIds isn't used
-    if (!(touchId in touchIds) && !mouseEventsOnly) {
-      sendError("Element has not been pressed", 500, null, command_id);
-      return;
-    }
-  }
   switch(command) {
     case 'press':
-      if (lastCoordinates) {
-        generateEvents('cancel', lastCoordinates[0], lastCoordinates[1], touchId);
-        sendError("Invalid Command: press cannot follow an active touch event", 500, null, command_id);
-        return;
-      }
       el = elementManager.getKnownElement(pack[1], curWindow);
-      if (!checkVisible(el)) {
+      corx = pack[2];
+      cory = pack[3];
+      // after this block, the element will be scrolled into view
+      if (!checkVisible(el, command_id)) {
          sendError("Element is not currently visible and may not be manipulated", 11, null, command_id);
          return;
       }
-      c = coordinates(el, pack[2], pack[3]);
-      touchId = generateEvents('press', c.x, c.y, null, el);
-      actions(chain, touchId, command_id, i);
+      touch = createATouch(el, corx, cory, touchId);
+      lastTouch = touch;
+      emitTouchEvent('touchstart', touch);
+      actions(finger,touchId, command_id, i);
       break;
     case 'release':
-      generateEvents('release', lastCoordinates[0], lastCoordinates[1], touchId);
-      actions(chain, null, command_id, i);
+      if (lastTouch == null) {
+        sendError("Element has not been pressed: no such element", 7, null, command_id);
+        return;
+      }
+      touch = lastTouch;
+      lastTouch = null;
+      emitTouchEvent('touchend', touch);
+      actions(finger, touchId, command_id, i);
       break;
     case 'move':
+      if (lastTouch == null) {
+        sendError("Element has not been pressed: no such element", 7, null, command_id);
+        return;
+      }
       el = elementManager.getKnownElement(pack[1], curWindow);
-      c = coordinates(el);
-      generateEvents('move', c.x, c.y, touchId);
-      actions(chain, touchId, command_id, i);
+      let boxTarget = el.getBoundingClientRect();
+      let startElement = lastTouch.target;
+      let boxStart = startElement.getBoundingClientRect();
+      corx = boxTarget.left - boxStart.left + boxTarget.width * 0.5;
+      cory = boxTarget.top - boxStart.top + boxTarget.height * 0.5;
+      touch = createATouch(startElement, corx, cory, touchId);
+      lastTouch = touch;
+      emitTouchEvent('touchmove', touch);
+      actions(finger, touchId, command_id, i);
       break;
     case 'moveByOffset':
-      generateEvents('move', lastCoordinates[0] + pack[1], lastCoordinates[1] + pack[2], touchId);
-      actions(chain, touchId, command_id, i);
+      if (lastTouch == null) {
+        sendError("Element has not been pressed: no such element", 7, null, command_id);
+        return;
+      }
+      el = lastTouch.target;
+      let doc = el.ownerDocument;
+      let win = doc.defaultView;
+      let clientX = lastTouch.clientX + pack[1],
+          clientY = lastTouch.clientY + pack[2];
+      let pageX = clientX + win.pageXOffset,
+          pageY = clientY + win.pageYOffset;
+      let screenX = clientX + win.mozInnerScreenX,
+          screenY = clientY + win.mozInnerScreenY;
+      touch = doc.createTouch(win, el, touchId, pageX, pageY, screenX, screenY, clientX, clientY);
+      lastTouch = touch;
+      emitTouchEvent('touchmove', touch);
+      actions(finger, touchId, command_id, i);
       break;
     case 'wait':
       if (pack[1] != null ) {
         let time = pack[1]*1000;
-        // standard waiting time to fire contextmenu
-        let standard = 750;
-        try {
-          standard = Services.prefs.getIntPref("ui.click_hold_context_menus.delay");
-        }
-        catch (e){}
-        if (time >= standard && isTap) {
-            chain.splice(i, 0, ['longPress'], ['wait', (time-standard)/1000]);
-            time = standard;
-        }
-        checkTimer.initWithCallback(function(){actions(chain, touchId, command_id, i);}, time, Ci.nsITimer.TYPE_ONE_SHOT);
+        checkTimer.initWithCallback(function(){actions(finger, touchId, command_id, i);}, time, Ci.nsITimer.TYPE_ONE_SHOT);
       }
       else {
-        actions(chain, touchId, command_id, i);
+        actions(finger, touchId, command_id, i);
       }
       break;
     case 'cancel':
-      generateEvents('cancel', lastCoordinates[0], lastCoordinates[1], touchId);
-      actions(chain, touchId, command_id, i);
-      break;
-    case 'longPress':
-      generateEvents('contextmenu', lastCoordinates[0], lastCoordinates[1], touchId);
-      actions(chain, touchId, command_id, i);
+      touch = lastTouch;
+      emitTouchEvent('touchcancel', touch);
+      lastTouch = null;
+      actions(finger, touchId, command_id, i);
       break;
   }
 }
@@ -917,9 +1042,6 @@ function actionChain(msg) {
     // loop the action array [ ['press', id], ['move', id], ['release', id] ]
     if (touchId == null) {
       touchId = nextTouchId++;
-    }
-    if (!curWindow.document.createTouch) {
-      mouseEventsOnly = true;
     }
     actions(commandArray, touchId, command_id);
   }
@@ -938,11 +1060,11 @@ function emitMultiEvents(type, touch, touches) {
   let win = doc.defaultView;
   // touches that are in the same document
   let documentTouches = doc.createTouchList(touches.filter(function(t) {
-    return ((t.target.ownerDocument === doc) && (type != 'touchcancel'));
+    return t.target.ownerDocument === doc;
   }));
   // touches on the same target
   let targetTouches = doc.createTouchList(touches.filter(function(t) {
-    return ((t.target === target) && ((type != 'touchcancel') || (type != 'touchend')));
+    return t.target === target;
   }));
   // Create changed touches
   let changedTouches = doc.createTouchList(touch);
@@ -991,7 +1113,6 @@ function setDispatch(batches, touches, command_id, batchIndex) {
   let touchIndex;
   let waitTime = 0;
   let maxTime = 0;
-  let c;
   batchIndex++;
   // loop through the batch
   for (let i = 0; i < batch.length; i++) {
@@ -1001,8 +1122,14 @@ function setDispatch(batches, touches, command_id, batchIndex) {
     switch (command) {
       case 'press':
         el = elementManager.getKnownElement(pack[2], curWindow);
-        c = coordinates(el, pack[3], pack[4]);
-        touch = createATouch(el, c.x, c.y, touchId);
+        // after this block, the element will be scrolled into view
+        if (!checkVisible(el, command_id)) {
+           sendError("Element is not currently visible and may not be manipulated", 11, null, command_id);
+           return;
+        }
+        corx = pack[3];
+        cory = pack[4];
+        touch = createATouch(el, corx, cory, touchId);
         multiLast[touchId] = touch;
         touches.push(touch);
         emitMultiEvents('touchstart', touch, touches);
@@ -1016,8 +1143,15 @@ function setDispatch(batches, touches, command_id, batchIndex) {
         break;
       case 'move':
         el = elementManager.getKnownElement(pack[2], curWindow);
-        c = coordinates(el);
-        touch = createATouch(multiLast[touchId].target, c.x, c.y, touchId);
+        lastTouch = multiLast[touchId];
+        let boxTarget = el.getBoundingClientRect();
+        let startTarget = lastTouch.target;
+        let boxStart = startTarget.getBoundingClientRect();
+        // note here corx and cory are relative to the target, not the viewport
+        // we always want to touch the center of the element if the element is specified
+        corx = boxTarget.left - boxStart.left + boxTarget.width * 0.5;
+        cory = boxTarget.top - boxStart.top + boxTarget.height * 0.5;
+        touch = createATouch(startTarget, corx, cory, touchId);
         touchIndex = touches.indexOf(lastTouch);
         touches[touchIndex] = touch;
         multiLast[touchId] = touch;
@@ -1096,48 +1230,45 @@ function multiAction(msg) {
 }
 
 /**
+ * Function to set the timeout period for element searching 
+ */
+function setSearchTimeout(msg) {
+  try {
+    elementManager.setSearchTimeout(msg.json.value);
+  }
+  catch (e) {
+    sendError(e.message, e.code, e.stack, msg.json.command_id);
+    return;
+  }
+  sendOk(msg.json.command_id);
+}
+
+/**
  * Navigate to URI. Handles the case where we navigate within an iframe.
  * All other navigation is handled by the server (in chrome space).
  */
 function goUrl(msg) {
   let command_id = msg.json.command_id;
-
-  let checkTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
-  let start = new Date().getTime();
-  let end = null;
-  function checkLoad(){
-    end = new Date().getTime();
-    let errorRegex = /about:.+(error)|(blocked)\?/;
-    let elapse = end - start;
-    if (msg.json.pageTimeout == null || elapse <= msg.json.pageTimeout){
-      if (curWindow.document.readyState == "complete"){
-        sendOk(command_id);
-        checkTimer.cancel();
-      }
-      else if (curWindow.document.readyState == "interactive" && errorRegex.exec(curWindow.document.baseURI)){
-        sendError("Error loading page", 13, null, command_id);
-      }
-      else{
-        checkTimer.cancel();
-        checkTimer.initWithCallback(checkLoad, 100, Ci.nsITimer.TYPE_ONE_SHOT);
-      }
-    }
-    else{
-      sendError("Error loading page, timed out", 21, null, command_id);
-    }
-  }
   // Prevent DOMContentLoaded events from frames from invoking this code,
   // unless the event is coming from the frame associated with the current
   // window (i.e., someone has used switch_to_frame).
   let onDOMContentLoaded = function onDOMContentLoaded(event){
+    if (msg.json.pageTimeout != null){
+      checkTimer.cancel();
+    }
     if (!event.originalTarget.defaultView.frameElement ||
       event.originalTarget.defaultView.frameElement == curWindow.frameElement) {
-      checkLoad();
+      removeEventListener("DOMContentLoaded", onDOMContentLoaded, false);
+      let errorRegex = /about:.+(error)|(blocked)\?/;
+      if (curWindow.document.readyState == "interactive" && errorRegex.exec(curWindow.document.baseURI)) {
+        sendError("Error loading page", 13, null, command_id);
+        return;
+      }
+      sendOk(command_id);
     }
   };
-
   function timerFunc(){
-    sendError("Error loading page, timed out", 21, null, command_id);
+    sendError("Error loading page", 13, null, command_id);
     removeEventListener("DOMContentLoaded", onDOMContentLoaded, false);
   }
   if (msg.json.pageTimeout != null){
@@ -1207,8 +1338,7 @@ function findElementContent(msg) {
   try {
     let on_success = function(id, cmd_id) { sendResponse({value:id}, cmd_id); };
     let on_error = sendError;
-    elementManager.find(curWindow, msg.json, msg.json.searchTimeout,
-                        on_success, on_error, false, command_id);
+    elementManager.find(curWindow, msg.json, on_success, on_error, false, command_id);
   }
   catch (e) {
     sendError(e.message, e.code, e.stack, command_id);
@@ -1223,8 +1353,7 @@ function findElementsContent(msg) {
   try {
     let on_success = function(id, cmd_id) { sendResponse({value:id}, cmd_id); };
     let on_error = sendError;
-    elementManager.find(curWindow, msg.json, msg.json.searchTimeout,
-                        on_success, on_error, true, command_id);
+    elementManager.find(curWindow, msg.json, on_success, on_error, true, command_id);
   }
   catch (e) {
     sendError(e.message, e.code, e.stack, command_id);
@@ -1249,17 +1378,7 @@ function clickElement(msg) {
   let el;
   try {
     el = elementManager.getKnownElement(msg.json.element, curWindow);
-    if (checkVisible(el)) {
-      if (utils.isElementEnabled(el)) {
-        utils.synthesizeMouseAtCenter(el, {}, el.ownerDocument.defaultView)
-      }
-      else {
-        sendError("Element is not Enabled", 12, null, command_id)
-      }
-    }
-    else {
-      sendError("Element is not visible", 11, null, command_id)
-    }
+    utils.click(el);
     sendOk(command_id);
   }
   catch (e) {
@@ -1325,27 +1444,6 @@ function isElementDisplayed(msg) {
 }
 
 /**
- * Return the property of the computed style of an element
- *
- * @param object aRequest
- *               'element' member holds the reference id to
- *               the element that will be checked
- *               'propertyName' is the CSS rule that is being requested
- */
-function getElementValueOfCssProperty(msg){
-  let command_id = msg.json.command_id;
-  let propertyName = msg.json.propertyName;
-  try {
-    let el = elementManager.getKnownElement(msg.json.element, curWindow);
-    sendResponse({value: curWindow.document.defaultView.getComputedStyle(el, null).getPropertyValue(propertyName)},
-                 command_id);
-  }
-  catch (e) {
-    sendError(e.message, e.code, e.stack, command_id);
-  }
-}
-
-/**
  * Get the size of the element and return it
  */
 function getElementSize(msg){
@@ -1396,13 +1494,8 @@ function sendKeysToElement(msg) {
   let command_id = msg.json.command_id;
   try {
     let el = elementManager.getKnownElement(msg.json.element, curWindow);
-    if (checkVisible(el)) {
-      utils.type(curWindow.document, el, msg.json.value.join(""), true);
-      sendOk(command_id);
-    }
-    else {
-      sendError("Element is not visible", 11, null, command_id)
-    }
+    utils.type(curWindow.document, el, msg.json.value.join(""), true);
+    sendOk(command_id);
   }
   catch (e) {
     sendError(e.message, e.code, e.stack, command_id);
@@ -1416,11 +1509,31 @@ function getElementPosition(msg) {
   let command_id = msg.json.command_id;
   try{
     let el = elementManager.getKnownElement(msg.json.element, curWindow);
-    let rect = el.getBoundingClientRect();
+    var x = el.offsetLeft;
+    var y = el.offsetTop;
+    var elementParent = el.offsetParent;
+    while (elementParent != null) {
+      if (elementParent.tagName == "TABLE") {
+        var parentBorder = parseInt(elementParent.border);
+        if (isNaN(parentBorder)) {
+          var parentFrame = elementParent.getAttribute('frame');
+          if (parentFrame != null) {
+            x += 1;
+            y += 1;
+          }
+        } else if (parentBorder > 0) {
+          x += parentBorder;
+          y += parentBorder;
+        }
+      }
+      x += elementParent.offsetLeft;
+      y += elementParent.offsetTop;
+      elementParent = elementParent.offsetParent;
+    }
 
     let location = {};
-    location.x = rect.left;
-    location.y = rect.top;
+    location.x = x;
+    location.y = y;
 
     sendResponse({value: location}, command_id);
   }
@@ -1484,7 +1597,6 @@ function switchToFrame(msg) {
     if(msg.json.focus == true) {
       curWindow.focus();
     }
-    sandbox = null;
     checkTimer.initWithCallback(checkLoad, 100, Ci.nsITimer.TYPE_ONE_SHOT);
     return;
   }

@@ -17,8 +17,6 @@ $(error GNU Make 3.80 or higher is required)
 endif
 endif
 
-export TOPLEVEL_BUILD := 1
-
 include $(DEPTH)/config/autoconf.mk
 
 default::
@@ -37,17 +35,13 @@ DIST_GARBAGE = config.cache config.log config.status* config-defs.h \
    netwerk/necko-config.h xpcom/xpcom-config.h xpcom/xpcom-private.h \
    $(topsrcdir)/.mozconfig.mk $(topsrcdir)/.mozconfig.out
 
-ifndef MOZ_PROFILE_USE
-# We need to explicitly put backend.RecursiveMakeBackend.built here
-# otherwise the rule in rules.mk doesn't run early enough.
-default alldep all:: CLOBBER $(topsrcdir)/configure config.status backend.RecursiveMakeBackend.built
+default alldep all:: CLOBBER $(topsrcdir)/configure config.status
 	$(RM) -r $(DIST)/sdk
 	$(RM) -r $(DIST)/include
 	$(RM) -r $(DIST)/private
 	$(RM) -r $(DIST)/public
-	$(RM) -r $(DIST)/bin
+	$(RM) $(DIST)/bin/chrome.manifest $(DIST)/bin/components/components.manifest
 	$(RM) -r _tests
-endif
 
 CLOBBER: $(topsrcdir)/CLOBBER
 	@echo "STOP!  The CLOBBER file has changed."

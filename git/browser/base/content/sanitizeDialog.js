@@ -47,13 +47,11 @@ var gSanitizePromptDialog = {
     for (let i = 0; i < sanitizeItemList.length; i++) {
       let prefItem = sanitizeItemList[i];
       let name = s.getNameFromPreference(prefItem.getAttribute("preference"));
-      s.canClearItem(name, function canClearCallback(aItem, aCanClear, aPrefItem) {
-        if (!aCanClear) {
-          aPrefItem.preference = null;
-          aPrefItem.checked = false;
-          aPrefItem.disabled = true;
-        }
-      }, prefItem);
+      if (!s.canClearItem(name)) {
+        prefItem.preference = null;
+        prefItem.checked = false;
+        prefItem.disabled = true;
+      }
     }
 
     document.documentElement.getButton("accept").label =
@@ -109,23 +107,12 @@ var gSanitizePromptDialog = {
     s.range = Sanitizer.getClearRange(this.selectedTimespan);
     s.ignoreTimespan = !s.range;
 
-    // As the sanitize is async, we disable the buttons, update the label on
-    // the 'accept' button to indicate things are happening and return false -
-    // once the async operation completes (either with or without errors)
-    // we close the window.
-    let docElt = document.documentElement;
-    let acceptButton = docElt.getButton("accept");
-    acceptButton.disabled = true;
-    acceptButton.setAttribute("label",
-                              this.bundleBrowser.getString("sanitizeButtonClearing"));
-    docElt.getButton("cancel").disabled = true;
     try {
-      s.sanitize().then(window.close, window.close);
+      s.sanitize();
     } catch (er) {
       Components.utils.reportError("Exception during sanitize: " + er);
-      return true; // We *do* want to close immediately on error.
     }
-    return false;
+    return true;
   },
 
   /**
@@ -294,13 +281,11 @@ var gSanitizePromptDialog = {
     for (let i = 0; i < sanitizeItemList.length; i++) {
       let prefItem = sanitizeItemList[i];
       let name = s.getNameFromPreference(prefItem.getAttribute("preference"));
-      s.canClearItem(name, function canClearCallback(aCanClear) {
-        if (!aCanClear) {
-          prefItem.preference = null;
-          prefItem.checked = false;
-          prefItem.disabled = true;
-        }
-      });
+      if (!s.canClearItem(name)) {
+        prefItem.preference = null;
+        prefItem.checked = false;
+        prefItem.disabled = true;
+      }
     }
 
     document.documentElement.getButton("accept").label =

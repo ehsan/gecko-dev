@@ -11,28 +11,31 @@
 #include "nsContentUtils.h"
 #include "jsapi.h"
 #include "jsfriendapi.h"
-#include "jswrapper.h"
 
 using mozilla::net::gNeckoChild;
 
 namespace IPC {
 
 bool
-DeserializeArrayBuffer(JS::Handle<JSObject*> aObj,
-                       const InfallibleTArray<uint8_t>& aBuffer,
-                       JS::MutableHandle<JS::Value> aVal)
+DeserializeUint8Array(JSRawObject aObj,
+                      const InfallibleTArray<uint8_t>& aBuffer,
+                      jsval* aVal)
 {
-  mozilla::AutoSafeJSContext cx;
+  JSContext* cx = nsContentUtils::GetSafeJSContext();
+  JSAutoRequest ar(cx);
   JSAutoCompartment ac(cx, aObj);
 
-  JS::Rooted<JSObject*> obj(cx, JS_NewArrayBuffer(cx, aBuffer.Length()));
+  JSObject* obj = JS_NewArrayBuffer(cx, aBuffer.Length());
   if (!obj)
     return false;
   uint8_t* data = JS_GetArrayBufferData(obj);
   if (!data)
     return false;
   memcpy(data, aBuffer.Elements(), aBuffer.Length());
-  aVal.set(OBJECT_TO_JSVAL(obj));
+  JSObject* arr = JS_NewUint8ArrayWithBuffer(cx, obj, 0, aBuffer.Length());
+  if (!arr)
+    return false;
+  *aVal = OBJECT_TO_JSVAL(arr);
   return true;
 }
 
@@ -82,10 +85,7 @@ TCPSocketChild::Open(nsITCPSocketInternal* aSocket, const nsAString& aHost,
 {
   mSocket = aSocket;
   MOZ_ASSERT(aSocketObj.isObject());
-  mSocketObj = js::CheckedUnwrap(&aSocketObj.toObject());
-  if (!mSocketObj) {
-    return NS_ERROR_FAILURE;
-  }
+  mSocketObj = &aSocketObj.toObject();
   AddIPDLReference();
   gNeckoChild->SendPTCPSocketConstructor(this, nsString(aHost), aPort,
                                          aUseSSL, nsString(aBinaryType),
@@ -126,19 +126,17 @@ TCPSocketChild::RecvCallback(const nsString& aType,
   if (aData.type() == CallbackData::Tvoid_t) {
     rv = mSocket->CallListenerVoid(aType);
 
-  } else if (aData.type() == CallbackData::TTCPError) {
-    const TCPError& err(aData.get_TCPError());
-    rv = mSocket->CallListenerError(aType, err.name());
+  } else if (aData.type() == CallbackData::TJSError) {
+    const JSError& err(aData.get_JSError());
+    rv = mSocket->CallListenerError(aType, err.message(), err.filename(),
+                                   err.lineNumber(), err.columnNumber());
 
   } else if (aData.type() == CallbackData::TSendableData) {
     const SendableData& data = aData.get_SendableData();
 
     if (data.type() == SendableData::TArrayOfuint8_t) {
-      JSContext* cx = nsContentUtils::GetSafeJSContext();
-      JS::Rooted<JS::Value> val(cx);
-      JS::Rooted<JSObject*> socket(cx, mSocketObj);
-      bool ok = IPC::DeserializeArrayBuffer(socket, data.get_ArrayOfuint8_t(), &val);
-      NS_ENSURE_TRUE(ok, true);
+      jsval val;
+      IPC::DeserializeUint8Array(mSocketObj, data.get_ArrayOfuint8_t(), &val);
       rv = mSocket->CallListenerArrayBuffer(aType, val);
 
     } else if (data.type() == SendableData::TnsString) {
@@ -177,10 +175,7 @@ TCPSocketChild::Close()
 }
 
 NS_IMETHODIMP
-TCPSocketChild::Send(const JS::Value& aData,
-                     uint32_t aByteOffset,
-                     uint32_t aByteLength,
-                     JSContext* aCx)
+TCPSocketChild::Send(const JS::Value& aData, JSContext* aCx)
 {
   if (aData.isString()) {
     JSString* jsstr = aData.toString();
@@ -191,12 +186,11 @@ TCPSocketChild::Send(const JS::Value& aData,
 
   } else {
     NS_ENSURE_TRUE(aData.isObject(), NS_ERROR_FAILURE);
-    JS::Rooted<JSObject*> obj(aCx, &aData.toObject());
-    NS_ENSURE_TRUE(JS_IsArrayBufferObject(obj), NS_ERROR_FAILURE);
-    uint32_t buflen = JS_GetArrayBufferByteLength(obj);
-    aByteOffset = std::min(buflen, aByteOffset);
-    uint32_t nbytes = std::min(buflen - aByteOffset, aByteLength);
-    uint8_t* data = JS_GetArrayBufferData(obj);
+    JSObject* obj = &aData.toObject();
+    NS_ENSURE_TRUE(JS_IsTypedArrayObject(obj), NS_ERROR_FAILURE);
+    NS_ENSURE_TRUE(JS_IsUint8Array(obj), NS_ERROR_FAILURE);
+    uint32_t nbytes = JS_GetTypedArrayByteLength(obj);
+    uint8_t* data = JS_GetUint8ArrayData(obj);
     if (!data) {
       return NS_ERROR_OUT_OF_MEMORY;
     }

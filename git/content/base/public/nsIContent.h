@@ -5,9 +5,10 @@
 #ifndef nsIContent_h___
 #define nsIContent_h___
 
-#include "mozilla/Attributes.h"
 #include "nsCaseTreatment.h" // for enum, cannot be forward-declared
-#include "nsIDocument.h"
+#include "nsCOMPtr.h"        // for already_AddRefed in constructor
+#include "nsIDocument.h"     // for use in inline function (IsInHTMLDocument)
+#include "nsINode.h"         // for base class
 
 // Forward declarations
 class nsAString;
@@ -428,7 +429,7 @@ public:
    * @param aNameSpaceID The namespace ID of the attribute.  Must not
    *                     be kNameSpaceID_Unknown.
    * @param aName The name atom of the attribute.  Must not be null.
-   * @param aValues a nullptr-terminated array of pointers to atom values to test
+   * @param aValues a NULL-terminated array of pointers to atom values to test
    *                against.
    * @param aCaseSensitive Whether to do a case-sensitive compare on the values.
    * @return ATTR_MISSING, ATTR_VALUE_NO_MATCH or the non-negative index
@@ -631,6 +632,17 @@ public:
    * XXXjwatt: IMO IsInteractiveLink would be a better name.
    */
   virtual bool IsLink(nsIURI** aURI) const = 0;
+
+  /**
+   * Get the cached state of the link.  If the state is unknown, 
+   * return eLinkState_Unknown.
+   *
+   * @return The cached link state of the link.
+   */
+  virtual nsLinkState GetLinkState() const
+  {
+    return eLinkState_NotLink;
+  }
 
   /**
     * Get a pointer to the full href URI (fully resolved and canonicalized,
@@ -836,9 +848,9 @@ public:
   }
 
   // Overloaded from nsINode
-  virtual already_AddRefed<nsIURI> GetBaseURI() const MOZ_OVERRIDE;
+  virtual already_AddRefed<nsIURI> GetBaseURI() const;
 
-  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
+  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
 
   virtual bool IsPurple() = 0;
   virtual void RemovePurple() = 0;

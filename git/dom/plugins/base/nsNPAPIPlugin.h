@@ -11,7 +11,6 @@
 #include "nsPluginHost.h"
 
 #include "jsapi.h"
-#include "nsCxPusher.h"
 
 #include "mozilla/PluginLibrary.h"
 
@@ -138,7 +137,11 @@ JSContext* GetJSContext(NPP npp);
 inline bool
 NPStringIdentifierIsPermanent(NPP npp, NPIdentifier id)
 {
-  AutoSafeJSContext cx;
+  JSContext* cx = GetJSContext(npp);
+  if (!cx) // OOM?
+    return false;
+
+  JSAutoRequest ar(cx);
   return JS_StringHasBeenInterned(cx, NPIdentifierToString(id));
 }
 
@@ -359,7 +362,7 @@ OnShutdown();
  * within a lexical scope, locks and unlocks the mutex used to
  * serialize modifications to plugin async callback state.
  */
-struct MOZ_STACK_CLASS AsyncCallbackAutoLock
+struct NS_STACK_CLASS AsyncCallbackAutoLock
 {
   AsyncCallbackAutoLock();
   ~AsyncCallbackAutoLock();
@@ -386,8 +389,8 @@ protected:
 // separate objects on the stack since we always want a
 // PluginDestructionGuard where we use an NPPAutoPusher.
 
-class MOZ_STACK_CLASS NPPAutoPusher : public NPPStack,
-                                      protected PluginDestructionGuard
+class NPPAutoPusher : public NPPStack,
+                      protected PluginDestructionGuard
 {
 public:
   NPPAutoPusher(NPP npp)

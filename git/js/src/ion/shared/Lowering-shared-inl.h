@@ -1,11 +1,12 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_shared_Lowering_shared_inl_h
-#define ion_shared_Lowering_shared_inl_h
+#ifndef jsion_ion_lowering_inl_h__
+#define jsion_ion_lowering_inl_h__
 
 #include "ion/MIR.h"
 #include "ion/MIRGraph.h"
@@ -275,16 +276,6 @@ LIRGeneratorShared::useAnyOrConstant(MDefinition *mir)
 {
     return useRegisterOrConstant(mir);
 }
-LAllocation
-LIRGeneratorShared::useStorable(MDefinition *mir)
-{
-    return useRegister(mir);
-}
-LAllocation
-LIRGeneratorShared::useStorableAtStart(MDefinition *mir)
-{
-    return useRegisterAtStart(mir);
-}
 
 LAllocation
 LIRGeneratorShared::useAny(MDefinition *mir)
@@ -303,17 +294,6 @@ LIRGeneratorShared::useAny(MDefinition *mir)
 {
     return use(mir);
 }
-LAllocation
-LIRGeneratorShared::useStorable(MDefinition *mir)
-{
-    return useRegisterOrConstant(mir);
-}
-LAllocation
-LIRGeneratorShared::useStorableAtStart(MDefinition *mir)
-{
-    return useRegisterOrConstantAtStart(mir);
-}
-
 #endif
 
 LAllocation
@@ -406,8 +386,6 @@ VirtualRegisterOfPayload(MDefinition *mir)
         if (!inner->isConstant() && inner->type() != MIRType_Double)
             return inner->virtualRegister();
     }
-    if (mir->isTypeBarrier())
-        return VirtualRegisterOfPayload(mir->getOperand(0));
     return mir->virtualRegister() + VREG_DATA_OFFSET;
 }
 
@@ -457,4 +435,5 @@ LIRGeneratorShared::fillBoxUses(LInstruction *lir, size_t n, MDefinition *mir)
 } // namespace ion
 } // namespace js
 
-#endif /* ion_shared_Lowering_shared_inl_h */
+#endif // jsion_ion_lowering_inl_h__
+

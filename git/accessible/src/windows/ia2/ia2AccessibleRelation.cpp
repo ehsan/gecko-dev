@@ -8,7 +8,7 @@
 #include "ia2AccessibleRelation.h"
 
 #include "Relation.h"
-#include "IUnknownImpl.h"
+
 #include "nsIAccessibleRelation.h"
 #include "nsID.h"
 
@@ -32,7 +32,7 @@ ia2AccessibleRelation::QueryInterface(REFIID iid, void** ppv)
   if (!ppv)
     return E_INVALIDARG;
 
-  *ppv = nullptr;
+  *ppv = NULL;
 
   if (IID_IAccessibleRelation == iid || IID_IUnknown == iid) {
     *ppv = static_cast<IAccessibleRelation*>(this);
@@ -70,7 +70,7 @@ ia2AccessibleRelation::get_relationType(BSTR *aRelationType)
   if (!aRelationType)
     return E_INVALIDARG;
 
-  *aRelationType = nullptr;
+  *aRelationType = NULL;
 
   switch (mType) {
     case nsIAccessibleRelation::RELATION_CONTROLLED_BY:
@@ -109,9 +109,6 @@ ia2AccessibleRelation::get_relationType(BSTR *aRelationType)
     case nsIAccessibleRelation::RELATION_NODE_CHILD_OF:
       *aRelationType = ::SysAllocString(IA2_RELATION_NODE_CHILD_OF);
       break;
-    case nsIAccessibleRelation::RELATION_NODE_PARENT_OF:
-      *aRelationType = ::SysAllocString(IA2_RELATION_NODE_PARENT_OF);
-      break;
     case nsIAccessibleRelation::RELATION_PARENT_WINDOW_OF:
       *aRelationType = ::SysAllocString(IA2_RELATION_PARENT_WINDOW_OF);
       break;
@@ -138,7 +135,7 @@ ia2AccessibleRelation::get_localizedRelationType(BSTR *aLocalizedRelationType)
   if (!aLocalizedRelationType)
     return E_INVALIDARG;
 
-  *aLocalizedRelationType = nullptr;
+  *aLocalizedRelationType = NULL;
   return E_NOTIMPL;
 
   A11Y_TRYBLOCK_END

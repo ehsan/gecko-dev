@@ -12,7 +12,6 @@
 
 #include "sigslot.h"
 
-#include "logging.h"
 #include "nsNetCID.h"
 #include "nsITimer.h"
 #include "nsComponentManagerUtils.h"
@@ -23,6 +22,7 @@
 #include "transportlayer.h"
 #include "transportlayerloopback.h"
 
+#include "logging.h"
 #include "mtransport_test_utils.h"
 #include "runnable_utils.h"
 #include "usrsctp.h"

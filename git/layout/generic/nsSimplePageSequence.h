@@ -56,7 +56,7 @@ public:
   NS_IMETHOD  Reflow(nsPresContext*      aPresContext,
                      nsHTMLReflowMetrics& aDesiredSize,
                      const nsHTMLReflowState& aMaxSize,
-                     nsReflowStatus&      aStatus) MOZ_OVERRIDE;
+                     nsReflowStatus&      aStatus);
 
   virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,
@@ -74,7 +74,7 @@ public:
   NS_IMETHOD StartPrint(nsPresContext*  aPresContext,
                         nsIPrintSettings* aPrintSettings,
                         PRUnichar*        aDocTitle,
-                        PRUnichar*        aDocURL) MOZ_OVERRIDE;
+                        PRUnichar*        aDocURL);
   NS_IMETHOD PrePrintNextPage(nsITimerCallback* aCallback, bool* aDone) MOZ_OVERRIDE;
   NS_IMETHOD PrintNextPage() MOZ_OVERRIDE;
   NS_IMETHOD ResetPrintCanvasList() MOZ_OVERRIDE;
@@ -86,7 +86,7 @@ public:
 
   // We must allow Print Preview UI to have a background, no matter what the
   // user's settings
-  virtual bool HonorPrintBackgroundSettings() MOZ_OVERRIDE { return false; }
+  virtual bool HonorPrintBackgroundSettings() { return false; }
 
   virtual bool HasTransformGetter() const MOZ_OVERRIDE { return true; }
 
@@ -95,10 +95,10 @@ public:
    *
    * @see nsGkAtoms::sequenceFrame
    */
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
 
 #ifdef DEBUG
-  NS_IMETHOD  GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  NS_IMETHOD  GetFrameName(nsAString& aResult) const;
 #endif
 
 protected:

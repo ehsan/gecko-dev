@@ -144,9 +144,6 @@ public:
 
   bool Init(unsigned short aPort, uint16_t aNumStreams, bool aUsingDtls);
   void Destroy(); // So we can spawn refs tied to runnables in shutdown
-  // Finish Destroy on STS to avoid SCTP race condition with ABORT from far end
-  void DestroyOnSTS(struct socket *aMasterSocket,
-                    struct socket *aSocket);
 
 #ifdef ALLOW_DIRECT_SCTP_LISTEN_CONNECT
   // These block; they require something to decide on listener/connector
@@ -246,7 +243,6 @@ private:
   void StartDefer();
   bool SendDeferredMessages();
   void ProcessQueuedOpens();
-  void ClearResets();
   void SendOutgoingStreamReset();
   void ResetOutgoingStream(uint16_t streamOut);
   void HandleOpenRequestMessage(const struct rtcweb_datachannel_open_request *req,
@@ -405,18 +401,16 @@ public:
   // Find out state
   uint16_t GetReadyState()
     {
-      if (mConnection) {
-        MutexAutoLock lock(mConnection->mLock);
-        if (mState == WAITING_TO_OPEN)
-          return CONNECTING;
-        return mState;
-      }
-      return CLOSED;
+      if (mState == WAITING_TO_OPEN)
+        return CONNECTING;
+      return mState;
     }
+
+  void SetReadyState(uint16_t aState) { mState = aState; }
 
   void GetLabel(nsAString& aLabel) { CopyUTF8toUTF16(mLabel, aLabel); }
   void GetProtocol(nsAString& aProtocol) { CopyUTF8toUTF16(mProtocol, aProtocol); }
-  uint16_t GetStream() { return mStream; }
+  void GetStream(uint16_t *aStream) { *aStream = mStream; }
 
   void AppReady();
 
@@ -530,12 +524,9 @@ public:
           }
           break;
         }
-      case ON_DISCONNECTED:
-        // If we've disconnected, make sure we close all the streams - from mainthread!
-        mConnection->CloseAll();
-        // fall through
       case ON_CHANNEL_CREATED:
       case ON_CONNECTION:
+      case ON_DISCONNECTED:
         // WeakPtr - only used/modified/nulled from MainThread so we can use a WeakPtr here
         if (!mConnection->mListener) {
           DATACHANNEL_LOG(("DataChannelOnMessageAvailable (%d) with null Listener",mType));

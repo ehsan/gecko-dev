@@ -50,17 +50,11 @@
 
 #include "updatelogging.h"
 
-#include "mozilla/Compiler.h"
-
 // Amount of the progress bar to use in each of the 3 update stages,
 // should total 100.0.
 #define PROGRESS_PREPARE_SIZE 20.0f
 #define PROGRESS_EXECUTE_SIZE 75.0f
 #define PROGRESS_FINISH_SIZE   5.0f
-
-// Amount of time in ms to wait for the parent process to close
-#define PARENT_WAIT 5000
-#define IMMERSIVE_PARENT_WAIT 15000
 
 #if defined(XP_MACOSX)
 // These functions are defined in launchchild_osx.mm
@@ -125,20 +119,12 @@ static bool sUseHardLinks = true;
 
 // This variable lives in libbz2.  It's declared in bzlib_private.h, so we just
 // declare it here to avoid including that entire header file.
-#define BZ2_CRC32TABLE_UNDECLARED
-
-#if MOZ_IS_GCC
-#if MOZ_GCC_VERSION_AT_LEAST(3, 3, 0)
+#if (__GNUC__ >= 4) || (__GNUC__ == 3 && __GNUC_MINOR__ >= 3)
 extern "C"  __attribute__((visibility("default"))) unsigned int BZ2_crc32Table[256];
-#undef BZ2_CRC32TABLE_UNDECLARED
-#endif
 #elif defined(__SUNPRO_C) || defined(__SUNPRO_CC)
 extern "C" __global unsigned int BZ2_crc32Table[256];
-#undef BZ2_CRC32TABLE_UNDECLARED
-#endif
-#if defined(BZ2_CRC32TABLE_UNDECLARED)
+#else
 extern "C" unsigned int BZ2_crc32Table[256];
-#undef BZ2_CRC32TABLE_UNDECLARED
 #endif
 
 static unsigned int
@@ -1678,26 +1664,8 @@ PatchIfFile::Finish(int status)
 
 #ifdef XP_WIN
 #include "nsWindowsRestart.cpp"
-#include "nsWindowsHelpers.h"
 #include "uachelper.h"
 #include "pathhash.h"
-
-#ifdef MOZ_METRO
-/**
- * Determines if the update came from an Immersive browser
- * @return true if the update came from an immersive browser
- */
-bool
-IsUpdateFromMetro(int argc, NS_tchar **argv)
-{
-  for (int i = 0; i < argc; i++) {
-    if (!wcsicmp(L"-ServerName:DefaultBrowserServer", argv[i])) {
-      return true;
-    }
-  }
-  return false;
-}
-#endif
 #endif
 
 static void
@@ -1724,14 +1692,6 @@ LaunchCallbackApp(const NS_tchar *workingDir,
   // Do not allow the callback to run when running an update through the
   // service as session 0.  The unelevated updater.exe will do the launching.
   if (!usingService) {
-#if defined(MOZ_METRO)
-    // If our callback application is the default metro browser, then
-    // launch it now.
-    if (IsUpdateFromMetro(argc, argv)) {
-      LaunchDefaultMetroBrowser();
-      return;
-    }
-#endif
     WinLaunchChild(argv[0], argc, argv, NULL);
   }
 #else
@@ -2479,23 +2439,23 @@ int NS_main(int argc, NS_tchar **argv)
 #endif
 
 #ifdef XP_WIN
+  int possibleWriteError; // Variable holding one of the errors 46-48
   if (pid > 0) {
     HANDLE parent = OpenProcess(SYNCHRONIZE, false, (DWORD) pid);
     // May return NULL if the parent process has already gone away.
     // Otherwise, wait for the parent process to exit before starting the
     // update.
     if (parent) {
-      bool updateFromMetro = false;
-#ifdef MOZ_METRO
-      updateFromMetro = IsUpdateFromMetro(argc, argv);
-#endif
-      DWORD waitTime = updateFromMetro ?
-                       IMMERSIVE_PARENT_WAIT : PARENT_WAIT;
-      DWORD result = WaitForSingleObject(parent, waitTime);
+      DWORD result = WaitForSingleObject(parent, 5000);
       CloseHandle(parent);
-      if (result != WAIT_OBJECT_0 && !updateFromMetro)
+      if (result != WAIT_OBJECT_0)
         return 1;
+      possibleWriteError = WRITE_ERROR_SHARING_VIOLATION_SIGNALED;
+    } else {
+      possibleWriteError = WRITE_ERROR_SHARING_VIOLATION_NOPROCESSFORPID;
     }
+  } else {
+    possibleWriteError = WRITE_ERROR_SHARING_VIOLATION_NOPID;
   }
 #else
   if (pid > 0)
@@ -2920,8 +2880,7 @@ int NS_main(int argc, NS_tchar **argv)
     NS_tchar callbackLongPath[MAXPATHLEN];
     ZeroMemory(callbackLongPath, sizeof(callbackLongPath));
     NS_tchar *targetPath = argv[callbackIndex];
-    NS_tchar buffer[MAXPATHLEN * 2] = { NS_T('\0') };
-    size_t bufferLeft = MAXPATHLEN * 2;
+    NS_tchar buffer[MAXPATHLEN*2];
     if (sReplaceRequest) {
       // In case of replace requests, we should look for the callback file in
       // the destination directory.
@@ -2929,21 +2888,16 @@ int NS_main(int argc, NS_tchar **argv)
       NS_tchar *p = buffer;
       NS_tstrncpy(p, argv[callbackIndex], commonPrefixLength);
       p += commonPrefixLength;
-      bufferLeft -= commonPrefixLength;
-      NS_tstrncpy(p, gDestinationPath + commonPrefixLength, bufferLeft);
-
-      size_t len = NS_tstrlen(gDestinationPath + commonPrefixLength);
-      p += len;
-      bufferLeft -= len;
+      NS_tstrcpy(p, gDestinationPath + commonPrefixLength);
+      p += NS_tstrlen(gDestinationPath + commonPrefixLength);
       *p = NS_T('\\');
       ++p;
-      bufferLeft--;
       *p = NS_T('\0');
       NS_tchar installDir[MAXPATHLEN];
       if (!GetInstallationDir(installDir))
         return 1;
       size_t callbackPrefixLength = PathCommonPrefixW(argv[callbackIndex], installDir, NULL);
-      NS_tstrncpy(p, argv[callbackIndex] + max(callbackPrefixLength, commonPrefixLength), bufferLeft);
+      NS_tstrcpy(p, argv[callbackIndex] + max(callbackPrefixLength, commonPrefixLength));
       targetPath = buffer;
     }
     if (!GetLongPathNameW(targetPath, callbackLongPath,
@@ -2994,8 +2948,7 @@ int NS_main(int argc, NS_tchar **argv)
 
       // Since the process may be signaled as exited by WaitForSingleObject before
       // the release of the executable image try to lock the main executable file
-      // multiple times before giving up.  If we end up giving up, we won't
-      // fail the update.
+      // multiple times before giving up.
       const int max_retries = 10;
       int retries = 1;
       DWORD lastWriteError = 0;
@@ -3019,30 +2972,26 @@ int NS_main(int argc, NS_tchar **argv)
         Sleep(100);
       } while (++retries <= max_retries);
 
-      // CreateFileW will fail if the callback executable is already in use.
-      // We don't fail the update though.
+      // CreateFileW will fail if the callback executable is already in use. Since
+      // it isn't possible to update write the status file and return.
       if (callbackFile == INVALID_HANDLE_VALUE) {
         LOG(("NS_main: file in use - failed to exclusively open executable " \
              "file: " LOG_S, argv[callbackIndex]));
         LogFinish();
-
-        if (lastWriteError == ERROR_SHARING_VIOLATION) {
-          LOG(("NS_main: callback in use, continuing without exclusive access"));
+        if (ERROR_ACCESS_DENIED == lastWriteError) {
+          WriteStatusFile(WRITE_ERROR_ACCESS_DENIED);
+        } else if (ERROR_SHARING_VIOLATION == lastWriteError) {
+          WriteStatusFile(possibleWriteError);
         } else {
-          if (lastWriteError == ERROR_ACCESS_DENIED) {
-            WriteStatusFile(WRITE_ERROR_ACCESS_DENIED);
-          } else {
-            WriteStatusFile(WRITE_ERROR_CALLBACK_APP);
-          }
-
-          NS_tremove(gCallbackBackupPath);
-          EXIT_WHEN_ELEVATED(elevatedLockFilePath, updateLockFileHandle, 1);
-          LaunchCallbackApp(argv[4],
-                            argc - callbackIndex,
-                            argv + callbackIndex,
-                            sUsingService);
-          return 1;
+          WriteStatusFile(WRITE_ERROR_CALLBACK_APP);
         }
+        NS_tremove(gCallbackBackupPath);
+        EXIT_WHEN_ELEVATED(elevatedLockFilePath, updateLockFileHandle, 1);
+        LaunchCallbackApp(argv[4],
+                          argc - callbackIndex,
+                          argv + callbackIndex,
+                          sUsingService);
+        return 1;
       }
     }
   }
@@ -3071,9 +3020,7 @@ int NS_main(int argc, NS_tchar **argv)
 
 #ifdef XP_WIN
   if (argc > callbackIndex && !sReplaceRequest) {
-    if (callbackFile != INVALID_HANDLE_VALUE) {
-      CloseHandle(callbackFile);
-    }
+    CloseHandle(callbackFile);
     // Remove the copy of the callback executable.
     NS_tremove(gCallbackBackupPath);
   }

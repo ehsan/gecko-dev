@@ -19,7 +19,7 @@ const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
 #endif
 
-Cu.import("resource://gre/modules/Promise.jsm");
+Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 Cu.import("resource://gre/modules/Sqlite.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://services-common/log4moz.js");
@@ -491,7 +491,7 @@ const SQL = {
           "field_id = :field_id AND day = :days " +
         "), " +
         "0" +
-      ") + :by)",
+      ") + 1)",
 
   deleteLastNumericFromFieldID:
     "DELETE FROM last_numeric WHERE field_id = :field_id",
@@ -1614,16 +1614,13 @@ MetricsStorageSqliteBackend.prototype = Object.freeze({
    * @param date
    *        (Date) When the increment occurred. This is typically "now" but can
    *        be explicitly defined for events that occurred in the past.
-   * @param by
-   *        (integer) How much to increment the value by. Defaults to 1.
    */
-  incrementDailyCounterFromFieldID: function (id, date=new Date(), by=1) {
+  incrementDailyCounterFromFieldID: function (id, date=new Date()) {
     this._ensureFieldType(id, this.FIELD_DAILY_COUNTER);
 
     let params = {
       field_id: id,
       days: dateToDays(date),
-      by: by,
     };
 
     return this._connection.executeCached(SQL.incrementDailyCounterFromFieldID,

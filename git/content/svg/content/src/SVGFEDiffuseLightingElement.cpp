@@ -13,7 +13,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGFEDiffuseLightingElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+SVGFEDiffuseLightingElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return SVGFEDiffuseLightingElementBinding::Wrap(aCx, aScope, this);
 }
@@ -25,7 +25,7 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFEDiffuseLightingElement)
 
 //----------------------------------------------------------------------
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGFEDiffuseLightingElement::In1()
 {
   return mStringAttributes[IN1].ToDOMAnimatedString(this);

@@ -1,11 +1,12 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=78:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef gc_Barrier_h
-#define gc_Barrier_h
+#ifndef jsgc_barrier_h___
+#define jsgc_barrier_h___
 
 #include "jsapi.h"
 
@@ -375,6 +376,7 @@ class EncapsulatedValue : public ValueOperations<EncapsulatedValue>
      */
     EncapsulatedValue() MOZ_DELETE;
 
+
   public:
     EncapsulatedValue(const Value &v) : value(v) {
         JS_ASSERT(!IsPoisonedValue(v));
@@ -383,9 +385,6 @@ class EncapsulatedValue : public ValueOperations<EncapsulatedValue>
         JS_ASSERT(!IsPoisonedValue(v));
     }
     inline ~EncapsulatedValue();
-
-    inline void init(const Value &v);
-    inline void init(JSRuntime *rt, const Value &v);
 
     inline EncapsulatedValue &operator=(const Value &v);
     inline EncapsulatedValue &operator=(const EncapsulatedValue &v);
@@ -461,7 +460,8 @@ class RelocatableValue : public EncapsulatedValue
 
   private:
     inline void post();
-    inline void relocate(JSRuntime *rt);
+    inline void post(JSRuntime *rt);
+    inline void relocate();
 };
 
 class HeapSlot : public EncapsulatedValue
@@ -659,4 +659,4 @@ template <> struct IsRelocatableHeapType<HeapId>    { static const bool result =
 } /* namespace tl */
 } /* namespace js */
 
-#endif /* gc_Barrier_h */
+#endif /* jsgc_barrier_h___ */

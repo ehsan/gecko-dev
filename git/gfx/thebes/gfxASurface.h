@@ -29,7 +29,7 @@ struct nsIntRect;
  * A surface is something you can draw on. Instantiate a subclass of this
  * abstract class, and use gfxContext to draw on this surface.
  */
-class gfxASurface {
+class THEBES_API gfxASurface {
 public:
 #ifdef MOZILLA_INTERNAL_API
     nsrefcnt AddRef(void);
@@ -242,6 +242,7 @@ public:
 
     virtual const gfxIntSize GetSize() const { return gfxIntSize(-1, -1); }
 
+#ifdef MOZ_DUMP_IMAGES
     /**
      * Debug functions to encode the current image as a PNG and export it.
      */
@@ -267,6 +268,7 @@ public:
     void CopyAsDataURL();
     
     void WriteAsPNG_internal(FILE* aFile, bool aBinary);
+#endif
 
     void SetOpaqueRect(const gfxRect& aRect) {
         if (aRect.IsEmpty()) {
@@ -352,7 +354,7 @@ protected:
 /**
  * An Unknown surface; used to wrap unknown cairo_surface_t returns from cairo
  */
-class gfxUnknownSurface : public gfxASurface {
+class THEBES_API gfxUnknownSurface : public gfxASurface {
 public:
     gfxUnknownSurface(cairo_surface_t *surf) {
         Init(surf, true);

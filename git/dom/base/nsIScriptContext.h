@@ -27,9 +27,26 @@ class nsIScriptObjectPrincipal;
 class nsIDOMWindow;
 class nsIURI;
 
+typedef void (*nsScriptTerminationFunc)(nsISupports* aRef);
+
+#define NS_ISCRIPTCONTEXTPRINCIPAL_IID \
+  { 0xd012cdb3, 0x8f1e, 0x4440, \
+    { 0x8c, 0xbd, 0x32, 0x7f, 0x98, 0x1d, 0x37, 0xb4 } }
+
+class nsIScriptContextPrincipal : public nsISupports
+{
+public:
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_ISCRIPTCONTEXTPRINCIPAL_IID)
+
+  virtual nsIScriptObjectPrincipal* GetObjectPrincipal() = 0;
+};
+
+NS_DEFINE_STATIC_IID_ACCESSOR(nsIScriptContextPrincipal,
+                              NS_ISCRIPTCONTEXTPRINCIPAL_IID)
+
 #define NS_ISCRIPTCONTEXT_IID \
-{ 0xef0c91ce, 0x14f6, 0x41c9, \
-  { 0xa5, 0x77, 0xa6, 0xeb, 0xdc, 0x6d, 0x44, 0x7b } }
+{ 0x739d69c1, 0x5248, 0x4386, \
+  { 0x82, 0xa6, 0x60, 0x28, 0xf7, 0x7f, 0xb8, 0x9c } }
 
 /* This MUST match JSVERSION_DEFAULT.  This version stuff if we don't
    know what language we have is a little silly... */
@@ -39,7 +56,7 @@ class nsIURI;
  * It is used by the application to initialize a runtime and run scripts.
  * A script runtime would implement this interface.
  */
-class nsIScriptContext : public nsISupports
+class nsIScriptContext : public nsIScriptContextPrincipal
 {
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ISCRIPTCONTEXT_IID)
@@ -59,7 +76,7 @@ public:
    *                  result will deoptimize your script somewhat in many cases.
    */
   virtual nsresult EvaluateString(const nsAString& aScript,
-                                  JS::Handle<JSObject*> aScopeObject,
+                                  JSObject& aScopeObject,
                                   JS::CompileOptions& aOptions,
                                   bool aCoerceToString,
                                   JS::Value* aRetValue) = 0;
@@ -107,6 +124,22 @@ public:
                                  JSObject* aScopeObject) = 0;
 
   /**
+   * Call the function object with given args and return its boolean result,
+   * or true if the result isn't boolean.
+   *
+   * @param aTarget the event target
+   * @param aScript an object telling the scope in which to call the compiled
+   *        event handler function.
+   * @param aHandler function object (function and static scope) to invoke.
+   * @param argv array of arguments.  Note each element is assumed to
+   *        be an nsIVariant.
+   * @param rval out parameter returning result
+   **/
+  virtual nsresult CallEventHandler(nsISupports* aTarget,
+                                    JSObject* aScope, JSObject* aHandler,
+                                    nsIArray *argv, nsIVariant **rval) = 0;
+
+  /**
    * Bind an already-compiled event handler function to the given
    * target.  Scripting languages with static scoping must re-bind the
    * scope chain for aHandler to begin (after the activation scope for
@@ -128,8 +161,8 @@ public:
    * @return NS_OK if the function was successfully bound
    */
   virtual nsresult BindCompiledEventHandler(nsISupports* aTarget,
-                                            JS::Handle<JSObject*> aScope,
-                                            JS::Handle<JSObject*> aHandler,
+                                            JSObject* aScope,
+                                            JSObject* aHandler,
                                             JS::MutableHandle<JSObject*> aBoundHandler) = 0;
 
   /**
@@ -177,21 +210,35 @@ public:
    * A GC may be done if "necessary."
    * This call is necessary if script evaluation is done
    * without using the EvaluateScript method.
-   * @param aTerminated If true then do script termination handling. Within DOM
-   *     this will always be true, but outside  callers (such as xpconnect) who
-   *     may do script evaluations nested inside inside DOM script evaluations
-   *     can pass false to avoid premature termination handling.
+   * @param aTerminated If true then call termination function if it was 
+   *    previously set. Within DOM this will always be true, but outside 
+   *    callers (such as xpconnect) who may do script evaluations nested
+   *    inside DOM script evaluations can pass false to avoid premature
+   *    calls to the termination function.
    * @return NS_OK if the method is successful
    */
   virtual void ScriptEvaluated(bool aTerminated) = 0;
 
   virtual nsresult Serialize(nsIObjectOutputStream* aStream,
-                             JS::Handle<JSScript*> aScriptObject) = 0;
+                             JSScript* aScriptObject) = 0;
   
   /* Deserialize a script from a stream.
    */
   virtual nsresult Deserialize(nsIObjectInputStream* aStream,
                                JS::MutableHandle<JSScript*> aResult) = 0;
+
+  /**
+   * JS only - this function need not be implemented by languages other
+   * than JS (ie, this should be moved to a private interface!)
+   * Called to specify a function that should be called when the current
+   * script (if there is one) terminates. Generally used if breakdown
+   * of script state needs to happen, but should be deferred till
+   * the end of script evaluation.
+   *
+   * @throws NS_ERROR_OUT_OF_MEMORY if that happens
+   */
+  virtual void SetTerminationFunction(nsScriptTerminationFunc aFunc,
+                                      nsIDOMWindow* aRef) = 0;
 
   /**
    * Called to disable/enable script execution in this context.
@@ -201,8 +248,7 @@ public:
 
   // SetProperty is suspect and jst believes should not be needed.  Currenly
   // used only for "arguments".
-  virtual nsresult SetProperty(JS::Handle<JSObject*> aTarget,
-                               const char* aPropName, nsISupports* aVal) = 0;
+  virtual nsresult SetProperty(JSObject* aTarget, const char* aPropName, nsISupports* aVal) = 0;
   /** 
    * Called to set/get information if the script context is
    * currently processing a script tag
@@ -221,7 +267,7 @@ public:
    * call DidInitializeContext() when a context is fully
    * (successfully) initialized.
    */
-  virtual nsresult InitClasses(JS::Handle<JSObject*> aGlobalObj) = 0;
+  virtual nsresult InitClasses(JSObject* aGlobalObj) = 0;
 
   /**
    * Tell the context we're about to be reinitialize it.

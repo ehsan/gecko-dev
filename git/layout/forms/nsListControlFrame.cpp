@@ -22,6 +22,7 @@
 #include "nsWidgetsCID.h"
 #include "nsIPresShell.h"
 #include "nsHTMLParts.h"
+#include "nsIDOMEventTarget.h"
 #include "nsEventDispatcher.h"
 #include "nsEventStateManager.h"
 #include "nsEventListenerManager.h"
@@ -35,15 +36,15 @@
 #include "nsGUIEvent.h"
 #include "nsIServiceManager.h"
 #include "nsINodeInfo.h"
+#include "nsHTMLSelectElement.h"
 #include "nsCSSRendering.h"
 #include "nsITheme.h"
 #include "nsIDOMEventListener.h"
 #include "nsLayoutUtils.h"
 #include "nsDisplayList.h"
 #include "nsContentUtils.h"
-#include "mozilla/Attributes.h"
-#include "mozilla/dom/HTMLSelectElement.h"
 #include "mozilla/LookAndFeel.h"
+#include "mozilla/Attributes.h"
 #include <algorithm>
 
 using namespace mozilla;
@@ -1018,13 +1019,17 @@ nsListControlFrame::Init(nsIContent*     aContent,
 already_AddRefed<nsIContent> 
 nsListControlFrame::GetOptionAsContent(nsIDOMHTMLOptionsCollection* aCollection, int32_t aIndex) 
 {
+  nsIContent * content = nullptr;
   nsCOMPtr<nsIDOMHTMLOptionElement> optionElement = GetOption(aCollection,
                                                               aIndex);
 
   NS_ASSERTION(optionElement != nullptr, "could not get option element by index!");
 
-  nsCOMPtr<nsIContent> content = do_QueryInterface(optionElement);
-  return content.forget();
+  if (optionElement) {
+    CallQueryInterface(optionElement, &content);
+  }
+ 
+  return content;
 }
 
 already_AddRefed<nsIContent> 
@@ -1043,13 +1048,13 @@ nsListControlFrame::GetOptionContent(int32_t aIndex) const
 already_AddRefed<nsIDOMHTMLOptionsCollection>
 nsListControlFrame::GetOptions(nsIContent * aContent)
 {
-  nsCOMPtr<nsIDOMHTMLOptionsCollection> options;
+  nsIDOMHTMLOptionsCollection* options = nullptr;
   nsCOMPtr<nsIDOMHTMLSelectElement> selectElement = do_QueryInterface(aContent);
   if (selectElement) {
-    selectElement->GetOptions(getter_AddRefs(options));
+    selectElement->GetOptions(&options);  // AddRefs (1)
   }
 
-  return options.forget();
+  return options;
 }
 
 already_AddRefed<nsIDOMHTMLOptionElement>
@@ -1061,9 +1066,10 @@ nsListControlFrame::GetOption(nsIDOMHTMLOptionsCollection* aCollection,
     NS_ASSERTION(node,
                  "Item was successful, but node from collection was null!");
     if (node) {
-      nsCOMPtr<nsIDOMHTMLOptionElement> option = do_QueryInterface(node);
+      nsIDOMHTMLOptionElement* option = nullptr;
+      CallQueryInterface(node, &option);
 
-      return option.forget();
+      return option;
     }
   } else {
     NS_ERROR("Couldn't get option by index from collection!");
@@ -1228,8 +1234,8 @@ nsListControlFrame::GetCurrentOption()
     return GetOptionContent(focusedIndex);
   }
 
-  nsRefPtr<dom::HTMLSelectElement> selectElement =
-    dom::HTMLSelectElement::FromContent(mContent);
+  nsRefPtr<nsHTMLSelectElement> selectElement =
+    nsHTMLSelectElement::FromContent(mContent);
   NS_ASSERTION(selectElement, "Can't be null");
 
   // There is no a selected item return the first non-disabled item and skip all
@@ -1404,8 +1410,8 @@ nsListControlFrame::SetOptionsSelectedFromFrame(int32_t aStartIndex,
                                                 bool aValue,
                                                 bool aClearAll)
 {
-  nsRefPtr<dom::HTMLSelectElement> selectElement =
-    dom::HTMLSelectElement::FromContent(mContent);
+  nsRefPtr<nsHTMLSelectElement> selectElement =
+    nsHTMLSelectElement::FromContent(mContent);
   bool wasChanged = false;
 #ifdef DEBUG
   nsresult rv = 
@@ -1442,8 +1448,8 @@ nsListControlFrame::ToggleOptionSelectedFromFrame(int32_t aIndex)
     option->GetSelected(&value);
 
   NS_ASSERTION(NS_SUCCEEDED(rv), "GetSelected failed");
-  nsRefPtr<dom::HTMLSelectElement> selectElement =
-    dom::HTMLSelectElement::FromContent(mContent);
+  nsRefPtr<nsHTMLSelectElement> selectElement =
+    nsHTMLSelectElement::FromContent(mContent);
   bool wasChanged = false;
 #ifdef DEBUG
   rv =
@@ -1673,8 +1679,8 @@ nsListControlFrame::GetHeightOfARow()
 nsresult
 nsListControlFrame::IsOptionDisabled(int32_t anIndex, bool &aIsDisabled)
 {
-  nsRefPtr<dom::HTMLSelectElement> sel =
-    dom::HTMLSelectElement::FromContent(mContent);
+  nsRefPtr<nsHTMLSelectElement> sel =
+    nsHTMLSelectElement::FromContent(mContent);
   if (sel) {
     sel->IsOptionDisabled(anIndex, &aIsDisabled);
     return NS_OK;

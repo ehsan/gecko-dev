@@ -12,7 +12,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGFEMergeNodeElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+SVGFEMergeNodeElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return SVGFEMergeNodeElementBinding::Wrap(aCx, aScope, this);
 }
@@ -37,7 +37,7 @@ SVGFEMergeNodeElement::AttributeAffectsRendering(int32_t aNameSpaceID,
   return aNameSpaceID == kNameSpaceID_None && aAttribute == nsGkAtoms::in;
 }
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGFEMergeNodeElement::In1()
 {
   return mStringAttributes[IN1].ToDOMAnimatedString(this);

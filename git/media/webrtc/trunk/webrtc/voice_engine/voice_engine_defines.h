@@ -414,7 +414,7 @@ namespace webrtc
 // *** WEBRTC_MAC ***
 // including iPhone
 
-#if defined(WEBRTC_BSD) || defined(WEBRTC_MAC)
+#ifdef WEBRTC_MAC
 
 #include <pthread.h>
 #include <sys/types.h>
@@ -431,7 +431,6 @@ namespace webrtc
 #include <sched.h>
 #include <sys/time.h>
 #include <time.h>
-#if !defined(WEBRTC_BSD)
 #include <AudioUnit/AudioUnit.h>
 #if !defined(WEBRTC_IOS)
   #include <CoreServices/CoreServices.h>
@@ -439,7 +438,6 @@ namespace webrtc
   #include <AudioToolbox/DefaultAudioOutput.h>
   #include <AudioToolbox/AudioConverter.h>
   #include <CoreAudio/HostTime.h>
-#endif
 #endif
 
 #define DWORD unsigned long int
@@ -533,7 +531,7 @@ namespace webrtc
 
 #else
 #define IPHONE_NOT_SUPPORTED(stat)
-#endif  // #if defined(WEBRTC_BSD) || defined(WEBRTC_MAC)
+#endif  // #ifdef WEBRTC_MAC
 
 
 

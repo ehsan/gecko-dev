@@ -5,19 +5,20 @@ const TEST_PAGE = "/browser/browser/base/content/test/dummy_page.html";
 var gTestTab, gBgTab, gTestZoom;
 
 function testBackgroundLoad() {
-  is(ZoomManager.zoom, gTestZoom, "opening a background tab should not change foreground zoom");
+  Task.spawn(function () {
+    is(ZoomManager.zoom, gTestZoom, "opening a background tab should not change foreground zoom");
 
-  gBrowser.removeTab(gBgTab);
+    gBrowser.removeTab(gBgTab);
 
-  FullZoom.reset();
-  gBrowser.removeTab(gTestTab);
-  finish();
+    yield FullZoomHelper.reset();
+    gBrowser.removeTab(gTestTab);
+  }).then(finish, FullZoomHelper.failAndContinue(finish));
 }
 
 function testInitialZoom() {
   Task.spawn(function () {
     is(ZoomManager.zoom, 1, "initial zoom level should be 1");
-    FullZoom.enlarge();
+    yield FullZoomHelper.enlarge();
 
     gTestZoom = ZoomManager.zoom;
     isnot(gTestZoom, 1, "zoom level should have changed");

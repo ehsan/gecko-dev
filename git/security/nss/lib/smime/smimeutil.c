@@ -4,6 +4,8 @@
 
 /*
  * Stuff specific to S/MIME policy and interoperability.
+ *
+ * $Id: smimeutil.c,v 1.25 2012/05/17 17:55:52 kaie%kuix.de Exp $
  */
 
 #include "secmime.h"
@@ -352,7 +354,7 @@ nss_SMIME_FindCipherForSMIMECap(NSSSMIMECapability *cap)
 static long
 smime_choose_cipher(CERTCertificate *scert, CERTCertificate **rcerts)
 {
-    PLArenaPool *poolp;
+    PRArenaPool *poolp;
     long cipher;
     long chosen_cipher;
     int *cipher_abilities;

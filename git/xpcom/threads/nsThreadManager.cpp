@@ -39,6 +39,10 @@ AppendAndRemoveThread(PRThread *key, nsRefPtr<nsThread> &thread, void *arg)
   return PL_DHASH_REMOVE;
 }
 
+//-----------------------------------------------------------------------------
+
+nsThreadManager nsThreadManager::sInstance;
+
 // statically allocated instance
 NS_IMETHODIMP_(nsrefcnt) nsThreadManager::AddRef() { return 2; }
 NS_IMETHODIMP_(nsrefcnt) nsThreadManager::Release() { return 1; }
@@ -156,11 +160,6 @@ nsThreadManager::RegisterCurrentThread(nsThread *thread)
 
   MutexAutoLock lock(*mLock);
 
-  ++mCurrentNumberOfThreads;
-  if (mCurrentNumberOfThreads > mHighestNumberOfThreads) {
-    mHighestNumberOfThreads = mCurrentNumberOfThreads;
-  }
-
   mThreadsByPRThread.Put(thread->GetPRThread(), thread);  // XXX check OOM?
 
   NS_ADDREF(thread);  // for TLS entry
@@ -174,7 +173,6 @@ nsThreadManager::UnregisterCurrentThread(nsThread *thread)
 
   MutexAutoLock lock(*mLock);
 
-  --mCurrentNumberOfThreads;
   mThreadsByPRThread.Remove(thread->GetPRThread());
 
   PR_SetThreadPrivate(mCurThreadIndex, nullptr);
@@ -280,11 +278,4 @@ nsThreadManager::GetIsCycleCollectorThread(bool *result)
 {
   *result = bool(NS_IsCycleCollectorThread());
   return NS_OK;
-}
-
-uint32_t
-nsThreadManager::GetHighestNumberOfThreads()
-{
-  MutexAutoLock lock(*mLock);
-  return mHighestNumberOfThreads;
 }

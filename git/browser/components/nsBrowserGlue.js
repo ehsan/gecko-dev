@@ -32,9 +32,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
 XPCOMUtils.defineLazyModuleGetter(this, "BookmarkHTMLUtils",
                                   "resource://gre/modules/BookmarkHTMLUtils.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "BookmarkJSONUtils",
-                                  "resource://gre/modules/BookmarkJSONUtils.jsm");
-
 XPCOMUtils.defineLazyModuleGetter(this, "webappsUI",
                                   "resource:///modules/webappsUI.jsm");
 
@@ -56,15 +53,11 @@ XPCOMUtils.defineLazyModuleGetter(this, "webrtcUI",
 XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
                                   "resource://gre/modules/PrivateBrowsingUtils.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "KeywordURLResetPrompter",
+                                  "resource:///modules/KeywordURLResetPrompter.jsm");
+
 XPCOMUtils.defineLazyModuleGetter(this, "RecentWindow",
                                   "resource:///modules/RecentWindow.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "Task",
-                                  "resource://gre/modules/Task.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "PlacesBackups",
-                                  "resource://gre/modules/PlacesBackups.jsm");
-
 
 const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
 const PREF_PLUGINS_UPDATEURL  = "plugins.update.url";
@@ -168,7 +161,7 @@ BrowserGlue.prototype = {
         this._onAppDefaults();
         break;
       case "final-ui-startup":
-        this._finalUIStartup();
+        this._onProfileStartup();
         break;
       case "browser-delayed-startup-finished":
         this._onFirstWindowLoaded();
@@ -246,8 +239,7 @@ BrowserGlue.prototype = {
         this._onPlacesShutdown();
         break;
       case "idle":
-        if ((this._idleService.idleTime > BOOKMARKS_BACKUP_IDLE_TIME * 1000) &&
-             this._shouldBackupBookmarks())
+        if (this._idleService.idleTime > BOOKMARKS_BACKUP_IDLE_TIME * 1000)
           this._backupBookmarks();
         break;
       case "distribution-customization-complete":
@@ -270,6 +262,13 @@ BrowserGlue.prototype = {
         }
         else if (data == "force-places-init") {
           this._initPlaces(false);
+        }
+        break;
+      case "defaultURIFixup-using-keyword-pref":
+        if (KeywordURLResetPrompter.shouldPrompt) {
+          let keywordURI = subject.QueryInterface(Ci.nsIURI);
+          KeywordURLResetPrompter.prompt(this.getMostRecentBrowserWindow(),
+                                         keywordURI);
         }
         break;
       case "initial-migration-will-import-default-bookmarks":
@@ -308,8 +307,7 @@ BrowserGlue.prototype = {
 
         reporter.onInit().then(function record() {
           try {
-            let name = subject.QueryInterface(Ci.nsISearchEngine).name;
-            reporter.getProvider("org.mozilla.searches").recordSearch(name,
+            reporter.getProvider("org.mozilla.searches").recordSearch(data,
                                                                       "urlbar");
           } catch (ex) {
             Cu.reportError(ex);
@@ -317,41 +315,6 @@ BrowserGlue.prototype = {
         });
         break;
 #endif
-      case "browser-search-engine-modified":
-        if (data != "engine-default" && data != "engine-current") {
-          break;
-        }
-        // Enforce that the search service's defaultEngine is always equal to
-        // its currentEngine. The search service will notify us any time either
-        // of them are changed (either by directly setting the relevant prefs,
-        // i.e. if add-ons try to change this directly, or if the
-        // nsIBrowserSearchService setters are called).
-        // No need to initialize the search service, since it's guaranteed to be
-        // initialized already when this notification fires.
-        let ss = Services.search;
-        if (ss.currentEngine.name == ss.defaultEngine.name)
-          return;
-        if (data == "engine-current")
-          ss.defaultEngine = ss.currentEngine;
-        else
-          ss.currentEngine = ss.defaultEngine;
-        break;
-      case "browser-search-service":
-        if (data != "init-complete")
-          return;
-        Services.obs.removeObserver(this, "browser-search-service");
-        this._syncSearchEngines();
-        break;
-    }
-  },
-
-  _syncSearchEngines: function () {
-    // Only do this if the search service is already initialized. This function
-    // gets called in finalUIStartup and from a browser-search-service observer,
-    // to catch both cases (search service initialization occurring before and
-    // after final-ui-startup)
-    if (Services.search.isInitialized) {
-      Services.search.defaultEngine = Services.search.currentEngine;
     }
   },
 
@@ -381,13 +344,12 @@ BrowserGlue.prototype = {
     os.addObserver(this, "distribution-customization-complete", false);
     os.addObserver(this, "places-shutdown", false);
     this._isPlacesShutdownObserver = true;
+    os.addObserver(this, "defaultURIFixup-using-keyword-pref", false);
     os.addObserver(this, "handle-xul-text-link", false);
     os.addObserver(this, "profile-before-change", false);
 #ifdef MOZ_SERVICES_HEALTHREPORT
     os.addObserver(this, "keyword-search", false);
 #endif
-    os.addObserver(this, "browser-search-engine-modified", false);
-    os.addObserver(this, "browser-search-service", false);
   },
 
   // cleanup (called on application shutdown)
@@ -404,8 +366,8 @@ BrowserGlue.prototype = {
     os.removeObserver(this, "browser-lastwindow-close-granted");
 #endif
 #ifdef MOZ_SERVICES_SYNC
-    os.removeObserver(this, "weave:service:ready");
-    os.removeObserver(this, "weave:engine:clients:display-uri");
+    os.removeObserver(this, "weave:service:ready", false);
+    os.removeObserver(this, "weave:engine:clients:display-uri", false);
 #endif
     os.removeObserver(this, "session-save");
     if (this._isIdleObserver)
@@ -416,27 +378,22 @@ BrowserGlue.prototype = {
       os.removeObserver(this, "places-database-locked");
     if (this._isPlacesShutdownObserver)
       os.removeObserver(this, "places-shutdown");
+    os.removeObserver(this, "defaultURIFixup-using-keyword-pref");
     os.removeObserver(this, "handle-xul-text-link");
     os.removeObserver(this, "profile-before-change");
 #ifdef MOZ_SERVICES_HEALTHREPORT
     os.removeObserver(this, "keyword-search");
 #endif
-    os.removeObserver(this, "browser-search-engine-modified");
-    try {
-      os.removeObserver(this, "browser-search-service");
-      // may have already been removed by the observer
-    } catch (ex) {}
   },
 
   _onAppDefaults: function BG__onAppDefaults() {
     // apply distribution customizations (prefs)
-    // other customizations are applied in _finalUIStartup()
+    // other customizations are applied in _onProfileStartup()
     this._distributionCustomizer.applyPrefDefaults();
   },
 
-  // runs on startup, before the first command line handler is invoked
-  // (i.e. before the first window is opened)
-  _finalUIStartup: function BG__finalUIStartup() {
+  // profile startup handler (contains profile initialization routines)
+  _onProfileStartup: function BG__onProfileStartup() {
     this._sanitizer.onStartup();
     // check if we're in safe mode
     if (Services.appinfo.inSafeMode) {
@@ -452,8 +409,6 @@ BrowserGlue.prototype = {
     this._migrateUI();
 
     this._setUpUserAgentOverrides();
-
-    this._syncSearchEngines();
 
     webappsUI.init();
     PageThumbs.init();
@@ -549,7 +504,7 @@ BrowserGlue.prototype = {
     if (WINTASKBAR_CONTRACTID in Cc &&
         Cc[WINTASKBAR_CONTRACTID].getService(Ci.nsIWinTaskbar).available) {
       let temp = {};
-      Cu.import("resource:///modules/WindowsJumpLists.jsm", temp);
+      Cu.import("resource://gre/modules/WindowsJumpLists.jsm", temp);
       temp.WinTaskbarJumpList.startup();
     }
 #endif
@@ -573,6 +528,11 @@ BrowserGlue.prototype = {
 
   // All initial windows have opened.
   _onWindowsRestored: function BG__onWindowsRestored() {
+    // Show about:rights notification, if needed.
+    if (this._shouldShowRights()) {
+      this._showRightsNotification();
+    }
+
     // Show update notification, if needed.
     if (Services.prefs.prefHasUserValue("app.update.postupdate"))
       this._showUpdateNotification();
@@ -604,6 +564,9 @@ BrowserGlue.prototype = {
       });
     }
 
+    let keywordURLUserSet = Services.prefs.prefHasUserValue("keyword.URL");
+    Services.telemetry.getHistogramById("FX_KEYWORD_URL_USERSET").add(keywordURLUserSet);
+
     // Perform default browser checking.
     var shell;
     try {
@@ -624,17 +587,9 @@ BrowserGlue.prototype = {
           (ss.sessionType == Ci.nsISessionStartup.RECOVER_SESSION);
       }
       catch (ex) { /* never mind; suppose SessionStore is broken */ }
-
-      let isDefault = shell.isDefaultBrowser(true, false); // startup check, check all assoc
-      try {
-        // Report default browser status on startup to telemetry
-        // so we can track whether we are the default.
-        Services.telemetry.getHistogramById("BROWSER_IS_USER_DEFAULT")
-                          .add(isDefault);
-      }
-      catch (ex) { /* Don't break the default prompt if telemetry is broken. */ }
-
-      if (shouldCheck && !isDefault && !willRecoverSession) {
+      if (shouldCheck &&
+          !shell.isDefaultBrowser(true, false) &&
+          !willRecoverSession) {
         Services.tm.mainThread.dispatch(function() {
           var win = this.getMostRecentBrowserWindow();
           var brandBundle = win.document.getElementById("bundle_brand");
@@ -741,8 +696,7 @@ BrowserGlue.prototype = {
         // tabs checks browser.tabs.warnOnClose and returns if it's ok to close
         // the window. It doesn't actually close the window.
         mostRecentBrowserWindow = Services.wm.getMostRecentWindow("navigator:browser");
-        let allTabs = mostRecentBrowserWindow.gBrowser.closingTabsEnum.ALL;
-        aCancelQuit.data = !mostRecentBrowserWindow.gBrowser.warnAboutClosingTabs(allTabs)
+        aCancelQuit.data = !mostRecentBrowserWindow.gBrowser.warnAboutClosingTabs(true);
       }
       return;
     }
@@ -777,7 +731,7 @@ BrowserGlue.prototype = {
     var button0Title = quitBundle.GetStringFromName("saveTitle");
     var button1Title = quitBundle.GetStringFromName("cancelTitle");
     var button2Title = quitBundle.GetStringFromName("quitTitle");
-    var neverAskText = quitBundle.GetStringFromName("neverAsk2");
+    var neverAskText = quitBundle.GetStringFromName("neverAsk");
 
     // This wouldn't have been set above since we shouldn't be here for
     // aQuitType == "lastwindow"
@@ -805,6 +759,78 @@ BrowserGlue.prototype = {
       }
       break;
     }
+  },
+
+  /*
+   * _shouldShowRights - Determines if the user should be shown the
+   * about:rights notification. The notification should *not* be shown if
+   * we've already shown the current version, or if the override pref says to
+   * never show it. The notification *should* be shown if it's never been seen
+   * before, if a newer version is available, or if the override pref says to
+   * always show it.
+   */
+  _shouldShowRights: function BG__shouldShowRights() {
+    // Look for an unconditional override pref. If set, do what it says.
+    // (true --> never show, false --> always show)
+    try {
+      return !Services.prefs.getBoolPref("browser.rights.override");
+    } catch (e) { }
+    // Ditto, for the legacy EULA pref.
+    try {
+      return !Services.prefs.getBoolPref("browser.EULA.override");
+    } catch (e) { }
+
+#ifndef OFFICIAL_BUILD
+    // Non-official builds shouldn't shouldn't show the notification.
+    return false;
+#endif
+
+    // Look to see if the user has seen the current version or not.
+    var currentVersion = Services.prefs.getIntPref("browser.rights.version");
+    try {
+      return !Services.prefs.getBoolPref("browser.rights." + currentVersion + ".shown");
+    } catch (e) { }
+
+    // Legacy: If the user accepted a EULA, we won't annoy them with the
+    // equivalent about:rights page until the version changes.
+    try {
+      return !Services.prefs.getBoolPref("browser.EULA." + currentVersion + ".accepted");
+    } catch (e) { }
+
+    // We haven't shown the notification before, so do so now.
+    return true;
+  },
+
+  _showRightsNotification: function BG__showRightsNotification() {
+    // Stick the notification onto the selected tab of the active browser window.
+    var win = this.getMostRecentBrowserWindow();
+    var notifyBox = win.gBrowser.getNotificationBox();
+
+    var brandBundle  = Services.strings.createBundle("chrome://branding/locale/brand.properties");
+    var rightsBundle = Services.strings.createBundle("chrome://global/locale/aboutRights.properties");
+
+    var buttonLabel      = rightsBundle.GetStringFromName("buttonLabel");
+    var buttonAccessKey  = rightsBundle.GetStringFromName("buttonAccessKey");
+    var productName      = brandBundle.GetStringFromName("brandFullName");
+    var notifyRightsText = rightsBundle.formatStringFromName("notifyRightsText", [productName], 1);
+
+    var buttons = [
+                    {
+                      label:     buttonLabel,
+                      accessKey: buttonAccessKey,
+                      popup:     null,
+                      callback: function(aNotificationBar, aButton) {
+                        win.openUILinkIn("about:rights", "tab");
+                      }
+                    }
+                  ];
+
+    // Set pref to indicate we've shown the notification.
+    var currentVersion = Services.prefs.getIntPref("browser.rights.version");
+    Services.prefs.setBoolPref("browser.rights." + currentVersion + ".shown", true);
+
+    var notification = notifyBox.appendNotification(notifyRightsText, "about-rights", null, notifyBox.PRIORITY_INFO_LOW, buttons);
+    notification.persistence = -1; // Until user closes it
   },
 
   _showUpdateNotification: function BG__showUpdateNotification() {
@@ -970,131 +996,126 @@ BrowserGlue.prototype = {
         importBookmarks = true;
     } catch(ex) {}
 
-    Task.spawn(function() {
-      // Check if Safe Mode or the user has required to restore bookmarks from
-      // default profile's bookmarks.html
-      var restoreDefaultBookmarks = false;
-      try {
-        restoreDefaultBookmarks =
-          Services.prefs.getBoolPref("browser.bookmarks.restore_default_bookmarks");
-        if (restoreDefaultBookmarks) {
-          // Ensure that we already have a bookmarks backup for today.
-          if (this._shouldBackupBookmarks())
-            yield this._backupBookmarks();
-          importBookmarks = true;
-        }
-      } catch(ex) {}
-
-      // If the user did not require to restore default bookmarks, or import
-      // from bookmarks.html, we will try to restore from JSON
-      if (importBookmarks && !restoreDefaultBookmarks && !importBookmarksHTML) {
-        // get latest JSON backup
-        var bookmarksBackupFile = PlacesBackups.getMostRecent("json");
-        if (bookmarksBackupFile) {
-          // restore from JSON backup
-          yield BookmarkJSONUtils.importFromFile(bookmarksBackupFile, true);
-          importBookmarks = false;
-        }
-        else {
-          // We have created a new database but we don't have any backup available
-          importBookmarks = true;
-          var dirService = Cc["@mozilla.org/file/directory_service;1"].
-                           getService(Ci.nsIProperties);
-          var bookmarksHTMLFile = dirService.get("BMarks", Ci.nsILocalFile);
-          if (bookmarksHTMLFile.exists()) {
-            // If bookmarks.html is available in current profile import it...
-            importBookmarksHTML = true;
-          }
-          else {
-            // ...otherwise we will restore defaults
-            restoreDefaultBookmarks = true;
-          }
-        }
+    // Check if Safe Mode or the user has required to restore bookmarks from
+    // default profile's bookmarks.html
+    var restoreDefaultBookmarks = false;
+    try {
+      restoreDefaultBookmarks =
+        Services.prefs.getBoolPref("browser.bookmarks.restore_default_bookmarks");
+      if (restoreDefaultBookmarks) {
+        // Ensure that we already have a bookmarks backup for today.
+        this._backupBookmarks();
+        importBookmarks = true;
       }
+    } catch(ex) {}
 
-      // If bookmarks are not imported, then initialize smart bookmarks.  This
-      // happens during a common startup.
-      // Otherwise, if any kind of import runs, smart bookmarks creation should be
-      // delayed till the import operations has finished.  Not doing so would
-      // cause them to be overwritten by the newly imported bookmarks.
-      if (!importBookmarks) {
-        // Now apply distribution customized bookmarks.
-        // This should always run after Places initialization.
-        this._distributionCustomizer.applyBookmarks();
-        this.ensurePlacesDefaultQueriesInitialized();
+    // If the user did not require to restore default bookmarks, or import
+    // from bookmarks.html, we will try to restore from JSON
+    if (importBookmarks && !restoreDefaultBookmarks && !importBookmarksHTML) {
+      // get latest JSON backup
+      var bookmarksBackupFile = PlacesUtils.backups.getMostRecent("json");
+      if (bookmarksBackupFile) {
+        // restore from JSON backup
+        PlacesUtils.restoreBookmarksFromJSONFile(bookmarksBackupFile);
+        importBookmarks = false;
       }
       else {
-        // An import operation is about to run.
-        // Don't try to recreate smart bookmarks if autoExportHTML is true or
-        // smart bookmarks are disabled.
-        var autoExportHTML = false;
-        try {
-          autoExportHTML = Services.prefs.getBoolPref("browser.bookmarks.autoExportHTML");
-        } catch(ex) {}
-        var smartBookmarksVersion = 0;
-        try {
-          smartBookmarksVersion = Services.prefs.getIntPref("browser.places.smartBookmarksVersion");
-        } catch(ex) {}
-        if (!autoExportHTML && smartBookmarksVersion != -1)
-          Services.prefs.setIntPref("browser.places.smartBookmarksVersion", 0);
-
-        // Get bookmarks.html file location
+        // We have created a new database but we don't have any backup available
+        importBookmarks = true;
         var dirService = Cc["@mozilla.org/file/directory_service;1"].
                          getService(Ci.nsIProperties);
-
-        var bookmarksURI = null;
-        if (restoreDefaultBookmarks) {
-          // User wants to restore bookmarks.html file from default profile folder
-          bookmarksURI = NetUtil.newURI("resource:///defaults/profile/bookmarks.html");
+        var bookmarksHTMLFile = dirService.get("BMarks", Ci.nsILocalFile);
+        if (bookmarksHTMLFile.exists()) {
+          // If bookmarks.html is available in current profile import it...
+          importBookmarksHTML = true;
         }
         else {
-          var bookmarksFile = dirService.get("BMarks", Ci.nsILocalFile);
-          if (bookmarksFile.exists())
-            bookmarksURI = NetUtil.newURI(bookmarksFile);
+          // ...otherwise we will restore defaults
+          restoreDefaultBookmarks = true;
         }
+      }
+    }
 
-        if (bookmarksURI) {
-          // Import from bookmarks.html file.
-          try {
-            BookmarkHTMLUtils.importFromURL(bookmarksURI.spec, true).then(null,
-              function onFailure() {
-                Cu.reportError("Bookmarks.html file could be corrupt.");
-              }
-            ).then(
-              function onComplete() {
-                // Now apply distribution customized bookmarks.
-                // This should always run after Places initialization.
-                this._distributionCustomizer.applyBookmarks();
-                // Ensure that smart bookmarks are created once the operation is
-                // complete.
-                this.ensurePlacesDefaultQueriesInitialized();
-              }.bind(this)
-            );
-          } catch (err) {
-            Cu.reportError("Bookmarks.html file could be corrupt. " + err);
-          }
-        }
-        else {
-          Cu.reportError("Unable to find bookmarks.html file.");
-        }
+    // If bookmarks are not imported, then initialize smart bookmarks.  This
+    // happens during a common startup.
+    // Otherwise, if any kind of import runs, smart bookmarks creation should be
+    // delayed till the import operations has finished.  Not doing so would
+    // cause them to be overwritten by the newly imported bookmarks.
+    if (!importBookmarks) {
+      // Now apply distribution customized bookmarks.
+      // This should always run after Places initialization.
+      this._distributionCustomizer.applyBookmarks();
+      this.ensurePlacesDefaultQueriesInitialized();
+    }
+    else {
+      // An import operation is about to run.
+      // Don't try to recreate smart bookmarks if autoExportHTML is true or
+      // smart bookmarks are disabled.
+      var autoExportHTML = false;
+      try {
+        autoExportHTML = Services.prefs.getBoolPref("browser.bookmarks.autoExportHTML");
+      } catch(ex) {}
+      var smartBookmarksVersion = 0;
+      try {
+        smartBookmarksVersion = Services.prefs.getIntPref("browser.places.smartBookmarksVersion");
+      } catch(ex) {}
+      if (!autoExportHTML && smartBookmarksVersion != -1)
+        Services.prefs.setIntPref("browser.places.smartBookmarksVersion", 0);
 
-        // Reset preferences, so we won't try to import again at next run
-        if (importBookmarksHTML)
-          Services.prefs.setBoolPref("browser.places.importBookmarksHTML", false);
-        if (restoreDefaultBookmarks)
-          Services.prefs.setBoolPref("browser.bookmarks.restore_default_bookmarks",
-                                     false);
+      // Get bookmarks.html file location
+      var dirService = Cc["@mozilla.org/file/directory_service;1"].
+                       getService(Ci.nsIProperties);
+
+      var bookmarksURI = null;
+      if (restoreDefaultBookmarks) {
+        // User wants to restore bookmarks.html file from default profile folder
+        bookmarksURI = NetUtil.newURI("resource:///defaults/profile/bookmarks.html");
+      }
+      else {
+        var bookmarksFile = dirService.get("BMarks", Ci.nsILocalFile);
+        if (bookmarksFile.exists())
+          bookmarksURI = NetUtil.newURI(bookmarksFile);
       }
 
-      // Initialize bookmark archiving on idle.
-      // Once a day, either on idle or shutdown, bookmarks are backed up.
-      if (!this._isIdleObserver) {
-        this._idleService.addIdleObserver(this, BOOKMARKS_BACKUP_IDLE_TIME);
-        this._isIdleObserver = true;
+      if (bookmarksURI) {
+        // Import from bookmarks.html file.
+        try {
+          BookmarkHTMLUtils.importFromURL(bookmarksURI.spec, true).then(null,
+            function onFailure() {
+              Cu.reportError("Bookmarks.html file could be corrupt.");
+            }
+          ).then(
+            function onComplete() {
+              // Now apply distribution customized bookmarks.
+              // This should always run after Places initialization.
+              this._distributionCustomizer.applyBookmarks();
+              // Ensure that smart bookmarks are created once the operation is
+              // complete.
+              this.ensurePlacesDefaultQueriesInitialized();
+            }.bind(this)
+          );
+        } catch (err) {
+          Cu.reportError("Bookmarks.html file could be corrupt. " + err);
+        }
+      }
+      else {
+        Cu.reportError("Unable to find bookmarks.html file.");
       }
 
-      Services.obs.notifyObservers(null, "places-browser-init-complete", "");
-    }.bind(this));
+      // Reset preferences, so we won't try to import again at next run
+      if (importBookmarksHTML)
+        Services.prefs.setBoolPref("browser.places.importBookmarksHTML", false);
+      if (restoreDefaultBookmarks)
+        Services.prefs.setBoolPref("browser.bookmarks.restore_default_bookmarks",
+                                   false);
+    }
+
+    // Initialize bookmark archiving on idle.
+    // Once a day, either on idle or shutdown, bookmarks are backed up.
+    if (!this._isIdleObserver) {
+      this._idleService.addIdleObserver(this, BOOKMARKS_BACKUP_IDLE_TIME);
+      this._isIdleObserver = true;
+    }
   },
 
   /**
@@ -1112,77 +1133,55 @@ BrowserGlue.prototype = {
       this._isIdleObserver = false;
     }
 
-    let waitingForBackupToComplete = true;
-    if (this._shouldBackupBookmarks()) {
-      waitingForBackupToComplete = false;
-      this._backupBookmarks().then(
-        function onSuccess() {
-          waitingForBackupToComplete = true;
-        },
-        function onFailure() {
-          Cu.reportError("Unable to backup bookmarks.");
-          waitingForBackupToComplete = true;
-        }
-      );
-    }
+    this._backupBookmarks();
 
     // Backup bookmarks to bookmarks.html to support apps that depend
     // on the legacy format.
-    let waitingForHTMLExportToComplete = true;
-    // If this fails to get the preference value, we don't export.
-    if (Services.prefs.getBoolPref("browser.bookmarks.autoExportHTML")) {
-      // Exceptionally, since this is a non-default setting and HTML format is
-      // discouraged in favor of the JSON backups, we spin the event loop on
-      // shutdown, to wait for the export to finish.  We cannot safely spin
-      // the event loop on shutdown until we include a watchdog to prevent
-      // potential hangs (bug 518683).  The asynchronous shutdown operations
-      // will then be handled by a shutdown service (bug 435058).
-      waitingForHTMLExportToComplete = false;
-      BookmarkHTMLUtils.exportToFile(FileUtils.getFile("BMarks", [])).then(
-        function onSuccess() {
-          waitingForHTMLExportToComplete = true;
-        },
-        function onFailure() {
-          Cu.reportError("Unable to auto export html.");
-          waitingForHTMLExportToComplete = true;
+    try {
+      // If this fails to get the preference value, we don't export.
+      if (Services.prefs.getBoolPref("browser.bookmarks.autoExportHTML")) {
+        // Exceptionally, since this is a non-default setting and HTML format is
+        // discouraged in favor of the JSON backups, we spin the event loop on
+        // shutdown, to wait for the export to finish.  We cannot safely spin
+        // the event loop on shutdown until we include a watchdog to prevent
+        // potential hangs (bug 518683).  The asynchronous shutdown operations
+        // will then be handled by a shutdown service (bug 435058).
+        let shutdownComplete = false;
+        BookmarkHTMLUtils.exportToFile(FileUtils.getFile("BMarks", [])).then(
+          function onSuccess() {
+            shutdownComplete = true;
+          },
+          function onFailure() {
+            // There is no point in reporting errors since we are shutting down.
+            shutdownComplete = true;
+          }
+        );
+        let thread = Services.tm.currentThread;
+        while (!shutdownComplete) {
+          thread.processNextEvent(true);
         }
-      );
-    }
-
-    let thread = Services.tm.currentThread;
-    while (!waitingForBackupToComplete || !waitingForHTMLExportToComplete) {
-      thread.processNextEvent(true);
-    }
+      }
+    } catch(ex) { /* Don't export */ }
   },
 
   /**
-   * Determine whether to backup bookmarks or not.
-   * @return true if bookmarks should be backed up, false if not.
-   */
-  _shouldBackupBookmarks: function BG__shouldBackupBookmarks() {
-    let lastBackupFile = PlacesBackups.getMostRecent();
-
-    // Should backup bookmarks if there are no backups or the maximum interval between
-    // backups elapsed.
-    return (!lastBackupFile ||
-            new Date() - PlacesBackups.getDateForFile(lastBackupFile) > BOOKMARKS_BACKUP_INTERVAL);
-  },
-
-  /**
-   * Backup bookmarks.
+   * Backup bookmarks if needed.
    */
   _backupBookmarks: function BG__backupBookmarks() {
-    return Task.spawn(function() {
-      // Backup bookmarks if there are no backups or the maximum interval between
-      // backups elapsed.
+    let lastBackupFile = PlacesUtils.backups.getMostRecent();
+
+    // Backup bookmarks if there are no backups or the maximum interval between
+    // backups elapsed.
+    if (!lastBackupFile ||
+        new Date() - PlacesUtils.backups.getDateForFile(lastBackupFile) > BOOKMARKS_BACKUP_INTERVAL) {
       let maxBackups = BOOKMARKS_BACKUP_MAX_BACKUPS;
       try {
         maxBackups = Services.prefs.getIntPref("browser.bookmarks.max_backups");
       }
       catch(ex) { /* Use default. */ }
 
-      yield PlacesBackups.create(maxBackups); // Don't force creation.
-    });
+      PlacesUtils.backups.create(maxBackups); // Don't force creation.
+    }
   },
 
   /**
@@ -1224,7 +1223,7 @@ BrowserGlue.prototype = {
   },
 
   _migrateUI: function BG__migrateUI() {
-    const UI_VERSION = 13;
+    const UI_VERSION = 10;
     const BROWSER_DOCURL = "chrome://browser/content/browser.xul#";
     let currentUIVersion = 0;
     try {
@@ -1381,38 +1380,6 @@ BrowserGlue.prototype = {
       }
     }
 #endif
-
-    if (currentUIVersion < 11) {
-      Services.prefs.clearUserPref("dom.disable_window_move_resize");
-      Services.prefs.clearUserPref("dom.disable_window_flip");
-      Services.prefs.clearUserPref("dom.event.contextmenu.enabled");
-      Services.prefs.clearUserPref("javascript.enabled");
-      Services.prefs.clearUserPref("permissions.default.image");
-    }
-
-    if (currentUIVersion < 12) {
-      // Remove bookmarks-menu-button-container, then place
-      // bookmarks-menu-button into its position.
-      let currentsetResource = this._rdf.GetResource("currentset");
-      let toolbarResource = this._rdf.GetResource(BROWSER_DOCURL + "nav-bar");
-      let currentset = this._getPersist(toolbarResource, currentsetResource);
-      // Need to migrate only if toolbar is customized.
-      if (currentset) {
-        if (currentset.contains("bookmarks-menu-button-container")) {
-          currentset = currentset.replace(/(^|,)bookmarks-menu-button-container($|,)/,
-                                          "$1bookmarks-menu-button$2");
-          this._setPersist(toolbarResource, currentsetResource, currentset);
-        }
-      }
-    }
-
-    if (currentUIVersion < 13) {
-      try {
-        if (Services.prefs.getBoolPref("plugins.hide_infobar_for_missing_plugin"))
-          Services.prefs.setBoolPref("plugins.notifyMissingFlash", false);
-      }
-      catch (ex) {}
-    }
 
     if (this._dirty)
       this._dataSource.QueryInterface(Ci.nsIRDFRemoteDataSource).Flush();
@@ -1685,10 +1652,9 @@ ContentPermissionPrompt.prototype = {
    *                               Permission is granted if action is null or ALLOW_ACTION.
    * @param aNotificationId        The id of the PopupNotification.
    * @param aAnchorId              The id for the PopupNotification anchor.
-   * @param aOptions               Options for the PopupNotification
    */
   _showPrompt: function CPP_showPrompt(aRequest, aMessage, aPermission, aActions,
-                                       aNotificationId, aAnchorId, aOptions) {
+                                       aNotificationId, aAnchorId) {
     function onFullScreen() {
       popup.remove();
     }
@@ -1698,13 +1664,6 @@ ContentPermissionPrompt.prototype = {
     var requestingWindow = aRequest.window.top;
     var chromeWin = this._getChromeWindow(requestingWindow).wrappedJSObject;
     var browser = chromeWin.gBrowser.getBrowserForDocument(requestingWindow.document);
-    if (!browser) {
-      // find the requesting browser or iframe
-      browser = requestingWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                                  .getInterface(Ci.nsIWebNavigation)
-                                  .QueryInterface(Ci.nsIDocShell)
-                                  .chromeEventHandler;
-    }
     var requestPrincipal = aRequest.principal;
 
     // Transform the prompt actions into PopupNotification actions.
@@ -1748,25 +1707,24 @@ ContentPermissionPrompt.prototype = {
     var mainAction = popupNotificationActions.length ?
                        popupNotificationActions[0] : null;
     var secondaryActions = popupNotificationActions.splice(1);
+    var options = null;
 
     if (aRequest.type == "pointerLock") {
       // If there's no mainAction, this is the autoAllow warning prompt.
       let autoAllow = !mainAction;
-      aOptions = {
-        removeOnDismissal: autoAllow,
-        eventCallback: type => {
-          if (type == "removed") {
-            browser.removeEventListener("mozfullscreenchange", onFullScreen, true);
-            if (autoAllow) {
-              aRequest.allow();
-            }
-          }
-        },
-      };
+      options = { removeOnDismissal: autoAllow,
+                  eventCallback: function (type) {
+                                   if (type == "removed") {
+                                     browser.removeEventListener("mozfullscreenchange", onFullScreen, true);
+                                     if (autoAllow)
+                                       aRequest.allow();
+                                   }
+                                 },
+                };
     }
 
     var popup = chromeWin.PopupNotifications.show(browser, aNotificationId, aMessage, aAnchorId,
-                                                  mainAction, secondaryActions, aOptions);
+                                                  mainAction, secondaryActions, options);
     if (aRequest.type == "pointerLock") {
       // pointerLock is automatically allowed in fullscreen mode (and revoked
       // upon exit), so if the page enters fullscreen mode after requesting
@@ -1828,8 +1786,7 @@ ContentPermissionPrompt.prototype = {
 
     secHistogram.add(Ci.nsISecurityUITelemetry.WARNING_GEOLOCATION_REQUEST);
 
-    this._showPrompt(aRequest, message, "geo", actions, "geolocation",
-                     "geo-notification-icon", null);
+    this._showPrompt(aRequest, message, "geo", actions, "geolocation", "geo-notification-icon");
   },
 
   _promptWebNotifications : function(aRequest) {
@@ -1862,7 +1819,7 @@ ContentPermissionPrompt.prototype = {
 
     this._showPrompt(aRequest, message, "desktop-notification", actions,
                      "web-notifications",
-                     "web-notifications-notification-icon", null);
+                     "web-notifications-notification-icon");
   },
 
   _promptPointerLock: function CPP_promtPointerLock(aRequest, autoAllow) {
@@ -1872,7 +1829,7 @@ ContentPermissionPrompt.prototype = {
 
     let originString = requestingURI.schemeIs("file") ? requestingURI.path : requestingURI.host;
     let message = browserBundle.formatStringFromName(autoAllow ?
-                                  "pointerLock.autoLock.title2" : "pointerLock.title2",
+                                  "pointerLock.autoLock.title" : "pointerLock.title",
                                   [originString], 1);
     // If this is an autoAllow info prompt, offer no actions.
     // _showPrompt() will allow the request when it's dismissed.
@@ -1880,7 +1837,7 @@ ContentPermissionPrompt.prototype = {
     if (!autoAllow) {
       actions = [
         {
-          stringId: "pointerLock.allow2",
+          stringId: "pointerLock.allow",
           action: null,
           expireType: null,
           callback: function() {},
@@ -1900,8 +1857,7 @@ ContentPermissionPrompt.prototype = {
       ];
     }
 
-    this._showPrompt(aRequest, message, "pointerLock", actions, "pointerLock",
-                     "pointerLock-notification-icon", null);
+    this._showPrompt(aRequest, message, "pointerLock", actions, "pointerLock", "pointerLock-notification-icon");
   },
 
   prompt: function CPP_prompt(request) {

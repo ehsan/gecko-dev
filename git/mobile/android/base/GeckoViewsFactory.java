@@ -5,12 +5,8 @@
 package org.mozilla.gecko;
 
 import org.mozilla.gecko.gfx.LayerView;
-import org.mozilla.gecko.menu.GeckoMenu;
-import org.mozilla.gecko.menu.MenuItemActionBar;
-import org.mozilla.gecko.menu.MenuItemDefault;
 import org.mozilla.gecko.widget.AboutHomeView;
 import org.mozilla.gecko.widget.AddonsSection;
-import org.mozilla.gecko.widget.FaviconView;
 import org.mozilla.gecko.widget.IconTabWidget;
 import org.mozilla.gecko.widget.LastTabsSection;
 import org.mozilla.gecko.widget.LinkTextView;
@@ -60,14 +56,13 @@ public final class GeckoViewsFactory implements LayoutInflater.Factory {
             mFactoryMap.put("AwesomeBarTabs$BackgroundLayout", AwesomeBarTabs.BackgroundLayout.class.getConstructor(arg1Class, arg2Class));
             mFactoryMap.put("BackButton", BackButton.class.getConstructor(arg1Class, arg2Class));
             mFactoryMap.put("BrowserToolbarBackground", BrowserToolbarBackground.class.getConstructor(arg1Class, arg2Class));
+            mFactoryMap.put("BrowserToolbar$RightEdge", BrowserToolbar.RightEdge.class.getConstructor(arg1Class, arg2Class));
             mFactoryMap.put("CheckableLinearLayout", CheckableLinearLayout.class.getConstructor(arg1Class, arg2Class));
             mFactoryMap.put("FormAssistPopup", FormAssistPopup.class.getConstructor(arg1Class, arg2Class));
             mFactoryMap.put("ForwardButton", ForwardButton.class.getConstructor(arg1Class, arg2Class));
             mFactoryMap.put("GeckoApp$MainLayout", GeckoApp.MainLayout.class.getConstructor(arg1Class, arg2Class));
             mFactoryMap.put("LinkTextView", LinkTextView.class.getConstructor(arg1Class, arg2Class));
-            mFactoryMap.put("menu.MenuItemActionBar", MenuItemActionBar.class.getConstructor(arg1Class, arg2Class));
-            mFactoryMap.put("menu.MenuItemDefault", MenuItemDefault.class.getConstructor(arg1Class, arg2Class));
-            mFactoryMap.put("menu.GeckoMenu$DefaultActionItemBar", GeckoMenu.DefaultActionItemBar.class.getConstructor(arg1Class, arg2Class));
+            mFactoryMap.put("MenuItemDefault", MenuItemDefault.class.getConstructor(arg1Class, arg2Class));
             mFactoryMap.put("FindInPageBar", FindInPageBar.class.getConstructor(arg1Class, arg2Class));
             mFactoryMap.put("IconTabWidget", IconTabWidget.class.getConstructor(arg1Class, arg2Class));
             mFactoryMap.put("RemoteTabs", RemoteTabs.class.getConstructor(arg1Class, arg2Class));
@@ -90,7 +85,6 @@ public final class GeckoViewsFactory implements LayoutInflater.Factory {
             mFactoryMap.put("RelativeLayout", GeckoRelativeLayout.class.getConstructor(arg1Class, arg2Class));
             mFactoryMap.put("TextSwitcher", GeckoTextSwitcher.class.getConstructor(arg1Class, arg2Class));
             mFactoryMap.put("TextView", GeckoTextView.class.getConstructor(arg1Class, arg2Class));
-            mFactoryMap.put("FaviconView", FaviconView.class.getConstructor(arg1Class, arg2Class));
         } catch (NoSuchMethodException nsme) {
             Log.e(LOGTAG, "Unable to initialize views factory", nsme);
         }

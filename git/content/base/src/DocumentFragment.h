@@ -7,7 +7,6 @@
 #ifndef mozilla_dom_DocumentFragment_h__
 #define mozilla_dom_DocumentFragment_h__
 
-#include "mozilla/Attributes.h"
 #include "mozilla/dom/FragmentOrElement.h"
 #include "nsIDOMDocumentFragment.h"
 
@@ -38,45 +37,16 @@ public:
   // interface nsIDOMDocumentFragment
   // NS_DECL_NSIDOCUMENTFRAGMENT  Empty
 
-private:
-  void Init()
-  {
-    NS_ABORT_IF_FALSE(mNodeInfo->NodeType() ==
-                      nsIDOMNode::DOCUMENT_FRAGMENT_NODE &&
-                      mNodeInfo->Equals(nsGkAtoms::documentFragmentNodeName,
-                                        kNameSpaceID_None),
-                      "Bad NodeType in aNodeInfo");
-
-    SetIsDOMBinding();
-  }
-
-public:
-  DocumentFragment(already_AddRefed<nsINodeInfo> aNodeInfo)
-    : FragmentOrElement(aNodeInfo), mHost(nullptr)
-  {
-    Init();
-  }
-
-  DocumentFragment(nsNodeInfoManager* aNodeInfoManager)
-    : FragmentOrElement(aNodeInfoManager->GetNodeInfo(
-                                            nsGkAtoms::documentFragmentNodeName,
-                                            nullptr, kNameSpaceID_None,
-                                            nsIDOMNode::DOCUMENT_FRAGMENT_NODE)),
-      mHost(nullptr)
-  {
-    Init();
-  }
-
+  DocumentFragment(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~DocumentFragment()
   {
   }
 
-  virtual JSObject* WrapNode(JSContext *aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope) MOZ_OVERRIDE;
 
   // nsIContent
   virtual already_AddRefed<nsINodeInfo>
-    GetExistingAttrNameFromQName(const nsAString& aStr) const MOZ_OVERRIDE
+    GetExistingAttrNameFromQName(const nsAString& aStr) const
   {
     return nullptr;
   }
@@ -88,40 +58,40 @@ public:
   }
   virtual nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
-                           bool aNotify) MOZ_OVERRIDE
+                           bool aNotify)
   {
     return NS_OK;
   }
   virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute, 
-                             bool aNotify) MOZ_OVERRIDE
+                             bool aNotify)
   {
     return NS_OK;
   }
-  virtual const nsAttrName* GetAttrNameAt(uint32_t aIndex) const MOZ_OVERRIDE
+  virtual const nsAttrName* GetAttrNameAt(uint32_t aIndex) const
   {
     return nullptr;
   }
-  virtual uint32_t GetAttrCount() const MOZ_OVERRIDE
+  virtual uint32_t GetAttrCount() const
   {
     return 0;
   }
 
-  virtual bool IsNodeOfType(uint32_t aFlags) const MOZ_OVERRIDE;
+  virtual bool IsNodeOfType(uint32_t aFlags) const;
 
-  virtual nsIDOMNode* AsDOMNode() MOZ_OVERRIDE { return this; }
+  virtual nsIDOMNode* AsDOMNode() { return this; }
 
-  virtual nsIAtom* DoGetID() const MOZ_OVERRIDE;
-  virtual nsIAtom *GetIDAttributeName() const MOZ_OVERRIDE;
+  virtual nsIAtom* DoGetID() const;
+  virtual nsIAtom *GetIDAttributeName() const;
 
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
-                              bool aCompileEventHandlers) MOZ_OVERRIDE
+                              bool aCompileEventHandlers)
   {
     NS_ASSERTION(false, "Trying to bind a fragment to a tree");
     return NS_ERROR_NOT_IMPLEMENTED;
   }
 
-  virtual void UnbindFromTree(bool aDeep, bool aNullParent) MOZ_OVERRIDE
+  virtual void UnbindFromTree(bool aDeep, bool aNullParent)
   {
     NS_ASSERTION(false, "Trying to unbind a fragment from a tree");
     return;
@@ -142,16 +112,13 @@ public:
     mHost = aHost;
   }
 
-  static already_AddRefed<DocumentFragment>
-  Constructor(const GlobalObject& aGlobal, ErrorResult& aRv);
-
 #ifdef DEBUG
-  virtual void List(FILE* out, int32_t aIndent) const MOZ_OVERRIDE;
-  virtual void DumpContent(FILE* out, int32_t aIndent, bool aDumpAll) const MOZ_OVERRIDE;
+  virtual void List(FILE* out, int32_t aIndent) const;
+  virtual void DumpContent(FILE* out, int32_t aIndent, bool aDumpAll) const;
 #endif
 
 protected:
-  nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
   mozilla::dom::HTMLTemplateElement* mHost; // Weak
 };
 

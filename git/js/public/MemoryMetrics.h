@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=99 ft=cpp:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -91,6 +92,7 @@ struct TypeInferenceSizes
 // Data for tracking JIT-code memory usage.
 struct CodeSizes
 {
+    size_t jaeger;
     size_t ion;
     size_t asmJS;
     size_t baseline;
@@ -135,7 +137,7 @@ struct RuntimeSizes
     size_t dtoa;
     size_t temporary;
     size_t regexpData;
-    size_t interpreterStack;
+    size_t stack;
     size_t gcMarker;
     size_t mathCache;
     size_t scriptData;
@@ -147,32 +149,28 @@ struct RuntimeSizes
 struct ZoneStats
 {
     ZoneStats()
-      : extra(NULL),
+      : extra1(0),
         gcHeapArenaAdmin(0),
         gcHeapUnusedGcThings(0),
         gcHeapStringsNormal(0),
         gcHeapStringsShort(0),
-        gcHeapLazyScripts(0),
         gcHeapTypeObjects(0),
         gcHeapIonCodes(0),
         stringCharsNonHuge(0),
-        lazyScripts(0),
         typeObjects(0),
         typePool(0),
         hugeStrings()
     {}
 
     ZoneStats(const ZoneStats &other)
-      : extra(other.extra),
+      : extra1(other.extra1),
         gcHeapArenaAdmin(other.gcHeapArenaAdmin),
         gcHeapUnusedGcThings(other.gcHeapUnusedGcThings),
         gcHeapStringsNormal(other.gcHeapStringsNormal),
         gcHeapStringsShort(other.gcHeapStringsShort),
-        gcHeapLazyScripts(other.gcHeapLazyScripts),
         gcHeapTypeObjects(other.gcHeapTypeObjects),
         gcHeapIonCodes(other.gcHeapIonCodes),
         stringCharsNonHuge(other.stringCharsNonHuge),
-        lazyScripts(other.lazyScripts),
         typeObjects(other.typeObjects),
         typePool(other.typePool),
         hugeStrings()
@@ -189,12 +187,10 @@ struct ZoneStats
 
         ADD(gcHeapStringsNormal);
         ADD(gcHeapStringsShort);
-        ADD(gcHeapLazyScripts);
         ADD(gcHeapTypeObjects);
         ADD(gcHeapIonCodes);
 
         ADD(stringCharsNonHuge);
-        ADD(lazyScripts);
         ADD(typeObjects);
         ADD(typePool);
 
@@ -204,7 +200,7 @@ struct ZoneStats
     }
 
     // This field can be used by embedders.
-    void   *extra;
+    void   *extra1;
 
     size_t gcHeapArenaAdmin;
     size_t gcHeapUnusedGcThings;
@@ -212,12 +208,10 @@ struct ZoneStats
     size_t gcHeapStringsNormal;
     size_t gcHeapStringsShort;
 
-    size_t gcHeapLazyScripts;
     size_t gcHeapTypeObjects;
     size_t gcHeapIonCodes;
 
     size_t stringCharsNonHuge;
-    size_t lazyScripts;
     size_t typeObjects;
     size_t typePool;
 
@@ -231,7 +225,8 @@ struct ZoneStats
 struct CompartmentStats
 {
     CompartmentStats()
-      : extra(NULL),
+      : extra1(0),
+        extra2(0),
         gcHeapObjectsOrdinary(0),
         gcHeapObjectsFunction(0),
         gcHeapObjectsDenseArray(0),
@@ -248,9 +243,7 @@ struct CompartmentStats
         shapesExtraTreeShapeKids(0),
         shapesCompartmentTables(0),
         scriptData(0),
-        baselineData(0),
-        baselineStubsFallback(0),
-        baselineStubsOptimized(0),
+        jaegerData(0),
         ionData(0),
         compartmentObject(0),
         crossCompartmentWrappersTable(0),
@@ -260,7 +253,8 @@ struct CompartmentStats
     {}
 
     CompartmentStats(const CompartmentStats &other)
-      : extra(other.extra),
+      : extra1(other.extra1),
+        extra2(other.extra2),
         gcHeapObjectsOrdinary(other.gcHeapObjectsOrdinary),
         gcHeapObjectsFunction(other.gcHeapObjectsFunction),
         gcHeapObjectsDenseArray(other.gcHeapObjectsDenseArray),
@@ -277,9 +271,7 @@ struct CompartmentStats
         shapesExtraTreeShapeKids(other.shapesExtraTreeShapeKids),
         shapesCompartmentTables(other.shapesCompartmentTables),
         scriptData(other.scriptData),
-        baselineData(other.baselineData),
-        baselineStubsFallback(other.baselineStubsFallback),
-        baselineStubsOptimized(other.baselineStubsOptimized),
+        jaegerData(other.jaegerData),
         ionData(other.ionData),
         compartmentObject(other.compartmentObject),
         crossCompartmentWrappersTable(other.crossCompartmentWrappersTable),
@@ -289,8 +281,9 @@ struct CompartmentStats
     {
     }
 
-    // This field can be used by embedders.
-    void   *extra;
+    // These fields can be used by embedders.
+    void   *extra1;
+    void   *extra2;
 
     // If you add a new number, remember to update the constructors, add(), and
     // maybe gcHeapThingsSize()!
@@ -311,9 +304,7 @@ struct CompartmentStats
     size_t shapesExtraTreeShapeKids;
     size_t shapesCompartmentTables;
     size_t scriptData;
-    size_t baselineData;
-    size_t baselineStubsFallback;
-    size_t baselineStubsOptimized;
+    size_t jaegerData;
     size_t ionData;
     size_t compartmentObject;
     size_t crossCompartmentWrappersTable;
@@ -343,9 +334,7 @@ struct CompartmentStats
         ADD(shapesExtraTreeShapeKids);
         ADD(shapesCompartmentTables);
         ADD(scriptData);
-        ADD(baselineData);
-        ADD(baselineStubsFallback);
-        ADD(baselineStubsOptimized);
+        ADD(jaegerData);
         ADD(ionData);
         ADD(compartmentObject);
         ADD(crossCompartmentWrappersTable);
@@ -446,6 +435,9 @@ class ObjectPrivateVisitor
 extern JS_PUBLIC_API(bool)
 CollectRuntimeStats(JSRuntime *rt, RuntimeStats *rtStats, ObjectPrivateVisitor *opv);
 
+extern JS_PUBLIC_API(int64_t)
+GetExplicitNonHeapForRuntime(JSRuntime *rt, JSMallocSizeOfFun mallocSizeOf);
+
 extern JS_PUBLIC_API(size_t)
 SystemCompartmentCount(JSRuntime *rt);
 
@@ -457,4 +449,4 @@ PeakSizeOfTemporary(const JSRuntime *rt);
 
 } // namespace JS
 
-#endif /* js_MemoryMetrics_h */
+#endif // js_MemoryMetrics_h

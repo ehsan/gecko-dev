@@ -50,10 +50,10 @@ already_AddRefed<nsIURI>
 ThirdPartyUtil::GetURIFromWindow(nsIDOMWindow* aWin)
 {
   nsCOMPtr<nsIScriptObjectPrincipal> scriptObjPrin = do_QueryInterface(aWin);
-  NS_ENSURE_TRUE(scriptObjPrin, nullptr);
+  NS_ENSURE_TRUE(scriptObjPrin, NULL);
 
   nsIPrincipal* prin = scriptObjPrin->GetPrincipal();
-  NS_ENSURE_TRUE(prin, nullptr);
+  NS_ENSURE_TRUE(prin, NULL);
 
   nsCOMPtr<nsIURI> result;
   prin->GetURI(getter_AddRefs(result));

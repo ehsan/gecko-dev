@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=99 ft=cpp:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Copyright (C) 2010 Apple Inc. All rights reserved.
@@ -27,8 +27,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef yarr_PageAllocation_h
-#define yarr_PageAllocation_h
+#ifndef PageAllocation_h
+#define PageAllocation_h
 
 #include "wtfbridge.h"
 #include "OSAllocator.h"
@@ -128,4 +128,4 @@ private:
 
 using WTF::PageAllocation;
 
-#endif /* yarr_PageAllocation_h */
+#endif // PageAllocation_h

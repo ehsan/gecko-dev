@@ -47,6 +47,7 @@ nsDOMTextEvent::nsDOMTextEvent(mozilla::dom::EventTarget* aOwner,
       }
     }
   }
+  SetIsDOMBinding();
 }
 
 NS_IMPL_ADDREF_INHERITED(nsDOMTextEvent, nsDOMUIEvent)
@@ -66,7 +67,9 @@ NS_METHOD_(already_AddRefed<nsIPrivateTextRangeList>) nsDOMTextEvent::GetInputRa
 {
   if (mEvent->message == NS_TEXT_TEXT) {
     nsRefPtr<nsPrivateTextRangeList> textRange = mTextRange;
-    return textRange.forget();
+    nsPrivateTextRangeList *textRangePtr = nullptr;
+    textRange.swap(textRangePtr);
+    return textRangePtr;
   }
   return nullptr;
 }

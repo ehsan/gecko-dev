@@ -3,8 +3,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/Util.h"
+
 #include "mozilla/dom/SVGAElement.h"
-#include "base/compiler_specific.h"
 #include "mozilla/dom/SVGAElementBinding.h"
 #include "nsILink.h"
 #include "nsSVGString.h"
@@ -18,7 +19,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGAElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+SVGAElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return SVGAElementBinding::Wrap(aCx, aScope, this);
 }
@@ -46,11 +47,11 @@ NS_IMPL_ISUPPORTS_INHERITED5(SVGAElement, SVGAElementBase,
 
 SVGAElement::SVGAElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : SVGAElementBase(aNodeInfo),
-    ALLOW_THIS_IN_INITIALIZER_LIST(Link(this))
+    Link(this)
 {
 }
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGAElement::Href()
 {
   return mStringAttributes[HREF].ToDOMAnimatedString(this);
@@ -79,7 +80,7 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGAElement)
 
 //----------------------------------------------------------------------
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGAElement::Target()
 {
   return mStringAttributes[TARGET].ToDOMAnimatedString(this);
@@ -132,6 +133,12 @@ SVGAElement::UnbindFromTree(bool aDeep, bool aNullParent)
   }
 
   SVGAElementBase::UnbindFromTree(aDeep, aNullParent);
+}
+
+nsLinkState
+SVGAElement::GetLinkState() const
+{
+  return Link::GetLinkState();
 }
 
 already_AddRefed<nsIURI>

@@ -5,7 +5,6 @@
 #ifndef DOM_CAMERA_CAMERACONTROLIMPL_H
 #define DOM_CAMERA_CAMERACONTROLIMPL_H
 
-#include "mozilla/Attributes.h"
 #include "nsDOMFile.h"
 #include "nsProxyRelease.h"
 #include "DictionaryHelpers.h"
@@ -166,7 +165,7 @@ public:
     , mWindowId(aWindowId)
   { }
 
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     MOZ_ASSERT(NS_IsMainThread());
 
@@ -203,7 +202,7 @@ public:
   }
 
   // Run() method is implementation specific.
-  NS_IMETHOD Run() MOZ_OVERRIDE;
+  NS_IMETHOD Run();
 
 protected:
   nsRefPtr<CameraControlImpl> mCameraControl;
@@ -232,7 +231,7 @@ public:
     DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
   }
 
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     nsresult rv = mCameraControl->GetPreviewStreamImpl(this);
 
@@ -262,7 +261,7 @@ public:
 
   virtual ~AutoFocusResult() { }
 
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     MOZ_ASSERT(NS_IsMainThread());
 
@@ -296,7 +295,7 @@ public:
     DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
   }
 
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     DOM_CAMERA_LOGT("%s:%d\n", __func__, __LINE__);
     nsresult rv = mCameraControl->AutoFocusImpl(this);
@@ -335,7 +334,7 @@ public:
     DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
   }
 
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     MOZ_ASSERT(NS_IsMainThread());
 
@@ -381,7 +380,7 @@ public:
     DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
   }
 
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     DOM_CAMERA_LOGT("%s:%d\n", __func__, __LINE__);
     nsresult rv = mCameraControl->TakePictureImpl(this);
@@ -417,7 +416,7 @@ public:
 
   virtual ~StartRecordingResult() { }
 
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     MOZ_ASSERT(NS_IsMainThread());
 
@@ -453,7 +452,7 @@ public:
     DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
   }
 
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     DOM_CAMERA_LOGT("%s:%d\n", __func__, __LINE__);
     nsresult rv = mCameraControl->StartRecordingImpl(this);
@@ -497,7 +496,7 @@ public:
     DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
   }
 
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     DOM_CAMERA_LOGT("%s:%d\n", __func__, __LINE__);
     nsresult rv = mCameraControl->StopRecordingImpl(this);
@@ -526,7 +525,7 @@ public:
     DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
   }
 
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     DOM_CAMERA_LOGT("%s:%d\n", __func__, __LINE__);
     nsresult rv = mCameraControl->StartPreviewImpl(this);
@@ -555,7 +554,7 @@ public:
     DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
   }
 
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     DOM_CAMERA_LOGT("%s:%d\n", __func__, __LINE__);
     mCameraControl->StopPreviewImpl(this);
@@ -578,7 +577,7 @@ public:
     , mOnErrorCb(new nsMainThreadPtrHolder<nsICameraErrorCallback>(onError))
   { }
 
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     DOM_CAMERA_LOGI("%s:%d -- BEFORE IMPL\n", __func__, __LINE__);
     nsresult rv = mCameraControl->GetPreviewStreamVideoModeImpl(this);
@@ -614,7 +613,7 @@ public:
     DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
   }
 
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     MOZ_ASSERT(NS_IsMainThread());
 
@@ -646,7 +645,7 @@ public:
     DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
   }
 
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     DOM_CAMERA_LOGT("%s:%d\n", __func__, __LINE__);
     nsresult rv = mCameraControl->ReleaseHardwareImpl(this);
@@ -677,7 +676,7 @@ public:
     , mWindowId(aWindowId)
   { }
 
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     MOZ_ASSERT(NS_IsMainThread());
 

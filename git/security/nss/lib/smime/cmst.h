@@ -4,6 +4,8 @@
 
 /*
  * Header for CMS types.
+ *
+ * $Id: cmst.h,v 1.15 2012/04/25 14:50:09 gerv%gerv.net Exp $
  */
 
 #ifndef _CMST_H_

@@ -11,7 +11,6 @@
 #include "nsIScriptContext.h"
 #include "nsPIDOMWindow.h"
 #include "nsJSUtils.h"
-#include "nsCxPusher.h"
 #include "nsIScriptSecurityManager.h"
 #include "xpcprivate.h"
 
@@ -19,7 +18,6 @@ namespace mozilla {
 namespace dom {
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(CallbackObject)
-  NS_INTERFACE_MAP_ENTRY(mozilla::dom::CallbackObject)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
@@ -36,13 +34,15 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(CallbackObject)
   NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mCallback)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
-CallbackObject::CallSetup::CallSetup(JS::Handle<JSObject*> aCallback,
+CallbackObject::CallSetup::CallSetup(JSObject* const aCallback,
                                      ErrorResult& aRv,
                                      ExceptionHandling aExceptionHandling)
   : mCx(nullptr)
   , mErrorResult(aRv)
   , mExceptionHandling(aExceptionHandling)
 {
+  xpc_UnmarkGrayObject(aCallback);
+
   // We need to produce a useful JSContext here.  Ideally one that the callback
   // is in some sense associated with, so that we can sort of treat it as a
   // "script entry point".  Though once we actually have script entry points,
@@ -50,7 +50,7 @@ CallbackObject::CallSetup::CallSetup(JS::Handle<JSObject*> aCallback,
   // callable.
 
   // First, find the real underlying callback.
-  JSObject* realCallback = js::UncheckedUnwrap(aCallback);
+  JSObject* realCallback = js::UnwrapObject(aCallback);
 
   // Now get the nsIScriptGlobalObject for this callback.
   JSContext* cx = nullptr;
@@ -88,24 +88,16 @@ CallbackObject::CallSetup::CallSetup(JS::Handle<JSObject*> aCallback,
     cx = nsContentUtils::GetSafeJSContext();
   }
 
+  // Victory!  We have a JSContext.  Now do the things we need a JSContext for.
+  mAr.construct(cx);
+
   // Make sure our JSContext is pushed on the stack.
   mCxPusher.Push(cx);
-
-  // Unmark the callable, and stick it in a Rooted before it can go gray again.
-  // Nothing before us in this function can trigger a CC, so it's safe to wait
-  // until here it do the unmark. This allows us to order the following two
-  // operations _after_ the Push() above, which lets us take advantage of the
-  // JSAutoRequest embedded in the pusher.
-  //
-  // We can do this even though we're not in the right compartment yet, because
-  // Rooted<> does not care about compartments.
-  xpc_UnmarkGrayObject(aCallback);
-  mRootedCallable.construct(cx, aCallback);
 
   // After this point we guarantee calling ScriptEvaluated() if we
   // have an nsIScriptContext.
   // XXXbz Why, if, say CheckFunctionAccess fails?  I know that's how
-  // nsJSContext::CallEventHandler used to work, but is it required?
+  // nsJSContext::CallEventHandler works, but is it required?
   // FIXME: Bug 807369.
   mCtx = ctx;
 
@@ -114,7 +106,15 @@ CallbackObject::CallSetup::CallSetup(JS::Handle<JSObject*> aCallback,
   // Make sure to unwrap aCallback before passing it in, because
   // getting principals from wrappers is silly.
   nsresult rv = nsContentUtils::GetSecurityManager()->
-    CheckFunctionAccess(cx, js::UncheckedUnwrap(aCallback), nullptr);
+    CheckFunctionAccess(cx, js::UnwrapObject(aCallback), nullptr);
+
+  // Construct a termination func holder even if we're not planning to
+  // run any script.  We need this because we're going to call
+  // ScriptEvaluated even if we don't run the script...  See XXX
+  // comment above.
+  if (ctx) {
+    mTerminationFuncHolder.construct(static_cast<nsJSContext*>(ctx));
+  }
 
   if (NS_FAILED(rv)) {
     // Security check failed.  We're done here.
@@ -145,8 +145,8 @@ CallbackObject::CallSetup::~CallSetup()
       JS_SetOptions(mCx, mSavedJSContextOptions);
       mErrorResult.MightThrowJSException();
       if (JS_IsExceptionPending(mCx)) {
-        JS::Rooted<JS::Value> exn(mCx);
-        if (JS_GetPendingException(mCx, exn.address())) {
+        JS::Value exn;
+        if (JS_GetPendingException(mCx, &exn)) {
           mErrorResult.ThrowJSException(mCx, exn);
           JS_ClearPendingException(mCx);
           dealtWithPendingException = true;
@@ -184,20 +184,24 @@ CallbackObject::CallSetup::~CallSetup()
 
 already_AddRefed<nsISupports>
 CallbackObjectHolderBase::ToXPCOMCallback(CallbackObject* aCallback,
-                                          const nsIID& aIID) const
+                                          const nsIID& aIID)
 {
   if (!aCallback) {
     return nullptr;
   }
 
-  AutoSafeJSContext cx;
+  JSObject* callback = aCallback->Callback();
 
-  JS::Rooted<JSObject*> callback(cx, aCallback->Callback());
-
+  SafeAutoJSContext cx;
   JSAutoCompartment ac(cx, callback);
+  XPCCallContext ccx(NATIVE_CALLER, cx);
+  if (!ccx.IsValid()) {
+    return nullptr;
+  }
+
   nsRefPtr<nsXPCWrappedJS> wrappedJS;
   nsresult rv =
-    nsXPCWrappedJS::GetNewOrUsed(callback, aIID,
+    nsXPCWrappedJS::GetNewOrUsed(ccx, callback, aIID,
                                  nullptr, getter_AddRefs(wrappedJS));
   if (NS_FAILED(rv) || !wrappedJS) {
     return nullptr;

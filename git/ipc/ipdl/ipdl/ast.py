@@ -209,12 +209,6 @@ class SYNC:
     def __hash__(cls): return hash(cls.pretty)
     @classmethod
     def __str__(cls):  return cls.pretty
-class URGENT:
-    pretty = 'urgent'
-    @classmethod
-    def __hash__(cls): return hash(cls.pretty)
-    @classmethod
-    def __str__(cls):  return cls.pretty
 
 class INOUT:
     pretty = 'inout'
@@ -242,12 +236,10 @@ class OUT:
 _prettyTable = {
     IN  : { 'async': 'AsyncRecv',
             'sync': 'SyncRecv',
-            'rpc': 'RpcAnswer',
-            'urgent': 'UrgentAnswer' },
+            'rpc': 'RpcAnswer' },
     OUT : { 'async': 'AsyncSend',
             'sync': 'SyncSend',
-            'rpc': 'RpcCall',
-            'urgent': 'UrgentCall' }
+            'rpc': 'RpcCall' }
     # inout doesn't make sense here
 }
 

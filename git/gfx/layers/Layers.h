@@ -8,7 +8,6 @@
 
 #include "mozilla/DebugOnly.h"
 
-#include "mozilla/layers/LayersTypes.h"
 #include "gfxTypes.h"
 #include "gfxASurface.h"
 #include "nsRegion.h"
@@ -22,9 +21,26 @@
 #include "nsTArray.h"
 #include "nsThreadUtils.h"
 #include "nsStyleAnimation.h"
+#include "LayersTypes.h"
 #include "FrameMetrics.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/TimeStamp.h"
+
+#if defined(DEBUG) || defined(PR_LOGGING)
+#  include <stdio.h>            // FILE
+#  include "prlog.h"
+#  ifndef MOZ_LAYERS_HAVE_LOG
+#    define MOZ_LAYERS_HAVE_LOG
+#  endif
+#  define MOZ_LAYERS_LOG(_args)                             \
+  PR_LOG(LayerManager::GetLog(), PR_LOG_DEBUG, _args)
+#  define MOZ_LAYERS_LOG_IF_SHADOWABLE(layer, _args)         \
+  do { if (layer->AsShadowableLayer()) { PR_LOG(LayerManager::GetLog(), PR_LOG_DEBUG, _args); } } while (0)
+#else
+struct PRLogModuleInfo;
+#  define MOZ_LAYERS_LOG(_args)
+#  define MOZ_LAYERS_LOG_IF_SHADOWABLE(layer, _args)
+#endif  // if defined(DEBUG) || defined(PR_LOGGING)
 
 class gfxContext;
 class nsPaintEvent;
@@ -48,7 +64,6 @@ namespace layers {
 
 class Animation;
 class AnimationData;
-class AsyncPanZoomController;
 class CommonLayerAttributes;
 class Layer;
 class ThebesLayer;
@@ -60,16 +75,11 @@ class CanvasLayer;
 class ReadbackLayer;
 class ReadbackProcessor;
 class RefLayer;
-class LayerComposite;
+class ShadowLayer;
 class ShadowableLayer;
 class ShadowLayerForwarder;
-class LayerManagerComposite;
+class ShadowLayerManager;
 class SpecificLayerAttributes;
-class SurfaceDescriptor;
-class Compositor;
-class LayerComposite;
-struct TextureFactoryIdentifier;
-struct EffectMask;
 
 #define MOZ_LAYER_DECL_NAME(n, e)                           \
   virtual const char* Name() const { return n; }            \
@@ -78,7 +88,7 @@ struct EffectMask;
 /**
  * Base class for userdata objects attached to layers and layer managers.
  */
-class LayerUserData {
+class THEBES_API LayerUserData {
 public:
   virtual ~LayerUserData() {}
 };
@@ -89,16 +99,16 @@ public:
  * off the main thread where DOM manipulation, script execution and layout
  * induce difficult-to-bound latency). This requires Gecko to construct
  * some kind of persistent scene structure (graph or tree) that can be
- * safely transmitted across threads. We have other scenarios (e.g. mobile
+ * safely transmitted across threads. We have other scenarios (e.g. mobile 
  * browsing) where retaining some rendered data between paints is desired
  * for performance, so again we need a retained scene structure.
- *
+ * 
  * Our retained scene structure is a layer tree. Each layer represents
  * content which can be composited onto a destination surface; the root
  * layer is usually composited into a window, and non-root layers are
  * composited into their parent layers. Layers have attributes (e.g.
  * opacity and clipping) that influence their compositing.
- *
+ * 
  * We want to support a variety of layer implementations, including
  * a simple "immediate mode" implementation that doesn't retain any
  * rendered data between paints (i.e. uses cairo in just the way that
@@ -117,11 +127,11 @@ static void LayerManagerUserDataDestroy(void *data)
 /**
  * A LayerManager controls a tree of layers. All layers in the tree
  * must use the same LayerManager.
- *
+ * 
  * All modifications to a layer tree must happen inside a transaction.
  * Only the state of the layer tree at the end of a transaction is
  * rendered. Transactions cannot be nested
- *
+ * 
  * Each transaction has two phases:
  * 1) Construction: layers are created, inserted, removed and have
  * properties set on them in this phase.
@@ -131,13 +141,13 @@ static void LayerManagerUserDataDestroy(void *data)
  * 2) Drawing: ThebesLayers are rendered into in this phase, in tree
  * order. When the client has finished drawing into the ThebesLayers, it should
  * call EndTransaction to complete the transaction.
- *
+ * 
  * All layer API calls happen on the main thread.
- *
+ * 
  * Layers are refcounted. The layer manager holds a reference to the
  * root layer, and each container layer holds a reference to its children.
  */
-class LayerManager {
+class THEBES_API LayerManager {
   NS_INLINE_DECL_REFCOUNTING(LayerManager)
 
 public:
@@ -157,18 +167,13 @@ public:
    * for its widget going away.  After this call, only user data calls
    * are valid on the layer manager.
    */
-  virtual void Destroy()
-  {
-    mDestroyed = true;
-    mUserData.Destroy();
-    mRoot = nullptr;
-  }
+  virtual void Destroy() { mDestroyed = true; mUserData.Destroy(); }
   bool IsDestroyed() { return mDestroyed; }
 
   virtual ShadowLayerForwarder* AsShadowForwarder()
   { return nullptr; }
 
-  virtual LayerManagerComposite* AsLayerManagerComposite()
+  virtual ShadowLayerManager* AsShadowManager()
   { return nullptr; }
 
   /**
@@ -186,7 +191,7 @@ public:
   virtual void BeginTransaction() = 0;
   /**
    * Start a new transaction. Nested transactions are not allowed so
-   * there must be no transaction currently in progress.
+   * there must be no transaction currently in progress. 
    * This transaction will render the contents of the layer tree to
    * the given target context. The rendering will be complete when
    * EndTransaction returns.
@@ -221,7 +226,7 @@ public:
    * aRegionToDraw will be clipped out or ignored.
    * The callee must draw all of aRegionToDraw.
    * This region is relative to 0,0 in the ThebesLayer.
-   *
+   * 
    * aRegionToInvalidate contains a region whose contents have been
    * changed by the layer manager and which must therefore be invalidated.
    * For example, this could be non-empty if a retained layer internally
@@ -232,11 +237,11 @@ public:
    * aRegionToDraw; the callee must ensure that these areas are repainted
    * in the current layer manager transaction or in a later layer
    * manager transaction.
-   *
+   * 
    * aContext must not be used after the call has returned.
    * We guarantee that buffered contents in the visible
    * region are valid once drawing is complete.
-   *
+   * 
    * The origin of aContext is 0,0 in the ThebesLayer.
    */
   typedef void (* DrawThebesLayerCallback)(ThebesLayer* aLayer,
@@ -259,9 +264,9 @@ public:
   virtual bool HasShadowManagerInternal() const { return false; }
   bool HasShadowManager() const { return HasShadowManagerInternal(); }
 
-  bool IsSnappingEffectiveTransforms() { return mSnapEffectiveTransforms; }
+  bool IsSnappingEffectiveTransforms() { return mSnapEffectiveTransforms; } 
 
-  /**
+  /** 
    * Returns true if this LayerManager can properly support layers with
    * SURFACE_COMPONENT_ALPHA. This can include disabling component
    * alpha if required.
@@ -287,7 +292,7 @@ public:
   Layer* GetPrimaryScrollableLayer();
 
   /**
-   * Returns a list of all descendant layers for which
+   * Returns a list of all descendant layers for which 
    * GetFrameMetrics().IsScrollable() is true.
    */
   void GetScrollableLayers(nsTArray<Layer*>& aArray);
@@ -349,13 +354,13 @@ public:
    * layer transactions on the main thread.
    */
   static already_AddRefed<ImageContainer> CreateImageContainer();
-
+  
   /**
    * Can be called anytime, from any thread.
    *
-   * Tries to create an Image container which forwards its images to the compositor
+   * Tries to create an Image container which forwards its images to the compositor 
    * asynchronously using the ImageBridge IPDL protocol. If the protocol is not
-   * available, the returned ImageContainer will forward images within layer
+   * available, the returned ImageContainer will forward images within layer 
    * transactions, just like if it was created with CreateImageContainer().
    */
   static already_AddRefed<ImageContainer> CreateAsynchronousImageContainer();
@@ -366,7 +371,7 @@ public:
    * Layers backend specific functionality is necessary.
    */
   virtual LayersBackend GetBackendType() = 0;
-
+ 
   /**
    * Creates a surface which is optimized for inter-operating with this layer
    * manager.
@@ -374,7 +379,7 @@ public:
   virtual already_AddRefed<gfxASurface>
     CreateOptimalSurface(const gfxIntSize &aSize,
                          gfxASurface::gfxImageFormat imageFormat);
-
+ 
   /**
    * Creates a surface for alpha masks which is optimized for inter-operating
    * with this layer manager. In contrast to CreateOptimalSurface, this surface
@@ -393,12 +398,6 @@ public:
                      mozilla::gfx::SurfaceFormat aFormat);
 
   virtual bool CanUseCanvasLayerForSize(const gfxIntSize &aSize) { return true; }
-
-  /**
-   * Returns a TextureFactoryIdentifier which describes properties of the backend
-   * used to decide what kind of texture and buffer clients to create
-   */
-  virtual TextureFactoryIdentifier GetTextureFactoryIdentifier();
 
   /**
    * returns the maximum texture size on this layer backend, or INT32_MAX
@@ -423,8 +422,8 @@ public:
    * This can be used anytime. Ownership passes to the caller!
    */
   nsAutoPtr<LayerUserData> RemoveUserData(void* aKey)
-  {
-    nsAutoPtr<LayerUserData> d(static_cast<LayerUserData*>(mUserData.Remove(static_cast<gfx::UserDataKey*>(aKey))));
+  { 
+    nsAutoPtr<LayerUserData> d(static_cast<LayerUserData*>(mUserData.Remove(static_cast<gfx::UserDataKey*>(aKey)))); 
     return d;
   }
   /**
@@ -439,7 +438,7 @@ public:
    * manager.
    */
   LayerUserData* GetUserData(void* aKey)
-  {
+  { 
     return static_cast<LayerUserData*>(mUserData.Get(static_cast<gfx::UserDataKey*>(aKey)));
   }
 
@@ -465,21 +464,6 @@ public:
    * Flag the next paint as the first for a document.
    */
   virtual void SetIsFirstPaint() {}
-
-  /**
-   * Make sure that the previous transaction has been entirely
-   * completed.
-   *
-   * Note: This may sychronously wait on a remote compositor
-   * to complete rendering.
-   */
-  virtual void FlushRendering() { }
-
-  /**
-   * Checks if we need to invalidate the OS widget to trigger
-   * painting when updating this layer manager.
-   */
-  virtual bool NeedsWidgetInvalidation() { return true; }
 
   // We always declare the following logging symbols, because it's
   // extremely tricky to conditionally declare them.  However, for
@@ -597,15 +581,15 @@ typedef InfallibleTArray<Animation> AnimationArray;
 struct AnimData {
   InfallibleTArray<nsStyleAnimation::Value> mStartValues;
   InfallibleTArray<nsStyleAnimation::Value> mEndValues;
-  InfallibleTArray<nsAutoPtr<mozilla::css::ComputedTimingFunction> > mFunctions;
+  InfallibleTArray<mozilla::css::ComputedTimingFunction*> mFunctions;
 };
 
 /**
  * A Layer represents anything that can be rendered onto a destination
  * surface.
  */
-class Layer {
-  NS_INLINE_DECL_REFCOUNTING(Layer)
+class THEBES_API Layer {
+  NS_INLINE_DECL_REFCOUNTING(Layer)  
 
 public:
   // Keep these in alphabetical order
@@ -682,7 +666,7 @@ public:
    * that are covered by opaque contents of other layers, and it can
    * exclude areas where this layer simply contains no content at all.
    * (This can be an overapproximation to the "true" visible region.)
-   *
+   * 
    * There is no general guarantee that drawing outside the bounds of the
    * visible region will be ignored. So if a layer draws outside the bounds
    * of its visible region, it needs to ensure that what it draws is valid.
@@ -719,7 +703,7 @@ public:
    * are transformed before this clip rect is applied).
    * For the root layer, the coordinates are relative to the widget,
    * in device pixels.
-   * If aRect is null no clipping will be performed.
+   * If aRect is null no clipping will be performed. 
    */
   void SetClipRect(const nsIntRect* aRect)
   {
@@ -790,7 +774,7 @@ public:
    */
   void SetBaseTransform(const gfx3DMatrix& aMatrix)
   {
-    NS_ASSERTION(!aMatrix.IsSingular(),
+    NS_ASSERTION(!aMatrix.IsSingular(), 
                  "Shouldn't be trying to draw with a singular matrix!");
     mPendingTransform = nullptr;
     if (mTransform == aMatrix) {
@@ -875,9 +859,6 @@ public:
    * will be mirrored here. This allows for asynchronous animation of the
    * margins by reconciling the difference between this value and a value that
    * is updated more frequently.
-   * If the left or top margins are negative, it means that the elements this
-   * layer represents are auto-positioned, and so fixed position margins should
-   * not have an effect on the corresponding axis.
    */
   void SetFixedPositionMargins(const gfx::Margin& aMargins)
   {
@@ -907,11 +888,6 @@ public:
   const gfx::Margin& GetFixedPositionMargins() { return mMargins; }
   Layer* GetMaskLayer() { return mMaskLayer; }
 
-  // These functions allow attaching an AsyncPanZoomController to this layer,
-  // and can be used anytime.
-  void SetAsyncPanZoomController(AsyncPanZoomController *controller);
-  AsyncPanZoomController* GetAsyncPanZoomController();
-
   // Note that all lengths in animation data are either in CSS pixels or app
   // units and must be converted to device pixels by the compositor.
   AnimationArray& GetAnimations() { return mAnimations; }
@@ -919,18 +895,6 @@ public:
 
   uint64_t GetAnimationGeneration() { return mAnimationGeneration; }
   void SetAnimationGeneration(uint64_t aCount) { mAnimationGeneration = aCount; }
-
-  /**
-   * Returns the local transform for this layer: either mTransform or,
-   * for shadow layers, GetShadowTransform()
-   */
-  const gfx3DMatrix GetLocalTransform();
-
-  /**
-   * Returns the local opacity for this layer: either mOpacity or,
-   * for shadow layers, GetShadowOpacity()
-   */
-  const float GetLocalOpacity();
 
   /**
    * DRAWING PHASE ONLY
@@ -974,15 +938,15 @@ public:
    * initially null. Ownership pases to the layer manager.
    */
   void SetUserData(void* aKey, LayerUserData* aData)
-  {
+  { 
     mUserData.Add(static_cast<gfx::UserDataKey*>(aKey), aData, LayerManagerUserDataDestroy);
   }
   /**
    * This can be used anytime. Ownership passes to the caller!
    */
   nsAutoPtr<LayerUserData> RemoveUserData(void* aKey)
-  {
-    nsAutoPtr<LayerUserData> d(static_cast<LayerUserData*>(mUserData.Remove(static_cast<gfx::UserDataKey*>(aKey))));
+  { 
+    nsAutoPtr<LayerUserData> d(static_cast<LayerUserData*>(mUserData.Remove(static_cast<gfx::UserDataKey*>(aKey)))); 
     return d;
   }
   /**
@@ -997,7 +961,7 @@ public:
    * manager.
    */
   LayerUserData* GetUserData(void* aKey)
-  {
+  { 
     return static_cast<LayerUserData*>(mUserData.Get(static_cast<gfx::UserDataKey*>(aKey)));
   }
 
@@ -1037,10 +1001,10 @@ public:
   virtual ColorLayer* AsColorLayer() { return nullptr; }
 
   /**
-   * Dynamic cast to a LayerComposite.  Return null if this is not a
-   * LayerComposite.  Can be used anytime.
+   * Dynamic cast to a ShadowLayer.  Return null if this is not a
+   * ShadowLayer.  Can be used anytime.
    */
-  virtual LayerComposite* AsLayerComposite() { return nullptr; }
+  virtual ShadowLayer* AsShadowLayer() { return nullptr; }
 
   /**
    * Dynamic cast to a ShadowableLayer.  Return null if this is not a
@@ -1075,12 +1039,12 @@ public:
    * Computes mEffectiveTransform for this layer and all its descendants.
    * mEffectiveTransform transforms this layer up to the destination
    * pixel grid (whatever aTransformToSurface is relative to).
-   *
+   * 
    * We promise that when this is called on a layer, all ancestor layers
    * have already had ComputeEffectiveTransforms called.
    */
   virtual void ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface) = 0;
-
+    
   /**
    * computes the effective transform for a mask layer, if this layer has one
    */
@@ -1169,8 +1133,6 @@ public:
   uint32_t GetDebugColorIndex() { return mDebugColorIndex; }
 #endif
 
-  virtual LayerRenderState GetRenderState() { return LayerRenderState(); }
-
 protected:
   Layer(LayerManager* aManager, void* aImplData);
 
@@ -1185,6 +1147,18 @@ protected:
   // an implementation that first calls the base implementation then
   // appends additional info to aTo.
   virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
+
+  /**
+   * Returns the local transform for this layer: either mTransform or,
+   * for shadow layers, GetShadowTransform()
+   */
+  const gfx3DMatrix GetLocalTransform();
+
+  /**
+   * Returns the local opacity for this layer: either mOpacity or,
+   * for shadow layers, GetShadowOpacity()
+   */
+  const float GetLocalOpacity();
 
   /**
    * We can snap layer transforms for two reasons:
@@ -1275,13 +1249,13 @@ protected:
  * infinite surface, but each ThebesLayer has an associated "valid region"
  * of contents that it is currently storing, which is finite. ThebesLayer
  * implementations can store content between paints.
- *
+ * 
  * ThebesLayers are rendered into during the drawing phase of a transaction.
  *
  * Currently the contents of a ThebesLayer are in the device output color
  * space.
  */
-class ThebesLayer : public Layer {
+class THEBES_API ThebesLayer : public Layer {
 public:
   /**
    * CONSTRUCTION PHASE ONLY
@@ -1379,7 +1353,7 @@ protected:
  * A Layer which other layers render into. It holds references to its
  * children.
  */
-class ContainerLayer : public Layer {
+class THEBES_API ContainerLayer : public Layer {
 public:
   /**
    * CONSTRUCTION PHASE ONLY
@@ -1431,7 +1405,7 @@ public:
   }
 
   void SetInheritedScale(float aXScale, float aYScale)
-  {
+  { 
     if (mInheritedXScale == aXScale && mInheritedYScale == aYScale) {
       return;
     }
@@ -1550,7 +1524,7 @@ protected:
  * can fill any area that contains the visible region, so if you need to
  * restrict the area filled, set a clip region on this layer.
  */
-class ColorLayer : public Layer {
+class THEBES_API ColorLayer : public Layer {
 public:
   virtual ColorLayer* AsColorLayer() { return this; }
 
@@ -1600,7 +1574,7 @@ protected:
  * After Initialize is called, the underlying canvas Surface/GLContext
  * must not be modified during a layer transaction.
  */
-class CanvasLayer : public Layer {
+class THEBES_API CanvasLayer : public Layer {
 public:
   struct Data {
     Data()
@@ -1651,14 +1625,14 @@ public:
    * Returns true if the canvas surface contents have changed since the
    * last paint.
    */
-  bool IsDirty()
-  {
+  bool IsDirty() 
+  { 
     // We can only tell if we are dirty if we're part of the
     // widget's retained layer tree.
     if (!mManager || !mManager->IsWidgetLayerManager()) {
       return true;
     }
-    return mDirty;
+    return mDirty; 
   }
 
   /**
@@ -1773,7 +1747,7 @@ private:
  * Clients will usually want to Connect/Clear() on each transaction to
  * avoid difficulties managing memory across multiple layer subtrees.
  */
-class RefLayer : public ContainerLayer {
+class THEBES_API RefLayer : public ContainerLayer {
   friend class LayerManager;
 
 private:
@@ -1811,7 +1785,6 @@ public:
   {
     MOZ_ASSERT(!mFirstChild && !mLastChild);
     MOZ_ASSERT(!aLayer->GetParent());
-    MOZ_ASSERT(aLayer->Manager() == Manager());
 
     mFirstChild = mLastChild = aLayer;
     aLayer->SetParent(this);
@@ -1857,7 +1830,6 @@ protected:
 #ifdef MOZ_DUMP_PAINTING
 void WriteSnapshotToDumpFile(Layer* aLayer, gfxASurface* aSurf);
 void WriteSnapshotToDumpFile(LayerManager* aManager, gfxASurface* aSurf);
-void WriteSnapshotToDumpFile(Compositor* aCompositor, gfxASurface* aSurf);
 #endif
 
 }

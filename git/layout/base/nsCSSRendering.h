@@ -33,8 +33,7 @@ public:
   typedef mozilla::layers::ImageContainer ImageContainer;
 
   enum {
-    FLAG_SYNC_DECODE_IMAGES = 0x01,
-    FLAG_PAINTING_TO_WINDOW = 0x02
+    FLAG_SYNC_DECODE_IMAGES = 0x01
   };
   nsImageRenderer(nsIFrame* aForFrame, const nsStyleImage* aImage, uint32_t aFlags);
   ~nsImageRenderer();
@@ -63,7 +62,6 @@ public:
             const nsRect&        aDirty);
 
   bool IsRasterImage();
-  bool IsAnimatedImage();
   already_AddRefed<ImageContainer> GetContainer(LayerManager* aManager);
 
 private:
@@ -393,8 +391,7 @@ struct nsCSSRendering {
                                        const nsRect& aBorderArea,
                                        const nsRect& aClipRect,
                                        const nsStyleBackground& aBackground,
-                                       const nsStyleBackground::Layer& aLayer,
-                                       uint32_t aFlags);
+                                       const nsStyleBackground::Layer& aLayer);
 
   /**
    * Called when we start creating a display list. The frame tree will not

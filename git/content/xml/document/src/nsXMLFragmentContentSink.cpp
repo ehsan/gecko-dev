@@ -26,8 +26,6 @@
 #include "nsIDocShell.h"
 #include "nsScriptLoader.h"
 #include "mozilla/css/Loader.h"
-#include "mozilla/dom/DocumentFragment.h"
-#include "mozilla/dom/ProcessingInstruction.h"
 
 using namespace mozilla::dom;
 
@@ -159,9 +157,13 @@ nsXMLFragmentContentSink::WillBuildModel(nsDTDMode aDTDMode)
 
   NS_ASSERTION(mTargetDocument, "Need a document!");
 
-  mRoot = new DocumentFragment(mNodeInfoManager);
+  nsCOMPtr<nsIDOMDocumentFragment> frag;
+  nsresult rv = NS_NewDocumentFragment(getter_AddRefs(frag), mNodeInfoManager);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  mRoot = do_QueryInterface(frag);
   
-  return NS_OK;
+  return rv;
 }
 
 NS_IMETHODIMP 
@@ -262,14 +264,19 @@ nsXMLFragmentContentSink::HandleProcessingInstruction(const PRUnichar *aTarget,
 {
   FlushText();
 
+  nsresult result = NS_OK;
   const nsDependentString target(aTarget);
   const nsDependentString data(aData);
 
-  nsRefPtr<ProcessingInstruction> node =
-    NS_NewXMLProcessingInstruction(mNodeInfoManager, target, data);
+  nsCOMPtr<nsIContent> node;
 
-  // no special processing here.  that should happen when the fragment moves into the document
-  return AddContentAsLeaf(node);
+  result = NS_NewXMLProcessingInstruction(getter_AddRefs(node),
+                                          mNodeInfoManager, target, data);
+  if (NS_SUCCEEDED(result)) {
+    // no special processing here.  that should happen when the fragment moves into the document
+    result = AddContentAsLeaf(node);
+  }
+  return result;
 }
 
 NS_IMETHODIMP

@@ -55,8 +55,7 @@ public:
   typedef mozilla::css::RestyleTracker RestyleTracker;
   typedef mozilla::css::OverflowChangedTracker OverflowChangedTracker;
 
-  nsCSSFrameConstructor(nsIDocument *aDocument, nsIPresShell* aPresShell,
-                        nsStyleSet* aStyleSet);
+  nsCSSFrameConstructor(nsIDocument *aDocument, nsIPresShell* aPresShell);
   ~nsCSSFrameConstructor(void) {
     NS_ASSERTION(mUpdateCount == 0, "Dying in the middle of our own update?");
   }
@@ -927,6 +926,7 @@ private:
       // iterator must not be done when this is called.
       inline bool SkipItemsWantingParentType(ParentType aParentType);
 
+#ifdef MOZ_FLEXBOX
       // Skip over non-replaced inline frames and positioned frames.
       // Return whether the iterator is done after doing that.
       // The iterator must not be done when this is called.
@@ -938,6 +938,7 @@ private:
       // The iterator must not be done when this is called.
       inline bool SkipItemsThatDontNeedAnonFlexItem(
         const nsFrameConstructorState& aState);
+#endif // MOZ_FLEXBOX
 
       // Skip over whitespace.  Return whether the iterator is done after doing
       // that.  The iterator must not be done, and must be pointing to a
@@ -1055,7 +1056,9 @@ private:
 
     // Indicates whether (when in a flexbox container) this item needs to be
     // wrapped in an anonymous block.
+#ifdef MOZ_FLEXBOX
     bool NeedsAnonFlexItem(const nsFrameConstructorState& aState);
+#endif // MOZ_FLEXBOX
 
     // Don't call this unless the frametree really depends on the answer!
     // Especially so for generated content, where we don't want to reframe
@@ -1133,9 +1136,11 @@ private:
    * @param aItems the child frame construction items before pseudo creation
    * @param aParentFrame the flex container frame
    */
+#ifdef MOZ_FLEXBOX
   void CreateNeededAnonFlexItems(nsFrameConstructorState& aState,
                                     FrameConstructionItemList& aItems,
                                     nsIFrame* aParentFrame);
+#endif // MOZ_FLEXBOX
 
   /**
    * Function to create the table pseudo items we need.
@@ -1576,9 +1581,6 @@ private:
   // block
   // @param aContentParent is the parent the block would have if it
   // were in-flow
-  // @param aPositionedFrameForAbsPosContainer if non-null, then the new
-  // block should be an abs-pos container and aPositionedFrameForAbsPosContainer
-  // is the frame whose style is making this block an abs-pos container.
   // @param aPendingBinding the pending binding  from this block's frame
   // construction item.
   void ConstructBlock(nsFrameConstructorState& aState,
@@ -1589,7 +1591,7 @@ private:
                       nsStyleContext*          aStyleContext,
                       nsIFrame**               aNewFrame,
                       nsFrameItems&            aFrameItems,
-                      nsIFrame*                aPositionedFrameForAbsPosContainer,
+                      bool                     aAbsPosContainer,
                       PendingBinding*          aPendingBinding);
 
   nsIFrame* ConstructInline(nsFrameConstructorState& aState,
@@ -1872,8 +1874,6 @@ private:
   nsIFrame*           mPageSequenceFrame;
   nsQuoteList         mQuoteList;
   nsCounterManager    mCounterManager;
-  // Current ProcessChildren depth.
-  uint16_t            mCurrentDepth;
   uint16_t            mUpdateCount;
   bool                mQuotesDirty : 1;
   bool                mCountersDirty : 1;

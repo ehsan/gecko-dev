@@ -14,8 +14,11 @@
 #include "nsIDOMNode.h"
 #include "nsError.h"
 #include "nsINode.h"
+#include "nsDOMClassInfoID.h"
 #include "nsContentUtils.h"
 #include "mozilla/dom/TreeWalkerBinding.h"
+
+DOMCI_DATA(TreeWalker, mozilla::dom::TreeWalker)
 
 namespace mozilla {
 namespace dom {
@@ -47,6 +50,7 @@ NS_IMPL_CYCLE_COLLECTION_3(TreeWalker, mFilter, mCurrentNode, mRoot)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(TreeWalker)
     NS_INTERFACE_MAP_ENTRY(nsIDOMTreeWalker)
     NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMTreeWalker)
+    NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(TreeWalker)
 NS_INTERFACE_MAP_END
 
 // Have to pass in dom::TreeWalker because a11y has an a11y::TreeWalker that
@@ -451,7 +455,7 @@ TreeWalker::NextSiblingInternal(bool aReversed, ErrorResult& aResult)
 }
 
 JSObject*
-TreeWalker::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
+TreeWalker::WrapObject(JSContext *cx, JSObject *scope)
 {
     return TreeWalkerBinding::Wrap(cx, scope, this);
 }

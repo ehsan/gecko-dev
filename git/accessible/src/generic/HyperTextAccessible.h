@@ -60,12 +60,12 @@ public:
   // HyperTextAccessible (static helper method)
 
   // Convert content offset to rendered text offset  
-  nsresult ContentToRenderedOffset(nsIFrame *aFrame, int32_t aContentOffset,
-                                   uint32_t *aRenderedOffset);
+  static nsresult ContentToRenderedOffset(nsIFrame *aFrame, int32_t aContentOffset,
+                                          uint32_t *aRenderedOffset);
   
   // Convert rendered text offset to content offset
-  nsresult RenderedToContentOffset(nsIFrame *aFrame, uint32_t aRenderedOffset,
-                                   int32_t *aContentOffset);
+  static nsresult RenderedToContentOffset(nsIFrame *aFrame, uint32_t aRenderedOffset,
+                                          int32_t *aContentOffset);
 
   //////////////////////////////////////////////////////////////////////////////
   // HyperLinkAccessible

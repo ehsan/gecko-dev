@@ -76,15 +76,13 @@ function onAlertLoad() {
 
   sizeToContent();
 
-  if (gReplacedWindow && !gReplacedWindow.closed) {
+  if (gReplacedWindow) {
     moveWindowToReplace(gReplacedWindow);
     gReplacedWindow.gIsReplaced = true;
     gReplacedWindow.close();
   } else {
     moveWindowToEnd();
   }
-
-  window.addEventListener("XULAlertClose", function() { window.close(); });
 
   if (Services.prefs.getBoolPref("alerts.disableSlidingEffect")) {
     setTimeout(function() { window.close(); }, ALERT_DURATION_IMMEDIATE);

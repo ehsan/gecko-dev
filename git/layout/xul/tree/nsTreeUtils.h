@@ -12,6 +12,7 @@
 
 class nsIAtom;
 class nsIContent;
+class nsISupportsArray;
 
 class nsTreeUtils
 {
