@@ -98,21 +98,26 @@ static const mozilla::Module::ContractIDEntry kParserContracts[] = {
   { NULL }
 };
 
+static bool gInitialized = false;
+
 static nsresult
 Initialize()
 {
-  nsresult rv = nsHTMLTags::AddRefTable();
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (!gInitialized) {
+    nsresult rv = nsHTMLTags::AddRefTable();
+    NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = nsHTMLEntities::AddRefTable();
-  if (NS_FAILED(rv)) {
-    nsHTMLTags::ReleaseTable();
-    return rv;
-  }
+    rv = nsHTMLEntities::AddRefTable();
+    if (NS_FAILED(rv)) {
+      nsHTMLTags::ReleaseTable();
+      return rv;
+    }
 #ifdef NS_DEBUG
-  CheckElementTable();
+    CheckElementTable();
 #endif
-  CNewlineToken::AllocNewline();
+    CNewlineToken::AllocNewline();
+    gInitialized = true;
+  }
 
 #ifdef DEBUG
   nsHTMLTags::TestTagTable();
@@ -124,11 +129,14 @@ Initialize()
 static void
 Shutdown()
 {
-  nsHTMLTags::ReleaseTable();
-  nsHTMLEntities::ReleaseTable();
-  nsDTDContext::ReleaseGlobalObjects();
-  nsParser::Shutdown();
-  CNewlineToken::FreeNewline();
+  if (gInitialized) {
+    nsHTMLTags::ReleaseTable();
+    nsHTMLEntities::ReleaseTable();
+    nsDTDContext::ReleaseGlobalObjects();
+    nsParser::Shutdown();
+    CNewlineToken::FreeNewline();
+    gInitialized = false;
+  }
 }
 
 static mozilla::Module kParserModule = {

@@ -1851,7 +1851,6 @@ GK_ATOM(transitionsOfBeforeProperty, "TransitionsOfBeforeProperty") // FrameTran
 GK_ATOM(transitionsOfAfterProperty, "TransitionsOfAfterProperty") // FrameTransitions*
 GK_ATOM(genConInitializerProperty, "QuoteNodeProperty")
 GK_ATOM(labelMouseDownPtProperty, "LabelMouseDownPtProperty")
-GK_ATOM(baseURIProperty, "baseURIProperty")
 
 // Languages for lang-specific transforms
 GK_ATOM(Japanese, "ja")
@@ -1987,10 +1986,6 @@ GK_ATOM(itemset, "itemset")
 GK_ATOM(lineNumber, "line-number")
 GK_ATOM(linkedPanel, "linkedpanel")
 GK_ATOM(live, "live")
-GK_ATOM(marginBottom, "margin-bottom")
-GK_ATOM(marginLeft, "margin-left")
-GK_ATOM(marginRight, "margin-right")
-GK_ATOM(marginTop, "margin-top")
 GK_ATOM(mixed, "mixed")
 GK_ATOM(multiline, "multiline")
 GK_ATOM(password, "password")

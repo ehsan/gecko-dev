@@ -19,7 +19,6 @@
  *
  * Contributor(s):
  *   Mark 'evil' Finkle <mfinkle@mozilla.com>
- *   Brian Nicholson <bnicholson@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -458,7 +457,7 @@ SessionStore.prototype = {
     if (aBrowser.__SS_restore) {
       let data = aBrowser.__SS_data;
       if (data.entries.length > 0)
-        this._restoreHistory(data, aBrowser.sessionHistory);
+        aBrowser.loadURI(data.entries[data.index - 1].url);
 
       delete aBrowser.__SS_restore;
     }
@@ -915,28 +914,16 @@ SessionStore.prototype = {
     return this._shouldRestore;
   },
 
-  restoreLastSession: function ss_restoreLastSession(aBringToFront, aForceRestore) {
+  restoreLastSession: function ss_restoreLastSession(aBringToFront) {
     let self = this;
     function notifyObservers(aMessage) {
       self._clearCache();
       Services.obs.notifyObservers(null, "sessionstore-windows-restored", aMessage || "");
     }
 
-    if (!aForceRestore) {
-      let maxCrashes = Services.prefs.getIntPref("browser.sessionstore.max_resumed_crashes");
-      let recentCrashes = Services.prefs.getIntPref("browser.sessionstore.recent_crashes") + 1;
-      Services.prefs.setIntPref("browser.sessionstore.recent_crashes", recentCrashes);
-      Services.prefs.savePrefFile(null);
-
-      if (recentCrashes > maxCrashes) {
-        notifyObservers("fail");
-        return;
-      }
-    }
-
     // The previous session data has already been renamed to the backup file
     if (!this._sessionFileBackup.exists()) {
-      notifyObservers("fail");
+      notifyObservers("fail")
       return;
     }
 
@@ -978,22 +965,21 @@ SessionStore.prototype = {
 
         for (let i=0; i<tabs.length; i++) {
           let tabData = tabs[i];
-          let isSelected = (i + 1 == selected) && aBringToFront;
+          let isSelected = (i + 1 <= selected) && aBringToFront;
           let entry = tabData.entries[tabData.index - 1];
 
           // Add a tab, but don't load the URL until we need to
-          let params = { selected: isSelected, delayLoad: true, title: entry.title };
+          let params = { selected: isSelected, delayLoad: !isSelected, title: entry.title };
           let tab = window.BrowserApp.addTab(entry.url, params);
 
-          if (isSelected) {
-            self._restoreHistory(tabData, tab.browser.sessionHistory);
-          } else {
+          if (!isSelected) {
             // Make sure the browser has its session data for the delay reload
             tab.browser.__SS_data = tabData;
             tab.browser.__SS_restore = true;
           }
 
           tab.browser.__SS_extdata = tabData.extData;
+          self._restoreHistory(tabData, tab.browser.sessionHistory);
         }
 
         notifyObservers();

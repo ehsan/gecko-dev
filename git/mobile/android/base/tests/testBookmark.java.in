@@ -3,16 +3,13 @@ package @ANDROID_PACKAGE_NAME@.tests;
 
 import @ANDROID_PACKAGE_NAME@.*;
 import android.widget.TextView;
-import android.os.SystemClock;
 import java.util.ArrayList;
 
 public class testBookmark extends BaseTest {
-    private static final long MAX_WAIT_MS = 10 * 1000; 
+    private static final String URL = "http://mochi.test:8888/tests/robocop/robocop_blank_02.html";
 
     public void testBookmark() {
-        setTestType("mochitest");
-        String url = getAbsoluteUrl("/robocop/robocop_blank_02.html");
-        enterUrl(url);
+        enterUrl(URL);
 
         //Click the top item in the awesome list.
         mActions.sendSpecialKey(Actions.SpecialKey.DOWN);
@@ -24,13 +21,8 @@ public class testBookmark extends BaseTest {
 
         Actions.EventExpecter contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
 
-        long waitStart = SystemClock.uptimeMillis();
         ArrayList<TextView> l = null;
         while (l == null || l.size() < 1) {
-            if (SystemClock.uptimeMillis() - waitStart > MAX_WAIT_MS) {
-                mAsserter.dumpLog("testBookmark: timed out waiting for bookmark list -- no bookmarks defined?");
-                return;
-            }
             l = mSolo.clickInList(1);
         }
 

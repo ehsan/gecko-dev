@@ -62,6 +62,8 @@ CPPSRCS = \
   nsCommandLine.cpp \
   $(NULL)
 
-TEST_DIRS += test
+ifdef ENABLE_TESTS
+DIRS += test
+endif
 
 include $(topsrcdir)/config/rules.mk

@@ -141,7 +141,7 @@ NS_IMPL_FRAMEARENA_HELPERS(nsSVGOuterSVGFrame)
 
 nsSVGOuterSVGFrame::nsSVGOuterSVGFrame(nsStyleContext* aContext)
     : nsSVGOuterSVGFrameBase(aContext)
-    , mRedrawSuspendCount(0)
+    ,  mRedrawSuspendCount(0)
     , mFullZoom(0)
     , mViewportInitialized(false)
 #ifdef XP_MACOSX
@@ -682,34 +682,88 @@ nsSVGOuterSVGFrame::GetType() const
 }
 
 //----------------------------------------------------------------------
-// nsISVGSVGFrame methods:
+// nsSVGOuterSVGFrame methods:
 
 void
+nsSVGOuterSVGFrame::InvalidateCoveredRegion(nsIFrame *aFrame)
+{
+  nsISVGChildFrame *svgFrame = do_QueryFrame(aFrame);
+  if (!svgFrame)
+    return;
+
+  nsRect rect = nsSVGUtils::FindFilterInvalidation(aFrame, svgFrame->GetCoveredRegion());
+  Invalidate(rect);
+}
+
+bool
+nsSVGOuterSVGFrame::UpdateAndInvalidateCoveredRegion(nsIFrame *aFrame)
+{
+  nsISVGChildFrame *svgFrame = do_QueryFrame(aFrame);
+  if (!svgFrame)
+    return false;
+
+  nsRect oldRegion = svgFrame->GetCoveredRegion();
+  Invalidate(nsSVGUtils::FindFilterInvalidation(aFrame, oldRegion));
+  svgFrame->UpdateCoveredRegion();
+  nsRect newRegion = svgFrame->GetCoveredRegion();
+  if (oldRegion.IsEqualInterior(newRegion))
+    return false;
+
+  Invalidate(nsSVGUtils::FindFilterInvalidation(aFrame, newRegion));
+  return true;
+}
+
+bool
+nsSVGOuterSVGFrame::IsRedrawSuspended()
+{
+  return (mRedrawSuspendCount>0) || !mViewportInitialized;
+}
+
+//----------------------------------------------------------------------
+// nsISVGSVGFrame methods:
+
+
+NS_IMETHODIMP
 nsSVGOuterSVGFrame::SuspendRedraw()
 {
   if (++mRedrawSuspendCount != 1)
-    return;
+    return NS_OK;
 
-  nsSVGUtils::NotifyRedrawSuspended(this);
+  for (nsIFrame* kid = mFrames.FirstChild(); kid;
+       kid = kid->GetNextSibling()) {
+    nsISVGChildFrame* SVGFrame = do_QueryFrame(kid);
+    if (SVGFrame) {
+      SVGFrame->NotifyRedrawSuspended();
+    }
+  }
+  return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 nsSVGOuterSVGFrame::UnsuspendRedraw()
 {
   NS_ASSERTION(mRedrawSuspendCount >=0, "unbalanced suspend count!");
 
   if (--mRedrawSuspendCount > 0)
-    return;
+    return NS_OK;
 
-  nsSVGUtils::NotifyRedrawUnsuspended(this);
+  for (nsIFrame* kid = mFrames.FirstChild(); kid;
+       kid = kid->GetNextSibling()) {
+    nsISVGChildFrame* SVGFrame = do_QueryFrame(kid);
+    if (SVGFrame) {
+      SVGFrame->NotifyRedrawUnsuspended();
+    }
+  }
+
+  return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 nsSVGOuterSVGFrame::NotifyViewportChange()
 {
   // no point in doing anything when were not init'ed yet:
   if (!mViewportInitialized) {
-    return;
+    return NS_OK;
   }
 
   PRUint32 flags = COORD_CONTEXT_CHANGED;
@@ -728,7 +782,10 @@ nsSVGOuterSVGFrame::NotifyViewportChange()
   }
 
   // inform children
+  SuspendRedraw();
   nsSVGUtils::NotifyChildrenOfSVGChange(this, flags);
+  UnsuspendRedraw();
+  return NS_OK;
 }
 
 //----------------------------------------------------------------------

@@ -1,5 +1,10 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
+
+/*global ok, is, info, waitForExplicitFinish, finish, executeSoon, gBrowser */
+/*global isTiltEnabled, isWebGLSupported, createTab, createTilt */
+/*global Services, EventUtils, Tilt, TiltUtils, TiltVisualizer, InspectorUI */
+/*global Ci, TILT_INITIALIZED, TILT_DESTROYED, INSPECTOR_OPENED */
 "use strict";
 
 let id;
@@ -40,13 +45,13 @@ function onInspectorOpen() {
 
     info("Pressing the accesskey should open Tilt.");
 
-    Services.obs.addObserver(onTiltOpen, INITIALIZING, false);
+    Services.obs.addObserver(onTiltOpen, TILT_INITIALIZED, false);
     EventUtils.synthesizeKey(tiltKey, eventType);
   });
 }
 
 function onTiltOpen() {
-  Services.obs.removeObserver(onTiltOpen, INITIALIZING);
+  Services.obs.removeObserver(onTiltOpen, TILT_INITIALIZED);
 
   executeSoon(function() {
     ok(Tilt.visualizers[id] instanceof TiltVisualizer,
@@ -56,7 +61,7 @@ function onTiltOpen() {
 
     info("Pressing the accesskey again should close Tilt.");
 
-    Services.obs.addObserver(onTiltClose, DESTROYED, false);
+    Services.obs.addObserver(onTiltClose, TILT_DESTROYED, false);
     EventUtils.synthesizeKey(tiltKey, eventType);
   });
 }

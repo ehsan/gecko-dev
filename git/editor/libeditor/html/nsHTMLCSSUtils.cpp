@@ -541,8 +541,9 @@ nsHTMLCSSUtils::GetCSSInlinePropertyBase(nsIDOMNode *aNode, nsIAtom *aProperty,
   aValue.Truncate();
   NS_ENSURE_TRUE(aProperty, NS_ERROR_NULL_POINTER);
 
-  nsCOMPtr<nsIDOMElement> element = GetElementContainerOrSelf(aNode);
-  NS_ENSURE_TRUE(element, NS_ERROR_NULL_POINTER);
+  nsCOMPtr<nsIDOMElement> element;
+  nsresult res = GetElementContainerOrSelf(aNode, getter_AddRefs(element));
+  NS_ENSURE_SUCCESS(res, res);
 
   switch (aStyleType) {
     case COMPUTED_STYLE_TYPE:
@@ -551,7 +552,7 @@ nsHTMLCSSUtils::GetCSSInlinePropertyBase(nsIDOMNode *aNode, nsIAtom *aProperty,
         nsCOMPtr<nsIDOMCSSStyleDeclaration> cssDecl;
         aProperty->ToString(propString);
         // Get the all the computed css styles attached to the element node
-        nsresult res = aWindow->GetComputedStyle(element, EmptyString(), getter_AddRefs(cssDecl));
+        res = aWindow->GetComputedStyle(element, EmptyString(), getter_AddRefs(cssDecl));
         if (NS_FAILED(res) || !cssDecl)
           return res;
         // from these declarations, get the one we want and that one only
@@ -564,7 +565,7 @@ nsHTMLCSSUtils::GetCSSInlinePropertyBase(nsIDOMNode *aNode, nsIAtom *aProperty,
       if (element) {
         nsCOMPtr<nsIDOMCSSStyleDeclaration> cssDecl;
         PRUint32 length;
-        nsresult res = GetInlineStyles(element, getter_AddRefs(cssDecl), &length);
+        res = GetInlineStyles(element, getter_AddRefs(cssDecl), &length);
         if (NS_FAILED(res) || !cssDecl) return res;
         nsAutoString value, propString;
         aProperty->ToString(propString);
@@ -580,8 +581,9 @@ nsHTMLCSSUtils::GetCSSInlinePropertyBase(nsIDOMNode *aNode, nsIAtom *aProperty,
 nsresult
 nsHTMLCSSUtils::GetDefaultViewCSS(nsIDOMNode *aNode, nsIDOMWindow **aViewCSS)
 {
-  nsCOMPtr<nsIDOMElement> element = GetElementContainerOrSelf(aNode);
-  NS_ENSURE_TRUE(element, NS_ERROR_NULL_POINTER);
+  nsCOMPtr<nsIDOMElement> element;
+  nsresult res = GetElementContainerOrSelf(aNode, getter_AddRefs(element));
+  NS_ENSURE_SUCCESS(res, res);
 
   // TODO: move this initialization to the top of the function
   *aViewCSS = nsnull;
@@ -591,7 +593,7 @@ nsHTMLCSSUtils::GetDefaultViewCSS(nsIDOMNode *aNode, nsIDOMWindow **aViewCSS)
   // find the owner document
   nsCOMPtr<nsIDOMDocument> doc;
   nsCOMPtr<nsIDOMNode> node = do_QueryInterface(element);
-  nsresult res = node->GetOwnerDocument(getter_AddRefs(doc));
+  res = node->GetOwnerDocument(getter_AddRefs(doc));
   NS_ENSURE_SUCCESS(res, res);
   if (!doc) {
     return NS_OK;
@@ -999,6 +1001,26 @@ nsHTMLCSSUtils::RemoveCSSEquivalentToHTMLStyle(nsIDOMNode * aNode,
   return NS_OK;
 }
 
+// aReturn is true if the element aElement carries an ID or a class.
+nsresult
+nsHTMLCSSUtils::HasClassOrID(nsIDOMElement * aElement, bool & aReturn)
+{
+  nsAutoString classVal, idVal;
+  bool isClassSet, isIdSet;
+  aReturn = false;
+
+  nsresult res = mHTMLEditor->GetAttributeValue(aElement,  NS_LITERAL_STRING("class"), classVal, &isClassSet);
+  NS_ENSURE_SUCCESS(res, res);
+  res = mHTMLEditor->GetAttributeValue(aElement,  NS_LITERAL_STRING("id"), idVal, &isIdSet);
+  NS_ENSURE_SUCCESS(res, res);
+
+  // we need to make sure that if the element has an id or a class attribute,
+  // the attribute is not the empty string
+  aReturn = ((isClassSet && !classVal.IsEmpty()) ||
+             (isIdSet    && !idVal.IsEmpty()));
+  return NS_OK;
+}
+
 // returns in aValueString the list of values for the CSS equivalences to
 // the HTML style aHTMLProperty/aAttribute/aValueString for the node aNode;
 // the value of aStyleType controls the styles we retrieve : specified or
@@ -1011,15 +1033,16 @@ nsHTMLCSSUtils::GetCSSEquivalentToHTMLInlineStyleSet(nsIDOMNode * aNode,
                                                      PRUint8 aStyleType)
 {
   aValueString.Truncate();
-  nsCOMPtr<nsIDOMElement> theElement = GetElementContainerOrSelf(aNode);
-  NS_ENSURE_TRUE(theElement, NS_ERROR_NULL_POINTER);
+  nsCOMPtr<nsIDOMElement> theElement;
+  nsresult res = GetElementContainerOrSelf(aNode, getter_AddRefs(theElement));
+  NS_ENSURE_SUCCESS(res, res);
 
   if (theElement && IsCSSEditableProperty(theElement, aHTMLProperty, aAttribute)) {
     // Yes, the requested HTML style has a CSS equivalence in this implementation
     // Retrieve the default ViewCSS if we are asked for computed styles
     nsCOMPtr<nsIDOMWindow> window;
     if (COMPUTED_STYLE_TYPE == aStyleType) {
-      nsresult res = GetDefaultViewCSS(theElement, getter_AddRefs(window));
+      res = GetDefaultViewCSS(theElement, getter_AddRefs(window));
       NS_ENSURE_SUCCESS(res, res);
     }
     nsTArray<nsIAtom*> cssPropertyArray;
@@ -1033,8 +1056,8 @@ nsHTMLCSSUtils::GetCSSEquivalentToHTMLInlineStyleSet(nsIDOMNode * aNode,
     for (index = 0; index < count; index++) {
       nsAutoString valueString;
       // retrieve the specified/computed value of the property
-      nsresult res = GetCSSInlinePropertyBase(theElement, cssPropertyArray[index],
-                                              valueString, window, aStyleType);
+      res = GetCSSInlinePropertyBase(theElement, cssPropertyArray[index],
+                                     valueString, window, aStyleType);
       NS_ENSURE_SUCCESS(res, res);
       // append the value to aValueString (possibly with a leading whitespace)
       if (index) aValueString.Append(PRUnichar(' '));
@@ -1321,25 +1344,37 @@ nsHTMLCSSUtils::GetInlineStyles(nsIDOMElement *aElement,
   return NS_OK;
 }
 
-already_AddRefed<nsIDOMElement>
-nsHTMLCSSUtils::GetElementContainerOrSelf(nsIDOMNode* aNode)
+nsresult
+nsHTMLCSSUtils::GetElementContainerOrSelf(nsIDOMNode * aNode, nsIDOMElement ** aElement)
 {
-  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-  NS_ENSURE_TRUE(node, nsnull);
+  NS_ENSURE_TRUE(aNode, NS_ERROR_NULL_POINTER);
 
-  if (nsIDOMNode::DOCUMENT_NODE == node->NodeType()) {
-    return nsnull;
+  nsCOMPtr<nsIDOMNode> node=aNode, parentNode;
+  PRUint16 type;
+  nsresult res;
+  res = node->GetNodeType(&type);
+  NS_ENSURE_SUCCESS(res, res);
+
+  if (nsIDOMNode::DOCUMENT_NODE == type) {
+    return NS_ERROR_NULL_POINTER;
   }
 
-  // Loop until we find an element.
-  while (node && !node->IsElement()) {
-    node = node->GetNodeParent();
+  // loop until we find an element
+  while (node && nsIDOMNode::ELEMENT_NODE != type) {
+    parentNode = node;
+    res = parentNode->GetParentNode(getter_AddRefs(node));
+    NS_ENSURE_SUCCESS(res, res);
+    if (node) {
+      res = node->GetNodeType(&type);
+      NS_ENSURE_SUCCESS(res, res);
+    }
   }
-
-  NS_ENSURE_TRUE(node, nsnull);
-
+  NS_ASSERTION(node, "we reached a null node ancestor !");
+  NS_ENSURE_TRUE(node, NS_ERROR_NULL_POINTER);
   nsCOMPtr<nsIDOMElement> element = do_QueryInterface(node);
-  return element.forget();
+  (*aElement) = element;
+  NS_IF_ADDREF(*aElement);
+  return NS_OK;
 }
 
 nsresult

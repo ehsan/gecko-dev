@@ -344,6 +344,9 @@ nsLayoutStatics::Shutdown()
   nsXBLWindowKeyHandler::ShutDown();
   nsAutoCopyListener::Shutdown();
 
+  nsHTMLEditor::Shutdown();
+  nsTextServicesDocument::Shutdown();
+
 #ifdef MOZ_SYDNEYAUDIO
   nsAudioStream::ShutdownLibrary();
 #endif

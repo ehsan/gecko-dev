@@ -97,7 +97,7 @@ Factory::CreateDrawTarget(BackendType aBackend, const IntSize &aSize, SurfaceFor
       }
       break;
     }
-#elif defined XP_MACOSX || defined ANDROID || defined LINUX
+#elif defined XP_MACOSX || defined ANDROID
 #ifdef USE_SKIA
   case BACKEND_SKIA:
     {

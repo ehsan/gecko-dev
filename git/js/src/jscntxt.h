@@ -95,11 +95,6 @@ class InterpreterFrames;
 class ScriptOpcodeCounts;
 struct ScriptOpcodeCountsPair;
 
-typedef HashMap<JSAtom *,
-                detail::RegExpCacheValue,
-                DefaultHasher<JSAtom *>,
-                RuntimeAllocPolicy> RegExpCache;
-
 /*
  * GetSrcNote cache to avoid O(n^2) growth in finding a source note for a
  * given pc in a script. We use the script->code pointer to tag the cache,
@@ -132,6 +127,9 @@ typedef Vector<ScriptOpcodeCountsPair, 0, SystemAllocPolicy> ScriptOpcodeCountsV
 
 struct ConservativeGCData
 {
+    /* Base address of the native stack for the current thread. */
+    uintptr_t           *nativeStackBase;
+
     /*
      * The GC scans conservatively between ThreadData::nativeStackBase and
      * nativeStackTop unless the latter is NULL.
@@ -151,7 +149,7 @@ struct ConservativeGCData
     unsigned requestThreshold;
 
     ConservativeGCData()
-      : nativeStackTop(NULL), requestThreshold(0)
+      : nativeStackBase(NULL), nativeStackTop(NULL), requestThreshold(0)
     {}
 
     ~ConservativeGCData() {
@@ -182,8 +180,14 @@ struct ConservativeGCData
 
 } /* namespace js */
 
-struct JSRuntime : js::RuntimeFriendFields
+struct JSRuntime
 {
+    /*
+     * If non-zero, we were been asked to call the operation callback as soon
+     * as possible.
+     */
+    volatile int32_t    interrupt;
+
     /* Default compartment. */
     JSCompartment       *atomsCompartment;
 
@@ -219,11 +223,11 @@ struct JSRuntime : js::RuntimeFriendFields
      */
     JSC::ExecutableAllocator *execAlloc_;
     WTF::BumpPointerAllocator *bumpAlloc_;
-    js::RegExpCache *reCache_;
+    js::RegExpPrivateCache *repCache_;
 
     JSC::ExecutableAllocator *createExecutableAllocator(JSContext *cx);
     WTF::BumpPointerAllocator *createBumpPointerAllocator(JSContext *cx);
-    js::RegExpCache *createRegExpCache(JSContext *cx);
+    js::RegExpPrivateCache *createRegExpPrivateCache(JSContext *cx);
 
   public:
     JSC::ExecutableAllocator *getExecutableAllocator(JSContext *cx) {
@@ -232,18 +236,12 @@ struct JSRuntime : js::RuntimeFriendFields
     WTF::BumpPointerAllocator *getBumpPointerAllocator(JSContext *cx) {
         return bumpAlloc_ ? bumpAlloc_ : createBumpPointerAllocator(cx);
     }
-    js::RegExpCache *maybeRegExpCache() {
-        return reCache_;
+    js::RegExpPrivateCache *maybeRegExpPrivateCache() {
+        return repCache_;
     }
-    js::RegExpCache *getRegExpCache(JSContext *cx) {
-        return reCache_ ? reCache_ : createRegExpCache(cx);
+    js::RegExpPrivateCache *getRegExpPrivateCache(JSContext *cx) {
+        return repCache_ ? repCache_ : createRegExpPrivateCache(cx);
     }
-
-    /* Base address of the native stack for the current thread. */
-    uintptr_t           nativeStackBase;
-
-    /* The native stack size limit that runtime should not exceed. */
-    size_t              nativeStackQuota;
 
     /*
      * Frames currently running in js::Interpret. See InterpreterFrames for
@@ -430,7 +428,7 @@ struct JSRuntime : js::RuntimeFriendFields
     bool hasContexts() const {
         return !JS_CLIST_IS_EMPTY(&contextList);
     }
-
+    
     /* Per runtime debug hooks -- see jsprvtd.h and jsdbgapi.h. */
     JSDebugHooks        globalDebugHooks;
 
@@ -455,6 +453,7 @@ struct JSRuntime : js::RuntimeFriendFields
 #ifdef JS_THREADSAFE
     /* These combine to interlock the GC and new requests. */
     PRLock              *gcLock;
+    uint32_t            requestCount;
 
     js::GCHelperThread  gcHelperThread;
 #endif /* JS_THREADSAFE */
@@ -560,7 +559,7 @@ struct JSRuntime : js::RuntimeFriendFields
      * reporting OOM error when cx is not null. We will not GC from here.
      */
     void* malloc_(size_t bytes, JSContext *cx = NULL) {
-        updateMallocCounter(cx, bytes);
+        updateMallocCounter(bytes);
         void *p = ::js_malloc(bytes);
         return JS_LIKELY(!!p) ? p : onOutOfMemory(NULL, bytes, cx);
     }
@@ -570,14 +569,14 @@ struct JSRuntime : js::RuntimeFriendFields
      * reporting OOM error when cx is not null. We will not GC from here.
      */
     void* calloc_(size_t bytes, JSContext *cx = NULL) {
-        updateMallocCounter(cx, bytes);
+        updateMallocCounter(bytes);
         void *p = ::js_calloc(bytes);
         return JS_LIKELY(!!p) ? p : onOutOfMemory(reinterpret_cast<void *>(1), bytes, cx);
     }
 
     void* realloc_(void* p, size_t oldBytes, size_t newBytes, JSContext *cx = NULL) {
         JS_ASSERT(oldBytes < newBytes);
-        updateMallocCounter(cx, newBytes - oldBytes);
+        updateMallocCounter(newBytes - oldBytes);
         void *p2 = ::js_realloc(p, newBytes);
         return JS_LIKELY(!!p2) ? p2 : onOutOfMemory(p, newBytes, cx);
     }
@@ -588,7 +587,7 @@ struct JSRuntime : js::RuntimeFriendFields
          * previously allocated memory.
          */
         if (!p)
-            updateMallocCounter(cx, bytes);
+            updateMallocCounter(bytes);
         void *p2 = ::js_realloc(p, bytes);
         return JS_LIKELY(!!p2) ? p2 : onOutOfMemory(p, bytes, cx);
     }
@@ -622,7 +621,13 @@ struct JSRuntime : js::RuntimeFriendFields
      * The function must be called outside the GC lock and in case of OOM error
      * the caller must ensure that no deadlock possible during OOM reporting.
      */
-    void updateMallocCounter(JSContext *cx, size_t nbytes);
+    void updateMallocCounter(size_t nbytes) {
+        /* We tolerate any thread races when updating gcMallocBytes. */
+        ptrdiff_t newCount = gcMallocBytes - ptrdiff_t(nbytes);
+        gcMallocBytes = newCount;
+        if (JS_UNLIKELY(newCount <= 0))
+            onTooMuchMalloc();
+    }
 
     /*
      * The function must be called outside the GC lock.
@@ -766,7 +771,7 @@ typedef HashSet<JSObject *,
 
 } /* namespace js */
 
-struct JSContext : js::ContextFriendFields
+struct JSContext
 {
     explicit JSContext(JSRuntime *rt);
     JSContext *thisDuringConstruction() { return this; }
@@ -801,6 +806,12 @@ struct JSContext : js::ContextFriendFields
      * NB: generatingError packs with throwing below.
      */
     JSPackedBool        generatingError;
+
+    /* Limit pointer for checking native stack consumption during recursion. */
+    uintptr_t           stackLimit;
+
+    /* Data shared by contexts and compartments in an address space. */
+    JSRuntime *const    runtime;
 
     /* GC heap compartment. */
     JSCompartment       *compartment;
@@ -1352,6 +1363,14 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode);
  */
 extern JSContext *
 js_ContextIterator(JSRuntime *rt, JSBool unlocked, JSContext **iterp);
+
+/*
+ * Iterate through contexts with active requests. The caller must be holding
+ * rt->gcLock in case of a thread-safe build, or otherwise guarantee that the
+ * context list is not alternated asynchroniously.
+ */
+extern JS_FRIEND_API(JSContext *)
+js_NextActiveContext(JSRuntime *, JSContext *);
 
 #ifdef va_start
 extern JSBool

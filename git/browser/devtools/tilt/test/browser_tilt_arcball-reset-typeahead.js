@@ -1,5 +1,9 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
+
+/*global ok, is, info, isApproxVec, waitForExplicitFinish, executeSoon, finish */
+/*global isTiltEnabled, isWebGLSupported, createTab, createTilt */
+/*global Services, EventUtils, InspectorUI, TiltVisualizer, TILT_DESTROYED */
 "use strict";
 
 function test() {
@@ -26,7 +30,7 @@ function test() {
           info("Killing arcball reset test.");
 
           Services.prefs.setBoolPref("accessibility.typeaheadfind", false);
-          Services.obs.addObserver(cleanup, DESTROYED, false);
+          Services.obs.addObserver(cleanup, TILT_DESTROYED, false);
           InspectorUI.closeInspectorUI();
         });
       }
@@ -43,23 +47,23 @@ function performTest(canvas, arcball, callback) {
 
   // start translating and rotating sometime at random
 
-  window.setTimeout(function() {
+  executeSoon(function() {
     info("Synthesizing key down events.");
 
-    EventUtils.synthesizeKey("VK_S", { type: "keydown" });     // add a little
-    EventUtils.synthesizeKey("VK_RIGHT", { type: "keydown" }); // diversity
+    EventUtils.synthesizeKey("VK_W", { type: "keydown" });
+    EventUtils.synthesizeKey("VK_LEFT", { type: "keydown" });
 
     // wait for some arcball translations and rotations to happen
 
-    window.setTimeout(function() {
+    executeSoon(function() {
       info("Synthesizing key up events.");
 
-      EventUtils.synthesizeKey("VK_S", { type: "keyup" });
-      EventUtils.synthesizeKey("VK_RIGHT", { type: "keyup" });
+      EventUtils.synthesizeKey("VK_W", { type: "keyup" });
+      EventUtils.synthesizeKey("VK_LEFT", { type: "keyup" });
 
       // ok, transformations finished, we can now try to reset the model view
 
-      window.setTimeout(function() {
+      executeSoon(function() {
         info("Synthesizing arcball reset key press.");
 
         arcball.onResetStart = function() {
@@ -94,16 +98,15 @@ function performTest(canvas, arcball, callback) {
         };
 
         EventUtils.synthesizeKey("VK_R", { type: "keydown" });
-
-      }, Math.random() * 1000); // leave enough time for transforms to happen
-    }, Math.random() * 1000);
-  }, Math.random() * 1000);
+      });
+    });
+  });
 }
 
-function cleanup() {
+function cleanup() { /*global gBrowser */
   info("Cleaning up arcball reset test.");
 
-  Services.obs.removeObserver(cleanup, DESTROYED);
+  Services.obs.removeObserver(cleanup, TILT_DESTROYED);
   gBrowser.removeCurrentTab();
   finish();
 }

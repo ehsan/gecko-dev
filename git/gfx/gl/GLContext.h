@@ -1201,6 +1201,7 @@ public:
      * \param aSurface Surface to upload. 
      * \param aDstRegion Region of texture to upload to.
      * \param aTexture Texture to use, or 0 to have one created for you.
+     * \param aTextureSize The size of the texture to use.
      * \param aOverwrite Over an existing texture with a new one.
      * \param aSrcPoint Offset into aSrc where the region's bound's 
      *  TopLeft() sits.
@@ -1212,6 +1213,7 @@ public:
     ShaderProgramType UploadSurfaceToTexture(gfxASurface *aSurface, 
                                              const nsIntRegion& aDstRegion,
                                              GLuint& aTexture,
+                                             const nsIntSize& aTextureSize,
                                              bool aOverwrite = false,
                                              const nsIntPoint& aSrcPoint = nsIntPoint(0, 0),
                                              bool aPixelBuffer = false);

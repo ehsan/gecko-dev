@@ -129,13 +129,7 @@ CommonAnimationManager::MediumFeaturesChanged(nsPresContext* aPresContext)
 /* virtual */ size_t
 CommonAnimationManager::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
-  // Measurement of the following members may be added later if DMD finds it is
-  // worthwhile:
-  // - mElementData
-  //
-  // The following members are not measured
-  // - mPresContext, because it's non-owning
-
+  // XXX: could measure mProperytValuePairs here.  Bug 671299 may do this.
   return 0;
 }
 

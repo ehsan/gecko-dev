@@ -1584,14 +1584,6 @@ if [ "$MOZ_WAVE" ]; then
  "
 fi
 
-if [ "$MOZ_CUBEB" ]; then
-  add_makefiles "
-    media/libcubeb/Makefile
-    media/libcubeb/include/Makefile
-    media/libcubeb/src/Makefile
-  "
-fi
-
 if [ "$MOZ_SYDNEYAUDIO" ]; then
   add_makefiles "
     media/libsydneyaudio/Makefile

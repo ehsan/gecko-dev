@@ -143,8 +143,8 @@ typedef struct CapturingContentInfo {
 } CapturingContentInfo;
 
 #define NS_IPRESSHELL_IID    \
-        { 0x87acd089, 0x8da7, 0x4438, \
-          { 0xa5, 0xcd, 0x90, 0x1e, 0x5d, 0x8f, 0xd8, 0x19 } }
+{ 0x3ab5b116, 0x2d73, 0x431c, \
+ { 0x9a, 0x4b, 0x6c, 0x91, 0x9e, 0x42, 0x45, 0xc3 } }
 
 // Constants for ScrollContentIntoView() function
 #define NS_PRESSHELL_SCROLL_TOP      0
@@ -269,10 +269,8 @@ public:
   nsCSSFrameConstructor* FrameConstructor() const { return mFrameConstructor; }
 
   nsFrameManager* FrameManager() const {
-    // reinterpret_cast is valid since nsFrameManager does not add
-    // any members over nsFrameManagerBase.
     return reinterpret_cast<nsFrameManager*>
-                           (const_cast<nsIPresShell*>(this)->mFrameManager);
+                           (&const_cast<nsIPresShell*>(this)->mFrameManager);
   }
 
 #endif
@@ -384,7 +382,7 @@ public:
   virtual NS_HIDDEN_(nsIFrame*) GetRootFrameExternal() const;
   nsIFrame* GetRootFrame() const {
 #ifdef _IMPL_NS_LAYOUT
-    return mFrameManager->GetRootFrame();
+    return mFrameManager.GetRootFrame();
 #else
     return GetRootFrameExternal();
 #endif
@@ -1147,21 +1145,13 @@ public:
 
   virtual void Paint(nsIView* aViewToPaint, nsIWidget* aWidget,
                      const nsRegion& aDirtyRegion, const nsIntRegion& aIntDirtyRegion,
-                     bool aWillSendDidPaint) = 0;
+                     bool aPaintDefaultBackground, bool aWillSendDidPaint) = 0;
   virtual nsresult HandleEvent(nsIFrame*       aFrame,
                                nsGUIEvent*     aEvent,
                                bool            aDontRetargetEvents,
                                nsEventStatus*  aEventStatus) = 0;
   virtual bool ShouldIgnoreInvalidation() = 0;
-  /**
-   * Notify that the NS_WILL_PAINT event was received. Fires on every
-   * visible presshell in the document tree.
-   */
   virtual void WillPaint(bool aWillSendDidPaint) = 0;
-  /**
-   * Notify that the NS_DID_PAINT event was received. Only fires on the
-   * root pres shell.
-   */
   virtual void DidPaint() = 0;
   virtual void ScheduleViewManagerFlush() = 0;
   virtual void ClearMouseCaptureOnView(nsIView* aView) = 0;
@@ -1224,9 +1214,7 @@ protected:
   nsCSSFrameConstructor*    mFrameConstructor; // [OWNS]
   nsIViewManager*           mViewManager;   // [WEAK] docViewer owns it so I don't have to
   nsFrameSelection*         mSelection;
-  // Pointer into mFrameConstructor - this is purely so that FrameManager() and
-  // GetRootFrame() can be inlined:
-  nsFrameManagerBase*       mFrameManager;
+  nsFrameManagerBase        mFrameManager;  // [OWNS]
   nsWeakPtr                 mForwardingContainer;
 
 #ifdef NS_DEBUG

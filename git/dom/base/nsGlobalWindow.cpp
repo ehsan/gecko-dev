@@ -283,9 +283,6 @@ static bool                 gDragServiceDisabled       = false;
 static FILE                *gDumpFile                  = nsnull;
 static PRUint64             gNextWindowID              = 0;
 static PRUint32             gSerialCounter             = 0;
-static PRUint32             gTimeoutsRecentlySet       = 0;
-static TimeStamp            gLastRecordedRecentTimeouts;
-#define STATISTICS_INTERVAL (30 * PR_MSEC_PER_SEC)
 
 #ifdef DEBUG_jst
 PRInt32 gTimeoutCnt                                    = 0;
@@ -532,7 +529,7 @@ nsDummyJavaPluginOwner::GetWindow(NPWindow *&aWindow)
 }
 
 NS_IMETHODIMP
-nsDummyJavaPluginOwner::CallSetWindow()
+nsDummyJavaPluginOwner::SetWindow()
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -7680,9 +7677,9 @@ void nsGlobalWindow::UpdateTouchState()
 
     nsCOMPtr<nsIObserverService> observerService =
       do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
-
     if (observerService) {
-      observerService->NotifyObservers(static_cast<nsIDOMWindow*>(this),
+      nsPIDOMWindow *inner = GetCurrentInnerWindowInternal();
+      observerService->NotifyObservers(mainWidget,
                                        DOM_TOUCH_LISTENER_ADDED,
                                        nsnull);
     }
@@ -9057,7 +9054,6 @@ nsGlobalWindow::SetTimeoutOrInterval(nsIScriptTimeoutHandler *aHandler,
     timeout->mPrincipal = ourPrincipal;
   }
 
-  ++gTimeoutsRecentlySet;
   TimeDuration delta = TimeDuration::FromMilliseconds(realInterval);
 
   if (!IsFrozen() && !mTimeoutsSuspendDepth) {
@@ -9230,16 +9226,6 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
   // eligible for execution yet. Go away.
   if (!last_expired_timeout) {
     return;
-  }
-
-  // Record telemetry information about timers set recently.
-  TimeDuration recordingInterval = TimeDuration::FromMilliseconds(STATISTICS_INTERVAL);
-  if (gLastRecordedRecentTimeouts.IsNull() ||
-      now - gLastRecordedRecentTimeouts > recordingInterval) {
-    PRUint32 count = gTimeoutsRecentlySet;
-    gTimeoutsRecentlySet = 0;
-    Telemetry::Accumulate(Telemetry::DOM_TIMERS_RECENTLY_SET, count);
-    gLastRecordedRecentTimeouts = now;
   }
 
   // Insert a dummy timeout into the list of timeouts between the
@@ -10294,16 +10280,6 @@ nsGlobalWindow::SizeOf() const
   size += mNavigator ? mNavigator->SizeOf() : 0;
 
   return size;
-}
-
-size_t
-nsGlobalWindow::SizeOfStyleSheets(nsMallocSizeOfFun aMallocSizeOf) const
-{
-  size_t n = 0;
-  if (IsInnerWindow() && mDoc) {
-    n += mDoc->SizeOfStyleSheets(aMallocSizeOf);
-  }
-  return n;
 }
 
 // nsGlobalChromeWindow implementation

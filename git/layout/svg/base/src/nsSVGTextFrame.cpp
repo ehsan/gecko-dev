@@ -89,8 +89,12 @@ nsSVGTextFrame::AttributeChanged(PRInt32         aNameSpaceID,
     return NS_OK;
 
   if (aAttribute == nsGkAtoms::transform) {
+    // transform has changed
 
-    NotifySVGChanged(TRANSFORM_CHANGED);
+    // make sure our cached transform matrix gets (lazily) updated
+    mCanvasTM = nsnull;
+
+    nsSVGUtils::NotifyChildrenOfSVGChange(this, TRANSFORM_CHANGED);
    
   } else if (aAttribute == nsGkAtoms::x ||
              aAttribute == nsGkAtoms::y ||
@@ -181,24 +185,14 @@ nsSVGTextFrame::GetRotationOfChar(PRUint32 charnum, float *_retval)
 void
 nsSVGTextFrame::NotifySVGChanged(PRUint32 aFlags)
 {
-  bool updateGlyphMetrics = false;
-  
-  if (aFlags & COORD_CONTEXT_CHANGED) {
-    updateGlyphMetrics = true;
-  }
-
   if (aFlags & TRANSFORM_CHANGED) {
-    if (mCanvasTM && mCanvasTM->IsSingular()) {
-      // We won't have calculated the glyph positions correctly
-      updateGlyphMetrics = true;
-    }
     // make sure our cached transform matrix gets (lazily) updated
     mCanvasTM = nsnull;
   }
 
   nsSVGTextFrameBase::NotifySVGChanged(aFlags);
 
-  if (updateGlyphMetrics) {
+  if (aFlags & COORD_CONTEXT_CHANGED) {
     // If we are positioned using percentage values we need to update our
     // position whenever our viewport's dimensions change.
 
@@ -209,13 +203,20 @@ nsSVGTextFrame::NotifySVGChanged(PRUint32 aFlags)
   }
 }
 
-void
+NS_IMETHODIMP
+nsSVGTextFrame::NotifyRedrawSuspended()
+{
+  mMetricsState = suspended;
+
+  return nsSVGTextFrameBase::NotifyRedrawSuspended();
+}
+
+NS_IMETHODIMP
 nsSVGTextFrame::NotifyRedrawUnsuspended()
 {
-  RemoveStateBits(NS_STATE_SVG_REDRAW_SUSPENDED);
-
+  mMetricsState = unsuspended;
   UpdateGlyphPositioning(false);
-  nsSVGTextFrameBase::NotifyRedrawUnsuspended();
+  return nsSVGTextFrameBase::NotifyRedrawUnsuspended();
 }
 
 NS_IMETHODIMP
@@ -331,7 +332,7 @@ nsSVGTextFrame::SetWhitespaceHandling(nsSVGGlyphFrame *aFrame)
 void
 nsSVGTextFrame::UpdateGlyphPositioning(bool aForceGlobalTransform)
 {
-  if ((GetStateBits() & NS_STATE_SVG_REDRAW_SUSPENDED) || !mPositioningDirty)
+  if (mMetricsState == suspended || !mPositioningDirty)
     return;
 
   mPositioningDirty = false;

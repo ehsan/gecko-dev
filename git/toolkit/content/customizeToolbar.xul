@@ -52,7 +52,7 @@
         title="&dialog.title;"
         onload="onLoad();"
         onunload="onUnload();"
-        style="&dialog.dimensions;"
+        style="&dialog.style;"
         persist="width height"
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 

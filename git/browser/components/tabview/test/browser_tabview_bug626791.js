@@ -79,7 +79,8 @@ function test() {
     let height = cw.innerHeight;
 
     let body = cw.document.body;
-    EventUtils.synthesizeMouse(body, width - 10, height - 10, { clickCount: 2 }, cw);
+    EventUtils.synthesizeMouse(body, width - 10, height - 10, {}, cw);
+    EventUtils.synthesizeMouse(body, width - 10, height - 10, {}, cw);
 
     whenTabViewIsHidden(function () {
       assertNumberOfTabs(2);

@@ -215,15 +215,20 @@ protected:
 
 //----------------------------------------------------------------------
 
+nsFrameManager::nsFrameManager()
+{
+}
+
 nsFrameManager::~nsFrameManager()
 {
   NS_ASSERTION(!mPresShell, "nsFrameManager::Destroy never called");
 }
 
 nsresult
-nsFrameManager::Init(nsStyleSet* aStyleSet)
+nsFrameManager::Init(nsIPresShell* aPresShell,
+                     nsStyleSet*  aStyleSet)
 {
-  if (!mPresShell) {
+  if (!aPresShell) {
     NS_ERROR("null pres shell");
     return NS_ERROR_FAILURE;
   }
@@ -233,6 +238,7 @@ nsFrameManager::Init(nsStyleSet* aStyleSet)
     return NS_ERROR_FAILURE;
   }
 
+  mPresShell = aPresShell;
   mStyleSet = aStyleSet;
   return NS_OK;
 }
