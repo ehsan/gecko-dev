@@ -53,12 +53,11 @@ class GenericRefCounted : public GenericRefCountedBase
 
   public:
     virtual void AddRef() {
-      MOZ_ASSERT(int32_t(refCnt) >= 0);
       ++refCnt;
     }
 
     virtual void Release() {
-      MOZ_ASSERT(int32_t(refCnt) > 0);
+      MOZ_ASSERT(refCnt > 0);
       if (0 == --refCnt) {
 #ifdef DEBUG
         refCnt = detail::DEAD;

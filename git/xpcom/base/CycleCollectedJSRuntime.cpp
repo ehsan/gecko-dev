@@ -877,7 +877,15 @@ CycleCollectedJSRuntime::ZoneParticipant()
 nsresult
 CycleCollectedJSRuntime::TraverseRoots(nsCycleCollectionNoteRootCallback &aCb)
 {
-  MOZ_ASSERT(!NeedCollect(), "Cannot cycle collect if GC has not run first!");
+  static bool gcHasRun = false;
+  if (!gcHasRun) {
+    uint32_t gcNumber = JS_GetGCParameter(mJSRuntime, JSGC_NUMBER);
+    if (!gcNumber) {
+      // Cannot cycle collect if GC has not run first!
+      MOZ_CRASH();
+    }
+    gcHasRun = true;
+  }
 
   TraverseNativeRoots(aCb);
 

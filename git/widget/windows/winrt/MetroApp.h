@@ -19,6 +19,8 @@ namespace mozilla {
 namespace widget {
 namespace winrt {
 
+class FrameworkView;
+
 class MetroApp : public Microsoft::WRL::RuntimeClass<ABI::Windows::ApplicationModel::Core::IFrameworkViewSource>
 {
   InspectableClass(L"MetroApp", TrustLevel::BaseTrust)
@@ -43,14 +45,12 @@ public:
   void Run();
   void CoreExit();
   void Shutdown();
-  void ActivateBaseView();
 
   // Set when gecko enters xpcom shutdown.
   static bool sGeckoShuttingDown;
 
   // Shared pointers between framework and widget
-  void SetWidget(MetroWidget* aPtr);
-
+  static void SetBaseWidget(MetroWidget* aPtr);
   static void PostSuspendResumeProcessNotification(bool aIsSuspend);
   static void PostSleepWakeNotification(bool aIsSuspend);
 
