@@ -35,63 +35,49 @@
 #
 # ***** END LICENSE BLOCK *****
 
-DEPTH		= ../..
+DEPTH		= ../../../../../..
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-MODULE		= plugin
+MODULE		= npSDKscriptable
+LIBRARY_NAME	= npSDKscriptable
 
-DIRS		= base/public 
+REQUIRES        = idl \
+                  xpcom \
+                  nspr \
+                  $(NULL)
 
-ifdef MOZ_PLUGINS
-DIRS		+= base/src 
+CPPSRCS         = plugin.cpp \
+		  nsScriptablePeer.cpp
 
-ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
-TOOL_DIRS += samples/unixprinting
-endif
+XPIDLSRCS 	= nsIScriptablePluginSample.idl 
 
-# These subdirs rely on GTK libraries and header files, it is not
-#  buildable on other non-GTK unix builds
-
-ifdef MOZ_ENABLE_GTK2
-TOOL_DIRS += default/unix
-endif
-
-ifeq ($(OS_ARCH),WINNT)
-TOOL_DIRS += default/windows
-endif
-
-ifeq ($(OS_ARCH),OS2)
-TOOL_DIRS += default/os2
-ifdef MOZ_OJI
-TOOL_DIRS += os2wrapper
-endif
-ifdef ENABLE_TESTS
-TOOL_DIRS += tools/tester/common tools/tester/os2
-endif
-endif
-
-ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
-TOOL_DIRS += default/mac
-endif
-
-ifdef ENABLE_TESTS
-ifneq (,$(filter WINNT Darwin Linux,$(OS_ARCH)))
-TOOL_DIRS += sdk
-endif
-endif
-
-endif # MOZ_PLUGINS
+SHARED_LIBRARY_LIBS = $(DIST)/lib/libplugingate_s.$(LIB_SUFFIX)
 
 include $(topsrcdir)/config/rules.mk
 
-ifdef MOZ_PLUGINS
-$(DIST)/bin/plugins:
-	$(NSINSTALL) -D $@
+DEFINES += -DMOZILLA_STRICT_API
 
-export:: $(DIST)/bin/plugins
+EXTRA_DSO_LDOPTS +=  $(XLDFLAGS) -rdynamic  -lXi -lXext -lX11 -lm -lXt
 
+INSTALL_PLUGIN	= $(CONFIG_TOOLS)/nsinstall -R 
+INSTALL = true
+
+ifeq ($(OS_ARCH), UNIX)
+# This needs to get defined for npapi.h on unix platforms.
+DEFINES		+= -DXP_UNIX
 endif
+
+LOCAL_INCLUDES	+= -I$(srcdir)/$(XPIDL_GEN_DIR) -I$(srcdir)/../../include -I$(srcdir)/../../../include
+
+install-plugin:	$(SHARED_LIBRARY)
+	$(INSTALL_PLUGIN) $(IFLAGS1) $(XPIDL_GEN_DIR)/$(XPIDL_MODULE).xpt $(DIST)/bin/plugins
+ifdef SHARED_LIBRARY
+	$(INSTALL_PLUGIN) $(SHARED_LIBRARY) $(DIST)/bin/plugins
+endif
+
+libs:: install-plugin
+

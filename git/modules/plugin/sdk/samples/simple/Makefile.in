@@ -35,63 +35,44 @@
 #
 # ***** END LICENSE BLOCK *****
 
-DEPTH		= ../..
-topsrcdir	= @top_srcdir@
-srcdir		= @srcdir@
-VPATH		= @srcdir@
+DEPTH = ../../../../..
+topsrcdir = @top_srcdir@
+srcdir = @srcdir@
+VPATH = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-MODULE		= plugin
+XPIDL_MODULE = npsimple
+LIBRARY_NAME = npsimple
+REQUIRES = xpcom \
+           plugin \
+           $(NULL)
 
-DIRS		= base/public 
+NO_DIST_INSTALL = 1
+NO_INSTALL = 1
 
-ifdef MOZ_PLUGINS
-DIRS		+= base/src 
+CPPSRCS = nsScriptablePeer.cpp \
+          plugin.cpp \
+          $(NULL)
 
-ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
-TOOL_DIRS += samples/unixprinting
-endif
+XPIDLSRCS = nsISimplePlugin.idl
 
-# These subdirs rely on GTK libraries and header files, it is not
-#  buildable on other non-GTK unix builds
-
-ifdef MOZ_ENABLE_GTK2
-TOOL_DIRS += default/unix
-endif
+SHARED_LIBRARY_LIBS = ../common/$(LIB_PREFIX)plugingate_s.$(LIB_SUFFIX)
 
 ifeq ($(OS_ARCH),WINNT)
-TOOL_DIRS += default/windows
+DEFFILE = $(win_srcdir)/npsimple.def
+RESFILE = npsimple.res
 endif
-
-ifeq ($(OS_ARCH),OS2)
-TOOL_DIRS += default/os2
-ifdef MOZ_OJI
-TOOL_DIRS += os2wrapper
-endif
-ifdef ENABLE_TESTS
-TOOL_DIRS += tools/tester/common tools/tester/os2
-endif
-endif
-
-ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
-TOOL_DIRS += default/mac
-endif
-
-ifdef ENABLE_TESTS
-ifneq (,$(filter WINNT Darwin Linux,$(OS_ARCH)))
-TOOL_DIRS += sdk
-endif
-endif
-
-endif # MOZ_PLUGINS
 
 include $(topsrcdir)/config/rules.mk
 
-ifdef MOZ_PLUGINS
-$(DIST)/bin/plugins:
-	$(NSINSTALL) -D $@
+DEFINES += -DMOZILLA_STRICT_API
 
-export:: $(DIST)/bin/plugins
-
+ifeq ($(OS_ARCH),Linux)
+EXTRA_DSO_LDOPTS +=  $(XLDFLAGS) -rdynamic  -lXi -lXext -lX11 -lm -lXt
 endif
+
+LOCAL_INCLUDES = -I./$(XPIDL_GEN_DIR) \
+                 -I$(srcdir)/../include \
+                 -I$(srcdir)/../../include \
+                 $(NULL)
