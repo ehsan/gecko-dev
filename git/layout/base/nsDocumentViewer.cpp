@@ -704,7 +704,7 @@ DocumentViewerImpl::InitPresentationStuff(bool aDoInitialReflow)
   styleSet->EndUpdate();
 
   if (aDoInitialReflow) {
-    // Since Initialize() will create frames for *all* items
+    // Since InitialReflow() will create frames for *all* items
     // that are currently in the document tree, we need to flush
     // any pending notifications to prevent the content sink from
     // duplicating layout frames for content it has added to the tree
@@ -730,10 +730,10 @@ DocumentViewerImpl::InitPresentationStuff(bool aDoInitialReflow)
   if (aDoInitialReflow) {
     nsCOMPtr<nsIPresShell> shellGrip = mPresShell;
     // Initial reflow
-    mPresShell->Initialize(width, height);
+    mPresShell->InitialReflow(width, height);
   } else {
     // Store the visible area so it's available for other callers of
-    // Initialize, like nsContentSink::StartLayout.
+    // InitialReflow, like nsContentSink::StartLayout.
     mPresContext->SetVisibleArea(nsRect(0, 0, width, height));
   }
 
@@ -2728,18 +2728,6 @@ DocumentViewerImpl::CallChildren(CallChildFunc aFunc, void* aClosure)
   }
 }
 
-struct LineBoxInfo
-{
-  nscoord mMaxLineBoxWidth;
-};
-
-static void
-ChangeChildMaxLineBoxWidth(nsIMarkupDocumentViewer* aChild, void* aClosure)
-{
-  struct LineBoxInfo* lbi = (struct LineBoxInfo*) aClosure;
-  aChild->ChangeMaxLineBoxWidth(lbi->mMaxLineBoxWidth);
-}
-
 struct ZoomInfo
 {
   float mZoom;
@@ -3245,23 +3233,6 @@ NS_IMETHODIMP DocumentViewerImpl::AppendSubtree(nsTArray<nsCOMPtr<nsIMarkupDocum
 {
   aArray.AppendElement(this);
   CallChildren(AppendChildSubtree, &aArray);
-  return NS_OK;
-}
-
-NS_IMETHODIMP DocumentViewerImpl::ChangeMaxLineBoxWidth(int32_t aMaxLineBoxWidth)
-{
-  // Change the max line box width for all children.
-  struct LineBoxInfo lbi = { aMaxLineBoxWidth };
-  CallChildren(ChangeChildMaxLineBoxWidth, &lbi);
-
-  // Now, change our max line box width.
-  // Convert to app units, since our input is in CSS pixels.
-  nscoord mlbw = nsPresContext::CSSPixelsToAppUnits(aMaxLineBoxWidth);
-  nsIPresShell* presShell = GetPresShell();
-  if (presShell) {
-    presShell->SetMaxLineBoxWidth(mlbw);
-  }
-
   return NS_OK;
 }
 

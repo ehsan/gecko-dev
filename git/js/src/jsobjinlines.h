@@ -53,8 +53,8 @@
 #include "vm/String-inl.h"
 
 /* static */ inline bool
-JSObject::enumerate(JSContext *cx, JS::HandleObject obj, JSIterateOp iterop,
-                    JS::MutableHandleValue statep, JS::MutableHandleId idp)
+JSObject::enumerate(JSContext *cx, js::HandleObject obj,
+                    JSIterateOp iterop, js::Value *statep, jsid *idp)
 {
     JSNewEnumerateOp op = obj->getOps()->enumerate;
     return (op ? op : JS_EnumerateState)(cx, obj, iterop, statep, idp);
@@ -698,6 +698,16 @@ JSObject::setType(js::types::TypeObject *newType)
 inline bool JSObject::setIteratedSingleton(JSContext *cx)
 {
     return setFlag(cx, js::BaseShape::ITERATED_SINGLETON);
+}
+
+inline bool JSObject::isSystem() const
+{
+    return lastProperty()->hasObjectFlag(js::BaseShape::SYSTEM);
+}
+
+inline bool JSObject::setSystem(JSContext *cx)
+{
+    return setFlag(cx, js::BaseShape::SYSTEM);
 }
 
 inline bool JSObject::setDelegate(JSContext *cx)

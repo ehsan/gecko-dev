@@ -84,7 +84,7 @@ gfxXlibSurface::~gfxXlibSurface()
 {
 #if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
     if (mGLXPixmap) {
-        gl::sDefGLXLib.DestroyPixmap(mGLXPixmap);
+        gl::sGLXLibrary.DestroyPixmap(mGLXPixmap);
     }
 #endif
     // gfxASurface's destructor calls RecordMemoryFreed().
@@ -511,7 +511,7 @@ GLXPixmap
 gfxXlibSurface::GetGLXPixmap()
 {
     if (!mGLXPixmap) {
-        mGLXPixmap = gl::sDefGLXLib.CreatePixmap(this);
+        mGLXPixmap = gl::sGLXLibrary.CreatePixmap(this);
     }
     return mGLXPixmap;
 }

@@ -116,7 +116,7 @@ function NetworkManager() {
   this.tetheringSettings[SETTINGS_WIFI_ENABLED] = false;
   this.tetheringSettings[SETTINGS_USB_ENABLED] = false;
 
-  let settingsLock = gSettingsService.createLock();
+  let settingsLock = gSettingsService.getLock();
   // Read wifi tethering data from settings DB.
   settingsLock.get(SETTINGS_WIFI_SSID, this);
   settingsLock.get(SETTINGS_WIFI_SECURITY_TYPE, this);
@@ -161,9 +161,6 @@ NetworkManager.prototype = {
                 network.type == Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_SUPL) {
               this.addHostRoute(network);
             }
-            // Remove pre-created default route and let setAndConfigureActive()
-            // to set default route only on preferred network
-            this.removeDefaultRoute(network.name);
             this.setAndConfigureActive();
             break;
           case Ci.nsINetworkInterface.NETWORK_STATE_DISCONNECTED:
@@ -205,9 +202,6 @@ NetworkManager.prototype = {
         network.type == Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_SUPL) {
       this.addHostRoute(network);
     }
-    // Remove pre-created default route and let setAndConfigureActive()
-    // to set default route only on preferred network
-    this.removeDefaultRoute(network.name);
     this.setAndConfigureActive();
     Services.obs.notifyObservers(network, TOPIC_INTERFACE_REGISTERED, null);
     debug("Network '" + network.name + "' registered.");
@@ -342,15 +336,6 @@ NetworkManager.prototype = {
     };
     this.worker.postMessage(options);
     this.setNetworkProxy();
-  },
-
-  removeDefaultRoute: function removeDefaultRoute(ifname) {
-    debug("Remove default route for " + ifname);
-    let options = {
-      cmd: "removeDefaultRoute",
-      ifname: ifname
-    }
-    this.worker.postMessage(options);
   },
 
   addHostRoute: function addHostRoute(network) {
@@ -750,7 +735,7 @@ NetworkManager.prototype = {
     let enable = data.enable;
     let enableString = enable ? "Enable" : "Disable";
     let unload = data.unload;
-    let settingsLock = gSettingsService.createLock();
+    let settingsLock = gSettingsService.getLock();
 
     debug(enableString + " Wifi tethering result: Code " + code + " reason " + reason);
     // Unload wifi driver when
@@ -772,7 +757,7 @@ NetworkManager.prototype = {
     let reason = data.resultReason;
     let enable = data.enable;
     let enableString = enable ? "Enable" : "Disable";
-    let settingsLock = gSettingsService.createLock();
+    let settingsLock = gSettingsService.getLock();
 
     debug(enableString + " USB tethering result: Code " + code + " reason " + reason);
     // Disable tethering settings when fail to enable it.

@@ -904,7 +904,7 @@ public class ProfileMigrator {
 
                 mDB.updateFaviconInBatch(mCr, mOperations, url, faviconUrl, faviconGuid, newData);
             } catch (SQLException e) {
-                Log.i(LOGTAG, "Migrating favicon failed: " + mime
+                Log.i(LOGTAG, "Migrating favicon failed: " + mime + " URL: " + url
                       + " error:" + e.getMessage());
             }
         }

@@ -489,8 +489,6 @@ var domException;
 try { document.appendChild(document); } catch(e) { domException = e; }
 var detachedRange = document.createRange();
 detachedRange.detach();
-var element = xmlDoc.createElementNS(null, "test");
-element.setAttribute("bar", "baz");
 
 var idlArray = new IdlArray();
 idlArray.add_idls(document.querySelector("script[type=text\\/plain]").textContent);
@@ -502,7 +500,7 @@ idlArray.add_objects({
 	DOMImplementation: ['document.implementation'],
 	DocumentFragment: ['document.createDocumentFragment()'],
 	DocumentType: ['document.doctype'],
-	Element: ['element'],
+	Element: ['xmlDoc.createElementNS(null, "test")'],
 	Attr: ['document.querySelector("[id]").attributes[0]'],
 	Text: ['document.createTextNode("abc")'],
 	ProcessingInstruction: ['xmlDoc.createProcessingInstruction("abc", "def")'],

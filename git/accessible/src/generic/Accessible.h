@@ -37,7 +37,6 @@ class HTMLLIAccessible;
 class ImageAccessible;
 class Relation;
 class TableAccessible;
-class TableCellAccessible;
 class TextLeafAccessible;
 class XULTreeAccessible;
 
@@ -514,8 +513,6 @@ public:
   mozilla::a11y::RootAccessible* AsRoot();
 
   virtual mozilla::a11y::TableAccessible* AsTable() { return nullptr; }
-
-  virtual mozilla::a11y::TableCellAccessible* AsTableCell() { return nullptr; }
 
   inline bool IsTextLeaf() const { return mFlags & eTextLeafAccessible; }
   mozilla::a11y::TextLeafAccessible* AsTextLeaf();

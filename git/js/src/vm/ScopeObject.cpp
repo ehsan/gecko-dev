@@ -482,7 +482,7 @@ with_DeleteSpecial(JSContext *cx, HandleObject obj, HandleSpecialId sid,
 
 static JSBool
 with_Enumerate(JSContext *cx, HandleObject obj, JSIterateOp enum_op,
-               MutableHandleValue statep, MutableHandleId idp)
+               Value *statep, jsid *idp)
 {
     RootedObject actual(cx, &obj->asWith().object());
     return JSObject::enumerate(cx, actual, enum_op, statep, idp);
@@ -1098,10 +1098,10 @@ class DebugScopeProxy : public BaseProxyHandler
 
             Bindings &bindings = script->bindings;
             BindingIter bi(script->bindings);
-            while (bi && NameToId(bi->name()) != id)
-                bi++;
-            if (!bi)
-                return false;
+            while (NameToId(bi->name()) != id) {
+                if (!++bi)
+                    return false;
+            }
 
             if (bi->kind() == VARIABLE || bi->kind() == CONSTANT) {
                 unsigned i = bi.frameIndex();

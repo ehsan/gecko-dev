@@ -391,7 +391,9 @@ NS_InitXPCOM2(nsIServiceManager* *result,
 
     StartupSpecialSystemDirectory();
 
-    nsDirectoryService::RealInit();
+    rv = nsDirectoryService::RealInit();
+    if (NS_FAILED(rv))
+        return rv;
 
     bool value;
 

@@ -123,6 +123,7 @@ public class DoorHangerPopup extends PopupWindow
     private void init() {
         setBackgroundDrawable(new BitmapDrawable());
         setOutsideTouchable(true);
+        setFocusable(true);
         setWindowLayoutMode(mActivity.isTablet() ? ViewGroup.LayoutParams.WRAP_CONTENT : ViewGroup.LayoutParams.FILL_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT);
 
@@ -246,8 +247,6 @@ public class DoorHangerPopup extends PopupWindow
         int offset = mActivity.isTablet() ? mAnchor.getWidth()/2 - mArrowWidth/2 -
                      ((RelativeLayout.LayoutParams) mArrow.getLayoutParams()).leftMargin : 0;
         showAsDropDown(mAnchor, offset, 0);
-        // Make the popup focusable for keyboard accessibility.
-        setFocusable(true);
     }
 
     private void fixBackgroundForFirst() {
@@ -266,13 +265,5 @@ public class DoorHangerPopup extends PopupWindow
 
     private void unregisterEventListener(String event) {
         GeckoAppShell.getEventDispatcher().unregisterEventListener(event, this);
-    }
-
-    @Override
-    public void dismiss() {
-        // If the popup is focusable while it is hidden, we run into crashes
-        // on pre-ICS devices when the popup gets focus before it is shown.
-        setFocusable(false);
-        super.dismiss();
     }
 }

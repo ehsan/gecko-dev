@@ -44,23 +44,11 @@ nsHttpConnectionInfo::SetOriginServer(const nsACString &host, int32_t port)
         mHashKey.SetCharAt('S', 1);
 
     // NOTE: for transparent proxies (e.g., SOCKS) we need to encode the proxy
-    // info in the hash key (this ensures that we will continue to speak the
+    // type in the hash key (this ensures that we will continue to speak the
     // right protocol even if our proxy preferences change).
-    //
-    // NOTE: for SSL tunnels add the proxy information to the cache key.
-    // We cannot use the proxy as the host parameter (as we do for non SSL)
-    // because this is a single host tunnel, but we need to include the proxy
-    // information so that a change in proxy config will mean this connection
-    // is not reused
-
-    if ((!mUsingHttpProxy && ProxyHost()) ||
-        (mUsingHttpProxy && mUsingConnect)) {
+    if (!mUsingHttpProxy && ProxyHost()) {
         mHashKey.AppendLiteral(" (");
         mHashKey.Append(ProxyType());
-        mHashKey.Append(':');
-        mHashKey.Append(ProxyHost());
-        mHashKey.Append(':');
-        mHashKey.AppendInt(ProxyPort());
         mHashKey.Append(')');
     }
 }

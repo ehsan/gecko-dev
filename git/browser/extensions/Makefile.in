@@ -7,7 +7,7 @@ topsrcdir  = @top_srcdir@
 srcdir     = @srcdir@
 VPATH      = @srcdir@
 
-CHROMEDIR = $(call core_abspath,$(FINAL_TARGET))/chrome
+CHROMEDIR = $(call core_abspath,$(DIST))/bin/chrome
 
 include $(DEPTH)/config/autoconf.mk
 
@@ -23,13 +23,13 @@ exclude_files = \
   icon64.png \
   $(NULL)
 
-$(FINAL_TARGET)/chrome/pdfjs.manifest: $(GLOBAL_DEPS)
+$(DIST)/bin/chrome/pdfjs.manifest: $(GLOBAL_DEPS)
 	printf "manifest pdfjs/chrome.manifest" > $@
 
-libs:: $(FINAL_TARGET)/chrome/pdfjs.manifest
+libs:: $(DIST)/bin/chrome/pdfjs.manifest
 	$(PYTHON) $(topsrcdir)/config/nsinstall.py \
 	  $(srcdir)/pdfjs \
           $(foreach exclude,$(exclude_files), -X $(srcdir)/pdfjs/$(exclude)) \
-          $(FINAL_TARGET)/chrome
+          $(DIST)/bin/chrome
 	$(PYTHON) $(MOZILLA_DIR)/config/buildlist.py \
-	  $(FINAL_TARGET)/chrome.manifest "manifest chrome/pdfjs.manifest"
+	  $(DIST)/bin/chrome.manifest "manifest chrome/pdfjs.manifest"

@@ -91,7 +91,6 @@ var tests = {
     }
   },
   testWorkerChatWindow: function(next) {
-    const chatUrl = "https://example.com/browser/browser/base/content/test/social_chat.html";
     let port = Social.provider.port;
     ok(port, "provider has a port");
     port.onmessage = function (e) {
@@ -104,11 +103,10 @@ var tests = {
             chats.selectedChat.close();
           }
           ok(!chats.selectedChat, "chats are all closed");
-          ensureSocialUrlNotRemembered(chatUrl);
           next();
           break;
       }
     }
-    port.postMessage({topic: "test-worker-chat", data: chatUrl});
+    port.postMessage({topic: "test-worker-chat" });
   }
 }

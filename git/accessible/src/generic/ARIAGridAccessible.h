@@ -58,7 +58,6 @@ public:
   virtual void SelectRow(uint32_t aRowIdx);
   virtual void UnselectCol(uint32_t aColIdx);
   virtual void UnselectRow(uint32_t aRowIdx);
-  virtual Accessible* AsAccessible() { return this; }
 
 protected:
 
@@ -110,10 +109,9 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIAccessibleTableCell
-  NS_FORWARD_NSIACCESSIBLETABLECELL(xpcAccessibleTableCell::)
+  NS_DECL_OR_FORWARD_NSIACCESSIBLETABLECELL_WITH_XPCACCESSIBLETABLECELL
 
   // Accessible
-  virtual TableCellAccessible* AsTableCell() { return this; }
   virtual void Shutdown();
   virtual void ApplyARIAState(uint64_t* aState) const;
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
@@ -138,12 +136,6 @@ protected:
    * Return index of the given row.
    */
   int32_t RowIndexFor(Accessible* aRow) const;
-
-  // TableCellAccessible
-  virtual TableAccessible* Table() const MOZ_OVERRIDE;
-  virtual uint32_t ColIdx() const MOZ_OVERRIDE;
-  virtual uint32_t RowIdx() const MOZ_OVERRIDE;
-  virtual bool Selected() MOZ_OVERRIDE;
 };
 
 } // namespace a11y

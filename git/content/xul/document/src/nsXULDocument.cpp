@@ -1993,7 +1993,7 @@ nsXULDocument::StartLayout(void)
 
         nsresult rv = NS_OK;
         nsRect r = cx->GetVisibleArea();
-        rv = shell->Initialize(r.width, r.height);
+        rv = shell->InitialReflow(r.width, r.height);
         NS_ENSURE_SUCCESS(rv, rv);
     }
 
@@ -3865,7 +3865,7 @@ nsXULDocument::OverlayForwardReference::Resolve()
     nsCOMPtr<nsIContent> target;
 
     nsIPresShell *shell = mDocument->GetShell();
-    bool notify = shell && shell->DidInitialize();
+    bool notify = shell && shell->DidInitialReflow();
 
     nsAutoString id;
     mOverlay->GetAttr(kNameSpaceID_None, nsGkAtoms::id, id);
@@ -4500,7 +4500,7 @@ NS_IMETHODIMP
 nsXULDocument::CachedChromeStreamListener::OnDataAvailable(nsIRequest *request,
                                                            nsISupports* aContext,
                                                            nsIInputStream* aInStr,
-                                                           uint64_t aSourceOffset,
+                                                           uint32_t aSourceOffset,
                                                            uint32_t aCount)
 {
     NS_NOTREACHED("CachedChromeStream doesn't receive data");

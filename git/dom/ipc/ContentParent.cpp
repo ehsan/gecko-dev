@@ -523,8 +523,17 @@ ContentParent::ProcessingError(Result what)
         // Messages sent after crashes etc. are not a big deal.
         return;
     }
-    // Other errors are big deals.
-    KillHard();
+    // Other errors are big deals.  This ensures the process is
+    // eventually killed, but doesn't immediately KILLITWITHFIRE
+    // because we want to get a minidump if possible.  After a timeout
+    // though, the process is forceably killed.
+    if (!KillProcess(OtherProcess(), 1, false)) {
+        NS_WARNING("failed to kill subprocess!");
+    }
+    XRE_GetIOMessageLoop()->PostTask(
+        FROM_HERE,
+        NewRunnableFunction(&ProcessWatcher::EnsureProcessTerminated,
+                            OtherProcess(), /*force=*/true));
 }
 
 namespace {
@@ -677,10 +686,9 @@ ContentParent::ContentParent(const nsAString& aAppManifestURL,
     , mGeolocationWatchID(-1)
     , mRunToCompletionDepth(0)
     , mShouldCallUnblockChild(false)
-    , mAppManifestURL(aAppManifestURL)
     , mIsAlive(true)
     , mSendPermissionUpdates(false)
-    , mIsForBrowser(aIsForBrowser)
+    , mAppManifestURL(aAppManifestURL)
 {
     // From this point on, NS_WARNING, NS_ASSERTION, etc. should print out the
     // PID along with the warning.
@@ -699,6 +707,8 @@ ContentParent::ContentParent(const nsAString& aAppManifestURL,
         mSubprocess->AsyncLaunch();
     }
     Open(mSubprocess->GetChannel(), mSubprocess->GetChildProcessHandle());
+    unused << SendSetProcessAttributes(gContentChildID++,
+                                       IsForApp(), aIsForBrowser);
 
     // NB: internally, this will send an IPC message to the child
     // process to get it to create the CompositorChild.  This
@@ -1077,18 +1087,6 @@ ContentParent::AllocPImageBridge(mozilla::ipc::Transport* aTransport,
     return ImageBridgeParent::Create(aTransport, aOtherProcess);
 }
 
-bool
-ContentParent::RecvGetProcessAttributes(uint64_t* aId, bool* aStartBackground,
-                                        bool* aIsForApp, bool* aIsForBrowser)
-{
-    *aId = gContentChildID++;
-    *aStartBackground =
-        (mAppManifestURL == MAGIC_PREALLOCATED_APP_MANIFEST_URL);
-    *aIsForApp = IsForApp();
-    *aIsForBrowser = mIsForBrowser;
-    return true;
-}
-
 PBrowserParent*
 ContentParent::AllocPBrowser(const uint32_t& aChromeFlags,
                              const bool& aIsBrowserElement, const AppId& aApp)
@@ -1220,22 +1218,6 @@ ContentParent::GetOrCreateActorForBlob(nsIDOMBlob* aBlob)
   }
 
   return actor;
-}
-
-void
-ContentParent::KillHard()
-{
-    // This ensures the process is eventually killed, but doesn't
-    // immediately KILLITWITHFIRE because we want to get a minidump if
-    // possible.  After a timeout though, the process is forceably
-    // killed.
-    if (!KillProcess(OtherProcess(), 1, false)) {
-        NS_WARNING("failed to kill subprocess!");
-    }
-    XRE_GetIOMessageLoop()->PostTask(
-        FROM_HERE,
-        NewRunnableFunction(&ProcessWatcher::EnsureProcessTerminated,
-                            OtherProcess(), /*force=*/true));
 }
 
 PCrashReporterParent*

@@ -255,14 +255,15 @@ class BaseShape : public js::gc::Cell
          */
 
         DELEGATE           =    0x8,
-        NOT_EXTENSIBLE     =   0x10,
-        INDEXED            =   0x20,
-        BOUND_FUNCTION     =   0x40,
-        VAROBJ             =   0x80,
-        WATCHED            =  0x100,
-        ITERATED_SINGLETON =  0x200,
-        NEW_TYPE_UNKNOWN   =  0x400,
-        UNCACHEABLE_PROTO  =  0x800,
+        SYSTEM             =   0x10,
+        NOT_EXTENSIBLE     =   0x20,
+        INDEXED            =   0x40,
+        BOUND_FUNCTION     =   0x80,
+        VAROBJ             =  0x100,
+        WATCHED            =  0x200,
+        ITERATED_SINGLETON =  0x400,
+        NEW_TYPE_UNKNOWN   =  0x800,
+        UNCACHEABLE_PROTO  = 0x1000,
 
         OBJECT_FLAG_MASK   = 0x1ff8
     };
@@ -1135,10 +1136,8 @@ namespace JS {
     template<> class AnchorPermitted<js::Shape *> { };
     template<> class AnchorPermitted<const js::Shape *> { };
 
-    template<>
-    struct RootKind<js::Shape *> : SpecificRootKind<js::Shape *, THING_ROOT_SHAPE> {};
-    template<>
-    struct RootKind<js::BaseShape *> : SpecificRootKind<js::BaseShape *, THING_ROOT_BASE_SHAPE> {};
+    template<> struct RootKind<js::Shape *> { static ThingRootKind rootKind() { return THING_ROOT_SHAPE; }; };
+    template<> struct RootKind<js::BaseShape *> { static ThingRootKind rootKind() { return THING_ROOT_BASE_SHAPE; }; };
 }
 
 #endif /* jsscope_h___ */

@@ -51,15 +51,10 @@ dictionary MozXMLHttpRequestParameters
   boolean mozSystem = false;
 };
 
-[Constructor(optional MozXMLHttpRequestParameters params),
- // There are apparently callers, specifically CoffeeScript, who do
- // things like this:
- //   c = new(window.ActiveXObject || XMLHttpRequest)("Microsoft.XMLHTTP")
- // To handle that, we need a constructor that takes a string.
- Constructor(DOMString ignored)]
+[Constructor(optional MozXMLHttpRequestParameters params)]
 interface XMLHttpRequest : XMLHttpRequestEventTarget {
   // event handler
-  [TreatNonCallableAsNull, SetterThrows, GetterThrows=Workers]
+  [TreatNonCallableAsNull, GetterInfallible=MainThread]
   attribute Function? onreadystatechange;
 
   // states
@@ -69,81 +64,72 @@ interface XMLHttpRequest : XMLHttpRequestEventTarget {
   const unsigned short LOADING = 3;
   const unsigned short DONE = 4;
 
+  [Infallible]
   readonly attribute unsigned short readyState;
 
   // request
-  [Throws]
   void open(DOMString method, DOMString url, optional boolean async = true,
             optional DOMString? user, optional DOMString? password);
-  [Throws]
   void setRequestHeader(DOMString header, DOMString value);
 
-  [SetterThrows]
+  [GetterInfallible]
   attribute unsigned long timeout;
 
-  [SetterThrows=Workers]
+  [GetterInfallible, SetterInfallible=MainThread]
   attribute boolean withCredentials;
 
-  [Throws=Workers]
+  [Infallible=MainThread]
   readonly attribute XMLHttpRequestUpload upload;
 
-  [Throws]
   void send();
-  [Throws]
   void send(ArrayBuffer data);
-  [Throws]
   void send(Blob data);
-  [Throws]
   void send(Document data);
-  [Throws]
   void send(DOMString? data);
-  [Throws]
   void send(FormData data);
-  [Throws]
   void send(InputStream data);
 
-  [Throws=Workers]
+  [Infallible=MainThread]
   void abort();
 
   // response
-  [Throws=Workers]
+  [Infallible=MainThread]
   readonly attribute unsigned short status;
 
+  [Infallible]
   readonly attribute DOMString statusText;
-  [Throws]
   DOMString? getResponseHeader(DOMString header);
 
-  [Throws=Workers]
+  [Infallible=MainThread]
   DOMString getAllResponseHeaders();
 
-  [Throws=Workers]
+  [Infallible=MainThread]
   void overrideMimeType(DOMString mime);
 
-  [SetterThrows]
+  [GetterInfallible]
   attribute XMLHttpRequestResponseType responseType;
-  [Throws]
   readonly attribute any response;
-  [Throws]
   readonly attribute DOMString? responseText;
 
-  [Throws=MainThread]
+  [GetterInfallible=Workers]
   readonly attribute Document? responseXML;
 
   // Mozilla-specific stuff
-  [SetterThrows=Workers]
+  [GetterInfallible, SetterInfallible=MainThread]
   attribute boolean multipart;
 
-  [SetterThrows=Workers]
+  [GetterInfallible, SetterInfallible=MainThread]
   attribute boolean mozBackgroundRequest;
 
-  [ChromeOnly]
+  [ChromeOnly, GetterInfallible]
   readonly attribute MozChannel channel;
 
-  [Throws]
   void sendAsBinary(DOMString body);
-  [Throws]
   any getInterface(IID iid);
 
+  [Infallible]
   readonly attribute boolean mozAnon;
+
+  [Infallible]
   readonly attribute boolean mozSystem;
 };

@@ -129,7 +129,9 @@ HttpBaseChannel::Init(nsIURI *aURI,
   if (NS_FAILED(rv)) return rv;
 
   rv = gHttpHandler->
-    AddStandardRequestHeaders(&mRequestHead.Headers(), aCaps);
+      AddStandardRequestHeaders(&mRequestHead.Headers(), aCaps,
+                                !mConnectionInfo->UsingConnect() &&
+                                mConnectionInfo->UsingHttpProxy());
 
   return rv;
 }
@@ -191,7 +193,6 @@ HttpBaseChannel::SetLoadGroup(nsILoadGroup *aLoadGroup)
 {
   mLoadGroup = aLoadGroup;
   mProgressSink = nullptr;
-  mPrivateBrowsing = NS_UsePrivateBrowsing(this);
   return NS_OK;
 }
 

@@ -203,13 +203,13 @@ TabChild::Init()
   nsCOMPtr<nsIBaseWindow> baseWindow = do_QueryInterface(mWebNav);
   if (!baseWindow) {
     NS_ERROR("mWebNav doesn't QI to nsIBaseWindow");
-    return NS_ERROR_FAILURE;
+    return false;
   }
 
   mWidget = nsIWidget::CreatePuppetWidget(this);
   if (!mWidget) {
     NS_ERROR("couldn't create fake widget");
-    return NS_ERROR_FAILURE;
+    return false;
   }
   mWidget->Create(
     nullptr, 0,              // no parents
@@ -675,23 +675,6 @@ TabChild::~TabChild()
       }
       mTabChildGlobal->mTabChild = nullptr;
     }
-}
-
-bool
-TabChild::IsRootContentDocument()
-{
-    if (!mIsBrowserElement && mAppId == nsIScriptSecurityManager::NO_APP_ID) {
-        // We're the child side of a <xul:browser remote=true>.  This
-        // is always a root content document.
-        return true;
-    }
-
-    // Otherwise, we're the child side of an <html:browser
-    // remote=true> or <html:app remote=true>.  Because of bug 761935,
-    // these can't be nested within another <html:app remote=true>, so
-    // we assume that we can't be a root content document.  When that
-    // bug is fixed, we need to revisit that assumption.
-    return false;
 }
 
 bool

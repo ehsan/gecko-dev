@@ -409,7 +409,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
             count = c.getCount();
             c.close();
         } catch (NullPointerException e) {
-            Log.e(LOGTAG, "NullPointerException in isBookmark");
+            Log.e(LOGTAG, "NullPointerException in isBookmark for " + uri);
         }
 
         return (count > 0);

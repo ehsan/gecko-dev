@@ -333,11 +333,11 @@ DirectWrapper::nativeCall(JSContext *cx, IsAcceptableThis test, NativeImpl impl,
 }
 
 bool
-DirectWrapper::hasInstance(JSContext *cx, HandleObject wrapper, MutableHandleValue v, bool *bp)
+DirectWrapper::hasInstance(JSContext *cx, JSObject *wrapper, const Value *vp, bool *bp)
 {
     *bp = false; // default result if we refuse to perform this action
     const jsid id = JSID_VOID;
-    GET(IndirectProxyHandler::hasInstance(cx, wrapper, v, bp));
+    GET(IndirectProxyHandler::hasInstance(cx, wrapper, vp, bp));
 }
 
 JSString *
@@ -704,12 +704,13 @@ CrossCompartmentWrapper::nativeCall(JSContext *cx, IsAcceptableThis test, Native
 }
 
 bool
-CrossCompartmentWrapper::hasInstance(JSContext *cx, HandleObject wrapper, MutableHandleValue v, bool *bp)
+CrossCompartmentWrapper::hasInstance(JSContext *cx, JSObject *wrapper, const Value *vp, bool *bp)
 {
     AutoCompartment call(cx, wrappedObject(wrapper));
-    if (!cx->compartment->wrap(cx, v.address()))
+    Value v = *vp;
+    if (!cx->compartment->wrap(cx, &v))
         return false;
-    return DirectWrapper::hasInstance(cx, wrapper, v, bp);
+    return DirectWrapper::hasInstance(cx, wrapper, &v, bp);
 }
 
 JSString *
@@ -891,7 +892,7 @@ DeadObjectProxy::nativeCall(JSContext *cx, IsAcceptableThis test, NativeImpl imp
 }
 
 bool
-DeadObjectProxy::hasInstance(JSContext *cx, HandleObject proxy, MutableHandleValue v,
+DeadObjectProxy::hasInstance(JSContext *cx, JSObject *proxy, const Value *vp,
                              bool *bp)
 {
     JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_DEAD_OBJECT);

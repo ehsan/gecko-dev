@@ -1892,7 +1892,8 @@ WorkerPrivateParent<Derived>::WorkerPrivateParent(
                                      nsCOMPtr<nsPIDOMWindow>& aWindow,
                                      nsCOMPtr<nsIScriptContext>& aScriptContext,
                                      nsCOMPtr<nsIURI>& aBaseURI,
-                                     nsCOMPtr<nsIPrincipal>& aPrincipal)
+                                     nsCOMPtr<nsIPrincipal>& aPrincipal,
+                                     nsCOMPtr<nsIDocument>& aDocument)
 : EventTarget(aParent ? aCx : NULL), mMutex("WorkerPrivateParent Mutex"),
   mCondVar(mMutex, "WorkerPrivateParent CondVar"),
   mJSObject(aObject), mParent(aParent), mParentJSContext(aParentJSContext),
@@ -1913,6 +1914,7 @@ WorkerPrivateParent<Derived>::WorkerPrivateParent(
   mScriptNotify = do_QueryInterface(mScriptContext);
   mBaseURI.swap(aBaseURI);
   mPrincipal.swap(aPrincipal);
+  mDocument.swap(aDocument);
 
   if (aParent) {
     aParent->AssertIsOnWorkerThread();
@@ -2219,6 +2221,7 @@ WorkerPrivateParent<Derived>::ForgetMainThreadObjects(
   SwapToISupportsArray(mBaseURI, aDoomed);
   SwapToISupportsArray(mScriptURI, aDoomed);
   SwapToISupportsArray(mPrincipal, aDoomed);
+  SwapToISupportsArray(mDocument, aDoomed);
 
   mMainThreadObjectsForgotten = true;
 }
@@ -2275,8 +2278,7 @@ uint64_t
 WorkerPrivateParent<Derived>::GetInnerWindowId()
 {
   AssertIsOnMainThread();
-  NS_ASSERTION(!mWindow || mWindow->IsInnerWindow(), "Outer window?");
-  return mWindow ? mWindow->WindowID() : 0;
+  return mDocument ? mDocument->InnerWindowID() : 0;
 }
 
 template <class Derived>
@@ -2452,11 +2454,12 @@ WorkerPrivate::WorkerPrivate(JSContext* aCx, JSObject* aObject,
                              nsCOMPtr<nsPIDOMWindow>& aWindow,
                              nsCOMPtr<nsIScriptContext>& aParentScriptContext,
                              nsCOMPtr<nsIURI>& aBaseURI,
-                             nsCOMPtr<nsIPrincipal>& aPrincipal)
+                             nsCOMPtr<nsIPrincipal>& aPrincipal,
+                             nsCOMPtr<nsIDocument>& aDocument)
 : WorkerPrivateParent<WorkerPrivate>(aCx, aObject, aParent, aParentJSContext,
                                      aScriptURL, aIsChromeWorker, aDomain,
                                      aWindow, aParentScriptContext, aBaseURI,
-                                     aPrincipal),
+                                     aPrincipal, aDocument),
   mJSContext(nullptr), mErrorHandlerRecursionCount(0), mNextTimeoutId(1),
   mStatus(Pending), mSuspended(false), mTimerRunning(false),
   mRunningExpiredTimeouts(false), mCloseHandlerStarted(false),
@@ -2645,7 +2648,7 @@ WorkerPrivate::Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
   nsRefPtr<WorkerPrivate> worker =
     new WorkerPrivate(aCx, aObj, aParent, parentContext, scriptURL,
                       aIsChromeWorker, domain, window, scriptContext, baseURI,
-                      principal);
+                      principal, document);
 
   worker->SetIsDOMBinding();
   worker->SetWrapper(aObj);

@@ -191,7 +191,6 @@ private:
                           nsIContent        *aParentContent,
                           nsStyleChangeList *aChangeList, 
                           nsChangeHint       aMinChange,
-                          nsChangeHint       aParentFrameHintsNotHandledForDescendants,
                           nsRestyleHint      aRestyleHint,
                           RestyleTracker&    aRestyleTracker,
                           DesiredA11yNotifications aDesiredA11yNotifications,

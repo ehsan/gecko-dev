@@ -202,7 +202,7 @@ AndroidBridge::Init(JNIEnv *jEnv,
     jUnregisterSurfaceTextureFrameListener = jEnv->GetStaticMethodID(jGeckoAppShellClass, "unregisterSurfaceTextureFrameListener", "(Ljava/lang/Object;)V");
 
 #ifdef MOZ_JAVA_COMPOSITOR
-    jPumpMessageLoop = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "pumpMessageLoop", "()Z");
+    jPumpMessageLoop = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "pumpMessageLoop", "()V");
 
     jAddPluginView = jEnv->GetStaticMethodID(jGeckoAppShellClass, "addPluginView", "(Landroid/view/View;IIIIZ)V");
     jRemovePluginView = jEnv->GetStaticMethodID(jGeckoAppShellClass, "removePluginView", "(Landroid/view/View;Z)V");
@@ -255,14 +255,7 @@ AndroidBridge::NotifyIME(int aType, int aState)
 }
 
 jstring NewJavaString(AutoLocalJNIFrame* frame, const PRUnichar* string, uint32_t len) {
-    jstring ret = frame->GetEnv()->NewString(string, len);
-    if (frame->CheckForException())
-        return NULL;
-    return ret;
-}
-
-jstring NewJavaStringUTF(AutoLocalJNIFrame* frame, const char* string) {
-    jstring ret = frame->GetEnv()->NewStringUTF(string);
+    jstring ret = frame->GetEnv()->NewString( string, len);
     if (frame->CheckForException())
         return NULL;
     return ret;
@@ -1816,11 +1809,11 @@ AndroidBridge::CreateMessageList(const dom::sms::SmsFilterData& aFilter, bool aR
     jobjectArray numbers =
         (jobjectArray)env->NewObjectArray(aFilter.numbers().Length(),
                                           jStringClass,
-                                          NewJavaStringUTF(&jniFrame, ""));
+                                          env->NewStringUTF(""));
 
     for (uint32_t i = 0; i < aFilter.numbers().Length(); ++i) {
         env->SetObjectArrayElement(numbers, i,
-                                   NewJavaStringUTF(&jniFrame, NS_ConvertUTF16toUTF8(aFilter.numbers()[i]).get()));
+                                   env->NewStringUTF(NS_ConvertUTF16toUTF8(aFilter.numbers()[i]).get()));
     }
 
     env->CallStaticVoidMethod(mGeckoAppShellClass, jCreateMessageList,
@@ -2304,22 +2297,21 @@ AndroidBridge::UnlockScreenOrientation()
     env->CallStaticVoidMethod(mGeckoAppShellClass, jUnlockScreenOrientation);
 }
 
-bool
+void
 AndroidBridge::PumpMessageLoop()
 {
 #if MOZ_JAVA_COMPOSITOR
     JNIEnv* env = GetJNIEnv();
     if (!env)
-        return false;
+        return;
 
     AutoLocalJNIFrame jniFrame(env, 0);
 
     if ((void*)pthread_self() != mThread)
-        return false;
+        return;
 
-    return env->CallStaticBooleanMethod(mGeckoAppShellClass, jPumpMessageLoop);
+    env->CallStaticVoidMethod(mGeckoAppShellClass, jPumpMessageLoop);
 #endif
-    return false;
 }
 
 void

@@ -159,7 +159,7 @@ protected:
                                     const nsSubstring& aType,
                                     const nsSubstring& aMedia);
 
-  void PrefetchHref(const nsAString &aHref, nsINode *aSource,
+  void PrefetchHref(const nsAString &aHref, nsIContent *aSource,
                     bool aExplicit);
 
   // aHref can either be the usual URI format or of the form "//www.hostname.com"

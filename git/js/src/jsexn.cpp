@@ -271,9 +271,9 @@ InitExnPrivate(JSContext *cx, HandleObject exnObject, HandleString message,
              * NB: this means 'fp' may point to cross-compartment frames.
              */
             if (checkAccess && i.isNonEvalFunctionFrame()) {
-                RootedValue v(cx);
+                Value v = NullValue();
                 RootedId callerid(cx, NameToId(cx->runtime->atomState.callerAtom));
-                RootedObject obj(cx, i.callee());
+                Rooted<JSObject*> obj(cx, i.callee());
                 if (!checkAccess(cx, obj, callerid, JSACC_READ, &v))
                     break;
             }

@@ -268,19 +268,18 @@ class FTPDataAvailableEvent : public ChannelEvent
 {
  public:
   FTPDataAvailableEvent(FTPChannelChild* aChild, const nsCString& aData,
-                        const uint64_t& aOffset, const uint32_t& aCount)
+                        const uint32_t& aOffset, const uint32_t& aCount)
   : mChild(aChild), mData(aData), mOffset(aOffset), mCount(aCount) {}
   void Run() { mChild->DoOnDataAvailable(mData, mOffset, mCount); }
  private:
   FTPChannelChild* mChild;
   nsCString mData;
-  uint64_t mOffset;
-  uint32_t mCount;
+  uint32_t mOffset, mCount;
 };
 
 bool
 FTPChannelChild::RecvOnDataAvailable(const nsCString& data,
-                                     const uint64_t& offset,
+                                     const uint32_t& offset,
                                      const uint32_t& count)
 {
   if (mEventQ.ShouldEnqueue()) {
@@ -293,7 +292,7 @@ FTPChannelChild::RecvOnDataAvailable(const nsCString& data,
 
 void
 FTPChannelChild::DoOnDataAvailable(const nsCString& data,
-                                   const uint64_t& offset,
+                                   const uint32_t& offset,
                                    const uint32_t& count)
 {
   LOG(("FTPChannelChild::RecvOnDataAvailable [this=%x]\n", this));

@@ -525,7 +525,7 @@ js::Execute(JSContext *cx, HandleScript script, JSObject &scopeChainArg, Value *
 }
 
 JSBool
-js::HasInstance(JSContext *cx, HandleObject obj, MutableHandleValue v, JSBool *bp)
+js::HasInstance(JSContext *cx, HandleObject obj, const Value *v, JSBool *bp)
 {
     Class *clasp = obj->getClass();
     if (clasp->hasInstance)
@@ -570,9 +570,8 @@ js::LooselyEqual(JSContext *cx, const Value &lval, const Value &rval, bool *resu
 
             if (JSEqualityOp eq = l->getClass()->ext.equality) {
                 JSBool res;
-                RootedObject lobj(cx, l);
-                RootedValue r(cx, rval);
-                if (!eq(cx, lobj, r, &res))
+                Rooted<JSObject*> lobj(cx, l);
+                if (!eq(cx, lobj, &rval, &res))
                     return false;
                 *result = !!res;
                 return true;
@@ -952,7 +951,7 @@ js::AssertValidPropertyCacheHit(JSContext *cx, JSObject *start_,
     JS_ASSERT(ok);
 
     if (cx->runtime->gcNumber != sample)
-        cx->propertyCache().restore(&savedEntry);
+        JS_PROPERTY_CACHE(cx).restore(&savedEntry);
     JS_ASSERT(prop);
     JS_ASSERT(pobj == found);
     JS_ASSERT(entry->prop == prop);
@@ -2993,9 +2992,9 @@ BEGIN_CASE(JSOP_SETTER)
      * Getters and setters are just like watchpoints from an access control
      * point of view.
      */
-    scratch.setUndefined();
+    Value rtmp;
     unsigned attrs;
-    if (!CheckAccess(cx, obj, id, JSACC_WATCH, &scratch, &attrs))
+    if (!CheckAccess(cx, obj, id, JSACC_WATCH, &rtmp, &attrs))
         goto error;
 
     PropertyOp getter;
@@ -3261,8 +3260,9 @@ BEGIN_CASE(JSOP_INSTANCEOF)
     }
     RootedObject &obj = rootObject0;
     obj = &rref.toObject();
+    const Value &lref = regs.sp[-2];
     JSBool cond = JS_FALSE;
-    if (!HasInstance(cx, obj, MutableHandleValue::fromMarkedLocation(&regs.sp[-2]), &cond))
+    if (!HasInstance(cx, obj, &lref, &cond))
         goto error;
     regs.sp--;
     regs.sp[-1].setBoolean(cond);

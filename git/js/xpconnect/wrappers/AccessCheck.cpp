@@ -419,8 +419,7 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, Wrapper:
         return false;
 
     // Always permit access to "length" and indexed properties of arrays.
-    if ((JS_IsArrayObject(cx, wrappedObject) ||
-         JS_IsTypedArrayObject(wrappedObject, cx)) &&
+    if (JS_IsArrayObject(cx, wrappedObject) &&
         ((JSID_IS_INT(id) && JSID_TO_INT(id) >= 0) ||
          (JSID_IS_STRING(id) && JS_FlatStringEqualsAscii(JSID_TO_FLAT_STRING(id), "length")))) {
         perm = PermitPropertyAccess;

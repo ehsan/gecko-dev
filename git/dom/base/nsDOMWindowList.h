@@ -26,9 +26,6 @@ public:
   NS_IMETHOD SetDocShell(nsIDocShell* aDocShell);
 
 protected:
-  // Note: this function may flush and cause mDocShellNode to become null.
-  void EnsureFresh();
-
   nsIDocShellTreeNode* mDocShellNode; //Weak Reference
 };
 

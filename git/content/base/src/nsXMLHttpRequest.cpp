@@ -274,7 +274,7 @@ NS_IMETHODIMP
 nsMultipartProxyListener::OnDataAvailable(nsIRequest *aRequest,
                                           nsISupports *ctxt,
                                           nsIInputStream *inStr,
-                                          uint64_t sourceOffset,
+                                          uint32_t sourceOffset,
                                           uint32_t count)
 {
   return mDestListener->OnDataAvailable(aRequest, ctxt, inStr, sourceOffset,
@@ -350,8 +350,7 @@ nsXMLHttpRequest::nsXMLHttpRequest()
     mFirstStartRequestSeen(false),
     mInLoadProgressEvent(false),
     mResultJSON(JSVAL_VOID),
-    mResultArrayBuffer(nullptr),
-    mXPCOMifier(nullptr)
+    mResultArrayBuffer(nullptr)
 {
   nsLayoutStatics::AddRef();
 
@@ -1926,7 +1925,7 @@ NS_IMETHODIMP
 nsXMLHttpRequest::OnDataAvailable(nsIRequest *request,
                                   nsISupports *ctxt,
                                   nsIInputStream *inStr,
-                                  uint64_t sourceOffset,
+                                  uint32_t sourceOffset,
                                   uint32_t count)
 {
   NS_ENSURE_ARG_POINTER(inStr);
@@ -3696,11 +3695,13 @@ nsXMLHttpRequest::GetInterface(const nsIID & aIID, void **aResult)
   // need to see these notifications for proper functioning.
   if (aIID.Equals(NS_GET_IID(nsIChannelEventSink))) {
     mChannelEventSink = do_GetInterface(mNotificationCallbacks);
-    *aResult = static_cast<nsIChannelEventSink*>(EnsureXPCOMifier().get());
+    *aResult = static_cast<nsIChannelEventSink*>(this);
+    NS_ADDREF_THIS();
     return NS_OK;
   } else if (aIID.Equals(NS_GET_IID(nsIProgressEventSink))) {
     mProgressEventSink = do_GetInterface(mNotificationCallbacks);
-    *aResult = static_cast<nsIProgressEventSink*>(EnsureXPCOMifier().get());
+    *aResult = static_cast<nsIProgressEventSink*>(this);
+    NS_ADDREF_THIS();
     return NS_OK;
   }
 
@@ -3741,21 +3742,7 @@ nsXMLHttpRequest::GetInterface(const nsIID & aIID, void **aResult)
 
     return wwatch->GetPrompt(window, aIID,
                              reinterpret_cast<void**>(aResult));
-  }
-  // Now check for the various XHR non-DOM interfaces, except
-  // nsIProgressEventSink and nsIChannelEventSink which we already
-  // handled above.
-  else if (aIID.Equals(NS_GET_IID(nsIStreamListener))) {
-    *aResult = static_cast<nsIStreamListener*>(EnsureXPCOMifier().get());
-    return NS_OK;
-  }
-  else if (aIID.Equals(NS_GET_IID(nsIRequestObserver))) {
-    *aResult = static_cast<nsIRequestObserver*>(EnsureXPCOMifier().get());
-    return NS_OK;
-  }
-  else if (aIID.Equals(NS_GET_IID(nsITimerCallback))) {
-    *aResult = static_cast<nsITimerCallback*>(EnsureXPCOMifier().get());
-    return NS_OK;
+
   }
 
   return QueryInterface(aIID, aResult);
@@ -3873,16 +3860,6 @@ nsXMLHttpRequest::StartProgressEventTimer()
   }
 }
 
-already_AddRefed<nsXMLHttpRequestXPCOMifier>
-nsXMLHttpRequest::EnsureXPCOMifier()
-{
-  if (!mXPCOMifier) {
-    mXPCOMifier = new nsXMLHttpRequestXPCOMifier(this);
-  }
-  nsRefPtr<nsXMLHttpRequestXPCOMifier> newRef(mXPCOMifier);
-  return newRef.forget();
-}
-
 NS_IMPL_ISUPPORTS1(nsXMLHttpRequest::nsHeaderVisitor, nsIHttpHeaderVisitor)
 
 NS_IMETHODIMP nsXMLHttpRequest::
@@ -3911,7 +3888,7 @@ nsXMLHttpProgressEvent::nsXMLHttpProgressEvent(nsIDOMProgressEvent* aInner,
                                                nsPIDOMWindow* aWindow)
   : mWindow(aWindow)
 {
-  mInner = aInner;
+  mInner = static_cast<nsDOMProgressEvent*>(aInner);
   mCurProgress = aCurrentProgress;
   mMaxProgress = aMaxProgress;
 }
@@ -3941,7 +3918,8 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXMLHttpProgressEvent)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXMLHttpProgressEvent)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mInner)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mInner,
+                                                       nsIDOMProgressEvent)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mWindow);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
@@ -3979,48 +3957,4 @@ NS_IMETHODIMP nsXMLHttpProgressEvent::GetTotalSize(uint32_t *aTotalSize)
   // XXX can we change the iface?
   LL_L2UI(*aTotalSize, mMaxProgress);
   return NS_OK;
-}
-
-// nsXMLHttpRequestXPCOMifier implementation
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsXMLHttpRequestXPCOMifier)
-  NS_INTERFACE_MAP_ENTRY(nsIStreamListener)
-  NS_INTERFACE_MAP_ENTRY(nsIRequestObserver)
-  NS_INTERFACE_MAP_ENTRY(nsIChannelEventSink)
-  NS_INTERFACE_MAP_ENTRY(nsIProgressEventSink)
-  NS_INTERFACE_MAP_ENTRY(nsIInterfaceRequestor)
-  NS_INTERFACE_MAP_ENTRY(nsITimerCallback)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIStreamListener)
-NS_INTERFACE_MAP_END
-
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsXMLHttpRequestXPCOMifier)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsXMLHttpRequestXPCOMifier)
-
-// Can't NS_IMPL_CYCLE_COLLECTION_1 because mXHR has ambiguous
-// inheritance from nsISupports.
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsXMLHttpRequestXPCOMifier)
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXMLHttpRequestXPCOMifier)
-if (tmp->mXHR) {
-  tmp->mXHR->mXPCOMifier = nullptr;
-}
-NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mXHR)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXMLHttpRequestXPCOMifier)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mXHR, nsIXMLHttpRequest)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_IMETHODIMP
-nsXMLHttpRequestXPCOMifier::GetInterface(const nsIID & aIID, void **aResult)
-{
-  // Return ourselves for the things we implement (except
-  // nsIInterfaceRequestor) and the XHR for the rest.
-  if (!aIID.Equals(NS_GET_IID(nsIInterfaceRequestor))) {
-    nsresult rv = QueryInterface(aIID, aResult);
-    if (NS_SUCCEEDED(rv)) {
-      return rv;
-    }
-  }
-
-  return mXHR->GetInterface(aIID, aResult);
 }

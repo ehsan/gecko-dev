@@ -12,7 +12,6 @@
 
 #include "nscore.h"
 #include <mozilla/StandardInteger.h>
-#include "prtypes.h"
 
 PR_BEGIN_EXTERN_C
 

@@ -244,7 +244,7 @@ LayerManagerD3D10::Initialize(bool force)
     */
     nsRefPtr<IDXGISwapChain1> swapChain1;
     hr = dxgiFactory->CreateSwapChainForCoreWindow(
-           dxgiDevice, (IUnknown *)mWidget->GetNativeData(NS_NATIVE_ICOREWINDOW),
+           dxgiDevice, (IUnknown *)mWidget->GetNativeData(NS_NATIVE_WINDOW),
            &swapDesc, nullptr, getter_AddRefs(swapChain1));
     if (FAILED(hr)) {
         return false;

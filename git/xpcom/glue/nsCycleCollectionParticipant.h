@@ -888,8 +888,8 @@ struct Skippable
     static NS_METHOD_(void) UnmarkIfPurpleImpl(void *p)                        \
     {                                                                          \
         _class *tmp = static_cast<_class *>(p);                                \
-        if (NS_LIKELY(tmp->mRefCnt.HasPurpleBufferEntry()))                    \
-            tmp->mRefCnt.ReleasePurpleBufferEntry();                           \
+        if (NS_LIKELY(tmp->mRefCnt.IsPurple()))                                \
+            tmp->mRefCnt.unmarkPurple();                                       \
     }
 
 #define NS_DECL_CYCLE_COLLECTION_STUB_UNMARK_IF_PURPLE(_class)                 \

@@ -137,7 +137,7 @@ class ArrayBufferObject : public JSObject
 
     static JSBool
     obj_enumerate(JSContext *cx, HandleObject obj, JSIterateOp enum_op,
-                  MutableHandleValue statep, MutableHandleId idp);
+                  Value *statep, jsid *idp);
 
     static JSType
     obj_typeOf(JSContext *cx, HandleObject obj);

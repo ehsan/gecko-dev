@@ -34,6 +34,7 @@ EXPORTS_mozilla/ipc = \
   RPCChannel.h \
   SharedMemory.h \
   SharedMemoryBasic.h \
+  SharedMemoryBasic_chromium.h \
   SharedMemorySysV.h \
   Shmem.h \
   SyncChannel.h \

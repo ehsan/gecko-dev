@@ -691,14 +691,11 @@ protected:
   bool RenumberLists(nsPresContext* aPresContext);
 
   static bool RenumberListsInBlock(nsPresContext* aPresContext,
-                                   nsBlockFrame* aBlockFrame,
-                                   int32_t* aOrdinal,
-                                   int32_t aDepth,
-                                   int32_t aIncrement);
+                                     nsBlockFrame* aBlockFrame,
+                                     int32_t* aOrdinal,
+                                     int32_t aDepth);
 
-  static bool RenumberListsFor(nsPresContext* aPresContext, nsIFrame* aKid,
-                               int32_t* aOrdinal, int32_t aDepth,
-                               int32_t aIncrement);
+  static bool RenumberListsFor(nsPresContext* aPresContext, nsIFrame* aKid, int32_t* aOrdinal, int32_t aDepth);
 
   static bool FrameStartsCounterScope(nsIFrame* aFrame);
 

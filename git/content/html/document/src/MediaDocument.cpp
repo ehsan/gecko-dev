@@ -77,7 +77,7 @@ NS_IMETHODIMP
 MediaDocumentStreamListener::OnDataAvailable(nsIRequest* request,
                                              nsISupports *ctxt,
                                              nsIInputStream *inStr,
-                                             uint64_t sourceOffset,
+                                             uint32_t sourceOffset,
                                              uint32_t count)
 {
   if (mNextStream) {
@@ -280,9 +280,9 @@ MediaDocument::StartLayout()
   nsCOMPtr<nsIPresShell> shell = GetShell();
   // Don't mess with the presshell if someone has already handled
   // its initial reflow.
-  if (shell && !shell->DidInitialize()) {
+  if (shell && !shell->DidInitialReflow()) {
     nsRect visibleArea = shell->GetPresContext()->GetVisibleArea();
-    nsresult rv = shell->Initialize(visibleArea.width, visibleArea.height);
+    nsresult rv = shell->InitialReflow(visibleArea.width, visibleArea.height);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 

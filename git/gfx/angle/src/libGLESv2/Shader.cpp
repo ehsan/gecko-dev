@@ -12,7 +12,7 @@
 
 #include <string>
 
-#include "GLSLANG/ShaderLang.h"
+#include "GLSLANG/Shaderlang.h"
 #include "libGLESv2/main.h"
 #include "libGLESv2/utilities.h"
 

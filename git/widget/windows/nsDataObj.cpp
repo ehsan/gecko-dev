@@ -90,12 +90,11 @@ STDMETHODIMP nsDataObj::CStream::QueryInterface(REFIID refiid, void** ppvResult)
 }
 
 // nsIStreamListener implementation
-NS_IMETHODIMP
-nsDataObj::CStream::OnDataAvailable(nsIRequest *aRequest,
-                                    nsISupports *aContext,
-                                    nsIInputStream *aInputStream,
-                                    uint64_t aOffset, // offset within the stream
-                                    uint32_t aCount) // bytes available on this call
+NS_IMETHODIMP nsDataObj::CStream::OnDataAvailable(nsIRequest *aRequest,
+                                                  nsISupports *aContext,
+                                                  nsIInputStream *aInputStream,
+                                                  uint32_t aOffset, // offset within the stream
+                                                  uint32_t aCount) // bytes available on this call
 {
     // Extend the write buffer for the incoming data.
     uint8_t* buffer = mChannelData.AppendElements(aCount);
@@ -505,7 +504,6 @@ STDMETHODIMP nsDataObj::GetData(LPFORMATETC aFormat, LPSTGMEDIUM pSTM)
 
       // Someone is asking for an image
       case CF_DIBV5:
-      case CF_DIB:
         return GetDib(df, *aFormat, *pSTM);
 
       default:
@@ -793,9 +791,7 @@ HRESULT nsDataObj::AddGetFormat(FORMATETC& aFE)
 // imgIContainer, so just QI it.
 //
 HRESULT 
-nsDataObj::GetDib(const nsACString& inFlavor,
-                  FORMATETC &aFormat,
-                  STGMEDIUM & aSTG)
+nsDataObj :: GetDib ( const nsACString& inFlavor, FORMATETC &, STGMEDIUM & aSTG )
 {
   ULONG result = E_FAIL;
   uint32_t len = 0;
@@ -814,7 +810,7 @@ nsDataObj::GetDib(const nsACString& inFlavor,
   if ( image ) {
     // use the |nsImageToClipboard| helper class to build up a bitmap. We now own
     // the bits, and pass them back to the OS in |aSTG|.
-    nsImageToClipboard converter(image, aFormat.cfFormat == CF_DIBV5);
+    nsImageToClipboard converter ( image );
     HANDLE bits = nullptr;
     nsresult rv = converter.GetPicture ( &bits );
     if ( NS_SUCCEEDED(rv) && bits ) {
@@ -1568,8 +1564,8 @@ HRESULT nsDataObj::DropTempFile(FORMATETC& aFE, STGMEDIUM& aSTG)
     ULONG readCount = 0;
     uint32_t writeCount = 0;
     while (1) {
-      HRESULT hres = pStream->Read(buffer, sizeof(buffer), &readCount);
-      if (FAILED(hres))
+      rv = pStream->Read(buffer, sizeof(buffer), &readCount);
+      if (NS_FAILED(rv))
         return E_FAIL;
       if (readCount == 0)
         break;

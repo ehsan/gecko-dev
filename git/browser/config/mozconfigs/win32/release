@@ -1,5 +1,3 @@
-. "$topsrcdir/browser/config/mozconfigs/common"
-
 # for pgo
 mk_add_options MOZ_PGO=1
 mk_add_options PROFILE_GEN_SCRIPT='$(PYTHON) $(MOZ_OBJDIR)/_profile/pgo/profileserver.py'
@@ -28,5 +26,3 @@ fi
 
 # Package js shell.
 export MOZ_PACKAGE_JSSHELL=1
-
-. "$topsrcdir/build/mozconfig.common.override"

@@ -23,7 +23,6 @@ using mozilla::unused;
 #include "nsIObserverService.h"
 #include "nsFocusManager.h"
 #include "nsIWidgetListener.h"
-#include "nsIViewManager.h"
 
 #include "nsRenderingContext.h"
 #include "nsIDOMSimpleGestureEvent.h"
@@ -276,12 +275,9 @@ nsWindow::ConfigureChildren(const nsTArray<nsIWidget::Configuration>& config)
 void
 nsWindow::RedrawAll()
 {
-    if (mFocus && mFocus->mWidgetListener) {
-        nsIView* view = mFocus->mWidgetListener->GetView();
-        if (view && view->GetViewManager()) {
-            view->GetViewManager()->InvalidateView(view);
-        }
-    }
+    nsIntRect entireRect(0, 0, gAndroidBounds.width, gAndroidBounds.height);
+    AndroidGeckoEvent *event = new AndroidGeckoEvent(AndroidGeckoEvent::DRAW, entireRect);
+    nsAppShell::gAppShell->PostEvent(event);
 }
 
 NS_IMETHODIMP

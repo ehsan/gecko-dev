@@ -164,8 +164,6 @@ public:
 
     uint32_t GetAppId() { return mAppId; }
 
-    bool IsRootContentDocument();
-
     NS_DECL_ISUPPORTS
     NS_DECL_NSIWEBBROWSERCHROME
     NS_DECL_NSIWEBBROWSERCHROME2

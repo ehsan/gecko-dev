@@ -128,7 +128,7 @@ nsXBLDocGlobalObject_setProperty(JSContext *cx, JSHandleObject obj,
 
 static JSBool
 nsXBLDocGlobalObject_checkAccess(JSContext *cx, JSHandleObject obj, JSHandleId id,
-                                 JSAccessMode mode, JSMutableHandleValue vp)
+                                 JSAccessMode mode, jsval *vp)
 {
   uint32_t translated;
   if (mode & JSACC_WRITE) {

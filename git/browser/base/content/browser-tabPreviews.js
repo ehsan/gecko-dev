@@ -11,48 +11,37 @@
  */
 var tabPreviews = {
   aspectRatio: 0.5625, // 16:9
-
-  get width() {
-    delete this.width;
-    return this.width = Math.ceil(screen.availWidth / 5.75);
-  },
-
-  get height() {
-    delete this.height;
-    return this.height = Math.round(this.width * this.aspectRatio);
-  },
-
   init: function tabPreviews_init() {
     if (this._selectedTab)
       return;
     this._selectedTab = gBrowser.selectedTab;
 
+    this.width = Math.ceil(screen.availWidth / 5.75);
+    this.height = Math.round(this.width * this.aspectRatio);
+
+    window.addEventListener("unload", this, false);
     gBrowser.tabContainer.addEventListener("TabSelect", this, false);
     gBrowser.tabContainer.addEventListener("SSTabRestored", this, false);
   },
-
+  uninit: function tabPreviews_uninit() {
+    window.removeEventListener("unload", this, false);
+    gBrowser.tabContainer.removeEventListener("TabSelect", this, false);
+    gBrowser.tabContainer.removeEventListener("SSTabRestored", this, false);
+    this._selectedTab = null;
+  },
   get: function tabPreviews_get(aTab) {
-    let uri = aTab.linkedBrowser.currentURI.spec;
+    this.init();
 
     if (aTab.__thumbnail_lastURI &&
-        aTab.__thumbnail_lastURI != uri) {
+        aTab.__thumbnail_lastURI != aTab.linkedBrowser.currentURI.spec) {
       aTab.__thumbnail = null;
       aTab.__thumbnail_lastURI = null;
     }
-
-    if (aTab.__thumbnail)
-      return aTab.__thumbnail;
-
-    if (aTab.getAttribute("pending") == "true") {
-      let img = new Image;
-      img.src = PageThumbs.getThumbnailURL(uri);
-      return img;
-    }
-
-    return this.capture(aTab, !aTab.hasAttribute("busy"));
+    return aTab.__thumbnail || this.capture(aTab, !aTab.hasAttribute("busy"));
   },
-
   capture: function tabPreviews_capture(aTab, aStore) {
+    this.init();
+
     var thumbnail = document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
     thumbnail.mozOpaque = true;
     thumbnail.height = this.height;
@@ -72,7 +61,6 @@ var tabPreviews = {
     }
     return thumbnail;
   },
-
   handleEvent: function tabPreviews_handleEvent(event) {
     switch (event.type) {
       case "TabSelect":
@@ -94,6 +82,9 @@ var tabPreviews = {
         break;
       case "SSTabRestored":
         this.capture(event.target, true);
+        break;
+      case "unload":
+        this.uninit();
         break;
     }
   }
@@ -658,7 +649,7 @@ var allTabs = {
         } catch (e) {}
         tabstring = tab.label + " " + tab.label.toLocaleLowerCase() + " " + tabstring;
         for (let i = 0; i < filter.length; i++)
-          matches += tabstring.contains(filter[i]);
+          matches += tabstring.indexOf(filter[i]) > -1;
       }
       if (matches < filter.length || tab.hidden) {
         preview.hidden = true;

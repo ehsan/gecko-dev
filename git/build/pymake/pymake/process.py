@@ -88,8 +88,8 @@ def call(cline, env, cwd, loc, cb, context, echo, justprint=False):
         if msys:
             if len(cline) > 3 and cline[1] == ':' and cline[2] == '/':
                 cline = '/' + cline[0] + cline[2:]
-        cline = [shell, "-c", cline]
-        context.call(cline, shell=False, env=env, cwd=cwd, cb=cb, echo=echo,
+            cline = [shell, "-c", cline]
+        context.call(cline, shell=not msys, env=env, cwd=cwd, cb=cb, echo=echo,
                      justprint=justprint)
         return
 
@@ -264,8 +264,8 @@ class PythonJob(Job):
                 pass # sys.exit(0) is not a failure
             else:
                 print >>sys.stderr, e
-                traceback.print_exc()
-                return -127
+                print >>sys.stderr, traceback.print_exc()
+                return (e.code if isinstance(e.code, int) else 1)
         finally:
             os.environ.clear()
             os.environ.update(oldenv)

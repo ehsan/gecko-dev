@@ -537,7 +537,7 @@ NS_IMETHODIMP GonkCameraInputStream::AsyncWait(nsIInputStreamCallback *aCallback
 }
 
 
-NS_IMETHODIMP GonkCameraInputStream::CloseWithStatus(nsresult status)
+NS_IMETHODIMP GonkCameraInputStream::CloseWithStatus(uint32_t status)
 {
   GonkCameraInputStream::doClose();
   return NS_OK;

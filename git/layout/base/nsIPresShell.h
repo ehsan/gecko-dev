@@ -354,22 +354,22 @@ public:
   virtual NS_HIDDEN_(void) EndObservingDocument() = 0;
 
   /**
-   * Return whether Initialize() was previously called.
+   * Return whether InitialReflow() was previously called.
    */
-  bool DidInitialize() const { return mDidInitialize; }
+  bool DidInitialReflow() const { return mDidInitialReflow; }
 
   /**
-   * Perform initialization. Constructs the frame for the root content
-   * object and then enqueues a reflow of the frame model into the
-   * specified width and height.
+   * Perform the initial reflow. Constructs the frame for the root content
+   * object and then reflows the frame model into the specified width and
+   * height.
    *
    * The coordinates for aWidth and aHeight must be in standard nscoords.
    *
    * Callers of this method must hold a reference to this shell that
    * is guaranteed to survive through arbitrary script execution.
-   * Calling Initialize can execute arbitrary script.
+   * Calling InitialReflow can execute arbitrary script.
    */
-  virtual NS_HIDDEN_(nsresult) Initialize(nscoord aWidth, nscoord aHeight) = 0;
+  virtual NS_HIDDEN_(nsresult) InitialReflow(nscoord aWidth, nscoord aHeight) = 0;
 
   /**
    * Reflow the frame model into a new width and height.  The
@@ -1312,12 +1312,6 @@ public:
   virtual void SysColorChanged() = 0;
   virtual void ThemeChanged() = 0;
 
-  nscoord MaxLineBoxWidth() {
-    return mMaxLineBoxWidth;
-  }
-
-  void SetMaxLineBoxWidth(nscoord aMaxLineBoxWidth);
-
 protected:
   friend class nsRefreshDriver;
 
@@ -1374,7 +1368,7 @@ protected:
   RenderFlags               mRenderFlags;
 
   bool                      mStylesHaveChanged : 1;
-  bool                      mDidInitialize : 1;
+  bool                      mDidInitialReflow : 1;
   bool                      mIsDestroying : 1;
   bool                      mIsReflowing : 1;
 
@@ -1403,10 +1397,6 @@ protected:
   uint32_t mFontSizeInflationEmPerLine;
   uint32_t mFontSizeInflationMinTwips;
   uint32_t mFontSizeInflationLineThreshold;
-
-  // The maximum width of a line box. Text on a single line that exceeds this
-  // width will be wrapped. A value of 0 indicates that no limit is enforced.
-  nscoord mMaxLineBoxWidth;
 };
 
 /**

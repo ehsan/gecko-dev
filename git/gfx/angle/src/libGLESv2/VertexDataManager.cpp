@@ -390,11 +390,11 @@ struct VertexTypeFlags
 {
 };
 
-template <unsigned int _capflag, unsigned int _declflag>
+template <unsigned int capflag, unsigned int declflag>
 struct VertexTypeFlagsHelper
 {
-    enum { capflag = _capflag };
-    enum { declflag = _declflag };
+    enum { capflag = capflag };
+    enum { declflag = declflag };
 };
 
 template <> struct VertexTypeFlags<D3DVT_FLOAT, 1> : VertexTypeFlagsHelper<0, D3DDECLTYPE_FLOAT1> { };

@@ -11,6 +11,8 @@
 #include "xpcprivate.h"
 #include "qsObjectHelper.h"
 
+#include "jsatom.h"
+
 /* XPCQuickStubs.h - Support functions used only by quick stubs. */
 
 class XPCCallContext;

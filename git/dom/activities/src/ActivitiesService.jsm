@@ -4,7 +4,7 @@
 
 "use strict"
 
-const Cu = Components.utils;
+const Cu = Components.utils; 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 
@@ -20,7 +20,7 @@ const EXPORTED_SYMBOLS = [];
 
 let idbGlobal = this;
 
-function debug(aMsg) {
+function debug(aMsg) { 
   //dump("-- ActivitiesService.jsm " + Date.now() + " " + aMsg + "\n");
 }
 
@@ -82,7 +82,7 @@ ActivitiesDb.prototype = {
       let data = converter.convertToByteArray(aObject[aProp], {});
       hasher.update(data, data.length);
     });
-
+    
     return hasher.finish(true);
   },
 
@@ -97,7 +97,7 @@ ActivitiesDb.prototype = {
       };
       object.id = this.createId(object);
       debug("Going to add " + JSON.stringify(object));
-
+      
       store.put(object);
     }.bind(this), aSuccess, aError);
   },
@@ -118,7 +118,7 @@ ActivitiesDb.prototype = {
     debug("Looking for " + aObject.options.name);
 
     this.newTxn("readonly", function (txn, store) {
-      let index = store.index("name");
+      let index = store.index("name"); 
       let request = index.mozGetAll(aObject.options.name);
       request.onsuccess = function findSuccess(aEvent) {
         debug("Request successful. Record count: " + aEvent.target.result.length);
@@ -167,7 +167,6 @@ let Activities = {
 
     this.db = new ActivitiesDb();
     this.db.init();
-    this.mm = {};
   },
 
   observe: function activities_observe(aSubject, aTopic, aData) {
@@ -183,7 +182,7 @@ let Activities = {
     * Starts an activity by doing:
     * - finds a list of matching activities.
     * - calls the UI glue to get the user choice.
-    * - fire an system message of type "activity" to this app, sending the
+    * - fire an system message of type "activity" to this app, sending the 
     *   activity data as a payload.
     */
   startActivity: function activities_startActivity(aMsg) {
@@ -194,11 +193,10 @@ let Activities = {
 
       // We have no matching activity registered, let's fire an error.
       if (aResults.options.length === 0) {
-        Activities.mm[aMsg.id].sendAsyncMessage("Activity:FireError", {
+        ppmm.broadcastAsyncMessage("Activity:FireError", {
           "id": aMsg.id,
           "error": "NO_PROVIDER"
         });
-        delete Activities.mm[aMsg.id];
         return;
       }
 
@@ -207,11 +205,10 @@ let Activities = {
 
         // The user has cancelled the choice, fire an error.
         if (aChoice === -1) {
-          Activities.mm[aMsg.id].sendAsyncMessage("Activity:FireError", {
+          ppmm.broadcastAsyncMessage("Activity:FireError", {
             "id": aMsg.id,
             "error": "USER_ABORT"
           });
-          delete Activities.mm[aMsg.id];
           return;
         }
 
@@ -233,11 +230,10 @@ let Activities = {
           Services.io.newURI(result.manifest, null, null));
 
         if (!result.description.returnValue) {
-          Activities.mm[aMsg.id].sendAsyncMessage("Activity:FireSuccess", {
+          ppmm.broadcastAsyncMessage("Activity:FireSuccess", {
             "id": aMsg.id,
             "result": null
           });
-          delete Activities.mm[aMsg.id];
         }
       };
 
@@ -273,17 +269,14 @@ let Activities = {
     let msg = aMessage.json;
     switch(aMessage.name) {
       case "Activity:Start":
-        this.mm[msg.id] = aMessage.target;
         this.startActivity(msg);
         break;
 
       case "Activity:PostResult":
-        this.mm[msg.id].sendAsyncMessage("Activity:FireSuccess", msg);
-        delete this.mm[msg.id];
+        ppmm.broadcastAsyncMessage("Activity:FireSuccess", msg);
         break;
       case "Activity:PostError":
-        this.mm[msg.id].sendAsyncMessage("Activity:FireError", msg);
-        delete this.mm[msg.id];
+        ppmm.broadcastAsyncMessage("Activity:FireError", msg);
         break;
 
       case "Activities:Register":

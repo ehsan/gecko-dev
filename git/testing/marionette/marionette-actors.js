@@ -35,7 +35,7 @@ Services.prefs.setBoolPref("marionette.contentListener", false);
 let appName = Services.appinfo.name;
 
 // import logger
-Cu.import("resource:///modules/services-common/log4moz.js");
+Cu.import("resource://gre/modules/services-common/log4moz.js");
 let logger = Log4Moz.repository.getLogger("Marionette");
 logger.info('marionette-actors.js loaded');
 
@@ -301,19 +301,7 @@ MarionetteDriverActor.prototype = {
     this.curFrame = null;
     this.addBrowser(win);
     this.curBrowser.newSession = newSession;
-    this.curBrowser.startSession(newSession, win, this.whenBrowserStarted.bind(this));
-  },
-
-  /**
-   * Callback invoked after a new session has been started in a browser.
-   * Loads the Marionette frame script into the browser if needed.
-   *
-   * @param nsIDOMWindow win
-   *        Window whose browser we need to access
-   * @param boolean newSession
-   *        True if this is the first time we're talking to this browser
-   */
-  whenBrowserStarted: function MDA_whenBrowserStarted(win, newSession) {
+    this.curBrowser.startSession(newSession);
     try {
       if (!Services.prefs.getBoolPref("marionette.contentListener") || !newSession) {
         this.curBrowser.loadFrameScript("chrome://marionette/content/marionette-listener.js", win);
@@ -383,7 +371,7 @@ MarionetteDriverActor.prototype = {
     else if ((appName == "B2G") && (this.curBrowser == null)) {
       //if there is a content listener, then we just wake it up
       this.addBrowser(this.getCurrentWindow());
-      this.curBrowser.startSession(false, this.getCurrentWindow(), this.whenBrowserStarted);
+      this.curBrowser.startSession(false);
       this.messageManager.broadcastAsyncMessage("Marionette:restart", {});
     }
     else {
@@ -1570,27 +1558,21 @@ BrowserObj.prototype = {
    * @param boolean newTab
    *        If true, create new tab
    */
-  startSession: function BO_startSession(newTab, win, callback) {
+  startSession: function BO_startSession(newTab) {
     if (appName == "B2G") {
-      callback(win, newTab);
+      return;
     }
-    else if (newTab) {
+    if (newTab) {
       this.addTab(this.startPage);
-      //if we have a new tab, make it the selected tab
+      //if we have a new tab, make it the selected tab and give it focus
       this.browser.selectedTab = this.tab;
       let newTabBrowser = this.browser.getBrowserForTab(this.tab);
-      // wait for tab to be loaded
-      newTabBrowser.addEventListener("load", function onLoad() {
-        newTabBrowser.removeEventListener("load", onLoad, true);
-        callback(win, newTab);
-      }, true);
     }
     else {
       //set this.tab to the currently focused tab
       if (this.browser != undefined && this.browser.selectedTab != undefined) {
         this.tab = this.browser.selectedTab;
       }
-      callback(win, newTab);
     }
   },
 

@@ -42,7 +42,6 @@ class ShadowContainerLayer;
 class ShadowImageLayer;
 class ShadowCanvasLayer;
 class ShadowColorLayer;
-struct FPSState;
 
 /**
  * This is the LayerManager used for OpenGL 2.1 and OpenGL ES 2.0.
@@ -439,10 +438,34 @@ private:
   DrawThebesLayerCallback mThebesLayerCallback;
   void *mThebesLayerCallbackData;
   gfxMatrix mWorldMatrix;
-  nsAutoPtr<FPSState> mFPS;
+
+  struct FPSState
+  {
+      GLuint texture;
+      int fps;
+      bool initialized;
+      int fcount;
+      TimeStamp last;
+
+      int contentFps;
+      int contentFCount;
+      TimeStamp contentLast;
+
+      FPSState()
+        : texture(0)
+        , fps(0)
+        , initialized(false)
+        , fcount(0)
+        , contentFps(0)
+        , contentFCount(0)
+      {
+        contentLast = last = TimeStamp::Now();
+      }
+      void DrawFPS(GLContext*, ShaderProgramOGL*);
+      void NotifyShadowTreeTransaction();
+  } mFPS;
 
   static bool sDrawFPS;
-  static bool sFrameCounter;
 };
 
 /**

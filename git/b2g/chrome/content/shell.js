@@ -352,7 +352,8 @@ var shell = {
     this.sendChromeEvent({
       type: 'open-app',
       url: msg.uri,
-      manifestURL: msg.manifest,
+      origin: origin,
+      manifest: msg.manifest,
       isActivity: (msg.type == 'activity'),
       target: msg.target
     });
@@ -508,9 +509,6 @@ var CustomEventManager = {
       case 'select-choicechange':
         FormsHelper.handleEvent(detail);
         break;
-      case 'system-message-listener-ready':
-        Services.obs.notifyObservers(null, 'system-message-listener-ready', null);
-        break;
     }
   }
 }
@@ -600,7 +598,7 @@ var WebappsHelper = {
           shell.sendChromeEvent({
             "type": "webapps-launch",
             "url": manifest.fullLaunchPath(json.startPoint),
-            "manifestURL": json.manifestURL
+            "origin": json.origin
           });
         });
         break;
@@ -708,10 +706,10 @@ window.addEventListener('ContentStart', function ss_onContentStart() {
 (function headphonesStatusTracker() {
   Services.obs.addObserver(function(aSubject, aTopic, aData) {
     shell.sendChromeEvent({
-      type: 'headphones-status-changed',
+      type: 'headphones-status',
       state: aData
     });
-}, "headphones-status-changed", false);
+}, "headphones-status", false);
 })();
 
 (function recordingStatusTracker() {

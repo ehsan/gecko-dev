@@ -38,8 +38,16 @@ public:
   NS_DECL_ISUPPORTS
 
   // IStreamListener interface...
-  NS_DECL_NSIREQUESTOBSERVER
-  NS_DECL_NSISTREAMLISTENER
+  NS_IMETHOD OnStartRequest(nsIRequest *request, nsISupports* context);
+
+  NS_IMETHOD OnDataAvailable(nsIRequest *request, nsISupports* context,
+                             nsIInputStream *aIStream, 
+                             uint32_t aSourceOffset,
+                             uint32_t aLength);
+
+  NS_IMETHOD OnStopRequest(nsIRequest *request, nsISupports* context,
+                           nsresult aStatus);
+
 };
 
 
@@ -67,7 +75,7 @@ NS_IMETHODIMP
 InputTestConsumer::OnDataAvailable(nsIRequest *request, 
                                    nsISupports* context,
                                    nsIInputStream *aIStream, 
-                                   uint64_t aSourceOffset,
+                                   uint32_t aSourceOffset,
                                    uint32_t aLength)
 {
   char buf[1025];

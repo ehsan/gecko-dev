@@ -27,7 +27,7 @@ Any other render format? HTML?
 class nsImageToClipboard
 {
 public:
-  nsImageToClipboard(imgIContainer* aInImage, bool aWantDIBV5 = true);
+  nsImageToClipboard ( imgIContainer* inImage );
   ~nsImageToClipboard();
 
     // Call to get the actual bits that go on the clipboard. If |nullptr|, the
@@ -46,7 +46,6 @@ private:
   nsresult CreateFromImage ( imgIContainer* inImage, HANDLE* outBitmap );
 
   nsCOMPtr<imgIContainer> mImage;            // the image we're working with
-  bool mWantDIBV5;
 
 }; // class nsImageToClipboard
 

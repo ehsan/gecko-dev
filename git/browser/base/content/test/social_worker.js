@@ -64,7 +64,7 @@ onconnect = function(e) {
         testPort.postMessage({topic:"got-flyout-visibility", result: event.data.result});
         break;
       case "test-worker-chat":
-        apiPort.postMessage({topic: "social.request-chat", data: event.data.data });
+        apiPort.postMessage({topic: "social.request-chat", data: "https://example.com/browser/browser/base/content/test/social_chat.html" });
         break;
       case "social.initialize":
         // This is the workerAPI port, respond and set up a notification icon.
@@ -77,15 +77,13 @@ onconnect = function(e) {
           profileURL: "http://en.wikipedia.org/wiki/Kuma_Lisa"
         };
         port.postMessage({topic: "social.user-profile", data: profile});
-        break;
-      case "test-ambient-notification":
         let icon = {
           name: "testIcon",
           iconURL: "chrome://branding/content/icon48.png",
           contentPanel: "https://example.com/browser/browser/base/content/test/social_panel.html",
           counter: 1
         };
-        apiPort.postMessage({topic: "social.ambient-notification", data: icon});
+        port.postMessage({topic: "social.ambient-notification", data: icon});
         break;
       case "test-isVisible":
         sidebarPort.postMessage({topic: "test-isVisible"});

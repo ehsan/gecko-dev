@@ -1377,7 +1377,7 @@ public:
   bool SetRefreshObserver(nsGfxScrollFrameInner *aCallee) {
     NS_ASSERTION(aCallee && !mCallee, "AsyncScroll::SetRefreshObserver - Invalid usage.");
 
-    if (!RefreshDriver(aCallee)->AddRefreshObserver(this, Flush_Style)) {
+    if (!RefreshDriver(aCallee)->AddRefreshObserver(this, Flush_Display)) {
       return false;
     }
 
@@ -1405,7 +1405,7 @@ private:
    */
   void RemoveObserver() {
     if (mCallee) {
-      RefreshDriver(mCallee)->RemoveRefreshObserver(this, Flush_Style);
+      RefreshDriver(mCallee)->RemoveRefreshObserver(this, Flush_Display);
     }
   }
 };
@@ -1933,7 +1933,7 @@ void nsGfxScrollFrameInner::ScrollVisual(nsPoint aOldScrolledFramePos)
     return;
   }
 
-  rootPresContext->RequestUpdatePluginGeometry();
+  rootPresContext->RequestUpdatePluginGeometry(mOuter);
 
   AdjustViews(mScrolledFrame);
   // We need to call this after fixing up the view positions

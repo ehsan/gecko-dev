@@ -2455,14 +2455,8 @@ SearchService.prototype = {
       return;
     }
 
-    let warning =
-      "Search service falling back to synchronous initialization at " +
-      new Error().stack +
-      "\n" +
-      "This is generally the consequence of an add-on using a deprecated " +
-      "search service API.";
-    // Bug 785487 - Disable reportError until our own callers are fixed.
-    //Components.utils.reportError(warning);
+    let warning = "Search service falling back to synchronous initialization at " + new Error().stack;
+    Components.utils.reportError(warning);
     LOG(warning);
 
     this._syncInit();

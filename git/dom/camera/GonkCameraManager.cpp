@@ -18,6 +18,8 @@
 #include "libcameraservice/CameraHardwareInterface.h"
 #include "GonkCameraControl.h"
 #include "DOMCameraManager.h"
+
+#define DOM_CAMERA_LOG_LEVEL  3
 #include "CameraCommon.h"
 
 // From nsDOMCameraManager, but gonk-specific!
@@ -65,7 +67,7 @@ nsDOMCameraManager::GetListOfCameras(JSContext* cx, JS::Value* _retval)
         break;
 
       default:
-        // TODO: see bug 779143.
+        // TODO: handle extra cameras in getCamera().
         {
           static uint32_t extraIndex = 2;
           nsCString s;
@@ -90,4 +92,16 @@ nsDOMCameraManager::GetListOfCameras(JSContext* cx, JS::Value* _retval)
 
   *_retval = OBJECT_TO_JSVAL(a);
   return NS_OK;
+}
+
+using namespace mozilla;
+
+NS_IMETHODIMP
+GetCameraTask::Run()
+{
+  nsCOMPtr<nsICameraControl> cameraControl = new nsGonkCameraControl(mCameraId, mCameraThread);
+
+  DOM_CAMERA_LOGI("%s:%d\n", __func__, __LINE__);
+
+  return NS_DispatchToMainThread(new GetCameraResult(cameraControl, mOnSuccessCb));
 }

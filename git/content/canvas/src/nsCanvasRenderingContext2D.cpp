@@ -62,7 +62,6 @@
 #include "gfxBlur.h"
 #include "gfxUtils.h"
 #include "nsRenderingContext.h"
-#include "gfxSVGGlyphs.h"
 
 #include "nsFrameManager.h"
 #include "nsFrameLoader.h"
@@ -2825,20 +2824,15 @@ struct NS_STACK_CLASS nsCanvasBidiProcessor : public nsBidiPresUtils::BidiProces
             // throughout the text layout process
         }
 
-        nsRefPtr<gfxPattern> pattern = mThebes->GetPattern();
-
-        bool isFill = mOp == nsCanvasRenderingContext2D::TEXT_DRAW_OPERATION_FILL;
-        SimpleTextObjectPaint objectPaint(isFill ? pattern.get() : nullptr,
-                                          isFill ? nullptr : pattern.get());
-
         mTextRun->Draw(mThebes,
                        point,
-                       isFill ? gfxFont::GLYPH_FILL : gfxFont::GLYPH_STROKE,
+                       mOp == nsCanvasRenderingContext2D::TEXT_DRAW_OPERATION_STROKE ?
+                                    gfxFont::GLYPH_STROKE : gfxFont::GLYPH_FILL,
                        0,
                        mTextRun->GetLength(),
                        nullptr,
                        nullptr,
-                       &objectPaint);
+                       nullptr);
     }
 
     // current text run
@@ -4327,9 +4321,6 @@ nsCanvasRenderingContext2D::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
     // If we don't have anything to draw, don't bother.
     if (!mValid || !mSurface || mSurface->CairoStatus() || !mThebes ||
         !mSurfaceCreated) {
-        // No DidTransactionCallback will be received, so mark the context clean
-        // now so future invalidations will be dispatched.
-        MarkContextClean();
         return nullptr;
     }
 
@@ -4346,9 +4337,6 @@ nsCanvasRenderingContext2D::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
     nsRefPtr<CanvasLayer> canvasLayer = aManager->CreateCanvasLayer();
     if (!canvasLayer) {
         NS_WARNING("CreateCanvasLayer returned null!");
-        // No DidTransactionCallback will be received, so mark the context clean
-        // now so future invalidations will be dispatched.
-        MarkContextClean();
         return nullptr;
     }
     CanvasRenderingContext2DUserData *userData = nullptr;

@@ -1221,11 +1221,11 @@ DocAccessible::ARIAAttributeChanged(nsIContent* aContent, nsIAtom* aAttribute)
 void
 DocAccessible::ARIAActiveDescendantChanged(nsIContent* aElm)
 {
-  Accessible* widget = GetAccessible(aElm);
-  if (widget && widget->IsActiveWidget()) {
+  if (FocusMgr()->HasDOMFocus(aElm)) {
     nsAutoString id;
     if (aElm->GetAttr(kNameSpaceID_None, nsGkAtoms::aria_activedescendant, id)) {
-      dom::Element* activeDescendantElm = aElm->OwnerDoc()->GetElementById(id);
+      nsIDocument* DOMDoc = aElm->OwnerDoc();
+      dom::Element* activeDescendantElm = DOMDoc->GetElementById(id);
       if (activeDescendantElm) {
         Accessible* activeDescendant = GetAccessible(activeDescendantElm);
         if (activeDescendant) {

@@ -3094,7 +3094,7 @@ CSS_PROP_SVG(
     CSS_PROPERTY_PARSE_FUNCTION,
     "",
     0,
-    kObjectPatternKTable,
+    nullptr,
     offsetof(nsStyleSVG, mFill),
     eStyleAnimType_PaintServer)
 CSS_PROP_SVG(
@@ -3103,8 +3103,8 @@ CSS_PROP_SVG(
     FillOpacity,
     CSS_PROPERTY_PARSE_VALUE,
     "",
-    VARIANT_HN | VARIANT_KEYWORD,
-    kObjectOpacityKTable,
+    VARIANT_HN,
+    nullptr,
     offsetof(nsStyleSVG, mFillOpacity),
     eStyleAnimType_float)
 CSS_PROP_SVG(
@@ -3250,7 +3250,7 @@ CSS_PROP_SVG(
     CSS_PROPERTY_PARSE_FUNCTION,
     "",
     0,
-    kObjectPatternKTable,
+    nullptr,
     offsetof(nsStyleSVG, mStroke),
     eStyleAnimType_PaintServer)
 CSS_PROP_SVG(
@@ -3262,7 +3262,7 @@ CSS_PROP_SVG(
         // NOTE: Internal values have range restrictions.
     "",
     0,
-    kStrokeObjectValueKTable,
+    nullptr,
     CSS_PROP_NO_OFFSET, /* property stored in 2 separate members */
     eStyleAnimType_Custom)
 CSS_PROP_SVG(
@@ -3271,8 +3271,8 @@ CSS_PROP_SVG(
     StrokeDashoffset,
     CSS_PROPERTY_PARSE_VALUE,
     "",
-    VARIANT_HLPN | VARIANT_KEYWORD,
-    kStrokeObjectValueKTable,
+    VARIANT_HLPN,
+    nullptr,
     offsetof(nsStyleSVG, mStrokeDashoffset),
     eStyleAnimType_Coord)
 CSS_PROP_SVG(
@@ -3312,8 +3312,8 @@ CSS_PROP_SVG(
     StrokeOpacity,
     CSS_PROPERTY_PARSE_VALUE,
     "",
-    VARIANT_HN | VARIANT_KEYWORD,
-    kObjectOpacityKTable,
+    VARIANT_HN,
+    nullptr,
     offsetof(nsStyleSVG, mStrokeOpacity),
     eStyleAnimType_float)
 CSS_PROP_SVG(
@@ -3323,8 +3323,8 @@ CSS_PROP_SVG(
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_VALUE_NONNEGATIVE,
     "",
-    VARIANT_HLPN | VARIANT_KEYWORD,
-    kStrokeObjectValueKTable,
+    VARIANT_HLPN,
+    nullptr,
     offsetof(nsStyleSVG, mStrokeWidth),
     eStyleAnimType_Coord)
 CSS_PROP_SVG(

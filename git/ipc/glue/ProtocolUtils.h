@@ -115,9 +115,9 @@ LoggingEnabled()
 inline void
 ProtocolErrorBreakpoint(const char* aMsg)
 {
-    if (LoggingEnabled()) {
-        printf_stderr("Protocol error: %s\n", aMsg);
-    }
+#if defined(DEBUG)
+    printf("Protocol error: %s\n", aMsg);
+#endif
 }
 
 typedef IPCMessageStart ProtocolId;

@@ -39,8 +39,6 @@ AppProcessHasPermission(PBrowserParent* aActor, const char* aPermission)
   if (!NS_SUCCEEDED(app->HasPermission(aPermission, &hasPermission)) ||
       !hasPermission) {
     printf_stderr("Security problem: App process does not have `%s' permission.  It will be killed.", aPermission);
-    ContentParent* process = static_cast<ContentParent*>(aActor->Manager());
-    process->KillHard();
   }
   return hasPermission;
 }

@@ -8,7 +8,6 @@
 
 // Keep others in (case-insensitive) order:
 #include "gfxContext.h"
-#include "gfxSVGGlyphs.h"
 #include "nsPresContext.h"
 #include "nsSVGEffects.h"
 #include "nsSVGPaintServerFrame.h"

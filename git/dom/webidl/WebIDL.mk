@@ -33,7 +33,6 @@ ifdef ENABLE_TESTS
 test_webidl_files := \
   TestCodeGen.webidl \
   TestDictionary.webidl \
-  TestTypedef.webidl \
   $(NULL)
 else
 test_webidl_files := $(NULL)

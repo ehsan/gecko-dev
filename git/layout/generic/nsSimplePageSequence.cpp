@@ -496,9 +496,6 @@ nsSimplePageSequenceFrame::StartPrint(nsPresContext*   aPresContext,
 void
 GetPrintCanvasElementsInFrame(nsIFrame* aFrame, nsTArray<nsRefPtr<nsHTMLCanvasElement> >* aArr)
 {
-  if (!aFrame) {
-    return;
-  }
   for (nsIFrame::ChildListIterator childLists(aFrame);
     !childLists.IsDone(); childLists.Next()) {
 
@@ -634,7 +631,7 @@ nsSimplePageSequenceFrame::PrePrintNextPage(nsITimerCallback* aCallback, bool* a
           renderingContext->ThebesContext()->CurrentSurface();
       NS_ENSURE_TRUE(renderingSurface, NS_ERROR_OUT_OF_MEMORY);
 
-      for (int32_t i = mCurrentCanvasList.Length() - 1; i >= 0 ; i--) {
+      for (PRInt32 i = mCurrentCanvasList.Length() - 1; i >= 0 ; i--) {
         nsHTMLCanvasElement* canvas = mCurrentCanvasList[i];
         nsIntSize size = canvas->GetSize();
 
@@ -660,8 +657,8 @@ nsSimplePageSequenceFrame::PrePrintNextPage(nsITimerCallback* aCallback, bool* a
       }
     }
   }
-  int32_t doneCounter = 0;
-  for (int32_t i = mCurrentCanvasList.Length() - 1; i >= 0 ; i--) {
+  PRInt32 doneCounter = 0;
+  for (PRInt32 i = mCurrentCanvasList.Length() - 1; i >= 0 ; i--) {
     nsHTMLCanvasElement* canvas = mCurrentCanvasList[i];
 
     if (canvas->IsPrintCallbackDone()) {
@@ -678,7 +675,7 @@ void
 nsSimplePageSequenceFrame::InvalidateInternal(const nsRect& aDamageRect,
                                               nscoord aX, nscoord aY,
                                               nsIFrame* aForChild,
-                                              uint32_t aFlags)
+                                              PRUint32 aFlags)
 {
   // xxx Invalidate the entire frame as otherwise invalidate of printCanvas
   // don't work properly. This is hopefully no longer necessary once 539356
@@ -690,7 +687,7 @@ nsSimplePageSequenceFrame::InvalidateInternal(const nsRect& aDamageRect,
 NS_IMETHODIMP
 nsSimplePageSequenceFrame::ResetPrintCanvasList()
 {
-  for (int32_t i = mCurrentCanvasList.Length() - 1; i >= 0 ; i--) {
+  for (PRInt32 i = mCurrentCanvasList.Length() - 1; i >= 0 ; i--) {
     nsHTMLCanvasElement* canvas = mCurrentCanvasList[i];
     canvas->ResetPrintCallback();
   }

@@ -36,16 +36,13 @@ def replaceMessages(line, messages):
     return line
 
 def main():
-    debug = sys.argv[1] == '-d'
-    if debug:
-        sys.argv.pop(1)
     output_file = sys.argv[1]
     messages_file = sys.argv[2]
     macros_file = sys.argv[3]
     source_files = sys.argv[4:]
     combined_file = 'combined.js'
     replaceErrorMsgs(source_files, messages_file, combined_file)
-    js2c.JS2C([combined_file, macros_file], [output_file], { 'TYPE': 'CORE', 'COMPRESSION': 'off', 'DEBUG':debug })
+    js2c.JS2C([combined_file, macros_file], [output_file], { 'TYPE': 'CORE', 'COMPRESSION': 'off' })
     os.remove(combined_file)
 
 if __name__ == "__main__":

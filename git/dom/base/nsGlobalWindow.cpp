@@ -1266,6 +1266,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsGlobalWindow)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mInnerWindowHolder)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOuterWindow)
 
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOpenerScriptPrincipal)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mListenerManager,
                                                   nsEventListenerManager)
 
@@ -1315,6 +1316,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGlobalWindow)
     NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOuterWindow)
   }
 
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOpenerScriptPrincipal)
   if (tmp->mListenerManager) {
     tmp->mListenerManager->Disconnect();
     NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mListenerManager)
@@ -1462,6 +1464,8 @@ nsGlobalWindow::WouldReuseInnerWindow(nsIDocument *aNewDocument)
   // We reuse the inner window when:
   // a. We are currently at our original document.
   // b. At least one of the following conditions are true:
+  // -- We are not currently a content window (i.e., we're currently a chrome
+  //    window).
   // -- The new document is the same as the old document. This means that we're
   //    getting called from document.open().
   // -- The new document has the same origin as what we have loaded right now.
@@ -1476,10 +1480,9 @@ nsGlobalWindow::WouldReuseInnerWindow(nsIDocument *aNewDocument)
   
   NS_ASSERTION(NS_IsAboutBlank(mDoc->GetDocumentURI()),
                "How'd this happen?");
-
+  
   // Great, we're the original document, check for one of the other
   // conditions.
-
   if (mDoc == aNewDocument) {
     return true;
   }
@@ -1492,66 +1495,63 @@ nsGlobalWindow::WouldReuseInnerWindow(nsIDocument *aNewDocument)
     return true;
   }
 
+  nsCOMPtr<nsIDocShellTreeItem> treeItem(do_QueryInterface(mDocShell));
+
+  if (treeItem) {
+    int32_t itemType = nsIDocShellTreeItem::typeContent;
+    treeItem->GetItemType(&itemType);
+
+    // If we're a chrome window, then we want to reuse the inner window.
+    return itemType == nsIDocShellTreeItem::typeChrome;
+  }
+
+  // No treeItem: don't reuse the current inner window.
   return false;
 }
 
 void
-nsGlobalWindow::SetInitialPrincipalToSubject()
+nsGlobalWindow::SetOpenerScriptPrincipal(nsIPrincipal* aPrincipal)
 {
-  FORWARD_TO_OUTER_VOID(SetInitialPrincipalToSubject, ());
+  FORWARD_TO_OUTER_VOID(SetOpenerScriptPrincipal, (aPrincipal));
 
-  // First, grab the subject principal. These methods never fail.
-  nsIScriptSecurityManager* ssm = nsContentUtils::GetSecurityManager();
-  nsCOMPtr<nsIPrincipal> newWindowPrincipal, systemPrincipal;
-  ssm->GetSubjectPrincipal(getter_AddRefs(newWindowPrincipal));
-  ssm->GetSystemPrincipal(getter_AddRefs(systemPrincipal));
-  if (!newWindowPrincipal) {
-    newWindowPrincipal = systemPrincipal;
-  }
-
-  // Now, if we're about to use the system principal, make sure we're not using
-  // it for a content docshell.
-  if (newWindowPrincipal == systemPrincipal) {
-    int32_t itemType;
-    nsCOMPtr<nsIDocShellTreeItem> item = do_QueryInterface(GetDocShell());
-    nsresult rv = item->GetItemType(&itemType);
-    if (NS_FAILED(rv) || itemType != nsIDocShellTreeItem::typeChrome) {
-      newWindowPrincipal = nullptr;
-    }
-  }
-
-  // If there's an existing document, bail if it either:
   if (mDoc) {
-    // (a) is not an initial about:blank document, or
-    if (!mDoc->IsInitialDocument())
+    if (!mDoc->IsInitialDocument()) {
+      // We have a document already, and it's not the original one.  Bail out.
+      // Do NOT set mOpenerScriptPrincipal in this case, just to be safe.
       return;
-    // (b) already has the correct principal.
-    if (mDoc->NodePrincipal() == newWindowPrincipal)
-      return;
+    }
 
 #ifdef DEBUG
-    // If we have a document loaded at this point, it had better be about:blank.
-    // Otherwise, something is really weird.
+    // We better have an about:blank document loaded at this point.  Otherwise,
+    // something is really weird.
     nsCOMPtr<nsIURI> uri;
     mDoc->NodePrincipal()->GetURI(getter_AddRefs(uri));
     NS_ASSERTION(uri && NS_IsAboutBlank(uri) &&
                  NS_IsAboutBlank(mDoc->GetDocumentURI()),
                  "Unexpected original document");
 #endif
+
+    GetDocShell()->CreateAboutBlankContentViewer(aPrincipal);
+    mDoc->SetIsInitialDocument(true);
+
+    nsCOMPtr<nsIPresShell> shell;
+    GetDocShell()->GetPresShell(getter_AddRefs(shell));
+
+    if (shell && !shell->DidInitialReflow()) {
+      // Ensure that if someone plays with this document they will get
+      // layout happening.
+      nsRect r = shell->GetPresContext()->GetVisibleArea();
+      shell->InitialReflow(r.width, r.height);
+    }
   }
+}
 
-  GetDocShell()->CreateAboutBlankContentViewer(newWindowPrincipal);
-  mDoc->SetIsInitialDocument(true);
+nsIPrincipal*
+nsGlobalWindow::GetOpenerScriptPrincipal()
+{
+  FORWARD_TO_OUTER(GetOpenerScriptPrincipal, (), nullptr);
 
-  nsCOMPtr<nsIPresShell> shell;
-  GetDocShell()->GetPresShell(getter_AddRefs(shell));
-
-  if (shell && !shell->DidInitialize()) {
-    // Ensure that if someone plays with this document they will get
-    // layout happening.
-    nsRect r = shell->GetPresContext()->GetVisibleArea();
-    shell->Initialize(r.width, r.height);
-  }
+  return mOpenerScriptPrincipal;
 }
 
 PopupControlState
@@ -1697,6 +1697,7 @@ static nsresult
 CreateNativeGlobalForInner(JSContext* aCx,
                            nsGlobalWindow* aNewInner,
                            nsIURI* aURI,
+                           bool aIsChrome,
                            nsIPrincipal* aPrincipal,
                            JSObject** aNativeGlobal,
                            nsIXPConnectJSObjectHolder** aHolder)
@@ -1709,11 +1710,20 @@ CreateNativeGlobalForInner(JSContext* aCx,
   MOZ_ASSERT(aHolder);
 
   nsIXPConnect* xpc = nsContentUtils::XPConnect();
+  uint32_t flags = aIsChrome ? nsIXPConnect::FLAG_SYSTEM_GLOBAL_OBJECT : 0;
+
+  nsCOMPtr<nsIPrincipal> systemPrincipal;
+  if (aIsChrome) {
+    nsIScriptSecurityManager* ssm = nsContentUtils::GetSecurityManager();
+    ssm->GetSystemPrincipal(getter_AddRefs(systemPrincipal));
+    MOZ_ASSERT(systemPrincipal);
+  }
 
   nsRefPtr<nsIXPConnectJSObjectHolder> jsholder;
   nsresult rv = xpc->InitClassesWithNewWrappedGlobal(
     aCx, static_cast<nsIScriptGlobalObject*>(aNewInner),
-    aPrincipal, 0, getter_AddRefs(jsholder));
+    aIsChrome ? systemPrincipal.get() : aPrincipal, flags,
+    getter_AddRefs(jsholder));
   NS_ENSURE_SUCCESS(rv, rv);
 
   MOZ_ASSERT(jsholder);
@@ -1836,6 +1846,8 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
 
   bool thisChrome = IsChromeWindow();
 
+  bool isChrome = false;
+
   nsCxPusher cxPusher;
   if (!cxPusher.Push(cx)) {
     return NS_ERROR_FAILURE;
@@ -1870,15 +1882,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     // match the new document.
     // NB: We don't just call currentInner->RefreshCompartmentPrincipals() here
     // because we haven't yet set its mDoc to aDocument.
-    JSCompartment *compartment = js::GetObjectCompartment(currentInner->mJSObject);
-#ifdef DEBUG
-    bool sameOrigin = false;
-    nsIPrincipal *existing =
-      nsJSPrincipals::get(JS_GetCompartmentPrincipals(compartment));
-    aDocument->NodePrincipal()->Equals(existing, &sameOrigin);
-    MOZ_ASSERT(sameOrigin);
-#endif
-    JS_SetCompartmentPrincipals(compartment,
+    JS_SetCompartmentPrincipals(js::GetObjectCompartment(currentInner->mJSObject),
                                 nsJSPrincipals::get(aDocument->NodePrincipal()));
   } else {
     if (aState) {
@@ -1888,6 +1892,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
       NS_ASSERTION(newInnerWindow, "Got a state without inner window");
     } else if (thisChrome) {
       newInnerWindow = new nsGlobalChromeWindow(this);
+      isChrome = true;
     } else if (mIsModalContentWindow) {
       newInnerWindow = new nsGlobalModalWindow(this);
     } else {
@@ -1912,7 +1917,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
       // Every script context we are initialized with must create a
       // new global.
       rv = CreateNativeGlobalForInner(cx, newInnerWindow,
-                                      aDocument->GetDocumentURI(),
+                                      aDocument->GetDocumentURI(), isChrome,
                                       aDocument->NodePrincipal(),
                                       &newInnerWindow->mJSObject,
                                       getter_AddRefs(mInnerWindowHolder));
@@ -2513,7 +2518,7 @@ nsGlobalWindow::DialogsAreBlocked(bool *aBeingAbused)
 
   nsGlobalWindow *topWindow = GetScriptableTop();
   if (!topWindow) {
-    NS_ASSERTION(!mDocShell, "DialogsAreBlocked() called without a top window?");
+    NS_ERROR("DialogsAreBlocked() called without a top window?");
     return true;
   }
 
@@ -3863,26 +3868,6 @@ nsGlobalWindow::GetMozInnerScreenY(float* aScreenY)
 
   nsRect r = GetInnerScreenRect();
   *aScreenY = nsPresContext::AppUnitsToFloatCSSPixels(r.y);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsGlobalWindow::GetDevicePixelRatio(float* aRatio)
-{
-  FORWARD_TO_OUTER(GetDevicePixelRatio, (aRatio), NS_ERROR_NOT_INITIALIZED);
-
-  *aRatio = 1.0;
-
-  if (!mDocShell)
-    return NS_OK;
-
-  nsCOMPtr<nsPresContext> presContext;
-  mDocShell->GetPresContext(getter_AddRefs(presContext));
-  if (!presContext)
-    return NS_OK;
-
-  *aRatio = float(nsPresContext::AppUnitsPerCSSPixel())/
-      presContext->AppUnitsPerDevPixel();
   return NS_OK;
 }
 
@@ -6820,11 +6805,9 @@ nsGlobalWindow::LeaveModalState(nsIDOMWindow *aCallerWin)
 
   if (aCallerWin) {
     nsCOMPtr<nsIScriptGlobalObject> sgo(do_QueryInterface(aCallerWin));
-    if (sgo) {
-      nsIScriptContext *scx = sgo->GetContext();
-      if (scx)
-        scx->LeaveModalState();
-    }
+    nsIScriptContext *scx = sgo->GetContext();
+    if (scx)
+      scx->LeaveModalState();
   }
 
   if (mContext) {
@@ -7669,11 +7652,9 @@ nsGlobalWindow::ActivateOrDeactivate(bool aActivate)
 
     // widgetListener should be a nsXULWindow
     nsIWidgetListener* listener = topLevelWidget->GetWidgetListener();
-    if (listener) {
-      nsCOMPtr<nsIXULWindow> window = listener->GetXULWindow();
-      nsCOMPtr<nsIInterfaceRequestor> req(do_QueryInterface(window));
-      topLevelWindow = do_GetInterface(req);
-    }
+    nsCOMPtr<nsIXULWindow> window = listener->GetXULWindow();
+    nsCOMPtr<nsIInterfaceRequestor> req(do_QueryInterface(window));
+    topLevelWindow = do_GetInterface(req);
   }
   if (topLevelWindow) {
     nsCOMPtr<nsPIDOMWindow> piWin(do_QueryInterface(topLevelWindow));
@@ -10320,14 +10301,16 @@ nsGlobalWindow::EnsureSizeUpToDate()
   }
 }
 
-already_AddRefed<nsISupports>
-nsGlobalWindow::SaveWindowState()
+nsresult
+nsGlobalWindow::SaveWindowState(nsISupports **aState)
 {
   NS_PRECONDITION(IsOuterWindow(), "Can't save the inner window's state");
 
+  *aState = nullptr;
+
   if (!mContext || !mJSObject) {
     // The window may be getting torn down; don't bother saving state.
-    return nullptr;
+    return NS_OK;
   }
 
   nsGlobalWindow *inner = GetCurrentInnerWindowInternal();
@@ -10342,12 +10325,14 @@ nsGlobalWindow::SaveWindowState()
 
   nsCOMPtr<nsISupports> state = new WindowStateHolder(inner,
                                                       mInnerWindowHolder);
+  NS_ENSURE_TRUE(state, NS_ERROR_OUT_OF_MEMORY);
 
 #ifdef DEBUG_PAGE_CACHE
   printf("saving window state, state = %p\n", (void*)state);
 #endif
 
-  return state.forget();
+  state.swap(*aState);
+  return NS_OK;
 }
 
 nsresult

@@ -375,6 +375,7 @@ SpdyStream3::ParseHttpRequestHeaders(const char *buf,
     if (name.Equals("connection") ||
         name.Equals("keep-alive") ||
         name.Equals("host") ||
+        name.Equals("proxy-connection") ||
         name.Equals("accept-encoding") ||
         name.Equals("te") ||
         name.Equals("transfer-encoding"))

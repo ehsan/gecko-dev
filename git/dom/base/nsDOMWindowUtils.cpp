@@ -1439,9 +1439,17 @@ nsDOMWindowUtils::FindElementWithViewId(nsViewID aID,
 NS_IMETHODIMP
 nsDOMWindowUtils::GetScreenPixelsPerCSSPixel(float* aScreenPixels)
 {
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
-  NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
-  return window->GetDevicePixelRatio(aScreenPixels);
+  *aScreenPixels = 1;
+
+  if (!nsContentUtils::IsCallerTrustedForRead())
+    return NS_ERROR_DOM_SECURITY_ERR;
+  nsPresContext* presContext = GetPresContext();
+  if (!presContext)
+    return NS_OK;
+
+  *aScreenPixels = float(nsPresContext::AppUnitsPerCSSPixel())/
+      presContext->AppUnitsPerDevPixel();
+  return NS_OK;
 }
 
 NS_IMETHODIMP

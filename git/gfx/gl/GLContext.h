@@ -585,7 +585,8 @@ public:
         ContextTypeWGL,
         ContextTypeCGL,
         ContextTypeGLX,
-        ContextTypeEGL
+        ContextTypeEGL,
+        ContextTypeOSMesa
     };
 
     virtual GLContextType GetContextType() { return ContextTypeUnknown; }

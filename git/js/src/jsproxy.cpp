@@ -328,9 +328,9 @@ BaseProxyHandler::nativeCall(JSContext *cx, IsAcceptableThis test, NativeImpl im
 }
 
 bool
-BaseProxyHandler::hasInstance(JSContext *cx, HandleObject proxy, MutableHandleValue v, bool *bp)
+BaseProxyHandler::hasInstance(JSContext *cx, JSObject *proxy, const Value *vp, bool *bp)
 {
-    RootedValue val(cx, ObjectValue(*proxy.get()));
+    RootedValue val(cx, ObjectValue(*proxy));
     js_ReportValueError(cx, JSMSG_BAD_INSTANCEOF_RHS,
                         JSDVG_SEARCH_STACK, val, NullPtr());
     return false;
@@ -478,12 +478,12 @@ IndirectProxyHandler::nativeCall(JSContext *cx, IsAcceptableThis test, NativeImp
 }
 
 bool
-IndirectProxyHandler::hasInstance(JSContext *cx, HandleObject proxy, MutableHandleValue v,
+IndirectProxyHandler::hasInstance(JSContext *cx, JSObject *proxy, const Value *vp,
                                   bool *bp)
 {
     JSBool b;
     RootedObject target(cx, GetProxyTargetObject(proxy));
-    if (!JS_HasInstance(cx, target, v, &b))
+    if (!JS_HasInstance(cx, target, *vp, &b))
         return false;
     *bp = !!b;
     return true;
@@ -2474,10 +2474,11 @@ Proxy::nativeCall(JSContext *cx, IsAcceptableThis test, NativeImpl impl, CallArg
 }
 
 bool
-Proxy::hasInstance(JSContext *cx, HandleObject proxy, MutableHandleValue v, bool *bp)
+Proxy::hasInstance(JSContext *cx, JSObject *proxy_, const js::Value *vp, bool *bp)
 {
     JS_CHECK_RECURSION(cx, return false);
-    return GetProxyHandler(proxy)->hasInstance(cx, proxy, v, bp);
+    RootedObject proxy(cx, proxy_);
+    return GetProxyHandler(proxy)->hasInstance(cx, proxy, vp, bp);
 }
 
 JSType
@@ -2856,7 +2857,7 @@ proxy_Finalize(FreeOp *fop, JSObject *obj)
 }
 
 static JSBool
-proxy_HasInstance(JSContext *cx, HandleObject proxy, MutableHandleValue v, JSBool *bp)
+proxy_HasInstance(JSContext *cx, HandleObject proxy, const Value *v, JSBool *bp)
 {
     bool b;
     if (!Proxy::hasInstance(cx, proxy, v, &b))

@@ -83,7 +83,7 @@ public:
     printf("nsTestComFactory: ");
     printf("%s", (aLock ? "Locking server" : "Unlocking server"));
     printf("\n");
-    return NS_OK;
+    return S_OK;
   }
 };
 
@@ -127,8 +127,11 @@ int main(int argc, char *argv[])
   IUnknown *iUnknown;  
   nsITestCom *iTestCom;
 
+  nsresult res;
   iFactory->LockServer(TRUE);
-  iFactory->CreateInstance(NULL, IID_IUnknown, (void **) &iUnknown);
+  res = iFactory->CreateInstance(NULL,
+				 IID_IUnknown, 
+				 (void **) &iUnknown);
   iFactory->LockServer(FALSE);
 
   GUID testGUID = NS_ITEST_COM_IID;

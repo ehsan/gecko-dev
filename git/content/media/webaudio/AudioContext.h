@@ -8,7 +8,6 @@
 #include "nsCycleCollectionParticipant.h"
 #include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
-#include "EnableWebAudioCheck.h"
 
 class JSContext;
 class nsIDOMWindow;
@@ -17,11 +16,8 @@ namespace mozilla {
 
 class ErrorResult;
 
-namespace dom {
-
 class AudioContext MOZ_FINAL : public nsISupports,
-                               public nsWrapperCache,
-                               public EnableWebAudioCheck
+                               public nsWrapperCache
 {
   explicit AudioContext(nsIDOMWindow* aParentWindow);
 
@@ -46,6 +42,5 @@ private:
   nsCOMPtr<nsIDOMWindow> mWindow;
 };
 
-}
 }
 

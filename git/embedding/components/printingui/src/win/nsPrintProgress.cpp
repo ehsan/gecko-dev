@@ -57,7 +57,7 @@ nsPrintProgress::nsPrintProgress()
   m_closeProgress = false;
   m_processCanceled = false;
   m_pendingStateFlags = -1;
-  m_pendingStateValue = NS_OK;
+  m_pendingStateValue = 0;
 }
 
 nsPrintProgress::~nsPrintProgress()
@@ -116,9 +116,7 @@ NS_IMETHODIMP nsPrintProgress::OpenProgressDialog(nsIDOMWindow *parent,
 NS_IMETHODIMP nsPrintProgress::CloseProgressDialog(bool forceClose)
 {
   m_closeProgress = true;
-  // XXX Casting from bool to nsresult
-  return OnStateChange(nullptr, nullptr, nsIWebProgressListener::STATE_STOP,
-                       static_cast<nsresult>(forceClose));
+  return OnStateChange(nullptr, nullptr, nsIWebProgressListener::STATE_STOP, forceClose);
 }
 
 /* nsIPrompt GetPrompter (); */
@@ -143,7 +141,7 @@ NS_IMETHODIMP nsPrintProgress::GetProcessCanceledByUser(bool *aProcessCanceledBy
 NS_IMETHODIMP nsPrintProgress::SetProcessCanceledByUser(bool aProcessCanceledByUser)
 {
   m_processCanceled = aProcessCanceledByUser;
-  OnStateChange(nullptr, nullptr, nsIWebProgressListener::STATE_STOP, NS_OK);
+  OnStateChange(nullptr, nullptr, nsIWebProgressListener::STATE_STOP, false);
   return NS_OK;
 }
 
@@ -162,11 +160,10 @@ NS_IMETHODIMP nsPrintProgress::RegisterListener(nsIWebProgressListener * listene
   {
     m_listenerList->AppendElement(listener);
     if (m_closeProgress || m_processCanceled)
-      listener->OnStateChange(nullptr, nullptr,
-                              nsIWebProgressListener::STATE_STOP, NS_OK);
+      listener->OnStateChange(nullptr, nullptr, nsIWebProgressListener::STATE_STOP, 0);
     else
     {
-      listener->OnStatusChange(nullptr, nullptr, NS_OK, m_pendingStatus.get());
+      listener->OnStatusChange(nullptr, nullptr, 0, m_pendingStatus.get());
       if (m_pendingStateFlags != -1)
         listener->OnStateChange(nullptr, nullptr, m_pendingStateFlags, m_pendingStateValue);
     }

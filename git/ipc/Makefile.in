@@ -16,7 +16,7 @@ DIRS += ril
 endif #}
 
 ifdef MOZ_B2G_BT #{
-DIRS += dbus socket
+DIRS += dbus
 endif #}
 
 ifeq (gonk,$(MOZ_WIDGET_TOOLKIT))

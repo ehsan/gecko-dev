@@ -118,27 +118,12 @@ let FormAssistant = {
 
       case "Forms:Select:Choice":
         let options = target.options;
-        let valueChanged = false;
         if ("index" in json) {
-          if (options.selectedIndex != json.index) {
-            options.selectedIndex = json.index;
-            valueChanged = true;
-          }
+          options.item(json.index).selected = true;
         } else if ("indexes" in json) {
           for (let i = 0; i < options.length; i++) {
-            let newValue = (json.indexes.indexOf(i) != -1);
-            if (options.item(i).selected != newValue) {
-              options.item(i).selected = newValue;
-              valueChanged = true;
-            }
+            options.item(i).selected = (json.indexes.indexOf(i) != -1);
           }
-        }
-
-        // only fire onchange event if any selected option is changed
-        if (valueChanged) {
-          let event = content.document.createEvent('HTMLEvents');
-          event.initEvent('change', true, true);
-          target.dispatchEvent(event);
         }
         break;
     }

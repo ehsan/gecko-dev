@@ -28,8 +28,6 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/Attributes.h"
 #include "nsIDOMNode.h"
-#include "nsINode.h"
-#include "nsIDocument.h"
 
 using namespace mozilla;
 
@@ -181,16 +179,9 @@ nsPrefetchNode::nsPrefetchNode(nsPrefetchService *aService,
 nsresult
 nsPrefetchNode::OpenChannel()
 {
-    nsCOMPtr<nsINode> source = do_QueryReferent(mSource);
-    if (!source) {
-        // Don't attempt to prefetch if we don't have a source node
-        // (which should never happen).
-        return NS_ERROR_FAILURE;
-    }
-    nsCOMPtr<nsILoadGroup> loadGroup = source->OwnerDoc()->GetDocumentLoadGroup();
     nsresult rv = NS_NewChannel(getter_AddRefs(mChannel),
                                 mURI,
-                                nullptr, loadGroup, this,
+                                nullptr, nullptr, this,
                                 nsIRequest::LOAD_BACKGROUND |
                                 nsICachingChannel::LOAD_ONLY_IF_MODIFIED);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -290,13 +281,13 @@ NS_IMETHODIMP
 nsPrefetchNode::OnDataAvailable(nsIRequest *aRequest,
                                 nsISupports *aContext,
                                 nsIInputStream *aStream,
-                                uint64_t aOffset,
+                                uint32_t aOffset,
                                 uint32_t aCount)
 {
     uint32_t bytesRead = 0;
     aStream->ReadSegments(NS_DiscardSegment, nullptr, aCount, &bytesRead);
     mBytesRead += bytesRead;
-    LOG(("prefetched %u bytes [offset=%llu]\n", bytesRead, aOffset));
+    LOG(("prefetched %u bytes [offset=%u]\n", bytesRead, aOffset));
     return NS_OK;
 }
 

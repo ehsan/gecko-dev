@@ -46,25 +46,18 @@ public:
   GetDevicePath(const nsAString& aAdapterPath,
                 const nsAString& aDeviceAddress,
                 nsAString& aDevicePath);
+  virtual int
+  GetDeviceServiceChannelInternal(const nsAString& aObjectPath,
+                                  const nsAString& aPattern,
+                                  int aAttributeId);
 
-  virtual bool
+  virtual nsTArray<uint32_t>
   AddReservedServicesInternal(const nsAString& aAdapterPath,
-                              const nsTArray<uint32_t>& aServices,
-                              nsTArray<uint32_t>& aServiceHandlesContainer);
+                              const nsTArray<uint32_t>& aServices);
 
   virtual bool
   RemoveReservedServicesInternal(const nsAString& aAdapterPath,
                                  const nsTArray<uint32_t>& aServiceHandles);
-
-  virtual nsresult
-  GetSocketViaService(const nsAString& aObjectPath,
-                      const nsAString& aService,
-                      int aType,
-                      bool aAuth,
-                      bool aEncrypt,
-                      BluetoothReplyRunnable* aRunnable);
-
-  virtual bool CloseSocket(int aFd, BluetoothReplyRunnable* aRunnable);
 
   virtual nsresult
   CreatePairedDeviceInternal(const nsAString& aAdapterPath,

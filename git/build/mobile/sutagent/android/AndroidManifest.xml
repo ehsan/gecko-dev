@@ -17,7 +17,8 @@
         </activity>
         <receiver android:name=".SUTStartupIntentReceiver">
             <intent-filter>
-                 <action android:name="android.intent.action.MEDIA_MOUNTED"></action>
+                 <action android:value="android.intent.action.BOOT_COMPLETED" android:name="android.intent.action.BOOT_COMPLETED"/>
+                 <category android:value="android.intent.category.HOME" android:name="android.intent.category.HOME"/>
             </intent-filter>
         </receiver>
         <service android:name=".service.ASMozStub">

@@ -33,7 +33,7 @@ private:
   bool                              m_processCanceled;
   nsString                          m_pendingStatus;
   int32_t                           m_pendingStateFlags;
-  nsresult                          m_pendingStateValue;
+  int32_t                           m_pendingStateValue;
   nsCOMPtr<nsIDOMWindow>            m_dialog;
   nsCOMPtr<nsISupportsArray>        m_listenerList;
   nsCOMPtr<nsIObserver>             m_observer;

@@ -21,6 +21,7 @@ EXPORTS		= \
 		$(NULL)
 
 XPIDLSRCS=      nsIBoxObject.idl                  \
+                nsIScrollBoxObject.idl              \
                 nsIScrollBoxObject.idl \
                 nsIPopupBoxObject.idl \
                 nsIMenuBoxObject.idl \

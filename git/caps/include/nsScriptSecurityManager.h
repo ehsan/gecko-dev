@@ -392,7 +392,7 @@ private:
     static JSBool
     CheckObjectAccess(JSContext *cx, JSHandleObject obj,
                       JSHandleId id, JSAccessMode mode,
-                      JSMutableHandleValue vp);
+                      jsval *vp);
     
     // Decides, based on CSP, whether or not eval() and stuff can be executed.
     static JSBool

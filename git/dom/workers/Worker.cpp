@@ -313,7 +313,8 @@ DOMJSClass Worker::sClass = {
       prototypes::id::_ID_Count },
     false,
     &sNativePropertyHooks
-  }
+  },
+  -1
 };
 
 JSPropertySpec Worker::sProperties[] = {
@@ -438,7 +439,8 @@ DOMJSClass ChromeWorker::sClass = {
       prototypes::id::_ID_Count },
     false,
     &sNativePropertyHooks
-  }
+  },
+  -1
 };
 
 WorkerPrivate*

@@ -55,13 +55,6 @@ static void DrawDebugOverlay(gfxImageSurface* imgSurf, int x, int y)
 namespace mozilla {
 namespace layers {
 
-bool
-BasicTiledLayerBuffer::HasFormatChanged(BasicTiledThebesLayer* aThebesLayer) const
-{
-  return aThebesLayer->CanUseOpaqueSurface() != mLastPaintOpaque;
-}
-
-
 gfxASurface::gfxImageFormat
 BasicTiledLayerBuffer::GetFormat() const
 {
@@ -132,7 +125,6 @@ BasicTiledLayerBuffer::PaintThebes(BasicTiledThebesLayer* aLayer,
   }
 #endif
 
-  mLastPaintOpaque = mThebesLayer->CanUseOpaqueSurface();
   mThebesLayer = nullptr;
   mCallback = nullptr;
   mCallbackData = nullptr;
@@ -229,10 +221,6 @@ BasicTiledThebesLayer::PaintThebes(gfxContext* aContext,
   if (!HasShadow()) {
     NS_ASSERTION(false, "Shadow requested for painting\n");
     return;
-  }
-
-  if (mTiledBuffer.HasFormatChanged(this)) {
-    mValidRegion = nsIntRegion();
   }
 
   nsIntRegion regionToPaint = mVisibleRegion;

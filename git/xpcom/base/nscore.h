@@ -21,10 +21,10 @@
 #endif
 
 /**
- * Incorporate the integer data types which XPCOM uses.
+ * Incorporate the core NSPR data types which XPCOM uses.
  */
+#include "prtypes.h"
 #include "mozilla/StandardInteger.h"
-#include "stddef.h"
 
 /*
  * This is for functions that are like malloc_usable_size.  Such functions are
@@ -318,7 +318,7 @@ typedef uint32_t nsresult;
  * The following ifdef exists to maintain binary compatibility with
  * IUnknown.
  */
-#ifdef XP_WIN
+#if defined(XP_WIN) && PR_BYTES_PER_LONG == 4
 typedef unsigned long nsrefcnt;
 #else
 typedef uint32_t nsrefcnt;

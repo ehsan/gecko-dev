@@ -771,8 +771,9 @@ class ShellFunction(Function):
         cline = self._arguments[0].resolvestr(makefile, variables, setting)
 
         log.debug("%s: running shell command '%s'" % (self.loc, cline))
-        cline = [shell, "-c", cline]
-        p = subprocess.Popen(cline, env=makefile.env, shell=False,
+        if msys:
+            cline = [shell, "-c", cline]
+        p = subprocess.Popen(cline, env=makefile.env, shell=not msys,
                              stdout=subprocess.PIPE, cwd=makefile.workdir)
         stdout, stderr = p.communicate()
 

@@ -24,13 +24,11 @@
 // Bluetooth address format: xx:xx:xx:xx:xx:xx (or xx_xx_xx_xx_xx_xx)
 #define BLUETOOTH_ADDRESS_LENGTH 17
 
-BEGIN_BLUETOOTH_NAMESPACE
+#define DOM_BLUETOOTH_URL_PREF "dom.mozBluetooth.whitelist"
 
-enum BluetoothSocketType {
-  RFCOMM = 1,
-  SCO = 2,
-  L2CAP = 3
-};
+class nsCString;
+
+BEGIN_BLUETOOTH_NAMESPACE
 
 class BluetoothSignal;
 typedef mozilla::Observer<BluetoothSignal> BluetoothSignalObserver;

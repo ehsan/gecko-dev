@@ -676,11 +676,9 @@ class IDLInterface(IDLObjectWithScope):
                                                      allowForbidden=True)
 
                 method = IDLMethod(self.location, identifier, retType, args)
-                # Constructors are always Creators and are always
-                # assumed to be able to throw (since there's no way to
-                # indicate otherwise) and never have any other
-                # extended attributes.
-                method.addExtendedAttributes([("Creator",), ("Throws",)])
+                # Constructors are always Creators and never have any
+                # other extended attributes.
+                method.addExtendedAttributes(["Creator"])
                 method.resolve(self)
 
             self._extendedAttrDict[identifier] = attrlist if len(attrlist) else True
@@ -737,9 +735,6 @@ class IDLInterface(IDLObjectWithScope):
             if loopPoint:
                 return loopPoint
         return None
-
-    def getExtendedAttribute(self, name):
-        return self._extendedAttrDict.get(name, None)
 
 class IDLDictionary(IDLObjectWithScope):
     def __init__(self, location, parentScope, name, parent, members):
@@ -999,10 +994,6 @@ class IDLUnresolvedType(IDLType):
 
         assert obj
         if obj.isType():
-            # obj itself might not be complete; deal with that.
-            assert obj != self
-            if not obj.isComplete():
-                obj = obj.complete(scope)
             return obj
 
         name = self.name.resolve(scope, None)
@@ -1015,6 +1006,7 @@ class IDLUnresolvedType(IDLType):
 class IDLNullableType(IDLType):
     def __init__(self, location, innerType):
         assert not innerType.isVoid()
+        assert not innerType.nullable()
         assert not innerType == BuiltinTypes[IDLBuiltinType.Types.any]
 
         IDLType.__init__(self, location, innerType.name)
@@ -1093,10 +1085,6 @@ class IDLNullableType(IDLType):
 
     def complete(self, scope):
         self.inner = self.inner.complete(scope)
-        if self.inner.nullable():
-            raise WebIDLError("The inner type of a nullable type must not be "
-                              "a nullable type",
-                              [self.location, self.inner.location])
         if self.inner.isUnion():
             if self.inner.hasNullableType:
                 raise WebIDLError("The inner type of a nullable type must not "
@@ -1414,24 +1402,9 @@ class IDLTypedefType(IDLType, IDLObjectWithIdentifier):
     def isNonCallbackInterface(self):
         return self.inner.isNonCallbackInterface()
 
-    def isComplete(self):
-        return False
-
-    def complete(self, parentScope):
-        if not self.inner.isComplete():
-            self.inner = self.inner.complete(parentScope)
-        assert self.inner.isComplete()
-        return self.inner
-
-    def finish(self, parentScope):
-        # Maybe the IDLObjectWithIdentifier for the typedef should be
-        # a separate thing from the type?
-        self.complete(parentScope)
-
-    def validate(self):
-        pass
-
-    # Do we need a resolveType impl?  I don't think it's particularly useful....
+    def resolve(self, parentScope):
+        assert isinstance(parentScope, IDLScope)
+        IDLObjectWithIdentifier.resolve(self, parentScope)
 
     def tag(self):
         return self.inner.tag()
@@ -1905,28 +1878,18 @@ class IDLConst(IDLInterfaceMember):
             raise WebIDLError("A constant cannot be of a dictionary type",
                               [self.location])
         self.type = type
-        self.value = value
+
+        # The value might not match the type
+        coercedValue = value.coerceToType(self.type, location)
+        assert coercedValue
+
+        self.value = coercedValue
 
     def __str__(self):
         return "'%s' const '%s'" % (self.type, self.identifier)
 
     def finish(self, scope):
-        if not self.type.isComplete():
-            type = self.type.complete(scope)
-            if not type.isPrimitive() and not type.isString():
-                locations = [self.type.location, type.location]
-                try:
-                    locations.append(type.inner.location)
-                except:
-                    pass
-                raise WebIDLError("Incorrect type for constant", locations)
-            self.type = type
-
-        # The value might not match the type
-        coercedValue = self.value.coerceToType(self.type, self.location)
-        assert coercedValue
-
-        self.value = coercedValue
+        assert self.type.isComplete()
 
     def validate(self):
         pass
@@ -1953,7 +1916,6 @@ class IDLAttribute(IDLInterfaceMember):
             t = self.type.complete(scope)
 
             assert not isinstance(t, IDLUnresolvedType)
-            assert not isinstance(t, IDLTypedefType)
             assert not isinstance(t.name, IDLUnresolvedIdentifier)
             self.type = t
 
@@ -2011,8 +1973,6 @@ class IDLArgument(IDLObjectWithIdentifier):
         self.variadic = variadic
         self.dictionaryMember = dictionaryMember
         self._isComplete = False
-        self.enforceRange = False
-        self.clamp = False
 
         assert not variadic or optional
 
@@ -2021,21 +1981,9 @@ class IDLArgument(IDLObjectWithIdentifier):
             attrs,
             isDictionaryMember=self.dictionaryMember,
             isOptional=self.optional)
-        for attribute in attrs:
-            attr = attribute[0]
-            if attr == "Clamp":
-                if self.enforceRange:
-                    raise WebIDLError("[EnforceRange] and [Clamp] are mutually exclusive",
-                                      [self.location]);
-                self.clamp = True
-            elif attr == "EnforceRange":
-                if self.clamp:
-                    raise WebIDLError("[EnforceRange] and [Clamp] are mutually exclusive",
-                                      [self.location]);
-                self.enforceRange = True
-            else:
-                raise WebIDLError("Unhandled extended attribute on an argument",
-                                  [self.location])
+        if len(attrs) != 0:
+            raise WebIDLError("Unhandled extended attribute on an argument",
+                              [self.location])
 
     def isComplete(self):
         return self._isComplete
@@ -2049,7 +1997,6 @@ class IDLArgument(IDLObjectWithIdentifier):
         if not self.type.isComplete():
             type = self.type.complete(scope)
             assert not isinstance(type, IDLUnresolvedType)
-            assert not isinstance(type, IDLTypedefType)
             assert not isinstance(type.name, IDLUnresolvedIdentifier)
             self.type = type
 
@@ -2095,7 +2042,6 @@ class IDLCallbackType(IDLType, IDLObjectWithScope):
             type = returnType.complete(scope)
 
             assert not isinstance(type, IDLUnresolvedType)
-            assert not isinstance(type, IDLTypedefType)
             assert not isinstance(type.name, IDLUnresolvedIdentifier)
             self._returnType = type
 
@@ -2106,7 +2052,6 @@ class IDLCallbackType(IDLType, IDLObjectWithScope):
             type = argument.type.complete(scope)
 
             assert not isinstance(type, IDLUnresolvedType)
-            assert not isinstance(type, IDLTypedefType)
             assert not isinstance(type.name, IDLUnresolvedIdentifier)
             argument.type = type
 
@@ -2358,7 +2303,6 @@ class IDLMethod(IDLInterfaceMember, IDLScope):
             type = returnType.complete(scope)
 
             assert not isinstance(type, IDLUnresolvedType)
-            assert not isinstance(type, IDLTypedefType)
             assert not isinstance(type.name, IDLUnresolvedIdentifier)
             overload.returnType = type
 
@@ -3481,17 +3425,6 @@ class Parser(Tokenizer):
             ConstType : PrimitiveOrStringType Null
         """
         type = BuiltinTypes[p[1]]
-        if p[2]:
-            type = IDLNullableType(self.getLocation(p, 1), type)
-        p[0] = type
-
-    def p_ConstTypeIdentifier(self, p):
-        """
-            ConstType : IDENTIFIER Null
-        """
-        identifier = IDLUnresolvedIdentifier(self.getLocation(p, 1), p[1])
-
-        type = IDLUnresolvedType(self.getLocation(p, 1), identifier)
         if p[2]:
             type = IDLNullableType(self.getLocation(p, 1), type)
         p[0] = type

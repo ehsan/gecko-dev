@@ -196,16 +196,6 @@ GfxPatternToCairoPattern(const Pattern& aPattern, Float aAlpha)
       cairo_surface_t* surf = GetCairoSurfaceForSourceSurface(pattern.mSurface);
 
       pat = cairo_pattern_create_for_surface(surf);
-
-      // The pattern matrix is a matrix that transforms the pattern into user
-      // space. Cairo takes a matrix that converts from user space to pattern
-      // space. Cairo therefore needs the inverse.
-
-      cairo_matrix_t mat;
-      GfxMatrixToCairoMatrix(pattern.mMatrix, mat);
-      cairo_matrix_invert(&mat);
-      cairo_pattern_set_matrix(pat, &mat);
-
       cairo_pattern_set_filter(pat, GfxFilterToCairoFilter(pattern.mFilter));
       cairo_pattern_set_extend(pat, GfxExtendToCairoExtend(pattern.mExtendMode));
 
@@ -297,7 +287,7 @@ DrawTargetCairo::DrawTargetCairo()
 
 DrawTargetCairo::~DrawTargetCairo()
 {
-  MarkSnapshotIndependent();
+  MarkSnapshotsIndependent();
   if (mPathObserver) {
     mPathObserver->ForgetDrawTarget();
   }
@@ -316,18 +306,14 @@ DrawTargetCairo::GetSize()
 TemporaryRef<SourceSurface>
 DrawTargetCairo::Snapshot()
 {
-  if (mSnapshot) {
-    return mSnapshot;
-  }
-
   IntSize size = GetSize();
 
   cairo_content_t content = cairo_surface_get_content(mSurface);
-  mSnapshot = new SourceSurfaceCairo(mSurface,
-                                     size,
-                                     CairoContentToGfxFormat(content),
-                                     this);
-  return mSnapshot;
+  RefPtr<SourceSurfaceCairo> surf = new SourceSurfaceCairo(mSurface, size,
+                                                           CairoContentToGfxFormat(content),
+                                                           this);
+  AppendSnapshot(surf);
+  return surf;
 }
 
 void
@@ -872,21 +858,45 @@ DrawTargetCairo::GetNativeSurface(NativeSurfaceType aType)
 }
 
 void
-DrawTargetCairo::MarkSnapshotIndependent()
+DrawTargetCairo::MarkSnapshotsIndependent()
 {
-  if (mSnapshot) {
-    if (mSnapshot->refCount() > 1) {
-      // We only need to worry about snapshots that someone else knows about
-      mSnapshot->DrawTargetWillChange();
-    }
-    mSnapshot = nullptr;
+  // Make a copy of the vector, since MarkIndependent implicitly modifies mSnapshots.
+  std::vector<SourceSurfaceCairo*> snapshots = mSnapshots;
+  for (std::vector<SourceSurfaceCairo*>::iterator iter = snapshots.begin();
+       iter != snapshots.end();
+       ++iter) {
+    (*iter)->MarkIndependent();
+  }
+}
+
+void
+DrawTargetCairo::AppendSnapshot(SourceSurfaceCairo* aSnapshot)
+{
+  mSnapshots.push_back(aSnapshot);
+}
+
+void
+DrawTargetCairo::RemoveSnapshot(SourceSurfaceCairo* aSnapshot)
+{
+  std::vector<SourceSurfaceCairo*>::iterator iter = std::find(mSnapshots.begin(),
+                                                              mSnapshots.end(),
+                                                              aSnapshot);
+  if (iter != mSnapshots.end()) {
+    mSnapshots.erase(iter);
   }
 }
 
 void
 DrawTargetCairo::WillChange(const Path* aPath /* = nullptr */)
 {
-  MarkSnapshotIndependent();
+  if (!mSnapshots.empty()) {
+    for (std::vector<SourceSurfaceCairo*>::iterator iter = mSnapshots.begin();
+         iter != mSnapshots.end(); ++iter) {
+      (*iter)->DrawTargetWillChange();
+    }
+    // All snapshots will now have copied data.
+    mSnapshots.clear();
+  }
 
   if (mPathObserver &&
       (!aPath || !mPathObserver->ContainsPath(aPath))) {
