@@ -315,13 +315,14 @@ XPCOMUtils.defineLazyGetter(this, "gMessageManager", function () {
                                                NFC.NFC_PEER_EVENT_READY);
       // Remember the current AppId if registered.
       this.currentPeerAppId = (isValid) ? msg.json.appId : null;
+      let status = (isValid) ? NFC.GECKO_NFC_ERROR_SUCCESS :
+                               NFC.GECKO_NFC_ERROR_GENERIC_FAILURE;
 
-      let respMsg = { requestId: msg.json.requestId };
-      if(!isValid) {
-        respMsg.errorMsg = this.nfc.getErrorMessage(NFC.NFC_GECKO_ERROR_P2P_REG_INVALID);
-      }
       // Notify the content process immediately of the status
-      msg.target.sendAsyncMessage(msg.name + "Response", respMsg);
+      msg.target.sendAsyncMessage(msg.name + "Response", {
+        status: status,
+        requestId: msg.json.requestId
+      });
     },
 
     /**
@@ -460,26 +461,22 @@ Nfc.prototype = {
   },
 
   /**
-   * Send Error response to content. This is used only
-   * in case of discovering an error in message received from
-   * content process.
+   * Send Error response to content.
    *
    * @param message
    *        An nsIMessageListener's message parameter.
    */
-  sendNfcErrorResponse: function sendNfcErrorResponse(message, errorCode) {
+  sendNfcErrorResponse: function sendNfcErrorResponse(message) {
     if (!message.target) {
       return;
     }
 
     let nfcMsgType = message.name + "Response";
-    message.json.errorMsg = this.getErrorMessage(errorCode);
-    message.target.sendAsyncMessage(nfcMsgType, message.json);
-  },
-
-  getErrorMessage: function getErrorMessage(errorCode) {
-    return NFC.NFC_ERROR_MSG[errorCode] ||
-           NFC.NFC_ERROR_MSG[NFC.NFC_GECKO_ERROR_GENERIC_FAILURE];
+    message.target.sendAsyncMessage(nfcMsgType, {
+      sessionId: message.json.sessionToken,
+      requestId: message.json.requestId,
+      status: NFC.GECKO_NFC_ERROR_GENERIC_FAILURE
+    });
   },
 
   /**
@@ -488,11 +485,6 @@ Nfc.prototype = {
   onmessage: function onmessage(event) {
     let message = event.data;
     debug("Received message from NFC worker: " + JSON.stringify(message));
-
-    // mapping error code to error message
-    if(message.status !== NFC.NFC_SUCCESS) {
-      message.errorMsg = this.getErrorMessage(message.status);
-    }
 
     switch (message.type) {
       case "techDiscovered":
@@ -533,7 +525,7 @@ Nfc.prototype = {
         }
         delete this.targetsByRequestId[message.requestId];
 
-        if (message.status === NFC.NFC_SUCCESS) {
+        if (message.status == NFC.GECKO_NFC_ERROR_SUCCESS) {
           this.powerLevel = message.powerLevel;
         }
 
@@ -588,7 +580,7 @@ Nfc.prototype = {
 
     if (this.powerLevel != NFC.NFC_POWER_LEVEL_ENABLED) {
       debug("NFC is not enabled. current powerLevel:" + this.powerLevel);
-      this.sendNfcErrorResponse(message, NFC.NFC_GECKO_ERROR_NOT_ENABLED);
+      this.sendNfcErrorResponse(message);
       return null;
     }
 
@@ -596,7 +588,7 @@ Nfc.prototype = {
     if (message.json.sessionToken !== this.sessionTokenMap[this._currentSessionId]) {
       debug("Invalid Session Token: " + message.json.sessionToken +
             " Expected Session Token: " + this.sessionTokenMap[this._currentSessionId]);
-      this.sendNfcErrorResponse(message, NFC.NFC_ERROR_BAD_SESSION_ID);
+      this.sendNfcErrorResponse(message);
       return null;
     }
 
