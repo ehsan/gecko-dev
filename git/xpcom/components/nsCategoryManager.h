@@ -65,8 +65,10 @@ class CategoryLeaf : public nsDepCharHashKey
 public:
   CategoryLeaf(const char* aKey)
     : nsDepCharHashKey(aKey),
-      value(NULL) { }
-  const char* value;
+      pValue(nsnull),
+      nonpValue(nsnull) { }
+  const char* pValue;
+  const char* nonpValue;
 };
 
 
@@ -83,8 +85,18 @@ public:
 
   NS_METHOD AddLeaf(const char* aEntryName,
                     const char* aValue,
+                    PRBool aPersist,
+                    PRBool aReplace,
                     char** _retval,
                     PLArenaPool* aArena);
+
+  NS_METHOD DeleteLeaf(const char* aEntryName,
+                       PRBool aDontPersist);
+
+  void Clear() {
+    mozilla::MutexAutoLock lock(mLock);
+    mTable.Clear();
+  }
 
   PRUint32 Count() {
     mozilla::MutexAutoLock lock(mLock);
@@ -93,6 +105,8 @@ public:
   }
 
   NS_METHOD Enumerate(nsISimpleEnumerator** _retval);
+
+  PRBool WritePersistentEntries(PRFileDesc* fd, const char* aCategoryName);
 
   // CategoryNode is arena-allocated, with the strings
   static CategoryNode* Create(PLArenaPool* aArena);
@@ -124,25 +138,27 @@ public:
   NS_DECL_NSICATEGORYMANAGER
 
   /**
+   * Write the categories to the XPCOM persistent registry.
+   * This is to be used by nsComponentManagerImpl (and NO ONE ELSE).
+   */
+  NS_METHOD WriteCategoryManagerToRegistry(PRFileDesc* fd);
+
+  /**
    * Suppress or unsuppress notifications of category changes to the
    * observer service. This is to be used by nsComponentManagerImpl
    * on startup while reading the stored category list.
    */
   NS_METHOD SuppressNotifications(PRBool aSuppress);
 
-  void AddCategoryEntry(const char* aCategory,
-                        const char* aKey,
-                        const char* aValue);
-
-  static nsresult Create(nsISupports* aOuter, REFNSIID aIID, void** aResult);
-
-  static nsCategoryManager* GetSingleton();
-  static void Destroy();
+  nsCategoryManager()
+    : mLock("nsCategoryManager")
+    , mSuppressNotifications(PR_FALSE)
+  { }
 
 private:
-  static nsCategoryManager* gCategoryManager;
+  friend class nsCategoryManagerFactory;
+  static nsCategoryManager* Create();
 
-  nsCategoryManager();
   ~nsCategoryManager();
 
   CategoryNode* get_category(const char* aName);

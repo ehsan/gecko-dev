@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -12,18 +12,18 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mozilla Firefox.
+ * The Original Code is mozilla.org Code.
  *
  * The Initial Developer of the Original Code is
- * the Mozilla Foundation <http://www.mozilla.org>.
- * Portions created by the Initial Developer are Copyright (C) 2010
+ * Marco Pesenti Gritti <marco@gnome.org>
+ * Portions created by the Initial Developer are Copyright (C) 2004
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
  *
  * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
  * in which case the provisions of the GPL or the LGPL are applicable instead
  * of those above. If you wish to allow use of your version of this file only
  * under the terms of either the GPL or the LGPL, and not to allow others to
@@ -35,24 +35,20 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/GenericFactory.h"
+#ifndef nsModule_h__
+#define nsModule_h__
 
-namespace mozilla {
+#include "nsIModule.h"
+#include "nsIFile.h"
+#include "nsIComponentManager.h"
+#include "nsXPCOM.h"
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(GenericFactory, nsIFactory)
+// Exported Function from module dll to Create the nsIModule
+#define NS_GET_MODULE_SYMBOL "NSGetModule"
 
-NS_IMETHODIMP
-GenericFactory::CreateInstance(nsISupports* aOuter, REFNSIID aIID,
-			       void** aResult)
-{
-  return mCtor(aOuter, aIID, aResult);
-}
+extern "C" NS_EXPORT nsresult
+NSGetModule(nsIComponentManager *aCompMgr,
+            nsIFile* location,
+            nsIModule** return_cobj);
 
-NS_IMETHODIMP
-GenericFactory::LockFactory(PRBool aLock)
-{
-  NS_ERROR("Vestigial method, never called!");
-  return NS_ERROR_FAILURE;
-}
-
-} // namespace mozilla
+#endif /* nsModule_h__ */

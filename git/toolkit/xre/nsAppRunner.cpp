@@ -84,7 +84,7 @@
 #include "nsIDialogParamBlock.h"
 #include "nsIDOMWindow.h"
 #include "nsIFastLoadService.h" // for PLATFORM_FASL_SUFFIX
-#include "mozilla/ModuleUtils.h"
+#include "nsIGenericFactory.h"
 #include "nsIIOService2.h"
 #include "nsIObserverService.h"
 #include "nsINativeAppSupport.h"
@@ -1007,8 +1007,8 @@ nsXULAppInfo::SetSubmitReports(PRBool aEnabled)
 #endif
 
 static const nsXULAppInfo kAppInfo;
-static nsresult AppInfoConstructor(nsISupports* aOuter,
-                                   REFNSIID aIID, void **aResult)
+static NS_METHOD AppInfoConstructor(nsISupports* aOuter,
+                                    REFNSIID aIID, void **aResult)
 {
   NS_ENSURE_NO_AGGREGATION(aOuter);
 
@@ -1049,19 +1049,16 @@ public:
   ~ScopedXPCOMStartup();
 
   nsresult Initialize();
+  nsresult DoAutoreg();
+  nsresult RegisterProfileService();
   nsresult SetWindowCreator(nsINativeAppSupport* native);
-
-  static nsresult CreateAppSupport(nsISupports* aOuter, REFNSIID aIID, void** aResult);
 
 private:
   nsIServiceManager* mServiceManager;
-  static nsINativeAppSupport* gNativeAppSupport;
 };
 
 ScopedXPCOMStartup::~ScopedXPCOMStartup()
 {
-  NS_RELEASE(gNativeAppSupport);
-
   if (mServiceManager) {
 #ifdef XP_MACOSX
     // On OS X, we need a pool to catch cocoa objects that are autoreleased
@@ -1090,56 +1087,44 @@ ScopedXPCOMStartup::~ScopedXPCOMStartup()
 #define APPINFO_CID \
   { 0x95d89e3e, 0xa169, 0x41a3, { 0x8e, 0x56, 0x71, 0x99, 0x78, 0xe1, 0x5b, 0x12 } }
 
-// {0C4A446C-EE82-41f2-8D04-D366D2C7A7D4}
-static const nsCID kNativeAppSupportCID =
-  { 0xc4a446c, 0xee82, 0x41f2, { 0x8d, 0x4, 0xd3, 0x66, 0xd2, 0xc7, 0xa7, 0xd4 } };
-
-// {5F5E59CE-27BC-47eb-9D1F-B09CA9049836}
-static const nsCID kProfileServiceCID =
-  { 0x5f5e59ce, 0x27bc, 0x47eb, { 0x9d, 0x1f, 0xb0, 0x9c, 0xa9, 0x4, 0x98, 0x36 } };
-
-static already_AddRefed<nsIFactory>
-ProfileServiceFactoryConstructor(const mozilla::Module& module, const mozilla::Module::CIDEntry& entry)
+static const nsModuleComponentInfo kComponents[] =
 {
-  nsCOMPtr<nsIFactory> factory;
-  NS_NewToolkitProfileFactory(getter_AddRefs(factory));
-  return factory.forget();
-}
-
-NS_DEFINE_NAMED_CID(APPINFO_CID);
-
-static const mozilla::Module::CIDEntry kXRECIDs[] = {
-  { &kAPPINFO_CID, false, NULL, AppInfoConstructor },
-  { &kProfileServiceCID, false, ProfileServiceFactoryConstructor, NULL },
-  { &kNativeAppSupportCID, false, NULL, ScopedXPCOMStartup::CreateAppSupport },
-  { NULL }
+  {
+    "nsXULAppInfo",
+    APPINFO_CID,
+    XULAPPINFO_SERVICE_CONTRACTID,
+    AppInfoConstructor
+  },
+  {
+    "nsXULAppInfo",
+    APPINFO_CID,
+    XULRUNTIME_SERVICE_CONTRACTID,
+    AppInfoConstructor
+  }
+#ifdef MOZ_CRASHREPORTER
+,
+  {
+    "nsXULAppInfo",
+    APPINFO_CID,
+    NS_CRASHREPORTER_CONTRACTID,
+    AppInfoConstructor
+  }
+#endif
 };
 
-static const mozilla::Module::ContractIDEntry kXREContracts[] = {
-  { XULAPPINFO_SERVICE_CONTRACTID, &kAPPINFO_CID },
-  { XULRUNTIME_SERVICE_CONTRACTID, &kAPPINFO_CID },
-  { NS_CRASHREPORTER_CONTRACTID, &kAPPINFO_CID },
-  { NS_PROFILESERVICE_CONTRACTID, &kProfileServiceCID },
-  { NS_NATIVEAPPSUPPORT_CONTRACTID, &kNativeAppSupportCID },
-  { NULL }
-};
-
-static const mozilla::Module kXREModule = {
-  mozilla::Module::kVersion,
-  kXRECIDs,
-  kXREContracts
-};
-
-NSMODULE_DEFN(Apprunner) = &kXREModule;
+NS_IMPL_NSGETMODULE(Apprunner, kComponents)
 
 #if !defined(_BUILD_STATIC_BIN) && !defined(MOZ_ENABLE_LIBXUL)
-static mozilla::Module const *const kXREStaticModules[] =
+static nsStaticModuleInfo const kXREStaticModules[] =
 {
-  Apprunner_NSModule,
-  NULL
+  {
+    "Apprunner",
+    Apprunner_NSGetModule
+  }
 };
 
-mozilla::Module const *const *const kPStaticModules = kXREStaticModule;
+nsStaticModuleInfo const *const kPStaticModules = kXREStaticModules;
+PRUint32 const kStaticModuleCount = NS_ARRAY_LENGTH(kXREStaticModules);
 #endif
 
 nsresult
@@ -1155,8 +1140,9 @@ ScopedXPCOMStartup::Initialize()
     mozilla::SetOmnijar(lf);
 #endif
 
-  rv = NS_InitXPCOM2(&mServiceManager, gDirServiceProvider->GetAppDir(),
-                     gDirServiceProvider);
+  rv = NS_InitXPCOM3(&mServiceManager, gDirServiceProvider->GetAppDir(),
+                     gDirServiceProvider,
+                     kPStaticModules, kStaticModuleCount);
   if (NS_FAILED(rv)) {
     NS_ERROR("Couldn't start xpcom!");
     mServiceManager = nsnull;
@@ -1168,6 +1154,49 @@ ScopedXPCOMStartup::Initialize()
   }
 
   return rv;
+}
+
+// {0C4A446C-EE82-41f2-8D04-D366D2C7A7D4}
+static const nsCID kNativeAppSupportCID =
+  { 0xc4a446c, 0xee82, 0x41f2, { 0x8d, 0x4, 0xd3, 0x66, 0xd2, 0xc7, 0xa7, 0xd4 } };
+
+// {5F5E59CE-27BC-47eb-9D1F-B09CA9049836}
+static const nsCID kProfileServiceCID =
+  { 0x5f5e59ce, 0x27bc, 0x47eb, { 0x9d, 0x1f, 0xb0, 0x9c, 0xa9, 0x4, 0x98, 0x36 } };
+
+nsresult
+ScopedXPCOMStartup::RegisterProfileService()
+{
+  NS_ASSERTION(mServiceManager, "Not initialized!");
+
+  nsCOMPtr<nsIFactory> factory;
+  NS_NewToolkitProfileFactory(getter_AddRefs(factory));
+  if (!factory) return NS_ERROR_OUT_OF_MEMORY;
+
+  nsCOMPtr<nsIComponentRegistrar> reg (do_QueryInterface(mServiceManager));
+  if (!reg) return NS_ERROR_NO_INTERFACE;
+
+  return reg->RegisterFactory(kProfileServiceCID,
+                              "Toolkit Profile Service",
+                              NS_PROFILESERVICE_CONTRACTID,
+                              factory);
+}
+
+nsresult
+ScopedXPCOMStartup::DoAutoreg()
+{
+#ifdef DEBUG
+  // _Always_ autoreg if we're in a debug build, under the assumption
+  // that people are busily modifying components and will be angry if
+  // their changes aren't noticed.
+  nsCOMPtr<nsIComponentRegistrar> registrar
+    (do_QueryInterface(mServiceManager));
+  NS_ASSERTION(registrar, "Where's the component registrar?");
+
+  registrar->AutoRegister(nsnull);
+#endif
+
+  return NS_OK;
 }
 
 /**
@@ -1220,7 +1249,20 @@ ScopedXPCOMStartup::SetWindowCreator(nsINativeAppSupport* native)
   NS_TIME_FUNCTION;
   nsresult rv;
 
-  NS_IF_ADDREF(gNativeAppSupport = native);
+  nsCOMPtr<nsIComponentRegistrar> registrar
+    (do_QueryInterface(mServiceManager));
+  NS_ASSERTION(registrar, "Where's the component registrar?");
+
+  nsCOMPtr<nsIFactory> nativeFactory = new nsSingletonFactory(native);
+  NS_ENSURE_TRUE(nativeFactory, NS_ERROR_OUT_OF_MEMORY);
+
+  rv = registrar->RegisterFactory(kNativeAppSupportCID,
+                                  "Native App Support",
+                                  NS_NATIVEAPPSUPPORT_CONTRACTID,
+                                  nativeFactory);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  NS_TIME_FUNCTION_MARK("RegisterFactory done");
 
   // Inform the chrome registry about OS accessibility
   nsCOMPtr<nsIToolkitChromeRegistry> cr =
@@ -1246,20 +1288,6 @@ ScopedXPCOMStartup::SetWindowCreator(nsINativeAppSupport* native)
   return wwatch->SetWindowCreator(creator);
 }
 
-/* static */ nsresult
-ScopedXPCOMStartup::CreateAppSupport(nsISupports* aOuter, REFNSIID aIID, void** aResult)
-{
-  if (aOuter)
-    return NS_ERROR_NO_AGGREGATION;
-
-  if (!gNativeAppSupport)
-    return NS_ERROR_NOT_INITIALIZED;
-
-  return gNativeAppSupport->QueryInterface(aIID, aResult);
-}
-
-nsINativeAppSupport* ScopedXPCOMStartup::gNativeAppSupport;
-
 /**
  * A helper class which calls NS_LogInit/NS_LogTerm in its scope.
  */
@@ -1279,6 +1307,7 @@ static void DumpArbitraryHelp()
   {
     ScopedXPCOMStartup xpcom;
     xpcom.Initialize();
+    xpcom.DoAutoreg();
 
     nsCOMPtr<nsICommandLineRunner> cmdline
       (do_CreateInstance("@mozilla.org/toolkit/command-line;1"));
@@ -1798,7 +1827,8 @@ ProfileLockedDialog(nsILocalFile* aProfileDir, nsILocalFile* aProfileLocalDir,
   rv = xpcom.Initialize();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = xpcom.SetWindowCreator(aNative);
+  rv = xpcom.DoAutoreg();
+  rv |= xpcom.SetWindowCreator(aNative);
   NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
 
   { //extra scoping is needed so we release these components before xpcom shutdown
@@ -1871,7 +1901,8 @@ ProfileMissingDialog(nsINativeAppSupport* aNative)
   rv = xpcom.Initialize();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = xpcom.SetWindowCreator(aNative);
+  rv = xpcom.DoAutoreg();
+  rv |= xpcom.SetWindowCreator(aNative);
   NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
 
   { //extra scoping is needed so we release these components before xpcom shutdown
@@ -1926,7 +1957,9 @@ ShowProfileManager(nsIToolkitProfileService* aProfileSvc,
     rv = xpcom.Initialize();
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = xpcom.SetWindowCreator(aNative);
+    rv = xpcom.DoAutoreg();
+    rv |= xpcom.RegisterProfileService();
+    rv |= xpcom.SetWindowCreator(aNative);
     NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
 
 #ifdef XP_MACOSX
@@ -2016,6 +2049,9 @@ ImportProfiles(nsIToolkitProfileService* aPService,
     ScopedXPCOMStartup xpcom;
     rv = xpcom.Initialize();
     if (NS_SUCCEEDED(rv)) {
+      xpcom.DoAutoreg();
+      xpcom.RegisterProfileService();
+
 #ifdef XP_MACOSX
       CommandLineServiceMac::SetupMacCommandLine(gRestartArgc, gRestartArgv, PR_TRUE);
 #endif
@@ -2439,6 +2475,9 @@ static void RemoveComponentRegistries(nsIFile* aProfileDir, nsIFile* aLocalProfi
   aProfileDir->Clone(getter_AddRefs(file));
   if (!file)
     return;
+
+  file->AppendNative(NS_LITERAL_CSTRING("compreg.dat"));
+  file->Remove(PR_FALSE);
 
   if (aRemoveEMFiles) {
     file->SetNativeLeafName(NS_LITERAL_CSTRING("extensions.ini"));
@@ -3273,7 +3312,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
     // Every time a profile is loaded by a build with a different version,
     // it updates the compatibility.ini file saying what version last wrote
-    // the fastload caches.  On subsequent launches if the version matches, 
+    // the compreg.dat.  On subsequent launches if the version matches, 
     // there is no need for re-registration.  If the user loads the same
     // profile in different builds the component registry must be
     // re-generated to prevent mysterious component loading failures.
@@ -3285,7 +3324,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     }
     else if (versionOK) {
       if (!cachesOK) {
-        // Remove caches, forcing component re-registration.
+        // Remove compreg.dat, forcing component re-registration.
         // The new list of additional components directories is derived from
         // information in "extensions.ini".
         RemoveComponentRegistries(profD, profLD, PR_FALSE);
@@ -3297,7 +3336,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       // Nothing need be done for the normal startup case.
     }
     else {
-      // Remove caches, forcing component re-registration
+      // Remove compreg.dat, forcing component re-registration
       // with the default set of components (this disables any potentially
       // troublesome incompatible XPCOM components). 
       RemoveComponentRegistries(profD, profLD, PR_TRUE);
@@ -3330,6 +3369,8 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       rv = xpcom.Initialize();
       NS_TIME_FUNCTION_MARK("ScopedXPCOMStartup: Initialize");
       NS_ENSURE_SUCCESS(rv, 1); 
+      rv = xpcom.DoAutoreg();
+      NS_TIME_FUNCTION_MARK("ScopedXPCOMStartup: DoAutoreg");
 
 
 #ifdef NS_FUNCTION_TIMER
@@ -3358,7 +3399,9 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       }
 #endif
 
-      rv = xpcom.SetWindowCreator(nativeApp);
+      rv |= xpcom.RegisterProfileService();
+      NS_TIME_FUNCTION_MARK("ScopedXPCOMStartup: RegisterProfileService");
+      rv |= xpcom.SetWindowCreator(nativeApp);
       NS_TIME_FUNCTION_MARK("ScopedXPCOMStartup: SetWindowCreator");
       NS_ENSURE_SUCCESS(rv, 1);
 

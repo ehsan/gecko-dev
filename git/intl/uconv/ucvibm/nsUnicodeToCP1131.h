@@ -44,7 +44,7 @@
 /**
  * A character set converter from Unicode to CP1131.
  */
-nsresult
+NS_METHOD
 nsUnicodeToCP1131Constructor(nsISupports *aOuter, REFNSIID aIID,
                             void **aResult);
 

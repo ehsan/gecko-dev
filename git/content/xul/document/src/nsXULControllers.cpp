@@ -79,7 +79,7 @@ nsXULControllers::DeleteControllers()
 }
 
 
-nsresult
+NS_IMETHODIMP
 NS_NewXULControllers(nsISupports* aOuter, REFNSIID aIID, void** aResult)
 {
   NS_PRECONDITION(aOuter == nsnull, "no aggregation");

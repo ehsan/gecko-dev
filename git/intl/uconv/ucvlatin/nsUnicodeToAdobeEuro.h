@@ -45,7 +45,7 @@
  * (see http://bugzilla.mozilla.org/show_bug.cgi?id=158129 for details).
  *
  */
-nsresult
+NS_METHOD
 nsUnicodeToAdobeEuroConstructor(nsISupports *aOuter, REFNSIID aIID,
                                 void **aResult);
 

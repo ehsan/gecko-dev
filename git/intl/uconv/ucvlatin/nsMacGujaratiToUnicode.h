@@ -43,7 +43,7 @@
 /**
  * A character set converter from MacGujarati to Unicode.
  */
-nsresult
+NS_METHOD
 nsMacGujaratiToUnicodeConstructor(nsISupports *aOuter, REFNSIID aIID,
                                   void **aResult);
 

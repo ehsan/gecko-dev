@@ -68,7 +68,7 @@ public:
                             nsAString& aAttribute); 
   NS_DECL_ISUPPORTS 
 
-  static nsresult Create(nsISupports* aOuter, const nsIID& aIID, void* *aResult);
+  static NS_METHOD Create(nsISupports* aOuter, const nsIID& aIID, void* *aResult);
 
 protected:
   nsresult GetPublicKey(nsAString& aValue, nsAString& aChallenge, 

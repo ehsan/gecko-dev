@@ -46,7 +46,6 @@
 #include <stdio.h>
 #include "prio.h"
 #include "prmem.h"
-#include "nsIComponentManager.h"
 #include "nsNPAPIPlugin.h"
 #include "nsNPAPIPluginStreamListener.h"
 #include "nsIPlugin.h"
@@ -80,6 +79,8 @@
 #include "nsICachingChannel.h"
 #include "nsHashtable.h"
 #include "nsIProxyInfo.h"
+#include "nsObsoleteModuleLoading.h"
+#include "nsIComponentRegistrar.h"
 #include "nsPluginLogging.h"
 #include "nsIPrefBranch2.h"
 #include "nsIScriptChannel.h"

@@ -43,7 +43,7 @@
 // Global functions and data [declaration]
 
 
-nsresult
+NS_METHOD
 nsUnicodeToISO88596EConstructor(nsISupports *aOuter, REFNSIID aIID,
                                 void **aResult) 
 {

@@ -63,7 +63,7 @@ static const PRUint16 g_utMappingTable[] = {
 //----------------------------------------------------------------------
 // Class nsCP850ToUnicode [implementation]
 
-nsresult
+NS_METHOD
 nsCP850ToUnicodeConstructor(nsISupports* aOuter, REFNSIID aIID,
                             void **aResult) 
 {

@@ -145,7 +145,7 @@ public:
     }
 
 protected:
-    friend nsresult
+    friend NS_IMETHODIMP
     NS_NewXULPrototypeCache(nsISupports* aOuter, REFNSIID aIID, void** aResult);
 
     nsXULPrototypeCache();
