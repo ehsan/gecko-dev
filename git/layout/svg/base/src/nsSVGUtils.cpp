@@ -1330,8 +1330,8 @@ nsSVGUtils::TransformOuterSVGPointToChildFrame(nsPoint aPoint,
   canvasDevToFrameUserSpace.Invert();
   gfxPoint devPt = gfxPoint(aPoint.x, aPoint.y) /
     aPresContext->AppUnitsPerDevPixel();
-  gfxPoint userPt = canvasDevToFrameUserSpace.Transform(devPt);
-  gfxPoint appPt = (userPt * aPresContext->AppUnitsPerCSSPixel()).Round();
+  gfxPoint userPt = canvasDevToFrameUserSpace.Transform(devPt).Round();
+  gfxPoint appPt = userPt * aPresContext->AppUnitsPerCSSPixel();
   userPt.x = clamped(appPt.x, gfxFloat(nscoord_MIN), gfxFloat(nscoord_MAX));
   userPt.y = clamped(appPt.y, gfxFloat(nscoord_MIN), gfxFloat(nscoord_MAX));
   // now guaranteed to be safe:

@@ -1841,10 +1841,8 @@ nsPresContext::EnsureVisible()
       cv->GetPresContext(getter_AddRefs(currentPresContext));
       if (currentPresContext == this) {
         // OK, this is us.  We want to call Show() on the content viewer.
-        nsresult result = cv->Show();
-        if (NS_SUCCEEDED(result)) {
-          return true;
-        }
+        cv->Show();
+        return true;
       }
     }
   }
