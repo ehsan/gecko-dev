@@ -70,58 +70,53 @@ struct BindingColumnData
 } // anonymous namespace
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Variant Specialization Functions (variantToSQLiteT)
+//// sqlite3_stmt Specialization Functions (varaintToSQLite3T)
 
-static int
+template < >
+int
 sqlite3_T_int(BindingColumnData aData,
               int aValue)
 {
   return ::sqlite3_bind_int(aData.stmt, aData.column + 1, aValue);
 }
 
-static int
+template < >
+int
 sqlite3_T_int64(BindingColumnData aData,
                 sqlite3_int64 aValue)
 {
   return ::sqlite3_bind_int64(aData.stmt, aData.column + 1, aValue);
 }
 
-static int
+template < >
+int
 sqlite3_T_double(BindingColumnData aData,
                  double aValue)
 {
   return ::sqlite3_bind_double(aData.stmt, aData.column + 1, aValue);
 }
 
-static int
-sqlite3_T_text(BindingColumnData aData,
-               const nsCString& aValue)
-{
-  return ::sqlite3_bind_text(aData.stmt,
-                             aData.column + 1,
-                             aValue.get(),
-                             aValue.Length(),
-                             SQLITE_TRANSIENT);
-}
-
-static int
+template < >
+int
 sqlite3_T_text16(BindingColumnData aData,
-                 const nsString& aValue)
+                 nsString aValue)
 {
   return ::sqlite3_bind_text16(aData.stmt,
                                aData.column + 1,
-                               aValue.get(),
+                               PromiseFlatString(aValue).get(),
                                aValue.Length() * 2, // Length in bytes!
                                SQLITE_TRANSIENT);
 }
 
-static int
+template < >
+int
 sqlite3_T_null(BindingColumnData aData)
 {
   return ::sqlite3_bind_null(aData.stmt, aData.column + 1);
 }
 
-static int
+template < >
+int
 sqlite3_T_blob(BindingColumnData aData,
                const void *aBlob,
                int aSize)
@@ -130,8 +125,6 @@ sqlite3_T_blob(BindingColumnData aData,
                              NS_Free);
 
 }
-
-#include "variantToSQLiteT_impl.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 //// BindingParams

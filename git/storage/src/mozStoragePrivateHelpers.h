@@ -93,6 +93,13 @@ bindJSValue(JSContext *aCtx,
             int aIdx,
             jsval aValue);
 
+/**
+ * Used to convert an nsIVariant to the proper SQLite type.
+ */
+template <typename T>
+int variantToSQLiteT(T aObj, nsIVariant *aValue);
+#include "variantToSQLiteT_impl.h" // To keep this file easier to read.
+
 } // namespace storage
 } // namespace mozilla
 
