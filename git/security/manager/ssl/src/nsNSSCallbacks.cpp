@@ -815,7 +815,11 @@ PK11PasswordPrompt(PK11SlotInfo* slot, PRBool retry, void* arg)
   nsRefPtr<PK11PasswordPromptRunnable> runnable = 
     new PK11PasswordPromptRunnable(slot,
                                    static_cast<nsIInterfaceRequestor*>(arg));
-  runnable->DispatchToMainThreadAndWait();
+  if (NS_IsMainThread()) {
+    runnable->RunOnTargetThread();
+  } else {
+    runnable->DispatchToMainThreadAndWait();
+  }
   return runnable->mResult;
 }
 
