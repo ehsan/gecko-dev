@@ -139,7 +139,7 @@
 #include "nsIWebBrowserFind.h"  // For window.find()
 #include "nsIWebContentHandlerRegistrar.h"
 #include "nsIWindowMediator.h"  // For window.find()
-#include "nsComputedDOMStyle.h"
+#include "nsIComputedDOMStyle.h"
 #include "nsIEntropyCollector.h"
 #include "nsDOMCID.h"
 #include "nsDOMError.h"
@@ -167,8 +167,6 @@
 #include "nsFocusManager.h"
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
-#include "nsIDOMXULControlElement.h"
-#include "nsIFrame.h"
 #endif
 
 #include "plbase64.h"
@@ -207,6 +205,7 @@
 static PRLogModuleInfo* gDOMLeakPRLog;
 #endif
 
+nsIFactory *nsGlobalWindow::sComputedDOMStyleFactory   = nsnull;
 nsIDOMStorageList *nsGlobalWindow::sGlobalStorageList  = nsnull;
 
 static nsIEntropyCollector *gEntropyCollector          = nsnull;
@@ -802,6 +801,7 @@ nsGlobalWindow::~nsGlobalWindow()
 void
 nsGlobalWindow::ShutDown()
 {
+  NS_IF_RELEASE(sComputedDOMStyleFactory);
   NS_IF_RELEASE(sGlobalStorageList);
 
   if (gDumpFile && gDumpFile != stdout) {
@@ -3773,19 +3773,6 @@ nsGlobalWindow::GetMainWidget()
   }
 
   return widget;
-}
-
-nsIWidget*
-nsGlobalWindow::GetNearestWidget()
-{
-  nsIDocShell* docShell = GetDocShell();
-  NS_ENSURE_TRUE(docShell, nsnull);
-  nsCOMPtr<nsIPresShell> presShell;
-  docShell->GetPresShell(getter_AddRefs(presShell));
-  NS_ENSURE_TRUE(presShell, nsnull);
-  nsIFrame* rootFrame = presShell->GetRootFrame();
-  NS_ENSURE_TRUE(rootFrame, nsnull);
-  return rootFrame->GetView()->GetNearestWidget(nsnull);
 }
 
 NS_IMETHODIMP
@@ -6897,14 +6884,27 @@ nsGlobalWindow::GetComputedStyle(nsIDOMElement* aElt,
     return NS_OK;
   }
 
-  nsRefPtr<nsComputedDOMStyle> compStyle;
-  nsresult rv = NS_NewComputedDOMStyle(aElt, aPseudoElt, presShell,
-                                       getter_AddRefs(compStyle));
+  nsresult rv = NS_OK;
+  nsCOMPtr<nsIComputedDOMStyle> compStyle;
+
+  if (!sComputedDOMStyleFactory) {
+    rv = CallGetClassObject("@mozilla.org/DOM/Level2/CSS/computedStyleDeclaration;1",
+                            &sComputedDOMStyleFactory);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  rv =
+    sComputedDOMStyleFactory->CreateInstance(nsnull,
+                                             NS_GET_IID(nsIComputedDOMStyle),
+                                             getter_AddRefs(compStyle));
+
   NS_ENSURE_SUCCESS(rv, rv);
 
-  *aReturn = compStyle.forget().get();
+  rv = compStyle->Init(aElt, aPseudoElt, presShell);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  return NS_OK;
+  return compStyle->QueryInterface(NS_GET_IID(nsIDOMCSSStyleDeclaration),
+                                   (void **) aReturn);
 }
 
 //*****************************************************************************
@@ -8916,51 +8916,6 @@ nsGlobalChromeWindow::SetBrowserDOMWindow(nsIBrowserDOMWindow *aBrowserWindow)
 
   mBrowserDOMWindow = aBrowserWindow;
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsGlobalChromeWindow::NotifyDefaultButtonLoaded(nsIDOMElement* aDefaultButton)
-{
-#ifdef MOZ_XUL
-  NS_ENSURE_ARG(aDefaultButton);
-
-  // Don't snap to a disabled button.
-  nsCOMPtr<nsIDOMXULControlElement> xulControl =
-                                      do_QueryInterface(aDefaultButton);
-  NS_ENSURE_TRUE(xulControl, NS_ERROR_FAILURE);
-  PRBool disabled;
-  nsresult rv = xulControl->GetDisabled(&disabled);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (disabled)
-    return NS_OK;
-
-  // Get the button rect in screen coordinates.
-  nsCOMPtr<nsIContent> content(do_QueryInterface(aDefaultButton));
-  NS_ENSURE_TRUE(content, NS_ERROR_FAILURE);
-  nsIDocument *doc = content->GetCurrentDoc();
-  NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
-  nsIPresShell *shell = doc->GetPrimaryShell();
-  NS_ENSURE_TRUE(shell, NS_ERROR_FAILURE);
-  nsIFrame *frame = shell->GetPrimaryFrameFor(content);
-  NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
-  nsIntRect buttonRect = frame->GetScreenRect();
-
-  // Get the widget rect in screen coordinates.
-  nsIWidget *widget = GetNearestWidget();
-  NS_ENSURE_TRUE(widget, NS_ERROR_FAILURE);
-  nsIntRect widgetRect;
-  rv = widget->GetScreenBounds(widgetRect);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Convert the buttonRect coordinates from screen to the widget.
-  buttonRect -= widgetRect.TopLeft();
-  rv = widget->OnDefaultButtonLoaded(buttonRect);
-  if (rv == NS_ERROR_NOT_IMPLEMENTED)
-    return NS_OK;
-  return rv;
-#else
-  return NS_ERROR_NOT_IMPLEMENTED;
-#endif
 }
 
 // nsGlobalModalWindow implementation

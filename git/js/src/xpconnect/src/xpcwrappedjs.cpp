@@ -620,12 +620,12 @@ nsXPCWrappedJS::GetProperty(const nsAString & name, nsIVariant **_retval)
     if(!ccx.IsValid())
         return NS_ERROR_UNEXPECTED;
 
-    jsval jsstr = XPCStringConvert::ReadableToJSVal(ccx, name);
+    JSString* jsstr = XPCStringConvert::ReadableToJSString(ccx, name);
     if(!jsstr)
         return NS_ERROR_OUT_OF_MEMORY;
 
     return nsXPCWrappedJSClass::
-        GetNamedPropertyAsVariant(ccx, mJSObj, jsstr, _retval);
+        GetNamedPropertyAsVariant(ccx, mJSObj, STRING_TO_JSVAL(jsstr), _retval);
 }
 
 /***************************************************************************/

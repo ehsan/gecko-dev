@@ -334,7 +334,7 @@ nsNPAPIPlugin::nsNPAPIPlugin(NPPluginFuncs* callbacks, PRLibrary* aLibrary,
   fLibrary = aLibrary;
 }
 
-nsNPAPIPlugin::~nsNPAPIPlugin()
+nsNPAPIPlugin::~nsNPAPIPlugin(void)
 {
   // reset the callbacks list
   memset((void*) &fCallbacks, 0, sizeof(fCallbacks));
@@ -1912,6 +1912,13 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
     return NPERR_NO_ERROR;
   }
 
+  case NPNVserviceManager:
+  case NPNVDOMElement:
+  case NPNVDOMWindow: {
+    // we no longer hand out any XPCOM objects
+    return NPERR_GENERIC_ERROR;
+  }
+
   case NPNVToolkit: {
 #ifdef MOZ_WIDGET_GTK2
     *((NPNToolkitType*)result) = NPNVGtk2;
@@ -1993,41 +2000,6 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
   }
 #endif
 
-  // we no longer hand out any XPCOM objects, except on WINCE,
-  // where it's needed for the ActiveX shunt that makes Flash
-  // work until we get an NPAPI plugin there.
-#ifdef WINCE
-  case NPNVDOMWindow: {
-    nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *)npp->ndata;
-    NS_ENSURE_TRUE(inst, NPERR_GENERIC_ERROR);
-
-    nsIDOMWindow *domWindow = inst->GetDOMWindow().get();
-
-    if (domWindow) {
-      // Pass over ownership of domWindow to the caller.
-      (*(nsIDOMWindow**)result) = domWindow;
-      return NPERR_NO_ERROR;
-    }
-
-    return NPERR_GENERIC_ERROR;
-  }
-
-  case NPNVDOMElement: {
-    nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *) npp->ndata;
-    NS_ENSURE_TRUE(inst, NPERR_GENERIC_ERROR);
-
-    nsCOMPtr<nsIDOMElement> e;
-    inst->GetDOMElement(getter_AddRefs(e));
-    if (e) {
-      NS_ADDREF(*(nsIDOMElement**)result = e.get());
-      return NPERR_NO_ERROR;
-    }
-
-    return NPERR_GENERIC_ERROR;
-  }
-#endif /* WINCE */
-
-  case NPNVserviceManager: // old XPCOM object, no longer supported
   default:
     return NPERR_GENERIC_ERROR;
   }
@@ -2504,9 +2476,6 @@ _getauthenticationinfo(NPP instance, const char *protocol, const char *host,
   return NPERR_NO_ERROR;
 }
 
-// We need extern "C" here because it has a function pointer as an argument.
-// See Bug 501889.
-PR_BEGIN_EXTERN_C
 uint32_t NP_CALLBACK
 _scheduletimer(NPP instance, uint32_t interval, NPBool repeat, void (*timerFunc)(NPP npp, uint32_t timerID))
 {
@@ -2516,7 +2485,6 @@ _scheduletimer(NPP instance, uint32_t interval, NPBool repeat, void (*timerFunc)
 
   return inst->ScheduleTimer(interval, repeat, timerFunc);
 }
-PR_END_EXTERN_C
 
 void NP_CALLBACK
 _unscheduletimer(NPP instance, uint32_t timerID)

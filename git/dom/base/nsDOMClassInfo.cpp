@@ -175,7 +175,6 @@
 #include "nsIDOMRect.h"
 #include "nsIDOMRGBColor.h"
 #include "nsIDOMNSRGBAColor.h"
-#include "nsDOMCSSAttrDeclaration.h"
 
 // XBL related includes.
 #include "nsIXBLService.h"
@@ -687,7 +686,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLBaseFontElement, nsHTMLElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(HTMLBodyElement, nsHTMLBodyElementSH,
+  NS_DEFINE_CLASSINFO_DATA(HTMLBodyElement, nsHTMLElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLButtonElement, nsHTMLElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
@@ -5204,74 +5203,6 @@ DefineInterfaceConstants(JSContext *cx, JSObject *obj, const nsIID *aIID)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsHTMLBodyElementSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext
-                                *cx, JSObject *obj, jsval id, PRUint32 flags,
-                                JSObject **objp, PRBool *_retval)
-{
-  if (id == sOnhashchange_id) {
-    // Special handling so |"onhashchange" in document.body| returns true.
-    jsid interned_id;
-
-    if (!JS_ValueToId(cx, id, &interned_id) ||
-        !JS_DefinePropertyById(cx, obj, interned_id, JSVAL_VOID,
-                               nsnull, nsnull, JSPROP_ENUMERATE)) {
-      *_retval = PR_FALSE;
-      return NS_ERROR_FAILURE;
-    }
-
-    *objp = obj;
-    return NS_OK;
-  }
-
-  return nsHTMLElementSH::NewResolve(wrapper, cx, obj, id, flags, objp,
-                                     _retval);
-}
-
-NS_IMETHODIMP
-nsHTMLBodyElementSH::GetProperty(nsIXPConnectWrappedNative *wrapper,
-                                 JSContext *cx, JSObject *obj, jsval id,
-                                 jsval *vp, PRBool *_retval)
-{
-  if (id == sOnhashchange_id) {
-    // Forward the request to the Window.
-    jsid interned_id;
-
-    if (!JS_ValueToId(cx, id, &interned_id) ||
-        !JS_GetPropertyById(cx, JS_GetGlobalForObject(cx, obj),
-                            interned_id, vp)) {
-      *_retval = PR_FALSE;
-      return NS_ERROR_FAILURE;
-    }
-
-    return NS_OK;
-  }
-
-  return nsHTMLElementSH::GetProperty(wrapper, cx, obj, id, vp, _retval);
-}
-
-NS_IMETHODIMP
-nsHTMLBodyElementSH::SetProperty(nsIXPConnectWrappedNative *wrapper,
-                                 JSContext *cx, JSObject *obj,
-                                 jsval id, jsval *vp, PRBool *_retval)
-{
-  if (id == sOnhashchange_id) {
-    // Forward the request to the Window.
-    jsid interned_id;
-
-    if (!JS_ValueToId(cx, id, &interned_id) ||
-        !JS_SetPropertyById(cx, JS_GetGlobalForObject(cx, obj),
-                            interned_id, vp)) {
-      *_retval = PR_FALSE;
-      return NS_ERROR_FAILURE;
-    }
-
-    return NS_OK;
-  }
-
-  return nsHTMLElementSH::SetProperty(wrapper, cx, obj, id, vp, _retval);
-}
-
 class nsDOMConstructor : public nsIDOMDOMConstructor
 {
 protected:
@@ -6449,21 +6380,6 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
     *objp = obj;
 
-    return NS_OK;
-  }
-
-  if (id == sOnhashchange_id) {
-    // Special handling so |"onhashchange" in window| returns true
-    jsid interned_id;
-
-    if (!JS_ValueToId(cx, id, &interned_id) ||
-        !JS_DefinePropertyById(cx, obj, interned_id, JSVAL_VOID,
-                                nsnull, nsnull, JSPROP_ENUMERATE)) {
-      *_retval = PR_FALSE;
-      return NS_ERROR_FAILURE;
-    }
-
-    *objp = obj;
     return NS_OK;
   }
 
@@ -10040,31 +9956,6 @@ nsCSSValueListSH::GetItemAt(nsISupports *aNative, PRUint32 aIndex,
 
 
 // CSSStyleDeclaration helper
-
-NS_IMETHODIMP
-nsCSSStyleDeclSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
-                            JSObject *globalObj, JSObject **parentObj)
-{
-  nsWrapperCache* cache = nsnull;
-  CallQueryInterface(nativeObj, &cache);
-  if (!cache) {
-    return nsDOMClassInfo::PreCreate(nativeObj, cx, globalObj, parentObj);
-  }
-
-  nsICSSDeclaration *declaration = static_cast<nsICSSDeclaration*>(nativeObj);
-  nsISupports *native_parent = declaration->GetParentObject();
-  if (!native_parent) {
-    return NS_ERROR_FAILURE;
-  }
-
-  jsval v;
-  nsresult rv = WrapNative(cx, globalObj, native_parent, &v);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  *parentObj = JSVAL_TO_OBJECT(v);
-
-  return NS_SUCCESS_ALLOW_SLIM_WRAPPERS;
-}
 
 nsresult
 nsCSSStyleDeclSH::GetStringAt(nsISupports *aNative, PRInt32 aIndex,

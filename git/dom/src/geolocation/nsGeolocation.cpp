@@ -806,8 +806,6 @@ nsGeolocation::GetCurrentPosition(nsIDOMGeoPositionCallback *callback,
                                   nsIDOMGeoPositionErrorCallback *errorCallback,
                                   nsIDOMGeoPositionOptions *options)
 {
-  NS_ENSURE_ARG_POINTER(callback);
-
   if (sGeoEnabled == PR_FALSE)
     return NS_ERROR_NOT_AVAILABLE;
 
@@ -838,8 +836,6 @@ nsGeolocation::WatchPosition(nsIDOMGeoPositionCallback *aCallback,
                              nsIDOMGeoPositionOptions *aOptions, 
                              PRInt32 *_retval NS_OUTPARAM)
 {
-  NS_ENSURE_ARG_POINTER(aCallback);
-
   if (sGeoEnabled == PR_FALSE)
     return NS_ERROR_NOT_AVAILABLE;
 

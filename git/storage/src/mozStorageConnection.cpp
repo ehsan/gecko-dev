@@ -25,7 +25,6 @@
  *   Brett Wilson <brettw@gmail.com>
  *   Shawn Wilsher <me@shawnwilsher.com>
  *   Lev Serebryakov <lev@serebryakov.spb.ru>
- *   Drew Willcoxon <adw@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -64,7 +63,6 @@
 #include "mozStorageArgValueArray.h"
 #include "mozStoragePrivateHelpers.h"
 #include "mozStorageStatementData.h"
-#include "SQLCollations.h"
 
 #include "prlog.h"
 #include "prprf.h"
@@ -244,7 +242,7 @@ aggregateFunctionFinalHelper(sqlite3_context *aCtx)
 ////////////////////////////////////////////////////////////////////////////////
 //// Connection
 
-Connection::Connection(Service *aService)
+Connection::Connection(mozIStorageService *aService)
 : sharedAsyncExecutionMutex("Connection::sharedAsyncExecutionMutex")
 , mDBConn(nsnull)
 , mAsyncExecutionMutex(nsAutoLock::NewLock("AsyncExecutionMutex"))
@@ -340,17 +338,7 @@ Connection::initialize(nsIFile *aDatabaseFile)
 #endif
 
   // Register our built-in SQL functions.
-  srv = registerFunctions(mDBConn);
-  if (srv != SQLITE_OK) {
-    ::sqlite3_close(mDBConn);
-    mDBConn = nsnull;
-    return convertResultCode(srv);
-  }
-
-  // Register our built-in SQL collating sequences.
-  srv = registerCollations(mDBConn, mStorageService);
-  if (srv != SQLITE_OK) {
-    ::sqlite3_close(mDBConn);
+  if (registerFunctions(mDBConn) != SQLITE_OK) {
     mDBConn = nsnull;
     return convertResultCode(srv);
   }

@@ -71,10 +71,6 @@
         onNavComplete: nextTest
       });
       yield;
-
-      // Make sure we unsuppress painting before continuing
-      SimpleTest.executeSoon(nextTest)
-      yield;
       
       // Search for some text that's on the second page (but not on
       // the first page), and verify that it can be found.
@@ -82,7 +78,7 @@
       document.getElementById("cmd_find").doCommand();
       ok(!gFindBar.hidden, "failed to open findbar");
       enterStringIntoFindField("A generic page");
-      is(TestWindow.getWindow().getSelection().toString().toLowerCase(),
+      ok(TestWindow.getWindow().getSelection().toString().toLowerCase() == 
          "a generic page",
          "find failed on second page loaded");
 
@@ -105,7 +101,7 @@
       document.getElementById("cmd_find").doCommand();
       ok(!gFindBar.hidden, "failed to open findbar");
       enterStringIntoFindField("find this");
-      is(TestWindow.getWindow().getSelection().toString().toLowerCase(),
+      ok(TestWindow.getWindow().getSelection().toString().toLowerCase() == 
          "find this",
          "find failed on page loaded from bfcache");
       

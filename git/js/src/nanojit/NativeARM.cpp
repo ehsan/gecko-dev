@@ -655,13 +655,7 @@ Assembler::asm_store32(LIns *value, int dr, LIns *base)
         ra = rA->reg;
         rb = rB->reg;
     }
-
-    if (!isS12(dr)) {
-        STR(ra, IP, 0);
-        asm_add_imm(IP, rb, dr);
-    } else {
-        STR(ra, rb, dr);
-    }
+    STR(ra, rb, dr);
 }
 
 void
@@ -1123,15 +1117,13 @@ Assembler::BranchWithLink(NIns* addr)
     // ARMv5 and above can use BLX <imm> for branches within ±32MB of the
     // PC and BLX Rm for long branches.
     if (isS24(offs>>2)) {
-        // the value we need to stick in the instruction; masked,
-        // because it will be sign-extended back to 32 bits.
-        intptr_t offs2 = (offs>>2) & 0xffffff;
 
         if (((intptr_t)addr & 1) == 0) {
             // The target is ARM, so just emit a BL.
 
             // BL addr
-            *(--_nIns) = (NIns)( (COND_AL) | (0xB<<24) | (offs2) );
+            NanoAssert( ((offs>>2) & ~0xffffff) == 0);
+            *(--_nIns) = (NIns)( (COND_AL) | (0xB<<24) | (offs>>2) );
             asm_output("bl %p", (void*)addr);
         } else {
             // The target is Thumb, so emit a BLX.
@@ -1140,7 +1132,8 @@ Assembler::BranchWithLink(NIns* addr)
             uint32_t    H = (offs & 0x2) << 23;
 
             // BLX addr
-            *(--_nIns) = (NIns)( (0xF << 28) | (0x5<<25) | (H) | (offs2) );
+            NanoAssert( ((offs>>2) & ~0xffffff) == 0);
+            *(--_nIns) = (NIns)( (0xF << 28) | (0x5<<25) | (H) | (offs>>2) );
             asm_output("blx %p", (void*)addr);
         }
     } else {

@@ -528,12 +528,9 @@ nsChildView::nsChildView() : nsBaseWidget()
 
 nsChildView::~nsChildView()
 {
-  // Notify the children that we're gone.  childView->ResetParent() can change
-  // our list of children while it's being iterated, so the way we iterate the
-  // list must allow for this.
-  for (nsIWidget* kid = mLastChild; kid;) {
+  // notify the children that we're gone
+  for (nsIWidget* kid = mFirstChild; kid; kid = kid->GetNextSibling()) {
     nsChildView* childView = static_cast<nsChildView*>(kid);
-    kid = kid->GetPrevSibling();
     childView->ResetParent();
   }
 
@@ -813,22 +810,12 @@ void* nsChildView::GetNativeData(PRUint32 aDataType)
       if ([mView isKindOfClass:[ChildView class]])
         [(ChildView*)mView setIsPluginView:YES];
 
+      mPluginPort.cgPort.context = (CGContextRef)[[NSGraphicsContext currentContext] graphicsPort];
+
       NSWindow* window = [mView nativeWindow];
       if (window) {
-        // [NSGraphicsContext currentContext] is supposed to "return the
-        // current graphics context of the current thread."  But sometimes
-        // (when called while mView isn't focused for drawing) it returns a
-        // graphics context for the wrong window.  [window graphicsContext]
-        // (which "provides the graphics context associated with the window
-        // for the current thread") seems always to return the "right"
-        // graphics context.  See bug 500130.
-        mPluginPort.cgPort.context = (CGContextRef)
-          [[window graphicsContext] graphicsPort];
         WindowRef topLevelWindow = (WindowRef)[window windowRef];
         mPluginPort.cgPort.window = topLevelWindow;
-      } else {
-        mPluginPort.cgPort.context = nil;
-        mPluginPort.cgPort.window = nil;
       }
 
       retVal = (void*)&mPluginPort;

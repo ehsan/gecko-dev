@@ -1851,15 +1851,15 @@ nsHtml5TreeBuilder::extractCharsetFromContent(nsString* attributeValue)
     }
   }
   charsetloop_end: ;
-  nsString* charset = nsnull;
+  nsString* rv = nsnull;
   if (start != -1) {
     if (end == -1) {
       end = buffer.length;
     }
-    charset = nsHtml5Portability::newStringFromBuffer(buffer, start, end - start);
+    rv = nsHtml5Portability::newStringFromBuffer(buffer, start, end - start);
   }
   buffer.release();
-  return charset;
+  return rv;
 }
 
 void 

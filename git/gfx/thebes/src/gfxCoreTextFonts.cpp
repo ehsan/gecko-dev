@@ -77,26 +77,6 @@ static PRLogModuleInfo *gCoreTextTextRunLog = PR_NewLogModule("coreTextTextRun")
 CTFontDescriptorRef gfxCoreTextFont::sDefaultFeaturesDescriptor = NULL;
 CTFontDescriptorRef gfxCoreTextFont::sDisableLigaturesDescriptor = NULL;
 
-#ifdef DEBUG_jonathan
-static void dumpFontDescCallback(const void *key, const void *value, void *context)
-{
-    CFStringRef attribute = (CFStringRef)key;
-    CFTypeRef setting = (CFTypeRef)value;
-    fprintf(stderr, "attr: "); CFShow(attribute);
-    fprintf(stderr, "    = "); CFShow(setting);
-    fprintf(stderr, "\n");
-}
-
-static void
-dumpFontDescriptor(CTFontRef font)
-{
-    CTFontDescriptorRef desc = CTFontCopyFontDescriptor(font);
-    CFDictionaryRef dict = CTFontDescriptorCopyAttributes(desc);
-    CFRelease(desc);
-    CFDictionaryApplyFunction(dict, &dumpFontDescCallback, 0);
-    CFRelease(dict);
-}
-#endif
 
 gfxCoreTextFont::gfxCoreTextFont(MacOSFontEntry *aFontEntry,
                                  const gfxFontStyle *aFontStyle,
@@ -249,6 +229,28 @@ gfxCoreTextFont::GetCharHeight(PRUnichar aUniChar)
 
     // couldn't get glyph for the char
     return 0;
+}
+
+gfxFont::RunMetrics
+gfxCoreTextFont::Measure(gfxTextRun *aTextRun,
+                         PRUint32 aStart, PRUint32 aEnd,
+                         BoundingBoxType aBoundingBoxType,
+                         gfxContext *aRefContext,
+                         Spacing *aSpacing)
+{
+    gfxFont::RunMetrics metrics =
+        gfxFont::Measure(aTextRun, aStart, aEnd,
+                         aBoundingBoxType, aRefContext, aSpacing);
+
+    // if aBoundingBoxType is not TIGHT_HINTED_OUTLINE_EXTENTS then we need to add
+    // a pixel column each side of the bounding box in case of antialiasing "bleed"
+    if (aBoundingBoxType != TIGHT_HINTED_OUTLINE_EXTENTS &&
+        metrics.mBoundingBox.size.width > 0) {
+        metrics.mBoundingBox.pos.x -= aTextRun->GetAppUnitsPerDevUnit();
+        metrics.mBoundingBox.size.width += aTextRun->GetAppUnitsPerDevUnit()*2;
+    }
+
+    return metrics;
 }
 
 gfxCoreTextFont::~gfxCoreTextFont()
@@ -471,9 +473,9 @@ gfxCoreTextFont::CreateDefaultFeaturesDescriptor()
     CFRelease(attributesDict);
 }
 
-// Create a CTFontRef for an ATS font ref, with the Common Ligatures feature disabled [static]
+// Create a copy of a CTFontRef, with the Common Ligatures feature disabled [static]
 CTFontRef
-gfxCoreTextFont::CreateCTFontWithDisabledLigatures(ATSFontRef aFontRef, CGFloat aSize)
+gfxCoreTextFont::CreateCopyWithDisabledLigatures(CTFontRef aFontRef)
 {
     if (sDisableLigaturesDescriptor == NULL) {
         // initialize cached descriptor to turn off the Common Ligatures feature
@@ -519,11 +521,16 @@ gfxCoreTextFont::CreateCTFontWithDisabledLigatures(ATSFontRef aFontRef, CGFloat 
         CFRelease(featuresArray);
 
         sDisableLigaturesDescriptor =
-            CTFontDescriptorCreateCopyWithAttributes(GetDefaultFeaturesDescriptor(), attributesDict);
+            CTFontDescriptorCreateWithAttributes(attributesDict);
         CFRelease(attributesDict);
     }
-
-    return CTFontCreateWithPlatformFont(aFontRef, aSize, NULL, sDisableLigaturesDescriptor);
+    
+    aFontRef =
+        CTFontCreateCopyWithAttributes(aFontRef,
+                                       0.0,
+                                       NULL,
+                                       sDisableLigaturesDescriptor);
+    return aFontRef;
 }
 
 void
@@ -774,20 +781,19 @@ gfxCoreTextFontGroup::InitTextRun(gfxTextRun *aTextRun,
     if (disableLigatures) {
         // For letterspacing (or maybe other situations) we need to make a copy of the CTFont
         // with the ligature feature disabled
-        CTFontRef ctFont =
-            gfxCoreTextFont::CreateCTFontWithDisabledLigatures(mainFont->GetATSFont(),
-                                                               CTFontGetSize(mainFont->GetCTFont()));
+        CTFontRef mainCTFont = mainFont->GetCTFont();
+        mainCTFont = gfxCoreTextFont::CreateCopyWithDisabledLigatures(mainCTFont);
 
         // Set up the initial font, for the (common) case of a monostyled textRun
         attrObj =
             CFDictionaryCreate(kCFAllocatorDefault,
                                (const void**) &kCTFontAttributeName,
-                               (const void**) &ctFont,
+                               (const void**) &mainCTFont,
                                1, // count of attributes
                                &kCFTypeDictionaryKeyCallBacks,
                                &kCFTypeDictionaryValueCallBacks);
-        // Having created the dict, we're finished with our ligature-disabled CTFontRef
-        CFRelease(ctFont);
+        // Having created the dict, we're finished with our modified copy of the CTFont
+        CFRelease(mainCTFont);
     } else {
         attrObj = mainFont->GetAttributesDictionary();
         CFRetain(attrObj);
@@ -829,8 +835,7 @@ gfxCoreTextFontGroup::InitTextRun(gfxTextRun *aTextRun,
             if (matchedFont != mainFont) {
                 CTFontRef matchedCTFont = matchedFont->GetCTFont();
                 if (disableLigatures)
-                    matchedCTFont = gfxCoreTextFont::CreateCTFontWithDisabledLigatures(matchedFont->GetATSFont(),
-                                                                                       CTFontGetSize(matchedCTFont));
+                    matchedCTFont = gfxCoreTextFont::CreateCopyWithDisabledLigatures(matchedCTFont);
                 // if necessary, make a mutable copy of the string
                 if (!mutableStringObj) {
                     mutableStringObj =

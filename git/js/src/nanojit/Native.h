@@ -95,7 +95,7 @@ namespace nanojit {
 
     #define isSPorFP(r)        ( (r)==SP || (r)==FP )
 
-    #ifdef MOZ_NO_VARADIC_MACROS
+    #if defined(_MSC_VER) && _MSC_VER < 1400
         static void asm_output(const char *f, ...) {}
         #define gpn(r)                    regNames[(r)]
         #define fpn(r)                    regNames[(r)]

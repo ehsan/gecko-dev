@@ -106,7 +106,7 @@ nsFilePicker::~nsFilePicker()
 //
 //-------------------------------------------------------------------------
 
-#ifndef WINCE_WINDOWS_MOBILE
+#ifndef WINCE
 int CALLBACK BrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lParam, LPARAM lpData)
 {
   if (uMsg == BFFM_INITIALIZED)
@@ -150,7 +150,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
 
   mUnicodeFile.Truncate();
 
-#ifndef WINCE_WINDOWS_MOBILE
+#ifndef WINCE
 
   if (mMode == modeGetFolder) {
     PRUnichar dirBuffer[MAX_PATH+1];
@@ -189,7 +189,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
     }
   }
   else 
-#endif // WINCE_WINDOWS_MOBILE
+#endif // WINCE
   {
 
     OPENFILENAMEW ofn;
@@ -204,12 +204,8 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
     ofn.lpstrTitle   = (LPCWSTR)mTitle.get();
     ofn.lpstrFilter  = (LPCWSTR)filterBuffer.get();
     ofn.nFilterIndex = mSelectedType;
-#ifdef WINCE_WINDOWS_MOBILE
-    // If we're running fullscreen the dialog inherits that, which is bad
-    ofn.hwndOwner    = (HWND) 0;
-#else
-    ofn.hwndOwner    = (HWND) (mParentWidget.get() ? mParentWidget->GetNativeData(NS_NATIVE_WINDOW) : 0); 
-#endif
+    ofn.hwndOwner    = (HWND)
+      (mParentWidget.get() ? mParentWidget->GetNativeData(NS_NATIVE_WINDOW) : 0); 
     ofn.lpstrFile    = fileBuffer;
     ofn.nMaxFile     = FILE_BUFFER_SIZE;
 
@@ -280,13 +276,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
             result = ::GetSaveFileNameW(&ofn);
           }
         }
-      } 
-#ifdef WINCE_WINDOWS_MOBILE
-      else if (mMode == modeGetFolder) {
-        ofn.Flags = OFN_PROJECT | OFN_FILEMUSTEXIST;
-        result = ::GetOpenFileNameW(&ofn);
       }
-#endif
       else {
         NS_ASSERTION(0, "unsupported mode"); 
       }

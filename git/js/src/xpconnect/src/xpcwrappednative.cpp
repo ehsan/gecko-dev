@@ -3787,16 +3787,6 @@ ConstructSlimWrapper(XPCCallContext &ccx, nsISupports *p, nsWrapperCache *cache,
         }
     }
 
-    // The PreCreate hook could have forced the creation of a wrapper, need
-    // to check for that here and return early.
-    JSObject* wrapper = cache->GetWrapper();
-    if(wrapper)
-    {
-        *rval = OBJECT_TO_JSVAL(wrapper);
-
-        return JS_TRUE;
-    }
-
     AutoMarkingWrappedNativeProtoPtr xpcproto(ccx);
     JSBool isGlobal = JS_FALSE;
     xpcproto = XPCWrappedNativeProto::GetNewOrUsed(ccx, xpcScope, classInfo,
@@ -3812,9 +3802,9 @@ ConstructSlimWrapper(XPCCallContext &ccx, nsISupports *p, nsWrapperCache *cache,
     if(!jsclazz->addProperty)
         return JS_FALSE;
 
-    wrapper = xpc_NewSystemInheritingJSObject(ccx, jsclazz,
-                                              xpcproto->GetJSProtoObject(),
-                                              parent);
+    JSObject* wrapper =
+        xpc_NewSystemInheritingJSObject(ccx, jsclazz,
+                                        xpcproto->GetJSProtoObject(), parent);
     if(!JS_SetPrivate(ccx, wrapper, identityObj) ||
        !JS_SetReservedSlot(ccx, wrapper, 0, PRIVATE_TO_JSVAL(xpcproto.get())))
         return JS_FALSE;
