@@ -199,6 +199,7 @@ CallObject *
 CallObject::createForFunction(JSContext *cx, StackFrame *fp)
 {
     JS_ASSERT(fp->isNonEvalFunctionFrame());
+    assertSameCompartment(cx, fp);
 
     RootedObject scopeChain(cx, fp->scopeChain());
 
@@ -265,6 +266,8 @@ Class js::DeclEnvClass = {
 DeclEnvObject *
 DeclEnvObject::create(JSContext *cx, StackFrame *fp)
 {
+    assertSameCompartment(cx, fp);
+
     RootedTypeObject type(cx, cx->compartment->getEmptyType(cx));
     if (!type)
         return NULL;
@@ -281,7 +284,7 @@ DeclEnvObject::create(JSContext *cx, StackFrame *fp)
         return NULL;
 
     obj->asScope().setEnclosingScope(fp->scopeChain());
-    Rooted<jsid> id(cx, AtomToId(fp->fun()->atom));
+    Rooted<jsid> id(cx, AtomToId(fp->fun()->atom()));
     RootedValue value(cx, ObjectValue(fp->callee()));
     if (!DefineNativeProperty(cx, obj, id, value, NULL, NULL,
                               JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_READONLY,
@@ -570,7 +573,6 @@ Class js::WithClass = {
         with_Enumerate,
         with_TypeOf,
         with_ThisObject,
-        NULL,             /* clear */
     }
 };
 
@@ -579,6 +581,8 @@ Class js::WithClass = {
 ClonedBlockObject *
 ClonedBlockObject::create(JSContext *cx, Handle<StaticBlockObject *> block, StackFrame *fp)
 {
+    assertSameCompartment(cx, fp);
+
     RootedTypeObject type(cx, block->getNewType(cx));
     if (!type)
         return NULL;
@@ -877,6 +881,7 @@ ScopeIter::ScopeIter(StackFrame *fp, JSContext *cx
     cur_(cx, fp->scopeChain()),
     block_(cx, fp->maybeBlockChain())
 {
+    assertSameCompartment(cx, fp);
     settle();
     JS_GUARD_OBJECT_NOTIFIER_INIT;
 }
@@ -1617,6 +1622,7 @@ DebugScopes::addDebugScope(JSContext *cx, ScopeObject &scope, DebugScopeObject &
         js_ReportOutOfMemory(cx);
         return false;
     }
+    HashTableWriteBarrierPost(debugScope.compartment(), &proxiedScopes, &scope);
     return true;
 }
 
@@ -1656,6 +1662,7 @@ void
 DebugScopes::onPopCall(StackFrame *fp, JSContext *cx)
 {
     JS_ASSERT(!fp->isYielding());
+    assertSameCompartment(cx, fp);
 
     DebugScopeObject *debugScope = NULL;
 
@@ -1683,7 +1690,7 @@ DebugScopes::onPopCall(StackFrame *fp, JSContext *cx)
     /*
      * When the StackFrame is popped, the values of unaliased variables
      * are lost. If there is any debug scope referring to this scope, save a
-     * copy of the unaliased variables' values in an array for latter debugger
+     * copy of the unaliased variables' values in an array for later debugger
      * access via DebugScopeProxy::handleUnaliasedAccess.
      *
      * Note: since it is simplest for this function to be infallible, failure
@@ -1729,6 +1736,8 @@ DebugScopes::onPopCall(StackFrame *fp, JSContext *cx)
 void
 DebugScopes::onPopBlock(JSContext *cx, StackFrame *fp)
 {
+    assertSameCompartment(cx, fp);
+
     StaticBlockObject &staticBlock = *fp->maybeBlockChain();
     if (staticBlock.needsClone()) {
         ClonedBlockObject &clone = fp->scopeChain()->asClonedBlock();
@@ -1794,6 +1803,10 @@ DebugScopes::onGeneratorFrameChange(StackFrame *from, StackFrame *to, JSContext 
 void
 DebugScopes::onCompartmentLeaveDebugMode(JSCompartment *c)
 {
+    for (ObjectWeakMap::Enum e(proxiedScopes); !e.empty(); e.popFront()) {
+        if (e.front().key->compartment() == c)
+            e.removeFront();
+    }
     for (MissingScopeMap::Enum e(missingScopes); !e.empty(); e.popFront()) {
         if (e.front().key.fp()->compartment() == c)
             e.removeFront();
@@ -1822,7 +1835,7 @@ DebugScopes::updateLiveScopes(JSContext *cx)
      */
     for (AllFramesIter i(cx->runtime->stackSpace); !i.done(); ++i) {
         StackFrame *fp = i.fp();
-        if (fp->isDummyFrame() || fp->scopeChain()->compartment() != cx->compartment)
+        if (fp->scopeChain()->compartment() != cx->compartment)
             continue;
 
         for (ScopeIter si(fp, cx); !si.done(); ++si) {

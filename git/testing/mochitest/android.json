@@ -147,6 +147,8 @@
  "dom/indexedDB/ipc/test_ipc.html": "bug 783513",
  "dom/indexedDB/test/test_third_party.html": "TIMED_OUT",
  "dom/indexedDB/test/test_event_propagation.html": "TIMED_OUT, bug 780855",
+ "dom/indexedDB/test/test_app_isolation_inproc.html": "TIMED_OUT",
+ "dom/indexedDB/test/test_app_isolation_oop.html": "TIMED_OUT",
  "dom/network/tests/test_network_basics.html": "",
  "dom/settings/tests/test_settings_events.html": "",
  "dom/settings/tests/test_settings_basics.html": "",
@@ -311,6 +313,7 @@
  "toolkit/content/tests/widgets/test_menubar.xul": "W/SharedBufferStack(21799): waitForCondition(LockCondition) timed out (identity=34, status=0). CPU may be pegged. trying again",
  "toolkit/content/tests/widgets/test_videocontrols.html": "TIMED_OUT",
  "uriloader/exthandler/tests/mochitest/test_handlerApps.xhtml": "",
+ "widget/tests/test_bug760802.html": "",
  "dom/tests/mochitest/ajax/offline": "SLOW_DIRECTORY",
  "layout/base/tests": "SLOW_DIRECTORY"
  }

@@ -404,7 +404,6 @@ libgnomevfs/gnome-vfs-mime-utils.h
 libgnomevfs/gnome-vfs-ops.h
 libgnomevfs/gnome-vfs-standard-callbacks.h
 lib$routines.h
-libnotify/notify.h
 limits
 limits.h
 link.h
@@ -1068,3 +1067,7 @@ gst/app/gstappsrc.h
 gst/video/video.h
 sys/msg.h
 sys/ipc.h
+sys/thr.h
+sys/user.h
+kvm.h
+spawn.h

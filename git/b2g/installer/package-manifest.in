@@ -160,6 +160,7 @@
 @BINPATH@/components/dom_telephony.xpt
 @BINPATH@/components/dom_wifi.xpt
 @BINPATH@/components/dom_system_gonk.xpt
+@BINPATH@/components/dom_icc.xpt
 #endif
 @BINPATH@/components/dom_battery.xpt
 #ifdef MOZ_B2G_BT
@@ -344,8 +345,6 @@
 @BINPATH@/components/nsPrivateBrowsingService.manifest
 @BINPATH@/components/nsPrivateBrowsingService.js
 @BINPATH@/components/toolkitsearch.manifest
-@BINPATH@/components/nsSearchService.js
-@BINPATH@/components/nsSearchSuggestions.js
 @BINPATH@/components/nsTryToClose.manifest
 @BINPATH@/components/nsTryToClose.js
 @BINPATH@/components/passwordmgr.manifest
@@ -675,10 +674,12 @@ bin/components/@DLL_PREFIX@nkgnomevfs@DLL_SUFFIX@
 @BINPATH@/components/B2GComponents.xpt
 @BINPATH@/components/CameraContent.js
 @BINPATH@/@DLL_PREFIX@omxplugin@DLL_SUFFIX@
+#ifdef ENABLE_MARIONETTE
 @BINPATH@/chrome/marionette@JAREXT@
 @BINPATH@/chrome/marionette.manifest
 @BINPATH@/components/MarionetteComponents.manifest
 @BINPATH@/components/marionettecomponent.js
+#endif
 @BINPATH@/components/AlertsService.js
 @BINPATH@/components/ContentPermissionPrompt.js
 #ifdef MOZ_UPDATER

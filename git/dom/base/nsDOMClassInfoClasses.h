@@ -407,7 +407,9 @@ DOMCI_CLASS(MozSmsFilter)
 DOMCI_CLASS(MozSmsCursor)
 
 DOMCI_CLASS(MozConnection)
+#ifdef MOZ_B2G_RIL
 DOMCI_CLASS(MozMobileConnection)
+#endif
 
 DOMCI_CLASS(USSDReceivedEvent)
 
@@ -475,6 +477,8 @@ DOMCI_CLASS(TransitionEvent)
 DOMCI_CLASS(AnimationEvent)
 
 DOMCI_CLASS(ContentFrameMessageManager)
+DOMCI_CLASS(ChromeMessageBroadcaster)
+DOMCI_CLASS(ChromeMessageSender)
 
 DOMCI_CLASS(FormData)
 
@@ -517,6 +521,8 @@ DOMCI_CLASS(TelephonyCall)
 DOMCI_CLASS(CallEvent)
 DOMCI_CLASS(MozVoicemail)
 DOMCI_CLASS(MozVoicemailEvent)
+DOMCI_CLASS(MozIccManager)
+DOMCI_CLASS(MozStkCommandEvent)
 #endif
 
 #ifdef MOZ_B2G_BT
@@ -524,7 +530,6 @@ DOMCI_CLASS(BluetoothManager)
 DOMCI_CLASS(BluetoothAdapter)
 DOMCI_CLASS(BluetoothDevice)
 DOMCI_CLASS(BluetoothPropertyEvent)
-DOMCI_CLASS(BluetoothPairingEvent)
 #endif
 
 DOMCI_CLASS(CameraManager)

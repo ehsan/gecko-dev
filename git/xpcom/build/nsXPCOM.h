@@ -30,8 +30,6 @@
 # define NS_LogDtor                  NS_LogDtor_P
 # define NS_LogCOMPtrAddRef          NS_LogCOMPtrAddRef_P
 # define NS_LogCOMPtrRelease         NS_LogCOMPtrRelease_P
-# define NS_CycleCollectorSuspect    NS_CycleCollectorSuspect_P
-# define NS_CycleCollectorForget     NS_CycleCollectorForget_P
 # define NS_CycleCollectorSuspect2   NS_CycleCollectorSuspect2_P
 # define NS_CycleCollectorForget2    NS_CycleCollectorForget2_P
 #endif
@@ -358,14 +356,10 @@ NS_LogCOMPtrRelease(void *aCOMPtr, nsISupports *aObject);
 
 #ifdef __cplusplus
 
-XPCOM_API(bool)
-NS_CycleCollectorSuspect(nsISupports *n);
-
-XPCOM_API(bool)
-NS_CycleCollectorForget(nsISupports *n);
+class nsCycleCollectionParticipant;
 
 XPCOM_API(nsPurpleBufferEntry*)
-NS_CycleCollectorSuspect2(nsISupports *n);
+NS_CycleCollectorSuspect2(void *n, nsCycleCollectionParticipant *p);
 
 XPCOM_API(bool)
 NS_CycleCollectorForget2(nsPurpleBufferEntry *e);

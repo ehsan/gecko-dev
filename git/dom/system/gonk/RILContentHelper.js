@@ -56,17 +56,21 @@ const RIL_IPC_MSG_NAMES = [
   "RIL:SendUssd:Return:OK",
   "RIL:SendUssd:Return:KO",
   "RIL:CancelUssd:Return:OK",
-  "RIL:CancelUssd:Return:KO"
+  "RIL:CancelUssd:Return:KO",
+  "RIL:StkCommand",
+  "RIL:StkSessionEnd"
 ];
 
 const kVoiceChangedTopic     = "mobile-connection-voice-changed";
 const kDataChangedTopic      = "mobile-connection-data-changed";
 const kCardStateChangedTopic = "mobile-connection-cardstate-changed";
 const kUssdReceivedTopic     = "mobile-connection-ussd-received";
+const kStkCommandTopic       = "icc-manager-stk-command";
+const kStkSessionEndTopic    = "icc-manager-stk-session-end";
 
 XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
                                    "@mozilla.org/childprocessmessagemanager;1",
-                                   "nsIFrameMessageManager");
+                                   "nsISyncMessageSender");
 
 XPCOMUtils.defineLazyServiceGetter(this, "gUUIDGenerator",
                                    "@mozilla.org/uuid-generator;1",
@@ -161,8 +165,7 @@ function RILContentHelper() {
   Services.obs.addObserver(this, "xpcom-shutdown", false);
 
   // Request initial context.
-  let rilContext = cpmm.QueryInterface(Ci.nsISyncMessageSender)
-                       .sendSyncMessage("RIL:GetRilContext")[0];
+  let rilContext = cpmm.sendSyncMessage("RIL:GetRilContext")[0];
 
   if (!rilContext) {
     debug("Received null rilContext from chrome process.");
@@ -378,6 +381,25 @@ RILContentHelper.prototype = {
     return request;
   },
 
+  sendStkResponse: function sendStkResponse(window, response) {
+    if (window == null) {
+      throw Components.Exception("Can't get window object",
+                                  Cr.NS_ERROR_UNEXPECTED);
+    }
+    cpmm.sendAsyncMessage("RIL:SendStkResponse", response);
+  },
+
+  sendStkMenuSelection: function sendStkMenuSelection(window,
+                                                      itemIdentifier,
+                                                      helpRequested) {
+    if (window == null) {
+      throw Components.Exception("Can't get window object",
+                                  Cr.NS_ERROR_UNEXPECTED);
+    }
+    cpmm.sendAsyncMessage("RIL:SendStkMenuSelection", {itemIdentifier: itemIdentifier,
+                                                       helpRequested: helpRequested});
+  },
+
   _telephonyCallbacks: null,
   _voicemailCallbacks: null,
   _enumerateTelephonyCallbacks: null,
@@ -508,7 +530,7 @@ RILContentHelper.prototype = {
     }
   },
 
-  // nsIFrameMessageListener
+  // nsIMessageListener
 
   fireRequestSuccess: function fireRequestSuccess(requestId, result) {
     let request = this.takeRequest(requestId);
@@ -630,6 +652,13 @@ RILContentHelper.prototype = {
           Services.DOMRequest.fireError(request, msg.json.errorMsg);
         }
         break;
+      case "RIL:StkCommand":
+        let jsonString = JSON.stringify(msg.json);
+        Services.obs.notifyObservers(null, kStkCommandTopic, jsonString);
+        break;
+      case "RIL:StkSessionEnd":
+        Services.obs.notifyObservers(null, kStkSessionEndTopic, null);
+      break;
     }
   },
 

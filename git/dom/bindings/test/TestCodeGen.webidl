@@ -228,6 +228,7 @@ interface TestInterface {
   void passUint8ClampedArray(Uint8ClampedArray arg);
   void passFloat32Array(Float32Array arg);
   void passFloat64Array(Float64Array arg);
+  Uint8Array receiveUint8Array();
 
   // String types
   void passString(DOMString arg);
@@ -371,4 +372,41 @@ dictionary ParentDict : GrandparentDict {
 
 dictionary DictContainingDict {
   Dict memberDict;
+};
+
+interface TestIndexedGetterInterface {
+  getter long item(unsigned long index);
+  readonly attribute unsigned long length;
+};
+
+interface TestNamedGetterInterface {
+  getter DOMString (DOMString name);
+};
+
+interface TestIndexedAndNamedGetterInterface {
+  getter long (unsigned long index);
+  getter DOMString namedItem(DOMString name);
+  readonly attribute unsigned long length;
+};
+
+interface TestIndexedSetterInterface {
+  setter creator void setItem(unsigned long index, DOMString item);
+};
+
+interface TestNamedSetterInterface {
+  setter creator void (DOMString name, TestIndexedSetterInterface item);
+};
+
+interface TestIndexedAndNamedSetterInterface {
+  setter creator void (unsigned long index, TestIndexedSetterInterface item);
+  setter creator void setNamedItem(DOMString name, TestIndexedSetterInterface item);
+};
+
+interface TestIndexedAndNamedGetterAndSetterInterface : TestIndexedSetterInterface {
+  getter long item(unsigned long index);
+  getter DOMString namedItem(DOMString name);
+  setter creator void (unsigned long index, long item);
+  setter creator void (DOMString name, DOMString item);
+  stringifier DOMString ();
+  readonly attribute unsigned long length;
 };

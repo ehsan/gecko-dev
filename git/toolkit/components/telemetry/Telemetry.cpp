@@ -195,28 +195,7 @@ struct TelemetryHistogram {
   const char *comment;
 };
 
-// Perform the checks at the beginning of HistogramGet at compile time, so
-// that if people add incorrect histogram definitions, they get compiler
-// errors.
-#define HISTOGRAM(id, min, max, bucket_count, histogram_type, b) \
-  MOZ_STATIC_ASSERT(nsITelemetry::HISTOGRAM_ ## histogram_type == nsITelemetry::HISTOGRAM_BOOLEAN || \
-                    nsITelemetry::HISTOGRAM_ ## histogram_type == nsITelemetry::HISTOGRAM_FLAG || \
-                    (min < max && bucket_count > 2 && min >= 1), \
-                    "Incorrect histogram definitions were found");
-
-#include "TelemetryHistograms.h"
-
-#undef HISTOGRAM
-
-const TelemetryHistogram gHistograms[] = {
-#define HISTOGRAM(id, min, max, bucket_count, histogram_type, comment) \
-  { NS_STRINGIFY(id), min, max, bucket_count, \
-    nsITelemetry::HISTOGRAM_ ## histogram_type, comment },
-
-#include "TelemetryHistograms.h"
-
-#undef HISTOGRAM
-};
+#include "TelemetryHistogramData.inc"
 bool gCorruptHistograms[Telemetry::HistogramCount];
 
 bool
@@ -292,6 +271,20 @@ GetHistogramByEnumId(Telemetry::ID id, Histogram **ret)
   nsresult rv = HistogramGet(p.id, p.min, p.max, p.bucketCount, p.histogramType, &h);
   if (NS_FAILED(rv))
     return rv;
+
+#ifdef DEBUG
+  // Check that the C++ Histogram code computes the same ranges as the
+  // Python histogram code.
+  const struct bounds &b = gBucketLowerBoundIndex[id];
+  if (b.length != 0) {
+    MOZ_ASSERT(size_t(b.length) == h->bucket_count(),
+               "C++/Python bucket # mismatch");
+    for (int i = 0; i < b.length; ++i) {
+      MOZ_ASSERT(gBucketLowerBounds[b.offset + i] == h->ranges(i),
+                 "C++/Python bucket mismatch");
+    }
+  }
+#endif
 
   *ret = knownHistograms[id] = h;
   return NS_OK;

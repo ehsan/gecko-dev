@@ -208,11 +208,6 @@ IDBFactory::Create(ContentParent* aContentParent,
   }
 #endif
 
-  nsCString origin;
-  nsresult rv =
-    IndexedDatabaseManager::GetASCIIOriginFromWindow(nullptr, origin);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   nsCOMPtr<nsIPrincipal> principal =
     do_CreateInstance("@mozilla.org/nullprincipal;1");
   NS_ENSURE_TRUE(principal, NS_ERROR_FAILURE);
@@ -232,7 +227,7 @@ IDBFactory::Create(ContentParent* aContentParent,
   NS_ASSERTION(xpc, "This should never be null!");
 
   nsCOMPtr<nsIXPConnectJSObjectHolder> globalHolder;
-  rv = xpc->CreateSandbox(cx, principal, getter_AddRefs(globalHolder));
+  nsresult rv = xpc->CreateSandbox(cx, principal, getter_AddRefs(globalHolder));
   NS_ENSURE_SUCCESS(rv, rv);
 
   JSObject* global;
@@ -243,11 +238,7 @@ IDBFactory::Create(ContentParent* aContentParent,
   // don't need a proxy here.
   global = JS_UnwrapObject(global);
 
-  JSAutoEnterCompartment ac;
-  if (!ac.enter(cx, global)) {
-    NS_WARNING("Failed to enter compartment!");
-    return NS_ERROR_FAILURE;
-  }
+  JSAutoCompartment ac(cx, global);
 
   nsRefPtr<IDBFactory> factory;
   rv = Create(cx, global, aContentParent, getter_AddRefs(factory));

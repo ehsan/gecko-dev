@@ -330,6 +330,7 @@ public:
   void PassUint8ClampedArray(Uint8ClampedArray&, ErrorResult&);
   void PassFloat32Array(Float32Array&, ErrorResult&);
   void PassFloat64Array(Float64Array&, ErrorResult&);
+  JSObject* ReceiveUint8Array(ErrorResult&);
 
   // String types
   void PassString(const nsAString&, ErrorResult&);
@@ -556,6 +557,102 @@ private:
   void PassOptionalNullableString(Optional<nsAString>&, ErrorResult&) MOZ_DELETE;
   void PassOptionalNullableStringWithDefaultValue(nsAString&, ErrorResult&) MOZ_DELETE;
 
+};
+
+class TestIndexedGetterInterface : public nsISupports,
+                                   public nsWrapperCache
+{
+public:
+  NS_DECL_ISUPPORTS
+
+  // We need a GetParentObject to make binding codegen happy
+  virtual nsISupports* GetParentObject();
+
+  uint32_t IndexedGetter(uint32_t, bool&, ErrorResult&);
+  uint32_t IndexedGetter(uint32_t, ErrorResult&) MOZ_DELETE;
+  uint32_t Item(uint32_t, ErrorResult&);
+  uint32_t Item(uint32_t, bool&, ErrorResult&) MOZ_DELETE;
+  uint32_t GetLength();
+};
+
+class TestNamedGetterInterface : public nsISupports,
+                                 public nsWrapperCache
+{
+public:
+  NS_DECL_ISUPPORTS
+
+  // We need a GetParentObject to make binding codegen happy
+  virtual nsISupports* GetParentObject();
+
+  void NamedGetter(const nsAString&, bool&, nsAString&, ErrorResult&);
+};
+
+class TestIndexedAndNamedGetterInterface : public nsISupports,
+                                           public nsWrapperCache
+{
+public:
+  NS_DECL_ISUPPORTS
+
+  // We need a GetParentObject to make binding codegen happy
+  virtual nsISupports* GetParentObject();
+
+  uint32_t IndexedGetter(uint32_t, bool&, ErrorResult&);
+  void NamedGetter(const nsAString&, bool&, nsAString&, ErrorResult&);
+  void NamedItem(const nsAString&, nsAString&, ErrorResult&);
+  uint32_t GetLength();
+};
+
+class TestIndexedSetterInterface : public nsISupports,
+                                   public nsWrapperCache
+{
+public:
+  NS_DECL_ISUPPORTS
+
+  // We need a GetParentObject to make binding codegen happy
+  virtual nsISupports* GetParentObject();
+
+  void IndexedSetter(uint32_t, const nsAString&, ErrorResult&);
+  void SetItem(uint32_t, const nsAString&, ErrorResult&);
+};
+
+class TestNamedSetterInterface : public nsISupports,
+                                 public nsWrapperCache
+{
+public:
+  NS_DECL_ISUPPORTS
+
+  // We need a GetParentObject to make binding codegen happy
+  virtual nsISupports* GetParentObject();
+
+  void NamedSetter(const nsAString&, TestIndexedSetterInterface&, ErrorResult&);
+};
+
+class TestIndexedAndNamedSetterInterface : public nsISupports,
+                                           public nsWrapperCache
+{
+public:
+  NS_DECL_ISUPPORTS
+
+  // We need a GetParentObject to make binding codegen happy
+  virtual nsISupports* GetParentObject();
+
+  void IndexedSetter(uint32_t, TestIndexedSetterInterface&, ErrorResult&);
+  void NamedSetter(const nsAString&, TestIndexedSetterInterface&, ErrorResult&);
+  void SetNamedItem(const nsAString&, TestIndexedSetterInterface&, ErrorResult&);
+};
+
+class TestIndexedAndNamedGetterAndSetterInterface : public TestIndexedSetterInterface
+{
+public:
+  uint32_t IndexedGetter(uint32_t, bool&, ErrorResult&);
+  uint32_t Item(uint32_t, ErrorResult&);
+  void NamedGetter(const nsAString&, bool&, nsAString&, ErrorResult&);
+  void NamedItem(const nsAString&, nsAString&, ErrorResult&);
+  void IndexedSetter(uint32_t, int32_t&, ErrorResult&);
+  void IndexedSetter(uint32_t, const nsAString&, ErrorResult&) MOZ_DELETE;
+  void NamedSetter(const nsAString&, const nsAString&, ErrorResult&);
+  void Stringify(nsAString&);
+  uint32_t GetLength();
 };
 
 } // namespace dom

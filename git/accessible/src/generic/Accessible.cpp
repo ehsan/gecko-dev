@@ -799,8 +799,7 @@ Accessible::ChildAtPoint(int32_t aX, int32_t aY,
   nsPoint offset(presContext->DevPixelsToAppUnits(aX) - screenRect.x,
                  presContext->DevPixelsToAppUnits(aY) - screenRect.y);
 
-  nsIPresShell* presShell = presContext->PresShell();
-  nsIFrame *foundFrame = presShell->GetFrameForPoint(frame, offset);
+  nsIFrame *foundFrame = nsLayoutUtils::GetFrameForPoint(frame, offset);
 
   nsIContent* content = nullptr;
   if (!foundFrame || !(content = foundFrame->GetContent()))
@@ -2729,7 +2728,7 @@ Accessible::SelectedItems()
   if (!selectedItems)
     return nullptr;
 
-  AccIterator iter(this, filters::GetSelected, AccIterator::eTreeNav);
+  AccIterator iter(this, filters::GetSelected);
   nsIAccessible* selected = nullptr;
   while ((selected = iter.Next()))
     selectedItems->AppendElement(selected, false);
@@ -2743,7 +2742,7 @@ uint32_t
 Accessible::SelectedItemCount()
 {
   uint32_t count = 0;
-  AccIterator iter(this, filters::GetSelected, AccIterator::eTreeNav);
+  AccIterator iter(this, filters::GetSelected);
   Accessible* selected = nullptr;
   while ((selected = iter.Next()))
     ++count;
@@ -2754,7 +2753,7 @@ Accessible::SelectedItemCount()
 Accessible*
 Accessible::GetSelectedItem(uint32_t aIndex)
 {
-  AccIterator iter(this, filters::GetSelected, AccIterator::eTreeNav);
+  AccIterator iter(this, filters::GetSelected);
   Accessible* selected = nullptr;
 
   uint32_t index = 0;
@@ -2768,7 +2767,7 @@ bool
 Accessible::IsItemSelected(uint32_t aIndex)
 {
   uint32_t index = 0;
-  AccIterator iter(this, filters::GetSelectable, AccIterator::eTreeNav);
+  AccIterator iter(this, filters::GetSelectable);
   Accessible* selected = nullptr;
   while ((selected = iter.Next()) && index < aIndex)
     index++;
@@ -2781,7 +2780,7 @@ bool
 Accessible::AddItemToSelection(uint32_t aIndex)
 {
   uint32_t index = 0;
-  AccIterator iter(this, filters::GetSelectable, AccIterator::eTreeNav);
+  AccIterator iter(this, filters::GetSelectable);
   Accessible* selected = nullptr;
   while ((selected = iter.Next()) && index < aIndex)
     index++;
@@ -2796,7 +2795,7 @@ bool
 Accessible::RemoveItemFromSelection(uint32_t aIndex)
 {
   uint32_t index = 0;
-  AccIterator iter(this, filters::GetSelectable, AccIterator::eTreeNav);
+  AccIterator iter(this, filters::GetSelectable);
   Accessible* selected = nullptr;
   while ((selected = iter.Next()) && index < aIndex)
     index++;
@@ -2813,7 +2812,7 @@ Accessible::SelectAll()
   bool success = false;
   Accessible* selectable = nullptr;
 
-  AccIterator iter(this, filters::GetSelectable, AccIterator::eTreeNav);
+  AccIterator iter(this, filters::GetSelectable);
   while((selectable = iter.Next())) {
     success = true;
     selectable->SetSelected(true);
@@ -2827,7 +2826,7 @@ Accessible::UnselectAll()
   bool success = false;
   Accessible* selected = nullptr;
 
-  AccIterator iter(this, filters::GetSelected, AccIterator::eTreeNav);
+  AccIterator iter(this, filters::GetSelected);
   while ((selected = iter.Next())) {
     success = true;
     selected->SetSelected(false);

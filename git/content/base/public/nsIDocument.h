@@ -1483,10 +1483,12 @@ public:
                                  const nsAString& aCrossOriginAttr) = 0;
 
   /**
-   * Called by nsParser to preload style sheets.  Can also be merged into
-   * the parser if and when the parser is merged with libgklayout.
+   * Called by nsParser to preload style sheets.  Can also be merged into the
+   * parser if and when the parser is merged with libgklayout.  aCrossOriginAttr
+   * should be a void string if the attr is not present.
    */
-  virtual void PreloadStyle(nsIURI* aURI, const nsAString& aCharset) = 0;
+  virtual void PreloadStyle(nsIURI* aURI, const nsAString& aCharset,
+                            const nsAString& aCrossOriginAttr) = 0;
 
   /**
    * Called by the chrome registry to load style sheets.  Can be put
@@ -1771,8 +1773,8 @@ protected:
   // We hold a strong reference to mNodeInfoManager through mNodeInfo
   nsNodeInfoManager* mNodeInfoManager; // [STRONG]
   nsRefPtr<mozilla::css::Loader> mCSSLoader;
-  mozilla::css::ImageLoader* mStyleImageLoader; // [STRONG]
-  nsHTMLStyleSheet* mAttrStyleSheet;
+  nsRefPtr<mozilla::css::ImageLoader> mStyleImageLoader;
+  nsRefPtr<nsHTMLStyleSheet> mAttrStyleSheet;
 
   // The set of all object, embed, applet, video and audio elements for
   // which this is the owner document. (They might not be in the document.)

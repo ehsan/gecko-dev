@@ -15,6 +15,7 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/FileUtils.jsm");
 Cu.import('resource://gre/modules/ActivitiesService.jsm');
+Cu.import("resource://gre/modules/AppsUtils.jsm");
 
 const WEBAPP_RUNTIME = Services.appinfo.ID == "webapprt@mozilla.org";
 
@@ -23,14 +24,13 @@ XPCOMUtils.defineLazyGetter(this, "NetUtil", function() {
   return NetUtil;
 });
 
-XPCOMUtils.defineLazyGetter(this, "ppmm", function() {
-  return Cc["@mozilla.org/parentprocessmessagemanager;1"]
-         .getService(Ci.nsIFrameMessageManager);
-});
+XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
+                                   "@mozilla.org/parentprocessmessagemanager;1",
+                                   "nsIMessageBroadcaster");
 
 XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
                                    "@mozilla.org/childprocessmessagemanager;1",
-                                   "nsIFrameMessageManager");
+                                   "nsIMessageSender");
 
 XPCOMUtils.defineLazyGetter(this, "msgmgr", function() {
   return Cc["@mozilla.org/system-message-internal;1"]
@@ -51,16 +51,16 @@ XPCOMUtils.defineLazyGetter(this, "msgmgr", function() {
 let DOMApplicationRegistry = {
   appsFile: null,
   webapps: { },
+  children: [ ],
   allAppsLaunchable: false,
 
   init: function() {
     this.messages = ["Webapps:Install", "Webapps:Uninstall",
-                    "Webapps:GetSelf",
-                    "Webapps:GetInstalled", "Webapps:GetNotInstalled",
-                    "Webapps:Launch", "Webapps:GetAll",
-                    "Webapps:InstallPackage", "Webapps:GetBasePath",
-                    "WebApps:GetAppByManifestURL", "WebApps:GetAppLocalIdByManifestURL",
-                    "WebApps:GetAppByLocalId", "WebApps:GetManifestURLByLocalId"];
+                     "Webapps:GetSelf",
+                     "Webapps:GetInstalled", "Webapps:GetNotInstalled",
+                     "Webapps:Launch", "Webapps:GetAll",
+                     "Webapps:InstallPackage", "Webapps:GetBasePath",
+                     "Webapps:GetList"];
 
     this.messages.forEach((function(msgName) {
       ppmm.addMessageListener(msgName, this);
@@ -80,6 +80,11 @@ let DOMApplicationRegistry = {
 #endif
           if (!this.webapps[id].localId) {
             this.webapps[id].localId = this._nextLocalId();
+          }
+
+          // Default to a non privileged status.
+          if (this.webapps[id].appStatus === undefined) {
+            this.webapps[id].appStatus = Ci.nsIPrincipal.APP_STATUS_INSTALLED;
           }
         };
       }).bind(this));
@@ -243,7 +248,7 @@ let DOMApplicationRegistry = {
         if (msg.hasPrivileges)
           this.getAll(msg);
         else
-          ppmm.sendAsyncMessage("Webapps:GetAll:Return:KO", msg);
+          ppmm.broadcastAsyncMessage("Webapps:GetAll:Return:KO", msg);
         break;
       case "Webapps:InstallPackage":
         this.installPackage(msg);
@@ -251,18 +256,9 @@ let DOMApplicationRegistry = {
       case "Webapps:GetBasePath":
         return FileUtils.getFile(DIRECTORY_NAME, ["webapps"], true).path;
         break;
-      case "WebApps:GetAppByManifestURL":
-        return this.getAppByManifestURL(msg.url);
-        break;
-      case "WebApps:GetAppLocalIdByManifestURL":
-        return { id: this.getAppLocalIdByManifestURL(msg.url) };
-        break;
-      case "WebApps:GetAppByLocalId":
-        return this.getAppByLocalId(msg.id);
-        break;
-      case "WebApps:GetManifestURLByLocalId":
-        return this.getManifestURLByLocalId(msg.id);
-        break;
+      case "Webapps:GetList":
+        this.children.push(aMessage.target);
+        return this.webapps;
     }
   },
 
@@ -283,20 +279,6 @@ let DOMApplicationRegistry = {
     });
   },
 
-  // clones a app object, without the manifest
-  _cloneAppObject: function(aApp) {
-    let clone = {
-      installOrigin: aApp.installOrigin,
-      origin: aApp.origin,
-      receipts: aApp.receipts ? JSON.parse(JSON.stringify(aApp.receipts)) : null,
-      installTime: aApp.installTime,
-      manifestURL: aApp.manifestURL,
-      progress: aApp.progress || 0.0,
-      status: aApp.status || "installed"
-    };
-    return clone;
-  },
-
   denyInstall: function(aData) {
     let packageId = aData.app.packageId;
     if (packageId) {
@@ -307,7 +289,7 @@ let DOMApplicationRegistry = {
       } catch(e) {
       }
     }
-    ppmm.sendAsyncMessage("Webapps:Install:Return:KO", aData);
+    ppmm.broadcastAsyncMessage("Webapps:Install:Return:KO", aData);
   },
 
   confirmInstall: function(aData, aFromSync, aProfileDir, aOfflineCacheObserver) {
@@ -332,7 +314,8 @@ let DOMApplicationRegistry = {
       app.origin = "app://" + id;
     }
 
-    let appObject = this._cloneAppObject(app);
+    let appObject = AppsUtils.cloneAppObject(app);
+    appObject.appStatus = app.appStatus || Ci.nsIPrincipal.APP_STATUS_INSTALLED;
     appObject.installTime = app.installTime = Date.now();
     let appNote = JSON.stringify(appObject);
     appNote.id = id;
@@ -346,10 +329,10 @@ let DOMApplicationRegistry = {
       // If this a packaged app, move the zip file from the temp directory,
       // and delete the temp directory.
       if (app.packageId) {
-        let appFile = FileUtils.getFile("TmpD", ["webapps", app.packageId, "application.zip"], 
+        let appFile = FileUtils.getFile("TmpD", ["webapps", app.packageId, "application.zip"],
                                         true, true);
         appFile.moveTo(dir, "application.zip");
-        let tmpDir = FileUtils.getDir("TmpD", ["webapps", app.packageId], 
+        let tmpDir = FileUtils.getDir("TmpD", ["webapps", app.packageId],
                                         true, true);
         try {
           tmpDir.remove(true);
@@ -360,13 +343,16 @@ let DOMApplicationRegistry = {
     this.webapps[id] = appObject;
 
     appObject.status = "installed";
-    
+
     let manifest = new DOMApplicationManifest(app.manifest, app.origin);
 
     if (!aFromSync)
       this._saveApps((function() {
-        ppmm.sendAsyncMessage("Webapps:Install:Return:OK", aData);
+        ppmm.broadcastAsyncMessage("Webapps:Install:Return:OK", aData);
         Services.obs.notifyObservers(this, "webapps-sync-install", appNote);
+        this.children.forEach(function(aMsgMgr) {
+          aMsgMgr.broadcastAsyncMessage("Webapps:AddApp", { id: id, app: appObject });
+        });
       }).bind(this));
 
 #ifdef MOZ_SYS_MSG
@@ -492,7 +478,7 @@ let DOMApplicationRegistry = {
       try {
         dir.remove(true);
       } catch (e) { }
-      ppmm.sendAsyncMessage("Webapps:Install:Return:KO",
+      ppmm.broadcastAsyncMessage("Webapps:Install:Return:KO",
                             { oid: aData.oid,
                               requestID: aData.requestID,
                               error: aError });
@@ -567,7 +553,7 @@ let DOMApplicationRegistry = {
       }
 
       found = true;
-      let appNote = JSON.stringify(this._cloneAppObject(app));
+      let appNote = JSON.stringify(AppsUtils.cloneAppObject(app));
       appNote.id = id;
 
       this._readManifests([{ id: id }], (function unregisterManifest(aResult) {
@@ -584,13 +570,16 @@ let DOMApplicationRegistry = {
       delete this.webapps[id];
 
       this._saveApps((function() {
-        ppmm.sendAsyncMessage("Webapps:Uninstall:Return:OK", aData);
+        ppmm.broadcastAsyncMessage("Webapps:Uninstall:Return:OK", aData);
         Services.obs.notifyObservers(this, "webapps-sync-uninstall", appNote);
+        this.children.forEach(function(aMsgMgr) {
+          aMsgMgr.broadcastAsyncMessage("Webapps:RemoveApp", { id: id });
+        });
       }).bind(this));
     }
 
     if (!found) {
-      ppmm.sendAsyncMessage("Webapps:Uninstall:Return:KO", aData);
+      ppmm.broadcastAsyncMessage("Webapps:Uninstall:Return:KO", aData);
     }
   },
 
@@ -600,7 +589,7 @@ let DOMApplicationRegistry = {
     let id = this._appId(aData.origin);
 
     if (id && this._isLaunchable(this.webapps[id].origin)) {
-      let app = this._cloneAppObject(this.webapps[id]);
+      let app = AppsUtils.cloneAppObject(this.webapps[id]);
       aData.apps.push(app);
       tmp.push({ id: id });
     }
@@ -608,7 +597,7 @@ let DOMApplicationRegistry = {
     this._readManifests(tmp, (function(aResult) {
       for (let i = 0; i < aResult.length; i++)
         aData.apps[i].manifest = aResult[i].manifest;
-      ppmm.sendAsyncMessage("Webapps:GetSelf:Return:OK", aData);
+      ppmm.broadcastAsyncMessage("Webapps:GetSelf:Return:OK", aData);
     }).bind(this));
   },
 
@@ -619,7 +608,7 @@ let DOMApplicationRegistry = {
     for (let id in this.webapps) {
       if (this.webapps[id].installOrigin == aData.origin &&
           this._isLaunchable(this.webapps[id].origin)) {
-        aData.apps.push(this._cloneAppObject(this.webapps[id]));
+        aData.apps.push(AppsUtils.cloneAppObject(this.webapps[id]));
         tmp.push({ id: id });
       }
     }
@@ -627,7 +616,7 @@ let DOMApplicationRegistry = {
     this._readManifests(tmp, (function(aResult) {
       for (let i = 0; i < aResult.length; i++)
         aData.apps[i].manifest = aResult[i].manifest;
-      ppmm.sendAsyncMessage("Webapps:GetInstalled:Return:OK", aData);
+      ppmm.broadcastAsyncMessage("Webapps:GetInstalled:Return:OK", aData);
     }).bind(this));
   },
 
@@ -637,7 +626,7 @@ let DOMApplicationRegistry = {
 
     for (let id in this.webapps) {
       if (!this._isLaunchable(this.webapps[id].origin)) {
-        aData.apps.push(this._cloneAppObject(this.webapps[id]));
+        aData.apps.push(AppsUtils.cloneAppObject(this.webapps[id]));
         tmp.push({ id: id });
       }
     }
@@ -645,7 +634,7 @@ let DOMApplicationRegistry = {
     this._readManifests(tmp, (function(aResult) {
       for (let i = 0; i < aResult.length; i++)
         aData.apps[i].manifest = aResult[i].manifest;
-      ppmm.sendAsyncMessage("Webapps:GetNotInstalled:Return:OK", aData);
+      ppmm.broadcastAsyncMessage("Webapps:GetNotInstalled:Return:OK", aData);
     }).bind(this));
   },
 
@@ -654,7 +643,7 @@ let DOMApplicationRegistry = {
     let tmp = [];
 
     for (let id in this.webapps) {
-      let app = this._cloneAppObject(this.webapps[id]);
+      let app = AppsUtils.cloneAppObject(this.webapps[id]);
       if (!this._isLaunchable(app.origin))
         continue;
 
@@ -665,7 +654,7 @@ let DOMApplicationRegistry = {
     this._readManifests(tmp, (function(aResult) {
       for (let i = 0; i < aResult.length; i++)
         aData.apps[i].manifest = aResult[i].manifest;
-      ppmm.sendAsyncMessage("Webapps:GetAll:Return:OK", aData);
+      ppmm.broadcastAsyncMessage("Webapps:GetAll:Return:OK", aData);
     }).bind(this));
   },
 
@@ -693,78 +682,30 @@ let DOMApplicationRegistry = {
     if (!this.webapps[aId])
       return null;
 
-    let app = this._cloneAppObject(this.webapps[aId]);
+    let app = AppsUtils.cloneAppObject(this.webapps[aId]);
     return app;
   },
 
   getAppByManifestURL: function(aManifestURL) {
-    // This could be O(1) if |webapps| was a dictionary indexed on manifestURL
-    // which should be the unique app identifier.
-    // It's currently O(n).
-    for (let id in this.webapps) {
-      let app = this.webapps[id];
-      if (app.manifestURL == aManifestURL) {
-        let res = this._cloneAppObject(app);
-        res.hasPermission = function(permission) {
-          let localId = DOMApplicationRegistry.getAppLocalIdByManifestURL(
-            this.manifestURL);
-          let uri = Services.io.newURI(this.manifestURL, null, null);
-          let secMan = Cc["@mozilla.org/scriptsecuritymanager;1"]
-                       .getService(Ci.nsIScriptSecurityManager);
-          // XXX for the purposes of permissions checking, this helper
-          // should always be called on !isBrowser frames, so we
-          // assume false here.
-          let principal = secMan.getAppCodebasePrincipal(uri, localId,
-                                                         /*mozbrowser*/false);
-          let perm = Services.perms.testExactPermissionFromPrincipal(principal,
-                                                                     permission);
-          return (perm === Ci.nsIPermissionManager.ALLOW_ACTION);
-        };
-        res.QueryInterface = XPCOMUtils.generateQI([Ci.mozIDOMApplication,
-                                                    Ci.mozIApplication]);
-        return res;
-      }
-    }
-
-    return null;
+    return AppsUtils.getAppByManifestURL(this.webapps, aManifestURL);
   },
 
   getAppByLocalId: function(aLocalId) {
-    for (let id in this.webapps) {
-      let app = this.webapps[id];
-      if (app.localId == aLocalId) {
-        return this._cloneAppObject(app);
-      }
-    }
-
-    return null;
+    return AppsUtils.getAppByLocalId(this.webapps, aLocalId);
   },
 
   getManifestURLByLocalId: function(aLocalId) {
-    for (let id in this.webapps) {
-      let app = this.webapps[id];
-      if (app.localId == aLocalId) {
-        return app.manifestURL;
-      }
-    }
-
-    return null;
+    return AppsUtils.getManifestURLByLocalId(this.webapps, aLocalId);
   },
 
   getAppLocalIdByManifestURL: function(aManifestURL) {
-    for (let id in this.webapps) {
-      if (this.webapps[id].manifestURL == aManifestURL) {
-        return this.webapps[id].localId;
-      }
-    }
-
-    return Ci.nsIScriptSecurityManager.NO_APP_ID;
+    return AppsUtils.getAppLocalIdByManifestURL(this.webapps, aManifestURL);
   },
 
   getAllWithoutManifests: function(aCallback) {
     let result = {};
     for (let id in this.webapps) {
-      let app = this._cloneAppObject(this.webapps[id]);
+      let app = AppsUtils.cloneAppObject(this.webapps[id]);
       result[id] = app;
     }
     aCallback(result);
@@ -783,7 +724,7 @@ let DOMApplicationRegistry = {
           dir.remove(true);
         } catch (e) {
         }
-        ppmm.sendAsyncMessage("Webapps:Uninstall:Return:OK", { origin: origin });
+        ppmm.broadcastAsyncMessage("Webapps:Uninstall:Return:OK", { origin: origin });
       } else {
         if (this.webapps[record.id]) {
           this.webapps[record.id] = record.value;
@@ -791,7 +732,7 @@ let DOMApplicationRegistry = {
         } else {
           let data = { app: record.value };
           this.confirmInstall(data, true);
-          ppmm.sendAsyncMessage("Webapps:Install:Return:OK", data);
+          ppmm.broadcastAsyncMessage("Webapps:Install:Return:OK", data);
         }
       }
     }
@@ -893,7 +834,7 @@ AppcacheObserver.prototype = {
     let setStatus = function appObs_setStatus(aStatus) {
       mustSave = (app.status != aStatus);
       app.status = aStatus;
-      ppmm.sendAsyncMessage("Webapps:OfflineCache", { manifest: app.manifestURL, status: aStatus });
+      ppmm.broadcastAsyncMessage("Webapps:OfflineCache", { manifest: app.manifestURL, status: aStatus });
     }
 
     switch (aState) {

@@ -172,6 +172,11 @@ TabParent::AnswerCreateWindow(PBrowserParent** retval)
         return false;
     }
 
+    // Only non-app, non-browser processes may call CreateWindow.
+    if (GetApp() || IsBrowserElement()) {
+        return false;
+    }
+
     // Get a new rendering area from the browserDOMWin.  We don't want
     // to be starting any loads here, so get it with a null URI.
     nsCOMPtr<nsIFrameLoaderOwner> frameLoaderOwner;
@@ -357,8 +362,18 @@ bool TabParent::SendRealKeyEvent(nsKeyEvent& event)
 bool TabParent::SendRealTouchEvent(nsTouchEvent& event)
 {
   nsTouchEvent e(event);
+  // PresShell::HandleEventInternal adds touches on touch end/cancel.
+  // This hack filters those out. Bug 785554
+  if (event.message == NS_TOUCH_END || event.message == NS_TOUCH_CANCEL) {
+    for (int i = e.touches.Length() - 1; i >= 0; i--) {
+      if (!e.touches[i]->mChanged)
+        e.touches.RemoveElementAt(i);
+    }
+  }
   MaybeForwardEventToRenderFrame(event, &e);
-  return PBrowserParent::SendRealTouchEvent(e);
+  return (e.message == NS_TOUCH_MOVE) ?
+    PBrowserParent::SendRealTouchMoveEvent(e) :
+    PBrowserParent::SendRealTouchEvent(e);
 }
 
 bool
@@ -682,6 +697,7 @@ bool
 TabParent::RecvSetInputContext(const int32_t& aIMEEnabled,
                                const int32_t& aIMEOpen,
                                const nsString& aType,
+                               const nsString& aInputmode,
                                const nsString& aActionHint,
                                const int32_t& aCause,
                                const int32_t& aFocusChange)
@@ -699,6 +715,7 @@ TabParent::RecvSetInputContext(const int32_t& aIMEEnabled,
   context.mIMEState.mEnabled = static_cast<IMEState::Enabled>(aIMEEnabled);
   context.mIMEState.mOpen = static_cast<IMEState::Open>(aIMEOpen);
   context.mHTMLInputType.Assign(aType);
+  context.mHTMLInputInputmode.Assign(aInputmode);
   context.mActionHint.Assign(aActionHint);
   InputContextAction action(
     static_cast<InputContextAction::Cause>(aCause),
@@ -954,8 +971,8 @@ TabParent::DeallocPRenderFrame(PRenderFrameParent* aFrame)
 }
 
 mozilla::docshell::POfflineCacheUpdateParent*
-TabParent::AllocPOfflineCacheUpdate(const URI& aManifestURI,
-                                    const URI& aDocumentURI,
+TabParent::AllocPOfflineCacheUpdate(const URIParams& aManifestURI,
+                                    const URIParams& aDocumentURI,
                                     const nsCString& aClientID,
                                     const bool& stickDocument)
 {
@@ -1099,19 +1116,19 @@ TabParent::RecvBrowserFrameOpenWindow(PBrowserParent* aOpener,
 }
 
 bool
-TabParent::RecvNotifyDOMTouchListenerAdded()
+TabParent::RecvZoomToRect(const gfxRect& aRect)
 {
   if (RenderFrameParent* rfp = GetRenderFrame()) {
-    rfp->NotifyDOMTouchListenerAdded();
+    rfp->ZoomToRect(aRect);
   }
   return true;
 }
 
 bool
-TabParent::RecvZoomToRect(const gfxRect& aRect)
+TabParent::RecvContentReceivedTouch(const bool& aPreventDefault)
 {
   if (RenderFrameParent* rfp = GetRenderFrame()) {
-    rfp->ZoomToRect(aRect);
+    rfp->ContentReceivedTouch(aPreventDefault);
   }
   return true;
 }

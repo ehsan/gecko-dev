@@ -80,7 +80,8 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsContentSink)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDocument)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mParser)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mNodeInfoManager)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mNodeInfoManager,
+                                                  nsNodeInfoManager)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mScriptLoader)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
@@ -349,7 +350,7 @@ nsContentSink::DoProcessLinkHeader()
 {
   nsAutoString value;
   mDocument->GetHeaderData(nsGkAtoms::link, value);
-  ProcessLinkHeader(nullptr, value);
+  ProcessLinkHeader(value);
 }
 
 // check whether the Link header field applies to the context resource
@@ -439,8 +440,7 @@ nsContentSink::Decode5987Format(nsAString& aEncoded) {
 }
 
 nsresult
-nsContentSink::ProcessLinkHeader(nsIContent* aElement,
-                                 const nsAString& aLinkData)
+nsContentSink::ProcessLinkHeader(const nsAString& aLinkData)
 {
   nsresult rv = NS_OK;
 
@@ -639,7 +639,7 @@ nsContentSink::ProcessLinkHeader(nsIContent* aElement,
 
       href.Trim(" \t\n\r\f"); // trim HTML5 whitespace
       if (!href.IsEmpty() && !rel.IsEmpty()) {
-        rv = ProcessLink(aElement, anchor, href, rel,
+        rv = ProcessLink(anchor, href, rel,
                          // prefer RFC 5987 variant over non-I18zed version
                          titleStar.IsEmpty() ? title : titleStar,
                          type, media);
@@ -660,7 +660,7 @@ nsContentSink::ProcessLinkHeader(nsIContent* aElement,
                 
   href.Trim(" \t\n\r\f"); // trim HTML5 whitespace
   if (!href.IsEmpty() && !rel.IsEmpty()) {
-    rv = ProcessLink(aElement, anchor, href, rel,
+    rv = ProcessLink(anchor, href, rel,
                      // prefer RFC 5987 variant over non-I18zed version
                      titleStar.IsEmpty() ? title : titleStar,
                      type, media);
@@ -671,8 +671,7 @@ nsContentSink::ProcessLinkHeader(nsIContent* aElement,
 
 
 nsresult
-nsContentSink::ProcessLink(nsIContent* aElement,
-                           const nsSubstring& aAnchor, const nsSubstring& aHref,
+nsContentSink::ProcessLink(const nsSubstring& aAnchor, const nsSubstring& aHref,
                            const nsSubstring& aRel, const nsSubstring& aTitle,
                            const nsSubstring& aType, const nsSubstring& aMedia)
 {
@@ -689,7 +688,7 @@ nsContentSink::ProcessLink(nsIContent* aElement,
   bool hasPrefetch = linkTypes & PREFETCH;
   // prefetch href if relation is "next" or "prefetch"
   if (hasPrefetch || (linkTypes & NEXT)) {
-    PrefetchHref(aHref, aElement, hasPrefetch);
+    PrefetchHref(aHref, nullptr, hasPrefetch);
   }
 
   if (!aHref.IsEmpty() && (linkTypes & DNS_PREFETCH)) {
@@ -702,7 +701,7 @@ nsContentSink::ProcessLink(nsIContent* aElement,
   }
 
   bool isAlternate = linkTypes & ALTERNATE;
-  return ProcessStyleLink(aElement, aHref, isAlternate, aTitle, aType,
+  return ProcessStyleLink(nullptr, aHref, isAlternate, aTitle, aType,
                           aMedia);
 }
 
@@ -738,9 +737,15 @@ nsContentSink::ProcessStyleLink(nsIContent* aElement,
     return NS_OK;
   }
 
+  NS_ASSERTION(!aElement ||
+               aElement->NodeType() == nsIDOMNode::PROCESSING_INSTRUCTION_NODE,
+               "We only expect processing instructions here");
+
   // If this is a fragment parser, we don't want to observe.
+  // We don't support CORS for processing instructions
   bool isAlternate;
   rv = mCSSLoader->LoadStyleLink(aElement, url, aTitle, aMedia, aAlternate,
+                                 CORS_NONE,
                                  mRunsToCompletion ? nullptr : this, &isAlternate);
   NS_ENSURE_SUCCESS(rv, rv);
   

@@ -87,7 +87,7 @@ typedef void       (* DestroyXPTCallStubFunc)(nsISomeInterface*);
 typedef nsresult   (* InvokeByIndexFunc)(nsISupports*, uint32_t, uint32_t, nsXPTCVariant*);
 typedef bool       (* CycleCollectorFunc)(nsISupports*);
 typedef nsPurpleBufferEntry*
-                   (* CycleCollectorSuspect2Func)(nsISupports*);
+                   (* CycleCollectorSuspect2Func)(void*, nsCycleCollectionParticipant*);
 typedef bool       (* CycleCollectorForget2Func)(nsPurpleBufferEntry*);
 
 // PRIVATE AND DEPRECATED
@@ -157,8 +157,8 @@ typedef struct XPCOMFunctions{
     GetXPTCallStubFunc getXPTCallStubFunc;
     DestroyXPTCallStubFunc destroyXPTCallStubFunc;
     InvokeByIndexFunc invokeByIndexFunc;
-    CycleCollectorFunc cycleSuspectFunc;
-    CycleCollectorFunc cycleForgetFunc;
+    CycleCollectorFunc cycleSuspectFunc; // obsolete: use cycleSuspect2Func
+    CycleCollectorFunc cycleForgetFunc; // obsolete: use cycleForget2Func
     StringSetIsVoidFunc stringSetIsVoid;
     StringGetIsVoidFunc stringGetIsVoid;
     CStringSetIsVoidFunc cstringSetIsVoid;

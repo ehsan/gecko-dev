@@ -264,9 +264,25 @@ DeviceStorageFile::Write(InfallibleTArray<uint8_t>& aBits) {
 nsresult
 DeviceStorageFile::Remove()
 {
-  mFile->Remove(true);
+  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
+
+  bool check;
+  nsresult rv = mFile->Exists(&check);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+  
+  if (!check) {
+    return NS_OK;
+  }
+
+  rv = mFile->Remove(true);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
   nsCOMPtr<IOEventComplete> iocomplete = new IOEventComplete(mFile, "deleted");
-  NS_DispatchToMainThread(iocomplete);    
+  NS_DispatchToMainThread(iocomplete);
   return NS_OK;
 }
 
@@ -487,6 +503,15 @@ nsDOMDeviceStorage::SetRootFileForType(const nsAString& aType)
       dirService->Get(NS_OS_TEMP_DIR, NS_GET_IID(nsIFile), getter_AddRefs(f));
       if (f) {
         f->AppendRelativeNativePath(NS_LITERAL_CSTRING("device-storage-testing"));
+        f->Create(nsIFile::DIRECTORY_TYPE, 0777);
+        f->Normalize();
+      }
+    }
+
+    if (aType.Equals(NS_LITERAL_STRING("testing-other"))) {
+      dirService->Get(NS_OS_TEMP_DIR, NS_GET_IID(nsIFile), getter_AddRefs(f));
+      if (f) {
+        f->AppendRelativeNativePath(NS_LITERAL_CSTRING("device-storage-testing-other"));
         f->Create(nsIFile::DIRECTORY_TYPE, 0777);
         f->Normalize();
       }
@@ -1087,7 +1112,6 @@ public:
     mFile->Remove();
 
     nsRefPtr<nsRunnable> r;
-
     bool check = false;
     mFile->mFile->Exists(&check);
     if (check) {

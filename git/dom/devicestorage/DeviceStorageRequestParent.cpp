@@ -17,6 +17,8 @@ namespace dom {
 namespace devicestorage {
 
 DeviceStorageRequestParent::DeviceStorageRequestParent(const DeviceStorageParams& aParams)
+  : mMutex("DeviceStorageRequestParent::mMutex")
+  , mActorDestoryed(false)
 {
   MOZ_COUNT_CTOR(DeviceStorageRequestParent);
 
@@ -127,6 +129,8 @@ NS_IMPL_THREADSAFE_RELEASE(DeviceStorageRequestParent);
 void
 DeviceStorageRequestParent::ActorDestroy(ActorDestroyReason)
 {
+  MutexAutoLock lock(mMutex);
+  mActorDestoryed = true;
   int32_t count = mRunnables.Length();
   for (int32_t index = 0; index < count; index++) {
     mRunnables[index]->Cancel();
@@ -309,12 +313,10 @@ DeviceStorageRequestParent::StatFileEvent::CancelableRun()
 
   nsCOMPtr<nsIRunnable> r;
   uint64_t diskUsage = DeviceStorageFile::DirectoryDiskUsage(mFile->mFile);
-  int64_t freeSpace = 0;
+  int64_t freeSpace;
   nsresult rv = mFile->mFile->GetDiskSpaceAvailable(&freeSpace);
   if (NS_FAILED(rv)) {
-    r = new PostErrorEvent(mParent, POST_ERROR_EVENT_UNKNOWN);
-    NS_DispatchToMainThread(r);
-    return NS_OK;
+    freeSpace = 0;
   }
   
   r = new PostStatResultEvent(mParent, diskUsage, freeSpace);

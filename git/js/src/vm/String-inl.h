@@ -17,6 +17,7 @@
 #include "jsgcinlines.h"
 #include "jsobjinlines.h"
 #include "gc/Barrier-inl.h"
+#include "gc/StoreBuffer.h"
 
 namespace js {
 
@@ -43,6 +44,22 @@ NewShortString(JSContext *cx, const jschar *chars, size_t length)
     return str;
 }
 
+static inline void
+StringWriteBarrierPost(JSCompartment *comp, JSString **strp)
+{
+#ifdef JSGC_GENERATIONAL
+    comp->gcStoreBuffer.putRelocatableCell(reinterpret_cast<gc::Cell **>(strp));
+#endif
+}
+
+static inline void
+StringWriteBarrierPostRemove(JSCompartment *comp, JSString **strp)
+{
+#ifdef JSGC_GENERATIONAL
+    comp->gcStoreBuffer.removeRelocatableCell(reinterpret_cast<gc::Cell **>(strp));
+#endif
+}
+
 } /* namespace js */
 
 inline void
@@ -64,6 +81,11 @@ JSString::writeBarrierPre(JSString *str)
 inline void
 JSString::writeBarrierPost(JSString *str, void *addr)
 {
+#ifdef JSGC_GENERATIONAL
+    if (!str)
+        return;
+    str->compartment()->gcStoreBuffer.putCell((Cell **)addr);
+#endif
 }
 
 inline bool
@@ -106,8 +128,8 @@ JSRope::init(JSString *left, JSString *right, size_t length)
     d.lengthAndFlags = buildLengthAndFlags(length, ROPE_FLAGS);
     d.u1.left = left;
     d.s.u2.right = right;
-    JSString::writeBarrierPost(d.u1.left, &d.u1.left);
-    JSString::writeBarrierPost(d.s.u2.right, &d.s.u2.right);
+    js::StringWriteBarrierPost(compartment(), &d.u1.left);
+    js::StringWriteBarrierPost(compartment(), &d.s.u2.right);
 }
 
 JS_ALWAYS_INLINE JSRope *
@@ -136,7 +158,7 @@ JSDependentString::init(JSLinearString *base, const jschar *chars, size_t length
     d.lengthAndFlags = buildLengthAndFlags(length, DEPENDENT_FLAGS);
     d.u1.chars = chars;
     d.s.u2.base = base;
-    JSString::writeBarrierPost(d.s.u2.base, &d.s.u2.base);
+    js::StringWriteBarrierPost(compartment(), reinterpret_cast<JSString **>(&d.s.u2.base));
 }
 
 JS_ALWAYS_INLINE JSLinearString *
@@ -243,15 +265,6 @@ JS_ALWAYS_INLINE JSShortString *
 JSShortString::new_(JSContext *cx)
 {
     return js_NewGCShortString(cx);
-}
-
-JS_ALWAYS_INLINE void
-JSShortString::initAtOffsetInBuffer(const jschar *chars, size_t length)
-{
-    JS_ASSERT(lengthFits(length + (chars - d.inlineStorage)));
-    JS_ASSERT(chars >= d.inlineStorage && chars < d.inlineStorage + MAX_SHORT_LENGTH);
-    d.lengthAndFlags = buildLengthAndFlags(length, FIXED_FLAGS);
-    d.u1.chars = chars;
 }
 
 JS_ALWAYS_INLINE void
@@ -408,10 +421,6 @@ JSFlatString::finalize(js::FreeOp *fop)
 {
     JS_ASSERT(!isShort());
 
-    /*
-     * This check depends on the fact that 'chars' is only initialized to the
-     * beginning of inlineStorage. E.g., this is not the case for short strings.
-     */
     if (chars() != d.inlineStorage)
         fop->free_(const_cast<jschar *>(chars()));
 }
@@ -419,17 +428,20 @@ JSFlatString::finalize(js::FreeOp *fop)
 inline void
 JSShortString::finalize(js::FreeOp *fop)
 {
-    JS_ASSERT(JSString::isShort());
+    JS_ASSERT(isShort());
+
+    if (chars() != d.inlineStorage)
+        fop->free_(const_cast<jschar *>(chars()));
 }
 
 inline void
 JSAtom::finalize(js::FreeOp *fop)
 {
     JS_ASSERT(JSString::isAtom());
-    if (getAllocKind() == js::gc::FINALIZE_STRING)
-        JSFlatString::finalize(fop);
-    else
-        JS_ASSERT(getAllocKind() == js::gc::FINALIZE_SHORT_STRING);
+    JS_ASSERT(JSString::isFlat());
+
+    if (chars() != d.inlineStorage)
+        fop->free_(const_cast<jschar *>(chars()));
 }
 
 inline void

@@ -277,9 +277,6 @@ TraceWeakMaps(WeakMapTracer *trc);
 extern JS_FRIEND_API(bool)
 GCThingIsMarkedGray(void *thing);
 
-extern JS_FRIEND_API(JSCompartment*)
-GetGCThingCompartment(void *thing);
-
 typedef void
 (GCThingCallback)(void *closure, void *gcthing);
 
@@ -674,9 +671,6 @@ typedef Vector<JSCompartment*, 0, SystemAllocPolicy> CompartmentVector;
 extern JS_FRIEND_API(const CompartmentVector&)
 GetRuntimeCompartments(JSRuntime *rt);
 
-extern JS_FRIEND_API(size_t)
-SizeOfJSContext();
-
 #define GCREASONS(D)                            \
     /* Reasons internal to the JS engine */     \
     D(API)                                      \
@@ -799,6 +793,12 @@ typedef void
 extern JS_FRIEND_API(GCSliceCallback)
 SetGCSliceCallback(JSRuntime *rt, GCSliceCallback callback);
 
+typedef void
+(* AnalysisPurgeCallback)(JSRuntime *rt, JSFlatString *desc);
+
+extern JS_FRIEND_API(AnalysisPurgeCallback)
+SetAnalysisPurgeCallback(JSRuntime *rt, AnalysisPurgeCallback callback);
+
 /* Was the most recent GC run incrementally? */
 extern JS_FRIEND_API(bool)
 WasIncrementalGC(JSRuntime *rt);
@@ -806,7 +806,6 @@ WasIncrementalGC(JSRuntime *rt);
 typedef JSBool
 (* DOMInstanceClassMatchesProto)(JSHandleObject protoObject, uint32_t protoID,
                                  uint32_t depth);
-
 struct JSDOMCallbacks {
     DOMInstanceClassMatchesProto instanceClassMatchesProto;
 };
