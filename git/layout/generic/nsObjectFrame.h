@@ -70,7 +70,7 @@ public:
                                 const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
   NS_IMETHOD  HandleEvent(nsPresContext* aPresContext,
-                          mozilla::WidgetGUIEvent* aEvent,
+                          nsGUIEvent* aEvent,
                           nsEventStatus* aEventStatus);
 
   virtual nsIAtom* GetType() const;

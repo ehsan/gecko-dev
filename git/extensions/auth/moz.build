@@ -26,5 +26,3 @@ LIBRARY_NAME = 'auth'
 
 LIBXUL_LIBRARY = True
 
-EXPORT_LIBRARY = True
-

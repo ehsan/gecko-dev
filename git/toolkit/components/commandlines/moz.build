@@ -25,5 +25,3 @@ LIBRARY_NAME = 'commandlines'
 
 LIBXUL_LIBRARY = True
 
-EXPORT_LIBRARY = True
-

@@ -664,7 +664,7 @@ nsWindow::WidgetToScreenOffset()
 }
 
 NS_IMETHODIMP
-nsWindow::DispatchEvent(WidgetGUIEvent* aEvent,
+nsWindow::DispatchEvent(nsGUIEvent *aEvent,
                         nsEventStatus &aStatus)
 {
     aStatus = DispatchEvent(aEvent);
@@ -672,7 +672,7 @@ nsWindow::DispatchEvent(WidgetGUIEvent* aEvent,
 }
 
 nsEventStatus
-nsWindow::DispatchEvent(WidgetGUIEvent* aEvent)
+nsWindow::DispatchEvent(nsGUIEvent *aEvent)
 {
     if (mWidgetListener) {
         nsEventStatus status = mWidgetListener->HandleEvent(aEvent, mUseAttachedEvents);
@@ -1128,7 +1128,7 @@ nsWindow::OnSizeChanged(const gfxIntSize& aSize)
 }
 
 void
-nsWindow::InitEvent(WidgetGUIEvent& event, nsIntPoint* aPoint)
+nsWindow::InitEvent(nsGUIEvent& event, nsIntPoint* aPoint)
 {
     if (aPoint) {
         event.refPoint.x = aPoint->x;
@@ -1190,10 +1190,11 @@ nsWindow::OnMouseEvent(AndroidGeckoEvent *ae)
 
 send_again:
 
-    WidgetMouseEvent event(true, msg, this,
-                           WidgetMouseEvent::eReal, WidgetMouseEvent::eNormal);
+    nsMouseEvent event(true,
+                       msg, this,
+                       nsMouseEvent::eReal, nsMouseEvent::eNormal);
     // XXX can we synthesize different buttons?
-    event.button = WidgetMouseEvent::eLeftButton;
+    event.button = nsMouseEvent::eLeftButton;
 
     if (msg != NS_MOUSE_MOVE)
         event.clickCount = 1;

@@ -515,6 +515,9 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
     void mov(Register src, Register dest) {
         ma_mov(src, dest);
     }
+    void mov(Imm32 imm, Register dest) {
+        ma_mov(imm, dest);
+    }
     void mov(ImmWord imm, Register dest) {
         ma_mov(Imm32(imm.value), dest);
     }

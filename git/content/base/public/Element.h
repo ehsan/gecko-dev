@@ -32,7 +32,7 @@
 #include "nsIScrollableFrame.h"
 #include "mozilla/dom/Attr.h"
 #include "nsISMILAttr.h"
-#include "mozilla/dom/DOMRect.h"
+#include "nsClientRect.h"
 #include "nsAttrValue.h"
 #include "mozilla/EventForwards.h"
 #include "mozilla/dom/BindingDeclarations.h"
@@ -50,6 +50,8 @@ class nsEventListenerManager;
 class nsIScrollableFrame;
 class nsAttrValueOrString;
 class ContentUnbinder;
+class nsClientRect;
+class nsClientRectList;
 class nsContentList;
 class nsDOMTokenList;
 struct nsRect;
@@ -108,8 +110,6 @@ namespace dom {
 
 class Link;
 class UndoManager;
-class DOMRect;
-class DOMRectList;
 
 // IID for the dom::Element interface
 #define NS_ELEMENT_IID \
@@ -647,8 +647,8 @@ public:
   already_AddRefed<Attr> SetAttributeNodeNS(Attr& aNewAttr,
                                             ErrorResult& aError);
 
-  already_AddRefed<DOMRectList> GetClientRects();
-  already_AddRefed<DOMRect> GetBoundingClientRect();
+  already_AddRefed<nsClientRectList> GetClientRects();
+  already_AddRefed<nsClientRect> GetBoundingClientRect();
   void ScrollIntoView(bool aTop);
   int32_t ScrollTop()
   {
@@ -781,7 +781,7 @@ public:
    */
   using nsIContent::DispatchEvent;
   static nsresult DispatchEvent(nsPresContext* aPresContext,
-                                WidgetEvent* aEvent,
+                                nsEvent* aEvent,
                                 nsIContent* aTarget,
                                 bool aFullDispatch,
                                 nsEventStatus* aStatus);

@@ -179,13 +179,8 @@ WebGLContext::BindRenderbuffer(GLenum target, WebGLRenderbuffer *wrb)
 
     MakeContextCurrent();
 
-    // Sometimes we emulate renderbuffers (depth-stencil emu), so there's not
-    // always a 1-1 mapping from `wrb` to GL name. Just have `wrb` handle it.
-    if (wrb) {
-        wrb->BindRenderbuffer();
-    } else {
-        gl->fBindRenderbuffer(target, 0);
-    }
+    GLuint renderbuffername = wrb ? wrb->GLName() : 0;
+    gl->fBindRenderbuffer(target, renderbuffername);
 
     mBoundRenderbuffer = wrb;
 }
@@ -330,10 +325,6 @@ WebGLContext::CheckFramebufferStatus(GLenum target)
         return LOCAL_GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT;
     if(mBoundFramebuffer->HasAttachmentsOfMismatchedDimensions())
         return LOCAL_GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS;
-
-    // Ok, attach our chosen flavor of {DEPTH, STENCIL, DEPTH_STENCIL}.
-    mBoundFramebuffer->FinalizeAttachments();
-
     return gl->fCheckFramebufferStatus(target);
 }
 
@@ -520,8 +511,9 @@ WebGLContext::CopyTexImage2D(GLenum target,
 
     // check if the memory size of this texture may change with this call
     bool sizeMayChange = true;
-    if (tex->HasImageInfoAt(target, level)) {
-        const WebGLTexture::ImageInfo& imageInfo = tex->ImageInfoAt(target, level);
+    size_t face = WebGLTexture::FaceForTarget(target);
+    if (tex->HasImageInfoAt(level, face)) {
+        const WebGLTexture::ImageInfo& imageInfo = tex->ImageInfoAt(level, face);
 
         sizeMayChange = width != imageInfo.Width() ||
                         height != imageInfo.Height() ||
@@ -588,10 +580,11 @@ WebGLContext::CopyTexSubImage2D(GLenum target,
     if (!tex)
         return ErrorInvalidOperation("copyTexSubImage2D: no texture bound to this target");
 
-    if (!tex->HasImageInfoAt(target, level))
+    GLint face = WebGLTexture::FaceForTarget(target);
+    if (!tex->HasImageInfoAt(level, face))
         return ErrorInvalidOperation("copyTexSubImage2D: no texture image previously defined for this level and face");
 
-    const WebGLTexture::ImageInfo &imageInfo = tex->ImageInfoAt(target, level);
+    const WebGLTexture::ImageInfo &imageInfo = tex->ImageInfoAt(level, face);
     GLsizei texWidth = imageInfo.Width();
     GLsizei texHeight = imageInfo.Height();
 
@@ -1116,18 +1109,14 @@ WebGLContext::GenerateMipmap(GLenum target)
 
     if (!tex)
         return ErrorInvalidOperation("generateMipmap: No texture is bound to this target.");
-    
-    GLenum imageTarget = (target == LOCAL_GL_TEXTURE_2D) ? LOCAL_GL_TEXTURE_2D
-                                                         : LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X;
-    if (!tex->HasImageInfoAt(imageTarget, 0))
-    {
+
+    if (!tex->HasImageInfoAt(0, 0))
         return ErrorInvalidOperation("generateMipmap: Level zero of texture is not defined.");
-    }
-    
+
     if (!tex->IsFirstImagePowerOfTwo())
         return ErrorInvalidOperation("generateMipmap: Level zero of texture does not have power-of-two width and height.");
 
-    GLenum format = tex->ImageInfoAt(imageTarget, 0).Format();
+    GLenum format = tex->ImageInfoAt(0, 0).Format();
     if (IsTextureFormatCompressed(format))
         return ErrorInvalidOperation("generateMipmap: Texture data at level zero is compressed.");
 
@@ -1360,15 +1349,10 @@ WebGLContext::GetFramebufferAttachmentParameter(JSContext* cx,
             }
 
             case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL:
-                return JS::Int32Value(fba.TexImageLevel());
+                return JS::Int32Value(fba.TextureLevel());
 
             case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_CUBE_MAP_FACE:
-            {
-                GLenum face = fba.TexImageTarget();
-                if (face == LOCAL_GL_TEXTURE_2D)
-                    face = 0;
-                return JS::Int32Value(face);
-            }
+                return JS::Int32Value(fba.TextureCubeMapFace());
 
             default:
                 ErrorInvalidEnumInfo("getFramebufferAttachmentParameter: pname", pname);
@@ -1416,8 +1400,8 @@ WebGLContext::GetRenderbufferParameter(GLenum target, GLenum pname)
         case LOCAL_GL_RENDERBUFFER_DEPTH_SIZE:
         case LOCAL_GL_RENDERBUFFER_STENCIL_SIZE:
         {
-            // RB emulation means we have to ask the RB itself.
-            GLint i = mBoundRenderbuffer->GetRenderbufferParameter(target, pname);
+            GLint i = 0;
+            gl->fGetRenderbufferParameteriv(target, pname, &i);
             return JS::Int32Value(i);
         }
         case LOCAL_GL_RENDERBUFFER_INTERNAL_FORMAT:
@@ -2304,7 +2288,7 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
         // now, same computation as above to find the size of the intermediate buffer to allocate for the subrect
         // no need to check again for integer overflow here, since we already know the sizes aren't greater than before
         uint32_t subrect_plainRowSize = subrect_width * bytesPerPixel;
-    // There are checks above to ensure that this doesn't overflow.
+	// There are checks above to ensure that this doesn't overflow.
         uint32_t subrect_alignedRowSize = 
             RoundedToNextMultipleOf(subrect_plainRowSize, mPixelStorePackAlignment).value();
         uint32_t subrect_byteLength = (subrect_height-1)*subrect_alignedRowSize + subrect_plainRowSize;
@@ -2378,7 +2362,7 @@ WebGLContext::RenderbufferStorage(GLenum target, GLenum internalformat, GLsizei 
     if (IsContextLost())
         return;
 
-    if (!mBoundRenderbuffer)
+    if (!mBoundRenderbuffer || !mBoundRenderbuffer->GLName())
         return ErrorInvalidOperation("renderbufferStorage called on renderbuffer 0");
 
     if (target != LOCAL_GL_RENDERBUFFER)
@@ -2412,7 +2396,13 @@ WebGLContext::RenderbufferStorage(GLenum target, GLenum internalformat, GLsizei 
     case LOCAL_GL_STENCIL_INDEX8:
         break;
     case LOCAL_GL_DEPTH_STENCIL:
-        // We emulate this in WebGLRenderbuffer if we don't have the requisite extension.
+        // this one is available in newer OpenGL (at least since 3.1); will probably become available
+        // in OpenGL ES 3 (at least it will have some DEPTH_STENCIL) and is the same value that
+        // is otherwise provided by EXT_packed_depth_stencil and OES_packed_depth_stencil extensions
+        // which means it's supported on most GL and GL ES systems already.
+        //
+        // So we just use it hoping that it's available (perhaps as an extension) and if it's not available,
+        // we just let the GL generate an error and don't do anything about it ourselves.
         internalformatForGL = LOCAL_GL_DEPTH24_STENCIL8;
         break;
     default:
@@ -2426,7 +2416,7 @@ WebGLContext::RenderbufferStorage(GLenum target, GLenum internalformat, GLsizei 
                        internalformat != mBoundRenderbuffer->InternalFormat();
     if (sizeChanges) {
         UpdateWebGLErrorAndClearGLError();
-        mBoundRenderbuffer->RenderbufferStorage(internalformatForGL, width, height);
+        gl->fRenderbufferStorage(target, internalformatForGL, width, height);
         GLenum error = LOCAL_GL_NO_ERROR;
         UpdateWebGLErrorAndClearGLError(&error);
         if (error) {
@@ -2434,7 +2424,7 @@ WebGLContext::RenderbufferStorage(GLenum target, GLenum internalformat, GLsizei 
             return;
         }
     } else {
-        mBoundRenderbuffer->RenderbufferStorage(internalformatForGL, width, height);
+        gl->fRenderbufferStorage(target, internalformatForGL, width, height);
     }
 
     mBoundRenderbuffer->SetInternalFormat(internalformat);
@@ -3350,12 +3340,14 @@ WebGLContext::CompressedTexSubImage2D(GLenum target, GLint level, GLint xoffset,
         return;
     }
 
-    if (!tex->HasImageInfoAt(target, level)) {
+    size_t face = WebGLTexture::FaceForTarget(target);
+
+    if (!tex->HasImageInfoAt(level, face)) {
         ErrorInvalidOperation("compressedTexSubImage2D: no texture image previously defined for this level and face");
         return;
     }
 
-    const WebGLTexture::ImageInfo &imageInfo = tex->ImageInfoAt(target, level);
+    const WebGLTexture::ImageInfo &imageInfo = tex->ImageInfoAt(level, face);
 
     if (!CanvasUtils::CheckSaneSubrectSize(xoffset, yoffset, width, height, imageInfo.Width(), imageInfo.Height())) {
         ErrorInvalidValue("compressedTexSubImage2D: subtexture rectangle out of bounds");
@@ -3591,9 +3583,10 @@ GLenum WebGLContext::CheckedTexImage2D(GLenum target,
     NS_ABORT_IF_FALSE(tex != nullptr, "no texture bound");
 
     bool sizeMayChange = true;
+    size_t face = WebGLTexture::FaceForTarget(target);
     
-    if (tex->HasImageInfoAt(target, level)) {
-        const WebGLTexture::ImageInfo& imageInfo = tex->ImageInfoAt(target, level);
+    if (tex->HasImageInfoAt(level, face)) {
+        const WebGLTexture::ImageInfo& imageInfo = tex->ImageInfoAt(level, face);
         sizeMayChange = width != imageInfo.Width() ||
                         height != imageInfo.Height() ||
                         format != imageInfo.Format() ||
@@ -3926,10 +3919,12 @@ WebGLContext::TexSubImage2D_base(GLenum target, GLint level,
     if (!tex)
         return ErrorInvalidOperation("texSubImage2D: no texture is bound to this target");
 
-    if (!tex->HasImageInfoAt(target, level))
+    size_t face = WebGLTexture::FaceForTarget(target);
+    
+    if (!tex->HasImageInfoAt(level, face))
         return ErrorInvalidOperation("texSubImage2D: no texture image previously defined for this level and face");
     
-    const WebGLTexture::ImageInfo &imageInfo = tex->ImageInfoAt(target, level);
+    const WebGLTexture::ImageInfo &imageInfo = tex->ImageInfoAt(level, face);
     if (!CanvasUtils::CheckSaneSubrectSize(xoffset, yoffset, width, height, imageInfo.Width(), imageInfo.Height()))
         return ErrorInvalidValue("texSubImage2D: subtexture rectangle out of bounds");
     

@@ -27,5 +27,3 @@ LIBXUL_LIBRARY = True
 
 LIBRARY_NAME = 'gkipc_s'
 
-EXPORT_LIBRARY = True
-

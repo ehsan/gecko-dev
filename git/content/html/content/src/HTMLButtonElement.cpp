@@ -268,9 +268,9 @@ HTMLButtonElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
                NS_KEY_UP == aVisitor.mEvent->message)) {
             nsEventStatus status = nsEventStatus_eIgnore;
 
-            WidgetMouseEvent event(aVisitor.mEvent->mFlags.mIsTrusted,
-                                   NS_MOUSE_CLICK, nullptr,
-                                   WidgetMouseEvent::eReal);
+            nsMouseEvent event(aVisitor.mEvent->mFlags.mIsTrusted,
+                               NS_MOUSE_CLICK, nullptr,
+                               nsMouseEvent::eReal);
             event.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_KEYBOARD;
             nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this),
                                         aVisitor.mPresContext, &event, nullptr,
@@ -283,8 +283,8 @@ HTMLButtonElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
       case NS_MOUSE_BUTTON_DOWN:
         {
           if (aVisitor.mEvent->eventStructType == NS_MOUSE_EVENT) {
-            if (static_cast<WidgetMouseEvent*>(aVisitor.mEvent)->button ==
-                  WidgetMouseEvent::eLeftButton) {
+            if (static_cast<nsMouseEvent*>(aVisitor.mEvent)->button ==
+                  nsMouseEvent::eLeftButton) {
               if (aVisitor.mEvent->mFlags.mIsTrusted) {
                 nsEventStateManager* esm =
                   aVisitor.mPresContext->EventStateManager();
@@ -296,11 +296,10 @@ HTMLButtonElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
                 fm->SetFocus(this, nsIFocusManager::FLAG_BYMOUSE |
                                    nsIFocusManager::FLAG_NOSCROLL);
               aVisitor.mEvent->mFlags.mMultipleActionsPrevented = true;
-            } else if (
-              static_cast<WidgetMouseEvent*>(aVisitor.mEvent)->button ==
-                WidgetMouseEvent::eMiddleButton ||
-              static_cast<WidgetMouseEvent*>(aVisitor.mEvent)->button ==
-                WidgetMouseEvent::eRightButton) {
+            } else if (static_cast<nsMouseEvent*>(aVisitor.mEvent)->button ==
+                         nsMouseEvent::eMiddleButton ||
+                       static_cast<nsMouseEvent*>(aVisitor.mEvent)->button ==
+                         nsMouseEvent::eRightButton) {
               // cancel all of these events for buttons
               //XXXsmaug What to do with these events? Why these should be cancelled?
               if (aVisitor.mDOMEvent) {
@@ -318,10 +317,10 @@ HTMLButtonElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
         {
           if (aVisitor.mEvent->eventStructType == NS_MOUSE_EVENT &&
               aVisitor.mDOMEvent &&
-              (static_cast<WidgetMouseEvent*>(aVisitor.mEvent)->button ==
-                 WidgetMouseEvent::eMiddleButton ||
-               static_cast<WidgetMouseEvent*>(aVisitor.mEvent)->button ==
-                 WidgetMouseEvent::eRightButton)) {
+              (static_cast<nsMouseEvent*>(aVisitor.mEvent)->button ==
+                 nsMouseEvent::eMiddleButton ||
+               static_cast<nsMouseEvent*>(aVisitor.mEvent)->button ==
+                 nsMouseEvent::eRightButton)) {
             aVisitor.mDOMEvent->StopPropagation();
           }
         }

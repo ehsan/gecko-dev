@@ -15,8 +15,6 @@
 #include "nsFrameManager.h"
 #include "mozilla/BasicEvents.h"
 
-using namespace mozilla;
-
 // Interface IDs
 
 //#define DEBUG_REFLOW
@@ -70,9 +68,9 @@ public:
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus);
-  NS_IMETHOD HandleEvent(nsPresContext* aPresContext,
-                         WidgetGUIEvent* aEvent,
-                         nsEventStatus* aEventStatus);
+  NS_IMETHOD HandleEvent(nsPresContext* aPresContext, 
+                         nsGUIEvent*     aEvent,
+                         nsEventStatus*  aEventStatus);
 
   virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,
@@ -215,9 +213,9 @@ nsRootBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 NS_IMETHODIMP
-nsRootBoxFrame::HandleEvent(nsPresContext* aPresContext,
-                            WidgetGUIEvent* aEvent,
-                            nsEventStatus* aEventStatus)
+nsRootBoxFrame::HandleEvent(nsPresContext* aPresContext, 
+                       nsGUIEvent* aEvent,
+                       nsEventStatus* aEventStatus)
 {
   NS_ENSURE_ARG_POINTER(aEventStatus);
   if (nsEventStatus_eConsumeNoDefault == *aEventStatus) {

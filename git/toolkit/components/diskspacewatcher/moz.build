@@ -23,5 +23,3 @@ LIBXUL_LIBRARY = True
 
 LIBRARY_NAME = 'diskspacewatcher'
 
-EXPORT_LIBRARY = True
-

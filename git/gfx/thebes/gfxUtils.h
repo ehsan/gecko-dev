@@ -9,18 +9,13 @@
 #include "gfxTypes.h"
 #include "GraphicsFilter.h"
 #include "gfxImageSurface.h"
+#include "ImageContainer.h"
 #include "mozilla/gfx/2D.h"
 #include "imgIContainer.h"
 
 class gfxDrawable;
 class nsIntRegion;
 struct nsIntRect;
-
-namespace mozilla {
-namespace layers {
-class PlanarYCbCrData;
-}
-}
 
 class gfxUtils {
 public:
@@ -134,7 +129,7 @@ public:
      *   or simultaneous scaling and conversion is not supported.
      */
     static void
-    GetYCbCrToRGBDestFormatAndSize(const mozilla::layers::PlanarYCbCrData& aData,
+    GetYCbCrToRGBDestFormatAndSize(const mozilla::layers::PlanarYCbCrImage::Data& aData,
                                    gfxImageFormat& aSuggestedFormat,
                                    gfxIntSize& aSuggestedSize);
 
@@ -144,7 +139,7 @@ public:
      *   been passed to GetYCbCrToRGBDestFormatAndSize
      */
     static void
-    ConvertYCbCrToRGB(const mozilla::layers::PlanarYCbCrData& aData,
+    ConvertYCbCrToRGB(const mozilla::layers::PlanarYCbCrImage::Data& aData,
                       const gfxImageFormat& aDestFormat,
                       const gfxIntSize& aDestSize,
                       unsigned char* aDestBuffer,

@@ -1064,8 +1064,7 @@ nsView::RequestRepaint()
 }
 
 nsEventStatus
-nsView::HandleEvent(WidgetGUIEvent* aEvent,
-                    bool aUseAttachedEvents)
+nsView::HandleEvent(nsGUIEvent* aEvent, bool aUseAttachedEvents)
 {
   NS_PRECONDITION(nullptr != aEvent->widget, "null widget ptr");
 

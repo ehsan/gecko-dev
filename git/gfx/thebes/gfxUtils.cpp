@@ -11,7 +11,6 @@
 #include "yuv_convert.h"
 #include "ycbcr_to_rgb565.h"
 #include "GeckoProfiler.h"
-#include "ImageContainer.h"
 
 #ifdef XP_WIN
 #include "gfxWindowsPlatform.h"
@@ -190,7 +189,6 @@ IsSafeImageTransformComponent(gfxFloat aValue)
   return aValue >= -32768 && aValue <= 32767;
 }
 
-#ifndef MOZ_GFX_OPTIMIZE_MOBILE
 /**
  * This returns the fastest operator to use for solid surfaces which have no
  * alpha channel or their alpha channel is uniformly opaque.
@@ -212,6 +210,7 @@ OptimalFillOperator()
 #endif
 }
 
+#ifndef MOZ_GFX_OPTIMIZE_MOBILE
 // EXTEND_PAD won't help us here; we have to create a temporary surface to hold
 // the subimage of pixels we're allowed to sample.
 static already_AddRefed<gfxDrawable>
@@ -482,7 +481,15 @@ gfxUtils::DrawPixelSnapped(gfxContext*      aContext,
     }
 #endif
 
+    gfxContext::GraphicsOperator op = aContext->CurrentOperator();
+    if ((op == gfxContext::OPERATOR_OVER || workaround.PushedGroup()) &&
+        aFormat == gfxImageFormatRGB24) {
+        aContext->SetOperator(OptimalFillOperator());
+    }
+
     drawable->Draw(aContext, aFill, doTile, aFilter, userSpaceToImageSpace);
+
+    aContext->SetOperator(op);
 }
 
 /* static */ int
@@ -683,7 +690,7 @@ gfxUtils::GfxRectToIntRect(const gfxRect& aIn, nsIntRect* aOut)
 }
 
 void
-gfxUtils::GetYCbCrToRGBDestFormatAndSize(const PlanarYCbCrData& aData,
+gfxUtils::GetYCbCrToRGBDestFormatAndSize(const PlanarYCbCrImage::Data& aData,
                                          gfxImageFormat& aSuggestedFormat,
                                          gfxIntSize& aSuggestedSize)
 {
@@ -737,7 +744,7 @@ gfxUtils::GetYCbCrToRGBDestFormatAndSize(const PlanarYCbCrData& aData,
 }
 
 void
-gfxUtils::ConvertYCbCrToRGB(const PlanarYCbCrData& aData,
+gfxUtils::ConvertYCbCrToRGB(const PlanarYCbCrImage::Data& aData,
                             const gfxImageFormat& aDestFormat,
                             const gfxIntSize& aDestSize,
                             unsigned char* aDestBuffer,

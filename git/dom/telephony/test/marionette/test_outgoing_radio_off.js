@@ -2,7 +2,6 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
 MARIONETTE_TIMEOUT = 60000;
-MARIONETTE_HEAD_JS = 'head.js';
 
 permissions = [
   "mobileconnection",
@@ -31,6 +30,17 @@ ok(telephony instanceof Telephony,
    "telephony is instanceof " + telephony.constructor);
 
 let outgoing;
+let pendingEmulatorCmdCount = 0;
+
+function sendToEmulator(cmd, callback) {
+  pendingEmulatorCmdCount++;
+  runEmulatorCmd(cmd, function (result) {
+    pendingEmulatorCmdCount--;
+    if (callback && typeof callback === 'function') {
+      callback(result);
+    }
+  });
+}
 
 function changeSetting(key, value, callback) {
   let obj = {};
@@ -86,7 +96,7 @@ function dial(number) {
     ok(event.call.error);
     is(event.call.error.name, "RadioNotAvailable");
 
-    emulator.run("gsm list", function(result) {
+    sendToEmulator("gsm list", function(result) {
       log("Initial call list: " + result);
       is(result[0], "OK");
 
@@ -96,6 +106,11 @@ function dial(number) {
 }
 
 function cleanUp() {
+  if (pendingEmulatorCmdCount) {
+    window.setTimeout(cleanUp, 100);
+    return;
+  }
+
   for (let per of permissions) {
     SpecialPowers.removePermission(per, document);
   }
@@ -103,16 +118,14 @@ function cleanUp() {
   finish();
 }
 
-startTest(function() {
-  setRadioEnabled(false, function() {
-    emulator.run("gsm clear", function(result) {
-      is(result[0], "OK");
+setRadioEnabled(false, function() {
+  sendToEmulator("gsm clear", function(result) {
+    is(result[0], "OK");
 
-      waitFor(function() {
-        dial("0912345678");
-      }, function() {
-        return telephony.calls.length === 0;
-      });
+    waitFor(function() {
+      dial("0912345678");
+    }, function() {
+      return telephony.calls.length === 0;
     });
   });
 });

@@ -21,5 +21,3 @@ LIBRARY_NAME = 'spellchecker'
 
 LIBXUL_LIBRARY = True
 
-EXPORT_LIBRARY = True
-

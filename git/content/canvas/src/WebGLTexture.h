@@ -38,9 +38,9 @@ public:
 
     void Delete();
 
-    bool HasEverBeenBound() const { return mHasEverBeenBound; }
+    bool HasEverBeenBound() { return mHasEverBeenBound; }
     void SetHasEverBeenBound(bool x) { mHasEverBeenBound = x; }
-    GLuint GLName() const { return mGLName; }
+    GLuint GLName() { return mGLName; }
     GLenum Target() const { return mTarget; }
 
     WebGLContext *GetParentObject() const {
@@ -112,57 +112,28 @@ public:
         friend class WebGLTexture;
     };
 
-private:
-    static size_t FaceForTarget(GLenum target) {
-        // Call this out explicitly:
-        MOZ_ASSERT(target != LOCAL_GL_TEXTURE_CUBE_MAP);
-        MOZ_ASSERT(target == LOCAL_GL_TEXTURE_2D ||
-                   (target >= LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X &&
-                    target <= LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_Z));
-        return target == LOCAL_GL_TEXTURE_2D ? 0 : target - LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X;
-    }
-
-    ImageInfo& ImageInfoAtFace(size_t face, GLint level) {
-        MOZ_ASSERT(face < mFacesCount, "wrong face index, must be 0 for TEXTURE_2D and at most 5 for cube maps");
-
+    ImageInfo& ImageInfoAt(size_t level, size_t face = 0) {
+#ifdef DEBUG
+        if (face >= mFacesCount)
+            NS_ERROR("wrong face index, must be 0 for TEXTURE_2D and at most 5 for cube maps");
+#endif
         // no need to check level as a wrong value would be caught by ElementAt().
         return mImageInfos.ElementAt(level * mFacesCount + face);
     }
 
-    const ImageInfo& ImageInfoAtFace(size_t face, GLint level) const {
-        return const_cast<const ImageInfo&>(
-            const_cast<WebGLTexture*>(this)->ImageInfoAtFace(face, level)
-        );
+    const ImageInfo& ImageInfoAt(size_t level, size_t face) const {
+        return const_cast<WebGLTexture*>(this)->ImageInfoAt(level, face);
     }
 
-public:
-    ImageInfo& ImageInfoAt(GLenum imageTarget, GLint level) {
-        MOZ_ASSERT(imageTarget);
-
-        size_t face = FaceForTarget(imageTarget);
-        return ImageInfoAtFace(face, level);
-    }
-
-    const ImageInfo& ImageInfoAt(GLenum imageTarget, GLint level) const {
-        return const_cast<WebGLTexture*>(this)->ImageInfoAt(imageTarget, level);
-    }
-
-    bool HasImageInfoAt(GLenum imageTarget, GLint level) const {
-        MOZ_ASSERT(imageTarget);
-        
-        size_t face = FaceForTarget(imageTarget);
+    bool HasImageInfoAt(size_t level, size_t face) const {
         CheckedUint32 checked_index = CheckedUint32(level) * mFacesCount + face;
         return checked_index.isValid() &&
                checked_index.value() < mImageInfos.Length() &&
-               ImageInfoAt(imageTarget, level).mIsDefined;
+               ImageInfoAt(level, face).mIsDefined;
     }
 
-    ImageInfo& ImageInfoBase() {
-        return ImageInfoAtFace(0, 0);
-    }
-
-    const ImageInfo& ImageInfoBase() const {
-        return ImageInfoAtFace(0, 0);
+    static size_t FaceForTarget(GLenum target) {
+        return target == LOCAL_GL_TEXTURE_2D ? 0 : target - LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X;
     }
 
     int64_t MemoryUsage() const;
@@ -193,7 +164,7 @@ protected:
         return mWrapS == LOCAL_GL_CLAMP_TO_EDGE && mWrapT == LOCAL_GL_CLAMP_TO_EDGE;
     }
 
-    bool DoesTexture2DMipmapHaveAllLevelsConsistentlyDefined(GLenum texImageTarget) const;
+    bool DoesTexture2DMipmapHaveAllLevelsConsistentlyDefined(size_t face) const;
 
 public:
 
@@ -232,7 +203,7 @@ public:
     void SetCustomMipmap();
 
     bool IsFirstImagePowerOfTwo() const {
-        return ImageInfoBase().IsPowerOfTwo();
+        return ImageInfoAt(0, 0).IsPowerOfTwo();
     }
 
     bool AreAllLevel0ImageInfosEqual() const;

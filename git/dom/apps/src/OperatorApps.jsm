@@ -61,7 +61,7 @@ let iccListener = {
 
   notifyIccCardLockError: function() {},
 
-  notifyCardStateChanged: function() {},
+  notifyCardStateChange: function() {},
 
   notifyIccInfoChanged: function() {
     let iccInfo = iccProvider.iccInfo;

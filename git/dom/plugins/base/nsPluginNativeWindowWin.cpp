@@ -272,7 +272,7 @@ static LRESULT CALLBACK PluginWndProcInternal(HWND hWnd, UINT msg, WPARAM wParam
         nsCOMPtr<nsIWidget> widget;
         win->GetPluginWidget(getter_AddRefs(widget));
         if (widget) {
-          WidgetGUIEvent event(true, NS_PLUGIN_ACTIVATE, widget);
+          nsGUIEvent event(true, NS_PLUGIN_ACTIVATE, widget);
           nsEventStatus status;
           widget->DispatchEvent(&event, status);
         }

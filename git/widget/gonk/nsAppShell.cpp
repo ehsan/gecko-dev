@@ -145,13 +145,13 @@ struct UserInputData {
 static void
 sendMouseEvent(uint32_t msg, uint64_t timeMs, int x, int y, bool forwardToChildren)
 {
-    WidgetMouseEvent event(true, msg, NULL,
-                           WidgetMouseEvent::eReal, WidgetMouseEvent::eNormal);
+    nsMouseEvent event(true, msg, NULL,
+                       nsMouseEvent::eReal, nsMouseEvent::eNormal);
 
     event.refPoint.x = x;
     event.refPoint.y = y;
     event.time = timeMs;
-    event.button = WidgetMouseEvent::eLeftButton;
+    event.button = nsMouseEvent::eLeftButton;
     event.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
     if (msg != NS_MOUSE_MOVE)
         event.clickCount = 1;

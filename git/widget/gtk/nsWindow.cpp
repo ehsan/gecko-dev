@@ -453,7 +453,7 @@ nsWindow::DispatchResized(int32_t aWidth, int32_t aHeight)
 }
 
 nsresult
-nsWindow::DispatchEvent(WidgetGUIEvent* aEvent, nsEventStatus& aStatus)
+nsWindow::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus &aStatus)
 {
 #ifdef DEBUG
     debug_DumpEvent(stdout, aEvent->widget, aEvent,
@@ -2432,7 +2432,7 @@ nsWindow::OnEnterNotifyEvent(GdkEventCrossing *aEvent)
     if (is_parent_ungrab_enter(aEvent))
         return;
 
-    WidgetMouseEvent event(true, NS_MOUSE_ENTER, this, WidgetMouseEvent::eReal);
+    nsMouseEvent event(true, NS_MOUSE_ENTER, this, nsMouseEvent::eReal);
 
     event.refPoint.x = nscoord(aEvent->x);
     event.refPoint.y = nscoord(aEvent->y);
@@ -2474,7 +2474,7 @@ nsWindow::OnLeaveNotifyEvent(GdkEventCrossing *aEvent)
     if (aEvent->subwindow != NULL)
         return;
 
-    WidgetMouseEvent event(true, NS_MOUSE_EXIT, this, WidgetMouseEvent::eReal);
+    nsMouseEvent event(true, NS_MOUSE_EXIT, this, nsMouseEvent::eReal);
 
     event.refPoint.x = nscoord(aEvent->x);
     event.refPoint.y = nscoord(aEvent->y);
@@ -2482,7 +2482,7 @@ nsWindow::OnLeaveNotifyEvent(GdkEventCrossing *aEvent)
     event.time = aEvent->time;
 
     event.exit = is_top_level_mouse_exit(mGdkWindow, aEvent)
-        ? WidgetMouseEvent::eTopLevel : WidgetMouseEvent::eChild;
+        ? nsMouseEvent::eTopLevel : nsMouseEvent::eChild;
 
     LOG(("OnLeaveNotify: %p\n", (void *)this));
 
@@ -2519,7 +2519,7 @@ nsWindow::OnMotionNotifyEvent(GdkEventMotion *aEvent)
 #endif /* MOZ_WIDGET_GTK2 */
 #endif /* MOZ_X11 */
 
-    WidgetMouseEvent event(true, NS_MOUSE_MOVE, this, WidgetMouseEvent::eReal);
+    nsMouseEvent event(true, NS_MOUSE_MOVE, this, nsMouseEvent::eReal);
 
     gdouble pressure = 0;
     gdk_event_get_axis ((GdkEvent*)aEvent, GDK_AXIS_PRESSURE, &pressure);
@@ -2596,15 +2596,15 @@ nsWindow::DispatchMissedButtonReleases(GdkEventCrossing *aGdkEvent)
             int16_t buttonType;
             switch (buttonMask) {
             case GDK_BUTTON1_MASK:
-                buttonType = WidgetMouseEvent::eLeftButton;
+                buttonType = nsMouseEvent::eLeftButton;
                 break;
             case GDK_BUTTON2_MASK:
-                buttonType = WidgetMouseEvent::eMiddleButton;
+                buttonType = nsMouseEvent::eMiddleButton;
                 break;
             default:
                 NS_ASSERTION(buttonMask == GDK_BUTTON3_MASK,
                              "Unexpected button mask");
-                buttonType = WidgetMouseEvent::eRightButton;
+                buttonType = nsMouseEvent::eRightButton;
             }
 
             LOG(("Synthesized button %u release on %p\n",
@@ -2614,8 +2614,8 @@ nsWindow::DispatchMissedButtonReleases(GdkEventCrossing *aGdkEvent)
             // change in state.  This event is marked as synthesized so that
             // it is not dispatched as a DOM event, because we don't know the
             // position, widget, modifiers, or time/order.
-            WidgetMouseEvent synthEvent(true, NS_MOUSE_BUTTON_UP, this,
-                                        WidgetMouseEvent::eSynthesized);
+            nsMouseEvent synthEvent(true, NS_MOUSE_BUTTON_UP, this,
+                                    nsMouseEvent::eSynthesized);
             synthEvent.button = buttonType;
             nsEventStatus status;
             DispatchEvent(&synthEvent, status);
@@ -2624,8 +2624,8 @@ nsWindow::DispatchMissedButtonReleases(GdkEventCrossing *aGdkEvent)
 }
 
 void
-nsWindow::InitButtonEvent(WidgetMouseEvent& aEvent,
-                          GdkEventButton* aGdkEvent)
+nsWindow::InitButtonEvent(nsMouseEvent &aEvent,
+                          GdkEventButton *aGdkEvent)
 {
     // XXX see OnScrollEvent()
     if (aGdkEvent->window == mGdkWindow) {
@@ -2717,13 +2717,13 @@ nsWindow::OnButtonPressEvent(GdkEventButton *aEvent)
     uint16_t domButton;
     switch (aEvent->button) {
     case 1:
-        domButton = WidgetMouseEvent::eLeftButton;
+        domButton = nsMouseEvent::eLeftButton;
         break;
     case 2:
-        domButton = WidgetMouseEvent::eMiddleButton;
+        domButton = nsMouseEvent::eMiddleButton;
         break;
     case 3:
-        domButton = WidgetMouseEvent::eRightButton;
+        domButton = nsMouseEvent::eRightButton;
         break;
     // These are mapped to horizontal scroll
     case 6:
@@ -2743,8 +2743,7 @@ nsWindow::OnButtonPressEvent(GdkEventButton *aEvent)
 
     gButtonState |= ButtonMaskFromGDKButton(aEvent->button);
 
-    WidgetMouseEvent event(true, NS_MOUSE_BUTTON_DOWN, this,
-                           WidgetMouseEvent::eReal);
+    nsMouseEvent event(true, NS_MOUSE_BUTTON_DOWN, this, nsMouseEvent::eReal);
     event.button = domButton;
     InitButtonEvent(event, aEvent);
     event.pressure = mLastMotionPressure;
@@ -2752,10 +2751,10 @@ nsWindow::OnButtonPressEvent(GdkEventButton *aEvent)
     DispatchEvent(&event, status);
 
     // right menu click on linux should also pop up a context menu
-    if (domButton == WidgetMouseEvent::eRightButton &&
+    if (domButton == nsMouseEvent::eRightButton &&
         MOZ_LIKELY(!mIsDestroyed)) {
-        WidgetMouseEvent contextMenuEvent(true, NS_CONTEXTMENU, this,
-                                          WidgetMouseEvent::eReal);
+        nsMouseEvent contextMenuEvent(true, NS_CONTEXTMENU, this,
+                                      nsMouseEvent::eReal);
         InitButtonEvent(contextMenuEvent, aEvent);
         contextMenuEvent.pressure = mLastMotionPressure;
         DispatchEvent(&contextMenuEvent, status);
@@ -2770,13 +2769,13 @@ nsWindow::OnButtonReleaseEvent(GdkEventButton *aEvent)
     uint16_t domButton;
     switch (aEvent->button) {
     case 1:
-        domButton = WidgetMouseEvent::eLeftButton;
+        domButton = nsMouseEvent::eLeftButton;
         break;
     case 2:
-        domButton = WidgetMouseEvent::eMiddleButton;
+        domButton = nsMouseEvent::eMiddleButton;
         break;
     case 3:
-        domButton = WidgetMouseEvent::eRightButton;
+        domButton = nsMouseEvent::eRightButton;
         break;
     default:
         return;
@@ -2784,8 +2783,7 @@ nsWindow::OnButtonReleaseEvent(GdkEventButton *aEvent)
 
     gButtonState &= ~ButtonMaskFromGDKButton(aEvent->button);
 
-    WidgetMouseEvent event(true, NS_MOUSE_BUTTON_UP, this,
-                           WidgetMouseEvent::eReal);
+    nsMouseEvent event(true, NS_MOUSE_BUTTON_UP, this, nsMouseEvent::eReal);
     event.button = domButton;
     InitButtonEvent(event, aEvent);
     gdouble pressure = 0;
@@ -3024,9 +3022,9 @@ nsWindow::OnKeyPressEvent(GdkEventKey *aEvent)
     // before we dispatch a key, check if it's the context menu key.
     // If so, send a context menu key event instead.
     if (is_context_menu_key(event)) {
-        WidgetMouseEvent contextMenuEvent(true, NS_CONTEXTMENU, this,
-                                          WidgetMouseEvent::eReal,
-                                          WidgetMouseEvent::eContextMenuKey);
+        nsMouseEvent contextMenuEvent(true, NS_CONTEXTMENU, this,
+                                      nsMouseEvent::eReal,
+                                      nsMouseEvent::eContextMenuKey);
 
         contextMenuEvent.refPoint = LayoutDeviceIntPoint(0, 0);
         contextMenuEvent.time = aEvent->time;
@@ -6053,11 +6051,11 @@ nsWindow::GetThebesSurface(cairo_t *cr)
 
 // Code shared begin BeginMoveDrag and BeginResizeDrag
 bool
-nsWindow::GetDragInfo(WidgetMouseEvent* aMouseEvent,
+nsWindow::GetDragInfo(nsMouseEvent* aMouseEvent,
                       GdkWindow** aWindow, gint* aButton,
                       gint* aRootX, gint* aRootY)
 {
-    if (aMouseEvent->button != WidgetMouseEvent::eLeftButton) {
+    if (aMouseEvent->button != nsMouseEvent::eLeftButton) {
         // we can only begin a move drag with the left mouse button
         return false;
     }
@@ -6093,7 +6091,7 @@ nsWindow::GetDragInfo(WidgetMouseEvent* aMouseEvent,
 }
 
 NS_IMETHODIMP
-nsWindow::BeginMoveDrag(WidgetMouseEvent* aEvent)
+nsWindow::BeginMoveDrag(nsMouseEvent* aEvent)
 {
     NS_ABORT_IF_FALSE(aEvent, "must have event");
     NS_ABORT_IF_FALSE(aEvent->eventStructType == NS_MOUSE_EVENT,
@@ -6113,9 +6111,7 @@ nsWindow::BeginMoveDrag(WidgetMouseEvent* aEvent)
 }
 
 NS_IMETHODIMP
-nsWindow::BeginResizeDrag(WidgetGUIEvent* aEvent,
-                          int32_t aHorizontal,
-                          int32_t aVertical)
+nsWindow::BeginResizeDrag(nsGUIEvent* aEvent, int32_t aHorizontal, int32_t aVertical)
 {
     NS_ENSURE_ARG_POINTER(aEvent);
 
@@ -6124,7 +6120,7 @@ nsWindow::BeginResizeDrag(WidgetGUIEvent* aEvent,
         return NS_ERROR_INVALID_ARG;
     }
 
-    WidgetMouseEvent* mouse_event = static_cast<WidgetMouseEvent*>(aEvent);
+    nsMouseEvent* mouse_event = static_cast<nsMouseEvent*>(aEvent);
 
     GdkWindow *gdk_window;
     gint button, screenX, screenY;

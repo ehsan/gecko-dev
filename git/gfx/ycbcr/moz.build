@@ -73,5 +73,3 @@ LIBRARY_NAME = 'ycbcr'
 
 LIBXUL_LIBRARY = True
 
-EXPORT_LIBRARY = True
-

@@ -412,8 +412,8 @@ nsSliderFrame::DoLayout(nsBoxLayoutState& aState)
 
 NS_IMETHODIMP
 nsSliderFrame::HandleEvent(nsPresContext* aPresContext,
-                           WidgetGUIEvent* aEvent,
-                           nsEventStatus* aEventStatus)
+                                      nsGUIEvent* aEvent,
+                                      nsEventStatus* aEventStatus)
 {
   NS_ENSURE_ARG_POINTER(aEventStatus);
 
@@ -823,8 +823,7 @@ nsSliderFrame::StartDrag(nsIDOMEvent* aEvent)
                             nsGkAtoms::_true, eCaseMatters))
     return NS_OK;
 
-  WidgetGUIEvent *event =
-    static_cast<WidgetGUIEvent*>(aEvent->GetInternalNSEvent());
+  nsGUIEvent *event = static_cast<nsGUIEvent*>(aEvent->GetInternalNSEvent());
 
   if (!ShouldScrollForEvent(event)) {
     return NS_OK;
@@ -939,7 +938,7 @@ nsSliderFrame::RemoveListener()
 }
 
 bool
-nsSliderFrame::ShouldScrollForEvent(WidgetGUIEvent* aEvent)
+nsSliderFrame::ShouldScrollForEvent(nsGUIEvent* aEvent)
 {
   switch (aEvent->message) {
     case NS_TOUCH_START:
@@ -947,9 +946,9 @@ nsSliderFrame::ShouldScrollForEvent(WidgetGUIEvent* aEvent)
       return true;
     case NS_MOUSE_BUTTON_DOWN:
     case NS_MOUSE_BUTTON_UP: {
-      uint16_t button = static_cast<WidgetMouseEvent*>(aEvent)->button;
-      return (button == WidgetMouseEvent::eLeftButton) ||
-             (button == WidgetMouseEvent::eMiddleButton && gMiddlePref);
+      uint16_t button = static_cast<nsMouseEvent*>(aEvent)->button;
+      return (button == nsMouseEvent::eLeftButton) ||
+             (button == nsMouseEvent::eMiddleButton && gMiddlePref);
     }
     default:
       return false;
@@ -957,7 +956,7 @@ nsSliderFrame::ShouldScrollForEvent(WidgetGUIEvent* aEvent)
 }
 
 bool
-nsSliderFrame::ShouldScrollToClickForEvent(WidgetGUIEvent* aEvent)
+nsSliderFrame::ShouldScrollToClickForEvent(nsGUIEvent* aEvent)
 {
   if (!ShouldScrollForEvent(aEvent)) {
     return false;
@@ -978,8 +977,8 @@ nsSliderFrame::ShouldScrollToClickForEvent(WidgetGUIEvent* aEvent)
   }
 #endif
 
-  WidgetMouseEvent* mouseEvent = static_cast<WidgetMouseEvent*>(aEvent);
-  if (mouseEvent->button == WidgetMouseEvent::eLeftButton) {
+  nsMouseEvent* mouseEvent = static_cast<nsMouseEvent*>(aEvent);
+  if (mouseEvent->button == nsMouseEvent::eLeftButton) {
 #ifdef XP_MACOSX
     bool invertPref = mouseEvent->IsAlt();
 #else
@@ -992,7 +991,7 @@ nsSliderFrame::ShouldScrollToClickForEvent(WidgetGUIEvent* aEvent)
 }
 
 bool
-nsSliderFrame::IsEventOverThumb(WidgetGUIEvent* aEvent)
+nsSliderFrame::IsEventOverThumb(nsGUIEvent* aEvent)
 {
   nsIFrame* thumbFrame = mFrames.FirstChild();
   if (!thumbFrame) {
@@ -1015,8 +1014,8 @@ nsSliderFrame::IsEventOverThumb(WidgetGUIEvent* aEvent)
 
 NS_IMETHODIMP
 nsSliderFrame::HandlePress(nsPresContext* aPresContext,
-                           WidgetGUIEvent* aEvent,
-                           nsEventStatus* aEventStatus)
+                           nsGUIEvent*     aEvent,
+                           nsEventStatus*  aEventStatus)
 {
   if (!ShouldScrollForEvent(aEvent) || ShouldScrollToClickForEvent(aEvent)) {
     return NS_OK;
@@ -1055,8 +1054,8 @@ nsSliderFrame::HandlePress(nsPresContext* aPresContext,
 
 NS_IMETHODIMP
 nsSliderFrame::HandleRelease(nsPresContext* aPresContext,
-                             WidgetGUIEvent* aEvent,
-                             nsEventStatus* aEventStatus)
+                                 nsGUIEvent*     aEvent,
+                                 nsEventStatus*  aEventStatus)
 {
   StopRepeat();
 

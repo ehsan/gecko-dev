@@ -280,8 +280,7 @@ MoveEmitterX86::emitGeneralMove(const MoveOperand &from, const MoveOperand &to)
         masm.mov(ScratchReg, toOperand(to));
 #else
         // This is tricky without a ScratchReg. We can't do an lea. Bounce the
-        // base register off the stack, then add the offset in place. Note that
-        // this clobbers FLAGS!
+        // base register off the stack, then add the offset in place.
         masm.Push(from.base());
         masm.Pop(toPopOperand(to));
         masm.addPtr(Imm32(from.disp()), toOperand(to));

@@ -41,13 +41,12 @@ class nsDOMEvent : public nsDOMEventBase,
 {
 public:
   nsDOMEvent(mozilla::dom::EventTarget* aOwner, nsPresContext* aPresContext,
-             mozilla::WidgetEvent* aEvent);
+             nsEvent* aEvent);
   nsDOMEvent(nsPIDOMWindow* aWindow);
   virtual ~nsDOMEvent();
 private:
   void ConstructorInit(mozilla::dom::EventTarget* aOwner,
-                       nsPresContext* aPresContext,
-                       mozilla::WidgetEvent* aEvent);
+                       nsPresContext* aPresContext, nsEvent* aEvent);
 public:
   void GetParentObject(nsIScriptGlobalObject** aParentObject)
   {
@@ -98,8 +97,7 @@ public:
   // Returns true if the event should be trusted.
   bool Init(mozilla::dom::EventTarget* aGlobal);
 
-  static PopupControlState GetEventPopupControlState(
-                             mozilla::WidgetEvent* aEvent);
+  static PopupControlState GetEventPopupControlState(nsEvent *aEvent);
 
   static void PopupAllowedEventsChanged();
 
@@ -107,18 +105,15 @@ public:
 
   static const char* GetEventName(uint32_t aEventType);
   static mozilla::CSSIntPoint
-  GetClientCoords(nsPresContext* aPresContext,
-                  mozilla::WidgetEvent* aEvent,
+  GetClientCoords(nsPresContext* aPresContext, nsEvent* aEvent,
                   mozilla::LayoutDeviceIntPoint aPoint,
                   mozilla::CSSIntPoint aDefaultPoint);
   static mozilla::CSSIntPoint
-  GetPageCoords(nsPresContext* aPresContext,
-                mozilla::WidgetEvent* aEvent,
+  GetPageCoords(nsPresContext* aPresContext, nsEvent* aEvent,
                 mozilla::LayoutDeviceIntPoint aPoint,
                 mozilla::CSSIntPoint aDefaultPoint);
   static nsIntPoint
-  GetScreenCoords(nsPresContext* aPresContext,
-                  mozilla::WidgetEvent* aEvent,
+  GetScreenCoords(nsPresContext* aPresContext, nsEvent* aEvent,
                   mozilla::LayoutDeviceIntPoint aPoint);
 
   static already_AddRefed<nsDOMEvent> Constructor(const mozilla::dom::GlobalObject& aGlobal,
@@ -190,7 +185,7 @@ protected:
   void SetEventType(const nsAString& aEventTypeArg);
   already_AddRefed<nsIContent> GetTargetFromFrame();
 
-  mozilla::WidgetEvent*       mEvent;
+  nsEvent*                    mEvent;
   nsRefPtr<nsPresContext>     mPresContext;
   nsCOMPtr<mozilla::dom::EventTarget> mExplicitOriginalTarget;
   nsCOMPtr<nsPIDOMWindow>     mOwner; // nsPIDOMWindow for now.
@@ -221,7 +216,7 @@ protected:
   NS_IMETHOD GetIsTrusted(bool* aIsTrusted) { return _to GetIsTrusted(aIsTrusted); } \
   NS_IMETHOD SetTarget(nsIDOMEventTarget *aTarget) { return _to SetTarget(aTarget); } \
   NS_IMETHOD_(bool) IsDispatchStopped(void) { return _to IsDispatchStopped(); } \
-  NS_IMETHOD_(mozilla::WidgetEvent*) GetInternalNSEvent(void) { return _to GetInternalNSEvent(); } \
+  NS_IMETHOD_(nsEvent *) GetInternalNSEvent(void) { return _to GetInternalNSEvent(); } \
   NS_IMETHOD_(void) SetTrusted(bool aTrusted) { _to SetTrusted(aTrusted); } \
   NS_IMETHOD_(void) SetOwner(mozilla::dom::EventTarget* aOwner) { _to SetOwner(aOwner); } \
   NS_IMETHOD_(nsDOMEvent *) InternalDOMEvent(void) { return _to InternalDOMEvent(); }

@@ -134,8 +134,7 @@ public:
   /**
    * Handle an event.
    */
-  virtual nsEventStatus HandleEvent(mozilla::WidgetGUIEvent* aEvent,
-                                    bool aUseAttachedEvents)
+  virtual nsEventStatus HandleEvent(nsGUIEvent* event, bool useAttachedEvents)
   {
     return nsEventStatus_eIgnore;
   }

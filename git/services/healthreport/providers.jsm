@@ -1062,10 +1062,8 @@ CrashDirectoryService.prototype = Object.freeze({
           }
 
           let info = yield OS.File.stat(entry.path);
-
           files[entry.name] = {
-            // Last modified should be adequate, because crash files aren't
-            // modified after they're first written.
+            created: info.creationDate,
             modified: info.lastModificationDate,
             size: info.size,
           };

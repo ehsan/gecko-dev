@@ -111,7 +111,7 @@ public:
    */
   bool ShouldUseNativeStyle() const;
 
-  mozilla::Decimal GetValueAtEventPoint(mozilla::WidgetGUIEvent* aEvent);
+  mozilla::Decimal GetValueAtEventPoint(nsGUIEvent* aEvent);
 
   /**
    * Helper that's used when the value of the range changes to reposition the

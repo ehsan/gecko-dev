@@ -23,5 +23,3 @@ LIBXUL_LIBRARY = True
 
 LIBRARY_NAME = 'jsipc_s'
 
-EXPORT_LIBRARY = True
-

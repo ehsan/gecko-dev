@@ -37,7 +37,7 @@ static char *sPopupAllowedEvents;
 
 
 nsDOMEvent::nsDOMEvent(mozilla::dom::EventTarget* aOwner,
-                       nsPresContext* aPresContext, WidgetEvent* aEvent)
+                       nsPresContext* aPresContext, nsEvent* aEvent)
 {
   ConstructorInit(aOwner, aPresContext, aEvent);
 }
@@ -49,7 +49,7 @@ nsDOMEvent::nsDOMEvent(nsPIDOMWindow* aParent)
 
 void
 nsDOMEvent::ConstructorInit(mozilla::dom::EventTarget* aOwner,
-                            nsPresContext* aPresContext, WidgetEvent* aEvent)
+                            nsPresContext* aPresContext, nsEvent* aEvent)
 {
   SetIsDOMBinding();
   SetOwner(aOwner);
@@ -65,16 +65,16 @@ nsDOMEvent::ConstructorInit(mozilla::dom::EventTarget* aOwner,
     mEventIsInternal = true;
     /*
       A derived class might want to allocate its own type of aEvent
-      (derived from WidgetEvent). To do this, it should take care to pass
+      (derived from nsEvent). To do this, it should take care to pass
       a non-nullptr aEvent to this ctor, e.g.:
       
-        nsDOMFooEvent::nsDOMFooEvent(..., WidgetEvent* aEvent)
+        nsDOMFooEvent::nsDOMFooEvent(..., nsEvent* aEvent)
         : nsDOMEvent(..., aEvent ? aEvent : new nsFooEvent())
       
       Then, to override the mEventIsInternal assignments done by the
       base ctor, it should do this in its own ctor:
 
-        nsDOMFooEvent::nsDOMFooEvent(..., WidgetEvent* aEvent)
+        nsDOMFooEvent::nsDOMFooEvent(..., nsEvent* aEvent)
         ...
         {
           ...
@@ -87,7 +87,7 @@ nsDOMEvent::ConstructorInit(mozilla::dom::EventTarget* aOwner,
           ...
         }
      */
-    mEvent = new WidgetEvent(false, 0);
+    mEvent = new nsEvent(false, 0);
     mEvent->time = PR_Now();
   }
 
@@ -506,26 +506,26 @@ nsDOMEvent::DuplicatePrivateData()
   // FIXME! Simplify this method and make it somehow easily extendable,
   //        Bug 329127
   
-  NS_ASSERTION(mEvent, "No WidgetEvent for nsDOMEvent duplication!");
+  NS_ASSERTION(mEvent, "No nsEvent for nsDOMEvent duplication!");
   if (mEventIsInternal) {
     return NS_OK;
   }
 
-  WidgetEvent* newEvent = nullptr;
+  nsEvent* newEvent = nullptr;
   uint32_t msg = mEvent->message;
 
   switch (mEvent->eventStructType) {
     case NS_EVENT:
     {
-      newEvent = new WidgetEvent(false, msg);
+      newEvent = new nsEvent(false, msg);
       newEvent->AssignEventData(*mEvent, true);
       break;
     }
     case NS_GUI_EVENT:
     {
-      WidgetGUIEvent* oldGUIEvent = static_cast<WidgetGUIEvent*>(mEvent);
+      nsGUIEvent* oldGUIEvent = static_cast<nsGUIEvent*>(mEvent);
       // Not copying widget, it is a weak reference.
-      WidgetGUIEvent* guiEvent = new WidgetGUIEvent(false, msg, nullptr);
+      nsGUIEvent* guiEvent = new nsGUIEvent(false, msg, nullptr);
       guiEvent->AssignGUIEventData(*oldGUIEvent, true);
       newEvent = guiEvent;
       break;
@@ -550,9 +550,9 @@ nsDOMEvent::DuplicatePrivateData()
     }
     case NS_MOUSE_EVENT:
     {
-      WidgetMouseEvent* oldMouseEvent = static_cast<WidgetMouseEvent*>(mEvent);
-      WidgetMouseEvent* mouseEvent =
-        new WidgetMouseEvent(false, msg, nullptr, oldMouseEvent->reason);
+      nsMouseEvent* oldMouseEvent = static_cast<nsMouseEvent*>(mEvent);
+      nsMouseEvent* mouseEvent =
+        new nsMouseEvent(false, msg, nullptr, oldMouseEvent->reason);
       mouseEvent->AssignMouseEventData(*oldMouseEvent, true);
       newEvent = mouseEvent;
       break;
@@ -690,8 +690,8 @@ nsDOMEvent::DuplicatePrivateData()
     }
     case NS_SVGZOOM_EVENT:
     {
-      WidgetGUIEvent* oldGUIEvent = static_cast<WidgetGUIEvent*>(mEvent);
-      WidgetGUIEvent* guiEvent = new WidgetGUIEvent(false, msg, nullptr);
+      nsGUIEvent* oldGUIEvent = static_cast<nsGUIEvent*>(mEvent);
+      nsGUIEvent* guiEvent = new nsGUIEvent(false, msg, nullptr);
       guiEvent->eventStructType = NS_SVGZOOM_EVENT;
       guiEvent->AssignGUIEventData(*oldGUIEvent, true);
       newEvent = guiEvent;
@@ -790,7 +790,7 @@ nsDOMEvent::IsDispatchStopped()
   return mEvent->mFlags.mPropagationStopped;
 }
 
-NS_IMETHODIMP_(WidgetEvent*)
+NS_IMETHODIMP_(nsEvent*)
 nsDOMEvent::GetInternalNSEvent()
 {
   return mEvent;
@@ -844,7 +844,7 @@ PopupAllowedForEvent(const char *eventName)
 
 // static
 PopupControlState
-nsDOMEvent::GetEventPopupControlState(WidgetEvent* aEvent)
+nsDOMEvent::GetEventPopupControlState(nsEvent *aEvent)
 {
   // generally if an event handler is running, new windows are disallowed.
   // check for exceptions:
@@ -940,8 +940,7 @@ nsDOMEvent::GetEventPopupControlState(WidgetEvent* aEvent)
     break;
   case NS_MOUSE_EVENT :
     if (aEvent->mFlags.mIsTrusted &&
-        static_cast<WidgetMouseEvent*>(aEvent)->button ==
-          WidgetMouseEvent::eLeftButton) {
+        static_cast<nsMouseEvent*>(aEvent)->button == nsMouseEvent::eLeftButton) {
       switch(aEvent->message) {
       case NS_MOUSE_BUTTON_UP :
         if (::PopupAllowedForEvent("mouseup"))
@@ -1025,7 +1024,7 @@ nsDOMEvent::Shutdown()
 
 nsIntPoint
 nsDOMEvent::GetScreenCoords(nsPresContext* aPresContext,
-                            WidgetEvent* aEvent,
+                            nsEvent* aEvent,
                             LayoutDeviceIntPoint aPoint)
 {
   if (nsEventStateManager::sIsPointerLocked) {
@@ -1042,7 +1041,7 @@ nsDOMEvent::GetScreenCoords(nsPresContext* aPresContext,
     return nsIntPoint(0, 0);
   }
 
-  WidgetGUIEvent* guiEvent = static_cast<WidgetGUIEvent*>(aEvent);
+  nsGUIEvent* guiEvent = static_cast<nsGUIEvent*>(aEvent);
   if (!guiEvent->widget) {
     return LayoutDeviceIntPoint::ToUntyped(aPoint);
   }
@@ -1057,7 +1056,7 @@ nsDOMEvent::GetScreenCoords(nsPresContext* aPresContext,
 //static
 CSSIntPoint
 nsDOMEvent::GetPageCoords(nsPresContext* aPresContext,
-                          WidgetEvent* aEvent,
+                          nsEvent* aEvent,
                           LayoutDeviceIntPoint aPoint,
                           CSSIntPoint aDefaultPoint)
 {
@@ -1081,7 +1080,7 @@ nsDOMEvent::GetPageCoords(nsPresContext* aPresContext,
 // static
 CSSIntPoint
 nsDOMEvent::GetClientCoords(nsPresContext* aPresContext,
-                            WidgetEvent* aEvent,
+                            nsEvent* aEvent,
                             LayoutDeviceIntPoint aPoint,
                             CSSIntPoint aDefaultPoint)
 {
@@ -1097,7 +1096,7 @@ nsDOMEvent::GetClientCoords(nsPresContext* aPresContext,
        aEvent->eventStructType != NS_DRAG_EVENT &&
        aEvent->eventStructType != NS_SIMPLE_GESTURE_EVENT) ||
       !aPresContext ||
-      !static_cast<WidgetGUIEvent*>(aEvent)->widget) {
+      !static_cast<nsGUIEvent*>(aEvent)->widget) {
     return aDefaultPoint;
   }
 
@@ -1130,7 +1129,7 @@ const char* nsDOMEvent::GetEventName(uint32_t aEventType)
   default:
     break;
   }
-  // XXXldb We can hit this case for WidgetEvent objects that we didn't
+  // XXXldb We can hit this case for nsEvent objects that we didn't
   // create and that are not user defined events since this function and
   // SetEventType are incomplete.  (But fixing that requires fixing the
   // arrays in nsEventListenerManager too, since the events for which
@@ -1245,7 +1244,7 @@ nsDOMEvent::SetOwner(mozilla::dom::EventTarget* aOwner)
 nsresult NS_NewDOMEvent(nsIDOMEvent** aInstancePtrResult,
                         mozilla::dom::EventTarget* aOwner,
                         nsPresContext* aPresContext,
-                        WidgetEvent* aEvent) 
+                        nsEvent *aEvent) 
 {
   nsRefPtr<nsDOMEvent> it =
     new nsDOMEvent(aOwner, aPresContext, aEvent);

@@ -1676,7 +1676,7 @@ NS_IMETHODIMP nsCocoaWindow::GetSheetWindowParent(NSWindow** sheetWindowParent)
 
 // Invokes callback and ProcessEvent methods on Event Listener object
 NS_IMETHODIMP 
-nsCocoaWindow::DispatchEvent(WidgetGUIEvent* event, nsEventStatus& aStatus)
+nsCocoaWindow::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
 {
   aStatus = nsEventStatus_eIgnore;
 

@@ -878,7 +878,10 @@ nsIFrame::GetUsedMargin() const
   if (m) {
     margin = *m;
   } else {
-    DebugOnly<bool> hasMargin = StyleMargin()->GetMargin(margin);
+#ifdef DEBUG
+    bool hasMargin = 
+#endif
+    StyleMargin()->GetMargin(margin);
     NS_ASSERTION(hasMargin, "We should have a margin here! (out of memory?)");
   }
   return margin;
@@ -953,7 +956,10 @@ nsIFrame::GetUsedPadding() const
   if (p) {
     padding = *p;
   } else {
-    DebugOnly<bool> hasPadding = StylePadding()->GetPadding(padding);
+#ifdef DEBUG
+    bool hasPadding = 
+#endif
+    StylePadding()->GetPadding(padding);
     NS_ASSERTION(hasPadding, "We should have padding here! (out of memory?)");
   }
   return padding;
@@ -2316,7 +2322,7 @@ nsIFrame::MarkAbsoluteFramesForDisplayList(nsDisplayListBuilder* aBuilder,
 }
 
 NS_IMETHODIMP  
-nsFrame::GetContentForEvent(WidgetEvent* aEvent,
+nsFrame::GetContentForEvent(nsEvent* aEvent,
                             nsIContent** aContent)
 {
   nsIFrame* f = nsLayoutUtils::GetNonGeneratedAncestor(this);
@@ -2340,8 +2346,8 @@ nsFrame::FireDOMEvent(const nsAString& aDOMEventName, nsIContent *aContent)
 
 NS_IMETHODIMP
 nsFrame::HandleEvent(nsPresContext* aPresContext, 
-                     WidgetGUIEvent* aEvent,
-                     nsEventStatus* aEventStatus)
+                     nsGUIEvent*     aEvent,
+                     nsEventStatus*  aEventStatus)
 {
 
   if (aEvent->message == NS_MOUSE_MOVE) {
@@ -2349,8 +2355,7 @@ nsFrame::HandleEvent(nsPresContext* aPresContext,
   }
 
   if ((aEvent->eventStructType == NS_MOUSE_EVENT &&
-      static_cast<WidgetMouseEvent*>(aEvent)->button ==
-        WidgetMouseEvent::eLeftButton) ||
+      static_cast<nsMouseEvent*>(aEvent)->button == nsMouseEvent::eLeftButton) ||
       aEvent->eventStructType == NS_TOUCH_EVENT) {
     if (aEvent->message == NS_MOUSE_BUTTON_DOWN || aEvent->message == NS_TOUCH_START) {
       HandlePress(aPresContext, aEvent, aEventStatus);
@@ -2362,12 +2367,9 @@ nsFrame::HandleEvent(nsPresContext* aPresContext,
 }
 
 NS_IMETHODIMP
-nsFrame::GetDataForTableSelection(const nsFrameSelection* aFrameSelection,
-                                  nsIPresShell* aPresShell,
-                                  WidgetMouseEvent* aMouseEvent, 
-                                  nsIContent** aParentContent,
-                                  int32_t* aContentOffset,
-                                  int32_t* aTarget)
+nsFrame::GetDataForTableSelection(const nsFrameSelection *aFrameSelection,
+                                  nsIPresShell *aPresShell, nsMouseEvent *aMouseEvent, 
+                                  nsIContent **aParentContent, int32_t *aContentOffset, int32_t *aTarget)
 {
   if (!aFrameSelection || !aPresShell || !aMouseEvent || !aParentContent || !aContentOffset || !aTarget)
     return NS_ERROR_NULL_POINTER;
@@ -2389,7 +2391,7 @@ nsFrame::GetDataForTableSelection(const nsFrameSelection* aFrameSelection,
      displaySelection == nsISelectionDisplay::DISPLAY_ALL && selectingTableCells &&
      (aMouseEvent->message == NS_MOUSE_MOVE ||
       (aMouseEvent->message == NS_MOUSE_BUTTON_UP &&
-       aMouseEvent->button == WidgetMouseEvent::eLeftButton) ||
+       aMouseEvent->button == nsMouseEvent::eLeftButton) ||
       aMouseEvent->IsShift());
 
   if (!doTableSelection)
@@ -2554,8 +2556,8 @@ nsFrame::IsSelectable(bool* aSelectable, uint8_t* aSelectStyle) const
  */
 NS_IMETHODIMP
 nsFrame::HandlePress(nsPresContext* aPresContext, 
-                     WidgetGUIEvent* aEvent,
-                     nsEventStatus* aEventStatus)
+                     nsGUIEvent*     aEvent,
+                     nsEventStatus*  aEventStatus)
 {
   NS_ENSURE_ARG_POINTER(aEventStatus);
   if (nsEventStatus_eConsumeNoDefault == *aEventStatus) {
@@ -2642,7 +2644,7 @@ nsFrame::HandlePress(nsPresContext* aPresContext,
   if (!frameselection || frameselection->GetDisplaySelection() == nsISelectionController::SELECTION_OFF)
     return NS_OK;//nothing to do we cannot affect selection from here
 
-  WidgetMouseEvent* me = static_cast<WidgetMouseEvent*>(aEvent);
+  nsMouseEvent *me = (nsMouseEvent *)aEvent;
 
 #ifdef XP_MACOSX
   if (me->IsControl())
@@ -2822,9 +2824,9 @@ nsFrame::SelectByTypeAtPoint(nsPresContext* aPresContext,
  */
 NS_IMETHODIMP
 nsFrame::HandleMultiplePress(nsPresContext* aPresContext,
-                             WidgetGUIEvent* aEvent,
+                             nsGUIEvent*    aEvent,
                              nsEventStatus* aEventStatus,
-                             bool aControlHeld)
+                             bool           aControlHeld)
 {
   NS_ENSURE_ARG_POINTER(aEvent);
   NS_ENSURE_ARG_POINTER(aEventStatus);
@@ -2839,7 +2841,7 @@ nsFrame::HandleMultiplePress(nsPresContext* aPresContext,
   // Otherwise, triple-click selects line, and quadruple-click selects paragraph
   // (on platforms that support quadruple-click).
   nsSelectionAmount beginAmount, endAmount;
-  WidgetMouseEvent* me = static_cast<WidgetMouseEvent*>(aEvent);
+  nsMouseEvent *me = (nsMouseEvent *)aEvent;
   if (!me) return NS_OK;
 
   if (me->clickCount == 4) {
@@ -2940,8 +2942,8 @@ nsFrame::PeekBackwardAndForward(nsSelectionAmount aAmountBack,
 }
 
 NS_IMETHODIMP nsFrame::HandleDrag(nsPresContext* aPresContext, 
-                                  WidgetGUIEvent* aEvent,
-                                  nsEventStatus* aEventStatus)
+                                  nsGUIEvent*     aEvent,
+                                  nsEventStatus*  aEventStatus)
 {
   MOZ_ASSERT(aEvent->eventStructType == NS_MOUSE_EVENT, "HandleDrag can only handle mouse event");
 
@@ -2969,7 +2971,7 @@ NS_IMETHODIMP nsFrame::HandleDrag(nsPresContext* aPresContext,
   nsCOMPtr<nsIContent> parentContent;
   int32_t contentOffset;
   int32_t target;
-  WidgetMouseEvent* me = static_cast<WidgetMouseEvent*>(aEvent);
+  nsMouseEvent *me = (nsMouseEvent *)aEvent;
   nsresult result;
   result = GetDataForTableSelection(frameselection, presShell, me,
                                     getter_AddRefs(parentContent),
@@ -3018,7 +3020,7 @@ HandleFrameSelection(nsFrameSelection*         aFrameSelection,
                      int32_t                   aContentOffsetForTableSel,
                      int32_t                   aTargetForTableSel,
                      nsIContent*               aParentContentForTableSel,
-                     WidgetGUIEvent*           aEvent,
+                     nsGUIEvent*               aEvent,
                      nsEventStatus*            aEventStatus)
 {
   if (!aFrameSelection) {
@@ -3055,11 +3057,10 @@ HandleFrameSelection(nsFrameSelection*         aFrameSelection,
       }
     } else if (aParentContentForTableSel) {
       aFrameSelection->SetMouseDownState(false);
-      rv = aFrameSelection->HandleTableSelection(
-                              aParentContentForTableSel,
-                              aContentOffsetForTableSel,
-                              aTargetForTableSel,
-                              static_cast<WidgetMouseEvent*>(aEvent));
+      rv = aFrameSelection->HandleTableSelection(aParentContentForTableSel,
+                                                 aContentOffsetForTableSel,
+                                                 aTargetForTableSel,
+                                                 (nsMouseEvent *)aEvent);
       if (NS_FAILED(rv)) {
         return rv;
       }
@@ -3074,7 +3075,7 @@ HandleFrameSelection(nsFrameSelection*         aFrameSelection,
 }
 
 NS_IMETHODIMP nsFrame::HandleRelease(nsPresContext* aPresContext,
-                                     WidgetGUIEvent* aEvent,
+                                     nsGUIEvent*    aEvent,
                                      nsEventStatus* aEventStatus)
 {
   if (aEvent->eventStructType != NS_MOUSE_EVENT) {
@@ -3115,7 +3116,7 @@ NS_IMETHODIMP nsFrame::HandleRelease(nsPresContext* aPresContext,
         handleTableSelection = false;
       } else {
         GetDataForTableSelection(frameselection, PresContext()->PresShell(),
-                                 static_cast<WidgetMouseEvent*>(aEvent),
+                                 (nsMouseEvent *)aEvent,
                                  getter_AddRefs(parentContent),
                                  &contentOffsetForTableSel,
                                  &targetForTableSel);
@@ -4994,21 +4995,11 @@ nsIFrame::SchedulePaint(uint32_t aFlags)
 }
 
 Layer*
-nsIFrame::InvalidateLayer(uint32_t aDisplayItemKey,
-                          const nsIntRect* aDamageRect,
-                          uint32_t aFlags /* = 0 */)
+nsIFrame::InvalidateLayer(uint32_t aDisplayItemKey, const nsIntRect* aDamageRect)
 {
   NS_ASSERTION(aDisplayItemKey > 0, "Need a key");
 
   Layer* layer = FrameLayerBuilder::GetDedicatedLayer(this, aDisplayItemKey);
-
-  // If the layer is being updated asynchronously, and it's being forwarded
-  // to a compositor, then we don't need to invalidate.
-  if ((aFlags & UPDATE_IS_ASYNC) && layer &&
-      layer->Manager()->GetBackendType() == LAYERS_CLIENT) {
-    return layer;
-  }
-
   if (aDamageRect && aDamageRect->IsEmpty()) {
     return layer;
   }
@@ -5068,7 +5059,10 @@ ComputeOutlineAndEffectsRect(nsIFrame* aFrame,
   uint8_t outlineStyle = outline->GetOutlineStyle();
   if (outlineStyle != NS_STYLE_BORDER_STYLE_NONE) {
     nscoord width;
-    DebugOnly<bool> result = outline->GetOutlineWidth(width);
+#ifdef DEBUG
+    bool result = 
+#endif
+      outline->GetOutlineWidth(width);
     NS_ASSERTION(result, "GetOutlineWidth had no cached outline width");
     if (width > 0) {
       if (aStoreRectProperties) {
@@ -8216,12 +8210,6 @@ void
 nsIFrame::DestroySurface(void* aPropertyValue)
 {
   static_cast<gfxASurface*>(aPropertyValue)->Release();
-}
-
-void
-nsIFrame::DestroyDT(void* aPropertyValue)
-{
-  static_cast<mozilla::gfx::DrawTarget*>(aPropertyValue)->Release();
 }
 
 void
