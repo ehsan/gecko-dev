@@ -1159,8 +1159,6 @@ protected:
   // Live pres shells, for memory and other tracking
   typedef nsPtrHashKey<nsIPresShell> PresShellPtrKey;
   static nsTHashtable<PresShellPtrKey> *sLiveShells;
-
-  static nsIContent* gKeyDownTarget;
 };
 
 /**
