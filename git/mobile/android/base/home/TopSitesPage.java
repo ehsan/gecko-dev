@@ -256,7 +256,7 @@ public class TopSitesPage extends HomeFragment {
         mList.setAdapter(mListAdapter);
 
         // Create callbacks before the initial loader is started
-        mCursorLoaderCallbacks = new CursorLoaderCallbacks(activity, getLoaderManager());
+        mCursorLoaderCallbacks = new CursorLoaderCallbacks();
         mThumbnailsLoaderCallbacks = new ThumbnailsLoaderCallbacks();
         loadIfVisible();
     }
@@ -460,6 +460,8 @@ public class TopSitesPage extends HomeFragment {
     }
 
     private void updateUiFromCursor(Cursor c) {
+        mList.setHeaderDividersEnabled(c != null && c.getCount() > 0);
+
         if (c != null && c.getCount() > 0) {
             return;
         }
@@ -595,64 +597,43 @@ public class TopSitesPage extends HomeFragment {
         }
     }
 
-    private class CursorLoaderCallbacks extends HomeCursorLoaderCallbacks {
-        public CursorLoaderCallbacks(Context context, LoaderManager loaderManager) {
-            super(context, loaderManager);
-        }
-
+    private class CursorLoaderCallbacks implements LoaderCallbacks<Cursor> {
         @Override
         public Loader<Cursor> onCreateLoader(int id, Bundle args) {
-            if (id == LOADER_ID_TOP_SITES) {
-                return new TopSitesLoader(getActivity());
-            } else {
-                return super.onCreateLoader(id, args);
-            }
+            return new TopSitesLoader(getActivity());
         }
 
         @Override
         public void onLoadFinished(Loader<Cursor> loader, Cursor c) {
-            if (loader.getId() == LOADER_ID_TOP_SITES) {
-                mListAdapter.swapCursor(c);
-                mGridAdapter.swapCursor(c);
-                updateUiFromCursor(c);
-                loadFavicons(c);
+            mListAdapter.swapCursor(c);
+            mGridAdapter.swapCursor(c);
+            updateUiFromCursor(c);
 
-                // Load the thumbnails.
-                if (c.getCount() > 0 && c.moveToFirst()) {
-                    final ArrayList<String> urls = new ArrayList<String>();
-                    do {
-                        final String url = c.getString(c.getColumnIndexOrThrow(URLColumns.URL));
-                        urls.add(url);
-                    } while (c.moveToNext());
+            // Load the thumbnails.
+            if (c.getCount() > 0 && c.moveToFirst()) {
+                final ArrayList<String> urls = new ArrayList<String>();
+                do {
+                    final String url = c.getString(c.getColumnIndexOrThrow(URLColumns.URL));
+                    urls.add(url);
+                } while (c.moveToNext());
 
-                    if (urls.size() > 0) {
-                        Bundle bundle = new Bundle();
-                        bundle.putStringArrayList(THUMBNAILS_URLS_KEY, urls);
-                        getLoaderManager().restartLoader(LOADER_ID_THUMBNAILS, bundle, mThumbnailsLoaderCallbacks);
-                    }
+                if (urls.size() > 0) {
+                    Bundle bundle = new Bundle();
+                    bundle.putStringArrayList(THUMBNAILS_URLS_KEY, urls);
+                    getLoaderManager().restartLoader(LOADER_ID_THUMBNAILS, bundle, mThumbnailsLoaderCallbacks);
                 }
-            } else {
-                super.onLoadFinished(loader, c);
             }
         }
 
         @Override
         public void onLoaderReset(Loader<Cursor> loader) {
-            if (loader.getId() == LOADER_ID_TOP_SITES) {
-                if (mListAdapter != null) {
-                    mListAdapter.swapCursor(null);
-                }
-                if (mGridAdapter != null) {
-                    mGridAdapter.swapCursor(null);
-                }
-            } else {
-                super.onLoaderReset(loader);
+            if (mListAdapter != null) {
+                mListAdapter.swapCursor(null);
             }
-        }
 
-        @Override
-        public void onFaviconsLoaded() {
-            mListAdapter.notifyDataSetChanged();
+            if (mGridAdapter != null) {
+                mGridAdapter.swapCursor(null);
+            }
         }
     }
 

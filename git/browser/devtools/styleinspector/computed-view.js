@@ -11,13 +11,14 @@ let {CssLogic} = require("devtools/styleinspector/css-logic");
 let {ELEMENT_STYLE} = require("devtools/server/actors/styles");
 let promise = require("sdk/core/promise");
 let {EventEmitter} = require("devtools/shared/event-emitter");
+let {colorUtils} = require("devtools/shared/css-color");
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/PluralForm.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/devtools/Templater.jsm");
 
-Cu.import("resource:///modules/devtools/gDevTools.jsm");
+let {gDevTools} = Cu.import("resource:///modules/devtools/gDevTools.jsm", {});
 
 const FILTER_CHANGED_TIMEOUT = 300;
 
@@ -152,6 +153,10 @@ function CssHtmlTree(aStyleInspector, aPageStyle)
   // No results text.
   this.noResults = this.styleDocument.getElementById("noResults");
 
+  // Refresh panel when color unit changed.
+  this._handlePrefChange = this._handlePrefChange.bind(this);
+  gDevTools.on("pref-changed", this._handlePrefChange);
+
   CssHtmlTree.processTemplate(this.templateRoot, this.root, this);
 
   // The element that we're inspecting, and the document that it comes from.
@@ -244,6 +249,12 @@ CssHtmlTree.prototype = {
     return this.includeBrowserStylesCheckbox.checked;
   },
 
+  _handlePrefChange: function(event, data) {
+    if (data.pref == "devtools.defaultColorUnit" && this._computed) {
+      this.refreshPanel();
+    }
+  },
+
   /**
    * Update the highlighted element. The CssHtmlTree panel will show the style
    * information for the given element.
@@ -256,7 +267,7 @@ CssHtmlTree.prototype = {
       if (this._refreshProcess) {
         this._refreshProcess.cancel();
       }
-      return promise.resolve(undefined)
+      return promise.resolve(undefined);
     }
 
     if (aElement === this.viewedElement) {
@@ -495,6 +506,7 @@ CssHtmlTree.prototype = {
     this.includeBrowserStylesCheckbox.removeEventListener("command",
       this.includeBrowserStylesChanged);
     this.searchField.removeEventListener("command", this.filterChanged);
+    gDevTools.off("pref-changed", this._handlePrefChange);
 
     // Cancel tree construction
     if (this._createViewsProcess) {
@@ -553,8 +565,13 @@ function PropertyInfo(aTree, aName) {
   this.name = aName;
 }
 PropertyInfo.prototype = {
-  get value() this.tree._computed ? this.tree._computed[this.name].value : ""
-}
+  get value() {
+    if (this.tree._computed) {
+      let value = this.tree._computed[this.name].value;
+      return colorUtils.processCSSString(value);
+    }
+  }
+};
 
 /**
  * A container to give easy access to property data from the template engine.
@@ -651,16 +668,13 @@ PropertyView.prototype = {
 
   /**
    * Returns the className that should be assigned to the propertyView.
-   *
    * @return string
    */
   get propertyHeaderClassName()
   {
     if (this.visible) {
-      this.tree._darkStripe = !this.tree._darkStripe;
-      let darkValue = this.tree._darkStripe ?
-                      "property-view theme-bg-darker" : "property-view";
-      return darkValue;
+      let isDark = this.tree._darkStripe = !this.tree._darkStripe;
+      return isDark ? "property-view theme-bg-darker" : "property-view";
     }
     return "property-view-hidden";
   },
@@ -673,49 +687,66 @@ PropertyView.prototype = {
   get propertyContentClassName()
   {
     if (this.visible) {
-      let darkValue = this.tree._darkStripe ?
-                      "property-content theme-bg-darker" : "property-content";
-      return darkValue;
+      let isDark = this.tree._darkStripe;
+      return isDark ? "property-content theme-bg-darker" : "property-content";
     }
     return "property-content-hidden";
   },
 
+  /**
+   * Build the markup for on computed style
+   * @return Element
+   */
   buildMain: function PropertyView_buildMain()
   {
     let doc = this.tree.styleDocument;
+    let onToggle = this.onStyleToggle.bind(this);
+
+    // Build the container element
     this.element = doc.createElementNS(HTML_NS, "div");
     this.element.setAttribute("class", this.propertyHeaderClassName);
 
-    this.matchedExpander = doc.createElementNS(HTML_NS, "div");
-    this.matchedExpander.className = "expander theme-twisty";
-    this.matchedExpander.setAttribute("tabindex", "0");
-    this.matchedExpander.addEventListener("click",
-      this.matchedExpanderClick.bind(this), false);
-    this.matchedExpander.addEventListener("keydown", function(aEvent) {
+    // Make it keyboard navigable
+    this.element.setAttribute("tabindex", "0");
+    this.element.addEventListener("keydown", function(aEvent) {
       let keyEvent = Ci.nsIDOMKeyEvent;
       if (aEvent.keyCode == keyEvent.DOM_VK_F1) {
         this.mdnLinkClick();
       }
       if (aEvent.keyCode == keyEvent.DOM_VK_RETURN ||
         aEvent.keyCode == keyEvent.DOM_VK_SPACE) {
-        this.matchedExpanderClick(aEvent);
+        onToggle(aEvent);
       }
     }.bind(this), false);
+
+    // Build the twisty expand/collapse
+    this.matchedExpander = doc.createElementNS(HTML_NS, "div");
+    this.matchedExpander.className = "expander theme-twisty";
+    this.matchedExpander.addEventListener("click", onToggle, false);
     this.element.appendChild(this.matchedExpander);
 
+    // Build the style name element
     this.nameNode = doc.createElementNS(HTML_NS, "div");
-    this.element.appendChild(this.nameNode);
     this.nameNode.setAttribute("class", "property-name theme-fg-color5");
+    // Reset its tabindex attribute otherwise, if an ellipsis is applied
+    // it will be reachable via TABing
+    this.nameNode.setAttribute("tabindex", "");
     this.nameNode.textContent = this.nameNode.title = this.name;
-    this.nameNode.addEventListener("click", function(aEvent) {
-      this.matchedExpander.focus();
-    }.bind(this), false);
+    // Make it hand over the focus to the container
+    this.nameNode.addEventListener("click", () => this.element.focus(), false);
+    this.element.appendChild(this.nameNode);
 
+    // Build the style value element
     this.valueNode = doc.createElementNS(HTML_NS, "div");
-    this.element.appendChild(this.valueNode);
     this.valueNode.setAttribute("class", "property-value theme-fg-color1");
+    // Reset its tabindex attribute otherwise, if an ellipsis is applied
+    // it will be reachable via TABing
+    this.valueNode.setAttribute("tabindex", "");
     this.valueNode.setAttribute("dir", "ltr");
     this.valueNode.textContent = this.valueNode.title = this.value;
+    // Make it hand over the focus to the container
+    this.valueNode.addEventListener("click", () => this.element.focus(), false);
+    this.element.appendChild(this.valueNode);
 
     return this.element;
   },
@@ -819,7 +850,7 @@ PropertyView.prototype = {
    * @param {Event} aEvent Used to determine the class name of the targets click
    * event.
    */
-  matchedExpanderClick: function PropertyView_matchedExpanderClick(aEvent)
+  onStyleToggle: function PropertyView_onStyleToggle(aEvent)
   {
     this.matchedExpanded = !this.matchedExpanded;
     this.refreshMatchedSelectors();
@@ -935,7 +966,8 @@ SelectorView.prototype = {
 
   get value()
   {
-    return this.selectorInfo.value;
+    let val = this.selectorInfo.value;
+    return colorUtils.processCSSString(val);
   },
 
   maybeOpenStyleEditor: function(aEvent)

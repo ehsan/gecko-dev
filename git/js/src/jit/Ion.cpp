@@ -1606,9 +1606,6 @@ IonCompile(JSContext *cx, JSScript *script,
                         script);
 #endif
 
-    if (!script->ensureRanAnalysis(cx))
-        return AbortReason_Alloc;
-
     LifoAlloc *alloc = cx->new_<LifoAlloc>(BUILDER_LIFO_ALLOC_PRIMARY_CHUNK_SIZE);
     if (!alloc)
         return AbortReason_Alloc;
@@ -1846,6 +1843,11 @@ Compile(JSContext *cx, HandleScript script, BaselineFrame *osrFrame, jsbytecode 
 
     if (reason == AbortReason_Disable)
         return Method_CantCompile;
+
+    if (reason == AbortReason_Alloc) {
+        js_ReportOutOfMemory(cx);
+        return Method_Error;
+    }
 
     // Compilation succeeded or we invalidated right away or an inlining/alloc abort
     return HasIonScript(script, executionMode) ? Method_Compiled : Method_Skipped;

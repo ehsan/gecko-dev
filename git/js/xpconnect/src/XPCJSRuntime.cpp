@@ -1416,6 +1416,16 @@ XPCJSRuntime::~XPCJSRuntime()
     }
 #endif
 
+    auto rtPrivate = static_cast<PerThreadAtomCache*>(JS_GetRuntimePrivate(Runtime()));
+    delete rtPrivate;
+    JS_SetRuntimePrivate(Runtime(), nullptr);
+
+    // Tell the superclas to destroy the JSRuntime. We need to do this here,
+    // because destroying the runtime runs one final rambo GC, which sometimes
+    // calls various finalizers that assume that XPCJSRuntime is still
+    // operational. We have bug 911303 on file for fixing this.
+    DestroyRuntime();
+
     // clean up and destroy maps...
     if (mWrappedJSMap) {
 #ifdef XPC_DUMP_AT_SHUTDOWN
@@ -1423,7 +1433,7 @@ XPCJSRuntime::~XPCJSRuntime()
         if (count)
             printf("deleting XPCJSRuntime with %d live wrapped JSObject\n", (int)count);
 #endif
-        mWrappedJSMap->ShutdownMarker(Runtime());
+        mWrappedJSMap->ShutdownMarker();
         delete mWrappedJSMap;
     }
 
@@ -1524,10 +1534,6 @@ XPCJSRuntime::~XPCJSRuntime()
         MOZ_ASSERT(!mScratchStrings[i].mInUse, "Uh, string wrapper still in use!");
     }
 #endif
-
-    auto rtPrivate = static_cast<PerThreadAtomCache*>(JS_GetRuntimePrivate(Runtime()));
-    delete rtPrivate;
-    JS_SetRuntimePrivate(Runtime(), nullptr);
 }
 
 static void
@@ -2843,8 +2849,7 @@ ReadSourceFromFilename(JSContext *cx, const char *filename, jschar **src, uint32
   function. See the comment in the XPCJSRuntime constructor.
 */
 static bool
-SourceHook(JSContext *cx, JS::Handle<JSScript*> script, jschar **src,
-           uint32_t *length)
+SourceHook(JSContext *cx, const char *filename, jschar **src, uint32_t *length)
 {
   *src = NULL;
   *length = 0;
@@ -2852,7 +2857,6 @@ SourceHook(JSContext *cx, JS::Handle<JSScript*> script, jschar **src,
   if (!nsContentUtils::IsCallerChrome())
     return true;
 
-  const char *filename = JS_GetScriptFilename(cx, script);
   if (!filename)
     return true;
 

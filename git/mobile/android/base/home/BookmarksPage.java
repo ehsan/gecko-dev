@@ -105,7 +105,7 @@ public class BookmarksPage extends HomeFragment {
         BrowserDB.invalidateCachedState();
 
         // Create callbacks before the initial loader is started.
-        mLoaderCallbacks = new CursorLoaderCallbacks(activity, getLoaderManager());
+        mLoaderCallbacks = new CursorLoaderCallbacks();
         loadIfVisible();
     }
 
@@ -165,67 +165,26 @@ public class BookmarksPage extends HomeFragment {
     /**
      * Loader callbacks for the LoaderManager of this fragment.
      */
-    private class CursorLoaderCallbacks extends HomeCursorLoaderCallbacks {
-        public CursorLoaderCallbacks(Context context, LoaderManager loaderManager) {
-            super(context, loaderManager);
-        }
-
+    private class CursorLoaderCallbacks implements LoaderCallbacks<Cursor> {
         @Override
         public Loader<Cursor> onCreateLoader(int id, Bundle args) {
-            switch(id) {
-                case LOADER_ID_BOOKMARKS_LIST: {
-                    if (args == null) {
-                        return new BookmarksLoader(getActivity());
-                    } else {
-                        return new BookmarksLoader(getActivity(), args.getInt(BOOKMARKS_FOLDER_KEY));
-                    }
-                }
-
-                default: {
-                    return super.onCreateLoader(id, args);
-                }
+            if (args == null) {
+                return new BookmarksLoader(getActivity());
+            } else {
+                return new BookmarksLoader(getActivity(), args.getInt(BOOKMARKS_FOLDER_KEY));
             }
         }
 
         @Override
         public void onLoadFinished(Loader<Cursor> loader, Cursor c) {
-            final int loaderId = loader.getId();
-            switch(loaderId) {
-                case LOADER_ID_BOOKMARKS_LIST: {
-                    mListAdapter.swapCursor(c);
-                    loadFavicons(c);
-                    mList.setHeaderDividersEnabled(c != null && c.getCount() > 0);
-                    break;
-                }
-
-                default: {
-                    super.onLoadFinished(loader, c);
-                    break;
-                }
-            }
+            mListAdapter.swapCursor(c);
         }
 
         @Override
         public void onLoaderReset(Loader<Cursor> loader) {
-            final int loaderId = loader.getId();
-            switch(loaderId) {
-                case LOADER_ID_BOOKMARKS_LIST: {
-                    if (mList != null) {
-                        mListAdapter.swapCursor(null);
-                    }
-                    break;
-                }
-
-                default: {
-                    super.onLoaderReset(loader);
-                    break;
-                }
+            if (mList != null) {
+                mListAdapter.swapCursor(null);
             }
-        }
-
-        @Override
-        public void onFaviconsLoaded() {
-            mListAdapter.notifyDataSetChanged();
         }
     }
 }

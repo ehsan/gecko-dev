@@ -3798,7 +3798,7 @@ TryAttachGetElemStub(JSContext *cx, HandleScript script, jsbytecode *pc, ICGetEl
 
     if (obj->isNative()) {
         // Check for NativeObject[int] dense accesses.
-        if (rhs.isInt32()) {
+        if (rhs.isInt32() && rhs.toInt32() >= 0) {
             IonSpew(IonSpew_BaselineIC, "  Generating GetElem(Native[Int32] dense) stub");
             ICGetElem_Dense::Compiler compiler(cx, stub->fallbackMonitorStub()->firstMonitorStub(),
                                                obj->lastProperty());
@@ -4815,6 +4815,16 @@ ICSetElem_Fallback::Compiler::generateStubCode(MacroAssembler &masm)
     masm.pushBaselineFramePtr(BaselineFrameReg, R0.scratchReg());
 
     return tailCallVM(DoSetElemFallbackInfo, masm);
+}
+
+void
+BaselineScript::noteArrayWriteHole(uint32_t pcOffset)
+{
+    ICEntry &entry = icEntryFromPCOffset(pcOffset);
+    ICFallbackStub *stub = entry.fallbackStub();
+
+    if (stub->isSetElem_Fallback())
+        stub->toSetElem_Fallback()->noteArrayWriteHole();
 }
 
 //

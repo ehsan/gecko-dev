@@ -1930,13 +1930,11 @@ ContentParent::GetOrCreateActorForBlob(nsIDOMBlob* aBlob)
   // If the blob represents a remote blob for this ContentParent then we can
   // simply pass its actor back here.
   if (nsCOMPtr<nsIRemoteBlob> remoteBlob = do_QueryInterface(aBlob)) {
-    BlobParent* actor =
-      static_cast<BlobParent*>(
-        static_cast<PBlobParent*>(remoteBlob->GetPBlob()));
-    MOZ_ASSERT(actor);
-
-    if (static_cast<ContentParent*>(actor->Manager()) == this) {
-      return actor;
+    if (BlobParent* actor = static_cast<BlobParent*>(
+          static_cast<PBlobParent*>(remoteBlob->GetPBlob()))) {
+      if (static_cast<ContentParent*>(actor->Manager()) == this) {
+        return actor;
+      }
     }
   }
 
@@ -2511,8 +2509,8 @@ ContentParent::RecvShowFilePicker(const int16_t& mode,
     nsCOMPtr<nsIFile> file;
     filePicker->GetFile(getter_AddRefs(file));
 
-    // even with NS_OK file can be null if nothing was selected 
-    if (file) {                                 
+    // Even with NS_OK file can be null if nothing was selected.
+    if (file) {
         nsAutoString filePath;
         file->GetPath(filePath);
         files->AppendElement(filePath);
@@ -2526,6 +2524,9 @@ ContentParent::RecvGetRandomValues(const uint32_t& length,
                                    InfallibleTArray<uint8_t>* randomValues)
 {
     uint8_t* buf = Crypto::GetRandomValues(length);
+    if (!buf) {
+        return true;
+    }
 
     randomValues->SetCapacity(length);
     randomValues->SetLength(length);

@@ -189,6 +189,9 @@ class AssemblerX86Shared
     size_t numCodeLabels() const {
         return codeLabels_.length();
     }
+    CodeLabel codeLabel(size_t i) {
+        return codeLabels_[i];
+    }
 
     // Size of the instruction stream, in bytes.
     size_t size() const {
@@ -295,13 +298,16 @@ class AssemblerX86Shared
 
     void movsd(const FloatRegister &src, const FloatRegister &dest) {
         JS_ASSERT(HasSSE2());
-        masm.movsd_rr(src.code(), dest.code());
+        // Use movapd instead of movsd so that we define the entire output
+        // register and avoid false dependencies.
+        masm.movapd_rr(src.code(), dest.code());
     }
     void movsd(const Operand &src, const FloatRegister &dest) {
         JS_ASSERT(HasSSE2());
         switch (src.kind()) {
           case Operand::FPREG:
-            masm.movsd_rr(src.fpu(), dest.code());
+            // As above; use movapd instead of movsd to avoid dependencies.
+            masm.movapd_rr(src.fpu(), dest.code());
             break;
           case Operand::MEM_REG_DISP:
             masm.movsd_mr(src.disp(), src.base(), dest.code());
@@ -317,7 +323,8 @@ class AssemblerX86Shared
         JS_ASSERT(HasSSE2());
         switch (dest.kind()) {
           case Operand::FPREG:
-            masm.movsd_rr(src.code(), dest.fpu());
+            // As above; use movapd instead of movsd to avoid dependencies.
+            masm.movapd_rr(src.code(), dest.fpu());
             break;
           case Operand::MEM_REG_DISP:
             masm.movsd_rm(src.code(), dest.disp(), dest.base());
@@ -331,13 +338,15 @@ class AssemblerX86Shared
     }
     void movss(const FloatRegister &src, const FloatRegister &dest) {
         JS_ASSERT(HasSSE2());
-        masm.movss_rr(src.code(), dest.code());
+        // As with movsd; use movaps instead of movss to avoid dependencies.
+        masm.movaps_rr(src.code(), dest.code());
     }
     void movss(const Operand &src, const FloatRegister &dest) {
         JS_ASSERT(HasSSE2());
         switch (src.kind()) {
           case Operand::FPREG:
-            masm.movss_rr(src.fpu(), dest.code());
+            // As above; use movaps instead of movss to avoid dependencies.
+            masm.movaps_rr(src.fpu(), dest.code());
             break;
           case Operand::MEM_REG_DISP:
             masm.movss_mr(src.disp(), src.base(), dest.code());
@@ -353,7 +362,8 @@ class AssemblerX86Shared
         JS_ASSERT(HasSSE2());
         switch (dest.kind()) {
           case Operand::FPREG:
-            masm.movss_rr(src.code(), dest.fpu());
+            // As above; use movaps instead of movss to avoid dependencies.
+            masm.movaps_rr(src.code(), dest.fpu());
             break;
           case Operand::MEM_REG_DISP:
             masm.movss_rm(src.code(), dest.disp(), dest.base());
@@ -657,6 +667,11 @@ class AssemblerX86Shared
             } while (src != AbsoluteLabel::INVALID_OFFSET);
         }
         label->bind();
+    }
+
+    // See Bind and JSC::X86Assembler::setPointer.
+    size_t labelOffsetToPatchOffset(size_t offset) {
+        return offset - sizeof(void*);
     }
 
     void ret() {

@@ -1090,8 +1090,10 @@ pref("devtools.inspector.markupPreview", false);
 pref("devtools.inspector.remote", false);
 pref("devtools.inspector.show_pseudo_elements", true);
 
+// DevTools default color unit
+pref("devtools.defaultColorUnit", "hex");
+
 // Enable the Responsive UI tool
-pref("devtools.responsiveUI.enabled", true);
 pref("devtools.responsiveUI.no-reload-notification", false);
 
 // Enable the Debugger
@@ -1130,9 +1132,6 @@ pref("devtools.netmonitor.panes-network-details-height", 450);
 pref("devtools.tilt.enabled", true);
 pref("devtools.tilt.intro_transition", true);
 pref("devtools.tilt.outro_transition", true);
-
-// Enable the Scratchpad tool.
-pref("devtools.scratchpad.enabled", true);
 
 // The maximum number of recently-opened files stored.
 // Setting this preference to 0 will not clear any recent files, but rather hide
