@@ -124,6 +124,10 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
 
     PRBool                        mCallContinueInterruptedParsingIfEnabled;
 
+    PRBool                        mFragmentMode;
+
+    PRBool                        mPreventScriptExecution;
+
   public:
   
     nsHtml5TreeOpExecutor();
@@ -237,6 +241,8 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
      */
     void EnableFragmentMode(PRBool aPreventScriptExecution) {
       mFragmentMode = PR_TRUE;
+      mCanInterruptParser = PR_FALSE; // prevent DropParserAndPerfHint
+                                      // from unblocking onload
       mPreventScriptExecution = aPreventScriptExecution;
     }
     
@@ -367,7 +373,9 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
       mOwnedElements.AppendObject(aContent);
     }
 
-    void DropHeldElements();
+    void DropHeldElements() {
+      mOwnedElements.Clear();
+    }
 
     /**
      * Flush the operations from the tree operations from the argument
@@ -397,7 +405,7 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
 
     void PreloadStyle(const nsAString& aURL, const nsAString& aCharset);
 
-    void PreloadImage(const nsAString& aURL, const nsAString& aCrossOrigin);
+    void PreloadImage(const nsAString& aURL);
 
     void SetSpeculationBase(const nsAString& aURL);
 

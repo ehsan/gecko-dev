@@ -40,6 +40,7 @@
 #include "jscntxt.h"
 
 #include "jsapi.h"
+#include "jstl.h"
 #include "jshashtable.h"
 
 #include "mozilla/jetpack/JetpackActorCommon.h"
@@ -50,7 +51,15 @@
 
 #include "nsJSUtils.h"
 
-using namespace mozilla::jetpack;
+using mozilla::jetpack::JetpackActorCommon;
+using mozilla::jetpack::PHandleParent;
+using mozilla::jetpack::HandleParent;
+using mozilla::jetpack::PHandleChild;
+using mozilla::jetpack::HandleChild;
+using mozilla::jetpack::KeyValue;
+using mozilla::jetpack::PrimVariant;
+using mozilla::jetpack::CompVariant;
+using mozilla::jetpack::Variant;
 
 class JetpackActorCommon::OpaqueSeenType
 {
@@ -167,7 +176,7 @@ JetpackActorCommon::jsval_to_CompVariant(JSContext* cx, JSType type, jsval from,
   if (type != JSTYPE_OBJECT)
     return false;
 
-  Maybe<OpaqueSeenType> lost;
+  js::LazilyConstructed<OpaqueSeenType> lost;
   if (!seen) {
     lost.construct();
     seen = lost.addr();
@@ -328,7 +337,7 @@ JetpackActorCommon::jsval_from_CompVariant(JSContext* cx,
                                            jsval* to,
                                            OpaqueSeenType* seen)
 {
-  Maybe<OpaqueSeenType> lost;
+  js::LazilyConstructed<OpaqueSeenType> lost;
   if (!seen) {
     lost.construct();
     seen = lost.addr();

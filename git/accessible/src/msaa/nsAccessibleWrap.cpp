@@ -41,15 +41,11 @@
 #include "nsAccessibilityAtoms.h"
 #include "nsAccUtils.h"
 #include "nsCoreUtils.h"
+#include "nsRelUtils.h"
 #include "nsWinUtils.h"
-#include "Relation.h"
-#include "States.h"
-
-#include "ia2AccessibleRelation.h"
 
 #include "nsIAccessibleDocument.h"
 #include "nsIAccessibleEvent.h"
-#include "nsIAccessibleRelation.h"
 #include "nsIAccessibleWin32Object.h"
 
 #include "Accessible2_i.c"
@@ -61,6 +57,7 @@
 #include "nsIScrollableFrame.h"
 #include "nsINameSpaceManager.h"
 #include "nsINodeInfo.h"
+#include "nsIPrefService.h"
 #include "nsRootAccessible.h"
 #include "nsIServiceManager.h"
 #include "nsTextFormatter.h"
@@ -69,8 +66,6 @@
 #include "nsRoleMap.h"
 #include "nsEventMap.h"
 #include "nsArrayUtils.h"
-
-using namespace mozilla::a11y;
 
 /* For documentation of the accessibility architecture,
  * see http://lxr.mozilla.org/seamonkey/source/accessible/accessible-docs.html
@@ -123,7 +118,7 @@ __try {
 
   if (IID_IUnknown == iid || IID_IDispatch == iid || IID_IAccessible == iid)
     *ppv = static_cast<IAccessible*>(this);
-  else if (IID_IEnumVARIANT == iid) {
+  else if (IID_IEnumVARIANT == iid && !gIsEnumVariantSupportDisabled) {
     long numChildren;
     get_accChildCount(&numChildren);
     if (numChildren > 0)  // Don't support this interface for leaf elements
@@ -209,7 +204,7 @@ __try {
     // accessibles.
     if (!doc->ParentDocument() ||
         nsWinUtils::IsWindowEmulationStarted() &&
-        nsCoreUtils::IsTabDocument(doc->GetDocumentNode())) {
+        nsWinUtils::IsTabDocument(doc->GetDocumentNode())) {
       HWND hwnd = static_cast<HWND>(doc->GetNativeWindow());
       if (hwnd && SUCCEEDED(AccessibleObjectFromWindow(hwnd, OBJID_WINDOW,
                                                        IID_IAccessible,
@@ -219,7 +214,7 @@ __try {
     }
   }
 
-  nsAccessible* xpParentAcc = Parent();
+  nsAccessible* xpParentAcc = GetParent();
   if (!xpParentAcc) {
     if (IsApplication())
       return S_OK;
@@ -237,16 +232,9 @@ __try {
 STDMETHODIMP nsAccessibleWrap::get_accChildCount( long __RPC_FAR *pcountChildren)
 {
 __try {
-  if (!pcountChildren)
-    return E_INVALIDARG;
-
   *pcountChildren = 0;
-
-  if (IsDefunct())
-    return E_FAIL;
-
   if (nsAccUtils::MustPrune(this))
-    return S_OK;
+    return NS_OK;
 
   *pcountChildren = GetChildCount();
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
@@ -344,11 +332,11 @@ __try {
   *pszDescription = NULL;
 
   nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
-  if (!xpAccessible || xpAccessible->IsDefunct())
+  if (!xpAccessible)
     return E_FAIL;
 
   nsAutoString description;
-  xpAccessible->Description(description);
+  xpAccessible->GetDescription(description);
 
   *pszDescription = ::SysAllocStringLen(description.get(),
                                         description.Length());
@@ -386,7 +374,7 @@ __try {
   // a ROLE_OUTLINEITEM for consistency and compatibility.
   // We need this because ARIA has a role of "row" for both grid and treegrid
   if (xpRole == nsIAccessibleRole::ROLE_ROW) {
-    nsAccessible* xpParent = Parent();
+    nsAccessible* xpParent = GetParent();
     if (xpParent && xpParent->Role() == nsIAccessibleRole::ROLE_TREE_TABLE)
       msaaRole = ROLE_SYSTEM_OUTLINEITEM;
   }
@@ -447,17 +435,11 @@ __try {
   if (!xpAccessible)
     return E_FAIL;
 
-  // MSAA only has 31 states and the lowest 31 bits of our state bit mask
-  // are the same states as MSAA.
-  // Note: we map the following Gecko states to different MSAA states:
-  //   REQUIRED -> ALERT_LOW
-  //   ALERT -> ALERT_MEDIUM
-  //   INVALID -> ALERT_HIGH
-  //   CHECKABLE -> MARQUEED
+  PRUint32 state = 0;
+  if (NS_FAILED(xpAccessible->GetState(&state, nsnull)))
+    return E_FAIL;
 
-  PRUint32 msaaState = 0;
-  nsAccUtils::To32States(xpAccessible->State(), &msaaState, nsnull);
-  pvarState->lVal = msaaState;
+  pvarState->lVal = state;
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return S_OK;
 }
@@ -496,24 +478,18 @@ STDMETHODIMP nsAccessibleWrap::get_accKeyboardShortcut(
       /* [retval][out] */ BSTR __RPC_FAR *pszKeyboardShortcut)
 {
 __try {
-  if (!pszKeyboardShortcut)
-    return E_INVALIDARG;
   *pszKeyboardShortcut = NULL;
+  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
+  if (xpAccessible) {
+    nsAutoString shortcut;
+    nsresult rv = xpAccessible->GetKeyboardShortcut(shortcut);
+    if (NS_FAILED(rv))
+      return E_FAIL;
 
-  nsAccessible* acc = GetXPAccessibleFor(varChild);
-  if (!acc || acc->IsDefunct())
-    return E_FAIL;
-
-  KeyBinding keyBinding = acc->AccessKey();
-  if (keyBinding.IsEmpty())
-    keyBinding = acc->KeyboardShortcut();
-
-  nsAutoString shortcut;
-  keyBinding.ToString(shortcut);
-
-  *pszKeyboardShortcut = ::SysAllocStringLen(shortcut.get(),
-                                             shortcut.Length());
-  return *pszKeyboardShortcut ? S_OK : E_OUTOFMEMORY;
+    *pszKeyboardShortcut = ::SysAllocStringLen(shortcut.get(),
+                                               shortcut.Length());
+    return *pszKeyboardShortcut ? S_OK : E_OUTOFMEMORY;
+  }
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return E_FAIL;
 }
@@ -534,7 +510,8 @@ __try {
   VariantInit(pvarChild);
 
   // Return the current IAccessible child that has focus
-  nsAccessible* focusedAccessible = FocusedChild();
+  nsCOMPtr<nsIAccessible> focusedAccessible;
+  GetFocusedChild(getter_AddRefs(focusedAccessible));
   if (focusedAccessible == this) {
     pvarChild->vt = VT_I4;
     pvarChild->lVal = CHILDID_SELF;
@@ -807,11 +784,8 @@ STDMETHODIMP nsAccessibleWrap::accNavigate(
       /* [retval][out] */ VARIANT __RPC_FAR *pvarEndUpAt)
 {
 __try {
-  if (!pvarEndUpAt)
-    return E_INVALIDARG;
-
   nsAccessible *xpAccessibleStart = GetXPAccessibleFor(varStart);
-  if (!xpAccessibleStart || IsDefunct())
+  if (!xpAccessibleStart)
     return E_FAIL;
 
   VariantInit(pvarEndUpAt);
@@ -900,15 +874,13 @@ __try {
 
   pvarEndUpAt->vt = VT_EMPTY;
 
-  if (xpRelation) {
-    Relation rel = RelationByType(xpRelation);
-    xpAccessibleResult = rel.Next();
-  }
+  if (xpRelation)
+    xpAccessibleResult = nsRelUtils::GetRelatedAccessible(this, xpRelation);
 
   if (xpAccessibleResult) {
     pvarEndUpAt->pdispVal = NativeAccessible(xpAccessibleResult);
     pvarEndUpAt->vt = VT_DISPATCH;
-    return S_OK;
+    return NS_OK;
   }
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return E_FAIL;
@@ -921,20 +893,38 @@ STDMETHODIMP nsAccessibleWrap::accHitTest(
 {
 __try {
   VariantInit(pvarChild);
-  if (IsDefunct())
-    return E_FAIL;
 
-  nsAccessible* accessible = ChildAtPoint(xLeft, yTop, eDirectChild);
+  // convert to window coords
+  nsCOMPtr<nsIAccessible> xpAccessible;
+
+  xLeft = xLeft;
+  yTop = yTop;
+
+  if (nsAccUtils::MustPrune(this)) {
+    xpAccessible = this;
+  }
+  else {
+    GetChildAtPoint(xLeft, yTop, getter_AddRefs(xpAccessible));
+  }
 
   // if we got a child
-  if (accessible) {
+  if (xpAccessible) {
     // if the child is us
-    if (accessible == this) {
+    if (xpAccessible == static_cast<nsIAccessible*>(this)) {
       pvarChild->vt = VT_I4;
       pvarChild->lVal = CHILDID_SELF;
     } else { // its not create an Accessible for it.
       pvarChild->vt = VT_DISPATCH;
-      pvarChild->pdispVal = NativeAccessible(accessible);
+      pvarChild->pdispVal = NativeAccessible(xpAccessible);
+      nsCOMPtr<nsIAccessNode> accessNode(do_QueryInterface(xpAccessible));
+      NS_ASSERTION(accessNode, "Unable to QI to nsIAccessNode");
+      nsCOMPtr<nsIDOMNode> domNode;
+      accessNode->GetDOMNode(getter_AddRefs(domNode));
+      if (!domNode) {
+        // Has already been shut down
+        pvarChild->vt = VT_EMPTY;
+        return E_FAIL;
+      }
     }
   } else {
     // no child at that point
@@ -1064,21 +1054,12 @@ STDMETHODIMP
 nsAccessibleWrap::get_nRelations(long *aNRelations)
 {
 __try {
-  if (!aNRelations)
-    return E_INVALIDARG;
+  PRUint32 count = 0;
+  nsresult rv = GetRelationsCount(&count);
+  *aNRelations = count;
 
-  *aNRelations = 0;
+  return GetHRESULT(rv);
 
-  if (IsDefunct())
-    return E_FAIL;
-
-  for (PRUint32 relType = nsIAccessibleRelation::RELATION_FIRST;
-       relType <= nsIAccessibleRelation::RELATION_LAST; relType++) {
-    Relation rel = RelationByType(relType);
-    if (rel.Next())
-      (*aNRelations)++;
-  }
-  return S_OK;
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return E_FAIL;
 }
@@ -1088,31 +1069,26 @@ nsAccessibleWrap::get_relation(long aRelationIndex,
                                IAccessibleRelation **aRelation)
 {
 __try {
-  if (!aRelation)
-    return E_INVALIDARG;
-
   *aRelation = NULL;
 
-  if (IsDefunct())
+  nsCOMPtr<nsIAccessibleRelation> relation;
+  nsresult rv = GetRelation(aRelationIndex, getter_AddRefs(relation));
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
+  nsCOMPtr<nsIWinAccessNode> winAccessNode(do_QueryInterface(relation));
+  if (!winAccessNode)
     return E_FAIL;
 
-  PRUint32 relIdx = 0;
-  for (PRUint32 relType = nsIAccessibleRelation::RELATION_FIRST;
-       relType <= nsIAccessibleRelation::RELATION_LAST; relType++) {
-    Relation rel = RelationByType(relType);
-    nsRefPtr<ia2AccessibleRelation> ia2Relation =
-      new ia2AccessibleRelation(relType, &rel);
-    if (ia2Relation->HasTargets()) {
-      if (relIdx == aRelationIndex) {
-        ia2Relation.forget(aRelation);
-        return S_OK;
-      }
+  void *instancePtr = NULL;
+  rv =  winAccessNode->QueryNativeInterface(IID_IAccessibleRelation,
+                                            &instancePtr);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
 
-      relIdx++;
-    }
-  }
+  *aRelation = static_cast<IAccessibleRelation*>(instancePtr);
+  return S_OK;
 
-  return E_INVALIDARG;
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return E_FAIL;
 }
@@ -1123,25 +1099,49 @@ nsAccessibleWrap::get_relations(long aMaxRelations,
                                 long *aNRelations)
 {
 __try {
-  if (!aRelation || !aNRelations)
-    return E_INVALIDARG;
-
+  *aRelation = NULL;
   *aNRelations = 0;
 
-  if (IsDefunct())
-    return E_FAIL;
+  nsCOMPtr<nsIArray> relations;
+  nsresult rv = GetRelations(getter_AddRefs(relations));
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
 
-  for (PRUint32 relType = nsIAccessibleRelation::RELATION_FIRST;
-       relType <= nsIAccessibleRelation::RELATION_LAST &&
-       *aNRelations < aMaxRelations; relType++) {
-    Relation rel = RelationByType(relType);
-    nsRefPtr<ia2AccessibleRelation> ia2Rel =
-      new ia2AccessibleRelation(relType, &rel);
-    if (ia2Rel->HasTargets()) {
-      ia2Rel.forget(aRelation + (*aNRelations));
-      (*aNRelations)++;
-    }
+  PRUint32 length = 0;
+  rv = relations->GetLength(&length);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
+  if (length == 0)
+    return S_FALSE;
+
+  PRUint32 count = length < (PRUint32)aMaxRelations ? length : aMaxRelations;
+
+  PRUint32 index = 0;
+  for (; index < count; index++) {
+    nsCOMPtr<nsIWinAccessNode> winAccessNode =
+      do_QueryElementAt(relations, index, &rv);
+    if (NS_FAILED(rv))
+      break;
+
+    void *instancePtr = NULL;
+    nsresult rv =  winAccessNode->QueryNativeInterface(IID_IAccessibleRelation,
+                                                       &instancePtr);
+    if (NS_FAILED(rv))
+      break;
+
+    aRelation[index] = static_cast<IAccessibleRelation*>(instancePtr);
   }
+
+  if (NS_FAILED(rv)) {
+    for (PRUint32 index2 = 0; index2 < index; index2++) {
+      aRelation[index2]->Release();
+      aRelation[index2] = NULL;
+    }
+    return GetHRESULT(rv);
+  }
+
+  *aNRelations = count;
   return S_OK;
 
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
@@ -1166,7 +1166,7 @@ __try {
   // Special case, if there is a ROLE_ROW inside of a ROLE_TREE_TABLE, then call
   // the IA2 role a ROLE_OUTLINEITEM.
   if (xpRole == nsIAccessibleRole::ROLE_ROW) {
-    nsAccessible* xpParent = Parent();
+    nsAccessible* xpParent = GetParent();
     if (xpParent && xpParent->Role() == nsIAccessibleRole::ROLE_TREE_TABLE)
       *aRole = ROLE_SYSTEM_OUTLINEITEM;
   }
@@ -1243,11 +1243,14 @@ __try {
 
   // XXX: bug 344674 should come with better approach that we have here.
 
-  PRUint64 state = State();
+  PRUint32 states = 0, extraStates = 0;
+  nsresult rv = GetState(&states, &extraStates);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
 
-  if (state & states::INVALID)
+  if (states & nsIAccessibleStates::STATE_INVALID)
     *aStates |= IA2_STATE_INVALID_ENTRY;
-  if (state & states::REQUIRED)
+  if (states & nsIAccessibleStates::STATE_REQUIRED)
     *aStates |= IA2_STATE_REQUIRED;
 
   // The following IA2 states are not supported by Gecko
@@ -1256,31 +1259,31 @@ __try {
   // IA2_STATE_ICONIFIED
   // IA2_STATE_INVALID // This is not a state, it is the absence of a state
 
-  if (state & states::ACTIVE)
+  if (extraStates & nsIAccessibleStates::EXT_STATE_ACTIVE)
     *aStates |= IA2_STATE_ACTIVE;
-  if (state & states::DEFUNCT)
+  if (extraStates & nsIAccessibleStates::EXT_STATE_DEFUNCT)
     *aStates |= IA2_STATE_DEFUNCT;
-  if (state & states::EDITABLE)
+  if (extraStates & nsIAccessibleStates::EXT_STATE_EDITABLE)
     *aStates |= IA2_STATE_EDITABLE;
-  if (state & states::HORIZONTAL)
+  if (extraStates & nsIAccessibleStates::EXT_STATE_HORIZONTAL)
     *aStates |= IA2_STATE_HORIZONTAL;
-  if (state & states::MODAL)
+  if (extraStates & nsIAccessibleStates::EXT_STATE_MODAL)
     *aStates |= IA2_STATE_MODAL;
-  if (state & states::MULTI_LINE)
+  if (extraStates & nsIAccessibleStates::EXT_STATE_MULTI_LINE)
     *aStates |= IA2_STATE_MULTI_LINE;
-  if (state & states::OPAQUE1)
+  if (extraStates & nsIAccessibleStates::EXT_STATE_OPAQUE)
     *aStates |= IA2_STATE_OPAQUE;
-  if (state & states::SELECTABLE_TEXT)
+  if (extraStates & nsIAccessibleStates::EXT_STATE_SELECTABLE_TEXT)
     *aStates |= IA2_STATE_SELECTABLE_TEXT;
-  if (state & states::SINGLE_LINE)
+  if (extraStates & nsIAccessibleStates::EXT_STATE_SINGLE_LINE)
     *aStates |= IA2_STATE_SINGLE_LINE;
-  if (state & states::STALE)
+  if (extraStates & nsIAccessibleStates::EXT_STATE_STALE)
     *aStates |= IA2_STATE_STALE;
-  if (state & states::SUPPORTS_AUTOCOMPLETION)
+  if (extraStates & nsIAccessibleStates::EXT_STATE_SUPPORTS_AUTOCOMPLETION)
     *aStates |= IA2_STATE_SUPPORTS_AUTOCOMPLETION;
-  if (state & states::TRANSIENT)
+  if (extraStates & nsIAccessibleStates::EXT_STATE_TRANSIENT)
     *aStates |= IA2_STATE_TRANSIENT;
-  if (state & states::VERTICAL)
+  if (extraStates & nsIAccessibleStates::EXT_STATE_VERTICAL)
     *aStates |= IA2_STATE_VERTICAL;
 
   return S_OK;
@@ -1376,18 +1379,19 @@ STDMETHODIMP
 nsAccessibleWrap::get_indexInParent(long *aIndexInParent)
 {
 __try {
-  if (!aIndexInParent)
-    return E_INVALIDARG;
-
   *aIndexInParent = -1;
-  if (IsDefunct())
-    return E_FAIL;
 
-  *aIndexInParent = IndexInParent();
-  if (*aIndexInParent == -1)
+  PRInt32 index = -1;
+  nsresult rv = GetIndexInParent(&index);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
+  if (index == -1)
     return S_FALSE;
 
+  *aIndexInParent = index;
   return S_OK;
+
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return E_FAIL;
 }
@@ -1753,38 +1757,6 @@ nsAccessibleWrap::GetXPAccessibleFor(const VARIANT& aVarChild)
 
   if (nsAccUtils::MustPrune(this))
     return nsnull;
-
-  // If lVal negative then it is treated as child ID and we should look for
-  // accessible through whole accessible subtree including subdocuments.
-  // Otherwise we treat lVal as index in parent.
-
-  if (aVarChild.lVal < 0) {
-    // Convert child ID to unique ID.
-    void* uniqueID = reinterpret_cast<void*>(-aVarChild.lVal);
-
-    // Document.
-    if (IsDoc())
-      return AsDoc()->GetAccessibleByUniqueIDInSubtree(uniqueID);
-
-    // ARIA document.
-    if (ARIARole() == nsIAccessibleRole::ROLE_DOCUMENT) {
-      nsDocAccessible* document = GetDocAccessible();
-      nsAccessible* child =
-        document->GetAccessibleByUniqueIDInSubtree(uniqueID);
-
-      // Check whether the accessible for the given ID is a child of ARIA
-      // document.
-      nsAccessible* parent = child ? child->Parent() : nsnull;
-      while (parent && parent != document) {
-        if (parent == this)
-          return child;
-
-        parent = parent->Parent();
-      }
-    }
-
-    return nsnull;
-  }
 
   // Gecko child indices are 0-based in contrast to indices used in MSAA.
   return GetChildAt(aVarChild.lVal - 1);

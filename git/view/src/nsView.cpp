@@ -40,8 +40,10 @@
 #include "nsWidgetsCID.h"
 #include "nsViewManager.h"
 #include "nsGUIEvent.h"
+#include "nsIDeviceContext.h"
 #include "nsIComponentManager.h"
 #include "nsGfxCIID.h"
+#include "nsIRegion.h"
 #include "nsIInterfaceRequestor.h"
 
 //mmptemp
@@ -734,7 +736,7 @@ nsresult nsView::CreateWidget(nsWidgetInitData *aWidgetInitData,
 
   nsIntRect trect = CalcWidgetBounds(aWidgetInitData->mWindowType);
 
-  nsRefPtr<nsDeviceContext> dx;
+  nsCOMPtr<nsIDeviceContext> dx;
   mViewManager->GetDeviceContext(*getter_AddRefs(dx));
 
   nsIWidget* parentWidget =
@@ -774,7 +776,7 @@ nsresult nsView::CreateWidgetForParent(nsIWidget* aParentWidget,
 
   nsIntRect trect = CalcWidgetBounds(aWidgetInitData->mWindowType);
 
-  nsRefPtr<nsDeviceContext> dx;
+  nsCOMPtr<nsIDeviceContext> dx;
   mViewManager->GetDeviceContext(*getter_AddRefs(dx));
 
   mWindow =
@@ -801,7 +803,7 @@ nsresult nsView::CreateWidgetForPopup(nsWidgetInitData *aWidgetInitData,
 
   nsIntRect trect = CalcWidgetBounds(aWidgetInitData->mWindowType);
 
-  nsRefPtr<nsDeviceContext> dx;
+  nsCOMPtr<nsIDeviceContext> dx;
   mViewManager->GetDeviceContext(*getter_AddRefs(dx));
 
   // XXX/cjones: having these two separate creation cases seems ... um
@@ -871,7 +873,7 @@ nsresult nsIView::AttachToTopLevelWidget(nsIWidget* aWidget)
     oldView->DetachFromTopLevelWidget();
   }
 
-  nsRefPtr<nsDeviceContext> dx;
+  nsCOMPtr<nsIDeviceContext> dx;
   mViewManager->GetDeviceContext(*getter_AddRefs(dx));
 
   // Note, the previous device context will be released. Detaching
@@ -1183,13 +1185,12 @@ nsView::GetBoundsInParentUnits() const
 }
 
 nsPoint
-nsIView::ConvertFromParentCoords(nsPoint aPt) const
+nsView::ConvertFromParentCoords(nsPoint aPt) const
 {
-  const nsView* view = static_cast<const nsView*>(this);
-  const nsView* parent = view->GetParent();
+  nsView* parent = GetParent();
   if (parent) {
     aPt = aPt.ConvertAppUnits(parent->GetViewManager()->AppUnitsPerDevPixel(),
-                              view->GetViewManager()->AppUnitsPerDevPixel());
+                              GetViewManager()->AppUnitsPerDevPixel());
   }
   aPt -= GetPosition();
   return aPt;

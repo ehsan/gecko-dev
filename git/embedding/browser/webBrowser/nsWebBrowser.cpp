@@ -55,6 +55,7 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIWebBrowserChrome.h"
 #include "nsPIDOMWindow.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsIWebProgress.h"
 #include "nsIWebProgressListener.h"
 #include "nsIWebBrowserFocus.h"
@@ -75,6 +76,9 @@
 #include "gfxContext.h"
 
 // for painting the background window
+#include "nsIRenderingContext.h"
+#include "nsIDeviceContext.h"
+#include "nsIRegion.h"
 #include "nsILookAndFeel.h"
 
 // Printing Includes
@@ -492,9 +496,7 @@ NS_IMETHODIMP nsWebBrowser::SetItemType(PRInt32 aItemType)
     NS_ENSURE_TRUE((aItemType == typeContentWrapper || aItemType == typeChromeWrapper), NS_ERROR_FAILURE);
     mContentType = aItemType;
     if (mDocShellAsItem)
-        mDocShellAsItem->SetItemType(mContentType == typeChromeWrapper
-                                         ? static_cast<PRInt32>(typeChrome)
-                                         : static_cast<PRInt32>(typeContent));
+        mDocShellAsItem->SetItemType(mContentType == typeChromeWrapper ? typeChrome : typeContent);
     return NS_OK;
 }
 
@@ -804,8 +806,7 @@ NS_IMETHODIMP nsWebBrowser::SetProperty(PRUint32 aId, PRUint32 aValue)
     case nsIWebBrowserSetup::SETUP_IS_CHROME_WRAPPER:
         {
            NS_ENSURE_TRUE((aValue == PR_TRUE || aValue == PR_FALSE), NS_ERROR_INVALID_ARG);
-           SetItemType(aValue ? static_cast<PRInt32>(typeChromeWrapper)
-                              : static_cast<PRInt32>(typeContentWrapper));
+           SetItemType(aValue ? typeChromeWrapper : typeContentWrapper);
         }
         break;
     default:
@@ -1228,7 +1229,10 @@ NS_IMETHODIMP nsWebBrowser::Create()
     }
    mDocShellAsNav->SetSessionHistory(mInitInfo->sessionHistory);
 
-   if (XRE_GetProcessType() == GeckoProcessType_Default) {
+#ifdef MOZ_IPC
+   if (XRE_GetProcessType() == GeckoProcessType_Default)
+#endif
+   {
        // Hook up global history. Do not fail if we can't - just warn.
        rv = EnableGlobalHistory(mShouldEnableHistory);
        NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "EnableGlobalHistory() failed");
@@ -1768,7 +1772,7 @@ nsEventStatus nsWebBrowser::HandleEvent(nsGUIEvent *aEvent)
   return nsEventStatus_eIgnore;
 }
 
-NS_IMETHODIMP nsWebBrowser::GetPrimaryContentWindow(nsIDOMWindow** aDOMWindow)
+NS_IMETHODIMP nsWebBrowser::GetPrimaryContentWindow(nsIDOMWindowInternal **aDOMWindow)
 {
   *aDOMWindow = 0;
 
@@ -1781,7 +1785,8 @@ NS_IMETHODIMP nsWebBrowser::GetPrimaryContentWindow(nsIDOMWindow** aDOMWindow)
   docShell = do_QueryInterface(item);
   NS_ENSURE_TRUE(docShell, NS_ERROR_FAILURE);
   
-  nsCOMPtr<nsIDOMWindow> domWindow = do_GetInterface(docShell);
+  nsCOMPtr<nsIDOMWindowInternal> domWindow;
+  domWindow = do_GetInterface(docShell);
   NS_ENSURE_TRUE(domWindow, NS_ERROR_FAILURE);
 
   *aDOMWindow = domWindow;

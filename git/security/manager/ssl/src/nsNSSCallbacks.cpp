@@ -75,7 +75,6 @@
 #include "ocsp.h"
 #include "nssb64.h"
 #include "secerr.h"
-#include "sslerr.h"
 
 using namespace mozilla;
 
@@ -126,8 +125,6 @@ nsHTTPDownloadEvent::Run()
   nsCOMPtr<nsIChannel> chan;
   ios->NewChannel(mRequestSession->mURL, nsnull, nsnull, getter_AddRefs(chan));
   NS_ENSURE_STATE(chan);
-
-  chan->SetLoadFlags(nsIRequest::LOAD_ANONYMOUS);
 
   // Create a loadgroup for this new channel.  This way if the channel
   // is redirected, we'll have a way to cancel the resulting channel.
@@ -438,7 +435,7 @@ nsNSSHttpRequestSession::internal_send_receive_attempt(PRBool &retryable_error,
 
       if (!request_canceled)
       {
-        PRBool wantExit = nsSSLThread::stoppedOrStopping();
+        PRBool wantExit = nsSSLThread::exitRequested();
         PRBool timeout = 
           (PRIntervalTime)(PR_IntervalNow() - start_time) > mTimeoutInterval;
 
@@ -809,9 +806,7 @@ PK11PasswordPrompt(PK11SlotInfo* slot, PRBool retry, void* arg) {
       rv = NS_ERROR_NOT_AVAILABLE;
     }
     else {
-      // Although the exact value is ignored, we must not pass invalid
-      // PRBool values through XPConnect.
-      PRBool checkState = PR_FALSE;
+      PRBool checkState;
       rv = proxyPrompt->PromptPassword(nsnull, promptString.get(),
                                        &password, nsnull, &checkState, &value);
     }
@@ -963,60 +958,6 @@ void PR_CALLBACK HandshakeCallback(PRFileDesc* fd, void* client_data) {
   PR_Free(signer);
 }
 
-SECStatus
-PSM_SSL_PKIX_AuthCertificate(PRFileDesc *fd, CERTCertificate *peerCert, PRBool checksig, PRBool isServer)
-{
-    SECStatus          rv;
-    SECCertUsage       certUsage;
-    SECCertificateUsage certificateusage;
-    void *             pinarg;
-    char *             hostname;
-    
-    pinarg = SSL_RevealPinArg(fd);
-    hostname = SSL_RevealURL(fd);
-    
-    /* this may seem backwards, but isn't. */
-    certUsage = isServer ? certUsageSSLClient : certUsageSSLServer;
-    certificateusage = isServer ? certificateUsageSSLClient : certificateUsageSSLServer;
-
-    if (!nsNSSComponent::globalConstFlagUsePKIXVerification) {
-        rv = CERT_VerifyCertNow(CERT_GetDefaultCertDB(), peerCert, checksig, certUsage,
-                                pinarg);
-    }
-    else {
-        nsresult nsrv;
-        nsCOMPtr<nsINSSComponent> inss = do_GetService(kNSSComponentCID, &nsrv);
-        if (!inss)
-          return SECFailure;
-        nsRefPtr<nsCERTValInParamWrapper> survivingParams;
-        if (NS_FAILED(inss->GetDefaultCERTValInParam(survivingParams)))
-          return SECFailure;
-
-        CERTValOutParam cvout[1];
-        cvout[0].type = cert_po_end;
-
-        rv = CERT_PKIXVerifyCert(peerCert, certificateusage,
-                                survivingParams->GetRawPointerForNSS(),
-                                cvout, pinarg);
-    }
-
-    if ( rv == SECSuccess && !isServer ) {
-        /* cert is OK.  This is the client side of an SSL connection.
-        * Now check the name field in the cert against the desired hostname.
-        * NB: This is our only defense against Man-In-The-Middle (MITM) attacks!
-        */
-        if (hostname && hostname[0])
-            rv = CERT_VerifyCertName(peerCert, hostname);
-        else
-            rv = SECFailure;
-        if (rv != SECSuccess)
-            PORT_SetError(SSL_ERROR_BAD_CERT_DOMAIN);
-    }
-        
-    PORT_Free(hostname);
-    return rv;
-}
-
 struct nsSerialBinaryBlacklistEntry
 {
   unsigned int len;
@@ -1043,11 +984,8 @@ SECStatus PR_CALLBACK AuthCertificateCallback(void* client_data, PRFileDesc* fd,
   nsNSSShutDownPreventionLock locker;
 
   CERTCertificate *serverCert = SSL_PeerCertificate(fd);
-  CERTCertificateCleaner serverCertCleaner(serverCert);
-
   if (serverCert && 
       serverCert->serialNumber.data &&
-      serverCert->issuerName &&
       !strcmp(serverCert->issuerName, 
         "CN=UTN-USERFirst-Hardware,OU=http://www.usertrust.com,O=The USERTRUST Network,L=Salt Lake City,ST=UT,C=US")) {
 
@@ -1084,11 +1022,14 @@ SECStatus PR_CALLBACK AuthCertificateCallback(void* client_data, PRFileDesc* fd,
     }
   }
   
-  SECStatus rv = PSM_SSL_PKIX_AuthCertificate(fd, serverCert, checksig, isServer);
+  // first the default action
+  SECStatus rv = SSL_AuthCertificate(CERT_GetDefaultCertDB(), fd, checksig, isServer);
 
   // We want to remember the CA certs in the temp db, so that the application can find the
   // complete chain at any time it might need it.
   // But we keep only those CA certs in the temp db, that we didn't already know.
+  
+  CERTCertificateCleaner serverCertCleaner(serverCert);
 
   if (serverCert) {
     nsNSSSocketInfo* infoObject = (nsNSSSocketInfo*) fd->higher->secret;

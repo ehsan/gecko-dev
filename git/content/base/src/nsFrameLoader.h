@@ -53,14 +53,15 @@
 #include "nsAutoPtr.h"
 #include "nsFrameMessageManager.h"
 #include "Layers.h"
-#include "nsIContent.h"
 
+class nsIContent;
 class nsIURI;
 class nsSubDocumentFrame;
 class nsIView;
 class nsIInProcessContentFrameMessageManager;
 class AutoResetInShow;
 
+#ifdef MOZ_IPC
 namespace mozilla {
 namespace dom {
 class PBrowserParent;
@@ -77,6 +78,7 @@ typedef struct _GtkWidget GtkWidget;
 #endif
 #ifdef MOZ_WIDGET_QT
 class QX11EmbedContainer;
+#endif
 #endif
 
 /**
@@ -127,11 +129,11 @@ public:
     float mYScale;
   };
 
-  nsContentView(nsFrameLoader* aFrameLoader, ViewID aScrollId,
+  nsContentView(nsIContent* aOwnerContent, ViewID aScrollId,
                 ViewConfig aConfig = ViewConfig())
     : mViewportSize(0, 0)
     , mContentSize(0, 0)
-    , mFrameLoader(aFrameLoader)
+    , mOwnerContent(aOwnerContent)
     , mScrollId(aScrollId)
     , mConfig(aConfig)
   {}
@@ -151,7 +153,7 @@ public:
   nsSize mViewportSize;
   nsSize mContentSize;
 
-  nsFrameLoader* mFrameLoader;  // WEAK
+  nsIContent *mOwnerContent; // WEAK
 
 private:
   nsresult Update(const ViewConfig& aConfig);
@@ -165,9 +167,11 @@ class nsFrameLoader : public nsIFrameLoader,
                       public nsIContentViewManager
 {
   friend class AutoResetInShow;
+#ifdef MOZ_IPC
   typedef mozilla::dom::PBrowserParent PBrowserParent;
   typedef mozilla::dom::TabParent TabParent;
   typedef mozilla::layout::RenderFrameParent RenderFrameParent;
+#endif
 
 protected:
   nsFrameLoader(nsIContent *aOwner, PRBool aNetworkCreated);
@@ -196,7 +200,7 @@ public:
   nsresult ReallyStartLoading();
   void Finalize();
   nsIDocShell* GetExistingDocShell() { return mDocShell; }
-  nsIDOMEventTarget* GetTabChildGlobalAsEventTarget();
+  nsPIDOMEventTarget* GetTabChildGlobalAsEventTarget();
   nsresult CreateStaticClone(nsIFrameLoader* aDest);
 
   /**
@@ -206,11 +210,6 @@ public:
   PRBool Show(PRInt32 marginWidth, PRInt32 marginHeight,
               PRInt32 scrollbarPrefX, PRInt32 scrollbarPrefY,
               nsSubDocumentFrame* frame);
-
-  /**
-   * Called when the margin properties of the containing frame are changed.
-   */
-  void MarginsChanged(PRUint32 aMarginWidth, PRUint32 aMarginHeight);
 
   /**
    * Called from the layout frame associated with this frame loader, when
@@ -247,6 +246,7 @@ public:
   nsIDocument* GetOwnerDoc() const
   { return mOwnerContent ? mOwnerContent->GetOwnerDoc() : nsnull; }
 
+#ifdef MOZ_IPC
   PBrowserParent* GetRemoteBrowser();
 
   /**
@@ -277,6 +277,7 @@ public:
   {
     mCurrentRemoteFrame = aFrame;
   }
+#endif
   nsFrameMessageManager* GetFrameMessageManager() { return mMessageManager; }
 
   nsIContent* GetOwnerContent() { return mOwnerContent; }
@@ -284,7 +285,9 @@ public:
 
 private:
 
+#ifdef MOZ_IPC
   bool ShouldUseRemoteProcess();
+#endif
 
   /**
    * If we are an IPC frame, set mRemoteFrame. Otherwise, create and
@@ -296,7 +299,6 @@ private:
 
   // Properly retrieves documentSize of any subdocument type.
   NS_HIDDEN_(nsIntSize) GetSubDocumentSize(const nsIFrame *aIFrame);
-  nsresult GetWindowDimensions(nsRect& aRect);
 
   // Updates the subdocument position and size. This gets called only
   // when we have our own in-process DocShell.
@@ -305,11 +307,13 @@ private:
   void FireErrorEvent();
   nsresult ReallyStartLoadingInternal();
 
+#ifdef MOZ_IPC
   // Return true if remote browser created; nothing else to do
   bool TryRemoteBrowser();
 
   // Tell the remote browser that it's now "virtually visible"
   bool ShowRemoteFrame(const nsIntSize& size);
+#endif
 
   nsCOMPtr<nsIDocShell> mDocShell;
   nsCOMPtr<nsIURI> mURIToLoad;
@@ -331,6 +335,7 @@ private:
   // it may lose the flag.
   PRPackedBool mNetworkCreated : 1;
 
+#ifdef MOZ_IPC
   PRPackedBool mDelayRemoteDialogs : 1;
   PRPackedBool mRemoteBrowserShown : 1;
   bool mRemoteFrame;
@@ -338,15 +343,12 @@ private:
   nsCOMPtr<nsIObserver> mChildHost;
   RenderFrameParent* mCurrentRemoteFrame;
   TabParent* mRemoteBrowser;
+#endif
 
   // See nsIFrameLoader.idl.  Short story, if !(mRenderMode &
   // RENDER_MODE_ASYNC_SCROLL), all the fields below are ignored in
   // favor of what content tells.
   PRUint32 mRenderMode;
-
-  // See nsIFrameLoader.idl. EVENT_MODE_NORMAL_DISPATCH automatically
-  // forwards some input events to out-of-process content.
-  PRUint32 mEventMode;
 };
 
 #endif

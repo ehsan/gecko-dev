@@ -37,7 +37,10 @@
 #ifndef nsDesktopNotification_h
 #define nsDesktopNotification_h
 
+#ifdef MOZ_IPC
 #include "PCOMContentPermissionRequestChild.h"
+#endif
+
 
 #include "nsDOMClassInfo.h"
 #include "nsIJSContextStack.h"
@@ -57,7 +60,6 @@
 
 #include "nsDOMEventTargetHelper.h"
 #include "nsIPrivateDOMEvent.h"
-#include "nsIDocument.h"
 
 class AlertServiceObserver;
 
@@ -153,8 +155,10 @@ protected:
  * Simple Request
  */
 class nsDesktopNotificationRequest : public nsIContentPermissionRequest,
-                                     public nsRunnable, 
-                                     public PCOMContentPermissionRequestChild
+                                     public nsRunnable
+#ifdef MOZ_IPC
+ , public PCOMContentPermissionRequestChild
+#endif
 
 {
  public:
@@ -178,6 +182,8 @@ class nsDesktopNotificationRequest : public nsIContentPermissionRequest,
   {
   }
 
+#ifdef MOZ_IPC
+
  bool Recv__delete__(const bool& allow)
  {
    if (allow)
@@ -187,6 +193,7 @@ class nsDesktopNotificationRequest : public nsIContentPermissionRequest,
    return true;
  }
  void IPDLRelease() { Release(); }
+#endif
 
   nsRefPtr<nsDOMDesktopNotification> mDesktopNotification;
 };

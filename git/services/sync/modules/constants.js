@@ -20,7 +20,6 @@
  *
  * Contributor(s):
  *  Dan Mills <thunder@mozilla.com>
- *  Philipp von Weitershausen <philipp@weitershausen.de>
  *  Richard Newman <rnewman@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
@@ -42,11 +41,7 @@ let EXPORTED_SYMBOLS = [((this[key] = val), key) for ([key, val] in Iterator({
 
 WEAVE_CHANNEL:                         "@weave_channel@",
 WEAVE_VERSION:                         "@weave_version@",
-
-// Sync Server API version that the client supports.
-SYNC_API_VERSION:                      "1.1",
-USER_API_VERSION:                      "1.0",
-MISC_API_VERSION:                      "1.0",
+WEAVE_ID:                              "@weave_id@",
 
 // Version of the data format this client supports. The data format describes
 // how records are packaged; this is separate from the Server API version and
@@ -76,14 +71,14 @@ SYNC_KEY_ENCODED_LENGTH:               26,
 SYNC_KEY_DECODED_LENGTH:               16,
 SYNC_KEY_HYPHENATED_LENGTH:            31,    // 26 chars, 5 hyphens.
 
-NO_SYNC_NODE_INTERVAL:                 10 * 60 * 1000, // 10 minutes
+// Sync intervals for various clients configurations
+SINGLE_USER_SYNC:                      24 * 60 * 60 * 1000, // 1 day
+MULTI_DESKTOP_SYNC:                    60 * 60 * 1000, // 1 hour
+MULTI_MOBILE_SYNC:                     5 * 60 * 1000, // 5 minutes
+PARTIAL_DATA_SYNC:                     60 * 1000, // 1 minute
 
 MAX_ERROR_COUNT_BEFORE_BACKOFF:        3,
 MAX_IGNORE_ERROR_COUNT:                5,
-
-// Backoff intervals
-MINIMUM_BACKOFF_INTERVAL:              15 * 60 * 1000,      // 15 minutes
-MAXIMUM_BACKOFF_INTERVAL:              8 * 60 * 60 * 1000,  // 8 hours 
 
 // HMAC event handling timeout.
 // 10 minutes: a compromise between the multi-desktop sync interval
@@ -93,15 +88,9 @@ HMAC_EVENT_INTERVAL:                   600000,
 // How long to wait between sync attempts if the Master Password is locked.
 MASTER_PASSWORD_LOCKED_RETRY_INTERVAL: 15 * 60 * 1000,   // 15 minutes
 
-// Separate from the ID fetch batch size to allow tuning for mobile.
-MOBILE_BATCH_SIZE:                     50,
-
 // 50 is hardcoded here because of URL length restrictions.
-// (GUIDs can be up to 64 chars long.)
-// Individual engines can set different values for their limit if their
-// identifiers are shorter.
-DEFAULT_GUID_FETCH_BATCH_SIZE:         50,
-DEFAULT_MOBILE_GUID_FETCH_BATCH_SIZE:  50,
+// (GUIDs can be up to 64 chars long)
+MOBILE_BATCH_SIZE:                     50,
 
 // Default batch size for applying incoming records.
 DEFAULT_STORE_BATCH_SIZE:              1,
@@ -111,17 +100,20 @@ PASSWORDS_STORE_BATCH_SIZE:            50, // same as MOBILE_BATCH_SIZE
 
 // score thresholds for early syncs
 SINGLE_USER_THRESHOLD:                 1000,
-MULTI_DEVICE_THRESHOLD:                300,
+MULTI_DESKTOP_THRESHOLD:               500,
+MULTI_MOBILE_THRESHOLD:                100,
 
-// Other score increment constants
-SCORE_INCREMENT_SMALL:                 1,
-SCORE_INCREMENT_MEDIUM:                10,
+// File IO Flags
+MODE_RDONLY:                           0x01,
+MODE_WRONLY:                           0x02,
+MODE_CREATE:                           0x08,
+MODE_APPEND:                           0x10,
+MODE_TRUNCATE:                         0x20,
 
-// Instant sync score increment
-SCORE_INCREMENT_XLARGE:                300 + 1, //MULTI_DEVICE_THRESHOLD + 1
-
-// Delay before incrementing global score
-SCORE_UPDATE_DELAY:                    100,
+// File Permission flags
+PERMS_FILE:                            0644,
+PERMS_PASSFILE:                        0600,
+PERMS_DIRECTORY:                       0755,
 
 // Number of records to upload in a single POST (multiple POSTS if exceeded)
 // FIXME: Record size limit is 256k (new cluster), so this can be quite large!
@@ -146,7 +138,7 @@ ENGINE_SUCCEEDED:                      "success.engine",
 
 // login failure status codes:
 LOGIN_FAILED_NO_USERNAME:              "error.login.reason.no_username",
-LOGIN_FAILED_NO_PASSWORD:              "error.login.reason.no_password2",
+LOGIN_FAILED_NO_PASSWORD:              "error.login.reason.no_password",
 LOGIN_FAILED_NO_PASSPHRASE:            "error.login.reason.no_synckey",
 LOGIN_FAILED_NETWORK_ERROR:            "error.login.reason.network",
 LOGIN_FAILED_SERVER_ERROR:             "error.login.reason.server",
@@ -182,17 +174,11 @@ JPAKE_ERROR_INVALID:                   "jpake.error.invalid",
 JPAKE_ERROR_NODATA:                    "jpake.error.nodata",
 JPAKE_ERROR_KEYMISMATCH:               "jpake.error.keymismatch",
 JPAKE_ERROR_WRONGMESSAGE:              "jpake.error.wrongmessage",
-JPAKE_ERROR_USERABORT:                 "jpake.error.userabort",
-
-// info types for Service.getStorageInfo
-INFO_COLLECTIONS:                      "collections",
-INFO_COLLECTION_USAGE:                 "collection_usage",
-INFO_COLLECTION_COUNTS:                "collection_counts",
-INFO_QUOTA:                            "quota",
 
 // Ways that a sync can be disabled (messages only to be printed in debug log)
 kSyncMasterPasswordLocked:             "User elected to leave Master Password locked",
 kSyncWeaveDisabled:                    "Weave is disabled",
+kSyncNotLoggedIn:                      "User is not logged in",
 kSyncNetworkOffline:                   "Network is offline",
 kSyncBackoffNotMet:                    "Trying to sync before the server said it's okay",
 kFirstSyncChoiceNotMade:               "User has not selected an action for first sync",

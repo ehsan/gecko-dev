@@ -152,7 +152,7 @@ nsDOMCSSAttributeDeclaration::GetCSSDeclaration(PRBool aAllocate)
   // cannot fail
   css::Declaration *decl = new css::Declaration();
   decl->InitializeEmpty();
-  nsRefPtr<css::StyleRule> newRule = new css::StyleRule(nsnull, decl);
+  nsRefPtr<css::StyleRule> newRule = NS_NewCSSStyleRule(nsnull, decl);
 
   // this *can* fail (inside SetAttrAndNotify, at least).
   nsresult rv;
@@ -170,22 +170,40 @@ nsDOMCSSAttributeDeclaration::GetCSSDeclaration(PRBool aAllocate)
   return decl;
 }
 
-void
-nsDOMCSSAttributeDeclaration::GetCSSParsingEnvironment(CSSParsingEnvironment& aCSSParseEnv)
+/*
+ * This is a utility function.  It will only fail if it can't get a
+ * parser.  This means it can return NS_OK without aURI or aCSSLoader
+ * being initialized.
+ */
+nsresult
+nsDOMCSSAttributeDeclaration::GetCSSParsingEnvironment(nsIURI** aSheetURI,
+                                                       nsIURI** aBaseURI,
+                                                       nsIPrincipal** aSheetPrincipal,
+                                                       mozilla::css::Loader** aCSSLoader)
 {
   NS_ASSERTION(mElement, "Something is severely broken -- there should be an Element here!");
+  // null out the out params since some of them may not get initialized below
+  *aSheetURI = nsnull;
+  *aBaseURI = nsnull;
+  *aSheetPrincipal = nsnull;
+  *aCSSLoader = nsnull;
 
   nsIDocument* doc = mElement->GetOwnerDoc();
   if (!doc) {
     // document has been destroyed
-    aCSSParseEnv.mPrincipal = nsnull;
-    return;
+    return NS_ERROR_NOT_AVAILABLE;
   }
 
-  aCSSParseEnv.mSheetURI = doc->GetDocumentURI();
-  aCSSParseEnv.mBaseURI = mElement->GetBaseURI();
-  aCSSParseEnv.mPrincipal = mElement->NodePrincipal();
-  aCSSParseEnv.mCSSLoader = doc->CSSLoader();
+  nsCOMPtr<nsIURI> baseURI = mElement->GetBaseURI();
+  nsCOMPtr<nsIURI> sheetURI = doc->GetDocumentURI();
+
+  NS_ADDREF(*aCSSLoader = doc->CSSLoader());
+
+  baseURI.swap(*aBaseURI);
+  sheetURI.swap(*aSheetURI);
+  NS_ADDREF(*aSheetPrincipal = mElement->NodePrincipal());
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP

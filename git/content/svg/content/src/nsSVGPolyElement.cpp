@@ -115,7 +115,7 @@ nsSVGPolyElement::GetMarkPoints(nsTArray<nsSVGMark> *aMarks)
   if (!points.Length())
     return;
 
-  float px = 0.0, py = 0.0, prevAngle = 0.0;
+  float px = 0.0, py = 0.0, prevAngle;
 
   for (PRUint32 i = 0; i < points.Length(); ++i) {
     float x = points[i].mX;

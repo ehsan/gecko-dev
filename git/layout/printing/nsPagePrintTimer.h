@@ -39,6 +39,7 @@
 
 // Timer Includes
 #include "nsITimer.h"
+#include "nsITimelineService.h"
 
 #include "nsIDocumentViewerPrint.h"
 #include "nsPrintObject.h"

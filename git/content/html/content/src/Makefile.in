@@ -48,15 +48,22 @@ LIBXUL_LIBRARY	= 1
 
 
 EXPORTS		= \
+		nsImageMapUtils.h \
 		nsClientRect.h \
-		nsHTMLDNSPrefetch.h \
 		$(NULL)
+
+ifdef MOZ_IPC
+EXPORTS        += \
+                nsHTMLDNSPrefetch.h \
+                $(NULL)
+endif
 
 CPPSRCS		= \
 		nsClientRect.cpp \
 		nsHTMLDNSPrefetch.cpp \
 		nsGenericHTMLElement.cpp \
 		nsFormSubmission.cpp \
+		nsImageMapUtils.cpp \
 		nsTextEditorState.cpp \
 		nsHTMLElement.cpp \
 		nsHTMLAnchorElement.cpp \
@@ -66,6 +73,7 @@ CPPSRCS		= \
 		nsHTMLButtonElement.cpp \
 		nsHTMLCanvasElement.cpp \
 		nsHTMLDataListElement.cpp \
+		nsHTMLDelElement.cpp \
 		nsHTMLDivElement.cpp \
 		nsHTMLFieldSetElement.cpp \
 		nsHTMLFontElement.cpp \
@@ -82,10 +90,7 @@ CPPSRCS		= \
 		nsHTMLLegendElement.cpp \
 		nsHTMLLinkElement.cpp \
 		nsHTMLMapElement.cpp \
-		nsHTMLMenuElement.cpp \
-		nsHTMLMenuItemElement.cpp \
 		nsHTMLMetaElement.cpp \
-		nsHTMLModElement.cpp \
 		nsHTMLObjectElement.cpp \
 		nsHTMLOListElement.cpp \
 		nsHTMLSharedObjectElement.cpp \
@@ -94,7 +99,6 @@ CPPSRCS		= \
 		nsHTMLOutputElement.cpp \
 		nsHTMLParagraphElement.cpp \
 		nsHTMLPreElement.cpp \
-		nsHTMLProgressElement.cpp \
 		nsHTMLScriptElement.cpp \
 		nsHTMLSelectElement.cpp \
 		nsHTMLSharedElement.cpp \
@@ -111,8 +115,6 @@ CPPSRCS		= \
 		nsHTMLUnknownElement.cpp \
 		nsDOMValidityState.cpp \
 		nsIConstraintValidation.cpp \
-		nsRadioVisitor.cpp \
-		nsDOMStringMap.cpp \
 		$(NULL)
 
 ifdef MOZ_MEDIA
@@ -136,7 +138,6 @@ INCLUDES	+= \
 		-I$(srcdir)/../../../base/src \
 		-I$(srcdir)/../../../events/src \
 		-I$(srcdir)/../../../xbl/src \
-		-I$(srcdir)/../../../xul/content/src \
 		-I$(srcdir)/../../../../layout/forms \
 		-I$(srcdir)/../../../../layout/style \
 		-I$(srcdir)/../../../../layout/tables \
@@ -146,7 +147,6 @@ INCLUDES	+= \
 		-I$(srcdir)/../../../../editor/libeditor/base \
 		-I$(srcdir)/../../../../editor/libeditor/text \
 		-I$(srcdir) \
-		-I$(topsrcdir)/xpcom/ds \
 		$(NULL)
 
 DEFINES += -D_IMPL_NS_LAYOUT

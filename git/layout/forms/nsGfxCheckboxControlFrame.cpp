@@ -39,7 +39,6 @@
 #include "nsIContent.h"
 #include "nsCOMPtr.h"
 #include "nsCSSRendering.h"
-#include "nsRenderingContext.h"
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
 #endif
@@ -51,7 +50,7 @@
 
 static void
 PaintCheckMark(nsIFrame* aFrame,
-               nsRenderingContext* aCtx,
+               nsIRenderingContext* aCtx,
                const nsRect& aDirtyRect,
                nsPoint aPt)
 {
@@ -84,7 +83,7 @@ PaintCheckMark(nsIFrame* aFrame,
 
 static void
 PaintIndeterminateMark(nsIFrame* aFrame,
-                       nsRenderingContext* aCtx,
+                       nsIRenderingContext* aCtx,
                        const nsRect& aDirtyRect,
                        nsPoint aPt)
 {

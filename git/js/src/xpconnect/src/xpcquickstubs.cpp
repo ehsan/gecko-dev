@@ -38,6 +38,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "jsapi.h"
+#include "jsstr.h"
 #include "jscntxt.h"  /* for error messages */
 #include "nsCOMPtr.h"
 #include "xpcprivate.h"
@@ -214,7 +215,7 @@ GeneratePropertyOp(JSContext *cx, JSObject *obj, jsid id, uintN argc, Op pop)
 }
 
 static JSBool
-ReifyPropertyOps(JSContext *cx, JSObject *obj, jsid id, uintN orig_attrs,
+ReifyPropertyOps(JSContext *cx, JSObject *obj, jsid id,
                  JSPropertyOp getter, JSStrictPropertyOp setter,
                  JSObject **getterobjp, JSObject **setterobjp)
 {
@@ -222,7 +223,7 @@ ReifyPropertyOps(JSContext *cx, JSObject *obj, jsid id, uintN orig_attrs,
     jsval roots[2] = { JSVAL_NULL, JSVAL_NULL };
     js::AutoArrayRooter tvr(cx, JS_ARRAY_LENGTH(roots), roots);
 
-    uintN attrs = JSPROP_SHARED | (orig_attrs & JSPROP_ENUMERATE);
+    uintN attrs = JSPROP_SHARED;
     JSObject *getterobj;
     if(getter)
     {
@@ -322,11 +323,8 @@ LookupGetterOrSetter(JSContext *cx, JSBool wantGetter, uintN argc, jsval *vp)
     }
 
     JSObject *getterobj, *setterobj;
-    if(!ReifyPropertyOps(cx, desc.obj, id, desc.attrs, desc.getter, desc.setter,
-                         &getterobj, &setterobj))
-    {
+    if(!ReifyPropertyOps(cx, obj, id, desc.getter, desc.setter, &getterobj, &setterobj))
         return JS_FALSE;
-    }
 
     JSObject *wantedobj = wantGetter ? getterobj : setterobj;
     jsval v = wantedobj ? OBJECT_TO_JSVAL(wantedobj) : JSVAL_VOID;
@@ -384,7 +382,7 @@ DefineGetterOrSetter(JSContext *cx, uintN argc, JSBool wantGetter, jsval *vp)
         return forward(cx, argc, vp);
 
     // Reify the getter and setter...
-    if(!ReifyPropertyOps(cx, obj2, id, attrs, getter, setter, nsnull, nsnull))
+    if(!ReifyPropertyOps(cx, obj, id, getter, setter, nsnull, nsnull))
         return JS_FALSE;
 
     return forward(cx, argc, vp);
@@ -550,7 +548,7 @@ GetMethodInfo(JSContext *cx, jsval *vp, const char **ifaceNamep, jsid *memberIdp
     NS_ASSERTION(JS_ObjectIsFunction(cx, funobj),
                  "JSNative callee should be Function object");
     JSString *str = JS_GetFunctionId((JSFunction *) JS_GetPrivate(cx, funobj));
-    jsid methodId = str ? INTERNED_STRING_TO_JSID(cx, str) : JSID_VOID;
+    jsid methodId = str ? INTERNED_STRING_TO_JSID(str) : JSID_VOID;
     GetMemberInfo(JSVAL_TO_OBJECT(vp[1]), methodId, ifaceNamep);
     *memberIdp = methodId;
 }

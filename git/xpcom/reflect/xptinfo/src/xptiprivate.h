@@ -62,7 +62,7 @@
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsIWeakReference.h"
 
-#include "mozilla/ReentrantMonitor.h"
+#include "mozilla/Monitor.h"
 #include "mozilla/Mutex.h"
 
 #include "nsCRT.h"
@@ -180,11 +180,6 @@ private:
 
 public:
     // XXX make these private with accessors
-    // mTableMonitor must be held across:
-    //  * any read from or write to mIIDTable or mNameTable
-    //  * any writing to the links between an xptiInterfaceEntry
-    //    and its xptiInterfaceInfo (mEntry/mInfo)
-    mozilla::ReentrantMonitor mTableReentrantMonitor;
     nsDataHashtable<nsIDHashKey, xptiInterfaceEntry*> mIIDTable;
     nsDataHashtable<nsDepCharHashKey, xptiInterfaceEntry*> mNameTable;
 };
@@ -250,7 +245,7 @@ public:
     };
     
     // Additional bit flags...
-    enum {SCRIPTABLE = 4, BUILTINCLASS = 8};
+    enum {SCRIPTABLE = 4};
 
     PRUint8 GetResolveState() const {return mFlags.GetState();}
     
@@ -261,10 +256,6 @@ public:
                 {mFlags.SetFlagBit(PRUint8(SCRIPTABLE),on);}
     PRBool GetScriptableFlag() const
                 {return mFlags.GetFlagBit(PRUint8(SCRIPTABLE));}
-    void   SetBuiltinClassFlag(PRBool on)
-                {mFlags.SetFlagBit(PRUint8(BUILTINCLASS),on);}
-    PRBool GetBuiltinClassFlag() const
-                {return mFlags.GetFlagBit(PRUint8(BUILTINCLASS));}
 
     const nsID* GetTheIID()  const {return &mIID;}
     const char* GetTheName() const {return mName;}
@@ -292,10 +283,6 @@ public:
     nsresult GetName(char * *aName);
     nsresult GetIID(nsIID * *aIID);
     nsresult IsScriptable(PRBool *_retval);
-    nsresult IsBuiltinClass(PRBool *_retval) {
-        *_retval = GetBuiltinClassFlag();
-        return NS_OK;
-    }
     // Except this one.
     //nsresult GetParent(nsIInterfaceInfo * *aParent);
     nsresult GetMethodCount(PRUint16 *aMethodCount);
@@ -371,7 +358,6 @@ public:
     NS_IMETHOD GetName(char * *aName) { return !mEntry ? NS_ERROR_UNEXPECTED : mEntry->GetName(aName); }
     NS_IMETHOD GetInterfaceIID(nsIID * *aIID) { return !mEntry ? NS_ERROR_UNEXPECTED : mEntry->GetIID(aIID); }
     NS_IMETHOD IsScriptable(PRBool *_retval) { return !mEntry ? NS_ERROR_UNEXPECTED : mEntry->IsScriptable(_retval); }
-    NS_IMETHOD IsBuiltinClass(PRBool *_retval) { return !mEntry ? NS_ERROR_UNEXPECTED : mEntry->IsBuiltinClass(_retval); }
     // Except this one.
     NS_IMETHOD GetParent(nsIInterfaceInfo * *aParent) 
     {
@@ -420,7 +406,15 @@ private:
         return mEntry && mEntry->EnsureResolved();
     }
 
-    PRBool BuildParent();
+    PRBool BuildParent()
+    {
+        NS_ASSERTION(mEntry && 
+                     mEntry->IsFullyResolved() && 
+                     !mParent &&
+                     mEntry->Parent(),
+                    "bad BuildParent call");
+        return NS_SUCCEEDED(mEntry->Parent()->GetInterfaceInfo(&mParent));
+    }
 
     xptiInterfaceInfo();  // not implemented
 
@@ -438,7 +432,7 @@ class xptiInterfaceInfoManager
     NS_DECL_NSIINTERFACEINFOMANAGER
     NS_DECL_NSIINTERFACEINFOSUPERMANAGER
 
-    typedef mozilla::ReentrantMonitor ReentrantMonitor;
+    typedef mozilla::Monitor Monitor;
     typedef mozilla::Mutex Mutex;
 
 public:
@@ -455,6 +449,18 @@ public:
     {
         self = self ? self : GetSingleton();
         return self->mResolveLock;
+    }
+
+    static Mutex& GetAutoRegLock(xptiInterfaceInfoManager* self = nsnull) 
+    {
+        self = self ? self : GetSingleton();
+        return self->mAutoRegLock;
+    }
+
+    static Monitor& GetInfoMonitor(xptiInterfaceInfoManager* self = nsnull) 
+    {
+        self = self ? self : GetSingleton();
+        return self->mInfoMonitor;
     }
 
     xptiInterfaceEntry* GetInterfaceEntryForIID(const nsIID *iid);
@@ -476,6 +482,8 @@ private:
 private:
     xptiWorkingSet               mWorkingSet;
     Mutex                        mResolveLock;
+    Mutex                        mAutoRegLock;
+    Monitor                      mInfoMonitor;
     Mutex                        mAdditionalManagersLock;
     nsCOMArray<nsISupports>      mAdditionalManagers;
 };

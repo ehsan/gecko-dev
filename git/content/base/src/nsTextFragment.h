@@ -45,10 +45,7 @@
 #define nsTextFragment_h___
 
 #include "nsString.h"
-#include "nsReadableUtils.h"
 #include "nsTraceRefcnt.h"
-#include "nsDOMMemoryReporter.h"
-
 class nsString;
 class nsCString;
 
@@ -81,7 +78,7 @@ class nsCString;
  * This class does not have a virtual destructor therefore it is not
  * meant to be subclassed.
  */
-class NS_FINAL_CLASS nsTextFragment {
+class nsTextFragment {
 public:
   static nsresult Init();
   static void Shutdown();
@@ -225,17 +222,6 @@ public:
     PRUint32 mIsBidi : 1;
     PRUint32 mLength : 29;
   };
-
-  /**
-   * Returns the size taken in memory by this text fragment.
-   * @return the size taken in memory by this text fragment.
-   */
-  PRInt64 SizeOf() const
-  {
-    PRInt64 size = sizeof(*this);
-    size += GetLength() * Is2b() ? sizeof(*m2b) : sizeof(*m1b);
-    return size;
-  }
 
 private:
   void ReleaseText();

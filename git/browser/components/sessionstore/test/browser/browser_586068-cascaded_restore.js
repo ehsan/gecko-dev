@@ -35,6 +35,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+let ss = Cc["@mozilla.org/browser/sessionstore;1"].
+         getService(Ci.nsISessionStore);
+
 let stateBackup = ss.getBrowserState();
 
 const TAB_STATE_NEEDS_RESTORE = 1;
@@ -757,3 +760,6 @@ function countTabs() {
   return [needsRestore, isRestoring, wasRestored];
 }
 
+function r() {
+  return "" + Date.now() + Math.random();
+}

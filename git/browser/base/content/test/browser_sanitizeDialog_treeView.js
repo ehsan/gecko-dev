@@ -15,7 +15,7 @@
  *
  * The Original Code is sanitize dialog test code.
  *
- * The Initial Developer of the Original Code is the Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corp.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -48,6 +48,10 @@
  * Some of this code, especially the history creation parts, was taken from
  * browser/base/content/test/browser_sanitize-timespans.js.
  */
+
+Cc["@mozilla.org/moz/jssubscript-loader;1"].
+  getService(Ci.mozIJSSubScriptLoader).
+  loadSubScript("chrome://mochikit/content/MochiKit/packed.js");
 
 Cc["@mozilla.org/moz/jssubscript-loader;1"].
   getService(Ci.mozIJSSubScriptLoader).

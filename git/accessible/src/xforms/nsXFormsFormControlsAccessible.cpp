@@ -38,10 +38,7 @@
 
 #include "nsXFormsFormControlsAccessible.h"
 
-#include "States.h"
 #include "nsTextEquivUtils.h"
-
-using namespace mozilla::a11y;
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXFormsLabelAccessible
@@ -66,12 +63,15 @@ nsXFormsLabelAccessible::GetNameInternal(nsAString& aName)
   return NS_OK;
 }
 
-void
-nsXFormsLabelAccessible::Description(nsString& aDescription)
+NS_IMETHODIMP
+nsXFormsLabelAccessible::GetDescription(nsAString& aDescription)
 {
-  nsTextEquivUtils::
+  nsAutoString description;
+  nsresult rv = nsTextEquivUtils::
     GetTextEquivFromIDRefs(this, nsAccessibilityAtoms::aria_describedby,
-                           aDescription);
+                           description);
+  aDescription = description;
+  return rv;
 }
 
 
@@ -115,10 +115,13 @@ nsXFormsTriggerAccessible::GetValue(nsAString& aValue)
   return NS_OK;
 }
 
-PRUint8
-nsXFormsTriggerAccessible::ActionCount()
+NS_IMETHODIMP
+nsXFormsTriggerAccessible::GetNumActions(PRUint8 *aCount)
 {
-  return 1;
+  NS_ENSURE_ARG_POINTER(aCount);
+
+  *aCount = 1;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -160,10 +163,13 @@ nsXFormsInputAccessible::NativeRole()
   return nsIAccessibleRole::ROLE_ENTRY;
 }
 
-PRUint8
-nsXFormsInputAccessible::ActionCount()
+NS_IMETHODIMP
+nsXFormsInputAccessible::GetNumActions(PRUint8* aCount)
 {
-  return 1;
+  NS_ENSURE_ARG_POINTER(aCount);
+
+  *aCount = 1;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -203,26 +209,31 @@ nsXFormsInputBooleanAccessible::NativeRole()
   return nsIAccessibleRole::ROLE_CHECKBUTTON;
 }
 
-PRUint64
-nsXFormsInputBooleanAccessible::NativeState()
+nsresult
+nsXFormsInputBooleanAccessible::GetStateInternal(PRUint32 *aState,
+                                                 PRUint32 *aExtraState)
 {
-  PRUint64 state = nsXFormsAccessible::NativeState();
+  nsresult rv = nsXFormsAccessible::GetStateInternal(aState, aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
   nsAutoString value;
   nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(mContent));
-  nsresult rv = sXFormsService->GetValue(DOMNode, value);
-  NS_ENSURE_SUCCESS(rv, state);
+  rv = sXFormsService->GetValue(DOMNode, value);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (value.EqualsLiteral("true"))
-    state |= states::CHECKED;
+    *aState |= nsIAccessibleStates::STATE_CHECKED;
 
-  return state;
+  return NS_OK;
 }
 
-PRUint8
-nsXFormsInputBooleanAccessible::ActionCount()
+NS_IMETHODIMP
+nsXFormsInputBooleanAccessible::GetNumActions(PRUint8 *aCount)
 {
-  return 1;
+  NS_ENSURE_ARG_POINTER(aCount);
+
+  *aCount = 1;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -288,10 +299,15 @@ nsXFormsSecretAccessible::NativeRole()
   return nsIAccessibleRole::ROLE_PASSWORD_TEXT;
 }
 
-PRUint64
-nsXFormsSecretAccessible::NativeState()
+nsresult
+nsXFormsSecretAccessible::GetStateInternal(PRUint32 *aState,
+                                           PRUint32 *aExtraState)
 {
-  return nsXFormsInputAccessible::NativeState() | states::PROTECTED;
+  nsresult rv = nsXFormsInputAccessible::GetStateInternal(aState, aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+
+  *aState |= nsIAccessibleStates::STATE_PROTECTED;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -317,20 +333,22 @@ nsXFormsRangeAccessible::NativeRole()
   return nsIAccessibleRole::ROLE_SLIDER;
 }
 
-PRUint64
-nsXFormsRangeAccessible::NativeState()
+nsresult
+nsXFormsRangeAccessible::GetStateInternal(PRUint32 *aState,
+                                          PRUint32 *aExtraState)
 {
-  PRUint64 state = nsXFormsAccessible::NativeState();
+  nsresult rv = nsXFormsAccessible::GetStateInternal(aState, aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
   PRUint32 isInRange = nsIXFormsUtilityService::STATE_NOT_A_RANGE;
   nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(mContent));
-  nsresult rv = sXFormsService->IsInRange(DOMNode, &isInRange);
-  NS_ENSURE_SUCCESS(rv, state);
+  rv = sXFormsService->IsInRange(DOMNode, &isInRange);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (isInRange == nsIXFormsUtilityService::STATE_OUT_OF_RANGE)
-    state |= states::INVALID;
+    *aState |= nsIAccessibleStates::STATE_INVALID;
 
-  return state;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -404,20 +422,23 @@ nsXFormsSelectAccessible::
 {
 }
 
-PRUint64
-nsXFormsSelectAccessible::NativeState()
+nsresult
+nsXFormsSelectAccessible::GetStateInternal(PRUint32 *aState,
+                                           PRUint32 *aExtraState)
 {
-  PRUint64 state = nsXFormsContainerAccessible::NativeState();
+  nsresult rv = nsXFormsContainerAccessible::GetStateInternal(aState,
+                                                              aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
   PRUint32 isInRange = nsIXFormsUtilityService::STATE_NOT_A_RANGE;
   nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(mContent));
-  nsresult rv = sXFormsService->IsInRange(DOMNode, &isInRange);
-  NS_ENSURE_SUCCESS(rv, state);
+  rv = sXFormsService->IsInRange(DOMNode, &isInRange);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (isInRange == nsIXFormsUtilityService::STATE_OUT_OF_RANGE)
-    state |= states::INVALID;
+    *aState |= nsIAccessibleStates::STATE_INVALID;
 
-  return state;
+  return NS_OK;
 }
 
 
@@ -490,15 +511,18 @@ nsXFormsItemCheckgroupAccessible::NativeRole()
   return nsIAccessibleRole::ROLE_CHECKBUTTON;
 }
 
-PRUint64
-nsXFormsItemCheckgroupAccessible::NativeState()
+nsresult
+nsXFormsItemCheckgroupAccessible::GetStateInternal(PRUint32 *aState,
+                                                   PRUint32 *aExtraState)
 {
-  PRUint64 state = nsXFormsSelectableItemAccessible::NativeState();
+  nsresult rv = nsXFormsSelectableItemAccessible::GetStateInternal(aState,
+                                                                   aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
-  if (IsSelected())
-    state |= states::CHECKED;
+  if (IsItemSelected())
+    *aState |= nsIAccessibleStates::STATE_CHECKED;
 
-  return state;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -507,7 +531,7 @@ nsXFormsItemCheckgroupAccessible::GetActionName(PRUint8 aIndex, nsAString& aName
   if (aIndex != eAction_Click)
     return NS_ERROR_INVALID_ARG;
 
-  if (IsSelected())
+  if (IsItemSelected())
     aName.AssignLiteral("uncheck");
   else
     aName.AssignLiteral("check");
@@ -532,15 +556,18 @@ nsXFormsItemRadiogroupAccessible::NativeRole()
   return nsIAccessibleRole::ROLE_RADIOBUTTON;
 }
 
-PRUint64
-nsXFormsItemRadiogroupAccessible::NativeState()
+nsresult
+nsXFormsItemRadiogroupAccessible::GetStateInternal(PRUint32 *aState,
+                                                   PRUint32 *aExtraState)
 {
-  PRUint64 state = nsXFormsSelectableItemAccessible::NativeState();
+  nsresult rv = nsXFormsSelectableItemAccessible::GetStateInternal(aState,
+                                                                   aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
-  if (IsSelected())
-    state |= states::CHECKED;
+  if (IsItemSelected())
+    *aState |= nsIAccessibleStates::STATE_CHECKED;
 
-  return state;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -570,22 +597,27 @@ nsXFormsSelectComboboxAccessible::NativeRole()
   return nsIAccessibleRole::ROLE_COMBOBOX;
 }
 
-PRUint64
-nsXFormsSelectComboboxAccessible::NativeState()
+nsresult
+nsXFormsSelectComboboxAccessible::GetStateInternal(PRUint32 *aState,
+                                                   PRUint32 *aExtraState)
 {
-  PRUint64 state = nsXFormsSelectableAccessible::NativeState();
+  nsresult rv = nsXFormsSelectableAccessible::GetStateInternal(aState,
+                                                               aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
   PRBool isOpen = PR_FALSE;
   nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(mContent));
-  nsresult rv = sXFormsService->IsDropmarkerOpen(DOMNode, &isOpen);
-  NS_ENSURE_SUCCESS(rv, state);
+  rv = sXFormsService->IsDropmarkerOpen(DOMNode, &isOpen);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (isOpen)
-    state |= states::EXPANDED;
+    *aState = nsIAccessibleStates::STATE_EXPANDED;
   else
-    state |= states::COLLAPSED;
+    *aState = nsIAccessibleStates::STATE_COLLAPSED;
 
-  return state | states::HASPOPUP | states::FOCUSABLE;
+  *aState |= nsIAccessibleStates::STATE_HASPOPUP |
+             nsIAccessibleStates::STATE_FOCUSABLE;
+  return NS_OK;
 }
 
 PRBool
@@ -611,19 +643,22 @@ nsXFormsItemComboboxAccessible::NativeRole()
   return nsIAccessibleRole::ROLE_LISTITEM;
 }
 
-PRUint64
-nsXFormsItemComboboxAccessible::NativeState()
+nsresult
+nsXFormsItemComboboxAccessible::GetStateInternal(PRUint32 *aState,
+                                                 PRUint32 *aExtraState)
 {
-  PRUint64 state = nsXFormsSelectableItemAccessible::NativeState();
+  nsresult rv = nsXFormsSelectableItemAccessible::GetStateInternal(aState,
+                                                                   aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
-  if (state & states::UNAVAILABLE)
-    return state;
+  if (*aState & nsIAccessibleStates::STATE_UNAVAILABLE)
+    return NS_OK;
 
-  state |= states::SELECTABLE;
-  if (IsSelected())
-    state |= states::SELECTED;
+  *aState |= nsIAccessibleStates::STATE_SELECTABLE;
+  if (IsItemSelected())
+    *aState |= nsIAccessibleStates::STATE_SELECTED;
 
-  return state;
+  return NS_OK;
 }
 
 NS_IMETHODIMP

@@ -82,6 +82,8 @@ static RedirEntry kRedirMap[] = {
       nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT },
     { "license", "chrome://global/content/license.html",
       nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT },
+    { "licence", "chrome://global/content/license.html",
+      nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT },
     { "neterror", "chrome://global/content/netError.xhtml",
       nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
       nsIAboutModule::ALLOW_SCRIPT |
@@ -89,8 +91,6 @@ static RedirEntry kRedirMap[] = {
     { "memory", "chrome://global/content/aboutMemory.xhtml",
       nsIAboutModule::ALLOW_SCRIPT },
     { "addons", "chrome://mozapps/content/extensions/extensions.xul",
-      nsIAboutModule::ALLOW_SCRIPT },
-    { "newaddon", "chrome://mozapps/content/extensions/newaddon.xul",
       nsIAboutModule::ALLOW_SCRIPT },
     { "support", "chrome://global/content/aboutSupport.xhtml",
       nsIAboutModule::ALLOW_SCRIPT }

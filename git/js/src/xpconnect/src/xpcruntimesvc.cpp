@@ -41,13 +41,12 @@
 
 #include "xpcprivate.h"
 
-#include "mozilla/dom/workers/Workers.h"
-using mozilla::dom::workers::ResolveWorkerClasses;
-
 NS_INTERFACE_MAP_BEGIN(BackstagePass)
   NS_INTERFACE_MAP_ENTRY(nsIXPCScriptable)
   NS_INTERFACE_MAP_ENTRY(nsIClassInfo)
+#ifndef XPCONNECT_STANDALONE
   NS_INTERFACE_MAP_ENTRY(nsIScriptObjectPrincipal)
+#endif
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIXPCScriptable)
 NS_INTERFACE_MAP_END_THREADSAFE
 
@@ -75,17 +74,9 @@ BackstagePass::NewResolve(nsIXPConnectWrappedNative *wrapper,
 {
     JSBool resolved;
 
-    *_retval = !!JS_ResolveStandardClass(cx, obj, id, &resolved);
-    if(!*_retval)
-        return NS_OK;
-
-    if(resolved)
-    {
+    *_retval = JS_ResolveStandardClass(cx, obj, id, &resolved);
+    if(*_retval && resolved)
         *objp = obj;
-        return NS_OK;
-    }
-
-    *_retval = !!ResolveWorkerClasses(cx, obj, id, flags, objp);
     return NS_OK;
 }
 
@@ -95,7 +86,10 @@ BackstagePass::NewResolve(nsIXPConnectWrappedNative *wrapper,
 NS_IMETHODIMP 
 BackstagePass::GetInterfaces(PRUint32 *aCount, nsIID * **aArray)
 {
-    const PRUint32 count = 2;
+    PRUint32 count = 1;
+#ifndef XPCONNECT_STANDALONE
+    ++count;
+#endif
     *aCount = count;
     nsIID **array;
     *aArray = array = static_cast<nsIID**>(nsMemory::Alloc(count * sizeof(nsIID*)));
@@ -112,7 +106,9 @@ BackstagePass::GetInterfaces(PRUint32 *aCount, nsIID * **aArray)
     array[index++] = clone;
 
     PUSH_IID(nsIXPCScriptable)
+#ifndef XPCONNECT_STANDALONE
     PUSH_IID(nsIScriptObjectPrincipal)
+#endif
 #undef PUSH_IID
 
     return NS_OK;

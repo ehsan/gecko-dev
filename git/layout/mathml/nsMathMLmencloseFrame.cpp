@@ -47,7 +47,8 @@
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
-#include "nsRenderingContext.h"
+#include "nsIRenderingContext.h"
+#include "nsIFontMetrics.h"
 #include "nsWhitespaceTokenizer.h"
 
 #include "nsMathMLmencloseFrame.h"
@@ -170,14 +171,9 @@ nsresult nsMathMLmencloseFrame::AddNotation(const nsAString& aNotation)
  */
 void nsMathMLmencloseFrame::InitNotations()
 {
-  mNotationsToDraw = 0;
-  mLongDivCharIndex = mRadicalCharIndex = -1;
-  mMathMLChar.Clear();
-
   nsAutoString value;
 
-  if (GetAttribute(mContent, mPresentationData.mstyle, nsGkAtoms::notation_,
-                   value)) {
+  if (mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::notation_, value)) {
     // parse the notation attribute
     nsWhitespaceTokenizer tokenizer(value);
 
@@ -192,14 +188,25 @@ void nsMathMLmencloseFrame::InitNotations()
 }
 
 NS_IMETHODIMP
+nsMathMLmencloseFrame::Init(nsIContent*      aContent,
+                            nsIFrame*        aParent,
+                            nsIFrame*        aPrevInFlow)
+{
+  nsresult rv = nsMathMLContainerFrame::Init(aContent, aParent, aPrevInFlow);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  InitNotations();
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsMathMLmencloseFrame::InheritAutomaticData(nsIFrame* aParent)
 {
   // let the base class get the default from our parent
   nsMathMLContainerFrame::InheritAutomaticData(aParent);
 
   mPresentationData.flags |= NS_MATHML_STRETCH_ALL_CHILDREN_VERTICALLY;
-
-  InitNotations();
 
   return NS_OK;
 }
@@ -325,14 +332,14 @@ nsMathMLmencloseFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 /* virtual */ nsresult
-nsMathMLmencloseFrame::MeasureForWidth(nsRenderingContext& aRenderingContext,
+nsMathMLmencloseFrame::MeasureForWidth(nsIRenderingContext& aRenderingContext,
                                        nsHTMLReflowMetrics& aDesiredSize)
 {
   return PlaceInternal(aRenderingContext, PR_FALSE, aDesiredSize, PR_TRUE);
 }
 
 /* virtual */ nsresult
-nsMathMLmencloseFrame::Place(nsRenderingContext& aRenderingContext,
+nsMathMLmencloseFrame::Place(nsIRenderingContext& aRenderingContext,
                              PRBool               aPlaceOrigin,
                              nsHTMLReflowMetrics& aDesiredSize)
 {
@@ -340,7 +347,7 @@ nsMathMLmencloseFrame::Place(nsRenderingContext& aRenderingContext,
 }
 
 /* virtual */ nsresult
-nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
+nsMathMLmencloseFrame::PlaceInternal(nsIRenderingContext& aRenderingContext,
                                      PRBool               aPlaceOrigin,
                                      nsHTMLReflowMetrics& aDesiredSize,
                                      PRBool               aWidthOnly)
@@ -367,16 +374,16 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
   ///////////////
   // Thickness of bars and font metrics
   nscoord onePixel = nsPresContext::CSSPixelsToAppUnits(1);
-
+  nsCOMPtr<nsIFontMetrics> fm;
   nscoord mEmHeight;
   aRenderingContext.SetFont(GetStyleFont()->mFont,
                             PresContext()->GetUserFontSet());
-  nsFontMetrics* fm = aRenderingContext.FontMetrics();
+  aRenderingContext.GetFontMetrics(*getter_AddRefs(fm));
   GetRuleThickness(aRenderingContext, fm, mRuleThickness);
   GetEmHeight(fm, mEmHeight);
 
-  PRUnichar one = '1';
-  nsBoundingMetrics bmOne = aRenderingContext.GetBoundingMetrics(&one, 1);
+  nsBoundingMetrics bmOne;
+  aRenderingContext.GetBoundingMetrics(NS_LITERAL_STRING("1").get(), 1, bmOne);
 
   ///////////////
   // General rules: the menclose element takes the size of the enclosed content.
@@ -393,7 +400,7 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
       // Rule 11, App. G, TeXbook
       // psi = clearance between rule and content
       if (NS_MATHML_IS_DISPLAYSTYLE(mPresentationData.flags))
-        phi = fm->XHeight();
+        fm->GetXHeight(phi);
       else
         phi = mRuleThickness;
       psi = mRuleThickness + phi / 4;
@@ -696,6 +703,10 @@ nsMathMLmencloseFrame::AttributeChanged(PRInt32         aNameSpaceID,
                                         PRInt32         aModType)
 {
   if (aAttribute == nsGkAtoms::notation_) {
+    mNotationsToDraw = 0;
+    mLongDivCharIndex = mRadicalCharIndex = -1;
+    mMathMLChar.Clear();
+    
     InitNotations();
   }
 
@@ -742,7 +753,7 @@ public:
 #endif
 
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx);
+                     nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("MathMLMencloseNotation", TYPE_MATHML_MENCLOSE_NOTATION)
 
 private:
@@ -752,7 +763,7 @@ private:
 };
 
 void nsDisplayNotation::Paint(nsDisplayListBuilder* aBuilder,
-                              nsRenderingContext* aCtx)
+                              nsIRenderingContext* aCtx)
 {
   // get the gfxRect
   nsPresContext* presContext = mFrame->PresContext();
@@ -767,14 +778,14 @@ void nsDisplayNotation::Paint(nsDisplayListBuilder* aBuilder,
   gfxFloat e = presContext->AppUnitsToGfxUnits(mThickness);
   gfxCtx->SetLineWidth(e);
 
-  rect.Deflate(e / 2.0);
+  rect.Inset(e / 2.0);
 
   gfxCtx->NewPath();
 
   switch(mType)
     {
     case NOTATION_CIRCLE:
-      gfxCtx->Ellipse(rect.Center(), rect.Size());
+      gfxCtx->Ellipse(rect.pos + rect.size / 2.0, rect.size);
       break;
 
     case NOTATION_ROUNDEDBOX:

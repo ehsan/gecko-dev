@@ -38,8 +38,10 @@
 #ifndef GFX_THEBESLAYEROGL_H
 #define GFX_THEBESLAYEROGL_H
 
-#include "mozilla/layers/PLayers.h"
-#include "mozilla/layers/ShadowLayers.h"
+#ifdef MOZ_IPC
+# include "mozilla/layers/PLayers.h"
+# include "mozilla/layers/ShadowLayers.h"
+#endif
 
 #include "Layers.h"
 #include "LayerManagerOGL.h"
@@ -84,6 +86,7 @@ private:
   nsRefPtr<Buffer> mBuffer;
 };
 
+#ifdef MOZ_IPC
 class ShadowThebesLayerOGL : public ShadowThebesLayer,
                              public LayerOGL
 {
@@ -93,10 +96,12 @@ public:
 
   // ShadowThebesLayer impl
   virtual void SetFrontBuffer(const OptionalThebesBuffer& aNewFront,
-                              const nsIntRegion& aValidRegion);
+                              const nsIntRegion& aValidRegion,
+                              float aXResolution, float aYResolution);
   virtual void
   Swap(const ThebesBuffer& aNewFront, const nsIntRegion& aUpdatedRegion,
        ThebesBuffer* aNewBack, nsIntRegion* aNewBackValidRegion,
+       float* aNewXResolution, float* aNewYResolution,
        OptionalThebesBuffer* aReadOnlyFront, nsIntRegion* aFrontUpdatedRegion);
   virtual void DestroyFrontBuffer();
 
@@ -112,6 +117,7 @@ public:
 private:
   nsRefPtr<ShadowBufferOGL> mBuffer;
 };
+#endif  // MOZ_IPC
 
 } /* layers */
 } /* mozilla */

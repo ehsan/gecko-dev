@@ -85,7 +85,9 @@ CompareCacheHashEntryPtr::CompareCacheHashEntryPtr()
 
 CompareCacheHashEntryPtr::~CompareCacheHashEntryPtr()
 {
-  delete entry;
+  if (entry) {
+    delete entry;
+  }
 }
 
 CompareCacheHashEntry::CompareCacheHashEntry()

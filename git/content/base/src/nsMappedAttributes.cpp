@@ -215,7 +215,12 @@ nsMappedAttributes::List(FILE* out, PRInt32 aIndent) const
     for (indent = aIndent; indent > 0; --indent)
       fputs("  ", out);
 
-    Attrs()[i].mName.GetQualifiedName(buffer);
+    if (Attrs()[i].mName.IsAtom()) {
+      Attrs()[i].mName.Atom()->ToString(buffer);
+    }
+    else {
+      Attrs()[i].mName.NodeInfo()->GetQualifiedName(buffer);
+    }
     fputs(NS_LossyConvertUTF16toASCII(buffer).get(), out);
 
     Attrs()[i].mValue.ToString(buffer);
@@ -277,19 +282,3 @@ nsMappedAttributes::IndexOfAttr(nsIAtom* aLocalName, PRInt32 aNamespaceID) const
 
   return -1;
 }
-
-PRInt64
-nsMappedAttributes::SizeOf() const
-{
-  NS_ASSERTION(mAttrCount == mBufferSize,
-               "mBufferSize and mAttrCount are expected to be the same.");
-
-  PRInt64 size = sizeof(*this) - sizeof(void*) + mAttrCount * sizeof(InternalAttr);
-
-  for (PRUint16 i = 0; i < mAttrCount; ++i) {
-    size += Attrs()[i].mValue.SizeOf() - sizeof(Attrs()[i].mValue);
-  }
-
-  return size;
-}
-

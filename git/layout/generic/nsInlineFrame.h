@@ -101,11 +101,11 @@ public:
                                      PRBool aRespectClusters = PR_TRUE);
   
   // nsIHTMLReflow overrides
-  virtual void AddInlineMinWidth(nsRenderingContext *aRenderingContext,
+  virtual void AddInlineMinWidth(nsIRenderingContext *aRenderingContext,
                                  InlineMinWidthData *aData);
-  virtual void AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
+  virtual void AddInlinePrefWidth(nsIRenderingContext *aRenderingContext,
                                   InlinePrefWidthData *aData);
-  virtual nsSize ComputeSize(nsRenderingContext *aRenderingContext,
+  virtual nsSize ComputeSize(nsIRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
                              PRBool aShrinkWrap);
@@ -119,6 +119,7 @@ public:
 
   virtual void PullOverflowsFromPrevInFlow();
   virtual nscoord GetBaseline() const;
+  virtual nscoord GetCaretBaseline() const;
 
   /**
    * Return true if the frame is leftmost frame or continuation.
@@ -194,8 +195,6 @@ protected:
                           nsIFrame* aFromChild,
                           nsIFrame* aPrevSibling,
                           InlineReflowState& aState);
-
-  nscoord mBaseline;
 };
 
 //----------------------------------------------------------------------
@@ -273,6 +272,8 @@ public:
                     nsReflowStatus&          aStatus);
   
   virtual nsIAtom* GetType() const;
+
+  virtual PRBool NeedsView() { return PR_TRUE; }
 
 protected:
   nsAbsoluteContainingBlock mAbsoluteContainer;

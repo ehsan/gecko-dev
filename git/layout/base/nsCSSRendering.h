@@ -40,6 +40,7 @@
 #ifndef nsCSSRendering_h___
 #define nsCSSRendering_h___
 
+#include "nsIRenderingContext.h"
 #include "nsStyleConsts.h"
 #include "gfxBlur.h"
 #include "gfxContext.h"
@@ -48,13 +49,12 @@
 struct nsPoint;
 class nsStyleContext;
 class nsPresContext;
-class nsRenderingContext;
 
 struct nsCSSRendering {
   /**
    * Initialize any static variables used by nsCSSRendering.
    */
-  static void Init();
+  static nsresult Init();
   
   /**
    * Clean up any static variables used by nsCSSRendering.
@@ -62,13 +62,13 @@ struct nsCSSRendering {
   static void Shutdown();
   
   static void PaintBoxShadowInner(nsPresContext* aPresContext,
-                                  nsRenderingContext& aRenderingContext,
+                                  nsIRenderingContext& aRenderingContext,
                                   nsIFrame* aForFrame,
                                   const nsRect& aFrameArea,
                                   const nsRect& aDirtyRect);
 
   static void PaintBoxShadowOuter(nsPresContext* aPresContext,
-                                  nsRenderingContext& aRenderingContext,
+                                  nsIRenderingContext& aRenderingContext,
                                   nsIFrame* aForFrame,
                                   const nsRect& aFrameArea,
                                   const nsRect& aDirtyRect);
@@ -83,7 +83,7 @@ struct nsCSSRendering {
    * when rendering. If 0 then no sides are skipped.
    */
   static void PaintBorder(nsPresContext* aPresContext,
-                          nsRenderingContext& aRenderingContext,
+                          nsIRenderingContext& aRenderingContext,
                           nsIFrame* aForFrame,
                           const nsRect& aDirtyRect,
                           const nsRect& aBorderArea,
@@ -95,7 +95,7 @@ struct nsCSSRendering {
    * getting it from aStyleContext.
    */
   static void PaintBorderWithStyleBorder(nsPresContext* aPresContext,
-                                         nsRenderingContext& aRenderingContext,
+                                         nsIRenderingContext& aRenderingContext,
                                          nsIFrame* aForFrame,
                                          const nsRect& aDirtyRect,
                                          const nsRect& aBorderArea,
@@ -110,7 +110,7 @@ struct nsCSSRendering {
    * when rendering. If 0 then no sides are skipped.
    */
   static void PaintOutline(nsPresContext* aPresContext,
-                          nsRenderingContext& aRenderingContext,
+                          nsIRenderingContext& aRenderingContext,
                           nsIFrame* aForFrame,
                           const nsRect& aDirtyRect,
                           const nsRect& aBorderArea,
@@ -123,7 +123,7 @@ struct nsCSSRendering {
    * Not used for controls, because the native theme may differ.
    */
   static void PaintFocus(nsPresContext* aPresContext,
-                         nsRenderingContext& aRenderingContext,
+                         nsIRenderingContext& aRenderingContext,
                          const nsRect& aFocusRect,
                          nscolor aColor);
 
@@ -131,7 +131,7 @@ struct nsCSSRendering {
    * Render a gradient for an element.
    */
   static void PaintGradient(nsPresContext* aPresContext,
-                            nsRenderingContext& aRenderingContext,
+                            nsIRenderingContext& aRenderingContext,
                             nsStyleGradient* aGradient,
                             const nsRect& aDirtyRect,
                             const nsRect& aOneCellArea,
@@ -234,7 +234,7 @@ struct nsCSSRendering {
     PAINTBG_TO_WINDOW = 0x04
   };
   static void PaintBackground(nsPresContext* aPresContext,
-                              nsRenderingContext& aRenderingContext,
+                              nsIRenderingContext& aRenderingContext,
                               nsIFrame* aForFrame,
                               const nsRect& aDirtyRect,
                               const nsRect& aBorderArea,
@@ -247,7 +247,7 @@ struct nsCSSRendering {
    * background is drawn on the canvas.
    */
   static void PaintBackgroundWithSC(nsPresContext* aPresContext,
-                                    nsRenderingContext& aRenderingContext,
+                                    nsIRenderingContext& aRenderingContext,
                                     nsIFrame* aForFrame,
                                     const nsRect& aDirtyRect,
                                     const nsRect& aBorderArea,
@@ -275,7 +275,7 @@ struct nsCSSRendering {
 
   // Draw a border segment in the table collapsing border model without
   // beveling corners
-  static void DrawTableBorderSegment(nsRenderingContext& aContext,
+  static void DrawTableBorderSegment(nsIRenderingContext& aContext,
                                      PRUint8              aBorderStyle,  
                                      nscolor              aBorderColor,
                                      const nsStyleBackground* aBGColor,
@@ -301,9 +301,9 @@ struct nsCSSRendering {
    *                              the baseline of the text (if the value is
    *                              positive, the line is lifted up)
    *     @param aDecoration       which line will be painted. The value can be
-   *                              NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE or
-   *                              NS_STYLE_TEXT_DECORATION_LINE_OVERLINE or
-   *                              NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH.
+   *                              NS_STYLE_TEXT_DECORATION_UNDERLINE or
+   *                              NS_STYLE_TEXT_DECORATION_OVERLINE or
+   *                              NS_STYLE_TEXT_DECORATION_LINE_THROUGH.
    *     @param aStyle            the style of the decoration line such as
    *                              NS_STYLE_TEXT_DECORATION_STYLE_*.
    *     @param aDescentLimit     If aDescentLimit is zero or larger and the
@@ -341,9 +341,9 @@ struct nsCSSRendering {
    *                              the baseline of the text (if the value is
    *                              positive, the line is lifted up)
    *     @param aDecoration       which line will be painted. The value can be
-   *                              NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE or
-   *                              NS_STYLE_TEXT_DECORATION_LINE_OVERLINE or
-   *                              NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH.
+   *                              NS_STYLE_TEXT_DECORATION_UNDERLINE or
+   *                              NS_STYLE_TEXT_DECORATION_OVERLINE or
+   *                              NS_STYLE_TEXT_DECORATION_LINE_THROUGH.
    *     @param aStyle            the style of the decoration line such as
    *                              NS_STYLE_TEXT_DECORATION_STYLE_*.
    *     @param aDescentLimit     If aDescentLimit is zero or larger and the

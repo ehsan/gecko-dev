@@ -63,6 +63,8 @@
 
 
 run_for_effects := $(shell if test ! -d $(DIST); then $(NSINSTALL) -D $(DIST); fi)
+_ABS_DIST := $(shell cd $(DIST) && pwd)
+
 
 # This makefile uses variable overrides from the libs-% target to
 # build non-default locales to non-default dist/ locations. Be aware!
@@ -128,20 +130,10 @@ unpack: $(STAGEDIST)
 # may be overridden if necessary.
 MOZDEPTH ?= $(DEPTH)
 
-ifdef MOZ_MAKE_COMPLETE_MAR
-MAKE_COMPLETE_MAR = 1
-ifeq ($(OS_ARCH), WINNT)
-ifneq ($(MOZ_PKG_FORMAT), SFX7Z)
-MAKE_COMPLETE_MAR =
-endif
-endif
-endif
 repackage-zip: UNPACKAGE="$(ZIP_IN)"
 repackage-zip:  libs-$(AB_CD)
 # Adjust jar logs with the new locale (can't use sed -i because of bug 373784)
-	mkdir -p $(JARLOG_DIR_AB_CD)
-	-cp -r $(JARLOG_DIR)/en-US/*.jar.log $(JARLOG_DIR_AB_CD)
-	-$(PERL) -pi.old -e "s/en-US/$(AB_CD)/g" $(JARLOG_DIR_AB_CD)/*.jar.log
+	-$(PERL) -pi -e "s/en-US/$(AB_CD)/g" $(_ABS_DIST)/jarlog/*.jar.log
 # call a hook for apps to put their uninstall helper.exe into the package
 	$(UNINSTALLER_PACKAGE_HOOK)
 # copy xpi-stage over, but not install.rdf and chrome.manifest,
@@ -157,7 +149,11 @@ endif
 	$(NSINSTALL) -D $(DIST)/l10n-stage/$(PKG_PATH)
 	cd $(DIST)/l10n-stage; \
 	  $(MAKE_PACKAGE)
-ifdef MAKE_COMPLETE_MAR
+ifeq (WINCE,$(OS_ARCH))
+	cd $(DIST)/l10n-stage; \
+	  $(MAKE_CAB)
+endif
+ifdef MOZ_MAKE_COMPLETE_MAR
 	$(MAKE) -C $(MOZDEPTH)/tools/update-packaging full-update AB_CD=$(AB_CD) \
 	  MOZ_PKG_PRETTYNAMES=$(MOZ_PKG_PRETTYNAMES) \
 	  PACKAGE_BASE_DIR="$(_ABS_DIST)/l10n-stage" \
@@ -175,6 +171,9 @@ endif
 	$(MAKE) clobber-zip AB_CD=$(AB_CD)
 	$(NSINSTALL) -D $(DIST)/$(PKG_PATH)
 	mv -f "$(DIST)/l10n-stage/$(PACKAGE)" "$(ZIP_OUT)"
+ifeq (WINCE,$(OS_ARCH))
+	mv -f "$(DIST)/l10n-stage/$(PKG_BASENAME).cab" "$(DIST)/$(PKG_PATH)$(PKG_BASENAME).cab"
+endif
 
 repackage-zip-%: $(STAGEDIST)
 	@$(MAKE) repackage-zip AB_CD=$* ZIP_IN="$(ZIP_IN)"
@@ -191,7 +190,7 @@ langpack-%: XPI_NAME=locale-$*
 langpack-%: libs-%
 	@echo "Making langpack $(LANGPACK_FILE)"
 	$(NSINSTALL) -D $(DIST)/$(PKG_LANGPACK_PATH)
-	$(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) -I$(TK_DEFINES) -I$(APP_DEFINES) $(srcdir)/generic/install.rdf > $(FINAL_TARGET)/install.rdf
+	$(PERL) $(MOZILLA_DIR)/config/preprocessor.pl $(DEFINES) $(ACDEFINES) -I$(TK_DEFINES) -I$(APP_DEFINES) $(srcdir)/generic/install.rdf > $(FINAL_TARGET)/install.rdf
 	cd $(DIST)/xpi-stage/locale-$(AB_CD) && \
 	  $(ZIP) -r9D $(LANGPACK_FILE) install.rdf chrome chrome.manifest -x chrome/$(AB_CD).manifest
 

@@ -59,8 +59,7 @@ public:
   static nsresult OnRemoveContent(nsPresContext* aPresContext,
                                   nsIContent* aContent);
   static nsresult OnChangeFocus(nsPresContext* aPresContext,
-                                nsIContent* aContent,
-                                PRUint32 aReason);
+                                nsIContent* aContent);
   static void OnInstalledMenuKeyboardListener(PRBool aInstalling);
 
   // These two methods manage focus and selection/text observers.
@@ -91,7 +90,7 @@ public:
 
 protected:
   static void SetIMEState(PRUint32 aState, nsIContent* aContent,
-                          nsIWidget* aWidget, PRUint32 aReason);
+                          nsIWidget* aWidget);
   static PRUint32 GetNewIMEState(nsPresContext* aPresContext,
                                  nsIContent* aContent);
 

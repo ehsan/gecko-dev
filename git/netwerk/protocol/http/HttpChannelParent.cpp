@@ -62,11 +62,7 @@ namespace mozilla {
 namespace net {
 
 HttpChannelParent::HttpChannelParent(PBrowserParent* iframeEmbedding)
-  : mIPCClosed(false)
-  , mStoredStatus(0)
-  , mStoredProgress(0)
-  , mStoredProgressMax(0)
-  , mHeadersToSyncToChild(nsnull)
+: mIPCClosed(false)
 {
   // Ensure gHttpHandler is initialized: we need the atom table up and running.
   nsIHttpProtocolHandler* handler;
@@ -94,14 +90,13 @@ HttpChannelParent::ActorDestroy(ActorDestroyReason why)
 // HttpChannelParent::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS7(HttpChannelParent,
+NS_IMPL_ISUPPORTS6(HttpChannelParent,
                    nsIInterfaceRequestor,
                    nsIProgressEventSink,
                    nsIRequestObserver,
                    nsIStreamListener,
                    nsIParentChannel,
-                   nsIParentRedirectingChannel,
-                   nsIHttpHeaderVisitor)
+                   nsIParentRedirectingChannel)
 
 //-----------------------------------------------------------------------------
 // HttpChannelParent::nsIInterfaceRequestor
@@ -159,11 +154,11 @@ HttpChannelParent::RecvAsyncOpen(const IPC::URI&            aURI,
 
   nsCOMPtr<nsIIOService> ios(do_GetIOService(&rv));
   if (NS_FAILED(rv))
-    return SendFailedAsyncOpen(rv);
+    return SendCancelEarly(rv);
 
   rv = NS_NewChannel(getter_AddRefs(mChannel), uri, ios, nsnull, nsnull, loadFlags);
   if (NS_FAILED(rv))
-    return SendFailedAsyncOpen(rv);
+    return SendCancelEarly(rv);
 
   nsHttpChannel *httpChan = static_cast<nsHttpChannel *>(mChannel.get());
 
@@ -241,7 +236,7 @@ HttpChannelParent::RecvAsyncOpen(const IPC::URI&            aURI,
 
   rv = httpChan->AsyncOpen(channelListener, nsnull);
   if (NS_FAILED(rv))
-    return SendFailedAsyncOpen(rv);
+    return SendCancelEarly(rv);
 
   return true;
 }
@@ -261,10 +256,8 @@ HttpChannelParent::RecvConnectChannel(const PRUint32& channelId)
 bool 
 HttpChannelParent::RecvSetPriority(const PRUint16& priority)
 {
-  if (mChannel) {
-    nsHttpChannel *httpChan = static_cast<nsHttpChannel *>(mChannel.get());
-    httpChan->SetPriority(priority);
-  }
+  nsHttpChannel *httpChan = static_cast<nsHttpChannel *>(mChannel.get());
+  httpChan->SetPriority(priority);
 
   nsCOMPtr<nsISupportsPriority> priorityRedirectChannel =
       do_QueryInterface(mRedirectChannel);
@@ -277,18 +270,14 @@ HttpChannelParent::RecvSetPriority(const PRUint16& priority)
 bool
 HttpChannelParent::RecvSuspend()
 {
-  if (mChannel) {
-    mChannel->Suspend();
-  }
+  mChannel->Suspend();
   return true;
 }
 
 bool
 HttpChannelParent::RecvResume()
 {
-  if (mChannel) {
-    mChannel->Resume();
-  }
+  mChannel->Resume();
   return true;
 }
 
@@ -308,7 +297,8 @@ bool
 HttpChannelParent::RecvSetCacheTokenCachedCharset(const nsCString& charset)
 {
   if (mCacheDescriptor)
-    mCacheDescriptor->SetMetaDataElement("charset", charset.get());
+    mCacheDescriptor->SetMetaDataElement("charset",
+                                         PromiseFlatCString(charset).get());
   return true;
 }
 
@@ -427,21 +417,23 @@ HttpChannelParent::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext)
       NS_SerializeToString(secInfoSer, secInfoSerialization);
   }
 
-  // sync request headers to child, in case they've changed
   RequestHeaderTuples headers;
-  mHeadersToSyncToChild = &headers;
-  requestHead->Headers().VisitHeaders(this);
-  mHeadersToSyncToChild = 0;
+  nsHttpHeaderArray harray = requestHead->Headers();
 
-  nsHttpChannel *httpChan = static_cast<nsHttpChannel *>(mChannel.get());
+  for (PRUint32 i = 0; i < harray.Count(); i++) {
+    RequestHeaderTuple* tuple = headers.AppendElement();
+    tuple->mHeader = harray.Headers()[i].header;
+    tuple->mValue  = harray.Headers()[i].value;
+    tuple->mMerge  = false;
+  }
+
   if (mIPCClosed || 
       !SendOnStartRequest(responseHead ? *responseHead : nsHttpResponseHead(), 
                           !!responseHead,
                           headers,
                           isFromCache,
                           mCacheDescriptor ? PR_TRUE : PR_FALSE,
-                          expirationTime, cachedCharset, secInfoSerialization,
-                          httpChan->GetSelfAddr(), httpChan->GetPeerAddr())) 
+                          expirationTime, cachedCharset, secInfoSerialization)) 
   {
     return NS_ERROR_UNEXPECTED; 
   }
@@ -473,21 +465,15 @@ HttpChannelParent::OnDataAvailable(nsIRequest *aRequest,
                                    PRUint32 aCount)
 {
   LOG(("HttpChannelParent::OnDataAvailable [this=%x]\n", this));
-
+ 
   nsCString data;
   nsresult rv = NS_ReadInputStreamToString(aInputStream, data, aCount);
   if (NS_FAILED(rv))
     return rv;
 
-  // OnDataAvailable is always preceded by OnStatus/OnProgress calls that set
-  // mStoredStatus/mStoredProgress(Max) to appropriate values, unless
-  // LOAD_BACKGROUND set.  In that case, they'll have garbage values, but
-  // child doesn't use them.
-  if (mIPCClosed || !SendOnTransportAndData(mStoredStatus, mStoredProgress,
-                                            mStoredProgressMax, data, aOffset,
-                                            aCount)) {
-    return NS_ERROR_UNEXPECTED;
-  }
+  if (mIPCClosed || !SendOnDataAvailable(data, aOffset, aCount))
+    return NS_ERROR_UNEXPECTED; 
+
   return NS_OK;
 }
 
@@ -501,21 +487,8 @@ HttpChannelParent::OnProgress(nsIRequest *aRequest,
                               PRUint64 aProgress, 
                               PRUint64 aProgressMax)
 {
-  // OnStatus has always just set mStoredStatus. If it indicates this precedes
-  // OnDataAvailable, store and ODA will send to child.
-  if (mStoredStatus == nsISocketTransport::STATUS_RECEIVING_FROM ||
-      mStoredStatus == nsITransport::STATUS_READING)
-  {
-    mStoredProgress = aProgress;
-    mStoredProgressMax = aProgressMax;
-  } else {
-    // Send to child now.  The only case I've observed that this handles (i.e.
-    // non-ODA status with progress > 0) is data upload progress notification
-    // (status == nsISocketTransport::STATUS_SENDING_TO)
-    if (mIPCClosed || !SendOnProgress(aProgress, aProgressMax))
-      return NS_ERROR_UNEXPECTED;
-  }
-
+  if (mIPCClosed || !SendOnProgress(aProgress, aProgressMax))
+    return NS_ERROR_UNEXPECTED;
   return NS_OK;
 }
 
@@ -525,15 +498,7 @@ HttpChannelParent::OnStatus(nsIRequest *aRequest,
                             nsresult aStatus, 
                             const PRUnichar *aStatusArg)
 {
-  // If this precedes OnDataAvailable, store and ODA will send to child.
-  if (aStatus == nsISocketTransport::STATUS_RECEIVING_FROM ||
-      aStatus == nsITransport::STATUS_READING)
-  {
-    mStoredStatus = aStatus;
-    return NS_OK;
-  }
-  // Otherwise, send to child now
-  if (mIPCClosed || !SendOnStatus(aStatus))
+  if (mIPCClosed || !SendOnStatus(aStatus, nsString(aStatusArg)))
     return NS_ERROR_UNEXPECTED;
   return NS_OK;
 }
@@ -593,23 +558,6 @@ HttpChannelParent::CompleteRedirect(PRBool succeeded)
   }
 
   mRedirectChannel = nsnull;
-  return NS_OK;
-}
-
-//-----------------------------------------------------------------------------
-// HttpChannelParent::nsIHttpHeaderVisitor
-//-----------------------------------------------------------------------------
-
-nsresult
-HttpChannelParent::VisitHeader(const nsACString &header, const nsACString &value)
-{
-  // Will be set unless some random code QI's us to nsIHttpHeaderVisitor
-  NS_ENSURE_STATE(mHeadersToSyncToChild);
-
-  RequestHeaderTuple* tuple = mHeadersToSyncToChild->AppendElement();
-  tuple->mHeader = header;
-  tuple->mValue  = value;
-  tuple->mMerge  = false;  // headers already merged:
   return NS_OK;
 }
 

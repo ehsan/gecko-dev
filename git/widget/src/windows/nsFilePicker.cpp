@@ -46,7 +46,6 @@
 #include "nsIServiceManager.h"
 #include "nsIPlatformCharset.h"
 #include "nsICharsetConverterManager.h"
-#include "nsIPrivateBrowsingService.h"
 #include "nsFilePicker.h"
 #include "nsILocalFile.h"
 #include "nsIURL.h"
@@ -58,7 +57,9 @@
 
 // commdlg.h and cderr.h are needed to build with WIN32_LEAN_AND_MEAN
 #include <commdlg.h>
+#ifndef WINCE
 #include <cderr.h>
+#endif
 
 #include "nsString.h"
 #include "nsToolkit.h"
@@ -70,11 +71,21 @@ char nsFilePicker::mLastUsedDirectory[MAX_PATH+1] = { 0 };
 
 #define MAX_EXTENSION_LENGTH 10
 
+//-------------------------------------------------------------------------
+//
+// nsFilePicker constructor
+//
+//-------------------------------------------------------------------------
 nsFilePicker::nsFilePicker()
 {
   mSelectedType   = 1;
 }
 
+//-------------------------------------------------------------------------
+//
+// nsFilePicker destructor
+//
+//-------------------------------------------------------------------------
 nsFilePicker::~nsFilePicker()
 {
   if (mLastUsedUnicodeDirectory) {
@@ -83,7 +94,13 @@ nsFilePicker::~nsFilePicker()
   }
 }
 
+//-------------------------------------------------------------------------
+//
 // Show - Display the file dialog
+//
+//-------------------------------------------------------------------------
+
+#ifndef WINCE_WINDOWS_MOBILE
 int CALLBACK BrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lParam, LPARAM lpData)
 {
   if (uMsg == BFFM_INITIALIZED)
@@ -96,75 +113,7 @@ int CALLBACK BrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lParam, LPARAM lpDa
   }
   return 0;
 }
-
-// Callback hook which will dynamically allocate a buffer large
-// enough for the file picker dialog.
-static UINT_PTR CALLBACK FilePickerHook(HWND hwnd, UINT msg,
-                                        WPARAM wParam, LPARAM lParam)
-{
-  switch (msg) {
-    case WM_INITDIALOG:
-      {
-        // Finds the child drop down of a File Picker dialog and sets the 
-        // maximum amount of text it can hold when typed in manually.
-        // A wParam of 0 mean 0x7FFFFFFE characters.
-        HWND comboBox = FindWindowEx(GetParent(hwnd), NULL, 
-                                     L"ComboBoxEx32", NULL );
-        if(comboBox)
-          SendMessage(comboBox, CB_LIMITTEXT, 0, 0);
-      }
-      break;
-    case WM_NOTIFY:
-      {
-        LPOFNOTIFYW lpofn = (LPOFNOTIFYW) lParam;
-        // CDN_SELCHANGE is sent when the selection in the list box of the file
-        // selection dialog changes
-        if (lpofn->hdr.code == CDN_SELCHANGE) {
-          HWND parentHWND = GetParent(hwnd);
-
-          // Get the required size for the selected files buffer
-          UINT newBufLength = 0; 
-          int requiredBufLength = CommDlg_OpenSave_GetSpecW(parentHWND, 
-                                                            NULL, 0);
-          if(requiredBufLength >= 0)
-            newBufLength += requiredBufLength;
-          else
-            newBufLength += MAX_PATH;
-
-          // If the user selects multiple files, the buffer contains the 
-          // current directory followed by the file names of the selected 
-          // files. So make room for the directory path.  If the user
-          // selects a single file, it is no harm to add extra space.
-          requiredBufLength = CommDlg_OpenSave_GetFolderPathW(parentHWND, 
-                                                              NULL, 0);
-          if(requiredBufLength >= 0)
-            newBufLength += requiredBufLength;
-          else
-            newBufLength += MAX_PATH;
-
-          // Check if lpstrFile and nMaxFile are large enough
-          if (newBufLength > lpofn->lpOFN->nMaxFile)
-          {
-            if (lpofn->lpOFN->lpstrFile)
-              delete[] lpofn->lpOFN->lpstrFile;
-
-            // We allocate FILE_BUFFER_SIZE more bytes than is needed so that
-            // if the user selects a file and holds down shift and down to 
-            // select  additional items, we will not continuously reallocate
-            newBufLength += FILE_BUFFER_SIZE;
-
-            PRUnichar* filesBuffer = new PRUnichar[newBufLength];
-            ZeroMemory(filesBuffer, newBufLength * sizeof(PRUnichar));
-
-            lpofn->lpOFN->lpstrFile = filesBuffer;
-            lpofn->lpOFN->nMaxFile  = newBufLength;
-          }
-        }
-      }
-      break;
-  }
-  return 0;
-}
+#endif
 
 NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
 {
@@ -178,8 +127,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
   }
 
   PRBool result = PR_FALSE;
-  nsAutoArrayPtr<PRUnichar> fileBuffer(new PRUnichar[FILE_BUFFER_SIZE+1]);
-            
+  PRUnichar fileBuffer[FILE_BUFFER_SIZE+1];
   wcsncpy(fileBuffer,  mDefault.get(), FILE_BUFFER_SIZE);
   fileBuffer[FILE_BUFFER_SIZE] = '\0'; // null terminate in case copy truncated
 
@@ -195,6 +143,8 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
   }
 
   mUnicodeFile.Truncate();
+
+#ifndef WINCE_WINDOWS_MOBILE
 
   if (mMode == modeGetFolder) {
     PRUnichar dirBuffer[MAX_PATH+1];
@@ -233,6 +183,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
     }
   }
   else 
+#endif // WINCE_WINDOWS_MOBILE
   {
 
     OPENFILENAMEW ofn;
@@ -247,24 +198,16 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
     ofn.lpstrTitle   = (LPCWSTR)mTitle.get();
     ofn.lpstrFilter  = (LPCWSTR)filterBuffer.get();
     ofn.nFilterIndex = mSelectedType;
+#ifdef WINCE_WINDOWS_MOBILE
+    // If we're running fullscreen the dialog inherits that, which is bad
+    ofn.hwndOwner    = (HWND) 0;
+#else
     ofn.hwndOwner    = (HWND) (mParentWidget.get() ? mParentWidget->GetNativeData(NS_NATIVE_TMP_WINDOW) : 0); 
+#endif
     ofn.lpstrFile    = fileBuffer;
     ofn.nMaxFile     = FILE_BUFFER_SIZE;
 
-    ofn.Flags = OFN_NOCHANGEDIR | OFN_SHAREAWARE |
-                OFN_LONGNAMES | OFN_OVERWRITEPROMPT |
-                OFN_HIDEREADONLY | OFN_PATHMUSTEXIST;
-
-    // Handle add to recent docs settings
-    nsCOMPtr<nsIPrivateBrowsingService> pbs =
-      do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
-    PRBool privacyModeEnabled = PR_FALSE;
-    if (pbs) {
-      pbs->GetPrivateBrowsingEnabled(&privacyModeEnabled);
-    }
-    if (privacyModeEnabled || !mAddToRecentDocs) {
-      ofn.Flags |= OFN_DONTADDTORECENT;
-    }
+    ofn.Flags = OFN_NOCHANGEDIR | OFN_SHAREAWARE | OFN_LONGNAMES | OFN_OVERWRITEPROMPT | OFN_HIDEREADONLY | OFN_PATHMUSTEXIST;
 
     if (!mDefaultExtension.IsEmpty()) {
       ofn.lpstrDefExt = mDefaultExtension.get();
@@ -292,26 +235,17 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
       }
     }
 
+#ifndef WINCE
     MOZ_SEH_TRY {
+#endif
       if (mMode == modeOpen) {
         // FILE MUST EXIST!
         ofn.Flags |= OFN_FILEMUSTEXIST;
         result = ::GetOpenFileNameW(&ofn);
       }
       else if (mMode == modeOpenMultiple) {
-        ofn.Flags |= OFN_FILEMUSTEXIST | OFN_ALLOWMULTISELECT | 
-                     OFN_EXPLORER | OFN_ENABLEHOOK;
-
-        // The hook set here ensures that the buffer returned will always be
-        // long enough to hold all selected files.  The hook may modify the
-        // value of ofn.lpstrFile and deallocate the old buffer that it pointed
-        // to (fileBuffer). The hook assumes that the passed in value is heap 
-        // allocated and that the returned value should be freed by the caller.
-        // If the hook changes the buffer, it will deallocate the old buffer.
-        ofn.lpfnHook = FilePickerHook;
-        fileBuffer.forget();
+        ofn.Flags |= OFN_FILEMUSTEXIST | OFN_ALLOWMULTISELECT | OFN_EXPLORER;
         result = ::GetOpenFileNameW(&ofn);
-        fileBuffer = ofn.lpstrFile;
       }
       else if (mMode == modeSave) {
         ofn.Flags |= OFN_NOREADONLYRETURN;
@@ -330,7 +264,9 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
         if (!result) {
           // Error, find out what kind.
           if (::GetLastError() == ERROR_INVALID_PARAMETER 
+#ifndef WINCE
               || ::CommDlgExtendedError() == FNERR_INVALIDFILENAME
+#endif
               ) {
             // probably the default file name is too long or contains illegal characters!
             // Try again, without a starting file name.
@@ -339,9 +275,16 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
           }
         }
       } 
+#ifdef WINCE_WINDOWS_MOBILE
+      else if (mMode == modeGetFolder) {
+        ofn.Flags = OFN_PROJECT | OFN_FILEMUSTEXIST;
+        result = ::GetOpenFileNameW(&ofn);
+      }
+#endif
       else {
         NS_ERROR("unsupported mode"); 
       }
+#ifndef WINCE
     }
     MOZ_SEH_EXCEPT(PR_TRUE) {
       MessageBoxW(ofn.hwndOwner,
@@ -350,6 +293,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
                   MB_ICONERROR);
       result = PR_FALSE;
     }
+#endif
 
     if (result) {
       // Remember what filter type the user selected
@@ -485,6 +429,7 @@ NS_IMETHODIMP nsFilePicker::GetFile(nsILocalFile **aFile)
   return NS_OK;
 }
 
+//-------------------------------------------------------------------------
 NS_IMETHODIMP nsFilePicker::GetFileURL(nsIURI **aFileURL)
 {
   *aFileURL = nsnull;
@@ -502,7 +447,11 @@ NS_IMETHODIMP nsFilePicker::GetFiles(nsISimpleEnumerator **aFiles)
   return NS_NewArrayEnumerator(aFiles, mFiles);
 }
 
+//-------------------------------------------------------------------------
+//
 // Get the file + path
+//
+//-------------------------------------------------------------------------
 NS_IMETHODIMP nsFilePicker::SetDefaultString(const nsAString& aString)
 {
   mDefault = aString;
@@ -540,7 +489,11 @@ NS_IMETHODIMP nsFilePicker::GetDefaultString(nsAString& aString)
   return NS_ERROR_FAILURE;
 }
 
+//-------------------------------------------------------------------------
+//
 // The default extension to use for files
+//
+//-------------------------------------------------------------------------
 NS_IMETHODIMP nsFilePicker::GetDefaultExtension(nsAString& aExtension)
 {
   aExtension = mDefaultExtension;
@@ -553,7 +506,11 @@ NS_IMETHODIMP nsFilePicker::SetDefaultExtension(const nsAString& aExtension)
   return NS_OK;
 }
 
+//-------------------------------------------------------------------------
+//
 // Set the filter index
+//
+//-------------------------------------------------------------------------
 NS_IMETHODIMP nsFilePicker::GetFilterIndex(PRInt32 *aFilterIndex)
 {
   // Windows' filter index is 1-based, we use a 0-based system.
@@ -568,6 +525,7 @@ NS_IMETHODIMP nsFilePicker::SetFilterIndex(PRInt32 aFilterIndex)
   return NS_OK;
 }
 
+//-------------------------------------------------------------------------
 void nsFilePicker::InitNative(nsIWidget *aParent,
                               const nsAString& aTitle,
                               PRInt16 aMode)

@@ -51,19 +51,9 @@ LIBXUL_LIBRARY  = 1
 CPPSRCS		= \
 		nsCollationWin.cpp \
 		nsDateTimeFormatWin.cpp \
-		nsWin32Locale.cpp \
-		nsWinCharset.cpp \
+		nsIWin32LocaleImpl.cpp \
 		$(NULL)
 
 include $(topsrcdir)/config/rules.mk
 
 INCLUDES	+= -I$(srcdir)/..
-
-nsWinCharset.$(OBJ_SUFFIX): wincharset.properties.h
-
-wincharset.properties.h: $(srcdir)/../props2arrays.py wincharset.properties
-	$(PYTHON) $^ $@
-
-GARBAGE += \
-	wincharset.properties.h \
-	$(NULL)

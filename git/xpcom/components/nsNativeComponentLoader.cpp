@@ -58,7 +58,6 @@
 #include "prerror.h"
 
 #include "nsComponentManager.h"
-#include "ManifestParser.h" // for LogMessage
 #include "nsCRTGlue.h"
 #include "nsThreadUtils.h"
 #include "nsTraceRefcntImpl.h"
@@ -169,8 +168,17 @@ nsNativeModuleLoader::LoadModule(nsILocalFile* aFile)
         if (PR_GetErrorTextLength() < (int) sizeof(errorMsg))
             PR_GetErrorText(errorMsg);
 
-        LogMessage("Failed to load native module at path '%s': (%lx) %s",
-                   filePath.get(), rv, errorMsg);
+        LOG(PR_LOG_ERROR,
+            ("nsNativeModuleLoader::LoadModule(\"%s\") - load FAILED, "
+             "rv: %lx, error:\n\t%s\n",
+             filePath.get(), rv, errorMsg));
+
+#ifdef DEBUG
+        fprintf(stderr,
+                "nsNativeModuleLoader::LoadModule(\"%s\") - load FAILED, "
+                "rv: %lx, error:\n\t%s\n",
+                filePath.get(), (unsigned long)rv, errorMsg);
+#endif
 
         return NULL;
     }
@@ -194,24 +202,22 @@ nsNativeModuleLoader::LoadModule(nsILocalFile* aFile)
 #endif
 
     void *module = PR_FindSymbol(data.library, "NSModule");
-    if (!module) {
-        LogMessage("Native module at path '%s' doesn't export symbol `NSModule`.",
-                   filePath.get());
-        PR_UnloadLibrary(data.library);
-        return NULL;
+    if (module) {
+        data.module = *(mozilla::Module const *const *) module;
+        if (mLibraries.Put(hashedFile, data))
+            return data.module;
+    }
+    else {
+        LOG(PR_LOG_ERROR,
+            ("nsNativeModuleLoader::LoadModule(\"%s\") - "
+             "Symbol NSModule not found", filePath.get()));
     }
 
-    data.module = *(mozilla::Module const *const *) module;
-    if (mozilla::Module::kVersion != data.module->mVersion) {
-        LogMessage("Native module at path '%s' is incompatible with this version of Firefox, has version %i, expected %i.",
-                   filePath.get(), data.module->mVersion,
-                   mozilla::Module::kVersion);
-        PR_UnloadLibrary(data.library);
-        return NULL;
-    }
-        
-    mLibraries.Put(hashedFile, data); // infallible
-    return data.module;
+    // at some point we failed, clean up
+    data.module = nsnull;
+    PR_UnloadLibrary(data.library);
+
+    return NULL;
 }
 
 const mozilla::Module*

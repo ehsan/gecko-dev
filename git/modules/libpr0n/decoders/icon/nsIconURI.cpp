@@ -248,9 +248,6 @@ nsMozIconURI::SetSpec(const nsACString &aSpec)
   if (!strncmp("//stock/", iconPath.get(), 8))
   {
     mStockIcon.Assign(Substring(iconPath, 8));
-    // An icon identifier must always be specified.
-    if (mStockIcon.IsEmpty())
-      return NS_ERROR_MALFORMED_URI;
     return NS_OK;
   }
 
@@ -385,19 +382,6 @@ nsMozIconURI::SetPath(const nsACString &aPath)
 }
 
 NS_IMETHODIMP
-nsMozIconURI::GetRef(nsACString &aRef)
-{
-  aRef.Truncate();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsMozIconURI::SetRef(const nsACString &aRef)
-{
-  return NS_ERROR_FAILURE;
-}
-
-NS_IMETHODIMP
 nsMozIconURI::Equals(nsIURI *other, PRBool *result)
 {
   NS_ENSURE_ARG_POINTER(other);
@@ -413,14 +397,6 @@ nsMozIconURI::Equals(nsIURI *other, PRBool *result)
   else
     *result = PR_FALSE;
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsMozIconURI::EqualsExceptRef(nsIURI *other, PRBool *result)
-{
-  // GetRef/SetRef not supported by nsMozIconURI, so
-  // EqualsExceptRef() is the same as Equals().
-  return Equals(other, result);
 }
 
 NS_IMETHODIMP
@@ -449,6 +425,9 @@ nsMozIconURI::Clone(nsIURI **result)
   }
 
   nsMozIconURI *uri = new nsMozIconURI();
+  if (!uri)
+    return NS_ERROR_OUT_OF_MEMORY;
+ 
   newIconURL.swap(uri->mIconURL);
   uri->mSize = mSize;
   uri->mContentType = mContentType;
@@ -459,14 +438,6 @@ nsMozIconURI::Clone(nsIURI **result)
   NS_ADDREF(*result = uri);
 
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsMozIconURI::CloneIgnoringRef(nsIURI **result)
-{
-  // GetRef/SetRef not supported by nsMozIconURI, so
-  // CloneIgnoringRef() is the same as Clone().
-  return Clone(result);
 }
 
 NS_IMETHODIMP

@@ -43,7 +43,6 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/record.js");
-Cu.import("resource://services-sync/async.js");
 Cu.import("resource://services-sync/util.js");
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/log4moz.js");
@@ -55,7 +54,7 @@ function FormRec(collection, id) {
 }
 FormRec.prototype = {
   __proto__: CryptoWrapper.prototype,
-  _logName: "Sync.Record.Form",
+  _logName: "Record.Form",
   ttl: FORMS_TTL
 };
 
@@ -63,36 +62,36 @@ Utils.deferGetSet(FormRec, "cleartext", ["name", "value"]);
 
 
 let FormWrapper = {
-  _log: Log4Moz.repository.getLogger("Sync.Engine.Forms"),
+  _log: Log4Moz.repository.getLogger('Engine.Forms'),
     
   getAllEntries: function getAllEntries() {
     // Sort by (lastUsed - minLast) / (maxLast - minLast) * timesUsed / maxTimes
-    let query = Svc.Form.DBConnection.createAsyncStatement(
+    let query = this.createStatement(
       "SELECT fieldname name, value FROM moz_formhistory " +
       "ORDER BY 1.0 * (lastUsed - (SELECT lastUsed FROM moz_formhistory ORDER BY lastUsed ASC LIMIT 1)) / " +
         "((SELECT lastUsed FROM moz_formhistory ORDER BY lastUsed DESC LIMIT 1) - (SELECT lastUsed FROM moz_formhistory ORDER BY lastUsed ASC LIMIT 1)) * " +
         "timesUsed / (SELECT timesUsed FROM moz_formhistory ORDER BY timesUsed DESC LIMIT 1) DESC " +
       "LIMIT 500");
-    return Async.querySpinningly(query, ["name", "value"]);
+    return Utils.queryAsync(query, ["name", "value"]);
   },
 
   getEntry: function getEntry(guid) {
-    let query = Svc.Form.DBConnection.createAsyncStatement(
+    let query = this.createStatement(
       "SELECT fieldname name, value FROM moz_formhistory WHERE guid = :guid");
     query.params.guid = guid;
-    return Async.querySpinningly(query, ["name", "value"])[0];
+    return Utils.queryAsync(query, ["name", "value"])[0];
   },
 
   getGUID: function getGUID(name, value) {
     // Query for the provided entry
-    let getQuery = Svc.Form.DBConnection.createAsyncStatement(
+    let getQuery = this.createStatement(
       "SELECT guid FROM moz_formhistory " +
       "WHERE fieldname = :name AND value = :value");
     getQuery.params.name = name;
     getQuery.params.value = value;
 
     // Give the guid if we found one
-    let item = Async.querySpinningly(getQuery, ["guid"])[0];
+    let item = Utils.queryAsync(getQuery, ["guid"])[0];
     
     if (!item) {
       // Shouldn't happen, but Bug 597400...
@@ -107,33 +106,50 @@ let FormWrapper = {
       return item.guid;
 
     // We need to create a guid for this entry
-    let setQuery = Svc.Form.DBConnection.createAsyncStatement(
+    let setQuery = this.createStatement(
       "UPDATE moz_formhistory SET guid = :guid " +
       "WHERE fieldname = :name AND value = :value");
     let guid = Utils.makeGUID();
     setQuery.params.guid = guid;
     setQuery.params.name = name;
     setQuery.params.value = value;
-    Async.querySpinningly(setQuery);
+    Utils.queryAsync(setQuery);
 
     return guid;
   },
 
   hasGUID: function hasGUID(guid) {
-    let query = Svc.Form.DBConnection.createAsyncStatement(
+    let query = this.createStatement(
       "SELECT guid FROM moz_formhistory WHERE guid = :guid LIMIT 1");
     query.params.guid = guid;
-    return Async.querySpinningly(query, ["guid"]).length == 1;
+    return Utils.queryAsync(query, ["guid"]).length == 1;
   },
 
   replaceGUID: function replaceGUID(oldGUID, newGUID) {
-    let query = Svc.Form.DBConnection.createAsyncStatement(
+    let query = this.createStatement(
       "UPDATE moz_formhistory SET guid = :newGUID WHERE guid = :oldGUID");
     query.params.oldGUID = oldGUID;
     query.params.newGUID = newGUID;
-    Async.querySpinningly(query);
-  }
+    Utils.queryAsync(query);
+  },
 
+  createStatement: function createStatement(query) {
+    try {
+      // Just return the statement right away if it's okay
+      return Utils.createStatement(Svc.Form.DBConnection, query);
+    }
+    catch(ex) {
+      // Assume guid column must not exist yet, so add it with an index
+      Svc.Form.DBConnection.executeSimpleSQL(
+        "ALTER TABLE moz_formhistory ADD COLUMN guid TEXT");
+      Svc.Form.DBConnection.executeSimpleSQL(
+        "CREATE INDEX IF NOT EXISTS moz_formhistory_guid_index " +
+        "ON moz_formhistory (guid)");
+
+      // Try creating the query now that the column exists
+      return Utils.createStatement(Svc.Form.DBConnection, query);
+    }
+  }
 };
 
 function FormEngine() {
@@ -215,7 +231,7 @@ FormStore.prototype = {
   },
 
   update: function FormStore_update(record) {
-    this._log.trace("Ignoring form record update request!");
+    this._log.warn("Ignoring form record update request!");
   },
 
   wipe: function FormStore_wipe() {
@@ -238,7 +254,7 @@ FormTracker.prototype = {
 
   trackEntry: function trackEntry(name, value) {
     this.addChangedID(FormWrapper.getGUID(name, value));
-    this.score += SCORE_INCREMENT_MEDIUM;
+    this.score += 10;
   },
 
   _enabled: false,
@@ -267,6 +283,7 @@ FormTracker.prototype = {
           this._enabled = false;
         }
         break;
+      // Firefox 4.0
       case "satchel-storage-changed":
         if (data == "addEntry" || data == "before-removeEntry") {
           subject = subject.QueryInterface(Ci.nsIArray);
@@ -277,7 +294,30 @@ FormTracker.prototype = {
           this.trackEntry(name, value);
         }
         break;
+      // Firefox 3.5/3.6
+      case "form-notifier":
+        this.onFormNotifier(data);
+        break;
     }
+  },
+
+  // Firefox 3.5/3.6
+  onFormNotifier: function onFormNotifier(data) {
+    let name, value;
+
+    // Figure out if it's a function that we care about tracking
+    let formCall = JSON.parse(data);
+    let func = formCall.func;
+    if ((func == "addEntry" && formCall.type == "after") ||
+        (func == "removeEntry" && formCall.type == "before"))
+      [name, value] = formCall.args;
+
+    // Skip if there's nothing of interest
+    if (name == null || value == null)
+      return;
+
+    this._log.trace("Logging form action: " + [func, name, value]);
+    this.trackEntry(name, value);
   },
 
   notify: function FormTracker_notify(formElement, aWindow, actionURI) {
@@ -343,10 +383,10 @@ FormTracker.prototype = {
       }
 
       // Get the GUID on a delay so that it can be added to the DB first...
-      Utils.nextTick(function() {
+      Utils.delay(function() {
         this._log.trace("Logging form element: " + [name, el.value]);
         this.trackEntry(name, el.value);
-      }, this);
+      }, 0, this);
     }
   }
 };

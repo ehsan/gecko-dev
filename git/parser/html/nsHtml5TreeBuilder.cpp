@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2007 Henri Sivonen
- * Copyright (c) 2007-2011 Mozilla Foundation
+ * Copyright (c) 2007-2010 Mozilla Foundation
  * Portions of comments Copyright 2004-2008 Apple Computer, Inc., Mozilla 
  * Foundation, and Opera Software ASA.
  *
@@ -190,7 +190,7 @@ nsHtml5TreeBuilder::characters(const PRUnichar* buf, PRInt32 start, PRInt32 leng
     case NS_HTML5TREE_BUILDER_IN_BODY:
     case NS_HTML5TREE_BUILDER_IN_CELL:
     case NS_HTML5TREE_BUILDER_IN_CAPTION: {
-      if (!isInForeignButNotHtmlIntegrationPoint()) {
+      if (!isInForeign()) {
         reconstructTheActiveFormattingElements();
       }
     }
@@ -236,7 +236,7 @@ nsHtml5TreeBuilder::characters(const PRUnichar* buf, PRInt32 start, PRInt32 leng
                   accumulateCharacters(buf, start, i - start);
                   start = i;
                 }
-                if (!isInForeignButNotHtmlIntegrationPoint()) {
+                if (!isInForeign()) {
                   flushCharacters();
                   reconstructTheActiveFormattingElements();
                 }
@@ -338,7 +338,7 @@ nsHtml5TreeBuilder::characters(const PRUnichar* buf, PRInt32 start, PRInt32 leng
                   accumulateCharacters(buf, start, i - start);
                   start = i;
                 }
-                if (!isInForeignButNotHtmlIntegrationPoint()) {
+                if (!isInForeign()) {
                   flushCharacters();
                   reconstructTheActiveFormattingElements();
                 }
@@ -433,6 +433,9 @@ nsHtml5TreeBuilder::zeroOriginatingReplacementCharacter()
       return;
     }
     if (stackNode->isHtmlIntegrationPoint()) {
+      return;
+    }
+    if (stackNode->ns == kNameSpaceID_MathML && stackNode->getGroup() == NS_HTML5TREE_BUILDER_MI_MO_MN_MS_MTEXT) {
       return;
     }
     accumulateCharacters(REPLACEMENT_CHARACTER, 0, 1);
@@ -1086,9 +1089,6 @@ nsHtml5TreeBuilder::startTag(nsHtml5ElementName* elementName, nsHtml5HtmlAttribu
             case NS_HTML5TREE_BUILDER_AREA_OR_WBR: {
               reconstructTheActiveFormattingElements();
             }
-#ifdef ENABLE_VOID_MENUITEM
-            case NS_HTML5TREE_BUILDER_MENUITEM:
-#endif
             case NS_HTML5TREE_BUILDER_PARAM_OR_SOURCE_OR_TRACK: {
               appendVoidElementToCurrentMayFoster(elementName, attributes);
               selfClosing = PR_FALSE;
@@ -2389,9 +2389,6 @@ nsHtml5TreeBuilder::endTag(nsHtml5ElementName* elementName)
             NS_HTML5_BREAK(endtagloop);
           }
           case NS_HTML5TREE_BUILDER_AREA_OR_WBR:
-#ifdef ENABLE_VOID_MENUITEM
-          case NS_HTML5TREE_BUILDER_MENUITEM:
-#endif
           case NS_HTML5TREE_BUILDER_PARAM_OR_SOURCE_OR_TRACK:
           case NS_HTML5TREE_BUILDER_EMBED_OR_IMG:
           case NS_HTML5TREE_BUILDER_IMAGE:
@@ -3715,12 +3712,6 @@ PRBool
 nsHtml5TreeBuilder::isInForeign()
 {
   return currentPtr >= 0 && stack[currentPtr]->ns != kNameSpaceID_XHTML;
-}
-
-PRBool 
-nsHtml5TreeBuilder::isInForeignButNotHtmlIntegrationPoint()
-{
-  return currentPtr >= 0 && stack[currentPtr]->ns != kNameSpaceID_XHTML && !stack[currentPtr]->isHtmlIntegrationPoint();
 }
 
 void 

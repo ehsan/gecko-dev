@@ -442,7 +442,7 @@ NS_IMETHODIMP_(nsrefcnt) _class::Release(void)                                \
 }
 
 
-#define NS_IMPL_CYCLE_COLLECTING_ADDREF(_class)                               \
+#define NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(_class, _basetype)          \
 NS_IMETHODIMP_(nsrefcnt) _class::AddRef(void)                                 \
 {                                                                             \
   NS_PRECONDITION(PRInt32(mRefCnt) >= 0, "illegal refcnt");                   \
@@ -453,7 +453,10 @@ NS_IMETHODIMP_(nsrefcnt) _class::AddRef(void)                                 \
   return count;                                                               \
 }
 
-#define NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_DESTROY(_class, _destroy)       \
+#define NS_IMPL_CYCLE_COLLECTING_ADDREF(_class)      \
+  NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(_class, _class)
+
+#define NS_IMPL_CYCLE_COLLECTING_RELEASE_FULL(_class, _basetype, _destroy)    \
 NS_IMETHODIMP_(nsrefcnt) _class::Release(void)                                \
 {                                                                             \
   NS_PRECONDITION(0 != mRefCnt, "dup release");                               \
@@ -470,8 +473,17 @@ NS_IMETHODIMP_(nsrefcnt) _class::Release(void)                                \
   return count;                                                               \
 }
 
-#define NS_IMPL_CYCLE_COLLECTING_RELEASE(_class)                              \
-  NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_DESTROY(_class, delete (this))
+#define NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_DESTROY(_class, _destroy)       \
+  NS_IMPL_CYCLE_COLLECTING_RELEASE_FULL(_class, _class, _destroy)
+
+#define NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS_WITH_DESTROY(_class, _basetype, _destroy)         \
+  NS_IMPL_CYCLE_COLLECTING_RELEASE_FULL(_class, _basetype, _destroy)
+
+#define NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(_class, _basetype)         \
+  NS_IMPL_CYCLE_COLLECTING_RELEASE_FULL(_class, _basetype, delete (this))
+
+#define NS_IMPL_CYCLE_COLLECTING_RELEASE(_class)       \
+  NS_IMPL_CYCLE_COLLECTING_RELEASE_FULL(_class, _class, delete (this))
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1231,11 +1243,6 @@ NS_IMETHODIMP_(nsrefcnt) Class::Release(void)                                 \
 
 #define NS_IMPL_ISUPPORTS_INHERITED8(Class, Super, i1, i2, i3, i4, i5, i6, i7, i8) \
     NS_IMPL_QUERY_INTERFACE_INHERITED8(Class, Super, i1, i2, i3, i4, i5, i6, i7, i8) \
-    NS_IMPL_ADDREF_INHERITED(Class, Super)                                    \
-    NS_IMPL_RELEASE_INHERITED(Class, Super)                                   \
-
-#define NS_IMPL_ISUPPORTS_INHERITED9(Class, Super, i1, i2, i3, i4, i5, i6, i7, i8, i9) \
-    NS_IMPL_QUERY_INTERFACE_INHERITED9(Class, Super, i1, i2, i3, i4, i5, i6, i7, i8, i9) \
     NS_IMPL_ADDREF_INHERITED(Class, Super)                                    \
     NS_IMPL_RELEASE_INHERITED(Class, Super)                                   \
 /*

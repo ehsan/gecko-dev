@@ -58,7 +58,8 @@ NS_IMPL_THREADSAFE_ISUPPORTS2(TimerThread, nsIRunnable, nsIObserver)
 TimerThread::TimerThread() :
   mInitInProgress(0),
   mInitialized(PR_FALSE),
-  mMonitor("TimerThread.mMonitor"),
+  mLock("TimerThread.mLock"),
+  mCondVar(mLock, "TimerThread.mCondVar"),
   mShutdown(PR_FALSE),
   mWaiting(PR_FALSE),
   mSleeping(PR_FALSE),
@@ -117,15 +118,15 @@ nsresult TimerThread::Init()
     }
 
     {
-      MonitorAutoLock lock(mMonitor);
+      MutexAutoLock lock(mLock);
       mInitialized = PR_TRUE;
-      mMonitor.NotifyAll();
+      mCondVar.NotifyAll();
     }
   }
   else {
-    MonitorAutoLock lock(mMonitor);
+    MutexAutoLock lock(mLock);
     while (!mInitialized) {
-      mMonitor.Wait();
+      mCondVar.Wait();
     }
   }
 
@@ -144,13 +145,13 @@ nsresult TimerThread::Shutdown()
 
   nsTArray<nsTimerImpl*> timers;
   {   // lock scope
-    MonitorAutoLock lock(mMonitor);
+    MutexAutoLock lock(mLock);
 
     mShutdown = PR_TRUE;
 
     // notify the cond var so that Run() can return
     if (mWaiting)
-      mMonitor.Notify();
+      mCondVar.Notify();
 
     // Need to copy content of mTimers array to a local array
     // because call to timers' ReleaseCallback() (and release its self)
@@ -232,7 +233,7 @@ void TimerThread::UpdateFilter(PRUint32 aDelay, TimeStamp aTimeout,
 /* void Run(); */
 NS_IMETHODIMP TimerThread::Run()
 {
-  MonitorAutoLock lock(mMonitor);
+  MutexAutoLock lock(mLock);
 
   // We need to know how many microseconds give a positive PRIntervalTime. This
   // is platform-dependent, we calculate it at runtime now.
@@ -277,14 +278,14 @@ NS_IMETHODIMP TimerThread::Run()
           // mRefCnt passing through zero, in case all other refs than the one
           // from mTimers have gone away (the last non-mTimers[i]-ref's Release
           // must be racing with us, blocked in gThread->RemoveTimer waiting
-          // for TimerThread::mMonitor, under nsTimerImpl::Release.
+          // for TimerThread::mLock, under nsTimerImpl::Release.
 
           NS_ADDREF(timer);
           RemoveTimerInternal(timer);
 
           {
-            // We release mMonitor around the Fire call to avoid deadlock.
-            MonitorAutoUnlock unlock(mMonitor);
+            // We release mLock around the Fire call to avoid deadlock.
+            MutexAutoUnlock unlock(mLock);
 
 #ifdef DEBUG_TIMERS
             if (PR_LOG_TEST(gTimerLog, PR_LOG_DEBUG)) {
@@ -359,7 +360,7 @@ NS_IMETHODIMP TimerThread::Run()
     }
 
     mWaiting = PR_TRUE;
-    mMonitor.Wait(waitFor);
+    mCondVar.Wait(waitFor);
     mWaiting = PR_FALSE;
   }
 
@@ -368,7 +369,7 @@ NS_IMETHODIMP TimerThread::Run()
 
 nsresult TimerThread::AddTimer(nsTimerImpl *aTimer)
 {
-  MonitorAutoLock lock(mMonitor);
+  MutexAutoLock lock(mLock);
 
   // Add the timer to our list.
   PRInt32 i = AddTimerInternal(aTimer);
@@ -377,14 +378,14 @@ nsresult TimerThread::AddTimer(nsTimerImpl *aTimer)
 
   // Awaken the timer thread.
   if (mWaiting && i == 0)
-    mMonitor.Notify();
+    mCondVar.Notify();
 
   return NS_OK;
 }
 
 nsresult TimerThread::TimerDelayChanged(nsTimerImpl *aTimer)
 {
-  MonitorAutoLock lock(mMonitor);
+  MutexAutoLock lock(mLock);
 
   // Our caller has a strong ref to aTimer, so it can't go away here under
   // ReleaseTimerInternal.
@@ -396,20 +397,20 @@ nsresult TimerThread::TimerDelayChanged(nsTimerImpl *aTimer)
 
   // Awaken the timer thread.
   if (mWaiting && i == 0)
-    mMonitor.Notify();
+    mCondVar.Notify();
 
   return NS_OK;
 }
 
 nsresult TimerThread::RemoveTimer(nsTimerImpl *aTimer)
 {
-  MonitorAutoLock lock(mMonitor);
+  MutexAutoLock lock(mLock);
 
   // Remove the timer from our array.  Tell callers that aTimer was not found
   // by returning NS_ERROR_NOT_AVAILABLE.  Unlike the TimerDelayChanged case
   // immediately above, our caller may be passing a (now-)weak ref in via the
   // aTimer param, specifically when nsTimerImpl::Release loses a race with
-  // TimerThread::Run, must wait for the mMonitor auto-lock here, and during the
+  // TimerThread::Run, must wait for the mLock auto-lock here, and during the
   // wait Run drops the only remaining ref to aTimer via RemoveTimerInternal.
 
   if (!RemoveTimerInternal(aTimer))
@@ -417,7 +418,7 @@ nsresult TimerThread::RemoveTimer(nsTimerImpl *aTimer)
 
   // Awaken the timer thread.
   if (mWaiting)
-    mMonitor.Notify();
+    mCondVar.Notify();
 
   return NS_OK;
 }

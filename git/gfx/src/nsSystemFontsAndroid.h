@@ -38,8 +38,7 @@
 #ifndef _NS_SYSTEMFONTSANDROID_H_
 #define _NS_SYSTEMFONTSANDROID_H_
 
-#include "gfxFont.h"
-#include "nsDeviceContext.h"
+#include <gfxFont.h>
 
 class nsSystemFontsAndroid
 {

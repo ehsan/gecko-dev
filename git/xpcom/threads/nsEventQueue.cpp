@@ -49,7 +49,7 @@ static PRLogModuleInfo *sLog = PR_NewLogModule("nsEventQueue");
 #define LOG(args) PR_LOG(sLog, PR_LOG_DEBUG, args)
 
 nsEventQueue::nsEventQueue()
-  : mReentrantMonitor("nsEventQueue.mReentrantMonitor")
+  : mMonitor("nsEventQueue.mMonitor")
   , mHead(nsnull)
   , mTail(nsnull)
   , mOffsetHead(0)
@@ -71,7 +71,7 @@ PRBool
 nsEventQueue::GetEvent(PRBool mayWait, nsIRunnable **result)
 {
   {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     
     while (IsEmpty()) {
       if (!mayWait) {
@@ -107,7 +107,7 @@ nsEventQueue::PutEvent(nsIRunnable *runnable)
   nsRefPtr<nsIRunnable> event(runnable);
   PRBool rv = PR_TRUE;
   {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
 
     if (!mHead) {
       mHead = NewPage();

@@ -46,7 +46,7 @@
 #include "mozilla/TimeStamp.h"
 #include "nsSize.h"
 #include "nsRect.h"
-#include "mozilla/ReentrantMonitor.h"
+#include "mozilla/Monitor.h"
 
 class nsBuiltinDecoderStateMachine;
 
@@ -54,8 +54,10 @@ class nsBuiltinDecoderStateMachine;
 class nsVideoInfo {
 public:
   nsVideoInfo()
-    : mAudioRate(0),
+    : mPixelAspectRatio(1.0),
+      mAudioRate(0),
       mAudioChannels(0),
+      mFrame(0,0),
       mDisplay(0,0),
       mStereoMode(mozilla::layers::STEREO_MODE_MONO),
       mHasAudio(PR_FALSE),
@@ -65,10 +67,14 @@ public:
   // Returns PR_TRUE if it's safe to use aPicture as the picture to be
   // extracted inside a frame of size aFrame, and scaled up to and displayed
   // at a size of aDisplay. You should validate the frame, picture, and
-  // display regions before using them to display video frames.
+  // display regions before setting them into the mFrame, mPicture and
+  // mDisplay fields of nsVideoInfo.
   static PRBool ValidateVideoRegion(const nsIntSize& aFrame,
                                     const nsIntRect& aPicture,
                                     const nsIntSize& aDisplay);
+
+  // Pixel aspect ratio, as stored in the metadata.
+  float mPixelAspectRatio;
 
   // Samples per second.
   PRUint32 mAudioRate;
@@ -76,9 +82,19 @@ public:
   // Number of audio channels.
   PRUint32 mAudioChannels;
 
-  // Size in pixels at which the video is rendered. This is after it has
-  // been scaled by its aspect ratio.
+  // Dimensions of the video frame.
+  nsIntSize mFrame;
+
+  // The picture region inside the video frame to be displayed.
+  nsIntRect mPicture;
+
+  // Display size of the video frame. The picture region will be scaled
+  // to and displayed at this size.
   nsIntSize mDisplay;
+
+  // The offset of the first non-header page in the file, in bytes.
+  // Used to seek to the start of the media.
+  PRInt64 mDataOffset;
 
   // Indicates the frame layout for single track stereo videos.
   mozilla::layers::StereoMode mStereoMode;
@@ -163,8 +179,8 @@ public:
   // chunk ends.
   const PRInt64 mOffset;
 
-  PRInt64 mTime; // Start time of samples in usecs.
-  const PRInt64 mDuration; // In usecs.
+  PRInt64 mTime; // Start time of samples in ms.
+  const PRInt64 mDuration; // In ms.
   const PRUint32 mSamples;
   const PRUint32 mChannels;
   nsAutoArrayPtr<SoundDataValue> mAudioData;
@@ -204,8 +220,7 @@ public:
                            PRInt64 aEndTime,
                            const YCbCrBuffer &aBuffer,
                            PRBool aKeyframe,
-                           PRInt64 aTimecode,
-                           nsIntRect aPicture);
+                           PRInt64 aTimecode);
 
   // Constructs a duplicate VideoData object. This intrinsically tells the
   // player that it does not need to update the displayed frame when this
@@ -223,18 +238,13 @@ public:
     MOZ_COUNT_DTOR(VideoData);
   }
 
-  // Dimensions at which to display the video frame. The picture region
-  // will be scaled to this size. This is should be the picture region's
-  // dimensions scaled with respect to its aspect ratio.
-  nsIntSize mDisplay;
-
   // Approximate byte offset of the end of the frame in the media.
   PRInt64 mOffset;
 
-  // Start time of frame in microseconds.
+  // Start time of frame in milliseconds.
   PRInt64 mTime;
 
-  // End time of frame in microseconds.
+  // End time of frame in milliseconds;
   PRInt64 mEndTime;
 
   // Codec specific internal time code. For Ogg based codecs this is the
@@ -266,10 +276,8 @@ public:
             PRInt64 aTime,
             PRInt64 aEndTime,
             PRBool aKeyframe,
-            PRInt64 aTimecode,
-            nsIntSize aDisplay)
-    : mDisplay(aDisplay),
-      mOffset(aOffset),
+            PRInt64 aTimecode)
+    : mOffset(aOffset),
       mTime(aTime),
       mEndTime(aEndTime),
       mTimecode(aTimecode),
@@ -293,12 +301,12 @@ class MediaQueueDeallocator : public nsDequeFunctor {
 
 template <class T> class MediaQueue : private nsDeque {
  public:
-   typedef mozilla::ReentrantMonitorAutoEnter ReentrantMonitorAutoEnter;
-   typedef mozilla::ReentrantMonitor ReentrantMonitor;
+   typedef mozilla::MonitorAutoEnter MonitorAutoEnter;
+   typedef mozilla::Monitor Monitor;
 
    MediaQueue()
      : nsDeque(new MediaQueueDeallocator<T>()),
-       mReentrantMonitor("mediaqueue"),
+       mMonitor("mediaqueue"),
        mEndOfStream(0)
    {}
   
@@ -307,52 +315,52 @@ template <class T> class MediaQueue : private nsDeque {
   }
 
   inline PRInt32 GetSize() { 
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     return nsDeque::GetSize();
   }
   
   inline void Push(T* aItem) {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     nsDeque::Push(aItem);
   }
   
   inline void PushFront(T* aItem) {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     nsDeque::PushFront(aItem);
   }
   
   inline T* Pop() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     return static_cast<T*>(nsDeque::Pop());
   }
 
   inline T* PopFront() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     return static_cast<T*>(nsDeque::PopFront());
   }
   
   inline T* Peek() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     return static_cast<T*>(nsDeque::Peek());
   }
   
   inline T* PeekFront() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     return static_cast<T*>(nsDeque::PeekFront());
   }
 
   inline void Empty() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     nsDeque::Empty();
   }
 
   inline void Erase() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     nsDeque::Erase();
   }
 
   void Reset() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     while (GetSize() > 0) {
       T* x = PopFront();
       delete x;
@@ -361,7 +369,7 @@ template <class T> class MediaQueue : private nsDeque {
   }
 
   PRBool AtEndOfStream() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     return GetSize() == 0 && mEndOfStream;    
   }
 
@@ -369,19 +377,19 @@ template <class T> class MediaQueue : private nsDeque {
   // This happens when the media stream has been completely decoded. Note this
   // does not mean that the corresponding stream has finished playback.
   PRBool IsFinished() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     return mEndOfStream;    
   }
 
   // Informs the media queue that it won't be receiving any more samples.
   void Finish() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     mEndOfStream = PR_TRUE;    
   }
 
-  // Returns the approximate number of microseconds of samples in the queue.
+  // Returns the approximate number of milliseconds of samples in the queue.
   PRInt64 Duration() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     if (GetSize() < 2) {
       return 0;
     }
@@ -390,27 +398,24 @@ template <class T> class MediaQueue : private nsDeque {
     return last->mTime - first->mTime;
   }
 
-  void LockedForEach(nsDequeFunctor& aFunctor) const {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-    ForEach(aFunctor);
-  }
-
 private:
-  mutable ReentrantMonitor mReentrantMonitor;
+  Monitor mMonitor;
 
   // PR_TRUE when we've decoded the last frame of data in the
   // bitstream for which we're queueing sample-data.
   PRBool mEndOfStream;
 };
 
-// Encapsulates the decoding and reading of media data. Reading can only be
-// done on the decode thread thread. Never hold the decoder monitor when
-// calling into this class. Unless otherwise specified, methods and fields of
-// this class can only be accessed on the decode thread.
+// Encapsulates the decoding and reading of media data. Reading can be done
+// on either the state machine thread (when loading and seeking) or on
+// the reader thread (when it's reading and decoding). The reader encapsulates
+// the reading state and maintains it's own monitor to ensure thread safety
+// and correctness. Never hold the nsBuiltinDecoder's monitor when calling into
+// this class.
 class nsBuiltinDecoderReader : public nsRunnable {
 public:
-  typedef mozilla::ReentrantMonitor ReentrantMonitor;
-  typedef mozilla::ReentrantMonitorAutoEnter ReentrantMonitorAutoEnter;
+  typedef mozilla::Monitor Monitor;
+  typedef mozilla::MonitorAutoEnter MonitorAutoEnter;
 
   nsBuiltinDecoderReader(nsBuiltinDecoder* aDecoder);
   ~nsBuiltinDecoderReader();
@@ -443,24 +448,27 @@ public:
   virtual nsresult ReadMetadata(nsVideoInfo* aInfo) = 0;
 
   // Stores the presentation time of the first frame/sample we'd be
-  // able to play if we started playback at the current position. Returns
-  // the first video sample, if we have video.
-  VideoData* FindStartTime(PRInt64& aOutStartTime);
+  // able to play if we started playback at aOffset, and returns the
+  // first video sample, if we have video.
+  virtual VideoData* FindStartTime(PRInt64 aOffset,
+                                   PRInt64& aOutStartTime);
 
-  // Moves the decode head to aTime microseconds. aStartTime and aEndTime
-  // denote the start and end times of the media in usecs, and aCurrentTime
-  // is the current playback position in microseconds.
+  // Returns the end time of the last page which occurs before aEndOffset.
+  // This will not read past aEndOffset. Returns -1 on failure. 
+  virtual PRInt64 FindEndTime(PRInt64 aEndOffset);
+
+  // Moves the decode head to aTime milliseconds. aStartTime and aEndTime
+  // denote the start and end times of the media in ms, and aCurrentTime
+  // is the current playback position in ms.
   virtual nsresult Seek(PRInt64 aTime,
                         PRInt64 aStartTime,
                         PRInt64 aEndTime,
                         PRInt64 aCurrentTime) = 0;
 
-  // Queue of audio samples. This queue is threadsafe, and is accessed from
-  // the audio, decoder, state machine, and main threads.
+  // Queue of audio samples. This queue is threadsafe.
   MediaQueue<SoundData> mAudioQueue;
 
-  // Queue of video samples. This queue is threadsafe, and is accessed from
-  // the decoder, state machine, and main threads.
+  // Queue of video samples. This queue is threadsafe.
   MediaQueue<VideoData> mVideoQueue;
 
   // Populates aBuffered with the time ranges which are buffered. aStartTime
@@ -470,51 +478,6 @@ public:
   virtual nsresult GetBuffered(nsTimeRanges* aBuffered,
                                PRInt64 aStartTime) = 0;
 
-  class VideoQueueMemoryFunctor : public nsDequeFunctor {
-  public:
-    VideoQueueMemoryFunctor() : mResult(0) {}
-
-    virtual void* operator()(void* anObject) {
-      const VideoData* v = static_cast<const VideoData*>(anObject);
-      if (!v->mImage) {
-        return nsnull;
-      }
-      NS_ASSERTION(v->mImage->GetFormat() == mozilla::layers::Image::PLANAR_YCBCR,
-                   "Wrong format?");
-      mozilla::layers::PlanarYCbCrImage* vi = static_cast<mozilla::layers::PlanarYCbCrImage*>(v->mImage.get());
-
-      mResult += vi->GetDataSize();
-      return nsnull;
-    }
-
-    PRInt64 mResult;
-  };
-
-  PRInt64 VideoQueueMemoryInUse() {
-    VideoQueueMemoryFunctor functor;
-    mVideoQueue.LockedForEach(functor);
-    return functor.mResult;
-  }
-
-  class AudioQueueMemoryFunctor : public nsDequeFunctor {
-  public:
-    AudioQueueMemoryFunctor() : mResult(0) {}
-
-    virtual void* operator()(void* anObject) {
-      const SoundData* soundData = static_cast<const SoundData*>(anObject);
-      mResult += soundData->mSamples * soundData->mChannels * sizeof(SoundDataValue);
-      return nsnull;
-    }
-
-    PRInt64 mResult;
-  };
-
-  PRInt64 AudioQueueMemoryInUse() {
-    AudioQueueMemoryFunctor functor;
-    mAudioQueue.LockedForEach(functor);
-    return functor.mResult;
-  }
-
   // Only used by nsWebMReader for now, so stub here rather than in every
   // reader than inherits from nsBuiltinDecoderReader.
   virtual void NotifyDataArrived(const char* aBuffer, PRUint32 aLength, PRUint32 aOffset) {}
@@ -522,7 +485,7 @@ public:
 protected:
 
   // Pumps the decode until we reach frames/samples required to play at
-  // time aTarget (usecs).
+  // time aTarget (ms).
   nsresult DecodeToTarget(PRInt64 aTarget);
 
   // Reader decode function. Matches DecodeVideoFrame() and
@@ -542,10 +505,20 @@ protected:
     return DecodeVideoFrame(f, 0);
   }
 
-  // Reference to the owning decoder object.
+  // The lock which we hold whenever we read or decode. This ensures the thread
+  // safety of the reader and its data fields.
+  Monitor mMonitor;
+
+  // Reference to the owning decoder object. Do not hold the
+  // reader's monitor when accessing this.
   nsBuiltinDecoder* mDecoder;
 
-  // Stores presentation info required for playback.
+  // The offset of the start of the first non-header page in the file.
+  // Used to seek to media start time.
+  PRInt64 mDataOffset;
+
+  // Stores presentation info required for playback. The reader's monitor
+  // must be held when accessing this.
   nsVideoInfo mInfo;
 };
 

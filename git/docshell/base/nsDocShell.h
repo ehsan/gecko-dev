@@ -44,6 +44,7 @@
 #include "nsIDOMNode.h"
 #include "nsIDOMNodeList.h"
 #include "nsIContentViewer.h"
+#include "nsIPrefBranch.h"
 #include "nsInterfaceHashtable.h"
 #include "nsIScriptContext.h"
 #include "nsITimer.h"
@@ -56,6 +57,7 @@
 #include "nsITextScroll.h"
 #include "nsIDocShellTreeOwner.h"
 #include "nsIContentViewerContainer.h"
+#include "nsIDeviceContext.h"
 
 #include "nsDocLoader.h"
 #include "nsIURILoader.h"
@@ -105,7 +107,7 @@
 #include "nsISecureBrowserUI.h"
 #include "nsIObserver.h"
 #include "nsDocShellLoadTypes.h"
-#include "nsIDOMEventTarget.h"
+#include "nsPIDOMEventTarget.h"
 #include "nsILoadContext.h"
 #include "nsIWidget.h"
 #include "nsIWebShellServices.h"
@@ -118,7 +120,6 @@ class nsDocShell;
 class nsIController;
 class OnLinkClickEvent;
 class nsIScrollableFrame;
-class nsDOMNavigationTiming;
 
 /* load commands were moved to nsIDocShell.h */
 /* load types were moved to nsDocShellLoadTypes.h */
@@ -234,9 +235,8 @@ public:
     NS_IMETHOD OnLinkClick(nsIContent* aContent,
         nsIURI* aURI,
         const PRUnichar* aTargetSpec,
-        nsIInputStream* aPostDataStream,
-        nsIInputStream* aHeadersDataStream,
-        PRBool aIsTrusted);
+        nsIInputStream* aPostDataStream = 0,
+        nsIInputStream* aHeadersDataStream = 0);
     NS_IMETHOD OnLinkClickSync(nsIContent* aContent,
         nsIURI* aURI,
         const PRUnichar* aTargetSpec,
@@ -333,12 +333,12 @@ protected:
                                    nsIURILoader * aURILoader,
                                    PRBool aBypassClassifier);
 
-    nsresult ScrollToAnchor(nsACString & curHash, nsACString & newHash,
-                            PRUint32 aLoadType);
+    nsresult ScrollIfAnchor(nsIURI * aURI, PRBool * aWasAnchor,
+                            PRUint32 aLoadType, PRBool * aDoHashchange);
 
-    // Tries to serialize a given variant using structured clone.  This only
+    // Tries to stringify a given variant by converting it to JSON.  This only
     // works if the variant is backed by a JSVal.
-    nsresult SerializeJSValVariant(JSContext *aCx, nsIVariant *aData,
+    nsresult StringifyJSValVariant(JSContext *aCx, nsIVariant *aData,
                                    nsAString &aResult);
 
     // Returns PR_TRUE if would have called FireOnLocationChange,
@@ -685,8 +685,6 @@ protected:
 
     void ClearFrameHistory(nsISHEntry* aEntry);
 
-    nsresult MaybeInitTiming();
-
     // Event type dispatched by RestorePresentation
     class RestorePresentationEvent : public nsRunnable {
     public:
@@ -718,6 +716,7 @@ protected:
     nsCOMPtr<nsIContentViewer> mContentViewer;
     nsCOMPtr<nsIDocumentCharsetInfo> mDocumentCharsetInfo;
     nsCOMPtr<nsIWidget>        mParentWidget;
+    nsCOMPtr<nsIPrefBranch>    mPrefs;
 
     // mCurrentURI should be marked immutable on set if possible.
     nsCOMPtr<nsIURI>           mCurrentURI;
@@ -767,7 +766,7 @@ protected:
     // For that reasons don't use nsCOMPtr.
 
     nsIDocShellTreeOwner *     mTreeOwner; // Weak Reference
-    nsIDOMEventTarget *       mChromeEventHandler; //Weak Reference
+    nsPIDOMEventTarget *       mChromeEventHandler; //Weak Reference
 
     eCharsetReloadState        mCharsetReloadState;
 
@@ -790,14 +789,12 @@ protected:
     PRInt32                    mPreviousTransIndex;
     PRInt32                    mLoadedTransIndex;
 
-    PRPackedBool               mCreated;
     PRPackedBool               mAllowSubframes;
     PRPackedBool               mAllowPlugins;
     PRPackedBool               mAllowJavascript;
     PRPackedBool               mAllowMetaRedirects;
     PRPackedBool               mAllowImages;
     PRPackedBool               mAllowDNSPrefetch;
-    PRPackedBool               mAllowWindowControl;
     PRPackedBool               mCreatingDocument; // (should be) debugging only
     PRPackedBool               mUseErrorPages;
     PRPackedBool               mObserveErrorPages;
@@ -840,8 +837,6 @@ protected:
     PRUint64                   mHistoryID;
 
     static nsIURIFixup *sURIFixup;
-
-    nsRefPtr<nsDOMNavigationTiming> mTiming;
 
 #ifdef DEBUG
 private:

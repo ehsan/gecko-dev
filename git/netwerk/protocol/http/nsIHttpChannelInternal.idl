@@ -43,30 +43,15 @@ class nsCString;
 %}
 [ptr] native StringArray(nsTArray<nsCString>);
 
-interface nsISocketTransport;
-interface nsIAsyncInputStream;
-interface nsIAsyncOutputStream;
 interface nsIURI;
 interface nsIProxyInfo;
 
-/**
- * The callback interface for nsIHttpChannelInternal::HTTPUpgrade()
- */
-
-[scriptable, uuid(5644af88-09e1-4fbd-83da-f012b3b30180)]
-interface nsIHttpUpgradeListener : nsISupports
-{
-    void onTransportAvailable(in nsISocketTransport   aTransport,
-                              in nsIAsyncInputStream  aSocketIn,
-                              in nsIAsyncOutputStream aSocketOut);
-};
-
-/**
- * Dumping ground for http.  This interface will never be frozen.  If you are
- * using any feature exposed by this interface, be aware that this interface
+/** 
+ * Dumping ground for http.  This interface will never be frozen.  If you are 
+ * using any feature exposed by this interface, be aware that this interface 
  * will change and you will be broken.  You have been warned.
  */
-[scriptable, uuid(9363fd96-af59-47e8-bddf-1d5e91acd336)]
+[scriptable, uuid(44e35ead-6656-4f9e-b51d-ebaf1bee6e2e)]
 interface nsIHttpChannelInternal : nsISupports
 {
     /**
@@ -106,79 +91,17 @@ interface nsIHttpChannelInternal : nsISupports
     attribute boolean forceAllowThirdPartyCookie;
 
     /**
-     * True iff the channel has been canceled.
+     * Returns true iff the channel has been canceled.
      */
     readonly attribute boolean canceled;
 
     /**
-     * External handlers may set this to true to notify the channel
-     * that it is open on behalf of a download.
+     * Lets externalhandler tell the channel it is open on behalf of a download
      */
     attribute boolean channelIsForDownload;
 
     /**
-     * The local IP address to which this channel is bound, in the
-     * format produced by PR_NetAddrToString. May be IPv4 or IPv6.
-     * Note: in the presence of NAT, this may not be the same as the
-     * address that the remote host thinks it's talking to.
-     *
-     * May throw NS_ERROR_NOT_AVAILABLE if accessed when the channel's
-     * endpoints are not yet determined, or in any case when
-     * nsIHttpActivityObserver.isActive is false. See bugs 534698 and 526207.
-     */
-    readonly attribute AUTF8String localAddress;
-
-    /**
-     * The local port number to which this channel is bound.
-     *
-     * May throw NS_ERROR_NOT_AVAILABLE if accessed when the channel's
-     * endpoints are not yet determined, or in any case when
-     * nsIHttpActivityObserver.isActive is false. See bugs 534698 and 526207.
-     */
-    readonly attribute PRInt32 localPort;
-
-    /**
-     * The IP address of the remote host that this channel is
-     * connected to, in the format produced by PR_NetAddrToString.
-     *
-     * May throw NS_ERROR_NOT_AVAILABLE if accessed when the channel's
-     * endpoints are not yet determined, or in any case when
-     * nsIHttpActivityObserver.isActive is false. See bugs 534698 and 526207.
-     */
-    readonly attribute AUTF8String remoteAddress;
-
-    /**
-     * The remote port number that this channel is connected to.
-     *
-     * May throw NS_ERROR_NOT_AVAILABLE if accessed when the channel's
-     * endpoints are not yet determined, or in any case when
-     * nsIHttpActivityObserver.isActive is false. See bugs 534698 and 526207.
-     */
-    readonly attribute PRInt32 remotePort;
-
-    /**
-     * Transfer chain of redirected cache-keys.
+     * Transfer chain of redirected cache-keys 
      */
     [noscript] void setCacheKeysRedirectChain(in StringArray cacheKeys);
-
-    /**
-     * HTTPUpgrade allows for the use of HTTP to bootstrap another protocol
-     * via the RFC 2616 Upgrade request header in conjunction with a 101 level
-     * response. The nsIHttpUpgradeListener will have its 
-     * onTransportAvailable() method invoked if a matching 101 is processed.
-     * The arguments to onTransportAvailable provide the new protocol the low
-     * level tranport streams that are no longer used by HTTP.
-     *
-     * The onStartRequest and onStopRequest events are still delivered and the
-     * listener gets full control over the socket if and when onTransportAvailable
-     * is delievered.
-     *
-     * @param aProtocolName
-     *        The value of the HTTP Upgrade request header
-     * @param aListener
-     *        The callback object used to handle a successful upgrade
-     */
-    void HTTPUpgrade(in ACString aProtocolName,
-                     in nsIHttpUpgradeListener aListener);
-
 };

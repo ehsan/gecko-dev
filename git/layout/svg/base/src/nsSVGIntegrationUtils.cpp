@@ -55,11 +55,9 @@
 PRBool
 nsSVGIntegrationUtils::UsingEffectsForFrame(const nsIFrame* aFrame)
 {
-  if (aFrame->IsFrameOfType(nsIFrame::eSVG)) {
-    return PR_FALSE;
-  }
   const nsStyleSVGReset *style = aFrame->GetStyleSVGReset();
-  return (style->mFilter || style->mClipPath || style->mMask);
+  return (style->mFilter || style->mClipPath || style->mMask) &&
+          !aFrame->IsFrameOfType(nsIFrame::eSVG);
 }
 
 /* static */ nsRect
@@ -220,8 +218,8 @@ public:
   virtual void Paint(nsSVGRenderState *aContext, nsIFrame *aTarget,
                      const nsIntRect* aDirtyRect)
   {
-    nsRenderingContext* ctx = aContext->GetRenderingContext(aTarget);
-    nsRenderingContext::AutoPushTranslation push(ctx, -mOffset);
+    nsIRenderingContext* ctx = aContext->GetRenderingContext(aTarget);
+    nsIRenderingContext::AutoPushTranslation push(ctx, -mOffset.x, -mOffset.y);
     mInnerList->PaintForFrame(mBuilder, ctx, mFrame, nsDisplayList::PAINT_DEFAULT);
   }
 
@@ -233,7 +231,7 @@ private:
 };
 
 void
-nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
+nsSVGIntegrationUtils::PaintFramesWithEffects(nsIRenderingContext* aCtx,
                                               nsIFrame* aEffectsFrame,
                                               const nsRect& aDirtyRect,
                                               nsDisplayListBuilder* aBuilder,
@@ -288,7 +286,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
   nsRect userSpaceRect = GetNonSVGUserSpace(firstFrame) + aBuilder->ToReferenceFrame(firstFrame);
   PRInt32 appUnitsPerDevPixel = aEffectsFrame->PresContext()->AppUnitsPerDevPixel();
   userSpaceRect = userSpaceRect.ToNearestPixels(appUnitsPerDevPixel).ToAppUnits(appUnitsPerDevPixel);
-  aCtx->Translate(userSpaceRect.TopLeft());
+  aCtx->Translate(userSpaceRect.x, userSpaceRect.y);
 
   gfxMatrix matrix = GetInitialMatrix(aEffectsFrame);
 
@@ -298,7 +296,8 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
   if (opacity != 1.0f || maskFrame || (clipPathFrame && !isTrivialClip)) {
     complexEffects = PR_TRUE;
     gfx->Save();
-    aCtx->IntersectClip(aEffectsFrame->GetVisualOverflowRect());
+    aCtx->SetClipRect(aEffectsFrame->GetVisualOverflowRect(),
+                      nsClipCombine_kIntersect);
     gfx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
   }
 
@@ -320,7 +319,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
     gfx->SetMatrix(savedCTM);
     aInnerList->PaintForFrame(aBuilder, aCtx, aEffectsFrame,
                               nsDisplayList::PAINT_DEFAULT);
-    aCtx->Translate(userSpaceRect.TopLeft());
+    aCtx->Translate(userSpaceRect.x, userSpaceRect.y);
   }
 
   if (clipPathFrame && isTrivialClip) {
@@ -539,7 +538,7 @@ DrawableFromPaintServer(nsIFrame*         aFrame,
 }
 
 /* static */ void
-nsSVGIntegrationUtils::DrawPaintServer(nsRenderingContext* aRenderingContext,
+nsSVGIntegrationUtils::DrawPaintServer(nsIRenderingContext* aRenderingContext,
                                        nsIFrame*            aTarget,
                                        nsIFrame*            aPaintServer,
                                        gfxPattern::GraphicsFilter aFilter,

@@ -35,10 +35,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/layers/PLayers.h"
-#include "mozilla/layers/ShadowLayers.h"
-
-#include "gfxSharedImageSurface.h"
+#ifdef MOZ_IPC
+# include "gfxSharedImageSurface.h"
+#endif
 
 #include "CanvasLayerOGL.h"
 
@@ -53,10 +52,6 @@
 
 #ifdef XP_MACOSX
 #include <OpenGL/OpenGL.h>
-#endif
-
-#ifdef MOZ_X11
-#include "gfxXlibSurface.h"
 #endif
 
 using namespace mozilla;
@@ -89,25 +84,9 @@ CanvasLayerOGL::Initialize(const Data& aData)
     return;
   }
 
-  mOGLManager->MakeCurrent();
-
   if (aData.mSurface) {
     mCanvasSurface = aData.mSurface;
     mNeedsYFlip = PR_FALSE;
-#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-    if (aData.mSurface->GetType() == gfxASurface::SurfaceTypeXlib) {
-        gfxXlibSurface *xsurf = static_cast<gfxXlibSurface*>(aData.mSurface);
-        mPixmap = xsurf->GetGLXPixmap();
-        if (mPixmap) {
-            if (aData.mSurface->GetContentType() == gfxASurface::CONTENT_COLOR_ALPHA) {
-                mLayerProgram = gl::RGBALayerProgramType;
-            } else {
-                mLayerProgram = gl::RGBXLayerProgramType;
-            }
-            MakeTexture();
-        }
-    }
-#endif
   } else if (aData.mGLContext) {
     if (!aData.mGLContext->IsOffscreen()) {
       NS_WARNING("CanvasLayerOGL with a non-offscreen GL context given");
@@ -165,12 +144,6 @@ CanvasLayerOGL::UpdateSurface()
   if (mDestroyed || mDelayedUpdates) {
     return;
   }
-
-#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-  if (mPixmap) {
-    return;
-  }
-#endif
 
   mOGLManager->MakeCurrent();
 
@@ -255,12 +228,6 @@ CanvasLayerOGL::RenderLayer(int aPreviousDestination,
     program = mOGLManager->GetColorTextureLayerProgram(mLayerProgram);
   }
 
-#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-  if (mPixmap && !mDelayedUpdates) {
-    sGLXLibrary.BindTexImage(mPixmap);
-  }
-#endif
-
   ApplyFilter(mFilter);
 
   program->Activate();
@@ -272,22 +239,17 @@ CanvasLayerOGL::RenderLayer(int aPreviousDestination,
 
   mOGLManager->BindAndDrawQuad(program, mNeedsYFlip ? true : false);
 
-#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-  if (mPixmap && !mDelayedUpdates) {
-    sGLXLibrary.ReleaseTexImage(mPixmap);
-  }
-#endif
-
   if (useGLContext) {
     gl()->UnbindTex2DOffscreen(mCanvasGLContext);
   }
 }
 
 
+#ifdef MOZ_IPC
+
 ShadowCanvasLayerOGL::ShadowCanvasLayerOGL(LayerManagerOGL* aManager)
   : ShadowCanvasLayer(aManager, nsnull)
   , LayerOGL(aManager)
-  , mNeedsYFlip(PR_FALSE)
 {
   mImplData = static_cast<LayerOGL*>(this);
 }
@@ -298,41 +260,34 @@ ShadowCanvasLayerOGL::~ShadowCanvasLayerOGL()
 void
 ShadowCanvasLayerOGL::Initialize(const Data& aData)
 {
-  NS_RUNTIMEABORT("Incompatibe surface type");
-}
-
-void
-ShadowCanvasLayerOGL::Init(const SurfaceDescriptor& aNewFront, const nsIntSize& aSize, bool needYFlip)
-{
-  mDeadweight = aNewFront;
-  nsRefPtr<gfxASurface> surf = ShadowLayerForwarder::OpenDescriptor(mDeadweight);
-
-  mTexImage = gl()->CreateTextureImage(nsIntSize(aSize.width, aSize.height),
-                                       surf->GetContentType(),
+  mDeadweight = static_cast<gfxSharedImageSurface*>(aData.mSurface);
+  gfxSize sz = mDeadweight->GetSize();
+  mTexImage = gl()->CreateTextureImage(nsIntSize(sz.width, sz.height),
+                                       mDeadweight->GetContentType(),
                                        LOCAL_GL_CLAMP_TO_EDGE);
-  mNeedsYFlip = needYFlip;
 }
 
-void
-ShadowCanvasLayerOGL::Swap(const SurfaceDescriptor& aNewFront,
-                           SurfaceDescriptor* aNewBack)
+already_AddRefed<gfxSharedImageSurface>
+ShadowCanvasLayerOGL::Swap(gfxSharedImageSurface* aNewFront)
 {
   if (!mDestroyed && mTexImage) {
-    nsRefPtr<gfxASurface> surf = ShadowLayerForwarder::OpenDescriptor(aNewFront);
-    gfxSize sz = surf->GetSize();
+    // XXX this is always just ridiculously slow
+
+    gfxSize sz = aNewFront->GetSize();
     nsIntRegion updateRegion(nsIntRect(0, 0, sz.width, sz.height));
-    mTexImage->DirectUpdate(surf, updateRegion);
+    mTexImage->DirectUpdate(aNewFront, updateRegion);
   }
 
-  *aNewBack = aNewFront;
+  return aNewFront;
 }
 
 void
 ShadowCanvasLayerOGL::DestroyFrontBuffer()
 {
   mTexImage = nsnull;
-  if (IsSurfaceDescriptorValid(mDeadweight)) {
-    mOGLManager->DestroySharedSurface(&mDeadweight, mAllocator);
+  if (mDeadweight) {
+    mOGLManager->DestroySharedSurface(mDeadweight, mAllocator);
+    mDeadweight = nsnull;
   }
 }
 
@@ -363,21 +318,21 @@ ShadowCanvasLayerOGL::RenderLayer(int aPreviousFrameBuffer,
 {
   mOGLManager->MakeCurrent();
 
+  gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
+  gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexImage->Texture());
   ColorTextureLayerProgram *program =
     mOGLManager->GetColorTextureLayerProgram(mTexImage->GetShaderProgramType());
 
   ApplyFilter(mFilter);
 
   program->Activate();
+  program->SetLayerQuadRect(nsIntRect(nsIntPoint(0, 0), mTexImage->GetSize()));
   program->SetLayerTransform(GetEffectiveTransform());
   program->SetLayerOpacity(GetEffectiveOpacity());
   program->SetRenderOffset(aOffset);
   program->SetTextureUnit(0);
 
-  mTexImage->BeginTileIteration();
-  do {
-    TextureImage::ScopedBindTexture texBind(mTexImage, LOCAL_GL_TEXTURE0);
-    program->SetLayerQuadRect(mTexImage->GetTileRect());
-    mOGLManager->BindAndDrawQuad(program, mNeedsYFlip); // FIXME flip order of tiles?
-  } while (mTexImage->NextTile());
+  mOGLManager->BindAndDrawQuad(program);
 }
+
+#endif  // MOZ_IPC

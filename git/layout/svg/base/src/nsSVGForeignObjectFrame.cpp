@@ -91,8 +91,9 @@ nsSVGForeignObjectFrame::Init(nsIContent* aContent,
 #endif
 
   nsresult rv = nsSVGForeignObjectFrameBase::Init(aContent, aParent, aPrevInFlow);
-  AddStateBits(aParent->GetStateBits() &
-               (NS_STATE_SVG_NONDISPLAY_CHILD | NS_STATE_SVG_CLIPPATH_CHILD));
+  AddStateBits(NS_STATE_SVG_PROPAGATE_TRANSFORM | 
+               (aParent->GetStateBits() &
+                (NS_STATE_SVG_NONDISPLAY_CHILD | NS_STATE_SVG_CLIPPATH_CHILD)));
   if (NS_SUCCEEDED(rv)) {
     nsSVGUtils::GetOuterSVGFrame(this)->RegisterForeignObject(this);
   }
@@ -197,8 +198,6 @@ NS_IMETHODIMP
 nsSVGForeignObjectFrame::PaintSVG(nsSVGRenderState *aContext,
                                   const nsIntRect *aDirtyRect)
 {
-  NS_ABORT_IF_FALSE(aDirtyRect, "We expect aDirtyRect to be non-null");
-
   if (IsDisabled())
     return NS_OK;
 
@@ -209,7 +208,7 @@ nsSVGForeignObjectFrame::PaintSVG(nsSVGRenderState *aContext,
   gfxMatrix matrixForChildren = GetCanvasTMForChildren();
   gfxMatrix matrix = GetCanvasTM();
 
-  nsRenderingContext *ctx = aContext->GetRenderingContext(this);
+  nsIRenderingContext *ctx = aContext->GetRenderingContext(this);
 
   if (!ctx || matrixForChildren.IsSingular()) {
     NS_WARNING("Can't render foreignObject element!");
@@ -217,9 +216,11 @@ nsSVGForeignObjectFrame::PaintSVG(nsSVGRenderState *aContext,
   }
 
   /* Check if we need to draw anything. */
-  PRInt32 appUnitsPerDevPx = PresContext()->AppUnitsPerDevPixel();
-  if (!mRect.ToOutsidePixels(appUnitsPerDevPx).Intersects(*aDirtyRect))
-    return NS_OK;
+  if (aDirtyRect) {
+    PRInt32 appUnitsPerDevPx = PresContext()->AppUnitsPerDevPixel();
+    if (!mRect.ToOutsidePixels(appUnitsPerDevPx).Intersects(*aDirtyRect))
+      return NS_OK;
+  }
 
   gfxContext *gfx = aContext->GetGfxContext();
 
@@ -268,7 +269,7 @@ nsSVGForeignObjectFrame::PaintSVG(nsSVGRenderState *aContext,
   return rv;
 }
 
-gfx3DMatrix
+gfxMatrix
 nsSVGForeignObjectFrame::GetTransformMatrix(nsIFrame **aOutAncestor)
 {
   NS_PRECONDITION(aOutAncestor, "We need an ancestor to write to!");
@@ -278,7 +279,7 @@ nsSVGForeignObjectFrame::GetTransformMatrix(nsIFrame **aOutAncestor)
   NS_ASSERTION(*aOutAncestor, "How did we end up without an outer frame?");
 
   /* Return the matrix back to the root, factoring in the x and y offsets. */
-  return gfx3DMatrix::From2D(GetCanvasTMForChildren());
+  return GetCanvasTMForChildren();
 }
  
 NS_IMETHODIMP_(nsIFrame*)
@@ -431,6 +432,23 @@ nsSVGForeignObjectFrame::NotifyRedrawUnsuspended()
   return NS_OK;
 }
 
+NS_IMETHODIMP
+nsSVGForeignObjectFrame::SetMatrixPropagation(PRBool aPropagate)
+{
+  if (aPropagate) {
+    AddStateBits(NS_STATE_SVG_PROPAGATE_TRANSFORM);
+  } else {
+    RemoveStateBits(NS_STATE_SVG_PROPAGATE_TRANSFORM);
+  }
+  return NS_OK;
+}
+
+PRBool
+nsSVGForeignObjectFrame::GetMatrixPropagation()
+{
+  return (GetStateBits() & NS_STATE_SVG_PROPAGATE_TRANSFORM) != 0;
+}
+
 gfxRect
 nsSVGForeignObjectFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace)
 {
@@ -563,7 +581,7 @@ nsSVGForeignObjectFrame::DoReflow()
   nsSize availableSpace(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
   nsIPresShell* presShell = presContext->PresShell();
   NS_ASSERTION(presShell, "null presShell");
-  nsRefPtr<nsRenderingContext> renderingContext =
+  nsCOMPtr<nsIRenderingContext> renderingContext =
     presShell->GetReferenceRenderingContext();
   if (!renderingContext)
     return;

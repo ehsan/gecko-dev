@@ -50,7 +50,6 @@
 #include "nsSVGUtils.h"
 #include "nsDOMError.h"
 #include "nsSVGRect.h"
-#include "nsContentUtils.h"
 
 //----------------------------------------------------------------------
 // nsISupports methods
@@ -185,7 +184,7 @@ nsSVGGraphicElement::IsEventName(nsIAtom* aName)
 }
 
 gfxMatrix
-nsSVGGraphicElement::PrependLocalTransformTo(const gfxMatrix &aMatrix) const
+nsSVGGraphicElement::PrependLocalTransformTo(const gfxMatrix &aMatrix)
 {
   gfxMatrix result(aMatrix);
 

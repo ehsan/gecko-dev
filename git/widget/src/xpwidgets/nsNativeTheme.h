@@ -40,7 +40,6 @@
 // code duplication.
 
 #include "prtypes.h"
-#include "nsAlgorithm.h"
 #include "nsIAtom.h"
 #include "nsCOMPtr.h"
 #include "nsString.h"
@@ -77,7 +76,7 @@ class nsNativeTheme : public nsITimerCallback
 
   nsNativeTheme();
 
-  // Returns the content state (hover, focus, etc), see nsEventStateManager.h
+  // Returns the content state (hover, focus, etc), see nsIEventStateManager.h
   nsEventStates GetContentState(nsIFrame* aFrame, PRUint8 aWidgetType);
 
   // Returns whether the widget is already styled by content
@@ -145,16 +144,9 @@ class nsNativeTheme : public nsITimerCallback
     return CheckBooleanAttr(aFrame, nsWidgetAtoms::checked);
   }
 
-  PRBool IsSelectedButton(nsIFrame* aFrame) {
-    return CheckBooleanAttr(aFrame, nsWidgetAtoms::checked) ||
-           CheckBooleanAttr(aFrame, nsWidgetAtoms::selected);
-  }
-
   PRBool IsOpenButton(nsIFrame* aFrame) {
     return CheckBooleanAttr(aFrame, nsWidgetAtoms::open);
   }
-
-  PRBool IsPressedButton(nsIFrame* aFrame);
 
   // treeheadercell:
   TreeSortDirection GetTreeSortDirection(nsIFrame* aFrame);
@@ -163,12 +155,20 @@ class nsNativeTheme : public nsITimerCallback
   // tab:
   PRBool IsBottomTab(nsIFrame* aFrame);
   PRBool IsFirstTab(nsIFrame* aFrame);
+  PRBool IsLastTab(nsIFrame* aFrame);
   
   PRBool IsHorizontal(nsIFrame* aFrame);
 
   // progressbar:
-  PRBool IsIndeterminateProgress(nsIFrame* aFrame, nsEventStates aEventStates);
-  PRBool IsVerticalProgress(nsIFrame* aFrame);
+  PRBool IsIndeterminateProgress(nsIFrame* aFrame);
+
+  PRInt32 GetProgressValue(nsIFrame* aFrame) {
+    return CheckIntAttr(aFrame, nsWidgetAtoms::value, 0);
+  }
+  
+  PRInt32 GetProgressMaxValue(nsIFrame* aFrame) {
+    return PR_MAX(CheckIntAttr(aFrame, nsWidgetAtoms::max, 100), 1);
+  }
 
   // textfield:
   PRBool IsReadOnly(nsIFrame* aFrame) {
@@ -177,11 +177,6 @@ class nsNativeTheme : public nsITimerCallback
 
   // menupopup:
   PRBool IsSubmenu(nsIFrame* aFrame, PRBool* aLeftOfParent);
-
-  // True if it's not a menubar item or menulist item
-  PRBool IsRegularMenuItem(nsIFrame *aFrame);
-
-  PRBool IsMenuListEditable(nsIFrame *aFrame);
 
   nsIPresShell *GetPresShell(nsIFrame* aFrame);
   PRInt32 CheckIntAttr(nsIFrame* aFrame, nsIAtom* aAtom, PRInt32 defaultValue);
@@ -192,9 +187,6 @@ class nsNativeTheme : public nsITimerCallback
 
   PRBool QueueAnimatedContentForRefresh(nsIContent* aContent,
                                         PRUint32 aMinimumFrameRate);
-
-  nsIFrame* GetAdjacentSiblingFrameWithSameAppearance(nsIFrame* aFrame,
-                                                      PRBool aNextSibling);
 
  private:
   PRUint32 mAnimatedContentTimeout;

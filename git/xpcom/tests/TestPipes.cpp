@@ -315,7 +315,7 @@ TestShortWrites(nsIInputStream* in, nsIOutputStream* out)
         char* buf = PR_smprintf("%d %s", i, kTestPattern);
         PRUint32 len = strlen(buf);
         len = len * rand() / RAND_MAX;
-        len = NS_MAX(1, len);
+        len = PR_MAX(1, len);
         rv = WriteAll(out, buf, len, &writeCount);
         if (NS_FAILED(rv)) return rv;
         NS_ASSERTION(writeCount == len, "didn't write enough");
@@ -424,7 +424,7 @@ TestChainedPipes()
         char* buf = PR_smprintf("%d %s", i, kTestPattern);
         PRUint32 len = strlen(buf);
         len = len * rand() / RAND_MAX;
-        len = NS_MAX(1, len);
+        len = PR_MAX(1, len);
         rv = WriteAll(out1, buf, len, &writeCount);
         if (NS_FAILED(rv)) return rv;
         NS_ASSERTION(writeCount == len, "didn't write enough");
@@ -471,7 +471,7 @@ RunTests(PRUint32 segSize, PRUint32 segCount)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#if 0
+#if !defined(MOZ_ENABLE_LIBXUL) && defined(DEBUG)
 extern NS_COM void
 TestSegmentedBuffer();
 #endif
@@ -487,6 +487,11 @@ main(int argc, char* argv[])
 
     if (argc > 1 && nsCRT::strcmp(argv[1], "-trace") == 0)
         gTrace = PR_TRUE;
+
+#if !defined(MOZ_ENABLE_LIBXUL) && defined(DEBUG)
+    printf("Testing segmented buffer...\n");
+    TestSegmentedBuffer();
+#endif
 
     rv = TestChainedPipes();
     NS_ASSERTION(NS_SUCCEEDED(rv), "TestChainedPipes failed");

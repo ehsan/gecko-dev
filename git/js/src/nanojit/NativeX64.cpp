@@ -57,6 +57,7 @@ better code
 - disp64 branch/call
 - spill gp values to xmm registers?
 - prefer xmm registers for copies since gprs are in higher demand?
+- stack arg doubles
 - stack based LIR_paramp
 
 tracing
@@ -628,7 +629,6 @@ namespace nanojit
     void Assembler::MOVBMI(R r, I d, I32 imm) { emitrm_imm8(X64_movbmi,r,d,imm); asm_output("movb %d(%s), %d",d,RQ(r),imm); }
 
     void Assembler::MOVQSPR(I d, R r)   { emit(X64_movqspr | U64(d) << 56 | U64((REGNUM(r)&7)<<3) << 40 | U64((REGNUM(r)&8)>>1) << 24); asm_output("movq %d(rsp), %s", d, RQ(r)); }    // insert r into mod/rm and rex bytes
-    void Assembler::MOVQSPX(I d, R r)   { emit(rexprb(X64_movqspx,RSP,r) | U64(d) << 56 | U64((REGNUM(r)&7)<<3) << 40); asm_output("movq %d(rsp), %s", d, RQ(r)); }
 
     void Assembler::XORPSA(R r, I32 i32)    { emitxm_abs(X64_xorpsa, r, i32); asm_output("xorps %s, (0x%x)",RQ(r), i32); }
     void Assembler::XORPSM(R r, NIns* a64)  { emitxm_rel(X64_xorpsm, r, a64); asm_output("xorps %s, (%p)",  RQ(r), a64); }
@@ -1077,10 +1077,6 @@ namespace nanojit
                 NanoAssert(ty == ARGTYPE_Q);
                 // Do nothing.
             }
-        } else if (ty == ARGTYPE_D) {
-            NanoAssert(p->isD());
-            Register r = findRegFor(p, FpRegs);
-            MOVQSPX(stk_off, r);    // movsd [rsp+d8], xmm
         } else {
             TODO(asm_stkarg_non_int);
         }
@@ -1250,13 +1246,13 @@ namespace nanojit
         asm_cmpi(cond);
     }
 
-    Branches Assembler::asm_branch(bool onFalse, LIns* cond, NIns* target) {
-        Branches branches = asm_branch_helper(onFalse, cond, target);
+    NIns* Assembler::asm_branch(bool onFalse, LIns* cond, NIns* target) {
+        NIns* patch = asm_branch_helper(onFalse, cond, target);
         asm_cmp(cond);
-        return branches;
+        return patch;
     }
 
-    Branches Assembler::asm_branch_helper(bool onFalse, LIns *cond, NIns *target) {
+    NIns* Assembler::asm_branch_helper(bool onFalse, LIns *cond, NIns *target) {
         if (target && !isTargetWithinS32(target)) {
             // A conditional jump beyond 32-bit range, so invert the
             // branch/compare and emit an unconditional jump to the target:
@@ -1273,7 +1269,7 @@ namespace nanojit
              : asm_branchi_helper(onFalse, cond, target);
     }
 
-    Branches Assembler::asm_branchi_helper(bool onFalse, LIns *cond, NIns *target) {
+    NIns* Assembler::asm_branchi_helper(bool onFalse, LIns *cond, NIns *target) {
         // We must ensure there's room for the instruction before calculating
         // the offset.  And the offset determines the opcode (8bit or 32bit).
         LOpcode condop = cond->opcode();
@@ -1334,7 +1330,7 @@ namespace nanojit
                 }
             }
         }
-        return Branches(_nIns); // address of instruction to patch
+        return _nIns;   // address of instruction to patch
     }
 
     NIns* Assembler::asm_branch_ov(LOpcode, NIns* target) {
@@ -1416,17 +1412,15 @@ namespace nanojit
     //  LIR_jt  jae ja  swap+jae swap+ja  jp over je
     //  LIR_jf  jb  jbe swap+jb  swap+jbe jne+jp
 
-    Branches Assembler::asm_branchd_helper(bool onFalse, LIns *cond, NIns *target) {
+    NIns* Assembler::asm_branchd_helper(bool onFalse, LIns *cond, NIns *target) {
         LOpcode condop = cond->opcode();
-        NIns *patch1 = NULL;
-        NIns *patch2 = NULL;
+        NIns *patch;
         if (condop == LIR_eqd) {
             if (onFalse) {
                 // branch if unordered or !=
                 JP(16, target);     // underrun of 12 needed, round up for overhang --> 16
-                patch1 = _nIns;
                 JNE(0, target);     // no underrun needed, previous was enough
-                patch2 = _nIns;
+                patch = _nIns;
             } else {
                 // jp skip (2byte)
                 // jeq target
@@ -1434,7 +1428,7 @@ namespace nanojit
                 underrunProtect(16); // underrun of 7 needed but we write 2 instr --> 16
                 NIns *skip = _nIns;
                 JE(0, target);      // no underrun needed, previous was enough
-                patch1 = _nIns;
+                patch = _nIns;
                 JP8(0, skip);       // ditto
             }
         }
@@ -1449,9 +1443,9 @@ namespace nanojit
             case LIR_ged: if (onFalse) JB(8, target);  else JAE(8, target); break;
             default:      NanoAssert(0);                                    break;
             }
-            patch1 = _nIns;
+            patch = _nIns;
         }
-        return Branches(patch1, patch2);
+        return patch;
     }
 
     void Assembler::asm_condd(LIns *ins) {
@@ -1962,24 +1956,6 @@ namespace nanojit
         uint32_t aligned = alignUp(stackNeeded + stackPushed, NJ_ALIGN_STACK);
         uint32_t amt = aligned - stackPushed;
 
-#ifdef _WIN64
-        // Windows uses a single guard page for extending the stack, so
-        // new stack pages must be first touched in stack-growth order.
-        // We touch each whole page that will be allocated to the frame
-        // (following the saved FP) to cause the OS to commit the page if
-        // necessary.  Since we don't calculate page boundaries, but just
-        // probe at intervals of the pagesize, it is possible that the
-        // last page of the frame will be touched unnecessarily.  Note that
-        // we must generate the probes in the reverse order of their execution.
-        // We require that the page size be a power of 2.
-        uint32_t pageSize = uint32_t(VMPI_getVMPageSize());
-        NanoAssert((pageSize & (pageSize-1)) == 0);
-        uint32_t pageRounded = amt & ~(pageSize-1);
-        for (int32_t d = pageRounded; d > 0; d -= pageSize) {
-            MOVLMI(RBP, -d, 0);
-        }
-#endif
-
         // Reserve stackNeeded bytes, padded
         // to preserve NJ_ALIGN_STACK-byte alignment.
         if (amt) {
@@ -2039,6 +2015,17 @@ namespace nanojit
             return;         // don't patch
         }
         ((int32_t*)next)[-1] = int32_t(target - next);
+        if (next[0] == 0x0F && next[1] == 0x8A) {
+            // code is jne<target>,jp<target>, for LIR_jf(feq)
+            // we just patched the jne, now patch the jp.
+            next += 6;
+            NanoAssert(((int32_t*)next)[-1] == 0);
+            if (!isS32(target - next)) {
+                setError(BranchTooFar);
+                return;     // don't patch
+            }
+            ((int32_t*)next)[-1] = int32_t(target - next);
+        }
     }
 
     Register Assembler::nRegisterAllocFromSet(RegisterMask set) {

@@ -47,7 +47,9 @@ const FILE_UPDATE_STATUS  = "update.status";
 const KEY_APPDIR          = "XCurProcD";
 
 #ifdef XP_WIN
+#ifndef WINCE
 #define USE_UPDROOT
+#endif
 #elifdef ANDROID
 #define USE_UPDROOT
 #endif

@@ -57,6 +57,7 @@ const EXPORTED_SYMBOLS = [
 , "PlacesEditBookmarkPostDataTransaction"
 , "PlacesEditLivemarkSiteURITransaction"
 , "PlacesEditLivemarkFeedURITransaction"
+, "PlacesEditBookmarkMicrosummaryTransaction"
 , "PlacesEditItemDateAddedTransaction"
 , "PlacesEditItemLastModifiedTransaction"
 , "PlacesSortFolderByNameTransaction"
@@ -129,8 +130,6 @@ var PlacesUtils = {
   TYPE_HTML: "text/html",
   // Place entries as raw URL text
   TYPE_UNICODE: "text/unicode",
-  // Used to track the action that populated the clipboard.
-  TYPE_X_MOZ_PLACE_ACTION: "text/x-moz-place-action",
 
   EXCLUDE_FROM_BACKUP_ANNO: "places/excludeFromBackup",
   GUID_ANNO: "placesInternal/GUID",
@@ -165,19 +164,6 @@ var PlacesUtils = {
    */
   _uri: function PU__uri(aSpec) {
     return NetUtil.newURI(aSpec);
-  },
-
-  /**
-   * Wraps a string in a nsISupportsString wrapper.
-   * @param   aString
-   *          The string to wrap.
-   * @returns A nsISupportsString object containing a string.
-   */
-  toISupportsString: function PU_toISupportsString(aString) {
-    let s = Cc["@mozilla.org/supports-string;1"].
-            createInstance(Ci.nsISupportsString);
-    s.data = aString;
-    return s;
   },
 
   getFormattedString: function PU_getFormattedString(key, params) {
@@ -611,9 +597,8 @@ var PlacesUtils = {
       case this.TYPE_X_MOZ_URL: {
         function gatherDataUrl(bNode) {
           if (PlacesUtils.nodeIsLivemarkContainer(bNode)) {
-            let uri = PlacesUtils.livemarks.getSiteURI(bNode.itemId) ||
-                      PlacesUtils.livemarks.getFeedURI(bNode.itemId);
-            return uri.spec + NEWLINE + bNode.title;
+            let siteURI = PlacesUtils.livemarks.getSiteURI(bNode.itemId).spec;
+            return siteURI + NEWLINE + bNode.title;
           }
           if (PlacesUtils.nodeIsURI(bNode))
             return (aOverrideURI || bNode.uri) + NEWLINE + bNode.title;
@@ -641,9 +626,8 @@ var PlacesUtils = {
           // escape out potential HTML in the title
           let escapedTitle = bNode.title ? htmlEscape(bNode.title) : "";
           if (PlacesUtils.nodeIsLivemarkContainer(bNode)) {
-            let uri = PlacesUtils.livemarks.getSiteURI(bNode.itemId) ||
-                      PlacesUtils.livemarks.getFeedURI(bNode.itemId);
-            return "<A HREF=\"" + uri.spec + "\">" + escapedTitle + "</A>" + NEWLINE;
+            let siteURI = PlacesUtils.livemarks.getSiteURI(bNode.itemId).spec;
+            return "<A HREF=\"" + siteURI + "\">" + escapedTitle + "</A>" + NEWLINE;
           }
           if (PlacesUtils.nodeIsContainer(bNode)) {
             asContainer(bNode);
@@ -681,8 +665,7 @@ var PlacesUtils = {
     // Otherwise, we wrap as TYPE_UNICODE.
     function gatherDataText(bNode) {
       if (PlacesUtils.nodeIsLivemarkContainer(bNode))
-        return PlacesUtils.livemarks.getSiteURI(bNode.itemId) ||
-               PlacesUtils.livemarks.getFeedURI(bNode.itemId);
+        return PlacesUtils.livemarks.getSiteURI(bNode.itemId).spec;
       if (PlacesUtils.nodeIsContainer(bNode)) {
         asContainer(bNode);
         let wasOpen = bNode.containerOpen;
@@ -1722,7 +1705,8 @@ var PlacesUtils = {
    * Serialize a JS object to JSON
    */
   toJSONString: function PU_toJSONString(aObj) {
-    return JSON.stringify(aObj);
+    var JSON = Cc["@mozilla.org/dom/json;1"].createInstance(Ci.nsIJSON);
+    return JSON.encode(aObj);
   },
 
   /**
@@ -2190,6 +2174,10 @@ XPCOMUtils.defineLazyServiceGetter(PlacesUtils, "livemarks",
                                    "@mozilla.org/browser/livemark-service;2",
                                    "nsILivemarkService");
 
+XPCOMUtils.defineLazyServiceGetter(PlacesUtils, "microsummaries",
+                                   "@mozilla.org/microsummary/service;1",
+                                   "nsIMicrosummaryService");
+
 XPCOMUtils.defineLazyGetter(PlacesUtils, "transactionManager", function() {
   let tm = Cc["@mozilla.org/transactionmanager;1"].
            getService(Ci.nsITransactionManager);
@@ -2224,7 +2212,7 @@ XPCOMUtils.defineLazyServiceGetter(this, "focusManager",
 function updateCommandsOnActiveWindow()
 {
   let win = focusManager.activeWindow;
-  if (win && win instanceof Ci.nsIDOMWindow) {
+  if (win && win instanceof Ci.nsIDOMWindowInternal) {
     // Updating "undo" will cause a group update including "redo".
     win.updateCommands("undo");
   }
@@ -2263,9 +2251,7 @@ BaseTransaction.prototype = {
 
 function PlacesAggregatedTransaction(aName, aTransactions)
 {
-  // Copy the transactions array to decouple it from its prototype, which
-  // otherwise keeps alive its associated global object.
-  this._transactions = Array.slice(aTransactions);
+  this._transactions = aTransactions;
   this._name = aName;
   this.container = -1;
 
@@ -2352,12 +2338,9 @@ function PlacesCreateFolderTransaction(aName, aContainer, aIndex, aAnnotations,
   this._name = aName;
   this._container = aContainer;
   this._index = typeof(aIndex) == "number" ? aIndex : -1;
+  this._annotations = aAnnotations;
   this._id = null;
-  // Copy the array to decouple it from its prototype, which otherwise keeps
-  // alive its associated global object.
-  this._annotations = aAnnotations ? Array.slice(aAnnotations) : [];
-  this.childTransactions = aChildItemsTransactions ?
-                             Array.slice(aChildItemsTransactions) : [];
+  this.childTransactions = aChildItemsTransactions || [];
 }
 
 PlacesCreateFolderTransaction.prototype = {
@@ -2442,10 +2425,8 @@ function PlacesCreateBookmarkTransaction(aURI, aContainer, aIndex, aTitle,
   this._index = typeof(aIndex) == "number" ? aIndex : -1;
   this._title = aTitle;
   this._keyword = aKeyword;
-  // Copy the array to decouple it from its prototype, which otherwise keeps
-  // alive its associated global object.
-  this._annotations = aAnnotations ? Array.slice(aAnnotations) : [];
-  this.childTransactions = aChildTransactions ? Array.slice(aChildTransactions) : [];
+  this._annotations = aAnnotations;
+  this.childTransactions = aChildTransactions || [];
 }
 
 PlacesCreateBookmarkTransaction.prototype = {
@@ -2566,9 +2547,7 @@ function PlacesCreateLivemarkTransaction(aFeedURI, aSiteURI, aName, aContainer,
   this._name = aName;
   this._container = aContainer;
   this._index = typeof(aIndex) == "number" ? aIndex : -1;
-  // Copy the array to decouple it from its prototype, which otherwise keeps
-  // alive its associated global object.
-  this._annotations = aAnnotations ? Array.slice(aAnnotations) : [];
+  this._annotations = aAnnotations;
 }
 
 PlacesCreateLivemarkTransaction.prototype = {
@@ -2616,11 +2595,11 @@ function PlacesRemoveLivemarkTransaction(aFolderId)
   this._container = PlacesUtils.bookmarks.getFolderIdForItem(this._id);
   let annos = PlacesUtils.getAnnotationsForItem(this._id);
   // Exclude livemark service annotations, those will be recreated automatically
-  let annosToExclude = [PlacesUtils.LMANNO_FEEDURI,
-                        PlacesUtils.LMANNO_SITEURI,
-                        PlacesUtils.LMANNO_EXPIRATION,
-                        PlacesUtils.LMANNO_LOADFAILED,
-                        PlacesUtils.LMANNO_LOADING];
+  let annosToExclude = ["livemark/feedURI",
+                        "livemark/siteURI",
+                        "livemark/expiration",
+                        "livemark/loadfailed",
+                        "livemark/loading"];
   this._annotations = annos.filter(function(aValue, aIndex, aArray) {
       return annosToExclude.indexOf(aValue.name) == -1;
     });
@@ -3144,6 +3123,47 @@ PlacesEditLivemarkFeedURITransaction.prototype = {
 
 
 /**
+ * Transaction for editing a bookmark's microsummary.
+ *
+ * @param aBookmarkId
+ *        id of the bookmark to edit
+ * @param aNewMicrosummary
+ *        new microsummary for the bookmark
+ * @returns nsITransaction object
+ */
+
+function PlacesEditBookmarkMicrosummaryTransaction(aItemId, newMicrosummary)
+{
+  this.id = aItemId;
+  this._mss = Cc["@mozilla.org/microsummary/service;1"].
+              getService(Ci.nsIMicrosummaryService);
+  this._newMicrosummary = newMicrosummary;
+  this._oldMicrosummary = null;
+}
+
+PlacesEditBookmarkMicrosummaryTransaction.prototype = {
+  __proto__: BaseTransaction.prototype,
+
+  doTransaction: function EBMTXN_doTransaction()
+  {
+    this._oldMicrosummary = this._mss.getMicrosummary(this.id);
+    if (this._newMicrosummary)
+      this._mss.setMicrosummary(this.id, this._newMicrosummary);
+    else
+      this._mss.removeMicrosummary(this.id);
+  },
+
+  undoTransaction: function EBMTXN_undoTransaction()
+  {
+    if (this._oldMicrosummary)
+      this._mss.setMicrosummary(this.id, this._oldMicrosummary);
+    else
+      this._mss.removeMicrosummary(this.id);
+  }
+};
+
+
+/**
  * Transaction for editing an item's date added property.
  *
  * @param aItemId
@@ -3317,10 +3337,8 @@ PlacesSortFolderByNameTransaction.prototype = {
 function PlacesTagURITransaction(aURI, aTags)
 {
   this._uri = aURI;
+  this._tags = aTags;
   this._unfiledItemId = -1;
-  // Copy the array to decouple it from its prototype, which otherwise keeps
-  // alive its associated global object.
-  this._tags = Array.slice(aTags);
 }
 
 PlacesTagURITransaction.prototype = {
@@ -3373,14 +3391,11 @@ function PlacesUntagURITransaction(aURI, aTags)
 {
   this._uri = aURI;
   if (aTags) {    
-    // Copy the array to decouple it from its prototype, which otherwise keeps
-    // alive its associated global object.
-    this._tags = Array.slice(aTags);
-
     // Within this transaction, we cannot rely on tags given by itemId
     // since the tag containers may be gone after we call untagURI.
     // Thus, we convert each tag given by its itemId to name.
-    for (let i = 0; i < this._tags.length; ++i) {
+    this._tags = aTags;
+    for (let i = 0; i < aTags.length; ++i) {
       if (typeof(this._tags[i]) == "number")
         this._tags[i] = PlacesUtils.bookmarks.getItemTitle(this._tags[i]);
     }

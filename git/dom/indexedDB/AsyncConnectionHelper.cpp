@@ -98,11 +98,12 @@ ConvertCloneBuffersToArrayInternal(
       return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
 
-    for (uint32 index = 0, count = aBuffers.Length(); index < count; index++) {
+    jsint count = jsint(aBuffers.Length());
+    for (jsint index = 0; index < count; index++) {
       JSAutoStructuredCloneBuffer& buffer = aBuffers[index];
 
       jsval val;
-      if (!IDBObjectStore::DeserializeValue(aCx, buffer, &val)) {
+      if (!buffer.read(&val, aCx)) {
         NS_WARNING("Failed to decode!");
         return NS_ERROR_DOM_DATA_CLONE_ERR;
       }
@@ -492,6 +493,35 @@ AsyncConnectionHelper::WrapNative(JSContext* aCx,
 
 // static
 nsresult
+AsyncConnectionHelper::ConvertCloneBufferToJSVal(
+                                           JSContext* aCx,
+                                           JSAutoStructuredCloneBuffer& aBuffer,
+                                           jsval* aResult)
+{
+  NS_ASSERTION(aCx, "Null context!");
+  NS_ASSERTION(aResult, "Null pointer!");
+
+  JSAutoRequest ar(aCx);
+
+  if (aBuffer.data()) {
+    JSBool ok = aBuffer.read(aResult, aCx);
+
+    aBuffer.clear(aCx);
+
+    if (!ok) {
+      NS_ERROR("Failed to decode!");
+      return NS_ERROR_DOM_DATA_CLONE_ERR;
+    }
+  }
+  else {
+    *aResult = JSVAL_VOID;
+  }
+
+  return NS_OK;
+}
+
+// static
+nsresult
 AsyncConnectionHelper::ConvertCloneBuffersToArray(
                                 JSContext* aCx,
                                 nsTArray<JSAutoStructuredCloneBuffer>& aBuffers,
@@ -505,7 +535,7 @@ AsyncConnectionHelper::ConvertCloneBuffersToArray(
   nsresult rv = ConvertCloneBuffersToArrayInternal(aCx, aBuffers, aResult);
 
   for (PRUint32 index = 0; index < aBuffers.Length(); index++) {
-    aBuffers[index].clear();
+    aBuffers[index].clear(aCx);
   }
   aBuffers.Clear();
 

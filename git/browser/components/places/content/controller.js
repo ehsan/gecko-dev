@@ -117,9 +117,6 @@ function PlacesController(aView) {
   XPCOMUtils.defineLazyServiceGetter(this, "clipboard",
                                      "@mozilla.org/widget/clipboard;1",
                                      "nsIClipboard");
-  XPCOMUtils.defineLazyGetter(this, "profileName", function () {
-    return Services.dirsvc.get("ProfD", Ci.nsIFile).leafName;
-  });
 }
 
 PlacesController.prototype = {
@@ -127,19 +124,6 @@ PlacesController.prototype = {
    * The places view.
    */
   _view: null,
-
-  QueryInterface: XPCOMUtils.generateQI([
-    Ci.nsIClipboardOwner
-  ]),
-
-  // nsIClipboardOwner
-  LosingOwnership: function PC_LosingOwnership (aXferable) {
-    this.cutNodes = [];
-  },
-
-  terminate: function PC_terminate() {
-    this._releaseClipboardOwnership();
-  },
 
   supportsCommand: function PC_supportsCommand(aCommand) {
     //LOG("supportsCommand: " + command);
@@ -219,6 +203,10 @@ PlacesController.prototype = {
           !PlacesUtils.nodeIsLivemarkItem(selectedNode))
         return true;
       return false;
+    case "placesCmd_reloadMicrosummary":
+      var selectedNode = this._view.selectedNode;
+      return selectedNode && PlacesUtils.nodeIsBookmark(selectedNode) &&
+             PlacesUtils.microsummaries.hasMicrosummary(selectedNode.itemId);
     case "placesCmd_reload":
       // Livemark containers
       var selectedNode = this._view.selectedNode;
@@ -304,6 +292,9 @@ PlacesController.prototype = {
       break;
     case "placesCmd_reload":
       this.reloadSelectedLivemark();
+      break;
+    case "placesCmd_reloadMicrosummary":
+      this.reloadSelectedMicrosummary();
       break;
     case "placesCmd_sortBy:name":
       this.sortFolderByName();
@@ -514,6 +505,9 @@ PlacesController.prototype = {
           if (PlacesUtils.nodeIsBookmark(node)) {
             nodeData["bookmark"] = true;
             PlacesUtils.nodeIsTagQuery(node.parent)
+            var mss = PlacesUtils.microsummaries;
+            if (mss.hasMicrosummary(node.itemId))
+              nodeData["microsummary"] = true;
 
             var parentNode = node.parent;
             if (parentNode) {
@@ -745,6 +739,16 @@ PlacesController.prototype = {
     var selectedNode = this._view.selectedNode;
     if (selectedNode && PlacesUtils.nodeIsLivemarkContainer(selectedNode))
       PlacesUtils.livemarks.reloadLivemarkFolder(selectedNode.itemId);
+  },
+
+  /**
+   * Reload the microsummary associated with the selection
+   */
+  reloadSelectedMicrosummary: function PC_reloadSelectedMicrosummary() {
+    var selectedNode = this._view.selectedNode;
+    var mss = PlacesUtils.microsummaries;
+    if (mss.hasMicrosummary(selectedNode.itemId))
+      mss.refreshMicrosummary(selectedNode.itemId);
   },
 
   /**
@@ -1102,137 +1106,74 @@ PlacesController.prototype = {
     }
   },
 
-  get clipboardAction () {
-    let action = {};
-    let actionOwner;
-    try {
-      let xferable = Cc["@mozilla.org/widget/transferable;1"].
-                     createInstance(Ci.nsITransferable);
-      xferable.addDataFlavor(PlacesUtils.TYPE_X_MOZ_PLACE_ACTION)
-      this.clipboard.getData(xferable, Ci.nsIClipboard.kGlobalClipboard);
-      xferable.getTransferData(PlacesUtils.TYPE_X_MOZ_PLACE_ACTION, action, {});
-      [action, actionOwner] =
-        action.value.QueryInterface(Ci.nsISupportsString).data.split(",");
-    } catch(ex) {
-      // Paste from external sources don't have any associated action, just
-      // fallback to a copy action.
-      return "copy";
-    }
-    // For cuts also check who inited the action, since cuts across different
-    // instances should instead be handled as copies (The sources are not
-    // available for this instance).
-    if (action == "cut" && actionOwner != this.profileName)
-      action = "copy";
-
-    return action;
-  },
-
-  _releaseClipboardOwnership: function PC__releaseClipboardOwnership() {
-    if (this.cutNodes.length > 0) {
-      // This clears the logical clipboard, doesn't remove data.
-      this.clipboard.emptyClipboard(Ci.nsIClipboard.kGlobalClipboard);
-    }
-  },
-
-  _clearClipboard: function PC__clearClipboard() {
-    let xferable = Cc["@mozilla.org/widget/transferable;1"].
-                   createInstance(Ci.nsITransferable);
-    // Empty transferables may cause crashes, so just add an unknown type.
-    const TYPE = "text/x-moz-place-empty";
-    xferable.addDataFlavor(TYPE);
-    xferable.setTransferData(TYPE, PlacesUtils.toISupportsString(""), 0);
-    this.clipboard.setData(xferable, null, Ci.nsIClipboard.kGlobalClipboard);
-  },
-
-  _populateClipboard: function PC__populateClipboard(aNodes, aAction) {
-    // This order is _important_! It controls how this and other applications
-    // select data to be inserted based on type.
-    let contents = [
-      { type: PlacesUtils.TYPE_X_MOZ_PLACE, entries: [] },
-      { type: PlacesUtils.TYPE_X_MOZ_URL, entries: [] },
-      { type: PlacesUtils.TYPE_HTML, entries: [] },
-      { type: PlacesUtils.TYPE_UNICODE, entries: [] },
-    ];
-
-    // Avoid handling descendants of a copied node, the transactions take care
-    // of them automatically.
-    let copiedFolders = [];
-    aNodes.forEach(function (node) {
-      if (this._shouldSkipNode(node, copiedFolders))
-        return;
-      if (PlacesUtils.nodeIsFolder(node))
-        copiedFolders.push(node);
-
-      let overrideURI = PlacesUtils.nodeIsLivemarkContainer(node) ?
-        PlacesUtils.livemarks.getFeedURI(node.itemId).spec : null;
-      let resolveShortcuts = !PlacesControllerDragHelper.canMoveNode(node);
-
-      contents.forEach(function (content) {
-        content.entries.push(
-          PlacesUtils.wrapNode(node, content.type, overrideURI, resolveShortcuts)
-        );
-      });
-    }, this);
-
-    function addData(type, data) {
-      xferable.addDataFlavor(type);
-      xferable.setTransferData(type, PlacesUtils.toISupportsString(data),
-                               data.length * 2);
-    }
-
-    let xferable = Cc["@mozilla.org/widget/transferable;1"].
-                   createInstance(Ci.nsITransferable);
-    let hasData = false;
-    // This order matters here!  It controls how this and other applications
-    // select data to be inserted based on type.
-    contents.forEach(function (content) {
-      if (content.entries.length > 0) {
-        hasData = true;
-        let glue =
-          content.type == PlacesUtils.TYPE_X_MOZ_PLACE ? "," : PlacesUtils.endl;
-        addData(content.type, content.entries.join(glue));
-      }
-    });
-
-    // Track the exected action in the xferable.  This must be the last flavor
-    // since it's the least preferred one.
-    // Enqueue a unique instance identifier to distinguish operations across
-    // concurrent instances of the application.
-    addData(PlacesUtils.TYPE_X_MOZ_PLACE_ACTION, aAction + "," + this.profileName);
-
-    if (hasData) {
-      this.clipboard.setData(xferable,
-                             this.cutNodes.length > 0 ? this : null,
-                             Ci.nsIClipboard.kGlobalClipboard);
-    }
-  },
-
-  _cutNodes: [],
-  get cutNodes() this._cutNodes,
-  set cutNodes(aNodes) {
-    let self = this;
-    function updateCutNodes(aValue) {
-      self._cutNodes.forEach(function (aNode) {
-        self._view.toggleCutNode(aNode, aValue);
-      });
-    }
-
-    updateCutNodes(false);
-    this._cutNodes = aNodes;
-    updateCutNodes(true);
-    return aNodes;
-  },
-
   /**
    * Copy Bookmarks and Folders to the clipboard
    */
   copy: function PC_copy() {
     let result = this._view.result;
+
     let didSuppressNotifications = result.suppressNotifications;
     if (!didSuppressNotifications)
       result.suppressNotifications = true;
+
     try {
-      this._populateClipboard(this._view.selectedNodes, "copy");
+      let nodes = this._view.selectedNodes;
+
+      let xferable = Cc["@mozilla.org/widget/transferable;1"].
+                     createInstance(Ci.nsITransferable);
+      let foundFolder = false, foundLink = false;
+      let copiedFolders = [];
+      let placeString, mozURLString, htmlString, unicodeString;
+      placeString = mozURLString = htmlString = unicodeString = "";
+
+      for (let i = 0; i < nodes.length; ++i) {
+        let node = nodes[i];
+        if (this._shouldSkipNode(node, copiedFolders))
+          continue;
+        if (PlacesUtils.nodeIsFolder(node))
+          copiedFolders.push(node);
+
+        function generateChunk(type, overrideURI) {
+          let suffix = i < (nodes.length - 1) ? PlacesUtils.endl : "";
+          let uri = overrideURI;
+
+          if (PlacesUtils.nodeIsLivemarkContainer(node))
+            uri = PlacesUtils.livemarks.getFeedURI(node.itemId).spec
+
+          mozURLString += (PlacesUtils.wrapNode(node, PlacesUtils.TYPE_X_MOZ_URL,
+                                                 uri) + suffix);
+          unicodeString += (PlacesUtils.wrapNode(node, PlacesUtils.TYPE_UNICODE,
+                                                 uri) + suffix);
+          htmlString += (PlacesUtils.wrapNode(node, PlacesUtils.TYPE_HTML,
+                                                 uri) + suffix);
+
+          let placeSuffix = i < (nodes.length - 1) ? "," : "";
+          let resolveShortcuts = !PlacesControllerDragHelper.canMoveNode(node);
+          return PlacesUtils.wrapNode(node, type, overrideURI, resolveShortcuts) + placeSuffix;
+        }
+
+        // all items wrapped as TYPE_X_MOZ_PLACE
+        placeString += generateChunk(PlacesUtils.TYPE_X_MOZ_PLACE);
+      }
+
+      function addData(type, data) {
+        xferable.addDataFlavor(type);
+        xferable.setTransferData(type, PlacesUIUtils._wrapString(data), data.length * 2);
+      }
+      // This order is _important_! It controls how this and other applications
+      // select data to be inserted based on type.
+      if (placeString)
+        addData(PlacesUtils.TYPE_X_MOZ_PLACE, placeString);
+      if (mozURLString)
+        addData(PlacesUtils.TYPE_X_MOZ_URL, mozURLString);
+      if (unicodeString)
+        addData(PlacesUtils.TYPE_UNICODE, unicodeString);
+      if (htmlString)
+        addData(PlacesUtils.TYPE_HTML, htmlString);
+
+      if (placeString || unicodeString || htmlString || mozURLString) {
+        this.clipboard.setData(xferable, null, Ci.nsIClipboard.kGlobalClipboard);
+      }
     }
     finally {
       if (!didSuppressNotifications)
@@ -1244,94 +1185,101 @@ PlacesController.prototype = {
    * Cut Bookmarks and Folders to the clipboard
    */
   cut: function PC_cut() {
-    let result = this._view.result;
-    let didSuppressNotifications = result.suppressNotifications;
-    if (!didSuppressNotifications)
-      result.suppressNotifications = true;
-    try {
-      this._populateClipboard(this._view.selectedNodes, "cut");
-      this.cutNodes = this._view.selectedNodes;
-    }
-    finally {
-      if (!didSuppressNotifications)
-        result.suppressNotifications = false;
-    }
+    this.copy();
+    this.remove("Cut Selection");
   },
 
   /**
    * Paste Bookmarks and Folders from the clipboard
    */
   paste: function PC_paste() {
-    // No reason to proceed if there isn't a valid insertion point.
-    let ip = this._view.insertionPoint;
+    // Strategy:
+    //
+    // There can be data of various types (folder, separator, link) on the
+    // clipboard. We need to get all of that data and build edit transactions
+    // for them. This means asking the clipboard once for each type and
+    // aggregating the results.
+
+    /**
+     * Constructs a transferable that can receive data of specific types.
+     * @param   types
+     *          The types of data the transferable can hold, in order of
+     *          preference.
+     * @returns The transferable.
+     */
+    function makeXferable(types) {
+      var xferable = Cc["@mozilla.org/widget/transferable;1"].
+                     createInstance(Ci.nsITransferable);
+      for (var i = 0; i < types.length; ++i)
+        xferable.addDataFlavor(types[i]);
+      return xferable;
+    }
+
+    var clipboard = this.clipboard;
+
+    var ip = this._view.insertionPoint;
     if (!ip)
       throw Cr.NS_ERROR_NOT_AVAILABLE;
 
-    let action = this.clipboardAction;
+    /**
+     * Gets a list of transactions to perform the paste of specific types.
+     * @param   types
+     *          The types of data to form paste transactions for
+     * @returns An array of transactions that perform the paste.
+     */
+    function getTransactions(types) {
+      var xferable = makeXferable(types);
+      clipboard.getData(xferable, Ci.nsIClipboard.kGlobalClipboard);
 
-    let xferable = Cc["@mozilla.org/widget/transferable;1"].
-                   createInstance(Ci.nsITransferable);
-    // This order matters here!  It controls the preferred flavors for this
-    // paste operation.
-    [ PlacesUtils.TYPE_X_MOZ_PLACE,
-      PlacesUtils.TYPE_X_MOZ_URL,
-      PlacesUtils.TYPE_UNICODE,
-    ].forEach(function (type) xferable.addDataFlavor(type));
-
-    this.clipboard.getData(xferable, Ci.nsIClipboard.kGlobalClipboard);
-
-    // Now get the clipboard contents, in the best available flavor.
-    let data = {}, type = {}, items = [];
-    try {
-      xferable.getAnyTransferData(type, data, {});
-      data = data.value.QueryInterface(Ci.nsISupportsString).data;
-      type = type.value;
-      items = PlacesUtils.unwrapNodes(data, type);
-    } catch(ex) {
-      // No supported data exists or nodes unwrap failed, just bail out.
-      return;
-    }
-
-    let transactions = [];
-    let insertionIndex = ip.index;
-    for (let i = 0; i < items.length; ++i) {
-      if (ip.isTag) {
-        // Pasting into a tag container means tagging the item, regardless of
-        // the requested action.
-        transactions.push(
-          new PlacesTagURITransaction(PlacesUtils._uri(items[i].uri),
-                                      [ip.itemId])
-        );
-        continue;
+      var data = { }, type = { };
+      try {
+        xferable.getAnyTransferData(type, data, { });
+        data = data.value.QueryInterface(Ci.nsISupportsString).data;
+        var items = PlacesUtils.unwrapNodes(data, type.value);
+        var transactions = [];
+        var index = ip.index;
+        for (var i = 0; i < items.length; ++i) {
+          var txn;
+          if (ip.isTag) {
+            var uri = PlacesUtils._uri(items[i].uri);
+            txn = PlacesUIUtils.ptm.tagURI(uri, [ip.itemId]);
+          }
+          else {
+            // adjusted to make sure that items are given the correct index
+            // transactions insert differently if index == -1
+            // transaction will enqueue the item.
+            if (ip.index > -1)
+              index = ip.index + i;
+            txn = PlacesUIUtils.makeTransaction(items[i], type.value,
+                                                ip.itemId, index, true);
+          }
+          transactions.push(txn);
+        }
+        return transactions;
       }
-
-      // Adjust index to make sure items are pasted in the correct position.
-      // If index is DEFAULT_INDEX, items are just appended.
-      if (ip.index != PlacesUtils.bookmarks.DEFAULT_INDEX)
-        insertionIndex = ip.index + i;
-
-      transactions.push(
-        PlacesUIUtils.makeTransaction(items[i], type, ip.itemId,
-                                      insertionIndex, action == "copy")
-      );
-    }
- 
-    PlacesUtils.transactionManager.doTransaction(
-      new PlacesAggregatedTransaction("Paste", transactions)
-    );
-
-    // Cut/past operations are not repeatable, so clear the clipboard.
-    if (action == "cut") {
-      this._clearClipboard();
+      catch (e) {
+        // getAnyTransferData will throw if there is no data of the specified
+        // type on the clipboard.
+        // unwrapNodes will throw if the data that is present is malformed in
+        // some way.
+        // In either case, don't fail horribly, just return no data.
+      }
+      return [];
     }
 
-    // Select the pasted items, they should be consecutive.
-    let insertedNodeIds = [];
-    for (let i = 0; i < transactions.length; ++i) {
-      insertedNodeIds.push(
-        PlacesUtils.bookmarks.getIdForItemAt(ip.itemId, ip.index + i)
-      );
-    }
+    // Get transactions to paste any folders, separators or links that might
+    // be on the clipboard, aggregate them and execute them.
+    var transactions = getTransactions([PlacesUtils.TYPE_X_MOZ_PLACE,
+                                        PlacesUtils.TYPE_X_MOZ_URL,
+                                        PlacesUtils.TYPE_UNICODE]);
+    var txn = PlacesUIUtils.ptm.aggregateTransactions("Paste", transactions);
+    PlacesUIUtils.ptm.doTransaction(txn);
+
+    // select the pasted items, they should be consecutive
+    var insertedNodeIds = [];
+    for (var i = 0; i < transactions.length; ++i)
+      insertedNodeIds.push(PlacesUtils.bookmarks
+                                      .getIdForItemAt(ip.itemId, ip.index + i));
     if (insertedNodeIds.length > 0)
       this._view.selectItems(insertedNodeIds, false);
   }
@@ -1405,13 +1353,17 @@ let PlacesControllerDragHelper = {
 
       // Urls can be dropped on any insertionpoint.
       // XXXmano: remember that this method is called for each dragover event!
-      // Thus we shouldn't use unwrapNodes here at all if possible. I think it
-      // would be OK to accept bogus data here (this is not in our control and
-      // will just case the actual drop to be a no-op) and only rule out valid
+      // Thus we shouldn't use unwrapNodes here at all if possible.
+      // I think it would be OK to accept bogus data here (e.g. text which was
+      // somehow wrapped as TAB_DROP_TYPE, this is not in our control, and
+      // will just case the actual drop to be a no-op), and only rule out valid
       // expected cases, which are either unsupported flavors, or items which
       // cannot be dropped in the current insertionpoint. The last case will
       // likely force us to use unwrapNodes for the private data types of
       // places.
+      if (flavor == TAB_DROP_TYPE)
+        continue;
+
       let data = dt.mozGetDataAt(flavor, i);
       let dragged;
       try {
@@ -1525,8 +1477,21 @@ let PlacesControllerDragHelper = {
 
       let data = dt.mozGetDataAt(flavor, i);
       let unwrapped;
-      // There's only ever one in the D&D case.
-      unwrapped = PlacesUtils.unwrapNodes(data, flavor)[0];
+      if (flavor != TAB_DROP_TYPE) {
+        // There's only ever one in the D&D case.
+        unwrapped = PlacesUtils.unwrapNodes(data, flavor)[0];
+      }
+      else if (data instanceof XULElement && data.localName == "tab" &&
+               data.ownerDocument.defaultView instanceof ChromeWindow) {
+        let uri = data.linkedBrowser.currentURI;
+        let spec = uri ? uri.spec : "about:blank";
+        let title = data.label;
+        unwrapped = { uri: spec,
+                      title: data.label,
+                      type: PlacesUtils.TYPE_X_MOZ_URL};
+      }
+      else
+        throw("bogus data was passed as a tab")
 
       let index = insertionPoint.index;
 
@@ -1580,6 +1545,7 @@ let PlacesControllerDragHelper = {
                             PlacesUtils.TYPE_X_MOZ_PLACE_SEPARATOR,
                             PlacesUtils.TYPE_X_MOZ_PLACE,
                             PlacesUtils.TYPE_X_MOZ_URL,
+                            TAB_DROP_TYPE,
                             PlacesUtils.TYPE_UNICODE],
 };
 
@@ -1608,6 +1574,7 @@ function goUpdatePlacesCommands() {
   updatePlacesCommand("placesCmd_show:info");
   updatePlacesCommand("placesCmd_moveBookmarks");
   updatePlacesCommand("placesCmd_reload");
+  updatePlacesCommand("placesCmd_reloadMicrosummary");
   updatePlacesCommand("placesCmd_sortBy:name");
   updatePlacesCommand("placesCmd_cut");
   updatePlacesCommand("placesCmd_copy");

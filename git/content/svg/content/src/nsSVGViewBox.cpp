@@ -41,7 +41,6 @@
 #include "prdtoa.h"
 #include "nsTextFormatter.h"
 #include "nsCharSeparatedTokenizer.h"
-#include "nsMathUtils.h"
 #ifdef MOZ_SMIL
 #include "nsSMILValue.h"
 #include "SVGViewBoxSMILType.h"
@@ -143,7 +142,7 @@ nsSVGViewBox::SetBaseValue(float aX, float aY, float aWidth, float aHeight,
 static nsresult
 ToSVGViewBoxRect(const nsAString& aStr, nsSVGViewBoxRect *aViewBox)
 {
-  nsCharSeparatedTokenizerTemplate<IsSVGWhitespace>
+  nsCharSeparatedTokenizer
     tokenizer(aStr, ',',
               nsCharSeparatedTokenizer::SEPARATOR_OPTIONAL);
   float vals[NUM_VIEWBOX_COMPONENTS];
@@ -157,7 +156,7 @@ ToSVGViewBoxRect(const nsAString& aStr, nsSVGViewBoxRect *aViewBox)
 
     char *end;
     vals[i] = float(PR_strtod(token, &end));
-    if (*end != '\0' || !NS_finite(vals[i])) {
+    if (*end != '\0' || !NS_FloatIsFinite(vals[i])) {
       return NS_ERROR_DOM_SYNTAX_ERR; // parse error
     }
   }
@@ -166,12 +165,12 @@ ToSVGViewBoxRect(const nsAString& aStr, nsSVGViewBoxRect *aViewBox)
       tokenizer.hasMoreTokens() ||                // Too many values.
       tokenizer.lastTokenEndedWithSeparator()) {  // Trailing comma.
     return NS_ERROR_DOM_SYNTAX_ERR;
+  } else {
+    aViewBox->x = vals[0];
+    aViewBox->y = vals[1];
+    aViewBox->width = vals[2];
+    aViewBox->height = vals[3];
   }
-
-  aViewBox->x = vals[0];
-  aViewBox->y = vals[1];
-  aViewBox->width = vals[2];
-  aViewBox->height = vals[3];
 
   return NS_OK;
 }

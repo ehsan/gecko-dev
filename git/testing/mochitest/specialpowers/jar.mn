@@ -1,4 +1,3 @@
 specialpowers.jar:
 % content specialpowers %content/
   content/specialpowers.js (content/specialpowers.js)
-  content/MozillaLogger.js (../tests/SimpleTest/MozillaLogger.js)

@@ -38,7 +38,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsLocation.h"
+#include "nsGlobalWindow.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIScriptContext.h"
 #include "nsIDocShell.h"
@@ -56,6 +56,7 @@
 #include "prmem.h"
 #include "nsCOMPtr.h"
 #include "nsEscape.h"
+#include "nsJSUtils.h"
 #include "nsIDOMWindow.h"
 #include "nsIDOMDocument.h"
 #include "nsIDocument.h"
@@ -71,7 +72,6 @@
 #include "nsITextToSubURI.h"
 #include "nsContentUtils.h"
 #include "nsJSUtils.h"
-#include "jsdbgapi.h"
 
 static nsresult
 GetContextFromStack(nsIJSContextStack *aStack, JSContext **aContext)
@@ -374,45 +374,37 @@ nsLocation::GetHash(nsAString& aHash)
 
   nsCOMPtr<nsIURI> uri;
   nsresult rv = GetURI(getter_AddRefs(uri));
-  if (NS_FAILED(rv) || !uri) {
-    return rv;
-  }
 
-  nsCAutoString ref;
-  nsAutoString unicodeRef;
+  nsCOMPtr<nsIURL> url(do_QueryInterface(uri));
 
-  rv = uri->GetRef(ref);
-  if (NS_SUCCEEDED(rv)) {
-    nsCOMPtr<nsITextToSubURI> textToSubURI(
-        do_GetService(NS_ITEXTTOSUBURI_CONTRACTID, &rv));
+  if (url) {
+    nsCAutoString ref;
+    nsAutoString unicodeRef;
 
+    rv = url->GetRef(ref);
     if (NS_SUCCEEDED(rv)) {
-      nsCAutoString charset;
-      uri->GetOriginCharset(charset);
+      nsCOMPtr<nsITextToSubURI> textToSubURI(
+          do_GetService(NS_ITEXTTOSUBURI_CONTRACTID, &rv));
+
+      if (NS_SUCCEEDED(rv)) {
+        nsCAutoString charset;
+        url->GetOriginCharset(charset);
         
-      rv = textToSubURI->UnEscapeURIForUI(charset, ref, unicodeRef);
-    }
+        rv = textToSubURI->UnEscapeURIForUI(charset, ref, unicodeRef);
+      }
       
-    if (NS_FAILED(rv)) {
-      // Oh, well.  No intl here!
-      NS_UnescapeURL(ref);
-      CopyASCIItoUTF16(ref, unicodeRef);
-      rv = NS_OK;
+      if (NS_FAILED(rv)) {
+        // Oh, well.  No intl here!
+        NS_UnescapeURL(ref);
+        CopyASCIItoUTF16(ref, unicodeRef);
+        rv = NS_OK;
+      }
     }
-  }
 
-  if (NS_SUCCEEDED(rv) && !unicodeRef.IsEmpty()) {
-    aHash.Assign(PRUnichar('#'));
-    aHash.Append(unicodeRef);
-  }
-
-  if (aHash == mCachedHash) {
-    // Work around ShareThis stupidly polling location.hash every
-    // 5ms all the time by handing out the same exact string buffer
-    // we handed out last time.
-    aHash = mCachedHash;
-  } else {
-    mCachedHash = aHash;
+    if (NS_SUCCEEDED(rv) && !unicodeRef.IsEmpty()) {
+      aHash.Assign(PRUnichar('#'));
+      aHash.Append(unicodeRef);
+    }
   }
 
   return rv;
@@ -423,17 +415,17 @@ nsLocation::SetHash(const nsAString& aHash)
 {
   nsCOMPtr<nsIURI> uri;
   nsresult rv = GetWritableURI(getter_AddRefs(uri));
-  if (NS_FAILED(rv) || !uri) {
-    return rv;
-  }
 
-  NS_ConvertUTF16toUTF8 hash(aHash);
-  if (hash.IsEmpty() || hash.First() != PRUnichar('#')) {
-    hash.Insert(PRUnichar('#'), 0);
-  }
-  rv = uri->SetRef(hash);
-  if (NS_SUCCEEDED(rv)) {
-    SetURI(uri);
+  nsCOMPtr<nsIURL> url(do_QueryInterface(uri));
+  if (url) {
+    NS_ConvertUTF16toUTF8 hash(aHash);
+    if (hash.IsEmpty() || hash.First() != PRUnichar('#')) {
+      hash.Insert(PRUnichar('#'), 0);
+    }
+    rv = url->SetRef(hash);
+    if (NS_SUCCEEDED(rv)) {
+      SetURI(url);
+    }
   }
 
   return rv;

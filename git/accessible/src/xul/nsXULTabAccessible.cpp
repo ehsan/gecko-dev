@@ -39,19 +39,15 @@
 #include "nsXULTabAccessible.h"
 
 #include "nsAccUtils.h"
-#include "Relation.h"
-#include "States.h"
+#include "nsRelUtils.h"
 
 // NOTE: alphabetically ordered
-#include "nsIAccessibleRelation.h"
 #include "nsIDocument.h"
 #include "nsIFrame.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMXULSelectCntrlEl.h"
 #include "nsIDOMXULSelectCntrlItemEl.h"
 #include "nsIDOMXULRelatedElement.h"
-
-using namespace mozilla::a11y;
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTabAccessible
@@ -66,10 +62,10 @@ nsXULTabAccessible::
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTabAccessible: nsIAccessible
 
-PRUint8
-nsXULTabAccessible::ActionCount()
+NS_IMETHODIMP nsXULTabAccessible::GetNumActions(PRUint8 *_retval)
 {
-  return 1;
+  *_retval = 1;
+  return NS_OK;
 }
 
 /** Return the name of our only action  */
@@ -106,61 +102,66 @@ nsXULTabAccessible::NativeRole()
   return nsIAccessibleRole::ROLE_PAGETAB;
 }
 
-PRUint64
-nsXULTabAccessible::NativeState()
+nsresult
+nsXULTabAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
   // Possible states: focused, focusable, unavailable(disabled), offscreen.
 
   // get focus and disable status from base class
-  PRUint64 state = nsAccessibleWrap::NativeState();
+  nsresult rv = nsAccessibleWrap::GetStateInternal(aState, aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
   // In the past, tabs have been focusable in classic theme
   // They may be again in the future
   // Check style for -moz-user-focus: normal to see if it's focusable
-  state &= ~states::FOCUSABLE;
+  *aState &= ~nsIAccessibleStates::STATE_FOCUSABLE;
 
   nsIFrame *frame = mContent->GetPrimaryFrame();
   if (frame) {
     const nsStyleUserInterface* ui = frame->GetStyleUserInterface();
     if (ui->mUserFocus == NS_STYLE_USER_FOCUS_NORMAL)
-      state |= states::FOCUSABLE;
+      *aState |= nsIAccessibleStates::STATE_FOCUSABLE;
   }
 
   // Check whether the tab is selected
-  state |= states::SELECTABLE;
-  state &= ~states::SELECTED;
+  *aState |= nsIAccessibleStates::STATE_SELECTABLE;
+  *aState &= ~nsIAccessibleStates::STATE_SELECTED;
   nsCOMPtr<nsIDOMXULSelectControlItemElement> tab(do_QueryInterface(mContent));
   if (tab) {
     PRBool selected = PR_FALSE;
     if (NS_SUCCEEDED(tab->GetSelected(&selected)) && selected)
-      state |= states::SELECTED;
+      *aState |= nsIAccessibleStates::STATE_SELECTED;
   }
-  return state;
+  return NS_OK;
 }
 
 // nsIAccessible
-Relation
-nsXULTabAccessible::RelationByType(PRUint32 aType)
+NS_IMETHODIMP
+nsXULTabAccessible::GetRelationByType(PRUint32 aRelationType,
+                                      nsIAccessibleRelation **aRelation)
 {
-  Relation rel = nsAccessibleWrap::RelationByType(aType);
-  if (aType != nsIAccessibleRelation::RELATION_LABEL_FOR)
-    return rel;
+  nsresult rv = nsAccessibleWrap::GetRelationByType(aRelationType,
+                                                    aRelation);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (aRelationType != nsIAccessibleRelation::RELATION_LABEL_FOR)
+    return NS_OK;
 
   // Expose 'LABEL_FOR' relation on tab accessible for tabpanel accessible.
   nsCOMPtr<nsIDOMXULRelatedElement> tabsElm =
     do_QueryInterface(mContent->GetParent());
   if (!tabsElm)
-    return rel;
+    return NS_OK;
 
   nsCOMPtr<nsIDOMNode> DOMNode(GetDOMNode());
   nsCOMPtr<nsIDOMNode> tabpanelNode;
   tabsElm->GetRelatedElement(DOMNode, getter_AddRefs(tabpanelNode));
   if (!tabpanelNode)
-    return rel;
+    return NS_OK;
 
   nsCOMPtr<nsIContent> tabpanelContent(do_QueryInterface(tabpanelNode));
-  rel.AppendTarget(tabpanelContent);
-  return rel;
+  return nsRelUtils::AddTargetFromContent(aRelationType, aRelation,
+                                          tabpanelContent);
 }
 
 void
@@ -188,10 +189,13 @@ nsXULTabsAccessible::NativeRole()
   return nsIAccessibleRole::ROLE_PAGETABLIST;
 }
 
-PRUint8
-nsXULTabsAccessible::ActionCount()
+NS_IMETHODIMP
+nsXULTabsAccessible::GetNumActions(PRUint8 *aCount)
 {
-  return 0;
+  NS_ENSURE_ARG_POINTER(aCount);
+  *aCount = 0;
+
+  return NS_OK;
 }
 
 /** no value */
@@ -241,26 +245,29 @@ nsXULTabpanelAccessible::NativeRole()
   return nsIAccessibleRole::ROLE_PROPERTYPAGE;
 }
 
-Relation
-nsXULTabpanelAccessible::RelationByType(PRUint32 aType)
+NS_IMETHODIMP
+nsXULTabpanelAccessible::GetRelationByType(PRUint32 aRelationType,
+                                           nsIAccessibleRelation **aRelation)
 {
-  Relation rel = nsAccessibleWrap::RelationByType(aType);
-  if (aType != nsIAccessibleRelation::RELATION_LABELLED_BY)
-    return rel;
+  nsresult rv = nsAccessibleWrap::GetRelationByType(aRelationType, aRelation);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (aRelationType != nsIAccessibleRelation::RELATION_LABELLED_BY)
+    return NS_OK;
 
   // Expose 'LABELLED_BY' relation on tabpanel accessible for tab accessible.
   nsCOMPtr<nsIDOMXULRelatedElement> tabpanelsElm =
     do_QueryInterface(mContent->GetParent());
   if (!tabpanelsElm)
-    return rel;
+    return NS_OK;
 
   nsCOMPtr<nsIDOMNode> DOMNode(GetDOMNode());
   nsCOMPtr<nsIDOMNode> tabNode;
   tabpanelsElm->GetRelatedElement(DOMNode, getter_AddRefs(tabNode));
   if (!tabNode)
-    return rel;
+    return NS_OK;
 
   nsCOMPtr<nsIContent> tabContent(do_QueryInterface(tabNode));
-  rel.AppendTarget(tabContent);
-  return rel;
+  return nsRelUtils::AddTargetFromContent(aRelationType, aRelation,
+                                          tabContent);
 }

@@ -45,8 +45,6 @@
 #include "nsIDOMHTMLOptionElement.h"
 #include "nsIJSNativeInitializer.h"
 
-class nsHTMLSelectElement;
-
 class nsHTMLOptionElement : public nsGenericHTMLElement,
                             public nsIDOMHTMLOptionElement,
                             public nsIJSNativeInitializer
@@ -58,7 +56,7 @@ public:
   /** Typesafe, non-refcounting cast from nsIContent.  Cheaper than QI. **/
   static nsHTMLOptionElement* FromContent(nsIContent *aContent)
   {
-    if (aContent && aContent->IsHTML(nsGkAtoms::option))
+    if (aContent->NodeInfo()->Equals(nsGkAtoms::option, kNameSpaceID_XHTML))
       return static_cast<nsHTMLOptionElement*>(aContent);
     return nsnull;
   }
@@ -79,9 +77,6 @@ public:
   using nsGenericElement::SetText;
   using nsGenericElement::GetText;
   NS_DECL_NSIDOMHTMLOPTIONELEMENT
-
-  bool Selected() const;
-  bool DefaultSelected() const;
 
   // nsIJSNativeInitializer
   NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* aContext,
@@ -108,8 +103,9 @@ protected:
    * Get the select content element that contains this option, this
    * intentionally does not return nsresult, all we care about is if
    * there's a select associated with this option or not.
+   * @param aSelectElement the select element (out param)
    */
-  nsHTMLSelectElement* GetSelect();
+  nsIContent* GetSelect();
 
   PRPackedBool mSelectedChanged;
   PRPackedBool mIsSelected;

@@ -38,6 +38,9 @@
 // Mirrors WINDOW_ATTRIBUTES IN nsSessionStore.js
 const WINDOW_ATTRIBUTES = ["width", "height", "screenX", "screenY", "sizemode"];
 
+let ss = Cc["@mozilla.org/browser/sessionstore;1"].
+         getService(Ci.nsISessionStore);
+
 let stateBackup = ss.getBrowserState();
 
 let originalWarnOnClose = gPrefService.getBoolPref("browser.tabs.warnOnClose");
@@ -203,10 +206,7 @@ function onStateRestored(aSubject, aTopic, aData) {
       if (shouldPinTab)
         newWin.gBrowser.pinTab(newWin.gBrowser.selectedTab);
 
-      newWin.addEventListener("unload", function () {
-        newWin.removeEventListener("unload", arguments.callee, false);
-        onWindowUnloaded();
-      }, false);
+      newWin.addEventListener("unload", onWindowUnloaded, false);
       // Open a new tab as well. On Windows/Linux this will be restored when the
       // new window is opened below (in onWindowUnloaded). On OS X we'll just
       // restore the pinned tabs, leaving the unpinned tab in the closedWindowsData.
@@ -257,8 +257,6 @@ function onWindowUnloaded() {
     newWin.removeEventListener("load", arguments.callee, false);
 
     newWin.gBrowser.selectedBrowser.addEventListener("load", function () {
-      newWin.gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
-
       // Good enough for checking the state
       afterTestCallback(previousClosedWindowData, ss.getClosedWindowData());
       afterTestCleanup(newWin);

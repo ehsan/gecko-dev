@@ -36,8 +36,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef MOZ_IPC
 #include "IPCMessageUtils.h"
 #include "mozilla/net/NeckoMessageUtils.h"
+#endif
 
 #include "nsSimpleNestedURI.h"
 #include "nsIObjectInputStream.h"
@@ -93,6 +95,7 @@ nsSimpleNestedURI::Write(nsIObjectOutputStream* aStream)
 PRBool
 nsSimpleNestedURI::Read(const IPC::Message *aMsg, void **aIter)
 {
+#ifdef MOZ_IPC
     if (!nsSimpleURI::Read(aMsg, aIter))
         return PR_FALSE;
 
@@ -103,15 +106,19 @@ nsSimpleNestedURI::Read(const IPC::Message *aMsg, void **aIter)
     mInnerURI = uri;
 
     return PR_TRUE;
+#endif
+    return PR_FALSE;
 }
 
 void
 nsSimpleNestedURI::Write(IPC::Message *aMsg)
 {
+#ifdef MOZ_IPC
     nsSimpleURI::Write(aMsg);
 
     IPC::URI uri(mInnerURI);
     WriteParam(aMsg, uri);
+#endif
 }
 
 // nsINestedURI
@@ -130,11 +137,10 @@ nsSimpleNestedURI::GetInnermostURI(nsIURI** uri)
     return NS_ImplGetInnermostURI(this, uri);
 }
 
-// nsSimpleURI overrides
-/* virtual */ nsresult
-nsSimpleNestedURI::EqualsInternal(nsIURI* other,
-                                  nsSimpleURI::RefHandlingEnum refHandlingMode,
-                                  PRBool* result)
+// nsIURI overrides
+
+NS_IMETHODIMP
+nsSimpleNestedURI::Equals(nsIURI* other, PRBool *result)
 {
     *result = PR_FALSE;
     NS_ENSURE_TRUE(mInnerURI, NS_ERROR_NOT_INITIALIZED);
@@ -151,9 +157,7 @@ nsSimpleNestedURI::EqualsInternal(nsIURI* other,
                 rv = nest->GetInnerURI(getter_AddRefs(otherInner));
                 NS_ENSURE_SUCCESS(rv, rv);
 
-                return (refHandlingMode == eHonorRef) ?
-                    otherInner->Equals(mInnerURI, result) :
-                    otherInner->EqualsExceptRef(mInnerURI, result);
+                return otherInner->Equals(mInnerURI, result);
             }
         }
     }
@@ -162,21 +166,20 @@ nsSimpleNestedURI::EqualsInternal(nsIURI* other,
 }
 
 /* virtual */ nsSimpleURI*
-nsSimpleNestedURI::StartClone(nsSimpleURI::RefHandlingEnum refHandlingMode)
+nsSimpleNestedURI::StartClone()
 {
     NS_ENSURE_TRUE(mInnerURI, nsnull);
     
     nsCOMPtr<nsIURI> innerClone;
-    nsresult rv = refHandlingMode == eHonorRef ?
-        mInnerURI->Clone(getter_AddRefs(innerClone)) :
-        mInnerURI->CloneIgnoringRef(getter_AddRefs(innerClone));
-
+    nsresult rv = mInnerURI->Clone(getter_AddRefs(innerClone));
     if (NS_FAILED(rv)) {
         return nsnull;
     }
 
     nsSimpleNestedURI* url = new nsSimpleNestedURI(innerClone);
-    url->SetMutable(PR_FALSE);
+    if (url) {
+        url->SetMutable(PR_FALSE);
+    }
 
     return url;
 }

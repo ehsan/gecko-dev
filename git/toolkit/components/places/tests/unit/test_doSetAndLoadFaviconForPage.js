@@ -161,11 +161,9 @@ var historyObserver = {
   onClearHistory: function() {},
   onDeleteVisits: function() {},
 
-  onPageChanged: function historyObserver_onPageChanged(pageURI, what, value, guid) {
+  onPageChanged: function historyObserver_onPageChanged(pageURI, what, value) {
     if (what != Ci.nsINavHistoryObserver.ATTRIBUTE_FAVICON)
       return;
-
-    do_check_guid_for_uri(pageURI, guid);
 
     if (pageURI.equals(tests[currentTestIndex].pageURI)) {
       tests[currentTestIndex].check();

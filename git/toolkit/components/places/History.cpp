@@ -22,7 +22,6 @@
  *
  * Contributor(s):
  *   Shawn Wilsher <me@shawnwilsher.com> (Original Author)
- *   Allison Naaktgeboren <ally@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -38,9 +37,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef MOZ_IPC
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/ContentParent.h"
 #include "nsXULAppAPI.h"
+#endif
 
 #include "History.h"
 #include "nsNavHistory.h"
@@ -52,12 +53,11 @@
 #include "mozilla/storage.h"
 #include "mozilla/dom/Link.h"
 #include "nsDocShellCID.h"
+#include "nsIEventStateManager.h"
 #include "mozilla/Services.h"
 #include "nsThreadUtils.h"
 #include "nsNetUtil.h"
 #include "nsIXPConnect.h"
-#include "mozilla/Util.h"
-#include "nsContentUtils.h"
 
 // Initial size for the cache holding visited status observers.
 #define VISIT_OBSERVERS_INITIAL_CACHE_SIZE 128
@@ -333,6 +333,7 @@ public:
   {
     NS_PRECONDITION(aURI, "Null URI");
 
+#ifdef MOZ_IPC
   // If we are a content process, always remote the request to the
   // parent process.
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
@@ -342,6 +343,7 @@ public:
     (void)cpc->SendStartVisitedQuery(aURI);
     return NS_OK;
   }
+#endif
 
     nsNavHistory* navHistory = nsNavHistory::GetHistoryService();
     NS_ENSURE_STATE(navHistory);
@@ -466,14 +468,13 @@ public:
         mPlace.transitionType != nsINavHistoryService::TRANSITION_FRAMED_LINK) {
       navHistory->NotifyOnVisit(uri, mPlace.visitId, mPlace.visitTime,
                                 mPlace.sessionId, mReferrer.visitId,
-                                mPlace.transitionType, mPlace.guid);
+                                mPlace.transitionType);
     }
 
     nsCOMPtr<nsIObserverService> obsService =
       mozilla::services::GetObserverService();
     if (obsService) {
-      DebugOnly<nsresult> rv =
-        obsService->NotifyObservers(uri, URI_VISIT_SAVED, nsnull);
+      nsresult rv = obsService->NotifyObservers(uri, URI_VISIT_SAVED, nsnull);
       NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Could not notify observers");
     }
 
@@ -501,11 +502,9 @@ public:
    *        The new title to notify about.
    */
   NotifyTitleObservers(const nsCString& aSpec,
-                       const nsString& aTitle,
-                       const nsCString& aGUID)
+                       const nsString& aTitle)
   : mSpec(aSpec)
   , mTitle(aTitle)
-  , mGUID(aGUID)
   {
   }
 
@@ -518,14 +517,13 @@ public:
     NS_ENSURE_TRUE(navHistory, NS_ERROR_OUT_OF_MEMORY);
     nsCOMPtr<nsIURI> uri;
     (void)NS_NewURI(getter_AddRefs(uri), mSpec);
-    navHistory->NotifyTitleChange(uri, mTitle, mGUID);
+    navHistory->NotifyTitleChange(uri, mTitle);
 
     return NS_OK;
   }
 private:
   const nsCString mSpec;
   const nsString mTitle;
-  const nsCString mGUID;
 };
 
 /**
@@ -567,13 +565,8 @@ public:
     nsCOMPtr<mozIPlaceInfo> place =
       new PlaceInfo(mPlace.placeId, mPlace.guid, uri.forget(), mPlace.title,
                     -1, visits);
-    if (NS_SUCCEEDED(mResult)) {
-      (void)mCallback->HandleResult(place);
-    }
-    else {
-      (void)mCallback->HandleError(mResult, place);
-    }
 
+    (void)mCallback->OnComplete(mResult, place);
     return NS_OK;
   }
 
@@ -707,7 +700,7 @@ public:
 
       // Notify about title change if needed.
       if ((!known && !place.title.IsVoid()) || place.titleChanged) {
-        event = new NotifyTitleObservers(place.spec, place.title, place.guid);
+        event = new NotifyTitleObservers(place.spec, place.title);
         rv = NS_DispatchToMainThread(event);
         NS_ENSURE_SUCCESS(rv, rv);
       }
@@ -811,9 +804,8 @@ private:
       NS_ENSURE_SUCCESS(rv, rv);
 
       // We need the place id and guid of the page we just inserted when we
-      // have a callback or when the GUID isn't known.  No point in doing the
-      // disk I/O if we do not need it.
-      if (mCallback || aPlace.guid.IsEmpty()) {
+      // have a callback.  No point in doing the disk I/O if we do not need it.
+      if (mCallback) {
         bool exists = mHistory->FetchPageInfo(aPlace);
         if (!exists) {
           NS_NOTREACHED("should have an entry in moz_places");
@@ -1176,7 +1168,7 @@ public:
     }
 
     nsCOMPtr<nsIRunnable> event =
-      new NotifyTitleObservers(mPlace.spec, mPlace.title, mPlace.guid);
+      new NotifyTitleObservers(mPlace.spec, mPlace.title);
     nsresult rv = NS_DispatchToMainThread(event);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1285,14 +1277,14 @@ History::NotifyVisited(nsIURI* aURI)
 {
   NS_ASSERTION(aURI, "Ruh-roh!  A NULL URI was passed to us!");
 
-  nsAutoScriptBlocker scriptBlocker;
-
+#ifdef MOZ_IPC
   if (XRE_GetProcessType() == GeckoProcessType_Default) {
     mozilla::dom::ContentParent* cpp = 
       mozilla::dom::ContentParent::GetSingleton(PR_FALSE);
     if (cpp)
       (void)cpp->SendNotifyVisited(aURI);
   }
+#endif
 
   // If the hash table has not been initialized, then we have nothing to notify
   // about.
@@ -1307,18 +1299,14 @@ History::NotifyVisited(nsIURI* aURI)
     return;
   }
 
-  // Update status of each Link node.
-  {
-    // RemoveEntry will destroy the array, this iterator should not survive it.
-    ObserverArray::ForwardIterator iter(key->array);
-    while (iter.HasMore()) {
-      Link* link = iter.GetNext();
-      link->SetLinkState(eLinkState_Visited);
-      // Verify that the observers hash doesn't mutate while looping through
-      // the links associated with this URI.
-      NS_ABORT_IF_FALSE(key == mObservers.GetEntry(aURI),
-                        "The URIs hash mutated!");
-    }
+  // Walk through the array, and update each Link node.
+  const ObserverArray& observers = key->array;
+  ObserverArray::index_type len = observers.Length();
+  for (ObserverArray::index_type i = 0; i < len; i++) {
+    Link* link = observers[i];
+    link->SetLinkState(eLinkState_Visited);
+    NS_ASSERTION(len == observers.Length(),
+                 "Calling SetLinkState added or removed an observer!");
   }
 
   // All the registered nodes can now be removed for this URI.
@@ -1593,6 +1581,7 @@ History::VisitURI(nsIURI* aURI,
     return NS_OK;
   }
 
+#ifdef MOZ_IPC
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     mozilla::dom::ContentChild* cpc =
       mozilla::dom::ContentChild::GetSingleton();
@@ -1600,6 +1589,7 @@ History::VisitURI(nsIURI* aURI,
     (void)cpc->SendVisitURI(aURI, aLastVisitedURI, aFlags);
     return NS_OK;
   } 
+#endif /* MOZ_IPC */
 
   nsNavHistory* navHistory = nsNavHistory::GetHistoryService();
   NS_ENSURE_TRUE(navHistory, NS_ERROR_OUT_OF_MEMORY);
@@ -1694,9 +1684,13 @@ History::RegisterVisitedCallback(nsIURI* aURI,
                                  Link* aLink)
 {
   NS_ASSERTION(aURI, "Must pass a non-null URI!");
+#ifdef MOZ_IPC
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     NS_PRECONDITION(aLink, "Must pass a non-null Link!");
   }
+#else
+  NS_PRECONDITION(aLink, "Must pass a non-null Link!");
+#endif
 
   // First, ensure that our hash table is setup.
   if (!mObservers.IsInitialized()) {
@@ -1731,6 +1725,7 @@ History::RegisterVisitedCallback(nsIURI* aURI,
       return rv;
     }
   }
+#ifdef MOZ_IPC
   // In IPC builds, we are passed a NULL Link from
   // ContentParent::RecvStartVisitedQuery.  All of our code after this point
   // assumes aLink is non-NULL, so we have to return now.
@@ -1739,6 +1734,7 @@ History::RegisterVisitedCallback(nsIURI* aURI,
                  "We should only ever get a null Link in the default process!");
     return NS_OK;
   }
+#endif
 
   // Sanity check that Links are not registered more than once for a given URI.
   // This will not catch a case where it is registered for two different URIs.
@@ -1790,13 +1786,15 @@ History::SetURITitle(nsIURI* aURI, const nsAString& aTitle)
     return NS_OK;
   }
 
+#ifdef MOZ_IPC
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     mozilla::dom::ContentChild * cpc = 
       mozilla::dom::ContentChild::GetSingleton();
     NS_ASSERTION(cpc, "Content Protocol is NULL!");
-    (void)cpc->SendSetURITitle(aURI, nsString(aTitle));
+    (void)cpc->SendSetURITitle(aURI, nsDependentString(aTitle));
     return NS_OK;
   } 
+#endif /* MOZ_IPC */
 
   nsNavHistory* navHistory = nsNavHistory::GetHistoryService();
 
@@ -1927,7 +1925,7 @@ History::UpdatePlaces(const jsval& aPlaceInfos,
       // We must have a date and a transaction type!
       rv = GetIntFromJSObject(aCtx, visit, "visitDate", &data.visitTime);
       NS_ENSURE_SUCCESS(rv, rv);
-      PRUint32 transitionType = 0;
+      PRUint32 transitionType;
       rv = GetIntFromJSObject(aCtx, visit, "transitionType", &transitionType);
       NS_ENSURE_SUCCESS(rv, rv);
       NS_ENSURE_ARG_RANGE(transitionType,

@@ -70,8 +70,9 @@ nsresult nsRawReader::ResetDecode()
 
 nsresult nsRawReader::ReadMetadata(nsVideoInfo* aInfo)
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(),
-               "Should be on decode thread.");
+  NS_ASSERTION(mDecoder->OnStateMachineThread(),
+               "Should be on state machine thread.");
+  mozilla::MonitorAutoEnter autoEnter(mMonitor);
 
   nsMediaStream* stream = mDecoder->GetCurrentStream();
   NS_ASSERTION(stream, "Decoder has no media stream");
@@ -91,26 +92,20 @@ nsresult nsRawReader::ReadMetadata(nsVideoInfo* aInfo)
   if (!MulOverflow32(mMetadata.frameWidth, mMetadata.frameHeight, dummy))
     return NS_ERROR_FAILURE;
 
-
+  mInfo.mHasVideo = PR_TRUE;
+  mInfo.mPicture.x = 0;
+  mInfo.mPicture.y = 0;
+  mInfo.mPicture.width = mMetadata.frameWidth;
+  mInfo.mPicture.height = mMetadata.frameHeight;
+  mInfo.mFrame.width = mMetadata.frameWidth;
+  mInfo.mFrame.height = mMetadata.frameHeight;
   if (mMetadata.aspectDenominator == 0 ||
       mMetadata.framerateDenominator == 0)
     return NS_ERROR_FAILURE; // Invalid data
-
-  // Determine and verify frame display size.
-  float pixelAspectRatio = static_cast<float>(mMetadata.aspectNumerator) / 
+  mInfo.mPixelAspectRatio = static_cast<float>(mMetadata.aspectNumerator) / 
                             mMetadata.aspectDenominator;
-  nsIntSize display(mMetadata.frameWidth, mMetadata.frameHeight);
-  ScaleDisplayByAspectRatio(display, pixelAspectRatio);
-  mPicture = nsIntRect(0, 0, mMetadata.frameWidth, mMetadata.frameHeight);
-  nsIntSize frameSize(mMetadata.frameWidth, mMetadata.frameHeight);
-  if (!nsVideoInfo::ValidateVideoRegion(frameSize, mPicture, display)) {
-    // Video track's frame sizes will overflow. Fail.
-    return NS_ERROR_FAILURE;
-  }
-
-  mInfo.mHasVideo = PR_TRUE;
+  mInfo.mDataOffset = sizeof(nsRawVideoHeader) + 1;
   mInfo.mHasAudio = PR_FALSE;
-  mInfo.mDisplay = display;
 
   mFrameRate = static_cast<float>(mMetadata.framerateNumerator) /
                mMetadata.framerateDenominator;
@@ -118,7 +113,7 @@ nsresult nsRawReader::ReadMetadata(nsVideoInfo* aInfo)
   // Make some sanity checks
   if (mFrameRate > 45 ||
       mFrameRate == 0 ||
-      pixelAspectRatio == 0 ||
+      mInfo.mPixelAspectRatio == 0 ||
       mMetadata.frameWidth > 2000 ||
       mMetadata.frameHeight > 2000 ||
       mMetadata.chromaChannelBpp != 4 ||
@@ -132,8 +127,9 @@ nsresult nsRawReader::ReadMetadata(nsVideoInfo* aInfo)
 
   PRInt64 length = stream->GetLength();
   if (length != -1) {
-    mozilla::ReentrantMonitorAutoEnter autoMonitor(mDecoder->GetReentrantMonitor());
-    mDecoder->GetStateMachine()->SetDuration(USECS_PER_S *
+    mozilla::MonitorAutoExit autoExitMonitor(mMonitor);
+    mozilla::MonitorAutoEnter autoMonitor(mDecoder->GetMonitor());
+    mDecoder->GetStateMachine()->SetDuration(1000 *
                                            (length - sizeof(nsRawVideoHeader)) /
                                            (mFrameSize * mFrameRate));
   }
@@ -176,8 +172,9 @@ PRBool nsRawReader::ReadFromStream(nsMediaStream *aStream, PRUint8* aBuf,
 PRBool nsRawReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
                                      PRInt64 aTimeThreshold)
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(),
-               "Should be on decode thread.");
+  mozilla::MonitorAutoEnter autoEnter(mMonitor);
+  NS_ASSERTION(mDecoder->OnStateMachineThread() || mDecoder->OnDecodeThread(),
+               "Should be on state machine thread or decode thread.");
 
   // Record number of frames decoded and parsed. Automatically update the
   // stats counters using the AutoNotifyDecoded stack-based class.
@@ -187,10 +184,10 @@ PRBool nsRawReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
   if (!mFrameSize)
     return PR_FALSE; // Metadata read failed.  We should refuse to play.
 
-  PRInt64 currentFrameTime = USECS_PER_S * mCurrentFrame / mFrameRate;
+  PRInt64 currentFrameTime = 1000 * mCurrentFrame / mFrameRate;
   PRUint32 length = mFrameSize - sizeof(nsRawPacketHeader);
 
-  nsAutoArrayPtr<PRUint8> buffer(new PRUint8[length]);
+  nsAutoPtr<PRUint8> buffer(new PRUint8[length]);
   nsMediaStream* stream = mDecoder->GetCurrentStream();
   NS_ASSERTION(stream, "Decoder has no media stream");
 
@@ -215,7 +212,7 @@ PRBool nsRawReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
       break;
 
     mCurrentFrame++;
-    currentFrameTime += static_cast<double>(USECS_PER_S) / mFrameRate;
+    currentFrameTime += 1000.0 / mFrameRate;
   }
 
   VideoData::YCbCrBuffer b;
@@ -240,26 +237,26 @@ PRBool nsRawReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
                                    mDecoder->GetImageContainer(),
                                    -1,
                                    currentFrameTime,
-                                   currentFrameTime + (USECS_PER_S / mFrameRate),
+                                   currentFrameTime + (1000 / mFrameRate),
                                    b,
                                    1, // In raw video every frame is a keyframe
-                                   -1,
-                                   mPicture);
+                                   -1);
   if (!v)
     return PR_FALSE;
 
   mVideoQueue.Push(v);
   mCurrentFrame++;
   decoded++;
-  currentFrameTime += USECS_PER_S / mFrameRate;
+  currentFrameTime += 1000 / mFrameRate;
 
   return PR_TRUE;
 }
 
 nsresult nsRawReader::Seek(PRInt64 aTime, PRInt64 aStartTime, PRInt64 aEndTime, PRInt64 aCurrentTime)
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(),
-               "Should be on decode thread.");
+  mozilla::MonitorAutoEnter autoEnter(mMonitor);
+  NS_ASSERTION(mDecoder->OnStateMachineThread(),
+               "Should be on state machine thread.");
 
   nsMediaStream *stream = mDecoder->GetCurrentStream();
   NS_ASSERTION(stream, "Decoder has no media stream");
@@ -267,7 +264,7 @@ nsresult nsRawReader::Seek(PRInt64 aTime, PRInt64 aStartTime, PRInt64 aEndTime, 
   PRUint32 frame = mCurrentFrame;
   if (aTime >= UINT_MAX)
     return NS_ERROR_FAILURE;
-  mCurrentFrame = aTime * mFrameRate / USECS_PER_S;
+  mCurrentFrame = aTime * mFrameRate / 1000;
 
   PRUint32 offset;
   if (!MulOverflow32(mCurrentFrame, mFrameSize, offset))
@@ -288,7 +285,8 @@ nsresult nsRawReader::Seek(PRInt64 aTime, PRInt64 aStartTime, PRInt64 aEndTime, 
     }
 
     {
-      mozilla::ReentrantMonitorAutoEnter autoMonitor(mDecoder->GetReentrantMonitor());
+      mozilla::MonitorAutoExit autoMonitorExit(mMonitor);
+      mozilla::MonitorAutoEnter autoMonitor(mDecoder->GetMonitor());
       if (mDecoder->GetDecodeState() ==
           nsBuiltinDecoderStateMachine::DECODER_STATE_SHUTDOWN) {
         mCurrentFrame = frame;
@@ -306,6 +304,11 @@ nsresult nsRawReader::Seek(PRInt64 aTime, PRInt64 aStartTime, PRInt64 aEndTime, 
   }
 
   return NS_OK;
+}
+
+PRInt64 nsRawReader::FindEndTime(PRInt64 aEndTime)
+{
+  return -1;
 }
 
 nsresult nsRawReader::GetBuffered(nsTimeRanges* aBuffered, PRInt64 aStartTime)

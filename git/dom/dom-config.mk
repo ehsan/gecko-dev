@@ -7,14 +7,13 @@ DOM_SRCDIRS = \
   dom/src/offline \
   dom/src/geolocation \
   dom/src/notification \
-  dom/workers \
+  dom/src/threads \
   content/xbl/src \
   content/xul/document/src \
   content/events/src \
   content/base/src \
   content/html/content/src \
   content/html/document/src \
-  content/svg/content/src \
   layout/generic \
   layout/style \
   layout/xul/base/src \

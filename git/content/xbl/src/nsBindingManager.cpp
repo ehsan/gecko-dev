@@ -93,7 +93,7 @@
 class nsAnonymousContentList : public nsINodeList
 {
 public:
-  nsAnonymousContentList(nsIContent *aContent, nsInsertionPointList* aElements);
+  nsAnonymousContentList(nsInsertionPointList* aElements);
   virtual ~nsAnonymousContentList();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -104,10 +104,6 @@ public:
   // nsINodeList interface
   virtual nsIContent* GetNodeAt(PRUint32 aIndex);
   virtual PRInt32 IndexOf(nsIContent* aContent);
-  virtual nsINode *GetParentObject()
-  {
-    return mContent;
-  }
 
   PRInt32 GetInsertionPointCount() { return mElements->Length(); }
 
@@ -115,17 +111,14 @@ public:
   void RemoveInsertionPointAt(PRInt32 i) { mElements->RemoveElementAt(i); }
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ANONYMOUS_CONTENT_LIST_IID)
 private:
-  nsCOMPtr<nsIContent> mContent;
   nsInsertionPointList* mElements;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsAnonymousContentList,
                               NS_ANONYMOUS_CONTENT_LIST_IID)
 
-nsAnonymousContentList::nsAnonymousContentList(nsIContent *aContent,
-                                               nsInsertionPointList* aElements)
-  : mContent(aContent),
-    mElements(aElements)
+nsAnonymousContentList::nsAnonymousContentList(nsInsertionPointList* aElements)
+  : mElements(aElements)
 {
   MOZ_COUNT_CTOR(nsAnonymousContentList);
 
@@ -156,12 +149,10 @@ NS_INTERFACE_TABLE_HEAD(nsAnonymousContentList)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsAnonymousContentList)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mContent)
   tmp->mElements->Clear();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsAnonymousContentList)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mContent)
   {
     PRInt32 i, count = tmp->mElements->Length();
     for (i = 0; i < count; ++i) {
@@ -402,10 +393,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsBindingManager)
   tmp->mWrapperTable.ops = nsnull;
 
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSTARRAY(mAttachedStack)
-
-  if (tmp->mProcessAttachedQueueEvent) {
-    tmp->mProcessAttachedQueueEvent->Revoke();
-  }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 
@@ -586,9 +573,6 @@ nsBindingManager::SetBinding(nsIContent* aContent, nsXBLBinding* aBinding)
     SetWrappedJS(aContent, nsnull);
     SetContentListFor(aContent, nsnull);
     SetAnonymousNodesFor(aContent, nsnull);
-    if (oldBinding) {
-      oldBinding->SetBoundElement(nsnull);
-    }
   }
 
   return result ? NS_OK : NS_ERROR_FAILURE;
@@ -726,7 +710,7 @@ nsBindingManager::SetContentListFor(nsIContent* aContent,
 
   nsAnonymousContentList* contentList = nsnull;
   if (aList) {
-    contentList = new nsAnonymousContentList(aContent, aList);
+    contentList = new nsAnonymousContentList(aList);
     if (!contentList) {
       delete aList;
       return NS_ERROR_OUT_OF_MEMORY;
@@ -790,7 +774,7 @@ nsBindingManager::SetAnonymousNodesFor(nsIContent* aContent,
 
   nsAnonymousContentList* contentList = nsnull;
   if (aList) {
-    contentList = new nsAnonymousContentList(aContent, aList);
+    contentList = new nsAnonymousContentList(aList);
     if (!contentList) {
       delete aList;
       return NS_ERROR_OUT_OF_MEMORY;

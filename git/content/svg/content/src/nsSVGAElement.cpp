@@ -43,7 +43,7 @@
 #include "nsSVGString.h"
 #include "nsCOMPtr.h"
 #include "nsGkAtoms.h"
-#include "nsContentUtils.h"
+
 
 nsSVGElement::StringInfo nsSVGAElement::sStringInfo[2] =
 {
@@ -79,8 +79,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGAElementBase)
 // Implementation
 
 nsSVGAElement::nsSVGAElement(already_AddRefed<nsINodeInfo> aNodeInfo)
-  : nsSVGAElementBase(aNodeInfo),
-    Link(this)
+  : nsSVGAElementBase(aNodeInfo)
 {
 }
 
@@ -159,12 +158,6 @@ nsLinkState
 nsSVGAElement::GetLinkState() const
 {
   return Link::GetLinkState();
-}
-
-void
-nsSVGAElement::RequestLinkStateUpdate()
-{
-  UpdateLinkState(Link::LinkState());
 }
 
 already_AddRefed<nsIURI>

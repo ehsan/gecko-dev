@@ -45,13 +45,17 @@
 #endif
 
 #include "nsIWindowsRegKey.h"
-#include "client/windows/crash_generation/crash_generation_server.h"
+#if defined(MOZ_IPC)
+#  include "client/windows/crash_generation/crash_generation_server.h"
+#endif
 #include "client/windows/handler/exception_handler.h"
 #include <DbgHelp.h>
 #include <string.h>
 #elif defined(XP_MACOSX)
-#include "client/mac/crash_generation/client_info.h"
-#include "client/mac/crash_generation/crash_generation_server.h"
+#if defined(MOZ_IPC)
+#  include "client/mac/crash_generation/client_info.h"
+#  include "client/mac/crash_generation/crash_generation_server.h"
+#endif
 #include "client/mac/handler/exception_handler.h"
 #include <string>
 #include <Carbon/Carbon.h>
@@ -69,8 +73,10 @@
 #include "nsIINIParser.h"
 #include "common/linux/linux_libc_support.h"
 #include "common/linux/linux_syscall_support.h"
-#include "client/linux/crash_generation/client_info.h"
-#include "client/linux/crash_generation/crash_generation_server.h"
+#if defined(MOZ_IPC)
+#  include "client/linux/crash_generation/client_info.h"
+#  include "client/linux/crash_generation/crash_generation_server.h"
+#endif
 #include "client/linux/handler/exception_handler.h"
 #include "client/linux/minidump_writer/linux_dumper.h"
 #include "client/linux/minidump_writer/minidump_writer.h"
@@ -106,12 +112,14 @@
 CFStringRef reporterClientAppID = CFSTR("org.mozilla.crashreporter");
 #endif
 
+#if defined(MOZ_IPC)
 #include "nsIUUIDGenerator.h"
 
 using google_breakpad::CrashGenerationServer;
 using google_breakpad::ClientInfo;
 using mozilla::Mutex;
 using mozilla::MutexAutoLock;
+#endif // MOZ_IPC
 
 namespace CrashReporter {
 
@@ -201,6 +209,7 @@ static AnnotationTable* crashReporterAPIData_Hash;
 static nsCString* crashReporterAPIData = nsnull;
 static nsCString* notesField = nsnull;
 
+#if defined(MOZ_IPC)
 // OOP crash reporting
 static CrashGenerationServer* crashServer; // chrome process has this
 
@@ -231,6 +240,8 @@ static const char* kSubprocessBlacklist[] = {
   "URL"
 };
 
+
+#endif  // MOZ_IPC
 
 #ifdef XP_MACOSX
 static cpu_type_t pref_cpu_types[2] = {
@@ -1017,7 +1028,9 @@ nsresult SetupExtraData(nsILocalFile* aAppDataDirectory,
   return NS_OK;
 }
 
+#ifdef MOZ_IPC
 static void OOPDeinit();
+#endif
 
 nsresult UnsetExceptionHandler()
 {
@@ -1054,7 +1067,9 @@ nsresult UnsetExceptionHandler()
 
   gExceptionHandler = nsnull;
 
+#ifdef MOZ_IPC
   OOPDeinit();
+#endif
 
   return NS_OK;
 }
@@ -1151,32 +1166,6 @@ bool GetAnnotation(const nsACString& key, nsACString& data)
 
   data = entry;
   return true;
-}
-
-nsresult RegisterAppMemory(void* ptr, size_t length)
-{
-  if (!GetEnabled())
-    return NS_ERROR_NOT_INITIALIZED;
-
-#if defined(XP_LINUX) || defined(XP_WIN32)
-  gExceptionHandler->RegisterAppMemory(ptr, length);
-  return NS_OK;
-#else
-  return NS_ERROR_NOT_IMPLEMENTED;
-#endif
-}
-
-nsresult UnregisterAppMemory(void* ptr)
-{
-  if (!GetEnabled())
-    return NS_ERROR_NOT_INITIALIZED;
-
-#if defined(XP_LINUX) || defined(XP_WIN32)
-  gExceptionHandler->UnregisterAppMemory(ptr);
-  return NS_OK;
-#else
-  return NS_ERROR_NOT_IMPLEMENTED;
-#endif
 }
 
 bool GetServerURL(nsACString& aServerURL)
@@ -1654,6 +1643,8 @@ AppendExtraData(nsILocalFile* extraFile, const AnnotationTable& data)
 }
 
 
+#if defined(MOZ_IPC)
+
 static bool
 WriteExtraForMinidump(nsILocalFile* minidump,
                       const Blacklist& blacklist,
@@ -1715,7 +1706,6 @@ OnChildProcessDumpRequested(void* aContext,
   // have access to the library mappings.
   MappingMap::const_iterator iter = 
     child_library_mappings.find(aClientInfo->pid_);
-  google_breakpad::AppMemoryList a;
   if (iter == child_library_mappings.end()) {
     NS_WARNING("No library mappings found for child, can't write minidump!");
     return;
@@ -1725,8 +1715,7 @@ OnChildProcessDumpRequested(void* aContext,
                                       aClientInfo->pid_,
                                       aClientInfo->crash_context,
                                       aClientInfo->crash_context_size,
-                                      iter->second,
-                                      a))
+                                      iter->second))
     return;
 #endif
 
@@ -2124,6 +2113,8 @@ UnsetRemoteExceptionHandler()
   return true;
 }
 
+#endif  // MOZ_IPC
+
 #if defined(__ANDROID__)
 void AddLibraryMapping(const char* library_name,
                        const char* file_id,
@@ -2151,6 +2142,7 @@ void AddLibraryMapping(const char* library_name,
   }
 }
 
+#ifdef MOZ_IPC
 void AddLibraryMappingForChild(PRUint32    childPid,
                                const char* library_name,
                                const char* file_id,
@@ -2180,6 +2172,7 @@ void RemoveLibraryMappingsForChild(PRUint32 childPid)
   if (iter != child_library_mappings.end())
     child_library_mappings.erase(iter);
 }
+#endif
 #endif
 
 } // namespace CrashReporter

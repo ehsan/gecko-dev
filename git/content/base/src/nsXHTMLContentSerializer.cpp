@@ -47,6 +47,7 @@
 #include "nsXHTMLContentSerializer.h"
 
 #include "nsIDOMElement.h"
+#include "nsIDOMText.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
@@ -67,7 +68,6 @@
 #include "nsLWBrkCIID.h"
 #include "nsIScriptElement.h"
 #include "nsAttrName.h"
-#include "nsParserConstants.h"
 
 static const char kMozStr[] = "moz";
 

@@ -50,6 +50,8 @@
         onload="test();">
 
   <script type="application/javascript"
+          src="chrome://mochikit/content/MochiKit/packed.js"/>
+  <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"/>
   <script type="application/javascript"
           src="utils.js"/>
@@ -107,8 +109,14 @@ bug413093obs.prototype = {
         // reset the changed config values to default value
         let prefs = Cc["@mozilla.org/preferences-service;1"].
                     getService(Ci.nsIPrefService);
-        prefs.clearUserPref("browser.download.manager.retention");
-        prefs.clearUserPref("browser.download.manager.closeWhenDone");
+        try {
+          prefs.clearUserPref("browser.download.manager.retention");
+        }
+        catch (err) { }
+        try {
+          prefs.clearUserPref("browser.download.manager.closeWhenDone");
+        }
+        catch (err) { }
 
         SimpleTest.finish();
       });

@@ -57,6 +57,7 @@ SDK_XPIDLSRCS   = \
 		nsIURL.idl \
 		nsIFileURL.idl \
 		nsIUploadChannel.idl \
+		nsIUnicharStreamListener.idl \
 		nsITraceableChannel.idl \
 		$(NULL)
 
@@ -112,7 +113,6 @@ XPIDLSRCS	= \
 		nsIStreamLoader.idl \
 		nsISyncStreamListener.idl \
 		nsISystemProxySettings.idl \
-		nsITimedChannel.idl \
 		nsIUnicharStreamLoader.idl \
 		nsIUploadChannel2.idl \
 		nsIStandardURL.idl \
@@ -143,11 +143,15 @@ XPIDLSRCS	= \
 		nsIRedirectResultListener.idl \
 		mozIThirdPartyUtil.idl \
 		nsISerializationHelper.idl \
+		$(NULL)
+
+ifdef MOZ_IPC
+XPIDLSRCS	+= \
 		nsIChildChannel.idl \
 		nsIParentChannel.idl \
 		nsIParentRedirectingChannel.idl \
-		nsIRedirectChannelRegistrar.idl \
-		$(NULL)
+		nsIRedirectChannelRegistrar.idl
+endif
 
 ifdef MOZ_TOOLKIT_SEARCH
 XPIDLSRCS	+= nsIBrowserSearchService.idl

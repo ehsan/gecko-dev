@@ -53,6 +53,7 @@
 
 #include "nsCoord.h"
 #include "nsNativeThemeQt.h"
+#include "nsIDeviceContext.h"
 #include "nsPresContext.h"
 
 #include "nsRect.h"
@@ -61,6 +62,7 @@
 #include "nsThemeConstants.h"
 #include "nsILookAndFeel.h"
 #include "nsIServiceManager.h"
+#include "nsIEventStateManager.h"
 #include "nsIDOMHTMLInputElement.h"
 #include <malloc.h>
 
@@ -72,7 +74,7 @@
 #ifdef MOZ_X11
 #include "gfxXlibSurface.h"
 #endif
-#include "nsRenderingContext.h"
+#include "nsIRenderingContext.h"
 
 nsNativeThemeQt::nsNativeThemeQt()
 {
@@ -121,7 +123,7 @@ _qimage_from_gfximage_format (gfxASurface::gfxImageFormat aFormat)
 }
 
 NS_IMETHODIMP
-nsNativeThemeQt::DrawWidgetBackground(nsRenderingContext* aContext,
+nsNativeThemeQt::DrawWidgetBackground(nsIRenderingContext* aContext,
                                       nsIFrame* aFrame,
                                       PRUint8 aWidgetType,
                                       const nsRect& aRect,
@@ -170,7 +172,7 @@ nsNativeThemeQt::DrawWidgetBackground(nsRenderingContext* aContext,
 
 nsresult
 nsNativeThemeQt::DrawWidgetBackground(QPainter *qPainter,
-                                      nsRenderingContext* aContext,
+                                      nsIRenderingContext* aContext,
                                       nsIFrame* aFrame,
                                       PRUint8 aWidgetType,
                                       const nsRect& aRect,
@@ -198,7 +200,7 @@ nsNativeThemeQt::DrawWidgetBackground(QPainter *qPainter,
     QMatrix qctm(ctm.xx, ctm.yx, ctm.xy, ctm.yy, ctm.x0, ctm.y0);
     qPainter->setWorldMatrix(qctm, true);
 
-    PRInt32 p2a = aContext->AppUnitsPerDevPixel();
+    PRInt32 p2a = GetAppUnitsPerDevPixel(aContext);
 
     QRect r = qRectInPixels(aRect, p2a);
     QRect cr = qRectInPixels(aClipRect, p2a);
@@ -345,7 +347,7 @@ nsNativeThemeQt::DrawWidgetBackground(QPainter *qPainter,
 }
 
 NS_IMETHODIMP
-nsNativeThemeQt::GetWidgetBorder(nsDeviceContext* ,
+nsNativeThemeQt::GetWidgetBorder(nsIDeviceContext* aContext,
                                  nsIFrame* aFrame,
                                  PRUint8 aWidgetType,
                                  nsIntMargin* aResult)
@@ -368,7 +370,7 @@ nsNativeThemeQt::GetWidgetBorder(nsDeviceContext* ,
 }
 
 PRBool
-nsNativeThemeQt::GetWidgetPadding(nsDeviceContext* ,
+nsNativeThemeQt::GetWidgetPadding(nsIDeviceContext* ,
                                   nsIFrame*, PRUint8 aWidgetType,
                                   nsIntMargin* aResult)
 {
@@ -384,7 +386,7 @@ nsNativeThemeQt::GetWidgetPadding(nsDeviceContext* ,
 }
 
 NS_IMETHODIMP
-nsNativeThemeQt::GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* aFrame,
+nsNativeThemeQt::GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* aFrame,
                                       PRUint8 aWidgetType,
                                       nsIntSize* aResult, PRBool* aIsOverridable)
 {
@@ -393,7 +395,7 @@ nsNativeThemeQt::GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* aF
 
     QStyle *s = qApp->style();
 
-    PRInt32 p2a = aContext->AppUnitsPerDevPixel();
+    PRInt32 p2a = GetAppUnitsPerDevPixel(aContext);
 
     switch (aWidgetType) {
     case NS_THEME_RADIO:

@@ -72,14 +72,12 @@
 #include "gfxPlatformFontList.h"
 #include "gfxTextRunWordCache.h"
 
+#include "nsIPrefService.h"
+#include "nsIPrefBranch2.h"  // for pref changes callback notification
+#include "nsServiceManagerUtils.h"
 #include "nsUnicharUtils.h"
 #include "nsUnicodeRange.h"
 #include "gfxUnicodeProperties.h"
-
-#include "mozilla/Preferences.h"
-#include "mozilla/Telemetry.h"
-
-using namespace mozilla;
 
 // font info loader constants
 static const PRUint32 kDelayBeforeLoadingCmaps = 8 * 1000; // 8secs
@@ -99,20 +97,11 @@ static const PRUint32 kNumFontsPerSlice = 10; // read in info 10 fonts at a time
 gfxPlatformFontList *gfxPlatformFontList::sPlatformFontList = nsnull;
 
 
-static const char* kObservedPrefs[] = {
-    "font.",
-    "font.name-list.",
-    "intl.accept_languages",  // hmmmm...
-    nsnull
-};
-
 class gfxFontListPrefObserver : public nsIObserver {
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIOBSERVER
 };
-
-static gfxFontListPrefObserver* gFontListPrefObserver = nsnull;
 
 NS_IMPL_ISUPPORTS1(gfxFontListPrefObserver, nsIObserver)
 
@@ -150,18 +139,17 @@ gfxPlatformFontList::gfxPlatformFontList(PRBool aNeedFullnamePostscriptNames)
     LoadBadUnderlineList();
 
     // pref changes notification setup
-    NS_ASSERTION(!gFontListPrefObserver,
-                 "There has been font list pref observer already");
-    gFontListPrefObserver = new gfxFontListPrefObserver();
-    NS_ADDREF(gFontListPrefObserver);
-    Preferences::AddStrongObservers(gFontListPrefObserver, kObservedPrefs);
-}
-
-gfxPlatformFontList::~gfxPlatformFontList()
-{
-    NS_ASSERTION(gFontListPrefObserver, "There is no font list pref observer");
-    Preferences::RemoveObservers(gFontListPrefObserver, kObservedPrefs);
-    NS_RELEASE(gFontListPrefObserver);
+    gfxFontListPrefObserver *observer = new gfxFontListPrefObserver();
+    if (observer) {
+        nsCOMPtr<nsIPrefBranch2> pref = do_GetService(NS_PREFSERVICE_CONTRACTID);
+        if (pref) {
+            pref->AddObserver("font.", observer, PR_FALSE);
+            pref->AddObserver("font.name-list.", observer, PR_FALSE);
+            pref->AddObserver("intl.accept_languages", observer, PR_FALSE);  // hmmmm...
+        } else {
+            delete observer;
+        }
+    }
 }
 
 nsresult
@@ -200,7 +188,6 @@ gfxPlatformFontList::InitOtherFamilyNames()
 {
     mOtherFamilyNamesInitialized = PR_TRUE;
 
-    Telemetry::AutoTimer<Telemetry::FONTLIST_INITOTHERFAMILYNAMES> timer;
     // iterate over all font families and read in other family names
     mFontFamilies.Enumerate(gfxPlatformFontList::InitOtherFamilyNamesProc, this);
 }
@@ -221,7 +208,6 @@ gfxPlatformFontList::InitFaceNameLists()
     mFaceNamesInitialized = PR_TRUE;
 
     // iterate over all font families and read in other family names
-    Telemetry::AutoTimer<Telemetry::FONTLIST_INITFACENAMELISTS> timer;
     mFontFamilies.Enumerate(gfxPlatformFontList::InitFaceNameListsProc, this);
 }
 

@@ -65,14 +65,13 @@ PARALLEL_DIRS += \
   perf \
   places \
   prompts \
-  reflect \
   startup \
   statusfilter \
   typeaheadfind \
   urlformatter \
   viewconfig \
   viewsource \
-  telemetry \
+  webapps \
   $(NULL)
 
 ifdef BUILD_CTYPES
@@ -119,6 +118,10 @@ endif
 
 ifdef MOZ_URL_CLASSIFIER
 PARALLEL_DIRS += url-classifier
+endif
+
+ifdef MOZ_FASTSTART
+PARALLEL_DIRS += faststart
 endif
 
 DIRS += \

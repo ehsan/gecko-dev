@@ -42,6 +42,7 @@
 #include "nsStyleConsts.h"
 #include "nsIForm.h"
 #include "nsIFormControl.h"
+#include "nsIEventStateManager.h"
 #include "nsIDocument.h"
 #include "nsPIDOMWindow.h"
 #include "nsFocusManager.h"
@@ -89,6 +90,7 @@ nsHTMLLegendElement::GetForm(nsIDOMHTMLFormElement** aForm)
 }
 
 
+NS_IMPL_STRING_ATTR(nsHTMLLegendElement, AccessKey, accesskey)
 NS_IMPL_STRING_ATTR(nsHTMLLegendElement, Align, align)
 
 // this contains center, because IE4 does
@@ -144,13 +146,34 @@ nsHTMLLegendElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              nsIAtom* aPrefix, const nsAString& aValue,
                              PRBool aNotify)
 {
-  return nsGenericHTMLElement::SetAttr(aNameSpaceID, aAttribute,
-                                       aPrefix, aValue, aNotify);
+  PRBool accesskey = (aAttribute == nsGkAtoms::accesskey &&
+                      aNameSpaceID == kNameSpaceID_None);
+  if (accesskey) {
+    UnregAccessKey();
+  }
+
+  nsresult rv = nsGenericHTMLElement::SetAttr(aNameSpaceID, aAttribute,
+                                              aPrefix, aValue, aNotify);
+
+  if (accesskey && !aValue.IsEmpty()) {
+    SetFlags(NODE_HAS_ACCESSKEY);
+    RegAccessKey();
+  }
+
+  return rv;
 }
+
 nsresult
 nsHTMLLegendElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                                PRBool aNotify)
 {
+  if (aAttribute == nsGkAtoms::accesskey &&
+      aNameSpaceID == kNameSpaceID_None) {
+    // Have to unregister before clearing flag. See UnregAccessKey
+    UnregAccessKey();
+    UnsetFlags(NODE_HAS_ACCESSKEY);
+  }
+
   return nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute, aNotify);
 }
 
@@ -159,14 +182,25 @@ nsHTMLLegendElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                 nsIContent* aBindingParent,
                                 PRBool aCompileEventHandlers)
 {
-  return nsGenericHTMLElement::BindToTree(aDocument, aParent,
-                                          aBindingParent,
-                                          aCompileEventHandlers);
+  nsresult rv = nsGenericHTMLElement::BindToTree(aDocument, aParent,
+                                                 aBindingParent,
+                                                 aCompileEventHandlers);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (aDocument) {
+    RegAccessKey();
+  }
+
+  return rv;
 }
 
 void
 nsHTMLLegendElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
+  if (IsInDoc()) {
+    UnregAccessKey();
+  }
+
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
 }
 

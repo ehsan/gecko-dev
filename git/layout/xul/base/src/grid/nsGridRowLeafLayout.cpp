@@ -51,9 +51,9 @@
 #include "nsBoxFrame.h"
 #include "nsGridLayout2.h"
 
-already_AddRefed<nsBoxLayout> NS_NewGridRowLeafLayout()
+already_AddRefed<nsIBoxLayout> NS_NewGridRowLeafLayout()
 {
-  nsBoxLayout* layout = new nsGridRowLeafLayout();
+  nsIBoxLayout* layout = new nsGridRowLeafLayout();
   NS_IF_ADDREF(layout);
   return layout;
 } 
@@ -261,8 +261,9 @@ nsGridRowLeafLayout::ComputeChildSizes(nsIBox* aBox,
 
     // go up the parent chain looking for scrollframes
     nscoord diff = 0;
+    nsCOMPtr<nsIGridPart> parent;
     nsIBox* parentBox;
-    nsIGridPart* parent = GetParentGridPart(aBox, &parentBox);
+    GetParentGridPart(aBox, &parentBox, getter_AddRefs(parent));
     while (parentBox) {
       nsIBox* scrollbox = nsGrid::GetScrollBox(parentBox);
       nsIScrollableFrame *scrollable = do_QueryFrame(scrollbox);
@@ -280,7 +281,7 @@ nsGridRowLeafLayout::ComputeChildSizes(nsIBox* aBox,
         }
       }
 
-      parent = GetParentGridPart(parentBox, &parentBox);
+      GetParentGridPart(parentBox, &parentBox, getter_AddRefs(parent));
     }
 
     if (diff > 0) {

@@ -35,9 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef GFX_GLXLIBRARY_H
-#define GFX_GLXLIBRARY_H
-
 #include "GLContext.h"
 typedef realGLboolean GLboolean;
 #include <GL/glx.h>
@@ -49,7 +46,7 @@ class GLXLibrary
 {
 public:
     GLXLibrary() : mInitialized(PR_FALSE), mTriedInitializing(PR_FALSE),
-                   mHasTextureFromPixmap(PR_FALSE), mOGLLibrary(nsnull) {}
+                   mOGLLibrary(nsnull) {}
 
     typedef void (GLAPIENTRY * PFNGLXDESTROYCONTEXTPROC) (Display*,
                                                           GLXContext);
@@ -123,34 +120,11 @@ public:
                                                     int *);
     PFNGLXQUERYVERSION xQueryVersion;
 
-    typedef void (GLAPIENTRY * PFNGLXBINDTEXIMAGE) (Display *,
-                                                    GLXDrawable,
-                                                    int,
-                                                    const int *);
-    PFNGLXBINDTEXIMAGE xBindTexImage;
-
-    typedef void (GLAPIENTRY * PFNGLXRELEASETEXIMAGE) (Display *,
-                                                       GLXDrawable,
-                                                       int);
-    PFNGLXRELEASETEXIMAGE xReleaseTexImage;
-
-    typedef void (GLAPIENTRY * PFNGLXWAITGL) ();
-    PFNGLXWAITGL xWaitGL;
-
     PRBool EnsureInitialized();
-
-    GLXPixmap CreatePixmap(gfxASurface* aSurface);
-    void DestroyPixmap(GLXPixmap aPixmap);
-    void BindTexImage(GLXPixmap aPixmap);
-    void ReleaseTexImage(GLXPixmap aPixmap);
-
-    PRBool HasTextureFromPixmap() { return mHasTextureFromPixmap; }
-    PRBool SupportsTextureFromPixmap(gfxASurface* aSurface);
 
 private:
     PRBool mInitialized;
     PRBool mTriedInitializing;
-    PRBool mHasTextureFromPixmap;
     PRLibrary *mOGLLibrary;
 };
 
@@ -159,5 +133,4 @@ extern GLXLibrary sGLXLibrary;
 
 } /* namespace gl */
 } /* namespace mozilla */
-#endif /* GFX_GLXLIBRARY_H */
 

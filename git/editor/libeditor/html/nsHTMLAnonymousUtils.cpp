@@ -156,7 +156,8 @@ nsHTMLEditor::CreateAnonymousElement(const nsAString & aTag, nsIDOMNode *  aPare
   NS_ENSURE_TRUE(doc, NS_ERROR_NULL_POINTER);
 
   // Get the pres shell
-  nsCOMPtr<nsIPresShell> ps = GetPresShell();
+  nsCOMPtr<nsIPresShell> ps;
+  GetPresShell(getter_AddRefs(ps));
   NS_ENSURE_TRUE(ps, NS_ERROR_NOT_INITIALIZED);
 
   // Create a new node through the element factory
@@ -429,13 +430,13 @@ nsHTMLEditor::GetPositionAndDimensions(nsIDOMElement * aElement,
     // Yes, it is absolutely positioned
     mResizedObjectIsAbsolutelyPositioned = PR_TRUE;
 
-    nsCOMPtr<nsIDOMWindow> window;
-    res = mHTMLCSSUtils->GetDefaultViewCSS(aElement, getter_AddRefs(window));
-    NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
+    nsCOMPtr<nsIDOMViewCSS> viewCSS;
+    res = mHTMLCSSUtils->GetDefaultViewCSS(aElement, getter_AddRefs(viewCSS));
+    NS_ENSURE_TRUE(viewCSS, NS_ERROR_FAILURE);
 
     nsCOMPtr<nsIDOMCSSStyleDeclaration> cssDecl;
     // Get the all the computed css styles attached to the element node
-    res = window->GetComputedStyle(aElement, EmptyString(), getter_AddRefs(cssDecl));
+    res = viewCSS->GetComputedStyle(aElement, EmptyString(), getter_AddRefs(cssDecl));
     NS_ENSURE_SUCCESS(res, res);
 
     aBorderLeft = GetCSSFloatValue(cssDecl, NS_LITERAL_STRING("border-left-width"));

@@ -210,8 +210,9 @@ class nsIScrollableFrame;
  * or they may cause other objects to be deleted.
  */
 
-class NS_FINAL_CLASS nsFrameSelection : public nsISupports {
+class nsFrameSelection : public nsISupports {
 public:
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_FRAME_SELECTION_IID)
   enum HINT { HINTLEFT = 0, HINTRIGHT = 1};  //end of this line or beginning of next
   /*interfaces for addref and release and queryinterface*/
   
@@ -739,5 +740,7 @@ private:
 
   PRInt8 mCaretMovementStyle;
 };
+
+NS_DEFINE_STATIC_IID_ACCESSOR(nsFrameSelection, NS_FRAME_SELECTION_IID)
 
 #endif /* nsFrameSelection_h___ */

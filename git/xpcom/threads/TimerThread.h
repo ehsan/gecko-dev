@@ -49,14 +49,16 @@
 
 #include "nsTArray.h"
 
-#include "mozilla/Monitor.h"
+#include "mozilla/CondVar.h"
+#include "mozilla/Mutex.h"
 #include "mozilla/TimeStamp.h"
 
 class TimerThread : public nsIRunnable,
                     public nsIObserver
 {
 public:
-  typedef mozilla::Monitor Monitor;
+  typedef mozilla::CondVar CondVar;
+  typedef mozilla::Mutex Mutex;
   typedef mozilla::TimeStamp TimeStamp;
   typedef mozilla::TimeDuration TimeDuration;
 
@@ -97,7 +99,8 @@ private:
   void    ReleaseTimerInternal(nsTimerImpl *aTimer);
 
   nsCOMPtr<nsIThread> mThread;
-  Monitor mMonitor;
+  Mutex mLock;
+  CondVar mCondVar;
 
   PRPackedBool mShutdown;
   PRPackedBool mWaiting;

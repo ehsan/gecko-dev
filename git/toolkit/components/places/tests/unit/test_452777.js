@@ -59,10 +59,10 @@ function run_test()
 
   // Now check to make sure it gets added with the right id
   bs.addObserver({
-    onItemAdded: function(aItemId, aFolder, aIndex, aItemType, aURI, aTitle)
+    onItemAdded: function(aItemId, aFolder, aIndex, aItemType, aURI)
     {
       do_check_eq(aItemId, id);
-      do_check_eq(aTitle, TITLE);
+      do_check_eq(bs.getItemTitle(aItemId), TITLE);
     }
   }, false);
   transaction.undoTransaction();

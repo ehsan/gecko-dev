@@ -41,9 +41,11 @@
 #include "nsStyleConsts.h"
 #include "nsIFrame.h"
 #include "nsIFormControlFrame.h"
-#include "nsEventStates.h"
+#include "nsIEventStateManager.h"
 #include "nsIDocument.h"
 
+#include "nsISelectElement.h"
+#include "nsIDOMHTMLSelectElement.h"
 #include "nsEventDispatcher.h"
 #include "nsHTMLSelectElement.h"
 
@@ -75,7 +77,7 @@ public:
   // nsGenericElement
   virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
                                  PRBool aNotify);
-  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify);
+  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent = PR_TRUE);
 
   // nsIContent
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
@@ -101,8 +103,6 @@ NS_IMPL_NS_NEW_HTML_ELEMENT(OptGroup)
 nsHTMLOptGroupElement::nsHTMLOptGroupElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
-  // We start off enabled
-  AddStatesSilently(NS_EVENT_STATE_ENABLED);
 }
 
 nsHTMLOptGroupElement::~nsHTMLOptGroupElement()
@@ -184,11 +184,10 @@ nsHTMLOptGroupElement::InsertChildAt(nsIContent* aKid,
 }
 
 nsresult
-nsHTMLOptGroupElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify)
+nsHTMLOptGroupElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent)
 {
-  nsSafeOptionListMutation safeMutation(GetSelect(), this, nsnull, aIndex,
-                                        aNotify);
-  nsresult rv = nsGenericHTMLElement::RemoveChildAt(aIndex, aNotify);
+  nsSafeOptionListMutation safeMutation(GetSelect(), this, nsnull, aIndex, aNotify);
+  nsresult rv = nsGenericHTMLElement::RemoveChildAt(aIndex, aNotify, aMutationEvent);
   if (NS_FAILED(rv)) {
     safeMutation.MutationFailed();
   }

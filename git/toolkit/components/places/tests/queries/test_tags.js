@@ -41,8 +41,9 @@
  * Tests bookmark and history queries with tags.  See bug 399799.
  */
 
-// Add your tests here.  Each is a function that's called to run the test.
-[
+// Add your tests here.  Each is an object with a summary string |desc| and a
+// method run() that's called to run the test.
+var gTests = [
 
   function tags_getter_setter()
   {
@@ -123,7 +124,9 @@
     catch (exc) {}
 
     try {
-      var str = PlacesUtils.toISupportsString("foo");
+      var str = Cc["@mozilla.org/supports-string;1"].
+                createInstance(Ci.nsISupportsString);
+      str.data = "foo";
       query = PlacesUtils.history.getNewQuery();
       query.tags = str;
       do_throw("Passing nsISupportsString to SetTags should fail");
@@ -587,7 +590,7 @@
     cleanDatabase(run_next_test);
   },
 
-].forEach(add_test);
+];
 
 // The tag keys in query URIs, i.e., "place:tag=foo&!tags=1"
 //                                          ---     -----

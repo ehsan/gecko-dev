@@ -128,14 +128,14 @@ public:
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
 
-  void PaintCellBackground(nsRenderingContext& aRenderingContext,
+  void PaintCellBackground(nsIRenderingContext& aRenderingContext,
                            const nsRect& aDirtyRect, nsPoint aPt,
                            PRUint32 aFlags);
 
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
   virtual IntrinsicWidthOffsetData
-    IntrinsicWidthOffsets(nsRenderingContext* aRenderingContext);
+    IntrinsicWidthOffsets(nsIRenderingContext* aRenderingContext);
 
   NS_IMETHOD Reflow(nsPresContext*      aPresContext,
                     nsHTMLReflowMetrics& aDesiredSize,
@@ -234,12 +234,12 @@ public:
 
   virtual nsMargin* GetBorderWidth(nsMargin& aBorder) const;
 
-  virtual void PaintBackground(nsRenderingContext& aRenderingContext,
+  virtual void PaintBackground(nsIRenderingContext& aRenderingContext,
                                const nsRect&        aDirtyRect,
                                nsPoint              aPt,
                                PRUint32             aFlags);
 
-  void DecorateForSelection(nsRenderingContext& aRenderingContext,
+  void DecorateForSelection(nsIRenderingContext& aRenderingContext,
                             nsPoint              aPt);
 
 protected:
@@ -338,7 +338,7 @@ public:
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
-  virtual void PaintBackground(nsRenderingContext& aRenderingContext,
+  virtual void PaintBackground(nsIRenderingContext& aRenderingContext,
                                const nsRect&        aDirtyRect,
                                nsPoint              aPt,
                                PRUint32             aFlags);

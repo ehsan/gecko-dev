@@ -71,7 +71,8 @@ nsXULControllers::DeleteControllers()
   for (PRUint32 i = 0; i < count; i++)
   {
     nsXULControllerData* controllerData = mControllers.ElementAt(i);
-    delete controllerData;    // releases the nsIController
+    if (controllerData)
+      delete controllerData;    // releases the nsIController
   }
   
   mControllers.Clear();
@@ -121,8 +122,8 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsXULControllers)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(XULControllers)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsXULControllers)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsXULControllers)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsXULControllers, nsIControllers)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsXULControllers, nsIControllers)
 
 NS_IMETHODIMP
 nsXULControllers::GetControllerForCommand(const char *aCommand, nsIController** _retval)

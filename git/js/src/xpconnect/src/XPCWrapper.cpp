@@ -73,8 +73,7 @@ UnwrapNW(JSContext *cx, uintN argc, jsval *vp)
     return JS_TRUE;
   }
 
-  if (xpc::WrapperFactory::IsXrayWrapper(obj) &&
-      !xpc::WrapperFactory::IsPartiallyTransparent(obj)) {
+  if (xpc::WrapperFactory::IsXrayWrapper(obj)) {
     return JS_GetProperty(cx, obj, "wrappedJSObject", vp);
   }
 
@@ -104,6 +103,7 @@ XrayWrapperConstructor(JSContext *cx, uintN argc, jsval *vp)
   *vp = OBJECT_TO_JSVAL(obj);
   return JS_WrapValue(cx, vp);
 }
+
 // static
 PRBool
 AttachNewConstructorObject(XPCCallContext &ccx, JSObject *aGlobalObject)
@@ -111,13 +111,15 @@ AttachNewConstructorObject(XPCCallContext &ccx, JSObject *aGlobalObject)
   JSObject *xpcnativewrapper =
     JS_DefineFunction(ccx, aGlobalObject, "XPCNativeWrapper",
                       XrayWrapperConstructor, 1,
-                      JSPROP_READONLY | JSPROP_PERMANENT | JSFUN_STUB_GSOPS | JSFUN_CONSTRUCTOR);
+                      JSPROP_READONLY | JSPROP_PERMANENT | JSFUN_STUB_GSOPS);
   if (!xpcnativewrapper) {
     return PR_FALSE;
   }
+
   return JS_DefineFunction(ccx, xpcnativewrapper, "unwrap", UnwrapNW, 1,
                            JSPROP_READONLY | JSPROP_PERMANENT) != nsnull;
 }
+
 }
 
 namespace XPCWrapper {
@@ -135,7 +137,7 @@ Unwrap(JSContext *cx, JSObject *wrapper)
 }
 
 JSObject *
-UnsafeUnwrapSecurityWrapper(JSObject *obj)
+UnsafeUnwrapSecurityWrapper(JSContext *cx, JSObject *obj)
 {
   if (obj->isProxy()) {
     return obj->unwrap();

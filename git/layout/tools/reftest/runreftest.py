@@ -63,12 +63,7 @@ class RefTest(object):
 
   def getManifestPath(self, path):
     "Get the path of the manifest, and for remote testing this function is subclassed to point to remote manifest"
-    path = self.getFullPath(path)
-    if os.path.isdir(path):
-      defaultManifestPath = os.path.join(path, 'reftest.list')
-      if os.path.exists(defaultManifestPath):
-        path = defaultManifestPath
-    return path
+    return self.getFullPath(path)
 
   def createReftestProfile(self, options, profileDir, server='localhost'):
     "Sets up a profile for reftest."
@@ -88,8 +83,6 @@ class RefTest(object):
       prefsFile.write('user_pref("reftest.thisChunk", %d);\n' % options.thisChunk)
     if options.logFile != None:
       prefsFile.write('user_pref("reftest.logFile", "%s");\n' % options.logFile)
-    if options.ignoreWindowSize != False:
-      prefsFile.write('user_pref("reftest.ignoreWindowSize", true);\n')
 
     for v in options.extraPrefs:
       thispref = v.split("=")
@@ -135,9 +128,9 @@ class RefTest(object):
 
   def cleanup(self, profileDir):
     if profileDir:
-      shutil.rmtree(profileDir, True)
+      shutil.rmtree(profileDir)
 
-  def runTests(self, testPath, options):
+  def runTests(self, manifest, options):
     debuggerInfo = getDebuggerInfo(self.oldcwd, options.debugger, options.debuggerArgs,
         options.debuggerInteractive);
 
@@ -155,7 +148,7 @@ class RefTest(object):
 
       # then again to actually run reftest
       self.automation.log.info("REFTEST INFO | runreftest.py | Running tests: start.\n")
-      reftestlist = self.getManifestPath(testPath)
+      reftestlist = self.getManifestPath(manifest)
       status = self.automation.runApp(None, browserEnv, options.app, profileDir,
                                  ["-reftest", reftestlist],
                                  utilityPath = options.utilityPath,
@@ -175,26 +168,18 @@ class RefTest(object):
     "Copy extra files or dirs specified on the command line to the testing profile."
     for f in options.extraProfileFiles:
       abspath = self.getFullPath(f)
-      if os.path.isfile(abspath):
-        shutil.copy2(abspath, profileDir)
-      elif os.path.isdir(abspath):
-        dest = os.path.join(profileDir, os.path.basename(abspath))
+      dest = os.path.join(profileDir, os.path.basename(abspath))
+      if os.path.isdir(abspath):
         shutil.copytree(abspath, dest)
       else:
-        self.automation.log.warning("WARNING | runreftest.py | Failed to copy %s to profile", abspath)
-        continue
+        shutil.copy(abspath, dest)
 
   def installExtensionsToProfile(self, options, profileDir):
-    "Install application distributed extensions and specified on the command line ones to testing profile."
-    # Install distributed extensions, if application has any.
-    distExtDir = os.path.join(options.app[ : options.app.rfind(os.sep)], "distribution", "extensions")
-    if os.path.isdir(distExtDir):
-      for f in os.listdir(distExtDir):
-        self.automation.installExtension(os.path.join(distExtDir, f), profileDir)
-
-    # Install custom extensions.
+    "Install the specified extensions on the command line to the testing profile."
     for f in options.extensionsToInstall:
-      self.automation.installExtension(self.getFullPath(f), profileDir)
+      abspath = self.getFullPath(f)
+      extensionID = f[:f.rfind(".")]
+      self.automation.installExtension(abspath, profileDir, extensionID)
 
 
 class ReftestOptions(OptionParser):
@@ -256,17 +241,11 @@ class ReftestOptions(OptionParser):
                     help = "skip tests marked as slow when running")
     defaults["skipSlowTests"] = False
 
-    self.add_option("--ignore-window-size",
-                    dest = "ignoreWindowSize", action = "store_true",
-                    help = "ignore the window size, which may cause spurious failures and passes")
-    defaults["ignoreWindowSize"] = False
-
     self.add_option("--install-extension",
                     action = "append", dest = "extensionsToInstall",
                     help = "install the specified extension in the testing profile."
                            "The extension file's name should be <id>.xpi where <id> is"
-                           "the extension's id as indicated in its install.rdf."
-                           "An optional path can be specified too.")
+                           "the extension's id as indicated in its install.rdf.")
     defaults["extensionsToInstall"] = []
 
     self.set_defaults(**defaults)

@@ -38,14 +38,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/ipc/RPCChannel.h"
 #include "nsAppShell.h"
 #include "nsToolkit.h"
 #include "nsThreadUtils.h"
 #include "WinTaskbar.h"
 #include "nsString.h"
 #include "nsIMM32Handler.h"
-#include "mozilla/widget/AudioSession.h"
 
 // For skidmark code
 #include <windows.h> 
@@ -54,8 +52,21 @@
 const PRUnichar* kAppShellEventId = L"nsAppShell:EventID";
 const PRUnichar* kTaskbarButtonEventId = L"TaskbarButtonCreated";
 
-// The maximum time we allow before forcing a native event callback
-#define NATIVE_EVENT_STARVATION_LIMIT mozilla::TimeDuration::FromSeconds(1)
+#ifdef WINCE
+BOOL WaitMessage(VOID)
+{
+  BOOL retval = TRUE;
+  
+  HANDLE hThread = GetCurrentThread();
+  DWORD waitRes = MsgWaitForMultipleObjectsEx(1, &hThread, INFINITE, QS_ALLEVENTS, 0);
+  if((DWORD)-1 == waitRes)
+  {
+    retval = FALSE;
+  }
+  
+  return retval;
+}
+#endif
 
 static UINT sMsgId;
 
@@ -137,8 +148,6 @@ nsAppShell::Init()
 #ifdef MOZ_CRASHREPORTER
   LSPAnnotate();
 #endif
-
-  mLastNativeEventScheduled = TimeStamp::Now();
 
   if (!sMsgId)
     sMsgId = RegisterWindowMessageW(kAppShellEventId);
@@ -250,19 +259,9 @@ nsAppShell::Run(void)
 {
   LoadedModuleInfo modules[NUM_LOADEDMODULEINFO];
   memset(modules, 0, sizeof(modules));
-  sLoadedModules = modules;	
-
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-  // Ignore failure; failing to start the application is not exactly an
-  // appropriate response to failing to start an audio session.
-  mozilla::widget::StartAudioSession();
-#endif
+  sLoadedModules = modules;
 
   nsresult rv = nsBaseAppShell::Run();
-
-#ifdef MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-  mozilla::widget::StopAudioSession();
-#endif
 
   // Don't forget to null this out!
   sLoadedModules = nsnull;
@@ -311,9 +310,6 @@ nsAppShell::ScheduleNativeEventCallback()
 {
   // Post a message to the hidden message window
   NS_ADDREF_THIS(); // will be released when the event is processed
-  // Time stamp this event so we can detect cases where the event gets
-  // dropping in sub classes / modal loops we do not control. 
-  mLastNativeEventScheduled = TimeStamp::Now();
   ::PostMessage(mEventWnd, sMsgId, 0, reinterpret_cast<LPARAM>(this));
 }
 
@@ -326,9 +322,6 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
     CollectNewLoadedModules();
   }
 #endif
-
-  // Notify ipc we are spinning a (possibly nested) gecko event loop.
-  mozilla::ipc::RPCChannel::NotifyGeckoEventDispatch();
 
   PRBool gotMessage = PR_FALSE;
 
@@ -356,12 +349,5 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
   if (mNativeCallbackPending && mEventloopNestingLevel == 1)
     DoProcessMoreGeckoEvents();
 
-  // Check for starved native callbacks. If we haven't processed one
-  // of these events in NATIVE_EVENT_STARVATION_LIMIT, fire one off.
-  if ((TimeStamp::Now() - mLastNativeEventScheduled) >
-      NATIVE_EVENT_STARVATION_LIMIT) {
-    ScheduleNativeEventCallback();
-  }
-  
   return gotMessage;
 }

@@ -44,10 +44,13 @@ VPATH       = \
   $(srcdir)/opengl \
   $(srcdir)/d3d9 \
   $(srcdir)/d3d10 \
-  $(srcdir)/ipc \
   $(NULL)
 
 include $(DEPTH)/config/autoconf.mk
+
+ifdef MOZ_IPC
+VPATH       += $(srcdir)/ipc
+endif
 
 MODULE         = thebes
 LIBRARY_NAME   = layers
@@ -102,7 +105,6 @@ CPPSRCS += \
         ImageLayerD3D9.cpp \
         ColorLayerD3D9.cpp \
         CanvasLayerD3D9.cpp \
-        ShadowBufferD3D9.cpp \
         DeviceManagerD3D9.cpp \
         Nv3DVUtils.cpp \
         $(NULL)
@@ -114,18 +116,18 @@ EXPORTS += \
         $(NULL)
 
 CPPSRCS += \
-        CanvasLayerD3D10.cpp \
-        ColorLayerD3D10.cpp \
+        LayerManagerD3D10.cpp \
+        ThebesLayerD3D10.cpp \
         ContainerLayerD3D10.cpp \
         ImageLayerD3D10.cpp \
-        LayerManagerD3D10.cpp \
+        ColorLayerD3D10.cpp \
+        CanvasLayerD3D10.cpp \
         ReadbackManagerD3D10.cpp \
-	ShadowLayerUtilsD3D10.cpp \
-        ThebesLayerD3D10.cpp \
         $(NULL)
 endif
 endif
 
+ifdef MOZ_IPC #{
 EXPORTS_NAMESPACES = IPC mozilla/layers
 EXPORTS_IPC = ShadowLayerUtils.h
 EXPORTS_mozilla/layers =\
@@ -147,6 +149,8 @@ EXPORTS_mozilla/layers += ShadowLayerUtilsX11.h
 CPPSRCS += ShadowLayerUtilsX11.cpp
 endif #}
 
+endif #}
+
 # Enable GLES2.0 under maemo
 ifdef MOZ_X11
 ifdef MOZ_PLATFORM_MAEMO
@@ -154,14 +158,11 @@ DEFINES += -DUSE_GLES2
 endif
 endif
 
-ifdef MOZ_ENABLE_D3D10_LAYER
-EXPORTS_mozilla/layers += ShadowLayerUtilsD3D10.h
-DEFINES	+= -DMOZ_ENABLE_D3D10_LAYER
-endif
-
 include $(topsrcdir)/config/rules.mk
 
+ifdef MOZ_IPC
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
+endif
 
 CXXFLAGS += $(MOZ_CAIRO_CFLAGS) $(TK_CFLAGS)
 

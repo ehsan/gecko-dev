@@ -44,7 +44,6 @@
 #include <windows.h>
 #endif
 
-#include "nsPluginInstanceOwner.h"
 #include "nsIObjectFrame.h"
 #include "nsFrame.h"
 #include "nsRegion.h"
@@ -57,9 +56,12 @@
 class nsIAccessible;
 #endif
 
-class nsPluginHost;
+class nsPluginInstanceOwner;
+class nsIPluginHost;
+class nsIPluginInstance;
 class nsPresContext;
 class nsDisplayPlugin;
+class nsIDOMElement;
 class nsIOSurface;
 class PluginBackgroundSink;
 
@@ -83,8 +85,8 @@ public:
   NS_IMETHOD Init(nsIContent* aContent,
                   nsIFrame* aParent,
                   nsIFrame* aPrevInFlow);
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
   NS_IMETHOD Reflow(nsPresContext* aPresContext,
                     nsHTMLReflowMetrics& aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
@@ -123,7 +125,7 @@ public:
 
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 
-  NS_METHOD GetPluginInstance(nsNPAPIPluginInstance** aPluginInstance);
+  NS_IMETHOD GetPluginInstance(nsIPluginInstance*& aPluginInstance);
   virtual nsresult Instantiate(nsIChannel* aChannel, nsIStreamListener** aStreamListener);
   virtual nsresult Instantiate(const char* aMimeType, nsIURI* aURI);
   virtual void TryNotifyContentObjectWrapper();
@@ -137,7 +139,11 @@ public:
    */
   void StopPluginInternal(PRBool aDelayedStop);
 
-  NS_IMETHOD GetCursor(const nsPoint& aPoint, nsIFrame::Cursor& aCursor);
+  /* fail on any requests to get a cursor from us because plugins set their own! see bug 118877 */
+  NS_IMETHOD GetCursor(const nsPoint& aPoint, nsIFrame::Cursor& aCursor) 
+  {
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
 
   // Compute the desired position of the plugin's widget, on the assumption
   // that it is not visible (clipped out or covered by opaque content).
@@ -218,7 +224,7 @@ protected:
                       const nsHTMLReflowState& aReflowState,
                       nsHTMLReflowMetrics& aDesiredSize);
 
-  nsresult InstantiatePlugin(nsPluginHost* aPluginHost, 
+  nsresult InstantiatePlugin(nsIPluginHost* aPluginHost, 
                              const char* aMimetype,
                              nsIURI* aURL);
 
@@ -246,12 +252,12 @@ protected:
   nsIntPoint GetWindowOriginInPixels(PRBool aWindowless);
 
   static void PaintPrintPlugin(nsIFrame* aFrame,
-                               nsRenderingContext* aRenderingContext,
+                               nsIRenderingContext* aRenderingContext,
                                const nsRect& aDirtyRect, nsPoint aPt);
-  void PrintPlugin(nsRenderingContext& aRenderingContext,
+  void PrintPlugin(nsIRenderingContext& aRenderingContext,
                    const nsRect& aDirtyRect);
   void PaintPlugin(nsDisplayListBuilder* aBuilder,
-                   nsRenderingContext& aRenderingContext,
+                   nsIRenderingContext& aRenderingContext,
                    const nsRect& aDirtyRect, const nsRect& aPluginRect);
 
   /**
@@ -272,6 +278,10 @@ protected:
   void ComputeWidgetGeometry(const nsRegion& aRegion,
                              const nsPoint& aPluginOrigin,
                              nsTArray<nsIWidget::Configuration>* aConfigurations);
+
+  nsresult SetAbsoluteScreenPosition(nsIDOMElement* element,
+                                     nsIDOMClientRect* position,
+                                     nsIDOMClientRect* clip);
 
   void NotifyPluginReflowObservers();
 
@@ -330,10 +340,11 @@ public:
   virtual nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
                                    PRBool* aForceTransparentSurface = nsnull);
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx);
+                     nsIRenderingContext* aCtx);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion,
-                                   const nsRect& aAllowVisibleRegionExpansion);
+                                   const nsRect& aAllowVisibleRegionExpansion,
+                                   PRBool& aContainsRootContentDocBG);
 
   NS_DISPLAY_DECL_NAME("Plugin", TYPE_PLUGIN)
 
@@ -348,8 +359,7 @@ public:
                               nsTArray<nsIWidget::Configuration>* aConfigurations);
 
   virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
-                                             LayerManager* aManager,
-                                             const ContainerParameters& aContainerParameters)
+                                             LayerManager* aManager)
   {
     return static_cast<nsObjectFrame*>(mFrame)->BuildLayer(aBuilder,
                                                            aManager, 

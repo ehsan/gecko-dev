@@ -105,7 +105,6 @@ public:
 
         bool mRPC;
         bool mSpinNestedEvents;
-        bool mListenerNotified;
         SyncChannel* mChannel;
 
         /* the previous stack frame for this channel */
@@ -172,7 +171,7 @@ protected:
 
     // On both
     bool AwaitingSyncReply() const {
-        mMonitor.AssertCurrentThreadOwns();
+        mMutex.AssertCurrentThreadOwns();
         return mPendingReply != 0;
     }
 

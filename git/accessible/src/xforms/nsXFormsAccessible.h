@@ -77,16 +77,17 @@ public:
   // Returns value of instance node that xforms element is bound to.
   NS_IMETHOD GetValue(nsAString& aValue);
 
-  // nsAccessible
   // Returns value of child xforms 'hint' element.
-  virtual void Description(nsString& aDescription);
+  NS_IMETHOD GetDescription(nsAString& aDescription);
+
+  // nsAccessible
 
   // Returns value of child xforms 'label' element.
   virtual nsresult GetNameInternal(nsAString& aName);
 
   // Returns state of xforms element taking into account state of instance node
   // that it is bound to.
-  virtual PRUint64 NativeState();
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
   // Denies accessible nodes in anonymous content of xforms element by
   // always returning PR_FALSE value.
@@ -148,7 +149,7 @@ public:
   NS_IMETHOD GetAssociatedEditor(nsIEditor **aEditor);
 
   // nsAccessible
-  virtual PRUint64 NativeState();
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
 
@@ -190,13 +191,11 @@ public:
                                    nsIWeakReference *aShell);
 
   NS_IMETHOD GetValue(nsAString& aValue);
+  NS_IMETHOD GetNumActions(PRUint8 *aCount);
   NS_IMETHOD DoAction(PRUint8 aIndex);
 
-  // ActionAccessible
-  virtual PRUint8 ActionCount();
-
 protected:
-  bool IsSelected();
+  PRBool IsItemSelected();
 };
 
 #endif

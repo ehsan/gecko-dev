@@ -131,9 +131,6 @@ public:
 
     static
     nsCacheService * GlobalInstance()   { return gService; }
-
-    static
-    PRInt64 MemoryDeviceSize();
     
     static nsresult  DoomEntry(nsCacheEntry * entry);
 
@@ -164,10 +161,6 @@ public:
     static void      SetDiskCacheEnabled(PRBool  enabled);
     // Sets the disk cache capacity (in kilobytes)
     static void      SetDiskCacheCapacity(PRInt32  capacity);
-    // Set max size for a disk-cache entry (in bytes). -1 disables this limit
-    static void      SetDiskCacheMaxEntrySize(PRInt32  maxSize);
-    // Set max size for a memory-cache entry (in bytes). -1 disables this limit
-    static void      SetMemoryCacheMaxEntrySize(PRInt32  maxSize);
 
     static void      SetOfflineCacheEnabled(PRBool  enabled);
     // Sets the offline cache capacity (in kilobytes)

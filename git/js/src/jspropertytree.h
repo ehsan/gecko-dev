@@ -117,8 +117,9 @@ class PropertyTree
     js::Shape *newShape(JSContext *cx);
     js::Shape *getChild(JSContext *cx, js::Shape *parent, const js::Shape &child);
 
-#ifdef DEBUG
+    void dumpShapeStats();
     static void dumpShapes(JSContext *cx);
+#ifdef DEBUG
     static void meter(JSBasicStats *bs, js::Shape *node);
 #endif
 };

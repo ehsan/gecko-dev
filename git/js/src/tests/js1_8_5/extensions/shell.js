@@ -171,26 +171,13 @@ var Match =
 
 })();
 
-function referencesVia(from, edge, to) {
-    edge = "edge: " + edge;
-    var edges = findReferences(to);
-    if (edge in edges && edges[edge].indexOf(from) != -1)
-        return true;
-
-    // Be nice: make it easy to fix if the edge name has just changed.
-    var alternatives = [];
-    for (var e in edges) {
-        if (edges[e].indexOf(from) != -1)
-            alternatives.push(e);
-    }
-    if (alternatives.length == 0) {
-        print("referent not referred to by referrer after all");
-    } else {
-        print("referent is not referenced via: " + uneval(edge));
-        print("but it is referenced via:       " + uneval(alternatives));
-    }
-    print("all incoming edges, from any object:");
-    for (var e in edges)
-        print(e);
-    return false;
+// used by several Debug object tests
+function checkFunction(obj, name, nargs) {
+    var desc = Object.getOwnPropertyDescriptor(obj, name);
+    assertEq(desc.configurable, true, name + " should be configurable");
+    assertEq(desc.writable, true, name + " should be writable");
+    assertEq(desc.enumerable, false, name + " should be non-enumerable");
+    assertEq(desc.value, obj[name]);  // well obviously
+    assertEq(typeof desc.value, 'function', name + " should be a function");
+    assertEq(desc.value.length, nargs, name + " should have .length === " + nargs);
 }

@@ -46,9 +46,9 @@ class gfxContext;
 
 typedef nsFrame nsSVGGeometryFrameBase;
 
-#define SVG_HIT_TEST_FILL        0x01
-#define SVG_HIT_TEST_STROKE      0x02
-#define SVG_HIT_TEST_CHECK_MRECT 0x04
+#define HITTEST_MASK_FILL        0x01
+#define HITTEST_MASK_STROKE      0x02
+#define HITTEST_MASK_CHECK_MRECT 0x04
 
 /* nsSVGGeometryFrame is a base class for SVG objects that directly
  * have geometry (circle, ellipse, line, polyline, polygon, path, and
@@ -106,14 +106,7 @@ public:
 protected:
   nsSVGPaintServerFrame *GetPaintServer(const nsStyleSVGPaint *aPaint,
                                         const FramePropertyDescriptor *aProperty);
-
-  /**
-   * This function returns a set of bit flags indicating which parts of the
-   * element (fill, stroke, bounds) should intercept pointer events. It takes
-   * into account the type of element and the value of the 'pointer-events'
-   * property on the element.
-   */
-  virtual PRUint16 GetHitTestFlags();
+  virtual PRUint16 GetHittestMask();
 
 private:
   nsresult GetStrokeDashArray(double **arr, PRUint32 *count);

@@ -40,14 +40,11 @@
 
 #include "nsXULComboboxAccessible.h"
 
-#include "States.h"
 #include "nsAccessibilityService.h"
 #include "nsCoreUtils.h"
 
 #include "nsIDOMXULMenuListElement.h"
 #include "nsIDOMXULSelectCntrlItemEl.h"
-
-using namespace mozilla::a11y;
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULComboboxAccessible
@@ -59,6 +56,16 @@ nsXULComboboxAccessible::
 {
 }
 
+PRBool
+nsXULComboboxAccessible::Init()
+{
+  if (!nsAccessibleWrap::Init())
+    return PR_FALSE;
+
+  nsCoreUtils::GeneratePopupTree(mContent);
+  return PR_TRUE;
+}
+
 PRUint32
 nsXULComboboxAccessible::NativeRole()
 {
@@ -68,8 +75,9 @@ nsXULComboboxAccessible::NativeRole()
   return nsIAccessibleRole::ROLE_COMBOBOX;
 }
 
-PRUint64
-nsXULComboboxAccessible::NativeState()
+nsresult
+nsXULComboboxAccessible::GetStateInternal(PRUint32 *aState,
+                                          PRUint32 *aExtraState)
 {
   // As a nsComboboxAccessible we can have the following states:
   //     STATE_FOCUSED
@@ -79,23 +87,25 @@ nsXULComboboxAccessible::NativeState()
   //     STATE_COLLAPSED
 
   // Get focus status from base class
-  PRUint64 states = nsAccessible::NativeState();
+  nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIDOMXULMenuListElement> menuList(do_QueryInterface(mContent));
   if (menuList) {
     PRBool isOpen;
     menuList->GetOpen(&isOpen);
     if (isOpen) {
-      states |= states::EXPANDED;
+      *aState |= nsIAccessibleStates::STATE_EXPANDED;
     }
     else {
-      states |= states::COLLAPSED;
+      *aState |= nsIAccessibleStates::STATE_COLLAPSED;
     }
   }
 
-  states |= states::HASPOPUP | states::FOCUSABLE;
+  *aState |= nsIAccessibleStates::STATE_HASPOPUP |
+             nsIAccessibleStates::STATE_FOCUSABLE;
 
-  return states;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -114,25 +124,32 @@ nsXULComboboxAccessible::GetValue(nsAString& aValue)
   return NS_ERROR_FAILURE;
 }
 
-void
-nsXULComboboxAccessible::Description(nsString& aDescription)
+NS_IMETHODIMP
+nsXULComboboxAccessible::GetDescription(nsAString& aDescription)
 {
   aDescription.Truncate();
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   // Use description of currently focused option
   nsCOMPtr<nsIDOMXULMenuListElement> menuListElm(do_QueryInterface(mContent));
   if (!menuListElm)
-    return;
+    return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIDOMXULSelectControlItemElement> focusedOptionItem;
   menuListElm->GetSelectedItem(getter_AddRefs(focusedOptionItem));
   nsCOMPtr<nsIContent> focusedOptionContent =
     do_QueryInterface(focusedOptionItem);
   if (focusedOptionContent) {
-    nsAccessible* focusedOptionAcc = GetAccService()->
-      GetAccessibleInWeakShell(focusedOptionContent, mWeakShell);
-    if (focusedOptionAcc)
-      focusedOptionAcc->Description(aDescription);
+    nsAccessible *focusedOption =
+      GetAccService()->GetAccessibleInWeakShell(focusedOptionContent, mWeakShell);
+    NS_ENSURE_TRUE(focusedOption, NS_ERROR_FAILURE);
+
+    return focusedOption->GetDescription(aDescription);
   }
+
+  return NS_OK;
 }
 
 PRBool
@@ -151,11 +168,15 @@ nsXULComboboxAccessible::GetAllowsAnonChildAccessibles()
   // menuitems
   return PR_FALSE;
 }
-PRUint8
-nsXULComboboxAccessible::ActionCount()
+
+NS_IMETHODIMP
+nsXULComboboxAccessible::GetNumActions(PRUint8 *aNumActions)
 {
+  NS_ENSURE_ARG_POINTER(aNumActions);
+
   // Just one action (click).
-  return 1;
+  *aNumActions = 1;
+  return NS_OK;
 }
 
 NS_IMETHODIMP

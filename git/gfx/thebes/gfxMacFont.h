@@ -54,6 +54,7 @@ public:
 
     virtual ~gfxMacFont();
 
+    ATSFontRef GetATSFontRef() const { return mATSFont; }
     CGFontRef GetCGFontRef() const { return mCGFont; }
 
     /* overrides for the pure virtual methods in gfxFont */
@@ -66,13 +67,6 @@ public:
     }
 
     virtual PRBool SetupCairoFont(gfxContext *aContext);
-
-    /* override Measure to add padding for antialiasing */
-    virtual RunMetrics Measure(gfxTextRun *aTextRun,
-                               PRUint32 aStart, PRUint32 aEnd,
-                               BoundingBoxType aBoundingBoxType,
-                               gfxContext *aContextForTightBoundingBox,
-                               Spacing *aSpacing);
 
     // override gfxFont table access function to bypass gfxFontEntry cache,
     // use CGFontRef API to get direct access to system font data
@@ -91,8 +85,7 @@ protected:
                                PRBool aPreferPlatformShaping = PR_FALSE);
 
     void InitMetrics();
-    void InitMetricsFromPlatform();
-    void InitMetricsFromATSMetrics(ATSFontRef aFontRef);
+    void InitMetricsFromATSMetrics();
 
     // Get width and glyph ID for a character; uses aConvFactor
     // to convert font units as returned by CG to actual dimensions
@@ -101,8 +94,7 @@ protected:
 
     static void DestroyBlobFunc(void* aUserData);
 
-    // a weak reference to the CoreGraphics font: this is owned by the
-    // MacOSFontEntry, it is not retained or released by gfxMacFont
+    ATSFontRef            mATSFont;
     CGFontRef             mCGFont;
 
     cairo_font_face_t    *mFontFace;

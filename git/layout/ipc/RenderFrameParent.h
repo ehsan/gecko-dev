@@ -82,8 +82,6 @@ public:
    */
   nsContentView* GetContentView(ViewID aId = FrameMetrics::ROOT_SCROLL_ID);
 
-  void ContentViewScaleChanged(nsContentView* aView);
-
   void ShadowLayersUpdated();
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder* aBuilder,
@@ -101,7 +99,7 @@ public:
 protected:
   NS_OVERRIDE void ActorDestroy(ActorDestroyReason why);
 
-  NS_OVERRIDE virtual PLayersParent* AllocPLayers(LayerManager::LayersBackend* aBackendType);
+  NS_OVERRIDE virtual PLayersParent* AllocPLayers();
   NS_OVERRIDE virtual bool DeallocPLayers(PLayersParent* aLayers);
 
 private:
@@ -145,8 +143,7 @@ public:
 
   NS_OVERRIDE
   virtual already_AddRefed<Layer>
-  BuildLayer(nsDisplayListBuilder* aBuilder, LayerManager* aManager,
-             const ContainerParameters& aContainerParameters);
+  BuildLayer(nsDisplayListBuilder* aBuilder, LayerManager* aManager);
 
   NS_DISPLAY_DECL_NAME("Remote", TYPE_REMOTE)
 

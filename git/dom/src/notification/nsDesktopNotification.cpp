@@ -36,15 +36,15 @@
 
 #include "nsDesktopNotification.h"
 
+#ifdef MOZ_IPC
 #include "nsContentPermissionHelper.h"
 #include "nsXULAppAPI.h"
 
 #include "mozilla/dom/PBrowserChild.h"
 #include "TabChild.h"
-#include "mozilla/Preferences.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
+#endif
 
 /* ------------------------------------------------------------------------ */
 /* AlertServiceObserver                                                     */
@@ -103,7 +103,11 @@ nsDOMDesktopNotification::nsDOMDesktopNotification(const nsAString & title,
                                                    nsIURI* uri)
   : mTitle(title)
   , mDescription(description)
+#ifdef ANDROID
+  , mIconURL((PRUnichar*)L"drawable://desktop_notification")
+#else
   , mIconURL(iconURL)
+#endif
   , mURI(uri)
   , mAllow(PR_FALSE)
   , mShowHasBeenCalled(PR_FALSE)
@@ -111,14 +115,13 @@ nsDOMDesktopNotification::nsDOMDesktopNotification(const nsAString & title,
   mOwner = aWindow;
   mScriptContext = aScriptContext;
 
-  if (Preferences::GetBool("notification.disabled", PR_FALSE)) {
+  if (nsContentUtils::GetBoolPref("notification.disabled", PR_FALSE))
     return;
-  }
 
   // If we are in testing mode (running mochitests, for example)
   // and we are suppose to allow requests, then just post an allow event.
-  if (Preferences::GetBool("notification.prompt.testing", PR_FALSE) &&
-      Preferences::GetBool("notification.prompt.testing.allow", PR_TRUE)) {
+  if (nsContentUtils::GetBoolPref("notification.prompt.testing", PR_FALSE) &&
+      nsContentUtils::GetBoolPref("notification.prompt.testing.allow", PR_TRUE)) {
     mAllow = PR_TRUE;
     return;
   }
@@ -126,6 +129,7 @@ nsDOMDesktopNotification::nsDOMDesktopNotification(const nsAString & title,
   nsRefPtr<nsDesktopNotificationRequest> request = new nsDesktopNotificationRequest(this);
 
   // if we are in the content process, then remote it to the parent.
+#ifdef MOZ_IPC
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
 
     // if for some reason mOwner is null, just silently
@@ -148,6 +152,7 @@ nsDOMDesktopNotification::nsDOMDesktopNotification(const nsAString & title,
     request->Sendprompt();
     return;
   }
+#endif
 
   // otherwise, dispatch it
   NS_DispatchToMainThread(request);

@@ -43,7 +43,6 @@
 #include "nsStyleUtil.h"
 #include "nsDOMCSSRGBColor.h"
 #include "nsIDOMRect.h"
-#include "nsDOMClassInfoID.h" // DOMCI_DATA
 
 nsROCSSPrimitiveValue::nsROCSSPrimitiveValue()
   : mType(CSS_PX)

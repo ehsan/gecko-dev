@@ -39,10 +39,7 @@
 #ifndef VideoUtils_h
 #define VideoUtils_h
 
-#include "mozilla/ReentrantMonitor.h"
-
-#include "nsRect.h"
-#include "nsIThreadManager.h"
+#include "mozilla/Monitor.h"
 
 // This file contains stuff we'd rather put elsewhere, but which is
 // dependent on other changes which we don't want to wait for. We plan to
@@ -67,13 +64,13 @@
 namespace mozilla {
 
 /**
- * ReentrantMonitorAutoExit
- * Exit the ReentrantMonitor when it enters scope, and enters it when it leaves 
+ * MonitorAutoExit
+ * Exit the Monitor when it enters scope, and enters it when it leaves 
  * scope.
  *
- * MUCH PREFERRED to bare calls to ReentrantMonitor.Exit and Enter.
+ * MUCH PREFERRED to bare calls to Monitor.Exit and Enter.
  */ 
-class NS_STACK_CLASS ReentrantMonitorAutoExit
+class NS_STACK_CLASS MonitorAutoExit
 {
 public:
     /**
@@ -82,30 +79,31 @@ public:
      * acquires the lock. The lock must be held before constructing
      * this object!
      * 
-     * @param aReentrantMonitor A valid mozilla::ReentrantMonitor*. It
-     *                 must be already locked.
+     * @param aMonitor A valid mozilla::Monitor* returned by 
+     *                 mozilla::Monitor::NewMonitor. It must be
+     *                 already locked.
      **/
-    ReentrantMonitorAutoExit(ReentrantMonitor& aReentrantMonitor) :
-        mReentrantMonitor(&aReentrantMonitor)
+    MonitorAutoExit(mozilla::Monitor &aMonitor) :
+        mMonitor(&aMonitor)
     {
-        NS_ASSERTION(mReentrantMonitor, "null monitor");
-        mReentrantMonitor->AssertCurrentThreadIn();
-        mReentrantMonitor->Exit();
+        NS_ASSERTION(mMonitor, "null monitor");
+        mMonitor->AssertCurrentThreadIn();
+        mMonitor->Exit();
     }
     
-    ~ReentrantMonitorAutoExit(void)
+    ~MonitorAutoExit(void)
     {
-        mReentrantMonitor->Enter();
+        mMonitor->Enter();
     }
  
 private:
-    ReentrantMonitorAutoExit();
-    ReentrantMonitorAutoExit(const ReentrantMonitorAutoExit&);
-    ReentrantMonitorAutoExit& operator =(const ReentrantMonitorAutoExit&);
+    MonitorAutoExit();
+    MonitorAutoExit(const MonitorAutoExit&);
+    MonitorAutoExit& operator =(const MonitorAutoExit&);
     static void* operator new(size_t) CPP_THROW_NEW;
     static void operator delete(void*);
 
-    ReentrantMonitor* mReentrantMonitor;
+    mozilla::Monitor* mMonitor;
 };
 
 } // namespace mozilla
@@ -128,42 +126,16 @@ PRBool AddOverflow(PRInt64 a, PRInt64 b, PRInt64& aResult);
 // in an integer overflow.
 PRBool MulOverflow(PRInt64 a, PRInt64 b, PRInt64& aResult);
 
-// Converts from number of audio samples (aSamples) to microseconds, given
-// the specified audio rate (aRate). Stores result in aOutUsecs. Returns PR_TRUE
+// Converts from number of audio samples (aSamples) to milliseconds, given
+// the specified audio rate (aRate). Stores result in aOutMs. Returns PR_TRUE
 // if the operation succeeded, or PR_FALSE if there was an integer overflow
 // while calulating the conversion.
-PRBool SamplesToUsecs(PRInt64 aSamples, PRUint32 aRate, PRInt64& aOutUsecs);
+PRBool SamplesToMs(PRInt64 aSamples, PRUint32 aRate, PRInt64& aOutMs);
 
-// Converts from microseconds (aUsecs) to number of audio samples, given the
+// Converts from milliseconds (aMs) to number of audio samples, given the
 // specified audio rate (aRate). Stores the result in aOutSamples. Returns
 // PR_TRUE if the operation succeeded, or PR_FALSE if there was an integer
 // overflow while calulating the conversion.
-PRBool UsecsToSamples(PRInt64 aUsecs, PRUint32 aRate, PRInt64& aOutSamples);
-
-// Number of microseconds per second. 1e6.
-#define USECS_PER_S 1000000
-
-// Number of microseconds per millisecond.
-#define USECS_PER_MS 1000
-
-// The maximum height and width of the video. Used for
-// sanitizing the memory allocation of the RGB buffer.
-// The maximum resolution we anticipate encountering in the
-// wild is 2160p - 3840x2160 pixels.
-#define MAX_VIDEO_WIDTH  4000
-#define MAX_VIDEO_HEIGHT 3000
-
-// Scales the display rect aDisplay by aspect ratio aAspectRatio.
-// Note that aDisplay must be validated by nsVideoInfo::ValidateVideoRegion()
-// before being used!
-void ScaleDisplayByAspectRatio(nsIntSize& aDisplay, float aAspectRatio);
-
-// The amount of virtual memory reserved for thread stacks.
-#if defined(XP_WIN) || defined(XP_MACOSX) || defined(LINUX)
-#define MEDIA_THREAD_STACK_SIZE (128 * 1024)
-#else
-// All other platforms use their system defaults.
-#define MEDIA_THREAD_STACK_SIZE nsIThreadManager::DEFAULT_STACK_SIZE
-#endif
+PRBool MsToSamples(PRInt64 aMs, PRUint32 aRate, PRInt64& aOutSamples);
 
 #endif

@@ -73,8 +73,6 @@ void * JS_FASTCALL UncachedCall(VMFrame &f, uint32 argc);
 void JS_FASTCALL Eval(VMFrame &f, uint32 argc);
 void JS_FASTCALL ScriptDebugPrologue(VMFrame &f);
 void JS_FASTCALL ScriptDebugEpilogue(VMFrame &f);
-void JS_FASTCALL ScriptProbeOnlyPrologue(VMFrame &f);
-void JS_FASTCALL ScriptProbeOnlyEpilogue(VMFrame &f);
 
 /*
  * Result struct for UncachedXHelper.
@@ -206,7 +204,7 @@ void JS_FASTCALL StrictEq(VMFrame &f);
 void JS_FASTCALL StrictNe(VMFrame &f);
 
 void JS_FASTCALL Iter(VMFrame &f, uint32 flags);
-void JS_FASTCALL IterNext(VMFrame &f, int32 offset);
+void JS_FASTCALL IterNext(VMFrame &f);
 JSBool JS_FASTCALL IterMore(VMFrame &f);
 void JS_FASTCALL EndIter(VMFrame &f);
 

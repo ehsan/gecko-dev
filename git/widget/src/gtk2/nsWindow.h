@@ -40,7 +40,9 @@
 #ifndef __nsWindow_h__
 #define __nsWindow_h__
 
-#include "mozilla/ipc/SharedMemorySysV.h"
+#ifdef MOZ_IPC
+#  include "mozilla/ipc/SharedMemorySysV.h"
+#endif
 
 #include "nsAutoPtr.h"
 
@@ -137,7 +139,7 @@ public:
                               nsNativeWidget   aNativeParent,
                               const nsIntRect  &aRect,
                               EVENT_CALLBACK   aHandleEventFunction,
-                              nsDeviceContext *aContext,
+                              nsIDeviceContext *aContext,
                               nsIAppShell      *aAppShell,
                               nsIToolkit       *aToolkit,
                               nsWidgetInitData *aInitData);
@@ -241,7 +243,7 @@ public:
                                          gint             aX,
                                          gint             aY,
                                          guint            aTime,
-                                         gpointer         aData);
+                                         void            *aData);
     void               OnDragLeaveEvent(GtkWidget *      aWidget,
                                         GdkDragContext   *aDragContext,
                                         guint            aTime,
@@ -251,7 +253,7 @@ public:
                                        gint             aX,
                                        gint             aY,
                                        guint            aTime,
-                                       gpointer         aData);
+                                       gpointer         *aData);
     void               OnDragDataReceivedEvent(GtkWidget       *aWidget,
                                                GdkDragContext  *aDragContext,
                                                gint             aX,
@@ -382,7 +384,6 @@ private:
     void               SetDefaultIcon(void);
     void               InitButtonEvent(nsMouseEvent &aEvent, GdkEventButton *aGdkEvent);
     PRBool             DispatchCommandEvent(nsIAtom* aCommand);
-    PRBool             DispatchContentCommandEvent(PRInt32 aMsg);
     void               SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
                                            PRBool aIntersectWithExisting);
     PRBool             GetDragInfo(nsMouseEvent* aMouseEvent,

@@ -36,7 +36,7 @@
    - ***** END LICENSE BLOCK ***** -->
 <?xml-stylesheet type="text/css" href="data:text/css,
 
-%23_box_windowsDefaultTheme:-moz-system-metric(windows-default-theme) {
+#_box_windowsDefaultTheme:-moz-system-metric(windows-default-theme) {
   display: none;
 }
 
@@ -51,6 +51,6 @@
         >
     <script type="application/ecmascript" src="quit.js" />
     <script type="application/ecmascript" src="reftest.js" />
-    <script type="application/ecmascript" src="MozillaLogger.js" />
+    <script type="application/ecmascript" src="MozillaFileLogger.js" />
     <!-- The reftest browser element is dynamically created, here -->
 </window>

@@ -73,13 +73,13 @@ public:
 #endif
 
   // nsIFrame:
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
 
   virtual IntrinsicSize GetIntrinsicSize();
   virtual nsSize  GetIntrinsicRatio();
 
-  virtual nsSize ComputeSize(nsRenderingContext *aRenderingContext,
+  virtual nsSize ComputeSize(nsIRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
                              PRBool aShrinkWrap);
@@ -111,7 +111,7 @@ public:
   virtual nsIAtom* GetType() const;
 
   void Paint(const nsDisplayListBuilder* aBuilder,
-             nsRenderingContext& aRenderingContext,
+             nsIRenderingContext& aRenderingContext,
              const nsRect& aDirtyRect, nsPoint aPt);
 
 #ifdef DEBUG

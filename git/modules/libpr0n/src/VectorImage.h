@@ -87,11 +87,8 @@ public:
                 const char* aURIString,
                 PRUint32 aFlags);
   void GetCurrentFrameRect(nsIntRect& aRect);
-
-  virtual PRUint32 GetDecodedHeapSize();
-  virtual PRUint32 GetDecodedNonheapSize();
-  virtual PRUint32 GetDecodedOutOfProcessSize();
-  virtual PRUint32 GetSourceHeapSize();
+  PRUint32 GetDecodedDataSize();
+  PRUint32 GetSourceDataSize();
 
   // Callback for SVGRootRenderingObserver
   void InvalidateObserver();
@@ -99,12 +96,14 @@ public:
 protected:
   virtual nsresult StartAnimation();
   virtual nsresult StopAnimation();
-  virtual bool     ShouldAnimate();
+  virtual PRBool   ShouldAnimate();
 
 private:
   nsWeakPtr                          mObserver;   //! imgIDecoderObserver
   nsRefPtr<SVGDocumentWrapper>       mSVGDocumentWrapper;
+#ifdef MOZ_ENABLE_LIBXUL
   nsRefPtr<SVGRootRenderingObserver> mRenderingObserver;
+#endif // MOZ_ENABLE_LIBXUL
 
   nsIntRect      mRestrictedRegion;       // If we were created by
                                           // ExtractFrame, this is the region

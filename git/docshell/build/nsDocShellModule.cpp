@@ -66,7 +66,6 @@
 
 // session history
 #include "nsSHEntry.h"
-#include "nsSHEntryShared.h"
 #include "nsSHistory.h"
 #include "nsSHTransaction.h"
 
@@ -88,15 +87,14 @@ Initialize()
   nsresult rv = nsSHistory::Startup();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsSHEntryShared::Startup();
-  return NS_OK;
+  rv = nsSHEntry::Startup();
+  return rv;
 }
 
 static void
 Shutdown()
 {
-  nsSHistory::Shutdown();
-  nsSHEntryShared::Shutdown();
+  nsSHEntry::Shutdown();
   gInitialized = PR_FALSE;
 }
 
@@ -212,7 +210,6 @@ const mozilla::Module::ContractIDEntry kDocShellContracts[] = {
   { NS_ABOUT_MODULE_CONTRACTID_PREFIX "neterror", &kNS_ABOUT_REDIRECTOR_MODULE_CID },
   { NS_ABOUT_MODULE_CONTRACTID_PREFIX "memory", &kNS_ABOUT_REDIRECTOR_MODULE_CID },
   { NS_ABOUT_MODULE_CONTRACTID_PREFIX "addons", &kNS_ABOUT_REDIRECTOR_MODULE_CID },
-  { NS_ABOUT_MODULE_CONTRACTID_PREFIX "newaddon", &kNS_ABOUT_REDIRECTOR_MODULE_CID },
   { NS_ABOUT_MODULE_CONTRACTID_PREFIX "support", &kNS_ABOUT_REDIRECTOR_MODULE_CID },
   { NS_URI_LOADER_CONTRACTID, &kNS_URI_LOADER_CID },
   { NS_DOCUMENTLOADER_SERVICE_CONTRACTID, &kNS_DOCUMENTLOADER_SERVICE_CID },

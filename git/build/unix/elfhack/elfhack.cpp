@@ -55,22 +55,6 @@
 
 char *rundir = NULL;
 
-template <typename T>
-struct wrapped {
-    T value;
-};
-
-class Elf_Addr_Traits {
-public:
-    typedef wrapped<Elf32_Addr> Type32;
-    typedef wrapped<Elf64_Addr> Type64;
-
-    template <class endian, typename R, typename T>
-    static inline void swap(T &t, R &r) {
-        r.value = endian::swap(t.value);
-    }
-};
-
 class Elf_RelHack_Traits {
 public:
     typedef Elf32_Rel Type32;
@@ -169,11 +153,15 @@ public:
         // Find the init symbol
         entry_point = -1;
         int shndx = 0;
-        Elf_SymValue *sym = symtab->lookup("init");
-        if (sym) {
-            entry_point = sym->value.getValue();
-            shndx = sym->value.getSection()->getIndex();
-        } else
+        for (std::vector<Elf_SymValue>::iterator sym = symtab->syms.begin();
+             sym != symtab->syms.end(); sym++) {
+            if (strcmp(sym->name, "init") == 0) {
+                entry_point = sym->value.getValue();
+                shndx = sym->value.getSection()->getIndex();
+                break;
+            }
+        }
+        if (entry_point == -1)
             throw std::runtime_error("Couldn't find an 'init' symbol in the injected code");
 
         // Adjust code sections offsets according to their size
@@ -384,7 +372,7 @@ private:
 };
 
 template <typename Rel_Type>
-int do_relocation_section(Elf *elf, unsigned int rel_type, unsigned int rel_type2)
+int do_relocation_section(Elf *elf, unsigned int rel_type)
 {
     ElfDynamic_Section *dyn = elf->getDynSection();
     if (dyn ==NULL) {
@@ -407,51 +395,15 @@ int do_relocation_section(Elf *elf, unsigned int rel_type, unsigned int rel_type
     ElfRelHack_Section *relhack = new ElfRelHack_Section(relhack_section);
     ElfRelHackCode_Section *relhackcode = new ElfRelHackCode_Section(relhackcode_section, *elf);
 
-    ElfSymtab_Section *symtab = (ElfSymtab_Section *) section->getLink();
-    Elf_SymValue *sym = symtab->lookup("__cxa_pure_virtual");
-
     std::vector<Rel_Type> new_rels;
     Elf_RelHack relhack_entry;
     relhack_entry.r_offset = relhack_entry.r_info = 0;
     int entry_sz = (elf->getClass() == ELFCLASS32) ? 4 : 8;
     for (typename std::vector<Rel_Type>::iterator i = section->rels.begin();
          i != section->rels.end(); i++) {
-        // We don't need to keep R_*_NONE relocations
-        if (!ELF32_R_TYPE(i->r_info))
-            continue;
-        ElfSection *section = elf->getSectionAt(i->r_offset);
-        // __cxa_pure_virtual is a function used in vtables to point at pure
-        // virtual methods. The __cxa_pure_virtual function usually abort()s.
-        // These functions are however normally never called. In the case
-        // where they would, jumping to the NULL address instead of calling
-        // __cxa_pure_virtual is going to work just as well. So we can remove
-        // relocations for the __cxa_pure_virtual symbol and NULL out the
-        // content at the offset pointed by the relocation.
-        if (sym) {
-            if (sym->defined) {
-                // If we are statically linked to libstdc++, the
-                // __cxa_pure_virtual symbol is defined in our lib, and we
-                // have relative relocations (rel_type) for it.
-                if (ELF32_R_TYPE(i->r_info) == rel_type) {
-                    serializable<Elf_Addr_Traits> addr(&section->getData()[i->r_offset - section->getAddr()], entry_sz, elf->getClass(), elf->getData());
-                    if (addr.value == sym->value.getValue()) {
-                        memset((char *)&section->getData()[i->r_offset - section->getAddr()], 0, entry_sz);
-                        continue;
-                    }
-                }
-            } else {
-                // If we are dynamically linked to libstdc++, the
-                // __cxa_pure_virtual symbol is undefined in our lib, and we
-                // have absolute relocations (rel_type2) for it.
-                if ((ELF32_R_TYPE(i->r_info) == rel_type2) &&
-                    (sym == &symtab->syms[ELF32_R_SYM(i->r_info)])) {
-                    memset((char *)&section->getData()[i->r_offset - section->getAddr()], 0, entry_sz);
-                    continue;
-                }
-            }
-        }
         // Don't pack relocations happening in non writable sections.
         // Our injected code is likely not to be allowed to write there.
+        ElfSection *section = elf->getSectionAt(i->r_offset);
         if (!(section->getFlags() & SHF_WRITE) || (ELF32_R_TYPE(i->r_info) != rel_type) ||
             (relro && (i->r_offset >= relro->getAddr()) &&
                       (i->r_offset < relro->getAddr() + relro->getMemSize())))
@@ -520,13 +472,13 @@ void do_file(const char *name, bool backup = false)
     int exit = -1;
     switch (elf->getMachine()) {
     case EM_386:
-        exit = do_relocation_section<Elf_Rel>(elf, R_386_RELATIVE, R_386_32);
+        exit = do_relocation_section<Elf_Rel>(elf, R_386_RELATIVE);
         break;
     case EM_X86_64:
-        exit = do_relocation_section<Elf_Rela>(elf, R_X86_64_RELATIVE, R_X86_64_64);
+        exit = do_relocation_section<Elf_Rela>(elf, R_X86_64_RELATIVE);
         break;
     case EM_ARM:
-        exit = do_relocation_section<Elf_Rel>(elf, R_ARM_RELATIVE, R_ARM_ABS32);
+        exit = do_relocation_section<Elf_Rel>(elf, R_ARM_RELATIVE);
         break;
     }
     if (exit == 0) {

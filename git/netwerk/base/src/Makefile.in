@@ -47,7 +47,9 @@ MODULE		= necko
 LIBRARY_NAME	= neckobase_s
 LIBXUL_LIBRARY  = 1
 
-EXPORTS = nsURLHelper.h
+ifdef MOZ_IPC
+	EXPORTS = nsURLHelper.h
+endif
 
 CPPSRCS		= \
 		nsTransportUtils.cpp \
@@ -90,9 +92,11 @@ CPPSRCS		= \
 		nsBase64Encoder.cpp \
 		nsSerializationHelper.cpp \
 		nsDNSPrefetch.cpp \
-		RedirectChannelRegistrar.cpp \
-		nsPreloadedStream.cpp \
 		$(NULL)
+
+ifdef MOZ_IPC
+	CPPSRCS += RedirectChannelRegistrar.cpp
+endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
 	CPPSRCS += nsURLHelperOS2.cpp
@@ -100,7 +104,11 @@ else
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 	CPPSRCS += nsURLHelperWin.cpp
 	CPPSRCS += nsNativeConnectionHelper.cpp
+ifneq ($(OS_ARCH), WINCE)
 	CPPSRCS += nsAutodialWin.cpp
+else
+	CPPSRCS += nsAutodialWinCE.cpp
+endif
 else
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 	CPPSRCS += nsURLHelperOSX.cpp
@@ -119,7 +127,6 @@ endif
 ifdef MOZ_ENABLE_QTNETWORK
 	CPPSRCS += nsAutodialQt.cpp
 	LOCAL_INCLUDES += -I$(srcdir)/../../system/qt
-	OS_INCLUDES += $(MOZ_QT_CFLAGS)
 endif
 endif
 
@@ -139,11 +146,6 @@ FORCE_STATIC_LIB = 1
 include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk
-
-ifeq ($(OS_TARGET),Android)
-# this works around a "branch out of range" error when compiling this file opt
-nsURLParsers.$(OBJ_SUFFIX): MOZ_OPTIMIZE_FLAGS=
-endif
 
 DEFINES += -DIMPL_NS_NET
 

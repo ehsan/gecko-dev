@@ -80,7 +80,7 @@ gTests.push({
     PlacesUtils.bookmarks.insertBookmark(PlacesUtils.unfiledBookmarksFolderId,
                                          makeURI(TEST_URL),
                                          PlacesUtils.bookmarks.DEFAULT_INDEX,
-                                         "bm");
+                                         "bm" + i);
     is(PO._content.result.root.childCount, 2,
        "Right pane was correctly updated");
     nextTest();
@@ -96,7 +96,25 @@ function test() {
                .removeFolderChildren(PlacesUtils.unfiledBookmarksFolderId);
   });
 
-  gLibrary = openLibrary(nextTest);
+  Services.ww.registerNotification(function (aSubject, aTopic, aData)
+  {
+    if (aTopic != "domwindowopened")
+      return;
+
+    Services.ww.unregisterNotification(arguments.callee);
+
+    gLibrary = aSubject.QueryInterface(Ci.nsIDOMWindow);
+    gLibrary.addEventListener("load", function (event) {
+      gLibrary.removeEventListener("load", arguments.callee, false);
+      executeSoon(nextTest);
+    }, false);
+  });
+
+  Services.ww.openWindow(null,
+                         "chrome://browser/content/places/places.xul",
+                          "",
+                          "chrome,toolbar=yes,dialog=no,resizable",
+                          null);
 }
 
 function nextTest() {
@@ -108,6 +126,6 @@ function nextTest() {
   else {
     // Close Library window.
     gLibrary.close();
-    finish();
+    executeSoon(finish);
   }
 }

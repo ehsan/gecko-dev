@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -21,7 +21,6 @@
  * Contributor(s):
  *   Brett Wilson <brettw@gmail.com> (original author)
  *   Robert O'Callahan <rocallahan@novell.com>
- *   Ms2ger <ms2ger@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -42,6 +41,7 @@
 #include "nsIAtom.h"
 #include "nsComponentManagerUtils.h"
 #include "nsIDOMCSSStyleDeclaration.h"
+#include "nsIDOMDocumentView.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMNSRange.h"
 #include "nsIDOMRange.h"
@@ -95,18 +95,21 @@ mozInlineSpellWordUtil::Init(nsWeakPtr aWeakEditor)
   nsCOMPtr<nsIDOMDocument> domDoc;
   rv = editor->GetDocument(getter_AddRefs(domDoc));
   NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(domDoc, NS_ERROR_NULL_POINTER);
 
-  mDOMDocument = domDoc;
-  mDocument = do_QueryInterface(domDoc);
-
-  // Window
-  nsCOMPtr<nsIDOMWindow> window;
-  rv = domDoc->GetDefaultView(getter_AddRefs(window));
+  mDocument = do_QueryInterface(domDoc, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  mCSSView = window;
-  NS_ENSURE_TRUE(window, NS_ERROR_NULL_POINTER);
+  mDOMDocumentRange = do_QueryInterface(domDoc, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // view
+  nsCOMPtr<nsIDOMDocumentView> docView = do_QueryInterface(domDoc, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsIDOMAbstractView> abstractView;
+  rv = docView->GetDefaultView(getter_AddRefs(abstractView));
+  NS_ENSURE_SUCCESS(rv, rv);
+  mCSSView = do_QueryInterface(abstractView, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Find the root node for the editor. For contenteditable we'll need something
   // cleverer here.
@@ -373,10 +376,10 @@ nsresult
 mozInlineSpellWordUtil::MakeRange(NodeOffset aBegin, NodeOffset aEnd,
                                   nsIDOMRange** aRange)
 {
-  if (!mDOMDocument)
+  if (! mDOMDocumentRange)
     return NS_ERROR_NOT_INITIALIZED;
 
-  nsresult rv = mDOMDocument->CreateRange(aRange);
+  nsresult rv = mDOMDocumentRange->CreateRange(aRange);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = (*aRange)->SetStart(aBegin.mNode, aBegin.mOffset);
@@ -495,7 +498,7 @@ ContainsDOMWordSeparator(nsIDOMNode* aNode, PRInt32 aBeforeOffset,
 }
 
 static PRBool
-IsBreakElement(nsIDOMWindow* aDocView, nsIDOMNode* aNode)
+IsBreakElement(nsIDOMViewCSS* aDocView, nsIDOMNode* aNode)
 {
   nsCOMPtr<nsIDOMElement> element = do_QueryInterface(aNode);
   if (!element)
@@ -534,8 +537,8 @@ IsBreakElement(nsIDOMWindow* aDocView, nsIDOMNode* aNode)
 }
 
 struct CheckLeavingBreakElementClosure {
-  nsIDOMWindow* mDocView;
-  PRPackedBool  mLeftBreakElement;
+  nsIDOMViewCSS* mDocView;
+  PRPackedBool   mLeftBreakElement;
 };
 
 static void
@@ -885,32 +888,14 @@ WordSplitState::ClassifyCharacter(PRInt32 aIndex, PRBool aRecurse) const
       return CHAR_CLASS_SEPARATOR;
     if (ClassifyCharacter(aIndex - 1, false) != CHAR_CLASS_WORD)
       return CHAR_CLASS_SEPARATOR;
-    // If the previous charatcer is a word-char, make sure that it's not a
-    // special dot character.
-    if (mDOMWordText[aIndex - 1] == '.')
-      return CHAR_CLASS_SEPARATOR;
 
     // now we know left char is a word-char, check the right-hand character
     if (aIndex == PRInt32(mDOMWordText.Length()) - 1)
       return CHAR_CLASS_SEPARATOR;
     if (ClassifyCharacter(aIndex + 1, false) != CHAR_CLASS_WORD)
       return CHAR_CLASS_SEPARATOR;
-    // If the next charatcer is a word-char, make sure that it's not a
-    // special dot character.
-    if (mDOMWordText[aIndex + 1] == '.')
-      return CHAR_CLASS_SEPARATOR;
 
     // char on either side is a word, this counts as a word
-    return CHAR_CLASS_WORD;
-  }
-
-  // The dot character, if appearing at the end of a word, should
-  // be considered part of that word.  Example: "etc.", or
-  // abbreviations
-  if (aIndex > 0 &&
-      mDOMWordText[aIndex] == '.' &&
-      mDOMWordText[aIndex - 1] != '.' &&
-      ClassifyCharacter(aIndex - 1, false) != CHAR_CLASS_WORD) {
     return CHAR_CLASS_WORD;
   }
 
@@ -918,22 +903,8 @@ WordSplitState::ClassifyCharacter(PRInt32 aIndex, PRBool aRecurse) const
   if (charCategory == nsIUGenCategory::kSeparator ||
       charCategory == nsIUGenCategory::kOther ||
       charCategory == nsIUGenCategory::kPunctuation ||
-      charCategory == nsIUGenCategory::kSymbol) {
-    // Don't break on hyphens, as hunspell handles them on its own.
-    if (aIndex > 0 &&
-        mDOMWordText[aIndex] == '-' &&
-        mDOMWordText[aIndex - 1] != '-' &&
-        ClassifyCharacter(aIndex - 1, false) == CHAR_CLASS_WORD) {
-      // A hyphen is only meaningful as a separator inside a word
-      // if the previous and next characters are a word character.
-      if (aIndex == PRInt32(mDOMWordText.Length()) - 1)
-        return CHAR_CLASS_SEPARATOR;
-      if (mDOMWordText[aIndex + 1] != '.' &&
-          ClassifyCharacter(aIndex + 1, false) == CHAR_CLASS_WORD)
-        return CHAR_CLASS_WORD;
-    }
+      charCategory == nsIUGenCategory::kSymbol)
     return CHAR_CLASS_SEPARATOR;
-  }
 
   // any other character counts as a word
   return CHAR_CLASS_WORD;

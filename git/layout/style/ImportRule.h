@@ -40,7 +40,8 @@
 #ifndef mozilla_css_ImportRule_h__
 #define mozilla_css_ImportRule_h__
 
-#include "mozilla/css/Rule.h"
+#include "nsICSSRule.h"
+#include "nsCSSRule.h"
 #include "nsIDOMCSSImportRule.h"
 #include "nsCSSRules.h"
 
@@ -50,32 +51,35 @@ class nsString;
 namespace mozilla {
 namespace css {
 
-class NS_FINAL_CLASS ImportRule : public Rule,
+class NS_FINAL_CLASS ImportRule : public nsCSSRule,
+                                  public nsICSSRule,
                                   public nsIDOMCSSImportRule
 {
 public:
-  ImportRule(nsMediaList* aMedia, const nsString& aURLSpec);
+  ImportRule(nsMediaList* aMedia);
 private:
   // for |Clone|
   ImportRule(const ImportRule& aCopy);
   ~ImportRule();
 public:
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_ISUPPORTS
 
   DECL_STYLE_RULE_INHERIT
-
-#ifdef HAVE_CPP_AMBIGUITY_RESOLVING_USING
-  using Rule::GetStyleSheet; // unhide since nsIDOMCSSImportRule has its own GetStyleSheet
-#endif
 
   // nsIStyleRule methods
 #ifdef DEBUG
   virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
 
-  // Rule methods
+  // nsICSSRule methods
   virtual PRInt32 GetType() const;
-  virtual already_AddRefed<Rule> Clone() const;
+  virtual already_AddRefed<nsICSSRule> Clone() const;
+
+  void SetURLSpec(const nsString& aURLSpec) { mURLSpec = aURLSpec; }
+  void GetURLSpec(nsString& aURLSpec) const { aURLSpec = mURLSpec; }
+
+  nsresult SetMedia(const nsString& aMedia);
+  void GetMedia(nsString& aMedia) const;
 
   void SetSheet(nsCSSStyleSheet*);
 
@@ -93,5 +97,9 @@ private:
 
 } // namespace css
 } // namespace mozilla
+
+nsresult
+NS_NewCSSImportRule(mozilla::css::ImportRule** aInstancePtrResult,
+                    const nsString& aURLSpec, nsMediaList* aMedia);
 
 #endif /* mozilla_css_ImportRule_h__ */

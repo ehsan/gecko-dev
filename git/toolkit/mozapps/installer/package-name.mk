@@ -98,7 +98,7 @@ COMPLETE_MAR = $(PKG_UPDATE_PATH)$(PKG_UPDATE_BASENAME).complete.mar
 # PARTIAL_MAR needs to be processed by $(wildcard) before you use it.
 PARTIAL_MAR = $(PKG_UPDATE_PATH)$(PKG_UPDATE_BASENAME).partial.*.mar
 PKG_LANGPACK_BASENAME = $(MOZ_PKG_APPNAME)-$(MOZ_PKG_VERSION).$(AB_CD).langpack
-PKG_LANGPACK_PATH = $(MOZ_PKG_PLATFORM)/xpi/
+PKG_LANGPACK_PATH = install/
 LANGPACK = $(PKG_LANGPACK_PATH)$(PKG_LANGPACK_BASENAME).xpi
 PKG_SRCPACK_BASENAME = $(MOZ_PKG_APPNAME)-$(MOZ_PKG_VERSION).source
 PKG_SRCPACK_PATH =
@@ -112,7 +112,10 @@ MOZ_PKG_APPNAME_LC = $(shell echo $(MOZ_PKG_APPNAME) | tr '[A-Z]' '[a-z]')
 
 
 ifndef MOZ_PKG_LONGVERSION
-MOZ_PKG_LONGVERSION = $(shell echo $(MOZ_PKG_VERSION))
+MOZ_PKG_LONGVERSION = $(shell echo $(MOZ_PKG_VERSION) |\
+                       sed -e 's/a\([0-9][0-9]*\)$$/ Alpha \1/' |\
+                       sed -e 's/b\([0-9][0-9]*\)$$/ Beta \1/' |\
+                       sed -e 's/rc\([0-9][0-9]*\)$$/ RC \1/')
 endif
 
 ifeq (,$(filter-out Darwin OS2, $(OS_ARCH))) # Mac and OS2
@@ -168,6 +171,3 @@ _dollar=$$
 MOZ_SOURCE_REPO = $(shell cd $(MOZILLA_DIR) && hg showconfig paths.default 2>/dev/null | head -n1 | sed -e "s/^ssh:/http:/" -e "s/\/$(_dollar)//" )
 
 MOZ_SOURCESTAMP_FILE = $(DIST)/$(PKG_PATH)/$(PKG_BASENAME).txt
-
-# JavaScript Shell
-PKG_JSSHELL = $(DIST)/jsshell-$(MOZ_PKG_PLATFORM).zip

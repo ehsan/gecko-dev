@@ -45,7 +45,7 @@
 #include "nsCOMPtr.h"
 #include "nsRect.h"
 #include "gfxContext.h"
-#include "nsRenderingContext.h"
+#include "nsIRenderingContext.h"
 #include "gfxRect.h"
 #include "gfxMatrix.h"
 #include "nsSVGMatrix.h"
@@ -72,6 +72,7 @@ class gfxASurface;
 class gfxPattern;
 class gfxImageSurface;
 struct gfxSize;
+struct gfxIntSize;
 struct nsStyleFont;
 class nsSVGEnum;
 class nsISVGChildFrame;
@@ -98,8 +99,10 @@ class Element;
 /* are we the child of a non-display container? */
 #define NS_STATE_SVG_NONDISPLAY_CHILD            NS_FRAME_STATE_BIT(22)
 
+#define NS_STATE_SVG_PROPAGATE_TRANSFORM         NS_FRAME_STATE_BIT(23)
+
 // If this bit is set, we are a <clipPath> element or descendant.
-#define NS_STATE_SVG_CLIPPATH_CHILD              NS_FRAME_STATE_BIT(23)
+#define NS_STATE_SVG_CLIPPATH_CHILD              NS_FRAME_STATE_BIT(24)
 
 /**
  * Byte offsets of channels in a native packed gfxColor or cairo image surface.
@@ -158,7 +161,7 @@ public:
   /**
    * Render SVG to a legacy rendering context
    */
-  nsSVGRenderState(nsRenderingContext *aContext);
+  nsSVGRenderState(nsIRenderingContext *aContext);
   /**
    * Render SVG to a modern rendering context
    */
@@ -168,7 +171,7 @@ public:
    */
   nsSVGRenderState(gfxASurface *aSurface);
 
-  nsRenderingContext *GetRenderingContext(nsIFrame *aFrame);
+  nsIRenderingContext *GetRenderingContext(nsIFrame *aFrame);
   gfxContext *GetGfxContext() { return mGfxContext; }
 
   void SetRenderMode(RenderMode aMode) { mRenderMode = aMode; }
@@ -181,7 +184,7 @@ public:
 
 private:
   RenderMode                    mRenderMode;
-  nsRefPtr<nsRenderingContext> mRenderingContext;
+  nsCOMPtr<nsIRenderingContext> mRenderingContext;
   nsRefPtr<gfxContext>          mGfxContext;
   PRPackedBool                  mPaintingToWindow;
 };
@@ -382,14 +385,14 @@ public:
   /* Generate a viewbox to viewport tranformation matrix */
 
   static gfxMatrix
-  GetViewBoxTransform(const nsSVGElement* aElement,
+  GetViewBoxTransform(nsSVGElement* aElement,
                       float aViewportWidth, float aViewportHeight,
                       float aViewboxX, float aViewboxY,
                       float aViewboxWidth, float aViewboxHeight,
                       const SVGAnimatedPreserveAspectRatio &aPreserveAspectRatio);
 
   static gfxMatrix
-  GetViewBoxTransform(const nsSVGElement* aElement,
+  GetViewBoxTransform(nsSVGElement* aElement,
                       float aViewportWidth, float aViewportHeight,
                       float aViewboxX, float aViewboxY,
                       float aViewboxWidth, float aViewboxHeight,
@@ -445,12 +448,32 @@ public:
    * possibly making it smaller in the process so the surface does not
    * use excessive memory.
    *
+   * XXXdholbert Putting impl in header file so that imagelib can call this
+   * method.  Once we switch to a libxul-only world, this can go back into
+   * the .cpp file.
+   *
    * @param aSize the desired surface size
    * @param aResultOverflows true if the desired surface size is too big
    * @return the surface size to use
    */
   static gfxIntSize ConvertToSurfaceSize(const gfxSize& aSize,
-                                         PRBool *aResultOverflows);
+                                  PRBool *aResultOverflows)
+  {
+    gfxIntSize surfaceSize(ClampToInt(aSize.width), ClampToInt(aSize.height));
+
+    *aResultOverflows = surfaceSize.width != NS_round(aSize.width) ||
+      surfaceSize.height != NS_round(aSize.height);
+
+    if (!gfxASurface::CheckSurfaceSize(surfaceSize)) {
+      surfaceSize.width = NS_MIN(NS_SVG_OFFSCREEN_MAX_DIMENSION,
+                                 surfaceSize.width);
+      surfaceSize.height = NS_MIN(NS_SVG_OFFSCREEN_MAX_DIMENSION,
+                                  surfaceSize.height);
+      *aResultOverflows = PR_TRUE;
+    }
+
+    return surfaceSize;
+  }
 
   /*
    * Convert a nsIDOMSVGMatrix to a gfxMatrix.

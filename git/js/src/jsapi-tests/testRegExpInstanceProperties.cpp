@@ -8,8 +8,6 @@
 #include "jsgc.h"
 #include "jsscope.h"
 
-#include "jsscopeinlines.h"
-
 BEGIN_TEST(testRegExpInstanceProperties)
 {
     jsval regexpProtoVal;
@@ -22,14 +20,14 @@ BEGIN_TEST(testRegExpInstanceProperties)
 
     JS_GC(cx);
 
-    CHECK_EQUAL(regexpProto->getCompartment()->initialRegExpShape, NULL);
+    CHECK(regexpProto->getCompartment()->initialRegExpShape == NULL);
 
     jsval regexp;
     EVAL("/foopy/", &regexp);
     JSObject *robj = JSVAL_TO_OBJECT(regexp);
 
     CHECK(robj->lastProperty());
-    CHECK_EQUAL(robj->getCompartment()->initialRegExpShape, robj->lastProperty());
+    CHECK(robj->getCompartment()->initialRegExpShape == robj->lastProperty());
 
     return true;
 }

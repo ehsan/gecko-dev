@@ -56,7 +56,9 @@ else
 HOST_CSRCS	= nsinstall.c pathsub.c
 endif
 
-TARGETS		= $(HOST_PROGRAM) $(SIMPLE_PROGRAMS)
+PLSRCS		= nfspwd.pl
+
+TARGETS		= $(HOST_PROGRAM) $(PLSRCS:.pl=) $(SIMPLE_PROGRAMS)
 
 # IMPORTANT: Disable NSBUILDROOT for this directory only, otherwise we have
 # a recursive rule for finding nsinstall and the Perl scripts.
@@ -91,7 +93,8 @@ endif
 ifdef WRAP_SYSTEM_INCLUDES
 export::
 	if test ! -d system_wrappers_js; then mkdir system_wrappers_js; fi
-	$(PYTHON) $(srcdir)/Preprocessor.py $(DEFINES) $(ACDEFINES) \
+	$(PERL) $(srcdir)/preprocessor.pl $(DEFINES) $(ACDEFINES) \
+		-DBUILD_STATIC_LIBS=$(BUILD_STATIC_LIBS) \
 		$(srcdir)/system-headers | $(PERL) $(srcdir)/make-system-wrappers.pl system_wrappers_js
 	$(INSTALL) system_wrappers_js $(DIST)
 

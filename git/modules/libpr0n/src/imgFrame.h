@@ -62,7 +62,7 @@ public:
   imgFrame();
   ~imgFrame();
 
-  nsresult Init(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight, gfxASurface::gfxImageFormat aFormat, PRUint8 aPaletteDepth = 0);
+  nsresult Init(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight, gfxASurface::gfxImageFormat aFormat, PRInt8 aPaletteDepth = 0);
   nsresult Optimize();
 
   void Draw(gfxContext *aContext, gfxPattern::GraphicsFilter aFilter,
@@ -125,7 +125,7 @@ public:
   {
     if (mOptSurface)
       return mOptSurface;
-#if defined(XP_WIN)
+#if defined(XP_WIN) && !defined(WINCE)
     if (mWinSurface)
       return mWinSurface;
 #elif defined(XP_MACOSX)
@@ -135,9 +135,8 @@ public:
     return mImageSurface;
   }
 
-  PRUint32 EstimateMemoryUsed(gfxASurface::MemoryLocation aLocation) const;
-
-  PRUint8 GetPaletteDepth() const { return mPaletteDepth; }
+  // returns an estimate of the memory used by this imgFrame
+  PRUint32 EstimateMemoryUsed() const;
 
 private: // methods
   PRUint32 PaletteDataLength() const {
@@ -166,7 +165,7 @@ private: // methods
 private: // data
   nsRefPtr<gfxImageSurface> mImageSurface;
   nsRefPtr<gfxASurface> mOptSurface;
-#if defined(XP_WIN)
+#if defined(XP_WIN) && !defined(WINCE)
   nsRefPtr<gfxWindowsSurface> mWinSurface;
 #elif defined(XP_MACOSX)
   nsRefPtr<gfxQuartzImageSurface> mQuartzSurface;
@@ -189,7 +188,7 @@ private: // data
   PRInt32      mDisposalMethod;
 
   gfxASurface::gfxImageFormat mFormat;
-  PRUint8      mPaletteDepth;
+  PRInt8       mPaletteDepth;
   PRInt8       mBlendMethod;
   PRPackedBool mSinglePixel;
   PRPackedBool mNeverUseDeviceSurface;

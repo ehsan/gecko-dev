@@ -62,6 +62,7 @@
 #include "nsIContent.h"
 #include "nsIFrame.h"
 #include "nsIView.h"
+#include "nsIRegion.h"
 #include "gfxASurface.h"
 #include "gfxContext.h"
 
@@ -70,8 +71,6 @@
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* sCocoaLog;
 #endif
-
-extern void EnsureLogInitialized();
 
 extern NSPasteboard* globalDragPboard;
 extern NSView* gLastDragView;
@@ -91,8 +90,6 @@ nsDragService::nsDragService()
 {
   mNativeDragView = nil;
   mNativeDragEvent = nil;
-
-  EnsureLogInitialized();
 }
 
 nsDragService::~nsDragService()

@@ -126,8 +126,6 @@ public:
     return mItems.Length();
   }
 
-  nsIDOMSVGPoint* GetItemWithoutAddRef(PRUint32 aIndex);
-
   /**
    * WATCH OUT! If you add code to call this on a baseVal wrapper, then you
    * must also call it on the animVal wrapper too if necessary!! See other

@@ -40,7 +40,7 @@
 #include "nsMathUtils.h"
 #include <math.h>
 
-namespace mozilla {
+using namespace mozilla;
 
 /*static*/ SVGPointListSMILType SVGPointListSMILType::sSingleton;
 
@@ -170,7 +170,7 @@ SVGPointListSMILType::ComputeDistance(const nsSMILValue& aFrom,
     total += dx * dx + dy * dy;
   }
   double distance = sqrt(total);
-  if (!NS_finite(distance)) {
+  if (!NS_FloatIsFinite(distance)) {
     return NS_ERROR_FAILURE;
   }
   aDistance = distance;
@@ -225,5 +225,3 @@ SVGPointListSMILType::Interpolate(const nsSMILValue& aStartVal,
   }
   return NS_OK;
 }
-
-} // namespace mozilla

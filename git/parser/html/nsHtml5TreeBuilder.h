@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2007 Henri Sivonen
- * Copyright (c) 2007-2011 Mozilla Foundation
+ * Copyright (c) 2007-2010 Mozilla Foundation
  * Portions of comments Copyright 2004-2008 Apple Computer, Inc., Mozilla 
  * Foundation, and Opera Software ASA.
  *
@@ -217,7 +217,6 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
 
   private:
     PRBool isInForeign();
-    PRBool isInForeignButNotHtmlIntegrationPoint();
   public:
     void setFragmentContext(nsIAtom* context, PRInt32 ns, nsIContent** node, PRBool quirks);
   protected:
@@ -318,7 +317,6 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
 #define NS_HTML5TREE_BUILDER_OBJECT 63
 #define NS_HTML5TREE_BUILDER_FONT 64
 #define NS_HTML5TREE_BUILDER_KEYGEN 65
-#define NS_HTML5TREE_BUILDER_MENUITEM 66
 #define NS_HTML5TREE_BUILDER_INITIAL 0
 #define NS_HTML5TREE_BUILDER_BEFORE_HTML 1
 #define NS_HTML5TREE_BUILDER_BEFORE_HEAD 2

@@ -39,7 +39,6 @@
 
 #include "nsHyperTextAccessible.h"
 
-#include "States.h"
 #include "nsAccessibilityAtoms.h"
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
@@ -47,25 +46,29 @@
 
 #include "nsIClipboard.h"
 #include "nsContentCID.h"
+#include "nsIDOMAbstractView.h"
 #include "nsIDOMCharacterData.h"
 #include "nsIDOMDocument.h"
+#include "nsPIDOMWindow.h"        
+#include "nsIDOMDocumentView.h"
 #include "nsIDOMRange.h"
 #include "nsIDOMNSRange.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsIDOMXULDocument.h"
 #include "nsIEditingSession.h"
 #include "nsIEditor.h"
+#include "nsIFontMetrics.h"
 #include "nsIFrame.h"
 #include "nsFrameSelection.h"
 #include "nsILineIterator.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIPlaintextEditor.h"
 #include "nsIScrollableFrame.h"
+#include "nsISelection2.h"
 #include "nsISelectionPrivate.h"
 #include "nsIServiceManager.h"
 #include "nsTextFragment.h"
 #include "gfxSkipChars.h"
-
-using namespace mozilla::a11y;
 
 static NS_DEFINE_IID(kRangeCID, NS_RANGE_CID);
 
@@ -170,10 +173,14 @@ nsHyperTextAccessible::NativeRole()
   return nsIAccessibleRole::ROLE_TEXT_CONTAINER; // In ATK this works
 }
 
-PRUint64
-nsHyperTextAccessible::NativeState()
+nsresult
+nsHyperTextAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  PRUint64 states = nsAccessibleWrap::NativeState();
+  nsresult rv = nsAccessibleWrap::GetStateInternal(aState, aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+
+  if (!aExtraState)
+    return NS_OK;
 
   nsCOMPtr<nsIEditor> editor;
   GetAssociatedEditor(getter_AddRefs(editor));
@@ -181,17 +188,17 @@ nsHyperTextAccessible::NativeState()
     PRUint32 flags;
     editor->GetFlags(&flags);
     if (0 == (flags & nsIPlaintextEditor::eEditorReadonlyMask)) {
-      states |= states::EDITABLE;
+      *aExtraState |= nsIAccessibleStates::EXT_STATE_EDITABLE;
     }
   } else if (mContent->Tag() == nsAccessibilityAtoms::article) {
     // We want <article> to behave like a document in terms of readonly state.
-    states |= states::READONLY;
+    *aState |= nsIAccessibleStates::STATE_READONLY;
   }
 
   if (GetChildCount() > 0)
-    states |= states::SELECTABLE_TEXT;
+    *aExtraState |= nsIAccessibleStates::EXT_STATE_SELECTABLE_TEXT;
 
-  return states;
+  return NS_OK;
 }
 
 // Substring must be entirely within the same text node
@@ -307,7 +314,7 @@ nsHyperTextAccessible::GetPosAndText(PRInt32& aStartOffset, PRInt32& aEndOffset,
     *aEndFrame = nsnull;
   }
   if (aBoundsRect) {
-    aBoundsRect->SetEmpty();
+    aBoundsRect->Empty();
   }
   if (aStartAcc)
     *aStartAcc = nsnull;
@@ -622,9 +629,9 @@ nsHyperTextAccessible::DOMPointToHypertextOffset(nsINode *aNode,
   }
 
   // From the descendant, go up and get the immediate child of this hypertext
-  nsAccessible* childAccAtOffset = nsnull;
+  nsAccessible *childAccAtOffset = nsnull;
   while (descendantAcc) {
-    nsAccessible* parentAcc = descendantAcc->Parent();
+    nsAccessible *parentAcc = descendantAcc->GetParent();
     if (parentAcc == this) {
       childAccAtOffset = descendantAcc;
       break;
@@ -915,7 +922,7 @@ nsresult nsHyperTextAccessible::GetTextHelper(EGetTextType aType, nsAccessibleTe
       NS_ENSURE_SUCCESS(rv, rv);
 
       nsCOMPtr<nsISelectionPrivate> privateSelection(do_QueryInterface(domSel));
-      nsRefPtr<nsFrameSelection> frameSelection;
+      nsCOMPtr<nsFrameSelection> frameSelection;
       rv = privateSelection->GetFrameSelection(getter_AddRefs(frameSelection));
       NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1013,7 +1020,7 @@ nsresult nsHyperTextAccessible::GetTextHelper(EGetTextType aType, nsAccessibleTe
   }
 
   if (aType == eGetBefore) {
-    finalEndOffset = aOffset;
+    endOffset = aOffset;
   }
   else {
     // Start moving forward from the start so that we don't get 
@@ -1153,7 +1160,7 @@ nsHyperTextAccessible::GetTextAttributes(PRBool aIncludeDefAttrs,
     return NS_ERROR_INVALID_ARG;
   }
 
-  PRInt32 accAtOffsetIdx = accAtOffset->IndexInParent();
+  PRInt32 accAtOffsetIdx = accAtOffset->GetIndexInParent();
   PRInt32 startOffset = GetChildOffset(accAtOffsetIdx);
   PRInt32 endOffset = GetChildOffset(accAtOffsetIdx + 1);
   PRInt32 offsetInAcc = aOffset - startOffset;
@@ -1254,18 +1261,19 @@ nsHyperTextAccessible::GetAttributesInternal(nsIPersistentProperties *aAttribute
   }
 
   // For the html landmark elements we expose them like we do aria landmarks to
-  // make AT navigation schemes "just work". Note html:header is redundant as
-  // a landmark since it usually contains headings. We're not yet sure how the
-  // web will use html:footer but our best bet right now is as contentinfo.
+  // make AT navigation schemes "just work".
   if (mContent->Tag() == nsAccessibilityAtoms::nav)
     nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::xmlroles,
                            NS_LITERAL_STRING("navigation"));
+  else if (mContent->Tag() == nsAccessibilityAtoms::header) 
+    nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::xmlroles,
+                           NS_LITERAL_STRING("banner"));
   else if (mContent->Tag() == nsAccessibilityAtoms::footer) 
     nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::xmlroles,
                            NS_LITERAL_STRING("contentinfo"));
   else if (mContent->Tag() == nsAccessibilityAtoms::aside) 
     nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::xmlroles,
-                           NS_LITERAL_STRING("complementary"));
+                           NS_LITERAL_STRING("note"));
 
   return  NS_OK;
 }
@@ -1678,7 +1686,7 @@ PRInt32 nsHyperTextAccessible::GetCaretLineNumber()
                 getter_AddRefs(domSel));
   nsCOMPtr<nsISelectionPrivate> privateSelection(do_QueryInterface(domSel));
   NS_ENSURE_TRUE(privateSelection, -1);
-  nsRefPtr<nsFrameSelection> frameSelection;
+  nsCOMPtr<nsFrameSelection> frameSelection;
   privateSelection->GetFrameSelection(getter_AddRefs(frameSelection));
   NS_ENSURE_TRUE(frameSelection, -1);
 
@@ -1790,7 +1798,8 @@ nsHyperTextAccessible::GetSelections(PRInt16 aType,
   }
 
   if (aRanges) {
-    nsCOMPtr<nsISelectionPrivate> privSel(do_QueryInterface(domSel));
+    nsCOMPtr<nsISelection2> selection2(do_QueryInterface(domSel));
+    NS_ENSURE_TRUE(selection2, NS_ERROR_FAILURE);
 
     nsCOMPtr<nsINode> startNode = GetNode();
     if (peditor) {
@@ -1802,7 +1811,7 @@ nsHyperTextAccessible::GetSelections(PRInt16 aType,
 
     PRUint32 childCount = startNode->GetChildCount();
     nsCOMPtr<nsIDOMNode> startDOMNode(do_QueryInterface(startNode));
-    nsresult rv = privSel->
+    nsresult rv = selection2->
       GetRangesForIntervalCOMArray(startDOMNode, 0, startDOMNode, childCount,
                                    PR_TRUE, aRanges);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -2090,7 +2099,7 @@ nsHyperTextAccessible::InvalidateChildren()
 PRBool
 nsHyperTextAccessible::RemoveChild(nsAccessible* aAccessible)
 {
-  PRInt32 childIndex = aAccessible->IndexInParent();
+  PRInt32 childIndex = aAccessible->GetIndexInParent();
   PRInt32 count = mOffsets.Length() - childIndex;
   if (count > 0)
     mOffsets.RemoveElementsAt(childIndex, count);
@@ -2203,6 +2212,7 @@ nsHyperTextAccessible::GetChildOffset(PRUint32 aChildIndex,
   PRUint32 lastOffset = mOffsets.IsEmpty() ?
     0 : mOffsets[mOffsets.Length() - 1];
 
+  EnsureChildren();
   while (mOffsets.Length() < aChildIndex) {
     nsAccessible* child = mChildren[mOffsets.Length()];
     lastOffset += nsAccUtils::TextLength(child);

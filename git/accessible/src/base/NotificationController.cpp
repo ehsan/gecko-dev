@@ -45,7 +45,6 @@
 #include "nsEventShell.h"
 #include "nsTextAccessible.h"
 #include "TextUpdater.h"
-#include "mozilla/dom/Element.h"
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,7 +54,7 @@
 NotificationController::NotificationController(nsDocAccessible* aDocument,
                                                nsIPresShell* aPresShell) :
   mObservingState(eNotObservingRefresh), mDocument(aDocument),
-  mPresShell(aPresShell)
+  mPresShell(aPresShell), mTreeConstructedState(eTreeConstructionPending)
 {
   mTextHash.Init();
 
@@ -154,12 +153,15 @@ NotificationController::ScheduleContentInsertion(nsAccessible* aContainer,
                                                  nsIContent* aStartChildNode,
                                                  nsIContent* aEndChildNode)
 {
-  nsRefPtr<ContentInsertion> insertion = new ContentInsertion(mDocument,
-                                                              aContainer);
-  if (insertion && insertion->InitChildList(aStartChildNode, aEndChildNode) &&
-      mContentInsertions.AppendElement(insertion)) {
+  // Ignore content insertions until we constructed accessible tree.
+  if (mTreeConstructedState == eTreeConstructionPending)
+    return;
+
+  nsRefPtr<ContentInsertion> insertion =
+    new ContentInsertion(mDocument, aContainer, aStartChildNode, aEndChildNode);
+
+  if (insertion && mContentInsertions.AppendElement(insertion))
     ScheduleProcessing();
-  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -203,7 +205,7 @@ NotificationController::WillRefresh(mozilla::TimeStamp aTime)
   mObservingState = eRefreshProcessingForUpdate;
 
   // Initial accessible tree construction.
-  if (!mDocument->HasLoadState(nsDocAccessible::eTreeConstructed)) {
+  if (mTreeConstructedState == eTreeConstructionPending) {
     // If document is not bound to parent at this point then the document is not
     // ready yet (process notifications later).
     if (!mDocument->IsBoundToParent())
@@ -214,7 +216,8 @@ NotificationController::WillRefresh(mozilla::TimeStamp aTime)
            mDocument.get(), mDocument->GetDocumentNode());
 #endif
 
-    mDocument->DoInitialUpdate();
+    mTreeConstructedState = eTreeConstructed;
+    mDocument->NotifyOfInitialUpdate();
 
     NS_ASSERTION(mContentInsertions.Length() == 0,
                  "Pending content insertions while initial accessible tree isn't created!");
@@ -245,8 +248,8 @@ NotificationController::WillRefresh(mozilla::TimeStamp aTime)
   mTextHash.Clear();
 
   // Bind hanging child documents.
-  PRUint32 hangingDocCnt = mHangingChildDocuments.Length();
-  for (PRUint32 idx = 0; idx < hangingDocCnt; idx++) {
+  PRUint32 childDocCount = mHangingChildDocuments.Length();
+  for (PRUint32 idx = 0; idx < childDocCount; idx++) {
     nsDocAccessible* childDoc = mHangingChildDocuments[idx];
 
     nsIContent* ownerContent = mDocument->GetDocumentNode()->
@@ -254,9 +257,17 @@ NotificationController::WillRefresh(mozilla::TimeStamp aTime)
     if (ownerContent) {
       nsAccessible* outerDocAcc = mDocument->GetAccessible(ownerContent);
       if (outerDocAcc && outerDocAcc->AppendChild(childDoc)) {
-        if (mDocument->AppendChildDocument(childDoc))
-          continue;
+        if (mDocument->AppendChildDocument(childDoc)) {
+          // Fire reorder event to notify new accessible document has been
+          // attached to the tree.
+          nsRefPtr<AccEvent> reorderEvent =
+              new AccEvent(nsIAccessibleEvent::EVENT_REORDER, outerDocAcc,
+                           eAutoDetect, AccEvent::eCoalesceFromSameSubtree);
+          if (reorderEvent)
+            QueueEvent(reorderEvent);
 
+          continue;
+        }
         outerDocAcc->RemoveChild(childDoc);
       }
 
@@ -265,25 +276,6 @@ NotificationController::WillRefresh(mozilla::TimeStamp aTime)
     }
   }
   mHangingChildDocuments.Clear();
-
-  // If the document is ready and all its subdocuments are completely loaded
-  // then process the document load.
-  if (mDocument->HasLoadState(nsDocAccessible::eReady) &&
-      !mDocument->HasLoadState(nsDocAccessible::eCompletelyLoaded) &&
-      hangingDocCnt == 0) {
-    PRUint32 childDocCnt = mDocument->ChildDocumentCount(), childDocIdx = 0;
-    for (; childDocIdx < childDocCnt; childDocIdx++) {
-      nsDocAccessible* childDoc = mDocument->GetChildDocumentAt(childDocIdx);
-      if (!childDoc->HasLoadState(nsDocAccessible::eCompletelyLoaded))
-        break;
-    }
-
-    if (childDocIdx == childDocCnt) {
-      mDocument->ProcessLoad();
-      if (!mDocument)
-        return;
-    }
-  }
 
   // Process only currently queued generic notifications.
   nsTArray < nsRefPtr<Notification> > notifications;
@@ -295,10 +287,6 @@ NotificationController::WillRefresh(mozilla::TimeStamp aTime)
     if (!mDocument)
       return;
   }
-
-  // Process invalidation list of the document after all accessible tree
-  // modification are done.
-  mDocument->ProcessInvalidationList();
 
   // If a generic notification occurs after this point then we may be allowed to
   // process it synchronously.
@@ -324,12 +312,10 @@ NotificationController::WillRefresh(mozilla::TimeStamp aTime)
       return;
   }
 
-  // Stop further processing if there are no new notifications of any kind or
-  // events and document load is processed.
+  // Stop further processing if there are no newly queued insertions,
+  // notifications or events.
   if (mContentInsertions.Length() == 0 && mNotifications.Length() == 0 &&
-      mEvents.Length() == 0 && mTextHash.Count() == 0 &&
-      mHangingChildDocuments.Length() == 0 &&
-      mDocument->HasLoadState(nsDocAccessible::eCompletelyLoaded) &&
+      mEvents.Length() == 0 &&
       mPresShell->RemoveRefreshObserver(this, Flush_Display)) {
     mObservingState = eNotObservingRefresh;
   }
@@ -390,8 +376,8 @@ NotificationController::CoalesceEvents()
             return;
           }
         } else if (tailEvent->mEventType == nsIAccessibleEvent::EVENT_SHOW) {
-          if (thisEvent->mAccessible->Parent() ==
-              tailEvent->mAccessible->Parent()) {
+          if (thisEvent->mAccessible->GetParent() ==
+              tailEvent->mAccessible->GetParent()) {
             tailEvent->mEventRule = thisEvent->mEventRule;
 
             // Coalesce text change events for show events.
@@ -528,14 +514,14 @@ NotificationController::CoalesceTextChangeEventsFor(AccShowEvent* aTailEvent,
   if (!textEvent)
     return;
 
-  if (aTailEvent->mAccessible->IndexInParent() ==
-      aThisEvent->mAccessible->IndexInParent() + 1) {
+  if (aTailEvent->mAccessible->GetIndexInParent() ==
+      aThisEvent->mAccessible->GetIndexInParent() + 1) {
     // If tail target was inserted after this target, i.e. tail target is next
     // sibling of this target.
     aTailEvent->mAccessible->AppendTextTo(textEvent->mModifiedText);
 
-  } else if (aTailEvent->mAccessible->IndexInParent() ==
-             aThisEvent->mAccessible->IndexInParent() -1) {
+  } else if (aTailEvent->mAccessible->GetIndexInParent() ==
+             aThisEvent->mAccessible->GetIndexInParent() -1) {
     // If tail target was inserted before this target, i.e. tail target is
     // previous sibling of this target.
     nsAutoString startText;
@@ -695,31 +681,15 @@ NotificationController::TextEnumerator(nsCOMPtrHashKey<nsIContent>* aEntry,
 // NotificationController: content inserted notification
 
 NotificationController::ContentInsertion::
-  ContentInsertion(nsDocAccessible* aDocument, nsAccessible* aContainer) :
+  ContentInsertion(nsDocAccessible* aDocument, nsAccessible* aContainer,
+                   nsIContent* aStartChildNode, nsIContent* aEndChildNode) :
   mDocument(aDocument), mContainer(aContainer)
 {
-}
-
-bool
-NotificationController::ContentInsertion::
-  InitChildList(nsIContent* aStartChildNode, nsIContent* aEndChildNode)
-{
-  bool haveToUpdate = false;
-
   nsIContent* node = aStartChildNode;
   while (node != aEndChildNode) {
-    // Notification triggers for content insertion even if no content was
-    // actually inserted, check if the given content has a frame to discard
-    // this case early.
-    if (node->GetPrimaryFrame()) {
-      if (mInsertedContent.AppendElement(node))
-        haveToUpdate = true;
-    }
-
+    mInsertedContent.AppendElement(node);
     node = node->GetNextSibling();
   }
-
-  return haveToUpdate;
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(NotificationController::ContentInsertion)

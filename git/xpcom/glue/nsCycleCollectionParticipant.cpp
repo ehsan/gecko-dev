@@ -39,12 +39,10 @@
 #include "nsCOMPtr.h"
 
 static void
-NoteChild(PRUint32 aLangID, void *aScriptThing, const char *name,
-          void *aClosure)
+NoteChild(PRUint32 aLangID, void *aScriptThing, void *aClosure)
 {
   nsCycleCollectionTraversalCallback *cb =
     static_cast<nsCycleCollectionTraversalCallback*>(aClosure);
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, name);
   cb->NoteScriptChild(aLangID, aScriptThing);
 }
 
@@ -56,7 +54,7 @@ nsScriptObjectTracer::TraverseScriptObjects(void *p,
 }
 
 nsresult
-nsXPCOMCycleCollectionParticipant::Root(void *p)
+nsXPCOMCycleCollectionParticipant::RootAndUnlinkJSObjects(void *p)
 {
     nsISupports *s = static_cast<nsISupports*>(p);
     NS_ADDREF(s);

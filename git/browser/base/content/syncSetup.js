@@ -56,15 +56,9 @@ const OPTIONS_PAGE                  = 6;
 const OPTIONS_CONFIRM_PAGE          = 7;
 const SETUP_SUCCESS_PAGE            = 8;
 
-// Broader than we'd like, but after this changed from api-secure.recaptcha.net
-// we had no choice. At least we only do this for the duration of setup.
-// See discussion in Bugs 508112 and 653307.
-const RECAPTCHA_DOMAIN = "https://www.google.com";
-
 Cu.import("resource://services-sync/main.js");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/PlacesUtils.jsm");
 Cu.import("resource://gre/modules/PluralForm.jsm");
 
 var gSyncSetup = {
@@ -72,18 +66,16 @@ var gSyncSetup = {
                                          Ci.nsIWebProgressListener,
                                          Ci.nsISupportsWeakReference]),
 
-  haveCaptcha: true,
   captchaBrowser: null,
   wizard: null,
   _disabledSites: [],
+  _remoteSites: [Weave.Service.serverURL, "https://api-secure.recaptcha.net"],
 
   status: {
     password: false,
     email: false,
     server: false
   },
-
-  get _remoteSites() [Weave.Service.serverURL, RECAPTCHA_DOMAIN],
 
   get _usingMainServers() {
     if (this._settingUpNew)
@@ -94,9 +86,9 @@ var gSyncSetup = {
   init: function () {
     let obs = [
       ["weave:service:changepph:finish", "onResetPassphrase"],
-      ["weave:service:login:start",  "onLoginStart"],
-      ["weave:service:login:error",  "onLoginEnd"],
-      ["weave:service:login:finish", "onLoginEnd"]];
+      ["weave:service:verify-login:start",  "onLoginStart"],
+      ["weave:service:verify-login:error",  "onLoginEnd"],
+      ["weave:service:verify-login:finish", "onLoginEnd"]];
 
     // Add the observers now and remove them on unload
     let self = this;
@@ -144,7 +136,6 @@ var gSyncSetup = {
       return false;
     this._settingUpNew = true;
     this.wizard.pageIndex = NEW_ACCOUNT_START_PAGE;
-    this.loadCaptcha();
   },
 
   useExistingAccount: function () {
@@ -219,8 +210,6 @@ var gSyncSetup = {
         feedback = server;
         break;
       case Weave.LOGIN_FAILED_LOGIN_REJECTED:
-      case Weave.LOGIN_FAILED_NO_USERNAME:
-      case Weave.LOGIN_FAILED_NO_PASSWORD:
         feedback = password;
         break;
       case Weave.LOGIN_FAILED_INVALID_PASSPHRASE:
@@ -273,9 +262,8 @@ var gSyncSetup = {
           if (this._usingMainServers)
             return true;
 
-          if (this._validateServer(document.getElementById("existingServer"))) {
+          if (this._validateServer(document.getElementById("existingServer"), false))
             return true;
-          }
         }
         return false;
     }
@@ -367,11 +355,6 @@ var gSyncSetup = {
         if (!el.value)
           this.onPassphraseGenerate();
         this.checkFields();
-        break;
-      case NEW_ACCOUNT_CAPTCHA_PAGE:
-        if (!this.haveCaptcha) {
-          gSyncSetup.wizard.advance();
-        }
         break;
       case NEW_ACCOUNT_START_PAGE:
         this.wizard.getButton("extra1").hidden = false;
@@ -486,6 +469,12 @@ var gSyncSetup = {
         image.setAttribute("status", "error");
         label.value = Weave.Utils.getErrorString(error);
         return false;
+      case NEW_ACCOUNT_PP_PAGE:
+        // Time to load the captcha.
+        // First check for NoScript and whitelist the right sites.
+        this._handleNoScript(true);
+        this.captchaBrowser.loadURI(Weave.Service.miscAPI + "captcha_html");
+        break;
       case EXISTING_ACCOUNT_LOGIN_PAGE:
         Weave.Service.account = Weave.Utils.normalizeAccount(
           document.getElementById("existingAccountName").value);
@@ -554,7 +543,11 @@ var gSyncSetup = {
       else
         gSyncUtils.openAddedClientFirstrun();
     }
-    Weave.Utils.nextTick(Weave.Service.sync, Weave.Service);
+
+    if (!Weave.Service.isLoggedIn)
+      Weave.Service.login();
+
+    Weave.Service.syncOnIdle(1);
   },
 
   onWizardCancel: function () {
@@ -713,9 +706,6 @@ var gSyncSetup = {
     }
     control.removeAttribute("editable");
     Weave.Svc.Prefs.reset("serverURL");
-    if (this._settingUpNew) {
-      this.loadCaptcha();
-    }
     this.checkAccount();
     this.status.server = true;
     document.getElementById("serverFeedbackRow").hidden = true;
@@ -738,7 +728,7 @@ var gSyncSetup = {
     let feedback = document.getElementById("serverFeedbackRow");
     let str = "";
     if (el.value) {
-      valid = this._validateServer(el);
+      valid = this._validateServer(el, true);
       let str = valid ? "" : "serverInvalid.label";
       this._setFeedbackMessage(feedback, valid, str);
     }
@@ -753,7 +743,9 @@ var gSyncSetup = {
     this.checkFields();
   },
 
-  _validateServer: function (element) {
+  // xxxmpc - checkRemote is a hack, we can't verify a minimal server is live
+  // without auth, so we won't validate in the existing-server case.
+  _validateServer: function (element, checkRemote) {
     let valid = false;
     let val = element.value;
     if (!val)
@@ -764,7 +756,7 @@ var gSyncSetup = {
     if (!uri)
       uri = Weave.Utils.makeURI("https://" + val);
 
-    if (uri && this._settingUpNew) {
+    if (uri && checkRemote) {
       function isValid(uri) {
         Weave.Service.serverURL = uri.spec;
         let check = Weave.Service.checkAccount("a");
@@ -781,10 +773,6 @@ var gSyncSetup = {
       }
       if (!valid)
         valid = isValid(uri);
-
-      if (valid) {
-        this.loadCaptcha();
-      }
     }
     else if (uri) {
       valid = true;
@@ -826,9 +814,7 @@ var gSyncSetup = {
         if (this._case1Setup)
           break;
 
-        let places_db = PlacesUtils.history
-                                   .QueryInterface(Ci.nsPIPlacesDatabase)
-                                   .DBConnection;
+        let places_db = Weave.Svc.History.DBConnection;
         if (Weave.Engines.get("history").enabled) {
           let daysOfHistory = 0;
           let stm = places_db.createStatement(
@@ -859,7 +845,7 @@ var gSyncSetup = {
             "FROM moz_bookmarks b " +
             "LEFT JOIN moz_bookmarks t ON " +
             "b.parent = t.id WHERE b.type = 1 AND t.parent <> :tag");
-          stm.params.tag = PlacesUtils.tagsFolderId;
+          stm.params.tag = Weave.Svc.Bookmark.tagsFolder;
           if (stm.executeStep())
             bookmarks = stm.row.bookmarks;
           // Support %S for historical reasons (see bug 600141)
@@ -873,7 +859,7 @@ var gSyncSetup = {
         }
 
         if (Weave.Engines.get("passwords").enabled) {
-          let logins = Services.logins.getAllLogins({});
+          let logins = Weave.Svc.Login.getAllLogins({});
           // Support %S for historical reasons (see bug 600141)
           document.getElementById("passwordCount").value =
             PluralForm.get(logins.length,
@@ -952,12 +938,6 @@ var gSyncSetup = {
     this._setFeedback(element, success, str);
   },
 
-  loadCaptcha: function loadCaptcha() {
-    // First check for NoScript and whitelist the right sites.
-    this._handleNoScript(true);
-    this.captchaBrowser.loadURI(Weave.Service.miscAPI + "captcha_html");
-  },
-
   onStateChange: function(webProgress, request, stateFlags, status) {
     // We're only looking for the end of the frame load
     if ((stateFlags & Ci.nsIWebProgressListener.STATE_STOP) == 0)
@@ -968,18 +948,8 @@ var gSyncSetup = {
       return;
 
     // If we didn't find the captcha, assume it's not needed and move on
-    if (request.QueryInterface(Ci.nsIHttpChannel).responseStatus == 404) {
-      this.haveCaptcha = false;
-      // Hide the browser just in case we end up displaying the captcha page
-      // due to a sign up error.
-      this.captchaBrowser.hidden = true;
-      if (this.wizard.pageIndex == NEW_ACCOUNT_CAPTCHA_PAGE) {
-        this.onWizardAdvance();
-      }
-    } else {
-      this.haveCaptcha = true;
-      this.captchaBrowser.hidden = false;
-    }
+    if (request.QueryInterface(Ci.nsIHttpChannel).responseStatus == 404)
+      this.onWizardAdvance();
   },
   onProgressChange: function() {},
   onStatusChange: function() {},

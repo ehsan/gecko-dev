@@ -39,14 +39,6 @@ HB_BEGIN_DECLS
 #define MAX_FEATURES 100 /* FIXME */
 #define MAX_LOOKUPS 1000 /* FIXME */
 
-/* some constants for feature-ordering priorities; intermediate values can also be
-   used if required for shapers that want precise control. */
-#define FIRST_PRIORITY   100
-#define EARLY_PRIORITY   300
-#define DEFAULT_PRIORITY 500
-#define LATE_PRIORITY    700
-#define LAST_PRIORITY    900
-
 static const hb_tag_t table_tags[2] = {HB_OT_TAG_GSUB, HB_OT_TAG_GPOS};
 
 struct hb_ot_map_t {
@@ -58,8 +50,7 @@ struct hb_ot_map_t {
     unsigned int seq; /* sequence#, used for stable sorting only */
     unsigned int max_value;
     bool global; /* whether the feature applies value to every glyph in the buffer */
-    unsigned short default_value; /* for non-global features, what should the unset glyphs take */
-    unsigned short priority; /* feature ordering priority, for cases such as Arabic */
+    unsigned int default_value; /* for non-global features, what should the unset glyphs take */
 
     static int cmp (const feature_info_t *a, const feature_info_t *b)
     { return (a->tag != b->tag) ?  (a->tag < b->tag ? -1 : 1) : (a->seq < b->seq ? -1 : 1); }
@@ -68,8 +59,7 @@ struct hb_ot_map_t {
   struct feature_map_t {
     hb_tag_t tag; /* should be first for our bsearch to work */
     unsigned int index[2]; /* GSUB, GPOS */
-    unsigned short shift;
-    unsigned short priority;
+    unsigned int shift;
     hb_mask_t mask;
     hb_mask_t _1_mask; /* mask for value=1, for quick access */
 
@@ -78,22 +68,16 @@ struct hb_ot_map_t {
   };
 
   struct lookup_map_t {
-    unsigned short index;
-    unsigned short priority;
+    unsigned int index;
     hb_mask_t mask;
 
     static int cmp (const lookup_map_t *a, const lookup_map_t *b)
-    {
-      unsigned int a_key = (a->priority << 16) + a->index;
-      unsigned int b_key = (b->priority << 16) + b->index;
-      return a_key < b_key ? -1 : a_key > b_key ? 1 : 0;
-    }
+    { return a->index < b->index ? -1 : a->index > b->index ? 1 : 0; }
   };
 
   HB_INTERNAL void add_lookups (hb_face_t    *face,
 				unsigned int  table_index,
 				unsigned int  feature_index,
-				unsigned short priority,
 				hb_mask_t     mask);
 
 
@@ -101,7 +85,7 @@ struct hb_ot_map_t {
 
   hb_ot_map_t (void) : feature_count (0) {}
 
-  void add_feature (hb_tag_t tag, unsigned int value, unsigned short priority, bool global)
+  void add_feature (hb_tag_t tag, unsigned int value, bool global)
   {
     feature_info_t *info = &feature_infos[feature_count++];
     info->tag = tag;
@@ -109,18 +93,17 @@ struct hb_ot_map_t {
     info->max_value = value;
     info->global = global;
     info->default_value = global ? value : 0;
-    info->priority = priority;
   }
 
-  inline void add_bool_feature (hb_tag_t tag, unsigned short priority, bool global = true)
-  { add_feature (tag, 1, priority, global); }
+  inline void add_bool_feature (hb_tag_t tag, bool global = true)
+  { add_feature (tag, 1, global); }
 
   HB_INTERNAL void compile (hb_face_t *face,
 			    const hb_segment_properties_t *props);
 
   inline hb_mask_t get_global_mask (void) const { return global_mask; }
 
-  inline hb_mask_t get_mask (hb_tag_t tag, unsigned short *shift = NULL) const {
+  inline hb_mask_t get_mask (hb_tag_t tag, unsigned int *shift = NULL) const {
     const feature_map_t *map = (const feature_map_t *) bsearch (&tag, feature_maps, feature_count, sizeof (feature_maps[0]), (hb_compare_func_t) feature_map_t::cmp);
     if (shift) *shift = map ? map->shift : 0;
     return map ? map->mask : 0;

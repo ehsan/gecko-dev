@@ -48,7 +48,7 @@
 #include "nsCOMPtr.h"
 #include "nsIPresShell.h"
 #include "nsRect.h"
-#include "nsDeviceContext.h"
+#include "nsIDeviceContext.h"
 #include "nsFont.h"
 #include "nsIWeakReference.h"
 #include "nsITheme.h"
@@ -69,10 +69,10 @@
 #include "nsTArray.h"
 #include "nsAutoPtr.h"
 #include "nsThreadUtils.h"
+#include "nsContentUtils.h"
 #include "nsIWidget.h"
 #include "mozilla/TimeStamp.h"
 #include "nsIContent.h"
-#include "prclist.h"
 
 class nsImageLoader;
 #ifdef IBMBIDI
@@ -83,13 +83,13 @@ struct nsRect;
 
 class imgIRequest;
 
-class nsFontMetrics;
+class nsIFontMetrics;
 class nsIFrame;
 class nsFrameManager;
 class nsILinkHandler;
 class nsStyleContext;
 class nsIAtom;
-class nsEventStateManager;
+class nsIEventStateManager;
 class nsIURI;
 class nsILookAndFeel;
 class nsICSSPseudoComparator;
@@ -102,13 +102,11 @@ class nsUserFontSet;
 struct nsFontFaceRuleContainer;
 class nsObjectFrame;
 class nsTransitionManager;
-class nsAnimationManager;
 class nsRefreshDriver;
 class imgIContainer;
-class nsIDOMMediaQueryList;
 
 #ifdef MOZ_REFLOW_PERF
-class nsRenderingContext;
+class nsIRenderingContext;
 #endif
 
 enum nsWidgetType {
@@ -195,7 +193,7 @@ public:
   /**
    * Initialize the presentation context from a particular device.
    */
-  NS_HIDDEN_(nsresult) Init(nsDeviceContext* aDeviceContext);
+  NS_HIDDEN_(nsresult) Init(nsIDeviceContext* aDeviceContext);
 
   /**
    * Set the presentation shell that this context is bound to.
@@ -240,7 +238,6 @@ public:
     { return GetPresShell()->FrameManager(); } 
 
   nsTransitionManager* TransitionManager() { return mTransitionManager; }
-  nsAnimationManager* AnimationManager() { return mAnimationManager; }
 
   nsRefreshDriver* RefreshDriver() { return mRefreshDriver; }
 #endif
@@ -265,12 +262,6 @@ public:
     if (mPendingMediaFeatureValuesChanged)
       MediaFeatureValuesChanged(PR_FALSE);
   }
-
-  /**
-   * Support for window.matchMedia()
-   */
-  void MatchMedia(const nsAString& aMediaQueryList,
-                  nsIDOMMediaQueryList** aResult);
 
   /**
    * Access compatibility mode for this context.  This is the same as
@@ -331,7 +322,7 @@ public:
    * (which is used from media query matching, which is in turn called
    * when building the user font set).
    */
-  NS_HIDDEN_(already_AddRefed<nsFontMetrics>)
+  NS_HIDDEN_(already_AddRefed<nsIFontMetrics>)
   GetMetricsFor(const nsFont& aFont, PRBool aUseUserFontSet = PR_TRUE);
 
   /**
@@ -393,6 +384,11 @@ public:
     return PR_FALSE;
   }
 
+  /**
+   * Access Nav's magic font scaler value
+   */
+  PRInt32 FontScaler() const { return mFontScaler; }
+
   /** 
    * Get the default colors
    */
@@ -403,12 +399,6 @@ public:
   const nscolor DefaultVisitedLinkColor() const { return mVisitedLinkColor; }
   const nscolor FocusBackgroundColor() const { return mFocusBackgroundColor; }
   const nscolor FocusTextColor() const { return mFocusTextColor; }
-
-  /**
-   * Body text color, for use in quirks mode only.
-   */
-  const nscolor BodyTextColor() const { return mBodyTextColor; }
-  void SetBodyTextColor(nscolor aColor) { mBodyTextColor = aColor; }
 
   PRBool GetUseFocusColors() const { return mUseFocusColors; }
   PRUint8 FocusRingWidth() const { return mFocusRingWidth; }
@@ -487,7 +477,7 @@ public:
    * nscoord units (as scaled by the device context).
    */
   void SetVisibleArea(const nsRect& r) {
-    if (!r.IsEqualEdges(mVisibleArea)) {
+    if (!r.IsExactEqual(mVisibleArea)) {
       mVisibleArea = r;
       // Visible area does not affect media queries when paginated.
       if (!IsPaginated() && HasCachedStyleData())
@@ -548,8 +538,8 @@ public:
   float GetPrintPreviewScale() { return mPPScale; }
   void SetPrintPreviewScale(float aScale) { mPPScale = aScale; }
 
-  nsDeviceContext* DeviceContext() { return mDeviceContext; }
-  nsEventStateManager* EventStateManager() { return mEventManager; }
+  nsIDeviceContext* DeviceContext() { return mDeviceContext; }
+  nsIEventStateManager* EventStateManager() { return mEventManager; }
   nsIAtom* GetLanguageFromCharset() { return mLanguage; }
 
   float TextZoom() { return mTextZoom; }
@@ -590,25 +580,25 @@ public:
     return DevPixelsToAppUnits(mAutoQualityMinFontSizePixelsPref);
   }
   
-  static PRInt32 AppUnitsPerCSSPixel() { return nsDeviceContext::AppUnitsPerCSSPixel(); }
-  PRUint32 AppUnitsPerDevPixel() const  { return mDeviceContext->AppUnitsPerDevPixel(); }
-  static PRInt32 AppUnitsPerCSSInch() { return nsDeviceContext::AppUnitsPerCSSInch(); }
+  static PRInt32 AppUnitsPerCSSPixel() { return nsIDeviceContext::AppUnitsPerCSSPixel(); }
+  PRInt32 AppUnitsPerDevPixel() const  { return mDeviceContext->AppUnitsPerDevPixel(); }
+  static PRInt32 AppUnitsPerCSSInch() { return nsIDeviceContext::AppUnitsPerCSSInch(); }
 
   static nscoord CSSPixelsToAppUnits(PRInt32 aPixels)
   { return NSIntPixelsToAppUnits(aPixels,
-                                 nsDeviceContext::AppUnitsPerCSSPixel()); }
+                                 nsIDeviceContext::AppUnitsPerCSSPixel()); }
 
   static nscoord CSSPixelsToAppUnits(float aPixels)
   { return NSFloatPixelsToAppUnits(aPixels,
-             float(nsDeviceContext::AppUnitsPerCSSPixel())); }
+             float(nsIDeviceContext::AppUnitsPerCSSPixel())); }
 
   static PRInt32 AppUnitsToIntCSSPixels(nscoord aAppUnits)
   { return NSAppUnitsToIntPixels(aAppUnits,
-             float(nsDeviceContext::AppUnitsPerCSSPixel())); }
+             float(nsIDeviceContext::AppUnitsPerCSSPixel())); }
 
   static float AppUnitsToFloatCSSPixels(nscoord aAppUnits)
   { return NSAppUnitsToFloatPixels(aAppUnits,
-             float(nsDeviceContext::AppUnitsPerCSSPixel())); }
+             float(nsIDeviceContext::AppUnitsPerCSSPixel())); }
 
   nscoord DevPixelsToAppUnits(PRInt32 aPixels) const
   { return NSIntPixelsToAppUnits(aPixels,
@@ -648,7 +638,7 @@ public:
 
   static nscoord CSSTwipsToAppUnits(float aTwips)
   { return NSToCoordRoundWithClamp(
-      nsDeviceContext::AppUnitsPerCSSInch() * NS_TWIPS_TO_INCHES(aTwips)); }
+      nsIDeviceContext::AppUnitsPerCSSInch() * NS_TWIPS_TO_INCHES(aTwips)); }
 
   // Margin-specific version, since they often need TwipsToAppUnits
   static nsMargin CSSTwipsToAppUnits(const nsIntMargin &marginInTwips)
@@ -658,7 +648,7 @@ public:
                     CSSTwipsToAppUnits(float(marginInTwips.bottom))); }
 
   static nscoord CSSPointsToAppUnits(float aPoints)
-  { return NSToCoordRound(aPoints * nsDeviceContext::AppUnitsPerCSSInch() /
+  { return NSToCoordRound(aPoints * nsIDeviceContext::AppUnitsPerCSSInch() /
                           POINTS_PER_INCH_FLOAT); }
 
   nscoord RoundAppUnitsToNearestDevPixels(nscoord aAppUnits) const
@@ -757,6 +747,11 @@ public:
 //Mohamed
 
   /**
+   * Get a Bidi presentation utilities object
+   */
+  NS_HIDDEN_(nsBidiPresUtils*) GetBidiUtils();
+
+  /**
    * Set the Bidi options for the presentation context
    */  
   NS_HIDDEN_(void) SetBidi(PRUint32 aBidiOptions,
@@ -768,6 +763,10 @@ public:
    * include nsIDocument.
    */  
   NS_HIDDEN_(PRUint32) GetBidi() const;
+
+  PRUint32 GetBidiMemoryUsed();
+#else
+  PRUint32 GetBidiMemoryUsed() { return 0; }
 #endif // IBMBIDI
 
   /**
@@ -983,11 +982,6 @@ public:
   }
   inline void ForgetUpdatePluginGeometryFrame(nsIFrame* aFrame);
 
-  PRBool GetContainsUpdatePluginGeometryFrame()
-  {
-    return mContainsUpdatePluginGeometryFrame;
-  }
-
   void SetContainsUpdatePluginGeometryFrame(PRBool aValue)
   {
     mContainsUpdatePluginGeometryFrame = aValue;
@@ -1000,6 +994,7 @@ public:
     PRUint32 result = 0;
 
     result += sizeof(nsPresContext);
+    result += GetBidiMemoryUsed();
 
     return result;
   }
@@ -1029,9 +1024,6 @@ protected:
 
   NS_HIDDEN_(void) UpdateCharSet(const nsAFlatCString& aCharSet);
 
-  void InvalidateThebesLayers();
-  void AppUnitsPerDevPixelChanged();
-
   PRBool MayHavePaintEventListener();
 
   void HandleRebuildUserFontSet() {
@@ -1053,16 +1045,15 @@ protected:
   nsPresContextType     mType;
   nsIPresShell*         mShell;         // [WEAK]
   nsCOMPtr<nsIDocument> mDocument;
-  nsDeviceContext*     mDeviceContext; // [STRONG] could be weak, but
+  nsIDeviceContext*     mDeviceContext; // [STRONG] could be weak, but
                                         // better safe than sorry.
                                         // Cannot reintroduce cycles
                                         // since there is no dependency
                                         // from gfx back to layout.
-  nsEventStateManager* mEventManager;   // [STRONG]
+  nsIEventStateManager* mEventManager;  // [STRONG]
   nsILookAndFeel*       mLookAndFeel;   // [STRONG]
   nsRefPtr<nsRefreshDriver> mRefreshDriver;
   nsRefPtr<nsTransitionManager> mTransitionManager;
-  nsRefPtr<nsAnimationManager> mAnimationManager;
   nsIAtom*              mMedium;        // initialized by subclass ctors;
                                         // weak pointer to static atom
 
@@ -1080,14 +1071,16 @@ protected:
 
   nsWeakPtr             mContainer;
 
-  PRCList               mDOMMediaQueryLists;
-
   PRInt32               mMinFontSize;   // Min font size, defaults to 0
   float                 mTextZoom;      // Text zoom, defaults to 1.0
   float                 mFullZoom;      // Page zoom, defaults to 1.0
 
   PRInt32               mCurAppUnitsPerDevPixel;
   PRInt32               mAutoQualityMinFontSizePixelsPref;
+
+#ifdef IBMBIDI
+  nsAutoPtr<nsBidiPresUtils> mBidiUtils;
+#endif
 
   nsCOMPtr<nsITheme> mTheme;
   nsCOMPtr<nsILanguageAtomService> mLangService;
@@ -1100,6 +1093,8 @@ protected:
 
   // container for per-context fonts (downloadable, SVG, etc.)
   nsUserFontSet*        mUserFontSet;
+  // The list of @font-face rules that we put into mUserFontSet
+  nsTArray<nsFontFaceRuleContainer> mFontFaceRules;
   
   PRInt32               mFontScaler;
   nscoord               mMinimumFontSizePref;
@@ -1118,8 +1113,6 @@ protected:
 
   nscolor               mFocusBackgroundColor;
   nscolor               mFocusTextColor;
-
-  nscolor               mBodyTextColor;
 
   ScrollbarStyles       mViewportStyleOverflow;
   PRUint8               mFocusRingWidth;
@@ -1306,14 +1299,6 @@ public:
   void RootForgetUpdatePluginGeometryFrame(nsIFrame* aFrame);
 
   /**
-   * Call this when a document is going to no longer be valid for plugin updates
-   * (say by going into the bfcache). If mContainsUpdatePluginGeometryFrame is
-   * set in the prescontext then it will be cleared along with
-   * mUpdatePluginGeometryForFrame.
-   */
-  void RootForgetUpdatePluginGeometryFrameForPresContext(nsPresContext* aPresContext);
-
-  /**
    * Increment DOM-modification generation counter to indicate that
    * the DOM has changed in a way that might lead to style changes/
    * reflows/frame creation and destruction.
@@ -1346,6 +1331,93 @@ nsPresContext::ForgetUpdatePluginGeometryFrame(nsIFrame* aFrame)
     }
   }
 }
+
+#ifdef DEBUG
+
+struct nsAutoLayoutPhase {
+  nsAutoLayoutPhase(nsPresContext* aPresContext, nsLayoutPhase aPhase)
+    : mPresContext(aPresContext), mPhase(aPhase), mCount(0)
+  {
+    Enter();
+  }
+
+  ~nsAutoLayoutPhase()
+  {
+    Exit();
+    NS_ASSERTION(mCount == 0, "imbalanced");
+  }
+
+  void Enter()
+  {
+    switch (mPhase) {
+      case eLayoutPhase_Paint:
+        NS_ASSERTION(mPresContext->mLayoutPhaseCount[eLayoutPhase_Paint] == 0,
+                     "recurring into paint");
+        NS_ASSERTION(mPresContext->mLayoutPhaseCount[eLayoutPhase_Reflow] == 0,
+                     "painting in the middle of reflow");
+        NS_ASSERTION(mPresContext->mLayoutPhaseCount[eLayoutPhase_FrameC] == 0,
+                     "painting in the middle of frame construction");
+        break;
+      case eLayoutPhase_Reflow:
+        NS_ASSERTION(mPresContext->mLayoutPhaseCount[eLayoutPhase_Paint] == 0,
+                     "reflowing in the middle of a paint");
+        NS_ASSERTION(mPresContext->mLayoutPhaseCount[eLayoutPhase_Reflow] == 0,
+                     "recurring into reflow");
+        NS_ASSERTION(mPresContext->mLayoutPhaseCount[eLayoutPhase_FrameC] == 0,
+                     "reflowing in the middle of frame construction");
+        break;
+      case eLayoutPhase_FrameC:
+        NS_ASSERTION(mPresContext->mLayoutPhaseCount[eLayoutPhase_Paint] == 0,
+                     "constructing frames in the middle of a paint");
+        NS_ASSERTION(mPresContext->mLayoutPhaseCount[eLayoutPhase_Reflow] == 0,
+                     "constructing frames in the middle of reflow");
+        NS_ASSERTION(mPresContext->mLayoutPhaseCount[eLayoutPhase_FrameC] == 0,
+                     "recurring into frame construction");
+        NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
+                     "constructing frames and scripts are not blocked");
+        break;
+      default:
+        break;
+    }
+    ++(mPresContext->mLayoutPhaseCount[mPhase]);
+    ++mCount;
+  }
+
+  void Exit()
+  {
+    NS_ASSERTION(mCount > 0 && mPresContext->mLayoutPhaseCount[mPhase] > 0,
+                 "imbalanced");
+    --(mPresContext->mLayoutPhaseCount[mPhase]);
+    --mCount;
+  }
+
+private:
+  nsPresContext *mPresContext;
+  nsLayoutPhase mPhase;
+  PRUint32 mCount;
+};
+
+#define AUTO_LAYOUT_PHASE_ENTRY_POINT(pc_, phase_) \
+  nsAutoLayoutPhase autoLayoutPhase((pc_), (eLayoutPhase_##phase_))
+#define LAYOUT_PHASE_TEMP_EXIT() \
+  PR_BEGIN_MACRO \
+    autoLayoutPhase.Exit(); \
+  PR_END_MACRO
+#define LAYOUT_PHASE_TEMP_REENTER() \
+  PR_BEGIN_MACRO \
+    autoLayoutPhase.Enter(); \
+  PR_END_MACRO
+
+#else
+
+#define AUTO_LAYOUT_PHASE_ENTRY_POINT(pc_, phase_) \
+  PR_BEGIN_MACRO PR_END_MACRO
+#define LAYOUT_PHASE_TEMP_EXIT() \
+  PR_BEGIN_MACRO PR_END_MACRO
+#define LAYOUT_PHASE_TEMP_REENTER() \
+  PR_BEGIN_MACRO PR_END_MACRO
+
+#endif
 
 #ifdef MOZ_REFLOW_PERF
 

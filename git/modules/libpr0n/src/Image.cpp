@@ -63,8 +63,7 @@ Image::GetDataSize()
   if (mError)
     return 0;
   
-  return GetSourceHeapSize() + GetDecodedHeapSize() +
-         GetDecodedNonheapSize() + GetDecodedOutOfProcessSize();
+  return GetSourceDataSize() + GetDecodedDataSize();
 }
 
 // Translates a mimetype into a concrete decoder

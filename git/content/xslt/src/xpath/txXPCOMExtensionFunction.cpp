@@ -269,7 +269,7 @@ TX_ResolveFunctionCallXPCOM(const nsCString &aContractID, PRInt32 aNamespaceID,
                             FunctionCall **aFunction)
 {
     nsIID iid;
-    PRUint16 methodIndex = 0;
+    PRUint16 methodIndex;
     nsCOMPtr<nsISupports> helper;
 
     nsresult rv = LookupFunction(aContractID.get(), aName, iid, methodIndex,

@@ -44,7 +44,7 @@
 #include "nsRect.h"
 
 class nsIFrame;
-class nsRenderingContext;
+class nsIRenderingContext;
 
 class nsTextAccessibleWrap : public nsTextAccessible, 
                              public ISimpleDOMText

@@ -53,7 +53,6 @@
 
 #ifdef MOZ_CRASHREPORTER
 #include "nsICrashReporter.h"
-#include "nsExceptionHandler.h"
 #endif
 
 
@@ -69,8 +68,7 @@ extern "C" {
     NS_EXPORT void JNICALL Java_org_mozilla_gecko_GeckoAppShell_onLowMemory(JNIEnv *, jclass);
     NS_EXPORT void JNICALL Java_org_mozilla_gecko_GeckoAppShell_callObserver(JNIEnv *, jclass, jstring observerKey, jstring topic, jstring data);
     NS_EXPORT void JNICALL Java_org_mozilla_gecko_GeckoAppShell_removeObserver(JNIEnv *jenv, jclass, jstring jObserverKey);
-    NS_EXPORT void JNICALL Java_org_mozilla_gecko_GeckoAppShell_onChangeNetworkLinkStatus(JNIEnv *, jclass, jstring status, jstring type);
-    NS_EXPORT void JNICALL Java_org_mozilla_gecko_GeckoAppShell_reportJavaCrash(JNIEnv *, jclass, jstring stack);
+    NS_EXPORT void JNICALL Java_org_mozilla_gecko_GeckoAppShell_onChangeNetworkLinkStatus(JNIEnv *, jclass, jstring status);
 }
 
 
@@ -143,7 +141,7 @@ Java_org_mozilla_gecko_GeckoAppShell_removeObserver(JNIEnv *jenv, jclass, jstrin
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_onChangeNetworkLinkStatus(JNIEnv *jenv, jclass, jstring jStatus, jstring jType)
+Java_org_mozilla_gecko_GeckoAppShell_onChangeNetworkLinkStatus(JNIEnv *jenv, jclass, jstring jStatus)
 {
     if (!nsAppShell::gAppShell)
         return;
@@ -153,21 +151,4 @@ Java_org_mozilla_gecko_GeckoAppShell_onChangeNetworkLinkStatus(JNIEnv *jenv, jcl
     nsAppShell::gAppShell->NotifyObservers(nsnull,
                                            NS_NETWORK_LINK_TOPIC,
                                            sStatus.get());
-
-    nsJNIString sType(jType, jenv);
-
-    nsAppShell::gAppShell->NotifyObservers(nsnull,
-                                           NS_NETWORK_LINK_TYPE_TOPIC,
-                                           sType.get());
-}
-
-NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_reportJavaCrash(JNIEnv *, jclass, jstring stack)
-{
-#ifdef MOZ_CRASHREPORTER
-     nsJNIString javaStack(stack);
-     CrashReporter::AppendAppNotesToCrashReport(
-         NS_ConvertUTF16toUTF8(javaStack));
-#endif
-    abort();
 }

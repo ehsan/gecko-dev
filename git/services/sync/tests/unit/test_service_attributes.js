@@ -81,13 +81,13 @@ function test_urls() {
     Service.clusterURL = "http://weave.cluster/";
     do_check_eq(Svc.Prefs.get("clusterURL"), "http://weave.cluster/");
 
-    do_check_eq(Service.userBaseURL, "http://weave.cluster/1.1/johndoe/");
+    do_check_eq(Service.userBaseURL, "http://weave.cluster/1.0/johndoe/");
     do_check_eq(Service.infoURL,
-                "http://weave.cluster/1.1/johndoe/info/collections");
+                "http://weave.cluster/1.0/johndoe/info/collections");
     do_check_eq(Service.storageURL,
-                "http://weave.cluster/1.1/johndoe/storage/");
+                "http://weave.cluster/1.0/johndoe/storage/");
     do_check_eq(Service.metaURL,
-                "http://weave.cluster/1.1/johndoe/storage/meta/global");
+                "http://weave.cluster/1.0/johndoe/storage/meta/global");
 
     _("The 'miscURL' and 'userURL' attributes can be relative to 'serverURL' or absolute.");
     Svc.Prefs.set("miscURL", "relative/misc/");
@@ -147,6 +147,66 @@ function test_syncID() {
   }
 }
 
+
+function test_prefAttributes() {
+  _("Test various attributes corresponding to preferences.");
+
+  const TIMESTAMP1 = 1275493471649;
+  const TIMESTAMP2 = 1275493741122;
+  const INTERVAL = 42 * 60 * 1000;   // 42 minutes
+  const THRESHOLD = 3142;
+  const SCORE = 2718;
+  const NUMCLIENTS = 42;
+
+  try {
+    _("The 'nextSync' and 'nextHeartbeat' attributes store a millisecond timestamp to the nearest second.");
+    do_check_eq(Service.nextSync, 0);
+    do_check_eq(Service.nextHeartbeat, 0);
+    Service.nextSync = TIMESTAMP1;
+    Service.nextHeartbeat = TIMESTAMP2;
+    do_check_eq(Service.nextSync, Math.floor(TIMESTAMP1/1000)*1000);
+    do_check_eq(Service.nextHeartbeat, Math.floor(TIMESTAMP2/1000)*1000);
+
+    _("'syncInterval' has a non-zero default value.");
+    do_check_eq(Svc.Prefs.get('syncInterval'), undefined);
+    do_check_true(Service.syncInterval > 0);
+
+    _("'syncInterval' corresponds to a preference setting.");
+    Service.syncInterval = INTERVAL;
+    do_check_eq(Service.syncInterval, INTERVAL);
+    do_check_eq(Svc.Prefs.get('syncInterval'), INTERVAL);
+
+    _("'syncInterval' ignored preference setting after partial sync..");
+    Status.partial = true;
+    do_check_eq(Service.syncInterval, PARTIAL_DATA_SYNC);
+
+    _("'syncThreshold' corresponds to preference, has non-zero default.");
+    do_check_eq(Svc.Prefs.get('syncThreshold'), undefined);
+    do_check_true(Service.syncThreshold > 0);
+    Service.syncThreshold = THRESHOLD;
+    do_check_eq(Service.syncThreshold, THRESHOLD);
+    do_check_eq(Svc.Prefs.get('syncThreshold'), THRESHOLD);
+
+    _("'globalScore' corresponds to preference, defaults to zero.");
+    do_check_eq(Svc.Prefs.get('globalScore'), undefined);
+    do_check_eq(Service.globalScore, 0);
+    Service.globalScore = SCORE;
+    do_check_eq(Service.globalScore, SCORE);
+    do_check_eq(Svc.Prefs.get('globalScore'), SCORE);
+
+    _("'numClients' corresponds to preference, defaults to zero.");
+    do_check_eq(Svc.Prefs.get('numClients'), undefined);
+    do_check_eq(Service.numClients, 0);
+    Service.numClients = NUMCLIENTS;
+    do_check_eq(Service.numClients, NUMCLIENTS);
+    do_check_eq(Svc.Prefs.get('numClients'), NUMCLIENTS);
+
+  } finally {
+    Svc.Prefs.resetBranch("");
+  }
+}
+
+
 function test_locked() {
   _("The 'locked' attribute can be toggled with lock() and unlock()");
 
@@ -167,5 +227,6 @@ function run_test() {
   test_identities();
   test_urls();
   test_syncID();
+  test_prefAttributes();
   test_locked();
 }

@@ -88,8 +88,8 @@ public:
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
                                  nsFrameList&    aChildList);
 
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
 
   NS_IMETHOD Reflow(nsPresContext*          aCX,
                     nsHTMLReflowMetrics&     aDesiredSize,
@@ -197,12 +197,16 @@ public:
   NS_IMETHOD OnOptionSelected(PRInt32 aIndex, PRBool aSelected);
   NS_IMETHOD OnSetSelectedIndex(PRInt32 aOldIndex, PRInt32 aNewIndex);
 
-  // mouse event listeners (both )
-  nsresult MouseDown(nsIDOMEvent* aMouseEvent); // might destroy |this|
-  nsresult MouseUp(nsIDOMEvent* aMouseEvent);   // might destroy |this|
+  // mouse event listeners (both might destroy |this|)
+  nsresult MouseDown(nsIDOMEvent* aMouseEvent);
+  nsresult MouseUp(nsIDOMEvent* aMouseEvent);
+
+  // mouse motion listeners
   nsresult MouseMove(nsIDOMEvent* aMouseEvent);
   nsresult DragMove(nsIDOMEvent* aMouseEvent);
-  nsresult KeyPress(nsIDOMEvent* aKeyEvent);    // might destroy |this|
+
+  // key listener (might destroy |this|)
+  nsresult KeyPress(nsIDOMEvent* aKeyEvent);
 
   /**
    * Returns the options collection for aContent, if any.
@@ -234,7 +238,7 @@ public:
    * @param aPt the offset of this frame, relative to the rendering reference
    * frame
    */
-  void PaintFocus(nsRenderingContext& aRC, nsPoint aPt);
+  void PaintFocus(nsIRenderingContext& aRC, nsPoint aPt);
   /**
    * If this frame IsFocused(), invalidates an area that includes anything
    * that PaintFocus will or could have painted --- basically the whole
@@ -369,6 +373,7 @@ protected:
    */
   PRBool   IsContentSelectedByIndex(PRInt32 aIndex) const;
 
+  PRBool   IsOptionElement(nsIContent* aContent);
   PRBool   CheckIfAllFramesHere();
   PRInt32  GetIndexFromContent(nsIContent *aContent);
   PRBool   IsLeftButton(nsIDOMEvent* aMouseEvent);

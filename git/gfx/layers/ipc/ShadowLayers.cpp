@@ -49,7 +49,6 @@
 #include "mozilla/layers/PLayersParent.h"
 #include "ShadowLayers.h"
 #include "ShadowLayerChild.h"
-#include "ShadowLayerUtils.h"
 
 using namespace mozilla::ipc;
 
@@ -187,40 +186,42 @@ ShadowLayerForwarder::CreatedCanvasLayer(ShadowableLayer* aCanvas)
 void
 ShadowLayerForwarder::CreatedThebesBuffer(ShadowableLayer* aThebes,
                                           const nsIntRegion& aFrontValidRegion,
+                                          float aXResolution,
+                                          float aYResolution,
                                           const nsIntRect& aBufferRect,
                                           const SurfaceDescriptor& aTempFrontBuffer)
 {
   OptionalThebesBuffer buffer = null_t();
-  if (IsSurfaceDescriptorValid(aTempFrontBuffer)) {
+  if (SurfaceDescriptor::T__None != aTempFrontBuffer.type()) {
     buffer = ThebesBuffer(aTempFrontBuffer,
                           aBufferRect,
                           nsIntPoint(0, 0));
   }
   mTxn->AddEdit(OpCreateThebesBuffer(NULL, Shadow(aThebes),
                                      buffer,
-                                     aFrontValidRegion));
+                                     aFrontValidRegion,
+                                     aXResolution,
+                                     aYResolution));
 }
 
 void
 ShadowLayerForwarder::CreatedImageBuffer(ShadowableLayer* aImage,
                                          nsIntSize aSize,
-                                         const SharedImage& aTempFrontImage)
+                                         gfxSharedImageSurface* aTempFrontSurface)
 {
   mTxn->AddEdit(OpCreateImageBuffer(NULL, Shadow(aImage),
                                     aSize,
-                                    aTempFrontImage));
+                                    aTempFrontSurface->GetShmem()));
 }
 
 void
 ShadowLayerForwarder::CreatedCanvasBuffer(ShadowableLayer* aCanvas,
                                           nsIntSize aSize,
-                                          const SurfaceDescriptor& aTempFrontSurface,
-                                          bool aNeedYFlip)
+                                          gfxSharedImageSurface* aTempFrontSurface)
 {
   mTxn->AddEdit(OpCreateCanvasBuffer(NULL, Shadow(aCanvas),
                                      aSize,
-                                     aTempFrontSurface,
-                                     aNeedYFlip));
+                                     aTempFrontSurface->GetShmem()));
 }
 
 void
@@ -290,17 +291,17 @@ ShadowLayerForwarder::PaintedThebesBuffer(ShadowableLayer* aThebes,
 }
 void
 ShadowLayerForwarder::PaintedImage(ShadowableLayer* aImage,
-                                   const SharedImage& aNewFrontImage)
+                                   gfxSharedImageSurface* aNewFrontSurface)
 {
   mTxn->AddPaint(OpPaintImage(NULL, Shadow(aImage),
-                              aNewFrontImage));
+                              aNewFrontSurface->GetShmem()));
 }
 void
 ShadowLayerForwarder::PaintedCanvas(ShadowableLayer* aCanvas,
-                                    const SurfaceDescriptor& aNewFrontSurface)
+                                    gfxSharedImageSurface* aNewFrontSurface)
 {
   mTxn->AddPaint(OpPaintCanvas(NULL, Shadow(aCanvas),
-                               aNewFrontSurface));
+                               aNewFrontSurface->GetShmem()));
 }
 
 PRBool
@@ -343,7 +344,6 @@ ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies)
     common.useClipRect() = !!mutant->GetClipRect();
     common.clipRect() = (common.useClipRect() ?
                          *mutant->GetClipRect() : nsIntRect());
-    common.isFixedPosition() = mutant->GetIsFixedPosition();
     common.useTileSourceRect() = !!mutant->GetTileSourceRect();
     common.tileSourceRect() = (common.useTileSourceRect() ?
                                *mutant->GetTileSourceRect() : nsIntRect());
@@ -378,6 +378,18 @@ ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies)
 
   MOZ_LAYERS_LOG(("[LayersForwarder] ... done"));
   return PR_TRUE;
+}
+
+LayersBackend
+ShadowLayerForwarder::GetParentBackendType()
+{
+  if (mParentBackend == LayerManager::LAYERS_NONE) {
+    LayersBackend backend;
+    if (mShadowManager->SendGetParentType(&backend)) {
+      mParentBackend = backend;
+    }
+  }
+  return mParentBackend;
 }
 
 static gfxASurface::gfxImageFormat
@@ -622,12 +634,6 @@ ShadowLayerManager::PlatformSyncBeforeReplyUpdate()
 }
 
 #endif  // !defined(MOZ_HAVE_PLATFORM_SPECIFIC_LAYER_BUFFERS)
-
-PRBool
-IsSurfaceDescriptorValid(const SurfaceDescriptor& aSurface)
-{
-  return SurfaceDescriptor::T__None != aSurface.type();
-}
 
 } // namespace layers
 } // namespace mozilla

@@ -4,6 +4,7 @@
 -->
 <head>
   <title>Test for preference not to use document colors</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
   <style type="text/css">
@@ -42,14 +43,21 @@
 
 SimpleTest.waitForExplicitFinish();
 
+netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+var prefService = Components.classes["@mozilla.org/preferences-service;1"].
+                    getService(Components.interfaces.nsIPrefService);
+var dispBranch = prefService.getBranch("browser.display.");
+
 function get_pref()
 {
-    return SpecialPowers.getBoolPref("browser.display.use_document_colors");
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    return dispBranch.getBoolPref("use_document_colors");
 }
 
 function set_pref(val)
 {
-    SpecialPowers.setBoolPref("browser.display.use_document_colors", val);
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    dispBranch.setBoolPref("use_document_colors", val);
 }
 
 var cs1 = getComputedStyle(document.getElementById("one"), "");

@@ -46,6 +46,8 @@ CHROMIUM_CONFIG_INCLUDED = 1
 
 EXTRA_DEPS += $(topsrcdir)/ipc/chromium/chromium-config.mk
 
+ifdef MOZ_IPC # {
+
 DEFINES += \
   -DEXCLUDE_SKIA_DEPENDENCIES \
   -DCHROMIUM_MOZILLA_BUILD \
@@ -82,16 +84,13 @@ DEFINES += \
   -D_SECURE_ATL \
   -DCHROMIUM_BUILD \
   -DU_STATIC_IMPLEMENTATION \
+  -DCOMPILER_MSVC \
   -DOS_WIN=1 \
   -DWIN32 \
   -D_WIN32 \
   -D_WINDOWS \
   -DWIN32_LEAN_AND_MEAN \
   $(NULL)
-
-ifdef _MSC_VER
-DEFINES += -DCOMPILER_MSVC
-endif
 
 else # } {
 
@@ -109,3 +108,4 @@ OS_CXXFLAGS := $(filter-out -pedantic,$(OS_CXXFLAGS))
 endif # }
 endif # }
 
+endif # }

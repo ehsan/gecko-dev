@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>Test for CSP JSON violation report</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -90,7 +91,7 @@ window.checkResults = function(reportObj) {
      "http://example.org/tests/content/base/test/file_CSP.sjs?testid=img_bad&type=img/png",
      "Incorrect blocked uri");
   // correct violated-directive
-  is(cspReport["violated-directive"], "default-src http://mochi.test:8888",
+  is(cspReport["violated-directive"], "allow http://mochi.test:8888",
      "Incorrect violated directive");
   // not practical to test request-headers as header names and values will
   // change with the trunk

@@ -44,17 +44,13 @@
 #include "nsAccUtils.h"
 #include "nsBaseWidgetAccessible.h"
 #include "nsCoreUtils.h"
+#include "nsRelUtils.h"
 #include "nsTextEquivUtils.h"
-#include "Relation.h"
-#include "States.h"
 
-#include "nsIAccessibleRelation.h"
 #include "nsIDOMXULDescriptionElement.h"
 #include "nsINameSpaceManager.h"
 #include "nsString.h"
 #include "nsNetUtil.h"
-
-using namespace mozilla::a11y;
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTextAccessible
@@ -81,29 +77,38 @@ nsXULTextAccessible::NativeRole()
   return nsIAccessibleRole::ROLE_LABEL;
 }
 
-PRUint64
-nsXULTextAccessible::NativeState()
+nsresult
+nsXULTextAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
+  nsresult rv = nsHyperTextAccessibleWrap::GetStateInternal(aState,
+                                                            aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+
   // Labels and description have read only state
   // They are not focusable or selectable
-  return nsHyperTextAccessibleWrap::NativeState() | states::READONLY;
+  *aState |= nsIAccessibleStates::STATE_READONLY;
+  return NS_OK;
 }
 
-Relation
-nsXULTextAccessible::RelationByType(PRUint32 aType)
+NS_IMETHODIMP
+nsXULTextAccessible::GetRelationByType(PRUint32 aRelationType,
+                                       nsIAccessibleRelation **aRelation)
 {
-  Relation rel = nsHyperTextAccessibleWrap::RelationByType(aType);
-  if (aType == nsIAccessibleRelation::RELATION_LABEL_FOR) {
+  nsresult rv =
+    nsHyperTextAccessibleWrap::GetRelationByType(aRelationType, aRelation);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (aRelationType == nsIAccessibleRelation::RELATION_LABEL_FOR) {
     // Caption is the label for groupbox
     nsIContent *parent = mContent->GetParent();
     if (parent && parent->Tag() == nsAccessibilityAtoms::caption) {
-      nsAccessible* parent = Parent();
+      nsAccessible* parent = GetParent();
       if (parent && parent->Role() == nsIAccessibleRole::ROLE_GROUPING)
-        rel.AppendTarget(parent);
+        return nsRelUtils::AddTarget(aRelationType, aRelation, parent);
     }
   }
 
-  return rel;
+  return NS_OK;
 }
 
 
@@ -117,14 +122,16 @@ nsXULTooltipAccessible::
 {
 }
 
-PRUint64
-nsXULTooltipAccessible::NativeState()
+nsresult
+nsXULTooltipAccessible::GetStateInternal(PRUint32 *aState,
+                                         PRUint32 *aExtraState)
 {
-  PRUint64 states = nsLeafAccessible::NativeState();
+  nsresult rv = nsLeafAccessible::GetStateInternal(aState, aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
-  states &= ~states::FOCUSABLE;
-  states |= states::READONLY;
-  return states;
+  *aState &= ~nsIAccessibleStates::STATE_FOCUSABLE;
+  *aState |= nsIAccessibleStates::STATE_READONLY;
+  return NS_OK;
 }
 
 PRUint32
@@ -180,16 +187,24 @@ nsXULLinkAccessible::NativeRole()
 }
 
 
-PRUint64
-nsXULLinkAccessible::NativeState()
+nsresult
+nsXULLinkAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  return nsHyperTextAccessible::NativeState() | states::LINKED;
+  nsresult rv = nsHyperTextAccessibleWrap::GetStateInternal(aState,
+                                                            aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+
+  *aState |= nsIAccessibleStates::STATE_LINKED;
+  return NS_OK;
 }
 
-PRUint8
-nsXULLinkAccessible::ActionCount()
+NS_IMETHODIMP
+nsXULLinkAccessible::GetNumActions(PRUint8 *aNumActions)
 {
-  return 1;
+  NS_ENSURE_ARG_POINTER(aNumActions);
+  
+  *aNumActions = 1;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -221,7 +236,7 @@ nsXULLinkAccessible::DoAction(PRUint8 aIndex)
 // nsXULLinkAccessible: HyperLinkAccessible
 
 bool
-nsXULLinkAccessible::IsLink()
+nsXULLinkAccessible::IsHyperLink()
 {
   // Expose HyperLinkAccessible unconditionally.
   return true;
@@ -235,21 +250,21 @@ nsXULLinkAccessible::StartOffset()
   // a text.
   // XXX: accessible parent of XUL link accessible should be a hypertext
   // accessible.
-  if (nsAccessible::IsLink())
+  if (nsAccessible::IsHyperLink())
     return nsAccessible::StartOffset();
-  return IndexInParent();
+  return GetIndexInParent();
 }
 
 PRUint32
 nsXULLinkAccessible::EndOffset()
 {
-  if (nsAccessible::IsLink())
+  if (nsAccessible::IsHyperLink())
     return nsAccessible::EndOffset();
-  return IndexInParent() + 1;
+  return GetIndexInParent() + 1;
 }
 
 already_AddRefed<nsIURI>
-nsXULLinkAccessible::AnchorURIAt(PRUint32 aAnchorIndex)
+nsXULLinkAccessible::GetAnchorURI(PRUint32 aAnchorIndex)
 {
   if (aAnchorIndex != 0)
     return nsnull;

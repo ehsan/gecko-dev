@@ -1,4 +1,0 @@
-browser.jar:
-    content/browser/NetworkPanel.xhtml            (webconsole/NetworkPanel.xhtml)
-*   content/browser/scratchpad.xul                (scratchpad/scratchpad.xul)
-*   content/browser/scratchpad.js                 (scratchpad/scratchpad.js)

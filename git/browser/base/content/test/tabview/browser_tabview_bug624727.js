@@ -10,7 +10,7 @@ function test() {
   let createGroupItem = function () {
     let bounds = new cw.Rect(20, 20, 400, 200);
     let groupItem = new cw.GroupItem([], {bounds: bounds, immediately: true});
-    cw.UI.setActive(groupItem);
+    cw.GroupItems.setActiveGroupItem(groupItem);
 
     let groupItemId = groupItem.id;
     registerCleanupFunction(function() {
@@ -62,9 +62,7 @@ function test() {
   let testStateAfterEnteringPB = function () {
     let prefix = 'enter';
     ok(!pb.privateBrowsingEnabled, prefix + ': private browsing is disabled');
-    registerCleanupFunction(function () {
-      pb.privateBrowsingEnabled = false;
-    });
+    registerCleanupFunction(function () pb.privateBrowsingEnabled = false);
 
     togglePrivateBrowsing(function () {
       assertTabViewIsHidden(prefix);
@@ -112,8 +110,6 @@ function test() {
 
   showTabView(function () {
     cw = TabView.getContentWindow();
-    assertNumberOfGroups('start', 1);
-
     createGroupItem();
 
     afterAllTabsLoaded(function () {
@@ -127,4 +123,20 @@ function test() {
       hideTabView(testStateAfterEnteringPB);
     });
   });
+}
+
+// ----------
+function togglePrivateBrowsing(callback) {
+  let topic = 'private-browsing-transition-complete';
+
+  function pbObserver(aSubject, aTopic, aData) {
+    if (aTopic != topic)
+      return;
+
+    Services.obs.removeObserver(pbObserver, topic);
+    afterAllTabsLoaded(callback);
+  }
+
+  Services.obs.addObserver(pbObserver, topic, false);
+  pb.privateBrowsingEnabled = !pb.privateBrowsingEnabled;
 }

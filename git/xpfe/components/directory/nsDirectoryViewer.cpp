@@ -81,16 +81,17 @@
 #include "nsIAuthPrompt.h"
 #include "nsIProgressEventSink.h"
 #include "nsIDOMWindow.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsIDOMWindowCollection.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
+#include "nsIDOMText.h"
+#include "nsIPrefService.h"
+#include "nsIPrefBranch.h"
 #include "nsIStreamConverterService.h"
 #include "nsICategoryManager.h"
 #include "nsXPCOMCID.h"
 #include "nsIDocument.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 static const int FORMAT_HTML = 2;
 static const int FORMAT_XUL = 3;
@@ -125,8 +126,8 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsHTTPIndex)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTION_1(nsHTTPIndex, mInner)
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsHTTPIndex)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsHTTPIndex)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsHTTPIndex, nsIHttpIndex)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsHTTPIndex, nsIHttpIndex)
 
 NS_IMETHODIMP
 nsHTTPIndex::GetInterface(const nsIID &anIID, void **aResult ) 
@@ -304,13 +305,14 @@ nsHTTPIndex::OnStartRequest(nsIRequest *request, nsISupports* aContext)
     jsval jslistener = OBJECT_TO_JSVAL(jsobj);
 
     // ...and stuff it into the global context
+    PRBool ok;
     JSAutoRequest ar(cx);
-    PRBool ok = JS_SetProperty(cx, global, "HTTPIndex", &jslistener);
+    ok = JS_SetProperty(cx, global, "HTTPIndex", &jslistener);
+
     NS_ASSERTION(ok, "unable to set Listener property");
-    if (!ok)
+    if (! ok)
       return NS_ERROR_FAILURE;
   }
-
   if (!aContext) {
     nsCOMPtr<nsIChannel> channel(do_QueryInterface(request));
     NS_ASSERTION(channel, "request should be a channel");
@@ -437,6 +439,7 @@ nsHTTPIndex::OnIndexAvailable(nsIRequest* aRequest, nsISupports *aContext,
     return rv;
 
   PRBool isDirType = (type == nsIDirIndex::TYPE_DIRECTORY);
+
   if (isDirType && entryuriC.Last() != '/') {
       entryuriC.Append('/');
   }
@@ -782,16 +785,23 @@ nsHTTPIndex::isWellknownContainerURI(nsIRDFResource *r)
 {
   nsCOMPtr<nsIRDFNode> node;
   GetTarget(r, kNC_IsContainer, PR_TRUE, getter_AddRefs(node));
-  if (node) {
-    PRBool isContainerFlag;
-    if (NS_SUCCEEDED(node->EqualsNode(kTrueLiteral, &isContainerFlag)))
-      return isContainerFlag;
-  }
 
-  nsXPIDLCString uri;
-  GetDestination(r, uri);
-  return uri.get() && !strncmp(uri, kFTPProtocol, sizeof(kFTPProtocol) - 1) &&
-         (uri.Last() == '/');
+  PRBool isContainerFlag = PR_FALSE;
+
+  if (node && NS_SUCCEEDED(node->EqualsNode(kTrueLiteral, &isContainerFlag))) {
+    return isContainerFlag;
+  } else {
+    nsXPIDLCString uri;
+    
+    GetDestination(r,uri);
+
+    if ((uri.get()) && (!strncmp(uri, kFTPProtocol, sizeof(kFTPProtocol) - 1))) {
+      if (uri.Last() == '/') {
+        isContainerFlag = PR_TRUE;
+      }
+    }
+  }
+  return isContainerFlag;
 }
 
 
@@ -888,16 +898,19 @@ nsHTTPIndex::GetTargets(nsIRDFResource *aSource, nsIRDFResource *aProperty, PRBo
 		{
 			// check and see if we already have data for the search in question;
 			// if we do, don't bother doing the search again
-			PRBool hasResults;
+			PRBool		hasResults = PR_FALSE;
 			if (NS_SUCCEEDED((*_retval)->HasMoreElements(&hasResults)) &&
-			    hasResults)
-			  doNetworkRequest = PR_FALSE;
+			    (hasResults == PR_TRUE))
+			{
+				doNetworkRequest = PR_FALSE;
+			}
 		}
 
         // Note: if we need to do a network request, do it out-of-band
         // (because the XUL template builder isn't re-entrant)
         // by using a global connection list and an immediately-firing timer
-		if (doNetworkRequest && mConnectionList)
+
+		if ((doNetworkRequest == PR_TRUE) && (mConnectionList))
 		{
 		    PRInt32 connectionIndex = mConnectionList->IndexOf(aSource);
 		    if (connectionIndex < 0)
@@ -965,6 +978,8 @@ nsHTTPIndex::FireTimer(nsITimer* aTimer, void* aClosure)
   if (!httpIndex)	return;
   
   // don't return out of this loop as mTimer may need to be cancelled afterwards
+  PRBool      refireTimer = PR_FALSE;
+  
   PRUint32    numItems = 0;
   if (httpIndex->mConnectionList)
   {
@@ -1001,7 +1016,7 @@ nsHTTPIndex::FireTimer(nsITimer* aTimer, void* aClosure)
             rv = channel->AsyncOpen(httpIndex, aSource);
           }
         }
-  }
+    }
     if (httpIndex->mNodeList)
     {
         httpIndex->mNodeList->Count(&numItems);
@@ -1043,8 +1058,7 @@ nsHTTPIndex::FireTimer(nsITimer* aTimer, void* aClosure)
             }                
         }
     }
-
-    PRBool refireTimer = PR_FALSE;
+    
     // check both lists to see if the timer needs to continue firing
     if (httpIndex->mConnectionList)
     {
@@ -1229,10 +1243,10 @@ nsHTTPIndex::ArcLabelsOut(nsIRDFResource *aSource, nsISimpleEnumerator **_retval
 	{
 		nsCOMPtr<nsISimpleEnumerator>	anonArcs;
 		rv = mInner->ArcLabelsOut(aSource, getter_AddRefs(anonArcs));
-		PRBool hasResults;
+		PRBool	hasResults = PR_TRUE;
 		while (NS_SUCCEEDED(rv) &&
-		       NS_SUCCEEDED(anonArcs->HasMoreElements(&hasResults)) &&
-		       hasResults)
+                       NS_SUCCEEDED(anonArcs->HasMoreElements(&hasResults)) &&
+                       hasResults == PR_TRUE)
 		{
 			nsCOMPtr<nsISupports>	anonArc;
 			if (NS_FAILED(anonArcs->GetNext(getter_AddRefs(anonArc))))
@@ -1336,12 +1350,21 @@ nsDirectoryViewerFactory::CreateInstance(const char *aCommand,
 {
   nsresult rv;
 
+  // OK - are we going to be using the html listing or not?
+  nsCOMPtr<nsIPrefBranch> prefSrv = do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
+  if (NS_FAILED(rv)) return rv;
+
+  PRBool useXUL = PR_FALSE;  
   PRBool viewSource = (PL_strstr(aContentType,"view-source") != 0);
   
 #ifdef MOZ_RDF
+  PRInt32 dirPref;
+  rv = prefSrv->GetIntPref("network.dir.format", &dirPref);
+  if (NS_SUCCEEDED(rv) && dirPref == FORMAT_XUL) {
+    useXUL = PR_TRUE;
+  }
 
-  if (!viewSource &&
-      Preferences::GetInt("network.dir.format", FORMAT_XUL) == FORMAT_XUL) {
+  if ((NS_FAILED(rv) || useXUL) && !viewSource) {
     // ... and setup the original channel's content type
     (void)aChannel->SetContentType(NS_LITERAL_CSTRING("application/vnd.mozilla.xul+xml"));
 
@@ -1465,3 +1488,4 @@ nsDirectoryViewerFactory::CreateBlankDocument(nsILoadGroup *aLoadGroup,
   NS_NOTYETIMPLEMENTED("didn't expect to get here");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
+

@@ -48,7 +48,6 @@
 
 #include "nsString.h"
 #include "nsGenericElement.h"
-#include "nsDOMMemoryReporter.h"
 
 namespace mozilla {
 namespace css {
@@ -58,19 +57,16 @@ class StyleRule;
 
 typedef nsGenericElement nsStyledElementBase;
 
-class nsStyledElementNotElementCSSInlineStyle : public nsStyledElementBase
+class nsStyledElement : public nsStyledElementBase
 {
 
 protected:
 
-  inline nsStyledElementNotElementCSSInlineStyle(already_AddRefed<nsINodeInfo> aNodeInfo)
+  inline nsStyledElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : nsStyledElementBase(aNodeInfo)
   {}
 
 public:
-
-  NS_DECL_AND_IMPL_DOM_MEMORY_REPORTER_SIZEOF(nsStyledElementNotElementCSSInlineStyle,
-                                              nsStyledElementBase)
 
   // nsIContent interface methods
   virtual nsIAtom* GetClassAttributeName() const;
@@ -116,17 +112,6 @@ protected:
    * document.
    */
   nsresult  ReparseStyleAttribute(PRBool aForceInDataDoc);
-};
-
-class nsStyledElement : public nsStyledElementNotElementCSSInlineStyle {
-public:
-  NS_DECL_AND_IMPL_DOM_MEMORY_REPORTER_SIZEOF(nsStyledElement,
-                                              nsStyledElementNotElementCSSInlineStyle)
-
-protected:
-  inline nsStyledElement(already_AddRefed<nsINodeInfo> aNodeInfo)
-    : nsStyledElementNotElementCSSInlineStyle(aNodeInfo)
-  {}
 };
 
 #endif // __NS_STYLEDELEMENT_H_

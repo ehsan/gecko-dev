@@ -42,7 +42,11 @@
 
 #include "AccessibleAction_i.c"
 
-#include "nsAccessible.h"
+#include "nsIAccessible.h"
+#include "nsAccessNodeWrap.h"
+#include "nsCOMPtr.h"
+#include "nsString.h"
+#include "nsIDOMDOMStringList.h"
 
 // IUnknown
 
@@ -63,19 +67,21 @@ CAccessibleAction::QueryInterface(REFIID iid, void** ppv)
 // IAccessibleAction
 
 STDMETHODIMP
-CAccessibleAction::nActions(long* aActionCount)
+CAccessibleAction::nActions(long *aNumActions)
 {
 __try {
-  if (!aActionCount)
-    return E_INVALIDARG;
+  *aNumActions = 0;
 
-  *aActionCount = 0;
-
-  nsRefPtr<nsAccessible> acc(do_QueryObject(this));
-  if (!acc || acc->IsDefunct())
+  nsCOMPtr<nsIAccessible> acc(do_QueryObject(this));
+  if (!acc)
     return E_FAIL;
 
-  *aActionCount = acc->ActionCount();
+  PRUint8 count = 0;
+  nsresult rv = acc->GetNumActions(&count);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
+  *aNumActions = count;
   return S_OK;
 
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
@@ -131,44 +137,54 @@ CAccessibleAction::get_keyBinding(long aActionIndex, long aNumMaxBinding,
                                   long *aNumBinding)
 {
 __try {
-  if (!aKeyBinding)
-    return E_INVALIDARG;
   *aKeyBinding = NULL;
-
-  if (!aNumBinding)
-    return E_INVALIDARG;
   *aNumBinding = 0;
 
-  if (aActionIndex != 0 || aNumMaxBinding < 1)
-    return E_INVALIDARG;
-
-  nsRefPtr<nsAccessible> acc(do_QueryObject(this));
-  if (!acc || acc->IsDefunct())
+  nsCOMPtr<nsIAccessible> acc(do_QueryObject(this));
+  if (!acc)
     return E_FAIL;
 
-  // Expose keyboard shortcut if it's not exposed via MSAA keyboard shortcut.
-  KeyBinding keyBinding = acc->AccessKey();
-  if (keyBinding.IsEmpty())
+  nsCOMPtr<nsIDOMDOMStringList> keys;
+  PRUint8 index = static_cast<PRUint8>(aActionIndex);
+  nsresult rv = acc->GetKeyBindings(index, getter_AddRefs(keys));
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
+  PRUint32 length = 0;
+  keys->GetLength(&length);
+  if (length == 0)
     return S_FALSE;
 
-  keyBinding = acc->KeyboardShortcut();
-  if (keyBinding.IsEmpty())
-    return S_FALSE;
+  PRUint32 maxBinding = static_cast<PRUint32>(aNumMaxBinding);
+  PRUint32 numBinding = length > maxBinding ? maxBinding : length;
+  *aNumBinding = numBinding;
 
-  nsAutoString keyStr;
-  keyBinding.ToString(keyStr);
-
-  *aKeyBinding = static_cast<BSTR*>(::CoTaskMemAlloc(sizeof(BSTR*)));
+  *aKeyBinding = static_cast<BSTR*>(nsMemory::Alloc((numBinding) * sizeof(BSTR*)));
   if (!*aKeyBinding)
     return E_OUTOFMEMORY;
 
-  *(aKeyBinding[0]) = ::SysAllocStringLen(keyStr.get(), keyStr.Length());
-  if (!*(aKeyBinding[0])) {
-    ::CoTaskMemFree(*aKeyBinding);
-    return E_OUTOFMEMORY;
+  PRBool outOfMemory = PR_FALSE;
+  PRUint32 i = 0;
+  for (; i < numBinding; i++) {
+    nsAutoString key;
+    keys->Item(i, key);
+    *(aKeyBinding[i]) = ::SysAllocStringLen(key.get(), key.Length());
+
+    if (!*(aKeyBinding[i])) {
+      outOfMemory = PR_TRUE;
+      break;
+    }
   }
 
-  *aNumBinding = 1;
+  if (outOfMemory) {
+    for (PRUint32 j = 0; j < i; j++)
+      ::SysFreeString(*(aKeyBinding[j]));
+
+    nsMemory::Free(*aKeyBinding);
+    *aKeyBinding = NULL;
+
+    return E_OUTOFMEMORY;
+  }
   return S_OK;
 
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }

@@ -50,7 +50,7 @@
 #include "nsRuleData.h"
 #include "nsStyleContext.h"
 #include "nsIDocument.h"
-#include "nsContentUtils.h"
+
 /* for collections */
 #include "nsIDOMElement.h"
 #include "nsGenericHTMLElement.h"
@@ -95,13 +95,6 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLTableElement,
                                                      nsGenericHTMLElement)
 
-  already_AddRefed<nsIDOMHTMLTableSectionElement> GetTHead() {
-    return GetSection(nsGkAtoms::thead);
-  }
-  already_AddRefed<nsIDOMHTMLTableSectionElement> GetTFoot() {
-    return GetSection(nsGkAtoms::tfoot);
-  }
-  nsContentList* TBodies();
 protected:
   already_AddRefed<nsIDOMHTMLTableSectionElement> GetSection(nsIAtom *aTag);
 
@@ -126,9 +119,10 @@ public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_NSIDOMHTMLCOLLECTION
 
-  virtual nsIContent* GetNodeAt(PRUint32 aIndex);
+  virtual nsIContent* GetNodeAt(PRUint32 aIndex, nsresult* aResult);
   virtual nsISupports* GetNamedItem(const nsAString& aName,
-                                    nsWrapperCache **aCache);
+                                    nsWrapperCache **aCache,
+                                    nsresult* aResult);
 
   NS_IMETHOD    ParentDestroyed();
 
@@ -192,7 +186,10 @@ TableRowsCollection::Init()
     if (mParent) {                                                   \
       /* THead */                                                    \
       nsCOMPtr<nsIDOMHTMLTableSectionElement> rowGroup;              \
-      rowGroup = mParent->GetTHead();                                \
+      rv = mParent->GetTHead(getter_AddRefs(rowGroup));              \
+      if (NS_FAILED(rv)) {                                           \
+        break;                                                       \
+      }                                                              \
       nsCOMPtr<nsIDOMHTMLCollection> rows;                           \
       if (rowGroup) {                                                \
         rowGroup->GetRows(getter_AddRefs(rows));                     \
@@ -200,20 +197,35 @@ TableRowsCollection::Init()
           _code                                                      \
         } while (0);                                                 \
       }                                                              \
+      nsCOMPtr<nsIDOMHTMLCollection> _tbodies;                       \
       /* TBodies */                                                  \
-      nsContentList *_tbodies = mParent->TBodies();                  \
-      nsINode * _node;                                               \
-      PRUint32 _tbodyIndex = 0;                                      \
-      _node = _tbodies->GetNodeAt(_tbodyIndex);                      \
-      while (_node) {                                                \
-        rowGroup = do_QueryInterface(_node);                         \
-        if (rowGroup) {                                              \
-          rowGroup->GetRows(getter_AddRefs(rows));                   \
-          do { /* gives scoping */                                   \
-            _code                                                    \
-          } while (0);                                               \
+      rv = mParent->GetTBodies(getter_AddRefs(_tbodies));            \
+      if (NS_FAILED(rv)) {                                           \
+        break;                                                       \
+      }                                                              \
+      if (_tbodies) {                                                \
+        nsCOMPtr<nsIDOMNode> _node;                                  \
+        PRUint32 _tbodyIndex = 0;                                    \
+        rv = _tbodies->Item(_tbodyIndex, getter_AddRefs(_node));     \
+        if (NS_FAILED(rv)) {                                         \
+          break;                                                     \
         }                                                            \
-        _node = _tbodies->GetNodeAt(++_tbodyIndex);                  \
+        while (_node) {                                              \
+          rowGroup = do_QueryInterface(_node);                       \
+          if (rowGroup) {                                            \
+            rowGroup->GetRows(getter_AddRefs(rows));                 \
+            do { /* gives scoping */                                 \
+              _code                                                  \
+            } while (0);                                             \
+          }                                                          \
+          rv = _tbodies->Item(++_tbodyIndex, getter_AddRefs(_node)); \
+          if (NS_FAILED(rv)) {                                       \
+            break;                                                   \
+          }                                                          \
+        }                                                            \
+        if (NS_FAILED(rv)) {                                         \
+          break;                                                     \
+        }                                                            \
       }                                                              \
       /* orphan rows */                                              \
       rows = mOrphanRows;                                            \
@@ -221,7 +233,10 @@ TableRowsCollection::Init()
         _code                                                        \
       } while (0);                                                   \
       /* TFoot */                                                    \
-      rowGroup = mParent->GetTFoot();                                \
+      rv = mParent->GetTFoot(getter_AddRefs(rowGroup));              \
+      if (NS_FAILED(rv)) {                                           \
+        break;                                                       \
+      }                                                              \
       rows = nsnull;                                                 \
       if (rowGroup) {                                                \
         rowGroup->GetRows(getter_AddRefs(rows));                     \
@@ -251,12 +266,13 @@ NS_IMETHODIMP
 TableRowsCollection::GetLength(PRUint32* aLength)
 {
   *aLength=0;
+  nsresult rv = NS_OK;
 
   DO_FOR_EACH_ROWGROUP(
     *aLength += CountRowsInRowGroup(rows);
   );
 
-  return NS_OK;
+  return rv;
 }
 
 // Returns the item at index aIndex if available. If null is returned,
@@ -280,8 +296,9 @@ GetItemOrCountInRowGroup(nsIDOMHTMLCollection* rows,
 }
 
 nsIContent*
-TableRowsCollection::GetNodeAt(PRUint32 aIndex)
+TableRowsCollection::GetNodeAt(PRUint32 aIndex, nsresult *aResult)
 {
+  nsresult rv = NS_OK;
   DO_FOR_EACH_ROWGROUP(
     PRUint32 count;
     nsIContent* node = GetItemOrCountInRowGroup(rows, aIndex, &count);
@@ -293,17 +310,21 @@ TableRowsCollection::GetNodeAt(PRUint32 aIndex)
     aIndex -= count;
   );
 
+  *aResult = rv;
+
   return nsnull;
 }
 
 NS_IMETHODIMP 
 TableRowsCollection::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
 {
-  nsISupports* node = GetNodeAt(aIndex);
+  nsresult rv;
+
+  nsISupports* node = GetNodeAt(aIndex, &rv);
   if (!node) {
     *aReturn = nsnull;
 
-    return NS_OK;
+    return rv;
   }
 
   return CallQueryInterface(node, aReturn);
@@ -311,27 +332,31 @@ TableRowsCollection::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
 
 static nsISupports*
 GetNamedItemInRowGroup(nsIDOMHTMLCollection* aRows, const nsAString& aName,
-                       nsWrapperCache** aCache)
+                       nsWrapperCache** aCache, nsresult* aResult)
 {
   nsCOMPtr<nsIHTMLCollection> rows = do_QueryInterface(aRows);
   if (rows) {
-    return rows->GetNamedItem(aName, aCache);
+    return rows->GetNamedItem(aName, aCache, aResult);
   }
 
+  *aResult = NS_OK;
   return nsnull;
 }
 
 nsISupports* 
 TableRowsCollection::GetNamedItem(const nsAString& aName,
-                                  nsWrapperCache** aCache)
+                                  nsWrapperCache** aCache,
+                                  nsresult* aResult)
 {
+  nsresult rv = NS_OK;
   DO_FOR_EACH_ROWGROUP(
-    nsISupports* item = GetNamedItemInRowGroup(rows, aName, aCache);
-    if (item) {
+    nsISupports* item = GetNamedItemInRowGroup(rows, aName, aCache, aResult);
+    if (NS_FAILED(*aResult) || item) {
       return item;
     }
   );
   *aCache = nsnull;
+  *aResult = rv;
   return nsnull;
 }
 
@@ -339,12 +364,13 @@ NS_IMETHODIMP
 TableRowsCollection::NamedItem(const nsAString& aName,
                                nsIDOMNode** aReturn)
 {
+  nsresult rv;
   nsWrapperCache *cache;
-  nsISupports* item = GetNamedItem(aName, &cache);
+  nsISupports* item = GetNamedItem(aName, &cache, &rv);
   if (!item) {
     *aReturn = nsnull;
 
-    return NS_OK;
+    return rv;
   }
 
   return CallQueryInterface(item, aReturn);
@@ -484,7 +510,7 @@ nsHTMLTableElement::GetSection(nsIAtom *aTag)
 NS_IMETHODIMP
 nsHTMLTableElement::GetTHead(nsIDOMHTMLTableSectionElement** aValue)
 {
-  *aValue = GetTHead().get();
+  *aValue = GetSection(nsGkAtoms::thead).get();
 
   return NS_OK;
 }
@@ -521,7 +547,7 @@ nsHTMLTableElement::SetTHead(nsIDOMHTMLTableSectionElement* aValue)
 NS_IMETHODIMP
 nsHTMLTableElement::GetTFoot(nsIDOMHTMLTableSectionElement** aValue)
 {
-  *aValue = GetTFoot().get();
+  *aValue = GetSection(nsGkAtoms::tfoot).get();
 
   return NS_OK;
 }
@@ -571,13 +597,6 @@ nsHTMLTableElement::GetRows(nsIDOMHTMLCollection** aValue)
 NS_IMETHODIMP
 nsHTMLTableElement::GetTBodies(nsIDOMHTMLCollection** aValue)
 {
-  NS_ADDREF(*aValue = TBodies());
-  return NS_OK;
-}
-
-nsContentList*
-nsHTMLTableElement::TBodies()
-{
   if (!mTBodies) {
     // Not using NS_GetContentList because this should not be cached
     mTBodies = new nsContentList(this,
@@ -587,7 +606,8 @@ nsHTMLTableElement::TBodies()
                                  PR_FALSE);
   }
 
-  return mTBodies;
+  NS_ADDREF(*aValue = mTBodies);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -965,9 +985,16 @@ nsHTMLTableElement::ParseAttribute(PRInt32 aNamespaceID,
         aAttribute == nsGkAtoms::cellpadding) {
       return aResult.ParseSpecialIntValue(aValue);
     }
-    if (aAttribute == nsGkAtoms::cols ||
-        aAttribute == nsGkAtoms::border) {
+    if (aAttribute == nsGkAtoms::cols) {
       return aResult.ParseIntWithBounds(aValue, 0);
+    }
+    if (aAttribute == nsGkAtoms::border) {
+      if (!aResult.ParseIntWithBounds(aValue, 0)) {
+        // XXX this should really be NavQuirks only to allow non numeric value
+        aResult.SetTo(1);
+      }
+
+      return PR_TRUE;
     }
     if (aAttribute == nsGkAtoms::height) {
       return aResult.ParseSpecialIntValue(aValue);
@@ -976,12 +1003,14 @@ nsHTMLTableElement::ParseAttribute(PRInt32 aNamespaceID,
       if (aResult.ParseSpecialIntValue(aValue)) {
         // treat 0 width as auto
         nsAttrValue::ValueType type = aResult.Type();
-        return !((type == nsAttrValue::eInteger &&
-                  aResult.GetIntegerValue() == 0) ||
-                 (type == nsAttrValue::ePercent &&
-                  aResult.GetPercentValue() == 0.0f));
+        if ((type == nsAttrValue::eInteger &&
+             aResult.GetIntegerValue() == 0) ||
+            (type == nsAttrValue::ePercent &&
+             aResult.GetPercentValue() == 0.0f)) {
+          return PR_FALSE;
+        }
       }
-      return PR_FALSE;
+      return PR_TRUE;
     }
     
     if (aAttribute == nsGkAtoms::align) {

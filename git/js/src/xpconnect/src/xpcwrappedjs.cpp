@@ -67,9 +67,10 @@ NS_CYCLE_COLLECTION_CLASSNAME(nsXPCWrappedJS)::Traverse
                         tmp->GetClass()->GetInterfaceName());
         else
             JS_snprintf(name, sizeof(name), "nsXPCWrappedJS");
-        cb.DescribeRefCountedNode(refcnt, sizeof(nsXPCWrappedJS), name);
+        cb.DescribeNode(RefCounted, refcnt, sizeof(nsXPCWrappedJS), name);
     } else {
-        NS_IMPL_CYCLE_COLLECTION_DESCRIBE(nsXPCWrappedJS, refcnt)
+        cb.DescribeNode(RefCounted, refcnt, sizeof(nsXPCWrappedJS),
+                        "nsXPCWrappedJS");
     }
 
     // nsXPCWrappedJS keeps its own refcount artificially at or above 1, see the
@@ -92,6 +93,31 @@ NS_CYCLE_COLLECTION_CLASSNAME(nsXPCWrappedJS)::Traverse
 
     return NS_OK;
 }
+
+NS_IMPL_CYCLE_COLLECTION_ROOT_BEGIN(nsXPCWrappedJS)
+    if(tmp->IsValid())
+    {
+        XPCJSRuntime* rt = nsXPConnect::GetRuntimeInstance();
+        if(rt)
+        {
+            if(tmp->mRoot == tmp)
+            {
+                // remove this root wrapper from the map
+                JSObject2WrappedJSMap* map = rt->GetWrappedJSMap();
+                if(map)
+                {
+                    XPCAutoLock lock(rt->GetMapLock());
+                    map->Remove(tmp);
+                }
+            }
+
+            if(tmp->mRefCnt > 1)
+                tmp->RemoveFromRootSet(rt->GetMapLock());
+        }
+
+        tmp->mJSObj = nsnull;
+    }
+NS_IMPL_CYCLE_COLLECTION_ROOT_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXPCWrappedJS)
     tmp->Unlink();
@@ -246,8 +272,8 @@ nsXPCWrappedJS::PrintTraceName(JSTracer* trc, char *buf, size_t bufsize)
 {
     const nsXPCWrappedJS* self = static_cast<const nsXPCWrappedJS*>
                                             (trc->debugPrintArg);
-    JS_snprintf(buf, bufsize, "nsXPCWrappedJS[%s,0x%p:0x%p].mJSObj",
-                self->GetClass()->GetInterfaceName(), self, self->mXPTCStub);
+    JS_snprintf(buf, bufsize, "nsXPCWrappedJS[%s,0x%p].mJSObj",
+                self->GetClass()->GetInterfaceName(), self);
 }
 #endif
 
@@ -453,29 +479,6 @@ nsXPCWrappedJS::~nsXPCWrappedJS()
 void
 nsXPCWrappedJS::Unlink()
 {
-    if(IsValid())
-    {
-        XPCJSRuntime* rt = nsXPConnect::GetRuntimeInstance();
-        if(rt)
-        {
-            if(mRoot == this)
-            {
-                // remove this root wrapper from the map
-                JSObject2WrappedJSMap* map = rt->GetWrappedJSMap();
-                if(map)
-                {
-                    XPCAutoLock lock(rt->GetMapLock());
-                    map->Remove(this);
-                }
-            }
-
-            if(mRefCnt > 1)
-                RemoveFromRootSet(rt->GetMapLock());
-        }
-
-        mJSObj = nsnull;
-    }
-
     if(mRoot == this)
     {
         ClearWeakReferences();

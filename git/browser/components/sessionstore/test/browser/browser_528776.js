@@ -1,3 +1,5 @@
+var ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
+
 function browserWindowsCount(expected) {
   var count = 0;
   var e = Services.wm.getEnumerator("navigator:browser");
@@ -18,7 +20,6 @@ function test() {
 
   var win = openDialog(location, "", "chrome,all,dialog=no");
   win.addEventListener("load", function () {
-    win.removeEventListener("load", arguments.callee, false);
     browserWindowsCount(2);
     win.close();
     browserWindowsCount(1);

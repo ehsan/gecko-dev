@@ -37,18 +37,13 @@
 # ***** END LICENSE BLOCK *****
 */
 
-"use strict";
-
-(function(){
-
-let Cc = Components.classes;
-let Ci = Components.interfaces;
-let Cu = Components.utils;
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
 
 const MSG_INSTALL_ENABLED  = "WebInstallerIsInstallEnabled";
 const MSG_INSTALL_ADDONS   = "WebInstallerInstallAddonsFromWebpage";
 const MSG_INSTALL_CALLBACK = "WebInstallerInstallCallback";
-const MSG_JAR_FLUSH        = "AddonJarFlush";
 
 var gIoService = Components.classes["@mozilla.org/network/io-service;1"]
                            .getService(Components.interfaces.nsIIOService);
@@ -56,7 +51,6 @@ var gIoService = Components.classes["@mozilla.org/network/io-service;1"]
 function createInstallTrigger(window) {
   let chromeObject = {
     window: window,
-    url: window.document.documentURIObject,
 
     __exposedProps__: {
       SKIN: "r",
@@ -82,7 +76,7 @@ function createInstallTrigger(window) {
      */
     enabled: function() {
       return sendSyncMessage(MSG_INSTALL_ENABLED, {
-        mimetype: "application/x-xpinstall", referer: this.url.spec
+        mimetype: "application/x-xpinstall", referer: this.window.location.href
       })[0];
     },
 
@@ -103,7 +97,7 @@ function createInstallTrigger(window) {
       var params = {
         installerId: this.installerId,
         mimetype: "application/x-xpinstall",
-        referer: this.url.spec,
+        referer: this.window.location.href,
         uris: [],
         hashes: [],
         names: [],
@@ -169,7 +163,8 @@ function createInstallTrigger(window) {
      * @return A resolved, absolute nsURI object.
      */
     resolveURL: function(aUrl) {
-      return gIoService.newURI(aUrl, null, this.url);
+      return gIoService.newURI(aUrl, null,
+                               this.window.document.documentURIObject);
     },
 
     /**
@@ -180,7 +175,7 @@ function createInstallTrigger(window) {
     checkLoadURIFromScript: function(aUri) {
       var secman = Cc["@mozilla.org/scriptsecuritymanager;1"].
                    getService(Ci.nsIScriptSecurityManager);
-      var principal = this.window.document.nodePrincipal;
+      var principal = this.window.content.document.nodePrincipal;
       try {
         secman.checkLoadURIWithPrincipal(principal, aUri,
           Ci.nsIScriptSecurityManager.DISALLOW_INHERIT_PRINCIPAL);
@@ -192,22 +187,18 @@ function createInstallTrigger(window) {
     }
   };
 
-  let obj = Cu.createObjectIn(window);
-  function genPropDesc(fun) {
-    return { enumerable: true, configurable: true, writable: true,
-             value: chromeObject[fun].bind(chromeObject) };
-  }
-  const properties = {
-    'enabled': genPropDesc('enabled'),
-    'updateEnabled': genPropDesc('updateEnabled'),
-    'install': genPropDesc('install'),
-    'installChrome': genPropDesc('installChrome'),
-    'startSoftwareUpdate': genPropDesc('startSoftwareUpdate')
-  };
-
-  Object.defineProperties(obj, properties);
-
-  Cu.makeObjectPropsNormal(obj);
+  let sandbox = Cu.Sandbox(window);
+  let obj = Cu.evalInSandbox(
+    "(function (x) {\
+       var bind = Function.bind;\
+       return {\
+         enabled: bind.call(x.enabled, x),\
+         updateEnabled: bind.call(x.updateEnabled, x),\
+         install: bind.call(x.install, x),\
+         installChrome: bind.call(x.installChrome, x),\
+         startSoftwareUpdate: bind.call(x.startSoftwareUpdate, x)\
+       };\
+     })", sandbox)(chromeObject);
 
   obj.SKIN = chromeObject.SKIN;
   obj.LOCALE = chromeObject.LOCALE;
@@ -230,22 +221,7 @@ function InstallTriggerManager() {
   this.callbacks = {};
 
   addMessageListener(MSG_INSTALL_CALLBACK, this);
-  
-  try {
-    // only if we live in a child process...
-    if (Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).processType !== Ci.nsIXULRuntime.PROCESS_TYPE_DEFAULT) {
-      // ... propagate JAR cache flush notifications across process boundaries
-      addMessageListener(MSG_JAR_FLUSH, function(msg) {
-        let file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsILocalFile);
-        file.initWithPath(msg.json);
-        Cc["@mozilla.org/observer-service;1"].getService(Ci.nsIObserverService)
-          .notifyObservers(file, "flush-cache-entry", null);
-      });
-    }
-  } catch(e) {
-    Cu.reportError(e);
-  }
-    
+
   addEventListener("DOMWindowCreated", this, false);
 
   var self = this;
@@ -266,7 +242,7 @@ InstallTriggerManager.prototype = {
       // alive for as long as the tab is alive).
 
       delete window.wrappedJSObject.InstallTrigger;
-      var installTrigger = createInstallTrigger(window);
+      var installTrigger = createInstallTrigger(window.wrappedJSObject);
       window.wrappedJSObject.InstallTrigger = installTrigger;
       return installTrigger;
     });
@@ -332,4 +308,3 @@ InstallTriggerManager.prototype = {
 
 var manager = new InstallTriggerManager();
 
-})();

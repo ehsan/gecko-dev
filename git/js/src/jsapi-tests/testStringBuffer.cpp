@@ -6,7 +6,6 @@
 
 #include "jsatom.h"
 
-#include "jsobjinlines.h"
 #include "jsstrinlines.h"
 
 BEGIN_TEST(testStringBuffer_finishString)
@@ -14,7 +13,7 @@ BEGIN_TEST(testStringBuffer_finishString)
     JSString *str = JS_NewStringCopyZ(cx, "foopy");
     CHECK(str);
 
-    JSAtom *atom = js_AtomizeString(cx, str);
+    JSAtom *atom = js_AtomizeString(cx, str, 0);
     CHECK(atom);
 
     js::StringBuffer buffer(cx);
@@ -22,7 +21,7 @@ BEGIN_TEST(testStringBuffer_finishString)
 
     JSAtom *finishedAtom = buffer.finishAtom();
     CHECK(finishedAtom);
-    CHECK_EQUAL(atom, finishedAtom);
+    CHECK(atom == finishedAtom);
     return true;
 }
 END_TEST(testStringBuffer_finishString)

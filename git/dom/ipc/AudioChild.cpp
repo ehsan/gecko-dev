@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: set sw=2 ts=2 et tw=80 : */
+/* vim: set sw=4 ts=8 et tw=80 : */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -41,14 +41,14 @@
 
 namespace mozilla {
 namespace dom {
+
 NS_IMPL_THREADSAFE_ADDREF(AudioChild);
 NS_IMPL_THREADSAFE_RELEASE(AudioChild);
 
 AudioChild::AudioChild()
   : mLastSampleOffset(-1),
     mLastSampleOffsetTime(0),
-    mMinWriteSample(-2),// Initial value, -2, error on -1
-    mAudioReentrantMonitor("AudioChild.mReentrantMonitor"),
+    mAudioMonitor("media.audiochild.monitor"),
     mIPCOpen(PR_TRUE),
     mDrained(PR_FALSE)
 {
@@ -78,37 +78,18 @@ AudioChild::RecvSampleOffsetUpdate(const PRInt64& offset,
 bool
 AudioChild::RecvDrainDone()
 {
-  ReentrantMonitorAutoEnter mon(mAudioReentrantMonitor);
+  mozilla::MonitorAutoEnter mon(mAudioMonitor);
   mDrained = PR_TRUE;
-  mAudioReentrantMonitor.NotifyAll();
-  return true;
-}
-
-PRInt32
-AudioChild::WaitForMinWriteSample()
-{
-  ReentrantMonitorAutoEnter mon(mAudioReentrantMonitor);
-  // -2 : initial value
-  while (mMinWriteSample == -2 && mIPCOpen)
-    mAudioReentrantMonitor.Wait();
-  return mMinWriteSample;
-}
-
-bool
-AudioChild::RecvMinWriteSampleDone(const PRInt32& minSamples)
-{
-  ReentrantMonitorAutoEnter mon(mAudioReentrantMonitor);
-  mMinWriteSample = minSamples;
-  mAudioReentrantMonitor.NotifyAll();
+  mAudioMonitor.NotifyAll();
   return true;
 }
 
 void
 AudioChild::WaitForDrain()
 {
-  ReentrantMonitorAutoEnter mon(mAudioReentrantMonitor);
+  mozilla::MonitorAutoEnter mon(mAudioMonitor);
   while (!mDrained && mIPCOpen) {
-    mAudioReentrantMonitor.Wait();
+    mAudioMonitor.Wait();
   }
 }
 

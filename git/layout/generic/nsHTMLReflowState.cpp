@@ -46,7 +46,9 @@
 #include "nsGkAtoms.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
-#include "nsFontMetrics.h"
+#include "nsIDeviceContext.h"
+#include "nsIRenderingContext.h"
+#include "nsIFontMetrics.h"
 #include "nsBlockFrame.h"
 #include "nsLineBox.h"
 #include "nsImageFrame.h"
@@ -54,8 +56,8 @@
 #include "nsTableCellFrame.h"
 #include "nsIServiceManager.h"
 #include "nsIPercentHeightObserver.h"
+#include "nsContentUtils.h"
 #include "nsLayoutUtils.h"
-#include "mozilla/Preferences.h"
 #ifdef IBMBIDI
 #include "nsBidiUtils.h"
 #endif
@@ -85,7 +87,7 @@ static eNormalLineHeightControl sNormalLineHeightControl = eUninitialized;
 // use for measuring things.
 nsHTMLReflowState::nsHTMLReflowState(nsPresContext*       aPresContext,
                                      nsIFrame*            aFrame,
-                                     nsRenderingContext* aRenderingContext,
+                                     nsIRenderingContext* aRenderingContext,
                                      const nsSize&        aAvailableSpace)
   : nsCSSOffsetState(aFrame, aRenderingContext)
   , mBlockDelta(0)
@@ -405,7 +407,9 @@ nsHTMLReflowState::InitResizeFlags(nsPresContext* aPresContext)
      mStylePosition->mMaxHeight.GetUnit() != eStyleUnit_Auto) ||
     mStylePosition->OffsetHasPercent(NS_SIDE_TOP) ||
     mStylePosition->mOffset.GetBottomUnit() != eStyleUnit_Auto ||
-    frame->IsBoxFrame();
+    frame->IsBoxFrame() ||
+    (mStylePosition->mHeight.GetUnit() == eStyleUnit_Auto &&
+     frame->GetIntrinsicSize().height.GetUnit() == eStyleUnit_Percent);
 
   if (mStyleText->mLineHeight.GetUnit() == eStyleUnit_Enumerated) {
     NS_ASSERTION(mStyleText->mLineHeight.GetIntValue() ==
@@ -977,7 +981,7 @@ nsHTMLReflowState::CalculateHypotheticalBox(nsPresContext*    aPresContext,
 
       // How we determine the hypothetical box depends on whether the element
       // would have been inline-level or block-level
-      if (mStyleDisplay->IsOriginalDisplayInlineOutside()) {
+      if (NS_STYLE_DISPLAY_INLINE == mStyleDisplay->mOriginalDisplay) {
         // Use the top of the inline box which the placeholder lives in
         // as the hypothetical box's top.
         aHypotheticalBox.mTop = lineBox->mBounds.y + blockYOffset;
@@ -1029,7 +1033,7 @@ nsHTMLReflowState::CalculateHypotheticalBox(nsPresContext*    aPresContext,
   if (NS_STYLE_DIRECTION_LTR == blockVis->mDirection) {
     // How we determine the hypothetical box depends on whether the element
     // would have been inline-level or block-level
-    if (mStyleDisplay->IsOriginalDisplayInlineOutside()) {
+    if (NS_STYLE_DISPLAY_INLINE == mStyleDisplay->mOriginalDisplay) {
       // The placeholder represents the left edge of the hypothetical box
       aHypotheticalBox.mLeft = placeholderOffset.x;
     } else {
@@ -1056,7 +1060,7 @@ nsHTMLReflowState::CalculateHypotheticalBox(nsPresContext*    aPresContext,
 
   } else {
     // The placeholder represents the right edge of the hypothetical box
-    if (mStyleDisplay->IsOriginalDisplayInlineOutside()) {
+    if (NS_STYLE_DISPLAY_INLINE == mStyleDisplay->mOriginalDisplay) {
       aHypotheticalBox.mRight = placeholderOffset.x;
     } else {
       aHypotheticalBox.mRight = aBlockLeftContentEdge + aBlockContentWidth;
@@ -1611,7 +1615,7 @@ static int
 PrefsChanged(const char *aPrefName, void *instance)
 {
   sBlinkIsAllowed =
-    Preferences::GetBool("browser.blink_allowed", sBlinkIsAllowed);
+    nsContentUtils::GetBoolPref("browser.blink_allowed", sBlinkIsAllowed);
 
   return 0; /* PREF_OK */
 }
@@ -1623,7 +1627,8 @@ static PRBool BlinkIsAllowed(void)
 {
   if (!sPrefIsLoaded) {
     // Set up a listener and check the initial value
-    Preferences::RegisterCallback(PrefsChanged, "browser.blink_allowed");
+    nsContentUtils::RegisterPrefCallback("browser.blink_allowed", PrefsChanged,
+                                         nsnull);
     PrefsChanged(nsnull, nsnull);
     sPrefIsLoaded = PR_TRUE;
   }
@@ -1635,10 +1640,9 @@ static eNormalLineHeightControl GetNormalLineHeightCalcControl(void)
   if (sNormalLineHeightControl == eUninitialized) {
     // browser.display.normal_lineheight_calc_control is not user
     // changeable, so no need to register callback for it.
-    PRInt32 val =
-      Preferences::GetInt("browser.display.normal_lineheight_calc_control",
-                          eNoExternalLeading);
-    sNormalLineHeightControl = static_cast<eNormalLineHeightControl>(val);
+    sNormalLineHeightControl =
+      static_cast<eNormalLineHeightControl>
+                 (nsContentUtils::GetIntPref("browser.display.normal_lineheight_calc_control", eNoExternalLeading));
   }
   return sNormalLineHeightControl;
 }
@@ -1876,7 +1880,8 @@ nsHTMLReflowState::InitConstraints(nsPresContext* aPresContext,
   mFlags.mBlinks = (parentReflowState && parentReflowState->mFlags.mBlinks);
   if (!mFlags.mBlinks && BlinkIsAllowed()) {
     const nsStyleTextReset* st = frame->GetStyleTextReset();
-    mFlags.mBlinks = (st->mTextBlink != NS_STYLE_TEXT_BLINK_NONE);
+    mFlags.mBlinks = 
+      ((st->mTextDecoration & NS_STYLE_TEXT_DECORATION_BLINK) != 0);
   }
 }
 
@@ -2102,15 +2107,16 @@ nsHTMLReflowState::CalculateBlockSideMargins(nscoord aAvailWidth,
 // For risk management, we use preference to control the behavior, and 
 // eNoExternalLeading is the old behavior.
 static nscoord
-GetNormalLineHeight(nsFontMetrics* aFontMetrics)
+GetNormalLineHeight(nsIFontMetrics* aFontMetrics)
 {
   NS_PRECONDITION(nsnull != aFontMetrics, "no font metrics");
 
   nscoord normalLineHeight;
 
-  nscoord externalLeading = aFontMetrics->ExternalLeading();
-  nscoord internalLeading = aFontMetrics->InternalLeading();
-  nscoord emHeight = aFontMetrics->EmHeight();
+  nscoord externalLeading, internalLeading, emHeight;
+  aFontMetrics->GetExternalLeading(externalLeading);
+  aFontMetrics->GetInternalLeading(internalLeading);
+  aFontMetrics->GetEmHeight(emHeight);
   switch (GetNormalLineHeightCalcControl()) {
   case eIncludeExternalLeading:
     normalLineHeight = emHeight+ internalLeading + externalLeading;
@@ -2155,7 +2161,7 @@ ComputeLineHeight(nsStyleContext* aStyleContext,
       return aBlockHeight;
   }
 
-  nsRefPtr<nsFontMetrics> fm;
+  nsCOMPtr<nsIFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForStyleContext(aStyleContext,
                                                getter_AddRefs(fm));
   return GetNormalLineHeight(fm);

@@ -88,7 +88,7 @@ nsAccessibleWrap::GetNativeInterface (void **aOutInterface)
 
 // overridden in subclasses to create the right kind of object. by default we create a generic
 // 'mozAccessible' node.
-Class
+objc_class*
 nsAccessibleWrap::GetNativeType () 
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
@@ -285,7 +285,7 @@ nsAccessibleWrap::GetUnignoredChildren(nsTArray<nsRefPtr<nsAccessibleWrap> > &aC
 already_AddRefed<nsIAccessible>
 nsAccessibleWrap::GetUnignoredParent()
 {
-  nsAccessibleWrap* parentWrap = static_cast<nsAccessibleWrap*>(Parent());
+  nsAccessibleWrap *parentWrap = static_cast<nsAccessibleWrap*>(GetParent());
   if (!parentWrap)
     return nsnull;
     
@@ -313,12 +313,12 @@ nsAccessibleWrap::AncestorIsFlat()
   // look the same on all platforms, we still let the C++ objects be created
   // though.
 
-  nsAccessible* parent = Parent();
+  nsAccessible* parent(GetParent());
   while (parent) {
     if (nsAccUtils::MustPrune(parent))
       return PR_TRUE;
 
-    parent = parent->Parent();
+    parent = parent->GetParent();
   }
   // no parent was flat
   return PR_FALSE;

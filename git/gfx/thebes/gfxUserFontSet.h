@@ -47,7 +47,6 @@
 #include "nsIURI.h"
 #include "nsIFile.h"
 #include "nsISupportsImpl.h"
-#include "nsIScriptError.h"
 
 class nsIURI;
 class gfxMixedFontFamily;
@@ -72,26 +71,12 @@ struct gfxFontFaceSrc {
     
 };
 
-// Subclassed to store platform-specific code cleaned out when font entry is
-// deleted.
-// Lifetime: from when platform font is created until it is deactivated.
-// If the platform does not need to add any platform-specific code/data here,
-// then the gfxUserFontSet will allocate a base gfxUserFontData and attach
-// to the entry to track the basic user font info fields here.
+// subclassed to store platform-specific code cleaned out when font entry is deleted
+// lifetime: from when platform font is created until it is deactivated 
 class gfxUserFontData {
 public:
-    gfxUserFontData()
-        : mSrcIndex(0), mFormat(0), mMetaOrigLen(0)
-    { }
+    gfxUserFontData() { }
     virtual ~gfxUserFontData() { }
-
-    nsTArray<PRUint8> mMetadata;  // woff metadata block (compressed), if any
-    nsCOMPtr<nsIURI>  mURI;       // URI of the source, if it was url()
-    nsString          mLocalName; // font name used for the source, if local()
-    nsString          mRealName;  // original fullname from the font resource
-    PRUint32          mSrcIndex;  // index in the rule's source list
-    PRUint32          mFormat;    // format hint for the source used, if any
-    PRUint32          mMetaOrigLen; // length needed to decompress metadata
 };
 
 // initially contains a set of proxy font entry objects, replaced with
@@ -109,7 +94,6 @@ public:
     void AddFontEntry(gfxFontEntry *aFontEntry) {
         nsRefPtr<gfxFontEntry> fe = aFontEntry;
         mAvailableFonts.AppendElement(fe);
-        aFontEntry->SetFamily(this);
     }
 
     void ReplaceFontEntry(gfxFontEntry *aOldFontEntry, gfxFontEntry *aNewFontEntry) 
@@ -118,11 +102,7 @@ public:
         for (PRUint32 i = 0; i < numFonts; i++) {
             gfxFontEntry *fe = mAvailableFonts[i];
             if (fe == aOldFontEntry) {
-                aOldFontEntry->SetFamily(nsnull);
-                // note that this may delete aOldFontEntry, if there's no
-                // other reference to it except from its family
                 mAvailableFonts[i] = aNewFontEntry;
-                aNewFontEntry->SetFamily(this);
                 return;
             }
         }
@@ -134,7 +114,6 @@ public:
         for (PRUint32 i = 0; i < numFonts; i++) {
             gfxFontEntry *fe = mAvailableFonts[i];
             if (fe == aFontEntry) {
-                aFontEntry->SetFamily(nsnull);
                 mAvailableFonts.RemoveElementAt(i);
                 return;
             }
@@ -193,17 +172,14 @@ public:
     // weight, stretch - 0 == unknown, [1, 9] otherwise
     // italic style = constants in gfxFontConstants.h, e.g. NS_FONT_STYLE_NORMAL
     // TODO: support for unicode ranges not yet implemented
-    gfxFontEntry *AddFontFace(const nsAString& aFamilyName,
-                              const nsTArray<gfxFontFaceSrc>& aFontFaceSrcList,
-                              PRUint32 aWeight,
-                              PRUint32 aStretch,
-                              PRUint32 aItalicStyle,
-                              const nsString& aFeatureSettings,
-                              const nsString& aLanguageOverride,
-                              gfxSparseBitSet *aUnicodeRanges = nsnull);
-
-    // add in a font face for which we have the gfxFontEntry already
-    void AddFontFace(const nsAString& aFamilyName, gfxFontEntry* aFontEntry);
+    void AddFontFace(const nsAString& aFamilyName,
+                     const nsTArray<gfxFontFaceSrc>& aFontFaceSrcList,
+                     PRUint32 aWeight,
+                     PRUint32 aStretch,
+                     PRUint32 aItalicStyle,
+                     const nsString& aFeatureSettings,
+                     const nsString& aLanguageOverride,
+                     gfxSparseBitSet *aUnicodeRanges = nsnull);
 
     // Whether there is a face with this family name
     PRBool HasFamily(const nsAString& aFamilyName) const
@@ -220,7 +196,7 @@ public:
                                 
     // initialize the process that loads external font data, which upon 
     // completion will call OnLoadComplete method
-    virtual nsresult StartLoad(gfxProxyFontEntry *aProxy, 
+    virtual nsresult StartLoad(gfxFontEntry *aFontToLoad, 
                                const gfxFontFaceSrc *aFontFaceSrc) = 0;
 
     // when download has been completed, pass back data here
@@ -229,15 +205,9 @@ public:
     // reference was next in line)
     // Ownership of aFontData is passed in here; the font set must
     // ensure that it is eventually deleted with NS_Free().
-    PRBool OnLoadComplete(gfxProxyFontEntry *aProxy,
+    PRBool OnLoadComplete(gfxFontEntry *aFontToLoad,
                           const PRUint8 *aFontData, PRUint32 aLength,
                           nsresult aDownloadStatus);
-
-    // Replace a proxy with a real fontEntry; this is implemented in
-    // nsUserFontSet in order to keep track of the entry corresponding
-    // to each @font-face rule.
-    virtual void ReplaceFontEntry(gfxProxyFontEntry *aProxy,
-                                  gfxFontEntry *aFontEntry) = 0;
 
     // generation - each time a face is loaded, generation is
     // incremented so that the change can be recognized 
@@ -253,18 +223,13 @@ protected:
 
     gfxMixedFontFamily *GetFamily(const nsAString& aName) const;
 
-    // report a problem of some kind (implemented in nsUserFontSet)
-    virtual nsresult LogMessage(gfxProxyFontEntry *aProxy,
-                                const char *aMessage,
-                                PRUint32 aFlags = nsIScriptError::errorFlag,
-                                nsresult aStatus = 0) = 0;
+    // remove family
+    void RemoveFamily(const nsAString& aFamilyName);
 
     // font families defined by @font-face rules
     nsRefPtrHashtable<nsStringHashKey, gfxMixedFontFamily> mFontFamilies;
 
     PRUint64        mGeneration;
-
-    static PRLogModuleInfo *sUserFontsLog;
 };
 
 // acts a placeholder until the real font is downloaded

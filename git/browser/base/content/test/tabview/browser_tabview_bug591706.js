@@ -31,7 +31,7 @@ function onTabViewWindowLoaded() {
   let box = new contentWindow.Rect(10, 10, 300, 300);
   let group = new contentWindow.GroupItem([], { bounds: box });
   ok(group.isEmpty(), "This group is empty");
-  contentWindow.UI.setActive(group);
+  contentWindow.GroupItems.setActiveGroupItem(group);
   
   // Create a second tab in this new group
   let secondTab = gBrowser.loadOneTab("about:blank#2", {inBackground: true});
@@ -46,8 +46,8 @@ function onTabViewWindowLoaded() {
   is(group.getChildren()[0].tab.linkedBrowser.contentWindow.location, secondTab.linkedBrowser.contentWindow.location, "The second tab was there first");
   is(group.getChildren()[1].tab.linkedBrowser.contentWindow.location, firstTab.linkedBrowser.contentWindow.location, "The first tab was just added and went to the end of the line");
   
-  group.addSubscriber("close", function onClose() {
-    group.removeSubscriber("close", onClose);
+  group.addSubscriber(group, "close", function() {
+    group.removeSubscriber(group, "close");
 
     ok(group.isEmpty(), "The group is empty again");
 

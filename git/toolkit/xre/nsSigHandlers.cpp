@@ -53,16 +53,16 @@
 #include "plstr.h"
 #include "prenv.h"
 #include "nsDebug.h"
-#include "nsXULAppAPI.h"
+#ifdef MOZ_IPC
+#  include "nsXULAppAPI.h"
+#endif
 
 #if defined(LINUX)
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <unistd.h>
 #include <stdlib.h> // atoi
-#ifndef __arm__ // no arm impl
-#  include <ucontext.h>
-#endif
+#include <ucontext.h>
 #endif
 
 #if defined(SOLARIS)
@@ -73,9 +73,11 @@
 static char _progname[1024] = "huh?";
 static unsigned int _gdb_sleep_duration = 300;
 
+#ifdef MOZ_IPC
 // NB: keep me up to date with the same variable in
 // ipc/chromium/chrome/common/ipc_channel_posix.cc
 static const int kClientChannelFd = 3;
+#endif
 
 #if defined(LINUX) && defined(DEBUG) && \
       (defined(__i386) || defined(__x86_64) || defined(PPC))
@@ -125,6 +127,7 @@ ah_crap_handler(int signum)
   _exit(signum);
 }
 
+#ifdef MOZ_IPC
 void
 child_ah_crap_handler(int signum)
 {
@@ -132,6 +135,7 @@ child_ah_crap_handler(int signum)
     close(kClientChannelFd);
   ah_crap_handler(signum);
 }
+#endif
 
 #endif // CRAWL_STACK_ON_SIGSEGV
 
@@ -190,7 +194,7 @@ static void fpehandler(int signum, siginfo_t *si, void *context)
   *mxcsr &= ~SSE_STATUS_FLAGS; /* clear all pending SSE exceptions */
 #endif
 #endif
-#if defined(LINUX) && !defined(__arm__)
+#ifdef LINUX
   ucontext_t *uc = (ucontext_t *)context;
 
 #if defined(__i386__)
@@ -261,8 +265,10 @@ void InstallSignalHandlers(const char *ProgramName)
 #if defined(CRAWL_STACK_ON_SIGSEGV)
   if (!getenv("XRE_NO_WINDOWS_CRASH_DIALOG")) {
     void (*crap_handler)(int) =
+#ifdef MOZ_IPC
       GeckoProcessType_Default != XRE_GetProcessType() ?
           child_ah_crap_handler :
+#endif
           ah_crap_handler;
     signal(SIGSEGV, crap_handler);
     signal(SIGILL, crap_handler);

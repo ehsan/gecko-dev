@@ -43,6 +43,7 @@
 #include "nsITransferable.h"
 #include "nsISupportsArray.h"
 #include "nsSize.h"
+#include "nsIRegion.h"
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 #include "nsCOMPtr.h"
@@ -58,6 +59,7 @@
 #include "nsISelectionPrivate.h"
 #include "nsPresContext.h"
 #include "nsIDOMDataTransfer.h"
+#include "nsIEventStateManager.h"
 #include "nsICanvasElementExternal.h"
 #include "nsIImageLoadingContent.h"
 #include "imgIContainer.h"
@@ -65,12 +67,10 @@
 #include "nsIViewObserver.h"
 #include "nsRegion.h"
 #include "nsGUIEvent.h"
-#include "mozilla/Preferences.h"
+#include "nsIPrefService.h"
 
 #include "gfxContext.h"
 #include "gfxPlatform.h"
-
-using namespace mozilla;
 
 #define DRAGIMAGES_PREF "nglayout.enable_drag_images"
 
@@ -454,7 +454,10 @@ nsBaseDragService::DrawDrag(nsIDOMNode* aDOMNode,
   *aPresContext = presShell->GetPresContext();
 
   // check if drag images are disabled
-  PRBool enableDragImages = Preferences::GetBool(DRAGIMAGES_PREF, PR_TRUE);
+  PRBool enableDragImages = PR_TRUE;
+  nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
+  if (prefs)
+    prefs->GetBoolPref(DRAGIMAGES_PREF, &enableDragImages);
 
   // didn't want an image, so just set the screen rectangle to the frame size
   if (!enableDragImages || !mHasImage) {
@@ -519,7 +522,11 @@ nsBaseDragService::DrawDrag(nsIDOMNode* aDOMNode,
   // otherwise, just draw the node
   nsIntRegion clipRegion;
   if (aRegion) {
-    aRegion->GetRegion(&clipRegion);
+    nsCOMPtr<nsIRegion> clipIRegion;
+    aRegion->GetRegion(getter_AddRefs(clipIRegion));
+    if (clipIRegion) {
+      clipRegion = clipIRegion->GetUnderlyingRegion();
+    }
   }
 
   nsIntPoint pnt(aScreenDragRect->x, aScreenDragRect->y);
@@ -581,7 +588,7 @@ nsBaseDragService::DrawDragForImage(nsPresContext* aPresContext,
 
   // if the image is larger than half the screen size, scale it down. This
   // scaling algorithm is the same as is used in nsPresShell::PaintRangePaintInfo
-  nsDeviceContext* deviceContext = aPresContext->DeviceContext();
+  nsIDeviceContext* deviceContext = aPresContext->DeviceContext();
   nsRect maxSize;
   deviceContext->GetClientRect(maxSize);
   nscoord maxWidth = aPresContext->AppUnitsToDevPixels(maxSize.width >> 1);
@@ -589,9 +596,9 @@ nsBaseDragService::DrawDragForImage(nsPresContext* aPresContext,
   if (destSize.width > maxWidth || destSize.height > maxHeight) {
     float scale = 1.0;
     if (destSize.width > maxWidth)
-      scale = NS_MIN(scale, float(maxWidth) / destSize.width);
+      scale = PR_MIN(scale, float(maxWidth) / destSize.width);
     if (destSize.height > maxHeight)
-      scale = NS_MIN(scale, float(maxHeight) / destSize.height);
+      scale = PR_MIN(scale, float(maxHeight) / destSize.height);
 
     destSize.width = NSToIntFloor(float(destSize.width) * scale);
     destSize.height = NSToIntFloor(float(destSize.height) * scale);

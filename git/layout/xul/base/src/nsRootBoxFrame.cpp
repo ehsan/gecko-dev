@@ -37,6 +37,7 @@
 
 #include "nsHTMLParts.h"
 #include "nsIDocument.h"
+#include "nsIRenderingContext.h"
 #include "nsGUIEvent.h"
 #include "nsStyleConsts.h"
 #include "nsGkAtoms.h"
@@ -149,7 +150,7 @@ nsRootBoxFrame::nsRootBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext):
 {
   mPopupSetFrame = nsnull;
 
-  nsCOMPtr<nsBoxLayout> layout;
+  nsCOMPtr<nsIBoxLayout> layout;
   NS_NewStackLayout(aShell, layout);
   SetLayoutManager(layout);
 }

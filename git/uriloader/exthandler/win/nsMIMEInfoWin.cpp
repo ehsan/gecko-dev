@@ -56,6 +56,15 @@
 #include "nsOSHelperAppService.h"
 #include "nsUnicharUtils.h"
 
+#ifdef WINCE 
+#ifdef UNICODE
+#define SHELLEXECUTEINFOW SHELLEXECUTEINFO
+#define ShellExecuteExW ShellExecuteEx
+#else
+#error "we don't support narrow char wince"
+#endif
+#endif
+
 #define RUNDLL32_EXE L"\\rundll32.exe"
 
 
@@ -247,12 +256,14 @@ nsMIMEInfoWin::GetProperty(const nsAString& aName, nsIVariant* *_retval)
   return NS_OK;
 }
 
+#ifndef WINCE
 typedef HRESULT (STDMETHODCALLTYPE *MySHParseDisplayName)
                  (PCWSTR pszName,
                   IBindCtx *pbc,
                   LPITEMIDLIST *ppidl,
                   SFGAOF sfgaoIn,
                   SFGAOF *psfgaoOut);
+#endif
 
 // this implementation was pretty much copied verbatime from 
 // Tony Robinson's code in nsExternalProtocolWin.cpp
@@ -287,12 +298,17 @@ nsMIMEInfoWin::LoadUriInternal(nsIURI * aURL)
     SHELLEXECUTEINFOW sinfo;
     memset(&sinfo, 0, sizeof(sinfo));
     sinfo.cbSize   = sizeof(sinfo);
+#ifdef WINCE
+    sinfo.fMask    = SEE_MASK_FLAG_NO_UI;
+#else
     sinfo.fMask    = SEE_MASK_FLAG_DDEWAIT |
       SEE_MASK_FLAG_NO_UI;
+#endif
     sinfo.hwnd     = NULL;
     sinfo.lpVerb   = (LPWSTR)&cmdVerb;
     sinfo.nShow    = SW_SHOWNORMAL;
     
+#ifndef WINCE
     LPITEMIDLIST pidl = NULL;
     SFGAOF sfgao;
     
@@ -311,7 +327,9 @@ nsMIMEInfoWin::LoadUriInternal(nsIURI * aURL)
         // Microsoft Security Bulletin MS07-061
         rv = NS_ERROR_FAILURE;
       }
-    } else {
+    } else 
+#endif
+    {
       sinfo.lpFile =  NS_ConvertUTF8toUTF16(urlSpec).get();
     }
     if (NS_SUCCEEDED(rv)) {
@@ -319,8 +337,10 @@ nsMIMEInfoWin::LoadUriInternal(nsIURI * aURL)
       if (!result || ((LONG_PTR)sinfo.hInstApp) < 32)
         rv = NS_ERROR_FAILURE;
     }
+#ifndef WINCE
     if (pidl)
       CoTaskMemFree(pidl);
+#endif
     if (hDll) 
       ::FreeLibrary(hDll);
   }

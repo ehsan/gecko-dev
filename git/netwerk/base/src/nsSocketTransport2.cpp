@@ -942,15 +942,15 @@ nsSocketTransport::ResolveHost()
     PRUint32 dnsFlags = 0;
     if (mConnectionFlags & nsSocketTransport::BYPASS_CACHE)
         dnsFlags = nsIDNSService::RESOLVE_BYPASS_CACHE;
-    if (mConnectionFlags & nsSocketTransport::DISABLE_IPV6)
-        dnsFlags |= nsIDNSService::RESOLVE_DISABLE_IPV6;
 
-    SendStatus(STATUS_RESOLVING);
     rv = dns->AsyncResolve(SocketHost(), dnsFlags, this, nsnull,
                            getter_AddRefs(mDNSRequest));
     if (NS_SUCCEEDED(rv)) {
         SOCKET_LOG(("  advancing to STATE_RESOLVING\n"));
         mState = STATE_RESOLVING;
+        // only report that we are resolving if we are still resolving...
+        if (mResolving)
+            SendStatus(STATUS_RESOLVING);
     }
     return rv;
 }
@@ -1122,13 +1122,6 @@ nsSocketTransport::InitiateSocket()
     status = PR_SetSocketOption(fd, &opt);
     NS_ASSERTION(status == PR_SUCCESS, "unable to make socket non-blocking");
 
-    // disable the nagle algorithm - if we rely on it to coalesce writes into
-    // full packets the final packet of a multi segment POST/PUT or pipeline
-    // sequence is delayed a full rtt
-    opt.option = PR_SockOpt_NoDelay;
-    opt.value.no_delay = PR_TRUE;
-    PR_SetSocketOption(fd, &opt);
-
     // if the network.tcp.sendbuffer preference is set, use it to size SO_SNDBUF
     // The Windows default of 8KB is too small and as of vista sp1, autotuning
     // only applies to receive window
@@ -1273,8 +1266,6 @@ nsSocketTransport::RecoverFromError()
 
     // try next ip address only if past the resolver stage...
     if (mState == STATE_CONNECTING && mDNSRecord) {
-        mDNSRecord->ReportUnusable(SocketPort());
-        
         nsresult rv = mDNSRecord->GetNextAddr(SocketPort(), &mNetAddr);
         if (NS_SUCCEEDED(rv)) {
             SOCKET_LOG(("  trying again with next ip address\n"));
@@ -1441,9 +1432,6 @@ nsSocketTransport::OnSocketEvent(PRUint32 type, nsresult status, nsISupports *pa
         break;
 
     case MSG_DNS_LOOKUP_COMPLETE:
-        if (mDNSRequest)  // only send this if we actually resolved anything
-            SendStatus(STATUS_RESOLVED);
-
         SOCKET_LOG(("  MSG_DNS_LOOKUP_COMPLETE\n"));
         mDNSRequest = 0;
         if (param) {
@@ -1934,7 +1922,7 @@ nsSocketTransport::SetTimeout(PRUint32 type, PRUint32 value)
 {
     NS_ENSURE_ARG_MAX(type, nsISocketTransport::TIMEOUT_READ_WRITE);
     // truncate overly large timeout values.
-    mTimeouts[type] = (PRUint16) NS_MIN(value, PR_UINT16_MAX);
+    mTimeouts[type] = (PRUint16) PR_MIN(value, PR_UINT16_MAX);
     PostEvent(MSG_TIMEOUT_CHANGED);
     return NS_OK;
 }
@@ -2066,7 +2054,7 @@ DumpBytesToFile(const char *path, const char *header, const char *buf, PRInt32 n
     while (n) {
         p = (const unsigned char *) buf;
 
-        PRInt32 i, row_max = NS_MIN(16, n);
+        PRInt32 i, row_max = PR_MIN(16, n);
 
         for (i = 0; i < row_max; ++i)
             fprintf(fp, "%02x  ", *p++);

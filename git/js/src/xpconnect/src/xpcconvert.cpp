@@ -267,15 +267,7 @@ XPCConvert::NativeData2JS(XPCLazyCallContext& lccx, jsval* d, const void* s,
     case nsXPTType::T_U64   : *d = DOUBLE_TO_JSVAL(UINT64_TO_DOUBLE(*((uint64*)s))); break;
     case nsXPTType::T_FLOAT : *d = DOUBLE_TO_JSVAL(*((float*)s));                    break;
     case nsXPTType::T_DOUBLE: *d = DOUBLE_TO_JSVAL(*((double*)s));                   break;
-    case nsXPTType::T_BOOL  :
-        {
-            PRBool b = *((PRBool*)s);
-            
-            NS_WARN_IF_FALSE(b == 1 || b == 0,
-                    "Passing a malformed PRBool through XPConnect");
-            *d = BOOLEAN_TO_JSVAL(!!b);
-            break;
-        }
+    case nsXPTType::T_BOOL  : *d = BOOLEAN_TO_JSVAL(*((PRBool*)s));                  break;
     case nsXPTType::T_CHAR  :
         {
             char* p = (char*)s;
@@ -547,7 +539,6 @@ XPCConvert::JSData2Native(XPCCallContext& ccx, void* d, jsval s,
     int32    ti;
     uint32   tu;
     jsdouble td;
-    JSBool   tb;
     JSBool isDOMString = JS_TRUE;
 
     if(pErr)
@@ -627,8 +618,7 @@ XPCConvert::JSData2Native(XPCCallContext& ccx, void* d, jsval s,
             return JS_FALSE;
         break;
     case nsXPTType::T_BOOL   :
-        JS_ValueToBoolean(cx, s, &tb);
-        *((PRBool*)d) = tb;
+        JS_ValueToBoolean(cx, s, (JSBool*)d);
         break;
     case nsXPTType::T_CHAR   :
         {
@@ -1669,13 +1659,10 @@ XPCConvert::JSValToXPCException(XPCCallContext& ccx,
             JSBool found;
 
             // heuristic to see if it might be usable as an xpcexception
-            if(!JS_GetPropertyAttributes(cx, obj, "message", &ignored, &found))
-               return NS_ERROR_FAILURE;
-
-            if(found && !JS_GetPropertyAttributes(cx, obj, "result", &ignored, &found))
-                return NS_ERROR_FAILURE;
-
-            if(found)
+            if(JS_GetPropertyAttributes(cx, obj, "message", &ignored, &found) &&
+               found &&
+               JS_GetPropertyAttributes(cx, obj, "result", &ignored, &found) &&
+               found)
             {
                 // lets try to build a wrapper around the JSObject
                 nsXPCWrappedJS* jswrapper;
@@ -1685,8 +1672,8 @@ XPCConvert::JSValToXPCException(XPCCallContext& ccx,
                                                  nsnull, &jswrapper);
                 if(NS_FAILED(rv))
                     return rv;
-
-                *exceptn = static_cast<nsIException *>(jswrapper->GetXPTCStub());
+                *exceptn = reinterpret_cast<nsIException*>
+                           (jswrapper);
                 return NS_OK;
             }
 

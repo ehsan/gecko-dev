@@ -25,7 +25,7 @@ function part1(win) {
   newGroup.add(newTab._tabViewTabItem, {immediately: true});
 
   // ensure active group item and tab
-  contentWindow.UI.setActive(originalGroup);
+  contentWindow.GroupItems.setActiveGroupItem(originalGroup);
   is(contentWindow.GroupItems.getActiveGroupItem(), originalGroup,
      "The original group is active");
   is(contentWindow.UI.getActiveTab(), originalTab._tabViewTabItem,
@@ -71,15 +71,15 @@ function part2(win) {
     // switch the selected tab to new tab
     win.gBrowser.selectedTab = newTab;
 
-    whenTabViewIsHidden(function () {
+    win.addEventListener("tabviewhidden", function () {
+      win.removeEventListener("tabviewhidden", arguments.callee, false);
       is(win.gBrowser.selectedTab, newTab, "The seleted tab should be the same as before (new tab)");
        win.close();
        finish();
-    });
-
+    }, false);
     // show tabview
-    EventUtils.synthesizeKey("e", { accelKey: true, shiftKey: true }, win);
+    EventUtils.synthesizeKey("E", { accelKey: true, shiftKey: true }, win);
     // hide tabview
-    EventUtils.synthesizeKey("e", { accelKey: true, shiftKey: true }, win);
+    EventUtils.synthesizeKey("E", { accelKey: true, shiftKey: true }, win);
   })
 }

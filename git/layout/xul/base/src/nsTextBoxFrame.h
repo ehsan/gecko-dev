@@ -84,10 +84,9 @@ public:
 
   virtual ~nsTextBoxFrame();
 
-  void PaintTitle(nsRenderingContext& aRenderingContext,
+  void PaintTitle(nsIRenderingContext& aRenderingContext,
                   const nsRect&        aDirtyRect,
-                  nsPoint              aPt,
-                  const nscolor*       aOverrideColor);
+                  nsPoint              aPt);
 
   nsRect GetComponentAlphaBounds();
 
@@ -95,7 +94,6 @@ public:
 
 protected:
   friend class nsAsyncAccesskeyUpdate;
-  friend class nsDisplayXULTextBox;
   // Should be called only by nsAsyncAccesskeyUpdate.
   // Returns PR_TRUE if accesskey was updated.
   PRBool UpdateAccesskey(nsWeakFrame& aWeakThis);
@@ -104,23 +102,23 @@ protected:
 
   // REVIEW: SORRY! Couldn't resist devirtualizing these
   void LayoutTitle(nsPresContext*      aPresContext,
-                   nsRenderingContext& aRenderingContext,
+                   nsIRenderingContext& aRenderingContext,
                    const nsRect&        aRect);
 
-  void CalculateUnderline(nsRenderingContext& aRenderingContext);
+  void CalculateUnderline(nsIRenderingContext& aRenderingContext);
 
   void CalcTextSize(nsBoxLayoutState& aBoxLayoutState);
 
-  void CalcDrawRect(nsRenderingContext &aRenderingContext);
+  void CalcDrawRect(nsIRenderingContext &aRenderingContext);
 
   nsTextBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext);
 
   nscoord CalculateTitleForWidth(nsPresContext*      aPresContext,
-                                 nsRenderingContext& aRenderingContext,
+                                 nsIRenderingContext& aRenderingContext,
                                  nscoord              aWidth);
 
   void GetTextSize(nsPresContext*      aPresContext,
-                   nsRenderingContext& aRenderingContext,
+                   nsIRenderingContext& aRenderingContext,
                    const nsString&      aString,
                    nsSize&              aSize,
                    nscoord&             aAscent);
@@ -132,9 +130,15 @@ private:
   PRBool AlwaysAppendAccessKey();
   PRBool InsertSeparatorBeforeAccessKey();
 
-  void DrawText(nsRenderingContext& aRenderingContext,
+  void DrawText(nsIRenderingContext& aRenderingContext,
                          const nsRect&        aTextRect,
                          const nscolor*       aOverrideColor);
+
+  void PaintOneShadow(gfxContext *     aCtx,
+                      const nsRect&    aTextRect,
+                      nsCSSShadowItem* aShadowDetails,
+                      const nscolor&   aForegroundColor,
+                      const nsRect&    aDirtyRect);
 
   nsString mTitle;
   nsString mCroppedTitle;

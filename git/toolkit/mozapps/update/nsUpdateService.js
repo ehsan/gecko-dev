@@ -51,9 +51,6 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
 
-const UPDATESERVICE_CID = Components.ID("{B3C290A6-3943-4B89-8BBE-C01EB7B3B311}");
-const UPDATESERVICE_CONTRACTID = "@mozilla.org/updates/update-service;1";
-
 const PREF_APP_UPDATE_ALTWINDOWTYPE       = "app.update.altwindowtype";
 const PREF_APP_UPDATE_AUTO                = "app.update.auto";
 const PREF_APP_UPDATE_BACKGROUND_INTERVAL = "app.update.download.backgroundInterval";
@@ -65,7 +62,6 @@ const PREF_APP_UPDATE_CERT_ERRORS         = "app.update.cert.errors";
 const PREF_APP_UPDATE_CERT_MAXERRORS      = "app.update.cert.maxErrors";
 const PREF_APP_UPDATE_CERT_REQUIREBUILTIN = "app.update.cert.requireBuiltIn";
 const PREF_APP_UPDATE_CHANNEL             = "app.update.channel";
-const PREF_APP_UPDATE_DESIREDCHANNEL      = "app.update.desiredChannel";
 const PREF_APP_UPDATE_ENABLED             = "app.update.enabled";
 const PREF_APP_UPDATE_IDLETIME            = "app.update.idletime";
 const PREF_APP_UPDATE_INCOMPATIBLE_MODE   = "app.update.incompatible.mode";
@@ -97,7 +93,9 @@ const KEY_APPDIR          = "XCurProcD";
 const KEY_GRED            = "GreD";
 
 #ifdef XP_WIN
+#ifndef WINCE
 #define USE_UPDROOT
+#endif
 #elifdef ANDROID
 #define USE_UPDROOT
 #endif
@@ -107,7 +105,6 @@ const KEY_UPDROOT         = "UpdRootD";
 #endif
 
 const DIR_UPDATES         = "updates";
-const FILE_CHANNELCHANGE  = "channelchange";
 const FILE_UPDATE_STATUS  = "update.status";
 const FILE_UPDATE_VERSION = "update.version";
 #ifdef ANDROID
@@ -178,10 +175,6 @@ XPCOMUtils.defineLazyGetter(this, "gABI", function aus_gABI() {
 
   if (macutils.isUniversalBinary)
     abi += "-u-" + macutils.architecturesInBinary;
-#ifdef MOZ_SHARK
-  // Disambiguate optimised and shark nightlies
-  abi += "-shark"
-#endif
 #endif
   return abi;
 });
@@ -219,6 +212,7 @@ XPCOMUtils.defineLazyGetter(this, "gCanApplyUpdates", function aus_gCanApplyUpda
     updateTestFile.create(NORMAL_FILE_TYPE, FileUtils.PERMS_FILE);
     updateTestFile.remove(false);
 #ifdef XP_WIN
+#ifndef WINCE
     var sysInfo = Cc["@mozilla.org/system-info;1"].
                   getService(Ci.nsIPropertyBag2);
 
@@ -289,6 +283,7 @@ XPCOMUtils.defineLazyGetter(this, "gCanApplyUpdates", function aus_gCanApplyUpda
       appDirTestFile.create(NORMAL_FILE_TYPE, FileUtils.PERMS_FILE);
       appDirTestFile.remove(false);
     }
+#endif //WINCE
 #endif //XP_WIN
   }
   catch (e) {
@@ -499,15 +494,6 @@ function writeVersionFile(dir, version) {
   writeStringToFile(versionFile, version);
 }
 
-function createChannelChangeFile(dir) {
-  var channelChangeFile = dir.clone();
-  channelChangeFile.append(FILE_CHANNELCHANGE);
-  if (!channelChangeFile.exists()) {
-    channelChangeFile.create(Ci.nsILocalFile.NORMAL_FILE_TYPE,
-                             FileUtils.PERMS_FILE);
-  }
-}
-
 /**
  * Removes the contents of the Updates Directory
  */
@@ -546,7 +532,7 @@ function cleanUpUpdatesDir() {
             dir.path + " and rename it to " + FILE_LAST_LOG);
       }
     }
-    // Now, recursively remove this file.  The recursive removal is really
+    // Now, recursively remove this file.  The recusive removal is really
     // only needed on Mac OSX because this directory will contain a copy of
     // updater.app, which is itself a directory.
     try {
@@ -631,19 +617,6 @@ function getUpdateChannel() {
   }
 
   return channel;
-}
-
-function getDesiredChannel() {
-  let desiredChannel = getPref("getCharPref", PREF_APP_UPDATE_DESIREDCHANNEL, null);
-  if (!desiredChannel)
-    return null;
-  
-  if (desiredChannel == getUpdateChannel()) {
-    Services.prefs.clearUserPref(PREF_APP_UPDATE_DESIREDCHANNEL);
-    return null;
-  }
-  LOG("getDesiredChannel - channel set to: " + desiredChannel);
-  return desiredChannel;
 }
 
 /* Get the distribution pref values, from defaults only */
@@ -1150,9 +1123,6 @@ const UpdateServiceFactory = {
  */
 function UpdateService() {
   Services.obs.addObserver(this, "xpcom-shutdown", false);
-  // This will clear the preference if the channel is the same as the
-  // application's channel.
-  getDesiredChannel();
 }
 
 UpdateService.prototype = {
@@ -1185,7 +1155,6 @@ UpdateService.prototype = {
     case "xpcom-shutdown":
       Services.obs.removeObserver(this, "xpcom-shutdown");
 
-      this.pauseDownload();
       // Prevent leaking the downloader (bug 454964)
       this._downloader = null;
       break;
@@ -1256,9 +1225,6 @@ UpdateService.prototype = {
 
       // Done with this update. Clean it up.
       cleanupActiveUpdate();
-
-      if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_DESIREDCHANNEL))      
-        Services.prefs.clearUserPref(PREF_APP_UPDATE_DESIREDCHANNEL);
     }
     else {
       // If we hit an error, then the error code will be included in the status
@@ -1276,10 +1242,12 @@ UpdateService.prototype = {
         if (update.errorCode == WRITE_ERROR) {
           prompter.showUpdateError(update);
           writeStatusFile(getUpdatesDir(), update.state = STATE_PENDING);
+          writeVersionFile(getUpdatesDir(), update.appVersion);
           return;
         }
         else if (update.errorCode == ELEVATION_CANCELED) {
           writeStatusFile(getUpdatesDir(), update.state = STATE_PENDING);
+          writeVersionFile(getUpdatesDir(), update.appVersion);
           return;
         }
       }
@@ -1382,12 +1350,6 @@ UpdateService.prototype = {
     if (updates.length == 0)
       return null;
 
-    if (getDesiredChannel()) {
-      LOG("UpdateService:selectUpdate - skipping version checks for channel " +
-          "change request");
-      return updates[0];
-    }
-
     // Choose the newest of the available minor and major updates.
     var majorUpdate = null;
     var minorUpdate = null;
@@ -1399,9 +1361,8 @@ UpdateService.prototype = {
       if (vc.compare(aUpdate.appVersion, Services.appinfo.version) < 0 ||
           vc.compare(aUpdate.appVersion, Services.appinfo.version) == 0 &&
           aUpdate.buildID == Services.appinfo.appBuildID) {
-        LOG("UpdateService:selectUpdate - skipping update because the " +
-            "update's application version is less than the current " +
-            "application version");
+        LOG("Checker:selectUpdate - skipping update because the update's " +
+            "application version is less than the current application version");
         return;
       }
 
@@ -1411,7 +1372,7 @@ UpdateService.prototype = {
       let neverPrefName = PREF_APP_UPDATE_NEVER_BRANCH + aUpdate.appVersion;
       if (aUpdate.showNeverForVersion &&
           getPref("getBoolPref", neverPrefName, false)) {
-        LOG("UpdateService:selectUpdate - skipping update because the " +
+        LOG("Checker:selectUpdate - skipping update because the " +
             "preference " + neverPrefName + " is true");
         return;
       }
@@ -1430,7 +1391,7 @@ UpdateService.prototype = {
             minorUpdate = aUpdate;
           break;
         default:
-          LOG("UpdateService:selectUpdate - skipping unknown update type: " +
+          LOG("Checker:selectUpdate - skipping unknown update type: " +
               aUpdate.type);
           break;
       }
@@ -1465,14 +1426,14 @@ UpdateService.prototype = {
 
     var updateEnabled = getPref("getBoolPref", PREF_APP_UPDATE_ENABLED, true);
     if (!updateEnabled) {
-      LOG("UpdateService:_selectAndInstallUpdate - not prompting because " +
-          "update is disabled");
+      LOG("Checker:_selectAndInstallUpdate - not prompting because update is " +
+          "disabled");
       return;
     }
 
     if (!gCanApplyUpdates) {
-      LOG("UpdateService:_selectAndInstallUpdate - the user is unable to " +
-          "apply updates... prompting");
+      LOG("Checker:_selectAndInstallUpdate - the user is unable to apply " +
+          "updates... prompting");
       this._showPrompt(update);
       return;
     }
@@ -1504,14 +1465,14 @@ UpdateService.prototype = {
 #      Minor         1      No                     Auto Install
      */
     if (update.showPrompt) {
-      LOG("UpdateService:_selectAndInstallUpdate - prompting because the " +
-          "update snippet specified showPrompt");
+      LOG("Checker:_selectAndInstallUpdate - prompting because the update " +
+          "snippet specified showPrompt");
       this._showPrompt(update);
       return;
     }
 
     if (!getPref("getBoolPref", PREF_APP_UPDATE_AUTO, true)) {
-      LOG("UpdateService:_selectAndInstallUpdate - prompting because silent " +
+      LOG("Checker:_selectAndInstallUpdate - prompting because silent " +
           "install is disabled");
       this._showPrompt(update);
       return;
@@ -1665,8 +1626,8 @@ UpdateService.prototype = {
       return;
 
     if (this._incompatibleAddons.length > 0 || !gCanApplyUpdates) {
-      LOG("UpdateService:onUpdateEnded - prompting because there are " +
-          "incompatible add-ons");
+      LOG("Checker:onUpdateEnded - prompting because there are incompatible " +
+          "add-ons");
       this._showPrompt(this._update);
     }
     else {
@@ -1740,7 +1701,7 @@ UpdateService.prototype = {
     // current application's version or the update's version is the same as the
     // application's version and the build ID is the same as the application's
     // build ID.
-    if (!getDesiredChannel() && update.appVersion &&
+    if (update.appVersion &&
         (Services.vc.compare(update.appVersion, Services.appinfo.version) < 0 ||
          update.buildID && update.buildID == Services.appinfo.appBuildID &&
          update.appVersion == Services.appinfo.version)) {
@@ -1754,7 +1715,6 @@ UpdateService.prototype = {
       return STATE_NONE;
     }
 
-    // If a download request is in progress vs. a download ready to resume
     if (this.isDownloading) {
       if (update.isCompleteUpdate == this._downloader.isCompleteUpdate &&
           background == this._downloader.background) {
@@ -1785,14 +1745,19 @@ UpdateService.prototype = {
     return this._downloader && this._downloader.isBusy;
   },
 
-  classID: UPDATESERVICE_CID,
-  classInfo: XPCOMUtils.generateCI({classID: UPDATESERVICE_CID,
-                                    contractID: UPDATESERVICE_CONTRACTID,
-                                    interfaces: [Ci.nsIApplicationUpdateService,
-                                                 Ci.nsITimerCallback,
-                                                 Ci.nsIObserver],
-                                    flags: Ci.nsIClassInfo.SINGLETON}),
+  // nsIClassInfo
+  flags: Ci.nsIClassInfo.SINGLETON,
+  implementationLanguage: Ci.nsIProgrammingLanguage.JAVASCRIPT,
+  getHelperForLanguage: function(language) null,
+  getInterfaces: function AUS_getInterfaces(count) {
+    var interfaces = [Ci.nsIApplicationUpdateService,
+                      Ci.nsITimerCallback,
+                      Ci.nsIObserver];
+    count.value = interfaces.length;
+    return interfaces;
+  },
 
+  classID: Components.ID("{B3C290A6-3943-4B89-8BBE-C01EB7B3B311}"),
   _xpcom_factory: UpdateServiceFactory,
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIApplicationUpdateService,
                                          Ci.nsIAddonUpdateCheckListener,
@@ -1937,9 +1902,8 @@ UpdateManager.prototype = {
    * See nsIUpdateService.idl
    */
   get activeUpdate() {
-    let currentChannel = getDesiredChannel() || getUpdateChannel();
     if (this._activeUpdate &&
-        this._activeUpdate.channel != currentChannel) {
+        this._activeUpdate.channel != getUpdateChannel()) {
       // User switched channels, clear out any old active updates and remove
       // partial downloads
       this._activeUpdate = null;
@@ -2114,10 +2078,6 @@ Checker.prototype = {
                       getDistributionPrefValue(PREF_APP_DISTRIBUTION_VERSION));
     url = url.replace(/\+/g, "%2B");
 
-    let desiredChannel = getDesiredChannel();
-    if (desiredChannel)
-      url += (url.indexOf("?") != -1 ? "&" : "?") + "newchannel=" + desiredChannel;
-
     if (force)
       url += (url.indexOf("?") != -1 ? "&" : "?") + "force=1";
 
@@ -2136,17 +2096,8 @@ Checker.prototype = {
     if (!url || (!this.enabled && !force))
       return;
 
-    // If the user changes the update channel there can be leftover files from
-    // a previous download so clean the updates directory for manual checks.
-    if (force)
-      cleanUpUpdatesDir();
-
     this._request = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].
-                    createInstance(Ci.nsISupports);
-    // This is here to let unit test code override XHR
-    if (this._request.wrappedJSObject) {
-      this._request = this._request.wrappedJSObject;
-    }
+                    createInstance(Ci.nsIXMLHttpRequest);
     this._request.open("GET", url, true);
     var allowNonBuiltIn = !getPref("getBoolPref",
                                    PREF_APP_UPDATE_CERT_REQUIREBUILTIN, true);
@@ -2208,7 +2159,7 @@ Checker.prototype = {
         continue;
       }
       update.serviceURL = this.getUpdateURL(this._forced);
-      update.channel = getDesiredChannel() || getUpdateChannel();
+      update.channel = getUpdateChannel();
       updates.push(update);
     }
 
@@ -2476,7 +2427,7 @@ Downloader.prototype = {
 
     // If this is a patch that we know about, then select it.  If it is a patch
     // that we do not know about, then remove it and use our default logic.
-    var useComplete = getDesiredChannel() ? true : false;
+    var useComplete = false;
     if (selectedPatch) {
       LOG("Downloader:_selectPatch - found existing patch with state: " +
           state);
@@ -2722,8 +2673,6 @@ Downloader.prototype = {
         // Tell the updater.exe we're ready to apply.
         writeStatusFile(getUpdatesDir(), state);
         writeVersionFile(getUpdatesDir(), this._update.appVersion);
-        if (getDesiredChannel())
-          createChannelChangeFile(getUpdatesDir());
         this._update.installDate = (new Date()).getTime();
         this._update.statusText = gUpdateBundle.GetStringFromName("installPending");
       }
@@ -2747,8 +2696,7 @@ Downloader.prototype = {
       }
     }
     else if (status != Cr.NS_BINDING_ABORTED &&
-             status != Cr.NS_ERROR_ABORT &&
-             status != Cr.NS_ERROR_DOCUMENT_NOT_CACHED) {
+             status != Cr.NS_ERROR_ABORT) {
       LOG("Downloader:onStopRequest - non-verification failure");
       // Some sort of other failure, log this in the |statusText| property
       state = STATE_DOWNLOAD_FAILED;
@@ -2756,8 +2704,9 @@ Downloader.prototype = {
       // XXXben - if |request| (The Incremental Download) provided a means
       // for accessing the http channel we could do more here.
 
+      const NS_BINDING_FAILED = 2152398849;
       this._update.statusText = getStatusTextFromCode(status,
-                                                      Cr.NS_BINDING_FAILED);
+        NS_BINDING_FAILED);
 
       // Destroy the updates directory, since we're done with it.
       cleanUpUpdatesDir();

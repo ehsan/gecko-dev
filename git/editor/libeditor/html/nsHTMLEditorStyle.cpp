@@ -44,6 +44,8 @@
 #include "nsHTMLEditUtils.h"
 #include "nsIDOMNodeList.h"
 #include "nsIDOMAttr.h"
+#include "nsIDOMKeyListener.h" 
+#include "nsIDOMMouseListener.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsISelection.h"
 #include "nsISelectionPrivate.h"
@@ -761,7 +763,7 @@ nsresult nsHTMLEditor::RemoveStyleInside(nsIDOMNode *aNode,
   }  
   if ( aProperty == nsEditProperty::font &&    // or node is big or small and we are setting font size
        (nsHTMLEditUtils::IsBig(aNode) || nsHTMLEditUtils::IsSmall(aNode)) &&
-       aAttribute && aAttribute->LowerCaseEqualsLiteral("size"))       
+       aAttribute->LowerCaseEqualsLiteral("size"))       
   {
     res = RemoveContainer(aNode);  // if we are setting font size, remove any nested bigs and smalls
   }
@@ -950,10 +952,8 @@ nsresult nsHTMLEditor::PromoteInlineRange(nsIDOMRange *inRange)
 PRBool nsHTMLEditor::IsAtFrontOfNode(nsIDOMNode *aNode, PRInt32 aOffset)
 {
   NS_ENSURE_TRUE(aNode, PR_FALSE);  // oops
-  if (!aOffset) {
-    return PR_TRUE;
-  }
-
+  NS_ENSURE_TRUE(aOffset, PR_TRUE);
+  
   if (IsTextNode(aNode))
   {
     return PR_FALSE;
@@ -1073,8 +1073,7 @@ nsHTMLEditor::GetInlinePropertyBase(nsIAtom *aProperty,
           // style not set, but if it is a default then it will appear if 
           // content is inserted, so we should report it as set (analogous to TypeInState).
           PRInt32 index;
-          if (aAttribute &&
-              TypeInState::FindPropInList(aProperty, *aAttribute, outValue, mDefaultStyles, index))
+          if (TypeInState::FindPropInList(aProperty, *aAttribute, outValue, mDefaultStyles, index))
           {
             *aFirst = *aAny = *aAll = PR_TRUE;
             if (outValue)

@@ -66,6 +66,8 @@ public:
     cairo_font_face_t *CairoFontFace();
     cairo_scaled_font_t *CairoScaledFont();
 
+    virtual nsString GetUniqueName();
+
     // Get the glyphID of a space
     virtual PRUint32 GetSpaceGlyph() {
         if (!mMetrics)
@@ -125,9 +127,7 @@ protected:
     void CreateGlyphRunsFT(gfxTextRun *aTextRun, const PRUint8 *aUTF8,
                            PRUint32 aUTF8Length);
     static PRBool FontCallback(const nsAString& aFontName,
-                               const nsACString& aGenericName,
-                               PRBool aUseFontSet,
-                               void *aClosure);
+                               const nsACString& aGenericName, void *aClosure);
 
 private:
     PRBool mEnableKerning;

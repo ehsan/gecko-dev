@@ -176,8 +176,6 @@ class Assembler : public ValueAssembler
     static const RegisterID ClobberInCall = JSC::X86Registers::ecx;
 #elif defined(JS_CPU_ARM)
     static const RegisterID ClobberInCall = JSC::ARMRegisters::r2;
-#elif defined(JS_CPU_SPARC)
-    static const RegisterID ClobberInCall = JSC::SparcRegisters::l1;
 #endif
 
     /* :TODO: OOM */
@@ -227,10 +225,6 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc   = JSC::X86Registe
 static const JSC::MacroAssembler::RegisterID JSReturnReg_Type  = JSC::ARMRegisters::r2;
 static const JSC::MacroAssembler::RegisterID JSReturnReg_Data  = JSC::ARMRegisters::r1;
 static const JSC::MacroAssembler::RegisterID JSParamReg_Argc   = JSC::ARMRegisters::r1;
-#elif defined(JS_CPU_SPARC)
-static const JSC::MacroAssembler::RegisterID JSReturnReg_Type = JSC::SparcRegisters::i0;
-static const JSC::MacroAssembler::RegisterID JSReturnReg_Data = JSC::SparcRegisters::i1;
-static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegisters::i2;
 #endif
 
     size_t distanceOf(Label l) {
@@ -259,10 +253,17 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
      * Finds and returns the address of a known object and slot.
      */
     Address objSlotRef(JSObject *obj, RegisterID reg, uint32 slot) {
-        move(ImmPtr((char *)obj + JSObject::offsetOfSlots()), reg);
+        move(ImmPtr(&obj->slots), reg);
         loadPtr(reg, reg);
         return Address(reg, slot * sizeof(Value));
     }
+
+#ifdef JS_CPU_X86
+    void idiv(RegisterID reg) {
+        m_assembler.cdq();
+        m_assembler.idivl_r(reg);
+    }
+#endif
 
     /* Prepare for a call that might THROW. */
     void *getFallibleCallTarget(void *fun) {
@@ -363,16 +364,8 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
     // Windows x64 requires extra space in between calls.
 #ifdef _WIN64
     static const uint32 ShadowStackSpace = 32;
-#elif defined(JS_CPU_SPARC)
-    static const uint32 ShadowStackSpace = 92;
 #else
     static const uint32 ShadowStackSpace = 0;
-#endif
-
-#if defined(JS_CPU_SPARC)
-    static const uint32 BaseStackSpace = 104;
-#else
-    static const uint32 BaseStackSpace = 0;
 #endif
 
     // Prepare the stack for a call sequence. This must be called AFTER all
@@ -433,7 +426,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
         //
         // Note that it's not required we're in a call - stackAdjust can be 0.
         JS_ASSERT(marker.base <= extraStackSpace);
-        return Address(stackPointerRegister, BaseStackSpace + stackAdjust + extraStackSpace - marker.base);
+        return Address(stackPointerRegister, stackAdjust + extraStackSpace - marker.base);
     }
 
     // This is an internal function only for use inside a setupABICall(),
@@ -582,7 +575,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
         if (frameDepth >= 0) {
             // sp = fp->slots() + frameDepth
             // regs->sp = sp
-            addPtr(Imm32(sizeof(StackFrame) + frameDepth * sizeof(jsval)),
+            addPtr(Imm32(sizeof(JSStackFrame) + frameDepth * sizeof(jsval)),
                    JSFrameReg,
                    ClobberInCall);
             storePtr(ClobberInCall, FrameAddress(offsetof(VMFrame, regs.sp)));
@@ -598,11 +591,11 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
         setupInfallibleVMFrame(frameDepth);
 
         /* regs->fp = fp */
-        storePtr(JSFrameReg, FrameAddress(VMFrame::offsetOfFp));
+        storePtr(JSFrameReg, FrameAddress(offsetof(VMFrame, regs.fp)));
 
         /* PC -> regs->pc :( */
         storePtr(ImmPtr(pc),
-                 FrameAddress(offsetof(VMFrame, regs) + offsetof(FrameRegs, pc)));
+                 FrameAddress(offsetof(VMFrame, regs) + offsetof(JSFrameRegs, pc)));
     }
 
     // An infallible VM call is a stub call (taking a VMFrame & and one
@@ -658,9 +651,9 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
         Address capacity(objReg, offsetof(JSObject, capacity));
         if (key.isConstant()) {
             JS_ASSERT(key.index() >= 0);
-            return branch32(BelowOrEqual, capacity, Imm32(key.index()));
+            return branch32(BelowOrEqual, payloadOf(capacity), Imm32(key.index()));
         }
-        return branch32(BelowOrEqual, capacity, key.reg());
+        return branch32(BelowOrEqual, payloadOf(capacity), key.reg());
     }
 
     // Load a jsval from an array slot, given a key. |objReg| is clobbered.
@@ -672,7 +665,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
         fails.rangeCheck = guardArrayCapacity(objReg, key);
 
         RegisterID dslotsReg = objReg;
-        loadPtr(Address(objReg, JSObject::offsetOfSlots()), dslotsReg);
+        loadPtr(Address(objReg, offsetof(JSObject, slots)), dslotsReg);
 
         // Load the slot out of the array.
         if (key.isConstant()) {
@@ -707,7 +700,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
 
     void loadDynamicSlot(RegisterID objReg, uint32 slot,
                          RegisterID typeReg, RegisterID dataReg) {
-        loadPtr(Address(objReg, JSObject::offsetOfSlots()), dataReg);
+        loadPtr(Address(objReg, offsetof(JSObject, slots)), dataReg);
         loadValueAsComponents(Address(dataReg, slot * sizeof(Value)), typeReg, dataReg);
     }
 
@@ -746,7 +739,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = Assembler::JSPar
 struct FrameFlagsAddress : JSC::MacroAssembler::Address
 {
     FrameFlagsAddress()
-      : Address(JSFrameReg, StackFrame::offsetOfFlags())
+      : Address(JSFrameReg, JSStackFrame::offsetOfFlags())
     {}
 };
 

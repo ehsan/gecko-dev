@@ -121,8 +121,6 @@ private:
    */
   void UpdateGlyphPositioning(PRBool aForceGlobalTransform);
 
-  void SetWhitespaceHandling(nsSVGGlyphFrame *aFrame);
-
   nsCOMPtr<nsIDOMSVGMatrix> mCanvasTM;
 
   enum UpdateState { unsuspended, suspended };

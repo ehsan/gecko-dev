@@ -44,6 +44,7 @@
 #define FORCE_PR_LOG
 #endif
 
+#ifdef MOZ_IPC
 // e10s mess: IPDL-generatd headers include chromium which both #includes
 // prlog.h, and #defines LOG in conflict with this file.
 // Solution: (as described in bug 545995)
@@ -59,6 +60,7 @@
 #endif
 #include "mozilla/net/NeckoChild.h"
 #undef LOG
+#endif // MOZ_IPC
 
 #include "plstr.h"
 #include "prlog.h"
@@ -122,14 +124,6 @@ typedef PRUint8 nsHttpVersion;
 // a transaction with this caps flag will not pass SSL client-certificates
 // to the server (see bug #466080), but is may also be used for other things
 #define NS_HTTP_LOAD_ANONYMOUS       (1<<4)
-
-// a transaction with this caps flag keeps timing information
-#define NS_HTTP_TIMING_ENABLED       (1<<5)
-
-// a transaction with this caps flag will not only not use an existing
-// persistent connection but it will close outstanding ones to the same
-// host. Used by a forced reload to reset the connection states.
-#define NS_HTTP_CLEAR_KEEPALIVES     (1<<6)
 
 //-----------------------------------------------------------------------------
 // some default values

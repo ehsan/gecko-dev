@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ *
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -43,7 +44,7 @@
 #include "nsXPIDLString.h"
 #include "nsDocShellCID.h"
 #include "nsIWebNavigationInfo.h"
-#include "nsIDOMWindow.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsAutoPtr.h"
 #include "nsIHttpChannel.h"
 #include "nsIScriptSecurityManager.h"
@@ -157,7 +158,7 @@ nsDSURIContentListener::DoContent(const char* aContentType,
     }
 
     if (loadFlags & nsIChannel::LOAD_RETARGETED_DOCUMENT_URI) {
-        nsCOMPtr<nsIDOMWindow> domWindow = do_GetInterface(static_cast<nsIDocShell*>(mDocShell));
+        nsCOMPtr<nsIDOMWindowInternal> domWindow = do_GetInterface(static_cast<nsIDocShell*>(mDocShell));
         NS_ENSURE_TRUE(domWindow, NS_ERROR_FAILURE);
         domWindow->Focus();
     }

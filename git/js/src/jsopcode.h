@@ -65,14 +65,13 @@ typedef enum JSOp {
     JSOP_LIMIT,
 
     /*
-     * These pseudo-ops help js_DecompileValueGenerator decompile JSOP_SETPROP,
-     * JSOP_SETELEM, and comprehension-tails, respectively.  They are never
-     * stored in bytecode, so they don't preempt valid opcodes.
+     * These pseudo-ops help js_DecompileValueGenerator decompile JSOP_SETNAME,
+     * JSOP_SETPROP, and JSOP_SETELEM, respectively.  They are never stored in
+     * bytecode, so they don't preempt valid opcodes.
      */
     JSOP_GETPROP2 = JSOP_LIMIT,
     JSOP_GETELEM2 = JSOP_LIMIT + 1,
-    JSOP_FORLOCAL = JSOP_LIMIT + 2,
-    JSOP_FAKE_LIMIT = JSOP_FORLOCAL
+    JSOP_FAKE_LIMIT = JSOP_GETELEM2
 } JSOp;
 
 /*
@@ -523,17 +522,20 @@ CallResultEscapes(jsbytecode *pc);
 }
 #endif
 
-#if defined(DEBUG) && defined(__cplusplus)
+#ifdef DEBUG
+#ifdef __cplusplus
 /*
  * Disassemblers, for debugging only.
  */
+#include <stdio.h>
 extern JS_FRIEND_API(JSBool)
 js_Disassemble(JSContext *cx, JSScript *script, JSBool lines, js::Sprinter *sp);
 
 extern JS_FRIEND_API(uintN)
 js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc, uintN loc,
                 JSBool lines, js::Sprinter *sp);
-#endif
+#endif /* __cplusplus */
+#endif /* DEBUG */
 
 /*
  * Given bytecode address pc in script's main program code, return the operand

@@ -126,24 +126,6 @@ nsMIMEHeaderParamImpl::GetParameter(const nsACString& aHeaderVal,
     return NS_OK;
 }
 
-// remove backslash-encoded sequences from quoted-strings
-// modifies string in place, potentially shortening it
-void RemoveQuotedStringEscapes(char *src)
-{
-  char *dst = src;
-
-  for (char *c = src; *c; ++c)
-  {
-    if (c[0] == '\\' && c[1])
-    {
-      // skip backslash if not at end
-      ++c;
-    }
-    *dst++ = *c;
-  }
-  *dst = 0;
-}
-
 // moved almost verbatim from mimehdrs.cpp
 // char *
 // MimeHeaders_get_parameter (const char *header_value, const char *parm_name,
@@ -221,7 +203,6 @@ nsMIMEHeaderParamImpl::GetParameterInternal(const char *aHeaderValue,
     const char *tokenEnd = 0;
     const char *valueStart = str;
     const char *valueEnd = 0;
-    PRBool seenEquals = PR_FALSE;
 
     NS_ASSERTION(!nsCRT::IsAsciiSpace(*str), "should be after whitespace.");
 
@@ -232,14 +213,9 @@ nsMIMEHeaderParamImpl::GetParameterInternal(const char *aHeaderValue,
 
     // Skip over whitespace, '=', and whitespace
     while (nsCRT::IsAsciiSpace(*str)) ++str;
-    if (*str == '=') {
-      ++str;
-      seenEquals = PR_TRUE;
-    }
+    if (*str == '=') ++str;
     while (nsCRT::IsAsciiSpace(*str)) ++str;
 
-    PRBool needUnquote = PR_FALSE;
-    
     if (*str != '"')
     {
       // The value is a token, not a quoted string.
@@ -252,9 +228,7 @@ nsMIMEHeaderParamImpl::GetParameterInternal(const char *aHeaderValue,
     }
     else
     {
-      // The value is a quoted string.
-      needUnquote = PR_TRUE;
-      
+      // The value is a quoted string. 
       ++str;
       valueStart = str;
       for (valueEnd = str; *valueEnd; ++valueEnd)
@@ -271,36 +245,26 @@ nsMIMEHeaderParamImpl::GetParameterInternal(const char *aHeaderValue,
     // a 'single' line value with no charset and lang.
     // If so, copy it and return.
     if (tokenEnd - tokenStart == paramLen &&
-        seenEquals &&
         !nsCRT::strncasecmp(tokenStart, aParamName, paramLen))
     {
       // if the parameter spans across multiple lines we have to strip out the
       //     line continuation -- jht 4/29/98 
       nsCAutoString tempStr(valueStart, valueEnd - valueStart);
       tempStr.StripChars("\r\n");
-      char *res = ToNewCString(tempStr);
-      NS_ENSURE_TRUE(res, NS_ERROR_OUT_OF_MEMORY);
-      
-      if (needUnquote)
-        RemoveQuotedStringEscapes(res);
-            
-      *aResult = res;
-      
+      *aResult = ToNewCString(tempStr);
+      NS_ENSURE_TRUE(*aResult, NS_ERROR_OUT_OF_MEMORY);
       // keep going, we may find a RFC 2231 encoded alternative
     }
     // case B, C, and D
     else if (tokenEnd - tokenStart > paramLen &&
              !nsCRT::strncasecmp(tokenStart, aParamName, paramLen) &&
-             seenEquals &&
              *(tokenStart + paramLen) == '*')
     {
       const char *cp = tokenStart + paramLen + 1; // 1st char pass '*'
       PRBool needUnescape = *(tokenEnd - 1) == '*';
       // the 1st line of a multi-line parameter or a single line  that needs 
       // unescaping. ( title*0*=  or  title*= )
-      // only allowed for token form, not for quoted-string
-      if (!needUnquote &&
-          ((*cp == '0' && needUnescape) || (tokenEnd - tokenStart == paramLen + 1)))
+      if ((*cp == '0' && needUnescape) || (tokenEnd - tokenStart == paramLen + 1))
       {
         // look for single quotation mark(')
         const char *sQuote1 = PL_strchr(valueStart, 0x27);

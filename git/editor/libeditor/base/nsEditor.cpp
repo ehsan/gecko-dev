@@ -43,9 +43,13 @@
 #include "nsIDOMDocument.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsIDOMNSHTMLElement.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIDOMNSEvent.h"
+#include "nsPIDOMEventTarget.h"
 #include "nsIMEStateManager.h"
 #include "nsFocusManager.h"
+#include "nsIPrefBranch.h"
+#include "nsIPrefService.h"
 #include "nsUnicharUtils.h"
 #include "nsReadableUtils.h"
 
@@ -58,6 +62,7 @@
 #include "nsIDOMNodeList.h"
 #include "nsIDOMRange.h"
 #include "nsIDOMHTMLBRElement.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIDocument.h"
 #include "nsITransactionManager.h"
 #include "nsIAbsorbingTransaction.h"
@@ -111,8 +116,6 @@
 #include "nsTextEditUtils.h"
 
 #include "mozilla/FunctionTimer.h"
-#include "mozilla/Preferences.h"
-#include "mozilla/dom/Element.h"
 
 #define NS_ERROR_EDITOR_NO_SELECTION NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_EDITOR,1)
 #define NS_ERROR_EDITOR_NO_TEXTNODE  NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_EDITOR,2)
@@ -125,7 +128,6 @@ static PRBool gNoisy = PR_FALSE;
 #include "nsIDOMHTMLDocument.h"
 #endif
 
-using namespace mozilla;
 
 // Defined in nsEditorRegistration.cpp
 extern nsIParserService *sParserService;
@@ -203,6 +205,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsEditor)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsEditor)
+ NS_INTERFACE_MAP_ENTRY(nsIEditor_MOZILLA_2_0_BRANCH)
  NS_INTERFACE_MAP_ENTRY(nsIPhonetic)
  NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
  NS_INTERFACE_MAP_ENTRY(nsIEditorIMESupport)
@@ -210,8 +213,14 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsEditor)
  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIEditor)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsEditor)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsEditor)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsEditor, nsIEditor)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsEditor, nsIEditor)
+
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  nsIEditorMethods 
+#pragma mark -
+#endif
 
 
 NS_IMETHODIMP
@@ -240,7 +249,8 @@ nsEditor::Init(nsIDOMDocument *aDoc, nsIContent *aRoot, nsISelectionController *
     mSelConWeak = do_GetWeakReference(aSelCon);   // weak reference to selectioncontroller
     selCon = aSelCon;
   } else {
-    nsCOMPtr<nsIPresShell> presShell = GetPresShell();
+    nsCOMPtr<nsIPresShell> presShell;
+    GetPresShell(getter_AddRefs(presShell));
     selCon = do_QueryInterface(presShell);
   }
   NS_ASSERTION(selCon, "Selection controller should be available at this point");
@@ -289,7 +299,14 @@ nsEditor::PostCreate()
     mDidPostCreate = PR_TRUE;
 
     // Set up listeners
-    CreateEventListeners();
+    rv = CreateEventListeners();
+    if (NS_FAILED(rv))
+    {
+      RemoveEventListeners();
+
+      return rv;
+    }
+
     rv = InstallEventListeners();
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -305,7 +322,8 @@ nsEditor::PostCreate()
   // update nsTextStateManager and caret if we have focus
   nsCOMPtr<nsIContent> focusedContent = GetFocusedContent();
   if (focusedContent) {
-    nsCOMPtr<nsIPresShell> ps = GetPresShell();
+    nsCOMPtr<nsIPresShell> ps;
+    GetPresShell(getter_AddRefs(ps));
     NS_ASSERTION(ps, "no pres shell even though we have focus");
     NS_ENSURE_TRUE(ps, NS_ERROR_UNEXPECTED);
     nsPresContext* pc = ps->GetPresContext(); 
@@ -321,14 +339,16 @@ nsEditor::PostCreate()
   return NS_OK;
 }
 
-/* virtual */
-void
+nsresult
 nsEditor::CreateEventListeners()
 {
   // Don't create the handler twice
-  if (!mEventListener) {
-    mEventListener = new nsEditorEventListener();
-  }
+  if (mEventListener)
+    return NS_OK;
+  mEventListener = do_QueryInterface(
+    static_cast<nsIDOMKeyListener*>(new nsEditorEventListener()));
+  NS_ENSURE_TRUE(mEventListener, NS_ERROR_OUT_OF_MEMORY);
+  return NS_OK;
 }
 
 nsresult
@@ -367,7 +387,13 @@ nsEditor::GetDesiredSpellCheckState()
   }
 
   // Check user preferences
-  PRInt32 spellcheckLevel = Preferences::GetInt("layout.spellcheckDefault", 1);
+  nsresult rv;
+  nsCOMPtr<nsIPrefBranch> prefBranch =
+    do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
+  PRInt32 spellcheckLevel = 1;
+  if (NS_SUCCEEDED(rv) && prefBranch) {
+    prefBranch->GetIntPref("layout.spellcheckDefault", &spellcheckLevel);
+  }
 
   if (spellcheckLevel == 0) {
     return PR_FALSE;                    // Spellchecking forced off globally
@@ -377,11 +403,12 @@ nsEditor::GetDesiredSpellCheckState()
     return PR_FALSE;
   }
 
-  nsCOMPtr<nsIPresShell> presShell = GetPresShell();
-  if (presShell) {
+  nsCOMPtr<nsIPresShell> presShell;
+  rv = GetPresShell(getter_AddRefs(presShell));
+  if (NS_SUCCEEDED(rv)) {
     nsPresContext* context = presShell->GetPresContext();
     if (context && !context->IsDynamic()) {
-      return PR_FALSE;
+        return PR_FALSE;
     }
   }
 
@@ -508,14 +535,19 @@ nsEditor::GetDocument(nsIDOMDocument **aDoc)
   return NS_OK;
 }
 
-already_AddRefed<nsIPresShell>
-nsEditor::GetPresShell()
+
+nsresult 
+nsEditor::GetPresShell(nsIPresShell **aPS)
 {
+  NS_ENSURE_TRUE(aPS, NS_ERROR_NULL_POINTER);
+  *aPS = nsnull; // init out param
   NS_PRECONDITION(mDocWeak, "bad state, null mDocWeak");
   nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
-  NS_ENSURE_TRUE(doc, NULL);
-  nsCOMPtr<nsIPresShell> ps = doc->GetShell();
-  return ps.forget();
+  NS_ENSURE_TRUE(doc, NS_ERROR_NOT_INITIALIZED);
+  *aPS = doc->GetShell();
+  NS_ENSURE_TRUE(*aPS, NS_ERROR_NOT_INITIALIZED);
+  NS_ADDREF(*aPS);
+  return NS_OK;
 }
 
 
@@ -544,7 +576,8 @@ nsEditor::GetSelectionController(nsISelectionController **aSel)
   if (mSelConWeak) {
     selCon = do_QueryReferent(mSelConWeak);
   } else {
-    nsCOMPtr<nsIPresShell> presShell = GetPresShell();
+    nsCOMPtr<nsIPresShell> presShell;
+    GetPresShell(getter_AddRefs(presShell));
     selCon = do_QueryInterface(presShell);
   }
   NS_ENSURE_TRUE(selCon, NS_ERROR_NOT_INITIALIZED);
@@ -913,7 +946,8 @@ nsEditor::EndPlaceHolderTransaction()
       // Hide the caret here to avoid hiding it twice, once in EndUpdateViewBatch
       // and once in ScrollSelectionIntoView.
       nsRefPtr<nsCaret> caret;
-      nsCOMPtr<nsIPresShell> presShell = GetPresShell();
+      nsCOMPtr<nsIPresShell> presShell;
+      GetPresShell(getter_AddRefs(presShell));
 
       if (presShell)
         caret = presShell->GetCaret();
@@ -1111,6 +1145,7 @@ nsEditor::GetDocumentModified(PRBool *outDocModified)
 NS_IMETHODIMP
 nsEditor::GetDocumentCharacterSet(nsACString &characterSet)
 {
+  nsresult rv = NS_OK;
   nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
   NS_ENSURE_TRUE(doc, NS_ERROR_UNEXPECTED);
 
@@ -1121,6 +1156,7 @@ nsEditor::GetDocumentCharacterSet(nsACString &characterSet)
 NS_IMETHODIMP
 nsEditor::SetDocumentCharacterSet(const nsACString& characterSet)
 {
+  nsresult rv = NS_OK;
   nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
   NS_ENSURE_TRUE(doc, NS_ERROR_UNEXPECTED);
 
@@ -1305,6 +1341,12 @@ NS_IMETHODIMP nsEditor::SetSpellcheckUserOverride(PRBool enable)
 
   return SyncRealTimeSpell();
 }
+
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  main node manipulation routines 
+#pragma mark -
+#endif
 
 NS_IMETHODIMP nsEditor::CreateNode(const nsAString& aTag,
                                    nsIDOMNode *    aParent,
@@ -1663,6 +1705,11 @@ nsEditor::MoveNode(nsIDOMNode *aNode, nsIDOMNode *aParent, PRInt32 aOffset)
   return InsertNode(aNode, aParent, aOffset);
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  editor observer maintainance
+#pragma mark -
+#endif
 
 NS_IMETHODIMP
 nsEditor::AddEditorObserver(nsIEditorObserver *aObserver)
@@ -1700,6 +1747,11 @@ void nsEditor::NotifyEditorObservers(void)
     mEditorObservers[i]->EditAction();
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  action listener maintainance
+#pragma mark -
+#endif
 
 NS_IMETHODIMP
 nsEditor::AddEditActionListener(nsIEditActionListener *aListener)
@@ -1729,6 +1781,13 @@ nsEditor::RemoveEditActionListener(nsIEditActionListener *aListener)
 }
 
 
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  docstate listener maintainance
+#pragma mark -
+#endif
+
+
 NS_IMETHODIMP
 nsEditor::AddDocumentStateListener(nsIDocumentStateListener *aListener)
 {
@@ -1755,6 +1814,12 @@ nsEditor::RemoveDocumentStateListener(nsIDocumentStateListener *aListener)
   return NS_OK;
 }
 
+
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  misc 
+#pragma mark -
+#endif
 
 NS_IMETHODIMP nsEditor::OutputToString(const nsAString& aFormatType,
                                        PRUint32 aFlags,
@@ -1811,6 +1876,11 @@ nsEditor::DebugUnitTests(PRInt32 *outNumTests, PRInt32 *outNumTestsFailed)
   return NS_OK;
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  support for selection preservation
+#pragma mark -
+#endif
 
 PRBool   
 nsEditor::ArePreservingSelection()
@@ -1842,6 +1912,12 @@ nsEditor::StopPreservingSelection()
   mSavedSel.MakeEmpty();
 }
 
+
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  IME event handlers 
+#pragma mark -
+#endif
 
 nsresult
 nsEditor::BeginIMEComposition()
@@ -1888,6 +1964,13 @@ nsEditor::EndIMEComposition()
 }
 
 
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  nsIPhonetic
+#pragma mark -
+#endif
+
+
 NS_IMETHODIMP
 nsEditor::GetPhonetic(nsAString& aPhonetic)
 {
@@ -1898,6 +1981,13 @@ nsEditor::GetPhonetic(nsAString& aPhonetic)
 
   return NS_OK;
 }
+
+
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  nsIEditorIMESupport 
+#pragma mark -
+#endif
 
 
 static nsresult
@@ -1948,7 +2038,7 @@ nsEditor::ForceCompositionEnd()
 // flag for Unix.
 // We should use nsILookAndFeel to resolve this
 
-#if defined(XP_MACOSX) || defined(XP_WIN) || defined(XP_OS2)
+#if defined(XP_MAC) || defined(XP_MACOSX) || defined(XP_WIN) || defined(XP_OS2)
   // XXXmnakano see bug 558976, ResetInputState() has two meaning which are
   // "commit the composition" and "cursor is moved".  This method name is
   // "ForceCompositionEnd", so, ResetInputState() should be used only for the
@@ -2017,8 +2107,13 @@ nsEditor::GetComposing(PRBool* aResult)
   return NS_OK;
 }
 
-
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  public nsEditor methods 
+#pragma mark -
+#endif
 /* Non-interface, public methods */
+
 
 NS_IMETHODIMP
 nsEditor::GetRootElement(nsIDOMElement **aRootElement)
@@ -2182,6 +2277,11 @@ nsEditor::CloneAttributes(nsIDOMNode *aDestNode, nsIDOMNode *aSourceNode)
   return result;
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  Protected and static methods 
+#pragma mark -
+#endif
 
 NS_IMETHODIMP nsEditor::ScrollSelectionIntoView(PRBool aScrollToAnchor)
 {
@@ -2664,6 +2764,11 @@ NS_IMETHODIMP nsEditor::CreateTxnForJoinNode(nsIDOMNode  *aLeftNode,
 
 // END nsEditor core implementation
 
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  nsEditor public static helper methods 
+#pragma mark -
+#endif
 
 // BEGIN nsEditor public helper methods
 
@@ -2751,7 +2856,8 @@ nsEditor::SplitNodeImpl(nsIDOMNode * aExistingRightNode,
           }        
         }
         // handle selection
-        nsCOMPtr<nsIPresShell> ps = GetPresShell();
+        nsCOMPtr<nsIPresShell> ps;
+        GetPresShell(getter_AddRefs(ps));
         if (ps)
           ps->FlushPendingNotifications(Flush_Frames);
 
@@ -3393,52 +3499,54 @@ nsEditor::GetNextNodeImpl(nsIDOMNode  *aCurrentNode,
 }
 
 
-already_AddRefed<nsIDOMNode>
+nsCOMPtr<nsIDOMNode>
 nsEditor::GetRightmostChild(nsIDOMNode *aCurrentNode, 
                             PRBool bNoBlockCrossing)
 {
   NS_ENSURE_TRUE(aCurrentNode, nsnull);
-  nsCOMPtr<nsIDOMNode> resultNode, temp = aCurrentNode;
+  nsCOMPtr<nsIDOMNode> resultNode, temp=aCurrentNode;
   PRBool hasChildren;
   aCurrentNode->HasChildNodes(&hasChildren);
-  while (hasChildren) {
+  while (hasChildren)
+  {
     temp->GetLastChild(getter_AddRefs(resultNode));
-    if (resultNode) {
-      if (bNoBlockCrossing && IsBlockNode(resultNode)) {
-        return resultNode.forget();
-      }
+    if (resultNode)
+    {
+      if (bNoBlockCrossing && IsBlockNode(resultNode))
+         return resultNode;
       resultNode->HasChildNodes(&hasChildren);
       temp = resultNode;
-    } else {
-      hasChildren = PR_FALSE;
     }
+    else 
+      hasChildren = PR_FALSE;
   }
 
-  return resultNode.forget();
+  return resultNode;
 }
 
-already_AddRefed<nsIDOMNode>
+nsCOMPtr<nsIDOMNode>
 nsEditor::GetLeftmostChild(nsIDOMNode *aCurrentNode,
                            PRBool bNoBlockCrossing)
 {
   NS_ENSURE_TRUE(aCurrentNode, nsnull);
-  nsCOMPtr<nsIDOMNode> resultNode, temp = aCurrentNode;
+  nsCOMPtr<nsIDOMNode> resultNode, temp=aCurrentNode;
   PRBool hasChildren;
   aCurrentNode->HasChildNodes(&hasChildren);
-  while (hasChildren) {
+  while (hasChildren)
+  {
     temp->GetFirstChild(getter_AddRefs(resultNode));
-    if (resultNode) {
-      if (bNoBlockCrossing && IsBlockNode(resultNode)) {
-        return resultNode.forget();
-      }
+    if (resultNode)
+    {
+      if (bNoBlockCrossing && IsBlockNode(resultNode))
+         return resultNode;
       resultNode->HasChildNodes(&hasChildren);
       temp = resultNode;
-    } else {
-      hasChildren = PR_FALSE;
     }
+    else 
+      hasChildren = PR_FALSE;
   }
 
-  return resultNode.forget();
+  return resultNode;
 }
 
 PRBool 
@@ -3791,20 +3899,7 @@ nsEditor::GetChildAt(nsIDOMNode *aParent, PRInt32 aOffset)
 
   return resultNode;
 }
-
-///////////////////////////////////////////////////////////////////////////
-// GetNodeAtRangeOffsetPoint: returns the node at this position in a range,
-// assuming that aParentOrNode is the node itself if it's a text node, or
-// the node's parent otherwise.
-//
-nsCOMPtr<nsIDOMNode>
-nsEditor::GetNodeAtRangeOffsetPoint(nsIDOMNode* aParentOrNode, PRInt32 aOffset)
-{
-  if (IsTextNode(aParentOrNode)) {
-    return aParentOrNode;
-  }
-  return GetChildAt(aParentOrNode, aOffset);
-}
+  
 
 
 ///////////////////////////////////////////////////////////////////////////
@@ -3890,7 +3985,8 @@ nsEditor::IsPreformatted(nsIDOMNode *aNode, PRBool *aResult)
   
   NS_ENSURE_TRUE(aResult && content, NS_ERROR_NULL_POINTER);
   
-  nsCOMPtr<nsIPresShell> ps = GetPresShell();
+  nsCOMPtr<nsIPresShell> ps;
+  GetPresShell(getter_AddRefs(ps));
   NS_ENSURE_TRUE(ps, NS_ERROR_NOT_INITIALIZED);
 
   // Look at the node (and its parent if it's not an element), and grab its style context
@@ -4099,7 +4195,8 @@ nsresult nsEditor::BeginUpdateViewBatch()
     }
 
     // Turn off view updating.
-    nsCOMPtr<nsIPresShell> ps = GetPresShell();
+    nsCOMPtr<nsIPresShell> ps;
+    GetPresShell(getter_AddRefs(ps));
     if (ps) {
       nsCOMPtr<nsIViewManager> viewManager = ps->GetViewManager();
       if (viewManager) {
@@ -4134,7 +4231,8 @@ nsresult nsEditor::EndUpdateViewBatch()
     // to draw at the correct position.
 
     nsRefPtr<nsCaret> caret;
-    nsCOMPtr<nsIPresShell> presShell = GetPresShell();
+    nsCOMPtr<nsIPresShell> presShell;
+    GetPresShell(getter_AddRefs(presShell));
 
     if (presShell)
       caret = presShell->GetCaret();
@@ -4174,6 +4272,13 @@ nsEditor::GetShouldTxnSetSelection()
 {
   return mShouldTxnSetSelection;
 }
+
+
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  protected nsEditor methods 
+#pragma mark -
+#endif
 
 
 NS_IMETHODIMP 
@@ -4654,24 +4759,23 @@ nsEditor::CreateTxnForDeleteCharacter(nsIDOMCharacterData  *aData,
                "invalid direction");
   nsAutoString data;
   aData->GetData(data);
-  PRUint32 segOffset = aOffset, segLength = 1;
+  PRUint32 segOffset, segLength = 1;
   if (aDirection == eNext) {
+    segOffset = aOffset;
     if (segOffset + 1 < data.Length() &&
         NS_IS_HIGH_SURROGATE(data[segOffset]) &&
         NS_IS_LOW_SURROGATE(data[segOffset+1])) {
       // delete both halves of the surrogate pair
       ++segLength;
     }
-  } else if (aOffset > 0) {
-    --segOffset;
+  } else {
+    segOffset = aOffset - 1;
     if (segOffset > 0 &&
-      NS_IS_LOW_SURROGATE(data[segOffset]) &&
-      NS_IS_HIGH_SURROGATE(data[segOffset-1])) {
+        NS_IS_LOW_SURROGATE(data[segOffset]) &&
+        NS_IS_HIGH_SURROGATE(data[segOffset-1])) {
       ++segLength;
       --segOffset;
     }
-  } else {
-    return NS_ERROR_FAILURE;
   }
   return CreateTxnForDeleteText(aData, segOffset, segLength, aTxn);
 }
@@ -4685,7 +4789,7 @@ nsEditor::CreateTxnForDeleteInsertionPoint(nsIDOMRange          *aRange,
                                            PRInt32              *aOffset,
                                            PRInt32              *aLength)
 {
-  NS_ASSERTION(aAction != eNone, "invalid action");
+  NS_ASSERTION(aAction == eNext || aAction == ePrevious, "invalid action");
 
   // get the node and offset of the insertion point
   nsCOMPtr<nsIDOMNode> node;
@@ -5063,8 +5167,9 @@ nsEditor::InitializeSelection(nsIDOMEventTarget* aFocusEventTarget)
   nsresult rv = GetSelection(getter_AddRefs(selection));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIPresShell> presShell = GetPresShell();
-  NS_ENSURE_TRUE(presShell, NS_ERROR_NOT_INITIALIZED);
+  nsCOMPtr<nsIPresShell> presShell;
+  rv = GetPresShell(getter_AddRefs(presShell));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsISelectionController> selCon;
   rv = GetSelectionController(getter_AddRefs(selCon));
@@ -5237,7 +5342,7 @@ nsEditor::GetNativeKeyEvent(nsIDOMKeyEvent* aDOMKeyEvent)
 already_AddRefed<nsIContent>
 nsEditor::GetFocusedContent()
 {
-  nsCOMPtr<nsIDOMEventTarget> piTarget = GetDOMEventTarget();
+  nsCOMPtr<nsPIDOMEventTarget> piTarget = GetPIDOMEventTarget();
   if (!piTarget) {
     return nsnull;
   }
@@ -5252,7 +5357,7 @@ nsEditor::GetFocusedContent()
 PRBool
 nsEditor::IsActiveInDOMWindow()
 {
-  nsCOMPtr<nsIDOMEventTarget> piTarget = GetDOMEventTarget();
+  nsCOMPtr<nsPIDOMEventTarget> piTarget = GetPIDOMEventTarget();
   if (!piTarget) {
     return PR_FALSE;
   }
@@ -5309,14 +5414,5 @@ nsEditor::BeginKeypressHandling(nsIDOMNSEvent* aEvent)
     PRBool isTrusted = PR_FALSE;
     aEvent->GetIsTrusted(&isTrusted);
     mLastKeypressEventWasTrusted = isTrusted ? eTriTrue : eTriFalse;
-  }
-}
-
-void
-nsEditor::OnFocus(nsIDOMEventTarget* aFocusEventTarget)
-{
-  InitializeSelection(aFocusEventTarget);
-  if (mInlineSpellChecker) {
-    mInlineSpellChecker->UpdateCurrentDictionary();
   }
 }

@@ -19,16 +19,14 @@ var tests;
 
 window.addEventListener("unload", function() {
   e1.stopWatchingInstanceCount();
+  if (w) {
+    w.close();
+  }
 }, false);
 
 function nextTest() {
   if (testIndex == tests.length) {
-    if (w) {
-      w.close();
-    }
-    SimpleTest.waitForFocus(function() {
-      SimpleTest.finish();
-    });
+    SimpleTest.finish();
     return;
   }
 
@@ -43,7 +41,7 @@ function waitForInstanceCount(n) {
     nextTest();
     return;
   }
-  setTimeout(function() { waitForInstanceCount(n); }, 0);
+  setTimeout(function() { waitForInstanceCount(n); }, 100);
 }
 
 tests = [
@@ -55,7 +53,7 @@ tests = [
 try {
   e1.startWatchingInstanceCount();
   var w = window.open("data:text/html,<embed id='e2' type='application/x-test'></embed>");
-  SimpleTest.waitForFocus(nextTest, w);
+  w.onload = nextTest;
   SimpleTest.waitForExplicitFinish();
 } catch (err) {
   todo(false, "Instances already being watched?");

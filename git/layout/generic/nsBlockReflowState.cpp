@@ -55,7 +55,6 @@
 
 #include "nsINameSpaceManager.h"
 
-#include "mozilla/Util.h" // for DebugOnly
 
 #ifdef DEBUG
 #include "nsBlockDebugFlags.h"
@@ -882,11 +881,12 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
   mFloatManager->AddFloat(aFloat, region);
   NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv), "bad float placement");
   // store region
-  nsFloatManager::StoreRegionFor(aFloat, region);
+  rv = nsFloatManager::StoreRegionFor(aFloat, region);
+  NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv), "float region storage failed");
 
   // If the float's dimensions have changed, note the damage in the
   // float manager.
-  if (!region.IsEqualEdges(oldRegion)) {
+  if (region != oldRegion) {
     // XXXwaterson conservative: we could probably get away with noting
     // less damage; e.g., if only height has changed, then only note the
     // area into which the float has grown or from which the float has
@@ -941,7 +941,7 @@ nsBlockReflowState::PushFloatPastBreak(nsIFrame *aFloat)
 
   // Put the float on the pushed floats list, even though it
   // isn't actually a continuation.
-  DebugOnly<nsresult> rv = mBlock->StealFrame(mPresContext, aFloat);
+  nsresult rv = mBlock->StealFrame(mPresContext, aFloat);
   NS_ASSERTION(NS_SUCCEEDED(rv), "StealFrame should succeed");
   AppendPushedFloat(aFloat);
 

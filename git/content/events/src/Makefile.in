@@ -46,11 +46,6 @@ MODULE		= content
 LIBRARY_NAME	= gkconevents_s
 LIBXUL_LIBRARY  = 1
 
-EXPORTS		= \
-		nsEventStateManager.h \
-		nsEventListenerManager.h \
-		$(NULL)
-		
 CPPSRCS		= \
 		nsEventListenerManager.cpp \
 		nsEventStateManager.cpp \
@@ -64,8 +59,7 @@ CPPSRCS		= \
 		nsDOMDragEvent.cpp \
 		nsDOMMutationEvent.cpp \
 		nsDOMPopupBlockedEvent.cpp \
-		nsDOMDeviceOrientationEvent.cpp \
-		nsDOMDeviceMotionEvent.cpp \
+		nsDOMOrientationEvent.cpp \
 		nsDOMBeforeUnloadEvent.cpp \
 		nsDOMPageTransitionEvent.cpp \
 		nsDOMXULCommandEvent.cpp \
@@ -73,6 +67,7 @@ CPPSRCS		= \
 		nsDOMMessageEvent.cpp \
 		nsPaintRequest.cpp \
 		nsPrivateTextRange.cpp \
+		nsDOMEventGroup.cpp \
 		nsXMLEventsManager.cpp \
 		nsXMLEventsElement.cpp \
 		nsPLDOMEvent.cpp \
@@ -89,12 +84,8 @@ CPPSRCS		= \
 		nsDOMEventTargetHelper.cpp \
 		nsDOMScrollAreaEvent.cpp \
 		nsDOMTransitionEvent.cpp \
-		nsDOMAnimationEvent.cpp \
 		nsDOMPopStateEvent.cpp \
-		nsDOMHashChangeEvent.cpp \
 		nsDOMCloseEvent.cpp \
-		nsDOMTouchEvent.cpp \
-		nsDOMCustomEvent.cpp \
 		$(NULL)
 
 # we don't want the shared lib, but we want to force the creation of a static lib.

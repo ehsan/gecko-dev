@@ -40,9 +40,6 @@ const Cc = Components.classes;
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
-const APPLICATION_CID = Components.ID("fe74cf80-aa2d-11db-abbd-0800200c9a66");
-const APPLICATION_CONTRACTID = "@mozilla.org/fuel/application;1";
-
 //=================================================
 // Singleton that holds services and utilities
 var Utilities = {
@@ -222,7 +219,7 @@ BrowserTab.prototype = {
       if (!(aEvent.originalTarget instanceof Ci.nsIDOMDocument))
         return;
 
-      if (aEvent.originalTarget.defaultView instanceof Ci.nsIDOMWindow &&
+      if (aEvent.originalTarget.defaultView instanceof Ci.nsIDOMWindowInternal &&
           aEvent.originalTarget.defaultView.frameElement)
         return;
     }
@@ -671,22 +668,21 @@ function Application() {
 // Application implementation
 Application.prototype = {
   // for nsIClassInfo + XPCOMUtils
-  classID:          APPLICATION_CID,
+  classID:          Components.ID("fe74cf80-aa2d-11db-abbd-0800200c9a66"),
 
   // redefine the default factory for XPCOMUtils
   _xpcom_factory: ApplicationFactory,
 
   // for nsISupports
   QueryInterface : XPCOMUtils.generateQI([Ci.fuelIApplication, Ci.extIApplication,
-                                          Ci.nsIObserver]),
+                                          Ci.nsIObserver, Ci.nsIClassInfo]),
 
-  // for nsIClassInfo
-  classInfo: XPCOMUtils.generateCI({classID: APPLICATION_CID,
-                                    contractID: APPLICATION_CONTRACTID,
-                                    interfaces: [Ci.fuelIApplication,
-                                                 Ci.extIApplication,
-                                                 Ci.nsIObserver],
-                                    flags: Ci.nsIClassInfo.SINGLETON}),
+  getInterfaces : function app_gi(aCount) {
+    var interfaces = [Ci.fuelIApplication, Ci.extIApplication, Ci.nsIObserver,
+                      Ci.nsIClassInfo];
+    aCount.value = interfaces.length;
+    return interfaces;
+  },
 
   // for nsIObserver
   observe: function app_observe(aSubject, aTopic, aData) {

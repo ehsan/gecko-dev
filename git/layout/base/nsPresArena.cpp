@@ -82,12 +82,10 @@
 # endif
 #endif
 
+#ifndef DEBUG_TRACEMALLOC_PRESARENA
+
 // Size to use for PLArena block allocations.
-// XXX: This should be 8192;  the subtracted elements are a hack that's
-// required to ensure the allocation requests are power-of-two-sized and thus
-// avoid lots of wasted memory caused by the heap allocator rounding up request
-// sizes.  Bug 676457 will fix it properly.
-static const size_t ARENA_PAGE_SIZE = 8192 - sizeof(PLArena) - PL_ARENA_CONST_ALIGN_MASK;
+static const size_t ARENA_PAGE_SIZE = 4096;
 
 // Freed memory is filled with a poison value, which we arrange to
 // form a pointer either to an always-unmapped region of the address
@@ -277,7 +275,6 @@ ARENA_POISON_init()
   return PR_SUCCESS;
 }
 
-#ifndef DEBUG_TRACEMALLOC_PRESARENA
 
 // All keys to this hash table fit in 32 bits (see below) so we do not
 // bother actually hashing them.
@@ -408,17 +405,10 @@ nsPresArena::Size()
 
 #else
 // Stub implementation that forwards everything to malloc and does not
-// poison allocations (it still initializes the poison value though,
-// for external use through GetPoisonValue()).
+// poison.
 
 struct nsPresArena::State
 {
-
-  State()
-  {
-    PR_CallOnce(&ARENA_POISON_guard, ARENA_POISON_init);
-  }
-
   void* Allocate(PRUint32 /* unused */, size_t aSize)
   {
     return PR_Malloc(aSize);

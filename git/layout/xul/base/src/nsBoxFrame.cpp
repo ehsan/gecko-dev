@@ -78,29 +78,28 @@
 #include "nsIPresShell.h"
 #include "nsCSSRendering.h"
 #include "nsIServiceManager.h"
-#include "nsBoxLayout.h"
+#include "nsIBoxLayout.h"
 #include "nsSprocketLayout.h"
 #include "nsIDocument.h"
 #include "nsIScrollableFrame.h"
 #include "nsWidgetsCID.h"
 #include "nsCSSAnonBoxes.h"
 #include "nsHTMLContainerFrame.h"
+#include "nsIEventStateManager.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
 #include "nsITheme.h"
 #include "nsTransform2D.h"
-#include "nsEventStateManager.h"
+#include "nsIEventStateManager.h"
 #include "nsEventDispatcher.h"
 #include "nsIDOMEvent.h"
 #include "nsIPrivateDOMEvent.h"
+#include "nsContentUtils.h"
 #include "nsDisplayList.h"
-#include "mozilla/Preferences.h"
 
 // Needed for Print Preview
 #include "nsIDocument.h"
 #include "nsIURI.h"
-
-using namespace mozilla;
 
 //define DEBUG_REDRAW
 
@@ -120,7 +119,7 @@ nsIBox* nsBoxFrame::mDebugChild = nsnull;
 #endif
 
 nsIFrame*
-NS_NewBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRBool aIsRoot, nsBoxLayout* aLayoutManager)
+NS_NewBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRBool aIsRoot, nsIBoxLayout* aLayoutManager)
 {
   return new (aPresShell) nsBoxFrame(aPresShell, aContext, aIsRoot, aLayoutManager);
 }
@@ -136,7 +135,7 @@ NS_IMPL_FRAMEARENA_HELPERS(nsBoxFrame)
 nsBoxFrame::nsBoxFrame(nsIPresShell* aPresShell,
                        nsStyleContext* aContext,
                        PRBool aIsRoot,
-                       nsBoxLayout* aLayoutManager) :
+                       nsIBoxLayout* aLayoutManager) :
   nsContainerFrame(aContext)
 {
   mState |= NS_STATE_IS_HORIZONTAL;
@@ -149,7 +148,7 @@ nsBoxFrame::nsBoxFrame(nsIPresShell* aPresShell,
   mHalign = hAlign_Left;
   
   // if no layout manager specified us the static sprocket layout
-  nsCOMPtr<nsBoxLayout> layout = aLayoutManager;
+  nsCOMPtr<nsIBoxLayout> layout = aLayoutManager;
 
   if (layout == nsnull) {
     NS_NewSprocketLayout(aPresShell, layout);
@@ -601,7 +600,7 @@ static void printSize(char * aDesc, nscoord aSize)
 #endif
 
 /* virtual */ nscoord
-nsBoxFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+nsBoxFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_MIN_WIDTH(this, result);
@@ -623,7 +622,7 @@ nsBoxFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nscoord
-nsBoxFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
+nsBoxFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_PREF_WIDTH(this, result);
@@ -1248,7 +1247,7 @@ nsBoxFrame::AttributeChanged(PRInt32 aNameSpaceID,
 void
 nsBoxFrame::GetDebugPref(nsPresContext* aPresContext)
 {
-    gDebug = Preferences::GetBool("xul.debug.box");
+    gDebug = nsContentUtils::GetBoolPref("xul.debug.box");
 }
 
 class nsDisplayXULDebug : public nsDisplayItem {
@@ -1271,20 +1270,20 @@ public:
     aOutFrames->AppendElement(this);
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder
-                     nsRenderingContext* aCtx);
+                     nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("XULDebug", TYPE_XUL_DEBUG)
 };
 
 void
 nsDisplayXULDebug::Paint(nsDisplayListBuilder* aBuilder,
-                         nsRenderingContext* aCtx)
+                         nsIRenderingContext* aCtx)
 {
   static_cast<nsBoxFrame*>(mFrame)->
     PaintXULDebugOverlay(*aCtx, ToReferenceFrame());
 }
 
 static void
-PaintXULDebugBackground(nsIFrame* aFrame, nsRenderingContext* aCtx,
+PaintXULDebugBackground(nsIFrame* aFrame, nsIRenderingContext* aCtx,
                         const nsRect& aDirtyRect, nsPoint aPt)
 {
   static_cast<nsBoxFrame*>(aFrame)->PaintXULDebugBackground(*aCtx, aPt);
@@ -1300,16 +1299,6 @@ nsBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   PRBool forceLayer =
     GetContent()->HasAttr(kNameSpaceID_None, nsGkAtoms::layer) &&
     GetContent()->IsXUL();
-
-  // Check for frames that are marked as a part of the region used
-  // in calculating glass margins on Windows.
-  if (GetContent()->IsXUL()) {
-      const nsStyleDisplay* styles = mStyleContext->GetStyleDisplay();
-      if (styles && styles->mAppearance == NS_THEME_WIN_EXCLUDE_GLASS) {
-        nsRect rect = mRect + aBuilder->ToReferenceFrame(GetParent());
-        aBuilder->AddExcludedGlassRegion(rect);
-      }
-  }
 
   nsDisplayListCollection tempLists;
   const nsDisplayListSet& destination = forceLayer ? tempLists : aLists;
@@ -1389,7 +1378,7 @@ nsBoxFrame::BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
 // whereas it did used to respect OVERFLOW_CLIP, but too bad.
 #ifdef DEBUG_LAYOUT
 void
-nsBoxFrame::PaintXULDebugBackground(nsRenderingContext& aRenderingContext,
+nsBoxFrame::PaintXULDebugBackground(nsIRenderingContext& aRenderingContext,
                                     nsPoint aPt)
 {
   nsMargin border;
@@ -1459,7 +1448,7 @@ nsBoxFrame::PaintXULDebugBackground(nsRenderingContext& aRenderingContext,
 }
 
 void
-nsBoxFrame::PaintXULDebugOverlay(nsRenderingContext& aRenderingContext,
+nsBoxFrame::PaintXULDebugOverlay(nsIRenderingContext& aRenderingContext,
                                  nsPoint aPt)
   nsMargin border;
   GetBorder(border);
@@ -1585,7 +1574,7 @@ nsBoxFrame::GetDebug(PRBool& aDebug)
 
 #ifdef DEBUG_LAYOUT
 void
-nsBoxFrame::DrawLine(nsRenderingContext& aRenderingContext, PRBool aHorizontal, nscoord x1, nscoord y1, nscoord x2, nscoord y2)
+nsBoxFrame::DrawLine(nsIRenderingContext& aRenderingContext, PRBool aHorizontal, nscoord x1, nscoord y1, nscoord x2, nscoord y2)
 {
     if (aHorizontal)
        aRenderingContext.DrawLine(x1,y1,x2,y2);
@@ -1594,7 +1583,7 @@ nsBoxFrame::DrawLine(nsRenderingContext& aRenderingContext, PRBool aHorizontal, 
 }
 
 void
-nsBoxFrame::FillRect(nsRenderingContext& aRenderingContext, PRBool aHorizontal, nscoord x, nscoord y, nscoord width, nscoord height)
+nsBoxFrame::FillRect(nsIRenderingContext& aRenderingContext, PRBool aHorizontal, nscoord x, nscoord y, nscoord width, nscoord height)
 {
     if (aHorizontal)
        aRenderingContext.FillRect(x,y,width,height);
@@ -1603,7 +1592,7 @@ nsBoxFrame::FillRect(nsRenderingContext& aRenderingContext, PRBool aHorizontal, 
 }
 
 void 
-nsBoxFrame::DrawSpacer(nsPresContext* aPresContext, nsRenderingContext& aRenderingContext, PRBool aHorizontal, PRInt32 flex, nscoord x, nscoord y, nscoord size, nscoord spacerSize)
+nsBoxFrame::DrawSpacer(nsPresContext* aPresContext, nsIRenderingContext& aRenderingContext, PRBool aHorizontal, PRInt32 flex, nscoord x, nscoord y, nscoord size, nscoord spacerSize)
 {    
          nscoord onePixel = aPresContext->IntScaledPixelsToTwips(1);
 
@@ -1854,6 +1843,63 @@ nsBoxFrame::GetFrameSizeWithMargin(nsIBox* aBox, nsSize& aSize)
 }
 #endif
 
+/**
+ * Boxed don't support fixed positionioning of their children.
+ * KEEP THIS IN SYNC WITH nsContainerFrame::CreateViewForFrame
+ * as much as possible. Until we get rid of views finally...
+ */
+nsresult
+nsBoxFrame::CreateViewForFrame(nsPresContext*  aPresContext,
+                               nsIFrame*        aFrame,
+                               nsStyleContext*  aStyleContext,
+                               PRBool           aForce,
+                               PRBool           aIsPopup)
+{
+  NS_ASSERTION(aForce, "We only get called to force view creation now");
+  // If we don't yet have a view, see if we need a view
+  if (!aFrame->HasView()) {
+    nsViewVisibility visibility = nsViewVisibility_kShow;
+    PRInt32 zIndex = 0;
+    PRBool  autoZIndex = PR_FALSE;
+
+    if (aForce) {
+      nsIView* parentView;
+      nsIViewManager* viewManager = aPresContext->GetPresShell()->GetViewManager();
+      NS_ASSERTION(nsnull != viewManager, "null view manager");
+
+      // Create a view
+      if (aIsPopup) {
+        parentView = viewManager->GetRootView();
+        visibility = nsViewVisibility_kHide;
+        zIndex = PR_INT32_MAX;
+      }
+      else {
+        parentView = aFrame->GetParent()->GetClosestView();
+      }
+
+      NS_ASSERTION(parentView, "no parent view");
+
+      // Create a view
+      nsIView *view = viewManager->CreateView(aFrame->GetRect(), parentView, visibility);
+      if (view) {
+        viewManager->SetViewZIndex(view, autoZIndex, zIndex);
+        // XXX put view last in document order until we can do better
+        viewManager->InsertChild(parentView, view, nsnull, PR_TRUE);
+      }
+
+      // Remember our view
+      aFrame->SetView(view);
+
+      NS_FRAME_LOG(NS_FRAME_TRACE_CALLS,
+        ("nsBoxFrame::CreateViewForFrame: frame=%p view=%p",
+         aFrame));
+      if (!view)
+        return NS_ERROR_OUT_OF_MEMORY;
+    }
+  }
+  return NS_OK;
+}
+
 // If you make changes to this function, check its counterparts
 // in nsTextBoxFrame and nsXULLabelFrame
 nsresult
@@ -1884,15 +1930,17 @@ nsBoxFrame::RegUnregAccessKey(PRBool aDoReg)
 
   // With a valid PresContext we can get the ESM 
   // and register the access key
-  nsEventStateManager *esm = PresContext()->EventStateManager();
+  nsIEventStateManager *esm = PresContext()->EventStateManager();
+
+  nsresult rv;
 
   PRUint32 key = accessKey.First();
   if (aDoReg)
-    esm->RegisterAccessKey(mContent, key);
+    rv = esm->RegisterAccessKey(mContent, key);
   else
-    esm->UnregisterAccessKey(mContent, key);
+    rv = esm->UnregisterAccessKey(mContent, key);
 
-  return NS_OK;
+  return rv;
 }
 
 PRBool
@@ -2015,6 +2063,21 @@ nsBoxFrame::CheckBoxOrder(nsBoxLayoutState& aState)
 
   nsIFrame* head = MergeSort(aState, mFrames.FirstChild());
   mFrames = nsFrameList(head, nsLayoutUtils::GetLastSibling(head));
+}
+
+NS_IMETHODIMP
+nsBoxFrame::SetLayoutManager(nsIBoxLayout* aLayout)
+{
+  mLayoutManager = aLayout;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsBoxFrame::GetLayoutManager(nsIBoxLayout** aLayout)
+{
+  *aLayout = mLayoutManager;
+  NS_IF_ADDREF(*aLayout);
+  return NS_OK;
 }
 
 nsresult

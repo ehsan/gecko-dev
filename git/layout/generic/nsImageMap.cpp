@@ -39,16 +39,21 @@
 /* code for HTML client-side image maps */
 
 #include "nsImageMap.h"
-
 #include "nsString.h"
 #include "nsReadableUtils.h"
-#include "nsRenderingContext.h"
+#include "nsIRenderingContext.h"
 #include "nsPresContext.h"
+#include "nsIURL.h"
 #include "nsIURL.h"
 #include "nsIServiceManager.h"
 #include "nsNetUtil.h"
 #include "nsTextFragment.h"
 #include "mozilla/dom/Element.h"
+#include "nsIDOMHTMLElement.h"
+#include "nsIDOMHTMLMapElement.h"
+#include "nsIDOMHTMLAreaElement.h"
+#include "nsIDOMHTMLAnchorElement.h"
+#include "nsIDOMHTMLCollection.h"
 #include "nsIDocument.h"
 #include "nsINameSpaceManager.h"
 #include "nsGkAtoms.h"
@@ -56,6 +61,7 @@
 #include "nsIPresShell.h"
 #include "nsIFrame.h"
 #include "nsCoord.h"
+#include "nsIImageMap.h"
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
 #include "nsIStringBundle.h"
@@ -74,7 +80,7 @@ public:
   virtual void ParseCoords(const nsAString& aSpec);
 
   virtual PRBool IsInside(nscoord x, nscoord y) const = 0;
-  virtual void Draw(nsIFrame* aFrame, nsRenderingContext& aRC) = 0;
+  virtual void Draw(nsIFrame* aFrame, nsIRenderingContext& aRC) = 0;
   virtual void GetRect(nsIFrame* aFrame, nsRect& aRect) = 0;
 
   void HasFocus(PRBool aHasFocus);
@@ -151,7 +157,6 @@ void Area::ParseCoords(const nsAString& aSpec)
     mCoords = nsnull;
     if (*cp == '\0')
     {
-      nsMemory::Free(cp);
       return;
     }
 
@@ -165,7 +170,6 @@ void Area::ParseCoords(const nsAString& aSpec)
     }
     if (*n_str == '\0')
     {
-      nsMemory::Free(cp);
       return;
     }
 
@@ -250,7 +254,6 @@ void Area::ParseCoords(const nsAString& aSpec)
     value_list = new nscoord[cnt];
     if (!value_list)
     {
-      nsMemory::Free(cp);
       return;
     }
 
@@ -293,7 +296,7 @@ void Area::ParseCoords(const nsAString& aSpec)
     mNumCoords = cnt;
     mCoords = value_list;
 
-    nsMemory::Free(cp);
+    NS_Free(cp);
   }
 }
 
@@ -309,7 +312,7 @@ public:
   DefaultArea(nsIContent* aArea);
 
   virtual PRBool IsInside(nscoord x, nscoord y) const;
-  virtual void Draw(nsIFrame* aFrame, nsRenderingContext& aRC);
+  virtual void Draw(nsIFrame* aFrame, nsIRenderingContext& aRC);
   virtual void GetRect(nsIFrame* aFrame, nsRect& aRect);
 };
 
@@ -323,7 +326,7 @@ PRBool DefaultArea::IsInside(nscoord x, nscoord y) const
   return PR_TRUE;
 }
 
-void DefaultArea::Draw(nsIFrame* aFrame, nsRenderingContext& aRC)
+void DefaultArea::Draw(nsIFrame* aFrame, nsIRenderingContext& aRC)
 {
   if (mHasFocus) {
     nsRect r = aFrame->GetRect();
@@ -355,7 +358,7 @@ public:
 
   virtual void ParseCoords(const nsAString& aSpec);
   virtual PRBool IsInside(nscoord x, nscoord y) const;
-  virtual void Draw(nsIFrame* aFrame, nsRenderingContext& aRC);
+  virtual void Draw(nsIFrame* aFrame, nsIRenderingContext& aRC);
   virtual void GetRect(nsIFrame* aFrame, nsRect& aRect);
 };
 
@@ -417,7 +420,7 @@ PRBool RectArea::IsInside(nscoord x, nscoord y) const
   return PR_FALSE;
 }
 
-void RectArea::Draw(nsIFrame* aFrame, nsRenderingContext& aRC)
+void RectArea::Draw(nsIFrame* aFrame, nsIRenderingContext& aRC)
 {
   if (mHasFocus) {
     if (mNumCoords >= 4) {
@@ -457,7 +460,7 @@ public:
 
   virtual void ParseCoords(const nsAString& aSpec);
   virtual PRBool IsInside(nscoord x, nscoord y) const;
-  virtual void Draw(nsIFrame* aFrame, nsRenderingContext& aRC);
+  virtual void Draw(nsIFrame* aFrame, nsIRenderingContext& aRC);
   virtual void GetRect(nsIFrame* aFrame, nsRect& aRect);
 };
 
@@ -549,7 +552,7 @@ PRBool PolyArea::IsInside(nscoord x, nscoord y) const
   return PR_FALSE;
 }
 
-void PolyArea::Draw(nsIFrame* aFrame, nsRenderingContext& aRC)
+void PolyArea::Draw(nsIFrame* aFrame, nsIRenderingContext& aRC)
 {
   if (mHasFocus) {
     if (mNumCoords >= 6) {
@@ -597,7 +600,7 @@ public:
 
   virtual void ParseCoords(const nsAString& aSpec);
   virtual PRBool IsInside(nscoord x, nscoord y) const;
-  virtual void Draw(nsIFrame* aFrame, nsRenderingContext& aRC);
+  virtual void Draw(nsIFrame* aFrame, nsIRenderingContext& aRC);
   virtual void GetRect(nsIFrame* aFrame, nsRect& aRect);
 };
 
@@ -656,7 +659,7 @@ PRBool CircleArea::IsInside(nscoord x, nscoord y) const
   return PR_FALSE;
 }
 
-void CircleArea::Draw(nsIFrame* aFrame, nsRenderingContext& aRC)
+void CircleArea::Draw(nsIFrame* aFrame, nsIRenderingContext& aRC)
 {
   if (mHasFocus) {
     if (mNumCoords >= 3) {
@@ -703,11 +706,13 @@ nsImageMap::~nsImageMap()
   NS_ASSERTION(mAreas.Length() == 0, "Destroy was not called");
 }
 
-NS_IMPL_ISUPPORTS2(nsImageMap,
+NS_IMPL_ISUPPORTS4(nsImageMap,
                    nsIMutationObserver,
-                   nsIDOMEventListener)
+                   nsIDOMFocusListener,
+                   nsIDOMEventListener,
+                   nsIImageMap)
 
-nsresult
+NS_IMETHODIMP
 nsImageMap::GetBoundsForAreaContent(nsIContent *aContent,
                                     nsRect& aBounds)
 {
@@ -739,26 +744,24 @@ nsImageMap::FreeAreas()
                  "Unexpected primary frame");
     area->mArea->SetPrimaryFrame(nsnull);
 
-    area->mArea->RemoveEventListener(NS_LITERAL_STRING("focus"), this,
-                                     PR_FALSE);
-    area->mArea->RemoveEventListener(NS_LITERAL_STRING("blur"), this,
-                                     PR_FALSE);
+    area->mArea->RemoveEventListenerByIID(this, NS_GET_IID(nsIDOMFocusListener));
     delete area;
   }
   mAreas.Clear();
 }
 
 nsresult
-nsImageMap::Init(nsIPresShell* aPresShell, nsIFrame* aImageFrame, nsIContent* aMap)
+nsImageMap::Init(nsIPresShell* aPresShell, nsIFrame* aImageFrame, nsIDOMHTMLMapElement* aMap)
 {
-  NS_PRECONDITION(aMap, "null ptr");
-  if (!aMap) {
+  NS_PRECONDITION(nsnull != aMap, "null ptr");
+  if (nsnull == aMap) {
     return NS_ERROR_NULL_POINTER;
   }
   mPresShell = aPresShell;
   mImageFrame = aImageFrame;
 
-  mMap = aMap;
+  mMap = do_QueryInterface(aMap);
+  NS_ASSERTION(mMap, "aMap is not an nsIContent!");
   mMap->AddMutationObserver(this);
 
   // "Compile" the areas in the map into faster access versions
@@ -861,10 +864,7 @@ nsImageMap::AddArea(nsIContent* aArea)
     return NS_ERROR_OUT_OF_MEMORY;
 
   //Add focus listener to track area focus changes
-  aArea->AddEventListener(NS_LITERAL_STRING("focus"), this, PR_FALSE,
-                          PR_FALSE);
-  aArea->AddEventListener(NS_LITERAL_STRING("blur"), this, PR_FALSE,
-                          PR_FALSE);
+  aArea->AddEventListenerByIID(this, NS_GET_IID(nsIDOMFocusListener));
 
   // This is a nasty hack.  It needs to go away: see bug 135040.  Once this is
   // removed, the code added to nsCSSFrameConstructor::RestyleElement,
@@ -899,7 +899,7 @@ nsImageMap::IsInside(nscoord aX, nscoord aY,
 }
 
 void
-nsImageMap::Draw(nsIFrame* aFrame, nsRenderingContext& aRC)
+nsImageMap::Draw(nsIFrame* aFrame, nsIRenderingContext& aRC)
 {
   PRUint32 i, n = mAreas.Length();
   for (i = 0; i < n; i++) {
@@ -966,14 +966,20 @@ nsImageMap::ContentRemoved(nsIDocument *aDocument,
 }
 
 nsresult
-nsImageMap::HandleEvent(nsIDOMEvent* aEvent)
+nsImageMap::Focus(nsIDOMEvent* aEvent)
 {
-  nsAutoString eventType;
-  aEvent->GetType(eventType);
-  PRBool focus = eventType.EqualsLiteral("focus");
-  NS_ABORT_IF_FALSE(focus == !eventType.EqualsLiteral("blur"),
-                    "Unexpected event type");
+  return ChangeFocus(aEvent, PR_TRUE);
+}
 
+nsresult
+nsImageMap::Blur(nsIDOMEvent* aEvent)
+{
+  return ChangeFocus(aEvent, PR_FALSE);
+}
+
+nsresult
+nsImageMap::ChangeFocus(nsIDOMEvent* aEvent, PRBool aFocus)
+{
   //Set which one of our areas changed focus
   nsCOMPtr<nsIDOMEventTarget> target;
   if (NS_SUCCEEDED(aEvent->GetTarget(getter_AddRefs(target))) && target) {
@@ -984,7 +990,7 @@ nsImageMap::HandleEvent(nsIDOMEvent* aEvent)
         Area* area = mAreas.ElementAt(i);
         if (area->mArea == targetContent) {
           //Set or Remove internal focus
-          area->HasFocus(focus);
+          area->HasFocus(aFocus);
           //Now invalidate the rect
           nsIFrame* imgFrame = targetContent->GetPrimaryFrame();
           if (imgFrame) {
@@ -997,6 +1003,12 @@ nsImageMap::HandleEvent(nsIDOMEvent* aEvent)
       }
     }
   }
+  return NS_OK;
+}
+
+nsresult
+nsImageMap::HandleEvent(nsIDOMEvent* aEvent)
+{
   return NS_OK;
 }
 

@@ -123,7 +123,7 @@ var stringBundle;
       // and targets
       let io = Components.classes["@mozilla.org/network/io-service;1"].
 	getService(Components.interfaces.nsIIOService);
-      let source = io.newURI(canvas.toDataURL("image/png"), "UTF8", null);
+      let source = io.newURI(canvas.toDataURL("image/png", ""), "UTF8", null);
       let target = io.newFileURI(file);
 
       // prepare to save the canvas data
@@ -405,9 +405,15 @@ var stringBundle;
 
   function onStatusPageLoad() {
     setStrings(PAGE_TYPE_STATUS);
-    /* An experiment ID (eid) must be provided in the url params. Show status
-     * for that experiment.*/
-    loadExperimentPage();
+    /* If an experiment ID (eid) is provided in the url params, show status
+     * for that experiment.  If not, show the main menu with status for all
+     * installed experiments. */
+    let eidString = getUrlParam("eid");
+    if (eidString == "") {
+      showStatusMenuPage();
+    } else {
+      loadExperimentPage();
+    }
   }
 
   function setStrings(pageType) {

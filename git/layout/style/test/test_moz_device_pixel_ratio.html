@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=474356
 -->
 <head>
   <title>Test for Bug 474356</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
   <style>.zoom-test { visibility: hidden; }</style>
@@ -28,9 +29,18 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=474356
 SimpleTest.waitForExplicitFinish();
 
 function run() {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  viewer = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                 .getInterface(Components.interfaces.nsIWebNavigation)
+                 .QueryInterface(Components.interfaces.nsIDocShell)
+                 .contentViewer
+                 .QueryInterface(Components.interfaces.nsIMarkupDocumentViewer);
+
+
   function zoom(factor) {
-    var previous = SpecialPowers.getFullZoom(window);
-    SpecialPowers.setFullZoom(window, factor);
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    var previous = viewer.fullZoom;
+    viewer.fullZoom = factor;
     return previous;
   }
 
@@ -39,7 +49,10 @@ function run() {
   }
 
   function getZoomRatio() {
-    return SpecialPowers.DOMWindowUtils.screenPixelsPerCSSPixel;
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    var utils = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                      .getInterface(Components.interfaces.nsIDOMWindowUtils);
+    return utils.screenPixelsPerCSSPixel;
   }
 
   var screenPixelsPerCSSPixel = getZoomRatio();

@@ -43,13 +43,10 @@
 #include "jsapi.h"
 #include "jsobj.h"
 #include "jsgc.h"
-#include "jspubtd.h"
 
 #include "nsISupports.h"
 #include "nsIPrincipal.h"
 #include "nsWrapperCache.h"
-#include "nsStringGlue.h"
-#include "nsTArray.h"
 
 class nsIPrincipal;
 
@@ -147,23 +144,14 @@ xpc_FastGetCachedWrapper(nsWrapperCache *cache, JSObject *scope)
     return xpc_FastGetCachedWrapper(cache, scope, &dummy);
 }
 
-// The JS GC marks objects gray that are held alive directly or
-// indirectly by an XPConnect root. The cycle collector explores only
-// this subset of the JS heap.  JSStaticAtoms cause this to crash,
-// because they are statically allocated in the data segment and thus
-// are not really GCThings.
+// The JS GC marks objects gray that are held alive directly or indirectly
+// by an XPConnect root. The cycle collector explores only this subset
+// of the JS heap.
 inline JSBool
 xpc_IsGrayGCThing(void *thing)
 {
     return js_GCThingIsMarked(thing, XPC_GC_COLOR_GRAY);
 }
-
-// The cycle collector only cares about JS objects and XML objects that
-// are held alive directly or indirectly by an XPConnect root.  This
-// version is preferred to xpc_IsGrayGCThing when it isn't known if thing
-// is a JSString or not. Implemented in nsXPConnect.cpp.
-extern JSBool
-xpc_GCThingIsGrayCCThing(void *thing);
 
 // Implemented in nsXPConnect.cpp.
 extern void
@@ -185,80 +173,5 @@ nsWrapperCache::GetWrapper() const
   xpc_UnmarkGrayObject(obj);
   return obj;
 }
-
-class nsIMemoryMultiReporterCallback;
-
-namespace mozilla {
-namespace xpconnect {
-namespace memory {
-
-struct CompartmentStats
-{
-    CompartmentStats(JSContext *cx, JSCompartment *c);
-
-    nsCString name;
-    PRInt64 gcHeapArenaHeaders;
-    PRInt64 gcHeapArenaPadding;
-    PRInt64 gcHeapArenaUnused;
-
-    PRInt64 gcHeapObjects;
-    PRInt64 gcHeapStrings;
-    PRInt64 gcHeapShapes;
-    PRInt64 gcHeapXml;
-
-    PRInt64 objectSlots;
-    PRInt64 stringChars;
-    PRInt64 propertyTables;
-
-    PRInt64 scripts;
-#ifdef JS_METHODJIT
-    PRInt64 mjitCode;
-    PRInt64 mjitData;
-#endif
-#ifdef JS_TRACER
-    PRInt64 tjitCode;
-    PRInt64 tjitDataAllocatorsMain;
-    PRInt64 tjitDataAllocatorsReserve;
-#endif
-};
-
-struct IterateData
-{
-    IterateData()
-      : atomsTableSize(0),
-        stackSize(0),
-        gcHeapChunkTotal(0),
-        gcHeapChunkCleanUnused(0),
-        gcHeapChunkDirtyUnused(0),
-        gcHeapArenaUnused(0),
-        gcHeapChunkAdmin(0),
-        gcHeapUnusedPercentage(0),
-        compartmentStatsVector(),
-        currCompartmentStats(NULL) { }
-
-    PRInt64 atomsTableSize;
-    PRInt64 stackSize;
-    PRInt64 gcHeapChunkTotal;
-    PRInt64 gcHeapChunkCleanUnused;
-    PRInt64 gcHeapChunkDirtyUnused;
-    PRInt64 gcHeapArenaUnused;
-    PRInt64 gcHeapChunkAdmin;
-    PRInt64 gcHeapUnusedPercentage;
-
-    nsTArray<CompartmentStats> compartmentStatsVector;
-    CompartmentStats *currCompartmentStats;
-};
-
-JSBool
-CollectCompartmentStatsForRuntime(JSRuntime *rt, IterateData *data);
-
-void
-ReportJSRuntimeStats(const IterateData &data, const nsACString &pathPrefix,
-                     nsIMemoryMultiReporterCallback *callback,
-                     nsISupports *closure);
-
-} // namespace memory
-} // namespace xpconnect
-} // namespace mozilla
 
 #endif

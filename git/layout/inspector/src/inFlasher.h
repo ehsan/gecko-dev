@@ -39,16 +39,17 @@
 #define __inFlasher_h__
 
 #include "inIFlasher.h"
-#include "nsCoord.h"
-#include "nsColor.h"
 
-class nsRenderingContext;
+#include "nsIDOMElement.h"
+#include "nsIRenderingContext.h"
+
+#include "nsCOMPtr.h"
 
 #define BOUND_INNER 0
 #define BOUND_OUTER 1
 
 #define DIR_VERTICAL 0
-#define DIR_HORIZONTAL 1
+#define DIR_HORIZONTAL 1 
 
 class inFlasher : public inIFlasher
 {
@@ -61,11 +62,11 @@ public:
 
 protected:
   void DrawOutline(nscoord aX, nscoord aY, nscoord aWidth, nscoord aHeight,
-                   nsRenderingContext* aRenderContext,
+                   nsIRenderingContext* aRenderContext,
                    PRBool aDrawBegin, PRBool aDrawEnd);
   void DrawLine(nscoord aX, nscoord aY, nscoord aLength,
                 PRBool aDir, PRBool aBounds,
-                nsRenderingContext* aRenderContext);
+                nsIRenderingContext* aRenderContext);
 
   nscolor mColor;
 

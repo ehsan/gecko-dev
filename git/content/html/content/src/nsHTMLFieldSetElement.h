@@ -41,6 +41,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsIDOMHTMLFieldSetElement.h"
 #include "nsIConstraintValidation.h"
+#include "nsTPtrArray.h"
 
 
 class nsHTMLFieldSetElement : public nsGenericHTMLFormElement,
@@ -75,7 +76,8 @@ public:
 
   virtual nsresult InsertChildAt(nsIContent* aChild, PRUint32 aIndex,
                                      PRBool aNotify);
-  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify);
+  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify,
+                                 PRBool aMutationEvent = PR_TRUE);
 
   // nsIFormControl
   NS_IMETHOD_(PRUint32) GetType() const { return NS_FORM_FIELDSET; }
@@ -112,7 +114,7 @@ private:
   nsRefPtr<nsContentList> mElements;
 
   // List of elements which have this fieldset as first fieldset ancestor.
-  nsTArray<nsGenericHTMLFormElement*> mDependentElements;
+  nsTPtrArray<nsGenericHTMLFormElement> mDependentElements;
 
   nsIContent* mFirstLegend;
 };

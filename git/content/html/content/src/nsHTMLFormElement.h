@@ -44,6 +44,7 @@
 #include "nsFormSubmission.h"
 #include "nsGenericHTMLElement.h"
 #include "nsIDOMHTMLFormElement.h"
+#include "nsIDOMNSHTMLFormElement.h"
 #include "nsIWebProgressListener.h"
 #include "nsIRadioGroupContainer.h"
 #include "nsIURI.h"
@@ -92,9 +93,10 @@ private:
 
 class nsHTMLFormElement : public nsGenericHTMLElement,
                           public nsIDOMHTMLFormElement,
+                          public nsIDOMNSHTMLFormElement,
                           public nsIWebProgressListener,
                           public nsIForm,
-                          public nsIRadioGroupContainer
+                          public nsIRadioGroupContainer_MOZILLA_2_0_BRANCH
 {
 public:
   nsHTMLFormElement(already_AddRefed<nsINodeInfo> aNodeInfo);
@@ -116,6 +118,9 @@ public:
 
   // nsIDOMHTMLFormElement
   NS_DECL_NSIDOMHTMLFORMELEMENT
+
+  // nsIDOMNSHTMLFormElement
+  NS_DECL_NSIDOMNSHTMLFORMELEMENT  
 
   // nsIWebProgressListener
   NS_DECL_NSIWEBPROGRESSLISTENER

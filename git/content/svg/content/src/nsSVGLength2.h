@@ -42,7 +42,6 @@
 #include "nsSVGUtils.h"
 #include "nsSVGElement.h"
 #include "nsDOMError.h"
-#include "nsMathUtils.h"
 
 #ifdef MOZ_SMIL
 #include "nsISMILAttr.h"
@@ -66,15 +65,6 @@ public:
     mCtxType = aCtxType;
     mIsAnimated = PR_FALSE;
     mIsBaseSet = PR_FALSE;
-  }
-
-  nsSVGLength2& operator=(const nsSVGLength2& aLength) {
-    mBaseVal = aLength.mBaseVal;
-    mAnimVal = aLength.mAnimVal;
-    mSpecifiedUnitType = aLength.mSpecifiedUnitType;
-    mIsAnimated = aLength.mIsAnimated;
-    mIsBaseSet = aLength.mIsBaseSet;
-    return *this;
   }
 
   nsresult SetBaseValueString(const nsAString& aValue,
@@ -174,9 +164,7 @@ private:
       { *aResult = mVal->GetBaseValue(mSVGElement); return NS_OK; }
     NS_IMETHOD SetValue(float aValue)
       {
-        if (!NS_finite(aValue)) {
-          return NS_ERROR_ILLEGAL_VALUE;
-        }
+        NS_ENSURE_FINITE(aValue, NS_ERROR_ILLEGAL_VALUE);
         mVal->SetBaseValue(aValue, mSVGElement);
         return NS_OK;
       }
@@ -185,9 +173,7 @@ private:
       { *aResult = mVal->mBaseVal; return NS_OK; }
     NS_IMETHOD SetValueInSpecifiedUnits(float aValue)
       {
-        if (!NS_finite(aValue)) {
-          return NS_ERROR_ILLEGAL_VALUE;
-        }
+        NS_ENSURE_FINITE(aValue, NS_ERROR_ILLEGAL_VALUE);
         mVal->SetBaseValueInSpecifiedUnits(aValue, mSVGElement);
         return NS_OK;
       }

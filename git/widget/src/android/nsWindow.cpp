@@ -40,21 +40,23 @@
 #include <android/log.h>
 #include <math.h>
 
+#ifdef MOZ_IPC
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/unused.h"
-#include "mozilla/Preferences.h"
 
 using mozilla::dom::ContentParent;
 using mozilla::dom::ContentChild;
 using mozilla::unused;
+#endif
 
 #include "nsAppShell.h"
 #include "nsIdleService.h"
 #include "nsWindow.h"
 #include "nsIObserverService.h"
 
-#include "nsRenderingContext.h"
+#include "nsIDeviceContext.h"
+#include "nsIRenderingContext.h"
 #include "nsIDOMSimpleGestureEvent.h"
 
 #include "nsWidgetAtoms.h"
@@ -82,6 +84,7 @@ NS_IMPL_ISUPPORTS_INHERITED0(nsWindow, nsBaseWidget)
 static gfxIntSize gAndroidBounds;
 static gfxIntSize gAndroidScreenBounds;
 
+#ifdef MOZ_IPC
 class ContentCreationNotifier;
 static nsCOMPtr<ContentCreationNotifier> gContentCreationNotifier;
 // A helper class to send updates when content processes
@@ -116,6 +119,7 @@ class ContentCreationNotifier : public nsIObserver
 
 NS_IMPL_ISUPPORTS1(ContentCreationNotifier,
                    nsIObserver)
+#endif
 
 static PRBool gMenu;
 static PRBool gMenuConsumed;
@@ -198,7 +202,7 @@ nsWindow::Create(nsIWidget *aParent,
                  nsNativeWidget aNativeParent,
                  const nsIntRect &aRect,
                  EVENT_CALLBACK aHandleEventFunction,
-                 nsDeviceContext *aContext,
+                 nsIDeviceContext *aContext,
                  nsIAppShell *aAppShell,
                  nsIToolkit *aToolkit,
                  nsWidgetInitData *aInitData)
@@ -662,8 +666,7 @@ nsWindow::SetWindowClass(const nsAString& xulWinType)
 }
 
 mozilla::layers::LayerManager*
-nsWindow::GetLayerManager(PLayersChild*, LayersBackend, LayerManagerPersistence, 
-                          bool* aAllowRetaining)
+nsWindow::GetLayerManager(LayerManagerPersistence, bool* aAllowRetaining)
 {
     if (aAllowRetaining) {
         *aAllowRetaining = true;
@@ -768,6 +771,7 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
             gAndroidScreenBounds.width = newScreenWidth;
             gAndroidScreenBounds.height = newScreenHeight;
 
+#ifdef MOZ_IPC
             if (XRE_GetProcessType() != GeckoProcessType_Default)
                 break;
 
@@ -792,6 +796,7 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
                 else
                     obs->RemoveObserver(notifier, "ipc:content-created");
             }
+#endif
         }
 
         case AndroidGeckoEvent::MOTION_EVENT: {
@@ -988,62 +993,27 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
     AndroidBridge::Bridge()->HideProgressDialogOnce();
 
     if (GetLayerManager(nsnull)->GetBackendType() == LayerManager::LAYERS_BASIC) {
-        if (AndroidBridge::Bridge()->HasNativeBitmapAccess()) {
-            jobject bitmap = sview.GetSoftwareDrawBitmap();
-            if (!bitmap) {
-                ALOG("no bitmap to draw into - skipping draw");
-                return;
-            }
-
-            if (!AndroidBridge::Bridge()->ValidateBitmap(bitmap, mBounds.width, mBounds.height))
-                return;
-
-            void *buf = AndroidBridge::Bridge()->LockBitmap(bitmap);
-            if (buf == nsnull) {
-                ALOG("### Software drawing, but failed to lock bitmap.");
-                return;
-            }
-
-            nsRefPtr<gfxImageSurface> targetSurface =
-                new gfxImageSurface((unsigned char *)buf,
-                                    gfxIntSize(mBounds.width, mBounds.height),
-                                    mBounds.width * 2,
-                                    gfxASurface::ImageFormatRGB16_565);
-            if (targetSurface->CairoStatus()) {
-                ALOG("### Failed to create a valid surface from the bitmap");
-            } else {
-                DrawTo(targetSurface);
-            }
-
-            AndroidBridge::Bridge()->UnlockBitmap(bitmap);
-            sview.Draw2D(bitmap, mBounds.width, mBounds.height);
-        } else {
-            jobject bytebuf = sview.GetSoftwareDrawBuffer();
-            if (!bytebuf) {
-                ALOG("no buffer to draw into - skipping draw");
-                return;
-            }
-
-            void *buf = AndroidBridge::JNI()->GetDirectBufferAddress(bytebuf);
-            int cap = AndroidBridge::JNI()->GetDirectBufferCapacity(bytebuf);
-            if (!buf || cap != (mBounds.width * mBounds.height * 2)) {
-                ALOG("### Software drawing, but unexpected buffer size %d expected %d (or no buffer %p)!", cap, mBounds.width * mBounds.height * 2, buf);
-                return;
-            }
-
-            nsRefPtr<gfxImageSurface> targetSurface =
-                new gfxImageSurface((unsigned char *)buf,
-                                    gfxIntSize(mBounds.width, mBounds.height),
-                                    mBounds.width * 2,
-                                    gfxASurface::ImageFormatRGB16_565);
-            if (targetSurface->CairoStatus()) {
-                ALOG("### Failed to create a valid surface");
-            } else {
-                DrawTo(targetSurface);
-            }
-
-            sview.Draw2D(bytebuf, mBounds.width * 2);
+        jobject bytebuf = sview.GetSoftwareDrawBuffer();
+        if (!bytebuf) {
+            ALOG("no buffer to draw into - skipping draw");
+            return;
         }
+
+        void *buf = AndroidBridge::JNI()->GetDirectBufferAddress(bytebuf);
+        int cap = AndroidBridge::JNI()->GetDirectBufferCapacity(bytebuf);
+        if (!buf || cap != (mBounds.width * mBounds.height * 2)) {
+            ALOG("### Software drawing, but unexpected buffer size %d expected %d (or no buffer %p)!", cap, mBounds.width * mBounds.height * 2, buf);
+            return;
+        }
+
+        nsRefPtr<gfxImageSurface> targetSurface =
+            new gfxImageSurface((unsigned char *)buf,
+                                gfxIntSize(mBounds.width, mBounds.height),
+                                mBounds.width * 2,
+                                gfxASurface::ImageFormatRGB16_565);
+
+        DrawTo(targetSurface);
+        sview.Draw2D(bytebuf, mBounds.width * 2);
     } else {
         int drawType = sview.BeginDrawing();
 
@@ -1105,9 +1075,11 @@ nsWindow::InitEvent(nsGUIEvent& event, nsIntPoint* aPoint)
 gfxIntSize
 nsWindow::GetAndroidScreenBounds()
 {
+#ifdef MOZ_IPC
     if (XRE_GetProcessType() == GeckoProcessType_Content) {
         return ContentChild::GetSingleton()->GetScreenSize();
     }
+#endif
     return gAndroidScreenBounds;
 }
 
@@ -1691,7 +1663,7 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
             selEvent.mOffset = PRUint32(ae->Count() >= 0 ?
                                         ae->Offset() :
                                         ae->Offset() + ae->Count());
-            selEvent.mLength = PRUint32(NS_ABS(ae->Count()));
+            selEvent.mLength = PRUint32(PR_ABS(ae->Count()));
             selEvent.mReversed = ae->Count() >= 0 ? PR_FALSE : PR_TRUE;
 
             DispatchEvent(&selEvent);
@@ -1777,21 +1749,9 @@ nsWindow::ResetInputState()
 NS_IMETHODIMP
 nsWindow::SetInputMode(const IMEContext& aContext)
 {
-    ALOGIME("IME: SetInputMode: s=%d trusted=%d", aContext.mStatus, aContext.mReason);
+    ALOGIME("IME: SetInputMode: s=%d", aContext.mStatus);
 
     mIMEContext = aContext;
-
-    // Ensure that opening the virtual keyboard is allowed for this specific
-    // IMEContext depending on the content.ime.strict.policy pref
-    if (aContext.mStatus != nsIWidget::IME_STATUS_DISABLED && 
-        aContext.mStatus != nsIWidget::IME_STATUS_PLUGIN) {
-      if (Preferences::GetBool("content.ime.strict_policy", PR_FALSE) &&
-          !aContext.FocusMovedByUser() &&
-          aContext.FocusMovedInContentProcess()) {
-        return NS_OK;
-      }
-    }
-
     AndroidBridge::NotifyIMEEnabled(int(aContext.mStatus), aContext.mHTMLInputType, aContext.mActionHint);
     return NS_OK;
 }

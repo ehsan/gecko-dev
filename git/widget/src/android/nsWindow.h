@@ -86,7 +86,7 @@ public:
                       nsNativeWidget aNativeParent,
                       const nsIntRect &aRect,
                       EVENT_CALLBACK aHandleEventFunction,
-                      nsDeviceContext *aContext,
+                      nsIDeviceContext *aContext,
                       nsIAppShell *aAppShell,
                       nsIToolkit *aToolkit,
                       nsWidgetInitData *aInitData);
@@ -163,10 +163,8 @@ public:
     NS_IMETHOD OnIMESelectionChange(void);
     virtual nsIMEUpdatePreference GetIMEUpdatePreference();
 
-    LayerManager* GetLayerManager (PLayersChild* aShadowManager = nsnull, 
-                                   LayersBackend aBackendHint = LayerManager::LAYERS_NONE, 
-                                   LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT, 
-                                   bool* aAllowRetaining = nsnull);
+    LayerManager* GetLayerManager(LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
+                                  bool* aAllowRetaining = nsnull);
     gfxASurface* GetThebesSurface();
 
     NS_IMETHOD ReparentNativeWidget(nsIWidget* aNewParent);

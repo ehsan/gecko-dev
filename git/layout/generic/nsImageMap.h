@@ -37,27 +37,32 @@
 
 /* code for HTML client-side image maps */
 
-#ifndef nsImageMap_h
-#define nsImageMap_h
+#ifndef nsImageMap_h___
+#define nsImageMap_h___
 
 #include "nsISupports.h"
 #include "nsCoord.h"
 #include "nsTArray.h"
 #include "nsStubMutationObserver.h"
-#include "nsIDOMEventListener.h"
+#include "nsIDOMFocusListener.h"
 #include "nsIFrame.h"
+#include "nsIImageMap.h"
 
-class Area;
+class nsIDOMHTMLAreaElement;
+class nsIDOMHTMLMapElement;
+class nsIRenderingContext;
+class nsIURI;
+class nsString;
 class nsIDOMEvent;
-class nsRenderingContext;
+class Area;
 
-class nsImageMap : public nsStubMutationObserver,
-                   public nsIDOMEventListener
+class nsImageMap : public nsStubMutationObserver, public nsIDOMFocusListener,
+                   public nsIImageMap
 {
 public:
   nsImageMap();
 
-  nsresult Init(nsIPresShell* aPresShell, nsIFrame* aImageFrame, nsIContent* aMap);
+  nsresult Init(nsIPresShell* aPresShell, nsIFrame* aImageFrame, nsIDOMHTMLMapElement* aMap);
 
   /**
    * See if the given aX,aY <b>pixel</b> coordinates are in the image
@@ -68,13 +73,13 @@ public:
   PRBool IsInside(nscoord aX, nscoord aY,
                   nsIContent** aContent) const;
 
-  void Draw(nsIFrame* aFrame, nsRenderingContext& aRC);
+  void Draw(nsIFrame* aFrame, nsIRenderingContext& aRC);
   
   /** 
    * Called just before the nsImageFrame releases us. 
    * Used to break the cycle caused by the DOM listener.
    */
-  void Destroy();
+  void Destroy(void);
   
   // nsISupports
   NS_DECL_ISUPPORTS
@@ -85,11 +90,14 @@ public:
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
 
-  //nsIDOMEventListener
-  NS_DECL_NSIDOMEVENTLISTENER
+  //nsIDOMFocusListener
+  NS_IMETHOD Focus(nsIDOMEvent* aEvent);
+  NS_IMETHOD Blur(nsIDOMEvent* aEvent);
+  NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent);
 
-  nsresult GetBoundsForAreaContent(nsIContent *aContent,
-                                   nsRect& aBounds);
+  //nsIImageMap
+  NS_IMETHOD GetBoundsForAreaContent(nsIContent *aContent, 
+                                     nsRect& aBounds);
 
 protected:
   virtual ~nsImageMap();
@@ -98,10 +106,12 @@ protected:
 
   nsresult UpdateAreas();
   nsresult SearchForAreas(nsIContent* aParent, PRBool& aFoundArea,
-                          PRBool& aFoundAnchor);
+                         PRBool& aFoundAnchor);
 
   nsresult AddArea(nsIContent* aArea);
  
+  nsresult ChangeFocus(nsIDOMEvent* aEvent, PRBool aFocus);
+
   void MaybeUpdateAreas(nsIContent *aContent);
 
   nsIPresShell* mPresShell; // WEAK - owns the frame that owns us
@@ -111,4 +121,4 @@ protected:
   PRBool mContainsBlockContents;
 };
 
-#endif /* nsImageMap_h */
+#endif /* nsImageMap_h___ */

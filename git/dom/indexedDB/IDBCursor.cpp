@@ -301,33 +301,16 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(IDBCursor)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(IDBCursor)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mRequest,
-                                                       nsIDOMEventTarget)
+                                                       nsPIDOMEventTarget)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mTransaction,
-                                                       nsIDOMEventTarget)
+                                                       nsPIDOMEventTarget)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mObjectStore)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mIndex)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOwner)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mScriptContext)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(IDBCursor)
-  NS_ASSERTION(tmp->mHaveCachedPrimaryKey ||
-               JSVAL_IS_VOID(tmp->mCachedPrimaryKey),
-               "Should have a cached primary key");
-  NS_ASSERTION(tmp->mHaveCachedValue || JSVAL_IS_VOID(tmp->mCachedValue),
-               "Should have a cached value");
-  if (JSVAL_IS_GCTHING(tmp->mCachedValue)) {
-    void *gcThing = JSVAL_TO_GCTHING(tmp->mCachedValue);
-    NS_IMPL_CYCLE_COLLECTION_TRACE_JS_CALLBACK(gcThing, "mCachedValue")
-  }
-  if (JSVAL_IS_GCTHING(tmp->mCachedPrimaryKey)) {
-    void *gcThing = JSVAL_TO_GCTHING(tmp->mCachedPrimaryKey);
-    NS_IMPL_CYCLE_COLLECTION_TRACE_JS_CALLBACK(gcThing, "mCachedPrimaryKey")
-  }
-NS_IMPL_CYCLE_COLLECTION_TRACE_END
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(IDBCursor)
-  // Don't unlink mObjectStore, mIndex, or mTransaction!
+NS_IMPL_CYCLE_COLLECTION_ROOT_BEGIN(IDBCursor)
   if (tmp->mRooted) {
     NS_DROP_JS_OBJECTS(tmp, IDBCursor);
     tmp->mCachedPrimaryKey = JSVAL_VOID;
@@ -337,6 +320,26 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(IDBCursor)
     tmp->mRooted = false;
     tmp->mHaveValue = false;
   }
+NS_IMPL_CYCLE_COLLECTION_ROOT_END
+
+NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(IDBCursor)
+  NS_ASSERTION(tmp->mHaveCachedPrimaryKey ||
+               JSVAL_IS_VOID(tmp->mCachedPrimaryKey),
+               "Should have a cached primary key");
+  NS_ASSERTION(tmp->mHaveCachedValue || JSVAL_IS_VOID(tmp->mCachedValue),
+               "Should have a cached value");
+  if (JSVAL_IS_GCTHING(tmp->mCachedValue)) {
+    void *gcThing = JSVAL_TO_GCTHING(tmp->mCachedValue);
+    NS_IMPL_CYCLE_COLLECTION_TRACE_JS_CALLBACK(gcThing)
+  }
+  if (JSVAL_IS_GCTHING(tmp->mCachedPrimaryKey)) {
+    void *gcThing = JSVAL_TO_GCTHING(tmp->mCachedPrimaryKey);
+    NS_IMPL_CYCLE_COLLECTION_TRACE_JS_CALLBACK(gcThing)
+  }
+NS_IMPL_CYCLE_COLLECTION_TRACE_END
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(IDBCursor)
+  // Don't unlink mObjectStore, mIndex, or mTransaction!
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mRequest)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOwner)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mScriptContext)
@@ -470,12 +473,14 @@ IDBCursor::GetValue(JSContext* aCx,
       mRooted = true;
     }
 
-    if (!IDBObjectStore::DeserializeValue(aCx, mCloneBuffer, &mCachedValue)) {
+    JSAutoRequest ar(aCx);
+
+    if (!mCloneBuffer.read(&mCachedValue, aCx)) {
       mCachedValue = JSVAL_VOID;
       return NS_ERROR_DOM_DATA_CLONE_ERR;
     }
 
-    mCloneBuffer.clear();
+    mCloneBuffer.clear(aCx);
     mHaveCachedValue = true;
   }
 
@@ -720,7 +725,7 @@ ContinueHelper::GetSuccessResult(JSContext* aCx,
     mCursor->mContinueToKey = Key::UNSETKEY;
 
     mCursor->mCloneBuffer.swap(mCloneBuffer);
-    mCloneBuffer.clear();
+    mCloneBuffer.clear(aCx);
 
     nsresult rv = WrapNative(aCx, mCursor, aVal);
     NS_ENSURE_SUCCESS(rv, rv);

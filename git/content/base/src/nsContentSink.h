@@ -151,7 +151,6 @@ class nsContentSink : public nsICSSLoaderObserver,
   virtual void UpdateChildCounts() = 0;
 
   PRBool IsTimeToNotify();
-  PRBool LinkContextIsOurDocument(const nsSubstring& aAnchor);
 
   static void InitializeStatics();
 
@@ -189,10 +188,9 @@ protected:
                              nsIContent* aContent = nsnull);
   nsresult ProcessLinkHeader(nsIContent* aElement,
                              const nsAString& aLinkData);
-  nsresult ProcessLink(nsIContent* aElement, const nsSubstring& aAnchor,
-                       const nsSubstring& aHref, const nsSubstring& aRel,
-                       const nsSubstring& aTitle, const nsSubstring& aType,
-                       const nsSubstring& aMedia);
+  nsresult ProcessLink(nsIContent* aElement, const nsSubstring& aHref,
+                       const nsSubstring& aRel, const nsSubstring& aTitle,
+                       const nsSubstring& aType, const nsSubstring& aMedia);
 
   virtual nsresult ProcessStyleLink(nsIContent* aElement,
                                     const nsSubstring& aHref,
@@ -256,8 +254,6 @@ public:
   // of the above defined methods to select the document's application
   // cache, let it be associated with the document and eventually
   // schedule the cache update process.
-  // This method MUST be called with the empty string as the argument
-  // when there is no manifest attribute!
   void ProcessOfflineManifest(const nsAString& aManifestSpec);
 
   // Extracts the manifest attribute from the element if it is the root 
@@ -347,10 +343,6 @@ protected:
   // shouldn't be performing any more content model notifications,
   // since we're not longer updating our child counts.
   PRUint8 mIsDocumentObserver : 1;
-  // True if this is a fragment parser
-  PRUint8 mFragmentMode : 1;
-  // True to call prevent script execution in the fragment mode.
-  PRUint8 mPreventScriptExecution : 1;
   
   //
   // -- Can interrupt parsing members --
@@ -408,5 +400,10 @@ protected:
   static PRInt32 sEnablePerfMode;
   static PRBool sCanInterruptParser;
 };
+
+// sanitizing content sink whitelists
+extern PRBool IsAttrURI(nsIAtom *aName);
+extern nsIAtom** const kDefaultAllowedTags [];
+extern nsIAtom** const kDefaultAllowedAttributes [];
 
 #endif // _nsContentSink_h_

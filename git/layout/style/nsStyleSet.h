@@ -60,7 +60,6 @@
 
 class nsIURI;
 class nsCSSFontFaceRule;
-class nsCSSKeyframesRule;
 class nsRuleWalker;
 struct RuleProcessorData;
 struct TreeMatchContext;
@@ -82,8 +81,6 @@ class nsStyleSet
 {
  public:
   nsStyleSet();
-
-  size_t SizeOf() const;
 
   // Initialize the object.  You must check the return code and not use
   // the nsStyleSet if Init() fails.
@@ -174,11 +171,6 @@ class nsStyleSet
   PRBool AppendFontFaceRules(nsPresContext* aPresContext,
                              nsTArray<nsFontFaceRuleContainer>& aArray);
 
-  // Append all the currently-active keyframes rules to aArray.  Return
-  // true for success and false for failure.
-  PRBool AppendKeyframesRules(nsPresContext* aPresContext,
-                              nsTArray<nsCSSKeyframesRule*>& aArray);
-
   // Begin ignoring style context destruction, to avoid lots of unnecessary
   // work on document teardown.
   void BeginShutdown(nsPresContext* aPresContext);
@@ -241,7 +233,6 @@ class nsStyleSet
     eDocSheet, // CSS
     eStyleAttrSheet,
     eOverrideSheet, // CSS
-    eAnimationSheet,
     eTransitionSheet,
     eSheetTypeCount
     // be sure to keep the number of bits in |mDirty| below and in
@@ -367,9 +358,7 @@ class nsStyleSet
              PRBool aIsLink,
              PRBool aIsVisitedLink,
              nsIAtom* aPseudoTag,
-             nsCSSPseudoElements::Type aPseudoType,
-             PRBool aDoAnimation,
-             mozilla::dom::Element* aElementForAnimation);
+             nsCSSPseudoElements::Type aPseudoType);
 
   nsPresContext* PresContext() { return mRuleTree->GetPresContext(); }
 

@@ -2,10 +2,7 @@
 <html>
 <head>
   <title>img.src replace</title>
-  <script type="text/javascript" src="/MochiKit/Base.js"></script>
-  <script type="text/javascript" src="/MochiKit/DOM.js"></script>
-  <script type="text/javascript" src="/MochiKit/Style.js"></script>
-  <script type="text/javascript" src="/MochiKit/Signal.js"></script>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="text/javascript" src="mixedContentTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
@@ -17,9 +14,7 @@
   var onLoadFunction = window.onload;
   window.onload = function()
   {
-    var img1 = document.getElementById("img1");
-    img1.addEventListener("load", onLoadFunction, false);
-    img1.src = "https://example.com/tests/security/ssl/mixedcontent/moonsurface.jpg";
+    window.setTimeout(onLoadFunction, 500);
   }
 
   function runTest()
@@ -39,5 +34,9 @@
 
 <body>
   <img id="img1" src="https://example.com/tests/security/ssl/mixedcontent/hugebmp.sjs" />
+  <script type="text/javascript">
+    var img1 = document.getElementById("img1");
+    img1.src = "https://example.com/tests/security/ssl/mixedcontent/moonsurface.jpg";
+  </script>
 </body>
 </html>

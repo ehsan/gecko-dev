@@ -59,10 +59,6 @@
 #include "prtime.h"
 #include "nsClassHashtable.h"
 #include "nsHashKeys.h"
-#include "nsStreamUtils.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 #define PREFLIGHT_CACHE_SIZE 100
 
@@ -372,10 +368,8 @@ NS_IMPL_ISUPPORTS5(nsCORSListenerProxy, nsIStreamListener,
 void
 nsCORSListenerProxy::Startup()
 {
-  Preferences::AddBoolVarCache(&gDisableCORS,
-                               "content.cors.disable");
-  Preferences::AddBoolVarCache(&gDisableCORSPrivateData,
-                               "content.cors.no_private_data");
+  nsContentUtils::AddBoolPrefVarCache("content.cors.disable", &gDisableCORS);
+  nsContentUtils::AddBoolPrefVarCache("content.cors.no_private_data", &gDisableCORSPrivateData);
 }
 
 /* static */
@@ -1008,8 +1002,7 @@ nsCORSPreflightListener::OnDataAvailable(nsIRequest *aRequest,
                                          PRUint32 sourceOffset,
                                          PRUint32 count)
 {
-  PRUint32 totalRead;
-  return inStr->ReadSegments(NS_DiscardSegment, nsnull, count, &totalRead);
+  return NS_OK;
 }
 
 NS_IMETHODIMP

@@ -44,7 +44,7 @@
 #include "nsIRunnable.h"
 #include "nsCOMArray.h"
 #include "nsIWifiMonitor.h"
-#include "mozilla/ReentrantMonitor.h"
+#include "mozilla/Monitor.h"
 #include "prlog.h"
 #include "nsIObserver.h"
 #include "nsTArray.h"
@@ -56,8 +56,6 @@
 extern PRLogModuleInfo *gWifiMonitorLog;
 #endif
 #define LOG(args)     PR_LOG(gWifiMonitorLog, PR_LOG_DEBUG, args)
-
-class nsWifiAccessPoint;
 
 class nsWifiListener
 {
@@ -94,15 +92,12 @@ class nsWifiMonitor : nsIRunnable, nsIWifiMonitor, nsIObserver
   nsresult DoScanOld();
 #endif
 
-  nsresult CallWifiListeners(const nsCOMArray<nsWifiAccessPoint> &aAccessPoints,
-                             PRBool aAccessPointsChanged);
-
   PRBool mKeepGoing;
   nsCOMPtr<nsIThread> mThread;
 
   nsTArray<nsWifiListener> mListeners;
 
-  mozilla::ReentrantMonitor mReentrantMonitor;
+  mozilla::Monitor mMonitor;
 
 };
 

@@ -5,6 +5,7 @@
 // Tests that the discovery view loads properly
 
 const PREF_GETADDONS_CACHE_ENABLED = "extensions.getAddons.cache.enabled";
+const PREF_DISCOVERURL = "extensions.webservice.discoverURL";
 const MAIN_URL = "https://example.com/" + RELATIVE_DIR + "discovery.html";
 
 var gManagerWindow;
@@ -35,12 +36,15 @@ var gProgressListener = {
 };
 
 function test() {
+  var currentURL = Services.prefs.getCharPref(PREF_DISCOVERURL);
+
   // Switch to a known url
   Services.prefs.setCharPref(PREF_DISCOVERURL, MAIN_URL);
   // Temporarily enable caching
   Services.prefs.setBoolPref(PREF_GETADDONS_CACHE_ENABLED, true);
 
   registerCleanupFunction(function() {
+    Services.prefs.setCharPref(PREF_DISCOVERURL, currentURL);
     Services.prefs.setBoolPref(PREF_GETADDONS_CACHE_ENABLED, false);
   });
 
@@ -406,7 +410,7 @@ add_test(function() {
 
       gCategoryUtilities.openType("extension", function() {
         gCategoryUtilities.openType("discover", function() {
-          is(getURL(browser), MAIN_URL, "Should have loaded the right url");
+          is(getURL(browser), "https://example.com/" + RELATIVE_DIR + "releaseNotes.xhtml", "Should have loaded the right url");
 
           close_manager(gManagerWindow, run_next_test);
         });

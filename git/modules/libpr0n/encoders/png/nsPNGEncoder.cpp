@@ -46,8 +46,6 @@
 #include "nsString.h"
 #include "nsStreamUtils.h"
 
-using namespace mozilla;
-
 NS_IMPL_THREADSAFE_ISUPPORTS3(nsPNGEncoder, imgIEncoder, nsIInputStream, nsIAsyncInputStream)
 
 nsPNGEncoder::nsPNGEncoder() : mPNG(nsnull), mPNGinfo(nsnull),
@@ -57,7 +55,7 @@ nsPNGEncoder::nsPNGEncoder() : mPNG(nsnull), mPNGinfo(nsnull),
                                mImageBufferUsed(0), mImageBufferReadPoint(0),
                                mCallback(nsnull),
                                mCallbackTarget(nsnull), mNotifyThreshold(0),
-                               mReentrantMonitor("nsPNGEncoder.mReentrantMonitor")
+                               mMonitor("PNG Encoder Monitor")
 {
 }
 
@@ -273,10 +271,6 @@ NS_IMETHODIMP nsPNGEncoder::AddImageFrame(const PRUint8* aData,
     NS_WARNING("Invalid stride for InitFromData/AddImageFrame");
     return NS_ERROR_INVALID_ARG;
   }
-
-#ifdef PNG_WRITE_FILTER_SUPPORTED
-  png_set_filter(mPNG, PNG_FILTER_TYPE_BASE, PNG_FILTER_VALUE_NONE);
-#endif
 
   // write each row: if we add more input formats, we may want to
   // generalize the conversions
@@ -537,7 +531,7 @@ NS_IMETHODIMP nsPNGEncoder::ReadSegments(nsWriteSegmentFun aWriter,
                                          PRUint32 *_retval)
 {
   // Avoid another thread reallocing the buffer underneath us
-  ReentrantMonitorAutoEnter autoEnter(mReentrantMonitor);
+  mozilla::MonitorAutoEnter autoEnter(mMonitor);
 
   PRUint32 maxCount = mImageBufferUsed - mImageBufferReadPoint;
   if (maxCount == 0) {
@@ -676,7 +670,7 @@ nsPNGEncoder::WriteCallback(png_structp png, png_bytep data,
   if (that->mImageBufferUsed + size > that->mImageBufferSize) {
     // When we're reallocing the buffer we need to take the lock to ensure
     // that nobody is trying to read from the buffer we are destroying
-    ReentrantMonitorAutoEnter autoEnter(that->mReentrantMonitor);
+    mozilla::MonitorAutoEnter autoEnter(that->mMonitor);
 
     // expand buffer, just double each time
     that->mImageBufferSize *= 2;
@@ -703,7 +697,7 @@ nsPNGEncoder::NotifyListener()
   // AsyncWait and any that do encoding) so we lock to avoid notifying the
   // listener twice about the same data (which generally leads to a truncated
   // image).
-  ReentrantMonitorAutoEnter autoEnter(mReentrantMonitor);
+  mozilla::MonitorAutoEnter autoEnter(mMonitor);
 
   if (mCallback &&
       (mImageBufferUsed - mImageBufferReadPoint >= mNotifyThreshold ||

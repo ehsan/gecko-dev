@@ -81,8 +81,6 @@ typedef struct _nsCocoaWindowList {
   // is ridiculously slow, so we cache it in the toplevel window for all
   // descendants to use.
   float mDPI;
-
-  NSTrackingArea* mTrackingArea;
 }
 
 - (void)importState:(NSDictionary*)aState;
@@ -95,12 +93,6 @@ typedef struct _nsCocoaWindowList {
 - (void)deferredInvalidateShadow;
 - (void)invalidateShadow;
 - (float)getDPI;
-
-- (void)mouseEntered:(NSEvent*)aEvent;
-- (void)mouseExited:(NSEvent*)aEvent;
-- (void)mouseMoved:(NSEvent*)aEvent;
-- (void)updateTrackingArea;
-- (NSView*)trackingAreaView;
 
 @end
 
@@ -166,6 +158,13 @@ typedef struct _nsCocoaWindowList {
 - (void)sendToplevelDeactivateEvents;
 @end
 
+struct UnifiedGradientInfo {
+  float titlebarHeight;
+  float toolbarHeight;
+  BOOL windowIsMain;
+  BOOL drawTitlebar; // NO for toolbar, YES for titlebar
+};
+
 @class ToolbarWindow;
 
 // NSColor subclass that allows us to draw separate colors both in the titlebar 
@@ -215,7 +214,7 @@ public:
                                    nsNativeWidget aNativeParent,
                                    const nsIntRect &aRect,
                                    EVENT_CALLBACK aHandleEventFunction,
-                                   nsDeviceContext *aContext,
+                                   nsIDeviceContext *aContext,
                                    nsIAppShell *aAppShell = nsnull,
                                    nsIToolkit *aToolkit = nsnull,
                                    nsWidgetInitData *aInitData = nsnull);
@@ -257,9 +256,8 @@ public:
     NS_IMETHOD Invalidate(const nsIntRect &aRect, PRBool aIsSynchronous);
     NS_IMETHOD Update();
     virtual nsresult ConfigureChildren(const nsTArray<Configuration>& aConfigurations);
-    virtual LayerManager* GetLayerManager(PLayersChild* aShadowManager = nsnull,
-                                          LayersBackend aBackendHint = LayerManager::LAYERS_NONE,
-                                          LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
+    virtual LayerManager* GetLayerManager(bool *aAllowRetaining = nsnull);
+    virtual LayerManager* GetLayerManager(LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
                                           bool* aAllowRetaining = nsnull);
     NS_IMETHOD DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus) ;
     NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, nsIMenuRollup * aMenuRollup,
@@ -295,6 +293,8 @@ public:
     NS_IMETHOD BeginSecureKeyboardInput();
     NS_IMETHOD EndSecureKeyboardInput();
 
+    static void UnifiedShading(void* aInfo, const CGFloat* aIn, CGFloat* aOut);
+
     void SetPopupWindowLevel();
 
     PRBool IsChildInFailingLeftClickThrough(NSView *aChild);
@@ -308,7 +308,7 @@ protected:
                                           PRBool aRectIsFrameRect);
   nsresult             CreatePopupContentView(const nsIntRect &aRect,
                                               EVENT_CALLBACK aHandleEventFunction,
-                                              nsDeviceContext *aContext,
+                                              nsIDeviceContext *aContext,
                                               nsIAppShell *aAppShell,
                                               nsIToolkit *aToolkit);
   void                 DestroyNativeWindow();

@@ -52,7 +52,7 @@
 #include "nsVariant.h"
 #include "nsIDOMBeforeUnloadEvent.h"
 #include "nsGkAtoms.h"
-#include "nsIDOMEventTarget.h"
+#include "nsPIDOMEventTarget.h"
 #include "nsIJSContextStack.h"
 #ifdef NS_DEBUG
 #include "nsDOMJSUtils.h"
@@ -95,17 +95,21 @@ nsJSEventListener::~nsJSEventListener()
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsJSEventListener)
+NS_IMPL_CYCLE_COLLECTION_ROOT_BEGIN(nsJSEventListener)
+  if (tmp->mContext &&
+      tmp->mContext->GetScriptTypeID() == nsIProgrammingLanguage::JAVASCRIPT) {
+    NS_DROP_JS_OBJECTS(tmp, nsJSEventListener);
+    tmp->mScopeObject = nsnull;
+  }
+NS_IMPL_CYCLE_COLLECTION_ROOT_END
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsJSEventListener)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTarget)
   if (tmp->mContext) {
-    if (tmp->mContext->GetScriptTypeID() == nsIProgrammingLanguage::JAVASCRIPT) {
-      NS_DROP_JS_OBJECTS(tmp, nsJSEventListener);
-    }
-    else {
+    if (tmp->mScopeObject) {
       nsContentUtils::DropScriptObjects(tmp->mContext->GetScriptTypeID(), tmp,
                                   &NS_CYCLE_COLLECTION_NAME(nsJSEventListener));
+      tmp->mScopeObject = nsnull;
     }
-    tmp->mScopeObject = nsnull;
     NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mContext)
   }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -126,13 +130,13 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsJSEventListener)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMEventListener)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsJSEventListener)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsJSEventListener)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsJSEventListener, nsIDOMEventListener)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsJSEventListener, nsIDOMEventListener)
 
 nsresult
 nsJSEventListener::GetJSVal(const nsAString& aEventName, jsval* aJSVal)
 {
-  nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(mTarget);
+  nsCOMPtr<nsPIDOMEventTarget> target = do_QueryInterface(mTarget);
   if (target && mContext) {
     nsAutoString eventString = NS_LITERAL_STRING("on") + aEventName;
     nsCOMPtr<nsIAtom> atomName = do_GetAtom(eventString);

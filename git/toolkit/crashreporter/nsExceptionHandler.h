@@ -70,10 +70,6 @@ nsresult SetRestartArgs(int argc, char** argv);
 nsresult SetupExtraData(nsILocalFile* aAppDataDirectory,
                         const nsACString& aBuildID);
 
-// Registers an additional memory region to be included in the minidump
-nsresult RegisterAppMemory(void* ptr, size_t length);
-nsresult UnregisterAppMemory(void* ptr);
-
 // Functions for working with minidumps and .extras
 typedef nsDataHashtable<nsCStringHashKey, nsCString> AnnotationTable;
 
@@ -93,6 +89,7 @@ bool AppendExtraData(nsILocalFile* extraFile, const AnnotationTable& data);
 nsresult GetSubmitReports(PRBool* aSubmitReport);
 nsresult SetSubmitReports(PRBool aSubmitReport);
 
+#ifdef MOZ_IPC
 // Out-of-process crash reporter API.
 
 // Return true iff a dump was found for |childPid|, and return the
@@ -159,6 +156,7 @@ bool SetRemoteExceptionHandler();
 #endif  // XP_WIN32
 
 bool UnsetRemoteExceptionHandler();
+#endif // MOZ_IPC
 
 #if defined(__ANDROID__)
 // Android builds use a custom library loader, so /proc/<pid>/maps
@@ -172,6 +170,7 @@ void AddLibraryMapping(const char* library_name,
                        size_t      mapping_length,
                        size_t      file_offset);
 
+#if defined(MOZ_IPC)
 void AddLibraryMappingForChild(PRUint32    childPid,
                                const char* library_name,
                                const char* file_id,
@@ -179,6 +178,7 @@ void AddLibraryMappingForChild(PRUint32    childPid,
                                size_t      mapping_length,
                                size_t      file_offset);
 void RemoveLibraryMappingsForChild(PRUint32 childPid);
+#endif
 #endif
 }
 

@@ -38,7 +38,7 @@ function test() {
       ok(!originalBounds.equals(groupItem.getChild(0).getBounds()), testName + ': tabs changed their size');
 
       // cleanup
-      cw.UI.setActive(groupItem);
+      cw.GroupItems.setActiveGroupItem(groupItem);
       win.gBrowser.loadOneTab('about:blank', {inBackground: true});
       afterAllTabsLoaded(callback, win);
     }, 500);
@@ -125,24 +125,18 @@ function test() {
   // make sure we don't freeze item size when removing an item from a stack
   let testRemoveWhileStacked = function () {
     let oldBounds = groupItem.getBounds();
-    groupItem.setSize(250, 250, true);
+    groupItem.setSize(150, 200, true);
     groupItem.setUserSize();
 
-    ok(!groupItem.isStacked(), 'testRemoveWhileStacked: group is not stacked');
+    let originalBounds = groupItem.getChild(0).getBounds();
+    ok(!groupItem._isStacked, 'testRemoveWhileStacked: group is not stacked');
 
-    let originalBounds;
-    let tabItem = groupItem.getChild(0);
-
-    // add new tabs to let the group stack
-    while (!groupItem.isStacked()) {
-      originalBounds = tabItem.getBounds();
-      win.gBrowser.addTab();
-    }
+    // add a new tab to let the group stack
+    win.gBrowser.loadOneTab('about:blank', {inBackground: true});
+    ok(groupItem._isStacked, 'testRemoveWhileStacked: group is now stacked');
 
     afterAllTabsLoaded(function () {
-      tabItem.close();
-      ok(!groupItem.isStacked(), 'testRemoveWhileStacked: group is not stacked');
-
+      groupItem.getChild(0).close();
       let bounds = groupItem.getChild(0).getBounds();
       ok(originalBounds.equals(bounds), 'testRemoveWhileStacked: tabs did not change their size');
 
@@ -162,15 +156,15 @@ function test() {
     groupItem.setSize(100, 100, true);
     groupItem.setUserSize();
 
-    ok(groupItem.isStacked(), 'testExpandedMode: group is stacked');
+    ok(groupItem._isStacked, 'testExpandedMode: group is stacked');
 
-    groupItem.addSubscriber('expanded', function onGroupExpanded() {
-      groupItem.removeSubscriber('expanded', onGroupExpanded);
+    groupItem.addSubscriber(groupItem, 'expanded', function () {
+      groupItem.removeSubscriber(groupItem, 'expanded');
       onExpanded();
     });
 
-    groupItem.addSubscriber('collapsed', function onGroupCollapsed() {
-      groupItem.removeSubscriber('collapsed', onGroupCollapsed);
+    groupItem.addSubscriber(groupItem, 'collapsed', function () {
+      groupItem.removeSubscriber(groupItem, 'collapsed');
       onCollapsed();
     });
 
@@ -179,7 +173,7 @@ function test() {
       let tabItem = groupItem.getChild(1);
       let bounds = tabItem.getBounds();
 
-      while (groupItem.getChildren().length > 2)
+      for (let i=0; i<3; i++)
         groupItem.getChild(1).close();
 
       ok(originalBounds.equals(groupItem.getChild(0).getBounds()), 'testExpandedMode: tabs did not change their size');

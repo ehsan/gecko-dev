@@ -59,6 +59,7 @@
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
 #include "nsIURI.h"
+#include "nsTime.h"
 #include "nsIProxyObjectManager.h"
 #include "nsCRT.h"
 #include "nsUsageArrayHelper.h"
@@ -72,7 +73,9 @@
 #include "nsIObjectInputStream.h"
 #include "nsIProgrammingLanguage.h"
 
+#ifdef MOZ_IPC
 #include "nsXULAppAPI.h"
+#endif
 
 #include "nspr.h"
 extern "C" {
@@ -123,10 +126,12 @@ NS_IMPL_THREADSAFE_ISUPPORTS7(nsNSSCertificate, nsIX509Cert,
 nsNSSCertificate*
 nsNSSCertificate::Create(CERTCertificate *cert)
 {
+#ifdef MOZ_IPC
   if (GeckoProcessType_Default != XRE_GetProcessType()) {
     NS_ERROR("Trying to initialize nsNSSCertificate in a non-chrome process!");
     return nsnull;
   }
+#endif
   if (cert)
     return new nsNSSCertificate(cert);
   else
@@ -136,9 +141,11 @@ nsNSSCertificate::Create(CERTCertificate *cert)
 nsNSSCertificate*
 nsNSSCertificate::ConstructFromDER(char *certDER, int derLen)
 {
+#ifdef MOZ_IPC
   // On non-chrome process prevent instantiation
   if (GeckoProcessType_Default != XRE_GetProcessType())
     return nsnull;
+#endif
 
   nsNSSCertificate* newObject = nsNSSCertificate::Create();
   if (newObject && !newObject->InitFromDER(certDER, derLen)) {
@@ -179,7 +186,7 @@ nsNSSCertificate::nsNSSCertificate(CERTCertificate *cert) :
                                            mCertType(CERT_TYPE_NOT_YET_INITIALIZED),
                                            mCachedEVStatus(ev_status_unknown)
 {
-#if defined(DEBUG)
+#if defined(MOZ_IPC) && defined(DEBUG)
   if (GeckoProcessType_Default != XRE_GetProcessType())
     NS_ERROR("Trying to initialize nsNSSCertificate in a non-chrome process!");
 #endif
@@ -198,8 +205,10 @@ nsNSSCertificate::nsNSSCertificate() :
   mCertType(CERT_TYPE_NOT_YET_INITIALIZED),
   mCachedEVStatus(ev_status_unknown)
 {
+#ifdef MOZ_IPC
   if (GeckoProcessType_Default != XRE_GetProcessType())
     NS_ERROR("Trying to initialize nsNSSCertificate in a non-chrome process!");
+#endif
 }
 
 nsNSSCertificate::~nsNSSCertificate()
@@ -1288,15 +1297,6 @@ nsNSSCertificate::VerifyForUsage(PRUint32 usage, PRUint32 *verificationResult)
 
   NS_ENSURE_ARG(verificationResult);
 
-  nsresult nsrv;
-  nsCOMPtr<nsINSSComponent> inss = do_GetService(kNSSComponentCID, &nsrv);
-  if (!inss)
-    return nsrv;
-  nsRefPtr<nsCERTValInParamWrapper> survivingParams;
-  nsrv = inss->GetDefaultCERTValInParam(survivingParams);
-  if (NS_FAILED(nsrv))
-    return nsrv;
-  
   SECCertificateUsage nss_usage;
   
   switch (usage)
@@ -1353,21 +1353,10 @@ nsNSSCertificate::VerifyForUsage(PRUint32 usage, PRUint32 *verificationResult)
       return NS_ERROR_FAILURE;
   }
 
-  SECStatus verify_result;
-  if (!nsNSSComponent::globalConstFlagUsePKIXVerification) {
-    CERTCertDBHandle *defaultcertdb = CERT_GetDefaultCertDB();
-    verify_result = CERT_VerifyCertificateNow(defaultcertdb, mCert, PR_TRUE, 
-                                              nss_usage, NULL, NULL);
-  }
-  else {
-    CERTValOutParam cvout[1];
-    cvout[0].type = cert_po_end;
-    verify_result = CERT_PKIXVerifyCert(mCert, nss_usage,
-                                        survivingParams->GetRawPointerForNSS(),
-                                        cvout, NULL);
-  }
-  
-  if (verify_result == SECSuccess)
+  CERTCertDBHandle *defaultcertdb = CERT_GetDefaultCertDB();
+
+  if (CERT_VerifyCertificateNow(defaultcertdb, mCert, PR_TRUE, 
+                         nss_usage, NULL, NULL) == SECSuccess)
   {
     *verificationResult = VERIFIED_OK;
   }
@@ -1420,7 +1409,7 @@ nsNSSCertificate::VerifyForUsage(PRUint32 usage, PRUint32 *verificationResult)
 
 
 NS_IMETHODIMP
-nsNSSCertificate::GetUsagesArray(PRBool localOnly,
+nsNSSCertificate::GetUsagesArray(PRBool ignoreOcsp,
                                  PRUint32 *_verified,
                                  PRUint32 *_count,
                                  PRUnichar ***_usages)
@@ -1435,7 +1424,7 @@ nsNSSCertificate::GetUsagesArray(PRBool localOnly,
   const char *suffix = "";
   PRUint32 tmpCount;
   nsUsageArrayHelper uah(mCert);
-  rv = uah.GetUsagesArray(suffix, localOnly, max_usages, _verified, &tmpCount, tmpUsages);
+  rv = uah.GetUsagesArray(suffix, ignoreOcsp, max_usages, _verified, &tmpCount, tmpUsages);
   NS_ENSURE_SUCCESS(rv,rv);
   if (tmpCount > 0) {
     *_usages = (PRUnichar **)nsMemory::Alloc(sizeof(PRUnichar *) * tmpCount);
@@ -1475,7 +1464,7 @@ nsNSSCertificate::RequestUsagesArrayAsync(nsICertVerificationListener *aResultLi
 }
 
 NS_IMETHODIMP
-nsNSSCertificate::GetUsagesString(PRBool localOnly,
+nsNSSCertificate::GetUsagesString(PRBool ignoreOcsp,
                                   PRUint32   *_verified,
                                   nsAString &_usages)
 {
@@ -1489,7 +1478,7 @@ nsNSSCertificate::GetUsagesString(PRBool localOnly,
   const char *suffix = "_p";
   PRUint32 tmpCount;
   nsUsageArrayHelper uah(mCert);
-  rv = uah.GetUsagesArray(suffix, localOnly, max_usages, _verified, &tmpCount, tmpUsages);
+  rv = uah.GetUsagesArray(suffix, ignoreOcsp, max_usages, _verified, &tmpCount, tmpUsages);
   NS_ENSURE_SUCCESS(rv,rv);
   _usages.Truncate();
   for (PRUint32 i=0; i<tmpCount; i++) {

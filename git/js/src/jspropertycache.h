@@ -271,8 +271,8 @@ class PropertyCache
      * not possible.
      */
     JS_REQUIRES_STACK PropertyCacheEntry *fill(JSContext *cx, JSObject *obj, uintN scopeIndex,
-                                               JSObject *pobj, const js::Shape *shape,
-                                               JSBool adding = false);
+                                               uintN protoIndex, JSObject *pobj,
+                                               const js::Shape *shape, JSBool adding = false);
 
     void purge(JSContext *cx);
     void purgeForScript(JSContext *cx, JSScript *script);

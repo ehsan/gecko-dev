@@ -49,20 +49,16 @@ static double Square(double aX)
 }
 
 float
-nsSVGFilterInstance::GetPrimitiveNumber(PRUint8 aCtxType, float aValue) const
+nsSVGFilterInstance::GetPrimitiveLength(nsSVGLength2 *aLength) const
 {
-  nsSVGLength2 val;
-  val.Init(aCtxType, 0xff, aValue,
-           nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER);
-
   float value;
   if (mPrimitiveUnits == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
-    value = nsSVGUtils::ObjectSpace(mTargetBBox, &val);
+    value = nsSVGUtils::ObjectSpace(mTargetBBox, aLength);
   } else {
-    value = nsSVGUtils::UserSpace(mTargetFrame, &val);
+    value = nsSVGUtils::UserSpace(mTargetFrame, aLength);
   }
 
-  switch (aCtxType) {
+  switch (aLength->GetCtxType()) {
   case nsSVGUtils::X:
     return value * mFilterSpaceSize.width / mFilterRect.Width();
   case nsSVGUtils::Y:
@@ -130,7 +126,7 @@ nsSVGFilterInstance::ComputeFilterPrimitiveSubregion(PrimitiveInfo* aPrimitive)
   gfxRect defaultFilterSubregion(0,0,0,0);
   if (fE->SubregionIsUnionOfRegions()) {
     for (PRUint32 i = 0; i < aPrimitive->mInputs.Length(); ++i) {
-      defaultFilterSubregion =
+      defaultFilterSubregion = 
           defaultFilterSubregion.Union(
               aPrimitive->mInputs[i]->mImage.mFilterPrimitiveSubregion);
     }
@@ -143,14 +139,14 @@ nsSVGFilterInstance::ComputeFilterPrimitiveSubregion(PrimitiveInfo* aPrimitive)
     &fE->mLengthAttributes[nsSVGFE::X], mTargetBBox, mTargetFrame);
   gfxRect region = UserSpaceToFilterSpace(feArea);
 
-  if (!fE->mLengthAttributes[nsSVGFE::X].IsExplicitlySet())
-    region.x = defaultFilterSubregion.X();
-  if (!fE->mLengthAttributes[nsSVGFE::Y].IsExplicitlySet())
-    region.y = defaultFilterSubregion.Y();
-  if (!fE->mLengthAttributes[nsSVGFE::WIDTH].IsExplicitlySet())
-    region.width = defaultFilterSubregion.Width();
-  if (!fE->mLengthAttributes[nsSVGFE::HEIGHT].IsExplicitlySet())
-    region.height = defaultFilterSubregion.Height();
+  if (!fE->HasAttr(kNameSpaceID_None, nsGkAtoms::x))
+    region.pos.x = defaultFilterSubregion.X();
+  if (!fE->HasAttr(kNameSpaceID_None, nsGkAtoms::y))
+    region.pos.y = defaultFilterSubregion.Y();
+  if (!fE->HasAttr(kNameSpaceID_None, nsGkAtoms::width))
+    region.size.width = defaultFilterSubregion.Width();
+  if (!fE->HasAttr(kNameSpaceID_None, nsGkAtoms::height))
+    region.size.height = defaultFilterSubregion.Height();
 
   // We currently require filter primitive subregions to be pixel-aligned.
   // Following the spec, any pixel partially in the region is included

@@ -41,6 +41,7 @@
 #include "nsReadableUtils.h"
 #include "nsITextToSubURI.h"
 #include "nsIServiceManager.h"
+#include "nsUConvDll.h"
 #include "nsEscape.h"
 #include "prmem.h"
 #include "nsTextToSubURI.h"

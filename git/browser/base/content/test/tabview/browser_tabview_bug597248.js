@@ -34,9 +34,9 @@ function setupTwo(win) {
 
   // force all canvases to update, and hook in imageData save detection
   tabItems.forEach(function(tabItem) {
-    contentWindow.TabItems.update(tabItem.tab);
-    tabItem.addSubscriber("savedCachedImageData", function onSaved(item) {
-      item.removeSubscriber("savedCachedImageData", onSaved);
+    contentWindow.TabItems._update(tabItem.tab);
+    tabItem.addSubscriber(tabItem, "savedCachedImageData", function(item) {
+      item.removeSubscriber(item, "savedCachedImageData");
       --numTabsToSave;
     });
   });
@@ -70,7 +70,8 @@ function setupTwo(win) {
           restoredWin.removeEventListener(
             "tabviewframeinitialized", onTabViewFrameInitialized, false);
 
-          let restoredContentWindow = restoredWin.TabView.getContentWindow();
+          let restoredContentWindow =
+            restoredWin.document.getElementById("tab-view").contentWindow;
           // prevent TabItems._update being called before checking cached images
           restoredContentWindow.TabItems._pauseUpdateForTest = true;
 
@@ -87,8 +88,8 @@ function setupTwo(win) {
           let count = tabItems.length;
 
           tabItems.forEach(function(tabItem) {
-            tabItem.addSubscriber("loadedCachedImageData", function onLoaded() {
-              tabItem.removeSubscriber("loadedCachedImageData", onLoaded);
+            tabItem.addSubscriber(tabItem, "loadedCachedImageData", function() {
+              tabItem.removeSubscriber(tabItem, "loadedCachedImageData");
               ok(tabItem.isShowingCachedData(),
                 "Tab item is showing cached data and is just connected. " +
                 tabItem.tab.linkedBrowser.currentURI.spec);
@@ -133,7 +134,8 @@ let gTabsProgressListener = {
 
 function updateAndCheck() {
   // force all canvas to update
-  let contentWindow = restoredWin.TabView.getContentWindow();
+  let contentWindow = 
+    restoredWin.document.getElementById("tab-view").contentWindow;
 
   contentWindow.TabItems._pauseUpdateForTest = false;
 

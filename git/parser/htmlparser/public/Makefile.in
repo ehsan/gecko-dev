@@ -67,7 +67,10 @@ EXPORTS = \
 		nsScannerString.h           \
 		nsParserCIID.h              \
 		nsToken.h                   \
-		nsParserConstants.h         \
+		$(NULL)
+
+SDK_HEADERS = \
+		nsParserDataListener.h      \
 		$(NULL)
 
 ifdef MOZ_DEBUG

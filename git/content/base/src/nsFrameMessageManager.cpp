@@ -35,22 +35,22 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef MOZ_IPC
 #include "ContentChild.h"
 #include "ContentParent.h"
+#endif
 #include "jscntxt.h"
 #include "nsFrameMessageManager.h"
 #include "nsContentUtils.h"
 #include "nsIXPConnect.h"
 #include "jsapi.h"
+#include "jsarray.h"
 #include "jsinterp.h"
 #include "nsJSUtils.h"
 #include "nsNetUtil.h"
 #include "nsScriptLoader.h"
 #include "nsIJSContextStack.h"
 #include "nsIXULRuntime.h"
-#include "nsIScriptError.h"
-#include "nsIConsoleService.h"
-#include "nsIProtocolHandler.h"
 
 static PRBool
 IsChromeProcess()
@@ -103,8 +103,10 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsFrameMessageManager)
                                      mChrome && !mIsProcessManager)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsFrameMessageManager)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsFrameMessageManager)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsFrameMessageManager,
+                                          nsIContentFrameMessageManager)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsFrameMessageManager,
+                                           nsIContentFrameMessageManager)
 
 NS_IMETHODIMP
 nsFrameMessageManager::AddMessageListener(const nsAString& aMessage,
@@ -215,7 +217,9 @@ nsFrameMessageManager::GetParamsForMessage(nsAString& aMessageName,
 
   if (argc >= 2) {
     jsval v = argv[1];
-    JS_Stringify(ctx, &v, nsnull, JSVAL_NULL, JSONCreator, &aJSON);
+    if (JS_TryJSON(ctx, &v)) {
+      JS_Stringify(ctx, &v, nsnull, JSVAL_NULL, JSONCreator, &aJSON);
+    }
   }
   return NS_OK;
 }
@@ -249,7 +253,7 @@ nsFrameMessageManager::SendSyncMessage()
       NS_ENSURE_TRUE(dataArray, NS_ERROR_OUT_OF_MEMORY);
 
       for (PRUint32 i = 0; i < len; ++i) {
-        if (retval[i].IsEmpty())
+        if (!retval[i].Length())
           continue;
 
         jsval ret = JSVAL_VOID;
@@ -323,20 +327,6 @@ nsFrameMessageManager::GetDocShell(nsIDocShell** aDocShell)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsFrameMessageManager::Btoa(const nsAString& aBinaryData,
-                            nsAString& aAsciiBase64String)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsFrameMessageManager::Atob(const nsAString& aAsciiString,
-                            nsAString& aBinaryData)
-{
-  return NS_OK;
-}
-
 nsresult
 nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
                                       const nsAString& aMessage,
@@ -370,18 +360,14 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
 
         JSAutoRequest ar(ctx);
 
-        JSAutoEnterCompartment ac;
-        if (!ac.enter(ctx, object))
-          return NS_ERROR_FAILURE;
-
         // The parameter for the listener function.
         JSObject* param = JS_NewObject(ctx, NULL, NULL, NULL);
         NS_ENSURE_TRUE(param, NS_ERROR_OUT_OF_MEMORY);
 
         jsval targetv;
         nsContentUtils::WrapNative(ctx,
-                                   JS_GetGlobalForObject(ctx, object),
-                                   aTarget, &targetv, nsnull, PR_TRUE);
+                                   JS_GetGlobalObject(ctx),
+                                   aTarget, &targetv);
 
         // To keep compatibility with e10s message manager,
         // define empty objects array.
@@ -393,11 +379,6 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
             return NS_ERROR_OUT_OF_MEMORY;
           }
         }
-
-        js::AutoValueRooter objectsv(ctx);
-        objectsv.set(OBJECT_TO_JSVAL(aObjectsArray));
-        if (!JS_WrapValue(ctx, objectsv.jsval_addr()))
-            return NS_ERROR_UNEXPECTED;
 
         jsval json = JSVAL_NULL;
         if (!aJSON.IsEmpty()) {
@@ -417,12 +398,18 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
         JS_DefineProperty(ctx, param, "sync",
                           BOOLEAN_TO_JSVAL(aSync), NULL, NULL, JSPROP_ENUMERATE);
         JS_DefineProperty(ctx, param, "json", json, NULL, NULL, JSPROP_ENUMERATE);
-        JS_DefineProperty(ctx, param, "objects", objectsv.jsval_value(), NULL, NULL, JSPROP_ENUMERATE);
+        JS_DefineProperty(ctx, param, "objects", OBJECT_TO_JSVAL(aObjectsArray),
+                          NULL, NULL, JSPROP_ENUMERATE);
 
         jsval thisValue = JSVAL_VOID;
 
+        JSAutoEnterCompartment ac;
+
+        if (!ac.enter(ctx, object))
+          return NS_ERROR_FAILURE;
+
         jsval funval = JSVAL_VOID;
-        if (JS_ObjectIsCallable(ctx, object)) {
+        if (JS_ObjectIsFunction(ctx, object)) {
           // If the listener is a JS function:
           funval = OBJECT_TO_JSVAL(object);
 
@@ -436,8 +423,8 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
             defaultThisValue = aTarget;
           }
           nsContentUtils::WrapNative(ctx,
-                                     JS_GetGlobalForObject(ctx, object),
-                                     defaultThisValue, &thisValue, nsnull, PR_TRUE);
+                                     JS_GetGlobalObject(ctx),
+                                     defaultThisValue, &thisValue);
         } else {
           // If the listener is a JS object which has receiveMessage function:
           NS_ENSURE_STATE(JS_GetProperty(ctx, object, "receiveMessage",
@@ -445,7 +432,7 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
                           JSVAL_IS_OBJECT(funval) &&
                           !JSVAL_IS_NULL(funval));
           JSObject* funobject = JSVAL_TO_OBJECT(funval);
-          NS_ENSURE_STATE(JS_ObjectIsCallable(ctx, funobject));
+          NS_ENSURE_STATE(JS_ObjectIsFunction(ctx, funobject));
           thisValue = OBJECT_TO_JSVAL(object);
         }
 
@@ -467,7 +454,8 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
                                funval, 1, argv.jsval_addr(), &rval);
           if (aJSONRetVal) {
             nsString json;
-            if (JS_Stringify(ctx, &rval, nsnull, JSVAL_NULL,
+            if (JS_TryJSON(ctx, &rval) &&
+                JS_Stringify(ctx, &rval, nsnull, JSVAL_NULL,
                              JSONCreator, &json)) {
               aJSONRetVal->AppendElement(json);
             }
@@ -476,7 +464,6 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
       }
     }
   }
-  nsRefPtr<nsFrameMessageManager> kungfuDeathGrip = mParentManager;
   return mParentManager ? mParentManager->ReceiveMessage(aTarget, aMessage,
                                                          aSync, aJSON, aObjectsArray,
                                                          aJSONRetVal, mContext) : NS_OK;
@@ -549,81 +536,6 @@ NS_NewGlobalMessageManager(nsIChromeFrameMessageManager** aResult)
   return CallQueryInterface(mm, aResult);
 }
 
-void
-ContentScriptErrorReporter(JSContext* aCx,
-                           const char* aMessage,
-                           JSErrorReport* aReport)
-{
-  nsresult rv;
-  nsCOMPtr<nsIScriptError> scriptError =
-      do_CreateInstance(NS_SCRIPTERROR_CONTRACTID, &rv);
-  if (NS_FAILED(rv)) {
-    return;
-  }
-  nsAutoString message, filename, line;
-  PRUint32 lineNumber, columnNumber, flags, errorNumber;
-
-  if (aReport) {
-    if (aReport->ucmessage) {
-      message.Assign(reinterpret_cast<const PRUnichar*>(aReport->ucmessage));
-    }
-    filename.AssignWithConversion(aReport->filename);
-    line.Assign(reinterpret_cast<const PRUnichar*>(aReport->uclinebuf));
-    lineNumber = aReport->lineno;
-    columnNumber = aReport->uctokenptr - aReport->uclinebuf;
-    flags = aReport->flags;
-    errorNumber = aReport->errorNumber;
-  } else {
-    lineNumber = columnNumber = errorNumber = 0;
-    flags = nsIScriptError::errorFlag | nsIScriptError::exceptionFlag;
-  }
-
-  if (message.IsEmpty()) {
-    message.AssignWithConversion(aMessage);
-  }
-
-  rv = scriptError->Init(message.get(), filename.get(), line.get(),
-                         lineNumber, columnNumber, flags,
-                         "Message manager content script");
-  if (NS_FAILED(rv)) {
-    return;
-  }
-
-  nsCOMPtr<nsIConsoleService> consoleService =
-      do_GetService(NS_CONSOLESERVICE_CONTRACTID);
-  if (consoleService) {
-    (void) consoleService->LogMessage(scriptError);
-  }
-
-#ifdef DEBUG
-  // Print it to stderr as well, for the benefit of those invoking
-  // mozilla with -console.
-  nsCAutoString error;
-  error.Assign("JavaScript ");
-  if (JSREPORT_IS_STRICT(flags)) {
-    error.Append("strict ");
-  }
-  if (JSREPORT_IS_WARNING(flags)) {
-    error.Append("warning: ");
-  } else {
-    error.Append("error: ");
-  }
-  error.Append(aReport->filename);
-  error.Append(", line ");
-  error.AppendInt(lineNumber, 10);
-  error.Append(": ");
-  if (aReport->ucmessage) {
-    AppendUTF16toUTF8(reinterpret_cast<const PRUnichar*>(aReport->ucmessage),
-                      error);
-  } else {
-    error.Append(aMessage);
-  }
-
-  fprintf(stderr, "%s\n", error.get());
-  fflush(stderr);
-#endif
-}
-
 nsDataHashtable<nsStringHashKey, nsFrameScriptExecutorJSObjectHolder*>*
   nsFrameScriptExecutor::sCachedScripts = nsnull;
 nsRefPtr<nsScriptCacheCleaner> nsFrameScriptExecutor::sScriptCacheCleaner;
@@ -644,18 +556,11 @@ nsFrameScriptExecutor::DidCreateCx()
 void
 nsFrameScriptExecutor::DestroyCx()
 {
-  if (mCxStackRefCnt) {
-    mDelayedCxDestroy = PR_TRUE;
-    return;
-  }
-  mDelayedCxDestroy = PR_FALSE;
-  if (mCx) {
-    nsIXPConnect* xpc = nsContentUtils::XPConnect();
-    if (xpc) {
-      xpc->ReleaseJSContext(mCx, PR_TRUE);
-    } else {
-      JS_DestroyContext(mCx);
-    }
+  nsIXPConnect* xpc = nsContentUtils::XPConnect();
+  if (xpc) {
+    xpc->ReleaseJSContext(mCx, PR_TRUE);
+  } else {
+    JS_DestroyContext(mCx);
   }
   mCx = nsnull;
   mGlobal = nsnull;
@@ -714,7 +619,7 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL)
       JSObject* global = nsnull;
       mGlobal->GetJSObject(&global);
       if (global) {
-        (void) JS_ExecuteScript(mCx, global, holder->mObject, nsnull);
+        JS_ExecuteScript(mCx, global, holder->mObject, nsnull);
       }
     }
     JSContext* unused;
@@ -728,16 +633,6 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL)
   if (NS_FAILED(rv)) {
     return;
   }
-  
-  PRBool hasFlags;
-  rv = NS_URIChainHasFlags(uri,
-                           nsIProtocolHandler::URI_IS_LOCAL_RESOURCE,
-                           &hasFlags);
-  if (NS_FAILED(rv) || !hasFlags) {
-    NS_WARNING("Will not load a frame script!");
-    return;
-  }
-  
   nsCOMPtr<nsIChannel> channel;
   NS_NewChannel(getter_AddRefs(channel), uri);
   if (!channel) {
@@ -747,13 +642,20 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL)
   nsCOMPtr<nsIInputStream> input;
   channel->Open(getter_AddRefs(input));
   nsString dataString;
-  PRUint32 avail = 0;
-  if (input && NS_SUCCEEDED(input->Available(&avail)) && avail) {
-    nsCString buffer;
-    if (NS_FAILED(NS_ReadInputStreamToString(input, buffer, avail))) {
-      return;
+  if (input) {
+    const PRUint32 bufferSize = 8192;
+    char buffer[bufferSize];
+    nsCString data;
+    PRUint32 avail = 0;
+    input->Available(&avail);
+    PRUint32 read = 0;
+    if (avail) {
+      while (NS_SUCCEEDED(input->Read(buffer, bufferSize, &read)) && read) {
+        data.Append(buffer, read);
+        read = 0;
+      }
     }
-    nsScriptLoader::ConvertToUTF16(channel, (PRUint8*)buffer.get(), avail,
+    nsScriptLoader::ConvertToUTF16(channel, (PRUint8*)data.get(), data.Length(),
                                    EmptyString(), nsnull, dataString);
   }
 
@@ -792,7 +694,7 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL)
                                   "Cached message manager script");
             sCachedScripts->Put(aURL, holder);
           }
-          (void) JS_ExecuteScript(mCx, global, scriptObj, nsnull);
+          JS_ExecuteScript(mCx, global, scriptObj, nsnull);
         }
         //XXX Argh, JSPrincipals are manually refcounted!
         JSPRINCIPALS_DROP(mCx, jsprin);
@@ -818,6 +720,7 @@ NS_IMPL_ISUPPORTS1(nsScriptCacheCleaner, nsIObserver)
 nsFrameMessageManager* nsFrameMessageManager::sChildProcessManager = nsnull;
 nsFrameMessageManager* nsFrameMessageManager::sParentProcessManager = nsnull;
 
+#ifdef MOZ_IPC
 bool SendAsyncMessageToChildProcess(void* aCallbackData,
                                     const nsAString& aMessage,
                                     const nsAString& aJSON)
@@ -857,11 +760,14 @@ bool SendAsyncMessageToParentProcess(void* aCallbackData,
   return true;
 }
 
+#endif
+
 nsresult
 NS_NewParentProcessMessageManager(nsIFrameMessageManager** aResult)
 {
   NS_ASSERTION(!nsFrameMessageManager::sParentProcessManager,
                "Re-creating sParentProcessManager");
+#ifdef MOZ_IPC
   NS_ENSURE_TRUE(IsChromeProcess(), NS_ERROR_NOT_AVAILABLE);
   nsFrameMessageManager* mm = new nsFrameMessageManager(PR_TRUE,
                                                         nsnull,
@@ -875,6 +781,9 @@ NS_NewParentProcessMessageManager(nsIFrameMessageManager** aResult)
   NS_ENSURE_TRUE(mm, NS_ERROR_OUT_OF_MEMORY);
   nsFrameMessageManager::sParentProcessManager = mm;
   return CallQueryInterface(mm, aResult);
+#else
+  return NS_ERROR_NOT_AVAILABLE;
+#endif
 }
 
 
@@ -883,6 +792,7 @@ NS_NewChildProcessMessageManager(nsISyncMessageSender** aResult)
 {
   NS_ASSERTION(!nsFrameMessageManager::sChildProcessManager,
                "Re-creating sChildProcessManager");
+#ifdef MOZ_IPC
   NS_ENSURE_TRUE(!IsChromeProcess(), NS_ERROR_NOT_AVAILABLE);
   nsFrameMessageManager* mm = new nsFrameMessageManager(PR_FALSE,
                                                         SendSyncMessageToParentProcess,
@@ -896,4 +806,7 @@ NS_NewChildProcessMessageManager(nsISyncMessageSender** aResult)
   NS_ENSURE_TRUE(mm, NS_ERROR_OUT_OF_MEMORY);
   nsFrameMessageManager::sChildProcessManager = mm;
   return CallQueryInterface(mm, aResult);
+#else
+  return NS_ERROR_NOT_AVAILABLE;
+#endif
 }

@@ -40,7 +40,6 @@
 #include "SVGLength.h"
 #include "nsContentCreatorFunctions.h" // For NS_NewSVGElement
 #include "nsCharSeparatedTokenizer.h"
-#include "nsContentUtils.h"
 
 namespace mozilla {
 
@@ -123,7 +122,7 @@ SVGMotionSMILPathUtils::PathGenerator::
   ParseCoordinatePair(const nsAString& aCoordPairStr,
                       float& aXVal, float& aYVal)
 {
-  nsCharSeparatedTokenizerTemplate<IsSVGWhitespace>
+  nsCharSeparatedTokenizer
     tokenizer(aCoordPairStr, ',',
               nsCharSeparatedTokenizer::SEPARATOR_OPTIONAL);
 

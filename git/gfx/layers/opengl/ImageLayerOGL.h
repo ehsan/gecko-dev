@@ -38,8 +38,10 @@
 #ifndef GFX_IMAGELAYEROGL_H
 #define GFX_IMAGELAYEROGL_H
 
-#include "mozilla/layers/PLayers.h"
-#include "mozilla/layers/ShadowLayers.h"
+#ifdef MOZ_IPC
+# include "mozilla/layers/PLayers.h"
+# include "mozilla/layers/ShadowLayers.h"
+#endif  // MOZ_IPC
 
 #include "LayerManagerOGL.h"
 #include "ImageLayers.h"
@@ -207,12 +209,6 @@ public:
            mTextures[2].IsAllocated();
   }
 
-  PRUint8* AllocateBuffer(PRUint32 aSize) {
-    return mRecycleBin->GetBuffer(aSize);
-  }
-
-  PRUint32 GetDataSize() { return mBuffer ? mBufferSize : 0; }
-
   nsAutoArrayPtr<PRUint8> mBuffer;
   PRUint32 mBufferSize;
   nsRefPtr<RecycleBin> mRecycleBin;
@@ -220,6 +216,7 @@ public:
   Data mData;
   gfxIntSize mSize;
   PRPackedBool mHasData;
+  gfx::YUVType mType; 
 };
 
 
@@ -235,14 +232,9 @@ public:
   GLTexture mTexture;
   gfxIntSize mSize;
   gl::ShaderProgramType mLayerProgram;
-#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-  nsRefPtr<gfxASurface> mSurface;
-#endif
-  void SetTiling(bool aTiling);
-private:
-  bool mTiling;
 };
 
+#ifdef MOZ_IPC
 class ShadowImageLayerOGL : public ShadowImageLayer,
                             public LayerOGL
 {
@@ -253,9 +245,10 @@ public:
   virtual ~ShadowImageLayerOGL();
 
   // ShadowImageLayer impl
-  virtual PRBool Init(const SharedImage& aFront, const nsIntSize& aSize);
+  virtual PRBool Init(gfxSharedImageSurface* aFront, const nsIntSize& aSize);
 
-  virtual void Swap(const SharedImage& aFront, SharedImage* aNewBack);
+  virtual already_AddRefed<gfxSharedImageSurface>
+  Swap(gfxSharedImageSurface* aNewFront);
 
   virtual void DestroyFrontBuffer();
 
@@ -271,10 +264,14 @@ public:
 
 private:
   nsRefPtr<TextureImage> mTexImage;
-  GLTexture mYUVTexture[3];
-  gfxIntSize mSize;
-  nsIntRect mPictureRect;
+
+
+  // XXX FIXME holding to free
+  nsRefPtr<gfxSharedImageSurface> mDeadweight;
+
+
 };
+#endif
 
 } /* layers */
 } /* mozilla */

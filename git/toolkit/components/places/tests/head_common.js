@@ -37,6 +37,7 @@
 
 const NS_APP_USER_PROFILE_50_DIR = "ProfD";
 const NS_APP_PROFILE_DIR_STARTUP = "ProfDS";
+const NS_APP_HISTORY_50_FILE = "UHist";
 const NS_APP_BOOKMARKS_50_FILE = "BMarks";
 
 // Shortcuts to transitions type.
@@ -86,6 +87,26 @@ Services.prefs.setBoolPref("places.history.enabled", true);
 // Initialize profile.
 let gProfD = do_get_profile();
 
+// Add our own dirprovider for old history.dat.
+let (provider = {
+      getFile: function(prop, persistent) {
+        persistent.value = true;
+        if (prop == NS_APP_HISTORY_50_FILE) {
+          let histFile = Services.dirsvc.get("ProfD", Ci.nsIFile);
+          histFile.append("history.dat");
+          return histFile;
+        }
+        throw Cr.NS_ERROR_FAILURE;
+      },
+      QueryInterface: XPCOMUtils.generateQI([Ci.nsIDirectoryServiceProvider])
+    })
+{
+  Cc["@mozilla.org/file/directory_service;1"].
+  getService(Ci.nsIDirectoryService).
+  QueryInterface(Ci.nsIDirectoryService).registerProvider(provider);
+}
+
+
 // Remove any old database.
 clearDB();
 
@@ -105,27 +126,16 @@ function uri(aSpec) NetUtil.newURI(aSpec);
  *
  * @return The database connection or null if unable to get one.
  */
-let gDBConn;
 function DBConn() {
   let db = PlacesUtils.history.QueryInterface(Ci.nsPIPlacesDatabase)
                               .DBConnection;
   if (db.connectionReady)
     return db;
 
-  // If the Places database connection has been closed, create a new connection.
-  if (!gDBConn) {
-    let file = Services.dirsvc.get('ProfD', Ci.nsIFile);
-    file.append("places.sqlite");
-    gDBConn = Services.storage.openDatabase(file);
-
-    // Be sure to cleanly close this connection.
-    Services.obs.addObserver(function (aSubject, aTopic, aData) {
-      Services.obs.removeObserver(arguments.callee, aTopic);
-      gDBConn.asyncClose();
-    }, "profile-before-change", false);
-  }
-
-  return gDBConn.connectionReady ? gDBConn : null;
+  // If the database has been closed, then we need to open a new connection.
+  let file = Services.dirsvc.get('ProfD', Ci.nsIFile);
+  file.append("places.sqlite");
+  return Services.storage.openDatabase(file);
 };
 
 
@@ -246,17 +256,16 @@ function dump_table(aName)
 
 /**
  * Checks if an address is found in the database.
- * @param aURI
- *        nsIURI or address to look for.
+ * @param aUrl
+ *        Address to look for.
  * @return place id of the page or 0 if not found
  */
-function page_in_database(aURI)
+function page_in_database(aUrl)
 {
-  let url = aURI instanceof Ci.nsIURI ? aURI.spec : aURI;
   let stmt = DBConn().createStatement(
     "SELECT id FROM moz_places WHERE url = :url"
   );
-  stmt.params.url = url;
+  stmt.params.url = aUrl;
   try {
     if (!stmt.executeStep())
       return 0;
@@ -267,30 +276,6 @@ function page_in_database(aURI)
   }
 }
 
-/**
- * Checks how many visits exist for a specified page.
- * @param aURI
- *        nsIURI or address to look for.
- * @return number of visits found.
- */
-function visits_in_database(aURI)
-{
-  let url = aURI instanceof Ci.nsIURI ? aURI.spec : aURI;
-  let stmt = DBConn().createStatement(
-    "SELECT count(*) FROM moz_historyvisits v "
-  + "JOIN moz_places h ON h.id = v.place_id "
-  + "WHERE url = :url"
-  );
-  stmt.params.url = url;
-  try {
-    if (!stmt.executeStep())
-      return 0;
-    return stmt.getInt64(0);
-  }
-  finally {
-    stmt.finalize();
-  }
-}
 
 /**
  * Removes all bookmarks and checks for correct cleanup
@@ -440,7 +425,7 @@ function create_JSON_backup(aFilename) {
   let bookmarksBackupDir = gProfD.clone();
   bookmarksBackupDir.append("bookmarkbackups");
   if (!bookmarksBackupDir.exists()) {
-    bookmarksBackupDir.create(Ci.nsIFile.DIRECTORY_TYPE, parseInt("0755"));
+    bookmarksBackupDir.create(Ci.nsIFile.DIRECTORY_TYPE, 0777);
     do_check_true(bookmarksBackupDir.exists());
   }
   let bookmarksJSONFile = gTestDir.clone();
@@ -625,34 +610,6 @@ function do_check_valid_places_guid(aGuid,
 }
 
 /**
- * Retrieves the guid for a given uri.
- *
- * @param aURI
- *        The uri to check.
- * @param [optional] aStack
- *        The stack frame used to report the error.
- * @return the associated the guid.
- */
-function do_get_guid_for_uri(aURI,
-                             aStack)
-{
-  if (!aStack) {
-    aStack = Components.stack.caller;
-  }
-  let stmt = DBConn().createStatement(
-    "SELECT guid "
-  + "FROM moz_places "
-  + "WHERE url = :url "
-  );
-  stmt.params.url = aURI.spec;
-  do_check_true(stmt.executeStep(), aStack);
-  let guid = stmt.row.guid;
-  stmt.finalize();
-  do_check_valid_places_guid(guid, aStack);
-  return guid;
-}
-
-/**
  * Tests that a guid was set in moz_places for a given uri.
  *
  * @param aURI
@@ -664,11 +621,19 @@ function do_check_guid_for_uri(aURI,
                                aGUID)
 {
   let caller = Components.stack.caller;
-  let guid = do_get_guid_for_uri(aURI, caller);
+  let stmt = DBConn().createStatement(
+    "SELECT guid "
+  + "FROM moz_places "
+  + "WHERE url = :url "
+  );
+  stmt.params.url = aURI.spec;
+  do_check_true(stmt.executeStep(), caller);
+  do_check_valid_places_guid(stmt.row.guid, caller);
   if (aGUID) {
     do_check_valid_places_guid(aGUID, caller);
-    do_check_eq(guid, aGUID, caller);
+    do_check_eq(stmt.row.guid, aGUID, caller);
   }
+  stmt.finalize();
 }
 
 /**
@@ -680,6 +645,40 @@ function do_check_guid_for_uri(aURI,
 function do_log_info(aMessage)
 {
   print("TEST-INFO | " + _TEST_FILE + " | " + aMessage);
+}
+
+/**
+ * Runs the next test in the gTests array.  gTests should be a array defined in
+ * each test file.
+ */
+let gRunningTest = null;
+let gTestIndex = 0; // The index of the currently running test.
+function run_next_test()
+{
+  function _run_next_test()
+  {
+    if (gTestIndex < gTests.length) {
+      do_test_pending();
+      gRunningTest = gTests[gTestIndex++];
+      print("TEST-INFO | " + _TEST_FILE + " | Starting " +
+            gRunningTest.name);
+      // Exceptions do not kill asynchronous tests, so they'll time out.
+      try {
+        gRunningTest();
+      }
+      catch (e) {
+        do_throw(e);
+      }
+    }
+  }
+
+  // For sane stacks during failures, we execute this code soon, but not now.
+  do_execute_soon(_run_next_test);
+
+  if (gRunningTest !== null) {
+    // Close the previous test do_test_pending call.
+    do_test_finished();
+  }
 }
 
 /**

@@ -37,67 +37,10 @@
  * ***** END LICENSE BLOCK ***** */
 
 TestRunner.logEnabled = true;
-TestRunner.logger = LogController;
-
-/* Helper function */
-parseQueryString = function(encodedString, useArrays) {
-  // strip a leading '?' from the encoded string
-  var qstr = (encodedString[0] == "?") ? encodedString.substring(1) : 
-                                         encodedString;
-  var pairs = qstr.replace(/\+/g, "%20").split(/(\&amp\;|\&\#38\;|\&#x26;|\&)/);
-  var o = {};
-  var decode;
-  if (typeof(decodeURIComponent) != "undefined") {
-    decode = decodeURIComponent;
-  } else {
-    decode = unescape;
-  }
-  if (useArrays) {
-    for (var i = 0; i < pairs.length; i++) {
-      var pair = pairs[i].split("=");
-      if (pair.length !== 2) {
-        continue;
-      }
-      var name = decode(pair[0]);
-      var arr = o[name];
-      if (!(arr instanceof Array)) {
-        arr = [];
-        o[name] = arr;
-      }
-      arr.push(decode(pair[1]));
-    }
-  } else {
-    for (i = 0; i < pairs.length; i++) {
-      pair = pairs[i].split("=");
-      if (pair.length !== 2) {
-        continue;
-      }
-      o[decode(pair[0])] = decode(pair[1]);
-    }
-  }
-  return o;
-};
+TestRunner.logger = new Logger();
 
 // Check the query string for arguments
 var params = parseQueryString(location.search.substring(1), true);
-
-var config = {};
-if (window.readConfig) {
-  config = readConfig();
-}
-
-if (config.testRoot == "chrome" || config.testRoot == "a11y") {
-  for (p in params) {
-    if (params[p] == 1) {
-      config[p] = true;
-    } else if (params[p] == 0) {
-      config[p] = false;
-    } else {
-      config[p] = params[p];
-    }
-  }
-  params = config;
-}
 
 // set the per-test timeout if specified in the query string
 if (params.timeout) {
@@ -108,11 +51,6 @@ if (params.timeout) {
 var fileLevel =  params.fileLevel || null;
 var consoleLevel = params.consoleLevel || null;
 
-// loop tells us how many times to run the tests
-if (params.loops) {
-  TestRunner.loops = params.loops;
-} 
-
 // closeWhenDone tells us to call quit.js when complete
 if (params.closeWhenDone) {
   TestRunner.onComplete = goQuitApplication;
@@ -120,8 +58,8 @@ if (params.closeWhenDone) {
 
 // logFile to write our results
 if (params.logFile) {
-  var spl = new SpecialPowersLogger(params.logFile);
-  TestRunner.logger.addListener("mozLogger", fileLevel + "", spl.getLogCallback());
+  MozillaFileLogger.init(params.logFile);
+  TestRunner.logger.addListener("mozLogger", fileLevel + "", MozillaFileLogger.getLogCallback());
 }
 
 // if we get a quiet param, don't log to the console
@@ -198,7 +136,6 @@ RunSet.runall = function(e) {
   }
   TestRunner.runTests(my_tests);
 }
-
 RunSet.reloadAndRunAll = function(e) {
   e.preventDefault();
   //window.location.hash = "";
@@ -210,7 +147,8 @@ RunSet.reloadAndRunAll = function(e) {
     window.location.href += "&autorun=1";
   } else {
     window.location.href += "?autorun=1";
-  }  
+  }
+  
 };
 
 // UI Stuff
@@ -234,7 +172,7 @@ function isVisible(elem) {
 
 function toggleNonTests (e) {
   e.preventDefault();
-  var elems = document.getElementsClassName("non-test");
+  var elems = getElementsByTagAndClassName("*", "non-test");
   for (var i="0"; i<elems.length; i++) {
     toggleVisible(elems[i]);
   }
@@ -247,9 +185,9 @@ function toggleNonTests (e) {
 
 // hook up our buttons
 function hookup() {
-  document.getElementById('runtests').onclick = RunSet.reloadAndRunAll;
-  document.getElementById('toggleNonTests').onclick = toggleNonTests; 
-  // run automatically if autorun specified
+  connect("runtests", "onclick", RunSet, "reloadAndRunAll");
+  connect("toggleNonTests", "onclick", toggleNonTests);
+  // run automatically if
   if (params.autorun) {
     RunSet.runall();
   }

@@ -45,8 +45,11 @@
 #include "nsLeafBoxFrame.h"
 #include "nsBoxFrame.h"
 #include "nsCOMPtr.h"
+#include "nsIDeviceContext.h"
+#include "nsIFontMetrics.h"
 #include "nsGkAtoms.h"
 #include "nsPresContext.h"
+#include "nsIRenderingContext.h"
 #include "nsStyleContext.h"
 #include "nsIContent.h"
 #include "nsINameSpaceManager.h"
@@ -154,7 +157,7 @@ nsLeafBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 /* virtual */ nscoord
-nsLeafBoxFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+nsLeafBoxFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_MIN_WIDTH(this, result);
@@ -174,7 +177,7 @@ nsLeafBoxFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nscoord
-nsLeafBoxFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
+nsLeafBoxFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_PREF_WIDTH(this, result);
@@ -201,7 +204,7 @@ nsLeafBoxFrame::GetIntrinsicWidth()
 }
 
 nsSize
-nsLeafBoxFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
+nsLeafBoxFrame::ComputeAutoSize(nsIRenderingContext *aRenderingContext,
                                 nsSize aCBSize, nscoord aAvailableWidth,
                                 nsSize aMargin, nsSize aBorder,
                                 nsSize aPadding, PRBool aShrinkWrap)

@@ -262,8 +262,8 @@ public:
   virtual bool HasBullet() const;
 
   virtual void MarkIntrinsicWidthsDirty();
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
 
   virtual nsRect ComputeTightBounds(gfxContext* aContext) const;
   
@@ -360,6 +360,24 @@ protected:
   }
 #endif
 #endif
+
+  /*
+   * Overides member function of nsHTMLContainerFrame. Needed to handle the 
+   * lines in a nsBlockFrame properly.
+   */
+  virtual void PaintTextDecorationLine(gfxContext* aCtx,
+                                       const nsPoint& aPt,
+                                       nsLineBox* aLine,
+                                       nscolor aColor,
+                                       PRUint8 aStyle,
+                                       gfxFloat aOffset,
+                                       gfxFloat aAscent,
+                                       gfxFloat aSize,
+                                       const PRUint8 aDecoration);
+
+  virtual void AdjustForTextIndent(const nsLineBox* aLine,
+                                   nscoord& start,
+                                   nscoord& width);
 
   void TryAllLines(nsLineList::iterator* aIterator,
                    nsLineList::iterator* aStartIterator,

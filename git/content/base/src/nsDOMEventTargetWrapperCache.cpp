@@ -43,7 +43,7 @@
 
 nsDOMEventTargetWrapperCache::~nsDOMEventTargetWrapperCache()
 {
-  nsISupports *supports = static_cast<nsIDOMEventTarget*>(this);
+  nsISupports *supports = static_cast<nsPIDOMEventTarget*>(this);
   nsContentUtils::ReleaseWrapper(supports, this);
 }
 
@@ -58,10 +58,9 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDOMEventTargetWrapperCache,
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMEventTargetWrapperCache,
-                                                nsDOMEventTargetHelper)
+NS_IMPL_CYCLE_COLLECTION_ROOT_BEGIN(nsDOMEventTargetWrapperCache)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+NS_IMPL_CYCLE_COLLECTION_ROOT_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMEventTargetWrapperCache)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY

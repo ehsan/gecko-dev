@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <new>
 #include "glyf.h"
 
 #include <algorithm>
@@ -278,7 +279,7 @@ bool ots_glyf_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
 }
 
 bool ots_glyf_should_serialise(OpenTypeFile *file) {
-  return file->glyf != NULL;
+  return file->glyf;
 }
 
 bool ots_glyf_serialise(OTSStream *out, OpenTypeFile *file) {

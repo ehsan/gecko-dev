@@ -11,10 +11,12 @@ function onTabViewShown(win) {
   let contentWindow = win.TabView.getContentWindow();
 
   let finishTest = function () {
-    hideTabView(function () {
+    win.addEventListener('tabviewhidden', function () {
+      win.removeEventListener('tabviewhidden', arguments.callee, false);
       win.close();
       finish();
-    }, win);
+    }, false);
+    win.TabView.hide();
   }
 
   // do not let the group arrange itself
@@ -26,7 +28,7 @@ function onTabViewShown(win) {
     bounds: {left: 20, top: 20, width: 100, height: 100}
   });
 
-  contentWindow.UI.setActive(groupItem);
+  contentWindow.GroupItems.setActiveGroupItem(groupItem);
 
   // we need seven tabs at least to reproduce this
   for (var i=0; i<7; i++)

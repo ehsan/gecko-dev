@@ -1,6 +1,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <title>Test for SMIL keyTimes</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -151,36 +152,26 @@ function main()
     'times': [ [ 2, -100 ] ]
   });
 
-  // unfrozen to calcMode=discrete two keyTimes
-  testCases.push({
-    'attr' : { 'to': '100',
-               'calcMode': 'discrete',
-               'keyTimes': '0.0; 1.0',
-               'fill': 'remove' },
-    'times': [ [ 0, -100 ],
-               [ 7, -100 ],
-               [ 10, -100 ],
-               [ 12, -100 ]]
-  });
-
-  // frozen to calcMode=discrete two keyTimes
+  // to calcMode=discrete two keyTimes
+  // (technically, for discrete to-animation there is only ONE animation value
+  // but we allow two keyTimes to be specified since they're not going to have
+  // any effect anyway and this part of the spec is somewhat counter-intuitive.
+  // See bug 544855)
   testCases.push({
     'attr' : { 'to': '100',
                'calcMode': 'discrete',
                'keyTimes': '0.0; 1.0' },
-    'times': [ [ 0, -100 ],
-               [ 7, -100 ],
-               [ 10, 100 ],
-               [ 12, 100 ] ]
+    'times': [ [ 0, 100 ],
+               [ 7, 100 ] ]
   });
 
-  // to calcMode=discrete -- bad number of keyTimes (one, expecting two)
+  // to calcMode=discrete one keyTime
   testCases.push({
     'attr' : { 'to': '100',
                'calcMode': 'discrete',
                'keyTimes': '0' },
-    'times': [ [ 0, -100 ],
-               [ 7, -100 ] ]
+    'times': [ [ 0, 100 ],
+               [ 7, 100 ] ]
   });
 
   // values calcMode=discrete
@@ -297,7 +288,7 @@ function main()
       checkSample(anim, times[1], times[0], i);
     }
 
-    anim.parentNode.removeChild(anim);
+    removeElement(anim);
   }
 
   // fallback to discrete for non-additive animation
@@ -319,7 +310,7 @@ function main()
     checkLineCapSample(anim, sample[1], sample[0],
       "[non-interpolatable fallback]");
   }
-  anim.parentNode.removeChild(anim);
+  removeElement(anim);
 
   SimpleTest.finish();
 }

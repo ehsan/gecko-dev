@@ -44,7 +44,8 @@
 #include "nsLineLayout.h"
 #include "nsStyleConsts.h"
 #include "nsGkAtoms.h"
-#include "nsRenderingContext.h"
+#include "nsIFontMetrics.h"
+#include "nsIRenderingContext.h"
 #include "nsLayoutUtils.h"
 
 #ifdef ACCESSIBILITY
@@ -77,12 +78,12 @@ public:
                     nsHTMLReflowMetrics& aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus& aStatus);
-  virtual void AddInlineMinWidth(nsRenderingContext *aRenderingContext,
+  virtual void AddInlineMinWidth(nsIRenderingContext *aRenderingContext,
                                  InlineMinWidthData *aData);
-  virtual void AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
+  virtual void AddInlinePrefWidth(nsIRenderingContext *aRenderingContext,
                                   InlinePrefWidthData *aData);
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
   virtual nsIAtom* GetType() const;
   virtual nscoord GetBaseline() const;
 
@@ -151,7 +152,8 @@ BRFrame::Reflow(nsPresContext* aPresContext,
       // normal inline frame.  That line-height is used is important
       // here for cases where the line-height is less than 1.
       nsLayoutUtils::SetFontFromStyle(aReflowState.rendContext, mStyleContext);
-      nsFontMetrics *fm = aReflowState.rendContext->FontMetrics();
+      nsCOMPtr<nsIFontMetrics> fm;
+      aReflowState.rendContext->GetFontMetrics(*getter_AddRefs(fm));
       if (fm) {
         nscoord logicalHeight = aReflowState.CalcLineHeight();
         aMetrics.height = logicalHeight;
@@ -193,21 +195,21 @@ BRFrame::Reflow(nsPresContext* aPresContext,
 }
 
 /* virtual */ void
-BRFrame::AddInlineMinWidth(nsRenderingContext *aRenderingContext,
+BRFrame::AddInlineMinWidth(nsIRenderingContext *aRenderingContext,
                            nsIFrame::InlineMinWidthData *aData)
 {
   aData->ForceBreak(aRenderingContext);
 }
 
 /* virtual */ void
-BRFrame::AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
+BRFrame::AddInlinePrefWidth(nsIRenderingContext *aRenderingContext,
                             nsIFrame::InlinePrefWidthData *aData)
 {
   aData->ForceBreak(aRenderingContext);
 }
 
 /* virtual */ nscoord
-BRFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+BRFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result = 0;
   DISPLAY_MIN_WIDTH(this, result);
@@ -215,7 +217,7 @@ BRFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nscoord
-BRFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
+BRFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result = 0;
   DISPLAY_PREF_WIDTH(this, result);
@@ -232,17 +234,18 @@ nscoord
 BRFrame::GetBaseline() const
 {
   nscoord ascent = 0;
-  nsRefPtr<nsFontMetrics> fm;
+  nsCOMPtr<nsIFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
   if (fm) {
     nscoord logicalHeight = GetRect().height;
     if (GetStateBits() & BR_USING_CENTERED_FONT_BASELINE) {
       ascent = nsLayoutUtils::GetCenteredFontBaseline(fm, logicalHeight);
     } else {
-      ascent = fm->MaxAscent() + GetUsedBorderAndPadding().top;
+      fm->GetMaxAscent(ascent);
+      ascent += GetUsedBorderAndPadding().top;
     }
   }
-  return NS_MIN(mRect.height, ascent);
+  return ascent;
 }
 
 nsIFrame::ContentOffsets BRFrame::CalcContentOffsetsFromFramePoint(nsPoint aPoint)

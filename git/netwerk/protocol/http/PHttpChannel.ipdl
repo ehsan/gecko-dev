@@ -43,14 +43,12 @@ include protocol PNecko;
 
 include "mozilla/net/PHttpChannelParams.h";
 include "mozilla/net/NeckoMessageUtils.h";
-include "prio.h";
 
 using RequestHeaderTuples;
 using nsHttpResponseHead;
 using nsHttpAtom;
 using IPC::URI;
 using IPC::InputStream;
-using PRNetAddr;
 
 namespace mozilla {
 namespace net {
@@ -83,8 +81,6 @@ parent:
             bool                chooseApplicationCache,
             nsCString           appCacheClientID);
 
-  // Used to connect redirected-to channel on the parent with redirected-to
-  // channel on the child.
   ConnectChannel(PRUint32 channelId);
 
   SetPriority(PRUint16 priority);
@@ -133,28 +129,21 @@ child:
                  PRBool              cacheEntryAvailable,
                  PRUint32            cacheExpirationTime,
                  nsCString           cachedCharset,
-                 nsCString           securityInfoSerialization,
-                 PRNetAddr           selfAddr,
-                 PRNetAddr           peerAddr);
+                 nsCString           securityInfoSerialization);
 
-  // Combines a single OnDataAvailable and its associated OnProgress &
-  // OnStatus calls into one IPDL message
-  OnTransportAndData(nsresult  status,
-                     PRUint64  progress,
-                     PRUint64  progressMax,
-                     nsCString data,
-                     PRUint32  offset,
-                     PRUint32  count);
+  OnDataAvailable(nsCString data, 
+                  PRUint32  offset, 
+                  PRUint32  count);
 
   OnStopRequest(nsresult statusCode);
 
   OnProgress(PRUint64 progress, PRUint64 progressMax);
 
-  OnStatus(nsresult status);
+  OnStatus(nsresult status, nsString statusArg);
 
   // Used to cancel child channel if we hit errors during creating and
   // AsyncOpen of nsHttpChannel on the parent.
-  FailedAsyncOpen(nsresult status);
+  CancelEarly(nsresult status);
 
   // Called to initiate content channel redirect, starts talking to sinks
   // on the content process and reports result via Redirect2Verify above

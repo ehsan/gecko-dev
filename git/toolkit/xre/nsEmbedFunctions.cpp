@@ -39,7 +39,9 @@
 #include "nsQAppInstance.h"
 #endif
 
+#ifdef MOZ_IPC
 #include "base/basictypes.h"
+#endif
 
 #include "nsXULAppAPI.h"
 
@@ -77,6 +79,7 @@
 #include "nsXREDirProvider.h"
 
 #include "mozilla/Omnijar.h"
+#ifdef MOZ_IPC
 #if defined(XP_MACOSX)
 #include "chrome/common/mach_ipc_mac.h"
 #endif
@@ -105,8 +108,6 @@
 #include "mozilla/ipc/TestShellParent.h"
 #include "mozilla/ipc/XPCShellEnvironment.h"
 
-#include "mozilla/Util.h" // for DebugOnly
-
 #ifdef MOZ_IPDL_TESTS
 #include "mozilla/_ipdltest/IPDLUnitTests.h"
 #include "mozilla/_ipdltest/IPDLUnitTestProcessChild.h"
@@ -134,6 +135,7 @@ using mozilla::ipc::TestShellCommandParent;
 using mozilla::ipc::XPCShellEnvironment;
 
 using mozilla::startup::sChildProcessType;
+#endif
 
 static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 
@@ -247,6 +249,7 @@ XRE_StringToChildProcessType(const char* aProcessTypeString)
   return GeckoProcessType_Invalid;
 }
 
+#ifdef MOZ_IPC
 namespace mozilla {
 namespace startup {
 GeckoProcessType sChildProcessType = GeckoProcessType_Default;
@@ -419,7 +422,7 @@ XRE_InitChildProcess(int aArgc,
   NS_ABORT_IF_FALSE(!*end, "invalid parent PID");
 
   base::ProcessHandle parentHandle;
-  mozilla::DebugOnly<bool> ok = base::OpenProcessHandle(parentPID, &parentHandle);
+  bool ok = base::OpenProcessHandle(parentPID, &parentHandle);
   NS_ABORT_IF_FALSE(ok, "can't open handle to parent");
 
 #if defined(XP_WIN)
@@ -514,7 +517,9 @@ XRE_InitChildProcess(int aArgc,
       // Allow ProcessChild to clean up after itself before going out of
       // scope and being deleted
       process->CleanUp();
-      mozilla::Omnijar::CleanUp();
+#ifdef MOZ_OMNIJAR
+      mozilla::SetOmnijar(nsnull);
+#endif
     }
   }
 
@@ -570,13 +575,13 @@ XRE_InitParentProcess(int aArgc,
   NS_ENSURE_ARG_POINTER(aArgv);
   NS_ENSURE_ARG_POINTER(aArgv[0]);
 
-  ScopedXREEmbed embed;
-
   gArgc = aArgc;
   gArgv = aArgv;
   int rv = XRE_InitCommandLine(gArgc, gArgv);
   if (NS_FAILED(rv))
       return NS_ERROR_FAILURE;
+
+  ScopedXREEmbed embed;
 
   {
     embed.Start();
@@ -685,7 +690,7 @@ XRE_ShutdownChildProcess()
 {
   NS_ABORT_IF_FALSE(MessageLoopForUI::current(), "Wrong thread!");
 
-  mozilla::DebugOnly<MessageLoop*> ioLoop = XRE_GetIOMessageLoop();
+  MessageLoop* ioLoop = XRE_GetIOMessageLoop();
   NS_ABORT_IF_FALSE(!!ioLoop, "Bad shutdown order");
 
   // Quit() sets off the following chain of events
@@ -768,3 +773,6 @@ XRE_InstallX11ErrorHandler()
   InstallX11ErrorHandler();
 }
 #endif
+
+#endif // MOZ_IPC
+

@@ -341,8 +341,7 @@ private:
     LirWriter *mVerboseWriter;
     LirWriter *mValidateWriter1;
     LirWriter *mValidateWriter2;
-    vector< pair<string, LIns*> > mJumps;
-    map<string, LIns*> mJumpLabels;
+    multimap<string, LIns *> mFwdJumps;
 
     size_t mLineno;
     LOpcode mOpcode;
@@ -364,8 +363,7 @@ private:
     void bad(const string &msg);
     void nyi(const string &opname);
     void extract_any_label(string &lab, char lab_delim);
-    void resolve_jumps();
-    void add_jump_label(const string& lab, LIns* ins);
+    void resolve_forward_jumps(string &lab, LIns *ins);
     void endFragment();
 };
 
@@ -648,9 +646,18 @@ FragmentAssembler::assemble_jump(bool isCond)
         condition = NULL;
     }
     string name = pop_front(mTokens);
-    LIns *ins = mLir->insBranch(mOpcode, condition, NULL);
-    mJumps.push_back(make_pair<string, LIns*>(name, ins));
-    return ins;
+    if (mLabels.find(name) != mLabels.end()) {
+        LIns *target = ref(name);
+        return mLir->insBranch(mOpcode, condition, target);
+    } else {
+        LIns *ins = mLir->insBranch(mOpcode, condition, NULL);
+#ifdef __SUNPRO_CC
+        mFwdJumps.insert(make_pair<const string, LIns *>(name, ins));
+#else
+        mFwdJumps.insert(make_pair(name, ins));
+#endif
+        return ins;
+    }
 }
 
 LIns *
@@ -824,17 +831,23 @@ FragmentAssembler::assemble_jump_jov()
     LIns *b = ref(mTokens[1]);
     string name = mTokens[2];
 
-    LIns *ins = mLir->insBranchJov(mOpcode, a, b, NULL);
-    mJumps.push_back(make_pair<string, LIns*>(name, ins));
-    return ins;
+    if (mLabels.find(name) != mLabels.end()) {
+        LIns *target = ref(name);
+        return mLir->insBranchJov(mOpcode, a, b, target);
+    } else {
+        LIns *ins = mLir->insBranchJov(mOpcode, a, b, NULL);
+#ifdef __SUNPRO_CC
+        mFwdJumps.insert(make_pair<const string, LIns *>(name, ins));
+#else
+        mFwdJumps.insert(make_pair(name, ins));
+#endif
+        return ins;
+    }
 }
 
 void
 FragmentAssembler::endFragment()
 {
-    // Resolve all of the jumps in this fragment.
-    resolve_jumps();
-
     if (mReturnTypeBits == 0) {
         cerr << "warning: no return type in fragment '"
              << mFragName << "'" << endl;
@@ -925,28 +938,19 @@ FragmentAssembler::extract_any_label(string &lab, char lab_delim)
 }
 
 void
-FragmentAssembler::resolve_jumps()
+FragmentAssembler::resolve_forward_jumps(string &lab, LIns *ins)
 {
-    typedef vector< pair<string, LIns*> > pairvec;
-    typedef pairvec::const_iterator pv_ci;
-
-    typedef map< string, LIns* > labelmap;
-    typedef labelmap::const_iterator lm_ci;
-
-    for ( pv_ci i = mJumps.begin(); i != mJumps.end(); ++i ) {
-        lm_ci target = mJumpLabels.find(i->first);
-        if ( target == mJumpLabels.end() )
-            bad("No label exists for jump target '" + i->first + "'");
-        i->second->setTarget( target->second );
+    typedef multimap<string, LIns *> mulmap;
+#ifdef __SUNPRO_CC
+    typedef mulmap::iterator ci;
+#else
+    typedef mulmap::const_iterator ci;
+#endif
+    pair<ci, ci> range = mFwdJumps.equal_range(lab);
+    for (ci i = range.first; i != range.second; ++i) {
+        i->second->setTarget(ins);
     }
-}
-
-void
-FragmentAssembler::add_jump_label(const string& lab, LIns* ins)
-{
-    if ( mJumpLabels.find(lab) != mJumpLabels.end() )
-        bad("Label '" + lab + "' found at multiple locations.");
-    mJumpLabels[lab] = ins;
+    mFwdJumps.erase(lab);
 }
 
 void
@@ -985,10 +989,10 @@ FragmentAssembler::assembleFragment(LirTokenStream &in, bool implicitBegin, cons
         LIns *ins = NULL;
         extract_any_label(lab, ':');
 
-        /* Save label as a jump label */
+        /* Save label and do any back-patching of deferred forward-jumps. */
         if (!lab.empty()) {
             ins = mLir->ins0(LIR_label);
-            add_jump_label(lab, ins);
+            resolve_forward_jumps(lab, ins);
             lab.clear();
         }
         extract_any_label(lab, '=');
@@ -1218,8 +1222,9 @@ FragmentAssembler::assembleFragment(LirTokenStream &in, bool implicitBegin, cons
 
           case LIR_label:
             ins = mLir->ins0(LIR_label);
-            add_jump_label(lab, ins);
-            lab.clear();
+            if (!lab.empty()) {
+                resolve_forward_jumps(lab, ins);
+            }
             break;
 
           case LIR_file:
@@ -2228,8 +2233,7 @@ usageAndQuit(const string& progname)
         "  -v --verbose      print LIR and assembly code\n"
         "  --execute         execute LIR\n"
         "  --[no-]optimize   enable or disable optimization of the LIR (default=off)\n"
-        "  --random [N]      generate a random LIR block of size N (default=100)\n"
-        "  --stkskip [N]     push approximately N Kbytes of stack before execution (default=100)\n"
+        "  --random [N]      generate a random LIR block of size N (default=1000)\n"
         "\n"
         "Build query options (these print a value for this build of lirasm and exit)\n"
         "  --show-arch       show the architecture ('i386', 'X64', 'arm', 'ppc',\n"
@@ -2261,32 +2265,9 @@ struct CmdLineOptions {
     bool    execute;
     bool    optimize;
     int     random;
-    int     stkskip;
     string  filename;
     Config  config;
 };
-
-
-bool parseOptionalInt(int argc, char** argv, int* i, int* value, int defaultValue)
-{
-    if (*i == argc - 1) {
-        *value = defaultValue;      // no numeric argument, use default
-    } else {
-        char* endptr;
-        int res = strtol(argv[*i+1], &endptr, 10);
-        if ('\0' == *endptr) {
-            // We don't bother checking for overflow.
-            if (res <= 0) {
-                return false;
-            }
-            *value = res;           // next arg is a number, use that for the value
-            (*i)++;
-        } else {
-            *value = defaultValue;  // next arg is not a number
-        }
-    }
-    return true;
-}
 
 static void
 processCmdLine(int argc, char **argv, CmdLineOptions& opts)
@@ -2296,7 +2277,6 @@ processCmdLine(int argc, char **argv, CmdLineOptions& opts)
     opts.execute  = false;
     opts.random   = 0;
     opts.optimize = false;
-    opts.stkskip  = 0;
 
     // Architecture-specific options.
 #if defined NANOJIT_IA32
@@ -2321,12 +2301,22 @@ processCmdLine(int argc, char **argv, CmdLineOptions& opts)
         else if (arg == "--no-optimize")
             opts.optimize = false;
         else if (arg == "--random") {
-            if (!parseOptionalInt(argc, argv, &i, &opts.random, 100))
-                errMsgAndQuit(opts.progname, "--random argument must be greater than zero");
-        }
-        else if (arg == "--stkskip") {
-            if (!parseOptionalInt(argc, argv, &i, &opts.stkskip, 100))
-                errMsgAndQuit(opts.progname, "--stkskip argument must be greater than zero");
+            const int defaultSize = 100;
+            if (i == argc - 1) {
+                opts.random = defaultSize;      // no numeric argument, use default
+            } else {
+                char* endptr;
+                int res = strtol(argv[i+1], &endptr, 10);
+                if ('\0' == *endptr) {
+                    // We don't bother checking for overflow.
+                    if (res <= 0)
+                        errMsgAndQuit(opts.progname, "--random argument must be greater than zero");
+                    opts.random = res;          // next arg is a number, use that for the size
+                    i++;
+                } else {
+                    opts.random = defaultSize;  // next arg is not a number
+                }
+            }
         }
         else if (arg == "--show-arch") {
             const char* str = 
@@ -2425,45 +2415,6 @@ processCmdLine(int argc, char **argv, CmdLineOptions& opts)
 #endif
 }
 
-int32_t* dummy;
-
-void
-executeFragment(const LirasmFragment& fragment, int skip)
-{
-    // Allocate a large frame, and make sure we don't optimize it away.
-    int32_t space[512];
-    dummy = space;
-
-    if (skip > 0) {
-        executeFragment(fragment, skip-1);
-    } else {
-        switch (fragment.mReturnType) {
-          case RT_INT: {
-            int res = fragment.rint();
-            cout << "Output is: " << res << endl;
-            break;
-          }
-#ifdef NANOJIT_64BIT
-          case RT_QUAD: {
-            int res = fragment.rquad();
-            cout << "Output is: " << res << endl;
-            break;
-          }
-#endif
-          case RT_DOUBLE: {
-            double res = fragment.rdouble();
-            cout << "Output is: " << res << endl;
-            break;
-          }
-          case RT_GUARD: {
-            LasmSideExit *ls = (LasmSideExit*) fragment.rguard()->exit;
-            cout << "Exited block on line: " << ls->line << endl;
-            break;
-          }
-        }
-    }
-}
-
 int
 main(int argc, char **argv)
 {
@@ -2485,7 +2436,30 @@ main(int argc, char **argv)
         i = lasm.mFragments.find("main");
         if (i == lasm.mFragments.end())
             errMsgAndQuit(opts.progname, "error: at least one fragment must be named 'main'");
-        executeFragment(i->second, opts.stkskip);
+        switch (i->second.mReturnType) {
+          case RT_INT: {
+            int res = i->second.rint();
+            cout << "Output is: " << res << endl;
+            break;
+          }
+#ifdef NANOJIT_64BIT
+          case RT_QUAD: {
+            int res = i->second.rquad();
+            cout << "Output is: " << res << endl;
+            break;
+          }
+#endif
+          case RT_DOUBLE: {
+            double res = i->second.rdouble();
+            cout << "Output is: " << res << endl;
+            break;
+          }
+          case RT_GUARD: {
+            LasmSideExit *ls = (LasmSideExit*) i->second.rguard()->exit;
+            cout << "Exited block on line: " << ls->line << endl;
+            break;
+          }
+        }
     } else {
         for (i = lasm.mFragments.begin(); i != lasm.mFragments.end(); i++)
             dump_srecords(cout, i->second.fragptr);

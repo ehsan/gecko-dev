@@ -51,7 +51,6 @@ namespace js {
 #define JSPEW_CHAN_MAP(_)   \
     _(Abort)                \
     _(Scripts)              \
-    _(PCProf)               \
     _(Prof)                 \
     _(JSOps)                \
     _(Insns)                \
@@ -75,11 +74,7 @@ enum JaegerSpewChannel {
 void JMCheckLogging();
 
 bool IsJaegerSpewChannelActive(JaegerSpewChannel channel);
-#ifdef __GNUC__
-void JaegerSpew(JaegerSpewChannel channel, const char *fmt, ...) __attribute__ ((format (printf, 2, 3)));
-#else
 void JaegerSpew(JaegerSpewChannel channel, const char *fmt, ...);
-#endif
 
 struct Profiler {
     JSInt64 t_start;

@@ -335,63 +335,68 @@ public:
   NS_DECL_ISUPPORTS
 
   enum ReporterType {
+    LookAside_Used,
     Cache_Used,
     Schema_Used,
     Stmt_Used
   };
 
-  StorageMemoryReporter(sqlite3 *aDBConn,
-                        const nsCString &aFileName,
+  StorageMemoryReporter(Connection &aDBConn,
                         ReporterType aType)
   : mDBConn(aDBConn)
-  , mFileName(aFileName)
   , mType(aType)
-  , mHasLeaked(false)
   {
   }
 
-  NS_IMETHOD GetProcess(nsACString &process)
-  {
-    process.Truncate();
-    return NS_OK;
-  }
 
-  NS_IMETHOD GetPath(nsACString &path)
+  NS_IMETHOD GetPath(char **memoryPath)
   {
-    path.AssignLiteral("explicit/storage/sqlite/");
-    path.Append(mFileName);
-    if (mHasLeaked) {
-      path.AppendLiteral("-LEAKED");
+    nsCString path;
+
+    path.AppendLiteral("storage/");
+    path.Append(mDBConn.getFilename());
+
+    if (mType == LookAside_Used) {
+      path.AppendLiteral("/LookAside_Used");
     }
-
-    if (mType == Cache_Used) {
-      path.AppendLiteral("/cache-used");
+    else if (mType == Cache_Used) {
+      path.AppendLiteral("/Cache_Used");
     }
     else if (mType == Schema_Used) {
-      path.AppendLiteral("/schema-used");
+      path.AppendLiteral("/Schema_Used");
     }
     else if (mType == Stmt_Used) {
-      path.AppendLiteral("/stmt-used");
+      path.AppendLiteral("/Stmt_Used");
+    }
+
+    *memoryPath = ::ToNewCString(path);
+    return NS_OK;
+  }
+
+  NS_IMETHOD GetDescription(char **desc)
+  {
+    if (mType == LookAside_Used) {
+      *desc = ::strdup("Number of lookaside memory slots currently checked out");
+    }
+    else if (mType == Cache_Used) {
+      *desc = ::strdup("Approximate number of bytes of heap memory used by all pager caches");
+    }
+    else if (mType == Schema_Used) {
+      *desc = ::strdup("Approximate number of bytes of heap memory used to store the schema for all databases associated with the connection");
+    }
+    else if (mType == Stmt_Used) {
+      *desc = ::strdup("Approximate number of bytes of heap and lookaside memory used by all prepared statements");
     }
     return NS_OK;
   }
 
-  NS_IMETHOD GetKind(PRInt32 *kind)
-  {
-    *kind = KIND_HEAP;
-    return NS_OK;
-  }
-
-  NS_IMETHOD GetUnits(PRInt32 *units)
-  {
-    *units = UNITS_BYTES;
-    return NS_OK;
-  }
-
-  NS_IMETHOD GetAmount(PRInt64 *amount)
+  NS_IMETHOD GetMemoryUsed(PRInt64 *memoryUsed)
   {
     int type = 0;
-    if (mType == Cache_Used) {
+    if (mType == LookAside_Used) {
+      type = SQLITE_DBSTATUS_LOOKASIDE_USED;
+    }
+    else if (mType == Cache_Used) {
       type = SQLITE_DBSTATUS_CACHE_USED;
     }
     else if (mType == Schema_Used) {
@@ -403,39 +408,12 @@ public:
 
     int cur=0, max=0;
     int rc = ::sqlite3_db_status(mDBConn, type, &cur, &max, 0);
-    *amount = cur;
+    *memoryUsed = cur;
     return convertResultCode(rc);
   }
-
-  NS_IMETHOD GetDescription(nsACString &desc)
-  {
-    if (mType == Cache_Used) {
-      desc.AssignLiteral("Memory (approximate) used by all pager caches used "
-                         "by connections to this database.");
-    }
-    else if (mType == Schema_Used) {
-      desc.AssignLiteral("Memory (approximate) used to store the schema "
-                         "for all databases associated with connections to "
-                         "this database.");
-    }
-    else if (mType == Stmt_Used) {
-      desc.AssignLiteral("Memory (approximate) used by all prepared statements "
-                         "used by connections to this database.");
-    }
-    return NS_OK;
-  }
-
-  // We call this when we know we've leaked a connection.
-  void markAsLeaked()
-  {
-    mHasLeaked = true;
-  }
-
-private:
-  sqlite3 *mDBConn;
+  Connection &mDBConn;
   nsCString mFileName;
   ReporterType mType;
-  bool mHasLeaked;
 };
 NS_IMPL_THREADSAFE_ISUPPORTS1(
   StorageMemoryReporter
@@ -463,17 +441,6 @@ Connection::Connection(Service *aService,
 Connection::~Connection()
 {
   (void)Close();
-
-  // The memory reporters should have been already unregistered if the APIs
-  // have been used properly.  But if an async connection hasn't been closed
-  // with asyncClose(), the connection is about to leak and it's too late to do
-  // anything about it.  So we mark the memory reporters accordingly so that
-  // the leak will be obvious in about:memory.
-  for (PRUint32 i = 0; i < mMemoryReporters.Length(); i++) {
-    if (mMemoryReporters[i]) {
-      mMemoryReporters[i]->markAsLeaked();
-    }
-  }
 }
 
 NS_IMPL_THREADSAFE_ISUPPORTS2(
@@ -608,22 +575,20 @@ Connection::initialize(nsIFile *aDatabaseFile,
       break;
   }
 
-  nsRefPtr<StorageMemoryReporter> reporter;
-  nsCString filename = this->getFilename();
-
+  nsRefPtr<nsIMemoryReporter> reporter;
   reporter =
-    new StorageMemoryReporter(this->mDBConn, filename,
-                              StorageMemoryReporter::Cache_Used);
+    new StorageMemoryReporter(*this, StorageMemoryReporter::LookAside_Used);
   mMemoryReporters.AppendElement(reporter);
 
   reporter =
-    new StorageMemoryReporter(this->mDBConn, filename,
-                              StorageMemoryReporter::Schema_Used);
+    new StorageMemoryReporter(*this, StorageMemoryReporter::Cache_Used);
   mMemoryReporters.AppendElement(reporter);
 
   reporter =
-    new StorageMemoryReporter(this->mDBConn, filename,
-                              StorageMemoryReporter::Stmt_Used);
+    new StorageMemoryReporter(*this, StorageMemoryReporter::Schema_Used);
+  mMemoryReporters.AppendElement(reporter);
+
+  reporter = new StorageMemoryReporter(*this, StorageMemoryReporter::Stmt_Used);
   mMemoryReporters.AppendElement(reporter);
 
   for (PRUint32 i = 0; i < mMemoryReporters.Length(); i++) {
@@ -768,7 +733,6 @@ Connection::internalClose()
 
   for (PRUint32 i = 0; i < mMemoryReporters.Length(); i++) {
     (void)::NS_UnregisterMemoryReporter(mMemoryReporters[i]);
-    mMemoryReporters[i] = nsnull;
   }
 
   int srv = ::sqlite3_close(mDBConn);
@@ -815,11 +779,8 @@ Connection::Close()
     return NS_ERROR_NOT_INITIALIZED;
 
   { // Make sure we have not executed any asynchronous statements.
-    // If this fails, the connection will be left open!  See ~Connection() for
-    // more details.
     MutexAutoLock lockedScope(sharedAsyncExecutionMutex);
-    bool asyncCloseWasCalled = !mAsyncExecutionThread;
-    NS_ENSURE_TRUE(asyncCloseWasCalled, NS_ERROR_UNEXPECTED);
+    NS_ENSURE_FALSE(mAsyncExecutionThread, NS_ERROR_UNEXPECTED);
   }
 
   nsresult rv = setClosedState();

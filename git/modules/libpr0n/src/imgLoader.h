@@ -52,8 +52,6 @@
 #include "imgRequest.h"
 #include "nsIObserverService.h"
 #include "nsIChannelPolicy.h"
-#include "nsIProgressEventSink.h"
-#include "nsIChannel.h"
 
 #ifdef LOADER_THREADSAFE
 #include "prlock.h"
@@ -64,11 +62,12 @@ class imgRequestProxy;
 class imgIRequest;
 class imgIDecoderObserver;
 class nsILoadGroup;
+class nsIPrefBranch;
 
 class imgCacheEntry
 {
 public:
-  imgCacheEntry(imgRequest *request);
+  imgCacheEntry(imgRequest *request, PRBool mustValidateIfExpired = PR_FALSE);
   ~imgCacheEntry();
 
   nsrefcnt AddRef()
@@ -125,13 +124,13 @@ public:
     Touch();
   }
 
-  PRBool GetMustValidate() const
+  PRBool GetMustValidateIfExpired() const
   {
-    return mMustValidate;
+    return mMustValidateIfExpired;
   }
-  void SetMustValidate(PRBool aValidate)
+  void SetMustValidateIfExpired(PRBool aValidate)
   {
-    mMustValidate = aValidate;
+    mMustValidateIfExpired = aValidate;
     Touch();
   }
 
@@ -180,7 +179,7 @@ private: // data
   PRInt32 mTouchedTime;
   PRInt32 mExpiryTime;
   nsExpirationState mExpirationState;
-  PRPackedBool mMustValidate : 1;
+  PRPackedBool mMustValidateIfExpired : 1;
   PRPackedBool mEvicted : 1;
   PRPackedBool mHasNoProxies : 1;
 };
@@ -308,9 +307,7 @@ private: // methods
                        nsLoadFlags aLoadFlags, PRBool aCanMakeNewChannel,
                        imgIRequest *aExistingRequest,
                        imgIRequest **aProxyRequest,
-                       nsIChannelPolicy *aPolicy,
-                       nsIPrincipal* aLoadingPrincipal,
-                       PRInt32 aCORSMode);
+                       nsIChannelPolicy *aPolicy);
   PRBool ValidateRequestWithNewChannel(imgRequest *request, nsIURI *aURI,
                                        nsIURI *aInitialDocumentURI,
                                        nsIURI *aReferrerURI,
@@ -319,16 +316,14 @@ private: // methods
                                        nsISupports *aCX, nsLoadFlags aLoadFlags,
                                        imgIRequest *aExistingRequest,
                                        imgIRequest **aProxyRequest,
-                                       nsIChannelPolicy *aPolicy,
-                                       nsIPrincipal* aLoadingPrincipal,
-                                       PRInt32 aCORSMode);
+                                       nsIChannelPolicy *aPolicy);
 
   nsresult CreateNewProxyForRequest(imgRequest *aRequest, nsILoadGroup *aLoadGroup,
                                     imgIDecoderObserver *aObserver,
                                     nsLoadFlags aLoadFlags, imgIRequest *aRequestProxy,
                                     imgIRequest **_retval);
 
-  void ReadAcceptHeaderPref();
+  void ReadAcceptHeaderPref(nsIPrefBranch *aBranch);
 
 
   typedef nsRefPtrHashtable<nsCStringHashKey, imgCacheEntry> imgCacheTable;
@@ -380,33 +375,6 @@ private:
   nsCOMPtr<nsIStreamListener> mDestListener;
 };
 
-/**
- * A class that implements nsIProgressEventSink and forwards all calls to it to
- * the original notification callbacks of the channel. Also implements
- * nsIInterfaceRequestor and gives out itself for nsIProgressEventSink calls,
- * and forwards everything else to the channel's notification callbacks.
- */
-class nsProgressNotificationProxy : public nsIProgressEventSink
-                                  , public nsIChannelEventSink
-                                  , public nsIInterfaceRequestor
-{
-  public:
-    nsProgressNotificationProxy(nsIChannel* channel,
-                                imgIRequest* proxy)
-        : mImageRequest(proxy) {
-      channel->GetNotificationCallbacks(getter_AddRefs(mOriginalCallbacks));
-    }
-
-    NS_DECL_ISUPPORTS
-    NS_DECL_NSIPROGRESSEVENTSINK
-    NS_DECL_NSICHANNELEVENTSINK
-    NS_DECL_NSIINTERFACEREQUESTOR
-  private:
-    ~nsProgressNotificationProxy() {}
-
-    nsCOMPtr<nsIInterfaceRequestor> mOriginalCallbacks;
-    nsCOMPtr<nsIRequest> mImageRequest;
-};
 
 /**
  * validate checker
@@ -414,35 +382,24 @@ class nsProgressNotificationProxy : public nsIProgressEventSink
 
 #include "nsCOMArray.h"
 
-class imgCacheValidator : public nsIStreamListener,
-                          public nsIChannelEventSink,
-                          public nsIInterfaceRequestor,
-                          public nsIAsyncVerifyRedirectCallback
+class imgCacheValidator : public nsIStreamListener
 {
 public:
-  imgCacheValidator(nsProgressNotificationProxy* progress, imgRequest *request, void *aContext);
+  imgCacheValidator(imgRequest *request, void *aContext);
   virtual ~imgCacheValidator();
 
   void AddProxy(imgRequestProxy *aProxy);
 
+  /* additional members */
   NS_DECL_ISUPPORTS
   NS_DECL_NSISTREAMLISTENER
   NS_DECL_NSIREQUESTOBSERVER
-  NS_DECL_NSICHANNELEVENTSINK
-  NS_DECL_NSIINTERFACEREQUESTOR
-  NS_DECL_NSIASYNCVERIFYREDIRECTCALLBACK
 
 private:
   nsCOMPtr<nsIStreamListener> mDestListener;
-  nsRefPtr<nsProgressNotificationProxy> mProgressProxy;
-  nsCOMPtr<nsIAsyncVerifyRedirectCallback> mRedirectCallback;
-  nsCOMPtr<nsIChannel> mRedirectChannel;
 
   nsRefPtr<imgRequest> mRequest;
   nsCOMArray<imgIRequest> mProxies;
-
-  nsRefPtr<imgRequest> mNewRequest;
-  nsRefPtr<imgCacheEntry> mNewEntry;
 
   void *mContext;
 

@@ -43,13 +43,12 @@
 #include "nsChangeHint.h"
 #include "nsINode.h"
 #include "nsIDocument.h" // for IsInHTMLDocument
-#include "nsDOMMemoryReporter.h"
 
 // Forward declarations
 class nsIAtom;
 class nsIDOMEvent;
 class nsIContent;
-class nsEventListenerManager;
+class nsIEventListenerManager;
 class nsIURI;
 class nsRuleWalker;
 class nsAttrValue;
@@ -77,8 +76,8 @@ enum nsLinkState {
 
 // IID for the nsIContent interface
 #define NS_ICONTENT_IID       \
-{ 0x4aad2c06, 0xd6c3, 0x4f44, \
- { 0x94, 0xf9, 0xd5, 0xac, 0xe5, 0x04, 0x67, 0xec } }
+{ 0x5788c9eb, 0x646a, 0x4285, \
+  { 0xa2, 0x8c, 0xde, 0x0d, 0x43, 0x6b, 0x47, 0x72 } }
 
 /**
  * A node of content in a document's content model. This interface
@@ -100,8 +99,6 @@ public:
 #endif // MOZILLA_INTERNAL_API
 
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ICONTENT_IID)
-
-  NS_DECL_AND_IMPL_DOM_MEMORY_REPORTER_SIZEOF(nsIContent, nsINode);
 
   /**
    * Bind this content node to a tree.  If this method throws, the caller must
@@ -790,12 +787,20 @@ public:
   }
 
   /**
+   * Method to get the _intrinsic_ content state of this content node.  This is
+   * the state that is independent of the node's presentation.  To get the full
+   * content state, use nsIEventStateManager.  Also see nsIEventStateManager
+   * for the possible bits that could be set here.
+   */
+  virtual nsEventStates IntrinsicState() const;
+
+  /**
    * Get the ID of this content node (the atom corresponding to the
    * value of the null-namespace attribute whose name is given by
    * GetIDAttributeName().  This may be null if there is no ID.
    */
   nsIAtom* GetID() const {
-    if (HasID()) {
+    if (HasFlag(NODE_HAS_ID)) {
       return DoGetID();
     }
     return nsnull;
@@ -859,10 +864,9 @@ public:
   /**
    * Should be called when the node can become editable or when it can stop
    * being editable (for example when its contentEditable attribute changes,
-   * when it is moved into an editable parent, ...).  If aNotify is true and
-   * the node is an element, this will notify the state change.
+   * when it is moved into an editable parent, ...).
    */
-  virtual void UpdateEditableState(PRBool aNotify);
+  virtual void UpdateEditableState();
 
   /**
    * Destroy this node and its children. Ideally this shouldn't be needed
@@ -931,6 +935,12 @@ public:
   nsresult LookupNamespaceURI(const nsAString& aNamespacePrefix,
                               nsAString& aNamespaceURI) const;
 
+  nsIAtom* LookupPrefix(const nsAString& aNamespaceURI);
+
+  PRBool IsEqual(nsIContent *aOther);
+
+  virtual PRBool IsEqualNode(nsINode* aOther);
+
   /**
    * If this content has independent selection, e.g., if this is input field
    * or textarea, this return TRUE.  Otherwise, false.
@@ -944,40 +954,13 @@ public:
    */
   nsIContent* GetEditingHost();
 
-  /**
-   * Determing language. Look at the nearest ancestor element that has a lang
-   * attribute in the XML namespace or is an HTML element and has a lang in
-   * no namespace attribute.
-   */
-  void GetLang(nsAString& aResult) const {
-    for (const nsIContent* content = this; content; content = content->GetParent()) {
-      if (content->GetAttrCount() > 0) {
-        // xml:lang has precedence over lang on HTML elements (see
-        // XHTML1 section C.7).
-        PRBool hasAttr = content->GetAttr(kNameSpaceID_XML, nsGkAtoms::lang,
-                                          aResult);
-        if (!hasAttr && content->IsHTML()) {
-          hasAttr = content->GetAttr(kNameSpaceID_None, nsGkAtoms::lang,
-                                     aResult);
-        }
-        NS_ASSERTION(hasAttr || aResult.IsEmpty(),
-                     "GetAttr that returns false should not make string non-empty");
-        if (hasAttr) {
-          return;
-        }
-      }
-    }
-  }
-
   // Overloaded from nsINode
   virtual already_AddRefed<nsIURI> GetBaseURI() const;
-
-  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
 
 protected:
   /**
    * Hook for implementing GetID.  This is guaranteed to only be
-   * called if HasID() is true.
+   * called if the NODE_HAS_ID flag is set.
    */
   virtual nsIAtom* DoGetID() const = 0;
 

@@ -44,7 +44,7 @@
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
-#include "nsRenderingContext.h"
+#include "nsIRenderingContext.h"
 #include "nsCSSRendering.h"
 #include "nsIContent.h"
 #include "nsGenericHTMLElement.h"
@@ -310,7 +310,7 @@ inline nscolor EnsureDifferentColors(nscolor colorA, nscolor colorB)
 }
 
 void
-nsTableCellFrame::DecorateForSelection(nsRenderingContext& aRenderingContext,
+nsTableCellFrame::DecorateForSelection(nsIRenderingContext& aRenderingContext,
                                        nsPoint aPt)
 {
   NS_ASSERTION(GetStateBits() & NS_FRAME_SELECTED_CONTENT,
@@ -319,7 +319,7 @@ nsTableCellFrame::DecorateForSelection(nsRenderingContext& aRenderingContext,
   nsPresContext* presContext = PresContext();
   displaySelection = DisplaySelection(presContext);
   if (displaySelection) {
-    nsRefPtr<nsFrameSelection> frameSelection =
+    nsCOMPtr<nsFrameSelection> frameSelection =
       presContext->PresShell()->FrameSelection();
 
     if (frameSelection->GetTableCellSelection()) {
@@ -338,8 +338,8 @@ nsTableCellFrame::DecorateForSelection(nsRenderingContext& aRenderingContext,
         //compare bordercolor to ((nsStyleColor *)myColor)->mBackgroundColor)
         bordercolor = EnsureDifferentColors(bordercolor,
                                             GetStyleBackground()->mBackgroundColor);
-        nsRenderingContext::AutoPushTranslation
-            translate(&aRenderingContext, aPt);
+        nsIRenderingContext::AutoPushTranslation
+            translate(&aRenderingContext, aPt.x, aPt.y);
         nscoord onePixel = nsPresContext::CSSPixelsToAppUnits(1);
 
         aRenderingContext.SetColor(bordercolor);
@@ -361,7 +361,7 @@ nsTableCellFrame::DecorateForSelection(nsRenderingContext& aRenderingContext,
 }
 
 void
-nsTableCellFrame::PaintBackground(nsRenderingContext& aRenderingContext,
+nsTableCellFrame::PaintBackground(nsIRenderingContext& aRenderingContext,
                                   const nsRect&        aDirtyRect,
                                   nsPoint              aPt,
                                   PRUint32             aFlags)
@@ -373,7 +373,7 @@ nsTableCellFrame::PaintBackground(nsRenderingContext& aRenderingContext,
 
 // Called by nsTablePainter
 void
-nsTableCellFrame::PaintCellBackground(nsRenderingContext& aRenderingContext,
+nsTableCellFrame::PaintCellBackground(nsIRenderingContext& aRenderingContext,
                                       const nsRect& aDirtyRect, nsPoint aPt,
                                       PRUint32 aFlags)
 {
@@ -401,14 +401,14 @@ public:
     aOutFrames->AppendElement(mFrame);
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx);
+                     nsIRenderingContext* aCtx);
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
 
   NS_DISPLAY_DECL_NAME("TableCellBackground", TYPE_TABLE_CELL_BACKGROUND)
 };
 
 void nsDisplayTableCellBackground::Paint(nsDisplayListBuilder* aBuilder,
-                                         nsRenderingContext* aCtx)
+                                         nsIRenderingContext* aCtx)
 {
   static_cast<nsTableCellFrame*>(mFrame)->
     PaintBackground(*aCtx, mVisibleRect, ToReferenceFrame(),
@@ -424,7 +424,7 @@ nsDisplayTableCellBackground::GetBounds(nsDisplayListBuilder* aBuilder)
 }
 
 static void
-PaintTableCellSelection(nsIFrame* aFrame, nsRenderingContext* aCtx,
+PaintTableCellSelection(nsIFrame* aFrame, nsIRenderingContext* aCtx,
                         const nsRect& aRect, nsPoint aPt)
 {
   static_cast<nsTableCellFrame*>(aFrame)->DecorateForSelection(*aCtx, aPt);
@@ -718,7 +718,7 @@ PRInt32 nsTableCellFrame::GetColSpan()
 }
 
 /* virtual */ nscoord
-nsTableCellFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+nsTableCellFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result = 0;
   DISPLAY_MIN_WIDTH(this, result);
@@ -730,7 +730,7 @@ nsTableCellFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nscoord
-nsTableCellFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
+nsTableCellFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result = 0;
   DISPLAY_PREF_WIDTH(this, result);
@@ -742,7 +742,7 @@ nsTableCellFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nsIFrame::IntrinsicWidthOffsetData
-nsTableCellFrame::IntrinsicWidthOffsets(nsRenderingContext* aRenderingContext)
+nsTableCellFrame::IntrinsicWidthOffsets(nsIRenderingContext* aRenderingContext)
 {
   IntrinsicWidthOffsetData result =
     nsHTMLContainerFrame::IntrinsicWidthOffsets(aRenderingContext);
@@ -1158,7 +1158,7 @@ nsBCTableCellFrame::GetBorderOverflow()
 
 
 void
-nsBCTableCellFrame::PaintBackground(nsRenderingContext& aRenderingContext,
+nsBCTableCellFrame::PaintBackground(nsIRenderingContext& aRenderingContext,
                                     const nsRect&        aDirtyRect,
                                     nsPoint              aPt,
                                     PRUint32             aFlags)
@@ -1176,7 +1176,7 @@ nsBCTableCellFrame::PaintBackground(nsRenderingContext& aRenderingContext,
 #endif
 
   NS_FOR_CSS_SIDES(side) {
-    myBorder.SetBorderWidth(side, borderWidth.Side(side));
+    myBorder.SetBorderWidth(side, borderWidth.side(side));
   }
 
   nsRect rect(aPt, GetSize());

@@ -46,7 +46,6 @@
 #define PL_ARENA_CONST_ALIGN_MASK (sizeof(void*)-1)
 #include "plarena.h"
 
-#include "mozilla/Util.h"
 #include "nsCOMPtr.h"
 #include "nsLineLayout.h"
 #include "nsBlockFrame.h"
@@ -56,7 +55,9 @@
 #include "nsFloatManager.h"
 #include "nsStyleContext.h"
 #include "nsPresContext.h"
-#include "nsRenderingContext.h"
+#include "nsIFontMetrics.h"
+#include "nsIThebesFontMetrics.h"
+#include "nsIRenderingContext.h"
 #include "nsGkAtoms.h"
 #include "nsPlaceholderFrame.h"
 #include "nsIDocument.h"
@@ -67,6 +68,7 @@
 #include "nsLayoutUtils.h"
 #include "nsTextFrame.h"
 #include "nsCSSRendering.h"
+#include "jstl.h"
 
 #ifdef DEBUG
 #undef  NOISY_HORIZONTAL_ALIGN
@@ -83,8 +85,6 @@
 #undef  NOISY_TRIM
 #undef  REALLY_NOISY_TRIM
 #endif
-
-using namespace mozilla;
 
 //----------------------------------------------------------------------
 
@@ -402,8 +402,7 @@ nsresult
 nsLineLayout::BeginSpan(nsIFrame* aFrame,
                         const nsHTMLReflowState* aSpanReflowState,
                         nscoord aLeftEdge,
-                        nscoord aRightEdge,
-                        nscoord* aBaseline)
+                        nscoord aRightEdge)
 {
   NS_ASSERTION(aRightEdge != NS_UNCONSTRAINEDSIZE,
                "should no longer be using unconstrained sizes");
@@ -428,7 +427,6 @@ nsLineLayout::BeginSpan(nsIFrame* aFrame,
     psd->mLeftEdge = aLeftEdge;
     psd->mX = aLeftEdge;
     psd->mRightEdge = aRightEdge;
-    psd->mBaseline = aBaseline;
 
     psd->mNoWrap =
       !aSpanReflowState->frame->GetStyleText()->WhiteSpaceCanWrap();
@@ -705,22 +703,16 @@ IsPercentageAware(const nsIFrame* aFrame)
       return PR_TRUE;
     }
 
-    // Per CSS 2.1, section 10.3.2:
-    //   If 'height' and 'width' both have computed values of 'auto' and
-    //   the element has an intrinsic ratio but no intrinsic height or
-    //   width and the containing block's width does not itself depend
-    //   on the replaced element's width, then the used value of 'width'
-    //   is calculated from the constraint equation used for
-    //   block-level, non-replaced elements in normal flow. 
-    nsIFrame *f = const_cast<nsIFrame*>(aFrame);
-    if (f->GetIntrinsicRatio() != nsSize(0, 0) &&
-        // Some percents are treated like 'auto', so check != coord
-        pos->mHeight.GetUnit() != eStyleUnit_Coord) {
-      const nsIFrame::IntrinsicSize &intrinsicSize = f->GetIntrinsicSize();
-      if (intrinsicSize.width.GetUnit() == eStyleUnit_None &&
-          intrinsicSize.height.GetUnit() == eStyleUnit_None) {
-        return PR_TRUE;
-      }
+    // Handle SVG, which doesn't map width/height into style
+    if ((
+#ifdef MOZ_SVG
+         fType == nsGkAtoms::svgOuterSVGFrame ||
+         fType == nsGkAtoms::imageFrame ||
+#endif
+         fType == nsGkAtoms::subDocumentFrame) &&
+        const_cast<nsIFrame*>(aFrame)->GetIntrinsicSize().width.GetUnit() ==
+        eStyleUnit_Percent) {
+      return PR_TRUE;
     }
   }
 
@@ -796,7 +788,7 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
   nscoord availableSpaceOnLine = psd->mRightEdge - psd->mX;
 
   // Setup reflow state for reflowing the frame
-  Maybe<nsHTMLReflowState> reflowStateHolder;
+  js::LazilyConstructed<nsHTMLReflowState> reflowStateHolder;
   if (!isText) {
     reflowStateHolder.construct(mPresContext, *psd->mReflowState,
                                 aFrame, availSize);
@@ -1482,26 +1474,6 @@ nsLineLayout::VerticalAlignLine()
   }
   PlaceTopBottomFrames(psd, -mTopEdge, lineHeight);
 
-  // If the frame being reflowed has text decorations, we simulate the
-  // propagation of those decorations to a line-level element by storing the
-  // offset in a frame property on any child frames that are vertically-aligned
-  // somewhere other than the baseline. This property is then used by
-  // nsTextFrame::GetTextDecorations when the same conditions are met.
-  if (rootPFD.mFrame->GetStyleContext()->HasTextDecorationLines()) {
-    for (const PerFrameData* pfd = psd->mFirstFrame; pfd; pfd = pfd->mNext) {
-      const nsIFrame *const f = pfd->mFrame;
-      const nsStyleCoord& vAlign =
-          f->GetStyleContext()->GetStyleTextReset()->mVerticalAlign;
-
-      if (vAlign.GetUnit() != eStyleUnit_Enumerated ||
-          vAlign.GetIntValue() != NS_STYLE_VERTICAL_ALIGN_BASELINE) {
-        const nscoord offset = baselineY - pfd->mBounds.y;
-        f->Properties().Set(nsIFrame::LineBaselineOffset(),
-                            NS_INT32_TO_PTR(offset));
-      }
-    }
-  }
-
   // Fill in returned line-box and max-element-width data
   mLineBox->mBounds.x = psd->mLeftEdge;
   mLineBox->mBounds.y = mTopEdge;
@@ -1589,9 +1561,10 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
 
   // Get the parent frame's font for all of the frames in this span
   nsStyleContext* styleContext = spanFrame->GetStyleContext();
-  nsRenderingContext* rc = mBlockReflowState->rendContext;
+  nsIRenderingContext* rc = mBlockReflowState->rendContext;
   nsLayoutUtils::SetFontFromStyle(mBlockReflowState->rendContext, styleContext);
-  nsFontMetrics* fm = rc->FontMetrics();
+  nsCOMPtr<nsIFontMetrics> fm;
+  rc->GetFontMetrics(*getter_AddRefs(fm));
 
   PRBool preMode = mStyleText->WhiteSpaceIsSignificant();
 
@@ -1765,7 +1738,7 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
     // This is the distance from the top edge of the parents visual
     // box to the baseline. The span already computed this for us,
     // so just use it.
-    *psd->mBaseline = baselineY = spanFramePFD->mAscent;
+    baselineY = spanFramePFD->mAscent;
 
 
 #ifdef NOISY_VERTICAL_ALIGN
@@ -1840,7 +1813,8 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
           // of the parent's box. This is identical to the baseline
           // alignment except for the addition of the subscript
           // offset to the baseline Y.
-          nscoord parentSubscript = fm->SubscriptOffset();
+          nscoord parentSubscript;
+          fm->GetSubscriptOffset(parentSubscript);
           nscoord revisedBaselineY = baselineY + parentSubscript;
           pfd->mBounds.y = revisedBaselineY - pfd->mAscent;
           pfd->mVerticalAlign = VALIGN_OTHER;
@@ -1853,7 +1827,8 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
           // of the parent's box. This is identical to the baseline
           // alignment except for the subtraction of the superscript
           // offset to the baseline Y.
-          nscoord parentSuperscript = fm->SuperscriptOffset();
+          nscoord parentSuperscript;
+          fm->GetSuperscriptOffset(parentSuperscript);
           nscoord revisedBaselineY = baselineY - parentSuperscript;
           pfd->mBounds.y = revisedBaselineY - pfd->mAscent;
           pfd->mVerticalAlign = VALIGN_OTHER;
@@ -1894,7 +1869,8 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
         {
           // Align the midpoint of the frame with 1/2 the parents
           // x-height above the baseline.
-          nscoord parentXHeight = fm->XHeight();
+          nscoord parentXHeight;
+          fm->GetXHeight(parentXHeight);
           if (frameSpan) {
             pfd->mBounds.y = baselineY -
               (parentXHeight + pfd->mBounds.height)/2;
@@ -1911,7 +1887,8 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
         {
           // The top of the logical box is aligned with the top of
           // the parent element's text.
-          nscoord parentAscent = fm->MaxAscent();
+          nscoord parentAscent;
+          fm->GetMaxAscent(parentAscent);
           if (frameSpan) {
             pfd->mBounds.y = baselineY - parentAscent -
               pfd->mBorderPadding.top + frameSpan->mTopLeading;
@@ -1927,7 +1904,8 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
         {
           // The bottom of the logical box is aligned with the
           // bottom of the parent elements text.
-          nscoord parentDescent = fm->MaxDescent();
+          nscoord parentDescent;
+          fm->GetMaxDescent(parentDescent);
           if (frameSpan) {
             pfd->mBounds.y = baselineY + parentDescent -
               pfd->mBounds.height + pfd->mBorderPadding.bottom -
@@ -2142,7 +2120,6 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
       spanFramePFD->mAscent -= minY; // move the baseline up
       spanFramePFD->mBounds.height -= minY; // move the bottom up
       psd->mTopLeading += minY;
-      *psd->mBaseline -= minY;
 
       pfd = psd->mFirstFrame;
       while (nsnull != pfd) {
@@ -2622,12 +2599,7 @@ nsLineLayout::RelativePositionFrames(PerSpanData* psd, nsOverflowAreas& aOverflo
     } else {
       r = pfd->mOverflowAreas;
       if (pfd->GetFlag(PFD_ISTEXTFRAME)) {
-        // We need to recompute overflow areas in two cases:
-        // (1) When PFD_RECOMPUTEOVERFLOW is set due to trimming
-        // (2) When there are text decorations, since we can't recompute the
-        //     overflow area until Reflow and VerticalAlignLine have finished
-        if (pfd->GetFlag(PFD_RECOMPUTEOVERFLOW) ||
-            frame->GetStyleContext()->HasTextDecorationLines()) {
+        if (pfd->GetFlag(PFD_RECOMPUTEOVERFLOW)) {
           nsTextFrame* f = static_cast<nsTextFrame*>(frame);
           r = f->RecomputeOverflow();
         }

@@ -71,13 +71,13 @@ CPPSRCS		= \
 		GfxInfoWebGL.cpp \
                 GfxDriverInfo.cpp \
                 GfxInfoBase.cpp \
+		$(NULL)
+
+ifdef MOZ_IPC
+CPPSRCS		+= \
 		PuppetWidget.cpp \
 		nsFilePickerProxy.cpp \
 		$(NULL)
-
-ifdef MOZ_X11
-CPPSRCS		+= \
-		GfxInfoX11.cpp
 endif
 
 ifneq (,$(filter os2 cocoa windows,$(MOZ_WIDGET_TOOLKIT)))
@@ -97,16 +97,9 @@ ifdef MOZ_X11
 SHARED_LIBRARY_LIBS += ../shared/x11/$(LIB_PREFIX)widget_shared_x11.$(LIB_SUFFIX)
 endif
 
-ifdef MOZ_ENABLE_D3D10_LAYER
-DEFINES		+= -DMOZ_ENABLE_D3D10_LAYER
-endif
-
 LOCAL_INCLUDES	+= \
 		-I$(srcdir)/../$(MOZ_WIDGET_TOOLKIT) \
 		-I$(srcdir)/../shared \
-		-I$(topsrcdir)/layout/forms \
-		-I$(topsrcdir)/layout/generic \
-		-I$(topsrcdir)/layout/xul/base/src \
 		-I$(srcdir) \
 		$(NULL)
 
@@ -114,7 +107,9 @@ LOCAL_INCLUDES	+= \
 FORCE_STATIC_LIB = 1
 
 include $(topsrcdir)/config/config.mk
+ifdef MOZ_IPC
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
+endif
 include $(topsrcdir)/config/rules.mk
 
 CXXFLAGS	+= $(TK_CFLAGS)

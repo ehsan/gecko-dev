@@ -23,7 +23,6 @@
 #   Benjamin Smedberg <bsmedberg@covad.net>
 #   Arthur Wiebe <artooro@gmail.com>
 #   Mark Mentovai <mark@moxienet.com>
-#   Robert Strong <robert.bugzilla@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -47,7 +46,7 @@ ifndef MOZ_PKG_FORMAT
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 MOZ_PKG_FORMAT  = DMG
 else
-ifeq (,$(filter-out OS2 WINNT, $(OS_ARCH)))
+ifeq (,$(filter-out OS2 WINNT WINCE, $(OS_ARCH)))
 MOZ_PKG_FORMAT  = ZIP
 else
 ifeq (,$(filter-out SunOS, $(OS_ARCH)))
@@ -67,8 +66,16 @@ endif
 endif
 endif # MOZ_PKG_FORMAT
 
-ifeq ($(OS_ARCH),WINNT)
+ifeq ($(OS_ARCH),OS2)
+INSTALLER_DIR   = os2
+else
+ifneq (,$(filter WINNT WINCE,$(OS_ARCH)))
 INSTALLER_DIR   = windows
+else
+ifneq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+INSTALLER_DIR   = unix
+endif
+endif
 endif
 
 PACKAGE       = $(PKG_PATH)$(PKG_BASENAME)$(PKG_SUFFIX)
@@ -82,29 +89,22 @@ endif
 SDK_SUFFIX    = $(PKG_SUFFIX)
 SDK           = $(SDK_PATH)$(PKG_BASENAME).sdk$(SDK_SUFFIX)
 
-# JavaScript Shell packaging
-ifndef LIBXUL_SDK
-JSSHELL_BINS  = \
-  $(DIST)/bin/js$(BIN_SUFFIX) \
-  $(NULL)
-ifndef MOZ_NATIVE_NSPR
-JSSHELL_BINS += $(DIST)/bin/$(LIB_PREFIX)nspr4$(DLL_SUFFIX)
-ifeq ($(OS_ARCH),WINNT)
-JSSHELL_BINS += $(DIST)/bin/mozcrt19$(DLL_SUFFIX)
-else
-JSSHELL_BINS += \
-  $(DIST)/bin/$(LIB_PREFIX)plds4$(DLL_SUFFIX) \
-  $(DIST)/bin/$(LIB_PREFIX)plc4$(DLL_SUFFIX) \
-  $(NULL)
-endif
-endif # MOZ_NATIVE_NSPR
-MAKE_JSSHELL  = $(ZIP) -9j $(PKG_JSSHELL) $(JSSHELL_BINS)
-endif # LIBXUL_SDK
-
 MAKE_PACKAGE	= $(error What is a $(MOZ_PKG_FORMAT) package format?);
+MAKE_CAB	= $(error Don't know how to make a CAB!);
 _ABS_DIST = $(call core_abspath,$(DIST))
-JARLOG_DIR = $(call core_abspath,$(DEPTH)/jarlog/)
-JARLOG_DIR_AB_CD = $(JARLOG_DIR)/$(AB_CD)
+
+ifdef WINCE
+ifndef WINCE_WINDOWS_MOBILE
+CABARGS += -s
+endif
+ifdef MOZ_FASTSTART
+CABARGS += -faststart
+endif
+VSINSTALLDIR ?= $(error VSINSTALLDIR not set, must be set to the Visual Studio install directory)
+MAKE_CAB	= $(PYTHON) $(MOZILLA_DIR)/build/package/wince/make_wince_cab.py \
+	$(CABARGS) "$(VSINSTALLDIR)/SmartDevices/SDK/SDKTools/cabwiz.exe" \
+	"$(MOZ_PKG_DIR)" "$(MOZ_APP_DISPLAYNAME)" "$(PKG_PATH)$(PKG_BASENAME).cab"
+endif
 
 CREATE_FINAL_TAR = $(TAR) -c --owner=0 --group=0 --numeric-owner \
   --mode="go-w" -f
@@ -134,6 +134,11 @@ INNER_MAKE_PACKAGE	= $(ZIP) -r9D $(PACKAGE) $(MOZ_PKG_DIR)
 INNER_UNMAKE_PACKAGE	= $(UNZIP) $(UNPACKAGE)
 MAKE_SDK = $(ZIP) -r9D $(SDK) $(MOZ_APP_NAME)-sdk
 endif
+ifeq ($(MOZ_PKG_FORMAT),CAB)
+PKG_SUFFIX	= .cab
+INNER_MAKE_PACKAGE	= $(MAKE_CAB)
+INNER_UNMAKE_PACKAGE	= $(error Unpacking CAB files is not supported)
+endif
 ifeq ($(MOZ_PKG_FORMAT),SFX7Z)
 PKG_SUFFIX	= .exe
 INNER_MAKE_PACKAGE	= rm -f app.7z && \
@@ -143,7 +148,7 @@ INNER_MAKE_PACKAGE	= rm -f app.7z && \
   mv core $(MOZ_PKG_DIR) && \
   cat $(SFX_HEADER) app.7z > $(PACKAGE) && \
   chmod 0755 $(PACKAGE)
-INNER_UNMAKE_PACKAGE	= $(CYGWIN_WRAPPER) 7z x $(UNPACKAGE) core && \
+INNER_UNMAKE_PACKAGE	= $(CYGWIN_WRAPPER) 7z x $(UNPACKAGE) && \
   mv core $(MOZ_PKG_DIR)
 endif
 
@@ -167,7 +172,7 @@ RPM_CMD = \
   echo Creating RPM && \
   mkdir -p $(RPMBUILD_SOURCEDIR) && \
   $(PYTHON) $(topsrcdir)/config/Preprocessor.py \
-	-DMOZ_APP_NAME=$(MOZ_APP_NAME) \
+  	-DMOZ_APP_NAME=$(MOZ_APP_NAME) \
 	-DMOZ_APP_DISPLAYNAME=$(MOZ_APP_DISPLAYNAME) \
 	< $(RPM_INCIDENTALS)/mozilla.desktop \
 	> $(RPMBUILD_SOURCEDIR)/$(MOZ_APP_NAME).desktop && \
@@ -254,7 +259,6 @@ DIST_FILES = \
   components \
   defaults \
   modules \
-  hyphenation \
   res \
   lib \
   lib.id \
@@ -277,7 +281,9 @@ UPLOAD_EXTRA_FILES += gecko-unsigned-unaligned.apk
 
 include $(topsrcdir)/ipc/app/defs.mk
 
+ifdef MOZ_IPC
 DIST_FILES += $(MOZ_CHILD_PROCESS_NAME)
+endif
 
 ifdef MOZ_THUMB2
 ABI_DIR = armeabi-v7a
@@ -383,22 +389,6 @@ MAKE_SDK = $(CREATE_FINAL_TAR) - $(MOZ_APP_NAME)-sdk | bzip2 -vf > $(SDK)
 endif
 
 ifdef MOZ_OMNIJAR
-
-ifdef GENERATE_CACHE
-ifneq (1_,$(if $(CROSS_COMPILE),1,0)_$(UNIVERSAL_BINARY))
-ifdef RUN_TEST_PROGRAM
-_ABS_RUN_TEST_PROGRAM = $(call core_abspath,$(RUN_TEST_PROGRAM))
-endif
-
-GENERATE_CACHE = \
-  $(_ABS_RUN_TEST_PROGRAM) $(LIBXUL_DIST)/bin/xpcshell$(BIN_SUFFIX) -g "$$PWD" -a "$$PWD" -f $(MOZILLA_DIR)/toolkit/mozapps/installer/precompile_cache.js -e "populate_startupcache('omni.jar', 'startupCache.zip');" && \
-  rm -rf jsloader && \
-  $(UNZIP) startupCache.zip && \
-  rm startupCache.zip && \
-  $(ZIP) -r9m omni.jar jsloader
-endif
-endif
-
 GENERATE_CACHE ?= true
 
 OMNIJAR_FILES	= \
@@ -416,7 +406,7 @@ OMNIJAR_FILES	= \
 
 NON_OMNIJAR_FILES += \
   chrome/icons/\* \
-  $(PREF_DIR)/channel-prefs.js \
+  defaults/pref/channel-prefs.js \
   res/cursors/\* \
   res/MainMenu.nib/\* \
   $(NULL)
@@ -424,29 +414,25 @@ NON_OMNIJAR_FILES += \
 PACK_OMNIJAR	= \
   rm -f omni.jar components/binary.manifest && \
   grep -h '^binary-component' components/*.manifest > binary.manifest ; \
-  for m in components/*.manifest; do \
-    sed -e 's/^binary-component/\#binary-component/' $$m > tmp.manifest && \
-    mv tmp.manifest $$m; \
-  done; \
-  $(ZIP) -r9m omni.jar $(OMNIJAR_FILES) -x $(NON_OMNIJAR_FILES) && \
+  sed -e 's/^binary-component/\#binary-component/' components/components.manifest > components.manifest && \
+  mv components.manifest components && \
+  find . | xargs touch -t 201001010000 && \
+  zip -r9mX omni.jar $(OMNIJAR_FILES) -x $(NON_OMNIJAR_FILES) && \
   $(GENERATE_CACHE) && \
-  $(OPTIMIZE_JARS_CMD) --optimize $(JARLOG_DIR_AB_CD) ./ ./ && \
+  $(OPTIMIZE_JARS_CMD) --optimize $(_ABS_DIST)/jarlog/ ./ ./ && \
   mv binary.manifest components && \
   printf "manifest components/binary.manifest\n" > chrome.manifest
 UNPACK_OMNIJAR	= \
-  $(OPTIMIZE_JARS_CMD) --deoptimize $(JARLOG_DIR_AB_CD) ./ ./ && \
-  $(UNZIP) -o omni.jar && \
+  $(OPTIMIZE_JARS_CMD) --deoptimize $(_ABS_DIST)/jarlog/ ./ ./ && \
+  unzip -o omni.jar && \
   rm -f components/binary.manifest && \
-  for m in components/*.manifest; do \
-    sed -e 's/^\#binary-component/binary-component/' $$m > tmp.manifest && \
-    mv tmp.manifest $$m; \
-  done
+  sed -e 's/^\#binary-component/binary-component/' components/components.manifest > components.manifest && \
+  mv components.manifest components
 
-MAKE_PACKAGE	= (cd $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && $(PACK_OMNIJAR)) && \
-	              (cd $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && $(CREATE_PRECOMPLETE_CMD)) && $(INNER_MAKE_PACKAGE)
+MAKE_PACKAGE	= (cd $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && $(PACK_OMNIJAR)) && $(INNER_MAKE_PACKAGE)
 UNMAKE_PACKAGE	= $(INNER_UNMAKE_PACKAGE) && (cd $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && $(UNPACK_OMNIJAR))
 else
-MAKE_PACKAGE	= (cd $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && $(CREATE_PRECOMPLETE_CMD)) && $(INNER_MAKE_PACKAGE)
+MAKE_PACKAGE	= $(INNER_MAKE_PACKAGE)
 UNMAKE_PACKAGE	= $(INNER_UNMAKE_PACKAGE)
 endif
 
@@ -555,9 +541,11 @@ STRIP_FLAGS	= -f
 endif
 ifeq ($(OS_ARCH),OS2)
 STRIP		= $(MOZILLA_DIR)/toolkit/mozapps/installer/os2/strip.cmd
+STRIP_FLAGS	=
+PLATFORM_EXCLUDE_LIST = ! -name "*.ico" ! -name "$(MOZ_PKG_APPNAME).exe"
 endif
 
-ifneq (,$(filter WINNT OS2,$(OS_ARCH)))
+ifneq (,$(filter WINNT WINCE OS2,$(OS_ARCH)))
 PKGCP_OS = dos
 else
 PKGCP_OS = unix
@@ -589,19 +577,13 @@ ifdef MOZ_OMNIJAR
 	@(cd $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && $(PACK_OMNIJAR))
 endif
 	@cp -av $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)/. $(DEPTH)/installer-stage/core
-	@(cd $(DEPTH)/installer-stage/core && $(CREATE_PRECOMPLETE_CMD))
 ifdef MOZ_OPTIONAL_PKG_LIST
 	@$(NSINSTALL) -D $(DEPTH)/installer-stage/optional
 	$(call PACKAGER_COPY, "$(call core_abspath,$(DIST))",\
 	  "$(call core_abspath,$(DEPTH)/installer-stage/optional)", \
 	  "$(MOZ_PKG_MANIFEST)", "$(PKGCP_OS)", 1, 0, 1 \
 	  $(foreach pkg,$(MOZ_OPTIONAL_PKG_LIST),$(PKG_ARG)) )
-	if test -d $(DEPTH)/installer-stage/optional/extensions ; then \
-		cd $(DEPTH)/installer-stage/optional/extensions; find -maxdepth 1 -mindepth 1 -exec rm -r ../../core/extensions/{} \; ; \
-	fi
-	if test -d $(DEPTH)/installer-stage/optional/distribution/extensions/ ; then \
-		cd $(DEPTH)/installer-stage/optional/distribution/extensions/; find -maxdepth 1 -mindepth 1 -exec rm -r ../../../core/distribution/extensions/{} \; ; \
-	fi
+	@cd $(DEPTH)/installer-stage/optional/extensions; find -maxdepth 1 -mindepth 1 -exec rm -r ../../core/extensions/{} \;
 endif
 
 elfhack:
@@ -659,39 +641,33 @@ else
 endif # DMG
 endif # MOZ_PKG_MANIFEST
 endif # UNIVERSAL_BINARY
-	$(OPTIMIZE_JARS_CMD) --optimize $(JARLOG_DIR_AB_CD) $(DIST)/bin/chrome $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)/chrome
+	$(OPTIMIZE_JARS_CMD) --optimize $(DIST)/jarlog/ $(DIST)/bin/chrome $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)/chrome
 ifndef PKG_SKIP_STRIP
-  ifeq ($(OS_ARCH),OS2)
-		@echo "Stripping package directory..."
-		@cd $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR) && $(STRIP)
-		$(SIGN_NSS)
-  else
-		@echo "Stripping package directory..."
-		@cd $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR); find . ! -type d \
-				! -name "*.js" \
-				! -name "*.xpt" \
-				! -name "*.gif" \
-				! -name "*.jpg" \
-				! -name "*.png" \
-				! -name "*.xpm" \
-				! -name "*.txt" \
-				! -name "*.rdf" \
-				! -name "*.sh" \
-				! -name "*.properties" \
-				! -name "*.dtd" \
-				! -name "*.html" \
-				! -name "*.xul" \
-				! -name "*.css" \
-				! -name "*.xml" \
-				! -name "*.jar" \
-				! -name "*.dat" \
-				! -name "*.tbl" \
-				! -name "*.src" \
-				! -name "*.reg" \
-				$(PLATFORM_EXCLUDE_LIST) \
-				-exec $(STRIP) $(STRIP_FLAGS) {} >/dev/null 2>&1 \;
-		$(SIGN_NSS)
-  endif
+	@echo "Stripping package directory..."
+	@cd $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR); find . ! -type d \
+			! -name "*.js" \
+			! -name "*.xpt" \
+			! -name "*.gif" \
+			! -name "*.jpg" \
+			! -name "*.png" \
+			! -name "*.xpm" \
+			! -name "*.txt" \
+			! -name "*.rdf" \
+			! -name "*.sh" \
+			! -name "*.properties" \
+			! -name "*.dtd" \
+			! -name "*.html" \
+			! -name "*.xul" \
+			! -name "*.css" \
+			! -name "*.xml" \
+			! -name "*.jar" \
+			! -name "*.dat" \
+			! -name "*.tbl" \
+			! -name "*.src" \
+			! -name "*.reg" \
+			$(PLATFORM_EXCLUDE_LIST) \
+			-exec $(STRIP) $(STRIP_FLAGS) {} >/dev/null 2>&1 \;
+	$(SIGN_NSS)
 else
 ifdef UNIVERSAL_BINARY
 # universal binaries will have had their .chk files removed prior to the unify
@@ -707,15 +683,6 @@ endif
 ifdef MOZ_PKG_REMOVALS
 	$(SYSINSTALL) $(IFLAGS1) $(MOZ_PKG_REMOVALS_GEN) $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)
 endif # MOZ_PKG_REMOVALS
-ifdef MOZ_POST_STAGING_CMD
-	cd $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && $(MOZ_POST_STAGING_CMD)
-endif # MOZ_POST_STAGING_CMD
-ifndef LIBXUL_SDK
-# Package JavaScript Shell
-	@echo "Packaging JavaScript Shell..."
-	$(RM) $(PKG_JSSHELL)
-	$(MAKE_JSSHELL)
-endif # LIBXUL_SDK
 
 make-package: stage-package $(PACKAGE_XULRUNNER) make-sourcestamp-file
 	@echo "Compressing..."
@@ -734,7 +701,7 @@ make-sourcestamp-file::
 # dist/sdk/lib -> prefix/lib/appname-devel-version/lib
 # prefix/lib/appname-devel-version/* symlinks to the above directories
 install:: stage-package
-ifeq ($(OS_ARCH),WINNT)
+ifneq (,$(filter WINNT WINCE,$(OS_ARCH)))
 	$(error "make install" is not supported on this platform. Use "make package" instead.)
 endif
 ifeq (bundle,$(MOZ_FS_LAYOUT))
@@ -758,12 +725,10 @@ ifdef INSTALL_SDK # Here comes the hard part
 	  (cd $(DESTDIR)$(idldir) && tar -xf -)
 # SDK directory is the libs + a bunch of symlinks
 	$(NSINSTALL) -D $(DESTDIR)$(sdkdir)/sdk/lib
-	$(NSINSTALL) -D $(DESTDIR)$(sdkdir)/sdk/bin
 	if test -f $(DIST)/include/xpcom-config.h; then \
 	  $(SYSINSTALL) $(IFLAGS1) $(DIST)/include/xpcom-config.h $(DESTDIR)$(sdkdir); \
 	fi
 	(cd $(DIST)/sdk/lib && tar $(TAR_CREATE_FLAGS) - .) | (cd $(DESTDIR)$(sdkdir)/sdk/lib && tar -xf -)
-	(cd $(DIST)/sdk/bin && tar $(TAR_CREATE_FLAGS) - .) | (cd $(DESTDIR)$(sdkdir)/sdk/bin && tar -xf -)
 	$(RM) -f $(DESTDIR)$(sdkdir)/lib $(DESTDIR)$(sdkdir)/bin $(DESTDIR)$(sdkdir)/include $(DESTDIR)$(sdkdir)/include $(DESTDIR)$(sdkdir)/sdk/idl $(DESTDIR)$(sdkdir)/idl
 	ln -s $(sdkdir)/sdk/lib $(DESTDIR)$(sdkdir)/lib
 	ln -s $(installdir) $(DESTDIR)$(sdkdir)/bin
@@ -800,6 +765,9 @@ make-sdk:
 ifeq ($(OS_TARGET), WINNT)
 INSTALLER_PACKAGE = $(DIST)/$(PKG_INST_PATH)$(PKG_INST_BASENAME).exe
 endif
+ifeq ($(OS_TARGET), WINCE)
+INSTALLER_PACKAGE = $(DIST)/$(PKG_PATH)$(PKG_BASENAME).cab
+endif
 
 # These are necessary because some of our packages/installers contain spaces
 # in their filenames and GNU Make's $(wildcard) function doesn't properly
@@ -826,11 +794,9 @@ UPLOAD_FILES= \
   $(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)$(SYMBOL_ARCHIVE_BASENAME).zip) \
   $(call QUOTED_WILDCARD,$(DIST)/$(SDK)) \
   $(call QUOTED_WILDCARD,$(MOZ_SOURCESTAMP_FILE)) \
-  $(call QUOTED_WILDCARD,$(PKG_JSSHELL)) \
   $(if $(UPLOAD_EXTRA_FILES), $(foreach f, $(UPLOAD_EXTRA_FILES), $(wildcard $(DIST)/$(f))))
 
 checksum:
-	mkdir -p `dirname $(CHECKSUM_FILE)`
 	@$(PYTHON) $(MOZILLA_DIR)/build/checksums.py \
 		-o $(CHECKSUM_FILE) \
 		-d $(CHECKSUM_ALGORITHM) \
@@ -845,16 +811,6 @@ upload: checksum
 	$(PYTHON) $(MOZILLA_DIR)/build/upload.py --base-path $(DIST) \
 		$(UPLOAD_FILES) \
 		$(CHECKSUM_FILE)
-
-ifeq (WINNT,$(OS_TARGET))
-CODESIGHS_PACKAGE = $(INSTALLER_PACKAGE)
-else
-CODESIGHS_PACKAGE = $(DIST)/$(PACKAGE)
-endif
-
-codesighs:
-	$(PYTHON) $(topsrcdir)/tools/codesighs/codesighs.py \
-	  "$(DIST)/$(MOZ_PKG_DIR)" "$(CODESIGHS_PACKAGE)"
 
 ifndef MOZ_PKG_SRCDIR
 MOZ_PKG_SRCDIR = $(topsrcdir)

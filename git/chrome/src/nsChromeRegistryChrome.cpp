@@ -36,9 +36,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef MOZ_IPC
 #include "mozilla/dom/PContentParent.h"
 #include "RegistryMessageUtils.h"
 #include "nsResProtocolHandler.h"
+#endif
 
 #include "nsChromeRegistryChrome.h"
 
@@ -368,9 +370,12 @@ nsChromeRegistryChrome::Observe(nsISupports *aSubject, const char *aTopic,
 
     if (pref.EqualsLiteral(MATCH_OS_LOCALE_PREF) ||
         pref.EqualsLiteral(SELECTED_LOCALE_PREF)) {
-        rv = UpdateSelectedLocale();
-        if (NS_SUCCEEDED(rv) && mProfileLoaded)
-          FlushAllCaches();
+      if (!mProfileLoaded) {
+        rv = SelectLocaleFromPref(prefs);
+        if (NS_FAILED(rv))
+          return rv;
+      }
+      FlushAllCaches();
     }
     else if (pref.EqualsLiteral(SELECTED_SKIN_PREF)) {
       nsXPIDLCString provider;
@@ -423,12 +428,11 @@ nsChromeRegistryChrome::CheckForNewChrome()
   return NS_OK;
 }
 
-nsresult nsChromeRegistryChrome::UpdateSelectedLocale()
+void nsChromeRegistryChrome::UpdateSelectedLocale()
 {
-  nsresult rv = NS_OK;
   nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
   if (prefs) {
-    rv = SelectLocaleFromPref(prefs);
+    nsresult rv = SelectLocaleFromPref(prefs);
     if (NS_SUCCEEDED(rv)) {
       nsCOMPtr<nsIObserverService> obsSvc =
         mozilla::services::GetObserverService();
@@ -437,10 +441,9 @@ nsresult nsChromeRegistryChrome::UpdateSelectedLocale()
                               "selected-locale-has-changed", nsnull);
     }
   }
-
-  return rv;
 }
 
+#ifdef MOZ_IPC
 static void
 SerializeURI(nsIURI* aURI,
              SerializedURI& aSerializedURI)
@@ -538,6 +541,7 @@ nsChromeRegistryChrome::CollectPackages(PLDHashTable *table,
   args->packages.AppendElement(chromePackage);
   return (PLDHashOperator)PL_DHASH_NEXT;
 }
+#endif
 
 static PRBool
 CanLoadResource(nsIURI* aResourceURI)

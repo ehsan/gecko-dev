@@ -42,7 +42,6 @@ var summary = 'No Syntax Error when trailing space and XML.ignoreWhitespace ' +
 var BUGNUMBER = 324688;
 var actual = 'No Error';
 var expect = 'No Error';
-var t; // use global scope to prevent timer from being GC'ed
 START(summary);
 
 function init()
@@ -79,7 +78,7 @@ function init()
                 }
             };
 
-            t = Components.classes["@mozilla.org/timer;1"].
+            var t = Components.classes["@mozilla.org/timer;1"].
                 createInstance(Components.interfaces.nsITimer);
             t.init(TestObject, 100, t.TYPE_ONE_SHOT);
         }

@@ -38,20 +38,10 @@
 
 let TabView = {
   _deck: null,
-  _iframe: null,
   _window: null,
-  _initialized: false,
+  _firstUseExperienced: false,
   _browserKeyHandlerInitialized: false,
-  _isFrameLoading: false,
-  _initFrameCallbacks: [],
-  _lastSessionGroupName: null,
-  PREF_BRANCH: "browser.panorama.",
-  PREF_FIRST_RUN: "browser.panorama.experienced_first_run",
-  PREF_STARTUP_PAGE: "browser.startup.page",
-  PREF_RESTORE_ENABLED_ONCE: "browser.panorama.session_restore_enabled_once",
-  GROUPS_IDENTIFIER: "tabview-groups",
   VISIBILITY_IDENTIFIER: "tabview-visibility",
-  LAST_SESSION_GROUP_NAME_IDENTIFIER: "tabview-last-session-group-name",
 
   // ----------
   get windowTitle() {
@@ -64,59 +54,38 @@ let TabView = {
 
   // ----------
   get firstUseExperienced() {
-    let pref = this.PREF_FIRST_RUN;
-    if (Services.prefs.prefHasUserValue(pref))
-      return Services.prefs.getBoolPref(pref);
-
-    return false;
+    return this._firstUseExperienced;
   },
 
   // ----------
   set firstUseExperienced(val) {
-    Services.prefs.setBoolPref(this.PREF_FIRST_RUN, val);
-  },
-
-  // ----------
-  get sessionRestoreEnabledOnce() {
-    let pref = this.PREF_RESTORE_ENABLED_ONCE;
-    if (Services.prefs.prefHasUserValue(pref))
-      return Services.prefs.getBoolPref(pref);
-
-    return false;
-  },
-
-  // ----------
-  set sessionRestoreEnabledOnce(val) {
-    Services.prefs.setBoolPref(this.PREF_RESTORE_ENABLED_ONCE, val);
+    if (val != this._firstUseExperienced)
+      Services.prefs.setBoolPref("browser.panorama.experienced_first_run", val);
   },
 
   // ----------
   init: function TabView_init() {
-    if (this._initialized)
-      return;
+    if (!Services.prefs.prefHasUserValue("browser.panorama.experienced_first_run") ||
+        !Services.prefs.getBoolPref("browser.panorama.experienced_first_run")) {
+      Services.prefs.addObserver(
+        "browser.panorama.experienced_first_run", this, false);
+    } else {
+      this._firstUseExperienced = true;
 
-    if (this.firstUseExperienced) {
       if ((gBrowser.tabs.length - gBrowser.visibleTabs.length) > 0)
         this._setBrowserKeyHandlers();
 
       // ___ visibility
       let sessionstore =
         Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
-
       let data = sessionstore.getWindowValue(window, this.VISIBILITY_IDENTIFIER);
+
       if (data && data == "true") {
         this.show();
       } else {
-        try {
-          data = sessionstore.getWindowValue(window, this.GROUPS_IDENTIFIER);
-          if (data) {
-            let parsedData = JSON.parse(data);
-            this.updateGroupNumberBroadcaster(parsedData.totalNumber || 1);
-          }
-        } catch (e) { }
-
         let self = this;
-        // if a tab is changed from hidden to unhidden and the iframe is not
+
+        // if a tab is changed from hidden to unhidden and the iframe is not 
         // initialized, load the iframe and setup the tab.
         this._tabShowEventListener = function (event) {
           if (!self._window)
@@ -126,93 +95,66 @@ let TabView = {
         };
         gBrowser.tabContainer.addEventListener(
           "TabShow", this._tabShowEventListener, true);
-
-       // grab the last used group title
-       this._lastSessionGroupName = sessionstore.getWindowValue(window,
-         this.LAST_SESSION_GROUP_NAME_IDENTIFIER);
       }
     }
-
-    Services.prefs.addObserver(this.PREF_BRANCH, this, false);
-
-    this._initialized = true;
   },
 
   // ----------
   // Observes topic changes.
   observe: function TabView_observe(subject, topic, data) {
-    if (data == this.PREF_FIRST_RUN && this.firstUseExperienced) {
+    if (topic == "nsPref:changed") {
+      Services.prefs.removeObserver(
+        "browser.panorama.experienced_first_run", this);
+      this._firstUseExperienced = true;
       this._addToolbarButton();
-      this.enableSessionRestore();
     }
   },
 
   // ----------
   // Uninitializes TabView.
   uninit: function TabView_uninit() {
-    if (!this._initialized)
-      return;
-
-    Services.prefs.removeObserver(this.PREF_BRANCH, this);
-
+    if (!this._firstUseExperienced) {
+      Services.prefs.removeObserver(
+        "browser.panorama.experienced_first_run", this);
+    }
     if (this._tabShowEventListener) {
       gBrowser.tabContainer.removeEventListener(
         "TabShow", this._tabShowEventListener, true);
     }
-
-    this._initialized = false;
   },
 
   // ----------
   // Creates the frame and calls the callback once it's loaded. 
   // If the frame already exists, calls the callback immediately. 
   _initFrame: function TabView__initFrame(callback) {
-    let hasCallback = typeof callback == "function";
-
     if (this._window) {
-      if (hasCallback)
+      if (typeof callback == "function")
         callback();
-      return;
-    }
+    } else {
+      // ___ find the deck
+      this._deck = document.getElementById("tab-view-deck");
 
-    if (hasCallback)
-      this._initFrameCallbacks.push(callback);
+      // ___ create the frame
+      let iframe = document.createElement("iframe");
+      iframe.id = "tab-view";
+      iframe.setAttribute("transparent", "true");
+      iframe.flex = 1;
 
-    if (this._isFrameLoading)
-      return;
+      if (typeof callback == "function")
+        window.addEventListener("tabviewframeinitialized", callback, false);
 
-    this._isFrameLoading = true;
+      iframe.setAttribute("src", "chrome://browser/content/tabview.html");
+      this._deck.appendChild(iframe);
+      this._window = iframe.contentWindow;
 
-    // ___ find the deck
-    this._deck = document.getElementById("tab-view-deck");
-
-    // ___ create the frame
-    this._iframe = document.createElement("iframe");
-    this._iframe.id = "tab-view";
-    this._iframe.setAttribute("transparent", "true");
-    this._iframe.flex = 1;
-
-    let self = this;
-
-    window.addEventListener("tabviewframeinitialized", function onInit() {
-      window.removeEventListener("tabviewframeinitialized", onInit, false);
-
-      self._isFrameLoading = false;
-      self._window = self._iframe.contentWindow;
-      self._setBrowserKeyHandlers();
-
-      if (self._tabShowEventListener) {
+      if (this._tabShowEventListener) {
         gBrowser.tabContainer.removeEventListener(
-          "TabShow", self._tabShowEventListener, true);
-        self._tabShowEventListener = null;
+          "TabShow", this._tabShowEventListener, true);
+        this._tabShowEventListener = null;
       }
 
-      self._initFrameCallbacks.forEach(function (cb) cb());
-      self._initFrameCallbacks = [];
-    }, false);
-
-    this._iframe.setAttribute("src", "chrome://browser/content/tabview.html");
-    this._deck.appendChild(this._iframe);
+      this._setBrowserKeyHandlers();
+    }
   },
 
   // ----------
@@ -221,18 +163,19 @@ let TabView = {
   },
 
   // ----------
-  isVisible: function TabView_isVisible() {
-    return (this._deck ? this._deck.selectedPanel == this._iframe : false);
+  isVisible: function() {
+    return (this._deck ? this._deck.selectedIndex == 1 : false);
   },
 
   // ----------
   show: function() {
     if (this.isVisible())
       return;
-
-    let self = this;
+    
     this._initFrame(function() {
-      self._window.UI.showTabView(true);
+      let event = document.createEvent("Events");
+      event.initEvent("tabviewshow", false, false);
+      dispatchEvent(event);
     });
   },
 
@@ -241,7 +184,9 @@ let TabView = {
     if (!this.isVisible())
       return;
 
-    this._window.UI.exit();
+    let event = document.createEvent("Events");
+    event.initEvent("tabviewhide", false, false);
+    dispatchEvent(event);
   },
 
   // ----------
@@ -253,28 +198,18 @@ let TabView = {
   },
   
   getActiveGroupName: function TabView_getActiveGroupName() {
-    if (!this._window)
-      return this._lastSessionGroupName;
-
     // We get the active group this way, instead of querying
     // GroupItems.getActiveGroupItem() because the tabSelect event
     // will not have happened by the time the browser tries to
     // update the title.
-    let groupItem = null;
     let activeTab = window.gBrowser.selectedTab;
-    let activeTabItem = activeTab._tabViewTabItem;
-
-    if (activeTab.pinned) {
-      // It's an app tab, so it won't have a .tabItem. However, its .parent
-      // will already be set as the active group. 
-      groupItem = this._window.GroupItems.getActiveGroupItem();
-    } else if (activeTabItem) {
-      groupItem = activeTabItem.parent;
+    if (activeTab._tabViewTabItem && activeTab._tabViewTabItem.parent){
+      let groupName = activeTab._tabViewTabItem.parent.getTitle();
+      if (groupName)
+        return groupName;
     }
-
-    // groupItem may still be null, if the active tab is an orphan.
-    return groupItem ? groupItem.getTitle() : "";
-  },
+    return null;
+  },  
 
   // ----------
   updateContextMenu: function(tab, popup) {
@@ -355,8 +290,10 @@ let TabView = {
           if (!tabItem)
             return;
 
-          // Switch to the new tab
+          // Switch to the new tab, and close the old group if it's now empty.
+          let oldGroupItem = groupItems.getActiveGroupItem();
           window.gBrowser.selectedTab = tabItem.tab;
+          oldGroupItem.closeIfEmpty();
         });
       }
     }, true);
@@ -368,8 +305,8 @@ let TabView = {
     if (this._window) {
       this._window.UI.restoredClosedTab = true;
 
-      if (blankTabToRemove && blankTabToRemove._tabViewTabItem)
-        blankTabToRemove._tabViewTabItem.isRemovedAfterRestore = true;
+      if (blankTabToRemove)
+        blankTabToRemove._tabViewTabIsRemovedAfterRestore = true;
     }
   },
 
@@ -383,10 +320,8 @@ let TabView = {
   // ----------
   // On move to group pop showing.
   moveToGroupPopupShowing: function TabView_moveToGroupPopupShowing(event) {
-    // Update the context menu only if Panorama was already initialized or if
-    // there are hidden tabs.
-    let numHiddenTabs = gBrowser.tabs.length - gBrowser.visibleTabs.length;
-    if (this._window || numHiddenTabs > 0)
+    // there are hidden tabs so initialize the iframe and update the context menu
+    if ((gBrowser.tabs.length - gBrowser.visibleTabs.length) > 0)
       this.updateContextMenu(TabContextMenu.contextTab, event.target);
   },
 
@@ -411,36 +346,5 @@ let TabView = {
     toolbar.currentSet = currentSet;
     toolbar.setAttribute("currentset", currentSet);
     document.persist(toolbar.id, "currentset");
-  },
-
-  // ----------
-  // Function: updateGroupNumberBroadcaster
-  // Updates the group number broadcaster.
-  updateGroupNumberBroadcaster: function TabView_updateGroupNumberBroadcaster(number) {
-    let groupsNumber = document.getElementById("tabviewGroupsNumber");
-    groupsNumber.setAttribute("groups", number);
-  },
-
-  // ----------
-  // Function: enableSessionRestore
-  // Enables automatic session restore when the browser is started. Does
-  // nothing if we already did that once in the past.
-  enableSessionRestore: function UI_enableSessionRestore() {
-    if (!this._window || !this.firstUseExperienced)
-      return;
-
-    // do nothing if we already enabled session restore once
-    if (this.sessionRestoreEnabledOnce)
-      return;
-
-    this.sessionRestoreEnabledOnce = true;
-
-    // enable session restore if necessary
-    if (Services.prefs.getIntPref(this.PREF_STARTUP_PAGE) != 3) {
-      Services.prefs.setIntPref(this.PREF_STARTUP_PAGE, 3);
-
-      // show banner
-      this._window.UI.notifySessionRestoreEnabled();
-    }
   }
 };

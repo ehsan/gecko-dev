@@ -86,7 +86,6 @@ struct nsGlobalNameStruct
   } mType;
 
   PRBool mChromeOnly;
-  PRBool mDisabled;
 
   union {
     PRInt32 mDOMClassInfoID; // eTypeClassConstructor
@@ -132,7 +131,6 @@ public:
   nsresult RegisterClassName(const char *aClassName,
                              PRInt32 aDOMClassInfoID,
                              PRBool aPrivileged,
-                             PRBool aDisabled,
                              const PRUnichar **aResult);
 
   nsresult RegisterClassProto(const char *aClassName,

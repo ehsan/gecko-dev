@@ -7,19 +7,16 @@ let logger;
 
 function server_handler(metadata, response) {
   let body, statusCode, status;
-  let guestHeader = basic_auth_header("guest", "guest");
-  let johnHeader  = basic_auth_header("johndoe", "moneyislike$£¥");
 
-  _("Guest header: " + guestHeader);
-  _("John header:  " + johnHeader);
-  
   switch (metadata.getHeader("Authorization")) {
-    case guestHeader:
+    // guest:guest
+    case "Basic Z3Vlc3Q6Z3Vlc3Q=":
       body = "This path exists and is protected";
       statusCode = 200;
       status = "OK";
       break;
-    case johnHeader:
+    // johndoe:moneyislike$\u20ac\xa5\u5143
+    case "Basic am9obmRvZTptb25leWlzbGlrZSTigqzCpeWFgw==":
       body = "This path exists and is protected by a UTF8 password";
       statusCode = 200;
       status = "OK";
@@ -36,20 +33,20 @@ function server_handler(metadata, response) {
 }
 
 function run_test() {
-  initTestLogging("Trace");
+do_test_pending();
+  logger = Log4Moz.repository.getLogger('Test');
+  Log4Moz.repository.rootLogger.addAppender(new Log4Moz.DumpAppender());
 
-  do_test_pending();
   let server = new nsHttpServer();
   server.registerPathHandler("/foo", server_handler);
   server.registerPathHandler("/bar", server_handler);
   server.start(8080);
 
-  let guestIdentity = new Identity("secret", "guest", "guest");
-  let johnIdentity  = new Identity("secret2", "johndoe", "moneyislike$£¥")
-  let guestAuth     = new BasicAuthenticator(guestIdentity);
-  let johnAuth      = new BasicAuthenticator(johnIdentity);
-  Auth.defaultAuthenticator = guestAuth;
-  Auth.registerAuthenticator("bar$", johnAuth);
+  let auth = new BasicAuthenticator(new Identity("secret", "guest", "guest"));
+  let auth2 = new BasicAuthenticator(
+      new Identity("secret2", "johndoe", "moneyislike$\u20ac\xa5\u5143"));
+  Auth.defaultAuthenticator = auth;
+  Auth.registerAuthenticator("bar$", auth2);
 
   try {
     let content = new Resource("http://localhost:8080/foo").get();

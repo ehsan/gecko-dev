@@ -55,17 +55,18 @@ public:
 
   // nsIAccessible
   NS_IMETHOD GetValue(nsAString& aValue);
+  NS_IMETHOD GetDescription(nsAString& aDescription);
   NS_IMETHOD DoAction(PRUint8 aIndex);
+  NS_IMETHOD GetNumActions(PRUint8 *aNumActions);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
 
-  // nsAccessible
-  virtual void Description(nsString& aDescription);
-  virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
-  virtual PRBool GetAllowsAnonChildAccessibles();
+  // nsAccessNode
+  virtual PRBool Init();
 
-  // ActionAccessible
-  virtual PRUint8 ActionCount();
+  // nsAccessible
+  virtual PRUint32 NativeRole();
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
+  virtual PRBool GetAllowsAnonChildAccessibles();
 };
 
 #endif

@@ -780,11 +780,11 @@ nsresult
 GetHelper::GetSuccessResult(JSContext* aCx,
                             jsval* aVal)
 {
-  bool result = IDBObjectStore::DeserializeValue(aCx, mCloneBuffer, aVal);
+  nsresult rv = ConvertCloneBufferToJSVal(aCx, mCloneBuffer, aVal);
 
-  mCloneBuffer.clear();
+  mCloneBuffer.clear(aCx);
 
-  NS_ENSURE_TRUE(result, NS_ERROR_FAILURE);
+  NS_ENSURE_SUCCESS(rv, rv);
   return NS_OK;
 }
 
@@ -924,7 +924,8 @@ GetAllKeysHelper::GetSuccessResult(JSContext* aCx,
       return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
 
-    for (uint32 index = 0, count = keys.Length(); index < count; index++) {
+    jsint count = jsint(keys.Length());
+    for (jsint index = 0; index < count; index++) {
       const Key& key = keys[index];
       NS_ASSERTION(!key.IsUnset(), "Bad key!");
 
@@ -1055,7 +1056,7 @@ GetAllHelper::GetSuccessResult(JSContext* aCx,
   nsresult rv = ConvertCloneBuffersToArray(aCx, mCloneBuffers, aVal);
 
   for (PRUint32 index = 0; index < mCloneBuffers.Length(); index++) {
-    mCloneBuffers[index].clear();
+    mCloneBuffers[index].clear(aCx);
   }
 
   NS_ENSURE_SUCCESS(rv, rv);

@@ -38,7 +38,7 @@
 
 #include "nsIDOMSVGTextPositionElem.idl"
 
-[scriptable, uuid(99131b84-1858-4fbf-826e-35d5135ce6c3)]
+[scriptable, uuid(4a23cb1f-cf1e-437e-9524-8756f7928b2e)]
 interface nsIDOMSVGTSpanElement : nsIDOMSVGTextPositioningElement
 { 
 };

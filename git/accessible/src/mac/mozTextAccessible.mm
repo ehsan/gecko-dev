@@ -3,8 +3,6 @@
 
 #import "mozTextAccessible.h"
 
-using namespace mozilla::a11y;
-
 extern const NSString *kInstanceDescriptionAttribute; // NSAccessibilityDescriptionAttribute
 extern const NSString *kTopLevelUIElementAttribute;   // NSAccessibilityTopLevelUIElementAttribute
 
@@ -140,8 +138,11 @@ extern const NSString *kTopLevelUIElementAttribute;   // NSAccessibilityTopLevel
   if ([[self role] isEqualToString:NSAccessibilityStaticTextRole])
     return YES;
     
-  if (mGeckoEditableTextAccessible)
-    return (mGeckoAccessible->State() & states::READONLY) == 0;
+  if (mGeckoEditableTextAccessible) {
+    PRUint32 state = 0;
+    mGeckoAccessible->GetState(&state, nsnull);
+    return (state & nsIAccessibleStates::STATE_READONLY) == 0;
+  }
 
   return NO;
 

@@ -35,17 +35,7 @@
 }
 
 tabpanels {
-  background-color: transparent;
-}
-
-.tab-drag-preview {
-  background: -moz-element(#content) left top;
-  background-clip: content-box;
-  background-size: cover;
-}
-
-.tab-drag-panel[target] > .tab-drag-preview {
-  display: none;
+  background-color: white;
 }
 
 .tab-drop-indicator {
@@ -56,12 +46,4 @@ tabpanels {
 .tab-throbber:not([busy]),
 .tab-throbber[busy] + .tab-icon-image {
   display: none;
-}
-
-.closing-tabs-spacer {
-  pointer-events: none;
-}
-
-.tabbrowser-tabs:not(:hover) > .tabbrowser-arrowscrollbox > .closing-tabs-spacer {
-  -moz-transition: width .15s ease-out;
 }

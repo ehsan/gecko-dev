@@ -54,6 +54,10 @@ CPPSRCS		= \
 		nsGeoPosition.cpp \
 		$(NULL)
 
+EXTRA_DSO_LDOPTS = \
+		$(MOZ_COMPONENT_LIBS) \
+		$(NULL)
+
 LOCAL_INCLUDES = \
 		-I$(topsrcdir)/dom/base \
 		-I$(topsrcdir)/dom/ipc \
@@ -62,6 +66,11 @@ LOCAL_INCLUDES = \
 		$(NULL)
 
 EXPORTS        = nsGeoPosition.h
+
+ifdef WINCE_WINDOWS_MOBILE
+LOCAL_INCLUDES  += -I$(topsrcdir)/dom/system/windows \
+                   $(NULL)
+endif
 
 ifdef MOZ_MAEMO_LIBLOCATION
 LOCAL_INCLUDES  += $(MOZ_PLATFORM_MAEMO_CFLAGS) \
@@ -74,7 +83,9 @@ LOCAL_INCLUDES  += -I$(topsrcdir)/dom/system/android \
                    $(NULL)
 endif
 
+ifdef MOZ_IPC
 EXPORTS         += nsGeoPositionIPCSerialiser.h
+endif
 
 include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk

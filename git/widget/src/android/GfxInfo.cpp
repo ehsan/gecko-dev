@@ -35,6 +35,7 @@
 
 #include "GfxInfo.h"
 #include "nsUnicharUtils.h"
+#include "nsPrintfCString.h"
 #include "mozilla/FunctionTimer.h"
 #include "prenv.h"
 #include "prprf.h"
@@ -42,10 +43,11 @@
 
 #include "AndroidBridge.h"
 
-#if defined(MOZ_CRASHREPORTER)
+#if defined(MOZ_CRASHREPORTER) && defined(MOZ_ENABLE_LIBXUL)
 #include "nsExceptionHandler.h"
 #include "nsICrashReporter.h"
 #define NS_CRASHREPORTER_CONTRACTID "@mozilla.org/toolkit/crash-reporter;1"
+#include "nsIPrefService.h"
 #endif
 
 using namespace mozilla::widget;
@@ -64,22 +66,9 @@ GfxInfo::GetDWriteEnabled(PRBool *aEnabled)
   return NS_ERROR_FAILURE;
 }
 
-nsresult
-GfxInfo::GetAzureEnabled(PRBool *aEnabled)
-{
-  return NS_ERROR_FAILURE;
-}
-
 /* readonly attribute DOMString DWriteVersion; */
 NS_IMETHODIMP
 GfxInfo::GetDWriteVersion(nsAString & aDwriteVersion)
-{
-  return NS_ERROR_FAILURE;
-}
-
-/* readonly attribute DOMString cleartypeParameters; */
-NS_IMETHODIMP
-GfxInfo::GetCleartypeParameters(nsAString & aCleartypeParams)
 {
   return NS_ERROR_FAILURE;
 }
@@ -163,7 +152,7 @@ void
 GfxInfo::AddCrashReportAnnotations()
 {
 #if 0
-#if defined(MOZ_CRASHREPORTER)
+#if defined(MOZ_CRASHREPORTER) && defined(MOZ_ENABLE_LIBXUL)
   nsCAutoString deviceIDString, vendorIDString;
   PRUint32 deviceID, vendorID;
 

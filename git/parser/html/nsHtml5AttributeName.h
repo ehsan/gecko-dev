@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2011 Mozilla Foundation
+ * Copyright (c) 2008-2009 Mozilla Foundation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a 
  * copy of this software and associated documentation files (the "Software"), 
@@ -473,7 +473,6 @@ class nsHtml5AttributeName
     static nsHtml5AttributeName* ATTR_CELLPADDING;
     static nsHtml5AttributeName* ATTR_CELLSPACING;
     static nsHtml5AttributeName* ATTR_COLUMNWIDTH;
-    static nsHtml5AttributeName* ATTR_CROSSORIGIN;
     static nsHtml5AttributeName* ATTR_COLUMNALIGN;
     static nsHtml5AttributeName* ATTR_COLUMNLINES;
     static nsHtml5AttributeName* ATTR_CONTEXTMENU;

@@ -44,11 +44,12 @@
 #include "nsCSSRendering.h"
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
-#include "nsRenderingContext.h"
+#include "nsIRenderingContext.h"
 #include "nsGUIEvent.h"
 #include "nsStyleConsts.h"
 #include "nsGkAtoms.h"
-#include "nsEventStateManager.h"
+#include "nsIEventStateManager.h"
+#include "nsIDeviceContext.h"
 #include "nsIPresShell.h"
 #include "nsIScrollPositionListener.h"
 #include "nsDisplayList.h"
@@ -57,6 +58,7 @@
 #include "nsFrameManager.h"
 
 // for focus
+#include "nsIDOMWindowInternal.h"
 #include "nsIScrollableFrame.h"
 #include "nsIDocShell.h"
 
@@ -251,7 +253,7 @@ nsRect nsCanvasFrame::CanvasArea() const
 
 void
 nsDisplayCanvasBackground::Paint(nsDisplayListBuilder* aBuilder,
-                                 nsRenderingContext* aCtx)
+                                 nsIRenderingContext* aCtx)
 {
   nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
   nsPoint offset = ToReferenceFrame();
@@ -293,7 +295,7 @@ public:
   }
 
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx)
+                     nsIRenderingContext* aCtx)
   {
     nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
     frame->PaintFocus(*aCtx, ToReferenceFrame());
@@ -366,7 +368,7 @@ nsCanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 void
-nsCanvasFrame::PaintFocus(nsRenderingContext& aRenderingContext, nsPoint aPt)
+nsCanvasFrame::PaintFocus(nsIRenderingContext& aRenderingContext, nsPoint aPt)
 {
   nsRect focusRect(aPt, GetSize());
 
@@ -394,7 +396,7 @@ nsCanvasFrame::PaintFocus(nsRenderingContext& aRenderingContext, nsPoint aPt)
 }
 
 /* virtual */ nscoord
-nsCanvasFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+nsCanvasFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_MIN_WIDTH(this, result);
@@ -406,7 +408,7 @@ nsCanvasFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nscoord
-nsCanvasFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
+nsCanvasFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_PREF_WIDTH(this, result);
@@ -437,8 +439,8 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
     if (overflow) {
       NS_ASSERTION(overflow->OnlyChild(),
                    "must have doc root as canvas frame's only child");
-      nsContainerFrame::ReparentFrameViewList(aPresContext, *overflow,
-                                              prevCanvasFrame, this);
+      nsHTMLContainerFrame::ReparentFrameViewList(aPresContext, *overflow,
+                                                  prevCanvasFrame, this);
       // Prepend overflow to the our child list. There may already be
       // children placeholders for fixed-pos elements, which don't get
       // reflowed but must not be lost until the canvas frame is destroyed.

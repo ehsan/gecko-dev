@@ -48,18 +48,19 @@ PROGRAM         = js$(BIN_SUFFIX)
 CPPSRCS		= \
   js.cpp \
   jsworkers.cpp \
-  jsoptparse.cpp \
-  jsheaptools.cpp \
   $(NULL)
 
 DEFINES         += -DEXPORT_JS_API
 
 LIBS      = $(NSPR_LIBS) $(EDITLINE_LIBS) $(DEPTH)/$(LIB_PREFIX)js_static.$(LIB_SUFFIX)
-ifdef MOZ_NATIVE_FFI
-EXTRA_LIBS += $(MOZ_FFI_LIBS)
-endif
 
 LOCAL_INCLUDES += -I$(topsrcdir) -I..
+
+ifdef _MSC_VER
+ifdef WINCE
+WIN32_EXE_LDFLAGS += -ENTRY:mainACRTStartup
+endif
+endif
 
 ifeq ($(OS_ARCH),Darwin)
 ifeq ($(TARGET_CPU),x86_64)

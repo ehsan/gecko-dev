@@ -88,7 +88,7 @@ nsTransformedTextRun::SetCapitalization(PRUint32 aStart, PRUint32 aLength,
 
 PRBool
 nsTransformedTextRun::SetPotentialLineBreaks(PRUint32 aStart, PRUint32 aLength,
-                                             PRUint8* aBreakBefore,
+                                             PRPackedBool* aBreakBefore,
                                              gfxContext* aRefContext)
 {
   PRBool changed = gfxTextRun::SetPotentialLineBreaks(aStart, aLength,
@@ -153,8 +153,7 @@ MergeCharactersInTextRun(gfxTextRun* aDest, gfxTextRun* aSrc,
   nsAutoTArray<gfxTextRun::DetailedGlyph,2> glyphs;
   while (iter.NextRun()) {
     gfxTextRun::GlyphRun* run = iter.GetGlyphRun();
-    nsresult rv = aDest->AddGlyphRun(run->mFont, run->mMatchType,
-                                     offset, PR_FALSE);
+    nsresult rv = aDest->AddGlyphRun(run->mFont, offset);
     if (NS_FAILED(rv))
       return;
 
@@ -264,7 +263,7 @@ nsFontVariantTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
   PRUint32 runStart = 0;
   PRBool runIsLowercase = PR_FALSE;
   nsAutoTArray<nsStyleContext*,50> styleArray;
-  nsAutoTArray<PRUint8,50> canBreakBeforeArray;
+  nsAutoTArray<PRPackedBool,50> canBreakBeforeArray;
 
   PRUint32 i;
   for (i = 0; i <= length; ++i) {
@@ -338,7 +337,7 @@ nsCaseTransformTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
   nsAutoString convertedString;
   nsAutoTArray<PRPackedBool,50> charsToMergeArray;
   nsAutoTArray<nsStyleContext*,50> styleArray;
-  nsAutoTArray<PRUint8,50> canBreakBeforeArray;
+  nsAutoTArray<PRPackedBool,50> canBreakBeforeArray;
   PRUint32 extraCharsCount = 0;
 
   PRUint32 i;

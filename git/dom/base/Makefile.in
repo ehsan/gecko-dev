@@ -83,14 +83,6 @@ EXPORTS = \
   nsPIWindowRoot.h \
   nsFocusManager.h \
   nsWrapperCache.h \
-  nsContentPermissionHelper.h \
-  nsStructuredCloneContainer.h \
-  nsDOMMemoryReporter.h \
-  $(NULL)
-
-EXPORTS_NAMESPACES = mozilla/dom
-EXPORTS_mozilla/dom = \
-  StructuredCloneTags.h \
   $(NULL)
 
 CPPSRCS =			\
@@ -114,12 +106,16 @@ CPPSRCS =			\
 	nsScriptNameSpaceManager.cpp \
 	nsDOMScriptObjectFactory.cpp \
 	nsQueryContentEventResult.cpp \
-	nsContentPermissionHelper.cpp \
-	nsStructuredCloneContainer.cpp \
-	nsDOMNavigationTiming.cpp \
-	nsPerformance.cpp	\
-	nsDOMMemoryReporter.cpp \
 	$(NULL)
+
+ifdef MOZ_IPC
+EXPORTS += \
+  nsContentPermissionHelper.h \
+  $(NULL)
+CPPSRCS += \
+  nsContentPermissionHelper.cpp \
+  $(NULL)
+endif
 
 include $(topsrcdir)/dom/dom-config.mk
 
@@ -127,15 +123,16 @@ ifdef MOZ_JSDEBUGGER
 DEFINES += -DMOZ_JSDEBUGGER
 endif
 
+ifdef MOZ_IPC
 include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
+endif
 
 include $(topsrcdir)/config/rules.mk
 
 LOCAL_INCLUDES += \
 		-I$(srcdir)/../../js/src/xpconnect/src \
 		-I$(srcdir)/../../js/src/xpconnect/wrappers \
-		-I$(topsrcdir)/xpcom/ds \
 		$(NULL)
 
 ifdef MOZ_X11

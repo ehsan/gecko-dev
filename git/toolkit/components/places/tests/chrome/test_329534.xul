@@ -6,6 +6,8 @@
   xmlns:html="http://www.w3.org/1999/xhtml"
   xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
   <script type="application/javascript"
+   src="chrome://mochikit/content/MochiKit/packed.js"></script>
+  <script type="application/javascript"
    src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
 
   <body xmlns="http://www.w3.org/1999/xhtml" />
@@ -90,7 +92,7 @@ bmsvc.addObserver(observer, false);
 
 // start updating livemarks
 firstLoadTime = Date.now();
-lmsvc.reloadAllLivemarks();
+lmsvc.start();
 
 // First
 function runTest1( folderId ) {
@@ -119,7 +121,6 @@ function runTest1( folderId ) {
     var node = rootNode.getChild( 0 );
     ok( node.uri == firstURL,
         "first livemark item is invalid value "+node.uri);
-    rootNode.containerOpen = false;
 
     /* second folder has no item */
     options = histsvc.getNewQueryOptions();
@@ -130,7 +131,6 @@ function runTest1( folderId ) {
     rootNode.containerOpen = true;
     cc = rootNode.childCount;
     ok( cc == 0, "second livemark is not empty" );
-    rootNode.containerOpen = false;
   }
 }
 
@@ -152,7 +152,6 @@ function runTest2( folderId ) {
     var node = rootNode.getChild( 0 );
     ok( node.uri == secondURL,
         "second livemark item is invalid value "+node.uri);
-    rootNode.containerOpen = false;
 
     /* Check passed 2sec.
        We should check for 3s but are relaxing request to accomplish possible

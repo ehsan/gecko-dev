@@ -260,6 +260,11 @@ nsPrimitiveHelpers :: ConvertPlatformPlainTextToUnicode ( const char* inText, PR
 } // ConvertPlatformPlainTextToUnicode
 
 
+#ifdef XP_MAC
+#pragma mark -
+#endif
+
+
 //
 // ConvertPlatformToDOMLinebreaks
 //

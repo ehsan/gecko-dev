@@ -42,9 +42,9 @@
 
 #include "Layers.h"
 
+#ifdef MOZ_IPC
 #include "mozilla/layers/ShadowLayers.h"
-
-#include "mozilla/TimeStamp.h"
+#endif
 
 #ifdef XP_WIN
 #include <windows.h>
@@ -84,7 +84,11 @@ class ShadowColorLayer;
  * the main thread.
  */
 class THEBES_API LayerManagerOGL :
+#ifdef MOZ_IPC
     public ShadowLayerManager
+#else
+    public LayerManager
+#endif
 {
   typedef mozilla::gl::GLContext GLContext;
   typedef mozilla::gl::ShaderProgramType ProgramType;
@@ -126,11 +130,6 @@ public:
   /**
    * LayerManager implementation.
    */
-  virtual ShadowLayerManager* AsShadowManager()
-  {
-    return this;
-  }
-
   void BeginTransaction();
 
   void BeginTransactionWithTarget(gfxContext* aTarget);
@@ -142,14 +141,6 @@ public:
                               void* aCallbackData);
 
   virtual void SetRoot(Layer* aLayer) { mRoot = aLayer; }
-
-  virtual bool CanUseCanvasLayerForSize(const gfxIntSize &aSize)
-  {
-      if (!mGLContext)
-          return false;
-      PRInt32 maxSize = mGLContext->GetMaxTextureSize();
-      return aSize <= gfxIntSize(maxSize, maxSize);
-  }
 
   virtual already_AddRefed<ThebesLayer> CreateThebesLayer();
 
@@ -373,12 +364,6 @@ public:
                     aFlipped);
   }
 
-  void BindAndDrawQuadWithTextureRect(LayerProgram *aProg,
-                                      const nsIntRect& aTexCoordRect,
-                                      const nsIntSize& aTexSize,
-                                      GLenum aWrapMode = LOCAL_GL_REPEAT);
-                                      
-
 #ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() const { return "OGL"; }
 #endif // MOZ_LAYERS_HAVE_LOG
@@ -406,8 +391,6 @@ public:
   void SetWorldTransform(const gfxMatrix& aMatrix);
   gfxMatrix& GetWorldTransform(void);
   void WorldTransformRect(nsIntRect& aRect);
-
-  void SetRenderFPS(bool aRenderFPS) { mRenderFPS = aRenderFPS; };
 
 private:
   /** Widget associated with this layer manager */
@@ -487,25 +470,6 @@ private:
   DrawThebesLayerCallback mThebesLayerCallback;
   void *mThebesLayerCallbackData;
   gfxMatrix mWorldMatrix;
-
-  struct FPSState
-  {
-      GLuint texture;
-      int fps;
-      bool initialized;
-      int fcount;
-      TimeStamp last;
-
-      FPSState()
-        : texture(0)
-        , fps(0)
-        , initialized(false)
-        , fcount(0)
-      {}
-      void DrawFPS(GLContext*, CopyProgram*);
-  } mFPS;
-
-  bool mRenderFPS;
 };
 
 /**

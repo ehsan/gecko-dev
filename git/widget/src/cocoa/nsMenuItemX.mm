@@ -54,6 +54,7 @@
 #include "nsIDOMDocument.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsIDOMEventTarget.h"
+#include "nsIDOMDocumentEvent.h"
 #include "nsIDOMElement.h"
 
 nsMenuItemX::nsMenuItemX()
@@ -210,15 +211,15 @@ nsresult nsMenuItemX::DispatchDOMEvent(const nsString &eventName, PRBool *preven
   }
 
   // get interface for creating DOM events from content owner document
-  nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(parentDoc);
-  if (!domDoc) {
-    NS_WARNING("Failed to QI parent nsIDocument to nsIDOMDocument");
+  nsCOMPtr<nsIDOMDocumentEvent> DOMEventFactory = do_QueryInterface(parentDoc);
+  if (!DOMEventFactory) {
+    NS_WARNING("Failed to QI parent nsIDocument to nsIDOMDocumentEvent");
     return NS_ERROR_FAILURE;
   }
 
   // create DOM event
   nsCOMPtr<nsIDOMEvent> event;
-  nsresult rv = domDoc->CreateEvent(NS_LITERAL_STRING("Events"), getter_AddRefs(event));
+  nsresult rv = DOMEventFactory->CreateEvent(NS_LITERAL_STRING("Events"), getter_AddRefs(event));
   if (NS_FAILED(rv)) {
     NS_WARNING("Failed to create nsIDOMEvent");
     return rv;
@@ -383,8 +384,7 @@ void nsMenuItemX::ObserveContentRemoved(nsIDocument *aDocument, nsIContent *aChi
   mMenuParent->SetRebuild(PR_TRUE);
 }
 
-void nsMenuItemX::ObserveContentInserted(nsIDocument *aDocument, nsIContent* aContainer,
-                                         nsIContent *aChild)
+void nsMenuItemX::ObserveContentInserted(nsIDocument *aDocument, nsIContent *aChild, PRInt32 aIndexInContainer)
 {
   mMenuParent->SetRebuild(PR_TRUE);
 }

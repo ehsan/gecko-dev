@@ -42,6 +42,8 @@
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
 #include "nsINameSpaceManager.h"
+#include "nsIRenderingContext.h"
+#include "nsIFontMetrics.h"
 
 #include "nsCSSRendering.h"
 #include "prprf.h"         // For PR_snprintf()
@@ -54,6 +56,7 @@
 #include "nsIDOMElement.h"
 
 #include "nsIDOMEventTarget.h"
+#include "nsIDOMMouseListener.h"
 
 #include "nsMathMLmactionFrame.h"
 #include "nsAutoPtr.h"
@@ -84,14 +87,8 @@ nsMathMLmactionFrame::~nsMathMLmactionFrame()
 {
   // unregister us as a mouse event listener ...
   //  printf("maction:%p unregistering as mouse event listener ...\n", this);
-  if (mListener) {
-    mContent->RemoveEventListener(NS_LITERAL_STRING("click"), mListener,
-                                  PR_FALSE);
-    mContent->RemoveEventListener(NS_LITERAL_STRING("mouseover"), mListener,
-                                  PR_FALSE);
-    mContent->RemoveEventListener(NS_LITERAL_STRING("mouseout"), mListener,
-                                  PR_FALSE);
-  }
+  if (mListener)
+    mContent->RemoveEventListenerByIID(mListener, NS_GET_IID(nsIDOMMouseListener));
 }
 
 NS_IMETHODIMP
@@ -205,8 +202,7 @@ nsMathMLmactionFrame::GetSelectedFrame()
   nsAutoString value;
   PRInt32 selection; 
 
-  GetAttribute(mContent, mPresentationData.mstyle, nsGkAtoms::selection_,
-               value);
+  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::selection_, value);
   if (!value.IsEmpty()) {
     PRInt32 errorCode;
     selection = value.ToInteger(&errorCode);
@@ -260,12 +256,7 @@ nsMathMLmactionFrame::SetInitialChildList(nsIAtom*        aListName,
     // create mouse event listener and register it
     mListener = new nsMathMLmactionFrame::MouseListener(this);
     // printf("maction:%p registering as mouse event listener ...\n", this);
-    mContent->AddEventListener(NS_LITERAL_STRING("click"), mListener,
-                               PR_FALSE, PR_FALSE);
-    mContent->AddEventListener(NS_LITERAL_STRING("mouseover"), mListener,
-                               PR_FALSE, PR_FALSE);
-    mContent->AddEventListener(NS_LITERAL_STRING("mouseout"), mListener,
-                               PR_FALSE, PR_FALSE);
+    mContent->AddEventListenerByIID(mListener, NS_GET_IID(nsIDOMMouseListener));
   }
   return rv;
 }
@@ -306,7 +297,7 @@ nsMathMLmactionFrame::Reflow(nsPresContext*          aPresContext,
   aStatus = NS_FRAME_COMPLETE;
   aDesiredSize.width = aDesiredSize.height = 0;
   aDesiredSize.ascent = 0;
-  mBoundingMetrics = nsBoundingMetrics();
+  mBoundingMetrics.Clear();
   nsIFrame* childFrame = GetSelectedFrame();
   if (childFrame) {
     nsSize availSize(aReflowState.ComputedWidth(), NS_UNCONSTRAINEDSIZE);
@@ -325,13 +316,13 @@ nsMathMLmactionFrame::Reflow(nsPresContext*          aPresContext,
 
 // Only place the selected child ...
 /* virtual */ nsresult
-nsMathMLmactionFrame::Place(nsRenderingContext& aRenderingContext,
+nsMathMLmactionFrame::Place(nsIRenderingContext& aRenderingContext,
                             PRBool               aPlaceOrigin,
                             nsHTMLReflowMetrics& aDesiredSize)
 {
   aDesiredSize.width = aDesiredSize.height = 0;
   aDesiredSize.ascent = 0;
-  mBoundingMetrics = nsBoundingMetrics();
+  mBoundingMetrics.Clear();
   nsIFrame* childFrame = GetSelectedFrame();
   if (childFrame) {
     GetReflowAndBoundingMetricsFor(childFrame, aDesiredSize, mBoundingMetrics);
@@ -349,8 +340,9 @@ nsMathMLmactionFrame::Place(nsRenderingContext& aRenderingContext,
 // Event handlers 
 // ################################################################
 
-NS_IMPL_ISUPPORTS1(nsMathMLmactionFrame::MouseListener,
-                   nsIDOMEventListener)
+NS_IMPL_ISUPPORTS2(nsMathMLmactionFrame::MouseListener,
+                   nsIDOMEventListener,
+                   nsIDOMMouseListener)
 
 
 // helper to show a msg on the status bar
@@ -375,23 +367,9 @@ ShowStatus(nsPresContext* aPresContext, nsString& aStatusMsg)
 }
 
 NS_IMETHODIMP
-nsMathMLmactionFrame::MouseListener::HandleEvent(nsIDOMEvent* aEvent)
+nsMathMLmactionFrame::MouseListener::MouseOver(nsIDOMEvent* aMouseEvent)
 {
-  nsAutoString eventType;
-  aEvent->GetType(eventType);
-  if (eventType.EqualsLiteral("mouseover")) {
-    mOwner->MouseOver();
-  }
-  else if (eventType.EqualsLiteral("mouseclick")) {
-    mOwner->MouseClick();
-  }
-  else if (eventType.EqualsLiteral("mouseout")) {
-    mOwner->MouseOut();
-  }
-  else {
-    NS_ABORT();
-  }
-
+  mOwner->MouseOver();
   return NS_OK;
 }
 
@@ -410,6 +388,13 @@ nsMathMLmactionFrame::MouseOver()
   }
 }
 
+NS_IMETHODIMP
+nsMathMLmactionFrame::MouseListener::MouseOut(nsIDOMEvent* aMouseEvent) 
+{
+  mOwner->MouseOut();
+  return NS_OK;
+}
+
 void
 nsMathMLmactionFrame::MouseOut()
 {
@@ -419,6 +404,13 @@ nsMathMLmactionFrame::MouseOut()
     value.SetLength(0);
     ShowStatus(PresContext(), value);
   }
+}
+
+NS_IMETHODIMP
+nsMathMLmactionFrame::MouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
+{
+  mOwner->MouseClick();
+  return NS_OK;
 }
 
 void

@@ -127,7 +127,7 @@
 #define LAYOUT_DEBUG_MODULE
 #endif
 
-#if defined(ENABLE_JETPACK_SERVICE)
+#if defined(MOZ_IPC) && defined(ENABLE_JETPACK_SERVICE)
 #define JETPACK_MODULES \
     MODULE(jetpack)
 #else
@@ -150,6 +150,12 @@
 #define FILEVIEW_MODULE
 #endif
 
+#ifdef MOZ_STORAGE
+#define STORAGE_MODULE MODULE(mozStorageModule)
+#else
+#define STORAGE_MODULE
+#endif
+
 #ifdef MOZ_ZIPWRITER
 #define ZIPWRITER_MODULE MODULE(ZipWriterModule)
 #else
@@ -161,6 +167,13 @@
     MODULE(nsPlacesModule)
 #else
 #define PLACES_MODULES
+#endif
+
+#if (defined(MOZ_MORK) && defined(MOZ_XUL))
+#define MORK_MODULES \
+    MODULE(nsMorkModule)
+#else
+#define MORK_MODULES
 #endif
 
 #ifdef MOZ_XUL
@@ -208,17 +221,12 @@
 #define JSCTYPES_MODULE
 #endif
 
-#define JSREFLECT_MODULE MODULE(jsreflect)
-
 #define SERVICES_CRYPTO_MODULE MODULE(nsServicesCryptoModule)
 
-#ifndef MOZ_APP_COMPONENT_MODULES
 #if defined(MOZ_APP_COMPONENT_INCLUDE)
 #include MOZ_APP_COMPONENT_INCLUDE
-#define MOZ_APP_COMPONENT_MODULES APP_COMPONENT_MODULES
 #else
-#define MOZ_APP_COMPONENT_MODULES
-#endif
+#define APP_COMPONENT_MODULES
 #endif
 
 #define XUL_MODULES                          \
@@ -253,8 +261,9 @@
     MODULE(Apprunner)                        \
     MODULE(CommandLineModule)                \
     FILEVIEW_MODULE                          \
-    MODULE(mozStorageModule)                 \
+    STORAGE_MODULE                           \
     PLACES_MODULES                           \
+    MORK_MODULES                             \
     XULENABLED_MODULES                       \
     MODULE(nsToolkitCompsModule)             \
     XREMOTE_MODULES                          \
@@ -268,11 +277,9 @@
     OSXPROXY_MODULE                          \
     WINDOWSPROXY_MODULE                      \
     JSCTYPES_MODULE                          \
-    JSREFLECT_MODULE                         \
     MODULE(jsperf)                           \
     SERVICES_CRYPTO_MODULE                   \
-    MOZ_APP_COMPONENT_MODULES                \
-    MODULE(nsTelemetryModule)                \
+    APP_COMPONENT_MODULES                    \
     /* end of list */
 
 #define MODULE(_name) \

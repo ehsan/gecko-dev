@@ -15,7 +15,7 @@
    -
    - The Original Code is the Places test code.
    -
-   - The Initial Developer of the Original Code is the Mozilla Foundation.
+   - The Initial Developer of the Original Code is Mozilla Corp.
    - Portions created by the Initial Developer are Copyright (C) 2009
    - the Initial Developer. All Rights Reserved.
    -
@@ -57,6 +57,8 @@
         onload="runTest();">
 
   <script type="application/javascript"
+          src="chrome://mochikit/content/MochiKit/packed.js" />
+  <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js" />
   <script type="application/javascript"
           src="chrome://browser/content/places/editBookmarkOverlay.js"/>
@@ -83,7 +85,7 @@
       }
 
       // Add a bookmark.
-      var itemId = bs.insertBookmark(PlacesUtils.toolbarFolderId,
+      var itemId = bs.insertBookmark(bs.toolbarFolder,
                                      uri("http://www.example.com/"),
                                      bs.DEFAULT_INDEX,
                                      "mozilla");

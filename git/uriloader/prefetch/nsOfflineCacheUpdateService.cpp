@@ -36,9 +36,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef MOZ_IPC
 #include "OfflineCacheUpdateChild.h"
 #include "OfflineCacheUpdateParent.h"
 #include "nsXULAppAPI.h"
+#endif
 #include "OfflineCacheUpdateGlue.h"
 #include "nsOfflineCacheUpdate.h"
 
@@ -64,6 +66,8 @@
 #include "nsICacheEntryDescriptor.h"
 #include "nsIPermissionManager.h"
 #include "nsIPrincipal.h"
+#include "nsIPrefBranch.h"
+#include "nsIPrefService.h"
 #include "nsNetCID.h"
 #include "nsNetUtil.h"
 #include "nsServiceManagerUtils.h"
@@ -72,14 +76,13 @@
 #include "nsProxyRelease.h"
 #include "prlog.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 static nsOfflineCacheUpdateService *gOfflineCacheUpdateService = nsnull;
 
+#ifdef MOZ_IPC
 typedef mozilla::docshell::OfflineCacheUpdateParent OfflineCacheUpdateParent;
 typedef mozilla::docshell::OfflineCacheUpdateChild OfflineCacheUpdateChild;
+#endif
 typedef mozilla::docshell::OfflineCacheUpdateGlue OfflineCacheUpdateGlue;
 
 #if defined(PR_LOGGING)
@@ -471,10 +474,13 @@ nsOfflineCacheUpdateService::Schedule(nsIURI *aManifestURI,
                                       nsIOfflineCacheUpdate **aUpdate)
 {
     nsCOMPtr<nsIOfflineCacheUpdate> update;
+#ifdef MOZ_IPC
     if (GeckoProcessType_Default != XRE_GetProcessType()) {
         update = new OfflineCacheUpdateChild(aWindow);
     }
-    else {
+    else
+#endif
+    {
         update = new OfflineCacheUpdateGlue();
     }
 
@@ -570,11 +576,15 @@ nsOfflineCacheUpdateService::OfflineAppAllowedForURI(nsIURI *aURI,
     permissionManager->TestExactPermission(innerURI, "offline-app", &perm);
 
     if (perm == nsIPermissionManager::UNKNOWN_ACTION) {
-        static const char kPrefName[] = "offline-apps.allow_by_default";
-        if (aPrefBranch) {
-            aPrefBranch->GetBoolPref(kPrefName, aAllowed);
-        } else {
-            *aAllowed = Preferences::GetBool(kPrefName, PR_FALSE);
+        nsCOMPtr<nsIPrefBranch> branch = aPrefBranch;
+        if (!branch) {
+            branch = do_GetService(NS_PREFSERVICE_CONTRACTID);
+        }
+        if (branch) {
+            rv = branch->GetBoolPref("offline-apps.allow_by_default", aAllowed);
+            if (NS_FAILED(rv)) {
+                *aAllowed = PR_FALSE;
+            }
         }
 
         return NS_OK;

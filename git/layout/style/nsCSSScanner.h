@@ -214,8 +214,8 @@ protected:
   PRBool LookAhead(PRUnichar aChar);
   PRBool LookAheadOrEOF(PRUnichar aChar); // expect either aChar or EOF
   void EatWhiteSpace();
-
-  PRBool ParseAndAppendEscape(nsString& aOutput, PRBool aInString);
+  
+  void ParseAndAppendEscape(nsString& aOutput);
   PRBool ParseIdent(PRInt32 aChar, nsCSSToken& aResult);
   PRBool ParseAtKeyword(PRInt32 aChar, nsCSSToken& aResult);
   PRBool ParseNumber(PRInt32 aChar, nsCSSToken& aResult);

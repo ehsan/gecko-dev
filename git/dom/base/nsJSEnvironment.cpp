@@ -43,6 +43,16 @@
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIDOMChromeWindow.h"
 #include "nsPIDOMWindow.h"
+#include "nsIDOMNode.h"
+#include "nsIDOMElement.h"
+#include "nsIDOMDocument.h"
+#include "nsIDOMText.h"
+#include "nsIDOMAttr.h"
+#include "nsIDOMNamedNodeMap.h"
+#include "nsIDOMNodeList.h"
+#include "nsIDOMKeyEvent.h"
+#include "nsIDOMHTMLImageElement.h"
+#include "nsIDOMHTMLOptionElement.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsDOMCID.h"
 #include "nsIServiceManager.h"
@@ -78,11 +88,11 @@
 #include "xpcpublic.h"
 
 #include "jsdbgapi.h"           // for JS_ClearWatchPointsForObject
-#include "jswrapper.h"
 #include "jsxdrapi.h"
 #include "nsIArray.h"
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
+#include "nsITimelineService.h"
 #include "nsDOMScriptObjectHolder.h"
 #include "prmem.h"
 #include "WrapperFactory.h"
@@ -105,9 +115,6 @@
 #include "prthread.h"
 
 #include "mozilla/FunctionTimer.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 const size_t gStackSize = 8192;
 
@@ -116,9 +123,11 @@ static PRLogModuleInfo* gJSDiagnostics;
 #endif
 
 // Thank you Microsoft!
+#ifndef WINCE
 #ifdef CompareString
 #undef CompareString
 #endif
+#endif // WINCE
 
 // The amount of time we wait between a request to GC (due to leaving
 // a page) and doing the actual GC.
@@ -174,10 +183,7 @@ static PRTime sMaxChromeScriptRunTime;
 static nsIScriptSecurityManager *sSecurityManager;
 
 // nsMemoryPressureObserver observes the memory-pressure notifications
-// and forces a garbage collection and cycle collection when it happens, if
-// the appropriate pref is set.
-
-static PRBool sGCOnMemoryPressure;
+// and forces a garbage collection and cycle collection when it happens.
 
 class nsMemoryPressureObserver : public nsIObserver
 {
@@ -192,10 +198,8 @@ NS_IMETHODIMP
 nsMemoryPressureObserver::Observe(nsISupports* aSubject, const char* aTopic,
                                   const PRUnichar* aData)
 {
-  if (sGCOnMemoryPressure) {
-    nsJSContext::GarbageCollectNow();
-    nsJSContext::CycleCollectNow();
-  }
+  nsJSContext::GarbageCollectNow();
+  nsJSContext::CycleCollectNow();
   return NS_OK;
 }
 
@@ -815,8 +819,13 @@ nsJSContext::DOMOperationCallback(JSContext *cx)
     // Allow the script to continue running
 
     if (neverShowDlgChk) {
-      Preferences::SetInt(isTrackingChromeCodeTime ?
-        "dom.max_chrome_script_run_time" : "dom.max_script_run_time", 0);
+      nsIPrefBranch *prefBranch = nsContentUtils::GetPrefBranch();
+
+      if (prefBranch) {
+        prefBranch->SetIntPref(isTrackingChromeCodeTime ?
+                               "dom.max_chrome_script_run_time" :
+                               "dom.max_script_run_time", 0);
+      }
     }
 
     ctx->mOperationCallbackTime = PR_Now();
@@ -898,9 +907,7 @@ static const char js_strict_debug_option_str[] = JS_OPTIONS_DOT_STR "strict.debu
 static const char js_werror_option_str[] = JS_OPTIONS_DOT_STR "werror";
 static const char js_relimit_option_str[]= JS_OPTIONS_DOT_STR "relimit";
 #ifdef JS_GC_ZEAL
-static const char js_zeal_option_str[]        = JS_OPTIONS_DOT_STR "gczeal";
-static const char js_zeal_frequency_str[]     = JS_OPTIONS_DOT_STR "gczeal.frequency";
-static const char js_zeal_compartment_str[]   = JS_OPTIONS_DOT_STR "gczeal.compartment_gc";
+static const char js_zeal_option_str[]   = JS_OPTIONS_DOT_STR "gczeal";
 #endif
 static const char js_tracejit_content_str[]   = JS_OPTIONS_DOT_STR "tracejit.content";
 static const char js_tracejit_chrome_str[]    = JS_OPTIONS_DOT_STR "tracejit.chrome";
@@ -918,9 +925,9 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
   PRUint32 oldDefaultJSOptions = context->mDefaultJSOptions;
   PRUint32 newDefaultJSOptions = oldDefaultJSOptions;
 
-  sPostGCEventsToConsole = Preferences::GetBool(js_memlog_option_str);
+  sPostGCEventsToConsole = nsContentUtils::GetBoolPref(js_memlog_option_str);
 
-  PRBool strict = Preferences::GetBool(js_strict_option_str);
+  PRBool strict = nsContentUtils::GetBoolPref(js_strict_option_str);
   if (strict)
     newDefaultJSOptions |= JSOPTION_STRICT;
   else
@@ -931,16 +938,16 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
   // XXX components be covered by the chrome pref instead of the content one?
   nsCOMPtr<nsIDOMChromeWindow> chromeWindow(do_QueryInterface(global));
 
-  PRBool useTraceJIT = Preferences::GetBool(chromeWindow ?
-                                              js_tracejit_chrome_str :
-                                              js_tracejit_content_str);
-  PRBool useMethodJIT = Preferences::GetBool(chromeWindow ?
-                                               js_methodjit_chrome_str :
-                                               js_methodjit_content_str);
-  PRBool useProfiling = Preferences::GetBool(chromeWindow ?
-                                               js_profiling_chrome_str :
-                                               js_profiling_content_str);
-  PRBool useMethodJITAlways = Preferences::GetBool(js_methodjit_always_str);
+  PRBool useTraceJIT = nsContentUtils::GetBoolPref(chromeWindow ?
+                                                   js_tracejit_chrome_str :
+                                                   js_tracejit_content_str);
+  PRBool useMethodJIT = nsContentUtils::GetBoolPref(chromeWindow ?
+                                                    js_methodjit_chrome_str :
+                                                    js_methodjit_content_str);
+  PRBool useProfiling = nsContentUtils::GetBoolPref(chromeWindow ?
+                                                    js_profiling_chrome_str :
+                                                    js_profiling_content_str);
+  PRBool useMethodJITAlways = nsContentUtils::GetBoolPref(js_methodjit_always_str);
   nsCOMPtr<nsIXULRuntime> xr = do_GetService(XULRUNTIME_SERVICE_CONTRACTID);
   if (xr) {
     PRBool safeMode = PR_FALSE;
@@ -976,7 +983,7 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
 #ifdef DEBUG
   // In debug builds, warnings are enabled in chrome context if
   // javascript.options.strict.debug is true
-  PRBool strictDebug = Preferences::GetBool(js_strict_debug_option_str);
+  PRBool strictDebug = nsContentUtils::GetBoolPref(js_strict_debug_option_str);
   // Note this callback is also called from context's InitClasses thus we don't
   // need to enable this directly from InitContext
   if (strictDebug && (newDefaultJSOptions & JSOPTION_STRICT) == 0) {
@@ -985,13 +992,13 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
   }
 #endif
 
-  PRBool werror = Preferences::GetBool(js_werror_option_str);
+  PRBool werror = nsContentUtils::GetBoolPref(js_werror_option_str);
   if (werror)
     newDefaultJSOptions |= JSOPTION_WERROR;
   else
     newDefaultJSOptions &= ~JSOPTION_WERROR;
 
-  PRBool relimit = Preferences::GetBool(js_relimit_option_str);
+  PRBool relimit = nsContentUtils::GetBoolPref(js_relimit_option_str);
   if (relimit)
     newDefaultJSOptions |= JSOPTION_RELIMIT;
   else
@@ -1003,11 +1010,9 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
   context->mDefaultJSOptions = newDefaultJSOptions;
 
 #ifdef JS_GC_ZEAL
-  PRInt32 zeal = Preferences::GetInt(js_zeal_option_str, -1);
-  PRInt32 frequency = Preferences::GetInt(js_zeal_frequency_str, JS_DEFAULT_ZEAL_FREQ);
-  PRBool compartment = Preferences::GetBool(js_zeal_compartment_str, PR_FALSE);
+  PRInt32 zeal = nsContentUtils::GetIntPref(js_zeal_option_str, -1);
   if (zeal >= 0)
-    ::JS_SetGCZeal(context->mContext, (PRUint8)zeal, frequency, compartment);
+    ::JS_SetGCZeal(context->mContext, (PRUint8)zeal);
 #endif
 
   return 0;
@@ -1020,7 +1025,7 @@ nsJSContext::nsJSContext(JSRuntime *aRuntime)
 
   ++sContextCount;
 
-  mDefaultJSOptions = JSOPTION_PRIVATE_IS_NSISUPPORTS;
+  mDefaultJSOptions = JSOPTION_PRIVATE_IS_NSISUPPORTS | JSOPTION_ANONFUNFIX;
 
   mContext = ::JS_NewContext(aRuntime, gStackSize);
   if (mContext) {
@@ -1033,8 +1038,9 @@ nsJSContext::nsJSContext(JSRuntime *aRuntime)
     ::JS_SetOptions(mContext, mDefaultJSOptions);
 
     // Watch for the JS boolean options
-    Preferences::RegisterCallback(JSOptionChangedCallback,
-                                  js_options_dot_str, this);
+    nsContentUtils::RegisterPrefCallback(js_options_dot_str,
+                                         JSOptionChangedCallback,
+                                         this);
 
     ::JS_SetOperationCallback(mContext, DOMOperationCallback);
 
@@ -1086,8 +1092,9 @@ nsJSContext::DestroyJSContext()
   ::JS_SetContextPrivate(mContext, nsnull);
 
   // Unregister our "javascript.options.*" pref-changed callback.
-  Preferences::UnregisterCallback(JSOptionChangedCallback,
-                                  js_options_dot_str, this);
+  nsContentUtils::UnregisterPrefCallback(js_options_dot_str,
+                                         JSOptionChangedCallback,
+                                         this);
 
   PRBool do_gc = mGCOnDestruction && !sGCTimer;
 
@@ -1105,14 +1112,16 @@ nsJSContext::DestroyJSContext()
 
 // QueryInterface implementation for nsJSContext
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsJSContext)
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsJSContext)
-NS_IMPL_CYCLE_COLLECTION_TRACE_END
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsJSContext)
+NS_IMPL_CYCLE_COLLECTION_ROOT_BEGIN(nsJSContext)
   NS_ASSERTION(!tmp->mContext || tmp->mContext->outstandingRequests == 0,
                "Trying to unlink a context with outstanding requests.");
   tmp->mIsInitialized = PR_FALSE;
   tmp->mGCOnDestruction = PR_FALSE;
   tmp->DestroyJSContext();
+NS_IMPL_CYCLE_COLLECTION_ROOT_END
+NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsJSContext)
+NS_IMPL_CYCLE_COLLECTION_TRACE_END
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsJSContext)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mGlobalObjectRef)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsJSContext)
@@ -1130,8 +1139,8 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsJSContext)
 NS_INTERFACE_MAP_END
 
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsJSContext)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsJSContext)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsJSContext, nsIScriptContext)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsJSContext, nsIScriptContext)
 
 nsrefcnt
 nsJSContext::GetCCRefcnt()
@@ -1613,8 +1622,6 @@ nsJSContext::ExecuteScript(void *aScriptObject,
     // If all went well, convert val to a string (XXXbe unless undefined?).
     rv = JSValueToAString(mContext, val, aRetValue, aIsUndefined);
   } else {
-    ReportPendingException();
-
     if (aIsUndefined) {
       *aIsUndefined = PR_TRUE;
     }
@@ -1828,9 +1835,7 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
 #ifdef NS_FUNCTION_TIMER
   {
     JSObject *obj = static_cast<JSObject *>(aHandler);
-    if (obj->isFunctionProxy())
-      obj = obj->unwrap(NULL);
-    JSString *id = JS_GetFunctionId(GET_FUNCTION_PRIVATE(mContext, obj));
+    JSString *id = JS_GetFunctionId(static_cast<JSFunction *>(JS_GetPrivate(mContext, obj)));
     JSAutoByteString bytes;
     const char *name = !id ? "anonymous" : bytes.encode(mContext, id) ? bytes.ptr() : "<error>";
     NS_TIME_FUNCTION_FMT(1.0, "%s (line %d) (function: %s)", MOZ_FUNCTION_NAME, __LINE__, name);
@@ -1878,15 +1883,13 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
 
     jsval funval = OBJECT_TO_JSVAL(funobj);
     JSAutoEnterCompartment ac;
-    js::ForceFrame ff(mContext, funobj);
-    if (!ac.enter(mContext, funobj) || !ff.enter() ||
-        !JS_WrapObject(mContext, &target)) {
+    if (!ac.enter(mContext, funobj) || !JS_WrapObject(mContext, &target)) {
       sSecurityManager->PopContextPrincipal(mContext);
       return NS_ERROR_FAILURE;
     }
 
-    Maybe<nsAutoPoolRelease> poolRelease;
-    Maybe<js::AutoArrayRooter> tvr;
+    js::LazilyConstructed<nsAutoPoolRelease> poolRelease;
+    js::LazilyConstructed<js::AutoArrayRooter> tvr;
 
     // Use |target| as the scope for wrapping the arguments, since aScope is
     // the safe scope in many cases, which isn't very useful.  Wrapping aTarget
@@ -1903,29 +1906,32 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
     --mExecuteDepth;
 
     if (!ok) {
+      // Tell XPConnect about any pending exceptions. This is needed
+      // to avoid dropping JS exceptions in case we got here through
+      // nested calls through XPConnect.
+
+      ReportPendingException();
+
       // Don't pass back results from failed calls.
       rval = JSVAL_VOID;
 
       // Tell the caller that the handler threw an error.
       rv = NS_ERROR_FAILURE;
-    } else if (rval == JSVAL_NULL) {
-      *arv = nsnull;
-    } else if (!JS_WrapValue(mContext, &rval)) {
-      rv = NS_ERROR_FAILURE;
-    } else {
-      rv = nsContentUtils::XPConnect()->JSToVariant(mContext, rval, arv);
     }
-
-    // Tell XPConnect about any pending exceptions. This is needed
-    // to avoid dropping JS exceptions in case we got here through
-    // nested calls through XPConnect.
-    if (NS_FAILED(rv))
-      ReportPendingException();
 
     sSecurityManager->PopContextPrincipal(mContext);
   }
 
   pusher.Pop();
+
+  // Convert to variant before calling ScriptEvaluated, as it may GC, meaning
+  // we would need to root rval.
+  if (NS_SUCCEEDED(rv)) {
+    if (rval == JSVAL_NULL)
+      *arv = nsnull;
+    else
+      rv = nsContentUtils::XPConnect()->JSToVariant(mContext, rval, arv);
+  }
 
   // ScriptEvaluated needs to come after we pop the stack
   ScriptEvaluated(PR_TRUE);
@@ -2095,6 +2101,8 @@ nsJSContext::Deserialize(nsIObjectInputStream* aStream,
 
     NS_TIME_FUNCTION_MIN(1.0);
 
+    NS_TIMELINE_MARK_FUNCTION("js script deserialize");
+
     PRUint32 size;
     rv = aStream->Read32(&size);
     if (NS_FAILED(rv)) return rv;
@@ -2173,19 +2181,10 @@ nsJSContext::GetGlobalObject()
     return nsnull;
   }
 
-  if (mGlobalObjectRef)
-    return mGlobalObjectRef;
-
-#ifdef DEBUG
-  {
-    JSObject *inner = global;
-    OBJ_TO_INNER_OBJECT(mContext, inner);
-
-    // If this assertion hits then it means that we have a window object as
-    // our global, but we never called CreateOuterObject.
-    NS_ASSERTION(inner == global, "Shouldn't be able to innerize here");
+  OBJ_TO_INNER_OBJECT(mContext, global);
+  if (!global) {
+    return nsnull;
   }
-#endif
 
   JSClass *c = JS_GET_CLASS(mContext, global);
 
@@ -2211,7 +2210,11 @@ nsJSContext::GetGlobalObject()
 
   // This'll return a pointer to something we're about to release, but
   // that's ok, the JS object will hold it alive long enough.
-  return sgo;
+  nsCOMPtr<nsPIDOMWindow> pwin(do_QueryInterface(sgo));
+  if (!pwin)
+    return sgo;
+
+  return static_cast<nsGlobalWindow *>(pwin->GetOuterWindow());
 }
 
 void *
@@ -2255,9 +2258,7 @@ nsresult
 nsJSContext::ConnectToInner(nsIScriptGlobalObject *aNewInner, void *aOuterGlobal)
 {
   NS_ENSURE_ARG(aNewInner);
-#ifdef DEBUG
   JSObject *newInnerJSObject = (JSObject *)aNewInner->GetScriptGlobal(JAVASCRIPT);
-#endif
   JSObject *outerGlobal = (JSObject *)aOuterGlobal;
 
   // Now that we're connecting the outer global to the inner one,
@@ -2377,8 +2378,8 @@ nsJSContext::SetProperty(void *aTarget, const char *aPropName, nsISupports *aArg
 
   JSAutoRequest ar(mContext);
 
-  Maybe<nsAutoPoolRelease> poolRelease;
-  Maybe<js::AutoArrayRooter> tvr;
+  js::LazilyConstructed<nsAutoPoolRelease> poolRelease;
+  js::LazilyConstructed<js::AutoArrayRooter> tvr;
 
   nsresult rv;
   rv = ConvertSupportsTojsvals(aArgs, GetNativeGlobal(), &argc,
@@ -2418,8 +2419,8 @@ nsJSContext::ConvertSupportsTojsvals(nsISupports *aArgs,
                                      void *aScope,
                                      PRUint32 *aArgc,
                                      jsval **aArgv,
-                                     Maybe<nsAutoPoolRelease> &aPoolRelease,
-                                     Maybe<js::AutoArrayRooter> &aRooter)
+                                     js::LazilyConstructed<nsAutoPoolRelease> &aPoolRelease,
+                                     js::LazilyConstructed<js::AutoArrayRooter> &aRooter)
 {
   nsresult rv = NS_OK;
 
@@ -3350,7 +3351,7 @@ nsJSContext::PokeGC()
   CallCreateInstance("@mozilla.org/timer;1", &sGCTimer);
 
   if (!sGCTimer) {
-    // Failed to create timer (probably because we're in XPCOM shutdown)
+    NS_WARNING("Failed to create timer");
     return;
   }
 
@@ -3386,7 +3387,7 @@ nsJSContext::PokeCC()
   CallCreateInstance("@mozilla.org/timer;1", &sCCTimer);
 
   if (!sCCTimer) {
-    // Failed to create timer (probably because we're in XPCOM shutdown)
+    NS_WARNING("Failed to create timer");
     return;
   }
 
@@ -3520,10 +3521,9 @@ nsJSContext::ReportPendingException()
   // set aside the frame chain, since it has nothing to do with the
   // exception we're reporting.
   if (mIsInitialized && ::JS_IsExceptionPending(mContext)) {
-    PRBool saved = ::JS_SaveFrameChain(mContext);
+    JSStackFrame* frame = JS_SaveFrameChain(mContext);
     ::JS_ReportPendingException(mContext);
-    if (saved)
-        ::JS_RestoreFrameChain(mContext);
+    JS_RestoreFrameChain(mContext, frame);
   }
 }
 
@@ -3602,7 +3602,7 @@ MaxScriptRunTimePrefChangedCallback(const char *aPrefName, void *aClosure)
   // scripts run forever.
   PRBool isChromePref =
     strcmp(aPrefName, "dom.max_chrome_script_run_time") == 0;
-  PRInt32 time = Preferences::GetInt(aPrefName, isChromePref ? 20 : 10);
+  PRInt32 time = nsContentUtils::GetIntPref(aPrefName, isChromePref ? 20 : 10);
 
   PRTime t;
   if (time <= 0) {
@@ -3624,7 +3624,7 @@ MaxScriptRunTimePrefChangedCallback(const char *aPrefName, void *aClosure)
 static int
 ReportAllJSExceptionsPrefChangedCallback(const char* aPrefName, void* aClosure)
 {
-  PRBool reportAll = Preferences::GetBool(aPrefName, PR_FALSE);
+  PRBool reportAll = nsContentUtils::GetBoolPref(aPrefName, PR_FALSE);
   nsContentUtils::XPConnect()->SetReportAllJSExceptions(reportAll);
   return 0;
 }
@@ -3632,7 +3632,7 @@ ReportAllJSExceptionsPrefChangedCallback(const char* aPrefName, void* aClosure)
 static int
 SetMemoryHighWaterMarkPrefChangedCallback(const char* aPrefName, void* aClosure)
 {
-  PRInt32 highwatermark = Preferences::GetInt(aPrefName, 128);
+  PRInt32 highwatermark = nsContentUtils::GetIntPref(aPrefName, 128);
 
   JS_SetGCParameter(nsJSRuntime::sRuntime, JSGC_MAX_MALLOC_BYTES,
                     highwatermark * 1024L * 1024L);
@@ -3642,7 +3642,7 @@ SetMemoryHighWaterMarkPrefChangedCallback(const char* aPrefName, void* aClosure)
 static int
 SetMemoryMaxPrefChangedCallback(const char* aPrefName, void* aClosure)
 {
-  PRInt32 pref = Preferences::GetInt(aPrefName, -1);
+  PRInt32 pref = nsContentUtils::GetIntPref(aPrefName, -1);
   // handle overflow and negative pref values
   PRUint32 max = (pref <= 0 || pref >= 0x1000) ? -1 : (PRUint32)pref * 1024 * 1024;
   JS_SetGCParameter(nsJSRuntime::sRuntime, JSGC_MAX_BYTES, max);
@@ -3650,9 +3650,17 @@ SetMemoryMaxPrefChangedCallback(const char* aPrefName, void* aClosure)
 }
 
 static int
+SetMemoryGCFrequencyPrefChangedCallback(const char* aPrefName, void* aClosure)
+{
+  PRInt32 triggerFactor = nsContentUtils::GetIntPref(aPrefName, 300);
+  JS_SetGCParameter(nsJSRuntime::sRuntime, JSGC_TRIGGER_FACTOR, triggerFactor);
+  return 0;
+}
+
+static int
 SetMemoryGCModePrefChangedCallback(const char* aPrefName, void* aClosure)
 {
-  PRBool enableCompartmentGC = Preferences::GetBool(aPrefName);
+  PRBool enableCompartmentGC = nsContentUtils::GetBoolPref(aPrefName);
   JS_SetGCParameter(nsJSRuntime::sRuntime, JSGC_MODE, enableCompartmentGC
                                                       ? JSGC_MODE_COMPARTMENT
                                                       : JSGC_MODE_GLOBAL);
@@ -3686,32 +3694,32 @@ ObjectPrincipalFinder(JSContext *cx, JSObject *obj)
   return jsPrincipals;
 }
 
-JSObject*
-NS_DOMReadStructuredClone(JSContext* cx,
-                          JSStructuredCloneReader* reader,
-                          uint32 tag,
-                          uint32 data,
-                          void* closure)
+static JSObject*
+DOMReadStructuredClone(JSContext* cx,
+                       JSStructuredCloneReader* reader,
+                       uint32 tag,
+                       uint32 data,
+                       void* closure)
 {
   // We don't currently support any extensions to structured cloning.
   nsDOMClassInfo::ThrowJSException(cx, NS_ERROR_DOM_DATA_CLONE_ERR);
   return nsnull;
 }
 
-JSBool
-NS_DOMWriteStructuredClone(JSContext* cx,
-                           JSStructuredCloneWriter* writer,
-                           JSObject* obj,
-                           void *closure)
+static JSBool
+DOMWriteStructuredClone(JSContext* cx,
+                        JSStructuredCloneWriter* writer,
+                        JSObject* obj,
+                        void *closure)
 {
   // We don't currently support any extensions to structured cloning.
   nsDOMClassInfo::ThrowJSException(cx, NS_ERROR_DOM_DATA_CLONE_ERR);
   return JS_FALSE;
 }
 
-void
-NS_DOMStructuredCloneError(JSContext* cx,
-                           uint32 errorid)
+static void
+DOMStructuredCloneError(JSContext* cx,
+                        uint32 errorid)
 {
   // We don't currently support any extensions to structured cloning.
   nsDOMClassInfo::ThrowJSException(cx, NS_ERROR_DOM_DATA_CLONE_ERR);
@@ -3755,49 +3763,57 @@ nsJSRuntime::Init()
 
   // Set up the structured clone callbacks.
   static JSStructuredCloneCallbacks cloneCallbacks = {
-    NS_DOMReadStructuredClone,
-    NS_DOMWriteStructuredClone,
-    NS_DOMStructuredCloneError
+    DOMReadStructuredClone,
+    DOMWriteStructuredClone,
+    DOMStructuredCloneError
   };
   JS_SetStructuredCloneCallbacks(sRuntime, &cloneCallbacks);
 
   // Set these global xpconnect options...
-  Preferences::RegisterCallback(MaxScriptRunTimePrefChangedCallback,
-                                "dom.max_script_run_time");
+  nsContentUtils::RegisterPrefCallback("dom.max_script_run_time",
+                                       MaxScriptRunTimePrefChangedCallback,
+                                       nsnull);
   MaxScriptRunTimePrefChangedCallback("dom.max_script_run_time", nsnull);
 
-  Preferences::RegisterCallback(MaxScriptRunTimePrefChangedCallback,
-                                "dom.max_chrome_script_run_time");
+  nsContentUtils::RegisterPrefCallback("dom.max_chrome_script_run_time",
+                                       MaxScriptRunTimePrefChangedCallback,
+                                       nsnull);
   MaxScriptRunTimePrefChangedCallback("dom.max_chrome_script_run_time",
                                       nsnull);
 
-  Preferences::RegisterCallback(ReportAllJSExceptionsPrefChangedCallback,
-                                "dom.report_all_js_exceptions");
+  nsContentUtils::RegisterPrefCallback("dom.report_all_js_exceptions",
+                                       ReportAllJSExceptionsPrefChangedCallback,
+                                       nsnull);
   ReportAllJSExceptionsPrefChangedCallback("dom.report_all_js_exceptions",
                                            nsnull);
 
-  Preferences::RegisterCallback(SetMemoryHighWaterMarkPrefChangedCallback,
-                                "javascript.options.mem.high_water_mark");
+  nsContentUtils::RegisterPrefCallback("javascript.options.mem.high_water_mark",
+                                       SetMemoryHighWaterMarkPrefChangedCallback,
+                                       nsnull);
   SetMemoryHighWaterMarkPrefChangedCallback("javascript.options.mem.high_water_mark",
                                             nsnull);
 
-  Preferences::RegisterCallback(SetMemoryMaxPrefChangedCallback,
-                                "javascript.options.mem.max");
+  nsContentUtils::RegisterPrefCallback("javascript.options.mem.max",
+                                       SetMemoryMaxPrefChangedCallback,
+                                       nsnull);
   SetMemoryMaxPrefChangedCallback("javascript.options.mem.max",
                                   nsnull);
 
-  Preferences::RegisterCallback(SetMemoryGCModePrefChangedCallback,
-                                "javascript.options.mem.gc_per_compartment");
+  nsContentUtils::RegisterPrefCallback("javascript.options.mem.gc_frequency",
+                                       SetMemoryGCFrequencyPrefChangedCallback,
+                                       nsnull);
+  SetMemoryGCFrequencyPrefChangedCallback("javascript.options.mem.gc_frequency",
+                                          nsnull);
+
+  nsContentUtils::RegisterPrefCallback("javascript.options.mem.gc_per_compartment",
+                                       SetMemoryGCModePrefChangedCallback,
+                                       nsnull);
   SetMemoryGCModePrefChangedCallback("javascript.options.mem.gc_per_compartment",
                                      nsnull);
 
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
   if (!obs)
     return NS_ERROR_FAILURE;
-
-  Preferences::AddBoolVarCache(&sGCOnMemoryPressure,
-                               "javascript.options.gc_on_memory_pressure",
-                               PR_TRUE);
 
   nsIObserver* memPressureObserver = new nsMemoryPressureObserver();
   NS_ENSURE_TRUE(memPressureObserver, NS_ERROR_OUT_OF_MEMORY);
@@ -3968,9 +3984,10 @@ nsJSArgArray::ReleaseJSObjects()
 
 // QueryInterface implementation for nsJSArgArray
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsJSArgArray)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsJSArgArray)
+NS_IMPL_CYCLE_COLLECTION_ROOT_BEGIN(nsJSArgArray)
   tmp->ReleaseJSObjects();
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+NS_IMPL_CYCLE_COLLECTION_ROOT_END
+NS_IMPL_CYCLE_COLLECTION_UNLINK_0(nsJSArgArray)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsJSArgArray)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
@@ -3982,8 +3999,7 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsJSArgArray)
     for (end = argv + tmp->mArgc; argv < end; ++argv) {
       if (JSVAL_IS_GCTHING(*argv))
         NS_IMPL_CYCLE_COLLECTION_TRACE_CALLBACK(JAVASCRIPT,
-                                                JSVAL_TO_GCTHING(*argv),
-                                                "mArgv[i]")
+                                                JSVAL_TO_GCTHING(*argv))
     }
   }
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
@@ -3994,8 +4010,8 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsJSArgArray)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIJSArgArray)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsJSArgArray)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsJSArgArray)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsJSArgArray, nsIJSArgArray)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsJSArgArray, nsIJSArgArray)
 
 nsresult
 nsJSArgArray::GetArgs(PRUint32 *argc, void **argv)

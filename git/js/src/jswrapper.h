@@ -88,7 +88,6 @@ class JS_FRIEND_API(JSWrapper) : public js::JSProxyHandler {
     virtual JSType typeOf(JSContext *cx, JSObject *proxy);
     virtual JSString *obj_toString(JSContext *cx, JSObject *wrapper);
     virtual JSString *fun_toString(JSContext *cx, JSObject *wrapper, uintN indent);
-    virtual bool defaultValue(JSContext *cx, JSObject *wrapper, JSType hint, js::Value *vp);
 
     virtual void trace(JSTracer *trc, JSObject *wrapper);
 
@@ -151,30 +150,11 @@ class JS_FRIEND_API(JSCrossCompartmentWrapper) : public JSWrapper {
     virtual bool hasInstance(JSContext *cx, JSObject *wrapper, const js::Value *vp, bool *bp);
     virtual JSString *obj_toString(JSContext *cx, JSObject *wrapper);
     virtual JSString *fun_toString(JSContext *cx, JSObject *wrapper, uintN indent);
-    virtual bool defaultValue(JSContext *cx, JSObject *wrapper, JSType hint, js::Value *vp);
-
-    virtual void trace(JSTracer *trc, JSObject *wrapper);
 
     static JSCrossCompartmentWrapper singleton;
 };
 
 namespace js {
-
-// A hacky class that lets a friend force a fake frame. We must already be
-// in the compartment of |target| when we enter the forced frame.
-class JS_FRIEND_API(ForceFrame)
-{
-  public:
-    JSContext * const context;
-    JSObject * const target;
-  private:
-    DummyFrameGuard *frame;
-
-  public:
-    ForceFrame(JSContext *cx, JSObject *target);
-    ~ForceFrame();
-    bool enter();
-};
 
 class AutoCompartment
 {
@@ -184,7 +164,9 @@ class AutoCompartment
     JSObject * const target;
     JSCompartment * const destination;
   private:
-    Maybe<DummyFrameGuard> frame;
+    LazilyConstructed<DummyFrameGuard> frame;
+    JSFrameRegs regs;
+    AutoStringRooter input;
     bool entered;
 
   public:

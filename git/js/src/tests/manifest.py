@@ -9,12 +9,9 @@ from tests import TestCase
 
 
 def split_path_into_dirs(path):
-    dirs = [path]
-   
-    while True:
-        path, tail = os.path.split(path)
-        if not tail:
-            break
+    dirs = []
+    while path != "/":
+        path = os.path.dirname(path)
         dirs.append(path)
     return dirs
 
@@ -32,7 +29,7 @@ class XULInfo:
             self.os,
             self.abi,
             str(self.isdebug).lower(),
-            str(self.os == "Android").lower())
+            self.os == "Android")
 
     @classmethod
     def create(cls, jsdir):
@@ -46,9 +43,8 @@ class XULInfo:
 
         path = None
         for dir in dirs:
-          _path = os.path.join(dir, 'config/autoconf.mk')
-          if os.path.isfile(_path):
-              path = _path
+          path = os.path.join(dir, 'config/autoconf.mk')
+          if os.path.isfile(path):
               break
 
         if path == None:
@@ -131,7 +127,6 @@ def parse(filename, xul_tester, reldir = ''):
             expect = True
             random = False
             slow = False
-            debugMode = False
 
             pos = 0
             while pos < len(parts):
@@ -163,25 +158,6 @@ def parse(filename, xul_tester, reldir = ''):
                     if xul_tester.test(cond):
                         random = True
                     pos += 1
-                elif parts[pos].startswith('require-or'):
-                    cond = parts[pos][len('require-or('):-1]
-                    (preconditions, fallback_action) = re.split(",", cond)
-                    for precondition in re.split("&&", preconditions):
-                        if precondition == 'debugMode':
-                            debugMode = True
-                        elif precondition == 'true':
-                            pass
-                        else:
-                            if fallback_action == "skip":
-                                expect = enable = False
-                            elif fallback_action == "fail":
-                                expect = False
-                            elif fallback_action == "random":
-                                random = True
-                            else:
-                                raise Exception("Invalid precondition '%s' or fallback action '%s'" % (precondition, fallback_action))
-                            break
-                    pos += 1
                 elif parts[pos] == 'script':
                     script = parts[pos+1]
                     pos += 2
@@ -198,6 +174,6 @@ def parse(filename, xul_tester, reldir = ''):
                     pos += 1
 
             assert script is not None
-            ans.append(TestCase(os.path.join(reldir, script),
-                                enable, expect, random, slow, debugMode))
+            ans.append(TestCase(os.path.join(reldir, script), 
+                                enable, expect, random, slow))
     return ans

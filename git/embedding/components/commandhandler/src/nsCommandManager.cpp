@@ -51,6 +51,7 @@
 #include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
 #include "nsPIWindowRoot.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsIFocusManager.h"
 #include "nsIDOMEventTarget.h"
 
@@ -94,8 +95,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsCommandManager)
   tmp->mObserversTable.EnumerateRead(TraverseCommandObservers, &cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsCommandManager)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsCommandManager)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsCommandManager, nsICommandManager)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsCommandManager, nsICommandManager)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsCommandManager)
    NS_INTERFACE_MAP_ENTRY(nsICommandManager)
@@ -274,6 +275,10 @@ nsCommandManager::DoCommand(const char *aCommandName,
   return rv;
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#endif
+
 nsresult
 nsCommandManager::IsCallerChrome(PRBool *is_caller_chrome)
 {
@@ -314,10 +319,15 @@ nsCommandManager::GetControllerForCommand(const char *aCommand,
         return NS_ERROR_FAILURE;
   }
 
-  if (aTargetWindow) {
+  if (aTargetWindow)
+  {
     // get the controller for this particular window
+    nsCOMPtr<nsIDOMWindowInternal> domWindowInternal = do_QueryInterface(aTargetWindow);
+    if (!domWindowInternal)
+      return NS_ERROR_FAILURE;
+
     nsCOMPtr<nsIControllers> controllers;
-    rv = aTargetWindow->GetControllers(getter_AddRefs(controllers));
+    rv = domWindowInternal->GetControllers(getter_AddRefs(controllers));
     if (NS_FAILED(rv))
       return rv;
     if (!controllers)

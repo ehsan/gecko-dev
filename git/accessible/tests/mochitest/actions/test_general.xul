@@ -9,6 +9,8 @@
 <window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
         title="nsIAccessible actions testing">
 
+  <script type="application/javascript" 
+          src="chrome://mochikit/content/MochiKit/packed.js"></script>
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js" />
 
@@ -27,12 +29,7 @@
         {
           ID: "menu",
           actionName: "click",
-          events: CLICK_EVENTS,
-          // Wait for focus event, it guarantees us the submenu tree is created,
-          // that's necessary for next test.
-          eventSeq: [
-            new invokerChecker(EVENT_FOCUS, getNode("menu"))
-          ]
+          events: CLICK_EVENTS
         },
         {
           ID: "submenu",

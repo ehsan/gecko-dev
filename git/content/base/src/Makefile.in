@@ -70,8 +70,6 @@ EXPORTS_mozilla/dom = \
   Link.h \
   $(NULL)
 
-LOCAL_INCLUDES = -I$(srcdir)/js/src/xpconnect/src
-
 CPPSRCS		= \
 		mozSanitizingSerializer.cpp \
 		nsAtomListUtils.cpp \
@@ -92,7 +90,6 @@ CPPSRCS		= \
 		nsDataDocumentContentPolicy.cpp \
 		nsDOMAttribute.cpp \
 		nsDOMAttributeMap.cpp \
-		nsDOMBlobBuilder.cpp \
 		nsDOMDocumentType.cpp \
 		nsDOMEventTargetWrapperCache.cpp \
 		nsDOMFile.cpp \
@@ -114,6 +111,7 @@ CPPSRCS		= \
 		nsHTMLContentSerializer.cpp \
 		nsImageLoadingContent.cpp \
 		nsLineBreaker.cpp \
+		nsLoadListenerProxy.cpp \
 		nsMappedAttributeElement.cpp \
 		nsMappedAttributes.cpp \
 		nsNameSpaceManager.cpp \
@@ -129,6 +127,7 @@ CPPSRCS		= \
 		nsRange.cpp \
 		nsReferencedElement.cpp \
 		nsScriptElement.cpp \
+		nsScriptEventManager.cpp \
 		nsScriptLoader.cpp \
 		nsStubDocumentObserver.cpp \
 		nsStubImageDecoderObserver.cpp \
@@ -139,7 +138,6 @@ CPPSRCS		= \
 		nsTextFragment.cpp \
 		nsTextNode.cpp \
 		nsTraversal.cpp \
-		nsTreeSanitizer.cpp \
 		nsTreeWalker.cpp \
 		nsWebSocket.cpp \
 		nsXHTMLContentSerializer.cpp \
@@ -151,7 +149,6 @@ CPPSRCS		= \
 		nsFrameMessageManager.cpp \
 		nsInProcessTabChildGlobal.cpp \
 		ThirdPartyUtil.cpp \
-		nsEventSource.cpp \
 		$(NULL)
 
 # Are we targeting x86-32 or x86-64?  If so, we want to include SSE2 code for
@@ -166,9 +163,6 @@ ifdef GNU_CC
 nsTextFragmentSSE2.$(OBJ_SUFFIX): CXXFLAGS+=-msse2
 endif
 
-ifdef SOLARIS_SUNPRO_CXX
-nsTextFragmentSSE2.$(OBJ_SUFFIX): CXXFLAGS+=-xarch=sse2 -xO4
-endif
 endif
 
 GQI_SRCS = contentbase.gqi
@@ -184,9 +178,14 @@ EXTRA_COMPONENTS = \
 		contentSecurityPolicy.manifest \
 		contentAreaDropListener.js \
 		contentAreaDropListener.manifest \
+		$(NULL)
+
+ifdef MOZ_IPC
+EXTRA_COMPONENTS += \
 		messageWakeupService.js \
 		messageWakeupService.manifest \
 		$(NULL)
+endif
 
 EXTRA_JS_MODULES = \
 		CSPUtils.jsm \
@@ -212,8 +211,6 @@ INCLUDES	+= \
 		-I$(topsrcdir)/dom/ipc \
 		-I$(topsrcdir)/js/src/xpconnect/src \
 		-I$(topsrcdir)/caps/include \
-		-I$(topsrcdir)/netwerk/base/src \
-		-I$(topsrcdir)/xpcom/ds \
 		$(NULL)
 
 DEFINES += -D_IMPL_NS_LAYOUT

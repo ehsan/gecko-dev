@@ -74,6 +74,8 @@ LSPAnnotationGatherer::Annotate()
   PRBool enabled;
   if (cr && NS_SUCCEEDED(cr->GetEnabled(&enabled)) && enabled) {
     cr->AnnotateCrashReport(NS_LITERAL_CSTRING("Winsock_LSP"), mString);
+    nsCString note = NS_LITERAL_CSTRING("Winsock LSPs: ");
+    note.Append(mString);
   }
   mThread->Shutdown();
 }
@@ -93,7 +95,7 @@ LSPAnnotationGatherer::Run()
     return NS_ERROR_FAILURE;
   }
 
-  nsAutoArrayPtr<char> byteArray(new char[size]);
+  nsAutoPtr<char> byteArray = new char[size];
   WSAPROTOCOL_INFOW* providers =
     reinterpret_cast<WSAPROTOCOL_INFOW*>(byteArray.get());
 

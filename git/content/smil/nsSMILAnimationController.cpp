@@ -55,22 +55,64 @@ using namespace mozilla::dom;
 //----------------------------------------------------------------------
 // nsSMILAnimationController implementation
 
+// Helper method
+static nsRefreshDriver*
+GetRefreshDriverForDoc(nsIDocument* aDoc)
+{
+  nsIPresShell* shell = aDoc->GetShell();
+  if (!shell) {
+    return nsnull;
+  }
+
+  nsPresContext* context = shell->GetPresContext();
+  return context ? context->RefreshDriver() : nsnull;
+}
+
 //----------------------------------------------------------------------
 // ctors, dtors, factory methods
 
-nsSMILAnimationController::nsSMILAnimationController(nsIDocument* aDoc)
+nsSMILAnimationController::nsSMILAnimationController()
   : mAvgTimeBetweenSamples(0),
     mResampleNeeded(PR_FALSE),
     mDeferredStartSampling(PR_FALSE),
     mRunningSample(PR_FALSE),
-    mDocument(aDoc)
+    mDocument(nsnull)
 {
-  NS_ABORT_IF_FALSE(aDoc, "need a non-null document");
-
   mAnimationElementTable.Init();
   mChildContainerTable.Init();
+}
 
-  nsRefreshDriver* refreshDriver = GetRefreshDriver();
+nsSMILAnimationController::~nsSMILAnimationController()
+{
+  StopSampling(GetRefreshDriverForDoc(mDocument));
+  NS_ASSERTION(mAnimationElementTable.Count() == 0,
+               "Animation controller shouldn't be tracking any animation"
+               " elements when it dies");
+}
+
+nsSMILAnimationController* NS_NewSMILAnimationController(nsIDocument* aDoc)
+{
+  nsSMILAnimationController* animationController =
+    new nsSMILAnimationController();
+  NS_ENSURE_TRUE(animationController, nsnull);
+
+  nsresult rv = animationController->Init(aDoc);
+  if (NS_FAILED(rv)) {
+    delete animationController;
+    animationController = nsnull;
+  }
+
+  return animationController;
+}
+
+nsresult
+nsSMILAnimationController::Init(nsIDocument* aDoc)
+{
+  NS_ENSURE_ARG_POINTER(aDoc);
+
+  // Keep track of document, so we can traverse its set of animation elements
+  mDocument = aDoc;
+  nsRefreshDriver* refreshDriver = GetRefreshDriverForDoc(mDocument);
   if (refreshDriver) {
     mStartTime = refreshDriver->MostRecentRefresh();
   } else {
@@ -79,27 +121,8 @@ nsSMILAnimationController::nsSMILAnimationController(nsIDocument* aDoc)
   mCurrentSampleTime = mStartTime;
 
   Begin();
-}
 
-nsSMILAnimationController::~nsSMILAnimationController()
-{
-  NS_ASSERTION(mAnimationElementTable.Count() == 0,
-               "Animation controller shouldn't be tracking any animation"
-               " elements when it dies");
-}
-
-void
-nsSMILAnimationController::Disconnect()
-{
-  NS_ABORT_IF_FALSE(mDocument, "disconnecting when we weren't connected...?");
-  NS_ABORT_IF_FALSE(mRefCnt.get() == 1,
-                    "Expecting to disconnect when doc is sole remaining owner");
-  NS_ASSERTION(mPauseState & nsSMILTimeContainer::PAUSE_PAGEHIDE,
-               "Expecting to be paused for pagehide before disconnect");
-
-  StopSampling(GetRefreshDriver());
-
-  mDocument = nsnull; // (raw pointer)
+  return NS_OK;
 }
 
 //----------------------------------------------------------------------
@@ -112,7 +135,7 @@ nsSMILAnimationController::Pause(PRUint32 aType)
 
   if (mPauseState) {
     mDeferredStartSampling = PR_FALSE;
-    StopSampling(GetRefreshDriver());
+    StopSampling(GetRefreshDriverForDoc(mDocument));
   }
 }
 
@@ -128,7 +151,7 @@ nsSMILAnimationController::Resume(PRUint32 aType)
 
   if (wasPaused && !mPauseState && mChildContainerTable.Count()) {
     Sample(); // Run the first sample manually
-    MaybeStartSampling(GetRefreshDriver());
+    MaybeStartSampling(GetRefreshDriverForDoc(mDocument));
   }
 }
 
@@ -207,7 +230,7 @@ nsSMILAnimationController::RegisterAnimationElement(
       NS_ABORT_IF_FALSE(mAnimationElementTable.Count() == 1,
                         "we shouldn't have deferred sampling if we already had "
                         "animations registered");
-      StartSampling(GetRefreshDriver());
+      StartSampling(GetRefreshDriverForDoc(mDocument));
     } // else, don't sample until a time container is registered (via AddChild)
   }
 }
@@ -296,8 +319,8 @@ nsSMILAnimationController::StartSampling(nsRefreshDriver* aRefreshDriver)
   NS_ASSERTION(!mDeferredStartSampling,
                "Started sampling but the deferred start flag is still set");
   if (aRefreshDriver) {
-    NS_ABORT_IF_FALSE(!GetRefreshDriver() ||
-                      aRefreshDriver == GetRefreshDriver(),
+    NS_ABORT_IF_FALSE(!GetRefreshDriverForDoc(mDocument) ||
+                      aRefreshDriver == GetRefreshDriverForDoc(mDocument),
                       "Starting sampling with wrong refresh driver");
     // We're effectively resuming from a pause so update our current sample time
     // or else it will confuse our "average time between samples" calculations.
@@ -312,8 +335,8 @@ nsSMILAnimationController::StopSampling(nsRefreshDriver* aRefreshDriver)
   if (aRefreshDriver) {
     // NOTE: The document might already have been detached from its PresContext
     // (and RefreshDriver), which would make GetRefreshDriverForDoc return null.
-    NS_ABORT_IF_FALSE(!GetRefreshDriver() ||
-                      aRefreshDriver == GetRefreshDriver(),
+    NS_ABORT_IF_FALSE(!GetRefreshDriverForDoc(mDocument) ||
+                      aRefreshDriver == GetRefreshDriverForDoc(mDocument),
                       "Stopping sampling with wrong refresh driver");
     aRefreshDriver->RemoveRefreshObserver(this, Flush_Style);
   }
@@ -389,11 +412,6 @@ nsSMILAnimationController::DoSample()
 void
 nsSMILAnimationController::DoSample(PRBool aSkipUnchangedContainers)
 {
-  if (!mDocument) {
-    NS_ERROR("Shouldn't be sampling after document has disconnected");
-    return;
-  }
-
   mResampleNeeded = PR_FALSE;
   // Set running sample flag -- do this before flushing styles so that when we
   // flush styles we don't end up requesting extra samples
@@ -579,7 +597,7 @@ nsSMILAnimationController::DoMilestoneSamples()
     // Because we're only performing this clamping at the last moment, the
     // animations will still all get sampled in the correct order and
     // dependencies will be appropriately resolved.
-    sampleTime = NS_MAX(nextMilestone.mTime, sampleTime);
+    sampleTime = PR_MAX(nextMilestone.mTime, sampleTime);
 
     for (PRUint32 i = 0; i < length; ++i) {
       nsISMILAnimationElement* elem = params.mElements[i].get();
@@ -596,7 +614,7 @@ nsSMILAnimationController::DoMilestoneSamples()
         continue;
 
       // Clamp the converted container time to non-negative values.
-      nsSMILTime containerTime = NS_MAX<nsSMILTime>(0, containerTimeValue.GetMillis());
+      nsSMILTime containerTime = PR_MAX(0, containerTimeValue.GetMillis());
 
       if (nextMilestone.mIsEnd) {
         elem->TimedElement().SampleEndAt(containerTime);
@@ -818,7 +836,7 @@ nsSMILAnimationController::AddChild(nsSMILTimeContainer& aChild)
 
   if (!mPauseState && mChildContainerTable.Count() == 1) {
     Sample(); // Run the first sample manually
-    MaybeStartSampling(GetRefreshDriver());
+    MaybeStartSampling(GetRefreshDriverForDoc(mDocument));
   }
 
   return NS_OK;
@@ -830,24 +848,6 @@ nsSMILAnimationController::RemoveChild(nsSMILTimeContainer& aChild)
   mChildContainerTable.RemoveEntry(&aChild);
 
   if (!mPauseState && mChildContainerTable.Count() == 0) {
-    StopSampling(GetRefreshDriver());
+    StopSampling(GetRefreshDriverForDoc(mDocument));
   }
-}
-
-// Helper method
-nsRefreshDriver*
-nsSMILAnimationController::GetRefreshDriver()
-{
-  if (!mDocument) {
-    NS_ERROR("Requesting refresh driver after document has disconnected!");
-    return nsnull;
-  }
-
-  nsIPresShell* shell = mDocument->GetShell();
-  if (!shell) {
-    return nsnull;
-  }
-
-  nsPresContext* context = shell->GetPresContext();
-  return context ? context->RefreshDriver() : nsnull;
 }

@@ -20,7 +20,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *   Jonathon Jongsma <jonathon.jongsma@collabora.co.uk>, Collabora Ltd.
  *
  * Alternatively, the contents of this file may be used under the terms of
@@ -445,31 +445,6 @@ nsCSSProps::OtherNameFor(nsCSSProperty aProperty)
 
 /***************************************************************************/
 
-const PRInt32 nsCSSProps::kAnimationDirectionKTable[] = {
-  eCSSKeyword_normal, NS_STYLE_ANIMATION_DIRECTION_NORMAL,
-  eCSSKeyword_alternate, NS_STYLE_ANIMATION_DIRECTION_ALTERNATE,
-  eCSSKeyword_UNKNOWN,-1
-};
-
-const PRInt32 nsCSSProps::kAnimationFillModeKTable[] = {
-  eCSSKeyword_none, NS_STYLE_ANIMATION_FILL_MODE_NONE,
-  eCSSKeyword_forwards, NS_STYLE_ANIMATION_FILL_MODE_FORWARDS,
-  eCSSKeyword_backwards, NS_STYLE_ANIMATION_FILL_MODE_BACKWARDS,
-  eCSSKeyword_both, NS_STYLE_ANIMATION_FILL_MODE_BOTH,
-  eCSSKeyword_UNKNOWN,-1
-};
-
-const PRInt32 nsCSSProps::kAnimationIterationCountKTable[] = {
-  eCSSKeyword_infinite, NS_STYLE_ANIMATION_ITERATION_COUNT_INFINITE,
-  eCSSKeyword_UNKNOWN,-1
-};
-
-const PRInt32 nsCSSProps::kAnimationPlayStateKTable[] = {
-  eCSSKeyword_running, NS_STYLE_ANIMATION_PLAY_STATE_RUNNING,
-  eCSSKeyword_paused, NS_STYLE_ANIMATION_PLAY_STATE_PAUSED,
-  eCSSKeyword_UNKNOWN,-1
-};
-
 const PRInt32 nsCSSProps::kAppearanceKTable[] = {
   eCSSKeyword_none,                   NS_THEME_NONE,
   eCSSKeyword_button,                 NS_THEME_BUTTON,
@@ -577,13 +552,24 @@ const PRInt32 nsCSSProps::kAppearanceKTable[] = {
   eCSSKeyword__moz_window_button_restore,     NS_THEME_WINDOW_BUTTON_RESTORE,
   eCSSKeyword__moz_window_button_box,         NS_THEME_WINDOW_BUTTON_BOX,
   eCSSKeyword__moz_window_button_box_maximized, NS_THEME_WINDOW_BUTTON_BOX_MAXIMIZED,
-  eCSSKeyword__moz_win_exclude_glass,         NS_THEME_WIN_EXCLUDE_GLASS,
   eCSSKeyword_UNKNOWN,-1
 };
 
-const PRInt32 nsCSSProps::kBackfaceVisibilityKTable[] = {
-  eCSSKeyword_visible, NS_STYLE_BACKFACE_VISIBILITY_VISIBLE,
-  eCSSKeyword_hidden, NS_STYLE_BACKFACE_VISIBILITY_HIDDEN
+// Keyword id tables for variant/enum parsing
+const PRInt32 nsCSSProps::kAzimuthKTable[] = {
+  eCSSKeyword_left_side,    NS_STYLE_AZIMUTH_LEFT_SIDE,
+  eCSSKeyword_far_left,     NS_STYLE_AZIMUTH_FAR_LEFT,
+  eCSSKeyword_left,         NS_STYLE_AZIMUTH_LEFT,
+  eCSSKeyword_center_left,  NS_STYLE_AZIMUTH_CENTER_LEFT,
+  eCSSKeyword_center,       NS_STYLE_AZIMUTH_CENTER,
+  eCSSKeyword_center_right, NS_STYLE_AZIMUTH_CENTER_RIGHT,
+  eCSSKeyword_right,        NS_STYLE_AZIMUTH_RIGHT,
+  eCSSKeyword_far_right,    NS_STYLE_AZIMUTH_FAR_RIGHT,
+  eCSSKeyword_right_side,   NS_STYLE_AZIMUTH_RIGHT_SIDE,
+  eCSSKeyword_behind,       NS_STYLE_AZIMUTH_BEHIND,
+  eCSSKeyword_leftwards,    NS_STYLE_AZIMUTH_LEFTWARDS,
+  eCSSKeyword_rightwards,   NS_STYLE_AZIMUTH_RIGHTWARDS,
+  eCSSKeyword_UNKNOWN,-1
 };
 
 const PRInt32 nsCSSProps::kBackgroundAttachmentKTable[] = {
@@ -874,6 +860,15 @@ const PRInt32 nsCSSProps::kDisplayKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
+const PRInt32 nsCSSProps::kElevationKTable[] = {
+  eCSSKeyword_below,  NS_STYLE_ELEVATION_BELOW,
+  eCSSKeyword_level,  NS_STYLE_ELEVATION_LEVEL,
+  eCSSKeyword_above,  NS_STYLE_ELEVATION_ABOVE,
+  eCSSKeyword_higher, NS_STYLE_ELEVATION_HIGHER,
+  eCSSKeyword_lower,  NS_STYLE_ELEVATION_LOWER,
+  eCSSKeyword_UNKNOWN,-1
+};
+
 const PRInt32 nsCSSProps::kEmptyCellsKTable[] = {
   eCSSKeyword_show,                 NS_STYLE_TABLE_EMPTY_CELLS_SHOW,
   eCSSKeyword_hide,                 NS_STYLE_TABLE_EMPTY_CELLS_HIDE,
@@ -1041,12 +1036,6 @@ const PRInt32 nsCSSProps::kListStyleKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
-const PRInt32 nsCSSProps::kOrientKTable[] = {
-  eCSSKeyword_horizontal, NS_STYLE_ORIENT_HORIZONTAL,
-  eCSSKeyword_vertical,   NS_STYLE_ORIENT_VERTICAL,
-  eCSSKeyword_UNKNOWN,    -1
-};
-
 // Same as kBorderStyleKTable except 'hidden'.
 const PRInt32 nsCSSProps::kOutlineStyleKTable[] = {
   eCSSKeyword_none,   NS_STYLE_BORDER_STYLE_NONE,
@@ -1122,6 +1111,15 @@ const PRInt32 nsCSSProps::kPageSizeKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
+const PRInt32 nsCSSProps::kPitchKTable[] = {
+  eCSSKeyword_x_low, NS_STYLE_PITCH_X_LOW,
+  eCSSKeyword_low, NS_STYLE_PITCH_LOW,
+  eCSSKeyword_medium, NS_STYLE_PITCH_MEDIUM,
+  eCSSKeyword_high, NS_STYLE_PITCH_HIGH,
+  eCSSKeyword_x_high, NS_STYLE_PITCH_X_HIGH,
+  eCSSKeyword_UNKNOWN,-1
+};
+
 const PRInt32 nsCSSProps::kPointerEventsKTable[] = {
   eCSSKeyword_none, NS_STYLE_POINTER_EVENTS_NONE,
   eCSSKeyword_visiblepainted, NS_STYLE_POINTER_EVENTS_VISIBLEPAINTED,
@@ -1169,6 +1167,42 @@ const PRInt32 nsCSSProps::kResizeKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
+const PRInt32 nsCSSProps::kSpeakKTable[] = {
+  eCSSKeyword_none,      NS_STYLE_SPEAK_NONE,
+  eCSSKeyword_normal,    NS_STYLE_SPEAK_NORMAL,
+  eCSSKeyword_spell_out, NS_STYLE_SPEAK_SPELL_OUT,
+  eCSSKeyword_UNKNOWN,-1
+};
+
+const PRInt32 nsCSSProps::kSpeakHeaderKTable[] = {
+  eCSSKeyword_once, NS_STYLE_SPEAK_HEADER_ONCE,
+  eCSSKeyword_always, NS_STYLE_SPEAK_HEADER_ALWAYS,
+  eCSSKeyword_UNKNOWN,-1
+};
+
+const PRInt32 nsCSSProps::kSpeakNumeralKTable[] = {
+  eCSSKeyword_digits, NS_STYLE_SPEAK_NUMERAL_DIGITS,
+  eCSSKeyword_continuous, NS_STYLE_SPEAK_NUMERAL_CONTINUOUS,
+  eCSSKeyword_UNKNOWN,-1
+};
+
+const PRInt32 nsCSSProps::kSpeakPunctuationKTable[] = {
+  eCSSKeyword_none, NS_STYLE_SPEAK_PUNCTUATION_NONE,
+  eCSSKeyword_code, NS_STYLE_SPEAK_PUNCTUATION_CODE,
+  eCSSKeyword_UNKNOWN,-1
+};
+
+const PRInt32 nsCSSProps::kSpeechRateKTable[] = {
+  eCSSKeyword_x_slow, NS_STYLE_SPEECH_RATE_X_SLOW,
+  eCSSKeyword_slow, NS_STYLE_SPEECH_RATE_SLOW,
+  eCSSKeyword_medium, NS_STYLE_SPEECH_RATE_MEDIUM,
+  eCSSKeyword_fast, NS_STYLE_SPEECH_RATE_FAST,
+  eCSSKeyword_x_fast, NS_STYLE_SPEECH_RATE_X_FAST,
+  eCSSKeyword_faster, NS_STYLE_SPEECH_RATE_FASTER,
+  eCSSKeyword_slower, NS_STYLE_SPEECH_RATE_SLOWER,
+  eCSSKeyword_UNKNOWN,-1
+};
+
 const PRInt32 nsCSSProps::kStackSizingKTable[] = {
   eCSSKeyword_ignore, NS_STYLE_STACK_SIZING_IGNORE,
   eCSSKeyword_stretch_to_fit, NS_STYLE_STACK_SIZING_STRETCH_TO_FIT,
@@ -1194,18 +1228,13 @@ const PRInt32 nsCSSProps::kTextAlignKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
-const PRInt32 nsCSSProps::kTextBlinkKTable[] = {
-  eCSSKeyword_none, NS_STYLE_TEXT_BLINK_NONE,
-  eCSSKeyword_blink, NS_STYLE_TEXT_BLINK_BLINK,
-  eCSSKeyword_UNKNOWN,-1
-};
-
-const PRInt32 nsCSSProps::kTextDecorationLineKTable[] = {
-  eCSSKeyword_none, NS_STYLE_TEXT_DECORATION_LINE_NONE,
-  eCSSKeyword_underline, NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE,
-  eCSSKeyword_overline, NS_STYLE_TEXT_DECORATION_LINE_OVERLINE,
-  eCSSKeyword_line_through, NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH,
-  eCSSKeyword__moz_anchor_decoration, NS_STYLE_TEXT_DECORATION_LINE_PREF_ANCHORS,
+const PRInt32 nsCSSProps::kTextDecorationKTable[] = {
+  eCSSKeyword_none, NS_STYLE_TEXT_DECORATION_NONE,
+  eCSSKeyword_underline, NS_STYLE_TEXT_DECORATION_UNDERLINE,
+  eCSSKeyword_overline, NS_STYLE_TEXT_DECORATION_OVERLINE,
+  eCSSKeyword_line_through, NS_STYLE_TEXT_DECORATION_LINE_THROUGH,
+  eCSSKeyword_blink, NS_STYLE_TEXT_DECORATION_BLINK,
+  eCSSKeyword__moz_anchor_decoration, NS_STYLE_TEXT_DECORATION_PREF_ANCHORS,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -1217,12 +1246,6 @@ const PRInt32 nsCSSProps::kTextDecorationStyleKTable[] = {
   eCSSKeyword_dashed, NS_STYLE_TEXT_DECORATION_STYLE_DASHED,
   eCSSKeyword_wavy, NS_STYLE_TEXT_DECORATION_STYLE_WAVY,
   eCSSKeyword_UNKNOWN,-1
-};
-
-const PRInt32 nsCSSProps::kTextOverflowKTable[] = {
-  eCSSKeyword_clip, NS_STYLE_TEXT_OVERFLOW_CLIP,
-  eCSSKeyword_ellipsis, NS_STYLE_TEXT_OVERFLOW_ELLIPSIS,
-  eCSSKeyword_UNKNOWN, -1
 };
 
 const PRInt32 nsCSSProps::kTextTransformKTable[] = {
@@ -1239,8 +1262,6 @@ const PRInt32 nsCSSProps::kTransitionTimingFunctionKTable[] = {
   eCSSKeyword_ease_in, NS_STYLE_TRANSITION_TIMING_FUNCTION_EASE_IN,
   eCSSKeyword_ease_out, NS_STYLE_TRANSITION_TIMING_FUNCTION_EASE_OUT,
   eCSSKeyword_ease_in_out, NS_STYLE_TRANSITION_TIMING_FUNCTION_EASE_IN_OUT,
-  eCSSKeyword_step_start, NS_STYLE_TRANSITION_TIMING_FUNCTION_STEP_START,
-  eCSSKeyword_step_end, NS_STYLE_TRANSITION_TIMING_FUNCTION_STEP_END,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -1312,6 +1333,16 @@ const PRInt32 nsCSSProps::kVisibilityKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
+const PRInt32 nsCSSProps::kVolumeKTable[] = {
+  eCSSKeyword_silent, NS_STYLE_VOLUME_SILENT,
+  eCSSKeyword_x_soft, NS_STYLE_VOLUME_X_SOFT,
+  eCSSKeyword_soft, NS_STYLE_VOLUME_SOFT,
+  eCSSKeyword_medium, NS_STYLE_VOLUME_MEDIUM,
+  eCSSKeyword_loud, NS_STYLE_VOLUME_LOUD,
+  eCSSKeyword_x_loud, NS_STYLE_VOLUME_X_LOUD,
+  eCSSKeyword_UNKNOWN,-1
+};
+
 const PRInt32 nsCSSProps::kWhitespaceKTable[] = {
   eCSSKeyword_normal, NS_STYLE_WHITESPACE_NORMAL,
   eCSSKeyword_pre, NS_STYLE_WHITESPACE_PRE,
@@ -1341,13 +1372,6 @@ const PRInt32 nsCSSProps::kWindowShadowKTable[] = {
 const PRInt32 nsCSSProps::kWordwrapKTable[] = {
   eCSSKeyword_normal, NS_STYLE_WORDWRAP_NORMAL,
   eCSSKeyword_break_word, NS_STYLE_WORDWRAP_BREAK_WORD,
-  eCSSKeyword_UNKNOWN,-1
-};
-
-const PRInt32 nsCSSProps::kHyphensKTable[] = {
-  eCSSKeyword_none, NS_STYLE_HYPHENS_NONE,
-  eCSSKeyword_manual, NS_STYLE_HYPHENS_MANUAL,
-  eCSSKeyword_auto, NS_STYLE_HYPHENS_AUTO,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -1584,20 +1608,6 @@ const PRUint32 nsCSSProps::kFlagsTable[eCSSProperty_COUNT] = {
 #define CSS_PROP_SHORTHAND(name_, id_, method_, flags_) flags_,
 #include "nsCSSPropList.h"
 #undef CSS_PROP_SHORTHAND
-};
-
-static const nsCSSProperty gAnimationSubpropTable[] = {
-  eCSSProperty_animation_duration,
-  eCSSProperty_animation_timing_function,
-  eCSSProperty_animation_delay,
-  eCSSProperty_animation_direction,
-  eCSSProperty_animation_fill_mode,
-  eCSSProperty_animation_iteration_count,
-  // List animation-name last so we serialize it last, in case it has
-  // a value that conflicts with one of the other properties.  (See
-  // how Declaration::GetValue serializes 'animation'.
-  eCSSProperty_animation_name,
-  eCSSProperty_UNKNOWN
 };
 
 static const nsCSSProperty gBorderRadiusSubpropTable[] = {
@@ -1890,6 +1900,12 @@ static const nsCSSProperty gBorderEndWidthSubpropTable[] = {
   eCSSProperty_UNKNOWN
 };
 
+static const nsCSSProperty gCueSubpropTable[] = {
+  eCSSProperty_cue_after,
+  eCSSProperty_cue_before,
+  eCSSProperty_UNKNOWN
+};
+
 static const nsCSSProperty gFontSubpropTable[] = {
   eCSSProperty_font_family,
   eCSSProperty_font_style,
@@ -2029,11 +2045,9 @@ static const nsCSSProperty gPaddingEndSubpropTable[] = {
   eCSSProperty_UNKNOWN
 };
 
-static const nsCSSProperty gTextDecorationSubpropTable[] = {
-  eCSSProperty_text_blink,
-  eCSSProperty_text_decoration_color,
-  eCSSProperty_text_decoration_line,
-  eCSSProperty_text_decoration_style,
+static const nsCSSProperty gPauseSubpropTable[] = {
+  eCSSProperty_pause_after,
+  eCSSProperty_pause_before,
   eCSSProperty_UNKNOWN
 };
 

@@ -42,8 +42,6 @@
  
 #include "nsApplicationAccessible.h"
 
-#include "Relation.h"
-#include "States.h"
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
 
@@ -53,8 +51,6 @@
 #include "nsIWindowMediator.h"
 #include "nsServiceManagerUtils.h"
 #include "mozilla/Services.h"
-
-using namespace mozilla::a11y;
 
 nsApplicationAccessible::nsApplicationAccessible() :
   nsAccessibleWrap(nsnull, nsnull)
@@ -130,16 +126,26 @@ nsApplicationAccessible::GetValue(nsAString &aValue)
   return NS_OK;
 }
 
-void
-nsApplicationAccessible::Description(nsString &aDescription)
+NS_IMETHODIMP
+nsApplicationAccessible::GetDescription(nsAString &aDescription)
 {
   aDescription.Truncate();
+  return NS_OK;
 }
 
-PRUint64
-nsApplicationAccessible::State()
+NS_IMETHODIMP
+nsApplicationAccessible::GetKeyboardShortcut(nsAString &aKeyboardShortcut)
 {
-  return IsDefunct() ? states::DEFUNCT : 0;
+  aKeyboardShortcut.Truncate();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
+{
+  NS_ENSURE_ARG_POINTER(aState);
+  GetStateInternal(aState, aExtraState);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -165,28 +171,44 @@ nsApplicationAccessible::GroupPosition(PRInt32 *aGroupLevel,
 }
 
 nsAccessible*
-nsApplicationAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                      EWhichChildAtPoint aWhichChild)
+nsApplicationAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                         EWhichChildAtPoint aWhichChild)
 {
   return nsnull;
 }
 
-nsAccessible*
-nsApplicationAccessible::FocusedChild()
+NS_IMETHODIMP
+nsApplicationAccessible::GetRelationByType(PRUint32 aRelationType,
+                                           nsIAccessibleRelation **aRelation)
 {
-  if (gLastFocusedNode) {
-    nsAccessible* focusedChild =
-      GetAccService()->GetAccessible(gLastFocusedNode);
-    if (focusedChild && focusedChild->Parent() == this)
-      return focusedChild;
-  }
-  return nsnull;
+  NS_ENSURE_ARG_POINTER(aRelation);
+  *aRelation = nsnull;
+  return NS_OK;
 }
 
-Relation
-nsApplicationAccessible::RelationByType(PRUint32 aRelationType)
+NS_IMETHODIMP
+nsApplicationAccessible::GetRelationsCount(PRUint32 *aCount)
 {
-  return Relation();
+  NS_ENSURE_ARG_POINTER(aCount);
+  *aCount = 0;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetRelation(PRUint32 aIndex,
+                                     nsIAccessibleRelation **aRelation)
+{
+  NS_ENSURE_ARG_POINTER(aRelation);
+  *aRelation = nsnull;
+  return NS_ERROR_INVALID_ARG;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetRelations(nsIArray **aRelations)
+{
+  NS_ENSURE_ARG_POINTER(aRelations);
+  *aRelations = nsnull;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -222,10 +244,12 @@ nsApplicationAccessible::TakeFocus()
   return NS_OK;
 }
 
-PRUint8
-nsApplicationAccessible::ActionCount()
+NS_IMETHODIMP
+nsApplicationAccessible::GetNumActions(PRUint8 *aNumActions)
 {
-  return 0;
+  NS_ENSURE_ARG_POINTER(aNumActions);
+  *aNumActions = 0;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -310,8 +334,8 @@ nsApplicationAccessible::GetPlatformVersion(nsAString& aVersion)
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessNode public methods
 
-bool
-nsApplicationAccessible::IsDefunct() const
+PRBool
+nsApplicationAccessible::IsDefunct()
 {
   return nsAccessibilityService::IsShutdown();
 }
@@ -338,9 +362,10 @@ nsApplicationAccessible::IsPrimaryForNode() const
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessible public methods
 
-void
-nsApplicationAccessible::ApplyARIAState(PRUint64* aState)
+nsresult
+nsApplicationAccessible::GetARIAState(PRUint32 *aState, PRUint32 *aExtraState)
 {
+  return NS_OK;
 }
 
 PRUint32
@@ -349,10 +374,23 @@ nsApplicationAccessible::NativeRole()
   return nsIAccessibleRole::ROLE_APP_ROOT;
 }
 
-PRUint64
-nsApplicationAccessible::NativeState()
+nsresult
+nsApplicationAccessible::GetStateInternal(PRUint32 *aState,
+                                          PRUint32 *aExtraState)
 {
-  return 0;
+  *aState = 0;
+
+  if (IsDefunct()) {
+    if (aExtraState)
+      *aExtraState = nsIAccessibleStates::EXT_STATE_DEFUNCT;
+
+    return NS_OK_DEFUNCT_OBJECT;
+  }
+
+  if (aExtraState)
+    *aExtraState = 0;
+
+  return NS_OK;
 }
 
 void
@@ -360,12 +398,6 @@ nsApplicationAccessible::InvalidateChildren()
 {
   // Do nothing because application children are kept updated by AppendChild()
   // and RemoveChild() method calls.
-}
-
-KeyBinding
-nsApplicationAccessible::AccessKey() const
-{
-  return KeyBinding();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -412,9 +444,15 @@ nsApplicationAccessible::CacheChildren()
 }
 
 nsAccessible*
-nsApplicationAccessible::GetSiblingAtOffset(PRInt32 aOffset,
-                                            nsresult* aError) const
+nsApplicationAccessible::GetSiblingAtOffset(PRInt32 aOffset, nsresult* aError)
 {
+  if (IsDefunct()) {
+    if (aError)
+      *aError = NS_ERROR_FAILURE;
+
+    return nsnull;
+  }
+
   if (aError)
     *aError = NS_OK; // fail peacefully
 
@@ -465,6 +503,14 @@ NS_IMETHODIMP
 nsApplicationAccessible::ScrollToPoint(PRUint32 aCoordinateType,
                                        PRInt32 aX, PRInt32 aY)
 {
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetOwnerWindow(void **aOwnerWindow)
+{
+  NS_ENSURE_ARG_POINTER(aOwnerWindow);
+  *aOwnerWindow = nsnull;
   return NS_OK;
 }
 

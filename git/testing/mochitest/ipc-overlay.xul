@@ -65,6 +65,7 @@ function messageHandler(m) {
 
 function setup() {
   window.removeEventListener("load", setup, false);
+  messageManager.loadFrameScript("chrome://mochikit/content/tests/SimpleTest/MozillaFileLogger.js", true);
   messageManager.loadFrameScript("chrome://mochikit/content/ipc.js", true);
   messageManager.addMessageListener("chromeEvent", messageHandler);
 }

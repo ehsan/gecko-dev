@@ -37,7 +37,6 @@
 #include "SVGNumberListSMILType.h"
 #include "nsSMILValue.h"
 #include "SVGNumberList.h"
-#include "nsMathUtils.h"
 #include <math.h>
 
 /* The "identity" number list for a given number list attribute (the effective
@@ -57,7 +56,7 @@
  # SVGNumberListAndInfo has not been given an element yet.
  */
 
-namespace mozilla {
+using namespace mozilla;
 
 /*static*/ SVGNumberListSMILType SVGNumberListSMILType::sSingleton;
 
@@ -186,7 +185,7 @@ SVGNumberListSMILType::ComputeDistance(const nsSMILValue& aFrom,
     total += delta * delta;
   }
   double distance = sqrt(total);
-  if (!NS_finite(distance)) {
+  if (!NS_FloatIsFinite(distance)) {
     return NS_ERROR_FAILURE;
   }
   aDistance = distance;
@@ -241,5 +240,3 @@ SVGNumberListSMILType::Interpolate(const nsSMILValue& aStartVal,
   }
   return NS_OK;
 }
-
-} // namespace mozilla

@@ -40,15 +40,17 @@
 #ifndef nsCanvasFrame_h___
 #define nsCanvasFrame_h___
 
+
 #include "nsHTMLContainerFrame.h"
-#include "nsIScrollPositionListener.h"
-#include "nsAbsoluteContainingBlock.h"
-#include "nsDisplayList.h"
+#include "nsStyleContext.h"
+#include "nsIRenderingContext.h"
+#include "nsGUIEvent.h"
 #include "nsGkAtoms.h"
+#include "nsIScrollPositionListener.h"
+#include "nsDisplayList.h"
+#include "nsAbsoluteContainingBlock.h"
 
 class nsPresContext;
-class nsRenderingContext;
-class nsEvent;
 
 /**
  * Root frame class.
@@ -57,7 +59,7 @@ class nsEvent;
  * It only supports having a single child frame which must be an area
  * frame
  */
-class nsCanvasFrame : public nsHTMLContainerFrame,
+class nsCanvasFrame : public nsHTMLContainerFrame, 
                       public nsIScrollPositionListener
 {
 public:
@@ -87,8 +89,8 @@ public:
   virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
   virtual nsFrameList GetChildList(nsIAtom* aListName) const;
 
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
@@ -109,7 +111,7 @@ public:
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
 
-  void PaintFocus(nsRenderingContext& aRenderingContext, nsPoint aPt);
+  void PaintFocus(nsIRenderingContext& aRenderingContext, nsPoint aPt);
 
   // nsIScrollPositionListener
   virtual void ScrollPositionWillChange(nscoord aX, nscoord aY);
@@ -171,11 +173,17 @@ public:
 
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion,
-                                   const nsRect& aAllowVisibleRegionExpansion)
+                                   const nsRect& aAllowVisibleRegionExpansion,
+                                   PRBool& aContainsRootContentDocBG)
   {
-    return NS_GET_A(mExtraBackgroundColor) > 0 ||
-      nsDisplayBackground::ComputeVisibility(aBuilder, aVisibleRegion,
-                                             aAllowVisibleRegionExpansion);
+    PRBool retval = NS_GET_A(mExtraBackgroundColor) > 0 ||
+           nsDisplayBackground::ComputeVisibility(aBuilder, aVisibleRegion,
+                                                  aAllowVisibleRegionExpansion,
+                                                  aContainsRootContentDocBG);
+    if (retval && mFrame->PresContext()->IsRootContentDocument()) {
+      aContainsRootContentDocBG = PR_TRUE;
+    }
+    return retval;
   }
   virtual nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
                                    PRBool* aForceTransparentSurface = nsnull)
@@ -216,7 +224,7 @@ public:
   }
 
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx);
+                     nsIRenderingContext* aCtx);
 
   void SetExtraBackgroundColor(nscolor aColor)
   {

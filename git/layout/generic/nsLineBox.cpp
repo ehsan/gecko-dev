@@ -408,8 +408,10 @@ nsLineBox::SetCarriedOutBottomMargin(nsCollapsingMargin aValue)
       if (!mBlockData) {
         mBlockData = new ExtraBlockData(mBounds);
       }
-      changed = aValue != mBlockData->mCarriedOutBottomMargin;
-      mBlockData->mCarriedOutBottomMargin = aValue;
+      if (mBlockData) {
+        changed = aValue != mBlockData->mCarriedOutBottomMargin;
+        mBlockData->mCarriedOutBottomMargin = aValue;
+      }
     }
     else if (mBlockData) {
       changed = aValue != mBlockData->mCarriedOutBottomMargin;
@@ -467,7 +469,9 @@ nsLineBox::AppendFloats(nsFloatCacheFreeList& aFreeList)
       if (!mInlineData) {
         mInlineData = new ExtraInlineData(mBounds);
       }
-      mInlineData->mFloats.Append(aFreeList);
+      if (mInlineData) {
+        mInlineData->mFloats.Append(aFreeList);
+      }
     }
   }
 }
@@ -499,8 +503,9 @@ nsLineBox::SetOverflowAreas(const nsOverflowAreas& aOverflowAreas)
     NS_ASSERTION(aOverflowAreas.Overflow(otype).height >= 0,
                  "illegal height for combined area");
   }
-  if (!aOverflowAreas.VisualOverflow().IsEqualInterior(mBounds) ||
-      !aOverflowAreas.ScrollableOverflow().IsEqualEdges(mBounds)) {
+  // REVIEW: should this use IsExactEqual?
+  if (aOverflowAreas.VisualOverflow() != mBounds ||
+      aOverflowAreas.ScrollableOverflow() != mBounds) {
     if (!mData) {
       if (IsInline()) {
         mInlineData = new ExtraInlineData(mBounds);
@@ -655,10 +660,14 @@ nsLineIterator::CheckLineOrder(PRInt32                  aLine,
     *aLastVisual = nsnull;
     return NS_OK;
   }
+  
+  nsPresContext* presContext = line->mFirstChild->PresContext();
+
+  nsBidiPresUtils* bidiUtils = presContext->GetBidiUtils();
 
   nsIFrame* leftmostFrame;
   nsIFrame* rightmostFrame;
-  *aIsReordered = nsBidiPresUtils::CheckLineOrder(line->mFirstChild, line->GetChildCount(), &leftmostFrame, &rightmostFrame);
+  *aIsReordered = bidiUtils->CheckLineOrder(line->mFirstChild, line->GetChildCount(), &leftmostFrame, &rightmostFrame);
 
   // map leftmost/rightmost to first/last according to paragraph direction
   *aFirstVisual = mRightToLeft ? rightmostFrame : leftmostFrame;

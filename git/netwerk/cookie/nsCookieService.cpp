@@ -45,8 +45,10 @@
 #define FORCE_PR_LOG // Allow logging in the release build
 #endif
 
+#ifdef MOZ_IPC
 #include "mozilla/net/CookieServiceChild.h"
 #include "mozilla/net/NeckoCommon.h"
+#endif
 
 #include "nsCookieService.h"
 #include "nsIServiceManager.h"
@@ -83,7 +85,6 @@
 #include "nsNetCID.h"
 #include "mozilla/storage.h"
 #include "mozilla/FunctionTimer.h"
-#include "mozilla/Util.h" // for DebugOnly
 
 using namespace mozilla::net;
 
@@ -263,8 +264,7 @@ LogCookie(nsCookie *aCookie)
     PR_LOG(sCookieLog, PR_LOG_DEBUG,("%s: %s\n", aCookie->IsDomain() ? "domain" : "host", aCookie->Host().get()));
     PR_LOG(sCookieLog, PR_LOG_DEBUG,("path: %s\n", aCookie->Path().get()));
 
-    PR_ExplodeTime(aCookie->Expiry() * PRInt64(PR_USEC_PER_SEC),
-                   PR_GMTParameters, &explodedTime);
+    PR_ExplodeTime(aCookie->Expiry() * PR_USEC_PER_SEC, PR_GMTParameters, &explodedTime);
     PR_FormatTimeUSEnglish(timeString, 40, "%c GMT", &explodedTime);
     PR_LOG(sCookieLog, PR_LOG_DEBUG,
       ("expires: %s%s", timeString, aCookie->IsSession() ? " (at end of session)" : ""));
@@ -563,8 +563,10 @@ NS_IMPL_ISUPPORTS1(CloseCookieDBListener, mozIStorageCompletionCallback)
 nsICookieService*
 nsCookieService::GetXPCOMSingleton()
 {
+#ifdef MOZ_IPC
   if (IsNeckoChild())
     return CookieServiceChild::GetSingleton();
+#endif
 
   return GetSingleton();
 }
@@ -572,7 +574,9 @@ nsCookieService::GetXPCOMSingleton()
 nsCookieService*
 nsCookieService::GetSingleton()
 {
+#ifdef MOZ_IPC
   NS_ASSERTION(!IsNeckoChild(), "not a parent process");
+#endif
 
   if (gCookieService) {
     NS_ADDREF(gCookieService);
@@ -1544,7 +1548,7 @@ nsCookieService::SetCookieStringInternal(nsIURI          *aHostURI,
   PRStatus result = PR_ParseTimeString(aServerTime.get(), PR_TRUE,
                                        &tempServerTime);
   if (result == PR_SUCCESS) {
-    serverTime = tempServerTime / PRInt64(PR_USEC_PER_SEC);
+    serverTime = tempServerTime / PR_USEC_PER_SEC;
   } else {
     serverTime = PR_Now() / PR_USEC_PER_SEC;
   }
@@ -1552,11 +1556,7 @@ nsCookieService::SetCookieStringInternal(nsIURI          *aHostURI,
   // process each cookie in the header
   nsDependentCString cookieHeader(aCookieHeader);
   while (SetCookieInternal(aHostURI, baseDomain, requireHostMatch,
-                           cookieStatus, cookieHeader, serverTime, aFromHttp)) {
-    // document.cookie can only set one cookie at a time
-    if (!aFromHttp)
-      break;
-  }
+                           cookieStatus, cookieHeader, serverTime, aFromHttp));
 }
 
 // notify observers that a cookie was rejected due to the users' prefs.
@@ -1947,7 +1947,7 @@ nsCookieService::CancelAsyncRead(PRBool aPurgeReadSet)
   // Cancel the pending read, kill the read listener, and empty the array
   // of data already read in on the background thread.
   mDefaultDBState->readListener->Cancel();
-  mozilla::DebugOnly<nsresult> rv = mDefaultDBState->pendingRead->Cancel();
+  nsresult rv = mDefaultDBState->pendingRead->Cancel();
   NS_ASSERT_SUCCESS(rv);
 
   mDefaultDBState->stmtReadDomain = nsnull;
@@ -3198,7 +3198,7 @@ nsCookieService::CheckPath(nsCookieAttributes &aCookieAttributes,
                            nsIURI             *aHostURI)
 {
   // if a path is given, check the host has permission
-  if (aCookieAttributes.path.IsEmpty() || aCookieAttributes.path.First() != '/') {
+  if (aCookieAttributes.path.IsEmpty()) {
     // strip down everything after the last slash to get the path,
     // ignoring slashes in the query string part.
     // if we can QI to nsIURL, that'll take care of the query string portion.
@@ -3274,7 +3274,7 @@ nsCookieService::GetExpiry(nsCookieAttributes &aCookieAttributes,
       return PR_TRUE;
     }
 
-    delta = expires / PRInt64(PR_USEC_PER_SEC) - aServerTime;
+    delta = expires / PR_USEC_PER_SEC - aServerTime;
 
   // default to session cookie if no attributes found
   } else {

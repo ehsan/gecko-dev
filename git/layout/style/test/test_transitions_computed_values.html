@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=435441
 -->
 <head>
   <title>Test for Bug 435441</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 </head>
@@ -65,47 +66,6 @@ is(cs.MozTransitionProperty,
 p.style.MozTransitionDuration = "";
 c.style.MozTransitionDuration = "";
 c.style.MozTransitionProperty = "";
-
-// And do the same pair of tests for animations:
-
-p.style.MozAnimationName = "bounce, roll";
-c.style.MozAnimationName = "inherit";
-is(cs.MozAnimationName, "bounce, roll",
-   "computed style match with no other properties");
-c.style.MozAnimationDuration = "5s";
-is(cs.MozAnimationName, "bounce, roll",
-   "computed style match with shorter property");
-is(cs.MozAnimationDuration, "5s",
-   "shorter property not extended");
-c.style.MozAnimationDuration = "5s, 4s, 3s, 2000ms";
-is(cs.MozAnimationName, "bounce, roll",
-   "computed style match with longer property");
-is(cs.MozAnimationDuration, "5s, 4s, 3s, 2s",
-   "longer property computed correctly");
-p.style.MozAnimationName = "";
-c.style.MozAnimationName = "";
-c.style.MozAnimationDuration = "";
-
-// and repeat the above set of tests with name and duration swapped
-p.style.MozAnimationDuration = "5s, 4s";
-c.style.MozAnimationDuration = "inherit";
-is(cs.MozAnimationDuration, "5s, 4s",
-   "computed style match with no other properties");
-c.style.MozAnimationName = "bounce";
-is(cs.MozAnimationDuration, "5s, 4s",
-   "computed style match with shorter property");
-is(cs.MozAnimationName, "bounce",
-   "shorter property not extended");
-c.style.MozAnimationName =
-  "bounce, roll, wiggle, spin";
-is(cs.MozAnimationDuration, "5s, 4s",
-   "computed style match with longer property");
-is(cs.MozAnimationName,
-   "bounce, roll, wiggle, spin",
-   "longer property computed correctly");
-p.style.MozAnimationDuration = "";
-c.style.MozAnimationDuration = "";
-c.style.MozAnimationName = "";
 
 </script>
 </pre>

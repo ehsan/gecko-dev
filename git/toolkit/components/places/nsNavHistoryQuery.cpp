@@ -51,9 +51,6 @@
 #include "nsNetUtil.h"
 #include "nsTArray.h"
 #include "prprf.h"
-#include "mozilla/Util.h"
-
-using namespace mozilla;
 
 class QueryKeyValuePair
 {
@@ -453,7 +450,7 @@ nsNavHistory::QueriesToQueryString(nsINavHistoryQuery **aQueries,
                                query, &nsINavHistoryQuery::GetDomainIsHost);
       nsCAutoString domain;
       nsresult rv = query->GetDomain(domain);
-      NS_ENSURE_SUCCESS(rv, rv);
+      NS_ASSERTION(NS_SUCCEEDED(rv), "Failure getting value");
       nsCString escapedDomain;
       PRBool success = NS_Escape(domain, escapedDomain, url_XAlphas);
       NS_ENSURE_TRUE(success, NS_ERROR_OUT_OF_MEMORY);
@@ -1432,7 +1429,7 @@ nsNavHistoryQueryOptions::GetSortingMode(PRUint16* aMode)
 NS_IMETHODIMP
 nsNavHistoryQueryOptions::SetSortingMode(PRUint16 aMode)
 {
-  if (aMode > SORT_BY_FRECENCY_DESCENDING)
+  if (aMode > SORT_BY_ANNOTATION_DESCENDING)
     return NS_ERROR_INVALID_ARG;
   mSort = aMode;
   return NS_OK;
@@ -1657,7 +1654,7 @@ AppendBoolKeyValueIfTrue(nsACString& aString, const nsCString& aName,
                          BoolQueryGetter getter)
 {
   PRBool value;
-  DebugOnly<nsresult> rv = (aQuery->*getter)(&value);
+  nsresult rv = (aQuery->*getter)(&value);
   NS_ASSERTION(NS_SUCCEEDED(rv), "Failure getting boolean value");
   if (value) {
     AppendAmpersandIfNonempty(aString);
@@ -1676,7 +1673,7 @@ AppendUint32KeyValueIfNonzero(nsACString& aString,
                               Uint32QueryGetter getter)
 {
   PRUint32 value;
-  DebugOnly<nsresult> rv = (aQuery->*getter)(&value);
+  nsresult rv = (aQuery->*getter)(&value);
   NS_ASSERTION(NS_SUCCEEDED(rv), "Failure getting value");
   if (value) {
     AppendAmpersandIfNonempty(aString);
@@ -1699,7 +1696,7 @@ AppendInt64KeyValueIfNonzero(nsACString& aString,
                              Int64QueryGetter getter)
 {
   PRInt64 value;
-  DebugOnly<nsresult> rv = (aQuery->*getter)(&value);
+  nsresult rv = (aQuery->*getter)(&value);
   NS_ASSERTION(NS_SUCCEEDED(rv), "Failure getting value");
   if (value) {
     AppendAmpersandIfNonempty(aString);

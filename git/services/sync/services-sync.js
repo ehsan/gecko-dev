@@ -1,4 +1,5 @@
 pref("services.sync.serverURL", "https://auth.services.mozilla.com/");
+pref("services.sync.storageAPI", "1.0");
 pref("services.sync.userURL", "user/");
 pref("services.sync.miscURL", "misc/");
 pref("services.sync.termsURL", "https://services.mozilla.com/tos/");
@@ -7,13 +8,7 @@ pref("services.sync.statusURL", "https://services.mozilla.com/status/");
 pref("services.sync.syncKeyHelpURL", "https://services.mozilla.com/help/synckey");
 
 pref("services.sync.lastversion", "firstrun");
-pref("services.sync.sendVersionInfo", true);
-
-pref("services.sync.scheduler.singleDeviceInterval", 3600);  // 1 hour
-pref("services.sync.scheduler.idleInterval",         3600);  // 1 hour
-pref("services.sync.scheduler.activeInterval",       300);   // 5 minutes
-pref("services.sync.scheduler.immediateInterval",    60);    // 1 minute
-pref("services.sync.scheduler.idleTime",             300);   // 5 minutes
+pref("services.sync.autoconnect", true);
 
 pref("services.sync.engine.bookmarks", true);
 pref("services.sync.engine.history", true);
@@ -29,9 +24,10 @@ pref("services.sync.jpake.maxTries", 10);
 
 pref("services.sync.log.appender.console", "Warn");
 pref("services.sync.log.appender.dump", "Error");
-pref("services.sync.log.appender.file.level", "Trace");
-pref("services.sync.log.appender.file.logOnError", true);
-pref("services.sync.log.appender.file.logOnSuccess", false);
+pref("services.sync.log.appender.debugLog", "Trace");
+pref("services.sync.log.appender.debugLog.enabled", false);
+pref("services.sync.log.appender.debugLog.rotate", true);
+pref("services.sync.log.appender.debugLog.maxSize", 1048576);
 pref("services.sync.log.rootLogger", "Debug");
 pref("services.sync.log.logger.service.main", "Debug");
 pref("services.sync.log.logger.authenticator", "Debug");

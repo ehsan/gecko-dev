@@ -67,9 +67,7 @@ function test() {
         if (!result.root.childCount) {
             return null;
         }
-        var node = result.root.getChild(0);
-        result.root.containerOpen = false;
-        return node;
+        return result.root.getChild(0);
     }
 
 

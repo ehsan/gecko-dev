@@ -46,32 +46,33 @@
 #include "nsCocoaWindow.h"
 #include "nsWidgetAtoms.h"
 #include "nsIDocument.h"
-#include "nsIDOMDocument.h"
+#include "nsIDOMDocumentEvent.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIDOMXULCommandEvent.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsPIDOMWindow.h"
+#include "nsIDOMAbstractView.h"
 
 void nsMenuUtilsX::DispatchCommandTo(nsIContent* aTargetContent)
 {
   NS_PRECONDITION(aTargetContent, "null ptr");
 
   nsIDocument* doc = aTargetContent->GetOwnerDoc();
-  nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(doc);
+  nsCOMPtr<nsIDOMDocumentEvent> docEvent = do_QueryInterface(doc);
   nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(aTargetContent);
-  if (domDoc && target) {
+  if (docEvent && target) {
     nsCOMPtr<nsIDOMEvent> event;
-    domDoc->CreateEvent(NS_LITERAL_STRING("xulcommandevent"),
-                        getter_AddRefs(event));
+    docEvent->CreateEvent(NS_LITERAL_STRING("xulcommandevent"),
+                          getter_AddRefs(event));
     nsCOMPtr<nsIDOMXULCommandEvent> command = do_QueryInterface(event);
     nsCOMPtr<nsIPrivateDOMEvent> pEvent = do_QueryInterface(command);
+    nsCOMPtr<nsIDOMAbstractView> view = do_QueryInterface(doc->GetWindow());
 
     // FIXME: Should probably figure out how to init this with the actual
     // pressed keys, but this is a big old edge case anyway. -dwh
     if (pEvent &&
         NS_SUCCEEDED(command->InitCommandEvent(NS_LITERAL_STRING("command"),
-                                               PR_TRUE, PR_TRUE,
-                                               doc->GetWindow(), 0,
+                                               PR_TRUE, PR_TRUE, view, 0,
                                                PR_FALSE, PR_FALSE, PR_FALSE,
                                                PR_FALSE, nsnull))) {
       pEvent->SetTrusted(PR_TRUE);

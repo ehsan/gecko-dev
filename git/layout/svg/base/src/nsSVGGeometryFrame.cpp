@@ -35,7 +35,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsPresContext.h"
-#include "nsSVGPathElement.h"
 #include "nsSVGUtils.h"
 #include "nsSVGGeometryFrame.h"
 #include "nsSVGPaintServerFrame.h"
@@ -53,8 +52,9 @@ nsSVGGeometryFrame::Init(nsIContent* aContent,
                          nsIFrame* aParent,
                          nsIFrame* aPrevInFlow)
 {
-  AddStateBits(aParent->GetStateBits() &
-               (NS_STATE_SVG_NONDISPLAY_CHILD | NS_STATE_SVG_CLIPPATH_CHILD));
+  AddStateBits((aParent->GetStateBits() &
+                (NS_STATE_SVG_NONDISPLAY_CHILD | NS_STATE_SVG_CLIPPATH_CHILD)) |
+               NS_STATE_SVG_PROPAGATE_TRANSFORM);
   nsresult rv = nsSVGGeometryFrameBase::Init(aContent, aParent, aPrevInFlow);
   return rv;
 }
@@ -68,10 +68,8 @@ nsSVGGeometryFrame::GetPaintServer(const nsStyleSVGPaint *aPaint,
   if (aPaint->mType != eStyleSVGPaintType_Server)
     return nsnull;
 
-  nsIFrame *frame = mContent->IsNodeOfType(nsINode::eTEXT) ?
-                      GetParent() : this;
   nsSVGPaintingProperty *property =
-    nsSVGEffects::GetPaintingProperty(aPaint->mPaint.mPaintServer, frame, aType);
+    nsSVGEffects::GetPaintingProperty(aPaint->mPaint.mPaintServer, this, aType);
   if (!property)
     return nsnull;
   nsIFrame *result = property->GetReferencedFrame();
@@ -117,22 +115,13 @@ nsSVGGeometryFrame::GetStrokeDashArray(gfxFloat **aDashes, PRUint32 *aCount)
     nsPresContext *presContext = PresContext();
     gfxFloat totalLength = 0.0f;
 
-    gfxFloat pathScale = 1.0;
-
-    if (mContent->Tag() == nsGkAtoms::path) {
-      pathScale = static_cast<nsSVGPathElement*>(mContent)->GetScale();
-      if (pathScale <= 0) {
-        return NS_OK;
-      }
-    }
-
     dashes = new gfxFloat[count];
     if (dashes) {
       for (PRUint32 i = 0; i < count; i++) {
         dashes[i] =
           nsSVGUtils::CoordToFloat(presContext,
                                    ctx,
-                                   dasharray[i]) * pathScale;
+                                   dasharray[i]);
         if (dashes[i] < 0.0f) {
           delete [] dashes;
           return NS_OK;
@@ -338,9 +327,9 @@ nsSVGGeometryFrame::SetupCairoStroke(gfxContext *aContext)
 }
 
 PRUint16
-nsSVGGeometryFrame::GetHitTestFlags()
+nsSVGGeometryFrame::GetHittestMask()
 {
-  PRUint16 flags = 0;
+  PRUint16 mask = 0;
 
   switch(GetStyleVisibility()->mPointerEvents) {
   case NS_STYLE_POINTER_EVENTS_NONE:
@@ -349,49 +338,49 @@ nsSVGGeometryFrame::GetHitTestFlags()
   case NS_STYLE_POINTER_EVENTS_VISIBLEPAINTED:
     if (GetStyleVisibility()->IsVisible()) {
       if (GetStyleSVG()->mFill.mType != eStyleSVGPaintType_None)
-        flags |= SVG_HIT_TEST_FILL;
+        mask |= HITTEST_MASK_FILL;
       if (GetStyleSVG()->mStroke.mType != eStyleSVGPaintType_None)
-        flags |= SVG_HIT_TEST_STROKE;
+        mask |= HITTEST_MASK_STROKE;
       if (GetStyleSVG()->mStrokeOpacity > 0)
-        flags |= SVG_HIT_TEST_CHECK_MRECT;
+        mask |= HITTEST_MASK_CHECK_MRECT;
     }
     break;
   case NS_STYLE_POINTER_EVENTS_VISIBLEFILL:
     if (GetStyleVisibility()->IsVisible()) {
-      flags |= SVG_HIT_TEST_FILL;
+      mask |= HITTEST_MASK_FILL;
     }
     break;
   case NS_STYLE_POINTER_EVENTS_VISIBLESTROKE:
     if (GetStyleVisibility()->IsVisible()) {
-      flags |= SVG_HIT_TEST_STROKE;
+      mask |= HITTEST_MASK_STROKE;
     }
     break;
   case NS_STYLE_POINTER_EVENTS_VISIBLE:
     if (GetStyleVisibility()->IsVisible()) {
-      flags |= SVG_HIT_TEST_FILL | SVG_HIT_TEST_STROKE;
+      mask |= HITTEST_MASK_FILL | HITTEST_MASK_STROKE;
     }
     break;
   case NS_STYLE_POINTER_EVENTS_PAINTED:
     if (GetStyleSVG()->mFill.mType != eStyleSVGPaintType_None)
-      flags |= SVG_HIT_TEST_FILL;
+      mask |= HITTEST_MASK_FILL;
     if (GetStyleSVG()->mStroke.mType != eStyleSVGPaintType_None)
-      flags |= SVG_HIT_TEST_STROKE;
+      mask |= HITTEST_MASK_STROKE;
     if (GetStyleSVG()->mStrokeOpacity)
-      flags |= SVG_HIT_TEST_CHECK_MRECT;
+      mask |= HITTEST_MASK_CHECK_MRECT;
     break;
   case NS_STYLE_POINTER_EVENTS_FILL:
-    flags |= SVG_HIT_TEST_FILL;
+    mask |= HITTEST_MASK_FILL;
     break;
   case NS_STYLE_POINTER_EVENTS_STROKE:
-    flags |= SVG_HIT_TEST_STROKE;
+    mask |= HITTEST_MASK_STROKE;
     break;
   case NS_STYLE_POINTER_EVENTS_ALL:
-    flags |= SVG_HIT_TEST_FILL | SVG_HIT_TEST_STROKE;
+    mask |= HITTEST_MASK_FILL | HITTEST_MASK_STROKE;
     break;
   default:
     NS_ERROR("not reached");
     break;
   }
 
-  return flags;
+  return mask;
 }

@@ -88,13 +88,6 @@ public:
   NS_DECL_NSITIMERCALLBACK
 
   /**
-   * Methods for testing, exposed via nsIDOMWindowUtils.  See
-   * nsIDOMWindowUtils.advanceTimeAndRefresh for description.
-   */
-  void AdvanceTimeAndRefresh(PRInt64 aMilliseconds);
-  void RestoreNormalRefresh();
-
-  /**
    * Return the time of the most recent refresh.  This is intended to be
    * used by callers who want to start an animation now and want to know
    * what time to consider the start of the animation.  (This helps
@@ -135,7 +128,7 @@ public:
     NS_ASSERTION(!mStyleFlushObservers.Contains(aShell),
 		 "Double-adding style flush observer");
     PRBool appended = mStyleFlushObservers.AppendElement(aShell) != nsnull;
-    EnsureTimerStarted(false);
+    EnsureTimerStarted();
     return appended;
   }
   void RemoveStyleFlushObserver(nsIPresShell* aShell) {
@@ -145,7 +138,7 @@ public:
     NS_ASSERTION(!IsLayoutFlushObserver(aShell),
 		 "Double-adding layout flush observer");
     PRBool appended = mLayoutFlushObservers.AppendElement(aShell) != nsnull;
-    EnsureTimerStarted(false);
+    EnsureTimerStarted();
     return appended;
   }
   void RemoveLayoutFlushObserver(nsIPresShell* aShell) {
@@ -219,7 +212,7 @@ public:
 private:
   typedef nsTObserverArray<nsARefreshObserver*> ObserverArray;
 
-  void EnsureTimerStarted(bool aAdjustingTimer);
+  void EnsureTimerStarted();
   void StopTimer();
   PRUint32 ObserverCount() const;
   void UpdateMostRecentRefresh();
@@ -244,7 +237,6 @@ private:
 
   bool mFrozen;
   bool mThrottled;
-  bool mTestControllingRefreshes;
   /* If mTimer is non-null, this boolean indicates whether the timer is
      a precise timer.  If mTimer is null, this boolean's value can be
      anything.  */

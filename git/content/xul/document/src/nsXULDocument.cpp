@@ -128,9 +128,7 @@
 #include "nsCCUncollectableMarker.h"
 #include "nsURILoader.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/Preferences.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 //----------------------------------------------------------------------
@@ -280,8 +278,9 @@ nsXULDocument::~nsXULDocument()
 
     delete mTemplateBuilderTable;
 
-    Preferences::UnregisterCallback(nsXULDocument::DirectionChanged,
-                                    "intl.uidirection.", this);
+    nsContentUtils::UnregisterPrefCallback("intl.uidirection.",
+                                           nsXULDocument::DirectionChanged,
+                                           this);
 
     if (--gRefCnt == 0) {
         NS_IF_RELEASE(gRDFService);
@@ -290,11 +289,12 @@ nsXULDocument::~nsXULDocument()
         NS_IF_RELEASE(kNC_attribute);
         NS_IF_RELEASE(kNC_value);
 
-        // Remove the current document here from the table in
+        // Remove the current document here from the FastLoad table in
         // case the document did not make it past StartLayout in
-        // ResumeWalk. 
+        // ResumeWalk. The FastLoad table must be clear of entries so
+        // that the FastLoad file footer can be properly written.
         if (mDocumentURI)
-            nsXULPrototypeCache::GetInstance()->RemoveFromCacheSet(mDocumentURI);
+            nsXULPrototypeCache::GetInstance()->RemoveFromFastLoadSet(mDocumentURI);
     }
 }
 
@@ -389,11 +389,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
-    delete tmp->mTemplateBuilderTable;
-    tmp->mTemplateBuilderTable = nsnull;
-
-    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCommandDispatcher)
-    //XXX We should probably unlink all the objects we traverse.
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_ADDREF_INHERITED(nsXULDocument, nsXMLDocument)
@@ -453,7 +448,7 @@ nsXULDocument::SetContentType(const nsAString& aContentType)
 }
 
 // This is called when the master document begins loading, whether it's
-// being cached or not.
+// fastloaded or not.
 nsresult
 nsXULDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
                                  nsILoadGroup* aLoadGroup,
@@ -496,9 +491,9 @@ nsXULDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
     // to trigger the fail-safe parse-from-disk solution. Example failure cases
     // (for reference) include:
     //
-    // NS_ERROR_NOT_AVAILABLE: the URI cannot be found in the startup cache,
+    // NS_ERROR_NOT_AVAILABLE: the URI cannot be found in the FastLoad cache,
     //                         parse from disk
-    // other: the startup cache file could not be found, probably
+    // other: the FastLoad cache file, XUL.mfl, could not be found, probably
     //        due to being accessed before a profile has been selected (e.g.
     //        loading chrome for the profile manager itself). This must be
     //        parsed from disk.
@@ -1719,7 +1714,8 @@ nsXULDocument::AddElementToDocumentPost(Element* aElement)
         // Create our XUL key listener and hook it up.
         nsCOMPtr<nsIXBLService> xblService(do_GetService("@mozilla.org/xbl;1"));
         if (xblService) {
-            xblService->AttachGlobalKeyHandler(aElement);
+            nsCOMPtr<nsPIDOMEventTarget> piTarget(do_QueryInterface(aElement));
+            xblService->AttachGlobalKeyHandler(piTarget);
         }
     }
 
@@ -1794,7 +1790,8 @@ nsXULDocument::RemoveSubtreeFromDocument(nsIContent* aContent)
     if (aElement->NodeInfo()->Equals(nsGkAtoms::keyset, kNameSpaceID_XUL)) {
         nsCOMPtr<nsIXBLService> xblService(do_GetService("@mozilla.org/xbl;1"));
         if (xblService) {
-            xblService->DetachGlobalKeyHandler(aElement);
+            nsCOMPtr<nsPIDOMEventTarget> piTarget(do_QueryInterface(aElement));
+            xblService->DetachGlobalKeyHandler(piTarget);
         }
     }
 
@@ -1848,9 +1845,6 @@ nsXULDocument::SetTemplateBuilderFor(nsIContent* aContent,
                                      nsIXULTemplateBuilder* aBuilder)
 {
     if (! mTemplateBuilderTable) {
-        if (!aBuilder) {
-            return NS_OK;
-        }
         mTemplateBuilderTable = new BuilderTable;
         if (! mTemplateBuilderTable || !mTemplateBuilderTable->Init()) {
             mTemplateBuilderTable = nsnull;
@@ -1984,8 +1978,9 @@ nsXULDocument::Init()
         }
     }
 
-    Preferences::RegisterCallback(nsXULDocument::DirectionChanged,
-                                  "intl.uidirection.", this);
+    nsContentUtils::RegisterPrefCallback("intl.uidirection.",
+                                         nsXULDocument::DirectionChanged,
+                                         this);
 
 #ifdef PR_LOGGING
     if (! gXULLog)
@@ -2726,6 +2721,9 @@ nsXULDocument::LoadOverlayInternal(nsIURI* aURI, PRBool aIsDynamic,
     //        The .xul file must be parsed from disk.
 
     PRBool useXULCache = nsXULPrototypeCache::GetInstance()->IsEnabled();
+    if (aIsDynamic)
+        mIsWritingFastLoad = useXULCache;
+
     if (useXULCache && mCurrentPrototype) {
         PRBool loaded;
         rv = mCurrentPrototype->AwaitLoadDone(this, &loaded);
@@ -3678,9 +3676,14 @@ nsXULDocument::CreateElementFromPrototype(nsXULPrototypeElement* aPrototype,
 
 #ifdef PR_LOGGING
     if (PR_LOG_TEST(gXULLog, PR_LOG_NOTICE)) {
+        nsAutoString tagstr;
+        aPrototype->mNodeInfo->GetQualifiedName(tagstr);
+
+        nsCAutoString tagstrC;
+        tagstrC.AssignWithConversion(tagstr);
         PR_LOG(gXULLog, PR_LOG_NOTICE,
                ("xul: creating <%s> from prototype",
-                NS_ConvertUTF16toUTF8(aPrototype->mNodeInfo->QualifiedName()).get()));
+                tagstrC.get()));
     }
 #endif
 
@@ -3700,8 +3703,7 @@ nsXULDocument::CreateElementFromPrototype(nsXULPrototypeElement* aPrototype,
         nsCOMPtr<nsINodeInfo> newNodeInfo;
         newNodeInfo = mNodeInfoManager->GetNodeInfo(aPrototype->mNodeInfo->NameAtom(),
                                                     aPrototype->mNodeInfo->GetPrefixAtom(),
-                                                    aPrototype->mNodeInfo->NamespaceID(),
-                                                    nsIDOMNode::ELEMENT_NODE);
+                                                    aPrototype->mNodeInfo->NamespaceID());
         if (!newNodeInfo) return NS_ERROR_OUT_OF_MEMORY;
         nsCOMPtr<nsIContent> content;
         PRInt32 ns = newNodeInfo->NamespaceID();
@@ -4054,11 +4056,6 @@ nsXULDocument::OverlayForwardReference::Merge(nsIContent* aTargetNode,
         }
 
         rv = aTargetNode->SetAttr(nameSpaceID, attr, prefix, value, aNotify);
-        if (!NS_FAILED(rv) && !aNotify)
-            rv = mDocument->BroadcastAttributeChangeFromOverlay(aTargetNode,
-                                                                nameSpaceID,
-                                                                attr, prefix,
-                                                                value);
         if (NS_FAILED(rv)) return rv;
     }
 
@@ -4224,47 +4221,6 @@ nsXULDocument::TemplateBuilderHookup::Resolve()
 
 
 //----------------------------------------------------------------------
-
-nsresult
-nsXULDocument::BroadcastAttributeChangeFromOverlay(nsIContent* aNode,
-                                                   PRInt32 aNameSpaceID,
-                                                   nsIAtom* aAttribute,
-                                                   nsIAtom* aPrefix,
-                                                   const nsAString& aValue)
-{
-    nsresult rv = NS_OK;
-
-    if (!mBroadcasterMap || !CanBroadcast(aNameSpaceID, aAttribute))
-        return rv;
-
-    nsCOMPtr<nsIDOMElement> domele = do_QueryInterface(aNode);
-    if (!domele)
-        return rv;
-
-    BroadcasterMapEntry* entry = static_cast<BroadcasterMapEntry*>
-        (PL_DHashTableOperate(mBroadcasterMap, domele.get(), PL_DHASH_LOOKUP));
-    if (!PL_DHASH_ENTRY_IS_BUSY(entry))
-        return rv;
-
-    // We've got listeners: push the value.
-    PRInt32 i;
-    for (i = entry->mListeners.Count() - 1; i >= 0; --i) {
-        BroadcastListener* bl = static_cast<BroadcastListener*>
-            (entry->mListeners[i]);
-
-        if ((bl->mAttribute != aAttribute) &&
-            (bl->mAttribute != nsGkAtoms::_asterix))
-            continue;
-
-        nsCOMPtr<nsIContent> l = do_QueryReferent(bl->mListener);
-        if (l) {
-            rv = l->SetAttr(aNameSpaceID, aAttribute,
-                            aPrefix, aValue, PR_FALSE);
-            if (NS_FAILED(rv)) return rv;
-        }
-    }
-    return rv;
-}
 
 nsresult
 nsXULDocument::FindBroadcaster(Element* aElement,

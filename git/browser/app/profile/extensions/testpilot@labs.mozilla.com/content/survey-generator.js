@@ -91,9 +91,6 @@ function onBuiltinSurveyLoad() {
       explanation.innerHTML = "";
     }
     drawSurveyForm(task, contentDiv);
-    // Allow surveys to define arbitrary page load handlers - call them
-    // after creating the rest of the page:
-    task.onPageLoad(task, document);
   }
 }
 
@@ -117,7 +114,7 @@ function drawSurveyForm(task, contentDiv) {
   for (let i = 0; i < surveyQuestions.length; i++) {
     let question = surveyQuestions[i].question;
     let explanation = surveyQuestions[i].explanation;
-    let elem, j;
+    let elem;
 
     elem = document.createElement("h3");
     elem.innerHTML = (i+1) + ". " + question;
@@ -132,7 +129,7 @@ function drawSurveyForm(task, contentDiv) {
     let choices = surveyQuestions[i].choices;
     switch (surveyQuestions[i].type) {
     case MULTIPLE_CHOICE:
-      for (j = 0; j < choices.length; j++) {
+      for (let j = 0; j < choices.length; j++) {
         let newRadio = document.createElement("input");
         newRadio.setAttribute("type", "radio");
         newRadio.setAttribute("name", "answer_to_" + i);
@@ -151,7 +148,7 @@ function drawSurveyForm(task, contentDiv) {
     case CHECK_BOXES_WITH_FREE_ENTRY:
       let checkboxName = "answer_to_" + i;
       // Check boxes:
-      for (j = 0; j < choices.length; j++) {
+      for (let j = 0; j < choices.length; j++) {
         let newCheck = document.createElement("input");
         newCheck.setAttribute("type", "checkbox");
         newCheck.setAttribute("name", checkboxName);
@@ -191,7 +188,7 @@ function drawSurveyForm(task, contentDiv) {
         inputBox.addEventListener(
           "keypress", function() {
             let elements = document.getElementsByName(checkboxName);
-            for (j = (elements.length - 1); j >= 0; j--) {
+            for (let j = (elements.length - 1); j >= 0; j--) {
               if (elements[j].value == freeformId) {
                 elements[j].checked = true;
                 break;
@@ -216,7 +213,7 @@ function drawSurveyForm(task, contentDiv) {
       let label = document.createElement("span");
       label.innerHTML = surveyQuestions[i].min_label;
       contentDiv.appendChild(label);
-      for (j = surveyQuestions[i].scale_minimum;
+      for (let j = surveyQuestions[i].scale_minimum;
            j <= surveyQuestions[i].scale_maximum;
            j++) {
         let newRadio = document.createElement("input");
@@ -246,7 +243,7 @@ function drawSurveyForm(task, contentDiv) {
       let freeformId = "freeform_" + i;
       let radioName = "answer_to_" + i;
 
-      for (j = 0; j < choices.length; j++) {
+      for (let j = 0; j < choices.length; j++) {
         let newRadio = document.createElement("input");
         newRadio.setAttribute("type", "radio");
         newRadio.setAttribute("name", radioName);

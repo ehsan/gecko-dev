@@ -45,13 +45,12 @@
 #include "nsCOMPtr.h"
 #include "nsIAtom.h"
 #include "nsILookAndFeel.h"
+#include "nsIDeviceContext.h"
 #include "nsNativeTheme.h"
+
 #include "gfxASurface.h"
 
 @class CellDrawView;
-@class NSProgressBarCell;
-class nsDeviceContext;
-struct SegmentedControlRenderSettings;
 
 class nsNativeThemeCocoa : private nsNativeTheme,
                            public nsITheme
@@ -63,25 +62,25 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // The nsITheme interface.
-  NS_IMETHOD DrawWidgetBackground(nsRenderingContext* aContext,
+  NS_IMETHOD DrawWidgetBackground(nsIRenderingContext* aContext,
                                   nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
                                   const nsRect& aRect,
                                   const nsRect& aDirtyRect);
-  NS_IMETHOD GetWidgetBorder(nsDeviceContext* aContext, 
+  NS_IMETHOD GetWidgetBorder(nsIDeviceContext* aContext, 
                              nsIFrame* aFrame,
                              PRUint8 aWidgetType,
                              nsIntMargin* aResult);
 
-  virtual PRBool GetWidgetPadding(nsDeviceContext* aContext,
+  virtual PRBool GetWidgetPadding(nsIDeviceContext* aContext,
                                   nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
                                   nsIntMargin* aResult);
 
-  virtual PRBool GetWidgetOverflow(nsDeviceContext* aContext, nsIFrame* aFrame,
+  virtual PRBool GetWidgetOverflow(nsIDeviceContext* aContext, nsIFrame* aFrame,
                                    PRUint8 aWidgetType, nsRect* aOverflowRect);
 
-  NS_IMETHOD GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* aFrame,
+  NS_IMETHOD GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
                                   nsIntSize* aResult, PRBool* aIsOverridable);
   NS_IMETHOD WidgetStateChanged(nsIFrame* aFrame, PRUint8 aWidgetType, 
@@ -96,14 +95,8 @@ public:
 protected:  
 
   nsresult GetSystemColor(PRUint8 aWidgetType, nsILookAndFeel::nsColorID& aColorID);
+  nsresult GetSystemFont(PRUint8 aWidgetType, nsSystemFontID& aFont);
   nsIntMargin RTLAwareMargin(const nsIntMargin& aMargin, nsIFrame* aFrame);
-  nsIFrame* SeparatorResponsibility(nsIFrame* aBefore, nsIFrame* aAfter);
-  CGRect SeparatorAdjustedRect(CGRect aRect, nsIFrame* aLeft,
-                               nsIFrame* aCurrent, nsIFrame* aRight);
-
-  // Helpers for progressbar.
-  double GetProgressValue(nsIFrame* aFrame);
-  double GetProgressMaxValue(nsIFrame* aFrame);
 
   // HITheme drawing routines
   void DrawFrame(CGContextRef context, HIThemeFrameKind inKind,
@@ -111,10 +104,9 @@ protected:
                  nsEventStates inState);
   void DrawProgress(CGContextRef context, const HIRect& inBoxRect,
                     PRBool inIsIndeterminate, PRBool inIsHorizontal,
-                    double inValue, double inMaxValue, nsIFrame* aFrame);
-  void DrawSegment(CGContextRef cgContext, const HIRect& inBoxRect,
-                   nsEventStates inState, nsIFrame* aFrame,
-                   const SegmentedControlRenderSettings& aSettings);
+                    PRInt32 inValue, PRInt32 inMaxValue, nsIFrame* aFrame);
+  void DrawTab(CGContextRef context, HIRect inBoxRect, nsEventStates inState,
+               nsIFrame* aFrame);
   void DrawTabPanel(CGContextRef context, const HIRect& inBoxRect, nsIFrame* aFrame);
   void DrawScale(CGContextRef context, const HIRect& inBoxRect,
                  nsEventStates inState, PRBool inDirection,
@@ -158,7 +150,6 @@ private:
   NSSearchFieldCell* mSearchFieldCell;
   NSPopUpButtonCell* mDropdownCell;
   NSComboBoxCell* mComboBoxCell;
-  NSProgressBarCell* mProgressBarCell;
   CellDrawView* mCellDrawView;
 };
 

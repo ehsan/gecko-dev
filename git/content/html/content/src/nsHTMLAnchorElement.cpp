@@ -37,21 +37,21 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsGenericHTMLElement.h"
-#include "nsIDOMHTMLAnchorElement.h"
-#include "nsILink.h"
-#include "Link.h"
-
 #include "nsCOMPtr.h"
-#include "nsContentUtils.h"
 #include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"
+#include "nsIDOMHTMLAnchorElement.h"
+#include "nsGenericHTMLElement.h"
+#include "nsILink.h"
 #include "nsGkAtoms.h"
 #include "nsIPresShell.h"
 #include "nsIDocument.h"
 #include "nsPresContext.h"
+#include "nsIEventStateManager.h"
+
 #include "nsHTMLDNSPrefetch.h"
 
+#include "Link.h"
 using namespace mozilla::dom;
 
 class nsHTMLAnchorElement : public nsGenericHTMLElement,
@@ -100,7 +100,6 @@ public:
   virtual PRBool IsLink(nsIURI** aURI) const;
   virtual void GetLinkTarget(nsAString& aTarget);
   virtual nsLinkState GetLinkState() const;
-  virtual void RequestLinkStateUpdate();
   virtual already_AddRefed<nsIURI> GetHrefURI() const;
 
   nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
@@ -129,8 +128,7 @@ public:
 NS_IMPL_NS_NEW_HTML_ELEMENT(Anchor)
 
 nsHTMLAnchorElement::nsHTMLAnchorElement(already_AddRefed<nsINodeInfo> aNodeInfo)
-  : nsGenericHTMLElement(aNodeInfo),
-    Link(this)
+  : nsGenericHTMLElement(aNodeInfo)
 {
 }
 
@@ -169,6 +167,7 @@ NS_IMPL_STRING_ATTR(nsHTMLAnchorElement, Rev, rev)
 NS_IMPL_STRING_ATTR(nsHTMLAnchorElement, Shape, shape)
 NS_IMPL_INT_ATTR(nsHTMLAnchorElement, TabIndex, tabindex)
 NS_IMPL_STRING_ATTR(nsHTMLAnchorElement, Type, type)
+NS_IMPL_STRING_ATTR(nsHTMLAnchorElement, AccessKey, accesskey)
 
 NS_IMETHODIMP
 nsHTMLAnchorElement::GetDraggable(PRBool* aDraggable)
@@ -197,6 +196,10 @@ nsHTMLAnchorElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                                  aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  if (aDocument) {
+    RegAccessKey();
+  }
+
   // Prefetch links
   if (aDocument && nsHTMLDNSPrefetch::IsAllowed(GetOwnerDoc())) {
     nsHTMLDNSPrefetch::PrefetchLow(this);
@@ -211,7 +214,23 @@ nsHTMLAnchorElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
   // be under a different xml:base, so forget the cached state now.
   Link::ResetLinkState(false);
 
+  if (IsInDoc()) {
+    UnregAccessKey();
+  }
+
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
+}
+
+NS_IMETHODIMP
+nsHTMLAnchorElement::Blur()
+{
+  return nsGenericHTMLElement::Blur();
+}
+
+NS_IMETHODIMP
+nsHTMLAnchorElement::Focus()
+{
+  return nsGenericHTMLElement::Focus();
 }
 
 PRBool
@@ -371,12 +390,6 @@ nsHTMLAnchorElement::GetLinkState() const
   return Link::GetLinkState();
 }
 
-void
-nsHTMLAnchorElement::RequestLinkStateUpdate()
-{
-  UpdateLinkState(Link::LinkState());
-}
-
 already_AddRefed<nsIURI>
 nsHTMLAnchorElement::GetHrefURI() const
 {
@@ -388,6 +401,10 @@ nsHTMLAnchorElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                              nsIAtom* aPrefix, const nsAString& aValue,
                              PRBool aNotify)
 {
+  if (aName == nsGkAtoms::accesskey && kNameSpaceID_None == aNameSpaceID) {
+    UnregAccessKey();
+  }
+
   bool reset = false;
   if (aName == nsGkAtoms::href && kNameSpaceID_None == aNameSpaceID) {
     // If we do not have a cached URI, we have some value here so we must reset
@@ -417,6 +434,12 @@ nsHTMLAnchorElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
     Link::ResetLinkState(!!aNotify);
   }
 
+  if (aName == nsGkAtoms::accesskey && kNameSpaceID_None == aNameSpaceID &&
+      !aValue.IsEmpty()) {
+    SetFlags(NODE_HAS_ACCESSKEY);
+    RegAccessKey();
+  }
+
   return rv;
 }
 
@@ -424,6 +447,13 @@ nsresult
 nsHTMLAnchorElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                                PRBool aNotify)
 {
+  if (aAttribute == nsGkAtoms::accesskey &&
+      kNameSpaceID_None == aNameSpaceID) {
+    // Have to unregister before clearing flag. See UnregAccessKey
+    UnregAccessKey();
+    UnsetFlags(NODE_HAS_ACCESSKEY);
+  }
+
   nsresult rv = nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute,
                                                 aNotify);
 

@@ -73,6 +73,7 @@ enum eHtml5TreeOperation {
   eTreeOpDoneAddingChildren,
   eTreeOpDoneCreatingElement,
   eTreeOpFlushPendingAppendNotifications,
+  eTreeOpSetDocumentCharset,
   eTreeOpNeedsCharsetSwitchTo,
   eTreeOpUpdateStyleSheet,
   eTreeOpProcessMeta,
@@ -81,7 +82,9 @@ enum eHtml5TreeOperation {
   eTreeOpStreamEnded,
   eTreeOpSetStyleLineNumber,
   eTreeOpSetScriptLineNumberAndFreeze,
+#ifdef MOZ_SVG
   eTreeOpSvgLoad,
+#endif
   eTreeOpStartLayout
 };
 

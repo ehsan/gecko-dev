@@ -92,7 +92,7 @@ public:
   /**
    * Foreign objects can return a transform matrix.
    */
-  virtual gfx3DMatrix GetTransformMatrix(nsIFrame **aOutAncestor);
+  virtual gfxMatrix GetTransformMatrix(nsIFrame **aOutAncestor);
 
   /**
    * Get the "type" of the frame
@@ -128,6 +128,8 @@ public:
   virtual void NotifySVGChanged(PRUint32 aFlags);
   NS_IMETHOD NotifyRedrawSuspended();
   NS_IMETHOD NotifyRedrawUnsuspended();
+  NS_IMETHOD SetMatrixPropagation(PRBool aPropagate);
+  virtual PRBool GetMatrixPropagation();
   virtual gfxRect GetBBoxContribution(const gfxMatrix &aToBBoxUserspace);
   NS_IMETHOD_(PRBool) IsDisplayContainer() { return PR_TRUE; }
   NS_IMETHOD_(PRBool) HasValidCoveredRect() { return PR_TRUE; }

@@ -39,7 +39,6 @@
 #include "nsIContent.h"
 #include "nsCOMPtr.h"
 #include "nsCSSRendering.h"
-#include "nsRenderingContext.h"
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
 #endif
@@ -83,7 +82,7 @@ nsGfxRadioControlFrame::CreateAccessible()
 // Draw the dot for a non-native radio button in the checked state.
 static void
 PaintCheckedRadioButton(nsIFrame* aFrame,
-                        nsRenderingContext* aCtx,
+                        nsIRenderingContext* aCtx,
                         const nsRect& aDirtyRect,
                         nsPoint aPt)
 {

@@ -89,7 +89,7 @@ nsIMEStateManager::OnDestroyPresContext(nsPresContext* aPresContext)
   nsCOMPtr<nsIWidget> widget = GetWidget(sPresContext);
   if (widget) {
     PRUint32 newState = GetNewIMEState(sPresContext, nsnull);
-    SetIMEState(newState, nsnull, widget, IMEContext::FOCUS_REMOVED);
+    SetIMEState(newState, nsnull, widget);
   }
   sContent = nsnull;
   sPresContext = nsnull;
@@ -114,7 +114,7 @@ nsIMEStateManager::OnRemoveContent(nsPresContext* aPresContext,
     if (NS_FAILED(rv))
       widget->ResetInputState();
     PRUint32 newState = GetNewIMEState(sPresContext, nsnull);
-    SetIMEState(newState, nsnull, widget, IMEContext::FOCUS_REMOVED);
+    SetIMEState(newState, nsnull, widget);
   }
 
   sContent = nsnull;
@@ -125,8 +125,7 @@ nsIMEStateManager::OnRemoveContent(nsPresContext* aPresContext,
 
 nsresult
 nsIMEStateManager::OnChangeFocus(nsPresContext* aPresContext,
-                                 nsIContent* aContent,
-                                 PRUint32 aReason)
+                                 nsIContent* aContent)
 {
   NS_ENSURE_ARG_POINTER(aPresContext);
 
@@ -192,7 +191,7 @@ nsIMEStateManager::OnChangeFocus(nsPresContext* aPresContext,
 
   if (newState != nsIContent::IME_STATUS_NONE) {
     // Update IME state for new focus widget
-    SetIMEState(newState, aContent, widget, aReason);
+    SetIMEState(newState, aContent, widget);
   }
 
   sPresContext = aPresContext;
@@ -205,10 +204,7 @@ void
 nsIMEStateManager::OnInstalledMenuKeyboardListener(PRBool aInstalling)
 {
   sInstalledMenuKeyboardListener = aInstalling;
-
-  PRUint32 reason = aInstalling ? IMEContext::FOCUS_MOVED_TO_MENU
-                                : IMEContext::FOCUS_MOVED_FROM_MENU;
-  OnChangeFocus(sPresContext, sContent, reason);
+  OnChangeFocus(sPresContext, sContent);
 }
 
 void
@@ -240,7 +236,7 @@ nsIMEStateManager::UpdateIMEState(PRUint32 aNewIMEState, nsIContent* aContent)
   // commit current composition
   widget->ResetInputState();
 
-  SetIMEState(aNewIMEState, aContent, widget, IMEContext::EDITOR_STATE_MODIFIED);
+  SetIMEState(aNewIMEState, aContent, widget);
 }
 
 PRUint32
@@ -293,8 +289,7 @@ private:
 void
 nsIMEStateManager::SetIMEState(PRUint32 aState,
                                nsIContent* aContent,
-                               nsIWidget* aWidget,
-                               PRUint32 aReason)
+                               nsIWidget* aWidget)
 {
   if (aState & nsIContent::IME_STATUS_MASK_ENABLED) {
     if (!aWidget)
@@ -328,17 +323,8 @@ nsIMEStateManager::SetIMEState(PRUint32 aState,
             willSubmit = PR_TRUE;
           }
         }
-        context.mActionHint.Assign(willSubmit ? control->GetType() == NS_FORM_INPUT_SEARCH
-                                                  ? NS_LITERAL_STRING("search")
-                                                  : NS_LITERAL_STRING("go")
-                                              : NS_LITERAL_STRING("next"));
+        context.mActionHint.Assign(willSubmit ? NS_LITERAL_STRING("go") : NS_LITERAL_STRING("next"));
       }
-    }
-
-    if (XRE_GetProcessType() == GeckoProcessType_Content) {
-      context.mReason = aReason | IMEContext::FOCUS_FROM_CONTENT_PROCESS;
-    } else {
-      context.mReason = aReason;
     }
 
     aWidget->SetInputMode(context);
@@ -413,7 +399,7 @@ nsTextStateManager::Init(nsIWidget* aWidget,
                          PRBool aWantUpdates)
 {
   mWidget = aWidget;
-  MOZ_ASSERT(mWidget);
+
   if (!aWantUpdates) {
     mEditableNode = aNode;
     return NS_OK;
@@ -501,13 +487,10 @@ public:
   SelectionChangeEvent(nsIWidget *widget)
     : mWidget(widget)
   {
-    MOZ_ASSERT(mWidget);
   }
 
   NS_IMETHOD Run() {
-    if(mWidget) {
-        mWidget->OnIMESelectionChange();
-    }
+    mWidget->OnIMESelectionChange();
     return NS_OK;
   }
 
@@ -523,7 +506,7 @@ nsTextStateManager::NotifySelectionChanged(nsIDOMDocument* aDoc,
   PRInt32 count = 0;
   nsresult rv = aSel->GetRangeCount(&count);
   NS_ENSURE_SUCCESS(rv, rv);
-  if (count > 0 && mWidget) {
+  if (count > 0) {
     nsContentUtils::AddScriptRunner(new SelectionChangeEvent(mWidget));
   }
   return NS_OK;
@@ -539,13 +522,10 @@ public:
     , mOldEnd(oldEnd)
     , mNewEnd(newEnd)
   {
-    MOZ_ASSERT(mWidget);
   }
 
   NS_IMETHOD Run() {
-    if(mWidget) {
-        mWidget->OnIMETextChange(mStart, mOldEnd, mNewEnd);
-    }
+    mWidget->OnIMETextChange(mStart, mOldEnd, mNewEnd);
     return NS_OK;
   }
 

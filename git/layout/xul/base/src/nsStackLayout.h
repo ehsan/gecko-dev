@@ -50,13 +50,13 @@
 #include "nsBoxLayout.h"
 #include "nsCOMPtr.h"
 
-nsresult NS_NewStackLayout(nsIPresShell* aPresShell, nsCOMPtr<nsBoxLayout>& aNewLayout);
+nsresult NS_NewStackLayout(nsIPresShell* aPresShell, nsCOMPtr<nsIBoxLayout>& aNewLayout);
 
 class nsStackLayout : public nsBoxLayout
 {
 public:
 
-  friend nsresult NS_NewStackLayout(nsIPresShell* aPresShell, nsCOMPtr<nsBoxLayout>& aNewLayout);
+  friend nsresult NS_NewStackLayout(nsIPresShell* aPresShell, nsCOMPtr<nsIBoxLayout>& aNewLayout);
   static void Shutdown();
 
   nsStackLayout();
@@ -75,7 +75,7 @@ public:
   static PRUint8 GetOffset(nsBoxLayoutState& aState, nsIBox* aChild, nsMargin& aMargin);
 
 private:
-  static nsBoxLayout* gInstance;
+  static nsIBoxLayout* gInstance;
 
 }; // class nsStackLayout
 

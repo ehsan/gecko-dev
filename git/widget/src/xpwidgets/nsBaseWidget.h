@@ -113,12 +113,11 @@ public:
   virtual void            SetShowsToolbarButton(PRBool aShow) {}
   NS_IMETHOD              HideWindowChrome(PRBool aShouldHide);
   NS_IMETHOD              MakeFullScreen(PRBool aFullScreen);
-  virtual nsDeviceContext* GetDeviceContext();
+  virtual nsIDeviceContext* GetDeviceContext();
   virtual nsIToolkit*     GetToolkit();
-  virtual LayerManager*   GetLayerManager(PLayersChild* aShadowManager = nsnull,
-                                          LayersBackend aBackendHint = LayerManager::LAYERS_NONE,
-                                          LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
+  virtual LayerManager*   GetLayerManager(LayerManagerPersistence aPersistence,
                                           bool* aAllowRetaining = nsnull);
+  using nsIWidget::GetLayerManager;
 
   virtual void            DrawOver(LayerManager* aManager, nsIntRect aRect) {}
   virtual void            UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries) {}
@@ -165,12 +164,12 @@ public:
   virtual already_AddRefed<nsIWidget>
   CreateChild(const nsIntRect  &aRect,
               EVENT_CALLBACK   aHandleEventFunction,
-              nsDeviceContext *aContext,
+              nsIDeviceContext *aContext,
               nsIAppShell      *aAppShell = nsnull,
               nsIToolkit       *aToolkit = nsnull,
               nsWidgetInitData *aInitData = nsnull,
               PRBool           aForceUseIWidgetParent = PR_FALSE);
-  NS_IMETHOD              AttachViewToTopLevel(EVENT_CALLBACK aViewEventFunction, nsDeviceContext *aContext);
+  NS_IMETHOD              AttachViewToTopLevel(EVENT_CALLBACK aViewEventFunction, nsIDeviceContext *aContext);
   virtual ViewWrapper*    GetAttachedViewPtr();
   NS_IMETHOD              SetAttachedViewPtr(ViewWrapper* aViewWrapper);
   NS_IMETHOD              ResizeClient(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint);
@@ -228,7 +227,7 @@ protected:
   virtual void            BaseCreate(nsIWidget *aParent,
                                      const nsIntRect &aRect,
                                      EVENT_CALLBACK aHandleEventFunction,
-                                     nsDeviceContext *aContext,
+                                     nsIDeviceContext *aContext,
                                      nsIAppShell *aAppShell,
                                      nsIToolkit *aToolkit,
                                      nsWidgetInitData *aInitData);
@@ -269,7 +268,7 @@ protected:
   ViewWrapper*      mViewWrapperPtr;
   EVENT_CALLBACK    mEventCallback;
   EVENT_CALLBACK    mViewCallback;
-  nsDeviceContext* mContext;
+  nsIDeviceContext* mContext;
   nsIToolkit*       mToolkit;
   nsRefPtr<LayerManager> mLayerManager;
   nsRefPtr<LayerManager> mBasicLayerManager;
@@ -289,7 +288,6 @@ protected:
   PRInt32           mZIndex;
   nsSizeMode        mSizeMode;
   nsPopupLevel      mPopupLevel;
-  PRBool            mDrawFPS;
 
   // the last rolled up popup. Only set this when an nsAutoRollup is in scope,
   // so it can be cleared automatically.

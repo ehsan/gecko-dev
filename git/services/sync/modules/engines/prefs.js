@@ -46,18 +46,16 @@ const WEAVE_SYNC_PREFS = "services.sync.prefs.sync.";
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/record.js");
 Cu.import("resource://services-sync/util.js");
-Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/ext/Preferences.js");
-Cu.import("resource://gre/modules/LightweightThemeManager.jsm");
 
-const PREFS_GUID = Utils.encodeBase64url(Services.appinfo.ID);
+const PREFS_GUID = Utils.encodeBase64url(Svc.AppInfo.ID);
 
 function PrefRec(collection, id) {
   CryptoWrapper.call(this, collection, id);
 }
 PrefRec.prototype = {
   __proto__: CryptoWrapper.prototype,
-  _logName: "Sync.Record.Pref",
+  _logName: "Record.Pref",
 };
 
 Utils.deferGetSet(PrefRec, "cleartext", ["value"]);
@@ -140,9 +138,20 @@ PrefStore.prototype = {
   },
 
   _setAllPrefs: function PrefStore__setAllPrefs(values) {
+    // cache 
+    let ltmExists = true;
+    let ltm = {};
+    let enabledBefore = false;
     let enabledPref = "lightweightThemes.isThemeSelected";
-    let enabledBefore = this._prefs.get(enabledPref, false);
-    let prevTheme = LightweightThemeManager.currentTheme;
+    let prevTheme = "";
+    try {
+      Cu.import("resource://gre/modules/LightweightThemeManager.jsm", ltm);
+      ltm = ltm.LightweightThemeManager;
+      enabledBefore = this._prefs.get(enabledPref, false);
+      prevTheme = ltm.currentTheme;
+    } catch(ex) {
+      ltmExists = false;
+    } // LightweightThemeManager only exists in Firefox 3.6+
 
     for (let [pref, value] in Iterator(values)) {
       if (!this._isSynced(pref))
@@ -162,12 +171,14 @@ PrefStore.prototype = {
     }
 
     // Notify the lightweight theme manager of all the new values
-    let enabledNow = this._prefs.get(enabledPref, false);
-    if (enabledBefore && !enabledNow) {
-      LightweightThemeManager.currentTheme = null;
-    } else if (enabledNow && LightweightThemeManager.usedThemes[0] != prevTheme) {
-      LightweightThemeManager.currentTheme = null;
-      LightweightThemeManager.currentTheme = LightweightThemeManager.usedThemes[0];
+    if (ltmExists) {
+      let enabledNow = this._prefs.get(enabledPref, false);
+      if (enabledBefore && !enabledNow)
+        ltm.currentTheme = null;
+      else if (enabledNow && ltm.usedThemes[0] != prevTheme) {
+        ltm.currentTheme = null;
+        ltm.currentTheme = ltm.usedThemes[0];
+      }
     }
   },
 
@@ -271,11 +282,16 @@ PrefTracker.prototype = {
           .getService(Ci.nsIPrefBranch2).removeObserver("", this);
         break;
       case "nsPref:changed":
-        // Trigger a sync for MULTI-DEVICE for a change that determines
-        // which prefs are synced or a regular pref change.
-        if (aData.indexOf(WEAVE_SYNC_PREFS) == 0 || 
-            this._prefs.get(WEAVE_SYNC_PREFS + aData, false)) {
-          this.score += SCORE_INCREMENT_XLARGE;
+        // 100 points for a change that determines which prefs are synced,
+        // 25 points per regular pref change.
+        let up;
+        if (aData.indexOf(WEAVE_SYNC_PREFS) == 0)
+          up = 100;
+        else if (this._prefs.get(WEAVE_SYNC_PREFS + aData, false))
+          up = 25;
+
+        if (up) {
+          this.score += up;
           this.modified = true;
           this._log.trace("Preference " + aData + " changed");
         }

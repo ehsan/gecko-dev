@@ -168,9 +168,6 @@ public:
     // nsIDOMNode interface overrides
     NS_IMETHOD CloneNode(PRBool deep, nsIDOMNode **_retval);
 
-    // nsIDOMDocument
-    NS_IMETHOD GetContentType(nsAString& aContentType);
-
     // nsDocument interface overrides
     NS_IMETHOD GetElementById(const nsAString& aId, nsIDOMElement** aReturn)
     {
@@ -180,6 +177,9 @@ public:
 
     // nsIDOMXULDocument interface
     NS_DECL_NSIDOMXULDOCUMENT
+
+    // nsIDOMNSDocument
+    NS_IMETHOD GetContentType(nsAString& aContentType);
 
     // nsICSSLoaderObserver
     NS_IMETHOD StyleSheetLoaded(nsCSSStyleSheet* aSheet,
@@ -252,13 +252,6 @@ protected:
                                  nsIDOMElement* aListener,
                                  nsIAtom* aAttr);
 
-    nsresult
-    BroadcastAttributeChangeFromOverlay(nsIContent* aNode,
-                                        PRInt32 aNameSpaceID,
-                                        nsIAtom* aAttribute,
-                                        nsIAtom* aPrefix,
-                                        const nsAString& aValue);
-
     already_AddRefed<nsPIWindowRoot> GetWindowRoot();
 
     PRInt32 GetDefaultNamespaceID() const
@@ -329,6 +322,19 @@ protected:
     BuilderTable* mTemplateBuilderTable;
 
     PRUint32 mPendingSheets;
+
+    /*
+     * XXX dr
+     * ------
+     * We used to have two pointers into the content model: mPopupNode and
+     * mTooltipNode, which were used to retrieve the objects triggering a
+     * popup or tooltip. You need that access because your reference has
+     * disappeared by the time you click on a popup item or do whatever
+     * with a tooltip. These were owning references (no cycles, as pinkerton
+     * pointed out, since we're still parent-child).
+     */
+
+    nsCOMPtr<nsIDOMNode>    mTooltipNode;          // [OWNER] element triggering the tooltip
 
     /**
      * document lightweight theme for use with :-moz-lwtheme, :-moz-lwtheme-brighttext
@@ -655,6 +661,11 @@ protected:
      * @param aURI the URI of the overlay that failed to load
      */
     void ReportMissingOverlay(nsIURI* aURI);
+    
+#if defined(DEBUG_waterson) || defined(DEBUG_hyatt)
+    // timing
+    nsTime mLoadStart;
+#endif
 
     class CachedChromeStreamListener : public nsIStreamListener {
     protected:

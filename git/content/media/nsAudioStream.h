@@ -64,23 +64,22 @@ public:
   // library after using it.
   static void ShutdownLibrary();
 
-  // Thread that is shared between audio streams.
+  // Thread, usually for MOZ_IPC handling, that is shared between audio streams.
   // This may return null in the child process
   nsIThread *GetThread();
 
   // AllocateStream will return either a local stream or a remoted stream
-  // depending on where you call it from.  If you call this from a child process,
-  // you may receive an implementation which forwards to a compositing process.
+  // depending on where you call it from.  If MOZ_IPC is enabled, and you
+  // call this from a child process, you may recieve an implementation which
+  // forwards to a compositing process.
   static nsAudioStream* AllocateStream();
 
   // Initialize the audio stream. aNumChannels is the number of audio channels 
   // (1 for mono, 2 for stereo, etc) and aRate is the frequency of the sound 
   // samples (22050, 44100, etc).
-  // Unsafe to call with the decoder monitor held.
   virtual nsresult Init(PRInt32 aNumChannels, PRInt32 aRate, SampleFormat aFormat) = 0;
 
   // Closes the stream. All future use of the stream is an error.
-  // Unsafe to call with the decoder monitor held.
   virtual void Shutdown() = 0;
 
   // Write sound data to the audio hardware.  aBuf is an array of samples in
@@ -100,7 +99,6 @@ public:
   virtual void SetVolume(double aVolume) = 0;
 
   // Block until buffered audio data has been consumed.
-  // Unsafe to call with the decoder monitor held.
   virtual void Drain() = 0;
 
   // Pause audio playback
@@ -109,7 +107,7 @@ public:
   // Resume audio playback
   virtual void Resume() = 0;
 
-  // Return the position in microseconds of the sample being played by the
+  // Return the position in milliseconds of the sample being played by the
   // audio hardware.
   virtual PRInt64 GetPosition() = 0;
 
@@ -122,7 +120,6 @@ public:
 
   // Returns the minimum number of samples which must be written before
   // you can be sure that something will be played.
-  // Unsafe to call with the decoder monitor held.
   virtual PRInt32 GetMinWriteSamples() = 0;
 
 protected:

@@ -166,23 +166,41 @@ int main(int argc, char *argv[])
     LoadString(ghInstanceApp, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
     MyRegisterClass(ghInstanceApp);
 
-    char path[_MAX_PATH];
-    GetModuleFileName(ghInstanceApp, path, sizeof(path));
-    char* lastslash = ns_strrpbrk(path, "/\\");
+    // Find the GRE (libxul). We are only using frozen interfaces, so we
+    // should be compatible all the way up to (but not including) mozilla 2.0
+    static const GREVersionRange vr = {
+        "1.8a1",
+        PR_TRUE,
+        "2.0",
+        PR_FALSE
+    };
+
+    char xpcomPath[_MAX_PATH];
+    rv = GRE_GetGREPathWithProperties(&vr, 1, nsnull, 0,
+                                      xpcomPath, sizeof(xpcomPath));
+    if (NS_FAILED(rv))
+        return 1;
+
+    char *lastslash = ns_strrpbrk(xpcomPath, "/\\");
     if (!lastslash)
-        return 7;
+        return 2;
 
-    strcpy(lastslash, "\\xulrunner\\xpcom.dll");
-
-    rv = XPCOMGlueStartup(path);
+    rv = XPCOMGlueStartup(xpcomPath);
     if (NS_FAILED(rv))
         return 3;
 
-    strcpy(lastslash, "\\xulrunner\\xul.dll");
+    *lastslash = '\0';
 
-    HINSTANCE xulModule = LoadLibraryEx(path, NULL, 0);
+    char xulPath[_MAX_PATH];
+    _snprintf(xulPath, sizeof(xulPath), "%s\\xul.dll", xpcomPath);
+    xulPath[sizeof(xulPath) - 1] = '\0';
+
+    HINSTANCE xulModule = LoadLibraryEx(xulPath, NULL, 0);
     if (!xulModule)
         return 4;
+
+    char temp[_MAX_PATH];
+    GetModuleFileName(xulModule, temp, sizeof(temp));
 
     XRE_InitEmbedding2 =
         (XRE_InitEmbedding2Type) GetProcAddress(xulModule, "XRE_InitEmbedding2");
@@ -200,18 +218,22 @@ int main(int argc, char *argv[])
 
     // Scope all the XPCOM stuff
     {
-        strcpy(lastslash, "\\xulrunner");
-
         nsCOMPtr<nsILocalFile> xuldir;
-        rv = NS_NewNativeLocalFile(nsCString(path), PR_FALSE,
+        rv = NS_NewNativeLocalFile(nsCString(xpcomPath), PR_FALSE,
                                    getter_AddRefs(xuldir));
         if (NS_FAILED(rv))
             return 6;
 
+        char self[_MAX_PATH];
+        GetModuleFileName(ghInstanceApp, self, sizeof(self));
+        lastslash = ns_strrpbrk(xpcomPath, "/\\");
+        if (!lastslash)
+            return 7;
+
         *lastslash = '\0';
 
         nsCOMPtr<nsILocalFile> appdir;
-        rv = NS_NewNativeLocalFile(nsCString(path), PR_FALSE,
+        rv = NS_NewNativeLocalFile(nsCString(self), PR_FALSE,
                                    getter_AddRefs(appdir));
         if (NS_FAILED(rv))
             return 8;
@@ -712,7 +734,7 @@ INT_PTR CALLBACK BrowserDlgProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM l
 
 
 //
-//  FUNCTION: BrowserWndProc(HWND, UINT, WRAPAM, LPARAM)
+//  FUNCTION: BrowserWndProc(HWND, unsigned, WORD, LONG)
 //
 //  PURPOSE:  Processes messages for the browser container window.
 //
@@ -875,7 +897,7 @@ void WebBrowserChromeUI::Destroyed(nsIWebBrowserChrome* chrome)
 
     // Clear the window user data
     HWND hwndBrowser = GetDlgItem(hwndDlg, IDC_BROWSER);
-    SetWindowLongPtr(hwndBrowser, GWLP_USERDATA, nsnull);
+    SetWindowLong(hwndBrowser, GWL_USERDATA, nsnull);
     DestroyWindow(hwndBrowser);
     DestroyWindow(hwndDlg);
 
@@ -1055,7 +1077,7 @@ void WebBrowserChromeUI::GetResourceStringById(PRInt32 aID, char ** aReturn)
     int retval = LoadString( ghInstanceApp, aID, (LPTSTR)resBuf, sizeof(resBuf) );
     if (retval != 0)
     {
-        size_t resLen = strlen(resBuf);
+        int resLen = strlen(resBuf);
         *aReturn = (char *)calloc(resLen+1, sizeof(char *));
         if (!*aReturn) return;
             strncpy(*aReturn, resBuf, resLen);
@@ -1131,5 +1153,5 @@ PRUint32 AppCallbacks::RunEventLoop(PRBool &aRunCondition)
     ::MsgWaitForMultipleObjects(1, &hFakeEvent, FALSE, 100, QS_ALLEVENTS);
   }
   ::CloseHandle(hFakeEvent);
-  return (PRUint32)msg.wParam;
+  return msg.wParam;
 }

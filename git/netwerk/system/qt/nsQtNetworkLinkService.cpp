@@ -35,14 +35,13 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsQtNetworkManager.h"
 #include "nsQtNetworkLinkService.h"
 #include "nsCOMPtr.h"
 #include "nsIObserverService.h"
 #include "nsServiceManagerUtils.h"
 #include "nsString.h"
+#include "nsQtNetworkManager.h"
 #include "mozilla/Services.h"
-#include "nsCRT.h"
 
 NS_IMPL_ISUPPORTS2(nsQtNetworkLinkService,
                    nsINetworkLinkService,
@@ -57,26 +56,16 @@ nsQtNetworkLinkService::~nsQtNetworkLinkService()
 }
 
 NS_IMETHODIMP
-nsQtNetworkLinkService::GetIsLinkUp(PRBool* aIsUp)
+nsQtNetworkLinkService::GetIsLinkUp(PRBool *aIsUp)
 {
-  *aIsUp = nsQtNetworkManager::get()->isOnline();
+  *aIsUp = nsQtNetworkManager::IsConnected();
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsQtNetworkLinkService::GetLinkStatusKnown(PRBool* aIsKnown)
+nsQtNetworkLinkService::GetLinkStatusKnown(PRBool *aIsKnown)
 {
-  *aIsKnown = nsQtNetworkManager::get()->isOnline();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsQtNetworkLinkService::GetLinkType(PRUint32 *aLinkType)
-{
-  NS_ENSURE_ARG_POINTER(aLinkType);
-
-  // XXX This function has not yet been implemented for this platform
-  *aLinkType = nsINetworkLinkService::LINK_TYPE_UNKNOWN;
+  *aIsKnown = nsQtNetworkManager::GetLinkStatusKnown();
   return NS_OK;
 }
 
@@ -85,14 +74,8 @@ nsQtNetworkLinkService::Observe(nsISupports* aSubject,
                                 const char* aTopic,
                                 const PRUnichar* aData)
 {
-  if (!strcmp(aTopic, "xpcom-shutdown")) {
+  if (!strcmp(aTopic, "xpcom-shutdown"))
     Shutdown();
-    nsQtNetworkManager::get()->destroy();
-  }
-
-  if (!strcmp(aTopic, "browser-lastwindow-close-granted")) {
-    Shutdown();
-  }
 
   return NS_OK;
 }
@@ -102,23 +85,15 @@ nsQtNetworkLinkService::Init(void)
 {
   nsCOMPtr<nsIObserverService> observerService =
     mozilla::services::GetObserverService();
-  if (!observerService) {
+  if (!observerService)
     return NS_ERROR_FAILURE;
-  }
 
-  nsQtNetworkManager::create();
-  nsresult rv;
-
-  rv = observerService->AddObserver(this, "xpcom-shutdown", PR_FALSE);
-  if (NS_FAILED(rv)) {
+  nsresult rv = observerService->AddObserver(this, "xpcom-shutdown", PR_FALSE);
+  if (NS_FAILED(rv))
     return NS_ERROR_FAILURE;
-  }
 
-  rv = observerService->AddObserver(this, "browser-lastwindow-close-granted", PR_FALSE);
-  if (NS_FAILED(rv)) {
+  if (!nsQtNetworkManager::Startup())
     return NS_ERROR_FAILURE;
-  }
-
 
   return NS_OK;
 }
@@ -126,6 +101,6 @@ nsQtNetworkLinkService::Init(void)
 nsresult
 nsQtNetworkLinkService::Shutdown()
 {
-  nsQtNetworkManager::get()->closeSession();
+  nsQtNetworkManager::Shutdown();
   return NS_OK;
 }

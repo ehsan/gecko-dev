@@ -46,7 +46,6 @@
 #include "nsIIDBFactory.h"
 
 #include "nsIWeakReferenceUtils.h"
-#include "nsXULAppAPI.h"
 
 class nsPIDOMWindow;
 
@@ -74,16 +73,6 @@ public:
   static PRUint32
   GetIndexedDBQuota();
 
-  // Called when a process uses an IndexedDB factory. We only allow
-  // a single process type to use IndexedDB - the chrome/single process
-  // in Firefox, and the child process in Fennec - so access by more
-  // than one process type is a very serious error.
-  static void
-  NoteUsedByProcessType(GeckoProcessType aProcessType);
-
-  static nsresult
-  GetDirectory(nsIFile** aDirectory);
-
   static nsresult
   GetDirectoryForOrigin(const nsACString& aASCIIOrigin,
                         nsIFile** aDirectory);
@@ -100,7 +89,7 @@ public:
                          ObjectStoreInfoArray& aObjectStores);
 
 private:
-  IDBFactory();
+  IDBFactory() { }
   ~IDBFactory() { }
 
   nsCOMPtr<nsIWeakReference> mWindow;

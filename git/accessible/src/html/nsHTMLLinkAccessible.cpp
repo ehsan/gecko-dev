@@ -39,13 +39,9 @@
 
 #include "nsHTMLLinkAccessible.h"
 
-#include "States.h"
 #include "nsCoreUtils.h"
 
-#include "nsEventStates.h"
-#include "mozilla/dom/Element.h"
-
-using namespace mozilla::a11y;
+#include "nsIEventStateManager.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLLinkAccessible
@@ -70,38 +66,40 @@ nsHTMLLinkAccessible::NativeRole()
   return nsIAccessibleRole::ROLE_LINK;
 }
 
-PRUint64
-nsHTMLLinkAccessible::NativeState()
+nsresult
+nsHTMLLinkAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  PRUint64 states = nsHyperTextAccessibleWrap::NativeState();
+  nsresult rv = nsHyperTextAccessibleWrap::GetStateInternal(aState,
+                                                            aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
-  states  &= ~states::READONLY;
+  *aState  &= ~nsIAccessibleStates::STATE_READONLY;
 
   if (mContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::name)) {
     // This is how we indicate it is a named anchor
     // In other words, this anchor can be selected as a location :)
     // There is no other better state to use to indicate this.
-    states |= states::SELECTABLE;
+    *aState |= nsIAccessibleStates::STATE_SELECTABLE;
   }
 
-  nsEventStates state = mContent->AsElement()->State();
+  nsEventStates state = mContent->IntrinsicState();
   if (state.HasAtLeastOneOfStates(NS_EVENT_STATE_VISITED |
                                   NS_EVENT_STATE_UNVISITED)) {
-    states |= states::LINKED;
+    *aState |= nsIAccessibleStates::STATE_LINKED;
 
     if (state.HasState(NS_EVENT_STATE_VISITED))
-      states |= states::TRAVERSED;
+      *aState |= nsIAccessibleStates::STATE_TRAVERSED;
 
-    return states;
+    return NS_OK;
   }
 
   // This is a either named anchor (a link with also a name attribute) or
   // it doesn't have any attributes. Check if 'click' event handler is
   // registered, otherwise bail out.
   if (nsCoreUtils::HasClickListener(mContent))
-    states |= states::LINKED;
+    *aState |= nsIAccessibleStates::STATE_LINKED;
 
-  return states;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -120,10 +118,16 @@ nsHTMLLinkAccessible::GetValue(nsAString& aValue)
   return presShell->GetLinkLocation(DOMNode, aValue);
 }
 
-PRUint8
-nsHTMLLinkAccessible::ActionCount()
+NS_IMETHODIMP
+nsHTMLLinkAccessible::GetNumActions(PRUint8 *aNumActions)
 {
-  return IsLinked() ? 1 : nsHyperTextAccessible::ActionCount();
+  NS_ENSURE_ARG_POINTER(aNumActions);
+
+  if (!IsLinked())
+    return nsHyperTextAccessible::GetNumActions(aNumActions);
+
+  *aNumActions = 1;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -163,14 +167,14 @@ nsHTMLLinkAccessible::DoAction(PRUint8 aIndex)
 // HyperLinkAccessible
 
 bool
-nsHTMLLinkAccessible::IsLink()
+nsHTMLLinkAccessible::IsHyperLink()
 {
   // Expose HyperLinkAccessible unconditionally.
   return true;
 }
 
 already_AddRefed<nsIURI>
-nsHTMLLinkAccessible::AnchorURIAt(PRUint32 aAnchorIndex)
+nsHTMLLinkAccessible::GetAnchorURI(PRUint32 aAnchorIndex)
 {
   return aAnchorIndex == 0 ? mContent->GetHrefURI() : nsnull;
 }
@@ -184,7 +188,7 @@ nsHTMLLinkAccessible::IsLinked()
   if (IsDefunct())
     return PR_FALSE;
 
-  nsEventStates state = mContent->AsElement()->State();
+  nsEventStates state = mContent->IntrinsicState();
   return state.HasAtLeastOneOfStates(NS_EVENT_STATE_VISITED |
                                      NS_EVENT_STATE_UNVISITED);
 }

@@ -19,8 +19,6 @@ var gInternalManager = null;
 var gAppInfo = null;
 var gAddonsList;
 
-var TEST_UNPACKED = false;
-
 function createAppInfo(id, name, version, platformVersion) {
   gAppInfo = {
     // nsIXULAppInfo
@@ -29,7 +27,7 @@ function createAppInfo(id, name, version, platformVersion) {
     ID: id,
     version: version,
     appBuildID: "2007010101",
-    platformVersion: platformVersion ? platformVersion : "1.0",
+    platformVersion: platformVersion,
     platformBuildID: "2007010101",
 
     // nsIXULRuntime
@@ -163,7 +161,7 @@ function do_get_addon_root_uri(aProfileDir, aId) {
 }
 
 function do_get_expected_addon_name(aId) {
-  if (TEST_UNPACKED)
+  if (Services.prefs.getBoolPref("extensions.alwaysUnpack"))
     return aId;
   return aId + ".xpi";
 }
@@ -430,20 +428,6 @@ function isExtensionInAddonsList(aDir, aId) {
   return isItemInAddonsList("extensions", aDir, aId);
 }
 
-function check_startup_changes(aType, aIds) {
-  var ids = aIds.slice(0);
-  ids.sort();
-  var changes = AddonManager.getStartupChanges(aType);
-  changes.sort();
-
-  // Remove the default theme if it is in the list
-  var pos = changes.indexOf("{972ce4c6-7e08-4474-a285-3208198ce6fd}");
-  if (pos != -1)
-    changes.splice(pos, 1);
-
-  do_check_eq(JSON.stringify(ids), JSON.stringify(changes));
-}
-
 /**
  * Escapes any occurances of &, ", < or > with XML entities.
  *
@@ -483,7 +467,7 @@ function createInstallRDF(aData) {
   rdf += '<Description about="urn:mozilla:install-manifest">\n';
 
   ["id", "version", "type", "internalName", "updateURL", "updateKey",
-   "optionsURL", "optionsType", "aboutURL", "iconURL", "icon64URL",
+   "optionsURL", "aboutURL", "iconURL", "icon64URL",
    "skinnable", "bootstrap"].forEach(function(aProp) {
     if (aProp in aData)
       rdf += "<em:" + aProp + ">" + escapeXML(aData[aProp]) + "</em:" + aProp + ">\n";
@@ -585,7 +569,7 @@ function writeInstallRDFForExtension(aData, aDir, aId, aExtraFile) {
 
   var dir = aDir.clone();
 
-  if (TEST_UNPACKED) {
+  if (Services.prefs.getBoolPref("extensions.alwaysUnpack")) {
     dir.append(id);
     writeInstallRDFToDir(aData, dir, aExtraFile);
     return dir;
@@ -627,22 +611,6 @@ function setExtensionModifiedTime(aExt, aTime) {
       setExtensionModifiedTime(entries.nextFile, aTime);
     entries.close();
   }
-}
-
-/**
- * Gets the nsIFile for where an add-on is installed. It may point to a file or
- * a directory depending on whether add-ons are being installed unpacked or not.
- *
- * @param  aDir
- *         The nsIFile for the install location
- * @param  aId
- *         The ID of the add-on
- * @return an nsIFile
- */
-function getFileForAddon(aDir, aId) {
-  var dir = aDir.clone();
-  dir.append(do_get_expected_addon_name(aId));
-  return dir;
 }
 
 function registerDirectory(aKey, aDir) {
@@ -1077,9 +1045,6 @@ Services.prefs.setBoolPref("extensions.logging.enabled", true);
 // By default only load extensions from the profile install location
 Services.prefs.setIntPref("extensions.enabledScopes", AddonManager.SCOPE_PROFILE);
 
-// By default don't disable add-ons from any scope
-Services.prefs.setIntPref("extensions.autoDisableScopes", 0);
-
 // By default, don't cache add-ons in AddonRepository.jsm
 Services.prefs.setBoolPref("extensions.getAddons.cache.enabled", false);
 
@@ -1122,7 +1087,6 @@ do_register_cleanup(function() {
   while (entry = dirEntries.nextFile) {
     do_throw("Found unexpected file in temporary directory: " + entry.leafName);
   }
-  dirEntries.close();
 
   var testDir = gProfD.clone();
   testDir.append("extensions");

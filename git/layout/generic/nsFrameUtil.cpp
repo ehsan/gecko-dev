@@ -220,6 +220,9 @@ nsFrameUtil::Node*
 nsFrameUtil::Node::Read(FILE* aFile, Tag* tag)
 {
   Node* node = new Node;
+  if (!node) {
+    /* crash() */
+  }
   node->type = Copy(tag->GetAttr("type"));
   if (!node->type) {
     /* crash() */
@@ -505,6 +508,7 @@ nsFrameUtil::Tag::ToString(nsString& aResult)
 
 //----------------------------------------------------------------------
 
+nsresult NS_NewFrameUtil(nsIFrameUtil** aResult);
 nsresult
 NS_NewFrameUtil(nsIFrameUtil** aResult)
 {
@@ -512,11 +516,13 @@ NS_NewFrameUtil(nsIFrameUtil** aResult)
   if (nsnull == aResult) {
     return NS_ERROR_NULL_POINTER;
   }
+  *aResult = nsnull;
 
   nsFrameUtil* it = new nsFrameUtil();
-
-  NS_ADDREF(*aResult = it);
-  return NS_OK;
+  if (nsnull == it) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+  return it->QueryInterface(NS_GET_IID(nsIFrameUtil), (void**) aResult);
 }
 
 nsFrameUtil::nsFrameUtil()
@@ -600,7 +606,7 @@ nsFrameUtil::CompareTrees(Node* tree1, Node* tree2)
       DumpNode(tree2, stdout, 1);
       result = PR_FALSE; // we have a non-critical failure, so remember that but continue
     }
-    if (tree1->bbox.IsEqualInterior(tree2->bbox)) {
+    if (tree1->bbox != tree2->bbox) {
       printf("frame bbox mismatch: %d,%d,%d,%d vs. %d,%d,%d,%d\n",
              tree1->bbox.x, tree1->bbox.y,
              tree1->bbox.width, tree1->bbox.height,

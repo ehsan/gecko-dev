@@ -37,6 +37,9 @@
 
 const NUM_TABS = 12;
 
+let ss = Cc["@mozilla.org/browser/sessionstore;1"].
+         getService(Ci.nsISessionStore);
+
 let stateBackup = ss.getBrowserState();
 
 function test() {
@@ -166,4 +169,9 @@ function test() {
   gBrowser.tabContainer.addEventListener("TabOpen", onTabOpen, false);
   // Restore state
   ss.setBrowserState(JSON.stringify(state));
+}
+
+// Helper function to create a random value
+function r() {
+  return "" + Date.now() + Math.random();
 }

@@ -43,11 +43,8 @@
 #ifndef _nsAccessibleWrap_H_
 #define _nsAccessibleWrap_H_
 
-#include <objc/objc.h>
-
 #include "nsAccessible.h"
 #include "nsAccUtils.h"
-#include "States.h"
 
 #include "nsCOMPtr.h"
 #include "nsRect.h"
@@ -56,6 +53,7 @@
 #include "nsAutoPtr.h"
 
 struct AccessibleWrapper;
+struct objc_class;
 
 class nsAccessibleWrap : public nsAccessible
 {
@@ -72,7 +70,7 @@ class nsAccessibleWrap : public nsAccessible
     // the objective-c |Class| type that this accessible's native object
     // should be instantied with.   used on runtime to determine the
     // right type for this accessible's associated native object.
-    virtual Class GetNativeType ();
+    virtual objc_class* GetNativeType ();
 
     virtual void Shutdown ();
     virtual void InvalidateChildren();
@@ -86,7 +84,9 @@ class nsAccessibleWrap : public nsAccessible
     PRInt32 GetUnignoredChildCount(PRBool aDeepCount);
     
     PRBool HasPopup () {
-      return (NativeState() & mozilla::a11y::states::HASPOPUP);
+      PRUint32 state = 0;
+      GetStateInternal(&state, nsnull);
+      return (state & nsIAccessibleStates::STATE_HASPOPUP);
     }
     
     // return this accessible's all children, adhering to "flat" accessibles by not returning their children.

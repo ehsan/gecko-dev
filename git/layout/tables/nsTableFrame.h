@@ -38,6 +38,7 @@
 #define nsTableFrame_h__
 
 #include "nscore.h"
+#include "nsTPtrArray.h"
 #include "nsHTMLContainerFrame.h"
 #include "nsStyleCoord.h"
 #include "nsStyleConsts.h"
@@ -268,7 +269,7 @@ public:
    * columns, row groups, rows, and cells), and the table border, and all
    * internal borders if border-collapse is on.
    */
-  void PaintTableBorderBackground(nsRenderingContext& aRenderingContext,
+  void PaintTableBorderBackground(nsIRenderingContext& aRenderingContext,
                                   const nsRect& aDirtyRect,
                                   nsPoint aPt, PRUint32 aBGPaintFlags);
 
@@ -307,22 +308,22 @@ public:
   void SetBCDamageArea(const nsRect& aValue);
   PRBool BCRecalcNeeded(nsStyleContext* aOldStyleContext,
                         nsStyleContext* aNewStyleContext);
-  void PaintBCBorders(nsRenderingContext& aRenderingContext,
+  void PaintBCBorders(nsIRenderingContext& aRenderingContext,
                       const nsRect&        aDirtyRect);
 
   virtual void MarkIntrinsicWidthsDirty();
   // For border-collapse tables, the caller must not add padding and
   // border to the results of these functions.
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
   virtual IntrinsicWidthOffsetData
-    IntrinsicWidthOffsets(nsRenderingContext* aRenderingContext);
+    IntrinsicWidthOffsets(nsIRenderingContext* aRenderingContext);
 
-  virtual nsSize ComputeSize(nsRenderingContext *aRenderingContext,
+  virtual nsSize ComputeSize(nsIRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
                              PRBool aShrinkWrap);
-  virtual nsSize ComputeAutoSize(nsRenderingContext *aRenderingContext,
+  virtual nsSize ComputeAutoSize(nsIRenderingContext *aRenderingContext,
                                  nsSize aCBSize, nscoord aAvailableWidth,
                                  nsSize aMargin, nsSize aBorder,
                                  nsSize aPadding, PRBool aShrinkWrap);
@@ -330,7 +331,7 @@ public:
    * A copy of nsFrame::ShrinkWidthToFit that calls a different
    * GetPrefWidth, since tables have two different ones.
    */
-  nscoord TableShrinkWidthToFit(nsRenderingContext *aRenderingContext,
+  nscoord TableShrinkWidthToFit(nsIRenderingContext *aRenderingContext,
                                 nscoord aWidthInCB);
 
   // XXXldb REWRITE THIS COMMENT!
@@ -556,7 +557,7 @@ protected:
   // This calls the col group and column reflow methods, which do two things:
   //  (1) set all the dimensions to 0
   //  (2) notify the table about colgroups or columns with hidden visibility
-  void ReflowColGroups(nsRenderingContext* aRenderingContext);
+  void ReflowColGroups(nsIRenderingContext* aRenderingContext);
 
   /** return the width of the table taking into account visibility collapse
     * on columns and colgroups
@@ -614,7 +615,7 @@ protected:
 
   nsIFrame* GetFirstBodyRowGroupFrame();
 public:
-  typedef nsAutoTArray<nsTableRowGroupFrame*, 8> RowGroupArray;
+  typedef nsAutoTPtrArray<nsTableRowGroupFrame, 8> RowGroupArray;
   /**
    * Push all our child frames from the aRowGroups array, in order, starting
    * from the frame at aPushFrom to the end of the array. The frames are put on
@@ -775,7 +776,7 @@ protected:
   void DumpRowGroup(nsIFrame* aChildFrame);
 #endif
   // DATA MEMBERS
-  nsAutoTArray<nsTableColFrame*, 8> mColFrames;
+  nsAutoTPtrArray<nsTableColFrame, 8> mColFrames;
 
   struct TableBits {
     PRUint32 mHaveReflowedColGroups:1; // have the col groups gotten their initial reflow

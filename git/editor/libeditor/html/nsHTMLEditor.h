@@ -151,7 +151,7 @@ public:
   virtual nsresult HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent);
   virtual already_AddRefed<nsIContent> GetFocusedContent();
   virtual PRBool IsActiveInDOMWindow();
-  virtual already_AddRefed<nsIDOMEventTarget> GetDOMEventTarget();
+  virtual already_AddRefed<nsPIDOMEventTarget> GetPIDOMEventTarget();
   virtual already_AddRefed<nsIContent> FindSelectionRoot(nsINode *aNode);
   virtual PRBool IsAcceptableInputEvent(nsIDOMEvent* aEvent);
 
@@ -270,7 +270,7 @@ public:
   NS_IMETHOD SetHTMLBackgroundColor(const nsAString& aColor);
 
   /* ------------ Block methods moved from nsEditor -------------- */
-  static already_AddRefed<nsIDOMNode> GetBlockNodeParent(nsIDOMNode *aNode);
+  static nsCOMPtr<nsIDOMNode> GetBlockNodeParent(nsIDOMNode *aNode);
   /** Determines the bounding nodes for the block section containing aNode.
     * The calculation is based on some nodes intrinsically being block elements
     * acording to HTML.  Style sheets are not considered in this calculation.
@@ -304,7 +304,7 @@ public:
   static nsresult GetBlockSectionsForRange(nsIDOMRange      *aRange, 
                                            nsCOMArray<nsIDOMRange>& aSections);
 
-  static already_AddRefed<nsIDOMNode> NextNodeInBlock(nsIDOMNode *aNode, IterDirection aDir);
+  static nsCOMPtr<nsIDOMNode> NextNodeInBlock(nsIDOMNode *aNode, IterDirection aDir);
   nsresult IsNextCharWhitespace(nsIDOMNode *aParentNode, 
                                 PRInt32 aOffset, 
                                 PRBool *outIsSpace, 
@@ -393,7 +393,7 @@ public:
                               nsCOMPtr<nsIDOMNode> *ioParent, 
                               PRInt32 *ioOffset, 
                               PRBool aNoEmptyNodes);
-  already_AddRefed<nsIDOMNode> FindUserSelectAllNode(nsIDOMNode* aNode);
+  nsCOMPtr<nsIDOMNode> FindUserSelectAllNode(nsIDOMNode *aNode);
                                 
 
   /** returns the absolute position of the end points of aSelection
@@ -446,7 +446,7 @@ protected:
   NS_IMETHOD  InitRules();
 
   // Create the event listeners for the editor to install
-  virtual void CreateEventListeners();
+  virtual nsresult CreateEventListeners();
 
   virtual nsresult InstallEventListeners();
   virtual void RemoveEventListeners();
@@ -461,7 +461,7 @@ protected:
 
   // Return TRUE if aElement is a table-related elemet and caret was set
   PRBool SetCaretInTableCell(nsIDOMElement* aElement);
-  PRBool IsNodeInActiveEditor(nsIDOMNode* aNode);
+  PRBool IsElementInBody(nsIDOMElement* aElement);
 
   // key event helpers
   NS_IMETHOD TabInTable(PRBool inIsShift, PRBool *outHandled);
@@ -625,7 +625,7 @@ protected:
                                         PRInt32 *outStartOffset,
                                         PRInt32 *outEndOffset,
                                         PRBool aTrustedInput);
-  nsresult   ParseFragment(const nsAString & aStr, nsIAtom* aContextLocalName,
+  nsresult   ParseFragment(const nsAString & aStr, nsTArray<nsString> &aTagStack,
                            nsIDocument* aTargetDoc,
                            nsCOMPtr<nsIDOMNode> *outNode,
                            PRBool aTrustedInput);

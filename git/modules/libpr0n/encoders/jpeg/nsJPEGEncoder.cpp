@@ -45,8 +45,6 @@
 #include <setjmp.h>
 #include "jerror.h"
 
-using namespace mozilla;
-
 NS_IMPL_THREADSAFE_ISUPPORTS3(nsJPEGEncoder, imgIEncoder, nsIInputStream, nsIAsyncInputStream)
 
 // used to pass error info through the JPEG library
@@ -60,7 +58,7 @@ nsJPEGEncoder::nsJPEGEncoder() : mFinished(PR_FALSE),
                                  mImageBufferUsed(0), mImageBufferReadPoint(0),
                                  mCallback(nsnull),
                                  mCallbackTarget(nsnull), mNotifyThreshold(0),
-                                 mReentrantMonitor("nsJPEGEncoder.mReentrantMonitor")
+                                 mMonitor("JPEG Encoder Monitor")
 {
 }
 
@@ -119,7 +117,7 @@ NS_IMETHODIMP nsJPEGEncoder::InitFromData(const PRUint8* aData,
       nsCString value = NS_ConvertUTF16toUTF8(Substring(aOutputOptions,
                                                         qualityPrefix.Length()));
       int newquality = -1;
-      if (PR_sscanf(value.get(), "%d", &newquality) == 1) {
+      if (PR_sscanf(PromiseFlatCString(value).get(), "%d", &newquality) == 1) {
         if (newquality >= 0 && newquality <= 100) {
           quality = newquality;
         } else {
@@ -270,7 +268,7 @@ NS_IMETHODIMP nsJPEGEncoder::Read(char * aBuf, PRUint32 aCount,
 NS_IMETHODIMP nsJPEGEncoder::ReadSegments(nsWriteSegmentFun aWriter, void *aClosure, PRUint32 aCount, PRUint32 *_retval)
 {
   // Avoid another thread reallocing the buffer underneath us
-  ReentrantMonitorAutoEnter autoEnter(mReentrantMonitor);
+  mozilla::MonitorAutoEnter autoEnter(mMonitor);
 
   PRUint32 maxCount = mImageBufferUsed - mImageBufferReadPoint;
   if (maxCount == 0) {
@@ -417,7 +415,7 @@ nsJPEGEncoder::emptyOutputBuffer(jpeg_compress_struct* cinfo)
 
   // When we're reallocing the buffer we need to take the lock to ensure
   // that nobody is trying to read from the buffer we are destroying
-  ReentrantMonitorAutoEnter autoEnter(that->mReentrantMonitor);
+  mozilla::MonitorAutoEnter autoEnter(that->mMonitor);
 
   that->mImageBufferUsed = that->mImageBufferSize;
 
@@ -496,7 +494,7 @@ nsJPEGEncoder::NotifyListener()
   // AsyncWait and any that do encoding) so we lock to avoid notifying the
   // listener twice about the same data (which generally leads to a truncated
   // image).
-  ReentrantMonitorAutoEnter autoEnter(mReentrantMonitor);
+  mozilla::MonitorAutoEnter autoEnter(mMonitor);
 
   if (mCallback &&
       (mImageBufferUsed - mImageBufferReadPoint >= mNotifyThreshold ||

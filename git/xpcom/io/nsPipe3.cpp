@@ -35,7 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/ReentrantMonitor.h"
+#include "mozilla/Monitor.h"
 #include "nsIPipe.h"
 #include "nsIEventTarget.h"
 #include "nsISeekableStream.h"
@@ -47,7 +47,6 @@
 #include "prlog.h"
 #include "nsIClassInfoImpl.h"
 #include "nsAtomicRefcnt.h"
-#include "nsAlgorithm.h"
 
 using namespace mozilla;
 
@@ -261,7 +260,7 @@ protected:
     nsPipeInputStream   mInput;
     nsPipeOutputStream  mOutput;
 
-    ReentrantMonitor    mReentrantMonitor;
+    Monitor             mMonitor;
     nsSegmentedBuffer   mBuffer;
 
     char*               mReadCursor;
@@ -321,7 +320,7 @@ protected:
 nsPipe::nsPipe()
     : mInput(this)
     , mOutput(this)
-    , mReentrantMonitor("nsPipe.mReentrantMonitor")
+    , mMonitor("nsPipe.mMonitor")
     , mReadCursor(nsnull)
     , mReadLimit(nsnull)
     , mWriteSegment(-1)
@@ -406,7 +405,7 @@ nsPipe::PeekSegment(PRUint32 index, char *&cursor, char *&limit)
 nsresult
 nsPipe::GetReadSegment(const char *&segment, PRUint32 &segmentLen)
 {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
 
     if (mReadCursor == mReadLimit)
         return NS_FAILED(mStatus) ? mStatus : NS_BASE_STREAM_WOULD_BLOCK;
@@ -423,7 +422,7 @@ nsPipe::AdvanceReadCursor(PRUint32 bytesRead)
 
     nsPipeEvents events;
     {
-        ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+        MonitorAutoEnter mon(mMonitor);
 
         LOG(("III advancing read cursor by %u\n", bytesRead));
         NS_ASSERTION(bytesRead <= mBuffer.GetSegmentSize(), "read too much");
@@ -478,7 +477,7 @@ nsPipe::AdvanceReadCursor(PRUint32 bytesRead)
 nsresult
 nsPipe::GetWriteSegment(char *&segment, PRUint32 &segmentLen)
 {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
 
     if (NS_FAILED(mStatus))
         return mStatus;
@@ -521,7 +520,7 @@ nsPipe::AdvanceWriteCursor(PRUint32 bytesWritten)
 
     nsPipeEvents events;
     {
-        ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+        MonitorAutoEnter mon(mMonitor);
 
         LOG(("OOO advancing write cursor by %u\n", bytesWritten));
 
@@ -578,7 +577,7 @@ nsPipe::OnPipeException(nsresult reason, PRBool outputOnly)
 
     nsPipeEvents events;
     {
-        ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+        MonitorAutoEnter mon(mMonitor);
 
         // if we've already hit an exception, then ignore this one.
         if (NS_FAILED(mStatus))
@@ -644,7 +643,7 @@ nsPipeInputStream::Wait()
 {
     NS_ASSERTION(mBlocking, "wait on non-blocking pipe input stream");
 
-    ReentrantMonitorAutoEnter mon(mPipe->mReentrantMonitor);
+    MonitorAutoEnter mon(mPipe->mMonitor);
 
     while (NS_SUCCEEDED(mPipe->mStatus) && (mAvailable == 0)) {
         LOG(("III pipe input: waiting for data\n"));
@@ -738,7 +737,7 @@ nsPipeInputStream::Close()
 NS_IMETHODIMP
 nsPipeInputStream::Available(PRUint32 *result)
 {
-    ReentrantMonitorAutoEnter mon(mPipe->mReentrantMonitor);
+    MonitorAutoEnter mon(mPipe->mMonitor);
 
     // return error if pipe closed
     if (!mAvailable && NS_FAILED(mPipe->mStatus))
@@ -844,7 +843,7 @@ nsPipeInputStream::AsyncWait(nsIInputStreamCallback *callback,
 
     nsPipeEvents pipeEvents;
     {
-        ReentrantMonitorAutoEnter mon(mPipe->mReentrantMonitor);
+        MonitorAutoEnter mon(mPipe->mMonitor);
 
         // replace a pending callback
         mCallback = 0;
@@ -885,7 +884,7 @@ nsPipeInputStream::Seek(PRInt32 whence, PRInt64 offset)
 NS_IMETHODIMP
 nsPipeInputStream::Tell(PRInt64 *offset)
 {
-    ReentrantMonitorAutoEnter mon(mPipe->mReentrantMonitor);
+    MonitorAutoEnter mon(mPipe->mMonitor);
 
     // return error if pipe closed
     if (!mAvailable && NS_FAILED(mPipe->mStatus))
@@ -915,7 +914,7 @@ nsPipeInputStream::Search(const char *forString,
 {
     LOG(("III Search [for=%s ic=%u]\n", forString, ignoreCase));
 
-    ReentrantMonitorAutoEnter mon(mPipe->mReentrantMonitor);
+    MonitorAutoEnter mon(mPipe->mMonitor);
 
     char *cursor1, *limit1;
     PRUint32 index = 0, offset = 0;
@@ -959,7 +958,7 @@ nsPipeInputStream::Search(const char *forString,
         len2 = limit2 - cursor2;
 
         // check if the string is straddling the next buffer segment
-        PRUint32 lim = NS_MIN(strLen, len2 + 1);
+        PRUint32 lim = PR_MIN(strLen, len2 + 1);
         for (i = 0; i < lim; ++i) {
             PRUint32 strPart1Len = strLen - i - 1;
             PRUint32 strPart2Len = strLen - strPart1Len;
@@ -1003,7 +1002,7 @@ nsPipeOutputStream::Wait()
 {
     NS_ASSERTION(mBlocking, "wait on non-blocking pipe output stream");
 
-    ReentrantMonitorAutoEnter mon(mPipe->mReentrantMonitor);
+    MonitorAutoEnter mon(mPipe->mMonitor);
 
     if (NS_SUCCEEDED(mPipe->mStatus) && !mWritable) {
         LOG(("OOO pipe output: waiting for space\n"));
@@ -1225,7 +1224,7 @@ nsPipeOutputStream::AsyncWait(nsIOutputStreamCallback *callback,
 
     nsPipeEvents pipeEvents;
     {
-        ReentrantMonitorAutoEnter mon(mPipe->mReentrantMonitor);
+        MonitorAutoEnter mon(mPipe->mMonitor);
 
         // replace a pending callback
         mCallback = 0;

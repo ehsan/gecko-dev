@@ -45,6 +45,7 @@
 #include "nsContentList.h"
 #include "nsIContent.h"
 #include "nsIDOMNode.h"
+#include "nsIDOM3Node.h"
 #include "nsIDocument.h"
 #include "nsGenericElement.h"
 
@@ -89,7 +90,6 @@ DOMCI_DATA(NodeList, nsBaseContentList)
 
 // QueryInterface implementation for nsBaseContentList
 NS_INTERFACE_TABLE_HEAD(nsBaseContentList)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_NODELIST_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsBaseContentList)
     NS_CONTENT_LIST_INTERFACES(nsBaseContentList)
   NS_OFFSET_AND_INTERFACE_TABLE_END
@@ -160,34 +160,17 @@ void nsBaseContentList::InsertElementAt(nsIContent* aContent, PRInt32 aIndex)
   mElements.InsertObjectAt(aContent, aIndex);
 }
 
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsSimpleContentList)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsSimpleContentList,
-                                                  nsBaseContentList)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mRoot)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsSimpleContentList,
-                                                nsBaseContentList)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mRoot)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsSimpleContentList)
-NS_INTERFACE_MAP_END_INHERITING(nsBaseContentList)
-
-
-NS_IMPL_ADDREF_INHERITED(nsSimpleContentList, nsBaseContentList)
-NS_IMPL_RELEASE_INHERITED(nsSimpleContentList, nsBaseContentList)
-
 // nsFormContentList
 
-nsFormContentList::nsFormContentList(nsIContent *aForm,
+nsFormContentList::nsFormContentList(nsIDOMHTMLFormElement *aForm,
                                      nsBaseContentList& aContentList)
-  : nsSimpleContentList(aForm)
+  : nsBaseContentList()
 {
 
   // move elements that belong to mForm into this content list
 
   PRUint32 i, length = 0;
+
   aContentList.GetLength(&length);
 
   for (i = 0; i < length; i++) {
@@ -492,6 +475,7 @@ DOMCI_DATA(ContentList, nsContentList)
 
 // QueryInterface implementation for nsContentList
 NS_INTERFACE_TABLE_HEAD(nsContentList)
+  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_NODELIST_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsContentList)
     NS_CONTENT_LIST_INTERFACES(nsContentList)
     NS_INTERFACE_TABLE_ENTRY(nsContentList, nsIHTMLCollection)
@@ -527,7 +511,7 @@ nsContentList::Item(PRUint32 aIndex, PRBool aDoFlush)
   }
 
   if (mState != LIST_UP_TO_DATE)
-    PopulateSelf(NS_MIN(aIndex, PR_UINT32_MAX - 1) + 1);
+    PopulateSelf(aIndex+1);
 
   ASSERT_IN_SYNC;
   NS_ASSERTION(!mRootNode || mState != LIST_DIRTY,
@@ -631,9 +615,19 @@ nsContentList::GetNodeAt(PRUint32 aIndex)
   return Item(aIndex, PR_TRUE);
 }
 
-nsISupports*
-nsContentList::GetNamedItem(const nsAString& aName, nsWrapperCache **aCache)
+nsIContent*
+nsContentList::GetNodeAt(PRUint32 aIndex, nsresult* aResult)
 {
+  *aResult = NS_OK;
+  return Item(aIndex, PR_TRUE);
+}
+
+nsISupports*
+nsContentList::GetNamedItem(const nsAString& aName, nsWrapperCache **aCache,
+                            nsresult* aResult)
+{
+  *aResult = NS_OK;
+
   nsIContent *item;
   *aCache = item = NamedItem(aName, PR_TRUE);
   return item;

@@ -89,28 +89,24 @@
 
 /* To avoid a circular dependency, pull in the necessary pieces of jsnum.h. */
 
-#define JSDOUBLE_SIGNBIT (((uint64) 1) << 63)
-#define JSDOUBLE_EXPMASK (((uint64) 0x7ff) << 52)
-#define JSDOUBLE_MANTMASK ((((uint64) 1) << 52) - 1)
-#define JSDOUBLE_HI32_SIGNBIT   0x80000000
+#include <math.h>
+#if defined(XP_WIN) || defined(XP_OS2)
+#include <float.h>
+#endif
+#ifdef SOLARIS
+#include <ieeefp.h>
+#endif
 
-static JS_ALWAYS_INLINE JSBool
+static inline int
 JSDOUBLE_IS_NEGZERO(jsdouble d)
 {
-    if (d != 0)
-        return false;
-    union {
-        struct {
-#if defined(IS_LITTLE_ENDIAN) && !defined(FPU_IS_ARM_FPA)
-            uint32 lo, hi;
+#ifdef WIN32
+    return (d == 0 && (_fpclass(d) & _FPCLASS_NZ));
+#elif defined(SOLARIS)
+    return (d == 0 && copysign(1, d) < 0);
 #else
-            uint32 hi, lo;
+    return (d == 0 && signbit(d));
 #endif
-        } s;
-        jsdouble d;
-    } x;
-    x.d = d;
-    return (x.s.hi & JSDOUBLE_HI32_SIGNBIT) != 0;
 }
 
 static inline bool
@@ -258,7 +254,7 @@ static JS_ALWAYS_INLINE JSBool
 JSVAL_SAME_TYPE_IMPL(jsval_layout lhs, jsval_layout rhs)
 {
     uint64 lbits = lhs.asBits, rbits = rhs.asBits;
-    return (lbits <= JSVAL_SHIFTED_TAG_MAX_DOUBLE && rbits <= JSVAL_SHIFTED_TAG_MAX_DOUBLE) ||
+    return (lbits <= JSVAL_TAG_MAX_DOUBLE && rbits <= JSVAL_TAG_MAX_DOUBLE) ||
            (((lbits ^ rbits) & 0xFFFF800000000000LL) == 0);
 }
 
@@ -295,6 +291,7 @@ JSVAL_EXTRACT_NON_DOUBLE_TAG_IMPL(jsval_layout l)
 }
 
 #ifdef __cplusplus
+JS_STATIC_ASSERT(offsetof(jsval_layout, s.payload) == 0);
 JS_STATIC_ASSERT((JSVAL_TYPE_NONFUNOBJ & 0xF) == JSVAL_TYPE_OBJECT);
 JS_STATIC_ASSERT((JSVAL_TYPE_FUNOBJ & 0xF) == JSVAL_TYPE_OBJECT);
 #endif
@@ -379,18 +376,8 @@ class Value
     }
 
     JS_ALWAYS_INLINE
-    void setString(const JS::Anchor<JSString *> &str) {
-        setString(str.get());
-    }
-
-    JS_ALWAYS_INLINE
     void setObject(JSObject &obj) {
         data = OBJECT_TO_JSVAL_IMPL(&obj);
-    }
-
-    JS_ALWAYS_INLINE
-    void setObject(const JS::Anchor<JSObject *> &obj) {
-        setObject(*obj.get());
     }
 
     JS_ALWAYS_INLINE
@@ -742,11 +729,7 @@ class Value
     }
 
     const jsuword *payloadWord() const {
-#if JS_BITS_PER_WORD == 32
         return &data.s.payload.word;
-#elif JS_BITS_PER_WORD == 64
-        return &data.asWord;
-#endif
     }
 
   private:
@@ -855,14 +838,6 @@ PrivateValue(void *ptr)
     return v;
 }
 
-static JS_ALWAYS_INLINE Value
-PrivateUint32Value(uint32 ui)
-{
-    Value v;
-    v.setPrivateUint32(ui);
-    return v;
-}
-
 static JS_ALWAYS_INLINE void
 ClearValueRange(Value *vec, uintN len, bool useHoles)
 {
@@ -956,8 +931,6 @@ typedef void
 
 class AutoIdVector;
 
-class PropertyName;
-
 /*
  * Prepare to make |obj| non-extensible; in particular, fully resolve its properties.
  * On error, return false.
@@ -984,9 +957,6 @@ static inline CheckAccessOp      Valueify(JSCheckAccessOp f)    { return (CheckA
 static inline JSCheckAccessOp    Jsvalify(CheckAccessOp f)      { return (JSCheckAccessOp)f; }
 static inline EqualityOp         Valueify(JSEqualityOp f);      /* Same type as JSHasInstanceOp */
 static inline JSEqualityOp       Jsvalify(EqualityOp f);        /* Same type as HasInstanceOp */
-
-static inline PropertyName       *Valueify(JSPropertyName *n)     { return (PropertyName *)n; }
-static inline JSPropertyName     *Jsvalify(PropertyName *n)       { return (JSPropertyName *)n; }
 
 static const PropertyOp       PropertyStub       = (PropertyOp)JS_PropertyStub;
 static const StrictPropertyOp StrictPropertyStub = (StrictPropertyOp)JS_StrictPropertyStub;
@@ -1032,15 +1002,9 @@ struct ClassExtension {
     JSObjectOp          innerObject;
     JSIteratorOp        iteratorObject;
     void               *unused;
-
-    /*
-     * isWrappedNative is true only if the class is an XPCWrappedNative.
-     * WeakMaps use this to override the wrapper disposal optimization.
-     */
-    bool                isWrappedNative;
 };
 
-#define JS_NULL_CLASS_EXT   {NULL,NULL,NULL,NULL,NULL,false}
+#define JS_NULL_CLASS_EXT   {NULL,NULL,NULL,NULL,NULL}
 
 struct ObjectOps {
     js::LookupPropOp        lookupProperty;

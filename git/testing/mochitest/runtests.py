@@ -159,11 +159,6 @@ class MochitestOptions(optparse.OptionParser):
                     help = "run chrome Mochitests")
     defaults["chrome"] = False
 
-    self.add_option("--ipcplugins",
-                    action = "store_true", dest = "ipcplugins",
-                    help = "run ipcplugins Mochitests")
-    defaults["ipcplugins"] = False
-
     self.add_option("--test-path",
                     action = "store", type = "string", dest = "testPath",
                     help = "start in the given directory's tests")
@@ -216,8 +211,7 @@ class MochitestOptions(optparse.OptionParser):
                     action = "append", dest = "extensionsToInstall",
                     help = "install the specified extension in the testing profile."
                            "The extension file's name should be <id>.xpi where <id> is"
-                           "the extension's id as indicated in its install.rdf."
-                           "An optional path can be specified too.")
+                           "the extension's id as indicated in its install.rdf.")
     defaults["extensionsToInstall"] = []
 
     self.add_option("--profile-path", action = "store",
@@ -231,13 +225,6 @@ class MochitestOptions(optparse.OptionParser):
                     help = "enables recording while the application is running "
                            "inside a VMware Workstation 7.0 or later VM")
     defaults["vmwareRecording"] = False
-
-    self.add_option("--loops",
-                    action = "store", type = "int",
-                    dest = "loops", metavar = "LOOPS",
-                    help = "repeats the test or set of tests the given number of times "
-                           "without restarting the browser (given number > 0)")
-    defaults["loops"] = 0
 
     # -h, --help are automatically handled by OptionParser
 
@@ -363,8 +350,9 @@ class MochitestServer:
 
   def stop(self):
     try:
-      with urllib2.urlopen(self.shutdownURL) as c:
-        c.read()
+      c = urllib2.urlopen(self.shutdownURL)
+      c.read()
+      c.close()
 
       rtncode = self._process.poll()
       if rtncode is None:
@@ -382,21 +370,15 @@ class WebSocketServer(object):
     self.debuggerInfo = debuggerInfo
 
   def start(self):
-    # Invoke pywebsocket through a wrapper which adds special SIGINT handling.
-    #
-    # If we're in an interactive debugger, the wrapper causes the server to
-    # ignore SIGINT so the server doesn't capture a ctrl+c meant for the
-    # debugger.
-    #
-    # If we're not in an interactive debugger, the wrapper causes the server to
-    # die silently upon receiving a SIGINT.
-    scriptPath = 'pywebsocket_wrapper.py'
-    script = os.path.join(self._scriptdir, scriptPath)
-
-    cmd = [sys.executable, script]
+    # If we're running tests under an interactive debugger, tell the server to
+    # ignore SIGINT so it doesn't capture a ctrl+c meant for the debugger.
     if self.debuggerInfo and self.debuggerInfo['interactive']:
-        cmd += ['--interactive']
-    cmd += ['-p', str(self.port), '-w', self._scriptdir, '-l', os.path.join(self._scriptdir, "websock.log"), '--log-level=debug']
+        scriptPath = 'pywebsocket_ignore_sigint.py'
+    else:
+        scriptPath = 'pywebsocket/standalone.py'
+
+    script = os.path.join(self._scriptdir, scriptPath)
+    cmd = [sys.executable, script, '-p', str(self.port), '-w', self._scriptdir, '-l', os.path.join(self._scriptdir, "websock.log"), '--log-level=debug']
 
     self._process = self._automation.Process(cmd)
     pid = self._process.pid
@@ -412,7 +394,7 @@ class Mochitest(object):
   # Path to the test script on the server
   TEST_PATH = "/tests/"
   CHROME_PATH = "/redirect.html";
-  PLAIN_LOOP_PATH = "/plain-loop.html";
+  A11Y_PATH = "/redirect-a11y.html"
   urlOpts = []
   runSSLTunnel = True
   vmwareHelper = None
@@ -441,14 +423,16 @@ class Mochitest(object):
     """ Build the url path to the specific test harness and test file or directory """
     testHost = "http://mochi.test:8888"
     testURL = testHost + self.TEST_PATH + options.testPath
-    if os.path.isfile(self.oldcwd + self.TEST_PATH + options.testPath) and options.loops > 0:
-       testURL = testHost + self.PLAIN_LOOP_PATH
-    if options.chrome or options.a11y:
-       testURL = testHost + self.CHROME_PATH
+    if options.chrome:
+      testURL = testHost + self.CHROME_PATH
+      if options.testPath:
+        self.urlOpts.append("testPath=" + encodeURIComponent(options.testPath))
+    elif options.a11y:
+      testURL = testHost + self.A11Y_PATH
+      if options.testPath:
+        self.urlOpts.append("testPath=" + encodeURIComponent(options.testPath))
     elif options.browserChrome:
       testURL = "about:blank"
-    elif options.ipcplugins:
-      testURL = testHost + self.TEST_PATH + "dom/plugins/test"
     return testURL
 
   def startWebSocketServer(self, options, debuggerInfo):
@@ -510,7 +494,12 @@ class Mochitest(object):
     manifest = self.addChromeToProfile(options)
     self.copyExtraFilesToProfile(options)
 
-    self.installSpecialPowersExtension(options)
+    # We only need special powers in non-chrome harnesses
+    if (not options.browserChrome and
+        not options.chrome and
+        not options.a11y):
+      self.installSpecialPowersExtension(options)
+
     self.installExtensionsToProfile(options)
     return manifest
 
@@ -536,25 +525,23 @@ class Mochitest(object):
 
     return browserEnv
 
-  def buildURLOptions(self, options, env):
+  def buildURLOptions(self, options):
     """ Add test control options from the command line to the url 
 
         URL parameters to test URL:
 
         autorun -- kick off tests automatically
         closeWhenDone -- runs quit.js after tests
-        hideResultsTable -- hides the table of individual test results
         logFile -- logs test run to an absolute path
         totalChunks -- how many chunks to split tests into
         thisChunk -- which chunk to run
         timeout -- per-test timeout in seconds
-        loops -- How many times to run the test
     """
   
     # allow relative paths for logFile
     if options.logFile:
       options.logFile = self.getLogFilePath(options.logFile)
-    if options.browserChrome or options.chrome or options.a11y:
+    if options.browserChrome:
       self.makeTestConfig(options)
     else:
       if options.autorun:
@@ -575,12 +562,6 @@ class Mochitest(object):
         self.urlOpts.append("chunkByDir=%d" % options.chunkByDir)
       if options.shuffle:
         self.urlOpts.append("shuffle=1")
-      if "MOZ_HIDE_RESULTS_TABLE" in env and env["MOZ_HIDE_RESULTS_TABLE"] == "1":
-        self.urlOpts.append("hideResultsTable=1")
-      if options.loops:
-        self.urlOpts.append("loops=%d" % options.loops)
-      if os.path.isfile(self.oldcwd + self.TEST_PATH + options.testPath) and options.loops > 0:
-        self.urlOpts.append("testname=%s" % (self.TEST_PATH + options.testPath))
 
   def cleanup(self, manifest, options):
     """ remove temporary files and profile """
@@ -636,7 +617,7 @@ class Mochitest(object):
     self.startWebSocketServer(options, debuggerInfo)
 
     testURL = self.buildTestPath(options)
-    self.buildURLOptions(options, browserEnv)
+    self.buildURLOptions(options)
     if len(self.urlOpts) > 0:
       testURL += "?" + "&".join(self.urlOpts)
 
@@ -657,19 +638,15 @@ class Mochitest(object):
       self.startVMwareRecording(options);
 
     self.automation.log.info("INFO | runtests.py | Running tests: start.\n")
-    try:
-      status = self.automation.runApp(testURL, browserEnv, options.app,
-                                  options.profilePath, options.browserArgs,
-                                  runSSLTunnel = self.runSSLTunnel,
-                                  utilityPath = options.utilityPath,
-                                  xrePath = options.xrePath,
-                                  certPath=options.certPath,
-                                  debuggerInfo=debuggerInfo,
-                                  symbolsPath=options.symbolsPath,
-                                  timeout = timeout)
-    except KeyboardInterrupt:
-      self.automation.log.info("INFO | runtests.py | Received keyboard interrupt.\n");
-      status = -1
+    status = self.automation.runApp(testURL, browserEnv, options.app,
+                                options.profilePath, options.browserArgs,
+                                runSSLTunnel = self.runSSLTunnel,
+                                utilityPath = options.utilityPath,
+                                xrePath = options.xrePath,
+                                certPath=options.certPath,
+                                debuggerInfo=debuggerInfo,
+                                symbolsPath=options.symbolsPath,
+                                timeout = timeout)
 
     if options.vmwareRecording:
       self.stopVMwareRecording();
@@ -685,69 +662,35 @@ class Mochitest(object):
 
   def makeTestConfig(self, options):
     "Creates a test configuration file for customizing test execution."
-    def jsonString(val):
-      if isinstance(val, bool):
-        if val:
-          return "true"
-        return "false"
-      elif val is None:
-        return '""'
-      elif isinstance(val, basestring):
-        return '"%s"' % (val.replace('\\', '\\\\'))
-      elif isinstance(val, int):
-        return '%s' % (val)
-      elif isinstance(val, list):
-        content = '['
-        first = True
-        for item in val:
-          if first:
-            first = False
-          else:
-            content += ", "
-          content += jsonString(item)
-        content += ']'
-        return content
-      else:
-        print "unknown type: %s: %s" % (opt, val)
-        sys.exit(1)
+    def boolString(b):
+      if b:
+        return "true"
+      return "false"
 
-    options.logFile = options.logFile.replace("\\", "\\\\")
-    options.testPath = options.testPath.replace("\\", "\\\\")
-    testRoot = 'chrome'
-    if (options.browserChrome):
-      testRoot = 'browser'
-    elif (options.a11y):
-      testRoot = 'a11y'
- 
-    if "MOZ_HIDE_RESULTS_TABLE" in os.environ and os.environ["MOZ_HIDE_RESULTS_TABLE"] == "1":
-      options.hideResultsTable = True
+    logFile = options.logFile.replace("\\", "\\\\")
+    testPath = options.testPath.replace("\\", "\\\\")
+    content = """\
+({
+  autoRun: %(autorun)s,
+  closeWhenDone: %(closeWhenDone)s,
+  logPath: "%(logPath)s",
+  testPath: "%(testPath)s"
+})""" % {"autorun": boolString(options.autorun),
+         "closeWhenDone": boolString(options.closeWhenDone),
+         "logPath": logFile,
+         "testPath": testPath}
 
-    #TODO: when we upgrade to python 2.6, just use json.dumps(options.__dict__)
-    content = "{"
-    content += '"testRoot": "%s", ' % (testRoot) 
-    first = True
-    for opt in options.__dict__.keys():
-      val = options.__dict__[opt]
-      if first:
-        first = False
-      else:
-        content += ", "
+    config = open(os.path.join(options.profilePath, "testConfig.js"), "w")
+    config.write(content)
+    config.close() 
 
-      content += '"' + opt + '": '
-      content += jsonString(val)
-    content += "}"
-
-    with open(os.path.join(options.profilePath, "testConfig.js"), "w") as config:
-      config.write(content)
 
   def addChromeToProfile(self, options):
     "Adds MochiKit chrome tests to the profile."
 
-    # Create (empty) chrome directory.
     chromedir = os.path.join(options.profilePath, "chrome")
     os.mkdir(chromedir)
 
-    # Write userChrome.css.
     chrome = """
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"); /* set default namespace to XUL */
 toolbar,
@@ -758,91 +701,79 @@ toolbar#nav-bar {
   background-image: none !important;
 }
 """
-    with open(os.path.join(options.profilePath, "userChrome.css"), "a") as chromeFile:
-      chromeFile.write(chrome)
 
-    # Call copyTestsJarToProfile(), Write tests.manifest.
-    manifest = os.path.join(options.profilePath, "tests.manifest")
-    with open(manifest, "w") as manifestFile:
-      if self.copyTestsJarToProfile(options):
-        # Register tests.jar.
-        manifestFile.write("content mochitests jar:tests.jar!/content/\n");
-      else:
-        # Register chrome directory.
-        chrometestDir = os.path.abspath(".") + "/"
-        if self.automation.IS_WIN32:
-          chrometestDir = "file:///" + chrometestDir.replace("\\", "/")
-        manifestFile.write("content mochitests %s contentaccessible=yes\n" % chrometestDir)
+    # write userChrome.css
+    chromeFile = open(os.path.join(options.profilePath, "userChrome.css"), "a")
+    chromeFile.write(chrome)
+    chromeFile.close()
 
-    # Call installChromeJar().
-    jarDir = "mochijar"
-    if not os.path.isdir(os.path.join(self.SCRIPT_DIRECTORY, jarDir)):
-      self.automation.log.warning("TEST-UNEXPECTED-FAIL | invalid setup: missing mochikit extension")
-      return None
 
-    # Support Firefox (browser) and SeaMonkey (navigator).
-    chrome = ""
-    if options.browserChrome or options.chrome or options.a11y:
-      chrome += """
+    # register our chrome dir
+    chrometestDir = os.path.abspath(".") + "/"
+    if self.automation.IS_WIN32:
+      chrometestDir = "file:///" + chrometestDir.replace("\\", "/")
+
+    manifest = os.path.join(options.profilePath, 'tests.manifest')
+
+    browser_chrome = ""
+    if options.browserChrome:
+      browser_chrome = """overlay chrome://navigator/content/navigator.xul chrome://mochikit/content/browser-test-overlay.xul
 overlay chrome://browser/content/browser.xul chrome://mochikit/content/browser-test-overlay.xul
-overlay chrome://navigator/content/navigator.xul chrome://mochikit/content/browser-test-overlay.xul
 """
-    else:
+    elif (options.chrome == False) and (options.a11y == False):
       #only do the ipc-overlay.xul for mochitest-plain.  
       #Currently there are focus issues in chrome tests and issues with new windows and dialogs when using ipc
-      chrome += """
-overlay chrome://browser/content/browser.xul chrome://mochikit/content/ipc-overlay.xul
-overlay chrome://navigator/content/navigator.xul chrome://mochikit/content/ipc-overlay.xul
-"""
+      browser_chrome += "overlay chrome://browser/content/browser.xul chrome://mochikit/content/ipc-overlay.xul\n"
 
-    self.installChromeJar(jarDir, chrome, options)
+    jarDir = 'mochijar'
+    if not os.path.exists(os.path.join(self.SCRIPT_DIRECTORY, jarDir)):
+      print "TEST-UNEXPECTED-FAIL | invalid setup: missing mochikit extension"
+      return None
 
+    manifestFile = open(manifest, "w")
+    if self.installTestsJar(options):
+      manifestFile.write("content mochitests jar:tests.jar!/content/\n");
+    else:
+      manifestFile.write("content mochitests %s contentaccessible=yes\n" % chrometestDir)
+    manifestFile.close()
+
+    self.installChromeJar(jarDir, browser_chrome, options)
     return manifest
 
-  def installChromeJar(self, jarDirName, chrome, options):
+  def installChromeJar(self, jarDirName, browser_chrome, options):
     """
       copy mochijar directory to profile as an extension so we have chrome://mochikit for all harness code
     """
-    self.automation.installExtension(os.path.join(self.SCRIPT_DIRECTORY, jarDirName), \
-                                     options.profilePath, "mochikit@mozilla.org")
+    jarDir = os.path.join(options.profilePath, 'extensions', 'mochikit@mozilla.org')
+    shutil.copytree(os.path.join(self.SCRIPT_DIRECTORY, jarDirName), jarDir)
+    with open(os.path.join(jarDir, "chrome.manifest"), 'a') as mfile:
+      mfile.write(browser_chrome)
 
-    # Write chrome.manifest.
-    with open(os.path.join(options.profilePath, "extensions", "mochikit@mozilla.org", "chrome.manifest"), "a") as mfile:
-      mfile.write(chrome)
+    return jarDir
 
-  def copyTestsJarToProfile(self, options):
+  def installTestsJar(self, options):
     """ copy tests.jar to the profile directory so we can auto register it in the .xul harness """
-    testsJarFile = os.path.join(self.SCRIPT_DIRECTORY, "tests.jar")
-    if not os.path.isfile(testsJarFile):
-      return False
-
-    shutil.copy2(testsJarFile, options.profilePath)
-    return True
+    if os.path.exists(os.path.join(self.SCRIPT_DIRECTORY, 'tests.jar')):
+      shutil.copy(os.path.join(self.SCRIPT_DIRECTORY, 'tests.jar'), options.profilePath)
+      return True
+    return False
 
   def copyExtraFilesToProfile(self, options):
     "Copy extra files or dirs specified on the command line to the testing profile."
     for f in options.extraProfileFiles:
       abspath = self.getFullPath(f)
-      if os.path.isfile(abspath):
-        shutil.copy2(abspath, options.profilePath)
-      elif os.path.isdir(abspath):
-        dest = os.path.join(options.profilePath, os.path.basename(abspath))
+      dest = os.path.join(options.profilePath, os.path.basename(abspath))
+      if os.path.isdir(abspath):
         shutil.copytree(abspath, dest)
       else:
-        self.automation.log.warning("WARNING | runtests.py | Failed to copy %s to profile", abspath)
-        continue
+        shutil.copy(abspath, dest)
 
   def installExtensionsToProfile(self, options):
-    "Install application distributed extensions and specified on the command line ones to testing profile."
-    # Install distributed extensions, if application has any.
-    distExtDir = os.path.join(options.app[ : options.app.rfind(os.sep)], "distribution", "extensions")
-    if os.path.isdir(distExtDir):
-      for f in os.listdir(distExtDir):
-        self.automation.installExtension(os.path.join(distExtDir, f), options.profilePath)
-
-    # Install custom extensions.
+    "Install the specified extensions on the command line to the testing profile."
     for f in options.extensionsToInstall:
-      self.automation.installExtension(self.getFullPath(f), options.profilePath)
+      abspath = self.getFullPath(f)
+      extensionID = f[:f.rfind(".")]
+      self.automation.installExtension(abspath, options.profilePath, extensionID)
 
 def main():
   automation = Automation()

@@ -48,13 +48,13 @@
 #include "nsBoxLayoutState.h"
 #include "nsGridLayout2.h"
 
-already_AddRefed<nsBoxLayout> NS_NewGridRowLeafLayout();
+already_AddRefed<nsIBoxLayout> NS_NewGridRowLeafLayout();
 
 nsIFrame*
 NS_NewGridRowLeafFrame(nsIPresShell* aPresShell,
                        nsStyleContext* aContext)
 {
-  nsCOMPtr<nsBoxLayout> layout = NS_NewGridRowLeafLayout();
+  nsCOMPtr<nsIBoxLayout> layout = NS_NewGridRowLeafLayout();
   if (!layout) {
     return nsnull;
   }
@@ -75,7 +75,12 @@ nsGridRowLeafFrame::GetBorderAndPadding(nsMargin& aBorderAndPadding)
   // if our columns have made our padding larger add it in.
   nsresult rv = nsBoxFrame::GetBorderAndPadding(aBorderAndPadding);
 
-  nsIGridPart* part = nsGrid::GetPartFromBox(this);
+  nsCOMPtr<nsIBoxLayout> layout;
+  GetLayoutManager(getter_AddRefs(layout));
+  if (!layout)
+    return rv;
+
+  nsCOMPtr<nsIGridPart> part = do_QueryInterface(layout);
   if (!part)
     return rv;
     

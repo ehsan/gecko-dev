@@ -52,7 +52,9 @@
 #include "nsBoxLayoutState.h"
 #include "nsQueryFrame.h"
 #include "nsCOMArray.h"
+#ifdef MOZ_SVG
 #include "nsSVGIntegrationUtils.h"
+#endif
 #include "nsExpirationTracker.h"
 
 class nsPresContext;
@@ -79,8 +81,7 @@ public:
   // We need this if a scrollbar frame is recreated.
   void ReloadChildFrames();
 
-  nsresult CreateAnonymousContent(
-    nsTArray<nsIAnonymousContentCreator::ContentInfo>& aElements);
+  nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
   void AppendAnonymousContentTo(nsBaseContentList& aElements, PRUint32 aFilter);
   nsresult FireScrollPortEvent();
   void PostOverflowEvent();
@@ -322,9 +323,11 @@ public:
   // If true, the resizer is collapsed and not displayed
   PRPackedBool mCollapsedResizer:1;
 
+#ifdef MOZ_IPC
   // If true, the layer should always be active because we always build a layer.
   // Used for asynchronous scrolling.
   PRPackedBool mShouldBuildLayer:1;
+#endif
 };
 
 /**
@@ -371,14 +374,14 @@ public:
                           const nsHTMLReflowMetrics& aDesiredSize);
   void PlaceScrollArea(const ScrollReflowState& aState,
                        const nsPoint& aScrollPosition);
-  nscoord GetIntrinsicVScrollbarWidth(nsRenderingContext *aRenderingContext);
+  nscoord GetIntrinsicVScrollbarWidth(nsIRenderingContext *aRenderingContext);
 
   virtual PRBool GetBorderRadii(nscoord aRadii[8]) const {
     return mInner.GetBorderRadii(aRadii);
   }
 
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
   NS_IMETHOD GetPadding(nsMargin& aPadding);
   virtual PRBool IsCollapsed(nsBoxLayoutState& aBoxLayoutState);
   
@@ -423,7 +426,7 @@ public:
   }
 
   // nsIAnonymousContentCreator
-  virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements);
+  virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
   virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
                                         PRUint32 aFilter);
 
@@ -444,7 +447,7 @@ public:
     return mInner.GetDesiredScrollbarSizes(aState);
   }
   virtual nsMargin GetDesiredScrollbarSizes(nsPresContext* aPresContext,
-          nsRenderingContext* aRC) {
+          nsIRenderingContext* aRC) {
     nsBoxLayoutState bls(aPresContext, aRC, 0);
     return GetDesiredScrollbarSizes(&bls);
   }
@@ -584,7 +587,7 @@ public:
 
   // XXXldb Is this actually used?
 #if 0
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
 #endif
 
   // Because there can be only one child frame, these two function return
@@ -623,7 +626,7 @@ public:
   }
 
   // nsIAnonymousContentCreator
-  virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements);
+  virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
   virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
                                         PRUint32 aFilter);
 
@@ -679,7 +682,7 @@ public:
     return mInner.GetDesiredScrollbarSizes(aState);
   }
   virtual nsMargin GetDesiredScrollbarSizes(nsPresContext* aPresContext,
-          nsRenderingContext* aRC) {
+          nsIRenderingContext* aRC) {
     nsBoxLayoutState bls(aPresContext, aRC, 0);
     return GetDesiredScrollbarSizes(&bls);
   }

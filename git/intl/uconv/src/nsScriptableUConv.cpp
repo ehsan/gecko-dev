@@ -48,6 +48,8 @@
 #include "nsCRT.h"
 #include "nsComponentManagerUtils.h"
 
+#include "nsIPlatformCharset.h"
+
 static PRInt32          gInstanceCount = 0;
 
 /* Implementation file */

@@ -71,10 +71,11 @@ EXPORTS		= \
 		nsCSSValue.h \
 		nsDOMCSSAttrDeclaration.h \
 		nsDOMCSSDeclaration.h \
-		nsDOMMediaQueryList.h \
 		nsICSSDeclaration.h \
+		nsICSSGroupRule.h \
 		nsICSSLoaderObserver.h \
 		nsICSSPseudoComparator.h \
+		nsICSSRule.h \
 		nsICSSRuleList.h \
 		nsICSSStyleRuleDOMWrapper.h \
 		nsIStyleRule.h \
@@ -98,22 +99,18 @@ EXPORTS		= \
 
 EXPORTS_mozilla/css = \
 		Declaration.h \
-		GroupRule.h \
 		ImportRule.h \
 		Loader.h \
 		NameSpaceRule.h \
-		Rule.h \
 		StyleRule.h \
 		$(NULL)
 
 CPPSRCS		= \
-		AnimationCommon.cpp \
 		nsCSSAnonBoxes.cpp \
 		nsCSSDataBlock.cpp \
 		Declaration.cpp \
 		nsCSSKeywords.cpp \
 		Loader.cpp \
-		nsAnimationManager.cpp \
 		nsCSSParser.cpp \
 		nsCSSProps.cpp \
 		nsCSSPseudoClasses.cpp \
@@ -129,7 +126,6 @@ CPPSRCS		= \
 		nsDOMCSSRGBColor.cpp \
 		nsDOMCSSRect.cpp \
 		nsDOMCSSValueList.cpp \
-		nsDOMMediaQueryList.cpp \
 		nsFontFaceLoader.cpp \
 		nsHTMLCSSStyleSheet.cpp \
 		nsHTMLStyleSheet.cpp \

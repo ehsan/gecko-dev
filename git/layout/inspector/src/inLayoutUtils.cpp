@@ -37,6 +37,8 @@
 
 #include "inLayoutUtils.h"
 
+#include "nsIDOMDocumentView.h"
+#include "nsIDOMAbstractView.h"
 #include "nsIDocument.h"
 #include "nsIContent.h"
 #include "nsIContentViewer.h"
@@ -47,7 +49,7 @@
 
 ///////////////////////////////////////////////////////////////////////////////
 
-nsIDOMWindow*
+nsIDOMWindowInternal*
 inLayoutUtils::GetWindowFor(nsIDOMNode* aNode)
 {
   nsCOMPtr<nsIDOMDocument> doc1;
@@ -55,11 +57,17 @@ inLayoutUtils::GetWindowFor(nsIDOMNode* aNode)
   return GetWindowFor(doc1.get());
 }
 
-nsIDOMWindow*
+nsIDOMWindowInternal*
 inLayoutUtils::GetWindowFor(nsIDOMDocument* aDoc)
 {
-  nsCOMPtr<nsIDOMWindow> window;
-  aDoc->GetDefaultView(getter_AddRefs(window));
+  nsCOMPtr<nsIDOMDocumentView> doc = do_QueryInterface(aDoc);
+  if (!doc) return nsnull;
+  
+  nsCOMPtr<nsIDOMAbstractView> view;
+  doc->GetDefaultView(getter_AddRefs(view));
+  if (!view) return nsnull;
+  
+  nsCOMPtr<nsIDOMWindowInternal> window = do_QueryInterface(view);
   return window;
 }
 
@@ -82,7 +90,7 @@ inLayoutUtils::GetFrameFor(nsIDOMElement* aElement)
   return content->GetPrimaryFrame();
 }
 
-nsEventStateManager*
+nsIEventStateManager*
 inLayoutUtils::GetEventStateManagerFor(nsIDOMElement *aElement)
 {
   NS_PRECONDITION(aElement, "Passing in a null element is bad");

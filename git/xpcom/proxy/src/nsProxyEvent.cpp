@@ -427,9 +427,7 @@ nsresult
 nsProxyObject::LockedFind(REFNSIID aIID, void **aResult)
 {
     // This method is only called when the global lock is held.
-#ifdef DEBUG
-    nsProxyObjectManager::GetInstance()->GetLock().AssertCurrentThreadOwns();
-#endif
+    // XXX assert this
 
     nsProxyEventObject *peo;
 
@@ -444,8 +442,8 @@ nsProxyObject::LockedFind(REFNSIID aIID, void **aResult)
     nsProxyEventObject *newpeo;
 
     // Both GetClass and QueryInterface call out to XPCOM, so we unlock for them
-    nsProxyObjectManager* pom = nsProxyObjectManager::GetInstance();
     {
+        nsProxyObjectManager* pom = nsProxyObjectManager::GetInstance();
         MutexAutoUnlock unlock(pom->GetLock());
 
         nsProxyEventClass *pec;
@@ -475,17 +473,9 @@ nsProxyObject::LockedFind(REFNSIID aIID, void **aResult)
     // linked-list check.
     for (peo = mFirst; peo; peo = peo->mNext) {
         if (peo->GetClass()->GetProxiedIID().Equals(aIID)) {
-            // Best to AddRef for our caller before unlocking.
-            peo->LockedAddRef();
-
-            {
-                // Deleting an nsProxyEventObject can call Release on an
-                // nsProxyObject, which can only happen when not holding
-                // the lock.
-                MutexAutoUnlock unlock(pom->GetLock());
-                delete newpeo;
-            }
+            delete newpeo;
             *aResult = static_cast<nsISupports*>(peo->mXPTCStub);
+            peo->LockedAddRef();
             return NS_OK;
         }
     }

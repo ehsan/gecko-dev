@@ -52,7 +52,6 @@ let lazies = {
   "identity.js":          ["Identity", "ID"],
   "jpakeclient.js":       ["JPAKEClient"],
   "notifications.js":     ["Notifications", "Notification", "NotificationButton"],
-  "policies.js":          ["SyncScheduler"],
   "resource.js":          ["Resource", "AsyncResource", "Auth",
                            "BasicAuthenticator", "NoOpAuthenticator"],
   "service.js":           ["Service"],

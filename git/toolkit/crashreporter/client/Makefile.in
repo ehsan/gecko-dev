@@ -58,12 +58,7 @@ endif
 
 LOCAL_INCLUDES = -I$(srcdir)/../google-breakpad/src
 
-VPATH += $(topsrcdir)/build/
-
-CPPSRCS = \
-  crashreporter.cpp \
-  $(STDCXX_COMPAT) \
-  $(NULL)
+CPPSRCS = crashreporter.cpp
 
 ifeq ($(OS_ARCH),WINNT)
 CPPSRCS += crashreporter_win.cpp

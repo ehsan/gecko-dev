@@ -45,7 +45,7 @@
 
 class nsByteRange;
 namespace mozilla {
-class ReentrantMonitorAutoEnter;
+class MonitorAutoEnter;
 }
 
 /**
@@ -211,7 +211,7 @@ class nsMediaChannelStream;
  * This class can be directly embedded as a value.
  */
 class nsMediaCacheStream {
-  typedef mozilla::ReentrantMonitorAutoEnter ReentrantMonitorAutoEnter;
+  typedef mozilla::MonitorAutoEnter MonitorAutoEnter;
 
 public:
   enum {
@@ -430,10 +430,10 @@ private:
   PRInt64 GetNextCachedDataInternal(PRInt64 aOffset);
   // A helper function to do the work of closing the stream. Assumes
   // that the cache monitor is held. Main thread only.
-  // aReentrantMonitor is the nsAutoReentrantMonitor wrapper holding the cache monitor.
+  // aMonitor is the nsAutoMonitor wrapper holding the cache monitor.
   // This is used to NotifyAll to wake up threads that might be
   // blocked on reading from this stream.
-  void CloseInternal(ReentrantMonitorAutoEnter& aReentrantMonitor);
+  void CloseInternal(MonitorAutoEnter& aMonitor);
   // Update mPrincipal given that data has been received from aPrincipal
   void UpdatePrincipal(nsIPrincipal* aPrincipal);
 

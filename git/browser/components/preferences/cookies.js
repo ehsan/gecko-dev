@@ -910,10 +910,5 @@ var gCookiesWindow = {
     var filter = document.getElementById("filter");
     filter.focus();
     filter.select();
-  },
-
-  onWindowKeyPress: function (aEvent) {
-    if (aEvent.keyCode == KeyEvent.DOM_VK_ESCAPE)
-      window.close();
   }
 };

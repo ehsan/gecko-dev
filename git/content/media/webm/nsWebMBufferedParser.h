@@ -40,10 +40,10 @@
 
 #include "nsISupportsImpl.h"
 #include "nsTArray.h"
-#include "mozilla/ReentrantMonitor.h"
+#include "mozilla/Monitor.h"
 
 class nsTimeRanges;
-using mozilla::ReentrantMonitor;
+using mozilla::Monitor;
 
 // Stores a stream byte offset and the scaled timecode of the block at
 // that offset.  The timecode must be scaled by the stream's timecode
@@ -80,10 +80,10 @@ struct nsWebMBufferedParser
 
   // Steps the parser through aLength bytes of data.  Always consumes
   // aLength bytes.  Updates mCurrentOffset before returning.  Acquires
-  // aReentrantMonitor before using aMapping.
+  // aMonitor before using aMapping.
   void Append(const unsigned char* aBuffer, PRUint32 aLength,
               nsTArray<nsWebMTimeDataOffset>& aMapping,
-              ReentrantMonitor& aReentrantMonitor);
+              Monitor& aMonitor);
 
   bool operator==(PRInt64 aOffset) const {
     return mCurrentOffset == aOffset;
@@ -216,7 +216,7 @@ class nsWebMBufferedState
   NS_INLINE_DECL_REFCOUNTING(nsWebMBufferedState)
 
 public:
-  nsWebMBufferedState() : mReentrantMonitor("nsWebMBufferedState") {
+  nsWebMBufferedState() : mMonitor("nsWebMBufferedState") {
     MOZ_COUNT_CTOR(nsWebMBufferedState);
   }
 
@@ -232,7 +232,7 @@ public:
 
 private:
   // Synchronizes access to the mTimeMapping array.
-  ReentrantMonitor mReentrantMonitor;
+  Monitor mMonitor;
 
   // Sorted (by offset) map of data offsets to timecodes.  Populated
   // on the main thread as data is received and parsed by nsWebMBufferedParsers.

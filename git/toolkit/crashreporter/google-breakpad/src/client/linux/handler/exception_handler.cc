@@ -99,8 +99,6 @@
 #include "common/linux/guid_creator.h"
 #include "common/linux/eintr_wrapper.h"
 
-#include "linux/sched.h"
-
 #ifndef PR_SET_PTRACER
 #define PR_SET_PTRACER 0x59616d61
 #endif
@@ -445,8 +443,7 @@ bool ExceptionHandler::DoDump(pid_t crashing_process, const void* context,
                                         crashing_process,
                                         context,
                                         context_size,
-                                        mapping_info_,
-                                        app_memory_info_);
+                                        mapping_info_);
 }
 
 // static
@@ -538,21 +535,6 @@ void ExceptionHandler::AddMappingInfo(const std::string& name,
    mapping.first = info;
    memcpy(mapping.second, identifier, sizeof(MDGUID));
    mapping_info_.push_back(mapping);
-}
-
-void ExceptionHandler::RegisterAppMemory(void *ptr, size_t length) {
-  app_memory_info_.push_back(AppMemory(ptr, length));
-}
-
-void ExceptionHandler::UnregisterAppMemory(void *ptr) {
-  for (AppMemoryList::iterator iter = app_memory_info_.begin();
-       iter != app_memory_info_.end();
-       ++iter) {
-    if (iter->ptr == ptr) {
-      app_memory_info_.erase(iter);
-      return;
-    }
-  }
 }
 
 }  // namespace google_breakpad

@@ -14,7 +14,7 @@
  *
  * The Original Code is Places test code.
  *
- * The Initial Developer of the Original Code is the Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corp.
  * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
@@ -237,7 +237,6 @@ function test() {
          false, "cannot move a child of a read-only folder");
       is(PlacesControllerDragHelper.canMoveNode(childFolder),
          false, "cannot move a child node of a read-only folder node");
-      readOnlyFolder.containerOpen = false;
     }
   });
 
@@ -247,6 +246,5 @@ function test() {
     aTest.validate();
   });
 
-  rootNode.containerOpen = false;
   PlacesUtils.bookmarks.removeItem(rootId);
 }

@@ -47,9 +47,8 @@
 #include "gfxRect.h"
 #include "nsITimer.h"
 #include "ImageLayers.h"
-#include "mozilla/ReentrantMonitor.h"
+#include "mozilla/Monitor.h"
 #include "mozilla/Mutex.h"
-#include "nsIMemoryReporter.h"
 
 class nsHTMLMediaElement;
 class nsMediaStream;
@@ -66,6 +65,20 @@ class nsTimeRanges;
 #define FRAMEBUFFER_LENGTH_MIN 512
 #define FRAMEBUFFER_LENGTH_MAX 16384
 
+// Shuts down a thread asynchronously.
+class ShutdownThreadEvent : public nsRunnable 
+{
+public:
+  ShutdownThreadEvent(nsIThread* aThread) : mThread(aThread) {}
+  ~ShutdownThreadEvent() {}
+  NS_IMETHOD Run() {
+    mThread->Shutdown();
+    return NS_OK;
+  }
+private:
+  nsCOMPtr<nsIThread> mThread;
+};
+
 // All methods of nsMediaDecoder must be called from the main thread only
 // with the exception of GetImageContainer, SetVideoData and GetStatistics,
 // which can be called from any thread.
@@ -76,7 +89,7 @@ public:
   typedef mozilla::TimeDuration TimeDuration;
   typedef mozilla::layers::ImageContainer ImageContainer;
   typedef mozilla::layers::Image Image;
-  typedef mozilla::ReentrantMonitor ReentrantMonitor;
+  typedef mozilla::Monitor Monitor;
   typedef mozilla::Mutex Mutex;
 
   nsMediaDecoder();
@@ -111,19 +124,6 @@ public:
 
   // Return the duration of the video in seconds.
   virtual double GetDuration() = 0;
-
-  // A media stream is assumed to be infinite if the metadata doesn't
-  // contain the duration, and range requests are not supported, and
-  // no headers give a hint of a possible duration (Content-Length,
-  // Content-Duration, and variants), and we cannot seek in the media
-  // stream to determine the duration.
-  //
-  // When the media stream ends, we can know the duration, thus the stream is
-  // no longer considered to be infinite.
-  virtual void SetInfinite(PRBool aInfinite) = 0;
-
-  // Return true if the stream is infinite (see SetInfinite).
-  virtual PRBool IsInfinite() = 0;
 
   // Pause video playback.
   virtual void Pause() = 0;
@@ -190,7 +190,7 @@ public:
   public:
     
     FrameStatistics() :
-        mReentrantMonitor("nsMediaDecoder::FrameStats"),
+        mMonitor("nsMediaDecoder::FrameStats"),
         mParsedFrames(0),
         mDecodedFrames(0),
         mPresentedFrames(0) {}
@@ -198,14 +198,14 @@ public:
     // Returns number of frames which have been parsed from the media.
     // Can be called on any thread.
     PRUint32 GetParsedFrames() {
-      mozilla::ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+      mozilla::MonitorAutoEnter mon(mMonitor);
       return mParsedFrames;
     }
 
     // Returns the number of parsed frames which have been decoded.
     // Can be called on any thread.
     PRUint32 GetDecodedFrames() {
-      mozilla::ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+      mozilla::MonitorAutoEnter mon(mMonitor);
       return mDecodedFrames;
     }
 
@@ -213,7 +213,7 @@ public:
     // pipeline for painting ("presented").
     // Can be called on any thread.
     PRUint32 GetPresentedFrames() {
-      mozilla::ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+      mozilla::MonitorAutoEnter mon(mMonitor);
       return mPresentedFrames;
     }
 
@@ -222,7 +222,7 @@ public:
     void NotifyDecodedFrames(PRUint32 aParsed, PRUint32 aDecoded) {
       if (aParsed == 0 && aDecoded == 0)
         return;
-      mozilla::ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+      mozilla::MonitorAutoEnter mon(mMonitor);
       mParsedFrames += aParsed;
       mDecodedFrames += aDecoded;
     }
@@ -230,25 +230,25 @@ public:
     // Increments the presented frame counters.
     // Can be called on any thread.
     void NotifyPresentedFrame() {
-      mozilla::ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+      mozilla::MonitorAutoEnter mon(mMonitor);
       ++mPresentedFrames;
     }
 
   private:
 
-    // ReentrantMonitor to protect access of playback statistics.
-    ReentrantMonitor mReentrantMonitor;
+    // Monitor to protect access of playback statistics.
+    Monitor mMonitor;
 
     // Number of frames parsed and demuxed from media.
-    // Access protected by mStatsReentrantMonitor.
+    // Access protected by mStatsMonitor.
     PRUint32 mParsedFrames;
 
     // Number of parsed frames which were actually decoded.
-    // Access protected by mStatsReentrantMonitor.
+    // Access protected by mStatsMonitor.
     PRUint32 mDecodedFrames;
 
     // Number of decoded frames which were actually sent down the rendering
-    // pipeline to be painted ("presented"). Access protected by mStatsReentrantMonitor.
+    // pipeline to be painted ("presented"). Access protected by mStatsMonitor.
     PRUint32 mPresentedFrames;
   };
 
@@ -282,19 +282,16 @@ public:
   // Return the frame decode/paint related statistics.
   FrameStatistics& GetFrameStatistics() { return mFrameStats; }
 
-  // Set the duration of the media resource in units of seconds.
+  // Set the duration of the media resource in units of milliseconds.
   // This is called via a channel listener if it can pick up the duration
   // from a content header. Must be called from the main thread only.
-  virtual void SetDuration(double aDuration) = 0;
+  virtual void SetDuration(PRInt64 aDuration) = 0;
 
   // Set a flag indicating whether seeking is supported
   virtual void SetSeekable(PRBool aSeekable) = 0;
 
   // Return PR_TRUE if seeking is supported.
-  virtual PRBool IsSeekable() = 0;
-
-  // Return the time ranges that can be seeked into.
-  virtual nsresult GetSeekable(nsTimeRanges* aSeekable) = 0;
+  virtual PRBool GetSeekable() = 0;
 
   // Invalidate the frame.
   virtual void Invalidate();
@@ -375,6 +372,7 @@ public:
   // target paint time of the next video frame to be displayed.
   // Ownership of the image is transferred to the layers subsystem.
   void SetVideoData(const gfxIntSize& aSize,
+                    float aPixelAspectRatio,
                     Image* aImage,
                     TimeStamp aTarget);
 
@@ -385,11 +383,6 @@ public:
   // Returns PR_TRUE if we can play the entire media through without stopping
   // to buffer, given the current download and playback rates.
   PRBool CanPlayThrough();
-
-  // Returns the size, in bytes, of the heap memory used by the currently
-  // queued decoded video and audio data.
-  virtual PRInt64 VideoQueueMemoryInUse() = 0;
-  virtual PRInt64 AudioQueueMemoryInUse() = 0;
 
 protected:
 
@@ -452,6 +445,9 @@ protected:
   // in the midst of being changed.
   Mutex mVideoUpdateLock;
 
+  // Pixel aspect ratio (ratio of the pixel width to pixel height)
+  float mPixelAspectRatio;
+
   // The framebuffer size to use for audioavailable events.
   PRUint32 mFrameBufferLength;
 
@@ -480,62 +476,4 @@ protected:
   PRPackedBool mShuttingDown;
 };
 
-namespace mozilla {
-class MediaMemoryReporter
-{
-  MediaMemoryReporter();
-  ~MediaMemoryReporter();
-  static MediaMemoryReporter* sUniqueInstance;
-
-  static MediaMemoryReporter* UniqueInstance() {
-    if (!sUniqueInstance) {
-      sUniqueInstance = new MediaMemoryReporter;
-    }
-    return sUniqueInstance;
-  }
-
-  typedef nsTArray<nsMediaDecoder*> DecodersArray;
-  static DecodersArray& Decoders() {
-    return UniqueInstance()->mDecoders;
-  }
-
-  DecodersArray mDecoders;
-
-  nsCOMPtr<nsIMemoryReporter> mMediaDecodedVideoMemory;
-  nsCOMPtr<nsIMemoryReporter> mMediaDecodedAudioMemory;
-
-public:
-  static void AddMediaDecoder(nsMediaDecoder* aDecoder) {
-    Decoders().AppendElement(aDecoder);
-  }
-
-  static void RemoveMediaDecoder(nsMediaDecoder* aDecoder) {
-    DecodersArray& decoders = Decoders();
-    decoders.RemoveElement(aDecoder);
-    if (decoders.IsEmpty()) {
-      delete sUniqueInstance;
-      sUniqueInstance = nsnull;
-    }
-  }
-
-  static PRInt64 GetDecodedVideoMemory() {
-    DecodersArray& decoders = Decoders();
-    PRInt64 result = 0;
-    for (size_t i = 0; i < decoders.Length(); ++i) {
-      result += decoders[i]->VideoQueueMemoryInUse();
-    }
-    return result;
-  }
-
-  static PRInt64 GetDecodedAudioMemory() {
-    DecodersArray& decoders = Decoders();
-    PRInt64 result = 0;
-    for (size_t i = 0; i < decoders.Length(); ++i) {
-      result += decoders[i]->AudioQueueMemoryInUse();
-    }
-    return result;
-  }
-};
-
-} //namespace mozilla
 #endif

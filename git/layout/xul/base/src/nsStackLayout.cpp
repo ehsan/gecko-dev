@@ -52,7 +52,7 @@
 #include "nsIContent.h"
 #include "nsINameSpaceManager.h"
 
-nsBoxLayout* nsStackLayout::gInstance = nsnull;
+nsIBoxLayout* nsStackLayout::gInstance = nsnull;
 
 #define SPECIFIED_LEFT (1 << NS_SIDE_LEFT)
 #define SPECIFIED_RIGHT (1 << NS_SIDE_RIGHT)
@@ -60,7 +60,7 @@ nsBoxLayout* nsStackLayout::gInstance = nsnull;
 #define SPECIFIED_BOTTOM (1 << NS_SIDE_BOTTOM)
 
 nsresult
-NS_NewStackLayout( nsIPresShell* aPresShell, nsCOMPtr<nsBoxLayout>& aNewLayout)
+NS_NewStackLayout( nsIPresShell* aPresShell, nsCOMPtr<nsIBoxLayout>& aNewLayout)
 {
   if (!nsStackLayout::gInstance) {
     nsStackLayout::gInstance = new nsStackLayout();
@@ -308,7 +308,7 @@ nsStackLayout::Layout(nsIBox* aBox, nsBoxLayoutState& aState)
         childRect.height = 0;
 
       nsRect oldRect(child->GetRect());
-      PRBool sizeChanged = !oldRect.IsEqualEdges(childRect);
+      PRBool sizeChanged = !oldRect.IsExactEqual(childRect);
 
       // only lay out dirty children or children whose sizes have changed
       if (sizeChanged || NS_SUBTREE_DIRTY(child)) {
@@ -388,7 +388,7 @@ nsStackLayout::Layout(nsIBox* aBox, nsBoxLayoutState& aState)
             }
           }
 
-          if (!childRectNoMargin.IsEqualInterior(oldRect))
+          if (childRectNoMargin != oldRect)
           {
             // redraw the new and old positions if the 
             // child moved or resized.

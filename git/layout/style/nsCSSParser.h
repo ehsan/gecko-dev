@@ -44,18 +44,17 @@
 #include "nsCSSProperty.h"
 #include "nsColor.h"
 #include "nsCOMArray.h"
-#include "nsCOMPtr.h"
 
+class nsICSSRule;
 class nsCSSStyleSheet;
 class nsIPrincipal;
 class nsIURI;
+class nsIUnicharInputStream;
 struct nsCSSSelectorList;
 class nsMediaList;
-class nsCSSKeyframeRule;
 
 namespace mozilla {
 namespace css {
-class Rule;
 class Declaration;
 class Loader;
 class StyleRule;
@@ -78,6 +77,11 @@ private:
   nsCSSParser& operator=(nsCSSParser const&);
 
 public:
+  // If this is false, memory allocation failed in the constructor
+  // and all other methods will crash.
+  operator bool() const
+  { return !!mImpl; }
+
   // Set a style sheet for the parser to fill in. The style sheet must
   // implement the nsCSSStyleSheet interface.  Null can be passed in to clear
   // out an existing stylesheet reference.
@@ -86,8 +90,10 @@ public:
   // Set whether or not to emulate Nav quirks
   nsresult SetQuirkMode(PRBool aQuirkMode);
 
+#ifdef  MOZ_SVG
   // Set whether or not we are in an SVG element
   nsresult SetSVGMode(PRBool aSVGMode);
+#endif
 
   // Set loader to use for child sheets
   nsresult SetChildLoader(mozilla::css::Loader* aChildLoader);
@@ -108,12 +114,12 @@ public:
    * @param aAllowUnsafeRules see aEnableUnsafeRules in
    *                          mozilla::css::Loader::LoadSheetSync
    */
-  nsresult ParseSheet(const nsAString& aInput,
-                      nsIURI*          aSheetURL,
-                      nsIURI*          aBaseURI,
-                      nsIPrincipal*    aSheetPrincipal,
-                      PRUint32         aLineNumber,
-                      PRBool           aAllowUnsafeRules);
+  nsresult Parse(nsIUnicharInputStream* aInput,
+                 nsIURI*                aSheetURL,
+                 nsIURI*                aBaseURI,
+                 nsIPrincipal*          aSheetPrincipal,
+                 PRUint32               aLineNumber,
+                 PRBool                 aAllowUnsafeRules);
 
   // Parse HTML style attribute or its equivalent in other markup
   // languages.  aBaseURL is the base url to use for relative links in
@@ -140,7 +146,7 @@ public:
                      nsIURI*                 aSheetURL,
                      nsIURI*                 aBaseURL,
                      nsIPrincipal*           aSheetPrincipal,
-                     nsCOMArray<mozilla::css::Rule>& aResult);
+                     nsCOMArray<nsICSSRule>& aResult);
 
   nsresult ParseProperty(const nsCSSProperty aPropID,
                          const nsAString&    aPropValue,
@@ -187,24 +193,6 @@ public:
                                nsIURI*             aURL,
                                PRUint32            aLineNumber,
                                nsCSSSelectorList** aSelectorList);
-
-  /*
-   * Parse a keyframe rule (which goes inside an @keyframes rule).
-   * Return it if the parse was successful.
-   */
-  already_AddRefed<nsCSSKeyframeRule>
-  ParseKeyframeRule(const nsSubstring& aBuffer,
-                    nsIURI*            aURL,
-                    PRUint32           aLineNumber);
-
-  /*
-   * Parse a selector list for a keyframe rule.  Return whether
-   * the parse succeeded.
-   */
-  bool ParseKeyframeSelectorString(const nsSubstring& aSelectorString,
-                                   nsIURI*            aURL,
-                                   PRUint32           aLineNumber,
-                                   nsTArray<float>&   aSelectorList);
 
 protected:
   // This is a CSSParserImpl*, but if we expose that type name in this

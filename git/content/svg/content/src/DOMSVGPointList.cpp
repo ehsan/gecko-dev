@@ -116,21 +116,6 @@ DOMSVGPointList::~DOMSVGPointList()
   sSVGPointListTearoffTable.RemoveTearoff(key);
 }
 
-nsIDOMSVGPoint*
-DOMSVGPointList::GetItemWithoutAddRef(PRUint32 aIndex)
-{
-#ifdef MOZ_SMIL
-  if (IsAnimValList()) {
-    Element()->FlushAnimations();
-  }
-#endif
-  if (aIndex < Length()) {
-    EnsureItemAt(aIndex);
-    return mItems[aIndex];
-  }
-  return nsnull;
-}
-
 void
 DOMSVGPointList::InternalListWillChangeTo(const SVGPointList& aNewValue)
 {
@@ -148,7 +133,7 @@ DOMSVGPointList::InternalListWillChangeTo(const SVGPointList& aNewValue)
   }
 
   nsRefPtr<DOMSVGPointList> kungFuDeathGrip;
-  if (newLength < oldLength) {
+  if (oldLength && !newLength) {
     // RemovingFromList() might clear last reference to |this|.
     // Retain a temporary reference to keep from dying before returning.
     kungFuDeathGrip = this;
@@ -276,12 +261,18 @@ NS_IMETHODIMP
 DOMSVGPointList::GetItem(PRUint32 aIndex,
                          nsIDOMSVGPoint **_retval)
 {
-  *_retval = GetItemWithoutAddRef(aIndex);
-  if (!*_retval) {
-    return NS_ERROR_DOM_INDEX_SIZE_ERR;
+#ifdef MOZ_SMIL
+  if (IsAnimValList()) {
+    Element()->FlushAnimations();
   }
-  NS_ADDREF(*_retval);
-  return NS_OK;
+#endif
+  if (aIndex < Length()) {
+    EnsureItemAt(aIndex);
+    NS_ADDREF(*_retval = mItems[aIndex]);
+    return NS_OK;
+  }
+  *_retval = nsnull;
+  return NS_ERROR_DOM_INDEX_SIZE_ERR;
 }
 
 NS_IMETHODIMP
@@ -425,12 +416,6 @@ DOMSVGPointList::AppendItem(nsIDOMSVGPoint *aNewItem,
                             nsIDOMSVGPoint **_retval)
 {
   return InsertItemBefore(aNewItem, Length(), _retval);
-}
-
-NS_IMETHODIMP
-DOMSVGPointList::GetLength(PRUint32 *aNumberOfItems)
-{
-  return GetNumberOfItems(aNumberOfItems);
 }
 
 void

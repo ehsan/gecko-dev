@@ -51,6 +51,12 @@ const IS_WIN = true;
 const IS_WIN = false;
 #endif
 
+#ifdef WINCE
+const IS_WINCE = true;
+#else
+const IS_WINCE = false;
+#endif
+
 #ifdef XP_OS2
 const IS_OS2 = true;
 #else
@@ -59,11 +65,6 @@ const IS_OS2 = false;
 
 #ifdef XP_MACOSX
 const IS_MACOSX = true;
-#ifdef MOZ_SHARK
-const IS_SHARK = true;
-#else
-const IS_SHARK = false;
-#endif
 #else
 const IS_MACOSX = false;
 #endif
@@ -83,33 +84,16 @@ const IS_ANDROID = false;
 const URL_HOST = "http://localhost:4444/";
 const URL_PATH = "data";
 
-const APPLY_TO_DIR_SUFFIX = "_applyToDir/";
+const AFTER_APPLY_DIR = "afterApplyDir";
+const APPLY_TO_DIR_SUFFIX = "_applyToDir";
 const HELPER_BIN_FILE = "TestAUSHelper" + BIN_SUFFIX;
 const MAR_COMPLETE_FILE = "data/complete.mar";
 const MAR_PARTIAL_FILE = "data/partial.mar";
 const UPDATER_BIN_FILE = "updater" + BIN_SUFFIX;
 const UPDATES_DIR_SUFFIX = "_mar";
-const CHANNEL_CHANGE_FILE = "channelchange";
 
-const LOG_COMPLETE_SUCCESS = "data/complete_log_success";
-const LOG_COMPLETE_CC_SUCCESS = "data/complete_cc_log_success";
-
-const LOG_PARTIAL_SUCCESS = "data/partial_log_success";
-const LOG_PARTIAL_FAILURE = "data/partial_log_failure";
-
-const ERR_CALLBACK_FILE_IN_USE = "NS_main: file in use - failed to " +
-                                 "exclusively open executable file:"
-
-const ERR_RENAME_FILE = "rename_file: failed to rename file";
-const ERR_UNABLE_OPEN_DEST = "unable to open destination file";
-const ERR_BACKUP_DISCARD = "backup_discard: unable to remove";
-
-// variables are used instead of contants so tests can override these values
-var gCallbackBinFile = "callback_app" + BIN_SUFFIX;
-var gCallbackArgs = ["./", "callback.log", "Test Arg 2", "Test Arg 3"];
-
-// Time to wait for the test helper process before continuing the test
-const TEST_HELPER_TIMEOUT = 100;
+const CALLBACK_BIN_FILE = "callback_app" + BIN_SUFFIX;
+const CALLBACK_ARGS = [AFTER_APPLY_DIR + "/output.log", "Test Arg 2", "Test Arg 3"];
 
 var gTestserver;
 
@@ -124,164 +108,6 @@ var gUpdateCount;
 var gUpdates;
 var gStatusCode;
 var gStatusText;
-
-/**
- * The mar files used for the updater tests contain the following remove
- * operations.
- *
- * partial and complete test mar remove operations
- * -----------------------------------------------
- * remove "text1"
- * remove "text0"
- * rmrfdir "9/99/"
- * rmdir "9/99/"
- * rmrfdir "9/98/"
- * rmrfdir "9/97/"
- * rmrfdir "9/96/"
- * rmrfdir "9/95/"
- * rmrfdir "9/95/"
- * rmrfdir "9/94/"
- * rmdir "9/94/"
- * rmdir "9/93/"
- * rmdir "9/92/"
- * rmdir "9/91/"
- * rmdir "9/90/"
- * rmdir "9/90/"
- * rmrfdir "8/89/"
- * rmdir "8/89/"
- * rmrfdir "8/88/"
- * rmrfdir "8/87/"
- * rmrfdir "8/86/"
- * rmrfdir "8/85/"
- * rmrfdir "8/85/"
- * rmrfdir "8/84/"
- * rmdir "8/84/"
- * rmdir "8/83/"
- * rmdir "8/82/"
- * rmdir "8/81/"
- * rmdir "8/80/"
- * rmdir "8/80/"
- * rmrfdir "7/"
- * rmdir "6/"
- * remove "5/text1"
- * remove "5/text0"
- * rmrfdir "5/"
- * remove "4/text1"
- * remove "4/text0"
- * remove "4/exe0.exe"
- * rmdir "4/"
- * remove "3/text1"
- * remove "3/text0"
- *
- * partial test mar additional remove operations
- * ---------------------------------------------
- * remove "0/00/00text1"
- * remove "1/10/10text0"
- * rmdir "1/10/"
- * rmdir "1/"
- */
-var TEST_DIRS = [
-{
-  relPathDir   : "a/b/3/",
-  dirRemoved   : false,
-  files        : ["3text0", "3text1"],
-  filesRemoved : true
-}, {
-  relPathDir   : "a/b/4/",
-  dirRemoved   : true,
-  files        : ["4text0", "4text1"],
-  filesRemoved : true
-}, {
-  relPathDir   : "a/b/5/",
-  dirRemoved   : true,
-  files        : ["5test.exe", "5text0", "5text1"],
-  filesRemoved : true
-}, {
-  relPathDir   : "a/b/6/",
-  dirRemoved   : true
-}, {
-  relPathDir   : "a/b/7/",
-  dirRemoved   : true,
-  files        : ["7text0", "7text1"],
-  subDirs      : ["70/", "71/"],
-  subDirFiles  : ["7xtest.exe", "7xtext0", "7xtext1"]
-}, {
-  relPathDir   : "a/b/8/",
-  dirRemoved   : false
-}, {
-  relPathDir   : "a/b/8/80/",
-  dirRemoved   : true
-}, {
-  relPathDir   : "a/b/8/81/",
-  dirRemoved   : false,
-  files        : ["81text0", "81text1"]
-}, {
-  relPathDir   : "a/b/8/82/",
-  dirRemoved   : false,
-  subDirs      : ["820/", "821/"]
-}, {
-  relPathDir   : "a/b/8/83/",
-  dirRemoved   : true
-}, {
-  relPathDir   : "a/b/8/84/",
-  dirRemoved   : true
-}, {
-  relPathDir   : "a/b/8/85/",
-  dirRemoved   : true
-}, {
-  relPathDir   : "a/b/8/86/",
-  dirRemoved   : true,
-  files        : ["86text0", "86text1"]
-}, {
-  relPathDir   : "a/b/8/87/",
-  dirRemoved   : true,
-  subDirs      : ["870/", "871/"],
-  subDirFiles  : ["87xtext0", "87xtext1"]
-}, {
-  relPathDir   : "a/b/8/88/",
-  dirRemoved   : true
-}, {
-  relPathDir   : "a/b/8/89/",
-  dirRemoved   : true
-}, {
-  relPathDir   : "a/b/9/90/",
-  dirRemoved   : true
-}, {
-  relPathDir   : "a/b/9/91/",
-  dirRemoved   : false,
-  files        : ["91text0", "91text1"]
-}, {
-  relPathDir   : "a/b/9/92/",
-  dirRemoved   : false,
-  subDirs      : ["920/", "921/"]
-}, {
-  relPathDir   : "a/b/9/93/",
-  dirRemoved   : true
-}, {
-  relPathDir   : "a/b/9/94/",
-  dirRemoved   : true
-}, {
-  relPathDir   : "a/b/9/95/",
-  dirRemoved   : true
-}, {
-  relPathDir   : "a/b/9/96/",
-  dirRemoved   : true,
-  files        : ["96text0", "96text1"]
-}, {
-  relPathDir   : "a/b/9/97/",
-  dirRemoved   : true,
-  subDirs      : ["970/", "971/"],
-  subDirFiles  : ["97xtext0", "97xtext1"]
-}, {
-  relPathDir   : "a/b/9/98/",
-  dirRemoved   : true
-}, {
-  relPathDir   : "a/b/9/99/",
-  dirRemoved   : true
-}];
-
-// Populated by tests if needed.
-var ADDITIONAL_TEST_DIRS = [];
 
 // Set to true to log additional information for debugging. To log additional
 // information for an individual test set DEBUG_AUS_TEST to true in the test's
@@ -355,43 +181,14 @@ function pathHandler(metadata, response) {
 }
 
 /**
- * Helper function for getting the relative path to the directory where the
- * update will be applied.
- *
- * The main files in the update are located two directories below the apply to
- * directory since Mac OS X sets the last modified time for the root directory
- * to the current time and if the update changes any files in the root directory
- * then it wouldn't be possible to test (bug 600098).
- *
- * @return  The relative path to the directory where the update will be applied.
- */
-function getApplyDirPath() {
-  return TEST_ID + APPLY_TO_DIR_SUFFIX;
-}
-
-/**
- * Helper function for getting the nsIFile for the directory where the update
- * will be applied.
- *
- * The main files in the update are located two directories below the apply to
- * directory since Mac OS X sets the last modified time for the root directory
- * to the current time and if the update changes any files in the root directory
- * then it wouldn't be possible to test (bug 600098).
- *
- * @return  The nsIFile for the directory where the update will be applied.
- */
-function getApplyDirFile(aRelPath, allowNonexistent) {
-  let relpath = getApplyDirPath() + (aRelPath ? aRelPath : "");
-  return do_get_file(relpath, allowNonexistent);
-}
-
-/**
  * Helper function for updater tests for launching the updater binary to apply
  * a mar file.
  *
+ * @param   aTestID
+ *          A string used to identify the name of directories for a test.
  * @return  The exit value returned from the updater binary.
  */
-function runUpdate() {
+function runUpdate(aTestID) {
   // Copy the updater binary to the updates directory.
   let binDir = getGREDir();
   let updater = binDir.clone();
@@ -404,7 +201,7 @@ function runUpdate() {
     }
   }
 
-  let updatesDir = do_get_file(TEST_ID + UPDATES_DIR_SUFFIX, true);
+  let updatesDir = do_get_file(aTestID + UPDATES_DIR_SUFFIX, true);
   updater.copyTo(updatesDir, updater.leafName);
   let updateBin = updatesDir.clone();
   updateBin.append(updater.leafName);
@@ -420,15 +217,17 @@ function runUpdate() {
   if (/ /.test(updatesDirPath))
     updatesDirPath = '"' + updatesDirPath + '"';
 
-  let applyToDir = getApplyDirFile();
+  let applyToDir = do_get_file(aTestID + APPLY_TO_DIR_SUFFIX, true);
   let applyToDirPath = applyToDir.path;
   if (/ /.test(applyToDirPath))
     applyToDirPath = '"' + applyToDirPath + '"';
 
-  let callbackApp = getApplyDirFile("a/b/" + gCallbackBinFile);
+  let callbackApp = applyToDir.clone();
+  callbackApp.append(AFTER_APPLY_DIR);
+  callbackApp.append(CALLBACK_BIN_FILE);
   callbackApp.permissions = PERMS_DIRECTORY;
 
-  let cwdPath = callbackApp.parent.path;
+  let cwdPath = callbackApp.parent.parent.path;
   if (/ /.test(cwdPath))
     cwdPath = '"' + cwdPath + '"';
 
@@ -437,7 +236,7 @@ function runUpdate() {
     callbackAppPath = '"' + callbackAppPath + '"';
 
   let args = [updatesDirPath, applyToDirPath, 0, cwdPath, callbackAppPath].
-             concat(gCallbackArgs);
+             concat(CALLBACK_ARGS);
   let process = AUS_Cc["@mozilla.org/process/util;1"].
                 createInstance(AUS_Ci.nsIProcess);
   process.init(updateBin);
@@ -471,67 +270,21 @@ function getLaunchBin() {
   return launchBin;
 }
 
-function waitForHelperSleep() {
-  // Give the lock file process time to lock the file before updating otherwise
-  // this test can fail intermittently on Windows debug builds.
-  let output = getApplyDirFile("a/b/output", true);
-  if (readFile(output) != "sleeping\n") {
-    do_timeout(TEST_HELPER_TIMEOUT, waitForHelperSleep);
-    return;
-  }
-  output.remove(false);
-  do_timeout(TEST_HELPER_TIMEOUT, doUpdate);
-}
-
-function waitForHelperFinished() {
-  // Give the lock file process time to lock the file before updating otherwise
-  // this test can fail intermittently on Windows debug builds.
-  let output = getApplyDirFile("a/b/output", true);
-  if (readFile(output) != "finished\n") {
-    do_timeout(TEST_HELPER_TIMEOUT, waitForHelperFinished);
-    return;
-  }
-  // Give the lock file process time to unlock the file before deleting the
-  // input and output files.
-  do_timeout(TEST_HELPER_TIMEOUT, waitForHelperFinishFileUnlock);
-}
-
-function waitForHelperFinishFileUnlock() {
-  try {
-    let output = getApplyDirFile("a/b/output", true);
-    if (output.exists()) {
-      output.remove(false);
-    }
-    let input = getApplyDirFile("a/b/input", true);
-    if (input.exists()) {
-      input.remove(false);
-    }
-  }
-  catch (e) {
-    // Give the lock file process time to unlock the file before deleting the
-    // input and output files.
-    do_timeout(TEST_HELPER_TIMEOUT, waitForHelperFinishFileUnlock);
-    return;
-  }
-  do_timeout(TEST_HELPER_TIMEOUT, checkUpdate);
-}
-
-function setupHelperFinish() {
-  let input = getApplyDirFile("a/b/input", true);
-  writeFile(input, "finish\n");
-  do_timeout(TEST_HELPER_TIMEOUT, waitForHelperFinished);
-}
-
 /**
- * Helper function for updater binary tests for setting up the files and
- * directories used by the test.
+ * Helper function for updater tests for setting up the files and directories
+ * used by the updater tests.
  *
+ * @param   aTestID
+ *          A string used to identify the name of directories for a test.
  * @param   aMarFile
- *          The mar file for the update test.
+ *          The mar file to copy the update mar to.
+ * @param   aTestFiles
+ *          An array of JavaScript objects representing the test files to create
+ *          for the test.
  */
-function setupUpdaterTest(aMarFile) {
+function setupUpdaterTest(aTestID, aMarFile, aTestFiles) {
   // Remove the directory where the updater, mar file, etc. will be copied to
-  let updatesDir = do_get_file(TEST_ID + UPDATES_DIR_SUFFIX, true);
+  let updatesDir = do_get_file(aTestID + UPDATES_DIR_SUFFIX, true);
   try {
     removeDirRecursive(updatesDir);
   }
@@ -545,7 +298,7 @@ function setupUpdaterTest(aMarFile) {
   }
 
   // Remove the directory where the update will be applied if it exists.
-  let applyToDir = getApplyDirFile(null, true);
+  let applyToDir = do_get_file(aTestID + APPLY_TO_DIR_SUFFIX, true);
   try {
     removeDirRecursive(applyToDir);
   }
@@ -560,42 +313,45 @@ function setupUpdaterTest(aMarFile) {
 
   // Add the test files that will be updated for a successful update or left in
   // the initial state for a failed update.
-  TEST_FILES.forEach(function SUT_TF_FE(aTestFile) {
-    if (aTestFile.originalFile || aTestFile.originalContents) {
-      let testDir = getApplyDirFile(aTestFile.relPathDir, true);
+  for (let i = 0; i < aTestFiles.length; i++) {
+    let f = aTestFiles[i];
+    if (f.originalFile || f.originalContents) {
+      let testDir = do_get_file(f.destinationDir, true);
       if (!testDir.exists())
         testDir.create(AUS_Ci.nsIFile.DIRECTORY_TYPE, PERMS_DIRECTORY);
 
       let testFile;
-      if (aTestFile.originalFile) {
-        testFile = do_get_file(aTestFile.originalFile);
-        testFile.copyTo(testDir, aTestFile.fileName);
-        testFile = getApplyDirFile(aTestFile.relPathDir + aTestFile.fileName);
+      if (f.originalFile) {
+        testFile = do_get_file(f.originalFile);
+        testFile.copyTo(testDir, f.fileName);
+        testFile = do_get_file(f.destinationDir + f.fileName);
       }
       else {
-        testFile = getApplyDirFile(aTestFile.relPathDir + aTestFile.fileName, true);
-        writeFile(testFile, aTestFile.originalContents);
+        testFile = do_get_file(f.destinationDir + f.fileName, true);
+        writeFile(testFile, f.originalContents);
       }
 
-      // Skip these tests on Windows and OS/2 since their
+      // Skip these tests on Windows (includes WinCE) and OS/2 since their
       // implementaions of chmod doesn't really set permissions.
-      if (!IS_WIN && !IS_OS2 && aTestFile.originalPerms) {
-        testFile.permissions = aTestFile.originalPerms;
+      if (!IS_WIN && !IS_OS2 && f.originalPerms) {
+        testFile.permissions = f.originalPerms;
         // Store the actual permissions on the file for reference later after
         // setting the permissions.
-        if (!aTestFile.comparePerms)
-          aTestFile.comparePerms = testFile.permissions;
+        if (!f.comparePerms)
+          f.comparePerms = testFile.permissions;
       }
     }
-  });
+  }
+
+  let afterApplyBinDir = applyToDir.clone();
+  afterApplyBinDir.append(AFTER_APPLY_DIR);
 
   let helperBin = do_get_file(HELPER_BIN_FILE);
-  let afterApplyBinDir = getApplyDirFile("a/b/", true);
-  helperBin.copyTo(afterApplyBinDir, gCallbackBinFile);
+  helperBin.copyTo(afterApplyBinDir, CALLBACK_BIN_FILE);
 
   let updaterIniContents = "[Strings]\n" +
                            "Title=Update XPCShell Test\n" +
-                           "Info=Application Update Test - " + TEST_ID + "\n";
+                           "Info=Application Update Test - " + aTestID + "\n";
   let updaterIni = updatesDir.clone();
   updaterIni.append(FILE_UPDATER_INI);
   writeFile(updaterIni, updaterIniContents);
@@ -604,51 +360,17 @@ function setupUpdaterTest(aMarFile) {
   // Copy the mar that will be applied
   let mar = do_get_file(aMarFile);
   mar.copyTo(updatesDir, FILE_UPDATE_ARCHIVE);
-
-  // Add the test directory that will be updated for a successful update or left in
-  // the initial state for a failed update.
-  var testDirs = TEST_DIRS.concat(ADDITIONAL_TEST_DIRS);
-  testDirs.forEach(function SUT_TD_FE(aTestDir) {
-    let testDir = getApplyDirFile(aTestDir.relPathDir, true);
-    if (!testDir.exists()) {
-      testDir.create(AUS_Ci.nsIFile.DIRECTORY_TYPE, PERMS_DIRECTORY);
-    }
-
-    if (aTestDir.files) {
-      aTestDir.files.forEach(function SUT_TD_F_FE(aTestFile) {
-        let testFile = getApplyDirFile(aTestDir.relPathDir + aTestFile, true);
-        if (!testFile.exists()) {
-          testFile.create(AUS_Ci.nsIFile.FILE_TYPE, PERMS_FILE);
-        }
-      });
-    }
-
-    if (aTestDir.subDirs) {
-      aTestDir.subDirs.forEach(function SUT_TD_SD_FE(aSubDir) {
-        let testSubDir = getApplyDirFile(aTestDir.relPathDir + aSubDir, true);
-        if (!testSubDir.exists()) {
-          testSubDir.create(AUS_Ci.nsIFile.DIRECTORY_TYPE, PERMS_DIRECTORY);
-        }
-
-        if (aTestDir.subDirFiles) {
-          aTestDir.subDirFiles.forEach(function SUT_TD_SDF_FE(aTestFile) {
-            let testFile = getApplyDirFile(aTestDir.relPathDir + aSubDir + aTestFile, true);
-            if (!testFile.exists()) {
-              testFile.create(AUS_Ci.nsIFile.FILE_TYPE, PERMS_FILE);
-            }
-          });
-        }
-      });
-    }
-  });
 }
 
 /**
- * Helper function for updater binary tests to clean up the state after the test
- * has finished.
+ * Helper function for updater tests for cleaning up the state after an updater
+ * test has finished.
+ *
+ * @param   aTestID
+ *          A string used to identify the name of directories for a test.
  */
-function cleanupUpdaterTest() {
-  let updatesDir = do_get_file(TEST_ID + UPDATES_DIR_SUFFIX, true);
+function cleanupUpdaterTest(aTestID) {
+  let updatesDir = do_get_file(aTestID + UPDATES_DIR_SUFFIX, true);
   try {
     removeDirRecursive(updatesDir);
   }
@@ -659,7 +381,7 @@ function cleanupUpdaterTest() {
   }
 
   // Try to remove the updates and the apply to directories.
-  let applyToDir = getApplyDirFile(null, true);
+  let applyToDir = do_get_file(aTestID + APPLY_TO_DIR_SUFFIX, true);
   try {
     removeDirRecursive(applyToDir);
   }
@@ -673,200 +395,119 @@ function cleanupUpdaterTest() {
 }
 
 /**
- * Helper function for updater binary tests for verifying the contents of the
- * update log after a successful update.
- */
-function checkUpdateLogContents(aCompareLogFile) {
-  let updateLog = do_get_file(TEST_ID + UPDATES_DIR_SUFFIX, true);
-  updateLog.append(FILE_UPDATE_LOG);
-  // Skip the first two lines since they contain absolute paths.
-  let updateLogContents = readFileBytes(updateLog).split("\n").slice(2).join("\n");
-  updateLogContents = updateLogContents.replace(/\r/g, "");
-  // Replace error codes since they are different on each platform.
-  updateLogContents = updateLogContents.replace(/, err:.*\n/g, "\n");
-  // Replace to make the log parsing happy.
-  updateLogContents = updateLogContents.replace(/non-fatal error /g, "");
-  // The FindFile results when enumerating the filesystem on Windows is not
-  // determistic so the results matching the following need to be ignored.
-  updateLogContents = updateLogContents.replace(/.* a\/b\/7\/7text.*\n/g, "");
-
-  let compareLog = do_get_file(aCompareLogFile);
-  let compareLogContents = readFileBytes(compareLog);
-
-  do_check_eq(compareLogContents, updateLogContents);
-}
-
-function checkUpdateLogContains(aCheckString) {
-  let updateLog = do_get_file(TEST_ID + UPDATES_DIR_SUFFIX, true);
-  updateLog.append(FILE_UPDATE_LOG);
-  let updateLogContents = readFileBytes(updateLog);
-  do_check_true(updateLogContents.indexOf(aCheckString) != -1);
-}
-
-/**
- * Helper function for updater binary tests for verifying the state of files and
+ * Helper function for updater tests for verifying the state of files and
  * directories after a successful update.
+ *
+ * @param   aTestID
+ *          A string used to identify the name of directories for a test.
+ * @param   aTestFiles
+ *          An array of JavaScript objects representing the test files to create
+ *          for the test.
  */
-function checkFilesAfterUpdateSuccess() {
+function checkFilesAfterUpdateSuccess(aTestID, aTestFiles) {
   logTestInfo("testing contents of files after a successful update");
-  TEST_FILES.forEach(function CFAUS_TF_FE(aTestFile) {
-    let testFile = getApplyDirFile(aTestFile.relPathDir + aTestFile.fileName, true);
+  for (let i = 0; i < aTestFiles.length; i++) {
+    let f = aTestFiles[i];
+    let testFile = do_get_file(f.destinationDir + f.fileName, true);
     logTestInfo("testing file: " + testFile.path);
-    if (aTestFile.compareFile || aTestFile.compareContents) {
+    if (f.compareFile || f.compareContents) {
       do_check_true(testFile.exists());
 
-      // Skip these tests on Windows and OS/2 since their
+      // Skip these tests on Windows (includes WinCE) and OS/2 since their
       // implementaions of chmod doesn't really set permissions.
-      if (!IS_WIN && !IS_OS2 && aTestFile.comparePerms) {
+      if (!IS_WIN && !IS_OS2 && f.comparePerms) {
         // Check if the permssions as set in the complete mar file are correct.
         let logPerms = "testing file permissions - ";
-        if (aTestFile.originalPerms) {
-          logPerms += "original permissions: " + aTestFile.originalPerms.toString(8) + ", ";
+        if (f.originalPerms) {
+          logPerms += "original permissions: " + f.originalPerms.toString(8) + ", ";
         }
-        logPerms += "compare permissions : " + aTestFile.comparePerms.toString(8) + ", ";
+        logPerms += "compare permissions : " + f.comparePerms.toString(8) + ", ";
         logPerms += "updated permissions : " + testFile.permissions.toString(8);
         logTestInfo(logPerms);
-        do_check_eq(testFile.permissions & 0xfff, aTestFile.comparePerms & 0xfff);
+        do_check_eq(testFile.permissions & 0xfff, f.comparePerms & 0xfff);
       }
 
-      if (aTestFile.compareFile) {
+      if (f.compareFile) {
         do_check_eq(readFileBytes(testFile),
-                    readFileBytes(do_get_file(aTestFile.compareFile)));
+                    readFileBytes(do_get_file(f.compareFile)));
+        if (f.originalFile) {
+          // Verify that readFileBytes returned the entire contents by checking
+          // the contents against the original file.
+          do_check_neq(readFileBytes(testFile),
+                       readFileBytes(do_get_file(f.originalFile)));
+        }
       }
       else {
-        do_check_eq(readFileBytes(testFile), aTestFile.compareContents);
+        do_check_eq(readFileBytes(testFile), f.compareContents);
       }
     }
     else {
       do_check_false(testFile.exists());
     }
-  });
+  }
 
-  logTestInfo("testing operations specified in removed-files were performed " +
-              "after a successful update");
-  var testDirs = TEST_DIRS.concat(ADDITIONAL_TEST_DIRS);
-  testDirs.forEach(function CFAUS_TD_FE(aTestDir) {
-    let testDir = getApplyDirFile(aTestDir.relPathDir, true);
-    logTestInfo("testing directory: " + testDir.path);
-    if (aTestDir.dirRemoved) {
-      do_check_false(testDir.exists());
-    }
-    else {
-      do_check_true(testDir.exists());
-
-      if (aTestDir.files) {
-        aTestDir.files.forEach(function CFAUS_TD_F_FE(aTestFile) {
-          let testFile = getApplyDirFile(aTestDir.relPathDir + aTestFile, true);
-          logTestInfo("testing directory file: " + testFile.path);
-          if (aTestDir.filesRemoved) {
-            do_check_false(testFile.exists());
-          }
-          else {
-            do_check_true(testFile.exists());
-          }
-        });
-      }
-
-      if (aTestDir.subDirs) {
-        aTestDir.subDirs.forEach(function CFAUS_TD_SD_FE(aSubDir) {
-          let testSubDir = getApplyDirFile(aTestDir.relPathDir + aSubDir, true);
-          logTestInfo("testing sub-directory: " + testSubDir.path);
-          do_check_true(testSubDir.exists());
-          if (aTestDir.subDirFiles) {
-            aTestDir.subDirFiles.forEach(function CFAUS_TD_SDF_FE(aTestFile) {
-              let testFile = getApplyDirFile(aTestDir.relPathDir + aSubDir + aTestFile, true);
-              logTestInfo("testing sub-directory file: " + testFile.path);
-              do_check_true(testFile.exists());
-            });
-          }
-        });
-      }
-    }
-  });
-
-  checkFilesAfterUpdateCommon();
+  checkFilesAfterUpdateCommon(aTestID);
 }
 
 /**
- * Helper function for updater binary tests for verifying the state of files and
+ * Helper function for updater tests for verifying the state of files and
  * directories after a failed update.
+ *
+ * @param   aTestID
+ *          A string used to identify the name of directories for a test.
+ * @param   aTestFiles
+ *          An array of JavaScript objects representing the test files to create
+ *          for the test.
  */
-function checkFilesAfterUpdateFailure() {
+function checkFilesAfterUpdateFailure(aTestID, aTestFiles) {
   logTestInfo("testing contents of files after a failed update");
-  TEST_FILES.forEach(function CFAUF_TF_FE(aTestFile) {
-    let testFile = getApplyDirFile(aTestFile.relPathDir + aTestFile.fileName, true);
+  for (let i = 0; i < aTestFiles.length; i++) {
+    let f = aTestFiles[i];
+    let testFile = do_get_file(f.destinationDir + f.fileName, true);
     logTestInfo("testing file: " + testFile.path);
-    if (aTestFile.compareFile || aTestFile.compareContents) {
+    if (f.compareFile || f.compareContents) {
       do_check_true(testFile.exists());
 
-      // Skip these tests on Windows and OS/2 since their
+      // Skip these tests on Windows (includes WinCE) and OS/2 since their
       // implementaions of chmod doesn't really set permissions.
-      if (!IS_WIN && !IS_OS2 && aTestFile.comparePerms) {
+      if (!IS_WIN && !IS_OS2 && f.comparePerms) {
         // Check the original permssions are retained on the file.
         let logPerms = "testing file permissions - ";
-        if (aTestFile.originalPerms) {
-          logPerms += "original permissions: " + aTestFile.originalPerms.toString(8) + ", ";
+        if (f.originalPerms) {
+          logPerms += "original permissions: " + f.originalPerms.toString(8) + ", ";
         }
-        logPerms += "compare permissions : " + aTestFile.comparePerms.toString(8) + ", ";
+        logPerms += "compare permissions : " + f.comparePerms.toString(8) + ", ";
         logPerms += "updated permissions : " + testFile.permissions.toString(8);
         logTestInfo(logPerms);
-        do_check_eq(testFile.permissions & 0xfff, aTestFile.comparePerms & 0xfff);
+        do_check_eq(testFile.permissions & 0xfff, f.comparePerms & 0xfff);
       }
 
-      if (aTestFile.compareFile) {
+      if (f.compareFile) {
         do_check_eq(readFileBytes(testFile),
-                    readFileBytes(do_get_file(aTestFile.compareFile)));
+                    readFileBytes(do_get_file(f.compareFile)));
       }
       else {
-        do_check_eq(readFileBytes(testFile), aTestFile.compareContents);
+        do_check_eq(readFileBytes(testFile), f.compareContents);
       }
     }
     else {
       do_check_false(testFile.exists());
     }
-  });
+  }
 
-  logTestInfo("testing operations specified in removed-files were not " +
-              "performed after a failed update");
-  TEST_DIRS.forEach(function CFAUF_TD_FE(aTestDir) {
-    let testDir = getApplyDirFile(aTestDir.relPathDir, true);
-    logTestInfo("testing directory file: " + testDir.path);
-    do_check_true(testDir.exists());
-
-    if (aTestDir.files) {
-      aTestDir.files.forEach(function CFAUS_TD_F_FE(aTestFile) {
-        let testFile = getApplyDirFile(aTestDir.relPathDir + aTestFile, true);
-        logTestInfo("testing directory file: " + testFile.path);
-        do_check_true(testFile.exists());
-      });
-    }
-
-    if (aTestDir.subDirs) {
-      aTestDir.subDirs.forEach(function CFAUS_TD_SD_FE(aSubDir) {
-        let testSubDir = getApplyDirFile(aTestDir.relPathDir + aSubDir, true);
-        logTestInfo("testing sub-directory: " + testSubDir.path);
-        do_check_true(testSubDir.exists());
-        if (aTestDir.subDirFiles) {
-          aTestDir.subDirFiles.forEach(function CFAUS_TD_SDF_FE(aTestFile) {
-            let testFile = getApplyDirFile(aTestDir.relPathDir + aSubDir + aTestFile, true);
-            logTestInfo("testing sub-directory file: " + testFile.path);
-            do_check_true(testFile.exists());
-          });
-        }
-      });
-    }
-  });
-
-  checkFilesAfterUpdateCommon();
+  checkFilesAfterUpdateCommon(aTestID);
 }
 
 /**
- * Helper function for updater binary tests for verifying patch files and
- * moz-backup files aren't left behind after a successful or failed update.
+ * Helper function for updater tests for verifying patch files and moz-backup
+ * files aren't left behind after a successful or failed update.
+ *
+ * @param   aTestID
+ *          A string used to identify the name of directories for a test.
  */
-function checkFilesAfterUpdateCommon() {
+function checkFilesAfterUpdateCommon(aTestID) {
   logTestInfo("testing patch files should not be left behind");
-  let updatesDir = do_get_file(TEST_ID + UPDATES_DIR_SUFFIX, true);
+  let updatesDir = do_get_file(aTestID + UPDATES_DIR_SUFFIX, true);
   let entries = updatesDir.QueryInterface(AUS_Ci.nsIFile).directoryEntries;
   while (entries.hasMoreElements()) {
     let entry = entries.getNext().QueryInterface(AUS_Ci.nsIFile);
@@ -874,30 +515,35 @@ function checkFilesAfterUpdateCommon() {
   }
 
   logTestInfo("testing backup files should not be left behind");
-  let applyToDir = getApplyDirFile(null, true);
+  let applyToDir = do_get_file(aTestID + APPLY_TO_DIR_SUFFIX, true);
   checkFilesInDirRecursive(applyToDir, checkForBackupFiles);
 }
 
 /**
- * Helper function for updater binary tests for verifying the contents of the
- * updater callback application log which should contain the arguments passed to
- * the callback application.
+ * Helper function for updater tests for verifying the contents of the updater
+ * callback application log which should contain the string executed and the
+ * arguments passed to the callback application.
  */
-function checkCallbackAppLog() {
-  let appLaunchLog = getApplyDirFile("a/b/" + gCallbackArgs[1], true);
+function checkCallbackAppLog(aTestID) {
+  let appLaunchLog = do_get_file(aTestID + APPLY_TO_DIR_SUFFIX + "/" +
+                                 CALLBACK_ARGS[0], true);
   if (!appLaunchLog.exists()) {
-    do_timeout(TEST_HELPER_TIMEOUT, checkCallbackAppLog);
+    do_execute_soon(function() {
+      checkCallbackAppLog(aTestID);
+    });
     return;
   }
 
-  let expectedLogContents = gCallbackArgs.join("\n") + "\n";
-  let logContents = readFile(appLaunchLog);
+  let expectedLogContents = "executed\n" + CALLBACK_ARGS.join("\n") + "\n";
+  let logContents = readFile(appLaunchLog).replace(/\r\n/g, "\n");
   // It is possible for the log file contents check to occur before the log file
   // contents are completely written so wait until the contents are the expected
   // value. If the contents are never the expected value then the test will
   // fail by timing out.
   if (logContents != expectedLogContents) {
-    do_timeout(TEST_HELPER_TIMEOUT, checkCallbackAppLog);
+    do_execute_soon(function() {
+      checkCallbackAppLog(aTestID);
+    });
     return;
   }
 
@@ -905,13 +551,12 @@ function checkCallbackAppLog() {
               "and the expected command line arguments passed to it");
   do_check_eq(logContents, expectedLogContents);
 
-  // Use a timeout to give any files that were in use additional time to close.
-  do_timeout(TEST_HELPER_TIMEOUT, do_test_finished);
+  do_test_finished();
 }
 
 /**
- * Helper function for updater binary tests for verifying there are no update
- * backup files left behind after an update.
+ * Helper function for updater tests for verifying there are no update backup
+ * files left behind after an update.
  *
  * @param   aFile
  *          An nsIFile to check if it has moz-backup for its extension.
@@ -921,9 +566,8 @@ function checkForBackupFiles(aFile) {
 }
 
 /**
- * Helper function for updater binary tests for recursively enumerating a
- * directory and calling a callback function with the file as a parameter for
- * each file found.
+ * Helper function for updater tests for recursively enumerating a directory and
+ * calls a callback function with the file as a parameter for each file found.
  *
  * @param   aDir
  *          A nsIFile for the directory to be deleted
@@ -975,11 +619,6 @@ function overrideXHR(callback) {
  * Bare bones XMLHttpRequest implementation for testing onprogress, onerror,
  * and onload nsIDomEventListener handleEvent.
  */
-function makeHandler(val) {
-  if (typeof val == "function")
-    return ({ handleEvent: val });
-  return val;
-}
 function xhr() {
 }
 xhr.prototype = {
@@ -999,19 +638,20 @@ xhr.prototype = {
     do_execute_soon(gXHRCallback); // Use a timeout so the XHR completes
   },
   _onprogress: null,
-  set onprogress(val) { gXHR._onprogress = makeHandler(val); },
+  set onprogress(val) { gXHR._onprogress = val; },
   get onprogress() { return gXHR._onprogress; },
   _onerror: null,
-  set onerror(val) { gXHR._onerror = makeHandler(val); },
+  set onerror(val) { gXHR._onerror = val; },
   get onerror() { return gXHR._onerror; },
   _onload: null,
-  set onload(val) { gXHR._onload = makeHandler(val); },
+  set onload(val) { gXHR._onload = val; },
   get onload() { return gXHR._onload; },
   flags: AUS_Ci.nsIClassInfo.SINGLETON,
   implementationLanguage: AUS_Ci.nsIProgrammingLanguage.JAVASCRIPT,
   getHelperForLanguage: function(language) null,
   getInterfaces: function(count) {
-    var interfaces = [AUS_Ci.nsISupports];
+    var interfaces = [AUS_Ci.nsIXMLHttpRequest, AUS_Ci.nsIJSXMLHttpRequest,
+                      AUS_Ci.nsIXMLHttpRequestEventTarget];
     count.value = interfaces.length;
     return interfaces;
   },
@@ -1024,12 +664,14 @@ xhr.prototype = {
     throw AUS_Cr.NS_ERROR_NO_AGGREGATION;
   },
   QueryInterface: function(aIID) {
-    if (aIID.equals(AUS_Ci.nsIClassInfo) ||
+    if (aIID.equals(AUS_Ci.nsIXMLHttpRequest) ||
+        aIID.equals(AUS_Ci.nsIJSXMLHttpRequest) ||
+        aIID.equals(AUS_Ci.nsIXMLHttpRequestEventTarget) ||
+        aIID.equals(AUS_Ci.nsIClassInfo) ||
         aIID.equals(AUS_Ci.nsISupports))
       return gXHR;
     throw AUS_Cr.NS_ERROR_NO_INTERFACE;
-  },
-  get wrappedJSObject() { return this; }
+  }
 };
 
 /* Update check listener */

@@ -167,10 +167,8 @@ public:
     };
 
     int BeginDrawing();
-    jobject GetSoftwareDrawBitmap();
     jobject GetSoftwareDrawBuffer();
     void EndDrawing();
-    void Draw2D(jobject bitmap, int width, int height);
     void Draw2D(jobject buffer, int stride);
 
     // must have a JNI local frame when calling this,
@@ -181,9 +179,7 @@ protected:
     static jclass jGeckoSurfaceViewClass;
     static jmethodID jBeginDrawingMethod;
     static jmethodID jEndDrawingMethod;
-    static jmethodID jDraw2DBitmapMethod;
-    static jmethodID jDraw2DBufferMethod;
-    static jmethodID jGetSoftwareDrawBitmapMethod;
+    static jmethodID jDraw2DMethod;
     static jmethodID jGetSoftwareDrawBufferMethod;
     static jmethodID jGetHolderMethod;
 };
@@ -396,12 +392,9 @@ public:
     int64_t Time() { return mTime; }
     const nsIntPoint& P0() { return mP0; }
     const nsIntPoint& P1() { return mP1; }
-    double Alpha() { return mAlpha; }
-    double Beta() { return mBeta; }
-    double Gamma() { return mGamma; }
-    double X() { return mX; }
-    double Y() { return mY; }
-    double Z() { return mZ; }
+    float X() { return mX; }
+    float Y() { return mY; }
+    float Z() { return mZ; }
     const nsIntRect& Rect() { return mRect; }
     nsAString& Characters() { return mCharacters; }
     int KeyCode() { return mKeyCode; }
@@ -429,8 +422,7 @@ protected:
     int mOffset, mCount;
     int mRangeType, mRangeStyles;
     int mRangeForeColor, mRangeBackColor;
-    double mAlpha, mBeta, mGamma;
-    double mX, mY, mZ;
+    float mX, mY, mZ;
     nsString mCharacters;
     nsRefPtr<nsGeoPosition> mGeoPosition;
     nsRefPtr<nsGeoPositionAddress> mGeoAddress;
@@ -446,9 +438,6 @@ protected:
     static jfieldID jTimeField;
     static jfieldID jP0Field;
     static jfieldID jP1Field;
-    static jfieldID jAlphaField;
-    static jfieldID jBetaField;
-    static jfieldID jGammaField;
     static jfieldID jXField;
     static jfieldID jYField;
     static jfieldID jZField;
@@ -474,19 +463,18 @@ public:
         NATIVE_POKE = 0,
         KEY_EVENT = 1,
         MOTION_EVENT = 2,
-        ORIENTATION_EVENT = 3,
-        ACCELERATION_EVENT = 4,
-        LOCATION_EVENT = 5,
-        IME_EVENT = 6,
-        DRAW = 7,
-        SIZE_CHANGED = 8,
-        ACTIVITY_STOPPING = 9,
-        ACTIVITY_PAUSING = 10,
-        ACTIVITY_SHUTDOWN = 11,
-        LOAD_URI = 12,
-        SURFACE_CREATED = 13,
-        SURFACE_DESTROYED = 14,
-        GECKO_EVENT_SYNC = 15,
+        SENSOR_EVENT = 3,
+        LOCATION_EVENT = 4,
+        IME_EVENT = 5,
+        DRAW = 6,
+        SIZE_CHANGED = 7,
+        ACTIVITY_STOPPING = 8,
+        ACTIVITY_PAUSING = 9,
+        ACTIVITY_SHUTDOWN = 10,
+        LOAD_URI = 11,
+        SURFACE_CREATED = 12,
+        SURFACE_DESTROYED = 13,
+        GECKO_EVENT_SYNC = 14,
         dummy_java_enum_list_end
     };
 

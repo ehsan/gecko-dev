@@ -43,9 +43,9 @@
 #include "nsITransferable.h"
 #include "nsISupportsArray.h"
 #include "nsIDOMDocument.h"
-#include "nsIDOMDataTransfer.h"
 #include "nsCOMPtr.h"
-#include "nsPoint.h"
+#include "nsIRenderingContext.h"
+#include "nsIDOMDataTransfer.h"
 
 #include "gfxImageSurface.h"
 

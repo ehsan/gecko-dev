@@ -36,11 +36,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsDOMUIEvent_h
-#define nsDOMUIEvent_h
+#ifndef nsDOMUIEvent_h__
+#define nsDOMUIEvent_h__
 
 #include "nsIDOMUIEvent.h"
 #include "nsIDOMNSUIEvent.h"
+#include "nsIDOMAbstractView.h"
 #include "nsDOMEvent.h"
 
 class nsDOMUIEvent : public nsDOMEvent,
@@ -61,8 +62,10 @@ public:
 
   // nsIPrivateDOMEvent interface
   NS_IMETHOD DuplicatePrivateData();
+#ifdef MOZ_IPC
   virtual void Serialize(IPC::Message* aMsg, PRBool aSerializeInterfaceType);
   virtual PRBool Deserialize(const IPC::Message* aMsg, void** aIter);
+#endif
   
   // Forward to nsDOMEvent
   NS_FORWARD_TO_NSDOMEVENT
@@ -77,7 +80,7 @@ protected:
   nsIntPoint GetPagePoint();
   
 protected:
-  nsCOMPtr<nsIDOMWindow> mView;
+  nsCOMPtr<nsIDOMAbstractView> mView;
   PRInt32 mDetail;
   nsIntPoint mClientPoint;
   // Screenpoint is mEvent->refPoint.
@@ -89,4 +92,4 @@ protected:
   NS_FORWARD_NSIDOMUIEVENT(nsDOMUIEvent::) \
   NS_FORWARD_TO_NSDOMEVENT
 
-#endif // nsDOMUIEvent_h
+#endif // nsDOMUIEvent_h__

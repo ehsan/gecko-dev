@@ -45,9 +45,6 @@
 var body = "This frame was navigated.";
 var target_url = "data:text/html,<html><body>" + body + "</body></html>";
 
-var popup_body = "This is a popup";
-var target_popup_url = "data:text/html,<html><body>" + popup_body + "</body></html>";
-
 ///////////////////////////////////////////////////////////////////////////
 // Functions that navigate frames
 ///////////////////////////////////////////////////////////////////////////
@@ -192,7 +189,7 @@ function xpcWaitForFinishedFrames(callback, numFrames) {
 
     if (finishedFrameCount == numFrames) {
       clearInterval(frameWaitInterval);
-      setTimeout(callback, 0);
+      setTimeout(callback, 1);
       return;
     }
 
@@ -211,12 +208,10 @@ function xpcWaitForFinishedFrames(callback, numFrames) {
   }
 
   function searchForFinishedFrames(win) {
-    if ((escape(unescape(win.location)) == escape(target_url) ||
-         escape(unescape(win.location)) == escape(target_popup_url)) && 
+    if (escape(unescape(win.location)) == escape(target_url) && 
         win.document && 
         win.document.body && 
-        (win.document.body.textContent == body ||
-         win.document.body.textContent == popup_body) && 
+        win.document.body.textContent == body && 
         win.document.readyState == "complete") {
       if (!contains(win, finishedWindows)) {
         finishedWindows.push(win);

@@ -58,6 +58,9 @@
 /******************************************************************************
  *  nsDiskCacheInputStream
  *****************************************************************************/
+#ifdef XP_MAC
+#pragma mark nsDiskCacheInputStream
+#endif
 class nsDiskCacheInputStream : public nsIInputStream {
 
 public:
@@ -145,9 +148,6 @@ nsDiskCacheInputStream::Read(char * buffer, PRUint32 count, PRUint32 * bytesRead
     if (mPos == mStreamEnd)  return NS_OK;
     if (mPos > mStreamEnd)   return NS_ERROR_UNEXPECTED;
     
-    if (count > mStreamEnd - mPos)
-        count = mStreamEnd - mPos;
-
     if (mFD) {
         // just read from file
         PRInt32  result = PR_Read(mFD, buffer, count);
@@ -158,6 +158,9 @@ nsDiskCacheInputStream::Read(char * buffer, PRUint32 count, PRUint32 * bytesRead
         
     } else if (mBuffer) {
         // read data from mBuffer
+        if (count > mStreamEnd - mPos)
+            count = mStreamEnd - mPos;
+    
         memcpy(buffer, mBuffer + mPos, count);
         mPos += count;
         *bytesRead = count;
@@ -190,6 +193,10 @@ nsDiskCacheInputStream::IsNonBlocking(PRBool * nonBlocking)
 /******************************************************************************
  *  nsDiskCacheOutputStream
  *****************************************************************************/
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark nsDiskCacheOutputStream
+#endif
 class nsDiskCacheOutputStream : public nsIOutputStream
                               , public nsIDiskCacheStreamInternal
 {
@@ -298,6 +305,11 @@ nsDiskCacheOutputStream::IsNonBlocking(PRBool * nonBlocking)
 /******************************************************************************
  *  nsDiskCacheStreamIO
  *****************************************************************************/
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark nsDiskCacheStreamIO
+#endif
+
 NS_IMPL_THREADSAFE_ISUPPORTS0(nsDiskCacheStreamIO)
 
 // we pick 16k as the max buffer size because that is the threshold above which
@@ -484,13 +496,8 @@ nsDiskCacheStreamIO::Flush()
     CACHE_LOG_DEBUG(("CACHE: Flush [%x doomed=%u]\n",
         mBinding->mRecord.HashNumber(), mBinding->mDoomed));
 
-    if (!mBufDirty) {
-        if (mFD) {
-            (void) PR_Close(mFD);
-            mFD = nsnull;
-        }
+    if (!mBufDirty)
         return NS_OK;
-    }
 
     // write data to cache blocks, or flush mBuffer to file
     nsDiskCacheMap *cacheMap = mDevice->CacheMap();  // get map reference
@@ -655,12 +662,8 @@ nsDiskCacheStreamIO::UpdateFileSize()
     
     nsDiskCacheRecord * record = &mBinding->mRecord;
     const PRUint32      oldSizeK  = record->DataFileSize();
-    PRUint32            newSizeK  = (mStreamEnd + 0x03FF) >> 10;
-
-    // make sure the size won't overflow (bug #651100)
-    if (newSizeK > kMaxDataSizeK)
-        newSizeK = kMaxDataSizeK;
-
+    const PRUint32      newSizeK  = (mStreamEnd + 0x03FF) >> 10;
+    
     if (newSizeK == oldSizeK)  return;
     
     record->SetDataFileSize(newSizeK);
@@ -755,8 +758,11 @@ nsDiskCacheStreamIO::FlushBufferToFile()
         if (NS_FAILED(rv))  return rv;
 
         PRInt64 dataSize = mBinding->mCacheEntry->PredictedDataSize();
+// Appears to cause bug 617123?  Disabled for now.
+#if 0
         if (dataSize != -1)
-            mozilla::fallocate(mFD, NS_MIN<PRInt64>(dataSize, kPreallocateLimit));
+            mozilla::fallocate(mFD, PR_MIN(dataSize, kPreallocateLimit));
+#endif
     }
     
     // write buffer

@@ -50,8 +50,10 @@ class nsXFormsLabelAccessible : public nsXFormsAccessible
 public:
   nsXFormsLabelAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
+  // nsIAccessible
+  NS_IMETHOD GetDescription(nsAString& aDescription);
+
   // nsAccessible
-  virtual void Description(nsString& aDescription);
   virtual nsresult GetNameInternal(nsAString& aName);
   virtual PRUint32 NativeRole();
 };
@@ -81,14 +83,12 @@ public:
   // nsIAccessible
   NS_IMETHOD GetValue(nsAString& aValue);
 
+  NS_IMETHOD GetNumActions(PRUint8 *aCount);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 aIndex);
 
   // nsAccessible
   virtual PRUint32 NativeRole();
-
-  // ActionAccessible
-  virtual PRUint8 ActionCount();
 };
 
 /**
@@ -103,14 +103,12 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIAccessible
+  NS_IMETHOD GetNumActions(PRUint8 *aCount);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 aIndex);
 
   // nsAccessible
   virtual PRUint32 NativeRole();
-
-  // ActionAccessible
-  virtual PRUint8 ActionCount();
 };
 
 /**
@@ -123,15 +121,13 @@ public:
   nsXFormsInputBooleanAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsIAccessible
+  NS_IMETHOD GetNumActions(PRUint8 *aCount);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 aIndex);
 
   // nsAccessible
   virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
-
-  // ActionAccessible
-  virtual PRUint8 ActionCount();
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
 /**
@@ -161,7 +157,7 @@ public:
 
   // nsAccessible
   virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
 
@@ -182,7 +178,7 @@ public:
 
   // nsAccessible
   virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
 
@@ -197,7 +193,7 @@ public:
   nsXFormsSelectAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
-  virtual PRUint64 NativeState();
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
 
@@ -258,7 +254,7 @@ public:
 
   // nsAccessible
   virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
 
@@ -279,7 +275,7 @@ public:
 
   // nsAccessible
   virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
 
@@ -296,7 +292,7 @@ public:
 
   // nsAccessible
   virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
   virtual PRBool GetAllowsAnonChildAccessibles();
 };
 
@@ -318,7 +314,7 @@ public:
 
   // nsAccessible
   virtual PRUint32 NativeRole();
-  virtual PRUint64 NativeState();
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
 #endif

@@ -251,11 +251,9 @@ function setupDisplayport(contentRootElement) {
     // XXX support displayPortX/Y when needed
     var dpw = attrOrDefault("reftest-displayport-w", 0);
     var dph = attrOrDefault("reftest-displayport-h", 0);
-    var dpx = attrOrDefault("reftest-displayport-x", 0);
-    var dpy = attrOrDefault("reftest-displayport-y", 0);
     if (dpw !== 0 || dph !== 0) {
-        LogInfo("Setting displayport to <x="+ dpx +", y="+ dpy +", w="+ dpw +", h="+ dph +">");
-        windowUtils().setDisplayPortForElement(dpx, dpy, dpw, dph, content.document.documentElement);
+        LogInfo("Setting displayport to <x=0, y=0, w="+ dpw +", h="+ dph +">");
+        windowUtils().setDisplayPortForElement(0, 0, dpw, dph, content.document.documentElement);
     }
 
     // XXX support resolution when needed
@@ -464,7 +462,6 @@ function WaitForTestEnd(contentRootElement, inPrintMode) {
             state = STATE_COMPLETED;
             gFailureReason = "timed out while taking snapshot (bug in harness?)";
             RemoveListeners();
-            CheckForProcessCrashExpectation();
             setTimeout(RecordResult, 0);
             return;
         }
@@ -528,7 +525,6 @@ function OnDocumentLoad(event)
             // Go into reftest-wait mode belatedly.
             WaitForTestEnd(contentRootElement, inPrintMode);
         } else {
-            CheckForProcessCrashExpectation();
             RecordResult();
         }
     }
@@ -554,17 +550,6 @@ function OnDocumentLoad(event)
         gFailureReason = "timed out waiting for test to complete (waiting for onload scripts to complete)";
         LogInfo("OnDocumentLoad triggering AfterOnLoadScripts");
         setTimeout(function () { setTimeout(AfterOnLoadScripts, 0); }, 0);
-    }
-}
-
-function CheckForProcessCrashExpectation()
-{
-    var contentRootElement = content.document.documentElement;
-    if (contentRootElement &&
-        contentRootElement.hasAttribute('class') &&
-        contentRootElement.getAttribute('class').split(/\s+/)
-                          .indexOf("reftest-expect-process-crash") != -1) {
-        SendExpectProcessCrash();
     }
 }
 
@@ -777,14 +762,9 @@ function SendInitCanvasWithSnapshot()
 }
 
 function SendScriptResults(runtimeMs, error, results)
-{
+ {
     sendAsyncMessage("reftest:ScriptResults",
                      { runtimeMs: runtimeMs, error: error, results: results });
-}
-
-function SendExpectProcessCrash(runtimeMs)
-{
-    sendAsyncMessage("reftest:ExpectProcessCrash");
 }
 
 function SendTestDone(runtimeMs)

@@ -60,7 +60,7 @@
 #include "nsDataHashtable.h"
 #include "imgIRequest.h"
 #include "imgIDecoderObserver.h"
-#include "nsScrollbarFrame.h"
+#include "nsIScrollbarFrame.h"
 #include "nsThreadUtils.h"
 
 class nsOverflowChecker;
@@ -146,8 +146,8 @@ public:
   virtual PRBool PseudoMatches(nsCSSSelector* aSelector);
 
   // nsIScrollbarMediator
-  NS_IMETHOD PositionChanged(nsScrollbarFrame* aScrollbar, PRInt32 aOldIndex, PRInt32& aNewIndex);
-  NS_IMETHOD ScrollbarButtonPressed(nsScrollbarFrame* aScrollbar, PRInt32 aOldIndex, PRInt32 aNewIndex);
+  NS_IMETHOD PositionChanged(nsIScrollbarFrame* aScrollbar, PRInt32 aOldIndex, PRInt32& aNewIndex);
+  NS_IMETHOD ScrollbarButtonPressed(nsIScrollbarFrame* aScrollbar, PRInt32 aOldIndex, PRInt32 aNewIndex);
   NS_IMETHOD VisibilityChanged(PRBool aVisible) { Invalidate(); return NS_OK; }
 
   // Overridden from nsIFrame to cache our pres context.
@@ -173,15 +173,15 @@ public:
   friend class nsTreeColumn;
 
   struct ScrollParts {
-    nsScrollbarFrame*    mVScrollbar;
+    nsIScrollbarFrame*   mVScrollbar;
     nsCOMPtr<nsIContent> mVScrollbarContent;
-    nsScrollbarFrame*    mHScrollbar;
+    nsIScrollbarFrame*   mHScrollbar;
     nsCOMPtr<nsIContent> mHScrollbarContent;
     nsIFrame*            mColumnsFrame;
     nsIScrollableFrame*  mColumnsScrollFrame;
   };
 
-  void PaintTreeBody(nsRenderingContext& aRenderingContext,
+  void PaintTreeBody(nsIRenderingContext& aRenderingContext,
                      const nsRect& aDirtyRect, nsPoint aPt);
 
   nsITreeBoxObject* GetTreeBoxObject() const { return mTreeBoxObject; }
@@ -196,14 +196,14 @@ protected:
   void PaintColumn(nsTreeColumn*        aColumn,
                    const nsRect&        aColumnRect,
                    nsPresContext*      aPresContext,
-                   nsRenderingContext& aRenderingContext,
+                   nsIRenderingContext& aRenderingContext,
                    const nsRect&        aDirtyRect);
 
   // This method paints a single row in the tree.
   void PaintRow(PRInt32              aRowIndex,
                 const nsRect&        aRowRect,
                 nsPresContext*       aPresContext,
-                nsRenderingContext& aRenderingContext,
+                nsIRenderingContext& aRenderingContext,
                 const nsRect&        aDirtyRect,
                 nsPoint              aPt);
 
@@ -211,7 +211,7 @@ protected:
   void PaintSeparator(PRInt32              aRowIndex,
                       const nsRect&        aSeparatorRect,
                       nsPresContext*      aPresContext,
-                      nsRenderingContext& aRenderingContext,
+                      nsIRenderingContext& aRenderingContext,
                       const nsRect&        aDirtyRect);
 
   // This method paints a specific cell in a given row of the tree.
@@ -219,7 +219,7 @@ protected:
                  nsTreeColumn*        aColumn,
                  const nsRect&        aCellRect,
                  nsPresContext*       aPresContext,
-                 nsRenderingContext& aRenderingContext,
+                 nsIRenderingContext& aRenderingContext,
                  const nsRect&        aDirtyRect,
                  nscoord&             aCurrX,
                  nsPoint              aPt);
@@ -229,7 +229,7 @@ protected:
                    nsTreeColumn*        aColumn,
                    const nsRect&        aTwistyRect,
                    nsPresContext*      aPresContext,
-                   nsRenderingContext& aRenderingContext,
+                   nsIRenderingContext& aRenderingContext,
                    const nsRect&        aDirtyRect,
                    nscoord&             aRemainingWidth,
                    nscoord&             aCurrX);
@@ -239,7 +239,7 @@ protected:
                   nsTreeColumn*        aColumn,
                   const nsRect&        aImageRect,
                   nsPresContext*      aPresContext,
-                  nsRenderingContext& aRenderingContext,
+                  nsIRenderingContext& aRenderingContext,
                   const nsRect&        aDirtyRect,
                   nscoord&             aRemainingWidth,
                   nscoord&             aCurrX);
@@ -249,7 +249,7 @@ protected:
                  nsTreeColumn*        aColumn,
                  const nsRect&        aTextRect,
                  nsPresContext*      aPresContext,
-                 nsRenderingContext& aRenderingContext,
+                 nsIRenderingContext& aRenderingContext,
                  const nsRect&        aDirtyRect,
                  nscoord&             aCurrX,
                  PRBool               aTextRTL);
@@ -259,7 +259,7 @@ protected:
                      nsTreeColumn*        aColumn,
                      const nsRect&        aCheckboxRect,
                      nsPresContext*      aPresContext,
-                     nsRenderingContext& aRenderingContext,
+                     nsIRenderingContext& aRenderingContext,
                      const nsRect&        aDirtyRect);
 
   // This method paints the progress meter inside a particular cell of the tree.
@@ -267,13 +267,13 @@ protected:
                           nsTreeColumn*        aColumn,
                           const nsRect&        aProgressMeterRect,
                           nsPresContext*      aPresContext,
-                          nsRenderingContext& aRenderingContext,
+                          nsIRenderingContext& aRenderingContext,
                           const nsRect&        aDirtyRect);
 
   // This method paints a drop feedback of the tree.
   void PaintDropFeedback(const nsRect&        aDropFeedbackRect, 
                          nsPresContext*      aPresContext,
-                         nsRenderingContext& aRenderingContext,
+                         nsIRenderingContext& aRenderingContext,
                          const nsRect&        aDirtyRect,
                          nsPoint              aPt);
 
@@ -281,7 +281,7 @@ protected:
   // paint the background rect as if it were a full-blown frame.
   void PaintBackgroundLayer(nsStyleContext*      aStyleContext,
                             nsPresContext*      aPresContext, 
-                            nsRenderingContext& aRenderingContext, 
+                            nsIRenderingContext& aRenderingContext, 
                             const nsRect&        aRect,
                             const nsRect&        aDirtyRect);
 
@@ -300,7 +300,7 @@ protected:
 
   void AdjustForCellText(nsAutoString& aText,
                          PRInt32 aRowIndex,  nsTreeColumn* aColumn,
-                         nsRenderingContext& aRenderingContext,
+                         nsIRenderingContext& aRenderingContext,
                          nsRect& aTextRect);
 
   // A helper used when hit testing.
@@ -318,7 +318,7 @@ protected:
                           nsRect& aImageRect,
                           nsRect& aTwistyRect,
                           nsPresContext* aPresContext,
-                          nsRenderingContext& aRenderingContext,
+                          nsIRenderingContext& aRenderingContext,
                           nsStyleContext* aTwistyContext);
 
   // Fetch an image from the image cache.
@@ -382,9 +382,12 @@ protected:
   nsresult ScrollToColumnInternal(const ScrollParts& aParts, nsITreeColumn* aCol);
   nsresult ScrollHorzInternal(const ScrollParts& aParts, PRInt32 aPosition);
   nsresult EnsureRowIsVisibleInternal(const ScrollParts& aParts, PRInt32 aRow);
-
+  
   // Convert client pixels into appunits in our coordinate space.
   nsPoint AdjustClientCoordsToBoxCoordSpace(PRInt32 aX, PRInt32 aY);
+
+  // Convert a border style into line style.
+  nsLineStyle ConvertBorderStyleToLineStyle(PRUint8 aBorderStyle);
 
   // Cache the box object
   void EnsureBoxObject();
@@ -395,7 +398,7 @@ protected:
   nsIContent* GetBaseElement();
 
   nsresult GetCellWidth(PRInt32 aRow, nsTreeColumn* aCol,
-                        nsRenderingContext* aRenderingContext,
+                        nsIRenderingContext* aRenderingContext,
                         nscoord& aDesiredSize, nscoord& aCurrentSize);
   nscoord CalcMaxRowWidth();
 

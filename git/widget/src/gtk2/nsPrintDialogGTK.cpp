@@ -41,6 +41,7 @@
 #include <stdlib.h>
 
 #include "mozcontainer.h"
+#include "nsAccessibilityHelper.h"
 #include "nsIPrintSettings.h"
 #include "nsIWidget.h"
 #include "nsPrintDialogGTK.h"
@@ -141,7 +142,7 @@ ShowCustomDialog(GtkComboBox *changed_box, gpointer user_data)
   gtk_widget_show_all(custom_hbox);
 
   gtk_box_pack_start(GTK_BOX(GTK_DIALOG(prompt_dialog)->vbox), custom_hbox, FALSE, FALSE, 0);
-  gint diag_response = gtk_dialog_run(GTK_DIALOG(prompt_dialog));
+  gint diag_response = RunDialog(GTK_DIALOG(prompt_dialog));
 
   if (diag_response == GTK_RESPONSE_ACCEPT) {
     const gchar* response_text = gtk_entry_get_text(GTK_ENTRY(custom_entry));
@@ -271,7 +272,7 @@ nsPrintDialogWidgetGTK::nsPrintDialogWidgetGTK(nsIDOMWindow *aParent, nsIPrintSe
   if (gtk_major_version > 2 ||
       (gtk_major_version == 2 && gtk_minor_version >= 18)) {
     useNativeSelection = PR_TRUE;
-    g_object_set(dialog,
+    g_object_set(G_OBJECT(dialog),
                  "support-selection", TRUE,
                  "has-selection", canSelectText,
                  "embed-page-setup", TRUE,
@@ -391,7 +392,7 @@ nsPrintDialogWidgetGTK::OptionWidgetToString(GtkWidget *dropdown)
 const gint
 nsPrintDialogWidgetGTK::Run()
 {
-  const gint response = gtk_dialog_run(GTK_DIALOG(dialog));
+  const gint response = RunDialog(GTK_DIALOG(dialog));
   gtk_widget_hide(dialog);
   return response;
 }

@@ -1,4 +1,3 @@
-/* -*- Mode: JavaScript; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -24,7 +23,6 @@
  *  Boris Zbarsky <bzbarsky@mit.edu>
  *  Jeff Walden <jwalden+code@mit.edu>
  *  Serge Gautherie <sgautherie.bz@free.fr>
- *  Kyle Huey <me@kylehuey.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -50,16 +48,14 @@ var _quit = false;
 var _passed = true;
 var _tests_pending = 0;
 var _passedChecks = 0, _falsePassedChecks = 0;
-var _todoChecks = 0;
 var _cleanupFunctions = [];
 var _pendingTimers = [];
 
 function _dump(str) {
-  let start = /^TEST-/.test(str) ? "\n" : "";
   if (typeof _XPCSHELL_PROCESS == "undefined") {
-    dump(start + str);
+    dump(str);
   } else {
-    dump(start + _XPCSHELL_PROCESS + ": " + str);
+    dump(_XPCSHELL_PROCESS + ": " + str);
   }
 }
 
@@ -363,8 +359,6 @@ function _execute_test() {
   if (truePassedChecks > 0) {
     _dump("TEST-PASS | (xpcshell/head.js) | " + truePassedChecks + " (+ " +
             _falsePassedChecks + ") check(s) passed\n");
-    _dump("TEST-INFO | (xpcshell/head.js) | " + _todoChecks +
-            " check(s) todo\n");
   } else {
     // ToDo: switch to TEST-UNEXPECTED-FAIL when all tests have been updated. (Bug 496443)
     _dump("TEST-INFO | (xpcshell/head.js) | No (+ " + _falsePassedChecks + ") checks actually run\n");
@@ -417,7 +411,7 @@ function do_execute_soon(callback) {
         // possible that this will mask an NS_ERROR_ABORT that happens after a
         // do_check failure though.
         if (!_quit || e != Components.results.NS_ERROR_ABORT) {
-          _dump("TEST-UNEXPECTED-FAIL | (xpcshell/head.js) | " + e);
+          dump("TEST-UNEXPECTED-FAIL | (xpcshell/head.js) | " + e);
           if (e.stack) {
             dump(" - See following stack:\n");
             _dump_exception_stack(e.stack);
@@ -441,24 +435,7 @@ function do_throw(text, stack) {
 
   _passed = false;
   _dump("TEST-UNEXPECTED-FAIL | " + stack.filename + " | " + text +
-        " - See following stack:\n");
-  var frame = Components.stack;
-  while (frame != null) {
-    _dump(frame + "\n");
-    frame = frame.caller;
-  }
-
-  _do_quit();
-  throw Components.results.NS_ERROR_ABORT;
-}
-
-function do_throw_todo(text, stack) {
-  if (!stack)
-    stack = Components.stack.caller;
-
-  _passed = false;
-  _dump("TEST-UNEXPECTED-PASS | " + stack.filename + " | " + text +
-        " - See following stack:\n");
+         " - See following stack:\n");
   var frame = Components.stack;
   while (frame != null) {
     _dump(frame + "\n");
@@ -474,9 +451,9 @@ function do_report_unexpected_exception(ex, text) {
   text = text ? text + " - " : "";
 
   _passed = false;
-  _dump("TEST-UNEXPECTED-FAIL | " + caller_stack.filename + " | " + text +
-        "Unexpected exception " + ex + ", see following stack:\n" + ex.stack +
-        "\n");
+  dump("TEST-UNEXPECTED-FAIL | " + caller_stack.filename + " | " + text +
+         "Unexpected exception " + ex + ", see following stack:\n" + ex.stack +
+         "\n");
 
   _do_quit();
   throw Components.results.NS_ERROR_ABORT;
@@ -486,70 +463,22 @@ function do_note_exception(ex, text) {
   var caller_stack = Components.stack.caller;
   text = text ? text + " - " : "";
 
-  _dump("TEST-INFO | " + caller_stack.filename + " | " + text +
-        "Swallowed exception " + ex + ", see following stack:\n" + ex.stack +
-        "\n");
-}
-
-function _do_check_neq(left, right, stack, todo) {
-  if (!stack)
-    stack = Components.stack.caller;
-
-  var text = left + " != " + right;
-  if (left == right) {
-    if (!todo) {
-      do_throw(text, stack);
-    } else {
-      ++_todoChecks;
-      _dump("TEST-KNOWN-FAIL | " + stack.filename + " | [" + stack.name +
-            " : " + stack.lineNumber + "] " + text +"\n");
-    }
-  } else {
-    if (!todo) {
-      ++_passedChecks;
-      _dump("TEST-PASS | " + stack.filename + " | [" + stack.name + " : " +
-            stack.lineNumber + "] " + text + "\n");
-    } else {
-      do_throw_todo(text, stack);
-    }
-  }
+  dump("TEST-INFO | " + caller_stack.filename + " | " + text +
+         "Swallowed exception " + ex + ", see following stack:\n" + ex.stack +
+         "\n");
 }
 
 function do_check_neq(left, right, stack) {
   if (!stack)
     stack = Components.stack.caller;
 
-  _do_check_neq(left, right, stack, false);
-}
-
-function todo_check_neq(left, right, stack) {
-  if (!stack)
-      stack = Components.stack.caller;
-
-  _do_check_neq(left, right, stack, true);
-}
-
-function _do_check_eq(left, right, stack, todo) {
-  if (!stack)
-    stack = Components.stack.caller;
-
-  var text = left + " == " + right;
-  if (left != right) {
-    if (!todo) {
-      do_throw(text, stack);
-    } else {
-      ++_todoChecks;
-      _dump("TEST-KNOWN-FAIL | " + stack.filename + " | [" + stack.name +
-            " : " + stack.lineNumber + "] " + text +"\n");
-    }
+  var text = left + " != " + right;
+  if (left == right) {
+    do_throw(text, stack);
   } else {
-    if (!todo) {
-      ++_passedChecks;
-      _dump("TEST-PASS | " + stack.filename + " | [" + stack.name + " : " +
-            stack.lineNumber + "] " + text + "\n");
-    } else {
-      do_throw_todo(text, stack);
-    }
+    ++_passedChecks;
+    _dump("TEST-PASS | " + stack.filename + " | [" + stack.name + " : " +
+         stack.lineNumber + "] " + text + "\n");
   }
 }
 
@@ -557,14 +486,14 @@ function do_check_eq(left, right, stack) {
   if (!stack)
     stack = Components.stack.caller;
 
-  _do_check_eq(left, right, stack, false);
-}
-
-function todo_check_eq(left, right, stack) {
-  if (!stack)
-      stack = Components.stack.caller;
-
-  _do_check_eq(left, right, stack, true);
+  var text = left + " == " + right;
+  if (left != right) {
+    do_throw(text, stack);
+  } else {
+    ++_passedChecks;
+    _dump("TEST-PASS | " + stack.filename + " | [" + stack.name + " : " +
+         stack.lineNumber + "] " + text + "\n");
+  }
 }
 
 function do_check_true(condition, stack) {
@@ -574,25 +503,11 @@ function do_check_true(condition, stack) {
   do_check_eq(condition, true, stack);
 }
 
-function todo_check_true(condition, stack) {
-  if (!stack)
-    stack = Components.stack.caller;
-
-  todo_check_eq(condition, true, stack);
-}
-
 function do_check_false(condition, stack) {
   if (!stack)
     stack = Components.stack.caller;
 
   do_check_eq(condition, false, stack);
-}
-
-function todo_check_false(condition, stack) {
-  if (!stack)
-    stack = Components.stack.caller;
-
-  todo_check_eq(condition, false, stack);
 }
 
 function do_test_pending() {
@@ -631,8 +546,8 @@ function do_get_file(path, allowNonexistent) {
       _passed = false;
       var stack = Components.stack.caller;
       _dump("TEST-UNEXPECTED-FAIL | " + stack.filename + " | [" +
-            stack.name + " : " + stack.lineNumber + "] " + lf.path +
-            " does not exist\n");
+             stack.name + " : " + stack.lineNumber + "] " + lf.path +
+             " does not exist\n");
     }
 
     return lf;
@@ -830,54 +745,3 @@ function run_test_in_child(testFile, optionalCallback)
               callback);
 }
 
-
-/**
- * Add a test function to the list of tests that are to be run asynchronously.
- *
- * Each test function must call run_next_test() when it's done. Test files
- * should call run_next_test() in their run_test function to execute all
- * async tests.
- *
- * @return the test function that was passed in.
- */
-let gTests = [];
-function add_test(func) {
-  gTests.push(func);
-  return func;
-}
-
-/**
- * Runs the next test function from the list of async tests.
- */
-let gRunningTest = null;
-let gTestIndex = 0; // The index of the currently running test.
-function run_next_test()
-{
-  function _run_next_test()
-  {
-    if (gTestIndex < gTests.length) {
-      do_test_pending();
-      gRunningTest = gTests[gTestIndex++];
-      print("TEST-INFO | " + _TEST_FILE + " | Starting " +
-            gRunningTest.name);
-      // Exceptions do not kill asynchronous tests, so they'll time out.
-      try {
-        gRunningTest();
-      }
-      catch (e) {
-        do_throw(e);
-      }
-    }
-  }
-
-  // For sane stacks during failures, we execute this code soon, but not now.
-  // We do this now, before we call do_test_finished(), to ensure the pending
-  // counter (_tests_pending) never reaches 0 while we still have tests to run
-  // (do_execute_soon bumps that counter).
-  do_execute_soon(_run_next_test);
-
-  if (gRunningTest !== null) {
-    // Close the previous test do_test_pending call.
-    do_test_finished();
-  }
-}
