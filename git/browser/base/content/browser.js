@@ -1252,10 +1252,6 @@ var gBrowserInit = {
       Cu.reportError("Could not end startup crash tracking: " + ex);
     }
 
-    Services.obs.notifyObservers(window, "browser-delayed-startup-finished", "");
-    setTimeout(function () { BrowserChromeTest.markAsReady(); }, 0);
-    TelemetryTimestamps.add("delayedStartupFinished");
-
 #ifdef XP_WIN
 #ifdef MOZ_METRO
     gMetroPrefs.prefDomain.forEach(function(prefName) {
@@ -1264,6 +1260,10 @@ var gBrowserInit = {
     }, this);
 #endif
 #endif
+
+    Services.obs.notifyObservers(window, "browser-delayed-startup-finished", "");
+    setTimeout(function () { BrowserChromeTest.markAsReady(); }, 0);
+    TelemetryTimestamps.add("delayedStartupFinished");
   },
 
   onUnload: function() {
@@ -4694,7 +4694,8 @@ function fireSidebarFocusedEvent() {
  */
 var gMetroPrefs = {
   prefDomain: ["app.update.auto", "app.update.enabled",
-               "app.update.service.enabled"],
+               "app.update.service.enabled",
+               "app.update.metro.enabled"],
   observe: function (aSubject, aTopic, aPrefName)
   {
     if (aTopic != "nsPref:changed")
@@ -5484,25 +5485,20 @@ var OfflineApps = {
     if (!aBrowser)
       return;
 
-    var notificationBox = gBrowser.getNotificationBox(aBrowser);
-    var notification = notificationBox.getNotificationWithValue("offline-app-usage");
-    if (!notification) {
-      var buttons = [{
-          label: gNavigatorBundle.getString("offlineApps.manageUsage"),
-          accessKey: gNavigatorBundle.getString("offlineApps.manageUsageAccessKey"),
-          callback: OfflineApps.manage
-        }];
+    let mainAction = {
+      label: gNavigatorBundle.getString("offlineApps.manageUsage"),
+      accessKey: gNavigatorBundle.getString("offlineApps.manageUsageAccessKey"),
+      callback: OfflineApps.manage
+    };
 
-      var warnQuota = gPrefService.getIntPref("offline-apps.quota.warn");
-      const priority = notificationBox.PRIORITY_WARNING_MEDIUM;
-      var message = gNavigatorBundle.getFormattedString("offlineApps.usage",
-                                                        [ aURI.host,
-                                                          warnQuota / 1024 ]);
+    let warnQuota = gPrefService.getIntPref("offline-apps.quota.warn");
+    let message = gNavigatorBundle.getFormattedString("offlineApps.usage",
+                                                      [ aURI.host,
+                                                        warnQuota / 1024 ]);
 
-      notificationBox.appendNotification(message, "offline-app-usage",
-                                         "chrome://browser/skin/Info.png",
-                                         priority, buttons);
-    }
+    let anchorID = "indexedDB-notification-icon";
+    PopupNotifications.show(aBrowser, "offline-app-usage", message,
+                            anchorID, mainAction);
 
     // Now that we've warned once, prevent the warning from showing up
     // again.

@@ -540,20 +540,20 @@ checkReportFlags(JSContext *cx, unsigned *flags)
 {
     if (JSREPORT_IS_STRICT_MODE_ERROR(*flags)) {
         /*
-         * Error in strict code; warning with strict option; okay otherwise.
-         * We assume that if the top frame is a native, then it is strict if
-         * the nearest scripted frame is strict, see bug 536306.
+         * Error in strict code; warning with extra warnings option; okay
+         * otherwise.  We assume that if the top frame is a native, then it is
+         * strict if the nearest scripted frame is strict, see bug 536306.
          */
         JSScript *script = cx->stack.currentScript();
         if (script && script->strict)
             *flags &= ~JSREPORT_WARNING;
-        else if (cx->hasStrictOption())
+        else if (cx->hasExtraWarningsOption())
             *flags |= JSREPORT_WARNING;
         else
             return true;
     } else if (JSREPORT_IS_STRICT(*flags)) {
         /* Warning/error only when JSOPTION_STRICT is set. */
-        if (!cx->hasStrictOption())
+        if (!cx->hasExtraWarningsOption())
             return true;
     }
 
@@ -1262,6 +1262,9 @@ JSContext::saveFrameChain()
         return false;
     }
 
+    if (Activation *act = mainThread().activation())
+        act->saveFrameChain();
+
     if (defaultCompartmentObject_)
         setCompartment(defaultCompartmentObject_->compartment());
     else
@@ -1281,6 +1284,9 @@ JSContext::restoreFrameChain()
     enterCompartmentDepth_ = sfc.enterCompartmentCount;
 
     stack.restoreFrameChain();
+
+    if (Activation *act = mainThread().activation())
+        act->restoreFrameChain();
 
     if (isExceptionPending())
         wrapPendingException();

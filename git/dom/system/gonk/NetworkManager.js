@@ -259,8 +259,8 @@ NetworkManager.prototype = {
         break;
       case TOPIC_INTERFACE_REGISTERED:
         let regNetwork = subject.QueryInterface(Ci.nsINetworkInterface);
-        debug("Network '" + regNetwork.name + "' registered, adding mmsproxy and/or mmsc route");
         if (regNetwork.type == Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_MMS) {
+          debug("Network '" + regNetwork.name + "' registered, adding mmsproxy and/or mmsc route");
 	  let mmsHosts = this.resolveHostname(
 	      [ Services.prefs.getCharPref("ril.mms.mmsproxy"),
                 Services.prefs.getCharPref("ril.mms.mmsc") ]
@@ -270,8 +270,8 @@ NetworkManager.prototype = {
         break;
       case TOPIC_INTERFACE_UNREGISTERED:
         let unregNetwork = subject.QueryInterface(Ci.nsINetworkInterface);
-        debug("Network '" + regNetwork.name + "' unregistered, removing mmsproxy and/or mmsc route");
         if (unregNetwork.type == Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_MMS) {
+          debug("Network '" + unregNetwork.name + "' unregistered, removing mmsproxy and/or mmsc route");
 	  let mmsHosts = this.resolveHostname(
 	      [ Services.prefs.getCharPref("ril.mms.mmsproxy"),
                 Services.prefs.getCharPref("ril.mms.mmsc") ]
@@ -406,31 +406,23 @@ NetworkManager.prototype = {
     this.setAndConfigureActive();
   },
 
-  getNetworkInterfaceStats: function getNetworkInterfaceStats(connectionType, callback) {
-    let iface = this.getNetworkInterface(connectionType);
-
-    if (!iface) {
-      debug("There is no interface registered for network type " + connectionType);
-      return false;
-    }
-
-    debug("getNetworkInterfaceStats for " + iface.name);
+  getNetworkInterfaceStats: function getNetworkInterfaceStats(networkName, callback) {
+    debug("getNetworkInterfaceStats for " + networkName);
 
     let params = {
       cmd: "getNetworkInterfaceStats",
-      ifname: iface.name,
-      connType: connectionType
+      ifname: networkName
     };
 
     params.report = true;
     params.isAsync = true;
 
     this.controlMessage(params, function(result) {
-      let success = result.resultCode >= NETD_COMMAND_OKAY && result.resultCode < NETD_COMMAND_ERROR;
-      callback.networkStatsAvailable(success, result.connType, result.rxBytes, result.txBytes, result.date);
+      let success = result.resultCode >= NETD_COMMAND_OKAY &&
+                    result.resultCode < NETD_COMMAND_ERROR;
+      callback.networkStatsAvailable(success, result.rxBytes,
+                                     result.txBytes, result.date);
     });
-
-    return true;
   },
 
   // Helpers
