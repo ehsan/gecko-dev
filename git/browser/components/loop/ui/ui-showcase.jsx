@@ -93,14 +93,8 @@
       return (
         <ShowCase>
           <Section name="PanelView">
-            <p className="note">
-              <strong>Note:</strong> 332px wide.
-            </p>
-            <Example summary="Pending call url retrieval" dashed="true" style={{width: "332px"}}>
+            <Example summary="332px wide" dashed="true" style={{width: "332px"}}>
               <PanelView />
-            </Example>
-            <Example summary="Call URL retrieved" dashed="true" style={{width: "332px"}}>
-              <PanelView callUrl="http://invalid.example.url/" />
             </Example>
           </Section>
 

@@ -176,7 +176,6 @@ RunSet.runtests = function(e) {
       my_tests[i] = tmp;
     }
   }
-  TestRunner.setParameterInfo(params);
   TestRunner.runTests(my_tests);
 }
 

@@ -32,11 +32,13 @@ function testJSEnabled(event, tool, secondPass) {
   ok(true, "Toolbox selected via selectTool method");
   info("Testing that JS is enabled");
 
+  let logJSEnabled = doc.getElementById("logJSEnabled");
+  let output = doc.getElementById("output");
+
   // We use executeSoon here because switching docSehll.allowJavascript to true
   // takes a while to become live.
   executeSoon(function() {
-    let output = doc.getElementById("output");
-    doc.querySelector("#logJSEnabled").click();
+    EventUtils.synthesizeMouseAtCenter(logJSEnabled, {}, doc.defaultView);
     is(output.textContent, "JavaScript Enabled", 'Output is "JavaScript Enabled"');
     testJSEnabledIframe(secondPass);
   });
@@ -47,10 +49,12 @@ function testJSEnabledIframe(secondPass) {
 
   let iframe = doc.querySelector("iframe");
   let iframeDoc = iframe.contentDocument;
+  let logJSEnabled = iframeDoc.getElementById("logJSEnabled");
   let output = iframeDoc.getElementById("output");
-  iframeDoc.querySelector("#logJSEnabled").click();
+
+  EventUtils.synthesizeMouseAtCenter(logJSEnabled, {}, iframe.contentWindow);
   is(output.textContent, "JavaScript Enabled",
-                          'Output is "JavaScript Enabled" in iframe');
+                         'Output is "JavaScript Enabled" in iframe');
   if (secondPass) {
     finishUp();
   } else {
@@ -71,13 +75,18 @@ function toggleJS() {
     info("Checking checkbox to disable JS");
   }
 
-  gBrowser.selectedBrowser.addEventListener("load", function onLoad(evt) {
-    gBrowser.selectedBrowser.removeEventListener(evt.type, onLoad, true);
-    doc = content.document;
-    deferred.resolve();
-  }, true);
+  // After uising scrollIntoView() we need to use executeSoon() to wait for the
+  // browser to scroll.
+  executeSoon(function() {
+    gBrowser.selectedBrowser.addEventListener("load", function onLoad(evt) {
+      gBrowser.selectedBrowser.removeEventListener(evt.type, onLoad, true);
+      doc = content.document;
 
-  cbx.click();
+      deferred.resolve();
+    }, true);
+
+    EventUtils.synthesizeMouseAtCenter(cbx, {}, panel.panelWin);
+  });
 
   return deferred.promise;
 }
@@ -85,11 +94,13 @@ function toggleJS() {
 function testJSDisabled() {
   info("Testing that JS is disabled");
 
+  let logJSDisabled = doc.getElementById("logJSDisabled");
   let output = doc.getElementById("output");
-  doc.querySelector("#logJSDisabled").click();
 
+  EventUtils.synthesizeMouseAtCenter(logJSDisabled, {}, doc.defaultView);
   ok(output.textContent !== "JavaScript Disabled",
      'output is not "JavaScript Disabled"');
+
   testJSDisabledIframe();
 }
 
@@ -98,8 +109,10 @@ function testJSDisabledIframe() {
 
   let iframe = doc.querySelector("iframe");
   let iframeDoc = iframe.contentDocument;
+  let logJSDisabled = iframeDoc.getElementById("logJSDisabled");
   let output = iframeDoc.getElementById("output");
-  iframeDoc.querySelector("#logJSDisabled").click();
+
+  EventUtils.synthesizeMouseAtCenter(logJSDisabled, {}, iframe.contentWindow);
   ok(output.textContent !== "JavaScript Disabled",
      'output is not "JavaScript Disabled" in iframe');
   toggleJS().then(function() {

@@ -141,9 +141,7 @@ class MoveOp
         GENERAL,
         INT32,
         FLOAT32,
-        DOUBLE,
-        INT32X4,
-        FLOAT32X4
+        DOUBLE
     };
 
   protected:

@@ -12,6 +12,7 @@ loop.shared.views = (function(_, OT, l10n) {
   "use strict";
 
   var sharedModels = loop.shared.models;
+  var __ = l10n.get;
   var WINDOW_AUTOCLOSE_TIMEOUT_IN_SECONDS = 5;
 
   /**
@@ -133,7 +134,7 @@ loop.shared.views = (function(_, OT, l10n) {
       var prefix = this.props.enabled ? "mute" : "unmute";
       var suffix = "button_title";
       var msgId = [prefix, this.props.scope, this.props.type, suffix].join("_");
-      return l10n.get(msgId);
+      return __(msgId);
     },
 
     render: function() {
@@ -183,7 +184,7 @@ loop.shared.views = (function(_, OT, l10n) {
         React.DOM.ul({className: "conversation-toolbar"}, 
           React.DOM.li(null, React.DOM.button({className: "btn btn-hangup", 
                       onClick: this.handleClickHangup, 
-                      title: l10n.get("hangup_button_title")})), 
+                      title: __("hangup_button_title")})), 
           React.DOM.li(null, MediaControlButton({action: this.handleToggleVideo, 
                                   enabled: this.props.video.enabled, 
                                   scope: "local", type: "video"})), 
@@ -370,7 +371,7 @@ loop.shared.views = (function(_, OT, l10n) {
       if (this.props.reset) {
         backButton = (
           React.DOM.button({className: "back", type: "button", onClick: this.props.reset}, 
-            "« ", l10n.get("feedback_back_button")
+            "« ", __("feedback_back_button")
           )
         );
       }
@@ -404,11 +405,11 @@ loop.shared.views = (function(_, OT, l10n) {
 
     _getCategories: function() {
       return {
-        audio_quality: l10n.get("feedback_category_audio_quality"),
-        video_quality: l10n.get("feedback_category_video_quality"),
-        disconnected : l10n.get("feedback_category_was_disconnected"),
-        confusing:     l10n.get("feedback_category_confusing"),
-        other:         l10n.get("feedback_category_other")
+        audio_quality: __("feedback_category_audio_quality"),
+        video_quality: __("feedback_category_video_quality"),
+        disconnected : __("feedback_category_was_disconnected"),
+        confusing:     __("feedback_category_confusing"),
+        other:         __("feedback_category_other")
       };
     },
 
@@ -419,8 +420,7 @@ loop.shared.views = (function(_, OT, l10n) {
           React.DOM.label({key: key}, 
             React.DOM.input({type: "radio", ref: "category", name: "category", 
                    value: category, 
-                   onChange: this.handleCategoryChange, 
-                   checked: this.state.category === category}), 
+                   onChange: this.handleCategoryChange}), 
             categories[category]
           )
         );
@@ -429,41 +429,26 @@ loop.shared.views = (function(_, OT, l10n) {
 
     /**
      * Checks if the form is ready for submission:
-     *
-     * - no feedback submission should be pending.
-     * - a category (reason) must be chosen;
-     * - if the "other" category is chosen, a custom description must have been
-     *   entered by the end user;
+     * - a category (reason) must be chosen
+     * - no feedback submission should be pending
      *
      * @return {Boolean}
      */
     _isFormReady: function() {
-      if (this.props.pending || !this.state.category) {
-        return false;
-      }
-      if (this.state.category === "other" && !this.state.description) {
-        return false;
-      }
-      return true;
+      return this.state.category !== "" && !this.props.pending;
     },
 
     handleCategoryChange: function(event) {
       var category = event.target.value;
-      this.setState({
-        category: category,
-        description: category == "other" ? "" : this._getCategories()[category]
-      });
-      if (category == "other") {
-        this.refs.description.getDOMNode().focus();
+      if (category !== "other") {
+        // resets description text field
+        this.setState({description: ""});
       }
+      this.setState({category: category});
     },
 
-    handleDescriptionFieldChange: function(event) {
+    handleCustomTextChange: function(event) {
       this.setState({description: event.target.value});
-    },
-
-    handleDescriptionFieldFocus: function(event) {
-      this.setState({category: "other", description: ""});
     },
 
     handleFormSubmit: function(event) {
@@ -476,24 +461,18 @@ loop.shared.views = (function(_, OT, l10n) {
     },
 
     render: function() {
-      var descriptionDisplayValue = this.state.category === "other" ?
-                                    this.state.description : "";
       return (
-        FeedbackLayout({title: l10n.get("feedback_what_makes_you_sad"), 
+        FeedbackLayout({title: __("feedback_what_makes_you_sad"), 
                         reset: this.props.reset}, 
           React.DOM.form({onSubmit: this.handleFormSubmit}, 
             this._getCategoryFields(), 
-            React.DOM.p(null, 
-              React.DOM.input({type: "text", ref: "description", name: "description", 
-                onChange: this.handleDescriptionFieldChange, 
-                onFocus: this.handleDescriptionFieldFocus, 
-                value: descriptionDisplayValue, 
-                placeholder: 
-                  l10n.get("feedback_custom_category_text_placeholder")})
-            ), 
+            React.DOM.p(null, React.DOM.input({type: "text", ref: "description", name: "description", 
+                      disabled: this.state.category !== "other", 
+                      onChange: this.handleCustomTextChange, 
+                      value: this.state.description})), 
             React.DOM.button({type: "submit", className: "btn btn-success", 
                     disabled: !this._isFormReady()}, 
-              l10n.get("feedback_submit_button")
+              __("feedback_submit_button")
             )
           )
         )
@@ -527,11 +506,10 @@ loop.shared.views = (function(_, OT, l10n) {
         window.close();
       }
       return (
-        FeedbackLayout({title: l10n.get("feedback_thank_you_heading")}, 
-          React.DOM.p({className: "info thank-you"}, 
-            l10n.get("feedback_window_will_close_in", {
-              countdown: this.state.countdown
-            }))
+        FeedbackLayout({title: __("feedback_thank_you_heading")}, 
+          React.DOM.p({className: "info thank-you"}, __("feedback_window_will_close_in", {
+            countdown: this.state.countdown
+          }))
         )
       );
     }
@@ -595,8 +573,7 @@ loop.shared.views = (function(_, OT, l10n) {
                                pending: this.state.pending});
         default:
           return (
-            FeedbackLayout({title: 
-              l10n.get("feedback_call_experience_heading")}, 
+            FeedbackLayout({title: __("feedback_call_experience_heading")}, 
               React.DOM.div({className: "faces"}, 
                 React.DOM.button({className: "face face-happy", 
                         onClick: this.handleHappyClick}), 

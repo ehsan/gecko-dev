@@ -79,17 +79,13 @@ struct BaseRect {
            (x <= aRect.x && aRect.XMost() <= XMost() &&
             y <= aRect.y && aRect.YMost() <= YMost());
   }
-  // Returns true if this rectangle contains the point. Points are considered
-  // in the rectangle if they are on the left or top edge, but outside if they
-  // are on the right or bottom edge.
+  // Returns true if this rectangle contains the rectangle (aX,aY,1,1).
   bool Contains(T aX, T aY) const
   {
-    return x <= aX && aX < XMost() &&
-           y <= aY && aY < YMost();
+    return x <= aX && aX + 1 <= XMost() &&
+           y <= aY && aY + 1 <= YMost();
   }
-  // Returns true if this rectangle contains the point. Points are considered
-  // in the rectangle if they are on the left or top edge, but outside if they
-  // are on the right or bottom edge.
+  // Returns true if this rectangle contains the rectangle (aPoint.x,aPoint.y,1,1).
   bool Contains(const Point& aPoint) const { return Contains(aPoint.x, aPoint.y); }
 
   // Intersection. Returns TRUE if the receiver's area has non-empty

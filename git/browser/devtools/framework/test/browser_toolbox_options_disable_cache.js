@@ -131,8 +131,7 @@ function reloadTab(tabX) {
   }, true);
 
   info("Reloading tab " + tabX.title);
-  let mm = getFrameScript();
-  mm.sendAsyncMessage("devtools:test:reload");
+  content.document.location.reload(false);
 
   return def.promise;
 }
@@ -140,17 +139,15 @@ function reloadTab(tabX) {
 function* destroyTab(tabX) {
   let toolbox = gDevTools.getToolbox(tabX.target);
 
-  let onceDestroyed = promise.resolve();
-  if (toolbox) {
-    onceDestroyed = gDevTools.once("toolbox-destroyed");
-  }
-
   info("Removing tab " + tabX.title);
   gBrowser.removeTab(tabX.tab);
   info("Removed tab " + tabX.title);
 
-  info("Waiting for toolbox-destroyed");
-  yield onceDestroyed;
+  if (toolbox) {
+    info("Waiting for toolbox-destroyed");
+    yield gDevTools.once("toolbox-destroyed");
+    info("toolbox-destroyed event received for " + tabX.title);
+  }
 }
 
 function* finishUp() {

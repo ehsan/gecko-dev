@@ -20,7 +20,6 @@ from collections import (
     defaultdict,
     OrderedDict,
 )
-from functools import wraps
 from StringIO import StringIO
 
 
@@ -707,14 +706,3 @@ class OrderedDefaultDict(OrderedDict):
         except KeyError:
             value = self[key] = self._default_factory()
             return value
-
-
-def memoize(func):
-    cache = {}
-
-    @wraps(func)
-    def wrapper(*args):
-        if args not in cache:
-            cache[args] = func(*args)
-        return cache[args]
-    return wrapper

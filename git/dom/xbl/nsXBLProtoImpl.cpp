@@ -10,6 +10,8 @@
 #include "nsIDocument.h"
 #include "nsContentUtils.h"
 #include "nsCxPusher.h"
+#include "nsIScriptGlobalObject.h"
+#include "nsIScriptContext.h"
 #include "nsIXPConnect.h"
 #include "nsIServiceManager.h"
 #include "nsIDOMNode.h"
@@ -17,7 +19,6 @@
 #include "nsXBLProtoImplProperty.h"
 #include "nsIURI.h"
 #include "mozilla/AddonPathService.h"
-#include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/dom/XULElementBinding.h"
 #include "xpcpublic.h"
 #include "js/CharacterEncoding.h"
@@ -41,20 +42,13 @@ nsXBLProtoImpl::InstallImplementation(nsXBLPrototypeBinding* aPrototypeBinding,
   // nsXBLProtoImplAnonymousMethod::Execute
   nsIDocument* document = aBinding->GetBoundElement()->OwnerDoc();
 
-  // This sometimes gets called when we have no outer window and if we don't
-  // catch this, we get leaks during crashtests and reftests.
-  if (NS_WARN_IF(!document->GetWindow())) {
-    return NS_OK;
-  }
+  nsCOMPtr<nsIScriptGlobalObject> global =  do_QueryInterface(document->GetScopeObject());
+  if (!global) return NS_OK;
 
-  // |propertyHolder| (below) can be an existing object, so in theory we might
-  // hit something that could end up running script. We never want that to
-  // happen here, so we use an AutoJSAPI instead of an AutoEntryScript.
-  dom::AutoJSAPI jsapi;
-  if (NS_WARN_IF(!jsapi.Init(document->GetScopeObject()))) {
-    return NS_OK;
-  }
-  JSContext* cx = jsapi.cx();
+  nsCOMPtr<nsIScriptContext> context = global->GetContext();
+  if (!context) return NS_OK;
+  JSContext* cx = context->GetNativeContext();
+  AutoCxPusher pusher(cx);
 
   // InitTarget objects gives us back the JS object that represents the bound element and the
   // class object in the bound document that represents the concrete version of this implementation.

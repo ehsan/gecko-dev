@@ -16,7 +16,6 @@ IS_COMPONENT = True
 
 USE_LIBS += [
     'mozalloc',
-    'nspr',
     'xpcomglue_s',
     'xul',
 ]

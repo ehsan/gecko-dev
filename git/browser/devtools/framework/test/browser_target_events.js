@@ -32,8 +32,7 @@ function onHidden() {
 function onVisible() {
   ok(true, "Visible event received");
   target.once("will-navigate", onWillNavigate);
-  let mm = getFrameScript();
-  mm.sendAsyncMessage("devtools:test:navigate", { location: "data:text/html,<meta charset='utf8'/>test navigation" });
+  gBrowser.contentWindow.location = "data:text/html,test navigation";
 }
 
 function onWillNavigate(event, request) {
