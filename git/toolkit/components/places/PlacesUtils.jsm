@@ -44,8 +44,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "Deprecated",
                                   "resource://gre/modules/Deprecated.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Bookmarks",
                                   "resource://gre/modules/Bookmarks.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "History",
-                                  "resource://gre/modules/History.jsm");
 
 // The minimum amount of transactions before starting a batch. Usually we do
 // do incremental updates, a batch will cause views to completely
@@ -1833,26 +1831,10 @@ this.PlacesUtils = {
 };
 
 XPCOMUtils.defineLazyGetter(PlacesUtils, "history", function() {
-  let hs = Cc["@mozilla.org/browser/nav-history-service;1"]
-             .getService(Ci.nsINavHistoryService)
-             .QueryInterface(Ci.nsIBrowserHistory)
-             .QueryInterface(Ci.nsPIPlacesDatabase);
-  return Object.freeze(new Proxy(hs, {
-    get: function(target, name) {
-      let property, object;
-      if (name in target) {
-        property = target[name];
-        object = target;
-      } else {
-        property = History[name];
-        object = History;
-      }
-      if (typeof property == "function") {
-        return property.bind(object);
-      }
-      return property;
-    }
-  }));
+  return Cc["@mozilla.org/browser/nav-history-service;1"]
+           .getService(Ci.nsINavHistoryService)
+           .QueryInterface(Ci.nsIBrowserHistory)
+           .QueryInterface(Ci.nsPIPlacesDatabase);
 });
 
 XPCOMUtils.defineLazyServiceGetter(PlacesUtils, "asyncHistory",

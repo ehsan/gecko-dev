@@ -25,7 +25,7 @@ loop.webapp = (function($, _, OT, mozL10n) {
   var HomeView = React.createClass({displayName: 'HomeView',
     render: function() {
       return (
-        React.DOM.p(null, mozL10n.get("welcome", {clientShortname: mozL10n.get("clientShortname2")}))
+        React.DOM.p(null, mozL10n.get("welcome"))
       );
     }
   });
@@ -37,13 +37,13 @@ loop.webapp = (function($, _, OT, mozL10n) {
     render: function() {
       var useLatestFF = mozL10n.get("use_latest_firefox", {
         "firefoxBrandNameLink": React.renderComponentToStaticMarkup(
-          React.DOM.a({target: "_blank", href: mozL10n.get("brand_website")}, mozL10n.get("brandShortname"))
+          React.DOM.a({target: "_blank", href: "https://www.mozilla.org/firefox/"}, "Firefox")
         )
       });
       return (
         React.DOM.div(null, 
           React.DOM.h2(null, mozL10n.get("incompatible_browser")), 
-          React.DOM.p(null, mozL10n.get("powered_by_webrtc", {clientShortname: mozL10n.get("clientShortname2")})), 
+          React.DOM.p(null, mozL10n.get("powered_by_webrtc")), 
           React.DOM.p({dangerouslySetInnerHTML: {__html: useLatestFF}})
         )
       );
@@ -58,8 +58,8 @@ loop.webapp = (function($, _, OT, mozL10n) {
       return (
         React.DOM.div(null, 
           React.DOM.h2(null, mozL10n.get("incompatible_device")), 
-          React.DOM.p(null, mozL10n.get("sorry_device_unsupported", {clientShortname: mozL10n.get("clientShortname2")})), 
-          React.DOM.p(null, mozL10n.get("use_firefox_windows_mac_linux", {brandShortname: mozL10n.get("brandShortname")}))
+          React.DOM.p(null, mozL10n.get("sorry_device_unsupported")), 
+          React.DOM.p(null, mozL10n.get("use_firefox_windows_mac_linux"))
         )
       );
     }
@@ -79,11 +79,11 @@ loop.webapp = (function($, _, OT, mozL10n) {
       }
       return (
         React.DOM.div({className: "promote-firefox"}, 
-          React.DOM.h3(null, mozL10n.get("promote_firefox_hello_heading", {brandShortname: mozL10n.get("brandShortname")})), 
+          React.DOM.h3(null, mozL10n.get("promote_firefox_hello_heading")), 
           React.DOM.p(null, 
             React.DOM.a({className: "btn btn-large btn-accept", 
-               href: mozL10n.get("brand_website")}, 
-              mozL10n.get("get_firefox_button", {brandShortname: mozL10n.get("brandShortname")})
+               href: "https://www.mozilla.org/firefox/"}, 
+              mozL10n.get("get_firefox_button")
             )
           )
         )
@@ -118,7 +118,7 @@ loop.webapp = (function($, _, OT, mozL10n) {
       return (
         React.DOM.h1({className: "standalone-header-title"}, 
           React.DOM.strong(null, mozL10n.get("brandShortname")), 
-          mozL10n.get("clientShortname2")
+          mozL10n.get("clientShortname")
         )
       );
     }
@@ -232,9 +232,7 @@ loop.webapp = (function($, _, OT, mozL10n) {
       return (
         React.DOM.header({className: "standalone-header header-box container-box"}, 
           ConversationBranding(null), 
-          React.DOM.div({className: "loop-logo", 
-               title: mozL10n.get("client_alttext",
-                                  {clientShortname: mozL10n.get("clientShortname2")})}), 
+          React.DOM.div({className: "loop-logo", title: "Firefox WebRTC! logo"}), 
           React.DOM.h3({className: "call-url"}, 
             conversationUrl
           ), 
@@ -250,9 +248,7 @@ loop.webapp = (function($, _, OT, mozL10n) {
     render: function() {
       return (
         React.DOM.div({className: "standalone-footer container-box"}, 
-          React.DOM.div({title: mozL10n.get("vendor_alttext",
-                                  {vendorShortname: mozL10n.get("vendorShortname")}), 
-               className: "footer-logo"})
+          React.DOM.div({title: "Mozilla Logo", className: "footer-logo"})
         )
       );
     }
@@ -458,11 +454,10 @@ loop.webapp = (function($, _, OT, mozL10n) {
       var privacyNoticeName = mozL10n.get("privacy_notice_link_text");
 
       var tosHTML = mozL10n.get("legal_text_and_links", {
-        "terms_of_use_url": "<a target=_blank href='" +
-          mozL10n.get("legal_website") + "'>" +
+        "terms_of_use_url": "<a target=_blank href='/legal/terms/'>" +
           tosLinkName + "</a>",
         "privacy_notice_url": "<a target=_blank href='" +
-          mozL10n.get("privacy_website") + "'>" + privacyNoticeName + "</a>"
+          "https://www.mozilla.org/privacy/'>" + privacyNoticeName + "</a>"
       });
 
       var tosClasses = React.addons.classSet({
@@ -914,7 +909,6 @@ loop.webapp = (function($, _, OT, mozL10n) {
     // Set the 'lang' and 'dir' attributes to <html> when the page is translated
     document.documentElement.lang = mozL10n.language.code;
     document.documentElement.dir = mozL10n.language.direction;
-    document.title = mozL10n.get("clientShortname2");
   }
 
   return {
