@@ -17,7 +17,6 @@ import org.mozilla.gecko.util.GeckoJarReader;
 import org.mozilla.gecko.util.NonEvictingLruCache;
 import org.mozilla.gecko.util.ThreadUtils;
 
-import android.content.ContentResolver;
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
@@ -54,6 +53,8 @@ public class Favicons {
 
     public static final int NOT_LOADING  = 0;
     public static final int LOADED       = 1;
+    public static final int FLAG_PERSIST = 2;
+    public static final int FLAG_SCALE   = 4;
 
     // The default Favicon to show if no other can be found.
     public static Bitmap defaultFavicon;
@@ -259,15 +260,12 @@ public class Favicons {
             }
         }
 
-        // Try to find the faviconURL in the history and/or bookmarks table.
-        final ContentResolver resolver = context.getContentResolver();
-        targetURL = BrowserDB.getFaviconURLFromPageURL(resolver, pageURL);
-        if (targetURL != null) {
-            return targetURL;
+        targetURL = BrowserDB.getFaviconUrlForHistoryUrl(context.getContentResolver(), pageURL);
+        if (targetURL == null) {
+            // Nothing in the history database. Fall back to the default URL and hope for the best.
+            targetURL = guessDefaultFaviconURL(pageURL);
         }
-
-        // If we still can't find it, fall back to the default URL and hope for the best.
-        return guessDefaultFaviconURL(pageURL);
+        return targetURL;
     }
 
     /**

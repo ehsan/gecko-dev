@@ -37,14 +37,12 @@ public:
   {
   public:
     PermissionEntry(int64_t aID, uint32_t aType, uint32_t aPermission,
-                    uint32_t aExpireType, int64_t aExpireTime,
-                    int64_t aModificationTime)
+                    uint32_t aExpireType, int64_t aExpireTime)
      : mID(aID)
      , mType(aType)
      , mPermission(aPermission)
      , mExpireType(aExpireType)
      , mExpireTime(aExpireTime)
-     , mModificationTime(aModificationTime)
      , mNonSessionPermission(aPermission)
      , mNonSessionExpireType(aExpireType)
      , mNonSessionExpireTime(aExpireTime)
@@ -55,7 +53,6 @@ public:
     uint32_t mPermission;
     uint32_t mExpireType;
     int64_t  mExpireTime;
-    int64_t  mModificationTime;
     uint32_t mNonSessionPermission;
     uint32_t mNonSessionExpireType;
     uint32_t mNonSessionExpireTime;
@@ -157,7 +154,7 @@ public:
 
       // unknown permission... return relevant data 
       return PermissionEntry(-1, aType, nsIPermissionManager::UNKNOWN_ACTION,
-                             nsIPermissionManager::EXPIRE_NEVER, 0, 0);
+                             nsIPermissionManager::EXPIRE_NEVER, 0);
     }
 
   private:
@@ -203,7 +200,6 @@ public:
                        int64_t aID,
                        uint32_t aExpireType,
                        int64_t  aExpireTime,
-                       int64_t aModificationTime,
                        NotifyOperationType aNotifyOperation,
                        DBOperationType aDBOperation);
 
@@ -264,7 +260,6 @@ private:
                        uint32_t aPermission,
                        uint32_t aExpireType,
                        int64_t aExpireTime,
-                       int64_t aModificationTime,
                        uint32_t aAppId,
                        bool aIsInBrowserElement);
 
@@ -303,13 +298,6 @@ private:
   static PLDHashOperator
   RemoveExpiredPermissionsForAppEnumerator(PermissionHashKey* entry,
                                            void* nonused);
-
-
-  /**
-   * This method removes all permissions modified after the specified time.
-   */
-  nsresult
-  RemoveAllModifiedSince(int64_t aModificationTime);
 
   nsCOMPtr<nsIObserverService> mObserverService;
   nsCOMPtr<nsIIDNService>      mIDNService;
