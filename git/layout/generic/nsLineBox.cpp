@@ -408,10 +408,8 @@ nsLineBox::SetCarriedOutBottomMargin(nsCollapsingMargin aValue)
       if (!mBlockData) {
         mBlockData = new ExtraBlockData(mBounds);
       }
-      if (mBlockData) {
-        changed = aValue != mBlockData->mCarriedOutBottomMargin;
-        mBlockData->mCarriedOutBottomMargin = aValue;
-      }
+      changed = aValue != mBlockData->mCarriedOutBottomMargin;
+      mBlockData->mCarriedOutBottomMargin = aValue;
     }
     else if (mBlockData) {
       changed = aValue != mBlockData->mCarriedOutBottomMargin;
@@ -469,9 +467,7 @@ nsLineBox::AppendFloats(nsFloatCacheFreeList& aFreeList)
       if (!mInlineData) {
         mInlineData = new ExtraInlineData(mBounds);
       }
-      if (mInlineData) {
-        mInlineData->mFloats.Append(aFreeList);
-      }
+      mInlineData->mFloats.Append(aFreeList);
     }
   }
 }
@@ -660,11 +656,9 @@ nsLineIterator::CheckLineOrder(PRInt32                  aLine,
     return NS_OK;
   }
 
-  nsBidiPresUtils* bidiUtils = line->mFirstChild->PresContext()->GetBidiUtils();
-
   nsIFrame* leftmostFrame;
   nsIFrame* rightmostFrame;
-  *aIsReordered = bidiUtils->CheckLineOrder(line->mFirstChild, line->GetChildCount(), &leftmostFrame, &rightmostFrame);
+  *aIsReordered = nsBidiPresUtils::CheckLineOrder(line->mFirstChild, line->GetChildCount(), &leftmostFrame, &rightmostFrame);
 
   // map leftmost/rightmost to first/last according to paragraph direction
   *aFirstVisual = mRightToLeft ? rightmostFrame : leftmostFrame;

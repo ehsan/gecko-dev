@@ -71,10 +71,13 @@ JSCompartment::JSCompartment(JSRuntime *rt)
     gcTriggerBytes(0),
     gcLastBytes(0),
     hold(false),
+#ifdef JS_TRACER
+    traceMonitor_(NULL),
+#endif
     data(NULL),
     active(false),
 #ifdef JS_METHODJIT
-    jaegerCompartment(NULL),
+    jaegerCompartment_(NULL),
 #endif
 #if ENABLE_YARR_JIT
     regExpAllocator(NULL),
@@ -103,7 +106,11 @@ JSCompartment::~JSCompartment()
 #endif
 
 #ifdef JS_METHODJIT
-    Foreground::delete_(jaegerCompartment);
+    Foreground::delete_(jaegerCompartment_);
+#endif
+
+#ifdef JS_TRACER
+    Foreground::delete_(traceMonitor_);
 #endif
 
     Foreground::delete_(mathCache);
@@ -124,17 +131,8 @@ JSCompartment::init()
     if (!crossCompartmentWrappers.init())
         return false;
 
-#ifdef DEBUG
-    if (rt->meterEmptyShapes()) {
-        if (!emptyShapes.init())
-            return false;
-    }
-#endif
-
-#ifdef JS_TRACER
-    if (!traceMonitor.init(rt))
+    if (!scriptFilenameTable.init())
         return false;
-#endif
 
     regExpAllocator = rt->new_<WTF::BumpPointerAllocator>();
     if (!regExpAllocator)
@@ -143,20 +141,31 @@ JSCompartment::init()
     if (!backEdgeTable.init())
         return false;
 
-#ifdef JS_METHODJIT
-    jaegerCompartment = rt->new_<mjit::JaegerCompartment>();
-    if (!jaegerCompartment || !jaegerCompartment->Initialize())
-        return false;
-#endif
-        
     return true;
 }
 
 #ifdef JS_METHODJIT
+bool
+JSCompartment::ensureJaegerCompartmentExists(JSContext *cx)
+{
+    if (jaegerCompartment_)
+        return true;
+
+    mjit::JaegerCompartment *jc = cx->new_<mjit::JaegerCompartment>();
+    if (!jc)
+        return false;
+    if (!jc->Initialize()) {
+        cx->delete_(jc);
+        return false;
+    }
+    jaegerCompartment_ = jc;
+    return true;
+}
+
 size_t
 JSCompartment::getMjitCodeSize() const
 {
-    return jaegerCompartment->execAlloc()->getCodeSize();
+    return jaegerCompartment_ ? jaegerCompartment_->execAlloc()->getCodeSize() : 0;
 }
 #endif
 
@@ -221,8 +230,7 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
         global = cx->fp()->scopeChain().getGlobal();
     } else {
         global = cx->globalObject;
-        OBJ_TO_INNER_OBJECT(cx, global);
-        if (!global)
+        if (!NULLABLE_OBJ_TO_INNER_OBJECT(cx, global))
             return false;
     }
 
@@ -489,7 +497,8 @@ JSCompartment::sweep(JSContext *cx, uint32 releaseInterval)
         initialStringShape = NULL;
 
 #ifdef JS_TRACER
-    traceMonitor.sweep(cx);
+    if (hasTraceMonitor())
+        traceMonitor()->sweep(cx);
 #endif
 
 #if defined JS_METHODJIT && defined JS_MONOIC
@@ -545,7 +554,8 @@ JSCompartment::purge(JSContext *cx)
      * which will eventually abort any current recording.
      */
     if (cx->runtime->gcRegenShapes)
-        traceMonitor.needFlush = JS_TRUE;
+        if (hasTraceMonitor())
+            traceMonitor()->needFlush = JS_TRUE;
 #endif
 
 #ifdef JS_METHODJIT
@@ -578,6 +588,22 @@ JSCompartment::allocMathCache(JSContext *cx)
         js_ReportOutOfMemory(cx);
     return mathCache;
 }
+
+#ifdef JS_TRACER
+TraceMonitor *
+JSCompartment::allocAndInitTraceMonitor(JSContext *cx)
+{
+    JS_ASSERT(!traceMonitor_);
+    traceMonitor_ = cx->new_<TraceMonitor>();
+    if (!traceMonitor_)
+        return NULL;
+    if (!traceMonitor_->init(cx->runtime)) {
+        Foreground::delete_(traceMonitor_);
+        return NULL;
+    }
+    return traceMonitor_;
+}
+#endif
 
 size_t
 JSCompartment::backEdgeCount(jsbytecode *pc) const

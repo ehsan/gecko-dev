@@ -114,7 +114,7 @@
 #include "nsIDOMMimeTypeArray.h"
 #include "nsIDOMMimeType.h"
 #include "nsIDOMLocation.h"
-#include "nsIDOMWindowInternal.h"
+#include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDOMJSWindow.h"
 #include "nsIDOMWindowCollection.h"
@@ -131,7 +131,6 @@
 #include "nsDOMError.h"
 #include "nsIDOMDOMException.h"
 #include "nsIDOMNode.h"
-#include "nsIDOM3Attr.h"
 #include "nsIDOMNodeList.h"
 #include "nsIDOMNamedNodeMap.h"
 #include "nsIDOMDOMStringList.h"
@@ -1575,7 +1574,7 @@ static const nsConstructorFuncMapData kConstructorFuncMap[] =
 {
   NS_DEFINE_CONSTRUCTOR_FUNC_DATA(Worker, nsDOMWorker::NewWorker)
   NS_DEFINE_CONSTRUCTOR_FUNC_DATA(ChromeWorker, nsDOMWorker::NewChromeWorker)
-  NS_DEFINE_CONSTRUCTOR_FUNC_DATA(File, nsDOMFile::NewFile)
+  NS_DEFINE_CONSTRUCTOR_FUNC_DATA(File, nsDOMFileFile::NewFile)
   NS_DEFINE_CONSTRUCTOR_FUNC_DATA(MozBlobBuilder, NS_NewBlobBuilder)
 };
 
@@ -1707,6 +1706,9 @@ jsid nsDOMClassInfo::sOntouchleave_id    = JSID_VOID;
 jsid nsDOMClassInfo::sOntouchcancel_id   = JSID_VOID;
 jsid nsDOMClassInfo::sOnbeforeprint_id   = JSID_VOID;
 jsid nsDOMClassInfo::sOnafterprint_id    = JSID_VOID;
+
+jsid nsDOMClassInfo::sOndevicemotion_id       = JSID_VOID;
+jsid nsDOMClassInfo::sOndeviceorientation_id  = JSID_VOID;
 
 static const JSClass *sObjectClass = nsnull;
 
@@ -2044,6 +2046,9 @@ nsDOMClassInfo::DefineStaticJSVals(JSContext *cx)
   SET_JSID_TO_STRING(sOntouchcancel_id,   cx, "ontouchcancel");
   SET_JSID_TO_STRING(sOnbeforeprint_id,   cx, "onbeforeprint");
   SET_JSID_TO_STRING(sOnafterprint_id,   cx, "onafterprint");
+
+  SET_JSID_TO_STRING(sOndevicemotion_id,      cx, "ondevicemotion");
+  SET_JSID_TO_STRING(sOndeviceorientation_id, cx, "ondeviceorientation");
   
   return NS_OK;
 }
@@ -2387,22 +2392,16 @@ nsDOMClassInfo::Init()
       DOM_CLASSINFO_MAP_BEGIN(Window, nsIDOMWindow)
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow)
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMJSWindow)
-        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowInternal)
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
-        DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageIndexedDB)
-        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow_2_0_BRANCH)
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowPerformance)
       DOM_CLASSINFO_MAP_END
     } else {
       DOM_CLASSINFO_MAP_BEGIN(Window, nsIDOMWindow)
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow)
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMJSWindow)
-        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowInternal)
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
-        DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageIndexedDB)
-        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow_2_0_BRANCH)
       DOM_CLASSINFO_MAP_END
     }
   } else {
@@ -2410,20 +2409,14 @@ nsDOMClassInfo::Init()
       DOM_CLASSINFO_MAP_BEGIN(Window, nsIDOMWindow)
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow)
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMJSWindow)
-        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowInternal)
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
-        DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
-        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow_2_0_BRANCH)
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowPerformance)
       DOM_CLASSINFO_MAP_END
     } else {
       DOM_CLASSINFO_MAP_BEGIN(Window, nsIDOMWindow)
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow)
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMJSWindow)
-        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowInternal)
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
-        DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
-        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow_2_0_BRANCH)
       DOM_CLASSINFO_MAP_END
     }
   }
@@ -2554,7 +2547,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(Attr, nsIDOMAttr)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMAttr)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Attr)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
@@ -3143,10 +3135,8 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(ChromeWindow, nsIDOMWindow)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMJSWindow)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowInternal)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMChromeWindow)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageIndexedDB)
   DOM_CLASSINFO_MAP_END
 
@@ -4038,9 +4028,7 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(ModalContentWindow, nsIDOMWindow)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMJSWindow)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowInternal)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageIndexedDB)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMModalContentWindow)
   DOM_CLASSINFO_MAP_END
@@ -5571,7 +5559,7 @@ nsWindowSH::SetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     JSString *val = ::JS_ValueToString(cx, *vp);
     NS_ENSURE_TRUE(val, NS_ERROR_UNEXPECTED);
 
-    nsCOMPtr<nsIDOMWindowInternal> window(do_QueryWrappedNative(wrapper));
+    nsCOMPtr<nsIDOMWindow> window = do_QueryWrappedNative(wrapper);
     NS_ENSURE_TRUE(window, NS_ERROR_UNEXPECTED);
 
     nsCOMPtr<nsIDOMLocation> location;
@@ -6915,7 +6903,7 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
         jsval v;
         nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
         rv = WrapNative(cx, wrapperObj, child_win,
-                        &NS_GET_IID(nsIDOMWindowInternal), PR_TRUE, &v,
+                        &NS_GET_IID(nsIDOMWindow), PR_TRUE, &v,
                         getter_AddRefs(holder));
         NS_ENSURE_SUCCESS(rv, rv);
 
@@ -7655,7 +7643,9 @@ nsEventReceiverSH::ReallyIsEventName(jsid id, jschar aFirstChar)
             id == sOndragover_id     ||
             id == sOndragstart_id    ||
             id == sOndrop_id         ||
-            id == sOndurationchange_id);
+            id == sOndurationchange_id ||
+            id == sOndeviceorientation_id ||
+            id == sOndevicemotion_id );
   case 'e' :
     return (id == sOnerror_id ||
             id == sOnemptied_id ||

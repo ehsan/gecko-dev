@@ -44,7 +44,7 @@
 
 #include "mozIStorageService.h"
 #include "nsIAlertsService.h"
-#include "nsIDOMWindowInternal.h"
+#include "nsIDOMWindow.h"
 #include "nsIDownloadHistory.h"
 #include "nsIDownloadManagerUI.h"
 #include "nsIMIMEService.h"
@@ -1858,19 +1858,25 @@ nsDownloadManager::OnVisit(nsIURI *aURI, PRInt64 aVisitID, PRTime aTime,
 }
 
 NS_IMETHODIMP
-nsDownloadManager::OnTitleChanged(nsIURI *aURI, const nsAString &aPageTitle)
+nsDownloadManager::OnTitleChanged(nsIURI *aURI,
+                                  const nsAString &aPageTitle,
+                                  const nsACString &aGUID)
 {
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDownloadManager::OnBeforeDeleteURI(nsIURI *aURI, const nsACString& aGUID)
+nsDownloadManager::OnBeforeDeleteURI(nsIURI *aURI,
+                                     const nsACString& aGUID,
+                                     PRUint16 aReason)
 {
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDownloadManager::OnDeleteURI(nsIURI *aURI, const nsACString& aGUID)
+nsDownloadManager::OnDeleteURI(nsIURI *aURI,
+                               const nsACString& aGUID,
+                               PRUint16 aReason)
 {
   return RemoveDownloadsForURI(aURI);
 }
@@ -1882,15 +1888,18 @@ nsDownloadManager::OnClearHistory()
 }
 
 NS_IMETHODIMP
-nsDownloadManager::OnPageChanged(nsIURI *aURI, PRUint32 aWhat,
-                                 const nsAString &aValue)
+nsDownloadManager::OnPageChanged(nsIURI *aURI,
+                                 PRUint32 aChangedAttribute,
+                                 const nsAString& aNewValue,
+                                 const nsACString &aGUID)
 {
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDownloadManager::OnDeleteVisits(nsIURI *aURI, PRTime aVisitTime,
-                                  const nsACString& aGUID)
+                                  const nsACString& aGUID,
+                                  PRUint16 aReason)
 {
   // Don't bother removing downloads until the page is removed.
   return NS_OK;
@@ -2096,7 +2105,7 @@ nsDownloadManager::ConfirmCancelDownloads(PRInt32 aCount,
 
   // Get Download Manager window, to be parent of alert.
   nsCOMPtr<nsIWindowMediator> wm = do_GetService(NS_WINDOWMEDIATOR_CONTRACTID);
-  nsCOMPtr<nsIDOMWindowInternal> dmWindow;
+  nsCOMPtr<nsIDOMWindow> dmWindow;
   if (wm) {
     wm->GetMostRecentWindow(NS_LITERAL_STRING("Download:Manager").get(),
                             getter_AddRefs(dmWindow));
@@ -3076,7 +3085,7 @@ nsDownload::FailDownload(nsresult aStatus, const PRUnichar *aMessage)
   nsCOMPtr<nsIWindowMediator> wm =
     do_GetService(NS_WINDOWMEDIATOR_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
-  nsCOMPtr<nsIDOMWindowInternal> dmWindow;
+  nsCOMPtr<nsIDOMWindow> dmWindow;
   rv = wm->GetMostRecentWindow(NS_LITERAL_STRING("Download:Manager").get(),
                                getter_AddRefs(dmWindow));
   NS_ENSURE_SUCCESS(rv, rv);

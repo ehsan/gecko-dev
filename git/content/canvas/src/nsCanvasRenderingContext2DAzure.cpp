@@ -100,6 +100,7 @@
 
 #include "nsFrameManager.h"
 #include "nsFrameLoader.h"
+#include "nsBidi.h"
 #include "nsBidiPresUtils.h"
 #include "Layers.h"
 #include "CanvasUtils.h"
@@ -127,11 +128,12 @@
 #undef DrawText
 
 using namespace mozilla;
-using namespace mozilla::layers;
+using namespace mozilla::CanvasUtils;
+using namespace mozilla::css;
 using namespace mozilla::dom;
 using namespace mozilla::gfx;
 using namespace mozilla::ipc;
-using namespace mozilla::css;
+using namespace mozilla::layers;
 
 namespace mgfx = mozilla::gfx;
 
@@ -139,59 +141,24 @@ static float kDefaultFontSize = 10.0;
 static NS_NAMED_LITERAL_STRING(kDefaultFontName, "sans-serif");
 static NS_NAMED_LITERAL_STRING(kDefaultFontStyle, "10px sans-serif");
 
-/* Float validation stuff */
-#define VALIDATE(_f)  if (!NS_finite(_f)) return PR_FALSE
-
-static PRBool FloatValidate (double f1) {
-  VALIDATE(f1);
-  return PR_TRUE;
-}
-
-static PRBool FloatValidate (double f1, double f2) {
-  VALIDATE(f1); VALIDATE(f2);
-  return PR_TRUE;
-}
-
-static PRBool FloatValidate (double f1, double f2, double f3) {
-  VALIDATE(f1); VALIDATE(f2); VALIDATE(f3);
-  return PR_TRUE;
-}
-
-static PRBool FloatValidate (double f1, double f2, double f3, double f4) {
-  VALIDATE(f1); VALIDATE(f2); VALIDATE(f3); VALIDATE(f4);
-  return PR_TRUE;
-}
-
-static PRBool FloatValidate (double f1, double f2, double f3, double f4, double f5) {
-  VALIDATE(f1); VALIDATE(f2); VALIDATE(f3); VALIDATE(f4); VALIDATE(f5);
-  return PR_TRUE;
-}
-
-static PRBool FloatValidate (double f1, double f2, double f3, double f4, double f5, double f6) {
-  VALIDATE(f1); VALIDATE(f2); VALIDATE(f3); VALIDATE(f4); VALIDATE(f5); VALIDATE(f6);
-  return PR_TRUE;
-}
-
-#undef VALIDATE
-
 /* Memory reporter stuff */
 static nsIMemoryReporter *gCanvasAzureMemoryReporter = nsnull;
 static PRInt64 gCanvasAzureMemoryUsed = 0;
 
-static PRInt64 GetCanvasAzureMemoryUsed(void *) {
+static PRInt64 GetCanvasAzureMemoryUsed() {
   return gCanvasAzureMemoryUsed;
 }
 
-// This is MR_OTHER because it's not always clear where in memory the pixels of
-// a canvas are stored.  Furthermore, this memory will be tracked by the
+// This is KIND_OTHER because it's not always clear where in memory the pixels
+// of a canvas are stored.  Furthermore, this memory will be tracked by the
 // underlying surface implementations.  See bug 655638 for details.
 NS_MEMORY_REPORTER_IMPLEMENT(CanvasAzureMemory,
   "canvas-2d-pixel-bytes",
-  MR_OTHER,
-  "Memory used by 2D canvases. Each canvas requires (width * height * 4) "
-  "bytes.",
+  KIND_OTHER,
+  UNITS_BYTES,
   GetCanvasAzureMemoryUsed,
-  nsnull)
+  "Memory used by 2D canvases. Each canvas requires (width * height * 4) "
+  "bytes.")
 
 /**
  ** nsCanvasGradientAzure
@@ -228,79 +195,6 @@ public:
 
   NS_DECL_ISUPPORTS
 
-protected:
-  nsCanvasGradientAzure(Type aType) : mType(aType)
-  {}
-
-  nsTArray<GradientStop> mRawStops;
-  RefPtr<GradientStops> mStops;
-  Type mType;
-};
-
-class nsCanvasRadialGradientAzure : public nsCanvasGradientAzure
-{
-public:
-  nsCanvasRadialGradientAzure(const Point &aBeginOrigin, Float aBeginRadius,
-                              const Point &aEndOrigin, Float aEndRadius)
-    : nsCanvasGradientAzure(RADIAL)
-    , mCenter(aEndOrigin)
-    , mRadius(aEndRadius)
-  {
-    mOffsetStart = aBeginRadius / mRadius;
-
-    mOffsetRatio = 1 - mOffsetStart;
-    mOrigin = ((mCenter * aBeginRadius) - (aBeginOrigin * mRadius)) /
-              (aBeginRadius - mRadius);
-  }
-
-
-  /* nsIDOMCanvasGradient */
-  NS_IMETHOD AddColorStop (float offset,
-                            const nsAString& colorstr)
-  {
-    if (!FloatValidate(offset) || offset < 0.0 || offset > 1.0) {
-      return NS_ERROR_DOM_INDEX_SIZE_ERR;
-    }
-
-    nscolor color;
-    nsCSSParser parser;
-    nsresult rv = parser.ParseColorString(nsString(colorstr),
-                                          nsnull, 0, &color);
-    if (NS_FAILED(rv)) {
-      return NS_ERROR_DOM_SYNTAX_ERR;
-    }
-
-    mStops = nsnull;
-
-    GradientStop newStop;
-
-    newStop.offset = offset * mOffsetRatio + mOffsetStart;
-    newStop.color = Color::FromABGR(color);
-
-    mRawStops.AppendElement(newStop);
-
-    return NS_OK;
-  }
-
-  // XXX - Temporary gradient code, this will be fixed soon as per bug 666097
-  Point mCenter;
-  Float mRadius;
-  Point mOrigin;
-
-  Float mOffsetStart;
-  Float mOffsetRatio;
-};
-
-class nsCanvasLinearGradientAzure : public nsCanvasGradientAzure
-{
-public:
-  nsCanvasLinearGradientAzure(const Point &aBegin, const Point &aEnd)
-    : nsCanvasGradientAzure(LINEAR)
-    , mBegin(aBegin)
-    , mEnd(aEnd)
-  {
-  }
-
   /* nsIDOMCanvasGradient */
   NS_IMETHOD AddColorStop (float offset,
                             const nsAString& colorstr)
@@ -327,6 +221,44 @@ public:
     mRawStops.AppendElement(newStop);
 
     return NS_OK;
+  }
+
+protected:
+  nsCanvasGradientAzure(Type aType) : mType(aType)
+  {}
+
+  nsTArray<GradientStop> mRawStops;
+  RefPtr<GradientStops> mStops;
+  Type mType;
+};
+
+class nsCanvasRadialGradientAzure : public nsCanvasGradientAzure
+{
+public:
+  nsCanvasRadialGradientAzure(const Point &aBeginOrigin, Float aBeginRadius,
+                              const Point &aEndOrigin, Float aEndRadius)
+    : nsCanvasGradientAzure(RADIAL)
+    , mCenter1(aBeginOrigin)
+    , mCenter2(aEndOrigin)
+    , mRadius1(aBeginRadius)
+    , mRadius2(aEndRadius)
+  {
+  }
+
+  Point mCenter1;
+  Point mCenter2;
+  Float mRadius1;
+  Float mRadius2;
+};
+
+class nsCanvasLinearGradientAzure : public nsCanvasGradientAzure
+{
+public:
+  nsCanvasLinearGradientAzure(const Point &aBegin, const Point &aEnd)
+    : nsCanvasGradientAzure(LINEAR)
+    , mBegin(aBegin)
+    , mEnd(aEnd)
+  {
   }
 
 protected:
@@ -605,6 +537,10 @@ protected:
     */
   PRPackedBool mPredictManyRedrawCalls;
 
+  // This is stored after GetThebesSurface has been called once to avoid
+  // excessive ThebesSurface initialization overhead.
+  nsRefPtr<gfxASurface> mThebesSurface;
+
   /**
     * We also have a device space pathbuilder. The reason for this is as
     * follows, when a path is being built, but the transform changes, we
@@ -651,7 +587,18 @@ protected:
 
     // The spec says we should not draw shadows if the operator is OVER.
     // If it's over and the alpha value is zero, nothing needs to be drawn.
-    return state.op == OP_OVER && NS_GET_A(state.shadowColor) != 0;
+    return NS_GET_A(state.shadowColor) != 0 && 
+      (state.shadowBlur != 0 || state.shadowOffset.x != 0 || state.shadowOffset.y != 0);
+  }
+
+  CompositionOp UsedOperation()
+  {
+    if (NeedToDrawShadow()) {
+      // In this case the shadow rendering will use the operator.
+      return OP_OVER;
+    }
+
+    return CurrentState().op;
   }
 
   /**
@@ -718,6 +665,7 @@ protected:
                        miterLimit(10.0f),
                        globalAlpha(1.0f),
                        shadowBlur(0.0),
+                       dashOffset(0.0f),
                        op(OP_OVER),
                        fillRule(FILL_WINDING),
                        lineCap(CAP_BUTT),
@@ -737,6 +685,8 @@ protected:
             miterLimit(other.miterLimit),
             globalAlpha(other.globalAlpha),
             shadowBlur(other.shadowBlur),
+            dash(other.dash),
+            dashOffset(other.dashOffset),
             op(other.op),
             fillRule(FILL_WINDING),
             lineCap(other.lineCap),
@@ -795,6 +745,8 @@ protected:
       Float miterLimit;
       Float globalAlpha;
       Float shadowBlur;
+      FallibleTArray<Float> dash;
+      Float dashOffset;
 
       CompositionOp op;
       FillRule fillRule;
@@ -841,8 +793,8 @@ protected:
           static_cast<nsCanvasRadialGradientAzure*>(state.gradientStyles[aStyle].get());
 
         mPattern = new (mRadialGradientPattern.addr())
-          RadialGradientPattern(gradient->mCenter, gradient->mOrigin, gradient->mRadius,
-                                gradient->GetGradientStopsForTarget(aRT));
+          RadialGradientPattern(gradient->mCenter1, gradient->mCenter2, gradient->mRadius1,
+                                gradient->mRadius2, gradient->GetGradientStopsForTarget(aRT));
       } else if (state.patternStyles[aStyle]) {
         if (aCtx->mCanvasElement) {
           CanvasUtils::DoDrawImageSecurityCheck(aCtx->HTMLCanvasElement(),
@@ -875,12 +827,17 @@ protected:
   /* This is an RAII based class that can be used as a drawtarget for
    * operations that need a shadow drawn. It will automatically provide a
    * temporary target when needed, and if so blend it back with a shadow.
+   *
+   * aBounds specifies the bounds of the drawing operation that will be
+   * drawn to the target, it is given in device space! This function will
+   * change aBounds to incorporate shadow bounds. If this is NULL the drawing
+   * operation will be assumed to cover an infinite rect.
    */
   class AdjustedTarget
   {
   public:
     AdjustedTarget(nsCanvasRenderingContext2DAzure *ctx,
-                   const mgfx::Rect *aBounds = nsnull)
+                   mgfx::Rect *aBounds = nsnull)
       : mCtx(nsnull)
     {
       if (!ctx->NeedToDrawShadow()) {
@@ -898,48 +855,43 @@ protected:
       }
         
       Matrix transform = mCtx->mTarget->GetTransform();
-      if (!aBounds) {
-        mTempSize = IntSize(ctx->mWidth, ctx->mHeight);
 
-        // We need to enlarge an possibly offset our temporary surface
-        // so that things outside of the canvas may cast shadows.
-        if (state.shadowOffset.x > 0) {
-          mTempSize.width += state.shadowOffset.x;
-          mSurfOffset.x = -state.shadowOffset.x;
-          transform._31 += state.shadowOffset.x;
-        } else {
-          mTempSize.width -= state.shadowOffset.x;
-        }
-        if (state.shadowOffset.y > 0) {
-          mTempSize.height += state.shadowOffset.y;
-          mSurfOffset.y = -state.shadowOffset.y;
-          transform._32 += state.shadowOffset.y;
-        } else {
-          mTempSize.height -= state.shadowOffset.y;
-        }
+      mTempRect = mgfx::Rect(0, 0, ctx->mWidth, ctx->mHeight);
 
-        if (mSigma > 0) {
-          float blurRadius = mSigma * 3;
-          mSurfOffset.x -= blurRadius;
-          mSurfOffset.y -= blurRadius;
-          mTempSize.width += blurRadius;
-          mTempSize.height += blurRadius;
-          transform._31 += blurRadius;
-          transform._32 += blurRadius;
-        }
-      } // XXX - Implement aBounds path! See bug 666452.
+      Float blurRadius = mSigma * 3;
+
+      // We need to enlarge and possibly offset our temporary surface
+      // so that things outside of the canvas may cast shadows.
+      mTempRect.Inflate(Margin(blurRadius + NS_MAX<Float>(state.shadowOffset.x, 0),
+                               blurRadius + NS_MAX<Float>(state.shadowOffset.y, 0),
+                               blurRadius + NS_MAX<Float>(-state.shadowOffset.x, 0),
+                               blurRadius + NS_MAX<Float>(-state.shadowOffset.y, 0)));
+
+      if (aBounds) {
+        // We actually include the bounds of the shadow blur, this makes it
+        // easier to execute the actual blur on hardware, and shouldn't affect
+        // the amount of pixels that need to be touched.
+        aBounds->Inflate(Margin(blurRadius, blurRadius,
+                                blurRadius, blurRadius));
+        mTempRect = mTempRect.Intersect(*aBounds);
+      }
+
+      mTempRect.ScaleRoundOut(1.0f);
+
+      transform._31 -= mTempRect.x;
+      transform._32 -= mTempRect.y;
         
       mTarget =
-        mCtx->mTarget->CreateSimilarDrawTarget(mTempSize,
-                                                FORMAT_B8G8R8A8);
-
-      mTarget->SetTransform(transform);
+        mCtx->mTarget->CreateSimilarDrawTarget(IntSize(int32_t(mTempRect.width), int32_t(mTempRect.height)),
+                                               FORMAT_B8G8R8A8);
 
       if (!mTarget) {
         // XXX - Deal with the situation where our temp size is too big to
         // fit in a texture.
         mTarget = ctx->mTarget;
         mCtx = nsnull;
+      } else {
+        mTarget->SetTransform(transform);
       }
     }
 
@@ -951,9 +903,10 @@ protected:
 
       RefPtr<SourceSurface> snapshot = mTarget->Snapshot();
       
-      mCtx->mTarget->DrawSurfaceWithShadow(snapshot, mSurfOffset,
+      mCtx->mTarget->DrawSurfaceWithShadow(snapshot, mTempRect.TopLeft(),
                                            Color::FromABGR(mCtx->CurrentState().shadowColor),
-                                           mCtx->CurrentState().shadowOffset, mSigma);
+                                           mCtx->CurrentState().shadowOffset, mSigma,
+                                           mCtx->CurrentState().op);
     }
 
     DrawTarget* operator->()
@@ -965,8 +918,7 @@ protected:
     RefPtr<DrawTarget> mTarget;
     nsCanvasRenderingContext2DAzure *mCtx;
     Float mSigma;
-    IntSize mTempSize;
-    Point mSurfOffset;
+    mgfx::Rect mTempRect;
   };
 
   nsAutoTArray<ContextState, 3> mStyleStack;
@@ -1090,9 +1042,14 @@ nsCanvasRenderingContext2DAzure::Reset()
   }
 
   mTarget = nsnull;
+
+  // Since the target changes the backing texture will change, and this will
+  // no longer be valid.
+  mThebesSurface = nsnull;
   mValid = PR_FALSE;
   mIsEntireFrameInvalid = PR_FALSE;
   mPredictManyRedrawCalls = PR_FALSE;
+
   return NS_OK;
 }
 
@@ -1269,6 +1226,8 @@ nsCanvasRenderingContext2DAzure::SetDimensions(PRInt32 width, PRInt32 height)
     mZero = PR_TRUE;
     height = 1;
     width = 1;
+  } else {
+    mZero = PR_FALSE;
   }
 
   // Check that the dimensions are sane
@@ -1623,6 +1582,62 @@ nsCanvasRenderingContext2DAzure::SetTransform(float m11, float m12, float m21, f
   mTarget->SetTransform(matrix);
 
   return NS_OK;
+}
+
+NS_IMETHODIMP
+nsCanvasRenderingContext2DAzure::SetMozCurrentTransform(JSContext* cx,
+                                                        const jsval& matrix)
+{
+  nsresult rv;
+  Matrix newCTM;
+
+  if (!JSValToMatrix(cx, matrix, &newCTM, &rv)) {
+    return rv;
+  }
+
+  mTarget->SetTransform(newCTM);
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsCanvasRenderingContext2DAzure::GetMozCurrentTransform(JSContext* cx,
+                                                        jsval* matrix)
+{
+  return MatrixToJSVal(mTarget->GetTransform(), cx, matrix);
+}
+
+NS_IMETHODIMP
+nsCanvasRenderingContext2DAzure::SetMozCurrentTransformInverse(JSContext* cx,
+                                                               const jsval& matrix)
+{
+  nsresult rv;
+  Matrix newCTMInverse;
+
+  if (!JSValToMatrix(cx, matrix, &newCTMInverse, &rv)) {
+    return rv;
+  }
+
+  // XXX ERRMSG we need to report an error to developers here! (bug 329026)
+  if (newCTMInverse.Invert()) {
+    mTarget->SetTransform(newCTMInverse);
+  }
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsCanvasRenderingContext2DAzure::GetMozCurrentTransformInverse(JSContext* cx,
+                                                               jsval* matrix)
+{
+  Matrix ctm = mTarget->GetTransform();
+
+  if (!ctm.Invert()) {
+    double NaN = JSVAL_TO_DOUBLE(JS_GetNaNValue(cx));
+    ctm = Matrix(NaN, NaN, NaN, NaN, NaN, NaN);
+  }
+
+  return MatrixToJSVal(ctm, cx, matrix);
 }
 
 //
@@ -2050,8 +2065,6 @@ nsCanvasRenderingContext2DAzure::FillRect(float x, float y, float w, float h)
     return NS_OK;
   }
 
-  bool doDrawShadow = NeedToDrawShadow();
-
   const ContextState &state = CurrentState();
 
   if (state.patternStyles[STYLE_FILL]) {
@@ -2100,9 +2113,17 @@ nsCanvasRenderingContext2DAzure::FillRect(float x, float y, float w, float h)
     }
   }
 
-  AdjustedTarget(this)->FillRect(mgfx::Rect(x, y, w, h),
-                                  GeneralPattern().ForStyle(this, STYLE_FILL, mTarget),
-                                  DrawOptions(state.globalAlpha, state.op));
+  mgfx::Rect bounds;
+  
+  if (NeedToDrawShadow()) {
+    bounds = mgfx::Rect(x, y, w, h);
+    bounds = mTarget->GetTransform().TransformBounds(bounds);
+  }
+
+  AdjustedTarget(this, bounds.IsEmpty() ? nsnull : &bounds)->
+    FillRect(mgfx::Rect(x, y, w, h),
+             GeneralPattern().ForStyle(this, STYLE_FILL, mTarget),
+             DrawOptions(state.globalAlpha, UsedOperation()));
 
   return RedrawUser(gfxRect(x, y, w, h));
 }
@@ -2116,6 +2137,14 @@ nsCanvasRenderingContext2DAzure::StrokeRect(float x, float y, float w, float h)
 
   const ContextState &state = CurrentState();
 
+  mgfx::Rect bounds;
+  
+  if (NeedToDrawShadow()) {
+    bounds = mgfx::Rect(x - state.lineWidth / 2.0f, y - state.lineWidth / 2.0f,
+                        w + state.lineWidth, h + state.lineWidth);
+    bounds = mTarget->GetTransform().TransformBounds(bounds);
+  }
+
   if (!w && !h) {
     return NS_OK;
   } else if (!h) {
@@ -2123,33 +2152,42 @@ nsCanvasRenderingContext2DAzure::StrokeRect(float x, float y, float w, float h)
     if (state.lineJoin == JOIN_ROUND) {
       cap = CAP_ROUND;
     }
-    AdjustedTarget(this)->
+    AdjustedTarget(this, bounds.IsEmpty() ? nsnull : &bounds)->
       StrokeLine(Point(x, y), Point(x + w, y),
                   GeneralPattern().ForStyle(this, STYLE_STROKE, mTarget),
                   StrokeOptions(state.lineWidth, state.lineJoin,
-                                cap, state.miterLimit),
-                  DrawOptions(state.globalAlpha, state.op));
+                                cap, state.miterLimit,
+                                state.dash.Length(),
+                                state.dash.Elements(),
+                                state.dashOffset),
+                  DrawOptions(state.globalAlpha, UsedOperation()));
     return NS_OK;
   } else if (!w) {
     CapStyle cap = CAP_BUTT;
     if (state.lineJoin == JOIN_ROUND) {
       cap = CAP_ROUND;
     }
-    AdjustedTarget(this)->
+    AdjustedTarget(this, bounds.IsEmpty() ? nsnull : &bounds)->
       StrokeLine(Point(x, y), Point(x, y + h),
                   GeneralPattern().ForStyle(this, STYLE_STROKE, mTarget),
                   StrokeOptions(state.lineWidth, state.lineJoin,
-                                cap, state.miterLimit),
-                  DrawOptions(state.globalAlpha, state.op));
+                                cap, state.miterLimit,
+                                state.dash.Length(),
+                                state.dash.Elements(),
+                                state.dashOffset),
+                  DrawOptions(state.globalAlpha, UsedOperation()));
     return NS_OK;
   }
 
-  AdjustedTarget(this)->
+  AdjustedTarget(this, bounds.IsEmpty() ? nsnull : &bounds)->
     StrokeRect(mgfx::Rect(x, y, w, h),
                 GeneralPattern().ForStyle(this, STYLE_STROKE, mTarget),
                 StrokeOptions(state.lineWidth, state.lineJoin,
-                              state.lineCap, state.miterLimit),
-                DrawOptions(state.globalAlpha, state.op));
+                              state.lineCap, state.miterLimit,
+                              state.dash.Length(),
+                              state.dash.Elements(),
+                              state.dashOffset),
+                DrawOptions(state.globalAlpha, UsedOperation()));
 
   return Redraw();
 }
@@ -2191,9 +2229,15 @@ nsCanvasRenderingContext2DAzure::Fill()
     return NS_OK;
   }
 
-  AdjustedTarget(this)->
+  mgfx::Rect bounds;
+
+  if (NeedToDrawShadow()) {
+    bounds = mPath->GetBounds(mTarget->GetTransform());
+  }
+
+  AdjustedTarget(this, bounds.IsEmpty() ? nsnull : &bounds)->
     Fill(mPath, GeneralPattern().ForStyle(this, STYLE_FILL, mTarget),
-         DrawOptions(CurrentState().globalAlpha, CurrentState().op));
+         DrawOptions(CurrentState().globalAlpha, UsedOperation()));
 
   return Redraw();
 }
@@ -2209,11 +2253,20 @@ nsCanvasRenderingContext2DAzure::Stroke()
 
   const ContextState &state = CurrentState();
 
-  AdjustedTarget(this)->
+  StrokeOptions strokeOptions(state.lineWidth, state.lineJoin,
+                              state.lineCap, state.miterLimit,
+                              state.dash.Length(), state.dash.Elements(),
+                              state.dashOffset);
+
+  mgfx::Rect bounds;
+  if (NeedToDrawShadow()) {
+    bounds =
+      mPath->GetStrokedBounds(strokeOptions, mTarget->GetTransform());
+  }
+
+  AdjustedTarget(this, bounds.IsEmpty() ? nsnull : &bounds)->
     Stroke(mPath, GeneralPattern().ForStyle(this, STYLE_STROKE, mTarget),
-            StrokeOptions(state.lineWidth, state.lineJoin,
-                          state.lineCap, state.miterLimit),
-            DrawOptions(state.globalAlpha, state.op));
+           strokeOptions, DrawOptions(state.globalAlpha, UsedOperation()));
 
   return Redraw();
 }
@@ -2434,8 +2487,6 @@ nsCanvasRenderingContext2DAzure::Arc(float x, float y,
 
   // Calculate the total arc we're going to sweep.
   Float arcSweepLeft = abs(endAngle - startAngle);
-  // Calculate the amount of curves needed, 1 per quarter circle.
-  Float curves = ceil(arcSweepLeft / (M_PI / 2.0f));
 
   Float sweepDirection = ccw ? -1.0f : 1.0f;
 
@@ -2953,6 +3004,8 @@ nsCanvasRenderingContext2DAzure::MeasureText(const nsAString& rawText,
  */
 struct NS_STACK_CLASS nsCanvasBidiProcessorAzure : public nsBidiPresUtils::BidiProcessor
 {
+  typedef nsCanvasRenderingContext2DAzure::ContextState ContextState;
+
   virtual void SetText(const PRUnichar* text, PRInt32 length, nsBidiDirection direction)
   {
     mTextRun = gfxTextRunCache::MakeTextRun(text,
@@ -2980,7 +3033,7 @@ struct NS_STACK_CLASS nsCanvasBidiProcessorAzure : public nsBidiPresUtils::BidiP
       mBoundingBox = mBoundingBox.Union(textRunMetrics.mBoundingBox);
     }
 
-    return static_cast<nscoord>(textRunMetrics.mAdvanceWidth/gfxFloat(mAppUnitsPerDevPixel));
+    return NSToCoordRound(textRunMetrics.mAdvanceWidth);
   }
 
   virtual void DrawText(nscoord xOffset, nscoord width)
@@ -3017,7 +3070,7 @@ struct NS_STACK_CLASS nsCanvasBidiProcessorAzure : public nsBidiPresUtils::BidiP
     Point baselineOrigin =
       Point(point.x * devUnitsPerAppUnit, point.y * devUnitsPerAppUnit);
 
-    for (int c = 0; c < numRuns; c++) {
+    for (PRUint32 c = 0; c < numRuns; c++) {
       gfxFont *font = runs[c].mFont;
       PRUint32 endRun = 0;
       if (c + 1 < numRuns) {
@@ -3037,7 +3090,7 @@ struct NS_STACK_CLASS nsCanvasBidiProcessorAzure : public nsBidiPresUtils::BidiP
 
       float advanceSum = 0;
 
-      for (int i = runs[c].mCharacterOffset; i < endRun; i++) {
+      for (PRUint32 i = runs[c].mCharacterOffset; i < endRun; i++) {
         Glyph newGlyph;
         if (glyphs[i].IsSimpleGlyph()) {
           newGlyph.mIndex = glyphs[i].GetSimpleGlyph();
@@ -3060,7 +3113,7 @@ struct NS_STACK_CLASS nsCanvasBidiProcessorAzure : public nsBidiPresUtils::BidiP
         gfxTextRun::DetailedGlyph *detailedGlyphs =
           mTextRun->GetDetailedGlyphs(i);
 
-        for (int c = 0; c < glyphs[i].GetGlyphCount(); c++) {
+        for (PRUint32 c = 0; c < glyphs[i].GetGlyphCount(); c++) {
           newGlyph.mIndex = detailedGlyphs[c].mGlyphID;
           if (mTextRun->IsRightToLeft()) {
             newGlyph.mPosition.x = baselineOrigin.x + detailedGlyphs[c].mXOffset * devUnitsPerAppUnit -
@@ -3074,6 +3127,11 @@ struct NS_STACK_CLASS nsCanvasBidiProcessorAzure : public nsBidiPresUtils::BidiP
         }
       }
 
+      if (!glyphBuf.size()) {
+        // This may happen for glyph runs for a 0 size font.
+        continue;
+      }
+
       buffer.mGlyphs = &glyphBuf.front();
       buffer.mNumGlyphs = glyphBuf.size();
 
@@ -3082,18 +3140,22 @@ struct NS_STACK_CLASS nsCanvasBidiProcessorAzure : public nsBidiPresUtils::BidiP
           FillGlyphs(scaledFont, buffer,
                       nsCanvasRenderingContext2DAzure::GeneralPattern().
                         ForStyle(mCtx, nsCanvasRenderingContext2DAzure::STYLE_FILL, mCtx->mTarget),
-                      DrawOptions(mState->globalAlpha, mState->op));
+                      DrawOptions(mState->globalAlpha, mCtx->UsedOperation()));
       } else if (mOp == nsCanvasRenderingContext2DAzure::TEXT_DRAW_OPERATION_STROKE) {
         RefPtr<Path> path = scaledFont->GetPathForGlyphs(buffer, mCtx->mTarget);
             
         Matrix oldTransform = mCtx->mTarget->GetTransform();
 
+        const ContextState& state = *mState;
         nsCanvasRenderingContext2DAzure::AdjustedTarget(mCtx)->
           Stroke(path, nsCanvasRenderingContext2DAzure::GeneralPattern().
                     ForStyle(mCtx, nsCanvasRenderingContext2DAzure::STYLE_STROKE, mCtx->mTarget),
-                  StrokeOptions(mCtx->CurrentState().lineWidth, mCtx->CurrentState().lineJoin,
-                                mCtx->CurrentState().lineCap, mCtx->CurrentState().miterLimit),
-                  DrawOptions(mState->globalAlpha, mState->op));
+                  StrokeOptions(state.lineWidth, state.lineJoin,
+                                state.lineCap, state.miterLimit,
+                                state.dash.Length(),
+                                state.dash.Elements(),
+                                state.dashOffset),
+                  DrawOptions(state.globalAlpha, mCtx->UsedOperation()));
 
       }
     }
@@ -3121,7 +3183,7 @@ struct NS_STACK_CLASS nsCanvasBidiProcessorAzure : public nsBidiPresUtils::BidiP
   nsCanvasRenderingContext2DAzure::TextDrawOperation mOp;
 
   // context state
-  nsCanvasRenderingContext2DAzure::ContextState *mState;
+  ContextState *mState;
 
   // union of bounding boxes of all runs, needed for shadows
   gfxRect mBoundingBox;
@@ -3161,11 +3223,6 @@ nsCanvasRenderingContext2DAzure::DrawOrMeasureText(const nsAString& aRawText,
       return NS_ERROR_FAILURE;
 
   nsIDocument* document = presShell->GetDocument();
-
-  nsBidiPresUtils* bidiUtils = presShell->GetPresContext()->GetBidiUtils();
-  if (!bidiUtils) {
-    return NS_ERROR_FAILURE;
-  }
 
   // replace all the whitespace characters with U+0020 SPACE
   nsAutoString textToDraw(aRawText);
@@ -3213,25 +3270,28 @@ nsCanvasRenderingContext2DAzure::DrawOrMeasureText(const nsAString& aRawText,
   processor.mFontgrp = GetCurrentFontStyle();
   NS_ASSERTION(processor.mFontgrp, "font group is null");
 
-  nscoord totalWidth;
+  nscoord totalWidthCoord;
 
   // calls bidi algo twice since it needs the full text width and the
   // bounding boxes before rendering anything
-  rv = bidiUtils->ProcessText(textToDraw.get(),
-                              textToDraw.Length(),
-                              isRTL ? NSBIDI_RTL : NSBIDI_LTR,
-                              presShell->GetPresContext(),
-                              processor,
-                              nsBidiPresUtils::MODE_MEASURE,
-                              nsnull,
-                              0,
-                              &totalWidth);
+  nsBidi bidiEngine;
+  rv = nsBidiPresUtils::ProcessText(textToDraw.get(),
+                                textToDraw.Length(),
+                                isRTL ? NSBIDI_RTL : NSBIDI_LTR,
+                                presShell->GetPresContext(),
+                                processor,
+                                nsBidiPresUtils::MODE_MEASURE,
+                                nsnull,
+                                0,
+                                &totalWidthCoord,
+                                &bidiEngine);
   if (NS_FAILED(rv)) {
     return rv;
   }
 
+  float totalWidth = float(totalWidthCoord) / processor.mAppUnitsPerDevPixel;
   if (aWidth) {
-    *aWidth = static_cast<float>(totalWidth);
+    *aWidth = totalWidth;
   }
 
   // if only measuring, don't need to do any more work
@@ -3315,15 +3375,16 @@ nsCanvasRenderingContext2DAzure::DrawOrMeasureText(const nsAString& aRawText,
   // don't ever need to measure the bounding box twice
   processor.mDoMeasureBoundingBox = PR_FALSE;
 
-  rv = bidiUtils->ProcessText(textToDraw.get(),
-                              textToDraw.Length(),
-                              isRTL ? NSBIDI_RTL : NSBIDI_LTR,
-                              presShell->GetPresContext(),
-                              processor,
-                              nsBidiPresUtils::MODE_DRAW,
-                              nsnull,
-                              0,
-                              nsnull);
+  rv = nsBidiPresUtils::ProcessText(textToDraw.get(),
+                                    textToDraw.Length(),
+                                    isRTL ? NSBIDI_RTL : NSBIDI_LTR,
+                                    presShell->GetPresContext(),
+                                    processor,
+                                    nsBidiPresUtils::MODE_DRAW,
+                                    nsnull,
+                                    0,
+                                    nsnull,
+                                    &bidiEngine);
 
 
   mTarget->SetTransform(oldTransform);
@@ -3372,30 +3433,6 @@ gfxFontGroup *nsCanvasRenderingContext2DAzure::GetCurrentFontStyle()
   }
 
   return CurrentState().fontGroup;
-}
-
-NS_IMETHODIMP
-nsCanvasRenderingContext2DAzure::MozDrawText(const nsAString& textToDraw)
-{
-  return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
-}
-
-NS_IMETHODIMP
-nsCanvasRenderingContext2DAzure::MozMeasureText(const nsAString& textToMeasure, float *retVal)
-{
-  return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
-}
-
-NS_IMETHODIMP
-nsCanvasRenderingContext2DAzure::MozPathText(const nsAString& textToPath)
-{
-  return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
-}
-
-NS_IMETHODIMP
-nsCanvasRenderingContext2DAzure::MozTextAlongPath(const nsAString& textToDraw, PRBool stroke)
-{
-  return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
 }
 
 //
@@ -3516,6 +3553,47 @@ NS_IMETHODIMP
 nsCanvasRenderingContext2DAzure::GetMiterLimit(float *miter)
 {
   *miter = CurrentState().miterLimit;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsCanvasRenderingContext2DAzure::SetMozDash(JSContext *cx, const jsval& patternArray)
+{
+  FallibleTArray<Float> dash;
+  nsresult rv = JSValToDashArray(cx, patternArray, dash);
+  if (NS_SUCCEEDED(rv)) {
+    ContextState& state = CurrentState();
+    state.dash = dash;
+    if (state.dash.IsEmpty()) {
+      state.dashOffset = 0;
+    }
+  }
+  return rv;
+}
+
+NS_IMETHODIMP
+nsCanvasRenderingContext2DAzure::GetMozDash(JSContext* cx, jsval* dashArray)
+{
+  return DashArrayToJSVal(CurrentState().dash, cx, dashArray);
+}
+ 
+NS_IMETHODIMP
+nsCanvasRenderingContext2DAzure::SetMozDashOffset(float offset)
+{
+  if (!FloatValidate(offset)) {
+    return NS_ERROR_ILLEGAL_VALUE;
+  }
+  ContextState& state = CurrentState();
+  if (!state.dash.IsEmpty()) {
+    state.dashOffset = offset;
+  }
+  return NS_OK;
+}
+ 
+NS_IMETHODIMP
+nsCanvasRenderingContext2DAzure::GetMozDashOffset(float* offset)
+{
+  *offset = CurrentState().dashOffset;
   return NS_OK;
 }
 
@@ -3706,12 +3784,19 @@ nsCanvasRenderingContext2DAzure::DrawImage(nsIDOMElement *imgElt, float a1,
   else
     filter = mgfx::FILTER_POINT;
 
-  AdjustedTarget(this)->
+  mgfx::Rect bounds;
+  
+  if (NeedToDrawShadow()) {
+    bounds = mgfx::Rect(dx, dy, dw, dh);
+    bounds = mTarget->GetTransform().TransformBounds(bounds);
+  }
+
+  AdjustedTarget(this, bounds.IsEmpty() ? nsnull : &bounds)->
     DrawSurface(srcSurf,
                 mgfx::Rect(dx, dy, dw, dh),
                 mgfx::Rect(sx, sy, sw, sh),
                 DrawSurfaceOptions(filter),
-                DrawOptions(CurrentState().globalAlpha, CurrentState().op));
+                DrawOptions(CurrentState().globalAlpha, UsedOperation()));
 
   return RedrawUser(gfxRect(dx, dy, dw, dh));
 }
@@ -3867,12 +3952,12 @@ nsCanvasRenderingContext2DAzure::DrawWindow(nsIDOMWindow* aWindow, float aX, flo
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2DAzure::AsyncDrawXULElement(nsIDOMXULElement* aElem, float aX, float aY,
-                                                float aW, float aH,
-                                                const nsAString& aBGColor,
-                                                PRUint32 flags)
+nsCanvasRenderingContext2DAzure::AsyncDrawXULElement(nsIDOMXULElement* aElem,
+                                                     float aX, float aY,
+                                                     float aW, float aH,
+                                                     const nsAString& aBGColor,
+                                                     PRUint32 flags)
 {
-#if 0
     NS_ENSURE_ARG(aElem != nsnull);
 
     // We can't allow web apps to call this until we fix at least the
@@ -3887,6 +3972,7 @@ nsCanvasRenderingContext2DAzure::AsyncDrawXULElement(nsIDOMXULElement* aElem, fl
         return NS_ERROR_DOM_SECURITY_ERR;
     }
 
+#if 0
     nsCOMPtr<nsIFrameLoaderOwner> loaderOwner = do_QueryInterface(aElem);
     if (!loaderOwner)
         return NS_ERROR_FAILURE;
@@ -4025,8 +4111,6 @@ nsCanvasRenderingContext2DAzure::GetImageData_explicit(PRInt32 x, PRInt32 y, PRU
     memset(aData, 0, aDataLen);
   }
 
-  bool finishedPainting = false;
-
   IntRect srcReadRect = srcRect.Intersect(destRect);
   IntRect dstWriteRect = srcReadRect;
   dstWriteRect.MoveBy(-x, -y);
@@ -4050,8 +4134,8 @@ nsCanvasRenderingContext2DAzure::GetImageData_explicit(PRInt32 x, PRInt32 y, PRU
   // from src and advancing that ptr before writing to dst.
   PRUint8 *dst = aData + dstWriteRect.y * (w * 4) + dstWriteRect.x * 4;
 
-  for (PRUint32 j = 0; j < dstWriteRect.height; j++) {
-    for (PRUint32 i = 0; i < dstWriteRect.width; i++) {
+  for (int j = 0; j < dstWriteRect.height; j++) {
+    for (int i = 0; i < dstWriteRect.width; i++) {
       // XXX Is there some useful swizzle MMX we can use here?
 #ifdef IS_LITTLE_ENDIAN
       PRUint8 b = *src++;
@@ -4233,11 +4317,22 @@ nsCanvasRenderingContext2DAzure::GetThebesSurface(gfxASurface **surface)
     *surface = tmpSurf.forget().get();
     return NS_OK;
   }
-    
-  nsRefPtr<gfxASurface> newSurf =
-    gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(mTarget);    
 
-  *surface = newSurf.forget().get();
+  if (!mThebesSurface) {
+    mThebesSurface =
+      gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(mTarget);    
+
+    if (!mThebesSurface) {
+      return NS_ERROR_FAILURE;
+    }
+  } else {
+    // Normally GetThebesSurfaceForDrawTarget will handle the flush, when
+    // we're returning a cached ThebesSurface we need to flush here.
+    mTarget->Flush();
+  }
+
+  mThebesSurface->AddRef();
+  *surface = mThebesSurface;
 
   return NS_OK;
 }

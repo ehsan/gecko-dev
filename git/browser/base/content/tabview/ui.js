@@ -135,13 +135,13 @@ let UI = {
   // Used to keep track of allowed browser keys.
   _browserKeys: null,
 
+  // Variable: _browserKeysWithShift
+  // Used to keep track of allowed browser keys with Shift key combination.
+  _browserKeysWithShift: null,
+
   // Variable: ignoreKeypressForSearch
   // Used to prevent keypress being handled after quitting search mode.
   ignoreKeypressForSearch: false,
-
-  // Variable: creatingNewOrphanTab
-  // Used to keep track of whether we are creating a new oprhan tab or not.
-  creatingNewOrphanTab: false,
 
   // Variable: _lastOpenedTab
   // Used to keep track of the last opened tab.
@@ -197,29 +197,22 @@ let UI = {
             self._lastClick = 0;
             self._lastClickPositions = null;
           } else {
-            // Create an orphan tab on double click
+            // Create a group with one tab on double click
             if (Date.now() - self._lastClick <= self.DBLCLICK_INTERVAL && 
                 (self._lastClickPositions.x - self.DBLCLICK_OFFSET) <= e.clientX &&
                 (self._lastClickPositions.x + self.DBLCLICK_OFFSET) >= e.clientX &&
                 (self._lastClickPositions.y - self.DBLCLICK_OFFSET) <= e.clientY &&
                 (self._lastClickPositions.y + self.DBLCLICK_OFFSET) >= e.clientY) {
-              self.setActive(null);
-              self.creatingNewOrphanTab = true;
 
               let box =
                 new Rect(e.clientX - Math.floor(TabItems.tabWidth/2),
                          e.clientY - Math.floor(TabItems.tabHeight/2),
                          TabItems.tabWidth, TabItems.tabHeight);
-              let newTab =
-                gBrowser.loadOneTab("about:blank", { inBackground: false });
+              box.inset(-30, -30);
 
-              newTab._tabViewTabItem.setBounds(box, true);
-              newTab._tabViewTabItem.pushAway(true);
-              self.setActive(newTab._tabViewTabItem);
-
-              self.creatingNewOrphanTab = false;
-              // the bounds of tab item is set and we can zoom in now.
-              newTab._tabViewTabItem.zoomIn(true);
+              let opts = {immediately: true, bounds: box};
+              let groupItem = new GroupItem([], opts);
+              groupItem.newTab();
 
               self._lastClick = 0;
               self._lastClickPositions = null;
@@ -423,46 +416,24 @@ let UI = {
   },
 
   // ----------
-  // Function: getActiveOrphanTab
-  // Returns the currently active orphan tab as a <TabItem>
-  getActiveOrphanTab: function UI_getActiveOrphanTab() {
-    return (this._activeTab && !this._activeTab.parent) ? this._activeTab : null;
-  },
-
-  // ----------
   // Function: setActive
   // Sets the active tab item or group item
   // Parameters:
   //
   // options
   //  dontSetActiveTabInGroup bool for not setting active tab in group
-  //  onlyRemoveActiveGroup bool for removing active group
-  //  onlyRemoveActiveTab bool for removing active tab
   setActive: function UI_setActive(item, options) {
-    if (item) {
-      if (item.isATabItem) {
-        if (item.parent)
-          GroupItems.setActiveGroupItem(item.parent);
-        else
-          GroupItems.setActiveGroupItem(null);
-        this._setActiveTab(item);
-      } else {
-        GroupItems.setActiveGroupItem(item);
-        if (!options || !options.dontSetActiveTabInGroup) {
-          let activeTab = item.getActiveTab()
-          if (activeTab)
-            this._setActiveTab(activeTab);
-        }
-      }
+    Utils.assert(item, "item must be given");
+
+    if (item.isATabItem) {
+      GroupItems.setActiveGroupItem(item.parent);
+      this._setActiveTab(item);
     } else {
-      if (options) {
-        if (options.onlyRemoveActiveGroup)
-          GroupItems.setActiveGroupItem(null);
-        else if (options.onlyRemoveActiveTab)
-          this._setActiveTab(null);
-      } else {
-        GroupItems.setActiveGroupItem(null);
-        this._setActiveTab(null);
+      GroupItems.setActiveGroupItem(item);
+      if (!options || !options.dontSetActiveTabInGroup) {
+        let activeTab = item.getActiveTab()
+        if (activeTab)
+          this._setActiveTab(activeTab);
       }
     }
   },
@@ -523,10 +494,6 @@ let UI = {
 
     Storage.saveVisibilityData(gWindow, "true");
 
-    let activeGroupItem = null;
-    if (!UI.getActiveOrphanTab())
-      activeGroupItem = GroupItems.getActiveGroupItem();
-
     if (zoomOut && currentTab && currentTab._tabViewTabItem) {
       item = currentTab._tabViewTabItem;
       // If there was a previous currentTab we want to animate
@@ -549,7 +516,6 @@ let UI = {
         TabItems.resumePainting();
       });
     } else {
-      self.setActive(null, { onlyRemoveActiveTab: true });
       dispatchEvent(event);
 
       // Flush pending updates
@@ -631,8 +597,10 @@ let UI = {
   // Pauses the storage activity that conflicts with sessionstore updates and 
   // private browsing mode switches. Calls can be nested. 
   storageBusy: function UI_storageBusy() {
-    if (!this._storageBusyCount)
+    if (!this._storageBusyCount) {
       TabItems.pauseReconnecting();
+      GroupItems.pauseAutoclose();
+    }
     
     this._storageBusyCount++;
   },
@@ -650,6 +618,7 @@ let UI = {
   
       TabItems.resumeReconnecting();
       GroupItems._updateTabBar();
+      GroupItems.resumeAutoclose();
     }
   },
 
@@ -726,7 +695,7 @@ let UI = {
       // if it's an app tab, add it to all the group items
       if (tab.pinned)
         GroupItems.addAppTab(tab);
-      else if (self.isTabViewVisible())
+      else if (self.isTabViewVisible() && !self._storageBusyCount)
         self._lastOpenedTab = tab;
     };
     
@@ -868,8 +837,7 @@ let UI = {
     if (this.isTabViewVisible()) {
       if (!this.restoredClosedTab && this._lastOpenedTab == tab && 
         tab._tabViewTabItem) {
-        if (!this.creatingNewOrphanTab)
-          tab._tabViewTabItem.zoomIn(true);
+        tab._tabViewTabItem.zoomIn(true);
         this._lastOpenedTab = null;
         return;
       }
@@ -917,9 +885,9 @@ let UI = {
       }
     } else {
       // No tabItem; must be an app tab. Base the tab bar on the current group.
-      // If no current group or orphan tab, figure it out based on what's
-      // already in the tab bar.
-      if (!GroupItems.getActiveGroupItem() && !UI.getActiveOrphanTab()) {
+      // If no current group, figure it out based on what's already in the tab
+      // bar.
+      if (!GroupItems.getActiveGroupItem()) {
         for (let a = 0; a < gBrowser.tabs.length; a++) {
           let theTab = gBrowser.tabs[a];
           if (!theTab.pinned) {
@@ -930,7 +898,7 @@ let UI = {
         }
       }
 
-      if (GroupItems.getActiveGroupItem() || UI.getActiveOrphanTab())
+      if (GroupItems.getActiveGroupItem())
         GroupItems._updateTabBar();
     }
   },
@@ -979,7 +947,7 @@ let UI = {
     let cl = null;
     let clDist;
     TabItems.getItems().forEach(function (item) {
-      if (item.parent && item.parent.hidden)
+      if (!item.parent || item.parent.hidden)
         return;
       let testDist = tabCenter.distance(item.bounds.center());
       if (cl==null || testDist < clDist) {
@@ -1009,11 +977,15 @@ let UI = {
       "selectAll", "find"
     ].forEach(function(key) {
       let element = gWindow.document.getElementById("key_" + key);
-      keys[key] = element.getAttribute("key").toLocaleLowerCase().charCodeAt(0);
+      let code = element.getAttribute("key").toLocaleLowerCase().charCodeAt(0);
+      keys[code] = key;
     });
+    this._browserKeys = keys;
 
-    // for key combinations with shift key, the charCode of upper case letters 
-    // are different to the lower case ones so need to handle them differently.
+    keys = {};
+    // The lower case letters are passed to processBrowserKeys() even with shift 
+    // key when stimulating a key press using EventUtils.synthesizeKey() so need 
+    // to handle both upper and lower cases here.
     [
 #ifdef XP_UNIX
       "redo",
@@ -1022,11 +994,10 @@ let UI = {
       "privatebrowsing"
     ].forEach(function(key) {
       let element = gWindow.document.getElementById("key_" + key);
-      keys[key] = element.getAttribute("key").toLocaleUpperCase().charCodeAt(0);
+      let code = element.getAttribute("key").toLocaleLowerCase().charCodeAt(0);
+      keys[code] = key;
     });
-
-    delete this._browserKeys;
-    this._browserKeys = keys;
+    this._browserKeysWithShift = keys;
   },
 
   // ----------
@@ -1058,44 +1029,25 @@ let UI = {
 #endif
           let preventDefault = true;
           if (evt.shiftKey) {
-            switch (evt.charCode) {
-              case self._browserKeys.tabview:
+            // when a user presses ctrl+shift+key, upper case letter charCode 
+            // is passed to processBrowserKeys() so converting back to lower 
+            // case charCode before doing the check
+            let lowercaseCharCode =
+              String.fromCharCode(evt.charCode).toLocaleLowerCase().charCodeAt(0);
+            if (lowercaseCharCode in self._browserKeysWithShift) {
+              let key = self._browserKeysWithShift[lowercaseCharCode];
+              if (key == "tabview")
                 self.exit();
-                break;
-#ifdef XP_UNIX
-              case self._browserKeys.redo:
-#endif
-              case self._browserKeys.closeWindow:
-              case self._browserKeys.undoCloseTab:
-              case self._browserKeys.undoCloseWindow:
-              case self._browserKeys.privatebrowsing:
+              else
                 preventDefault = false;
-                break;
             }
           } else {
-            switch (evt.charCode) {
-              case self._browserKeys.find:
+            if (evt.charCode in self._browserKeys) {
+              let key = self._browserKeys[evt.charCode];
+              if (key == "find")
                 self.enableSearch();
-                break;
-#ifdef XP_UNIX
-              case self._browserKeys.quitApplication:
-#else
-              case self._browserKeys.redo:
-#endif
-#ifdef XP_MACOSX
-              case self._browserKeys.preferencesCmdMac:
-              case self._browserKeys.minimizeWindow:
-              case self._browserKeys.hideThisAppCmdMac:
-#endif
-              case self._browserKeys.newNavigator:
-              case self._browserKeys.newNavigatorTab:
-              case self._browserKeys.undo:
-              case self._browserKeys.cut:
-              case self._browserKeys.copy:
-              case self._browserKeys.paste:
-              case self._browserKeys.selectAll:
+              else
                 preventDefault = false;
-                break;
             }
           }
           if (preventDefault) {
@@ -1224,7 +1176,6 @@ let UI = {
     const minMinSize = 15;
 
     let lastActiveGroupItem = GroupItems.getActiveGroupItem();
-    this.setActive(null, { onlyRemoveActiveGroup: true });
 
     var startPos = { x: e.clientX, y: e.clientY };
     var phantom = iQ("<div>")
@@ -1317,19 +1268,8 @@ let UI = {
       let box = item.getBounds();
       if (box.width > minMinSize && box.height > minMinSize &&
          (box.width > minSize || box.height > minSize)) {
-        var bounds = item.getBounds();
-
-        // Add all of the orphaned tabs that are contained inside the new groupItem
-        // to that groupItem.
-        var tabs = GroupItems.getOrphanedTabs();
-        var insideTabs = [];
-        for each(let tab in tabs) {
-          if (bounds.contains(tab.bounds))
-            insideTabs.push(tab);
-        }
-
-        let opts = {bounds: bounds, focusTitle: true};
-        let groupItem = new GroupItem(insideTabs, opts);
+        let opts = {bounds: item.getBounds(), focusTitle: true};
+        let groupItem = new GroupItem([], opts);
         self.setActive(groupItem);
         phantom.remove();
         dragOutInfo = null;
@@ -1505,9 +1445,9 @@ let UI = {
       let unhiddenGroups = GroupItems.groupItems.filter(function(groupItem) {
         return (!groupItem.hidden && groupItem.getChildren().length > 0);
       });
-      // no pinned tabs, no visible groups and no orphaned tabs: open a new
-      // group, a blank tab and return
-      if (!unhiddenGroups.length && !GroupItems.getOrphanedTabs().length) {
+      // no pinned tabs and no visible groups: open a new group. open a blank
+      // tab and return
+      if (!unhiddenGroups.length) {
         let emptyGroups = GroupItems.groupItems.filter(function (groupItem) {
           return (!groupItem.hidden && !groupItem.getChildren().length);
         });
@@ -1616,6 +1556,35 @@ let UI = {
       url = gFavIconService.getFaviconImageForPage(tab.linkedBrowser.currentURI).spec;
 
     return url;
+  },
+
+  // ----------
+  // Function: notifySessionRestoreEnabled
+  // Notify the user that session restore has been automatically enabled
+  // by showing a banner that expects no user interaction. It fades out after
+  // some seconds.
+  notifySessionRestoreEnabled: function UI_notifySessionRestoreEnabled() {
+    let brandBundle = gWindow.document.getElementById("bundle_brand");
+    let brandShortName = brandBundle.getString("brandShortName");
+    let notificationText = tabviewBundle.formatStringFromName(
+      "tabview.notification.sessionStore", [brandShortName], 1);
+
+    let banner = iQ("<div>")
+      .text(notificationText)
+      .addClass("banner")
+      .appendTo("body");
+
+    let onFadeOut = function () {
+      banner.remove();
+    };
+
+    let onFadeIn = function () {
+      setTimeout(function () {
+        banner.animate({opacity: 0}, {duration: 1500, complete: onFadeOut});
+      }, 5000);
+    };
+
+    banner.animate({opacity: 0.7}, {duration: 1500, complete: onFadeIn});
   }
 };
 

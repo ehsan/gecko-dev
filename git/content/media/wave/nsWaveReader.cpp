@@ -152,8 +152,7 @@ nsresult nsWaveReader::Init(nsBuiltinDecoderReader* aCloneDonor)
 
 nsresult nsWaveReader::ReadMetadata(nsVideoInfo* aInfo)
 {
-  NS_ASSERTION(mDecoder->OnStateMachineThread(), "Should be on state machine thread.");
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
 
   PRBool loaded = LoadRIFFChunk() && LoadFormatChunk() && FindDataOffset();
   if (!loaded) {
@@ -167,8 +166,7 @@ nsresult nsWaveReader::ReadMetadata(nsVideoInfo* aInfo)
 
   *aInfo = mInfo;
 
-  ReentrantMonitorAutoExit exitReaderMon(mReentrantMonitor);
-  ReentrantMonitorAutoEnter decoderMon(mDecoder->GetReentrantMonitor());
+  ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
 
   mDecoder->GetStateMachine()->SetDuration(
     static_cast<PRInt64>(BytesToTime(GetDataLength()) * USECS_PER_S));
@@ -178,9 +176,7 @@ nsresult nsWaveReader::ReadMetadata(nsVideoInfo* aInfo)
 
 PRBool nsWaveReader::DecodeAudioData()
 {
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-  NS_ASSERTION(mDecoder->OnStateMachineThread() || mDecoder->OnDecodeThread(),
-               "Should be on state machine thread or decode thread.");
+  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
 
   PRInt64 pos = GetPosition() - mWavePCMOffset;
   PRInt64 len = GetDataLength();
@@ -246,18 +242,14 @@ PRBool nsWaveReader::DecodeAudioData()
 PRBool nsWaveReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
                                       PRInt64 aTimeThreshold)
 {
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-  NS_ASSERTION(mDecoder->OnStateMachineThread() || mDecoder->OnDecodeThread(),
-               "Should be on state machine or decode thread.");
+  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
 
   return PR_FALSE;
 }
 
 nsresult nsWaveReader::Seek(PRInt64 aTarget, PRInt64 aStartTime, PRInt64 aEndTime, PRInt64 aCurrentTime)
 {
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-  NS_ASSERTION(mDecoder->OnStateMachineThread(),
-               "Should be on state machine thread.");
+  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
   LOG(PR_LOG_DEBUG, ("%p About to seek to %lld", mDecoder, aTarget));
   if (NS_FAILED(ResetDecode())) {
     return NS_ERROR_FAILURE;
@@ -381,7 +373,7 @@ nsWaveReader::ScanForwardUntil(PRUint32 aWantedChunk, PRUint32* aChunkSize)
     PR_STATIC_ASSERT(MAX_CHUNK_SIZE < UINT_MAX / sizeof(char));
     nsAutoArrayPtr<char> chunk(new char[MAX_CHUNK_SIZE]);
     while (chunkSize > 0) {
-      PRUint32 size = PR_MIN(chunkSize, MAX_CHUNK_SIZE);
+      PRUint32 size = NS_MIN(chunkSize, MAX_CHUNK_SIZE);
       if (!ReadAll(chunk.get(), size)) {
         return PR_FALSE;
       }
@@ -545,8 +537,8 @@ nsWaveReader::GetDataLength()
   // the content length rather than the expected PCM data length.
   PRInt64 streamLength = mDecoder->GetCurrentStream()->GetLength();
   if (streamLength >= 0) {
-    PRInt64 dataLength = PR_MAX(0, streamLength - mWavePCMOffset);
-    length = PR_MIN(dataLength, length);
+    PRInt64 dataLength = NS_MAX<PRInt64>(0, streamLength - mWavePCMOffset);
+    length = NS_MIN(dataLength, length);
   }
   return length;
 }

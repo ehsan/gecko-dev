@@ -439,16 +439,14 @@ nsHTMLEditor::FindSelectionRoot(nsINode *aNode)
   return content.forget();
 }
 
-nsresult
+/* virtual */
+void
 nsHTMLEditor::CreateEventListeners()
 {
   // Don't create the handler twice
-  if (mEventListener)
-    return NS_OK;
-  mEventListener = do_QueryInterface(
-    static_cast<nsIDOMKeyListener*>(new nsHTMLEditorEventListener()));
-  NS_ENSURE_TRUE(mEventListener, NS_ERROR_OUT_OF_MEMORY);
-  return NS_OK;
+  if (!mEventListener) {
+    mEventListener = new nsHTMLEditorEventListener();
+  }
 }
 
 nsresult
@@ -486,11 +484,10 @@ nsHTMLEditor::RemoveEventListeners()
 
     if (mMouseMotionListenerP)
     {
-      // mMouseMotionListenerP might be registerd either by IID or
-      // name, unregister by both.
-      target->RemoveEventListenerByIID(mMouseMotionListenerP,
-                                       NS_GET_IID(nsIDOMMouseMotionListener));
-
+      // mMouseMotionListenerP might be registerd either as bubbling or
+      // capturing, unregister by both.
+      target->RemoveEventListener(NS_LITERAL_STRING("mousemove"),
+                                  mMouseMotionListenerP, PR_FALSE);
       target->RemoveEventListener(NS_LITERAL_STRING("mousemove"),
                                   mMouseMotionListenerP, PR_TRUE);
     }

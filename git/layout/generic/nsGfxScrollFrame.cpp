@@ -56,7 +56,7 @@
 #include "nsIDocument.h"
 #include "nsBoxLayoutState.h"
 #include "nsINodeInfo.h"
-#include "nsIScrollbarFrame.h"
+#include "nsScrollbarFrame.h"
 #include "nsIScrollbarMediator.h"
 #include "nsITextControlFrame.h"
 #include "nsIDOMHTMLTextAreaElement.h"
@@ -1561,15 +1561,11 @@ nsGfxScrollFrameInner::ScrollTo(nsPoint aScrollPosition,
     }
   } else {
     mAsyncScroll = new AsyncScroll;
-    if (mAsyncScroll) {
-      mAsyncScroll->mScrollTimer = do_CreateInstance("@mozilla.org/timer;1");
-      if (!mAsyncScroll->mScrollTimer) {
-        delete mAsyncScroll;
-        mAsyncScroll = nsnull;
-      }
-    }
-    if (!mAsyncScroll) {
-      // some allocation failed. Scroll the normal way.
+    mAsyncScroll->mScrollTimer = do_CreateInstance("@mozilla.org/timer;1");
+    if (!mAsyncScroll->mScrollTimer) {
+      delete mAsyncScroll;
+      mAsyncScroll = nsnull;
+      // allocation failed. Scroll the normal way.
       ScrollToImpl(mDestination);
       return;
     }
@@ -2199,8 +2195,8 @@ nsGfxScrollFrameInner::ScrollBy(nsIntPoint aDelta,
     nsPoint clampAmount = mDestination - newPos;
     float appUnitsPerDevPixel = mOuter->PresContext()->AppUnitsPerDevPixel();
     *aOverflow = nsIntPoint(
-        NSAppUnitsToIntPixels(PR_ABS(clampAmount.x), appUnitsPerDevPixel),
-        NSAppUnitsToIntPixels(PR_ABS(clampAmount.y), appUnitsPerDevPixel));
+        NSAppUnitsToIntPixels(NS_ABS(clampAmount.x), appUnitsPerDevPixel),
+        NSAppUnitsToIntPixels(NS_ABS(clampAmount.y), appUnitsPerDevPixel));
   }
 }
 
@@ -3563,10 +3559,7 @@ nsGfxScrollFrameInner::GetActualScrollbarSizes() const
 void
 nsGfxScrollFrameInner::SetScrollbarVisibility(nsIBox* aScrollbar, PRBool aVisible)
 {
-  if (!aScrollbar)
-    return;
-
-  nsIScrollbarFrame* scrollbar = do_QueryFrame(aScrollbar);
+  nsScrollbarFrame* scrollbar = do_QueryFrame(aScrollbar);
   if (scrollbar) {
     // See if we have a mediator.
     nsIScrollbarMediator* mediator = scrollbar->GetScrollbarMediator();
@@ -3619,10 +3612,7 @@ nsGfxScrollFrameInner::SaveState(nsIStatefulFrame::SpecialStateID aStateID)
   }
 
   nsPresState* state = new nsPresState();
-  if (!state) {
-    return nsnull;
-  }
- 
+
   state->SetScrollState(scrollPos);
 
   return state;

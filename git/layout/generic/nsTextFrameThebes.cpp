@@ -106,7 +106,6 @@
 #endif
 #include "nsAutoPtr.h"
 
-#include "nsBidiPresUtils.h"
 #include "nsBidiUtils.h"
 
 #include "gfxFont.h"
@@ -132,7 +131,7 @@ using namespace mozilla::dom;
 
 struct TabWidth {
   TabWidth(PRUint32 aOffset, PRUint32 aWidth)
-    : mOffset(aOffset), mWidth(aWidth)
+    : mOffset(aOffset), mWidth(float(aWidth))
   { }
 
   PRUint32 mOffset; // character offset within the text covered by the
@@ -592,10 +591,9 @@ MakeTextRun(const PRUint8 *aText, PRUint32 aLength,
     return textRun.forget();
 }
 
-nsresult
+void
 nsTextFrameTextRunCache::Init() {
     gTextRuns = new FrameTextRunCache();
-    return gTextRuns ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
 void
@@ -2751,7 +2749,7 @@ ComputeTabWidthAppUnits(nsIFrame* aFrame, gfxTextRun* aTextRun)
   // Round the space width when converting to appunits the same way
   // textruns do
   gfxFloat spaceWidthAppUnits =
-    NS_roundf(GetFirstFontMetrics(
+    NS_round(GetFirstFontMetrics(
                 GetFontGroupForFrame(aFrame)).spaceWidth *
               aTextRun->GetAppUnitsPerDevUnit());
   return textStyle->mTabSize * spaceWidthAppUnits;
@@ -2802,7 +2800,7 @@ PropertyProvider::CalcTabWidths(PRUint32 aStart, PRUint32 aLength)
 
   PRUint32 startOffset = mStart.GetSkippedOffset();
   PRUint32 tabsEnd = mTabWidths ?
-    mTabWidths->mLimit : PR_MAX(mTabWidthsAnalyzedLimit, startOffset);
+    mTabWidths->mLimit : NS_MAX(mTabWidthsAnalyzedLimit, startOffset);
 
   if (tabsEnd < aStart + aLength) {
     NS_ASSERTION(mReflowing,
@@ -2831,8 +2829,8 @@ PropertyProvider::CalcTabWidths(PRUint32 aStart, PRUint32 aLength)
         }
         double nextTab = AdvanceToNextTab(mOffsetFromBlockOriginForTabs,
                 mFrame, mTextRun, &tabWidth);
-        mTabWidths->mWidths.AppendElement(
-          TabWidth(i - startOffset, nextTab - mOffsetFromBlockOriginForTabs));
+        mTabWidths->mWidths.AppendElement(TabWidth(i - startOffset, 
+                NSToIntRound(nextTab - mOffsetFromBlockOriginForTabs)));
         mOffsetFromBlockOriginForTabs = nextTab;
       }
 
@@ -2847,7 +2845,7 @@ PropertyProvider::CalcTabWidths(PRUint32 aStart, PRUint32 aLength)
   if (!mTabWidths) {
     // Delete any stale property that may be left on the frame
     mFrame->Properties().Delete(TabWidthProperty());
-    mTabWidthsAnalyzedLimit = PR_MAX(mTabWidthsAnalyzedLimit,
+    mTabWidthsAnalyzedLimit = NS_MAX(mTabWidthsAnalyzedLimit,
                                      aStart + aLength);
   }
 }
@@ -3037,8 +3035,8 @@ public:
 
   NS_DECL_NSITIMERCALLBACK
 
-  static nsresult AddBlinkFrame(nsPresContext* aPresContext, nsIFrame* aFrame);
-  static nsresult RemoveBlinkFrame(nsIFrame* aFrame);
+  static void AddBlinkFrame(nsPresContext* aPresContext, nsIFrame* aFrame);
+  static void RemoveBlinkFrame(nsIFrame* aFrame);
   
   static PRBool   GetBlinkIsOff() { return sState == 3; }
   
@@ -3162,33 +3160,28 @@ NS_IMETHODIMP nsBlinkTimer::Notify(nsITimer *timer)
 
 
 // static
-nsresult nsBlinkTimer::AddBlinkFrame(nsPresContext* aPresContext, nsIFrame* aFrame)
+void nsBlinkTimer::AddBlinkFrame(nsPresContext* aPresContext, nsIFrame* aFrame)
 {
   if (!sTextBlinker)
   {
     sTextBlinker = new nsBlinkTimer;
-    if (!sTextBlinker) return NS_ERROR_OUT_OF_MEMORY;
   }
-  
+
   NS_ADDREF(sTextBlinker);
 
   sTextBlinker->AddFrame(aPresContext, aFrame);
-  return NS_OK;
 }
 
 
 // static
-nsresult nsBlinkTimer::RemoveBlinkFrame(nsIFrame* aFrame)
+void nsBlinkTimer::RemoveBlinkFrame(nsIFrame* aFrame)
 {
   NS_ASSERTION(sTextBlinker, "Should have blink timer here");
-  
+
   nsBlinkTimer* blinkTimer = sTextBlinker;    // copy so we can call NS_RELEASE on it
-  if (!blinkTimer) return NS_OK;
-  
+
   blinkTimer->RemoveFrame(aFrame);  
   NS_RELEASE(blinkTimer);
-  
-  return NS_OK;
 }
 
 //----------------------------------------------------------------------
@@ -4424,7 +4417,7 @@ nsTextFrame::PaintTextDecorations(
   gfxFloat app = aTextPaintStyle.PresContext()->AppUnitsPerDevPixel();
 
   // XXX aFramePt is in AppUnits, shouldn't it be nsFloatPoint?
-  nscoord x = aFramePt.x;
+  nscoord x = NSToCoordRound(aFramePt.x);
   nscoord width = GetRect().width;
   aClipEdges.Intersect(&x, &width);
   gfxPoint pt(x / app, (aTextBaselinePt.y - mAscent) / app);
@@ -4667,10 +4660,14 @@ public:
   /**
    * aStart and aLength are in the original string. aSelectionDetails is
    * according to the original string.
+   * @param aXOffset the offset from the origin of the frame to the start
+   * of the text (the left baseline origin for LTR, the right baseline origin
+   * for RTL)
    */
   SelectionIterator(SelectionDetails** aSelectionDetails,
                     PRInt32 aStart, PRInt32 aLength,
-                    PropertyProvider& aProvider, gfxTextRun* aTextRun);
+                    PropertyProvider& aProvider, gfxTextRun* aTextRun,
+                    gfxFloat aXOffset);
 
   /**
    * Returns the next segment of uniformly selected (or not) text.
@@ -4704,11 +4701,11 @@ private:
 
 SelectionIterator::SelectionIterator(SelectionDetails** aSelectionDetails,
     PRInt32 aStart, PRInt32 aLength, PropertyProvider& aProvider,
-    gfxTextRun* aTextRun)
+    gfxTextRun* aTextRun, gfxFloat aXOffset)
   : mSelectionDetails(aSelectionDetails), mProvider(aProvider),
     mTextRun(aTextRun), mIterator(aProvider.GetStart()),
     mOriginalStart(aStart), mOriginalEnd(aStart + aLength),
-    mXOffset(mTextRun->IsRightToLeft() ? aProvider.GetFrame()->GetSize().width : 0)
+    mXOffset(aXOffset)
 {
   mIterator.SetOriginalOffset(aStart);
 }
@@ -4800,8 +4797,10 @@ nsTextFrame::PaintOneShadow(PRUint32 aOffset, PRUint32 aLength,
   // that much in order to make the origin the top-left corner of the text bounding box.
   gfxRect shadowGfxRect = shadowMetrics.mBoundingBox +
     gfxPoint(aFramePt.x + aLeftSideOffset, aTextBaselinePt.y) + shadowOffset;
-  nsRect shadowRect(shadowGfxRect.X(), shadowGfxRect.Y(),
-                    shadowGfxRect.Width(), shadowGfxRect.Height());
+  nsRect shadowRect(NSToCoordRound(shadowGfxRect.X()),
+                    NSToCoordRound(shadowGfxRect.Y()),
+                    NSToCoordRound(shadowGfxRect.Width()),
+                    NSToCoordRound(shadowGfxRect.Height()));
 
   nsContextBoxBlur contextBoxBlur;
   gfxContext* shadowContext = contextBoxBlur.Init(shadowRect, 0, blurRadius,
@@ -4844,33 +4843,32 @@ nsTextFrame::PaintOneShadow(PRUint32 aOffset, PRUint32 aLength,
 
 // Paints selection backgrounds and text in the correct colors. Also computes
 // aAllTypes, the union of all selection types that are applying to this text.
-void
+bool
 nsTextFrame::PaintTextWithSelectionColors(gfxContext* aCtx,
     const gfxPoint& aFramePt,
     const gfxPoint& aTextBaselinePt, const gfxRect& aDirtyRect,
-    PropertyProvider& aProvider, nsTextPaintStyle& aTextPaintStyle,
-    SelectionDetails* aDetails, SelectionType* aAllTypes)
+    PropertyProvider& aProvider,
+    PRUint32 aContentOffset, PRUint32 aContentLength,
+    nsTextPaintStyle& aTextPaintStyle, SelectionDetails* aDetails,
+    SelectionType* aAllTypes)
 {
-  PRInt32 contentOffset = aProvider.GetStart().GetOriginalOffset();
-  PRInt32 contentLength = aProvider.GetOriginalLength();
-
   // Figure out which selections control the colors to use for each character.
   nsAutoTArray<SelectionDetails*,BIG_TEXT_NODE_SIZE> prevailingSelectionsBuffer;
-  if (!prevailingSelectionsBuffer.AppendElements(contentLength))
-    return;
+  if (!prevailingSelectionsBuffer.AppendElements(aContentLength))
+    return false;
   SelectionDetails** prevailingSelections = prevailingSelectionsBuffer.Elements();
 
-  PRInt32 i;
   SelectionType allTypes = 0;
-  for (i = 0; i < contentLength; ++i) {
+  for (PRUint32 i = 0; i < aContentLength; ++i) {
     prevailingSelections[i] = nsnull;
   }
 
   SelectionDetails *sdptr = aDetails;
   PRBool anyBackgrounds = PR_FALSE;
   while (sdptr) {
-    PRInt32 start = NS_MAX(0, sdptr->mStart - contentOffset);
-    PRInt32 end = NS_MIN(contentLength, sdptr->mEnd - contentOffset);
+    PRInt32 start = NS_MAX(0, sdptr->mStart - PRInt32(aContentOffset));
+    PRInt32 end = NS_MIN(PRInt32(aContentLength),
+                         sdptr->mEnd - PRInt32(aContentOffset));
     SelectionType type = sdptr->mType;
     if (start < end) {
       allTypes |= type;
@@ -4881,7 +4879,7 @@ nsTextFrame::PaintTextWithSelectionColors(gfxContext* aCtx,
         if (NS_GET_A(background) > 0) {
           anyBackgrounds = PR_TRUE;
         }
-        for (i = start; i < end; ++i) {
+        for (PRInt32 i = start; i < end; ++i) {
           // Favour normal selection over IME selections
           if (!prevailingSelections[i] ||
               type < prevailingSelections[i]->mType) {
@@ -4894,14 +4892,26 @@ nsTextFrame::PaintTextWithSelectionColors(gfxContext* aCtx,
   }
   *aAllTypes = allTypes;
 
+  if (!allTypes) {
+    // Nothing is selected in the given text range.
+    if (aContentLength == aProvider.GetOriginalLength()) {
+      // It's the full text range so we can remove the FRAME_SELECTED_CONTENT
+      // bit to avoid going through this slow path until something is selected
+      // in this frame again.
+      RemoveStateBits(NS_FRAME_SELECTED_CONTENT);
+    }
+    return false;
+  }
+
+  const gfxFloat startXOffset = aTextBaselinePt.x - aFramePt.x;
   gfxFloat xOffset, hyphenWidth;
   PRUint32 offset, length; // in transformed string
   SelectionType type;
   nsTextRangeStyle rangeStyle;
   // Draw background colors
   if (anyBackgrounds) {
-    SelectionIterator iterator(prevailingSelections, contentOffset, contentLength,
-                               aProvider, mTextRun);
+    SelectionIterator iterator(prevailingSelections, aContentOffset, aContentLength,
+                               aProvider, mTextRun, startXOffset);
     while (iterator.GetNextSegment(&xOffset, &offset, &length, &hyphenWidth,
                                    &type, &rangeStyle)) {
       nscolor foreground, background;
@@ -4921,8 +4931,8 @@ nsTextFrame::PaintTextWithSelectionColors(gfxContext* aCtx,
   }
   
   // Draw text
-  SelectionIterator iterator(prevailingSelections, contentOffset, contentLength,
-                             aProvider, mTextRun);
+  SelectionIterator iterator(prevailingSelections, aContentOffset, aContentLength,
+                             aProvider, mTextRun, startXOffset);
   while (iterator.GetNextSegment(&xOffset, &offset, &length, &hyphenWidth,
                                  &type, &rangeStyle)) {
     nscolor foreground, background;
@@ -4940,38 +4950,38 @@ nsTextFrame::PaintTextWithSelectionColors(gfxContext* aCtx,
     }
     iterator.UpdateWithAdvance(advance);
   }
+  return true;
 }
 
 void
 nsTextFrame::PaintTextSelectionDecorations(gfxContext* aCtx,
     const gfxPoint& aFramePt,
     const gfxPoint& aTextBaselinePt, const gfxRect& aDirtyRect,
-    PropertyProvider& aProvider, nsTextPaintStyle& aTextPaintStyle,
-    SelectionDetails* aDetails, SelectionType aSelectionType)
+    PropertyProvider& aProvider,
+    PRUint32 aContentOffset, PRUint32 aContentLength,
+    nsTextPaintStyle& aTextPaintStyle, SelectionDetails* aDetails,
+    SelectionType aSelectionType)
 {
   // Hide text decorations if we're currently hiding @font-face fallback text
   if (aProvider.GetFontGroup()->ShouldSkipDrawing())
     return;
 
-  PRInt32 contentOffset = aProvider.GetStart().GetOriginalOffset();
-  PRInt32 contentLength = aProvider.GetOriginalLength();
-
   // Figure out which characters will be decorated for this selection.
   nsAutoTArray<SelectionDetails*, BIG_TEXT_NODE_SIZE> selectedCharsBuffer;
-  if (!selectedCharsBuffer.AppendElements(contentLength))
+  if (!selectedCharsBuffer.AppendElements(aContentLength))
     return;
   SelectionDetails** selectedChars = selectedCharsBuffer.Elements();
-  PRInt32 i;
-  for (i = 0; i < contentLength; ++i) {
+  for (PRUint32 i = 0; i < aContentLength; ++i) {
     selectedChars[i] = nsnull;
   }
 
   SelectionDetails *sdptr = aDetails;
   while (sdptr) {
     if (sdptr->mType == aSelectionType) {
-      PRInt32 start = NS_MAX(0, sdptr->mStart - contentOffset);
-      PRInt32 end = NS_MIN(contentLength, sdptr->mEnd - contentOffset);
-      for (i = start; i < end; ++i) {
+      PRInt32 start = NS_MAX(0, sdptr->mStart - PRInt32(aContentOffset));
+      PRInt32 end = NS_MIN(PRInt32(aContentLength),
+                           sdptr->mEnd - PRInt32(aContentOffset));
+      for (PRInt32 i = start; i < end; ++i) {
         selectedChars[i] = sdptr;
       }
     }
@@ -4985,8 +4995,9 @@ nsTextFrame::PaintTextSelectionDecorations(gfxContext* aCtx,
   decorationMetrics.underlineOffset =
     aProvider.GetFontGroup()->GetUnderlineOffset();
 
-  SelectionIterator iterator(selectedChars, contentOffset, contentLength,
-                             aProvider, mTextRun);
+  gfxFloat startXOffset = aTextBaselinePt.x - aFramePt.x;
+  SelectionIterator iterator(selectedChars, aContentOffset, aContentLength,
+                             aProvider, mTextRun, startXOffset);
   gfxFloat xOffset, hyphenWidth;
   PRUint32 offset, length;
   PRInt32 app = aTextPaintStyle.PresContext()->AppUnitsPerDevPixel();
@@ -5001,7 +5012,7 @@ nsTextFrame::PaintTextSelectionDecorations(gfxContext* aCtx,
     if (type == aSelectionType) {
       pt.x = (aFramePt.x + xOffset -
              (mTextRun->IsRightToLeft() ? advance : 0)) / app;
-      gfxFloat width = PR_ABS(advance) / app;
+      gfxFloat width = NS_ABS(advance) / app;
       DrawSelectionDecorations(aCtx, aSelectionType, this, aTextPaintStyle,
                                selectedStyle,
                                pt, width, mAscent / app, decorationMetrics);
@@ -5010,20 +5021,32 @@ nsTextFrame::PaintTextSelectionDecorations(gfxContext* aCtx,
   }
 }
 
-PRBool
+bool
 nsTextFrame::PaintTextWithSelection(gfxContext* aCtx,
     const gfxPoint& aFramePt,
     const gfxPoint& aTextBaselinePt, const gfxRect& aDirtyRect,
-    PropertyProvider& aProvider, nsTextPaintStyle& aTextPaintStyle,
+    PropertyProvider& aProvider, PRUint32 aContentOffset, PRUint32 aContentLength,
+    nsTextPaintStyle& aTextPaintStyle,
     const nsCharClipDisplayItem::ClipEdges& aClipEdges)
 {
   SelectionDetails* details = GetSelectionDetails();
-  if (!details)
-    return PR_FALSE;
+  if (!details) {
+    if (aContentLength == aProvider.GetOriginalLength()) {
+      // It's the full text range so we can remove the FRAME_SELECTED_CONTENT
+      // bit to avoid going through this slow path until something is selected
+      // in this frame again.
+      RemoveStateBits(NS_FRAME_SELECTED_CONTENT);
+    }
+    return false;
+  }
 
   SelectionType allTypes;
-  PaintTextWithSelectionColors(aCtx, aFramePt, aTextBaselinePt, aDirtyRect,
-                               aProvider, aTextPaintStyle, details, &allTypes);
+  if (!PaintTextWithSelectionColors(aCtx, aFramePt, aTextBaselinePt, aDirtyRect,
+                                    aProvider, aContentOffset, aContentLength,
+                                    aTextPaintStyle, details, &allTypes)) {
+    DestroySelectionDetails(details);
+    return false;
+  }
   PaintTextDecorations(aCtx, aDirtyRect, aFramePt, aTextBaselinePt,
                        aTextPaintStyle, aProvider, aClipEdges);
   PRInt32 i;
@@ -5039,12 +5062,13 @@ nsTextFrame::PaintTextWithSelection(gfxContext* aCtx,
       // (there might not be any for this type but that's OK,
       // PaintTextSelectionDecorations will exit early).
       PaintTextSelectionDecorations(aCtx, aFramePt, aTextBaselinePt, aDirtyRect,
-                                    aProvider, aTextPaintStyle, details, type);
+                                    aProvider, aContentOffset, aContentLength,
+                                    aTextPaintStyle, details, type);
     }
   }
 
   DestroySelectionDetails(details);
-  return PR_TRUE;
+  return true;
 }
 
 nscolor
@@ -5096,17 +5120,6 @@ ComputeTransformedLength(PropertyProvider& aProvider)
   PRUint32 start = iter.GetSkippedOffset();
   iter.AdvanceOriginal(aProvider.GetOriginalLength());
   return iter.GetSkippedOffset() - start;
-}
-
-gfxFloat
-nsTextFrame::GetSnappedBaselineY(gfxContext* aContext, gfxFloat aY)
-{
-  gfxFloat appUnitsPerDevUnit = mTextRun->GetAppUnitsPerDevUnit();
-  gfxFloat baseline = aY + mAscent;
-  gfxRect putativeRect(0, baseline/appUnitsPerDevUnit, 1, 1);
-  if (!aContext->UserToDevicePixelSnapped(putativeRect, PR_TRUE))
-    return baseline;
-  return aContext->DeviceToUser(putativeRect.TopLeft()).y*appUnitsPerDevUnit;
 }
 
 bool
@@ -5235,7 +5248,7 @@ nsTextFrame::PaintText(nsRenderingContext* aRenderingContext, nsPoint aPt,
   const nscoord frameWidth = GetSize().width;
   gfxPoint framePt(aPt.x, aPt.y);
   gfxPoint textBaselinePt(rtl ? gfxFloat(aPt.x + frameWidth) : framePt.x,
-                          GetSnappedBaselineY(ctx, aPt.y));
+             nsLayoutUtils::GetSnappedBaselineY(this, ctx, aPt.y, mAscent));
   PRUint32 startOffset = provider.GetStart().GetSkippedOffset();
   PRUint32 maxLength = ComputeTransformedLength(provider);
   nscoord snappedLeftEdge, snappedRightEdge;
@@ -5266,8 +5279,13 @@ nsTextFrame::PaintText(nsRenderingContext* aRenderingContext, nsPoint aPt,
                     aDirtyRect.width, aDirtyRect.height);
   // Fork off to the (slower) paint-with-selection path if necessary.
   if (nsLayoutUtils::GetNonGeneratedAncestor(this)->GetStateBits() & NS_FRAME_SELECTED_CONTENT) {
-    if (PaintTextWithSelection(ctx, framePt, textBaselinePt,
-                               dirtyRect, provider, textPaintStyle, clipEdges))
+    gfxSkipCharsIterator tmp(provider.GetStart());
+    PRInt32 contentOffset = tmp.ConvertSkippedToOriginal(startOffset);
+    PRInt32 contentLength =
+      tmp.ConvertSkippedToOriginal(startOffset + maxLength) - contentOffset;
+    if (PaintTextWithSelection(ctx, framePt, textBaselinePt, dirtyRect,
+                               provider, contentOffset, contentLength,
+                               textPaintStyle, clipEdges))
       return;
   }
 
@@ -6209,7 +6227,7 @@ nsTextFrame::AddInlineMinWidthForFlow(nsRenderingContext *aRenderingContext,
       (mTextRun->GetFlags() & gfxTextRunFactory::TEXT_ENABLE_HYPHEN_BREAKS) != 0));
   if (hyphenating) {
     gfxSkipCharsIterator tmp(iter);
-    len = PR_MIN(GetContentOffset() + GetInFlowContentLength(),
+    len = NS_MIN<PRInt32>(GetContentOffset() + GetInFlowContentLength(),
                  tmp.ConvertSkippedToOriginal(flowEndInTextRun)) - iter.GetOriginalOffset();
   }
   PropertyProvider provider(mTextRun, textStyle, frag, this,
@@ -6290,7 +6308,8 @@ nsTextFrame::AddInlineMinWidthForFlow(nsRenderingContext *aRenderingContext,
       } else if (i < flowEndInTextRun && hyphBreakBefore &&
                  hyphBreakBefore[i - start])
       {
-        aData->OptionallyBreak(aRenderingContext, provider.GetHyphenWidth());
+        aData->OptionallyBreak(aRenderingContext, 
+                               NSToCoordRound(provider.GetHyphenWidth()));
       } {
         aData->OptionallyBreak(aRenderingContext);
       }
@@ -7146,12 +7165,10 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
        mContentOffset + contentLength <= contentNewLineOffset)) {
     if (!cachedNewlineOffset) {
       cachedNewlineOffset = new NewlineProperty;
-      if (cachedNewlineOffset) {
-        if (NS_FAILED(mContent->SetProperty(nsGkAtoms::newline, cachedNewlineOffset,
-                                            NewlineProperty::Destroy))) {
-          delete cachedNewlineOffset;
-          cachedNewlineOffset = nsnull;
-        }
+      if (NS_FAILED(mContent->SetProperty(nsGkAtoms::newline, cachedNewlineOffset,
+                                          NewlineProperty::Destroy))) {
+        delete cachedNewlineOffset;
+        cachedNewlineOffset = nsnull;
       }
     }
     if (cachedNewlineOffset) {
@@ -7622,6 +7639,19 @@ nsTextFrame::AdjustOffsetsForBidi(PRInt32 aStart, PRInt32 aEnd)
 
   mContentOffset = aStart;
   SetLength(aEnd - aStart, nsnull, 0);
+
+  /**
+   * After inserting text the caret Bidi level must be set to the level of the
+   * inserted text.This is difficult, because we cannot know what the level is
+   * until after the Bidi algorithm is applied to the whole paragraph.
+   *
+   * So we set the caret Bidi level to UNDEFINED here, and the caret code will
+   * set it correctly later
+   */
+  nsRefPtr<nsFrameSelection> frameSelection = GetFrameSelection();
+  if (frameSelection) {
+    frameSelection->UndefineCaretBidiLevel();
+  }
 }
 
 /**

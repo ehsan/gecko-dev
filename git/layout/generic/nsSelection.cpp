@@ -140,7 +140,7 @@ static void printRange(nsIRange *aDomRange);
 #define DEBUG_OUT_RANGE(x)  
 #endif //MOZ_DEBUG
 
-
+nsFrameSelection* nsFrameSelection::sDraggingFrameSelection = nsnull;
 
 //#define DEBUG_SELECTION // uncomment for printf describing every collapse and extend.
 //#define DEBUG_NAVIGATION
@@ -425,7 +425,8 @@ public:
   }
 
   // aPoint is relative to aPresContext's root frame
-  nsresult Start(nsPresContext *aPresContext, nsPoint &aPoint)
+  nsresult Start(nsPresContext *aPresContext, nsIContent *aContent,
+                 nsPoint &aPoint)
   {
     mPoint = aPoint;
 
@@ -433,7 +434,7 @@ public:
     // stopped by the selection if the prescontext is destroyed.
     mPresContext = aPresContext;
 
-    mContent = nsIPresShell::GetCapturingContent();
+    mContent = aContent;
 
     if (!mTimer)
     {
@@ -509,8 +510,6 @@ NS_IMPL_ISUPPORTS1(nsAutoScrollTimer, nsITimerCallback)
 nsresult NS_NewDomSelection(nsISelection **aDomSelection)
 {
   nsTypedSelection *rlist = new nsTypedSelection;
-  if (!rlist)
-    return NS_ERROR_OUT_OF_MEMORY;
   *aDomSelection = (nsISelection *)rlist;
   NS_ADDREF(rlist);
   return NS_OK;
@@ -711,8 +710,6 @@ nsFrameSelection::nsFrameSelection()
   PRInt32 i;
   for (i = 0;i<nsISelectionController::NUM_SELECTIONTYPES;i++){
     mDomSelections[i] = new nsTypedSelection(this);
-    if (!mDomSelections[i])
-      break;
     mDomSelections[i]->SetType(GetSelectionTypeFromIndex(i));
   }
   mBatching = 0;
@@ -749,6 +746,13 @@ nsFrameSelection::nsFrameSelection()
 
   mDelayedMouseEventValid = PR_FALSE;
   mSelectionChangeReason = nsISelectionListener::NO_REASON;
+}
+
+nsFrameSelection::~nsFrameSelection()
+{
+  if (this == sDraggingFrameSelection) {
+    sDraggingFrameSelection = nsnull;
+  }
 }
 
 
@@ -920,41 +924,10 @@ nsFrameSelection::ConstrainFrameAndPointToAnchorSubtree(nsIFrame  *aFrame,
 
     if (anchorRoot == contentRoot)
     {
-      // If the aFrame's content isn't the capturing content, it should be
-      // a descendant.  At this time, we can return simply.
-      nsIContent* capturedContent = nsIPresShell::GetCapturingContent();
-      if (capturedContent != content)
-      {
-        return NS_OK;
-      }
-
-      // Find the frame under the mouse cursor with the root frame.
-      // At this time, don't use the anchor's frame because it may not have
-      // fixed positioned frames.
-      nsIFrame* rootFrame = mShell->FrameManager()->GetRootFrame();
-      nsPoint ptInRoot = aPoint + aFrame->GetOffsetTo(rootFrame);
-      nsIFrame* cursorFrame =
-        nsLayoutUtils::GetFrameForPoint(rootFrame, ptInRoot);
-
-      // If the mouse cursor in on a frame which is descendant of same
-      // selection root, we can expand the selection to the frame.
-      if (cursorFrame && cursorFrame->PresContext()->PresShell() == mShell)
-      {
-        nsIContent* cursorContent = cursorFrame->GetContent();
-        NS_ENSURE_TRUE(cursorContent, NS_ERROR_FAILURE);
-        nsIContent* cursorContentRoot =
-          cursorContent->GetSelectionRootContent(mShell);
-        NS_ENSURE_TRUE(cursorContentRoot, NS_ERROR_UNEXPECTED);
-        if (cursorContentRoot == anchorRoot)
-        {
-          *aRetFrame = cursorFrame;
-          aRetPoint = aPoint + aFrame->GetOffsetTo(cursorFrame);
-          return NS_OK;
-        }
-      }
-      // Otherwise, e.g., the cursor isn't on any frames (e.g., the mouse
-      // cursor is out of the window), we should use the frame of the anchor
-      // root.
+      // The anchor and aFrame's root are the same. There
+      // is no need to constrain, simply return aFrame.
+      *aRetFrame = aFrame;
+      return NS_OK;
     }
   }
 
@@ -1829,9 +1802,6 @@ nsFrameSelection::TakeFocus(nsIContent *aNewFocus,
       mDomSelections[index]->RemoveCollapsedRanges();
 
       nsCOMPtr<nsIRange> newRange = new nsRange();
-      if (!newRange) {
-        return NS_ERROR_OUT_OF_MEMORY;
-      }
 
       newRange->SetStart(aNewFocus, aContentOffset);
       newRange->SetEnd(aNewFocus, aContentOffset);
@@ -1950,14 +1920,38 @@ nsFrameSelection::SetMouseDownState(PRBool aState)
   if (mMouseDownState == aState)
     return;
 
+  NS_ASSERTION((aState && !sDraggingFrameSelection) ||
+               (!aState && sDraggingFrameSelection),
+               "Unexpected state happened");
+
   mMouseDownState = aState;
-    
-  if (!mMouseDownState)
-  {
+
+  if (mMouseDownState) {
+    if (sDraggingFrameSelection) {
+      sDraggingFrameSelection->AbortDragForSelection();
+    }
+    sDraggingFrameSelection = this;
+  } else {
+    if (sDraggingFrameSelection == this) {
+      sDraggingFrameSelection = nsnull;
+    }
     mDragSelectingCells = PR_FALSE;
     PostReason(nsISelectionListener::MOUSEUP_REASON);
     NotifySelectionListeners(nsISelectionController::SELECTION_NORMAL); //notify that reason is mouse up please.
   }
+}
+
+void
+nsFrameSelection::AbortDragForSelection()
+{
+  if (sDraggingFrameSelection == this) {
+    sDraggingFrameSelection = nsnull;
+    mMouseDownState = PR_FALSE;
+    mDragSelectingCells = PR_FALSE;
+    PostReason(nsISelectionListener::NO_REASON);
+    NotifySelectionListeners(nsISelectionController::SELECTION_NORMAL);
+  }
+  StopAutoScrollTimer();
 }
 
 nsISelection*
@@ -3262,7 +3256,6 @@ nsFrameSelection::CreateAndAddRange(nsINode *aParentNode, PRInt32 aOffset)
   if (!aParentNode) return NS_ERROR_NULL_POINTER;
 
   nsCOMPtr<nsIRange> range = new nsRange();
-  if (!range) return NS_ERROR_OUT_OF_MEMORY;
 
   // Set range around child at given offset
   nsresult result = range->SetStart(aParentNode, aOffset);
@@ -3694,9 +3687,7 @@ nsTypedSelection::SubtractRange(RangeData* aRange, nsIRange* aSubtract,
     // We need to add a new RangeData to the output, running from
     // the end of aSubtract to the end of range
     nsIRange* postOverlap = new nsRange();
-    if (!postOverlap)
-      return NS_ERROR_OUT_OF_MEMORY;
-    
+
     rv =
       postOverlap->SetStart(aSubtract->GetEndParent(), aSubtract->EndOffset());
     NS_ENSURE_SUCCESS(rv, rv);
@@ -3714,8 +3705,6 @@ nsTypedSelection::SubtractRange(RangeData* aRange, nsIRange* aSubtract,
     // We need to add a new RangeData to the output, running from
     // the start of the range to the start of aSubtract
     nsIRange* preOverlap = new nsRange();
-    if (!preOverlap)
-      return NS_ERROR_OUT_OF_MEMORY;
 
     nsresult rv =
      preOverlap->SetStart(range->GetStartParent(), range->StartOffset());
@@ -4521,8 +4510,6 @@ nsTypedSelection::LookUpSelection(nsIContent *aContent, PRInt32 aContentOffset,
       continue; // the ranges do not overlap the input range
 
     SelectionDetails* details = new SelectionDetails;
-    if (!details)
-      return NS_ERROR_OUT_OF_MEMORY;
 
     details->mNext = *aReturnDetails;
     details->mStart = start;
@@ -4675,9 +4662,6 @@ nsTypedSelection::StartAutoScrollTimer(nsIFrame *aFrame,
   {
     mAutoScrollTimer = new nsAutoScrollTimer();
 
-    if (!mAutoScrollTimer)
-      return NS_ERROR_OUT_OF_MEMORY;
-
     result = mAutoScrollTimer->Init(mFrameSelection, this);
 
     if (NS_FAILED(result))
@@ -4733,7 +4717,8 @@ nsTypedSelection::DoAutoScroll(nsIFrame *aFrame, nsPoint& aPoint)
   {
     nsPoint presContextPoint = globalPoint -
       presContext->PresShell()->FrameManager()->GetRootFrame()->GetOffsetToCrossDoc(rootmostFrame);
-    mAutoScrollTimer->Start(presContext, presContextPoint);
+    mAutoScrollTimer->Start(presContext, aFrame->GetContent(),
+                            presContextPoint);
   }
 
   return NS_OK;
@@ -4742,11 +4727,8 @@ nsTypedSelection::DoAutoScroll(nsIFrame *aFrame, nsPoint& aPoint)
 NS_IMETHODIMP
 nsTypedSelection::GetEnumerator(nsIEnumerator **aIterator)
 {
-  nsresult status = NS_ERROR_OUT_OF_MEMORY;
-  nsSelectionIterator *iterator =  new nsSelectionIterator(this);
-  if (iterator && NS_FAILED(status = CallQueryInterface(iterator, aIterator)) )
-    delete iterator;
-  return status;
+  NS_ADDREF(*aIterator = new nsSelectionIterator(this));
+  return NS_OK;
 }
 
 
@@ -4944,10 +4926,6 @@ nsTypedSelection::Collapse(nsINode* aParentNode, PRInt32 aOffset)
   mFrameSelection->ClearTableCellSelection();
 
   nsCOMPtr<nsIRange> range = new nsRange();
-  if (!range) {
-    NS_ASSERTION(PR_FALSE,"Couldn't make a range - nsFrameSelection::Collapse");
-    return NS_ERROR_UNEXPECTED;
-  }
   result = range->SetEnd(aParentNode, aOffset);
   if (NS_FAILED(result))
     return result;

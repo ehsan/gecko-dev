@@ -44,6 +44,10 @@
 #include "nsIComponentManager.idl"
 #include "nsIScriptableInterfaces.idl"
 
+%{C++
+#include "jspubtd.h"
+%}
+
 interface xpcIJSWeakReference;
 
 /**
@@ -121,9 +125,18 @@ interface nsIXPCComponents_utils_Sandbox : nsISupports
 };
 
 /**
+ * interface for callback to be passed to Cu.schedulePreciseGC
+ */
+[scriptable, function, uuid(71000535-b0fd-44d1-8ce0-909760e3953c)]
+interface ScheduledGCCallback : nsISupports
+{
+    void callback();
+};
+
+/**
 * interface of Components.utils
 */
-[scriptable, uuid(5f0acf45-135a-48d1-976c-082ce3b24ead)]
+[scriptable, uuid(fed2d752-6cb3-4135-97b0-2c290e541e2d)]
 interface nsIXPCComponents_Utils : nsISupports
 {
 
@@ -229,6 +242,13 @@ interface nsIXPCComponents_Utils : nsISupports
     void forceGC();
 
     /*
+     * Schedule a garbage collection cycle for a point in the future when no JS
+     * is running. Call the provided function once this has occurred.
+     */
+    [implicit_jscontext]
+    void schedulePreciseGC(in ScheduledGCCallback callback);
+
+    /*
      * To be called from JS only.
      *
      * Returns the global object with which the given object is associated.
@@ -237,6 +257,23 @@ interface nsIXPCComponents_Utils : nsISupports
      * @return the corresponding global.
      */
     void /* JSObject */ getGlobalForObject(/* in JSObject obj */);
+
+    /*
+     * To be called from JS only.
+     *
+     * Returns an object created in |vobj|'s compartment.
+     */
+    [implicit_jscontext]
+    jsval createObjectIn(in jsval vobj);
+
+    /*
+     * To be called from JS only.
+     *
+     * Ensures that all functions come from vobj's scope (and aren't cross
+     * compartment wrappers).
+     */
+    [implicit_jscontext]
+    void makeObjectPropsNormal(in jsval vobj);
 };
 
 /**

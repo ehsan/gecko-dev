@@ -370,7 +370,6 @@ nsWindow::nsWindow() : nsBaseWidget()
   mWnd                  = nsnull;
   mPaintDC              = nsnull;
   mPrevWndProc          = nsnull;
-  mOldIMC               = nsnull;
   mNativeDragTarget     = nsnull;
   mInDtor               = PR_FALSE;
   mIsVisible            = PR_FALSE;
@@ -2527,7 +2526,7 @@ void nsWindow::UpdateOpaqueRegion(const nsIntRegion &aOpaqueRegion)
     if (mCustomNonClient) {
       // The minimum glass height must be the caption buttons height,
       // otherwise the buttons are drawn incorrectly.
-      largest.y = PR_MAX(largest.y,
+      largest.y = NS_MAX<PRUint32>(largest.y,
                          nsUXThemeData::sCommandButtons[CMDBUTTONIDX_BUTTONBOX].cy);
     }
     margins.cyTopHeight = largest.y;
@@ -3174,8 +3173,11 @@ GetLayerManagerPrefs(LayerManagerPrefs* aManagerPrefs)
     aManagerPrefs->mDisableAcceleration || safeMode;
 }
 
-mozilla::layers::LayerManager*
-nsWindow::GetLayerManager(LayerManagerPersistence aPersistence, bool* aAllowRetaining)
+LayerManager*
+nsWindow::GetLayerManager(PLayersChild* aShadowManager,
+                          LayersBackend aBackendHint,
+                          LayerManagerPersistence aPersistence,
+                          bool* aAllowRetaining)
 {
   if (aAllowRetaining) {
     *aAllowRetaining = true;
@@ -3370,7 +3372,7 @@ nsWindow::OverrideSystemMouseScrollSpeed(PRInt32 aOriginalDelta,
   // on the document of SystemParametersInfo in MSDN.
   const PRUint32 kSystemDefaultScrollingSpeed = 3;
 
-  PRInt32 absOriginDelta = PR_ABS(aOriginalDelta);
+  PRInt32 absOriginDelta = NS_ABS(aOriginalDelta);
 
   // Compute the simple overridden speed.
   PRInt32 absComputedOverriddenDelta;
@@ -3428,7 +3430,7 @@ nsWindow::OverrideSystemMouseScrollSpeed(PRInt32 aOriginalDelta,
   }
 
   absComputedOverriddenDelta =
-    PR_MIN(absComputedOverriddenDelta, absDeltaLimit);
+    NS_MIN(absComputedOverriddenDelta, absDeltaLimit);
 
   aOverriddenDelta = (aOriginalDelta > 0) ? absComputedOverriddenDelta :
                                             -absComputedOverriddenDelta;
@@ -5236,7 +5238,10 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     case WM_GETOBJECT:
     {
       *aRetValue = 0;
-      if (lParam == OBJID_CLIENT) { // oleacc.dll will be loaded dynamically
+      // Do explicit casting to make it working on 64bit systems (see bug 649236
+      // for details).
+      DWORD objId = static_cast<DWORD>(lParam);
+      if (objId == OBJID_CLIENT) { // oleacc.dll will be loaded dynamically
         nsAccessible *rootAccessible = GetRootAccessible(); // Held by a11y cache
         if (rootAccessible) {
           IAccessible *msaaAccessible = NULL;
@@ -6454,6 +6459,8 @@ nsWindow::OnMouseWheel(UINT aMessage, WPARAM aWParam, LPARAM aLParam,
   // Before dispatching line scroll event, we should get the current scroll
   // event target information for pixel scroll.
   PRBool dispatchPixelScrollEvent = PR_FALSE;
+  PRBool reversePixelScrollDirection = PR_FALSE;
+  PRInt32 actualScrollAction = nsQueryContentEvent::SCROLL_ACTION_NONE;
   PRInt32 pixelsPerUnit = 0;
   // the amount is the number of lines (or pages) per WHEEL_DELTA
   PRInt32 computedScrollAmount = isPageScroll ? 1 :
@@ -6482,7 +6489,8 @@ nsWindow::OnMouseWheel(UINT aMessage, WPARAM aWParam, LPARAM aLParam,
     // If the necessary interger isn't larger than 0, we should assume that
     // the event failed for us.
     if (queryEvent.mSucceeded) {
-      if (isPageScroll) {
+      actualScrollAction = queryEvent.mReply.mComputedScrollAction;
+      if (actualScrollAction == nsQueryContentEvent::SCROLL_ACTION_PAGE) {
         if (isVertical) {
           pixelsPerUnit = queryEvent.mReply.mPageHeight;
         } else {
@@ -6491,14 +6499,18 @@ nsWindow::OnMouseWheel(UINT aMessage, WPARAM aWParam, LPARAM aLParam,
       } else {
         pixelsPerUnit = queryEvent.mReply.mLineHeight;
       }
-      // XXX Currently, we don't support the case that the computed delta has
-      //     different sign.
       computedScrollAmount = queryEvent.mReply.mComputedScrollAmount;
-      if (testEvent.delta < 0) {
-        computedScrollAmount *= -1;
+      if (pixelsPerUnit > 0 && computedScrollAmount != 0 &&
+          actualScrollAction != nsQueryContentEvent::SCROLL_ACTION_NONE) {
+        dispatchPixelScrollEvent = PR_TRUE;
+        // If original delta's sign and computed delta's one are different,
+        // we need to reverse the pixel scroll direction at dispatching it.
+        reversePixelScrollDirection =
+          (testEvent.delta > 0 && computedScrollAmount < 0) ||
+          (testEvent.delta < 0 && computedScrollAmount > 0);
+        // scroll amount must be positive.
+        computedScrollAmount = NS_ABS(computedScrollAmount);
       }
-      dispatchPixelScrollEvent =
-        (pixelsPerUnit > 0) && (computedScrollAmount > 0);
     }
   }
 
@@ -6553,8 +6565,12 @@ nsWindow::OnMouseWheel(UINT aMessage, WPARAM aWParam, LPARAM aLParam,
 
   nsMouseScrollEvent pixelEvent(PR_TRUE, NS_MOUSE_PIXEL_SCROLL, this);
   InitEvent(pixelEvent);
-  pixelEvent.scrollFlags = nsMouseScrollEvent::kAllowSmoothScroll |
-    (scrollEvent.scrollFlags & ~nsMouseScrollEvent::kHasPixels);
+  pixelEvent.scrollFlags = nsMouseScrollEvent::kAllowSmoothScroll;
+  pixelEvent.scrollFlags |= isVertical ?
+    nsMouseScrollEvent::kIsVertical : nsMouseScrollEvent::kIsHorizontal;
+  if (actualScrollAction == nsQueryContentEvent::SCROLL_ACTION_PAGE) {
+    pixelEvent.scrollFlags |= nsMouseScrollEvent::kIsFullPage;
+  }
   // Use same modifier state for pixel scroll event.
   pixelEvent.isShift     = scrollEvent.isShift;
   pixelEvent.isControl   = scrollEvent.isControl;
@@ -6562,13 +6578,16 @@ nsWindow::OnMouseWheel(UINT aMessage, WPARAM aWParam, LPARAM aLParam,
   pixelEvent.isAlt       = scrollEvent.isAlt;
 
   PRInt32 nativeDeltaForPixel = nativeDelta + sRemainingDeltaForPixel;
+  // Pixel scroll event won't be recomputed the scroll amout and direction by
+  // ESM.  Therefore, we need to set the computed amout and direction here.
+  PRInt32 orienterForPixel = reversePixelScrollDirection ? -orienter : orienter;
 
   double deltaPerPixel =
     (double)WHEEL_DELTA / computedScrollAmount / pixelsPerUnit;
   pixelEvent.delta =
-    RoundDelta((double)nativeDeltaForPixel * orienter / deltaPerPixel);
+    RoundDelta((double)nativeDeltaForPixel * orienterForPixel / deltaPerPixel);
   PRInt32 recomputedNativeDelta =
-    (PRInt32)(pixelEvent.delta * orienter * deltaPerPixel);
+    (PRInt32)(pixelEvent.delta * orienterForPixel * deltaPerPixel);
   sRemainingDeltaForPixel = nativeDeltaForPixel - recomputedNativeDelta;
   if (pixelEvent.delta != 0) {
     aHandled = DispatchWindowEvent(&pixelEvent);
@@ -6669,7 +6688,7 @@ LRESULT nsWindow::OnKeyDown(const MSG &aMsg,
   static PRBool sRedirectedKeyDownEventPreventedDefault = PR_FALSE;
   PRBool noDefault;
   if (aFakeCharMessage || !IsRedirectedKeyDownMessage(aMsg)) {
-    HIMC oldIMC = mOldIMC;
+    nsIMEContext IMEContext(mWnd);
     noDefault =
       DispatchKeyEvent(NS_KEY_DOWN, 0, nsnull, DOMKeyCode, &aMsg, aModKeyState);
     if (aEventDispatched) {
@@ -6685,8 +6704,9 @@ LRESULT nsWindow::OnKeyDown(const MSG &aMsg,
     // application, we shouldn't redirect the message to it because the keydown
     // message is processed by us, so, nobody shouldn't process it.
     HWND focusedWnd = ::GetFocus();
-    if (!noDefault && !aFakeCharMessage && oldIMC && !mOldIMC && focusedWnd &&
-        !PluginHasFocus()) {
+    nsIMEContext newIMEContext(mWnd);
+    if (!noDefault && !aFakeCharMessage && focusedWnd && !PluginHasFocus() &&
+        !IMEContext.get() && newIMEContext.get()) {
       RemoveNextCharMessage(focusedWnd);
 
       INPUT keyinput;
@@ -6937,8 +6957,8 @@ LRESULT nsWindow::OnKeyDown(const MSG &aMsg,
   }
 
   if (numOfUniChars > 0 || numOfShiftedChars > 0 || numOfUnshiftedChars > 0) {
-    PRUint32 num = PR_MAX(numOfUniChars,
-                          PR_MAX(numOfShiftedChars, numOfUnshiftedChars));
+    PRUint32 num = NS_MAX(numOfUniChars,
+                          NS_MAX(numOfShiftedChars, numOfUnshiftedChars));
     PRUint32 skipUniChars = num - numOfUniChars;
     PRUint32 skipShiftedChars = num - numOfShiftedChars;
     PRUint32 skipUnshiftedChars = num - numOfUnshiftedChars;
@@ -7315,11 +7335,8 @@ void nsWindow::OnDestroy()
     CaptureRollupEvents(nsnull, nsnull, PR_FALSE, PR_TRUE);
   }
 
-  // If IME is disabled, restore it.
-  if (mOldIMC) {
-    mOldIMC = ::ImmAssociateContext(mWnd, mOldIMC);
-    NS_ASSERTION(!mOldIMC, "Another IMC was associated");
-  }
+  // Restore the IM context.
+  AssociateDefaultIMC(PR_TRUE);
 
   // Turn off mouse trails if enabled.
   MouseTrailer* mtrailer = nsToolkit::gMouseTrailer;
@@ -7958,11 +7975,7 @@ NS_IMETHODIMP nsWindow::SetInputMode(const IMEContext& aContext)
   PRBool enable = (status == nsIWidget::IME_STATUS_ENABLED ||
                    status == nsIWidget::IME_STATUS_PLUGIN);
 
-  if (!enable != !mOldIMC)
-    return NS_OK;
-  mOldIMC = ::ImmAssociateContext(mWnd, enable ? mOldIMC : NULL);
-  NS_ASSERTION(!enable || !mOldIMC, "Another IMC was associated");
-
+  AssociateDefaultIMC(enable);
   return NS_OK;
 }
 
@@ -8024,6 +8037,42 @@ nsWindow::OnIMESelectionChange(void)
   return nsTextStore::OnSelectionChange();
 }
 #endif //NS_ENABLE_TSF
+
+PRBool nsWindow::AssociateDefaultIMC(PRBool aAssociate)
+{
+  nsIMEContext IMEContext(mWnd);
+
+  if (aAssociate) {
+    BOOL ret = ::ImmAssociateContextEx(mWnd, NULL, IACE_DEFAULT);
+#ifdef DEBUG
+    // Note that if IME isn't available with current keyboard layout,
+    // IMM might not be installed on the system such as English Windows.
+    // On such system, IMM APIs always fail.
+    NS_ASSERTION(ret || !nsIMM32Handler::IsIMEAvailable(),
+                 "ImmAssociateContextEx failed to restore default IMC");
+    if (ret) {
+      nsIMEContext newIMEContext(mWnd);
+      NS_ASSERTION(!IMEContext.get() || newIMEContext.get() == IMEContext.get(),
+                   "Unknown IMC had been associated");
+    }
+#endif
+    return ret && !IMEContext.get();
+  }
+
+  if (mOnDestroyCalled) {
+    // If OnDestroy() has been called, we shouldn't disassociate the default
+    // IMC at destroying the window.
+    return PR_FALSE;
+  }
+
+  if (!IMEContext.get()) {
+    return PR_FALSE; // already disassociated
+  }
+
+  BOOL ret = ::ImmAssociateContextEx(mWnd, NULL, 0);
+  NS_ASSERTION(ret, "ImmAssociateContextEx failed to disassociate the IMC");
+  return ret != FALSE;
+}
 
 #ifdef ACCESSIBILITY
 

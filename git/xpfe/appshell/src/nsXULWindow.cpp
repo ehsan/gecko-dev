@@ -200,8 +200,8 @@ NS_IMETHODIMP nsXULWindow::GetInterface(const nsIID& aIID, void** aSink)
     if (NS_FAILED(rv)) return rv;
     return mAuthPrompter->QueryInterface(aIID, aSink);
   }
-  if (aIID.Equals(NS_GET_IID(nsIDOMWindowInternal))) {
-    return GetWindowDOMWindow(reinterpret_cast<nsIDOMWindowInternal**>(aSink));
+  if (aIID.Equals(NS_GET_IID(nsIDOMWindow))) {
+    return GetWindowDOMWindow(reinterpret_cast<nsIDOMWindow**>(aSink));
   }   
   if (aIID.Equals(NS_GET_IID(nsIWebBrowserChrome)) && 
     NS_SUCCEEDED(EnsureContentTreeOwner()) &&
@@ -602,8 +602,11 @@ NS_IMETHODIMP nsXULWindow::SetSize(PRInt32 aCX, PRInt32 aCY, PRBool aRepaint)
   NS_ENSURE_SUCCESS(mWindow->Resize(aCX, aCY, aRepaint), NS_ERROR_FAILURE);
   if (!mChromeLoaded) {
     // If we're called before the chrome is loaded someone obviously wants this
-    // window at this size. We don't persist this one-time size.
+    // window at this size & in the normal size mode (since it is the only mode
+    // in which setting dimensions makes sense). We don't persist this one-time
+    // size.
     mIgnoreXULSize = PR_TRUE;
+    mIgnoreXULSizeMode = PR_TRUE;
     return NS_OK;
   }
   PersistentAttributesDirty(PAD_SIZE);
@@ -632,6 +635,7 @@ NS_IMETHODIMP nsXULWindow::SetPositionAndSize(PRInt32 aX, PRInt32 aY,
     // window at this size and position. We don't persist this one-time setting.
     mIgnoreXULPosition = PR_TRUE;
     mIgnoreXULSize = PR_TRUE;
+    mIgnoreXULSizeMode = PR_TRUE;
     return NS_OK;
   }
   PersistentAttributesDirty(PAD_POSITION | PAD_SIZE);
@@ -967,7 +971,7 @@ NS_IMETHODIMP nsXULWindow::EnsurePrompter()
   if (mPrompter)
     return NS_OK;
    
-  nsCOMPtr<nsIDOMWindowInternal> ourWindow;
+  nsCOMPtr<nsIDOMWindow> ourWindow;
   nsresult rv = GetWindowDOMWindow(getter_AddRefs(ourWindow));
   if (NS_SUCCEEDED(rv)) {
     nsCOMPtr<nsIWindowWatcher> wwatch = 
@@ -983,7 +987,7 @@ NS_IMETHODIMP nsXULWindow::EnsureAuthPrompter()
   if (mAuthPrompter)
     return NS_OK;
       
-  nsCOMPtr<nsIDOMWindowInternal> ourWindow;
+  nsCOMPtr<nsIDOMWindow> ourWindow;
   nsresult rv = GetWindowDOMWindow(getter_AddRefs(ourWindow));
   if (NS_SUCCEEDED(rv)) {
     nsCOMPtr<nsIWindowWatcher> wwatch(do_GetService(NS_WINDOWWATCHER_CONTRACTID));
@@ -1154,7 +1158,7 @@ PRBool nsXULWindow::LoadSizeFromXUL()
 
   if (gotSize) {
     // constrain to screen size
-    nsCOMPtr<nsIDOMWindowInternal> domWindow;
+    nsCOMPtr<nsIDOMWindow> domWindow;
     GetWindowDOMWindow(getter_AddRefs(domWindow));
     if (domWindow) {
       nsCOMPtr<nsIDOMScreen> screen;
@@ -1244,7 +1248,7 @@ PRBool nsXULWindow::LoadMiscPersistentAttributesFromXUL()
     }
 
     if (sizeMode == nsSizeMode_Fullscreen) {
-      nsCOMPtr<nsIDOMWindowInternal> ourWindow;
+      nsCOMPtr<nsIDOMWindow> ourWindow;
       GetWindowDOMWindow(getter_AddRefs(ourWindow));
       ourWindow->SetFullScreen(PR_TRUE);
     } else {
@@ -1554,7 +1558,7 @@ NS_IMETHODIMP nsXULWindow::SavePersistentAttributes()
   return NS_OK;
 }
 
-NS_IMETHODIMP nsXULWindow::GetWindowDOMWindow(nsIDOMWindowInternal** aDOMWindow)
+NS_IMETHODIMP nsXULWindow::GetWindowDOMWindow(nsIDOMWindow** aDOMWindow)
 {
   NS_ENSURE_STATE(mDocShell);
 

@@ -42,12 +42,11 @@
 
 #ifdef JS_TRACER
 
+// nanojit.h includes windows.h, so undo the obnoxious #defines, if needed
 #include "nanojit/nanojit.h"
-#include "jsvalue.h"
+#include "jswin.h"
 
-#ifdef THIS
-#undef THIS
-#endif
+#include "jsvalue.h"
 
 enum JSTNErrType { INFALLIBLE, FAIL_STATUS, FAIL_NULL, FAIL_NEG, FAIL_NEITHER };
 enum { 
@@ -581,7 +580,7 @@ JS_DECLARE_CALLINFO(NewDenseEmptyArray)
 JS_DECLARE_CALLINFO(NewDenseAllocatedArray)
 JS_DECLARE_CALLINFO(NewDenseUnallocatedArray)
 }
-JS_DECLARE_CALLINFO(js_ArrayCompPush_tn)
+JS_DECLARE_CALLINFO(js_NewbornArrayPush_tn)
 JS_DECLARE_CALLINFO(js_EnsureDenseArrayCapacity)
 
 /* Defined in jsbuiltins.cpp. */

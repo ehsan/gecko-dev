@@ -243,10 +243,16 @@ class AutoScriptUntrapper {
     JSScript *script;
     jsbytecode *origPC;
     jsbytecode *newPC;
+#ifdef DEBUG
+    bool assertionBefore;
+#endif
 
 public:
     AutoScriptUntrapper(JSContext *cx, JSScript *script, jsbytecode **pc)
         : cx(cx), script(script), origPC(*pc)
+#ifdef DEBUG
+          , assertionBefore(false)
+#endif
     {
         jsbytecode *newCode = js_UntrapScriptCode(cx, script);
         if (newCode == script->code) {
@@ -256,6 +262,10 @@ public:
             script->main += newCode - script->code;
             *pc = newPC = origPC + (newCode - script->code);
             script->code = newCode;
+#ifdef DEBUG
+            assertionBefore = cx->stackIterAssertionEnabled;
+            cx->stackIterAssertionEnabled = false;
+#endif
         }
     }
     ~AutoScriptUntrapper()
@@ -266,6 +276,9 @@ public:
             cx->free_(script->code);
             script->code = oldCode;
             script->main -= delta;
+#ifdef DEBUG
+            cx->stackIterAssertionEnabled = assertionBefore;
+#endif
         }
     }
 };
@@ -849,7 +862,7 @@ struct JSPrinter {
     jsbytecode      *dvgfence;      /* DecompileExpression fencepost */
     jsbytecode      **pcstack;      /* DecompileExpression modeled stack */
     JSFunction      *fun;           /* interpreted function */
-    jsuword         *localNames;    /* argument and variable names */
+    Vector<JSAtom *> *localNames;   /* argument and variable names */
 };
 
 JSPrinter *
@@ -873,8 +886,8 @@ js_NewPrinter(JSContext *cx, const char *name, JSFunction *fun,
     jp->fun = fun;
     jp->localNames = NULL;
     if (fun && fun->isInterpreted() && fun->script()->bindings.hasLocalNames()) {
-        jp->localNames = fun->script()->bindings.getLocalNameArray(cx, &jp->pool);
-        if (!jp->localNames) {
+        jp->localNames = cx->new_<Vector<JSAtom *> >(cx);
+        if (!jp->localNames || !fun->script()->bindings.getLocalNameArray(cx, jp->localNames)) {
             js_DestroyPrinter(jp);
             return NULL;
         }
@@ -886,6 +899,7 @@ void
 js_DestroyPrinter(JSPrinter *jp)
 {
     JS_FinishArenaPool(&jp->pool);
+    Foreground::delete_(jp->localNames);
     jp->sprinter.context->free_(jp);
 }
 
@@ -1379,11 +1393,9 @@ DecompileSwitch(SprintStack *ss, TableEntry *table, uintN tableLength,
 static JSAtom *
 GetArgOrVarAtom(JSPrinter *jp, uintN slot)
 {
-    JSAtom *name;
-
     LOCAL_ASSERT_RV(jp->fun, NULL);
     LOCAL_ASSERT_RV(slot < jp->fun->script()->bindings.countLocalNames(), NULL);
-    name = JS_LOCAL_NAME_TO_ATOM(jp->localNames[slot]);
+    JSAtom *name = (*jp->localNames)[slot];
 #if !JS_HAS_DESTRUCTURING
     LOCAL_ASSERT_RV(name, NULL);
 #endif
@@ -2090,11 +2102,9 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
              * the bytecode at pc, so we don't decompile more than the error
              * expression.
              */
-            FrameRegsIter iter(cx);
-            while (!iter.done() && !iter.fp()->isScriptFrame())
-                ++iter;
+            StackFrame *fp = js_GetScriptedCaller(cx, NULL);
             uint32 format = cs->format;
-            if (((!iter.done() && pc == iter.pc()) ||
+            if (((fp && pc == fp->pcQuadratic(cx)) ||
                  (pc == startpc && nuses != 0)) &&
                 format & (JOF_SET|JOF_DEL|JOF_INCDEC|JOF_FOR|JOF_VARPROP)) {
                 uint32 mode = JOF_MODE(format);
@@ -2244,8 +2254,11 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                 todo = -2;
                 switch (sn ? SN_TYPE(sn) : SRC_NULL) {
                   case SRC_WHILE:
+                    /* First instuction (NOP) contains offset to condition */
                     ++pc;
-                    tail = js_GetSrcNoteOffset(sn, 0) - 1;
+                    /* Second instruction (TRACE) contains offset to JSOP_IFNE */
+                    sn = js_GetSrcNote(jp->script, pc);
+                    tail = js_GetSrcNoteOffset(sn, 0);
                     LOCAL_ASSERT(pc[tail] == JSOP_IFNE ||
                                  pc[tail] == JSOP_IFNEX);
                     js_printf(jp, "\tdo {\n");
@@ -2915,8 +2928,6 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                 break;
               }
 
-              case JSOP_GETUPVAR_DBG:
-              case JSOP_CALLUPVAR_DBG:
               case JSOP_GETFCSLOT:
               case JSOP_CALLFCSLOT:
               {
@@ -2927,8 +2938,12 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
 
                 if (!jp->localNames) {
                     JS_ASSERT(fun == jp->fun);
-                    jp->localNames =
-                        jp->fun->script()->bindings.getLocalNameArray(cx, &jp->pool);
+                    jp->localNames = cx->new_<Vector<JSAtom *> >(cx);
+                    if (!jp->localNames ||
+                        !jp->fun->script()->bindings.getLocalNameArray(cx, jp->localNames))
+                    {
+                        return NULL;
+                    }
                 }
 
                 uintN index = GET_UINT16(pc);
@@ -4095,12 +4110,12 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
 
               case JSOP_LAMBDA:
               case JSOP_LAMBDA_FC:
-              case JSOP_LAMBDA_DBGFC:
 #if JS_HAS_GENERATOR_EXPRS
                 sn = js_GetSrcNote(jp->script, pc);
                 if (sn && SN_TYPE(sn) == SRC_GENEXP) {
                     void *mark;
-                    jsuword *innerLocalNames, *outerLocalNames;
+                    Vector<JSAtom *> *innerLocalNames;
+                    Vector<JSAtom *> *outerLocalNames;
                     JSScript *inner, *outer;
                     SprintStack ss2;
                     JSFunction *outerfun;
@@ -4115,10 +4130,12 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                      */
                     mark = JS_ARENA_MARK(&cx->tempPool);
                     if (fun->script()->bindings.hasLocalNames()) {
-                        innerLocalNames =
-                            fun->script()->bindings.getLocalNameArray(cx, &cx->tempPool);
-                        if (!innerLocalNames)
+                        innerLocalNames = cx->new_<Vector<JSAtom *> >(cx);
+                        if (!innerLocalNames ||
+                            fun->script()->bindings.getLocalNameArray(cx, innerLocalNames))
+                        {
                             return NULL;
+                        }
                     } else {
                         innerLocalNames = NULL;
                     }
@@ -4481,7 +4498,6 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
 
               case JSOP_DEFFUN:
               case JSOP_DEFFUN_FC:
-              case JSOP_DEFFUN_DBGFC:
                 LOAD_FUNCTION(0);
                 todo = -2;
                 goto do_function;

@@ -603,7 +603,6 @@ usage(void)
                       "                Warning: this option is currently ignored.\n"
                       "  -o <option>   Enable a context option flag by name\n"
                       "                Possible values:\n"
-                      "                  anonfunfix:  JSOPTION_ANONFUNFIX\n"
                       "                  atline:      JSOPTION_ATLINE\n"
                       "                  tracejit:    JSOPTION_JIT\n"
                       "                  methodjit:   JSOPTION_METHODJIT\n"
@@ -654,7 +653,6 @@ static const struct {
     const char  *name;
     uint32      flag;
 } js_options[] = {
-    {"anonfunfix",      JSOPTION_ANONFUNFIX},
     {"atline",          JSOPTION_ATLINE},
     {"jitprofiling",    JSOPTION_PROFILING},
     {"tracejit",        JSOPTION_JIT},
@@ -1518,16 +1516,6 @@ GC(JSContext *cx, uintN argc, jsval *vp)
     return true;
 }
 
-#ifdef JS_GCMETER
-static JSBool
-GCStats(JSContext *cx, uintN argc, jsval *vp)
-{
-    js_DumpGCStats(cx->runtime, stdout);
-    *vp = JSVAL_VOID;
-    return true;
-}
-#endif
-
 static JSBool
 GCParameter(JSContext *cx, uintN argc, jsval *vp)
 {
@@ -2225,6 +2213,8 @@ SrcNotes(JSContext *cx, JSScript *script, Sprinter *sp)
             break;
           }
           case SRC_SWITCH:
+            if (js_GetOpcode(cx, script, script->code + offset) == JSOP_GOTO)
+                break;
             Sprint(sp, " length %u", uintN(js_GetSrcNoteOffset(sn, 0)));
             caseOff = (uintN) js_GetSrcNoteOffset(sn, 1);
             if (caseOff)
@@ -2331,16 +2321,15 @@ DisassembleValue(JSContext *cx, jsval v, bool lines, bool recursive, Sprinter *s
                 if (script->bindings.hasUpvars()) {
                     Sprint(sp, "\nupvars: {\n");
 
-                    void *mark = JS_ARENA_MARK(&cx->tempPool);
-                    jsuword *localNames = script->bindings.getLocalNameArray(cx, &cx->tempPool);
-                    if (!localNames)
+                    Vector<JSAtom *> localNames(cx);
+                    if (!script->bindings.getLocalNameArray(cx, &localNames))
                         return false;
 
                     JSUpvarArray *uva = script->upvars();
                     uintN upvar_base = script->bindings.countArgsAndVars();
 
                     for (uint32 i = 0, n = uva->length; i < n; i++) {
-                        JSAtom *atom = JS_LOCAL_NAME_TO_ATOM(localNames[upvar_base + i]);
+                        JSAtom *atom = localNames[upvar_base + i];
                         UpvarCookie cookie = uva->vector[i];
                         JSAutoByteString printable;
                         if (js_AtomToPrintableString(cx, atom, &printable)) {
@@ -2349,7 +2338,6 @@ DisassembleValue(JSContext *cx, jsval v, bool lines, bool recursive, Sprinter *s
                         }
                     }
 
-                    JS_ARENA_RELEASE(&cx->tempPool, mark);
                     Sprint(sp, "}");
                 }
             }
@@ -2608,58 +2596,6 @@ DisassWithSrc(JSContext *cx, uintN argc, jsval *vp)
 #undef LINE_BUF_LEN
 }
 
-static JSBool
-Tracing(JSContext *cx, uintN argc, jsval *vp)
-{
-    FILE *file;
-
-    if (argc == 0) {
-        *vp = BOOLEAN_TO_JSVAL(cx->logfp != 0);
-        return JS_TRUE;
-    }
-
-    jsval *argv = JS_ARGV(cx, vp);
-    switch (JS_TypeOfValue(cx, argv[0])) {
-      case JSTYPE_NUMBER:
-      case JSTYPE_BOOLEAN: {
-        JSBool bval;
-        JS_ValueToBoolean(cx, argv[0], &bval);
-        file = bval ? stderr : NULL;
-        break;
-      }
-      case JSTYPE_STRING: {
-        JSAutoByteString name(cx, JSVAL_TO_STRING(argv[0]));
-        if (!name)
-            return JS_FALSE;
-        file = fopen(name.ptr(), "w");
-        if (!file) {
-            JS_ReportError(cx, "tracing: couldn't open output file %s: %s",
-                           name.ptr(), strerror(errno));
-            return JS_FALSE;
-        }
-        break;
-      }
-      default:
-          goto bad_argument;
-    }
-    if (cx->logfp && cx->logfp != stderr)
-        fclose((FILE *)cx->logfp);
-    cx->logfp = file;
-    cx->logPrevPc = NULL;
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
-    return JS_TRUE;
-
- bad_argument:
-    JSString *str = JS_ValueToString(cx, argv[0]);
-    if (!str)
-        return JS_FALSE;
-    JSAutoByteString bytes(cx, str);
-    if (!bytes)
-        return JS_FALSE;
-    JS_ReportError(cx, "tracing: illegal argument %s", bytes.ptr());
-    return JS_FALSE;
-}
-
 static void
 DumpScope(JSContext *cx, JSObject *obj, FILE *fp)
 {
@@ -2689,11 +2625,7 @@ DumpStats(JSContext *cx, uintN argc, jsval *vp)
         JSFlatString *flatStr = JS_FlattenString(cx, str);
         if (!flatStr)
             return JS_FALSE;
-        if (JS_FlatStringEqualsAscii(flatStr, "arena")) {
-#ifdef JS_ARENAMETER
-            JS_DumpArenaStats(stdout);
-#endif
-        } else if (JS_FlatStringEqualsAscii(flatStr, "atom")) {
+        if (JS_FlatStringEqualsAscii(flatStr, "atom")) {
             js_DumpAtoms(cx, gOutFile);
         } else if (JS_FlatStringEqualsAscii(flatStr, "global")) {
             DumpScope(cx, cx->globalObject, stdout);
@@ -3364,24 +3296,6 @@ split_enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
 }
 
 static JSBool
-ResolveClass(JSContext *cx, JSObject *obj, jsid id, JSBool *resolved)
-{
-    if (!JS_ResolveStandardClass(cx, obj, id, resolved))
-        return JS_FALSE;
-
-    if (!*resolved) {
-        if (JSID_IS_ATOM(id, CLASS_ATOM(cx, Reflect))) {
-            if (!IsStandardClassResolved(obj, &js_ReflectClass) &&
-                !js_InitReflectClass(cx, obj))
-                return JS_FALSE;
-            *resolved = JS_TRUE;
-        }
-    }
-
-    return JS_TRUE;
-}
-
-static JSBool
 split_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags, JSObject **objp)
 {
     ComplexObject *cpx;
@@ -3403,7 +3317,7 @@ split_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags, JSObject **obj
     if (!(flags & JSRESOLVE_ASSIGNING)) {
         JSBool resolved;
 
-        if (!ResolveClass(cx, obj, id, &resolved))
+        if (!JS_ResolveStandardClass(cx, obj, id, &resolved))
             return JS_FALSE;
 
         if (resolved) {
@@ -3635,7 +3549,7 @@ sandbox_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
 
     JS_ValueToBoolean(cx, v, &b);
     if (b && (flags & JSRESOLVE_ASSIGNING) == 0) {
-        if (!ResolveClass(cx, obj, id, &resolved))
+        if (!JS_ResolveStandardClass(cx, obj, id, &resolved))
             return JS_FALSE;
         if (resolved) {
             *objp = obj;
@@ -3722,13 +3636,15 @@ EvalInContext(JSContext *cx, uintN argc, jsval *vp)
             return false;
     }
 
-    *vp = OBJECT_TO_JSVAL(sobj);
-    if (srclen == 0)
+    if (srclen == 0) {
+        JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(sobj));
         return true;
+    }
 
     JSStackFrame *fp = JS_GetScriptedCaller(cx, NULL);
     JSScript *script = JS_GetFrameScript(cx, fp);
     jsbytecode *pc = JS_GetFramePC(cx, fp);
+    jsval rval;
     {
         JSAutoEnterCompartment ac;
         uintN flags;
@@ -3749,11 +3665,16 @@ EvalInContext(JSContext *cx, uintN argc, jsval *vp)
         if (!JS_EvaluateUCScript(cx, sobj, src, srclen,
                                  script->filename,
                                  JS_PCToLineNumber(cx, script, pc),
-                                 vp)) {
+                                 &rval)) {
             return false;
         }
     }
-    return cx->compartment->wrap(cx, Valueify(vp));
+
+    if (!cx->compartment->wrap(cx, Valueify(&rval)))
+        return false;
+
+    JS_SET_RVAL(cx, vp, rval);
+    return true;
 }
 
 static JSBool
@@ -4783,7 +4704,18 @@ JSBool
 MJitDataStats(JSContext *cx, uintN argc, jsval *vp)
 {
 #ifdef JS_METHODJIT
-     JS_SET_RVAL(cx, vp, INT_TO_JSVAL(cx->runtime->mjitDataSize));
+    JSRuntime *rt = cx->runtime;
+    AutoLockGC lock(rt);
+    size_t n = 0;
+    for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c) {
+        for (JSScript *script = (JSScript *)(*c)->scripts.next;
+             &script->links != &(*c)->scripts;
+             script = (JSScript *)script->links.next)
+        {
+            n += script->jitDataSize(); 
+        }
+    }
+    JS_SET_RVAL(cx, vp, INT_TO_JSVAL(n));
 #else
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
 #endif
@@ -4867,6 +4799,13 @@ EnableStackWalkingAssertion(JSContext *cx, uintN argc, jsval *vp)
     return true;
 }
 
+static JSBool
+GetMaxArgs(JSContext *cx, uintN arg, jsval *vp)
+{
+    JS_SET_RVAL(cx, vp, INT_TO_JSVAL(StackSpace::ARGS_LENGTH_MAX));
+    return JS_TRUE;
+}
+
 static JSFunctionSpec shell_functions[] = {
     JS_FN("version",        Version,        0,0),
     JS_FN("revertVersion",  RevertVersion,  0,0),
@@ -4883,9 +4822,6 @@ static JSFunctionSpec shell_functions[] = {
     JS_FN("assertEq",       AssertEq,       2,0),
     JS_FN("assertJit",      AssertJit,      0,0),
     JS_FN("gc",             ::GC,           0,0),
-#ifdef JS_GCMETER
-    JS_FN("gcstats",        GCStats,        0,0),
-#endif
     JS_FN("gcparam",        GCParameter,    2,0),
     JS_FN("countHeap",      CountHeap,      0,0),
     JS_FN("makeFinalizeObserver", MakeFinalizeObserver, 0,0),
@@ -4913,7 +4849,6 @@ static JSFunctionSpec shell_functions[] = {
     JS_FN("dumpHeap",       DumpHeap,       0,0),
     JS_FN("dumpObject",     DumpObject,     1,0),
     JS_FN("notes",          Notes,          1,0),
-    JS_FN("tracing",        Tracing,        0,0),
     JS_FN("stats",          DumpStats,      1,0),
 #endif
     JS_FN("dumpStack",      DumpStack,      1,0),
@@ -4931,6 +4866,8 @@ static JSFunctionSpec shell_functions[] = {
     JS_FN("evalInFrame",    EvalInFrame,    2,0),
     JS_FN("shapeOf",        ShapeOf,        1,0),
     JS_FN("resolver",       Resolver,       1,0),
+    JS_FN("pauseProfilers", js_PauseProfilers, 0,0),
+    JS_FN("resumeProfilers", js_ResumeProfilers, 0,0),
 #ifdef MOZ_CALLGRIND
     JS_FN("startCallgrind", js_StartCallgrind,  0,0),
     JS_FN("stopCallgrind",  js_StopCallgrind,   0,0),
@@ -4971,6 +4908,7 @@ static JSFunctionSpec shell_functions[] = {
     JS_FN("newGlobal",      NewGlobal,      1,0),
     JS_FN("parseLegacyJSON",ParseLegacyJSON,1,0),
     JS_FN("enableStackWalkingAssertion",EnableStackWalkingAssertion,1,0),
+    JS_FN("getMaxArgs",     GetMaxArgs,     0,0),
     JS_FS_END
 };
 
@@ -4999,9 +4937,6 @@ static const char *const shell_help_messages[] = {
 "assertJit()              Throw if the calling function failed to JIT",
 "gc([obj])                Run the garbage collector\n"
 "                         When obj is given, GC only the compartment it's in",
-#ifdef JS_GCMETER
-"gcstats()                Print garbage collector statistics",
-#endif
 "gcparam(name, value)\n"
 "  Wrapper for JS_SetGCParameter. The name must be either 'maxBytes' or\n"
 "  'maxMallocBytes' and the value must be convertable to a positive uint32",
@@ -5047,8 +4982,6 @@ static const char *const shell_help_messages[] = {
 "  Interface to JS_DumpHeap with output sent to file",
 "dumpObject()             Dump an internal representation of an object",
 "notes([fun])             Show source notes for functions",
-"tracing([true|false|filename]) Turn bytecode execution tracing on/off.\n"
-"                         With filename, send to file.",
 "stats([string ...])      Dump 'arena', 'atom', 'global' stats",
 #endif
 "dumpStack()              Dump the stack as an array of callees (youngest first)",
@@ -5072,6 +5005,8 @@ static const char *const shell_help_messages[] = {
 "shapeOf(obj)             Get the shape of obj (an implementation detail)",
 "resolver(src[, proto])   Create object with resolve hook that copies properties\n"
 "                         from src. If proto is omitted, use Object.prototype.",
+"pauseProfilers()         Pause all profilers that can be paused",
+"resumeProfilers()        Resume profilers if they are paused",
 #ifdef MOZ_CALLGRIND
 "startCallgrind()         Start callgrind instrumentation",
 "stopCallgrind()          Stop callgrind instrumentation",
@@ -5121,6 +5056,7 @@ static const char *const shell_help_messages[] = {
 "  code.  If your test isn't ridiculously thorough, such that performing this\n"
 "  assertion increases test duration by an order of magnitude, you shouldn't\n"
 "  use this.",
+"getMaxArgs()             Return the maximum number of supported args for a call.",
 
 /* Keep these last: see the static assertion below. */
 #ifdef MOZ_PROFILING
@@ -5735,7 +5671,7 @@ global_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
 #ifdef LAZY_STANDARD_CLASSES
     JSBool resolved;
 
-    if (!ResolveClass(cx, obj, id, &resolved))
+    if (!JS_ResolveStandardClass(cx, obj, id, &resolved))
         return JS_FALSE;
     if (resolved) {
         *objp = obj;
@@ -5997,6 +5933,8 @@ NewGlobalObject(JSContext *cx, CompartmentKind compartment)
         if (!JS_InitCTypesClass(cx, glob))
             return NULL;
 #endif
+        if (!JS_InitReflect(cx, glob))
+            return NULL;
         if (!JS::RegisterPerfMeasurement(cx, glob))
             return NULL;
         if (!JS_DefineFunctions(cx, glob, shell_functions) ||
@@ -6123,6 +6061,21 @@ MaybeOverrideOutFileFromEnv(const char* const envVar,
     }
 }
 
+JSBool
+ShellPrincipalsSubsume(JSPrincipals *, JSPrincipals *)
+{
+    return JS_TRUE;
+}
+
+JSPrincipals shellTrustedPrincipals = {
+    (char *)"[shell trusted principals]",
+    NULL,
+    NULL,
+    1,
+    NULL, /* nobody should be destroying this */
+    ShellPrincipalsSubsume
+};
+
 int
 main(int argc, char **argv, char **envp)
 {
@@ -6209,6 +6162,8 @@ main(int argc, char **argv, char **envp)
     if (!rt)
         return 1;
 
+    JS_SetTrustedPrincipals(rt, &shellTrustedPrincipals);
+
     if (!InitWatchdog(rt))
         return 1;
 
@@ -6216,7 +6171,6 @@ main(int argc, char **argv, char **envp)
     if (!cx)
         return 1;
 
-    JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_ANONFUNFIX);
     JS_SetGCParameter(rt, JSGC_MODE, JSGC_MODE_COMPARTMENT);
     JS_SetGCParameterForThread(cx, JSGC_MAX_CODE_CACHE_BYTES, 16 * 1024 * 1024);
 

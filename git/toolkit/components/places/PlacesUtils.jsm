@@ -129,6 +129,8 @@ var PlacesUtils = {
   TYPE_HTML: "text/html",
   // Place entries as raw URL text
   TYPE_UNICODE: "text/unicode",
+  // Used to track the action that populated the clipboard.
+  TYPE_X_MOZ_PLACE_ACTION: "text/x-moz-place-action",
 
   EXCLUDE_FROM_BACKUP_ANNO: "places/excludeFromBackup",
   GUID_ANNO: "placesInternal/GUID",
@@ -163,6 +165,19 @@ var PlacesUtils = {
    */
   _uri: function PU__uri(aSpec) {
     return NetUtil.newURI(aSpec);
+  },
+
+  /**
+   * Wraps a string in a nsISupportsString wrapper.
+   * @param   aString
+   *          The string to wrap.
+   * @returns A nsISupportsString object containing a string.
+   */
+  toISupportsString: function PU_toISupportsString(aString) {
+    let s = Cc["@mozilla.org/supports-string;1"].
+            createInstance(Ci.nsISupportsString);
+    s.data = aString;
+    return s;
   },
 
   getFormattedString: function PU_getFormattedString(key, params) {
@@ -1707,8 +1722,7 @@ var PlacesUtils = {
    * Serialize a JS object to JSON
    */
   toJSONString: function PU_toJSONString(aObj) {
-    var JSON = Cc["@mozilla.org/dom/json;1"].createInstance(Ci.nsIJSON);
-    return JSON.encode(aObj);
+    return JSON.stringify(aObj);
   },
 
   /**
@@ -2210,7 +2224,7 @@ XPCOMUtils.defineLazyServiceGetter(this, "focusManager",
 function updateCommandsOnActiveWindow()
 {
   let win = focusManager.activeWindow;
-  if (win && win instanceof Ci.nsIDOMWindowInternal) {
+  if (win && win instanceof Ci.nsIDOMWindow) {
     // Updating "undo" will cause a group update including "redo".
     win.updateCommands("undo");
   }

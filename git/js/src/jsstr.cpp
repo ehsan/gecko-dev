@@ -61,13 +61,13 @@
 #include "jsbool.h"
 #include "jsbuiltins.h"
 #include "jscntxt.h"
-#include "jsfun.h"      /* for JS_ARGS_LENGTH_MAX */
 #include "jsgc.h"
 #include "jsinterp.h"
 #include "jslock.h"
 #include "jsnum.h"
 #include "jsobj.h"
 #include "jsopcode.h"
+#include "jsprobes.h"
 #include "jsregexp.h"
 #include "jsscope.h"
 #include "jsstaticcheck.h"
@@ -75,6 +75,8 @@
 #include "jsbit.h"
 #include "jsvector.h"
 #include "jsversion.h"
+
+#include "vm/GlobalObject.h"
 
 #include "jsinterpinlines.h"
 #include "jsobjinlines.h"
@@ -142,73 +144,22 @@ str_encodeURI(JSContext *cx, uintN argc, Value *vp);
 static JSBool
 str_encodeURI_Component(JSContext *cx, uintN argc, Value *vp);
 
-static const uint32 OVERLONG_UTF8 = UINT32_MAX;
+static const uint32 INVALID_UTF8 = UINT32_MAX;
 
 static uint32
 Utf8ToOneUcs4Char(const uint8 *utf8Buffer, int utf8Length);
 
 /*
- * Contributions from the String class to the set of methods defined for the
- * global object.  escape and unescape used to be defined in the Mocha library,
- * but as ECMA decided to spec them, they've been moved to the core engine
- * and made ECMA-compliant.  (Incomplete escapes are interpreted as literal
- * characters by unescape.)
+ * Global string methods
  */
 
-/*
- * Stuff to emulate the old libmocha escape, which took a second argument
- * giving the type of escape to perform.  Retained for compatibility, and
- * copied here to avoid reliance on net.h, mkparse.c/NET_EscapeBytes.
- */
 
-#define URL_XALPHAS     ((uint8) 1)
-#define URL_XPALPHAS    ((uint8) 2)
-#define URL_PATH        ((uint8) 4)
-
-static const uint8 urlCharType[256] =
-/*      Bit 0           xalpha          -- the alphas
- *      Bit 1           xpalpha         -- as xalpha but
- *                             converts spaces to plus and plus to %20
- *      Bit 2 ...       path            -- as xalphas but doesn't escape '/'
- */
-    /*   0 1 2 3 4 5 6 7 8 9 A B C D E F */
-    {    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,       /* 0x */
-         0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,       /* 1x */
-         0,0,0,0,0,0,0,0,0,0,7,4,0,7,7,4,       /* 2x   !"#$%&'()*+,-./  */
-         7,7,7,7,7,7,7,7,7,7,0,0,0,0,0,0,       /* 3x  0123456789:;<=>?  */
-         7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,       /* 4x  @ABCDEFGHIJKLMNO  */
-         7,7,7,7,7,7,7,7,7,7,7,0,0,0,0,7,       /* 5X  PQRSTUVWXYZ[\]^_  */
-         0,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,       /* 6x  `abcdefghijklmno  */
-         7,7,7,7,7,7,7,7,7,7,7,0,0,0,0,0,       /* 7X  pqrstuvwxyz{\}~  DEL */
-         0, };
-
-/* This matches the ECMA escape set when mask is 7 (default.) */
-
-#define IS_OK(C, mask) (urlCharType[((uint8) (C))] & (mask))
-
-/* See ECMA-262 Edition 3 B.2.1 */
-JSBool
-js_str_escape(JSContext *cx, uintN argc, Value *vp, Value *rval)
+/* ES5 B.2.1 */
+static JSBool
+str_escape(JSContext *cx, uintN argc, Value *vp)
 {
     const char digits[] = {'0', '1', '2', '3', '4', '5', '6', '7',
                            '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
-
-    jsint mask = URL_XALPHAS | URL_XPALPHAS | URL_PATH;
-    if (argc > 1) {
-        double d;
-        if (!ValueToNumber(cx, vp[3], &d))
-            return JS_FALSE;
-        if (!JSDOUBLE_IS_FINITE(d) ||
-            (mask = (jsint)d) != d ||
-            mask & ~(URL_XALPHAS | URL_XPALPHAS | URL_PATH))
-        {
-            char numBuf[12];
-            JS_snprintf(numBuf, sizeof numBuf, "%lx", (unsigned long) mask);
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
-                                 JSMSG_BAD_STRING_MASK, numBuf);
-            return JS_FALSE;
-        }
-    }
 
     JSLinearString *str = ArgToRootedString(cx, argc, vp, 0);
     if (!str)
@@ -217,19 +168,38 @@ js_str_escape(JSContext *cx, uintN argc, Value *vp, Value *rval)
     size_t length = str->length();
     const jschar *chars = str->chars();
 
+    static const uint8 shouldPassThrough[256] = {
+         0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+         0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+         0,0,0,0,0,0,0,0,0,0,1,1,0,1,1,1,       /*    !"#$%&'()*+,-./  */
+         1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,       /*   0123456789:;<=>?  */
+         1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,       /*   @ABCDEFGHIJKLMNO  */
+         1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,1,       /*   PQRSTUVWXYZ[\]^_  */
+         0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,       /*   `abcdefghijklmno  */
+         1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,     /*   pqrstuvwxyz{\}~  DEL */
+    };
+
+    /* In step 7, exactly 69 characters should pass through unencoded. */
+#ifdef DEBUG
+    int count = 0;
+    for (uint i = 0; i < sizeof(shouldPassThrough); i++) {
+        if (shouldPassThrough[i]) {
+            count++;
+        }
+    }
+    JS_ASSERT(count == 69);
+#endif
+
+
     /* Take a first pass and see how big the result string will need to be. */
     size_t newlength = length;
     for (size_t i = 0; i < length; i++) {
-        jschar ch;
-        if ((ch = chars[i]) < 128 && IS_OK(ch, mask))
+        jschar ch = chars[i];
+        if (ch < 128 && shouldPassThrough[ch])
             continue;
-        if (ch < 256) {
-            if (mask == URL_XPALPHAS && ch == ' ')
-                continue;   /* The character will be encoded as '+' */
-            newlength += 2; /* The character will be encoded as %XX */
-        } else {
-            newlength += 5; /* The character will be encoded as %uXXXX */
-        }
+
+        /* The character will be encoded as %XX or %uXXXX. */
+        newlength += (ch < 256) ? 2 : 5;
 
         /*
          * This overflow test works because newlength is incremented by at
@@ -251,17 +221,13 @@ js_str_escape(JSContext *cx, uintN argc, Value *vp, Value *rval)
         return JS_FALSE;
     size_t i, ni;
     for (i = 0, ni = 0; i < length; i++) {
-        jschar ch;
-        if ((ch = chars[i]) < 128 && IS_OK(ch, mask)) {
+        jschar ch = chars[i];
+        if (ch < 128 && shouldPassThrough[ch]) {
             newchars[ni++] = ch;
         } else if (ch < 256) {
-            if (mask == URL_XPALPHAS && ch == ' ') {
-                newchars[ni++] = '+'; /* convert spaces to pluses */
-            } else {
-                newchars[ni++] = '%';
-                newchars[ni++] = digits[ch >> 4];
-                newchars[ni++] = digits[ch & 0xF];
-            }
+            newchars[ni++] = '%';
+            newchars[ni++] = digits[ch >> 4];
+            newchars[ni++] = digits[ch & 0xF];
         } else {
             newchars[ni++] = '%';
             newchars[ni++] = 'u';
@@ -279,18 +245,11 @@ js_str_escape(JSContext *cx, uintN argc, Value *vp, Value *rval)
         cx->free_(newchars);
         return JS_FALSE;
     }
-    rval->setString(retstr);
+    vp->setString(retstr);
     return JS_TRUE;
 }
-#undef IS_OK
 
-static JSBool
-str_escape(JSContext *cx, uintN argc, Value *vp)
-{
-    return js_str_escape(cx, argc, vp, vp);
-}
-
-/* See ECMA-262 Edition 3 B.2.2 */
+/* ES5 B.2.2 */
 static JSBool
 str_unescape(JSContext *cx, uintN argc, Value *vp)
 {
@@ -309,6 +268,7 @@ str_unescape(JSContext *cx, uintN argc, Value *vp)
     while (i < length) {
         jschar ch = chars[i++];
         if (ch == '%') {
+            /* Incomplete escapes are interpreted as literal characters. */
             if (i + 1 < length &&
                 JS7_ISHEX(chars[i]) && JS7_ISHEX(chars[i + 1]))
             {
@@ -1186,7 +1146,7 @@ str_lastIndexOf(JSContext *cx, uintN argc, Value *vp)
                 i = j;
         } else {
             double d;
-            if (!ValueToNumber(cx, vp[3], &d))
+            if (!ToNumber(cx, vp[3], &d))
                 return false;
             if (!JSDOUBLE_IS_NaN(d)) {
                 d = js_DoubleToInteger(d);
@@ -1460,7 +1420,7 @@ class RegExpGuard
         }
         JS_ASSERT(patstr);
 
-        AlreadyIncRefed<RegExp> re = RegExp::createFlagged(cx, patstr, opt);
+        AlreadyIncRefed<RegExp> re = RegExp::createFlagged(cx, patstr, opt, NULL);
         if (!re)
             return NULL;
         rep.reset(re);
@@ -2484,7 +2444,7 @@ str_split(JSContext *cx, uintN argc, Value *vp)
     uint32 limit;
     if (argc > 1 && !vp[3].isUndefined()) {
         jsdouble d;
-        if (!ValueToNumber(cx, vp[3], &d))
+        if (!ToNumber(cx, vp[3], &d))
             return false;
         limit = js_DoubleToECMAUint32(d);
     } else {
@@ -3143,7 +3103,7 @@ static JSBool
 str_fromCharCode(JSContext *cx, uintN argc, Value *vp)
 {
     Value *argv = JS_ARGV(cx, vp);
-    JS_ASSERT(argc <= JS_ARGS_LENGTH_MAX);
+    JS_ASSERT(argc <= StackSpace::ARGS_LENGTH_MAX);
     if (argc == 1) {
         uint16_t code;
         if (!ValueToUint16(cx, argv[0], &code))
@@ -3206,70 +3166,39 @@ StringObject::assignInitialShape(JSContext *cx)
 }
 
 JSObject *
-js_InitStringClass(JSContext *cx, JSObject *global)
+js_InitStringClass(JSContext *cx, JSObject *obj)
 {
-    JS_ASSERT(global->isGlobal());
-    JS_ASSERT(global->isNative());
+    JS_ASSERT(obj->isNative());
+
+    GlobalObject *global = obj->asGlobal();
+
+    JSObject *proto = global->createBlankPrototype(cx, &js_StringClass);
+    if (!proto || !proto->asString()->init(cx, cx->runtime->emptyString))
+        return NULL;
+
+    /* Now create the String function. */
+    JSFunction *ctor = global->createConstructor(cx, js_String, &js_StringClass,
+                                                 CLASS_ATOM(cx, String), 1);
+    if (!ctor)
+        return NULL;
+
+    if (!LinkConstructorAndPrototype(cx, ctor, proto))
+        return NULL;
+
+    if (!DefinePropertiesAndBrand(cx, proto, NULL, string_methods) ||
+        !DefinePropertiesAndBrand(cx, ctor, NULL, string_static_methods))
+    {
+        return NULL;
+    }
+
+    if (!DefineConstructorAndPrototype(cx, global, JSProto_String, ctor, proto))
+        return NULL;
 
     /*
      * Define escape/unescape, the URI encode/decode functions, and maybe
      * uneval on the global object.
      */
     if (!JS_DefineFunctions(cx, global, string_functions))
-        return NULL;
-
-    /* Create and initialize String.prototype. */
-    JSObject *objectProto;
-    if (!js_GetClassPrototype(cx, global, JSProto_Object, &objectProto))
-        return NULL;
-
-    JSObject *proto = NewObject<WithProto::Class>(cx, &js_StringClass, objectProto, global);
-    if (!proto || !proto->asString()->init(cx, cx->runtime->emptyString))
-        return NULL;
-
-    /* Now create the String function. */
-    JSAtom *atom = CLASS_ATOM(cx, String);
-    JSFunction *ctor = js_NewFunction(cx, NULL, js_String, 1, JSFUN_CONSTRUCTOR, global, atom);
-    if (!ctor)
-        return NULL;
-
-    /* String creates string objects. */
-    FUN_CLASP(ctor) = &js_StringClass;
-
-    /* Define String.prototype and String.prototype.constructor. */
-    if (!ctor->defineProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.classPrototypeAtom),
-                              ObjectValue(*proto), PropertyStub, StrictPropertyStub,
-                              JSPROP_PERMANENT | JSPROP_READONLY) ||
-        !proto->defineProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.constructorAtom),
-                               ObjectValue(*ctor), PropertyStub, StrictPropertyStub, 0))
-    {
-        return NULL;
-    }
-
-    /* Add properties and methods to the prototype and the constructor. */
-    if (!JS_DefineFunctions(cx, proto, string_methods) ||
-        !JS_DefineFunctions(cx, ctor, string_static_methods))
-    {
-        return NULL;
-    }
-
-    /* Pre-brand String and String.prototype for trace-jitted code. */
-    proto->brand(cx);
-    ctor->brand(cx);
-
-    /*
-     * Make sure proto's emptyShape is available to be shared by String
-     * objects. JSObject::emptyShape is a one-slot cache. If we omit this, some
-     * other class could snap it up. (The risk is particularly great for
-     * Object.prototype.)
-     *
-     * All callers of JSObject::initSharingEmptyShape depend on this.
-     */
-    if (!proto->getEmptyShape(cx, &js_StringClass, FINALIZE_OBJECT0))
-        return NULL;
-
-    /* Install the fully-constructed String and String.prototype. */
-    if (!DefineConstructorAndPrototype(cx, global, JSProto_String, ctor, proto))
         return NULL;
 
     return proto;
@@ -3281,7 +3210,9 @@ js_NewString(JSContext *cx, jschar *chars, size_t length)
     if (!CheckStringLength(cx, length))
         return NULL;
 
-    return JSFixedString::new_(cx, chars, length);
+    JSFixedString *s = JSFixedString::new_(cx, chars, length);
+    Probes::createString(cx, s, length);
+    return s;
 }
 
 static JS_ALWAYS_INLINE JSFixedString *
@@ -3302,6 +3233,7 @@ NewShortString(JSContext *cx, const jschar *chars, size_t length)
     jschar *storage = str->init(length);
     PodCopy(storage, chars, length);
     storage[length] = 0;
+    Probes::createString(cx, str, length);
     return str;
 }
 
@@ -3332,6 +3264,7 @@ NewShortString(JSContext *cx, const char *chars, size_t length)
             *p++ = (unsigned char)*chars++;
         *p = 0;
     }
+    Probes::createString(cx, str, length);
     return str;
 }
 
@@ -3422,29 +3355,10 @@ js_NewDependentString(JSContext *cx, JSString *baseArg, size_t start, size_t len
     if (JSLinearString *staticStr = JSAtom::lookupStatic(chars, length))
         return staticStr;
 
-    return JSDependentString::new_(cx, base, chars, length);
+    JSLinearString *s = JSDependentString::new_(cx, base, chars, length);
+    Probes::createString(cx, s, length);
+    return s;
 }
-
-#ifdef DEBUG
-#include <math.h>
-
-void printJSStringStats(JSRuntime *rt)
-{
-    double mean, sigma;
-
-    mean = JS_MeanAndStdDev(rt->totalStrings, rt->lengthSum,
-                            rt->lengthSquaredSum, &sigma);
-
-    fprintf(stderr, "%lu total strings, mean length %g (sigma %g)\n",
-            (unsigned long)rt->totalStrings, mean, sigma);
-
-    mean = JS_MeanAndStdDev(rt->totalDependentStrings, rt->strdepLengthSum,
-                            rt->strdepLengthSquaredSum, &sigma);
-
-    fprintf(stderr, "%lu total dependent strings, mean length %g (sigma %g)\n",
-            (unsigned long)rt->totalDependentStrings, mean, sigma);
-}
-#endif
 
 JSFixedString *
 js_NewStringCopyN(JSContext *cx, const jschar *s, size_t n)
@@ -5707,8 +5621,8 @@ Utf8ToOneUcs4Char(const uint8 *utf8Buffer, int utf8Length)
             JS_ASSERT((*utf8Buffer & 0xC0) == 0x80);
             ucs4Char = ucs4Char<<6 | (*utf8Buffer++ & 0x3F);
         }
-        if (JS_UNLIKELY(ucs4Char < minucs4Char)) {
-            ucs4Char = OVERLONG_UTF8;
+        if (JS_UNLIKELY(ucs4Char < minucs4Char || (ucs4Char >= 0xD800 && ucs4Char <= 0xDFFF))) {
+            ucs4Char = INVALID_UTF8;
         } else if (ucs4Char == 0xFFFE || ucs4Char == 0xFFFF) {
             ucs4Char = 0xFFFD;
         }

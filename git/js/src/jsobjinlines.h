@@ -135,12 +135,12 @@ JSObject::finalize(JSContext *cx)
     if (isNewborn())
         return;
 
+    js::Probes::finalizeObject(this);
+
     /* Finalize obj first, in case it needs map and slots. */
     js::Class *clasp = getClass();
     if (clasp->finalize)
         clasp->finalize(cx, this);
-
-    js::Probes::finalizeObject(this);
 
     finish(cx);
 }
@@ -238,16 +238,6 @@ JSObject::methodReadBarrier(JSContext *cx, const js::Shape &shape, js::Value *vp
     JS_ASSERT(newshape->slot == slot);
     vp->setObject(*funobj);
     nativeSetSlot(slot, *vp);
-
-#ifdef DEBUG
-    if (cx->runtime->functionMeterFilename) {
-        JS_FUNCTION_METER(cx, mreadbarrier);
-
-        typedef JSRuntime::FunctionCountMap::Ptr Ptr;
-        if (Ptr p = cx->runtime->methodReadBarrierCountMap.lookupWithDefault(fun, 0))
-            ++p->value;
-    }
-#endif
     return newshape;
 }
 
@@ -265,10 +255,8 @@ JSObject::methodWriteBarrier(JSContext *cx, const js::Shape &shape, const js::Va
     if (brandedOrHasMethodBarrier() && shape.slot != SHAPE_INVALID_SLOT) {
         const js::Value &prev = nativeGetSlot(shape.slot);
 
-        if (ChangesMethodValue(prev, v)) {
-            JS_FUNCTION_METER(cx, mwritebarrier);
+        if (ChangesMethodValue(prev, v))
             return methodShapeChange(cx, shape);
-        }
     }
     return &shape;
 }
@@ -279,10 +267,8 @@ JSObject::methodWriteBarrier(JSContext *cx, uint32 slot, const js::Value &v)
     if (brandedOrHasMethodBarrier()) {
         const js::Value &prev = nativeGetSlot(slot);
 
-        if (ChangesMethodValue(prev, v)) {
-            JS_FUNCTION_METER(cx, mwslotbarrier);
+        if (ChangesMethodValue(prev, v))
             return methodShapeChange(cx, slot);
-        }
     }
     return true;
 }
@@ -1116,8 +1102,7 @@ NewBuiltinClassInstance(JSContext *cx, Class *clasp, gc::FinalizeKind kind)
     JSObject *global;
     if (!cx->hasfp()) {
         global = cx->globalObject;
-        OBJ_TO_INNER_OBJECT(cx, global);
-        if (!global)
+        if (!NULLABLE_OBJ_TO_INNER_OBJECT(cx, global))
             return NULL;
     } else {
         global = cx->fp()->scopeChain().getGlobal();

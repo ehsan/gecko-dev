@@ -284,7 +284,7 @@ add_test(function test_engine_applyFailed() {
   engine.enabled = true;
   delete engine.exception;
   engine.sync = function sync() {
-    Svc.Obs.notify("weave:engine:sync:apply-failed", {}, "steam");
+    Svc.Obs.notify("weave:engine:sync:applied", {newFailed:1}, "steam");
   };
 
   try {
@@ -305,9 +305,6 @@ add_test(function test_engine_applyFailed() {
 
 
 function run_test() {
-  if (DISABLE_TESTS_BUG_604565)
-    return;
-
   Engines.register(CatapultEngine);
   run_next_test();
 }

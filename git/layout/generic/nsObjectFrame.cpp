@@ -1492,7 +1492,7 @@ nsObjectFrame::GetImageContainer(LayerManager* aManager)
   if (!manager) {
     return nsnull;
   }
-  
+
   nsRefPtr<ImageContainer> container;
 
   // XXX - in the future image containers will be manager independent and
@@ -1559,18 +1559,23 @@ nsObjectFrame::GetLayerState(nsDisplayListBuilder* aBuilder,
     return LAYER_NONE;
 
 #ifdef XP_MACOSX
-  if (aManager &&
-      aManager->GetBackendType() == LayerManager::LAYERS_OPENGL &&
-      mInstanceOwner->UseAsyncRendering() &&
-      mInstanceOwner->GetEventModel() == NPEventModelCocoa &&
-      mInstanceOwner->GetDrawingModel() == NPDrawingModelCoreGraphics)
-  {
+  // Layer painting not supported without OpenGL
+  if (aManager && aManager->GetBackendType() !=
+      LayerManager::LAYERS_OPENGL) {
+    return LAYER_NONE;
+  }
+
+  // Synchronous painting, but with (gecko) layers.
+  if (!mInstanceOwner->UseAsyncRendering() &&
+      mInstanceOwner->IsRemoteDrawingCoreAnimation() &&
+      mInstanceOwner->GetEventModel() == NPEventModelCocoa) {
     return LAYER_ACTIVE;
   }
 #endif
 
-  if (!mInstanceOwner->UseAsyncRendering())
+  if (!mInstanceOwner->UseAsyncRendering()) {
     return LAYER_NONE;
+  }
 
   return LAYER_ACTIVE;
 }
@@ -2101,9 +2106,6 @@ nsObjectFrame::PrepareInstanceOwner()
   PR_LOG(nsObjectFrameLM, PR_LOG_DEBUG,
          ("Created new instance owner %p for frame %p\n", mInstanceOwner.get(),
           this));
-
-  if (!mInstanceOwner)
-    return NS_ERROR_OUT_OF_MEMORY;
 
   // Note, |this| may very well be gone after this call.
   return mInstanceOwner->Init(PresContext(), this, GetContent());

@@ -119,12 +119,16 @@ public:
   static bool
   DeserializeValue(JSContext* aCx,
                    JSAutoStructuredCloneBuffer& aBuffer,
-                   jsval* aValue);
+                   jsval* aValue,
+                   JSStructuredCloneCallbacks* aCallbacks = nsnull,
+                   void* aClosure = nsnull);
 
   static bool
   SerializeValue(JSContext* aCx,
                  JSAutoStructuredCloneBuffer& aBuffer,
-                 jsval aValue);
+                 jsval aValue,
+                 JSStructuredCloneCallbacks* aCallbacks = nsnull,
+                 void* aClosure = nsnull);
 
   const nsString& Name() const
   {
@@ -157,6 +161,10 @@ public:
     return mTransaction;
   }
 
+  nsresult ModifyValueForNewKey(JSAutoStructuredCloneBuffer& aBuffer,
+                                Key& aKey,
+                                PRUint64 aOffsetToKeyProp);
+
 protected:
   IDBObjectStore();
   ~IDBObjectStore();
@@ -166,7 +174,8 @@ protected:
                       jsval aKeyVal,
                       JSAutoStructuredCloneBuffer& aCloneBuffer,
                       Key& aKey,
-                      nsTArray<IndexUpdateInfo>& aUpdateInfoArray);
+                      nsTArray<IndexUpdateInfo>& aUpdateInfoArray,
+                      PRUint64* aOffsetToKeyProp);
 
   nsresult AddOrPut(const jsval& aValue,
                     const jsval& aKey,
@@ -189,7 +198,6 @@ private:
   PRUint32 mStructuredCloneVersion;
 
   nsTArray<nsRefPtr<IDBIndex> > mCreatedIndexes;
-
 };
 
 END_INDEXEDDB_NAMESPACE

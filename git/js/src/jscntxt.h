@@ -133,18 +133,6 @@ struct GSNCache {
 
     jsbytecode      *code;
     Map             map;
-#ifdef JS_GSNMETER
-    struct Stats {
-        uint32          hits;
-        uint32          misses;
-        uint32          fills;
-        uint32          purges;
-
-        Stats() : hits(0), misses(0), fills(0), purges(0) { }
-    };
-
-    Stats           stats;
-#endif
 
     GSNCache() : code(NULL) { }
 
@@ -311,27 +299,6 @@ js_ClearContextThread(JSContext *cx);
 
 #endif /* JS_THREADSAFE */
 
-#ifdef DEBUG
-# define FUNCTION_KIND_METER_LIST(_)                                          \
-                        _(allfun), _(heavy), _(nofreeupvar), _(onlyfreevar),  \
-                        _(flat), _(badfunarg),                                \
-                        _(joinedsetmethod), _(joinedinitmethod),              \
-                        _(joinedreplace), _(joinedsort), _(joinedmodulepat),  \
-                        _(mreadbarrier), _(mwritebarrier), _(mwslotbarrier),  \
-                        _(unjoined), _(indynamicscope)
-# define identity(x)    x
-
-struct JSFunctionMeter {
-    int32 FUNCTION_KIND_METER_LIST(identity);
-};
-
-# undef identity
-
-# define JS_FUNCTION_METER(cx,x) JS_RUNTIME_METER((cx)->runtime, functionMeter.x)
-#else
-# define JS_FUNCTION_METER(cx,x) ((void)0)
-#endif
-
 typedef enum JSDestroyContextMode {
     JSDCM_NO_GC,
     JSDCM_MAYBE_GC,
@@ -408,7 +375,8 @@ struct JSRuntime {
     uint32              protoHazardShape;
 
     /* Garbage collector state, used by jsgc.c. */
-    js::GCChunkSet      gcChunkSet;
+    js::GCChunkSet      gcUserChunkSet;
+    js::GCChunkSet      gcSystemChunkSet;
 
     js::RootedValueMap  gcRootsHash;
     js::GCLocks         gcLocksHash;
@@ -443,6 +411,12 @@ struct JSRuntime {
 
     /* Compartment that is currently involved in per-compartment GC */
     JSCompartment       *gcCurrentCompartment;
+
+    /*
+     * If this is non-NULL, all marked objects must belong to this compartment.
+     * This is used to look for compartment bugs.
+     */
+    JSCompartment       *gcCheckCompartment;
 
     /*
      * We can pack these flags as only the GC thread writes to them. Atomic
@@ -629,6 +603,12 @@ struct JSRuntime {
 #define JS_THREAD_DATA(cx)      (&(cx)->runtime->threadData)
 #endif
 
+  private:
+    JSPrincipals        *trustedPrincipals_;
+  public:
+    void setTrustedPrincipals(JSPrincipals *p) { trustedPrincipals_ = p; }
+    JSPrincipals *trustedPrincipals() const { return trustedPrincipals_; }
+
     /*
      * Object shape (property cache structural type) identifier generator.
      *
@@ -647,97 +627,8 @@ struct JSRuntime {
     /* Literal table maintained by jsatom.c functions. */
     JSAtomState         atomState;
 
-    /*
-     * Various metering fields are defined at the end of JSRuntime. In this
-     * way there is no need to recompile all the code that refers to other
-     * fields of JSRuntime after enabling the corresponding metering macro.
-     */
-#ifdef JS_DUMP_ENUM_CACHE_STATS
-    int32               nativeEnumProbes;
-    int32               nativeEnumMisses;
-# define ENUM_CACHE_METER(name)     JS_ATOMIC_INCREMENT(&cx->runtime->name)
-#else
-# define ENUM_CACHE_METER(name)     ((void) 0)
-#endif
-
-#ifdef DEBUG
-    /*
-     * NB: emptyShapes (in JSCompartment) is init'ed iff at least one
-     * of these envars is set:
-     *
-     *  JS_PROPTREE_STATFILE  statistics on the property tree forest
-     *  JS_PROPTREE_DUMPFILE  all paths in the property tree forest
-     */
-    const char          *propTreeStatFilename;
-    const char          *propTreeDumpFilename;
-
-    bool meterEmptyShapes() const { return propTreeStatFilename || propTreeDumpFilename; }
-
-    /* String instrumentation. */
-    jsrefcount          liveStrings;
-    jsrefcount          totalStrings;
-    jsrefcount          liveDependentStrings;
-    jsrefcount          totalDependentStrings;
-    jsrefcount          badUndependStrings;
-    double              lengthSum;
-    double              lengthSquaredSum;
-    double              strdepLengthSum;
-    double              strdepLengthSquaredSum;
-
-    /* Script instrumentation. */
-    jsrefcount          liveScripts;
-    jsrefcount          totalScripts;
-    jsrefcount          liveEmptyScripts;
-    jsrefcount          totalEmptyScripts;
-    jsrefcount          highWaterLiveScripts;
-#endif /* DEBUG */
-
-#ifdef JS_SCOPE_DEPTH_METER
-    /*
-     * Stats on runtime prototype chain lookups and scope chain depths, i.e.,
-     * counts of objects traversed on a chain until the wanted id is found.
-     */
-    JSBasicStats        protoLookupDepthStats;
-    JSBasicStats        scopeSearchDepthStats;
-
-    /*
-     * Stats on compile-time host environment and lexical scope chain lengths
-     * (maximum depths).
-     */
-    JSBasicStats        hostenvScopeDepthStats;
-    JSBasicStats        lexicalScopeDepthStats;
-#endif
-
-#ifdef JS_GCMETER
-    js::gc::JSGCStats           gcStats;
-    js::gc::JSGCArenaStats      globalArenaStats[js::gc::FINALIZE_LIMIT];
-#endif
-
-#ifdef DEBUG
-    /*
-     * If functionMeterFilename, set from an envariable in JSRuntime's ctor, is
-     * null, the remaining members in this ifdef'ed group are not initialized.
-     */
-    const char          *functionMeterFilename;
-    JSFunctionMeter     functionMeter;
-    char                lastScriptFilename[1024];
-
-    typedef js::HashMap<JSFunction *,
-                        int32,
-                        js::DefaultHasher<JSFunction *>,
-                        js::SystemAllocPolicy> FunctionCountMap;
-
-    FunctionCountMap    methodReadBarrierCountMap;
-    FunctionCountMap    unjoinedFunctionCountMap;
-#endif
-
     JSWrapObjectCallback wrapObjectCallback;
     JSPreWrapCallback    preWrapObjectCallback;
-
-#ifdef JS_METHODJIT
-    /* This measures the size of JITScripts, native maps and IC structs. */
-    size_t               mjitDataSize;
-#endif
 
     /*
      * To ensure that cx->malloc does not cause a GC, we set this flag during
@@ -886,14 +777,6 @@ struct JSRuntime {
 /* Common macros to access thread-local caches in JSThread or JSRuntime. */
 #define JS_PROPERTY_CACHE(cx)   (JS_THREAD_DATA(cx)->propertyCache)
 
-#ifdef DEBUG
-# define JS_RUNTIME_METER(rt, which)    JS_ATOMIC_INCREMENT(&(rt)->which)
-# define JS_RUNTIME_UNMETER(rt, which)  JS_ATOMIC_DECREMENT(&(rt)->which)
-#else
-# define JS_RUNTIME_METER(rt, which)    /* nothing */
-# define JS_RUNTIME_UNMETER(rt, which)  /* nothing */
-#endif
-
 #define JS_KEEP_ATOMS(rt)   JS_ATOMIC_INCREMENT(&(rt)->gcKeepAtoms);
 #define JS_UNKEEP_ATOMS(rt) JS_ATOMIC_DECREMENT(&(rt)->gcKeepAtoms);
 
@@ -925,15 +808,9 @@ OptionsHasXML(uint32 options)
 }
 
 static inline bool
-OptionsHasAnonFunFix(uint32 options)
-{
-    return !!(options & JSOPTION_ANONFUNFIX);
-}
-
-static inline bool
 OptionsSameVersionFlags(uint32 self, uint32 other)
 {
-    static const uint32 mask = JSOPTION_XML | JSOPTION_ANONFUNFIX;
+    static const uint32 mask = JSOPTION_XML;
     return !((self & mask) ^ (other & mask));
 }
 
@@ -948,7 +825,6 @@ OptionsSameVersionFlags(uint32 self, uint32 other)
 namespace VersionFlags {
 static const uintN MASK         = 0x0FFF; /* see JSVersion in jspubtd.h */
 static const uintN HAS_XML      = 0x1000; /* flag induced by XML option */
-static const uintN ANONFUNFIX   = 0x2000; /* see jsapi.h comment on JSOPTION_ANONFUNFIX */
 static const uintN FULL_MASK    = 0x3FFF;
 }
 
@@ -971,12 +847,6 @@ VersionShouldParseXML(JSVersion version)
     return VersionHasXML(version) || VersionNumber(version) >= JSVERSION_1_6;
 }
 
-static inline bool
-VersionHasAnonFunFix(JSVersion version)
-{
-    return !!(version & VersionFlags::ANONFUNFIX);
-}
-
 static inline void
 VersionSetXML(JSVersion *version, bool enable)
 {
@@ -984,15 +854,6 @@ VersionSetXML(JSVersion *version, bool enable)
         *version = JSVersion(uint32(*version) | VersionFlags::HAS_XML);
     else
         *version = JSVersion(uint32(*version) & ~VersionFlags::HAS_XML);
-}
-
-static inline void
-VersionSetAnonFunFix(JSVersion *version, bool enable)
-{
-    if (enable)
-        *version = JSVersion(uint32(*version) | VersionFlags::ANONFUNFIX);
-    else
-        *version = JSVersion(uint32(*version) & ~VersionFlags::ANONFUNFIX);
 }
 
 static inline JSVersion
@@ -1016,8 +877,7 @@ VersionHasFlags(JSVersion version)
 static inline uintN
 VersionFlagsToOptions(JSVersion version)
 {
-    uintN copts = (VersionHasXML(version) ? JSOPTION_XML : 0) |
-                  (VersionHasAnonFunFix(version) ? JSOPTION_ANONFUNFIX : 0);
+    uintN copts = VersionHasXML(version) ? JSOPTION_XML : 0;
     JS_ASSERT((copts & JSCOMPILEOPTION_MASK) == copts);
     return copts;
 }
@@ -1026,7 +886,6 @@ static inline JSVersion
 OptionFlagsToVersion(uintN options, JSVersion version)
 {
     VersionSetXML(&version, OptionsHasXML(options));
-    VersionSetAnonFunFix(&version, OptionsHasAnonFunFix(options));
     return version;
 }
 
@@ -1104,6 +963,11 @@ struct JSContext
     /* Temporary arena pool used while compiling and decompiling. */
     JSArenaPool         tempPool;
 
+  private:
+    /* Lazily initialized pool of maps used during parse/emit. */
+    js::ParseMapPool    *parseMapPool_;
+
+  public:
     /* Temporary arena pool used while evaluate regular expressions. */
     JSArenaPool         regExpPool;
 
@@ -1119,10 +983,6 @@ struct JSContext
 
     /* Last message string and log file for debugging. */
     char                *lastMessage;
-#ifdef DEBUG
-    void                *logfp;
-    jsbytecode          *logPrevPc;
-#endif
 
     /* Per-context optional error reporter. */
     JSErrorReporter     errorReporter;
@@ -1137,6 +997,13 @@ struct JSContext
     inline js::RegExpStatics *regExpStatics();
 
   public:
+    js::ParseMapPool &parseMapPool() {
+        JS_ASSERT(parseMapPool_);
+        return *parseMapPool_;
+    }
+
+    inline bool ensureParseMapPool();
+
     /*
      * The default script compilation version can be set iff there is no code running.
      * This typically occurs via the JSAPI right after a context is constructed.
@@ -1415,6 +1282,13 @@ struct JSContext
         this->throwing = false;
         this->exception.setUndefined();
     }
+
+    /*
+     * Count of currently active compilations.
+     * When there are compilations active for the context, the GC must not
+     * purge the ParseMapPool.
+     */
+    uintN activeCompilations;
 
 #ifdef DEBUG
     /*
@@ -2072,37 +1946,6 @@ class AutoReleaseNullablePtr {
     ~AutoReleaseNullablePtr() { if (ptr) cx->free_(ptr); }
 };
 
-class AutoLocalNameArray {
-  public:
-    explicit AutoLocalNameArray(JSContext *cx, JSFunction *fun
-                                JS_GUARD_OBJECT_NOTIFIER_PARAM)
-      : context(cx),
-        mark(JS_ARENA_MARK(&cx->tempPool)),
-        names(fun->script()->bindings.getLocalNameArray(cx, &cx->tempPool)),
-        count(fun->script()->bindings.countLocalNames())
-    {
-        JS_GUARD_OBJECT_NOTIFIER_INIT;
-    }
-
-    ~AutoLocalNameArray() {
-        JS_ARENA_RELEASE(&context->tempPool, mark);
-    }
-
-    operator bool() const { return !!names; }
-
-    uint32 length() const { return count; }
-
-    const jsuword &operator [](unsigned i) const { return names[i]; }
-
-  private:
-    JSContext   *context;
-    void        *mark;
-    jsuword     *names;
-    uint32      count;
-
-    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
-};
-
 template <class RefCountable>
 class AlreadyIncRefed
 {
@@ -2440,12 +2283,13 @@ js_GetScriptedCaller(JSContext *cx, js::StackFrame *fp);
 extern jsbytecode*
 js_GetCurrentBytecodePC(JSContext* cx);
 
+extern JSScript *
+js_GetCurrentScript(JSContext* cx);
+
 extern bool
 js_CurrentPCIsInImacro(JSContext *cx);
 
 namespace js {
-
-class RegExpStatics;
 
 extern JS_FORCES_STACK JS_FRIEND_API(void)
 LeaveTrace(JSContext *cx);

@@ -1600,13 +1600,6 @@ void nsXMLHttpRequest::CreateResponseBlob(nsIRequest *request)
   nsCOMPtr<nsICachingChannel> cc(do_QueryInterface(request));
   if (cc) {
     cc->GetCacheFile(getter_AddRefs(file));
-    if (!file) {
-      // cacheAsFile returns false if caching is inhibited
-      PRBool cacheAsFile = PR_FALSE;
-      if (NS_SUCCEEDED(cc->GetCacheAsFile(&cacheAsFile)) && cacheAsFile) {
-        
-      }
-    }
   } else {
     nsCOMPtr<nsIFileChannel> fc = do_QueryInterface(request);
     if (fc) {
@@ -1616,8 +1609,13 @@ void nsXMLHttpRequest::CreateResponseBlob(nsIRequest *request)
   if (file) {
     nsCAutoString contentType;
     mChannel->GetContentType(contentType);
-    mResponseBlob = new nsDOMFile(file,
-                                  NS_ConvertASCIItoUTF16(contentType));
+    nsCOMPtr<nsISupports> cacheToken;
+    if (cc) {
+      cc->GetCacheToken(getter_AddRefs(cacheToken));
+    }
+
+    mResponseBlob =
+      new nsDOMFileFile(file, NS_ConvertASCIItoUTF16(contentType), cacheToken);
     mResponseBody.Truncate();
     mResponseBodyUnicode.SetIsVoid(PR_TRUE);
   }
@@ -1888,8 +1886,9 @@ nsXMLHttpRequest::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult
       void *blobData = PR_Malloc(blobLen);
       if (blobData) {
         memcpy(blobData, mResponseBody.BeginReading(), blobLen);
+
         mResponseBlob =
-          new nsDOMMemoryFile(blobData, blobLen, EmptyString(),
+          new nsDOMMemoryFile(blobData, blobLen,
                               NS_ConvertASCIItoUTF16(contentType));
         mResponseBody.Truncate();
       }
@@ -2493,6 +2492,11 @@ nsXMLHttpRequest::SetRequestHeader(const nsACString& header,
     }
   }
 
+  PRUint16 state;
+  rv = GetReadyState(&state);
+  if (NS_FAILED(rv) || state != OPENED)
+    return NS_ERROR_IN_PROGRESS;
+
   if (!mChannel)             // open() initializes mChannel, and open()
     return NS_ERROR_FAILURE; // must be called before first setRequestHeader()
 
@@ -2555,7 +2559,16 @@ nsXMLHttpRequest::SetRequestHeader(const nsACString& header,
   }
 
   // We need to set, not add to, the header.
-  return httpChannel->SetRequestHeader(header, value, PR_FALSE);
+  rv = httpChannel->SetRequestHeader(header, value, PR_FALSE);
+  if (NS_SUCCEEDED(rv)) {
+    // We'll want to duplicate this header for any replacement channels (eg. on redirect)
+    RequestHeader reqHeader = {
+      nsCString(header), nsCString(value)
+    };
+    mModifiedRequestHeaders.AppendElement(reqHeader);
+  }
+
+  return rv;
 }
 
 /* readonly attribute long readyState; */
@@ -2814,10 +2827,22 @@ nsXMLHttpRequest::OnRedirectVerifyCallback(nsresult result)
   NS_ASSERTION(mRedirectCallback, "mRedirectCallback not set in callback");
   NS_ASSERTION(mNewRedirectChannel, "mNewRedirectChannel not set in callback");
 
-  if (NS_SUCCEEDED(result))
+  if (NS_SUCCEEDED(result)) {
     mChannel = mNewRedirectChannel;
-  else
+
+    nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(mChannel));
+    if (httpChannel) {
+      // Ensure all original headers are duplicated for the new channel (bug #553888)
+      for (PRUint32 i = mModifiedRequestHeaders.Length(); i > 0; ) {
+        --i;
+        httpChannel->SetRequestHeader(mModifiedRequestHeaders[i].header,
+                                      mModifiedRequestHeaders[i].value,
+                                      PR_FALSE);
+      }
+    }
+  } else {
     mErrorLoad = PR_TRUE;
+  }
 
   mNewRedirectChannel = nsnull;
 

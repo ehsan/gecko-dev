@@ -67,7 +67,6 @@
 #include "nsIDOMNavigatorGeolocation.h"
 #include "nsIDOMNavigatorDesktopNotification.h"
 #include "nsIDOMLocation.h"
-#include "nsIDOMWindowInternal.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIDOMJSWindow.h"
@@ -97,7 +96,6 @@
 #include "prclist.h"
 #include "nsIDOMStorageObsolete.h"
 #include "nsIDOMStorageList.h"
-#include "nsIDOMStorageWindow.h"
 #include "nsIDOMStorageEvent.h"
 #include "nsIDOMStorageIndexedDB.h"
 #include "nsIDOMOfflineResourceList.h"
@@ -195,10 +193,13 @@ struct nsTimeout : PRCList
   // True if this is one of the timeouts that are currently running
   PRPackedBool mRunning;
 
+  // True if this is a repeating/interval timer
+  PRPackedBool mIsInterval;
+
   // Returned as value of setTimeout()
   PRUint32 mPublicId;
 
-  // Non-zero interval in milliseconds if repetitive timeout
+  // Interval in milliseconds
   PRUint32 mInterval;
 
   // mWhen and mTimeRemaining can't be in a union, sadly, because they
@@ -273,11 +274,9 @@ class nsGlobalWindow : public nsPIDOMWindow,
                        public nsIDOMJSWindow,
                        public nsIScriptObjectPrincipal,
                        public nsIDOMEventTarget,
-                       public nsIDOMStorageWindow,
                        public nsIDOMStorageIndexedDB,
                        public nsSupportsWeakReference,
                        public nsIInterfaceRequestor,
-                       public nsIDOMWindow_2_0_BRANCH,
                        public nsWrapperCache,
                        public PRCListStr,
                        public nsIDOMWindowPerformance
@@ -287,6 +286,7 @@ public:
 
   typedef mozilla::TimeStamp TimeStamp;
   typedef mozilla::TimeDuration TimeDuration;
+  typedef nsDataHashtable<nsUint64HashKey, nsGlobalWindow*> WindowByIdTable;
 
   // public methods
   nsPIDOMWindow* GetPrivateParent();
@@ -322,9 +322,6 @@ public:
   // nsIDOMWindow
   NS_DECL_NSIDOMWINDOW
 
-  // nsIDOMWindowInternal
-  NS_DECL_NSIDOMWINDOWINTERNAL
-
   // nsIDOMWindowPerformance
   NS_DECL_NSIDOMWINDOWPERFORMANCE
 
@@ -334,13 +331,11 @@ public:
   // nsIDOMEventTarget
   NS_DECL_NSIDOMEVENTTARGET
 
-  // nsIDOMWindow_2_0_BRANCH
-  NS_DECL_NSIDOMWINDOW_2_0_BRANCH
-
   // nsPIDOMWindow
   virtual NS_HIDDEN_(nsPIDOMWindow*) GetPrivateRoot();
   virtual NS_HIDDEN_(void) ActivateOrDeactivate(PRBool aActivate);
   virtual NS_HIDDEN_(void) SetActive(PRBool aActive);
+  virtual NS_HIDDEN_(void) SetIsBackground(PRBool aIsBackground);
   virtual NS_HIDDEN_(void) SetChromeEventHandler(nsIDOMEventTarget* aChromeEventHandler);
 
   virtual NS_HIDDEN_(void) SetOpenerScriptPrincipal(nsIPrincipal* aPrincipal);
@@ -369,12 +364,12 @@ public:
                                               nsISupports *aState,
                                               PRBool aForceReuseInnerWindow);
   void DispatchDOMWindowCreated();
-  virtual NS_HIDDEN_(void) SetOpenerWindow(nsIDOMWindowInternal *aOpener,
+  virtual NS_HIDDEN_(void) SetOpenerWindow(nsIDOMWindow* aOpener,
                                            PRBool aOriginalOpener);
   virtual NS_HIDDEN_(void) EnsureSizeUpToDate();
 
-  virtual NS_HIDDEN_(nsIDOMWindow *) EnterModalState();
-  virtual NS_HIDDEN_(void) LeaveModalState(nsIDOMWindow *aWindow);
+  virtual NS_HIDDEN_(nsIDOMWindow*) EnterModalState();
+  virtual NS_HIDDEN_(void) LeaveModalState(nsIDOMWindow* aWindow);
 
   virtual NS_HIDDEN_(PRBool) CanClose();
   virtual NS_HIDDEN_(nsresult) ForceClose();
@@ -382,9 +377,10 @@ public:
   virtual NS_HIDDEN_(void) SetHasOrientationEventListener();
   virtual NS_HIDDEN_(void) MaybeUpdateTouchState();
   virtual NS_HIDDEN_(void) UpdateTouchState();
+  virtual NS_HIDDEN_(PRBool) DispatchCustomEvent(const char *aEventName);
 
-  // nsIDOMStorageWindow
-  NS_DECL_NSIDOMSTORAGEWINDOW
+  // nsIDOMStorageIndexedDB
+  NS_DECL_NSIDOMSTORAGEINDEXEDDB
 
   // nsIInterfaceRequestor
   NS_DECL_NSIINTERFACEREQUESTOR
@@ -531,12 +527,27 @@ public:
   }
 
   static nsGlobalWindow* GetOuterWindowWithId(PRUint64 aWindowID) {
-    return sOuterWindowsById ? sOuterWindowsById->Get(aWindowID) : nsnull;
+    nsGlobalWindow* outerWindow = sWindowsById->Get(aWindowID);
+    return outerWindow && !outerWindow->IsInnerWindow() ? outerWindow : nsnull;
   }
 
   static bool HasIndexedDBSupport();
 
   static bool HasPerformanceSupport();
+
+  static WindowByIdTable* GetWindowsTable() {
+    return sWindowsById;
+  }
+
+  PRInt64 SizeOf() const {
+    PRInt64 size = sizeof(*this);
+
+    if (IsInnerWindow() && mDoc) {
+      size += mDoc->SizeOf();
+    }
+
+    return size;
+  }
 
 private:
   // Enable updates for the accelerometer.
@@ -565,7 +576,7 @@ protected:
   nsresult DefineArgumentsProperty(nsIArray *aArguments);
 
   // Get the parent, returns null if this is a toplevel window
-  nsIDOMWindowInternal *GetParentInternal();
+  nsIDOMWindow* GetParentInternal();
 
   // popup tracking
   PRBool IsPopupSpamWindow()
@@ -648,6 +659,7 @@ protected:
   // JS specific timeout functions (JS args grabbed from context).
   nsresult SetTimeoutOrInterval(PRBool aIsInterval, PRInt32* aReturn);
   nsresult ClearTimeoutOrInterval();
+  nsresult ResetTimersForNonBackgroundWindow();
 
   // The timeout implementation functions.
   void RunTimeout(nsTimeout *aTimeout);
@@ -711,8 +723,6 @@ protected:
   {
     return GetParentInternal() != nsnull;
   }
-
-  PRBool DispatchCustomEvent(const char *aEventName);
 
   // If aLookForCallerOnJSStack is true, this method will look at the JS stack
   // to determine who the caller is.  If it's false, it'll use |this| as the
@@ -897,8 +907,14 @@ protected:
 
   // These member variable are used only on inner windows.
   nsRefPtr<nsEventListenerManager> mListenerManager;
+  // mTimeouts is generally sorted by mWhen, unless mTimeoutInsertionPoint is
+  // non-null.  In that case, the dummy timeout pointed to by
+  // mTimeoutInsertionPoint may have a later mWhen than some of the timeouts
+  // that come after it.
   PRCList                       mTimeouts;
   // If mTimeoutInsertionPoint is non-null, insertions should happen after it.
+  // This is a dummy timeout at the moment; if that ever changes, the logic in
+  // ResetTimersForNonBackgroundWindow needs to change.
   nsTimeout*                    mTimeoutInsertionPoint;
   PRUint32                      mTimeoutPublicIdCounter;
   PRUint32                      mTimeoutFiringDepth;
@@ -959,8 +975,7 @@ protected:
   friend class PostMessageEvent;
   static nsIDOMStorageList* sGlobalStorageList;
 
-  typedef nsDataHashtable<nsUint64HashKey, nsGlobalWindow*> WindowByIdTable;
-  static WindowByIdTable* sOuterWindowsById;
+  static WindowByIdTable* sWindowsById;
 };
 
 /*
