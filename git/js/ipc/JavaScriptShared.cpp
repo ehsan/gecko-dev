@@ -111,8 +111,9 @@ ObjectIdCache::add(JSContext *cx, JSObject *obj, ObjectId id)
  * been moved.
  */
 /* static */ void
-ObjectIdCache::keyMarkCallback(JSTracer *trc, JSObject *key, void *data) {
-    ObjectIdTable* table = static_cast<ObjectIdTable*>(data);
+ObjectIdCache::keyMarkCallback(JSTracer *trc, void *keyArg, void *dataArg) {
+    JSObject *key = static_cast<JSObject*>(keyArg);
+    ObjectIdTable* table = static_cast<ObjectIdTable*>(dataArg);
     JSObject *prior = key;
     JS_CallObjectTracer(trc, &key, "ObjectIdCache::table_ key");
     table->rekeyIfMoved(prior, key);

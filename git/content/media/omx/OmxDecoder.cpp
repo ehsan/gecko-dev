@@ -201,7 +201,9 @@ VideoGraphicBuffer::VideoGraphicBuffer(const android::wp<android::OmxDecoder> aO
 
 VideoGraphicBuffer::~VideoGraphicBuffer()
 {
-  MOZ_ASSERT(!mMediaBuffer);
+  if (mMediaBuffer) {
+    mMediaBuffer->release();
+  }
 }
 
 void

@@ -305,6 +305,19 @@ ShapeTable::grow(ThreadSafeContext *cx)
     return true;
 }
 
+Shape *
+Shape::getChildBinding(ExclusiveContext *cx, const StackShape &child)
+{
+    JS_ASSERT(!inDictionary());
+
+    /* Try to allocate all slots inline. */
+    uint32_t slots = child.slotSpan();
+    gc::AllocKind kind = gc::GetGCObjectKind(slots);
+    uint32_t nfixed = gc::GetGCKindSlots(kind);
+
+    return cx->compartment()->propertyTree.getChild(cx, this, nfixed, child);
+}
+
 /* static */ Shape *
 Shape::replaceLastProperty(ExclusiveContext *cx, const StackBaseShape &base,
                            TaggedProto proto, HandleShape shape)
@@ -326,7 +339,8 @@ Shape::replaceLastProperty(ExclusiveContext *cx, const StackBaseShape &base,
     StackShape child(shape);
     child.base = nbase;
 
-    return cx->compartment()->propertyTree.getChild(cx, shape->parent, child);
+    return cx->compartment()->propertyTree.getChild(cx, shape->parent,
+                                                    shape->numFixedSlots(), child);
 }
 
 /*
@@ -385,7 +399,7 @@ JSObject::getChildProperty(ExclusiveContext *cx,
     RootedShape shape(cx, getChildPropertyOnDictionary(cx, obj, parent, child));
 
     if (!obj->inDictionaryMode()) {
-        shape = cx->compartment()->propertyTree.getChild(cx, parent, child);
+        shape = cx->compartment()->propertyTree.getChild(cx, parent, obj->numFixedSlots(), child);
         if (!shape)
             return nullptr;
         //JS_ASSERT(shape->parent == parent);
@@ -705,7 +719,7 @@ js::NewReshapedObject(JSContext *cx, HandleTypeObject type, JSObject *parent,
         }
 
         StackShape child(nbase, id, i, res->numFixedSlots(), JSPROP_ENUMERATE, 0, 0);
-        newShape = cx->compartment()->propertyTree.getChild(cx, newShape, child);
+        newShape = cx->compartment()->propertyTree.getChild(cx, newShape, res->numFixedSlots(), child);
         if (!newShape)
             return nullptr;
         if (!JSObject::setLastProperty(cx, res, newShape))
@@ -840,7 +854,7 @@ JSObject::putProperty(typename ExecutionModeTraits<mode>::ExclusiveContextType c
      * Now that we've possibly preserved slot, check whether all members match.
      * If so, this is a redundant "put" and we can return without more work.
      */
-    if (shape->matchesParamsAfterId(nbase, slot, obj->numFixedSlots(), attrs, flags, shortid))
+    if (shape->matchesParamsAfterId(nbase, slot, attrs, flags, shortid))
         return shape;
 
     /*

@@ -331,13 +331,12 @@ class StoreBuffer
         void mark(JSTracer *trc);
     };
 
-    template <typename Key>
     class CallbackRef : public BufferableRef
     {
       public:
-        typedef void (*MarkCallback)(JSTracer *trc, Key *key, void *data);
+        typedef void (*MarkCallback)(JSTracer *trc, void *key, void *data);
 
-        CallbackRef(MarkCallback cb, Key *k, void *d) : callback(cb), key(k), data(d) {}
+        CallbackRef(MarkCallback cb, void *k, void *d) : callback(cb), key(k), data(d) {}
 
         virtual void mark(JSTracer *trc) {
             callback(trc, key, data);
@@ -345,7 +344,7 @@ class StoreBuffer
 
       private:
         MarkCallback callback;
-        Key *key;
+        void *key;
         void *data;
     };
 
@@ -442,9 +441,8 @@ class StoreBuffer
     void putGeneric(const T &t) { put(bufferGeneric, t);}
 
     /* Insert or update a callback entry. */
-    template <typename Key>
-    void putCallback(void (*callback)(JSTracer *trc, Key *key, void *data), Key *key, void *data) {
-        put(bufferGeneric, CallbackRef<Key>(callback, key, data));
+    void putCallback(CallbackRef::MarkCallback callback, Cell *key, void *data) {
+        put(bufferGeneric, CallbackRef(callback, key, data));
     }
 
     /* Mark the source of all edges in the store buffer. */

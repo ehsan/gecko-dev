@@ -46,6 +46,11 @@
   }
 #endif
 
+// 1 MB should be enough for everyone.
+static const uint32_t MAX_PREF_LENGTH = 1 * 1024 * 1024;
+// Actually, 4kb should be enough for everyone.
+static const uint32_t MAX_ADVISABLE_PREF_LENGTH = 4 * 1024;
+
 // Definitions
 struct EnumerateData {
   const char  *parent;
@@ -366,7 +371,7 @@ nsresult nsPrefBranch::CheckSanityOfStringLength(const char* aPrefName, const ns
 
 nsresult nsPrefBranch::CheckSanityOfStringLength(const char* aPrefName, const uint32_t aLength) {
   if (aLength > MAX_PREF_LENGTH) {
-    return NS_ERROR_ILLEGAL_VALUE;
+    return NS_ERROR_OUT_OF_MEMORY;
   }
   if (aLength <= MAX_ADVISABLE_PREF_LENGTH) {
     return NS_OK;
