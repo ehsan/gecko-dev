@@ -288,7 +288,6 @@ static PRInt32 OSXVersion()
   return gOSXVersion;
 }
 
-#if defined(__i386__)
 // Detects machines with Intel GMA9xx GPUs.
 // kCGLRendererIDMatchingMask and kCGLRendererIntel900ID are only defined in the 10.6 SDK.
 #define CGLRendererIDMatchingMask 0x00FE7F00
@@ -312,7 +311,6 @@ static PRBool GMA9XXGraphics()
   }
   return hasIntelGMA9XX;
 }
-#endif
 #endif
 
 PRBool
@@ -347,14 +345,11 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
         return PR_FALSE;
       }
     }
-
-#if defined(__i386__)
     // At this point we have Flash 10.1+ but now we also need to blacklist
     // if the machine has a Intel GMA9XX GPU.
     if (GMA9XXGraphics()) {
       return PR_FALSE;
     }
-#endif
   }
 #endif
 

@@ -240,6 +240,7 @@ public:
   gl::ShaderProgramType mLayerProgram;
 };
 
+
 #ifdef MOZ_IPC
 class ShadowImageLayerOGL : public ShadowImageLayer,
                             public LayerOGL

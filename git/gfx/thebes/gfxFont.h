@@ -1926,18 +1926,12 @@ public:
     // API for access to the raw glyph data, needed by gfxFont::Draw
     // and gfxFont::GetBoundingBox
     const CompressedGlyph *GetCharacterGlyphs() { return mCharacterGlyphs; }
-
-    // NOTE that this must not be called for a character offset that does
-    // not have any DetailedGlyph records; callers must have verified that
-    // mCharacterGlyphs[aCharIndex].GetGlyphCount() is greater than zero.
     DetailedGlyph *GetDetailedGlyphs(PRUint32 aCharIndex) {
-        NS_ASSERTION(mDetailedGlyphs != nsnull &&
-                     !mCharacterGlyphs[aCharIndex].IsSimpleGlyph() &&
-                     mCharacterGlyphs[aCharIndex].GetGlyphCount() > 0,
-                     "invalid use of GetDetailedGlyphs; check the caller!");
+        if (!mDetailedGlyphs) {
+            return nsnull;
+        }
         return mDetailedGlyphs->Get(aCharIndex);
     }
-
     PRBool HasDetailedGlyphs() { return mDetailedGlyphs != nsnull; }
     PRUint32 CountMissingGlyphs();
     const GlyphRun *GetGlyphRuns(PRUint32 *aNumGlyphRuns) {
@@ -2088,11 +2082,6 @@ private:
         // next; if not, it's most likely we're starting over from the start
         // of the run, so we check the first entry before resorting to binary
         // search as a last resort.
-        // NOTE that this must not be called for a character offset that does
-        // not have any DetailedGlyph records; callers must have verified that
-        // mCharacterGlyphs[aOffset].GetGlyphCount() is greater than zero
-        // before calling this, otherwise the assertions here will fire (in a
-        // debug build), and we'll probably crash.
         DetailedGlyph* Get(PRUint32 aOffset) {
             NS_ASSERTION(mOffsetToIndex.Length() > 0,
                          "no detailed glyph records!");
@@ -2128,7 +2117,7 @@ private:
             // test for that before falling back to the InsertElementSorted
             // method.
             if (mOffsetToIndex.Length() == 0 ||
-                aOffset > mOffsetToIndex[mOffsetToIndex.Length() - 1].mOffset) {
+                aOffset > mOffsetToIndex[mLastUsed].mOffset) {
                 if (!mOffsetToIndex.AppendElement(DGRec(aOffset, detailIndex))) {
                     return nsnull;
                 }

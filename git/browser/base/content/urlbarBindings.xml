@@ -819,8 +819,7 @@
         <xul:description class="popup-notification-description"
                          xbl:inherits="xbl:text=label"/>
         <xul:spacer flex="1"/>
-        <xul:hbox class="popup-notification-button-container"
-                  pack="end" align="center">
+        <xul:hbox pack="end">
           <xul:label anonid="learnmore" class="text-link geolocation-text-link"/>
           <xul:spacer flex="1"/>
           <xul:button anonid="button"
@@ -868,8 +867,7 @@
           <xul:button anonid="cancel" class="popup-progress-cancel" oncommand="document.getBindingParent(this).cancel()"/>
         </xul:hbox>
         <xul:label anonid="progresstext" class="popup-progress-label"/>
-        <xul:hbox class="popup-notification-button-container"
-                  pack="end" align="center">
+        <xul:hbox pack="end">
           <xul:button anonid="button"
                       class="popup-notification-menubutton"
                       type="menu-button"
@@ -902,10 +900,8 @@
         // Calling updateProgress can sometimes cause this notification to be
         // removed in the middle of refreshing the notification panel which
         // makes the panel get refreshed again. Just initialise to the
-        // undetermined state and then schedule a proper check at the next
-        // opportunity
+        // undetermined state.
         this.setProgress(0, -1);
-        setTimeout(this.updateProgress.bind(this), 0);
       ]]></constructor>
 
       <destructor><![CDATA[
@@ -1079,7 +1075,7 @@
                 class="splitmenu-menuitem"
                 xbl:inherits="iconic,label,disabled,onclick=oncommand,_moz-menuactive=active"/>
       <xul:menu anonid="menu" class="splitmenu-menu"
-                xbl:inherits="disabled,_moz-menuactive=active"
+                xbl:inherits="disabled"
                 oncommand="event.stopPropagation();">
         <children includes="menupopup"/>
       </xul:menu>

@@ -117,11 +117,8 @@ function test() {
   let checkPixelColors = function (url, colors, callback) {
     let tab = win.gBrowser.tabs[0];
     let $canvas = tab._tabViewTabItem.$canvas;
-    // Use the direct canvas sizes instead of querying
-    // iQ bounds, which may not be current.
-    let width = $canvas[0].width;
-    let height = $canvas[0].height;
-
+    let width = $canvas.width();
+    let height = $canvas.height();
     let ctx = $canvas[0].getContext("2d");
 
     afterAllTabItemsUpdated(function () {

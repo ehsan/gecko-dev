@@ -1160,6 +1160,11 @@ toolbar[iconsize="small"] #feed-button {
   list-style-image: url(chrome://browser/skin/Geolocation-16.png);
 }
 
+.geolocation-text-link {
+  -moz-padding-start: 13px;
+  padding-top: 10px;
+}
+
 #addons-notification-icon {
   list-style-image: url(chrome://mozapps/skin/extensions/extensionGeneric-16.png);
 }
@@ -1454,7 +1459,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
                     -moz-radial-gradient(center 3px, circle cover, rgba(233,242,252,1) 3%, rgba(172,206,255,.75) 40%, rgba(87,151,201,.5) 80%, rgba(87,151,201,0));
 }
 
-#tabbrowser-tabs[positionpinnedtabs] > .tabbrowser-tab[pinned] {
+.tabbrowser-tab[pinned] {
   min-height: 18px; /* corresponds to the max. height of non-textual tab contents, i.e. the tab close button */
 }
 
@@ -1722,11 +1727,7 @@ toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
   -moz-transform: translate(0, 2px);
 }
 
-/* Application button menu */
-
-.splitmenu-menuitem {
-  -moz-margin-end: 1px;
-}
+/* Application menu toolbar button */
 
 #appmenu-toolbar-button > .toolbarbutton-text,
 #appmenu-toolbar-button > .toolbarbutton-menu-dropmarker {

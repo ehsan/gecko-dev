@@ -800,6 +800,7 @@ var InspectorUI = {
       this.domPanel.hidePopup();
       this.domBox = null;
       this.domTreeView = null;
+      this.propertyPanel.destroy();
     }
     this.inspectCmd.setAttribute("checked", false);
     this.browser = this.win = null; // null out references to browser and window

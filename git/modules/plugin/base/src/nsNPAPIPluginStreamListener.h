@@ -150,7 +150,6 @@ protected:
   PRPackedBool mCallNotify;
   PRPackedBool mIsSuspended;
   PRPackedBool mIsPluginInitJSStream;
-  PRPackedBool mRedirectDenied;
   nsCString mResponseHeaders;
   char* mResponseHeaderBuf;
   nsCOMPtr<nsITimer> mDataPumpTimer;

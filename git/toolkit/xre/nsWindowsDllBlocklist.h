@@ -110,9 +110,6 @@ static DllBlockInfo sWindowsDllBlocklist[] = {
   // psicon.dll - Topcrashes in Thunderbird, and some crashes in Firefox
   // Adobe photoshop library, now redundant in later installations
   {"psicon.dll", ALL_VERSIONS},
-
-  // Topcrash in Firefox 4 betas (bug 618899)
-  {"accelerator.dll", MAKE_VERSION(3,2,1,6)},
   
   // leave these two in always for tests
   { "mozdllblockingtest.dll", ALL_VERSIONS },

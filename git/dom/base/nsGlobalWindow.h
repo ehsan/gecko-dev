@@ -549,7 +549,7 @@ public:
   virtual void SetReadyForFocus();
   virtual void PageHidden();
   virtual nsresult DispatchAsyncHashchange();
-  virtual nsresult DispatchSyncPopState(PRBool aIsInitial);
+  virtual nsresult DispatchSyncPopState();
 
   virtual nsresult SetArguments(nsIArray *aArguments, nsIPrincipal *aOrigin);
 
@@ -819,8 +819,6 @@ protected:
   void ClearStatus();
 
   virtual void UpdateParentTarget();
-
-  PRBool GetIsTabModalPromptAllowed();
 
   // When adding new member variables, be careful not to create cycles
   // through JavaScript.  If there is any chance that a member variable
