@@ -858,13 +858,6 @@ JSClass js_NoSuchMethodClass = {
     NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
 };
 
-JS_BEGIN_EXTERN_C
-
-JSObject*
-js_InitNoSuchMethodClass(JSContext *cx, JSObject* obj);
-
-JS_END_EXTERN_C
-
 JSObject*
 js_InitNoSuchMethodClass(JSContext *cx, JSObject* obj)
 {
@@ -4877,7 +4870,7 @@ interrupt:
             if (!ok)
                 goto error;
             if (!cx->rval2set) {
-                op2 = (JSOp) regs.pc[JSOP_SETCALL_LENGTH];
+                op2 = regs.pc[JSOP_SETCALL_LENGTH];
                 if (op2 != JSOP_DELELEM) {
                     JS_ASSERT(!(js_CodeSpec[op2].format & JOF_DEL));
                     JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
