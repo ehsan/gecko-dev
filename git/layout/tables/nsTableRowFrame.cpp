@@ -211,7 +211,6 @@ nsTableRowFrame::AppendFrames(nsIAtom*        aListName,
   for (nsIFrame* childFrame = aFrameList; childFrame;
        childFrame = childFrame->GetNextSibling()) {
     nsTableCellFrame *cellFrame = do_QueryFrame(childFrame);
-    NS_ASSERTION(cellFrame, "Unexpected frame");
     if (cellFrame) {
       // Add the cell to the cell map
       tableFrame->AppendCell(*cellFrame, GetRowIndex());
@@ -245,7 +244,6 @@ nsTableRowFrame::InsertFrames(nsIAtom*        aListName,
   for (nsIFrame* childFrame = aFrameList; childFrame;
        childFrame = childFrame->GetNextSibling()) {
     nsTableCellFrame *cellFrame = do_QueryFrame(childFrame);
-    NS_ASSERTION(cellFrame, "Unexpected frame");
     if (cellFrame) {
       cellChildren.AppendElement(cellFrame);
     }

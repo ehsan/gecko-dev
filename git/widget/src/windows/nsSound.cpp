@@ -53,12 +53,6 @@
 
 #include "nsNativeCharsetUtils.h"
 
-#ifndef SND_PURGE
-// Not available on Windows CE, and according to MSDN
-// doesn't do anything on recent windows either.
-#define SND_PURGE 0
-#endif
-
 NS_IMPL_ISUPPORTS2(nsSound, nsISound, nsIStreamLoaderObserver)
 
 
@@ -74,8 +68,8 @@ nsSound::~nsSound()
 
 void nsSound::PurgeLastSound() {
   if (mLastSound) {
-    // Halt any currently playing sound.
-    ::PlaySound(nsnull, nsnull, SND_PURGE);
+    // Purge the current sound buffer.
+    ::PlaySound(nsnull, nsnull, SND_PURGE); // This call halts the sound if it was still playing.
 
     // Now delete the buffer.
     free(mLastSound);
@@ -160,7 +154,7 @@ NS_IMETHODIMP nsSound::Init()
   // it is initialized.
   // If we wait until the first sound is played, there will
   // be a time lag as the library gets loaded.
-  ::PlaySound(nsnull, nsnull, SND_PURGE);
+  ::PlaySound(nsnull, nsnull, SND_PURGE); 
 
   return NS_OK;
 }

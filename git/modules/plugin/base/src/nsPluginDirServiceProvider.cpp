@@ -223,12 +223,13 @@ CompareVersion(verBlock vbVersionOld, verBlock vbVersionNew)
 // We prefer the newer Java plugin by default, but if "UseNewJavaPlugin" is
 // explicitly set to 0 then we'll use the older one.
 static PRBool
-PreferNPRuntimeJavaPlugIn(const TCHAR* javaVersion)
+PreferNPRuntimeJavaPlugIn(const char* javaVersion)
 {
   HKEY javaKey = NULL;
-  TCHAR keyName[_MAX_PATH];
-  _tcscpy(keyName, TEXT("Software\\JavaSoft\\Java Plug-in\\"));
-  _tcscat(keyName, javaVersion);
+  char keyName[_MAX_PATH];
+  keyName[0] = 0;
+  PL_strcat(keyName, "Software\\JavaSoft\\Java Plug-in\\");
+  PL_strcat(keyName, javaVersion);
   DWORD val;
   DWORD valSize = sizeof(DWORD);
 
@@ -238,7 +239,7 @@ PreferNPRuntimeJavaPlugIn(const TCHAR* javaVersion)
   }
 
   // Look for "UseNewJavaPlugin"
-  if (ERROR_SUCCESS != ::RegQueryValueEx(javaKey, TEXT("UseNewJavaPlugin"),
+  if (ERROR_SUCCESS != ::RegQueryValueEx(javaKey, "UseNewJavaPlugin",
                                          NULL, NULL,
                                          (LPBYTE) &val,
                                          &valSize)) {

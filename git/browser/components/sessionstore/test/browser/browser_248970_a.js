@@ -67,6 +67,7 @@ function test() {
   // sessionstore service
   let ss = Cc["@mozilla.org/browser/sessionstore;1"].
            getService(Ci.nsISessionStore);
+  let ss_interval = gPrefService.getIntPref("browser.sessionstore.interval");
   // Remove the sessionstore.js file before setting the interval to 0
   let sessionStoreJS = profilePath.clone();
   sessionStoreJS.append("sessionstore.js");
@@ -137,7 +138,7 @@ function test() {
         gBrowser.removeTab(tab_A);
 
         // record the timestamp of sessionstore.js at the end of the private session
-        gPrefService.clearUserPref("browser.sessionstore.interval");
+        gPrefService.setIntPref("browser.sessionstore.interval", ss_interval);
         gPrefService.setIntPref("browser.sessionstore.interval", 0);
         let endPBModeTimeStamp = getSessionstorejsModificationTime();
 
@@ -150,7 +151,7 @@ function test() {
           "outside private browsing - sessionStore.js timestamp has not changed");
 
         // cleanup
-        gPrefService.clearUserPref("browser.sessionstore.interval");
+        gPrefService.setIntPref("browser.sessionstore.interval", ss_interval);
         gPrefService.clearUserPref("browser.privatebrowsing.keep_current_session");
         finish();
       }, true);

@@ -50,14 +50,13 @@
  * Use this macro before each exported function
  * (between the return address and the function
  * itself), to ensure that the function has the
- * right calling conventions on OS/2.
+ * right calling conventions on Win16.
  */
 #ifdef XP_OS2
 #define NP_CALLBACK _System
 #else
 #define NP_CALLBACK
 #endif
-
 #if defined(XP_WIN)
 #define NS_NPAPIPLUGIN_CALLBACK(_type, _name) _type (__stdcall * _name)
 #elif defined(XP_OS2)

@@ -56,7 +56,7 @@
 #include "nsIEnumerator.h"
 #include "nsIHistoryEntry.h"
 #include "nsRect.h"
-#include "nsISupportsArray.h"
+#include "nsSupportsArray.h"
 #include "nsIMutationObserver.h"
 #include "nsExpirationTracker.h"
 #include "nsDocShellEditorData.h"
