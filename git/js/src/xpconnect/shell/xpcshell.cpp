@@ -89,6 +89,11 @@
 #include <unistd.h>
 #endif
 
+#ifdef MOZ_IPC
+#include "mozilla/dom/ContentProcessParent.h"
+#include "mozilla/ipc/TestShellParent.h"
+#endif
+
 #ifndef XPCONNECT_STANDALONE
 #include "nsIScriptSecurityManager.h"
 #include "nsIPrincipal.h"
@@ -108,6 +113,11 @@
 
 #ifdef MOZ_CRASHREPORTER
 #include "nsICrashReporter.h"
+#endif
+
+#ifdef MOZ_IPC
+using mozilla::dom::ContentProcessParent;
+using mozilla::ipc::TestShellParent;
 #endif
 
 class XPCShellDirProvider : public nsIDirectoryServiceProvider2

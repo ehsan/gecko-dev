@@ -99,7 +99,6 @@ CPPSRCS =			\
 	nsDOMClassInfo.cpp	\
 	nsScriptNameSpaceManager.cpp \
 	nsDOMScriptObjectFactory.cpp \
-	nsQueryContentEventResult.cpp \
 	$(NULL)
 
 include $(topsrcdir)/dom/dom-config.mk

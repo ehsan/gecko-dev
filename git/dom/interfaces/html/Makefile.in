@@ -123,6 +123,7 @@ XPIDLSRCS = 					\
 	nsIDOMNSHTMLButtonElement.idl		\
 	nsIDOMNSHTMLDocument.idl		\
 	nsIDOMNSHTMLElement.idl			\
+	nsIDOMNSHTMLFormControlList.idl		\
 	nsIDOMNSHTMLFormElement.idl		\
 	nsIDOMNSHTMLFrameElement.idl		\
 	nsIDOMNSHTMLHRElement.idl		\

@@ -74,10 +74,9 @@ public:
                               PRBool aCompileEventHandlers);
   virtual void UnbindFromTree(PRBool aDeep, PRBool aNullParent);
 
+  // nsIContent specializations
   virtual nsresult UnsetAttr(PRInt32 aNamespaceID, nsIAtom* aAttribute,
                              PRBool aNotify);
-
-  virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
 
   // nsGenericElement specializations
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID,

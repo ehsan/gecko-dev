@@ -132,6 +132,7 @@
 #include "nsIForm.h"
 #include "nsIFormControl.h"
 #include "nsIDOMHTMLFormElement.h"
+#include "nsIDOMNSHTMLFormControlList.h"
 #include "nsIDOMHTMLCollection.h"
 #include "nsIHTMLCollection.h"
 #include "nsHTMLDocument.h"
@@ -673,9 +674,12 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            nsHTMLOptionsCollectionSH,
                            ARRAY_SCRIPTABLE_FLAGS |
                            nsIXPCScriptable::WANT_SETPROPERTY)
-  NS_DEFINE_CLASSINFO_DATA(HTMLCollection,
-                           nsHTMLCollectionSH,
-                           ARRAY_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA_WITH_NAME(HTMLFormControlCollection, HTMLCollection,
+                                     nsHTMLCollectionSH,
+                                     ARRAY_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA_WITH_NAME(HTMLGenericCollection, HTMLCollection,
+                                     nsHTMLCollectionSH,
+                                     ARRAY_SCRIPTABLE_FLAGS)
 
   // HTML element classes
   NS_DEFINE_CLASSINFO_DATA(HTMLAnchorElement, nsElementSH,
@@ -2261,7 +2265,14 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLCollection)
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(HTMLCollection, nsIDOMHTMLCollection)
+  DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(HTMLFormControlCollection,
+                                      nsIDOMHTMLCollection)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLCollection)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSHTMLFormControlList)
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(HTMLGenericCollection,
+                                      nsIDOMHTMLCollection)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLCollection)
   DOM_CLASSINFO_MAP_END
 
@@ -7890,7 +7901,8 @@ nsNodeListSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
   nsWrapperCache* cache = nsnull;
   CallQueryInterface(nativeObj, &cache);
   if (!cache) {
-    return nsDOMClassInfo::PreCreate(nativeObj, cx, globalObj, parentObj);
+    *parentObj = globalObj;
+    return NS_OK;
   }
 
   // nsChildContentList is the only class that uses nsNodeListSH and has a

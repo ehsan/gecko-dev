@@ -36,6 +36,7 @@
  * ***** END LICENSE BLOCK ***** */
 #include "nsHTMLFormElement.h"
 #include "nsIHTMLDocument.h"
+#include "nsIDOMNSHTMLFormControlList.h"
 #include "nsIDOMEventTarget.h"
 #include "nsEventStateManager.h"
 #include "nsGkAtoms.h"
@@ -88,7 +89,8 @@ PRBool nsHTMLFormElement::gPasswordManagerInitialized = PR_FALSE;
 
 
 // nsFormControlList
-class nsFormControlList : public nsIHTMLCollection
+class nsFormControlList : public nsIDOMNSHTMLFormControlList,
+                          public nsIHTMLCollection
 {
 public:
   nsFormControlList(nsHTMLFormElement* aForm);
@@ -102,6 +104,9 @@ public:
 
   // nsIDOMHTMLCollection interface
   NS_DECL_NSIDOMHTMLCOLLECTION
+
+  // nsIDOMNSHTMLFormControlList interface
+  NS_DECL_NSIDOMNSHTMLFORMCONTROLLIST
 
   virtual nsISupports* GetNodeAt(PRUint32 aIndex, nsresult* aResult)
   {
@@ -1877,11 +1882,12 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 // XPConnect interface list for nsFormControlList
 NS_INTERFACE_TABLE_HEAD(nsFormControlList)
-  NS_INTERFACE_TABLE2(nsFormControlList,
+  NS_INTERFACE_TABLE3(nsFormControlList,
                       nsIHTMLCollection,
-                      nsIDOMHTMLCollection)
+                      nsIDOMHTMLCollection,
+                      nsIDOMNSHTMLFormControlList)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(nsFormControlList)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(HTMLCollection)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(HTMLFormControlCollection)
 NS_INTERFACE_MAP_END
 
 
@@ -1946,6 +1952,14 @@ nsFormControlList::NamedItem(const nsAString& aName,
   }
 
   return rv;
+}
+
+NS_IMETHODIMP
+nsFormControlList::NamedItem(const nsAString& aName,
+                             nsISupports** aReturn)
+{
+  NS_IF_ADDREF(*aReturn = NamedItemInternal(aName, PR_TRUE));
+  return NS_OK;
 }
 
 nsISupports*

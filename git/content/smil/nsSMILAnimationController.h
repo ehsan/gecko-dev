@@ -84,7 +84,7 @@ public:
   NS_IMETHOD_(nsrefcnt) Release();
 
   virtual void WillRefresh(mozilla::TimeStamp aTime);
-
+  
   // Methods for registering and enumerating animation elements
   void RegisterAnimationElement(nsISMILAnimationElement* aAnimationElement);
   void UnregisterAnimationElement(nsISMILAnimationElement* aAnimationElement);
@@ -111,8 +111,9 @@ public:
   void Unlink();
 
   // Methods for controlling whether we're sampling
-  nsresult StartSampling(nsRefreshDriver* aRefreshDriver);
-  nsresult StopSampling(nsRefreshDriver* aRefreshDriver);
+  // (Use to register/unregister us with the given nsRefreshDriver)
+  void StartSampling(nsRefreshDriver* aRefreshDriver);
+  void StopSampling(nsRefreshDriver* aRefreshDriver);
 
 protected:
   // Typedefs
@@ -179,11 +180,9 @@ protected:
   NS_DECL_OWNINGTHREAD
 
   static const PRUint32      kTimerInterval;
-  nsCOMPtr<nsITimer>         mTimer;
   AnimationElementHashtable  mAnimationElementTable;
   TimeContainerHashtable     mChildContainerTable;
   PRPackedBool               mResampleNeeded;
-  PRPackedBool               mDeferredStartSampling;
 
   // Store raw ptr to mDocument.  It owns the controller, so controller
   // shouldn't outlive it

@@ -6228,27 +6228,24 @@ nsFrame::GetPrefSize(nsBoxLayoutState& aState)
   // be depending on, then we just return the cached size.
   nsBoxLayoutMetrics *metrics = BoxMetrics();
   if (!DoesNeedRecalc(metrics->mPrefSize)) {
-    return metrics->mPrefSize;
+    size = metrics->mPrefSize;
+    return size;
   }
 
   if (IsCollapsed(aState))
     return size;
 
   // get our size in CSS.
-  PRBool widthSet, heightSet;
-  PRBool completelyRedefined = nsIBox::AddCSSPrefSize(this, size, widthSet, heightSet);
+  PRBool completelyRedefined = nsIBox::AddCSSPrefSize(aState, this, size);
 
   // Refresh our caches with new sizes.
   if (!completelyRedefined) {
     RefreshSizeCache(aState);
-    nsSize blockSize = metrics->mBlockPrefSize;
+    size = metrics->mBlockPrefSize;
 
     // notice we don't need to add our borders or padding
     // in. That's because the block did it for us.
-    if (!widthSet)
-      size.width = blockSize.width;
-    if (!heightSet)
-      size.height = blockSize.height;
+    nsIBox::AddCSSPrefSize(aState, this, size);
   }
 
   metrics->mPrefSize = size;
@@ -6271,19 +6268,13 @@ nsFrame::GetMinSize(nsBoxLayoutState& aState)
     return size;
 
   // get our size in CSS.
-  PRBool widthSet, heightSet;
-  PRBool completelyRedefined =
-    nsIBox::AddCSSMinSize(aState, this, size, widthSet, heightSet);
+  PRBool completelyRedefined = nsIBox::AddCSSMinSize(aState, this, size);
 
   // Refresh our caches with new sizes.
   if (!completelyRedefined) {
     RefreshSizeCache(aState);
-    nsSize blockSize = metrics->mBlockMinSize;
-
-    if (!widthSet)
-      size.width = blockSize.width;
-    if (!heightSet)
-      size.height = blockSize.height;
+    size = metrics->mBlockMinSize;
+    nsIBox::AddCSSMinSize(aState, this, size);
   }
 
   metrics->mMinSize = size;

@@ -126,6 +126,11 @@ class nsDOMWorker : public nsDOMWorkerMessageHandler,
                                      const char* aMessage,
                                      JSErrorReport* aReport);
 
+#ifdef DEBUG
+  // For fun assertions.
+  friend class nsDOMFireEventRunnable;
+#endif
+
 public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDOMEVENTTARGET

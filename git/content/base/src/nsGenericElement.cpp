@@ -567,38 +567,6 @@ nsINode::GetOwnerDocument(nsIDOMDocument** aOwnerDocument)
   return ownerDoc ? CallQueryInterface(ownerDoc, aOwnerDocument) : NS_OK;
 }
 
-nsresult
-nsINode::ReplaceOrInsertBefore(PRBool aReplace, nsIDOMNode* aNewChild,
-                               nsIDOMNode* aRefChild, nsIDOMNode** aReturn)
-{
-  nsCOMPtr<nsINode> newChild = do_QueryInterface(aNewChild);
-
-  nsresult rv;
-  nsCOMPtr<nsINode> refChild;
-  if (aRefChild) {
-      refChild = do_QueryInterface(aRefChild, &rv);
-      NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  rv = ReplaceOrInsertBefore(aReplace, newChild, refChild);
-  if (NS_SUCCEEDED(rv)) {
-    NS_ADDREF(*aReturn = aReplace ? aRefChild : aNewChild);
-  }
-
-  return rv;
-}
-
-nsresult
-nsINode::RemoveChild(nsIDOMNode* aOldChild, nsIDOMNode** aReturn)
-{
-  nsCOMPtr<nsIContent> oldChild = do_QueryInterface(aOldChild);
-  nsresult rv = RemoveChild(oldChild);
-  if (NS_SUCCEEDED(rv)) {
-    NS_ADDREF(*aReturn = aOldChild);
-  }
-  return rv;
-}
-
 //----------------------------------------------------------------------
 
 PRInt32
@@ -643,7 +611,7 @@ NS_INTERFACE_TABLE_HEAD(nsChildContentList)
     NS_INTERFACE_TABLE_ENTRY(nsChildContentList, nsIDOMNodeList)
   NS_OFFSET_AND_INTERFACE_TABLE_END
   NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(NodeList)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(NodeList)
 NS_INTERFACE_MAP_END
 
 NS_IMETHODIMP
@@ -3548,22 +3516,45 @@ nsGenericElement::SaveSubtreeState()
 
 // Generic DOMNode implementations
 
+/*
+ * This helper function checks if aChild is the same as aNode or if
+ * aChild is one of aNode's ancestors. -- jst@citec.fi
+ */
+
+NS_IMETHODIMP
+nsGenericElement::InsertBefore(nsIDOMNode *aNewChild, nsIDOMNode *aRefChild,
+                               nsIDOMNode **aReturn)
+{
+  return doReplaceOrInsertBefore(PR_FALSE, aNewChild, aRefChild, this, GetCurrentDoc(),
+                                 aReturn);
+}
+
+NS_IMETHODIMP
+nsGenericElement::ReplaceChild(nsIDOMNode* aNewChild, nsIDOMNode* aOldChild,
+                               nsIDOMNode** aReturn)
+{
+  return doReplaceOrInsertBefore(PR_TRUE, aNewChild, aOldChild, this, GetCurrentDoc(),
+                                 aReturn);
+}
+
+NS_IMETHODIMP
+nsGenericElement::RemoveChild(nsIDOMNode *aOldChild, nsIDOMNode **aReturn)
+{
+  return doRemoveChild(aOldChild, this, GetCurrentDoc(),
+                       aReturn);
+}
+
 // When replacing, aRefContent is the content being replaced; when
 // inserting it's the content before which we're inserting.  In the
 // latter case it may be null.
 static
 PRBool IsAllowedAsChild(nsIContent* aNewChild, PRUint16 aNewNodeType,
-                        nsINode* aParent, PRBool aIsReplace,
-                        nsIContent* aRefContent)
+                        nsIContent* aParent, nsIDocument* aDocument,
+                        PRBool aIsReplace, nsIContent* aRefContent)
 {
   NS_PRECONDITION(aNewChild, "Must have new child");
   NS_PRECONDITION(!aIsReplace || aRefContent,
                   "Must have ref content for replace");
-  NS_PRECONDITION(aParent->IsNodeOfType(nsINode::eDOCUMENT) ||
-                  aParent->IsNodeOfType(nsINode::eDOCUMENT_FRAGMENT) ||
-                  aParent->IsNodeOfType(nsINode::eELEMENT),
-                  "Nodes that are not documents, document fragments or "
-                  "elements can't be parents!");
 #ifdef DEBUG
   PRUint16 debugNodeType = 0;
   nsCOMPtr<nsIDOMNode> debugNode(do_QueryInterface(aNewChild));
@@ -3590,13 +3581,12 @@ PRBool IsAllowedAsChild(nsIContent* aNewChild, PRUint16 aNewNodeType,
     return aParent != nsnull;
   case nsIDOMNode::ELEMENT_NODE :
     {
-      if (!aParent->IsNodeOfType(nsINode::eDOCUMENT)) {
-        // Always ok to have elements under other elements or document fragments
+      if (aParent) {
+        // Always ok to have elements under other elements
         return PR_TRUE;
       }
 
-      nsIContent* rootContent =
-        static_cast<nsIDocument*>(aParent)->GetRootContent();
+      nsIContent* rootContent = aDocument->GetRootContent();
       if (rootContent) {
         // Already have a documentElement, so this is only OK if we're
         // replacing it.
@@ -3611,7 +3601,7 @@ PRBool IsAllowedAsChild(nsIContent* aNewChild, PRUint16 aNewNodeType,
       }
 
       // Now grovel for a doctype
-      nsCOMPtr<nsIDOMDocument> doc = do_QueryInterface(aParent);
+      nsCOMPtr<nsIDOMDocument> doc = do_QueryInterface(aDocument);
       NS_ASSERTION(doc, "Shouldn't happen");
       nsCOMPtr<nsIDOMDocumentType> docType;
       doc->GetDoctype(getter_AddRefs(docType));
@@ -3622,8 +3612,8 @@ PRBool IsAllowedAsChild(nsIContent* aNewChild, PRUint16 aNewNodeType,
         return PR_TRUE;
       }
 
-      PRInt32 doctypeIndex = aParent->IndexOf(docTypeContent);
-      PRInt32 insertIndex = aParent->IndexOf(aRefContent);
+      PRInt32 doctypeIndex = aDocument->IndexOf(docTypeContent);
+      PRInt32 insertIndex = aDocument->IndexOf(aRefContent);
 
       // Now we're OK in the following two cases only:
       // 1) We're replacing something that's not before the doctype
@@ -3633,12 +3623,12 @@ PRBool IsAllowedAsChild(nsIContent* aNewChild, PRUint16 aNewNodeType,
     }
   case nsIDOMNode::DOCUMENT_TYPE_NODE :
     {
-      if (!aParent->IsNodeOfType(nsINode::eDOCUMENT)) {
-        // doctypes only allowed under documents
+      if (aParent) {
+        // no doctypes allowed under elements
         return PR_FALSE;
       }
 
-      nsCOMPtr<nsIDOMDocument> doc = do_QueryInterface(aParent);
+      nsCOMPtr<nsIDOMDocument> doc = do_QueryInterface(aDocument);
       NS_ASSERTION(doc, "Shouldn't happen");
       nsCOMPtr<nsIDOMDocumentType> docType;
       doc->GetDoctype(getter_AddRefs(docType));
@@ -3650,8 +3640,7 @@ PRBool IsAllowedAsChild(nsIContent* aNewChild, PRUint16 aNewNodeType,
 
       // We don't have a doctype yet.  Our one remaining constraint is
       // that the doctype must come before the documentElement.
-      nsIContent* rootContent =
-        static_cast<nsIDocument*>(aParent)->GetRootContent();
+      nsIContent* rootContent = aDocument->GetRootContent();
       if (!rootContent) {
         // It's all good
         return PR_TRUE;
@@ -3662,8 +3651,8 @@ PRBool IsAllowedAsChild(nsIContent* aNewChild, PRUint16 aNewNodeType,
         return PR_FALSE;
       }
 
-      PRInt32 rootIndex = aParent->IndexOf(rootContent);
-      PRInt32 insertIndex = aParent->IndexOf(aRefContent);
+      PRInt32 rootIndex = aDocument->IndexOf(rootContent);
+      PRInt32 insertIndex = aDocument->IndexOf(aRefContent);
 
       // Now we're OK if and only if insertIndex <= rootIndex.  Indeed, either
       // we end up replacing aRefContent or we end up before it.  Either one is
@@ -3675,7 +3664,7 @@ PRBool IsAllowedAsChild(nsIContent* aNewChild, PRUint16 aNewNodeType,
       // Note that for now we only allow nodes inside document fragments if
       // they're allowed inside elements.  If we ever change this to allow
       // doctype nodes in document fragments, we'll need to update this code
-      if (!aParent->IsNodeOfType(nsINode::eDOCUMENT)) {
+      if (aParent) {
         // All good here
         return PR_TRUE;
       }
@@ -3697,8 +3686,8 @@ PRBool IsAllowedAsChild(nsIContent* aNewChild, PRUint16 aNewNodeType,
         nsCOMPtr<nsIDOMNode> childNode(do_QueryInterface(childContent));
         PRUint16 type;
         childNode->GetNodeType(&type);
-        if (!IsAllowedAsChild(childContent, type, aParent, aIsReplace,
-                              aRefContent)) {
+        if (!IsAllowedAsChild(childContent, type, aParent, aDocument,
+                              aIsReplace, aRefContent)) {
           return PR_FALSE;
         }
       }
@@ -3716,102 +3705,111 @@ PRBool IsAllowedAsChild(nsIContent* aNewChild, PRUint16 aNewNodeType,
   return PR_FALSE;
 }
 
+/* static */
 nsresult
-nsINode::ReplaceOrInsertBefore(PRBool aReplace, nsINode* aNewChild,
-                               nsINode* aRefChild)
+nsGenericElement::doReplaceOrInsertBefore(PRBool aReplace,
+                                          nsIDOMNode* aNewChild,
+                                          nsIDOMNode* aRefChild,
+                                          nsIContent* aParent,
+                                          nsIDocument* aDocument,
+                                          nsIDOMNode** aReturn)
 {
+  NS_PRECONDITION(aParent || aDocument, "Must have document if no parent!");
+  NS_PRECONDITION(!aParent || aParent->GetCurrentDoc() == aDocument,
+                  "Incorrect aDocument");
+
+  *aReturn = nsnull;
+
   if (!aNewChild || (aReplace && !aRefChild)) {
     return NS_ERROR_NULL_POINTER;
   }
 
-  nsIContent* refContent;
+  // Keep a strong reference to the node that we'll return to ensure it
+  // doesn't go away.
+  nsCOMPtr<nsIDOMNode> returnVal = aReplace ? aRefChild : aNewChild;
+
+  nsCOMPtr<nsIContent> refContent;
   nsresult res = NS_OK;
   PRInt32 insPos;
 
+  nsINode* container = NODE_FROM(aParent, aDocument);
+
   // Figure out which index to insert at
   if (aRefChild) {
-    insPos = IndexOf(aRefChild);
+    refContent = do_QueryInterface(aRefChild);
+    insPos = container->IndexOf(refContent);
     if (insPos < 0) {
       return NS_ERROR_DOM_NOT_FOUND_ERR;
     }
 
     if (aRefChild == aNewChild) {
+      NS_ADDREF(*aReturn = aNewChild);
+
       return NS_OK;
     }
-
-    NS_ASSERTION(aRefChild->IsNodeOfType(eCONTENT),
-                 "A child node must be nsIContent!");
-
-    refContent = static_cast<nsIContent*>(aRefChild);
-  }
-  else {
-    insPos = GetChildCount();
-    refContent = nsnull;
+  } else {
+    insPos = container->GetChildCount();
   }
 
-  if (!aNewChild->IsNodeOfType(eCONTENT)) {
+  nsCOMPtr<nsIContent> newContent = do_QueryInterface(aNewChild);
+  if (!newContent) {
     return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
   }
-
-  nsIContent* newContent = static_cast<nsIContent*>(aNewChild);
 
   PRUint16 nodeType = 0;
   res = aNewChild->GetNodeType(&nodeType);
   NS_ENSURE_SUCCESS(res, res);
 
   // Make sure that the inserted node is allowed as a child of its new parent.
-  if (!IsAllowedAsChild(newContent, nodeType, this, aReplace, refContent)) {
+  if (!IsAllowedAsChild(newContent, nodeType, aParent, aDocument, aReplace,
+                        refContent)) {
     return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
   }
-
-  nsIDocument *doc = GetOwnerDoc();
 
   // DocumentType nodes are the only nodes that can have a null
   // ownerDocument according to the DOM spec, and we need to allow
   // inserting them w/o calling AdoptNode().
-  if (!HasSameOwnerDoc(newContent) &&
+  if (!container->HasSameOwnerDoc(newContent) &&
       (nodeType != nsIDOMNode::DOCUMENT_TYPE_NODE ||
        newContent->GetOwnerDoc())) {
-    nsCOMPtr<nsIDOM3Document> domDoc = do_QueryInterface(doc);
+    nsCOMPtr<nsIDOM3Document> domDoc = do_QueryInterface(aDocument);
 
     if (domDoc) {
-      nsresult rv;
-      nsCOMPtr<nsIDOMNode> newChild = do_QueryInterface(aNewChild, &rv);
-      NS_ENSURE_SUCCESS(rv, rv);
-
       nsCOMPtr<nsIDOMNode> adoptedKid;
-      rv = domDoc->AdoptNode(newChild, getter_AddRefs(adoptedKid));
+      nsresult rv = domDoc->AdoptNode(aNewChild, getter_AddRefs(adoptedKid));
       NS_ENSURE_SUCCESS(rv, rv);
 
-      NS_ASSERTION(adoptedKid == newChild, "Uh, adopt node changed nodes?");
-      NS_ASSERTION(HasSameOwnerDoc(newContent) && doc == GetOwnerDoc(),
-                   "ownerDocument changed again after adopting!");
+      NS_ASSERTION(adoptedKid == aNewChild, "Uh, adopt node changed nodes?");
     }
   }
 
   // We want an update batch when we expect several mutations to be performed,
   // which is when we're replacing a node, or when we're inserting a fragment.
-  mozAutoDocConditionalContentUpdateBatch batch(GetCurrentDoc(),
+  mozAutoDocConditionalContentUpdateBatch batch(aDocument,
     aReplace || nodeType == nsIDOMNode::DOCUMENT_FRAGMENT_NODE);
 
   // If we're replacing
   if (aReplace) {
-    refContent = GetChildAt(insPos + 1);
+    // Getting (and addrefing) the following child here is sort of wasteful
+    // in the common case, but really, it's not that expensive. Get over it.
+    refContent = container->GetChildAt(insPos + 1);
 
     nsMutationGuard guard;
 
-    res = RemoveChildAt(insPos, PR_TRUE);
+    res = container->RemoveChildAt(insPos, PR_TRUE);
     NS_ENSURE_SUCCESS(res, res);
 
     if (guard.Mutated(1)) {
-      insPos = refContent ? IndexOf(refContent) : GetChildCount();
+      insPos = refContent ? container->IndexOf(refContent) :
+                            container->GetChildCount();
       if (insPos < 0) {
         return NS_ERROR_DOM_NOT_FOUND_ERR;
       }
 
       // Passing PR_FALSE for aIsReplace since we now have removed the node
       // to be replaced.
-      if (!IsAllowedAsChild(newContent, nodeType, this, PR_FALSE, refContent)) {
+      if (!IsAllowedAsChild(newContent, nodeType, aParent, aDocument,
+                            PR_FALSE, refContent)) {
         return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
       }
     }
@@ -3826,6 +3824,8 @@ nsINode::ReplaceOrInsertBefore(PRBool aReplace, nsINode* aNewChild,
     PRUint32 count = newContent->GetChildCount();
 
     if (!count) {
+      returnVal.swap(*aReturn);
+
       return NS_OK;
     }
 
@@ -3854,29 +3854,26 @@ nsINode::ReplaceOrInsertBefore(PRBool aReplace, nsINode* aNewChild,
       mutated = mutated || guard.Mutated(1);
     }
 
-    // If we've had any unexpected mutations so far we need to recheck that
+    // If we've had any unexpeted mutations so far we need to recheck that
     // the child can still be inserted.
     if (mutated) {
       for (i = 0; i < count; ++i) {
         // Get the n:th child from the array.
         nsIContent* childContent = fragChildren[i];
-        if (!HasSameOwnerDoc(childContent) ||
-            doc != childContent->GetOwnerDoc()) {
-          return NS_ERROR_DOM_WRONG_DOCUMENT_ERR;
-        }
 
         nsCOMPtr<nsIDOMNode> tmpNode = do_QueryInterface(childContent);
         PRUint16 tmpType = 0;
         tmpNode->GetNodeType(&tmpType);
 
         if (childContent->GetNodeParent() ||
-            !IsAllowedAsChild(childContent, tmpType, this, PR_FALSE,
+            !IsAllowedAsChild(childContent, tmpType, aParent, aDocument, PR_FALSE,
                               refContent)) {
           return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
         }
       }
 
-      insPos = refContent ? IndexOf(refContent) : GetChildCount();
+      insPos = refContent ? container->IndexOf(refContent) :
+                            container->GetChildCount();
       if (insPos < 0) {
         // Someone seriously messed up the childlist. We have no idea
         // where to insert the remaining children, so just bail.
@@ -3884,7 +3881,7 @@ nsINode::ReplaceOrInsertBefore(PRBool aReplace, nsINode* aNewChild,
       }
     }
 
-    PRBool appending = !IsNodeOfType(eDOCUMENT) && insPos == GetChildCount();
+    PRBool appending = aParent && (insPos == container->GetChildCount());
     PRBool firstInsPos = insPos;
 
     // Iterate through the fragment's children, and insert them in the new
@@ -3894,27 +3891,27 @@ nsINode::ReplaceOrInsertBefore(PRBool aReplace, nsINode* aNewChild,
 
       // XXXbz how come no reparenting here?  That seems odd...
       // Insert the child.
-      res = InsertChildAt(childContent, insPos, PR_FALSE);
+      res = container->InsertChildAt(childContent, insPos, PR_FALSE);
       if (NS_FAILED(res)) {
         // Make sure to notify on any children that we did succeed to insert
         if (appending && i != 0) {
-          nsNodeUtils::ContentAppended(static_cast<nsIContent*>(this),
-                                       firstInsPos);
+          nsNodeUtils::ContentAppended(aParent, firstInsPos);
         }
         return res;
       }
 
       if (!appending) {
-        nsNodeUtils::ContentInserted(this, childContent, insPos);
+        nsNodeUtils::ContentInserted(container, childContent, insPos);
       }
     }
 
     // Notify
     if (appending) {
-      nsNodeUtils::ContentAppended(static_cast<nsIContent*>(this), firstInsPos);
+      nsNodeUtils::ContentAppended(aParent, firstInsPos);
     }
 
     // Fire mutation events. Optimize for the case when there are no listeners
+    nsIDocument* doc = container->GetOwnerDoc();
     nsPIDOMWindow* window = nsnull;
     if (doc && (window = doc->GetInnerWindow()) &&
         window->HasMutationListeners(NS_EVENT_BITS_MUTATION_NODEINSERTED)) {
@@ -3923,13 +3920,13 @@ nsINode::ReplaceOrInsertBefore(PRBool aReplace, nsINode* aNewChild,
         nsIContent* childContent = fragChildren[i];
 
         if (nsContentUtils::HasMutationListeners(childContent,
-              NS_EVENT_BITS_MUTATION_NODEINSERTED, this)) {
-          mozAutoRemovableBlockerRemover blockerRemover(doc);
+              NS_EVENT_BITS_MUTATION_NODEINSERTED, container)) {
+          mozAutoRemovableBlockerRemover blockerRemover(container->GetOwnerDoc());
 
           nsMutationEvent mutation(PR_TRUE, NS_MUTATION_NODEINSERTED);
-          mutation.mRelatedNode = do_QueryInterface(this);
+          mutation.mRelatedNode = do_QueryInterface(container);
 
-          mozAutoSubtreeModified subtree(doc, this);
+          mozAutoSubtreeModified subtree(container->GetOwnerDoc(), container);
           nsEventDispatcher::Dispatch(childContent, nsnull, &mutation);
         }
       }
@@ -3957,7 +3954,7 @@ nsINode::ReplaceOrInsertBefore(PRBool aReplace, nsINode* aNewChild,
         return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
       }
       
-      NS_ASSERTION(!(oldParent == this && removeIndex == insPos),
+      NS_ASSERTION(!(oldParent == container && removeIndex == insPos),
                    "invalid removeIndex");
 
       nsMutationGuard guard;
@@ -3967,16 +3964,13 @@ nsINode::ReplaceOrInsertBefore(PRBool aReplace, nsINode* aNewChild,
 
       // Adjust insert index if the node we ripped out was a sibling
       // of the node we're inserting before
-      if (oldParent == this && removeIndex < insPos) {
+      if (oldParent == container && removeIndex < insPos) {
         --insPos;
       }
 
       if (guard.Mutated(1)) {
-        if (doc != newContent->GetOwnerDoc()) {
-          return NS_ERROR_DOM_WRONG_DOCUMENT_ERR;
-        }
-
-        insPos = refContent ? IndexOf(refContent) : GetChildCount();
+        insPos = refContent ? container->IndexOf(refContent) :
+                              container->GetChildCount();
         if (insPos < 0) {
           // Someone seriously messed up the childlist. We have no idea
           // where to insert the new child, so just bail.
@@ -3984,8 +3978,8 @@ nsINode::ReplaceOrInsertBefore(PRBool aReplace, nsINode* aNewChild,
         }
 
         if (newContent->GetNodeParent() ||
-            !IsAllowedAsChild(newContent, nodeType, this, PR_FALSE,
-                              refContent)) {
+            !IsAllowedAsChild(newContent, nodeType, aParent, aDocument,
+                              PR_FALSE, refContent)) {
           return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
         }
       }
@@ -3996,11 +3990,43 @@ nsINode::ReplaceOrInsertBefore(PRBool aReplace, nsINode* aNewChild,
     //       wrapper is not the wrapper for their ownerDocument (XUL elements,
     //       form controls, ...).
 
-    res = InsertChildAt(newContent, insPos, PR_TRUE);
+    res = container->InsertChildAt(newContent, insPos, PR_TRUE);
     NS_ENSURE_SUCCESS(res, res);
   }
 
+  returnVal.swap(*aReturn);
+
   return res;
+}
+
+/* static */
+nsresult
+nsGenericElement::doRemoveChild(nsIDOMNode* aOldChild, nsIContent* aParent,
+                                nsIDocument* aDocument, nsIDOMNode** aReturn)
+{
+  NS_PRECONDITION(aParent || aDocument, "Must have document if no parent!");
+  NS_PRECONDITION(!aParent || aParent->GetCurrentDoc() == aDocument,
+                  "Incorrect aDocument");
+
+  *aReturn = nsnull;
+  NS_ENSURE_TRUE(aOldChild, NS_ERROR_NULL_POINTER);
+
+  nsINode* container = NODE_FROM(aParent, aDocument);
+
+  nsCOMPtr<nsIContent> content = do_QueryInterface(aOldChild);
+  // fix children to be a passed argument
+  PRInt32 index = container->IndexOf(content);
+  if (index == -1) {
+    // aOldChild isn't one of our children.
+    return NS_ERROR_DOM_NOT_FOUND_ERR;
+  }
+
+  nsresult rv = container->RemoveChildAt(index, PR_TRUE);
+
+  *aReturn = aOldChild;
+  NS_ADDREF(aOldChild);
+
+  return rv;
 }
 
 //----------------------------------------------------------------------

@@ -77,23 +77,33 @@ nsContentEventHandler::nsContentEventHandler(
 }
 
 nsresult
-nsContentEventHandler::InitCommon()
+nsContentEventHandler::Init(nsQueryContentEvent* aEvent)
 {
+  NS_ASSERTION(aEvent, "aEvent must not be null");
+
   if (mSelection)
     return NS_OK;
 
-  NS_ENSURE_TRUE(mPresShell, NS_ERROR_NOT_AVAILABLE);
+  aEvent->mSucceeded = PR_FALSE;
+
+  if (!mPresShell)
+    return NS_ERROR_NOT_AVAILABLE;
 
   // If text frame which has overflowing selection underline is dirty,
   // we need to flush the pending reflow here.
   nsresult rv = mPresShell->FlushPendingNotifications(Flush_Layout);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCopySupport::GetSelectionForCopy(mPresShell->GetDocument(),
-                                     getter_AddRefs(mSelection));
+  rv = mPresShell->GetSelectionForCopy(getter_AddRefs(mSelection));
+  NS_ENSURE_SUCCESS(rv, rv);
   NS_ASSERTION(mSelection,
                "GetSelectionForCopy succeeded, but the result is null");
 
+  PRBool isCollapsed;
+  rv = mSelection->GetIsCollapsed(&isCollapsed);
+  if (NS_FAILED(rv))
+    return NS_ERROR_NOT_AVAILABLE;
+  aEvent->mReply.mHasSelection = !isCollapsed;
 
   nsCOMPtr<nsIDOMRange> firstRange;
   rv = mSelection->GetRangeAt(0, getter_AddRefs(firstRange));
@@ -116,25 +126,8 @@ nsContentEventHandler::InitCommon()
 
   mRootContent = startNode->GetSelectionRootContent(mPresShell);
   NS_ENSURE_TRUE(mRootContent, NS_ERROR_FAILURE);
-  return NS_OK;
-}
-
-nsresult
-nsContentEventHandler::Init(nsQueryContentEvent* aEvent)
-{
-  NS_ASSERTION(aEvent, "aEvent must not be null");
-
-  nsresult rv = InitCommon();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  aEvent->mSucceeded = PR_FALSE;
 
   aEvent->mReply.mContentsRoot = mRootContent.get();
-
-  PRBool isCollapsed;
-  rv = mSelection->GetIsCollapsed(&isCollapsed);
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_NOT_AVAILABLE);
-  aEvent->mReply.mHasSelection = !isCollapsed;
 
   nsRefPtr<nsCaret> caret;
   rv = mPresShell->GetCaret(getter_AddRefs(caret));
@@ -146,19 +139,6 @@ nsContentEventHandler::Init(nsQueryContentEvent* aEvent)
   NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
 
   aEvent->mReply.mFocusedWidget = frame->GetWindow();
-
-  return NS_OK;
-}
-
-nsresult
-nsContentEventHandler::Init(nsSelectionEvent* aEvent)
-{
-  NS_ASSERTION(aEvent, "aEvent must not be null");
-
-  nsresult rv = InitCommon();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  aEvent->mSucceeded = PR_FALSE;
 
   return NS_OK;
 }
@@ -684,8 +664,9 @@ nsContentEventHandler::OnQueryCaretRect(nsQueryContentEvent* aEvent)
       nsIFrame* caretFrame = caret->GetGeometry(mSelection, &rect);
       if (!caretFrame)
         return NS_ERROR_FAILURE;
-      rv = ConvertToRootViewRelativeOffset(caretFrame, rect);
-      NS_ENSURE_SUCCESS(rv, rv);
+      nsPoint windowOffset(0, 0);
+      caretFrame->GetWindowOffset(windowOffset);
+      rect.MoveBy(windowOffset);
       aEvent->mReply.mRect =
         rect.ToOutsidePixels(caretFrame->PresContext()->AppUnitsPerDevPixel());
       aEvent->mSucceeded = PR_TRUE;
@@ -766,32 +747,8 @@ nsContentEventHandler::OnQueryCharacterAtPoint(nsQueryContentEvent* aEvent)
     return rv;
 
   nsIFrame* rootFrame = mPresShell->GetRootFrame();
-  NS_ENSURE_TRUE(rootFrame, NS_ERROR_FAILURE);
-  nsIWidget* rootWidget = rootFrame->GetWindow();
-  NS_ENSURE_TRUE(rootWidget, NS_ERROR_FAILURE);
-
-  // The root frame's widget might be different, e.g., the event was fired on
-  // a popup but the rootFrame is the document root.
-  if (rootWidget != aEvent->widget) {
-    NS_PRECONDITION(aEvent->widget, "The event must have the widget");
-    nsIView* view = nsIView::GetViewFor(aEvent->widget);
-    NS_ENSURE_TRUE(view, NS_ERROR_FAILURE);
-    rootFrame = nsLayoutUtils::GetFrameFor(view);
-    NS_ENSURE_TRUE(rootFrame, NS_ERROR_FAILURE);
-    rootWidget = rootFrame->GetWindow();
-    NS_ENSURE_TRUE(rootWidget, NS_ERROR_FAILURE);
-  }
-
-  nsQueryContentEvent eventOnRoot(PR_TRUE, NS_QUERY_CHARACTER_AT_POINT,
-                                  rootWidget);
-  eventOnRoot.refPoint = aEvent->refPoint;
-  if (rootWidget != aEvent->widget) {
-    eventOnRoot.refPoint += aEvent->widget->WidgetToScreenOffset();
-    eventOnRoot.refPoint -= rootWidget->WidgetToScreenOffset();
-  }
   nsPoint ptInRoot =
-    nsLayoutUtils::GetEventCoordinatesRelativeTo(&eventOnRoot, rootFrame);
-
+    nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, rootFrame);
   nsIFrame* targetFrame = nsLayoutUtils::GetFrameForPoint(rootFrame, ptInRoot);
   if (!targetFrame || targetFrame->GetType() != nsGkAtoms::textFrame) {
     // there is no character at the point.
@@ -925,17 +882,11 @@ nsContentEventHandler::OnSelectionEvent(nsSelectionEvent* aEvent)
   aEvent->mSucceeded = PR_FALSE;
 
   // Get selection to manipulate
-  // XXX why do we need to get them from ISM? This method should work fine
-  //     without ISM.
+  nsCOMPtr<nsISelection> sel;
   nsresult rv = nsIMEStateManager::
-      GetFocusSelectionAndRoot(getter_AddRefs(mSelection),
+      GetFocusSelectionAndRoot(getter_AddRefs(sel),
                                getter_AddRefs(mRootContent));
-  if (rv != NS_ERROR_NOT_AVAILABLE) {
-    NS_ENSURE_SUCCESS(rv, rv);
-  } else {
-    rv = Init(aEvent);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Get range from offset and length
   nsRefPtr<nsRange> range = new nsRange();
@@ -955,32 +906,32 @@ nsContentEventHandler::OnSelectionEvent(nsSelectionEvent* aEvent)
   nsCOMPtr<nsIDOMNode> endDomNode(do_QueryInterface(endNode));
   NS_ENSURE_TRUE(startDomNode && endDomNode, NS_ERROR_UNEXPECTED);
 
-  nsCOMPtr<nsISelectionPrivate> selPrivate = do_QueryInterface(mSelection);
+  nsCOMPtr<nsISelectionPrivate> selPrivate = do_QueryInterface(sel);
   NS_ENSURE_TRUE(selPrivate, NS_ERROR_UNEXPECTED);
   selPrivate->StartBatchChanges();
 
   // Clear selection first before setting
-  rv = mSelection->RemoveAllRanges();
+  rv = sel->RemoveAllRanges();
   // Need to call EndBatchChanges at the end even if call failed
   if (NS_SUCCEEDED(rv)) {
     if (aEvent->mReversed) {
-      rv = mSelection->Collapse(endDomNode, endOffset);
+      rv = sel->Collapse(endDomNode, endOffset);
     } else {
-      rv = mSelection->Collapse(startDomNode, startOffset);
+      rv = sel->Collapse(startDomNode, startOffset);
     }
     if (NS_SUCCEEDED(rv) &&
         (startDomNode != endDomNode || startOffset != endOffset)) {
       if (aEvent->mReversed) {
-        rv = mSelection->Extend(startDomNode, startOffset);
+        rv = sel->Extend(startDomNode, startOffset);
       } else {
-        rv = mSelection->Extend(endDomNode, endOffset);
+        rv = sel->Extend(endDomNode, endOffset);
       }
     }
   }
   selPrivate->EndBatchChanges();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsISelection2>(do_QueryInterface(mSelection))->ScrollIntoView(
+  nsCOMPtr<nsISelection2>(do_QueryInterface(sel))->ScrollIntoView(
       nsISelectionController::SELECTION_FOCUS_REGION, PR_FALSE, -1, -1);
   aEvent->mSucceeded = PR_TRUE;
   return NS_OK;

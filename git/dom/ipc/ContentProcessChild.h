@@ -44,10 +44,6 @@
 #include "nsTArray.h"
 #include "nsAutoPtr.h"
 
-#ifdef MOZ_WIDGET_QT
-class QApplication;
-#endif
-
 namespace mozilla {
 namespace dom {
 
@@ -87,9 +83,6 @@ private:
     nsTArray<nsAutoPtr<PTestShellChild> > mTestShells;
 
     PRBool mQuit;
-#ifdef MOZ_WIDGET_QT
-    nsAutoPtr<QApplication> mQApp;
-#endif
 
     DISALLOW_EVIL_CONSTRUCTORS(ContentProcessChild);
 };

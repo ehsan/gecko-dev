@@ -55,8 +55,7 @@ nsApplicationAccessible::nsApplicationAccessible() :
 ////////////////////////////////////////////////////////////////////////////////
 // nsISupports
 
-NS_IMPL_ISUPPORTS_INHERITED1(nsApplicationAccessible, nsAccessible,
-                             nsIAccessibleApplication)
+NS_IMPL_ISUPPORTS_INHERITED0(nsApplicationAccessible, nsAccessible)
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsIAccessible
@@ -126,64 +125,6 @@ nsApplicationAccessible::GetParent(nsIAccessible **aAccessible)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsIAccessibleApplication
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetAppName(nsAString& aName)
-{
-  aName.Truncate();
-
-  if (!mAppInfo)
-    return NS_ERROR_FAILURE;
-
-  nsCAutoString cname;
-  nsresult rv = mAppInfo->GetName(cname);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  AppendUTF8toUTF16(cname, aName);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetAppVersion(nsAString& aVersion)
-{
-  aVersion.Truncate();
-
-  if (!mAppInfo)
-    return NS_ERROR_FAILURE;
-
-  nsCAutoString cversion;
-  nsresult rv = mAppInfo->GetVersion(cversion);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  AppendUTF8toUTF16(cversion, aVersion);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetPlatformName(nsAString& aName)
-{
-  aName.AssignLiteral("Gecko");
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetPlatformVersion(nsAString& aVersion)
-{
-  aVersion.Truncate();
-
-  if (!mAppInfo)
-    return NS_ERROR_FAILURE;
-
-  nsCAutoString cversion;
-  nsresult rv = mAppInfo->GetPlatformVersion(cversion);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  AppendUTF8toUTF16(cversion, aVersion);
-  return NS_OK;
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // nsAccessNode public methods
 
 PRBool
@@ -195,14 +136,6 @@ nsApplicationAccessible::IsDefunct()
 nsresult
 nsApplicationAccessible::Init()
 {
-  mAppInfo = do_GetService("@mozilla.org/xre/app-info;1");
-  return NS_OK;
-}
-
-nsresult
-nsApplicationAccessible::Shutdown()
-{
-  mAppInfo = nsnull;
   return NS_OK;
 }
 

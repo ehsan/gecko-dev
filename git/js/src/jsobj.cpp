@@ -1130,8 +1130,10 @@ js_CheckContentSecurityPolicy(JSContext *cx)
 
     // if there are callbacks, make sure that the CSP callback is installed and
     // that it permits eval().
-    if (callbacks && callbacks->contentSecurityPolicyAllows)
-        return callbacks->contentSecurityPolicyAllows(cx);
+    if (callbacks) {
+        return callbacks->contentSecurityPolicyAllows &&
+               callbacks->contentSecurityPolicyAllows(cx);
+    }
 
     return JS_TRUE;
 }

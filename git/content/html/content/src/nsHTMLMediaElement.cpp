@@ -80,7 +80,6 @@
 #include "nsContentErrors.h"
 #include "nsCrossSiteListenerProxy.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsICachingChannel.h"
 #include "nsLayoutUtils.h"
 #include "nsVideoFrame.h"
 #include "BasicLayers.h"
@@ -641,7 +640,7 @@ nsresult nsHTMLMediaElement::LoadResource(nsIURI* aURI)
                      nsnull,
                      loadGroup,
                      nsnull,
-                     nsICachingChannel::LOAD_BYPASS_LOCAL_CACHE_IF_BUSY);
+                     nsIRequest::LOAD_NORMAL);
   NS_ENSURE_SUCCESS(rv,rv);
 
   // The listener holds a strong reference to us.  This creates a reference

@@ -3217,11 +3217,16 @@ xpc_CreateSandboxObject(JSContext * cx, jsval * vp, nsISupports *prinOrSop)
     if(NS_FAILED(rv))
         return NS_ERROR_XPC_UNEXPECTED;
 
-    JSObject *sandbox = JS_NewObjectWithGivenProto(cx, &SandboxClass,
-                                                   nsnull, nsnull);
+    XPCAutoJSContext tempcx(JS_NewContext(JS_GetRuntime(cx), 1024), PR_FALSE);
+    if (!tempcx)
+        return NS_ERROR_OUT_OF_MEMORY;
+
+    AutoJSRequestWithNoCallContext req(tempcx);
+    JSObject *sandbox = JS_NewObject(tempcx, &SandboxClass, nsnull, nsnull);
     if (!sandbox)
         return NS_ERROR_XPC_UNEXPECTED;
-    JSAutoTempValueRooter tvr(cx, sandbox);
+
+    JS_SetGlobalObject(tempcx, sandbox);
 
     nsCOMPtr<nsIScriptObjectPrincipal> sop(do_QueryInterface(prinOrSop));
 
@@ -3393,7 +3398,6 @@ class ContextHolder : public nsISupports
 {
 public:
     ContextHolder(JSContext *aOuterCx, JSObject *aSandbox);
-    virtual ~ContextHolder();
 
     JSContext * GetJSContext()
     {
@@ -3404,15 +3408,15 @@ public:
 
 private:
     static JSBool ContextHolderOperationCallback(JSContext *cx);
-
-    JSContext* mJSContext;
+    
+    XPCAutoJSContext mJSContext;
     JSContext* mOrigCx;
 };
 
 NS_IMPL_ISUPPORTS0(ContextHolder)
 
 ContextHolder::ContextHolder(JSContext *aOuterCx, JSObject *aSandbox)
-    : mJSContext(JS_NewContext(JS_GetRuntime(aOuterCx), 1024)),
+    : mJSContext(JS_NewContext(JS_GetRuntime(aOuterCx), 1024), JS_FALSE),
       mOrigCx(aOuterCx)
 {
     if(mJSContext)
@@ -3425,12 +3429,6 @@ ContextHolder::ContextHolder(JSContext *aOuterCx, JSObject *aSandbox)
         JS_SetContextPrivate(mJSContext, this);
         JS_SetOperationCallback(mJSContext, ContextHolderOperationCallback);
     }
-}
-
-ContextHolder::~ContextHolder()
-{
-    if(mJSContext)
-        JS_DestroyContextNoGC(mJSContext);
 }
 
 JSBool

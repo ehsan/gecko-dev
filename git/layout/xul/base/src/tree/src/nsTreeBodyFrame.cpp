@@ -250,8 +250,7 @@ nsTreeBodyFrame::GetMinSize(nsBoxLayoutState& aBoxLayoutState)
   min.height = mRowHeight * desiredRows;
 
   AddBorderAndPadding(min);
-  PRBool widthSet, heightSet;
-  nsIBox::AddCSSMinSize(aBoxLayoutState, this, min, widthSet, heightSet);
+  nsIBox::AddCSSMinSize(aBoxLayoutState, this, min);
 
   return min;
 }

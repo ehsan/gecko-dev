@@ -15,12 +15,13 @@
  * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * Mozilla Japan.
- * Portions created by the Initial Developer are Copyright (C) 2009
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2000
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Masayuki Nakano <masayuki@d-toybox.com>
+ *   Vidur Apparao <vidur@netscape.com> (original author)
+ *   Johnny Stenback <jst@netscape.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -38,24 +39,8 @@
 
 #include "nsISupports.idl"
 
-/**
- * The result of query content events.  succeeded propery can be used always.
- * Whether other properties can be used or not depends on the event.
- * See nsIDOMWindowUtils.idl, which properites can be used was documented.
- */
-
-[scriptable, uuid(4b4ba266-b51e-4f0f-8d0e-9f13cb2a0056)]
-interface nsIQueryContentEventResult : nsISupports
+[scriptable, uuid(a6cf911a-15b3-11d2-932e-00805f8add32)]
+interface nsIDOMNSHTMLFormControlList : nsISupports
 {
-  readonly attribute unsigned long offset;
-  readonly attribute boolean reversed;
-
-  readonly attribute long left;
-  readonly attribute long top;
-  readonly attribute long width;
-  readonly attribute long height;
-  readonly attribute AString text;
-
-  readonly attribute boolean succeeded;
-  readonly attribute boolean notFound;
+  nsISupports               namedItem(in DOMString name);
 };
