@@ -3428,8 +3428,7 @@ js_DefineProperty(JSContext *cx, JSObject *obj, jsid id, jsval value,
 JSBool
 js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, jsval value,
                         JSPropertyOp getter, JSPropertyOp setter, uintN attrs,
-                        uintN flags, intN shortid, JSProperty **propp,
-                        JSPropCacheEntry** entryp /* = NULL */)
+                        uintN flags, intN shortid, JSProperty **propp)
 {
     JSClass *clasp;
     JSScope *scope;
@@ -3437,8 +3436,6 @@ js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, jsval value,
 
     /* Convert string indices to integers if appropriate. */
     CHECK_FOR_STRING_INDEX(id);
-
-    uint32 shape = OBJ_SHAPE(obj);
 
 #if JS_HAS_GETTER_SETTER
     /*
@@ -3527,13 +3524,6 @@ js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, jsval value,
                         js_RemoveScopeProperty(cx, scope, id);
                         goto bad);
 
-    if (entryp) {
-        JS_ASSERT_NOT_ON_TRACE(cx);
-        if (!(attrs & JSPROP_SHARED))
-            js_FillPropertyCache(cx, obj, shape, 0, 0, obj, sprop, entryp);
-        else
-            PCMETER(JS_PROPERTY_CACHE(cx).nofills++);
-    }
     if (propp)
         *propp = (JSProperty *) sprop;
     else
@@ -4166,7 +4156,7 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, jsval *vp,
                     return JS_TRUE;
                 }
 
-                return SPROP_SET(cx, sprop, obj, pobj, vp);
+                return !!SPROP_SET(cx, sprop, obj, pobj, vp);
             }
 
             /* Restore attrs to the ECMA default for new properties. */
