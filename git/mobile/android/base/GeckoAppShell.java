@@ -2437,22 +2437,12 @@ public class GeckoAppShell
 
     @WrapElementForJNI
     public static void enableNetworkNotifications() {
-        ThreadUtils.postToUiThread(new Runnable() {
-            @Override
-            public void run() {
-                GeckoNetworkManager.getInstance().enableNotifications();
-            }
-        });
+        GeckoNetworkManager.getInstance().enableNotifications();
     }
 
     @WrapElementForJNI
     public static void disableNetworkNotifications() {
-        ThreadUtils.postToUiThread(new Runnable() {
-            @Override
-            public void run() {
-                GeckoNetworkManager.getInstance().disableNotifications();
-            }
-        });
+        GeckoNetworkManager.getInstance().disableNotifications();
     }
 
     /**
