@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef Interpreter_h___
-#define Interpreter_h___
+#ifndef jsinterp_h___
+#define jsinterp_h___
 /*
  * JS interpreter interface.
  */
@@ -434,4 +434,4 @@ InitGetterSetterOperation(JSContext *cx, jsbytecode *pc, HandleObject obj, Handl
 
 }  /* namespace js */
 
-#endif /* Interpreter_h___ */
+#endif /* jsinterp_h___ */

@@ -21,8 +21,6 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "DownloadPaths",
                                   "resource://gre/modules/DownloadPaths.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "DownloadIntegration",
-                                  "resource://gre/modules/DownloadIntegration.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Downloads",
                                   "resource://gre/modules/Downloads.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "FileUtils",
@@ -37,8 +35,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "Services",
                                   "resource://gre/modules/Services.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
                                   "resource://gre/modules/Task.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "OS",
-                                  "resource://gre/modules/osfile.jsm");
 
 const ServerSocket = Components.Constructor(
                                 "@mozilla.org/network/server-socket;1",

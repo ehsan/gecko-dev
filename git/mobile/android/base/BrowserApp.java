@@ -1098,7 +1098,7 @@ abstract public class BrowserApp extends GeckoApp
         }
 
         mTabsPanel.prepareTabsAnimation(mMainLayoutAnimator);
-        mBrowserToolbar.prepareTabsAnimation(mMainLayoutAnimator, areTabsShown());
+        mBrowserToolbar.prepareTabsAnimation(areTabsShown());
 
         // If the tabs layout is animating onto the screen, pin the dynamic
         // toolbar.
@@ -1126,6 +1126,7 @@ abstract public class BrowserApp extends GeckoApp
         }
 
         mTabsPanel.finishTabsAnimation();
+        mBrowserToolbar.finishTabsAnimation(areTabsShown());
 
         mMainLayoutAnimator = null;
     }
@@ -1668,7 +1669,7 @@ abstract public class BrowserApp extends GeckoApp
             @Override
             public void onPostExecute(Boolean shouldShowFeedbackPage) {
                 if (shouldShowFeedbackPage)
-                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Feedback:Show", null));
+                    Tabs.getInstance().loadUrlInTab("about:feedback");
             }
         }).execute();
     }

@@ -36,6 +36,7 @@
 #include "jsexn.h"
 #include "jsfun.h"
 #include "jsgc.h"
+#include "jsinterp.h"
 #include "jsiter.h"
 #include "jslock.h"
 #include "jsmath.h"
@@ -66,7 +67,6 @@
 #include "ion/AsmJS.h"
 #include "js/CharacterEncoding.h"
 #include "vm/Debugger.h"
-#include "vm/Interpreter.h"
 #include "vm/NumericConversions.h"
 #include "vm/Shape.h"
 #include "vm/StringBuffer.h"
@@ -75,10 +75,10 @@
 
 #include "jsatominlines.h"
 #include "jsinferinlines.h"
+#include "jsinterpinlines.h"
 #include "jsobjinlines.h"
 #include "jsscriptinlines.h"
 
-#include "vm/Interpreter-inl.h"
 #include "vm/ObjectImpl-inl.h"
 #include "vm/RegExpObject-inl.h"
 #include "vm/RegExpStatics-inl.h"

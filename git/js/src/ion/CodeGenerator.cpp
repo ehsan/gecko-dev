@@ -17,6 +17,7 @@
 #include "shared/CodeGenerator-shared-inl.h"
 #include "jsnum.h"
 #include "jsmath.h"
+#include "jsinterpinlines.h"
 #include "ParallelFunctions.h"
 #include "ExecutionModeInlines.h"
 #include "builtin/Eval.h"
@@ -24,7 +25,6 @@
 #include "vm/ForkJoin.h"
 #include "ParallelArrayAnalysis.h"
 
-#include "vm/Interpreter-inl.h"
 #include "vm/StringObject-inl.h"
 
 using namespace js;

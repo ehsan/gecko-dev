@@ -521,7 +521,6 @@ public:
   static nsIFrame* GetFirstNonAAncestorFrame(nsIFrame* aStartFrame);
 
   static bool OuterSVGIsCallingReflowSVG(nsIFrame *aFrame);
-  static bool AnyOuterSVGIsCallingReflowSVG(nsIFrame *aFrame);
 
   /*
    * Get any additional transforms that apply only to stroking

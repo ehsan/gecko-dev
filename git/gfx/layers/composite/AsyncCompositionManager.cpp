@@ -26,6 +26,15 @@ using namespace mozilla::dom;
 namespace mozilla {
 namespace layers {
 
+void
+AsyncCompositionManager::SetTransformation(float aScale,
+                                           const nsIntPoint& aScrollOffset)
+{
+  mXScale = aScale;
+  mYScale = aScale;
+  mScrollOffset = aScrollOffset;
+}
+
 enum Op { Resolve, Detach };
 
 static bool
@@ -354,7 +363,7 @@ AsyncCompositionManager::ApplyAsyncContentTransformToTree(TimeStamp aCurrentFram
     gfx::Rect displayPortLayersPixels(metrics.mCriticalDisplayPort.IsEmpty() ?
                                       metrics.mDisplayPort : metrics.mCriticalDisplayPort);
     gfx::Margin fixedLayerMargins(0, 0, 0, 0);
-    ScreenPoint offset(0, 0);
+    gfx::Point offset(0, 0);
     SyncFrameMetrics(scrollOffset, treeTransform.mScale.width, metrics.mScrollableRect,
                      mLayersUpdated, displayPortLayersPixels, 1 / rootTransform.GetXScale(),
                      mIsFirstPaint, fixedLayerMargins, offset);
@@ -404,16 +413,23 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer, const gfx3DMatr
 
   gfx3DMatrix treeTransform;
 
-  float layerPixelRatioX = 1 / aRootTransform.GetXScale(),
-        layerPixelRatioY = 1 / aRootTransform.GetYScale();
+  float rootScaleX = aRootTransform.GetXScale(),
+        rootScaleY = aRootTransform.GetYScale();
+  // The ratio of layers pixels to device pixels.  The Java
+  // compositor wants to see values in units of device pixels, so we
+  // map our FrameMetrics values to that space.  This is not exposed
+  // as a FrameMetrics helper because it's a deprecated conversion.
+  float devPixelRatioX = 1 / rootScaleX, devPixelRatioY = 1 / rootScaleY;
 
-  LayerIntPoint scrollOffsetLayerPixels = LayerIntPoint::FromCSSPointRounded(
-    metrics.mScrollOffset, layerPixelRatioX, layerPixelRatioY);
+  gfxPoint scrollOffsetLayersPixels(metrics.GetScrollOffsetInLayerPixels());
+  nsIntPoint scrollOffsetDevPixels(
+    NS_lround(scrollOffsetLayersPixels.x * devPixelRatioX),
+    NS_lround(scrollOffsetLayersPixels.y * devPixelRatioY));
 
   if (mIsFirstPaint) {
     mContentRect = metrics.mContentRect;
-    SetFirstPaintViewport(scrollOffsetLayerPixels,
-                          layerPixelRatioX,
+    SetFirstPaintViewport(scrollOffsetDevPixels,
+                          1/rootScaleX,
                           mContentRect,
                           metrics.mScrollableRect);
     mIsFirstPaint = false;
@@ -425,22 +441,21 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer, const gfx3DMatr
   // We synchronise the viewport information with Java after sending the above
   // notifications, so that Java can take these into account in its response.
   // Calculate the absolute display port to send to Java
-  LayerIntRect displayPort = LayerIntRect::FromCSSRectRounded(
-    CSSRect::FromUnknownRect(metrics.mCriticalDisplayPort.IsEmpty()
-                             ? metrics.mDisplayPort
-                             : metrics.mCriticalDisplayPort),
-    layerPixelRatioX, layerPixelRatioY);
+  gfx::Rect displayPortLayersPixels(metrics.mCriticalDisplayPort.IsEmpty() ?
+                                    metrics.mDisplayPort : metrics.mCriticalDisplayPort);
+  nsIntRect displayPortDevPixels(
+    NS_lround(displayPortLayersPixels.x * devPixelRatioX),
+    NS_lround(displayPortLayersPixels.y * devPixelRatioY),
+    NS_lround(displayPortLayersPixels.width * devPixelRatioX),
+    NS_lround(displayPortLayersPixels.height * devPixelRatioY));
 
-  displayPort.x += scrollOffsetLayerPixels.x;
-  displayPort.y += scrollOffsetLayerPixels.y;
+  displayPortDevPixels.x += scrollOffsetDevPixels.x;
+  displayPortDevPixels.y += scrollOffsetDevPixels.y;
 
   gfx::Margin fixedLayerMargins(0, 0, 0, 0);
-  ScreenPoint offset(0, 0);
-  ScreenPoint scrollOffset(0, 0);
-  float scaleX = 1.0,
-        scaleY = 1.0;
-  SyncViewportInfo(displayPort, layerPixelRatioX, mLayersUpdated,
-                   scrollOffset, scaleX, scaleY, fixedLayerMargins,
+  gfx::Point offset(0, 0);
+  SyncViewportInfo(displayPortDevPixels, 1/rootScaleX, mLayersUpdated,
+                   mScrollOffset, mXScale, mYScale, fixedLayerMargins,
                    offset);
   mLayersUpdated = false;
 
@@ -453,22 +468,22 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer, const gfx3DMatr
   // primary scrollable layer. We compare this to the desired zoom and scroll
   // offset in the view transform we obtained from Java in order to compute the
   // transformation we need to apply.
-  float tempScaleDiffX = aRootTransform.GetXScale() * scaleX;
-  float tempScaleDiffY = aRootTransform.GetYScale() * scaleY;
+  float tempScaleDiffX = rootScaleX * mXScale;
+  float tempScaleDiffY = rootScaleY * mYScale;
 
-  LayerIntPoint metricsScrollOffset(0, 0);
+  nsIntPoint metricsScrollOffset(0, 0);
   if (metrics.IsScrollable()) {
-    metricsScrollOffset = scrollOffsetLayerPixels;
+    metricsScrollOffset = scrollOffsetDevPixels;
   }
 
   nsIntPoint scrollCompensation(
-    (scrollOffset.x / tempScaleDiffX - metricsScrollOffset.x) * scaleX,
-    (scrollOffset.y / tempScaleDiffY - metricsScrollOffset.y) * scaleY);
+    (mScrollOffset.x / tempScaleDiffX - metricsScrollOffset.x) * mXScale,
+    (mScrollOffset.y / tempScaleDiffY - metricsScrollOffset.y) * mYScale);
   treeTransform = gfx3DMatrix(ViewTransform(-scrollCompensation,
-                                            gfxSize(scaleX, scaleY)));
+                                            gfxSize(mXScale, mYScale)));
 
   // Translate fixed position layers so that they stay in the correct position
-  // when scrollOffset and metricsScrollOffset differ.
+  // when mScrollOffset and metricsScrollOffset differ.
   gfxPoint fixedOffset;
   gfxSize scaleDiff;
 
@@ -479,7 +494,7 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer, const gfx3DMatr
     fixedOffset.x = -metricsScrollOffset.x;
     scaleDiff.width = std::min(1.0f, metrics.mCompositionBounds.width / (float)mContentRect.width);
   } else {
-    fixedOffset.x = clamped(scrollOffset.x / tempScaleDiffX, (float)mContentRect.x,
+    fixedOffset.x = clamped(mScrollOffset.x / tempScaleDiffX, (float)mContentRect.x,
                        mContentRect.XMost() - metrics.mCompositionBounds.width / tempScaleDiffX) -
                metricsScrollOffset.x;
     scaleDiff.width = tempScaleDiffX;
@@ -489,7 +504,7 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer, const gfx3DMatr
     fixedOffset.y = -metricsScrollOffset.y;
     scaleDiff.height = std::min(1.0f, metrics.mCompositionBounds.height / (float)mContentRect.height);
   } else {
-    fixedOffset.y = clamped(scrollOffset.y / tempScaleDiffY, (float)mContentRect.y,
+    fixedOffset.y = clamped(mScrollOffset.y / tempScaleDiffY, (float)mContentRect.y,
                        mContentRect.YMost() - metrics.mCompositionBounds.height / tempScaleDiffY) -
                metricsScrollOffset.y;
     scaleDiff.height = tempScaleDiffY;
@@ -552,10 +567,10 @@ AsyncCompositionManager::TransformShadowTree(TimeStamp aCurrentFrame)
 }
 
 void
-AsyncCompositionManager::SetFirstPaintViewport(const LayerIntPoint& aOffset,
+AsyncCompositionManager::SetFirstPaintViewport(const nsIntPoint& aOffset,
                                                float aZoom,
-                                               const LayerIntRect& aPageRect,
-                                               const CSSRect& aCssPageRect)
+                                               const nsIntRect& aPageRect,
+                                               const gfx::Rect& aCssPageRect)
 {
 #ifdef MOZ_WIDGET_ANDROID
   AndroidBridge::Bridge()->SetFirstPaintViewport(aOffset, aZoom, aPageRect, aCssPageRect);
@@ -563,7 +578,7 @@ AsyncCompositionManager::SetFirstPaintViewport(const LayerIntPoint& aOffset,
 }
 
 void
-AsyncCompositionManager::SetPageRect(const CSSRect& aCssPageRect)
+AsyncCompositionManager::SetPageRect(const gfx::Rect& aCssPageRect)
 {
 #ifdef MOZ_WIDGET_ANDROID
   AndroidBridge::Bridge()->SetPageRect(aCssPageRect);
@@ -571,13 +586,13 @@ AsyncCompositionManager::SetPageRect(const CSSRect& aCssPageRect)
 }
 
 void
-AsyncCompositionManager::SyncViewportInfo(const LayerIntRect& aDisplayPort,
+AsyncCompositionManager::SyncViewportInfo(const nsIntRect& aDisplayPort,
                                           float aDisplayResolution,
                                           bool aLayersUpdated,
-                                          ScreenPoint& aScrollOffset,
+                                          nsIntPoint& aScrollOffset,
                                           float& aScaleX, float& aScaleY,
                                           gfx::Margin& aFixedLayerMargins,
-                                          ScreenPoint& aOffset)
+                                          gfx::Point& aOffset)
 {
 #ifdef MOZ_WIDGET_ANDROID
   AndroidBridge::Bridge()->SyncViewportInfo(aDisplayPort,
@@ -593,13 +608,13 @@ AsyncCompositionManager::SyncViewportInfo(const LayerIntRect& aDisplayPort,
 void
 AsyncCompositionManager::SyncFrameMetrics(const gfx::Point& aScrollOffset,
                                           float aZoom,
-                                          const CSSRect& aCssPageRect,
+                                          const gfx::Rect& aCssPageRect,
                                           bool aLayersUpdated,
                                           const gfx::Rect& aDisplayPort,
                                           float aDisplayResolution,
                                           bool aIsFirstPaint,
                                           gfx::Margin& aFixedLayerMargins,
-                                          ScreenPoint& aOffset)
+                                          gfx::Point& aOffset)
 {
 #ifdef MOZ_WIDGET_ANDROID
   AndroidBridge::Bridge()->SyncFrameMetrics(aScrollOffset, aZoom, aCssPageRect,

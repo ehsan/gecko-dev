@@ -12,8 +12,7 @@
 #include "IonCode.h"
 #include "CompileInfo.h"
 #include "jsinfer.h"
-
-#include "vm/Interpreter.h"
+#include "jsinterp.h"
 
 namespace js {
 namespace ion {

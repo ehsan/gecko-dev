@@ -120,9 +120,9 @@ public:
   //
   // This is only valid on the root layer. Nested iframes do not need this
   // metric as they do not have a displayport set. See bug 775452.
-  LayerIntRect mCompositionBounds;
+  nsIntRect mCompositionBounds;
 
-  // |mScrollableRect|, stored in layer pixels. DECPRECATED, DO NOT USE.
+  // |mScrollableRect|, stored in device pixels. DECPRECATED, DO NOT USE.
   //
   // This is valid on any layer where |mScrollableRect| is, though it may be
   // more lazily maintained than |mScrollableRect|. That is, when
@@ -131,7 +131,7 @@ public:
   //
   // FIXME/bug 785929: Is this really necessary? Can it not be calculated from
   // |mScrollableRect| whenever it's needed?
-  LayerIntRect mContentRect;
+  nsIntRect mContentRect;
 
   // ---------------------------------------------------------------------------
   // The following metrics are all in CSS pixels. They are not in any uniform
@@ -208,7 +208,7 @@ public:
   // window.scrollTo().
   //
   // This is valid on any layer unless it has no content.
-  mozilla::CSSRect mScrollableRect;
+  gfx::Rect mScrollableRect;
 
   // ---------------------------------------------------------------------------
   // The following metrics are dimensionless.
