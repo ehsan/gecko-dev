@@ -82,14 +82,13 @@ nsPageFrame::Reflow(nsPresContext*           aPresContext,
     // XXX Shouldn't we do something more friendly when invalid margins
     //     are set?
     if (maxSize.width < onePixelInTwips || maxSize.height < onePixelInTwips) {
-      aDesiredSize.ClearSize();
+      aDesiredSize.Width() = 0;
+      aDesiredSize.Height() = 0;
       NS_WARNING("Reflow aborted; no space for content");
       return;
     }
 
-    nsHTMLReflowState kidReflowState(aPresContext, aReflowState, frame,
-                                     LogicalSize(frame->GetWritingMode(),
-                                                 maxSize));
+    nsHTMLReflowState kidReflowState(aPresContext, aReflowState, frame, maxSize);
     kidReflowState.mFlags.mIsTopOfPage = true;
     kidReflowState.mFlags.mTableIsSplittable = true;
 
@@ -144,17 +143,13 @@ nsPageFrame::Reflow(nsPresContext*           aPresContext,
                  !frame->GetNextInFlow(), "bad child flow list");
   }
   PR_PL(("PageFrame::Reflow %p ", this));
-  PR_PL(("[%d,%d][%d,%d]\n", aDesiredSize.Width(), aDesiredSize.Height(),
-         aReflowState.AvailableWidth(), aReflowState.AvailableHeight()));
+  PR_PL(("[%d,%d][%d,%d]\n", aDesiredSize.Width(), aDesiredSize.Height(), aReflowState.AvailableWidth(), aReflowState.AvailableHeight()));
 
   // Return our desired size
-  WritingMode wm = aReflowState.GetWritingMode();
-  LogicalSize finalSize(wm);
-  finalSize.ISize(wm) = aReflowState.AvailableISize();
-  if (aReflowState.AvailableBSize() != NS_UNCONSTRAINEDSIZE) {
-    finalSize.BSize(wm) = aReflowState.AvailableBSize();
+  aDesiredSize.Width() = aReflowState.AvailableWidth();
+  if (aReflowState.AvailableHeight() != NS_UNCONSTRAINEDSIZE) {
+    aDesiredSize.Height() = aReflowState.AvailableHeight();
   }
-  aDesiredSize.SetSize(wm, finalSize);
 
   aDesiredSize.SetOverflowAreasToDesiredBounds();
   FinishAndStoreOverflow(&aDesiredSize);
@@ -650,13 +645,13 @@ nsPageBreakFrame::~nsPageBreakFrame()
 }
 
 nscoord
-nsPageBreakFrame::GetIntrinsicISize()
+nsPageBreakFrame::GetIntrinsicWidth()
 {
   return nsPresContext::CSSPixelsToAppUnits(1);
 }
 
 nscoord
-nsPageBreakFrame::GetIntrinsicBSize()
+nsPageBreakFrame::GetIntrinsicHeight()
 {
   return 0;
 }
@@ -672,14 +667,12 @@ nsPageBreakFrame::Reflow(nsPresContext*           aPresContext,
 
   // Override reflow, since we don't want to deal with what our
   // computed values are.
-  WritingMode wm = aReflowState.GetWritingMode();
-  LogicalSize finalSize(wm, GetIntrinsicISize(),
-                        aReflowState.AvailableBSize() == NS_UNCONSTRAINEDSIZE ?
-                          0 : aReflowState.AvailableBSize());
+  aDesiredSize.Width() = GetIntrinsicWidth();
+  aDesiredSize.Height() = (aReflowState.AvailableHeight() == NS_UNCONSTRAINEDSIZE ?
+                         0 : aReflowState.AvailableHeight());
   // round the height down to the nearest pixel
-  finalSize.BSize(wm) -=
-    finalSize.BSize(wm) % nsPresContext::CSSPixelsToAppUnits(1);
-  aDesiredSize.SetSize(wm, finalSize);
+  aDesiredSize.Height() -=
+    aDesiredSize.Height() % nsPresContext::CSSPixelsToAppUnits(1);
 
   // Note: not using NS_FRAME_FIRST_REFLOW here, since it's not clear whether
   // DidReflow will always get called before the next Reflow() call.

@@ -1812,7 +1812,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const WidgetGUIEvent& anEvent)
 
   // If we have to synthesize an event we'll use one of these.
   NPCocoaEvent synthCocoaEvent;
-  const NPCocoaEvent* event = static_cast<const NPCocoaEvent*>(anEvent.mPluginEvent);
+  void* event = anEvent.pluginEvent;
   nsPoint pt =
   nsLayoutUtils::GetEventCoordinatesRelativeTo(&anEvent, mObjectFrame) -
   mObjectFrame->GetContentRectRelativeToSelf().TopLeft();
@@ -1879,9 +1879,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const WidgetGUIEvent& anEvent)
   int16_t response = kNPEventNotHandled;
   void* window = FixUpPluginWindow(ePluginPaintEnable);
   if (window || (eventModel == NPEventModelCocoa)) {
-    mInstance->HandleEvent(const_cast<NPCocoaEvent*>(event),
-                           &response,
-                           NS_PLUGIN_CALL_SAFE_TO_REENTER_GECKO);
+    mInstance->HandleEvent(event, &response, NS_PLUGIN_CALL_SAFE_TO_REENTER_GECKO);
   }
 
   if (eventModel == NPEventModelCocoa && response == kNPEventStartIME) {
@@ -1900,7 +1898,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const WidgetGUIEvent& anEvent)
 
 #ifdef XP_WIN
   // this code supports windowless plugins
-  const NPEvent *pPluginEvent = static_cast<const NPEvent*>(anEvent.mPluginEvent);
+  NPEvent *pPluginEvent = (NPEvent*)anEvent.pluginEvent;
   // we can get synthetic events from the EventStateManager... these
   // have no pluginEvent
   NPEvent pluginEvent;
@@ -1969,7 +1967,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const WidgetGUIEvent& anEvent)
       nsIntPoint ptPx(presContext->AppUnitsToDevPixels(pt.x),
                       presContext->AppUnitsToDevPixels(pt.y));
       nsIntPoint widgetPtPx = ptPx + mObjectFrame->GetWindowOriginInPixels(true);
-      const_cast<NPEvent*>(pPluginEvent)->lParam = MAKELPARAM(widgetPtPx.x, widgetPtPx.y);
+      pPluginEvent->lParam = MAKELPARAM(widgetPtPx.x, widgetPtPx.y);
     }
   }
   else if (!pPluginEvent) {
@@ -1997,9 +1995,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const WidgetGUIEvent& anEvent)
 
   if (pPluginEvent) {
     int16_t response = kNPEventNotHandled;
-    mInstance->HandleEvent(const_cast<NPEvent*>(pPluginEvent),
-                           &response,
-                           NS_PLUGIN_CALL_SAFE_TO_REENTER_GECKO);
+    mInstance->HandleEvent(pPluginEvent, &response, NS_PLUGIN_CALL_SAFE_TO_REENTER_GECKO);
     if (response == kNPEventHandled)
       rv = nsEventStatus_eConsumeNoDefault;
   }
@@ -2121,14 +2117,14 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const WidgetGUIEvent& anEvent)
    //XXX case NS_MOUSE_SCROLL_EVENT: not received.
 
    case NS_KEY_EVENT:
-      if (anEvent.mPluginEvent)
+      if (anEvent.pluginEvent)
         {
           XKeyEvent &event = pluginEvent.xkey;
 #ifdef MOZ_WIDGET_GTK
           event.root = GDK_ROOT_WINDOW();
           event.time = anEvent.time;
           const GdkEventKey* gdkEvent =
-            static_cast<const GdkEventKey*>(anEvent.mPluginEvent);
+            static_cast<const GdkEventKey*>(anEvent.pluginEvent);
           event.keycode = gdkEvent->hardware_keycode;
           event.state = gdkEvent->state;
           switch (anEvent.message)
@@ -2273,13 +2269,11 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const WidgetGUIEvent& anEvent)
        const WidgetKeyboardEvent& keyEvent = *anEvent.AsKeyboardEvent();
        LOG("Firing NS_KEY_EVENT %d %d\n", keyEvent.keyCode, keyEvent.charCode);
        // pluginEvent is initialized by nsWindow::InitKeyEvent().
-       const ANPEvent* pluginEvent = static_cast<const ANPEvent*>(keyEvent.mPluginEvent);
+       ANPEvent* pluginEvent = reinterpret_cast<ANPEvent*>(keyEvent.pluginEvent);
        if (pluginEvent) {
          MOZ_ASSERT(pluginEvent->inSize == sizeof(ANPEvent));
          MOZ_ASSERT(pluginEvent->eventType == kKey_ANPEventType);
-         mInstance->HandleEvent(const_cast<ANPEvent*>(pluginEvent),
-                                nullptr,
-                                NS_PLUGIN_CALL_SAFE_TO_REENTER_GECKO);
+         mInstance->HandleEvent(pluginEvent, nullptr, NS_PLUGIN_CALL_SAFE_TO_REENTER_GECKO);
        }
      }
      break;
@@ -2993,7 +2987,7 @@ void* nsPluginInstanceOwner::FixUpPluginWindow(int32_t inPaintState)
     InitializeNPCocoaEvent(&cocoaEvent);
     cocoaEvent.type = NPCocoaEventWindowFocusChanged;
     cocoaEvent.data.focus.hasFocus = cocoaTopLevelWindow ? NS_NPAPI_CocoaWindowIsMain(cocoaTopLevelWindow) : true;
-    pluginEvent.mPluginEvent.Copy(cocoaEvent);
+    pluginEvent.pluginEvent = &cocoaEvent;
     ProcessEvent(pluginEvent);
   }
 

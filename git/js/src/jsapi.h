@@ -41,7 +41,7 @@ namespace JS {
 class Latin1CharsZ;
 class TwoByteChars;
 
-#ifdef JS_DEBUG
+#if defined JS_THREADSAFE && defined JS_DEBUG
 
 class JS_PUBLIC_API(AutoCheckRequestDepth)
 {
@@ -60,7 +60,7 @@ class JS_PUBLIC_API(AutoCheckRequestDepth)
 # define CHECK_REQUEST(cx) \
     ((void) 0)
 
-#endif /* JS_DEBUG */
+#endif /* JS_THREADSAFE && JS_DEBUG */
 
 #ifdef JS_DEBUG
 /*
@@ -1344,7 +1344,7 @@ class JSAutoCheckRequest
     explicit JSAutoCheckRequest(JSContext *cx
                                 MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
     {
-#ifdef JS_DEBUG
+#if defined JS_THREADSAFE && defined JS_DEBUG
         mContext = cx;
         JS_ASSERT(JS_IsInRequest(JS_GetRuntime(cx)));
 #endif
@@ -1352,14 +1352,14 @@ class JSAutoCheckRequest
     }
 
     ~JSAutoCheckRequest() {
-#ifdef JS_DEBUG
+#if defined JS_THREADSAFE && defined JS_DEBUG
         JS_ASSERT(JS_IsInRequest(JS_GetRuntime(mContext)));
 #endif
     }
 
 
   private:
-#ifdef JS_DEBUG
+#if defined JS_THREADSAFE && defined JS_DEBUG
     JSContext *mContext;
 #endif
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
@@ -3227,6 +3227,13 @@ JS_DeleteElement(JSContext *cx, JS::HandleObject obj, uint32_t index);
 
 extern JS_PUBLIC_API(bool)
 JS_DeleteElement2(JSContext *cx, JS::HandleObject obj, uint32_t index, bool *succeeded);
+
+/*
+ * Remove all configurable properties from the given (non-global) object and
+ * assign undefined to all writable data properties.
+ */
+JS_PUBLIC_API(void)
+JS_ClearNonGlobalObject(JSContext *cx, JS::HandleObject obj);
 
 /*
  * Assign 'undefined' to all of the object's non-reserved slots. Note: this is

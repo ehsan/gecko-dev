@@ -226,18 +226,7 @@ class TreeMetadataEmitter(LoggingMixin):
     def _link_libraries(self, sandbox, obj, variable):
         """Add linkage declarations to a given object."""
         assert isinstance(obj, Linkable)
-
-        extra = []
-        # Add stdc++compat library when wanted and needed
-        compat_varname = 'MOZ_LIBSTDCXX_%s_VERSION' % obj.KIND.upper()
-        if sandbox.config.substs.get(compat_varname) \
-                and not isinstance(obj, (StaticLibrary, HostLibrary)):
-            extra.append({
-                'target': 'stdc++compat',
-                'host': 'host_stdc++compat',
-            }[obj.KIND])
-
-        for path in sandbox.get(variable, []) + extra:
+        for path in sandbox.get(variable, []):
             force_static = path.startswith('static:') and obj.KIND == 'target'
             if force_static:
                 path = path[7:]

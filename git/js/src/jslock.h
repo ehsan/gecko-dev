@@ -7,6 +7,8 @@
 #ifndef jslock_h
 #define jslock_h
 
+#ifdef JS_THREADSAFE
+
 #ifdef JS_POSIX_NSPR
 
 #include "vm/PosixNSPR.h"
@@ -19,5 +21,13 @@
 # include "prthread.h"
 
 #endif
+
+#else  /* JS_THREADSAFE */
+
+typedef struct PRThread PRThread;
+typedef struct PRCondVar PRCondVar;
+typedef struct PRLock PRLock;
+
+#endif /* JS_THREADSAFE */
 
 #endif /* jslock_h */

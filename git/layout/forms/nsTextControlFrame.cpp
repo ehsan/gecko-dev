@@ -407,7 +407,7 @@ nsTextControlFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
 }
 
 nscoord
-nsTextControlFrame::GetPrefISize(nsRenderingContext* aRenderingContext)
+nsTextControlFrame::GetPrefWidth(nsRenderingContext* aRenderingContext)
 {
     DebugOnly<nscoord> result = 0;
     DISPLAY_PREF_WIDTH(this, result);
@@ -420,13 +420,13 @@ nsTextControlFrame::GetPrefISize(nsRenderingContext* aRenderingContext)
 }
 
 nscoord
-nsTextControlFrame::GetMinISize(nsRenderingContext* aRenderingContext)
+nsTextControlFrame::GetMinWidth(nsRenderingContext* aRenderingContext)
 {
   // Our min width is just our preferred width if we have auto width.
   nscoord result;
   DISPLAY_MIN_WIDTH(this, result);
 
-  result = GetPrefISize(aRenderingContext);
+  result = GetPrefWidth(aRenderingContext);
 
   return result;
 }
@@ -476,17 +476,13 @@ nsTextControlFrame::Reflow(nsPresContext*   aPresContext,
   }
 
   // set values of reflow's out parameters
-  WritingMode wm = aReflowState.GetWritingMode();
-  LogicalSize
-    finalSize(wm,
-              aReflowState.ComputedISize() +
-              aReflowState.ComputedLogicalBorderPadding().IStartEnd(wm),
-              aReflowState.ComputedBSize() +
-              aReflowState.ComputedLogicalBorderPadding().BStartEnd(wm));
-  aDesiredSize.SetSize(wm, finalSize);
+  aDesiredSize.Width() = aReflowState.ComputedWidth() +
+                       aReflowState.ComputedPhysicalBorderPadding().LeftRight();
+  aDesiredSize.Height() = aReflowState.ComputedHeight() +
+                        aReflowState.ComputedPhysicalBorderPadding().TopBottom();
 
   // computation of the ascent wrt the input height
-  nscoord lineHeight = aReflowState.ComputedBSize();
+  nscoord lineHeight = aReflowState.ComputedHeight();
   float inflation = nsLayoutUtils::FontSizeInflationFor(this);
   if (!IsSingleLineTextControl()) {
     lineHeight = nsHTMLReflowState::CalcLineHeight(GetContent(), StyleContext(),
@@ -496,6 +492,7 @@ nsTextControlFrame::Reflow(nsPresContext*   aPresContext,
   nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fontMet),
                                         inflation);
   // now adjust for our borders and padding
+  WritingMode wm = aReflowState.GetWritingMode();
   aDesiredSize.SetBlockStartAscent(
     nsLayoutUtils::GetCenteredFontBaseline(fontMet, lineHeight) +
     aReflowState.ComputedLogicalBorderPadding().BStart(wm));
@@ -524,13 +521,12 @@ nsTextControlFrame::ReflowTextControlChild(nsIFrame*                aKid,
                                            nsHTMLReflowMetrics& aParentDesiredSize)
 {
   // compute available size and frame offsets for child
-  WritingMode wm = aKid->GetWritingMode();
-  LogicalSize availSize = aReflowState.ComputedSizeWithPadding(wm);
-  availSize.BSize(wm) = NS_UNCONSTRAINEDSIZE;
+  nsSize availSize(aReflowState.ComputedWidth() +
+                   aReflowState.ComputedPhysicalPadding().LeftRight(),
+                   NS_UNCONSTRAINEDSIZE);
 
   nsHTMLReflowState kidReflowState(aPresContext, aReflowState, 
-                                   aKid, availSize, -1, -1,
-                                   nsHTMLReflowState::CALLER_WILL_INIT);
+                                   aKid, availSize, -1, -1, nsHTMLReflowState::CALLER_WILL_INIT);
   // Override padding with our computed padding in case we got it from theming or percentage
   kidReflowState.Init(aPresContext, -1, -1, nullptr, &aReflowState.ComputedPhysicalPadding());
 

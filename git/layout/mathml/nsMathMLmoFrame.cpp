@@ -948,7 +948,7 @@ nsMathMLmoFrame::Reflow(nsPresContext*          aPresContext,
 }
 
 /* virtual */ void
-nsMathMLmoFrame::MarkIntrinsicISizesDirty()
+nsMathMLmoFrame::MarkIntrinsicWidthsDirty()
 {
   // if we get this, it may mean that something changed in the text
   // content. So blow away everything an re-build the automatic data
@@ -969,11 +969,11 @@ nsMathMLmoFrame::MarkIntrinsicISizesDirty()
   // so that we don't rebuild multiple times for the same change.
   RebuildAutomaticDataForChildren(target);
 
-  nsMathMLContainerFrame::MarkIntrinsicISizesDirty();
+  nsMathMLContainerFrame::MarkIntrinsicWidthsDirty();
 }
 
 /* virtual */ void
-nsMathMLmoFrame::GetIntrinsicISizeMetrics(nsRenderingContext *aRenderingContext, nsHTMLReflowMetrics& aDesiredSize)
+nsMathMLmoFrame::GetIntrinsicWidthMetrics(nsRenderingContext *aRenderingContext, nsHTMLReflowMetrics& aDesiredSize)
 {
   ProcessOperatorData();
   if (UseMathMLChar()) {
@@ -985,7 +985,7 @@ nsMathMLmoFrame::GetIntrinsicISizeMetrics(nsRenderingContext *aRenderingContext,
                   NS_MATHML_OPERATOR_MAXSIZE_IS_ABSOLUTE(mFlags));
   }
   else {
-    nsMathMLTokenFrame::GetIntrinsicISizeMetrics(aRenderingContext,
+    nsMathMLTokenFrame::GetIntrinsicWidthMetrics(aRenderingContext,
                                                  aDesiredSize);
   }
 

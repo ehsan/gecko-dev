@@ -99,27 +99,27 @@ ViewportFrame::RemoveFrame(ChildListID     aListID,
 #endif
 
 /* virtual */ nscoord
-ViewportFrame::GetMinISize(nsRenderingContext *aRenderingContext)
+ViewportFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_MIN_WIDTH(this, result);
   if (mFrames.IsEmpty())
     result = 0;
   else
-    result = mFrames.FirstChild()->GetMinISize(aRenderingContext);
+    result = mFrames.FirstChild()->GetMinWidth(aRenderingContext);
 
   return result;
 }
 
 /* virtual */ nscoord
-ViewportFrame::GetPrefISize(nsRenderingContext *aRenderingContext)
+ViewportFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_PREF_WIDTH(this, result);
   if (mFrames.IsEmpty())
     result = 0;
   else
-    result = mFrames.FirstChild()->GetPrefISize(aRenderingContext);
+    result = mFrames.FirstChild()->GetPrefWidth(aRenderingContext);
 
   return result;
 }
@@ -194,8 +194,7 @@ ViewportFrame::Reflow(nsPresContext*           aPresContext,
   // Reflow the main content first so that the placeholders of the
   // fixed-position frames will be in the right places on an initial
   // reflow.
-  nscoord kidBSize = 0;
-  WritingMode wm = aReflowState.GetWritingMode();
+  nscoord kidHeight = 0;
 
   if (mFrames.NotEmpty()) {
     // Deal with a non-incremental reflow or an incremental reflow
@@ -206,8 +205,8 @@ ViewportFrame::Reflow(nsPresContext*           aPresContext,
       // Reflow our one-and-only principal child frame
       nsIFrame*           kidFrame = mFrames.FirstChild();
       nsHTMLReflowMetrics kidDesiredSize(aReflowState);
-      WritingMode         wm = kidFrame->GetWritingMode();
-      LogicalSize         availableSpace = aReflowState.AvailableSize(wm);
+      nsSize              availableSpace(aReflowState.AvailableWidth(),
+                                         aReflowState.AvailableHeight());
       nsHTMLReflowState   kidReflowState(aPresContext, aReflowState,
                                          kidFrame, availableSpace);
 
@@ -215,11 +214,11 @@ ViewportFrame::Reflow(nsPresContext*           aPresContext,
       kidReflowState.SetComputedHeight(aReflowState.ComputedHeight());
       ReflowChild(kidFrame, aPresContext, kidDesiredSize, kidReflowState,
                   0, 0, 0, aStatus);
-      kidBSize = kidDesiredSize.BSize(wm);
+      kidHeight = kidDesiredSize.Height();
 
       FinishReflowChild(kidFrame, aPresContext, kidDesiredSize, nullptr, 0, 0, 0);
     } else {
-      kidBSize = LogicalSize(wm, mFrames.FirstChild()->GetSize()).BSize(wm);
+      kidHeight = mFrames.FirstChild()->GetSize().height;
     }
   }
 
@@ -227,13 +226,12 @@ ViewportFrame::Reflow(nsPresContext*           aPresContext,
                "shouldn't happen anymore");
 
   // Return the max size as our desired size
-  LogicalSize maxSize(wm, aReflowState.AvailableISize(),
-                      // Being flowed initially at an unconstrained block size
-                      // means we should return our child's intrinsic size.
-                      aReflowState.ComputedBSize() != NS_UNCONSTRAINEDSIZE
-                        ? aReflowState.ComputedBSize()
-                        : kidBSize);
-  aDesiredSize.SetSize(wm, maxSize);
+  aDesiredSize.Width() = aReflowState.AvailableWidth();
+  // Being flowed initially at an unconstrained height means we should
+  // return our child's intrinsic size.
+  aDesiredSize.Height() = aReflowState.ComputedHeight() != NS_UNCONSTRAINEDSIZE
+                          ? aReflowState.ComputedHeight()
+                          : kidHeight;
   aDesiredSize.SetOverflowAreasToDesiredBounds();
 
   if (mFrames.NotEmpty()) {
@@ -245,14 +243,14 @@ ViewportFrame::Reflow(nsPresContext*           aPresContext,
     // to reflect the available space for the fixed items
     nsHTMLReflowState reflowState(aReflowState);
 
-    if (reflowState.AvailableBSize() == NS_UNCONSTRAINEDSIZE) {
+    if (reflowState.AvailableHeight() == NS_UNCONSTRAINEDSIZE) {
       // We have an intrinsic-height document with abs-pos/fixed-pos children.
       // Set the available height and mComputedHeight to our chosen height.
-      reflowState.AvailableBSize() = maxSize.BSize(wm);
+      reflowState.AvailableHeight() = aDesiredSize.Height();
       // Not having border/padding simplifies things
       NS_ASSERTION(reflowState.ComputedPhysicalBorderPadding() == nsMargin(0,0,0,0),
                    "Viewports can't have border/padding");
-      reflowState.SetComputedBSize(maxSize.BSize(wm));
+      reflowState.SetComputedHeight(aDesiredSize.Height());
     }
 
     nsRect rect = AdjustReflowStateAsContainingBlock(&reflowState);

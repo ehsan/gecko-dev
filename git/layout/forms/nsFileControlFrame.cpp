@@ -233,13 +233,13 @@ nsFileControlFrame::DnDListener::IsValidDropData(nsIDOMDragEvent* aEvent)
 }
 
 nscoord
-nsFileControlFrame::GetMinISize(nsRenderingContext *aRenderingContext)
+nsFileControlFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_MIN_WIDTH(this, result);
 
   // Our min width is our pref width
-  result = GetPrefISize(aRenderingContext);
+  result = GetPrefWidth(aRenderingContext);
   return result;
 }
 

@@ -117,7 +117,7 @@ FFmpegAACDecoder<LIBAV_VER>::Input(MP4Sample* aSample)
 nsresult
 FFmpegAACDecoder<LIBAV_VER>::Drain()
 {
-  mCallback->DrainComplete();
+  // AAC is never delayed; nothing to do here.
   return NS_OK;
 }
 

@@ -208,8 +208,7 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
 
     // Reflow the page
     nsHTMLReflowState kidReflowState(aPresContext, aReflowState, kidFrame,
-                                     LogicalSize(kidFrame->GetWritingMode(),
-                                                 pageSize));
+                                     pageSize);
     nsReflowStatus  status;
 
     kidReflowState.SetComputedWidth(kidReflowState.AvailableWidth());

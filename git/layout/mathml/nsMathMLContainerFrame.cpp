@@ -885,13 +885,11 @@ nsMathMLContainerFrame::Reflow(nsPresContext*           aPresContext,
   // Asking each child to cache its bounding metrics
 
   nsReflowStatus childStatus;
+  nsSize availSize(aReflowState.ComputedWidth(), NS_UNCONSTRAINEDSIZE);
   nsIFrame* childFrame = mFrames.FirstChild();
   while (childFrame) {
     nsHTMLReflowMetrics childDesiredSize(aReflowState, // ???
                                          aDesiredSize.mFlags);
-    WritingMode wm = childFrame->GetWritingMode();
-    LogicalSize availSize = aReflowState.ComputedSize(wm);
-    availSize.BSize(wm) = NS_UNCONSTRAINEDSIZE;
     nsHTMLReflowState childReflowState(aPresContext, aReflowState,
                                        childFrame, availSize);
     ReflowChild(childFrame, aPresContext, childDesiredSize,
@@ -959,37 +957,37 @@ static nscoord AddInterFrameSpacingToSize(nsHTMLReflowMetrics&    aDesiredSize,
                                           nsMathMLContainerFrame* aFrame);
 
 /* virtual */ nscoord
-nsMathMLContainerFrame::GetMinISize(nsRenderingContext *aRenderingContext)
+nsMathMLContainerFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_MIN_WIDTH(this, result);
   nsHTMLReflowMetrics desiredSize(GetWritingMode());
-  GetIntrinsicISizeMetrics(aRenderingContext, desiredSize);
+  GetIntrinsicWidthMetrics(aRenderingContext, desiredSize);
 
   // Include the additional width added by FixInterFrameSpacing to ensure
   // consistent width calculations.
   AddInterFrameSpacingToSize(desiredSize, this);
-  result = desiredSize.ISize(GetWritingMode());
+  result = desiredSize.Width();
   return result;
 }
 
 /* virtual */ nscoord
-nsMathMLContainerFrame::GetPrefISize(nsRenderingContext *aRenderingContext)
+nsMathMLContainerFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_PREF_WIDTH(this, result);
   nsHTMLReflowMetrics desiredSize(GetWritingMode());
-  GetIntrinsicISizeMetrics(aRenderingContext, desiredSize);
+  GetIntrinsicWidthMetrics(aRenderingContext, desiredSize);
 
   // Include the additional width added by FixInterFrameSpacing to ensure
   // consistent width calculations.
   AddInterFrameSpacingToSize(desiredSize, this);
-  result = desiredSize.ISize(GetWritingMode());
+  result = desiredSize.Width();
   return result;
 }
 
 /* virtual */ void
-nsMathMLContainerFrame::GetIntrinsicISizeMetrics(nsRenderingContext* aRenderingContext, nsHTMLReflowMetrics& aDesiredSize)
+nsMathMLContainerFrame::GetIntrinsicWidthMetrics(nsRenderingContext* aRenderingContext, nsHTMLReflowMetrics& aDesiredSize)
 {
   // Get child widths
   nsIFrame* childFrame = mFrames.FirstChild();
@@ -998,7 +996,7 @@ nsMathMLContainerFrame::GetIntrinsicISizeMetrics(nsRenderingContext* aRenderingC
 
     nsMathMLContainerFrame* containerFrame = do_QueryFrame(childFrame);
     if (containerFrame) {
-      containerFrame->GetIntrinsicISizeMetrics(aRenderingContext,
+      containerFrame->GetIntrinsicWidthMetrics(aRenderingContext,
                                                childDesiredSize);
     } else {
       // XXX This includes margin while Reflow currently doesn't consider
@@ -1006,7 +1004,7 @@ nsMathMLContainerFrame::GetIntrinsicISizeMetrics(nsRenderingContext* aRenderingC
       // characters, this is an approximation anyway.
       nscoord width =
         nsLayoutUtils::IntrinsicForContainer(aRenderingContext, childFrame,
-                                             nsLayoutUtils::PREF_ISIZE);
+                                             nsLayoutUtils::PREF_WIDTH);
 
       childDesiredSize.Width() = width;
       childDesiredSize.mBoundingMetrics.width = width;

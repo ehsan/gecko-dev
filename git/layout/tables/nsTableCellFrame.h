@@ -102,10 +102,10 @@ public:
                                   nsDisplayListBuilder* aBuilder,
                                   const nsDisplayListSet& aLists);
 
-  virtual nscoord GetMinISize(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
-  virtual nscoord GetPrefISize(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
-  virtual IntrinsicISizeOffsetData
-    IntrinsicISizeOffsets(nsRenderingContext* aRenderingContext) MOZ_OVERRIDE;
+  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
+  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
+  virtual IntrinsicWidthOffsetData
+    IntrinsicWidthOffsets(nsRenderingContext* aRenderingContext) MOZ_OVERRIDE;
 
   virtual void Reflow(nsPresContext*      aPresContext,
                       nsHTMLReflowMetrics& aDesiredSize,
@@ -187,7 +187,7 @@ public:
   inline void SetPriorAvailWidth(nscoord aPriorAvailWidth);
 
   /** return the desired size returned by this frame during its last reflow */
-  inline mozilla::LogicalSize GetDesiredSize();
+  inline nsSize GetDesiredSize();
 
   /** set the desired size returned by this frame during its last reflow */
   inline void SetDesiredSize(const nsHTMLReflowMetrics & aDesiredSize);
@@ -238,7 +238,7 @@ protected:
   uint32_t     mColIndex;             // the starting column for this cell
 
   nscoord      mPriorAvailWidth;      // the avail width during the last reflow
-  mozilla::LogicalSize mDesiredSize;  // the last desired inline and block size
+  nsSize       mDesiredSize;          // the last desired width & height
 };
 
 inline nscoord nsTableCellFrame::GetPriorAvailWidth()
@@ -247,13 +247,13 @@ inline nscoord nsTableCellFrame::GetPriorAvailWidth()
 inline void nsTableCellFrame::SetPriorAvailWidth(nscoord aPriorAvailWidth)
 { mPriorAvailWidth = aPriorAvailWidth;}
 
-inline mozilla::LogicalSize nsTableCellFrame::GetDesiredSize()
+inline nsSize nsTableCellFrame::GetDesiredSize()
 { return mDesiredSize; }
 
 inline void nsTableCellFrame::SetDesiredSize(const nsHTMLReflowMetrics & aDesiredSize)
 {
-  mozilla::WritingMode wm = aDesiredSize.GetWritingMode();
-  mDesiredSize = aDesiredSize.Size(wm).ConvertTo(GetWritingMode(), wm);
+  mDesiredSize.width = aDesiredSize.Width();
+  mDesiredSize.height = aDesiredSize.Height();
 }
 
 inline bool nsTableCellFrame::GetContentEmpty()

@@ -208,6 +208,7 @@ class SPSProfiler
 class AutoSPSLock
 {
   public:
+#ifdef JS_THREADSAFE
     explicit AutoSPSLock(PRLock *lock)
     {
         MOZ_ASSERT(lock, "Parameter should not be null!");
@@ -215,6 +216,9 @@ class AutoSPSLock
         PR_Lock(lock);
     }
     ~AutoSPSLock() { PR_Unlock(lock_); }
+#else
+    explicit AutoSPSLock(PRLock *) {}
+#endif
 
   private:
     PRLock *lock_;

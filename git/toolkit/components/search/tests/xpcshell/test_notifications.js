@@ -3,6 +3,10 @@
 
 "use strict";
 
+const Ci = Components.interfaces;
+
+Components.utils.import("resource://testing-common/httpd.js");
+
 let gTestLog = [];
 
 /**
@@ -58,9 +62,13 @@ function search_observer(subject, topic, data) {
 function run_test() {
   removeMetadata();
   updateAppInfo();
-  useHttpServer();
+
+  let httpServer = new HttpServer();
+  httpServer.start(-1);
+  httpServer.registerDirectory("/", do_get_cwd());
 
   do_register_cleanup(function cleanup() {
+    httpServer.stop(function() {});
     Services.obs.removeObserver(search_observer, "browser-search-engine-modified");
   });
 
@@ -68,7 +76,9 @@ function run_test() {
 
   Services.obs.addObserver(search_observer, "browser-search-engine-modified", false);
 
-  Services.search.addEngine(gDataUrl + "engine.xml",
+  Services.search.addEngine("http://localhost:" +
+                            httpServer.identity.primaryPort +
+                            "/data/engine.xml",
                             Ci.nsISearchEngine.DATA_XML,
                             null, false);
 }

@@ -103,10 +103,6 @@ def is_read_allowed(path, config):
     return False
 
 
-class PathWithTrigger(unicode):
-    __slots__ = ('trigger',)
-
-
 class SandboxCalledError(SandboxError):
     """Represents an error resulting from calling the error() function."""
 
@@ -284,8 +280,7 @@ class MozbuildSandbox(Sandbox):
         data.is_library = True
         return data
 
-    def _add_tier_directory(self, tier, reldir, static=False, external=False,
-            trigger=None):
+    def _add_tier_directory(self, tier, reldir, static=False, external=False):
         """Register a tier directory with the build."""
         if isinstance(reldir, text_type):
             reldir = [reldir]
@@ -307,8 +302,6 @@ class MozbuildSandbox(Sandbox):
                 raise Exception('Directory has already been registered with '
                     'tier: %s' % path)
 
-            path = PathWithTrigger(path)
-            path.trigger = trigger
             self['TIERS'][tier][key].append(path)
 
     def _export(self, varname):

@@ -914,10 +914,9 @@ ClientTiledLayerBuffer::ValidateTile(TileClient aTile,
                         mManager->GetTexturePool(gfxPlatform::GetPlatform()->Optimal2DFormatForContent(GetContentType())),
                         &createdTextureClient, !usingSinglePaintBuffer);
 
-  if (!backBuffer || !backBuffer->Lock(OpenMode::OPEN_READ_WRITE)) {
+  if (!backBuffer->Lock(OpenMode::OPEN_READ_WRITE)) {
     NS_WARNING("Failed to lock tile TextureClient for updating.");
     aTile.DiscardFrontBuffer();
-    aTile.DiscardBackBuffer();
     return aTile;
   }
 
@@ -1036,14 +1035,6 @@ ClientTiledLayerBuffer::ValidateTile(TileClient aTile,
   ctxt = nullptr;
   drawTarget = nullptr;
 
-  nsIntRegion tileRegion =
-    nsIntRect(aTileOrigin.x, aTileOrigin.y,
-              GetScaledTileSize().width, GetScaledTileSize().height);
-  // Intersect this area with the portion that's invalid.
-  tileRegion = tileRegion.Sub(tileRegion, GetValidRegion());
-  tileRegion = tileRegion.Sub(tileRegion, aDirtyRegion); // Has now been validated
-
-  backBuffer->SetWaste(tileRegion.Area() * mResolution * mResolution);
   backBuffer->Unlock();
 
   if (createdTextureClient) {

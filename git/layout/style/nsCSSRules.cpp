@@ -3084,13 +3084,9 @@ DOMCI_DATA(CSSSupportsRule, mozilla::CSSSupportsRule)
 //
 
 nsCSSCounterStyleRule::nsCSSCounterStyleRule(const nsCSSCounterStyleRule& aCopy)
-  : Rule(aCopy)
-  , mName(aCopy.mName)
-  , mGeneration(aCopy.mGeneration)
+  : Rule(aCopy),
+    mName(aCopy.mName)
 {
-  for (size_t i = 0; i < ArrayLength(mValues); ++i) {
-    mValues[i] = aCopy.mValues[i];
-  }
 }
 
 nsCSSCounterStyleRule::~nsCSSCounterStyleRule()

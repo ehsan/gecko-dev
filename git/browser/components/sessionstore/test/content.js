@@ -21,10 +21,8 @@ gFrameTree.addObserver({
   }
 });
 
-
-docShell.QueryInterface(Ci.nsIWebNavigation).
-  sessionHistory.addSHistoryListener({
-
+let webNav = docShell.QueryInterface(Ci.nsIWebNavigation);
+webNav.sessionHistory.addSHistoryListener({
   OnHistoryNewEntry: function () {
     sendAsyncMessage("ss-test:OnHistoryNewEntry");
   },

@@ -817,7 +817,7 @@ nsImageFrame::GetContinuationOffset() const
 }
 
 /* virtual */ nscoord
-nsImageFrame::GetMinISize(nsRenderingContext *aRenderingContext)
+nsImageFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 {
   // XXX The caller doesn't account for constraints of the height,
   // min-height, and max-height properties.
@@ -830,7 +830,7 @@ nsImageFrame::GetMinISize(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nscoord
-nsImageFrame::GetPrefISize(nsRenderingContext *aRenderingContext)
+nsImageFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
 {
   // XXX The caller doesn't account for constraints of the height,
   // min-height, and max-height properties.
@@ -2089,8 +2089,8 @@ IsInAutoWidthTableCellForQuirk(nsIFrame *aFrame)
 }
 
 /* virtual */ void
-nsImageFrame::AddInlineMinISize(nsRenderingContext *aRenderingContext,
-                                nsIFrame::InlineMinISizeData *aData)
+nsImageFrame::AddInlineMinWidth(nsRenderingContext *aRenderingContext,
+                                nsIFrame::InlineMinWidthData *aData)
 {
 
   NS_ASSERTION(GetParent(), "Must have a parent if we get here!");
@@ -2108,7 +2108,7 @@ nsImageFrame::AddInlineMinISize(nsRenderingContext *aRenderingContext,
   aData->skipWhitespace = false;
   aData->trailingTextFrame = nullptr;
   aData->currentLine += nsLayoutUtils::IntrinsicForContainer(aRenderingContext,
-                            this, nsLayoutUtils::MIN_ISIZE);
+                            this, nsLayoutUtils::MIN_WIDTH);
   aData->atStartOfLine = false;
 
   if (canBreak)

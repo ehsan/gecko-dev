@@ -550,13 +550,6 @@ nsresult
 AudioStream::OpenCubeb(cubeb_stream_params &aParams,
                        LatencyRequest aLatencyRequest)
 {
-  {
-    MonitorAutoLock mon(mMonitor);
-    if (mState == AudioStream::SHUTDOWN) {
-      return NS_ERROR_FAILURE;
-    }
-  }
-
   cubeb* cubebContext = GetCubebContext();
   if (!cubebContext) {
     MonitorAutoLock mon(mMonitor);

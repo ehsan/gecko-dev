@@ -403,19 +403,7 @@ class Build(MachCommandBase):
                     self.run_process([notifier, '-title',
                         'Mozilla Build System', '-group', 'mozbuild',
                         '-message', 'Build complete'], ensure_exit_code=False)
-                elif sys.platform.startswith('linux'):
-                    try:
-                        import dbus
-                        bus = dbus.SessionBus()
-                        notify = bus.get_object('org.freedesktop.Notifications',
-                                                '/org/freedesktop/Notifications')
-                        method = notify.get_dbus_method('Notify',
-                                                        'org.freedesktop.Notifications')
-                        method('Mozilla Build System', 0, '', 'Build complete', '', [], [], -1)
-                    except (dbus.exceptions.DBusException, ImportError):
-                        pass
-
-            except (which.WhichError, ImportError):
+            except which.WhichError:
                 pass
             except Exception as e:
                 self.log(logging.WARNING, 'notifier-failed', {'error':

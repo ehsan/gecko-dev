@@ -45,7 +45,7 @@ NS_QUERYFRAME_TAIL_INHERITING(nsLeafFrame)
 NS_IMPL_FRAMEARENA_HELPERS(nsFormControlFrame)
 
 nscoord
-nsFormControlFrame::GetIntrinsicISize()
+nsFormControlFrame::GetIntrinsicWidth()
 {
   // Provide a reasonable default for sites that use an "auto" height.
   // Note that if you change this, you should change the values in forms.css
@@ -54,7 +54,7 @@ nsFormControlFrame::GetIntrinsicISize()
 }
 
 nscoord
-nsFormControlFrame::GetIntrinsicBSize()
+nsFormControlFrame::GetIntrinsicHeight()
 {
   // Provide a reasonable default for sites that use an "auto" height.
   // Note that if you change this, you should change the values in forms.css

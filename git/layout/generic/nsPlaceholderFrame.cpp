@@ -57,8 +57,8 @@ nsPlaceholderFrame::GetMaxSize(nsBoxLayoutState& aBoxLayoutState)
 }
 
 /* virtual */ void
-nsPlaceholderFrame::AddInlineMinISize(nsRenderingContext* aRenderingContext,
-                                      nsIFrame::InlineMinISizeData* aData)
+nsPlaceholderFrame::AddInlineMinWidth(nsRenderingContext* aRenderingContext,
+                                      nsIFrame::InlineMinWidthData* aData)
 {
   // Override AddInlineMinWith so that *nothing* happens.  In
   // particular, we don't want to zero out |aData->trailingWhitespace|,
@@ -71,15 +71,15 @@ nsPlaceholderFrame::AddInlineMinISize(nsRenderingContext* aRenderingContext,
     nscoord floatWidth =
       nsLayoutUtils::IntrinsicForContainer(aRenderingContext,
                                            mOutOfFlowFrame,
-                                           nsLayoutUtils::MIN_ISIZE);
+                                           nsLayoutUtils::MIN_WIDTH);
     aData->floats.AppendElement(
-      InlineIntrinsicISizeData::FloatInfo(mOutOfFlowFrame, floatWidth));
+      InlineIntrinsicWidthData::FloatInfo(mOutOfFlowFrame, floatWidth));
   }
 }
 
 /* virtual */ void
-nsPlaceholderFrame::AddInlinePrefISize(nsRenderingContext* aRenderingContext,
-                                       nsIFrame::InlinePrefISizeData* aData)
+nsPlaceholderFrame::AddInlinePrefWidth(nsRenderingContext* aRenderingContext,
+                                       nsIFrame::InlinePrefWidthData* aData)
 {
   // Override AddInlinePrefWith so that *nothing* happens.  In
   // particular, we don't want to zero out |aData->trailingWhitespace|,
@@ -92,9 +92,9 @@ nsPlaceholderFrame::AddInlinePrefISize(nsRenderingContext* aRenderingContext,
     nscoord floatWidth =
       nsLayoutUtils::IntrinsicForContainer(aRenderingContext,
                                            mOutOfFlowFrame,
-                                           nsLayoutUtils::PREF_ISIZE);
+                                           nsLayoutUtils::PREF_WIDTH);
     aData->floats.AppendElement(
-      InlineIntrinsicISizeData::FloatInfo(mOutOfFlowFrame, floatWidth));
+      InlineIntrinsicWidthData::FloatInfo(mOutOfFlowFrame, floatWidth));
   }
 }
 
@@ -138,7 +138,8 @@ nsPlaceholderFrame::Reflow(nsPresContext*           aPresContext,
 
   DO_GLOBAL_REFLOW_COUNT("nsPlaceholderFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aDesiredSize, aStatus);
-  aDesiredSize.ClearSize();
+  aDesiredSize.Width() = 0;
+  aDesiredSize.Height() = 0;
 
   aStatus = NS_FRAME_COMPLETE;
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);

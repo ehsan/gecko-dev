@@ -290,7 +290,6 @@ nsBulletFrame::PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
 {
   const nsStyleList* myList = StyleList();
   CounterStyle* listStyleType = myList->GetCounterStyle();
-  nsMargin padding = mPadding.GetPhysicalMargin(GetWritingMode());
 
   if (myList->GetListStyleImage() && mImageRequest) {
     uint32_t status;
@@ -300,9 +299,9 @@ nsBulletFrame::PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
       nsCOMPtr<imgIContainer> imageCon;
       mImageRequest->GetImage(getter_AddRefs(imageCon));
       if (imageCon) {
-        nsRect dest(padding.left, padding.top,
-                    mRect.width - (padding.left + padding.right),
-                    mRect.height - (padding.top + padding.bottom));
+        nsRect dest(mPadding.left, mPadding.top,
+                    mRect.width - (mPadding.left + mPadding.right),
+                    mRect.height - (mPadding.top + mPadding.bottom));
         nsLayoutUtils::DrawSingleImage(&aRenderingContext, PresContext(),
              imageCon, nsLayoutUtils::GetGraphicsFilterForFrame(this),
              dest + aPt, aDirtyRect, nullptr, aFlags);
@@ -320,21 +319,21 @@ nsBulletFrame::PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
     break;
 
   case NS_STYLE_LIST_STYLE_DISC:
-    aRenderingContext.FillEllipse(padding.left + aPt.x, padding.top + aPt.y,
-                                  mRect.width - (padding.left + padding.right),
-                                  mRect.height - (padding.top + padding.bottom));
+    aRenderingContext.FillEllipse(mPadding.left + aPt.x, mPadding.top + aPt.y,
+                                  mRect.width - (mPadding.left + mPadding.right),
+                                  mRect.height - (mPadding.top + mPadding.bottom));
     break;
 
   case NS_STYLE_LIST_STYLE_CIRCLE:
-    aRenderingContext.DrawEllipse(padding.left + aPt.x, padding.top + aPt.y,
-                                  mRect.width - (padding.left + padding.right),
-                                  mRect.height - (padding.top + padding.bottom));
+    aRenderingContext.DrawEllipse(mPadding.left + aPt.x, mPadding.top + aPt.y,
+                                  mRect.width - (mPadding.left + mPadding.right),
+                                  mRect.height - (mPadding.top + mPadding.bottom));
     break;
 
   case NS_STYLE_LIST_STYLE_SQUARE:
     {
       nsRect rect(aPt, mRect.Size());
-      rect.Deflate(padding);
+      rect.Deflate(mPadding);
 
       // Snap the height and the width of the rectangle to device pixels,
       // and then center the result within the original rectangle, so that
@@ -357,7 +356,7 @@ nsBulletFrame::PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
   case NS_STYLE_LIST_STYLE_DISCLOSURE_OPEN:
     {
       nsRect rect(aPt, mRect.Size());
-      rect.Deflate(padding);
+      rect.Deflate(mPadding);
 
       WritingMode wm = GetWritingMode();
       bool isVertical = wm.IsVertical();
@@ -405,7 +404,7 @@ nsBulletFrame::PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
     GetListItemText(text);
     aRenderingContext.SetFont(fm);
     nscoord ascent = fm->MaxAscent();
-    aPt.MoveBy(padding.left, padding.top);
+    aPt.MoveBy(mPadding.left, mPadding.top);
     aPt.y = NSToCoordRound(nsLayoutUtils::GetSnappedBaselineY(
             this, aRenderingContext.ThebesContext(), aPt.y, ascent));
     nsPresContext* presContext = PresContext();
@@ -488,7 +487,15 @@ nsBulletFrame::GetListItemText(nsAString& aResult)
 void
 nsBulletFrame::AppendSpacingToPadding(nsFontMetrics* aFontMetrics)
 {
-  mPadding.IEnd(GetWritingMode()) += aFontMetrics->EmHeight() / 2;
+  nscoord halfEm = aFontMetrics->EmHeight() / 2;
+  WritingMode wm = GetWritingMode();
+  if (wm.IsVertical()) {
+    mPadding.bottom += halfEm;
+  } else if (wm.IsBidiLTR()) {
+    mPadding.right += halfEm;
+  } else {
+    mPadding.left += halfEm;
+  }
 }
 
 void
@@ -498,10 +505,8 @@ nsBulletFrame::GetDesiredSize(nsPresContext*  aCX,
                               float aFontSizeInflation)
 {
   // Reset our padding.  If we need it, we'll set it below.
-  WritingMode wm = GetWritingMode();
-  mPadding.SizeTo(wm, 0, 0, 0, 0);
-  LogicalSize finalSize(wm);
-
+  mPadding.SizeTo(0, 0, 0, 0);
+  
   const nsStyleList* myList = StyleList();
   nscoord ascent;
   nsRefPtr<nsFontMetrics> fm;
@@ -516,10 +521,8 @@ nsBulletFrame::GetDesiredSize(nsPresContext*  aCX,
     if (status & imgIRequest::STATUS_SIZE_AVAILABLE &&
         !(status & imgIRequest::STATUS_ERROR)) {
       // auto size the image
-      finalSize.ISize(wm) = mIntrinsicSize.ISize(wm);
-      aMetrics.SetBlockStartAscent(finalSize.BSize(wm) =
-                                   mIntrinsicSize.BSize(wm));
-      aMetrics.SetSize(wm, finalSize);
+      aMetrics.Width() = mIntrinsicSize.width;
+      aMetrics.SetBlockStartAscent(aMetrics.Height() = mIntrinsicSize.height);
 
       AppendSpacingToPadding(fm);
 
@@ -535,14 +538,14 @@ nsBulletFrame::GetDesiredSize(nsPresContext*  aCX,
   // fully there, we'll end up with mIntrinsicSize not matching our size, but
   // won't trigger a reflow in OnStartContainer (because mIntrinsicSize will
   // match the image size).
-  mIntrinsicSize.SizeTo(wm, 0, 0);
+  mIntrinsicSize.SizeTo(0, 0);
 
   nscoord bulletSize;
 
   nsAutoString text;
   switch (myList->GetCounterStyle()->GetStyle()) {
     case NS_STYLE_LIST_STYLE_NONE:
-      finalSize.ISize(wm) = finalSize.BSize(wm) = 0;
+      aMetrics.Width() = aMetrics.Height() = 0;
       aMetrics.SetBlockStartAscent(0);
       break;
 
@@ -552,9 +555,9 @@ nsBulletFrame::GetDesiredSize(nsPresContext*  aCX,
       ascent = fm->MaxAscent();
       bulletSize = std::max(nsPresContext::CSSPixelsToAppUnits(MIN_BULLET_SIZE),
                           NSToCoordRound(0.8f * (float(ascent) / 2.0f)));
-      mPadding.BEnd(wm) = NSToCoordRound(float(ascent) / 8.0f);
-      finalSize.ISize(wm) = finalSize.BSize(wm) = bulletSize;
-      aMetrics.SetBlockStartAscent(bulletSize + mPadding.BEnd(wm));
+      mPadding.bottom = NSToCoordRound(float(ascent) / 8.0f);
+      aMetrics.Width() = aMetrics.Height() = bulletSize;
+      aMetrics.SetBlockStartAscent(bulletSize + mPadding.bottom);
       AppendSpacingToPadding(fm);
       break;
     }
@@ -565,25 +568,24 @@ nsBulletFrame::GetDesiredSize(nsPresContext*  aCX,
       bulletSize = std::max(
           nsPresContext::CSSPixelsToAppUnits(MIN_BULLET_SIZE),
           NSToCoordRound(0.75f * ascent));
-      mPadding.BEnd(wm) = NSToCoordRound(0.125f * ascent);
-      finalSize.ISize(wm) = finalSize.BSize(wm) = bulletSize;
-      if (!wm.IsVertical()) {
-        aMetrics.SetBlockStartAscent(bulletSize + mPadding.BEnd(wm));
+      mPadding.bottom = NSToCoordRound(0.125f * ascent);
+      aMetrics.Width() = aMetrics.Height() = bulletSize;
+      if (!GetWritingMode().IsVertical()) {
+        aMetrics.SetBlockStartAscent(bulletSize + mPadding.bottom);
       }
       AppendSpacingToPadding(fm);
       break;
 
     default:
       GetListItemText(text);
-      finalSize.BSize(wm) = fm->MaxHeight();
+      aMetrics.Height() = fm->MaxHeight();
       aRenderingContext->SetFont(fm);
-      finalSize.ISize(wm) =
+      aMetrics.Width() =
         nsLayoutUtils::GetStringWidth(this, aRenderingContext,
                                       text.get(), text.Length());
       aMetrics.SetBlockStartAscent(fm->MaxAscent());
       break;
   }
-  aMetrics.SetSize(wm, finalSize);
 }
 
 void
@@ -603,19 +605,14 @@ nsBulletFrame::Reflow(nsPresContext* aPresContext,
 
   // Add in the border and padding; split the top/bottom between the
   // ascent and descent to make things look nice
-  WritingMode wm = aReflowState.GetWritingMode();
-  const LogicalMargin& bp = aReflowState.ComputedLogicalBorderPadding();
-  mPadding.BStart(wm) += NSToCoordRound(bp.BStart(wm) * inflation);
-  mPadding.IEnd(wm) += NSToCoordRound(bp.IEnd(wm) * inflation);
-  mPadding.BEnd(wm) += NSToCoordRound(bp.BEnd(wm) * inflation);
-  mPadding.IStart(wm) += NSToCoordRound(bp.IStart(wm) * inflation);
-
-  WritingMode lineWM = aMetrics.GetWritingMode();
-  LogicalMargin linePadding = mPadding.ConvertTo(lineWM, wm);
-  aMetrics.ISize(lineWM) += linePadding.IStartEnd(lineWM);
-  aMetrics.BSize(lineWM) += linePadding.BStartEnd(lineWM);
-  aMetrics.SetBlockStartAscent(aMetrics.BlockStartAscent() +
-                               linePadding.BStart(lineWM));
+  const nsMargin& borderPadding = aReflowState.ComputedPhysicalBorderPadding();
+  mPadding.top += NSToCoordRound(borderPadding.top * inflation);
+  mPadding.right += NSToCoordRound(borderPadding.right * inflation);
+  mPadding.bottom += NSToCoordRound(borderPadding.bottom * inflation);
+  mPadding.left += NSToCoordRound(borderPadding.left * inflation);
+  aMetrics.Width() += mPadding.left + mPadding.right;
+  aMetrics.Height() += mPadding.top + mPadding.bottom;
+  aMetrics.SetBlockStartAscent(aMetrics.BlockStartAscent() + mPadding.top);
 
   // XXX this is a bit of a hack, we're assuming that no glyphs used for bullets
   // overflow their font-boxes. It'll do for now; to fix it for real, we really
@@ -628,23 +625,21 @@ nsBulletFrame::Reflow(nsPresContext* aPresContext,
 }
 
 /* virtual */ nscoord
-nsBulletFrame::GetMinISize(nsRenderingContext *aRenderingContext)
+nsBulletFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 {
-  WritingMode wm = GetWritingMode();
-  nsHTMLReflowMetrics metrics(wm);
-  DISPLAY_MIN_WIDTH(this, metrics.ISize(wm));
+  nsHTMLReflowMetrics metrics(GetWritingMode());
+  DISPLAY_MIN_WIDTH(this, metrics.Width());
   GetDesiredSize(PresContext(), aRenderingContext, metrics, 1.0f);
-  return metrics.ISize(wm);
+  return metrics.Width();
 }
 
 /* virtual */ nscoord
-nsBulletFrame::GetPrefISize(nsRenderingContext *aRenderingContext)
+nsBulletFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
 {
-  WritingMode wm = GetWritingMode();
-  nsHTMLReflowMetrics metrics(wm);
-  DISPLAY_PREF_WIDTH(this, metrics.ISize(wm));
+  nsHTMLReflowMetrics metrics(GetWritingMode());
+  DISPLAY_PREF_WIDTH(this, metrics.Width());
   GetDesiredSize(PresContext(), aRenderingContext, metrics, 1.0f);
-  return metrics.ISize(wm);
+  return metrics.Width();
 }
 
 NS_IMETHODIMP
@@ -693,9 +688,8 @@ nsresult nsBulletFrame::OnStartContainer(imgIRequest *aRequest,
 
   nsPresContext* presContext = PresContext();
 
-  LogicalSize newsize(GetWritingMode(),
-                      nsSize(nsPresContext::CSSPixelsToAppUnits(w),
-                             nsPresContext::CSSPixelsToAppUnits(h)));
+  nsSize newsize(nsPresContext::CSSPixelsToAppUnits(w),
+                 nsPresContext::CSSPixelsToAppUnits(h));
 
   if (mIntrinsicSize != newsize) {
     mIntrinsicSize = newsize;
@@ -789,7 +783,7 @@ nsBulletFrame::GetImage() const
 nscoord
 nsBulletFrame::GetLogicalBaseline(WritingMode aWritingMode) const
 {
-  nscoord ascent = 0, baselinePadding;
+  nscoord ascent = 0, bottomPadding;
   if (GetStateBits() & BULLET_FRAME_IMAGE_LOADING) {
     ascent = BSize(aWritingMode);
   } else {
@@ -805,20 +799,20 @@ nsBulletFrame::GetLogicalBaseline(WritingMode aWritingMode) const
       case NS_STYLE_LIST_STYLE_CIRCLE:
       case NS_STYLE_LIST_STYLE_SQUARE:
         ascent = fm->MaxAscent();
-        baselinePadding = NSToCoordRound(float(ascent) / 8.0f);
+        bottomPadding = NSToCoordRound(float(ascent) / 8.0f);
         ascent = std::max(nsPresContext::CSSPixelsToAppUnits(MIN_BULLET_SIZE),
                         NSToCoordRound(0.8f * (float(ascent) / 2.0f)));
-        ascent += baselinePadding;
+        ascent += bottomPadding;
         break;
 
       case NS_STYLE_LIST_STYLE_DISCLOSURE_CLOSED:
       case NS_STYLE_LIST_STYLE_DISCLOSURE_OPEN:
         ascent = fm->EmAscent();
-        baselinePadding = NSToCoordRound(0.125f * ascent);
+        bottomPadding = NSToCoordRound(0.125f * ascent);
         ascent = std::max(
             nsPresContext::CSSPixelsToAppUnits(MIN_BULLET_SIZE),
             NSToCoordRound(0.75f * ascent));
-        ascent += baselinePadding;
+        ascent += bottomPadding;
         break;
 
       default:

@@ -47,10 +47,6 @@ class TextureClientX11 : public TextureClient
 
   virtual bool HasInternalBuffer() const MOZ_OVERRIDE { return false; }
 
-  virtual TemporaryRef<TextureClient>
-  CreateSimilar(TextureFlags aFlags = TextureFlags::DEFAULT,
-                TextureAllocationFlags aAllocFlags = ALLOC_DEFAULT) const MOZ_OVERRIDE;
-
  private:
   gfx::SurfaceFormat mFormat;
   gfx::IntSize mSize;

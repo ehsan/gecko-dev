@@ -1448,7 +1448,7 @@ nsWindow::InitKeyEvent(WidgetKeyboardEvent& event, AndroidGeckoEvent& key,
         event.isChar = (charCode >= ' ');
         event.charCode = event.isChar ? charCode : 0;
         event.keyCode = (event.charCode > 0) ? 0 : domKeyCode;
-        event.mPluginEvent.Clear();
+        event.pluginEvent = nullptr;
     } else {
 #ifdef DEBUG
         if (event.message != NS_KEY_DOWN && event.message != NS_KEY_UP) {
@@ -1465,7 +1465,7 @@ nsWindow::InitKeyEvent(WidgetKeyboardEvent& event, AndroidGeckoEvent& key,
         event.isChar = false;
         event.charCode = 0;
         event.keyCode = domKeyCode;
-        event.mPluginEvent.Copy(*pluginEvent);
+        event.pluginEvent = pluginEvent;
     }
 
     event.modifiers = key.DOMModifiers();

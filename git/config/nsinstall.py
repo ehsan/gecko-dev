@@ -127,8 +127,7 @@ def _nsinstall_internal(argv):
       else:
         if os.path.exists(targetpath):
           # On Windows, read-only files can't be deleted
-          if sys.platform == "win32":
-            os.chmod(targetpath, stat.S_IWUSR)
+          os.chmod(targetpath, stat.S_IWUSR)
           os.remove(targetpath)
         if options.t:
           shutil.copy2(srcpath, targetpath)

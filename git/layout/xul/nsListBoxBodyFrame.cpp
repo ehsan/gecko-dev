@@ -239,10 +239,10 @@ nsListBoxBodyFrame::AttributeChanged(int32_t aNameSpaceID,
 }
 
 /* virtual */ void
-nsListBoxBodyFrame::MarkIntrinsicISizesDirty()
+nsListBoxBodyFrame::MarkIntrinsicWidthsDirty()
 {
   mStringWidth = -1;
-  nsBoxFrame::MarkIntrinsicISizesDirty();
+  nsBoxFrame::MarkIntrinsicWidthsDirty();
 }
 
 /////////// nsBox ///////////////
@@ -643,7 +643,7 @@ nsListBoxBodyFrame::GetYPosition()
 }
 
 nscoord
-nsListBoxBodyFrame::ComputeIntrinsicISize(nsBoxLayoutState& aBoxLayoutState)
+nsListBoxBodyFrame::ComputeIntrinsicWidth(nsBoxLayoutState& aBoxLayoutState)
 {
   if (mStringWidth != -1)
     return mStringWidth;

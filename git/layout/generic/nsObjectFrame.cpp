@@ -410,7 +410,7 @@ nsObjectFrame::PrepForDrawing(nsIWidget *aWidget)
 #define EMBED_DEF_HEIGHT 200
 
 /* virtual */ nscoord
-nsObjectFrame::GetMinISize(nsRenderingContext *aRenderingContext)
+nsObjectFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 {
   nscoord result = 0;
 
@@ -426,9 +426,9 @@ nsObjectFrame::GetMinISize(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nscoord
-nsObjectFrame::GetPrefISize(nsRenderingContext *aRenderingContext)
+nsObjectFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
 {
-  return nsObjectFrame::GetMinISize(aRenderingContext);
+  return nsObjectFrame::GetMinWidth(aRenderingContext);
 }
 
 void
@@ -437,12 +437,13 @@ nsObjectFrame::GetDesiredSize(nsPresContext* aPresContext,
                               nsHTMLReflowMetrics& aMetrics)
 {
   // By default, we have no area
-  aMetrics.ClearSize();
+  aMetrics.Width() = 0;
+  aMetrics.Height() = 0;
 
   if (IsHidden(false)) {
     return;
   }
-
+  
   aMetrics.Width() = aReflowState.ComputedWidth();
   aMetrics.Height() = aReflowState.ComputedHeight();
 

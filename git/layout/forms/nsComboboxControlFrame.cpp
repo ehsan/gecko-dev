@@ -416,9 +416,7 @@ nsComboboxControlFrame::ReflowDropdown(nsPresContext*  aPresContext,
   // XXXbz this will, for small-height dropdowns, have extra space on the right
   // edge for the scrollbar we don't show... but that's the best we can do here
   // for now.
-  WritingMode wm = mDropdownFrame->GetWritingMode();
-  LogicalSize availSize = aReflowState.AvailableSize(wm);
-  availSize.BSize(wm) = NS_UNCONSTRAINEDSIZE;
+  nsSize availSize(aReflowState.AvailableWidth(), NS_UNCONSTRAINEDSIZE);
   nsHTMLReflowState kidReflowState(aPresContext, aReflowState, mDropdownFrame,
                                    availSize);
 
@@ -693,8 +691,8 @@ static void printSize(char * aDesc, nscoord aSize)
 //-------------------------------------------------------------------
 
 nscoord
-nsComboboxControlFrame::GetIntrinsicISize(nsRenderingContext* aRenderingContext,
-                                          nsLayoutUtils::IntrinsicISizeType aType)
+nsComboboxControlFrame::GetIntrinsicWidth(nsRenderingContext* aRenderingContext,
+                                          nsLayoutUtils::IntrinsicWidthType aType)
 {
   // get the scrollbar width, we'll use this later
   nscoord scrollbarWidth = 0;
@@ -717,14 +715,14 @@ nsComboboxControlFrame::GetIntrinsicISize(nsRenderingContext* aRenderingContext,
     nscoord dropdownContentWidth;
     bool isUsingOverlayScrollbars =
       LookAndFeel::GetInt(LookAndFeel::eIntID_UseOverlayScrollbars) != 0;
-    if (aType == nsLayoutUtils::MIN_ISIZE) {
-      dropdownContentWidth = mDropdownFrame->GetMinISize(aRenderingContext);
+    if (aType == nsLayoutUtils::MIN_WIDTH) {
+      dropdownContentWidth = mDropdownFrame->GetMinWidth(aRenderingContext);
       if (isUsingOverlayScrollbars) {
         dropdownContentWidth += scrollbarWidth;
       }
     } else {
-      NS_ASSERTION(aType == nsLayoutUtils::PREF_ISIZE, "Unexpected type");
-      dropdownContentWidth = mDropdownFrame->GetPrefISize(aRenderingContext);
+      NS_ASSERTION(aType == nsLayoutUtils::PREF_WIDTH, "Unexpected type");
+      dropdownContentWidth = mDropdownFrame->GetPrefWidth(aRenderingContext);
       if (isUsingOverlayScrollbars) {
         dropdownContentWidth += scrollbarWidth;
       }
@@ -745,20 +743,20 @@ nsComboboxControlFrame::GetIntrinsicISize(nsRenderingContext* aRenderingContext,
 }
 
 nscoord
-nsComboboxControlFrame::GetMinISize(nsRenderingContext *aRenderingContext)
+nsComboboxControlFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 {
   nscoord minWidth;
   DISPLAY_MIN_WIDTH(this, minWidth);
-  minWidth = GetIntrinsicISize(aRenderingContext, nsLayoutUtils::MIN_ISIZE);
+  minWidth = GetIntrinsicWidth(aRenderingContext, nsLayoutUtils::MIN_WIDTH);
   return minWidth;
 }
 
 nscoord
-nsComboboxControlFrame::GetPrefISize(nsRenderingContext *aRenderingContext)
+nsComboboxControlFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
 {
   nscoord prefWidth;
   DISPLAY_PREF_WIDTH(this, prefWidth);
-  prefWidth = GetIntrinsicISize(aRenderingContext, nsLayoutUtils::PREF_ISIZE);
+  prefWidth = GetIntrinsicWidth(aRenderingContext, nsLayoutUtils::PREF_WIDTH);
   return prefWidth;
 }
 

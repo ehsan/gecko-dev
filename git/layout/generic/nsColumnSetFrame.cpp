@@ -341,11 +341,11 @@ static void MoveChildTo(nsIFrame* aParent, nsIFrame* aChild, nsPoint aOrigin) {
 }
 
 nscoord
-nsColumnSetFrame::GetMinISize(nsRenderingContext *aRenderingContext) {
+nsColumnSetFrame::GetMinWidth(nsRenderingContext *aRenderingContext) {
   nscoord width = 0;
   DISPLAY_MIN_WIDTH(this, width);
   if (mFrames.FirstChild()) {
-    width = mFrames.FirstChild()->GetMinISize(aRenderingContext);
+    width = mFrames.FirstChild()->GetMinWidth(aRenderingContext);
   }
   const nsStyleColumn* colStyle = StyleColumn();
   nscoord colWidth;
@@ -372,7 +372,7 @@ nsColumnSetFrame::GetMinISize(nsRenderingContext *aRenderingContext) {
 }
 
 nscoord
-nsColumnSetFrame::GetPrefISize(nsRenderingContext *aRenderingContext) {
+nsColumnSetFrame::GetPrefWidth(nsRenderingContext *aRenderingContext) {
   // Our preferred width is our desired column width, if specified, otherwise
   // the child's preferred width, times the number of columns, plus the width
   // of any required column gaps
@@ -386,7 +386,7 @@ nsColumnSetFrame::GetPrefISize(nsRenderingContext *aRenderingContext) {
   if (colStyle->mColumnWidth.GetUnit() == eStyleUnit_Coord) {
     colWidth = colStyle->mColumnWidth.GetCoordValue();
   } else if (mFrames.FirstChild()) {
-    colWidth = mFrames.FirstChild()->GetPrefISize(aRenderingContext);
+    colWidth = mFrames.FirstChild()->GetPrefWidth(aRenderingContext);
   } else {
     colWidth = 0;
   }
@@ -517,20 +517,18 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
              columnCount, (void*)child, skipIncremental, skipResizeHeightShrink, aStatus);
 #endif
     } else {
-      nsSize physicalSize(aConfig.mColWidth, aConfig.mColMaxHeight);
-
+      nsSize availSize(aConfig.mColWidth, aConfig.mColMaxHeight);
+      
       if (aUnboundedLastColumn && columnCount == aConfig.mBalanceColCount - 1) {
-        physicalSize.height = GetAvailableContentHeight(aReflowState);
+        availSize.height = GetAvailableContentHeight(aReflowState);
       }
-      LogicalSize availSize(wm, physicalSize);
-      LogicalSize computedSize = aReflowState.ComputedSize(wm);
 
       if (reflowNext)
         child->AddStateBits(NS_FRAME_IS_DIRTY);
 
       nsHTMLReflowState kidReflowState(PresContext(), aReflowState, child,
-                                       availSize, availSize.ISize(wm),
-                                       computedSize.BSize(wm));
+                                       availSize, availSize.width,
+                                       aReflowState.ComputedHeight());
       kidReflowState.mFlags.mIsTopOfPage = true;
       kidReflowState.mFlags.mTableIsSplittable = false;
       kidReflowState.mFlags.mIsColumnBalancing = aConfig.mBalanceColCount < INT32_MAX;
@@ -541,7 +539,7 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
 
 #ifdef DEBUG_roc
       printf("*** Reflowing child #%d %p: availHeight=%d\n",
-             columnCount, (void*)child,availSize.BSize(wm));
+             columnCount, (void*)child,availSize.height);
 #endif
 
       // Note if the column's next in flow is not being changed by this incremental reflow.
@@ -551,7 +549,7 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
         !(child->GetNextSibling()->GetStateBits() & NS_FRAME_IS_DIRTY)) {
         kidReflowState.mFlags.mNextInFlowUntouched = true;
       }
-
+    
       nsHTMLReflowMetrics kidDesiredSize(wm, aDesiredSize.mFlags);
 
       // XXX it would be cool to consult the float manager for the
@@ -586,7 +584,7 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
       if (childContentBEnd > aConfig.mColMaxHeight) {
         allFit = false;
       }
-      if (childContentBEnd > availSize.BSize(wm)) {
+      if (childContentBEnd > availSize.height) {
         aColData.mMaxOverflowingHeight = std::max(childContentBEnd,
             aColData.mMaxOverflowingHeight);
       }
@@ -712,18 +710,16 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
   
   // contentRect included the borderPadding.left,borderPadding.top of the child rects
   contentRect -= nsPoint(borderPadding.left, borderPadding.top);
-
-  WritingMode wm = aReflowState.GetWritingMode();
-  LogicalSize contentSize(wm, nsSize(contentRect.XMost(), contentRect.YMost()));
+  
+  nsSize contentSize = nsSize(contentRect.XMost(), contentRect.YMost());
 
   // Apply computed and min/max values
-  // (aConfig members need to be converted from Width/Height to ISize/BSize)
   if (aConfig.mComputedHeight != NS_INTRINSICSIZE) {
     if (aReflowState.AvailableHeight() != NS_INTRINSICSIZE) {
-      contentSize.BSize(wm) = std::min(contentSize.BSize(wm),
-                                       aConfig.mComputedHeight);
+      contentSize.height = std::min(contentSize.height,
+                                    aConfig.mComputedHeight);
     } else {
-      contentSize.BSize(wm) = aConfig.mComputedHeight;
+      contentSize.height = aConfig.mComputedHeight;
     }
   } else {
     // We add the "consumed" height back in so that we're applying
@@ -731,21 +727,19 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
     // after we've finished with the min/max calculation. This prevents us from
     // having a last continuation that is smaller than the min height. but which
     // has prev-in-flows, trigger a larger height than actually required.
-    contentSize.BSize(wm) =
-      aReflowState.ApplyMinMaxHeight(contentSize.BSize(wm),
-                                     aConfig.mConsumedHeight);
+    contentSize.height = aReflowState.ApplyMinMaxHeight(contentSize.height,
+                                                        aConfig.mConsumedHeight);
   }
-  if (aReflowState.ComputedISize() != NS_INTRINSICSIZE) {
-    contentSize.ISize(wm) = aReflowState.ComputedISize();
+  if (aReflowState.ComputedWidth() != NS_INTRINSICSIZE) {
+    contentSize.width = aReflowState.ComputedWidth();
   } else {
-    contentSize.ISize(wm) =
-      aReflowState.ApplyMinMaxWidth(contentSize.ISize(wm));
+    contentSize.width = aReflowState.ApplyMinMaxWidth(contentSize.width);
   }
 
-  LogicalMargin bp(wm, borderPadding);
-  contentSize.ISize(wm) += bp.IStartEnd(wm);
-  contentSize.BSize(wm) += bp.BStartEnd(wm);
-  aDesiredSize.SetSize(wm, contentSize);
+  aDesiredSize.Height() = contentSize.height +
+                        borderPadding.TopBottom();
+  aDesiredSize.Width() = contentSize.width +
+                       borderPadding.LeftRight();
   aDesiredSize.mOverflowAreas = overflowRects;
   aDesiredSize.UnionOverflowAreasWithDesiredBounds();
 

@@ -38,7 +38,6 @@ using namespace mozilla;
 
 nsTableCellFrame::nsTableCellFrame(nsStyleContext* aContext) :
   nsContainerFrame(aContext)
-  , mDesiredSize(GetWritingMode())
 {
   mColIndex = 0;
   mPriorAvailWidth = 0;
@@ -622,9 +621,9 @@ void nsTableCellFrame::VerticallyAlignChild(nscoord aMaxAscent)
   }
 
   firstKid->SetPosition(nsPoint(kidRect.x, kidYTop));
-  WritingMode wm = GetWritingMode();
-  nsHTMLReflowMetrics desiredSize(wm);
-  desiredSize.SetSize(wm, GetLogicalSize(wm));
+  nsHTMLReflowMetrics desiredSize(GetWritingMode()); // ???
+  desiredSize.Width() = mRect.width;
+  desiredSize.Height() = mRect.height;
 
   nsRect overflow(nsPoint(0,0), GetSize());
   overflow.Inflate(GetBorderOverflow());
@@ -755,34 +754,34 @@ int32_t nsTableCellFrame::GetColSpan()
 }
 
 /* virtual */ nscoord
-nsTableCellFrame::GetMinISize(nsRenderingContext *aRenderingContext)
+nsTableCellFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 {
   nscoord result = 0;
   DISPLAY_MIN_WIDTH(this, result);
 
   nsIFrame *inner = mFrames.FirstChild();
   result = nsLayoutUtils::IntrinsicForContainer(aRenderingContext, inner,
-                                                    nsLayoutUtils::MIN_ISIZE);
+                                                    nsLayoutUtils::MIN_WIDTH);
   return result;
 }
 
 /* virtual */ nscoord
-nsTableCellFrame::GetPrefISize(nsRenderingContext *aRenderingContext)
+nsTableCellFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
 {
   nscoord result = 0;
   DISPLAY_PREF_WIDTH(this, result);
 
   nsIFrame *inner = mFrames.FirstChild();
   result = nsLayoutUtils::IntrinsicForContainer(aRenderingContext, inner,
-                                                nsLayoutUtils::PREF_ISIZE);
+                                                nsLayoutUtils::PREF_WIDTH);
   return result;
 }
 
-/* virtual */ nsIFrame::IntrinsicISizeOffsetData
-nsTableCellFrame::IntrinsicISizeOffsets(nsRenderingContext* aRenderingContext)
+/* virtual */ nsIFrame::IntrinsicWidthOffsetData
+nsTableCellFrame::IntrinsicWidthOffsets(nsRenderingContext* aRenderingContext)
 {
-  IntrinsicISizeOffsetData result =
-    nsContainerFrame::IntrinsicISizeOffsets(aRenderingContext);
+  IntrinsicWidthOffsetData result =
+    nsContainerFrame::IntrinsicWidthOffsets(aRenderingContext);
 
   result.hMargin = 0;
   result.hPctMargin = 0;
@@ -801,10 +800,9 @@ void DebugCheckChildSize(nsIFrame*            aChild,
                          nsHTMLReflowMetrics& aMet,
                          nsSize&              aAvailSize)
 {
-  WritingMode wm = aMet.GetWritingMode();
-  if ((aMet.ISize(wm) < 0) || (aMet.ISize(wm) > PROBABLY_TOO_LARGE)) {
-    printf("WARNING: cell content %p has large inline size %d \n",
-           static_cast<void*>(aChild), int32_t(aMet.ISize(wm)));
+  if ((aMet.Width() < 0) || (aMet.Width() > PROBABLY_TOO_LARGE)) {
+    printf("WARNING: cell content %p has large width %d \n",
+           static_cast<void*>(aChild), int32_t(aMet.Width()));
   }
 }
 #endif
@@ -885,9 +883,8 @@ nsTableCellFrame::Reflow(nsPresContext*           aPresContext,
   if (availSize.height < 0)
     availSize.height = 1;
 
-  WritingMode wm = aReflowState.GetWritingMode();
-  nsHTMLReflowMetrics kidSize(wm, aDesiredSize.mFlags);
-  kidSize.ClearSize();
+  nsHTMLReflowMetrics kidSize(aReflowState.GetWritingMode(), aDesiredSize.mFlags);
+  kidSize.Width() = kidSize.Height() = 0;
   SetPriorAvailWidth(aReflowState.AvailableWidth());
   nsIFrame* firstKid = mFrames.FirstChild();
   NS_ASSERTION(firstKid, "Frame construction error, a table cell always has an inner cell frame");
@@ -911,8 +908,7 @@ nsTableCellFrame::Reflow(nsPresContext*           aPresContext,
   }
 
   nsHTMLReflowState kidReflowState(aPresContext, aReflowState, firstKid,
-                                   LogicalSize(firstKid->GetWritingMode(),
-                                               availSize));
+                                   availSize);
 
   // Don't be a percent height observer if we're in the middle of
   // special-height reflow, in case we get an accidental NotifyPercentHeight()
@@ -976,25 +972,23 @@ nsTableCellFrame::Reflow(nsPresContext*           aPresContext,
                                      firstReflow);
 
   // first, compute the height which can be set w/o being restricted by aMaxSize.height
-  LogicalSize cellSize(wm);
-  LogicalMargin logicalInsets(wm, nsMargin(topInset, rightInset,
-                                           bottomInset, leftInset));
-  cellSize.BSize(wm) = kidSize.BSize(wm);
+  nscoord cellHeight = kidSize.Height();
 
-  if (NS_UNCONSTRAINEDSIZE != cellSize.BSize(wm)) {
-    cellSize.BSize(wm) += logicalInsets.BStartEnd(wm);
+  if (NS_UNCONSTRAINEDSIZE != cellHeight) {
+    cellHeight += topInset + bottomInset;
   }
 
   // next determine the cell's width
-  cellSize.ISize(wm) = kidSize.ISize(wm);      // at this point, we've factored in the cell's style attributes
+  nscoord cellWidth = kidSize.Width();      // at this point, we've factored in the cell's style attributes
 
   // factor in border and padding
-  if (NS_UNCONSTRAINEDSIZE != cellSize.ISize(wm)) {
-    cellSize.ISize(wm) += logicalInsets.IStartEnd(wm);
+  if (NS_UNCONSTRAINEDSIZE != cellWidth) {
+    cellWidth += leftInset + rightInset;
   }
 
   // set the cell's desired size and max element size
-  aDesiredSize.SetSize(wm, cellSize);
+  aDesiredSize.Width() = cellWidth;
+  aDesiredSize.Height() = cellHeight;
 
   // the overflow area will be computed when the child will be vertically aligned
 

@@ -349,45 +349,41 @@ MP4Reader::Decode(TrackType aTrack)
       data.mMonitor.Unlock();
       nsAutoPtr<MP4Sample> compressed(PopSample(aTrack));
       if (!compressed) {
-        // EOS, or error. Send the decoder a signal to drain.
+        // EOS, or error. Let the state machine know there are no more
+        // frames coming.
         LOG("Draining %s", TrackTypeToStr(aTrack));
-        data.mMonitor.Lock();
-        data.mDrainComplete = false;
-        data.mMonitor.Unlock();
         data.mDecoder->Drain();
+        return false;
       } else {
 #ifdef LOG_SAMPLE_DECODE
         LOG("PopSample %s time=%lld dur=%lld", TrackTypeToStr(aTrack),
             compressed->composition_timestamp, compressed->duration);
 #endif
-        data.mMonitor.Lock();
-        data.mDrainComplete = false;
-        data.mInputExhausted = false;
-        data.mNumSamplesInput++;
-        data.mMonitor.Unlock();
-
-        if (NS_FAILED(data.mDecoder->Input(compressed))) {
-          return false;
-        }
-        // If Input() failed, we let the auto pointer delete |compressed|.
-        // Otherwise, we assume the decoder will delete it when it's finished
-        // with it.
-        compressed.forget();
       }
+      data.mMonitor.Lock();
+      data.mInputExhausted = false;
+      data.mNumSamplesInput++;
+      data.mMonitor.Unlock();
+
+      if (NS_FAILED(data.mDecoder->Input(compressed))) {
+        return false;
+      }
+      // If Input() failed, we let the auto pointer delete |compressed|.
+      // Otherwise, we assume the decoder will delete it when it's finished
+      // with it.
+      compressed.forget();
       data.mMonitor.Lock();
     }
     data.mMonitor.AssertCurrentThreadOwns();
     while (!data.mError &&
            prevNumFramesOutput == data.mNumSamplesOutput &&
-           !data.mInputExhausted &&
-           !data.mDrainComplete) {
+           !data.mInputExhausted ) {
       data.mMonitor.Wait();
     }
   }
   data.mMonitor.AssertCurrentThreadOwns();
-  bool drainComplete = data.mDrainComplete;
   data.mMonitor.Unlock();
-  return !drainComplete;
+  return true;
 }
 
 void
@@ -422,15 +418,6 @@ MP4Reader::Output(TrackType aTrack, MediaData* aSample)
   }
 
   data.mNumSamplesOutput++;
-  mon.NotifyAll();
-}
-
-void
-MP4Reader::DrainComplete(TrackType aTrack)
-{
-  DecoderData& data = GetDecoderData(aTrack);
-  MonitorAutoLock mon(data.mMonitor);
-  data.mDrainComplete = true;
   mon.NotifyAll();
 }
 

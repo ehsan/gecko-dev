@@ -231,10 +231,12 @@ JitRuntime::initialize(JSContext *cx)
         if (!bailoutHandler_)
             return false;
 
+#ifdef JS_THREADSAFE
         IonSpew(IonSpew_Codegen, "# Emitting parallel bailout handler");
         parallelBailoutHandler_ = generateBailoutHandler(cx, ParallelExecution);
         if (!parallelBailoutHandler_)
             return false;
+#endif
 
         IonSpew(IonSpew_Codegen, "# Emitting invalidator");
         invalidator_ = generateInvalidator(cx);
@@ -247,10 +249,12 @@ JitRuntime::initialize(JSContext *cx)
     if (!argumentsRectifier_)
         return false;
 
+#ifdef JS_THREADSAFE
     IonSpew(IonSpew_Codegen, "# Emitting parallel arguments rectifier");
     parallelArgumentsRectifier_ = generateArgumentsRectifier(cx, ParallelExecution, nullptr);
     if (!parallelArgumentsRectifier_)
         return false;
+#endif
 
     IonSpew(IonSpew_Codegen, "# Emitting EnterJIT sequence");
     enterJIT_ = generateEnterJIT(cx, EnterJitOptimized);
@@ -361,11 +365,13 @@ JitRuntime::handleAccessViolation(JSRuntime *rt, void *faultingAddress)
     if (!rt->signalHandlersInstalled() || !ionAlloc_ || !ionAlloc_->codeContains((char *) faultingAddress))
         return false;
 
+#ifdef JS_THREADSAFE
     // All places where the interrupt lock is taken must either ensure that Ion
     // code memory won't be accessed within, or call ensureIonCodeAccessible to
     // render the memory safe for accessing. Otherwise taking the lock below
     // will deadlock the process.
     JS_ASSERT(!rt->currentThreadOwnsInterruptLock());
+#endif
 
     // Taking this lock is necessary to prevent the interrupting thread from marking
     // the memory as inaccessible while we are patching backedges. This will cause us
@@ -503,11 +509,13 @@ JitCompartment::ensureIonStubsExist(JSContext *cx)
             return false;
     }
 
+#ifdef JS_THREADSAFE
     if (!parallelStringConcatStub_) {
         parallelStringConcatStub_ = generateStringConcatStub(cx, ParallelExecution);
         if (!parallelStringConcatStub_)
             return false;
     }
+#endif
 
     return true;
 }
@@ -569,6 +577,7 @@ jit::FinishOffThreadBuilder(IonBuilder *builder)
 static inline void
 FinishAllOffThreadCompilations(JSCompartment *comp)
 {
+#ifdef JS_THREADSAFE
     AutoLockHelperThreadState lock;
     GlobalHelperThreadState::IonBuilderVector &finished = HelperThreadState().ionFinishedList();
 
@@ -579,6 +588,7 @@ FinishAllOffThreadCompilations(JSCompartment *comp)
             HelperThreadState().remove(finished, &i);
         }
     }
+#endif
 }
 
 /* static */ void
@@ -1719,6 +1729,7 @@ CompileBackEnd(MIRGenerator *mir)
 void
 AttachFinishedCompilations(JSContext *cx)
 {
+#ifdef JS_THREADSAFE
     JitCompartment *ion = cx->compartment()->jitCompartment();
     if (!ion)
         return;
@@ -1777,6 +1788,7 @@ AttachFinishedCompilations(JSContext *cx)
 
         FinishOffThreadBuilder(builder);
     }
+#endif
 }
 
 static const size_t BUILDER_LIFO_ALLOC_PRIMARY_CHUNK_SIZE = 1 << 12;
@@ -1784,14 +1796,17 @@ static const size_t BUILDER_LIFO_ALLOC_PRIMARY_CHUNK_SIZE = 1 << 12;
 static inline bool
 OffThreadCompilationAvailable(JSContext *cx)
 {
+#ifdef JS_THREADSAFE
     // Even if off thread compilation is enabled, compilation must still occur
     // on the main thread in some cases.
     //
     // Require cpuCount > 1 so that Ion compilation jobs and main-thread
     // execution are not competing for the same resources.
     return cx->runtime()->canUseOffthreadIonCompilation()
-        && HelperThreadState().cpuCount > 1
-        && CanUseExtraThreads();
+        && HelperThreadState().cpuCount > 1;
+#else
+    return false;
+#endif
 }
 
 static void

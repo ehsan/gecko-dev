@@ -427,12 +427,10 @@ nsHTMLScrollFrame::ReflowScrolledFrame(ScrollReflowState* aState,
   nsPresContext* presContext = PresContext();
 
   // Pass false for aInit so we can pass in the correct padding.
-  nsHTMLReflowState
-    kidReflowState(presContext, aState->mReflowState,
-                   mHelper.mScrolledFrame,
-                   LogicalSize(mHelper.mScrolledFrame->GetWritingMode(),
-                               nsSize(availWidth, NS_UNCONSTRAINEDSIZE)),
-                   -1, -1, nsHTMLReflowState::CALLER_WILL_INIT);
+  nsHTMLReflowState kidReflowState(presContext, aState->mReflowState,
+                                   mHelper.mScrolledFrame,
+                                   nsSize(availWidth, NS_UNCONSTRAINEDSIZE),
+                                   -1, -1, nsHTMLReflowState::CALLER_WILL_INIT);
   kidReflowState.Init(presContext, -1, -1, nullptr,
                       &padding);
   kidReflowState.mFlags.mAssumingHScrollbar = aAssumeHScroll;
@@ -686,17 +684,17 @@ nsHTMLScrollFrame::GetIntrinsicVScrollbarWidth(nsRenderingContext *aRenderingCon
 }
 
 /* virtual */ nscoord
-nsHTMLScrollFrame::GetMinISize(nsRenderingContext *aRenderingContext)
+nsHTMLScrollFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 {
-  nscoord result = mHelper.mScrolledFrame->GetMinISize(aRenderingContext);
+  nscoord result = mHelper.mScrolledFrame->GetMinWidth(aRenderingContext);
   DISPLAY_MIN_WIDTH(this, result);
   return result + GetIntrinsicVScrollbarWidth(aRenderingContext);
 }
 
 /* virtual */ nscoord
-nsHTMLScrollFrame::GetPrefISize(nsRenderingContext *aRenderingContext)
+nsHTMLScrollFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
 {
-  nscoord result = mHelper.mScrolledFrame->GetPrefISize(aRenderingContext);
+  nscoord result = mHelper.mScrolledFrame->GetPrefWidth(aRenderingContext);
   DISPLAY_PREF_WIDTH(this, result);
   return NSCoordSaturatingAdd(result, GetIntrinsicVScrollbarWidth(aRenderingContext));
 }

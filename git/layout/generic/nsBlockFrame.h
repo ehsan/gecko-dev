@@ -224,12 +224,12 @@ public:
     return outside ? outside : GetInsideBullet();
   }
 
-  virtual void MarkIntrinsicISizesDirty() MOZ_OVERRIDE;
+  virtual void MarkIntrinsicWidthsDirty() MOZ_OVERRIDE;
 private:
   void CheckIntrinsicCacheAgainstShrinkWrapState();
 public:
-  virtual nscoord GetMinISize(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
-  virtual nscoord GetPrefISize(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
+  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
+  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
 
   virtual nsRect ComputeTightBounds(gfxContext* aContext) const MOZ_OVERRIDE;
 

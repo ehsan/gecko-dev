@@ -12,8 +12,6 @@
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
 
-using namespace mozilla;
-
 //----------------------------------------------------------------------
 
 // Frame class boilerplate
@@ -55,17 +53,14 @@ nsGridContainerFrame::Reflow(nsPresContext*           aPresContext,
   SanityCheckAnonymousGridItems();
 #endif // DEBUG
 
-  LogicalMargin bp = aReflowState.ComputedLogicalBorderPadding();
-  bp.ApplySkipSides(GetLogicalSkipSides());
-  nscoord contentBSize = GetEffectiveComputedBSize(aReflowState);
-  if (contentBSize == NS_AUTOHEIGHT) {
-    contentBSize = 0;
+  nsMargin bp = aReflowState.ComputedPhysicalBorderPadding();
+  bp.ApplySkipSides(GetSkipSides());
+  nscoord contentHeight = GetEffectiveComputedBSize(aReflowState);
+  if (contentHeight == NS_AUTOHEIGHT) {
+    contentHeight = 0;
   }
-  WritingMode wm = aReflowState.GetWritingMode();
-  LogicalSize finalSize(wm,
-                        aReflowState.ComputedISize() + bp.IStartEnd(wm),
-                        contentBSize + bp.BStartEnd(wm));
-  aDesiredSize.SetSize(wm, finalSize);
+  aDesiredSize.Width() = aReflowState.ComputedWidth() + bp.LeftRight();
+  aDesiredSize.Height() = contentHeight + bp.TopBottom();
   aDesiredSize.SetOverflowAreasToDesiredBounds();
   aStatus = NS_FRAME_COMPLETE;
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);

@@ -24,7 +24,7 @@ FAIL_ON_WARNINGS = True
 
 FINAL_LIBRARY = 'xul'
 LOCAL_INCLUDES += [
-    '/intl/locale',
+    '/intl/locale/src',
 ]
 
 GENERATED_FILES += [

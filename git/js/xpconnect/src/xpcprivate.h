@@ -2973,6 +2973,8 @@ xpc_PrintJSStack(JSContext* cx, bool showArgs, bool showLocals,
 extern bool
 xpc_DumpEvalInJSStackFrame(JSContext* cx, uint32_t frameno, const char* text);
 
+extern bool
+xpc_InstallJSDebuggerKeywordHandler(JSRuntime* rt);
 
 /***************************************************************************/
 

@@ -19,10 +19,13 @@
 #include "jsprf.h"
 
 #include "builtin/TypedObject.h"
-#include "jit/BaselineJIT.h"
-#include "vm/Monitor.h"
 
-#ifdef JS_ION
+#ifdef JS_THREADSAFE
+# include "jit/BaselineJIT.h"
+# include "vm/Monitor.h"
+#endif
+
+#if defined(JS_THREADSAFE) && defined(JS_ION)
 # include "jit/JitCommon.h"
 # include "jit/RematerializedFrame.h"
 # ifdef FORKJOIN_SPEW
@@ -31,7 +34,7 @@
 #  include "jit/MIR.h"
 #  include "jit/MIRGraph.h"
 # endif
-#endif // JS_ION
+#endif // THREADSAFE && ION
 
 #include "gc/ForkJoinNursery-inl.h"
 #include "vm/Interpreter-inl.h"
@@ -45,15 +48,17 @@ using mozilla::ThreadLocal;
 ///////////////////////////////////////////////////////////////////////////
 // Degenerate configurations
 //
-// When JS_ION is not defined, we simply run the |func| callback
-// sequentially.  We also forego the feedback altogether.
+// When JS_THREADSAFE or JS_ION is not defined, we simply run the
+// |func| callback sequentially.  We also forego the feedback
+// altogether.
 
 static bool
 ExecuteSequentially(JSContext *cx_, HandleValue funVal, uint16_t *sliceStart,
                     uint16_t sliceEnd);
 
-static bool
-ForkJoinSequentially(JSContext *cx, CallArgs &args)
+#if !defined(JS_THREADSAFE) || !defined(JS_ION)
+bool
+js::ForkJoin(JSContext *cx, CallArgs &args)
 {
     RootedValue argZero(cx, args[0]);
     uint16_t sliceStart = uint16_t(args[1].toInt32());
@@ -62,13 +67,6 @@ ForkJoinSequentially(JSContext *cx, CallArgs &args)
         return false;
     MOZ_ASSERT(sliceStart == sliceEnd);
     return true;
-}
-
-#if !defined(JS_ION)
-bool
-js::ForkJoin(JSContext *cx, CallArgs &args)
-{
-    return ForkJoinSequentially(cx, args);
 }
 
 JSContext *
@@ -172,7 +170,7 @@ intrinsic_ClearThreadLocalArenasPar(ForkJoinContext *cx, unsigned argc, Value *v
 JS_JITINFO_NATIVE_PARALLEL(js::intrinsic_ClearThreadLocalArenasInfo,
                            intrinsic_ClearThreadLocalArenasPar);
 
-#endif // !JS_ION
+#endif // !JS_THREADSAFE || !JS_ION
 
 ///////////////////////////////////////////////////////////////////////////
 // All configurations
@@ -213,10 +211,10 @@ ForkJoinContext::initializeTls()
 ///////////////////////////////////////////////////////////////////////////
 // Parallel configurations
 //
-// The remainder of this file is specific to cases where
-// JS_ION is enabled.
+// The remainder of this file is specific to cases where both
+// JS_THREADSAFE and JS_ION are enabled.
 
-#ifdef JS_ION
+#if defined(JS_THREADSAFE) && defined(JS_ION)
 
 ///////////////////////////////////////////////////////////////////////////
 // Class Declarations and Function Prototypes
@@ -504,9 +502,6 @@ js::ForkJoin(JSContext *cx, CallArgs &args)
     JS_ASSERT(args[3].isInt32());
     JS_ASSERT(args[3].toInt32() < NumForkJoinModes);
     JS_ASSERT(args[4].isObjectOrNull());
-
-    if (!CanUseExtraThreads())
-        return ForkJoinSequentially(cx, args);
 
     RootedFunction fun(cx, &args[0].toObject().as<JSFunction>());
     uint16_t sliceStart = (uint16_t)(args[1].toInt32());
@@ -2468,4 +2463,4 @@ intrinsic_ClearThreadLocalArenasPar(ForkJoinContext *cx, unsigned argc, Value *v
 JS_JITINFO_NATIVE_PARALLEL(js::intrinsic_ClearThreadLocalArenasInfo,
                            intrinsic_ClearThreadLocalArenasPar);
 
-#endif // JS_ION
+#endif // JS_THREADSAFE && JS_ION

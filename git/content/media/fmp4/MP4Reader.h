@@ -74,7 +74,6 @@ private:
   void Error(mp4_demuxer::TrackType aTrack);
   bool Decode(mp4_demuxer::TrackType aTrack);
   void Flush(mp4_demuxer::TrackType aTrack);
-  void DrainComplete(mp4_demuxer::TrackType aTrack);
 
   nsAutoPtr<mp4_demuxer::MP4Demuxer> mDemuxer;
   nsAutoPtr<PlatformDecoderModule> mPlatform;
@@ -96,9 +95,6 @@ private:
     virtual void Error() MOZ_OVERRIDE {
       mReader->Error(mType);
     }
-    virtual void DrainComplete() MOZ_OVERRIDE {
-      mReader->DrainComplete(mType);
-    }
   private:
     MP4Reader* mReader;
     mp4_demuxer::TrackType mType;
@@ -115,7 +111,6 @@ private:
       , mInputExhausted(false)
       , mError(false)
       , mIsFlushing(false)
-      , mDrainComplete(false)
     {
     }
 
@@ -137,7 +132,6 @@ private:
     bool mInputExhausted;
     bool mError;
     bool mIsFlushing;
-    bool mDrainComplete;
   };
   DecoderData mAudio;
   DecoderData mVideo;

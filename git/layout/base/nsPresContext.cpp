@@ -968,9 +968,10 @@ nsPresContext::Init(nsDeviceContext* aDeviceContext)
 
   mAnimationManager = new nsAnimationManager(this);
 
-  // Since CounterStyleManager is also the name of a method of
-  // nsPresContext, it is necessary to prefix the class with the mozilla
-  // namespace here.
+  // Since there are methods in nsPresContext have the same name as the
+  // classes, it is necessary to prefix them with the namespace here.
+  mRestyleManager = new mozilla::RestyleManager(this);
+
   mCounterStyleManager = new mozilla::CounterStyleManager(this);
 
   if (mDocument->GetDisplayDocument()) {
@@ -1016,13 +1017,9 @@ nsPresContext::Init(nsDeviceContext* aDeviceContext)
   }
 
   // Initialise refresh tick counters for OMTA
-  mLastStyleUpdateForAllAnimations = mRefreshDriver->MostRecentRefresh();
-
-  // Initialize restyle manager after initializing the refresh driver.
-  // Since RestyleManager is also the name of a method of nsPresContext,
-  // it is necessary to prefix the class with the mozilla namespace
-  // here.
-  mRestyleManager = new mozilla::RestyleManager(this);
+  mLastStyleUpdateForAllAnimations =
+    mLastUpdateThrottledAnimationStyle =
+    mLastUpdateThrottledTransitionStyle = mRefreshDriver->MostRecentRefresh();
 
   mLangService = do_GetService(NS_LANGUAGEATOMSERVICE_CONTRACTID);
 
@@ -1552,6 +1549,32 @@ nsPresContext::Detach()
   if (mShell) {
     mShell->CancelInvalidatePresShellIfHidden();
   }
+}
+
+bool
+nsPresContext::ThrottledTransitionStyleIsUpToDate() const
+{
+  return
+    mLastUpdateThrottledTransitionStyle == mRefreshDriver->MostRecentRefresh();
+}
+
+void
+nsPresContext::TickLastUpdateThrottledTransitionStyle()
+{
+  mLastUpdateThrottledTransitionStyle = mRefreshDriver->MostRecentRefresh();
+}
+
+bool
+nsPresContext::ThrottledAnimationStyleIsUpToDate() const
+{
+  return
+    mLastUpdateThrottledAnimationStyle == mRefreshDriver->MostRecentRefresh();
+}
+
+void
+nsPresContext::TickLastUpdateThrottledAnimationStyle()
+{
+  mLastUpdateThrottledAnimationStyle = mRefreshDriver->MostRecentRefresh();
 }
 
 bool

@@ -1170,13 +1170,13 @@ public:
    * 'min-width', and 'max-width' properties, and its padding, border,
    * and margin.
    */
-  enum IntrinsicISizeType { MIN_ISIZE, PREF_ISIZE };
+  enum IntrinsicWidthType { MIN_WIDTH, PREF_WIDTH };
   enum {
     IGNORE_PADDING = 0x01
   };
   static nscoord IntrinsicForContainer(nsRenderingContext* aRenderingContext,
                                        nsIFrame* aFrame,
-                                       IntrinsicISizeType aType,
+                                       IntrinsicWidthType aType,
                                        uint32_t aFlags = 0);
 
   /*
@@ -1292,12 +1292,12 @@ public:
                                                        nscoord maxWidth, nscoord maxHeight,
                                                        nscoord tentWidth, nscoord tentHeight);
 
-  // Implement nsIFrame::GetPrefISize in terms of nsIFrame::AddInlinePrefISize
-  static nscoord PrefISizeFromInline(nsIFrame* aFrame,
+  // Implement nsIFrame::GetPrefWidth in terms of nsIFrame::AddInlinePrefWidth
+  static nscoord PrefWidthFromInline(nsIFrame* aFrame,
                                      nsRenderingContext* aRenderingContext);
 
-  // Implement nsIFrame::GetMinISize in terms of nsIFrame::AddInlineMinISize
-  static nscoord MinISizeFromInline(nsIFrame* aFrame,
+  // Implement nsIFrame::GetMinWidth in terms of nsIFrame::AddInlineMinWidth
+  static nscoord MinWidthFromInline(nsIFrame* aFrame,
                                     nsRenderingContext* aRenderingContext);
 
   // Get a suitable foreground color for painting aProperty for aFrame.
@@ -2196,12 +2196,6 @@ public:
    * Currently we don't support APZ for the parent process on B2G.
    */
   static bool WantSubAPZC();
-
-  /**
-   * Returns true if we're using asynchronous scrolling (either through
-   * APZ or the android frontend).
-   */
-  static bool UsesAsyncScrolling();
 
   /**
    * Log a key/value pair for APZ testing during a paint.

@@ -25,19 +25,6 @@ DIBTextureClient::~DIBTextureClient()
   MOZ_COUNT_DTOR(DIBTextureClient);
 }
 
-TemporaryRef<TextureClient>
-DIBTextureClient::CreateSimilar(TextureFlags aFlags,
-                                  TextureAllocationFlags aAllocFlags) const
-{
-  RefPtr<TextureClient> tex = new DIBTextureClient(mFormat, mFlags | aFlags);
-
-  if (!tex->AllocateForSurface(mSize, ALLOC_DEFAULT)) {
-    return nullptr;
-  }
-
-  return tex;
-}
-
 bool
 DIBTextureClient::Lock(OpenMode)
 {

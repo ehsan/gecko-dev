@@ -93,7 +93,8 @@ nsTableColFrame::Reflow(nsPresContext*          aPresContext,
 {
   DO_GLOBAL_REFLOW_COUNT("nsTableColFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aDesiredSize, aStatus);
-  aDesiredSize.ClearSize();
+  aDesiredSize.Width() = 0;
+  aDesiredSize.Height() = 0;
   const nsStyleVisibility* colVis = StyleVisibility();
   bool collapseCol = (NS_STYLE_VISIBILITY_COLLAPSE == colVis->mVisible);
   if (collapseCol) {

@@ -85,49 +85,35 @@ log_levels = dict((k.upper(), v) for v, k in
                   enumerate(["critical", "error", "warning", "info", "debug"]))
 
 
-class LoggerState(object):
-    def __init__(self):
-        self.handlers = []
-        self.running_tests = set()
-        self.suite_started = False
-
 class StructuredLogger(object):
     _lock = Lock()
-    _logger_states = {}
+    _handlers = defaultdict(list)
     """Create a structured logger with the given name
 
     :param name: The name of the logger.
-    :param component: A subcomponent that the logger belongs to (typically a library name)
     """
 
     def __init__(self, name, component=None):
+        self._running_tests = set()
         self.name = name
         self.component = component
 
-        with self._lock:
-            if name not in self._logger_states:
-                self._logger_states[name] = LoggerState()
-
-    @property
-    def _state(self):
-        return self._logger_states[self.name]
-
     def add_handler(self, handler):
         """Add a handler to the current logger"""
-        self._state.handlers.append(handler)
+        self._handlers[self.name].append(handler)
 
     def remove_handler(self, handler):
         """Remove a handler from the current logger"""
-        for i, candidate_handler in enumerate(self._state.handlers[:]):
+        for i, candidate_handler in enumerate(self._handlers[self.name][:]):
             if candidate_handler == handler:
-                del self._state.handlers[i]
+                del self._handlers[self.name][i]
                 break
 
     @property
     def handlers(self):
         """A list of handlers that will be called when a
         message is logged from this logger"""
-        return self._state.handlers
+        return self._handlers[self.name]
 
     def log_raw(self, data):
         if "action" not in data:
@@ -163,28 +149,13 @@ class StructuredLogger(object):
 
         :param tests: List of test identifiers that will be run in the suite.
         """
-
         data = {"tests": tests}
         if run_info is not None:
             data["run_info"] = run_info
-
-        if self._state.suite_started:
-            self.error("Got second suite_start message before suite_end. Logged with data %s" %
-                       json.dumps(data))
-            return
-
-        self._state.suite_started = True
-
         self._log_data("suite_start", data)
 
     def suite_end(self):
         """Log a suite_end message"""
-        if not self._state.suite_started:
-            self.error("Got suite_end message before suite_start.")
-            return
-
-        self._state.suite_started = False
-
         self._log_data("suite_end")
 
     def test_start(self, test):
@@ -192,13 +163,10 @@ class StructuredLogger(object):
 
         :param test: Identifier of the test that will run.
         """
-        if not self._state.suite_started:
-            self.error("Got test_start message before suite_start for test %s" % (test,))
+        if test in self._running_tests:
+            self.error("test_start for %s logged while in progress." % test)
             return
-        if test in self._state.running_tests:
-            self.error("test_start for %s logged while in progress." % (test,))
-            return
-        self._state.running_tests.add(test)
+        self._running_tests.add(test)
         self._log_data("test_start", {"test": test})
 
     def test_status(self, test, subtest, status, expected="PASS", message=None,
@@ -229,7 +197,7 @@ class StructuredLogger(object):
         if extra is not None:
             data["extra"] = extra
 
-        if test not in self._state.running_tests:
+        if test not in self._running_tests:
             self.error("test_status for %s logged while not in progress. "
                        "Logged with data: %s" % (test, json.dumps(data)))
             return
@@ -265,11 +233,11 @@ class StructuredLogger(object):
         if extra is not None:
             data["extra"] = extra
 
-        if test not in self._state.running_tests:
+        if test not in self._running_tests:
             self.error("test_end for %s logged while not in progress. "
                        "Logged with data: %s" % (test, json.dumps(data)))
         else:
-            self._state.running_tests.remove(test)
+            self._running_tests.remove(test)
             self._log_data("test_end", data)
 
     def process_output(self, process, data, command=None):

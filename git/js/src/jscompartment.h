@@ -428,6 +428,7 @@ struct JSCompartment
                            js::AutoDebugModeInvalidation &invalidate);
 
     void clearBreakpointsIn(js::FreeOp *fop, js::Debugger *dbg, JS::HandleObject handler);
+    void clearTraps(js::FreeOp *fop);
 
   private:
     void sweepBreakpoints(js::FreeOp *fop);

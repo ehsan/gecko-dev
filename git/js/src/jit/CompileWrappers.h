@@ -53,7 +53,10 @@ class CompileRuntime
 #endif
 
     const void *addressOfInterrupt();
+
+#ifdef JS_THREADSAFE
     const void *addressOfInterruptPar();
+#endif
 
     const void *addressOfThreadPool();
 

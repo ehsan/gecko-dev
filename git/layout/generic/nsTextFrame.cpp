@@ -2709,7 +2709,8 @@ static bool IsJustifiableCharacter(const nsTextFragment* aFrag, int32_t aPos,
 void
 nsTextFrame::ClearMetrics(nsHTMLReflowMetrics& aMetrics)
 {
-  aMetrics.ClearSize();
+  aMetrics.Width() = 0;
+  aMetrics.Height() = 0;
   aMetrics.SetBlockStartAscent(0);
   mAscent = 0;
 }
@@ -3944,10 +3945,10 @@ public:
   virtual nsIFrame* FirstInFlow() const MOZ_OVERRIDE;
   virtual nsIFrame* FirstContinuation() const MOZ_OVERRIDE;
 
-  virtual void AddInlineMinISize(nsRenderingContext *aRenderingContext,
-                                 InlineMinISizeData *aData) MOZ_OVERRIDE;
-  virtual void AddInlinePrefISize(nsRenderingContext *aRenderingContext,
-                                  InlinePrefISizeData *aData) MOZ_OVERRIDE;
+  virtual void AddInlineMinWidth(nsRenderingContext *aRenderingContext,
+                                 InlineMinWidthData *aData) MOZ_OVERRIDE;
+  virtual void AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
+                                  InlinePrefWidthData *aData) MOZ_OVERRIDE;
   
   virtual nsresult GetRenderedText(nsAString* aString = nullptr,
                                    gfxSkipChars* aSkipChars = nullptr,
@@ -4101,29 +4102,29 @@ nsContinuingTextFrame::FirstContinuation() const
 
 // Needed for text frames in XUL.
 /* virtual */ nscoord
-nsTextFrame::GetMinISize(nsRenderingContext *aRenderingContext)
+nsTextFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 {
-  return nsLayoutUtils::MinISizeFromInline(this, aRenderingContext);
+  return nsLayoutUtils::MinWidthFromInline(this, aRenderingContext);
 }
 
 // Needed for text frames in XUL.
 /* virtual */ nscoord
-nsTextFrame::GetPrefISize(nsRenderingContext *aRenderingContext)
+nsTextFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
 {
-  return nsLayoutUtils::PrefISizeFromInline(this, aRenderingContext);
+  return nsLayoutUtils::PrefWidthFromInline(this, aRenderingContext);
 }
 
 /* virtual */ void
-nsContinuingTextFrame::AddInlineMinISize(nsRenderingContext *aRenderingContext,
-                                         InlineMinISizeData *aData)
+nsContinuingTextFrame::AddInlineMinWidth(nsRenderingContext *aRenderingContext,
+                                         InlineMinWidthData *aData)
 {
   // Do nothing, since the first-in-flow accounts for everything.
   return;
 }
 
 /* virtual */ void
-nsContinuingTextFrame::AddInlinePrefISize(nsRenderingContext *aRenderingContext,
-                                          InlinePrefISizeData *aData)
+nsContinuingTextFrame::AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
+                                          InlinePrefWidthData *aData)
 {
   // Do nothing, since the first-in-flow accounts for everything.
   return;
@@ -6948,7 +6949,7 @@ FindFirstLetterRange(const nsTextFragment* aFrag,
 
 static uint32_t
 FindStartAfterSkippingWhitespace(PropertyProvider* aProvider,
-                                 nsIFrame::InlineIntrinsicISizeData* aData,
+                                 nsIFrame::InlineIntrinsicWidthData* aData,
                                  const nsStyleText* aTextStyle,
                                  gfxSkipCharsIterator* aIterator,
                                  uint32_t aFlowEndInTextRun)
@@ -6998,17 +6999,17 @@ nsTextFrame::SetFontSizeInflation(float aInflation)
 }
 
 /* virtual */ 
-void nsTextFrame::MarkIntrinsicISizesDirty()
+void nsTextFrame::MarkIntrinsicWidthsDirty()
 {
   ClearTextRuns();
-  nsFrame::MarkIntrinsicISizesDirty();
+  nsFrame::MarkIntrinsicWidthsDirty();
 }
 
 // XXX this doesn't handle characters shaped by line endings. We need to
 // temporarily override the "current line ending" settings.
 void
-nsTextFrame::AddInlineMinISizeForFlow(nsRenderingContext *aRenderingContext,
-                                      nsIFrame::InlineMinISizeData *aData,
+nsTextFrame::AddInlineMinWidthForFlow(nsRenderingContext *aRenderingContext,
+                                      nsIFrame::InlineMinWidthData *aData,
                                       TextRunType aTextRunType)
 {
   uint32_t flowEndInTextRun;
@@ -7140,8 +7141,8 @@ bool nsTextFrame::IsCurrentFontInflation(float aInflation) const {
 // XXX Need to do something here to avoid incremental reflow bugs due to
 // first-line and first-letter changing min-width
 /* virtual */ void
-nsTextFrame::AddInlineMinISize(nsRenderingContext *aRenderingContext,
-                               nsIFrame::InlineMinISizeData *aData)
+nsTextFrame::AddInlineMinWidth(nsRenderingContext *aRenderingContext,
+                               nsIFrame::InlineMinWidthData *aData)
 {
   float inflation = nsLayoutUtils::FontSizeInflationFor(this);
   TextRunType trtype = (inflation == 1.0f) ? eNotInflated : eInflated;
@@ -7154,7 +7155,7 @@ nsTextFrame::AddInlineMinISize(nsRenderingContext *aRenderingContext,
 
   nsTextFrame* f;
   gfxTextRun* lastTextRun = nullptr;
-  // nsContinuingTextFrame does nothing for AddInlineMinISize; all text frames
+  // nsContinuingTextFrame does nothing for AddInlineMinWidth; all text frames
   // in the flow are handled right here.
   for (f = this; f; f = static_cast<nsTextFrame*>(f->GetNextContinuation())) {
     // f->GetTextRun(nsTextFrame::eNotInflated) could be null if we
@@ -7164,14 +7165,14 @@ nsTextFrame::AddInlineMinISize(nsRenderingContext *aRenderingContext,
       nsIFrame* lc;
       if (aData->lineContainer &&
           aData->lineContainer != (lc = FindLineContainer(f))) {
-        NS_ASSERTION(f != this, "wrong InlineMinISizeData container"
+        NS_ASSERTION(f != this, "wrong InlineMinWidthData container"
                                 " for first continuation");
         aData->line = nullptr;
         aData->lineContainer = lc;
       }
 
       // This will process all the text frames that share the same textrun as f.
-      f->AddInlineMinISizeForFlow(aRenderingContext, aData, trtype);
+      f->AddInlineMinWidthForFlow(aRenderingContext, aData, trtype);
       lastTextRun = f->GetTextRun(trtype);
     }
   }
@@ -7180,8 +7181,8 @@ nsTextFrame::AddInlineMinISize(nsRenderingContext *aRenderingContext,
 // XXX this doesn't handle characters shaped by line endings. We need to
 // temporarily override the "current line ending" settings.
 void
-nsTextFrame::AddInlinePrefISizeForFlow(nsRenderingContext *aRenderingContext,
-                                       nsIFrame::InlinePrefISizeData *aData,
+nsTextFrame::AddInlinePrefWidthForFlow(nsRenderingContext *aRenderingContext,
+                                       nsIFrame::InlinePrefWidthData *aData,
                                        TextRunType aTextRunType)
 {
   uint32_t flowEndInTextRun;
@@ -7277,8 +7278,8 @@ nsTextFrame::AddInlinePrefISizeForFlow(nsRenderingContext *aRenderingContext,
 // XXX Need to do something here to avoid incremental reflow bugs due to
 // first-line and first-letter changing pref-width
 /* virtual */ void
-nsTextFrame::AddInlinePrefISize(nsRenderingContext *aRenderingContext,
-                                nsIFrame::InlinePrefISizeData *aData)
+nsTextFrame::AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
+                                nsIFrame::InlinePrefWidthData *aData)
 {
   float inflation = nsLayoutUtils::FontSizeInflationFor(this);
   TextRunType trtype = (inflation == 1.0f) ? eNotInflated : eInflated;
@@ -7291,7 +7292,7 @@ nsTextFrame::AddInlinePrefISize(nsRenderingContext *aRenderingContext,
 
   nsTextFrame* f;
   gfxTextRun* lastTextRun = nullptr;
-  // nsContinuingTextFrame does nothing for AddInlineMinISize; all text frames
+  // nsContinuingTextFrame does nothing for AddInlineMinWidth; all text frames
   // in the flow are handled right here.
   for (f = this; f; f = static_cast<nsTextFrame*>(f->GetNextContinuation())) {
     // f->GetTextRun(nsTextFrame::eNotInflated) could be null if we
@@ -7301,14 +7302,14 @@ nsTextFrame::AddInlinePrefISize(nsRenderingContext *aRenderingContext,
       nsIFrame* lc;
       if (aData->lineContainer &&
           aData->lineContainer != (lc = FindLineContainer(f))) {
-        NS_ASSERTION(f != this, "wrong InlinePrefISizeData container"
+        NS_ASSERTION(f != this, "wrong InlinePrefWidthData container"
                                 " for first continuation");
         aData->line = nullptr;
         aData->lineContainer = lc;
       }
 
       // This will process all the text frames that share the same textrun as f.
-      f->AddInlinePrefISizeForFlow(aRenderingContext, aData, trtype);
+      f->AddInlinePrefWidthForFlow(aRenderingContext, aData, trtype);
       lastTextRun = f->GetTextRun(trtype);
     }
   }
@@ -8030,18 +8031,15 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
 
   // Setup metrics for caller
   // Disallow negative widths
-  WritingMode wm = GetWritingMode();
-  LogicalSize finalSize(wm);
-  finalSize.ISize(wm) = NSToCoordCeil(std::max(gfxFloat(0.0),
-                                               textMetrics.mAdvanceWidth));
+  aMetrics.Width() = NSToCoordCeil(std::max(gfxFloat(0.0), textMetrics.mAdvanceWidth));
 
   if (transformedCharsFit == 0 && !usedHyphenation) {
     aMetrics.SetBlockStartAscent(0);
-    finalSize.BSize(wm) = 0;
+    aMetrics.Height() = 0;
   } else if (boundingBoxType != gfxFont::LOOSE_INK_EXTENTS) {
     // Use actual text metrics for floating first letter frame.
     aMetrics.SetBlockStartAscent(NSToCoordCeil(textMetrics.mAscent));
-    finalSize.BSize(wm) = aMetrics.BlockStartAscent() +
+    aMetrics.Height() = aMetrics.BlockStartAscent() +
       NSToCoordCeil(textMetrics.mDescent);
   } else {
     // Otherwise, ascent should contain the overline drawable area.
@@ -8052,14 +8050,12 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
     nscoord fontDescent = fm->MaxDescent();
     aMetrics.SetBlockStartAscent(std::max(NSToCoordCeil(textMetrics.mAscent), fontAscent));
     nscoord descent = std::max(NSToCoordCeil(textMetrics.mDescent), fontDescent);
-    finalSize.BSize(wm) = aMetrics.BlockStartAscent() + descent;
+    aMetrics.Height() = aMetrics.BlockStartAscent() + descent;
   }
-  aMetrics.SetSize(wm, finalSize);
 
   NS_ASSERTION(aMetrics.BlockStartAscent() >= 0,
                "Negative ascent???");
-  NS_ASSERTION(aMetrics.BSize(aMetrics.GetWritingMode()) -
-               aMetrics.BlockStartAscent() >= 0,
+  NS_ASSERTION(aMetrics.Height() - aMetrics.BlockStartAscent() >= 0,
                "Negative descent???");
 
   mAscent = aMetrics.BlockStartAscent();

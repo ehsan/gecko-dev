@@ -3355,8 +3355,7 @@ CSSParserImpl::ParseMozDocumentRule(RuleAppendFunc aAppendFunc, void* aData)
       }
 
       NS_ASSERTION(!mHavePushBack, "mustn't have pushback at this point");
-      mScanner->NextURL(mToken);
-      if (mToken.mType != eCSSToken_URL) {
+      if (!mScanner->NextURL(mToken) || mToken.mType != eCSSToken_URL) {
         REPORT_UNEXPECTED_TOKEN(PEMozDocRuleNotURI);
         SkipUntil(')');
         delete urls;

@@ -216,10 +216,10 @@ class TextOverflow {
       mHasOverflow = false;
     }
 
-    // The current width of the marker, the range is [0 .. mIntrinsicISize].
+    // The current width of the marker, the range is [0 .. mIntrinsicWidth].
     nscoord                        mWidth;
     // The intrinsic width of the marker.
-    nscoord                        mIntrinsicISize;
+    nscoord                        mIntrinsicWidth;
     // The style for this side.
     const nsStyleTextOverflowSide* mStyle;
     // True if there is visible overflowing inline content on this side.
