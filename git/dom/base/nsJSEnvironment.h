@@ -82,6 +82,9 @@ public:
   virtual nsresult Deserialize(nsIObjectInputStream* aStream,
                                JS::MutableHandle<JSScript*> aResult) MOZ_OVERRIDE;
 
+  virtual void EnterModalState() MOZ_OVERRIDE;
+  virtual void LeaveModalState() MOZ_OVERRIDE;
+
   NS_DECL_NSIXPCSCRIPTNOTIFY
 
   static void LoadStart();

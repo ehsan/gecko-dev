@@ -5419,17 +5419,17 @@ JS_New(JSContext *cx, JSObject *ctorArg, unsigned argc, jsval *argv)
 }
 
 JS_PUBLIC_API(JSOperationCallback)
-JS_SetOperationCallback(JSRuntime *rt, JSOperationCallback callback)
+JS_SetOperationCallback(JSContext *cx, JSOperationCallback callback)
 {
-    JSOperationCallback old = rt->operationCallback;
-    rt->operationCallback = callback;
+    JSOperationCallback old = cx->operationCallback;
+    cx->operationCallback = callback;
     return old;
 }
 
 JS_PUBLIC_API(JSOperationCallback)
-JS_GetOperationCallback(JSRuntime *rt)
+JS_GetOperationCallback(JSContext *cx)
 {
-    return rt->operationCallback;
+    return cx->operationCallback;
 }
 
 JS_PUBLIC_API(void)

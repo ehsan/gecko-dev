@@ -152,10 +152,11 @@ InternalPrompt.prototype = {
    * for a response
    */
   showPrompt: function showPrompt(aPrompt) {
+    let callerWin;
     if (this._domWin) {
       PromptUtils.fireDialogEvent(this._domWin, "DOMWillOpenModalDialog");
       let winUtils = this._domWin.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-      winUtils.enterModalState();
+      callerWin = winUtils.enterModalStateWithWindow();
     }
 
     let retval = null;
@@ -170,7 +171,7 @@ InternalPrompt.prototype = {
 
     if (this._domWin) {
       let winUtils = this._domWin.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-      winUtils.leaveModalState();
+      winUtils.leaveModalStateWithWindow(callerWin);
       PromptUtils.fireDialogEvent(this._domWin, "DOMModalDialogClosed");
     }
 
