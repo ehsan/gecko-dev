@@ -93,7 +93,7 @@ this.PlacesUIUtils = {
    * Makes a URI from a spec, and do fixup
    * @param   aSpec
    *          The string spec of the URI
-   * @return A URI object for the spec.
+   * @returns A URI object for the spec.
    */
   createFixedURI: function PUIU_createFixedURI(aSpec) {
     return URIFixup.createFixupURI(aSpec, Ci.nsIURIFixup.FIXUP_FLAG_NONE);
@@ -335,8 +335,8 @@ this.PlacesUIUtils = {
    *          The index within the container the item was dropped or pasted at
    * @param   copy
    *          The drag action was copy, so don't move folders or links.
-   * @return An object implementing nsITransaction that can perform
-   *         the move/insert.
+   * @returns An object implementing nsITransaction that can perform
+   *          the move/insert.
    */
   makeTransaction:
   function PUIU_makeTransaction(data, type, container, index, copy)
@@ -387,19 +387,19 @@ this.PlacesUIUtils = {
    * Constructs a Places Transaction for the drop or paste of a blob of data
    * into a container.
    *
-   * @param   aData
-   *          The unwrapped data blob of dropped or pasted data.
-   * @param   aType
-   *          The content type of the data.
-   * @param   aNewParentGuid
-   *          GUID of the container the data was dropped or pasted into.
-   * @param   aIndex
-   *          The index within the container the item was dropped or pasted at.
-   * @param   aCopy
-   *          The drag action was copy, so don't move folders or links.
+   * @param aData
+   *        The unwrapped data blob of dropped or pasted data.
+   * @param aType
+   *        The content type of the data.
+   * @param aNewParentGuid
+   *        GUID of the container the data was dropped or pasted into.
+   * @param aIndex
+   *        The index within the container the item was dropped or pasted at.
+   * @param aCopy
+   *        The drag action was copy, so don't move folders or links.
    *
-   * @return  a Places Transaction that can be transacted for performing the
-   *          move/insert command.
+   * @returns a Places Transaction that can be passed to
+   *          PlacesTranactions.transact for performing the move/insert command.
    */
   getTransactionForData: function(aData, aType, aNewParentGuid, aIndex, aCopy) {
     if (this.SUPPORTED_FLAVORS.indexOf(aData.type) == -1)
@@ -570,8 +570,8 @@ this.PlacesUIUtils = {
    * element.
    * @param   doc
    *          A DOM Document to get a description for
-   * @return A description string if a META element was discovered with a
-   *         "description" or "httpequiv" attribute, empty string otherwise.
+   * @returns A description string if a META element was discovered with a
+   *          "description" or "httpequiv" attribute, empty string otherwise.
    */
   getDescriptionFromDocument: function PUIU_getDescriptionFromDocument(doc) {
     var metaElements = doc.getElementsByTagName("META");
@@ -588,7 +588,7 @@ this.PlacesUIUtils = {
    * Retrieve the description of an item
    * @param aItemId
    *        item identifier
-   * @return the description of the given item, or an empty string if it is
+   * @returns the description of the given item, or an empty string if it is
    * not set.
    */
   getItemDescription: function PUIU_getItemDescription(aItemId) {
@@ -1163,7 +1163,7 @@ this.PlacesUIUtils = {
    * or an empty string if not.
    *
    * @param aItemId id of a container
-   * @return the name of the query, or empty string if not a left-pane query
+   * @returns the name of the query, or empty string if not a left-pane query
    */
   getLeftPaneQueryNameFromId: function PUIU_getLeftPaneQueryNameFromId(aItemId) {
     var queryName = "";
@@ -1334,7 +1334,7 @@ XPCOMUtils.defineLazyGetter(PlacesUIUtils, "ptm", function() {
      *        id of the bookmark where to set Load-in-sidebar annotation.
      * @param aLoadInSidebar
      *        boolean value.
-     * @return nsITransaction object.
+     * @returns nsITransaction object.
      */
     setLoadInSidebar: function(aItemId, aLoadInSidebar)
     {
@@ -1353,7 +1353,7 @@ XPCOMUtils.defineLazyGetter(PlacesUIUtils, "ptm", function() {
     *        id of the item to edit.
     * @param aDescription
     *        new description.
-    * @return nsITransaction object.
+    * @returns nsITransaction object.
     */
     editItemDescription: function(aItemId, aDescription)
     {

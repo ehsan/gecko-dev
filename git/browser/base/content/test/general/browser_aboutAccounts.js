@@ -183,7 +183,7 @@ let gTests = [
   },
 },
 {
-  desc: "Test with migrateToDevEdition enabled (success)",
+  desc: "Test action=migrateToDevEdition (success)",
   teardown: function* () {
     gBrowser.removeCurrentTab();
     yield signOut();
@@ -225,7 +225,7 @@ let gTests = [
 
     let mm = tab.linkedBrowser.messageManager;
     mm.sendAsyncMessage("test:load-with-mocked-profile-path", {
-      url: "about:accounts",
+      url: "about:accounts?action=migrateToDevEdition",
       profilePath: mockDir.path,
     });
 
@@ -244,7 +244,7 @@ let gTests = [
   },
 },
 {
-  desc: "Test with migrateToDevEdition enabled (no user to migrate)",
+  desc: "Test action=migrateToDevEdition (no user to migrate)",
   teardown: function* () {
     gBrowser.removeCurrentTab();
     yield signOut();
@@ -266,7 +266,7 @@ let gTests = [
 
     let mm = tab.linkedBrowser.messageManager;
     mm.sendAsyncMessage("test:load-with-mocked-profile-path", {
-      url: "about:accounts",
+      url: "about:accounts?action=migrateToDevEdition",
       profilePath: mockDir.path,
     });
 

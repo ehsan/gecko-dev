@@ -359,8 +359,10 @@ ArgSetter(JSContext *cx, HandleObject obj, HandleId id, bool strict, MutableHand
 }
 
 static bool
-args_resolve(JSContext *cx, HandleObject obj, HandleId id, bool *resolvedp)
+args_resolve(JSContext *cx, HandleObject obj, HandleId id, MutableHandleObject objp)
 {
+    objp.set(nullptr);
+
     Rooted<NormalArgumentsObject*> argsobj(cx, &obj->as<NormalArgumentsObject>());
 
     unsigned attrs = JSPROP_SHARED | JSPROP_SHADOWABLE;
@@ -384,7 +386,7 @@ args_resolve(JSContext *cx, HandleObject obj, HandleId id, bool *resolvedp)
     if (!baseops::DefineGeneric(cx, argsobj, id, UndefinedHandleValue, ArgGetter, ArgSetter, attrs))
         return false;
 
-    *resolvedp = true;
+    objp.set(argsobj);
     return true;
 }
 
@@ -473,8 +475,10 @@ StrictArgSetter(JSContext *cx, HandleObject obj, HandleId id, bool strict, Mutab
 }
 
 static bool
-strictargs_resolve(JSContext *cx, HandleObject obj, HandleId id, bool *resolvedp)
+strictargs_resolve(JSContext *cx, HandleObject obj, HandleId id, MutableHandleObject objp)
 {
+    objp.set(nullptr);
+
     Rooted<StrictArgumentsObject*> argsobj(cx, &obj->as<StrictArgumentsObject>());
 
     unsigned attrs = JSPROP_SHARED | JSPROP_SHADOWABLE;
@@ -502,7 +506,7 @@ strictargs_resolve(JSContext *cx, HandleObject obj, HandleId id, bool *resolvedp
     if (!baseops::DefineGeneric(cx, argsobj, id, UndefinedHandleValue, getter, setter, attrs))
         return false;
 
-    *resolvedp = true;
+    objp.set(argsobj);
     return true;
 }
 
@@ -567,7 +571,7 @@ ArgumentsObject::trace(JSTracer *trc, JSObject *obj)
  */
 const Class NormalArgumentsObject::class_ = {
     "Arguments",
-    JSCLASS_IMPLEMENTS_BARRIERS |
+    JSCLASS_NEW_RESOLVE | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(NormalArgumentsObject::RESERVED_SLOTS) |
     JSCLASS_HAS_CACHED_PROTO(JSProto_Object) | JSCLASS_BACKGROUND_FINALIZE,
     JS_PropertyStub,         /* addProperty */
@@ -575,7 +579,7 @@ const Class NormalArgumentsObject::class_ = {
     JS_PropertyStub,         /* getProperty */
     JS_StrictPropertyStub,   /* setProperty */
     args_enumerate,
-    args_resolve,
+    reinterpret_cast<JSResolveOp>(args_resolve),
     JS_ConvertStub,
     ArgumentsObject::finalize,
     nullptr,                 /* call        */
@@ -591,7 +595,7 @@ const Class NormalArgumentsObject::class_ = {
  */
 const Class StrictArgumentsObject::class_ = {
     "Arguments",
-    JSCLASS_IMPLEMENTS_BARRIERS |
+    JSCLASS_NEW_RESOLVE | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(StrictArgumentsObject::RESERVED_SLOTS) |
     JSCLASS_HAS_CACHED_PROTO(JSProto_Object) | JSCLASS_BACKGROUND_FINALIZE,
     JS_PropertyStub,         /* addProperty */
@@ -599,7 +603,7 @@ const Class StrictArgumentsObject::class_ = {
     JS_PropertyStub,         /* getProperty */
     JS_StrictPropertyStub,   /* setProperty */
     strictargs_enumerate,
-    strictargs_resolve,
+    reinterpret_cast<JSResolveOp>(strictargs_resolve),
     JS_ConvertStub,
     ArgumentsObject::finalize,
     nullptr,                 /* call        */

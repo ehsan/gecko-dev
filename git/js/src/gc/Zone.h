@@ -16,7 +16,6 @@
 
 #include "gc/FindSCCs.h"
 #include "gc/GCRuntime.h"
-#include "js/TracingAPI.h"
 
 namespace js {
 
@@ -260,6 +259,7 @@ struct Zone : public JS::shadow::Zone,
     //
     // This is used during GC while calculating zone groups to record edges that
     // can't be determined by examining this zone by itself.
+    typedef js::HashSet<Zone *, js::DefaultHasher<Zone *>, js::SystemAllocPolicy> ZoneSet;
     ZoneSet gcZoneGroupEdges;
 
     // Malloc counter to measure memory pressure for GC scheduling. It runs from

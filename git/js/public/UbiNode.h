@@ -17,7 +17,6 @@
 
 #include "js/GCAPI.h"
 #include "js/HashTable.h"
-#include "js/TracingAPI.h"
 #include "js/TypeDecls.h"
 
 // JS::ubi::Node
@@ -135,6 +134,7 @@
 // If this restriction prevents us from implementing interesting tools, we may
 // teach the GC how to root ubi::Nodes, fix up hash tables that use them as
 // keys, etc.
+
 
 namespace JS {
 namespace ubi {

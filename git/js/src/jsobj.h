@@ -655,11 +655,9 @@ class JSObject : public js::gc::Cell
                                   uint32_t index, js::MutableHandleValue vp, bool strict);
 
     static bool nonNativeSetProperty(JSContext *cx, js::HandleObject obj,
-                                     js::HandleObject receiver, js::HandleId id,
-                                     js::MutableHandleValue vp, bool strict);
+                                     js::HandleId id, js::MutableHandleValue vp, bool strict);
     static bool nonNativeSetElement(JSContext *cx, js::HandleObject obj,
-                                    js::HandleObject receiver, uint32_t index,
-                                    js::MutableHandleValue vp, bool strict);
+                                    uint32_t index, js::MutableHandleValue vp, bool strict);
 
     static inline bool getGenericAttributes(JSContext *cx, js::HandleObject obj,
                                             js::HandleId id, unsigned *attrsp);

@@ -21,8 +21,6 @@
   var IncomingCallView = loop.conversation.IncomingCallView;
   var DesktopPendingConversationView = loop.conversationViews.PendingConversationView;
   var CallFailedView = loop.conversationViews.CallFailedView;
-  var DesktopRoomConversationView = loop.roomViews.DesktopRoomConversationView;
-  var DesktopRoomInvitationView = loop.roomViews.DesktopRoomInvitationView;
 
   // 2. Standalone webapp
   var HomeView = loop.webapp.HomeView;
@@ -59,10 +57,6 @@
   );
 
   var dispatcher = new loop.Dispatcher();
-  var activeRoomStore = new loop.store.ActiveRoomStore({
-    dispatcher: dispatcher,
-    mozLoop: navigator.mozLoop
-  });
   var roomStore = new loop.store.RoomStore({
     dispatcher: dispatcher,
     mozLoop: navigator.mozLoop
@@ -529,24 +523,6 @@
             <Example summary="Standalone Unsupported Device">
               <div className="standalone">
                 <UnsupportedDeviceView />
-              </div>
-            </Example>
-          </Section>
-
-          <Section name="DesktopRoomInvitationView">
-            <Example summary="Desktop room invitation" dashed="true"
-                     style={{width: "260px", height: "265px"}}>
-              <div className="fx-embedded">
-                <DesktopRoomInvitationView roomStore={roomStore} />
-              </div>
-            </Example>
-          </Section>
-
-          <Section name="DesktopRoomConversationView">
-            <Example summary="Desktop room conversation" dashed="true"
-                     style={{width: "260px", height: "265px"}}>
-              <div className="fx-embedded">
-                <DesktopRoomConversationView roomStore={roomStore} />
               </div>
             </Example>
           </Section>

@@ -1840,7 +1840,7 @@ js::CreateThisForFunction(JSContext *cx, HandleObject callee, NewObjectKind newK
 }
 
 /* static */ bool
-JSObject::nonNativeSetProperty(JSContext *cx, HandleObject obj, HandleObject receiver,
+JSObject::nonNativeSetProperty(JSContext *cx, HandleObject obj,
                                HandleId id, MutableHandleValue vp, bool strict)
 {
     if (MOZ_UNLIKELY(obj->watched())) {
@@ -1848,13 +1848,11 @@ JSObject::nonNativeSetProperty(JSContext *cx, HandleObject obj, HandleObject rec
         if (wpmap && !wpmap->triggerWatchpoint(cx, obj, id, vp))
             return false;
     }
-    if (obj->is<ProxyObject>())
-        return Proxy::set(cx, obj, receiver, id, strict, vp);
     return obj->getOps()->setGeneric(cx, obj, id, vp, strict);
 }
 
 /* static */ bool
-JSObject::nonNativeSetElement(JSContext *cx, HandleObject obj, HandleObject receiver,
+JSObject::nonNativeSetElement(JSContext *cx, HandleObject obj,
                               uint32_t index, MutableHandleValue vp, bool strict)
 {
     if (MOZ_UNLIKELY(obj->watched())) {
@@ -1865,11 +1863,6 @@ JSObject::nonNativeSetElement(JSContext *cx, HandleObject obj, HandleObject rece
         WatchpointMap *wpmap = cx->compartment()->watchpointMap;
         if (wpmap && !wpmap->triggerWatchpoint(cx, obj, id, vp))
             return false;
-    }
-    if (obj->is<ProxyObject>()) {
-        RootedId id(cx);
-        return IndexToId(cx, index, &id) &&
-               Proxy::set(cx, obj, receiver, id, strict, vp);
     }
     return obj->getOps()->setElement(cx, obj, index, vp, strict);
 }
@@ -4227,7 +4220,7 @@ JSObject::hasIdempotentProtoChain() const
             return false;
 
         JSResolveOp resolve = obj->getClass()->resolve;
-        if (resolve != JS_ResolveStub && resolve != js::fun_resolve)
+        if (resolve != JS_ResolveStub && resolve != (JSResolveOp) js::fun_resolve)
             return false;
 
         if (obj->getOps()->lookupProperty || obj->getOps()->lookupGeneric || obj->getOps()->lookupElement)

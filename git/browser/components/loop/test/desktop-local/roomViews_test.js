@@ -1,7 +1,5 @@
 var expect = chai.expect;
 
-/* jshint newcap:false */
-
 describe("loop.roomViews", function () {
   "use strict";
 
@@ -30,6 +28,7 @@ describe("loop.roomViews", function () {
       return x;
     });
 
+
     activeRoomStore = new loop.store.ActiveRoomStore({
       dispatcher: dispatcher,
       mozLoop: {}
@@ -46,47 +45,12 @@ describe("loop.roomViews", function () {
     loop.shared.mixins.setRootObject(window);
   });
 
-  describe("ActiveRoomStoreMixin", function() {
-    it("should merge initial state", function() {
-      var TestView = React.createClass({
-        mixins: [loop.roomViews.ActiveRoomStoreMixin],
-        getInitialState: function() {
-          return {foo: "bar"};
-        },
-        render: function() { return React.DOM.div(); }
-      });
-
-      var testView = TestUtils.renderIntoDocument(TestView({
-        roomStore: activeRoomStore
-      }));
-
-      expect(testView.state).eql({
-        roomState: ROOM_STATES.INIT,
-        foo: "bar"
-      });
-    });
-
-    it("should listen to store changes", function() {
-      var TestView = React.createClass({
-        mixins: [loop.roomViews.ActiveRoomStoreMixin],
-        render: function() { return React.DOM.div(); }
-      });
-      var testView = TestUtils.renderIntoDocument(TestView({
-        roomStore: activeRoomStore
-      }));
-
-      activeRoomStore.setStoreState({roomState: ROOM_STATES.READY});
-
-      expect(testView.state).eql({roomState: ROOM_STATES.READY});
-    });
-  });
-
-  describe("DesktopRoomControllerView", function() {
+  describe("DesktopRoomView", function() {
     var view;
 
     function mountTestComponent() {
       return TestUtils.renderIntoDocument(
-        new loop.roomViews.DesktopRoomControllerView({
+        new loop.roomViews.DesktopRoomView({
           mozLoop: {},
           roomStore: roomStore
         }));
@@ -101,35 +65,17 @@ describe("loop.roomViews", function () {
         expect(fakeWindow.document.title).to.equal("fakeName");
       });
 
-      it("should render the GenericFailureView if the roomState is `FAILED`",
-        function() {
-          activeRoomStore.setStoreState({roomState: ROOM_STATES.FAILED});
+      it("should render the GenericFailureView if the roomState is `FAILED`", function() {
+        activeRoomStore.setStoreState({roomState: ROOM_STATES.FAILED});
 
-          view = mountTestComponent();
+        view = mountTestComponent();
 
-          TestUtils.findRenderedComponentWithType(view,
-            loop.conversation.GenericFailureView);
-        });
+        TestUtils.findRenderedComponentWithType(view,
+          loop.conversation.GenericFailureView);
+      });
 
-      it("should render the DesktopRoomInvitationView if roomState is `JOINED`",
-        function() {
-          activeRoomStore.setStoreState({roomState: ROOM_STATES.JOINED});
-
-          view = mountTestComponent();
-
-          TestUtils.findRenderedComponentWithType(view,
-            loop.roomViews.DesktopRoomInvitationView);
-        });
-
-      it("should render the DesktopRoomConversationView if roomState is `HAS_PARTICIPANTS`",
-        function() {
-          activeRoomStore.setStoreState({roomState: ROOM_STATES.HAS_PARTICIPANTS});
-
-          view = mountTestComponent();
-
-          TestUtils.findRenderedComponentWithType(view,
-            loop.roomViews.DesktopRoomConversationView);
-        });
+      // XXX Implement this when we do the rooms views in bug 1074686 and others.
+      it("should display the main view");
     });
   });
 });

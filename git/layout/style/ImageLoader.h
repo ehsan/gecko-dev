@@ -90,7 +90,7 @@ private:
 
   nsPresContext* GetPresContext();
 
-  void DoRedraw(FrameSet* aFrameSet, bool aForcePaint);
+  void DoRedraw(FrameSet* aFrameSet);
 
   static PLDHashOperator
   SetAnimationModeEnumerator(nsISupports* aKey, FrameSet* aValue,

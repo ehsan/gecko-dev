@@ -144,8 +144,7 @@ loop.shared.mixins = (function() {
     _audioRequest: null,
 
     _isLoopDesktop: function() {
-      return rootObject.navigator &&
-             typeof rootObject.navigator.mozLoop === "object";
+      return typeof rootObject.navigator.mozLoop === "object";
     },
 
     /**

@@ -1823,14 +1823,10 @@ MediaCacheStream::FlushPartialBlockInternal(bool aNotifyAll)
            BLOCK_SIZE - blockOffset);
     gMediaCache->AllocateAndWriteBlock(this, mPartialBlockBuffer,
         mMetadataInPartialBlockBuffer ? MODE_METADATA : MODE_PLAYBACK);
-  }
-
-  // |mChannelOffset == 0| means download ends with no bytes received.
-  // We should also wake up those readers who are waiting for data
-  // that will never come.
-  if ((blockOffset > 0 || mChannelOffset == 0) && aNotifyAll) {
-    // Wake up readers who may be waiting for this data
-    mon.NotifyAll();
+    if (aNotifyAll) {
+      // Wake up readers who may be waiting for this data
+      mon.NotifyAll();
+    }
   }
 }
 

@@ -4,4 +4,3 @@ twitter
 wikipedia
 yahoo
 bing
-duckduckgo

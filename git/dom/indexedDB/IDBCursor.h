@@ -59,14 +59,11 @@ private:
     Type_IndexKey,
   };
 
-  BackgroundCursorChild* mBackgroundActor;
-
-  nsRefPtr<IDBRequest> mRequest;
   nsRefPtr<IDBObjectStore> mSourceObjectStore;
   nsRefPtr<IDBIndex> mSourceIndex;
+  nsRefPtr<IDBTransaction> mTransaction;
 
-  // mSourceObjectStore or mSourceIndex will hold this alive.
-  IDBTransaction* mTransaction;
+  BackgroundCursorChild* mBackgroundActor;
 
   JS::Heap<JSObject*> mScriptOwner;
 
@@ -91,22 +88,30 @@ private:
 
 public:
   static already_AddRefed<IDBCursor>
-  Create(BackgroundCursorChild* aBackgroundActor,
+  Create(IDBObjectStore* aObjectStore,
+         BackgroundCursorChild* aBackgroundActor,
+         Direction aDirection,
          const Key& aKey,
          StructuredCloneReadInfo&& aCloneInfo);
 
   static already_AddRefed<IDBCursor>
-  Create(BackgroundCursorChild* aBackgroundActor,
+  Create(IDBObjectStore* aObjectStore,
+         BackgroundCursorChild* aBackgroundActor,
+         Direction aDirection,
          const Key& aKey);
 
   static already_AddRefed<IDBCursor>
-  Create(BackgroundCursorChild* aBackgroundActor,
+  Create(IDBIndex* aIndex,
+         BackgroundCursorChild* aBackgroundActor,
+         Direction aDirection,
          const Key& aKey,
          const Key& aPrimaryKey,
          StructuredCloneReadInfo&& aCloneInfo);
 
   static already_AddRefed<IDBCursor>
-  Create(BackgroundCursorChild* aBackgroundActor,
+  Create(IDBIndex* aIndex,
+         BackgroundCursorChild* aBackgroundActor,
+         Direction aDirection,
          const Key& aKey,
          const Key& aPrimaryKey);
 
@@ -189,7 +194,11 @@ public:
 
 private:
   IDBCursor(Type aType,
+            IDBObjectStore* aSourceObjectStore,
+            IDBIndex* aSourceIndex,
+            IDBTransaction* aTransaction,
             BackgroundCursorChild* aBackgroundActor,
+            Direction aDirection,
             const Key& aKey);
 
   ~IDBCursor();
