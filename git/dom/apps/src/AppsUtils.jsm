@@ -41,6 +41,7 @@ this.AppsUtils = {
       readyToApplyDownload: aApp.readyToApplyDownload,
       downloadSize: aApp.downloadSize || 0,
       lastUpdateCheck: aApp.lastUpdateCheck,
+      updateTime: aApp.updateTime,
       etag: aApp.etag
     };
   },
@@ -158,12 +159,11 @@ this.AppsUtils = {
       return false;
 
     function isAbsolute(uri) {
-      try {
-        Services.io.newURI(uri, null, null);
-      } catch (e if e.result == Cr.NS_ERROR_MALFORMED_URI) {
-        return false;
-      }
-      return true;
+      // See bug 810551
+      let foo = Services.io.newURI("http://foo", null, null);
+      let bar = Services.io.newURI("http://bar", null, null);
+      return Services.io.newURI(uri, null, foo).prePath != foo.prePath ||
+             Services.io.newURI(uri, null, bar).prePath != bar.prePath;
     }
 
     // launch_path and entry_points launch paths can't be absolute
@@ -245,7 +245,7 @@ this.ManifestHelper = function(aManifest, aOrigin) {
   this._manifest = aManifest;
   let chrome = Cc["@mozilla.org/chrome/chrome-registry;1"].getService(Ci.nsIXULChromeRegistry)
                                                           .QueryInterface(Ci.nsIToolkitChromeRegistry);
-  let locale = chrome.getSelectedLocale("browser").toLowerCase();
+  let locale = chrome.getSelectedLocale("global").toLowerCase();
   this._localeRoot = this._manifest;
 
   if (this._manifest.locales && this._manifest.locales[locale]) {

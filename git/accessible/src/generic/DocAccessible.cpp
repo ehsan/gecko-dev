@@ -7,7 +7,6 @@
 #include "AccIterator.h"
 #include "DocAccessible-inl.h"
 #include "nsAccCache.h"
-#include "nsAccessibilityService.h"
 #include "nsAccessiblePivot.h"
 #include "nsAccTreeWalker.h"
 #include "nsAccUtils.h"
@@ -15,7 +14,6 @@
 #include "nsTextEquivUtils.h"
 #include "Role.h"
 #include "RootAccessible.h"
-#include "States.h"
 
 #include "nsIMutableArray.h"
 #include "nsICommandManager.h"
@@ -123,29 +121,26 @@ DocAccessible::~DocAccessible()
 NS_IMPL_CYCLE_COLLECTION_CLASS(DocAccessible)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(DocAccessible, Accessible)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDocument)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mNotificationController,
-                                                  NotificationController)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDocument)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mNotificationController)
 
   if (tmp->mVirtualCursor) {
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mVirtualCursor,
-                                                    nsAccessiblePivot)
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mVirtualCursor)
   }
 
   uint32_t i, length = tmp->mChildDocuments.Length();
   for (i = 0; i < length; ++i) {
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mChildDocuments[i],
-                                                         nsIAccessible)
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mChildDocuments[i])
   }
 
   CycleCollectorTraverseCache(tmp->mAccessibleCache, &cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(DocAccessible, Accessible)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDocument)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mNotificationController)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mVirtualCursor)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSTARRAY(mChildDocuments)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mDocument)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mNotificationController)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mVirtualCursor)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mChildDocuments)
   tmp->mDependentIDsHash.Clear();
   tmp->mNodeToAccessibleMap.Clear();
   ClearCache(tmp->mAccessibleCache);
