@@ -74,13 +74,14 @@ var WebrtcUI = {
   },
 
   handleRequest: function handleRequest(aSubject, aTopic, aData) {
-    let constraints = aSubject.getConstraints();
+    let { windowID: windowID, callID: callID } = JSON.parse(aData);
+
+    let contentWindow = Services.wm.getOuterWindowWithId(windowID);
+    let params = aSubject.QueryInterface(Ci.nsIMediaStreamOptions);
 
     Services.wm.getMostRecentWindow(null).navigator.mozGetUserMediaDevices(
-      constraints,
       function (devices) {
-        WebrtcUI.prompt(aSubject.windowID, aSubject.callID, constraints.audio,
-                        constraints.video, devices);
+        WebrtcUI.prompt(windowID, callID, params.audio, params.video, devices);
       },
       function (error) {
         Cu.reportError(error);
