@@ -148,8 +148,7 @@ function test() {
         "The headersSize attachment has an incorrect value.");
 
       verifyRequestItemTarget(requestItem, "GET", SIMPLE_SJS, {
-        status: "200",
-        statusText: "Och Aye"
+        status: "200"
       });
     });
 
@@ -163,7 +162,6 @@ function test() {
 
       verifyRequestItemTarget(requestItem, "GET", SIMPLE_SJS, {
         type: "plain",
-        fullMimeType: "text/plain; charset=utf-8",
         size: L10N.getFormatStr("networkMenu.sizeKB", 0.01),
       });
     });
@@ -182,7 +180,6 @@ function test() {
 
       verifyRequestItemTarget(requestItem, "GET", SIMPLE_SJS, {
         type: "plain",
-        fullMimeType: "text/plain; charset=utf-8",
         size: L10N.getFormatStr("networkMenu.sizeKB", 0.01),
       });
     });

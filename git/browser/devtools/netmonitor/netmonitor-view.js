@@ -259,7 +259,7 @@ create({ constructor: RequestsMenuView, proto: MenuContainer.prototype }, {
   initialize: function NVRM_initialize() {
     dumpn("Initializing the RequestsMenuView");
 
-    this.node = new SideMenuWidget($("#requests-menu-contents"), false);
+    this.node = new SideMenuWidget($("#requests-menu-contents"));
 
     this.node.addEventListener("mousedown", this._onMouseDown, false);
     this.node.addEventListener("select", this._onSelect, false);
@@ -403,9 +403,6 @@ create({ constructor: RequestsMenuView, proto: MenuContainer.prototype }, {
             break;
           case "statusText":
             requestItem.attachment.statusText = value;
-            this._updateMenuView(requestItem, key,
-              requestItem.attachment.status + " " +
-              requestItem.attachment.statusText);
             break;
           case "headersSize":
             requestItem.attachment.headersSize = value;
@@ -461,24 +458,18 @@ create({ constructor: RequestsMenuView, proto: MenuContainer.prototype }, {
     let hostPort = NetworkHelper.convertToUnicode(unescape(uri.hostPort));
 
     let template = $("#requests-menu-item-template");
-    let fragment = document.createDocumentFragment();
+    let requestsMenuItem = template.firstChild.cloneNode(true);
 
-    $(".requests-menu-method", template).setAttribute("value", aMethod);
+    $(".requests-menu-method", requestsMenuItem)
+      .setAttribute("value", aMethod);
 
-    let file = $(".requests-menu-file", template);
-    file.setAttribute("value", name + (query ? "?" + query : ""));
-    file.setAttribute("tooltiptext", name + (query ? "?" + query : ""));
+    $(".requests-menu-file", requestsMenuItem)
+      .setAttribute("value", name + (query ? "?" + query : ""));
 
-    let domain = $(".requests-menu-domain", template);
-    domain.setAttribute("value", hostPort);
-    domain.setAttribute("tooltiptext", hostPort);
+    $(".requests-menu-domain", requestsMenuItem)
+      .setAttribute("value", hostPort);
 
-    // Flatten the DOM by removing one redundant box (the template container).
-    for (let node of template.childNodes) {
-      fragment.appendChild(node.cloneNode(true));
-    }
-
-    return fragment;
+    return requestsMenuItem;
   },
 
   /**
@@ -498,32 +489,21 @@ create({ constructor: RequestsMenuView, proto: MenuContainer.prototype }, {
         node.setAttribute("code", aValue);
         break;
       }
-      case "statusText": {
-        let node = $(".requests-menu-status-and-method", aItem.target);
-        node.setAttribute("tooltiptext", aValue);
-        break;
-      }
       case "contentSize": {
         let size = (aValue / 1024).toFixed(CONTENT_SIZE_DECIMALS);
         let node = $(".requests-menu-size", aItem.target);
-        let text = L10N.getFormatStr("networkMenu.sizeKB", size);
-        node.setAttribute("value", text);
-        node.setAttribute("tooltiptext", text);
+        node.setAttribute("value", L10N.getFormatStr("networkMenu.sizeKB", size));
         break;
       }
       case "mimeType": {
         let type = aValue.split(";")[0].split("/")[1] || "?";
         let node = $(".requests-menu-type", aItem.target);
-        let text = CONTENT_MIME_TYPE_ABBREVIATIONS[type] || type;
-        node.setAttribute("value", text);
-        node.setAttribute("tooltiptext", aValue);
+        node.setAttribute("value", CONTENT_MIME_TYPE_ABBREVIATIONS[type] || type);
         break;
       }
       case "totalTime": {
         let node = $(".requests-menu-timings-total", aItem.target);
-        let text = L10N.getFormatStr("networkMenu.totalMS", aValue);
-        node.setAttribute("value", text);
-        node.setAttribute("tooltiptext", text);
+        node.setAttribute("value", L10N.getFormatStr("networkMenu.totalMS", aValue));
         break;
       }
     }
@@ -815,7 +795,6 @@ create({ constructor: NetworkDetailsView, proto: MenuContainer.prototype }, {
     if (aData.url) {
       let unicodeUrl = NetworkHelper.convertToUnicode(unescape(aData.url));
       $("#headers-summary-url-value").setAttribute("value", unicodeUrl);
-      $("#headers-summary-url-value").setAttribute("tooltiptext", unicodeUrl);
       $("#headers-summary-url").removeAttribute("hidden");
     } else {
       $("#headers-summary-url").setAttribute("hidden", "true");

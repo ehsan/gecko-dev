@@ -734,27 +734,40 @@ VariablesView.prototype = {
         return;
 
       case e.DOM_VK_DOWN:
-        // Always advance focus.
-        this.focusNextItem(true);
+        // Only expand scopes before advancing focus.
+        if (!(item instanceof Variable) &&
+            !(item instanceof Property) &&
+            !item._isExpanded && item._isArrowVisible) {
+          item.expand();
+        } else {
+          this.focusNextItem(true);
+        }
         return;
 
       case e.DOM_VK_LEFT:
+        // If this is a collapsed or un-expandable item that has an expandable
+        // variable or property parent, collapse and focus the owner view.
+        if (!item._isExpanded || !item._isArrowVisible) {
+          let ownerView = item.ownerView;
+          if ((ownerView instanceof Variable ||
+               ownerView instanceof Property) &&
+               ownerView._isExpanded && ownerView._isArrowVisible) {
+            if (this._focusItem(ownerView, true)) {
+              return;
+            }
+          }
+        }
         // Collapse scopes, variables and properties before rewinding focus.
         if (item._isExpanded && item._isArrowVisible) {
           item.collapse();
         } else {
-          this._focusItem(item.ownerView);
+          this.focusPrevItem(true);
         }
         return;
 
       case e.DOM_VK_RIGHT:
-        // Nothing to do here if this item never expands.
-        if (!item._isArrowVisible) {
-          return;
-        }
-
         // Expand scopes, variables and properties before advancing focus.
-        if (!item._isExpanded) {
+        if (!item._isExpanded && item._isArrowVisible) {
           item.expand();
         } else {
           this.focusNextItem(true);

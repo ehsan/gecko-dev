@@ -206,7 +206,3 @@ richlistitem:not([selected]) * {
 #header-search {
   width: 22em;
 }
-
-.discover-button[disabled="true"] {
-  display: none;
-}

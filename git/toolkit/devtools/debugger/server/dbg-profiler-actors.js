@@ -4,8 +4,6 @@
 
 "use strict";
 
-var connCount = 0;
-
 /**
  * Creates a ProfilerActor. ProfilerActor provides remote access to the
  * built-in profiler module.
@@ -15,7 +13,6 @@ function ProfilerActor(aConnection)
   this._profiler = Cc["@mozilla.org/tools/profiler;1"].getService(Ci.nsIProfiler);
   this._started = false;
   this._observedEvents = [];
-  connCount += 1;
 }
 
 ProfilerActor.prototype = {
@@ -25,18 +22,9 @@ ProfilerActor.prototype = {
     for (var event of this._observedEvents) {
       Services.obs.removeObserver(this, event);
     }
-
-    // We stop the profiler only after the last client is
-    // disconnected. Otherwise there's a problem where
-    // we stop the profiler as soon as you close the devtools
-    // panel in one tab even though there might be other
-    // profiler instances running in other tabs.
-
-    connCount -= 1;
-    if (connCount <= 0 && this._profiler && this._started) {
+    if (this._profiler && this._started) {
       this._profiler.StopProfiler();
     }
-
     this._profiler = null;
   },
 

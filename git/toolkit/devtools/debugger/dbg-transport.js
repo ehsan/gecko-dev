@@ -201,7 +201,7 @@ DebuggerTransport.prototype = {
  *
  * @see DebuggerTransport
  */
-this.LocalDebuggerTransport = function LocalDebuggerTransport(aOther)
+function LocalDebuggerTransport(aOther)
 {
   this.other = aOther;
   this.hooks = null;
