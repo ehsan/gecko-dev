@@ -4278,15 +4278,8 @@ function onViewToolbarCommand(aEvent) {
 }
 
 function setToolbarVisibility(toolbar, isVisible) {
-  let hidingAttribute;
-  if (toolbar.getAttribute("type") == "menubar") {
-    hidingAttribute = "autohide";
-#ifdef MOZ_WIDGET_GTK
-    Services.prefs.setBoolPref("ui.key.menuAccessKeyFocuses", !isVisible);
-#endif
-  } else {
-    hidingAttribute = "collapsed";
-  }
+  var hidingAttribute = toolbar.getAttribute("type") == "menubar" ?
+                        "autohide" : "collapsed";
 
   toolbar.setAttribute(hidingAttribute, !isVisible);
   document.persist(toolbar.id, hidingAttribute);

@@ -977,7 +977,7 @@ public:
                 mChangedBreaks(false), mExistingTextRun(aExistingTextRun) {}
 
     virtual void SetBreaks(uint32_t aOffset, uint32_t aLength,
-                           uint8_t* aBreakBefore) MOZ_OVERRIDE {
+                           uint8_t* aBreakBefore) {
       if (mTextRun->SetPotentialLineBreaks(aOffset + mOffsetIntoTextRun, aLength,
                                            aBreakBefore, mContext)) {
         mChangedBreaks = true;
@@ -987,7 +987,7 @@ public:
     }
     
     virtual void SetCapitalization(uint32_t aOffset, uint32_t aLength,
-                                   bool* aCapitalize) MOZ_OVERRIDE {
+                                   bool* aCapitalize) {
       NS_ASSERTION(mTextRun->GetFlags() & nsTextFrameUtils::TEXT_IS_TRANSFORMED,
                    "Text run should be transformed!");
       nsTransformedTextRun* transformedTextRun =
@@ -3925,12 +3925,12 @@ public:
                     nsIFrame*        aParent,
                     nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
-  virtual nsIFrame* GetPrevContinuation() const MOZ_OVERRIDE {
+  virtual nsIFrame* GetPrevContinuation() const {
     return mPrevContinuation;
   }
-  virtual void SetPrevContinuation(nsIFrame* aPrevContinuation) MOZ_OVERRIDE {
+  virtual void SetPrevContinuation(nsIFrame* aPrevContinuation) {
     NS_ASSERTION (!aPrevContinuation || GetType() == aPrevContinuation->GetType(),
                   "setting a prev continuation with incorrect type!");
     NS_ASSERTION (!nsSplittableFrame::IsInPrevContinuationChain(aPrevContinuation, this),
@@ -3938,9 +3938,7 @@ public:
     mPrevContinuation = aPrevContinuation;
     RemoveStateBits(NS_FRAME_IS_FLUID_CONTINUATION);
   }
-  virtual nsIFrame* GetPrevInFlowVirtual() const MOZ_OVERRIDE {
-    return GetPrevInFlow();
-  }
+  virtual nsIFrame* GetPrevInFlowVirtual() const { return GetPrevInFlow(); }
   nsIFrame* GetPrevInFlow() const {
     return (GetStateBits() & NS_FRAME_IS_FLUID_CONTINUATION) ? mPrevContinuation : nullptr;
   }
@@ -3956,15 +3954,15 @@ public:
   virtual nsIFrame* FirstContinuation() const MOZ_OVERRIDE;
 
   virtual void AddInlineMinWidth(nsRenderingContext *aRenderingContext,
-                                 InlineMinWidthData *aData) MOZ_OVERRIDE;
+                                 InlineMinWidthData *aData);
   virtual void AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
-                                  InlinePrefWidthData *aData) MOZ_OVERRIDE;
+                                  InlinePrefWidthData *aData);
   
   virtual nsresult GetRenderedText(nsAString* aString = nullptr,
                                    gfxSkipChars* aSkipChars = nullptr,
                                    gfxSkipCharsIterator* aSkipIter = nullptr,
                                    uint32_t aSkippedStartOffset = 0,
-                                   uint32_t aSkippedMaxLength = UINT32_MAX) MOZ_OVERRIDE
+                                   uint32_t aSkippedMaxLength = UINT32_MAX)
   { return NS_ERROR_NOT_IMPLEMENTED; } // Call on a primary text frame only
 
 protected:
@@ -4480,8 +4478,7 @@ public:
   }
 #endif
 
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder,
-                           bool* aSnap) MOZ_OVERRIDE {
+  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) {
     *aSnap = false;
     nsRect temp = mFrame->GetVisualOverflowRectRelativeToSelf() + ToReferenceFrame();
     // Bug 748228
@@ -4489,30 +4486,29 @@ public:
     return temp;
   }
   virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                       HitTestState* aState,
-                       nsTArray<nsIFrame*> *aOutFrames) MOZ_OVERRIDE {
+                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) {
     if (nsRect(ToReferenceFrame(), mFrame->GetSize()).Intersects(aRect)) {
       aOutFrames->AppendElement(mFrame);
     }
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx) MOZ_OVERRIDE;
+                     nsRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("Text", TYPE_TEXT)
 
-  virtual nsRect GetComponentAlphaBounds(nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE
+  virtual nsRect GetComponentAlphaBounds(nsDisplayListBuilder* aBuilder)
   {
     bool snap;
     return GetBounds(aBuilder, &snap);
   }
 
-  virtual nsDisplayItemGeometry* AllocateGeometry(nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE
+  virtual nsDisplayItemGeometry* AllocateGeometry(nsDisplayListBuilder* aBuilder)
   {
     return new nsDisplayTextGeometry(this, aBuilder);
   }
 
   virtual void ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
                                          const nsDisplayItemGeometry* aGeometry,
-                                         nsRegion *aInvalidRegion) MOZ_OVERRIDE
+                                         nsRegion *aInvalidRegion)
   {
     const nsDisplayTextGeometry* geometry = static_cast<const nsDisplayTextGeometry*>(aGeometry);
     nsTextFrame* f = static_cast<nsTextFrame*>(mFrame);
@@ -4530,9 +4526,7 @@ public:
     }
   }
   
-  virtual void DisableComponentAlpha() MOZ_OVERRIDE {
-    mDisableSubpixelAA = true;
-  }
+  virtual void DisableComponentAlpha() { mDisableSubpixelAA = true; }
 
   bool mDisableSubpixelAA;
 };

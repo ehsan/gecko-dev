@@ -410,23 +410,19 @@ struct ScrollableLayerGuid {
 
 struct ZoomConstraints {
   bool mAllowZoom;
-  bool mAllowDoubleTapZoom;
   CSSToScreenScale mMinZoom;
   CSSToScreenScale mMaxZoom;
 
   ZoomConstraints()
     : mAllowZoom(true)
-    , mAllowDoubleTapZoom(true)
   {
     MOZ_COUNT_CTOR(ZoomConstraints);
   }
 
   ZoomConstraints(bool aAllowZoom,
-                  bool aAllowDoubleTapZoom,
                   const CSSToScreenScale& aMinZoom,
                   const CSSToScreenScale& aMaxZoom)
     : mAllowZoom(aAllowZoom)
-    , mAllowDoubleTapZoom(aAllowDoubleTapZoom)
     , mMinZoom(aMinZoom)
     , mMaxZoom(aMaxZoom)
   {
@@ -441,7 +437,6 @@ struct ZoomConstraints {
   bool operator==(const ZoomConstraints& other) const
   {
     return mAllowZoom == other.mAllowZoom
-        && mAllowDoubleTapZoom == other.mAllowDoubleTapZoom
         && mMinZoom == other.mMinZoom
         && mMaxZoom == other.mMaxZoom;
   }

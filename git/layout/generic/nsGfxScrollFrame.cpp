@@ -1335,7 +1335,7 @@ public:
     return true;
   }
 
-  virtual void WillRefresh(mozilla::TimeStamp aTime) MOZ_OVERRIDE {
+  virtual void WillRefresh(mozilla::TimeStamp aTime) {
     // The callback may release "this".
     // We don't access members after returning, so no need for KungFuDeathGrip.
     ScrollFrameHelper::AsyncScrollCallback(mCallee, aTime);
@@ -2196,13 +2196,13 @@ public:
 
   virtual nsDisplayItem* WrapList(nsDisplayListBuilder* aBuilder,
                                   nsIFrame* aFrame,
-                                  nsDisplayList* aList) MOZ_OVERRIDE {
+                                  nsDisplayList* aList) {
     SetCount(++mCount);
     return new (aBuilder) nsDisplayScrollLayer(aBuilder, aList, mScrolledFrame, mScrolledFrame, mScrollFrame);
   }
 
   virtual nsDisplayItem* WrapItem(nsDisplayListBuilder* aBuilder,
-                                  nsDisplayItem* aItem) MOZ_OVERRIDE {
+                                  nsDisplayItem* aItem) {
 
     SetCount(++mCount);
     return new (aBuilder) nsDisplayScrollLayer(aBuilder, aItem, aItem->Frame(), mScrolledFrame, mScrollFrame);

@@ -2707,17 +2707,17 @@ public:
   {
   }
 
-  void NotifyBeforeText(nscolor aColor) MOZ_OVERRIDE;
-  void NotifyGlyphPathEmitted() MOZ_OVERRIDE;
-  void NotifyBeforeSVGGlyphPainted() MOZ_OVERRIDE;
-  void NotifyAfterSVGGlyphPainted() MOZ_OVERRIDE;
-  void NotifyAfterText() MOZ_OVERRIDE;
-  void NotifyBeforeSelectionBackground(nscolor aColor) MOZ_OVERRIDE;
-  void NotifySelectionBackgroundPathEmitted() MOZ_OVERRIDE;
-  void NotifyBeforeDecorationLine(nscolor aColor) MOZ_OVERRIDE;
-  void NotifyDecorationLinePathEmitted() MOZ_OVERRIDE;
-  void NotifyBeforeSelectionDecorationLine(nscolor aColor) MOZ_OVERRIDE;
-  void NotifySelectionDecorationLinePathEmitted() MOZ_OVERRIDE;
+  void NotifyBeforeText(nscolor aColor);
+  void NotifyGlyphPathEmitted();
+  void NotifyBeforeSVGGlyphPainted();
+  void NotifyAfterSVGGlyphPainted();
+  void NotifyAfterText();
+  void NotifyBeforeSelectionBackground(nscolor aColor);
+  void NotifySelectionBackgroundPathEmitted();
+  void NotifyBeforeDecorationLine(nscolor aColor);
+  void NotifyDecorationLinePathEmitted();
+  void NotifyBeforeSelectionDecorationLine(nscolor aColor);
+  void NotifySelectionDecorationLinePathEmitted();
 
 private:
   void FillWithOpacity();
@@ -3086,10 +3086,9 @@ public:
     mDisableSubpixelAA = true;
   }
   virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                       HitTestState* aState,
-                       nsTArray<nsIFrame*> *aOutFrames) MOZ_OVERRIDE;
+                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames);
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx) MOZ_OVERRIDE;
+                     nsRenderingContext* aCtx);
 private:
   bool mDisableSubpixelAA;
 };

@@ -519,8 +519,7 @@ public:
   }
 #endif
 
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx) MOZ_OVERRIDE;
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("MathMLSlash", TYPE_MATHML_SLASH)
 
 private:

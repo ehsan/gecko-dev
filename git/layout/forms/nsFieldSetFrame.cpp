@@ -106,10 +106,9 @@ public:
 #endif
 
   virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                       HitTestState* aState,
-                       nsTArray<nsIFrame*> *aOutFrames) MOZ_OVERRIDE;
+                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames);
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx) MOZ_OVERRIDE;
+                     nsRenderingContext* aCtx);
   virtual void ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
                                          const nsDisplayItemGeometry* aGeometry,
                                          nsRegion *aInvalidRegion) MOZ_OVERRIDE;

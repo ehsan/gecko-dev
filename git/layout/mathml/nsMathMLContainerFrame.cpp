@@ -80,7 +80,7 @@ public:
 #endif
 
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx) MOZ_OVERRIDE;
+                     nsRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("MathMLError", TYPE_MATHML_ERROR)
 };
 
@@ -1319,10 +1319,10 @@ nsMathMLContainerFrame::PositionRowChildFrames(nscoord aOffsetX,
 
 class ForceReflow : public nsIReflowCallback {
 public:
-  virtual bool ReflowFinished() MOZ_OVERRIDE {
+  virtual bool ReflowFinished() {
     return true;
   }
-  virtual void ReflowCallbackCanceled() MOZ_OVERRIDE {}
+  virtual void ReflowCallbackCanceled() {}
 };
 
 // We only need one of these so we just make it a static global, no need

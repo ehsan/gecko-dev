@@ -3110,10 +3110,7 @@ DrawBorderImage(nsPresContext*       aPresContext,
         value = 0;
         break;
     }
-    // NSToCoordRoundWithClamp rounds towards infinity, but that's OK
-    // because we expect value to be non-negative.
-    MOZ_ASSERT(value >= 0);
-    border.Side(s) = NSToCoordRoundWithClamp(value);
+    border.Side(s) = NS_lround(value);
     MOZ_ASSERT(border.Side(s) >= 0);
   }
 

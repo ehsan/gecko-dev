@@ -83,15 +83,15 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
 #ifdef DEBUG_FRAME_DUMP
-  virtual nsresult GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  virtual nsresult GetFrameName(nsAString& aResult) const;
 #endif
 
   virtual nsresult HandleEvent(nsPresContext* aPresContext,
                                WidgetGUIEvent* aEvent,
-                               nsEventStatus* aEventStatus) MOZ_OVERRIDE;
+                               nsEventStatus* aEventStatus);
 
   virtual nsresult GetCursor(const nsPoint&    aPoint,
-                             nsIFrame::Cursor& aCursor) MOZ_OVERRIDE;
+                             nsIFrame::Cursor& aCursor);
 
   virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,
@@ -100,7 +100,7 @@ public:
   virtual nsresult Reflow(nsPresContext*           aPresContext,
                           nsHTMLReflowMetrics&     aDesiredSize,
                           const nsHTMLReflowState& aReflowState,
-                          nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+                          nsReflowStatus&          aStatus);
 
   bool GetVisibility() { return mVisibility || mVisibilityOverride; }
   void SetVisibility(bool aVisibility);
@@ -111,8 +111,8 @@ public:
 protected:
   nsHTMLFramesetBorderFrame(nsStyleContext* aContext, int32_t aWidth, bool aVertical, bool aVisible);
   virtual ~nsHTMLFramesetBorderFrame();
-  virtual nscoord GetIntrinsicWidth() MOZ_OVERRIDE;
-  virtual nscoord GetIntrinsicHeight() MOZ_OVERRIDE;
+  virtual nscoord GetIntrinsicWidth();
+  virtual nscoord GetIntrinsicHeight();
 
   // the prev and next neighbors are indexes into the row (for a horizontal border) or col (for
   // a vertical border) of nsHTMLFramesetFrames or nsHTMLFrames
@@ -137,7 +137,7 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
 #ifdef DEBUG_FRAME_DUMP
-  virtual nsresult GetFrameName(nsAString& aResult) const MOZ_OVERRIDE
+  virtual nsresult GetFrameName(nsAString& aResult) const
   {
     return MakeFrameName(NS_LITERAL_STRING("FramesetBlank"), aResult);
   }
@@ -150,13 +150,13 @@ public:
   virtual nsresult Reflow(nsPresContext*           aPresContext,
                           nsHTMLReflowMetrics&     aDesiredSize,
                           const nsHTMLReflowState& aReflowState,
-                          nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+                          nsReflowStatus&          aStatus);
 
 protected:
   nsHTMLFramesetBlankFrame(nsStyleContext* aContext) : nsLeafFrame(aContext) {}
   virtual ~nsHTMLFramesetBlankFrame();
-  virtual nscoord GetIntrinsicWidth() MOZ_OVERRIDE;
-  virtual nscoord GetIntrinsicHeight() MOZ_OVERRIDE;
+  virtual nscoord GetIntrinsicWidth();
+  virtual nscoord GetIntrinsicHeight();
 
   friend class nsHTMLFramesetFrame;
   friend class nsHTMLFrameset;
@@ -1470,12 +1470,11 @@ public:
   // REVIEW: see old GetFrameForPoint
   // Receives events in its bounds
   virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                       HitTestState* aState,
-                       nsTArray<nsIFrame*> *aOutFrames) MOZ_OVERRIDE {
+                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) {
     aOutFrames->AppendElement(mFrame);
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx) MOZ_OVERRIDE;
+                     nsRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("FramesetBorder", TYPE_FRAMESET_BORDER)
 };
 
@@ -1674,8 +1673,7 @@ public:
   }
 #endif
 
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx) MOZ_OVERRIDE;
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("FramesetBlank", TYPE_FRAMESET_BLANK)
 };
 

@@ -24,9 +24,9 @@ public:
   virtual nsSize ComputeAutoSize(nsRenderingContext *aRenderingContext,
                                  nsSize aCBSize, nscoord aAvailableWidth,
                                  nsSize aMargin, nsSize aBorder,
-                                 nsSize aPadding, bool aShrinkWrap) MOZ_OVERRIDE;
+                                 nsSize aPadding, bool aShrinkWrap);
 
-  virtual nsIFrame* GetParentStyleContextFrame() const MOZ_OVERRIDE;
+  virtual nsIFrame* GetParentStyleContextFrame() const;
 
 #ifdef ACCESSIBILITY
   virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;

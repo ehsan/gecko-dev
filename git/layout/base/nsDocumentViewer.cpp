@@ -447,7 +447,7 @@ public:
   nsDocumentShownDispatcher(nsCOMPtr<nsIDocument> aDocument)
   : mDocument(aDocument) {}
 
-  NS_IMETHOD Run() MOZ_OVERRIDE;
+  NS_IMETHOD Run();
 
 private:
   nsCOMPtr<nsIDocument> mDocument;

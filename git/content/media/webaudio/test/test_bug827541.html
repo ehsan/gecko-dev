@@ -11,9 +11,9 @@
   var iframe = document.createElementNS("http://www.w3.org/1999/xhtml", "iframe");
   document.body.appendChild(iframe);
   var frameWin = iframe.contentWindow;
-  new frameWin.AudioContext();
+  frameWin.AudioContext();
   document.body.removeChild(iframe);
-  new frameWin.AudioContext();
+  frameWin.AudioContext();
 
   ok(true, "This test should not leak");
 </script>

@@ -341,7 +341,7 @@ public:
   {
   }
 
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     WidgetMouseEvent event(true, NS_XUL_POPUP_SHOWN, nullptr,
                            WidgetMouseEvent::eReal);

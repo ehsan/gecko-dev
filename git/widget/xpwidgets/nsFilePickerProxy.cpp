@@ -8,9 +8,7 @@
 #include "nsComponentManagerUtils.h"
 #include "nsNetUtil.h"
 #include "nsIFile.h"
-#include "nsDOMFile.h"
 #include "mozilla/dom/TabChild.h"
-#include "mozilla/dom/ipc/Blob.h"
 
 using namespace mozilla::dom;
 
@@ -99,30 +97,48 @@ nsFilePickerProxy::SetFilterIndex(int32_t aFilterIndex)
 NS_IMETHODIMP
 nsFilePickerProxy::GetFile(nsIFile** aFile)
 {
-  MOZ_ASSERT(false, "GetFile is unimplemented; use GetDomfile");
-  return NS_ERROR_FAILURE;
+  NS_ENSURE_ARG_POINTER(aFile);
+
+  *aFile = nullptr;
+  if (mFiles.IsEmpty()) {
+      return NS_OK;
+  }
+
+  nsCOMPtr<nsIFile> file = mFiles[0];
+  file.forget(aFile);
+  return NS_OK;
 }
 
 /* readonly attribute nsIFileURL fileURL; */
 NS_IMETHODIMP
 nsFilePickerProxy::GetFileURL(nsIURI** aFileURL)
 {
-  MOZ_ASSERT(false, "GetFileURL is unimplemented; use GetDomfile");
-  return NS_ERROR_FAILURE;
+  nsCOMPtr<nsIFile> file;
+  GetFile(getter_AddRefs(file));
+
+  nsCOMPtr<nsIURI> uri;
+  NS_NewFileURI(getter_AddRefs(uri), file);
+  NS_ENSURE_TRUE(uri, NS_ERROR_FAILURE);
+
+  return CallQueryInterface(uri, aFileURL);
 }
 
 /* readonly attribute nsISimpleEnumerator files; */
 NS_IMETHODIMP
 nsFilePickerProxy::GetFiles(nsISimpleEnumerator** aFiles)
 {
-  MOZ_ASSERT(false, "GetFiles is unimplemented; use GetDomfiles");
+  NS_ENSURE_ARG_POINTER(aFiles);
+
+  if (mMode == nsIFilePicker::modeOpenMultiple) {
+    return NS_NewArrayEnumerator(aFiles, mFiles);
+  }
+
   return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP
 nsFilePickerProxy::Show(int16_t* aReturn)
 {
-  MOZ_ASSERT(false, "Show is unimplemented; use Open");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
@@ -142,13 +158,12 @@ nsFilePickerProxy::Recv__delete__(const MaybeInputFiles& aFiles,
                                   const int16_t& aResult)
 {
   if (aFiles.type() == MaybeInputFiles::TInputFiles) {
-    const InfallibleTArray<PBlobChild*>& files = aFiles.get_InputFiles().filesChild();
+    const InfallibleTArray<nsString>& files = aFiles.get_InputFiles().files();
     for (uint32_t i = 0; i < files.Length(); ++i) {
-      BlobChild* actor = static_cast<BlobChild*>(files[i]);
-      nsCOMPtr<nsIDOMBlob> blob = actor->GetBlob();
-      nsCOMPtr<nsIDOMFile> file(do_QueryInterface(blob));
+      nsCOMPtr<nsIFile> file(do_CreateInstance("@mozilla.org/file/local;1"));
       NS_ENSURE_TRUE(file, true);
-      mDomfiles.AppendObject(file);
+      file->InitWithPath(files[i]);
+      mFiles.AppendObject(file);
     }
   }
 
@@ -158,24 +173,4 @@ nsFilePickerProxy::Recv__delete__(const MaybeInputFiles& aFiles,
   }
 
   return true;
-}
-
-NS_IMETHODIMP
-nsFilePickerProxy::GetDomfile(nsIDOMFile** aDomfile)
-{
-  *aDomfile = nullptr;
-  if (mDomfiles.IsEmpty()) {
-    return NS_OK;
-  }
-
-  MOZ_ASSERT(mDomfiles.Length() == 1);
-  nsCOMPtr<nsIDOMFile> domfile = mDomfiles[0];
-  domfile.forget(aDomfile);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsFilePickerProxy::GetDomfiles(nsISimpleEnumerator** aDomfiles)
-{
-  return NS_NewArrayEnumerator(aDomfiles, mDomfiles);
 }

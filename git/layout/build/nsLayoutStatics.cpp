@@ -73,8 +73,6 @@
 #include "nsXULTooltipListener.h"
 
 #include "inDOMView.h"
-
-#include "nsMenuBarListener.h"
 #endif
 
 #include "nsHTMLEditor.h"
@@ -282,10 +280,6 @@ nsLayoutStatics::Initialize()
   nsApplicationCacheService::AppClearDataObserverInit();
 
   HTMLVideoElement::Init();
-
-#ifdef MOZ_XUL
-  nsMenuBarListener::InitializeStatics();
-#endif
 
   CacheObserver::Init();
 

@@ -1072,15 +1072,13 @@ public:
   nsDisplayAltFeedback(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
     : nsDisplayItem(aBuilder, aFrame) {}
 
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder,
-                           bool* aSnap) MOZ_OVERRIDE
+  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap)
   {
     *aSnap = false;
     return mFrame->GetVisualOverflowRectRelativeToSelf() + ToReferenceFrame();
   }
 
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx) MOZ_OVERRIDE
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx)
   {
     nsImageFrame* f = static_cast<nsImageFrame*>(mFrame);
     nsEventStates state = f->GetContent()->AsElement()->State();
