@@ -68,7 +68,6 @@
 #include "nsAutoRef.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsExceptionHandler.h"
-#include "nsStaticComponents.h"
 #include "nsString.h"
 #include "nsThreadUtils.h"
 #include "nsWidgetsCID.h"
@@ -135,14 +134,6 @@ static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 static const PRUnichar kShellLibraryName[] =  L"shell32.dll";
 #endif
 
-void
-XRE_GetStaticComponents(nsStaticModuleInfo const **aStaticComponents,
-                        PRUint32 *aComponentCount)
-{
-  *aStaticComponents = kPStaticModules;
-  *aComponentCount = kStaticModuleCount;
-}
-
 nsresult
 XRE_LockProfileDirectory(nsILocalFile* aDirectory,
                          nsISupports* *aLockObject)
@@ -157,15 +148,12 @@ XRE_LockProfileDirectory(nsILocalFile* aDirectory,
   return rv;
 }
 
-static nsStaticModuleInfo *sCombined;
 static PRInt32 sInitCounter;
 
 nsresult
-XRE_InitEmbedding(nsILocalFile *aLibXULDirectory,
-                  nsILocalFile *aAppDirectory,
-                  nsIDirectoryServiceProvider *aAppDirProvider,
-                  nsStaticModuleInfo const *aStaticComponents,
-                  PRUint32 aStaticComponentCount)
+XRE_InitEmbedding2(nsILocalFile *aLibXULDirectory,
+		   nsILocalFile *aAppDirectory,
+		   nsIDirectoryServiceProvider *aAppDirProvider)
 {
   // Initialize some globals to make nsXREDirProvider happy
   static char* kNullCommandLine[] = { nsnull };
@@ -191,20 +179,7 @@ XRE_InitEmbedding(nsILocalFile *aLibXULDirectory,
   if (NS_FAILED(rv))
     return rv;
 
-  // Combine the toolkit static components and the app components.
-  PRUint32 combinedCount = kStaticModuleCount + aStaticComponentCount;
-
-  sCombined = new nsStaticModuleInfo[combinedCount];
-  if (!sCombined)
-    return NS_ERROR_OUT_OF_MEMORY;
-
-  memcpy(sCombined, kPStaticModules,
-         sizeof(nsStaticModuleInfo) * kStaticModuleCount);
-  memcpy(sCombined + kStaticModuleCount, aStaticComponents,
-         sizeof(nsStaticModuleInfo) * aStaticComponentCount);
-
-  rv = NS_InitXPCOM3(nsnull, aAppDirectory, gDirServiceProvider,
-                     sCombined, combinedCount);
+  rv = NS_InitXPCOM2(nsnull, aAppDirectory, gDirServiceProvider);
   if (NS_FAILED(rv))
     return rv;
 
@@ -242,7 +217,6 @@ XRE_TermEmbedding()
 
   gDirServiceProvider->DoShutdown();
   NS_ShutdownXPCOM(nsnull);
-  delete [] sCombined;
   delete gDirServiceProvider;
 }
 

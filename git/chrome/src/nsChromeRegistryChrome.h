@@ -86,12 +86,6 @@ class nsChromeRegistryChrome : public nsChromeRegistry
                                          PRUint32 number, void *arg);
 #endif
 
-  NS_HIDDEN_(nsresult) ProcessManifest(nsILocalFile* aManifest, PRBool aSkinOnly);
-  NS_HIDDEN_(nsresult) ProcessManifestBuffer(char *aBuffer, PRInt32 aLength, nsIURI* aManifest, PRBool aSkinOnly);
-
-#ifdef MOZ_OMNIJAR
-  nsresult CheckOmnijarChrome();
-#endif
   nsresult SelectLocaleFromPref(nsIPrefBranch* prefs);
   NS_OVERRIDE nsresult GetBaseURIFromPackage(const nsCString& aPackage,
                                              const nsCString& aProvider,
@@ -202,6 +196,28 @@ class nsChromeRegistryChrome : public nsChromeRegistry
 
   // Hash of package names ("global") to PackageEntry objects
   PLDHashTable mPackagesHash;
+
+  virtual void ManifestContent(ManifestProcessingContext& cx, int lineno,
+                               char *const * argv, bool platform,
+                               bool contentaccessible);
+  virtual void ManifestLocale(ManifestProcessingContext& cx, int lineno,
+                              char *const * argv, bool platform,
+                              bool contentaccessible);
+  virtual void ManifestSkin(ManifestProcessingContext& cx, int lineno,
+                            char *const * argv, bool platform,
+                            bool contentaccessible);
+  virtual void ManifestOverlay(ManifestProcessingContext& cx, int lineno,
+                               char *const * argv, bool platform,
+                               bool contentaccessible);
+  virtual void ManifestStyle(ManifestProcessingContext& cx, int lineno,
+                             char *const * argv, bool platform,
+                             bool contentaccessible);
+  virtual void ManifestOverride(ManifestProcessingContext& cx, int lineno,
+                                char *const * argv, bool platform,
+                                bool contentaccessible);
+  virtual void ManifestResource(ManifestProcessingContext& cx, int lineno,
+                                char *const * argv, bool platform,
+                                bool contentaccessible);
 };
 
 #endif // nsChromeRegistryChrome_h

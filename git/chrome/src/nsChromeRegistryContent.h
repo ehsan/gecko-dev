@@ -95,6 +95,28 @@ class nsChromeRegistryContent : public nsChromeRegistry
   NS_OVERRIDE nsresult GetFlagsFromPackage(const nsCString& aPackage, PRUint32* aFlags);
 
   nsClassHashtable<nsCStringHashKey, PackageEntry> mPackagesHash;
+
+  virtual void ManifestContent(ManifestProcessingContext& cx, int lineno,
+                               char *const * argv, bool platform,
+                               bool contentaccessible);
+  virtual void ManifestLocale(ManifestProcessingContext& cx, int lineno,
+                              char *const * argv, bool platform,
+                              bool contentaccessible);
+  virtual void ManifestSkin(ManifestProcessingContext& cx, int lineno,
+                            char *const * argv, bool platform,
+                            bool contentaccessible);
+  virtual void ManifestOverlay(ManifestProcessingContext& cx, int lineno,
+                               char *const * argv, bool platform,
+                               bool contentaccessible);
+  virtual void ManifestStyle(ManifestProcessingContext& cx, int lineno,
+                             char *const * argv, bool platform,
+                             bool contentaccessible);
+  virtual void ManifestOverride(ManifestProcessingContext& cx, int lineno,
+                                char *const * argv, bool platform,
+                                bool contentaccessible);
+  virtual void ManifestResource(ManifestProcessingContext& cx, int lineno,
+                                char *const * argv, bool platform,
+                                bool contentaccessible);
 };
 
 #endif // nsChromeRegistryContent_h

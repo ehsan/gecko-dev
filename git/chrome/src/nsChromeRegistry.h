@@ -57,6 +57,9 @@
 #include "nsTHashtable.h"
 #include "nsURIHashKey.h"
 #include "nsInterfaceHashtable.h"
+#include "nsXULAppAPI.h"
+#include "nsIResProtocolHandler.h"
+#include "nsIXPConnect.h"
 
 class nsIDOMWindowInternal;
 class nsIURL;
@@ -126,11 +129,57 @@ protected:
   static nsresult GetProviderAndPath(nsIURL* aChromeURL,
                                      nsACString& aProvider, nsACString& aPath);
 
+public:
+  static already_AddRefed<nsChromeRegistry> GetSingleton();
+
+  struct ManifestProcessingContext
+  {
+    ManifestProcessingContext(NSLocationType aType, nsILocalFile* aFile)
+      : mType(aType)
+      , mFile(aFile)
+    { }
+    ~ManifestProcessingContext()
+    { }
+
+    nsIURI* GetManifestURI();
+    nsIXPConnect* GetXPConnect();
+
+    already_AddRefed<nsIURI> ResolveURI(const char* uri);
+
+    NSLocationType mType;
+    nsCOMPtr<nsILocalFile> mFile;
+    nsCOMPtr<nsIURI> mManifestURI;
+    nsCOMPtr<nsIXPConnect> mXPConnect;
+  };
+
+  virtual void ManifestContent(ManifestProcessingContext& cx, int lineno,
+                               char *const * argv, bool platform,
+                               bool contentaccessible) = 0;
+  virtual void ManifestLocale(ManifestProcessingContext& cx, int lineno,
+                              char *const * argv, bool platform,
+                              bool contentaccessible) = 0;
+  virtual void ManifestSkin(ManifestProcessingContext& cx, int lineno,
+                            char *const * argv, bool platform,
+                            bool contentaccessible) = 0;
+  virtual void ManifestOverlay(ManifestProcessingContext& cx, int lineno,
+                               char *const * argv, bool platform,
+                               bool contentaccessible) = 0;
+  virtual void ManifestStyle(ManifestProcessingContext& cx, int lineno,
+                             char *const * argv, bool platform,
+                             bool contentaccessible) = 0;
+  virtual void ManifestOverride(ManifestProcessingContext& cx, int lineno,
+                                char *const * argv, bool platform,
+                                bool contentaccessible) = 0;
+  virtual void ManifestResource(ManifestProcessingContext& cx, int lineno,
+                                char *const * argv, bool platform,
+                                bool contentaccessible) = 0;
+
   // Available flags
   enum {
     // This is a "platform" package (e.g. chrome://global-platform/).
     // Appends one of win/ unix/ mac/ to the base URI.
     PLATFORM_PACKAGE = 1 << 0,
+
     // This package should use the new XPCNativeWrappers to separate
     // content from chrome. This flag is currently unused (because we call
     // into xpconnect at registration time).
@@ -144,8 +193,6 @@ protected:
 
   // "Override" table (chrome URI string -> real URI)
   nsInterfaceHashtable<nsURIHashKey, nsIURI> mOverrideTable;
-
-
 };
 
 #endif // nsChromeRegistry_h
