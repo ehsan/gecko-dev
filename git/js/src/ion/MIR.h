@@ -1012,7 +1012,7 @@ class MForceUse : public MUnaryInstruction
   public:
     INSTRUCTION_HEADER(ForceUse)
 
-    bool congruentTo(MDefinition *ins) const {
+    bool congruentTo(MDefinition * const &ins) const {
         return false;
     }
 
