@@ -369,7 +369,6 @@ Deltas.prototype = {
 function RemoteStore(serverPrefix, cryptoId) {
   this._prefix = serverPrefix;
   this._cryptoId = cryptoId;
-  this._log = Log4Moz.Service.getLogger("Service.RemoteStore");
 }
 RemoteStore.prototype = {
   get serverPrefix() this._prefix,
@@ -411,7 +410,7 @@ RemoteStore.prototype = {
     return deltas;
   },
 
-  _initSession: function RStore__initSession(serverPrefix, cryptoId) {
+  initSession: function RStore_initSession(serverPrefix, cryptoId) {
     let self = yield;
 
     if (serverPrefix)
@@ -426,20 +425,10 @@ RemoteStore.prototype = {
     this.snapshot.data = null;
     this.deltas.data = null;
 
-    DAV.MKCOL(this.serverPrefix, self.cb);
-    let ret = yield;
-    if (!ret)
-      throw "Could not create remote folder";
-
-    this._log.debug("Downloading status file");
     this.status.get(self.cb);
     yield;
-    this._log.debug("Downloading status file... done");
 
     this._inited = true;
-  },
-  initSession: function RStore_initSession(onComplete, serverPrefix, cryptoId) {
-    this._initSession.async(this, onComplete, serverPrefix, cryptoId);
   },
 
   closeSession: function RStore_closeSession() {
@@ -448,29 +437,5 @@ RemoteStore.prototype = {
     this.keys.data = null;
     this.snapshot.data = null;
     this.deltas.data = null;
-  },
-
-  _appendDelta: function RStore__appendDelta(delta) {
-    let self = yield;
-    if (this.deltas.data == null) {
-      this.deltas.get(self.cb);
-      yield;
-      if (this.deltas.data == null)
-        this.deltas.data = [];
-    }
-    this.deltas.data.push(delta);
-    this.deltas.put(self.cb, this.deltas.data);
-    yield;
-  },
-  appendDelta: function RStore_appendDelta(onComplete, delta) {
-    this._appendDeltas.async(this, onComplete, delta);
-  },
-
-  _getUpdates: function RStore__getUpdates(lastSyncSnap) {
-    let self = yield;
-
-  },
-  getUpdates: function RStore_getUpdates(onComplete, lastSyncSnap) {
-    this._getUpdates.async(this, onComplete);
   }
 };
