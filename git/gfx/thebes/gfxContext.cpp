@@ -235,16 +235,18 @@ gfxContext::ClosePath()
   mPathBuilder->Close();
 }
 
-TemporaryRef<Path> gfxContext::GetPath()
+already_AddRefed<gfxPath> gfxContext::CopyPath()
 {
   EnsurePath();
-  return mPath;
+  nsRefPtr<gfxPath> path = new gfxPath(mPath);
+  return path.forget();
 }
 
-void gfxContext::SetPath(Path* path)
+void gfxContext::SetPath(gfxPath* path)
 {
-  MOZ_ASSERT(path->GetBackendType() == mDT->GetBackendType());
-  mPath = path;
+  MOZ_ASSERT(path->mMoz2DPath, "Can't mix cairo and azure paths!");
+  MOZ_ASSERT(path->mMoz2DPath->GetBackendType() == mDT->GetBackendType());
+  mPath = path->mMoz2DPath;
   mPathBuilder = nullptr;
   mPathIsRect = false;
   mTransformChanged = false;

@@ -677,6 +677,10 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
                 MarkUnsupported(GLFeature::depth_texture);
             }
 #endif
+            // ANGLE's divisor support is busted. (see bug 916816)
+            if (IsANGLE()) {
+                MarkUnsupported(GLFeature::instanced_arrays);
+            }
         }
 
         NS_ASSERTION(!IsExtensionSupported(GLContext::ARB_pixel_buffer_object) ||
@@ -1665,15 +1669,22 @@ GLContext::PublishFrame()
 {
     MOZ_ASSERT(mScreen);
 
-    return mScreen->PublishFrame(OffscreenSize());
+    if (!mScreen->PublishFrame(OffscreenSize()))
+        return false;
+
+    return true;
 }
 
-SharedSurface*
+SharedSurface_GL*
 GLContext::RequestFrame()
 {
     MOZ_ASSERT(mScreen);
 
-    return mScreen->Stream()->SwapConsumer();
+    SharedSurface* ret = mScreen->Stream()->SwapConsumer();
+    if (!ret)
+        return nullptr;
+
+    return SharedSurface_GL::Cast(ret);
 }
 
 

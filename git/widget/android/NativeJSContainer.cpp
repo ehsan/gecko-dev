@@ -7,7 +7,6 @@
 #include "AndroidBridge.h"
 #include "mozilla/Vector.h"
 #include "prthread.h"
-#include "nsJSUtils.h"
 
 using namespace mozilla;
 using namespace mozilla::widget;
@@ -503,13 +502,14 @@ struct StringProperty
 
     static Type FromValue(JNIEnv* env, jobject instance,
                           JSContext* cx, const JS::HandleString str) {
-        nsAutoJSString autoStr;
-        if (!CheckJSCall(env, autoStr.init(cx, str))) {
+        size_t strLen = 0;
+        const jschar* const strChars =
+            JS_GetStringCharsAndLength(cx, str, &strLen);
+        if (!CheckJSCall(env, !!strChars)) {
             return nullptr;
         }
         jstring ret = env->NewString(
-            reinterpret_cast<const jchar*>(autoStr.BeginReading()),
-            autoStr.Length());
+            reinterpret_cast<const jchar*>(strChars), strLen);
         MOZ_ASSERT(ret);
         return ret;
     }

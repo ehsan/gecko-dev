@@ -557,8 +557,7 @@ struct IonScript
     void copySafepoints(const SafepointWriter *writer);
     void copyCallTargetEntries(JSScript **callTargets);
     void copyPatchableBackedges(JSContext *cx, JitCode *code,
-                                PatchableBackedgeInfo *backedges,
-                                MacroAssembler &masm);
+                                PatchableBackedgeInfo *backedges);
 
     bool invalidated() const {
         return refcount_ != 0;

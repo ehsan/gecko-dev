@@ -8,7 +8,6 @@ TEST_DIRS += ['test']
 
 EXPORTS.mozilla.dom += [
     'AesKeyAlgorithm.h',
-    'BasicSymmetricKeyAlgorithm.h',
     'CryptoBuffer.h',
     'CryptoKey.h',
     'CryptoKeyPair.h',

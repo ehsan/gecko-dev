@@ -397,7 +397,7 @@ MediaStreamGraphImpl::UpdateCurrentTime()
     GraphTime blockedTime = 0;
     GraphTime t = prevCurrentTime;
     // include |nextCurrentTime| to ensure NotifyBlockingChanged() is called
-    // before NotifyEvent(this, EVENT_FINISHED) when |nextCurrentTime == stream end time|
+    // before NotifyFinished() when |nextCurrentTime == stream end time|
     while (t <= nextCurrentTime) {
       GraphTime end;
       bool blocked = stream->mBlocked.GetAt(t, &end);
@@ -460,7 +460,7 @@ MediaStreamGraphImpl::UpdateCurrentTime()
       SetStreamOrderDirty();
       for (uint32_t j = 0; j < stream->mListeners.Length(); ++j) {
         MediaStreamListener* l = stream->mListeners[j];
-        l->NotifyEvent(this, MediaStreamListener::EVENT_FINISHED);
+        l->NotifyFinished(this);
       }
     }
   }
@@ -1933,7 +1933,7 @@ MediaStream::RemoveAllListenersImpl()
 {
   for (int32_t i = mListeners.Length() - 1; i >= 0; --i) {
     nsRefPtr<MediaStreamListener> listener = mListeners[i].forget();
-    listener->NotifyEvent(GraphImpl(), MediaStreamListener::EVENT_REMOVED);
+    listener->NotifyRemoved(GraphImpl());
   }
   mListeners.Clear();
 }
@@ -2111,7 +2111,7 @@ MediaStream::AddListenerImpl(already_AddRefed<MediaStreamListener> aListener)
   listener->NotifyBlockingChanged(GraphImpl(),
     mNotifiedBlocked ? MediaStreamListener::BLOCKED : MediaStreamListener::UNBLOCKED);
   if (mNotifiedFinished) {
-    listener->NotifyEvent(GraphImpl(), MediaStreamListener::EVENT_FINISHED);
+    listener->NotifyFinished(GraphImpl());
   }
   if (mNotifiedHasCurrentData) {
     listener->NotifyHasCurrentData(GraphImpl());
@@ -2140,7 +2140,7 @@ MediaStream::RemoveListenerImpl(MediaStreamListener* aListener)
   // wouldn't need this if we could do it in the opposite order
   nsRefPtr<MediaStreamListener> listener(aListener);
   mListeners.RemoveElement(aListener);
-  listener->NotifyEvent(GraphImpl(), MediaStreamListener::EVENT_REMOVED);
+  listener->NotifyRemoved(GraphImpl());
 }
 
 void
@@ -2367,37 +2367,15 @@ SourceMediaStream::NotifyDirectConsumers(TrackData *aTrack,
 void
 SourceMediaStream::AddDirectListener(MediaStreamDirectListener* aListener)
 {
-  bool wasEmpty;
-  {
-    MutexAutoLock lock(mMutex);
-    wasEmpty = mDirectListeners.IsEmpty();
-    mDirectListeners.AppendElement(aListener);
-  }
-
-  if (wasEmpty) {
-    for (uint32_t j = 0; j < mListeners.Length(); ++j) {
-      MediaStreamListener* l = mListeners[j];
-      l->NotifyEvent(GraphImpl(), MediaStreamListener::EVENT_HAS_DIRECT_LISTENERS);
-    }
-  }
+  MutexAutoLock lock(mMutex);
+  mDirectListeners.AppendElement(aListener);
 }
 
 void
 SourceMediaStream::RemoveDirectListener(MediaStreamDirectListener* aListener)
 {
-  bool isEmpty;
-  {
-    MutexAutoLock lock(mMutex);
-    mDirectListeners.RemoveElement(aListener);
-    isEmpty = mDirectListeners.IsEmpty();
-  }
-
-  if (isEmpty) {
-    for (uint32_t j = 0; j < mListeners.Length(); ++j) {
-      MediaStreamListener* l = mListeners[j];
-      l->NotifyEvent(GraphImpl(), MediaStreamListener::EVENT_HAS_NO_DIRECT_LISTENERS);
-    }
-  }
+  MutexAutoLock lock(mMutex);
+  mDirectListeners.RemoveElement(aListener);
 }
 
 bool
@@ -2477,7 +2455,7 @@ SourceMediaStream::EndAllTrackAndFinish()
     data->mCommands |= TRACK_END;
   }
   FinishWithLockHeld();
-  // we will call NotifyEvent() to let GetUserMedia know
+  // we will call NotifyFinished() to let GetUserMedia know
 }
 
 TrackTicks

@@ -8,6 +8,7 @@
 #define mozilla_dom_HTMLVideoElement_h
 
 #include "mozilla/Attributes.h"
+#include "nsIDOMHTMLVideoElement.h"
 #include "mozilla/dom/HTMLMediaElement.h"
 
 namespace mozilla {
@@ -16,38 +17,41 @@ namespace dom {
 class WakeLock;
 class VideoPlaybackQuality;
 
-class HTMLVideoElement MOZ_FINAL : public HTMLMediaElement
+class HTMLVideoElement MOZ_FINAL : public HTMLMediaElement,
+                                   public nsIDOMHTMLVideoElement
 {
 public:
-  typedef mozilla::dom::NodeInfo NodeInfo;
-
-  HTMLVideoElement(already_AddRefed<NodeInfo>& aNodeInfo);
+  HTMLVideoElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
 
   NS_IMPL_FROMCONTENT_HTML_WITH_TAG(HTMLVideoElement, video)
 
-  using HTMLMediaElement::GetPaused;
+  // nsISupports
+  NS_DECL_ISUPPORTS_INHERITED
 
-  NS_IMETHOD_(bool) IsVideo() MOZ_OVERRIDE {
-    return true;
-  }
+  // nsIDOMHTMLMediaElement
+  using HTMLMediaElement::GetPaused;
+  NS_FORWARD_NSIDOMHTMLMEDIAELEMENT(HTMLMediaElement::)
+
+  // nsIDOMHTMLVideoElement
+  NS_DECL_NSIDOMHTMLVIDEOELEMENT
 
   virtual bool ParseAttribute(int32_t aNamespaceID,
-                              nsIAtom* aAttribute,
-                              const nsAString& aValue,
-                              nsAttrValue& aResult) MOZ_OVERRIDE;
+                                nsIAtom* aAttribute,
+                                const nsAString& aValue,
+                                nsAttrValue& aResult);
   NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const MOZ_OVERRIDE;
 
   static void Init();
 
   virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const MOZ_OVERRIDE;
 
-  virtual nsresult Clone(NodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
 
   // Set size with the current video frame's height and width.
   // If there is no video frame, returns NS_ERROR_FAILURE.
   nsresult GetVideoSize(nsIntSize* size);
 
-  virtual nsresult SetAcceptHeader(nsIHttpChannel* aChannel) MOZ_OVERRIDE;
+  virtual nsresult SetAcceptHeader(nsIHttpChannel* aChannel);
 
   // WebIDL
 
@@ -81,10 +85,7 @@ public:
     return mMediaSize.height == -1 ? 0 : mMediaSize.height;
   }
 
-  void GetPoster(nsAString& aValue)
-  {
-    GetURIAttr(nsGkAtoms::poster, nullptr, aValue);
-  }
+  // XPCOM GetPoster is OK
   void SetPoster(const nsAString& aValue, ErrorResult& aRv)
   {
     SetHTMLAttr(nsGkAtoms::poster, aValue, aRv);

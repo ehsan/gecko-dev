@@ -214,15 +214,12 @@ XPCWrappedNativeScope::EnsureContentXBLScope(JSContext *cx)
     // sandboxPrototype so that the XBL scope can access all the DOM objects
     // it's accustomed to accessing.
     //
-    // In general wantXrays shouldn't matter much here, but there are weird
-    // cases when adopting bound content between same-origin globals where a
-    // <destructor> in one content XBL scope sees anonymous content in another
-    // content XBL scope. When that happens, we hit LookupBindingMember for an
-    // anonymous element that lives in a content XBL scope, which isn't a tested
-    // or audited codepath. So let's avoid hitting that case by opting out of
-    // same-origin Xrays.
+    // NB: One would think that wantXrays wouldn't make a difference here.
+    // However, wantXrays lives a secret double life, and one of its other
+    // hobbies is to waive Xray on the returned sandbox when set to false.
+    // So make sure to keep this set to true, here.
     SandboxOptions options;
-    options.wantXrays = false;
+    options.wantXrays = true;
     options.wantComponents = true;
     options.proto = global;
     options.sameZoneAs = global;

@@ -7,6 +7,7 @@
 #define mozilla_dom_HTMLAudioElement_h
 
 #include "mozilla/Attributes.h"
+#include "nsIDOMHTMLAudioElement.h"
 #include "mozilla/dom/HTMLMediaElement.h"
 #include "mozilla/dom/TypedArray.h"
 
@@ -16,18 +17,21 @@ typedef uint16_t nsMediaReadyState;
 namespace mozilla {
 namespace dom {
 
-class HTMLAudioElement MOZ_FINAL : public HTMLMediaElement
+class HTMLAudioElement MOZ_FINAL : public HTMLMediaElement,
+                                   public nsIDOMHTMLAudioElement
 {
 public:
-  typedef mozilla::dom::NodeInfo NodeInfo;
+  HTMLAudioElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
 
-  HTMLAudioElement(already_AddRefed<NodeInfo>& aNodeInfo);
+  // nsISupports
+  NS_DECL_ISUPPORTS_INHERITED
 
   // nsIDOMHTMLMediaElement
   using HTMLMediaElement::GetPaused;
+  NS_FORWARD_NSIDOMHTMLMEDIAELEMENT(HTMLMediaElement::)
 
-  virtual nsresult Clone(NodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
-  virtual nsresult SetAcceptHeader(nsIHttpChannel* aChannel) MOZ_OVERRIDE;
+  virtual nsresult Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult) const;
+  virtual nsresult SetAcceptHeader(nsIHttpChannel* aChannel);
 
   virtual nsIDOMNode* AsDOMNode() MOZ_OVERRIDE { return this; }
 

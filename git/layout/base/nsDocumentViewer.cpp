@@ -1377,7 +1377,6 @@ AttachContainerRecurse(nsIDocShell* aShell)
   nsCOMPtr<nsIContentViewer> viewer;
   aShell->GetContentViewer(getter_AddRefs(viewer));
   if (viewer) {
-    viewer->SetIsHidden(false);
     nsIDocument* doc = viewer->GetDocument();
     if (doc) {
       doc->SetContainer(static_cast<nsDocShell*>(aShell));
@@ -4415,13 +4414,6 @@ NS_IMETHODIMP
 nsDocumentViewer::GetIsHidden(bool *aHidden)
 {
   *aHidden = mHidden;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocumentViewer::SetIsHidden(bool aHidden)
-{
-  mHidden = aHidden;
   return NS_OK;
 }
 

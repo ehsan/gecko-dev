@@ -537,7 +537,7 @@ Mark(uint32_t aType, void* aItem, const char* aText, const char* aText2)
 
 // The scriptable classes
 
-class VisualEventTracerLog MOZ_FINAL: public nsIVisualEventTracerLog
+class VisualEventTracerLog : public nsIVisualEventTracerLog
 {
   NS_DECL_ISUPPORTS
   NS_DECL_NSIVISUALEVENTTRACERLOG
@@ -547,8 +547,8 @@ class VisualEventTracerLog MOZ_FINAL: public nsIVisualEventTracerLog
     , mProfilerStart(*gProfilerStart)
   {
   }
-private:
-  ~VisualEventTracerLog();
+
+  virtual ~VisualEventTracerLog();
 
 protected:
   RecordBatch* mBatch;

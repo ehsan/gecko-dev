@@ -223,7 +223,6 @@
 #include "nsContentPermissionHelper.h"
 #include "mozilla/dom/DOMStringList.h"
 #include "nsWindowMemoryReporter.h"
-#include "nsLocation.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -6547,7 +6546,7 @@ nsDocument::GetLocation(nsIDOMLocation **_retval)
   return NS_OK;
 }
 
-already_AddRefed<nsLocation>
+already_AddRefed<nsIDOMLocation>
 nsIDocument::GetLocation() const
 {
   nsCOMPtr<nsIDOMWindow> w = do_QueryInterface(mScriptGlobalObject);
@@ -6558,7 +6557,7 @@ nsIDocument::GetLocation() const
 
   nsCOMPtr<nsIDOMLocation> loc;
   w->GetLocation(getter_AddRefs(loc));
-  return loc.forget().downcast<nsLocation>();
+  return loc.forget();
 }
 
 Element*

@@ -44,10 +44,6 @@ interface ServiceWorkerContainer {
 partial interface ServiceWorkerContainer {
   [Throws]
   Promise clearAllServiceWorkerData();
-
-  [Throws]
-  DOMString getScopeForUrl(DOMString url);
-
   [Throws]
   DOMString getControllingWorkerScriptURLForPath(DOMString path);
 };

@@ -3,8 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "CanvasClient.h"
-
+#include "mozilla/layers/CanvasClient.h"
 #include "ClientCanvasLayer.h"          // for ClientCanvasLayer
 #include "CompositorChild.h"            // for CompositorChild
 #include "GLContext.h"                  // for GLContext
@@ -170,7 +169,7 @@ CanvasClientSurfaceStream::Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer)
     return;
   }
 
-  if (surf->mType != SharedSurfaceType::Gralloc) {
+  if (surf->Type() != SharedSurfaceType::Gralloc) {
     printf_stderr("Unexpected non-Gralloc SharedSurface in IPC path!");
     MOZ_ASSERT(false);
     return;

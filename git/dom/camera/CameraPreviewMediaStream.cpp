@@ -103,7 +103,7 @@ CameraPreviewMediaStream::RemoveListener(MediaStreamListener* aListener)
   MediaStreamGraph* gm = MediaStreamGraph::GetInstance();
   nsRefPtr<MediaStreamListener> listener(aListener);
   mListeners.RemoveElement(aListener);
-  listener->NotifyEvent(gm, MediaStreamListener::EVENT_REMOVED);
+  listener->NotifyRemoved(gm);
 }
 
 void

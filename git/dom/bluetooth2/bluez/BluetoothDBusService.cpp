@@ -2814,13 +2814,6 @@ BluetoothDBusService::GetPairedDevicePropertiesInternal(
   return NS_OK;
 }
 
-nsresult
-FetchUuidsInternal(const nsAString& aDeviceAddress,
-                   BluetoothReplyRunnable* aRunnable)
-{
-  return NS_OK;
-}
-
 class SetPropertyTask : public Task
 {
 public:

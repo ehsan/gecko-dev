@@ -133,6 +133,6 @@ this.WebappRT = {
 
         thisApp.checkForUpdate();
       }
-    }, Services.prefs.getIntPref("webapprt.app_update_interval"));
+    }, 24 * 60 * 60);
   },
 };
