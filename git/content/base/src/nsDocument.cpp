@@ -2198,10 +2198,10 @@ nsDocument::RemoveStyleSheetsFromStyleSets(nsCOMArray<nsIStyleSheet>& aSheets, n
 
 }
 
-void
+nsresult
 nsDocument::ResetStylesheetsToURI(nsIURI* aURI)
 {
-  MOZ_ASSERT(aURI);
+  NS_PRECONDITION(aURI, "Null URI passed to ResetStylesheetsToURI");
 
   mozAutoDocUpdate upd(this, UPDATE_STYLE, true);
   RemoveDocStyleSheetsFromStyleSets();
@@ -2257,6 +2257,8 @@ nsDocument::ResetStylesheetsToURI(nsIURI* aURI)
   if (shell) {
     FillStyleSet(shell->StyleSet());
   }
+
+  return NS_OK;
 }
 
 static bool
