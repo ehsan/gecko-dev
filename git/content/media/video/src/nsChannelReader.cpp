@@ -100,6 +100,11 @@ long nsChannelReader::io_tell()
   return mStream.Tell();
 }
 
+int nsChannelReader::duration()
+{
+  return 3600000; // TODO: implement correctly
+}
+
 static OggPlayErrorCode oggplay_channel_reader_initialise(OggPlayReader* aReader, int aBlock) 
 {
   nsChannelReader * me = static_cast<nsChannelReader*>(aReader);
@@ -136,12 +141,16 @@ static long oggplay_channel_reader_io_tell(void* aReader)
   return me->io_tell();
 }
 
-nsresult nsChannelReader::Init(nsMediaDecoder* aDecoder, nsIURI* aURI,
-                               nsIChannel* aChannel,
-                               nsIStreamListener** aStreamListener)
+static int oggplay_channel_reader_duration(OggPlayReader* aReader) 
+{
+  nsChannelReader* me = static_cast<nsChannelReader*>(aReader);
+  return me->duration();
+}
+
+nsresult nsChannelReader::Init(nsMediaDecoder* aDecoder, nsIURI* aURI)
 {
   mCurrentPosition = 0;
-  return mStream.Open(aDecoder, aURI, aChannel, aStreamListener);
+  return mStream.Open(aDecoder, aURI);
 }
 
 nsChannelReader::~nsChannelReader()
@@ -159,7 +168,7 @@ nsChannelReader::nsChannelReader()
   reader->io_read  = &oggplay_channel_reader_io_read;
   reader->io_seek  = &oggplay_channel_reader_io_seek;
   reader->io_tell  = &oggplay_channel_reader_io_tell;
-  reader->duration = nsnull;
+  reader->duration = &oggplay_channel_reader_duration;
 }
 
 nsIPrincipal*

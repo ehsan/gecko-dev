@@ -106,18 +106,6 @@ error()
 if [[ -z "$LIBRARYSH" ]]; then
     # skip remainder of script if it has already included
 
-    # Darwin 8.11.1's |which| does not return a non-zero exit code if the 
-    # program can not be found. Therefore, kludge around it.
-    findprogram()
-    {
-        local program=$1
-        local location=`which $program 2>&1`
-        if [[ ! -x $location ]]; then
-            return 1
-        fi
-        return 0
-    }
-
     debug()
     {
         if [[ -n "$DEBUG" ]]; then
@@ -185,7 +173,7 @@ if [[ -z "$LIBRARYSH" ]]; then
         if [[ -e /proc/meminfo ]]; then
             cat /proc/meminfo | sed 's|^|meminfo:|'
         fi
-        if findprogram system_profiler; then
+        if which system_profiler 2> /dev/null; then
             system_profiler | sed 's|^|system_profiler:|'
         fi
     }

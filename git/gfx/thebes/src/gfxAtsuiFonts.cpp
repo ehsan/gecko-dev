@@ -178,6 +178,7 @@ DisableUncommonLigatures(ATSUStyle aStyle)
         kLigaturesType,
         kLigaturesType,
         kLigaturesType,
+        kLigaturesType,
         kLigaturesType
     };
     static const ATSUFontFeatureType selectors[NS_ARRAY_LENGTH(types)] = {
@@ -186,7 +187,8 @@ DisableUncommonLigatures(ATSUStyle aStyle)
         kRebusPicturesOffSelector,
         kDiphthongLigaturesOffSelector,
         kSquaredLigaturesOffSelector,
-        kAbbrevSquaredLigaturesOffSelector
+        kAbbrevSquaredLigaturesOffSelector,
+        kSymbolLigaturesOffSelector
     };
     ATSUSetFontFeatures(aStyle, NS_ARRAY_LENGTH(types), types, selectors);
 }
@@ -1227,26 +1229,16 @@ PostLayoutCallback(ATSULineRef aLine, gfxTextRun *aRun,
         while (glyphCount < numGlyphs) {
             ATSLayoutRecord *glyph = &glyphRecords[glyphIndex + direction*glyphCount];
             PRUint32 glyphOffset = glyph->originalOffset;
-            PRUint32 nextIndex = isRTL ? glyphIndex - 1 : glyphIndex + 1;
-            PRUint32 nextOffset;
-            if (nextIndex >= 0 && nextIndex < numGlyphs) {
-                ATSLayoutRecord *nextGlyph = &glyphRecords[nextIndex + direction*glyphCount];
-                nextOffset = nextGlyph->originalOffset;
-            }
-            else
-                nextOffset = glyphOffset;
             allFlags |= glyph->flags;
-            if (glyphOffset <= lastOffset || nextOffset <= lastOffset) {
+            if (glyphOffset <= lastOffset) {
                 // Always add the current glyph to the ligature group if it's for the same
                 // character as a character whose glyph is already in the group,
                 // or an earlier character. The latter can happen because ATSUI
-                // sometimes visually reorders glyphs. One case of this is that DEVANAGARI
-                // VOWEL I can have its glyph displayed before the glyph for the consonant
-                // that it's logically after (even though this is all left-to-right text).
-                // Another case is that a sequence of RA; VIRAMA; <consonant> ; <vowel> is
-                // reordered to <consonant> ; <vowel> ; RA; VIRAMA.
-                // In these cases we need to make sure that the whole sequence of glyphs is
-                // processed as a single cluster.
+                // sometimes visually reorders glyphs; e.g. DEVANAGARI VOWEL I
+                // can have its glyph displayed before the glyph for the consonant that's
+                // it's logically after (even though this is all left-to-right text).
+                // In this case we need to make sure the glyph for the consonant
+                // is added to the group containing the vowel.
             } else {
                 // We could be at the end of a character group
                 if (glyph->glyphID != ATSUI_SPECIAL_GLYPH_ID) {

@@ -11,7 +11,7 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is the httpd.js server.
+ * The Original Code is the MozJSHTTP server.
  *
  * The Initial Developer of the Original Code is
  * Mozilla Corporation.
@@ -38,10 +38,9 @@
 
 #include "nsIPropertyBag.idl"
 
-interface nsIInputStream;
 interface nsILocalFile;
-interface nsIOutputStream;
 interface nsISimpleEnumerator;
+interface nsIOutputStream;
 
 interface nsIHttpServer;
 interface nsIHttpRequestHandler;
@@ -323,7 +322,7 @@ interface nsIHttpRequestHandler : nsISupports
 /**
  * A representation of the data included in an HTTP request.
  */
-[scriptable, uuid(ed8bdb6b-83e0-43aB-a412-a9863bd79394)]
+[scriptable, uuid(45b92a9e-5e0a-42da-81a6-983e4b1bc1b0)]
 interface nsIHttpRequestMetadata : nsIPropertyBag
 {
   /**
@@ -355,14 +354,13 @@ interface nsIHttpRequestMetadata : nsIPropertyBag
 
   /**
    * The requested path, without any query string (e.g. "/dir/file.txt").  It is
-   * guaranteed to begin with a "/".  The individual components in this string
-   * are URL-encoded.
+   * guaranteed to begin with a "/".  This string is in the 
    */
   readonly attribute string path;
 
   /**
    * The URL-encoded query string associated with this request, not including
-   * the initial "?", or "" if no query string was present.
+   * the initial "?".
    */
   readonly attribute string queryString;
 
@@ -413,10 +411,7 @@ interface nsIHttpRequestMetadata : nsIPropertyBag
    */
   readonly attribute nsISimpleEnumerator headers;
 
-  /**
-   * A stream from which data appearing in the body of this request can be read.
-   */
-  readonly attribute nsIInputStream bodyInputStream;
+  // XXX expose request body here!
 };
 
 

@@ -455,8 +455,6 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
         if(!proto)
             return NS_ERROR_FAILURE;
 
-        proto->CacheOffsets(identity);
-
         wrapper = new XPCWrappedNative(identity, proto);
         if(!wrapper)
             return NS_ERROR_FAILURE;
@@ -1233,8 +1231,7 @@ XPCWrappedNative::ReparentWrapperIfFound(XPCCallContext& ccx,
                                                     oldProto->GetClassInfo(),
                                                     &ci,
                                                     !oldProto->IsShared(),
-                                                    (info->GetJSClass()->flags & JSCLASS_IS_GLOBAL),
-                                                    oldProto->GetOffsetsMasked());
+                                                    (info->GetJSClass()->flags & JSCLASS_IS_GLOBAL));
             if(!newProto)
             {
                 NS_RELEASE(wrapper);
@@ -2716,8 +2713,7 @@ NS_IMETHODIMP XPCWrappedNative::RefreshPrototype()
                                                    oldProto->GetClassInfo(),
                                                    &ci,
                                                    !oldProto->IsShared(),
-                                                   (info->GetJSClass()->flags & JSCLASS_IS_GLOBAL),
-                                                   oldProto->GetOffsetsMasked());
+                                                   (info->GetJSClass()->flags & JSCLASS_IS_GLOBAL));
     if(!newProto)
         return UnexpectedFailure(NS_ERROR_FAILURE);
 

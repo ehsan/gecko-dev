@@ -51,20 +51,9 @@
 #define LOOP_WHILE_EINTR(v,func) do { (v) = (func); } \
                 while ((v) == -1 && errno == EINTR);
 
-typedef struct sa_buf sa_buf;
-struct sa_buf {
-  unsigned int      size; /* the size of data */
-  sa_buf            *next;
-  unsigned char     data[]; /* sound data */
-};
-
 struct sa_stream 
 {
-  int               audio_fd;
-  pthread_mutex_t   mutex;
-  pthread_t         thread_id;
-  int               playing;
-  int64_t           bytes_played;
+  int        audio_fd;
 
   /* audio format info */
   /* default setting */
@@ -76,21 +65,10 @@ struct sa_stream
   unsigned int      rate;
   unsigned int      n_channels;
   unsigned int      precision;
+  int64_t           bytes_played;
 
-  /* buffer list */
-  sa_buf            *bl_head;
-  sa_buf            *bl_tail;
 };
 
-/* Use a default buffer size with enough room for one second of audio,
- * assuming stereo data at 44.1kHz with 32 bits per channel, and impose
- * a generous limit on the number of buffers.
- */
-#define BUF_SIZE    (2 * 44100 * 4)
-
-static void* audio_callback(void* s);
-
-static sa_buf *new_buffer(int size);
 
 /*
  * -----------------------------------------------------------------------------
@@ -128,19 +106,12 @@ sa_stream_create_pcm(
   if ((s = malloc(sizeof(sa_stream_t))) == NULL) 
     return SA_ERROR_OOM;
 
-  if (pthread_mutex_init(&s->mutex, NULL) != 0) {
-    free(s);
-    return SA_ERROR_SYSTEM;
-  }
-
   s->audio_fd = NULL;
+
   s->rate = rate;
   s->n_channels = n_channels;
   s->precision = 16;
-
-  s->playing = 0;
   s->bytes_played = 0;
-  s->bl_tail = s->bl_head = NULL;
 
   *_s = s;
 
@@ -226,19 +197,13 @@ sa_stream_open(sa_stream_t *s)
 int
 sa_stream_destroy(sa_stream_t *s) 
 {
-  int result; 
+  int result = SA_SUCCESS;
 
   if (s == NULL) 
     return SA_SUCCESS;
 
-
-  pthread_mutex_lock(&s->mutex);
-
-  result = SA_SUCCESS;
-
   /*
    * Shut down the audio output device.
-   * and release resources
    */
   if (s->audio_fd != NULL) 
   {
@@ -247,20 +212,6 @@ sa_stream_destroy(sa_stream_t *s)
       perror("Close sun audio fd failed");
       result = SA_ERROR_SYSTEM;
     }
-  }
-
-  s->thread_id = 0;
-
-  while (s->bl_head != NULL) {
-    sa_buf  * next = s->bl_head->next;
-    free(s->bl_head);
-    s->bl_head = next;
-  }
-
-  pthread_mutex_unlock(&s->mutex);
-
-  if (pthread_mutex_destroy(&s->mutex) != 0) {
-    result = SA_ERROR_SYSTEM;
   }
 
   free(s);
@@ -278,8 +229,12 @@ int
 sa_stream_write(sa_stream_t *s, const void *data, size_t nbytes) 
 {
 
-  int result;
-  sa_buf *buf;
+  int result = SA_SUCCESS;
+  int total = 0;
+  int bytes = 0;
+  int fd;
+  int i;
+  audio_info_t ainfo;
 
   if (s == NULL || s->audio_fd == NULL) 
     return SA_ERROR_NO_INIT;
@@ -287,83 +242,23 @@ sa_stream_write(sa_stream_t *s, const void *data, size_t nbytes)
   if (nbytes == 0) 
     return SA_SUCCESS;
 
+  fd = s->audio_fd;
 
- /*
-  * Append the new data to the end of our buffer list.
-  */
-  result = SA_SUCCESS;
-  buf = new_buffer(nbytes);
-  memcpy(buf->data,data, nbytes);
+  while (total < nbytes ) 
+  {
+    LOOP_WHILE_EINTR(bytes,(write(fd, (void *)(((unsigned char *)data)  total), nbytes-total)));
 
-  if ( buf == NULL)
-    return SA_ERROR_OOM;
+    total = bytes;
+    if (total != nbytes)
+      printf("SunAudio\tWrite completed short - %d vs %d. Write more data\n",total,nbytes);
+  }
 
-  pthread_mutex_lock(&s->mutex);
-  if (!s->bl_head)
-    s->bl_head = buf;
-  else
-    s->bl_tail->next = buf;
-
-  s->bl_tail = buf;
-
-  pthread_mutex_unlock(&s->mutex);
-
- /*
-  * Once we have our first block of audio data, enable the audio callback
-  * function. This doesn't need to be protected by the mutex, because
-  * s->playing is not used in the audio callback thread, and it's probably
-  * better not to be inside the lock when we enable the audio callback.
-  */
-  if (!s->playing) {
-    s->playing = 1;
-    if (pthread_create(&s->thread_id, NULL, audio_callback, s) != 0) {
-      result = SA_ERROR_SYSTEM;
-    }
-  } 
+  s->bytes_played += nbytes;
 
   return result;
 }
 
-static void* 
-audio_callback(void* data)
-{
-  sa_stream_t* s = (sa_stream_t*)data;
-  sa_buf *buf;
-  int fd,nbytes_written,bytes,nbytes;
 
-  fd = s->audio_fd;
-
-  while (1)
-  { 
-    if (s->thread_id == 0)
-      break;
-
-    pthread_mutex_lock(&s->mutex);
-    while (s->bl_head) 
-    {
-      buf = s->bl_head;
-      s->bl_head = s->bl_head->next;
-
-      nbytes_written = 0; 
-      nbytes = buf->size;
-
-      while (nbytes_written < nbytes)
-      {
-        LOOP_WHILE_EINTR(bytes,(write(fd, (void *)((buf->data)+nbytes_written), nbytes-nbytes_written)));
-
-        nbytes_written += bytes;
-        if (nbytes_written != nbytes)
-          printf("SunAudio\tWrite completed short - %d vs %d. Write more data\n",nbytes_written,nbytes);
-      }
-
-      free(buf);
-      s->bytes_played += nbytes;
-     }
-     pthread_mutex_unlock(&s->mutex);
-   }
-
-  return NULL;
-}
 
 /*
  * -----------------------------------------------------------------------------
@@ -372,53 +267,17 @@ audio_callback(void* data)
  */
 
 int
-sa_stream_get_write_size(sa_stream_t *s, size_t *size) 
-{
-  sa_buf  * b;
-  size_t    used = 0;
-
-  if (s == NULL ) 
-    return SA_ERROR_NO_INIT;
-
-  /* there is no interface to get the avaiable writing buffer size
-   * in sun audio, we return max size here to force sa_stream_write() to
-   * be called when there is data to be played
-   */
-  *size = BUF_SIZE; 
-
-  return SA_SUCCESS;
-}
-
-/* ---------------------------------------------------------------------------
- * General query and support functions
- * -----------------------------------------------------------------------------
- */
-
-int
 sa_stream_get_position(sa_stream_t *s, sa_position_t position, int64_t *pos) 
 {
-  if (s == NULL) {
+
+  if (s == NULL || s->audio_fd == NULL) 
     return SA_ERROR_NO_INIT;
-  }
-  if (position != SA_POSITION_WRITE_SOFTWARE) {
+
+  if (position != SA_POSITION_WRITE_SOFTWARE) 
     return SA_ERROR_NOT_SUPPORTED;
-  }
 
-  pthread_mutex_lock(&s->mutex);
   *pos = s->bytes_played;
-  pthread_mutex_unlock(&s->mutex);
   return SA_SUCCESS;
-}
-
-static sa_buf *
-new_buffer(int size) 
-{
-  sa_buf  * b = malloc(sizeof(sa_buf) + size);
-  if (b != NULL) {
-    b->size  = size;
-    b->next  = NULL;
-  }
-  return b;
 }
 
 /*
@@ -435,7 +294,7 @@ sa_stream_set_volume_abs(sa_stream_t *s, float vol)
   audio_info_t audio_info;
 
 
-  newVolume = (AUDIO_MAX_GAIN-AUDIO_MIN_GAIN)*vol+AUDIO_MIN_GAIN;
+  newVolume = (AUDIO_MAX_GAIN-AUDIO_MIN_GAIN)*volAUDIO_MIN_GAIN;
 
   /* Check if the new volume is valid or not */
   if ( newVolume < AUDIO_MIN_GAIN || newVolume > AUDIO_MAX_GAIN )

@@ -100,7 +100,7 @@ oggplay_initialise(OggPlay *me, int block) {
 
   while (1) {
 
-    if (oggz_read(me->oggz, OGGZ_READ_CHUNK_SIZE) <= 0) {
+    if (oggz_read(me->oggz, OGGZ_READ_CHUNK_SIZE) < 0) {
       return E_OGGPLAY_BAD_INPUT;
     }
 
@@ -634,21 +634,14 @@ oggplay_get_available(OggPlay *me) {
 
 }
 
-ogg_int64_t
+int
 oggplay_get_duration(OggPlay *me) {
 
   if (me == NULL) {
     return E_OGGPLAY_BAD_OGGPLAY;
   }
 
-  if (me->reader->duration) 
-    return me->reader->duration(me->reader);
-  else {
-    ogg_int64_t pos = oggz_tell_units(me->oggz);
-    ogg_int64_t duration = oggz_seek_units(me->oggz, 0, SEEK_END);
-    oggz_seek_units(me->oggz, pos, SEEK_SET);
-    return duration;
-  }
+  return me->reader->duration(me->reader);
 }
 
 int

@@ -44,24 +44,14 @@
 
 #include "oggplay/oggplay.h"
 
-class nsIChannel;
-class nsIStreamListener;
-
 class nsChannelReader : public OggPlayReader
 {
 public:
   nsChannelReader();
   ~nsChannelReader();
 
-  /**
-   * Initialize the reader with the given decoder, URI, and
-   * optional channel.
-   * @param aChannel may be null
-   * @param aStreamListener if aChannel is non-null, this will return
-   * a stream listener which should be attached to the channel.
-   */
-  nsresult Init(nsMediaDecoder* aDecoder, nsIURI* aURI, nsIChannel* aChannel,
-                nsIStreamListener** aStreamListener);
+  // Initialize the reader with the given decoder and URI.
+  nsresult Init(nsMediaDecoder* aDecoder, nsIURI* aURI);
 
   // Cancel any blocking request currently in progress and cause that
   // request to return an error. Call on main thread only.
@@ -87,6 +77,7 @@ public:
   size_t io_read(char* aBuffer, size_t aCount);
   int io_seek(long aOffset, int aWhence);
   long io_tell();  
+  int duration();
   
 public:
   nsMediaStream mStream;

@@ -46,34 +46,26 @@ class nsIWeakReference;
 
 class nsOuterDocAccessible : public nsAccessibleWrap
 {
-  // XXX: why is it private?
-  // CVS comment: <aaronl@netscape.com> 2003-04-01 14:15 Fixing bustage
   NS_DECL_ISUPPORTS_INHERITED
 
-public:
-  nsOuterDocAccessible(nsIDOMNode* aNode, 
-                       nsIWeakReference* aShell);
+  public:
+    nsOuterDocAccessible(nsIDOMNode* aNode, 
+                         nsIWeakReference* aShell);
 
-  // nsIAccessible
-  NS_IMETHOD GetRole(PRUint32 *aRole);
+    NS_IMETHOD GetRole(PRUint32 *aRole);
+    NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
 
-  NS_IMETHOD GetChildAtPoint(PRInt32 aX, PRInt32 aY,
-                             nsIAccessible **aAccessible);
-  NS_IMETHOD GetDeepestChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                    nsIAccessible **aAccessible);
+    NS_IMETHOD GetChildAtPoint(PRInt32 aX, PRInt32 aY,
+                               nsIAccessible **aAccessible);
+    NS_IMETHOD GetDeepestChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                      nsIAccessible **aAccessible);
 
-  NS_IMETHOD GetNumActions(PRUint8 *aNumActions);
-  NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
-  NS_IMETHOD GetActionDescription(PRUint8 aIndex, nsAString& aDescription);
-  NS_IMETHOD DoAction(PRUint8 aIndex);
-
-  // nsAccessible
-  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
-  virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
-
-protected:
-  // nsAccessible
-  void CacheChildren();
+    void CacheChildren();
+    nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
+    NS_IMETHOD GetNumActions(PRUint8 *aNumActions);
+    NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
+    NS_IMETHODIMP GetActionDescription(PRUint8 aIndex, nsAString& aDescription);
+    NS_IMETHOD DoAction(PRUint8 aIndex);
 };
 
 #endif  

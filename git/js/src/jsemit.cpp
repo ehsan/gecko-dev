@@ -1892,7 +1892,7 @@ BindNameToSlot(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
 
             ATOM_LIST_SEARCH(ale, &cg->upvarList, atom);
             if (!ale) {
-                uint32 length, *vector;
+                uint32 cookie, length, *vector;
 
                 ale = js_IndexAtom(cx, atom, &cg->upvarList);
                 if (!ale)
@@ -1919,9 +1919,8 @@ BindNameToSlot(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
                     return JS_TRUE;
                 }
 
-                JS_ASSERT(cg->staticDepth > caller->fun->u.i.script->staticDepth);
-                uintN skip = cg->staticDepth - caller->fun->u.i.script->staticDepth;
-                cg->upvarMap.vector[ALE_INDEX(ale)] = MAKE_UPVAR_COOKIE(skip, index);
+                cookie = MAKE_UPVAR_COOKIE(1, index);
+                cg->upvarMap.vector[ALE_INDEX(ale)] = cookie;
             }
 
             pn->pn_op = JSOP_GETUPVAR;

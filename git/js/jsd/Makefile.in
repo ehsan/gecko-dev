@@ -63,6 +63,8 @@ REQUIRES += \
 		  widget \
 		  dom \
 		  $(NULL)
+
+PACKAGE_FILE = jsd.pkg
 endif
 
 EXTRA_DSO_LDOPTS += \

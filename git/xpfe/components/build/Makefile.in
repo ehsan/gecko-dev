@@ -49,6 +49,9 @@ IS_COMPONENT	= 1
 MODULE_NAME	= application
 LIBXUL_LIBRARY	= 1
 
+PACKAGE_FILE = appcomps.pkg
+PACKAGE_VARS += MOZ_PHOENIX
+
 REQUIRES	= xpcom \
 		  string \
 		  rdf \
@@ -79,11 +82,8 @@ endif
 
 # Suite specific includes
 ifdef MOZ_SUITE
-ifdef SUITE_USING_XPFE_DM
-REQUIRES += downloadmanager
-endif
-
 REQUIRES	+= \
+		downloadmanager \
 		intl \
 		mork \
 		widget \

@@ -38,7 +38,6 @@
 #include "nsIDOMHTMLMediaElement.h"
 #include "nsGenericHTMLElement.h"
 #include "nsMediaDecoder.h"
-#include "nsIChannel.h"
 
 // Define to output information on decoding and painting framerate
 /* #define DEBUG_FRAME_RATE 1 */
@@ -51,16 +50,6 @@ class nsHTMLMediaElement : public nsGenericHTMLElement
 public:
   nsHTMLMediaElement(nsINodeInfo *aNodeInfo, PRBool aFromParser = PR_FALSE);
   virtual ~nsHTMLMediaElement();
-
-  /**
-   * This is used when the browser is constructing a video element to play
-   * a channel that we've already started loading. The src attribute and
-   * <source> children are ignored. 
-   * @param aChannel the channel to use
-   * @param aListener returns a stream listener that should receive
-   * notifications for the stream
-   */ 
-  nsresult LoadWithChannel(nsIChannel *aChannel, nsIStreamListener **aListener);
 
   // nsIDOMHTMLMediaElement
   NS_DECL_NSIDOMHTMLMEDIAELEMENT
@@ -153,45 +142,9 @@ public:
   // main thread when/if the size changes.
   void UpdateMediaSize(nsIntSize size);
 
-  // Handle moving into and out of the bfcache by pausing and playing
-  // as needed.
-  void Freeze();
-  void Thaw();
-
-  // Returns true if we can handle this MIME type in a <video> or <audio>
-  // element
-  static PRBool CanHandleMediaType(const char* aMIMEType);
-
-  /**
-   * Initialize data for available media types
-   */
-  static void InitMediaTypes();
-  /**
-   * Shutdown data for available media types
-   */
-  static void ShutdownMediaTypes();
-
 protected:
-  /**
-   * Figure out which resource to load (either the 'src' attribute or
-   * a <source> child) and create the decoder for it.
-   */
-  nsresult PickMediaElement();
-  /**
-   * Create a decoder for the given aMIMEType. Returns false if we
-   * were unable to create the decoder.
-   */
-  PRBool CreateDecoder(const nsACString& aMIMEType);
-  /**
-   * Initialize a decoder to load the given URI.
-   */
-  nsresult InitializeDecoder(const nsAString& aURISpec);
-  /**
-   * Initialize a decoder to load the given channel. The decoder's stream
-   * listener is returned via aListener.
-   */
-  nsresult InitializeDecoderForChannel(nsIChannel *aChannel,
-                                       nsIStreamListener **aListener);
+  nsresult PickMediaElement(nsAString& aChosenMediaResource);
+  virtual nsresult InitializeDecoder(nsAString& aChosenMediaResource);
 
   nsRefPtr<nsMediaDecoder> mDecoder;
 
@@ -209,6 +162,18 @@ protected:
   // Size of the media. Updated by the decoder on the main thread if
   // it changes. Defaults to a width and height of -1 if not set.
   nsIntSize mMediaSize;
+
+  // The defaultPlaybackRate attribute gives the desired speed at
+  // which the media resource is to play, as a multiple of its
+  // intrinsic speed.
+  float mDefaultPlaybackRate;
+
+  // The playbackRate attribute gives the speed at which the media
+  // resource plays, as a multiple of its intrinsic speed. If it is
+  // not equal to the defaultPlaybackRate, then the implication is
+  // that the user is using a feature such as fast forward or slow
+  // motion playback.
+  float mPlaybackRate;
 
   // If true then we have begun downloading the media content.
   // Set to false when completed, or not yet started.
@@ -248,9 +213,4 @@ protected:
   // or was not actively playing before the current seek. Used to decide whether
   // to raise the 'waiting' event as per 4.7.1.8 in HTML 5 specification.
   PRPackedBool mPlayingBeforeSeek;
-
-  // PR_TRUE if the video was paused before Freeze was called. This is checked
-  // to ensure that the playstate doesn't change when the user goes Forward/Back
-  // from the bfcache.
-  PRPackedBool mPausedBeforeFreeze;
 };

@@ -62,7 +62,7 @@ nsAccessibleWrap::~nsAccessibleWrap()
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsAccessibleWrap::Init () 
 {
   // need to pass the call up, so we're cached (which nsAccessNode::Init() takes care of).

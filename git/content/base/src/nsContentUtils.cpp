@@ -798,9 +798,22 @@ nsContentUtils::IsHTMLWhitespace(PRUnichar aChar)
 
 /* static */
 void
-nsContentUtils::GetOfflineAppManifest(nsIDocument *aDocument, nsIURI **aURI)
+nsContentUtils::GetOfflineAppManifest(nsIDOMWindow *aWindow, nsIURI **aURI)
 {
-  nsCOMPtr<nsIContent> docElement = aDocument->GetRootContent();
+  nsCOMPtr<nsIDOMWindow> top;
+  aWindow->GetTop(getter_AddRefs(top));
+  if (!top) {
+    return;
+  }
+
+  nsCOMPtr<nsIDOMDocument> topDOMDocument;
+  top->GetDocument(getter_AddRefs(topDOMDocument));
+  nsCOMPtr<nsIDocument> topDoc = do_QueryInterface(topDOMDocument);
+  if (!topDoc) {
+    return;
+  }
+
+  nsCOMPtr<nsIContent> docElement = topDoc->GetRootContent();
   if (!docElement) {
     return;
   }
@@ -815,7 +828,7 @@ nsContentUtils::GetOfflineAppManifest(nsIDocument *aDocument, nsIURI **aURI)
   }
 
   nsContentUtils::NewURIWithDocumentCharset(aURI, manifestSpec,
-                                            aDocument, aDocument->GetBaseURI());
+                                            topDoc, topDoc->GetBaseURI());
 }
 
 /* static */
@@ -1659,14 +1672,12 @@ nsContentUtils::ComparePoints(nsINode* aParent1, PRInt32 aOffset1,
 
   PRUint32 pos1 = parents1.Length() - 1;
   PRUint32 pos2 = parents2.Length() - 1;
-  
-  PRBool disconnected = parents1.ElementAt(pos1) != parents2.ElementAt(pos2);
+
+  NS_ASSERTION(parents1.ElementAt(pos1) == parents2.ElementAt(pos2) ||
+               aDisconnected,
+               "disconnected nodes");
   if (aDisconnected) {
-    *aDisconnected = disconnected;
-  }
-  if (disconnected) {
-    NS_ASSERTION(aDisconnected, "unexpected disconnected nodes");
-    return 1;
+    *aDisconnected = (parents1.ElementAt(pos1) != parents2.ElementAt(pos2));
   }
 
   // Find where the parent chains differ

@@ -35,9 +35,6 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-#if !defined(nsAudioStream_h_)
-#define nsAudioStream_h_
-
 #include "nscore.h"
 #include "prlog.h"
 
@@ -48,7 +45,7 @@ class nsAudioStream
  public:
   // Initialize Audio Library. Some Audio backends (eg. PortAudio) require initializing
   // library before using it. 
-  static void InitLibrary();
+  static nsresult InitLibrary();
 
   // Shutdown Audio Library. Some Audio backends (eg. PortAudio) require shutting down
   // the library after using it. 
@@ -59,60 +56,50 @@ class nsAudioStream
   // Initialize the audio stream. aNumChannels is the number of audio channels 
   // (1 for mono, 2 for stereo, etc) and aRate is the frequency of the sound 
   // samples (22050, 44100, etc).
-  void Init(PRInt32 aNumChannels, PRInt32 aRate);
+  nsresult Init(PRInt32 aNumChannels, PRInt32 aRate);
 
   // Closes the stream. All future use of the stream is an error.
-  void Shutdown();
+  nsresult Shutdown();
+
+  // Pause sound playback. 
+  nsresult Pause();
+
+  // Resume playback of sound.
+  nsresult Resume();
 
   // Write sound data to the audio hardware. aBuf is an array of floats of
   // length aCount. aCount should be evenly divisible by the number of 
   // channels in this audio stream.
-  void Write(const float* aBuf, PRUint32 aCount);
-
-  // Write sound data to the audio hardware.  aBuf is an array of shorts in
-  // signed 16-bit little endian format of length aCount.  Acount should be
-  // evenly divisible by the number of channels in this audio stream.
-  void Write(const short* aBuf, PRUint32 aCount);
+  nsresult Write(float* aBuf, PRUint32 count);
 
   // Return the number of sound samples that can be written to the audio device
   // without blocking.
   PRInt32 Available();
 
+  // Store in aTime the position (in seconds) of the audio sample currently 
+  // being played by the audio hardware.
+  nsresult GetTime(double* aTime);
+
   // Store in aVolume the value of the volume setting. This is a value from
   // 0 (meaning muted) to 1 (meaning full volume).
-  float GetVolume();
+  nsresult GetVolume(float* aVolume);
 
   // Set the current volume of the audio playback. This is a value from
   // 0 (meaning muted) to 1 (meaning full volume).
-  void SetVolume(float aVolume);
-
-  // Block until buffered audio data has been consumed.
-  void Drain();
-
-  // Pause sound playback.
-  void Pause();
-
-  // Resume sound playback.
-  void Resume();
-
-  // Return the position (in seconds) of the audio sample currently being
-  // played by the audio hardware.
-  double GetTime();
+  nsresult SetVolume(float aVolume);
 
  private:
   double mVolume;
+#if defined(SYDNEY_AUDIO_NO_POSITION)
+  // The time, in seconds, that playback was last paused.
+  double mPauseTime;
+#else
+  // The byte position in the audio buffer where playback
+  // was last paused.
+  PRInt64 mPauseBytes;
+#endif
   void* mAudioHandle;
   int mRate;
   int mChannels;
-
-  // The byte position in the audio buffer where playback was last paused.
-  PRInt64 mSavedPauseBytes;
-  PRInt64 mPauseBytes;
-
-  float mStartTime;
-  float mPauseTime;
-  PRInt64 mSamplesBuffered;
-
-  PRPackedBool mPaused;
+  PRBool mPaused;
 };
-#endif

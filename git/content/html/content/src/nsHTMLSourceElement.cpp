@@ -92,10 +92,8 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLSourceElement, nsGenericElement)
 
 
 // QueryInterface implementation for nsHTMLSourceElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLSourceElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLSourceElement, nsIDOMHTMLSourceElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLSourceElement,
-                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLSourceElement, nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED1(nsHTMLSourceElement, nsIDOMHTMLSourceElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLSourceElement)
 
 
@@ -104,6 +102,8 @@ NS_IMPL_ELEMENT_CLONE(nsHTMLSourceElement)
 
 NS_IMPL_URI_ATTR(nsHTMLSourceElement, Src, src)
 NS_IMPL_STRING_ATTR(nsHTMLSourceElement, Type, type)
+NS_IMPL_STRING_ATTR(nsHTMLSourceElement, Media, media)
+NS_IMPL_FLOAT_ATTR(nsHTMLSourceElement, PixelRatio, pixelratio)
 
 
 PRBool

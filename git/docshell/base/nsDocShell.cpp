@@ -146,7 +146,6 @@
 #include "nsITransportSecurityInfo.h"
 #include "nsINSSErrorsService.h"
 #include "nsIApplicationCache.h"
-#include "nsIApplicationCacheChannel.h"
 #include "nsIApplicationCacheContainer.h"
 #include "nsIPermissionManager.h"
 
@@ -296,13 +295,13 @@ nsDocShell::nsDocShell():
     mObserveErrorPages(PR_TRUE),
     mAllowAuth(PR_TRUE),
     mAllowKeywordFixup(PR_FALSE),
-    mIsOffScreenBrowser(PR_FALSE),
     mFiredUnloadEvent(PR_FALSE),
     mEODForCurrentDocument(PR_FALSE),
     mURIResultedInDocument(PR_FALSE),
     mIsBeingDestroyed(PR_FALSE),
     mIsExecutingOnLoadHandler(PR_FALSE),
     mIsPrintingOrPP(PR_FALSE),
+    mIsOffScreenBrowser(PR_FALSE),
     mSavingOldViewer(PR_FALSE),
     mAppType(nsIDocShell::APP_TYPE_UNKNOWN),
     mChildOffset(0),
@@ -468,10 +467,17 @@ NS_IMETHODIMP nsDocShell::GetInterface(const nsIID & aIID, void **aSink)
     else if (aIID.Equals(NS_GET_IID(nsIApplicationCacheContainer))) {
         *aSink = nsnull;
 
-        // Return application cache associated with this docshell, if any
+        // Return the toplevel document as an
+        // nsIApplicationCacheContainer.
+
+        nsCOMPtr<nsIDocShellTreeItem> rootItem;
+        GetSameTypeRootTreeItem(getter_AddRefs(rootItem));
+        nsCOMPtr<nsIDocShell> rootDocShell = do_QueryInterface(rootItem);
+        if (!rootDocShell)
+            return NS_ERROR_NO_INTERFACE;
 
         nsCOMPtr<nsIContentViewer> contentViewer;
-        GetContentViewer(getter_AddRefs(contentViewer));
+        rootDocShell->GetContentViewer(getter_AddRefs(contentViewer));
         if (!contentViewer)
             return NS_ERROR_NO_INTERFACE;
 
@@ -481,11 +487,6 @@ NS_IMETHODIMP nsDocShell::GetInterface(const nsIID & aIID, void **aSink)
         if (!domDoc)
             return NS_ERROR_NO_INTERFACE;
 
-#if defined(PR_LOGGING) && defined(DEBUG)
-        PR_LOG(gDocShellLog, PR_LOG_DEBUG,
-               ("nsDocShell[%p]: returning app cache container %p",
-                this, domDoc.get()));
-#endif
         return domDoc->QueryInterface(aIID, aSink);
     }
     else if (aIID.Equals(NS_GET_IID(nsIPrompt)) &&
@@ -3066,13 +3067,6 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
                 if (expert) {
                     cssClass.AssignLiteral("expertBadCert");
                 }
-                
-                // See if an alternate cert error page is registered
-                nsXPIDLCString alternateErrorPage;
-                mPrefs->GetCharPref("security.alternate_certificate_error_page",
-                                    getter_Copies(alternateErrorPage));
-                if (alternateErrorPage)
-                    errorPage.Assign(alternateErrorPage);
             } else {
                 error.AssignLiteral("nssFailure2");
             }
@@ -3920,16 +3914,16 @@ NS_IMETHODIMP
 nsDocShell::GetVisibility(PRBool * aVisibility)
 {
     NS_ENSURE_ARG_POINTER(aVisibility);
-
-    *aVisibility = PR_FALSE;
-
-    if (!mContentViewer)
+    if (!mContentViewer) {
+        *aVisibility = PR_FALSE;
         return NS_OK;
+    }
 
+    // get the pres shell
     nsCOMPtr<nsIPresShell> presShell;
-    GetPresShell(getter_AddRefs(presShell));
-    if (!presShell)
-        return NS_OK;
+    NS_ENSURE_SUCCESS(GetPresShell(getter_AddRefs(presShell)),
+                      NS_ERROR_FAILURE);
+    NS_ENSURE_TRUE(presShell, NS_ERROR_FAILURE);
 
     // get the view manager
     nsIViewManager* vm = presShell->GetViewManager();
@@ -3941,8 +3935,10 @@ nsDocShell::GetVisibility(PRBool * aVisibility)
     NS_ENSURE_TRUE(view, NS_ERROR_FAILURE);
 
     // if our root view is hidden, we are not visible
-    if (view->GetVisibility() == nsViewVisibility_kHide)
+    if (view->GetVisibility() == nsViewVisibility_kHide) {
+        *aVisibility = PR_FALSE;
         return NS_OK;
+    }
 
     // otherwise, we must walk up the document and view trees checking
     // for a hidden view, unless we're an off screen browser, which 
@@ -3961,7 +3957,8 @@ nsDocShell::GetVisibility(PRBool * aVisibility)
 
         // Null-check for crash in bug 267804
         if (!pPresShell) {
-            NS_NOTREACHED("parent docshell has null pres shell");
+            NS_NOTREACHED("docshell has null pres shell");
+            *aVisibility = PR_FALSE;
             return NS_OK;
         }
 
@@ -3972,14 +3969,17 @@ nsDocShell::GetVisibility(PRBool * aVisibility)
         nsIFrame* frame = pPresShell->GetPrimaryFrameFor(shellContent);
         PRBool isDocShellOffScreen = PR_FALSE;
         docShell->GetIsOffScreenBrowser(&isDocShellOffScreen);
-        if (frame && !frame->AreAncestorViewsVisible() && !isDocShellOffScreen)
+        if (frame && !frame->AreAncestorViewsVisible() && !isDocShellOffScreen) {
+            *aVisibility = PR_FALSE;
             return NS_OK;
+        }
 
         treeItem = parentItem;
         treeItem->GetParent(getter_AddRefs(parentItem));
     }
 
-    nsCOMPtr<nsIBaseWindow> treeOwnerAsWin(do_QueryInterface(mTreeOwner));
+    nsCOMPtr<nsIBaseWindow>
+        treeOwnerAsWin(do_QueryInterface(mTreeOwner));
     if (!treeOwnerAsWin) {
         *aVisibility = PR_TRUE;
         return NS_OK;
@@ -4182,7 +4182,7 @@ nsDocShell::SetCurScrollPos(PRInt32 scrollOrientation, PRInt32 curPos)
         y = 0;                  // fix compiler warning, not actually executed
     }
 
-    NS_ENSURE_SUCCESS(scrollView->ScrollTo(x, y, 0),
+    NS_ENSURE_SUCCESS(scrollView->ScrollTo(x, y, NS_VMREFRESH_IMMEDIATE),
                       NS_ERROR_FAILURE);
     return NS_OK;
 }
@@ -4197,7 +4197,8 @@ nsDocShell::SetCurScrollPosEx(PRInt32 curHorizontalPos, PRInt32 curVerticalPos)
         return NS_ERROR_FAILURE;
     }
 
-    NS_ENSURE_SUCCESS(scrollView->ScrollTo(curHorizontalPos, curVerticalPos, 0),
+    NS_ENSURE_SUCCESS(scrollView->ScrollTo(curHorizontalPos, curVerticalPos,
+                                           NS_VMREFRESH_IMMEDIATE),
                       NS_ERROR_FAILURE);
     return NS_OK;
 }
@@ -5113,22 +5114,13 @@ nsDocShell::OnRedirectStateChange(nsIChannel* aOldChannel,
     if (result == NS_ERROR_NOT_IMPLEMENTED) {
         // when there is no GlobalHistory3, or it doesn't implement
         // AddToplevelRedirect, we fall back to GlobalHistory2.  Just notify
-        // that the redirecting page was a rePdirect so it will be link colored
+        // that the redirecting page was a redirect so it will be link colored
         // but not visible.
         nsCOMPtr<nsIURI> oldURI;
         aOldChannel->GetURI(getter_AddRefs(oldURI));
         if (! oldURI)
             return; // nothing to tell anybody about
         AddToGlobalHistory(oldURI, PR_TRUE, aOldChannel);
-    }
-
-    // check if the new load should go through the application cache.
-    nsCOMPtr<nsIApplicationCacheChannel> appCacheChannel =
-        do_QueryInterface(aNewChannel);
-    if (appCacheChannel) {
-        nsCOMPtr<nsIURI> newURI;
-        aNewChannel->GetURI(getter_AddRefs(newURI));
-        appCacheChannel->SetChooseApplicationCache(ShouldCheckAppCache(newURI));
     }
 }
 
@@ -7336,6 +7328,15 @@ nsDocShell::GetInheritedPrincipal(PRBool aConsiderCurrentDocument)
 PRBool
 nsDocShell::ShouldCheckAppCache(nsIURI *aURI)
 {
+    // Toplevel document loads in domains with the offline-app
+    // permission should check for an associated application
+    // cache.
+    nsCOMPtr<nsIDocShellTreeItem> root;
+    GetSameTypeRootTreeItem(getter_AddRefs(root));
+    if (root != this) {
+        return PR_FALSE;
+    }
+
     nsCOMPtr<nsIOfflineCacheUpdateService> offlineService =
         do_GetService(NS_OFFLINECACHEUPDATESERVICE_CONTRACTID);
     if (!offlineService) {
@@ -7373,6 +7374,10 @@ nsDocShell::DoURILoad(nsIURI * aURI,
     if (aFirstParty) {
         // tag first party URL loads
         loadFlags |= nsIChannel::LOAD_INITIAL_DOCUMENT_URI;
+
+        if (ShouldCheckAppCache(aURI)) {
+            loadFlags |= nsICachingChannel::LOAD_CHECK_OFFLINE_CACHE;
+        }
     }
 
     if (mLoadType == LOAD_ERROR_PAGE) {
@@ -7404,17 +7409,6 @@ nsDocShell::DoURILoad(nsIURI * aURI,
         }
             
         return rv;
-    }
-
-    nsCOMPtr<nsIApplicationCacheChannel> appCacheChannel =
-        do_QueryInterface(channel);
-    if (appCacheChannel) {
-        // Any document load should not inherit application cache.
-        appCacheChannel->SetInheritApplicationCache(PR_FALSE);
-
-        // Loads with the correct permissions should check for a matching
-        // application cache.
-        appCacheChannel->SetChooseApplicationCache(ShouldCheckAppCache(aURI));
     }
 
     // Make sure to give the caller a channel if we managed to create one

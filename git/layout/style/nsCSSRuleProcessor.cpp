@@ -1047,7 +1047,7 @@ RuleProcessorData::GetNthIndex(PRBool aIsOfType, PRBool aIsFromEnd,
   nsIContent * const * stopPtr;
   if (aIsFromEnd) {
     stopPtr = curChildPtr - 1;
-    curChildPtr = stopPtr + childCount;
+    curChildPtr += childCount - 1;
     increment = -1;
   } else {
     increment = 1;
@@ -2403,8 +2403,6 @@ InsertFontFaceRule(nsICSSRule* aRule, gfxUserFontSet* fs)
       case eCSSUnit_URL:
         face->mIsLocal = PR_FALSE;
         face->mURI = val.GetURLValue();
-        NS_ASSERTION(face->mURI, "null url in @font-face rule");
-        face->mReferrer = val.GetURLStructValue()->mReferrer;
         face->mLocalName.Truncate();
         face->mFormatFlags = 0;
         while (i + 1 < numSrc && (val = srcArr->Item(i+1), 

@@ -81,8 +81,7 @@ NS_IMETHODIMP nsHTMLCheckboxAccessible::GetActionName(PRUint8 aIndex, nsAString&
   if (aIndex == eAction_Click) {    // 0 is the magic value for default action
     // check or uncheck
     PRUint32 state;
-    nsresult rv = GetStateInternal(&state, nsnull);
-    NS_ENSURE_SUCCESS(rv, rv);
+    GetState(&state, nsnull);
 
     if (state & nsIAccessibleStates::STATE_CHECKED)
       aName.AssignLiteral("uncheck"); 
@@ -102,11 +101,10 @@ NS_IMETHODIMP nsHTMLCheckboxAccessible::DoAction(PRUint8 index)
   return NS_ERROR_INVALID_ARG;
 }
 
-nsresult
-nsHTMLCheckboxAccessible::GetStateInternal(PRUint32 *aState,
-                                           PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsHTMLCheckboxAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  nsresult rv = nsFormControlAccessible::GetStateInternal(aState, aExtraState);
+  nsresult rv = nsFormControlAccessible::GetState(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!mDOMNode)
     return NS_OK;
@@ -132,11 +130,10 @@ nsRadioButtonAccessible(aNode, aShell)
 { 
 }
 
-nsresult
-nsHTMLRadioButtonAccessible::GetStateInternal(PRUint32 *aState,
-                                              PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsHTMLRadioButtonAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  nsresult rv = nsAccessibleWrap::GetStateInternal(aState, aExtraState);
+  nsresult rv = nsAccessibleWrap::GetState(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!mDOMNode)
     return NS_OK;
@@ -253,12 +250,10 @@ NS_IMETHODIMP nsHTMLButtonAccessible::DoAction(PRUint8 index)
   return NS_ERROR_INVALID_ARG;
 }
 
-nsresult
-nsHTMLButtonAccessible::GetStateInternal(PRUint32 *aState,
-                                         PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsHTMLButtonAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  nsresult rv = nsHyperTextAccessibleWrap::GetStateInternal(aState,
-                                                            aExtraState);
+  nsresult rv = nsHyperTextAccessibleWrap::GetState(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!mDOMNode)
     return NS_OK;
@@ -354,12 +349,10 @@ NS_IMETHODIMP nsHTML4ButtonAccessible::GetRole(PRUint32 *_retval)
   return NS_OK;
 }
 
-nsresult
-nsHTML4ButtonAccessible::GetStateInternal(PRUint32 *aState,
-                                          PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsHTML4ButtonAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  nsresult rv = nsHyperTextAccessibleWrap::GetStateInternal(aState,
-                                                            aExtraState);
+  nsresult rv = nsHyperTextAccessibleWrap::GetState(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!mDOMNode)
     return NS_OK;
@@ -430,9 +423,7 @@ nsHTMLTextFieldAccessible::GetNameInternal(nsAString& aName)
 NS_IMETHODIMP nsHTMLTextFieldAccessible::GetValue(nsAString& _retval)
 {
   PRUint32 state;
-  nsresult rv = GetStateInternal(&state, nsnull);
-  NS_ENSURE_SUCCESS(rv, rv);
-
+  GetState(&state, nsnull);
   if (state & nsIAccessibleStates::STATE_PROTECTED)    // Don't return password text!
     return NS_ERROR_FAILURE;
 
@@ -449,12 +440,10 @@ NS_IMETHODIMP nsHTMLTextFieldAccessible::GetValue(nsAString& _retval)
   return NS_ERROR_FAILURE;
 }
 
-nsresult
-nsHTMLTextFieldAccessible::GetStateInternal(PRUint32 *aState,
-                                            PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsHTMLTextFieldAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  nsresult rv = nsHyperTextAccessibleWrap::GetStateInternal(aState,
-                                                            aExtraState);
+  nsresult rv = nsHyperTextAccessibleWrap::GetState(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!mDOMNode)
     return NS_OK;

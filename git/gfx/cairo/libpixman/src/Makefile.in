@@ -82,9 +82,10 @@ ifneq ($(MOZ_WIDGET_TOOLKIT),os2)
 MMX_CFLAGS+=--param inline-unit-growth=10000 --param large-function-growth=10000
 endif
 endif
+
 ifeq (arm,$(findstring arm,$(OS_TEST)))
 ifdef HAVE_ARM_SIMD
-USE_ARM_SIMD=1
+USE_ARM=1
 endif
 endif
 
@@ -127,9 +128,9 @@ CSRCS += pixman-vmx.c
 DEFINES += -DUSE_VMX
 endif
 
-ifdef USE_ARM_SIMD
-CSRCS += pixman-arm-simd.c
-DEFINES += -DUSE_ARM_SIMD
+ifdef USE_ARM
+CSRCS += pixman-arm.c
+DEFINES += -DUSE_ARM
 endif
 
 EXPORTS		= pixman.h pixman-version.h

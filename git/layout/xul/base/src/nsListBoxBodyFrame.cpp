@@ -224,12 +224,8 @@ nsListBoxBodyFrame::Release(void)
 // QueryInterface
 //
 NS_INTERFACE_MAP_BEGIN(nsListBoxBodyFrame)
+  NS_INTERFACE_MAP_ENTRY(nsIListBoxObject)
   NS_INTERFACE_MAP_ENTRY(nsIScrollbarMediator)
-  if (aIID.Equals(NS_GET_IID(nsListBoxBodyFrame))) {
-    *aInstancePtr = this;
-    return NS_OK;
-  }
-  else
 NS_INTERFACE_MAP_END_INHERITING(nsBoxFrame)
 
 
@@ -504,28 +500,28 @@ nsListBoxBodyFrame::ReflowCallbackCanceled()
 
 ///////// nsIListBoxObject ///////////////
 
-nsresult
+NS_IMETHODIMP
 nsListBoxBodyFrame::GetRowCount(PRInt32* aResult)
 {
   *aResult = GetRowCount();
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsListBoxBodyFrame::GetNumberOfVisibleRows(PRInt32 *aResult)
 {
   *aResult= mRowHeight ? GetAvailableHeight() / mRowHeight : 0;
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsListBoxBodyFrame::GetIndexOfFirstVisibleRow(PRInt32 *aResult)
 {
   *aResult = mCurrentIndex;
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsListBoxBodyFrame::EnsureIndexIsVisible(PRInt32 aRowIndex)
 {
   NS_ASSERTION(aRowIndex >= 0, "Ensure row is visible called with a negative number!");
@@ -563,7 +559,7 @@ nsListBoxBodyFrame::EnsureIndexIsVisible(PRInt32 aRowIndex)
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsListBoxBodyFrame::ScrollByLines(PRInt32 aNumLines)
 {
   PRInt32 scrollIndex, visibleRows;
@@ -596,7 +592,7 @@ nsListBoxBodyFrame::ScrollByLines(PRInt32 aNumLines)
 }
 
 // walks the DOM to get the zero-based row index of the content
-nsresult
+NS_IMETHODIMP
 nsListBoxBodyFrame::GetIndexOfItem(nsIDOMElement* aItem, PRInt32* _retval)
 {
   if (aItem) {
@@ -626,7 +622,7 @@ nsListBoxBodyFrame::GetIndexOfItem(nsIDOMElement* aItem, PRInt32* _retval)
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsListBoxBodyFrame::GetItemAtIndex(PRInt32 aIndex, nsIDOMElement** aItem)
 {
   *aItem = nsnull;
@@ -820,7 +816,7 @@ nsListBoxBodyFrame::PostReflowCallback()
 
 ////////// scrolling
 
-nsresult
+NS_IMETHODIMP
 nsListBoxBodyFrame::ScrollToIndex(PRInt32 aRowIndex)
 {
   if (( aRowIndex < 0 ) || (mRowHeight == 0))
@@ -1010,7 +1006,7 @@ nsListBoxBodyFrame::VerticalScroll(PRInt32 aPosition)
 
   nsPoint scrollPosition = scrollFrame->GetScrollPosition();
  
-  scrollFrame->ScrollTo(nsPoint(scrollPosition.x, aPosition));
+  scrollFrame->ScrollTo(nsPoint(scrollPosition.x, aPosition), NS_SCROLL_PROPERTY_ALWAYS_BLIT);
 
   mYPosition = aPosition;
 }

@@ -182,9 +182,6 @@ extern void
 js_AppendCString(JSStringBuffer *sb, const char *asciiz);
 
 extern void
-js_AppendUCString(JSStringBuffer *sb, const jschar *buf, uintN len);
-
-extern void
 js_AppendJSString(JSStringBuffer *sb, JSString *str);
 
 struct JSTokenPtr {

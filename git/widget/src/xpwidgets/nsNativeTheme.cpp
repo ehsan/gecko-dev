@@ -74,7 +74,9 @@ nsNativeTheme::GetContentState(nsIFrame* aFrame, PRUint8 aWidgetType)
 
   PRBool isXULCheckboxRadio = 
     (aWidgetType == NS_THEME_CHECKBOX ||
-     aWidgetType == NS_THEME_RADIO) &&
+     aWidgetType == NS_THEME_CHECKBOX_SMALL ||
+     aWidgetType == NS_THEME_RADIO ||
+     aWidgetType == NS_THEME_RADIO_SMALL) &&
     aFrame->GetContent()->IsNodeOfType(nsINode::eXUL);
   if (isXULCheckboxRadio)
     aFrame = aFrame->GetParent();
@@ -86,7 +88,7 @@ nsNativeTheme::GetContentState(nsIFrame* aFrame, PRUint8 aWidgetType)
   PRInt32 flags = 0;
   shell->GetPresContext()->EventStateManager()->GetContentState(aFrame->GetContent(), flags);
   
-  if (isXULCheckboxRadio && aWidgetType == NS_THEME_RADIO) {
+  if (isXULCheckboxRadio && (aWidgetType == NS_THEME_RADIO || aWidgetType == NS_THEME_RADIO_SMALL)) {
     if (IsFocused(aFrame))
       flags |= NS_EVENT_STATE_FOCUS;
   }

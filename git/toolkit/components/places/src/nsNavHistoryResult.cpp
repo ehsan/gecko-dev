@@ -191,25 +191,30 @@ nsNavHistoryResultNode::GetTags(nsAString& aTags) {
     return NS_OK;
   }
 
-  // Fetch the tags
-  nsNavHistory* history = nsNavHistory::GetHistoryService();
-  NS_ENSURE_STATE(history);
-  mozIStorageStatement* getTagsStatement = history->DBGetTags();
-
-  mozStorageStatementScoper scoper(getTagsStatement);
-  nsresult rv = getTagsStatement->BindStringParameter(0, NS_LITERAL_STRING(", "));
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = getTagsStatement->BindInt32Parameter(1, history->GetTagsFolder());
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = getTagsStatement->BindUTF8StringParameter(2, mURI);
+  nsresult rv;
+  nsCOMPtr<nsITaggingService> svc =
+    do_GetService("@mozilla.org/browser/tagging-service;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  PRBool hasTags = PR_FALSE;
-  if (NS_SUCCEEDED(getTagsStatement->ExecuteStep(&hasTags)) && hasTags) {
-    rv = getTagsStatement->GetString(0, mTags);
-    NS_ENSURE_SUCCESS(rv, rv);
-    aTags.Assign(mTags);
+  nsCOMPtr<nsIURI> uri;
+  rv = NS_NewURI(getter_AddRefs(uri), mURI);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // build the tags string
+  PRUnichar **tags;
+  PRUint32 count;
+  rv = svc->GetTagsForURI(uri, &count, &tags);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (count > 0) {
+    for (PRUint32 i=0; i < count; i++) {
+      mTags.Append(tags[i]);
+      if (i < count -1) { // separate with commas
+        mTags.Append(NS_LITERAL_STRING(", "));
+      }
+    }
+    NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(count, tags);
   }
+  aTags.Assign(mTags);
 
   // If this node is a child of a history, we need to make sure
   // bookmarks-liveupdate is turned on for this query

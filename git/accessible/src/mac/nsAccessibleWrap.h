@@ -87,7 +87,7 @@ class nsAccessibleWrap : public nsAccessible
     
     PRBool HasPopup () {
       PRUint32 state = 0;
-      GetStateInternal(&state, nsnull);
+      GetState(&state, nsnull);
       return (state & nsIAccessibleStates::STATE_HASPOPUP);
     }
     

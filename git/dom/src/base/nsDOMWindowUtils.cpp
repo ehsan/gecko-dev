@@ -384,8 +384,9 @@ nsDOMWindowUtils::ActivateNativeMenuItemAt(const nsAString& indexString)
   return widget->ActivateNativeMenuItemAt(indexString);
 }
 
+
 NS_IMETHODIMP
-nsDOMWindowUtils::ForceUpdateNativeMenuAt(const nsAString& indexString)
+nsDOMWindowUtils::ForceNativeMenuReload()
 {
   PRBool hasCap = PR_FALSE;
   if (NS_FAILED(nsContentUtils::GetSecurityManager()->IsCapabilityEnabled("UniversalXPConnect", &hasCap))
@@ -397,8 +398,9 @@ nsDOMWindowUtils::ForceUpdateNativeMenuAt(const nsAString& indexString)
   if (!widget)
     return NS_ERROR_FAILURE;
 
-  return widget->ForceUpdateNativeMenuAt(indexString);
+  return widget->ForceNativeMenuReload();
 }
+
 
 nsIWidget*
 nsDOMWindowUtils::GetWidget()
@@ -537,17 +539,4 @@ nsDOMWindowUtils::SendSimpleGestureEvent(const nsAString& aType,
 
   nsEventStatus status;
   return widget->DispatchEvent(&event, status);
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::ElementFromPoint(PRInt32 aX, PRInt32 aY,
-                                   PRBool aIgnoreRootScrollFrame,
-                                   PRBool aFlushLayout,
-                                   nsIDOMElement** aReturn)
-{
-  nsCOMPtr<nsIDocument> doc(do_QueryInterface(mWindow->GetExtantDocument()));
-  NS_ENSURE_STATE(doc);
-  
-  return doc->ElementFromPointHelper(aX, aY, aIgnoreRootScrollFrame, aFlushLayout,
-                                     aReturn);
 }

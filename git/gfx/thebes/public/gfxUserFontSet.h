@@ -56,12 +56,25 @@ struct gfxFontFaceSrc {
     PRPackedBool           mIsLocal;       // url or local
     nsString               mLocalName;     // full font name if local
     nsCOMPtr<nsIURI>       mURI;           // uri if url 
-    nsCOMPtr<nsIURI>       mReferrer;      // referrer url if url
 
     // format hint flags, union of all possible formats
     // (e.g. TrueType, EOT, SVG, etc.)
     // see FLAG_FORMAT_* enum values below
     PRUint32               mFormatFlags;
+};
+
+// data needed to initialize platform font
+// After download completes, platform-specific code is responsible for
+// removing temp file and managing cache token. Depending on the
+// platform, these may need to persist after the platform font has been
+// created.
+// lifetime: time during which font is downloaded and active
+struct gfxDownloadedFontData {
+    nsCOMPtr<nsIFile>      mFontFile;     // file containing font data
+    nsCOMPtr<nsISupports>  mDownloader;   // need to a ref to this to prevent file from being deleted
+
+    // format hint flags, union of all possible formats
+    PRUint32               mFormatFlags;  // opentype, truetype, svg, etc. (if known)
 };
 
 // subclassed by loader code to contain needed context info
@@ -147,10 +160,8 @@ class THEBES_API gfxUserFontSet {
 
 public:
     class LoaderContext;
-    typedef nsresult (*LoaderCallback) (gfxFontEntry *aFontToLoad, 
-                                        nsIURI *aSrcURL,
-                                        nsIURI *aReferrerURI,
-                                        LoaderContext *aContextData);
+    typedef PRBool (*LoaderCallback) (gfxFontEntry *aFontToLoad, nsIURI *aSrcURL, 
+                                      LoaderContext *aContextData);
 
     class LoaderContext {
     public:
@@ -205,7 +216,7 @@ public:
     // returns true if platform font creation sucessful (or local()
     // reference was next in line)
     PRBool OnLoadComplete(gfxFontEntry *aFontToLoad, 
-                          const PRUint8 *aFontData, PRUint32 aLength,
+                          const gfxDownloadedFontData& aFontData, 
                           nsresult aDownloadStatus);
 
     // generation - each time a face is loaded, generation is

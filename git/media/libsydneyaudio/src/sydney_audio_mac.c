@@ -260,15 +260,10 @@ sa_stream_destroy(sa_stream_t *s) {
     return SA_SUCCESS;
   }
 
+  pthread_mutex_lock(&s->mutex);
+
   /*
-   * Shut down the audio output device.  Don't hold the mutex when stopping
-   * the audio device, because it is possible to deadlock with this thread
-   * holding mutex then waiting on an internal Core Audio lock, and with the
-   * callback thread holding the Core Audio lock and waiting on the mutex.
-   * This does not need to be protected by the mutex anyway because
-   * AudioOutputUnitStop, when called from the non-callback thread, blocks
-   * until in-flight callbacks complete and the HAL shuts down.  See:
-   * http://lists.apple.com/archives/coreaudio-api/2005/Dec/msg00055.html
+   * Shut down the audio output device.
    */
   int result = SA_SUCCESS;
   if (s->output_unit != NULL) {
@@ -282,6 +277,8 @@ sa_stream_destroy(sa_stream_t *s) {
       result = SA_ERROR_SYSTEM;
     }
   }
+
+  pthread_mutex_unlock(&s->mutex);
 
   /*
    * Release resources.
@@ -549,14 +546,9 @@ sa_stream_pause(sa_stream_t *s) {
     return SA_ERROR_NO_INIT;
   }
 
-  /*
-   * Don't hold the mutex when stopping the audio device, because it is
-   * possible to deadlock with this thread holding mutex then waiting on an
-   * internal Core Audio lock, and with the callback thread holding the Core
-   * Audio lock and waiting on the mutex.
-  */
+  pthread_mutex_lock(&s->mutex);
   AudioOutputUnitStop(s->output_unit);
-
+  pthread_mutex_unlock(&s->mutex);
   return SA_SUCCESS;
 }
 
@@ -569,21 +561,15 @@ sa_stream_resume(sa_stream_t *s) {
   }
 
   pthread_mutex_lock(&s->mutex);
+
   /*
    * The audio device resets its mSampleTime counter after pausing,
    * so we need to clear our tracking value to keep that in sync.
    */
   s->bytes_played = 0;
-  pthread_mutex_unlock(&s->mutex);
-
-  /*
-   * Don't hold the mutex when starting the audio device, because it is
-   * possible to deadlock with this thread holding mutex then waiting on an
-   * internal Core Audio lock, and with the callback thread holding the Core
-   * Audio lock and waiting on the mutex.
-  */
   AudioOutputUnitStart(s->output_unit);
 
+  pthread_mutex_unlock(&s->mutex);
   return SA_SUCCESS;
 }
 

@@ -396,7 +396,7 @@ input[type="file"] > input[type="button"] {
 
 /* radio buttons */
 input[type="radio"] {
-  -moz-appearance: radio;
+  -moz-appearance: radio-small;
   width: 13px;
   height: 13px;
   margin: 3px 3px 0px 5px;
@@ -409,7 +409,7 @@ input[type="radio"] {
 
 /* check boxes */
 input[type="checkbox"] {
-  -moz-appearance: checkbox;
+  -moz-appearance: checkbox-small;
   width: 13px;
   height: 13px;
   margin: 3px 3px 3px 4px;

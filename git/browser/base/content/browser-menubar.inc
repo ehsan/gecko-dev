@@ -466,15 +466,9 @@
                         key="key_viewInfo" command="View:PageInfo"/>
 #endif
               <menuseparator id="sanitizeSeparator"/>
-              <menuitem id="privateBrowsingItem"
-                        label="&privateBrowsingCmd.label;"
-                        accesskey="&privateBrowsingCmd.accesskey;"
-                        type="checkbox"
-                        autocheck="false"
-                        command="Tools:PrivateBrowsing"/>
               <menuitem id="sanitizeItem"
-                        accesskey="&clearRecentHistoryCmd.accesskey;"
-                        label="&clearRecentHistoryCmd.label;"
+                        accesskey="&clearPrivateDataCmd.accesskey;"
+                        label="&clearPrivateDataCmd.label;"
                         key="key_sanitize" command="Tools:Sanitize"/>
 #ifndef XP_UNIX
               <menuseparator id="prefSep"/>

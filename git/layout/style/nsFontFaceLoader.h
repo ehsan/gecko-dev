@@ -42,16 +42,15 @@
 #ifndef nsFontFaceLoader_h_
 #define nsFontFaceLoader_h_
 
-#include "nsIStreamLoader.h"
+#include "nsIDownloader.h"
 #include "nsIURI.h"
 #include "gfxUserFontSet.h"
 
 class nsIRequest;
 class nsISupports;
 class nsPresContext;
-class nsIPrincipal;
 
-class nsFontFaceLoader : public nsIStreamLoaderObserver
+class nsFontFaceLoader : public nsIDownloadObserver
 {
 public:
 
@@ -60,26 +59,21 @@ public:
   virtual ~nsFontFaceLoader();
 
   NS_DECL_ISUPPORTS
-  NS_DECL_NSISTREAMLOADEROBSERVER 
+  NS_DECL_NSIDOWNLOADOBSERVER 
 
   // initiate the load
   nsresult Init();  
 
   // returns whether create succeeded or not
-  static nsresult CreateHandler(gfxFontEntry *aFontToLoad, 
-                                nsIURI *aFontURI,
-                                nsIURI *aReferrerURI,
-                                gfxUserFontSet::LoaderContext *aContext);
-                              
-private:
+  static PRBool CreateHandler(gfxFontEntry *aFontToLoad, nsIURI *aFontURI, 
+                              gfxUserFontSet::LoaderContext *aContext);
 
-  static nsresult CheckLoadAllowed(nsIPrincipal* aSourcePrincipal,
-                                   nsIURI* aTargetURI,
-                                   nsISupports* aContext);
-  
+private:
   nsRefPtr<gfxFontEntry>              mFontEntry;
   nsCOMPtr<nsIURI>                    mFontURI;
   gfxUserFontSet::LoaderContext*      mLoaderContext;
+  gfxDownloadedFontData               mFaceData;
+  nsCOMPtr<nsIStreamListener>         mDownloader;
 };
 
 class nsFontFaceLoaderContext : public gfxUserFontSet::LoaderContext {

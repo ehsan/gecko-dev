@@ -134,7 +134,7 @@ oggplay_close(OggPlay *player);
 int
 oggplay_get_available(OggPlay *player);
 
-ogg_int64_t
+int
 oggplay_get_duration(OggPlay * player);
 
 int

@@ -1172,6 +1172,12 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
   PRBool useJIT = nsContentUtils::GetBoolPref(chromeWindow ?
                                               js_jit_chrome_str :
                                               js_jit_content_str);
+
+#ifdef MOZ_JSDEBUGGER
+  if (context->mContext->debugHooks->debuggerHandler)
+    useJIT = PR_FALSE;
+#endif
+
   if (useJIT)
     newDefaultJSOptions |= JSOPTION_JIT;
   else
@@ -2371,11 +2377,6 @@ nsJSContext::InitContext(nsIScriptGlobalObject *aGlobalObject)
     // If we don't get a global object then there's nothing more to do here.
 
     return NS_OK;
-  }
-
-  nsCxPusher cxPusher;
-  if (!cxPusher.Push(mContext)) {
-    return NS_ERROR_FAILURE;
   }
 
   nsIXPConnect *xpc = nsContentUtils::XPConnect();

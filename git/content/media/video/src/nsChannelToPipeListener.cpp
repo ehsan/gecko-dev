@@ -40,7 +40,6 @@
 #include "nsMediaDecoder.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsChannelToPipeListener.h"
-#include "nsICachingChannel.h"
 
 nsChannelToPipeListener::nsChannelToPipeListener(nsMediaDecoder* aDecoder) :
   mDecoder(aDecoder),
@@ -104,17 +103,7 @@ nsresult nsChannelToPipeListener::OnStartRequest(nsIRequest* aRequest, nsISuppor
       mDecoder->SetTotalBytes(cl);
     }
   }
-
-  nsCOMPtr<nsICachingChannel> cc = do_QueryInterface(aRequest);
-  if (cc) {
-    PRBool fromCache = PR_FALSE;
-    nsresult rv = cc->IsFromCache(&fromCache);
-
-    if (NS_SUCCEEDED(rv) && !fromCache) {
-      cc->SetCacheAsFile(PR_TRUE);
-    }
-  }
-
+  
   /* Get our principal */
   nsCOMPtr<nsIChannel> chan(do_QueryInterface(aRequest));
   if (chan) {
@@ -135,12 +124,8 @@ nsresult nsChannelToPipeListener::OnStartRequest(nsIRequest* aRequest, nsISuppor
 nsresult nsChannelToPipeListener::OnStopRequest(nsIRequest* aRequest, nsISupports* aContext, nsresult aStatus) 
 {
   mOutput = nsnull;
-  if (aStatus != NS_BINDING_ABORTED && mDecoder) {
-    if (NS_SUCCEEDED(aStatus)) {
-      mDecoder->ResourceLoaded();
-    } else {
-      mDecoder->NetworkError();
-    }
+  if (mDecoder) {
+    mDecoder->ResourceLoaded();
   }
   return NS_OK;
 }

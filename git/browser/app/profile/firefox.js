@@ -80,10 +80,7 @@ pref("extensions.getAddons.search.url", "https://services.addons.mozilla.org/%LO
 // Blocklist preferences
 pref("extensions.blocklist.enabled", true);
 pref("extensions.blocklist.interval", 86400);
-// Controls what level the blocklist switches from warning about items to forcibly
-// blocking them.
-pref("extensions.blocklist.level", 2);
-pref("extensions.blocklist.url", "https://addons.mozilla.org/blocklist/3/%APP_ID%/%APP_VERSION%/%PRODUCT%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/");
+pref("extensions.blocklist.url", "https://addons.mozilla.org/blocklist/2/%APP_ID%/%APP_VERSION%/%PRODUCT%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/");
 pref("extensions.blocklist.detailsURL", "http://%LOCALE%.www.mozilla.com/%LOCALE%/blocklist/");
 
 // Dictionary download preference
@@ -121,16 +118,16 @@ pref("app.update.url", "https://aus2.mozilla.org/update/3/%PRODUCT%/%VERSION%/%B
 // User-settable override to app.update.url for testing purposes.
 //pref("app.update.url.override", "");
 
-// app.update.interval is in branding section
-
+// Interval: Time between checks for a new version (in seconds)
+//           default=1 day
+pref("app.update.interval", 86400);
 // Interval: Time before prompting the user again to restart to install the
 //           latest download (in seconds) default=1 day
 pref("app.update.nagTimer.restart", 86400);
-
 // Interval: When all registered timers should be checked (in milliseconds)
 //           default=10 minutes
 pref("app.update.timer", 600000);
-// Give the user x seconds to react before showing the big UI. default=12 hours
+// Give the user x seconds to react before showing the big UI. default=12 hrs
 pref("app.update.promptWaitTime", 43200);
 // Show the Update Checking/Ready UI when the user was idle for x seconds
 pref("app.update.idletime", 60);
@@ -157,7 +154,7 @@ pref("app.update.incompatible.mode", 0);
 //  .. etc ..
 //
 pref("extensions.update.enabled", true);
-pref("extensions.update.url", "https://versioncheck.addons.mozilla.org/update/VersionCheck.php?reqVersion=%REQ_VERSION%&id=%ITEM_ID%&version=%ITEM_VERSION%&maxAppVersion=%ITEM_MAXAPPVERSION%&status=%ITEM_STATUS%&appID=%APP_ID%&appVersion=%APP_VERSION%&appOS=%APP_OS%&appABI=%APP_ABI%&locale=%APP_LOCALE%&currentAppVersion=%CURRENT_APP_VERSION%");
+pref("extensions.update.url", "https://versioncheck.addons.mozilla.org/update/VersionCheck.php?reqVersion=%REQ_VERSION%&id=%ITEM_ID%&version=%ITEM_VERSION%&maxAppVersion=%ITEM_MAXAPPVERSION%&status=%ITEM_STATUS%&appID=%APP_ID%&appVersion=%APP_VERSION%&appOS=%APP_OS%&appABI=%APP_ABI%&locale=%APP_LOCALE%");
 pref("extensions.update.interval", 86400);  // Check for updates to Extensions and 
                                             // Themes every day
 // Non-symmetric (not shared by extensions) extension-specific [update] preferences
@@ -339,8 +336,9 @@ pref("browser.tabs.closeButtons", 1);
 // false  return to the adjacent tab (old default)
 pref("browser.tabs.selectOwnerOnClose", true);
 
-pref("browser.ctrlTab.previews", true);
+pref("browser.ctrlTab.mostRecentlyUsed", true);
 pref("browser.ctrlTab.recentlyUsedLimit", 7);
+pref("browser.ctrlTab.smoothScroll", true);
 
 // Default bookmark sorting
 pref("browser.bookmarks.sort.direction", "descending");
@@ -396,13 +394,6 @@ pref("privacy.item.siteprefs",   false);
 pref("privacy.item.sessions",    true);
 pref("privacy.item.offlineApps", false);
 
-// What default should we use for the time span in the sanitizer:
-// 0 - Clear everything
-// 1 - Last Hour
-// 2 - Last 2 Hours
-// 3 - Last 4 Hours
-// 4 - Today
-pref("privacy.sanitize.timeSpan", 0);
 pref("privacy.sanitize.sanitizeOnShutdown", false);
 pref("privacy.sanitize.promptOnSanitize", true);
 
@@ -424,17 +415,6 @@ pref("intl.charset.default",  "chrome://global-platform/locale/intl.properties")
 pref("font.language.group", "chrome://global/locale/intl.properties");
 pref("intl.menuitems.alwaysappendaccesskeys","chrome://global/locale/intl.properties");
 pref("intl.menuitems.insertseparatorbeforeaccesskeys","chrome://global/locale/intl.properties");
-
-pref("browser.gesture.swipe.left", "Browser:BackOrBackDuplicate");
-pref("browser.gesture.swipe.right", "Browser:ForwardOrForwardDuplicate");
-pref("browser.gesture.swipe.up", "cmd_scrollTop");
-pref("browser.gesture.swipe.down", "cmd_scrollBottom");
-pref("browser.gesture.pinch.out", "cmd_fullZoomEnlarge");
-pref("browser.gesture.pinch.in", "cmd_fullZoomReduce");
-pref("browser.gesture.pinch.out.shift", "cmd_fullZoomReset");
-pref("browser.gesture.pinch.in.shift", "cmd_fullZoomReset");
-pref("browser.gesture.twist.right", "Browser:NextTab");
-pref("browser.gesture.twist.left", "Browser:PrevTab");
 
 // 0=lines, 1=pages, 2=history , 3=text size
 #ifdef XP_MACOSX
@@ -624,16 +604,16 @@ pref("browser.safebrowsing.enabled", true);
 pref("browser.safebrowsing.malware.enabled", true);
 
 // Non-enhanced mode (local url lists) URL list to check for updates
-pref("browser.safebrowsing.provider.0.updateURL", "http://safebrowsing.clients.google.com/safebrowsing/downloads?client={moz:client}&appver={moz:version}&pver=2.2");
+pref("browser.safebrowsing.provider.0.updateURL", "http://safebrowsing.clients.google.com/safebrowsing/downloads?client={moz:client}&appver={moz:version}&pver=2.1");
 
 pref("browser.safebrowsing.dataProvider", 0);
 
 // Does the provider name need to be localizable?
 pref("browser.safebrowsing.provider.0.name", "Google");
 pref("browser.safebrowsing.provider.0.lookupURL", "http://safebrowsing.clients.google.com/safebrowsing/lookup?sourceid=firefox-antiphish&features=TrustRank&client={moz:client}&appver={moz:version}&");
-pref("browser.safebrowsing.provider.0.keyURL", "https://sb-ssl.google.com/safebrowsing/newkey?client={moz:client}&appver={moz:version}&pver=2.2");
+pref("browser.safebrowsing.provider.0.keyURL", "https://sb-ssl.google.com/safebrowsing/newkey?client={moz:client}&appver={moz:version}&pver=2.1");
 pref("browser.safebrowsing.provider.0.reportURL", "http://safebrowsing.clients.google.com/safebrowsing/report?");
-pref("browser.safebrowsing.provider.0.gethashURL", "http://safebrowsing.clients.google.com/safebrowsing/gethash?client={moz:client}&appver={moz:version}&pver=2.2");
+pref("browser.safebrowsing.provider.0.gethashURL", "http://safebrowsing.clients.google.com/safebrowsing/gethash?client={moz:client}&appver={moz:version}&pver=2.1");
 
 // privacy policy -- Both url and fallbackurl must exist, although they may
 // point to the same file.  fallbackurl must be a chrome url
@@ -684,13 +664,20 @@ pref("browser.safebrowsing.malware.reportURL", "http://safebrowsing.clients.goog
 
 #endif
 
+// defaults to true on Windows and Mac, because the installer shows this
+#ifdef XP_MACOSX
+pref("browser.EULA.3.accepted", true);
+#elifdef XP_WIN
+pref("browser.EULA.3.accepted", true);
+#else
+pref("browser.EULA.3.accepted", false);
+#endif
+
+// if we rev the EULA again, we should bump this so users agree to the new EULA
 pref("browser.EULA.version", 3);
-pref("browser.rights.version", 3);
-pref("browser.rights.3.shown", false);
 
 #ifdef DEBUG
-// Don't show the about:rights notification in debug builds.
-pref("browser.rights.override", true);
+pref("browser.EULA.override", true);
 #endif
 
 pref("browser.sessionstore.resume_from_crash", true);
@@ -760,7 +747,7 @@ pref("places.frecency.unvisitedTypedBonus", 200);
 // 0 - don't pre-populate anything
 // 1 - pre-populate site URL, but don't fetch certificate
 // 2 - pre-populate site URL and pre-fetch certificate
-pref("browser.ssl_override_behavior", 2);
+pref("browser.ssl_override_behavior", 1);
 
 // Controls the display of domain in the identity box for SSL connections.
 // 0 - do not show domain
@@ -786,12 +773,3 @@ pref("breakpad.reportURL", "http://crash-stats.mozilla.com/report/index/");
 
 // base URL for web-based support pages
 pref("app.support.baseURL", "http://support.mozilla.com/1/%APP%/%VERSION%/%OS%/%LOCALE%/");
-
-// Name of alternate about: page for certificate errors (when undefined, defaults to about:neterror)
-pref("security.alternate_certificate_error_page", "certerror");
-
-// Whether to start the private browsing mode at application startup
-pref("browser.privatebrowsing.autostart", false);
-
-// Whether we should skip prompting before starting the private browsing mode
-pref("browser.privatebrowsing.dont_prompt_on_enter", false);

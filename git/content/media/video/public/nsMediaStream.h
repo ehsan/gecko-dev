@@ -70,14 +70,7 @@ public:
 
   // These methods have the same thread calling requirements 
   // as those with the same name in nsMediaStream
-
-  /**
-   * @param aStreamListener if null, the strategy should open mChannel
-   * itself. Otherwise, mChannel is already open and the strategy
-   * should just return its stream listener in aStreamListener (or set
-   * *aStreamListener to null, if it doesn't need a listener).
-   */
-  virtual nsresult Open(nsIStreamListener** aStreamListener) = 0;
+  virtual nsresult Open() = 0;
   virtual nsresult Close() = 0;
   virtual nsresult Read(char* aBuffer, PRUint32 aCount, PRUint32* aBytes) = 0;
   virtual nsresult Seek(PRInt32 aWhence, PRInt64 aOffset) = 0;
@@ -128,15 +121,9 @@ class nsMediaStream
   nsMediaStream();
   ~nsMediaStream();
 
-  /**
-   * Create a channel for the stream, reading data from the 
-   * media resource at the URI. Call on main thread only.
-   * @param aChannel if non-null, this channel is used and aListener
-   * is set to the listener we want for the channel. aURI must
-   * be the URI for the channel, obtained via NS_GetFinalChannelURI.
-   */
-  nsresult Open(nsMediaDecoder* aDecoder, nsIURI* aURI,
-                nsIChannel* aChannel, nsIStreamListener** aListener);
+  // Create a channel for the stream, reading data from the 
+  // media resource at the URI. Call on main thread only.
+  nsresult Open(nsMediaDecoder *aDecoder, nsIURI* aURI);
 
   // Close the stream, stop any listeners, channels, etc.
   // Call on main thread only.

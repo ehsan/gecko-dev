@@ -69,7 +69,6 @@ class nsIDOMEvent;
 class nsIDeviceContext;
 class nsIParser;
 class nsIDOMNode;
-class nsIDOMElement;
 class nsIDOMDocumentFragment;
 class nsILineBreaker;
 class nsIWordBreaker;
@@ -97,8 +96,8 @@ class nsFrameLoader;
 
 // IID for the nsIDocument interface
 #define NS_IDOCUMENT_IID      \
-{ 0x6304ae8e, 0x2634, 0x45ed, \
-  { 0x9e, 0x09, 0x83, 0x09, 0x5b, 0x46, 0x72, 0x8b } }
+{ 0x189ebc9e, 0x779b, 0x4c49, \
+ { 0x90, 0x8b, 0x9a, 0x80, 0x25, 0x9b, 0xaf, 0xa7 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -570,6 +569,11 @@ public:
   virtual void SetScriptHandlingObject(nsIScriptGlobalObject* aScriptObject) = 0;
 
   /**
+   * Sets script handling object to null and marks that document has had one.
+   */
+  virtual void ClearScriptHandlingObject() = 0;
+
+  /**
    * Get the object that is used as the scope for all of the content
    * wrappers whose owner document is this document. Unlike the script global
    * object, this will only return null when the global object for this
@@ -920,17 +924,6 @@ public:
                                      nsIDOMNodeList** aResult) = 0;
 
   /**
-   * Helper for nsIDOMNSDocument::elementFromPoint implementation that allows
-   * ignoring the scroll frame and/or avoiding layout flushes.
-   *
-   * @see nsIDOMWindowUtils::elementFromPoint
-   */
-  virtual nsresult ElementFromPointHelper(PRInt32 aX, PRInt32 aY,
-                                          PRBool aIgnoreRootScrollFrame,
-                                          PRBool aFlushLayout,
-                                          nsIDOMElement** aReturn) = 0;
-
-  /**
    * See FlushSkinBindings on nsBindingManager
    */
   virtual void FlushSkinBindings() = 0;
@@ -1268,11 +1261,6 @@ NS_NewSVGDocument(nsIDocument** aInstancePtrResult);
 
 nsresult
 NS_NewImageDocument(nsIDocument** aInstancePtrResult);
-
-#ifdef MOZ_MEDIA
-nsresult
-NS_NewVideoDocument(nsIDocument** aInstancePtrResult);
-#endif
 
 nsresult
 NS_NewDocumentFragment(nsIDOMDocumentFragment** aInstancePtrResult,

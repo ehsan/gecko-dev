@@ -749,22 +749,6 @@ js_AppendChar(JSStringBuffer *sb, jschar c)
     sb->ptr = bp;
 }
 
-void
-js_AppendUCString(JSStringBuffer *sb, const jschar *buf, uintN len)
-{
-    jschar *bp;
-
-    if (!STRING_BUFFER_OK(sb))
-        return;
-    if (len == 0 || !ENSURE_STRING_BUFFER(sb, len))
-        return;
-    bp = sb->ptr;
-    js_strncpy(bp, buf, len);
-    bp += len;
-    *bp = 0;
-    sb->ptr = bp;
-}
-
 #if JS_HAS_XML_SUPPORT
 
 void
@@ -802,7 +786,19 @@ js_AppendCString(JSStringBuffer *sb, const char *asciiz)
 void
 js_AppendJSString(JSStringBuffer *sb, JSString *str)
 {
-    js_AppendUCString(sb, JSSTRING_CHARS(str), JSSTRING_LENGTH(str));
+    size_t length;
+    jschar *bp;
+
+    if (!STRING_BUFFER_OK(sb))
+        return;
+    length = JSSTRING_LENGTH(str);
+    if (length == 0 || !ENSURE_STRING_BUFFER(sb, length))
+        return;
+    bp = sb->ptr;
+    js_strncpy(bp, JSSTRING_CHARS(str), length);
+    bp += length;
+    *bp = 0;
+    sb->ptr = bp;
 }
 
 static JSBool

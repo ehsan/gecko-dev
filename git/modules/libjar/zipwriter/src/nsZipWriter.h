@@ -67,7 +67,6 @@ public:
     nsCOMPtr<nsIInputStream> mStream;
     PRTime mModTime;
     PRInt32 mCompression;
-    PRUint32 mPermissions;
 };
 
 class nsZipWriter : public nsIZipWriter,
@@ -101,12 +100,9 @@ private:
     void Cleanup();
     nsresult ReadFile(nsIFile *aFile);
     nsresult InternalAddEntryDirectory(const nsACString & aZipEntry,
-                                       PRTime aModTime, PRUint32 aPermissions);
+                                       PRTime aModTime);
     nsresult BeginProcessingAddition(nsZipQueueItem* aItem, PRBool* complete);
     nsresult BeginProcessingRemoval(PRInt32 aPos);
-    nsresult AddEntryStream(const nsACString & aZipEntry, PRTime aModTime,
-                            PRInt32 aCompression, nsIInputStream *aStream,
-                            PRBool aQueue, PRUint32 aPermissions);
     void BeginProcessingNextItem();
     void FinishQueue(nsresult aStatus);
 };

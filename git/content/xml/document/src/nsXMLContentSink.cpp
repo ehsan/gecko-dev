@@ -205,9 +205,9 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 // nsIContentSink
 NS_IMETHODIMP
-nsXMLContentSink::WillParse(void)
+nsXMLContentSink::WillTokenize(void)
 {
-  return WillParseImpl();
+  return WillProcessTokensImpl();
 }
 
 NS_IMETHODIMP

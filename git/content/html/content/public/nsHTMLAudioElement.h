@@ -72,4 +72,6 @@ public:
                               PRBool aCompileEventHandlers);
   virtual void UnbindFromTree(PRBool aDeep = PR_TRUE,
                               PRBool aNullParent = PR_TRUE);
+protected:
+  virtual nsresult InitializeDecoder(nsAString& aChosenMediaResource);
 };

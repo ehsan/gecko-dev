@@ -158,6 +158,9 @@ class nsStyleSet
     mBindingManager = aBindingManager;
   }
 
+  // Free global data at module shutdown
+  static void FreeGlobals() { NS_IF_RELEASE(gQuirkURI); }
+
   // The "origins" of the CSS cascade, from lowest precedence to
   // highest (for non-!important rules).
   enum sheetType {
@@ -206,11 +209,6 @@ class nsStyleSet
   // Note: EndReconstruct should not be called if BeginReconstruct fails
   void EndReconstruct();
 
-  // Let the style set know that a particular sheet is the quirks sheet.  This
-  // sheet must already have been added to the UA sheets.  The pointer must not
-  // be null.  This should only be called once for a given style set.
-  void SetQuirkStyleSheet(nsIStyleSheet* aQuirkStyleSheet);
-  
  private:
   // Not to be implemented
   nsStyleSet(const nsStyleSet& aCopy);
@@ -254,6 +252,8 @@ class nsStyleSet
                                               nsIAtom* aPseudoTag);
 
   nsPresContext* PresContext() { return mRuleTree->GetPresContext(); }
+
+  static nsIURI  *gQuirkURI;
 
   // The sheets in each array in mSheets are stored with the most significant
   // sheet last.

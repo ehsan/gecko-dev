@@ -198,20 +198,24 @@ endif
 ifeq (,$(filter-out WINNT WINCE,$(OS_ARCH)))
 ifndef GNU_CC
 
+# Previously when possible we wrote to $LIBRARY_NAME.pdb.  This broke parallel
+# make builds on Windows.  Now we just write to a pdb file per compiled file.
+# See bug 286179 <https://bugzilla.mozilla.org/show_bug.cgi?id=286179> for
+# details. -- chase@mozilla.org
 #
-# All C++ files share a PDB file per directory. For parallel builds, this PDB
-# file is shared and locked by MSPDBSRV.EXE, starting with MSVC8 SP1. If
-# you're using MSVC 7.1 or MSVC8 without SP1, don't do parallel builds.
-#
-# The final PDB for libraries and programs is created by the linker and uses
-# a different name from the single PDB file created by the compiler. See
-# bug 462740.
-#
-COMPILE_PDBFILE = generated.pdb
-LINK_PDBFILE = $(basename $(@F)).pdb
+# Changes to the PDBFILE naming scheme should also be reflected in HOST_PDBFILE
+# 
+ifdef LIBRARY_NAME
+PDBFILE=$(LIBRARY_NAME).pdb
+ifdef MOZ_DEBUG
+CODFILE=$(LIBRARY_NAME).cod
+endif
+else
+PDBFILE=$(basename $(@F)).pdb
 ifdef MOZ_DEBUG
 CODFILE=$(basename $(@F)).cod
 endif
+endif # LIBRARY_NAME
 
 ifdef MOZ_MAPINFO
 ifdef LIBRARY_NAME
@@ -361,11 +365,6 @@ LOOP_OVER_DIRS = \
     @$(EXIT_ON_ERROR) \
     $(foreach dir,$(DIRS),$(UPDATE_TITLE) $(MAKE) -C $(dir) $@; ) true
 
-# we only use this for the makefiles target and other stuff that doesn't matter
-LOOP_OVER_PARALLEL_DIRS = \
-    @$(EXIT_ON_ERROR) \
-    $(foreach dir,$(PARALLEL_DIRS),$(UPDATE_TITLE) $(MAKE) -C $(dir) $@; ) true
-
 LOOP_OVER_STATIC_DIRS = \
     @$(EXIT_ON_ERROR) \
     $(foreach dir,$(STATIC_DIRS),$(UPDATE_TITLE) $(MAKE) -C $(dir) $@; ) true
@@ -373,15 +372,6 @@ LOOP_OVER_STATIC_DIRS = \
 LOOP_OVER_TOOL_DIRS = \
     @$(EXIT_ON_ERROR) \
     $(foreach dir,$(TOOL_DIRS),$(UPDATE_TITLE) $(MAKE) -C $(dir) $@; ) true
-
-ifdef PARALLEL_DIRS
-# create a bunch of fake targets for order-only processing
-PARALLEL_DIRS_export = $(addsuffix _export,$(PARALLEL_DIRS))
-PARALLEL_DIRS_libs = $(addsuffix _libs,$(PARALLEL_DIRS))
-PARALLEL_DIRS_tools = $(addsuffix _tools,$(PARALLEL_DIRS))
-
-.PHONY: $(PARALLEL_DIRS_export) $(PARALLEL_DIRS_libs) $(PARALLEL_DIRS_tools)
-endif
 
 #
 # Now we can differentiate between objects used to build a library, and
@@ -591,7 +581,7 @@ endif
 
 # SUBMAKEFILES: List of Makefiles for next level down.
 #   This is used to update or create the Makefiles before invoking them.
-SUBMAKEFILES += $(addsuffix /Makefile, $(DIRS) $(TOOL_DIRS) $(PARALLEL_DIRS))
+SUBMAKEFILES += $(addsuffix /Makefile, $(DIRS) $(TOOL_DIRS))
 
 # The root makefile doesn't want to do a plain export/libs, because
 # of the tiers and because of libxul. Suppress the default rules in favor
@@ -687,29 +677,14 @@ endif
 
 # Target to only regenerate makefiles
 makefiles: $(SUBMAKEFILES)
-ifneq (,$(DIRS)$(TOOL_DIRS)$(PARALLEL_DIRS))
-	+$(LOOP_OVER_PARALLEL_DIRS)
+ifneq (,$(DIRS)$(TOOL_DIRS))
 	+$(LOOP_OVER_DIRS)
 	+$(LOOP_OVER_TOOL_DIRS)
-endif
-
-ifdef PARALLEL_DIRS
-export:: $(PARALLEL_DIRS_export)
-
-$(PARALLEL_DIRS_export): %_export: %/Makefile
-	+$(MAKE) -C $* export
 endif
 
 export:: $(SUBMAKEFILES) $(MAKE_DIRS) $(if $(EXPORTS)$(XPIDLSRCS)$(SDK_HEADERS)$(SDK_XPIDLSRCS),$(PUBLIC)) $(if $(SDK_HEADERS)$(SDK_XPIDLSRCS),$(SDK_PUBLIC)) $(if $(XPIDLSRCS),$(IDL_DIR)) $(if $(SDK_XPIDLSRCS),$(SDK_IDL_DIR))
 	+$(LOOP_OVER_DIRS)
 	+$(LOOP_OVER_TOOL_DIRS)
-
-ifdef PARALLEL_DIRS
-tools:: $(PARALLEL_DIRS_tools)
-
-$(PARALLEL_DIRS_tools): %_tools: %/Makefile
-	+$(MAKE) -C $* tools
-endif
 
 tools:: $(SUBMAKEFILES) $(MAKE_DIRS)
 	+$(LOOP_OVER_DIRS)
@@ -743,13 +718,6 @@ HOST_LIBS_DEPS = $(filter %.$(LIB_SUFFIX), $(HOST_LIBS))
 DSO_LDOPTS_DEPS = $(EXTRA_DSO_LIBS) $(filter %.$(LIB_SUFFIX), $(EXTRA_DSO_LDOPTS))
 
 ##############################################
-ifdef PARALLEL_DIRS
-libs:: $(PARALLEL_DIRS_libs)
-
-$(PARALLEL_DIRS_libs): %_libs: %/Makefile
-	+$(MAKE) -C $* libs
-endif
-
 libs:: $(SUBMAKEFILES) $(MAKE_DIRS) $(HOST_LIBRARY) $(LIBRARY) $(SHARED_LIBRARY) $(IMPORT_LIBRARY) $(HOST_PROGRAM) $(PROGRAM) $(HOST_SIMPLE_PROGRAMS) $(SIMPLE_PROGRAMS) $(JAVA_LIBRARY)
 ifndef NO_DIST_INSTALL
 ifdef LIBRARY
@@ -857,13 +825,11 @@ run_viewer: $(FINAL_TARGET)/viewer
 clean clobber realclean clobber_all:: $(SUBMAKEFILES)
 	-rm -f $(ALL_TRASH)
 	-rm -rf $(ALL_TRASH_DIRS)
-	+-$(LOOP_OVER_PARALLEL_DIRS)
 	+-$(LOOP_OVER_DIRS)
 	+-$(LOOP_OVER_STATIC_DIRS)
 	+-$(LOOP_OVER_TOOL_DIRS)
 
 distclean:: $(SUBMAKEFILES)
-	+-$(LOOP_OVER_PARALLEL_DIRS)
 	+-$(LOOP_OVER_DIRS)
 	+-$(LOOP_OVER_STATIC_DIRS)
 	+-$(LOOP_OVER_TOOL_DIRS)
@@ -890,7 +856,7 @@ ifeq (WINCE,$(OS_ARCH))
 	$(LD) -NOLOGO -OUT:$@ $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(PROGOBJS) $(RESFILE) $(LIBS) $(EXTRA_LIBS) $(OS_LIBS)
 else
 ifeq (_WINNT,$(GNU_CC)_$(OS_ARCH))
-	$(LD) -NOLOGO -OUT:$@ -PDB:$(LINK_PDBFILE) $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(PROGOBJS) $(RESFILE) $(LIBS) $(EXTRA_LIBS) $(OS_LIBS)
+	$(LD) -NOLOGO -OUT:$@ -PDB:$(PDBFILE) $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(PROGOBJS) $(RESFILE) $(LIBS) $(EXTRA_LIBS) $(OS_LIBS)
 ifdef MSMANIFEST_TOOL
 	@if test -f $@.manifest; then \
 		if test -f "$(srcdir)/$@.manifest"; then \
@@ -928,7 +894,7 @@ ifeq (WINCE,$(OS_ARCH))
 	$(HOST_LD) -NOLOGO -OUT:$@ $(HOST_OBJS) $(WIN32_EXE_LDFLAGS) $(HOST_LIBS) $(HOST_EXTRA_LIBS)
 else
 ifeq (_WINNT,$(GNU_CC)_$(HOST_OS_ARCH))
-	$(HOST_LD) -NOLOGO -OUT:$@ -PDB:$(HOST_PDBFILE) $(HOST_OBJS) $(WIN32_EXE_LDFLAGS) $(HOST_LIBS) $(HOST_EXTRA_LIBS)
+	$(HOST_LD) -NOLOGO -OUT:$@ -PDB:$(PDBFILE) $(HOST_OBJS) $(WIN32_EXE_LDFLAGS) $(HOST_LIBS) $(HOST_EXTRA_LIBS)
 ifdef MSMANIFEST_TOOL
 	@if test -f $@.manifest; then \
 		mt.exe -NOLOGO -MANIFEST $@.manifest -OUTPUTRESOURCE:$@\;1; \
@@ -957,7 +923,7 @@ ifeq (WINCE,$(OS_ARCH))
 	$(LD) -nologo  -entry:main -out:$@ $< $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(LIBS) $(EXTRA_LIBS) $(OS_LIBS)
 else
 ifeq (_WINNT,$(GNU_CC)_$(OS_ARCH))
-	$(LD) -nologo -out:$@ -pdb:$(LINK_PDBFILE) $< $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(LIBS) $(EXTRA_LIBS) $(OS_LIBS)
+	$(LD) -nologo -out:$@ -pdb:$(PDBFILE) $< $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(LIBS) $(EXTRA_LIBS) $(OS_LIBS)
 ifdef MSMANIFEST_TOOL
 	@if test -f $@.manifest; then \
 		mt.exe -NOLOGO -MANIFEST $@.manifest -OUTPUTRESOURCE:$@\;1; \
@@ -985,7 +951,7 @@ ifeq (WINCE,$(OS_ARCH))
 	$(HOST_LD) -NOLOGO -OUT:$@ $(WIN32_EXE_LDFLAGS) $< $(HOST_LIBS) $(HOST_EXTRA_LIBS)
 else
 ifeq (WINNT_,$(HOST_OS_ARCH)_$(GNU_CC))
-	$(HOST_LD) -NOLOGO -OUT:$@ -PDB:$(HOST_PDBFILE) $< $(WIN32_EXE_LDFLAGS) $(HOST_LIBS) $(HOST_EXTRA_LIBS)
+	$(HOST_LD) -NOLOGO -OUT:$@ -PDB:$(PDBFILE) $< $(WIN32_EXE_LDFLAGS) $(HOST_LIBS) $(HOST_EXTRA_LIBS)
 else
 ifneq (,$(HOST_CPPSRCS)$(USE_HOST_CXX))
 	$(HOST_CXX) $(HOST_OUTOPTION)$@ $(HOST_CXXFLAGS) $(INCLUDES) $< $(HOST_LIBS) $(HOST_EXTRA_LIBS)
@@ -1470,7 +1436,7 @@ endif
 
 ifneq ($(EXPORTS)$(XPIDLSRCS)$(SDK_HEADERS)$(SDK_XPIDLSRCS),)
 $(SDK_PUBLIC) $(PUBLIC)::
-	$(NSINSTALL) -D $@
+	@if test ! -d $@; then $(ECHO) Creating $@; rm -rf $@; $(NSINSTALL) -D $@; else true; fi
 endif
 
 ifdef MOZ_JAVAXPCOM
@@ -1481,11 +1447,8 @@ endif
 endif
 
 ifneq ($(XPI_NAME),)
-$(FINAL_TARGET):
-	$(NSINSTALL) -D $@
-
-export:: $(FINAL_TARGET)
-	$(NSINSTALL) -D $(FINAL_TARGET)
+export::
+	@if test ! -d $(FINAL_TARGET); then echo Creating $(FINAL_TARGET); rm -fr $(FINAL_TARGET); $(NSINSTALL) -D $(FINAL_TARGET); else true; fi
 endif
 
 ifndef NO_DIST_INSTALL
@@ -1523,10 +1486,8 @@ PREF_PPFLAGS = --line-endings=crlf
 endif
 
 ifndef NO_DIST_INSTALL
-$(FINAL_TARGET)/$(PREF_DIR):
-	$(NSINSTALL) -D $@
-
-libs:: $(FINAL_TARGET)/$(PREF_DIR) $(PREF_JS_EXPORTS)
+libs:: $(PREF_JS_EXPORTS)
+	if test ! -d $(FINAL_TARGET)/$(PREF_DIR); then $(NSINSTALL) -D $(FINAL_TARGET)/$(PREF_DIR); fi
 	$(EXIT_ON_ERROR)  \
 	for i in $(PREF_JS_EXPORTS); do \
 	  dest=$(FINAL_TARGET)/$(PREF_DIR)/`basename $$i`; \
@@ -1541,7 +1502,7 @@ endif
 
 ifneq ($(AUTOCFG_JS_EXPORTS),)
 $(FINAL_TARGET)/defaults/autoconfig::
-	$(NSINSTALL) -D $@
+	@if test ! -d $@; then echo Creating $@; rm -rf $@; $(NSINSTALL) -D $@; else true; fi
 
 ifndef NO_DIST_INSTALL
 export:: $(AUTOCFG_JS_EXPORTS) $(FINAL_TARGET)/defaults/autoconfig
@@ -1571,7 +1532,7 @@ export:: FORCE
 endif
 
 $(SDK_IDL_DIR) $(IDL_DIR)::
-	$(NSINSTALL) -D $@
+	@if test ! -d $@; then echo Creating $@; rm -rf $@; $(NSINSTALL) -D $@; else true; fi
 
 # generate .h files from into $(XPIDL_GEN_DIR), then export to $(PUBLIC);
 # warn against overriding existing .h file. 
@@ -1634,7 +1595,7 @@ endif # XPIDLSRCS
 #   http://bugzilla.mozilla.org/show_bug.cgi?id=145777
 #
 $(IDL_DIR)::
-	$(NSINSTALL) -D $@
+	@if test ! -d $@; then echo Creating $@; rm -rf $@; $(NSINSTALL) -D $@; else true; fi
 
 export-idl:: $(SUBMAKEFILES) $(MAKE_DIRS)
 
@@ -1644,7 +1605,6 @@ export-idl:: $(XPIDLSRCS) $(SDK_XPIDLSRCS) $(IDL_DIR)
 	$(INSTALL) $(IFLAGS1) $^
 endif
 endif
-	+$(LOOP_OVER_PARALLEL_DIRS)
 	+$(LOOP_OVER_DIRS)
 	+$(LOOP_OVER_TOOL_DIRS)
 
@@ -1764,7 +1724,7 @@ endif
 
 ifneq (,$(SDK_LIBRARY))
 $(SDK_LIB_DIR)::
-	$(NSINSTALL) -D $@
+	@if test ! -d $@; then echo Creating $@; rm -rf $@; $(NSINSTALL) -D $@; else true; fi
 
 ifndef NO_DIST_INSTALL
 libs:: $(SDK_LIBRARY) $(SDK_LIB_DIR)
@@ -1775,7 +1735,7 @@ endif # SDK_LIBRARY
 
 ifneq (,$(SDK_BINARY))
 $(SDK_BIN_DIR)::
-	$(NSINSTALL) -D $@
+	@if test ! -d $@; then echo Creating $@; rm -rf $@; $(NSINSTALL) -D $@; else true; fi
 
 ifndef NO_DIST_INSTALL
 libs:: $(SDK_BINARY) $(SDK_BIN_DIR)
@@ -1791,17 +1751,14 @@ JAR_MANIFEST := $(srcdir)/jar.mn
 
 chrome::
 	$(MAKE) realchrome
-	+$(LOOP_OVER_PARALLEL_DIRS)
 	+$(LOOP_OVER_DIRS)
 	+$(LOOP_OVER_TOOL_DIRS)
 
-$(FINAL_TARGET)/chrome:
-	$(NSINSTALL) -D $@
-
-libs realchrome:: $(CHROME_DEPS) $(FINAL_TARGET)/chrome
+libs realchrome:: $(CHROME_DEPS)
 ifndef NO_DIST_INSTALL
 	@$(EXIT_ON_ERROR) \
 	if test -f $(JAR_MANIFEST); then \
+	  if test ! -d $(FINAL_TARGET)/chrome; then $(NSINSTALL) -D $(FINAL_TARGET)/chrome; fi; \
 	  $(PYTHON) $(MOZILLA_DIR)/config/JarMaker.py \
 	    $(QUIET) -j $(FINAL_TARGET)/chrome \
 	    $(MAKE_JARS_FLAGS) $(XULPPFLAGS) $(DEFINES) $(ACDEFINES) \
@@ -2020,13 +1977,11 @@ depend:: $(SUBMAKEFILES) $(MAKE_DIRS) $(MDDEPFILES)
 else
 depend:: $(SUBMAKEFILES)
 endif
-	+$(LOOP_OVER_PARALLEL_DIRS)
 	+$(LOOP_OVER_DIRS)
 	+$(LOOP_OVER_TOOL_DIRS)
 
 dependclean:: $(SUBMAKEFILES)
 	rm -f $(MDDEPFILES)
-	+$(LOOP_OVER_PARALLEL_DIRS)
 	+$(LOOP_OVER_DIRS)
 	+$(LOOP_OVER_TOOL_DIRS)
 
@@ -2128,7 +2083,6 @@ tags: TAGS
 
 TAGS: $(SUBMAKEFILES) $(CSRCS) $(CPPSRCS) $(wildcard *.h)
 	-etags $(CSRCS) $(CPPSRCS) $(wildcard *.h)
-	+$(LOOP_OVER_PARALLEL_DIRS)
 	+$(LOOP_OVER_DIRS)
 
 echo-variable-%:
@@ -2152,7 +2106,6 @@ ifdef _REPORT_ALL_DIRS
 else
 	@$(if $(REQUIRES),echo $(subst $(topsrcdir)/,,$(srcdir)): $(MODULE): $(REQUIRES))
 endif
-	+$(LOOP_OVER_PARALLEL_DIRS)
 	+$(LOOP_OVER_DIRS)
 
 echo-depth-path:
@@ -2182,7 +2135,6 @@ ifneq (,$(filter $(PROGRAM) $(HOST_PROGRAM) $(SIMPLE_PROGRAMS) $(HOST_LIBRARY) $
 	@echo "DEPENDENT_LIBS      = $(DEPENDENT_LIBS)"
 	@echo --------------------------------------------------------------------------------
 endif
-	+$(LOOP_OVER_PARALLEL_DIRS)
 	+$(LOOP_OVER_DIRS)
 
 showbuild:
@@ -2244,7 +2196,6 @@ zipmakes:
 ifneq (,$(filter $(PROGRAM) $(SIMPLE_PROGRAMS) $(LIBRARY) $(SHARED_LIBRARY),$(TARGETS)))
 	zip $(DEPTH)/makefiles $(subst $(topsrcdir),$(MOZ_SRC)/mozilla,$(srcdir)/Makefile.in)
 endif
-	+$(LOOP_OVER_PARALLEL_DIRS)
 	+$(LOOP_OVER_DIRS)
 
 documentation:
@@ -2252,6 +2203,5 @@ documentation:
 	$(DOXYGEN) $(DEPTH)/config/doxygen.cfg
 
 check:: $(SUBMAKEFILES) $(MAKE_DIRS)
-	+$(LOOP_OVER_PARALLEL_DIRS)
 	+$(LOOP_OVER_DIRS)
 	+$(LOOP_OVER_TOOL_DIRS)

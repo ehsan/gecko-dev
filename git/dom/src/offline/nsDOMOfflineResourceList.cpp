@@ -39,7 +39,6 @@
 #include "nsDOMOfflineResourceList.h"
 #include "nsDOMClassInfo.h"
 #include "nsDOMError.h"
-#include "nsDOMLists.h"
 #include "nsIPrefetchService.h"
 #include "nsCPrefetchService.h"
 #include "nsNetUtil.h"
@@ -66,7 +65,6 @@
 #define PROGRESS_STR    "progress"
 #define CACHED_STR      "cached"
 #define UPDATEREADY_STR "updateready"
-#define OBSOLETE_STR    "obsolete"
 
 // To prevent abuse of the resource list for data storage, the number
 // of offline urls and their length are limited.
@@ -92,7 +90,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMOfflineResourceList)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mProgressListeners)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mCachedListeners)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mUpdateReadyListeners)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mObsoleteListeners)
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnCheckingListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnErrorListener)
@@ -101,7 +98,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMOfflineResourceList)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnProgressListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnCachedListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnUpdateReadyListener)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnObsoleteListener)
 
   for (PRUint32 i = 0; i < tmp->mPendingEvents.Length(); i++) {
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPendingEvents[i].event);
@@ -122,7 +118,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMOfflineResourceList)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mProgressListeners)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mCachedListeners)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mUpdateReadyListeners)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mObsoleteListeners)
 
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnCheckingListener)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnErrorListener)
@@ -131,7 +126,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMOfflineResourceList)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnProgressListener)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnCachedListener)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnUpdateReadyListener)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnObsoleteListener)
 
   for (PRUint32 i = 0; i < tmp->mPendingEvents.Length(); i++) {
     NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mPendingEvents[i].event);
@@ -154,10 +148,12 @@ NS_INTERFACE_MAP_END
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMOfflineResourceList)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMOfflineResourceList)
 
-nsDOMOfflineResourceList::nsDOMOfflineResourceList(nsIURI *aManifestURI,
+nsDOMOfflineResourceList::nsDOMOfflineResourceList(PRBool aToplevel,
+                                                   nsIURI *aManifestURI,
                                                    nsIURI *aDocumentURI,
                                                    nsIDOMWindow *aWindow)
   : mInitialized(PR_FALSE)
+  , mToplevel(aToplevel)
   , mManifestURI(aManifestURI)
   , mDocumentURI(aDocumentURI)
   , mCachedKeys(nsnull)
@@ -241,7 +237,6 @@ nsDOMOfflineResourceList::Disconnect()
   mProgressListeners.Clear();
   mCachedListeners.Clear();
   mUpdateReadyListeners.Clear();
-  mObsoleteListeners.Clear();
 
   mOnCheckingListener = nsnull;
   mOnErrorListener = nsnull;
@@ -250,7 +245,6 @@ nsDOMOfflineResourceList::Disconnect()
   mOnProgressListener = nsnull;
   mOnCachedListener = nsnull;
   mOnUpdateReadyListener = nsnull;
-  mOnObsoleteListener = nsnull;
 
   mPendingEvents.Clear();
 }
@@ -258,68 +252,6 @@ nsDOMOfflineResourceList::Disconnect()
 //
 // nsDOMOfflineResourceList::nsIDOMOfflineResourceList
 //
-
-NS_IMETHODIMP
-nsDOMOfflineResourceList::GetItems(nsIDOMDOMStringList **aItems)
-{
-  *aItems = nsnull;
-
-  nsRefPtr<nsDOMStringList> items = new nsDOMStringList();
-  NS_ENSURE_TRUE(items, NS_ERROR_OUT_OF_MEMORY);
-
-  // If we are not associated with an application cache, return an
-  // empty list.
-  nsCOMPtr<nsIApplicationCache> appCache = GetDocumentAppCache();
-  if (!appCache) {
-    NS_ADDREF(*aItems = items);
-    return NS_OK;
-  }
-
-  nsresult rv = Init();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  PRUint32 length;
-  char **keys;
-  rv = appCache->GatherEntries(nsIApplicationCache::ITEM_DYNAMIC,
-                               &length, &keys);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  for (PRUint32 i = 0; i < length; i++) {
-    items->Add(NS_ConvertUTF8toUTF16(keys[i]));
-  }
-
-  NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(length, keys);
-
-  NS_ADDREF(*aItems = items);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMOfflineResourceList::HasItem(const nsAString& aURI, PRBool* aExists)
-{
-  nsresult rv = Init();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIApplicationCache> appCache = GetDocumentAppCache();
-  if (!appCache) {
-    return NS_ERROR_DOM_INVALID_STATE_ERR;
-  }
-
-  nsCAutoString key;
-  rv = GetCacheKey(aURI, key);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  PRUint32 types;
-  rv = appCache->GetTypes(key, &types);
-  if (rv == NS_ERROR_CACHE_KEY_NOT_FOUND) {
-    *aExists = PR_FALSE;
-    return NS_OK;
-  }
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  *aExists = ((types & nsIApplicationCache::ITEM_DYNAMIC) != 0);
-  return NS_OK;
-}
 
 NS_IMETHODIMP
 nsDOMOfflineResourceList::GetLength(PRUint32 *aLength)
@@ -491,9 +423,7 @@ nsDOMOfflineResourceList::GetStatus(PRUint16 *aStatus)
                                                 getter_AddRefs(activeCache));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (activeCache == nsnull) {
-    *aStatus = nsIDOMOfflineResourceList::OBSOLETE;
-  } else if (appCache == activeCache) {
+  if (appCache == activeCache) {
     *aStatus = nsIDOMOfflineResourceList::IDLE;
   } else {
     *aStatus = nsIDOMOfflineResourceList::UPDATEREADY;
@@ -534,6 +464,10 @@ nsDOMOfflineResourceList::SwapCache()
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
+  if (!mToplevel) {
+    return NS_ERROR_DOM_INVALID_STATE_ERR;
+  }
+
   nsCOMPtr<nsIApplicationCacheService> serv =
     do_GetService(NS_APPLICATIONCACHESERVICE_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -544,10 +478,7 @@ nsDOMOfflineResourceList::SwapCache()
   rv = serv->GetActiveCache(mManifestSpec, getter_AddRefs(newAppCache));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // In the case of an obsolete cache group, newAppCache might be null.
-  // We will disassociate from the cache in that case.
-
-  if (newAppCache == currentAppCache) {
+  if (!newAppCache || newAppCache == currentAppCache) {
     return NS_ERROR_DOM_INVALID_STATE_ERR;
   }
 
@@ -717,27 +648,6 @@ nsDOMOfflineResourceList::SetOnupdateready(nsIDOMEventListener *aOnupdateready)
 }
 
 NS_IMETHODIMP
-nsDOMOfflineResourceList::GetOnobsolete(nsIDOMEventListener **aOnobsolete)
-{
-  nsresult rv = Init();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  NS_ENSURE_ARG_POINTER(aOnobsolete);
-  NS_IF_ADDREF(*aOnobsolete = mOnObsoleteListener);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMOfflineResourceList::SetOnobsolete(nsIDOMEventListener *aOnobsolete)
-{
-  nsresult rv = Init();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  mOnObsoleteListener = aOnobsolete;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsDOMOfflineResourceList::AddEventListener(const nsAString& aType,
                                            nsIDOMEventListener *aListener,
                                            PRBool aUseCapture)
@@ -761,7 +671,6 @@ nsDOMOfflineResourceList::AddEventListener(const nsAString& aType,
   IMPL_ADD_LISTENER(PROGRESS_STR, mProgressListeners)
   IMPL_ADD_LISTENER(CACHED_STR, mCachedListeners)
   IMPL_ADD_LISTENER(UPDATEREADY_STR, mUpdateReadyListeners)
-  IMPL_ADD_LISTENER(OBSOLETE_STR, mObsoleteListeners)
   {
     return NS_ERROR_INVALID_ARG;
   }
@@ -796,7 +705,6 @@ nsDOMOfflineResourceList::RemoveEventListener(const nsAString &aType,
   IMPL_REMOVE_LISTENER(PROGRESS_STR, mProgressListeners)
   IMPL_REMOVE_LISTENER(CACHED_STR, mCachedListeners)
   IMPL_REMOVE_LISTENER(UPDATEREADY_STR, mUpdateReadyListeners)
-  IMPL_REMOVE_LISTENER(OBSOLETE_STR, mObsoleteListeners)
   {
     return NS_ERROR_INVALID_ARG;
   }
@@ -887,6 +795,11 @@ nsDOMOfflineResourceList::SendEvent(const nsAString &aEventName,
                                     nsIDOMEventListener *aListener,
                                     const nsCOMArray<nsIDOMEventListener> &aListeners)
 {
+  // Only toplevel windows get application cache events.
+  if (!mToplevel) {
+    return NS_OK;
+  }
+
   if (!aListener && aListeners.Count() == 0) {
     return NS_OK;
   }
@@ -1010,14 +923,6 @@ NS_IMETHODIMP
 nsDOMOfflineResourceList::ItemCompleted(nsIOfflineCacheUpdate *aUpdate,
                                         nsIDOMLoadStatus *aItem)
 {
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMOfflineResourceList::Obsolete(nsIOfflineCacheUpdate *aUpdate)
-{
-  SendEvent(NS_LITERAL_STRING(OBSOLETE_STR),
-            mOnObsoleteListener, mObsoleteListeners);
   return NS_OK;
 }
 

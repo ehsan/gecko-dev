@@ -45,6 +45,7 @@
 
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
 @namespace html url("http://www.w3.org/1999/xhtml");
+@namespace svg url("http://www.w3.org/2000/svg");
 
 #main-window[chromehidden~="toolbar"][chromehidden~="location"][chromehidden~="directories"] {
   border-top: 1px solid rgba(0,0,0,0.65);
@@ -297,6 +298,20 @@ toolbarpaletteitem[place="toolbar"] .places-toolbar-items {
 
 #bookmarksToolbarFolderMenu {
   list-style-image: url("chrome://browser/skin/places/bookmarksToolbar.png");  
+}
+
+/* ----- BOOKMARK PANEL DROPDOWN MENU ITEMS ----- */	
+
+#editBMPanel_toolbarFolderItem {
+  list-style-image: url("chrome://browser/skin/places/bookmarksToolbar.png") !important;  
+}
+
+#editBMPanel_bmRootItem {
+  list-style-image: url("chrome://browser/skin/places/bookmarksMenu.png") !important;  
+}
+
+#editBMPanel_unfiledRootItem {
+  list-style-image: url("chrome://browser/skin/places/unfiledBookmarks.png") !important;  
 }
 
 /* ----- PRIMARY TOOLBAR BUTTONS ----- */	
@@ -1325,11 +1340,7 @@ richlistitem[selected="true"][current="true"] > hbox > .ac-result-type-bookmark,
   display: none;
 }
 
-#editBookmarkPanel #editBMPanel_tagsField[focused="true"] {
-  background-color: #eeeeee;
-  color: #000000;
-}
-
+#editBookmarkPanel #editBMPanel_tagsField,
 #editBookmarkPanel #editBMPanel_namePicker[droppable="false"] > .menulist-editable-box {
   -moz-appearance: none !important;
   cursor: text;
@@ -1349,6 +1360,7 @@ richlistitem[selected="true"][current="true"] > hbox > .ac-result-type-bookmark,
   color: #bbbbbb;
 }
 
+#editBookmarkPanel #editBMPanel_tagsField[focused="true"],
 #editBookmarkPanel #editBMPanel_namePicker[droppable="false"][focused="true"] > .menulist-editable-box {
   outline: 2px solid -moz-mac-focusring;
   outline-offset: -1px;
@@ -1748,6 +1760,10 @@ tabbrowser > tabbox > tabpanels {
  * New Tab & All Tabs Buttons
  */
 
+.tabs-alltabs-box {
+  margin: 0;
+}
+
 .tabs-newtab-button ,
 .tabs-alltabs-button {
   -moz-border-start: 2px solid;
@@ -1769,11 +1785,13 @@ tabbrowser > tabbox > tabpanels {
   background-color: rgba(0,0,0,0.10);
 }
 .tabs-newtab-button:hover:active,
-.tabs-alltabs-button:hover:active {
+.tabs-alltabs-button:hover:active,
+.tabs-alltabs-button[open="true"] {
   background-color: rgba(0,0,0,0.20);
 }
 
 .tabs-newtab-button > .toolbarbutton-text ,
+.tabs-alltabs-button > .toolbarbutton-menu-dropmarker ,
 .tabs-alltabs-button > .toolbarbutton-text {
   display: none;
 }
@@ -1788,6 +1806,22 @@ tabbrowser > tabbox > tabpanels {
   background-image: url("chrome://browser/skin/tabbrowser/alltabs-box-overflow-bkgnd-animate.png");
   background-repeat: no-repeat;
   opacity: 0.0;
+}
+
+/**
+ * All Tabs Menupopup 
+ */
+
+.alltabs-item > .menu-iconic-left > .menu-iconic-icon {
+  list-style-image: url("chrome://global/skin/tree/item.png");
+}
+
+.alltabs-item[selected="true"] {
+  font-weight: bold;
+}
+
+.alltabs-item[busy] > .menu-iconic-left > .menu-iconic-icon {
+  list-style-image: url("chrome://global/skin/icons/loading_16.png") !important;
 }
 
 .tabs-closebutton {
@@ -2113,61 +2147,41 @@ tabpanels.plain {
 /* ::::: Keyboard UI Panel ::::: */
 .KUI-panel {
   -moz-appearance: none;
-  background: rgba(68, 68, 68, .9) url(KUI-background.png) repeat-x;
+  background: rgba(0, 0, 0, .8) url(KUI-background.png) repeat-x;
   color: white;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid #ccc;
   -moz-border-radius: 10px;
   margin-top: -1px;
   margin-left: -1px;
-}
-
-.KUI-panel[level="top"] ,
-#ctrlTab-panel:not([sticky]) {
-  background-color: rgba(68, 68, 68, .5);
   -moz-window-shadow: none;
 }
 
 /* ::::: Ctrl-Tab Panel ::::: */
 #ctrlTab-panel {
-  padding-top: 20px;
-  font-size: 1.2em;
-  text-shadow: 0 0 3px black, 0 0 3px black;
+  margin-top: -20px;
+  border-bottom-width: 9px;
+  -moz-border-bottom-colors: #ccc black black black black black black black black;
 }
 
-#ctrlTab-search {
-  margin: 0 0 20px;
-}
-
-.ctrlTab-thumbnail {
-  margin-bottom: 20px;
-  cursor: pointer;
+#ctrlTab-label {
   font-weight: bold;
+  font-size: 14px;
+  text-align: center;
+  margin-top: 6px;
+  margin-bottom: 10px;
 }
 
-.ctrlTab-thumbnail > html|canvas {
-  border: 2px solid white;
-  margin: -2px;
+svg|*.ctrlTab-thumbnailborder {
+  stroke: white;
+  stroke-width: 1px;
 }
 
-.ctrlTab-thumbnail[selected="true"] ,
-.ctrlTab-thumbnail:hover {
-  background: Highlight;
-  color: HighlightText;
-  -moz-box-shadow: 0 0 2px Highlight, 0 0 2px Highlight, 0 0 3px Highlight, 0 0 4px Highlight, 0 0 10px Highlight, 0 0 20px white;
-  text-shadow: 0 0 3px transparent;
+svg|*#ctrlTab-fadeGradientTop {
+  stop-color: black;
+  stop-opacity: .5;
 }
 
-.ctrlTab-pagePointer {
-  margin: 0 1em 1em;
-  width: 1.5em;
-  height: 1.5em;
-  -moz-border-radius: .75em;
-  background: rgba(0, 0, 0, .5);
-  border: 1px solid rgba(255, 255, 255, .3);
-  cursor: pointer;
-}
-
-.ctrlTab-pagePointer[selected="true"] {
-  background: rgba(255, 255, 255, .6);
-  cursor: default;
+svg|*#ctrlTab-fadeGradientBottom {
+  stop-color: black;
+  stop-opacity: 1;
 }

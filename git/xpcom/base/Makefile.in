@@ -82,7 +82,6 @@ endif
 EXPORTS		= \
 		nsAgg.h \
 		nsAutoPtr.h \
-		nsAutoRef.h \
 		nsCom.h \
 		nsDebugImpl.h \
 		nsIAllocator.h \

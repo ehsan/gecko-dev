@@ -695,6 +695,12 @@ public:
     GetScriptHandlingObject(PRBool& aHasHadScriptHandlingObject) const;
   virtual void SetScriptHandlingObject(nsIScriptGlobalObject* aScriptObject);
 
+  virtual void ClearScriptHandlingObject()
+  {
+    mScriptObject = nsnull;
+    mHasHadScriptHandlingObject = PR_TRUE;
+  }
+
   virtual nsIScriptGlobalObject* GetScopeObject();
 
   /**
@@ -921,12 +927,6 @@ public:
                                                    nsIDOMNodeList** aResult);
   virtual NS_HIDDEN_(nsresult) GetContentListFor(nsIContent* aContent,
                                                  nsIDOMNodeList** aResult);
-
-  virtual NS_HIDDEN_(nsresult) ElementFromPointHelper(PRInt32 aX, PRInt32 aY,
-                                                      PRBool aIgnoreRootScrollFrame,
-                                                      PRBool aFlushLayout,
-                                                      nsIDOMElement** aReturn);
-
   virtual NS_HIDDEN_(void) FlushSkinBindings();
 
   virtual NS_HIDDEN_(nsresult) InitializeFrameLoader(nsFrameLoader* aLoader);
@@ -1232,18 +1232,5 @@ private:
 
   nsExternalResourceMap mExternalResourceMap;
 };
-
-#define NS_DOCUMENT_INTERFACE_TABLE_BEGIN(_class)                             \
-  NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(_class)                            \
-  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMDocument, nsDocument)      \
-  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMNSDocument, nsDocument)    \
-  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMDocumentEvent, nsDocument) \
-  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMDocumentView, nsDocument)  \
-  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMDocumentTraversal,         \
-                                     nsDocument)                              \
-  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMEventTarget, nsDocument)   \
-  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMNode, nsDocument)          \
-  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOM3Node, nsDocument)         \
-  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOM3Document, nsDocument)
 
 #endif /* nsDocument_h___ */

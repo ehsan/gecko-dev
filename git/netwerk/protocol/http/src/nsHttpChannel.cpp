@@ -52,7 +52,6 @@
 #include "nsHttp.h"
 #include "nsIHttpAuthenticator.h"
 #include "nsIApplicationCacheService.h"
-#include "nsIApplicationCacheContainer.h"
 #include "nsIAuthInformation.h"
 #include "nsIAuthPrompt2.h"
 #include "nsIAuthPromptProvider.h"
@@ -130,9 +129,6 @@ nsHttpChannel::nsHttpChannel()
     , mCacheForOfflineUse(PR_FALSE)
     , mCachingOpportunistically(PR_FALSE)
     , mFallbackChannel(PR_FALSE)
-    , mInheritApplicationCache(PR_TRUE)
-    , mChooseApplicationCache(PR_FALSE)
-    , mLoadedFromApplicationCache(PR_FALSE)
     , mTracingEnabled(PR_TRUE)
 {
     LOG(("Creating nsHttpChannel @%x\n", this));
@@ -1486,7 +1482,6 @@ nsHttpChannel::OpenCacheEntry(PRBool offline, PRBool *delayed)
     nsresult rv;
 
     *delayed = PR_FALSE;
-    mLoadedFromApplicationCache = PR_FALSE;
 
     LOG(("nsHttpChannel::OpenCacheEntry [this=%x]", this));
 
@@ -1542,28 +1537,26 @@ nsHttpChannel::OpenCacheEntry(PRBool offline, PRBool *delayed)
     else
         accessRequested = nsICache::ACCESS_READ_WRITE; // normal browsing
 
-    if (!mApplicationCache && mInheritApplicationCache) {
-        // Pick up an application cache from the notification
-        // callbacks if available
+    if (!mApplicationCache) {
+        // Pick up an application cache from the load group if available
         nsCOMPtr<nsIApplicationCacheContainer> appCacheContainer;
         GetCallback(appCacheContainer);
 
         if (appCacheContainer) {
             appCacheContainer->GetApplicationCache(getter_AddRefs(mApplicationCache));
         }
-    }
 
-    if (!mApplicationCache &&
-        (mChooseApplicationCache || (mLoadFlags & LOAD_CHECK_OFFLINE_CACHE))) {
-        // We're supposed to load from an application cache, but
-        // one was not supplied by the load group.  Ask the
-        // application cache service to choose one for us.
-        nsCOMPtr<nsIApplicationCacheService> appCacheService =
-            do_GetService(NS_APPLICATIONCACHESERVICE_CONTRACTID);
-        if (appCacheService) {
-            nsresult rv = appCacheService->ChooseApplicationCache
-                (cacheKey, getter_AddRefs(mApplicationCache));
-            NS_ENSURE_SUCCESS(rv, rv);
+        if ((mLoadFlags & LOAD_CHECK_OFFLINE_CACHE) && !mApplicationCache) {
+            // We're supposed to load from an application cache, but
+            // one was not supplied by the load group.  Ask the
+            // application cache service to choose one for us.
+            nsCOMPtr<nsIApplicationCacheService> appCacheService =
+                do_GetService(NS_APPLICATIONCACHESERVICE_CONTRACTID);
+            if (appCacheService) {
+                nsresult rv = appCacheService->ChooseApplicationCache
+                    (cacheKey, getter_AddRefs(mApplicationCache));
+                NS_ENSURE_SUCCESS(rv, rv);
+            }
         }
     }
 
@@ -1648,11 +1641,6 @@ nsHttpChannel::OpenCacheEntry(PRBool offline, PRBool *delayed)
                 SetOfflineCacheClientID(clientID);
                 mCachingOpportunistically = PR_TRUE;
             }
-        }
-        else if (NS_SUCCEEDED(rv)) {
-            // We successfully opened an offline cache session and the entry,
-            // now indiciate we load from the offline cache.
-            mLoadedFromApplicationCache = PR_TRUE;
         }
     }
 
@@ -2422,30 +2410,17 @@ nsHttpChannel::AddCacheEntryHeaders(nsICacheEntryDescriptor *entry)
     return rv;
 }
 
-inline void
-GetAuthType(const char *challenge, nsCString &authType)
-{
-    const char *p;
-
-    // get the challenge type
-    if ((p = strchr(challenge, ' ')) != nsnull)
-        authType.Assign(challenge, p - challenge);
-    else
-        authType.Assign(challenge);
-}
-
 nsresult
 nsHttpChannel::StoreAuthorizationMetaData(nsICacheEntryDescriptor *entry)
 {
     // Not applicable to proxy authorization...
     const char *val = mRequestHead.PeekHeader(nsHttp::Authorization);
-    if (!val)
-        return NS_OK;
-
-    // eg. [Basic realm="wally world"]
-    nsCAutoString buf;
-    GetAuthType(val, buf);
-    return entry->SetMetaDataElement("auth", buf.get());
+    if (val) {
+        // eg. [Basic realm="wally world"]
+        nsCAutoString buf(Substring(val, strchr(val, ' ')));
+        return entry->SetMetaDataElement("auth", buf.get());
+    }
+    return NS_OK;
 }
 
 // Finalize the cache entry
@@ -2578,9 +2553,6 @@ nsHttpChannel::SetupReplacementChannel(nsIURI       *newURI,
     if (mConnectionInfo->UsingSSL())
         newLoadFlags &= ~INHIBIT_PERSISTENT_CACHING;
 
-    // Do not pass along LOAD_CHECK_OFFLINE_CACHE
-    newLoadFlags &= ~LOAD_CHECK_OFFLINE_CACHE;
-
     newChannel->SetOriginalURI(mOriginalURI);
     newChannel->SetLoadGroup(mLoadGroup); 
     newChannel->SetNotificationCallbacks(mCallbacks);
@@ -2650,12 +2622,12 @@ nsHttpChannel::SetupReplacementChannel(nsIURI       *newURI,
     }
 
     // transfer application cache information
-    nsCOMPtr<nsIApplicationCacheChannel> appCacheChannel =
-        do_QueryInterface(newChannel);
-    if (appCacheChannel) {
-        appCacheChannel->SetApplicationCache(mApplicationCache);
-        appCacheChannel->SetInheritApplicationCache(mInheritApplicationCache);
-        // We purposely avoid transfering mChooseApplicationCache.
+    if (mApplicationCache) {
+        nsCOMPtr<nsIApplicationCacheContainer> appCacheContainer =
+            do_QueryInterface(newChannel);
+        if (appCacheContainer) {
+            appCacheContainer->SetApplicationCache(mApplicationCache);
+        }
     }
 
     // transfer any properties
@@ -3307,8 +3279,14 @@ nsHttpChannel::GetAuthenticator(const char *challenge,
 {
     LOG(("nsHttpChannel::GetAuthenticator [this=%x]\n", this));
 
-    GetAuthType(challenge, authType);
- 
+    const char *p;
+  
+    // get the challenge type
+    if ((p = strchr(challenge, ' ')) != nsnull)
+        authType.Assign(challenge, p - challenge);
+    else
+        authType.Assign(challenge);
+  
     // normalize to lowercase
     ToLowerCase(authType);
 
@@ -3711,7 +3689,6 @@ NS_INTERFACE_MAP_BEGIN(nsHttpChannel)
     NS_INTERFACE_MAP_ENTRY(nsIProxiedChannel)
     NS_INTERFACE_MAP_ENTRY(nsITraceableChannel)
     NS_INTERFACE_MAP_ENTRY(nsIApplicationCacheContainer)
-    NS_INTERFACE_MAP_ENTRY(nsIApplicationCacheChannel)
 NS_INTERFACE_MAP_END_INHERITING(nsHashPropertyBag)
 
 //-----------------------------------------------------------------------------
@@ -4026,10 +4003,6 @@ nsHttpChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *context)
     if (mRequestHead.HasHeaderValue(nsHttp::Connection, "close"))
         mCaps &= ~(NS_HTTP_ALLOW_KEEPALIVE | NS_HTTP_ALLOW_PIPELINING);
     
-    if ((mLoadFlags & VALIDATE_ALWAYS) || 
-        (BYPASS_LOCAL_CACHE(mLoadFlags)))
-        mCaps |= NS_HTTP_REFRESH_DNS;
-
     mIsPending = PR_TRUE;
     mWasOpened = PR_TRUE;
 
@@ -5233,7 +5206,7 @@ nsHttpChannel::DoAuthRetry(nsAHttpConnection *conn)
 }
 
 //-----------------------------------------------------------------------------
-// nsHttpChannel::nsIApplicationCacheChannel
+// nsHttpChannel::nsIApplicationCacheContainer
 //-----------------------------------------------------------------------------
 NS_IMETHODIMP
 nsHttpChannel::GetApplicationCache(nsIApplicationCache **out)
@@ -5245,50 +5218,10 @@ nsHttpChannel::GetApplicationCache(nsIApplicationCache **out)
 NS_IMETHODIMP
 nsHttpChannel::SetApplicationCache(nsIApplicationCache *appCache)
 {
-    NS_ENSURE_TRUE(!mWasOpened, NS_ERROR_ALREADY_OPENED);
-
     mApplicationCache = appCache;
     return NS_OK;
 }
 
-NS_IMETHODIMP
-nsHttpChannel::GetLoadedFromApplicationCache(PRBool *aLoadedFromApplicationCache)
-{
-    *aLoadedFromApplicationCache = mLoadedFromApplicationCache;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHttpChannel::GetInheritApplicationCache(PRBool *aInherit)
-{
-    *aInherit = mInheritApplicationCache;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHttpChannel::SetInheritApplicationCache(PRBool aInherit)
-{
-    NS_ENSURE_TRUE(!mWasOpened, NS_ERROR_ALREADY_OPENED);
-
-    mInheritApplicationCache = aInherit;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHttpChannel::GetChooseApplicationCache(PRBool *aChoose)
-{
-    *aChoose = mChooseApplicationCache;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHttpChannel::SetChooseApplicationCache(PRBool aChoose)
-{
-    NS_ENSURE_TRUE(!mWasOpened, NS_ERROR_ALREADY_OPENED);
-
-    mChooseApplicationCache = aChoose;
-    return NS_OK;
-}
 
 //-----------------------------------------------------------------------------
 // nsHttpChannel::nsContentEncodings <public>

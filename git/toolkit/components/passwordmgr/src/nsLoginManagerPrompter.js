@@ -166,21 +166,6 @@ LoginManagerPrompter.prototype = {
     },
 
 
-    __ellipsis : null,
-    get _ellipsis() {
-        if (!this.__ellipsis) {
-            this.__ellipsis = "\u2026";
-            try {
-                var prefSvc = Cc["@mozilla.org/preferences-service;1"].
-                              getService(Ci.nsIPrefBranch);
-                this.__ellipsis = prefSvc.getComplexValue("intl.ellipsis",
-                                      Ci.nsIPrefLocalizedString).data;
-            } catch (e) { }
-        }
-        return this.__ellipsis;
-    },
-
-
     // Whether we are in private browsing mode
     get _inPrivateBrowsing() {
       // The Private Browsing service might not be available.
@@ -656,18 +641,8 @@ LoginManagerPrompter.prototype = {
 
         var brandShortName =
               this._brandBundle.GetStringFromName("brandShortName");
-        var displayHost = this._getShortDisplayHost(aLogin.hostname);
-        var notificationText;
-        if (aLogin.username) {
-            var displayUser = this._sanitizeUsername(aLogin.username);
-            notificationText  = this._getLocalizedString(
-                                        "saveLoginText",
-                                        [brandShortName, displayUser, displayHost]);
-        } else {
-            notificationText  = this._getLocalizedString(
-                                        "saveLoginTextNoUsername",
-                                        [brandShortName, displayHost]);
-        }
+        var notificationText  = this._getLocalizedString(
+                                        "savePasswordText", [brandShortName]);
 
         // The callbacks in |buttons| have a closure to access the variables
         // in scope here; set one to |this._pwmgr| so we can get back to pwmgr
@@ -744,19 +719,9 @@ LoginManagerPrompter.prototype = {
 
         var brandShortName =
                 this._brandBundle.GetStringFromName("brandShortName");
-        var displayHost = this._getShortDisplayHost(aLogin.hostname);
 
-        var dialogText;
-        if (aLogin.username) {
-            var displayUser = this._sanitizeUsername(aLogin.username);
-            dialogText = this._getLocalizedString(
-                                 "saveLoginText",
-                                 [brandShortName, displayUser, displayHost]);
-        } else {
-            dialogText = this._getLocalizedString(
-                                 "saveLoginTextNoUsername",
-                                 [brandShortName, displayHost]);
-        }
+        var dialogText         = this._getLocalizedString(
+                                        "savePasswordText", [brandShortName]);
         var dialogTitle        = this._getLocalizedString(
                                         "savePasswordTitle");
         var neverButtonText    = this._getLocalizedString(
@@ -1051,22 +1016,6 @@ LoginManagerPrompter.prototype = {
 
 
     /*
-     * _sanitizeUsername
-     *
-     * Sanitizes the specified username, by stripping quotes and truncating if
-     * it's too long. This helps prevent an evil site from messing with the
-     * "save password?" prompt too much.
-     */
-    _sanitizeUsername : function (username) {
-        if (username.length > 30) {
-            username = username.substring(0, 30);
-            username += this._ellipsis;
-        }
-        return username.replace(/['"]/g, "");
-    },
-
-
-    /*
      * _getFormattedHostname
      *
      * The aURI parameter may either be a string uri, or an nsIURI instance.
@@ -1096,36 +1045,6 @@ LoginManagerPrompter.prototype = {
 
         return hostname;
     },
-
-
-    /*
-     * _getShortDisplayHost
-     *
-     * Converts a login's hostname field (a URL) to a short string for
-     * prompting purposes. Eg, "http://foo.com" --> "foo.com", or
-     * "ftp://www.site.co.uk" --> "site.co.uk".
-     */
-    _getShortDisplayHost: function (aURIString) {
-        var displayHost;
-
-        var eTLDService = Cc["@mozilla.org/network/effective-tld-service;1"].
-                          getService(Ci.nsIEffectiveTLDService);
-        var idnService = Cc["@mozilla.org/network/idn-service;1"].
-                         getService(Ci.nsIIDNService);
-        try {
-            var uri = this._ioService.newURI(aURIString, null, null);
-            var baseDomain = eTLDService.getBaseDomain(uri);
-            displayHost = idnService.convertToDisplayIDN(baseDomain, {});
-        } catch (e) {
-            this.log("_getShortDisplayHost couldn't process " + aURIString);
-        }
-
-        if (!displayHost)
-            displayHost = aURIString;
-
-        return displayHost;
-    },
-
 
     /*
      * _getAuthTarget

@@ -253,27 +253,22 @@ nsSVGPathGeometryFrame::UpdateCoveredRegion()
 
   gfxContext context(nsSVGUtils::GetThebesComputationalSurface());
 
-  static_cast<nsSVGPathGeometryElement*>(mContent)->ConstructPath(&context);
+  GeneratePath(&context);
 
   gfxRect extent;
 
   if (SetupCairoStrokeGeometry(&context)) {
     extent = context.GetUserStrokeExtent();
-  } else if (GetStyleSVG()->mFill.mType != eStyleSVGPaintType_None) {
-    extent = context.GetUserPathExtent();
+    if (!IsDegeneratePath(extent)) {
+      extent = context.UserToDevice(extent);
+      mRect = nsSVGUtils::ToAppPixelRect(PresContext(),extent);
+    }
   } else {
-    extent = gfxRect(0, 0, 0, 0);
-  }
-
-  if (!extent.IsEmpty()) {
-    nsCOMPtr<nsIDOMSVGMatrix> ctm;
-    GetCanvasTM(getter_AddRefs(ctm));
-    NS_ASSERTION(ctm, "graphic source didn't specify a ctm");
-
-    gfxMatrix matrix = nsSVGUtils::ConvertSVGMatrixToThebes(ctm);
-
-    extent = matrix.TransformBounds(extent);
-    mRect = nsSVGUtils::ToAppPixelRect(PresContext(), extent);
+    context.IdentityMatrix();
+    extent = context.GetUserPathExtent();
+    if (!IsDegeneratePath(extent)) {
+      mRect = nsSVGUtils::ToAppPixelRect(PresContext(),extent);
+    }
   }
 
   // Add in markers

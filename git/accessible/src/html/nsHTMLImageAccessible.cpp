@@ -94,13 +94,13 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsHTMLImageAccessible, nsAccessible,
 ////////////////////////////////////////////////////////////////////////////////
 // nsIAccessible
 
-nsresult
-nsHTMLImageAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsHTMLImageAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
   // The state is a bitfield, get our inherited state, then logically OR it with
   // STATE_ANIMATED if this is an animated image.
 
-  nsresult rv = nsLinkableAccessible::GetStateInternal(aState, aExtraState);
+  nsresult rv = nsLinkableAccessible::GetState(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!mDOMNode)
     return NS_OK;
@@ -343,9 +343,9 @@ nsHTMLImageAccessible::GetImageSize(PRInt32 *aWidth, PRInt32 *aHeight)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsHTMLImageAccessible. nsAccessNode
+// nsPIAccessNode
 
-nsresult
+NS_IMETHODIMP
 nsHTMLImageAccessible::Shutdown()
 {
   nsLinkableAccessible::Shutdown();
@@ -416,8 +416,11 @@ nsHTMLImageAccessible::GetAreaAccessible(nsIDOMHTMLCollection *aAreaCollection,
     if (!accessNode)
       return nsnull;
     
-    nsRefPtr<nsAccessNode> accNode = nsAccUtils::QueryAccessNode(accessNode);
-    nsresult rv = accNode->Init();
+    nsCOMPtr<nsPIAccessNode> privateAccessNode(do_QueryInterface(accessNode));
+    NS_ASSERTION(privateAccessNode,
+                 "Accessible doesn't implement nsPIAccessNode");
+    
+    nsresult rv = privateAccessNode->Init();
     if (NS_FAILED(rv))
       return nsnull;
     

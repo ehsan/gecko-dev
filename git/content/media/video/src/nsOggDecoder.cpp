@@ -49,7 +49,6 @@
 #include "nsIObserverService.h"
 #include "nsAutoLock.h"
 #include "nsTArray.h"
-#include "nsNetUtil.h"
 #include "nsOggDecoder.h"
 
 /* 
@@ -966,7 +965,7 @@ nsresult nsOggDecodeStateMachine::Run()
           mReader->Available() < mBufferingBytes) {
         LOG(PR_LOG_DEBUG, 
             ("Buffering data until %d bytes available or %d milliseconds", 
-             mBufferingBytes - mReader->Available(),
+             (long)(mBufferingBytes - mReader->Available()),
              BUFFERING_WAIT*1000 - (PR_IntervalToMilliseconds(PR_IntervalNow() - mBufferingStart))));
         mon.Wait(PR_MillisecondsToInterval(1000));
         if (mState == DECODER_STATE_SHUTDOWN)
@@ -1166,26 +1165,10 @@ nsOggDecoder::~nsOggDecoder()
   nsAutoMonitor::DestroyMonitor(mMonitor);
 }
 
-nsresult nsOggDecoder::Load(nsIURI* aURI, nsIChannel* aChannel,
-                            nsIStreamListener** aStreamListener)
+nsresult nsOggDecoder::Load(nsIURI* aURI) 
 {
-  if (aStreamListener) {
-    *aStreamListener = nsnull;
-  }
-
-  if (aURI) {
-    NS_ASSERTION(!aStreamListener, "No listener should be requested here");
-    mURI = aURI;
-  } else {
-    NS_ASSERTION(aChannel, "Either a URI or a channel is required");
-    NS_ASSERTION(aStreamListener, "A listener should be requested here");
-
-    // If the channel was redirected, we want the post-redirect URI;
-    // but if the URI scheme was expanded, say from chrome: to jar:file:,
-    // we want the original URI.
-    nsresult rv = NS_GetFinalChannelURI(aChannel, getter_AddRefs(mURI));
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
+  nsresult rv;
+  mURI = aURI;
 
   StartProgress();
 
@@ -1194,7 +1177,7 @@ nsresult nsOggDecoder::Load(nsIURI* aURI, nsIChannel* aChannel,
   mReader = new nsChannelReader();
   NS_ENSURE_TRUE(mReader, NS_ERROR_OUT_OF_MEMORY);
 
-  nsresult rv = mReader->Init(this, mURI, aChannel, aStreamListener);
+  rv = mReader->Init(this, aURI);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = NS_NewThread(getter_AddRefs(mDecodeThread));
@@ -1336,13 +1319,6 @@ void nsOggDecoder::ResourceLoaded()
   StopProgress();
 }
 
-void nsOggDecoder::NetworkError()
-{
-  if (mElement)
-    mElement->NetworkError();
-  Stop();
-}
-
 PRBool nsOggDecoder::IsSeeking() const
 {
   return mPlayState == PLAY_STATE_SEEKING;
@@ -1481,12 +1457,9 @@ void nsOggDecoder::ChangeState(PlayState aState)
     // If we've completed playback then the decode and display threads
     // have been shutdown. To honor the state change request we need
     // to reload the resource and restart the threads.
-    // Like seeking, this will require opening a new channel, which means
-    // we may not actually get the same resource --- a server may send
-    // us something different.
     mNextState = aState;
     mPlayState = PLAY_STATE_LOADING;
-    Load(mURI, nsnull, nsnull);
+    Load(mURI);
     return;
   }
 

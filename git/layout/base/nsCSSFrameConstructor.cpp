@@ -8690,8 +8690,9 @@ PRBool NotifyListBoxBody(nsPresContext*    aPresContext,
     xulElement->GetBoxObject(getter_AddRefs(boxObject));
     nsCOMPtr<nsPIListBoxObject> listBoxObject = do_QueryInterface(boxObject);
     if (listBoxObject) {
-      nsListBoxBodyFrame* listBoxBodyFrame = listBoxObject->GetListBoxBody(PR_FALSE);
-      if (listBoxBodyFrame) {
+      nsIListBoxObject* listboxBody = listBoxObject->GetListBoxBody(PR_FALSE);
+      if (listboxBody) {
+        nsListBoxBodyFrame *listBoxBodyFrame = static_cast<nsListBoxBodyFrame*>(listboxBody);
         if (aOperation == CONTENT_REMOVED) {
           // Except if we have an aChildFrame and its parent is not the right
           // thing, then we don't do this.  Pseudo frames are so much fun....
@@ -13266,10 +13267,6 @@ nsCSSFrameConstructor::RebuildAllStyleData(nsChangeHint aExtraHint)
 
   if (!mPresShell || !mPresShell->GetRootFrame())
     return;
-
-  // Processing the style changes could cause a flush that propagates to
-  // the parent frame and thus destroys the pres shell.
-  nsCOMPtr<nsIPresShell> kungFuDeathGrip(mPresShell);
 
   // Tell the style set to get the old rule tree out of the way
   // so we can recalculate while maintaining rule tree immutability

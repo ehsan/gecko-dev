@@ -41,6 +41,12 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+ifdef MOZ_OGG
+ifneq (,$(filter WINNT WINCE,$(OS_ARCH)))
+DEFINES += -DSYDNEY_AUDIO_NO_VOLUME -DSYDNEY_AUDIO_NO_POSITION
+endif
+endif
+
 MODULE		= content
 LIBRARY_NAME	= gkconvideo_s
 LIBXUL_LIBRARY 	= 1
@@ -82,29 +88,13 @@ CPPSRCS		= \
 		nsMediaDecoder.cpp \
 		$(NULL)
 
-ifdef MOZ_MEDIA
-CPPSRCS		+= \
-		nsChannelToPipeListener.cpp \
-		nsMediaStream.cpp \
-		$(NULL)
-endif
-
-ifdef MOZ_SYDNEYAUDIO
-CPPSRCS		+= \
-		nsAudioStream.cpp \
-		$(NULL)
-endif
-
 ifdef MOZ_OGG
 CPPSRCS		+= \
+		nsAudioStream.cpp \
 		nsChannelReader.cpp \
+		nsChannelToPipeListener.cpp \
+		nsMediaStream.cpp \
 		nsOggDecoder.cpp \
-		$(NULL)
-endif
-
-ifdef MOZ_WAVE
-CPPSRCS		+= \
-		nsWaveDecoder.cpp \
 		$(NULL)
 endif
 

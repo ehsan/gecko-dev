@@ -253,12 +253,11 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLDocument, nsDocument)
 
 // QueryInterface implementation for nsHTMLDocument
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLDocument)
-  NS_DOCUMENT_INTERFACE_TABLE_BEGIN(nsHTMLDocument)
-    NS_INTERFACE_TABLE_ENTRY(nsHTMLDocument, nsIHTMLDocument)
-    NS_INTERFACE_TABLE_ENTRY(nsHTMLDocument, nsIDOMHTMLDocument)
-    NS_INTERFACE_TABLE_ENTRY(nsHTMLDocument, nsIDOMNSHTMLDocument)
-  NS_OFFSET_AND_INTERFACE_TABLE_END
-  NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
+  NS_INTERFACE_TABLE_INHERITED3(nsHTMLDocument,
+                                nsIHTMLDocument,
+                                nsIDOMHTMLDocument,
+                                nsIDOMNSHTMLDocument)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(HTMLDocument)
 NS_INTERFACE_MAP_END_INHERITING(nsDocument)
 
@@ -3795,7 +3794,7 @@ nsHTMLDocument::ExecCommand(const nsAString & commandID,
   *_retval = PR_FALSE;
 
   // if editing is not on, bail
-  if (!IsEditingOnAfterFlush())
+  if (!IsEditingOn())
     return NS_ERROR_FAILURE;
 
   // if they are requesting UI from us, let's fail since we have no UI
@@ -3870,7 +3869,7 @@ nsHTMLDocument::ExecCommandShowHelp(const nsAString & commandID,
   *_retval = PR_FALSE;
 
   // if editing is not on, bail
-  if (!IsEditingOnAfterFlush())
+  if (!IsEditingOn())
     return NS_ERROR_FAILURE;
 
   return NS_ERROR_NOT_IMPLEMENTED;
@@ -3885,7 +3884,7 @@ nsHTMLDocument::QueryCommandEnabled(const nsAString & commandID,
   *_retval = PR_FALSE;
 
   // if editing is not on, bail
-  if (!IsEditingOnAfterFlush())
+  if (!IsEditingOn())
     return NS_ERROR_FAILURE;
 
   // get command manager and dispatch command to our window if it's acceptable
@@ -3914,7 +3913,7 @@ nsHTMLDocument::QueryCommandIndeterm(const nsAString & commandID,
   *_retval = PR_FALSE;
 
   // if editing is not on, bail
-  if (!IsEditingOnAfterFlush())
+  if (!IsEditingOn())
     return NS_ERROR_FAILURE;
 
   // get command manager and dispatch command to our window if it's acceptable
@@ -3956,7 +3955,7 @@ nsHTMLDocument::QueryCommandState(const nsAString & commandID, PRBool *_retval)
   *_retval = PR_FALSE;
 
   // if editing is not on, bail
-  if (!IsEditingOnAfterFlush())
+  if (!IsEditingOn())
     return NS_ERROR_FAILURE;
 
   // get command manager and dispatch command to our window if it's acceptable
@@ -4018,7 +4017,7 @@ nsHTMLDocument::QueryCommandSupported(const nsAString & commandID,
   *_retval = PR_FALSE;
 
   // if editing is not on, bail
-  if (!IsEditingOnAfterFlush())
+  if (!IsEditingOn())
     return NS_ERROR_FAILURE;
 
   return NS_ERROR_NOT_IMPLEMENTED;
@@ -4032,7 +4031,7 @@ nsHTMLDocument::QueryCommandText(const nsAString & commandID,
   _retval.SetLength(0);
 
   // if editing is not on, bail
-  if (!IsEditingOnAfterFlush())
+  if (!IsEditingOn())
     return NS_ERROR_FAILURE;
 
   return NS_ERROR_NOT_IMPLEMENTED;
@@ -4046,7 +4045,7 @@ nsHTMLDocument::QueryCommandValue(const nsAString & commandID,
   _retval.SetLength(0);
 
   // if editing is not on, bail
-  if (!IsEditingOnAfterFlush())
+  if (!IsEditingOn())
     return NS_ERROR_FAILURE;
 
   // get command manager and dispatch command to our window if it's acceptable
@@ -4139,17 +4138,4 @@ nsHTMLDocument::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
   clone->mLoadFlags = mLoadFlags;
 
   return CallQueryInterface(clone.get(), aResult);
-}
-
-PRBool
-nsHTMLDocument::IsEditingOnAfterFlush()
-{
-  nsIDocument* doc = GetParentDocument();
-  if (doc) {
-    // Make sure frames are up to date, since that can affect whether
-    // we're editable.
-    doc->FlushPendingNotifications(Flush_Frames);
-  }
-
-  return IsEditingOn();
 }

@@ -30,8 +30,23 @@ function AddToZip(zipWriter, path, file)
 
 function RecursivelyZipDirectory(bundle)
 {
-  zipW.open(tmpFile, PR_RDWR | PR_CREATE_FILE | PR_TRUNCATE);
+  // create directory service
+  var dirUtils = Components.classes["@mozilla.org/file/directory_service;1"]
+      .createInstance(Components.interfaces.nsIProperties);
+  
+  // get the temp dir, where our temporary zip attachments can be stored
+  var tempFile = dirUtils.get("TmpD", Components.interfaces.nsIFile).clone();
+
+  // create unique file there
+  tempFile.append(bundle.leafName + ".zip");
+  tempFile.createUnique(Components.interfaces.nsIFile.NORMAL_FILE_TYPE, 
+                        0600);
+  
+  zipW.open(tempFile, PR_RDWR | PR_CREATE_FILE | PR_TRUNCATE);
+  
   AddToZip(zipW, "", bundle); 
+  
+  // we're done.
   zipW.close();
 }
 

@@ -272,9 +272,6 @@ public:
   // select a history row by id
   mozIStorageStatement* DBGetIdPageInfo() { return mDBGetIdPageInfo; }
 
-  mozIStorageStatement* DBGetTags() { return mDBGetTags; }
-  PRInt64 GetTagsFolder();
-
   // Constants for the columns returned by the above statement
   // (in addition to the ones above).
   static const PRInt32 kGetInfoIndex_VisitDate;
@@ -506,6 +503,7 @@ protected:
   nsresult MigrateV7Up(mozIStorageConnection *aDBConn);
   nsresult MigrateV8Up(mozIStorageConnection *aDBConn);
   nsresult EnsureCurrentSchema(mozIStorageConnection* aDBConn, PRBool *aMadeChanges);
+  nsresult CleanUpOnQuit();
 
   nsresult RemovePagesInternal(const nsCString& aPlaceIdsQueryString);
 
@@ -822,6 +820,7 @@ protected:
   nsresult OnIdle();
 
   PRInt64 mTagsFolder;
+  PRInt64 GetTagsFolder();
 
   PRBool mInPrivateBrowsing;
 };
