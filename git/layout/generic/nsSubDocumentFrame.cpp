@@ -381,23 +381,24 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     // and convert into the appunits of the subdoc
     dirty = dirty.ConvertAppUnitsRoundOut(parentAPD, subdocAPD);
 
-    if (nsIFrame* rootScrollFrame = presShell->GetRootScrollFrame()) {
+    nsIFrame* rootScrollFrame = presShell->GetRootScrollFrame();
+    if (nsLayoutUtils::ViewportHasDisplayPort(presContext)) {
+      haveDisplayPort = true;
       // for root content documents we want the base to be the composition bounds
-      nsRect displayportBase = presContext->IsRootContentDocument() ?
+      nsLayoutUtils::SetDisplayPortBase(rootScrollFrame->GetContent(),
+        presContext->IsRootContentDocument() ?
           nsRect(nsPoint(0,0), nsLayoutUtils::CalculateCompositionSizeForFrame(rootScrollFrame)) :
-          dirty;
+          dirty);
       nsRect displayPort;
-      if (nsLayoutUtils::GetOrMaybeCreateDisplayPort(
-            *aBuilder, rootScrollFrame, displayportBase, &displayPort)) {
-        haveDisplayPort = true;
-        dirty = displayPort;
-      }
+      nsLayoutUtils::ViewportHasDisplayPort(presContext, &displayPort);
+      dirty = displayPort;
+    }
 
-      ignoreViewportScrolling = presShell->IgnoringViewportScrolling();
-      if (ignoreViewportScrolling) {
-        savedIgnoreScrollFrame = aBuilder->GetIgnoreScrollFrame();
-        aBuilder->SetIgnoreScrollFrame(rootScrollFrame);
-      }
+    ignoreViewportScrolling =
+      rootScrollFrame && presShell->IgnoringViewportScrolling();
+    if (ignoreViewportScrolling) {
+      savedIgnoreScrollFrame = aBuilder->GetIgnoreScrollFrame();
+      aBuilder->SetIgnoreScrollFrame(rootScrollFrame);
     }
 
     aBuilder->EnterPresShell(subdocRootFrame, dirty);
@@ -436,12 +437,6 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     }
 
     if (subdocRootFrame) {
-      nsDisplayListBuilder::AutoCurrentScrollParentIdSetter idSetter(
-          aBuilder,
-          ignoreViewportScrolling && subdocRootFrame->GetContent()
-              ? nsLayoutUtils::FindOrCreateIDFor(subdocRootFrame->GetContent())
-              : aBuilder->GetCurrentScrollParentId());
-
       aBuilder->SetAncestorHasTouchEventHandler(false);
       subdocRootFrame->
         BuildDisplayListForStackingContext(aBuilder, dirty, &childItems);

@@ -34,15 +34,15 @@ GlobalWorkerThreadState gWorkerThreadState;
 
 } // namespace js
 
-void
+bool
 js::EnsureWorkerThreadsInitialized(ExclusiveContext *cx)
 {
     // If 'cx' is not a JSContext, we are already off the main thread and the
     // worker threads would have already been initialized.
     if (!cx->isJSContext())
-        return;
+        return true;
 
-    WorkerThreadState().ensureInitialized();
+    return WorkerThreadState().ensureInitialized();
 }
 
 static size_t
@@ -86,7 +86,8 @@ js::StartOffThreadAsmJSCompile(ExclusiveContext *cx, AsmJSParallelTask *asmData)
 bool
 js::StartOffThreadIonCompile(JSContext *cx, jit::IonBuilder *builder)
 {
-    EnsureWorkerThreadsInitialized(cx);
+    if (!EnsureWorkerThreadsInitialized(cx))
+        return false;
 
     AutoLockWorkerThreadState lock;
 
@@ -301,7 +302,8 @@ js::StartOffThreadParseScript(JSContext *cx, const ReadOnlyCompileOptions &optio
 
     frontend::MaybeCallSourceHandler(cx, options, chars, length);
 
-    EnsureWorkerThreadsInitialized(cx);
+    if (!EnsureWorkerThreadsInitialized(cx))
+        return false;
 
     JS::CompartmentOptions compartmentOptions(cx->compartment()->options());
     compartmentOptions.setZone(JS::FreshZone);
@@ -417,18 +419,18 @@ js::EnqueuePendingParseTasksAfterGC(JSRuntime *rt)
 static const uint32_t WORKER_STACK_SIZE = 512 * 1024;
 static const uint32_t WORKER_STACK_QUOTA = 450 * 1024;
 
-void
+bool
 GlobalWorkerThreadState::ensureInitialized()
 {
     JS_ASSERT(this == &WorkerThreadState());
     AutoLockWorkerThreadState lock;
 
     if (threads)
-        return;
+        return true;
 
     threads = js_pod_calloc<WorkerThread>(threadCount);
     if (!threads)
-        CrashAtUnhandlableOOM("GlobalWorkerThreadState::ensureInitialized");
+        return false;
 
     for (size_t i = 0; i < threadCount; i++) {
         WorkerThread &helper = threads[i];
@@ -436,11 +438,17 @@ GlobalWorkerThreadState::ensureInitialized()
         helper.thread = PR_CreateThread(PR_USER_THREAD,
                                         WorkerThread::ThreadMain, &helper,
                                         PR_PRIORITY_NORMAL, PR_GLOBAL_THREAD, PR_JOINABLE_THREAD, WORKER_STACK_SIZE);
-        if (!helper.thread || !helper.threadData.ref().init())
-            CrashAtUnhandlableOOM("GlobalWorkerThreadState::ensureInitialized");
+        if (!helper.thread || !helper.threadData.ref().init()) {
+            for (size_t j = 0; j < threadCount; j++)
+                threads[j].destroy();
+            js_free(threads);
+            threads = nullptr;
+            return false;
+        }
     }
 
     resetAsmJSFailureState();
+    return true;
 }
 
 GlobalWorkerThreadState::GlobalWorkerThreadState()
@@ -789,7 +797,7 @@ WorkerThread::handleIonWorkload()
 
     ionBuilder = WorkerThreadState().ionWorklist().popCopy();
 
-    TraceLogger *logger = TraceLoggerForCurrentThread();
+    TraceLogger *logger = TraceLoggerForThread(thread);
     AutoTraceLog logScript(logger, TraceLogCreateTextId(logger, ionBuilder->script()));
     AutoTraceLog logCompile(logger, TraceLogger::IonCompilation);
 
@@ -905,7 +913,8 @@ WorkerThread::handleCompressionWorkload()
 bool
 js::StartOffThreadCompression(ExclusiveContext *cx, SourceCompressionTask *task)
 {
-    EnsureWorkerThreadsInitialized(cx);
+    if (!EnsureWorkerThreadsInitialized(cx))
+        return false;
 
     AutoLockWorkerThreadState lock;
 

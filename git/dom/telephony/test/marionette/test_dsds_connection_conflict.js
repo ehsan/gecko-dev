@@ -4,6 +4,36 @@
 MARIONETTE_TIMEOUT = 60000;
 MARIONETTE_HEAD_JS = 'head.js';
 
+function remoteAnswer(call) {
+  log("Remote answering the call.");
+
+  let deferred = Promise.defer();
+
+  call.onconnected = function onconnected(event) {
+    log("Received 'connected' call event.");
+    call.onconnected = null;
+    deferred.resolve(call);
+  };
+  emulator.run("gsm accept " + call.number);
+
+  return deferred.promise;
+}
+
+function remoteHangUp(call) {
+  log("Remote hanging up the call.");
+
+  let deferred = Promise.defer();
+
+  call.ondisconnected = function ondisconnected(event) {
+    log("Received 'disconnected' call event.");
+    call.ondisconnected = null;
+    deferred.resolve(call);
+  };
+  emulator.run("gsm cancel " + call.number);
+
+  return deferred.promise;
+}
+
 function muxModem(id) {
   let deferred = Promise.defer();
 
@@ -29,7 +59,7 @@ function testNewCallWhenOtherConnectionInUse(firstServiceId, secondServiceId) {
       outCall = call;
       is(outCall.serviceId, firstServiceId);
     })
-    .then(() => gRemoteAnswer(outCall))
+    .then(() => remoteAnswer(outCall))
     .then(() => {
       return telephony.dial("0912345001", secondServiceId);
     })
@@ -39,7 +69,7 @@ function testNewCallWhenOtherConnectionInUse(firstServiceId, secondServiceId) {
     }, cause => {
       is(cause, "OtherConnectionInUse");
     })
-    .then(() => gRemoteHangUp(outCall));
+    .then(() => remoteHangUp(outCall));
 }
 
 startDSDSTest(function() {

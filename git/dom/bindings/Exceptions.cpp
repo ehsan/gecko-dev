@@ -302,8 +302,8 @@ private:
   nsCOMPtr<nsIStackFrame> mCaller;
 
   // Cached values
-  nsString mFilename;
-  nsString mFunname;
+  nsCString mFilename;
+  nsCString mFunname;
   int32_t mLineno;
   uint32_t mLanguage;
 
@@ -374,13 +374,13 @@ NS_IMETHODIMP JSStackFrame::GetLanguageName(nsACString& aLanguageName)
   return NS_OK;
 }
 
-/* readonly attribute AString filename; */
-NS_IMETHODIMP JSStackFrame::GetFilename(nsAString& aFilename)
+/* readonly attribute string filename; */
+NS_IMETHODIMP JSStackFrame::GetFilename(nsACString& aFilename)
 {
   if (!mFilenameInitialized) {
     JS::FrameDescription& desc = mStackDescription->FrameAt(mIndex);
     if (const char *filename = desc.filename()) {
-      CopyUTF8toUTF16(filename, mFilename);
+      mFilename.Assign(filename);
     }
     mFilenameInitialized = true;
   }
@@ -395,15 +395,13 @@ NS_IMETHODIMP JSStackFrame::GetFilename(nsAString& aFilename)
   return NS_OK;
 }
 
-/* readonly attribute AString name; */
-NS_IMETHODIMP JSStackFrame::GetName(nsAString& aFunction)
+/* readonly attribute string name; */
+NS_IMETHODIMP JSStackFrame::GetName(nsACString& aFunction)
 {
   if (!mFunnameInitialized) {
     JS::FrameDescription& desc = mStackDescription->FrameAt(mIndex);
     if (JSFlatString *name = desc.funDisplayName()) {
-      mFunname.Assign(JS_GetFlatStringChars(name),
-                      // XXXbz Can't JS_GetStringLength on JSFlatString!
-                      JS_GetStringLength(JS_FORGET_STRING_FLATNESS(name)));
+      CopyUTF16toUTF8(JS_GetFlatStringChars(name), mFunname);
     }
     mFunnameInitialized = true;
   }
@@ -462,26 +460,24 @@ NS_IMETHODIMP JSStackFrame::ToString(nsACString& _retval)
 
   const char* frametype = IsJSFrame() ? "JS" : "native";
 
-  nsString filename;
+  nsCString filename;
   nsresult rv = GetFilename(filename);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (filename.IsEmpty()) {
-    filename.AssignLiteral("<unknown filename>");
+    filename.AssignASCII("<unknown filename>");
   }
 
-  nsString funname;
+  nsCString funname;
   rv = GetName(funname);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (funname.IsEmpty()) {
-    funname.AssignLiteral("<TOP_LEVEL>");
+    funname.AssignASCII("<TOP_LEVEL>");
   }
   static const char format[] = "%s frame :: %s :: %s :: line %d";
-  _retval.AppendPrintf(format, frametype,
-                       NS_ConvertUTF16toUTF8(filename).get(),
-                       NS_ConvertUTF16toUTF8(funname).get(),
-                       GetLineno());
+  _retval.AppendPrintf(format, frametype, filename.get(),
+                       funname.get(), GetLineno());
   return NS_OK;
 }
 
@@ -515,8 +511,8 @@ JSStackFrame::CreateStackFrameLocation(uint32_t aLanguage,
 
   self->mLanguage = aLanguage;
   self->mLineno = aLineNumber;
-  CopyUTF8toUTF16(aFilename, self->mFilename);
-  CopyUTF8toUTF16(aFunctionName, self->mFunname);
+  self->mFilename = aFilename;
+  self->mFunname = aFunctionName;
 
   self->mCaller = aCaller;
 

@@ -33,6 +33,7 @@ members = [
     #'nsIDOMLocation.href',
 
     # dom/interfaces/storage
+    'nsIDOMToString.toString',
     'nsIDOMStorage.setItem',
     'nsIDOMStorage.length',
     'nsIDOMStorage.getItem',

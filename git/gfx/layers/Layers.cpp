@@ -733,7 +733,6 @@ ContainerLayer::ContainerLayer(LayerManager* aManager, void* aImplData)
   : Layer(aManager, aImplData),
     mFirstChild(nullptr),
     mLastChild(nullptr),
-    mScrollHandoffParentId(FrameMetrics::NULL_SCROLL_ID),
     mPreXScale(1.0f),
     mPreYScale(1.0f),
     mInheritedXScale(1.0f),
@@ -894,8 +893,7 @@ ContainerLayer::RepositionChild(Layer* aChild, Layer* aAfter)
 void
 ContainerLayer::FillSpecificAttributes(SpecificLayerAttributes& aAttrs)
 {
-  aAttrs = ContainerLayerAttributes(GetFrameMetrics(), mScrollHandoffParentId,
-                                    mPreXScale, mPreYScale,
+  aAttrs = ContainerLayerAttributes(GetFrameMetrics(), mPreXScale, mPreYScale,
                                     mInheritedXScale, mInheritedYScale);
 }
 
@@ -1382,9 +1380,6 @@ ContainerLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
   Layer::PrintInfo(aTo, aPrefix);
   if (!mFrameMetrics.IsDefault()) {
     AppendToString(aTo, mFrameMetrics, " [metrics=", "]");
-  }
-  if (mScrollHandoffParentId != FrameMetrics::NULL_SCROLL_ID) {
-    aTo.AppendPrintf(" [scrollParent=%llu]", mScrollHandoffParentId);
   }
   if (UseIntermediateSurface()) {
     aTo += " [usesTmpSurf]";

@@ -5,7 +5,6 @@
 
 #include "MediaStreamGraphImpl.h"
 #include "mozilla/LinkedList.h"
-#include "mozilla/MathAlgorithms.h"
 #include "mozilla/unused.h"
 
 #include "AudioSegment.h"
@@ -19,7 +18,7 @@
 #include "mozilla/Attributes.h"
 #include "TrackUnionStream.h"
 #include "ImageContainer.h"
-#include "AudioChannelService.h"
+#include "AudioChannelCommon.h"
 #include "AudioNodeEngine.h"
 #include "AudioNodeStream.h"
 #include "AudioNodeExternalInputStream.h"
@@ -842,9 +841,7 @@ MediaStreamGraphImpl::CreateOrDestroyAudioStreams(GraphTime aAudioOutputStartTim
         audioOutputStream->mStream = new AudioStream();
         // XXX for now, allocate stereo output. But we need to fix this to
         // match the system's ideal channel configuration.
-        audioOutputStream->mStream->Init(2, IdealAudioRate(),
-                                         AudioChannel::Normal,
-                                         AudioStream::LowLatency);
+        audioOutputStream->mStream->Init(2, IdealAudioRate(), AUDIO_CHANNEL_NORMAL, AudioStream::LowLatency);
         audioOutputStream->mTrackID = tracks->GetID();
 
         LogLatency(AsyncLatencyLogger::AudioStreamCreate,
@@ -904,7 +901,7 @@ MediaStreamGraphImpl::PlayAudio(MediaStream* aStream,
     if (audioOutput.mLastTickWritten != offset) {
       // If there is a global underrun of the MSG, this property won't hold, and
       // we reset the sample count tracking.
-      if (mozilla::Abs(audioOutput.mLastTickWritten - offset) != 1) {
+      if (std::abs(audioOutput.mLastTickWritten - offset) != 1) {
         audioOutput.mLastTickWritten = offset;
       } else {
         offset = audioOutput.mLastTickWritten;

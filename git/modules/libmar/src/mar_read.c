@@ -230,10 +230,10 @@ void mar_close(MarFile *mar) {
  */
 int get_mar_file_info_fp(FILE *fp, 
                          int *hasSignatureBlock,
-                         uint32_t *numSignatures,
+                         int *numSignatures,
                          int *hasAdditionalBlocks,
-                         uint32_t *offsetAdditionalBlocks,
-                         uint32_t *numAdditionalBlocks)
+                         int *offsetAdditionalBlocks,
+                         int *numAdditionalBlocks)
 {
   uint32_t offsetToIndex, offsetToContent, signatureCount, signatureLen, i;
   
@@ -394,10 +394,9 @@ int
 mar_read_product_info_block(MarFile *mar, 
                             struct ProductInformationBlock *infoBlock)
 {
-  uint32_t i, offsetAdditionalBlocks, numAdditionalBlocks,
+  int i, hasAdditionalBlocks,
+    offsetAdditionalBlocks, numAdditionalBlocks,
     additionalBlockSize, additionalBlockID;
-  int hasAdditionalBlocks;
-
   /* The buffer size is 97 bytes because the MAR channel name < 64 bytes, and 
      product version < 32 bytes + 3 NULL terminator bytes. */
   char buf[97] = { '\0' };

@@ -52,9 +52,6 @@ InterleaveAndConvertBuffer(const void** aSourceChannels,
                                aChannels,
                                aOutput);
     break;
-   case AUDIO_FORMAT_SILENCE:
-    // nothing to do here.
-    break;
   }
 }
 
@@ -124,18 +121,7 @@ void AudioSegment::ResampleChunks(SpeexResamplerState* aResampler)
 
   speex_resampler_get_rate(aResampler, &inRate, &outRate);
 
-  AudioSampleFormat format = AUDIO_FORMAT_SILENCE;
-  for (ChunkIterator ci(*this); !ci.IsEnded(); ci.Next()) {
-    if (ci->mBufferFormat != AUDIO_FORMAT_SILENCE) {
-      format = ci->mBufferFormat;
-    }
-  }
-
-  switch (format) {
-    // If the format is silence at this point, all the chunks are silent. The
-    // actual function we use does not matter, it's just a matter of changing
-    // the chunks duration.
-    case AUDIO_FORMAT_SILENCE:
+  switch (mChunks[0].mBufferFormat) {
     case AUDIO_FORMAT_FLOAT32:
       Resample<float>(aResampler, inRate, outRate);
     break;
