@@ -155,10 +155,6 @@ public:
            BlobChild* aBlobChild,
            BluetoothReplyRunnable* aRunnable);
 
-  virtual bool
-  StopSendingFile(const nsAString& aDeviceAddress,
-                  BluetoothReplyRunnable* aRunnable);
-
 private:
   nsresult SendGetPropertyMessage(const nsAString& aPath,
                                   const char* aInterface,

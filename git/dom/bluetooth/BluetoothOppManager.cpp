@@ -91,8 +91,6 @@ BluetoothOppManager::BluetoothOppManager() : mConnected(false)
                                            , mRemoteObexVersion(0)
                                            , mRemoteConnectionFlags(0)
                                            , mRemoteMaxPacketLength(0)
-                                           , mAbortFlag(false)
-                                           , mReadFileThread(nullptr)
 {
 }
 
@@ -173,12 +171,7 @@ BluetoothOppManager::SendFile(BlobParent* aActor,
 bool
 BluetoothOppManager::StopSendingFile(BluetoothReplyRunnable* aRunnable)
 {
-  if (!mBlob) {
-    return false;
-  }
-
-  mAbortFlag = true;
-
+  // will implement in another patch.
   return true;
 }
 
@@ -223,14 +216,7 @@ BluetoothOppManager::ReceiveSocketData(UnixSocketRawData* aMessage)
           return;
         }
 
-        if (NS_FAILED(NS_NewThread(getter_AddRefs(mReadFileThread)))) {
-          NS_WARNING("Can't create thread");
-          SendDisconnectRequest();
-          return;
-        }
-
         sSentFileSize = 0;
-        mAbortFlag = false;
         sInstance->SendPutHeaderRequest(fileName, fileSize);
       }
     }
@@ -241,21 +227,19 @@ BluetoothOppManager::ReceiveSocketData(UnixSocketRawData* aMessage)
     } else {
       mConnected = false;
       mBlob = nullptr;
-      mReadFileThread = nullptr;
     }
   } else if (mLastCommand == ObexRequestCode::Put) {
     if (responseCode != ObexResponseCode::Continue) {
       // FIXME: Needs error handling here
       NS_WARNING("[OPP] Put failed");
     } else {
-      if (mAbortFlag || mReadFileThread == nullptr) {
-        SendAbortRequest();
-      } else {
-        nsRefPtr<ReadFileTask> task = new ReadFileTask(mBlob);
+      nsCOMPtr<nsIThread> t;
+      NS_NewThread(getter_AddRefs(t));
 
-        if (NS_FAILED(mReadFileThread->Dispatch(task, NS_DISPATCH_NORMAL))) {
-          NS_WARNING("Cannot dispatch ring task!");
-        }
+      nsRefPtr<ReadFileTask> task = new ReadFileTask(mBlob);
+
+      if (NS_FAILED(t->Dispatch(task, NS_DISPATCH_NORMAL))) {
+        NS_WARNING("Cannot dispatch ring task!");
       }
     }
   } else if (mLastCommand == ObexRequestCode::PutFinal) {
@@ -265,12 +249,6 @@ BluetoothOppManager::ReceiveSocketData(UnixSocketRawData* aMessage)
     } else {
       SendDisconnectRequest();
     }
-  } else if (mLastCommand == ObexRequestCode::Abort) {
-    if (responseCode != ObexResponseCode::Success) {
-      NS_WARNING("[OPP] Abort failed");
-    }
-
-    SendDisconnectRequest();
   }
 }
 
@@ -376,22 +354,6 @@ BluetoothOppManager::SendDisconnectRequest()
 
   SetObexPacketInfo(req, ObexRequestCode::Disconnect, index);
   mLastCommand = ObexRequestCode::Disconnect;
-
-  UnixSocketRawData* s = new UnixSocketRawData(index);
-  memcpy(s->mData, req, s->mSize);
-  SendSocketData(s);
-}
-
-void
-BluetoothOppManager::SendAbortRequest()
-{
-  // Section 3.3.5 "Abort", IrOBEX 1.2
-  // [opcode:1][length:2][Headers:var]
-  uint8_t req[255];
-  int index = 3;
-
-  SetObexPacketInfo(req, ObexRequestCode::Abort, index);
-  mLastCommand = ObexRequestCode::Abort;
 
   UnixSocketRawData* s = new UnixSocketRawData(index);
   memcpy(s->mData, req, s->mSize);
