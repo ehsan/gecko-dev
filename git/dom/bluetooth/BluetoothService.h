@@ -16,7 +16,6 @@
 #include "nsIObserver.h"
 #include "nsIThread.h"
 #include "nsTObserverArray.h"
-#include "nsThreadUtils.h"
 
 namespace mozilla {
 namespace ipc {
@@ -36,6 +35,9 @@ typedef mozilla::ObserverList<BluetoothSignal> BluetoothSignalObserverList;
 class BluetoothService : public nsIObserver
                        , public BluetoothSignalObserver
 {
+  class ToggleBtAck;
+  friend class ToggleBtAck;
+
   class ToggleBtTask;
   friend class ToggleBtTask;
 
@@ -43,17 +45,6 @@ class BluetoothService : public nsIObserver
   friend class StartupTask;
 
 public:
-  class ToggleBtAck : public nsRunnable
-  {
-  public:
-    ToggleBtAck(bool aEnabled);
-    NS_IMETHOD Run();
-
-  private:
-    bool mEnabled;
-  };
-  friend class ToggleBtAck;
-
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
 

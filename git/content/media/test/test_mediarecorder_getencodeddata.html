@@ -28,17 +28,21 @@ SpecialPowers.pushPrefEnv({"set": [["media.ogg.enabled", false]]},
         SimpleTest.finish();
       }
       mediaRecorder.ondataavailable = function(evt) {
-        ondataavailableFired = true;
-        ok(evt instanceof BlobEvent,
-           'Events fired from ondataavailable should be BlobEvent');
-        is(evt.type, 'dataavailable',
-           'Event type should dataavailable');
-        is(evt.data.size, 0,
-           'Blob data size received is equal to zero');
-        is(evt.data.type, expectedMimeType,
-           'Blob data received should have type = ' + expectedMimeType);
-        is(evt.target.mimeType, expectedMimeType,
-           'Mime type in ondataavailable = ' + expectedMimeType);
+        if (onErrorFired) {
+          ondataavailableFired = true;
+          ok(evt instanceof BlobEvent,
+             'Events fired from ondataavailable should be BlobEvent');
+          is(evt.type, 'dataavailable',
+             'Event type should dataavailable');
+          is(evt.data.size, 0,
+             'Blob data size received is equal to zero');
+          is(evt.data.type, expectedMimeType,
+             'Blob data received should have type = ' + expectedMimeType);
+          is(evt.target.mimeType, expectedMimeType,
+             'Mime type in ondataavailable = ' + expectedMimeType);
+        } else {
+          ok(false, 'should get onError first');
+        }
       }
       mediaRecorder.onerror = function(evt) {
         ok(evt instanceof RecordErrorEvent,

@@ -1919,9 +1919,6 @@ public:
   virtual void ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
                                          const nsDisplayItemGeometry* aGeometry,
                                          nsRegion* aInvalidRegion) MOZ_OVERRIDE;
-
-protected:
-  nsRect CalculateBounds(const nsStyleBorder& aStyleBorder);
 };
 
 /**

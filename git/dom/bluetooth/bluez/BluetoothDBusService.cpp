@@ -1889,20 +1889,12 @@ BluetoothDBusService::StartInternal()
   if (sDBusConnection) {
     // This should actually not happen.
     BT_WARNING("Bluetooth is already running");
-    nsCOMPtr<nsIRunnable> ackTask = new BluetoothService::ToggleBtAck(true);
-    if (NS_FAILED(NS_DispatchToMainThread(ackTask))) {
-      BT_WARNING("Failed to dispatch to main thread!");
-    }
     return NS_OK;
   }
 
 #ifdef MOZ_WIDGET_GONK
   if (!sBluedroid.Enable()) {
     BT_WARNING("Bluetooth not available.");
-    nsCOMPtr<nsIRunnable> ackTask = new BluetoothService::ToggleBtAck(false);
-    if (NS_FAILED(NS_DispatchToMainThread(ackTask))) {
-      BT_WARNING("Failed to dispatch to main thread!");
-    }
     return NS_ERROR_FAILURE;
   }
 #endif
@@ -1911,10 +1903,6 @@ BluetoothDBusService::StartInternal()
   nsresult rv = connection->EstablishDBusConnection();
   if (NS_FAILED(rv)) {
     BT_WARNING("Failed to establish connection to BlueZ daemon");
-    nsCOMPtr<nsIRunnable> ackTask = new BluetoothService::ToggleBtAck(false);
-    if (NS_FAILED(NS_DispatchToMainThread(ackTask))) {
-      BT_WARNING("Failed to dispatch to main thread!");
-    }
     return NS_ERROR_FAILURE;
   }
 
@@ -1938,10 +1926,6 @@ BluetoothDBusService::StartInternal()
   if (!dbus_connection_add_filter(connection->GetConnection(),
                                   EventFilter, nullptr, nullptr)) {
     BT_WARNING("Cannot create DBus Event Filter for DBus Thread!");
-    nsCOMPtr<nsIRunnable> ackTask = new BluetoothService::ToggleBtAck(false);
-    if (NS_FAILED(NS_DispatchToMainThread(ackTask))) {
-      BT_WARNING("Failed to dispatch to main thread!");
-    }
     return NS_ERROR_FAILURE;
   }
 
@@ -1953,11 +1937,6 @@ BluetoothDBusService::StartInternal()
 
   Task* task = new StartDBusConnectionTask(connection, sAdapterPath.IsEmpty());
   DispatchToDBusThread(task);
-
-  nsCOMPtr<nsIRunnable> ackTask = new BluetoothService::ToggleBtAck(true);
-  if (NS_FAILED(NS_DispatchToMainThread(ackTask))) {
-    BT_WARNING("Failed to dispatch to main thread!");
-  }
 
   return NS_OK;
 }
@@ -2006,10 +1985,6 @@ BluetoothDBusService::StopInternal()
   }
 
   if (!sDBusConnection) {
-    nsCOMPtr<nsIRunnable> ackTask = new BluetoothService::ToggleBtAck(false);
-    if (NS_FAILED(NS_DispatchToMainThread(ackTask))) {
-      BT_WARNING("Failed to dispatch to main thread!");
-    }
     return NS_OK;
   }
 
@@ -2057,18 +2032,10 @@ BluetoothDBusService::StopInternal()
 #ifdef MOZ_WIDGET_GONK
   MOZ_ASSERT(sBluedroid.IsEnabled());
   if (!sBluedroid.Disable()) {
-    nsCOMPtr<nsIRunnable> ackTask = new BluetoothService::ToggleBtAck(true);
-    if (NS_FAILED(NS_DispatchToMainThread(ackTask))) {
-      BT_WARNING("Failed to dispatch to main thread!");
-    }
     return NS_ERROR_FAILURE;
   }
 #endif
 
-  nsCOMPtr<nsIRunnable> ackTask = new BluetoothService::ToggleBtAck(false);
-  if (NS_FAILED(NS_DispatchToMainThread(ackTask))) {
-    BT_WARNING("Failed to dispatch to main thread!");
-  }
   return NS_OK;
 }
 

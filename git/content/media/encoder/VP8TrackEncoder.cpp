@@ -246,10 +246,13 @@ void VP8TrackEncoder::PrepareMutedFrame()
 
 nsresult VP8TrackEncoder::PrepareRawFrame(VideoChunk &aChunk)
 {
-  if (aChunk.mFrame.GetForceBlack() || aChunk.IsNull()) {
+  if (aChunk.mFrame.GetForceBlack()) {
     PrepareMutedFrame();
   } else {
     layers::Image* img = aChunk.mFrame.GetImage();
+    if (NS_WARN_IF(!img)) {
+      return NS_ERROR_NULL_POINTER;
+    }
     ImageFormat format = img->GetFormat();
     if (format != ImageFormat::PLANAR_YCBCR) {
       VP8LOG("Unsupported video format\n");
