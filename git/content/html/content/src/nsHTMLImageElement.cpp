@@ -140,7 +140,7 @@ public:
                               nsIContent* aBindingParent,
                               PRBool aCompileEventHandlers);
 
-  virtual nsEventStates IntrinsicState() const;
+  virtual PRInt32 IntrinsicState() const;
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   nsresult CopyInnerTo(nsGenericElement* aDest) const;
@@ -583,7 +583,7 @@ nsHTMLImageElement::MaybeLoadImage()
   }
 }
 
-nsEventStates
+PRInt32
 nsHTMLImageElement::IntrinsicState() const
 {
   return nsGenericHTMLElement::IntrinsicState() |

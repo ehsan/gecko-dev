@@ -2828,9 +2828,9 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         break;
       }
 
-      nsCOMPtr<nsIContent> activeContent;
       if (nsEventStatus_eConsumeNoDefault != *aStatus) {
-        nsCOMPtr<nsIContent> newFocus;      
+        nsCOMPtr<nsIContent> newFocus;
+        nsCOMPtr<nsIContent> activeContent;
         PRBool suppressBlur = PR_FALSE;
         if (mCurrentTarget) {
           mCurrentTarget->GetContentForEvent(mPresContext, aEvent, getter_AddRefs(newFocus));
@@ -2935,6 +2935,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
             if (par)
               activeContent = par;
           }
+          SetGlobalActiveContent(this, activeContent);
         }
       }
       else {
@@ -2942,12 +2943,11 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         // any of our own processing of a drag. Workaround for bug 43258.
         StopTrackingDragGesture();
       }
-      SetGlobalActiveContent(this, activeContent);
     }
     break;
   case NS_MOUSE_BUTTON_UP:
     {
-      ClearGlobalActiveContent();
+      SetGlobalActiveContent(this, nsnull);
       if (IsMouseEventReal(aEvent)) {
         if (!mCurrentTarget) {
           nsIFrame* targ;
@@ -4159,10 +4159,10 @@ IsAncestorOf(nsIContent* aPossibleAncestor, nsIContent* aPossibleDescendant,
   return false;
 }
 
-nsEventStates
+PRInt32
 nsEventStateManager::GetContentState(nsIContent *aContent, PRBool aFollowLabels)
 {
-  nsEventStates state = aContent->IntrinsicState();
+  PRInt32 state = aContent->IntrinsicState();
 
   if (IsAncestorOf(aContent, mActiveContent, aFollowLabels)) {
     state |= NS_EVENT_STATE_ACTIVE;
@@ -4239,7 +4239,7 @@ static nsIContent* FindCommonAncestor(nsIContent *aNode1, nsIContent *aNode2)
 
 static void
 NotifyAncestors(nsIDocument* aDocument, nsIContent* aStartNode,
-                nsIContent* aStopBefore, nsEventStates aState)
+                nsIContent* aStopBefore, PRInt32 aState)
 {
   while (aStartNode && aStartNode != aStopBefore) {
     aDocument->ContentStatesChanged(aStartNode, nsnull, aState);
@@ -4252,7 +4252,7 @@ NotifyAncestors(nsIDocument* aDocument, nsIContent* aStartNode,
 }
 
 PRBool
-nsEventStateManager::SetContentState(nsIContent *aContent, nsEventStates aState)
+nsEventStateManager::SetContentState(nsIContent *aContent, PRInt32 aState)
 {
   const PRInt32 maxNotify = 5;
   // We must initialize this array with memset for the sake of the boneheaded
@@ -4270,20 +4270,20 @@ nsEventStateManager::SetContentState(nsIContent *aContent, nsEventStates aState)
       return PR_FALSE;
   }
 
-  if (aState.HasState(NS_EVENT_STATE_DRAGOVER) && aContent != mDragOverContent) {
+  if ((aState & NS_EVENT_STATE_DRAGOVER) && (aContent != mDragOverContent)) {
     notifyContent[3] = mDragOverContent; // notify dragover first, since more common case
     NS_IF_ADDREF(notifyContent[3]);
     mDragOverContent = aContent;
   }
 
-  if (aState.HasState(NS_EVENT_STATE_URLTARGET) && aContent != mURLTargetContent) {
+  if ((aState & NS_EVENT_STATE_URLTARGET) && (aContent != mURLTargetContent)) {
     notifyContent[4] = mURLTargetContent;
     NS_IF_ADDREF(notifyContent[4]);
     mURLTargetContent = aContent;
   }
 
   nsCOMPtr<nsIContent> commonActiveAncestor, oldActive, newActive;
-  if (aState.HasState(NS_EVENT_STATE_ACTIVE) && aContent != mActiveContent) {
+  if ((aState & NS_EVENT_STATE_ACTIVE) && (aContent != mActiveContent)) {
     oldActive = mActiveContent;
     newActive = aContent;
     commonActiveAncestor = FindCommonAncestor(mActiveContent, aContent);
@@ -4291,7 +4291,7 @@ nsEventStateManager::SetContentState(nsIContent *aContent, nsEventStates aState)
   }
 
   nsCOMPtr<nsIContent> commonHoverAncestor, oldHover, newHover;
-  if (aState.HasState(NS_EVENT_STATE_HOVER) && aContent != mHoverContent) {
+  if ((aState & NS_EVENT_STATE_HOVER) && (aContent != mHoverContent)) {
     oldHover = mHoverContent;
 
     if (!mPresContext || mPresContext->IsDynamic()) {
@@ -4315,16 +4315,15 @@ nsEventStateManager::SetContentState(nsIContent *aContent, nsEventStates aState)
     mHoverContent = aContent;
   }
 
-  if (aState.HasState(NS_EVENT_STATE_FOCUS)) {
+  if (aState & NS_EVENT_STATE_FOCUS) {
     aState |= NS_EVENT_STATE_FOCUSRING;
     notifyContent[2] = aContent;
     NS_IF_ADDREF(notifyContent[2]);
   }
 
-  nsEventStates simpleStates = aState;
-  simpleStates &= ~(NS_EVENT_STATE_ACTIVE|NS_EVENT_STATE_HOVER);
+  PRInt32 simpleStates = aState & ~(NS_EVENT_STATE_ACTIVE|NS_EVENT_STATE_HOVER);
 
-  if (aContent && !simpleStates.IsEmpty()) {
+  if (aContent && simpleStates != 0) {
     // notify about new content too
     notifyContent[0] = aContent;
     NS_ADDREF(aContent);  // everything in notify array has a ref
@@ -4716,13 +4715,4 @@ nsEventStateManager::SetGlobalActiveContent(nsEventStateManager* aNewESM,
   if (sActiveESM) {
     sActiveESM->SetContentState(aContent, NS_EVENT_STATE_ACTIVE);
   }
-}
-
-void
-nsEventStateManager::ClearGlobalActiveContent()
-{
-  if (sActiveESM) {
-    sActiveESM->SetContentState(nsnull, NS_EVENT_STATE_ACTIVE);
-  }
-  sActiveESM = nsnull;
 }

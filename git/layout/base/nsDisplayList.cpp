@@ -320,8 +320,6 @@ nsDisplayList::ComputeVisibilityForSublist(nsDisplayListBuilder* aBuilder,
   nsAutoTArray<nsDisplayItem*, 512> elements;
   FlattenTo(&elements);
 
-  PRBool forceTransparentSurface = PR_FALSE;
-
   for (PRInt32 i = elements.Length() - 1; i >= 0; --i) {
     nsDisplayItem* item = elements[i];
     nsDisplayItem* belowItem = i < 1 ? nsnull : elements[i - 1];
@@ -341,18 +339,15 @@ nsDisplayList::ComputeVisibilityForSublist(nsDisplayListBuilder* aBuilder,
     if (item->ComputeVisibility(aBuilder, aVisibleRegion)) {
       anyVisible = PR_TRUE;
       nsIFrame* f = item->GetUnderlyingFrame();
-      PRBool transparentBackground = PR_FALSE;
-      if (item->IsOpaque(aBuilder, &transparentBackground) && f) {
+      if (item->IsOpaque(aBuilder) && f) {
         // Subtract opaque item from the visible region
         aBuilder->SubtractFromVisibleRegion(aVisibleRegion, nsRegion(bounds));
       }
-      forceTransparentSurface = forceTransparentSurface || transparentBackground;
     }
     AppendToBottom(item);
   }
 
   mIsOpaque = !aVisibleRegion->Intersects(mVisibleRect);
-  mForceTransparentSurface = forceTransparentSurface;
 #ifdef DEBUG
   mDidComputeVisibility = PR_TRUE;
 #endif
@@ -384,9 +379,8 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
                  "Reference frame must be a display root for us to use the layer manager");
     nsIWidget* window = referenceFrame->GetNearestWidget();
     if (window) {
-      bool allowRetaining = true;
-      layerManager = window->GetLayerManager(&allowRetaining);
-      if (layerManager && allowRetaining) {
+      layerManager = window->GetLayerManager();
+      if (layerManager) {
         aBuilder->LayerBuilder()->WillBeginRetainedLayerTransaction(layerManager);
       }
     }
@@ -850,20 +844,10 @@ nsDisplayBackground::ComputeVisibility(nsDisplayListBuilder* aBuilder,
 }
 
 PRBool
-nsDisplayBackground::IsOpaque(nsDisplayListBuilder* aBuilder,
-                              PRBool* aForceTransparentSurface) {
-  if (aForceTransparentSurface) {
-    *aForceTransparentSurface = PR_FALSE;
-  }
+nsDisplayBackground::IsOpaque(nsDisplayListBuilder* aBuilder) {
   // theme background overrides any other background
-  if (mIsThemed) {
-    if (aForceTransparentSurface) {
-      const nsStyleDisplay* disp = mFrame->GetStyleDisplay();
-      *aForceTransparentSurface = disp->mAppearance == NS_THEME_WIN_BORDERLESS_GLASS ||
-                                  disp->mAppearance == NS_THEME_WIN_GLASS;
-    }
+  if (mIsThemed)
     return mThemeTransparency == nsITheme::eOpaque;
-  }
 
   nsStyleContext* bgSC;
   if (!nsCSSRendering::FindBackground(mFrame->PresContext(), mFrame, &bgSC))
@@ -1245,11 +1229,7 @@ nsDisplayWrapList::ComputeVisibility(nsDisplayListBuilder* aBuilder,
 }
 
 PRBool
-nsDisplayWrapList::IsOpaque(nsDisplayListBuilder* aBuilder,
-                            PRBool* aForceTransparentSurface) {
-  if (aForceTransparentSurface) {
-    *aForceTransparentSurface = PR_FALSE;
-  }
+nsDisplayWrapList::IsOpaque(nsDisplayListBuilder* aBuilder) {
   return mList.IsOpaque();
 }
 
@@ -1388,11 +1368,7 @@ nsDisplayOpacity::~nsDisplayOpacity() {
 }
 #endif
 
-PRBool nsDisplayOpacity::IsOpaque(nsDisplayListBuilder* aBuilder,
-                                  PRBool* aForceTransparentSurface) {
-  if (aForceTransparentSurface) {
-    *aForceTransparentSurface = PR_FALSE;
-  }
+PRBool nsDisplayOpacity::IsOpaque(nsDisplayListBuilder* aBuilder) {
   // We are never opaque, if our opacity was < 1 then we wouldn't have
   // been created.
   return PR_FALSE;
@@ -1562,12 +1538,8 @@ nsDisplayClipRoundedRect::~nsDisplayClipRoundedRect()
 }
 #endif
 
-PRBool nsDisplayClipRoundedRect::IsOpaque(nsDisplayListBuilder* aBuilder,
-                                          PRBool* aForceTransparentSurface)
+PRBool nsDisplayClipRoundedRect::IsOpaque(nsDisplayListBuilder* aBuilder)
 {
-  if (aForceTransparentSurface) {
-    *aForceTransparentSurface = PR_FALSE;
-  }
   return PR_FALSE;
 }
 
@@ -1975,12 +1947,8 @@ nsRect nsDisplayTransform::GetBounds(nsDisplayListBuilder *aBuilder)
  *
  * We need b and c to be zero.
  */
-PRBool nsDisplayTransform::IsOpaque(nsDisplayListBuilder *aBuilder,
-                                    PRBool* aForceTransparentSurface)
+PRBool nsDisplayTransform::IsOpaque(nsDisplayListBuilder *aBuilder)
 {
-  if (aForceTransparentSurface) {
-    *aForceTransparentSurface = PR_FALSE;
-  }
   const nsStyleDisplay* disp = mFrame->GetStyleDisplay();
   return disp->mTransform.GetMainMatrixEntry(1) == 0.0f &&
     disp->mTransform.GetMainMatrixEntry(2) == 0.0f &&
@@ -2109,12 +2077,8 @@ nsDisplaySVGEffects::~nsDisplaySVGEffects()
 }
 #endif
 
-PRBool nsDisplaySVGEffects::IsOpaque(nsDisplayListBuilder* aBuilder,
-                                     PRBool* aForceTransparentSurface)
+PRBool nsDisplaySVGEffects::IsOpaque(nsDisplayListBuilder* aBuilder)
 {
-  if (aForceTransparentSurface) {
-    *aForceTransparentSurface = PR_FALSE;
-  }
   return PR_FALSE;
 }
 

@@ -110,9 +110,9 @@ public:
   NS_IMETHOD SaveState();
   PRBool RestoreState(nsPresState* aState);
 
-  virtual void FieldSetDisabledChanged(nsEventStates aStates, PRBool aNotify);
+  virtual void FieldSetDisabledChanged(PRInt32 aStates, PRBool aNotify);
 
-  nsEventStates IntrinsicState() const;
+  PRInt32 IntrinsicState() const;
 
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                nsIContent* aBindingParent,
@@ -226,7 +226,7 @@ NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLButtonElement, FormMethod, formmethod,
 NS_IMPL_BOOL_ATTR(nsHTMLButtonElement, FormNoValidate, formnovalidate)
 NS_IMPL_STRING_ATTR(nsHTMLButtonElement, FormTarget, formtarget)
 NS_IMPL_STRING_ATTR(nsHTMLButtonElement, Name, name)
-NS_IMPL_INT_ATTR(nsHTMLButtonElement, TabIndex, tabindex)
+NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLButtonElement, TabIndex, tabindex, 0)
 NS_IMPL_STRING_ATTR(nsHTMLButtonElement, Value, value)
 NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLButtonElement, Type, type,
                                 kButtonDefaultType->tag)
@@ -639,7 +639,7 @@ nsresult
 nsHTMLButtonElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                   const nsAString* aValue, PRBool aNotify)
 {
-  nsEventStates states;
+  PRInt32 states = 0;
 
   if (aNameSpaceID == kNameSpaceID_None) {
     if (aName == nsGkAtoms::type) {
@@ -655,7 +655,7 @@ nsHTMLButtonElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
       states |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID;
     }
 
-    if (aNotify && !states.IsEmpty()) {
+    if (aNotify && states) {
       nsIDocument* doc = GetCurrentDoc();
       if (doc) {
         MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
@@ -696,10 +696,10 @@ nsHTMLButtonElement::RestoreState(nsPresState* aState)
   return PR_FALSE;
 }
 
-nsEventStates
+PRInt32
 nsHTMLButtonElement::IntrinsicState() const
 {
-  nsEventStates state = nsGenericHTMLFormElement::IntrinsicState();
+  PRInt32 state = nsGenericHTMLFormElement::IntrinsicState();
 
   if (IsCandidateForConstraintValidation()) {
     state |= IsValid() ? NS_EVENT_STATE_VALID : NS_EVENT_STATE_INVALID;
@@ -738,7 +738,7 @@ nsHTMLButtonElement::UpdateBarredFromConstraintValidation()
 }
 
 void
-nsHTMLButtonElement::FieldSetDisabledChanged(nsEventStates aStates, PRBool aNotify)
+nsHTMLButtonElement::FieldSetDisabledChanged(PRInt32 aStates, PRBool aNotify)
 {
   UpdateBarredFromConstraintValidation();
 

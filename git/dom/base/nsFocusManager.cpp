@@ -1646,10 +1646,6 @@ nsFocusManager::Focus(nsPIDOMWindow* aWindow,
   if (CheckIfFocusable(aContent, aFlags) &&
       mFocusedWindow == aWindow && mFocusedContent == nsnull) {
     mFocusedContent = aContent;
-
-    nsIContent* focusedNode = aWindow->GetFocusedNode();
-    PRBool isRefocus = focusedNode && focusedNode->IsEqual(aContent);
-
     aWindow->SetFocusedNode(aContent, focusMethod);
 
     PRBool sendFocusEvent =
@@ -1686,10 +1682,8 @@ nsFocusManager::Focus(nsPIDOMWindow* aWindow,
       if (!aWindowRaised)
         aWindow->UpdateCommands(NS_LITERAL_STRING("focus"));
 
-      SendFocusOrBlurEvent(NS_FOCUS_CONTENT, presShell,
-                           aContent->GetCurrentDoc(),
-                           aContent, aFlags & FOCUSMETHOD_MASK,
-                           aWindowRaised, isRefocus);
+      SendFocusOrBlurEvent(NS_FOCUS_CONTENT, presShell, aContent->GetCurrentDoc(),
+                           aContent, aFlags & FOCUSMETHOD_MASK, aWindowRaised);
 
       nsIMEStateManager::OnTextStateFocus(presContext, aContent);
     } else {
@@ -1728,17 +1722,15 @@ class FocusBlurEvent : public nsRunnable
 {
 public:
   FocusBlurEvent(nsISupports* aTarget, PRUint32 aType,
-                 nsPresContext* aContext, PRBool aWindowRaised,
-                 PRBool aIsRefocus)
+                 nsPresContext* aContext, PRBool aWindowRaised)
   : mTarget(aTarget), mType(aType), mContext(aContext),
-    mWindowRaised(aWindowRaised), mIsRefocus(aIsRefocus) {}
+    mWindowRaised(aWindowRaised) {}
 
   NS_IMETHOD Run()
   {
     nsFocusEvent event(PR_TRUE, mType);
     event.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
     event.fromRaise = mWindowRaised;
-    event.isRefocus = mIsRefocus;
     return nsEventDispatcher::Dispatch(mTarget, mContext, &event);
   }
 
@@ -1746,7 +1738,6 @@ public:
   PRUint32                mType;
   nsRefPtr<nsPresContext> mContext;
   PRBool                  mWindowRaised;
-  PRBool                  mIsRefocus;
 };
 
 void
@@ -1755,8 +1746,7 @@ nsFocusManager::SendFocusOrBlurEvent(PRUint32 aType,
                                      nsIDocument* aDocument,
                                      nsISupports* aTarget,
                                      PRUint32 aFocusMethod,
-                                     PRBool aWindowRaised,
-                                     PRBool aIsRefocus)
+                                     PRBool aWindowRaised)
 {
   NS_ASSERTION(aType == NS_FOCUS_CONTENT || aType == NS_BLUR_CONTENT,
                "Wrong event type for SendFocusOrBlurEvent");
@@ -1788,7 +1778,7 @@ nsFocusManager::SendFocusOrBlurEvent(PRUint32 aType,
 
   nsContentUtils::AddScriptRunner(
     new FocusBlurEvent(aTarget, aType, aPresShell->GetPresContext(),
-                       aWindowRaised, aIsRefocus));
+                       aWindowRaised));
 }
 
 void

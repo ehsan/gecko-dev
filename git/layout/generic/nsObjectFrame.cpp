@@ -1267,12 +1267,8 @@ nsDisplayPlugin::ComputeVisibility(nsDisplayListBuilder* aBuilder,
 }
 
 PRBool
-nsDisplayPlugin::IsOpaque(nsDisplayListBuilder* aBuilder,
-                          PRBool* aForceTransparentSurface)
+nsDisplayPlugin::IsOpaque(nsDisplayListBuilder* aBuilder)
 {
-  if (aForceTransparentSurface) {
-    *aForceTransparentSurface = PR_FALSE;
-  }
   nsObjectFrame* f = static_cast<nsObjectFrame*>(mFrame);
   return f->IsOpaque();
 }

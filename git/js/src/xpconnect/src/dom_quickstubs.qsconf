@@ -478,10 +478,6 @@ members = [
     'nsIIDBTransaction.*',
     'nsIIDBTransactionEvent.*',
     'nsIIDBFactory.*',
-    'nsIIDBVersionChangeEvent.*',
-    'nsIIDBVersionChangeRequest.*',
-    'nsIIndexedDatabaseUsageCallback.*',
-    'nsIIndexedDatabaseManager.*',
     ]
 
 # Most interfaces can be found by searching the includePath; to find
@@ -510,8 +506,6 @@ irregularFilenames = {
     'nsIWebGLRenderbuffer': 'nsICanvasRenderingContextWebGL',
     'nsIWebGLActiveInfo': 'nsICanvasRenderingContextWebGL',
     'nsIWebGLUniformLocation': 'nsICanvasRenderingContextWebGL',
-
-    'nsIIndexedDatabaseUsageCallback': 'nsIIndexedDatabaseManager',
     }
 
 customIncludes = [

@@ -286,7 +286,6 @@ UpdateLastInputEventTime()
   }
 }
 
-#ifdef MOZ_HAVE_SHMIMAGE
 // If XShm isn't available to our client, we'll try XShm once, fail,
 // set this to false and then never try again.
 static PRBool gShmAvailable = PR_TRUE;
@@ -294,7 +293,6 @@ static PRBool UseShm()
 {
     return gfxPlatformGtk::UseClientSideRendering() && gShmAvailable;
 }
-#endif
 
 // this is the last window that had a drag event happen on it.
 nsWindow *nsWindow::mLastDragMotionWindow = NULL;
@@ -3120,6 +3118,8 @@ nsWindow::DispatchKeyDownEvent(GdkEventKey *aEvent, PRBool *aCancelled)
     if (IsCtrlAltTab(aEvent)) {
         return PR_FALSE;
     }
+
+    PRUint32 domVirtualKeyCode = GdkKeyCodeToDOMKeyCode(aEvent->keyval);
 
     // send the key down event
     nsEventStatus status;

@@ -90,10 +90,6 @@ public:
           return sBridge->AttachThread();
         return nsnull;
     }
-    
-    static jclass GetGeckoAppShellClass() {
-        return sBridge->mGeckoAppShellClass;
-    }
 
     // The bridge needs to be constructed via ConstructBridge first,
     // and then once the Gecko main thread is spun up (Gecko side),
@@ -162,11 +158,7 @@ public:
                                            PRInt64 aProgressMax,
                                            const nsAString& aAlertText);
 
-    void AlertsProgressListener_OnCancel(const nsAString& aAlertName);
-
     int GetDPI();
-
-    void ShowFilePicker(nsAString& aFilePath);
 
     struct AutoLocalJNIFrame {
         AutoLocalJNIFrame(int nEntries = 128) : mEntries(nEntries) {
@@ -228,9 +220,7 @@ protected:
     jmethodID jGetClipboardText;
     jmethodID jSetClipboardText;
     jmethodID jShowAlertNotification;
-    jmethodID jShowFilePicker;
     jmethodID jAlertsProgressListener_OnProgress;
-    jmethodID jAlertsProgressListener_OnCancel;
     jmethodID jGetDpi;
 
     // stuff we need for CallEglCreateWindowSurface
@@ -246,6 +236,5 @@ protected:
 
 extern "C" JNIEnv * GetJNIForThread();
 extern PRBool mozilla_AndroidBridge_SetMainThread(void *);
-extern jclass GetGeckoAppShellClass();
 
 #endif /* AndroidBridge_h__ */

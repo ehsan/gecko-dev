@@ -177,12 +177,8 @@ public:
     return NS_GET_A(mExtraBackgroundColor) > 0 ||
            nsDisplayBackground::ComputeVisibility(aBuilder, aVisibleRegion);
   }
-  virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder,
-                          PRBool* aForceTransparentSurface = nsnull)
+  virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder)
   {
-    if (aForceTransparentSurface) {
-      *aForceTransparentSurface = PR_FALSE;
-    }
     return NS_GET_A(mExtraBackgroundColor) == 255 ||
            nsDisplayBackground::IsOpaque(aBuilder);
   }

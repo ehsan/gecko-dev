@@ -373,8 +373,7 @@ public:
   }
   virtual NS_HIDDEN_(nsPIDOMEventTarget*) GetTargetForEventTargetChain()
   {
-    return IsInnerWindow() ?
-      this : static_cast<nsPIDOMEventTarget*>(GetCurrentInnerWindowInternal());
+    return static_cast<nsPIDOMEventTarget*>(GetCurrentInnerWindowInternal());
   }
   virtual NS_HIDDEN_(nsresult) PreHandleEvent(nsEventChainPreVisitor& aVisitor);
   virtual NS_HIDDEN_(nsresult) PostHandleEvent(nsEventChainPostVisitor& aVisitor);

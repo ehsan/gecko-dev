@@ -57,6 +57,7 @@
 #include "IDBIndex.h"
 #include "IDBObjectStore.h"
 #include "IDBTransaction.h"
+#include "Savepoint.h"
 #include "TransactionThreadPool.h"
 
 USING_INDEXEDDB_NAMESPACE
@@ -593,6 +594,8 @@ UpdateHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 
   mozStorageStatementScoper scoper(stmt);
 
+  Savepoint savepoint(mTransaction);
+
   NS_NAMED_LITERAL_CSTRING(keyValue, "key_value");
 
   rv = stmt->BindInt64ByName(NS_LITERAL_CSTRING("osid"), mOSID);
@@ -628,7 +631,8 @@ UpdateHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
     NS_ENSURE_SUCCESS(rv, nsIIDBDatabaseException::UNKNOWN_ERR);
   }
 
-  return OK;
+  rv = savepoint.Release();
+  return NS_SUCCEEDED(rv) ? OK : nsIIDBDatabaseException::UNKNOWN_ERR;
 }
 
 PRUint16

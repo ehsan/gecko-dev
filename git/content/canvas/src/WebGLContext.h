@@ -83,16 +83,6 @@ class WebGLContextBoundObject;
 
 enum FakeBlackStatus { DoNotNeedFakeBlack, DoNeedFakeBlack, DontKnowIfNeedFakeBlack };
 
-struct WebGLTexelFormat {
-    enum { Generic, Auto, RGBA8, RGB8, RGBX8, BGRA8, BGR8, BGRX8, RGBA5551, RGBA4444, RGB565, R8, RA8, A8 };
-};
-
-struct WebGLTexelPremultiplicationOp {
-    enum { Generic, None, Premultiply, Unmultiply };
-};
-
-int GetWebGLTexelFormat(GLenum format, GLenum type);
-
 inline PRBool is_pot_assuming_nonnegative(WebGLsizei x)
 {
     return (x & (x-1)) == 0;
@@ -404,30 +394,22 @@ protected:
 
     // helpers
     nsresult TexImage2D_base(WebGLenum target, WebGLint level, WebGLenum internalformat,
-                             WebGLsizei width, WebGLsizei height, WebGLsizei srcStrideOrZero, WebGLint border,
+                             WebGLsizei width, WebGLsizei height, WebGLint border,
                              WebGLenum format, WebGLenum type,
-                             void *data, PRUint32 byteLength,
-                             int srcFormat, PRBool srcPremultiplied);
+                             void *data, PRUint32 byteLength);
     nsresult TexSubImage2D_base(WebGLenum target, WebGLint level,
                                 WebGLint xoffset, WebGLint yoffset,
-                                WebGLsizei width, WebGLsizei height, WebGLsizei srcStrideOrZero,
+                                WebGLsizei width, WebGLsizei height,
                                 WebGLenum format, WebGLenum type,
-                                void *pixels, PRUint32 byteLength,
-                                int srcFormat, PRBool srcPremultiplied);
+                                void *pixels, PRUint32 byteLength);
     nsresult ReadPixels_base(WebGLint x, WebGLint y, WebGLsizei width, WebGLsizei height,
                              WebGLenum format, WebGLenum type, void *data, PRUint32 byteLength);
     nsresult TexParameter_base(WebGLenum target, WebGLenum pname,
                                WebGLint *intParamPtr, WebGLfloat *floatParamPtr);
 
-    void ConvertImage(size_t width, size_t height, size_t srcStride, size_t dstStride,
-                      const PRUint8*src, PRUint8 *dst,
-                      int srcFormat, PRBool srcPremultiplied,
-                      int dstFormat, PRBool dstPremultiplied,
-                      size_t dstTexelSize);
-
     nsresult DOMElementToImageSurface(nsIDOMElement *imageOrCanvas,
                                       gfxImageSurface **imageOut,
-                                      int *format);
+                                      PRBool flipY, PRBool premultiplyAlpha);
 
     // Conversion from public nsI* interfaces to concrete objects
     template<class ConcreteObjectType, class BaseInterfaceType>
@@ -490,8 +472,7 @@ protected:
     nsRefPtrHashtable<nsUint32HashKey, WebGLFramebuffer> mMapFramebuffers;
     nsRefPtrHashtable<nsUint32HashKey, WebGLRenderbuffer> mMapRenderbuffers;
 
-    // PixelStore parameters
-    PRUint32 mPixelStorePackAlignment, mPixelStoreUnpackAlignment;
+    // WebGL-specific PixelStore parameters
     PRBool mPixelStoreFlipY, mPixelStorePremultiplyAlpha;
 
     FakeBlackStatus mFakeBlackStatus;
@@ -506,8 +487,9 @@ public:
     // console logging helpers
     static void LogMessage(const char *fmt, ...);
     static void LogMessage(const char *fmt, va_list ap);
+    // if display is false, this won't actually do anything
+    static void LogMessage(bool display, const char *fmt, ...);
     void LogMessageIfVerbose(const char *fmt, ...);
-    void LogMessageIfVerbose(const char *fmt, va_list ap);
 
     friend class WebGLTexture;
 };
@@ -991,30 +973,6 @@ public:
         if (mFakeBlackStatus == DontKnowIfNeedFakeBlack) {
             // Determine if the texture needs to be faked as a black texture.
             // See 3.8.2 Shader Execution in the OpenGL ES 2.0.24 spec.
-
-            // First detect undefined images. These are typically not-yet-loaded textures.
-            // The generic fake-black-texture messages have been confusing in this case, see bug 594310.
-            // So generate a special message for that.
-
-            PRBool areAllLevel0ImagesDefined = PR_TRUE;
-            for (size_t face = 0; face < mFacesCount; ++face) {
-                    areAllLevel0ImagesDefined &= ImageInfoAt(0, face).mIsDefined;
-            }
-
-            if (!areAllLevel0ImagesDefined) {
-                if (mTarget == LOCAL_GL_TEXTURE_2D) {
-                    mContext->LogMessage("We are currently drawing stuff, but some 2D texture has not yet been "
-                                         "uploaded any image at level 0. Until it's uploaded, this texture will look black.");
-                } else {
-                    mContext->LogMessage("We are currently drawing stuff, but some cube map texture has not yet been "
-                                         "uploaded any image at level 0, for at least one of its six faces. "
-                                         "Until it's uploaded, this texture will look black.");
-                }
-                mFakeBlackStatus = DoNeedFakeBlack;
-                return PR_TRUE;
-            }
-
-            // ok, done with the stupid special cases above. Now actually implementing the cases defined in section 3.8.2.
 
             const char *msg_rendering_as_black
                 = "A texture is going to be rendered as if it were black, as per the OpenGL ES 2.0.24 spec section 3.8.2, "

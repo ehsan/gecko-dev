@@ -55,12 +55,12 @@ public:
 
 protected:
   virtual bool RecvGetCookieString(const IPC::URI& aHost,
-                                   const bool& aIsForeign,
+                                   const IPC::URI& aOriginating,
                                    const bool& aFromHttp,
                                    nsCString* aResult);
 
   virtual bool RecvSetCookieString(const IPC::URI& aHost,
-                                   const bool& aIsForeign,
+                                   const IPC::URI& aOriginating,
                                    const nsCString& aCookieString,
                                    const nsCString& aServerTime,
                                    const bool& aFromHttp);

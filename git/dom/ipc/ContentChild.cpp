@@ -383,14 +383,10 @@ ContentChild::AddRemoteAlertObserver(const nsString& aData,
 }
 
 bool
-ContentChild::RecvPreferenceUpdate(const PrefTuple& aPref)
+ContentChild::RecvPreferenceUpdate(const nsCString& aPref)
 {
     nsCOMPtr<nsIPrefServiceInternal> prefs = do_GetService("@mozilla.org/preferences-service;1");
-    if (!prefs)
-        return false;
-
-    prefs->SetPreference(&aPref);
-
+    prefs->ReadPrefBuffer(aPref);
     return true;
 }
 

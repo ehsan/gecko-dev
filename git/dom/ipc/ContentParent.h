@@ -125,7 +125,7 @@ private:
             const PRInt64& aContentLength);
     virtual bool DeallocPExternalHelperApp(PExternalHelperAppParent* aService);
 
-    virtual bool RecvReadPrefsArray(nsTArray<PrefTuple> *retValue);
+    virtual bool RecvReadPrefs(nsCString* prefs);
 
     void EnsurePrefService();
 

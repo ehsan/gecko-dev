@@ -612,7 +612,7 @@
       ]]></field>
 
       <field name="_overLinkDelayTimer"><![CDATA[
-        null
+        undefined
       ]]></field>
 
       <method name="setOverLink">
@@ -621,13 +621,13 @@
           // If the over-link is already scheduled to appear or hide, cancel it.
           if (this._overLinkDelayTimer) {
             clearTimeout(this._overLinkDelayTimer);
-            this._overLinkDelayTimer = null;
+            delete this._overLinkDelayTimer;
           }
 
           // Hide the over-link if aURL is falsey or if the URL bar is focused.
           if (!aURL || this.focused) {
             this._overLinkDelayTimer = setTimeout(function overLinkOut(self) {
-              self._overLinkDelayTimer = null;
+              delete self._overLinkDelayTimer;
               let style = window.getComputedStyle(self._overLinkBox, null);
               self._overLinkTransitioning = style.opacity != 0;
               self.removeAttribute("overlinkstate");
@@ -647,7 +647,7 @@
           // part for performance reasons: otherwise mousing over the bookmarks
           // menu for example is very laggy.
           this._overLinkDelayTimer = setTimeout(function overLinkIn(self) {
-            self._overLinkDelayTimer = null;
+            delete self._overLinkDelayTimer;
             self._updateOverLink(aURL);
             let style = window.getComputedStyle(self._overLinkBox, null);
             self._overLinkTransitioning = style.opacity != 1;

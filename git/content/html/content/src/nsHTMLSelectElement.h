@@ -277,9 +277,9 @@ public:
   NS_IMETHOD SaveState();
   virtual PRBool RestoreState(nsPresState* aState);
 
-  virtual void FieldSetDisabledChanged(nsEventStates aStates, PRBool aNotify);
+  virtual void FieldSetDisabledChanged(PRInt32 aStates, PRBool aNotify);
 
-  nsEventStates IntrinsicState() const;
+  PRInt32 IntrinsicState() const;
 
   // nsISelectElement
   NS_DECL_NSISELECTELEMENT

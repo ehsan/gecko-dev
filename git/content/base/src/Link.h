@@ -68,7 +68,7 @@ public:
    *         NS_EVENT_STATE_UNVISTED if this link is not visited, or 0 if this
    *         link is not actually a link.
    */
-  nsEventStates LinkState() const;
+  PRInt32 LinkState() const;
 
   /**
    * @return the URI this link is for, if available.

@@ -92,7 +92,7 @@ public:
   virtual void GetLinkTarget(nsAString& aTarget);
   virtual nsLinkState GetLinkState() const;
   virtual already_AddRefed<nsIURI> GetHrefURI() const;
-  virtual nsEventStates IntrinsicState() const;
+  virtual PRInt32 IntrinsicState() const;
   nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                    const nsAString& aValue, PRBool aNotify)
   {

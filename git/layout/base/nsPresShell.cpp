@@ -895,18 +895,35 @@ public:
   NS_IMETHOD CheckVisibility(nsIDOMNode *node, PRInt16 startOffset, PRInt16 EndOffset, PRBool *_retval);
 
   // nsIDocumentObserver
-  NS_DECL_NSIDOCUMENTOBSERVER_BEGINUPDATE
-  NS_DECL_NSIDOCUMENTOBSERVER_ENDUPDATE
-  NS_DECL_NSIDOCUMENTOBSERVER_BEGINLOAD
-  NS_DECL_NSIDOCUMENTOBSERVER_ENDLOAD
-  NS_DECL_NSIDOCUMENTOBSERVER_CONTENTSTATESCHANGED
-  NS_DECL_NSIDOCUMENTOBSERVER_DOCUMENTSTATESCHANGED
-  NS_DECL_NSIDOCUMENTOBSERVER_STYLESHEETADDED
-  NS_DECL_NSIDOCUMENTOBSERVER_STYLESHEETREMOVED
-  NS_DECL_NSIDOCUMENTOBSERVER_STYLESHEETAPPLICABLESTATECHANGED
-  NS_DECL_NSIDOCUMENTOBSERVER_STYLERULECHANGED
-  NS_DECL_NSIDOCUMENTOBSERVER_STYLERULEADDED
-  NS_DECL_NSIDOCUMENTOBSERVER_STYLERULEREMOVED
+  virtual void BeginUpdate(nsIDocument* aDocument, nsUpdateType aUpdateType);
+  virtual void EndUpdate(nsIDocument* aDocument, nsUpdateType aUpdateType);
+  virtual void BeginLoad(nsIDocument* aDocument);
+  virtual void EndLoad(nsIDocument* aDocument);
+  virtual void ContentStatesChanged(nsIDocument* aDocument,
+                                    nsIContent* aContent1,
+                                    nsIContent* aContent2,
+                                    PRInt32 aStateMask);
+  virtual void DocumentStatesChanged(nsIDocument* aDocument,
+                                     PRInt32 aStateMask);
+  virtual void StyleSheetAdded(nsIDocument* aDocument,
+                               nsIStyleSheet* aStyleSheet,
+                               PRBool aDocumentSheet);
+  virtual void StyleSheetRemoved(nsIDocument* aDocument,
+                                 nsIStyleSheet* aStyleSheet,
+                                 PRBool aDocumentSheet);
+  virtual void StyleSheetApplicableStateChanged(nsIDocument* aDocument,
+                                                nsIStyleSheet* aStyleSheet,
+                                                PRBool aApplicable);
+  virtual void StyleRuleChanged(nsIDocument* aDocument,
+                                nsIStyleSheet* aStyleSheet,
+                                nsIStyleRule* aOldStyleRule,
+                                nsIStyleRule* aNewStyleRule);
+  virtual void StyleRuleAdded(nsIDocument* aDocument,
+                              nsIStyleSheet* aStyleSheet,
+                              nsIStyleRule* aStyleRule);
+  virtual void StyleRuleRemoved(nsIDocument* aDocument,
+                                nsIStyleSheet* aStyleSheet,
+                                nsIStyleRule* aStyleRule);
 
   // nsIMutationObserver
   NS_DECL_NSIMUTATIONOBSERVER_CHARACTERDATACHANGED
@@ -1850,7 +1867,9 @@ PresShell::Init(nsIDocument* aDocument,
 #ifdef MOZ_SMIL
   if (mDocument->HasAnimationController()) {
     nsSMILAnimationController* animCtrl = mDocument->GetAnimationController();
-    animCtrl->NotifyRefreshDriverCreated(GetPresContext()->RefreshDriver());
+    if (!animCtrl->IsPaused()) {
+      animCtrl->StartSampling(GetPresContext()->RefreshDriver());
+    }
   }
 #endif // MOZ_SMIL
 
@@ -1983,7 +2002,7 @@ PresShell::Destroy()
 
 #ifdef MOZ_SMIL
     if (mDocument->HasAnimationController()) {
-      mDocument->GetAnimationController()->NotifyRefreshDriverDestroying(rd);
+      mDocument->GetAnimationController()->StopSampling(rd);
     }
 #endif // MOZ_SMIL
   }
@@ -4953,7 +4972,7 @@ void
 PresShell::ContentStatesChanged(nsIDocument* aDocument,
                                 nsIContent* aContent1,
                                 nsIContent* aContent2,
-                                nsEventStates aStateMask)
+                                PRInt32 aStateMask)
 {
   NS_PRECONDITION(!mIsDocumentGone, "Unexpected ContentStatesChanged");
   NS_PRECONDITION(aDocument == mDocument, "Unexpected aDocument");
@@ -4967,7 +4986,7 @@ PresShell::ContentStatesChanged(nsIDocument* aDocument,
 
 void
 PresShell::DocumentStatesChanged(nsIDocument* aDocument,
-                                 nsEventStates aStateMask)
+                                 PRInt32 aStateMask)
 {
   NS_PRECONDITION(!mIsDocumentGone, "Unexpected DocumentStatesChanged");
   NS_PRECONDITION(aDocument == mDocument, "Unexpected aDocument");
@@ -4981,7 +5000,7 @@ PresShell::DocumentStatesChanged(nsIDocument* aDocument,
     VERIFY_STYLE_TREE;
   }
 
-  if (aStateMask.HasState(NS_DOCUMENT_STATE_WINDOW_INACTIVE)) {
+  if (aStateMask & NS_DOCUMENT_STATE_WINDOW_INACTIVE) {
     nsIFrame* root = FrameManager()->GetRootFrame();
     if (root) {
       // It's a display root. So, invalidate the layer contents of
@@ -6590,33 +6609,6 @@ PresShell::HandleEvent(nsIView         *aView,
 
     PresShell* shell =
         static_cast<PresShell*>(frame->PresContext()->PresShell());
-
-    // Check if we have an active EventStateManager which isn't the
-    // EventStateManager of the current PresContext.
-    // If that is the case, and mouse is over some ancestor document,
-    // forward event handling to the active document.
-    // This way content can get mouse events even when
-    // mouse is over the chrome or outside the window.
-    //
-    // Note, currently for backwards compatibility we don't forward mouse events
-    // to the active document when mouse is over some subdocument.
-    nsIEventStateManager* activeESM =
-      nsEventStateManager::GetActiveEventStateManager();
-    if (activeESM && NS_IS_MOUSE_EVENT(aEvent) &&
-        activeESM != shell->GetPresContext()->EventStateManager() &&
-        static_cast<nsEventStateManager*>(activeESM)->GetPresContext()) {
-      nsIPresShell* activeShell =
-        static_cast<nsEventStateManager*>(activeESM)->GetPresContext()->GetPresShell();
-      if (activeShell &&
-          nsContentUtils::ContentIsCrossDocDescendantOf(activeShell->GetDocument(),
-                                                        shell->GetDocument())) {
-        shell = static_cast<PresShell*>(activeShell);
-        nsIView* activeShellRootView;
-        shell->GetViewManager()->GetRootView(activeShellRootView);
-        frame = static_cast<nsIFrame*>(activeShellRootView->GetClientData());
-      }
-    }
-
     if (shell != this) {
       // Handle the event in the correct shell.
       // Prevent deletion until we're done with event handling (bug 336582).
@@ -6912,11 +6904,6 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
     nsAutoHandlingUserInputStatePusher userInpStatePusher(isHandlingUserInput,
                                                           aEvent->message == NS_MOUSE_BUTTON_DOWN);
 
-    if (NS_IS_TRUSTED_EVENT(aEvent) && aEvent->message == NS_MOUSE_MOVE) {
-      nsIPresShell::AllowMouseCapture(
-        nsEventStateManager::GetActiveEventStateManager() == manager);
-    }
-
     nsAutoPopupStatePusher popupStatePusher(nsDOMEvent::GetEventPopupControlState(aEvent));
 
     // FIXME. If the event was reused, we need to clear the old target,
@@ -6974,8 +6961,6 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
     if (aEvent->message == NS_MOUSE_BUTTON_UP) {
       // reset the capturing content now that the mouse button is up
       SetCapturingContent(nsnull, 0);
-    } else if (aEvent->message == NS_MOUSE_MOVE) {
-      nsIPresShell::AllowMouseCapture(PR_FALSE);
     }
   }
   return rv;

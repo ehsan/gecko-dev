@@ -1468,10 +1468,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(IDBIndex, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(IDBVersionChangeEvent, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(IDBVersionChangeRequest, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
 };
 
 // Objects that should be constructable through |new Name();|
@@ -4055,8 +4051,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(IDBDatabase, nsIIDBDatabase)
     DOM_CLASSINFO_MAP_ENTRY(nsIIDBDatabase)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(IDBErrorEvent, nsIIDBErrorEvent)
@@ -4080,8 +4074,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(IDBObjectStore, nsIIDBObjectStore)
     DOM_CLASSINFO_MAP_ENTRY(nsIIDBObjectStore)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(IDBTransaction, nsIIDBTransaction)
@@ -4092,8 +4084,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(IDBCursor, nsIIDBCursor)
     DOM_CLASSINFO_MAP_ENTRY(nsIIDBCursor)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(IDBKeyRange, nsIIDBKeyRange)
@@ -4102,21 +4092,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(IDBIndex, nsIIDBIndex)
     DOM_CLASSINFO_MAP_ENTRY(nsIIDBIndex)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(IDBVersionChangeEvent, nsIIDBVersionChangeEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIIDBVersionChangeEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIIDBEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEvent)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(IDBVersionChangeRequest, nsIIDBVersionChangeRequest)
-    DOM_CLASSINFO_MAP_ENTRY(nsIIDBVersionChangeRequest)
-    DOM_CLASSINFO_MAP_ENTRY(nsIIDBRequest)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
 #ifdef NS_DEBUG
@@ -4629,8 +4604,7 @@ GetExternalClassInfo(nsScriptNameSpaceManager *aNameSpaceManager,
 
 static nsresult
 ResolvePrototype(nsIXPConnect *aXPConnect, nsGlobalWindow *aWin, JSContext *cx,
-                 JSObject *obj, const PRUnichar *name,
-                 const nsDOMClassInfoData *ci_data,
+                 const PRUnichar *name, const nsDOMClassInfoData *ci_data,
                  const nsGlobalNameStruct *name_struct,
                  nsScriptNameSpaceManager *nameSpaceManager,
                  JSObject *dot_prototype, PRBool install, PRBool *did_resolve);
@@ -4729,9 +4703,8 @@ nsDOMClassInfo::PostCreatePrototype(JSContext * cx, JSObject * proto)
   NS_ENSURE_TRUE(nameSpaceManager, NS_OK);
 
   PRBool unused;
-  return ResolvePrototype(sXPConnect, win, cx, global, mData->mNameUTF16,
-                          mData, nsnull, nameSpaceManager, proto, !found,
-                          &unused);
+  return ResolvePrototype(sXPConnect, win, cx, mData->mNameUTF16, mData,
+                          nsnull, nameSpaceManager, proto, !found, &unused);
 }
 
 // static
@@ -6078,8 +6051,7 @@ GetXPCProto(nsIXPConnect *aXPConnect, JSContext *cx, nsGlobalWindow *aWin,
 // eTypeClassProto.
 static nsresult
 ResolvePrototype(nsIXPConnect *aXPConnect, nsGlobalWindow *aWin, JSContext *cx,
-                 JSObject *obj, const PRUnichar *name,
-                 const nsDOMClassInfoData *ci_data,
+                 const PRUnichar *name, const nsDOMClassInfoData *ci_data,
                  const nsGlobalNameStruct *name_struct,
                  nsScriptNameSpaceManager *nameSpaceManager,
                  JSObject *dot_prototype, PRBool install, PRBool *did_resolve)
@@ -6088,6 +6060,13 @@ ResolvePrototype(nsIXPConnect *aXPConnect, nsGlobalWindow *aWin, JSContext *cx,
                (name_struct &&
                 name_struct->mType == nsGlobalNameStruct::eTypeClassProto),
                "Wrong type or missing ci_data!");
+
+  JSObject *obj = aWin->FastGetGlobalJSObject();
+  JSAutoEnterCompartment ac;
+
+  if (!ac.enter(cx, obj)) {
+    return NS_ERROR_UNEXPECTED;
+  }
 
   nsRefPtr<nsDOMConstructor> constructor;
   nsresult rv = nsDOMConstructor::Create(name, ci_data, name_struct, aWin,
@@ -6184,59 +6163,49 @@ ResolvePrototype(nsIXPConnect *aXPConnect, nsGlobalWindow *aWin, JSContext *cx,
     }
   }
 
-  {
-    JSObject *winobj = aWin->FastGetGlobalJSObject();
+  JSObject *proto = nsnull;
 
-    JSAutoEnterCompartment ac;
-    if (!ac.enter(cx, winobj)) {
+  if (class_parent_name) {
+    jsval val;
+
+    if (!::JS_LookupProperty(cx, obj, CutPrefix(class_parent_name), &val)) {
       return NS_ERROR_UNEXPECTED;
     }
 
-    JSObject *proto = nsnull;
+    JSObject *tmp = JSVAL_IS_OBJECT(val) ? JSVAL_TO_OBJECT(val) : nsnull;
 
-    if (class_parent_name) {
-      jsval val;
-
-      if (!::JS_LookupProperty(cx, winobj, CutPrefix(class_parent_name), &val)) {
+    if (tmp) {
+      if (!::JS_LookupProperty(cx, tmp, "prototype", &val)) {
         return NS_ERROR_UNEXPECTED;
       }
 
-      JSObject *tmp = JSVAL_IS_OBJECT(val) ? JSVAL_TO_OBJECT(val) : nsnull;
-
-      if (tmp) {
-        if (!::JS_LookupProperty(cx, tmp, "prototype", &val)) {
-          return NS_ERROR_UNEXPECTED;
-        }
-
-        if (JSVAL_IS_OBJECT(val)) {
-          proto = JSVAL_TO_OBJECT(val);
-        }
+      if (JSVAL_IS_OBJECT(val)) {
+        proto = JSVAL_TO_OBJECT(val);
       }
     }
+  }
 
-    if (dot_prototype) {
-      JSObject *xpc_proto_proto = ::JS_GetPrototype(cx, dot_prototype);
+  if (dot_prototype) {
+    JSObject *xpc_proto_proto = ::JS_GetPrototype(cx, dot_prototype);
 
-      if (proto &&
-          (!xpc_proto_proto ||
-           JS_GET_CLASS(cx, xpc_proto_proto) == sObjectClass)) {
-        if (!::JS_SetPrototype(cx, dot_prototype, proto)) {
-          return NS_ERROR_UNEXPECTED;
-        }
+    if (proto &&
+        (!xpc_proto_proto ||
+         JS_GET_CLASS(cx, xpc_proto_proto) == sObjectClass)) {
+      if (!::JS_SetPrototype(cx, dot_prototype, proto)) {
+        return NS_ERROR_UNEXPECTED;
       }
-    } else {
-      dot_prototype = ::JS_NewObject(cx, &sDOMConstructorProtoClass, proto,
-                                     winobj);
-      NS_ENSURE_TRUE(dot_prototype, NS_ERROR_OUT_OF_MEMORY);
     }
+  } else {
+    dot_prototype = ::JS_NewObject(cx, &sDOMConstructorProtoClass, proto,
+                                   obj);
+    NS_ENSURE_TRUE(dot_prototype, NS_ERROR_OUT_OF_MEMORY);
   }
 
   v = OBJECT_TO_JSVAL(dot_prototype);
 
   // Per ECMA, the prototype property is {DontEnum, DontDelete, ReadOnly}
-  if (!JS_WrapValue(cx, &v) ||
-      !JS_DefineProperty(cx, class_obj, "prototype", v, nsnull, nsnull,
-                         JSPROP_PERMANENT | JSPROP_READONLY)) {
+  if (!::JS_DefineProperty(cx, class_obj, "prototype", v, nsnull, nsnull,
+                           JSPROP_PERMANENT | JSPROP_READONLY)) {
     return NS_ERROR_UNEXPECTED;
   }
 
@@ -6341,7 +6310,7 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
         ci_data = name_struct->mData;
       }
 
-      return ResolvePrototype(sXPConnect, aWin, cx, obj, class_name, ci_data,
+      return ResolvePrototype(sXPConnect, aWin, cx, class_name, ci_data,
                               name_struct, nameSpaceManager, dot_prototype,
                               PR_TRUE, did_resolve);
     }
@@ -6354,7 +6323,7 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
   if (name_struct->mType == nsGlobalNameStruct::eTypeClassProto) {
     // We don't have a XPConnect prototype object, let ResolvePrototype create
     // one.
-    return ResolvePrototype(sXPConnect, aWin, cx, obj, class_name, nsnull,
+    return ResolvePrototype(sXPConnect, aWin, cx, class_name, nsnull,
                             name_struct, nameSpaceManager, nsnull, PR_TRUE,
                             did_resolve);
   }
@@ -6385,7 +6354,7 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
       return NS_ERROR_UNEXPECTED;
     }
 
-    return ResolvePrototype(sXPConnect, aWin, cx, obj, class_name, ci_data,
+    return ResolvePrototype(sXPConnect, aWin, cx, class_name, ci_data,
                             name_struct, nameSpaceManager, nsnull, PR_TRUE,
                             did_resolve);
   }
@@ -7039,11 +7008,6 @@ nsWindowSH::OuterObject(nsIXPConnectWrappedNative *wrapper, JSContext * cx,
     NS_ASSERTION(origWin->IsOuterWindow(), "What window is this?");
     *_retval = obj;
     return NS_OK;
-  }
-
-  if (!JS_WrapObject(cx, &winObj)) {
-    *_retval = nsnull;
-    return NS_ERROR_UNEXPECTED;
   }
 
   *_retval = winObj;
@@ -10210,46 +10174,54 @@ nsStorageSH::NewEnumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                           JSObject *obj, PRUint32 enum_op, jsval *statep,
                           jsid *idp, PRBool *_retval)
 {
-  if (enum_op == JSENUMERATE_INIT || enum_op == JSENUMERATE_INIT_ALL) {
-    nsCOMPtr<nsPIDOMStorage> storage(do_QueryWrappedNative(wrapper));
-
-    // XXXndeakin need to free the keys afterwards
-    nsTArray<nsString> *keys = storage->GetKeys();
-    NS_ENSURE_TRUE(keys, NS_ERROR_OUT_OF_MEMORY);
-
-    *statep = PRIVATE_TO_JSVAL(keys);
-
-    if (idp) {
-      *idp = INT_TO_JSID(keys->Length());
-    }
-    return NS_OK;
-  }
-
   nsTArray<nsString> *keys =
     (nsTArray<nsString> *)JSVAL_TO_PRIVATE(*statep);
 
-  if (enum_op == JSENUMERATE_NEXT && keys->Length() != 0) {
-    nsString& key = keys->ElementAt(0);
-    JSString *str =
-      JS_NewUCStringCopyN(cx, reinterpret_cast<const jschar *>
-                                              (key.get()),
-                          key.Length());
-    NS_ENSURE_TRUE(str, NS_ERROR_OUT_OF_MEMORY);
+  switch (enum_op) {
+    case JSENUMERATE_INIT:
+    case JSENUMERATE_INIT_ALL:
+    {
+      nsCOMPtr<nsPIDOMStorage> storage(do_QueryWrappedNative(wrapper));
 
-    JS_ValueToId(cx, STRING_TO_JSVAL(str), idp);
+      // XXXndeakin need to free the keys afterwards
+      keys = storage->GetKeys();
+      NS_ENSURE_TRUE(keys, NS_ERROR_OUT_OF_MEMORY);
 
-    keys->RemoveElementAt(0);
+      *statep = PRIVATE_TO_JSVAL(keys);
 
-    return NS_OK;
+      if (idp) {
+        *idp = INT_TO_JSID(keys->Length());
+      }
+      break;
+    }
+    case JSENUMERATE_NEXT:
+      if (keys->Length() != 0) {
+        nsString& key = keys->ElementAt(0);
+        JSString *str =
+          JS_NewUCStringCopyN(cx, reinterpret_cast<const jschar *>
+                                                  (key.get()),
+                              key.Length());
+        NS_ENSURE_TRUE(str, NS_ERROR_OUT_OF_MEMORY);
+
+        JS_ValueToId(cx, STRING_TO_JSVAL(str), idp);
+
+        keys->RemoveElementAt(0);
+
+        break;
+      }
+
+      // Fall through
+    case JSENUMERATE_DESTROY:
+      delete keys;
+
+      *statep = JSVAL_NULL;
+
+      break;
+    default:
+      NS_NOTREACHED("Bad call from the JS engine");
+
+      return NS_ERROR_FAILURE;
   }
-
-  // destroy the keys array if we have no keys or if we're done
-  NS_ABORT_IF_FALSE(enum_op == JSENUMERATE_DESTROY ||
-                    (enum_op == JSENUMERATE_NEXT && keys->Length() == 0),
-                    "Bad call from the JS engine");
-  delete keys;
-
-  *statep = JSVAL_NULL;
 
   return NS_OK;
 }
@@ -10404,46 +10376,54 @@ nsStorage2SH::NewEnumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                            JSObject *obj, PRUint32 enum_op, jsval *statep,
                            jsid *idp, PRBool *_retval)
 {
-  if (enum_op == JSENUMERATE_INIT || enum_op == JSENUMERATE_INIT_ALL) {
-    nsCOMPtr<nsPIDOMStorage> storage(do_QueryWrappedNative(wrapper));
-
-    // XXXndeakin need to free the keys afterwards
-    nsTArray<nsString> *keys = storage->GetKeys();
-    NS_ENSURE_TRUE(keys, NS_ERROR_OUT_OF_MEMORY);
-
-    *statep = PRIVATE_TO_JSVAL(keys);
-
-    if (idp) {
-      *idp = INT_TO_JSID(keys->Length());
-    }
-    return NS_OK;
-  }
-
   nsTArray<nsString> *keys =
     (nsTArray<nsString> *)JSVAL_TO_PRIVATE(*statep);
 
-  if (enum_op == JSENUMERATE_NEXT && keys->Length() != 0) {
-    nsString& key = keys->ElementAt(0);
-    JSString *str =
-      JS_NewUCStringCopyN(cx, reinterpret_cast<const jschar *>
-                                              (key.get()),
-                          key.Length());
-    NS_ENSURE_TRUE(str, NS_ERROR_OUT_OF_MEMORY);
+  switch (enum_op) {
+    case JSENUMERATE_INIT:
+    case JSENUMERATE_INIT_ALL:
+    {
+      nsCOMPtr<nsPIDOMStorage> storage(do_QueryWrappedNative(wrapper));
 
-    JS_ValueToId(cx, STRING_TO_JSVAL(str), idp);
+      // XXXndeakin need to free the keys afterwards
+      keys = storage->GetKeys();
+      NS_ENSURE_TRUE(keys, NS_ERROR_OUT_OF_MEMORY);
 
-    keys->RemoveElementAt(0);
+      *statep = PRIVATE_TO_JSVAL(keys);
 
-    return NS_OK;
+      if (idp) {
+        *idp = INT_TO_JSID(keys->Length());
+      }
+      break;
+    }
+    case JSENUMERATE_NEXT:
+      if (keys->Length() != 0) {
+        nsString& key = keys->ElementAt(0);
+        JSString *str =
+          JS_NewUCStringCopyN(cx, reinterpret_cast<const jschar *>
+                                                  (key.get()),
+                              key.Length());
+        NS_ENSURE_TRUE(str, NS_ERROR_OUT_OF_MEMORY);
+
+        JS_ValueToId(cx, STRING_TO_JSVAL(str), idp);
+
+        keys->RemoveElementAt(0);
+
+        break;
+      }
+
+      // Fall through
+    case JSENUMERATE_DESTROY:
+      delete keys;
+
+      *statep = JSVAL_NULL;
+
+      break;
+    default:
+      NS_NOTREACHED("Bad call from the JS engine");
+
+      return NS_ERROR_FAILURE;
   }
-
-  // destroy the keys array if we have no keys or if we're done
-  NS_ABORT_IF_FALSE(enum_op == JSENUMERATE_DESTROY ||
-                    (enum_op == JSENUMERATE_NEXT && keys->Length() == 0),
-                    "Bad call from the JS engine");
-  delete keys;
-
-  *statep = JSVAL_NULL;
 
   return NS_OK;
 }

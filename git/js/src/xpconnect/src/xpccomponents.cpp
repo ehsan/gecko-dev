@@ -3167,7 +3167,7 @@ NS_IMPL_THREADSAFE_RELEASE(nsXPCComponents_utils_Sandbox)
 #ifndef XPCONNECT_STANDALONE
 nsresult
 xpc_CreateSandboxObject(JSContext * cx, jsval * vp, nsISupports *prinOrSop, JSObject *proto,
-                        bool wantXrays)
+                        bool bypassXray)
 {
     // Create the sandbox global object
     nsresult rv;
@@ -3219,7 +3219,7 @@ xpc_CreateSandboxObject(JSContext * cx, jsval * vp, nsISupports *prinOrSop, JSOb
     JSObject *sandbox;
 
     rv = xpc_CreateGlobalObject(cx, &SandboxClass, origin, principal,
-                                wantXrays, &sandbox, &compartment);
+                                !bypassXray, &sandbox, &compartment);
     NS_ENSURE_SUCCESS(rv, rv);
 
     js::AutoObjectRooter tvr(cx, sandbox);
@@ -3234,7 +3234,7 @@ xpc_CreateSandboxObject(JSContext * cx, jsval * vp, nsISupports *prinOrSop, JSOb
             if (!ok)
                 return NS_ERROR_XPC_UNEXPECTED;
 
-            if (xpc::WrapperFactory::IsXrayWrapper(proto) && !wantXrays) {
+            if (xpc::WrapperFactory::IsXrayWrapper(proto) && bypassXray) {
                 jsval v;
                 if (!JS_GetProperty(cx, proto, "wrappedJSObject", &v))
                     return NS_ERROR_XPC_UNEXPECTED;
@@ -3377,41 +3377,22 @@ nsXPCComponents_utils_Sandbox::CallOrConstruct(nsIXPConnectWrappedNative *wrappe
     }
 
     JSObject *proto = nsnull;
-    bool wantXrays = true;
+    bool bypassXray = false;
     if (argc > 1) {
         if (!JSVAL_IS_OBJECT(argv[1]))
             return ThrowAndFail(NS_ERROR_INVALID_ARG, cx, _retval);
 
-        JSObject *optionsObject = JSVAL_TO_OBJECT(argv[1]);
-        jsval option;
+        proto = JSVAL_TO_OBJECT(argv[1]);
 
-        JSBool found;
-        if (!JS_HasProperty(cx, optionsObject, "sandboxPrototype", &found))
-            return NS_ERROR_INVALID_ARG;
-
-        if (found) {
-            if (!JS_GetProperty(cx, optionsObject, "sandboxPrototype", &option) ||
-                !JSVAL_IS_OBJECT(option)) {
+        if (argc > 2) {
+            if (!JSVAL_IS_BOOLEAN(argv[2]))
                 return ThrowAndFail(NS_ERROR_INVALID_ARG, cx, _retval);
-            }
 
-            proto = JSVAL_TO_OBJECT(option);
-        }
-
-        if (!JS_HasProperty(cx, optionsObject, "wantXrays", &found))
-            return NS_ERROR_INVALID_ARG;
-
-        if (found) {
-            if (!JS_GetProperty(cx, optionsObject, "wantXrays", &option) ||
-                !JSVAL_IS_BOOLEAN(option)) {
-                return ThrowAndFail(NS_ERROR_INVALID_ARG, cx, _retval);
-            }
-
-            wantXrays = JSVAL_TO_BOOLEAN(option);
+            bypassXray = JSVAL_TO_BOOLEAN(argv[2]);
         }
     }
 
-    rv = xpc_CreateSandboxObject(cx, vp, prinOrSop, proto, wantXrays);
+    rv = xpc_CreateSandboxObject(cx, vp, prinOrSop, proto, bypassXray);
 
     if (NS_FAILED(rv)) {
         return ThrowAndFail(rv, cx, _retval);
