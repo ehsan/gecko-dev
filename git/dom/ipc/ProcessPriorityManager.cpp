@@ -1045,7 +1045,6 @@ ProcessPriorityManagerChild::StaticInit()
 {
   if (!sSingleton) {
     sSingleton = new ProcessPriorityManagerChild();
-    sSingleton->Init();
     ClearOnShutdown(&sSingleton);
   }
 }

@@ -574,8 +574,8 @@ BluetoothHfpManager::HandleVoiceConnectionChanged()
     do_GetService(NS_RILCONTENTHELPER_CONTRACTID);
   NS_ENSURE_TRUE_VOID(connection);
 
-  nsCOMPtr<nsIDOMMozMobileConnectionInfo> voiceInfo;
-  connection->GetVoiceConnectionInfo(getter_AddRefs(voiceInfo));
+  nsIDOMMozMobileConnectionInfo* voiceInfo;
+  connection->GetVoiceConnectionInfo(&voiceInfo);
   NS_ENSURE_TRUE_VOID(voiceInfo);
 
   bool roaming;
@@ -614,8 +614,8 @@ BluetoothHfpManager::HandleVoiceConnectionChanged()
     mNetworkSelectionMode = 0;
   }
 
-  nsCOMPtr<nsIDOMMozMobileNetworkInfo> network;
-  voiceInfo->GetNetwork(getter_AddRefs(network));
+  nsIDOMMozMobileNetworkInfo* network;
+  voiceInfo->GetNetwork(&network);
   NS_ENSURE_TRUE_VOID(network);
   network->GetLongName(mOperatorName);
 
@@ -640,8 +640,8 @@ BluetoothHfpManager::HandleIccInfoChanged()
     do_GetService(NS_RILCONTENTHELPER_CONTRACTID);
   NS_ENSURE_TRUE_VOID(icc);
 
-  nsCOMPtr<nsIDOMMozIccInfo> iccInfo;
-  icc->GetIccInfo(getter_AddRefs(iccInfo));
+  nsIDOMMozIccInfo* iccInfo;
+  icc->GetIccInfo(&iccInfo);
   NS_ENSURE_TRUE_VOID(iccInfo);
   iccInfo->GetMsisdn(mMsisdn);
 }
