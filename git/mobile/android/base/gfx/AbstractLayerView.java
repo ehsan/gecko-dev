@@ -19,7 +19,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Patrick Walton <pcwalton@mozilla.com>
+ *   Benoit Girard <bgirard@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -37,40 +37,26 @@
 
 package org.mozilla.gecko.gfx;
 
-/**
- * A layer client provides tiles and manages other information used by the layer controller.
- */
-public abstract class LayerClient {
-    private LayerController mLayerController;
+import android.content.Context;
+import android.widget.RelativeLayout;
+import android.view.View;
 
-    public abstract void geometryChanged();
-    public abstract void viewportSizeChanged();
-    protected abstract void render();
+import org.mozilla.gecko.gfx.LayerController;
+import org.mozilla.gecko.gfx.InputConnectionHandler;
+import org.mozilla.gecko.GeckoInputConnection;
 
-    public LayerController getLayerController() { return mLayerController; }
-    public void setLayerController(LayerController layerController) {
-        mLayerController = layerController;
-    }
-
-    /**
-     * A utility function for calling Layer.beginTransaction with the
-     * appropriate AbstractLayerView.
-     */
-    public void beginTransaction(Layer aLayer) {
-        if (mLayerController != null) {
-            AbstractLayerView view = mLayerController.getView();
-            if (view != null) {
-                aLayer.beginTransaction(view);
-                return;
-            }
-        }
-
-        aLayer.beginTransaction();
-    }
-
-    // Included for symmetry.
-    public void endTransaction(Layer aLayer) {
-        aLayer.endTransaction();
-    }
+public interface AbstractLayerView {
+    public LayerController getController();
+    public GeckoInputConnection setInputConnectionHandler();
+    public View getAndroidView();
+    /** The LayerRenderer calls this to indicate that the window has changed size. */
+    public void setViewportSize(IntSize size);
+    public void requestRender();
+    public boolean post(Runnable action);
+    public boolean postDelayed(Runnable action, long delayMillis);
+    public Context getContext();
+    public int getMaxTextureSize();
+    public void clearEventQueue();
+    public void processEventQueue();
 }
 
