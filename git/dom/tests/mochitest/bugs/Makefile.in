@@ -78,13 +78,6 @@ _TEST_FILES	= \
 		test_bug397571.html \
 		test_bug400204.html \
 		test_bug404748.html \
-		test_bug407839.html \
-		iframe_bug407839-1.html \
-		iframe_bug407839-2.html \
-		test_bug424093.html \
-		iframe_bug424093.html \
-		test_bug409349.html \
-		iframe_bug409349.html \
 		test_bug411103.html \
 		test_bug414291.html \
 		test_bug430276.html \
@@ -96,8 +89,6 @@ _TEST_FILES	= \
 		test_bug458091.html \
 		bug458091_child.html \
 		test_bug459848.html \
-		test_bug463000.html \
-		iframe_bug463000.html \
 		test_bug465263.html \
 		test_bug479143.html \
 		test_bug484775.html \
@@ -162,7 +153,14 @@ _TEST_FILES	= \
 		test_bug38959.html \
 		iframe_bug38959-1.html \
 		iframe_bug38959-2.html \
+		test_onerror_message.html \
+		test_bug735237.html \
+		test_bug739038.html \
 		test_bug740811.html \
+		test_bug743615.html \
+		utils_bug743615.js \
+		worker_bug743615.js \
+		test_bug750051.html \
 		$(NULL)
 
 libs:: 	$(_TEST_FILES)
