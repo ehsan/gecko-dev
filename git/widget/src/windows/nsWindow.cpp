@@ -222,10 +222,6 @@
 
 #include "mozilla/FunctionTimer.h"
 
-#ifdef MOZ_CRASHREPORTER
-#include "nsICrashReporter.h"
-#endif
-
 using namespace mozilla::widget;
 
 /**************************************************************
@@ -679,10 +675,6 @@ NS_METHOD nsWindow::Destroy()
   }
   mLayerManager = nsnull;
 
-  /* We should clear our D2D window surface now and not wait for the GC to
-   * delete the nsWindow. */
-  mD2DWindowSurface = nsnull;
-
   // The DestroyWindow function destroys the specified window. The function sends WM_DESTROY
   // and WM_NCDESTROY messages to the window to deactivate it and remove the keyboard focus
   // from it. The function also destroys the window's menu, flushes the thread message queue,
@@ -843,7 +835,7 @@ DWORD nsWindow::WindowStyle()
 
     case eWindowType_popup:
       style = WS_POPUP;
-      if (!HasGlass()) {
+      if (mTransparencyMode != eTransparencyGlass) {
         style |= WS_OVERLAPPED;
       }
       break;
@@ -1066,22 +1058,6 @@ nsIWidget* nsWindow::GetParent(void)
   return GetParentWindow(PR_FALSE);
 }
 
-float nsWindow::GetDPI()
-{
-  HDC dc = ::GetDC(mWnd);
-  if (!dc)
-    return 96.0f;
-
-  double heightInches = ::GetDeviceCaps(dc, VERTSIZE)/MM_PER_INCH_FLOAT;
-  int heightPx = ::GetDeviceCaps(dc, VERTRES);
-  ::ReleaseDC(mWnd, dc);
-  if (heightInches < 0.25) {
-    // Something's broken
-    return 96.0f;
-  }
-  return float(heightPx/heightInches);
-}
-
 nsWindow* nsWindow::GetParentWindow(PRBool aIncludeOwner)
 {
   if (mIsTopWidgetWindow) {
@@ -1295,7 +1271,7 @@ NS_METHOD nsWindow::IsVisible(PRBool & bState)
 void nsWindow::ClearThemeRegion()
 {
 #ifndef WINCE
-  if (nsUXThemeData::sIsVistaOrLater && !HasGlass() &&
+  if (nsUXThemeData::sIsVistaOrLater && mTransparencyMode != eTransparencyGlass &&
       mWindowType == eWindowType_popup && (mPopupType == ePopupTypeTooltip || mPopupType == ePopupTypePanel)) {
     SetWindowRgn(mWnd, NULL, false);
   }
@@ -1310,7 +1286,7 @@ void nsWindow::SetThemeRegion()
   // so default constants are used for part and state. At some point we might need part and
   // state values from nsNativeThemeWin's GetThemePartAndState, but currently windows that
   // change shape based on state haven't come up.
-  if (nsUXThemeData::sIsVistaOrLater && !HasGlass() &&
+  if (nsUXThemeData::sIsVistaOrLater && mTransparencyMode != eTransparencyGlass &&
       mWindowType == eWindowType_popup && (mPopupType == ePopupTypeTooltip || mPopupType == ePopupTypePanel)) {
     HRGN hRgn = nsnull;
     RECT rect = {0,0,mBounds.width,mBounds.height};
@@ -2467,7 +2443,7 @@ namespace {
 void nsWindow::UpdatePossiblyTransparentRegion(const nsIntRegion &aDirtyRegion,
                                                const nsIntRegion &aPossiblyTransparentRegion) {
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-  if (!HasGlass())
+  if (mTransparencyMode != eTransparencyGlass)
     return;
 
   HWND hWnd = GetTopLevelHWND(mWnd, PR_TRUE);
@@ -2528,31 +2504,19 @@ void nsWindow::UpdateGlass()
 {
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
   HWND hWnd = GetTopLevelHWND(mWnd, PR_TRUE);
-  MARGINS margins = mGlassMargins;
 
   // DWMNCRP_USEWINDOWSTYLE - The non-client rendering area is
   //                          rendered based on the window style.
   // DWMNCRP_ENABLED        - The non-client area rendering is
   //                          enabled; the window style is ignored.
   DWMNCRENDERINGPOLICY policy = DWMNCRP_USEWINDOWSTYLE;
-  switch (mTransparencyMode) {
-  case eTransparencyBorderlessGlass:
-    {
-      const PRInt32 kGlassMarginAdjustment = 2;
-      margins.cxLeftWidth += kGlassMarginAdjustment;
-      margins.cyTopHeight += kGlassMarginAdjustment;
-      margins.cxRightWidth += kGlassMarginAdjustment;
-      margins.cyBottomHeight += kGlassMarginAdjustment;
-    }
-    // Fall through
-  case eTransparencyGlass:
+  if (mTransparencyMode == eTransparencyGlass) {
     policy = DWMNCRP_ENABLED;
-    break;
   }
 
   // Extends the window frame behind the client area
   if(nsUXThemeData::CheckForCompositor()) {
-    nsUXThemeData::dwmExtendFrameIntoClientAreaPtr(hWnd, &margins);
+    nsUXThemeData::dwmExtendFrameIntoClientAreaPtr(hWnd, &mGlassMargins);
     nsUXThemeData::dwmSetWindowAttributePtr(hWnd, DWMWA_NCRENDERING_POLICY, &policy, sizeof policy);
   }
 #endif // #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
@@ -4218,31 +4182,8 @@ nsWindow::IPCWindowProcHandler(UINT& msg, WPARAM& wParam, LPARAM& lParam)
  *
  **************************************************************/
 
-static int ReportException(EXCEPTION_POINTERS *aExceptionInfo)
-{
-#ifdef MOZ_CRASHREPORTER
-  nsCOMPtr<nsICrashReporter> cr =
-    do_GetService("@mozilla.org/toolkit/crash-reporter;1");
-  if (cr)
-    cr->WriteMinidumpForException(aExceptionInfo);
-#endif
-  return EXCEPTION_EXECUTE_HANDLER;
-}
-
-// The WndProc procedure for all nsWindows in this toolkit. This merely catches
-// exceptions and passes the real work to WindowProcInternal. See bug 587406
-// and http://msdn.microsoft.com/en-us/library/ms633573%28VS.85%29.aspx
+// The WndProc procedure for all nsWindows in this toolkit
 LRESULT CALLBACK nsWindow::WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
-{
-  __try {
-    return WindowProcInternal(hWnd, msg, wParam, lParam);
-  }
-  __except(ReportException(GetExceptionInformation())) {
-    ::TerminateProcess(::GetCurrentProcess(), 253);
-  }
-}
-
-LRESULT CALLBACK nsWindow::WindowProcInternal(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
   NS_TIME_FUNCTION_MIN_FMT(5.0, "%s (line %d) (hWnd: %p, msg: %p, wParam: %p, lParam: %p",
                            MOZ_FUNCTION_NAME, __LINE__, hWnd, msg,
@@ -7651,7 +7592,7 @@ void nsWindow::SetWindowTranslucencyInner(nsTransparencyMode aMode)
   ::SetWindowLongPtrW(hWnd, GWL_EXSTYLE, exStyle);
 
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-  if (HasGlass())
+  if (mTransparencyMode == eTransparencyGlass)
     memset(&mGlassMargins, 0, sizeof mGlassMargins);
 #endif // #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
   mTransparencyMode = aMode;

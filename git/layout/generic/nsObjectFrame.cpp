@@ -54,20 +54,6 @@
 #endif
 #endif
 
-#ifdef MOZ_IPC
-#include "mozilla/plugins/PluginMessageUtils.h"
-#endif
-
-#ifdef MOZ_X11
-#include <cairo-xlib.h>
-#include "gfxXlibSurface.h"
-/* X headers suck */
-enum { XKeyPress = KeyPress };
-#ifdef KeyPress
-#undef KeyPress
-#endif
-#endif
-
 #include "nscore.h"
 #include "nsCOMPtr.h"
 #include "nsPresContext.h"
@@ -183,6 +169,14 @@ static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 #endif
 
 #ifdef MOZ_X11
+#include <cairo-xlib.h>
+#include "gfxXlibSurface.h"
+/* X headers suck */
+enum { XKeyPress = KeyPress };
+#ifdef KeyPress
+#undef KeyPress
+#endif
+
 #if (MOZ_PLATFORM_MAEMO == 5) && defined(MOZ_WIDGET_GTK2)
 #define MOZ_COMPOSITED_PLUGINS 1
 #define MOZ_USE_IMAGE_EXPOSE   1
@@ -213,6 +207,9 @@ using mozilla::DefaultXDisplay;
 #ifdef XP_WIN
 #include <wtypes.h>
 #include <winuser.h>
+#ifdef MOZ_IPC
+#define NS_OOPP_DOUBLEPASS_MSGID TEXT("MozDoublePassMsg")
+#endif
 #endif
 
 #ifdef XP_OS2
@@ -626,6 +623,10 @@ nsObjectFrame::Init(nsIContent*      aContent,
          ("Initializing nsObjectFrame %p for content %p\n", this, aContent));
 
   nsresult rv = nsObjectFrameSuper::Init(aContent, aParent, aPrevInFlow);
+
+#ifdef XP_WIN
+  mDoublePassEvent = 0;
+#endif
 
   return rv;
 }
@@ -1725,12 +1726,15 @@ nsObjectFrame::PaintPlugin(nsIRenderingContext& aRenderingContext,
         // OOP plugin specific: let the shim know before we paint if we are doing a
         // double pass render. If this plugin isn't oop, the register window message
         // will be ignored.
-        NPEvent pluginEvent;
-        pluginEvent.event = mozilla::plugins::DoublePassRenderingEvent();
-        pluginEvent.wParam = 0;
-        pluginEvent.lParam = 0;
-        if (pluginEvent.event)
+        if (!mDoublePassEvent)
+          mDoublePassEvent = ::RegisterWindowMessage(NS_OOPP_DOUBLEPASS_MSGID);
+        if (mDoublePassEvent) {
+          NPEvent pluginEvent;
+          pluginEvent.event = mDoublePassEvent;
+          pluginEvent.wParam = 0;
+          pluginEvent.lParam = 0;
           inst->HandleEvent(&pluginEvent, nsnull);
+        }
       }
 #endif
       do {
@@ -2306,16 +2310,6 @@ nsObjectFrame::StopPluginInternal(PRBool aDelayedStop)
     nsRootPresContext* rootPC = PresContext()->GetRootPresContext();
     NS_ASSERTION(rootPC, "unable to unregister the plugin frame");
     rootPC->UnregisterPluginForGeometryUpdates(this);
-
-    // Make sure the plugin is hidden in case an update of plugin geometry
-    // hasn't happened since this plugin became hidden.
-    nsIWidget* parent = mWidget->GetParent();
-    if (parent) {
-      nsTArray<nsIWidget::Configuration> configurations;
-      GetEmptyClipConfiguration(&configurations);
-      parent->ConfigureChildren(configurations);
-      DidSetWidgetGeometry();
-    }
   }
 
   // Transfer the reference to the instance owner onto the stack so

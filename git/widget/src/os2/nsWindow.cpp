@@ -568,28 +568,6 @@ nsIWidget* nsWindow::GetParent()
   return mParent;
 }
 
-static PRInt32 sDPI = 0;
-
-float nsWindow::GetDPI()
-{
-    if (!sDPI) {
-        // create DC compatible with the screen
-        HDC dc = DevOpenDC((HAB)1, OD_MEMORY,"*",0L, NULL, NULLHANDLE);
-        if (dc > 0) {
-            // we do have a DC and we can query the DPI setting from it
-            LONG lDPI;
-            if (DevQueryCaps(dc, CAPS_VERTICAL_FONT_RES, 1, &lDPI))
-                sDPI = lDPI;
-            DevCloseDC(dc);
-        }
-        if (sDPI <= 0) {
-            // Fall back to something sane
-            sDPI = 96;
-        }
-    }
-    return sDPI;  
-}
-
 //-----------------------------------------------------------------------------
 
 NS_METHOD nsWindow::Enable(PRBool aState)
@@ -2846,46 +2824,15 @@ PRBool nsWindow::DispatchResizeEvent(PRInt32 aX, PRInt32 aY)
 PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, MPARAM mp1, MPARAM mp2,
                                     PRBool aIsContextMenuKey, PRInt16 aButton)
 {
-  NS_ENSURE_TRUE(aEventType, PR_FALSE);
-
   nsMouseEvent event(PR_TRUE, aEventType, this, nsMouseEvent::eReal,
                      aIsContextMenuKey
                      ? nsMouseEvent::eContextMenuKey
                      : nsMouseEvent::eNormal);
   event.button = aButton;
 
-  if (aEventType == NS_MOUSE_ENTER || aEventType == NS_MOUSE_EXIT) {
-    // Ignore enter/leave msgs forwarded from the frame to FID_CLIENT
-    // because we're only interested msgs involving the content area.
-    if (HWNDFROMMP(mp1) != mWnd) {
-      return FALSE;
-    }
-
-    // If the mouse has exited the content area and entered either an
-    // unrelated window or what Windows would call the nonclient area
-    // (i.e. frame, titlebar, etc.), mark this as a toplevel exit.
-    // Note: exits to and from menus will also be marked toplevel.
-    if (aEventType == NS_MOUSE_EXIT) {
-      HWND  hTop;
-      HWND  hCur = mWnd;
-      HWND  hDesk = WinQueryDesktopWindow(0, 0);
-      while (hCur && hCur != hDesk) {
-        hTop = hCur;
-        hCur = WinQueryWindow(hCur, QW_PARENT);
-      }
-
-      // event.exit was init'ed to eChild, so we don't need an 'else'
-      hTop = WinWindowFromID(hTop, FID_CLIENT);
-      if (!hTop || !WinIsChild(HWNDFROMMP(mp2), hTop)) {
-        event.exit = nsMouseEvent::eTopLevel;
-      }
-    }
-
-    InitEvent(event, nsnull);
-    event.isShift   = isKeyDown(VK_SHIFT);
-    event.isControl = isKeyDown(VK_CTRL);
-    event.isAlt     = isKeyDown(VK_ALT) || isKeyDown(VK_ALTGRAF);
-  } else {
+  // Mouse leave & enter messages don't seem to have position built in.
+  if (aEventType &&
+      aEventType != NS_MOUSE_ENTER && aEventType != NS_MOUSE_EXIT) {
     POINTL ptl;
     if (aEventType == NS_CONTEXTMENU && aIsContextMenuKey) {
       WinQueryPointerPos(HWND_DESKTOP, &ptl);
@@ -2902,6 +2849,11 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, MPARAM mp1, MPARAM mp2,
     event.isShift   = (usFlags & KC_SHIFT) ? PR_TRUE : PR_FALSE;
     event.isControl = (usFlags & KC_CTRL) ? PR_TRUE : PR_FALSE;
     event.isAlt     = (usFlags & KC_ALT) ? PR_TRUE : PR_FALSE;
+  } else {
+    InitEvent(event, nsnull);
+    event.isShift   = isKeyDown(VK_SHIFT);
+    event.isControl = isKeyDown(VK_CTRL);
+    event.isAlt     = isKeyDown(VK_ALT) || isKeyDown(VK_ALTGRAF);
   }
   event.isMeta = PR_FALSE;
 

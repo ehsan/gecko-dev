@@ -845,5 +845,3 @@ ifdef TIERS
 DIRS += $(foreach tier,$(TIERS),$(tier_$(tier)_dirs))
 STATIC_DIRS += $(foreach tier,$(TIERS),$(tier_$(tier)_staticdirs))
 endif
-
-OPTIMIZE_JARS_CMD = $(PYTHON) $(topsrcdir)/config/optimizejars.py
