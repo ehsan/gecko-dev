@@ -11,11 +11,10 @@
 
 #define TABLE_NAME "hdmx"
 
-#define DROP_THIS_TABLE(...) \
+#define DROP_THIS_TABLE \
   do { \
     delete file->hdmx; \
     file->hdmx = 0; \
-    OTS_FAILURE_MSG_(file, TABLE_NAME ": " __VA_ARGS__); \
     OTS_FAILURE_MSG("Table discarded"); \
   } while (0)
 
@@ -32,8 +31,9 @@ bool ots_hdmx_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
 
   if ((file->head->flags & 0x14) == 0) {
     // http://www.microsoft.com/typography/otspec/recom.htm
-    DROP_THIS_TABLE("the table should not be present when bit 2 and 4 of the "
-                    "head->flags are not set");
+    OTS_WARNING("the table should not be present when bit 2 and 4 of the "
+                "head->flags are not set");
+    DROP_THIS_TABLE;
     return true;
   }
 
@@ -44,16 +44,19 @@ bool ots_hdmx_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
     return OTS_FAILURE_MSG("Failed to read hdmx header");
   }
   if (hdmx->version != 0) {
-    DROP_THIS_TABLE("bad version: %u", hdmx->version);
+    OTS_WARNING("bad version: %u", hdmx->version);
+    DROP_THIS_TABLE;
     return true;
   }
   if (num_recs <= 0) {
-    DROP_THIS_TABLE("bad num_recs: %d", num_recs);
+    OTS_WARNING("bad num_recs: %d", num_recs);
+    DROP_THIS_TABLE;
     return true;
   }
   const int32_t actual_size_device_record = file->maxp->num_glyphs + 2;
   if (hdmx->size_device_record < actual_size_device_record) {
-    DROP_THIS_TABLE("bad hdmx->size_device_record: %d", hdmx->size_device_record);
+    OTS_WARNING("bad hdmx->size_device_record: %d", hdmx->size_device_record);
+    DROP_THIS_TABLE;
     return true;
   }
 
@@ -73,7 +76,8 @@ bool ots_hdmx_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
     }
     if ((i != 0) &&
         (rec.pixel_size <= last_pixel_size)) {
-      DROP_THIS_TABLE("records are not sorted");
+      OTS_WARNING("records are not sorted");
+      DROP_THIS_TABLE;
       return true;
     }
     last_pixel_size = rec.pixel_size;

@@ -11,11 +11,10 @@
 
 #define TABLE_NAME "VORG"
 
-#define DROP_THIS_TABLE(...) \
+#define DROP_THIS_TABLE \
   do { \
     delete file->vorg; \
     file->vorg = 0; \
-    OTS_FAILURE_MSG_(file, TABLE_NAME ": " __VA_ARGS__); \
     OTS_FAILURE_MSG("Table discarded"); \
   } while (0)
 
@@ -34,11 +33,13 @@ bool ots_vorg_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
     return OTS_FAILURE_MSG("Failed to read header");
   }
   if (vorg->major_version != 1) {
-    DROP_THIS_TABLE("bad major version: %u", vorg->major_version);
+    OTS_WARNING("bad major version: %u", vorg->major_version);
+    DROP_THIS_TABLE;
     return true;
   }
   if (vorg->minor_version != 0) {
-    DROP_THIS_TABLE("bad minor version: %u", vorg->minor_version);
+    OTS_WARNING("bad minor version: %u", vorg->minor_version);
+    DROP_THIS_TABLE;
     return true;
   }
 
@@ -57,7 +58,8 @@ bool ots_vorg_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
       return OTS_FAILURE_MSG("Failed to read record %d", i);
     }
     if ((i != 0) && (rec.glyph_index <= last_glyph_index)) {
-      DROP_THIS_TABLE("the table is not sorted");
+      OTS_WARNING("the table is not sorted");
+      DROP_THIS_TABLE;
       return true;
     }
     last_glyph_index = rec.glyph_index;

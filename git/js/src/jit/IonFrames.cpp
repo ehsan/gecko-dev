@@ -1875,7 +1875,9 @@ InlineFrameIterator::findNextFrame()
     si_.settleOnFrame();
 
     pc_ = script_->offsetToPC(si_.pcOffset());
+#ifdef DEBUG
     numActualArgs_ = 0xbadbad;
+#endif
 
     // This unfortunately is O(n*m), because we must skip over outer frames
     // before reading inner ones.
@@ -1902,8 +1904,7 @@ InlineFrameIterator::findNextFrame()
             numActualArgs_ = 1;
         }
 
-        if (numActualArgs_ == 0xbadbad)
-            MOZ_CRASH("Couldn't deduce the number of arguments of an ionmonkey frame");
+        JS_ASSERT(numActualArgs_ != 0xbadbad);
 
         // Skip over non-argument slots, as well as |this|.
         unsigned skipCount = (si_.numAllocations() - 1) - numActualArgs_ - 1;

@@ -8,6 +8,7 @@ const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 const OPENH264_PLUGIN_ID       = "gmp-gmpopenh264";
 const OPENH264_PREF_BRANCH     = "media." + OPENH264_PLUGIN_ID + ".";
 const OPENH264_PREF_ENABLED    = OPENH264_PREF_BRANCH + "enabled";
+const OPENH264_PREF_PATH       = OPENH264_PREF_BRANCH + "path";
 const OPENH264_PREF_VERSION    = OPENH264_PREF_BRANCH + "version";
 const OPENH264_PREF_LASTUPDATE = OPENH264_PREF_BRANCH + "lastUpdate";
 const OPENH264_PREF_AUTOUPDATE = OPENH264_PREF_BRANCH + "autoupdate";
@@ -54,7 +55,7 @@ function run_test() {
 }
 
 add_task(function* test_notInstalled() {
-  Services.prefs.setCharPref(OPENH264_PREF_VERSION, "");
+  Services.prefs.setCharPref(OPENH264_PREF_PATH, "");
   Services.prefs.setBoolPref(OPENH264_PREF_ENABLED, false);
 
   let addons = yield promiseAddonsByIDs([OPENH264_PLUGIN_ID]);
@@ -105,12 +106,13 @@ add_task(function* test_installed() {
   const TEST_TIME_SEC = Math.round(TEST_DATE.getTime() / 1000);
 
   let file = Services.dirsvc.get("ProfD", Ci.nsIFile);
-  file.append(OPENH264_PLUGIN_ID);
-  file.append(TEST_VERSION);
+  file.append("openh264");
+  file.append("testDir");
 
   Services.prefs.setBoolPref(OPENH264_PREF_ENABLED, false);
   Services.prefs.setCharPref(OPENH264_PREF_LASTUPDATE, "" + TEST_TIME_SEC);
   Services.prefs.setCharPref(OPENH264_PREF_VERSION, TEST_VERSION);
+  Services.prefs.setCharPref(OPENH264_PREF_PATH, file.path);
 
   let addons = yield promiseAddonsByIDs([OPENH264_PLUGIN_ID]);
   Assert.equal(addons.length, 1);
@@ -137,7 +139,7 @@ add_task(function* test_installed() {
   let libraries = addon.pluginLibraries;
   Assert.ok(libraries);
   Assert.equal(libraries.length, 1);
-  Assert.equal(libraries[0], TEST_VERSION);
+  Assert.equal(libraries[0], "testDir");
   let fullpath = addon.pluginFullpath;
   Assert.equal(fullpath.length, 1);
   Assert.equal(fullpath[0], file.path);
@@ -177,11 +179,9 @@ add_task(function* test_autoUpdatePrefPersistance() {
 });
 
 add_task(function* test_pluginRegistration() {
-  const TEST_VERSION = "1.2.3.4";
-
   let file = Services.dirsvc.get("ProfD", Ci.nsIFile);
-  file.append(OPENH264_PLUGIN_ID);
-  file.append(TEST_VERSION);
+  file.append("openh264");
+  file.append("testDir");
 
   let addedPath = null
   let removedPath = null;
@@ -197,37 +197,35 @@ add_task(function* test_pluginRegistration() {
   Services.prefs.setBoolPref(OPENH264_PREF_ENABLED, true);
 
   // Check that the OpenH264 plugin gets registered after startup.
-  Services.prefs.setCharPref(OPENH264_PREF_VERSION, TEST_VERSION);
+  Services.prefs.setCharPref(OPENH264_PREF_PATH, file.path);
   clearPaths();
   yield promiseRestartManager();
   Assert.equal(addedPath, file.path);
   Assert.equal(removedPath, null);
 
-  // Check that clearing the version doesn't trigger registration.
+  // Check that clearing the path doesn't trigger registration.
   clearPaths();
-  Services.prefs.clearUserPref(OPENH264_PREF_VERSION);
+  Services.prefs.clearUserPref(OPENH264_PREF_PATH);
   Assert.equal(addedPath, null);
   Assert.equal(removedPath, file.path);
 
-  // Restarting with no version set should not trigger registration.
+  // Restarting with no path set should not trigger registration.
   clearPaths();
   yield promiseRestartManager();
   Assert.equal(addedPath, null);
   Assert.equal(removedPath, null);
 
   // Changing the pref mid-session should cause unregistration and registration.
-  Services.prefs.setCharPref(OPENH264_PREF_VERSION, TEST_VERSION);
+  Services.prefs.setCharPref(OPENH264_PREF_PATH, file.path);
   clearPaths();
-  const TEST_VERSION_2 = "5.6.7.8";
-  let file2 = Services.dirsvc.get("ProfD", Ci.nsIFile);
-  file2.append(OPENH264_PLUGIN_ID);
-  file2.append(TEST_VERSION_2);
-  Services.prefs.setCharPref(OPENH264_PREF_VERSION, TEST_VERSION_2);
+  let file2 = file.clone();
+  file2.append("foo");
+  Services.prefs.setCharPref(OPENH264_PREF_PATH, file2.path);
   Assert.equal(addedPath, file2.path);
   Assert.equal(removedPath, file.path);
 
   // Disabling OpenH264 should cause unregistration.
-  Services.prefs.setCharPref(OPENH264_PREF_VERSION, TEST_VERSION);
+  Services.prefs.setCharPref(OPENH264_PREF_PATH, file.path);
   clearPaths();
   Services.prefs.setBoolPref(OPENH264_PREF_ENABLED, false);
   Assert.equal(addedPath, null);

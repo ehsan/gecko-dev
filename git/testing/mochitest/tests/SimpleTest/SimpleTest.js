@@ -821,8 +821,6 @@ SimpleTest.finish = function() {
         }
     }
 
-    SimpleTest.testsLength = SimpleTest._tests.length;
-
     SimpleTest._alreadyFinished = true;
 
     var afterCleanup = function() {
@@ -1312,9 +1310,7 @@ window.onerror = function simpletestOnerror(errorMsg, url, lineNumber) {
     var message = (isExpected ? "expected " : "") + "uncaught exception";
     var error = errorMsg + " at " + url + ":" + lineNumber;
     if (!SimpleTest._ignoringAllUncaughtExceptions) {
-        // Don't log if SimpleTest.finish() is already called, it would cause failures
-        if (!SimpleTest._alreadyFinished)
-          SimpleTest.ok(isExpected, message, error);
+        SimpleTest.ok(isExpected, message, error);
         SimpleTest._expectingUncaughtException = false;
     } else {
         SimpleTest.todo(false, message + ": " + error);
