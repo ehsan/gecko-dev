@@ -325,7 +325,7 @@ typedef union YYSTYPE
         };
     } interm;
 }
-/* Line 193 of yacc.c.  */
+/* Line 187 of yacc.c.  */
 
 	YYSTYPE;
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
@@ -415,7 +415,7 @@ typedef short int yytype_int16;
 #define YYSIZE_MAXIMUM ((YYSIZE_T) -1)
 
 #ifndef YY_
-# if defined YYENABLE_NLS && YYENABLE_NLS
+# if YYENABLE_NLS
 #  if ENABLE_NLS
 #   include <libintl.h> /* INFRINGES ON USER NAME SPACE */
 #   define YY_(msgid) dgettext ("bison-runtime", msgid)
@@ -738,17 +738,17 @@ static const yytype_uint16 yyrline[] =
      893,   910,   911,   924,   925,   926,   927,   928,   932,   935,
      946,   954,   979,   984,   991,  1027,  1030,  1037,  1045,  1066,
     1085,  1096,  1125,  1130,  1140,  1145,  1155,  1158,  1161,  1164,
-    1170,  1177,  1187,  1203,  1221,  1245,  1268,  1272,  1290,  1313,
-    1345,  1365,  1441,  1450,  1473,  1476,  1482,  1490,  1498,  1506,
-    1509,  1516,  1519,  1522,  1528,  1531,  1546,  1550,  1554,  1558,
-    1567,  1572,  1577,  1582,  1587,  1592,  1597,  1602,  1607,  1612,
-    1618,  1624,  1630,  1635,  1640,  1645,  1658,  1671,  1679,  1682,
-    1697,  1728,  1732,  1738,  1746,  1762,  1766,  1770,  1771,  1777,
-    1778,  1779,  1780,  1781,  1785,  1786,  1786,  1786,  1796,  1797,
-    1802,  1805,  1815,  1818,  1824,  1825,  1829,  1837,  1841,  1851,
-    1856,  1873,  1873,  1878,  1878,  1885,  1885,  1893,  1896,  1902,
-    1905,  1911,  1915,  1922,  1929,  1936,  1943,  1954,  1963,  1967,
-    1974,  1977,  1983,  1983
+    1170,  1177,  1187,  1199,  1217,  1241,  1264,  1268,  1282,  1302,
+    1331,  1351,  1427,  1436,  1459,  1462,  1468,  1476,  1484,  1492,
+    1495,  1502,  1505,  1508,  1514,  1517,  1532,  1536,  1540,  1544,
+    1553,  1558,  1563,  1568,  1573,  1578,  1583,  1588,  1593,  1598,
+    1604,  1610,  1616,  1621,  1626,  1631,  1644,  1657,  1665,  1668,
+    1683,  1714,  1718,  1724,  1732,  1748,  1752,  1756,  1757,  1763,
+    1764,  1765,  1766,  1767,  1771,  1772,  1772,  1772,  1782,  1783,
+    1788,  1791,  1801,  1804,  1810,  1811,  1815,  1823,  1827,  1837,
+    1842,  1859,  1859,  1864,  1864,  1871,  1871,  1879,  1882,  1888,
+    1891,  1897,  1901,  1908,  1915,  1922,  1929,  1940,  1949,  1953,
+    1960,  1963,  1969,  1969
 };
 #endif
 
@@ -1361,7 +1361,7 @@ while (YYID (0))
    we won't break user code: when these are the locations we know.  */
 
 #ifndef YY_LOCATION_PRINT
-# if defined YYLTYPE_IS_TRIVIAL && YYLTYPE_IS_TRIVIAL
+# if YYLTYPE_IS_TRIVIAL
 #  define YY_LOCATION_PRINT(File, Loc)			\
      fprintf (File, "%d.%d-%d.%d",			\
 	      (Loc).first_line, (Loc).first_column,	\
@@ -3373,8 +3373,7 @@ yyreduce:
   case 92:
 
     {
-        TIntermSymbol* symbol = context->intermediate.addSymbol(0, *(yyvsp[(3) - (3)].lex).string, TType((yyvsp[(1) - (3)].interm).type), (yyvsp[(3) - (3)].lex).line);
-        (yyval.interm).intermAggregate = context->intermediate.growAggregate((yyvsp[(1) - (3)].interm).intermNode, symbol, (yyvsp[(3) - (3)].lex).line);
+        (yyval.interm).intermAggregate = context->intermediate.growAggregate((yyvsp[(1) - (3)].interm).intermNode, context->intermediate.addSymbol(0, *(yyvsp[(3) - (3)].lex).string, TType((yyvsp[(1) - (3)].interm).type), (yyvsp[(3) - (3)].lex).line), (yyvsp[(3) - (3)].lex).line);
         
         if (context->structQualifierErrorCheck((yyvsp[(3) - (3)].lex).line, (yyval.interm).type))
             context->recover();
@@ -3382,11 +3381,8 @@ yyreduce:
         if (context->nonInitConstErrorCheck((yyvsp[(3) - (3)].lex).line, *(yyvsp[(3) - (3)].lex).string, (yyval.interm).type))
             context->recover();
 
-        TVariable* variable = 0;
-        if (context->nonInitErrorCheck((yyvsp[(3) - (3)].lex).line, *(yyvsp[(3) - (3)].lex).string, (yyval.interm).type, variable))
+        if (context->nonInitErrorCheck((yyvsp[(3) - (3)].lex).line, *(yyvsp[(3) - (3)].lex).string, (yyval.interm).type))
             context->recover();
-        if (symbol && variable)
-            symbol->setId(variable->getUniqueId());
     ;}
     break;
 
@@ -3430,12 +3426,12 @@ yyreduce:
             if (context->arraySizeErrorCheck((yyvsp[(4) - (6)].lex).line, (yyvsp[(5) - (6)].interm.intermTypedNode), size))
                 context->recover();
             (yyvsp[(1) - (6)].interm).type.setArray(true, size);
-            TVariable* variable = 0;
+            TVariable* variable;
             if (context->arrayErrorCheck((yyvsp[(4) - (6)].lex).line, *(yyvsp[(3) - (6)].lex).string, (yyvsp[(1) - (6)].interm).type, variable))
                 context->recover();
             TType type = TType((yyvsp[(1) - (6)].interm).type);
             type.setArraySize(size);
-            (yyval.interm).intermAggregate = context->intermediate.growAggregate((yyvsp[(1) - (6)].interm).intermNode, context->intermediate.addSymbol(variable ? variable->getUniqueId() : 0, *(yyvsp[(3) - (6)].lex).string, type, (yyvsp[(3) - (6)].lex).line), (yyvsp[(3) - (6)].lex).line);
+            (yyval.interm).intermAggregate = context->intermediate.growAggregate((yyvsp[(1) - (6)].interm).intermNode, context->intermediate.addSymbol(0, *(yyvsp[(3) - (6)].lex).string, type, (yyvsp[(3) - (6)].lex).line), (yyvsp[(3) - (6)].lex).line);
         }
     ;}
     break;
@@ -3475,8 +3471,7 @@ yyreduce:
   case 97:
 
     {
-        TIntermSymbol* symbol = context->intermediate.addSymbol(0, *(yyvsp[(2) - (2)].lex).string, TType((yyvsp[(1) - (2)].interm.type)), (yyvsp[(2) - (2)].lex).line);
-        (yyval.interm).intermAggregate = context->intermediate.makeAggregate(symbol, (yyvsp[(2) - (2)].lex).line);
+        (yyval.interm).intermAggregate = context->intermediate.makeAggregate(context->intermediate.addSymbol(0, *(yyvsp[(2) - (2)].lex).string, TType((yyvsp[(1) - (2)].interm.type)), (yyvsp[(2) - (2)].lex).line), (yyvsp[(2) - (2)].lex).line);
         
         if (context->structQualifierErrorCheck((yyvsp[(2) - (2)].lex).line, (yyval.interm).type))
             context->recover();
@@ -3486,19 +3481,15 @@ yyreduce:
             
             (yyval.interm).type = (yyvsp[(1) - (2)].interm.type);
 
-        TVariable* variable = 0;
-        if (context->nonInitErrorCheck((yyvsp[(2) - (2)].lex).line, *(yyvsp[(2) - (2)].lex).string, (yyval.interm).type, variable))
+        if (context->nonInitErrorCheck((yyvsp[(2) - (2)].lex).line, *(yyvsp[(2) - (2)].lex).string, (yyval.interm).type))
             context->recover();
-        if (variable && symbol)
-            symbol->setId(variable->getUniqueId());
     ;}
     break;
 
   case 98:
 
     {
-        TIntermSymbol* symbol = context->intermediate.addSymbol(0, *(yyvsp[(2) - (4)].lex).string, TType((yyvsp[(1) - (4)].interm.type)), (yyvsp[(2) - (4)].lex).line);
-        (yyval.interm).intermAggregate = context->intermediate.makeAggregate(symbol, (yyvsp[(2) - (4)].lex).line);
+        (yyval.interm).intermAggregate = context->intermediate.makeAggregate(context->intermediate.addSymbol(0, *(yyvsp[(2) - (4)].lex).string, TType((yyvsp[(1) - (4)].interm.type)), (yyvsp[(2) - (4)].lex).line), (yyvsp[(2) - (4)].lex).line);
         
         if (context->structQualifierErrorCheck((yyvsp[(2) - (4)].lex).line, (yyvsp[(1) - (4)].interm.type)))
             context->recover();
@@ -3512,11 +3503,9 @@ yyreduce:
             context->recover();
         else {
             (yyvsp[(1) - (4)].interm.type).setArray(true);
-            TVariable* variable = 0;
+            TVariable* variable;
             if (context->arrayErrorCheck((yyvsp[(3) - (4)].lex).line, *(yyvsp[(2) - (4)].lex).string, (yyvsp[(1) - (4)].interm.type), variable))
                 context->recover();
-            if (variable && symbol)
-                symbol->setId(variable->getUniqueId());
         }
     ;}
     break;
@@ -3529,8 +3518,7 @@ yyreduce:
         if (context->arraySizeErrorCheck((yyvsp[(2) - (5)].lex).line, (yyvsp[(4) - (5)].interm.intermTypedNode), size))
             context->recover();
         type.setArraySize(size);
-        TIntermSymbol* symbol = context->intermediate.addSymbol(0, *(yyvsp[(2) - (5)].lex).string, type, (yyvsp[(2) - (5)].lex).line);
-        (yyval.interm).intermAggregate = context->intermediate.makeAggregate(symbol, (yyvsp[(2) - (5)].lex).line);
+        (yyval.interm).intermAggregate = context->intermediate.makeAggregate(context->intermediate.addSymbol(0, *(yyvsp[(2) - (5)].lex).string, type, (yyvsp[(2) - (5)].lex).line), (yyvsp[(2) - (5)].lex).line);
         
         if (context->structQualifierErrorCheck((yyvsp[(2) - (5)].lex).line, (yyvsp[(1) - (5)].interm.type)))
             context->recover();
@@ -3548,11 +3536,9 @@ yyreduce:
                 context->recover();
 
             (yyvsp[(1) - (5)].interm.type).setArray(true, size);
-            TVariable* variable = 0;
+            TVariable* variable;
             if (context->arrayErrorCheck((yyvsp[(3) - (5)].lex).line, *(yyvsp[(2) - (5)].lex).string, (yyvsp[(1) - (5)].interm.type), variable))
                 context->recover();
-            if (variable && symbol)
-                symbol->setId(variable->getUniqueId());
         }
     ;}
     break;
