@@ -86,7 +86,8 @@ public:
     
     JSStackFrame* findFrame(void* p) const;
     bool contains(void* p) const;
-    int  nativeOffset(void* p) const;
+    uint32_t nativeFrameOffset(void* p) const;
+    uint32_t nativeFrameSize() const;
 };
 
 class TraceRecorder {
@@ -140,7 +141,7 @@ struct JSTraceMonitor {
     TraceRecorder*        recorder;
 };
 
-#define TRACING_ENABLED(cx)       JS_HAS_OPTION(cx, JSOPTION_JIT)
+#define ENABLE_TRACER      JS_HAS_OPTION(cx, JSOPTION_JIT)
 #define TRACE_TRIGGER_MASK 0x3f
 
 extern bool
