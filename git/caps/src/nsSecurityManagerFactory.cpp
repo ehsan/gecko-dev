@@ -52,7 +52,6 @@
 #include "nsString.h"
 #include "nsNetCID.h"
 #include "nsIClassInfoImpl.h"
-#include "jsobj.h"
 
 ///////////////////////
 // nsSecurityNameSet //
@@ -295,7 +294,6 @@ nsSecurityNameSet::InitializeNameSet(nsIScriptContext* aScriptContext)
 {
     JSContext *cx = (JSContext *) aScriptContext->GetNativeContext();
     JSObject *global = JS_GetGlobalObject(cx);
-    OBJ_TO_INNER_OBJECT(cx, global);
 
     /*
      * Find Object.prototype's class by walking up the global object's

@@ -58,7 +58,7 @@ int main(int argc, char **argv)
     printf("/* AUTOMATICALLY GENERATED - DO NOT EDIT */\n\n");
 
 #ifdef CROSS_COMPILE
-#if defined(__APPLE__) && !defined(FORCE_BIG_ENDIAN) && !defined(FORCE_LITTLE_ENDIAN)
+#if defined(__APPLE__)
     /*
      * Darwin NSPR uses the same MDCPUCFG (_darwin.cfg) for multiple
      * processors, and determines which processor to configure for based

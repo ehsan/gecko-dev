@@ -171,7 +171,7 @@ function showSnippets()
       let relocatedScript = document.createElement("script");
       relocatedScript.type = "text/javascript;version=1.8";
       relocatedScript.text = elt.text;
-      elt.parentNode.replaceChild(relocatedScript, elt);
+      snippetsElt.replaceChild(relocatedScript, elt);
     });
     snippetsElt.hidden = false;
   } else {

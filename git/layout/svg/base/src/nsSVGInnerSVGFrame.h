@@ -56,6 +56,10 @@ public:
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
 
+  // We don't define an AttributeChanged method since changes to the
+  // 'x', 'y', 'width' and 'height' attributes of our content object
+  // are handled in nsSVGSVGElement::DidModifySVGObservable
+
 #ifdef DEBUG
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,
@@ -75,10 +79,6 @@ public:
     return MakeFrameName(NS_LITERAL_STRING("SVGInnerSVG"), aResult);
   }
 #endif
-
-  NS_IMETHOD  AttributeChanged(PRInt32         aNameSpaceID,
-                               nsIAtom*        aAttribute,
-                               PRInt32         aModType);
 
   // nsISVGChildFrame interface:
   NS_IMETHOD PaintSVG(nsSVGRenderState *aContext, const nsIntRect *aDirtyRect);

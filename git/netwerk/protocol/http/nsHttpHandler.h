@@ -234,6 +234,8 @@ private:
     nsresult SetAcceptCharsets(const char *);
 
     nsresult InitConnectionMgr();
+    void     StartPruneDeadConnectionsTimer();
+    void     StopPruneDeadConnectionsTimer();
 
     void     NotifyObservers(nsIHttpChannel *chan, const char *event);
 
@@ -245,6 +247,7 @@ private:
     nsCOMPtr<nsIObserverService>        mObserverService;
     nsCOMPtr<nsICookieService>          mCookieService;
     nsCOMPtr<nsIIDNService>             mIDNConverter;
+    nsCOMPtr<nsITimer>                  mTimer;
     nsCOMPtr<nsIStrictTransportSecurityService> mSTSService;
 
     // the authentication credentials cache
@@ -306,6 +309,8 @@ private:
     nsCString      mOscpu;
     nsCString      mLanguage;
     nsCString      mMisc;
+    nsXPIDLCString mVendor;
+    nsXPIDLCString mVendorSub;
     nsCString      mProduct;
     nsXPIDLCString mProductSub;
     nsXPIDLCString mAppName;

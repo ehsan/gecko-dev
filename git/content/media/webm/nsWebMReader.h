@@ -42,7 +42,6 @@
 #include "nsDeque.h"
 #include "nsBuiltinDecoderReader.h"
 #include "nsWebMBufferedParser.h"
-#include "nsAutoRef.h"
 #include "nestegg/nestegg.h"
 #include "vpx/vpx_decoder.h"
 #include "vpx/vp8dx.h"
@@ -96,13 +95,14 @@ class PacketQueue : private nsDeque {
   }
 };
 
+
 class nsWebMReader : public nsBuiltinDecoderReader
 {
 public:
   nsWebMReader(nsBuiltinDecoder* aDecoder);
   ~nsWebMReader();
 
-  virtual nsresult Init(nsBuiltinDecoderReader* aCloneDonor);
+  virtual nsresult Init();
   virtual nsresult ResetDecode();
   virtual PRBool DecodeAudioData();
 
@@ -140,7 +140,7 @@ private:
   // Read a packet from the nestegg file. Returns NULL if all packets for
   // the particular track have been read. Pass VIDEO or AUDIO to indicate the
   // type of the packet we want to read.
-  nsReturnRef<nestegg_packet> NextPacket(TrackType aTrackType);
+  nestegg_packet* NextPacket(TrackType aTrackType);
 
   // Returns an initialized ogg packet with data obtained from the WebM container.
   ogg_packet InitOggPacket(unsigned char* aData,
@@ -192,9 +192,20 @@ private:
   // Number of samples we've decoded since decoding began at mAudioStartMs.
   PRUint64 mAudioSamples;
 
-  // Parser state and computed offset-time mappings.  Shared by multiple
-  // readers when decoder has been cloned.  Main thread only.
-  nsRefPtr<nsWebMBufferedState> mBufferedState;
+  // Time in ns by which raw timecodes from the media must be scaled to
+  // produce absolute timecodes.  Used by CalculateBufferedForRange.
+  PRUint64 mTimecodeScale;
+
+  // Update aBuffered with the time range for the given data range.
+  void CalculateBufferedForRange(nsTimeRanges* aBuffered,
+                                 PRInt64 aStartOffset, PRInt64 aEndOffset);
+
+  // Sorted (by offset) map of data offsets to timecodes.  Populated
+  // on the main thread as data is received and parsed by nsWebMBufferedParsers.
+  nsTArray<nsWebMTimeDataOffset> mTimeMapping;
+
+  // Sorted (by offset) live parser instances.  Main thread only.
+  nsTArray<nsWebMBufferedParser> mRangeParsers;
 
   // Booleans to indicate if we have audio and/or video data
   PRPackedBool mHasVideo;

@@ -177,6 +177,24 @@ public:
 
   static nsresult ThrowJSException(JSContext *cx, nsresult aResult);
 
+  static JSPropertyOp GetXPCNativeWrapperGetPropertyOp() {
+    return sXPCNativeWrapperGetPropertyOp;
+  }
+
+  static void SetXPCNativeWrapperGetPropertyOp(JSPropertyOp getPropertyOp) {
+    NS_ASSERTION(!sXPCNativeWrapperGetPropertyOp,
+                 "Double set of sXPCNativeWrapperGetPropertyOp");
+    sXPCNativeWrapperGetPropertyOp = getPropertyOp;
+  }
+
+  static JSPropertyOp GetXrayWrapperPropertyHolderGetPropertyOp() {
+    return sXrayWrapperPropertyHolderGetPropertyOp;
+  }
+
+  static void SetXrayWrapperPropertyHolderGetPropertyOp(JSPropertyOp getPropertyOp) {
+    sXrayWrapperPropertyHolderGetPropertyOp = getPropertyOp;
+  }
+
   static PRBool ObjectIsNativeWrapper(JSContext* cx, JSObject* obj);
 
   static nsISupports *GetNative(nsIXPConnectWrappedNative *wrapper, JSObject *obj);
@@ -327,6 +345,7 @@ protected:
   static jsid sEnumerate_id;
   static jsid sNavigator_id;
   static jsid sDocument_id;
+  static jsid sWindow_id;
   static jsid sFrames_id;
   static jsid sSelf_id;
   static jsid sOpener_id;
@@ -364,7 +383,6 @@ protected:
   static jsid sOnmessage_id;
   static jsid sOnbeforescriptexecute_id;
   static jsid sOnafterscriptexecute_id;
-  static jsid sWrappedJSObject_id;
 
   static JSPropertyOp sXPCNativeWrapperGetPropertyOp;
   static JSPropertyOp sXrayWrapperPropertyHolderGetPropertyOp;
@@ -483,14 +501,14 @@ public:
 
 // Window scriptable helper
 
-class nsWindowSH : public nsEventReceiverSH
+class nsCommonWindowSH : public nsEventReceiverSH
 {
 protected:
-  nsWindowSH(nsDOMClassInfoData *aData) : nsEventReceiverSH(aData)
+  nsCommonWindowSH(nsDOMClassInfoData *aData) : nsEventReceiverSH(aData)
   {
   }
 
-  virtual ~nsWindowSH()
+  virtual ~nsCommonWindowSH()
   {
   }
 
@@ -499,8 +517,6 @@ protected:
                                 PRBool *did_resolve);
 
 public:
-  NS_IMETHOD PreCreate(nsISupports *nativeObj, JSContext *cx,
-                       JSObject *globalObj, JSObject **parentObj);
 #ifdef DEBUG
   NS_IMETHOD PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                         JSObject *obj)
@@ -536,8 +552,6 @@ public:
                       JSObject *obj);
   NS_IMETHOD Equality(nsIXPConnectWrappedNative *wrapper, JSContext * cx,
                       JSObject * obj, const jsval &val, PRBool *bp);
-  NS_IMETHOD OuterObject(nsIXPConnectWrappedNative *wrapper, JSContext * cx,
-                         JSObject * obj, JSObject * *_retval);
 
   static JSBool GlobalScopePolluterNewResolve(JSContext *cx, JSObject *obj,
                                               jsid id, uintN flags,
@@ -549,11 +563,65 @@ public:
   static void InvalidateGlobalScopePolluter(JSContext *cx, JSObject *obj);
   static nsresult InstallGlobalScopePolluter(JSContext *cx, JSObject *obj,
                                              nsIHTMLDocument *doc);
+};
+
+class nsOuterWindowSH : public nsCommonWindowSH
+{
+protected:
+  nsOuterWindowSH(nsDOMClassInfoData* aData) : nsCommonWindowSH(aData)
+  {
+  }
+
+  virtual ~nsOuterWindowSH()
+  {
+  }
+
+  static PRBool sResolving;
+
+public:
+  NS_IMETHOD PreCreate(nsISupports *nativeObj, JSContext *cx,
+                       JSObject *globalObj, JSObject **parentObj);
+  NS_IMETHOD AddProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                         JSObject *obj, jsid id, jsval *vp, PRBool *_retval);
+  NS_IMETHOD NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                        JSObject *obj, jsid id, PRUint32 flags,
+                        JSObject **objp, PRBool *_retval);
+  NS_IMETHOD NewEnumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                          JSObject *obj, PRUint32 enum_op, jsval *statep,
+                          jsid *idp, PRBool *_retval);
+  NS_IMETHOD InnerObject(nsIXPConnectWrappedNative *wrapper, JSContext * cx,
+                         JSObject * obj, JSObject * *_retval);
+
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
-    return new nsWindowSH(aData);
+    return new nsOuterWindowSH(aData);
   }
 };
+
+class nsInnerWindowSH : public nsCommonWindowSH
+{
+protected:
+  nsInnerWindowSH(nsDOMClassInfoData* aData) : nsCommonWindowSH(aData)
+  {
+  }
+
+  virtual ~nsInnerWindowSH()
+  {
+  }
+
+public:
+  NS_IMETHOD PreCreate(nsISupports *nativeObj, JSContext *cx,
+                       JSObject *globalObj, JSObject **parentObj);
+  // We WANT_ADDPROPERTY, but are content to inherit it from nsEventReceiverSH.
+  NS_IMETHOD OuterObject(nsIXPConnectWrappedNative *wrapper, JSContext * cx,
+                         JSObject * obj, JSObject * *_retval);
+
+  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
+  {
+    return new nsInnerWindowSH(aData);
+  }
+};
+
 
 // Location scriptable helper
 

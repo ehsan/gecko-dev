@@ -242,7 +242,6 @@ nsClipboard::SetNativeClipboardData( nsITransferable *aTransferable,
                     QByteArray data ((const char *)primitive_data, len);
                     // Add data to the mimeData
                     mimeData->setData(flavorStr.get(), data);
-                    nsMemory::Free(primitive_data);
                 }
             }
         }

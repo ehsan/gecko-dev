@@ -643,11 +643,7 @@ nsXMLContentSerializer::SerializeAttr(const nsAString& aPrefix,
                                       nsAString& aStr,
                                       PRBool aDoEscapeEntities)
 {
-  nsAutoString attrString_;
-  // For innerHTML we can do faster appending without
-  // temporary strings.
-  PRBool rawAppend = mDoRaw && aDoEscapeEntities;
-  nsAString& attrString = (rawAppend) ? aStr : attrString_;
+  nsAutoString attrString;
 
   attrString.Append(PRUnichar(' '));
   if (!aPrefix.IsEmpty()) {
@@ -666,9 +662,6 @@ nsXMLContentSerializer::SerializeAttr(const nsAString& aPrefix,
     mInAttribute = PR_FALSE;
 
     attrString.Append(PRUnichar('"'));
-    if (rawAppend) {
-      return;
-    }
   }
   else {
     // Depending on whether the attribute value contains quotes or apostrophes we
@@ -1366,7 +1359,19 @@ nsXMLContentSerializer::AppendToStringConvertLF(const nsAString& aStr,
   }
 
   if (mDoRaw) {
+    nsDependentString str(aStr);
+    PRInt32 lastNewlineOffset = str.RFindChar('\n');
     AppendToString(aStr, aOutputStr);
+
+    if (lastNewlineOffset != kNotFound) {
+      // the string contains at least a line break,
+      // so we should update the mColPos property with
+      // the number of characters between the last line
+      // break and the end of the string
+      mColPos = aStr.Length() - lastNewlineOffset;
+    }
+
+    mIsIndentationAddedOnCurrentLine = (mColPos != 0);
   }
   else {
     // Convert line-endings to mLineBreak
