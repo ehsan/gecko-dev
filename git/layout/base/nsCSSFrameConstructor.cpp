@@ -2688,8 +2688,6 @@ nsCSSFrameConstructor::ConstructRootFrame(nsIFrame** aNewFrame)
 
   nsContainerFrame::SyncFrameViewProperties(mPresShell->GetPresContext(), viewportFrame,
                                             viewportPseudoStyle, rootView);
-  nsContainerFrame::SyncWindowProperties(mPresShell->GetPresContext(), viewportFrame,
-                                         rootView);
 
   // The viewport is the containing block for 'fixed' elements
   mFixedContainingBlock = viewportFrame;
@@ -6218,17 +6216,16 @@ nsCSSFrameConstructor::ContentAppended(nsIContent*     aContainer,
       PRUint32 containerCount = aContainer->GetChildCount();
       for (PRUint32 i = aNewIndexInContainer; i < containerCount; i++) {
         nsIContent* content = aContainer->GetChildAt(i);
-        if ((mPresShell->GetPrimaryFrameFor(content) ||
-             mPresShell->FrameManager()->GetUndisplayedContent(content))
+        if (mPresShell->GetPrimaryFrameFor(content)
 #ifdef MOZ_XUL
             //  Except listboxes suck, so do NOT skip anything here if
             //  we plan to notify a listbox.
             && !MaybeGetListBoxBodyFrame(aContainer, content)
 #endif
             ) {
-          // Already have a frame or undisplayed entry for this content; a
-          // previous ContentInserted in this loop must have reconstructed
-          // its insertion parent.  Skip it.
+          // Already have a frame for this content; a previous ContentInserted
+          // in this loop must have reconstructed its insertion parent.  Skip
+          // it.
           continue;
         }
         LAYOUT_PHASE_TEMP_EXIT();

@@ -483,9 +483,7 @@ nsDOMWorkerScriptLoader::RunInternal()
 
       // Set the principal and URI on the new worker.
       mWorker->SetPrincipal(principal);
-
-      rv = mWorker->SetURI(uri);
-      NS_ENSURE_SUCCESS(rv, rv);
+      mWorker->SetURI(uri);
     }
     else {
       rv = secMan->CheckLoadURIWithPrincipal(principal, uri, 0);
