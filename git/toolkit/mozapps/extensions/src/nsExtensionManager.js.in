@@ -3151,7 +3151,6 @@ ExtensionManager.prototype = {
                 else {
                   // The xpi isn't correctly signed, don't offer to install.
                   LOG("Ignoring " + entry.path + " as it is not correctly signed.");
-                  zipReader.close();
                   entry.remove(true);
                   continue;
                 }

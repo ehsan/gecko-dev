@@ -157,8 +157,7 @@
         <stylesheet src="chrome://global/skin/media/videocontrols.css"/>
     </resources>
 
-    <xbl:content xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
-                 class="mediaControlsFrame">
+    <xbl:content xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
         <stack flex="1">
             <vbox class="statusOverlay" hidden="true">
                 <box class="statusIcon" flex="1"/>
