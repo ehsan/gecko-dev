@@ -95,13 +95,11 @@ void
 MediaSourceDecoder::Shutdown()
 {
   MSE_DEBUG("MediaSourceDecoder(%p)::Shutdown", this);
-  // Detach first so that TrackBuffers are unused on the main thread when
-  // shut down on the decode task queue.
+  MediaDecoder::Shutdown();
+
   if (mMediaSource) {
     mMediaSource->Detach();
   }
-
-  MediaDecoder::Shutdown();
   // Kick WaitForData out of its slumber.
   ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
   mon.NotifyAll();

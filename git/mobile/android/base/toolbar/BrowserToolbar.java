@@ -315,10 +315,6 @@ public abstract class BrowserToolbar extends ThemedRelativeLayout
         tabsButton.setOnClickListener(new Button.OnClickListener() {
             @Override
             public void onClick(View v) {
-                // Clear focus so a back press with the tabs
-                // panel open does not go to the editing field.
-                urlEditLayout.clearFocus();
-
                 toggleTabs();
             }
         });
@@ -345,8 +341,6 @@ public abstract class BrowserToolbar extends ThemedRelativeLayout
             menuButton.setOnClickListener(new Button.OnClickListener() {
                 @Override
                 public void onClick(View view) {
-                    // Drop the soft keyboard.
-                    urlEditLayout.clearFocus();
                     activity.openOptionsMenu();
                 }
             });

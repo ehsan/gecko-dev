@@ -1361,23 +1361,28 @@ private:
 
   struct nsFilePickerFilter {
     nsFilePickerFilter()
-      : mFilterMask(0) {}
+      : mFilterMask(0), mIsTrusted(false) {}
 
     explicit nsFilePickerFilter(int32_t aFilterMask)
-      : mFilterMask(aFilterMask) {}
+      : mFilterMask(aFilterMask), mIsTrusted(true) {}
 
     nsFilePickerFilter(const nsString& aTitle,
-                       const nsString& aFilter)
-      : mFilterMask(0), mTitle(aTitle), mFilter(aFilter) {}
+                       const nsString& aFilter,
+                       const bool aIsTrusted = false)
+      : mFilterMask(0), mTitle(aTitle), mFilter(aFilter), mIsTrusted(aIsTrusted) {}
 
     nsFilePickerFilter(const nsFilePickerFilter& other) {
       mFilterMask = other.mFilterMask;
       mTitle = other.mTitle;
       mFilter = other.mFilter;
+      mIsTrusted = other.mIsTrusted;
     }
 
     bool operator== (const nsFilePickerFilter& other) const {
       if ((mFilter == other.mFilter) && (mFilterMask == other.mFilterMask)) {
+        NS_ASSERTION(mIsTrusted == other.mIsTrusted,
+                     "Filter with similar list of extensions and mask should"
+                     " have the same trusted flag value");
         return true;
       } else {
         return false;
@@ -1390,6 +1395,12 @@ private:
     // ignored
     nsString mTitle;
     nsString mFilter;
+    // mIsTrusted is true if mime type comes from a "trusted" source (e.g. our
+    // hard-coded set).
+    // false means it may come from an "untrusted" source (e.g. OS mime types
+    // mapping, which can be different accross OS, user's personal configuration, ...)
+    // For now, only mask filters are considered to be "trusted".
+    bool mIsTrusted; 
   };
 
   class nsFilePickerShownCallback

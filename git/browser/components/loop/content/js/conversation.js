@@ -18,7 +18,7 @@ loop.conversation = (function(mozL10n) {
 
   var OutgoingConversationView = loop.conversationViews.OutgoingConversationView;
   var CallIdentifierView = loop.conversationViews.CallIdentifierView;
-  var DesktopRoomView = loop.roomViews.DesktopRoomView;
+  var EmptyRoomView = loop.roomViews.EmptyRoomView;
 
   var IncomingCallView = React.createClass({displayName: 'IncomingCallView',
     mixins: [sharedMixins.DropdownMenuMixin],
@@ -576,7 +576,7 @@ loop.conversation = (function(mozL10n) {
           ));
         }
         case "room": {
-          return (DesktopRoomView({
+          return (EmptyRoomView({
             mozLoop: navigator.mozLoop, 
             localRoomStore: this.props.localRoomStore}
           ));

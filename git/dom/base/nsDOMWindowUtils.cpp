@@ -3094,6 +3094,13 @@ nsDOMWindowUtils::GetFileReferences(const nsAString& aDatabaseName, int64_t aId,
   nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
   NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
 
+  nsCString origin;
+  quota::PersistenceType defaultPersistenceType;
+  nsresult rv =
+    quota::QuotaManager::GetInfoFromWindow(window, nullptr, &origin, nullptr,
+                                           &defaultPersistenceType);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   IDBOpenDBOptions options;
   JS::Rooted<JS::Value> optionsVal(aCx, aOptions);
   if (!options.Init(aCx, optionsVal)) {
@@ -3101,13 +3108,7 @@ nsDOMWindowUtils::GetFileReferences(const nsAString& aDatabaseName, int64_t aId,
   }
 
   quota::PersistenceType persistenceType =
-    quota::PersistenceTypeFromStorage(options.mStorage);
-
-  nsCString origin;
-  nsresult rv =
-    quota::QuotaManager::GetInfoFromWindow(window, persistenceType, nullptr,
-                                           &origin, nullptr, nullptr);
-  NS_ENSURE_SUCCESS(rv, rv);
+    quota::PersistenceTypeFromStorage(options.mStorage, defaultPersistenceType);
 
   nsRefPtr<indexedDB::IndexedDatabaseManager> mgr =
     indexedDB::IndexedDatabaseManager::Get();
@@ -3479,7 +3480,7 @@ nsDOMWindowUtils::LoadSheet(nsIURI *aSheetURI, uint32_t aSheetType)
 }
 
 NS_IMETHODIMP
-nsDOMWindowUtils::LoadSheetUsingURIString(const nsACString& aSheetURI, uint32_t aSheetType)
+nsDOMWindowUtils::LoadSheetFromURIString(const nsACString& aSheetURI, uint32_t aSheetType)
 {
   MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());
 
@@ -3529,18 +3530,6 @@ nsDOMWindowUtils::RemoveSheet(nsIURI *aSheetURI, uint32_t aSheetType)
 
   doc->RemoveAdditionalStyleSheet(type, aSheetURI);
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::RemoveSheetUsingURIString(const nsACString& aSheetURI, uint32_t aSheetType)
-{
-  MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());
-
-  nsCOMPtr<nsIURI> uri;
-  nsresult rv = NS_NewURI(getter_AddRefs(uri), aSheetURI);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return RemoveSheet(uri, aSheetType);
 }
 
 NS_IMETHODIMP

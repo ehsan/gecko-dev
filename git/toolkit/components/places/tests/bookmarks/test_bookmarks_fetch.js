@@ -100,7 +100,8 @@ add_task(function* fetch_nonexistent_guid() {
 });
 
 add_task(function* fetch_bookmark() {
-  let bm1 = yield PlacesUtils.bookmarks.insert({ parentGuid: PlacesUtils.bookmarks.unfiledGuid,
+  let unfiledGuid = yield PlacesUtils.promiseItemGuid(PlacesUtils.unfiledBookmarksFolderId);
+  let bm1 = yield PlacesUtils.bookmarks.insert({ parentGuid: unfiledGuid,
                                                  type: PlacesUtils.bookmarks.TYPE_BOOKMARK,
                                                  url: "http://example.com/",
                                                  title: "a bookmark" });
@@ -114,7 +115,7 @@ add_task(function* fetch_bookmark() {
   Assert.deepEqual(gAccumulator.results[0], bm1);
 
   Assert.deepEqual(bm1, bm2);
-  Assert.equal(bm2.parentGuid, PlacesUtils.bookmarks.unfiledGuid);
+  Assert.equal(bm2.parentGuid, unfiledGuid);
   Assert.equal(bm2.index, 0);
   Assert.deepEqual(bm2.dateAdded, bm2.lastModified);
   Assert.equal(bm2.type, PlacesUtils.bookmarks.TYPE_BOOKMARK);
@@ -126,7 +127,8 @@ add_task(function* fetch_bookmark() {
 });
 
 add_task(function* fetch_bookmar_empty_title() {
-  let bm1 = yield PlacesUtils.bookmarks.insert({ parentGuid: PlacesUtils.bookmarks.unfiledGuid,
+  let unfiledGuid = yield PlacesUtils.promiseItemGuid(PlacesUtils.unfiledBookmarksFolderId);
+  let bm1 = yield PlacesUtils.bookmarks.insert({ parentGuid: unfiledGuid,
                                                  type: PlacesUtils.bookmarks.TYPE_BOOKMARK,
                                                  url: "http://example.com/",
                                                  title: "" });
@@ -144,7 +146,8 @@ add_task(function* fetch_bookmar_empty_title() {
 });
 
 add_task(function* fetch_folder() {
-  let bm1 = yield PlacesUtils.bookmarks.insert({ parentGuid: PlacesUtils.bookmarks.unfiledGuid,
+  let unfiledGuid = yield PlacesUtils.promiseItemGuid(PlacesUtils.unfiledBookmarksFolderId);
+  let bm1 = yield PlacesUtils.bookmarks.insert({ parentGuid: unfiledGuid,
                                                  type: PlacesUtils.bookmarks.TYPE_FOLDER,
                                                  title: "a folder" });
   checkBookmarkObject(bm1);
@@ -153,7 +156,7 @@ add_task(function* fetch_folder() {
   checkBookmarkObject(bm2);
 
   Assert.deepEqual(bm1, bm2);
-  Assert.equal(bm2.parentGuid, PlacesUtils.bookmarks.unfiledGuid);
+  Assert.equal(bm2.parentGuid, unfiledGuid);
   Assert.equal(bm2.index, 0);
   Assert.deepEqual(bm2.dateAdded, bm2.lastModified);
   Assert.equal(bm2.type, PlacesUtils.bookmarks.TYPE_FOLDER);
@@ -165,7 +168,8 @@ add_task(function* fetch_folder() {
 });
 
 add_task(function* fetch_folder_empty_title() {
-  let bm1 = yield PlacesUtils.bookmarks.insert({ parentGuid: PlacesUtils.bookmarks.unfiledGuid,
+  let unfiledGuid = yield PlacesUtils.promiseItemGuid(PlacesUtils.unfiledBookmarksFolderId);
+  let bm1 = yield PlacesUtils.bookmarks.insert({ parentGuid: unfiledGuid,
                                                  type: PlacesUtils.bookmarks.TYPE_FOLDER,
                                                  title: "" });
   checkBookmarkObject(bm1);
@@ -181,7 +185,9 @@ add_task(function* fetch_folder_empty_title() {
 });
 
 add_task(function* fetch_separator() {
-  let bm1 = yield PlacesUtils.bookmarks.insert({ parentGuid: PlacesUtils.bookmarks.unfiledGuid,
+ 
+  let unfiledGuid = yield PlacesUtils.promiseItemGuid(PlacesUtils.unfiledBookmarksFolderId);
+  let bm1 = yield PlacesUtils.bookmarks.insert({ parentGuid: unfiledGuid,
                                                  type: PlacesUtils.bookmarks.TYPE_SEPARATOR });
   checkBookmarkObject(bm1);
 
@@ -189,7 +195,7 @@ add_task(function* fetch_separator() {
   checkBookmarkObject(bm2);
 
   Assert.deepEqual(bm1, bm2);
-  Assert.equal(bm2.parentGuid, PlacesUtils.bookmarks.unfiledGuid);
+  Assert.equal(bm2.parentGuid, unfiledGuid);
   Assert.equal(bm2.index, 0);
   Assert.deepEqual(bm2.dateAdded, bm2.lastModified);
   Assert.equal(bm2.type, PlacesUtils.bookmarks.TYPE_SEPARATOR);
@@ -209,7 +215,8 @@ add_task(function* fetch_byposition_nonexisting_parentGuid() {
 });
 
 add_task(function* fetch_byposition_nonexisting_index() {
-  let bm = yield PlacesUtils.bookmarks.fetch({ parentGuid: PlacesUtils.bookmarks.unfiledGuid,
+  let unfiledGuid = yield PlacesUtils.promiseItemGuid(PlacesUtils.unfiledBookmarksFolderId);
+  let bm = yield PlacesUtils.bookmarks.fetch({ parentGuid: unfiledGuid,
                                                index: 100 },
                                              gAccumulator.callback);
   Assert.equal(bm, null);
@@ -217,7 +224,8 @@ add_task(function* fetch_byposition_nonexisting_index() {
 });
 
 add_task(function* fetch_byposition() {
-  let bm1 = yield PlacesUtils.bookmarks.insert({ parentGuid: PlacesUtils.bookmarks.unfiledGuid,
+  let unfiledGuid = yield PlacesUtils.promiseItemGuid(PlacesUtils.unfiledBookmarksFolderId);
+  let bm1 = yield PlacesUtils.bookmarks.insert({ parentGuid: unfiledGuid,
                                                  type: PlacesUtils.bookmarks.TYPE_BOOKMARK,
                                                  url: "http://example.com/",
                                                  title: "a bookmark" });
@@ -232,7 +240,7 @@ add_task(function* fetch_byposition() {
   Assert.deepEqual(gAccumulator.results[0], bm1);
 
   Assert.deepEqual(bm1, bm2);
-  Assert.equal(bm2.parentGuid, PlacesUtils.bookmarks.unfiledGuid);
+  Assert.equal(bm2.parentGuid, unfiledGuid);
   Assert.equal(bm2.index, 0);
   Assert.deepEqual(bm2.dateAdded, bm2.lastModified);
   Assert.equal(bm2.type, PlacesUtils.bookmarks.TYPE_BOOKMARK);
@@ -249,7 +257,8 @@ add_task(function* fetch_byurl_nonexisting() {
 });
 
 add_task(function* fetch_byurl() {
-  let bm1 = yield PlacesUtils.bookmarks.insert({ parentGuid: PlacesUtils.bookmarks.unfiledGuid,
+  let unfiledGuid = yield PlacesUtils.promiseItemGuid(PlacesUtils.unfiledBookmarksFolderId);
+  let bm1 = yield PlacesUtils.bookmarks.insert({ parentGuid: unfiledGuid,
                                                  type: PlacesUtils.bookmarks.TYPE_BOOKMARK,
                                                  url: "http://byurl.com/",
                                                  title: "a bookmark" });
@@ -263,14 +272,14 @@ add_task(function* fetch_byurl() {
   Assert.deepEqual(gAccumulator.results[0], bm1);
 
   Assert.deepEqual(bm1, bm2);
-  Assert.equal(bm2.parentGuid, PlacesUtils.bookmarks.unfiledGuid);
+  Assert.equal(bm2.parentGuid, unfiledGuid);
   Assert.deepEqual(bm2.dateAdded, bm2.lastModified);
   Assert.equal(bm2.type, PlacesUtils.bookmarks.TYPE_BOOKMARK);
   Assert.equal(bm2.url.href, "http://byurl.com/");
   Assert.equal(bm2.title, "a bookmark");
   Assert.ok(!("keyword" in bm2));
 
-  let bm3 = yield PlacesUtils.bookmarks.insert({ parentGuid: PlacesUtils.bookmarks.unfiledGuid,
+  let bm3 = yield PlacesUtils.bookmarks.insert({ parentGuid: unfiledGuid,
                                                  type: PlacesUtils.bookmarks.TYPE_BOOKMARK,
                                                  url: "http://byurl.com/",
                                                  title: "a bookmark" });
@@ -303,7 +312,8 @@ add_task(function* fetch_bykeyword_nonexisting() {
 });
 
 add_task(function* fetch_bykeyword() {
-  let bm1 = yield PlacesUtils.bookmarks.insert({ parentGuid: PlacesUtils.bookmarks.unfiledGuid,
+  let unfiledGuid = yield PlacesUtils.promiseItemGuid(PlacesUtils.unfiledBookmarksFolderId);
+  let bm1 = yield PlacesUtils.bookmarks.insert({ parentGuid: unfiledGuid,
                                                  type: PlacesUtils.bookmarks.TYPE_BOOKMARK,
                                                  url: "http://bykeyword1.com/",
                                                  keyword: "bykeyword" });
@@ -317,13 +327,13 @@ add_task(function* fetch_bykeyword() {
   Assert.deepEqual(gAccumulator.results[0], bm1);
 
   Assert.deepEqual(bm1, bm2);
-  Assert.equal(bm2.parentGuid, PlacesUtils.bookmarks.unfiledGuid);
+  Assert.equal(bm2.parentGuid, unfiledGuid);
   Assert.deepEqual(bm2.dateAdded, bm2.lastModified);
   Assert.equal(bm2.type, PlacesUtils.bookmarks.TYPE_BOOKMARK);
   Assert.equal(bm2.url.href, "http://bykeyword1.com/");
   Assert.equal(bm2.keyword, "bykeyword");
 
-  let bm3 = yield PlacesUtils.bookmarks.insert({ parentGuid: PlacesUtils.bookmarks.unfiledGuid,
+  let bm3 = yield PlacesUtils.bookmarks.insert({ parentGuid: unfiledGuid,
                                                  type: PlacesUtils.bookmarks.TYPE_BOOKMARK,
                                                  url: "http://bykeyword2.com/",
                                                  keyword: "bykeyword" });

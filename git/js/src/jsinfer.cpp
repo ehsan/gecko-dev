@@ -5139,7 +5139,7 @@ TypeZone::endSweep(JSRuntime *rt)
 
     sweepReleaseTypes = false;
 
-    rt->gc.freeAllLifoBlocksAfterSweeping(&sweepTypeLifoAlloc);
+    rt->freeLifoAlloc.transferFrom(&sweepTypeLifoAlloc);
 }
 
 void

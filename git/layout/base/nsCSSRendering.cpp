@@ -738,7 +738,7 @@ nsCSSRendering::PaintBorderWithStyleBorder(nsPresContext* aPresContext,
   ctx->Restore();
 #endif
 
-  nsCSSBorderRenderer br(ctx->GetDrawTarget(),
+  nsCSSBorderRenderer br(ctx,
                          joinedBorderAreaPx,
                          borderStyles,
                          borderWidths,
@@ -873,7 +873,9 @@ nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
   // start drawing
   gfxContext *ctx = aRenderingContext.ThebesContext();
 
-  nsCSSBorderRenderer br(ctx->GetDrawTarget(),
+  ctx->Save();
+
+  nsCSSBorderRenderer br(ctx,
                          oRect,
                          outlineStyles,
                          outlineWidths,
@@ -882,6 +884,8 @@ nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
                          nullptr,
                          bgColor);
   br.DrawBorders();
+
+  ctx->Restore();
 
   PrintAsStringNewline();
 }
@@ -915,13 +919,15 @@ nsCSSRendering::PaintFocus(nsPresContext* aPresContext,
 
   gfxContext *ctx = aRenderingContext.ThebesContext();
 
+  ctx->Save();
+
   // Because this renders a dotted border, the background color
   // should not be used.  Therefore, we provide a value that will
   // be blatantly wrong if it ever does get used.  (If this becomes
   // something that CSS can style, this function will then have access
   // to a style context and can use the same logic that PaintBorder
   // and PaintOutline do.)
-  nsCSSBorderRenderer br(ctx->GetDrawTarget(),
+  nsCSSBorderRenderer br(ctx,
                          focusRect,
                          focusStyles,
                          focusWidths,
@@ -930,6 +936,8 @@ nsCSSRendering::PaintFocus(nsPresContext* aPresContext,
                          nullptr,
                          NS_RGB(255, 0, 0));
   br.DrawBorders();
+
+  ctx->Restore();
 
   PrintAsStringNewline();
 }
