@@ -1,5 +1,6 @@
-/* -*- Mode: c++; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 40 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ *
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -12,19 +13,19 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is worker threads.
+ * The Original Code is Mozilla Communicator client code, released
+ * March 31, 1998.
  *
  * The Initial Developer of the Original Code is
- *   Mozilla Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2008
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Ben Turner <bent.mozilla@gmail.com> (Original Author)
  *
  * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
  * in which case the provisions of the GPL or the LGPL are applicable instead
  * of those above. If you wish to allow use of your version of this file only
  * under the terms of either the GPL or the LGPL, and not to allow others to
@@ -36,27 +37,21 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef __NSDOMWORKERSECURITYMANAGER_H__
-#define __NSDOMWORKERSECURITYMANAGER_H__
+#ifndef jsstaticcheck_h___
+#define jsstaticcheck_h___
 
-#include "nsIXPCSecurityManager.h"
-#include "jsapi.h"
+#ifdef NS_STATIC_CHECKING
+/*
+ * Trigger a control flow check to make sure that code flows through label
+ */
+inline __attribute__ ((unused)) void MUST_FLOW_THROUGH(const char *label) {
+}
 
-class nsDOMWorkerSecurityManager : public nsIXPCSecurityManager
-{
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIXPCSECURITYMANAGER
+/* avoid unused goto-label warnings */
+#define MUST_FLOW_LABEL(label) goto label; label:
+#else
+#define MUST_FLOW_THROUGH(label) ((void)0)
+#define MUST_FLOW_LABEL(label)
+#endif
 
-  static JSPrincipals* WorkerPrincipal();
-
-  static JSBool JSCheckAccess(JSContext* aCx, JSObject* aObj, jsval aId,
-                              JSAccessMode aMode, jsval* aVp);
-
-  static JSPrincipals* JSFindPrincipal(JSContext* aCx, JSObject* aObj);
-
-  static JSBool JSTranscodePrincipals(JSXDRState* aXdr,
-                                      JSPrincipals** aJsprinp);
-};
-
-#endif /* __NSDOMWORKERSECURITYMANAGER_H__ */
+#endif /* jsstaticcheck_h___ */
