@@ -932,13 +932,11 @@ int32_t nsCSSProps::kDisplayKTable[] = {
   eCSSKeyword__moz_popup,         NS_STYLE_DISPLAY_POPUP,
   eCSSKeyword__moz_groupbox,      NS_STYLE_DISPLAY_GROUPBOX,
 #endif
-#ifdef MOZ_FLEXBOX
   // XXXdholbert NOTE: These currently need to be the last entries in the
   // table, because the "is flexbox enabled" pref that disables these will
   // disable all the entries after them, too.
   eCSSKeyword_flex,               NS_STYLE_DISPLAY_FLEX,
   eCSSKeyword_inline_flex,        NS_STYLE_DISPLAY_INLINE_FLEX,
-#endif // MOZ_FLEXBOX
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -949,7 +947,6 @@ const int32_t nsCSSProps::kEmptyCellsKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
-#ifdef MOZ_FLEXBOX
 const int32_t nsCSSProps::kAlignItemsKTable[] = {
   eCSSKeyword_flex_start, NS_STYLE_ALIGN_ITEMS_FLEX_START,
   eCSSKeyword_flex_end,   NS_STYLE_ALIGN_ITEMS_FLEX_END,
@@ -986,7 +983,6 @@ const int32_t nsCSSProps::kJustifyContentKTable[] = {
   eCSSKeyword_space_around,  NS_STYLE_JUSTIFY_CONTENT_SPACE_AROUND,
   eCSSKeyword_UNKNOWN,-1
 };
-#endif // MOZ_FLEXBOX
 
 const int32_t nsCSSProps::kFloatKTable[] = {
   eCSSKeyword_none,  NS_STYLE_FLOAT_NONE,
@@ -2259,14 +2255,12 @@ static const nsCSSProperty gColumnRuleSubpropTable[] = {
   eCSSProperty_UNKNOWN
 };
 
-#ifdef MOZ_FLEXBOX
 static const nsCSSProperty gFlexSubpropTable[] = {
   eCSSProperty_flex_grow,
   eCSSProperty_flex_shrink,
   eCSSProperty_flex_basis,
   eCSSProperty_UNKNOWN
 };
-#endif // MOZ_FLEXBOX
 
 static const nsCSSProperty gOverflowSubpropTable[] = {
   eCSSProperty_overflow_x,

@@ -1000,6 +1000,7 @@ BytecodeEmitter::isAliasedName(ParseNode *pn)
         return script->varIsAliased(pn->pn_cookie.slot());
       case Definition::PLACEHOLDER:
       case Definition::NAMED_LAMBDA:
+      case Definition::MISSING:
         JS_NOT_REACHED("unexpected dn->kind");
     }
     return false;
@@ -1343,6 +1344,9 @@ BindNameToSlotHelper(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
       case Definition::PLACEHOLDER:
         return true;
+
+      case Definition::MISSING:
+        JS_NOT_REACHED("missing");
     }
 
     /*
@@ -4385,9 +4389,10 @@ EmitFunc(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
         if (generateBytecode) {
             Rooted<JSObject*> enclosingScope(cx, EnclosingStaticScope(bce));
+            Rooted<ScriptSourceObject *> sourceObject(cx, bce->script->sourceObject());
             Rooted<JSScript*> script(cx, JSScript::Create(cx, enclosingScope, false, options,
                                                           parent->staticLevel + 1,
-                                                          bce->script->scriptSource(),
+                                                          sourceObject,
                                                           funbox->bufStart, funbox->bufEnd));
             if (!script)
                 return false;

@@ -7626,7 +7626,6 @@ class CGDictionary(CGThing):
                 Argument('const nsAString&', 'aJSON'),
             ], body=(
                 "AutoSafeJSContext cx;\n"
-                "JSAutoRequest ar(cx);\n"
                 "JS::Rooted<JS::Value> json(cx);\n"
                 "bool ok = ParseJSON(cx, aJSON, &json);\n"
                 "NS_ENSURE_TRUE(ok, false);\n"
@@ -7710,7 +7709,9 @@ class CGDictionary(CGThing):
         selfName = self.makeClassName(d)
         members = [ClassMember(self.makeMemberName(m[0].identifier.name),
                                self.getMemberType(m),
-                               visibility="public") for m in self.memberInfo]
+                               visibility="public",
+                               body=self.getMemberInitializer(m))
+                   for m in self.memberInfo]
         ctor = ClassConstructor([], bodyInHeader=True, visibility="public")
         methods = []
 
@@ -7930,6 +7931,25 @@ class CGDictionary(CGThing):
             trace = CGIfWrapper(trace, "%s.WasPassed()" % memberLoc)
 
         return trace.define()
+
+    def getMemberInitializer(self, memberInfo):
+        """
+        Get the right initializer for the member.  Most members don't need one,
+        but we need to pre-initialize 'any' and 'object' that have a default
+        value, so they're safe to trace at all times.
+        """
+        (member, _) = memberInfo
+        if not member.defaultValue:
+            # No default value means no need to set it up front, since it's
+            # inside an Optional and won't get traced until it's actually set
+            # up.
+            return None
+        type = member.type
+        if type.isAny():
+            return "JS::UndefinedValue()"
+        if type.isObject():
+            return "nullptr"
+        return None
 
     @staticmethod
     def makeIdName(name):
@@ -8296,6 +8316,7 @@ class CGBindingRoot(CGThing):
                             + (['mozilla/Preferences.h'] if requiresPreferences else [])
                             + (['mozilla/dom/NonRefcountedDOMObject.h'] if hasOwnedDescriptors else [])
                             + (['nsContentUtils.h'] if requiresContentUtils else [])
+                            + (['nsCxPusher.h'] if requiresContentUtils else [])
                             + (['AccessCheck.h'] if hasChromeOnlyMembers else []),
                          curr,
                          config,

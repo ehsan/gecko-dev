@@ -447,6 +447,7 @@ class TypeSet
     bool unknownObject() const { return !!(flags & (TYPE_FLAG_UNKNOWN | TYPE_FLAG_ANYOBJECT)); }
 
     bool empty() const { return !baseFlags() && !baseObjectCount(); }
+    bool noConstraints() const { return constraintList == NULL; }
 
     bool hasAnyFlag(TypeFlags flags) const {
         JS_ASSERT((flags & TYPE_FLAG_BASE_MASK) == flags);
@@ -495,6 +496,7 @@ class TypeSet
     inline TypeObjectKey *getObject(unsigned i) const;
     inline JSObject *getSingleObject(unsigned i) const;
     inline TypeObject *getTypeObject(unsigned i) const;
+    inline TypeObject *getTypeOrSingleObject(JSContext *cx, unsigned i) const;
 
     void setOwnProperty(bool configurable) {
         flags |= TYPE_FLAG_OWN_PROPERTY;
@@ -1468,13 +1470,6 @@ struct TypeZone
 
     /* Whether type inference is enabled in this compartment. */
     bool                         inferenceEnabled;
-
-    /*
-     * JM compilation is allowed only if script analysis has been used to
-     * monitor the behavior of all scripts in this zone since its creation.
-     * OSR in JM requires this property.
-     */
-    bool jaegerCompilationAllowed;
 
     TypeZone(JS::Zone *zone);
     ~TypeZone();

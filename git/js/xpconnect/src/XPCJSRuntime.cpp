@@ -23,6 +23,7 @@
 
 #include "nsLayoutStatics.h"
 #include "nsContentUtils.h"
+#include "nsCxPusher.h"
 #include "nsCCUncollectableMarker.h"
 #include "nsCycleCollectionNoteRootCallback.h"
 #include "nsCycleCollectorUtils.h"
@@ -429,7 +430,7 @@ void XPCJSRuntime::TraceXPConnectRoots(JSTracer *trc)
     JSContext *iter = nullptr;
     while (JSContext *acx = JS_ContextIterator(GetJSRuntime(), &iter)) {
         MOZ_ASSERT(js::HasUnrootedGlobal(acx));
-        if (JSObject *global = JS_GetGlobalObject(acx))
+        if (JSObject *global = js::GetDefaultGlobalForContext(acx))
             JS_CallObjectTracer(trc, &global, "XPC global object");
     }
 
@@ -543,7 +544,7 @@ XPCJSRuntime::AddXPConnectRoots(nsCycleCollectionNoteRootCallback &cb)
     while ((acx = JS_ContextIterator(GetJSRuntime(), &iter))) {
         // Add the context to the CC graph only if traversing it would
         // end up doing something.
-        JSObject* global = JS_GetGlobalObject(acx);
+        JSObject* global = js::GetDefaultGlobalForContext(acx);
         if (global && xpc_IsGrayGCThing(global)) {
             cb.NoteNativeRoot(acx, nsXPConnect::JSContextParticipant());
         }
@@ -1872,11 +1873,6 @@ ReportCompartmentStats(const JS::CompartmentStats &cStats,
                    cStats.scriptData,
                    "Memory allocated for various variable-length tables in JSScript.");
 
-    ZCREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("jaeger-data"),
-                   cStats.jaegerData,
-                   "Memory used by the JaegerMonkey JIT for compilation data: "
-                   "JITScripts, native maps, and inline cache structs.");
-
     ZCREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("baseline/data"),
                    cStats.baselineData,
                    "Memory used by the Baseline JIT for compilation data: "
@@ -2019,10 +2015,6 @@ ReportJSRuntimeExplicitTreeStats(const JS::RuntimeStats &rtStats,
                   nsIMemoryReporter::KIND_HEAP, rtStats.runtime.temporary,
                   "Memory held transiently in JSRuntime and used during "
                   "compilation.  It mostly holds parse nodes.");
-
-    RREPORT_BYTES(rtPath + NS_LITERAL_CSTRING("runtime/code/jaeger"),
-                  nsIMemoryReporter::KIND_NONHEAP, rtStats.runtime.code.jaeger,
-                  "Memory used by the JaegerMonkey JIT to hold generated code.");
 
     RREPORT_BYTES(rtPath + NS_LITERAL_CSTRING("runtime/code/ion"),
                   nsIMemoryReporter::KIND_NONHEAP, rtStats.runtime.code.ion,
@@ -2828,22 +2820,21 @@ bool InternStaticDictionaryJSVals(JSContext* aCx);
 JSBool
 XPCJSRuntime::OnJSContextNew(JSContext *cx)
 {
+    // If we were the first cx ever created (like the SafeJSContext), the caller
+    // would have had no way to enter a request. Enter one now before doing the
+    // rest of the cx setup.
+    JSAutoRequest ar(cx);
+
     // if it is our first context then we need to generate our string ids
     if (JSID_IS_VOID(mStrIDs[0])) {
-        JS_SetGCParameterForThread(cx, JSGC_MAX_CODE_CACHE_BYTES, 16 * 1024 * 1024);
-        {
-            // Scope the JSAutoRequest so it goes out of scope before calling
-            // mozilla::dom::binding::DefineStaticJSVals.
-            JSAutoRequest ar(cx);
-            RootedString str(cx);
-            for (unsigned i = 0; i < IDX_TOTAL_COUNT; i++) {
-                str = JS_InternString(cx, mStrings[i]);
-                if (!str || !JS_ValueToId(cx, STRING_TO_JSVAL(str), &mStrIDs[i])) {
-                    mStrIDs[0] = JSID_VOID;
-                    return false;
-                }
-                mStrJSVals[i] = STRING_TO_JSVAL(str);
+        RootedString str(cx);
+        for (unsigned i = 0; i < IDX_TOTAL_COUNT; i++) {
+            str = JS_InternString(cx, mStrings[i]);
+            if (!str || !JS_ValueToId(cx, STRING_TO_JSVAL(str), &mStrIDs[i])) {
+                mStrIDs[0] = JSID_VOID;
+                return false;
             }
+            mStrJSVals[i] = STRING_TO_JSVAL(str);
         }
 
         if (!mozilla::dom::DefineStaticJSVals(cx) ||
@@ -3032,7 +3023,6 @@ XPCJSRuntime::GetJunkScope()
         AutoSafeJSContext cx;
         SandboxOptions options(cx);
         options.sandboxName.AssignASCII("XPConnect Junk Compartment");
-        JSAutoRequest ac(cx);
         RootedValue v(cx);
         nsresult rv = xpc_CreateSandboxObject(cx, v.address(),
                                               nsContentUtils::GetSystemPrincipal(),
@@ -3052,8 +3042,7 @@ XPCJSRuntime::DeleteJunkScope()
     if(!mJunkScope)
         return;
 
-    JSContext *cx = mJSContextStack->GetSafeJSContext();
-    JSAutoRequest ac(cx);
+    AutoSafeJSContext cx;
     JS_RemoveObjectRoot(cx, &mJunkScope);
     mJunkScope = nullptr;
 }

@@ -1072,18 +1072,12 @@ TypeScript::SetThis(JSContext *cx, JSScript *script, Type type)
         return;
     JS_ASSERT(script->types);
 
-    /* Analyze the script regardless if -a was used. */
-    bool analyze = cx->hasOption(JSOPTION_METHODJIT_ALWAYS);
-
-    if (!ThisTypes(script)->hasType(type) || analyze) {
+    if (!ThisTypes(script)->hasType(type)) {
         AutoEnterAnalysis enter(cx);
 
         InferSpew(ISpewOps, "externalType: setThis #%u: %s",
                   script->id(), TypeString(type));
         ThisTypes(script)->addType(cx, type);
-
-        if (analyze)
-            script->ensureRanInference(cx);
     }
 }
 
@@ -1564,6 +1558,22 @@ TypeSet::getTypeObject(unsigned i) const
 {
     TypeObjectKey *key = getObject(i);
     return (key && !(uintptr_t(key) & 1)) ? (TypeObject *) key : NULL;
+}
+
+inline TypeObject *
+TypeSet::getTypeOrSingleObject(JSContext *cx, unsigned i) const
+{
+    JS_ASSERT(cx->compartment->activeAnalysis);
+    TypeObject *type = getTypeObject(i);
+    if (!type) {
+        JSObject *singleton = getSingleObject(i);
+        if (!singleton)
+            return NULL;
+        type = singleton->getType(cx);
+        if (!type)
+            cx->compartment->types.setPendingNukeTypes(cx);
+    }
+    return type;
 }
 
 /////////////////////////////////////////////////////////////////////

@@ -35,6 +35,7 @@
 #include "nsIScriptRuntime.h"
 #include "nsCOMArray.h"
 #include "nsDOMClassInfo.h"
+#include "nsCxPusher.h"
 
 #include "nsGUIEvent.h"
 #include "nsAsyncDOMEvent.h"
@@ -1773,6 +1774,10 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsDocument)
   if (tmp->mCSSLoader) {
     tmp->mCSSLoader->TraverseCachedSheets(cb);
   }
+
+  for (uint32_t i = 0; i < tmp->mHostObjectURIs.Length(); ++i) {
+    nsHostObjectProtocolHandler::Traverse(tmp->mHostObjectURIs[i], cb);
+  }
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 
@@ -1875,6 +1880,10 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocument)
 
   if (tmp->mCSSLoader) {
     tmp->mCSSLoader->UnlinkCachedSheets();
+  }
+
+  for (uint32_t i = 0; i < tmp->mHostObjectURIs.Length(); ++i) {
+    nsHostObjectProtocolHandler::RemoveDataEntry(tmp->mHostObjectURIs[i]);
   }
 
   tmp->mInUnlinkOrDeletion = false;
@@ -2343,6 +2352,16 @@ nsDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
     if (uri)
       uri->GetSpec(spec);
     PR_LogPrint("DOCUMENT %p StartDocumentLoad %s", this, spec.get());
+  }
+#endif
+
+#ifdef DEBUG
+  {
+    uint32_t appId;
+    nsresult rv = NodePrincipal()->GetAppId(&appId);
+    NS_ENSURE_SUCCESS(rv, rv);
+    MOZ_ASSERT(appId != nsIScriptSecurityManager::UNKNOWN_APP_ID,
+               "Document should never have UNKNOWN_APP_ID");
   }
 #endif
 

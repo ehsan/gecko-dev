@@ -4106,6 +4106,52 @@ class LGetArgument : public LInstructionHelper<BOX_PIECES, 1, 0>
     }
 };
 
+// Create the rest parameter.
+class LRest : public LCallInstructionHelper<1, 1, 3>
+{
+  public:
+    LIR_HEADER(Rest)
+
+    LRest(const LAllocation &numActuals, const LDefinition &temp1, const LDefinition &temp2,
+          const LDefinition &temp3) {
+        setOperand(0, numActuals);
+        setTemp(0, temp1);
+        setTemp(1, temp2);
+        setTemp(2, temp3);
+    }
+    const LAllocation *numActuals() {
+        return getOperand(0);
+    }
+    MRest *mir() const {
+        return mir_->toRest();
+    }
+};
+
+class LParRest : public LCallInstructionHelper<1, 2, 3>
+{
+  public:
+    LIR_HEADER(ParRest);
+
+    LParRest(const LAllocation &parSlice, const LAllocation &numActuals,
+             const LDefinition &temp1, const LDefinition &temp2, const LDefinition &temp3) {
+        setOperand(0, parSlice);
+        setOperand(1, numActuals);
+        setTemp(0, temp1);
+        setTemp(1, temp2);
+        setTemp(2, temp3);
+    }
+    const LAllocation *parSlice() {
+        return getOperand(0);
+    }
+    const LAllocation *numActuals() {
+        return getOperand(1);
+    }
+    MRest *mir() const {
+        return mir_->toRest();
+    }
+};
+
+
 class LParWriteGuard : public LCallInstructionHelper<0, 2, 1>
 {
   public:
@@ -4182,6 +4228,52 @@ class LMonitorTypes : public LInstructionHelper<0, BOX_PIECES, 1>
 
     const MMonitorTypes *mir() const {
         return mir_->toMonitorTypes();
+    }
+    const LDefinition *temp() {
+        return getTemp(0);
+    }
+};
+
+// Generational write barrier used when writing an object to another object.
+class LPostWriteBarrierO : public LInstructionHelper<0, 2, 0>
+{
+  public:
+    LIR_HEADER(PostWriteBarrierO)
+
+    LPostWriteBarrierO(const LAllocation &obj, const LAllocation &value) {
+        setOperand(0, obj);
+        setOperand(1, value);
+    }
+
+    const MPostWriteBarrier *mir() const {
+        return mir_->toPostWriteBarrier();
+    }
+    const LAllocation *object() {
+        return getOperand(0);
+    }
+    const LAllocation *value() {
+        return getOperand(1);
+    }
+};
+
+// Generational write barrier used when writing a value to another object.
+class LPostWriteBarrierV : public LInstructionHelper<0, 1 + BOX_PIECES, 1>
+{
+  public:
+    LIR_HEADER(PostWriteBarrierV)
+
+    LPostWriteBarrierV(const LAllocation &obj, const LDefinition &temp) {
+        setOperand(0, obj);
+        setTemp(0, temp);
+    }
+
+    static const size_t Input = 1;
+
+    const MPostWriteBarrier *mir() const {
+        return mir_->toPostWriteBarrier();
+    }
+    const LAllocation *object() {
+        return getOperand(0);
     }
     const LDefinition *temp() {
         return getTemp(0);

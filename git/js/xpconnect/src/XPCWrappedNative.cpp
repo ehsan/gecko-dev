@@ -20,6 +20,7 @@
 #include "XrayWrapper.h"
 
 #include "nsContentUtils.h"
+#include "nsCxPusher.h"
 
 #include "mozilla/StandardInteger.h"
 #include "mozilla/Util.h"
@@ -2998,13 +2999,10 @@ NS_IMETHODIMP XPCWrappedNative::GetXPConnect(nsIXPConnect * *aXPConnect)
     return NS_OK;
 }
 
-/* XPCNativeInterface FindInterfaceWithMember (in jsval name); */
-NS_IMETHODIMP XPCWrappedNative::FindInterfaceWithMember(jsid nameArg,
+/* XPCNativeInterface FindInterfaceWithMember (in JSHandleId name); */
+NS_IMETHODIMP XPCWrappedNative::FindInterfaceWithMember(HandleId name,
                                                         nsIInterfaceInfo * *_retval)
 {
-    AutoJSContext cx;
-    RootedId name(cx, nameArg);
-
     XPCNativeInterface* iface;
     XPCNativeMember*  member;
 
@@ -3017,13 +3015,10 @@ NS_IMETHODIMP XPCWrappedNative::FindInterfaceWithMember(jsid nameArg,
     return NS_OK;
 }
 
-/* XPCNativeInterface FindInterfaceWithName (in jsval name); */
-NS_IMETHODIMP XPCWrappedNative::FindInterfaceWithName(jsid nameArg,
+/* XPCNativeInterface FindInterfaceWithName (in JSHandleId name); */
+NS_IMETHODIMP XPCWrappedNative::FindInterfaceWithName(HandleId name,
                                                       nsIInterfaceInfo * *_retval)
 {
-    AutoJSContext cx;
-    RootedId name(cx, nameArg);
-
     XPCNativeInterface* iface = GetSet()->FindNamedInterface(name);
     if (iface) {
         nsIInterfaceInfo* temp = iface->GetInterfaceInfo();
@@ -3034,13 +3029,10 @@ NS_IMETHODIMP XPCWrappedNative::FindInterfaceWithName(jsid nameArg,
     return NS_OK;
 }
 
-/* [notxpcom] bool HasNativeMember (in jsval name); */
+/* [notxpcom] bool HasNativeMember (in JSHandleId name); */
 NS_IMETHODIMP_(bool)
-XPCWrappedNative::HasNativeMember(jsid nameArg)
+XPCWrappedNative::HasNativeMember(HandleId name)
 {
-    AutoJSContext cx;
-    RootedId name(cx, nameArg);
-
     XPCNativeMember *member = nullptr;
     uint16_t ignored;
     return GetSet()->FindMember(name, &member, &ignored) && !!member;
