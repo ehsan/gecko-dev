@@ -201,6 +201,7 @@ let Content = {
         break;
 
       case "DOMContentLoaded":
+        LoginManagerContent.onContentLoaded(aEvent);
         this._maybeNotifyErrorPage();
         break;
 

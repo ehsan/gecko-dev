@@ -7,6 +7,7 @@ package org.mozilla.gecko.tests.components;
 import static org.mozilla.gecko.tests.helpers.AssertionHelper.*;
 
 import org.mozilla.gecko.Actions;
+import org.mozilla.gecko.home.HomePager.Page;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.tests.helpers.*;
 import org.mozilla.gecko.tests.UITestContext;
@@ -22,14 +23,6 @@ import android.view.View;
  * A class representing any interactions that take place on the Awesomescreen.
  */
 public class AboutHomeComponent extends BaseComponent {
-    // The different types of pages that can be present on about:home
-    public enum PageType {
-        HISTORY,
-        TOP_SITES,
-        BOOKMARKS,
-        READING_LIST
-    }
-
     // TODO: Having a specific ordering of pages is prone to fail and thus temporary.
     // Hopefully the work in bug 940565 will alleviate the need for these enums.
     // Explicit ordering of HomePager pages on a phone.
@@ -60,7 +53,7 @@ public class AboutHomeComponent extends BaseComponent {
         return (ViewPager) mSolo.getView(R.id.home_pager);
     }
 
-    public AboutHomeComponent assertCurrentPage(final PageType expectedPage) {
+    public AboutHomeComponent assertCurrentPage(final Page expectedPage) {
         assertVisible();
 
         final int expectedPageIndex = getPageIndexForDevice(expectedPage.ordinal());
@@ -130,10 +123,10 @@ public class AboutHomeComponent extends BaseComponent {
 
     /**
      * Gets the page index in the device specific Page enum for the given index in the
-     * PageType enum.
+     * HomePager.Page enum.
      */
     private int getPageIndexForDevice(final int pageIndex) {
-        final String pageName = PageType.values()[pageIndex].name();
+        final String pageName = Page.values()[pageIndex].name();
         final Class devicePageEnum =
                 DeviceHelper.isTablet() ? TabletPage.class : PhonePage.class;
         return Enum.valueOf(devicePageEnum, pageName).ordinal();
