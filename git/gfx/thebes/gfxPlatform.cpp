@@ -253,7 +253,7 @@ gfxPlatform::Init()
 
     gPlatform->mScreenReferenceSurface =
       gPlatform->CreateOffscreenSurface(gfxIntSize(1,1),
-                                        gfxASurface::CONTENT_COLOR_ALPHA);
+                                        gfxASurface::ImageFormatARGB32);
     if (!gPlatform->mScreenReferenceSurface) {
       NS_ERROR("Could not initialize mScreenReferenceSurface");
       Shutdown();
@@ -369,7 +369,7 @@ gfxPlatform::OptimizeImage(gfxImageSurface *aSurface,
         return nsnull;
     }
 #endif
-    nsRefPtr<gfxASurface> optSurface = CreateOffscreenSurface(surfaceSize, gfxASurface::ContentFromFormat(format));
+    nsRefPtr<gfxASurface> optSurface = CreateOffscreenSurface(surfaceSize, format);
     if (!optSurface || optSurface->CairoStatus() != 0)
         return nsnull;
 

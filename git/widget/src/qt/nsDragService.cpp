@@ -51,6 +51,7 @@ NS_IMPL_QUERY_INTERFACE2(nsDragService, nsIDragService, nsIDragSession )
 nsDragService::nsDragService() : mDrag(NULL)
 {
     /* member initializers and constructor code */
+        
     // TODO: Any other better source? (the main window?)
     //mHiddenWidget = new QWidget(0,QWidget::tr("DragDrop"),0);
     mHiddenWidget = new QWidget();
@@ -92,13 +93,13 @@ nsDragService::SetupDragSession(
     aTransferables->Count(&itemCount);
     if (0 == itemCount)
     {
-        NS_WARNING("No items to drag?");
+        qDebug("No items to drag?");
         return NS_ERROR_FAILURE;
     }
 
     if (1 != itemCount)
     {
-        NS_WARNING("Dragging more than one item, cannot do (yet?)");
+        qDebug("Dragging more than one item, cannot do (yet?)");
         return NS_ERROR_NOT_IMPLEMENTED;
     }
 
@@ -231,8 +232,9 @@ nsDragService::InvokeDragSessionWithImage(
         // and then:
         // mDrag->setPixmap( pixmap ) or mDrag->setDragCursor( pixmap );
         // mDrad->setHotSpot( point );
+        
         // TODO: Not implemented yet as this cannot be currently tested
-        NS_WARNING("Support for drag image not implemented");
+        qDebug("Support for drag image not implemented");
     }
 
     return ExecuteDrag();

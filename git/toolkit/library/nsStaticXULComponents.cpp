@@ -129,7 +129,7 @@
 #define SYSTEMPREF_MODULES
 #endif
 
-#ifdef ENABLE_LAYOUTDEBUG
+#if defined(MOZ_DEBUG) && defined(ENABLE_TESTS)
 #define LAYOUT_DEBUG_MODULE MODULE(nsLayoutDebugModule)
 #else
 #define LAYOUT_DEBUG_MODULE
@@ -231,12 +231,6 @@
 #define JSCTYPES_MODULE
 #endif
 
-#if defined(MOZ_APP_COMPONENT_INCLUDE)
-#include MOZ_APP_COMPONENT_INCLUDE
-#else
-#define APP_COMPONENT_MODULES
-#endif
-
 #define XUL_MODULES                          \
     MODULE(nsUConvModule)                    \
     MODULE(nsI18nModule)                     \
@@ -285,7 +279,6 @@
     WINDOWSPROXY_MODULE                      \
     JSCTYPES_MODULE                          \
     MODULE(jsperf)                           \
-    APP_COMPONENT_MODULES                    \
     /* end of list */
 
 #define MODULE(_name) \

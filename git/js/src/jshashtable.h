@@ -322,9 +322,6 @@ class HashTable : AllocPolicy
 
     bool init(uint32 length)
     {
-        /* Make sure that init isn't called twice. */
-        JS_ASSERT(table == NULL);
-
         /*
          * Correct for sMaxAlphaFrac such that the table will not resize
          * when adding 'length' entries.

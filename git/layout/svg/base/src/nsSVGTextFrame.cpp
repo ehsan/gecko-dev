@@ -313,20 +313,21 @@ nsSVGTextFrame::UpdateGlyphPositioning(PRBool aForceGlobalTransform)
     return;
   }
 
-  BuildPositionList(0, 0);
-
   gfxPoint ctp(0.0, 0.0);
+
+  SVGUserUnitList xLengthList, yLengthList;
+  GetXY(&xLengthList, &yLengthList);
+  if (xLengthList.Length() > 0) ctp.x = xLengthList[0];
+  if (yLengthList.Length() > 0) ctp.y = yLengthList[0];
 
   // loop over chunks
   while (firstFragment) {
-    nsSVGTextPathFrame *textPath = firstFragment->FindTextPathParent();
-
-    nsTArray<float> effectiveXList, effectiveYList;
-    firstFragment->GetEffectiveXY(effectiveXList, effectiveYList);
-    if (!effectiveXList.IsEmpty()) ctp.x = effectiveXList[0];
-    if (!textPath && !effectiveYList.IsEmpty()) ctp.y = effectiveYList[0];
+    firstFragment->GetXY(&xLengthList, &yLengthList);
+    if (xLengthList.Length() > 0) ctp.x = xLengthList[0];
+    if (yLengthList.Length() > 0) ctp.y = yLengthList[0];
 
     // check for startOffset on textPath
+    nsSVGTextPathFrame *textPath = firstFragment->FindTextPathParent();
     if (textPath) {
       if (!textPath->GetPathFrame()) {
         // invalid text path, give up

@@ -211,6 +211,9 @@ typedef enum
  */
 const PRUint32 kMaxClassNameLength   = 40;
 const LPCWSTR kClassNameHidden       = L"MozillaHiddenWindowClass";
+const LPCWSTR kClassNameUI           = L"MozillaUIWindowClass";
+const LPCWSTR kClassNameContent      = L"MozillaContentWindowClass";
+const LPCWSTR kClassNameContentFrame = L"MozillaContentFrameWindowClass";
 const LPCWSTR kClassNameGeneral      = L"MozillaWindowClass";
 const LPCWSTR kClassNameDialog       = L"MozillaDialogClass";
 const LPCWSTR kClassNameDropShadow   = L"MozillaDropShadowWindowClass";

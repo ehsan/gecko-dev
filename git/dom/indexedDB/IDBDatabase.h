@@ -119,11 +119,6 @@ public:
     return mASCIIOrigin;
   }
 
-  void Invalidate();
-  bool IsInvalidated();
-
-  void WaitForConnectionReleased();
-
 private:
   IDBDatabase();
   ~IDBDatabase();
@@ -136,7 +131,6 @@ private:
   nsString mDescription;
   nsString mFilePath;
   nsCString mASCIIOrigin;
-  PRInt32 mInvalidated;
 
   nsRefPtr<LazyIdleThread> mConnectionThread;
 

@@ -132,11 +132,9 @@ FontEntry::CreateFontEntry(const gfxProxyFontEntry &aProxyEntry,
         return nsnull;
     }
     FontEntry* fe = FontEntry::CreateFontEntryFromFace(face, aFontData);
-    if (fe) {
-        fe->mItalic = aProxyEntry.mItalic;
-        fe->mWeight = aProxyEntry.mWeight;
-        fe->mStretch = aProxyEntry.mStretch;
-    }
+    fe->mItalic = aProxyEntry.mItalic;
+    fe->mWeight = aProxyEntry.mWeight;
+    fe->mStretch = aProxyEntry.mStretch;
     return fe;
 }
 

@@ -168,8 +168,6 @@
 #include "nsAutoPtr.h"
 #include "nsContentUtils.h"
 #include "nsCSSProps.h"
-#include "nsFileDataProtocolHandler.h"
-#include "nsIDOMFile.h"
 #include "nsIURIFixup.h"
 #include "mozilla/FunctionTimer.h"
 #include "nsCDefaultURIFixup.h"
@@ -690,15 +688,13 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
     mPendingStorageEventsObsolete(nsnull),
     mTimeoutsSuspendDepth(0),
     mFocusMethod(0),
-    mSerial(0),
+    mSerial(0)
 #ifdef DEBUG
-    mSetOpenerWindowCalled(PR_FALSE),
+    , mSetOpenerWindowCalled(PR_FALSE)
 #endif
-    mCleanedUp(PR_FALSE),
-    mCallCleanUpAfterModalDialogCloses(PR_FALSE),
-    mWindowID(gNextWindowID++),
-    mDialogAbuseCount(0),
-    mDialogDisabled(PR_FALSE)
+    , mCleanedUp(PR_FALSE)
+    , mCallCleanUpAfterModalDialogCloses(PR_FALSE)
+    , mWindowID(gNextWindowID++)
 {
   nsLayoutStatics::AddRef();
 
@@ -1590,8 +1586,7 @@ NS_IMPL_ISUPPORTS1(WindowStateHolder, WindowStateHolder)
 
 nsresult
 nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
-                               nsISupports* aState,
-                               PRBool aForceReuseInnerWindow)
+                               nsISupports* aState)
 {
   NS_TIME_FUNCTION;
 
@@ -1615,8 +1610,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
       return NS_ERROR_NOT_AVAILABLE;
     }
 
-    return GetOuterWindowInternal()->SetNewDocument(aDocument, aState,
-                                                    aForceReuseInnerWindow);
+    return GetOuterWindowInternal()->SetNewDocument(aDocument, aState);
   }
 
   NS_PRECONDITION(IsOuterWindow(), "Must only be called on outer windows");
@@ -1634,15 +1628,6 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
                GetCurrentInnerWindow()->GetExtantDocument() == mDocument,
                "Uh, mDocument doesn't match the current inner window "
                "document!");
-
-  PRBool wouldReuseInnerWindow = WouldReuseInnerWindow(aDocument);
-  if (aForceReuseInnerWindow &&
-      !wouldReuseInnerWindow &&
-      mDoc &&
-      mDoc->NodePrincipal() != aDocument->NodePrincipal()) {
-    NS_ERROR("Attempted forced inner window reuse while changing principal");
-    return NS_ERROR_UNEXPECTED;
-  }
 
   nsresult rv = NS_OK;
 
@@ -1683,7 +1668,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
   nsContentUtils::AddScriptRunner(
     NS_NewRunnableMethod(this, &nsGlobalWindow::ClearStatus));
 
-  PRBool reUseInnerWindow = aForceReuseInnerWindow || wouldReuseInnerWindow;
+  PRBool reUseInnerWindow = WouldReuseInnerWindow(aDocument);
 
   // Remember the old document's principal.
   nsIPrincipal *oldPrincipal = nsnull;
@@ -2348,105 +2333,6 @@ nsGlobalWindow::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   return NS_OK;
 }
 
-bool
-nsGlobalWindow::DialogOpenAttempted()
-{
-  nsGlobalWindow *topWindow = GetTop();
-  if (!topWindow) {
-    NS_ERROR("DialogOpenAttempted() called without a top window?");
-
-    return false;
-  }
-
-  topWindow = topWindow->GetCurrentInnerWindowInternal();
-  if (!topWindow ||
-      topWindow->mLastDialogQuitTime.IsNull() ||
-      nsContentUtils::IsCallerTrustedForCapability("UniversalXPConnect")) {
-    return false;
-  }
-
-  TimeDuration dialogDuration(TimeStamp::Now() -
-                              topWindow->mLastDialogQuitTime);
-
-  if (dialogDuration.ToSeconds() <
-      nsContentUtils::GetIntPref("dom.successive_dialog_time_limit",
-                                 SUCCESSIVE_DIALOG_TIME_LIMIT)) {
-    topWindow->mDialogAbuseCount++;
-
-    return (topWindow->GetPopupControlState() > openAllowed ||
-            topWindow->mDialogAbuseCount > MAX_DIALOG_COUNT);
-  }
-
-  topWindow->mDialogAbuseCount = 0;
-
-  return false;
-}
-
-bool
-nsGlobalWindow::AreDialogsBlocked()
-{
-  nsGlobalWindow *topWindow = GetTop();
-  if (!topWindow) {
-    NS_ERROR("AreDialogsBlocked() called without a top window?");
-
-    return true;
-  }
-
-  topWindow = topWindow->GetCurrentInnerWindowInternal();
-
-  return !topWindow ||
-         (topWindow->mDialogDisabled &&
-          (topWindow->GetPopupControlState() > openAllowed ||
-           topWindow->mDialogAbuseCount >= MAX_DIALOG_COUNT));
-}
-
-bool
-nsGlobalWindow::ConfirmDialogAllowed()
-{
-  NS_ENSURE_TRUE(mDocShell, false);
-  nsCOMPtr<nsIPromptService> promptSvc =
-    do_GetService("@mozilla.org/embedcomp/prompt-service;1");
-
-  if (!DialogOpenAttempted() || !promptSvc) {
-    return true;
-  }
-
-  // Reset popup state while opening a modal dialog, and firing events
-  // about the dialog, to prevent the current state from being active
-  // the whole time a modal dialog is open.
-  nsAutoPopupStatePusher popupStatePusher(openAbused, PR_TRUE);
-
-  PRBool disableDialog = PR_FALSE;
-  nsXPIDLString label, title;
-  nsContentUtils::GetLocalizedString(nsContentUtils::eCOMMON_DIALOG_PROPERTIES,
-                                     "ScriptDialogLabel", label);
-  nsContentUtils::GetLocalizedString(nsContentUtils::eCOMMON_DIALOG_PROPERTIES,
-                                     "ScriptDialogPreventTitle", title);
-  promptSvc->Confirm(this, title.get(), label.get(), &disableDialog);
-  if (disableDialog) {
-    PreventFurtherDialogs();
-    return false;
-  }
-
-  return true;
-}
-
-void
-nsGlobalWindow::PreventFurtherDialogs()
-{
-  nsGlobalWindow *topWindow = GetTop();
-  if (!topWindow) {
-    NS_ERROR("PreventFurtherDialogs() called without a top window?");
-
-    return;
-  }
-
-  topWindow = topWindow->GetCurrentInnerWindowInternal();
-
-  if (topWindow)
-    topWindow->mDialogDisabled = PR_TRUE;
-}
-
 nsresult
 nsGlobalWindow::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 {
@@ -2774,6 +2660,8 @@ nsGlobalWindow::GetTop(nsIDOMWindow** aTop)
 {
   FORWARD_TO_OUTER(GetTop, (aTop), NS_ERROR_NOT_INITIALIZED);
 
+  nsresult ret = NS_OK;
+
   *aTop = nsnull;
   if (mDocShell) {
     nsCOMPtr<nsIDocShellTreeItem> docShellAsItem(do_QueryInterface(mDocShell));
@@ -2781,12 +2669,12 @@ nsGlobalWindow::GetTop(nsIDOMWindow** aTop)
     docShellAsItem->GetSameTypeRootTreeItem(getter_AddRefs(root));
 
     if (root) {
-      nsCOMPtr<nsIDOMWindow> top(do_GetInterface(root));
-      top.swap(*aTop);
+      nsCOMPtr<nsIScriptGlobalObject> globalObject(do_GetInterface(root));
+      CallQueryInterface(globalObject.get(), aTop);
     }
   }
 
-  return NS_OK;
+  return ret;
 }
 
 NS_IMETHODIMP
@@ -3055,35 +2943,6 @@ nsGlobalWindow::GetApplicationCache(nsIDOMOfflineResourceList **aApplicationCach
   }
 
   NS_IF_ADDREF(*aApplicationCache = mApplicationCache);
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsGlobalWindow::CreateBlobURL(nsIDOMFile* aFile, nsAString& aURL)
-{
-  FORWARD_TO_INNER(CreateBlobURL, (aFile, aURL), NS_ERROR_UNEXPECTED);
-
-  NS_ENSURE_STATE(mDoc);
-
-  nsresult rv = aFile->GetInternalUrl(mDoc->NodePrincipal(), aURL);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  mDoc->RegisterFileDataUri(NS_LossyConvertUTF16toASCII(aURL));
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsGlobalWindow::RevokeBlobURL(const nsAString& aURL)
-{
-  FORWARD_TO_INNER(RevokeBlobURL, (aURL), NS_ERROR_UNEXPECTED);
-
-  NS_ENSURE_STATE(mDoc);
-
-  NS_LossyConvertUTF16toASCII asciiurl(aURL);
-  mDoc->UnregisterFileDataUri(asciiurl);
-  nsFileDataProtocolHandler::RemoveFileDataEntry(asciiurl);
 
   return NS_OK;
 }
@@ -4373,13 +4232,6 @@ nsGlobalWindow::Alert(const nsAString& aString)
 {
   FORWARD_TO_OUTER(Alert, (aString), NS_ERROR_NOT_INITIALIZED);
 
-  if (AreDialogsBlocked())
-    return NS_ERROR_NOT_AVAILABLE;
-
-  // We have to capture this now so as not to get confused with the
-  // popup state we push next
-  PRBool shouldEnableDisableDialog = DialogOpenAttempted();
-
   // Reset popup state while opening a modal dialog, and firing events
   // about the dialog, to prevent the current state from being active
   // the whole time a modal dialog is open.
@@ -4405,42 +4257,16 @@ nsGlobalWindow::Alert(const nsAString& aString)
   nsContentUtils::StripNullChars(*str, final);
 
   nsresult rv;
-  nsCOMPtr<nsIPromptService> promptSvc =
-    do_GetService("@mozilla.org/embedcomp/prompt-service;1", &rv);
+  nsCOMPtr<nsIPromptService> promptSvc = do_GetService("@mozilla.org/embedcomp/prompt-service;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  EnterModalState();
-
-  if (shouldEnableDisableDialog) {
-    PRBool disallowDialog = PR_FALSE;
-    nsXPIDLString label;
-    nsContentUtils::GetLocalizedString(nsContentUtils::eCOMMON_DIALOG_PROPERTIES,
-                                       "ScriptDialogLabel", label);
-
-    rv = promptSvc->AlertCheck(this, title.get(), final.get(), label.get(),
-                               &disallowDialog);
-    if (disallowDialog)
-      PreventFurtherDialogs();
-  } else {
-    rv = promptSvc->Alert(this, title.get(), final.get());
-  }
-
-  LeaveModalState();
-
-  return rv;
+  return promptSvc->Alert(this, title.get(), final.get());
 }
 
 NS_IMETHODIMP
 nsGlobalWindow::Confirm(const nsAString& aString, PRBool* aReturn)
 {
   FORWARD_TO_OUTER(Confirm, (aString, aReturn), NS_ERROR_NOT_INITIALIZED);
-
-  if (AreDialogsBlocked())
-    return NS_ERROR_NOT_AVAILABLE;
-
-  // We have to capture this now so as not to get confused with the popup state
-  // we push next
-  PRBool shouldEnableDisableDialog = DialogOpenAttempted();
 
   // Reset popup state while opening a modal dialog, and firing events
   // about the dialog, to prevent the current state from being active
@@ -4462,29 +4288,10 @@ nsGlobalWindow::Confirm(const nsAString& aString, PRBool* aReturn)
   nsContentUtils::StripNullChars(aString, final);
 
   nsresult rv;
-  nsCOMPtr<nsIPromptService> promptSvc =
-    do_GetService("@mozilla.org/embedcomp/prompt-service;1", &rv);
+  nsCOMPtr<nsIPromptService> promptSvc = do_GetService("@mozilla.org/embedcomp/prompt-service;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  EnterModalState();
-
-  if (shouldEnableDisableDialog) {
-    PRBool disallowDialog = PR_FALSE;
-    nsXPIDLString label;
-    nsContentUtils::GetLocalizedString(nsContentUtils::eCOMMON_DIALOG_PROPERTIES,
-                                       "ScriptDialogLabel", label);
-
-    rv = promptSvc->ConfirmCheck(this, title.get(), final.get(), label.get(),
-                                 &disallowDialog, aReturn);
-    if (disallowDialog)
-      PreventFurtherDialogs();
-  } else {
-    rv = promptSvc->Confirm(this, title.get(), final.get(), aReturn);
-  }
-
-  LeaveModalState();
-
-  return rv;
+  return promptSvc->Confirm(this, title.get(), final.get(), aReturn);
 }
 
 NS_IMETHODIMP
@@ -4492,13 +4299,6 @@ nsGlobalWindow::Prompt(const nsAString& aMessage, const nsAString& aInitial,
                        nsAString& aReturn)
 {
   SetDOMStringToNull(aReturn);
-
-  if (AreDialogsBlocked())
-    return NS_ERROR_NOT_AVAILABLE;
-
-  // We have to capture this now so as not to get confused with the popup state
-  // we push next
-  PRBool shouldEnableDisableDialog = DialogOpenAttempted();
 
   // Reset popup state while opening a modal dialog, and firing events
   // about the dialog, to prevent the current state from being active
@@ -4519,32 +4319,15 @@ nsGlobalWindow::Prompt(const nsAString& aMessage, const nsAString& aInitial,
   nsContentUtils::StripNullChars(aInitial, fixedInitial);
 
   nsresult rv;
-  nsCOMPtr<nsIPromptService> promptSvc =
-    do_GetService("@mozilla.org/embedcomp/prompt-service;1", &rv);
+  nsCOMPtr<nsIPromptService> promptSvc = do_GetService("@mozilla.org/embedcomp/prompt-service;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Pass in the default value, if any.
   PRUnichar *inoutValue = ToNewUnicode(fixedInitial);
-  PRBool disallowDialog = PR_FALSE;
 
-  nsXPIDLString label;
-  if (shouldEnableDisableDialog) {
-    nsContentUtils::GetLocalizedString(nsContentUtils::eCOMMON_DIALOG_PROPERTIES,
-                                       "ScriptDialogLabel", label);
-  }
-
-  EnterModalState();
-
-  PRBool ok;
+  PRBool ok, dummy;
   rv = promptSvc->Prompt(this, title.get(), fixedMessage.get(),
-                         &inoutValue, label.get(), &disallowDialog, &ok);
-
-  LeaveModalState();
-
-  if (disallowDialog) {
-    PreventFurtherDialogs();
-  }
-
+                         &inoutValue, nsnull, &dummy, &ok);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsAdoptingString outValue(inoutValue);
@@ -4797,9 +4580,6 @@ nsGlobalWindow::Print()
 {
 #ifdef NS_PRINTING
   FORWARD_TO_OUTER(Print, (), NS_ERROR_NOT_INITIALIZED);
-
-  if (AreDialogsBlocked() || !ConfirmDialogAllowed())
-    return NS_ERROR_NOT_AVAILABLE;
 
   nsCOMPtr<nsIWebBrowserPrint> webBrowserPrint;
   if (NS_SUCCEEDED(GetInterface(NS_GET_IID(nsIWebBrowserPrint),
@@ -6033,14 +5813,17 @@ nsGlobalWindow::ReallyCloseWindow()
 void
 nsGlobalWindow::EnterModalState()
 {
-  nsGlobalWindow* topWin = GetTop();
+  nsCOMPtr<nsIDOMWindow> top;
+  GetTop(getter_AddRefs(top));
 
-  if (!topWin) {
+  if (!top) {
     NS_ERROR("Uh, EnterModalState() called w/o a reachable top window?");
 
     return;
   }
 
+  nsGlobalWindow* topWin =
+    static_cast<nsGlobalWindow*>(static_cast<nsIDOMWindow *>(top.get()));
   if (topWin->mModalStateDepth == 0) {
     NS_ASSERTION(!mSuspendedDoc, "Shouldn't have mSuspendedDoc here!");
 
@@ -6134,12 +5917,19 @@ private:
 void
 nsGlobalWindow::LeaveModalState()
 {
-  nsGlobalWindow *topWin = GetTop();
+  nsCOMPtr<nsIDOMWindow> top;
+  GetTop(getter_AddRefs(top));
 
-  if (!topWin) {
+  if (!top) {
     NS_ERROR("Uh, LeaveModalState() called w/o a reachable top window?");
+
     return;
   }
+
+  nsGlobalWindow *topWin =
+    static_cast<nsGlobalWindow *>
+               (static_cast<nsIDOMWindow *>
+                           (top.get()));
 
   topWin->mModalStateDepth--;
 
@@ -6162,25 +5952,23 @@ nsGlobalWindow::LeaveModalState()
   if (cx && (scx = GetScriptContextFromJSContext(cx))) {
     scx->LeaveModalState();
   }
-
-  // Remember the time of the last dialog quit.
-  nsGlobalWindow *inner = topWin->GetCurrentInnerWindowInternal();
-  if (inner)
-    inner->mLastDialogQuitTime = TimeStamp::Now();
 }
 
 PRBool
 nsGlobalWindow::IsInModalState()
 {
-  nsGlobalWindow *topWin = GetTop();
+  nsCOMPtr<nsIDOMWindow> top;
+  GetTop(getter_AddRefs(top));
 
-  if (!topWin) {
+  if (!top) {
     NS_ERROR("Uh, IsInModalState() called w/o a reachable top window?");
 
     return PR_FALSE;
   }
 
-  return topWin->mModalStateDepth != 0;
+  return static_cast<nsGlobalWindow *>
+                    (static_cast<nsIDOMWindow *>
+                                (top.get()))->mModalStateDepth != 0;
 }
 
 // static
@@ -6486,12 +6274,7 @@ nsGlobalWindow::ShowModalDialog(const nsAString& aURI, nsIVariant *aArgs,
 {
   *aRetVal = nsnull;
 
-  // Before bringing up the window/dialog, unsuppress painting and flush
-  // pending reflows.
-  EnsureReflowFlushAndPaint();
-
-  if (AreDialogsBlocked() || !ConfirmDialogAllowed())
-    return NS_ERROR_NOT_AVAILABLE;
+  NS_ENSURE_TRUE(mDocShell, NS_ERROR_FAILURE);
 
   nsCOMPtr<nsIDOMWindow> dlgWin;
   nsAutoString options(NS_LITERAL_STRING("-moz-internal-modal=1,status=1"));
@@ -6500,7 +6283,10 @@ nsGlobalWindow::ShowModalDialog(const nsAString& aURI, nsIVariant *aArgs,
 
   options.AppendLiteral(",scrollbars=1,centerscreen=1,resizable=0");
 
-  EnterModalState();
+  // Before bringing up the window, unsuppress painting and flush
+  // pending reflows.
+  EnsureReflowFlushAndPaint();
+
   nsresult rv = OpenInternal(aURI, EmptyString(), options,
                              PR_FALSE,          // aDialog
                              PR_TRUE,           // aContentModal
@@ -6510,7 +6296,6 @@ nsGlobalWindow::ShowModalDialog(const nsAString& aURI, nsIVariant *aArgs,
                              GetPrincipal(),    // aCalleePrincipal
                              nsnull,            // aJSCallerContext
                              getter_AddRefs(dlgWin));
-  LeaveModalState();
 
   NS_ENSURE_SUCCESS(rv, rv);
   
@@ -9998,8 +9783,7 @@ nsGlobalModalWindow::SetReturnValue(nsIVariant *aRetVal)
 
 nsresult
 nsGlobalModalWindow::SetNewDocument(nsIDocument *aDocument,
-                                    nsISupports *aState,
-                                    PRBool aForceReuseInnerWindow)
+                                    nsISupports *aState)
 {
   // If we're loading a new document into a modal dialog, clear the
   // return value that was set, if any, by the current document.
@@ -10007,8 +9791,7 @@ nsGlobalModalWindow::SetNewDocument(nsIDocument *aDocument,
     mReturnValue = nsnull;
   }
 
-  return nsGlobalWindow::SetNewDocument(aDocument, aState,
-                                        aForceReuseInnerWindow);
+  return nsGlobalWindow::SetNewDocument(aDocument, aState);
 }
 
 //*****************************************************************************

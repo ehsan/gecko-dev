@@ -39,7 +39,6 @@
 
 // Load DownloadUtils module for convertByteUnits
 Components.utils.import("resource://gre/modules/DownloadUtils.jsm");
-Components.utils.import("resource://gre/modules/Services.jsm");
 
 var gAdvancedPane = {
   _inited: false,
@@ -172,17 +171,6 @@ var gAdvancedPane = {
     } catch (e) { }
   },
 
-  /**
-   * When the user toggles the layers.accelerate-none pref,
-   * sync its new value to the gfx.direct2d.disabled pref too.
-   */
-  updateHardwareAcceleration: function()
-  {
-#ifdef XP_WIN
-    var pref = document.getElementById("layers.accelerate-none");
-    Services.prefs.setBoolPref("gfx.direct2d.disabled", !pref.value);
-#endif
-  },
 
   // NETWORK TAB
 
@@ -191,7 +179,8 @@ var gAdvancedPane = {
    *
    * browser.cache.disk.capacity
    * - the size of the browser cache in KB
-   * - Only used if browser.cache.disk.smart_size.enabled is disabled
+   * browser.cache.disk.smart_size.enabled
+   * - If disabled, disk.capacity is used
    */
 
   /**
@@ -242,10 +231,8 @@ var gAdvancedPane = {
 
   readSmartSizeEnabled: function ()
   {
-    // The smart_size.enabled preference element is inverted="true", so its
-    // value is the opposite of the actual pref value
-    var disabled = document.getElementById("browser.cache.disk.smart_size.enabled").value;
-    this.updateCacheSizeUI(!disabled);
+    var enabled = document.getElementById("browser.cache.disk.smart_size.enabled").value;
+    this.updateCacheSizeUI(enabled);
   },
   
   /**

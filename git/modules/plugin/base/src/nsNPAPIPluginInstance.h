@@ -138,8 +138,6 @@ public:
   // Returns the array of browser-initiated streams.
   nsTArray<nsPluginStreamListenerPeer*> *BStreamListeners();
 
-  nsresult AsyncSetWindow(NPWindow& window);
-
 protected:
   nsresult InitializePlugin();
 

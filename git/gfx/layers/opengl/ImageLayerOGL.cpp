@@ -392,13 +392,10 @@ ImageLayerOGL::RenderLayer(int,
 
     gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, yuvImage->mTextures[0].GetTextureID());
-    ApplyFilter(mFilter);
     gl()->fActiveTexture(LOCAL_GL_TEXTURE1);
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, yuvImage->mTextures[1].GetTextureID());
-    ApplyFilter(mFilter);
     gl()->fActiveTexture(LOCAL_GL_TEXTURE2);
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, yuvImage->mTextures[2].GetTextureID());
-    ApplyFilter(mFilter);
 
     YCbCrTextureLayerProgram *program = mOGLManager->GetYCbCrLayerProgram();
 
@@ -430,8 +427,6 @@ ImageLayerOGL::RenderLayer(int,
       program = mOGLManager->GetRGBALayerProgram();
     else
       program = mOGLManager->GetBGRALayerProgram();
-
-    ApplyFilter(mFilter);
 
     program->Activate();
     program->SetLayerQuadRect(nsIntRect(0, 0,
@@ -519,7 +514,7 @@ PlanarYCbCrImageOGL::SetData(const PlanarYCbCrImage::Data &aData)
       // YV12 format
     width_shift = 1;
     height_shift = 1;
-    mType = gfx::YV12;
+    mType = gfx::YV16;
   } else {
     NS_ERROR("YCbCr format not supported");
   }

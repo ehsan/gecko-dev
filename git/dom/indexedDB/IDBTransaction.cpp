@@ -242,10 +242,6 @@ IDBTransaction::GetOrCreateConnection(mozIStorageConnection** aResult)
 {
   NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
 
-  if (mDatabase->IsInvalidated()) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-
   if (!mConnection) {
     nsCOMPtr<mozIStorageConnection> connection =
       IDBFactory::GetConnection(mDatabase->FilePath());
@@ -769,12 +765,7 @@ CommitHelper::Run()
     return NS_OK;
   }
 
-  IDBDatabase* database = mTransaction->Database();
-  if (database->IsInvalidated()) {
-    mAborted = true;
-  }
-
-  IDBFactory::SetCurrentDatabase(database);
+  IDBFactory::SetCurrentDatabase(mTransaction->Database());
 
   if (mAborted) {
     NS_ASSERTION(mConnection, "This had better not be null!");

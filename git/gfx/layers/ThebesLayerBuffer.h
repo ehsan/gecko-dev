@@ -82,8 +82,7 @@ public:
   };
 
   ThebesLayerBuffer(BufferSizePolicy aBufferSizePolicy)
-    : mBufferDims(0,0)
-    , mBufferRotation(0,0)
+    : mBufferRotation(0,0)
     , mBufferSizePolicy(aBufferSizePolicy)
   {
     MOZ_COUNT_CTOR(ThebesLayerBuffer);
@@ -100,7 +99,6 @@ public:
   void Clear()
   {
     mBuffer = nsnull;
-    mBufferDims.SizeTo(0, 0);
     mBufferRect.Empty();
   }
 
@@ -126,8 +124,7 @@ public:
    * Otherwise it must not be null.
    * mRegionToInvalidate will contain mRegionToDraw.
    */
-  PaintState BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
-                        float aXResolution, float aYResolution);
+  PaintState BeginPaint(ThebesLayer* aLayer, ContentType aContentType);
 
   /**
    * Return a new surface of |aSize| and |aType|.
@@ -150,53 +147,32 @@ protected:
     TOP, BOTTOM
   };
   nsIntRect GetQuadrantRectangle(XSide aXSide, YSide aYSide);
-  void DrawBufferQuadrant(gfxContext* aTarget, XSide aXSide, YSide aYSide,
-                          float aOpacity, float aXRes, float aYRes);
-  void DrawBufferWithRotation(gfxContext* aTarget, float aOpacity,
-                              float aXRes, float aYRes);
+  void DrawBufferQuadrant(gfxContext* aTarget, XSide aXSide, YSide aYSide, float aOpacity);
+  void DrawBufferWithRotation(gfxContext* aTarget, float aOpacity);
 
-  /**
-   * |BufferRect()| is the rect of device pixels that this
-   * ThebesLayerBuffer covers.  That is what DrawBufferWithRotation()
-   * will paint when it's called.
-   *
-   * |BufferDims()| is the actual dimensions of the underlying surface
-   * maintained by this, also in device pixels.  It is *not*
-   * necessarily true that |BufferRect().Size() == BufferDims()|.
-   * They may differ if a ThebesLayer is drawn at a non-1.0
-   * resolution.
-   */
-  const nsIntSize& BufferDims() const { return mBufferDims; }
   const nsIntRect& BufferRect() const { return mBufferRect; }
   const nsIntPoint& BufferRotation() const { return mBufferRotation; }
 
   already_AddRefed<gfxASurface>
-  SetBuffer(gfxASurface* aBuffer, const nsIntSize& aBufferDims,
+  SetBuffer(gfxASurface* aBuffer,
             const nsIntRect& aBufferRect, const nsIntPoint& aBufferRotation)
   {
-    nsRefPtr<gfxASurface> tmp = mBuffer.forget();
+    gfxASurface* tmp = mBuffer;
     mBuffer = aBuffer;
-    mBufferDims = aBufferDims;
     mBufferRect = aBufferRect;
     mBufferRotation = aBufferRotation;
-    return tmp.forget();
+    return tmp;
   }
 
 private:
   PRBool BufferSizeOkFor(const nsIntSize& aSize)
   {
-    return (aSize == mBufferDims ||
+    return (aSize == mBufferRect.Size() ||
             (SizedToVisibleBounds != mBufferSizePolicy &&
-             aSize < mBufferDims));
+             aSize < mBufferRect.Size()));
   }
 
   nsRefPtr<gfxASurface> mBuffer;
-  /**
-   * The actual dimensions of mBuffer.  For the ContainsVisibleBounds
-   * policy or with resolution-scaled drawing, mBufferDims might be
-   * different than mBufferRect.Size().
-   */
-  nsIntSize             mBufferDims;
   /** The area of the ThebesLayer that is covered by the buffer as a whole */
   nsIntRect             mBufferRect;
   /**

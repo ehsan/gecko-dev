@@ -4,18 +4,8 @@
 
 const TESTROOT = "http://example.com/browser/toolkit/mozapps/extensions/test/xpinstall/";
 const TESTROOT2 = "http://example.org/browser/toolkit/mozapps/extensions/test/xpinstall/";
+const CHROMEROOT = "chrome://mochikit/content/browser/toolkit/mozapps/extensions/test/xpinstall/";
 const XPINSTALL_URL = "chrome://mozapps/content/xpinstall/xpinstallConfirm.xul";
-
-var rootDir = getRootDirectory(gTestPath);
-var path = rootDir.split('/');
-var chromeName = path[0] + '//' + path[2];
-var croot = chromeName + "/content/browser/toolkit/mozapps/extensions/test/xpinstall/";
-var jar = getJar(croot);
-if (jar) {
-  var tmpdir = extractJarToTmp(jar);
-  croot = 'file://' + tmpdir.path + '/';
-}
-const CHROMEROOT = croot;
 
 var gApp = document.getElementById("bundle_brand").getString("brandShortName");
 var gVersion = Services.appinfo.version;
@@ -323,11 +313,8 @@ function test_url() {
 function test_localfile() {
   var cr = Components.classes["@mozilla.org/chrome/chrome-registry;1"]
                      .getService(Components.interfaces.nsIChromeRegistry);
-  try {
-    var path = cr.convertChromeURL(makeURI(CHROMEROOT + "corrupt.xpi")).spec;
-  } catch (ex) {
-    var path = CHROMEROOT + "corrupt.xpi";
-  }
+  var path = cr.convertChromeURL(makeURI(CHROMEROOT + "corrupt.xpi")).spec;
+
   gBrowser.selectedTab = gBrowser.addTab();
   gBrowser.loadURI(path);
 

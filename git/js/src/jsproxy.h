@@ -84,10 +84,6 @@ class JSProxyHandler {
     virtual JS_FRIEND_API(void) finalize(JSContext *cx, JSObject *proxy);
     virtual JS_FRIEND_API(void) trace(JSTracer *trc, JSObject *proxy);
 
-    virtual bool isOuterWindow() {
-        return false;
-    }
-
     inline void *family() {
         return mFamily;
     }
@@ -134,7 +130,6 @@ const uint32 JSSLOT_PROXY_CONSTRUCT = JSSLOT_PRIVATE + 3;
 
 extern JS_FRIEND_API(js::Class) ObjectProxyClass;
 extern JS_FRIEND_API(js::Class) FunctionProxyClass;
-extern JS_FRIEND_API(js::Class) OuterWindowProxyClass;
 extern js::Class CallableObjectClass;
 
 }
@@ -142,8 +137,7 @@ extern js::Class CallableObjectClass;
 inline bool
 JSObject::isObjectProxy() const
 {
-    return getClass() == &js::ObjectProxyClass ||
-           getClass() == &js::OuterWindowProxyClass;
+    return getClass() == &js::ObjectProxyClass;
 }
 
 inline bool

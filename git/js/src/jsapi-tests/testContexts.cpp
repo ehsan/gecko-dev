@@ -11,7 +11,7 @@ BEGIN_TEST(testContexts_IsRunning)
         return true;
     }
 
-    static JSBool chk(JSContext *cx, uintN argc, jsval *vp)
+    static JSBool chk(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     {
         JSRuntime *rt = JS_GetRuntime(cx);
         JSContext *acx = JS_NewContext(rt, 8192);
@@ -68,10 +68,8 @@ BEGIN_TEST(testContexts_bug561444)
         JS_BeginRequest(cx);
         {
             jsvalRoot v(cx);
-
-            JSAutoEnterCompartment ac;
-            ac.enterAndIgnoreErrors(cx, d->obj);
-
+            JSAutoCrossCompartmentCall crossCall;
+            crossCall.enter(cx, d->obj);            
             if (!JS_EvaluateScript(cx, d->obj, d->code, strlen(d->code), __FILE__, __LINE__, v.addr()))
                 return;
         }
@@ -89,8 +87,8 @@ BEGIN_TEST(testContexts_bug563735)
     JSBool ok;
     {
         JSAutoRequest req(cx2);
-        JSAutoEnterCompartment ac;
-        CHECK(ac.enter(cx2, global));
+        JSAutoCrossCompartmentCall crossCall;
+        CHECK(crossCall.enter(cx2, global));
         jsval v = JSVAL_NULL;
         ok = JS_SetProperty(cx2, global, "x", &v);
     }

@@ -41,9 +41,10 @@
 
 interface nsIDOMFormData;
 
-[scriptable, uuid(d38a782f-f33c-4a8d-85a9-0d5da3650064)]
+[scriptable, uuid(55bdaf9b-eacb-49d6-b4b1-a27e61ed54fc)]
 interface nsIDOMNSHTMLFormElement : nsISupports
 {
            attribute DOMString        encoding;
+  nsIDOMFormData getFormData();
   boolean        checkValidity();
 };

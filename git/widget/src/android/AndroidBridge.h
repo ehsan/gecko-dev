@@ -47,8 +47,7 @@
 
 #include "AndroidJavaWrappers.h"
 
-#include "nsIMutableArray.h"
-#include "nsIMIMEInfo.h"
+#include "nsVoidArray.h"
 
 // Some debug #defines
 // #define ANDROID_DEBUG_EVENTS
@@ -86,9 +85,7 @@ public:
     }
 
     static JNIEnv *JNIForThread() {
-        if (NS_LIKELY(sBridge))
-          return sBridge->AttachThread();
-        return nsnull;
+        return sBridge->AttachThread();
     }
 
     // The bridge needs to be constructed via ConstructBridge first,
@@ -118,20 +115,13 @@ public:
     void SetSurfaceView(jobject jobj);
     AndroidGeckoSurfaceView& SurfaceView() { return mSurfaceView; }
 
-    PRBool GetHandlersForProtocol(const char *aScheme, 
-                                  nsIMutableArray* handlersArray = nsnull,
-                                  nsIHandlerApp **aDefaultApp = nsnull,
-                                  const nsAString& aAction = EmptyString());
+    PRBool GetHandlersForProtocol(const char *aScheme, nsStringArray* aStringArray = nsnull);
 
-    PRBool GetHandlersForMimeType(const char *aMimeType,
-                                  nsIMutableArray* handlersArray = nsnull,
-                                  nsIHandlerApp **aDefaultApp = nsnull,
-                                  const nsAString& aAction = EmptyString());
+    PRBool GetHandlersForMimeType(const char *aMimeType, nsStringArray* aStringArray = nsnull);
 
     PRBool OpenUriExternal(const nsACString& aUriSpec, const nsACString& aMimeType, 
                            const nsAString& aPackageName = EmptyString(), 
-                           const nsAString& aClassName = EmptyString(),
-                           const nsAString& aAction = EmptyString());
+                           const nsAString& aClassName = EmptyString());
 
     void GetMimeTypeFromExtension(const nsACString& aFileExt, nsCString& aMimeType);
 
@@ -152,8 +142,6 @@ public:
                                nsIObserver *aAlertListener,
                                const nsAString& aAlertName);
 
-    void ShowFilePicker(nsAString& aFilePath);
-
     struct AutoLocalJNIFrame {
         AutoLocalJNIFrame(int nEntries = 128) : mEntries(nEntries) {
             AndroidBridge::Bridge()->JNI()->PushLocalFrame(mEntries);
@@ -173,8 +161,6 @@ public:
 
     /* See GLHelpers.java as to why this is needed */
     void *CallEglCreateWindowSurface(void *dpy, void *config, AndroidGeckoSurfaceView& surfaceView);
-
-    bool GetStaticStringField(const char *classID, const char *field, nsAString &result);
 
 protected:
     static AndroidBridge *sBridge;
@@ -214,7 +200,6 @@ protected:
     jmethodID jGetClipboardText;
     jmethodID jSetClipboardText;
     jmethodID jShowAlertNotification;
-    jmethodID jShowFilePicker;
 
     // stuff we need for CallEglCreateWindowSurface
     jclass jEGLSurfaceImplClass;

@@ -38,11 +38,6 @@
 
 .hud-box {
     border-bottom: 1px solid #aaa;
-    text-shadow: none;
-}
-
-.hud-group label {
-    padding-left: 1em;
 }
 
 .hud-outer-wrapper {
@@ -65,11 +60,6 @@
     -moz-user-select: text;
     white-space: pre-wrap;
     -moz-user-focus: normal;
-}
-
-.hud-clickable {
-    cursor: pointer !important;
-    text-decoration: underline;
 }
 
 .hud-output-node .hud-network {
@@ -101,7 +91,7 @@
     margin-top: 0.3em; 
     margin-bottom: 0.3em; 
     padding-left: 0.3em;
-    /* border-bottom: 1px solid #eee; */
+    border-bottom: 1px solid #eee;   
 }
 
 .hud-output-node {
@@ -176,11 +166,7 @@
 .hud-console-filter-toolbar {
     padding: 1px 0px;
     -moz-box-align: center;
-    -moz-appearance: none !important;
-    background-color: -moz-dialog;
-    border-top: none;
 }
-
 
 .jsterm-close-button {
     background: none !important;

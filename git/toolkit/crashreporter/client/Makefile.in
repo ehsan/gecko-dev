@@ -41,7 +41,6 @@ DEPTH		= ../../..
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
-relativesrcdir = toolkit/crashreporter/client
 
 include $(DEPTH)/config/autoconf.mk
 

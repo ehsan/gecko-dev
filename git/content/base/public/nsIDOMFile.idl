@@ -40,9 +40,8 @@
 interface nsIDOMFileError;
 interface nsIInputStream;
 interface nsIURI;
-interface nsIPrincipal;
 
-[scriptable, uuid(414e5d40-c831-4b28-acdc-8ff02d1a317d)]
+[scriptable, uuid(e72e2d6e-e267-4ea1-a798-6703d3a2c362)]
 interface nsIDOMFile : nsISupports
 {
   //fileName and fileSize are now deprecated attributes
@@ -54,6 +53,8 @@ interface nsIDOMFile : nsISupports
   readonly attribute unsigned long long size;
   readonly attribute DOMString type;
 
+  readonly attribute DOMString url;
+
   DOMString getAsText(in DOMString encoding); // raises(FileException) on retrieval
   DOMString getAsDataURL();             // raises(FileException) on retrieval
   DOMString getAsBinary();              // raises(FileException) on retrieval
@@ -61,7 +62,7 @@ interface nsIDOMFile : nsISupports
   [noscript] readonly attribute nsIInputStream internalStream;
   // The caller is responsible for releasing the internalUrl from the
   // moz-filedata: protocol handler
-  [noscript] DOMString getInternalUrl(in nsIPrincipal principal);
+  [noscript] readonly attribute DOMString internalUrl;
   // This performs no security checks!
   [noscript] readonly attribute DOMString mozFullPathInternal;
 };

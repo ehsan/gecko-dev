@@ -54,8 +54,6 @@
     #define NANOJIT_SPARC
 #elif defined AVMPLUS_AMD64
     #define NANOJIT_X64
-#elif defined VMCFG_SH4
-    #define NANOJIT_SH4
 #elif defined AVMPLUS_MIPS
     #define NANOJIT_MIPS
 #else
@@ -90,7 +88,7 @@
 #endif
 #ifdef JS_VALGRIND
 #  include <valgrind/valgrind.h>
-#elif !defined(VALGRIND_DISCARD_TRANSLATIONS)
+#else
 #  define VALGRIND_DISCARD_TRANSLATIONS(addr, szB)
 #endif
 
@@ -190,9 +188,6 @@ static inline bool isU32(uintptr_t i) {
 
 #define alignTo(x,s)        ((((uintptr_t)(x)))&~(((uintptr_t)s)-1))
 #define alignUp(x,s)        ((((uintptr_t)(x))+(((uintptr_t)s)-1))&~(((uintptr_t)s)-1))
-
-#define NJ_MIN(x, y) ((x) < (y) ? (x) : (y))
-#define NJ_MAX(x, y) ((x) > (y) ? (x) : (y))
 
 namespace nanojit
 {

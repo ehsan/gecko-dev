@@ -50,17 +50,13 @@ static PerfMeasurement* GetPMFromThis(JSContext* cx, jsval* vp);
 // Constructor and destructor
 
 static JSBool
-pm_construct(JSContext* cx, uintN argc, jsval* vp)
+pm_construct(JSContext* cx, JSObject* obj, uintN argc, jsval* argv, jsval* rval)
 {
     uint32 mask;
-    if (!JS_ConvertArguments(cx, argc, JS_ARGV(cx, vp), "u", &mask))
+    if (!JS_ConvertArguments(cx, argc, argv, "u", &mask))
         return JS_FALSE;
 
-    JSObject *obj = JS_NewObjectForConstructor(cx, vp);
-    if (!obj)
-        return JS_FALSE;
-
-    if (!JS_FreezeObject(cx, obj))
+    if (!JS_SealObject(cx, obj, JS_FALSE))
         return JS_FALSE;
 
     PerfMeasurement* p = new PerfMeasurement(PerfMeasurement::EventMask(mask));
@@ -70,7 +66,6 @@ pm_construct(JSContext* cx, uintN argc, jsval* vp)
     }
 
     JS_SetPrivate(cx, obj, p);
-    *vp = OBJECT_TO_JSVAL(obj);
     return JS_TRUE;
 }
 
@@ -269,8 +264,8 @@ RegisterPerfMeasurement(JSContext *cx, JSObject *global)
             return 0;
     }
 
-    if (!JS_FreezeObject(cx, prototype) ||
-        !JS_FreezeObject(cx, ctor)) {
+    if (!JS_SealObject(cx, prototype, JS_FALSE) ||
+        !JS_SealObject(cx, ctor, JS_FALSE)) {
         return 0;
     }
 

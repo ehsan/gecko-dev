@@ -100,6 +100,18 @@ public:
 
 //-------------- End Invalidate Event Definition ---------------------------
 
+static PRBool IsViewVisible(nsView *aView)
+{
+  if (!aView->IsEffectivelyVisible())
+    return PR_FALSE;
+
+  // Find out if the root view is visible by asking the view observer
+  // (this won't be needed anymore if we link view trees across chrome /
+  // content boundaries in DocumentViewerImpl::MakeWindow).
+  nsIViewObserver* vo = aView->GetViewManager()->GetViewObserver();
+  return vo && vo->IsVisible();
+}
+
 void
 nsViewManager::PostInvalidateEvent()
 {
@@ -312,7 +324,7 @@ void nsViewManager::DoSetWindowDimensions(nscoord aWidth, nscoord aHeight)
 NS_IMETHODIMP nsViewManager::SetWindowDimensions(nscoord aWidth, nscoord aHeight)
 {
   if (mRootView) {
-    if (mRootView->IsEffectivelyVisible()) {
+    if (IsViewVisible(mRootView)) {
       mDelayedResize.SizeTo(NSCOORD_NONE, NSCOORD_NONE);
       DoSetWindowDimensions(aWidth, aHeight);
     } else {
@@ -514,6 +526,20 @@ NS_IMETHODIMP nsViewManager::UpdateView(nsIView *aView, PRUint32 aUpdateFlags)
   return UpdateView(view, dims, aUpdateFlags);
 }
 
+static PRBool
+IsWidgetDrawnByPlugin(nsIWidget* aWidget, nsIView* aView)
+{
+  if (aView->GetWidget() == aWidget)
+    return PR_FALSE;
+  nsCOMPtr<nsIPluginWidget> pw = do_QueryInterface(aWidget);
+  if (pw) {
+    // It's a plugin widget, but one that we are responsible for painting
+    // (i.e., a Mac widget)
+    return PR_FALSE;
+  }
+  return PR_TRUE;
+}
+
 /**
  * @param aWidget the widget for aWidgetView; in some cases the widget
  * is being managed directly by the frame system, so aWidgetView->GetWidget()
@@ -595,31 +621,32 @@ nsViewManager::UpdateWidgetArea(nsView *aWidgetView, nsIWidget* aWidget,
       NS_ASSERTION(view != aWidgetView, "will recur infinitely");
       PRBool visible;
       childWidget->IsVisible(visible);
-      nsWindowType type;
-      childWidget->GetWindowType(type);
-      if (view && visible && type != eWindowType_popup) {
-        NS_ASSERTION(type == eWindowType_plugin,
-                     "Only plugin or popup widgets can be children!");
+      if (view && visible && !IsWidgetDrawnByPlugin(childWidget, view)) {
+        // Don't mess with views that are in completely different view
+        // manager trees
         nsViewManager* viewManager = view->GetViewManager();
+        if (viewManager->RootViewManager() == RootViewManager()) {
+          // get the damage region into view's coordinate system and appunits
+          nsRegion damage =
+            ConvertRegionBetweenViews(intersection, aWidgetView, view);
 
-        // We do not need to invalidate in plugin widgets, but we should
-        // exclude them from the invalidation region IF we're not on
-        // Mac. On Mac we need to draw under plugin widgets, because
-        // plugin widgets are basically invisible
-#ifndef XP_MACOSX
-        // GetBounds should compensate for chrome on a toplevel widget
-        nsIntRect bounds;
-        childWidget->GetBounds(bounds);
+          // Update the child and it's children
+          viewManager->
+            UpdateWidgetArea(view, childWidget, damage, aIgnoreWidgetView);
 
-        nsTArray<nsIntRect> clipRects;
-        childWidget->GetWindowClipRegion(&clipRects);
-        for (PRUint32 i = 0; i < clipRects.Length(); ++i) {
-          nsRect rr = (clipRects[i] + bounds.TopLeft()).
-            ToAppUnits(AppUnitsPerDevPixel());
-          children.Or(children, rr - aWidgetView->ViewToWidgetOffset()); 
-          children.SimplifyInward(20);
+          // GetBounds should compensate for chrome on a toplevel widget
+          nsIntRect bounds;
+          childWidget->GetBounds(bounds);
+
+          nsTArray<nsIntRect> clipRects;
+          childWidget->GetWindowClipRegion(&clipRects);
+          for (PRUint32 i = 0; i < clipRects.Length(); ++i) {
+            nsRect rr = (clipRects[i] + bounds.TopLeft()).
+              ToAppUnits(AppUnitsPerDevPixel());
+            children.Or(children, rr - aWidgetView->ViewToWidgetOffset()); 
+            children.SimplifyInward(20);
+          }
         }
-#endif
       }
     }
   }
@@ -852,7 +879,7 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent,
                       ? vm->mRootView->GetParent()->GetViewManager()
                       : nsnull) {
             if (vm->mDelayedResize != nsSize(NSCOORD_NONE, NSCOORD_NONE) &&
-                vm->mRootView->IsEffectivelyVisible()) {
+                IsViewVisible(vm->mRootView)) {
               vm->FlushDelayedResize(PR_TRUE);
 
               // Paint later.
@@ -867,7 +894,7 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent,
           }
 
           if (!didResize) {
-            //NS_ASSERTION(view->IsEffectivelyVisible(), "painting an invisible view");
+            //NS_ASSERTION(IsViewVisible(view), "painting an invisible view");
 
             // Notify view observers that we're about to paint.
             // Make sure to not send WillPaint notifications while scrolling.
@@ -1100,8 +1127,6 @@ nsEventStatus nsViewManager::HandleEvent(nsView* aView, nsGUIEvent* aEvent)
 
 void nsViewManager::ReparentChildWidgets(nsIView* aView, nsIWidget *aNewWidget)
 {
-  NS_PRECONDITION(aNewWidget, "");
-
   if (aView->HasWidget()) {
     // Check to see if the parent widget is the
     // same as the new parent. If not then reparent
@@ -1109,18 +1134,13 @@ void nsViewManager::ReparentChildWidgets(nsIView* aView, nsIWidget *aNewWidget)
     // to do for the view and its descendants
     nsIWidget* widget = aView->GetWidget();
     nsIWidget* parentWidget = widget->GetParent();
-    if (parentWidget) {
-      // Child widget
-      if (parentWidget != aNewWidget) {
+    // Toplevel widgets should not be reparented!
+    if (parentWidget && parentWidget != aNewWidget) {
 #ifdef DEBUG
-        nsresult rv =
+      nsresult rv =
 #endif
-          widget->SetParent(aNewWidget);
-        NS_ASSERTION(NS_SUCCEEDED(rv), "SetParent failed!");
-      }
-    } else {
-      // Toplevel widget (popup, dialog, etc)
-      widget->ReparentNativeWidget(aNewWidget);
+        widget->SetParent(aNewWidget);
+      NS_ASSERTION(NS_SUCCEEDED(rv), "SetParent failed!");
     }
     return;
   }
@@ -1651,13 +1671,11 @@ nsViewManager::CallWillPaintOnObservers(PRBool aWillSendDidPaint)
     nsViewManager* vm = (nsViewManager*)gViewManagers->ElementAt(index);
     if (vm->RootViewManager() == this) {
       // One of our kids.
-      if (vm->mRootView && vm->mRootView->IsEffectivelyVisible()) {
-        nsCOMPtr<nsIViewObserver> obs = vm->GetViewObserver();
-        if (obs) {
-          obs->WillPaint(aWillSendDidPaint);
-          NS_ASSERTION(mUpdateBatchCnt == savedUpdateBatchCnt,
-                       "Observer did not end view batch?");
-        }
+      nsCOMPtr<nsIViewObserver> obs = vm->GetViewObserver();
+      if (obs) {
+        obs->WillPaint(aWillSendDidPaint);
+        NS_ASSERTION(mUpdateBatchCnt == savedUpdateBatchCnt,
+                     "Observer did not end view batch?");
       }
     }
   }

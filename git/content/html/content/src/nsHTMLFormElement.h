@@ -55,7 +55,6 @@
 #include "nsInterfaceHashtable.h"
 
 class nsFormControlList;
-class nsIMutableArray;
 
 /**
  * hashkey wrapper using nsAString KeyType
@@ -272,27 +271,7 @@ public:
    */
   PRBool GetValidity() const { return !mInvalidElementsCount; }
 
-  /**
-   * This method check the form validity and make invalid form elements send
-   * invalid event if needed.
-   *
-   * @return Whether the form is valid.
-   *
-   * @note Do not call this method if novalidate/formnovalidate is used.
-   * @note This method might disappear with bug 592124, hopefuly.
-   */
-  bool CheckValidFormSubmission();
-
   virtual nsXPCClassInfo* GetClassInfo();
-
-  /**
-   * Walk over the form elements and call SubmitNamesValues() on them to get
-   * their data pumped into the FormSubmitter.
-   *
-   * @param aFormSubmission the form submission object
-   */
-  nsresult WalkFormElements(nsFormSubmission* aFormSubmission);
-
 protected:
   class RemoveElementRunnable;
   friend class RemoveElementRunnable;
@@ -347,6 +326,13 @@ protected:
    * @param aFormSubmission the submission object
    */
   nsresult SubmitSubmission(nsFormSubmission* aFormSubmission);
+  /**
+   * Walk over the form elements and call SubmitNamesValues() on them to get
+   * their data pumped into the FormSubmitter.
+   *
+   * @param aFormSubmission the form submission object
+   */
+  nsresult WalkFormElements(nsFormSubmission* aFormSubmission);
 
   /**
    * Notify any submit observers of the submit.
@@ -375,12 +361,12 @@ protected:
    * Check the form validity following this algorithm:
    * http://www.whatwg.org/specs/web-apps/current-work/#statically-validate-the-constraints
    *
-   * @param aInvalidElements [out] parameter containing the list of unhandled
-   * invalid controls.
+   * TODO: add a [out] parameter to have the list of unhandled invalid controls
+   *       but not needed until we have a UI to test it.
    *
    * @return Whether the form is currently valid.
    */
-  PRBool CheckFormValidity(nsIMutableArray* aInvalidElements) const;
+  PRBool CheckFormValidity() const;
 
 public:
   /**

@@ -76,25 +76,25 @@ function checkSufferingFromBeingMissing(element)
   if (element.type == 'checkbox')
   {
     is(element.validationMessage,
-      "Please check this box if you want to proceed.",
+      "This checkbox is mandatory, you have to check it.",
       "Validation message is wrong");
   }
   else if (element.type == 'radio')
   {
     is(element.validationMessage,
-      "Please select one of these options.",
+      "You have to select one of these options.",
       "Validation message is wrong");
   }
   else if (element.type == 'file')
   {
     is(element.validationMessage,
-      "Please select a file.",
+      "You have to select a file.",
       "Validation message is wrong");
   }
   else // text fields
   {
     is(element.validationMessage,
-      "Please fill out this field.",
+      "This field is mandatory, you have to fill it.",
       "Validation message is wrong");
   }
 

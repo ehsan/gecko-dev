@@ -49,7 +49,11 @@ EXPORT_LIBRARY = 1
 
 EXPORTS = TabMessageUtils.h PCOMContentPermissionRequestChild.h
 
-EXPORTS_NAMESPACES = mozilla/dom
+EXPORTS_NAMESPACES = mozilla mozilla/dom
+
+EXPORTS_mozilla = \
+  TabTypes.h \
+  $(NULL)
 
 EXPORTS_mozilla/dom = \
   ContentChild.h \
@@ -79,9 +83,9 @@ LOCAL_INCLUDES += \
 		-I$(topsrcdir)/chrome/src \
 		-I$(topsrcdir)/uriloader/exthandler \
 		-I$(srcdir)/../../netwerk/base/src \
-		-I$(srcdir)/../src/base \
+		-I$(srcdir)/../src/geolocation \
 		$(NULL)
 
-DEFINES += -DBIN_SUFFIX='"$(BIN_SUFFIX)"'
-
 CXXFLAGS += $(TK_CFLAGS)
+
+DEFINES += -DBIN_SUFFIX='"$(BIN_SUFFIX)"'

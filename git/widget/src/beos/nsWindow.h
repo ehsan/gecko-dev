@@ -159,8 +159,8 @@ public:
 	                                           PRUint16 aButton = nsMouseEvent::eLeftButton);
 
 
-	void                    InitEvent(nsGUIEvent& event, nsPoint* aPoint = nsnull);
-	NS_IMETHOD              ReparentNativeWidget(nsIWidget* aNewParent);
+	void                   InitEvent(nsGUIEvent& event, nsPoint* aPoint = nsnull);
+
 protected:
 
 	static PRBool           EventIsInsideWindow(nsWindow* aWindow, nsPoint pos) ;
