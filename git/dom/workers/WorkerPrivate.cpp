@@ -300,8 +300,6 @@ struct WorkerStructuredCloneCallbacks
   Read(JSContext* aCx, JSStructuredCloneReader* aReader, uint32_t aTag,
        uint32_t aData, void* aClosure)
   {
-    JS::Rooted<JSObject*> result(aCx);
-
     // See if object is a nsIDOMFile pointer.
     if (aTag == DOMWORKER_SCTAG_FILE) {
       MOZ_ASSERT(!aData);
@@ -320,12 +318,9 @@ struct WorkerStructuredCloneCallbacks
         }
 #endif
 
-        {
-          // New scope to protect |result| from a moving GC during ~nsRefPtr.
-          nsRefPtr<DOMFile> file = new DOMFile(fileImpl);
-          result = file::CreateFile(aCx, file);
-        }
-        return result;
+        nsRefPtr<DOMFile> file = new DOMFile(fileImpl);
+        JSObject* jsFile = file::CreateFile(aCx, file);
+        return jsFile;
       }
     }
     // See if object is a nsIDOMBlob pointer.
@@ -346,12 +341,9 @@ struct WorkerStructuredCloneCallbacks
         }
 #endif
 
-        {
-          // New scope to protect |result| from a moving GC during ~nsRefPtr.
-          nsRefPtr<DOMFile> blob = new DOMFile(blobImpl);
-          result = file::CreateBlob(aCx, blob);
-        }
-        return result;
+        nsRefPtr<DOMFile> blob = new DOMFile(blobImpl);
+        JSObject* jsBlob = file::CreateBlob(aCx, blob);
+        return jsBlob;
       }
     }
     // See if the object is an ImageData.
@@ -368,14 +360,11 @@ struct WorkerStructuredCloneCallbacks
       }
       MOZ_ASSERT(dataArray.isObject());
 
-      {
-        // Construct the ImageData.
-        nsRefPtr<ImageData> imageData = new ImageData(width, height,
-                                                      dataArray.toObject());
-        // Wrap it in a JS::Value, protected from a moving GC during ~nsRefPtr.
-        result = imageData->WrapObject(aCx);
-      }
-      return result;
+      // Construct the ImageData.
+      nsRefPtr<ImageData> imageData = new ImageData(width, height,
+                                                    dataArray.toObject());
+      // Wrap it in a JS::Value.
+      return imageData->WrapObject(aCx);
     }
 
     Error(aCx, 0);

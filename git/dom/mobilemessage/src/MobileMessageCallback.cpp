@@ -12,7 +12,6 @@
 #include "nsIScriptGlobalObject.h"
 #include "nsPIDOMWindow.h"
 #include "MmsMessage.h"
-#include "mozilla/dom/ScriptSettings.h"
 #include "jsapi.h"
 #include "xpcpublic.h"
 #include "nsServiceManagerUtils.h"
@@ -104,14 +103,21 @@ MobileMessageCallback::NotifySuccess(JS::Handle<JS::Value> aResult, bool aAsync)
 nsresult
 MobileMessageCallback::NotifySuccess(nsISupports *aMessage, bool aAsync)
 {
-  AutoJSAPI jsapi;
-  if (NS_WARN_IF(!jsapi.Init(mDOMRequest->GetOwner()))) {
-    return NS_ERROR_FAILURE;
-  }
-  JSContext* cx = jsapi.cx();
+  nsresult rv;
+  nsIScriptContext* scriptContext = mDOMRequest->GetContextForEventHandlers(&rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_TRUE(scriptContext, NS_ERROR_FAILURE);
+
+  AutoPushJSContext cx(scriptContext->GetNativeContext());
+  NS_ENSURE_TRUE(cx, NS_ERROR_FAILURE);
+
+  JS::Rooted<JSObject*> global(cx, scriptContext->GetWindowProxy());
+  NS_ENSURE_TRUE(global, NS_ERROR_FAILURE);
+
+  JSAutoCompartment ac(cx, global);
 
   JS::Rooted<JS::Value> wrappedMessage(cx);
-  nsresult rv = nsContentUtils::WrapNative(cx, aMessage, &wrappedMessage);
+  rv = nsContentUtils::WrapNative(cx, aMessage, &wrappedMessage);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NotifySuccess(wrappedMessage, aAsync);
@@ -190,13 +196,16 @@ MobileMessageCallback::NotifyMessageDeleted(bool *aDeleted, uint32_t aSize)
     return NotifySuccess(val);
   }
 
-  AutoJSAPI jsapi;
-  if (NS_WARN_IF(!jsapi.Init(mDOMRequest->GetOwner()))) {
-    return NS_ERROR_FAILURE;
-  }
-  JSContext* cx = jsapi.cx();
+  nsresult rv;
+  nsIScriptContext* sc = mDOMRequest->GetContextForEventHandlers(&rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_TRUE(sc, NS_ERROR_FAILURE);
 
-  JS::Rooted<JSObject*> deleteArrayObj(cx, JS_NewArrayObject(cx, aSize));
+  AutoPushJSContext cx(sc->GetNativeContext());
+  NS_ENSURE_TRUE(cx, NS_ERROR_FAILURE);
+
+  JS::Rooted<JSObject*> deleteArrayObj(cx,
+                                       JS_NewArrayObject(cx, aSize));
   for (uint32_t i = 0; i < aSize; i++) {
     JS_SetElement(cx, deleteArrayObj, i, aDeleted[i]);
   }

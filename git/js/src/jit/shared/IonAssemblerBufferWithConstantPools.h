@@ -9,6 +9,7 @@
 
 #include "mozilla/DebugOnly.h"
 
+#include "assembler/wtf/SegmentedVector.h"
 #include "jit/IonSpewer.h"
 #include "jit/shared/IonAssemblerBuffer.h"
 

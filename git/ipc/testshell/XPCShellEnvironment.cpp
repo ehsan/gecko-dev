@@ -165,10 +165,9 @@ Load(JSContext *cx,
         JS::CompileOptions options(cx);
         options.setUTF8(true)
                .setFileAndLine(filename.ptr(), 1);
-        JS::Rooted<JSScript*> script(cx);
-        bool ok = JS::Compile(cx, obj, options, file, &script);
+        JS::Rooted<JSScript*> script(cx, JS::Compile(cx, obj, options, file));
         fclose(file);
-        if (!ok)
+        if (!script)
             return false;
 
         if (!JS_ExecuteScript(cx, obj, script)) {
@@ -335,8 +334,8 @@ XPCShellEnvironment::ProcessFile(JSContext *cx,
         JS::CompileOptions options(cx);
         options.setUTF8(true)
                .setFileAndLine(filename, 1);
-        JS::Rooted<JSScript*> script(cx);
-        if (JS::Compile(cx, obj, options, file, &script))
+        JS::Rooted<JSScript*> script(cx, JS::Compile(cx, obj, options, file));
+        if (script)
             (void)JS_ExecuteScript(cx, obj, script, &result);
 
         return;
@@ -372,8 +371,9 @@ XPCShellEnvironment::ProcessFile(JSContext *cx,
         JS_ClearPendingException(cx);
         JS::CompileOptions options(cx);
         options.setFileAndLine("typein", startline);
-        JS::Rooted<JSScript*> script(cx);
-        if (JS_CompileScript(cx, obj, buffer, strlen(buffer), options, &script)) {
+        JS::Rooted<JSScript*> script(cx,
+                                     JS_CompileScript(cx, obj, buffer, strlen(buffer), options));
+        if (script) {
             JSErrorReporter older;
 
             ok = JS_ExecuteScript(cx, obj, script, &result);
@@ -580,10 +580,9 @@ XPCShellEnvironment::EvaluateString(const nsString& aString,
 
   JS::CompileOptions options(cx);
   options.setFileAndLine("typein", 0);
-  JS::Rooted<JSScript*> script(cx);
-  if (!JS_CompileUCScript(cx, global, aString.get(), aString.Length(), options,
-                          &script))
-  {
+  JS::Rooted<JSScript*> script(cx, JS_CompileUCScript(cx, global, aString.get(),
+                                                      aString.Length(), options));
+  if (!script) {
      return false;
   }
 

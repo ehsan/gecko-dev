@@ -6,6 +6,7 @@
 
 XPIDL_SOURCES += [
     'nsIDOMDeviceStorage.idl',
+    'nsIDOMDeviceStorageChangeEvent.idl',
 ]
 
 XPIDL_MODULE = 'dom_devicestorage'

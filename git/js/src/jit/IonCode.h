@@ -457,9 +457,6 @@ struct IonScript
     void setIsParallelEntryScript() {
         isParallelEntryScript_ = true;
     }
-    void clearIsParallelEntryScript() {
-        isParallelEntryScript_ = false;
-    }
     bool isParallelEntryScript() const {
         return isParallelEntryScript_;
     }

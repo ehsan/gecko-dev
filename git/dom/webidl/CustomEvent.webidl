@@ -10,9 +10,10 @@
  * liability, trademark and document use rules apply.
  */
 
-[Constructor(DOMString type, optional CustomEventInit eventInitDict)]
+[Constructor(DOMString type, optional CustomEventInit eventInitDict), HeaderFile="GeneratedEventClasses.h"]
 interface CustomEvent : Event
 {
+  [Throws]
   readonly attribute any detail;
 
   // initCustomEvent is a Gecko specific deprecated method.

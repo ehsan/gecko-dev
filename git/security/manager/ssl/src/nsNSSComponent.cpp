@@ -30,7 +30,7 @@
 #include "nsIDOMWindow.h"
 #include "nsIDOMWindowCollection.h"
 #include "nsIDocument.h"
-#include "mozilla/dom/SmartCardEvent.h"
+#include "nsIDOMSmartCardEvent.h"
 #include "nsSmartCardMonitor.h"
 #include "nsIDOMCryptoLegacy.h"
 #else
@@ -47,6 +47,7 @@
 #include "nsITokenPasswordDialogs.h"
 #include "nsServiceManagerUtils.h"
 #include "nsNSSShutDown.h"
+#include "GeneratedEvents.h"
 #include "SharedSSLState.h"
 #include "NSSErrorsService.h"
 
@@ -436,17 +437,23 @@ nsNSSComponent::DispatchEventToWindow(nsIDOMWindow* domWin,
     return NS_FAILED(rv) ? rv : NS_ERROR_FAILURE;
   }
 
-  nsCOMPtr<EventTarget> d = do_QueryInterface(doc);
+  nsCOMPtr<nsIDocument> d = do_QueryInterface(doc);
 
-  SmartCardEventInit init;
-  init.mBubbles = false;
-  init.mCancelable = true;
-  init.mTokenName = tokenName;
+  // create the event
+  nsCOMPtr<nsIDOMEvent> event;
+  NS_NewDOMSmartCardEvent(getter_AddRefs(event), d, nullptr, nullptr);
+  nsCOMPtr<nsIDOMSmartCardEvent> smartCardEvent = do_QueryInterface(event);
+  rv = smartCardEvent->InitSmartCardEvent(eventType, false, true, tokenName);
+  NS_ENSURE_SUCCESS(rv, rv);
+  smartCardEvent->SetTrusted(true);
 
-  nsRefPtr<SmartCardEvent> event = SmartCardEvent::Constructor(d, eventType, init);
-  event->SetTrusted(true);
+  // Send it
+  nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(doc, &rv);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
 
-  return d->DispatchEvent(event, &boolrv);
+  return target->DispatchEvent(smartCardEvent, &boolrv);
 }
 #endif // MOZ_DISABLE_CRYPTOLEGACY
 

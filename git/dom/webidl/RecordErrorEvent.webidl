@@ -4,7 +4,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-[Constructor(DOMString type, optional RecordErrorEventInit eventInitDict)]
+[Constructor(DOMString type, optional RecordErrorEventInit eventInitDict), HeaderFile="GeneratedEventClasses.h"]
 interface RecordErrorEvent : Event
 {
   readonly attribute DOMString name;

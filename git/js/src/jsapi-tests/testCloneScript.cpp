@@ -33,11 +33,11 @@ BEGIN_TEST(test_cloneScript)
     // compile for A
     {
         JSAutoCompartment a(cx, A);
-        JS::RootedFunction fun(cx);
+        JSFunction *fun;
         JS::CompileOptions options(cx);
         options.setFileAndLine(__FILE__, 1);
-        CHECK(JS_CompileFunction(cx, A, "f", 0, nullptr, source,
-                                 strlen(source), options, &fun));
+        CHECK(fun = JS_CompileFunction(cx, A, "f", 0, nullptr, source,
+                                       strlen(source), options));
         CHECK(obj = JS_GetFunctionObject(fun));
     }
 
@@ -109,10 +109,9 @@ BEGIN_TEST(test_cloneScriptWithPrincipals)
         JSAutoCompartment a(cx, A);
         JS::CompileOptions options(cx);
         options.setFileAndLine(__FILE__, 1);
-        JS::RootedFunction fun(cx);
-        JS_CompileFunction(cx, A, "f",
-                           mozilla::ArrayLength(argnames), argnames, source,
-                           strlen(source), options, &fun);
+        JS::RootedFunction fun(cx, JS_CompileFunction(cx, A, "f",
+                mozilla::ArrayLength(argnames), argnames, source,
+                strlen(source), options));
         CHECK(fun);
 
         JSScript *script;

@@ -366,10 +366,6 @@ nsPluginElement::nsPluginElement(nsPIDOMWindow* aWindow,
   SetIsDOMBinding();
 }
 
-nsPluginElement::~nsPluginElement()
-{
-}
-
 nsPIDOMWindow*
 nsPluginElement::GetParentObject() const
 {
