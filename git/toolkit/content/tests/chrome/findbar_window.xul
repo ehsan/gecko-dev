@@ -254,12 +254,13 @@
 
       var searchStr = "text";
 
+      synthesizeComposition({ type: "compositionstart" });
       synthesizeCompositionChange(
         { "composition":
           { "string": searchStr,
             "clauses":
             [
-              { "length": searchStr.length, "attr": COMPOSITION_ATTR_RAW_CLAUSE }
+              { "length": searchStr.length, "attr": COMPOSITION_ATTR_RAWINPUT }
             ]
           },
           "caret": { "start": searchStr.length, "length": 0 }

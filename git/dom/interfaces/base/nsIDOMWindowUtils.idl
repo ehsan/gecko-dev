@@ -46,11 +46,12 @@ interface nsIDOMClientRect;
 interface nsIURI;
 interface nsIDOMEventTarget;
 interface nsIRunnable;
+interface nsICompositionStringSynthesizer;
 interface nsITranslationNodeList;
 interface nsIJSRAIIHelper;
 interface nsIContentPermissionRequest;
 
-[scriptable, uuid(5ed850de-2b57-4555-ac48-93292e852eab)]
+[scriptable, uuid(0281e107-394d-4c96-830b-2f830b07c6c0)]
 interface nsIDOMWindowUtils : nsISupports {
 
   /**
@@ -556,6 +557,8 @@ interface nsIDOMWindowUtils : nsISupports {
   const unsigned long KEY_FLAG_LOCATION_LEFT     = 0x0020;
   const unsigned long KEY_FLAG_LOCATION_RIGHT    = 0x0040;
   const unsigned long KEY_FLAG_LOCATION_NUMPAD   = 0x0080;
+  const unsigned long KEY_FLAG_LOCATION_MOBILE   = 0x0100;
+  const unsigned long KEY_FLAG_LOCATION_JOYSTICK = 0x0200;
 
   boolean sendKeyEvent(in AString aType,
                        in long aKeyCode,
@@ -1031,6 +1034,33 @@ interface nsIDOMWindowUtils : nsISupports {
    */
   void sendContentCommandEvent(in AString aType,
                                [optional] in nsITransferable aTransferable);
+
+  /**
+   * Synthesize a composition event to the window.
+   *
+   * Cannot be accessed from unprivileged context (not content-accessible)
+   * Will throw a DOM security error if called without chrome privileges.
+   *
+   * @param aType     The event type: "compositionstart",
+   *                  "compositioncommitasis", or "compositioncommit".
+   * @param aData     The data property value.  Note that this isn't applied
+   *                  for compositionstart event because its value is the
+   *                  selected text which is automatically computed. And also
+   *                  this isn't applied for compositioncommitasis because
+   *                  the last data will be set automatically.
+   * @param aLocale   The locale property value.
+   */
+  void sendCompositionEvent(in AString aType,
+                            in AString aData,
+                            in AString aLocale);
+
+  /**
+   * Creating synthesizer of composition string on the window.
+   *
+   * Cannot be accessed from unprivileged context (not content-accessible)
+   * Will throw a DOM security error if called without chrome privileges.
+   */
+  nsICompositionStringSynthesizer createCompositionStringSynthesizer();
 
   /**
    * If sendQueryContentEvent()'s aAdditionalFlags argument is

@@ -12,7 +12,7 @@ for (var j = 0; j < SIZE; j++)
 var NITERS = 5;
 var iters = [];
 for (var i = 0; i < NITERS; i++) {
-    var iter = set[Symbol.iterator]();
+    var iter = set[std_iterator]();
     assertIteratorNext(iter, 0);
     assertIteratorNext(iter, 1);
     iters[i] = iter;

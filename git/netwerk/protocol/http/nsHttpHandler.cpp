@@ -194,7 +194,6 @@ nsHttpHandler::nsHttpHandler()
     , mSpdySendingChunkSize(ASpdySession::kSendingChunkSize)
     , mSpdySendBufferSize(ASpdySession::kTCPSendBufferSize)
     , mSpdyPushAllowance(32768)
-    , mDefaultSpdyConcurrent(ASpdySession::kDefaultMaxConcurrent)
     , mSpdyPingThreshold(PR_SecondsToInterval(58))
     , mSpdyPingTimeout(PR_SecondsToInterval(8))
     , mConnectTimeout(90000)
@@ -1285,14 +1284,6 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
             mSpdyPushAllowance =
                 static_cast<uint32_t>
                 (clamped(val, 1024, static_cast<int32_t>(ASpdySession::kInitialRwin)));
-        }
-    }
-
-    if (PREF_CHANGED(HTTP_PREF("spdy.default-concurrent"))) {
-        rv = prefs->GetIntPref(HTTP_PREF("spdy.default-concurrent"), &val);
-        if (NS_SUCCEEDED(rv)) {
-            mDefaultSpdyConcurrent =
-                static_cast<uint32_t>(std::max<int32_t>(std::min<int32_t>(val, 9999), 1));
         }
     }
 

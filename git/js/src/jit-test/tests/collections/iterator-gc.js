@@ -6,7 +6,7 @@ load(libdir + "referencesVia.js");
 var key = {};
 
 function test(obj, edgeName) {
-    var iter = obj[Symbol.iterator]();
+    var iter = obj[std_iterator]();
     referencesVia(iter, "**UNKNOWN SLOT 0**", obj);
     referencesVia(obj, edgeName, key);
 }

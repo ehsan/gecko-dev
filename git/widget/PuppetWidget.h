@@ -82,7 +82,7 @@ public:
                                int32_t* aY) MOZ_OVERRIDE
   { *aX = kMaxDimension;  *aY = kMaxDimension;  return NS_OK; }
 
-  // Widget position is controlled by the parent process via TabChild.
+  // We're always at <0, 0>, and so ignore move requests.
   NS_IMETHOD Move(double aX, double aY) MOZ_OVERRIDE
   { return NS_OK; }
 
@@ -94,7 +94,7 @@ public:
                     double aWidth,
                     double aHeight,
                     bool   aRepaint) MOZ_OVERRIDE
-  // Widget position is controlled by the parent process via TabChild.
+  // (we're always at <0, 0>)
   { return Resize(aWidth, aHeight, aRepaint); }
 
   // XXX/cjones: copying gtk behavior here; unclear what disabling a
@@ -125,8 +125,9 @@ public:
   NS_IMETHOD SetTitle(const nsAString& aTitle) MOZ_OVERRIDE
   { return NS_ERROR_UNEXPECTED; }
   
+  // PuppetWidgets are always at <0, 0>.
   virtual nsIntPoint WidgetToScreenOffset() MOZ_OVERRIDE
-  { return GetWindowPosition() + GetChromeDimensions(); }  
+  { return nsIntPoint(0, 0); }
 
   void InitEvent(WidgetGUIEvent& aEvent, nsIntPoint* aPoint = nullptr);
 
@@ -163,6 +164,7 @@ public:
                   LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
                   bool* aAllowRetaining = nullptr) MOZ_OVERRIDE;
 
+  NS_IMETHOD NotifyIME(const IMENotification& aIMENotification) MOZ_OVERRIDE;
   NS_IMETHOD_(void) SetInputContext(const InputContext& aContext,
                                     const InputContextAction& aAction) MOZ_OVERRIDE;
   NS_IMETHOD_(InputContext) GetInputContext() MOZ_OVERRIDE;
@@ -202,9 +204,6 @@ public:
 protected:
   bool mEnabled;
   bool mVisible;
-
-  virtual nsresult NotifyIMEInternal(
-                     const IMENotification& aIMENotification) MOZ_OVERRIDE;
 
 private:
   nsresult Paint();

@@ -111,8 +111,10 @@ public:
     inline XPCWrappedNative* Find(nsISupports* Obj)
     {
         NS_PRECONDITION(Obj,"bad param");
-        Entry* entry = (Entry*) PL_DHashTableSearch(mTable, Obj);
-        return entry ? entry->value : nullptr;
+        Entry* entry = (Entry*) PL_DHashTableLookup(mTable, Obj);
+        if (PL_DHASH_ENTRY_IS_FREE(entry))
+            return nullptr;
+        return entry->value;
     }
 
     inline XPCWrappedNative* Add(XPCWrappedNative* wrapper)
@@ -177,8 +179,10 @@ public:
 
     inline nsXPCWrappedJSClass* Find(REFNSIID iid)
     {
-        Entry* entry = (Entry*) PL_DHashTableSearch(mTable, &iid);
-        return entry ? entry->value : nullptr;
+        Entry* entry = (Entry*) PL_DHashTableLookup(mTable, &iid);
+        if (PL_DHASH_ENTRY_IS_FREE(entry))
+            return nullptr;
+        return entry->value;
     }
 
     inline nsXPCWrappedJSClass* Add(nsXPCWrappedJSClass* clazz)
@@ -230,8 +234,10 @@ public:
 
     inline XPCNativeInterface* Find(REFNSIID iid)
     {
-        Entry* entry = (Entry*) PL_DHashTableSearch(mTable, &iid);
-        return entry ? entry->value : nullptr;
+        Entry* entry = (Entry*) PL_DHashTableLookup(mTable, &iid);
+        if (PL_DHASH_ENTRY_IS_FREE(entry))
+            return nullptr;
+        return entry->value;
     }
 
     inline XPCNativeInterface* Add(XPCNativeInterface* iface)
@@ -286,8 +292,10 @@ public:
 
     inline XPCNativeSet* Find(nsIClassInfo* info)
     {
-        Entry* entry = (Entry*) PL_DHashTableSearch(mTable, info);
-        return entry ? entry->value : nullptr;
+        Entry* entry = (Entry*) PL_DHashTableLookup(mTable, info);
+        if (PL_DHASH_ENTRY_IS_FREE(entry))
+            return nullptr;
+        return entry->value;
     }
 
     inline XPCNativeSet* Add(nsIClassInfo* info, XPCNativeSet* set)
@@ -342,8 +350,10 @@ public:
 
     inline XPCWrappedNativeProto* Find(nsIClassInfo* info)
     {
-        Entry* entry = (Entry*) PL_DHashTableSearch(mTable, info);
-        return entry ? entry->value : nullptr;
+        Entry* entry = (Entry*) PL_DHashTableLookup(mTable, info);
+        if (PL_DHASH_ENTRY_IS_FREE(entry))
+            return nullptr;
+        return entry->value;
     }
 
     inline XPCWrappedNativeProto* Add(nsIClassInfo* info, XPCWrappedNativeProto* proto)
@@ -403,8 +413,10 @@ public:
 
     inline XPCNativeSet* Find(XPCNativeSetKey* key)
     {
-        Entry* entry = (Entry*) PL_DHashTableSearch(mTable, key);
-        return entry ? entry->key_value : nullptr;
+        Entry* entry = (Entry*) PL_DHashTableLookup(mTable, key);
+        if (PL_DHASH_ENTRY_IS_FREE(entry))
+            return nullptr;
+        return entry->key_value;
     }
 
     inline XPCNativeSet* Add(const XPCNativeSetKey* key, XPCNativeSet* set)
@@ -476,8 +488,10 @@ public:
 
     inline nsIXPCFunctionThisTranslator* Find(REFNSIID iid)
     {
-        Entry* entry = (Entry*) PL_DHashTableSearch(mTable, &iid);
-        return entry ? entry->value : nullptr;
+        Entry* entry = (Entry*) PL_DHashTableLookup(mTable, &iid);
+        if (PL_DHASH_ENTRY_IS_FREE(entry))
+            return nullptr;
+        return entry->value;
     }
 
     inline nsIXPCFunctionThisTranslator* Add(REFNSIID iid,

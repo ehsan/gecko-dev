@@ -516,7 +516,6 @@ private:
     dom::ContentParent* mContentParent;
     nsCOMPtr<nsIObserver> mOfflineObserver;
     bool mIsFlashPlugin;
-    bool mIsBlocklisted;
 };
 
 } // namespace plugins

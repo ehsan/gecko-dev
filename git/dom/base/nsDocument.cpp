@@ -3959,9 +3959,9 @@ nsDocument::SetSubDocumentFor(Element* aElement, nsIDocument* aSubDoc)
     if (mSubDocuments) {
       SubDocMapEntry *entry =
         static_cast<SubDocMapEntry*>
-                   (PL_DHashTableSearch(mSubDocuments, aElement));
+                   (PL_DHashTableLookup(mSubDocuments, aElement));
 
-      if (entry) {
+      if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
         PL_DHashTableRawRemove(mSubDocuments, entry);
       }
     }
@@ -4015,9 +4015,9 @@ nsDocument::GetSubDocumentFor(nsIContent *aContent) const
   if (mSubDocuments && aContent->IsElement()) {
     SubDocMapEntry *entry =
       static_cast<SubDocMapEntry*>
-                 (PL_DHashTableSearch(mSubDocuments, aContent->AsElement()));
+                 (PL_DHashTableLookup(mSubDocuments, aContent->AsElement()));
 
-    if (entry) {
+    if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
       return entry->mSubDocument;
     }
   }

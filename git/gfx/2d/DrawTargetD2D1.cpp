@@ -725,7 +725,7 @@ DrawTargetD2D1::CreateGradientStops(GradientStop *rawStops, uint32_t aNumStops, 
     return nullptr;
   }
 
-  return new GradientStopsD2D(stopCollection, Factory::GetDirect3D11Device());
+  return new GradientStopsD2D(stopCollection);
 }
 
 TemporaryRef<FilterNode>
@@ -1228,12 +1228,6 @@ DrawTargetD2D1::CreateBrushForPattern(const Pattern &aPattern, Float aAlpha)
                                    D2D1::BrushProperties(aAlpha, D2DMatrix(pat->mMatrix)),
                                    stops->mStopCollection,
                                    byRef(gradBrush));
-
-    if (!gradBrush) {
-      gfxWarning() << "Couldn't create gradient brush.";
-      return CreateTransparentBlackBrush();
-    }
-
     return gradBrush.forget();
   }
   if (aPattern.GetType() == PatternType::RADIAL_GRADIENT) {
@@ -1256,11 +1250,6 @@ DrawTargetD2D1::CreateBrushForPattern(const Pattern &aPattern, Float aAlpha)
       D2D1::BrushProperties(aAlpha, D2DMatrix(pat->mMatrix)),
                             stops->mStopCollection,
                             byRef(gradBrush));
-
-    if (!gradBrush) {
-      gfxWarning() << "Couldn't create gradient brush.";
-      return CreateTransparentBlackBrush();
-    }
 
     return gradBrush.forget();
   }
@@ -1289,8 +1278,6 @@ DrawTargetD2D1::CreateBrushForPattern(const Pattern &aPattern, Float aAlpha)
                                    Float(pat->mSurface->GetSize().width),
                                    Float(pat->mSurface->GetSize().height));
     }
-
-    MOZ_ASSERT(pat->mSurface->IsValid());
 
     RefPtr<ID2D1ImageBrush> imageBrush;
     RefPtr<ID2D1Image> image = GetImageForSurface(pat->mSurface, mat, pat->mExtendMode, !pat->mSamplingRect.IsEmpty() ? &pat->mSamplingRect : nullptr);

@@ -162,7 +162,6 @@ public:
   virtual ~GradientStops() {}
 
   virtual BackendType GetBackendType() const = 0;
-  virtual bool IsValid() const { return true; }
 
 protected:
   GradientStops() {}

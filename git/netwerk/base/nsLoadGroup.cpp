@@ -257,9 +257,15 @@ nsLoadGroup::Cancel(nsresult status)
 
         NS_ASSERTION(request, "NULL request found in list.");
 
-        if (!PL_DHashTableSearch(&mRequests, request)) {
+        RequestMapEntry *entry =
+            static_cast<RequestMapEntry *>
+                       (PL_DHashTableLookup(&mRequests, request));
+
+        if (PL_DHASH_ENTRY_IS_FREE(entry)) {
             // |request| was removed already
+
             NS_RELEASE(request);
+
             continue;
         }
 
@@ -481,8 +487,16 @@ nsLoadGroup::AddRequest(nsIRequest *request, nsISupports* ctxt)
     }
 #endif /* PR_LOGGING */
 
-    NS_ASSERTION(!PL_DHashTableSearch(&mRequests, request),
-                 "Entry added to loadgroup twice, don't do that");
+#ifdef DEBUG
+    {
+      RequestMapEntry *entry =
+          static_cast<RequestMapEntry *>
+                     (PL_DHashTableLookup(&mRequests, request));
+
+      NS_ASSERTION(PL_DHASH_ENTRY_IS_FREE(entry),
+                   "Entry added to loadgroup twice, don't do that");
+    }
+#endif
 
     //
     // Do not add the channel, if the loadgroup is being canceled...
@@ -596,9 +610,9 @@ nsLoadGroup::RemoveRequest(nsIRequest *request, nsISupports* ctxt,
     //
     RequestMapEntry *entry =
         static_cast<RequestMapEntry *>
-                   (PL_DHashTableSearch(&mRequests, request));
+                   (PL_DHashTableLookup(&mRequests, request));
 
-    if (!entry) {
+    if (PL_DHASH_ENTRY_IS_FREE(entry)) {
         LOG(("LOADGROUP [%x]: Unable to remove request %x. Not in group!\n",
             this, request));
 

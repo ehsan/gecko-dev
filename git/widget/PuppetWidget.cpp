@@ -428,8 +428,8 @@ PuppetWidget::IMEEndComposition(bool aCancel)
   return NS_OK;
 }
 
-nsresult
-PuppetWidget::NotifyIMEInternal(const IMENotification& aIMENotification)
+NS_IMETHODIMP
+PuppetWidget::NotifyIME(const IMENotification& aIMENotification)
 {
   switch (aIMENotification.mMessage) {
     case REQUEST_TO_COMMIT_COMPOSITION:

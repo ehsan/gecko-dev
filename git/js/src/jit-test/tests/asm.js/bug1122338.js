@@ -4,9 +4,6 @@
 // as plain JS) as it should be.  That gave rise to a difference in
 // output.
 
-if (!this.SharedArrayBuffer)
-    quit(0);
-
 // Original test
 
 g = (function(stdlib, n, heap) {

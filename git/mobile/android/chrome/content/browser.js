@@ -4981,11 +4981,6 @@ var BrowserEventHandler = {
       return;
     }
 
-    this._inCluster = aEvent.hitCluster;
-    if (this._inCluster) {
-      return;  // No highlight for a cluster of links
-    }
-
     let uri = this._getLinkURI(target);
     if (uri) {
       try {
@@ -5100,19 +5095,16 @@ var BrowserEventHandler = {
           Cu.reportError(e);
         }
 
+        // The _highlightElement was chosen after fluffing the touch events
+        // that led to this SingleTap, so by fluffing the mouse events, they
+        // should find the same target since we fluff them again below.
         let data = JSON.parse(aData);
         let {x, y} = data;
 
-        if (this._inCluster) {
-          this._clusterClicked(x, y);
-        } else {
-          // The _highlightElement was chosen after fluffing the touch events
-          // that led to this SingleTap, so by fluffing the mouse events, they
-          // should find the same target since we fluff them again below.
-          this._sendMouseEvent("mousemove", x, y);
-          this._sendMouseEvent("mousedown", x, y);
-          this._sendMouseEvent("mouseup",   x, y);
-        }
+        this._sendMouseEvent("mousemove", x, y);
+        this._sendMouseEvent("mousedown", x, y);
+        this._sendMouseEvent("mouseup",   x, y);
+
         // scrollToFocusedInput does its own checks to find out if an element should be zoomed into
         BrowserApp.scrollToFocusedInput(BrowserApp.selectedBrowser);
 
@@ -5133,16 +5125,6 @@ var BrowserEventHandler = {
         dump('BrowserEventHandler.handleUserEvent: unexpected topic "' + aTopic + '"');
         break;
     }
-  },
-
-  _clusterClicked: function(aX, aY) {
-    Messaging.sendRequest({
-      type: "Gesture:clusteredLinksClicked",
-      clickPosition: {
-        x: aX,
-        y: aY
-      }
-    });
   },
 
   onDoubleTap: function(aData) {

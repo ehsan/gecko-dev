@@ -160,7 +160,7 @@ SpdyStream31::ReadSegments(nsAHttpSegmentReader *reader,
 
     // If the sending flow control window is open (!mBlockedOnRwin) then
     // continue sending the request
-    if (!mBlockedOnRwin && mSynFrameGenerated &&
+    if (!mBlockedOnRwin && mUpstreamState != GENERATING_SYN_STREAM &&
         !mTxInlineFrameUsed && NS_SUCCEEDED(rv) && (!*countRead)) {
       LOG3(("SpdyStream31::ReadSegments %p 0x%X: Sending request data complete, "
             "mUpstreamState=%x finondata=%d",this, mStreamID,
@@ -1491,7 +1491,7 @@ SpdyStream31::OnReadSegment(const char *buf,
     if (mRequestHeadersDone && !mSynFrameGenerated) {
       if (!mSession->TryToActivate(this)) {
         LOG3(("SpdyStream31::OnReadSegment %p cannot activate now. queued.\n", this));
-        return *countRead ? NS_OK : NS_BASE_STREAM_WOULD_BLOCK;
+        return NS_OK;
       }
       if (NS_FAILED(rv = GenerateSynFrame())) {
         return rv;

@@ -4,6 +4,8 @@
 
 #include "jsapi-tests/tests.h"
 
+#ifdef JS_HAS_SYMBOLS
+
 BEGIN_TEST(testSymbol_New)
 {
     using namespace JS;
@@ -79,3 +81,5 @@ BEGIN_TEST(testSymbol_GetWellKnownSymbol)
     return true;
 }
 END_TEST(testSymbol_GetWellKnownSymbol)
+
+#endif

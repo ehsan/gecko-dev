@@ -758,8 +758,8 @@ nsHostResolver::ResolveHost(const char            *host,
             nsHostDBEnt *he = static_cast<nsHostDBEnt *>
                                          (PL_DHashTableAdd(&mDB, &key));
 
-            // if the record is null, the hash table OOM'd.
-            if (!he) {
+            // if the record is null, then HostDB_InitEntry failed.
+            if (!he || !he->rec) {
                 LOG(("  Out of memory: no cache entry for [%s].\n", host));
                 rv = NS_ERROR_OUT_OF_MEMORY;
             }
@@ -829,11 +829,13 @@ nsHostResolver::ResolveHost(const char            *host,
                     // First, search for an entry with AF_UNSPEC
                     const nsHostKey unspecKey = { host, flags, PR_AF_UNSPEC };
                     nsHostDBEnt *unspecHe = static_cast<nsHostDBEnt *>
-                        (PL_DHashTableSearch(&mDB, &unspecKey));
-                    NS_ASSERTION(!unspecHe ||
-                                 (unspecHe && unspecHe->rec),
+                        (PL_DHashTableLookup(&mDB, &unspecKey));
+                    NS_ASSERTION(PL_DHASH_ENTRY_IS_FREE(unspecHe) ||
+                                 (PL_DHASH_ENTRY_IS_BUSY(unspecHe) &&
+                                  unspecHe->rec),
                                 "Valid host entries should contain a record");
-                    if (unspecHe &&
+                    if (PL_DHASH_ENTRY_IS_BUSY(unspecHe) &&
+                        unspecHe->rec &&
                         unspecHe->rec->HasUsableResult(TimeStamp::NowLoRes(), flags)) {
 
                         MOZ_ASSERT(unspecHe->rec->addr_info || unspecHe->rec->negative,
@@ -955,8 +957,8 @@ nsHostResolver::DetachCallback(const char            *host,
 
         nsHostKey key = { host, flags, af };
         nsHostDBEnt *he = static_cast<nsHostDBEnt *>
-                                     (PL_DHashTableSearch(&mDB, &key));
-        if (he) {
+                                     (PL_DHashTableLookup(&mDB, &key));
+        if (he && he->rec) {
             // walk list looking for |callback|... we cannot assume
             // that it will be there!
             PRCList *node = he->rec->callbacks.next;
@@ -1303,8 +1305,8 @@ nsHostResolver::CancelAsyncRequest(const char            *host,
     // Lookup the host record associated with host, flags & address family
     nsHostKey key = { host, flags, af };
     nsHostDBEnt *he = static_cast<nsHostDBEnt *>
-                      (PL_DHashTableSearch(&mDB, &key));
-    if (he) {
+                      (PL_DHashTableLookup(&mDB, &key));
+    if (he && he->rec) {
         nsHostRecord* recPtr = nullptr;
         PRCList *node = he->rec->callbacks.next;
         // Remove the first nsDNSAsyncRequest callback which matches the

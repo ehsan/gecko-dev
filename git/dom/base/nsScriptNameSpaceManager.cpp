@@ -172,9 +172,10 @@ nsScriptNameSpaceManager::GetConstructorProto(const nsGlobalNameStruct* aStruct)
   if (!aStruct->mAlias->mProto) {
     GlobalNameMapEntry *proto =
       static_cast<GlobalNameMapEntry *>
-                 (PL_DHashTableSearch(&mGlobalNames,
+                 (PL_DHashTableLookup(&mGlobalNames,
                                       &aStruct->mAlias->mProtoName));
-    if (proto) {
+
+    if (PL_DHASH_ENTRY_IS_BUSY(proto)) {
       aStruct->mAlias->mProto = &proto->mGlobalName;
     }
   }
@@ -384,9 +385,9 @@ nsScriptNameSpaceManager::LookupNameInternal(const nsAString& aName,
 {
   GlobalNameMapEntry *entry =
     static_cast<GlobalNameMapEntry *>
-               (PL_DHashTableSearch(&mGlobalNames, &aName));
+               (PL_DHashTableLookup(&mGlobalNames, &aName));
 
-  if (entry) {
+  if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
     if (aClassName) {
       *aClassName = entry->mKey.get();
     }
@@ -404,9 +405,13 @@ nsScriptNameSpaceManager::LookupNavigatorName(const nsAString& aName)
 {
   GlobalNameMapEntry *entry =
     static_cast<GlobalNameMapEntry *>
-               (PL_DHashTableSearch(&mNavigatorNames, &aName));
+               (PL_DHashTableLookup(&mNavigatorNames, &aName));
 
-  return entry ? &entry->mGlobalName : nullptr;
+  if (!PL_DHASH_ENTRY_IS_BUSY(entry)) {
+    return nullptr;
+  }
+
+  return &entry->mGlobalName;
 }
 
 nsresult

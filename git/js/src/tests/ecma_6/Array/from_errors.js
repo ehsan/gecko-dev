@@ -141,7 +141,7 @@ assertDeepEq(Array.from({[Symbol.iterator]: undefined}), []);
 for (var primitive of [undefined, null, 17]) {
     assertThrowsInstanceOf(
         () => Array.from({
-            [Symbol.iterator]() {
+            [std_iterator]() {
                 return {next() { return primitive; }};
             }
         }),

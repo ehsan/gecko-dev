@@ -57,8 +57,6 @@ private:
 class nsDOMWindowUtils MOZ_FINAL : public nsIDOMWindowUtils,
                                    public nsSupportsWeakReference
 {
-  typedef mozilla::widget::TextEventDispatcher
-    TextEventDispatcher;
 public:
   explicit nsDOMWindowUtils(nsGlobalWindow *aWindow);
   NS_DECL_ISUPPORTS

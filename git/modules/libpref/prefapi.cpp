@@ -728,7 +728,13 @@ PrefHashEntry* pref_HashTableLookup(const void *key)
     MOZ_ASSERT(NS_IsMainThread());
 #endif
 
-    return static_cast<PrefHashEntry*>(PL_DHashTableSearch(&gHashTable, key));
+    PrefHashEntry* result =
+        static_cast<PrefHashEntry*>(PL_DHashTableLookup(&gHashTable, key));
+
+    if (PL_DHASH_ENTRY_IS_FREE(result))
+        return nullptr;
+
+    return result;
 }
 
 nsresult pref_HashPref(const char *key, PrefValue value, PrefType type, uint32_t flags)
