@@ -29,9 +29,6 @@ function messageListener(event) {
       clearInterval(gTimeoutId);
       postMessage("intervalCanceled");
       break;
-    case "startExpression":
-      setTimeout("this.postMessage('expressionFinished');", 2000);
-      break;
     default:
       throw "Bad message: " + event.data;
   }
