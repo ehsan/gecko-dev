@@ -241,8 +241,7 @@ JSScopeProperty::hash() const
     hash = JS_ROTATE_LEFT32(hash, 4) ^ attrs;
     hash = JS_ROTATE_LEFT32(hash, 4) ^ shortid;
     hash = JS_ROTATE_LEFT32(hash, 4) ^ slot;
-    hash = JS_ROTATE_LEFT32(hash, 4) ^ JSDHashNumber(id);
-    hash = JS_ROTATE_LEFT32(hash, 4) ^ JSDHashNumber(id >> 32);
+    hash = JS_ROTATE_LEFT32(hash, 4) ^ id;
     return hash;
 }
 

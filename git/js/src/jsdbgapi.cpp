@@ -686,8 +686,7 @@ js_watch_set(JSContext *cx, JSObject *obj, jsid id, Value *vp)
                 fp->script = script;
                 fp->fun = fun;
                 fp->argv = vp + 2;
-                fp->setScopeChainObj(closure->getParent());
-                fp->setArgsObj(NULL);
+                fp->scopeChain = closure->getParent();
 
                 /* Initialize regs. */
                 regs.pc = script ? script->code : NULL;
@@ -1205,7 +1204,7 @@ JS_IsNativeFrame(JSContext *cx, JSStackFrame *fp)
 JS_PUBLIC_API(JSObject *)
 JS_GetFrameObject(JSContext *cx, JSStackFrame *fp)
 {
-    return fp->scopeChainObj();
+    return fp->scopeChain;
 }
 
 JS_PUBLIC_API(JSObject *)

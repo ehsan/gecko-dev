@@ -2244,9 +2244,9 @@ CharSet::disjoint(const CharSet &other) const
     /* Check char-char overlap. */
     jschar tmp[CharSet::sBufSize];
     js_MergeSort(charBuf, charEnd - charBuf, sizeof(jschar),
-                 CharCmp, 0, tmp, JS_SORTING_GENERIC);
+                 CharCmp, 0, tmp);
     js_MergeSort(other.charBuf, other.charEnd - other.charBuf, sizeof(jschar),
-                 CharCmp, 0, tmp, JS_SORTING_GENERIC);
+                 CharCmp, 0, tmp);
     return set_disjoint(charBuf, charEnd, other.charBuf, other.charEnd);
 }
 

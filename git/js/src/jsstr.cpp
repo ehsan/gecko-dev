@@ -787,7 +787,8 @@ String_p_toString(JSContext* cx, JSObject* obj)
     if (!InstanceOf(cx, obj, &js_StringClass, NULL))
         return NULL;
     Value v = obj->getPrimitiveThis();
-    return v.asString();
+    JS_ASSERT(JSVAL_IS_STRING(v));
+    return JSVAL_TO_STRING(v);
 }
 #endif
 
@@ -2945,7 +2946,7 @@ JSObject* FASTCALL
 js_String_tn(JSContext* cx, JSObject* proto, JSString* str)
 {
     JS_ASSERT(JS_ON_TRACE(cx));
-    return js_NewObjectWithClassProto(cx, &js_StringClass, proto, StringTag(str));
+    return js_NewObjectWithClassProto(cx, &js_StringClass, proto, STRING_TO_JSVAL(str));
 }
 JS_DEFINE_CALLINFO_3(extern, OBJECT, js_String_tn, CONTEXT, CALLEE_PROTOTYPE, STRING, 0,
                      nanojit::ACC_STORE_ANY)

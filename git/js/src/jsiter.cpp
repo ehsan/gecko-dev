@@ -948,11 +948,10 @@ js_NewGenerator(JSContext *cx)
         fp->callobj->setPrivate(newfp);
         fp->callobj = NULL;
     }
-    JSObject *argsobj = fp->argsObj();
-    newfp->setArgsObj(argsobj);
-    if (argsobj) {      /* Steal args object. */
-        argsobj->setPrivate(newfp);
-        fp->setArgsObj(NULL);
+    newfp->argsobj = fp->argsobj;
+    if (fp->argsobj) {      /* Steal args object. */
+        fp->argsobj->setPrivate(newfp);
+        fp->argsobj = NULL;
     }
     newfp->script = fp->script;
     newfp->fun = fp->fun;
@@ -1068,7 +1067,7 @@ SendToGenerator(JSContext *cx, JSGeneratorOp op, JSObject *obj,
 
 #ifdef DEBUG
         JSObject *callobjBefore = fp->callobj;
-        JSObject *argsobjBefore = fp->argsObj();
+        JSObject *argsobjBefore = fp->argsobj;
 #endif
 
         /*
@@ -1079,8 +1078,8 @@ SendToGenerator(JSContext *cx, JSGeneratorOp op, JSObject *obj,
          */
         if (genfp->callobj)
             fp->callobj->setPrivate(fp);
-        if (genfp->argsObj())
-            fp->argsObj()->setPrivate(fp);
+        if (genfp->argsobj)
+            fp->argsobj->setPrivate(fp);
         gen->liveFrame = fp;
         (void)cx->enterGenerator(gen); /* OOM check above. */
 
@@ -1100,12 +1099,12 @@ SendToGenerator(JSContext *cx, JSGeneratorOp op, JSObject *obj,
         /* Restore call/args/block objects. */
         cx->leaveGenerator(gen);
         gen->liveFrame = genfp;
-        if (fp->argsObj())
-            fp->argsObj()->setPrivate(genfp);
+        if (fp->argsobj)
+            fp->argsobj->setPrivate(genfp);
         if (fp->callobj)
             fp->callobj->setPrivate(genfp);
 
-        JS_ASSERT_IF(argsobjBefore, argsobjBefore == fp->argsObj());
+        JS_ASSERT_IF(argsobjBefore, argsobjBefore == fp->argsobj);
         JS_ASSERT_IF(callobjBefore, callobjBefore == fp->callobj);
 
         /* Copy and rebase stack frame/args/slots. Restore "floating" flag. */
