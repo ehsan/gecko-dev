@@ -123,7 +123,7 @@ protected:
   EEventRule mEventRule;
   nsRefPtr<Accessible> mAccessible;
 
-  friend class EventQueue;
+  friend class NotificationController;
   friend class AccReorderEvent;
 };
 
@@ -163,7 +163,7 @@ private:
   uint64_t mState;
   bool mIsEnabled;
 
-  friend class EventQueue;
+  friend class NotificationController;
 };
 
 
@@ -198,7 +198,7 @@ private:
   bool mIsInserted;
   nsString mModifiedText;
 
-  friend class EventQueue;
+  friend class NotificationController;
   friend class AccReorderEvent;
 };
 
@@ -235,7 +235,7 @@ protected:
   nsRefPtr<Accessible> mParent;
   nsRefPtr<AccTextChangeEvent> mTextChangeEvent;
 
-  friend class EventQueue;
+  friend class NotificationController;
 };
 
 
@@ -265,7 +265,7 @@ protected:
   nsRefPtr<Accessible> mNextSibling;
   nsRefPtr<Accessible> mPrevSibling;
 
-  friend class EventQueue;
+  friend class NotificationController;
 };
 
 
@@ -333,7 +333,7 @@ protected:
    */
   nsTArray<AccMutationEvent*> mDependentEvents;
 
-  friend class EventQueue;
+  friend class NotificationController;
 };
 
 
@@ -363,7 +363,7 @@ public:
 private:
   int32_t mCaretOffset;
 
-  friend class EventQueue;
+  friend class NotificationController;
 };
 
 
@@ -400,7 +400,7 @@ private:
   uint32_t mPreceedingCount;
   AccSelChangeEvent* mPackedEvent;
 
-  friend class EventQueue;
+  friend class NotificationController;
 };
 
 

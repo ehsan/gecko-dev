@@ -50,9 +50,6 @@ public:
     };
     virtual nsresult LogMessageWithMode(nsIConsoleMessage *message, OutputMode outputMode);
 
-    typedef nsInterfaceHashtable<nsISupportsHashKey, nsIConsoleListener> ListenerHash;
-    void EnumerateListeners(ListenerHash::EnumReadFunction aFunction, void* aClosure);
-
 private:
     ~nsConsoleService();
 
@@ -74,7 +71,7 @@ private:
     bool mDeliveringMessage;
 
     // Listeners to notify whenever a new message is logged.
-    ListenerHash mListeners;
+    nsInterfaceHashtable<nsISupportsHashKey, nsIConsoleListener> mListeners;
 
     // To serialize interesting methods.
     mozilla::Mutex mLock;

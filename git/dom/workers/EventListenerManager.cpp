@@ -79,7 +79,7 @@ struct ListenerData : PRCList
   Remove(JSContext* aCx, ListenerData* aListenerData)
   {
     if (JS::IsIncrementalBarrierNeeded(aCx)) {
-      JS:: IncrementalObjectBarrier(aListenerData->mListener);
+      JS:: IncrementalReferenceBarrier(aListenerData->mListener);
   }
 
     PR_REMOVE_LINK(aListenerData);

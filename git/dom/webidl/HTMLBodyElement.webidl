@@ -12,6 +12,42 @@
  */
 
 interface HTMLBodyElement : HTMLElement {
+  [SetterThrows]
+  attribute EventHandler onafterprint;
+  [SetterThrows]
+  attribute EventHandler onbeforeprint;
+  [SetterThrows]
+  attribute BeforeUnloadEventHandler onbeforeunload;
+  //[SetterThrows]
+  //attribute EventHandler onblur;
+  //[SetterThrows]
+  //attribute OnErrorEventHandler onerror;
+  //[SetterThrows]
+  //attribute EventHandler onfocus;
+  [SetterThrows]
+  attribute EventHandler onhashchange;
+  //[SetterThrows]
+  //attribute EventHandler onload;
+  [SetterThrows]
+  attribute EventHandler onmessage;
+  [SetterThrows]
+  attribute EventHandler onoffline;
+  [SetterThrows]
+  attribute EventHandler ononline;
+  [SetterThrows]
+  attribute EventHandler onpopstate;
+  [SetterThrows]
+  attribute EventHandler onpagehide;
+  [SetterThrows]
+  attribute EventHandler onpageshow;
+  [SetterThrows]
+  attribute EventHandler onresize;
+  //[SetterThrows]
+  //attribute EventHandler onscroll;
+  //[SetterThrows]
+  //attribute EventHandler onstorage;
+  [SetterThrows]
+  attribute EventHandler onunload;
 };
 
 partial interface HTMLBodyElement {
@@ -22,5 +58,3 @@ partial interface HTMLBodyElement {
   [TreatNullAs=EmptyString, SetterThrows] attribute DOMString bgColor;
   [SetterThrows]                          attribute DOMString background;
 };
-
-HTMLBodyElement implements WindowEventHandlers;

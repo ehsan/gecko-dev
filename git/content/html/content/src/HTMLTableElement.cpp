@@ -919,7 +919,8 @@ HTMLTableElement::ParseAttribute(int32_t aNamespaceID,
         aAttribute == nsGkAtoms::cellpadding) {
       return aResult.ParseNonNegativeIntValue(aValue);
     }
-    if (aAttribute == nsGkAtoms::border) {
+    if (aAttribute == nsGkAtoms::cols ||
+        aAttribute == nsGkAtoms::border) {
       return aResult.ParseIntWithBounds(aValue, 0);
     }
     if (aAttribute == nsGkAtoms::height) {
@@ -1003,6 +1004,15 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
       value = aAttributes->GetAttr(nsGkAtoms::layout);
       if (value && value->Type() == nsAttrValue::eEnum)
         tableLayout->SetIntValue(value->GetEnumValue(), eCSSUnit_Enumerated);
+    }
+    // cols
+    value = aAttributes->GetAttr(nsGkAtoms::cols);
+    if (value) {
+      nsCSSValue* cols = aData->ValueForCols();
+      if (value->Type() == nsAttrValue::eInteger)
+        cols->SetIntValue(value->GetIntegerValue(), eCSSUnit_Integer);
+      else // COLS had no value, so it refers to all columns
+        cols->SetIntValue(NS_STYLE_TABLE_COLS_ALL, eCSSUnit_Enumerated);
     }
   }
   if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Margin)) {
@@ -1125,6 +1135,7 @@ HTMLTableElement::IsAttributeMapped(const nsIAtom* aAttribute) const
     { &nsGkAtoms::layout },
     { &nsGkAtoms::cellpadding },
     { &nsGkAtoms::cellspacing },
+    { &nsGkAtoms::cols },
     { &nsGkAtoms::border },
     { &nsGkAtoms::width },
     { &nsGkAtoms::height },

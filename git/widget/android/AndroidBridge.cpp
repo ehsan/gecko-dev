@@ -37,7 +37,7 @@
 #ifdef DEBUG
 #define ALOG_BRIDGE(args...) ALOG(args)
 #else
-#define ALOG_BRIDGE(args...) ((void)0)
+#define ALOG_BRIDGE(args...)
 #endif
 
 #define IME_FULLSCREEN_PREF "widget.ime.android.landscape_fullscreen"
@@ -1706,9 +1706,8 @@ AndroidBridge::SendMessage(const nsAString& aNumber, const nsAString& aMessage, 
     if (!env)
         return;
 
-    uint32_t requestId;
-    if (!QueueSmsRequest(aRequest, &requestId))
-        return;
+    int32_t requestId = QueueSmsRequest(aRequest);
+    NS_ENSURE_TRUE_VOID(requestId >= 0);
 
     AutoLocalJNIFrame jniFrame(env);
     jstring jNumber = NewJavaString(&jniFrame, aNumber);
@@ -1726,9 +1725,8 @@ AndroidBridge::GetMessage(int32_t aMessageId, nsISmsRequest* aRequest)
     if (!env)
         return;
 
-    uint32_t requestId;
-    if (!QueueSmsRequest(aRequest, &requestId))
-        return;
+    int32_t requestId = QueueSmsRequest(aRequest);
+    NS_ENSURE_TRUE_VOID(requestId >= 0);
 
     AutoLocalJNIFrame jniFrame(env, 0);
     env->CallStaticVoidMethod(mGeckoAppShellClass, jGetMessage, aMessageId, requestId);
@@ -1743,9 +1741,8 @@ AndroidBridge::DeleteMessage(int32_t aMessageId, nsISmsRequest* aRequest)
     if (!env)
         return;
 
-    uint32_t requestId;
-    if (!QueueSmsRequest(aRequest, &requestId))
-        return;
+    int32_t requestId = QueueSmsRequest(aRequest);
+    NS_ENSURE_TRUE_VOID(requestId >= 0);
 
     AutoLocalJNIFrame jniFrame(env, 0);
     env->CallStaticVoidMethod(mGeckoAppShellClass, jDeleteMessage, aMessageId, requestId);
@@ -1761,9 +1758,8 @@ AndroidBridge::CreateMessageList(const dom::sms::SmsFilterData& aFilter, bool aR
     if (!env)
         return;
 
-    uint32_t requestId;
-    if (!QueueSmsRequest(aRequest, &requestId))
-        return;
+    int32_t requestId = QueueSmsRequest(aRequest);
+    NS_ENSURE_TRUE_VOID(requestId >= 0);
 
     AutoLocalJNIFrame jniFrame(env);
 
@@ -1792,9 +1788,8 @@ AndroidBridge::GetNextMessageInList(int32_t aListId, nsISmsRequest* aRequest)
     if (!env)
         return;
 
-    uint32_t requestId;
-    if (!QueueSmsRequest(aRequest, &requestId))
-        return;
+    int32_t requestId = QueueSmsRequest(aRequest);
+    NS_ENSURE_TRUE_VOID(requestId >= 0);
 
     AutoLocalJNIFrame jniFrame(env, 0);
     env->CallStaticVoidMethod(mGeckoAppShellClass, jGetNextMessageinList, aListId, requestId);
@@ -1813,45 +1808,38 @@ AndroidBridge::ClearMessageList(int32_t aListId)
     env->CallStaticVoidMethod(mGeckoAppShellClass, jClearMessageList, aListId);
 }
 
-bool
-AndroidBridge::QueueSmsRequest(nsISmsRequest* aRequest, uint32_t* aRequestIdOut)
+int32_t
+AndroidBridge::QueueSmsRequest(nsISmsRequest* aRequest)
 {
-    MOZ_ASSERT(NS_IsMainThread(), "Wrong thread!");
-    MOZ_ASSERT(aRequest && aRequestIdOut);
+    NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+    // XXX: This method will always fail on Android because we do not
+    // init sSmsRequests. See bug 775997 and Bug 809459.
 
     if (!sSmsRequests) {
         // Probably shutting down.
-        return false;
+        return -1;
     }
 
-    const uint32_t length = sSmsRequests->Length();
-    for (uint32_t i = 0; i < length; i++) {
+    uint32_t length = sSmsRequests->Length();
+    for (int32_t i = 0; i < length; i++) {
         if (!(*sSmsRequests)[i]) {
             (*sSmsRequests)[i] = aRequest;
-            *aRequestIdOut = i;
-            return true;
+            return i;
         }
     }
 
     sSmsRequests->AppendElement(aRequest);
 
-    // After AppendElement(), previous `length` points to the new tail element.
-    *aRequestIdOut = length;
-    return true;
+    return length;
 }
 
 already_AddRefed<nsISmsRequest>
-AndroidBridge::DequeueSmsRequest(uint32_t aRequestId)
+AndroidBridge::DequeueSmsRequest(int32_t aRequestId)
 {
-    MOZ_ASSERT(NS_IsMainThread(), "Wrong thread!");
+    NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-    if (!sSmsRequests) {
-        // Probably shutting down.
-        return nullptr;
-    }
-
-    MOZ_ASSERT(aRequestId < sSmsRequests->Length());
-    if (aRequestId >= sSmsRequests->Length()) {
+    if (!sSmsRequests || (aRequestId >= sSmsRequests->Length())) {
         return nullptr;
     }
 

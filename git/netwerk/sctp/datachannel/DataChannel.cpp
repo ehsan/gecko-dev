@@ -41,15 +41,6 @@ GetDataChannelLog()
     sLog = PR_NewLogModule("DataChannel");
   return sLog;
 }
-
-PRLogModuleInfo*
-GetSCTPLog()
-{
-  static PRLogModuleInfo* sLog;
-  if (!sLog)
-    sLog = PR_NewLogModule("SCTP");
-  return sLog;
-}
 #endif
 
 static bool sctp_initialized;
@@ -147,27 +138,6 @@ receive_cb(struct socket* sock, union sctp_sockstore addr,
   return connection->ReceiveCallback(sock, data, datalen, rcv, flags);
 }
 
-#ifdef PR_LOGGING
-static void
-debug_printf(const char *format, ...)
-{
-  va_list ap;
-  char buffer[1024];
-
-  if (PR_LOG_TEST(GetSCTPLog(), PR_LOG_ALWAYS)) {
-    va_start(ap, format);
-#ifdef _WIN32
-    if (vsnprintf_s(buffer, sizeof(buffer), _TRUNCATE, format, ap) > 0) {
-#else
-    if (vsnprintf(buffer, sizeof(buffer), format, ap) > 0) {
-#endif
-      PR_LogPrint("%s", buffer);
-    }
-    va_end(ap);
-  }
-}
-#endif
-
 DataChannelConnection::DataChannelConnection(DataConnectionListener *listener) :
    mLock("netwerk::sctp::DataChannel")
 {
@@ -194,7 +164,7 @@ DataChannelConnection::~DataChannelConnection()
   // TransportFlows must be released from the STS thread
   if (mTransportFlow && !IsSTSThread()) {
     MOZ_ASSERT(mSTS);
-    RUN_ON_THREAD(mSTS, WrapRunnableNM(ReleaseTransportFlow, mTransportFlow.forget()),
+    RUN_ON_THREAD(mSTS, WrapRunnableNM(ReleaseTransportFlow, mTransportFlow),
                   NS_DISPATCH_NORMAL);
   }
 }
@@ -262,34 +232,18 @@ DataChannelConnection::Init(unsigned short aPort, uint16_t aNumStreams, bool aUs
       if (aUsingDtls) {
         LOG(("sctp_init(DTLS)"));
 #ifdef MOZ_PEERCONNECTION
-        usrsctp_init(0,
-                     DataChannelConnection::SctpDtlsOutput,
-#ifdef PR_LOGGING
-                     debug_printf
-#else
-                     nullptr
-#endif
-                    );
+        usrsctp_init(0, DataChannelConnection::SctpDtlsOutput);
 #else
         NS_ASSERTION(!aUsingDtls, "Trying to use SCTP/DTLS without mtransport");
 #endif
       } else {
         LOG(("sctp_init(%d)", aPort));
-        usrsctp_init(aPort,
-                     nullptr,
-#ifdef PR_LOGGING
-                     debug_printf
-#else
-                     nullptr
-#endif
-                    );
+        usrsctp_init(aPort, nullptr);
       }
 
+      // Set logging to datachannel:6 to get SCTP debugs
 #ifdef PR_LOGGING
-      // Set logging to SCTP:PR_LOG_DEBUG to get SCTP debugs
-      if (PR_LOG_TEST(GetSCTPLog(), PR_LOG_ALWAYS)) {
-        usrsctp_sysctl_set_sctp_debug_on(SCTP_DEBUG_ALL);
-      }
+      usrsctp_sysctl_set_sctp_debug_on(GetDataChannelLog()->level > 5 ? SCTP_DEBUG_ALL : 0);
 #endif
       usrsctp_sysctl_set_sctp_blackhole(2);
       sctp_initialized = true;
@@ -529,16 +483,8 @@ void
 DataChannelConnection::SctpDtlsInput(TransportFlow *flow,
                                      const unsigned char *data, size_t len)
 {
-#ifdef PR_LOGGING
-  if (PR_LOG_TEST(GetSCTPLog(), PR_LOG_DEBUG)) {
-    char *buf;
+  //LOG(("%p: SCTP/DTLS received %ld bytes", this, len));
 
-    if ((buf = usrsctp_dumppacket((void *)data, len, SCTP_DUMP_INBOUND)) != NULL) {
-      PR_LogPrint("%s", buf);
-      usrsctp_freedumpbuffer(buf);
-    }
-  }
-#endif
   // Pass the data to SCTP
   usrsctp_conninput(static_cast<void *>(this), data, len, 0);
 }
@@ -561,16 +507,6 @@ DataChannelConnection::SctpDtlsOutput(void *addr, void *buffer, size_t length,
   DataChannelConnection *peer = static_cast<DataChannelConnection *>(addr);
   int res;
 
-#ifdef PR_LOGGING
-  if (PR_LOG_TEST(GetSCTPLog(), PR_LOG_DEBUG)) {
-    char *buf;
-
-    if ((buf = usrsctp_dumppacket(buffer, length, SCTP_DUMP_OUTBOUND)) != NULL) {
-      PR_LogPrint("%s", buf);
-      usrsctp_freedumpbuffer(buf);
-    }
-  }
-#endif
   // We're async proxying even if on the STSThread because this is called
   // with internal SCTP locks held in some cases (such as in usrsctp_connect()).
   // SCTP has an option for Apple, on IP connections only, to release at least

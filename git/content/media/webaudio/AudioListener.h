@@ -40,20 +40,20 @@ public:
   virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope,
                                bool* aTriedToWrap);
 
-  float DopplerFactor() const
+  double DopplerFactor() const
   {
     return mDopplerFactor;
   }
-  void SetDopplerFactor(float aDopplerFactor)
+  void SetDopplerFactor(double aDopplerFactor)
   {
     mDopplerFactor = aDopplerFactor;
   }
 
-  float SpeedOfSound() const
+  double SpeedOfSound() const
   {
     return mSpeedOfSound;
   }
-  void SetSpeedOfSound(float aSpeedOfSound)
+  void SetSpeedOfSound(double aSpeedOfSound)
   {
     mSpeedOfSound = aSpeedOfSound;
   }
@@ -89,8 +89,8 @@ private:
   ThreeDPoint mOrientation;
   ThreeDPoint mUpVector;
   ThreeDPoint mVelocity;
-  float mDopplerFactor;
-  float mSpeedOfSound;
+  double mDopplerFactor;
+  double mSpeedOfSound;
 };
 
 }

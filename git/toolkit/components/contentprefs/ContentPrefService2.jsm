@@ -722,7 +722,7 @@ ContentPrefService2.prototype = {
 
   QueryInterface: function CPS2_QueryInterface(iid) {
     let supportedIIDs = [
-      Ci.nsIContentPrefService2,
+      Ci.nsIContentPrefService,
       Ci.nsIObserver,
       Ci.nsISupports,
     ];

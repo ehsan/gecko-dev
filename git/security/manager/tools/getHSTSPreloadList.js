@@ -148,7 +148,6 @@ function getHSTSStatus(host, resultList) {
   var inResultList = false;
   var uri = "https://" + host.name + "/";
   req.open("GET", uri, true);
-  req.timeout = 60000;
   req.channel.notificationCallbacks = new RedirectStopper();
   req.onreadystatechange = function(event) {
     if (!inResultList && req.readyState == 4) {

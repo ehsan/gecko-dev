@@ -325,45 +325,28 @@ ToNewUnicode( const nsACString& aSource )
     return result;
   }
 
-uint32_t
-CalcUTF8ToUnicodeLength( const nsACString& aSource)
+PRUnichar*
+UTF8ToNewUnicode( const nsACString& aSource, uint32_t *aUTF16Count )
   {
     nsACString::const_iterator start, end;
     CalculateUTF8Length calculator;
     copy_string(aSource.BeginReading(start), aSource.EndReading(end),
                 calculator);
-    return calculator.Length();
-  }
 
-PRUnichar*
-UTF8ToUnicodeBuffer( const nsACString& aSource, PRUnichar* aBuffer, uint32_t *aUTF16Count )
-  {
-    nsACString::const_iterator start, end;
-    ConvertUTF8toUTF16 converter(aBuffer);
-    copy_string(aSource.BeginReading(start),
-                aSource.EndReading(end),
-                converter).write_terminator();
     if (aUTF16Count)
-      *aUTF16Count = converter.Length();
-    return aBuffer;
-  }
+      *aUTF16Count = calculator.Length();
 
-PRUnichar*
-UTF8ToNewUnicode( const nsACString& aSource, uint32_t *aUTF16Count )
-  {
-    const uint32_t length = CalcUTF8ToUnicodeLength(aSource);
-    const size_t buffer_size = (length + 1) * sizeof(PRUnichar);
-    PRUnichar *buffer = static_cast<PRUnichar*>(nsMemory::Alloc(buffer_size));
-    if (!buffer)
+    PRUnichar *result = static_cast<PRUnichar*>
+                                   (nsMemory::Alloc(sizeof(PRUnichar) * (calculator.Length() + 1)));
+    if (!result)
       return nullptr;
 
-    uint32_t copied;
-    UTF8ToUnicodeBuffer(aSource, buffer, &copied);
-    NS_ASSERTION(length == copied, "length mismatch");
+    ConvertUTF8toUTF16 converter(result);
+    copy_string(aSource.BeginReading(start), aSource.EndReading(end),
+                converter).write_terminator();
+    NS_ASSERTION(calculator.Length() == converter.Length(), "length mismatch");
 
-    if (aUTF16Count)
-      *aUTF16Count = copied;
-    return buffer;
+    return result;
   }
 
 PRUnichar*

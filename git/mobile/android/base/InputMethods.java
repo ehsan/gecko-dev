@@ -51,8 +51,7 @@ final class InputMethods {
     private InputMethods() {}
 
     public static String getCurrentInputMethod(Context context) {
-        String inputMethod = Secure.getString(context.getContentResolver(), Secure.DEFAULT_INPUT_METHOD);
-        return (inputMethod != null ? inputMethod : "");
+        return Secure.getString(context.getContentResolver(), Secure.DEFAULT_INPUT_METHOD);
     }
 
     public static InputMethodInfo getInputMethodInfo(Context context, String inputMethod) {

@@ -45,8 +45,6 @@
 #include "nsISMILAttr.h"
 #include "nsClientRect.h"
 #include "nsEvent.h"
-#include "nsAttrValue.h"
-#include "mozilla/dom/BindingDeclarations.h"
 
 class nsIDOMEventListener;
 class nsIFrame;
@@ -463,7 +461,7 @@ public:
   nsresult SetParsedAttr(int32_t aNameSpaceID, nsIAtom* aName, nsIAtom* aPrefix,
                          nsAttrValue& aParsedValue, bool aNotify);
   virtual bool GetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                       nsAString& aResult) const;
+                         nsAString& aResult) const;
   virtual bool HasAttr(int32_t aNameSpaceID, nsIAtom* aName) const;
   // aCaseSensitive == eIgnoreCaase means ASCII case-insensitive matching.
   virtual bool AttrValueIs(int32_t aNameSpaceID, nsIAtom* aName,
@@ -519,33 +517,12 @@ private:
                           const MappedAttributeEntry* const aMaps[],
                           uint32_t aMapCount);
 
-protected:
-  inline bool GetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                      mozilla::dom::DOMString& aResult) const
-  {
-    NS_ASSERTION(nullptr != aName, "must have attribute name");
-    NS_ASSERTION(aNameSpaceID != kNameSpaceID_Unknown,
-                 "must have a real namespace ID!");
-    MOZ_ASSERT(aResult.HasStringBuffer() && aResult.StringBufferLength() == 0,
-               "Should have empty string coming in");
-    const nsAttrValue* val = mAttrsAndChildren.GetAttr(aName, aNameSpaceID);
-    if (val) {
-      val->ToString(aResult);
-    }
-    // else DOMString comes pre-emptied.
-    return val != nullptr;
-  }
-
 public:
   void GetTagName(nsAString& aTagName) const
   {
     aTagName = NodeName();
   }
   void GetId(nsAString& aId) const
-  {
-    GetAttr(kNameSpaceID_None, nsGkAtoms::id, aId);
-  }
-  void GetId(mozilla::dom::DOMString& aId) const
   {
     GetAttr(kNameSpaceID_None, nsGkAtoms::id, aId);
   }
@@ -564,14 +541,7 @@ public:
 
     return slots->mAttributeMap;
   }
-  void GetAttribute(const nsAString& aName, nsString& aReturn)
-  {
-    mozilla::dom::DOMString str;
-    GetAttribute(aName, str);
-    str.ToString(aReturn);
-  }
-
-  void GetAttribute(const nsAString& aName, mozilla::dom::DOMString& aReturn);
+  virtual void GetAttribute(const nsAString& aName, nsString& aReturn);
   void GetAttributeNS(const nsAString& aNamespaceURI,
                       const nsAString& aLocalName,
                       nsAString& aReturn);
@@ -581,12 +551,12 @@ public:
                       const nsAString& aLocalName,
                       const nsAString& aValue,
                       ErrorResult& aError);
-  void RemoveAttribute(const nsAString& aName,
-                       ErrorResult& aError);
+  virtual void RemoveAttribute(const nsAString& aName,
+                               ErrorResult& aError);
   void RemoveAttributeNS(const nsAString& aNamespaceURI,
                          const nsAString& aLocalName,
                          ErrorResult& aError);
-  bool HasAttribute(const nsAString& aName) const
+  virtual bool HasAttribute(const nsAString& aName) const
   {
     return InternalGetExistingAttrNameFromQName(aName) != nullptr;
   }
@@ -1065,6 +1035,13 @@ protected:
    * @param aRect offset rectangle
    */
   virtual Element* GetOffsetRect(nsRect& aRect);
+
+  /**
+   * Retrieve the size of the padding rect of this element.
+   *
+   * @param aSize the size of the padding rect
+   */
+  nsIntSize GetPaddingRectSize();
 
   nsIFrame* GetStyledFrame();
 

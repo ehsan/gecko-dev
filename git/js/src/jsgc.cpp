@@ -1030,13 +1030,26 @@ js_FinishGC(JSRuntime *rt)
     rt->gcLocksHash.clear();
 }
 
-template <typename T> struct BarrierOwner {};
-template <typename T> struct BarrierOwner<T *> { typedef T result; };
-template <> struct BarrierOwner<Value> { typedef HeapValue result; };
+JSBool
+js_AddRoot(JSContext *cx, Value *vp, const char *name)
+{
+    JSBool ok = js_AddRootRT(cx->runtime, vp, name);
+    if (!ok)
+        JS_ReportOutOfMemory(cx);
+    return ok;
+}
 
-template <typename T>
-static bool
-AddRoot(JSRuntime *rt, T *rp, const char *name, JSGCRootType rootType)
+JSBool
+js_AddGCThingRoot(JSContext *cx, void **rp, const char *name)
+{
+    JSBool ok = js_AddGCThingRootRT(cx->runtime, rp, name);
+    if (!ok)
+        JS_ReportOutOfMemory(cx);
+    return ok;
+}
+
+JS_FRIEND_API(JSBool)
+js_AddRootRT(JSRuntime *rt, jsval *vp, const char *name)
 {
     /*
      * Sometimes Firefox will hold weak references to objects and then convert
@@ -1045,49 +1058,26 @@ AddRoot(JSRuntime *rt, T *rp, const char *name, JSGCRootType rootType)
      * cases.
      */
     if (rt->gcIncrementalState != NO_INCREMENTAL)
-        BarrierOwner<T>::result::writeBarrierPre(*rp);
+        IncrementalValueBarrier(*vp);
 
-    return rt->gcRootsHash.put((void *)rp, RootInfo(name, rootType));
+    return !!rt->gcRootsHash.put((void *)vp,
+                                 RootInfo(name, JS_GC_ROOT_VALUE_PTR));
 }
 
-template <typename T>
-static bool
-AddRoot(JSContext *cx, T *rp, const char *name, JSGCRootType rootType)
+JS_FRIEND_API(JSBool)
+js_AddGCThingRootRT(JSRuntime *rt, void **rp, const char *name)
 {
-    bool ok = AddRoot(cx->runtime, rp, name, rootType);
-    if (!ok)
-        JS_ReportOutOfMemory(cx);
-    return ok;
-}
+    /*
+     * Sometimes Firefox will hold weak references to objects and then convert
+     * them to strong references by calling AddRoot (e.g., via PreserveWrapper,
+     * or ModifyBusyCount in workers). We need a read barrier to cover these
+     * cases.
+     */
+    if (rt->gcIncrementalState != NO_INCREMENTAL)
+        IncrementalReferenceBarrier(*rp);
 
-JSBool
-js::AddValueRoot(JSContext *cx, Value *vp, const char *name)
-{
-    return AddRoot(cx, vp, name, JS_GC_ROOT_VALUE_PTR);
-}
-
-extern JSBool
-js::AddValueRootRT(JSRuntime *rt, js::Value *vp, const char *name)
-{
-    return AddRoot(rt, vp, name, JS_GC_ROOT_VALUE_PTR);
-}
-
-extern JSBool
-js::AddStringRoot(JSContext *cx, JSString **rp, const char *name)
-{
-    return AddRoot(cx, rp, name, JS_GC_ROOT_STRING_PTR);
-}
-
-extern JSBool
-js::AddObjectRoot(JSContext *cx, JSObject **rp, const char *name)
-{
-    return AddRoot(cx, rp, name, JS_GC_ROOT_OBJECT_PTR);
-}
-
-extern JSBool
-js::AddScriptRoot(JSContext *cx, JSScript **rp, const char *name)
-{
-    return AddRoot(cx, rp, name, JS_GC_ROOT_SCRIPT_PTR);
+    return !!rt->gcRootsHash.put((void *)rp,
+                                 RootInfo(name, JS_GC_ROOT_GCTHING_PTR));
 }
 
 JS_FRIEND_API(void)
@@ -1576,7 +1566,7 @@ js_GetGCThingTraceKind(void *thing)
 }
 
 JSBool
-js_LockThing(JSRuntime *rt, void *thing)
+js_LockGCThingRT(JSRuntime *rt, void *thing)
 {
     if (!thing)
         return true;
@@ -1588,7 +1578,7 @@ js_LockThing(JSRuntime *rt, void *thing)
      * cases.
      */
     if (rt->gcIncrementalState != NO_INCREMENTAL)
-        IncrementalReferenceBarrier(thing, GetGCThingTraceKind(thing));
+        IncrementalReferenceBarrier(thing);
 
     if (GCLocks::Ptr p = rt->gcLocksHash.lookupWithDefault(thing, 0)) {
         p->value++;
@@ -1599,7 +1589,7 @@ js_LockThing(JSRuntime *rt, void *thing)
 }
 
 void
-js_UnlockThing(JSRuntime *rt, void *thing)
+js_UnlockGCThingRT(JSRuntime *rt, void *thing)
 {
     if (!thing)
         return;

@@ -15,7 +15,7 @@ namespace ion {
 
 template <class Op>
 inline void
-SnapshotIterator::readFrameArgs(Op &op, const Value *argv, Value *scopeChain, Value *thisv,
+SnapshotIterator::readFrameArgs(Op op, const Value *argv, Value *scopeChain, Value *thisv,
                                 unsigned start, unsigned formalEnd, unsigned iterEnd)
 {
     if (scopeChain)
@@ -62,35 +62,28 @@ InlineFrameIterator::forEachCanonicalActualArg(JSContext *cx, Op op, unsigned st
 
     if (more()) {
         // There is still a parent frame of this inlined frame.
-        // The not overflown arguments are taken from the inlined frame,
-        // because it will have the updated value when JSOP_SETARG is done.
-        // All arguments (also the overflown) are the last pushed values in the parent frame.
-        // To get the overflown arguments, we need to take them from there.
+        // Take arguments of the caller (parent inlined frame) it holds all actual
+        // arguments, needed in case of overflow, and because the analyze phase
+        // disable Ion inlining if the function redefine its arguments with JSOP_SETARG.
 
-        // Get the non overflown arguments
-        unsigned formal_end = (end < nformal) ? end : nformal;
-        SnapshotIterator s(si_);
-        s.readFrameArgs(op, NULL, NULL, NULL, start, nformal, formal_end);
-
-        // The overflown arguments are not available in current frame.
-        // They are the last pushed arguments in the parent frame of this inlined frame.
         InlineFrameIterator it(cx, this);
-        SnapshotIterator parent_s((++it).snapshotIterator());
+        ++it;
+        SnapshotIterator s(it.snapshotIterator());
 
-        // Skip over all slots untill we get to the last slots (= arguments slots of callee)
+        // Skip over all slots untill we get to the arguments slots
         // the +2 is for [this] and [scopechain]
-        JS_ASSERT(parent_s.slots() >= nactual + 2);
-        unsigned skip = parent_s.slots() - nactual - 2;
+        JS_ASSERT(s.slots() >= nactual + 2);
+        unsigned skip = s.slots() - nactual - 2;
         for (unsigned j = 0; j < skip; j++)
-            parent_s.skip();
+            s.skip();
 
-        // Get the overflown arguments
-        parent_s.readFrameArgs(op, NULL, NULL, NULL, nformal, nactual, end);
+        s.readFrameArgs(op, NULL, NULL, NULL, start, nactual, end);
     } else {
         SnapshotIterator s(si_);
         Value *argv = frame_->actualArgs();
         s.readFrameArgs(op, argv, NULL, NULL, start, nformal, end);
     }
+
 }
 
 } // namespace ion

@@ -581,7 +581,6 @@ protected:
    * Used to process notification from core and accessible events.
    */
   nsRefPtr<NotificationController> mNotificationController;
-  friend class EventQueue;
   friend class NotificationController;
 
 private:

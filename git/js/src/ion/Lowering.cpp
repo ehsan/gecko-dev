@@ -500,11 +500,9 @@ LIRGenerator::visitTest(MTest *test)
         {
             JSOp op = ReorderComparison(comp->jsop(), &left, &right);
             LAllocation lhs = useRegister(left);
-            LAllocation rhs;
+            LAllocation rhs = useRegister(right);
             if (comp->compareType() == MCompare::Compare_Int32)
                 rhs = useAnyOrConstant(right);
-            else
-                rhs = useRegister(right);
             LCompareAndBranch *lir = new LCompareAndBranch(op, lhs, rhs, ifTrue, ifFalse);
             return add(lir, comp);
         }
@@ -553,7 +551,7 @@ CanEmitCompareAtUses(MInstruction *ins)
 
     bool foundTest = false;
     for (MUseIterator iter(ins->usesBegin()); iter != ins->usesEnd(); iter++) {
-        MNode *node = iter->consumer();
+        MNode *node = iter->node();
         if (!node->isDefinition())
             return false;
         if (!node->toDefinition()->isTest())
@@ -646,11 +644,9 @@ LIRGenerator::visitCompare(MCompare *comp)
     {
         JSOp op = ReorderComparison(comp->jsop(), &left, &right);
         LAllocation lhs = useRegister(left);
-        LAllocation rhs;
+        LAllocation rhs = useRegister(right);
         if (comp->compareType() == MCompare::Compare_Int32)
             rhs = useAnyOrConstant(right);
-        else
-            rhs = useRegister(right);
         return define(new LCompare(op, lhs, rhs), comp);
     }
 

@@ -5,7 +5,6 @@
 from __future__ import print_function, unicode_literals
 
 import logging
-import multiprocessing
 import os
 import subprocess
 import sys
@@ -160,8 +159,8 @@ class MozbuildObject(ProcessExecutionMixin):
         if filename:
             args.extend(['-f', filename])
 
-        if allow_parallel:
-            args.append('-j%d' % multiprocessing.cpu_count())
+        #if allow_parallel:
+        #    args.append('-j%d' % self.settings.build.threads)
 
         if ignore_errors:
             args.append('-k')

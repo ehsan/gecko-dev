@@ -1211,6 +1211,7 @@ nsStyleTable::nsStyleTable()
   MOZ_COUNT_CTOR(nsStyleTable);
   // values not inherited
   mLayoutStrategy = NS_STYLE_TABLE_LAYOUT_AUTO;
+  mCols  = NS_STYLE_TABLE_COLS_NONE;
   mFrame = NS_STYLE_TABLE_FRAME_NONE;
   mRules = NS_STYLE_TABLE_RULES_NONE;
   mSpan = 1;
@@ -1233,7 +1234,7 @@ nsChangeHint nsStyleTable::CalcDifference(const nsStyleTable& aOther) const
   if (mRules != aOther.mRules || mSpan != aOther.mSpan ||
       mLayoutStrategy != aOther.mLayoutStrategy)
     return NS_STYLE_HINT_FRAMECHANGE;
-  if (mFrame != aOther.mFrame)
+  if (mFrame != aOther.mFrame || mCols != aOther.mCols)
     return NS_STYLE_HINT_REFLOW;
   return NS_STYLE_HINT_NONE;
 }

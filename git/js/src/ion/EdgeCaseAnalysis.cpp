@@ -55,10 +55,10 @@ EdgeCaseAnalysis::AllUsesTruncate(MInstruction *m)
     int ret = 1;
     for (MUseIterator use = m->usesBegin(); use != m->usesEnd(); use++) {
         // See #809485 why this is allowed
-        if (use->consumer()->isResumePoint())
+        if (use->node()->isResumePoint())
             continue;
 
-        MDefinition *def = use->consumer()->toDefinition();
+        MDefinition *def = use->node()->toDefinition();
         if (def->isTruncateToInt32())
             continue;
         if (def->isBitAnd())

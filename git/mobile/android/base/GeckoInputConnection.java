@@ -46,7 +46,7 @@ class GeckoInputConnection
     private String mIMEModeHint = "";
     private String mIMEActionHint = "";
 
-    private String mCurrentInputMethod = "";
+    private String mCurrentInputMethod;
 
     private final GeckoEditableClient mEditableClient;
     protected int mBatchEditCount;
@@ -385,7 +385,7 @@ class GeckoInputConnection
         }
 
         // If the user has changed IMEs, then notify input method observers.
-        if (!mCurrentInputMethod.equals(prevInputMethod)) {
+        if (mCurrentInputMethod != prevInputMethod) {
             FormAssistPopup popup = app.mFormAssistPopup;
             if (popup != null) {
                 popup.onInputMethodChanged(mCurrentInputMethod);
@@ -656,3 +656,4 @@ final class DebugGeckoInputConnection
         return ret;
     }
 }
+

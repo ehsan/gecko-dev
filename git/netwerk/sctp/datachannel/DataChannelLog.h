@@ -20,7 +20,6 @@
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* GetDataChannelLog();
-extern PRLogModuleInfo* GetSCTPLog();
 #endif
 
 #undef LOG

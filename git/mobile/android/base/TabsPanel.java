@@ -180,9 +180,6 @@ public class TabsPanel extends LinearLayout
 
     @Override
     public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-        if (!mVisible)
-            return;
-
         Panel panel = TabsPanel.Panel.NORMAL_TABS;
         if (position == 1)
             panel = TabsPanel.Panel.PRIVATE_TABS;
@@ -228,7 +225,7 @@ public class TabsPanel extends LinearLayout
             default:
                 return mActivity.onOptionsItemSelected(item);
         }
-    }
+    }  
 
     private static int getTabContainerHeight(View view) {
         Context context = view.getContext();
@@ -434,10 +431,6 @@ public class TabsPanel extends LinearLayout
 
     public boolean isSideBar() {
         return mIsSideBar;
-    }
-
-    public Panel getCurrentPanel() {
-        return mCurrentPanel;
     }
 
     public void setTabsLayoutChangeListener(TabsLayoutChangeListener listener) {

@@ -3248,7 +3248,7 @@ TypeCompartment::fixObjectType(JSContext *cx, HandleObject obj)
      */
     JS_ASSERT(obj->isObject());
 
-    if (obj->slotSpan() == 0 || obj->inDictionaryMode() || !obj->hasEmptyElements())
+    if (obj->slotSpan() == 0 || obj->inDictionaryMode())
         return;
 
     ObjectTypeTable::AddPtr p = objectTypeTable->lookupForAdd(obj.get());

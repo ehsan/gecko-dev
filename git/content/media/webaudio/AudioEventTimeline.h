@@ -20,10 +20,15 @@ namespace dom {
  * This class will be instantiated with different template arguments for testing and
  * production code.
  *
+ * FloatArrayWrapper is a type which satisfies the following:
+ *  - Is copy-constructible.
+ *  - Implements a Data() method returning a float*, representing an array.
+ *  - Implements a Length() method returning a uint32_t, representing the array length.
+ *  - Implements an inited() method returning true for valid objects.
  * ErrorResult is a type which satisfies the following:
  *  - Implements a Throw() method taking an nsresult argument, representing an error code.
  */
-template <class ErrorResult>
+template <class FloatArrayWrapper, class ErrorResult>
 class AudioEventTimeline
 {
 private:
@@ -37,17 +42,15 @@ private:
     };
 
     Event(Type aType, double aTime, float aValue, double aTimeConstant = 0.0,
-          float aDuration = 0.0, float* aCurve = nullptr, uint32_t aCurveLength = 0)
+          float aDuration = 0.0, FloatArrayWrapper aCurve = FloatArrayWrapper())
       : mType(aType)
+      , mValue(aValue)
+      , mTime(aTime)
       , mTimeConstant(aTimeConstant)
       , mDuration(aDuration)
     {
-      if (aType == Event::SetValueCurve) {
+      if (aCurve.inited()) {
         mCurve = aCurve;
-        mCurveLength = aCurveLength;
-      } else {
-        mValue = aValue;
-        mTime = aTime;
       }
     }
 
@@ -60,28 +63,31 @@ private:
     }
 
     Type mType;
-    union {
-      float mValue;
-      uint32_t mCurveLength;
-    };
-    union {
-      double mTime;
-      float* mCurve;
-    };
+    float mValue;
+    double mTime;
     double mTimeConstant;
     double mDuration;
+    FloatArrayWrapper mCurve;
 
   private:
-    static bool IsValid(double value)
+    static bool IsValid(float value)
     {
       return MOZ_DOUBLE_IS_FINITE(value);
     }
   };
 
 public:
-  explicit AudioEventTimeline(float aDefaultValue)
+  AudioEventTimeline(float aDefaultValue,
+                     float aMinValue,
+                     float aMaxValue)
     : mValue(aDefaultValue)
+    , mDefaultValue(aDefaultValue)
+    , mMinValue(aMinValue)
+    , mMaxValue(aMaxValue)
   {
+    MOZ_ASSERT(aDefaultValue >= aMinValue);
+    MOZ_ASSERT(aDefaultValue <= aMaxValue);
+    MOZ_ASSERT(aMinValue < aMaxValue);
   }
 
   float Value() const
@@ -104,6 +110,21 @@ public:
     return 0;
   }
 
+  float MinValue() const
+  {
+    return mMinValue;
+  }
+
+  float MaxValue() const
+  {
+    return mMaxValue;
+  }
+
+  float DefaultValue() const
+  {
+    return mDefaultValue;
+  }
+
   void SetValueAtTime(float aValue, double aStartTime, ErrorResult& aRv)
   {
     InsertEvent(Event(Event::SetValue, aStartTime, aValue), aRv);
@@ -124,11 +145,10 @@ public:
     InsertEvent(Event(Event::SetTarget, aStartTime, aTarget, aTimeConstant), aRv);
   }
 
-  void SetValueCurveAtTime(const float* aValues, uint32_t aValuesLength, double aStartTime, double aDuration, ErrorResult& aRv)
+  void SetValueCurveAtTime(const FloatArrayWrapper& aValues, double aStartTime, double aDuration, ErrorResult& aRv)
   {
     // TODO: implement
-    // Note that we will need to copy the buffer here.
-    // InsertEvent(Event(Event::SetValueCurve, aStartTime, 0.0f, 0.0f, aDuration, aValues, aValuesLength), aRv);
+    // InsertEvent(Event(Event::SetValueCurve, aStartTime, 0.0f, 0.0f, aDuration, aValues), aRv);
   }
 
   void CancelScheduledValues(double aStartTime)
@@ -357,6 +377,9 @@ private:
   // being a bottleneck.
   nsTArray<Event> mEvents;
   float mValue;
+  const float mDefaultValue;
+  const float mMinValue;
+  const float mMaxValue;
 };
 
 }

@@ -101,12 +101,12 @@ nsVolume::LogState() const
 {
   if (mState == nsIVolume::STATE_MOUNTED) {
     LOG("nsVolume: %s state %s @ '%s' gen %d locked %d",
-        NameStr().get(), StateStr(), MountPointStr().get(),
+        NameStr(), StateStr(), MountPointStr(),
         MountGeneration(), (int)IsMountLocked());
     return;
   }
 
-  LOG("nsVolume: %s state %s", NameStr().get(), StateStr());
+  LOG("nsVolume: %s state %s", NameStr(), StateStr());
 }
 
 void nsVolume::Set(const nsVolume* aVolume)

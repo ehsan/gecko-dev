@@ -714,15 +714,6 @@ DASHDecoder::NotifyDownloadEnded(DASHRepDecoder* aRepDecoder,
       }
     }
 
-    // Check that decoder is valid.
-    if (!decoder || (decoder != AudioRepDecoder() &&
-                     decoder != VideoRepDecoder())) {
-      LOG("Invalid decoder [%p]: video idx [%d] audio idx [%d]",
-          decoder.get(), AudioRepDecoder(), VideoRepDecoder());
-      DecodeError();
-      return;
-    }
-
     // Before loading, note the index of the decoder which will downloaded the
     // next video subsegment.
     if (decoder == VideoRepDecoder()) {
@@ -747,22 +738,20 @@ DASHDecoder::NotifyDownloadEnded(DASHRepDecoder* aRepDecoder,
     // Load the next range of data bytes. If the range is already cached,
     // this function will be called again to adaptively download the next
     // subsegment.
-    bool resourceLoaded = false;
+#ifdef PR_LOGGING
     if (decoder.get() == AudioRepDecoder()) {
       LOG("Requesting load for audio decoder [%p] subsegment [%d].",
         decoder.get(), mAudioSubsegmentIdx);
-      if (mAudioSubsegmentIdx >= decoder->GetNumDataByteRanges()) {
-        resourceLoaded = true;
-      }
     } else if (decoder.get() == VideoRepDecoder()) {
       LOG("Requesting load for video decoder [%p] subsegment [%d].",
         decoder.get(), mVideoSubsegmentIdx);
-      if (mVideoSubsegmentIdx >= decoder->GetNumDataByteRanges()) {
-        resourceLoaded = true;
-      }
     }
-    if (resourceLoaded) {
-      ResourceLoaded();
+#endif
+    if (!decoder || (decoder != AudioRepDecoder() &&
+                     decoder != VideoRepDecoder())) {
+      LOG("Invalid decoder [%p]: video idx [%d] audio idx [%d]",
+          decoder.get(), AudioRepDecoder(), VideoRepDecoder());
+      DecodeError();
       return;
     }
     decoder->LoadNextByteRange();
@@ -1053,9 +1042,20 @@ DASHDecoder::Seek(double aTime)
 
   {
     ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
-    // Set the seeking flag, so that when current subsegments download (if
+    // We want to stop the current series of downloads and restart later with
+    // the appropriate subsegment.
+
+    // 1 - Set the seeking flag, so that when current subsegments download (if
     // any), the next subsegment will not be downloaded.
     mSeeking = true;
+
+    // 2 - Cancel all current downloads to reset for seeking.
+    for (uint32_t i = 0; i < mAudioRepDecoders.Length(); i++) {
+      mAudioRepDecoders[i]->CancelByteRangeLoad();
+    }
+    for (uint32_t i = 0; i < mVideoRepDecoders.Length(); i++) {
+      mVideoRepDecoders[i]->CancelByteRangeLoad();
+    }
   }
 
   return MediaDecoder::Seek(aTime);
@@ -1302,61 +1302,6 @@ DASHDecoder::GetStatistics()
   }
 
   return result;
-}
-
-bool
-DASHDecoder::IsDataCachedToEndOfResource()
-{
-  NS_ASSERTION(!mShuttingDown, "Don't call during shutdown!");
-  GetReentrantMonitor().AssertCurrentThreadIn();
-
-  if (!mMPDManager || !mResource) {
-    return false;
-  }
-
-  bool resourceIsLoaded = false;
-  if (VideoRepDecoder()) {
-    resourceIsLoaded = VideoRepDecoder()->IsDataCachedToEndOfResource();
-    LOG("IsDataCachedToEndOfResource for VideoRepDecoder %p = %s",
-       VideoRepDecoder(), resourceIsLoaded ? "yes" : "no");
-  }
-  if (AudioRepDecoder()) {
-    bool isAudioResourceLoaded =
-      AudioRepDecoder()->IsDataCachedToEndOfResource();
-    LOG("IsDataCachedToEndOfResource for AudioRepDecoder %p = %s",
-       AudioRepDecoder(), isAudioResourceLoaded ? "yes" : "no");
-    resourceIsLoaded = resourceIsLoaded && isAudioResourceLoaded;
-  }
-
-  return resourceIsLoaded;
-}
-
-void
-DASHDecoder::StopProgressUpdates()
-{
-  MOZ_ASSERT(OnStateMachineThread() || OnDecodeThread());
-  GetReentrantMonitor().AssertCurrentThreadIn();
-  mIgnoreProgressData = true;
-  for (uint32_t i = 0; i < mVideoRepDecoders.Length(); i++) {
-    mVideoRepDecoders[i]->StopProgressUpdates();
-  }
-  for (uint32_t i = 0; i < mAudioRepDecoders.Length(); i++) {
-    mAudioRepDecoders[i]->StopProgressUpdates();
-  }
-}
-
-void
-DASHDecoder::StartProgressUpdates()
-{
-  MOZ_ASSERT(OnStateMachineThread() || OnDecodeThread());
-  GetReentrantMonitor().AssertCurrentThreadIn();
-  mIgnoreProgressData = false;
-  for (uint32_t i = 0; i < mVideoRepDecoders.Length(); i++) {
-    mVideoRepDecoders[i]->StartProgressUpdates();
-  }
-  for (uint32_t i = 0; i < mAudioRepDecoders.Length(); i++) {
-    mAudioRepDecoders[i]->StartProgressUpdates();
-  }
 }
 
 } // namespace mozilla

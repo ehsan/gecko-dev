@@ -348,6 +348,12 @@ public:
   }
 
   /**
+   * Cancels current byte range requests previously opened via
+   * OpenByteRange.
+   */
+  virtual void CancelByteRangeOpen() { }
+
+  /**
    * Fills aRanges with MediaByteRanges representing the data which is cached
    * in the media cache. Stream should be pinned during call and while
    * aRanges is being used.
@@ -455,6 +461,7 @@ public:
   virtual nsresult Open(nsIStreamListener** aStreamListener);
   virtual nsresult OpenByteRange(nsIStreamListener** aStreamListener,
                                  MediaByteRange const & aByteRange);
+  virtual void     CancelByteRangeOpen();
   virtual nsresult Close();
   virtual void     Suspend(bool aCloseImmediately);
   virtual void     Resume();

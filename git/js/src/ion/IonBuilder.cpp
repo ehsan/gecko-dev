@@ -870,6 +870,7 @@ IonBuilder::inspectOpcode(JSOp op)
         return true;
 
       case JSOP_SETARG:
+        JS_ASSERT(inliningDepth == 0);
         // To handle this case, we should spill the arguments to the space where
         // actual arguments are stored. The tricky part is that if we add a MIR
         // to wrap the spilling action, we don't want the spilling to be
@@ -2956,16 +2957,14 @@ IonBuilder::patchInlinedReturns(CallInfo &callInfo, MIRGraphExits &exits, MBasic
     // would have been returned.
     JS_ASSERT(exits.length() > 0);
 
-    // In the case of a single return, no phi is necessary.
-    MPhi *phi = NULL;
+    MPhi *retDef = NULL;
     if (exits.length() > 1) {
-        phi = MPhi::New(bottom->stackDepth());
-        phi->initLength(exits.length());
-        bottom->addPhi(phi);
+        retDef = MPhi::New(bottom->stackDepth());
+        bottom->addPhi(retDef);
     }
 
-    for (size_t i = 0; i < exits.length(); i++) {
-        MBasicBlock *exitBlock = exits[i];
+    for (MBasicBlock **it = exits.begin(), **end = exits.end(); it != end; ++it) {
+        MBasicBlock *exitBlock = *it;
 
         MDefinition *rval = exitBlock->lastIns()->toReturn()->getOperand(0);
         exitBlock->discardLastIns();
@@ -2989,10 +2988,10 @@ IonBuilder::patchInlinedReturns(CallInfo &callInfo, MIRGraphExits &exits, MBasic
         if (exits.length() == 1)
             return rval;
 
-        phi->setOperand(i, rval);
+        retDef->addInput(rval);
     }
 
-    return phi;
+    return retDef;
 }
 
 bool
@@ -3530,16 +3529,11 @@ IonBuilder::inlineScriptedCalls(AutoObjectVector &targets, AutoObjectVector &ori
             MPhi *phi = MPhi::New(inlineBottom->stackDepth() - callInfo.argc() - 2);
             inlineBottom->addPhi(phi);
 
-            if (!phi->initLength(retvalDefns.length()))
-                return false;
-
-            size_t index = 0;
             MDefinition **it = retvalDefns.begin(), **end = retvalDefns.end();
-            for (; it != end; it++, index++)
-                phi->setOperand(index, *it);
-
-            JS_ASSERT(index == retvalDefns.length());
-
+            for (; it != end; ++it) {
+                if (!phi->addInput(*it))
+                    return false;
+            }
             // retvalDefns should become a singleton vector of 'phi'
             retvalDefns.clear();
             if (!retvalDefns.append(phi))
@@ -3584,16 +3578,10 @@ IonBuilder::inlineScriptedCalls(AutoObjectVector &targets, AutoObjectVector &ori
         MPhi *phi = MPhi::New(bottom->stackDepth());
         bottom->addPhi(phi);
 
-        if (!phi->initLength(retvalDefns.length()))
-            return false;
-
-        size_t index = 0;
-        MDefinition **it = retvalDefns.begin(), **end = retvalDefns.end();
-        for (; it != end; it++, index++)
-            phi->setOperand(index, *it);
-
-        JS_ASSERT(index == retvalDefns.length());
-
+        for (MDefinition **it = retvalDefns.begin(), **end = retvalDefns.end(); it != end; ++it) {
+            if (!phi->addInput(*it))
+                return false;
+        }
         retvalDefn = phi;
     } else {
         retvalDefn = retvalDefns.back();
@@ -4228,13 +4216,10 @@ IonBuilder::makeCallHelper(HandleFunction target, CallInfo &callInfo,
             return NULL;
         }
 
-        // Unwrap the MPassArg before discarding: it may have been captured by an MResumePoint.
-        thisArg->replaceAllUsesWith(thisArg->getArgument());
-        thisArg->block()->discard(thisArg);
-
         MPassArg *newThis = MPassArg::New(create);
-        current->add(newThis);
 
+        thisArg->block()->discard(thisArg);
+        current->add(newThis);
         thisArg = newThis;
     }
 

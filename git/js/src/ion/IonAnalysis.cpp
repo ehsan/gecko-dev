@@ -103,11 +103,11 @@ ion::EliminateDeadResumePointOperands(MIRGenerator *mir, MIRGraph &graph)
             // Walk the uses a second time, removing any in resume points after
             // the last use in a definition.
             for (MUseIterator uses(ins->usesBegin()); uses != ins->usesEnd(); ) {
-                if (uses->consumer()->isDefinition()) {
+                if (uses->node()->isDefinition()) {
                     uses++;
                     continue;
                 }
-                MResumePoint *mrp = uses->consumer()->toResumePoint();
+                MResumePoint *mrp = uses->node()->toResumePoint();
                 if (mrp->block() != *block ||
                     !mrp->instruction() ||
                     mrp->instruction() == *ins ||
@@ -188,8 +188,8 @@ IsPhiObservable(MPhi *phi, Observability observe)
 
       case ConservativeObservability:
         for (MUseIterator iter(phi->usesBegin()); iter != phi->usesEnd(); iter++) {
-            if (!iter->consumer()->isDefinition() ||
-                !iter->consumer()->toDefinition()->isPhi())
+            if (!iter->node()->isDefinition() ||
+                !iter->node()->toDefinition()->isPhi())
                 return true;
         }
         break;
@@ -879,29 +879,15 @@ CheckPredecessorImpliesSuccessor(MBasicBlock *A, MBasicBlock *B)
 }
 
 static bool
-CheckOperandImpliesUse(MInstruction *ins, MDefinition *operand)
+CheckMarkedAsUse(MInstruction *ins, MDefinition *operand)
 {
     for (MUseIterator i = operand->usesBegin(); i != operand->usesEnd(); i++) {
-        if (i->consumer()->isDefinition() && i->consumer()->toDefinition() == ins)
-            return true;
+        if (i->node()->isDefinition()) {
+            if (ins == i->node()->toDefinition())
+                return true;
+        }
     }
     return false;
-}
-
-static bool
-CheckUseImpliesOperand(MInstruction *ins, MUse *use)
-{
-    MNode *consumer = use->consumer();
-    uint32_t index = use->index();
-
-    if (consumer->isDefinition()) {
-        MDefinition *def = consumer->toDefinition();
-        return (def->getOperand(index) == ins);
-    }
-
-    JS_ASSERT(consumer->isResumePoint());
-    MResumePoint *res = consumer->toResumePoint();
-    return (res->getOperand(index) == ins);
 }
 #endif // DEBUG
 
@@ -940,14 +926,9 @@ ion::AssertGraphCoherency(MIRGraph &graph)
         for (size_t i = 0; i < block->numPredecessors(); i++)
             JS_ASSERT(CheckPredecessorImpliesSuccessor(*block, block->getPredecessor(i)));
 
-        // Assert that use chains are valid for this instruction.
         for (MInstructionIterator ins = block->begin(); ins != block->end(); ins++) {
             for (uint32_t i = 0; i < ins->numOperands(); i++)
-                JS_ASSERT(CheckOperandImpliesUse(*ins, ins->getOperand(i)));
-        }
-        for (MInstructionIterator ins = block->begin(); ins != block->end(); ins++) {
-            for (MUseIterator i(ins->usesBegin()); i != ins->usesEnd(); i++)
-                JS_ASSERT(CheckUseImpliesOperand(*ins, *i));
+                JS_ASSERT(CheckMarkedAsUse(*ins, ins->getOperand(i)));
         }
     }
 
