@@ -43,7 +43,6 @@
 #include "nsStringAPI.h"
 #include "nsAutoPtr.h"
 #include "plbase64.h"
-#include "prmem.h"
 #include "secerr.h"
 
 #include "pk11func.h"
@@ -67,33 +66,22 @@ WeaveCrypto::~WeaveCrypto()
  * Base 64 encoding and decoding...
  */
 
-nsresult
+void
 WeaveCrypto::EncodeBase64(const char *aData, PRUint32 aLength, nsACString& retval)
 {
-  // Empty input? Nothing to do.
-  if (!aLength) {
-    retval.Assign(EmptyCString());
-    return NS_OK;
-  }
-
   PRUint32 encodedLength = (aLength + 2) / 3 * 4;
-  char *encoded = (char *)PR_Malloc(encodedLength);
-  if (!encoded)
-    return NS_ERROR_OUT_OF_MEMORY;
+  char encoded[encodedLength];
 
   PL_Base64Encode(aData, aLength, encoded);
 
   retval.Assign(encoded, encodedLength);
-
-  PR_Free(encoded);
-  return NS_OK;
 }
 
-nsresult
+void
 WeaveCrypto::EncodeBase64(const nsACString& binary, nsACString& retval)
 {
   PromiseFlatCString fBinary(binary);
-  return EncodeBase64(fBinary.get(), fBinary.Length(), retval);
+  EncodeBase64(fBinary.get(), fBinary.Length(), retval);
 }
 
 nsresult 
@@ -101,15 +89,6 @@ WeaveCrypto::DecodeBase64(const nsACString& base64,
                           char *decoded, PRUint32 *decodedSize)
 {
   PromiseFlatCString fBase64(base64);
-
-  if (fBase64.Length() == 0) {
-    *decodedSize = 0;
-    return NS_OK;
-  }
-
-  // We expect at least 4 bytes of input
-  if (fBase64.Length() < 4)
-    return NS_ERROR_FAILURE;
 
   PRUint32 size = (fBase64.Length() * 3) / 4;
   // Adjust for padding.
@@ -132,20 +111,13 @@ WeaveCrypto::DecodeBase64(const nsACString& base64,
 nsresult 
 WeaveCrypto::DecodeBase64(const nsACString& base64, nsACString& retval)
 {
+  char decoded[base64.Length()];
   PRUint32 decodedLength = base64.Length();
-  char *decoded = (char *)PR_Malloc(decodedLength);
-  if (!decoded)
-    return NS_ERROR_OUT_OF_MEMORY;
 
   nsresult rv = DecodeBase64(base64, decoded, &decodedLength);
-  if (NS_FAILED(rv)) {
-    PR_Free(decoded);
-    return rv;
-  }
+  NS_ENSURE_SUCCESS(rv, rv);  
 
   retval.Assign(decoded, decodedLength);
-
-  PR_Free(decoded);
   return NS_OK;
 }
 
@@ -190,32 +162,24 @@ WeaveCrypto::Encrypt(const nsACString& aClearText,
                      const nsACString& aIV,
                      nsACString& aCipherText)
 {
-  nsresult rv = NS_OK;
+  nsresult rv;
 
   // When using CBC padding, the output is 1 block larger than the input.
   CK_MECHANISM_TYPE mech = PK11_AlgtagToMechanism(mAlgorithm);
   PRUint32 blockSize = PK11_GetBlockSize(mech, nsnull);
 
-  PRUint32 outputBufferSize = aClearText.Length() + blockSize;
-  char *outputBuffer = (char *)PR_Malloc(outputBufferSize);
-  if (!outputBuffer)
-    return NS_ERROR_OUT_OF_MEMORY;
-
+  char outputBuffer[aClearText.Length() + blockSize];
+  PRUint32 outputBufferSize = sizeof(outputBuffer);
   PromiseFlatCString input(aClearText);
 
   rv = CommonCrypt(input.get(), input.Length(),
                    outputBuffer, &outputBufferSize,
                    aSymmetricKey, aIV, CKA_ENCRYPT);
-  if (NS_FAILED(rv))
-    goto encrypt_done;
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = EncodeBase64(outputBuffer, outputBufferSize, aCipherText);
-  if (NS_FAILED(rv))
-    goto encrypt_done;
+  EncodeBase64(outputBuffer, outputBufferSize, aCipherText);
 
-encrypt_done:
-  PR_Free(outputBuffer);
-  return rv;
+  return NS_OK;
 }
 
 
@@ -228,31 +192,24 @@ WeaveCrypto::Decrypt(const nsACString& aCipherText,
                      const nsACString& aIV,
                      nsACString& aClearText)
 {
-  nsresult rv = NS_OK;
+  nsresult rv;
 
-  PRUint32 inputBufferSize  = aCipherText.Length();
-  PRUint32 outputBufferSize = aCipherText.Length();
-  char *outputBuffer = (char *)PR_Malloc(outputBufferSize);
-  char *inputBuffer  = (char *)PR_Malloc(inputBufferSize);
-  if (!inputBuffer || !outputBuffer)
-    return NS_ERROR_OUT_OF_MEMORY;
+  char inputBuffer[aCipherText.Length()];
+  PRUint32 inputBufferSize = sizeof(inputBuffer);
+  char outputBuffer[aCipherText.Length()];
+  PRUint32 outputBufferSize = sizeof(outputBuffer);
 
   rv = DecodeBase64(aCipherText, inputBuffer, &inputBufferSize);
-  if (NS_FAILED(rv))
-    goto decrypt_done;
+  NS_ENSURE_SUCCESS(rv, rv);
 
   rv = CommonCrypt(inputBuffer, inputBufferSize,
                    outputBuffer, &outputBufferSize,
                    aSymmetricKey, aIV, CKA_DECRYPT);
-  if (NS_FAILED(rv))
-    goto decrypt_done;
+  NS_ENSURE_SUCCESS(rv, rv);
 
   aClearText.Assign(outputBuffer, outputBufferSize);
 
-decrypt_done:
-  PR_Free(outputBuffer);
-  PR_Free(inputBuffer);
-  return rv;
+  return NS_OK;
 }
 
 
@@ -570,8 +527,7 @@ WeaveCrypto::WrapPrivateKey(SECKEYPrivateKey *aPrivateKey,
     return(NS_ERROR_FAILURE);
   }
     
-  rv = EncodeBase64((char *)wrappedKey.data, wrappedKey.len, aWrappedPrivateKey);
-  NS_ENSURE_SUCCESS(rv, rv);
+  EncodeBase64((char *)wrappedKey.data, wrappedKey.len, aWrappedPrivateKey);
 
   return NS_OK;
 }
@@ -591,8 +547,7 @@ WeaveCrypto::EncodePublicKey(SECKEYPublicKey *aPublicKey,
   if (!derKey)
     return NS_ERROR_FAILURE;
     
-  nsresult rv = EncodeBase64((char *)derKey->data, derKey->len, aEncodedPublicKey);
-  NS_ENSURE_SUCCESS(rv, rv);
+  EncodeBase64((char *)derKey->data, derKey->len, aEncodedPublicKey);
 
   // XXX destroy derKey?
 
@@ -613,8 +568,7 @@ WeaveCrypto::GenerateRandomBytes(PRUint32 aByteCount,
   rv = PK11_GenerateRandom((unsigned char *)random, aByteCount);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = EncodeBase64(random, aByteCount, aEncodedBytes);
-  NS_ENSURE_SUCCESS(rv, rv);
+  EncodeBase64(random, aByteCount, aEncodedBytes);
 
   return NS_OK;
 }
@@ -636,8 +590,7 @@ WeaveCrypto::GenerateRandomIV(nsACString& aEncodedBytes)
   rv = PK11_GenerateRandom((unsigned char *)random, size);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = EncodeBase64(random, size, aEncodedBytes);
-  NS_ENSURE_SUCCESS(rv, rv);
+  EncodeBase64(random, size, aEncodedBytes);
 
   return NS_OK;
 }
@@ -707,11 +660,7 @@ WeaveCrypto::GenerateRandomKey(nsACString& aEncodedKey)
     goto keygen_done;
   }
 
-  rv = EncodeBase64((char *)keydata->data, keydata->len, aEncodedKey);
-  if (NS_FAILED(rv)) {
-    NS_WARNING("EncodeBase64 failed");
-    goto keygen_done;
-  }
+  EncodeBase64((char *)keydata->data, keydata->len, aEncodedKey);
 
 keygen_done:
   // XXX does keydata need freed?
@@ -823,11 +772,7 @@ WeaveCrypto::WrapSymmetricKey(const nsACString& aSymmetricKey,
 
   // Step 5. Base64 encode the wrapped key, cleanup, and return to caller.
 
-  rv = EncodeBase64((char *)wrappedKey.data, wrappedKey.len, aWrappedKey);
-  if (NS_FAILED(rv)) {
-    NS_WARNING("EncodeBase64 failed");
-    goto wrap_done;
-  }
+  EncodeBase64((char *)wrappedKey.data, wrappedKey.len, aWrappedKey);
 
 wrap_done:
   if (pubKey)
@@ -971,11 +916,7 @@ WeaveCrypto::UnwrapSymmetricKey(const nsACString& aWrappedSymmetricKey,
     goto unwrap_done;
   }
 
-  rv = EncodeBase64((char *)symKeyData->data, symKeyData->len, aSymmetricKey);
-  if (NS_FAILED(rv)) {
-    NS_WARNING("EncodeBase64 failed");
-    goto unwrap_done;
-  }
+  EncodeBase64((char *)symKeyData->data, symKeyData->len, aSymmetricKey);
 
 unwrap_done:
   if (privKey)

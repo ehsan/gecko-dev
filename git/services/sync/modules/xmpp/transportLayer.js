@@ -256,7 +256,6 @@ HTTPPollingTransport.prototype = {
 
   _doPost: function( requestXml ) {
     var request = this._request;
-    request.mozBackgroundRequest = true;
     var callbackObj = this._callbackObject;
     var self = this;
     var contents = "";

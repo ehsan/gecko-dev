@@ -161,13 +161,24 @@ Engine.prototype = {
     this.__snapshot = value;
   },
 
+  get pbeId() {
+    let id = ID.get('Engine:PBE:' + this.name);
+    if (!id)
+      id = ID.get('Engine:PBE:default');
+    if (!id)
+      throw "No identity found for engine PBE!";
+    return id;
+  },
+
   get engineId() {
     let id = ID.get('Engine:' + this.name);
-    if (!id) {
-      // Copy the service login from WeaveID
-      let masterID = ID.get('WeaveID');
-
-      id = new Identity(this.logName, masterID.username, masterID.password);
+    if (!id ||
+        id.username != this.pbeId.username || id.realm != this.pbeId.realm) {
+      let password = null;
+      if (id)
+        password = id.password;
+      id = new Identity(this.pbeId.realm + ' - ' + this.logName,
+                        this.pbeId.username, password);
       ID.set('Engine:' + this.name, id);
     }
     return id;
@@ -260,8 +271,10 @@ Engine.prototype = {
     this._log.info("Local snapshot version: " + this._snapshot.version);
     this._log.info("Server maxVersion: " + this._remote.status.data.maxVersion);
 
-    if ("none" != Utils.prefs.getCharPref("encryption"))
-      yield this._remote.keys.getKeyAndIV(self.cb, this.engineId);
+    if ("none" != Utils.prefs.getCharPref("encryption")) {
+      let symkey = yield this._remote.keys.getKey(self.cb, this.pbeId);
+      this.engineId.setTempPassword(symkey);
+    }
 
     // 1) Fetch server deltas
     let server = {};
@@ -379,18 +392,20 @@ Engine.prototype = {
       this._snapshot.data = newSnapshot;
       this._snapshot.version = ++this._remote.status.data.maxVersion;
 
-      // XXX don't append delta if we do a full upload?
       if (this._remote.status.data.formatVersion != ENGINE_STORAGE_FORMAT_VERSION)
         yield this._remote.initialize(self.cb, this._snapshot);
+
+      this._remote.appendDelta(self.cb, serverDelta);
+      yield;
 
       let c = 0;
       for (GUID in this._snapshot.data)
         c++;
 
-      this._remote.appendDelta(self.cb, serverDelta,
-                               {maxVersion: this._snapshot.version,
-                                deltasEncryption: Crypto.defaultAlgorithm,
-                                itemCount: c});
+      this._remote.status.data.maxVersion = this._snapshot.version;
+      this._remote.status.data.snapEncryption = Crypto.defaultAlgorithm;
+      this._remote.status.data.itemCount = c;
+      this._remote.status.put(self.cb, this._remote.status.data);
       yield;
 
       this._log.info("Successfully updated deltas and status on server");
@@ -419,9 +434,13 @@ Engine.prototype = {
     self.done();
   },
 
-  /* TODO need a "stop sharing" function.
-   Actually, stopping an outgoing share and stopping an incoming share
-   are two different things. */
+  _stopSharing: function Engine__stopSharing(guid, username) {
+    let self = yield;
+    /* This should be overridden by the engine subclass for each datatype.
+     Stop sharing the data node identified by guid with the user identified
+     by username.*/
+    self.done();
+  },
 
   sync: function Engine_sync(onComplete) {
     return this._sync.async(this, onComplete);
@@ -429,6 +448,10 @@ Engine.prototype = {
 
   share: function Engine_share(onComplete, guid, username) {
     return this._share.async(this, onComplete, guid, username);
+  },
+
+  stopSharing: function Engine_share(onComplete, guid, username) {
+    return this._stopSharing.async(this, onComplete, guid, username);
   },
 
   resetServer: function Engimne_resetServer(onComplete) {

@@ -132,7 +132,6 @@ function WeaveSvc(engines) {
 
   // Other misc startup
   Utils.prefs.addObserver("", this, false);
-  this._os.addObserver(this, "quit-application", true);
 
   if (!this.enabled) {
     this._log.info("Weave Sync disabled");
@@ -161,14 +160,6 @@ WeaveSvc.prototype = {
       this.__dirSvc = Cc["@mozilla.org/file/directory_service;1"].
         getService(Ci.nsIProperties);
     return this.__dirSvc;
-  },
-
-  __json: null,
-  get _json() {
-    if (!this.__json)
-      this.__json = Cc["@mozilla.org/dom/json;1"].
-        createInstance(Ci.nsIJSON);
-    return this.__json;
   },
 
   // Timer object for automagically syncing
@@ -262,7 +253,7 @@ WeaveSvc.prototype = {
   _onSchedule: function WeaveSync__onSchedule() {
     if (this.enabled) {
       this._log.info("Running scheduled sync");
-      this._notify("sync", this._lock(this._syncAsNeeded)).async(this);
+      this._lock(this._notify("sync", this._syncAsNeeded)).async(this);
     }
   },
 
@@ -365,53 +356,25 @@ WeaveSvc.prototype = {
     finally { DAV.defaultPrefix = prefix; }
   },
 
-  _getKeypair : function WeaveSync__getKeypair() {
+  _keyCheck: function WeaveSvc__keyCheck() {
     let self = yield;
 
-    if ("none" == Utils.prefs.getCharPref("encryption"))
-      return;
+    if ("none" != Utils.prefs.getCharPref("encryption")) {
+      DAV.GET("private/privkey", self.cb);
+      let keyResp = yield;
+      Utils.ensureStatus(keyResp.status,
+                        "Could not get private key from server", [[200,300],404]);
 
-    this._log.trace("Retrieving keypair from server");
-
-    // XXX this kind of replaces _keyCheck
-    // seems like key generation should only happen during setup?
-    DAV.GET("private/privkey", self.cb);
-    let privkeyResp = yield;
-    Utils.ensureStatus(privkeyResp.status,
-                       "Could not get private key from server", [[200,300],404]);
-
-    DAV.GET("public/pubkey", self.cb);
-    let pubkeyResp = yield;
-    Utils.ensureStatus(pubkeyResp.status,
-                       "Could not get public key from server", [[200,300],404]);
-
-    if (privkeyResp.status == 404 || pubkeyResp.status == 404) {
+      if (keyResp.status != 404) {
+        let id = ID.get('WeaveCryptoID');
+        id.privkey = keyResp.responseText;
+        Crypto.RSAkeydecrypt.async(Crypto, self.cb, id);
+        id.pubkey = yield;
+      } else {
         this._generateKeys.async(this, self.cb);
         yield;
-        return;
+      }
     }
-
-    let privkeyData = this._json.decode(privkeyResp.responseText);
-    let pubkeyData  = this._json.decode(pubkeyResp.responseText);
-
-    if (!privkeyData || !pubkeyData)
-      throw "Bad keypair JSON";
-    if (privkeyData.version != 1 || pubkeyData.version != 1)
-      throw "Unexpected keypair data version";
-    if (privkeyData.algorithm != "RSA" || pubkeyData.algorithm != "RSA")
-      throw "Only RSA keys currently supported";
-
-
-    let id = ID.get('WeaveCryptoID');
-    id.keypairAlg     = privkeyData.algorithm;
-    id.privkey        = privkeyData.privkey;
-    id.privkeyWrapIV  = privkeyData.privkeyIV;
-    id.passphraseSalt = privkeyData.privkeySalt;
-
-    id.pubkey = pubkeyData.pubkey;
-
-    // XXX note that we have not used the private key, so we don't yet
-    //     know if the user's passphrase works or not.
   },
 
   _generateKeys: function WeaveSync__generateKeys() {
@@ -419,10 +382,12 @@ WeaveSvc.prototype = {
 
     this._log.debug("Generating new RSA key");
 
-    // RSAkeygen will set the needed |id| properties.
     let id = ID.get('WeaveCryptoID');
     Crypto.RSAkeygen.async(Crypto, self.cb, id);
-    yield;
+    let [privkey, pubkey] = yield;
+
+    id.privkey = privkey;
+    id.pubkey = pubkey;
 
     DAV.MKCOL("private/", self.cb);
     let ret = yield;
@@ -434,76 +399,38 @@ WeaveSvc.prototype = {
     if (!ret)
       throw "Could not create public key directory";
 
-    let privkeyData = { version     : 1,
-                        algorithm   : id.keypairAlg,
-                        privkey     : id.privkey,
-                        privkeyIV   : id.privkeyWrapIV,
-                        privkeySalt : id.passphraseSalt
-                      };
-    let data = this._json.encode(privkeyData);
-
-    DAV.PUT("private/privkey", data, self.cb);
+    DAV.PUT("private/privkey", privkey, self.cb);
     ret = yield;
     Utils.ensureStatus(ret.status, "Could not upload private key");
 
-
-    let pubkeyData = { version   : 1,
-                       algorithm : id.keypairAlg,
-                       pubkey    : id.pubkey,
-                     };
-    data = this._json.encode(pubkeyData);
-
-    DAV.PUT("public/pubkey", data, self.cb);
+    DAV.PUT("public/pubkey", pubkey, self.cb);
     ret = yield;
     Utils.ensureStatus(ret.status, "Could not upload public key");
   },
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,
-                                         Ci.nsISupportsWeakReference]),
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver, Ci.nsISupports]),
 
   // nsIObserver
 
   observe: function WeaveSync__observe(subject, topic, data) {
-    switch (topic) {
-      case "nsPref:changed":
-        switch (data) {
-          case "enabled": // this works because this.schedule is 0 when disabled
-          case "schedule":
-            this._setSchedule(this.schedule);
-            break;
-        }
-        break;
-      case "quit-application":
-        this._onQuitApplication();
-        break;
-    }
-  },
-
-  _onQuitApplication: function WeaveSync__onQuitApplication() {
-    if (!this.enabled ||
-        !Utils.prefs.getBoolPref("syncOnQuit.enabled") ||
-        !this._loggedIn)
+    if (topic != "nsPref:changed")
       return;
 
-    let ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
-             getService(Ci.nsIWindowWatcher);
-
-    // This window has to be modal to prevent the application from quitting
-    // until the sync finishes and the window closes.
-    let window = ww.openWindow(null,
-                               "chrome://weave/content/status.xul",
-                               "Weave:status",
-                               "chrome,centerscreen,modal",
-                               null);
+    switch (data) {
+    case "enabled": // this works because this.schedule is 0 when disabled
+    case "schedule":
+      this._setSchedule(this.schedule);
+      break;
+    }
   },
 
   // These are global (for all engines)
 
-  login: function WeaveSync_login(onComplete, password, passphrase, verifyonly) {
+  login: function WeaveSync_login(onComplete, password, passphrase) {
     this._localLock(this._notify("login", this._login,
-                                 password, passphrase, verifyonly)).async(this, onComplete);
+                                 password, passphrase)).async(this, onComplete);
   },
-  _login: function WeaveSync__login(password, passphrase, verifyonly) {
+  _login: function WeaveSync__login(password, passphrase) {
     let self = yield;
 
     // cache password & passphrase
@@ -511,10 +438,7 @@ WeaveSvc.prototype = {
     ID.get('WeaveID').setTempPassword(password);
     ID.get('WeaveCryptoID').setTempPassword(passphrase);
 
-    if(verifyonly)
-       this._log.debug("Verifying login");
-    else
-       this._log.debug("Logging in");
+    this._log.debug("Logging in");
 
     if (!this.username)
       throw "No username set, login failed";
@@ -539,19 +463,11 @@ WeaveSvc.prototype = {
         throw "Login failed";
     }
 
-    // If being called from the Wizard to verify credentials, stop here.
-    if (verifyonly) {
-      this._log.debug("Login verified");
-      self.done(true);
-      return;
-    }
-    // Otherwise, setup the user session.
-
     this._log.info("Using server URL: " + DAV.baseURL + DAV.defaultPrefix);
 
     this._versionCheck.async(this, self.cb);
     yield;
-    this._getKeypair.async(this, self.cb);
+    this._keyCheck.async(this, self.cb);
     yield;
 
     this._loggedIn = true;
@@ -587,7 +503,7 @@ WeaveSvc.prototype = {
       this.logout();
       self.done();
     };
-    this._notify("server-wipe", this._lock(cb)).async(this, onComplete);
+    this._lock(this._notify("server-wipe", cb)).async(this, onComplete);
   },
   _serverWipe: function WeaveSvc__serverWipe() {
     let self = yield;
@@ -607,7 +523,7 @@ WeaveSvc.prototype = {
   // These are per-engine
 
   sync: function WeaveSync_sync(onComplete) {
-    this._notify("sync", this._lock(this._sync)).async(this, onComplete);
+    this._lock(this._notify("sync", this._sync)).async(this, onComplete);
   },
 
   _sync: function WeaveSync__sync() {
@@ -619,7 +535,7 @@ WeaveSvc.prototype = {
     this._versionCheck.async(this, self.cb);
     yield;
 
-    this._getKeypair.async(this, self.cb);
+    this._keyCheck.async(this, self.cb);
     yield;
 
     let engines = Engines.getAll();
@@ -646,7 +562,7 @@ WeaveSvc.prototype = {
     this._versionCheck.async(this, self.cb);
     yield;
 
-    this._getKeypair.async(this, self.cb);
+    this._keyCheck.async(this, self.cb);
     yield;
 
     let engines = Engines.getAll();
@@ -705,8 +621,8 @@ WeaveSvc.prototype = {
   },
 
   resetServer: function WeaveSync_resetServer(onComplete) {
-    this._notify("reset-server",
-                 this._lock(this._resetServer)).async(this, onComplete);
+    this._lock(this._notify("reset-server",
+                            this._resetServer)).async(this, onComplete);
   },
   _resetServer: function WeaveSync__resetServer() {
     let self = yield;
@@ -756,10 +672,11 @@ WeaveSvc.prototype = {
      "share-bookmarks" will be sent out to any observers who are listening
      for it.  As far as I know, there aren't currently any listeners for
      "share-bookmarks" but we'll send it out just in case. */
-    this._notify(messageName, this._lock(this._shareData,
-                                         dataType,
-                                         guid,
-                                         username)).async(this, onComplete);
+    this._lock(this._notify(messageName,
+                            this._shareData,
+                            dataType,
+                            guid,
+                            username)).async(this, onComplete);
   },
 
   _shareData: function WeaveSync__shareData(dataType,
@@ -774,6 +691,14 @@ WeaveSvc.prototype = {
     Engines.get(dataType).share(self.cb, guid, username);
     let ret = yield;
     self.done(ret);
+  },
+
+  stopSharingData: function WeaveSync_stopSharingData(dataType,
+                                                      onComplete,
+                                                      guid,
+                                                      username) {
+
+
   }
 
 };
