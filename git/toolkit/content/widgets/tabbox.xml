@@ -639,14 +639,10 @@
       <property name="_selected">
         <setter>
           <![CDATA[
-          if (val)
-            this.setAttribute("selected", "true");
-          else
-            this.removeAttribute("selected");
-
+          this.setAttribute("selected", val);
           if (this.previousSibling && this.previousSibling.localName == "tab") {
             if (val)
-              this.previousSibling.setAttribute("beforeselected", "true");
+              this.previousSibling.setAttribute("beforeselected", val);
             else
               this.previousSibling.removeAttribute("beforeselected");
             this.removeAttribute("first-tab");
@@ -656,7 +652,7 @@
 
           if (this.nextSibling && this.nextSibling.localName == "tab") {
             if (val)
-              this.nextSibling.setAttribute("afterselected", "true");
+              this.nextSibling.setAttribute("afterselected", val);
             else
               this.nextSibling.removeAttribute("afterselected");
             this.removeAttribute("last-tab");

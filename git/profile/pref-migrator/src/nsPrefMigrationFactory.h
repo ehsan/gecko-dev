@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim:set ts=2 sw=2 sts=2 et cindent: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -13,18 +12,18 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is the Metrics extension.
+ * The Original Code is Mozilla Communicator client code.
  *
- * The Initial Developer of the Original Code is Google Inc.
- * Portions created by the Initial Developer are Copyright (C) 2006
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *  Brian Ryner <bryner@brianryner.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
  * in which case the provisions of the GPL or the LGPL are applicable instead
  * of those above. If you wish to allow use of your version of this file only
  * under the terms of either the GPL or the LGPL, and not to allow others to
@@ -36,42 +35,34 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// This class defines a templatized hash key type for holding raw pointers.
-// Use it like this:
-//   nsDataHashtable< nsPtrHashKey<SomeClass>, SomeValueType > mTable;
-//
-// This is identical to nsVoidPtrHashKey with void* replaced by T*.
+#ifndef nsPrefMigrationFactory_h___
+#define nsPrefMigrationFactory_h___
 
-#ifndef nsPtrHashKey_h_
-#define nsPtrHashKey_h_
+#include "nsPrefMigrationCIDs.h"
+#include "nsIPrefMigration.h"
+#include "nsCOMPtr.h"
+#include "nsIModule.h"
+#include "nsIGenericFactory.h"
 
-#include "pldhash.h"
-#include "nscore.h"
-
-template<class T>
-class nsPtrHashKey : public PLDHashEntryHdr
+// Module implementation
+class nsPrefMigrationModule : public nsIModule
 {
- public:
-  typedef const T *KeyType;
-  typedef const T *KeyTypePointer;
+public:
+    nsPrefMigrationModule();
+    virtual ~nsPrefMigrationModule();
 
-  nsPtrHashKey(const T *key) : mKey(key) {}
-  nsPtrHashKey(const nsPtrHashKey<T> &toCopy) : mKey(toCopy.mKey) {}
-  ~nsPtrHashKey() {}
+    NS_DECL_ISUPPORTS
 
-  KeyType GetKey() const { return mKey; }
+    NS_DECL_NSIMODULE
 
-  PRBool KeyEquals(KeyTypePointer key) const { return key == mKey; }
+protected:
+    nsresult Initialize();
 
-  static KeyTypePointer KeyToPointer(KeyType key) { return key; }
-  static PLDHashNumber HashKey(KeyTypePointer key)
-  {
-    return NS_PTR_TO_INT32(key) >> 2;
-  }
-  enum { ALLOW_MEMMOVE = PR_TRUE };
+    void Shutdown();
 
- private:
-  const T *mKey;
+    PRBool mInitialized;
+    nsCOMPtr<nsIGenericFactory> mFactory;
 };
 
-#endif  // nsPtrHashKey_h_
+
+#endif

@@ -198,6 +198,9 @@ function get_PBSvc() {
   try {
     _PBSvc = Cc["@mozilla.org/privatebrowsing;1"].
              getService(Ci.nsIPrivateBrowsingService);
+    if (_PBSvc) {
+      observer.register();
+    }
     return _PBSvc;
   } catch (e) {}
   return null;
