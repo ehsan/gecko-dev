@@ -36,17 +36,6 @@ struct Module
   typedef void (*UnloadFuncPtr)();
 
   /**
-   * This selector allows CIDEntrys to be marked so that they're only loaded
-   * into certain kinds of processes.
-   */
-  enum ProcessSelector
-  {
-    ANY_PROCESS = 0,
-    MAIN_PROCESS_ONLY,
-    CONTENT_PROCESS_ONLY
-  };
-
-  /**
    * The constructor callback is an implementation detail of the default binary
    * loader and may be null.
    */
@@ -56,14 +45,12 @@ struct Module
     bool service;
     GetFactoryProcPtr getFactoryProc;
     ConstructorProcPtr constructorProc;
-    ProcessSelector processSelector;
   };
 
   struct ContractIDEntry
   {
     const char* contractid;
     nsID const * cid;
-    ProcessSelector processSelector;
   };
 
   struct CategoryEntry

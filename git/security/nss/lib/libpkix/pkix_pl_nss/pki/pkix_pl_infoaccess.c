@@ -481,11 +481,9 @@ PKIX_PL_InfoAccess_GetLocationType(
                     PKIX_STRINGGETENCODEDFAILED);
 
                 PKIX_OID_DEBUG("\tCalling PORT_Strcmp).\n");
-#ifndef NSS_PKIX_NO_LDAP
                 if (PORT_Strncmp(location, "ldap:", 5) == 0){
                         type = PKIX_INFOACCESS_LOCATION_LDAP;
                 } else
-#endif
                 if (PORT_Strncmp(location, "http:", 5) == 0){
                         type = PKIX_INFOACCESS_LOCATION_HTTP;
                 }
@@ -501,7 +499,6 @@ cleanup:
         PKIX_RETURN(INFOACCESS);
 }
 
-#ifndef NSS_PKIX_NO_LDAP
 /*
  * FUNCTION: pkix_pl_InfoAccess_ParseTokens
  * DESCRIPTION:
@@ -871,4 +868,3 @@ cleanup:
 
         PKIX_RETURN(INFOACCESS);
 }
-#endif /* !NSS_PKIX_NO_LDAP */
