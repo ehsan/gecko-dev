@@ -590,7 +590,6 @@ public:
     int RequestId() { return mCount; } // for convenience
     WidgetTouchEvent MakeTouchEvent(nsIWidget* widget);
     MultiTouchInput MakeMultiTouchInput(nsIWidget* widget);
-    WidgetMouseEvent MakeMouseEvent(nsIWidget* widget);
     void UnionRect(nsIntRect const& aRect);
     nsIObserver *Observer() { return mObserver; }
 

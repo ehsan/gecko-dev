@@ -3092,7 +3092,7 @@ nsWindow::OnScrollEvent(GdkEventScroll *aEvent)
     if (CheckForRollup(aEvent->x_root, aEvent->y_root, true, false))
         return;
 
-    WidgetWheelEvent wheelEvent(true, NS_WHEEL_WHEEL, this);
+    WheelEvent wheelEvent(true, NS_WHEEL_WHEEL, this);
     wheelEvent.deltaMode = nsIDOMWheelEvent::DOM_DELTA_LINE;
     switch (aEvent->direction) {
     case GDK_SCROLL_UP:

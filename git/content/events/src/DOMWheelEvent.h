@@ -21,7 +21,7 @@ class DOMWheelEvent : public nsDOMMouseEvent,
 public:
   DOMWheelEvent(mozilla::dom::EventTarget* aOwner,
                 nsPresContext* aPresContext,
-                WidgetWheelEvent* aWheelEvent);
+                WheelEvent* aWheelEvent);
   virtual ~DOMWheelEvent();
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -46,22 +46,22 @@ public:
 
   double DeltaX()
   {
-    return static_cast<WidgetWheelEvent*>(mEvent)->deltaX;
+    return static_cast<WheelEvent*>(mEvent)->deltaX;
   }
 
   double DeltaY()
   {
-    return static_cast<WidgetWheelEvent*>(mEvent)->deltaY;
+    return static_cast<WheelEvent*>(mEvent)->deltaY;
   }
 
   double DeltaZ()
   {
-    return static_cast<WidgetWheelEvent*>(mEvent)->deltaZ;
+    return static_cast<WheelEvent*>(mEvent)->deltaZ;
   }
 
   uint32_t DeltaMode()
   {
-    return static_cast<WidgetWheelEvent*>(mEvent)->deltaMode;
+    return static_cast<WheelEvent*>(mEvent)->deltaMode;
   }
 };
 

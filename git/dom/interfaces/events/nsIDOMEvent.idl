@@ -257,7 +257,7 @@ nsresult
 NS_NewDOMWheelEvent(nsIDOMEvent** aInstancePtrResult,
                     mozilla::dom::EventTarget* aOwner,
                     nsPresContext* aPresContext,
-                    mozilla::WidgetWheelEvent* aEvent);
+                    mozilla::WheelEvent* aEvent);
 nsresult
 NS_NewDOMDragEvent(nsIDOMEvent** aInstancePtrResult,
                    mozilla::dom::EventTarget* aOwner,

@@ -178,7 +178,7 @@ class PinSiteDialog extends DialogFragment {
         private LayoutInflater mInflater;
 
         public SearchAdapter(Context context) {
-            super(context, null, 0);
+            super(context, null);
             mInflater = LayoutInflater.from(context);
         }
 

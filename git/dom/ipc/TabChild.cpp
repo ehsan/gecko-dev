@@ -1675,9 +1675,9 @@ TabChild::RecvRealMouseEvent(const WidgetMouseEvent& event)
 }
 
 bool
-TabChild::RecvMouseWheelEvent(const WidgetWheelEvent& event)
+TabChild::RecvMouseWheelEvent(const WheelEvent& event)
 {
-  WidgetWheelEvent localEvent(event);
+  WheelEvent localEvent(event);
   DispatchWidgetEvent(localEvent);
   return true;
 }

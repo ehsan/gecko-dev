@@ -1466,9 +1466,9 @@ MMul::canOverflow()
 }
 
 bool
-MUrsh::fallible()
+MUrsh::canOverflow()
 {
-    if (bailoutsDisabled())
+    if (!canOverflow_)
         return false;
     return !range() || !range()->hasInt32Bounds();
 }
@@ -2013,14 +2013,7 @@ MUrsh::NewAsmJS(MDefinition *left, MDefinition *right)
 {
     MUrsh *ins = new MUrsh(left, right);
     ins->specializeForAsmJS();
-
-    // Since Ion has no UInt32 type, we use Int32 and we have a special
-    // exception to the type rules: we can return values in
-    // (INT32_MIN,UINT32_MAX] and still claim that we have an Int32 type
-    // without bailing out. This is necessary because Ion has no UInt32
-    // type and we can't have bailouts in asm.js code.
-    ins->bailoutsDisabled_ = true;
-
+    ins->canOverflow_ = false;
     return ins;
 }
 

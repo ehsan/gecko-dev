@@ -23,7 +23,6 @@
 # include "jsgcinlines.h"
 #endif
 #include "jsinferinlines.h"
-#include "jsobjinlines.h"
 
 using namespace js;
 using namespace js::jit;
@@ -479,10 +478,6 @@ MacroAssembler::loadFromTypedArray(int arrayType, const T &src, AnyRegister dest
             convertUInt32ToDouble(temp, dest.fpu());
         } else {
             load32(src, dest.gpr());
-
-            // Bail out if the value doesn't fit into a signed int32 value. This
-            // is what allows MLoadTypedArrayElement to have a type() of
-            // MIRType_Int32 for UInt32 array loads.
             test32(dest.gpr(), dest.gpr());
             j(Assembler::Signed, fail);
         }

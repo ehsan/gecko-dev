@@ -567,7 +567,7 @@ nsWinGesture::PanFeedbackFinalize(HWND hWnd, bool endFeedback)
 }
 
 bool
-nsWinGesture::PanDeltaToPixelScroll(WidgetWheelEvent& aWheelEvent)
+nsWinGesture::PanDeltaToPixelScroll(WheelEvent& aWheelEvent)
 {
   aWheelEvent.deltaX = aWheelEvent.deltaY = aWheelEvent.deltaZ = 0.0;
   aWheelEvent.lineOrPageDeltaX = aWheelEvent.lineOrPageDeltaY = 0;
@@ -575,7 +575,7 @@ nsWinGesture::PanDeltaToPixelScroll(WidgetWheelEvent& aWheelEvent)
   aWheelEvent.refPoint.x = mPanRefPoint.x;
   aWheelEvent.refPoint.y = mPanRefPoint.y;
   aWheelEvent.deltaMode = nsIDOMWheelEvent::DOM_DELTA_PIXEL;
-  aWheelEvent.scrollType = WidgetWheelEvent::SCROLL_SYNCHRONOUSLY;
+  aWheelEvent.scrollType = WheelEvent::SCROLL_SYNCHRONOUSLY;
   aWheelEvent.isPixelOnlyDevice = true;
 
   aWheelEvent.overflowDeltaX = 0.0;

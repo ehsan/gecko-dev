@@ -307,9 +307,6 @@ let SessionStoreInternal = {
   // states for all currently opened windows
   _windows: {},
 
-  // counter for creating unique window IDs
-  _nextWindowID: 0,
-
   // states for all recently closed windows
   _closedWindows: [],
 
@@ -355,7 +352,7 @@ let SessionStoreInternal = {
 
   /* ........ Public Getters .............. */
   get canRestoreLastSession() {
-    return !!this._lastSessionState;
+    return this._lastSessionState;
   },
 
   set canRestoreLastSession(val) {
@@ -686,15 +683,6 @@ let SessionStoreInternal = {
   },
 
   /**
-   * Generate a unique window identifier
-   * @return string
-   *         A unique string to identify a window
-   */
-  _generateWindowID: function ssi_generateWindowID() {
-    return "window" + (this._nextWindowID++);
-  },
-
-  /**
    * If it's the first window load since app start...
    * - determine if we're reloading after a crash or a forced-restart
    * - restore window state
@@ -715,9 +703,8 @@ let SessionStoreInternal = {
         this._loadState == STATE_QUITTING)
       return;
 
-    // Assign the window a unique identifier we can use to reference
-    // internal data about the window.
-    aWindow.__SSi = this._generateWindowID();
+    // assign it a unique identifier (timestamp)
+    aWindow.__SSi = "window" + Date.now();
 
     // and create its data object
     this._windows[aWindow.__SSi] = { tabs: [], selected: 0, _closedTabs: [], busy: false };
@@ -741,7 +728,7 @@ let SessionStoreInternal = {
           // We're starting with a single private window. Save the state we
           // actually wanted to restore so that we can do it later in case
           // the user opens another, non-private window.
-          this._deferredInitialState = gSessionStartup.state;
+          this._deferredInitialState = aInitialState;
 
           // Nothing to restore now, notify observers things are complete.
           Services.obs.notifyObservers(null, NOTIFY_WINDOWS_RESTORED, "");
@@ -893,10 +880,8 @@ let SessionStoreInternal = {
     // this window was about to be restored - conserve its original data, if any
     let isFullyLoaded = this._isWindowLoaded(aWindow);
     if (!isFullyLoaded) {
-      if (!aWindow.__SSi) {
-        aWindow.__SSi = this._generateWindowID();
-      }
-
+      if (!aWindow.__SSi)
+        aWindow.__SSi = "window" + Date.now();
       this._windows[aWindow.__SSi] = this._statesToRestore[aWindow.__SS_restoreID];
       delete this._statesToRestore[aWindow.__SS_restoreID];
       delete aWindow.__SS_restoreID;
@@ -1360,9 +1345,6 @@ let SessionStoreInternal = {
 
     // Don't include the last session state in getBrowserState().
     delete state.lastSessionState;
-
-    // Don't include any deferred initial state.
-    delete state.deferredInitialState;
 
     return this._toJSONString(state);
   },
@@ -2090,13 +2072,6 @@ let SessionStoreInternal = {
     // Persist the last session if we deferred restoring it
     if (this._lastSessionState) {
       state.lastSessionState = this._lastSessionState;
-    }
-
-    // If we were called by the SessionSaver and started with only a private
-    // window we want to pass the deferred initial state to not lose the
-    // previous session.
-    if (this._deferredInitialState) {
-      state.deferredInitialState = this._deferredInitialState;
     }
 
     return state;
@@ -3549,14 +3524,6 @@ let SessionStoreInternal = {
    * @returns [defaultState, state]
    */
   _prepDataForDeferredRestore: function ssi_prepDataForDeferredRestore(state) {
-    // Make sure that we don't modify the global state as provided by
-    // nsSessionStartup.state. Converting the object to a JSON string and
-    // parsing it again is the easiest way to do that, although not the most
-    // efficient one. Deferred sessions that don't have automatic session
-    // restore enabled tend to be a lot smaller though so that this shouldn't
-    // be a big perf hit.
-    state = JSON.parse(JSON.stringify(state));
-
     let defaultState = { windows: [], selectedWindow: 1 };
 
     state.selectedWindow = state.selectedWindow || 1;
@@ -3748,9 +3715,9 @@ let SessionStoreInternal = {
    * @param aTab the which has been restored
    */
   _sendTabRestoredNotification: function ssi_sendTabRestoredNotification(aTab) {
-    let event = aTab.ownerDocument.createEvent("Events");
-    event.initEvent("SSTabRestored", true, false);
-    aTab.dispatchEvent(event);
+      let event = aTab.ownerDocument.createEvent("Events");
+      event.initEvent("SSTabRestored", true, false);
+      aTab.dispatchEvent(event);
   },
 
   /**
@@ -4281,7 +4248,7 @@ let TabState = {
       }
 
       if (disallow.length > 0) {
-        tabData.disallow = disallow.join(",");
+	tabData.disallow = disallow.join(",");
       }
 
       // Save text and scroll data.
@@ -4428,9 +4395,9 @@ let TabState = {
     if (!options || !options.omitDocShellCapabilities) {
       let disallow = DocShellCapabilities.collect(browser.docShell);
       if (disallow.length > 0)
-        tabData.disallow = disallow.join(",");
+	tabData.disallow = disallow.join(",");
       else if (tabData.disallow)
-        delete tabData.disallow;
+	delete tabData.disallow;
     }
 
     // Save tab attributes.
@@ -4637,3 +4604,5 @@ let TabState = {
     return "";
   }
 };
+
+

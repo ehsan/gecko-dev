@@ -22,35 +22,33 @@ class SearchLoader {
     // Key for search terms
     private static final String KEY_SEARCH_TERM = "search_term";
 
+    // Key for performing empty search
+    private static final String KEY_PERFORM_EMPTY_SEARCH = "perform_empty_search";
+
     private SearchLoader() {
     }
 
     public static Loader<Cursor> createInstance(Context context, Bundle args) {
         if (args != null) {
             final String searchTerm = args.getString(KEY_SEARCH_TERM);
-            return new SearchCursorLoader(context, searchTerm);
+            final boolean performEmptySearch = args.getBoolean(KEY_PERFORM_EMPTY_SEARCH, false);
+            return new SearchCursorLoader(context, searchTerm, performEmptySearch);
         } else {
-            return new SearchCursorLoader(context, "");
+            return new SearchCursorLoader(context, "", false);
         }
-    }
-
-    private static Bundle createArgs(String searchTerm) {
-        Bundle args = new Bundle();
-        args.putString(SearchLoader.KEY_SEARCH_TERM, searchTerm);
-
-        return args;
-    }
-
-    public static void init(LoaderManager manager, int loaderId,
-                               LoaderCallbacks<Cursor> callbacks, String searchTerm) {
-        final Bundle args = createArgs(searchTerm);
-        manager.initLoader(loaderId, args, callbacks);
     }
 
     public static void restart(LoaderManager manager, int loaderId,
                                LoaderCallbacks<Cursor> callbacks, String searchTerm) {
-        final Bundle args = createArgs(searchTerm);
-        manager.restartLoader(loaderId, args, callbacks);
+        restart(manager, loaderId, callbacks, searchTerm, true);
+    }
+
+    public static void restart(LoaderManager manager, int loaderId,
+                               LoaderCallbacks<Cursor> callbacks, String searchTerm, boolean performEmptySearch) {
+        Bundle bundle = new Bundle();
+        bundle.putString(SearchLoader.KEY_SEARCH_TERM, searchTerm);
+        bundle.putBoolean(SearchLoader.KEY_PERFORM_EMPTY_SEARCH, performEmptySearch);
+        manager.restartLoader(loaderId, bundle, callbacks);
     }
 
     public static class SearchCursorLoader extends SimpleCursorLoader {
@@ -60,13 +58,21 @@ class SearchLoader {
         // The target search term associated with the loader
         private final String mSearchTerm;
 
-        public SearchCursorLoader(Context context, String searchTerm) {
+        // An empty search on the DB
+        private final boolean mPerformEmptySearch;
+
+        public SearchCursorLoader(Context context, String searchTerm, boolean performEmptySearch) {
             super(context);
             mSearchTerm = searchTerm;
+            mPerformEmptySearch = performEmptySearch;
         }
 
         @Override
         public Cursor loadCursor() {
+            if (!mPerformEmptySearch && TextUtils.isEmpty(mSearchTerm)) {
+                return null;
+            }
+
             return BrowserDB.filter(getContext().getContentResolver(), mSearchTerm, SEARCH_LIMIT);
         }
 

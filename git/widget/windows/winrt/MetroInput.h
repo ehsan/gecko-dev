@@ -155,14 +155,6 @@ private:
 
   ModifierKeyState mModifierKeyState;
 
-  // Tracking input level
-  enum InputPrecisionLevel {
-    LEVEL_PRECISE,
-    LEVEL_IMPRECISE
-  };
-  InputPrecisionLevel mCurrentInputLevel;
-  void UpdateInputLevel(InputPrecisionLevel aInputLevel);
-
   // Initialization/Uninitialization helpers
   void RegisterInputEvents();
   void UnregisterInputEvents();
@@ -182,7 +174,6 @@ private:
                                 Point const& aPosition,
                                 uint32_t aMagEventType,
                                 uint32_t aRotEventType);
-  uint16_t ProcessInputTypeForGesture(IEdgeGestureEventArgs* aArgs);
 
   // The W3C spec states that "whether preventDefault has been called" should
   // be tracked on a per-touchpoint basis, but it also states that touchstart

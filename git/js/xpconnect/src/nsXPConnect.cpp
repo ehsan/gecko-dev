@@ -257,7 +257,8 @@ xpc::SystemErrorReporter(JSContext *cx, const char *message, JSErrorReport *rep)
     }
 
     if (nsContentUtils::DOMWindowDumpEnabled()) {
-        fprintf(stderr, "System JS : %s %s:%d - %s\n",
+        fprintf(stderr, "System JS : %s %s:%d\n"
+                "                     %s\n",
                 JSREPORT_IS_WARNING(rep->flags) ? "WARNING" : "ERROR",
                 rep->filename, rep->lineno,
                 message ? message : "<no message>");
@@ -912,7 +913,7 @@ nsXPConnect::CreateSandbox(JSContext *cx, nsIPrincipal *principal,
 
     RootedValue rval(cx, JSVAL_VOID);
 
-    SandboxOptions options;
+    SandboxOptions options(cx);
     nsresult rv = CreateSandboxObject(cx, rval.address(), principal, options);
     MOZ_ASSERT(NS_FAILED(rv) || !JSVAL_IS_PRIMITIVE(rval),
                "Bad return value from xpc_CreateSandboxObject()!");

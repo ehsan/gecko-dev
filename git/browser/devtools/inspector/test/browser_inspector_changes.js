@@ -17,25 +17,12 @@ function test() {
   }
 
 
-  function getInspectorComputedProp(aName)
+  function getInspectorProp(aName)
   {
     let computedview = inspector.sidebar.getWindowForTab("computedview").computedview.view;
     for each (let view in computedview.propertyViews) {
       if (view.name == aName) {
         return view;
-      }
-    }
-    return null;
-  }
-
-  function getInspectorRuleProp(aName)
-  {
-    let ruleview = inspector.sidebar.getWindowForTab("ruleview").ruleview.view;
-    let inlineStyles = ruleview._elementStyle.rules[0];
-
-    for each (let prop in inlineStyles.textProps) {
-      if (prop.name == aName) {
-        return prop;
       }
     }
     return null;
@@ -53,97 +40,59 @@ function test() {
       testDiv.style.fontSize = "10px";
 
       // Start up the style inspector panel...
-      inspector.once("computed-view-refreshed", computedStylePanelTests);
+      inspector.once("computed-view-refreshed", stylePanelTests);
 
       inspector.selection.setNode(testDiv);
     });
   }
 
-  function computedStylePanelTests()
+  function stylePanelTests()
   {
     let computedview = inspector.sidebar.getWindowForTab("computedview").computedview;
     ok(computedview, "Style Panel has a cssHtmlTree");
 
-    let propView = getInspectorComputedProp("font-size");
+    let propView = getInspectorProp("font-size");
     is(propView.value, "10px", "Style inspector should be showing the correct font size.");
 
-    testDiv.style.cssText = "font-size: 15px; color: red;";
+    inspector.once("computed-view-refreshed", stylePanelAfterChange);
 
-    // Wait until layout-change fires from mutation to skip earlier refresh event
-    inspector.once("layout-change", () => {
-      inspector.once("computed-view-refreshed", computedStylePanelAfterChange);
-    });
+    testDiv.style.fontSize = "15px";
+
+    // FIXME: This shouldn't be needed but as long as we don't fix the bug
+    // where the rule/computed views are not updated when the selected node's
+    // styles change, it has to stay here
+    inspector.emit("layout-change");
   }
 
-  function computedStylePanelAfterChange()
+  function stylePanelAfterChange()
   {
-    let propView = getInspectorComputedProp("font-size");
+    let propView = getInspectorProp("font-size");
     is(propView.value, "15px", "Style inspector should be showing the new font size.");
 
-    let propView = getInspectorComputedProp("color");
-    is(propView.value, "#F00", "Style inspector should be showing the new color.");
-
-    computedStylePanelNotActive();
+    stylePanelNotActive();
   }
 
-  function computedStylePanelNotActive()
+  function stylePanelNotActive()
   {
     // Tests changes made while the style panel is not active.
     inspector.sidebar.select("ruleview");
 
-    testDiv.style.fontSize = "20px";
-    testDiv.style.color = "blue";
-    testDiv.style.textAlign = "center";
+    executeSoon(function() {
+      inspector.once("computed-view-refreshed", stylePanelAfterSwitch);
+      testDiv.style.fontSize = "20px";
+      inspector.sidebar.select("computedview");
 
-    inspector.once("computed-view-refreshed", computedStylePanelAfterSwitch);
-    inspector.sidebar.select("computedview");
+      // FIXME: This shouldn't be needed but as long as we don't fix the bug
+      // where the rule/computed views are not updated when the selected node's
+      // styles change, it has to stay here
+      inspector.emit("layout-change");
+    });
   }
 
-  function computedStylePanelAfterSwitch()
+  function stylePanelAfterSwitch()
   {
-    let propView = getInspectorComputedProp("font-size");
-    is(propView.value, "20px", "Style inspector should be showing the new font size.");
-
-    let propView = getInspectorComputedProp("color");
-    is(propView.value, "#00F", "Style inspector should be showing the new color.");
-
-    let propView = getInspectorComputedProp("text-align");
-    is(propView.value, "center", "Style inspector should be showing the new text align.");
-
-    rulePanelTests();
-  }
-
-  function rulePanelTests()
-  {
-    inspector.sidebar.select("ruleview");
-    let ruleview = inspector.sidebar.getWindowForTab("ruleview").ruleview;
-    ok(ruleview, "Style Panel has a ruleview");
-
-    let propView = getInspectorRuleProp("text-align");
-    is(propView.value, "center", "Style inspector should be showing the new text align.");
-
-    testDiv.style.textAlign = "right";
-    testDiv.style.color = "lightgoldenrodyellow";
-    testDiv.style.fontSize = "3em";
-    testDiv.style.textTransform = "uppercase";
-
-
-    inspector.once("rule-view-refreshed", rulePanelAfterChange);
-  }
-
-  function rulePanelAfterChange()
-  {
-    let propView = getInspectorRuleProp("text-align");
-    is(propView.value, "right", "Style inspector should be showing the new text align.");
-
-    let propView = getInspectorRuleProp("color");
-    is(propView.value, "#FAFAD2", "Style inspector should be showing the new color.")
-
-    let propView = getInspectorRuleProp("font-size");
-    is(propView.value, "3em", "Style inspector should be showing the new font size.");
-
-    let propView = getInspectorRuleProp("text-transform");
-    is(propView.value, "uppercase", "Style inspector should be showing the new text transform.");
+    let propView = getInspectorProp("font-size");
+    is(propView.value, "20px", "Style inspector should be showing the newest font size.");
 
     finishTest();
   }
