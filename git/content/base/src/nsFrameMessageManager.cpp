@@ -342,9 +342,9 @@ GetParamsForMessage(JSContext* aCx,
   NS_ENSURE_TRUE(JS_Stringify(aCx, &v, nullptr, JSVAL_NULL, JSONCreator, &json), false);
   NS_ENSURE_TRUE(!json.IsEmpty(), false);
 
-  JS::Rooted<JS::Value> val(aCx, JS::NullValue());
+  JS::Value val = JSVAL_NULL;
   NS_ENSURE_TRUE(JS_ParseJSON(aCx, static_cast<const jschar*>(json.get()),
-                              json.Length(), val.address()), false);
+                              json.Length(), &val), false);
 
   return WriteStructuredClone(aCx, val, aBuffer, aClosure);
 }
@@ -633,7 +633,6 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
                                 : (aContext ? aContext
                                             : nsContentUtils::GetSafeJSContext());
   AutoPushJSContext ctx(cxToUse);
-  JS::Rooted<JSObject*> objectsArray(ctx, aObjectsArray);
   if (mListeners.Length()) {
     nsCOMPtr<nsIAtom> name = do_GetAtom(aMessage);
     MMListenerRemover lr(this);
@@ -645,8 +644,8 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
         if (!wrappedJS) {
           continue;
         }
-        JS::Rooted<JSObject*> object(ctx);
-        wrappedJS->GetJSObject(object.address());
+        JSObject* object = nullptr;
+        wrappedJS->GetJSObject(&object);
         if (!object) {
           continue;
         }
@@ -668,22 +667,22 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
 
         // To keep compatibility with e10s message manager,
         // define empty objects array.
-        if (!objectsArray) {
+        if (!aObjectsArray) {
           // Because we want JS messages to have always the same properties,
           // create array even if len == 0.
-          objectsArray = JS_NewArrayObject(ctx, 0, nullptr);
-          if (!objectsArray) {
+          aObjectsArray = JS_NewArrayObject(ctx, 0, nullptr);
+          if (!aObjectsArray) {
             return NS_ERROR_OUT_OF_MEMORY;
           }
         }
 
-        JS::Rooted<JS::Value> objectsv(ctx, JS::ObjectValue(*objectsArray));
+        JS::Rooted<JS::Value> objectsv(ctx, JS::ObjectValue(*aObjectsArray));
         if (!JS_WrapValue(ctx, objectsv.address()))
             return NS_ERROR_UNEXPECTED;
 
-        JS::Rooted<JS::Value> json(ctx, JS::NullValue());
+        JS::Value json = JSVAL_NULL;
         if (aCloneData && aCloneData->mDataLength &&
-            !ReadStructuredClone(ctx, *aCloneData, json.address())) {
+            !ReadStructuredClone(ctx, *aCloneData, &json)) {
           JS_ClearPendingException(ctx);
           return NS_OK;
         }
@@ -757,7 +756,7 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
   nsRefPtr<nsFrameMessageManager> kungfuDeathGrip = mParentManager;
   return mParentManager ? mParentManager->ReceiveMessage(aTarget, aMessage,
                                                          aSync, aCloneData,
-                                                         objectsArray,
+                                                         aObjectsArray,
                                                          aJSONRetVal, mContext) : NS_OK;
 }
 
@@ -975,7 +974,7 @@ void
 nsFrameScriptExecutor::Shutdown()
 {
   if (sCachedScripts) {
-    AutoSafeJSContext cx;
+    SafeAutoJSContext cx;
     JSAutoRequest ar(cx);
     NS_ASSERTION(sCachedScripts != nullptr, "Need cached scripts");
     sCachedScripts->Enumerate(CachedScriptUnrooter, cx);

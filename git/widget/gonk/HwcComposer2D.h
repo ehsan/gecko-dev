@@ -20,8 +20,6 @@
 #include "Composer2D.h"
 #include "HWComposer.h"
 #include "Layers.h"
-#include <vector>
-#include <list>
 
 namespace mozilla {
 
@@ -29,10 +27,6 @@ namespace layers {
 class ContainerLayer;
 class Layer;
 }
-
-//Holds a dynamically allocated vector of rectangles
-//used to decribe the complex visible region of a layer
-typedef std::vector<hwc_rect_t> RectVector;
 
 class HwcComposer2D : public android::HWComposer,
                       public mozilla::layers::Composer2D {
@@ -60,9 +54,6 @@ private:
     nsIntRect               mScreenRect;
     int                     mMaxLayerCount;
     bool                    mColorFill;
-    //Holds all the dynamically allocated RectVectors needed
-    //to render the current frame
-    std::list<RectVector>   mVisibleRegions;
 };
 
 } // namespace mozilla
