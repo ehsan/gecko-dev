@@ -2430,7 +2430,6 @@ nsDisplayThemedBackground::Paint(nsDisplayListBuilder* aBuilder,
   PaintInternal(aBuilder, aCtx, mVisibleRect, nullptr);
 }
 
-
 void
 nsDisplayThemedBackground::PaintInternal(nsDisplayListBuilder* aBuilder,
                                          nsRenderingContext* aCtx, const nsRect& aBounds,
@@ -2444,11 +2443,7 @@ nsDisplayThemedBackground::PaintInternal(nsDisplayListBuilder* aBuilder,
   theme->GetWidgetOverflow(presContext->DeviceContext(), mFrame, mAppearance,
                            &drawing);
   drawing.IntersectRect(drawing, aBounds);
-  nsIntRegion clear;
-  theme->DrawWidgetBackground(aCtx, mFrame, mAppearance, borderArea, drawing, &clear);
-  MOZ_ASSERT(clear.IsEmpty() || ReferenceFrame() == aBuilder->RootReferenceFrame(),
-             "Can't add to clear region if we're transformed!");
-  aBuilder->AddRegionToClear(clear);
+  theme->DrawWidgetBackground(aCtx, mFrame, mAppearance, borderArea, drawing);
 }
 
 bool nsDisplayThemedBackground::IsWindowActive()
@@ -3540,7 +3535,7 @@ nsDisplaySubDocument::BuildLayer(nsDisplayListBuilder* aBuilder,
                       mFrame->GetOffsetToCrossDoc(ReferenceFrame());
 
     RecordFrameMetrics(mFrame, rootScrollFrame, ReferenceFrame(),
-                       container, mList.GetVisibleRect(), viewport,
+                       container, mVisibleRect, viewport,
                        (usingDisplayport ? &displayport : nullptr),
                        (usingCriticalDisplayport ? &criticalDisplayport : nullptr),
                        scrollId, isRootContentDocument, aContainerParameters);

@@ -3327,7 +3327,7 @@ function WidgetSingleWrapper(aWidget, aNode) {
   });
 
   this.__defineGetter__("overflowed", function() {
-    return aNode.getAttribute("overflowedItem") == "true";
+    return aNode.classList.contains("overflowedItem");
   });
 
   Object.freeze(this);
@@ -3417,7 +3417,7 @@ function XULWidgetSingleWrapper(aWidgetId, aNode) {
   });
 
   this.__defineGetter__("overflowed", function() {
-    return aNode.getAttribute("overflowedItem") == "true";
+    return aNode.classList.contains("overflowedItem");
   });
 
   Object.freeze(this);
@@ -3574,7 +3574,7 @@ OverflowableToolbar.prototype = {
 
       if (child.getAttribute("overflows") != "false") {
         this._collapsed.set(child.id, this._target.clientWidth);
-        child.setAttribute("overflowedItem", true);
+        child.classList.add("overflowedItem");
         child.setAttribute("cui-anchorid", this._chevron.id);
         CustomizableUIInternal.notifyListeners("onWidgetOverflow", child, this._target);
 
@@ -3632,7 +3632,7 @@ OverflowableToolbar.prototype = {
         this._target.appendChild(child);
       }
       child.removeAttribute("cui-anchorid");
-      child.removeAttribute("overflowedItem");
+      child.classList.remove("overflowedItem");
       CustomizableUIInternal.notifyListeners("onWidgetUnderflow", child, this._target);
     }
 
@@ -3707,7 +3707,7 @@ OverflowableToolbar.prototype = {
         let minSize = this._collapsed.get(prevId);
         this._collapsed.set(aNode.id, minSize);
         aNode.setAttribute("cui-anchorid", this._chevron.id);
-        aNode.setAttribute("overflowedItem", true);
+        aNode.classList.add("overflowedItem");
         CustomizableUIInternal.notifyListeners("onWidgetOverflow", aNode, this._target);
       }
       // If it is not overflowed and not in the toolbar, and was not overflowed
@@ -3725,7 +3725,7 @@ OverflowableToolbar.prototype = {
       if (!nowOverflowed) {
         this._collapsed.delete(aNode.id);
         aNode.removeAttribute("cui-anchorid");
-        aNode.removeAttribute("overflowedItem");
+        aNode.classList.remove("overflowedItem");
         CustomizableUIInternal.notifyListeners("onWidgetUnderflow", aNode, this._target);
 
         if (!this._collapsed.size) {
@@ -3768,7 +3768,7 @@ OverflowableToolbar.prototype = {
   },
 
   getContainerFor: function(aNode) {
-    if (aNode.getAttribute("overflowedItem") == "true") {
+    if (aNode.classList.contains("overflowedItem")) {
       return this._list;
     }
     return this._target;

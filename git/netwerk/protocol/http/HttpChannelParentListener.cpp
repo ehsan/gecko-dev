@@ -195,11 +195,7 @@ HttpChannelParentListener::OnRedirectResult(bool succeeded)
     "Channel finished a redirect response, but doesn't implement "
     "nsIParentRedirectingChannel to complete it.");
 
-  if (activeRedirectingChannel) {
-    activeRedirectingChannel->CompleteRedirect(succeeded);
-  } else {
-    succeeded = false;
-  }
+  activeRedirectingChannel->CompleteRedirect(succeeded);
 
   if (succeeded) {
     // Switch to redirect channel and delete the old one.

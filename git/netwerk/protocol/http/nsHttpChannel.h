@@ -395,8 +395,6 @@ private:
     uint32_t                          mConcurentCacheAccess : 1;
     // whether the request is setup be byte-range
     uint32_t                          mIsPartialRequest : 1;
-    // true iff there is AutoRedirectVetoNotifier on the stack
-    uint32_t                          mHasAutoRedirectVetoNotifier : 1;
 
     nsTArray<nsContinueRedirectionFunc> mRedirectFuncStack;
 

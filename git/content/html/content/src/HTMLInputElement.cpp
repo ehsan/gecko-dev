@@ -6117,7 +6117,7 @@ HTMLInputElement::GetValueMode() const
 bool
 HTMLInputElement::IsMutable() const
 {
-  return !IsDisabled() &&
+  return !IsDisabled() && GetCurrentDoc() &&
          !(DoesReadOnlyApply() &&
            HasAttr(kNameSpaceID_None, nsGkAtoms::readonly));
 }

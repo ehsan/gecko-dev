@@ -147,16 +147,7 @@ WillRedirect(const nsHttpResponseHead * response)
 class AutoRedirectVetoNotifier
 {
 public:
-    AutoRedirectVetoNotifier(nsHttpChannel* channel) : mChannel(channel)
-    {
-      if (mChannel->mHasAutoRedirectVetoNotifier) {
-        MOZ_CRASH("Nested AutoRedirectVetoNotifier on the stack");
-        mChannel = nullptr;
-        return;
-      }
-
-      mChannel->mHasAutoRedirectVetoNotifier = true;
-    }
+    AutoRedirectVetoNotifier(nsHttpChannel* channel) : mChannel(channel) {}
     ~AutoRedirectVetoNotifier() {ReportRedirectResult(false);}
     void RedirectSucceeded() {ReportRedirectResult(true);}
 
@@ -178,14 +169,12 @@ AutoRedirectVetoNotifier::ReportRedirectResult(bool succeeded)
                                   NS_GET_IID(nsIRedirectResultListener),
                                   getter_AddRefs(vetoHook));
 
+#ifdef MOZ_VISUAL_EVENT_TRACER
     nsHttpChannel* channel = mChannel;
+#endif
     mChannel = nullptr;
-
     if (vetoHook)
         vetoHook->OnRedirectResult(succeeded);
-
-    // Drop after the notification
-    channel->mHasAutoRedirectVetoNotifier = false;
 
     MOZ_EVENT_TRACER_DONE(channel, "net::http::redirect-callbacks");
 }
@@ -218,7 +207,6 @@ nsHttpChannel::nsHttpChannel()
     , mHasQueryString(0)
     , mConcurentCacheAccess(0)
     , mIsPartialRequest(0)
-    , mHasAutoRedirectVetoNotifier(0)
     , mDidReval(false)
 {
     LOG(("Creating nsHttpChannel [this=%p]\n", this));

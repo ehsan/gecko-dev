@@ -14,18 +14,11 @@ function f() {
 }
 f();
 
-// Really big integers not representable with a double or uint64 are still integers.
+// Integers which don't fit in a double value's mantissa aren't really integers.
 
 var bigint = "" + Math.pow(2, 53);
 x[bigint] = "twelve";
-assertEq(x[bigint], undefined);
-
-x["9999999999999999999999"] = "twelve";
-assertEq(x["9999999999999999999999"], undefined);
-
-// Except when their toString() makes them not look like integers!
-x[9999999999999999999999] = "twelve";
-assertEq(x[9999999999999999999999], "twelve");
+assertEq(x[bigint], "twelve");
 
 // Infinity and -Infinity maybe are supposed to be integers, but they aren't currently.
 

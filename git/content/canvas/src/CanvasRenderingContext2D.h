@@ -31,7 +31,6 @@ class nsXULElement;
 namespace mozilla {
 namespace gfx {
 class SourceSurface;
-class SurfaceStream;
 }
 
 namespace dom {
@@ -597,6 +596,7 @@ protected:
     return CurrentState().font;
   }
 
+#if USE_SKIA_GPU
   static std::vector<CanvasRenderingContext2D*>& DemotableContexts();
   static void DemoteOldestContextIfNecessary();
 
@@ -605,6 +605,7 @@ protected:
 
   // Do not use GL
   bool mForceSoftware;
+#endif
 
   // Member vars
   int32_t mWidth, mHeight;
@@ -630,8 +631,6 @@ protected:
   // accessing it. In the event of an error it will be equal to
   // sErrorTarget.
   mozilla::RefPtr<mozilla::gfx::DrawTarget> mTarget;
-
-  RefPtr<gfx::SurfaceStream> mStream;
 
   /**
     * Flag to avoid duplicate calls to InvalidateFrame. Set to true whenever
