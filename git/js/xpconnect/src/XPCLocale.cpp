@@ -43,6 +43,7 @@ struct XPCLocaleCallbacks : public JSLocaleCallbacks
     localeToLowerCase = LocaleToLowerCase;
     localeCompare = LocaleCompare;
     localeToUnicode = LocaleToUnicode;
+    localeGetErrorMessage = nullptr;
   }
 
   ~XPCLocaleCallbacks()

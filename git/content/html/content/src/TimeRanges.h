@@ -21,6 +21,12 @@ class TimeRanges;
 
 }
 
+template<>
+struct HasDangerousPublicDestructor<dom::TimeRanges>
+{
+  static const bool value = true;
+};
+
 namespace dom {
 
 // Implements media TimeRanges:
@@ -32,6 +38,7 @@ public:
   NS_DECL_NSIDOMTIMERANGES
 
   TimeRanges();
+  ~TimeRanges();
 
   void Add(double aStart, double aEnd);
 
@@ -56,7 +63,6 @@ public:
   virtual double End(uint32_t aIndex, ErrorResult& aRv);
 
 private:
-  ~TimeRanges();
 
   // Comparator which orders TimeRanges by start time. Used by Normalize().
   struct TimeRange

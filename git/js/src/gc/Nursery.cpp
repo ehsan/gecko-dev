@@ -61,7 +61,7 @@ js::Nursery::init(uint32_t maxNurseryBytes)
     if (!hugeSlots.init())
         return false;
 
-    void *heap = MapAlignedPages(nurserySize(), Alignment);
+    void *heap = runtime()->gc.pageAllocator.mapAlignedPages(nurserySize(), Alignment);
     if (!heap)
         return false;
 
@@ -86,7 +86,7 @@ js::Nursery::init(uint32_t maxNurseryBytes)
 js::Nursery::~Nursery()
 {
     if (start())
-        UnmapPages((void *)start(), nurserySize());
+        runtime()->gc.pageAllocator.unmapPages((void *)start(), nurserySize());
 }
 
 void
@@ -101,7 +101,7 @@ js::Nursery::updateDecommittedRegion()
         uintptr_t decommitSize = heapEnd() - decommitStart;
         JS_ASSERT(decommitStart == AlignBytes(decommitStart, Alignment));
         JS_ASSERT(decommitSize == AlignBytes(decommitStart, Alignment));
-        MarkPagesUnused((void *)decommitStart, decommitSize);
+        runtime()->gc.pageAllocator.markPagesUnused((void *)decommitStart, decommitSize);
 # endif
     }
 #endif
