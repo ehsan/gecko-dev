@@ -15,7 +15,7 @@ import data, parserdata, process, util
 
 makepypath = os.path.normpath(os.path.join(os.path.dirname(__file__), '../make.py'))
 
-_simpleopts = re.compile(r'^[a-zA-Z]+(\s|$)')
+_simpleopts = re.compile(r'^[a-zA-Z]+\s')
 def parsemakeflags(env):
     """
     Parse MAKEFLAGS from the environment into a sequence of command-line arguments.
@@ -73,7 +73,7 @@ DEALINGS IN THE SOFTWARE."""
 _log = logging.getLogger('pymake.execution')
 
 class _MakeContext(object):
-    def __init__(self, makeflags, makelevel, workdir, context, env, targets, options, ostmts, overrides, cb):
+    def __init__(self, makeflags, makelevel, workdir, context, env, targets, options, overrides, cb):
         self.makeflags = makeflags
         self.makelevel = makelevel
 
@@ -82,7 +82,6 @@ class _MakeContext(object):
         self.env = env
         self.targets = targets
         self.options = options
-        self.ostmts = ostmts
         self.overrides = overrides
         self.cb = cb
 
@@ -97,16 +96,14 @@ class _MakeContext(object):
 
             self.makefile = data.Makefile(restarts=self.restarts,
                                           make='%s %s' % (sys.executable.replace('\\', '/'), makepypath.replace('\\', '/')),
-                                          makeflags=self.makeflags,
-                                          makeoverrides=self.overrides,
-                                          workdir=self.workdir,
+                                          makeflags=self.makeflags, workdir=self.workdir,
                                           context=self.context, env=self.env, makelevel=self.makelevel,
                                           targets=self.targets, keepgoing=self.options.keepgoing)
 
             self.restarts += 1
 
             try:
-                self.ostmts.execute(self.makefile)
+                self.overrides.execute(self.makefile)
                 for f in self.options.makefiles:
                     self.makefile.include(f)
                 self.makefile.finishparsing()
@@ -198,10 +195,7 @@ def main(args, env, cwd, cb):
         longflags = []
 
         if options.keepgoing:
-            shortflags.append('k')
-
-        if options.printdir:
-            shortflags.append('w')
+            shortflags.append('k');
 
         loglevel = logging.WARNING
         if options.verbose:
@@ -218,12 +212,9 @@ def main(args, env, cwd, cb):
         else:
             workdir = os.path.join(cwd, options.directory)
 
-        if options.jobcount != 1:
-            longflags.append('-j%i' % (options.jobcount,))
+        longflags.append('-j%i' % (options.jobcount,))
 
-        makeflags = ''.join(shortflags)
-        if len(longflags):
-            makeflags += ' ' + ' '.join(longflags)
+        makeflags = ''.join(shortflags) + ' ' + ' '.join(longflags)
 
         logging.basicConfig(level=loglevel, **logkwargs)
 
@@ -241,9 +232,9 @@ def main(args, env, cwd, cb):
                 cb(2)
                 return
 
-        ostmts, targets, overrides = parserdata.parsecommandlineargs(arguments)
+        overrides, targets = parserdata.parsecommandlineargs(arguments)
 
-        _MakeContext(makeflags, makelevel, workdir, context, env, targets, options, ostmts, overrides, cb)
+        _MakeContext(makeflags, makelevel, workdir, context, env, targets, options, overrides, cb)
     except (util.MakeError), e:
         print e
         if options.printdir:
