@@ -2923,7 +2923,6 @@ RilObject.prototype = {
    * @param command
    * @param deviceIdentities
    * @param resultCode
-   * @param [optional] additionalInformation
    * @param [optional] itemIdentifier
    * @param [optional] input
    * @param [optional] isYesNo
@@ -2979,25 +2978,8 @@ RilObject.prototype = {
     // Result
     GsmPDUHelper.writeHexOctet(COMPREHENSIONTLV_TAG_RESULT |
                                COMPREHENSIONTLV_FLAG_CR);
-    if ("additionalInformation" in response) {
-      // In |12.12 Result| TS 11.14, the length of additional information is
-      // varied and all possible values are addressed in 12.12.1-11 of TS 11.14
-      // and 8.12.1-13 in TS 31.111.
-      // However,
-      // 1. Only SEND SS requires info with more than 1 octet.
-      // 2. In rild design, SEND SS is expected to be handled by modem and
-      //    UNSOLICITED_STK_EVENT_NOTIFY will be sent to application layer to
-      //    indicate appropriate messages to users. TR is not required in this
-      //    case.
-      // Hence, we simplify the structure of |additionalInformation| to a
-      // numeric value instead of a octet array.
-      GsmPDUHelper.writeHexOctet(2);
-      GsmPDUHelper.writeHexOctet(response.resultCode);
-      GsmPDUHelper.writeHexOctet(response.additionalInformation);
-    } else {
-      GsmPDUHelper.writeHexOctet(1);
-      GsmPDUHelper.writeHexOctet(response.resultCode);
-    }
+    GsmPDUHelper.writeHexOctet(1);
+    GsmPDUHelper.writeHexOctet(response.resultCode);
 
     // Item Identifier
     if (response.itemIdentifier != null) {
@@ -3022,7 +3004,7 @@ RilObject.prototype = {
         text = response.input;
       }
 
-      if (text !== undefined) {
+      if (text) {
         GsmPDUHelper.writeHexOctet(COMPREHENSIONTLV_TAG_TEXT_STRING |
                                    COMPREHENSIONTLV_FLAG_CR);
 

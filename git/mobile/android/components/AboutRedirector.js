@@ -3,10 +3,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 const Cc = Components.classes;
 const Ci = Components.interfaces;
-const Cu = Components.utils;
 
-Cu.import("resource://gre/modules/AppConstants.jsm");
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
 let modules = {
   // about:
@@ -32,9 +30,11 @@ let modules = {
   },
 
   rights: {
-    uri: AppConstants.MOZ_OFFICIAL_BRANDING ?
-      "chrome://browser/content/aboutRights.xhtml" :
-      "chrome://global/content/aboutRights-unbranded.xhtml",
+#ifdef MOZ_OFFICIAL_BRANDING
+    uri: "chrome://browser/content/aboutRights.xhtml",
+#else
+    uri: "chrome://global/content/aboutRights-unbranded.xhtml",
+#endif
     privileged: false
   },
   blocked: {
@@ -72,25 +72,24 @@ let modules = {
     uri: "chrome://browser/content/aboutPrivateBrowsing.xhtml",
     privileged: true
   },
-}
-
-if (AppConstants.MOZ_SERVICES_HEALTHREPORT) {
-  modules['healthreport'] = {
+#ifdef MOZ_SERVICES_HEALTHREPORT
+  healthreport: {
     uri: "chrome://browser/content/aboutHealthReport.xhtml",
     privileged: true
-  };
-}
-if (AppConstants.MOZ_DEVICES) {
-  modules['devices'] = {
+  },
+#endif
+#ifdef MOZ_DEVICES
+  devices: {
     uri: "chrome://browser/content/aboutDevices.xhtml",
     privileged: true
-  };
-}
-if (AppConstants.NIGHTLY_BUILD) {
-  modules['passwords'] = {
+  },
+#endif
+#ifdef NIGHTLY_BUILD
+  passwords: {
     uri: "chrome://browser/content/aboutPasswords.xhtml",
     privileged: true
-  };
+  }
+#endif
 }
 
 function AboutRedirector() {}
