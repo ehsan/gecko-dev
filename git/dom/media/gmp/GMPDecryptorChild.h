@@ -25,8 +25,7 @@ public:
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(GMPDecryptorChild);
 
   explicit GMPDecryptorChild(GMPChild* aPlugin,
-                             const nsTArray<uint8_t>& aPluginVoucher,
-                             const nsTArray<uint8_t>& aSandboxVoucher);
+                             const nsTArray<uint8_t>& aPluginVoucher);
 
   void Init(GMPDecryptor* aSession);
 
@@ -123,9 +122,8 @@ private:
   GMPDecryptor* mSession;
   GMPChild* mPlugin;
 
-  // Reference to the vouchers owned by the GMPChild.
+  // Reference to the voucher owned by the GMPChild.
   const nsTArray<uint8_t>& mPluginVoucher;
-  const nsTArray<uint8_t>& mSandboxVoucher;
 };
 
 } // namespace gmp

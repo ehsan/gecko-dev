@@ -11,6 +11,7 @@
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/Attributes.h"
 
+#include <sys/mount.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -26,7 +27,6 @@
 
 #if defined(HAVE_SYS_QUOTA_H) && defined(HAVE_LINUX_QUOTA_H)
 #define USE_LINUX_QUOTACTL
-#include <sys/mount.h>
 #include <sys/quota.h>
 #endif
 

@@ -27,7 +27,6 @@ public:
   virtual ~GMPChild();
 
   bool Init(const std::string& aPluginPath,
-            const std::string& aVoucherPath,
             base::ProcessHandle aParentProcessHandle,
             MessageLoop* aIOLoop,
             IPC::Channel* aChannel);
@@ -53,7 +52,6 @@ public:
 private:
 
   bool PreLoadPluginVoucher(const std::string& aPluginPath);
-  void PreLoadSandboxVoucher();
 
   bool GetLibPath(nsACString& aOutLibPath);
 
@@ -99,14 +97,12 @@ private:
 
   MessageLoop* mGMPMessageLoop;
   std::string mPluginPath;
-  std::string mVoucherPath;
 #if defined(XP_MACOSX) && defined(MOZ_GMP_SANDBOX)
   nsCString mPluginBinaryPath;
 #endif
   std::string mNodeId;
   GMPLoader* mGMPLoader;
   nsTArray<uint8_t> mPluginVoucher;
-  nsTArray<uint8_t> mSandboxVoucher;
 };
 
 } // namespace gmp

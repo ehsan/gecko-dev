@@ -1858,6 +1858,18 @@ public:
   }
 
   virtual void
+  AbortTransactionsForStorage(nsIOfflineStorage* aStorage) MOZ_OVERRIDE
+  {
+    MOZ_ASSERT_UNREACHABLE("There are no storages");
+  }
+
+  virtual bool
+  HasTransactionsForStorage(nsIOfflineStorage* aStorage) MOZ_OVERRIDE
+  {
+    return false;
+  }
+
+  virtual void
   ShutdownTransactionService() MOZ_OVERRIDE
   { }
 

@@ -3051,7 +3051,6 @@ GCRuntime::refillFreeListFromMainThread(JSContext *cx, AllocKind thingKind)
             // instead of reporting it.
             if (!allowGC) {
                 MOZ_ASSERT(!mustCollectNow);
-                js_ReportOutOfMemory(cx);
                 return nullptr;
             }
 
@@ -3100,12 +3099,7 @@ GCRuntime::refillFreeListOffMainThread(ExclusiveContext *cx, AllocKind thingKind
     while (rt->isHeapBusy())
         HelperThreadState().wait(GlobalHelperThreadState::PRODUCER);
 
-    void *thing = allocator->arenas.allocateFromArena(zone, thingKind, maybeStartBGAlloc);
-    if (thing)
-        return thing;
-
-    js_ReportOutOfMemory(cx);
-    return nullptr;
+    return allocator->arenas.allocateFromArena(zone, thingKind, maybeStartBGAlloc);
 }
 
 /* static */ void *

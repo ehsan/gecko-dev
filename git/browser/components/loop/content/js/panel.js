@@ -537,12 +537,6 @@ loop.panel = (function(_, mozL10n) {
       return {edit: false, text: this.props.text};
     },
 
-    componentWillReceiveProps: function(nextProps) {
-      if (nextProps.text !== this.props.text) {
-        this.setState({text: nextProps.text});
-      }
-    },
-
     handleTextClick: function(event) {
       event.stopPropagation();
       event.preventDefault();

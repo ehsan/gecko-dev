@@ -5328,12 +5328,8 @@ NewGlobalObject(JSContext *cx, JS::CompartmentOptions &options,
         if (!js::DefineTestingFunctions(cx, glob, fuzzingSafe))
             return nullptr;
 
-        if (!fuzzingSafe) {
-            if (!JS_DefineFunctionsWithHelp(cx, glob, fuzzing_unsafe_functions))
-                return nullptr;
-            if (!js::DefineOS(cx, glob))
-                return nullptr;
-        }
+        if (!fuzzingSafe && !JS_DefineFunctionsWithHelp(cx, glob, fuzzing_unsafe_functions))
+            return nullptr;
 
         /* Initialize FakeDOMObject. */
         static const js::DOMCallbacks DOMcallbacks = {
@@ -5669,6 +5665,9 @@ Shell(JSContext *cx, OptionParser *op, char **envp)
         return 1;
 
     JSAutoCompartment ac(cx, glob);
+
+    if (!js::DefineOS(cx, glob))
+        return 1;
 
     int result = ProcessArgs(cx, glob, op);
 

@@ -2304,19 +2304,10 @@ nsresult imgLoader::LoadImageWithChannel(nsIChannel *channel, imgINotificationOb
   return rv;
 }
 
-bool
-imgLoader::SupportImageWithMimeType(const char* aMimeType,
-                                    AcceptedMimeTypes aAccept
-                                      /* = AcceptedMimeTypes::IMAGES */)
+bool imgLoader::SupportImageWithMimeType(const char* aMimeType)
 {
   nsAutoCString mimeType(aMimeType);
   ToLowerCase(mimeType);
-
-  if (aAccept == AcceptedMimeTypes::IMAGES_AND_DOCUMENTS &&
-      mimeType.EqualsLiteral("image/svg+xml")) {
-    return true;
-  }
-
   return Image::GetDecoderType(mimeType.get()) != Image::eDecoderType_unknown;
 }
 
