@@ -5863,8 +5863,7 @@ nsTextFrame::CheckVisibility(nsPresContext* aContext, PRInt32 aStartIndex,
   // or one of its continuations.
   for (nsTextFrame* f = this; f;
        f = static_cast<nsTextFrame*>(GetNextContinuation())) {
-    PRInt32 dummyOffset = 0;
-    if (f->PeekOffsetNoAmount(PR_TRUE, &dummyOffset)) {
+    if (f->PeekOffsetNoAmount(PR_TRUE, nsnull)) {
       *aRetval = PR_TRUE;
       return NS_OK;
     }

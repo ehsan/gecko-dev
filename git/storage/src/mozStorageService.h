@@ -97,11 +97,6 @@ public:
    */
   static already_AddRefed<nsIXPConnect> getXPConnect();
 
-  /**
-   * Obtains the cached data for the toolkit.storage.synchronous preference.
-   */
-  static PRInt32 getSynchronousPref();
-
 private:
   Service();
   virtual ~Service();
@@ -141,8 +136,6 @@ private:
   static Service *gService;
 
   static nsIXPConnect *sXPConnect;
-
-  static PRInt32 sSynchronousPref;
 };
 
 } // namespace storage

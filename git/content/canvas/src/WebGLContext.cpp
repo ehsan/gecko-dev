@@ -622,7 +622,6 @@ WebGLContext::GetCanvasLayer(CanvasLayer *aOldLayer,
         if (mInvalidated) {
             aOldLayer->Updated(nsIntRect(0, 0, mWidth, mHeight));
             mInvalidated = PR_FALSE;
-            HTMLCanvasElement()->GetPrimaryCanvasFrame()->MarkLayersActive();
         }
         return aOldLayer;
     }

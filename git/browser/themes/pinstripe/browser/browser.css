@@ -449,11 +449,6 @@ toolbar[mode="icons"] .toolbarbutton-1 > menupopup {
   margin-top: 1px;
 }
 
-#navigator-toolbox > toolbar {
-  /* force iconsize="small" on these toolbars */
-  counter-reset: smallicons;
-}
-
 /* unified back/forward button */
 
 #unified-back-forward-button {
@@ -470,7 +465,7 @@ toolbar:not([mode="icons"]) #back-button:-moz-locale-dir(rtl) {
   -moz-image-region: rect(0, 60px, 20px, 40px);
 }
 
-#navigator-toolbox[iconsize="large"][mode="icons"] > #nav-bar #back-button {
+toolbar:not([iconsize="small"])[mode="icons"] #back-button {
   -moz-margin-end: -5px;
   position: relative;
   z-index: 1;
@@ -490,17 +485,27 @@ toolbar[mode="icons"] #forward-button {
   -moz-margin-start: 0;
 }
 
-#navigator-toolbox[iconsize="large"][mode="icons"] > #nav-bar #forward-button {
+toolbar[mode="icons"]:not([iconsize="small"]) #forward-button {
   /* 1px to the right */
   padding-left: 4px;
   padding-right: 2px;
 }
 
-#navigator-toolbox[iconsize="large"][mode="icons"] > #nav-bar #forward-button:-moz-lwtheme {
+toolbar[mode="icons"]:not([iconsize="small"]) #forward-button:-moz-lwtheme {
   mask: url(chrome://browser/content/browser.xul#pinstripe-keyhole-forward-mask);
 }
 
-#navigator-toolbox[iconsize="small"][mode="icons"] > #nav-bar #forward-button {
+toolbar[iconsize="small"][mode="icons"] #back-button {
+  -moz-margin-end: 0;
+}
+
+toolbar[iconsize="small"][mode="icons"] #back-button {
+  width: 26px;
+  border-right-width: 0;
+  padding-right: 2px;
+}
+
+toolbar[iconsize="small"][mode="icons"] #forward-button  {
   width: 27px;
   padding-left: 2px;
 }
@@ -510,11 +515,7 @@ toolbar[mode="icons"] #forward-button {
   border-bottom-left-radius: 0;
 }
 
-#navigator-toolbox[iconsize="small"][mode="icons"] > #nav-bar #back-button {
-  -moz-margin-end: 0;
-  width: 26px;
-  padding-right: 2px;
-  border-right-width: 0;
+toolbar[iconsize="small"][mode="icons"] #back-button {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
 }
@@ -1766,8 +1767,8 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
  */
 
 .tab-drop-indicator {
+  margin-top: -8px !important;
   list-style-image: url(chrome://browser/skin/tabbrowser/tabDragIndicator.png);
-  margin-bottom: -8px;
 }
 
 /**
