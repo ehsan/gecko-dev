@@ -7033,7 +7033,7 @@ JS_DescribeScriptedCaller(JSContext *cx, JSScript **script, unsigned *lineno)
     if (lineno)
         *lineno = 0;
 
-    NonBuiltinScriptFrameIter i(cx);
+    ScriptFrameIter i(cx);
     if (i.done())
         return JS_FALSE;
 
