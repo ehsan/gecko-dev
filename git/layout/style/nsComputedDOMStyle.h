@@ -76,7 +76,7 @@ public:
 
   static void Shutdown();
 
-  virtual nsINode *GetParentObject()
+  virtual nsISupports *GetParentObject()
   {
     return mContent;
   }

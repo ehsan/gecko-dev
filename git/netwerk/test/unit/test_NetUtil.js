@@ -173,12 +173,6 @@ function test_newURI()
   run_next_test();
 }
 
-function test_ioService()
-{
-  do_check_true(NetUtil.ioService instanceof Ci.nsIIOService);
-  run_next_test();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 //// Test Runner
 
@@ -187,7 +181,6 @@ let tests = [
   test_async_write_file_nsISafeOutputStream,
   test_newURI_no_spec_throws,
   test_newURI,
-  test_ioService,
 ];
 let index = 0;
 

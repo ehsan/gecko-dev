@@ -2,8 +2,8 @@ function dummy(id) {
   return {
     id: id,
     name: Math.random(),
-    headerURL: "about:blank",
-    footerURL: "about:blank",
+    headerURL: Math.random(),
+    footerURL: Math.random(),
     textcolor: Math.random(),
     accentcolor: Math.random()
   };

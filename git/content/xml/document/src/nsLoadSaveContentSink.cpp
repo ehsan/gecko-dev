@@ -99,9 +99,9 @@ nsLoadSaveContentSink::WillBuildModel(nsDTDMode aDTDMode)
 }
 
 NS_IMETHODIMP
-nsLoadSaveContentSink::DidBuildModel(PRBool aTerminated)
+nsLoadSaveContentSink::DidBuildModel(void)
 {
-  return mBaseSink->DidBuildModel(aTerminated);
+  return mBaseSink->DidBuildModel();
 }
 
 NS_IMETHODIMP

@@ -23,7 +23,6 @@
  *   Brett Wilson <brettw@gmail.com> (original author)
  *   Edward Lee <edward.lee@engineering.uiuc.edu>
  *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
- *   Marco Bonardo <mak77@bonardo.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -244,8 +243,6 @@ public:
   static const PRInt32 kGetInfoIndex_ItemId;
   static const PRInt32 kGetInfoIndex_ItemDateAdded;
   static const PRInt32 kGetInfoIndex_ItemLastModified;
-  static const PRInt32 kGetInfoIndex_ItemTags;
-  static const PRInt32 kGetInfoIndex_ItemParentId;
 
   // select a history row by id
   mozIStorageStatement* DBGetIdPageInfo() { return mDBGetIdPageInfo; }
@@ -417,8 +414,8 @@ protected:
   nsCOMPtr<mozIStorageStatement> mDBIsPageVisited; // used by IsURIStringVisited
   nsCOMPtr<mozIStorageStatement> mDBUpdatePageVisitStats; // used by AddVisit
   nsCOMPtr<mozIStorageStatement> mDBAddNewPage; // used by InternalAddNewPage
-  nsCOMPtr<mozIStorageStatement> mDBGetTags; // used by GetTags
-  nsCOMPtr<mozIStorageStatement> mDBGetItemsWithAnno; // used by AutoComplete::StartSearch and FilterResultSet
+  nsCOMPtr<mozIStorageStatement> mDBGetTags; // used by FilterResultSet
+  nsCOMPtr<mozIStorageStatement> mFoldersWithAnnotationQuery;  // used by StartSearch and FilterResultSet
   nsCOMPtr<mozIStorageStatement> mDBSetPlaceTitle; // used by SetPageTitleInternal
 
   // these are used by VisitIdToResultNode for making new result nodes from IDs
@@ -433,7 +430,7 @@ protected:
   /**
    * Finalize all internal statements.
    */
-  NS_HIDDEN_(nsresult) FinalizeStatements();
+  nsresult FinalizeStatements();
 
   /**
    * Analyzes the database and VACUUM it, if needed.
@@ -443,12 +440,6 @@ protected:
    * Decays frecency and inputhistory values.
    */
   NS_HIDDEN_(nsresult) VacuumDatabase();
-
-  /**
-   * Finalizes all Places internal statements, allowing to safely close the
-   * database connection.
-   */
-  NS_HIDDEN_(nsresult) FinalizeInternalStatements();
 
   // nsICharsetResolver
   NS_DECL_NSICHARSETRESOLVER
@@ -535,7 +526,7 @@ protected:
 
   // expiration
   friend class nsNavHistoryExpire;
-  nsNavHistoryExpire *mExpire;
+  nsNavHistoryExpire mExpire;
 
 #ifdef LAZY_ADD
   // lazy add committing
@@ -586,7 +577,7 @@ protected:
   nsresult StartLazyTimer();
   nsresult AddLazyMessage(const LazyMessage& aMessage);
   static void LazyTimerCallback(nsITimer* aTimer, void* aClosure);
-  NS_HIDDEN_(void) CommitLazyMessages(PRBool aIsShutdown = PR_FALSE);
+  void CommitLazyMessages();
 #endif
 
   nsresult ConstructQueryString(const nsCOMArray<nsNavHistoryQuery>& aQueries, 
@@ -698,6 +689,15 @@ protected:
   nsresult TokensToQueries(const nsTArray<QueryKeyValuePair>& aTokens,
                            nsCOMArray<nsNavHistoryQuery>* aQueries,
                            nsNavHistoryQueryOptions* aOptions);
+
+  /**
+   * Used to setup the idle timer used to perform various tasks when the user is
+   * idle..
+   */
+  nsCOMPtr<nsITimer> mIdleTimer;
+  nsresult InitializeIdleTimer();
+  static void IdleTimerCallback(nsITimer* aTimer, void* aClosure);
+  nsresult OnIdle();
 
   PRInt64 mTagsFolder;
 

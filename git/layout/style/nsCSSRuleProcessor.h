@@ -78,7 +78,6 @@ public:
 
   static void Startup();
   static void FreeSystemMetrics();
-  static PRBool HasSystemMetric(nsIAtom* aMetric);
 
   /*
    * Returns true if the given RuleProcessorData matches one of the

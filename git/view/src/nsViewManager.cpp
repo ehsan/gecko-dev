@@ -273,10 +273,10 @@ nsViewManager::CreateView(const nsRect& aBounds,
 {
   nsView *v = new nsView(this, aVisibilityFlag);
   if (v) {
-    v->SetParent(static_cast<nsView*>(const_cast<nsIView*>(aParent)));
     v->SetPosition(aBounds.x, aBounds.y);
     nsRect dim(0, 0, aBounds.width, aBounds.height);
     v->SetDimensions(dim, PR_FALSE);
+    v->SetParent(static_cast<nsView*>(const_cast<nsIView*>(aParent)));
   }
   return v;
 }
@@ -943,8 +943,10 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent,
           if (!didResize) {
             //NS_ASSERTION(IsViewVisible(view), "painting an invisible view");
 
-            // Notify view observers that we're about to paint.
-            // Make sure to not send WillPaint notifications while scrolling.
+            // Just notify our own view observer that we're about to paint
+            // XXXbz do we need to notify other view observers for viewmanagers
+            // in our tree?
+            // Make sure to not send WillPaint notifications while scrolling
             nsRefPtr<nsViewManager> rootVM = RootViewManager();
 
             nsCOMPtr<nsIWidget> widget;
@@ -969,7 +971,7 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent,
                 // We should really sort out the rules on our synch painting
                 // api....
                 UpdateViewBatch batch(this);
-                rootVM->CallWillPaintOnObservers();
+                observer->WillPaint();
                 batch.EndUpdateViewBatch(NS_VMREFRESH_NO_SYNC);
 
                 // Get the view pointer again since the code above might have
@@ -1986,9 +1988,22 @@ nsViewManager::FlushPendingInvalidates()
     PRBool refreshEnabled = mRefreshEnabled;
     mRefreshEnabled = PR_FALSE;
     ++mUpdateBatchCnt;
-    CallWillPaintOnObservers();
+    
+    PRInt32 index;
+    for (index = 0; index < mVMCount; index++) {
+      nsViewManager* vm = (nsViewManager*)gViewManagers->ElementAt(index);
+      if (vm->RootViewManager() == this) {
+        // One of our kids
+        nsIViewObserver* observer = vm->GetViewObserver();
+        if (observer) {
+          observer->WillPaint();
+          NS_ASSERTION(mUpdateBatchCnt == 1,
+                       "Observer did not end view batch?");
+        }
+      }
+    }
+    
     --mUpdateBatchCnt;
-
     // Someone could have called EnableRefresh on us from inside WillPaint().
     // Only reset the old mRefreshEnabled value if the current value is false.
     if (!mRefreshEnabled) {
@@ -1999,30 +2014,6 @@ nsViewManager::FlushPendingInvalidates()
   if (mHasPendingUpdates) {
     ProcessPendingUpdates(mRootView, PR_TRUE);
     mHasPendingUpdates = PR_FALSE;
-  }
-}
-
-void
-nsViewManager::CallWillPaintOnObservers()
-{
-  NS_PRECONDITION(IsRootVM(), "Must be root VM for this to be called!\n");
-  NS_PRECONDITION(mUpdateBatchCnt > 0, "Must be in an update batch!");
-
-#ifdef DEBUG
-  PRInt32 savedUpdateBatchCnt = mUpdateBatchCnt;
-#endif
-  PRInt32 index;
-  for (index = 0; index < mVMCount; index++) {
-    nsViewManager* vm = (nsViewManager*)gViewManagers->ElementAt(index);
-    if (vm->RootViewManager() == this) {
-      // One of our kids.
-      nsCOMPtr<nsIViewObserver> obs = vm->GetViewObserver();
-      if (obs) {
-        obs->WillPaint();
-        NS_ASSERTION(mUpdateBatchCnt == savedUpdateBatchCnt,
-                     "Observer did not end view batch?");
-      }
-    }
   }
 }
 

@@ -230,15 +230,12 @@ protected:
    *
    * aType should be either NS_FOCUS_CONTENT or NS_BLUR_CONTENT. For blur
    * events, aFocusMethod should normally be non-zero.
-   *
-   * aWindowRaised should only be true if called from WindowRaised.
    */
   void SendFocusOrBlurEvent(PRUint32 aType,
                             nsIPresShell* aPresShell,
                             nsIDocument* aDocument,
                             nsISupports* aTarget,
-                            PRUint32 aFocusMethod,
-                            PRBool aWindowRaised);
+                            PRUint32 aFocusMethod);
 
   /**
    * Scrolls aContent into view unless the FLAG_NOSCROLL flag is set.

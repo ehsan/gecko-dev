@@ -74,8 +74,6 @@ public:
   nsGenericHTMLElement(nsINodeInfo *aNodeInfo)
     : nsGenericHTMLElementBase(aNodeInfo)
   {
-    NS_ASSERTION(aNodeInfo->NamespaceID() == kNameSpaceID_XHTML,
-                 "Unexpected namespace");
   }
 
   /** Typesafe, non-refcounting cast from nsIContent.  Cheaper than QI. **/

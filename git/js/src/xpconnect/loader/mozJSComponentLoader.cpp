@@ -394,7 +394,6 @@ nsXPCFastLoadIO::GetInputStream(nsIInputStream **_retval)
                                        fileInput,
                                        XPC_DESERIALIZATION_BUFFER_SIZE);
         NS_ENSURE_SUCCESS(rv, rv);
-        mTruncateOutputFile = false;
     }
 
     NS_ADDREF(*_retval = mInputStream);
@@ -406,7 +405,7 @@ nsXPCFastLoadIO::GetOutputStream(nsIOutputStream **_retval)
 {
     if (! mOutputStream) {
         PRInt32 ioFlags = PR_WRONLY;
-        if (mTruncateOutputFile) {
+        if (! mInputStream) {
             ioFlags |= PR_CREATE_FILE | PR_TRUNCATE;
         }
 
@@ -422,13 +421,6 @@ nsXPCFastLoadIO::GetOutputStream(nsIOutputStream **_retval)
     }
 
     NS_ADDREF(*_retval = mOutputStream);
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsXPCFastLoadIO::DisableTruncate()
-{
-    mTruncateOutputFile = false;
     return NS_OK;
 }
 
@@ -953,7 +945,11 @@ mozJSComponentLoader::StartFastLoad(nsIFastLoadService *flSvc)
         if (exists) {
             LOG(("trying to use existing fastload file\n"));
 
-            rv = flSvc->NewInputStream(mFastLoadFile, getter_AddRefs(mFastLoadInput));
+            nsCOMPtr<nsIInputStream> input;
+            rv = mFastLoadIO->GetInputStream(getter_AddRefs(input));
+            NS_ENSURE_SUCCESS(rv, rv);
+
+            rv = flSvc->NewInputStream(input, getter_AddRefs(mFastLoadInput));
             if (NS_SUCCEEDED(rv)) {
                 LOG(("opened fastload file for reading\n"));
 
@@ -991,7 +987,9 @@ mozJSComponentLoader::StartFastLoad(nsIFastLoadService *flSvc)
                 if (mFastLoadInput) {
                     mFastLoadInput->Close();
                     mFastLoadInput = nsnull;
-                } 
+                } else {
+                    input->Close();
+                }
                 mFastLoadIO->SetInputStream(nsnull);
                 mFastLoadFile->Remove(PR_FALSE);
                 exists = PR_FALSE;
@@ -1188,7 +1186,7 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponent,
 #ifdef XPCONNECT_STANDALONE
     localFile->GetNativePath(nativePath);
 #else
-    NS_GetURLSpecFromActualFile(aComponent, nativePath);
+    NS_GetURLSpecFromFile(aComponent, nativePath);
 #endif
 
     // Before compiling the script, first check to see if we have it in

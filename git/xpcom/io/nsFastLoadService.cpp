@@ -163,16 +163,16 @@ nsFastLoadService::NewFastLoadFile(const char* aBaseName, nsIFile* *aResult)
 }
 
 NS_IMETHODIMP
-nsFastLoadService::NewInputStream(nsIFile *aFile, nsIObjectInputStream* *aResult)
+nsFastLoadService::NewInputStream(nsIInputStream* aSrcStream,
+                                  nsIObjectInputStream* *aResult)
 {
     nsAutoLock lock(mLock);
 
     nsCOMPtr<nsIObjectInputStream> stream;
-    nsresult rv = NS_NewFastLoadFileReader(getter_AddRefs(stream), aFile);
+    nsresult rv = NS_NewFastLoadFileReader(getter_AddRefs(stream), aSrcStream);
     if (NS_FAILED(rv))
         return rv;
 
-    mFileIO->DisableTruncate();
     *aResult = stream;
     NS_ADDREF(*aResult);
     return NS_OK;
@@ -285,9 +285,15 @@ nsFastLoadService::StartMuxedDocument(nsISupports* aURI, const char* aURISpec,
             // Ok, aURISpec is not in the existing mux.  If we have no output
             // stream yet, wrap the reader with a FastLoad file updater.
             if (!mOutputStream && mFileIO) {
+                nsCOMPtr<nsIOutputStream> output;
+                rv = mFileIO->GetOutputStream(getter_AddRefs(output));
+                if (NS_FAILED(rv))
+                    return rv;
+
                 // NB: mInputStream must be an nsFastLoadFileReader!
                 rv = NS_NewFastLoadFileUpdater(getter_AddRefs(mOutputStream),
-                                               mFileIO, mInputStream);
+                                               output,
+                                               mInputStream);
                 if (NS_FAILED(rv))
                     return rv;
             }

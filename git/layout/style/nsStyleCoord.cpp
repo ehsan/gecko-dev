@@ -52,6 +52,12 @@ nsStyleCoord::nsStyleCoord(nsStyleUnit aUnit)
   mValue.mInt = 0;
 }
 
+nsStyleCoord::nsStyleCoord(nscoord aValue)
+  : mUnit(eStyleUnit_Coord)
+{
+  mValue.mInt = aValue;
+}
+
 nsStyleCoord::nsStyleCoord(PRInt32 aValue, nsStyleUnit aUnit)
   : mUnit(aUnit)
 {

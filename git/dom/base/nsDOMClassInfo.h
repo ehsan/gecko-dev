@@ -144,13 +144,10 @@ public:
                                       aAllowWrapping);
   }
 
-  // Used for cases where PreCreate needs to wrap the native parent, and the
-  // native parent is likely to have been wrapped already.  |native| must
-  // implement nsWrapperCache, and nativeWrapperCache must be |native|'s
-  // nsWrapperCache.
+  // Used for cases where PreCreate needs to wrap the native parent,
+  // and the native parent is likely to have been wrapped already.
   static inline nsresult WrapNativeParent(JSContext *cx, JSObject *scope,
                                           nsISupports *native,
-                                          nsWrapperCache *nativeWrapperCache,
                                           JSObject **parentObj);
 
   // Same as the WrapNative above, but use this one if aIID is nsISupports' IID.
@@ -287,7 +284,6 @@ protected:
   static jsval sLocationbar_id;
   static jsval sPersonalbar_id;
   static jsval sStatusbar_id;
-  static jsval sDialogArguments_id;
   static jsval sDirectories_id;
   static jsval sControllers_id;
   static jsval sLength_id;

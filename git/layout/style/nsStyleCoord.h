@@ -77,12 +77,9 @@ typedef union {
 class nsStyleCoord {
 public:
   nsStyleCoord(nsStyleUnit aUnit = eStyleUnit_Null);
-  enum CoordConstructorType { CoordConstructor };
-  inline nsStyleCoord(nscoord aValue, CoordConstructorType);
+  nsStyleCoord(nscoord aValue);
   nsStyleCoord(PRInt32 aValue, nsStyleUnit aUnit);
   nsStyleCoord(float aValue, nsStyleUnit aUnit);
-  enum ColorConstructorType { ColorConstructor };
-  inline nsStyleCoord(nscolor aValue, ColorConstructorType);
   inline nsStyleCoord(const nsStyleCoord& aCopy);
   inline nsStyleCoord(const nsStyleUnion& aValue, nsStyleUnit aUnit);
 
@@ -196,18 +193,6 @@ protected:
 // -------------------------
 // nsStyleCoord inlines
 //
-inline nsStyleCoord::nsStyleCoord(nscoord aValue, CoordConstructorType)
-  : mUnit(eStyleUnit_Coord)
-{
-  mValue.mInt = aValue;
-}
-
-inline nsStyleCoord::nsStyleCoord(nscolor aValue, ColorConstructorType)
-  : mUnit(eStyleUnit_Color)
-{
-  mValue.mColor = aValue;
-}
-
 inline nsStyleCoord::nsStyleCoord(const nsStyleCoord& aCopy)
   : mUnit(aCopy.mUnit)
 {

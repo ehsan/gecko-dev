@@ -141,7 +141,6 @@ CPPSRCS		= \
 		nsStyleStruct.cpp \
 		nsStyleTransformMatrix.cpp \
 		nsStyleUtil.cpp \
-		nsTransitionManager.cpp \
 		$(NULL)
 
 FORCE_STATIC_LIB = 1
@@ -156,6 +155,10 @@ LOCAL_INCLUDES	= \
 		$(NULL)
 
 _FILES	= \
+	ua.css \
+	html.css \
+	quirk.css \
+	viewsource.css \
 	arrow.gif \
 	arrowd.gif \
 	contenteditable.css \
@@ -163,6 +166,18 @@ _FILES	= \
 	$(NULL)
 
 GARBAGE		+= $(addprefix $(DIST)/bin/res/,$(_FILES))
+
+FORMS_CSS_SRC = $(srcdir)/forms.css
+PREPROCESS_FORMS_CSS = $(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py --marker=% $(DEFINES) $(ACDEFINES) $(FORMS_CSS_SRC)
+
+$(DIST)/bin/res/forms.css $(DESTDIR)$(mozappdir)/res/forms.css: $(FORMS_CSS_SRC) Makefile
+	if test ! -d $(@D); then rm -rf $(@D); $(NSINSTALL) -D $(@D); else true; fi
+	rm -f $@
+	$(PREPROCESS_FORMS_CSS) > $@
+
+libs:: $(DIST)/bin/res/forms.css
+
+install:: $(DESTDIR)$(mozappdir)/res/forms.css
 
 libs:: $(_FILES)
 	$(INSTALL) $^ $(DIST)/bin/res

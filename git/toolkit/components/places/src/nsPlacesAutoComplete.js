@@ -72,7 +72,7 @@ const kBookTagSQLFragment =
   book_tag_sql_fragment("tags", "GROUP_CONCAT(t.title, ',')", true);
 
 // observer topics
-const kXPComShutdown = "xpcom-shutdown";
+const kQuitApplication = "quit-application";
 const kPrefChanged = "nsPref:changed";
 
 // Match type constants.  These indicate what type of search function we should
@@ -364,7 +364,7 @@ function nsPlacesAutoComplete()
   // register observers
   this._os = Cc["@mozilla.org/observer-service;1"].
               getService(Ci.nsIObserverService);
-  this._os.addObserver(this, kXPComShutdown, false);
+  this._os.addObserver(this, kQuitApplication, false);
 
 }
 
@@ -504,8 +504,8 @@ nsPlacesAutoComplete.prototype = {
 
   observe: function PAC_observe(aSubject, aTopic, aData)
   {
-    if (aTopic == kXPComShutdown) {
-      this._os.removeObserver(this, kXPComShutdown);
+    if (aTopic == kQuitApplication) {
+      this._os.removeObserver(this, kQuitApplication);
 
       // Remove our preference observer.
       this._prefs.removeObserver("", this);
@@ -811,10 +811,7 @@ nsPlacesAutoComplete.prototype = {
     // The keyword is the first word in the search string, with the parameters
     // following it.
     let searchString = this._originalSearchString;
-    let queryString = "";
-    let queryIndex = searchString.indexOf(" ");
-    if (queryIndex != -1)
-      queryString = searchString.substring(queryIndex + 1);
+    let queryString = searchString.substring(searchString.indexOf(" ") + 1);
 
     // We need to escape the parameters as if they were the query in a URL
     queryString = encodeURIComponent(queryString).replace("%20", "+", "g");

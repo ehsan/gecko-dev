@@ -108,11 +108,8 @@ function test() {
         // cleanup
         this.window.close();
         // if we're all done, explicitly finish
-        if (++completedTests == numTests) {
-          this.window.removeEventListener("load", this, false);
-          this.window.removeEventListener("SSTabRestoring", this, false);
+        if (++completedTests == numTests)
           finish();
-        }
       },
 
       handleLoad: function (aEvent) {

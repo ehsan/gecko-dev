@@ -64,7 +64,6 @@ def createReftestProfile(options, profileDir):
   prefsFile.write("""user_pref("browser.dom.window.dump.enabled", true);
 """)
   prefsFile.write('user_pref("reftest.timeout", %d);' % options.timeout)
-  prefsFile.write('user_pref("ui.caretBlinkTime", -1);')
   prefsFile.close()
 
   # install the reftest extension bits into the profile
@@ -124,9 +123,6 @@ Are you executing $objdir/_tests/reftest/runreftest.py?""" \
     # allow relative paths
     options.xrePath = getFullPath(options.xrePath)
 
-  options.symbolsPath = getFullPath(options.symbolsPath)
-  options.utilityPath = getFullPath(options.utilityPath)
-
   profileDir = None
   try:
     profileDir = mkdtemp()
@@ -134,8 +130,17 @@ Are you executing $objdir/_tests/reftest/runreftest.py?""" \
     copyExtraFilesToProfile(options, profileDir)
 
     # browser environment
-    browserEnv = automation.environment(xrePath = options.xrePath)
+    browserEnv = dict(os.environ)
+
+    # These variables are necessary for correct application startup; change
+    # via the commandline at your own risk.
+    # NO_EM_RESTART: will do a '-silent' run instead.
+    browserEnv["NO_EM_RESTART"] = "1"
     browserEnv["XPCOM_DEBUG_BREAK"] = "stack"
+    if automation.UNIXISH:
+      browserEnv["LD_LIBRARY_PATH"] = options.xrePath
+      browserEnv["MOZILLA_FIVE_HOME"] = options.xrePath
+      browserEnv["GNOME_DISABLE_CRASH_DIALOG"] = "1"
 
     # Enable leaks detection to its own log file.
     leakLogFile = os.path.join(profileDir, "runreftest_leaks.log")

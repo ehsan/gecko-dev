@@ -576,8 +576,10 @@ CSS_PROP_BORDER(
     mBorderColor.mBottom,
     eCSSType_Value,
     kBorderColorKTable,
+    // FIXME: should be animatable (but currently involves complex split
+    // between color and an extra bit on the style, all private members)
     CSS_PROP_NO_OFFSET,
-    eStyleAnimType_Custom)
+    eStyleAnimType_None)
 CSS_PROP_BORDER(
     -moz-border-bottom-colors,
     border_bottom_colors,
@@ -611,7 +613,7 @@ CSS_PROP_BORDER(
     eCSSType_Value,
     kBorderWidthKTable,
     CSS_PROP_NO_OFFSET,
-    eStyleAnimType_Custom)
+    eStyleAnimType_None)
 CSS_PROP_TABLEBORDER(
     border-collapse,
     border_collapse,
@@ -719,8 +721,10 @@ CSS_PROP_BORDER(
     mBorderColor.mLeft,
     eCSSType_Value,
     kBorderColorKTable,
+    // FIXME: should be animatable (but currently involves complex split
+    // between color and an extra bit on the style, all private members)
     CSS_PROP_NO_OFFSET,
-    eStyleAnimType_Custom)
+    eStyleAnimType_None)
 CSS_PROP_BORDER(
     border-left-color-ltr-source,
     border_left_color_ltr_source,
@@ -818,7 +822,7 @@ CSS_PROP_BORDER(
     eCSSType_Value,
     kBorderWidthKTable,
     CSS_PROP_NO_OFFSET,
-    eStyleAnimType_Custom)
+    eStyleAnimType_None)
 CSS_PROP_BORDER(
     border-left-width-ltr-source,
     border_left_width_ltr_source,
@@ -865,8 +869,10 @@ CSS_PROP_BORDER(
     mBorderColor.mRight,
     eCSSType_Value,
     kBorderColorKTable,
+    // FIXME: should be animatable (but currently involves complex split
+    // between color and an extra bit on the style, all private members)
     CSS_PROP_NO_OFFSET,
-    eStyleAnimType_Custom)
+    eStyleAnimType_None)
 CSS_PROP_BORDER(
     border-right-color-ltr-source,
     border_right_color_ltr_source,
@@ -964,7 +970,7 @@ CSS_PROP_BORDER(
     eCSSType_Value,
     kBorderWidthKTable,
     CSS_PROP_NO_OFFSET,
-    eStyleAnimType_Custom)
+    eStyleAnimType_None)
 CSS_PROP_BORDER(
     border-right-width-ltr-source,
     border_right_width_ltr_source,
@@ -1080,8 +1086,10 @@ CSS_PROP_BORDER(
     mBorderColor.mTop,
     eCSSType_Value,
     kBorderColorKTable,
+    // FIXME: should be animatable (but currently involves complex split
+    // between color and an extra bit on the style, all private members)
     CSS_PROP_NO_OFFSET,
-    eStyleAnimType_Custom)
+    eStyleAnimType_None)
 CSS_PROP_BORDER(
     -moz-border-top-colors,
     border_top_colors,
@@ -1115,7 +1123,7 @@ CSS_PROP_BORDER(
     eCSSType_Value,
     kBorderWidthKTable,
     CSS_PROP_NO_OFFSET,
-    eStyleAnimType_Custom)
+    eStyleAnimType_None)
 CSS_PROP_SHORTHAND(
     border-width,
     border_width,
@@ -1441,8 +1449,8 @@ CSS_PROP_FONT(
     mSizeAdjust,
     eCSSType_Value,
     nsnull,
-    offsetof(nsStyleFont, mFont.sizeAdjust),
-    eStyleAnimType_float)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_FONT(
     font-stretch,
     font_stretch,
@@ -1822,8 +1830,8 @@ CSS_PROP_DISPLAY(
     mOpacity,
     eCSSType_Value,
     nsnull,
-    offsetof(nsStyleDisplay, mOpacity),
-    eStyleAnimType_float) // XXX bug 3935
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None) // XXX bug 3935
 CSS_PROP_BACKENDONLY(
     orphans,
     orphans,
@@ -1847,8 +1855,10 @@ CSS_PROP_OUTLINE(
     mOutlineColor,
     eCSSType_Value,
     kOutlineColorKTable,
+    // FIXME: should be animatable (but currently involves complex split
+    // between color and an extra bit on the style, all private members)
     CSS_PROP_NO_OFFSET,
-    eStyleAnimType_Custom)
+    eStyleAnimType_None)
 CSS_PROP_OUTLINE(
     outline-style,
     outline_style,
@@ -2772,8 +2782,8 @@ CSS_PROP_SVG(
     mFillOpacity,
     eCSSType_Value,
     nsnull,
-    offsetof(nsStyleSVG, mFillOpacity),
-    eStyleAnimType_float)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_SVG(
     fill-rule,
     fill_rule,
@@ -2816,8 +2826,8 @@ CSS_PROP_SVGRESET(
     mFloodOpacity,
     eCSSType_Value,
     nsnull,
-    offsetof(nsStyleSVGReset, mFloodOpacity),
-    eStyleAnimType_float)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_SVG(
     image-rendering,
     image_rendering,
@@ -2920,8 +2930,8 @@ CSS_PROP_SVGRESET(
     mStopOpacity,
     eCSSType_Value,
     nsnull,
-    offsetof(nsStyleSVGReset, mStopOpacity),
-    eStyleAnimType_float)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_SVG(
     stroke,
     stroke,
@@ -2986,8 +2996,8 @@ CSS_PROP_SVG(
     mStrokeMiterlimit,
     eCSSType_Value,
     nsnull,
-    offsetof(nsStyleSVG, mStrokeMiterlimit),
-    eStyleAnimType_float)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_SVG(
     stroke-opacity,
     stroke_opacity,
@@ -2997,8 +3007,8 @@ CSS_PROP_SVG(
     mStrokeOpacity,
     eCSSType_Value,
     nsnull,
-    offsetof(nsStyleSVG, mStrokeOpacity),
-    eStyleAnimType_float)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_SVG(
     stroke-width,
     stroke_width,

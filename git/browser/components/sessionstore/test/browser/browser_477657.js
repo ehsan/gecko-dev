@@ -42,7 +42,6 @@ function test() {
   
   let newWin = openDialog(location, "_blank", "chrome,all,dialog=no");
   newWin.addEventListener("load", function(aEvent) {
-    this.removeEventListener("load", arguments.callee, false);
     let newState = { windows: [{
       tabs: [{ entries: [] }],
       _closedTabs: [{

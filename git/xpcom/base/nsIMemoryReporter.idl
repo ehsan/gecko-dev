@@ -82,11 +82,6 @@ interface nsIMemoryReporterManager : nsISupports
    * Unregister the given memory reporter.
    */
   void unregisterReporter (in nsIMemoryReporter reporter);
-
-  /*
-   * Initialize.
-   */
-  void init ();
 };
 
 %{C++

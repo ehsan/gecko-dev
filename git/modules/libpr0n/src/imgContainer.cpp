@@ -152,10 +152,10 @@ imgContainer::imgContainer() :
   mDiscardTimer(nsnull),
   mHasSourceData(PR_FALSE),
   mDecoded(PR_FALSE),
-  mHasBeenDecoded(PR_FALSE),
   mDecoder(nsnull),
   mWorker(nsnull),
   mBytesDecoded(0),
+  mDecoderInput(nsnull),
   mDecoderFlags(imgIDecoder::DECODER_FLAG_NONE),
   mWorkerPending(PR_FALSE),
   mInDecoder(PR_FALSE),
@@ -299,7 +299,6 @@ NS_IMETHODIMP imgContainer::ExtractFrame(PRUint32 aWhichFrame,
   img->Init(nsnull, "", INIT_FLAG_NONE);
   img->SetSize(aRegion.width, aRegion.height);
   img->mDecoded = PR_TRUE; // Also, we need to mark the image as decoded
-  img->mHasBeenDecoded = PR_TRUE;
 
   // If a synchronous decode was requested, do it
   if (aFlags & FLAG_SYNC_DECODE) {
@@ -484,20 +483,8 @@ NS_IMETHODIMP imgContainer::GetAnimated(PRBool *aAnimated)
 
   NS_ENSURE_ARG_POINTER(aAnimated);
 
-  // If we have mAnim, we can know for sure
-  if (mAnim) {
-    *aAnimated = PR_TRUE;
-    return NS_OK;
-  }
-
-  // Otherwise, we need to have been decoded to know for sure, since if we were
-  // decoded at least once mAnim would have been created for animated images
-  if (!mHasBeenDecoded)
-    return NS_ERROR_NOT_AVAILABLE;
-
-  // We know for sure
-  *aAnimated = PR_FALSE;
-
+  *aAnimated = (mAnim != nsnull);
+  
   return NS_OK;
 }
 
@@ -845,7 +832,7 @@ NS_IMETHODIMP imgContainer::EnsureCleanFrame(PRUint32 aFrameNum, PRInt32 aX, PRI
 /* void frameUpdated (in unsigned long framenumber, in nsIntRect rect); */
 NS_IMETHODIMP imgContainer::FrameUpdated(PRUint32 aFrameNum, nsIntRect &aUpdatedRect)
 {
-  NS_ASSERTION(aFrameNum < mFrames.Length(), "Invalid frame index!");
+  NS_ABORT_IF_FALSE(aFrameNum < mFrames.Length(), "Invalid frame index!");
   if (aFrameNum >= mFrames.Length())
     return NS_ERROR_INVALID_ARG;
 
@@ -966,7 +953,6 @@ NS_IMETHODIMP imgContainer::DecodingComplete(void)
   // XXX - these should probably be combined when we fix animated image
   // discarding with bug 500402.
   mDecoded = PR_TRUE;
-  mHasBeenDecoded = PR_TRUE;
   if (mAnim)
     mAnim->doneDecoding = PR_TRUE;
 
@@ -2071,6 +2057,14 @@ imgContainer::InitDecoder (PRUint32 dFlags)
   nsresult result = mDecoder->Init(this, observer, dFlags);
   CONTAINER_ENSURE_SUCCESS(result);
 
+  // Create an nsIInputStream for the data. Because nsIStringInputStreams don't
+  // like their dependent data to grow dynamically, we reset the stream to the
+  // proper buffer each time we write data to the decoder. Nevertheless, it's
+  // worth keeping the structure around to avoid needless construction and
+  // destruction.
+  mDecoderInput = do_CreateInstance("@mozilla.org/io/string-input-stream;1");
+  CONTAINER_ENSURE_TRUE(mDecoderInput, NS_ERROR_OUT_OF_MEMORY);
+
   // Create a decode worker
   mWorker = new imgDecodeWorker(this);
   CONTAINER_ENSURE_TRUE(mWorker, NS_ERROR_OUT_OF_MEMORY);
@@ -2129,6 +2123,9 @@ imgContainer::ShutdownDecoder(eShutdownIntent aIntent)
     return rv;
   }
 
+  // Get rid of the stream
+  mDecoderInput = nsnull;
+
   // Kill off the worker
   mWorker = nsnull;
 
@@ -2153,16 +2150,21 @@ imgContainer::ShutdownDecoder(eShutdownIntent aIntent)
   return NS_OK;
 }
 
-// Writes the data to the decoder, updating the total number of bytes written.
+// Wraps a shared stream around the data and passes the stream to the decoder,
+// updating the total number of bytes written.
 nsresult
 imgContainer::WriteToDecoder(const char *aBuffer, PRUint32 aCount)
 {
   // We should have a decoder
   NS_ABORT_IF_FALSE(mDecoder, "Trying to write to null decoder!");
 
+  // Wrap a shared stream around the data
+  nsresult rv = mDecoderInput->ShareData(aBuffer, aCount);
+  CONTAINER_ENSURE_SUCCESS(rv);
+
   // Write
   mInDecoder = PR_TRUE;
-  nsresult rv = mDecoder->Write(aBuffer, aCount);
+  rv = mDecoder->WriteFrom(mDecoderInput, aCount);
   mInDecoder = PR_FALSE;
   CONTAINER_ENSURE_SUCCESS(rv);
 

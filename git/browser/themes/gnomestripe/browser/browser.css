@@ -70,13 +70,13 @@
   padding-top: 0;
 }
 
-#urlbar:-moz-lwtheme:not([focused="true"]),
-#searchbar:-moz-lwtheme > textbox:not([focused="true"]),
-.tabbrowser-tab:-moz-lwtheme:not([selected="true"]) {
+#main-window[lwtheme="true"] #urlbar:not([focused="true"]),
+#main-window[lwtheme="true"] #searchbar > textbox:not([focused="true"]),
+#main-window[lwtheme="true"] .tabbrowser-tab:not([selected="true"]) {
   opacity: .85;
 }
 
-.tabbrowser-tab:-moz-lwtheme {
+#main-window[lwtheme="true"] .tabbrowser-tab {
   text-shadow: none;
 }
 
@@ -115,15 +115,8 @@ toolbarbutton.bookmark-item[open="true"] {
   display: -moz-box !important;
 }
 
-#wrapper-personal-bookmarks[place="palette"] > .toolbarpaletteitem-box {
-  width: 16px;
-  height: 16px;
-  background: url("chrome://browser/skin/places/bookmarksToolbar.png") no-repeat;
-}
-
 .bookmarks-toolbar-customize {
   max-width: 15em !important;
-  list-style-image: url("chrome://browser/skin/places/bookmarksToolbar.png") !important;
 }
 
 /* Bookmark menus */
@@ -1286,7 +1279,11 @@ tabpanels {
 .tabbrowser-arrowscrollbox > .scrollbutton-down {
   -moz-appearance: tab-scroll-arrow-forward;
   margin: 0px;
-  outline-color: Highlight;
+}
+
+.tabs-alltabs-box-animate {
+  background-color: Highlight;
+  opacity: 0.0;
 }
 
 .tabs-alltabs-button {

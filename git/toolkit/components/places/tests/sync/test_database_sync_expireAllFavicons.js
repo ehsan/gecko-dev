@@ -109,7 +109,7 @@ var observer = {
 
       stmt.finalize();
 
-      do_test_finished();
+      finish_test();
     }
   }
 }
@@ -122,8 +122,8 @@ function run_test()
   prefs.setIntPref(kSyncPrefName, SYNC_INTERVAL);
 
   // Add a page with a visit.
-  let visitId = hs.addVisit(uri(TEST_URI), Date.now() * 1000, null,
-                            hs.TRANSITION_TYPED, false, 0);
+  visitId = hs.addVisit(uri(TEST_URI), Date.now() * 1000, null,
+                        hs.TRANSITION_TYPED, false, 0);
   // Set a favicon for the page.
   icons.setFaviconUrlForPage(uri(TEST_URI), uri(TEST_ICON_URI));
 

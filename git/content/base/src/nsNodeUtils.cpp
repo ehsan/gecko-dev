@@ -464,9 +464,8 @@ nsNodeUtils::CloneNodeImpl(nsINode *aNode, PRBool aDeep, nsIDOMNode **aResult)
 
 class AdoptFuncData {
 public:
-  AdoptFuncData(nsGenericElement *aElement,
-                nsNodeInfoManager *aNewNodeInfoManager, JSContext *aCx,
-                JSObject *aOldScope, JSObject *aNewScope,
+  AdoptFuncData(nsIDOMElement *aElement, nsNodeInfoManager *aNewNodeInfoManager,
+                JSContext *aCx, JSObject *aOldScope, JSObject *aNewScope,
                 nsCOMArray<nsINode> &aNodesWithProperties)
     : mElement(aElement),
       mNewNodeInfoManager(aNewNodeInfoManager),
@@ -477,7 +476,7 @@ public:
   {
   }
 
-  nsGenericElement *mElement;
+  nsIDOMElement *mElement;
   nsNodeInfoManager *mNewNodeInfoManager;
   JSContext *mCx;
   JSObject *mOldScope;
@@ -496,7 +495,7 @@ AdoptFunc(nsAttrHashKey::KeyType aKey, nsIDOMNode *aData, void* aUserArg)
   // If we were passed an element we need to clone the attribute nodes and
   // insert them into the element.
   PRBool clone = data->mElement != nsnull;
-  nsCOMPtr<nsINode> node;
+  nsCOMPtr<nsIDOMNode> node;
   nsresult rv = nsNodeUtils::CloneAndAdopt(attr, clone, PR_TRUE,
                                            data->mNewNodeInfoManager,
                                            data->mCx, data->mOldScope,
@@ -521,14 +520,14 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
                            JSContext *aCx, JSObject *aOldScope,
                            JSObject *aNewScope,
                            nsCOMArray<nsINode> &aNodesWithProperties,
-                           nsINode *aParent, nsINode **aResult)
+                           nsINode *aParent, nsIDOMNode **aResult)
 {
   NS_PRECONDITION((!aClone && aNewNodeInfoManager) || !aCx,
                   "If cloning or not getting a new nodeinfo we shouldn't "
                   "rewrap");
   NS_PRECONDITION(!aCx || (aOldScope && aNewScope), "Must have scopes");
-  NS_PRECONDITION(!aParent || aNode->IsNodeOfType(nsINode::eCONTENT),
-                  "Can't insert document or attribute nodes into a parent");
+  NS_PRECONDITION(!aParent || !aNode->IsNodeOfType(nsINode::eDOCUMENT),
+                  "Can't insert document nodes into a parent");
 
   *aResult = nsnull;
 
@@ -579,8 +578,10 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
     if (aParent) {
       // If we're cloning we need to insert the cloned children into the cloned
       // parent.
-      rv = aParent->AppendChildTo(static_cast<nsIContent*>(clone.get()),
-                                  PR_FALSE);
+      nsCOMPtr<nsIContent> cloneContent = do_QueryInterface(clone, &rv);
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      rv = aParent->AppendChildTo(cloneContent, PR_FALSE);
       NS_ENSURE_SUCCESS(rv, rv);
     }
     else if (aDeep && clone->IsNodeOfType(nsINode::eDOCUMENT)) {
@@ -643,13 +644,16 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
     // aNode's attributes.
     const nsDOMAttributeMap *map = elem->GetAttributeMap();
     if (map) {
-      // If we're cloning we need to insert the cloned attribute nodes into the
-      // cloned element. We assume that the clone of an nsGenericElement is also
-      // an nsGenericElement.
-      nsGenericElement* elemClone =
-        aClone ? static_cast<nsGenericElement*>(clone.get()) : nsnull;
-      AdoptFuncData data(elemClone, nodeInfoManager, aCx, aOldScope, aNewScope,
-                         aNodesWithProperties);
+      nsCOMPtr<nsIDOMElement> element;
+      if (aClone) {
+        // If we're cloning we need to insert the cloned attribute nodes into
+        // the cloned element.
+        element = do_QueryInterface(clone, &rv);
+        NS_ENSURE_SUCCESS(rv, rv);
+      }
+
+      AdoptFuncData data(element, nodeInfoManager, aCx, aOldScope,
+                         aNewScope, aNodesWithProperties);
 
       PRUint32 count = map->Enumerate(AdoptFunc, &data);
       NS_ENSURE_TRUE(count == map->Count(), NS_ERROR_FAILURE);
@@ -681,17 +685,17 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
     // aNode's children.
     PRUint32 i, length = aNode->GetChildCount();
     for (i = 0; i < length; ++i) {
-      nsCOMPtr<nsINode> child;
+      nsCOMPtr<nsIDOMNode> child;
       rv = CloneAndAdopt(aNode->GetChildAt(i), aClone, PR_TRUE, nodeInfoManager,
                          aCx, aOldScope, aNewScope, aNodesWithProperties,
                          clone, getter_AddRefs(child));
       NS_ENSURE_SUCCESS(rv, rv);
       if (isDeepDocumentClone) {
-        NS_ASSERTION(child->IsNodeOfType(nsINode::eCONTENT),
-                     "A clone of a child of a node is not nsIContent?");
-
-        nsIContent* content = static_cast<nsIContent*>(child.get());
-        static_cast<nsDocument*>(clone.get())->RegisterNamedItems(content);
+        nsCOMPtr<nsIContent> content = do_QueryInterface(child);
+        if (content) {
+          static_cast<nsDocument*>(clone.get())->
+            RegisterNamedItems(content);
+        }
       }
     }
   }
@@ -725,9 +729,7 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
     NS_ENSURE_TRUE(ok, NS_ERROR_OUT_OF_MEMORY);
   }
 
-  clone.forget(aResult);
-
-  return NS_OK;
+  return clone ? CallQueryInterface(clone, aResult) : NS_OK;
 }
 
 

@@ -46,22 +46,16 @@
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
 @namespace html url("http://www.w3.org/1999/xhtml");
 
-#urlbar:-moz-lwtheme:not([focused="true"]),
-#searchbar:-moz-lwtheme > textbox:not([focused="true"]) {
+#main-window[lwtheme="true"] #urlbar:not([focused="true"]),
+#main-window[lwtheme="true"] #searchbar > textbox:not([focused="true"]) {
   opacity: .85;
 }
 
-.tabbrowser-tab[selected="true"]:-moz-lwtheme {
+#main-window[lwtheme="true"] .tabbrowser-tab[selected="true"] {
   text-shadow: none;
 }
 
-.tabbrowser-tabs:-moz-lwtheme {
-  -moz-appearance: none;
-  background: none;
-  border-style: none;
-}
-
-.tabbrowser-tab:-moz-lwtheme:not([selected="true"]) {
+#main-window[lwtheme="true"] .tabbrowser-tab:not([selected="true"]) {
   color: inherit;
 }
 
@@ -132,12 +126,11 @@ toolbarbutton.bookmark-item[open="true"] {
 #wrapper-personal-bookmarks[place="palette"] > .toolbarpaletteitem-box {
   width: 16px;
   height: 16px;
-  background: url("chrome://browser/skin/places/bookmarksToolbar.png") no-repeat;
+  background: url("chrome://browser/skin/Bookmarks-folder.png") no-repeat;
 }
 
 .bookmarks-toolbar-customize {
   max-width: 15em !important;
-  list-style-image: url("chrome://browser/skin/places/bookmarksToolbar.png") !important;
 }
 
 /* ::::: bookmark menus ::::: */
@@ -1409,7 +1402,6 @@ tabpanels {
 
 .tabbrowser-arrowscrollbox > .scrollbutton-down {
   list-style-image: url("chrome://browser/skin/tabbrowser/tab-arrow-right.png");
-  outline-color: Highlight;
 }
 
 .tabbrowser-arrowscrollbox > .scrollbutton-down:-moz-locale-dir(rtl),
@@ -1464,6 +1456,19 @@ tabpanels {
 .tabs-alltabs-button[type="menu"]:hover:active > .toolbarbutton-icon,
 .tabs-alltabs-button[type="menu"][open="true"] > .toolbarbutton-icon {
   -moz-image-region: rect(0, 26px, 11px, 13px);
+}
+
+.tabs-alltabs-box-animate {
+  margin-top: 2px;
+  margin-bottom: 4px;
+  width: 18px !important;
+  background-image: url("chrome://browser/skin/tabbrowser/alltabs-box-overflow-end-bkgnd-animate.png");
+  background-repeat: no-repeat;
+  opacity: 0.0;
+}
+
+.tabs-alltabs-box-animate:-moz-locale-dir(rtl) {
+  background-image: url("chrome://browser/skin/tabbrowser/alltabs-box-overflow-start-bkgnd-animate.png");
 }
 
 /* All tabs menupopup */
@@ -1993,7 +1998,6 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
 .allTabs-preview:hover,
 .allTabs-preview[closebuttonhover] {
   color: white;
-  text-shadow: none;
   background-color: rgba(0,0,0,.4);
   -moz-border-radius: .5em;
 }

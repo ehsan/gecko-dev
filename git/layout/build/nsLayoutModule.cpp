@@ -100,7 +100,6 @@
 #include "nsXULPopupManager.h"
 #include "nsFocusManager.h"
 
-#include "nsIEventListenerService.h"
 // Transformiix stuff
 #include "nsXPathEvaluator.h"
 #include "txMozillaXSLTProcessor.h"
@@ -118,7 +117,6 @@
 
 // DOM includes
 #include "nsDOMException.h"
-#include "nsDOMFileRequest.h"
 #include "nsGlobalWindowCommands.h"
 #include "nsIControllerCommandTable.h"
 #include "nsJSProtocolHandler.h"
@@ -291,7 +289,6 @@ NS_GENERIC_AGGREGATED_CONSTRUCTOR_INIT(nsXPathEvaluator, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(txNodeSetAdaptor, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDOMSerializer)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsXMLHttpRequest, Init)
-NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsDOMFileRequest, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDOMParser)
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsDOMStorageManager,
                                          nsDOMStorageManager::GetInstance)
@@ -424,8 +421,6 @@ nsresult NS_NewXBLService(nsIXBLService** aResult);
 nsresult NS_NewContentPolicy(nsIContentPolicy** aResult);
 nsresult NS_NewDOMEventGroup(nsIDOMEventGroup** aResult);
 
-nsresult NS_NewEventListenerService(nsIEventListenerService** aResult);
-
 NS_IMETHODIMP NS_NewXULControllers(nsISupports* aOuter, REFNSIID aIID, void** aResult);
 
 #define MAKE_CTOR(ctor_, iface_, func_)                   \
@@ -526,7 +521,6 @@ MAKE_CTOR(CreateXTFService,               nsIXTFService,               NS_NewXTF
 MAKE_CTOR(CreateXMLContentBuilder,        nsIXMLContentBuilder,        NS_NewXMLContentBuilder)
 #endif
 MAKE_CTOR(CreateContentDLF,               nsIDocumentLoaderFactory,    NS_NewContentDocumentLoaderFactory)
-MAKE_CTOR(CreateEventListenerService,     nsIEventListenerService,     NS_NewEventListenerService)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsWyciwygProtocolHandler)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsContentAreaDragDrop)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDataDocumentContentPolicy)
@@ -1371,11 +1365,6 @@ static const nsModuleComponentInfo gComponents[] = {
     NS_XMLSERIALIZER_CONTRACTID,
     nsDOMSerializerConstructor },
 
-  { "FileRequest",
-    NS_FILEREQUEST_CID,
-    NS_FILEREQUEST_CONTRACTID,
-    nsDOMFileRequestConstructor },
-
   { "XMLHttpRequest",
     NS_XMLHTTPREQUEST_CID,
     NS_XMLHTTPREQUEST_CONTRACTID,
@@ -1447,16 +1436,12 @@ static const nsModuleComponentInfo gComponents[] = {
       "@mozilla.org/geolocation/service;1",
       nsGeolocationServiceConstructor },
 
-    { "Focus Manager",
-      NS_FOCUSMANAGER_CID,
-      "@mozilla.org/focus-manager;1",
-      CreateFocusManager },
 
 
-    { "Event Listener Service",
-      NS_EVENTLISTENERSERVICE_CID,
-      NS_EVENTLISTENERSERVICE_CONTRACTID,
-      CreateEventListenerService }
+  { "Focus Manager",
+    NS_FOCUSMANAGER_CID,
+    "@mozilla.org/focus-manager;1",
+    CreateFocusManager },
 };
 
 NS_IMPL_NSGETMODULE_WITH_CTOR(nsLayoutModule, gComponents, Initialize)

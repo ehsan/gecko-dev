@@ -54,7 +54,6 @@ const PREF_BLOCKLIST_URL              = "extensions.blocklist.url";
 const PREF_BLOCKLIST_ENABLED          = "extensions.blocklist.enabled";
 const PREF_BLOCKLIST_INTERVAL         = "extensions.blocklist.interval";
 const PREF_BLOCKLIST_LEVEL            = "extensions.blocklist.level";
-const PREF_PLUGINS_NOTIFYUSER         = "plugins.update.notifyUser";
 const PREF_GENERAL_USERAGENT_LOCALE   = "general.useragent.locale";
 const PREF_PARTNER_BRANCH             = "app.partner.";
 const PREF_APP_DISTRIBUTION           = "distribution.id";
@@ -68,7 +67,6 @@ const URI_BLOCKLIST_DIALOG            = "chrome://mozapps/content/extensions/blo
 const DEFAULT_SEVERITY                = 3;
 const DEFAULT_LEVEL                   = 2;
 const MAX_BLOCK_LEVEL                 = 3;
-const SEVERITY_OUTDATED               = 0;
 
 const MODE_RDONLY   = 0x01;
 const MODE_WRONLY   = 0x02;
@@ -91,11 +89,7 @@ var gBlocklistEnabled = true;
 var gBlocklistLevel = DEFAULT_LEVEL;
 
 // shared code for suppressing bad cert dialogs
-XPCOMUtils.defineLazyGetter(this, "gCertUtils", function() {
-  let temp = { };
-  Components.utils.import("resource://gre/modules/CertUtils.jsm", temp);
-  return temp;
-});
+#include ../../shared/src/badCertHandler.js
 
 /**
  * Logs a string to the error console.
@@ -517,7 +511,7 @@ Blocklist.prototype = {
     var request = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].
                   createInstance(Ci.nsIXMLHttpRequest);
     request.open("GET", uri.spec, true);
-    request.channel.notificationCallbacks = new gCertUtils.BadCertHandler();
+    request.channel.notificationCallbacks = new BadCertHandler();
     request.overrideMimeType("text/xml");
     request.setRequestHeader("Cache-Control", "no-cache");
     request.QueryInterface(Components.interfaces.nsIJSXMLHttpRequest);
@@ -536,7 +530,7 @@ Blocklist.prototype = {
   onXMLLoad: function(aEvent) {
     var request = aEvent.target;
     try {
-      gCertUtils.checkCert(request.channel);
+      checkCert(request.channel);
     }
     catch (e) {
       LOG("Blocklist::onXMLLoad: " + e);
@@ -826,13 +820,10 @@ Blocklist.prototype = {
 
       for (var i = 0; i < blockEntry.versions.length; i++) {
         if (blockEntry.versions[i].includesItem(plugin.version, appVersion,
-                                                toolkitVersion)) {
-          if (blockEntry.versions[i].severity >= gBlocklistLevel)
-            return Ci.nsIBlocklistService.STATE_BLOCKED;
-          if (blockEntry.versions[i].severity == SEVERITY_OUTDATED)
-            return Ci.nsIBlocklistService.STATE_OUTDATED;
-          return Ci.nsIBlocklistService.STATE_SOFTBLOCKED;
-        }
+                                                toolkitVersion))
+          return blockEntry.versions[i].severity >= gBlocklistLevel ?
+                                                    Ci.nsIBlocklistService.STATE_BLOCKED :
+                                                    Ci.nsIBlocklistService.STATE_SOFTBLOCKED;
       }
     }
 
@@ -884,19 +875,14 @@ Blocklist.prototype = {
           plugins[i].disabled = true;
       }
       else if (!plugins[i].disabled && state != Ci.nsIBlocklistService.STATE_NOT_BLOCKED) {
-        if (state == Ci.nsIBlocklistService.STATE_OUTDATED) {
-          gPref.setBoolPref(PREF_PLUGINS_NOTIFYUSER, true);
-        }
-        else {
-          addonList.push({
-            name: plugins[i].name,
-            version: plugins[i].version,
-            icon: "chrome://mozapps/skin/plugins/pluginGeneric.png",
-            disable: false,
-            blocked: state == Ci.nsIBlocklistService.STATE_BLOCKED,
-            item: plugins[i]
-          });
-        }
+        addonList.push({
+          name: plugins[i].name,
+          version: plugins[i].version,
+          icon: "chrome://mozapps/skin/plugins/pluginGeneric.png",
+          disable: false,
+          blocked: state == Ci.nsIBlocklistService.STATE_BLOCKED,
+          item: plugins[i]
+        });
       }
       plugins[i].blocklisted = state == Ci.nsIBlocklistService.STATE_BLOCKED;
     }

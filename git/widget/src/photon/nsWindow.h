@@ -68,6 +68,8 @@ public:
 
   NS_IMETHOD           WidgetToScreen(const nsRect &aOldRect, nsRect &aNewRect);
 
+  NS_IMETHOD           PreCreateWidget(nsWidgetInitData *aWidgetInitData);
+
   virtual void*        GetNativeData(PRUint32 aDataType);
 
   NS_IMETHOD           Scroll(PRInt32 aDx, PRInt32 aDy, nsRect *aClipRect);

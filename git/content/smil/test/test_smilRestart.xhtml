@@ -40,14 +40,7 @@ SimpleTest.waitForExplicitFinish();
 function tryRestart(elem, state, expected) {
   var restartTime = svg.getCurrentTime();
   elem.beginElement();
-  var restart = false;
-  try {
-    restart = (elem.getStartTime() === restartTime);
-  } catch (e) {
-    if (e.code != DOMException.INVALID_STATE_ERR)
-      throw e;
-    restart = false;
-  }
+  var restart = (elem.getStartTime() === restartTime);
   if (expected) {
     var msg = elem.id + " can't restart in " + state + " state";
     ok(restart, msg);

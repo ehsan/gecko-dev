@@ -37,17 +37,11 @@
 #include <windows.h>
 #include <windowsx.h>
 
- using namespace std;
-
 #pragma comment(lib, "msimg32.lib")
 
 void SetSubclass(HWND hWnd, InstanceData* instanceData);
 void ClearSubclass(HWND hWnd);
 LRESULT CALLBACK PluginWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-
-struct _PlatformData {
-  HWND childWindow;
-};
 
 bool
 pluginSupportsWindowMode()
@@ -64,20 +58,12 @@ pluginSupportsWindowlessMode()
 NPError
 pluginInstanceInit(InstanceData* instanceData)
 {
-  instanceData->platformData = static_cast<PlatformData*>
-    (NPN_MemAlloc(sizeof(PlatformData)));
-  if (!instanceData->platformData)
-    return NPERR_OUT_OF_MEMORY_ERROR;
-
-  instanceData->platformData->childWindow = NULL;
   return NPERR_NO_ERROR;
 }
 
 void
 pluginInstanceShutdown(InstanceData* instanceData)
 {
-  NPN_MemFree(instanceData->platformData);
-  instanceData->platformData = 0;
 }
 
 void
@@ -86,8 +72,6 @@ pluginDoSetWindow(InstanceData* instanceData, NPWindow* newWindow)
   instanceData->window = *newWindow;
 }
 
-#define CHILD_WIDGET_SIZE 10
-
 void
 pluginWidgetInit(InstanceData* instanceData, void* oldWindow)
 {
@@ -95,17 +79,8 @@ pluginWidgetInit(InstanceData* instanceData, void* oldWindow)
   if (oldWindow) {
     HWND hWndOld = (HWND)oldWindow;
     ClearSubclass(hWndOld);
-    if (instanceData->platformData->childWindow) {
-      ::DestroyWindow(instanceData->platformData->childWindow);
-    }
   }
-
   SetSubclass(hWnd, instanceData);
-
-  instanceData->platformData->childWindow =
-    ::CreateWindowW(L"SCROLLBAR", L"Dummy child window", 
-                    WS_CHILD, 0, 0, CHILD_WIDGET_SIZE, CHILD_WIDGET_SIZE, hWnd, NULL,
-                    NULL, NULL);
 }
 
 static void
@@ -394,22 +369,11 @@ pluginGetClipRegionRectEdge(InstanceData* instanceData,
 /* windowless plugin events */
 
 static bool
-handleEventInternal(InstanceData* instanceData, NPEvent* pe, LRESULT* result)
+handleEventInternal(InstanceData* instanceData, NPEvent* pe)
 {
   switch ((UINT)pe->event) {
     case WM_PAINT:
       pluginDraw(instanceData);
-      return true;
-
-    case WM_MOUSEACTIVATE:
-      if (instanceData->hasWidget) {
-        ::SetFocus((HWND)instanceData->window.window);
-        *result = MA_ACTIVATEANDEAT;
-        return true;
-      }
-      return false;
-
-    case WM_MOUSEWHEEL:
       return true;
 
     case WM_MOUSEMOVE:
@@ -440,8 +404,7 @@ pluginHandleEvent(InstanceData* instanceData, void* event)
       instanceData->window.type != NPWindowTypeDrawable)
     return 0;   
 
-  LRESULT result = 0;
-  return handleEventInternal(instanceData, pe, &result);
+  return handleEventInternal(instanceData, pe);
 }
 
 /* windowed plugin events */
@@ -457,9 +420,8 @@ LRESULT CALLBACK PluginWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPara
 
   NPEvent event = { uMsg, wParam, lParam };
 
-  LRESULT result = 0;
-  if (handleEventInternal(pInstance, &event, &result))
-    return result;
+  if (handleEventInternal(pInstance, &event))
+    return 0;
 
   if (uMsg == WM_CLOSE) {
     ClearSubclass((HWND)pInstance->window.window);
@@ -485,31 +447,4 @@ SetSubclass(HWND hWnd, InstanceData* instanceData)
   SetProp(hWnd, "InstanceData", (HANDLE)instanceData);
   WNDPROC origProc = (WNDPROC)::SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR)PluginWndProc);
   SetProp(hWnd, "MozillaWndProc", (HANDLE)origProc);
-}
-
-static void checkEquals(int a, int b, const char* msg, string& error)
-{
-  if (a == b) {
-    return;
-  }
-
-  error.append(msg);
-  char buf[100];
-  sprintf(buf, " (got %d, expected %d)\n", a, b);
-  error.append(buf);
-}
-
-void pluginDoInternalConsistencyCheck(InstanceData* instanceData, string& error)
-{
-  if (instanceData->platformData->childWindow) {
-    RECT childRect;
-    ::GetWindowRect(instanceData->platformData->childWindow, &childRect);
-    RECT ourRect;
-    HWND hWnd = (HWND)instanceData->window.window;
-    ::GetWindowRect(hWnd, &ourRect);
-    checkEquals(childRect.left, ourRect.left, "Child widget left", error);
-    checkEquals(childRect.top, ourRect.top, "Child widget top", error);
-    checkEquals(childRect.right, childRect.left + CHILD_WIDGET_SIZE, "Child widget width", error);
-    checkEquals(childRect.bottom, childRect.top + CHILD_WIDGET_SIZE, "Child widget height", error);
-  }
 }

@@ -515,8 +515,6 @@ GK_ATOM(lowerFirst, "lower-first")
 GK_ATOM(lowest, "lowest")
 GK_ATOM(lowsrc, "lowsrc")
 GK_ATOM(ltr, "ltr")
-GK_ATOM(lwtheme, "lwtheme")
-GK_ATOM(lwthemetextcolor, "lwthemetextcolor")
 GK_ATOM(map, "map")
 GK_ATOM(manifest, "manifest")
 GK_ATOM(marginheight, "marginheight")
@@ -1664,7 +1662,7 @@ GK_ATOM(maxElementWidthProperty, "MaxElementWidthProperty")  // nscoord*
 GK_ATOM(outlineInnerRectProperty, "OutlineInnerRectProperty") // nsRect*
 GK_ATOM(outOfFlowDirtyRectProperty, "OutOfFlowDirtyRectProperty") // nsRect*
 GK_ATOM(overflowAreaProperty, "OverflowArea")              // nsRect*
-GK_ATOM(overflowProperty, "OverflowProperty")              // nsFrameList*
+GK_ATOM(overflowProperty, "OverflowProperty")              // list of nsIFrame*
 GK_ATOM(overflowContainersProperty, "OverflowContainersProperty")             // nsFrameList*
 GK_ATOM(excessOverflowContainersProperty, "ExcessOverflowContainersProperty") // nsFrameList*
 GK_ATOM(overflowLinesProperty, "OverflowLinesProperty")    // list of nsLineBox*
@@ -1674,9 +1672,6 @@ GK_ATOM(preTransformBBoxProperty, "PreTransformBBoxProperty") // nsRect*
 GK_ATOM(rowUnpaginatedHeightProperty, "RowUnpaginatedHeightProperty")  // nscoord*
 GK_ATOM(tabWidthProperty, "TabWidthProperty")              // nsTArray<TabSetting>* array of tab widths
 GK_ATOM(tableBCProperty, "TableBCProperty")                // table border collapsing info (e.g. damage area, table border widths)
-GK_ATOM(transitionsProperty, "TransitionsProperty")        // FrameTransitions*
-GK_ATOM(transitionsOfBeforeProperty, "TransitionsOfBeforeProperty") // FrameTransitions*
-GK_ATOM(transitionsOfAfterProperty, "TransitionsOfAfterProperty") // FrameTransitions*
 GK_ATOM(usedMarginProperty, "UsedMarginProperty") // nsMargin*
 GK_ATOM(usedPaddingProperty, "UsedPaddingProperty") // nsMargin*
 GK_ATOM(viewProperty, "ViewProperty")                      
@@ -1696,33 +1691,3 @@ GK_ATOM(Unicode, "x-unicode")
 GK_ATOM(TypingTxnName, "Typing")
 GK_ATOM(IMETxnName, "IME")
 GK_ATOM(DeleteTxnName, "Deleting")
-
-// Names for system metrics
-GK_ATOM(scrollbar_start_backward, "scrollbar-start-backward")
-GK_ATOM(scrollbar_start_forward, "scrollbar-start-forward")
-GK_ATOM(scrollbar_end_backward, "scrollbar-end-backward")
-GK_ATOM(scrollbar_end_forward, "scrollbar-end-forward")
-GK_ATOM(scrollbar_thumb_proportional, "scrollbar-thumb-proportional")
-GK_ATOM(images_in_menus, "images-in-menus")
-GK_ATOM(images_in_buttons, "images-in-buttons")
-GK_ATOM(windows_default_theme, "windows-default-theme")
-GK_ATOM(mac_graphite_theme, "mac-graphite-theme")
-GK_ATOM(windows_compositor, "windows-compositor")
-GK_ATOM(windows_classic, "windows-classic")
-GK_ATOM(touch_enabled, "touch-enabled")
-GK_ATOM(maemo_classic, "maemo-classic")
-
-// And the same again, as media query keywords.
-GK_ATOM(_moz_scrollbar_start_backward, "-moz-scrollbar-start-backward")
-GK_ATOM(_moz_scrollbar_start_forward, "-moz-scrollbar-start-forward")
-GK_ATOM(_moz_scrollbar_end_backward, "-moz-scrollbar-end-backward")
-GK_ATOM(_moz_scrollbar_end_forward, "-moz-scrollbar-end-forward")
-GK_ATOM(_moz_scrollbar_thumb_proportional, "-moz-scrollbar-thumb-proportional")
-GK_ATOM(_moz_images_in_menus, "-moz-images-in-menus")
-GK_ATOM(_moz_images_in_buttons, "-moz-images-in-buttons")
-GK_ATOM(_moz_windows_default_theme, "-moz-windows-default-theme")
-GK_ATOM(_moz_mac_graphite_theme, "-moz-mac-graphite-theme")
-GK_ATOM(_moz_windows_compositor, "-moz-windows-compositor")
-GK_ATOM(_moz_windows_classic, "-moz-windows-classic")
-GK_ATOM(_moz_touch_enabled, "-moz-touch-enabled")
-GK_ATOM(_moz_maemo_classic, "-moz-maemo-classic")

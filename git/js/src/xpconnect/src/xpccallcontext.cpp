@@ -199,15 +199,9 @@ XPCCallContext::Init(XPCContext::LangType callerLanguage,
         mFlattenedJSObject = mWrapper->GetFlatJSObject();
 
         if(mTearOff)
-        {
-            mCurrentJSObject = mTearOff->GetJSObject();
             mScriptableInfo = nsnull;
-        }
         else
-        {
-            mWrapper->GetJSObject(&mCurrentJSObject);
             mScriptableInfo = mWrapper->GetScriptableInfo();
-        }
     }
     else
     {

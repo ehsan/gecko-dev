@@ -484,7 +484,7 @@ gfxFontFamily::FindFontForChar(FontSearch *aMatchData)
 PRBool
 gfxFontFamily::ReadOtherFamilyNamesForFace(AddOtherFamilyNameFunctor& aOtherFamilyFunctor,
                                            gfxFontEntry *aFontEntry,
-                                           PRBool useFullName)
+                                           PRBool useFullName = PR_FALSE)
 {
     const PRUint32 kNAME = TRUETYPE_TAG('n','a','m','e');
 

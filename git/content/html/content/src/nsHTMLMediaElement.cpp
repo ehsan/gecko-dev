@@ -35,7 +35,6 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-
 #include "nsIDOMHTMLMediaElement.h"
 #include "nsIDOMHTMLSourceElement.h"
 #include "nsHTMLMediaElement.h"
@@ -86,15 +85,6 @@
 #include "nsWaveDecoder.h"
 #endif
 
-#ifdef PR_LOGGING
-static PRLogModuleInfo* gMediaElementLog;
-static PRLogModuleInfo* gMediaElementEventsLog;
-#define LOG(type, msg) PR_LOG(gMediaElementLog, type, msg)
-#define LOG_EVENT(type, msg) PR_LOG(gMediaElementEventsLog, type, msg)
-#else
-#define LOG(type, msg)
-#define LOG_EVENT(type, msg)
-#endif
 
 class nsMediaEvent : public nsRunnable
 {
@@ -484,7 +474,6 @@ void nsHTMLMediaElement::SelectResource()
   if (GetAttr(kNameSpaceID_None, nsGkAtoms::src, src)) {
     nsresult rv = NewURIFromString(src, getter_AddRefs(uri));
     if (NS_SUCCEEDED(rv)) {
-      LOG(PR_LOG_DEBUG, ("%p Trying load from src=%s", this, NS_ConvertUTF16toUTF8(src).get()));  
       mIsLoadingFromSrcAttribute = PR_TRUE;
       rv = LoadResource(uri);
       if (NS_SUCCEEDED(rv))
@@ -693,21 +682,15 @@ NS_IMETHODIMP nsHTMLMediaElement::SetCurrentTime(float aCurrentTime)
 {
   StopSuspendingAfterFirstFrame();
 
-  if (!mDecoder) {
-    LOG(PR_LOG_DEBUG, ("%p SetCurrentTime(%f) failed: no decoder", this, aCurrentTime));  
+  if (!mDecoder)
     return NS_ERROR_DOM_INVALID_STATE_ERR;
-  }
 
-  if (mReadyState == nsIDOMHTMLMediaElement::HAVE_NOTHING) {
-    LOG(PR_LOG_DEBUG, ("%p SetCurrentTime(%f) failed: no source", this, aCurrentTime));  
+  if (mReadyState == nsIDOMHTMLMediaElement::HAVE_NOTHING) 
     return NS_ERROR_DOM_INVALID_STATE_ERR;
-  }
 
   // Detect for a NaN and invalid values.
-  if (aCurrentTime != aCurrentTime) {
-    LOG(PR_LOG_DEBUG, ("%p SetCurrentTime(%f) failed: bad time", this, aCurrentTime));  
+  if (aCurrentTime != aCurrentTime)
     return NS_ERROR_FAILURE;
-  }
 
   // Clamp the time to [0, duration] as required by the spec
   float clampedTime = PR_MAX(0, aCurrentTime);
@@ -719,7 +702,6 @@ NS_IMETHODIMP nsHTMLMediaElement::SetCurrentTime(float aCurrentTime)
   mPlayingBeforeSeek = IsPotentiallyPlaying();
   // The media backend is responsible for dispatching the timeupdate
   // event if it changes the playback position as a result of the seek.
-  LOG(PR_LOG_DEBUG, ("%p SetCurrentTime(%f) starting seek", this, aCurrentTime));  
   nsresult rv = mDecoder->Seek(clampedTime);
   return rv;
 }
@@ -838,15 +820,6 @@ nsHTMLMediaElement::nsHTMLMediaElement(nsINodeInfo *aNodeInfo, PRBool aFromParse
     mAllowSuspendAfterFirstFrame(PR_TRUE),
     mHasPlayedOrSeeked(PR_FALSE)
 {
-#ifdef PR_LOGGING
-  if (!gMediaElementLog) {
-    gMediaElementLog = PR_NewLogModule("nsMediaElement");
-  }
-  if (!gMediaElementEventsLog) {
-    gMediaElementEventsLog = PR_NewLogModule("nsMediaElementEvents");
-  }
-#endif
-
   RegisterFreezableElement();
 }
 
@@ -1257,17 +1230,9 @@ nsresult nsHTMLMediaElement::InitializeDecoderAsClone(nsMediaDecoder* aOriginal)
   if (!mDecoder)
     return NS_ERROR_FAILURE;
 
-  LOG(PR_LOG_DEBUG, ("%p Cloned decoder %p from %p", this, mDecoder.get(), aOriginal));  
-
   if (!mDecoder->Init(this)) {
     mDecoder = nsnull;
     return NS_ERROR_FAILURE;
-  }
-
-  float duration = aOriginal->GetDuration();
-  if (duration >= 0) {
-    mDecoder->SetDuration(PRInt64(NS_round(duration * 1000)));
-    mDecoder->SetSeekable(aOriginal->GetSeekable());
   }
 
   nsMediaStream* stream = originalStream->CloneData(mDecoder);
@@ -1295,8 +1260,6 @@ nsresult nsHTMLMediaElement::InitializeDecoderForChannel(nsIChannel *aChannel,
 
   if (!CreateDecoder(mimeType))
     return NS_ERROR_FAILURE;
-
-  LOG(PR_LOG_DEBUG, ("%p Created decoder %p for type %s", this, mDecoder.get(), mimeType.get()));  
 
   mNetworkState = nsIDOMHTMLMediaElement::NETWORK_LOADING;
 
@@ -1392,10 +1355,9 @@ void nsHTMLMediaElement::FirstFrameLoaded(PRBool aResourceFullyLoaded)
 void nsHTMLMediaElement::ResourceLoaded()
 {
   mBegun = PR_FALSE;
-  mNetworkState = nsIDOMHTMLMediaElement::NETWORK_IDLE;
+  mNetworkState = nsIDOMHTMLMediaElement::NETWORK_LOADED;
   ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_ENOUGH_DATA);
-  // The download has stopped
-  DispatchAsyncSimpleEvent(NS_LITERAL_STRING("suspend"));
+  DispatchAsyncProgressEvent(NS_LITERAL_STRING("load"));
 }
 
 void nsHTMLMediaElement::NetworkError()
@@ -1517,7 +1479,7 @@ void nsHTMLMediaElement::UpdateReadyStateForData(NextFrameStatus aNextFrame)
   ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_FUTURE_DATA);
 }
 
-#ifdef PR_LOGGING
+#ifdef DEBUG
 static const char* gReadyStateToString[] = {
   "HAVE_NOTHING",
   "HAVE_METADATA",
@@ -1537,7 +1499,7 @@ void nsHTMLMediaElement::ChangeReadyState(nsMediaReadyState aState)
     return;
   }
 
-  LOG(PR_LOG_DEBUG, ("%p Ready state changed to %s", this, gReadyStateToString[aState]));
+  LOG(PR_LOG_DEBUG, ("Ready state changed to %s", gReadyStateToString[aState]));
 
   // Handle raising of "waiting" event during seek (see 4.8.10.9)
   if (mPlayingBeforeSeek &&
@@ -1603,9 +1565,6 @@ void nsHTMLMediaElement::Paint(gfxContext* aContext,
 
 nsresult nsHTMLMediaElement::DispatchSimpleEvent(const nsAString& aName)
 {
-  LOG_EVENT(PR_LOG_DEBUG, ("%p Dispatching simple event %s", this,
-                          NS_ConvertUTF16toUTF8(aName).get()));
-
   return nsContentUtils::DispatchTrustedEvent(GetOwnerDoc(), 
                                               static_cast<nsIContent*>(this), 
                                               aName, 
@@ -1615,8 +1574,6 @@ nsresult nsHTMLMediaElement::DispatchSimpleEvent(const nsAString& aName)
 
 nsresult nsHTMLMediaElement::DispatchAsyncSimpleEvent(const nsAString& aName)
 {
-  LOG_EVENT(PR_LOG_DEBUG, ("%p Queuing simple event %s", this, NS_ConvertUTF16toUTF8(aName).get()));
-
   nsCOMPtr<nsIRunnable> event = new nsAsyncEventRunner(aName, this, PR_FALSE);
   NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL); 
   return NS_OK;                           
@@ -1624,8 +1581,6 @@ nsresult nsHTMLMediaElement::DispatchAsyncSimpleEvent(const nsAString& aName)
 
 nsresult nsHTMLMediaElement::DispatchAsyncProgressEvent(const nsAString& aName)
 {
-  LOG_EVENT(PR_LOG_DEBUG, ("%p Queuing progress event %s", this, NS_ConvertUTF16toUTF8(aName).get()));
-
   nsCOMPtr<nsIRunnable> event = new nsAsyncEventRunner(aName, this, PR_TRUE);
   NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL); 
   return NS_OK;                           
@@ -1655,9 +1610,6 @@ nsresult nsHTMLMediaElement::DispatchProgressEvent(const nsAString& aName)
     totalBytes >= 0, downloadPosition, totalBytes);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  LOG_EVENT(PR_LOG_DEBUG, ("%p Dispatching progress event %s", this,
-                          NS_ConvertUTF16toUTF8(aName).get()));
-  
   PRBool dummy;
   return target->DispatchEvent(event, &dummy);  
 }
@@ -1793,7 +1745,7 @@ already_AddRefed<nsIURI> nsHTMLMediaElement::GetNextSource()
     rv = mSourcePointer->GetStartOffset(&startOffset);
     NS_ENSURE_SUCCESS(rv, nsnull);
 
-    if (PRUint32(startOffset) == GetChildCount())
+    if (startOffset == GetChildCount())
       return nsnull; // No more children.
 
     // Advance the range to the next child.
@@ -1819,8 +1771,6 @@ already_AddRefed<nsIURI> nsHTMLMediaElement::GetNextSource()
           GetCanPlay(type) == CANPLAY_NO)
         continue;
       
-      LOG(PR_LOG_DEBUG, ("%p Trying load from <source>=%s type=%s", this,
-                         NS_ConvertUTF16toUTF8(src).get(), NS_ConvertUTF16toUTF8(type).get()));  
       NewURIFromString(src, getter_AddRefs(uri));
       return uri.forget();
     }
@@ -1833,18 +1783,17 @@ void nsHTMLMediaElement::ChangeDelayLoadStatus(PRBool aDelay) {
   if (mDelayingLoadEvent == aDelay)
     return;
 
+  LOG(PR_LOG_DEBUG, ("ChangeDelayLoadStatus(%d) doc=0x%p", aDelay, mLoadBlockedDoc.get()));
   mDelayingLoadEvent = aDelay;
 
   if (aDelay) {
     mLoadBlockedDoc = GetOwnerDoc();
     mLoadBlockedDoc->BlockOnload();
-    LOG(PR_LOG_DEBUG, ("%p ChangeDelayLoadStatus(%d) doc=0x%p", this, aDelay, mLoadBlockedDoc.get()));
   } else {
     if (mDecoder) {
       mDecoder->MoveLoadsToBackground();
     }
     NS_ASSERTION(mLoadBlockedDoc, "Need a doc to block on");
-    LOG(PR_LOG_DEBUG, ("%p ChangeDelayLoadStatus(%d) doc=0x%p", this, aDelay, mLoadBlockedDoc.get()));
     mLoadBlockedDoc->UnblockOnload(PR_FALSE);
     mLoadBlockedDoc = nsnull;
   }

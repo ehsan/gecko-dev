@@ -223,7 +223,7 @@ def readLocations(locationsPath = "server-locations.txt"):
   return locations
 
 
-def initializeProfile(profileDir, extraPrefs = []):
+def initializeProfile(profileDir):
   "Sets up the standard testing profile."
 
   # Start with a clean slate.
@@ -333,14 +333,6 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
 """ % {"pacURL": pacURL}
   prefs.append(part)
 
-  for v in extraPrefs:
-    thispref = v.split("=")
-    if len(thispref) < 2:
-      print "Error: syntax error in --extra-pref=" + v
-      sys.exit(1)
-    part = 'user_pref("%s", %s);\n' % (thispref[0], thispref[1])
-    prefs.append(part)
-
   # write the preferences
   prefsFile = open(profileDir + "/" + "user.js", "a")
   prefsFile.write("".join(prefs))
@@ -421,8 +413,6 @@ def environment(env = None, xrePath = DIST_BIN, crashreporter = True):
     envVar = "LD_LIBRARY_PATH"
     if IS_MAC:
       envVar = "DYLD_LIBRARY_PATH"
-    else: # unixish
-      env['MOZILLA_FIVE_HOME'] = xrePath
     if envVar in env:
       ldLibraryPath = ldLibraryPath + ":" + env[envVar]
     env[envVar] = ldLibraryPath
@@ -432,7 +422,7 @@ def environment(env = None, xrePath = DIST_BIN, crashreporter = True):
   if crashreporter:
     env['MOZ_CRASHREPORTER_NO_REPORT'] = '1'
     env['MOZ_CRASHREPORTER'] = '1'
-  env['GNOME_DISABLE_CRASH_DIALOG'] = "1"
+
   return env
 
 
@@ -448,7 +438,6 @@ def runApp(testURL, env, app, profileDir, extraArgs,
 
   # copy env so we don't munge the caller's environment
   env = dict(env);
-  env["NO_EM_RESTART"] = "1"
 
   if IS_TEST_BUILD and runSSLTunnel:
     # create certificate database for the profile

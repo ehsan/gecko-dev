@@ -98,7 +98,7 @@ var observer = {
       root.containerOpen = false;
 
       os.removeObserver(this, kSyncFinished);
-      do_test_finished();
+      finish_test();
     }
   }
 }
@@ -110,7 +110,7 @@ function run_test()
   prefs.setIntPref(kSyncPrefName, 1);
 
   // Now add the visit
-  let visitId = hs.addVisit(uri(TEST_URI), Date.now() * 1000, null,
-                            hs.TRANSITION_TYPED, false, 0);
+  visitId = hs.addVisit(uri(TEST_URI), Date.now() * 1000, null,
+                        hs.TRANSITION_TYPED, false, 0);
   do_test_pending();
 }

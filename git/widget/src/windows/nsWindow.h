@@ -67,7 +67,6 @@
 #endif
 
 #include "WindowHook.h"
-#include "TaskbarWindowPreview.h"
 
 #ifdef ACCESSIBILITY
 #include "OLEACC.H"
@@ -90,9 +89,6 @@ class imgIContainer;
 class nsWindow : public nsBaseWidget
 {
   typedef mozilla::widget::WindowHook WindowHook;
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
-  typedef mozilla::widget::TaskbarWindowPreview TaskbarWindowPreview;
-#endif
 public:
   nsWindow();
   virtual ~nsWindow();
@@ -121,9 +117,6 @@ public:
   NS_IMETHOD              Move(PRInt32 aX, PRInt32 aY);
   NS_IMETHOD              Resize(PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint);
   NS_IMETHOD              Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint);
-#if !defined(WINCE)
-  NS_IMETHOD              BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical);
-#endif
   NS_IMETHOD              PlaceBehind(nsTopLevelWidgetZPlacement aPlacement, nsIWidget *aWidget, PRBool aActivate);
   NS_IMETHOD              SetSizeMode(PRInt32 aMode);
   NS_IMETHOD              Enable(PRBool aState);
@@ -165,9 +158,6 @@ public:
                                                    PRUint32 aModifierFlags,
                                                    const nsAString& aCharacters,
                                                    const nsAString& aUnmodifiedCharacters);
-  virtual nsresult        SynthesizeNativeMouseEvent(nsIntPoint aPoint,
-                                                     PRUint32 aNativeMessage,
-                                                     PRUint32 aModifierFlags);
   NS_IMETHOD              ResetInputState();
   NS_IMETHOD              SetIMEOpenState(PRBool aState);
   NS_IMETHOD              GetIMEOpenState(PRBool* aState);
@@ -234,20 +224,6 @@ public:
   PRBool                  PluginHasFocus() { return mIMEEnabled == nsIWidget::IME_STATUS_PLUGIN; }
   virtual void            SetUpForPaint(HDC aHDC);
 
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
-  PRBool HasTaskbarIconBeenCreated() { return mHasTaskbarIconBeenCreated; }
-  // Called when either the nsWindow or an nsITaskbarTabPreview receives the noticiation that this window
-  // has its icon placed on the taskbar.
-  void SetHasTaskbarIconBeenCreated(PRBool created = PR_TRUE) { mHasTaskbarIconBeenCreated = created; }
-
-  // Getter/setter for the nsITaskbarWindowPreview for this nsWindow
-  already_AddRefed<nsITaskbarWindowPreview> GetTaskbarPreview() {
-    nsCOMPtr<nsITaskbarWindowPreview> preview(do_QueryReferent(mTaskbarPreview));
-    return preview.forget();
-  }
-  void SetTaskbarPreview(nsITaskbarWindowPreview *preview) { mTaskbarPreview = do_GetWeakReference(preview); }
-#endif
-
 protected:
 
   /**
@@ -272,9 +248,6 @@ protected:
   virtual void            SubclassWindow(BOOL bState);
   void                    GetNonClientBounds(nsIntRect &aRect);
   PRBool                  CanTakeFocus();
-#if !defined(WINCE)
-  static void             InitTrackPointHack();
-#endif
 
   /**
    * Event processing helpers
@@ -412,6 +385,7 @@ protected:
   PRPackedBool          mIsInMouseCapture;
   PRPackedBool          mInScrollProcessing;
   PRPackedBool          mUnicodeWidget;
+  PRPackedBool          mIsPluginWindow;
   PRPackedBool          mPainting;
   char                  mLeadByte;
   PRUint32              mBlurSuppressLevel;
@@ -441,7 +415,6 @@ protected:
   static PRBool         sJustGotDeactivate;
   static PRBool         sJustGotActivate;
   static int            sTrimOnMinimize;
-  static PRBool         sTrackPointHack;
 
   // Hook Data Memebers for Dropdowns. sProcessHook Tells the
   // hook methods whether they should be processing the hook
@@ -485,14 +458,6 @@ protected:
 #if !defined(WINCE)
   nsWinGesture          mGesture;
 #endif // !defined(WINCE)
-
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
-  // Weak ref to the nsITaskbarWindowPreview associated with this window
-  nsWeakPtr             mTaskbarPreview;
-  // True if the taskbar (possibly through the tab preview) tells us that the
-  // icon has been created on the taskbar.
-  PRBool                mHasTaskbarIconBeenCreated;
-#endif
 
 #if defined(WINCE_HAVE_SOFTKB)
   static PRBool         sSoftKeyMenuBar;

@@ -940,3 +940,5 @@ function NSGetModule(cm, file) {
   return XPCOMUtils.generateModule([WebContentConverterRegistrar]);
 }
 
+#include ../../../../toolkit/content/debug.js
+

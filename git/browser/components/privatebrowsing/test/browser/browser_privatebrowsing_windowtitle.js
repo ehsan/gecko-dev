@@ -80,44 +80,35 @@ function test() {
 
     let tab = gBrowser.selectedTab = gBrowser.addTab();
     let browser = gBrowser.selectedBrowser;
-    // ensure that the test is run after the titlebar has been updated
-    let timer = null;
-    let _updateTitlebar = gBrowser.updateTitlebar;
-    gBrowser.updateTitlebar = function() {
-      if (timer) {
-        timer.cancel();
-        timer = null;
-      }
-      timer = Cc["@mozilla.org/timer;1"].
-              createInstance(Ci.nsITimer);
-      timer.initWithCallback(function () {
-        _updateTitlebar.apply(gBrowser, arguments);
-        gBrowser.updateTitlebar = _updateTitlebar;
-        is(document.title, expected_title, "The window title for " + url +
-           " is correct (" + (insidePB ? "inside" : "outside") +
-           " private browsing mode)");
+    browser.addEventListener("load", function() {
+      browser.removeEventListener("load", arguments.callee, true);
 
-        let win = gBrowser.replaceTabWithWindow(tab);
-        win.addEventListener("load", function() {
-          win.removeEventListener("load", arguments.callee, false);
+      // ensure that the test is run after the page onload event
+      setTimeout(function() {
+        setTimeout(function() {
+          is(document.title, expected_title, "The window title for " + url +
+             " is correct (" + (insidePB ? "inside" : "outside") +
+             " private browsing mode)");
 
-          // ensure that the test is run after delayedStartup
-          let _delayedStartup = win.delayedStartup;
-          win.delayedStartup = function() {
-            _delayedStartup.apply(win, arguments);
-            win.delayedStartup = _delayedStartup;
+          let win = gBrowser.replaceTabWithWindow(tab);
+          win.addEventListener("load", function() {
+            win.removeEventListener("load", arguments.callee, false);
 
-            is(win.document.title, expected_title, "The window title for " + url +
-               " detached tab is correct (" + (insidePB ? "inside" : "outside") +
-               " private browsing mode)");
-            win.close();
+            // ensure that the test is run after delayedStartup
+            setTimeout(function() {
+              setTimeout(function() {
+                is(win.document.title, expected_title, "The window title for " + url +
+                   " detahced tab is correct (" + (insidePB ? "inside" : "outside") +
+                   " private browsing mode)");
+                win.close();
 
-            setTimeout(funcNext, 0);
-          };
-        }, false);
-      }, 300, Ci.nsITimer.TYPE_ONE_SHOT);
-    };
-
+                funcNext();
+              }, 0);
+            }, 0);
+          }, false);
+        }, 0);
+      }, 0);
+    }, true);
     browser.loadURI(url);
   }
 

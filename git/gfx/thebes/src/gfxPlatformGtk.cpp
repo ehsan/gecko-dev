@@ -96,8 +96,6 @@
 #include "nsILocalFile.h"
 #include "nsILineInputStream.h"
 #include "nsNetUtil.h"
-
-PRInt32 gfxPlatformGtk::sMaemoClassic = -1;
 #endif
 
 PRInt32 gfxPlatformGtk::sPlatformDPI = -1;
@@ -542,7 +540,7 @@ gfxPlatformGtk::InitDisplayCaps()
         gfxPlatformGtk::sPlatformDPI = 96;
     }
 
-#ifdef MOZ_PLATFORM_HILDON
+#if defined(MOZ_PLATFORM_HILDON)
     // Check the cached value
     if (gfxPlatform::sDPI == -1) {
         nsresult rv;
@@ -560,13 +558,11 @@ gfxPlatformGtk::InitDisplayCaps()
             if (lineStream && NS_SUCCEEDED(lineStream->ReadLine(buffer, &isMore))) {
                 if (StringEndsWith(buffer, NS_LITERAL_CSTRING("RX-51"))) {
                     gfxPlatform::sDPI = 265; // It's an N900
-                    gfxPlatformGtk::sMaemoClassic = 0;
                 }
                 else if (StringEndsWith(buffer, NS_LITERAL_CSTRING("RX-44")) ||
                          StringEndsWith(buffer, NS_LITERAL_CSTRING("RX-48")) ||
                          StringEndsWith(buffer, NS_LITERAL_CSTRING("RX-34"))) {
                     gfxPlatform::sDPI = 225; // It's an N810/N800
-                    gfxPlatformGtk::sMaemoClassic = 1;
                 }
             }
         }

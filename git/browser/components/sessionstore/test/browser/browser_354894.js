@@ -248,7 +248,6 @@ function test() {
       // The previously closed window should be restored
       newWin = openDialog(location, "_blank", CHROME_FEATURES);
       newWin.addEventListener("load", function() {
-        this.removeEventListener("load", arguments.callee, true);
         executeSoon(function() {
           is(newWin.gBrowser.browsers.length, TEST_URLS.length + 1,
              "Restored window in-session with otherpopup windows around");
@@ -282,7 +281,6 @@ function test() {
       // The previously closed window should NOT be restored
       newWin = openDialog(location, "_blank", CHROME_FEATURES);
       newWin.addEventListener("load", function() {
-        this.removeEventListener("load", arguments.callee, true);
         executeSoon(function() {
           is(newWin.gBrowser.browsers.length, 1,
              "Did not restore in private browing mode");
@@ -295,7 +293,6 @@ function test() {
 
           newWin = openDialog(location, "_blank", CHROME_FEATURES);
           newWin.addEventListener("load", function() {
-            this.removeEventListener("load", arguments.callee, true);
             executeSoon(function() {
               is(newWin.gBrowser.browsers.length, TEST_URLS.length + 1,
                  "Restored after leaving private browsing again");
@@ -337,7 +334,6 @@ function test() {
           // open a new window the previously closed window should be restored to
           newWin = openDialog(location, "_blank", CHROME_FEATURES);
           newWin.addEventListener("load", function() {
-            this.removeEventListener("load", arguments.callee, true);
             executeSoon(function() {
               is(newWin.gBrowser.browsers.length, TEST_URLS.length + 1,
                  "Restored window and associated tabs in session");
@@ -368,7 +364,6 @@ function test() {
     // gets a chance.
     let popup = openDialog(location, "popup", POPUP_FEATURES, TEST_URLS[1]);
     popup.addEventListener("load", function() {
-      this.removeEventListener("load", arguments.callee, true);
       is(popup.gBrowser.browsers.length, 1,
          "Did not restore the popup window (1)");
       popup.BrowserTryToCloseWindow();

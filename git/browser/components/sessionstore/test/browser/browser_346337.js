@@ -99,13 +99,11 @@ function test() {
     "browser/components/sessionstore/test/browser/browser_346337_sample.html";
   let tab = tabbrowser.addTab(testURL);
   tab.linkedBrowser.addEventListener("load", function(aEvent) {
-    this.removeEventListener("load", arguments.callee, true);
     for (let xpath in fieldList)
       setFormValue(tab, xpath, fieldList[xpath]);
     
     let tab2 = tabbrowser.duplicateTab(tab);
     tab2.linkedBrowser.addEventListener("load", function(aEvent) {
-      this.removeEventListener("load", arguments.callee, true);
       for (let xpath in fieldList)
         ok(compareFormValue(tab2, xpath, fieldList[xpath]),
            "The value for \"" + xpath + "\" was correctly restored");
@@ -116,7 +114,6 @@ function test() {
       
       tab = undoCloseTab();
       tab.linkedBrowser.addEventListener("load", function(aEvent) {
-        this.removeEventListener("load", arguments.callee, true);
         for (let xpath in fieldList)
           if (fieldList[xpath])
             ok(!compareFormValue(tab, xpath, fieldList[xpath]),

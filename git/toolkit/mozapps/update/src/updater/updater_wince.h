@@ -46,6 +46,7 @@
 #define _S_IWRITE   0000200 /* stat, can write */
 #define _S_IEXEC    0000100
 
+#define BUFSIZ 1024
 #define _putenv putenv
 
 struct stat {

@@ -1605,20 +1605,15 @@ nsStandardURL::Equals(nsIURI *unknownOther, PRBool *result)
         // Assume not equal for failure cases... but failures in GetFile are
         // really failures, more or less, so propagate them to caller.
         *result = PR_FALSE;
-
-        rv = EnsureFile();
-        nsresult rv2 = other->EnsureFile();
-        // special case for resource:// urls that don't resolve to files
-        if (rv == NS_ERROR_NO_INTERFACE && rv == rv2) 
-            return NS_OK;
         
+        rv = EnsureFile();
         if (NS_FAILED(rv)) {
             LOG(("nsStandardURL::Equals [this=%p spec=%s] failed to ensure file",
                 this, mSpec.get()));
             return rv;
         }
         NS_ASSERTION(mFile, "EnsureFile() lied!");
-        rv = rv2;
+        rv = other->EnsureFile();
         if (NS_FAILED(rv)) {
             LOG(("nsStandardURL::Equals [other=%p spec=%s] other failed to ensure file",
                  other.get(), other->mSpec.get()));

@@ -49,7 +49,6 @@ function test() {
   gBrowser.selectedTab = gBrowser.addTab();
 
   gBrowser.selectedBrowser.addEventListener("load", function () {
-    gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
     setTimeout(function () {
       var testPageWin = content;
 

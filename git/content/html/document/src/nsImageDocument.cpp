@@ -72,7 +72,6 @@
 #include "nsIDocShell.h"
 #include "nsIContentViewer.h"
 #include "nsIMarkupDocumentViewer.h"
-#include "nsIDocShellTreeItem.h"
 
 #define AUTOMATIC_IMAGE_RESIZING_PREF "browser.enable_automatic_image_resizing"
 #define CLICK_IMAGE_RESIZING_PREF "browser.enable_click_image_resizing"
@@ -462,8 +461,7 @@ nsImageDocument::GetImageRequest(imgIRequest** aImageRequest)
 NS_IMETHODIMP
 nsImageDocument::ShrinkToFit()
 {
-  if (GetZoomLevel() != mOriginalZoomLevel && mImageIsResized &&
-      !nsContentUtils::IsChildOfSameType(this)) {
+  if (GetZoomLevel() != mOriginalZoomLevel && mImageIsResized) {
     return NS_OK;
   }
 
@@ -711,8 +709,11 @@ nsImageDocument::CheckOverflowing(PRBool changeState)
     if (styleContext->GetStylePadding()->GetPadding(m))
       visibleArea.Deflate(m);
 
-    mVisibleWidth = nsPresContext::AppUnitsToIntCSSPixels(visibleArea.width);
-    mVisibleHeight = nsPresContext::AppUnitsToIntCSSPixels(visibleArea.height);
+    float zoomLevel = GetZoomLevel();
+    mVisibleWidth = PRInt32(zoomLevel *
+      nsPresContext::AppUnitsToIntCSSPixels(visibleArea.width));
+    mVisibleHeight = PRInt32(zoomLevel *
+      nsPresContext::AppUnitsToIntCSSPixels(visibleArea.height));
   }
 
   PRBool imageWasOverflowing = mImageIsOverflowing;
@@ -802,10 +803,6 @@ nsImageDocument::ResetZoomLevel()
 {
   nsCOMPtr<nsIDocShell> docShell = do_QueryReferent(mDocumentContainer);
   if (docShell) {
-    if (nsContentUtils::IsChildOfSameType(this)) {
-      return;
-    }
-
     nsCOMPtr<nsIContentViewer> cv;
     docShell->GetContentViewer(getter_AddRefs(cv));
     nsCOMPtr<nsIMarkupDocumentViewer> mdv = do_QueryInterface(cv);

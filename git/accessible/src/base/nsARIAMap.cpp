@@ -409,6 +409,15 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     eARIAReadonly
   },
   {
+    "section",
+    nsIAccessibleRole::ROLE_SECTION,
+    kUseMapRole,
+    eNoValue,
+    eNoAction,
+    eNoLiveAttr,
+    kNoReqStates
+  },
+  {
     "separator",
     nsIAccessibleRole::ROLE_SEPARATOR,
     kUseMapRole,

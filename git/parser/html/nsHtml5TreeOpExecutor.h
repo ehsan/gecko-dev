@@ -142,6 +142,11 @@ class nsHtml5TreeOpExecutor : public nsIContentSink,
   
     // nsIContentSink
 
+    virtual PRBool ReadyToCallDidBuildModel(PRBool aTerminated)
+    {
+      return ReadyToCallDidBuildModelImpl(aTerminated);
+    };
+
     /**
      * Unimplemented. For interface compat only.
      */
@@ -161,7 +166,7 @@ class nsHtml5TreeOpExecutor : public nsIContentSink,
     /**
      * Emits EOF.
      */
-    NS_IMETHOD DidBuildModel(PRBool aTerminated);
+    NS_IMETHOD DidBuildModel();
 
     /**
      * Forwards to nsContentSink
@@ -289,24 +294,6 @@ class nsHtml5TreeOpExecutor : public nsIContentSink,
       }
 #endif
       mElementsSeenInThisAppendBatch.Clear();
-    }
-    
-    inline PRBool HaveNotified(nsIContent* aElement) {
-      NS_PRECONDITION(aElement, "HaveNotified called with null argument.");
-      const nsHtml5PendingNotification* start = mPendingNotifications.Elements();
-      const nsHtml5PendingNotification* end = start + mPendingNotifications.Length();
-      for (;;) {
-        nsIContent* parent = aElement->GetParent();
-        if (!parent) {
-          return PR_TRUE;
-        }
-        for (nsHtml5PendingNotification* iter = (nsHtml5PendingNotification*)start; iter < end; ++iter) {
-          if (iter->Contains(parent)) {
-            return iter->HaveNotifiedIndex(parent->IndexOf(aElement));
-          }
-        }
-        aElement = parent;
-      }
     }
 
     void StartLayout() {

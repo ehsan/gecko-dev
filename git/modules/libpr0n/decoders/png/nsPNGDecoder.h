@@ -76,6 +76,7 @@ public:
   void SetAnimFrameInfo();
   
   void EndImageFrame();
+  NS_METHOD ProcessData(unsigned char* aBuffer, PRUint32 aCount);
   void NotifyDone(PRBool aSuccess);
 
 public:

@@ -75,7 +75,6 @@
 #include "nsIPrincipal.h"
 #include "nsComponentManagerUtils.h"
 #include "nsCSSPseudoClasses.h"
-#include "nsCSSAnonBoxes.h"
 #include "nsTArray.h"
 
 #include "nsContentUtils.h"
@@ -694,27 +693,9 @@ nsCSSSelector::AppendToStringWithoutCombinatorsOrNegations
   }
 
   // Append each pseudo-class in the linked list
-  if (isPseudoElement) {
-#ifdef MOZ_XUL
-    if (mPseudoClassList) {
-      NS_ABORT_IF_FALSE(nsCSSAnonBoxes::IsTreePseudoElement(mLowercaseTag),
-                        "must be tree pseudo-element");
-      aString.Append(PRUnichar('('));
-      for (nsPseudoClassList* list = mPseudoClassList; list;
-           list = list->mNext) {
-        list->mAtom->ToString(temp);
-        aString.Append(temp);
-        NS_ABORT_IF_FALSE(!list->u.mMemory, "data not expected");
-        aString.Append(PRUnichar(','));
-      }
-      // replace the final comma with a close-paren
-      aString.Replace(aString.Length() - 1, 1, PRUnichar(')'));
-    }
-#else
-    NS_ABORT_IF_FALSE(!mPseudoClassList, "unexpected pseudo-class list");
-#endif
-  } else {
-    for (nsPseudoClassList* list = mPseudoClassList; list; list = list->mNext) {
+  if (mPseudoClassList) {
+    nsPseudoClassList* list = mPseudoClassList;
+    while (list != nsnull) {
       list->mAtom->ToString(temp);
       aString.Append(temp);
       if (list->u.mMemory) {
@@ -744,6 +725,7 @@ nsCSSSelector::AppendToStringWithoutCombinatorsOrNegations
         }
         aString.Append(PRUnichar(')'));
       }
+      list = list->mNext;
     }
   }
 }
@@ -900,7 +882,7 @@ public:
   NS_IMETHOD_(nsrefcnt) AddRef(void);
   NS_IMETHOD_(nsrefcnt) Release(void);
 
-  virtual nsINode *GetParentObject()
+  virtual nsISupports *GetParentObject()
   {
     return nsnull;
   }

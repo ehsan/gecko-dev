@@ -166,7 +166,9 @@ function startAUS() {
   gAUS = AUS_Cc["@mozilla.org/updates/update-service;1"].
          getService(AUS_Ci.nsIApplicationUpdateService).
          QueryInterface(AUS_Ci.nsIObserver);
-  gAUS.observe(null, "profile-after-change", "");
+  var os = AUS_Cc["@mozilla.org/observer-service;1"].
+           getService(AUS_Ci.nsIObserverService);
+  os.notifyObservers(null, "final-ui-startup", null);
 }
 
 /* Initializes nsIUpdateChecker */

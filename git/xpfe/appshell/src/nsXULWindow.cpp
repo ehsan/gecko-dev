@@ -149,9 +149,7 @@ nsXULWindow::nsXULWindow(PRUint32 aChromeFlags)
     mPersistentAttributesMask(0),
     mChromeFlags(aChromeFlags),
     // best guess till we have a widget
-    mAppPerDev(nsPresContext::AppUnitsPerCSSPixel()),
-    mIgnoreXULSize(PR_FALSE),
-    mIgnoreXULPosition(PR_FALSE)
+    mAppPerDev(nsPresContext::AppUnitsPerCSSPixel()) 
 {
 }
 
@@ -575,14 +573,8 @@ NS_IMETHODIMP nsXULWindow::SetPosition(PRInt32 aX, PRInt32 aY)
      zoom state. this is important when these two states are competing while
      the window is being opened. but it should probably just always be so. */
   mWindow->SetSizeMode(nsSizeMode_Normal);
-
+    
   NS_ENSURE_SUCCESS(mWindow->Move(aX, aY), NS_ERROR_FAILURE);
-  if (!mChromeLoaded) {
-    // If we're called before the chrome is loaded someone obviously wants this
-    // window at this position. We don't persist this one-time position.
-    mIgnoreXULPosition = PR_TRUE;
-    return NS_OK;
-  }
   PersistentAttributesDirty(PAD_POSITION);
   SavePersistentAttributes();
   return NS_OK;
@@ -603,12 +595,6 @@ NS_IMETHODIMP nsXULWindow::SetSize(PRInt32 aCX, PRInt32 aCY, PRBool aRepaint)
   mIntrinsicallySized = PR_FALSE;
 
   NS_ENSURE_SUCCESS(mWindow->Resize(aCX, aCY, aRepaint), NS_ERROR_FAILURE);
-  if (!mChromeLoaded) {
-    // If we're called before the chrome is loaded someone obviously wants this
-    // window at this size. We don't persist this one-time size.
-    mIgnoreXULSize = PR_TRUE;
-    return NS_OK;
-  }
   PersistentAttributesDirty(PAD_SIZE);
   SavePersistentAttributes();
   return NS_OK;
@@ -630,13 +616,6 @@ NS_IMETHODIMP nsXULWindow::SetPositionAndSize(PRInt32 aX, PRInt32 aY,
   mIntrinsicallySized = PR_FALSE;
 
   NS_ENSURE_SUCCESS(mWindow->Resize(aX, aY, aCX, aCY, aRepaint), NS_ERROR_FAILURE);
-  if (!mChromeLoaded) {
-    // If we're called before the chrome is loaded someone obviously wants this
-    // window at this size and position. We don't persist this one-time setting.
-    mIgnoreXULPosition = PR_TRUE;
-    mIgnoreXULSize = PR_TRUE;
-    return NS_OK;
-  }
   PersistentAttributesDirty(PAD_POSITION | PAD_SIZE);
   SavePersistentAttributes();
   return NS_OK;
@@ -763,10 +742,8 @@ NS_IMETHODIMP nsXULWindow::GetParentNativeWindow(nativeWindow* aParentNativeWind
   nsCOMPtr<nsIWidget> parentWidget;
   NS_ENSURE_SUCCESS(GetParentWidget(getter_AddRefs(parentWidget)), NS_ERROR_FAILURE);
 
-  if (parentWidget) {
-    *aParentNativeWindow = parentWidget->GetNativeData(NS_NATIVE_WIDGET);
-  }
-
+  *aParentNativeWindow = parentWidget->GetNativeData(NS_NATIVE_WIDGET);
+   
   return NS_OK;
 }
 
@@ -999,8 +976,7 @@ void nsXULWindow::OnChromeLoaded()
     mChromeLoaded = PR_TRUE;
     ApplyChromeFlags();
     SyncAttributesToWidget();
-    if (!mIgnoreXULSize)
-      LoadSizeFromXUL();
+    LoadSizeFromXUL();
     if (mIntrinsicallySized) {
       // (if LoadSizeFromXUL set the size, mIntrinsicallySized will be false)
       nsCOMPtr<nsIContentViewer> cv;
@@ -1010,7 +986,7 @@ void nsXULWindow::OnChromeLoaded()
         markupViewer->SizeToContent();
     }
 
-    PRBool positionSet = !mIgnoreXULPosition;
+    PRBool positionSet = PR_TRUE;
     nsCOMPtr<nsIXULWindow> parentWindow(do_QueryReferent(mParentWindow));
 #if defined(XP_UNIX) && !defined(XP_MACOSX)
     // don't override WM placement on unix for independent, top-level windows

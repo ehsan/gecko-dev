@@ -238,8 +238,6 @@ protected:
   extern void InstallUnixSignalHandlers(const char *ProgramName);
 #endif
 
-#define FILE_COMPATIBILITY_INFO NS_LITERAL_CSTRING("compatibility.ini")
-
 int    gArgc;
 char **gArgv;
 
@@ -711,48 +709,6 @@ NS_IMETHODIMP
 nsXULAppInfo::GetWidgetToolkit(nsACString& aResult)
 {
   aResult.AssignLiteral(MOZ_WIDGET_TOOLKIT);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsXULAppInfo::InvalidateCachesOnRestart()
-{
-  nsCOMPtr<nsIFile> file;
-  nsresult rv = NS_GetSpecialDirectory(NS_APP_PROFILE_DIR_STARTUP, 
-                                       getter_AddRefs(file));
-  if (NS_FAILED(rv))
-    return rv;
-  if (!file)
-    return NS_ERROR_NOT_AVAILABLE;
-  
-  file->AppendNative(FILE_COMPATIBILITY_INFO);
-
-  nsCOMPtr<nsILocalFile> localFile(do_QueryInterface(file));
-  nsINIParser parser;
-  rv = parser.Init(localFile);
-  if (NS_FAILED(rv)) {
-    // This fails if compatibility.ini is not there, so we'll
-    // flush the caches on the next restart anyways.
-    return NS_OK;
-  }
-  
-  nsCAutoString buf;
-  rv = parser.GetString("Compatibility", "InvalidateCaches", buf);
-  
-  if (NS_FAILED(rv)) {
-    PRFileDesc *fd = nsnull;
-    localFile->OpenNSPRFileDesc(PR_RDWR | PR_APPEND, 0600, &fd);
-    if (!fd) {
-      NS_ERROR("could not create output stream");
-      return NS_ERROR_NOT_AVAILABLE;
-    }
-    static const char kInvalidationHeader[] = NS_LINEBREAK "InvalidateCaches=1" NS_LINEBREAK;
-    rv = PR_Write(fd, kInvalidationHeader, sizeof(kInvalidationHeader) - 1);
-    PR_Close(fd);
-    
-    if (NS_FAILED(rv))
-      return rv;
-  }
   return NS_OK;
 }
 
@@ -1251,28 +1207,28 @@ DumpHelp()
 
 #ifdef MOZ_X11
   printf("X11 options\n"
-         "  --display=DISPLAY  X display to use\n"
-         "  --sync             Make X calls synchronous\n"
-         "  --no-xshm          Don't use X shared memory extension\n"
-         "  --xim-preedit=STYLE\n"
-         "  --xim-status=STYLE\n");
+         "\t--display=DISPLAY\t\tX display to use\n"
+         "\t--sync\t\tMake X calls synchronous\n"
+         "\t--no-xshm\t\tDon't use X shared memory extension\n"
+         "\t--xim-preedit=STYLE\n"
+         "\t--xim-status=STYLE\n");
 #endif
 #ifdef XP_UNIX
-  printf("  --g-fatal-warnings Make all warnings fatal\n"
+  printf("\t--g-fatal-warnings\t\tMake all warnings fatal\n"
          "\n%s options\n", gAppData->name);
 #endif
 
-  printf("  -h or -help        Print this message.\n"
-         "  -v or -version     Print %s version.\n"
-         "  -P <profile>       Start with <profile>.\n"
-         "  -migration         Start with migration wizard.\n"
-         "  -ProfileManager    Start with ProfileManager.\n"
-         "  -no-remote         Open new instance, not a new window in running instance.\n"
-         "  -UILocale <locale> Start with <locale> resources as UI Locale.\n"
-         "  -safe-mode         Disables extensions and themes for this session.\n", gAppData->name);
+  printf("\t-h or -help\t\tPrint this message.\n"
+         "\t-v or -version\t\tPrint %s version.\n"
+         "\t-P <profile>\t\tStart with <profile>.\n"
+         "\t-migration\t\tStart with migration wizard.\n"
+         "\t-ProfileManager\t\tStart with ProfileManager.\n"
+         "\t-no-remote\t\tOpen new instance, not a new window in running instance.\n"
+         "\t-UILocale <locale>\tStart with <locale> resources as UI Locale.\n"
+         "\t-safe-mode\t\tDisables extensions and themes for this session.\n", gAppData->name);
 
 #if defined(XP_WIN) || defined(XP_OS2)
-  printf("  -console           Start %s with a debugging console.\n", gAppData->name);
+  printf("\t-console\t\tStart %s with a debugging console.\n", gAppData->name);
 #endif
 
   // this works, but only after the components have registered.  so if you drop in a new command line handler, -help
@@ -2191,19 +2147,13 @@ SelectProfile(nsIProfileLock* *aResult, nsINativeAppSupport* aNative,
   return ShowProfileManager(profileSvc, aNative);
 }
 
-/** 
- * Checks the compatibility.ini file to see if we have updated our application
- * or otherwise invalidated our caches. If the application has been updated, 
- * we return PR_FALSE; otherwise, we return PR_TRUE. We also write the status 
- * of the caches (valid/invalid) into the return param aCachesOK. The aCachesOK
- * is always invalid if the application has been updated. 
- */
+#define FILE_COMPATIBILITY_INFO NS_LITERAL_CSTRING("compatibility.ini")
+
 static PRBool
 CheckCompatibility(nsIFile* aProfileDir, const nsCString& aVersion,
                    const nsCString& aOSABI, nsIFile* aXULRunnerDir,
-                   nsIFile* aAppDir, PRBool* aCachesOK)
+                   nsIFile* aAppDir)
 {
-  *aCachesOK = false;
   nsCOMPtr<nsIFile> file;
   aProfileDir->Clone(getter_AddRefs(file));
   if (!file)
@@ -2255,10 +2205,6 @@ CheckCompatibility(nsIFile* aProfileDir, const nsCString& aVersion,
       return PR_FALSE;
   }
 
-  rv = parser.GetString("Compatibility", "InvalidateCaches", buf);
-  
-  // If we see this flag, caches are invalid.
-  *aCachesOK = (NS_FAILED(rv) || !buf.EqualsLiteral("1"));
   return PR_TRUE;
 }
 
@@ -2325,6 +2271,19 @@ WriteVersion(nsIFile* aProfileDir, const nsCString& aVersion,
   PR_Close(fd);
 }
 
+static PRBool ComponentsListChanged(nsIFile* aProfileDir)
+{
+  nsCOMPtr<nsIFile> file;
+  aProfileDir->Clone(getter_AddRefs(file));
+  if (!file)
+    return PR_TRUE;
+  file->AppendNative(NS_LITERAL_CSTRING(".autoreg"));
+
+  PRBool exists = PR_FALSE;
+  file->Exists(&exists);
+  return exists;
+}
+
 static void RemoveComponentRegistries(nsIFile* aProfileDir, nsIFile* aLocalProfileDir,
                                       PRBool aRemoveEMFiles)
 {
@@ -2352,9 +2311,6 @@ static void RemoveComponentRegistries(nsIFile* aProfileDir, nsIFile* aLocalProfi
     return;
 
   file->AppendNative(NS_LITERAL_CSTRING("XUL" PLATFORM_FASL_SUFFIX));
-  file->Remove(PR_FALSE);
-  
-  file->SetNativeLeafName(NS_LITERAL_CSTRING("XPC" PLATFORM_FASL_SUFFIX));
   file->Remove(PR_FALSE);
 }
 
@@ -3216,12 +3172,9 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     // Check for version compatibility with the last version of the app this 
     // profile was started with.  The format of the version stamp is defined
     // by the BuildVersion function.
-    // Also check to see if something has happened to invalidate our
-    // fastload caches, like an extension upgrade or installation.
-    PRBool cachesOK;
-    PRBool versionOK = CheckCompatibility(profD, version, osABI, 
+    PRBool versionOK = CheckCompatibility(profD, version, osABI,
                                           dirProvider.GetGREDir(),
-                                          gAppData->directory, &cachesOK);
+                                          gAppData->directory);
 
     // Every time a profile is loaded by a build with a different version,
     // it updates the compatibility.ini file saying what version last wrote
@@ -3236,15 +3189,11 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
                    dirProvider.GetGREDir(), gAppData->directory);
     }
     else if (versionOK) {
-      if (!cachesOK) {
+      if (ComponentsListChanged(profD)) {
         // Remove compreg.dat and xpti.dat, forcing component re-registration.
         // The new list of additional components directories is derived from
         // information in "extensions.ini".
         RemoveComponentRegistries(profD, profLD, PR_FALSE);
-        
-        // Rewrite compatibility.ini to remove the flag
-        WriteVersion(profD, version, osABI,
-                     dirProvider.GetGREDir(), gAppData->directory);
       }
       // Nothing need be done for the normal startup case.
     }
@@ -3337,6 +3286,13 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
         nsCOMPtr<nsICommandLineRunner> cmdLine;
 
+#if defined(HAVE_DESKTOP_STARTUP_ID) && defined(MOZ_WIDGET_GTK2)
+        nsRefPtr<nsGTKToolkit> toolkit = GetGTKToolkit();
+        if (toolkit && !desktopStartupID.IsEmpty()) {
+          toolkit->SetDesktopStartupID(desktopStartupID);
+        }
+#endif
+
         nsCOMPtr<nsIFile> workingDir;
         rv = NS_GetSpecialDirectory(NS_OS_CURRENT_WORKING_DIR, getter_AddRefs(workingDir));
         NS_ENSURE_SUCCESS(rv, 1);
@@ -3363,13 +3319,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
           NS_ENSURE_SUCCESS(rv, 1);
 
           MOZ_SPLASHSCREEN_UPDATE(50);
-
-#if defined(HAVE_DESKTOP_STARTUP_ID) && defined(MOZ_WIDGET_GTK2)
-          nsRefPtr<nsGTKToolkit> toolkit = GetGTKToolkit();
-          if (toolkit && !desktopStartupID.IsEmpty()) {
-            toolkit->SetDesktopStartupID(desktopStartupID);
-          }
-#endif
 
           // Extension Compatibility Checking and Startup
           if (gAppData->flags & NS_XRE_ENABLE_EXTENSION_MANAGER) {

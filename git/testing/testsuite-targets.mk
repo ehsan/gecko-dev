@@ -116,13 +116,13 @@ include $(topsrcdir)/toolkit/mozapps/installer/package-name.mk
 
 ifndef UNIVERSAL_BINARY
 PKG_STAGE = $(DIST)/test-package-stage
-package-tests: stage-mochitest stage-reftest stage-xpcshell stage-jstests
+package-tests: stage-mochitest stage-reftest stage-xpcshell
 else
 # This staging area has been built for us by universal/flight.mk
 PKG_STAGE = $(DIST)/universal/test-package-stage
 endif
 
-package-tests:
+package-tests: stage-mochitest stage-reftest stage-xpcshell stage-jstests
 	$(NSINSTALL) -D $(DIST)/$(PKG_PATH)
 	@(cd $(PKG_STAGE) && tar $(TAR_CREATE_FLAGS) - *) | bzip2 -f > $(DIST)/$(PKG_PATH)$(TEST_PACKAGE)
 

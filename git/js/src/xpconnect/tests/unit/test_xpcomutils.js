@@ -78,13 +78,10 @@ function test_generateQI_string_names()
 function test_defineLazyGetter()
 {
     let accessCount = 0;
-    let obj = {
-      inScope: false
-    };
+    let obj = { };
     const TEST_VALUE = "test value";
     XPCOMUtils.defineLazyGetter(obj, "foo", function() {
         accessCount++;
-        this.inScope = true;
         return TEST_VALUE;
     });
     do_check_eq(accessCount, 0);
@@ -92,7 +89,6 @@ function test_defineLazyGetter()
     // Get the property, making sure the access count has increased.
     do_check_eq(obj.foo, TEST_VALUE);
     do_check_eq(accessCount, 1);
-    do_check_true(obj.inScope);
 
     // Get the property once more, making sure the access count has not
     // increased.

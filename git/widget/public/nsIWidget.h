@@ -102,8 +102,8 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 #endif
 
 #define NS_IWIDGET_IID \
-{ 0x6bdb96ba, 0x1727, 0x40ae, \
-  { 0x85, 0x55, 0x9c, 0x53, 0x4b, 0x95, 0x23, 0x98 } }
+  { 0x155c4b, 0x78da, 0x4607, \
+    { 0x92, 0x87, 0xd6, 0xcf, 0x32, 0xcd, 0x42, 0xb5 } }
 
 /*
  * Window shadow styles
@@ -708,6 +708,14 @@ class nsIWidget : public nsISupports {
     //@}
 
     /**
+     * Set border style
+     * Must be called before Create.
+     * @param aBorderStyle @see nsBorderStyle
+     */
+
+    NS_IMETHOD SetBorderStyle(nsBorderStyle aBorderStyle) = 0;
+
+    /**
      * Set the widget's title.
      * Must be called after Create.
      *
@@ -896,17 +904,11 @@ class nsIWidget : public nsISupports {
 
     /**
      * Utility method intended for testing. Dispatches native mouse events
-     * may even move the mouse cursor. On Mac the events are guaranteed to
-     * be sent to the window containing this widget, but on Windows they'll go
-     * to whatever's topmost on the screen at that position, so for
-     * cross-platform testing ensure that your window is at the top of the
-     * z-order.
-     * @param aPoint screen location of the mouse, in device
-     * pixels, with origin at the top left
-     * @param aNativeMessage *platform-specific* event type (e.g. on Mac,
-     * NSMouseMoved; on Windows, MOUSEEVENTF_MOVE, MOUSEEVENTF_LEFTDOWN etc)
-     * @param aModifierFlags *platform-specific* modifier flags (ignored
-     * on Windows)
+     * to this widget and may even move the mouse cursor.
+     * @param aPoint screen location of the mouse, in pixels, with origin at
+     * the top left
+     * @param aNativeMessage *platform-specific* event type (e.g. NSMouseMoved)
+     * @param aModifierFlags *platform-specific* modifier flags
      */
     virtual nsresult SynthesizeNativeMouseEvent(nsIntPoint aPoint,
                                                 PRUint32 aNativeMessage,
