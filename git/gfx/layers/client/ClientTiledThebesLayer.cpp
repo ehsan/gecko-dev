@@ -345,8 +345,6 @@ ClientTiledThebesLayer::RenderLayer()
   TILING_LOG("TILING %p: Initial low-precision valid region %s\n", this, Stringify(mLowPrecisionValidRegion).c_str());
 
   nsIntRegion neededRegion = mVisibleRegion;
-#ifndef MOZ_GFX_OPTIMIZE_MOBILE
-  // This is handled by PadDrawTargetOutFromRegion in TiledContentClient for mobile
   if (MayResample()) {
     // If we're resampling then bilinear filtering can read up to 1 pixel
     // outside of our texture coords. Make the visible region a single rect,
@@ -360,7 +358,6 @@ ClientTiledThebesLayer::RenderLayer()
     padded.IntersectRect(padded, wholeTiles);
     neededRegion = padded;
   }
-#endif
 
   nsIntRegion invalidRegion;
   invalidRegion.Sub(neededRegion, mValidRegion);

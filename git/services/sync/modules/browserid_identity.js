@@ -188,11 +188,7 @@ this.BrowserIDManager.prototype = {
       this._log.error("Could not authenticate: " + err);
     });
 
-    // initializeWithCurrentIdentity() can be called after the
-    // identity module was first initialized, e.g., after the
-    // user completes a force authentication, so we should make
-    // sure all credentials are reset before proceeding.
-    this.resetCredentials();
+    this._shouldHaveSyncKeyBundle = false;
     this._authFailureReason = null;
 
     return this._fxaService.getSignedInUser().then(accountData => {
@@ -583,10 +579,9 @@ this.BrowserIDManager.prototype = {
           // for now assume it is just a transient network related problem.
           this._authFailureReason = LOGIN_FAILED_NETWORK_ERROR;
         }
-        // this._authFailureReason being set to be non-null in the above if clause
-        // ensures we are in the correct currentAuthState, and
-        // this._shouldHaveSyncKeyBundle being true ensures everything that cares knows
-        // that there is no authentication dance still under way.
+        // Drop the sync key bundle, but still expect to have one.
+        // This will arrange for us to be in the right 'currentAuthState'
+        // such that UI will show the right error.
         this._shouldHaveSyncKeyBundle = true;
         Weave.Status.login = this._authFailureReason;
         Services.obs.notifyObservers(null, "weave:service:login:error", null);

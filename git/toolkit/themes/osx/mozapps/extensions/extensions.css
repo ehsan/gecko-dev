@@ -1104,16 +1104,12 @@ setting[type="radio"] > radiogroup {
 
 /*** buttons ***/
 
-.addon-control[disabled="true"]:not(.no-auto-hide) {
+.addon-control[disabled="true"] {
   display: none;
 }
 
-.no-auto-hide .addon-control {
-  display: block !important;
-}
-
-.no-auto-hide > .menulist-dropmarker {
-  -moz-padding-start: 0px !important;
+.addon-control.no-auto-hide {
+  display: block;
 }
 
 button.button-link {

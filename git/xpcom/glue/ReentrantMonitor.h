@@ -34,7 +34,7 @@ namespace mozilla {
  * When possible, use ReentrantMonitorAutoEnter to hold this monitor within a
  * scope, instead of calling Enter/Exit directly.
  **/
-class ReentrantMonitor : BlockingResourceBase
+class NS_COM_GLUE ReentrantMonitor : BlockingResourceBase
 {
 public:
   /**
@@ -163,7 +163,7 @@ private:
  *
  * MUCH PREFERRED to bare calls to ReentrantMonitor.Enter and Exit.
  */
-class MOZ_STACK_CLASS ReentrantMonitorAutoEnter
+class NS_COM_GLUE MOZ_STACK_CLASS ReentrantMonitorAutoEnter
 {
 public:
   /**

@@ -176,16 +176,6 @@ ContainerPrepare(ContainerT* aContainer,
       continue;
     }
 
-    RenderTargetRect quad = layerToRender->GetLayer()->
-      TransformRectToRenderTarget(LayerPixel::FromUntyped(
-        layerToRender->GetLayer()->GetEffectiveVisibleRegion().GetBounds()));
-
-    Compositor* compositor = aManager->GetCompositor();
-    if (!layerToRender->GetLayer()->AsContainerLayer() &&
-        !quad.Intersects(compositor->ClipRectInLayersCoordinates(layerToRender->GetLayer(), clipRect))) {
-      continue;
-    }
-
     CULLING_LOG("Preparing sublayer %p\n", layerToRender->GetLayer());
 
     nsIntRegion savedVisibleRegion;
@@ -279,7 +269,7 @@ RenderLayers(ContainerT* aContainer,
         gfx::Rect clipRect(aClipRect.x, aClipRect.y, aClipRect.width, aClipRect.height);
         compositor->DrawQuad(
           RenderTargetPixel::ToUnknown(
-            compositor->ClipRectInLayersCoordinates(aContainer, aClipRect)),
+            compositor->ClipRectInLayersCoordinates(aClipRect)),
           clipRect, effectChain, opacity, Matrix4x4());
       }
     }
@@ -373,6 +363,7 @@ RenderIntermediate(ContainerT* aContainer,
   if (!surface) {
     return;
   }
+
   compositor->SetRenderTarget(surface);
   // pre-render all of the layers into our temporary
   RenderLayers(aContainer, aManager, RenderTargetPixel::FromUntyped(aClipRect));

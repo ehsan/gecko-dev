@@ -137,7 +137,6 @@ public:
 
   stagefright::MediaBuffer* mMediaBuffer;
 
-  Microseconds decode_timestamp;
   Microseconds composition_timestamp;
   Microseconds duration;
   int64_t byte_offset;

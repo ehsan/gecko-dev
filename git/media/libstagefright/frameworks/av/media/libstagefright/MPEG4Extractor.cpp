@@ -3232,7 +3232,6 @@ status_t MPEG4Source::read(
 
     off64_t offset = 0;
     size_t size = 0;
-    uint32_t dts = 0;
     uint32_t cts = 0;
     uint32_t duration = 0;
     bool isSyncSample = false;
@@ -3243,7 +3242,7 @@ status_t MPEG4Source::read(
         status_t err =
             mSampleTable->getMetaDataForSample(
                     mCurrentSampleIndex, &offset, &size, &cts, &duration,
-                    &isSyncSample, &dts);
+                    &isSyncSample);
 
         if (err != OK) {
             return err;
@@ -3274,8 +3273,6 @@ status_t MPEG4Source::read(
             if (!mTimescale) {
                 return ERROR_MALFORMED;
             }
-            mBuffer->meta_data()->setInt64(
-                    kKeyDecodingTime, ((int64_t)dts * 1000000) / mTimescale);
             mBuffer->meta_data()->setInt64(
                     kKeyTime, ((int64_t)cts * 1000000) / mTimescale);
             mBuffer->meta_data()->setInt64(
@@ -3404,8 +3401,6 @@ status_t MPEG4Source::read(
             return ERROR_MALFORMED;
         }
         mBuffer->meta_data()->setInt64(
-                kKeyDecodingTime, ((int64_t)dts * 1000000) / mTimescale);
-        mBuffer->meta_data()->setInt64(
                 kKeyTime, ((int64_t)cts * 1000000) / mTimescale);
         mBuffer->meta_data()->setInt64(
                 kKeyDuration, ((int64_t)duration * 1000000) / mTimescale);
@@ -3485,7 +3480,6 @@ status_t MPEG4Source::fragmentedRead(
 
     off64_t offset = 0;
     size_t size = 0;
-    uint32_t dts = 0;
     uint32_t cts = 0;
     uint32_t duration = 0;
     bool isSyncSample = false;
@@ -3525,7 +3519,6 @@ status_t MPEG4Source::fragmentedRead(
         const Sample *smpl = &mCurrentSamples[mCurrentSampleIndex];
         offset = smpl->offset;
         size = smpl->size;
-        dts = mCurrentTime;
         cts = mCurrentTime + smpl->ctsOffset;
         duration = smpl->duration;
         mCurrentTime += smpl->duration;
@@ -3570,8 +3563,6 @@ status_t MPEG4Source::fragmentedRead(
             if (!mTimescale) {
                 return ERROR_MALFORMED;
             }
-            mBuffer->meta_data()->setInt64(
-                    kKeyDecodingTime, ((int64_t)dts * 1000000) / mTimescale);
             mBuffer->meta_data()->setInt64(
                     kKeyTime, ((int64_t)cts * 1000000) / mTimescale);
             mBuffer->meta_data()->setInt64(
@@ -3699,8 +3690,6 @@ status_t MPEG4Source::fragmentedRead(
         if (!mTimescale) {
             return ERROR_MALFORMED;
         }
-        mBuffer->meta_data()->setInt64(
-                kKeyDecodingTime, ((int64_t)dts * 1000000) / mTimescale);
         mBuffer->meta_data()->setInt64(
                 kKeyTime, ((int64_t)cts * 1000000) / mTimescale);
         mBuffer->meta_data()->setInt64(

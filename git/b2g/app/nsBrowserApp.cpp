@@ -25,7 +25,6 @@
 
 #ifdef XP_WIN
 // we want a wmain entry point
-#define XRE_DONT_SUPPORT_XPSP2 // See https://bugzil.la/1023941#c32
 #include "nsWindowsWMain.cpp"
 #define snprintf _snprintf
 #define strcasecmp _stricmp
