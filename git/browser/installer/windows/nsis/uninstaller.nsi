@@ -293,8 +293,6 @@ Section "Uninstall"
   ${If} ${AtLeastWin8}
     ${un.CleanupMetroBrowserHandlerValues} ${DELEGATE_EXECUTE_HANDLER_ID}
   ${EndIf}
-  ${ResetWin8PromptKeys}
-  ${ResetWin8MetroSplash}
 !endif
 
   ${un.RegCleanAppHandler} "FirefoxURL"

@@ -16,7 +16,7 @@
 #endif
 #include <windows.h>
 #include <d3d9.h>
-#include <d3dcompiler.h>
+#include <D3Dcompiler.h>
 
 #include <set>
 #include <vector>

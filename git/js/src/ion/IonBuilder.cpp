@@ -2867,14 +2867,6 @@ IonBuilder::inlineScriptedCall(HandleFunction target, CallInfo &callInfo)
             return false;
     }
 
-    // Create new |this| on the caller-side for inlined constructors.
-    if (callInfo.constructing()) {
-        MDefinition *thisDefn = createThis(target, callInfo.fun());
-        if (!thisDefn)
-            return false;
-        callInfo.setThis(thisDefn);
-    }
-
     // Push formals to capture in the resumepoint
     callInfo.pushFormals(current);
 
@@ -2905,6 +2897,14 @@ IonBuilder::inlineScriptedCall(HandleFunction target, CallInfo &callInfo)
 
     IonBuilder inlineBuilder(cx, &temp(), &graph(), &oracle,
                              info, inliningDepth + 1, loopDepth_);
+
+    // Create new |this| on the caller-side for inlined constructors.
+    if (callInfo.constructing()) {
+        MDefinition *thisDefn = createThis(target, callInfo.fun());
+        if (!thisDefn)
+            return false;
+        callInfo.setThis(thisDefn);
+    }
 
     // Build the graph.
     if (!inlineBuilder.buildInline(this, resumePoint, callInfo)) {
@@ -3099,6 +3099,7 @@ IonBuilder::makeInliningDecision(AutoObjectVector &targets)
     uint32_t callerUses = script()->getUseCount();
 
     uint32_t totalSize = 0;
+    uint32_t checkUses = js_IonOptions.usesBeforeInlining;
     uint32_t maxInlineDepth = js_IonOptions.maxInlineDepth;
     bool allFunctionsAreSmall = true;
     RootedFunction target(cx);
@@ -3125,13 +3126,15 @@ IonBuilder::makeInliningDecision(AutoObjectVector &targets)
             return false;
         }
     }
-    if (allFunctionsAreSmall)
+    if (allFunctionsAreSmall) {
+        checkUses = js_IonOptions.smallFunctionUsesBeforeInlining;
         maxInlineDepth = js_IonOptions.smallFunctionMaxInlineDepth;
+    }
 
     if (inliningDepth >= maxInlineDepth)
         return false;
 
-    if (script()->getUseCount() < js_IonOptions.usesBeforeInlining()) {
+    if (script()->getUseCount() < checkUses) {
         IonSpew(IonSpew_Inlining, "Not inlining, caller is not hot");
         return false;
     }
@@ -4786,7 +4789,7 @@ IonBuilder::insertRecompileCheck()
         return;
 
     // Don't recompile if we are already inlining.
-    if (script()->getUseCount() >= js_IonOptions.usesBeforeInlining())
+    if (script()->getUseCount() >= js_IonOptions.usesBeforeInlining)
         return;
 
     // Don't recompile if the oracle cannot provide inlining information

@@ -345,19 +345,17 @@
         <body><![CDATA[
           this._remove(aChatbox);
           // The removal of a chat may mean a collapsed one can spring up,
-          // or that the popup should be hidden.  We also defer the selection
-          // of another chat until after a resize, as a new candidate may
-          // become uncollapsed after the resize.
+          // or that the popup should be hidden.
           this.resize();
-          if (this.selectedChat == aChatbox) {
-            this._selectAnotherChat();
-          }
         ]]></body>
       </method>
 
       <method name="_remove">
         <parameter name="aChatbox"/>
         <body><![CDATA[
+          if (this.selectedChat == aChatbox) {
+            this._selectAnotherChat();
+          }
           aChatbox.iframe.socialErrorListener.remove();
           this.removeChild(aChatbox);
           // child might have been collapsed.

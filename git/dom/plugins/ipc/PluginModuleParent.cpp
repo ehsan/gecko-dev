@@ -563,8 +563,7 @@ PluginModuleParent::LaunchHangUI()
         delete mHangUIParent;
         mHangUIParent = nullptr;
     }
-    mHangUIParent = new PluginHangUIParent(this, 
-            Preferences::GetInt(kHangUITimeoutPref, 0));
+    mHangUIParent = new PluginHangUIParent(this);
     nsAutoString pluginName;
     if (!GetPluginName(pluginName)) {
         return false;

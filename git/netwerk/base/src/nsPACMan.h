@@ -136,8 +136,7 @@ public:
    */
   bool IsPACURI(const nsACString &spec)
   {
-    return mPACURISpec.Equals(spec) || mPACURIRedirectSpec.Equals(spec) ||
-      mNormalPACURISpec.Equals(spec);
+    return mPACURISpec.Equals(spec) || mPACURIRedirectSpec.Equals(spec);
   }
 
   bool IsPACURI(nsIURI *uri) {
@@ -207,13 +206,8 @@ private:
 
   mozilla::LinkedList<PendingPACQuery> mPendingQ; /* pac thread only */
 
-  // These specs are not nsIURI so that they can be used off the main thread.
-  // The non-normalized versions are directly from the configuration, the
-  // normalized version has been extracted from an nsIURI
-  nsCString                    mPACURISpec;
+  nsCString                    mPACURISpec; // Not an nsIURI for use off main thread
   nsCString                    mPACURIRedirectSpec;
-  nsCString                    mNormalPACURISpec;
-
   nsCOMPtr<nsIStreamLoader>    mLoader;
   bool                         mLoadPending;
   bool                         mShutdown;

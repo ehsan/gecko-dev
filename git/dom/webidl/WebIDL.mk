@@ -223,7 +223,6 @@ endif
 ifdef MOZ_MEDIA
 webidl_files += \
   HTMLSourceElement.webidl \
-  MediaError.webidl \
   $(NULL)
 endif
 

@@ -1882,8 +1882,21 @@ nsEventStateManager::FireContextClick()
       nsCOMPtr<nsIFormControl> formCtrl(do_QueryInterface(mGestureDownContent));
 
       if (formCtrl) {
-        allowedToDispatch = formCtrl->IsTextControl(false) ||
-                            formCtrl->GetType() == NS_FORM_INPUT_FILE;
+        // of all form controls, only ones dealing with text are
+        // allowed to have context menus
+        int32_t type = formCtrl->GetType();
+
+        allowedToDispatch = (type == NS_FORM_INPUT_TEXT ||
+                             type == NS_FORM_INPUT_EMAIL ||
+                             type == NS_FORM_INPUT_SEARCH ||
+                             type == NS_FORM_INPUT_TEL ||
+                             type == NS_FORM_INPUT_URL ||
+                             type == NS_FORM_INPUT_PASSWORD ||
+                             type == NS_FORM_INPUT_FILE ||
+                             type == NS_FORM_INPUT_NUMBER ||
+                             type == NS_FORM_INPUT_DATE ||
+                             type == NS_FORM_INPUT_TIME ||
+                             type == NS_FORM_TEXTAREA);
       }
       else if (tag == nsGkAtoms::applet ||
                tag == nsGkAtoms::embed  ||

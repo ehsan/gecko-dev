@@ -142,6 +142,7 @@ public:
   NS_IMETHOD_(int32_t) GetCols();
   NS_IMETHOD_(int32_t) GetWrapCols();
   NS_IMETHOD_(int32_t) GetRows();
+  NS_IMETHOD_(void) GetDefaultValueFromContent(nsAString& aValue);
   NS_IMETHOD_(bool) ValueChanged() const;
   NS_IMETHOD_(void) GetTextEditorValue(nsAString& aValue, bool aIgnoreWrap) const;
   NS_IMETHOD_(nsIEditor*) GetTextEditor();
@@ -739,7 +740,7 @@ protected:
     /**
      * The current value of the input if it has been changed from the default
      */
-    PRUnichar*               mValue;
+    char*                    mValue;
     /**
      * The state of the text editor associated with the text/password input
      */

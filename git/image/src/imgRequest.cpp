@@ -17,9 +17,7 @@
 
 #include "imgLoader.h"
 #include "imgRequestProxy.h"
-#include "imgStatusTracker.h"
 #include "ImageFactory.h"
-#include "Image.h"
 
 #include "imgILoader.h"
 

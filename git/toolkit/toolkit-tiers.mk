@@ -6,13 +6,7 @@ ifdef LIBXUL_SDK
 $(error toolkit-tiers.mk is not compatible with --enable-libxul-sdk=)
 endif
 
-TIERS += nspr
-
-ifndef MOZ_NATIVE_NSPR
-tier_nspr_staticdirs += nsprpub
-tier_nspr_dirs += config/nspr
-endif
-
+include $(topsrcdir)/config/nspr/build.mk
 include $(topsrcdir)/config/js/build.mk
 
 TIERS += platform

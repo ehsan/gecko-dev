@@ -46,8 +46,8 @@ this.PhoneNumberUtils = {
     }
 
     // Get previous mcc
-    if (!mcc && ril.voiceConnectionInfo) {
-      mcc = ril.voiceConnectionInfo.lastKnownMcc;
+    if (!mcc && ril.voiceConnectionInfo && ril.voiceConnectionInfo.network) {
+      mcc = ril.voiceConnectionInfo.network.previousMcc;
     }
 
     // Set to default mcc

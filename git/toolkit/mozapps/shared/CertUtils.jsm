@@ -108,7 +108,7 @@ this.validateCert =
   }
 
   if (error) {
-    errors.forEach(Cu.reportError.bind(Cu));
+    errors.forEach(Cu.reportError);
     const certCheckErr = "Certificate checks failed. See previous errors " +
                          "for details.";
     Cu.reportError(certCheckErr);

@@ -86,6 +86,12 @@ MoveCList(PRCList &from, PRCList &to)
     }             
 }
 
+static uint32_t
+NowInMinutes()
+{
+    return uint32_t(PR_Now() / int64_t(60 * PR_USEC_PER_SEC));
+}
+
 //----------------------------------------------------------------------------
 
 #if defined(RES_RETRY_ON_FAILURE)
@@ -152,7 +158,7 @@ nsHostRecord::nsHostRecord(const nsHostKey *key)
     flags = key->flags;
     af = key->af;
 
-    expiration = TimeStamp::NowLoRes();
+    expiration = NowInMinutes();
 
     PR_INIT_CLIST(this);
     PR_INIT_CLIST(&callbacks);
@@ -279,8 +285,9 @@ HostDB_ClearEntry(PLDHashTable *table,
         if (!hr->addr_info) {
             LOG(("No address info for host [%s].\n", hr->host));
         } else {
-            TimeDuration diff = hr->expiration - TimeStamp::NowLoRes();
-            LOG(("Record for [%s] expires in %f seconds.\n", hr->host, diff.ToSeconds()));
+            int32_t now = (int32_t) NowInMinutes();
+            int32_t diff = (int32_t) hr->expiration - now;
+            LOG(("Record for [%s] expires in %d minute(s).\n", hr->host, diff));
 
             NetAddrElement *addrElement = nullptr;
             char buf[kIPv6CStrBufSize];
@@ -340,7 +347,7 @@ nsHostResolver::nsHostResolver(uint32_t maxCacheEntries,
                                uint32_t maxCacheLifetime,
                                uint32_t lifetimeGracePeriod)
     : mMaxCacheEntries(maxCacheEntries)
-    , mMaxCacheLifetime(TimeDuration::FromSeconds(maxCacheLifetime * 60))
+    , mMaxCacheLifetime(maxCacheLifetime)
     , mGracePeriod(lifetimeGracePeriod)
     , mLock("nsHostResolver.mLock")
     , mIdleThreadCV(mLock, "nsHostResolver.mIdleThreadCV")
@@ -536,7 +543,8 @@ nsHostResolver::ResolveHost(const char            *host,
             // do we have a cached result that we can reuse?
             else if (!(flags & RES_BYPASS_CACHE) &&
                      he->rec->HasResult() &&
-                     TimeStamp::NowLoRes() <= (he->rec->expiration + TimeDuration::FromSeconds(mGracePeriod * 60))) {
+                     NowInMinutes() <= he->rec->expiration + mGracePeriod) {
+                        
                 LOG(("Using cached record for host [%s].\n", host));
                 // put reference to host record on stack...
                 result = he->rec;
@@ -545,7 +553,7 @@ nsHostResolver::ResolveHost(const char            *host,
                 // For entries that are in the grace period with a failed connect,
                 // or all cached negative entries, use the cache but start a new lookup in
                 // the background
-                if ((((TimeStamp::NowLoRes() > he->rec->expiration) &&
+                if ((((NowInMinutes() > he->rec->expiration) &&
                       he->rec->mBlacklistedItems.Length()) ||
                      he->rec->negative) && !he->rec->resolving) {
                     LOG(("Using %s cache entry for host [%s] but starting async renewal.",
@@ -847,13 +855,13 @@ nsHostResolver::OnLookupComplete(nsHostRecord *rec, nsresult status, AddrInfo *r
         }
         delete old_addr_info;
 
-        rec->expiration = TimeStamp::NowLoRes();
+        rec->expiration = NowInMinutes();
         if (result) {
             rec->expiration += mMaxCacheLifetime;
             rec->negative = false;
         }
         else {
-            rec->expiration += TimeDuration::FromSeconds(60); /* one minute for negative cache */
+            rec->expiration += 1;                 /* one minute for negative cache */
             rec->negative = true;
         }
         rec->resolving = false;
@@ -878,10 +886,9 @@ nsHostResolver::OnLookupComplete(nsHostRecord *rec, nsresult status, AddrInfo *r
 
                 if (!head->negative) {
                     // record the age of the entry upon eviction.
-                    TimeDuration age = TimeStamp::NowLoRes() -
-                                         (head->expiration - mMaxCacheLifetime);
-                    Telemetry::Accumulate(Telemetry::DNS_CLEANUP_AGE,
-                                          static_cast<uint32_t>(age.ToSeconds() / 60));
+                    uint32_t age =
+                        NowInMinutes() - (head->expiration - mMaxCacheLifetime);
+                    Telemetry::Accumulate(Telemetry::DNS_CLEANUP_AGE, age);
                 }
 
                 // release reference to rec owned by mEvictionQ
@@ -947,6 +954,8 @@ nsHostResolver::CancelAsyncRequest(const char            *host,
         }
     }
 }
+
+//----------------------------------------------------------------------------
 
 void
 nsHostResolver::ThreadFunc(void *arg)
@@ -1016,6 +1025,8 @@ nsHostResolver::ThreadFunc(void *arg)
     LOG(("DNS lookup thread ending execution.\n"));
 }
 
+//----------------------------------------------------------------------------
+
 nsresult
 nsHostResolver::Create(uint32_t         maxCacheEntries,
                        uint32_t         maxCacheLifetime,
@@ -1056,7 +1067,7 @@ CacheEntryEnumerator(PLDHashTable *table, PLDHashEntryHdr *entry,
     DNSCacheEntries info;
     info.hostname = rec->host;
     info.family = rec->af;
-    info.expiration = (int64_t)(rec->expiration - TimeStamp::NowLoRes()).ToSeconds();
+    info.expiration = ((int64_t)rec->expiration - NowInMinutes()) * 60;
     if (info.expiration <= 0) {
         // We only need valid DNS cache entries
         return PL_DHASH_NEXT;

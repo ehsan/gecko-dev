@@ -72,11 +72,6 @@ const SEARCH_SERVICE_TOPIC       = "browser-search-service";
  */
 const SEARCH_SERVICE_METADATA_WRITTEN  = "write-metadata-to-disk-complete";
 
-/**
- * Sent whenever the cache is fully written to disk.
- */
-const SEARCH_SERVICE_CACHE_WRITTEN  = "write-cache-to-disk-complete";
-
 const SEARCH_TYPE_MOZSEARCH      = Ci.nsISearchEngine.TYPE_MOZSEARCH;
 const SEARCH_TYPE_OPENSEARCH     = Ci.nsISearchEngine.TYPE_OPENSEARCH;
 const SEARCH_TYPE_SHERLOCK       = Ci.nsISearchEngine.TYPE_SHERLOCK;
@@ -780,13 +775,12 @@ function  parseJsonFromStream(aInputStream) {
 /**
  * Simple object representing a name/value pair.
  */
-function QueryParameter(aName, aValue, aPurpose) {
+function QueryParameter(aName, aValue) {
   if (!aName || (aValue == null))
     FAIL("missing name or value for QueryParameter!");
 
   this.name = aName;
   this.value = aValue;
-  this.purpose = aPurpose;
 }
 
 /**
@@ -902,33 +896,23 @@ function EngineURL(aType, aMethod, aTemplate) {
 }
 EngineURL.prototype = {
 
-  addParam: function SRCH_EURL_addParam(aName, aValue, aPurpose) {
-    this.params.push(new QueryParameter(aName, aValue, aPurpose));
+  addParam: function SRCH_EURL_addParam(aName, aValue) {
+    this.params.push(new QueryParameter(aName, aValue));
   },
 
-  // Note: This method requires that aObj has a unique name or the previous MozParams entry with
-  // that name will be overwritten.
   _addMozParam: function SRCH_EURL__addMozParam(aObj) {
     aObj.mozparam = true;
     this.mozparams[aObj.name] = aObj;
   },
 
-  getSubmission: function SRCH_EURL_getSubmission(aSearchTerms, aEngine, aPurpose) {
+  getSubmission: function SRCH_EURL_getSubmission(aSearchTerms, aEngine) {
     var url = ParamSubstitution(this.template, aSearchTerms, aEngine);
-    // Default to an empty string if the purpose is not provided so that default purpose params
-    // (purpose="") work consistently rather than having to define "null" and "" purposes.
-    var purpose = aPurpose || "";
 
     // Create an application/x-www-form-urlencoded representation of our params
     // (name=value&name=value&name=value)
     var dataString = "";
     for (var i = 0; i < this.params.length; ++i) {
       var param = this.params[i];
-
-      // If this parameter has a purpose, only add it if the purpose matches
-      if (param.purpose !== undefined && param.purpose != purpose)
-        continue;
-
       var value = ParamSubstitution(param.value, aSearchTerms, aEngine);
 
       dataString += (i > 0 ? "&" : "") + param.name + "=" + value;
@@ -982,7 +966,7 @@ EngineURL.prototype = {
         this._addMozParam(param);
       }
       else
-        this.addParam(param.name, param.value, param.purpose);
+        this.addParam(param.name, param.value);
     }
   },
 
@@ -1641,13 +1625,6 @@ Engine.prototype = {
                  this._isDefault) {
         var value;
         switch (param.getAttribute("condition")) {
-          case "purpose":
-            url.addParam(param.getAttribute("name"),
-                         param.getAttribute("value"),
-                         param.getAttribute("purpose"));
-            // _addMozParam is not needed here since it can be serialized fine without. _addMozParam
-            // also requires a unique "name" which is not normally the case when @purpose is used.
-            break;
           case "defaultEngine":
             // If this engine was the default search engine, use the true value
             if (this._isDefaultEngine())
@@ -2454,7 +2431,7 @@ Engine.prototype = {
   },
 
   // from nsISearchEngine
-  getSubmission: function SRCH_ENG_getSubmission(aData, aResponseType, aPurpose) {
+  getSubmission: function SRCH_ENG_getSubmission(aData, aResponseType) {
     if (!aResponseType)
       aResponseType = URLTYPE_SEARCH_HTML;
 
@@ -2468,7 +2445,7 @@ Engine.prototype = {
       return new Submission(makeURI(this.searchForm), null);
     }
 
-    LOG("getSubmission: In data: \"" + aData + "\"; Purpose: \"" + aPurpose + "\"");
+    LOG("getSubmission: In data: \"" + aData + "\"");
     var textToSubURI = Cc["@mozilla.org/intl/texttosuburi;1"].
                        getService(Ci.nsITextToSubURI);
     var data = "";
@@ -2479,7 +2456,7 @@ Engine.prototype = {
       data = textToSubURI.ConvertAndEscape(DEFAULT_QUERY_CHARSET, aData);
     }
     LOG("getSubmission: Out data: \"" + data + "\"");
-    return url.getSubmission(data, this, aPurpose);
+    return url.getSubmission(data, this);
   },
 
   // from nsISearchEngine
@@ -2679,13 +2656,8 @@ SearchService.prototype = {
 
       // Write to the cache file asynchronously
       NetUtil.asyncCopy(data, ostream, function(rv) {
-        if (Components.isSuccessCode(rv)) {
-          Services.obs.notifyObservers(null,
-                                       SEARCH_SERVICE_TOPIC,
-                                       SEARCH_SERVICE_CACHE_WRITTEN);
-        } else {
+        if (!Components.isSuccessCode(rv))
           LOG("_buildCache: failure during asyncCopy: " + rv);
-        }
       });
     } catch (ex) {
       LOG("_buildCache: Could not write to cache file: " + ex);
@@ -2726,8 +2698,8 @@ SearchService.prototype = {
               cache.directories[aDir.path].lastModifiedTime != aDir.lastModifiedTime);
     }
 
-    function notInCachePath(aPathToLoad)
-      cachePaths.indexOf(aPathToLoad.path) == -1;
+    function notInToLoad(aCachePath, aIndex)
+      aCachePath != toLoad[aIndex].path;
 
     let buildID = Services.appinfo.platformBuildID;
     let cachePaths = [path for (path in cache.directories)];
@@ -2737,7 +2709,7 @@ SearchService.prototype = {
                        cache.locale != getLocale() ||
                        cache.buildID != buildID ||
                        cachePaths.length != toLoad.length ||
-                       toLoad.some(notInCachePath) ||
+                       cachePaths.some(notInToLoad) ||
                        toLoad.some(modifiedDir);
 
     if (!cacheEnabled || rebuildCache) {

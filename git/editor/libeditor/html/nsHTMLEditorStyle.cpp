@@ -33,6 +33,7 @@
 #include "nsIDOMRange.h"
 #include "nsIEditor.h"
 #include "nsIEditorIMESupport.h"
+#include "nsIEnumerator.h"
 #include "nsINameSpaceManager.h"
 #include "nsINode.h"
 #include "nsISelection.h"
@@ -143,10 +144,22 @@ nsHTMLEditor::SetInlineProperty(nsIAtom *aProperty,
   nsresult res = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
   NS_ENSURE_SUCCESS(res, res);
   if (!cancel && !handled) {
+    // get selection range enumerator
+    nsCOMPtr<nsIEnumerator> enumerator;
+    res = selection->GetEnumerator(getter_AddRefs(enumerator));
+    NS_ENSURE_SUCCESS(res, res);
+    NS_ENSURE_TRUE(enumerator, NS_ERROR_FAILURE);
+
     // loop thru the ranges in the selection
-    uint32_t rangeCount = selection->GetRangeCount();
-    for (uint32_t rangeIdx = 0; rangeIdx < rangeCount; ++rangeIdx) {
-      nsRefPtr<nsRange> range = selection->GetRangeAt(rangeIdx);
+    nsCOMPtr<nsISupports> currentItem;
+    for (enumerator->First();
+         static_cast<nsresult>(NS_ENUMERATOR_FALSE) == enumerator->IsDone();
+         enumerator->Next()) {
+      res = enumerator->CurrentItem(getter_AddRefs(currentItem));
+      NS_ENSURE_SUCCESS(res, res);
+      NS_ENSURE_TRUE(currentItem, NS_ERROR_FAILURE);
+
+      nsCOMPtr<nsIDOMRange> range(do_QueryInterface(currentItem));
 
       // adjust range to include any ancestors whose children are entirely
       // selected
@@ -1102,15 +1115,23 @@ nsHTMLEditor::GetInlinePropertyBase(nsIAtom *aProperty,
   result = GetSelection(getter_AddRefs(selection));
   NS_ENSURE_SUCCESS(result, result);
   NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
-  Selection* sel = static_cast<Selection*>(selection.get());
+  nsCOMPtr<nsISelectionPrivate> selPriv(do_QueryInterface(selection));
 
   bool isCollapsed = selection->Collapsed();
   nsCOMPtr<nsIDOMNode> collapsedNode;
-  nsRefPtr<nsRange> range = sel->GetRangeAt(0);
+  nsCOMPtr<nsIEnumerator> enumerator;
+  result = selPriv->GetEnumerator(getter_AddRefs(enumerator));
+  NS_ENSURE_SUCCESS(result, result);
+  NS_ENSURE_TRUE(enumerator, NS_ERROR_NULL_POINTER);
+
+  enumerator->First(); 
+  nsCOMPtr<nsISupports> currentItem;
+  result = enumerator->CurrentItem(getter_AddRefs(currentItem));
   // XXX: should be a while loop, to get each separate range
   // XXX: ERROR_HANDLING can currentItem be null?
-  if (range) {
+  if (NS_SUCCEEDED(result) && currentItem) {
     bool firstNodeInRange = true; // for each range, set a flag 
+    nsCOMPtr<nsIDOMRange> range(do_QueryInterface(currentItem));
 
     if (isCollapsed) {
       range->GetStartContainer(getter_AddRefs(collapsedNode));
@@ -1358,10 +1379,22 @@ nsresult nsHTMLEditor::RemoveInlinePropertyImpl(nsIAtom *aProperty, const nsAStr
   NS_ENSURE_SUCCESS(res, res);
   if (!cancel && !handled)
   {
+    // get selection range enumerator
+    nsCOMPtr<nsIEnumerator> enumerator;
+    res = selection->GetEnumerator(getter_AddRefs(enumerator));
+    NS_ENSURE_SUCCESS(res, res);
+    NS_ENSURE_TRUE(enumerator, NS_ERROR_FAILURE);
+
     // loop thru the ranges in the selection
-    uint32_t rangeCount = selection->GetRangeCount();
-    for (uint32_t rangeIdx = 0; rangeIdx < rangeCount; ++rangeIdx) {
-      nsRefPtr<nsRange> range = selection->GetRangeAt(rangeIdx);
+    enumerator->First(); 
+    nsCOMPtr<nsISupports> currentItem;
+    while (static_cast<nsresult>(NS_ENUMERATOR_FALSE) == enumerator->IsDone()) {
+      res = enumerator->CurrentItem(getter_AddRefs(currentItem));
+      NS_ENSURE_SUCCESS(res, res);
+      NS_ENSURE_TRUE(currentItem, NS_ERROR_FAILURE);
+      
+      nsCOMPtr<nsIDOMRange> range( do_QueryInterface(currentItem) );
+
       if (aProperty == nsEditProperty::name)
       {
         // promote range if it starts or end in a named anchor and we
@@ -1467,6 +1500,7 @@ nsresult nsHTMLEditor::RemoveInlinePropertyImpl(nsIAtom *aProperty, const nsAStr
         }
         arrayOfNodes.Clear();
       }
+      enumerator->Next();
     }
   }
   if (!cancel)
@@ -1532,13 +1566,24 @@ nsHTMLEditor::RelativeFontChange( int32_t aSizeChange)
   nsAutoSelectionReset selectionResetter(selection, this);
   nsAutoTxnsConserveSelection dontSpazMySelection(this);
 
+  // get selection range enumerator
+  nsCOMPtr<nsIEnumerator> enumerator;
+  nsresult res = selection->GetEnumerator(getter_AddRefs(enumerator));
+  NS_ENSURE_SUCCESS(res, res);
+  NS_ENSURE_TRUE(enumerator, NS_ERROR_FAILURE);
+
   // loop thru the ranges in the selection
-  uint32_t rangeCount = selection->GetRangeCount();
-  for (uint32_t rangeIdx = 0; rangeIdx < rangeCount; ++rangeIdx) {
-    nsRefPtr<nsRange> range = selection->GetRangeAt(rangeIdx);
+  enumerator->First(); 
+  nsCOMPtr<nsISupports> currentItem;
+  while (static_cast<nsresult>(NS_ENUMERATOR_FALSE) == enumerator->IsDone()) {
+    res = enumerator->CurrentItem(getter_AddRefs(currentItem));
+    NS_ENSURE_SUCCESS(res, res);
+    NS_ENSURE_TRUE(currentItem, NS_ERROR_FAILURE);
+    
+    nsCOMPtr<nsIDOMRange> range( do_QueryInterface(currentItem) );
 
     // adjust range to include any ancestors who's children are entirely selected
-    nsresult res = PromoteInlineRange(range);
+    res = PromoteInlineRange(range);
     NS_ENSURE_SUCCESS(res, res);
     
     // check for easy case: both range endpoints in same text node
@@ -1620,9 +1665,10 @@ nsHTMLEditor::RelativeFontChange( int32_t aSizeChange)
         NS_ENSURE_SUCCESS(res, res);
       }
     }
+    enumerator->Next();
   }
   
-  return NS_OK;  
+  return res;  
 }
 
 nsresult

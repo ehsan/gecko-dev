@@ -151,6 +151,8 @@ private:
   CGColorSpaceRef mColorSpace;
   CGContextRef mCg;
 
+  GLuint mIOSurfaceTexture;
+
   /**
    * A pointer to the image buffer if the buffer is owned by this class (set to
    * nullptr otherwise).

@@ -12,8 +12,6 @@ void DisableWritePoisoning() {
 }
 void EnableWritePoisoning() {
 }
-void InitWritePoisoning() {
-}
 }
 extern "C" {
     void MozillaRegisterDebugFD(int fd) {

@@ -72,9 +72,6 @@ public:
    * Does a lookup for a method or attribute provided by one of the bindings'
    * prototype implementation. If found, |desc| will be set up appropriately,
    * and wrapped into cx->compartment.
-   *
-   * May only be called when XBL code is being run in a separate scope, because
-   * otherwise we don't have untainted data with which to do a proper lookup.
    */
   bool LookupMember(JSContext* aCx, JS::HandleId aId, JSPropertyDescriptor* aDesc);
 
@@ -86,10 +83,10 @@ public:
 protected:
 
   /*
-   * Internal version. Requires that aCx is in appropriate xbl scope.
+   * Internal version. Requires that aCx is in the compartment of aBoundScope.
    */
   bool LookupMemberInternal(JSContext* aCx, nsString& aName, JS::HandleId aNameAsId,
-                            JSPropertyDescriptor* aDesc, JSObject* aXBLScope);
+                            JSPropertyDescriptor* aDesc, JSObject* aBoundScope);
 
 public:
 

@@ -3215,7 +3215,7 @@ XREMain::XRE_mainInit(const nsXREAppData* aAppData, bool* aExitFlag)
 }
 
 namespace mozilla {
-  ShutdownChecksMode gShutdownChecks = SCM_NOTHING;
+  ShutdownChecksMode ShutdownChecks = SCM_NOTHING;
 }
 
 static void SetShutdownChecks() {
@@ -3225,14 +3225,14 @@ static void SetShutdownChecks() {
   // too.
 
 #ifdef DEBUG
-  gShutdownChecks = SCM_CRASH;
+  ShutdownChecks = SCM_CRASH;
 #else
   const char* releaseChannel = NS_STRINGIFY(MOZ_UPDATE_CHANNEL);
   if (strcmp(releaseChannel, "nightly") == 0 ||
       strcmp(releaseChannel, "default") == 0) {
-    gShutdownChecks = SCM_RECORD;
+    ShutdownChecks = SCM_RECORD;
   } else {
-    gShutdownChecks = SCM_NOTHING;
+    ShutdownChecks = SCM_NOTHING;
   }
 #endif
 
@@ -3241,11 +3241,11 @@ static void SetShutdownChecks() {
   const char* mozShutdownChecksEnv = PR_GetEnv("MOZ_SHUTDOWN_CHECKS");
   if (mozShutdownChecksEnv) {
     if (strcmp(mozShutdownChecksEnv, "crash") == 0) {
-      gShutdownChecks = SCM_CRASH;
+      ShutdownChecks = SCM_CRASH;
     } else if (strcmp(mozShutdownChecksEnv, "record") == 0) {
-      gShutdownChecks = SCM_RECORD;
+      ShutdownChecks = SCM_RECORD;
     } else if (strcmp(mozShutdownChecksEnv, "nothing") == 0) {
-      gShutdownChecks = SCM_NOTHING;
+      ShutdownChecks = SCM_NOTHING;
     }
   }
 

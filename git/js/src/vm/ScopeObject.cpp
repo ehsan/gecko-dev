@@ -1410,22 +1410,23 @@ class DebugScopeProxy : public BaseProxyHandler
 
     bool getScopePropertyNames(JSContext *cx, JSObject *proxy, AutoIdVector &props, unsigned flags)
     {
-        Rooted<ScopeObject*> scope(cx, &proxy->asDebugScope().scope());
+        ScopeObject &scope = proxy->asDebugScope().scope();
 
-        if (isMissingArgumentsBinding(*scope)) {
+        if (isMissingArgumentsBinding(scope)) {
             if (!props.append(NameToId(cx->names().arguments)))
                 return false;
         }
 
-        if (!GetPropertyNames(cx, scope, flags, &props))
+        RootedObject rootedScope(cx, &scope);
+        if (!GetPropertyNames(cx, rootedScope, flags, &props))
             return false;
 
         /*
          * Function scopes are optimized to not contain unaliased variables so
          * they must be manually appended here.
          */
-        if (scope->isCall() && !scope->asCall().isForEval()) {
-            RootedScript script(cx, scope->asCall().callee().nonLazyScript());
+        if (scope.isCall() && !scope.asCall().isForEval()) {
+            RootedScript script(cx, scope.asCall().callee().nonLazyScript());
             for (BindingIter bi(script); bi; bi++) {
                 if (!bi->aliased() && !props.append(NameToId(bi->name())))
                     return false;
@@ -1895,15 +1896,9 @@ DebugScopes::onCompartmentLeaveDebugMode(JSCompartment *c)
 {
     DebugScopes *scopes = c->debugScopes;
     if (scopes) {
-        if (c->rt->isHeapBusy()) {
-            scopes->proxiedScopes.clearWithoutCallingDestructors();
-            scopes->missingScopes.clearWithoutCallingDestructors();
-            scopes->liveScopes.clearWithoutCallingDestructors();
-        } else {
-            scopes->proxiedScopes.clear();
-            scopes->missingScopes.clear();
-            scopes->liveScopes.clear();
-        }
+        scopes->proxiedScopes.clear();
+        scopes->missingScopes.clear();
+        scopes->liveScopes.clear();
     }
 }
 
@@ -2124,7 +2119,7 @@ GetDebugScope(JSContext *cx, const ScopeIter &si)
 }
 
 JSObject *
-js::GetDebugScopeForFunction(JSContext *cx, HandleFunction fun)
+js::GetDebugScopeForFunction(JSContext *cx, JSFunction *fun)
 {
     assertSameCompartment(cx, fun);
     JS_ASSERT(cx->compartment->debugMode());

@@ -766,10 +766,8 @@ inline js::types::TypeObject *
 JSObject::getType(JSContext *cx)
 {
     JS_ASSERT(cx->compartment == compartment());
-    if (hasLazyType()) {
-        js::RootedObject self(cx, this);
-        return makeLazyType(cx, self);
-    }
+    if (hasLazyType())
+        return makeLazyType(cx);
     return type_;
 }
 
@@ -1771,18 +1769,18 @@ DefineConstructorAndPrototype(JSContext *cx, Handle<GlobalObject*> global,
 }
 
 inline bool
-ObjectClassIs(HandleObject obj, ESClassValue classValue, JSContext *cx)
+ObjectClassIs(JSObject &obj, ESClassValue classValue, JSContext *cx)
 {
-    if (JS_UNLIKELY(obj->isProxy()))
-        return Proxy::objectClassIs(obj, classValue, cx);
+    if (JS_UNLIKELY(obj.isProxy()))
+        return Proxy::objectClassIs(&obj, classValue, cx);
 
     switch (classValue) {
-      case ESClass_Array: return obj->isArray();
-      case ESClass_Number: return obj->isNumber();
-      case ESClass_String: return obj->isString();
-      case ESClass_Boolean: return obj->isBoolean();
-      case ESClass_RegExp: return obj->isRegExp();
-      case ESClass_ArrayBuffer: return obj->isArrayBuffer();
+      case ESClass_Array: return obj.isArray();
+      case ESClass_Number: return obj.isNumber();
+      case ESClass_String: return obj.isString();
+      case ESClass_Boolean: return obj.isBoolean();
+      case ESClass_RegExp: return obj.isRegExp();
+      case ESClass_ArrayBuffer: return obj.isArrayBuffer();
     }
     JS_NOT_REACHED("bad classValue");
     return false;
@@ -1793,8 +1791,7 @@ IsObjectWithClass(const Value &v, ESClassValue classValue, JSContext *cx)
 {
     if (!v.isObject())
         return false;
-    js::RootedObject obj(cx, &v.toObject());
-    return ObjectClassIs(obj, classValue, cx);
+    return ObjectClassIs(v.toObject(), classValue, cx);
 }
 
 static JS_ALWAYS_INLINE bool

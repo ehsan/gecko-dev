@@ -718,30 +718,21 @@ SampleValue(float aPortion, Animation& aAnimation, nsStyleAnimation::Value& aSta
 
   TransformData& data = aAnimation.data().get_TransformData();
   nsPoint origin = data.origin();
-  // we expect all our transform data to arrive in css pixels, so here we must
-  // adjust to dev pixels.
-  double cssPerDev = double(nsDeviceContext::AppUnitsPerCSSPixel())
-                     / double(data.appUnitsPerDevPixel());
-  gfxPoint3D mozOrigin = data.mozOrigin();
-  mozOrigin.x = mozOrigin.x * cssPerDev;
-  mozOrigin.y = mozOrigin.y * cssPerDev;
-  gfxPoint3D perspectiveOrigin = data.perspectiveOrigin();
-  perspectiveOrigin.x = perspectiveOrigin.x * cssPerDev;
-  perspectiveOrigin.y = perspectiveOrigin.y * cssPerDev;
+  int32_t auPerCSSPixel = nsDeviceContext::AppUnitsPerCSSPixel();
   nsDisplayTransform::FrameTransformProperties props(interpolatedList,
-                                                     mozOrigin,
-                                                     perspectiveOrigin,
+                                                     data.mozOrigin(),
+                                                     data.perspectiveOrigin(),
                                                      data.perspective());
   gfx3DMatrix transform =
-    nsDisplayTransform::GetResultingTransformMatrix(props, origin,
-                                                    data.appUnitsPerDevPixel(),
+    nsDisplayTransform::GetResultingTransformMatrix(props, data.origin(),
+                                                    nsDeviceContext::AppUnitsPerCSSPixel(),
                                                     &data.bounds());
-  gfxPoint3D scaledOrigin =
-    gfxPoint3D(NS_round(NSAppUnitsToFloatPixels(origin.x, data.appUnitsPerDevPixel())),
-               NS_round(NSAppUnitsToFloatPixels(origin.y, data.appUnitsPerDevPixel())),
+  // NB: See nsDisplayTransform::GetTransform().
+  gfxPoint3D newOrigin =
+    gfxPoint3D(NS_round(NSAppUnitsToFloatPixels(origin.x, auPerCSSPixel)),
+               NS_round(NSAppUnitsToFloatPixels(origin.y, auPerCSSPixel)),
                0.0f);
-
-  transform.Translate(scaledOrigin);
+  transform.Translate(newOrigin);
 
   InfallibleTArray<TransformFunction> functions;
   functions.AppendElement(TransformMatrix(transform));

@@ -514,7 +514,7 @@ class ScopeIterKey
  */
 
 extern JSObject *
-GetDebugScopeForFunction(JSContext *cx, HandleFunction fun);
+GetDebugScopeForFunction(JSContext *cx, JSFunction *fun);
 
 extern JSObject *
 GetDebugScopeForFrame(JSContext *cx, AbstractFramePtr frame);

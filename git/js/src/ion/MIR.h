@@ -1218,7 +1218,7 @@ class MParBailout : public MAryControlInstruction<0, 0>
     INSTRUCTION_HEADER(ParBailout);
 
     MParBailout()
-      : MAryControlInstruction<0, 0>()
+      : MAryControlInstruction()
     {
         setResultType(MIRType_Undefined);
         setGuard();

@@ -32,7 +32,7 @@ using namespace std;
 
 #include "mtransport_test_utils.h"
 MtransportTestUtils *test_utils;
-nsCOMPtr<nsIThread> gThread;
+
 
 
 static int kDefaultTimeout = 5000;
@@ -120,18 +120,6 @@ enum offerAnswerFlags
   ANSWER_AV = ANSWER_AUDIO | ANSWER_VIDEO
 };
 
-static bool SetupGlobalThread() {
-  if (!gThread) {
-    nsIThread *thread;
-
-    nsresult rv = NS_NewThread(&thread);
-    if (NS_FAILED(rv))
-      return false;
-
-    gThread = thread;
-  }
-  return true;
-}
 
 class TestObserver : public IPeerConnectionObserver,
                      public nsSupportsWeakReference
@@ -528,6 +516,9 @@ class SignalingAgent {
 
   void Init_m(nsCOMPtr<nsIThread> thread)
   {
+    size_t found = 2;
+    ASSERT_TRUE(found > 0);
+
     pc = sipcc::PeerConnectionImpl::CreatePeerConnection();
     ASSERT_TRUE(pc);
 
@@ -550,42 +541,6 @@ class SignalingAgent {
                      kDefaultTimeout);
     ASSERT_TRUE_WAIT(ice_state() == sipcc::PeerConnectionImpl::kIceWaiting, 5000);
     cout << "Init Complete" << endl;
-  }
-
-  bool InitAllowFail_m(nsCOMPtr<nsIThread> thread)
-  {
-    pc = sipcc::PeerConnectionImpl::CreatePeerConnection();
-    if (!pc)
-      return false;
-
-    pObserver = new TestObserver(pc);
-    if (!pObserver)
-      return false;
-
-    sipcc::RTCConfiguration cfg;
-    cfg.addServer("23.21.150.121", 3478);
-    if (NS_FAILED(pc->Initialize(pObserver, nullptr, cfg, thread)))
-      return false;
-
-    return true;
-  }
-
-  bool InitAllowFail(nsCOMPtr<nsIThread> thread)
-  {
-    bool rv;
-
-    thread->Dispatch(
-        WrapRunnableRet(this, &SignalingAgent::InitAllowFail_m, thread, &rv),
-        NS_DISPATCH_SYNC);
-    if (!rv)
-      return false;
-
-    EXPECT_TRUE_WAIT(sipcc_state() == sipcc::PeerConnectionImpl::kStarted,
-                     kDefaultTimeout);
-    EXPECT_TRUE_WAIT(ice_state() == sipcc::PeerConnectionImpl::kIceWaiting, 5000);
-    cout << "Init Complete" << endl;
-
-    return true;
   }
 
   uint32_t sipcc_state()
@@ -973,39 +928,15 @@ class SignalingEnvironment : public ::testing::Environment {
   }
 };
 
-class SignalingAgentTest : public ::testing::Test {
- public:
-  static void SetUpTestCase() {
-    ASSERT_TRUE(SetupGlobalThread());
-  }
-
-  void TearDown() {
-    // Delete all the agents.
-    for (size_t i=0; i < agents_.size(); i++) {
-      delete agents_[i];
-    }
-  }
-
-  bool CreateAgent() {
-    ScopedDeletePtr<SignalingAgent> agent(new SignalingAgent());
-
-    if (!agent->InitAllowFail(gThread))
-      return false;
-
-    agents_.push_back(agent.forget());
-
-    return true;
-  }
-
- private:
-  std::vector<SignalingAgent *> agents_;
-};
-
-
 class SignalingTest : public ::testing::Test {
 public:
   static void SetUpTestCase() {
-    ASSERT_TRUE(SetupGlobalThread());
+    nsIThread *thread;
+
+    nsresult rv = NS_NewThread(&thread);
+    ASSERT_TRUE(NS_SUCCEEDED(rv));
+
+    gThread = thread;
   }
 
   void SetUp() {
@@ -1130,9 +1061,12 @@ public:
   }
 
  protected:
+  static nsCOMPtr<nsIThread> gThread;
   SignalingAgent a1_;  // Canonically "caller"
   SignalingAgent a2_;  // Canonically "callee"
 };
+
+nsCOMPtr<nsIThread> SignalingTest::gThread;
 
 
 TEST_F(SignalingTest, JustInit)
@@ -1215,8 +1149,7 @@ TEST_F(SignalingTest, CreateOfferDontReceiveVideo)
               SHOULD_SENDRECV_AUDIO | SHOULD_SEND_VIDEO);
 }
 
-// XXX Disabled pending resolution of Bug 840728
-TEST_F(SignalingTest, DISABLED_CreateOfferRemoveAudioStream)
+TEST_F(SignalingTest, CreateOfferRemoveAudioStream)
 {
   sipcc::MediaConstraints constraints;
   constraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
@@ -1225,8 +1158,7 @@ TEST_F(SignalingTest, DISABLED_CreateOfferRemoveAudioStream)
               SHOULD_RECV_AUDIO | SHOULD_SENDRECV_VIDEO);
 }
 
-// XXX Disabled pending resolution of Bug 840728
-TEST_F(SignalingTest, DISABLED_CreateOfferDontReceiveAudioRemoveAudioStream)
+TEST_F(SignalingTest, CreateOfferDontReceiveAudioRemoveAudioStream)
 {
   sipcc::MediaConstraints constraints;
   constraints.setBooleanConstraint("OfferToReceiveAudio", false, false);
@@ -1235,8 +1167,7 @@ TEST_F(SignalingTest, DISABLED_CreateOfferDontReceiveAudioRemoveAudioStream)
               SHOULD_SENDRECV_VIDEO);
 }
 
-// XXX Disabled pending resolution of Bug 840728
-TEST_F(SignalingTest, DISABLED_CreateOfferDontReceiveVideoRemoveVideoStream)
+TEST_F(SignalingTest, CreateOfferDontReceiveVideoRemoveVideoStream)
 {
   sipcc::MediaConstraints constraints;
   constraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
@@ -1920,18 +1851,6 @@ TEST_F(SignalingTest, ipAddrAnyOffer)
     ASSERT_TRUE(a2_.pObserver->state == TestObserver::stateSuccess);
     std::string answer = a2_.answer();
     ASSERT_NE(answer.find("a=sendrecv"), std::string::npos);
-}
-
-TEST_F(SignalingAgentTest, CreateUntilFailThenWait) {
-  int i;
-
-  for (i=0; ; i++) {
-    if (!CreateAgent())
-      break;
-    std::cerr << "Created agent " << i << std::endl;
-  }
-  std::cerr << "Failed after creating " << i << " PCs " << std::endl;
-  PR_Sleep(10000);  // Wait to see if we crash
 }
 
 } // End namespace test.

@@ -357,18 +357,13 @@ class CellIter : public CellIterImpl
       : lists(&comp->zone()->allocator.arenas),
         kind(kind)
     {
-
         /*
          * We have a single-threaded runtime, so there's no need to protect
          * against other threads iterating or allocating. However, we do have
-         * background finalization; we have to wait for this to finish if it's
-         * currently active.
+         * background finalization; make sure people aren't using CellIter to
+         * walk such allocation kinds.
          */
-        if (IsBackgroundFinalized(kind) &&
-            comp->zone()->allocator.arenas.needBackgroundFinalizeWait(kind))
-        {
-            gc::FinishBackgroundFinalize(comp->rt);
-        }
+        JS_ASSERT(!IsBackgroundFinalized(kind));
         if (lists->isSynchronizedFreeList(kind)) {
             lists = NULL;
         } else {

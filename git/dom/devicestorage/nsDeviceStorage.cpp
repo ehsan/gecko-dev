@@ -1837,9 +1837,6 @@ nsDOMDeviceStorage::nsDOMDeviceStorage()
 nsresult
 nsDOMDeviceStorage::Init(nsPIDOMWindow* aWindow, const nsAString &aType)
 {
-  DebugOnly<FileUpdateDispatcher*> observer = FileUpdateDispatcher::GetSingleton();
-  NS_ASSERTION(observer, "FileUpdateDispatcher is null");
-
   NS_ASSERTION(aWindow, "Must have a content dom");
 
   SetRootDirectoryForType(aType);

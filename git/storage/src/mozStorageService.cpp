@@ -822,7 +822,7 @@ Service::Observe(nsISupports *, const char *aTopic, const PRUnichar *)
       }
     } while (anyOpen);
 
-    if (gShutdownChecks == SCM_CRASH) {
+    if (ShutdownChecks == SCM_CRASH) {
       nsTArray<nsRefPtr<Connection> > connections;
       getConnections(connections);
       for (uint32_t i = 0, n = connections.Length(); i < n; i++) {

@@ -33,7 +33,9 @@
  * compilers are not guaranteed to respect it (although they're much more likely
  * to do so).
  */
-#if defined(_MSC_VER)
+#if defined(DEBUG)
+#  define MOZ_ALWAYS_INLINE     MOZ_INLINE
+#elif defined(_MSC_VER)
 #  define MOZ_ALWAYS_INLINE     __forceinline
 #elif defined(__GNUC__)
 #  define MOZ_ALWAYS_INLINE     __attribute__((always_inline)) MOZ_INLINE

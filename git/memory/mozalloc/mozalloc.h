@@ -22,7 +22,6 @@
 #if defined(__cplusplus)
 #include "mozilla/fallible.h"
 #endif
-#include "mozilla/Attributes.h"
 
 #define MOZALLOC_HAVE_XMALLOC
 

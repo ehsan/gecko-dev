@@ -89,7 +89,7 @@ RegExpStatics::executeLazy(JSContext *cx)
      */
 
     size_t length = matchesInput->length();
-    const jschar *chars = matchesInput->chars();
+    StableCharPtr chars(matchesInput->chars(), length);
 
     /* Execute the full regular expression. */
     RegExpRunStatus status = g->execute(cx, chars, length, &this->lazyIndex, this->matches);

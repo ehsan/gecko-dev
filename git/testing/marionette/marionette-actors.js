@@ -260,23 +260,17 @@ MarionetteDriverActor.prototype = {
    *        Used to distinguish the asynchronous responses.
    */
   sendToClient: function MDA_sendToClient(msg, command_id) {
-    logger.info("sendToClient: " + JSON.stringify(msg) + ", " + command_id +
-                ", " + this.command_id);
+    logger.info("sendToClient: " + JSON.stringify(msg) + ", " + command_id + ", " + this.command_id);
     if (!command_id) {
       logger.warn("got a response with no command_id");
-      return;
     }
-    else if (this.command_id && command_id != -1 &&
-             this.command_id != command_id) {
-      // a command_id of -1 is used for emulator callbacks
+    else if (this.command_id &&
+        this.command_id != command_id) {
       logger.warn("ignoring out-of-sync response");
       return;
     }
     this.conn.send(msg);
-    if (command_id != -1) {
-      // Don't unset this.command_id if this message is to process an
-      // emulator callback, since another response for this command_id is
-      // expected, after the containing call to execute_async_script finishes.
+    if (command_id != null) {
       this.command_id = null;
     }
   },
@@ -477,7 +471,6 @@ MarionetteDriverActor.prototype = {
    */
   newSession: function MDA_newSession() {
     this.command_id = this.getCommandId();
-    this.newSessionCommandId = this.command_id;
 
     this.scriptTimeout = 10000;
 
@@ -628,12 +621,12 @@ MarionetteDriverActor.prototype = {
    * @return Sandbox
    *        Returns the sandbox
    */
-  createExecuteSandbox: function MDA_createExecuteSandbox(aWindow, marionette, args, specialPowers, command_id) {
+  createExecuteSandbox: function MDA_createExecuteSandbox(aWindow, marionette, args, specialPowers) {
     try {
       args = this.curBrowser.elementManager.convertWrappedArguments(args, aWindow);
     }
     catch(e) {
-      this.sendError(e.message, e.code, e.stack, command_id);
+      this.sendError(e.message, e.code, e.stack);
       return;
     }
 
@@ -749,8 +742,7 @@ MarionetteDriverActor.prototype = {
     let _chromeSandbox = this.createExecuteSandbox(curWindow,
                                                    marionette,
                                                    aRequest.args,
-                                                   aRequest.specialPowers,
-                                                   command_id);
+                                                   aRequest.specialPowers);
     if (!_chromeSandbox)
       return;
 
@@ -849,7 +841,6 @@ MarionetteDriverActor.prototype = {
   executeWithCallback: function MDA_executeWithCallback(aRequest, directInject) {
     let timeout = aRequest.scriptTimeout ? aRequest.scriptTimeout : this.scriptTimeout;
     let command_id = this.command_id = this.getCommandId();
-    this.logRequest("executeWithCallback", aRequest);
     if (aRequest.newSandbox == undefined) {
       //if client does not send a value in newSandbox, 
       //then they expect the same behaviour as webdriver
@@ -914,11 +905,7 @@ MarionetteDriverActor.prototype = {
       chromeAsyncReturnFunc(marionette.generate_results(), 0);
     }
 
-    let _chromeSandbox = this.createExecuteSandbox(curWindow,
-                                                   marionette,
-                                                   aRequest.args,
-                                                   aRequest.specialPowers,
-                                                   command_id);
+    let _chromeSandbox = this.createExecuteSandbox(curWindow, marionette, aRequest.args, aRequest.specialPowers);
     if (!_chromeSandbox)
       return;
 
@@ -1882,7 +1869,7 @@ MarionetteDriverActor.prototype = {
       }
       this._emu_cbs[this._emu_cb_id] = callback;
     }
-    this.sendToClient({emulator_cmd: cmd, id: this._emu_cb_id}, -1);
+    this.sendToClient({emulator_cmd: cmd, id: this._emu_cb_id});
     this._emu_cb_id += 1;
   },
 
@@ -1905,7 +1892,7 @@ MarionetteDriverActor.prototype = {
       cb(message.result);
     }
     catch(e) {
-      this.sendError(e.message, e.code, e.stack, -1);
+      this.sendError(e.message, e.code, e.stack);
       return;
     }
   },
@@ -1942,8 +1929,7 @@ MarionetteDriverActor.prototype = {
    */
   screenShot: function MDA_saveScreenshot(aRequest) {
     this.sendAsync("screenShot", {element: aRequest.element,
-                                  highlights: aRequest.highlights,
-                                  command_id: this.getCommandId()});
+                                  highlights: aRequest.highlights});
   },
 
   /**
@@ -1967,6 +1953,10 @@ MarionetteDriverActor.prototype = {
     }
 
     switch (message.name) {
+      case "DOMContentLoaded":
+        this.sendOk();
+        this.messageManager.removeMessageListener("DOMContentLoaded", this, true);
+        break;
       case "Marionette:done":
         this.sendResponse(message.json.value, message.json.command_id);
         break;
@@ -1990,7 +1980,7 @@ MarionetteDriverActor.prototype = {
         }
         break;
       case "Marionette:runEmulatorCmd":
-        this.sendToClient(message.json, -1);
+        this.sendToClient(message.json);
         break;
       case "Marionette:switchToFrame":
         // Switch to a remote frame.
@@ -2070,13 +2060,21 @@ MarionetteDriverActor.prototype = {
         if (nullPrevious && (this.curBrowser.curFrameId != null)) {
           this.sendAsync("newSession", {B2G: (appName == "B2G")});
           if (this.curBrowser.newSession) {
-            this.sendResponse(reg.id, this.newSessionCommandId);
-            this.newSessionCommandId = null;
+            this.sendResponse(reg.id);
           }
         }
         return reg;
     }
-  }
+  },
+  /**
+   * for non-e10s eventListening
+   */
+  handleEvent: function MDA_handleEvent(evt) {
+    if (evt.type == "DOMContentLoaded") {
+      this.sendOk();
+      this.curBrowser.browser.removeEventListener("DOMContentLoaded", this, false);
+    }
+  },
 };
 
 MarionetteDriverActor.prototype.requestTypes = {

@@ -237,20 +237,12 @@ let FormAssistant = {
 
     switch (evt.type) {
       case "focus":
-        if (!target) {
-          break;
-        }
-
-        if (target instanceof HTMLDocument || target == content) {
-          break;
-        }
-
-        if (isContentEditable(target)) {
+        if (target && isContentEditable(target)) {
           this.showKeyboard(this.getTopLevelEditable(target));
           break;
         }
 
-        if (this.isFocusableElement(target))
+        if (target && this.isFocusableElement(target))
           this.showKeyboard(target);
         break;
 

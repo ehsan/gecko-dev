@@ -178,7 +178,7 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eSelect | eTable,
     states::FOCUSABLE,
     eARIAMultiSelectable,
-    eARIAReadonlyOrEditable
+    eARIAReadonly
   },
   { // gridcell
     &nsGkAtoms::gridcell,
@@ -190,7 +190,7 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eTableCell,
     kNoReqStates,
     eARIASelectable,
-    eARIAReadonlyOrEditableIfDefined
+    eARIAReadonly
   },
   { // group
     &nsGkAtoms::group,

@@ -262,12 +262,12 @@ UnwrapObject(JSObject *obj, bool stopAtOuter = true, unsigned *flagsp = NULL);
 // code should never be unwrapping outer window wrappers, we always stop at
 // outer windows.
 JS_FRIEND_API(JSObject *)
-UnwrapObjectChecked(RawObject obj, bool stopAtOuter = true);
+UnwrapObjectChecked(RawObject obj);
 
 // Unwrap only the outermost security wrapper, with the same semantics as
 // above. This is the checked version of Wrapper::wrappedObject.
 JS_FRIEND_API(JSObject *)
-UnwrapOneChecked(RawObject obj, bool stopAtOuter = true);
+UnwrapOneChecked(RawObject obj);
 
 JS_FRIEND_API(bool)
 IsCrossCompartmentWrapper(RawObject obj);

@@ -300,8 +300,7 @@ AddAnimationsForProperty(nsIFrame* aFrame, nsCSSProperty aProperty,
   nsStyleContext* styleContext = aFrame->GetStyleContext();
   nsPresContext* presContext = aFrame->PresContext();
   nsRect bounds = nsDisplayTransform::GetFrameBoundsForTransform(aFrame);
-  // all data passed directly to the compositor should be in css pixels
-  float scale = nsDeviceContext::AppUnitsPerCSSPixel();
+  float scale = presContext->AppUnitsPerDevPixel();
 
   TimeStamp startTime = ea->mStartTime + ea->mDelay;
   TimeDuration duration = ea->mIterationDuration;
@@ -380,7 +379,6 @@ AddAnimationsAndTransitionsToLayer(Layer* aLayer, nsDisplayListBuilder* aBuilder
   AnimationData data;
   if (aProperty == eCSSProperty_transform) {
     nsRect bounds = nsDisplayTransform::GetFrameBoundsForTransform(frame);
-    // all data passed directly to the compositor should be in css pixels
     float scale = nsDeviceContext::AppUnitsPerCSSPixel();
     gfxPoint3D offsetToTransformOrigin =
       nsDisplayTransform::GetDeltaToMozTransformOrigin(frame, scale, &bounds);
@@ -397,8 +395,7 @@ AddAnimationsAndTransitionsToLayer(Layer* aLayer, nsDisplayListBuilder* aBuilder
     nsPoint origin = aItem->ToReferenceFrame();
 
     data = TransformData(origin, offsetToTransformOrigin,
-                         offsetToPerspectiveOrigin, bounds, perspective,
-                         frame->PresContext()->AppUnitsPerDevPixel());
+                         offsetToPerspectiveOrigin, bounds, perspective);
   } else if (aProperty == eCSSProperty_opacity) {
     data = null_t();
   }
@@ -1605,14 +1602,11 @@ nsDisplayBackgroundImage::AppendBackgroundItemsToTop(nsDisplayListBuilder* aBuil
                                                drawBackgroundImage, drawBackgroundColor);
   }
 
-  // Even if we don't actually have a background color to paint, we may still need
-  // to create an item for hit testing.
-  if ((drawBackgroundColor && color != NS_RGBA(0,0,0,0)) ||
-      aBuilder->IsForEventDelivery()) {
-    aList->AppendNewToTop(
-        new (aBuilder) nsDisplayBackgroundColor(aBuilder, aFrame, bg,
-                                                drawBackgroundColor ? color : NS_RGBA(0, 0, 0, 0)));
-  }
+  // Even if we don't actually have a background color to paint, we still need
+  // to create the item because it's used for hit testing.
+  aList->AppendNewToTop(
+      new (aBuilder) nsDisplayBackgroundColor(aBuilder, aFrame, bg,
+                                              drawBackgroundColor ? color : NS_RGBA(0, 0, 0, 0)));
 
   if (isThemed) {
     nsDisplayBackgroundImage* bgItem =

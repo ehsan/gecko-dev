@@ -62,11 +62,6 @@ using namespace js;
 using namespace js::gc;
 using namespace js::frontend;
 
-typedef Rooted<StaticBlockObject*> RootedStaticBlockObject;
-typedef Handle<StaticBlockObject*> HandleStaticBlockObject;
-
-typedef MutableHandle<PropertyName*> MutableHandlePropertyName;
-
 /*
  * Insist that the next token be of type tt, or report errno and return null.
  * NB: this macro uses cx and ts from its lexical environment.
@@ -107,7 +102,7 @@ PushStatementPC(ParseContext *pc, StmtInfoPC *stmt, StmtType type)
 
 // See comment on member function declaration.
 bool
-ParseContext::define(JSContext *cx, HandlePropertyName name, ParseNode *pn, Definition::Kind kind)
+ParseContext::define(JSContext *cx, PropertyName *name, ParseNode *pn, Definition::Kind kind)
 {
     JS_ASSERT(!pn->isUsed());
     JS_ASSERT_IF(pn->isDefn(), pn->isPlaceholder());
@@ -312,7 +307,7 @@ ParseContext::generateFunctionBindings(JSContext *cx, InternalHandle<Bindings*> 
 }
 
 Parser::Parser(JSContext *cx, const CompileOptions &options,
-               const jschar *chars, size_t length, bool foldConstants)
+               StableCharPtr chars, size_t length, bool foldConstants)
   : AutoGCRooter(cx, PARSER),
     context(cx),
     strictModeGetter(thisForCtor()),
@@ -789,7 +784,7 @@ Parser::functionBody(FunctionBodyType type)
     }
 
     /* Time to implement the odd semantics of 'arguments'. */
-    HandlePropertyName arguments = context->names().arguments;
+    Handle<PropertyName*> arguments = context->names().arguments;
 
     /*
      * Non-top-level functions use JSOP_DEFFUN which is a dynamic scope
@@ -1051,7 +1046,7 @@ struct frontend::BindData {
     struct LetData {
         LetData(JSContext *cx) : blockObj(cx) {}
         VarContext varContext;
-        RootedStaticBlockObject blockObj;
+        Rooted<StaticBlockObject*> blockObj;
         unsigned   overflow;
     } let;
 
@@ -1145,7 +1140,7 @@ DeoptimizeUsesWithin(Definition *dn, const TokenPos &pos)
  * parsing, use Parser::functionBody.
  */
 static bool
-LeaveFunction(ParseNode *fn, Parser *parser, HandlePropertyName funName,
+LeaveFunction(ParseNode *fn, Parser *parser, PropertyName *funName = NULL,
               FunctionSyntaxKind kind = Expression)
 {
     JSContext *cx = parser->context;
@@ -2008,16 +2003,16 @@ Parser::condition()
 }
 
 static bool
-MatchLabel(JSContext *cx, TokenStream *ts, MutableHandlePropertyName label)
+MatchLabel(JSContext *cx, TokenStream *ts, PropertyName **label)
 {
     TokenKind tt = ts->peekTokenSameLine(TSF_OPERAND);
     if (tt == TOK_ERROR)
         return false;
     if (tt == TOK_NAME) {
         (void) ts->getToken();
-        label.set(ts->currentToken().name());
+        *label = ts->currentToken().name();
     } else {
-        label.set(NULL);
+        *label = NULL;
     }
     return true;
 }
@@ -2098,10 +2093,9 @@ BindLet(JSContext *cx, BindData *data, HandlePropertyName name, Parser *parser)
 
 template <class Op>
 static inline bool
-ForEachLetDef(JSContext *cx, ParseContext *pc, HandleStaticBlockObject blockObj, Op op)
+ForEachLetDef(JSContext *cx, ParseContext *pc, StaticBlockObject &blockObj, Op op)
 {
-    for (Shape::Range r = blockObj->lastProperty()->all(); !r.empty(); r.popFront()) {
-        Shape::Range::AutoRooter rooter(cx, &r);
+    for (Shape::Range r = blockObj.lastProperty()->all(); !r.empty(); r.popFront()) {
         Shape &shape = r.front();
 
         /* Beware the destructuring dummy slots. */
@@ -2115,9 +2109,7 @@ ForEachLetDef(JSContext *cx, ParseContext *pc, HandleStaticBlockObject blockObj,
 }
 
 struct PopLetDecl {
-    bool operator()(JSContext *, ParseContext *pc, HandleStaticBlockObject, const Shape &,
-                    JSAtom *atom)
-    {
+    bool operator()(JSContext *, ParseContext *pc, StaticBlockObject &, const Shape &, JSAtom *atom) {
         pc->popLetDecl(atom);
         return true;
     }
@@ -2126,14 +2118,14 @@ struct PopLetDecl {
 static void
 PopStatementPC(JSContext *cx, ParseContext *pc)
 {
-    RootedStaticBlockObject blockObj(cx, pc->topStmt->blockObj);
+    StaticBlockObject *blockObj = pc->topStmt->blockObj;
     JS_ASSERT(!!blockObj == (pc->topStmt->isBlockScope));
 
     FinishPopStatement(pc);
 
     if (blockObj) {
         JS_ASSERT(!blockObj->inDictionaryMode());
-        ForEachLetDef(cx, pc, blockObj, PopLetDecl());
+        ForEachLetDef(cx, pc, *blockObj, PopLetDecl());
         blockObj->resetPrevBlockChainFromParser();
     }
 }
@@ -2605,23 +2597,21 @@ Parser::returnOrYield(bool useAssignExpr)
 }
 
 static ParseNode *
-PushLexicalScope(JSContext *cx, Parser *parser, HandleStaticBlockObject blockObj, StmtInfoPC *stmt)
+PushLexicalScope(JSContext *cx, Parser *parser, StaticBlockObject &blockObj, StmtInfoPC *stmt)
 {
-    JS_ASSERT(blockObj);
-
     ParseNode *pn = LexicalScopeNode::create(PNK_LEXICALSCOPE, parser);
     if (!pn)
         return NULL;
 
-    ObjectBox *blockbox = parser->newObjectBox(blockObj);
+    ObjectBox *blockbox = parser->newObjectBox(&blockObj);
     if (!blockbox)
         return NULL;
 
     ParseContext *pc = parser->pc;
 
     PushStatementPC(pc, stmt, STMT_BLOCK);
-    blockObj->initPrevBlockChainFromParser(pc->blockChain);
-    FinishPushBlockScope(pc, stmt, *blockObj.get());
+    blockObj.initPrevBlockChainFromParser(pc->blockChain);
+    FinishPushBlockScope(pc, stmt, blockObj);
 
     pn->setOp(JSOP_LEAVEBLOCK);
     pn->pn_objbox = blockbox;
@@ -2636,11 +2626,11 @@ PushLexicalScope(JSContext *cx, Parser *parser, HandleStaticBlockObject blockObj
 static ParseNode *
 PushLexicalScope(JSContext *cx, Parser *parser, StmtInfoPC *stmt)
 {
-    RootedStaticBlockObject blockObj(cx, StaticBlockObject::create(cx));
+    StaticBlockObject *blockObj = StaticBlockObject::create(cx);
     if (!blockObj)
         return NULL;
 
-    return PushLexicalScope(cx, parser, blockObj, stmt);
+    return PushLexicalScope(cx, parser, *blockObj, stmt);
 }
 
 #if JS_HAS_BLOCK_SCOPE
@@ -2651,20 +2641,17 @@ struct AddLetDecl
 
     AddLetDecl(uint32_t blockid) : blockid(blockid) {}
 
-    bool operator()(JSContext *cx, ParseContext *pc, HandleStaticBlockObject blockObj,
-                    const Shape &shape, JSAtom *)
-        {
-        ParseNode *def = (ParseNode *) blockObj->getSlot(shape.slot()).toPrivate();
+    bool operator()(JSContext *cx, ParseContext *pc, StaticBlockObject &blockObj, const Shape &shape, JSAtom *)
+    {
+        ParseNode *def = (ParseNode *) blockObj.getSlot(shape.slot()).toPrivate();
         def->pn_blockid = blockid;
-        RootedPropertyName name(cx, def->name());
-        return pc->define(cx, name, def, Definition::LET);
+        return pc->define(cx, def->name(), def, Definition::LET);
     }
 };
 
 static ParseNode *
-PushLetScope(JSContext *cx, Parser *parser, HandleStaticBlockObject blockObj, StmtInfoPC *stmt)
+PushLetScope(JSContext *cx, Parser *parser, StaticBlockObject &blockObj, StmtInfoPC *stmt)
 {
-    JS_ASSERT(blockObj);
     ParseNode *pn = PushLexicalScope(cx, parser, blockObj, stmt);
     if (!pn)
         return NULL;
@@ -2693,7 +2680,7 @@ Parser::letBlock(LetContext letContext)
     if (!pnlet)
         return NULL;
 
-    RootedStaticBlockObject blockObj(context, StaticBlockObject::create(context));
+    Rooted<StaticBlockObject*> blockObj(context, StaticBlockObject::create(context));
     if (!blockObj)
         return NULL;
 
@@ -2706,7 +2693,7 @@ Parser::letBlock(LetContext letContext)
     MUST_MATCH_TOKEN(TOK_RP, JSMSG_PAREN_AFTER_LET);
 
     StmtInfoPC stmtInfo(context);
-    ParseNode *block = PushLetScope(context, this, blockObj, &stmtInfo);
+    ParseNode *block = PushLetScope(context, this, *blockObj, &stmtInfo);
     if (!block)
         return NULL;
 
@@ -3016,7 +3003,7 @@ Parser::forStatement()
     bool forDecl = false;
 
     /* Non-null when forDecl is true for a 'for (let ...)' statement. */
-    RootedStaticBlockObject blockObj(context);
+    Rooted<StaticBlockObject*> blockObj(context);
 
     /* Set to 'x' in 'for (x ;... ;...)' or 'for (x in ...)'. */
     ParseNode *pn1;
@@ -3198,7 +3185,7 @@ Parser::forStatement()
              * created by PushLetScope around the for's initializer. This also
              * serves to indicate the let-decl to the emitter.
              */
-            ParseNode *block = PushLetScope(context, this, blockObj, &letStmt);
+            ParseNode *block = PushLetScope(context, this, *blockObj, &letStmt);
             if (!block)
                 return NULL;
             letStmt.isForLetBlock = true;
@@ -3254,7 +3241,7 @@ Parser::forStatement()
              * Desugar 'for (let A; B; C) D' into 'let (A) { for (; B; C) D }'
              * to induce the correct scoping for A.
              */
-            ParseNode *block = PushLetScope(context, this, blockObj, &letStmt);
+            ParseNode *block = PushLetScope(context, this, *blockObj, &letStmt);
             if (!block)
                 return NULL;
             letStmt.isForLetBlock = true;
@@ -3683,7 +3670,7 @@ Parser::expressionStatement()
             reportError(NULL, JSMSG_BAD_LABEL);
             return NULL;
         }
-        RootedAtom label(context, pn2->pn_atom);
+        JSAtom *label = pn2->pn_atom;
         for (StmtInfoPC *stmt = pc->topStmt; stmt; stmt = stmt->down) {
             if (stmt->type == STMT_LABEL && stmt->label == label) {
                 reportError(NULL, JSMSG_DUPLICATE_LABEL);
@@ -3867,11 +3854,11 @@ Parser::statement()
       case TOK_BREAK:
       {
         TokenPtr begin = tokenStream.currentToken().pos.begin;
-        RootedPropertyName label(context);
+        PropertyName *label;
         if (!MatchLabel(context, &tokenStream, &label))
             return NULL;
         TokenPtr end = tokenStream.currentToken().pos.end;
-        pn = new_<BreakStatement>(label.get(), begin, end);
+        pn = new_<BreakStatement>(label, begin, end);
         if (!pn)
             return NULL;
         StmtInfoPC *stmt = pc->topStmt;
@@ -3900,11 +3887,11 @@ Parser::statement()
       case TOK_CONTINUE:
       {
         TokenPtr begin = tokenStream.currentToken().pos.begin;
-        RootedPropertyName label(context);
+        PropertyName *label;
         if (!MatchLabel(context, &tokenStream, &label))
             return NULL;
         TokenPtr end = tokenStream.currentToken().pos.begin;
-        pn = new_<ContinueStatement>(label.get(), begin, end);
+        pn = new_<ContinueStatement>(label, begin, end);
         if (!pn)
             return NULL;
         StmtInfoPC *stmt = pc->topStmt;
@@ -5297,8 +5284,7 @@ Parser::generatorExpr(ParseNode *kid)
             return NULL;
         }
 
-        RootedPropertyName funName(context);
-        if (!LeaveFunction(genfn, this, funName))
+        if (!LeaveFunction(genfn, this))
             return NULL;
     }
 
@@ -6026,7 +6012,7 @@ Parser::primaryExpr(TokenKind tt)
             return NULL;
 
         size_t length = tokenStream.getTokenbuf().length();
-        const jschar *chars = tokenStream.getTokenbuf().begin();
+        const StableCharPtr chars(tokenStream.getTokenbuf().begin(), length);
         RegExpFlag flags = tokenStream.currentToken().regExpFlags();
         RegExpStatics *res = context->regExpStatics();
 
