@@ -3142,12 +3142,11 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
       !(aFlags & PAINT_DOCUMENT_RELATIVE)) {
     nsIWidget *widget = aFrame->GetNearestWidget();
     if (widget) {
-      nsRegion opaqueRegion;
-      opaqueRegion.And(builder.GetWindowExcludeGlassRegion(), builder.GetWindowOpaqueRegion());
+      nsRegion opaqueRegion = builder.GetWindowOpaqueRegion();
       widget->UpdateOpaqueRegion(
         opaqueRegion.ToNearestPixels(presContext->AppUnitsPerDevPixel()));
 
-      const nsRegion& draggingRegion = builder.GetWindowDraggingRegion();
+      nsRegion draggingRegion = builder.GetWindowDraggingRegion();
       widget->UpdateWindowDraggingRegion(
         draggingRegion.ToNearestPixels(presContext->AppUnitsPerDevPixel()));
     }
@@ -5210,20 +5209,6 @@ TileNearRect(const nsRect& aAnyTile, const nsRect& aTargetRect)
                             distance.y / aAnyTile.height * aAnyTile.height);
 }
 
-static gfxFloat
-StableRound(gfxFloat aValue)
-{
-  // Values slightly less than 0.5 should round up like 0.5 would; we're
-  // assuming they were meant to be 0.5.
-  return floor(aValue + 0.5001);
-}
-
-static gfxPoint
-StableRound(const gfxPoint& aPoint)
-{
-  return gfxPoint(StableRound(aPoint.x), StableRound(aPoint.y));
-}
-
 /**
  * Given a set of input parameters, compute certain output parameters
  * for drawing an image with the image snapping algorithm.
@@ -5330,11 +5315,11 @@ ComputeSnappedImageDrawingParameters(gfxContext*     aCtx,
       MapToFloatImagePixels(imageSize, devPixelDest, anchorPoint);
 
     if (didSnap) {
-      imageSpaceAnchorPoint = StableRound(imageSpaceAnchorPoint);
+      imageSpaceAnchorPoint.Round();
       anchorPoint = imageSpaceAnchorPoint;
       anchorPoint = MapToFloatUserPixels(imageSize, devPixelDest, anchorPoint);
       anchorPoint = currentMatrix.Transform(anchorPoint);
-      anchorPoint = StableRound(anchorPoint);
+      anchorPoint.Round();
     }
 
     gfxRect anchoredDestRect(anchorPoint, scaledDest);
@@ -6106,6 +6091,12 @@ nsLayoutUtils::SurfaceFromElement(HTMLVideoElement* aElement,
   SurfaceFromElementResult result;
 
   NS_WARN_IF_FALSE((aSurfaceFlags & SFE_PREFER_NO_PREMULTIPLY_ALPHA) == 0, "We can't support non-premultiplied alpha for video!");
+
+#ifdef MOZ_EME
+  if (aElement->ContainsRestrictedContent()) {
+    return result;
+  }
+#endif
 
   uint16_t readyState;
   if (NS_SUCCEEDED(aElement->GetReadyState(&readyState)) &&

@@ -606,6 +606,11 @@ void HTMLMediaElement::ShutdownDecoder()
 {
   RemoveMediaElementFromURITable();
   NS_ASSERTION(mDecoder, "Must have decoder to shut down");
+  // TODO: This should be handled by ChangeNetworkState() so we have only one
+  // place to call StopProgress().
+  if (mNetworkState == nsIDOMHTMLMediaElement::NETWORK_LOADING) {
+    mDecoder->StopProgress();
+  }
   mDecoder->Shutdown();
   mDecoder = nullptr;
 }
@@ -1787,7 +1792,11 @@ HTMLMediaElement::CaptureStreamInternal(bool aFinishWhenEnded)
   if (!window) {
     return nullptr;
   }
-
+#ifdef MOZ_EME
+  if (ContainsRestrictedContent()) {
+    return nullptr;
+  }
+#endif
   OutputMediaStream* out = mOutputStreams.AppendElement();
 #ifdef DEBUG
   // Estimate hints based on the type of the media element
@@ -3992,10 +4001,21 @@ HTMLMediaElement::GetMediaKeys() const
   return mMediaKeys;
 }
 
+bool
+HTMLMediaElement::ContainsRestrictedContent()
+{
+  return GetMediaKeys() != nullptr;
+}
+
 already_AddRefed<Promise>
 HTMLMediaElement::SetMediaKeys(mozilla::dom::MediaKeys* aMediaKeys,
                                ErrorResult& aRv)
 {
+  if (MozAudioCaptured()) {
+    aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
+    return nullptr;
+  }
+
   nsCOMPtr<nsIGlobalObject> global =
     do_QueryInterface(OwnerDoc()->GetInnerWindow());
   if (!global) {
@@ -4019,7 +4039,7 @@ HTMLMediaElement::SetMediaKeys(mozilla::dom::MediaKeys* aMediaKeys,
     mMediaKeys->Shutdown();
     mMediaKeys = nullptr;
   }
-
+  
   mMediaKeys = aMediaKeys;
   if (mMediaKeys) {
     if (NS_FAILED(mMediaKeys->Bind(this))) {
@@ -4030,6 +4050,8 @@ HTMLMediaElement::SetMediaKeys(mozilla::dom::MediaKeys* aMediaKeys,
     if (mDecoder) {
       mDecoder->SetCDMProxy(mMediaKeys->GetCDMProxy());
     }
+    // Update the same-origin status.
+    NotifyDecoderPrincipalChanged();
   }
   promise->MaybeResolve(JS::UndefinedHandleValue);
   return promise.forget();

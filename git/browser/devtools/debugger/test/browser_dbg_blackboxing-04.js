@@ -9,12 +9,13 @@
 const TAB_URL = EXAMPLE_URL + "doc_blackboxing.html";
 const BLACKBOXME_URL = EXAMPLE_URL + "code_blackboxing_blackboxme.js"
 
-let gTab, gPanel, gDebugger;
+let gTab, gDebuggee, gPanel, gDebugger;
 let gFrames;
 
 function test() {
-  initDebugger(TAB_URL).then(([aTab,, aPanel]) => {
+  initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
     gTab = aTab;
+    gDebuggee = aDebuggee;
     gPanel = aPanel;
     gDebugger = gPanel.panelWin;
     gFrames = gDebugger.DebuggerView.StackFrames;
@@ -45,12 +46,15 @@ function testBlackBoxStack() {
       "And 'one', 'two', and 'three' should each have their own black boxed frame.");
   });
 
-  callInTab(gTab, "one");
+  // Spin the event loop before causing the debuggee to pause, to allow
+  // this function to return first.
+  executeSoon(() => gDebuggee.one());
   return finished;
 }
 
 registerCleanupFunction(function() {
   gTab = null;
+  gDebuggee = null;
   gPanel = null;
   gDebugger = null;
   gFrames = null;

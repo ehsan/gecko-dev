@@ -70,7 +70,6 @@
 #include "mozilla/layers/ImageBridgeParent.h"
 #include "mozilla/layers/SharedBufferManagerParent.h"
 #include "mozilla/net/NeckoParent.h"
-#include "mozilla/plugins/PluginBridge.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
 #include "mozilla/StaticPtr.h"
@@ -921,20 +920,6 @@ ContentParent::AnswerBridgeToChildProcess(const uint64_t& id)
         KillHard();
         return false;
     }
-}
-
-bool
-ContentParent::AnswerLoadPlugin(const uint32_t& aPluginId)
-{
-    return mozilla::plugins::SetupBridge(aPluginId, this);
-}
-
-bool
-ContentParent::RecvFindPlugins(const uint32_t& aPluginEpoch,
-                               nsTArray<PluginTag>* aPlugins,
-                               uint32_t* aNewPluginEpoch)
-{
-    return mozilla::plugins::FindPluginsForContent(aPluginEpoch, aPlugins, aNewPluginEpoch);
 }
 
 /*static*/ TabParent*

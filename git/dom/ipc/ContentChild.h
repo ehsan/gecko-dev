@@ -101,10 +101,6 @@ public:
     }
     nsRefPtr<ContentBridgeParent> mLastBridge;
 
-    PPluginModuleParent *
-    AllocPPluginModuleParent(mozilla::ipc::Transport* transport,
-                             base::ProcessId otherProcess) MOZ_OVERRIDE;
-
     PContentBridgeParent*
     AllocPContentBridgeParent(mozilla::ipc::Transport* transport,
                               base::ProcessId otherProcess) MOZ_OVERRIDE;

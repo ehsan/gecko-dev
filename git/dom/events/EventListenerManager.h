@@ -16,7 +16,6 @@
 #include "nsIDOMEventListener.h"
 #include "nsTObserverArray.h"
 
-class nsIDocShell;
 class nsIDOMEvent;
 class nsIEventListenerInfo;
 class nsIScriptContext;
@@ -420,8 +419,6 @@ protected:
   nsresult HandleEventSubType(Listener* aListener,
                               nsIDOMEvent* aDOMEvent,
                               dom::EventTarget* aCurrentTarget);
-
-  nsIDocShell* GetDocShellForTarget();
 
   /**
    * Compile the "inline" event listener for aListener.  The

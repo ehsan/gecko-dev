@@ -1330,7 +1330,7 @@ nsBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     // in calculating glass margins on Windows.
     const nsStyleDisplay* styles = StyleDisplay();
     if (styles && styles->mAppearance == NS_THEME_WIN_EXCLUDE_GLASS) {
-      aBuilder->AddWindowExcludeGlassRegion(
+      aBuilder->AddWindowOpaqueRegion(
           nsRect(aBuilder->ToReferenceFrame(this), GetSize()));
     }
 

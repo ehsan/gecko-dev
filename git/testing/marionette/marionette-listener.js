@@ -1761,10 +1761,8 @@ function switchToFrame(msg) {
         // and we land up here. Let's not give up and check if there are
         // iframes and switch to the indexed frame there
         let iframes = curFrame.document.getElementsByTagName("iframe");
-        if (msg.json.id >= 0 && msg.json.id < iframes.length) {
-          curFrame = iframes[msg.json.id];
-          foundFrame = msg.json.id;
-        }
+        curFrame = iframes[msg.json.id];
+        foundFrame = msg.json.id
       }
     }
   }

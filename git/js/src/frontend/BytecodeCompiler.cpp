@@ -386,9 +386,6 @@ frontend::CompileScript(ExclusiveContext *cx, LifoAlloc *alloc, HandleObject sco
         if (!NameFunctions(cx, pn))
             return nullptr;
 
-        if (!bce.updateLocalsToFrameSlots())
-            return nullptr;
-
         if (!EmitTree(cx, &bce, pn))
             return nullptr;
 
@@ -426,7 +423,7 @@ frontend::CompileScript(ExclusiveContext *cx, LifoAlloc *alloc, HandleObject sco
     // frame.
     InternalHandle<Bindings*> bindings(script, &script->bindings);
     if (!Bindings::initWithTemporaryStorage(cx, bindings, 0, 0, 0,
-                                            pc->blockScopeDepth, 0, 0, nullptr))
+                                            pc->blockScopeDepth, nullptr))
     {
         return nullptr;
     }

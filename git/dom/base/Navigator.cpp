@@ -1099,10 +1099,7 @@ Navigator::SendBeacon(const nsAString& aUrl,
   }
   bool isForeign = true;
   thirdPartyUtil->IsThirdPartyWindow(mWindow, uri, &isForeign);
-  uint32_t thirdPartyFlags = isForeign ?
-    0 :
-    nsIHttpChannelInternal::THIRD_PARTY_FORCE_ALLOW;
-  httpChannelInternal->SetThirdPartyFlags(thirdPartyFlags);
+  httpChannelInternal->SetForceAllowThirdPartyCookie(!isForeign);
 
   nsCString mimeType;
   if (!aData.IsNull()) {
