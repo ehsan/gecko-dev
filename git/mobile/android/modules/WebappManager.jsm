@@ -23,7 +23,6 @@ Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://gre/modules/PluralForm.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "Notifications", "resource://gre/modules/Notifications.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "sendMessageToJava", "resource://gre/modules/Messaging.jsm");
 
 XPCOMUtils.defineLazyGetter(this, "Strings", function() {
   return Services.strings.createBundle("chrome://browser/locale/webapp.properties");
@@ -35,9 +34,13 @@ function debug(aMessage) {
   // append a newline character to the end of the message because *dump* spills
   // into the Android native logging system, which strips newlines from messages
   // and breaks messages into lines automatically at display time (i.e. logcat).
-#ifdef DEBUG
+#ifdef MOZ_DEBUG
   dump(aMessage);
 #endif
+}
+
+function sendMessageToJava(aMessage) {
+  return Services.androidBridge.handleGeckoMessage(JSON.stringify(aMessage));
 }
 
 this.WebappManager = {

@@ -10,6 +10,14 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 const PREF_FXA_ENABLED = "identity.fxaccounts.enabled";
+let _fxa_enabled = false;
+try {
+  if (Services.prefs.getPrefType(PREF_FXA_ENABLED) === Ci.nsIPrefBranch.PREF_BOOL) {
+    _fxa_enabled = Services.prefs.getBoolPref(PREF_FXA_ENABLED);
+  }
+} catch(noPref) {
+}
+const FXA_ENABLED = _fxa_enabled;
 
 // This is the parent process corresponding to nsDOMIdentity.
 this.EXPORTED_SYMBOLS = ["DOMIdentity"];
@@ -112,6 +120,14 @@ function RPWatchContext(aOptions, aTargetMM) {
   // Maybe internal.  For hosted b2g identity shim.
   this._internal = aOptions._internal;
 
+  // By default, set the audience of the assertion to the origin of the RP. Bug
+  // 947374 will make it possible for certified apps and packaged apps on
+  // FirefoxOS to request a different audience from their origin.
+  //
+  // For BrowserID on b2g, this audience value is consumed by a hosted identity
+  // shim, set up by b2g/components/SignInToWebsite.jsm.
+  this.audience = this.origin;
+
   this._mm = aTargetMM;
 }
 
@@ -144,7 +160,7 @@ RPWatchContext.prototype = {
   },
 
   doError: function RPWatchContext_onerror(aMessage) {
-    log("doError: " + this.id + ": " + JSON.stringify(aMessage));
+    log("doError: " + this.id + ": " + aMessage);
     let message = new IDDOMMessage({id: this.id, message: aMessage});
     this._mm.sendAsyncMessage("Identity:RP:Watch:OnError", message);
   }
@@ -193,8 +209,7 @@ this.DOMIdentity = {
 
     let context = this._serviceContexts.get(message.id);
     if (context.wantIssuer == "firefox-accounts") {
-      if (Services.prefs.getPrefType(PREF_FXA_ENABLED) === Ci.nsIPrefBranch.PREF_BOOL
-          && Services.prefs.getBoolPref(PREF_FXA_ENABLED)) {
+      if (FXA_ENABLED) {
         return FirefoxAccounts;
       }
       log("WARNING: Firefox Accounts is not enabled; Defaulting to BrowserID");

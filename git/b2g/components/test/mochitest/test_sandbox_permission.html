@@ -66,8 +66,7 @@ function loadBrowser() {
   });
 }
 
-gScript.addMessageListener("permission-request", function (detail) {
-  let permissions = detail.permissions;
+gScript.addMessageListener("permission-request", function (permissions) {
   let expectedValue = gResult.shift();
   let permissionTypes = Object.keys(permissions);
 

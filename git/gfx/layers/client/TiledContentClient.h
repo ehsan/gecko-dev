@@ -55,7 +55,6 @@ public:
   virtual int32_t ReadLock() = 0;
   virtual int32_t ReadUnlock() = 0;
   virtual int32_t GetReadCount() = 0;
-  virtual bool IsValid() const = 0;
 
   enum gfxSharedReadLockType {
     TYPE_MEMORY,
@@ -81,8 +80,6 @@ public:
 
   virtual gfxSharedReadLockType GetType() MOZ_OVERRIDE { return TYPE_MEMORY; }
 
-  virtual bool IsValid() const MOZ_OVERRIDE { return true; };
-
 private:
   int32_t mReadCount;
 };
@@ -104,8 +101,6 @@ public:
 
   virtual int32_t GetReadCount() MOZ_OVERRIDE;
 
-  virtual bool IsValid() const MOZ_OVERRIDE { return mAllocSuccess; };
-
   virtual gfxSharedReadLockType GetType() MOZ_OVERRIDE { return TYPE_SHMEM; }
 
   mozilla::ipc::Shmem& GetShmem() { return mShmem; }
@@ -121,7 +116,6 @@ private:
   gfxShmSharedReadLock(ISurfaceAllocator* aAllocator, const mozilla::ipc::Shmem& aShmem)
     : mAllocator(aAllocator)
     , mShmem(aShmem)
-    , mAllocSuccess(true)
   {
     MOZ_COUNT_CTOR(gfxShmSharedReadLock);
   }
@@ -134,7 +128,6 @@ private:
 
   RefPtr<ISurfaceAllocator> mAllocator;
   mozilla::ipc::Shmem mShmem;
-  bool mAllocSuccess;
 };
 
 /**
@@ -177,18 +170,14 @@ struct TileClient
 
   void ReadUnlock()
   {
-    MOZ_ASSERT(mFrontLock, "ReadLock with no gfxSharedReadLock");
-    if (mFrontLock) {
-      mFrontLock->ReadUnlock();
-    }
+    NS_ASSERTION(mFrontLock != nullptr, "ReadUnlock with no gfxSharedReadLock");
+    mFrontLock->ReadUnlock();
   }
 
   void ReadLock()
   {
-    MOZ_ASSERT(mFrontLock, "ReadLock with no gfxSharedReadLock");
-    if (mFrontLock) {
-      mFrontLock->ReadLock();
-    }
+    NS_ASSERTION(mFrontLock != nullptr, "ReadLock with no gfxSharedReadLock");
+    mFrontLock->ReadLock();
   }
 
   void Release()

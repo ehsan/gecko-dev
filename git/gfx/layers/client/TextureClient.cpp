@@ -278,8 +278,7 @@ DisableGralloc(SurfaceFormat aFormat)
 TemporaryRef<TextureClient>
 TextureClient::CreateTextureClientForDrawing(ISurfaceAllocator* aAllocator,
                                              SurfaceFormat aFormat,
-                                             TextureFlags aTextureFlags,
-                                             const gfx::IntSize& aSizeHint)
+                                             TextureFlags aTextureFlags)
 {
   RefPtr<TextureClient> result;
 
@@ -328,12 +327,7 @@ TextureClient::CreateTextureClientForDrawing(ISurfaceAllocator* aAllocator,
 
 #ifdef MOZ_WIDGET_GONK
   if (!DisableGralloc(aFormat)) {
-    // Don't allow Gralloc texture clients to exceed the maximum texture size.
-    // BufferTextureClients have code to handle tiling the surface client-side.
-    int32_t maxTextureSize = aAllocator->GetMaxTextureSize();
-    if (aSizeHint.width <= maxTextureSize && aSizeHint.height <= maxTextureSize) {
-      result = new GrallocTextureClientOGL(aAllocator, aFormat, aTextureFlags);
-    }
+    result = new GrallocTextureClientOGL(aAllocator, aFormat, aTextureFlags);
   }
 #endif
 

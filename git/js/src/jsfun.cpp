@@ -926,16 +926,19 @@ js_fun_call(JSContext *cx, unsigned argc, Value *vp)
         return false;
     }
 
-    args.setCallee(fval);
-    args.setThis(args.get(0));
+    InvokeArgs args2(cx);
+    if (!args2.init(args.length() ? args.length() - 1 : 0))
+        return false;
 
-    if (args.length() > 0) {
-        for (size_t i = 0; i < args.length() - 1; i++)
-            args[i].set(args[i + 1]);
-        args = CallArgsFromVp(args.length() - 1, vp);
-    }
+    args2.setCallee(fval);
+    args2.setThis(args.get(0));
+    PodCopy(args2.array(), args.array() + 1, args2.length());
 
-    return Invoke(cx, args);
+    if (!Invoke(cx, args2))
+        return false;
+
+    args.rval().set(args2.rval());
+    return true;
 }
 
 // ES5 15.3.4.3

@@ -573,7 +573,7 @@ Nfc.prototype = {
     }
 
     // Update the current sessionId before sending to the worker
-    message.json.sessionId = this._currentSessionId;
+    message.sessionId = this._currentSessionId;
 
     switch (message.name) {
       case "NFC:GetDetailsNDEF":

@@ -433,16 +433,16 @@ public:
     void RequestContentRepaint(const mozilla::layers::FrameMetrics& aFrameMetrics) MOZ_OVERRIDE;
     void AcknowledgeScrollUpdate(const mozilla::layers::FrameMetrics::ViewID& aScrollId,
                                  const uint32_t& aScrollGeneration) MOZ_OVERRIDE;
-    void HandleDoubleTap(const CSSPoint& aPoint,
+    void HandleDoubleTap(const CSSIntPoint& aPoint,
                          int32_t aModifiers,
                          const mozilla::layers::ScrollableLayerGuid& aGuid) MOZ_OVERRIDE;
-    void HandleSingleTap(const CSSPoint& aPoint,
+    void HandleSingleTap(const CSSIntPoint& aPoint,
                          int32_t aModifiers,
                          const mozilla::layers::ScrollableLayerGuid& aGuid) MOZ_OVERRIDE;
-    void HandleLongTap(const CSSPoint& aPoint,
+    void HandleLongTap(const CSSIntPoint& aPoint,
                        int32_t aModifiers,
                        const mozilla::layers::ScrollableLayerGuid& aGuid) MOZ_OVERRIDE;
-    void HandleLongTapUp(const CSSPoint& aPoint,
+    void HandleLongTapUp(const CSSIntPoint& aPoint,
                          int32_t aModifiers,
                          const mozilla::layers::ScrollableLayerGuid& aGuid) MOZ_OVERRIDE;
     void SendAsyncScrollDOMEvent(bool aIsRoot,

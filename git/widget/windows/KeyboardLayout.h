@@ -368,7 +368,6 @@ private:
   {
     return (aMessage == WM_SYSCHAR || aMessage == WM_SYSDEADCHAR);
   }
-  bool MayBeSameCharMessage(const MSG& aCharMsg1, const MSG& aCharMsg2) const;
   bool IsFollowedByDeadCharMessage() const;
 
   /**

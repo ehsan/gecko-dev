@@ -293,11 +293,5 @@ function runNextTest() {
     SimpleTest.finish()
     return;
   }
-  var fn = _tests.shift();
-  try {
-    fn();
-  } catch (ex) {
-    info("Test function " + (fn.name ? "'" + fn.name + "' " : "") +
-         "threw an exception: " + ex);
-  }
+  _tests.shift()();
 }
