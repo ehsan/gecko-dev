@@ -56,7 +56,7 @@ public:
   void Ended();
   bool IsExpectingMoreData() MOZ_OVERRIDE;
 
-  void SetInitialDuration(int64_t aDuration);
+  void SetDecodedDuration(int64_t aDuration);
   void SetMediaSourceDuration(double aDuration, MSRangeRemovalAction aAction);
   double GetMediaSourceDuration();
   void DurationChanged(double aOldDuration, double aNewDuration);

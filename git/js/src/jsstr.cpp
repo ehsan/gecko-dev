@@ -3065,32 +3065,32 @@ CopySubstringsToFatInline(JSFatInlineString *dest, const CharT *src, const Strin
 }
 
 static inline JSFatInlineString *
-FlattenSubstrings(JSContext *cx, HandleLinearString str, const StringRange *ranges,
+FlattenSubstrings(JSContext *cx, Handle<JSFlatString*> flatStr, const StringRange *ranges,
                   size_t rangesLen, size_t outputLen)
 {
-    JSFatInlineString *result = NewGCFatInlineString<CanGC>(cx);
-    if (!result)
+    JSFatInlineString *str = NewGCFatInlineString<CanGC>(cx);
+    if (!str)
         return nullptr;
 
     AutoCheckCannotGC nogc;
-    if (str->hasLatin1Chars())
-        CopySubstringsToFatInline(result, str->latin1Chars(nogc), ranges, rangesLen, outputLen);
+    if (flatStr->hasLatin1Chars())
+        CopySubstringsToFatInline(str, flatStr->latin1Chars(nogc), ranges, rangesLen, outputLen);
     else
-        CopySubstringsToFatInline(result, str->twoByteChars(nogc), ranges, rangesLen, outputLen);
-    return result;
+        CopySubstringsToFatInline(str, flatStr->twoByteChars(nogc), ranges, rangesLen, outputLen);
+    return str;
 }
 
 static JSString *
-AppendSubstrings(JSContext *cx, HandleLinearString str, const StringRange *ranges,
-                 size_t rangesLen)
+AppendSubstrings(JSContext *cx, Handle<JSFlatString*> flatStr,
+                 const StringRange *ranges, size_t rangesLen)
 {
     MOZ_ASSERT(rangesLen);
 
     /* For single substrings, construct a dependent string. */
     if (rangesLen == 1)
-        return NewDependentString(cx, str, ranges[0].start, ranges[0].length);
+        return NewDependentString(cx, flatStr, ranges[0].start, ranges[0].length);
 
-    bool isLatin1 = str->hasLatin1Chars();
+    bool isLatin1 = flatStr->hasLatin1Chars();
     uint32_t fatInlineMaxLength = JSFatInlineString::MAX_LENGTH_TWO_BYTE;
     if (isLatin1)
         fatInlineMaxLength = JSFatInlineString::MAX_LENGTH_LATIN1;
@@ -3113,10 +3113,10 @@ AppendSubstrings(JSContext *cx, HandleLinearString str, const StringRange *range
         if (i == end) {
             /* Not even one range fits JSFatInlineString, use DependentString */
             const StringRange &sr = ranges[i++];
-            part = NewDependentString(cx, str, sr.start, sr.length);
+            part = NewDependentString(cx, flatStr, sr.start, sr.length);
         } else {
             /* Copy the ranges (linearly) into a JSFatInlineString */
-            part = FlattenSubstrings(cx, str, ranges + i, end - i, substrLen);
+            part = FlattenSubstrings(cx, flatStr, ranges + i, end - i, substrLen);
             i = end;
         }
 
@@ -3134,13 +3134,13 @@ AppendSubstrings(JSContext *cx, HandleLinearString str, const StringRange *range
 static bool
 StrReplaceRegexpRemove(JSContext *cx, HandleString str, RegExpShared &re, MutableHandleValue rval)
 {
-    RootedLinearString linearStr(cx, str->ensureLinear(cx));
-    if (!linearStr)
+    Rooted<JSFlatString*> flatStr(cx, str->ensureFlat(cx));
+    if (!flatStr)
         return false;
 
     Vector<StringRange, 16, SystemAllocPolicy> ranges;
 
-    size_t charsLen = linearStr->length();
+    size_t charsLen = flatStr->length();
 
     ScopedMatchPairs matches(&cx->tempLifoAlloc());
     size_t startIndex = 0; /* Index used for iterating through the string. */
@@ -3152,7 +3152,7 @@ StrReplaceRegexpRemove(JSContext *cx, HandleString str, RegExpShared &re, Mutabl
         if (!CheckForInterrupt(cx))
             return false;
 
-        RegExpRunStatus status = re.execute(cx, linearStr, startIndex, &matches);
+        RegExpRunStatus status = re.execute(cx, flatStr, startIndex, &matches);
         if (status == RegExpRunStatus_Error)
             return false;
         if (status == RegExpRunStatus_Success_NotFound)
@@ -3183,7 +3183,7 @@ StrReplaceRegexpRemove(JSContext *cx, HandleString str, RegExpShared &re, Mutabl
             res = cx->global()->getRegExpStatics(cx);
             if (!res)
                 return false;
-            res->updateLazily(cx, linearStr, &re, lazyIndex);
+            res->updateLazily(cx, flatStr, &re, lazyIndex);
         }
         rval.setString(str);
         return true;
@@ -3194,7 +3194,7 @@ StrReplaceRegexpRemove(JSContext *cx, HandleString str, RegExpShared &re, Mutabl
     if (!res)
         return false;
 
-    res->updateLazily(cx, linearStr, &re, lazyIndex);
+    res->updateLazily(cx, flatStr, &re, lazyIndex);
 
     /* Include any remaining part of the string. */
     if (lastIndex < charsLen) {
@@ -3208,7 +3208,7 @@ StrReplaceRegexpRemove(JSContext *cx, HandleString str, RegExpShared &re, Mutabl
         return true;
     }
 
-    JSString *result = AppendSubstrings(cx, linearStr, ranges.begin(), ranges.length());
+    JSString *result = AppendSubstrings(cx, flatStr, ranges.begin(), ranges.length());
     if (!result)
         return false;
 

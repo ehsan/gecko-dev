@@ -2,7 +2,7 @@
 
 load(libdir + "referencesVia.js");
 
-var m = new Map();
+var m = Map();
 var k = {}, v = {};
 m.set(k, v);
 assertEq(referencesVia(m, "key", k), true);

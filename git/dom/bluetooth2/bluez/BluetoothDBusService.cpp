@@ -44,7 +44,6 @@
 #include "mozilla/ipc/DBusUtils.h"
 #include "mozilla/ipc/RawDBusConnection.h"
 #include "mozilla/LazyIdleThread.h"
-#include "mozilla/Monitor.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/StaticMutex.h"
 #include "mozilla/unused.h"
@@ -144,7 +143,7 @@ public:
 
     BluetoothProfileManagerBase* profile;
     profile = BluetoothHfpManager::Get();
-    NS_ENSURE_TRUE(profile, false);
+    NS_ENSURE_TRUE(profile, NS_ERROR_FAILURE);
     if (profile->IsConnected()) {
       profile->Disconnect(nullptr);
     } else {
@@ -152,13 +151,13 @@ public:
     }
 
     profile = BluetoothOppManager::Get();
-    NS_ENSURE_TRUE(profile, false);
+    NS_ENSURE_TRUE(profile, NS_ERROR_FAILURE);
     if (profile->IsConnected()) {
       profile->Disconnect(nullptr);
     }
 
     profile = BluetoothA2dpManager::Get();
-    NS_ENSURE_TRUE(profile, false);
+    NS_ENSURE_TRUE(profile, NS_ERROR_FAILURE);
     if (profile->IsConnected()) {
       profile->Disconnect(nullptr);
     } else {
@@ -166,7 +165,7 @@ public:
     }
 
     profile = BluetoothHidManager::Get();
-    NS_ENSURE_TRUE(profile, false);
+    NS_ENSURE_TRUE(profile, NS_ERROR_FAILURE);
     if (profile->IsConnected()) {
       profile->Disconnect(nullptr);
     } else {
@@ -1895,7 +1894,7 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
       // "bluetooth-pairedstatuschanged" from BluetoothService.
       BluetoothValue newValue(v);
       ToLowerCase(newValue.get_ArrayOfBluetoothNamedValue()[0].name());
-      BluetoothSignal signal(NS_LITERAL_STRING("pairedstatuschanged"),
+      BluetoothSignal signal(NS_LITERAL_STRING(PAIRED_STATUS_CHANGED_ID),
                              NS_LITERAL_STRING(KEY_LOCAL_AGENT),
                              newValue);
       NS_DispatchToMainThread(new DistributeBluetoothSignalTask(signal));
@@ -2880,8 +2879,8 @@ BluetoothDBusService::GetPairedDevicePropertiesInternal(
 }
 
 nsresult
-BluetoothDBusService::FetchUuidsInternal(const nsAString& aDeviceAddress,
-                                         BluetoothReplyRunnable* aRunnable)
+FetchUuidsInternal(const nsAString& aDeviceAddress,
+                   BluetoothReplyRunnable* aRunnable)
 {
   return NS_OK;
 }
@@ -3964,8 +3963,7 @@ BluetoothDBusService::SendMetaData(const nsAString& aTitle,
   a2dp->GetTitle(prevTitle);
   a2dp->GetAlbum(prevAlbum);
 
-  uint64_t mediaNumber = static_cast<uint64_t>(aMediaNumber);
-  if (mediaNumber != a2dp->GetMediaNumber() ||
+  if (aMediaNumber != a2dp->GetMediaNumber() ||
       !aTitle.Equals(prevTitle) ||
       !aAlbum.Equals(prevAlbum)) {
     UpdateNotification(ControlEventId::EVENT_TRACK_CHANGED, aMediaNumber);
