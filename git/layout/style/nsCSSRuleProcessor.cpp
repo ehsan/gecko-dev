@@ -844,7 +844,9 @@ struct RuleCascadeData {
 #endif
 
   nsTArray<nsFontFaceRuleContainer> mFontFaceRules;
+#ifdef MOZ_CSS_ANIMATIONS
   nsTArray<nsCSSKeyframesRule*> mKeyframesRules;
+#endif
 
   // Looks up or creates the appropriate list in |mAttributeSelectors|.
   // Returns null only on allocation failure.
@@ -2471,6 +2473,7 @@ nsCSSRuleProcessor::AppendFontFaceRules(
   return PR_TRUE;
 }
 
+#ifdef MOZ_CSS_ANIMATIONS
 // Append all the currently-active keyframes rules to aArray.  Return
 // true for success and false for failure.
 PRBool
@@ -2487,6 +2490,7 @@ nsCSSRuleProcessor::AppendKeyframesRules(
   
   return PR_TRUE;
 }
+#endif
 
 nsresult
 nsCSSRuleProcessor::ClearRuleCascades()
@@ -2764,13 +2768,17 @@ static PLDHashTableOps gRulesByWeightOps = {
 struct CascadeEnumData {
   CascadeEnumData(nsPresContext* aPresContext,
                   nsTArray<nsFontFaceRuleContainer>& aFontFaceRules,
+#ifdef MOZ_CSS_ANIMATIONS
                   nsTArray<nsCSSKeyframesRule*>& aKeyframesRules,
+#endif
                   nsMediaQueryResultCacheKey& aKey,
                   PLArenaPool& aArena,
                   PRUint8 aSheetType)
     : mPresContext(aPresContext),
       mFontFaceRules(aFontFaceRules),
+#ifdef MOZ_CSS_ANIMATIONS
       mKeyframesRules(aKeyframesRules),
+#endif
       mCacheKey(aKey),
       mArena(aArena),
       mSheetType(aSheetType)
@@ -2788,7 +2796,9 @@ struct CascadeEnumData {
 
   nsPresContext* mPresContext;
   nsTArray<nsFontFaceRuleContainer>& mFontFaceRules;
+#ifdef MOZ_CSS_ANIMATIONS
   nsTArray<nsCSSKeyframesRule*>& mKeyframesRules;
+#endif
   nsMediaQueryResultCacheKey& mCacheKey;
   PLArenaPool& mArena;
   // Hooray, a manual PLDHashTable since nsClassHashtable doesn't
@@ -2844,6 +2854,7 @@ CascadeRuleEnumFunc(css::Rule* aRule, void* aData)
     ptr->mRule = fontFaceRule;
     ptr->mSheetType = data->mSheetType;
   }
+#ifdef MOZ_CSS_ANIMATIONS
   else if (css::Rule::KEYFRAMES_RULE == type) {
     nsCSSKeyframesRule *keyframesRule =
       static_cast<nsCSSKeyframesRule*>(aRule);
@@ -2851,6 +2862,7 @@ CascadeRuleEnumFunc(css::Rule* aRule, void* aData)
       return PR_FALSE;
     }
   }
+#endif
 
   return PR_TRUE;
 }
@@ -2951,7 +2963,9 @@ nsCSSRuleProcessor::RefreshRuleCascade(nsPresContext* aPresContext)
                           eCompatibility_NavQuirks == aPresContext->CompatibilityMode()));
     if (newCascade) {
       CascadeEnumData data(aPresContext, newCascade->mFontFaceRules,
+#ifdef MOZ_CSS_ANIMATIONS
                            newCascade->mKeyframesRules,
+#endif
                            newCascade->mCacheKey,
                            newCascade->mRuleHash.Arena(),
                            mSheetType);

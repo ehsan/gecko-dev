@@ -50,7 +50,6 @@
 #include "SVGNumberList.h"
 #include "SVGAnimatedNumberList.h"
 #include "DOMSVGAnimatedNumberList.h"
-#include "DOMSVGPoint.h"
 
 using namespace mozilla;
 
@@ -324,8 +323,7 @@ nsSVGTextElement::GetRotationOfChar(PRUint32 charnum, float *_retval)
 NS_IMETHODIMP
 nsSVGTextElement::GetCharNumAtPosition(nsIDOMSVGPoint *point, PRInt32 *_retval)
 {
-  nsCOMPtr<DOMSVGPoint> p = do_QueryInterface(point);
-  if (!p)
+  if (!point)
     return NS_ERROR_DOM_SVG_WRONG_TYPE_ERR;
 
   *_retval = -1;

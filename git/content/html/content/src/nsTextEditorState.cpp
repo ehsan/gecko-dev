@@ -49,7 +49,7 @@
 #include "nsTextControlFrame.h"
 #include "nsIControllers.h"
 #include "nsIDOMHTMLInputElement.h"
-#include "nsIDOMHTMLTextAreaElement.h"
+#include "nsIDOMNSHTMLTextAreaElement.h"
 #include "nsITransactionManager.h"
 #include "nsIControllerContext.h"
 #include "nsAttrValue.h"
@@ -61,9 +61,9 @@
 #include "nsISelectionPrivate.h"
 #include "nsPIDOMWindow.h"
 #include "nsServiceManagerUtils.h"
+#include "nsIDOMEventGroup.h"
 #include "nsIEditor.h"
 #include "nsTextEditRules.h"
-#include "nsEventListenerManager.h"
 
 #include "nsTextEditorState.h"
 
@@ -782,7 +782,7 @@ DoCommandCallback(const char *aCommand, void *aData)
   if (input) {
     input->GetControllers(getter_AddRefs(controllers));
   } else {
-    nsCOMPtr<nsIDOMHTMLTextAreaElement> textArea =
+    nsCOMPtr<nsIDOMNSHTMLTextAreaElement> textArea =
       do_QueryInterface(content);
 
     if (textArea) {
@@ -1008,10 +1008,6 @@ NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(nsTextEditorState, AddRef)
 NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(nsTextEditorState, Release)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_NATIVE(nsTextEditorState)
   tmp->Clear();
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mSelCon)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mEditor)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mRootNode)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mPlaceholderDiv)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_BEGIN(nsTextEditorState)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mSelCon, nsISelectionController)
@@ -1253,7 +1249,7 @@ nsTextEditorState::PrepareEditor(const nsAString *aValue)
     if (inputElement) {
       rv = inputElement->GetControllers(getter_AddRefs(controllers));
     } else {
-      nsCOMPtr<nsIDOMHTMLTextAreaElement> textAreaElement =
+      nsCOMPtr<nsIDOMNSHTMLTextAreaElement> textAreaElement =
         do_QueryInterface(mTextCtrlElement);
 
       if (!textAreaElement)
@@ -1464,7 +1460,7 @@ nsTextEditorState::UnbindFromFrame(nsTextControlFrame* aFrame)
       inputElement->GetControllers(getter_AddRefs(controllers));
     else
     {
-      nsCOMPtr<nsIDOMHTMLTextAreaElement> textAreaElement =
+      nsCOMPtr<nsIDOMNSHTMLTextAreaElement> textAreaElement =
         do_QueryInterface(mTextCtrlElement);
       if (textAreaElement) {
         textAreaElement->GetControllers(getter_AddRefs(controllers));
@@ -1513,26 +1509,21 @@ nsTextEditorState::UnbindFromFrame(nsTextControlFrame* aFrame)
   {
     mTextListener->SetFrame(nsnull);
 
-    nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(mTextCtrlElement);
-    nsEventListenerManager* manager =
-      target->GetListenerManager(PR_FALSE);
-    if (manager) {
+    nsCOMPtr<nsIDOMEventGroup> systemGroup;
+    nsCOMPtr<nsIContent> content = do_QueryInterface(mTextCtrlElement);
+    content->GetSystemEventGroup(getter_AddRefs(systemGroup));
+    nsCOMPtr<nsIDOM3EventTarget> dom3Targ = do_QueryInterface(mTextCtrlElement);
+    if (dom3Targ) {
       // cast because of ambiguous base
       nsIDOMEventListener *listener = static_cast<nsIDOMKeyListener*>
                                                  (mTextListener);
 
-      manager->RemoveEventListenerByType(listener,
-                                         NS_LITERAL_STRING("keydown"),
-                                         NS_EVENT_FLAG_BUBBLE |
-                                         NS_EVENT_FLAG_SYSTEM_EVENT);
-      manager->RemoveEventListenerByType(listener,
-                                         NS_LITERAL_STRING("keypress"),
-                                         NS_EVENT_FLAG_BUBBLE |
-                                         NS_EVENT_FLAG_SYSTEM_EVENT);
-      manager->RemoveEventListenerByType(listener,
-                                         NS_LITERAL_STRING("keyup"),
-                                         NS_EVENT_FLAG_BUBBLE |
-                                         NS_EVENT_FLAG_SYSTEM_EVENT);
+      dom3Targ->RemoveGroupedEventListener(NS_LITERAL_STRING("keydown"),
+                                           listener, PR_FALSE, systemGroup);
+      dom3Targ->RemoveGroupedEventListener(NS_LITERAL_STRING("keypress"),
+                                           listener, PR_FALSE, systemGroup);
+      dom3Targ->RemoveGroupedEventListener(NS_LITERAL_STRING("keyup"),
+                                           listener, PR_FALSE, systemGroup);
     }
 
     NS_RELEASE(mTextListener);
@@ -1571,8 +1562,7 @@ nsTextEditorState::CreateRootNode()
   // Now create a DIV and add it to the anonymous content child list.
   nsCOMPtr<nsINodeInfo> nodeInfo;
   nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::div, nsnull,
-                                                 kNameSpaceID_XHTML,
-                                                 nsIDOMNode::ELEMENT_NODE);
+                                                 kNameSpaceID_XHTML);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   nsresult rv = NS_NewHTMLElement(getter_AddRefs(mRootNode), nodeInfo.forget(),
@@ -1649,8 +1639,7 @@ be called if @placeholder is the empty string when trimmed from line breaks");
   // and add it to the anonymous content child list
   nsCOMPtr<nsINodeInfo> nodeInfo;
   nodeInfo = pNodeInfoManager->GetNodeInfo(nsGkAtoms::div, nsnull,
-                                           kNameSpaceID_XHTML,
-                                           nsIDOMNode::ELEMENT_NODE);
+                                           kNameSpaceID_XHTML);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   rv = NS_NewHTMLElement(getter_AddRefs(mPlaceholderDiv), nodeInfo.forget(),
@@ -1942,23 +1931,23 @@ nsTextEditorState::SetValue(const nsAString& aValue, PRBool aUserInput)
 void
 nsTextEditorState::InitializeKeyboardEventListeners()
 {
+  nsCOMPtr<nsIContent> content = do_QueryInterface(mTextCtrlElement);
+
   //register key listeners
-  nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(mTextCtrlElement);
-  nsEventListenerManager* manager = target->GetListenerManager(PR_TRUE);
-  if (manager) {
+  nsCOMPtr<nsIDOMEventGroup> systemGroup;
+  content->GetSystemEventGroup(getter_AddRefs(systemGroup));
+  nsCOMPtr<nsIDOM3EventTarget> dom3Targ = do_QueryInterface(content);
+  if (dom3Targ) {
     // cast because of ambiguous base
     nsIDOMEventListener *listener = static_cast<nsIDOMKeyListener*>
                                                (mTextListener);
 
-    manager->AddEventListenerByType(listener, NS_LITERAL_STRING("keydown"),
-                                    NS_EVENT_FLAG_BUBBLE |
-                                    NS_EVENT_FLAG_SYSTEM_EVENT);
-    manager->AddEventListenerByType(listener, NS_LITERAL_STRING("keypress"),
-                                    NS_EVENT_FLAG_BUBBLE |
-                                    NS_EVENT_FLAG_SYSTEM_EVENT);
-    manager->AddEventListenerByType(listener, NS_LITERAL_STRING("keyup"),
-                                    NS_EVENT_FLAG_BUBBLE |
-                                    NS_EVENT_FLAG_SYSTEM_EVENT);
+    dom3Targ->AddGroupedEventListener(NS_LITERAL_STRING("keydown"),
+                                      listener, PR_FALSE, systemGroup);
+    dom3Targ->AddGroupedEventListener(NS_LITERAL_STRING("keypress"),
+                                      listener, PR_FALSE, systemGroup);
+    dom3Targ->AddGroupedEventListener(NS_LITERAL_STRING("keyup"),
+                                      listener, PR_FALSE, systemGroup);
   }
 
   mSelCon->SetScrollableFrame(do_QueryFrame(mBoundFrame->GetFirstChild(nsnull)));

@@ -311,6 +311,7 @@ MAKEFILES_libreg="
   modules/libreg/Makefile
   modules/libreg/include/Makefile
   modules/libreg/src/Makefile
+  modules/libreg/standalone/Makefile
 "
 
 MAKEFILES_libpref="
@@ -558,6 +559,11 @@ MAKEFILES_embedding="
   embedding/Makefile
   embedding/base/Makefile
   embedding/browser/Makefile
+  embedding/browser/activex/src/Makefile
+  embedding/browser/activex/src/common/Makefile
+  embedding/browser/activex/src/control/Makefile
+  embedding/browser/activex/src/control_kicker/Makefile
+  embedding/browser/activex/src/plugin/Makefile
   embedding/browser/build/Makefile
   embedding/browser/webBrowser/Makefile
   embedding/components/Makefile

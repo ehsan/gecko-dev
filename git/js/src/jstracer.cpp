@@ -98,8 +98,6 @@
 #include "methodjit/MethodJIT.h"
 #endif
 
-#include "tracejit/Writer-inl.h"
-
 #include "jsautooplen.h"        // generated headers last
 #include "imacros.c.out"
 
@@ -317,7 +315,6 @@ nanojit::LInsPrinter::accNames[] = {
     "typemap",      // (1 << 25) == ACCSET_TYPEMAP
     "fcslots",      // (1 << 26) == ACCSET_FCSLOTS
     "argsdata",     // (1 << 27) == ACCSET_ARGS_DATA
-    "seg",          // (1 << 28) == ACCSET_SEG
 
     "?!"            // this entry should never be used, have it just in case
 };
@@ -384,13 +381,6 @@ ValueToTypeChar(const Value &v)
     if (v.isUndefined()) return 'U';
     if (v.isMagic()) return 'M';
     return '?';
-}
-
-static inline uintN
-FramePCOffset(JSContext *cx, js::StackFrame* fp)
-{
-    jsbytecode *pc = fp->pcQuadratic(cx);
-    return uintN(pc - fp->script()->code);
 }
 #endif
 
@@ -1813,7 +1803,7 @@ VisitFrameSlots(Visitor &visitor, JSContext *cx, unsigned depth, StackFrame *fp,
 
         if (JS_UNLIKELY(fp->isEvalFrame())) {
             visitor.setStackSlotKind("eval");
-            if (!visitor.visitStackSlots(&fp->mutableCalleev(), 2, fp))
+            if (!visitor.visitStackSlots(&fp->calleev(), 2, fp))
                 return false;
         } else {
             /*
@@ -3198,7 +3188,7 @@ public:
             JS_ASSERT(p == fp->addressOfScopeChain());
             if (frameobj->isCall() &&
                 !frameobj->getPrivate() &&
-                fp->maybeCalleev().toObjectOrNull() == frameobj->getCallObjCallee())
+                fp->maybeCallee() == frameobj->getCallObjCallee())
             {
                 JS_ASSERT(&fp->scopeChain() == StackFrame::sInvalidScopeChain);
                 frameobj->setPrivate(fp);
@@ -3319,7 +3309,7 @@ GetUpvarOnTrace(JSContext* cx, uint32 upvarLevel, int32 slot, uint32 callDepth, 
      * then we simply get the value from the interpreter state.
      */
     JS_ASSERT(upvarLevel < UpvarCookie::UPVAR_LEVEL_LIMIT);
-    StackFrame* fp = FindUpvarFrame(cx, upvarLevel);
+    StackFrame* fp = cx->stack.findFrameAtLevel(upvarLevel);
     Value v = T::interp_get(fp, slot);
     JSValueType type = getCoercedType(v);
     ValueToNative(v, type, result);
@@ -5670,25 +5660,41 @@ SynthesizeFrame(JSContext* cx, const FrameInfo& fi, JSObject* callee)
     if (fi.imacpc)
         fp->setImacropc(fi.imacpc);
 
-    /* Push a frame for the call. */
-    CallArgs args = CallArgsFromSp(fi.get_argc(), regs.sp);
-    cx->stack.pushInlineFrame(cx, regs, args, *callee, newfun, newscript,
-                              MaybeConstructFromBool(fi.is_constructing()),
-                              NoCheck());
+    /* Set argc/flags then mimic JSOP_CALL. */
+    uintN argc = fi.get_argc();
+    uint32 flags = fi.is_constructing() ? StackFrame::CONSTRUCTING : 0;
+
+    /* Get pointer to new/frame/slots, prepare arguments. */
+    StackFrame *newfp = cx->stack.getInlineFrame(cx, regs.sp, argc, newfun,
+                                                 newscript, &flags);
+
+    /* Initialize frame; do not need to initialize locals. */
+    newfp->initCallFrame(cx, *callee, newfun, argc, flags);
 
 #ifdef DEBUG
+    /* The stack is conservatively marked, so we can leave non-canonical args uninitialized. */
+    if (newfp->hasOverflowArgs()) {
+        Value *beg = newfp->actualArgs() - 2;
+        Value *end = newfp->actualArgs() + newfp->numFormalArgs();
+        for (Value *p = beg; p != end; ++p)
+            p->setMagic(JS_ARG_POISON);
+    }
+
     /* These should be initialized by FlushNativeStackFrame. */
-    regs.fp()->thisValue().setMagic(JS_THIS_POISON);
-    regs.fp()->setScopeChainNoCallObj(*StackFrame::sInvalidScopeChain);
+    newfp->thisValue().setMagic(JS_THIS_POISON);
+    newfp->setScopeChainNoCallObj(*StackFrame::sInvalidScopeChain);
 #endif
+
+    /* Officially push the frame. */
+    cx->stack.pushInlineFrame(newscript, newfp, cx->regs());
 
     /* Call object will be set by FlushNativeStackFrame. */
 
     /* Call the debugger hook if present. */
     JSInterpreterHook hook = cx->debugHooks->callHook;
     if (hook) {
-        regs.fp()->setHookData(hook(cx, Jsvalify(regs.fp()), JS_TRUE, 0,
-                                    cx->debugHooks->callHookData));
+        newfp->setHookData(hook(cx, Jsvalify(newfp), JS_TRUE, 0,
+                                cx->debugHooks->callHookData));
     }
 }
 
@@ -7305,19 +7311,9 @@ TraceRecorder::monitorRecording(JSOp op)
      */
 
     AbortableRecordingStatus status;
+#ifdef DEBUG
     bool wasInImacro = (cx->fp()->hasImacropc());
-    if (!wasInImacro && cx->hasRunOption(JSOPTION_PCCOUNT)) {
-        JSScript *script = cx->fp()->script();
-        if (script->pcCounters) {
-            int offset = cx->regs().pc - script->code;
-            LIns *pcCounter_addr_ins = w.nameImmpNonGC(&script->pcCounters.get(JSRUNMODE_TRACEJIT, offset));
-            AnyAddress pcCounter_addr(pcCounter_addr_ins);
-            LIns *ins = w.ldi(pcCounter_addr);
-            ins = w.addi(ins, w.name(w.immi(1), "pctick"));
-            w.st(ins, pcCounter_addr);
-        }
-    }
-
+#endif
     switch (op) {
       default:
           AbortRecording(cx, "unsupported opcode");
@@ -10150,7 +10146,7 @@ TraceRecorder::guardNativeConversion(Value& v)
     LIns* obj_ins = get(&v);
 
     ConvertOp convert = obj->getClass()->convert;
-    if (convert != ConvertStub)
+    if (convert != Valueify(JS_ConvertStub) && convert != js_TryValueOf)
         RETURN_STOP("operand has convert hook");
 
     VMSideExit* exit = snapshot(BRANCH_EXIT);
@@ -11417,16 +11413,13 @@ TraceRecorder::callNative(uintN argc, JSOp mode)
                  */
                 if (!CallResultEscapes(cx->regs().pc)) {
                     JSObject* proto;
-                    /* Get RegExp.prototype.test and check it hasn't been changed. */
+                    jsid id = ATOM_TO_JSID(cx->runtime->atomState.testAtom);
+                    /* Get RegExp.prototype.test() and check it hasn't been changed. */
                     if (js_GetClassPrototype(cx, NULL, JSProto_RegExp, &proto)) {
-                        Value pval;
-                        jsid id = ATOM_TO_JSID(cx->runtime->atomState.testAtom);
-                        if (HasDataProperty(proto, id, &pval) &&
-                            IsNativeFunction(pval, js_regexp_test))
-                        {
-                            vp[0] = pval;
-                            funobj = &pval.toObject();
-                            fun = funobj->getFunctionPrivate();
+                        if (JSObject *tmp = HasNativeMethod(proto, id, js_regexp_test)) {
+                            vp[0] = ObjectValue(*tmp);
+                            funobj = tmp;
+                            fun = tmp->getFunctionPrivate();
                             native = js_regexp_test;
                         }
                     }
@@ -13471,7 +13464,7 @@ TraceRecorder::upvar(JSScript* script, JSUpvarArray* uva, uintN index, Value& v)
      */
     uint32 level = script->staticLevel - cookie.level();
     uint32 cookieSlot = cookie.slot();
-    StackFrame* fp = FindUpvarFrame(cx, level);
+    StackFrame* fp = cx->stack.findFrameAtLevel(level);
     const CallInfo* ci;
     int32 slot;
     if (!fp->isFunctionFrame() || fp->isEvalFrame()) {
@@ -13677,6 +13670,22 @@ TraceRecorder::createThis(JSObject& ctor, LIns* ctor_ins, LIns** thisobj_insp)
 JS_REQUIRES_STACK RecordingStatus
 TraceRecorder::interpretedFunctionCall(Value& fval, JSFunction* fun, uintN argc, bool constructing)
 {
+    /*
+     * The function's identity (JSFunction and therefore JSScript) is guarded,
+     * so we can optimize away the function call if the corresponding script is
+     * empty. No need to worry about crossing globals or relocating argv, even,
+     * in this case!
+     */
+    if (fun->script()->isEmpty()) {
+        LIns* rval_ins;
+        if (constructing)
+            CHECK_STATUS(createThis(fval.toObject(), get(&fval), &rval_ins));
+        else
+            rval_ins = w.immiUndefined();
+        stack(-2 - argc, rval_ins);
+        return RECORD_CONTINUE;
+    }
+
     if (fval.toObject().getGlobal() != globalObj)
         RETURN_STOP("JSOP_CALL or JSOP_NEW crosses global scopes");
 
@@ -15093,13 +15102,25 @@ TraceRecorder::record_JSOP_BINDNAME()
     if (!fp->isFunctionFrame()) {
         obj = &fp->scopeChain();
 
+#ifdef DEBUG
+        StackFrame *fp2 = fp;
+#endif
+
         /*
          * In global code, fp->scopeChain can only contain blocks whose values
          * are still on the stack.  We never use BINDNAME to refer to these.
          */
         while (obj->isBlock()) {
             // The block's values are still on the stack.
-            JS_ASSERT(obj->getPrivate() == fp);
+#ifdef DEBUG
+            // NB: fp2 can't be a generator frame, because !fp->hasFunction.
+            while (obj->getPrivate() != fp2) {
+                JS_ASSERT(fp2->isDirectEvalOrDebuggerFrame());
+                fp2 = fp2->prev();
+                if (!fp2)
+                    JS_NOT_REACHED("bad stack frame");
+            }
+#endif
             obj = obj->getParent();
             // Blocks always have parents.
             JS_ASSERT(obj);
@@ -15136,7 +15157,7 @@ TraceRecorder::record_JSOP_BINDNAME()
     // We don't have the scope chain on trace, so instead we get a start object
     // that is on the scope chain and doesn't skip the target object (the one
     // that contains the property).
-    const Value *callee = &cx->fp()->calleev();
+    Value *callee = &cx->fp()->calleev();
     obj = callee->toObject().getParent();
     if (obj == globalObj) {
         stack(0, w.immpObjGC(obj));
@@ -15584,18 +15605,13 @@ TraceRecorder::record_JSOP_SETLOCALPOP()
 }
 
 JS_REQUIRES_STACK AbortableRecordingStatus
-TraceRecorder::record_JSOP_IFCANTCALLTOP()
+TraceRecorder::record_JSOP_IFPRIMTOP()
 {
-    Value &top = stackval(-1);
-
     // Traces are type-specialized, including null vs. object, so we need do
-    // nothing if the trace type will be consistently callable or not callable.
-    if (top.isPrimitive() || top.toObject().isFunction())
-        return ARECORD_CONTINUE;
-
-    // Callable objects that aren't also functions would require a guard, but
-    // they're rare, so err on the side of simplicity.
-    return ARECORD_STOP;
+    // nothing here. The upstream unbox_value called after valueOf or toString
+    // from an imacro (e.g.) will fork the trace for us, allowing us to just
+    // follow along mindlessly :-).
+    return ARECORD_CONTINUE;
 }
 
 JS_REQUIRES_STACK AbortableRecordingStatus
@@ -15643,6 +15659,20 @@ TraceRecorder::record_JSOP_ARGSUB()
     }
     RETURN_STOP_A("can't trace JSOP_ARGSUB hard case");
 }
+
+namespace tjit {
+
+nj::LIns *
+Writer::getArgsLength(nj::LIns *args) const
+{
+    uint32 slot = js::ArgumentsObject::INITIAL_LENGTH_SLOT;
+    nj::LIns *vaddr_ins = ldpObjSlots(args);
+    return name(lir->insLoad(nj::LIR_ldi, vaddr_ins, slot * sizeof(Value) + sPayloadOffset,
+                             ACCSET_SLOTS),
+                "argsLength");
+}
+
+} // namespace tjit
 
 JS_REQUIRES_STACK LIns*
 TraceRecorder::guardArgsLengthNotAssigned(LIns* argsobj_ins)

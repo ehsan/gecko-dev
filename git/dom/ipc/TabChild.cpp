@@ -88,7 +88,7 @@
 #include "nsSerializationHelper.h"
 #include "nsIFrame.h"
 #include "nsIView.h"
-#include "nsEventListenerManager.h"
+#include "nsIEventListenerManager.h"
 #include "PCOMContentPermissionRequestChild.h"
 #include "xpcpublic.h"
 
@@ -145,7 +145,6 @@ TabChild::Init()
 }
 
 NS_INTERFACE_MAP_BEGIN(TabChild)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIWebBrowserChrome)
   NS_INTERFACE_MAP_ENTRY(nsIWebBrowserChrome)
   NS_INTERFACE_MAP_ENTRY(nsIWebBrowserChrome2)
   NS_INTERFACE_MAP_ENTRY(nsIEmbeddingSiteWindow)
@@ -478,7 +477,7 @@ TabChild::~TabChild()
       DestroyCx();
     }
     
-    nsEventListenerManager* elm = mTabChildGlobal->GetListenerManager(PR_FALSE);
+    nsIEventListenerManager* elm = mTabChildGlobal->GetListenerManager(PR_FALSE);
     if (elm) {
       elm->Disconnect();
     }
@@ -755,11 +754,9 @@ TabChild::RecvAsyncMessage(const nsString& aMessage,
                            const nsString& aJSON)
 {
   if (mTabChildGlobal) {
-    nsFrameScriptCx cx(static_cast<nsIWebBrowserChrome*>(this), this);
-    nsRefPtr<nsFrameMessageManager> mm =
-      static_cast<nsFrameMessageManager*>(mTabChildGlobal->mMessageManager.get());
-    mm->ReceiveMessage(static_cast<nsIDOMEventTarget*>(mTabChildGlobal),
-                       aMessage, PR_FALSE, aJSON, nsnull, nsnull);
+    static_cast<nsFrameMessageManager*>(mTabChildGlobal->mMessageManager.get())->
+      ReceiveMessage(static_cast<nsPIDOMEventTarget*>(mTabChildGlobal),
+                     aMessage, PR_FALSE, aJSON, nsnull, nsnull);
   }
   return true;
 }
@@ -866,7 +863,7 @@ TabChild::InitTabChildGlobal()
   mTabChildGlobal = scope;
 
   nsISupports* scopeSupports =
-    NS_ISUPPORTS_CAST(nsIDOMEventTarget*, scope);
+    NS_ISUPPORTS_CAST(nsPIDOMEventTarget*, scope);
   JS_SetContextPrivate(cx, scopeSupports);
 
   nsresult rv =

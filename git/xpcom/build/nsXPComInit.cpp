@@ -107,6 +107,8 @@
 #include "nsStringStream.h"
 extern nsresult nsStringInputStreamConstructor(nsISupports *, REFNSIID, void **);
 
+#include "nsFastLoadService.h"
+
 #include "nsAtomService.h"
 #include "nsAtomTable.h"
 #include "nsTraceRefcnt.h"

@@ -320,6 +320,7 @@ js_XDRScript(JSXDRState *xdr, JSScript **scriptp)
     uint16 nClosedArgs = 0, nClosedVars = 0;
     JSPrincipals *principals;
     uint32 encodeable;
+    jssrcnote *sn;
     JSSecurityCallbacks *callbacks;
     uint32 scriptBits = 0;
 
@@ -470,8 +471,12 @@ js_XDRScript(JSXDRState *xdr, JSScript **scriptp)
         nslots = (uint32)((script->staticLevel << 16) | script->nslots);
         natoms = (uint32)script->atomMap.length;
 
+        /* Count the srcnotes, keeping notes pointing at the first one. */
         notes = script->notes();
-        nsrcnotes = script->numNotes();
+        for (sn = notes; !SN_IS_TERMINATOR(sn); sn = SN_NEXT(sn))
+            continue;
+        nsrcnotes = sn - notes;
+        nsrcnotes++;            /* room for the terminator */
 
         if (JSScript::isValidOffset(script->objectsOffset))
             nobjects = script->objects()->length;
@@ -740,27 +745,6 @@ js_XDRScript(JSXDRState *xdr, JSScript **scriptp)
 
 #endif /* JS_HAS_XDR */
 
-bool
-JSPCCounters::init(JSContext *cx, size_t numBytecodes)
-{
-    this->numBytecodes = numBytecodes;
-    size_t nbytes = sizeof(*counts) * numBytecodes * JSRUNMODE_COUNT;
-    counts = (int*) cx->malloc_(nbytes);
-    if (!counts)
-        return false;
-    memset(counts, 0, nbytes);
-    return true;
-}
-
-void
-JSPCCounters::destroy(JSContext *cx)
-{
-    if (counts) {
-        cx->free_(counts);
-        counts = NULL;
-    }
-}
-
 static void
 script_finalize(JSContext *cx, JSObject *obj)
 {
@@ -850,39 +834,49 @@ static JSHashAllocOps sftbl_alloc_ops = {
     js_alloc_sftbl_entry,   js_free_sftbl_entry
 };
 
-namespace js {
+static void
+FinishRuntimeScriptState(JSRuntime *rt)
+{
+    if (rt->scriptFilenameTable) {
+        JS_HashTableDestroy(rt->scriptFilenameTable);
+        rt->scriptFilenameTable = NULL;
+    }
+#ifdef JS_THREADSAFE
+    if (rt->scriptFilenameTableLock) {
+        JS_DESTROY_LOCK(rt->scriptFilenameTableLock);
+        rt->scriptFilenameTableLock = NULL;
+    }
+#endif
+}
 
-bool
-InitRuntimeScriptState(JSRuntime *rt)
+JSBool
+js_InitRuntimeScriptState(JSRuntime *rt)
 {
 #ifdef JS_THREADSAFE
     JS_ASSERT(!rt->scriptFilenameTableLock);
     rt->scriptFilenameTableLock = JS_NEW_LOCK();
     if (!rt->scriptFilenameTableLock)
-        return false;
+        return JS_FALSE;
 #endif
     JS_ASSERT(!rt->scriptFilenameTable);
     rt->scriptFilenameTable =
         JS_NewHashTable(16, JS_HashString, js_compare_strings, NULL,
                         &sftbl_alloc_ops, NULL);
-    if (!rt->scriptFilenameTable)
-        return false;
-
-    return true;
+    if (!rt->scriptFilenameTable) {
+        FinishRuntimeScriptState(rt);       /* free lock if threadsafe */
+        return JS_FALSE;
+    }
+    return JS_TRUE;
 }
 
 void
-FreeRuntimeScriptState(JSRuntime *rt)
+js_FreeRuntimeScriptState(JSRuntime *rt)
 {
-    if (rt->scriptFilenameTable)
-        JS_HashTableDestroy(rt->scriptFilenameTable);
-#ifdef JS_THREADSAFE
-    if (rt->scriptFilenameTableLock)
-        JS_DESTROY_LOCK(rt->scriptFilenameTableLock);
-#endif
-}
+    if (!rt->scriptFilenameTable)
+        return;
 
-} /* namespace js */
+    FinishRuntimeScriptState(rt);
+}
 
 static const char *
 SaveScriptFilename(JSContext *cx, const char *filename)
@@ -1063,7 +1057,7 @@ JSScript::NewScript(JSContext *cx, uint32 length, uint32 nsrcnotes, uint32 natom
 
     size = sizeof(JSScript) +
            sizeof(JSAtom *) * natoms;
-
+    
     if (nobjects != 0)
         size += sizeof(JSObjectArray) + nobjects * sizeof(JSObject *);
     if (nupvars != 0)
@@ -1098,9 +1092,6 @@ JSScript::NewScript(JSContext *cx, uint32 length, uint32 nsrcnotes, uint32 natom
     script->length = length;
     script->version = version;
     new (&script->bindings) Bindings(cx, emptyCallShape);
-
-    if (cx->hasRunOption(JSOPTION_PCCOUNT))
-        (void) script->pcCounters.init(cx, length);
 
     uint8 *scriptEnd = reinterpret_cast<uint8 *>(script + 1);
 
@@ -1407,29 +1398,6 @@ bad:
     return NULL;
 }
 
-size_t
-JSScript::totalSize()
-{
-    return code +
-           length * sizeof(jsbytecode) +
-           numNotes() * sizeof(jssrcnote) -
-           (uint8 *) this;
-}
-
-/*
- * Nb: srcnotes are variable-length.  This function computes the number of
- * srcnote *slots*, which may be greater than the number of srcnotes.
- */
-uint32
-JSScript::numNotes()
-{
-    jssrcnote *sn;
-    jssrcnote *notes_ = notes();
-    for (sn = notes_; !SN_IS_TERMINATOR(sn); sn = SN_NEXT(sn))
-        continue;
-    return sn - notes_ + 1;    /* +1 for the terminator */
-}
-
 JS_FRIEND_API(void)
 js_CallNewScriptHook(JSContext *cx, JSScript *script, JSFunction *fun)
 {
@@ -1511,12 +1479,10 @@ DestroyScript(JSContext *cx, JSScript *script)
     PurgeScriptFragments(&script->compartment->traceMonitor, script);
 #endif
 
-#ifdef JS_METHODJIT
+#if defined(JS_METHODJIT)
     mjit::ReleaseScriptCode(cx, script);
 #endif
     JS_REMOVE_LINK(&script->links);
-
-    script->pcCounters.destroy(cx);
 
     cx->free_(script);
 }

@@ -86,11 +86,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLCanvasElement,
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mCurrentContext)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsHTMLCanvasElement,
-                                                nsGenericHTMLElement)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCurrentContext)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
 NS_IMPL_ADDREF_INHERITED(nsHTMLCanvasElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLCanvasElement, nsGenericElement)
 
@@ -236,7 +231,7 @@ nsHTMLCanvasElement::ExtractData(const nsAString& aType,
 
  try_again:
   if (mCurrentContext) {
-    rv = mCurrentContext->GetInputStream(encoderType.get(),
+    rv = mCurrentContext->GetInputStream(nsPromiseFlatCString(encoderType).get(),
                                          nsPromiseFlatString(aOptions).get(),
                                          getter_AddRefs(imgStream));
   } else {
@@ -244,7 +239,7 @@ nsHTMLCanvasElement::ExtractData(const nsAString& aType,
     nsCString enccid("@mozilla.org/image/encoder;2?type=");
     enccid += encoderType;
 
-    nsCOMPtr<imgIEncoder> encoder = do_CreateInstance(enccid.get(), &rv);
+    nsCOMPtr<imgIEncoder> encoder = do_CreateInstance(nsPromiseFlatCString(enccid).get(), &rv);
     if (NS_SUCCEEDED(rv) && encoder) {
       rv = encoder->InitFromData(emptyCanvas->Data(),
                                  size.width * size.height * 4,
@@ -403,7 +398,7 @@ nsHTMLCanvasElement::GetContextHelper(const nsAString& aContextId,
 
   nsresult rv;
   nsCOMPtr<nsICanvasRenderingContextInternal> ctx =
-    do_CreateInstance(ctxString.get(), &rv);
+    do_CreateInstance(nsPromiseFlatCString(ctxString).get(), &rv);
   if (rv == NS_ERROR_OUT_OF_MEMORY) {
     *aContext = nsnull;
     return NS_ERROR_OUT_OF_MEMORY;
@@ -621,7 +616,7 @@ nsHTMLCanvasElement::InvalidateCanvasContent(const gfxRect* damageRect)
   if (!frame)
     return;
 
-  frame->MarkLayersActive(nsChangeHint(0));
+  frame->MarkLayersActive();
 
   nsRect invalRect;
   nsRect contentArea = frame->GetContentRect();

@@ -42,10 +42,12 @@
 
 #include "jscntxt.h"
 #include "jsgc.h"
+#include "jsmath.h"
 #include "jsobj.h"
 #include "jsfun.h"
 #include "jsgcstats.h"
 #include "jsclist.h"
+#include "jsxml.h"
 
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -345,8 +347,6 @@ class NativeIterCache {
     }
 };
 
-class MathCache;
-
 /*
  * A single-entry cache for some base-10 double-to-string conversions. This
  * helps date-format-xparb.js.  It also avoids skewing the results for
@@ -493,7 +493,7 @@ struct JS_FRIEND_API(JSCompartment) {
     void finalizeShapeArenaLists(JSContext *cx);
     bool arenaListsAreEmpty();
 
-    void setGCLastBytes(size_t lastBytes, JSGCInvocationKind gckind);
+    void setGCLastBytes(size_t lastBytes);
     void reduceGCTriggerBytes(uint32 amount);
 
     js::DtoaCache dtoaCache;

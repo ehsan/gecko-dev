@@ -41,7 +41,7 @@
 #include "gfxDrawable.h"
 #include "nsRegion.h"
 
-#ifdef XP_WIN
+#if defined(XP_WIN) || defined(WINCE)
 #include "gfxWindowsPlatform.h"
 #endif
 

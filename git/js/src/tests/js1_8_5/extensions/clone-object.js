@@ -164,15 +164,15 @@ function test() {
     b.z = 3;
     check(b);
 
-    // Check that cloning does not separate merge points in the tree.
+    // Check that cloning separates merge points in the tree, per spec.
     var same = {};
     b = {one: same, two: same};
     a = check(b);
-    assertEq(a.one === a.two, true);
+    assertEq(a.one === a.two, false);
 
     b = [same, same];
     a = check(b);
-    assertEq(a[0] === a[1], true);
+    assertEq(a[0] === a[1], false);
 
     // Try cloning a deep object. Don't fail with "too much recursion".
     b = {};

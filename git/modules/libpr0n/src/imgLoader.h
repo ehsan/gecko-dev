@@ -62,6 +62,7 @@ class imgRequestProxy;
 class imgIRequest;
 class imgIDecoderObserver;
 class nsILoadGroup;
+class nsIPrefBranch;
 
 class imgCacheEntry
 {
@@ -322,7 +323,7 @@ private: // methods
                                     nsLoadFlags aLoadFlags, imgIRequest *aRequestProxy,
                                     imgIRequest **_retval);
 
-  void ReadAcceptHeaderPref();
+  void ReadAcceptHeaderPref(nsIPrefBranch *aBranch);
 
 
   typedef nsRefPtrHashtable<nsCStringHashKey, imgCacheEntry> imgCacheTable;

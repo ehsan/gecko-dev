@@ -166,6 +166,10 @@ pref("app.update.url", "https://aus3.mozilla.org/update/3/%PRODUCT%/%VERSION%/%B
 
 // app.update.interval is in branding section
 
+// Interval: Time before prompting the user again to restart to install the
+//           latest download (in seconds) default=1 day
+pref("app.update.nagTimer.restart", 86400);
+
 // Give the user x seconds to react before showing the big UI. default=12 hours
 pref("app.update.promptWaitTime", 43200);
 // Show the Update Checking/Ready UI when the user was idle for x seconds
@@ -297,7 +301,6 @@ pref("browser.urlbar.match.url", "@");
 pref("browser.urlbar.default.behavior", 0);
 
 pref("browser.urlbar.formatting.enabled", true);
-pref("browser.urlbar.trimURLs", true);
 
 // Number of milliseconds to wait for the http headers (and thus
 // the Content-Disposition filename) before giving up and falling back to 
@@ -861,6 +864,9 @@ pref("breakpad.reportURL", "http://crash-stats.mozilla.com/report/index/");
 // base URL for web-based support pages
 pref("app.support.baseURL", "http://support.mozilla.com/1/firefox/%VERSION%/%OS%/%LOCALE%/");
 
+// URL for web-based support page on how to upgrade a graphics driver
+pref("app.support.updateGraphicsDriverURL", "http://support.mozilla.com/%LOCALE%/kb/how-do-i-upgrade-my-graphics-drivers");
+
 // Name of alternate about: page for certificate errors (when undefined, defaults to about:neterror)
 pref("security.alternate_certificate_error_page", "certerror");
 
@@ -1026,6 +1032,12 @@ pref("devtools.hud.loglimit.network", 200);
 pref("devtools.hud.loglimit.cssparser", 200);
 pref("devtools.hud.loglimit.exception", 200);
 pref("devtools.hud.loglimit.console", 200);
+
+// The developer tools editor configuration:
+// - tabsize: how many spaces to use when a Tab character is displayed.
+// - expandtab: expand Tab characters to spaces.
+pref("devtools.editor.tabsize", 4);
+pref("devtools.editor.expandtab", true);
 
 // Whether the character encoding menu is under the main Firefox button. This
 // preference is a string so that localizers can alter it.

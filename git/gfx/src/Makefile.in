@@ -138,6 +138,7 @@ endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 CPPSRCS += nsSystemFontsWin.cpp
+OS_LIBS += $(call EXPAND_LIBNAME,usp10)
 endif
 
 include $(topsrcdir)/config/rules.mk

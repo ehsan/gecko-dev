@@ -43,7 +43,6 @@
 #include "jsgc.h"
 #include "jsgcmark.h"
 #include "jsiter.h"
-#include "jsmath.h"
 #include "jsproxy.h"
 #include "jsscope.h"
 #include "jstracer.h"
@@ -217,7 +216,7 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
      * This loses us some transparency, and is generally very cheesy.
      */
     JSObject *global;
-    if (cx->hasfp()) {
+    if (cx->running()) {
         global = cx->fp()->scopeChain().getGlobal();
     } else {
         global = cx->globalObject;

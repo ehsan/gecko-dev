@@ -66,6 +66,7 @@
 #include "nsIDOMEventTarget.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDOMWindow.h"
+#include "nsIDOM3EventTarget.h"
 #include "nsIDOMKeyListener.h"
 #include "nsIDOMCompositionListener.h"
 #include "nsIDOMTextListener.h"
@@ -444,12 +445,15 @@ nsWidgetUtils::GetChromeEventHandler(nsIDOMWindow *aDOMWin,
                                      nsIDOMEventTarget **aChromeTarget)
 {
     nsCOMPtr<nsPIDOMWindow> privateDOMWindow(do_QueryInterface(aDOMWin));
-    nsIDOMEventTarget* chromeEventHandler = nsnull;
+    nsPIDOMEventTarget* chromeEventHandler = nsnull;
     if (privateDOMWindow) {
         chromeEventHandler = privateDOMWindow->GetChromeEventHandler();
     }
 
-    NS_IF_ADDREF(*aChromeTarget = chromeEventHandler);
+    nsCOMPtr<nsIDOMEventTarget> target(do_QueryInterface(chromeEventHandler));
+
+    *aChromeTarget = target;
+    NS_IF_ADDREF(*aChromeTarget);
 }
 
 void
@@ -463,18 +467,17 @@ nsWidgetUtils::RemoveWindowListeners(nsIDOMWindow *aDOMWin)
     }
 
     // Use capturing, otherwise the normal find next will get activated when ours should
+    nsCOMPtr<nsPIDOMEventTarget> piTarget(do_QueryInterface(chromeEventHandler));
 
     // Remove DOM Text listener for IME text events
-    rv = chromeEventHandler->
-      RemoveEventListenerByIID(static_cast<nsIDOMMouseListener*>(this),
-                               NS_GET_IID(nsIDOMMouseListener));
+    rv = piTarget->RemoveEventListenerByIID(static_cast<nsIDOMMouseListener*>(this),
+                                            NS_GET_IID(nsIDOMMouseListener));
     if (NS_FAILED(rv)) {
         NS_WARNING("Failed to add Mouse Motion listener\n");
         return;
     }
-    rv = chromeEventHandler->
-      RemoveEventListenerByIID(static_cast<nsIDOMMouseMotionListener*>(this),
-                               NS_GET_IID(nsIDOMMouseMotionListener));
+    rv = piTarget->RemoveEventListenerByIID(static_cast<nsIDOMMouseMotionListener*>(this),
+                                            NS_GET_IID(nsIDOMMouseMotionListener));
     if (NS_FAILED(rv)) {
         NS_WARNING("Failed to add Mouse Motion listener\n");
         return;
@@ -492,18 +495,17 @@ nsWidgetUtils::AttachWindowListeners(nsIDOMWindow *aDOMWin)
     }
 
     // Use capturing, otherwise the normal find next will get activated when ours should
+    nsCOMPtr<nsPIDOMEventTarget> piTarget(do_QueryInterface(chromeEventHandler));
 
     // Attach menu listeners, this will help us ignore keystrokes meant for menus
-    rv = chromeEventHandler->
-      AddEventListenerByIID(static_cast<nsIDOMMouseListener*>(this),
-                            NS_GET_IID(nsIDOMMouseListener));
+    rv = piTarget->AddEventListenerByIID(static_cast<nsIDOMMouseListener*>(this),
+                                         NS_GET_IID(nsIDOMMouseListener));
     if (NS_FAILED(rv)) {
         NS_WARNING("Failed to add Mouse Motion listener\n");
         return;
     }
-    rv = chromeEventHandler->
-      AddEventListenerByIID(static_cast<nsIDOMMouseMotionListener*>(this),
-                            NS_GET_IID(nsIDOMMouseMotionListener));
+    rv = piTarget->AddEventListenerByIID(static_cast<nsIDOMMouseMotionListener*>(this),
+                                         NS_GET_IID(nsIDOMMouseMotionListener));
     if (NS_FAILED(rv)) {
         NS_WARNING("Failed to add Mouse Motion listener\n");
         return;

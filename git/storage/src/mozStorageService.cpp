@@ -63,7 +63,6 @@
 #include "nsIMemoryReporter.h"
 
 #include "mozilla/FunctionTimer.h"
-#include "mozilla/Util.h"
 
 namespace {
 
@@ -294,7 +293,7 @@ Service::~Service()
   if (rc != SQLITE_OK)
     NS_WARNING("sqlite3 did not shutdown cleanly.");
 
-  DebugOnly<bool> shutdownObserved = !sXPConnect;
+  bool shutdownObserved = !sXPConnect;
   NS_ASSERTION(shutdownObserved, "Shutdown was not observed!");
 
   gService = nsnull;

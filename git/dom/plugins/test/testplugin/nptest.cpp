@@ -312,7 +312,6 @@ static URLNotifyData kNotifyData = {
   "static-cookie",
   NULL,
   NULL,
-  NULL,
   false,
   0,
   NULL

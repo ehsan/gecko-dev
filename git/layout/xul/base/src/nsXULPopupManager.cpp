@@ -70,8 +70,6 @@
 #include "nsPIDOMWindow.h"
 #include "nsPIWindowRoot.h"
 #include "nsFrameManager.h"
-#include "nsIObserverService.h"
-#include "mozilla/Services.h"
 
 const nsNavigationDirection DirectionFromKeyCodeTable[2][6] = {
   {
@@ -131,12 +129,11 @@ void nsMenuChainItem::Detach(nsMenuChainItem** aRoot)
   }
 }
 
-NS_IMPL_ISUPPORTS5(nsXULPopupManager,
+NS_IMPL_ISUPPORTS4(nsXULPopupManager,
                    nsIDOMKeyListener,
                    nsIDOMEventListener,
                    nsIMenuRollup,
-                   nsITimerCallback,
-                   nsIObserver)
+                   nsITimerCallback)
 
 nsXULPopupManager::nsXULPopupManager() :
   mRangeOffset(0),
@@ -146,10 +143,6 @@ nsXULPopupManager::nsXULPopupManager() :
   mNoHidePanels(nsnull),
   mTimerMenu(nsnull)
 {
-  nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-  if (obs) {
-    obs->AddObserver(this, "xpcom-shutdown", PR_FALSE);
-  }
 }
 
 nsXULPopupManager::~nsXULPopupManager() 
@@ -170,29 +163,6 @@ void
 nsXULPopupManager::Shutdown()
 {
   NS_IF_RELEASE(sInstance);
-}
-
-NS_IMETHODIMP
-nsXULPopupManager::Observe(nsISupports *aSubject,
-                           const char *aTopic,
-                           const PRUnichar *aData)
-{
-  if (!nsCRT::strcmp(aTopic, "xpcom-shutdown")) {
-    if (mKeyListener) {
-      mKeyListener->RemoveEventListener(NS_LITERAL_STRING("keypress"), this, PR_TRUE);
-      mKeyListener->RemoveEventListener(NS_LITERAL_STRING("keydown"), this, PR_TRUE);
-      mKeyListener->RemoveEventListener(NS_LITERAL_STRING("keyup"), this, PR_TRUE);
-      mKeyListener = nsnull;
-    }
-    mRangeParent = nsnull;
-    // mOpeningPopup is cleared explicitly soon after using it.
-    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-    if (obs) {
-      obs->RemoveObserver(this, "xpcom-shutdown");
-    }
-  }
-
-  return NS_OK;
 }
 
 nsXULPopupManager*

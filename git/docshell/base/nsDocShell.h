@@ -94,7 +94,7 @@
 #include "nsISupportsArray.h"
 #include "nsIWebNavigation.h"
 #include "nsIWebPageDescriptor.h"
-#include "nsIWebProgressListener.h"
+#include "nsIWebProgressListener2.h"
 #include "nsISHContainer.h"
 #include "nsIDocShellLoadInfo.h"
 #include "nsIDocShellHistory.h"
@@ -106,7 +106,7 @@
 #include "nsISecureBrowserUI.h"
 #include "nsIObserver.h"
 #include "nsDocShellLoadTypes.h"
-#include "nsIDOMEventTarget.h"
+#include "nsPIDOMEventTarget.h"
 #include "nsILoadContext.h"
 #include "nsIWidget.h"
 #include "nsIWebShellServices.h"
@@ -119,7 +119,6 @@ class nsDocShell;
 class nsIController;
 class OnLinkClickEvent;
 class nsIScrollableFrame;
-class nsDOMNavigationTiming;
 
 /* load commands were moved to nsIDocShell.h */
 /* load types were moved to nsDocShellLoadTypes.h */
@@ -269,10 +268,13 @@ public:
 
     friend class OnLinkClickEvent;
 
-    // We need dummy OnLocationChange in some cases to update the UI.
+    // We need dummy OnLocationChange in some cases to update the UI without
+    // updating security info.
     void FireDummyOnLocationChange()
     {
-      FireOnLocationChange(this, nsnull, mCurrentURI);
+        FireOnLocationChange
+            (this, nsnull, mCurrentURI, 
+             nsIWebProgressListener2::LOCATION_CHANGE_SAME_DOCUMENT);
     }
 
     nsresult HistoryTransactionRemoved(PRInt32 aIndex);
@@ -593,7 +595,8 @@ protected:
     // FireOnLocationChange is called.
     // In all other cases PR_FALSE is returned.
     PRBool SetCurrentURI(nsIURI *aURI, nsIRequest *aRequest,
-                         PRBool aFireOnLocationChange);
+                         PRBool aFireOnLocationChange,
+                         PRUint32 aLocationFlags);
 
     // The following methods deal with saving and restoring content viewers
     // in session history.
@@ -685,8 +688,6 @@ protected:
 
     void ClearFrameHistory(nsISHEntry* aEntry);
 
-    nsresult MaybeInitTiming();
-
     // Event type dispatched by RestorePresentation
     class RestorePresentationEvent : public nsRunnable {
     public:
@@ -768,7 +769,7 @@ protected:
     // For that reasons don't use nsCOMPtr.
 
     nsIDocShellTreeOwner *     mTreeOwner; // Weak Reference
-    nsIDOMEventTarget *       mChromeEventHandler; //Weak Reference
+    nsPIDOMEventTarget *       mChromeEventHandler; //Weak Reference
 
     eCharsetReloadState        mCharsetReloadState;
 
@@ -839,8 +840,6 @@ protected:
     PRUint64                   mHistoryID;
 
     static nsIURIFixup *sURIFixup;
-
-    nsRefPtr<nsDOMNavigationTiming> mTiming;
 
 #ifdef DEBUG
 private:
