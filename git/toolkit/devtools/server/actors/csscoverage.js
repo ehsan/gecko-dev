@@ -6,7 +6,11 @@
 
 const { Cc, Ci, Cu } = require("chrome");
 
+const { XPCOMUtils } = require("resource://gre/modules/XPCOMUtils.jsm");
 const Services = require("Services");
+
+const promise = require("resource://gre/modules/Promise.jsm").Promise;
+const { getRuleLocation } = require("devtools/server/actors/stylesheets");
 
 const protocol = require("devtools/server/protocol");
 const { method, custom, RetVal, Arg } = protocol;
@@ -16,12 +20,6 @@ loader.lazyGetter(this, "gDevTools", () => {
 });
 loader.lazyGetter(this, "DOMUtils", () => {
   return Cc["@mozilla.org/inspector/dom-utils;1"].getService(Ci.inIDOMUtils)
-});
-loader.lazyGetter(this, "stylesheets", () => {
-  return require("devtools/server/actors/stylesheets");
-});
-loader.lazyGetter(this, "CssLogic", () => {
-  return require("devtools/styleinspector/css-logic").CssLogic;
 });
 
 const CSSRule = Ci.nsIDOMCSSRule;
@@ -179,8 +177,7 @@ let UsageReportActor = protocol.ActorClass({
     observer.observe(document, {
       attributes: true,
       childList: true,
-      characterData: false,
-      subtree: true
+      characterData: false
     });
   },
 
@@ -364,7 +361,7 @@ let UsageReportActor = protocol.ActorClass({
     const ruleToRuleReport = function(rule, ruleData) {
       return {
         url: rule.url,
-        shortUrl: rule.url.split("/").slice(-1)[0],
+        shortUrl: rule.url.split("/").slice(-1),
         start: { line: rule.line, column: rule.column },
         selectorText: ruleData.selectorText,
         formattedCssText: CssLogic.prettifyCSS(ruleData.cssText)
@@ -441,17 +438,9 @@ let UsageReportActor = protocol.ActorClass({
   _testOnly_isRunning: method(function() {
     return this._running;
   }, {
-    response: { value: RetVal("boolean") }
+    response: { value: RetVal("boolean")}
   }),
 
-  /**
-   * For testing only. What pages did we visit.
-   */
-  _testOnly_visitedPages: method(function() {
-    return [...this._visitedPages];
-  }, {
-    response: { value: RetVal("array:string") }
-  }),
 });
 
 exports.UsageReportActor = UsageReportActor;
@@ -523,7 +512,7 @@ function getImportedSheets(stylesheet) {
  * @see deconstructRuleId(ruleId)
  */
 function ruleToId(rule) {
-  let loc = stylesheets.getRuleLocation(rule);
+  let loc = getRuleLocation(rule);
   return sheetToUrl(rule.parentStyleSheet) + "|" + loc.line + "|" + loc.column;
 }
 
@@ -647,11 +636,10 @@ const SEL_MEDIA = [ "blank", "first", "left", "right" ];
  * we think should not have to match in order for the selector to be relevant.
  */
 function getTestSelector(selector) {
-  let replacement = selector;
   let replaceSelector = pseudo => {
-    replacement = replacement.replace(" :" + pseudo, " *")
-                             .replace("(:" + pseudo, "(*")
-                             .replace(":" + pseudo, "");
+    selector = selector.replace(" :" + selector, " *")
+                       .replace("(:" + selector, "(*")
+                       .replace(":" + selector, "");
   };
 
   SEL_EXTERNAL.forEach(replaceSelector);
@@ -660,10 +648,10 @@ function getTestSelector(selector) {
 
   // Pseudo elements work in : and :: forms
   SEL_ELEMENT.forEach(pseudo => {
-    replacement = replacement.replace("::" + pseudo, "");
+    selector = selector.replace("::" + selector, "");
   });
 
-  return replacement;
+  return selector;
 }
 
 /**
@@ -681,17 +669,11 @@ exports.SEL_ALL = [
  * Find a URL for a given stylesheet
  */
 const sheetToUrl = exports.sheetToUrl = function(stylesheet) {
-  // For <link> elements
   if (stylesheet.href) {
     return stylesheet.href;
   }
-
-  // For <style> elements
-  if (stylesheet.ownerNode) {
-    let document = stylesheet.ownerNode.ownerDocument;
-    let sheets = [...document.querySelectorAll("style")];
-    let index = sheets.indexOf(stylesheet.ownerNode);
-    return getURL(document) + ' → <style> index ' + index;
+  if (stylesheet.ownerNode && stylesheet.ownerNode.baseURI) {
+    return stylesheet.ownerNode.baseURI;
   }
 
   throw new Error("Unknown sheet source");

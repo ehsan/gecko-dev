@@ -668,12 +668,10 @@ js_ExpandErrorArguments(ExclusiveContext *cx, JSErrorCallback callback,
     *messagep = nullptr;
 
     /* Most calls supply js_GetErrorMessage; if this is so, assume nullptr. */
-    if (!callback || callback == js_GetErrorMessage) {
+    if (!callback || callback == js_GetErrorMessage)
         efs = js_GetLocalizedErrorMessage(cx, userRef, nullptr, errorNumber);
-    } else {
-        AutoSuppressGC suppressGC(cx);
+    else
         efs = callback(userRef, nullptr, errorNumber);
-    }
     if (efs) {
         reportp->exnType = efs->exnType;
 

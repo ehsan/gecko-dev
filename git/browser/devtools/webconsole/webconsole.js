@@ -1850,7 +1850,7 @@ WebConsoleFrame.prototype = {
     let actor = aHttpActivity.actor;
 
     if (actor) {
-      this.webConsoleClient.getRequestHeaders(actor, (aResponse) => {
+      this.webConsoleClient.getRequestHeaders(actor, function(aResponse) {
         if (aResponse.error) {
           Cu.reportError("WCF_openNetworkPanel getRequestHeaders:" +
                          aResponse.error);
@@ -1860,10 +1860,10 @@ WebConsoleFrame.prototype = {
         aHttpActivity.request.headers = aResponse.headers;
 
         this.webConsoleClient.getRequestCookies(actor, onRequestCookies);
-      });
+      }.bind(this));
     }
 
-    let onRequestCookies = (aResponse) => {
+    let onRequestCookies = function(aResponse) {
       if (aResponse.error) {
         Cu.reportError("WCF_openNetworkPanel getRequestCookies:" +
                        aResponse.error);
@@ -1873,9 +1873,9 @@ WebConsoleFrame.prototype = {
       aHttpActivity.request.cookies = aResponse.cookies;
 
       this.webConsoleClient.getResponseHeaders(actor, onResponseHeaders);
-    };
+    }.bind(this);
 
-    let onResponseHeaders = (aResponse) => {
+    let onResponseHeaders = function(aResponse) {
       if (aResponse.error) {
         Cu.reportError("WCF_openNetworkPanel getResponseHeaders:" +
                        aResponse.error);
@@ -1885,9 +1885,9 @@ WebConsoleFrame.prototype = {
       aHttpActivity.response.headers = aResponse.headers;
 
       this.webConsoleClient.getResponseCookies(actor, onResponseCookies);
-    };
+    }.bind(this);
 
-    let onResponseCookies = (aResponse) => {
+    let onResponseCookies = function(aResponse) {
       if (aResponse.error) {
         Cu.reportError("WCF_openNetworkPanel getResponseCookies:" +
                        aResponse.error);
@@ -1897,9 +1897,9 @@ WebConsoleFrame.prototype = {
       aHttpActivity.response.cookies = aResponse.cookies;
 
       this.webConsoleClient.getRequestPostData(actor, onRequestPostData);
-    };
+    }.bind(this);
 
-    let onRequestPostData = (aResponse) => {
+    let onRequestPostData = function(aResponse) {
       if (aResponse.error) {
         Cu.reportError("WCF_openNetworkPanel getRequestPostData:" +
                        aResponse.error);
@@ -1910,9 +1910,9 @@ WebConsoleFrame.prototype = {
       aHttpActivity.discardRequestBody = aResponse.postDataDiscarded;
 
       this.webConsoleClient.getResponseContent(actor, onResponseContent);
-    };
+    }.bind(this);
 
-    let onResponseContent = (aResponse) => {
+    let onResponseContent = function(aResponse) {
       if (aResponse.error) {
         Cu.reportError("WCF_openNetworkPanel getResponseContent:" +
                        aResponse.error);
@@ -1923,9 +1923,9 @@ WebConsoleFrame.prototype = {
       aHttpActivity.discardResponseBody = aResponse.contentDiscarded;
 
       this.webConsoleClient.getEventTimings(actor, onEventTimings);
-    };
+    }.bind(this);
 
-    let onEventTimings = (aResponse) => {
+    let onEventTimings = function(aResponse) {
       if (aResponse.error) {
         Cu.reportError("WCF_openNetworkPanel getEventTimings:" +
                        aResponse.error);
@@ -1935,9 +1935,9 @@ WebConsoleFrame.prototype = {
       aHttpActivity.timings = aResponse.timings;
 
       openPanel();
-    };
+    }.bind(this);
 
-    let openPanel = () => {
+    let openPanel = function() {
       aNode._netPanel = netPanel;
 
       let panel = netPanel.panel;
@@ -1953,7 +1953,7 @@ WebConsoleFrame.prototype = {
       });
 
       aNode._panelOpen = true;
-    };
+    }.bind(this);
 
     let netPanel = new NetworkPanel(this.popupset, aHttpActivity, this);
     netPanel.linkNode = aNode;
@@ -2911,9 +2911,9 @@ WebConsoleFrame.prototype = {
 
     this._commandController = null;
 
-    let onDestroy = () => {
+    let onDestroy = function() {
       this._destroyer.resolve(null);
-    };
+    }.bind(this);
 
     if (this.proxy) {
       this.proxy.disconnect().then(onDestroy);
@@ -4850,12 +4850,12 @@ WebConsoleConnectionProxy.prototype = {
                                         timeout, Ci.nsITimer.TYPE_ONE_SHOT);
 
     let connPromise = this._connectDefer.promise;
-    connPromise.then(() => {
+    connPromise.then(function _onSucess() {
       this._connectTimer.cancel();
       this._connectTimer = null;
-    }, () => {
+    }.bind(this), function _onFailure() {
       this._connectTimer = null;
-    });
+    }.bind(this));
 
     let client = this.client = this.target.client;
 

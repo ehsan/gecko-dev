@@ -1762,7 +1762,7 @@ OffThreadCompilationAvailable(JSContext *cx)
     //
     // Require cpuCount > 1 so that Ion compilation jobs and main-thread
     // execution are not competing for the same resources.
-    return cx->runtime()->canUseOffthreadIonCompilation()
+    return cx->runtime()->canUseParallelIonCompilation()
         && HelperThreadState().cpuCount > 1;
 #else
     return false;

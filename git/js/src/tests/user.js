@@ -28,4 +28,3 @@ user_pref("browser.safebrowsing.malware.enabled", false);
 user_pref("browser.snippets.enabled", false);
 user_pref("browser.snippets.syncPromo.enabled", false);
 user_pref("general.useragent.updates.enabled", false);
-user_pref("browser.webapps.checkForUpdates", 0);

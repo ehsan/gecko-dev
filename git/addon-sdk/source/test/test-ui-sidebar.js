@@ -1089,39 +1089,41 @@ exports.testSidebarLeakCheckUnloadAfterAttach = function(assert, done) {
   const loader = Loader(module);
   const { Sidebar } = loader.require('sdk/ui/sidebar');
   let testName = 'testSidebarLeakCheckUnloadAfterAttach';
+  let window = getMostRecentBrowserWindow();
   let sidebar = Sidebar({
     id: testName,
     title: testName,
     url: 'data:text/html;charset=utf-8,'+testName
   });
 
-  open().then(focus).then(window => {
-    sidebar.on('attach', function() {
-      assert.pass('the sidebar was shown');
+  sidebar.on('attach', function() {
+    assert.pass('the sidebar was shown');
 
-      sidebar.on('show', function() {
-        assert.fail('the sidebar show listener should have been removed');
-      });
-      assert.pass('added a sidebar show listener');
-
-      sidebar.on('hide', function() {
-        assert.fail('the sidebar hide listener should have been removed');
-      });
-      assert.pass('added a sidebar hide listener');
-
-      let panelBrowser = window.document.getElementById('sidebar').contentDocument.getElementById('web-panels-browser');
-      panelBrowser.contentWindow.addEventListener('unload', function onUnload() {
-        panelBrowser.contentWindow.removeEventListener('unload', onUnload, false);
-        assert.pass('the sidebar web panel was unloaded properly');
-        close(window).then(done).catch(assert.fail);
-      }, false);
-
-      loader.unload();
+    sidebar.on('show', function() {
+      assert.fail('the sidebar show listener should have been removed');
     });
+    assert.pass('added a sidebar show listener');
 
-    assert.pass('showing the sidebar');
-    sidebar.show();
-  }).catch(assert.fail);
+    sidebar.on('hide', function() {
+      assert.fail('the sidebar hide listener should have been removed');
+    });
+    assert.pass('added a sidebar hide listener');
+
+    let panelBrowser = window.document.getElementById('sidebar').contentDocument.getElementById('web-panels-browser');
+    panelBrowser.contentWindow.addEventListener('unload', function onUnload() {
+      panelBrowser.contentWindow.removeEventListener('unload', onUnload, false);
+      // wait a tick..
+      setTimeout(function() {
+        assert.pass('the sidebar web panel was unloaded properly');
+        done();
+      })
+    }, false);
+
+    loader.unload();
+  });
+
+  assert.pass('showing the sidebar');
+  sidebar.show();
 }
 
 exports.testTwoSidebarsWithSameTitleAndURL = function(assert) {

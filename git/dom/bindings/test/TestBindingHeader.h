@@ -151,6 +151,7 @@ public:
 
   static
   already_AddRefed<TestInterface> Test2(const GlobalObject&,
+                                        JSContext*,
                                         const DictForConstructor&,
                                         JS::Handle<JS::Value>,
                                         JS::Handle<JSObject*>,
@@ -681,7 +682,8 @@ public:
 
   // Static methods and attributes
   static void StaticMethod(const GlobalObject&, bool);
-  static void StaticMethodWithContext(const GlobalObject&, JS::Value);
+  static void StaticMethodWithContext(const GlobalObject&, JSContext*,
+                                      JS::Value);
   static bool StaticAttribute(const GlobalObject&);
   static void SetStaticAttribute(const GlobalObject&, bool);
 

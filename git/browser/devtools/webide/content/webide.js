@@ -116,7 +116,6 @@ let UI = {
         this.updateTitle();
         this.updateCommands();
         this.updateProjectButton();
-        this.updateProjectEditorHeader();
         break;
     };
   },
@@ -291,25 +290,6 @@ let UI = {
     return this.projecteditor.loaded;
   },
 
-  updateProjectEditorHeader: function() {
-    let project = AppManager.selectedProject;
-    if (!project || !this.projecteditor) {
-      return;
-    }
-    let status = project.validationStatus || "unknown";
-    if (status == "error warning") {
-      status = "error";
-    }
-    this.getProjectEditor().then((projecteditor) => {
-      projecteditor.setProjectToAppPath(project.location, {
-        name: project.name,
-        iconUrl: project.icon,
-        projectOverviewURL: "chrome://webide/content/details.xhtml",
-        validationStatus: status
-      });
-    }, console.error);
-  },
-
   isProjectEditorEnabled: function() {
     return Services.prefs.getBoolPref("devtools.webide.showProjectEditor");
   },
@@ -353,8 +333,12 @@ let UI = {
     detailsIframe.setAttribute("hidden", "true");
     projecteditorIframe.removeAttribute("hidden");
 
-    this.getProjectEditor().then(() => {
-      this.updateProjectEditorHeader();
+    this.getProjectEditor().then((projecteditor) => {
+      projecteditor.setProjectToAppPath(project.location, {
+        name: project.name,
+        iconUrl: project.icon,
+        projectOverviewURL: "chrome://webide/content/details.xhtml"
+      });
     }, console.error);
 
     if (project.location) {

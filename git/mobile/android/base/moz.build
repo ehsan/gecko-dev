@@ -372,7 +372,6 @@ gbjar.sources += [
     'Tab.java',
     'Tabs.java',
     'TabsAccessor.java',
-    'tabspanel/PrivateTabsPanel.java',
     'tabspanel/RemoteTabsContainerPanel.java',
     'tabspanel/RemoteTabsList.java',
     'tabspanel/RemoteTabsPanel.java',

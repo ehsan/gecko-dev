@@ -119,9 +119,7 @@ FontSizeInflationListMarginAdjustment(const nsIFrame* aFrame)
       if (listStyleType != NS_STYLE_LIST_STYLE_NONE &&
           listStyleType != NS_STYLE_LIST_STYLE_DISC &&
           listStyleType != NS_STYLE_LIST_STYLE_CIRCLE &&
-          listStyleType != NS_STYLE_LIST_STYLE_SQUARE &&
-          listStyleType != NS_STYLE_LIST_STYLE_DISCLOSURE_CLOSED &&
-          listStyleType != NS_STYLE_LIST_STYLE_DISCLOSURE_OPEN) {
+          listStyleType != NS_STYLE_LIST_STYLE_SQUARE) {
         // The HTML spec states that the default padding for ordered lists
         // begins at 40px, indicating that we have 40px of space to place a
         // bullet. When performing font inflation calculations, we add space

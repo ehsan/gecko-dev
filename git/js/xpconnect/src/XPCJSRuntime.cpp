@@ -1571,8 +1571,8 @@ ReloadPrefsCallback(const char *pref, void *data)
     bool useNativeRegExp = Preferences::GetBool(JS_OPTIONS_DOT_STR "native_regexp") && !safeMode;
 
     bool parallelParsing = Preferences::GetBool(JS_OPTIONS_DOT_STR "parallel_parsing");
-    bool offthreadIonCompilation = Preferences::GetBool(JS_OPTIONS_DOT_STR
-                                                       "ion.offthread_compilation");
+    bool parallelIonCompilation = Preferences::GetBool(JS_OPTIONS_DOT_STR
+                                                       "ion.parallel_compilation");
     bool useBaselineEager = Preferences::GetBool(JS_OPTIONS_DOT_STR
                                                  "baselinejit.unsafe_eager_compilation");
     bool useIonEager = Preferences::GetBool(JS_OPTIONS_DOT_STR "ion.unsafe_eager_compilation");
@@ -1585,7 +1585,7 @@ ReloadPrefsCallback(const char *pref, void *data)
                              .setNativeRegExp(useNativeRegExp);
 
     JS_SetParallelParsingEnabled(rt, parallelParsing);
-    JS_SetOffthreadIonCompilationEnabled(rt, offthreadIonCompilation);
+    JS_SetParallelIonCompilationEnabled(rt, parallelIonCompilation);
     JS_SetGlobalJitCompilerOption(rt, JSJITCOMPILER_BASELINE_USECOUNT_TRIGGER,
                                   useBaselineEager ? 0 : -1);
     JS_SetGlobalJitCompilerOption(rt, JSJITCOMPILER_ION_USECOUNT_TRIGGER,
@@ -2322,6 +2322,12 @@ ReportJSRuntimeExplicitTreeStats(const JS::RuntimeStats &rtStats,
         KIND_HEAP, rtStats.runtime.temporary,
         "Transient data (mostly parse nodes) held by the JSRuntime during "
         "compilation.");
+
+#ifdef JS_YARR
+    RREPORT_BYTES(rtPath + NS_LITERAL_CSTRING("runtime/regexp-data"),
+        KIND_NONHEAP, rtStats.runtime.regexpData,
+        "Regexp JIT data.");
+#endif
 
     RREPORT_BYTES(rtPath + NS_LITERAL_CSTRING("runtime/interpreter-stack"),
         KIND_HEAP, rtStats.runtime.interpreterStack,

@@ -29,13 +29,7 @@ public final class FrameworkHelper {
         do {
             try {
                 return cls.getDeclaredField(fieldName);
-            } catch (final Exception e) {
-                // NoSuchFieldException is a documented exception of getDeclaredField
-                // and is frequently observed here. No other exceptions are documented
-                // for getDeclaredField. However, on Android 2.3, NoSuchMethodException 
-                // is also observed, when called on some classes. This appears to be 
-                // an Android bug reportedly fixed in Honeycomb. Since NoSuchMethodException
-                // is not declared, it cannot be caught, so we catch all Exceptions.
+            } catch (final NoSuchFieldException e) {
                 cls = cls.getSuperclass();
             }
         } while (cls != null);

@@ -21,8 +21,7 @@ class HTMLOutputElement MOZ_FINAL : public nsGenericHTMLFormElement,
 public:
   using nsIConstraintValidation::GetValidationMessage;
 
-  HTMLOutputElement(already_AddRefed<nsINodeInfo>& aNodeInfo,
-                    FromParser aFromParser = NOT_FROM_PARSER);
+  HTMLOutputElement(already_AddRefed<nsINodeInfo>& aNodeInfo);
   virtual ~HTMLOutputElement();
 
   // nsISupports
@@ -39,8 +38,6 @@ public:
 
   bool ParseAttribute(int32_t aNamespaceID, nsIAtom* aAttribute,
                         const nsAString& aValue, nsAttrValue& aResult) MOZ_OVERRIDE;
-
-  virtual void DoneAddingChildren(bool aHaveNotified) MOZ_OVERRIDE;
 
   EventStates IntrinsicState() const MOZ_OVERRIDE;
 
@@ -104,7 +101,6 @@ protected:
   };
 
   ValueModeFlag                     mValueModeFlag;
-  bool                              mIsDoneAddingChildren;
   nsString                          mDefaultValue;
   nsRefPtr<nsDOMSettableTokenList>  mTokenList;
 };

@@ -52,7 +52,7 @@ function Cleopatra(panel, opts) {
   // or when user clicks on start/stop buttons.
 
   doc.getElementById("profiler-report").appendChild(this.iframe);
-  win.addEventListener("message", (event) => {
+  win.addEventListener("message", function (event) {
     if (parseInt(event.data.uid, 10) !== parseInt(this.uid, 10)) {
       return;
     }
@@ -65,7 +65,7 @@ function Cleopatra(panel, opts) {
       case "displaysource":
         this.panel.displaySource(event.data.data);
     }
-  });
+  }.bind(this));
 }
 
 Cleopatra.prototype = {
@@ -164,4 +164,3 @@ Cleopatra.prototype = {
 };
 
 module.exports = Cleopatra;
-

@@ -5,7 +5,7 @@
 XPCOMUtils.defineLazyModuleGetter(this, "Chat",
                                   "resource:///modules/Chat.jsm");
 
-let openChatOrig = Chat.open;
+var openChatOrig = Chat.open;
 
 add_test(function test_get_do_not_disturb() {
   Services.prefs.setBoolPref("loop.do_not_disturb", false);
@@ -32,13 +32,15 @@ add_test(function test_set_do_not_disturb() {
 add_test(function test_do_not_disturb_disabled_should_open_chat_window() {
   MozLoopService.doNotDisturb = false;
 
-  MozLoopService.register(mockPushHandler).then(() => {
+  MozLoopService.register().then(() => {
+    let webSocket = gMockWebSocketChannelFactory.createdInstances[0];
+
     let opened = false;
     Chat.open = function() {
       opened = true;
     };
 
-    mockPushHandler.notify(1);
+    webSocket.notify(1);
 
     do_check_true(opened, "should open a chat window");
 
@@ -46,18 +48,23 @@ add_test(function test_do_not_disturb_disabled_should_open_chat_window() {
   });
 });
 
-add_task(function test_do_not_disturb_enabled_shouldnt_open_chat_window() {
+add_test(function test_do_not_disturb_enabled_shouldnt_open_chat_window() {
   MozLoopService.doNotDisturb = true;
 
-  // We registered in the previous test, so no need to do that on this one.
-  let opened = false;
-  Chat.open = function() {
-    opened = true;
-  };
+  MozLoopService.register().then(() => {
+    let webSocket = gMockWebSocketChannelFactory.createdInstances[0];
 
-  mockPushHandler.notify(1);
+    let opened = false;
+    Chat.open = function() {
+      opened = true;
+    };
 
-  do_check_false(opened, "should not open a chat window");
+    webSocket.notify(1);
+
+    do_check_false(opened, "should not open a chat window");
+
+    run_next_test();
+  });
 });
 
 function run_test()
@@ -70,7 +77,12 @@ function run_test()
     response.finish();
   });
 
+  // Registrations and pref settings.
+  gMockWebSocketChannelFactory.register();
+
   do_register_cleanup(function() {
+    gMockWebSocketChannelFactory.unregister();
+
     // Revert original Chat.open implementation
     Chat.open = openChatOrig;
 

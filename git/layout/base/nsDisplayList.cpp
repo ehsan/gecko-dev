@@ -2593,21 +2593,9 @@ nsDisplayThemedBackground::GetBoundsInternal() {
   return r + ToReferenceFrame();
 }
 
-bool
-nsDisplayBackgroundColor::ApplyOpacity(nsDisplayListBuilder* aBuilder,
-                                       float aOpacity,
-                                       const DisplayItemClip* aClip)
-{
-  mColor.a = mColor.a * aOpacity;
-  if (aClip) {
-    IntersectClip(aBuilder, *aClip);
-  }
-  return true;
-}
-
 void
 nsDisplayBackgroundColor::Paint(nsDisplayListBuilder* aBuilder,
-                                nsRenderingContext* aCtx)
+                                nsRenderingContext* aCtx) 
 {
   if (mColor == NS_RGBA(0, 0, 0, 0)) {
     return;
@@ -2616,7 +2604,7 @@ nsDisplayBackgroundColor::Paint(nsDisplayListBuilder* aBuilder,
   nsPoint offset = ToReferenceFrame();
   uint32_t flags = aBuilder->GetBackgroundPaintFlags();
   CheckForBorderItem(this, flags);
-  nsCSSRendering::PaintBackgroundColor(mColor, mFrame->PresContext(), *aCtx, mFrame,
+  nsCSSRendering::PaintBackgroundColor(mFrame->PresContext(), *aCtx, mFrame,
                                        mVisibleRect,
                                        nsRect(offset, mFrame->GetSize()),
                                        flags);
@@ -2624,9 +2612,9 @@ nsDisplayBackgroundColor::Paint(nsDisplayListBuilder* aBuilder,
 
 nsRegion
 nsDisplayBackgroundColor::GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
-                                          bool* aSnap)
+                                          bool* aSnap) 
 {
-  if (mColor.a != 1) {
+  if (NS_GET_A(mColor) != 255) {
     return nsRegion();
   }
 
@@ -2642,9 +2630,9 @@ nsDisplayBackgroundColor::GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
 }
 
 bool
-nsDisplayBackgroundColor::IsUniform(nsDisplayListBuilder* aBuilder, nscolor* aColor)
+nsDisplayBackgroundColor::IsUniform(nsDisplayListBuilder* aBuilder, nscolor* aColor) 
 {
-  *aColor = NS_RGBA_FROM_GFXRGBA(mColor);
+  *aColor = mColor;
 
   if (!mBackgroundStyle)
     return true;
@@ -2671,9 +2659,9 @@ nsDisplayBackgroundColor::HitTest(nsDisplayListBuilder* aBuilder,
 void
 nsDisplayBackgroundColor::WriteDebugInfo(nsACString& aTo)
 {
-  aTo += nsPrintfCString(" (rgba %f,%f,%f,%f)",
-          mColor.r, mColor.g,
-          mColor.b, mColor.a);
+  aTo += nsPrintfCString(" (rgba %d,%d,%d,%d)", 
+          NS_GET_R(mColor), NS_GET_G(mColor),
+          NS_GET_B(mColor), NS_GET_A(mColor));
 }
 #endif
 
@@ -3286,8 +3274,7 @@ nsresult nsDisplayWrapper::WrapListsInPlace(nsDisplayListBuilder* aBuilder,
 
 nsDisplayOpacity::nsDisplayOpacity(nsDisplayListBuilder* aBuilder,
                                    nsIFrame* aFrame, nsDisplayList* aList)
-    : nsDisplayWrapList(aBuilder, aFrame, aList)
-    , mOpacity(aFrame->StyleDisplay()->mOpacity) {
+    : nsDisplayWrapList(aBuilder, aFrame, aList) {
   MOZ_COUNT_CTOR(nsDisplayOpacity);
 }
 
@@ -3300,9 +3287,8 @@ nsDisplayOpacity::~nsDisplayOpacity() {
 nsRegion nsDisplayOpacity::GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
                                            bool* aSnap) {
   *aSnap = false;
-  // The only time where mOpacity == 1.0 should be when we have will-change.
-  // We could report this as opaque then but when the will-change value starts
-  // animating the element would become non opaque and could cause repaints.
+  // We are never opaque, if our opacity was < 1 then we wouldn't have
+  // been created.
   return nsRegion();
 }
 
@@ -3311,7 +3297,7 @@ already_AddRefed<Layer>
 nsDisplayOpacity::BuildLayer(nsDisplayListBuilder* aBuilder,
                              LayerManager* aManager,
                              const ContainerLayerParameters& aContainerParameters) {
-  if (mOpacity == 0 && mFrame->GetContent() &&
+  if (mFrame->StyleDisplay()->mOpacity == 0 && mFrame->GetContent() &&
       !nsLayoutUtils::HasAnimations(mFrame->GetContent(), eCSSProperty_opacity)) {
     return nullptr;
   }
@@ -3321,7 +3307,7 @@ nsDisplayOpacity::BuildLayer(nsDisplayListBuilder* aBuilder,
   if (!container)
     return nullptr;
 
-  container->SetOpacity(mOpacity);
+  container->SetOpacity(mFrame->StyleDisplay()->mOpacity);
   nsDisplayListBuilder::AddAnimationsAndTransitionsToLayer(container, aBuilder,
                                                            this, mFrame,
                                                            eCSSProperty_opacity);
@@ -3359,18 +3345,6 @@ nsDisplayOpacity::NeedsActiveLayer()
 }
 
 bool
-nsDisplayOpacity::ApplyOpacity(nsDisplayListBuilder* aBuilder,
-                             float aOpacity,
-                             const DisplayItemClip* aClip)
-{
-  mOpacity = mOpacity * aOpacity;
-  if (aClip) {
-    IntersectClip(aBuilder, *aClip);
-  }
-  return true;
-}
-
-bool
 nsDisplayOpacity::ShouldFlattenAway(nsDisplayListBuilder* aBuilder)
 {
   if (NeedsActiveLayer())
@@ -3384,7 +3358,7 @@ nsDisplayOpacity::ShouldFlattenAway(nsDisplayListBuilder* aBuilder)
     return false;
   }
 
-  return child->ApplyOpacity(aBuilder, mOpacity, mClip);
+  return child->ApplyOpacity(aBuilder, mFrame->StyleDisplay()->mOpacity, mClip);
 }
 
 nsDisplayItem::LayerState
@@ -3434,7 +3408,7 @@ bool nsDisplayOpacity::TryMerge(nsDisplayListBuilder* aBuilder, nsDisplayItem* a
 void
 nsDisplayOpacity::WriteDebugInfo(nsACString& aTo)
 {
-  aTo += nsPrintfCString(" (opacity %f)", mOpacity);
+  aTo += nsPrintfCString(" (opacity %f)", mFrame->StyleDisplay()->mOpacity);
 }
 #endif
 

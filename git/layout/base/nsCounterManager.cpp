@@ -12,7 +12,6 @@
 #include "nsTArray.h"
 #include "mozilla/Likely.h"
 #include "nsIContent.h"
-#include "WritingModes.h"
 
 using namespace mozilla;
 
@@ -96,13 +95,11 @@ nsCounterUseNode::GetText(nsString& aResult)
         separator = mCounterFunction->Item(1).GetStringBufferValue();
 
     CounterStyle* style = GetCounterStyle();
-    WritingMode wm = mPseudoFrame ?
-        mPseudoFrame->GetWritingMode() : WritingMode();
     for (uint32_t i = stack.Length() - 1;; --i) {
         nsCounterNode *n = stack[i];
         nsAutoString text;
         bool isTextRTL;
-        style->GetCounterText(n->mValueAfter, wm, text, isTextRTL);
+        style->GetCounterText(n->mValueAfter, text, isTextRTL);
         aResult.Append(text);
         if (i == 0)
             break;

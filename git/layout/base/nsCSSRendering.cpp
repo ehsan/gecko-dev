@@ -1602,8 +1602,7 @@ nsCSSRendering::PaintBackground(nsPresContext* aPresContext,
 }
 
 void
-nsCSSRendering::PaintBackgroundColor(gfxRGBA aColor,
-                                     nsPresContext* aPresContext,
+nsCSSRendering::PaintBackgroundColor(nsPresContext* aPresContext,
                                      nsRenderingContext& aRenderingContext,
                                      nsIFrame* aForFrame,
                                      const nsRect& aDirtyRect,
@@ -1635,7 +1634,7 @@ nsCSSRendering::PaintBackgroundColor(gfxRGBA aColor,
     sc = aForFrame->StyleContext();
   }
 
-  PaintBackgroundColorWithSC(aColor, aPresContext, aRenderingContext, aForFrame,
+  PaintBackgroundColorWithSC(aPresContext, aRenderingContext, aForFrame,
                              aDirtyRect, aBorderArea, sc,
                              *aForFrame->StyleBorder(), aFlags);
 }
@@ -2874,8 +2873,7 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
 }
 
 void
-nsCSSRendering::PaintBackgroundColorWithSC(gfxRGBA aColor,
-                                           nsPresContext* aPresContext,
+nsCSSRendering::PaintBackgroundColorWithSC(nsPresContext* aPresContext,
                                            nsRenderingContext& aRenderingContext,
                                            nsIFrame* aForFrame,
                                            const nsRect& aDirtyRect,
@@ -2905,11 +2903,11 @@ nsCSSRendering::PaintBackgroundColorWithSC(gfxRGBA aColor,
   // background colors.
   bool drawBackgroundImage;
   bool drawBackgroundColor;
-  DetermineBackgroundColor(aPresContext,
-                           aBackgroundSC,
-                           aForFrame,
-                           drawBackgroundImage,
-                           drawBackgroundColor);
+  nscolor bgColor = DetermineBackgroundColor(aPresContext,
+                                             aBackgroundSC,
+                                             aForFrame,
+                                             drawBackgroundImage,
+                                             drawBackgroundColor);
 
   NS_ASSERTION(drawBackgroundImage || drawBackgroundColor,
                "Should not be trying to paint a background if we don't have one");
@@ -2953,7 +2951,7 @@ nsCSSRendering::PaintBackgroundColorWithSC(gfxRGBA aColor,
                     aDirtyRect, haveRoundedCorners, bgRadii, appUnitsPerPixel,
                     &clipState);
 
-  ctx->SetColor(aColor);
+  ctx->SetColor(gfxRGBA(bgColor));
 
   gfxContextAutoSaveRestore autoSR;
   DrawBackgroundColor(clipState, ctx, haveRoundedCorners, appUnitsPerPixel);

@@ -241,10 +241,12 @@ LoginManagerStorage_mozStorage.prototype = {
      *
      */
     addLogin : function (login) {
+        let encUsername, encPassword;
+
         // Throws if there are bogus values.
         LoginHelper.checkLoginValues(login);
 
-        let [encUsername, encPassword, encType] = this._encryptLogin(login);
+        [encUsername, encPassword, encType] = this._encryptLogin(login);
 
         // Clone the login, so we don't modify the caller's object.
         let loginClone = login.clone();

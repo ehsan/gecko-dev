@@ -15,7 +15,6 @@ const { loadReason } = require('../self');
 const { rootURI, metadata } = require("@loader/options");
 const globals = require('../system/globals');
 const xulApp = require('../system/xul-app');
-const { id } = require('sdk/self');
 const appShellService = Cc['@mozilla.org/appshell/appShellService;1'].
                         getService(Ci.nsIAppShellService);
 const { preferences } = metadata;
@@ -135,7 +134,7 @@ function run(options) {
     // native-options does stuff directly with preferences key from package.json
     if (preferences && preferences.length > 0) {
       try {
-        require('../preferences/native-options').enable({ preferences: preferences, id: id });
+        require('../preferences/native-options').enable(preferences);
       }
       catch (error) {
         console.exception(error);

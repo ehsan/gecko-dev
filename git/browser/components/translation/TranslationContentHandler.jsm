@@ -142,10 +142,7 @@ TranslationContentHandler.prototype = {
           },
           error => {
             translationDocument.translationError = true;
-            let data = {success: false};
-            if (error == "unavailable")
-              data.unavailable = true;
-            this.global.sendAsyncMessage("Translation:Finished", data);
+            this.global.sendAsyncMessage("Translation:Finished", {success: false});
           }
         );
         break;
