@@ -77,22 +77,6 @@ nsHTMLScrollFrame::nsHTMLScrollFrame(nsIPresShell* aShell, nsStyleContext* aCont
 {
 }
 
-void
-nsHTMLScrollFrame::ScrollbarActivityStarted() const
-{
-  if (mInner.mScrollbarActivity) {
-    mInner.mScrollbarActivity->ActivityStarted();
-  }
-}
-
-void
-nsHTMLScrollFrame::ScrollbarActivityStopped() const
-{
-  if (mInner.mScrollbarActivity) {
-    mInner.mScrollbarActivity->ActivityStopped();
-  }
-}
-
 nsresult
 nsHTMLScrollFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 {
@@ -916,22 +900,6 @@ nsXULScrollFrame::nsXULScrollFrame(nsIPresShell* aShell, nsStyleContext* aContex
 {
   SetLayoutManager(nullptr);
   mInner.mClipAllDescendants = aClipAllDescendants;
-}
-
-void
-nsXULScrollFrame::ScrollbarActivityStarted() const
-{
-  if (mInner.mScrollbarActivity) {
-    mInner.mScrollbarActivity->ActivityStarted();
-  }
-}
-
-void
-nsXULScrollFrame::ScrollbarActivityStopped() const
-{
-  if (mInner.mScrollbarActivity) {
-    mInner.mScrollbarActivity->ActivityStopped();
-  }
 }
 
 nsMargin

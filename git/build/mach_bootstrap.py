@@ -108,11 +108,6 @@ CATEGORIES = {
         'short': 'Potpourri',
         'long': 'Potent potables and assorted snacks.',
         'priority': 10,
-    },
-    'disabled': {
-        'short': 'Disabled',
-        'long': 'These commands are unavailable for your current context, run "mach <command>" to see why.',
-        'priority': 0,
     }
 }
 
@@ -172,9 +167,8 @@ def bootstrap(topsrcdir, mozilla_dir=None):
 
     def populate_context(context):
         context.state_dir = state_dir
-        context.topdir = topsrcdir
 
-    mach = mach.main.Mach(os.getcwd())
+    mach = mach.main.Mach(topsrcdir)
     mach.populate_context_handler = populate_context
 
     for category, meta in CATEGORIES.items():

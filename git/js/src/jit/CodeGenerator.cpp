@@ -6152,8 +6152,7 @@ CodeGenerator::addGetElementCache(LInstruction *ins, Register obj, ConstantOrReg
 {
     switch (gen->info().executionMode()) {
       case SequentialExecution: {
-        RegisterSet liveRegs = ins->safepoint()->liveRegs();
-        GetElementIC cache(liveRegs, obj, index, output, monitoredResult);
+        GetElementIC cache(obj, index, output, monitoredResult);
         return addCache(ins, allocateCache(cache));
       }
       case ParallelExecution: {

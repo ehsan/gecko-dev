@@ -32,7 +32,6 @@ class ContentParent;
 class ContentChild;
 struct StructuredCloneData;
 class ClonedMessageData;
-class MessageManagerReporter;
 
 namespace ipc {
 
@@ -144,7 +143,6 @@ class nsFrameMessageManager MOZ_FINAL : public nsIContentFrameMessageManager,
                                         public nsIFrameScriptLoader,
                                         public nsIProcessChecker
 {
-  friend class mozilla::dom::MessageManagerReporter;
   typedef mozilla::dom::StructuredCloneData StructuredCloneData;
 public:
   nsFrameMessageManager(mozilla::dom::ipc::MessageManagerCallback* aCallback,

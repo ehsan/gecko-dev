@@ -705,8 +705,6 @@ class SetPropertyIC : public RepatchIonCache
 class GetElementIC : public RepatchIonCache
 {
   protected:
-    RegisterSet liveRegs_;
-
     Register object_;
     ConstantOrRegister index_;
     TypedOrValueRegister output_;
@@ -721,10 +719,9 @@ class GetElementIC : public RepatchIonCache
     static const size_t MAX_FAILED_UPDATES;
 
   public:
-    GetElementIC(RegisterSet liveRegs, Register object, ConstantOrRegister index,
+    GetElementIC(Register object, ConstantOrRegister index,
                  TypedOrValueRegister output, bool monitoredResult)
-      : liveRegs_(liveRegs),
-        object_(object),
+      : object_(object),
         index_(index),
         output_(output),
         monitoredResult_(monitoredResult),
@@ -764,7 +761,7 @@ class GetElementIC : public RepatchIonCache
 
     // Helpers for CanAttachNativeGetProp
     typedef JSContext * Context;
-    bool allowGetters() const { JS_ASSERT(!idempotent()); return true; }
+    bool allowGetters() const { return false; }
     bool allowArrayLength(Context, HandleObject) const { return false; }
     bool canMonitorSingletonUndefinedSlot(HandleObject holder, HandleShape shape) const {
         return monitoredResult();
@@ -775,8 +772,7 @@ class GetElementIC : public RepatchIonCache
     static bool canAttachTypedArrayElement(JSObject *obj, const Value &idval,
                                            TypedOrValueRegister output);
 
-    bool attachGetProp(JSContext *cx, IonScript *ion, HandleObject obj, const Value &idval,
-                       HandlePropertyName name, void *returnAddr);
+    bool attachGetProp(JSContext *cx, IonScript *ion, HandleObject obj, const Value &idval, HandlePropertyName name);
     bool attachDenseElement(JSContext *cx, IonScript *ion, JSObject *obj, const Value &idval);
     bool attachTypedArrayElement(JSContext *cx, IonScript *ion, TypedArrayObject *tarr,
                                  const Value &idval);
