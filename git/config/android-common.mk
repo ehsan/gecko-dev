@@ -23,7 +23,7 @@ endif
 
 # For Android, this defaults to $(ANDROID_SDK)/android.jar
 ifndef JAVA_BOOTCLASSPATH
-  JAVA_BOOTCLASSPATH = $(ANDROID_SDK)/android.jar:$(ANDROID_COMPAT_LIB)
+  JAVA_BOOTCLASSPATH = $(ANDROID_SDK)/android.jar
 endif
 
 # For Android, we default to 1.5

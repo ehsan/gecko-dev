@@ -1614,9 +1614,8 @@ gfxContext::PointInStroke(const gfxPoint& pt)
   if (mCairo) {
     return cairo_in_stroke(mCairo, pt.x, pt.y);
   } else {
-    return mPath->StrokeContainsPoint(CurrentState().strokeOptions,
-                                      ToPoint(pt),
-                                      mTransform);
+    // XXX - Used by SVG, needs fixing.
+    return false;
   }
 }
 

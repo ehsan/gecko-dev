@@ -172,8 +172,6 @@ public:
   // later on.
   virtual float GetDPI();
 
-  virtual bool NeedsPaint() MOZ_OVERRIDE;
-
   virtual TabChild* GetOwningTabChild() MOZ_OVERRIDE { return mTabChild; }
 
 private:

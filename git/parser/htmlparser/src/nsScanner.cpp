@@ -10,6 +10,7 @@
 #include "nsDebug.h"
 #include "nsIServiceManager.h"
 #include "nsICharsetConverterManager.h"
+#include "nsCharsetAlias.h"
 #include "nsReadableUtils.h"
 #include "nsIInputStream.h"
 #include "nsIFile.h"
@@ -18,10 +19,6 @@
 #include "nsCRT.h"
 #include "nsParser.h"
 #include "nsCharsetSource.h"
-
-#include "mozilla/dom/EncodingUtils.h"
-
-using mozilla::dom::EncodingUtils;
 
 // We replace NUL characters with this character.
 static PRUnichar sInvalid = UCS2_REPLACEMENT_CHAR;
@@ -121,12 +118,12 @@ nsresult nsScanner::SetDocumentCharset(const nsACString& aCharset , int32_t aSou
   if (aSource < mCharsetSource) // priority is lower the the current one , just
     return NS_OK;
 
-  nsCString charsetName;
-  bool valid = EncodingUtils::FindEncodingForLabel(aCharset, charsetName);
-  MOZ_ASSERT(valid, "Should never call with a bogus aCharset.");
+  nsresult res = NS_OK;
   if (!mCharset.IsEmpty())
   {
-    if (charsetName.Equals(mCharset))
+    bool same;
+    res = nsCharsetAlias::Equals(aCharset, mCharset, &same);
+    if(NS_SUCCEEDED(res) && same)
     {
       mCharsetSource = aSource;
       return NS_OK; // no difference, don't change it
@@ -134,6 +131,9 @@ nsresult nsScanner::SetDocumentCharset(const nsACString& aCharset , int32_t aSou
   }
 
   // different, need to change it
+  nsCString charsetName;
+  res = nsCharsetAlias::GetPreferred(aCharset, charsetName);
+  MOZ_ASSERT(NS_SUCCEEDED(res), "Should never call with a bogus aCharset.");
 
   mCharset.Assign(charsetName);
 
@@ -142,7 +142,7 @@ nsresult nsScanner::SetDocumentCharset(const nsACString& aCharset , int32_t aSou
   NS_ASSERTION(nsParser::GetCharsetConverterManager(),
                "Must have the charset converter manager!");
 
-  nsresult res = nsParser::GetCharsetConverterManager()->
+  res = nsParser::GetCharsetConverterManager()->
     GetUnicodeDecoderRaw(mCharset.get(), getter_AddRefs(mUnicodeDecoder));
   if (NS_SUCCEEDED(res) && mUnicodeDecoder)
   {

@@ -300,9 +300,6 @@ LayerManagerOGL::LayerManagerOGL(nsIWidget *aWidget, int aSurfaceWidth, int aSur
   , mBackBufferSize(-1, -1)
   , mHasBGRA(0)
   , mIsRenderingToEGLSurface(aIsRenderingToEGLSurface)
-#ifdef DEBUG
-  , mMaybeInvalidTree(false)
-#endif
 {
 }
 
@@ -597,18 +594,12 @@ void
 LayerManagerOGL::BeginTransaction()
 {
   mInTransaction = true;
-#ifdef DEBUG
-  mMaybeInvalidTree = false;
-#endif
 }
 
 void
 LayerManagerOGL::BeginTransactionWithTarget(gfxContext *aTarget)
 {
   mInTransaction = true;
-#ifdef DEBUG
-  mMaybeInvalidTree = false;
-#endif
 
 #ifdef MOZ_LAYERS_HAVE_LOG
   MOZ_LAYERS_LOG(("[----- BeginTransaction"));
@@ -626,10 +617,6 @@ LayerManagerOGL::BeginTransactionWithTarget(gfxContext *aTarget)
 bool
 LayerManagerOGL::EndEmptyTransaction(EndTransactionFlags aFlags)
 {
-  // NB: this makes the somewhat bogus assumption that pure
-  // compositing txns don't call BeginTransaction(), because that's
-  // the behavior of CompositorParent.
-  MOZ_ASSERT(!mMaybeInvalidTree);
   mInTransaction = false;
 
   if (!mRoot)
@@ -752,41 +739,6 @@ LayerManagerOGL::CreateCanvasLayer()
   return layer.forget();
 }
 
-static LayerOGL*
-ToLayerOGL(Layer* aLayer)
-{
-  return static_cast<LayerOGL*>(aLayer->ImplData());
-}
-
-static void ClearSubtree(Layer* aLayer)
-{
-  ToLayerOGL(aLayer)->CleanupResources();
-  for (Layer* child = aLayer->GetFirstChild(); child;
-       child = child->GetNextSibling()) {
-    ClearSubtree(child);
-  }
-}
-
-void
-LayerManagerOGL::ClearCachedResources(Layer* aSubtree)
-{
-  MOZ_ASSERT(!aSubtree || aSubtree->Manager() == this);
-  Layer* subtree = aSubtree ? aSubtree : mRoot.get();
-  if (!subtree) {
-    return;
-  }
-
-  ClearSubtree(subtree);
-#ifdef DEBUG
-  // If this subtree is reachable from the root layer, then it's
-  // possibly onscreen, and the resource clear means that composites
-  // until the next received transaction may draw garbage to the
-  // framebuffer.
-  for(; subtree && subtree != mRoot; subtree = subtree->GetParent());
-  mMaybeInvalidTree = (subtree == mRoot);
-#endif  // DEBUG
-}
-
 LayerOGL*
 LayerManagerOGL::RootLayer() const
 {
@@ -795,7 +747,7 @@ LayerManagerOGL::RootLayer() const
     return nullptr;
   }
 
-  return ToLayerOGL(mRoot);
+  return static_cast<LayerOGL*>(mRoot->ImplData());
 }
 
 bool LayerManagerOGL::sDrawFPS = false;
@@ -991,10 +943,6 @@ LayerManagerOGL::Render()
 
   // Allow widget to render a custom background.
   mWidget->DrawWindowUnderlay(this, rect);
-
-  // Reset some state that might of been clobbered by the underlay.
-  mGLContext->fBlendFuncSeparate(LOCAL_GL_ONE, LOCAL_GL_ONE_MINUS_SRC_ALPHA,
-                                 LOCAL_GL_ONE, LOCAL_GL_ONE);
 
   // Render our layers.
   RootLayer()->RenderLayer(mGLContext->IsDoubleBuffered() ? 0 : mBackBufferFBO,

@@ -22,16 +22,6 @@
 using namespace js;
 using namespace JS;
 
-// Required by PerThreadDataFriendFields::getMainThread()
-JS_STATIC_ASSERT(offsetof(JSRuntime, mainThread) == sizeof(RuntimeFriendFields));
-
-PerThreadDataFriendFields::PerThreadDataFriendFields()
-{
-#if defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING)
-    PodArrayZero(thingGCRooters);
-#endif
-}
-
 JS_FRIEND_API(void)
 JS_SetSourceHook(JSRuntime *rt, JS_SourceHook hook)
 {
@@ -403,8 +393,7 @@ js::NewFunctionWithReserved(JSContext *cx, JSNative native, unsigned nargs, unsi
             return NULL;
     }
 
-    JSFunction::Flags funFlags = JSAPIToJSFunctionFlags(flags);
-    return js_NewFunction(cx, NullPtr(), native, nargs, funFlags, parent, atom,
+    return js_NewFunction(cx, NullPtr(), native, nargs, flags, parent, atom,
                           JSFunction::ExtendedFinalizeKind);
 }
 
@@ -419,8 +408,7 @@ js::NewFunctionByIdWithReserved(JSContext *cx, JSNative native, unsigned nargs, 
     assertSameCompartment(cx, parent);
 
     RootedAtom atom(cx, JSID_TO_ATOM(id));
-    JSFunction::Flags funFlags = JSAPIToJSFunctionFlags(flags);
-    return js_NewFunction(cx, NullPtr(), native, nargs, funFlags, parent, atom,
+    return js_NewFunction(cx, NullPtr(), native, nargs, flags, parent, atom,
                           JSFunction::ExtendedFinalizeKind);
 }
 

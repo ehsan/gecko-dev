@@ -17,8 +17,6 @@ using namespace js;
 using namespace js::mjit;
 using namespace JSC;
 
-using mozilla::DebugOnly;
-
 typedef JSC::MacroAssembler::FPRegisterID FPRegisterID;
 
 CompileStatus

@@ -12,6 +12,7 @@
 #include "nsISeekableStream.h"
 
 #include "jsfriendapi.h"
+#include "nsCharsetAlias.h"
 #include "nsEventDispatcher.h"
 #include "nsNetUtil.h"
 #include "nsDOMClassInfoID.h"
@@ -32,12 +33,9 @@
 #include "nsError.h"
 #include "nsContentUtils.h"
 
-#include "mozilla/dom/EncodingUtils.h"
-
 #define STREAM_COPY_BLOCK_SIZE 32768
 
 USING_FILE_NAMESPACE
-using mozilla::dom::EncodingUtils;
 
 namespace {
 
@@ -1056,9 +1054,8 @@ ReadTextHelper::GetSuccessResult(JSContext* aCx,
   }
 
   nsCString charset;
-  if (!EncodingUtils::FindEncodingForLabel(charsetGuess, charset)) {
-    return NS_ERROR_DOM_ENCODING_NOT_SUPPORTED_ERR;
-  }
+  rv = nsCharsetAlias::GetPreferred(charsetGuess, charset);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsString tmpString;
   rv = nsContentUtils::ConvertStringFromCharset(charset, mStream->Data(),

@@ -92,7 +92,6 @@ public:
     virtual void MovePixels(const nsIntRect& aSourceRect,
                             const nsIntPoint& aDestTopLeft) MOZ_OVERRIDE;
 
-    static long ComputeStride(const gfxIntSize&, gfxImageFormat);
 protected:
     gfxImageSurface();
     void InitWithData(unsigned char *aData, const gfxIntSize& aSize,
@@ -100,6 +99,7 @@ protected:
     void InitFromSurface(cairo_surface_t *csurf);
     long ComputeStride() const { return ComputeStride(mSize, mFormat); }
 
+    static long ComputeStride(const gfxIntSize&, gfxImageFormat);
 
     void MakeInvalid();
 

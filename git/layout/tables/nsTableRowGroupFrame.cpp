@@ -1017,8 +1017,7 @@ nsTableRowGroupFrame::SplitRowGroup(nsPresContext*           aPresContext,
                                     nsHTMLReflowMetrics&     aDesiredSize,
                                     const nsHTMLReflowState& aReflowState,
                                     nsTableFrame*            aTableFrame,
-                                    nsReflowStatus&          aStatus,
-                                    bool                     aRowForcedPageBreak)
+                                    nsReflowStatus&          aStatus)
 {
   NS_PRECONDITION(aPresContext->IsPaginated(), "SplitRowGroup currently supports only paged media"); 
 
@@ -1081,12 +1080,6 @@ nsTableRowGroupFrame::SplitRowGroup(nsPresContext*           aPresContext,
         rowFrame->DidReflow(aPresContext, nullptr, NS_FRAME_REFLOW_FINISHED);
         rowFrame->DidResize();
 
-        if (!aRowForcedPageBreak && !NS_FRAME_IS_FULLY_COMPLETE(aStatus) &&
-            ShouldAvoidBreakInside(aReflowState)) {
-          aStatus = NS_INLINE_LINE_BREAK_BEFORE();
-          break;
-        }
-
         nsTableFrame::InvalidateTableFrame(rowFrame, oldRowRect,
                                            oldRowVisualOverflow,
                                            false);
@@ -1117,8 +1110,7 @@ nsTableRowGroupFrame::SplitRowGroup(nsPresContext*           aPresContext,
           // style than its content, or (3) it contains a rowspan >1 cell which hasn't been
           // reflowed with a constrained height yet (we will find out when SplitSpanningCells is
           // called below)
-          if (rowMetrics.height > availSize.height ||
-              (NS_INLINE_IS_BREAK_BEFORE(aStatus) && !aRowForcedPageBreak)) {
+          if (rowMetrics.height > availSize.height) {
             // cases (1) and (2)
             if (isTopOfPage) { 
               // We're on top of the page, so keep the row on this page. There will be data loss.
@@ -1148,10 +1140,6 @@ nsTableRowGroupFrame::SplitRowGroup(nsPresContext*           aPresContext,
       nscoord spanningRowBottom = availHeight;
       if (!rowIsOnPage) {
         NS_ASSERTION(!contRow, "We should not have created a continuation if none of this row fits");
-        if (!aRowForcedPageBreak && ShouldAvoidBreakInside(aReflowState)) {
-          aStatus = NS_INLINE_LINE_BREAK_BEFORE();
-          break;
-        }
         if (prevRowFrame) {
           spanningRowBottom = prevRowFrame->GetRect().YMost();
           lastRowThisPage = prevRowFrame;
@@ -1304,17 +1292,15 @@ nsTableRowGroupFrame::Reflow(nsPresContext*           aPresContext,
     bool specialReflow = (bool)aReflowState.mFlags.mSpecialHeightReflow;
     ((nsHTMLReflowState::ReflowStateFlags&)aReflowState.mFlags).mSpecialHeightReflow = false;
 
-    SplitRowGroup(aPresContext, aDesiredSize, aReflowState, tableFrame, aStatus,
-                  splitDueToPageBreak);
+    SplitRowGroup(aPresContext, aDesiredSize, aReflowState, tableFrame, aStatus);
 
     ((nsHTMLReflowState::ReflowStateFlags&)aReflowState.mFlags).mSpecialHeightReflow = specialReflow;
   }
 
-  // XXXmats The following is just bogus.  We leave it here for now because
-  // ReflowChildren should pull up rows from our next-in-flow before returning
-  // a Complete status, but doesn't (bug 804888).
-  if (GetNextInFlow() && GetNextInFlow()->GetFirstPrincipalChild()) {
-    NS_FRAME_SET_INCOMPLETE(aStatus);
+  // If we have a next-in-flow, then we're not complete
+  // XXXldb This used to be done only for the incremental reflow codepath.
+  if (GetNextInFlow()) {
+    aStatus = NS_FRAME_NOT_COMPLETE;
   }
 
   SetHasStyleHeight((NS_UNCONSTRAINEDSIZE != aReflowState.ComputedHeight()) &&

@@ -127,8 +127,8 @@ CPPSRCS		= \
 		nsXMLNameSpaceMap.cpp \
 		FragmentOrElement.cpp \
 		Link.cpp \
-		nsHostObjectProtocolHandler.cpp \
-		nsHostObjectURI.cpp \
+		nsBlobProtocolHandler.cpp \
+		nsBlobURI.cpp \
 		nsFrameMessageManager.cpp \
 		nsInProcessTabChildGlobal.cpp \
 		ThirdPartyUtil.cpp \

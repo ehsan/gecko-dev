@@ -19,8 +19,6 @@
 #include "ion/IonCode.h"
 #include "vm/String-inl.h"
 
-using mozilla::DebugOnly;
-
 void * const js::NullPtr::constNullValue = NULL;
 
 /*

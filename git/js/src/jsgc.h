@@ -1037,12 +1037,12 @@ struct GCMarker : public JSTracer {
     /* The color is only applied to objects, functions and xml. */
     uint32_t color;
 
-    mozilla::DebugOnly<bool> started;
+    DebugOnly<bool> started;
 
     /* Pointer to the top of the stack of arenas we are delaying marking on. */
     js::gc::ArenaHeader *unmarkedArenaStackTop;
     /* Count of arenas that are currently in the stack. */
-    mozilla::DebugOnly<size_t> markLaterArenas;
+    DebugOnly<size_t> markLaterArenas;
 
     struct GrayRoot {
         void *thing;

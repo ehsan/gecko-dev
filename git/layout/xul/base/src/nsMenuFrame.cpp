@@ -153,7 +153,10 @@ nsIFrame*
 NS_NewMenuFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   nsMenuFrame* it = new (aPresShell) nsMenuFrame (aPresShell, aContext);
-  it->SetIsMenu(true);
+  
+  if (it)
+    it->SetIsMenu(true);
+
   return it;
 }
 
@@ -161,7 +164,10 @@ nsIFrame*
 NS_NewMenuItemFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   nsMenuFrame* it = new (aPresShell) nsMenuFrame (aPresShell, aContext);
-  it->SetIsMenu(false);
+
+  if (it)
+    it->SetIsMenu(false);
+
   return it;
 }
 

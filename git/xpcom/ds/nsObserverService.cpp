@@ -17,7 +17,6 @@
 #include "nsThreadUtils.h"
 #include "nsIWeakReference.h"
 #include "nsEnumeratorUtils.h"
-#include "mozilla/net/NeckoCommon.h"
 
 #define NOTIFY_GLOBAL_OBSERVERS
 
@@ -102,10 +101,6 @@ nsObserverService::AddObserver(nsIObserver* anObserver, const char* aTopic,
 
     NS_ENSURE_VALIDCALL
     NS_ENSURE_ARG(anObserver && aTopic);
-
-    if (mozilla::net::IsNeckoChild() && !strncmp(aTopic, "http-on-", 8)) {
-      return NS_ERROR_NOT_IMPLEMENTED;
-    }
 
     nsObserverList *observerList = mObserverTopicTable.PutEntry(aTopic);
     if (!observerList)

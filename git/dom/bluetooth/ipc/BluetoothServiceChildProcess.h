@@ -139,9 +139,6 @@ public:
   Disconnect(const uint16_t aProfileId,
              BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
-  virtual bool
-  IsConnected(uint16_t aProfileId) MOZ_OVERRIDE;
-
   virtual void
   SendFile(const nsAString& aDeviceAddress,
            BlobParent* aBlobParent,

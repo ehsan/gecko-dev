@@ -15,8 +15,6 @@
 using namespace js;
 using namespace js::ion;
 
-using mozilla::DebugOnly;
-
 static bool
 UseCompatibleWith(const LUse *use, LAllocation alloc)
 {

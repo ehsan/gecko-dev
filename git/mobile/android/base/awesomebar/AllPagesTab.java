@@ -810,8 +810,7 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
     private void displayFavicon(AwesomeEntryViewHolder viewHolder) {
         final String url = viewHolder.urlView.getText().toString();
         Favicons favicons = GeckoApp.mAppContext.getFavicons();
-        Bitmap bitmap = favicons.getFaviconFromMemCache(url);
-        updateFavicon(viewHolder.faviconView, bitmap);
+        viewHolder.faviconView.setImageBitmap(favicons.getFaviconFromMemCache(url));
     }
 
     private void updateFavicons() {

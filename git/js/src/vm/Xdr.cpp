@@ -24,9 +24,8 @@
 
 #include "jsobjinlines.h"
 
+using namespace mozilla;
 using namespace js;
-
-using mozilla::DebugOnly;
 
 namespace js {
 

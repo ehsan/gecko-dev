@@ -108,6 +108,31 @@ nsLocation::GetDocShell()
   return docshell;
 }
 
+// Try to get the the document corresponding to the given JSScript.
+static already_AddRefed<nsIDocument>
+GetScriptDocument(JSContext *cx, JSScript *script)
+{
+  if (!cx || !script)
+    return nullptr;
+
+  JSObject* scope = JS_GetGlobalFromScript(script);
+  if (!scope)
+    return nullptr;
+
+  JSAutoCompartment ac(cx, scope);
+
+  nsCOMPtr<nsIDOMWindow> window =
+    do_QueryInterface(nsJSUtils::GetStaticScriptGlobal(cx, scope));
+  if (!window)
+    return nullptr;
+
+  // If it's a window, get its document.
+  nsCOMPtr<nsIDOMDocument> domDoc;
+  window->GetDocument(getter_AddRefs(domDoc));
+  nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
+  return doc.forget();
+}
+
 nsresult
 nsLocation::CheckURL(nsIURI* aURI, nsIDocShellLoadInfo** aLoadInfo)
 {
@@ -141,12 +166,13 @@ nsLocation::CheckURL(nsIURI* aURI, nsIDocShellLoadInfo** aLoadInfo)
     // current URI as the referrer.  If they don't match, use the principal's
     // URI.
 
+    JSScript* script = nullptr;
     nsCOMPtr<nsIDocument> doc;
     nsCOMPtr<nsIURI> docOriginalURI, docCurrentURI, principalURI;
-    nsCOMPtr<nsPIDOMWindow> entryPoint =
-      do_QueryInterface(nsJSUtils::GetDynamicScriptGlobal(cx));
-    if (entryPoint) {
-      doc = entryPoint->GetDoc();
+    // NB: A false return value from JS_DescribeScriptedCaller means no caller
+    // was found. It does not signal that an exception was thrown.
+    if (JS_DescribeScriptedCaller(cx, &script, nullptr)) {
+      doc = GetScriptDocument(cx, script);
     }
     if (doc) {
       docOriginalURI = doc->GetOriginalURI();
@@ -885,14 +911,6 @@ nsLocation::ToString(nsAString& aReturn)
 {
   // NB: GetHref checks CallerSubsumes().
   return GetHref(aReturn);
-}
-
-NS_IMETHODIMP
-nsLocation::ValueOf(nsIDOMLocation** aReturn)
-{
-  nsCOMPtr<nsIDOMLocation> loc(this);
-  loc.forget(aReturn);
-  return NS_OK;
 }
 
 nsresult

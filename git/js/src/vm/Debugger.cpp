@@ -27,9 +27,7 @@
 #include "vm/Stack-inl.h"
 
 using namespace js;
-
 using js::frontend::IsIdentifier;
-using mozilla::Maybe;
 
 
 /*** Forward declarations ************************************************************************/
@@ -3408,9 +3406,8 @@ DebuggerFrame_getArguments(JSContext *cx, unsigned argc, Value *vp)
         RootedValue undefinedValue(cx, UndefinedValue());
         for (unsigned i = 0; i < fargc; i++) {
             RootedFunction getobj(cx);
-            getobj = js_NewFunction(cx, NullPtr(), DebuggerArguments_getArg, 0,
-                                    JSFunction::NATIVE_FUN, global, NullPtr(),
-                                    JSFunction::ExtendedFinalizeKind);
+            getobj = js_NewFunction(cx, NullPtr(), DebuggerArguments_getArg, 0, 0, global,
+                                    NullPtr(), JSFunction::ExtendedFinalizeKind);
             if (!getobj)
                 return false;
             id = INT_TO_JSID(i);

@@ -622,11 +622,6 @@ nsHTMLCanvasElement::ToBlob(nsIFileCallback* aCallback,
   nsRefPtr<nsDOMMemoryFile> blob =
     new nsDOMMemoryFile(imgData, imgSize, type);
 
-  JSContext* cx = nsContentUtils::GetCurrentJSContext();
-  if (cx) {
-    JS_updateMallocCounter(cx, imgSize);
-  }
-
   nsRefPtr<ToBlobRunnable> runnable = new ToBlobRunnable(aCallback, blob);
   return NS_DispatchToCurrentThread(runnable);
 }
@@ -671,11 +666,6 @@ nsHTMLCanvasElement::MozGetAsFileImpl(const nsAString& aName,
   void* imgData = nullptr;
   rv = NS_ReadInputStreamToBuffer(stream, &imgData, (uint32_t)imgSize);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  JSContext* cx = nsContentUtils::GetCurrentJSContext();
-  if (cx) {
-    JS_updateMallocCounter(cx, imgSize);
-  }
 
   // The DOMFile takes ownership of the buffer
   nsRefPtr<nsDOMMemoryFile> file =

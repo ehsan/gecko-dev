@@ -1686,12 +1686,8 @@ abstract public class GeckoApp
             }
         }
 
-        if (mRestoreMode == RESTORE_OOM) {
-            // If we successfully did an OOM restore, we now have tab stubs
-            // from the last session. Any future tabs should be animated.
-            Tabs.getInstance().notifyListeners(null, Tabs.TabEvents.RESTORED);
-        } else {
-            // Move the session file if it exists
+        // Move the session file if it exists
+        if (mRestoreMode != RESTORE_OOM) {
             getProfile().moveSessionFile();
         }
 
@@ -1699,7 +1695,6 @@ abstract public class GeckoApp
 
         // Show telemetry door hanger if we aren't restoring a session
         if (mRestoreMode == RESTORE_NONE) {
-            Tabs.getInstance().notifyListeners(null, Tabs.TabEvents.RESTORED);
             GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Telemetry:Prompt", null));
         }
 

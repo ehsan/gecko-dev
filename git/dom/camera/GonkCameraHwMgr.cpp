@@ -193,21 +193,18 @@ GonkCameraHardware::Init()
   if (rv != 0) {
     return;
   }
-  mRawSensorOrientation = info.orientation;
-  mSensorOrientation = mRawSensorOrientation;
+  mSensorOrientation = info.orientation;
 
   // Some kernels report the wrong sensor orientation through
   // get_camera_info()...
   char propname[PROP_NAME_MAX];
   char prop[PROP_VALUE_MAX];
-  int offset = 0;
   snprintf(propname, sizeof(propname), "ro.moz.cam.%d.sensor_offset", mCamera);
   if (__system_property_get(propname, prop) > 0) {
-    offset = clamped(atoi(prop), 0, 270);
+    int offset = clamped(atoi(prop), 0, 270);
     mSensorOrientation += offset;
     mSensorOrientation %= 360;
   }
-  DOM_CAMERA_LOGI("Sensor orientation: base=%d, offset=%d, final=%d\n", info.orientation, offset, mSensorOrientation);
 
   if (sHwHandle == 0) {
     sHwHandle = 1;  // don't use 0
@@ -274,24 +271,14 @@ GonkCameraHardware::GetHandle(GonkCamera* aTarget, uint32_t aCamera)
 }
 
 int
-GonkCameraHardware::GetSensorOrientation(uint32_t aHwHandle, uint32_t aType)
+GonkCameraHardware::GetSensorOrientation(uint32_t aHwHandle)
 {
   DOM_CAMERA_LOGI("%s: aHwHandle = %d\n", __func__, aHwHandle);
   GonkCameraHardware* hw = GetHardware(aHwHandle);
   if (!hw) {
     return 0;
   }
-  switch (aType) {
-    case OFFSET_SENSOR_ORIENTATION:
-      return hw->mSensorOrientation;
-
-    case RAW_SENSOR_ORIENTATION:
-      return hw->mRawSensorOrientation;
-
-    default:
-      DOM_CAMERA_LOGE("%s:%d : unknown aType=%d\n", __func__, __LINE__, aType);
-      return 0;
-  }
+  return hw->mSensorOrientation;
 }
 
 int

@@ -313,7 +313,7 @@ TestIgnoreDiskCache(nsIFile* profileDir) {
   const char* buf = "Get a Beardbook app for your smartphone";
   const char* id = "id";
   char* outbuf = NULL;
-  uint32_t len;
+  PRUint32 len;
   
   rv = sc->PutBuffer(id, buf, strlen(buf) + 1);
   NS_ENSURE_SUCCESS(rv, rv);

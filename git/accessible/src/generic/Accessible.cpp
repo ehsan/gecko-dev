@@ -1734,13 +1734,6 @@ Accessible::ARIATransformRole(role aRole)
   } else if (aRole == roles::OPTION) {
     if (mParent && mParent->Role() == roles::COMBOBOX_LIST)
       return roles::COMBOBOX_OPTION;
-
-  } else if (aRole == roles::MENUITEM) {
-    // Menuitem has a submenu.
-    if (mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::aria_haspopup,
-                              nsGkAtoms::_true, eCaseMatters)) {
-      return roles::PARENT_MENUITEM;
-    }
   }
 
   return aRole;

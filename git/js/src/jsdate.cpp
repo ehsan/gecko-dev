@@ -50,10 +50,9 @@
 
 #include "vm/Stack-inl.h"
 
+using namespace mozilla;
 using namespace js;
 using namespace js::types;
-
-using mozilla::ArrayLength;
 
 /*
  * The JS 'Date' object is patterned after the Java 'Date' object.

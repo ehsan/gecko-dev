@@ -270,14 +270,12 @@ OnUnknownMethod(JSContext *cx, HandleObject obj, Value idval, MutableHandleValue
 class TryNoteIter
 {
     const FrameRegs &regs;
-    RootedScript script; /* TryNotIter is always stack allocated. */
+    JSScript *script;
     uint32_t pcOffset;
     JSTryNote *tn, *tnEnd;
-
     void settle();
-
   public:
-    explicit TryNoteIter(JSContext *cx, const FrameRegs &regs);
+    TryNoteIter(const FrameRegs &regs);
     bool done() const;
     void operator++();
     JSTryNote *operator*() const { return tn; }

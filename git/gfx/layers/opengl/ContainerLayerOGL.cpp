@@ -493,7 +493,6 @@ ShadowRefLayerOGL::RenderLayer(int aPreviousFrameBuffer,
 void
 ShadowRefLayerOGL::CleanupResources()
 {
-  MOZ_ASSERT(!mFirstChild);
 }
 
 } /* layers */

@@ -26,7 +26,7 @@
 #ifndef YarrCanonicalizeUCS2_H
 #define YarrCanonicalizeUCS2_H
 
-#include "mozilla/StandardInteger.h"
+#include <stdint.h>
 #include "wtfbridge.h"
 #include "assembler/wtf/Assertions.h"
 

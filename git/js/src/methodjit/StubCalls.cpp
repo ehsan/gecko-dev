@@ -55,8 +55,6 @@ using namespace js::mjit;
 using namespace js::types;
 using namespace JSC;
 
-using mozilla::DebugOnly;
-
 void JS_FASTCALL
 stubs::BindName(VMFrame &f, PropertyName *name_)
 {

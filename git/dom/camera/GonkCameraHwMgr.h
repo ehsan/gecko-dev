@@ -65,16 +65,8 @@ public:
    * right edge of the screen in natural orientation, the value should be
    * 90. If the top side of a front-facing camera sensor is aligned with the
    * right of the screen, the value should be 270.
-   *
-   * RAW_SENSOR_ORIENTATION is the uncorrected orientation returned directly
-   * by get_camera_info(); OFFSET_SENSOR_ORIENTATION is the offset adjusted
-   * orientation.
    */
-  enum {
-    RAW_SENSOR_ORIENTATION,
-    OFFSET_SENSOR_ORIENTATION
-  };
-  static int      GetSensorOrientation(uint32_t aHwHandle, uint32_t aType = OFFSET_SENSOR_ORIENTATION);
+  static int      GetSensorOrientation(uint32_t aHwHandle);
 
   static int      AutoFocus(uint32_t aHwHandle);
   static void     CancelAutoFocus(uint32_t aHwHandle);
@@ -124,7 +116,6 @@ protected:
 #endif
   sp<GonkCameraListener>        mListener;
   bool                          mInitialized;
-  int                           mRawSensorOrientation;
   int                           mSensorOrientation;
 
   bool IsInitialized()

@@ -16,15 +16,11 @@
 
 BEGIN_FILE_NAMESPACE
 
-/**
- * This is the ArchiveRequest that handles any operation
- * related to ArchiveReader
- */
 class ArchiveRequest : public mozilla::dom::DOMRequest,
                        public nsIDOMArchiveRequest
 {
 public:
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMARCHIVEREQUEST
 
   NS_FORWARD_NSIDOMDOMREQUEST(DOMRequest::)
@@ -44,7 +40,6 @@ public:
   // Set the types for this request
   void OpGetFilenames();
   void OpGetFile(const nsAString& aFilename);
-  void OpGetFiles();
 
   nsresult ReaderReady(nsTArray<nsCOMPtr<nsIDOMFile> >& aFileList,
                        nsresult aStatus);
@@ -57,14 +52,11 @@ private:
   ~ArchiveRequest();
 
   nsresult GetFilenamesResult(JSContext* aCx,
-                              JS::Value* aValue,
+                              jsval* aValue,
                               nsTArray<nsCOMPtr<nsIDOMFile> >& aFileList);
   nsresult GetFileResult(JSContext* aCx,
-                         JS::Value* aValue,
+                         jsval* aValue,
                          nsTArray<nsCOMPtr<nsIDOMFile> >& aFileList);
-  nsresult GetFilesResult(JSContext* aCx,
-                          JS::Value* aValue,
-                          nsTArray<nsCOMPtr<nsIDOMFile> >& aFileList);
 
 protected:
   // The reader:
@@ -73,8 +65,7 @@ protected:
   // The operation:
   enum {
     GetFilenames,
-    GetFile,
-    GetFiles
+    GetFile
   } mOperation;
 
   // The filename (needed by GetFile):

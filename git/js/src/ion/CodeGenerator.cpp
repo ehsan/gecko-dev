@@ -19,8 +19,6 @@
 using namespace js;
 using namespace js::ion;
 
-using mozilla::DebugOnly;
-
 namespace js {
 namespace ion {
 
@@ -306,7 +304,7 @@ CodeGenerator::visitLambda(LLambda *lir)
         uint32_t word;
     } u;
     u.s.nargs = fun->nargs;
-    u.s.flags = fun->flags & ~JSFunction::EXTENDED;
+    u.s.flags = fun->flags & ~JSFUN_EXTENDED;
 
     JS_STATIC_ASSERT(offsetof(JSFunction, flags) == offsetof(JSFunction, nargs) + 2);
     masm.store32(Imm32(u.word), Address(output, offsetof(JSFunction, nargs)));
@@ -827,7 +825,11 @@ CodeGenerator::visitCallGeneric(LCallGeneric *call)
         return false;
 
     // Guard that calleereg is a non-native function:
-    masm.branchIfFunctionIsNative(calleereg, &invoke);
+    // Non-native iff (callee->flags & JSFUN_KINDMASK >= JSFUN_INTERPRETED).
+    // This is equivalent to testing if any of the bits in JSFUN_KINDMASK are set.
+    Address flags(calleereg, offsetof(JSFunction, flags));
+    masm.load16ZeroExtend_mask(flags, Imm32(JSFUN_INTERPRETED), nargsreg);
+    masm.branch32(Assembler::NotEqual, nargsreg, Imm32(JSFUN_INTERPRETED), &invoke);
 
     // Knowing that calleereg is a non-native function, load the JSScript.
     masm.movePtr(Address(calleereg, offsetof(JSFunction, u.i.script_)), objreg);
@@ -1125,8 +1127,13 @@ CodeGenerator::visitApplyArgsGeneric(LApplyArgsGeneric *apply)
     Label end, invoke;
 
     // Guard that calleereg is a non-native function:
+    // Non-native iff (callee->flags & JSFUN_KINDMASK >= JSFUN_INTERPRETED).
+    // This is equivalent to testing if any of the bits in JSFUN_KINDMASK are set.
     if (!apply->hasSingleTarget()) {
-        masm.branchIfFunctionIsNative(calleereg, &invoke);
+        Register kind = objreg;
+        Address flags(calleereg, offsetof(JSFunction, flags));
+        masm.load16ZeroExtend_mask(flags, Imm32(JSFUN_INTERPRETED), kind);
+        masm.branch32(Assembler::NotEqual, kind, Imm32(JSFUN_INTERPRETED), &invoke);
     } else {
         // Native single targets are handled by LCallNative.
         JS_ASSERT(!apply->getSingleTarget()->isNative());

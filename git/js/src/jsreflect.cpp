@@ -31,11 +31,9 @@
 
 #include "jsscriptinlines.h"
 
+using namespace mozilla;
 using namespace js;
 using namespace js::frontend;
-
-using mozilla::DebugOnly;
-using mozilla::ArrayLength;
 
 namespace js {
 
@@ -3228,7 +3226,7 @@ ASTSerializer::function(ParseNode *pn, ASTType type, MutableHandleValue dst)
 
     bool isExpression =
 #if JS_HAS_EXPR_CLOSURES
-        func->isExprClosure();
+        func->flags & JSFUN_EXPR_CLOSURE;
 #else
         false;
 #endif

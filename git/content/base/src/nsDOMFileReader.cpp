@@ -10,6 +10,7 @@
 #include "nsDOMClassInfoID.h"
 #include "nsDOMFile.h"
 #include "nsError.h"
+#include "nsCharsetAlias.h"
 #include "nsICharsetConverterManager.h"
 #include "nsIConverterInputStream.h"
 #include "nsIFile.h"
@@ -38,9 +39,8 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsLayoutStatics.h"
 #include "nsIScriptObjectPrincipal.h"
-#include "nsHostObjectProtocolHandler.h"
+#include "nsBlobProtocolHandler.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/dom/EncodingUtils.h"
 #include "xpcpublic.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsDOMJSUtils.h"
@@ -54,7 +54,6 @@ using namespace mozilla;
 #define LOADSTART_STR "loadstart"
 #define LOADEND_STR "loadend"
 
-using mozilla::dom::EncodingUtils;
 using mozilla::dom::FileIOObject;
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMFileReader)
@@ -464,9 +463,8 @@ nsDOMFileReader::GetAsText(const nsACString &aCharset,
   }
 
   nsAutoCString charset;
-  if (!EncodingUtils::FindEncodingForLabel(charsetGuess, charset)) {
-    return NS_ERROR_DOM_ENCODING_NOT_SUPPORTED_ERR;
-  }
+  rv = nsCharsetAlias::GetPreferred(charsetGuess, charset);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   rv = ConvertStream(aFileData, aDataLen, charset.get(), aResult);
 

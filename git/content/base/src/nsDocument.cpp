@@ -107,7 +107,7 @@
 #include "nsIDOMHTMLFormElement.h"
 #include "nsIRequest.h"
 #include "nsILink.h"
-#include "nsHostObjectProtocolHandler.h"
+#include "nsBlobProtocolHandler.h"
 
 #include "nsCharsetAlias.h"
 #include "nsCharsetSource.h"
@@ -146,7 +146,6 @@
 
 #include "mozAutoDocUpdate.h"
 #include "nsGlobalWindow.h"
-#include "mozilla/dom/EncodingUtils.h"
 #include "mozilla/dom/indexedDB/IndexedDatabaseManager.h"
 #include "nsDOMNavigationTiming.h"
 #include "nsEventStateManager.h"
@@ -1445,8 +1444,8 @@ nsDocument::~nsDocument()
 
   mPendingTitleChangeEvent.Revoke();
 
-  for (uint32_t i = 0; i < mHostObjectURIs.Length(); ++i) {
-    nsHostObjectProtocolHandler::RemoveDataEntry(mHostObjectURIs[i]);
+  for (uint32_t i = 0; i < mFileDataUris.Length(); ++i) {
+    nsBlobProtocolHandler::RemoveFileDataEntry(mFileDataUris[i]);
   }
 
   // We don't want to leave residual locks on images. Make sure we're in an
@@ -3045,7 +3044,8 @@ nsDocument::TryChannelCharset(nsIChannel *aChannel,
     nsresult rv = aChannel->GetContentCharset(charsetVal);
     if (NS_SUCCEEDED(rv)) {
       nsAutoCString preferred;
-      if(EncodingUtils::FindEncodingForLabel(charsetVal, preferred)) {
+      rv = nsCharsetAlias::GetPreferred(charsetVal, preferred);
+      if(NS_SUCCEEDED(rv)) {
         aCharset = preferred;
         aCharsetSource = kCharsetFromChannel;
         return true;
@@ -7595,15 +7595,15 @@ nsDocument::GetCurrentContentSink()
 }
 
 void
-nsDocument::RegisterHostObjectUri(const nsACString& aUri)
+nsDocument::RegisterFileDataUri(const nsACString& aUri)
 {
-  mHostObjectURIs.AppendElement(aUri);
+  mFileDataUris.AppendElement(aUri);
 }
 
 void
-nsDocument::UnregisterHostObjectUri(const nsACString& aUri)
+nsDocument::UnregisterFileDataUri(const nsACString& aUri)
 {
-  mHostObjectURIs.RemoveElement(aUri);
+  mFileDataUris.RemoveElement(aUri);
 }
 
 void

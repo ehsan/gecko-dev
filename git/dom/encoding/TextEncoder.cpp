@@ -18,18 +18,21 @@ TextEncoder::Init(const nsAString& aEncoding,
   nsAutoString label(aEncoding);
   EncodingUtils::TrimSpaceCharacters(label);
 
-  // Let encoding be the result of getting an encoding from label.
-  // If encoding is failure, or is none of utf-8, utf-16, and utf-16be,
-  // throw a TypeError.
+  // Run the steps to get an encoding from Encoding.
   if (!EncodingUtils::FindEncodingForLabel(label, mEncoding)) {
-    aRv.ThrowTypeError(MSG_ENCODING_NOT_SUPPORTED, &label);
+    // If the steps result in failure,
+    // throw an "EncodingError" exception and terminate these steps.
+    aRv.Throw(NS_ERROR_DOM_ENCODING_NOT_SUPPORTED_ERR);
     return;
   }
 
-  if (!mEncoding.EqualsLiteral("UTF-8") &&
-      !mEncoding.EqualsLiteral("UTF-16LE") &&
-      !mEncoding.EqualsLiteral("UTF-16BE")) {
-    aRv.ThrowTypeError(MSG_DOM_ENCODING_NOT_UTF);
+  // Otherwise, if the Name of the returned encoding is not one of
+  // "utf-8", "utf-16", or "utf-16be" throw an "EncodingError" exception
+  // and terminate these steps.
+  if (PL_strcasecmp(mEncoding, "utf-8") &&
+      PL_strcasecmp(mEncoding, "utf-16le") &&
+      PL_strcasecmp(mEncoding, "utf-16be")) {
+    aRv.Throw(NS_ERROR_DOM_ENCODING_NOT_UTF_ERR);
     return;
   }
 
@@ -41,7 +44,7 @@ TextEncoder::Init(const nsAString& aEncoding,
     return;
   }
 
-  ccm->GetUnicodeEncoderRaw(mEncoding.get(), getter_AddRefs(mEncoder));
+  ccm->GetUnicodeEncoder(mEncoding, getter_AddRefs(mEncoder));
   if (!mEncoder) {
     aRv.Throw(NS_ERROR_UNEXPECTED);
     return;
@@ -106,13 +109,11 @@ TextEncoder::GetEncoding(nsAString& aEncoding)
   // "utf-16".
   // This workaround should not be exposed to the public API and so "utf-16"
   // is returned by GetEncoding() if the internal encoding name is "utf-16le".
-  if (mEncoding.EqualsLiteral("UTF-16LE")) {
+  if (!strcmp(mEncoding, "utf-16le")) {
     aEncoding.AssignLiteral("utf-16");
     return;
   }
-
-  CopyASCIItoUTF16(mEncoding, aEncoding);
-  nsContentUtils::ASCIIToLower(aEncoding);
+  aEncoding.AssignASCII(mEncoding);
 }
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(TextEncoder)

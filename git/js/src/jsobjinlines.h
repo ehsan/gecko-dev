@@ -1314,7 +1314,7 @@ inline bool
 IsInternalFunctionObject(JSObject *funobj)
 {
     JSFunction *fun = funobj->toFunction();
-    return fun->isLambda() && !funobj->getParent();
+    return (fun->flags & JSFUN_LAMBDA) && !funobj->getParent();
 }
 
 class AutoPropDescArrayRooter : private AutoGCRooter

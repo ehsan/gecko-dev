@@ -429,9 +429,9 @@ protected:
   void SetPlayedOrSeeked(bool aValue);
 
   /**
-   * Initialize the media element for playback of aStream
+   * Initialize the media element for playback of mSrcAttrStream
    */
-  void SetupSrcMediaStreamPlayback(nsDOMMediaStream* aStream);
+  void SetupSrcMediaStreamPlayback();
   /**
    * Stop playback on mSrcStream.
    */
