@@ -37,9 +37,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 const Cu = Components.utils;
-let tempScope = {};
-Cu.import("resource:///modules/devtools/LayoutHelpers.jsm", tempScope);
-let LayoutHelpers = tempScope.LayoutHelpers;
+Cu.import("resource:///modules/devtools/LayoutHelpers.jsm");
 
 function isHighlighting()
 {

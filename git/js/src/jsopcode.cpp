@@ -52,6 +52,7 @@
 #include "mozilla/Util.h"
 
 #include "jstypes.h"
+#include "jsstdint.h"
 #include "jsutil.h"
 #include "jsprf.h"
 #include "jsapi.h"
@@ -461,7 +462,7 @@ ToDisassemblySource(JSContext *cx, jsval v, JSAutoByteString *bytes)
         return true;
     }
 
-    if (cx->runtime->gcRunning || cx->runtime->noGCOrAllocationCheck) {
+    if (cx->runtime->gcRunning || JS_THREAD_DATA(cx)->noGCOrAllocationCheck) {
         char *source = JS_sprintf_append(NULL, "<value>");
         if (!source)
             return false;
@@ -569,7 +570,8 @@ js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc,
       }
 
       case JOF_ATOM:
-      case JOF_OBJECT: {
+      case JOF_OBJECT:
+      case JOF_REGEXP: {
         uintN index = js_GetIndexFromBytecode(script, pc, 0);
         jsval v;
         if (type == JOF_ATOM) {
@@ -580,15 +582,17 @@ js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc,
                 v = STRING_TO_JSVAL(atom);
             }
         } else {
-            JS_ASSERT(type == JOF_OBJECT);
-
-            /* Don't call obj.toSource if analysis/inference is active. */
-            if (cx->compartment->activeAnalysis) {
-                Sprint(sp, " object");
-                break;
+            JSObject *obj;
+            if (type == JOF_OBJECT) {
+                /* Don't call obj.toSource if analysis/inference is active. */
+                if (cx->compartment->activeAnalysis) {
+                    Sprint(sp, " object");
+                    break;
+                }
+                obj = script->getObject(index);
+            } else {
+                obj = script->getRegExp(index);
             }
-
-            JSObject *obj = script->getObject(index);
             v = OBJECT_TO_JSVAL(obj);
         }
         {
@@ -597,15 +601,6 @@ js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc,
                 return 0;
             Sprint(sp, " %s", bytes.ptr());
         }
-        break;
-      }
-
-      case JOF_REGEXP: {
-        JSObject *obj = script->getRegExp(GET_UINT32_INDEX(pc));
-        JSAutoByteString bytes;
-        if (!ToDisassemblySource(cx, ObjectValue(*obj), &bytes))
-            return 0;
-        Sprint(sp, " %s", bytes.ptr());
         break;
       }
 
@@ -662,10 +657,18 @@ js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc,
         Sprint(sp, " %u", GET_SLOTNO(pc));
         break;
 
+      case JOF_SLOTATOM:
       case JOF_SLOTOBJECT: {
         Sprint(sp, " %u", GET_SLOTNO(pc));
         uintN index = js_GetIndexFromBytecode(script, pc, SLOTNO_LEN);
-        jsval v = OBJECT_TO_JSVAL(script->getObject(index));
+        jsval v;
+        if (type == JOF_SLOTATOM) {
+            JSAtom *atom = script->getAtom(index);
+            v = STRING_TO_JSVAL(atom);
+        } else {
+            v = OBJECT_TO_JSVAL(script->getObject(index));
+        }
+
         JSAutoByteString bytes;
         if (!ToDisassemblySource(cx, v, &bytes))
             return 0;
@@ -692,7 +695,7 @@ js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc,
         goto print_int;
 
       case JOF_UINT8:
-        i = GET_UINT8(pc);
+        i = pc[1];
         goto print_int;
 
       case JOF_INT8:
@@ -855,7 +858,8 @@ Sprinter::put(const char *s, size_t len)
             s = stringAt(s - oldBase);  /* this is where it lives now */
         memmove(bp, s, len);
     } else {
-        js_memcpy(bp, s, len);
+        JS_ASSERT(s < base || s >= base + size);
+        memcpy(bp, s, len);
     }
 
     bp[len] = 0;
@@ -2058,7 +2062,7 @@ DecompileDestructuringLHS(SprintStack *ss, jsbytecode *pc, jsbytecode *endpc, JS
          * the nb parameter.
          */
         ptrdiff_t todo = ss->sprinter.getOffset();
-        ss->sprinter.reserve(PAREN_SLOP);
+        ss->sprinter.setOffset(todo + PAREN_SLOP);
         pc = Decompile(ss, pc, -((intN)ss->top));
         if (!pc)
             return NULL;
@@ -2665,6 +2669,9 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
 
 #define LOAD_FUNCTION(PCOFF)                                                  \
     GET_FUNCTION_FROM_BYTECODE(jp->script, pc, PCOFF, fun)
+
+#define LOAD_REGEXP(PCOFF)                                                    \
+    GET_REGEXP_FROM_BYTECODE(jp->script, pc, PCOFF, obj)
 
 #define GET_SOURCE_NOTE_ATOM(sn, atom)                                        \
     JS_BEGIN_MACRO                                                            \
@@ -3861,7 +3868,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                 break;
 
               case JSOP_ITER:
-                foreach = (GET_UINT8(pc) & (JSITER_FOREACH | JSITER_KEYVALUE)) ==
+                foreach = (pc[1] & (JSITER_FOREACH | JSITER_KEYVALUE)) ==
                           JSITER_FOREACH;
                 todo = -2;
                 break;
@@ -3914,8 +3921,6 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                     next = js_GetSrcNoteOffset(sn, 0);
                     tail = js_GetSrcNoteOffset(sn, 1);
                     JS_ASSERT(pc[next] == JSOP_POP);
-                    JS_ASSERT(pc[cond] == JSOP_LOOPENTRY);
-                    cond += JSOP_LOOPENTRY_LENGTH;
                     JS_ASSERT(pc[cond] == JSOP_MOREITER);
                     DECOMPILE_CODE(pc + oplen, next - oplen);
                     lval = POP_STR();
@@ -4935,7 +4940,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                 goto sprint_string;
 
               case JSOP_REGEXP:
-                obj = jp->script->getRegExp(GET_UINT32_INDEX(pc));
+                GET_REGEXP_FROM_BYTECODE(jp->script, pc, 0, obj);
                 str = obj->asRegExp().toString(cx);
                 if (!str)
                     return NULL;
@@ -5143,10 +5148,25 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
 
               case JSOP_NEWINIT:
               {
-                i = GET_UINT8(pc);
+                i = pc[1];
                 LOCAL_ASSERT(i == JSProto_Array || i == JSProto_Object);
 
                 todo = ss->sprinter.getOffset();
+#if JS_HAS_SHARP_VARS
+                op = (JSOp)pc[len];
+                if (op == JSOP_SHARPINIT)
+                    op = (JSOp)pc[len += JSOP_SHARPINIT_LENGTH];
+                if (op == JSOP_DEFSHARP) {
+                    pc += len;
+                    cs = &js_CodeSpec[op];
+                    len = cs->length;
+                    if (Sprint(&ss->sprinter, "#%u=",
+                               (unsigned) (jsint) GET_UINT16(pc + UINT16_LEN))
+                        < 0) {
+                        return NULL;
+                    }
+                }
+#endif /* JS_HAS_SHARP_VARS */
                 if (i == JSProto_Array) {
                     ++ss->inArrayInit;
                     if (SprintCString(&ss->sprinter, "[") < 0)
@@ -5258,6 +5278,19 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                 }
                 break;
               }
+
+#if JS_HAS_SHARP_VARS
+              case JSOP_DEFSHARP:
+                i = (jsint) GET_UINT16(pc + UINT16_LEN);
+                rval = POP_STR();
+                todo = Sprint(&ss->sprinter, "#%u=%s", (unsigned) i, rval);
+                break;
+
+              case JSOP_USESHARP:
+                i = (jsint) GET_UINT16(pc + UINT16_LEN);
+                todo = Sprint(&ss->sprinter, "#%u#", (unsigned) i);
+                break;
+#endif /* JS_HAS_SHARP_VARS */
 
               case JSOP_DEBUGGER:
                 js_printf(jp, "\tdebugger;\n");

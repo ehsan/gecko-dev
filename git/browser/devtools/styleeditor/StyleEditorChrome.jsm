@@ -402,9 +402,7 @@ StyleEditorChrome.prototype = {
 
     this._view.setItemClassName(summary, aEditor.flags);
 
-    let label = summary.querySelector(".stylesheet-name > label");
-    label.setAttribute("value", aEditor.getFriendlyName());
-
+    text(summary, ".stylesheet-name", aEditor.getFriendlyName());
     text(summary, ".stylesheet-title", aEditor.styleSheet.title || "");
     text(summary, ".stylesheet-rule-count",
       PluralForm.get(ruleCount, _("ruleCount.label")).replace("#1", ruleCount));

@@ -940,16 +940,6 @@ nsresult nsHTMLMediaElement::LoadResource()
     mChannel = nsnull;
   }
 
-  // Set the media element's CORS mode only when loading a resource
-  // By default, it's CORS_NONE
-  mCORSMode = CORS_NONE;
-  const nsAttrValue* value = GetParsedAttr(nsGkAtoms::crossorigin);
-  if (value) {
-    NS_ASSERTION(value->Type() == nsAttrValue::eEnum,
-                 "Why is this not an enum value?");
-    mCORSMode = CORSMode(value->GetEnumValue());
-  }
-
   nsHTMLMediaElement* other = LookupMediaElementURITable(mLoadingSrc);
   if (other) {
     // Clone it.
@@ -1012,7 +1002,7 @@ nsresult nsHTMLMediaElement::LoadResource()
       new nsCORSListenerProxy(loadListener,
                               NodePrincipal(),
                               channel,
-                              GetCORSMode() == CORS_USE_CREDENTIALS,
+                              false,
                               &rv);
   } else {
     rv = nsContentUtils::GetSecurityManager()->
@@ -1402,10 +1392,11 @@ nsHTMLMediaElement::LookupMediaElementURITable(nsIURI* aURI)
   for (PRUint32 i = 0; i < entry->mElements.Length(); ++i) {
     nsHTMLMediaElement* elem = entry->mElements[i];
     bool equal;
-    // Look for elements that have the same principal and CORS mode.
-    // Ditto for anything else that could cause us to send different headers.
-    if (NS_SUCCEEDED(elem->NodePrincipal()->Equals(NodePrincipal(), &equal)) && equal &&
-        elem->mCORSMode == mCORSMode) {
+    // Look for elements that have the same principal.
+    // XXX when we implement crossorigin for video, we'll also need to check
+    // for the same crossorigin mode here. Ditto for anything else that could
+    // cause us to send different headers.
+    if (NS_SUCCEEDED(elem->NodePrincipal()->Equals(NodePrincipal(), &equal)) && equal) {
       NS_ASSERTION(elem->mDecoder && elem->mDecoder->GetStream(), "Decoder gone");
       return elem;
     }
@@ -1447,8 +1438,7 @@ nsHTMLMediaElement::nsHTMLMediaElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     mHasSelfReference(false),
     mShuttingDown(false),
     mLoadIsSuspended(false),
-    mMediaSecurityVerified(false),
-    mCORSMode(CORS_NONE)
+    mMediaSecurityVerified(false)
 {
 #ifdef PR_LOGGING
   if (!gMediaElementLog) {
@@ -1569,8 +1559,6 @@ NS_IMETHODIMP nsHTMLMediaElement::Play()
   return NS_OK;
 }
 
-NS_IMPL_STRING_ATTR(nsHTMLMediaElement, Crossorigin, crossorigin)
-
 bool nsHTMLMediaElement::ParseAttribute(PRInt32 aNamespaceID,
                                           nsIAtom* aAttribute,
                                           const nsAString& aValue,
@@ -1588,12 +1576,6 @@ bool nsHTMLMediaElement::ParseAttribute(PRInt32 aNamespaceID,
   if (aNamespaceID == kNameSpaceID_None) {
     if (ParseImageAttribute(aAttribute, aValue, aResult)) {
       return true;
-    }
-    if (aAttribute == nsGkAtoms::crossorigin) {
-      return aResult.ParseEnumValue(aValue, kCORSAttributeTable, false,
-                                    // default value is anonymous if aValue is
-                                    // not a value we understand
-                                    &kCORSAttributeTable[0]);
     }
     if (aAttribute == nsGkAtoms::preload) {
       return aResult.ParseEnumValue(aValue, kPreloadTable, false);
@@ -2348,7 +2330,7 @@ void nsHTMLMediaElement::DownloadStalled()
 
 bool nsHTMLMediaElement::ShouldCheckAllowOrigin()
 {
-  return mCORSMode != CORS_NONE;
+  return Preferences::GetBool("media.enforce_same_site_origin", true);
 }
 
 void nsHTMLMediaElement::UpdateReadyStateForData(NextFrameStatus aNextFrame)

@@ -484,8 +484,10 @@ struct ParamTraits<mozilla::GraphicsFilterType>
       WriteParam(msg, int32(param));
       return;
 
+    default:
+      NS_RUNTIMEABORT("not reached");
+      return;
     }
-    NS_RUNTIMEABORT("not reached");
   }
 
   static bool Read(const Message* msg, void** iter, paramType* result)

@@ -136,11 +136,9 @@ nsHtml5TreeOpExecutor::DidBuildModel(bool aTerminated)
     }
   }
   
-  if (mRunsToCompletion) {
-    return NS_OK;
+  if (!mRunsToCompletion) {
+    GetParser()->DropStreamParser();
   }
-
-  GetParser()->DropStreamParser();
 
   // This comes from nsXMLContentSink and nsHTMLContentSink
   DidBuildModelImpl(aTerminated);

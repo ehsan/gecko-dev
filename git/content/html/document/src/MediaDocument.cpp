@@ -49,6 +49,7 @@
 #include "nsIMarkupDocumentViewer.h"
 #include "nsIDocShell.h"
 #include "nsIParser.h" // kCharsetFrom* macro definition
+#include "nsIDocumentCharsetInfo.h" 
 #include "nsNodeInfoManager.h"
 #include "nsContentUtils.h"
 
@@ -184,7 +185,7 @@ MediaDocument::StartDocumentLoad(const char*         aCommand,
   // the charset of the referring document. On the other hand, if the
   // document is opened in a new window, it is |defaultCharacterSet| of |muCV| 
   // where the charset of our interest is stored. In case of openining 
-  // in a new tab, we get the charset from the docShell. Note that we 
+  // in a new tab, we get the charset from |documentCharsetInfo|. Note that we 
   // exclude UTF-8 as 'invalid' because UTF-8 is likely to be the charset 
   // of a chrome document that has nothing to do with the actual content 
   // whose charset we want to know. Even if "the actual content" is indeed 
@@ -196,12 +197,16 @@ MediaDocument::StartDocumentLoad(const char*         aCommand,
   // not being able to set the charset is not critical.
   NS_ENSURE_TRUE(docShell, NS_OK); 
 
+  nsCOMPtr<nsIDocumentCharsetInfo> dcInfo;
   nsCAutoString charset;
 
-  nsCOMPtr<nsIAtom> csAtom;
-  docShell->GetParentCharset(getter_AddRefs(csAtom));
-  if (csAtom) {   // opening in a new tab
-    csAtom->ToUTF8String(charset);
+  docShell->GetDocumentCharsetInfo(getter_AddRefs(dcInfo));
+  if (dcInfo) {
+    nsCOMPtr<nsIAtom> csAtom;
+    dcInfo->GetParentCharset(getter_AddRefs(csAtom));
+    if (csAtom) {   // opening in a new tab
+      csAtom->ToUTF8String(charset);
+    }
   }
 
   if (charset.IsEmpty() || charset.Equals("UTF-8")) {

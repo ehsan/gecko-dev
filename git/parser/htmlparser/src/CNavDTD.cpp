@@ -63,6 +63,10 @@
 #include "nsIServiceManager.h"
 #include "nsParserConstants.h"
 
+#ifdef NS_DEBUG
+#include "nsLoggingSink.h"
+#endif
+
 using namespace mozilla;
 
 /*
@@ -124,10 +128,54 @@ CNavDTD::CNavDTD()
 {
 }
 
+#ifdef NS_DEBUG
+
+static nsLoggingSink*
+GetLoggingSink()
+{
+  // This returns a content sink that is useful for following what calls the DTD
+  // makes to the content sink.
+
+  static bool checkForPath = true;
+  static nsLoggingSink *theSink = nsnull;
+  static const char* gLogPath = nsnull; 
+
+  if (checkForPath) {
+    // Only check once per run.
+    gLogPath = PR_GetEnv("PARSE_LOGFILE"); 
+    checkForPath = false;
+  }
+  
+
+  if (gLogPath && !theSink) {
+    static nsLoggingSink gLoggingSink;
+
+    PRIntn theFlags = PR_CREATE_FILE | PR_RDWR;
+
+    // Open the record file.
+    PRFileDesc *theLogFile = PR_Open(gLogPath, theFlags, 0);
+    gLoggingSink.SetOutputStream(theLogFile, true);
+    theSink = &gLoggingSink;
+  }
+
+  return theSink;
+}
+ 
+#endif
+
 CNavDTD::~CNavDTD()
 {
   delete mBodyContext;
   delete mTempContext;
+
+#ifdef NS_DEBUG
+  if (mSink) {
+    nsLoggingSink *theLogSink = GetLoggingSink();
+    if (mSink == theLogSink) {
+      theLogSink->ReleaseProxySink();
+    }
+  }
+#endif
 }
 
 NS_IMETHODIMP
@@ -156,6 +204,17 @@ CNavDTD::WillBuildModel(const CParserContext& aParserContext,
         return result;
       }
     }
+
+    // Let's see if the environment is set up for us to write output to
+    // a logging sink. If so, then we'll create one, and make it the
+    // proxy for the real sink we're given from the parser.
+#ifdef NS_DEBUG
+    nsLoggingSink *theLogSink = GetLoggingSink();
+    if (theLogSink) {
+      theLogSink->SetProxySink(mSink);
+      mSink = theLogSink;
+    }
+#endif    
 
     mFlags |= nsHTMLTokenizer::GetFlags(aSink);
 
@@ -1688,6 +1747,16 @@ CNavDTD::HandleSavedTokens(PRInt32 anIndex)
       PRInt32   attrCount;
       PRInt32   theTopIndex = anIndex + 1;
       PRInt32   theTagCount = mBodyContext->GetCount();
+      bool      formWasOnStack = mSink->IsFormOnStack();
+
+      if (formWasOnStack) {
+        // Do this to synchronize dtd stack and the sink stack.
+        // Note: FORM is never on the dtd stack because its always
+        // considered as a leaf. However, in the sink FORM can either
+        // be a container or a leaf. Therefore, we have to check
+        // with the sink -- Ref: Bug 20087.
+        ++anIndex;
+      }
 
       // Pause the main context and switch to the new context.
       result = mSink->BeginContext(anIndex);
@@ -1752,6 +1821,12 @@ CNavDTD::HandleSavedTokens(PRInt32 anIndex)
         CloseContainersTo(theTopIndex, mBodyContext->TagAt(theTopIndex),
                           true);
       }      
+
+      if (!formWasOnStack && mSink->IsFormOnStack()) {
+        // If a form has appeared on the sink context stack since the beginning of
+        // HandleSavedTokens, have the sink close it:
+        mSink->CloseContainer(eHTMLTag_form);
+      }
 
       // Bad-contents were successfully processed. Now, itz time to get
       // back to the original body context state.
@@ -1830,7 +1905,15 @@ nsresult
 CNavDTD::HandleCommentToken(CToken* aToken)
 {
   NS_PRECONDITION(nsnull != aToken, kNullToken);
-  return NS_OK;
+
+  nsCParserNode* theNode = mNodeAllocator.CreateNode(aToken, mTokenAllocator);
+  NS_ENSURE_TRUE(theNode, NS_ERROR_OUT_OF_MEMORY);
+
+  nsresult result = mSink ? mSink->AddComment(*theNode) : NS_OK;
+
+  IF_FREE(theNode, &mNodeAllocator);
+
+  return result;
 }
 
 
@@ -1863,7 +1946,15 @@ nsresult
 CNavDTD::HandleProcessingInstructionToken(CToken* aToken)
 {
   NS_PRECONDITION(nsnull != aToken, kNullToken);
-  return NS_OK;
+
+  nsCParserNode* theNode = mNodeAllocator.CreateNode(aToken, mTokenAllocator);
+  NS_ENSURE_TRUE(theNode, NS_ERROR_OUT_OF_MEMORY);
+
+  nsresult result = mSink ? mSink->AddProcessingInstruction(*theNode) : NS_OK;
+
+  IF_FREE(theNode, &mNodeAllocator);
+
+  return result;
 }
 
 /**
@@ -1896,7 +1987,15 @@ CNavDTD::HandleDocTypeDeclToken(CToken* aToken)
   // Now remove "<!" from the begining
   docTypeStr.Cut(0, 2);
   theToken->SetStringValue(docTypeStr);
-  return NS_OK;
+
+  nsCParserNode* theNode = mNodeAllocator.CreateNode(aToken, mTokenAllocator);
+  NS_ENSURE_TRUE(theNode, NS_ERROR_OUT_OF_MEMORY);
+
+  nsresult result = mSink ? mSink->AddDocTypeDecl(*theNode) : NS_OK;
+
+  IF_FREE(theNode, &mNodeAllocator);
+
+  return result;
 }
 
 /**

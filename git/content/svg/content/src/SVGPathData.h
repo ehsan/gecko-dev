@@ -37,21 +37,15 @@
 #ifndef MOZILLA_SVGPATHDATA_H__
 #define MOZILLA_SVGPATHDATA_H__
 
-#include "nsCOMPtr.h"
-#include "nsDebug.h"
-#include "nsIContent.h"
-#include "nsINode.h"
-#include "nsIWeakReferenceUtils.h"
-#include "nsSVGElement.h"
+#include "SVGPathSegUtils.h"
 #include "nsTArray.h"
-
-#include <string.h>
+#include "nsSVGElement.h"
+#include "nsIWeakReferenceUtils.h"
 
 class gfxContext;
-class gfxFlattenedPath;
-class nsSVGPathDataParserToInternal; // IWYU pragma: keep
-
 struct gfxMatrix;
+class gfxFlattenedPath;
+class nsSVGPathDataParserToInternal;
 struct nsSVGMark;
 
 namespace mozilla {

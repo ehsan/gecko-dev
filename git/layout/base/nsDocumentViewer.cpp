@@ -198,8 +198,6 @@ static const char sPrintOptionsContractID[]         = "@mozilla.org/gfx/printset
 
 #include "mozilla/dom/Element.h"
 
-#include "jsfriendapi.h"
-
 using namespace mozilla;
 
 #ifdef NS_DEBUG
@@ -1289,7 +1287,7 @@ DocumentViewerImpl::PageHide(bool aIsUnload)
 
   if (aIsUnload) {
     // Poke the GC. The window might be collectable garbage now.
-    nsJSContext::PokeGC(js::gcreason::PAGE_HIDE);
+    nsJSContext::PokeGC();
 
     // if Destroy() was called during OnPageHide(), mDocument is nsnull.
     NS_ENSURE_STATE(mDocument);

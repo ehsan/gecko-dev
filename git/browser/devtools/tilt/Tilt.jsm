@@ -156,15 +156,10 @@ Tilt.prototype = {
 
       let controller = this.visualizers[aId].controller;
       let presenter = this.visualizers[aId].presenter;
-
-      TiltUtils.setDocumentZoom(presenter.transforms.zoom);
-
       let content = presenter.contentWindow;
-      let pageXOffset = content.pageXOffset * TiltUtils.getDocumentZoom();
-      let pageYOffset = content.pageYOffset * TiltUtils.getDocumentZoom();
 
       controller.removeEventListeners();
-      controller.arcball.reset([-pageXOffset, -pageYOffset]);
+      controller.arcball.reset([-content.pageXOffset, -content.pageYOffset]);
       presenter.executeDestruction(finalize.bind(this, aId));
     }
   },

@@ -974,7 +974,7 @@ size_t
 XPCWrappedNativeScope::SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf)
 {
     size_t n = 0;
-    n += mallocSizeOf(this);
+    n += mallocSizeOf(this, sizeof(XPCWrappedNativeScope));
     n += mWrappedNativeMap->SizeOfIncludingThis(mallocSizeOf);
     n += mWrappedNativeProtoMap->SizeOfIncludingThis(mallocSizeOf);
     n += mMainThreadWrappedNativeProtoMap->SizeOfIncludingThis(mallocSizeOf);

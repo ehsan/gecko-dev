@@ -76,24 +76,22 @@ public:
     nsCacheEntry * CacheEntry(void)      { return mCacheEntry; }
     void           ClearCacheEntry(void) { mCacheEntry = nsnull; }
 
-    nsresult       CloseOutput(void)
+    void           CloseOutput(void)
     {
-      nsresult rv = InternalCleanup(mOutput);
+      InternalCleanup(mOutput);
       mOutput = nsnull;
-      return rv;
     }
 
 private:
-    nsresult       InternalCleanup(nsIOutputStream *stream)
+    void           InternalCleanup(nsIOutputStream *stream)
     {
       if (stream) {
         nsCOMPtr<nsIDiskCacheStreamInternal> tmp (do_QueryInterface(stream));
         if (tmp)
-          return tmp->CloseInternal();
+          tmp->CloseInternal();
         else
-          return stream->Close();
+          stream->Close();
       }
-      return NS_OK;
     }
 
 

@@ -1296,9 +1296,6 @@ JITScript::destroy(JSContext *cx)
 {
     for (unsigned i = 0; i < nchunks; i++)
         destroyChunk(cx, i);
-
-    if (shimPool)
-        shimPool->release();
 }
 
 void
@@ -1362,55 +1359,54 @@ JITScript::destroyChunk(JSContext *cx, unsigned chunkIndex, bool resetUses)
 }
 
 size_t
-JSScript::sizeOfJitScripts(JSMallocSizeOfFun mallocSizeOf)
+JSScript::jitDataSize(JSMallocSizeOfFun mallocSizeOf)
 {
     size_t n = 0;
     if (jitNormal)
-        n += jitNormal->sizeOfIncludingThis(mallocSizeOf); 
+        n += jitNormal->scriptDataSize(mallocSizeOf); 
     if (jitCtor)
-        n += jitCtor->sizeOfIncludingThis(mallocSizeOf); 
+        n += jitCtor->scriptDataSize(mallocSizeOf); 
     return n;
 }
 
 size_t
-mjit::JITScript::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf)
+mjit::JITScript::scriptDataSize(JSMallocSizeOfFun mallocSizeOf)
 {
-    size_t n = mallocSizeOf(this);
+    size_t usable = mallocSizeOf(this,
+                                 sizeof(JITScript)
+                                 + (nchunks * sizeof(ChunkDescriptor))
+                                 + (nedges * sizeof(CrossChunkEdge)));
     for (unsigned i = 0; i < nchunks; i++) {
         const ChunkDescriptor &desc = chunkDescriptor(i);
         if (desc.chunk)
-            n += desc.chunk->sizeOfIncludingThis(mallocSizeOf);
+            usable += desc.chunk->scriptDataSize(mallocSizeOf);
     }
-    return n;
+    return usable;
 }
 
 /* Please keep in sync with Compiler::finishThisUp! */
 size_t
-mjit::JITChunk::computedSizeOfIncludingThis()
+mjit::JITChunk::scriptDataSize(JSMallocSizeOfFun mallocSizeOf)
 {
-    return sizeof(JITChunk) +
-           sizeof(NativeMapEntry) * nNmapPairs +
-           sizeof(InlineFrame) * nInlineFrames +
-           sizeof(CallSite) * nCallSites +
+    size_t computedSize =
+        sizeof(JITChunk) +
+        sizeof(NativeMapEntry) * nNmapPairs +
+        sizeof(InlineFrame) * nInlineFrames +
+        sizeof(CallSite) * nCallSites +
 #if defined JS_MONOIC
-           sizeof(ic::GetGlobalNameIC) * nGetGlobalNames +
-           sizeof(ic::SetGlobalNameIC) * nSetGlobalNames +
-           sizeof(ic::CallICInfo) * nCallICs +
-           sizeof(ic::EqualityICInfo) * nEqualityICs +
+        sizeof(ic::GetGlobalNameIC) * nGetGlobalNames +
+        sizeof(ic::SetGlobalNameIC) * nSetGlobalNames +
+        sizeof(ic::CallICInfo) * nCallICs +
+        sizeof(ic::EqualityICInfo) * nEqualityICs +
 #endif
 #if defined JS_POLYIC
-           sizeof(ic::PICInfo) * nPICs +
-           sizeof(ic::GetElementIC) * nGetElems +
-           sizeof(ic::SetElementIC) * nSetElems +
+        sizeof(ic::PICInfo) * nPICs +
+        sizeof(ic::GetElementIC) * nGetElems +
+        sizeof(ic::SetElementIC) * nSetElems +
 #endif
-           0;
-}
-
-/* Please keep in sync with Compiler::finishThisUp! */
-size_t
-mjit::JITChunk::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf)
-{
-    return mallocSizeOf(this);
+        0;
+    /* |mallocSizeOf| can be null here. */
+    return mallocSizeOf ? mallocSizeOf(this, computedSize) : computedSize;
 }
 
 void

@@ -37,16 +37,9 @@
 #ifndef __NS_SVGENUM_H__
 #define __NS_SVGENUM_H__
 
-#include "nsAutoPtr.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsError.h"
 #include "nsIDOMSVGAnimatedEnum.h"
-#include "nsISMILAttr.h"
 #include "nsSVGElement.h"
-
-class nsIAtom;
-class nsISMILAnimationElement;
-class nsSMILValue;
+#include "nsDOMError.h"
 
 typedef PRUint8 nsSVGEnumValue;
 

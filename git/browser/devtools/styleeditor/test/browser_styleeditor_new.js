@@ -5,7 +5,7 @@
 const TESTCASE_URI = TEST_BASE + "simple.html";
 
 const TRANSITION_CLASS = "moz-styleeditor-transitioning";
-const TESTCASE_CSS_SOURCE = "body{background-color:red;";
+
 
 function test()
 {
@@ -61,8 +61,8 @@ function testEditorAdded(aChrome, aEditor)
            "new editor is loaded when attached");
         ok(aEditor.hasFlag("new"),
            "new editor has NEW flag");
-        ok(aEditor.hasFlag("unsaved"),
-           "new editor has UNSAVED flag");
+        ok(!aEditor.hasFlag("unsaved"),
+           "new editor does not have UNSAVED flag");
 
         ok(aEditor.inputElement,
            "new editor has an input element attached");
@@ -79,13 +79,9 @@ function testEditorAdded(aChrome, aEditor)
         is(computedStyle.backgroundColor, "rgb(255, 255, 255)",
            "content's background color is initially white");
 
-        for each (let c in TESTCASE_CSS_SOURCE) {
+        for each (let c in "body{background-color:red;}") {
           EventUtils.synthesizeKey(c, {}, gChromeWindow);
         }
-
-        is(aEditor.sourceEditor.getText(), TESTCASE_CSS_SOURCE + "}",
-           "rule bracket has been auto-closed");
-
       }, gChromeWindow) ;
     },
 

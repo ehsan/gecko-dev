@@ -203,7 +203,7 @@ nsMemoryPressureObserver::Observe(nsISupports* aSubject, const char* aTopic,
                                   const PRUnichar* aData)
 {
   if (sGCOnMemoryPressure) {
-    nsJSContext::GarbageCollectNow(js::gcreason::MEM_PRESSURE, nsGCShrinking);
+    nsJSContext::GarbageCollectNow(true);
     nsJSContext::CycleCollectNow();
   }
   return NS_OK;
@@ -1111,7 +1111,7 @@ nsJSContext::DestroyJSContext()
                                   js_options_dot_str, this);
 
   if (mGCOnDestruction) {
-    PokeGC(js::gcreason::NSJSCONTEXT_DESTROY);
+    PokeGC();
   }
         
   // Let xpconnect destroy the JSContext when it thinks the time is right.
@@ -3220,7 +3220,7 @@ nsJSContext::ScriptExecuted()
 
 //static
 void
-nsJSContext::GarbageCollectNow(js::gcreason::Reason reason, PRUint32 gckind)
+nsJSContext::GarbageCollectNow(bool shrinkingGC)
 {
   NS_TIME_FUNCTION_MIN(1.0);
   SAMPLE_LABEL("GC", "GarbageCollectNow");
@@ -3238,7 +3238,7 @@ nsJSContext::GarbageCollectNow(js::gcreason::Reason reason, PRUint32 gckind)
   sLoadingInProgress = false;
 
   if (nsContentUtils::XPConnect()) {
-    nsContentUtils::XPConnect()->GarbageCollect(reason, gckind);
+    nsContentUtils::XPConnect()->GarbageCollect(shrinkingGC);
   }
 }
 
@@ -3276,7 +3276,7 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener)
   // If we collected a substantial amount of cycles, poke the GC since more objects
   // might be unreachable now.
   if (sCCollectedWaitingForGC > 250) {
-    PokeGC(js::gcreason::CC_WAITING);
+    PokeGC();
   }
 
   PRTime now = PR_Now();
@@ -3315,8 +3315,7 @@ GCTimerFired(nsITimer *aTimer, void *aClosure)
 {
   NS_RELEASE(sGCTimer);
 
-  uintptr_t reason = reinterpret_cast<uintptr_t>(aClosure);
-  nsJSContext::GarbageCollectNow(static_cast<js::gcreason::Reason>(reason), nsGCNormal);
+  nsJSContext::GarbageCollectNow();
 }
 
 void
@@ -3360,12 +3359,12 @@ nsJSContext::LoadEnd()
 
   // Its probably a good idea to GC soon since we have finished loading.
   sLoadingInProgress = false;
-  PokeGC(js::gcreason::LOAD_END);
+  PokeGC();
 }
 
 // static
 void
-nsJSContext::PokeGC(js::gcreason::Reason aReason)
+nsJSContext::PokeGC()
 {
   if (sGCTimer) {
     // There's already a timer for GC'ing, just return
@@ -3381,7 +3380,7 @@ nsJSContext::PokeGC(js::gcreason::Reason aReason)
 
   static bool first = true;
 
-  sGCTimer->InitWithFuncCallback(GCTimerFired, reinterpret_cast<void *>(aReason),
+  sGCTimer->InitWithFuncCallback(GCTimerFired, nsnull,
                                  first
                                  ? NS_FIRST_GC_DELAY
                                  : NS_GC_DELAY,
@@ -3474,9 +3473,9 @@ nsJSContext::KillCCTimer()
 }
 
 void
-nsJSContext::GC(js::gcreason::Reason aReason)
+nsJSContext::GC()
 {
-  PokeGC(aReason);
+  PokeGC();
 }
 
 static void
@@ -3514,7 +3513,7 @@ DOMGCFinishedCallback(JSRuntime *rt, JSCompartment *comp, const char *status)
     // probably a time of heavy activity and we want to delay
     // the full GC, but we do want it to happen eventually.
     if (comp) {
-      nsJSContext::PokeGC(js::gcreason::POST_COMPARTMENT);
+      nsJSContext::PokeGC();
 
       // We poked the GC, so we can kill any pending CC here.
       nsJSContext::KillCCTimer();

@@ -3,9 +3,6 @@
 # found in the LICENSE file.
 
 {
-  'variables': {
-    'chromium_code': 1,
-  },
   'target_defaults': {
     'defines': [
       'ANGLE_DISABLE_TRACE',
@@ -172,8 +169,6 @@
             'common/angleutils.h',
             'common/debug.cpp',
             'common/debug.h',
-            'common/RefCountObject.cpp',
-            'common/RefCountObject.h',
             'common/version.h',
             'libGLESv2/IndexDataManager.cpp',
             'libGLESv2/IndexDataManager.h',
@@ -200,8 +195,8 @@
             'libGLESv2/mathutil.h',
             'libGLESv2/Program.cpp',
             'libGLESv2/Program.h',
-            'libGLESv2/Query.h',
-            'libGLESv2/Query.cpp',
+            'libGLESv2/RefCountObject.cpp',
+            'libGLESv2/RefCountObject.h',
             'libGLESv2/Renderbuffer.cpp',
             'libGLESv2/Renderbuffer.h',
             'libGLESv2/ResourceManager.cpp',
@@ -236,8 +231,6 @@
             'common/angleutils.h',
             'common/debug.cpp',
             'common/debug.h',
-            'common/RefCountObject.cpp',
-            'common/RefCountObject.h',
             'common/version.h',
             'libEGL/Config.cpp',
             'libEGL/Config.h',

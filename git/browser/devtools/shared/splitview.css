@@ -58,7 +58,6 @@ box,
 .splitview-controller {
   min-height: 3em;
   max-height: 14em;
-  max-width: 400px;
 }
 
 .splitview-nav {
@@ -80,7 +79,7 @@ box,
 }
 
 /* this is to keep in sync with SplitView.jsm's LANDSCAPE_MEDIA_QUERY */
-@media (min-width: 551px) {
+@media (min-aspect-ratio: 5/3) {
   .splitview-root {
     -moz-box-orient: horizontal;
   }
@@ -116,16 +115,12 @@ ol.splitview-nav > li.splitview-filtered {
 }
 
 /* portrait mode */
-@media (max-width: 550px) {
+@media (max-aspect-ratio: 5/3) {
   #splitview-details-toolbar {
     display: none;
   }
 
   .splitview-portrait-resizer {
     display: -moz-box;
-  }
-
-  .splitview-controller {
-    max-width: none;
   }
 }

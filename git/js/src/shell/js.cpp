@@ -52,6 +52,7 @@
 #include "mozilla/Util.h"
 
 #include "jstypes.h"
+#include "jsstdint.h"
 #include "jsutil.h"
 #include "jsprf.h"
 #include "jswrapper.h"
@@ -457,8 +458,12 @@ Process(JSContext *cx, JSObject *obj, const char *filename, bool forceTTY)
         SkipUTF8BOM(file);
 
         /*
-         * It's not interactive - just execute it.  Support the UNIX #! shell
-         * hack, and gobble the first line if it starts with '#'.
+         * It's not interactive - just execute it.
+         *
+         * Support the UNIX #! shell hack; gobble the first line if it starts
+         * with '#'.  TODO - this isn't quite compatible with sharp variables,
+         * as a legal js program (using sharp variables) might start with '#'.
+         * But that would require multi-character lookahead.
          */
         int ch = fgetc(file);
         if (ch == '#') {
@@ -781,59 +786,6 @@ Load(JSContext *cx, uintN argc, jsval *vp)
     }
 
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
-    return true;
-}
-
-static JSBool
-EvaluateWithLocation(JSContext *cx, uintN argc, jsval *vp)
-{
-    if (argc != 3) {
-        JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL,
-                             argc > 3 ? JSSMSG_TOO_MANY_ARGS : JSSMSG_NOT_ENOUGH_ARGS,
-                             "evalWithLocation");
-        return false;
-    }
-
-    JSString *code = JS_ValueToString(cx, JS_ARGV(cx, vp)[0]);
-    if (!code)
-        return false;
-    JS::Anchor<JSString *> a_code(code);
-
-    size_t codeLength;
-    const jschar *codeChars = JS_GetStringCharsAndLength(cx, code, &codeLength);
-    if (!codeChars)
-        return false;
-
-    JSString *filename = JS_ValueToString(cx, JS_ARGV(cx, vp)[1]);
-    if (!filename)
-        return false;
-
-    uint32_t lineno;
-    if (!JS_ValueToECMAUint32(cx, JS_ARGV(cx, vp)[2], &lineno))
-        return false;
-
-    JSObject *thisobj = JS_THIS_OBJECT(cx, vp);
-    if (!thisobj)
-        return false;
-
-    if ((JS_GET_CLASS(cx, thisobj)->flags & JSCLASS_IS_GLOBAL) != JSCLASS_IS_GLOBAL) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_UNEXPECTED_TYPE,
-                             "this-value passed to evalWithLocation()", "not a global object");
-        return false;
-    }
-
-    char *filenameBytes = JS_EncodeString(cx, filename);
-    if (!filenameBytes)
-        return false;
-
-    jsval rval;
-    bool ok = JS_EvaluateUCScript(cx, thisobj, codeChars, codeLength, filenameBytes, lineno, &rval);
-    JS_free(cx, filenameBytes);
-
-    if (!ok)
-        return false;
-
-    JS_SET_RVAL(cx, vp, rval);
     return true;
 }
 
@@ -3503,7 +3455,7 @@ CancelExecution(JSRuntime *rt)
     if (gWorkerThreadPool)
         js::workers::terminateAll(gWorkerThreadPool);
 #endif
-    JS_TriggerRuntimeOperationCallback(rt);
+    JS_TriggerAllOperationCallbacks(rt);
 
     static const char msg[] = "Script runs for too long, terminating.\n";
 #if defined(XP_UNIX) && !defined(JS_THREADSAFE)
@@ -3865,6 +3817,43 @@ MJitCodeStats(JSContext *cx, uintN argc, jsval *vp)
     return true;
 }
 
+#ifdef JS_METHODJIT
+
+static size_t
+computedSize(const void *p, size_t size)
+{
+    return size;
+}
+
+static void
+SumJitDataSizeCallback(JSContext *cx, void *data, void *thing,
+                       JSGCTraceKind traceKind, size_t thingSize)
+{
+    size_t *sump = static_cast<size_t *>(data);
+    JS_ASSERT(traceKind == JSTRACE_SCRIPT);
+    JSScript *script = static_cast<JSScript *>(thing);
+    /*
+     * Passing in |computedSize| causes jitDataSize to fall back to its
+     * secondary size computation.
+     */
+    *sump += script->jitDataSize(computedSize);
+}
+
+#endif
+
+JSBool
+MJitDataStats(JSContext *cx, uintN argc, jsval *vp)
+{
+#ifdef JS_METHODJIT
+    size_t n = 0;
+    IterateCells(cx, NULL, gc::FINALIZE_SCRIPT, &n, SumJitDataSizeCallback);
+    JS_SET_RVAL(cx, vp, INT_TO_JSVAL(n));
+#else
+    JS_SET_RVAL(cx, vp, JSVAL_VOID);
+#endif
+    return true;
+}
+
 JSBool
 MJitChunkLimit(JSContext *cx, uintN argc, jsval *vp)
 {
@@ -3969,20 +3958,12 @@ GetMaxArgs(JSContext *cx, uintN arg, jsval *vp)
     return JS_TRUE;
 }
 
-static JSBool
-Terminate(JSContext *cx, uintN arg, jsval *vp)
-{
-    JS_ClearPendingException(cx);
-    return JS_FALSE;
-}
-
 static JSFunctionSpec shell_functions[] = {
     JS_FN("version",        Version,        0,0),
     JS_FN("revertVersion",  RevertVersion,  0,0),
     JS_FN("options",        Options,        0,0),
     JS_FN("load",           Load,           1,0),
     JS_FN("evaluate",       Evaluate,       1,0),
-    JS_FN("evalWithLocation", EvaluateWithLocation, 3,0),
     JS_FN("run",            Run,            1,0),
     JS_FN("readline",       ReadLine,       0,0),
     JS_FN("print",          Print,          0,0),
@@ -4057,6 +4038,7 @@ static JSFunctionSpec shell_functions[] = {
     JS_FN("deserialize",    Deserialize,    1,0),
 #ifdef JS_METHODJIT
     JS_FN("mjitcodestats",  MJitCodeStats,  0,0),
+    JS_FN("mjitdatastats",  MJitDataStats,  0,0),
 #endif
     JS_FN("mjitChunkLimit", MJitChunkLimit, 1,0),
     JS_FN("stringstats",    StringStats,    0,0),
@@ -4064,7 +4046,6 @@ static JSFunctionSpec shell_functions[] = {
     JS_FN("parseLegacyJSON",ParseLegacyJSON,1,0),
     JS_FN("enableStackWalkingAssertion",EnableStackWalkingAssertion,1,0),
     JS_FN("getMaxArgs",     GetMaxArgs,     0,0),
-    JS_FN("terminate",      Terminate,      0,0),
     JS_FS_END
 };
 
@@ -4078,8 +4059,6 @@ static const char *const shell_help_messages[] = {
 "options([option ...])    Get or toggle JavaScript options",
 "load(['foo.js' ...])     Load files named by string arguments",
 "evaluate(code)           Evaluate code as though it were the contents of a file",
-"evalWithLocation(code, filename, lineno)\n"
-"  Eval code as if loaded from the given filename and line number",
 "run('foo.js')\n"
 "  Run the file named by the first argument, returning the number of\n"
 "  of milliseconds spent compiling and executing it",
@@ -4206,6 +4185,7 @@ static const char *const shell_help_messages[] = {
 "deserialize(a)           Deserialize data generated by serialize.",
 #ifdef JS_METHODJIT
 "mjitcodestats()          Return stats on mjit code memory usage.",
+"mjitdatastats()          Return stats on mjit data memory usage.",
 #endif
 "mjitChunkLimit(N)        Specify limit on compiled chunk size during mjit compilation.",
 "stringstats()            Return stats on string memory usage.",
@@ -4220,8 +4200,6 @@ static const char *const shell_help_messages[] = {
 "  assertion increases test duration by an order of magnitude, you shouldn't\n"
 "  use this.",
 "getMaxArgs()             Return the maximum number of supported args for a call.",
-"terminate()              Terminate JavaScript execution, as if we had run out of\n"
-"                         memory or been terminated by the slow script dialog.",
 
 /* Keep these last: see the static assertion below. */
 #ifdef MOZ_PROFILING

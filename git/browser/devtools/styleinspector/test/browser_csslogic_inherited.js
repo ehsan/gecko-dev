@@ -4,9 +4,7 @@
 
 // Test that inherited properties are treated correctly.
 
-let tempScope = {};
-Cu.import("resource:///modules/devtools/CssLogic.jsm", tempScope);
-let CssLogic = tempScope.CssLogic;
+Cu.import("resource:///modules/devtools/CssLogic.jsm");
 
 let doc;
 

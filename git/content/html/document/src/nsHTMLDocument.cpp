@@ -105,6 +105,7 @@
 #include "nsICharsetAlias.h"
 #include "nsContentUtils.h"
 #include "nsJSUtils.h"
+#include "nsIDocumentCharsetInfo.h"
 #include "nsIDocumentEncoder.h" //for outputting selection
 #include "nsICachingChannel.h"
 #include "nsIJSContextStack.h"
@@ -382,7 +383,7 @@ nsHTMLDocument::TryHintCharset(nsIMarkupDocumentViewer* aMarkupDV,
 
 bool
 nsHTMLDocument::TryUserForcedCharset(nsIMarkupDocumentViewer* aMarkupDV,
-                                     nsIDocShell*  aDocShell,
+                                     nsIDocumentCharsetInfo*  aDocInfo,
                                      PRInt32& aCharsetSource,
                                      nsACString& aCharset)
 {
@@ -400,13 +401,13 @@ nsHTMLDocument::TryUserForcedCharset(nsIMarkupDocumentViewer* aMarkupDV,
     aCharset = forceCharsetFromDocShell;
     //TODO: we should define appropriate constant for force charset
     aCharsetSource = kCharsetFromUserForced;
-  } else if (aDocShell) {
+  } else if (aDocInfo) {
     nsCOMPtr<nsIAtom> csAtom;
-    aDocShell->GetForcedCharset(getter_AddRefs(csAtom));
+    aDocInfo->GetForcedCharset(getter_AddRefs(csAtom));
     if (csAtom) {
       csAtom->ToUTF8String(aCharset);
       aCharsetSource = kCharsetFromUserForced;
-      aDocShell->SetForcedCharset(nsnull);
+      aDocInfo->SetForcedCharset(nsnull);
       return true;
     }
   }
@@ -452,16 +453,16 @@ CheckSameOrigin(nsINode* aNode1, nsINode* aNode2)
 }
 
 bool
-nsHTMLDocument::TryParentCharset(nsIDocShell*  aDocShell,
+nsHTMLDocument::TryParentCharset(nsIDocumentCharsetInfo*  aDocInfo,
                                  nsIDocument* aParentDocument,
                                  PRInt32& aCharsetSource,
                                  nsACString& aCharset)
 {
-  if (aDocShell) {
+  if (aDocInfo) {
     PRInt32 source;
     nsCOMPtr<nsIAtom> csAtom;
     PRInt32 parentSource;
-    aDocShell->GetParentCharsetSource(&parentSource);
+    aDocInfo->GetParentCharsetSource(&parentSource);
     if (kCharsetFromParentForced <= parentSource)
       source = kCharsetFromParentForced;
     else if (kCharsetFromHintPrevDoc == parentSource) {
@@ -488,7 +489,7 @@ nsHTMLDocument::TryParentCharset(nsIDocShell*  aDocShell,
     if (source < aCharsetSource)
       return true;
 
-    aDocShell->GetParentCharset(getter_AddRefs(csAtom));
+    aDocInfo->GetParentCharset(getter_AddRefs(csAtom));
     if (csAtom) {
       csAtom->ToUTF8String(aCharset);
       aCharsetSource = source;
@@ -743,6 +744,9 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
     parserCharset = charset;
   } else {
     NS_ASSERTION(docShell && docShellAsItem, "Unexpected null value");
+    
+    nsCOMPtr<nsIDocumentCharsetInfo> dcInfo;
+    docShell->GetDocumentCharsetInfo(getter_AddRefs(dcInfo));
 
     charsetSource = kCharsetUninitialized;
     wyciwygChannel = do_QueryInterface(aChannel);
@@ -753,9 +757,9 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
     // describes. Some try call might change charset source to
     // multiple values, like TryHintCharset and TryParentCharset. It
     // should be always safe to try more sources.
-    if (!TryUserForcedCharset(muCV, docShell, charsetSource, charset)) {
+    if (!TryUserForcedCharset(muCV, dcInfo, charsetSource, charset)) {
       TryHintCharset(muCV, charsetSource, charset);
-      TryParentCharset(docShell, parentDocument, charsetSource, charset);
+      TryParentCharset(dcInfo, parentDocument, charsetSource, charset);
 
       // Don't actually get the charset from the channel if this is a
       // wyciwyg channel; it'll always be UTF-16

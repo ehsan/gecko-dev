@@ -39,9 +39,9 @@
 #ifndef __NS_SVGSWITCHELEMENT_H__
 #define __NS_SVGSWITCHELEMENT_H__
 
-#include "DOMSVGTests.h"
-#include "nsIDOMSVGSwitchElement.h"
 #include "nsSVGGraphicElement.h"
+#include "nsIDOMSVGSwitchElement.h"
+#include "DOMSVGTests.h"
 
 typedef nsSVGGraphicElement nsSVGSwitchElementBase;
 

@@ -128,15 +128,9 @@ JS_NewObjectWithUniqueType(JSContext *cx, JSClass *clasp, JSObject *proto, JSObj
 }
 
 JS_FRIEND_API(void)
-js::GCForReason(JSContext *cx, gcreason::Reason reason)
+JS_ShrinkingGC(JSContext *cx)
 {
-    js_GC(cx, NULL, GC_NORMAL, reason);
-}
-
-JS_FRIEND_API(void)
-js::ShrinkingGC(JSContext *cx, gcreason::Reason reason)
-{
-    js_GC(cx, NULL, GC_SHRINK, reason);
+    js_GC(cx, NULL, GC_SHRINK, gcstats::PUBLIC_API);
 }
 
 JS_FRIEND_API(void)
@@ -329,12 +323,6 @@ js::SetFunctionNativeReserved(JSObject *fun, size_t which, const Value &val)
     fun->toFunction()->setExtendedSlot(which, val);
 }
 
-JS_FRIEND_API(void)
-js::SetReservedSlotWithBarrier(JSObject *obj, size_t slot, const js::Value &value)
-{
-    obj->setSlot(slot, value);
-}
-
 void
 js::SetPreserveWrapperCallback(JSRuntime *rt, PreserveWrapperCallback callback)
 {
@@ -481,39 +469,6 @@ js::DumpHeapComplete(JSContext *cx, FILE *fp)
 
 namespace js {
 
-JS_FRIEND_API(bool)
-IsIncrementalBarrierNeeded(JSRuntime *rt)
-{
-    return !!rt->gcIncrementalTracer && !rt->gcRunning;
-}
-
-JS_FRIEND_API(bool)
-IsIncrementalBarrierNeeded(JSContext *cx)
-{
-    return IsIncrementalBarrierNeeded(cx->runtime);
-}
-
-extern JS_FRIEND_API(void)
-IncrementalReferenceBarrier(void *ptr)
-{
-    if (!ptr)
-        return;
-    JS_ASSERT(!static_cast<gc::Cell *>(ptr)->compartment()->rt->gcRunning);
-    uint32_t kind = gc::GetGCThingTraceKind(ptr);
-    if (kind == JSTRACE_OBJECT)
-        JSObject::writeBarrierPre((JSObject *) ptr);
-    else if (kind == JSTRACE_STRING)
-        JSString::writeBarrierPre((JSString *) ptr);
-    else
-        JS_NOT_REACHED("invalid trace kind");
-}
-
-extern JS_FRIEND_API(void)
-IncrementalValueBarrier(const Value &v)
-{
-    HeapValue::writeBarrierPre(v);
-}
-
 /* static */ void
 AutoLockGC::LockGC(JSRuntime *rt)
 {
@@ -567,10 +522,10 @@ CallContextDebugHandler(JSContext *cx, JSScript *script, jsbytecode *bc, Value *
 }
 
 #ifdef JS_THREADSAFE
-void *
-GetOwnerThread(const JSContext *cx)
+JSThread *
+GetContextThread(const JSContext *cx)
 {
-    return cx->runtime->ownerThread();
+    return cx->thread();
 }
 
 JS_FRIEND_API(unsigned)
@@ -591,18 +546,18 @@ AutoSkipConservativeScan::AutoSkipConservativeScan(JSContext *cx
 {
     MOZ_GUARD_OBJECT_NOTIFIER_INIT;
 
-    JSRuntime *rt = context->runtime;
-    JS_ASSERT(rt->requestDepth >= 1);
-    JS_ASSERT(!rt->conservativeGC.requestThreshold);
-    if (rt->requestDepth == 1)
-        rt->conservativeGC.requestThreshold = 1;
+    ThreadData &threadData = context->thread()->data;
+    JS_ASSERT(threadData.requestDepth >= 1);
+    JS_ASSERT(!threadData.conservativeGC.requestThreshold);
+    if (threadData.requestDepth == 1)
+        threadData.conservativeGC.requestThreshold = 1;
 }
 
 AutoSkipConservativeScan::~AutoSkipConservativeScan()
 {
-    JSRuntime *rt = context->runtime;
-    if (rt->requestDepth == 1)
-        rt->conservativeGC.requestThreshold = 0;
+    ThreadData &threadData = context->thread()->data;
+    if (threadData.requestDepth == 1)
+        threadData.conservativeGC.requestThreshold = 0;
 }
 #endif
 
@@ -632,9 +587,12 @@ IsContextRunningJS(JSContext *cx)
 }
 
 JS_FRIEND_API(void)
-TriggerOperationCallback(JSRuntime *rt)
+TriggerOperationCallbacksForActiveContexts(JSRuntime *rt)
 {
-    rt->triggerOperationCallback();
+    JSContext* cx = NULL;
+    while ((cx = js_NextActiveContext(rt, cx))) {
+        TriggerOperationCallback(cx);
+    }
 }
 
 JS_FRIEND_API(const CompartmentVector&)
