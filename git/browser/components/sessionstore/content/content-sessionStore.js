@@ -301,13 +301,18 @@ let DocShellCapabilitiesListener = {
   _latestCapabilities: "",
 
   init: function () {
-    gFrameTree.addObserver(this);
+    let webProgress = docShell.QueryInterface(Ci.nsIInterfaceRequestor)
+                              .getInterface(Ci.nsIWebProgress);
+
+    webProgress.addProgressListener(this, Ci.nsIWebProgress.NOTIFY_LOCATION);
   },
 
   /**
-   * onFrameTreeReset() is called as soon as we start loading a page.
+   * onLocationChange() is called as soon as we start loading a page after
+   * we are certain that there's nothing blocking the load (e.g. a content
+   * policy added by AdBlock or the like).
    */
-  onFrameTreeReset: function() {
+  onLocationChange: function() {
     // The order of docShell capabilities cannot change while we're running
     // so calling join() without sorting before is totally sufficient.
     let caps = DocShellCapabilities.collect(docShell).join(",");
@@ -317,7 +322,15 @@ let DocShellCapabilitiesListener = {
       this._latestCapabilities = caps;
       MessageQueue.push("disallow", () => caps || null);
     }
-  }
+  },
+
+  onStateChange: function () {},
+  onProgressChange: function () {},
+  onStatusChange: function () {},
+  onSecurityChange: function () {},
+
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIWebProgressListener,
+                                         Ci.nsISupportsWeakReference])
 };
 
 /**
@@ -333,12 +346,12 @@ let SessionStorageListener = {
   init: function () {
     addEventListener("MozStorageChanged", this);
     Services.obs.addObserver(this, "browser:purge-domain-data", true);
-    gFrameTree.addObserver(this);
+    Services.obs.addObserver(this, "browser:purge-session-history", true);
   },
 
   handleEvent: function (event) {
     // Ignore events triggered by localStorage or globalStorage changes.
-    if (gFrameTree.contains(event.target) && isSessionStorageEvent(event)) {
+    if (isSessionStorageEvent(event)) {
       this.collect();
     }
   },
@@ -350,17 +363,7 @@ let SessionStorageListener = {
   },
 
   collect: function () {
-    if (docShell) {
-      MessageQueue.push("storage", () => SessionStorage.collect(docShell, gFrameTree));
-    }
-  },
-
-  onFrameTreeCollected: function () {
-    this.collect();
-  },
-
-  onFrameTreeReset: function () {
-    this.collect();
+    MessageQueue.push("storage", () => SessionStorage.collect(docShell));
   },
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,
