@@ -94,8 +94,10 @@ WrappedJSDyingJSObjectFinder(JSDHashTable *table, JSDHashEntryHdr *hdr,
     {
         if(wrapper->IsSubjectToFinalization())
         {
-            js::SwitchToCompartment sc(data->cx, wrapper->GetJSObject());
-            if(JS_IsAboutToBeFinalized(data->cx, wrapper->GetJSObject()))
+            js::SwitchToCompartment sc(data->cx,
+                                       wrapper->GetJSObjectPreserveColor());
+            if(JS_IsAboutToBeFinalized(data->cx,
+                                       wrapper->GetJSObjectPreserveColor()))
                 data->array->AppendElement(wrapper);
         }
         wrapper = wrapper->GetNextWrapper();
@@ -503,16 +505,13 @@ XPCJSRuntime::SuspectWrappedNative(JSContext *cx, XPCWrappedNative *wrapper,
 
     // Only suspect wrappedJSObjects that are in a compartment that
     // participates in cycle collection.
-    JSObject* obj = wrapper->GetFlatJSObjectAndMark();
+    JSObject* obj = wrapper->GetFlatJSObjectPreserveColor();
     if(!xpc::ParticipatesInCycleCollection(cx, obj))
         return;
 
-    NS_ASSERTION(!JS_IsAboutToBeFinalized(cx, obj),
-                 "SuspectWrappedNative attempting to touch dead object");
-
     // Only record objects that might be part of a cycle as roots, unless
     // the callback wants all traces (a debug feature).
-    if(nsXPConnect::IsGray(obj) || cb.WantAllTraces())
+    if(xpc_IsGrayGCThing(obj) || cb.WantAllTraces())
         cb.NoteRoot(nsIProgrammingLanguage::JAVASCRIPT, obj,
                     nsXPConnect::GetXPConnect());
 }
@@ -572,7 +571,7 @@ XPCJSRuntime::AddXPConnectRoots(JSContext* cx,
     for(XPCRootSetElem *e = mWrappedJSRoots; e ; e = e->GetNextRoot())
     {
         nsXPCWrappedJS *wrappedJS = static_cast<nsXPCWrappedJS*>(e);
-        JSObject *obj = wrappedJS->GetJSObject();
+        JSObject *obj = wrappedJS->GetJSObjectPreserveColor();
 
         // Only suspect wrappedJSObjects that are in a compartment that
         // participates in cycle collection.
@@ -640,7 +639,7 @@ static PLDHashOperator
 SweepExpandos(XPCWrappedNative *wn, JSObject *&expando, void *arg)
 {
     JSContext *cx = (JSContext *)arg;
-    return IsAboutToBeFinalized(cx, wn->GetFlatJSObjectNoMark())
+    return IsAboutToBeFinalized(cx, wn->GetFlatJSObjectPreserveColor())
            ? PL_DHASH_REMOVE
            : PL_DHASH_NEXT;
 }
@@ -1354,7 +1353,9 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
     mStrIDs[0] = JSID_VOID;
 
     mJSRuntime = JS_NewRuntime(32L * 1024L * 1024L); // pref ?
-    if(mJSRuntime)
+    if (!mJSRuntime)
+        NS_RUNTIMEABORT("JS_NewRuntime failed.");
+
     {
         // Unconstrain the runtime's threshold on nominal heap size, to avoid
         // triggering GC too often if operating continuously near an arbitrary
@@ -1371,6 +1372,8 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
                                   xpc::WrapperFactory::Rewrap,
                                   xpc::WrapperFactory::PrepareForWrapping);
         mWatchdogWakeup = JS_NEW_CONDVAR(mJSRuntime->gcLock);
+        if (!mWatchdogWakeup)
+            NS_RUNTIMEABORT("JS_NEW_CONDVAR failed.");
 
         mJSRuntime->setActivityCallback(ActivityCallback, this);
 
@@ -1400,6 +1403,8 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
         mWatchdogThread = PR_CreateThread(PR_USER_THREAD, WatchdogMain, this,
                                           PR_PRIORITY_NORMAL, PR_LOCAL_THREAD,
                                           PR_UNJOINABLE_THREAD, 0);
+        if (!mWatchdogThread)
+            NS_RUNTIMEABORT("PR_CreateThread failed!");
     }
 }
 
@@ -1427,6 +1432,9 @@ XPCJSRuntime::newXPCJSRuntime(nsXPConnect* aXPConnect)
     {
         return self;
     }
+
+    NS_RUNTIMEABORT("new XPCJSRuntime failed to initialize.");
+
     delete self;
     return nsnull;
 }
