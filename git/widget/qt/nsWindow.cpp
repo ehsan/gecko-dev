@@ -10,8 +10,6 @@
 
 #include <QtOpenGL/QGLWidget>
 #include <QtOpenGL/QGLContext>
-// Solve conflict of qgl.h and GLDefs.h
-#define GLdouble_defined 1
 #include <QApplication>
 #include <QDesktopWidget>
 #include <QtGui/QCursor>
@@ -103,6 +101,7 @@ static Atom sPluginIMEAtom = nullptr;
 #endif
 #endif //MOZ_X11
 
+#define GLdouble_defined 1
 #include "Layers.h"
 #include "LayerManagerOGL.h"
 #include "nsFastStartupQt.h"

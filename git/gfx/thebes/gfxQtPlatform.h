@@ -112,8 +112,6 @@ public:
     static Screen* GetXScreen(QWidget* aWindow = 0);
 #endif
 
-    virtual int GetScreenDepth() const;
-
 protected:
     static gfxFontconfigUtils *sFontconfigUtils;
 
@@ -124,7 +122,6 @@ private:
     nsDataHashtable<nsCStringHashKey, nsTArray<nsRefPtr<gfxFontEntry> > > mPrefFonts;
 
     RenderMode mRenderMode;
-    int mScreenDepth;
 };
 
 #endif /* GFX_PLATFORM_QT_H */
