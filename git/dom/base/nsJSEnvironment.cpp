@@ -420,10 +420,10 @@ public:
                      "nsIScriptObjectPrincipal");
         nsCOMPtr<nsIPrincipal> systemPrincipal;
         sSecurityManager->GetSystemPrincipal(getter_AddRefs(systemPrincipal));
-        const char * category =
+        const nsACString& category =
           scriptPrincipal->GetPrincipal() == systemPrincipal
-          ? "chrome javascript"
-          : "content javascript";
+          ? NS_LITERAL_CSTRING("chrome javascript")
+          : NS_LITERAL_CSTRING("content javascript");
 
         rv = errorObject->InitWithWindowID(mErrorMsg, mFileName,
                                            mSourceLine,
@@ -555,31 +555,31 @@ NS_ScriptErrorReporter(JSContext *cx,
     }
   }
 
-#ifdef DEBUG
-  // Print it to stderr as well, for the benefit of those invoking
-  // mozilla with -console.
-  nsAutoCString error;
-  error.Assign("JavaScript ");
-  if (JSREPORT_IS_STRICT(report->flags))
-    error.Append("strict ");
-  if (JSREPORT_IS_WARNING(report->flags))
-    error.Append("warning: ");
-  else
-    error.Append("error: ");
-  error.Append(report->filename);
-  error.Append(", line ");
-  error.AppendInt(report->lineno, 10);
-  error.Append(": ");
-  if (report->ucmessage) {
-    AppendUTF16toUTF8(reinterpret_cast<const PRUnichar*>(report->ucmessage),
-                      error);
-  } else {
-    error.Append(message);
-  }
+  if (nsContentUtils::DOMWindowDumpEnabled()) {
+    // Print it to stderr as well, for the benefit of those invoking
+    // mozilla with -console.
+    nsAutoCString error;
+    error.Assign("JavaScript ");
+    if (JSREPORT_IS_STRICT(report->flags))
+      error.Append("strict ");
+    if (JSREPORT_IS_WARNING(report->flags))
+      error.Append("warning: ");
+    else
+      error.Append("error: ");
+    error.Append(report->filename);
+    error.Append(", line ");
+    error.AppendInt(report->lineno, 10);
+    error.Append(": ");
+    if (report->ucmessage) {
+      AppendUTF16toUTF8(reinterpret_cast<const PRUnichar*>(report->ucmessage),
+                        error);
+    } else {
+      error.Append(message);
+    }
 
-  fprintf(stderr, "%s\n", error.get());
-  fflush(stderr);
-#endif
+    fprintf(stderr, "%s\n", error.get());
+    fflush(stderr);
+  }
 
 #ifdef PR_LOGGING
   if (!gJSDiagnostics)
@@ -1186,8 +1186,11 @@ nsJSContext::DestroyJSContext()
 }
 
 // QueryInterface implementation for nsJSContext
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsJSContext)
+
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsJSContext)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
+
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsJSContext)
   NS_ASSERTION(!tmp->mContext || !js::ContextHasOutstandingRequests(tmp->mContext),
                "Trying to unlink a context with outstanding requests.");
@@ -3601,6 +3604,8 @@ nsJSArgArray::ReleaseJSObjects()
 }
 
 // QueryInterface implementation for nsJSArgArray
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsJSArgArray)
+
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsJSArgArray)
   tmp->ReleaseJSObjects();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
