@@ -38,7 +38,6 @@
 #include "nsSVGUtils.h"
 #include "nsIDOMSVGUnitTypes.h"
 #include "gfxContext.h"
-#include "nsSVGMatrix.h"
 
 static double Square(double aX)
 {
@@ -91,20 +90,6 @@ nsSVGFilterInstance::UserSpaceToFilterSpace(const gfxRect& aRect) const
   r.Scale(mFilterSpaceSize.width / mFilterRect.Width(),
           mFilterSpaceSize.height / mFilterRect.Height());
   return r;
-}
-
-already_AddRefed<nsIDOMSVGMatrix>
-nsSVGFilterInstance::GetUserSpaceToFilterSpaceTransform() const
-{
-  nsCOMPtr<nsIDOMSVGMatrix> filterTransform;
-  gfxFloat widthScale = mFilterSpaceSize.width / mFilterRect.Width();
-  gfxFloat heightScale = mFilterSpaceSize.height / mFilterRect.Height();
-  NS_NewSVGMatrix(getter_AddRefs(filterTransform),
-                  widthScale, 0.0f,
-                  0.0f, heightScale,
-                  -mFilterRect.X() * widthScale,
-                  -mFilterRect.Y() * heightScale);
-  return filterTransform.forget();
 }
 
 void
@@ -281,30 +266,14 @@ nsSVGFilterInstance::ComputeResultBoundingBoxes()
 }
 
 void
-nsSVGFilterInstance::ComputeResultChangeBoxes()
-{
-  for (PRUint32 i = 0; i < mPrimitives.Length(); ++i) {
-    PrimitiveInfo* info = &mPrimitives[i];
-    nsAutoTArray<nsIntRect,2> sourceChangeBoxes;
-    for (PRUint32 j = 0; j < info->mInputs.Length(); ++j) {
-      sourceChangeBoxes.AppendElement(info->mInputs[j]->mResultChangeBox);
-    }
-
-    nsIntRect resultChangeBox = info->mFE->ComputeChangeBBox(sourceChangeBoxes, *this);
-    info->mResultChangeBox.IntersectRect(resultChangeBox, info->mResultBoundingBox);
-  }
-}
-
-void
 nsSVGFilterInstance::ComputeNeededBoxes()
 {
   if (mPrimitives.IsEmpty())
     return;
 
-  // In the end, we need whatever the final filter primitive will draw that
-  // intersects the destination dirty area.
+  // In the end, we need whatever the final filter primitive will draw.
   mPrimitives[mPrimitives.Length() - 1].mResultNeededBox.IntersectRect(
-    mPrimitives[mPrimitives.Length() - 1].mResultBoundingBox, mDirtyOutputRect);
+    mPrimitives[mPrimitives.Length() - 1].mResultBoundingBox, mDirtyRect);
 
   for (PRInt32 i = mPrimitives.Length() - 1; i >= 0; --i) {
     PrimitiveInfo* info = &mPrimitives[i];
@@ -499,34 +468,5 @@ nsSVGFilterInstance::Render(gfxASurface** aOutput)
   gfxImageSurface* surf = nsnull;
   result->mImage.mImage.swap(surf);
   *aOutput = surf;
-  return NS_OK;
-}
-
-nsresult
-nsSVGFilterInstance::ComputeOutputDirtyRect(nsIntRect* aDirty)
-{
-  *aDirty = nsIntRect();
-
-  nsresult rv = BuildSources();
-  if (NS_FAILED(rv))
-    return rv;
-
-  rv = BuildPrimitives();
-  if (NS_FAILED(rv))
-    return rv;
-
-  if (mPrimitives.IsEmpty()) {
-    // Nothing should be rendered, so nothing can be dirty.
-    return NS_OK;
-  }
-
-  ComputeResultBoundingBoxes();
-
-  mSourceColorAlpha.mResultChangeBox = mDirtyInputRect;
-  mSourceAlpha.mResultChangeBox = mDirtyInputRect;
-  ComputeResultChangeBoxes();
-
-  PrimitiveInfo* result = &mPrimitives[mPrimitives.Length() - 1];
-  *aDirty = result->mResultChangeBox;
   return NS_OK;
 }

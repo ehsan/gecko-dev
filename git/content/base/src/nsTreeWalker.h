@@ -45,16 +45,16 @@
 #define nsTreeWalker_h___
 
 #include "nsIDOMTreeWalker.h"
-#include "nsTraversal.h"
 #include "nsCOMPtr.h"
 #include "nsVoidArray.h"
+#include "nsJSUtils.h"
 #include "nsCycleCollectionParticipant.h"
 
 class nsINode;
 class nsIDOMNode;
 class nsIDOMNodeFilter;
 
-class nsTreeWalker : public nsIDOMTreeWalker, public nsTraversal
+class nsTreeWalker : public nsIDOMTreeWalker
 {
 public:
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -69,6 +69,10 @@ public:
     NS_DECL_CYCLE_COLLECTION_CLASS(nsTreeWalker)
 
 private:
+    nsCOMPtr<nsINode> mRoot;
+    PRUint32 mWhatToShow;
+    nsCOMPtr<nsIDOMNodeFilter> mFilter;
+    PRBool mExpandEntityReferences;
     nsCOMPtr<nsINode> mCurrentNode;
     
     /*
@@ -147,6 +151,15 @@ private:
                      nsINode** _retval);
 
     /*
+     * Tests if and how a node should be filtered. Uses mWhatToShow and
+     * mFilter to test the node.
+     * @param aNode     Node to test
+     * @param _filtered Returned filtervalue. See nsIDOMNodeFilter.idl
+     * @returns         Errorcode
+     */
+    nsresult TestNode(nsINode* aNode, PRInt16* _filtered);
+    
+    /*
      * Gets the child index of a node within it's parent. Gets a possible index
      * from mPossibleIndexes to gain speed. If the value in mPossibleIndexes
      * isn't correct it'll get the index the usual way.
@@ -173,6 +186,13 @@ private:
                                               aIndexPos);
     }
 };
+
+// Make a new nsIDOMTreeWalker object
+nsresult NS_NewTreeWalker(nsIDOMNode *aRoot,
+                          PRUint32 aWhatToShow,
+                          nsIDOMNodeFilter *aFilter,
+                          PRBool aEntityReferenceExpansion,
+                          nsIDOMTreeWalker **aInstancePtrResult);
 
 #endif
 
