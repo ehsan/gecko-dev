@@ -3,10 +3,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 /* $Id: nsPKCS12Blob.cpp,v 1.49 2007/09/05 07:13:46 jwalden%mit.edu Exp $ */
 
-#include "nsPKCS12Blob.h"
-
-#include "insanity/pkixtypes.h"
-
 #include "prmem.h"
 #include "prprf.h"
 
@@ -17,6 +13,7 @@
 
 #include "nsNSSComponent.h"
 #include "nsNSSHelper.h"
+#include "nsPKCS12Blob.h"
 #include "nsString.h"
 #include "nsReadableUtils.h"
 #include "nsXPIDLString.h"
@@ -28,6 +25,7 @@
 #include "nsICertificateDialogs.h"
 #include "nsNSSShutDown.h"
 #include "nsCRT.h"
+#include "ScopedNSSTypes.h"
 
 #include "secerr.h"
 
@@ -358,7 +356,7 @@ nsPKCS12Blob::ExportToFile(nsIFile *file,
 //    nsNSSCertificate *cert = reinterpret_cast<nsNSSCertificate *>(certs[i]);
     nsNSSCertificate *cert = (nsNSSCertificate *)certs[i];
     // get it as a CERTCertificate XXX
-    insanity::pkix::ScopedCERTCertificate nssCert(cert->GetCert());
+    ScopedCERTCertificate nssCert(cert->GetCert());
     if (!nssCert) {
       rv = NS_ERROR_FAILURE;
       goto finish;
@@ -371,7 +369,7 @@ nsPKCS12Blob::ExportToFile(nsIFile *file,
     if (nssCert->slot && !PK11_IsInternal(nssCert->slot)) {
       // we aren't the internal token, see if the key is extractable.
       SECKEYPrivateKey *privKey=PK11_FindKeyByDERCert(nssCert->slot,
-                                                      nssCert.get(), this);
+                                                      nssCert, this);
 
       if (privKey) {
         bool privKeyIsExtractable = isExtractable(privKey);
@@ -403,7 +401,7 @@ nsPKCS12Blob::ExportToFile(nsIFile *file,
       goto finish;
     }
     // add the cert and key to the blob
-    srv = SEC_PKCS12AddCertAndKey(ecx, certSafe, nullptr, nssCert.get(),
+    srv = SEC_PKCS12AddCertAndKey(ecx, certSafe, nullptr, nssCert,
                                   CERT_GetDefaultCertDB(), // XXX
                                   keySafe, nullptr, true, &unicodePw,
                       SEC_OID_PKCS12_V2_PBE_WITH_SHA1_AND_3KEY_TRIPLE_DES_CBC);

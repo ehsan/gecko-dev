@@ -104,7 +104,7 @@ toolbarpaletteitem[place="toolbar"] {
 #wrapper-edit-controls[place="palette"] > #edit-controls > separator,
 #wrapper-zoom-controls[place="palette"] > #zoom-controls > toolbarbutton,
 #wrapper-zoom-controls[place="palette"] > #zoom-controls > separator {
-  margin-top: 20px;
+  margin-top: 24px;
 }
 
 #wrapper-edit-controls[place="palette"] > #edit-controls > toolbarbutton,

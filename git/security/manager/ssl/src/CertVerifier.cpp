@@ -1,72 +1,53 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "CertVerifier.h"
-
-#include <stdint.h>
-
-#include "insanity/pkixtypes.h"
-#include "ExtendedValidation.h"
-#include "NSSCertDBTrustDomain.h"
+#include "nsNSSComponent.h"
+#include "nsServiceManagerUtils.h"
 #include "cert.h"
-#include "ocsp.h"
 #include "secerr.h"
-#include "prerror.h"
-#include "sslerr.h"
 
-// ScopedXXX in this file are insanity::pkix::ScopedXXX, not
-// mozilla::ScopedXXX.
-using namespace insanity::pkix;
-using namespace mozilla::psm;
 
-#ifdef MOZ_LOGGING
-static PRLogModuleInfo* gCertVerifierLog = nullptr;
+#ifdef PR_LOGGING
+extern PRLogModuleInfo* gPIPNSSLog;
 #endif
 
 namespace mozilla { namespace psm {
 
+extern SECStatus getFirstEVPolicy(CERTCertificate *cert, SECOidTag &outOidTag);
+extern CERTCertList* getRootsForOid(SECOidTag oid_tag);
+
 const CertVerifier::Flags CertVerifier::FLAG_LOCAL_ONLY = 1;
 const CertVerifier::Flags CertVerifier::FLAG_NO_DV_FALLBACK_FOR_EV = 2;
 
-CertVerifier::CertVerifier(implementation_config ic,
-                           missing_cert_download_config mcdc,
+CertVerifier::CertVerifier(missing_cert_download_config mcdc,
                            crl_download_config cdc,
                            ocsp_download_config odc,
                            ocsp_strict_config osc,
                            ocsp_get_config ogc)
-  : mImplementation(ic)
-  , mMissingCertDownloadEnabled(mcdc == missing_cert_download_on)
+  : mMissingCertDownloadEnabled(mcdc == missing_cert_download_on)
   , mCRLDownloadEnabled(cdc == crl_download_allowed)
   , mOCSPDownloadEnabled(odc == ocsp_on)
   , mOCSPStrict(osc == ocsp_strict)
   , mOCSPGETEnabled(ogc == ocsp_get_enabled)
 {
+  MOZ_COUNT_CTOR(CertVerifier);
 }
 
 CertVerifier::~CertVerifier()
 {
+  MOZ_COUNT_DTOR(CertVerifier);
 }
 
-void
-InitCertVerifierLog()
-{
-#ifdef MOZ_LOGGING
-  if (!gCertVerifierLog) {
-    gCertVerifierLog = PR_NewLogModule("certverifier");
-  }
-#endif
-}
 
 static SECStatus
-ClassicVerifyCert(CERTCertificate* cert,
+ClassicVerifyCert(CERTCertificate * cert,
                   const SECCertificateUsage usage,
                   const PRTime time,
-                  void* pinArg,
-                  /*optional out*/ ScopedCERTCertList* validationChain,
-                  /*optional out*/ CERTVerifyLog* verifyLog)
+                  nsIInterfaceRequestor * pinArg,
+                  /*optional out*/ CERTCertList **validationChain,
+                  /*optional out*/ CERTVerifyLog *verifyLog)
 {
   SECStatus rv;
   SECCertUsage enumUsage;
@@ -113,18 +94,20 @@ ClassicVerifyCert(CERTCertificate* cert,
     }
   }
   if (usage == certificateUsageSSLServer) {
-    // SSL server cert verification has always used CERT_VerifyCert, so we
-    // continue to use it for SSL cert verification to minimize the risk of
-    // there being any differnce in results between CERT_VerifyCert and
-    // CERT_VerifyCertificate.
+    /* SSL server cert verification has always used CERT_VerifyCert, so we
+     * continue to use it for SSL cert verification to minimize the risk of
+     * there being any differnce in results between CERT_VerifyCert and
+     * CERT_VerifyCertificate.
+     */
     rv = CERT_VerifyCert(CERT_GetDefaultCertDB(), cert, true,
                          certUsageSSLServer, time, pinArg, verifyLog);
   } else {
     rv = CERT_VerifyCertificate(CERT_GetDefaultCertDB(), cert, true,
-                                usage, time, pinArg, verifyLog, nullptr);
+                                usage, time, pinArg,
+                                verifyLog, nullptr);
   }
   if (rv == SECSuccess && validationChain) {
-    PR_LOG(gCertVerifierLog, PR_LOG_DEBUG, ("VerifyCert: getting chain in 'classic' \n"));
+    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("VerifyCert: getting chain in 'classic' \n"));
     *validationChain = CERT_GetCertChainFromCert(cert, time, enumUsage);
     if (!*validationChain) {
       rv = SECFailure;
@@ -133,37 +116,17 @@ ClassicVerifyCert(CERTCertificate* cert,
   return rv;
 }
 
-#ifndef NSS_NO_LIBPKIX
-static void
-destroyCertListThatShouldNotExist(CERTCertList** certChain)
-{
-  PR_ASSERT(certChain);
-  PR_ASSERT(!*certChain);
-  if (certChain && *certChain) {
-    // There SHOULD not be a validation chain on failure, asserion here for
-    // the debug builds AND a fallback for production builds
-    CERT_DestroyCertList(*certChain);
-    *certChain = nullptr;
-  }
-}
-#endif
-
 SECStatus
-CertVerifier::VerifyCert(CERTCertificate* cert,
-            /*optional*/ const SECItem* stapledOCSPResponse,
+CertVerifier::VerifyCert(CERTCertificate * cert,
                          const SECCertificateUsage usage,
                          const PRTime time,
-                         void* pinArg,
+                         nsIInterfaceRequestor * pinArg,
                          const Flags flags,
-                         /*optional out*/ ScopedCERTCertList* validationChain,
-                         /*optional out*/ SECOidTag* evOidPolicy,
-                         /*optional out*/ CERTVerifyLog* verifyLog)
+                         /*optional out*/ CERTCertList **validationChain,
+                         /*optional out*/ SECOidTag *evOidPolicy,
+                         /*optional out*/ CERTVerifyLog *verifyLog)
 {
-  if (!cert ||
-      ((flags & FLAG_NO_DV_FALLBACK_FOR_EV) &&
-      (usage != certificateUsageSSLServer || !evOidPolicy)))
-  {
-    PR_NOT_REACHED("Invalid arguments to CertVerifier::VerifyCert");
+  if (!cert) {
     PORT_SetError(SEC_ERROR_INVALID_ARGS);
     return SECFailure;
   }
@@ -184,21 +147,28 @@ CertVerifier::VerifyCert(CERTCertificate* cert,
     case certificateUsageStatusResponder:
       break;
     default:
+      NS_WARNING("Calling VerifyCert with invalid usage");
       PORT_SetError(SEC_ERROR_INVALID_ARGS);
       return SECFailure;
   }
 
-#ifndef NSS_NO_LIBPKIX
   ScopedCERTCertList trustAnchors;
   SECStatus rv;
   SECOidTag evPolicy = SEC_OID_UNKNOWN;
 
+#ifdef NSS_NO_LIBPKIX
+  if (flags & FLAG_NO_DV_FALLBACK_FOR_EV) {
+    return SECSuccess;
+  }
+  return ClassicVerifyCert(cert, usage, time, pinArg, validationChain,
+                           verifyLog);
+#else
   // Do EV checking only for sslserver usage
   if (usage == certificateUsageSSLServer) {
-    SECStatus srv = GetFirstEVPolicy(cert, evPolicy);
+    SECStatus srv = getFirstEVPolicy(cert, evPolicy);
     if (srv == SECSuccess) {
       if (evPolicy != SEC_OID_UNKNOWN) {
-        trustAnchors = GetRootsForOid(evPolicy);
+        trustAnchors = getRootsForOid(evPolicy);
       }
       if (!trustAnchors) {
         return SECFailure;
@@ -214,8 +184,8 @@ CertVerifier::VerifyCert(CERTCertificate* cert,
       evPolicy = SEC_OID_UNKNOWN;
     }
   }
-
-  PR_ASSERT(evPolicy == SEC_OID_UNKNOWN || trustAnchors);
+  
+  MOZ_ASSERT_IF(evPolicy != SEC_OID_UNKNOWN, trustAnchors);
 
   size_t i = 0;
   size_t validationChainLocation = 0;
@@ -227,14 +197,14 @@ CertVerifier::VerifyCert(CERTCertificate* cert,
      ++i;
   }
   if (validationChain) {
-    PR_LOG(gCertVerifierLog, PR_LOG_DEBUG, ("VerifyCert: setting up validation chain outparam.\n"));
+    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("VerifyCert: setting up validation chain outparam.\n"));
     validationChainLocation = i;
     cvout[i].type = cert_po_certList;
-    cvout[i].value.pointer.chain = nullptr;
+    cvout[i].value.pointer.cert = nullptr;
     ++i;
     validationTrustAnchorLocation = i;
     cvout[i].type = cert_po_trustAnchor;
-    cvout[i].value.pointer.cert = nullptr;
+    cvout[i].value.pointer.chain = nullptr;
     ++i;
   }
   cvout[i].type = cert_po_end;
@@ -304,9 +274,9 @@ CertVerifier::VerifyCert(CERTCertificate* cert,
     cvin[i].value.arraySize = 1;
     cvin[i].value.array.oids = &evPolicy;
     ++i;
-    PR_ASSERT(trustAnchors);
+    MOZ_ASSERT(trustAnchors);
     cvin[i].type = cert_pi_trustAnchors;
-    cvin[i].value.pointer.chain = trustAnchors.get();
+    cvin[i].value.pointer.chain = trustAnchors;
     ++i;
 
     cvin[i].type = cert_pi_end;
@@ -316,21 +286,25 @@ CertVerifier::VerifyCert(CERTCertificate* cert,
       if (evOidPolicy) {
         *evOidPolicy = evPolicy;
       }
-      PR_LOG(gCertVerifierLog, PR_LOG_DEBUG,
+      PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
              ("VerifyCert: successful CERT_PKIXVerifyCert(ev) \n"));
       goto pkix_done;
     }
-    PR_LOG(gCertVerifierLog, PR_LOG_DEBUG,
+    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
            ("VerifyCert: failed CERT_PKIXVerifyCert(ev)\n"));
 
-    if (validationChain) {
-      destroyCertListThatShouldNotExist(
-        &cvout[validationChainLocation].value.pointer.chain);
+    if (validationChain && *validationChain) {
+      // There SHOULD not be a validation chain on failure, asserion here for
+      // the debug builds AND a fallback for production builds
+      MOZ_ASSERT(false,
+                 "certPKIXVerifyCert returned failure AND a validationChain");
+      CERT_DestroyCertList(*validationChain);
+      *validationChain = nullptr;
     }
 
     if (verifyLog) {
       // Cleanup the log so that it is ready the the next validation
-      CERTVerifyLogNode* i_node;
+      CERTVerifyLogNode *i_node;
       for (i_node = verifyLog->head; i_node; i_node = i_node->next) {
          //destroy cert if any.
          if (i_node->cert) {
@@ -344,28 +318,19 @@ CertVerifier::VerifyCert(CERTCertificate* cert,
     }
 
   }
-#endif
 
   // If we're here, PKIX EV verification failed.
   // If requested, don't do DV fallback.
   if (flags & FLAG_NO_DV_FALLBACK_FOR_EV) {
-    PR_ASSERT(*evOidPolicy == SEC_OID_UNKNOWN);
     return SECSuccess;
   }
 
-  if (mImplementation == classic) {
+  if (!nsNSSComponent::globalConstFlagUsePKIXVerification){
     // XXX: we do not care about the localOnly flag (currently) as the
     // caller that wants localOnly should disable and reenable the fetching.
     return ClassicVerifyCert(cert, usage, time, pinArg, validationChain,
                              verifyLog);
   }
-
-#ifdef NSS_NO_LIBPKIX
-  PR_NOT_REACHED("libpkix implementation chosen but not even compiled in");
-  PR_SetError(PR_INVALID_STATE_ERROR, 0);
-  return SECFailure;
-#else
-  PR_ASSERT(mImplementation == libpkix);
 
   // The current flags check the chain the same way as the leafs
   rev.leafTests.cert_rev_flags_per_method[cert_revocation_method_crl] =
@@ -411,7 +376,7 @@ CertVerifier::VerifyCert(CERTCertificate* cert,
     // ocsp enabled controls network fetching, too
     | ((mOCSPDownloadEnabled && !localOnly) ?
         CERT_REV_M_ALLOW_NETWORK_FETCHING : CERT_REV_M_FORBID_NETWORK_FETCHING)
-
+    
     | (mOCSPGETEnabled ? 0 : CERT_REV_M_FORCE_POST_METHOD_FOR_OCSP);
     ;
 
@@ -426,12 +391,12 @@ CertVerifier::VerifyCert(CERTCertificate* cert,
   // Skip EV parameters
   cvin[evParamLocation].type = cert_pi_end;
 
-  PR_LOG(gCertVerifierLog, PR_LOG_DEBUG, ("VerifyCert: calling CERT_PKIXVerifyCert(dv) \n"));
+  PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("VerifyCert: calling CERT_PKIXVerifyCert(dv) \n"));
   rv = CERT_PKIXVerifyCert(cert, usage, cvin, cvout, pinArg);
 
 pkix_done:
   if (validationChain) {
-    PR_LOG(gCertVerifierLog, PR_LOG_DEBUG, ("VerifyCert: validation chain requested\n"));
+    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("VerifyCert: validation chain requested\n"));
     ScopedCERTCertificate trustAnchor(cvout[validationTrustAnchorLocation].value.pointer.cert);
 
     if (rv == SECSuccess) {
@@ -439,27 +404,30 @@ pkix_done:
         PR_SetError(PR_UNKNOWN_ERROR, 0);
         return SECFailure;
       }
-      PR_LOG(gCertVerifierLog, PR_LOG_DEBUG, ("VerifyCert: I have a chain\n"));
+      PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("VerifyCert: I have a chain\n"));
       *validationChain = cvout[validationChainLocation].value.pointer.chain;
       if (trustAnchor) {
         // we should only add the issuer to the chain if it is not already
         // present. On CA cert checking, the issuer is the same cert, so in
         // that case we do not add the cert to the chain.
-        if (!CERT_CompareCerts(trustAnchor.get(), cert)) {
-          PR_LOG(gCertVerifierLog, PR_LOG_DEBUG, ("VerifyCert:  adding issuer to tail for display\n"));
+        if (!CERT_CompareCerts(trustAnchor, cert)) {
+          PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("VerifyCert:  adding issuer to tail for display\n"));
           // note: rv is reused to catch errors on cert creation!
-          ScopedCERTCertificate tempCert(CERT_DupCertificate(trustAnchor.get()));
-          rv = CERT_AddCertToListTail(validationChain->get(), tempCert.get());
+          ScopedCERTCertificate tempCert(CERT_DupCertificate(trustAnchor));
+          rv = CERT_AddCertToListTail(*validationChain, tempCert);
           if (rv == SECSuccess) {
-            tempCert.release(); // ownership traferred to validationChain
+            tempCert.forget(); // ownership traferred to validationChain
           } else {
+            CERT_DestroyCertList(*validationChain);
             *validationChain = nullptr;
           }
         }
       }
     } else {
-      destroyCertListThatShouldNotExist(
-        &cvout[validationChainLocation].value.pointer.chain);
+      // Validation was a fail, clean up if needed
+      if (cvout[validationChainLocation].value.pointer.chain) {
+        CERT_DestroyCertList(cvout[validationChainLocation].value.pointer.chain);
+      }
     }
   }
 
@@ -467,55 +435,17 @@ pkix_done:
 #endif
 }
 
-SECStatus
-CertVerifier::VerifySSLServerCert(CERTCertificate* peerCert,
-                     /*optional*/ const SECItem* stapledOCSPResponse,
-                                  PRTime time,
-                     /*optional*/ void* pinarg,
-                                  const char* hostname,
-                                  bool saveIntermediatesInPermanentDatabase,
-                 /*optional out*/ insanity::pkix::ScopedCERTCertList* certChainOut,
-                 /*optional out*/ SECOidTag* evOidPolicy)
+TemporaryRef<CertVerifier>
+GetDefaultCertVerifier()
 {
-  PR_ASSERT(peerCert);
-  // XXX: PR_ASSERT(pinarg)
-  PR_ASSERT(hostname);
-  PR_ASSERT(hostname[0]);
+  static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
 
-  if (certChainOut) {
-    *certChainOut = nullptr;
+  nsCOMPtr<nsINSSComponent> nssComponent(do_GetService(kNSSComponentCID));
+  RefPtr<CertVerifier> certVerifier;
+  if (nssComponent) {
+    (void) nssComponent->GetDefaultCertVerifier(certVerifier);
   }
-  if (evOidPolicy) {
-    *evOidPolicy = SEC_OID_UNKNOWN;
-  }
-
-  if (!hostname || !hostname[0]) {
-    PR_SetError(SSL_ERROR_BAD_CERT_DOMAIN, 0);
-    return SECFailure;
-  }
-
-  ScopedCERTCertList validationChain;
-  SECStatus rv = VerifyCert(peerCert, stapledOCSPResponse,
-                            certificateUsageSSLServer, time,
-                            pinarg, 0, &validationChain, evOidPolicy);
-  if (rv != SECSuccess) {
-    return rv;
-  }
-
-  rv = CERT_VerifyCertName(peerCert, hostname);
-  if (rv != SECSuccess) {
-    return rv;
-  }
-
-  if (saveIntermediatesInPermanentDatabase) {
-    SaveIntermediateCerts(validationChain);
-  }
-
-  if (certChainOut) {
-    *certChainOut = validationChain.release();
-  }
-
-  return SECSuccess;
+  return certVerifier;
 }
 
 } } // namespace mozilla::psm

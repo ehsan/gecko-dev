@@ -328,36 +328,34 @@ nsBlockFrame::GetSplittableType() const
 
 #ifdef DEBUG_FRAME_DUMP
 void
-nsBlockFrame::List(FILE* out, const char* aPrefix, uint32_t aFlags) const
+nsBlockFrame::List(FILE* out, int32_t aIndent, uint32_t aFlags) const
 {
-  nsCString str;
-  ListGeneric(str, aPrefix, aFlags);
+  ListGeneric(out, aIndent, aFlags);
 
-  fprintf_stderr(out, "%s<\n", str.get());
+  fputs("<\n", out);
 
-  nsCString pfx(aPrefix);
-  pfx += "  ";
+  aIndent++;
 
   // Output the lines
   if (!mLines.empty()) {
     const_line_iterator line = begin_lines(), line_end = end_lines();
     for ( ; line != line_end; ++line) {
-      line->List(out, pfx.get(), aFlags);
+      line->List(out, aIndent, aFlags);
     }
   }
 
   // Output the overflow lines.
   const FrameLines* overflowLines = GetOverflowLines();
   if (overflowLines && !overflowLines->mLines.empty()) {
-    fprintf_stderr(out, "%sOverflow-lines %p/%p <\n", pfx.get(), overflowLines, &overflowLines->mFrames);
-    nsCString nestedPfx(pfx);
-    nestedPfx += "  ";
+    IndentBy(out, aIndent);
+    fprintf(out, "Overflow-lines %p/%p <\n", overflowLines, &overflowLines->mFrames);
     const_line_iterator line = overflowLines->mLines.begin(),
                         line_end = overflowLines->mLines.end();
     for ( ; line != line_end; ++line) {
-      line->List(out, nestedPfx.get(), aFlags);
+      line->List(out, aIndent + 1, aFlags);
     }
-    fprintf_stderr(out, "%s>\n", pfx.get());
+    IndentBy(out, aIndent);
+    fputs(">\n", out);
   }
 
   // skip the principal list - we printed the lines above
@@ -368,20 +366,21 @@ nsBlockFrame::List(FILE* out, const char* aPrefix, uint32_t aFlags) const
     if (skip.Contains(lists.CurrentID())) {
       continue;
     }
-    fprintf_stderr(out, "%s%s %p <\n", pfx.get(),
-      mozilla::layout::ChildListName(lists.CurrentID()),
-      &GetChildList(lists.CurrentID()));
-    nsCString nestedPfx(pfx);
-    nestedPfx += "  ";
+    IndentBy(out, aIndent);
+    fprintf(out, "%s %p <\n", mozilla::layout::ChildListName(lists.CurrentID()),
+            &GetChildList(lists.CurrentID()));
     nsFrameList::Enumerator childFrames(lists.CurrentList());
     for (; !childFrames.AtEnd(); childFrames.Next()) {
       nsIFrame* kid = childFrames.get();
-      kid->List(out, nestedPfx.get(), aFlags);
+      kid->List(out, aIndent + 1, aFlags);
     }
-    fprintf_stderr(out, "%s>\n", pfx.get());
+    IndentBy(out, aIndent);
+    fputs(">\n", out);
   }
 
-  fprintf_stderr(out, "%s>\n", aPrefix);
+  aIndent--;
+  IndentBy(out, aIndent);
+  fputs(">\n", out);
 }
 
 NS_IMETHODIMP
