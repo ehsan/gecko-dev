@@ -3482,8 +3482,7 @@ gfxFont::ShapeTextWithoutWordCache(gfxContext *aContext,
             aTextRun->SetIsTab(aOffset + i);
         } else if (ch == '\n') {
             aTextRun->SetIsNewline(aOffset + i);
-        } else if (IsInvalidControlChar(ch) &&
-            !(aTextRun->GetFlags() & gfxTextRunFactory::TEXT_HIDE_CONTROL_CHARACTERS)) {
+        } else if (IsInvalidControlChar(ch)) {
             aTextRun->SetMissingGlyph(aOffset + i, ch, this);
         }
         fragStart = i + 1;
@@ -3653,8 +3652,7 @@ gfxFont::SplitAndInitTextRun(gfxContext *aContext,
             aTextRun->SetIsTab(aRunStart + i);
         } else if (ch == '\n') {
             aTextRun->SetIsNewline(aRunStart + i);
-        } else if (IsInvalidControlChar(ch) &&
-            !(aTextRun->GetFlags() & gfxTextRunFactory::TEXT_HIDE_CONTROL_CHARACTERS)) {
+        } else if (IsInvalidControlChar(ch)) {
             aTextRun->SetMissingGlyph(aRunStart + i, ch, this);
         }
 

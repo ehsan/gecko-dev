@@ -491,7 +491,6 @@ public:
   static const KTableValue kClearKTable[];
   static const KTableValue kColorKTable[];
   static const KTableValue kContentKTable[];
-  static const KTableValue kControlCharacterVisibilityKTable[];
   static const KTableValue kCursorKTable[];
   static const KTableValue kDirectionKTable[];
   static const KTableValue kDisplayKTable[];
