@@ -190,8 +190,6 @@ function GroupItem(listOfEls, options) {
     .blur(function() {
       self._titleFocused = false;
       self.$titleShield.show();
-      if (self.getTitle())
-        gTabView.firstUseExperienced = true;
     })
     .focus(function() {
       if (!self._titleFocused) {
