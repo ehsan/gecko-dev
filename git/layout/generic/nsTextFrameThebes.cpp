@@ -106,7 +106,6 @@
 #include "nsAutoPtr.h"
 
 #include "nsBidiUtils.h"
-#include "nsPrintfCString.h"
 
 #include "gfxFont.h"
 #include "gfxContext.h"
