@@ -1,5 +1,3 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim:set ts=2 sw=2 sts=2 et cindent: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -13,14 +11,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mozilla code.
+ * The Original Code is Android Sync Client.
  *
- * The Initial Developer of the Original Code is the Mozilla Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2007
+ * The Initial Developer of the Original Code is
+ * the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *  Boris Zbarsky <bzbarsky@mit.edu>
+ *   Richard Newman <rnewman@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -36,26 +35,13 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsThreadUtilsInternal_h_
-#define nsThreadUtilsInternal_h_
+package org.mozilla.gecko.sync;
 
-#ifdef MOZILLA_INTERNAL_API
+public class UnexpectedJSONException extends Exception {
+  private static final long serialVersionUID = 4797570033096443169L;
 
-class nsIThreadObserver;
-
-/**
- * Function to set a "global" thread observer that all threads will notify when
- * they process an event.  This observer will not be notified when events are
- * posted to threads.  Only one global observer can be set at a time; an
- * attempt to change the value without setting it to null first will throw.
- * This function does NOT take a reference to the observer; the caller of this
- * function is responsible for setting the observer to null when it goes away.
- * This method may only be called on the main thread; attempts to do it on
- * other threads will return an error.
- */
-extern nsresult
-NS_SetGlobalThreadObserver(nsIThreadObserver* aObserver);
-
-#endif // MOZILLA_INTERNAL_API
-
-#endif  // nsThreadUtilsInternal_h_
+  public Object obj;
+  public UnexpectedJSONException(Object object) {
+    obj = object;
+  }
+}
