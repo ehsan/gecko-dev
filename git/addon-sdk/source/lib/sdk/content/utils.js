@@ -8,14 +8,13 @@ module.metadata = {
 };
 
 let { merge } = require('../util/object');
-let { data } = require('../self');
-let assetsURI = data.url();
+let assetsURI = require('../self').data.url();
 let isArray = Array.isArray;
 let method = require('../../method/core');
 
-const isAddonContent = ({ contentURL }) =>
-  contentURL && data.url(contentURL).startsWith(assetsURI);
-
+function isAddonContent({ contentURL }) {
+  return typeof(contentURL) === 'string' && contentURL.indexOf(assetsURI) === 0;
+}
 exports.isAddonContent = isAddonContent;
 
 function hasContentScript({ contentScript, contentScriptFile }) {

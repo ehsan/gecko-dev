@@ -9,50 +9,81 @@ module.metadata = {
 };
 
 const { EventEmitter } = require('../deprecated/events');
-const { isValidURI, isLocalURL, URL } = require('../url');
+const { validateOptions } = require('../deprecated/api-utils');
+const { isValidURI, URL } = require('../url');
 const file = require('../io/file');
 const { contract } = require('../util/contract');
-const { isString, isNil, instanceOf } = require('../lang/type');
-const { validateOptions,
-  string, array, object, either, required } = require('../deprecated/api-utils');
+const { isString, instanceOf } = require('../lang/type');
 
-const isJSONable = (value) => {
-  try {
-    JSON.parse(JSON.stringify(value));
-  } catch (e) {
-    return false;
-  }
-  return true;
-};
+const LOCAL_URI_SCHEMES = ['resource', 'data'];
 
-const isValidScriptFile = (value) =>
-  (isString(value) || instanceOf(value, URL)) && isLocalURL(value);
+// Returns `null` if `value` is `null` or `undefined`, otherwise `value`.
+function ensureNull(value) value == null ? null : value
 
 // map of property validations
 const valid = {
   contentURL: {
-    is: either(string, object),
-    ok: url => isNil(url) || isLocalURL(url) || isValidURI(url),
+    map: function(url) !url ? ensureNull(url) : url.toString(), 
+    is: ['undefined', 'null', 'string'],
+    ok: function (url) {
+      if (url === null)
+        return true;
+      return isValidURI(url);
+    },
     msg: 'The `contentURL` option must be a valid URL.'
   },
   contentScriptFile: {
-    is: either(string, object, array),
-    ok: value => isNil(value) || [].concat(value).every(isValidScriptFile),
+    is: ['undefined', 'null', 'string', 'array', 'object'],
+    map: ensureNull,
+    ok: function(value) {
+      if (value === null)
+        return true;
+
+      value = [].concat(value);
+
+      // Make sure every item is a string or an
+      // URL instance, and also a local file URL.
+      return value.every(function (item) {
+
+        if (!isString(item) && !(item instanceof URL)) 
+          return false;
+
+        try {
+          return ~LOCAL_URI_SCHEMES.indexOf(URL(item).scheme);
+        }
+        catch(e) {
+          return false;
+        }
+      });
+
+    },
     msg: 'The `contentScriptFile` option must be a local URL or an array of URLs.'
   },
   contentScript: {
-    is: either(string, array),
-    ok: value => isNil(value) || [].concat(value).every(isString),
+    is: ['undefined', 'null', 'string', 'array'],
+    map: ensureNull,
+    ok: function(value) {
+      return !Array.isArray(value) || value.every(
+        function(item) { return typeof item === 'string' }
+      );
+    },
     msg: 'The `contentScript` option must be a string or an array of strings.'
   },
   contentScriptWhen: {
-    is: required(string),
-    map: value => value || 'end',
-    ok: value => ~['start', 'ready', 'end'].indexOf(value),
+    is: ['string'],
+    ok: function(value) { return ~['start', 'ready', 'end'].indexOf(value) },
+    map: function(value) {
+      return value || 'end';
+    },
     msg: 'The `contentScriptWhen` option must be either "start", "ready" or "end".'
   },
   contentScriptOptions: {
-    ok: value => isNil(value) || isJSONable(value),
+    ok: function(value) {
+      if ( value === undefined ) { return true; }
+      try { JSON.parse( JSON.stringify( value ) ); } catch(e) { return false; }
+      return true;
+    },
+    map: function(value) 'undefined' === getTypeOf(value) ? null : value,
     msg: 'The contentScriptOptions should be a jsonable value.'
   }
 };

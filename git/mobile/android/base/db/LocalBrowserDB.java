@@ -10,8 +10,8 @@ import java.io.File;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
@@ -114,42 +114,13 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     }
 
     /**
-     * Not thread safe. A helper to allocate new IDs for arbitrary strings.
-     */
-    private static class NameCounter {
-        private final HashMap<String, Integer> names = new HashMap<String, Integer>();
-        private int counter = 0;
-        private final int increment;
-
-        public NameCounter(int start, int increment) {
-            this.counter = start;
-            this.increment = increment;
-        }
-
-        public int get(final String name) {
-            Integer mapping = names.get(name);
-            if (mapping == null) {
-                int ours = counter;
-                counter += increment;
-                names.put(name, ours);
-                return ours;
-            }
-            return mapping.intValue();
-        }
-
-        public boolean has(final String name) {
-            return names.containsKey(name);
-        }
-    }
-
-    /**
      * Add default bookmarks to the database.
      * Takes an offset; returns a new offset.
      */
     @Override
     public int addDefaultBookmarks(Context context, ContentResolver cr, final int offset) {
-        long folderID = getFolderIdFromGuid(cr, Bookmarks.MOBILE_FOLDER_GUID);
-        if (folderID == -1L) {
+        long folderId = getFolderIdFromGuid(cr, Bookmarks.MOBILE_FOLDER_GUID);
+        if (folderId == -1L) {
             Log.e(LOGTAG, "No mobile folder: cannot add default bookmarks.");
             return offset;
         }
@@ -165,10 +136,6 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
 
         final ArrayList<ContentValues> bookmarkValues = new ArrayList<ContentValues>();
         final ArrayList<ContentValues> faviconValues = new ArrayList<ContentValues>();
-
-        // Count down from -offset into negative values to get new favicon IDs.
-        final NameCounter faviconIDs = new NameCounter((-1 - offset), -1);
-
         for (int i = 0; i < fields.length; i++) {
             final String name = fields[i].getName();
             final Matcher m = p.matcher(name);
@@ -177,15 +144,14 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
             }
 
             try {
-                final int titleID = fields[i].getInt(null);
-                final String title = context.getString(titleID);
+                final int titleid = fields[i].getInt(null);
+                final String title = context.getString(titleid);
 
                 final Field urlField = stringsClass.getField(name.replace("_title_", "_url_"));
-                final int urlID = urlField.getInt(null);
-                final String url = context.getString(urlID);
+                final int urlId = urlField.getInt(null);
+                final String url = context.getString(urlId);
 
-                final ContentValues bookmarkValue = createBookmark(now, title, url, pos++, folderID);
-                bookmarkValues.add(bookmarkValue);
+                bookmarkValues.add(createBookmark(now, title, url, pos++, folderId));
 
                 Bitmap icon = getDefaultFaviconFromPath(context, name);
                 if (icon == null) {
@@ -196,14 +162,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
                 }
 
                 final ContentValues iconValue = createFavicon(url, icon);
-
-                // Assign a reserved negative _id to each new favicon.
-                // For now, each name is expected to be unique, and duplicate
-                // icons will be duplicated in the DB. See Bug 1040806 Comment 8.
                 if (iconValue != null) {
-                    final int faviconID = faviconIDs.get(name);
-                    iconValue.put("_id", faviconID);
-                    bookmarkValue.put(Bookmarks.FAVICON_ID, faviconID);
                     faviconValues.add(iconValue);
                 }
             } catch (IllegalAccessException e) {
@@ -265,10 +224,6 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
 
         final ArrayList<ContentValues> bookmarkValues = new ArrayList<ContentValues>();
         final ArrayList<ContentValues> faviconValues = new ArrayList<ContentValues>();
-
-        // Count down from -offset into negative values to get new favicon IDs.
-        final NameCounter faviconIDs = new NameCounter((-1 - offset), -1);
-
         for (int i = 0; i < bookmarks.length(); i++) {
             try {
                 final JSONObject bookmark = bookmarks.getJSONObject(i);
@@ -285,8 +240,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
                     pos = mobilePos++;
                 }
 
-                final ContentValues bookmarkValue = createBookmark(now, title, url, pos, parent);
-                bookmarkValues.add(bookmarkValue);
+                bookmarkValues.add(createBookmark(now, title, url, pos, parent));
 
                 // Return early if there is no icon for this bookmark.
                 if (!bookmark.has("icon")) {
@@ -299,27 +253,8 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
                     if (icon == null) {
                         continue;
                     }
-
                     final ContentValues iconValue = createFavicon(url, icon);
-
-                    if (iconValue == null) {
-                        continue;
-                    }
-
-                    /*
-                     * Find out if this icon is a duplicate. If it is, don't try
-                     * to insert it again, but reuse the shared ID.
-                     * Otherwise, assign a new reserved negative _id.
-                     * Duplicates won't be detected in default bookmarks, or
-                     * those already in the database.
-                     */
-                    final boolean seen = faviconIDs.has(iconData);
-                    final int faviconID = faviconIDs.get(iconData);
-
-                    iconValue.put("_id", faviconID);
-                    bookmarkValue.put(Bookmarks.FAVICON_ID, faviconID);
-
-                    if (!seen) {
+                    if (iconValue != null) {
                         faviconValues.add(iconValue);
                     }
                 } catch (JSONException e) {

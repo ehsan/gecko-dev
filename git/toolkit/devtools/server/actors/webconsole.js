@@ -750,19 +750,10 @@ WebConsoleActor.prototype =
       }
     }
 
-    // If a value is encountered that the debugger server doesn't support yet,
-    // the console should remain functional.
-    let resultGrip;
-    try {
-      resultGrip = this.createValueGrip(result);
-    } catch (e) {
-      errorMessage = e;
-    }
-
     return {
       from: this.actorID,
       input: input,
-      result: resultGrip,
+      result: this.createValueGrip(result),
       timestamp: timestamp,
       exception: errorGrip,
       exceptionMessage: errorMessage,

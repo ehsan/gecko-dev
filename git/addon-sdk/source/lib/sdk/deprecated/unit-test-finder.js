@@ -143,17 +143,11 @@ TestFinder.prototype = {
           suiteModule = cuddlefish.main(loader, suite);
         }
         catch (e) {
-          if (/Unsupported Application/i.test(e.message)) {
-            // If `Unsupported Application` error thrown during test,
-            // skip the test suite
-            suiteModule = {
-              'test suite skipped': assert => assert.pass(e.message)
-            };
-          }
-          else {
-            console.exception(e);
-            throw e;
-          }
+          // If `Unsupported Application` error thrown during test,
+          // skip the test suite
+          suiteModule = {
+            'test suite skipped': assert => assert.pass(e.message)
+          };
         }
 
         if (this.testInProcess) {

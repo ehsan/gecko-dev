@@ -1036,9 +1036,7 @@ struct JSRuntime : public JS::shadow::Runtime,
 
     mozilla::UniquePtr<js::SourceHook> sourceHook;
 
-#ifdef NIGHTLY_BUILD
     js::AssertOnScriptEntryHook assertOnScriptEntryHook_;
-#endif
 
     /* Per runtime debug hooks -- see js/OldDebugAPI.h. */
     JSDebugHooks        debugHooks;

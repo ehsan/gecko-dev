@@ -34,8 +34,7 @@ exports.get = function get(k) {
   if (arguments.length <= 1)
     return localized;
 
-  let args = Array.slice(arguments);
-  let placeholders = [null, ...args.slice(typeof(n) === "number" ? 2 : 1)];
+  let args = arguments;
 
   if (typeof localized == "object" && "other" in localized) {
     // # Plural form:
@@ -77,15 +76,11 @@ exports.get = function get(k) {
   // in translation.
   // * In case of plural form, we has `%d` instead of `%s`.
   let offset = 1;
-  if (placeholders.length > 1) {
-    args = placeholders;
-  }
-
-  localized = localized.replace(/%(\d*)[sd]/g, (v, n) => {
-    let rv = args[n != "" ? n : offset];
-    offset++;
-    return rv;
-  });
+  localized = localized.replace(/%(\d*)(s|d)/g, function (v, n) {
+      let rv = args[n != "" ? n : offset];
+      offset++;
+      return rv;
+    });
 
   return localized;
 }

@@ -28,7 +28,6 @@ exports.get = function get(k) {
 exports.locale = function locale() {
   return bestMatchingLocale;
 }
-
 // Returns the short locale code: ja, en, fr
 exports.language = function language() {
   return bestMatchingLocale ? bestMatchingLocale.split("-")[0].toLowerCase()

@@ -20,7 +20,7 @@ const { merge } = require('../util/object');
 const { getTabForContentWindow } = require('../tabs/utils');
 const { getInnerId } = require('../window/utils');
 const { PlainTextConsole } = require('../console/plain-text');
-const { data } = require('../self');
+
 // WeakMap of sandboxes so we can access private values
 const sandboxes = new WeakMap();
 
@@ -247,12 +247,9 @@ const WorkerSandbox = Class({
     // The order of `contentScriptFile` and `contentScript` evaluation is
     // intentional, so programs can load libraries like jQuery from script URLs
     // and use them in scripts.
-    let contentScriptFile = ('contentScriptFile' in worker)
-          ? worker.contentScriptFile
+    let contentScriptFile = ('contentScriptFile' in worker) ? worker.contentScriptFile
           : null,
-        contentScript = ('contentScript' in worker)
-          ? worker.contentScript
-          : null;
+        contentScript = ('contentScript' in worker) ? worker.contentScript : null;
 
     if (contentScriptFile)
       importScripts.apply(null, [this].concat(contentScriptFile));
@@ -288,8 +285,7 @@ exports.WorkerSandbox = WorkerSandbox;
 function importScripts (workerSandbox, ...urls) {
   let { worker, sandbox } = modelFor(workerSandbox);
   for (let i in urls) {
-    let contentScriptFile = data.url(urls[i]);
-
+    let contentScriptFile = urls[i];
     try {
       let uri = URL(contentScriptFile);
       if (uri.scheme === 'resource')

@@ -1065,13 +1065,12 @@ public class BrowserApp extends GeckoApp
         }
 
         final View toolbarLayout = mViewFlipper;
-        final ToolbarProgressView progressView = mProgressView;
         final int marginTop = Math.round(aMetrics.marginTop);
         ThreadUtils.postToUiThread(new Runnable() {
             public void run() {
                 final float translationY = marginTop - toolbarLayout.getHeight();
                 ViewHelper.setTranslationY(toolbarLayout, translationY);
-                ViewHelper.setTranslationY(progressView, translationY);
+                ViewHelper.setTranslationY(mProgressView, translationY);
 
                 if (mDoorHangerPopup.isShowing()) {
                     mDoorHangerPopup.updatePopup();

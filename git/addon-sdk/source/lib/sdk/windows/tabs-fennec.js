@@ -19,7 +19,7 @@ const { EventTarget } = require('../event/target');
 const { when: unload } = require('../system/unload');
 const { windowIterator } = require('../deprecated/window-utils');
 const { List, addListItem, removeListItem } = require('../util/list');
-const { isPrivateBrowsingSupported, data } = require('../self');
+const { isPrivateBrowsingSupported } = require('../self');
 const { isTabPBSupported, ignoreWindow } = require('../private-browsing/utils');
 
 const mainWindow = windowNS(browserWindows.activeWindow).window;
@@ -55,8 +55,7 @@ const Tabs = Class({
       console.error(ERR_FENNEC_MSG); // TODO
     }
 
-    let url = options.url ? data.url(options.url) : options.url;
-    let rawTab = openTab(windowNS(activeWin).window, url, {
+    let rawTab = openTab(windowNS(activeWin).window, options.url, {
       inBackground: options.inBackground,
       isPrivate: supportPrivateTabs && options.isPrivate
     });
