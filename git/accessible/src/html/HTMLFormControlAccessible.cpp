@@ -7,6 +7,7 @@
 
 #include "Accessible-inl.h"
 #include "nsAccUtils.h"
+#include "nsARIAMap.h"
 #include "nsEventShell.h"
 #include "nsTextEquivUtils.h"
 #include "Relation.h"

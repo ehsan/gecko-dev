@@ -7,7 +7,6 @@
 #include "nsSVGTSpanFrame.h"
 
 // Keep others in (case-insensitive) order:
-#include "nsSVGEffects.h"
 #include "nsSVGIntegrationUtils.h"
 #include "nsSVGUtils.h"
 
@@ -79,7 +78,7 @@ nsSVGTSpanFrame::AttributeChanged(int32_t         aNameSpaceID,
        aAttribute == nsGkAtoms::dx ||
        aAttribute == nsGkAtoms::dy ||
        aAttribute == nsGkAtoms::rotate)) {
-    nsSVGEffects::InvalidateRenderingObservers(this);
+    nsSVGUtils::InvalidateBounds(this, false);
     nsSVGUtils::ScheduleReflowSVG(this);
     NotifyGlyphMetricsChange();
   }

@@ -11,8 +11,7 @@ include $(DEPTH)/config/autoconf.mk
 
 EXTRA_JS_MODULES := \
   NewTabUtils.jsm \
-  Preferences.jsm \
-  RemoteWebProgress.jsm \
+	Preferences.jsm \
   Sqlite.jsm \
   TelemetryTimestamps.jsm \
   Timer.jsm \

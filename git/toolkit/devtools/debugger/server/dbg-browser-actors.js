@@ -210,7 +210,6 @@ BrowserRootActor.prototype = {
   exitTabActor: function BRA_exitTabActor(aWindow) {
     let actor = this._tabActors.get(aWindow);
     if (actor) {
-      this._tabActors.delete(actor.browser);
       actor.exit();
     }
   },

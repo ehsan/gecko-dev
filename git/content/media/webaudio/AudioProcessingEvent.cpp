@@ -30,7 +30,7 @@ AudioProcessingEvent::AudioProcessingEvent(ScriptProcessorNode* aOwner,
 }
 
 JSObject*
-AudioProcessingEvent::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+AudioProcessingEvent::WrapObject(JSContext* aCx, JSObject* aScope)
 {
   return AudioProcessingEventBinding::Wrap(aCx, aScope, this);
 }

@@ -17,7 +17,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGFilterElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+SVGFilterElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return SVGFilterElementBinding::Wrap(aCx, aScope, this);
 }

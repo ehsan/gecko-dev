@@ -23,13 +23,9 @@ static nsSVGAttrTearoffTable<SVGStringList, DOMSVGStringList>
 
 NS_SVG_VAL_IMPL_CYCLE_COLLECTION_WRAPPERCACHED(DOMSVGStringList, mElement)
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(DOMSVGStringList)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(DOMSVGStringList)
+NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(DOMSVGStringList, AddRef)
+NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(DOMSVGStringList, Release)
 
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(DOMSVGStringList)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
-  NS_INTERFACE_MAP_ENTRY(nsISupports)
-NS_INTERFACE_MAP_END
 
 /* static */ already_AddRefed<DOMSVGStringList>
 DOMSVGStringList::GetDOMWrapper(SVGStringList *aList,
@@ -55,7 +51,7 @@ DOMSVGStringList::~DOMSVGStringList()
 }
 
 /* virtual */ JSObject*
-DOMSVGStringList::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+DOMSVGStringList::WrapObject(JSContext* aCx, JSObject* aScope)
 {
   return SVGStringListBinding::Wrap(aCx, aScope, this);
 }

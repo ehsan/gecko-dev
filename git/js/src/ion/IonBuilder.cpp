@@ -908,11 +908,11 @@ IonBuilder::maybeAddOsrTypeBarriers()
     for (uint32_t i = info().startArgSlot(); i < osrBlock->stackDepth(); i++) {
         MInstruction *def = osrBlock->getSlot(i)->toOsrValue();
 
-        MDefinition *headerValue = header->getSlot(i);
+        MPhi *headerPhi = header->getSlot(i)->toPhi();
         MPhi *preheaderPhi = preheader->getSlot(i)->toPhi();
 
-        MIRType type = headerValue->type();
-        types::StackTypeSet *typeSet = headerValue->resultTypeSet();
+        MIRType type = headerPhi->type();
+        types::StackTypeSet *typeSet = headerPhi->resultTypeSet();
 
         if (!addOsrValueTypeBarrier(i, &def, type, typeSet))
             return false;
@@ -1741,10 +1741,8 @@ IonBuilder::restartLoop(CFGState state)
     // of the appropriate type and incoming edges to preserve.
     graph().removeBlocksAfter(header);
 
-    // Remove all instructions from the header itself, and all resume points
-    // except the entry resume point.
+    // Remove all instructions from the header itself.
     header->discardAllInstructions();
-    header->discardAllResumePoints(/* discardEntry = */ false);
     header->setStackDepth(header->getPredecessor(0)->stackDepth());
 
     popCfgStack();

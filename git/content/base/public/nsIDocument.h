@@ -94,7 +94,6 @@ class DOMImplementation;
 class Element;
 struct ElementRegistrationOptions;
 class EventTarget;
-class FrameRequestCallback;
 class GlobalObject;
 class HTMLBodyElement;
 class Link;
@@ -1773,14 +1772,11 @@ public:
 
   virtual already_AddRefed<mozilla::dom::UndoManager> GetUndoManager() = 0;
 
-  typedef mozilla::dom::CallbackObjectHolder<
-    mozilla::dom::FrameRequestCallback,
-    nsIFrameRequestCallback> FrameRequestCallbackHolder;
-  nsresult ScheduleFrameRequestCallback(const FrameRequestCallbackHolder& aCallback,
+  nsresult ScheduleFrameRequestCallback(nsIFrameRequestCallback* aCallback,
                                         int32_t *aHandle);
   void CancelFrameRequestCallback(int32_t aHandle);
 
-  typedef nsTArray<FrameRequestCallbackHolder> FrameRequestCallbackList;
+  typedef nsTArray< nsCOMPtr<nsIFrameRequestCallback> > FrameRequestCallbackList;
   /**
    * Put this document's frame request callbacks into the provided
    * list, and forget about them.
@@ -2373,7 +2369,29 @@ protected:
 
   nsCOMPtr<nsIDocumentEncoder> mCachedEncoder;
 
-  struct FrameRequest;
+  struct FrameRequest {
+    FrameRequest(nsIFrameRequestCallback* aCallback,
+                 int32_t aHandle) :
+      mCallback(aCallback),
+      mHandle(aHandle)
+    {}
+
+    // Conversion operator so that we can append these to a
+    // FrameRequestCallbackList
+    operator nsIFrameRequestCallback* const () const { return mCallback; }
+
+    // Comparator operators to allow RemoveElementSorted with an
+    // integer argument on arrays of FrameRequest
+    bool operator==(int32_t aHandle) const {
+      return mHandle == aHandle;
+    }
+    bool operator<(int32_t aHandle) const {
+      return mHandle < aHandle;
+    }
+    
+    nsCOMPtr<nsIFrameRequestCallback> mCallback;
+    int32_t mHandle;
+  };
 
   nsTArray<FrameRequest> mFrameRequestCallbacks;
 

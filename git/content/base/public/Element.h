@@ -885,7 +885,7 @@ public:
   void GetClassList(nsISupports** aClassList);
 
   virtual JSObject* WrapObject(JSContext *aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_FINAL MOZ_OVERRIDE;
+                               JSObject *aScope) MOZ_FINAL MOZ_OVERRIDE;
 
   /**
    * Locate an nsIEditor rooted at this content node, if there is one.

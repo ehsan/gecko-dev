@@ -44,10 +44,6 @@ AudioContext::AudioContext(nsPIDOMWindow* aWindow)
   // Actually play audio
   mDestination->Stream()->AddAudioOutput(&gWebAudioOutputKey);
   SetIsDOMBinding();
-
-  mPannerNodes.Init();
-  mAudioBufferSourceNodes.Init();
-  mScriptProcessorNodes.Init();
 }
 
 AudioContext::~AudioContext()
@@ -55,7 +51,7 @@ AudioContext::~AudioContext()
 }
 
 JSObject*
-AudioContext::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+AudioContext::WrapObject(JSContext* aCx, JSObject* aScope)
 {
   return AudioContextBinding::Wrap(aCx, aScope, this);
 }
@@ -79,7 +75,7 @@ AudioContext::CreateBufferSource()
 {
   nsRefPtr<AudioBufferSourceNode> bufferNode =
     new AudioBufferSourceNode(this);
-  mAudioBufferSourceNodes.PutEntry(bufferNode);
+  mAudioBufferSourceNodes.AppendElement(bufferNode);
   return bufferNode.forget();
 }
 
@@ -145,7 +141,7 @@ AudioContext::CreateScriptProcessor(uint32_t aBufferSize,
   nsRefPtr<ScriptProcessorNode> scriptProcessor =
     new ScriptProcessorNode(this, aBufferSize, aNumberOfInputChannels,
                             aNumberOfOutputChannels);
-  mScriptProcessorNodes.PutEntry(scriptProcessor);
+  mScriptProcessorNodes.AppendElement(scriptProcessor);
   return scriptProcessor.forget();
 }
 
@@ -178,7 +174,7 @@ already_AddRefed<PannerNode>
 AudioContext::CreatePanner()
 {
   nsRefPtr<PannerNode> pannerNode = new PannerNode(this);
-  mPannerNodes.PutEntry(pannerNode);
+  mPannerNodes.AppendElement(pannerNode);
   return pannerNode.forget();
 }
 
@@ -241,40 +237,30 @@ AudioContext::RemoveFromDecodeQueue(WebAudioDecodeJob* aDecodeJob)
 void
 AudioContext::UnregisterAudioBufferSourceNode(AudioBufferSourceNode* aNode)
 {
-  mAudioBufferSourceNodes.RemoveEntry(aNode);
+  mAudioBufferSourceNodes.RemoveElement(aNode);
 }
 
 void
 AudioContext::UnregisterPannerNode(PannerNode* aNode)
 {
-  mPannerNodes.RemoveEntry(aNode);
+  mPannerNodes.RemoveElement(aNode);
 }
 
 void
 AudioContext::UnregisterScriptProcessorNode(ScriptProcessorNode* aNode)
 {
-  mScriptProcessorNodes.RemoveEntry(aNode);
-}
-
-static PLDHashOperator
-UnregisterPannerNodeOn(nsPtrHashKey<AudioBufferSourceNode>* aEntry, void* aData)
-{
-  aEntry->GetKey()->UnregisterPannerNode();
-  return PL_DHASH_NEXT;
-}
-
-static PLDHashOperator
-FindConnectedSourcesOn(nsPtrHashKey<PannerNode>* aEntry, void* aData)
-{
-  aEntry->GetKey()->FindConnectedSources();
-  return PL_DHASH_NEXT;
+  mScriptProcessorNodes.RemoveElement(aNode);
 }
 
 void
 AudioContext::UpdatePannerSource()
 {
-  mAudioBufferSourceNodes.EnumerateEntries(UnregisterPannerNodeOn, nullptr);
-  mPannerNodes.EnumerateEntries(FindConnectedSourcesOn, nullptr);
+  for (unsigned i = 0; i < mAudioBufferSourceNodes.Length(); i++) {
+    mAudioBufferSourceNodes[i]->UnregisterPannerNode();
+  }
+  for (unsigned i = 0; i < mPannerNodes.Length(); i++) {
+    mPannerNodes[i]->FindConnectedSources();
+  }
 }
 
 MediaStreamGraph*
@@ -295,21 +281,6 @@ AudioContext::CurrentTime() const
   return MediaTimeToSeconds(Destination()->Stream()->GetCurrentTime());
 }
 
-static PLDHashOperator
-StopAudioBufferSourceNode(nsPtrHashKey<AudioBufferSourceNode>* aEntry, void* aData)
-{
-  ErrorResult rv;
-  aEntry->GetKey()->Stop(0.0, rv);
-  return PL_DHASH_NEXT;
-}
-
-static PLDHashOperator
-StopScriptProcessorNode(nsPtrHashKey<ScriptProcessorNode>* aEntry, void* aData)
-{
-  aEntry->GetKey()->Stop();
-  return PL_DHASH_NEXT;
-}
-
 void
 AudioContext::Shutdown()
 {
@@ -318,10 +289,15 @@ AudioContext::Shutdown()
 
   // Stop all audio buffer source nodes, to make sure that they release
   // their self-references.
-  mAudioBufferSourceNodes.EnumerateEntries(StopAudioBufferSourceNode, nullptr);
+  for (uint32_t i = 0; i < mAudioBufferSourceNodes.Length(); ++i) {
+    ErrorResult rv;
+    mAudioBufferSourceNodes[i]->Stop(0.0, rv);
+  }
   // Stop all script processor nodes, to make sure that they release
   // their self-references.
-  mScriptProcessorNodes.EnumerateEntries(StopScriptProcessorNode, nullptr);
+  for (uint32_t i = 0; i < mScriptProcessorNodes.Length(); ++i) {
+    mScriptProcessorNodes[i]->Stop();
+  }
 }
 
 void

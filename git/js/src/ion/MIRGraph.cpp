@@ -78,7 +78,6 @@ MIRGraph::removeBlocksAfter(MBasicBlock *start)
             osrBlock_ = NULL;
         block->discardAllInstructions();
         block->discardAllPhis();
-        block->discardAllResumePoints();
         block->markAsDead();
         removeBlock(block);
     }
@@ -293,13 +292,6 @@ MBasicBlock::inherit(MBasicBlock *pred, uint32_t popped)
             for (size_t i = 0; i < stackDepth(); i++)
                 entryResumePoint()->setOperand(i, getSlot(i));
         }
-    } else if (entryResumePoint()) {
-        /*
-         * Don't leave the operands uninitialized for the caller, as it may not
-         * initialize them later on.
-         */
-        for (size_t i = 0; i < stackDepth(); i++)
-            entryResumePoint()->clearOperand(i);
     }
 
     return true;
@@ -644,20 +636,6 @@ MBasicBlock::discardAllPhis()
 
     for (MBasicBlock **pred = predecessors_.begin(); pred != predecessors_.end(); pred++)
         (*pred)->setSuccessorWithPhis(NULL, 0);
-}
-
-void
-MBasicBlock::discardAllResumePoints(bool discardEntry)
-{
-    for (MResumePointIterator iter = resumePointsBegin(); iter != resumePointsEnd(); ) {
-        MResumePoint *rp = *iter;
-        if (rp == entryResumePoint() && !discardEntry) {
-            iter++;
-        } else {
-            rp->discardUses();
-            iter = resumePoints_.removeAt(iter);
-        }
-    }
 }
 
 void

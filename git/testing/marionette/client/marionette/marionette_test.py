@@ -112,7 +112,7 @@ class MarionetteTestCase(CommonTestCase):
         CommonTestCase.__init__(self, methodName, **kwargs)
 
     @classmethod
-    def add_tests_to_suite(cls, mod_name, filepath, suite, testloader, marionette, testvars, **kwargs):
+    def add_tests_to_suite(cls, mod_name, filepath, suite, testloader, marionette, testvars):
         test_mod = imp.load_source(mod_name, filepath)
 
         for name in dir(test_mod):
@@ -124,8 +124,7 @@ class MarionetteTestCase(CommonTestCase):
                     suite.addTest(obj(weakref.ref(marionette),
                                   methodName=testname,
                                   filepath=filepath,
-                                  testvars=testvars,
-                                  **kwargs))
+                                  testvars=testvars))
 
     def setUp(self):
         CommonTestCase.setUp(self)

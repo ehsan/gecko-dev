@@ -117,7 +117,7 @@ HTMLFrameElement::GetAttributeMappingFunction() const
 }
 
 JSObject*
-HTMLFrameElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+HTMLFrameElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return HTMLFrameElementBinding::Wrap(aCx, aScope, this);
 }
