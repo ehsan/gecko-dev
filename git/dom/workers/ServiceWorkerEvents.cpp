@@ -52,7 +52,6 @@ NS_IMPL_CYCLE_COLLECTION_INHERITED(InstallPhaseEvent, Event, mPromise)
 
 InstallEvent::InstallEvent(EventTarget* aOwner)
   : InstallPhaseEvent(aOwner)
-  , mActivateImmediately(false)
 {
 }
 

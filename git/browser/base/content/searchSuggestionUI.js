@@ -240,11 +240,16 @@ SearchSuggestionUIController.prototype = {
 
     // Commit composition string forcibly, because setting input value does not
     // work if input has composition string (see bug 1115616 and bug 632744).
-    // Ignore input event for composition end to avoid getting suggestion again.
-    this._ignoreInputEvent = true;
-    this.input.blur();
-    this.input.focus();
-    this._ignoreInputEvent = false;
+    try {
+      let imeEditor = this.input.editor.QueryInterface(Components.interfaces.nsIEditorIMESupport);
+      if (imeEditor.composing) {
+        // Ignore input event for compisition end to avoid getting suggestion
+        // again.
+        this._ignoreInputEvent = true;
+        imeEditor.forceCompositionEnd();
+        this._ignoreInputEvent = false;
+      }
+    } catch(e) { }
 
     this.input.value = suggestion;
     this.input.setAttribute("selection-index", idx);

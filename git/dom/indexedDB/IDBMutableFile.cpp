@@ -162,6 +162,7 @@ IDBMutableFile::Create(IDBDatabase* aDatabase,
   if (NS_WARN_IF(NS_FAILED(QuotaManager::GetInfoFromPrincipal(principal,
                                                               &group,
                                                               &origin,
+                                                              nullptr,
                                                               nullptr)))) {
     return nullptr;
   }

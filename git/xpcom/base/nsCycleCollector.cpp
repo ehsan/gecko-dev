@@ -3692,13 +3692,9 @@ nsCycleCollector::FinishAnyCurrentCollection()
   // Use SliceCC because we only want to finish the CC in progress.
   Collect(SliceCC, unlimitedBudget, nullptr);
 
-  // It is only okay for Collect() to have failed to finish the
-  // current CC if we're reentering the CC at some point past
-  // graph building. We need to be past the point where the CC will
-  // look at JS objects so that it is safe to GC.
   MOZ_ASSERT(mIncrementalPhase == IdlePhase ||
-             (mActivelyCollecting && mIncrementalPhase != GraphBuildingPhase),
-             "Reentered CC during graph building");
+             (mIncrementalPhase == ScanAndCollectWhitePhase && mActivelyCollecting),
+             "FinishAnyCurrentCollection should finish the collection, unless we've reentered the CC during unlinking");
 }
 
 // Don't merge too many times in a row, and do at least a minimum

@@ -195,7 +195,7 @@ class Test:
                     elif name == 'tz-pacific':
                         test.tz_pacific = True
                     elif name == 'test-also-noasmjs':
-                        test.test_also_noasmjs = options.can_test_also_noasmjs
+                        test.test_also_noasmjs = True
                     elif name == 'ion-eager':
                         test.jitflags.append('--ion-eager')
                     elif name == 'dump-bytecode':

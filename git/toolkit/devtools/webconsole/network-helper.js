@@ -207,13 +207,11 @@ let NetworkHelper = {
   },
 
   /**
-   * Gets the topFrameElement that is associated with aRequest. This
-   * works in single-process and multiprocess contexts. It may cross
-   * the content/chrome boundary.
+   * Gets the topFrameElement that is associated with aRequest.
    *
    * @param nsIHttpChannel aRequest
    * @returns nsIDOMElement|null
-   *          The top frame element for the given request.
+   *          The top frame element for the given request, if available.
    */
   getTopFrameForRequest: function NH_getTopFrameForRequest(aRequest)
   {

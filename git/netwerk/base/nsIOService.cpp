@@ -1507,7 +1507,7 @@ private:
 NS_IMPL_ISUPPORTS(IOServiceProxyCallback, nsIProtocolProxyCallback)
 
 NS_IMETHODIMP
-IOServiceProxyCallback::OnProxyAvailable(nsICancelable *request, nsIChannel *channel,
+IOServiceProxyCallback::OnProxyAvailable(nsICancelable *request, nsIURI *aURI,
                                          nsIProxyInfo *pi, nsresult status)
 {
     // Checking proxy status for speculative connect
@@ -1519,14 +1519,8 @@ IOServiceProxyCallback::OnProxyAvailable(nsICancelable *request, nsIChannel *cha
         return NS_OK;
     }
 
-    nsCOMPtr<nsIURI> uri;
-    nsresult rv = channel->GetURI(getter_AddRefs(uri));
-    if (NS_FAILED(rv)) {
-        return NS_OK;
-    }
-
     nsAutoCString scheme;
-    rv = uri->GetScheme(scheme);
+    nsresult rv = aURI->GetScheme(scheme);
     if (NS_FAILED(rv))
         return NS_OK;
 
@@ -1541,7 +1535,7 @@ IOServiceProxyCallback::OnProxyAvailable(nsICancelable *request, nsIChannel *cha
     if (!speculativeHandler)
         return NS_OK;
 
-    speculativeHandler->SpeculativeConnect(uri,
+    speculativeHandler->SpeculativeConnect(aURI,
                                            mCallbacks);
     return NS_OK;
 }
@@ -1559,16 +1553,10 @@ nsIOService::SpeculativeConnect(nsIURI *aURI,
     if (NS_FAILED(rv))
         return rv;
 
-    nsCOMPtr<nsIChannel> channel;
-    rv = NewChannelFromURI(aURI, getter_AddRefs(channel));
-    if (NS_FAILED(rv)) {
-        return rv;
-    }
-
     nsCOMPtr<nsICancelable> cancelable;
     nsRefPtr<IOServiceProxyCallback> callback =
         new IOServiceProxyCallback(aCallbacks, this);
-    return pps->AsyncResolve(channel, 0, callback, getter_AddRefs(cancelable));
+    return pps->AsyncResolve(aURI, 0, callback, getter_AddRefs(cancelable));
 }
 
 void

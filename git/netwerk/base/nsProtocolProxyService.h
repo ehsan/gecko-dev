@@ -27,12 +27,6 @@ class nsIPrefBranch;
 class nsISystemProxySettings;
 class nsPACMan;
 
-// CID for the nsProtocolProxyService class
-// 091eedd8-8bae-4fe3-ad62-0c87351e640d
-#define NS_PROTOCOL_PROXY_SERVICE_IMPL_CID        \
-{ 0x091eedd8, 0x8bae, 0x4fe3, \
-        { 0xad, 0x62, 0x0c, 0x87, 0x35, 0x1e, 0x64, 0x0d } }
-
 class nsProtocolProxyService MOZ_FINAL : public nsIProtocolProxyService2
                                        , public nsIObserver
 {
@@ -42,14 +36,9 @@ public:
     NS_DECL_NSIPROTOCOLPROXYSERVICE
     NS_DECL_NSIOBSERVER
 
-    NS_DECLARE_STATIC_IID_ACCESSOR(NS_PROTOCOL_PROXY_SERVICE_IMPL_CID)
-
     nsProtocolProxyService();
 
     nsresult Init();
-    nsresult DeprecatedBlockingResolve(nsIChannel *aChannel,
-                                       uint32_t aFlags,
-                                       nsIProxyInfo **retval);
 
 protected:
     friend class nsAsyncResolveRequest;
@@ -203,8 +192,8 @@ protected:
      * caller with either the proxy info result or a flag to instruct the
      * caller to use PAC instead.
      *
-     * @param channel
-     *        The channel to test.
+     * @param uri
+     *        The URI to test.
      * @param info
      *        Information about the URI's protocol.
      * @param flags
@@ -215,7 +204,7 @@ protected:
      * @param result
      *        The resulting proxy info or null.
      */
-    nsresult Resolve_Internal(nsIChannel *channel,
+    nsresult Resolve_Internal(nsIURI *uri,
                                           const nsProtocolInfo &info,
                                           uint32_t flags,
                                           bool *usePAC, 
@@ -225,26 +214,26 @@ protected:
      * This method applies the registered filters to the given proxy info
      * list, and returns a possibly modified list.
      *
-     * @param channel
-     *        The channel corresponding to this proxy info list.
+     * @param uri
+     *        The URI corresponding to this proxy info list.
      * @param info
      *        Information about the URI's protocol.
      * @param proxyInfo
      *        The proxy info list to be modified.  This is an inout param.
      */
-    void ApplyFilters(nsIChannel *channel, const nsProtocolInfo &info,
+    void ApplyFilters(nsIURI *uri, const nsProtocolInfo &info,
                                   nsIProxyInfo **proxyInfo);
 
     /**
      * This method is a simple wrapper around ApplyFilters that takes the
      * proxy info list inout param as a nsCOMPtr.
      */
-    inline void ApplyFilters(nsIChannel *channel, const nsProtocolInfo &info,
+    inline void ApplyFilters(nsIURI *uri, const nsProtocolInfo &info,
                              nsCOMPtr<nsIProxyInfo> &proxyInfo)
     {
       nsIProxyInfo *pi = nullptr;
       proxyInfo.swap(pi);
-      ApplyFilters(channel, info, &pi);
+      ApplyFilters(uri, info, &pi);
       proxyInfo.swap(pi);
     }
 
@@ -329,27 +318,19 @@ protected:
         }
     };
 
-    // An instance of this struct is allocated for each registered
-    // nsIProtocolProxyFilter and each nsIProtocolProxyChannelFilter.
+    // This structure is allocated for each registered nsIProtocolProxyFilter.
     struct FilterLink {
       struct FilterLink                *next;
       uint32_t                          position;
-      nsCOMPtr<nsIProtocolProxyFilter> filter;
-      nsCOMPtr<nsIProtocolProxyChannelFilter> channelFilter;
+      nsCOMPtr<nsIProtocolProxyFilter>  filter;
+
       FilterLink(uint32_t p, nsIProtocolProxyFilter *f)
-        : next(nullptr), position(p), filter(f), channelFilter(nullptr) {}
-      FilterLink(uint32_t p, nsIProtocolProxyChannelFilter *cf)
-        : next(nullptr), position(p), filter(nullptr), channelFilter(cf) {}
+        : next(nullptr), position(p), filter(f) {}
+
       // Chain deletion to simplify cleaning up the filter links
       ~FilterLink() { if (next) delete next; }
     };
 
-private:
-    // Private methods to insert and remove FilterLinks from the FilterLink chain.
-    nsresult InsertFilterLink(FilterLink *link, uint32_t position);
-    nsresult RemoveFilterLink(nsISupports *givenObject);
-
-protected:
     // Indicates if local hosts (plain hostnames, no dots) should use the proxy
     bool mFilterLocalHosts;
 
@@ -385,13 +366,11 @@ protected:
     int32_t                      mFailedProxyTimeout;
 
 private:
-    nsresult AsyncResolveInternal(nsIChannel *channel, uint32_t flags,
+    nsresult AsyncResolveInternal(nsIURI *uri, uint32_t flags,
                                   nsIProtocolProxyCallback *callback,
                                   nsICancelable **result,
                                   bool isSyncOK);
 
 };
-
-NS_DEFINE_STATIC_IID_ACCESSOR(nsProtocolProxyService, NS_PROTOCOL_PROXY_SERVICE_IMPL_CID)
 
 #endif // !nsProtocolProxyService_h__

@@ -41,7 +41,13 @@ public:
   }
 
   void
-  GetScriptURL(nsString& aURL) const
+  GetScope(nsString& aScope) const
+  {
+    aScope = mScope;
+  }
+
+  void
+  GetUrl(nsString& aURL) const
   {
     aURL = mURL;
   }
@@ -57,6 +63,7 @@ private:
   ~ServiceWorker();
 
   ServiceWorkerState mState;
+  nsString mScope;
   nsString mURL;
 
   // To allow ServiceWorkers to potentially drop the backing DOMEventTargetHelper and

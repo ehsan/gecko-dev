@@ -118,7 +118,7 @@ NS_IMPL_ISUPPORTS(MediaMemoryTracker, nsIMemoryReporter)
 
 NS_IMPL_ISUPPORTS(MediaDecoder, nsIObserver)
 
-void MediaDecoder::NotifyOwnerActivityChanged()
+void MediaDecoder::SetDormantIfNecessary(bool aDormant)
 {
   MOZ_ASSERT(NS_IsMainThread());
   ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
@@ -129,28 +129,7 @@ void MediaDecoder::NotifyOwnerActivityChanged()
     return;
   }
 
-  if (!mOwner) {
-    NS_WARNING("MediaDecoder without a decoder owner, can't update dormant");
-    return;
-  }
-
-  bool prevDormant = mIsDormant;
-  mIsDormant = false;
-  if (!mOwner->IsActive() && mOwner->GetVideoFrameContainer()) {
-    mIsDormant = true;
-  }
-#ifdef MOZ_WIDGET_GONK
-  if (mOwner->IsHidden() && mOwner->GetVideoFrameContainer()) {
-    mIsDormant = true;
-  }
-#endif
-
-  if (prevDormant == mIsDormant) {
-    // No update to dormant state
-    return;
-  }
-
-  if (mIsDormant) {
+  if(aDormant) {
     // enter dormant state
     mDecoderStateMachine->SetDormant(true);
 
@@ -471,8 +450,7 @@ MediaDecoder::MediaDecoder() :
   mShuttingDown(false),
   mPausedForPlaybackRateNull(false),
   mMinimizePreroll(false),
-  mMediaTracksConstructed(false),
-  mIsDormant(false)
+  mMediaTracksConstructed(false)
 {
   MOZ_COUNT_CTOR(MediaDecoder);
   MOZ_ASSERT(NS_IsMainThread());

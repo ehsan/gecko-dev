@@ -64,8 +64,8 @@ public:
     return true;
   }
 
-  virtual const dom::MediaSourceEnum GetMediaSource() MOZ_OVERRIDE {
-    return dom::MediaSourceEnum::Camera;
+  virtual const MediaSourceType GetMediaSource() MOZ_OVERRIDE {
+    return MediaSourceType::Camera;
   }
 
   virtual nsresult TakePhoto(PhotoCallback* aCallback) MOZ_OVERRIDE
@@ -127,8 +127,8 @@ public:
     return true;
   }
 
-  virtual const dom::MediaSourceEnum GetMediaSource() MOZ_OVERRIDE {
-    return dom::MediaSourceEnum::Microphone;
+  virtual const MediaSourceType GetMediaSource() MOZ_OVERRIDE {
+    return MediaSourceType::Microphone;
   }
 
   virtual nsresult TakePhoto(PhotoCallback* aCallback) MOZ_OVERRIDE
@@ -158,9 +158,9 @@ public:
     , mMutex("mozilla::MediaEngineDefault")
   {}
 
-  virtual void EnumerateVideoDevices(dom::MediaSourceEnum,
+  virtual void EnumerateVideoDevices(MediaSourceType,
                                      nsTArray<nsRefPtr<MediaEngineVideoSource> >*);
-  virtual void EnumerateAudioDevices(dom::MediaSourceEnum,
+  virtual void EnumerateAudioDevices(MediaSourceType,
                                      nsTArray<nsRefPtr<MediaEngineAudioSource> >*);
 
 protected:

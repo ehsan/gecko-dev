@@ -99,6 +99,10 @@ public:
 
   bool IsParentActivated()
   {
+    if (mParentFocusType == ParentFocusType_Ignore) {
+      return mActiveWindow != nullptr;
+    }
+
     return mParentFocusType == ParentFocusType_Active;
   }
 

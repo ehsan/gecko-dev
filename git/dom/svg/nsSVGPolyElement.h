@@ -46,7 +46,7 @@ public:
   virtual bool IsMarkable() MOZ_OVERRIDE { return true; }
   virtual void GetMarkPoints(nsTArray<nsSVGMark> *aMarks) MOZ_OVERRIDE;
   virtual bool GetGeometryBounds(Rect* aBounds, Float aStrokeWidth,
-                                 CapStyle aCapStyle, const Matrix& aTransform) MOZ_OVERRIDE;
+                                 const Matrix& aTransform) MOZ_OVERRIDE;
 
   // WebIDL
   already_AddRefed<mozilla::DOMSVGPointList> Points();

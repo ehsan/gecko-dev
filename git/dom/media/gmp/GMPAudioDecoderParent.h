@@ -34,7 +34,7 @@ public:
                               uint32_t aBitsPerChannel,
                               uint32_t aSamplesPerSecond,
                               nsTArray<uint8_t>& aExtraData,
-                              GMPAudioDecoderCallbackProxy* aCallback) MOZ_OVERRIDE;
+                              GMPAudioDecoderProxyCallback* aCallback) MOZ_OVERRIDE;
   virtual nsresult Decode(GMPAudioSamplesImpl& aInput) MOZ_OVERRIDE;
   virtual nsresult Reset() MOZ_OVERRIDE;
   virtual nsresult Drain() MOZ_OVERRIDE;
@@ -55,7 +55,7 @@ private:
   bool mIsOpen;
   bool mShuttingDown;
   nsRefPtr<GMPParent> mPlugin;
-  GMPAudioDecoderCallbackProxy* mCallback;
+  GMPAudioDecoderProxyCallback* mCallback;
 };
 
 } // namespace gmp

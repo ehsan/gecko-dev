@@ -112,7 +112,7 @@ SVGRectElement::GetLengthInfo()
 
 bool
 SVGRectElement::GetGeometryBounds(Rect* aBounds, Float aStrokeWidth,
-                                  CapStyle aCapStyle, const Matrix& aTransform)
+                                  const Matrix& aTransform)
 {
   Rect rect;
   Float rx, ry;

@@ -3012,12 +3012,13 @@ CSS_PROP_TEXT(
     ruby-position,
     ruby_position,
     RubyPosition,
-    CSS_PROPERTY_PARSE_VALUE,
+    CSS_PROPERTY_PARSE_VALUE |
+        CSS_PROPERTY_VALUE_PARSER_FUNCTION,
     "layout.css.ruby.enabled",
-    VARIANT_HK,
+    0,
     kRubyPositionKTable,
-    offsetof(nsStyleText, mRubyPosition),
-    eStyleAnimType_EnumU8)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_DISPLAY(
     scroll-behavior,
     scroll_behavior,

@@ -31,7 +31,6 @@ typedef mozilla::dom::SVGGraphicsElement nsSVGPathGeometryElementBase;
 class nsSVGPathGeometryElement : public nsSVGPathGeometryElementBase
 {
 protected:
-  typedef mozilla::gfx::CapStyle CapStyle;
   typedef mozilla::gfx::DrawTarget DrawTarget;
   typedef mozilla::gfx::FillRule FillRule;
   typedef mozilla::gfx::Float Float;
@@ -78,7 +77,7 @@ public:
    * produce the clean integer bounds that content authors expect in some cases.
    */
   virtual bool GetGeometryBounds(Rect* aBounds, Float aStrokeWidth,
-                                 CapStyle aCapStyle, const Matrix& aTransform) {
+                                 const Matrix& aTransform) {
     return false;
   }
 

@@ -501,6 +501,7 @@ public:
     mState(eInitial),
     mResult(JS::AsmJSCache_InternalError),
     mIsApp(false),
+    mHasUnlimStoragePerm(false),
     mEnforcingQuota(true)
   {
     MOZ_ASSERT(IsMainProcess());
@@ -674,6 +675,7 @@ private:
   JS::AsmJSCacheResult mResult;
 
   bool mIsApp;
+  bool mHasUnlimStoragePerm;
   bool mEnforcingQuota;
 };
 
@@ -698,7 +700,7 @@ MainProcessRunnable::InitPersistenceType()
 
     if (mWriteParams.mInstalled &&
         !QuotaManager::IsQuotaEnforced(quota::PERSISTENCE_TYPE_PERSISTENT,
-                                       mOrigin, mIsApp)) {
+                                       mOrigin, mIsApp, mHasUnlimStoragePerm)) {
       mPersistence = quota::PERSISTENCE_TYPE_PERSISTENT;
     } else {
       mPersistence = quota::PERSISTENCE_TYPE_TEMPORARY;
@@ -733,13 +735,15 @@ MainProcessRunnable::InitOnMainThread()
   NS_ENSURE_STATE(qm);
 
   nsresult rv =
-    QuotaManager::GetInfoFromPrincipal(mPrincipal, &mGroup, &mOrigin, &mIsApp);
+    QuotaManager::GetInfoFromPrincipal(mPrincipal, &mGroup, &mOrigin, &mIsApp,
+                                       &mHasUnlimStoragePerm);
   NS_ENSURE_SUCCESS(rv, rv);
 
   InitPersistenceType();
 
   mEnforcingQuota =
-    QuotaManager::IsQuotaEnforced(mPersistence, mOrigin, mIsApp);
+    QuotaManager::IsQuotaEnforced(mPersistence, mOrigin, mIsApp,
+                                  mHasUnlimStoragePerm);
 
   QuotaManager::GetStorageId(mPersistence, mOrigin, quota::Client::ASMJS,
                              NS_LITERAL_STRING("asmjs"), mStorageId);
@@ -758,6 +762,7 @@ MainProcessRunnable::ReadMetadata()
 
   nsresult rv =
     qm->EnsureOriginIsInitialized(mPersistence, mGroup, mOrigin, mIsApp,
+                                  mHasUnlimStoragePerm,
                                   getter_AddRefs(mDirectory));
   NS_ENSURE_SUCCESS(rv, rv);
 

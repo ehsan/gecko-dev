@@ -338,6 +338,7 @@ var shell = {
     CustomEventManager.init();
     WebappsHelper.init();
     UserAgentOverrides.init();
+    IndexedDBPromptHelper.init();
     CaptivePortalLoginHelper.init();
 
     this.contentBrowser.src = homeURL;
@@ -364,6 +365,7 @@ var shell = {
     ppmm.removeMessageListener("content-handler", this);
 
     UserAgentOverrides.uninit();
+    IndexedDBPromptHelper.uninit();
   },
 
   // If this key event represents a hardware button which needs to be send as
@@ -790,6 +792,37 @@ var WebappsHelper = {
         });
         break;
     }
+  }
+}
+
+let IndexedDBPromptHelper = {
+  _quotaPrompt: "indexedDB-quota-prompt",
+  _quotaResponse: "indexedDB-quota-response",
+
+  init:
+  function IndexedDBPromptHelper_init() {
+    Services.obs.addObserver(this, this._quotaPrompt, false);
+  },
+
+  uninit:
+  function IndexedDBPromptHelper_uninit() {
+    Services.obs.removeObserver(this, this._quotaPrompt);
+  },
+
+  observe:
+  function IndexedDBPromptHelper_observe(subject, topic, data) {
+    if (topic != this._quotaPrompt) {
+      throw new Error("Unexpected topic!");
+    }
+
+    let observer = subject.QueryInterface(Ci.nsIInterfaceRequestor)
+                          .getInterface(Ci.nsIObserver);
+    let responseTopic = this._quotaResponse;
+
+    setTimeout(function() {
+      observer.observe(null, responseTopic,
+                       Ci.nsIPermissionManager.DENY_ACTION);
+    }, 0);
   }
 }
 
