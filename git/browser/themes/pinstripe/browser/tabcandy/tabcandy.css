@@ -1,4 +1,9 @@
 html {
+	padding-bottom: 20px; 
+	padding-top: 20px;
+	padding-left: 20px;
+	padding-right: 20px;
+	
 }
 
 body { 
@@ -17,6 +22,7 @@ body {
 
 .tab {
 	position: absolute;
+	margin: 10px;
 	padding: 4px 6px 6px 4px;
 	border: 1px solid rgba(230,230,230,1);
 	background-color: rgba(245,245,245,1);
@@ -104,8 +110,6 @@ body {
 	text-align: center;
 	text-shadow: rgba(255,255,255,1) 0 1px;
 	width: 94.5%;
-  white-space: nowrap;
-  overflow: hidden;
 }
 
 
@@ -125,9 +129,10 @@ body {
 .group {
 	position: relative;
 	float: left; 
-  cursor: move;
+	margin: 20px;
+	padding: 10px 10px 30px 10px;
 	border: 1px solid rgba(230,230,230,1);
-	background-color: rgba(245,245,245,1);
+	background-color: rgba(248,248,248,1);
 	-moz-border-radius: 0.4em;
 	-moz-box-shadow: 
 		inset rgba(255, 255, 255, 0.6) 0 2px 0px,
@@ -138,6 +143,20 @@ body {
 
 .group .expander {
 }
+
+
+/*
+.group {
+  cursor: move;
+  overflow: hidden;
+}
+
+.group-content {
+  border: 1px inset rgba(0,0,0,.3);
+  background-color: white;
+  -moz-box-shadow: inset 2px 2px 12px rgba(0,0,0,.15);        
+}
+*/
 
 // -----------------------------------------------------
 // Other
@@ -179,7 +198,7 @@ input.name{
 	opacity: .2;  
 }
 
-.ui-resizable { }
+.ui-resizable { position: relative;}
 .ui-resizable-handle { position: absolute;font-size: 0.1px;z-index: 99999; display: block;}
 .ui-resizable-disabled .ui-resizable-handle, .ui-resizable-autohide .ui-resizable-handle { display: none; }
 .ui-resizable-se { cursor: se-resize; width: 12px; height: 12px; right: 1px; bottom: 1px; }

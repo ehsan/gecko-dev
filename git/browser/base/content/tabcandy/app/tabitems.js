@@ -3,7 +3,6 @@ window.TabItem = function(container, tab) {
   this._init(container);
   this.tab = tab;
   this.defaultSize = new Point(TabItems.tabWidth, TabItems.tabHeight);
-  this.setResizable(true);
 };
 
 window.TabItem.prototype = $.extend(new Item(), {
@@ -15,10 +14,6 @@ window.TabItem.prototype = $.extend(new Item(), {
   
   // ----------  
   setBounds: function(rect, immediately) {
-    var $container = $(this.container);
-    var $title = $('.tab-title', $container);
-    var $thumb = $('.thumb', $container);
-    var $close = $('.close', $container);
     var css = {};
 
     if(rect.left != this.bounds.left)
@@ -28,20 +23,13 @@ window.TabItem.prototype = $.extend(new Item(), {
       css.top = rect.top;
       
     if(rect.width != this.bounds.width) {
-      var widthExtra = parseInt($container.css('padding-left')) 
-          + parseInt($container.css('padding-right'));
-          
-      css.width = rect.width - widthExtra;
-      var scale = css.width / TabItems.tabWidth;
+      css.width = rect.width;
+      var scale = rect.width / TabItems.tabWidth;
       css.fontSize = TabItems.fontSize * scale;
     }
 
-    if(rect.height != this.bounds.height) {
-      var heightExtra = parseInt($container.css('padding-top')) 
-          + parseInt($container.css('padding-bottom'));
-          
-      css.height = rect.height - heightExtra; 
-    }
+    if(rect.height != this.bounds.height)
+      css.height = rect.height; 
       
     if($.isEmptyObject(css))
       return;
@@ -49,38 +37,12 @@ window.TabItem.prototype = $.extend(new Item(), {
     this.bounds.copy(rect);
 
     if(immediately) {
-      $container.css(css);
-      
-/*
-      if(css.fontSize) {
-        if(css.fontSize < 8)
-          $title.hide();
-        else
-          $title.show();
-      }
-*/
+      $(this.container).css(css);
     } else {
       TabMirror.pausePainting();
-      $container.animate(css, {complete: function() {
+      $(this.container).animate(css, {complete: function() {
         TabMirror.resumePainting();
       }}).dequeue();
-    }
-
-    if(css.fontSize) {
-      if(css.fontSize < 8)
-        $title.fadeOut();
-      else
-        $title.fadeIn();
-    }
-
-    if(css.width) {
-      if(css.width < 30) {
-        $thumb.fadeOut();
-        $close.fadeOut();
-      } else {
-        $thumb.fadeIn();
-        $close.fadeIn();
-      }
     }
 
     this._updateDebugBounds();
@@ -104,38 +66,11 @@ window.TabItem.prototype = $.extend(new Item(), {
   // ----------
   removeOnClose: function(referenceObject) {
     this.tab.mirror.removeOnClose(referenceObject);      
-  },
-  
-  // ----------  
-  setResizable: function(value){
-    var self = this;
-    
-    var $resizer = $('.expander', this.container);
-    if(value) {
-      $resizer.fadeIn();
-      $(this.container).resizable({
-        handles: "se",
-        aspectRatio: true,
-        minWidth: TabItems.minTabWidth,
-        minHeight: TabItems.minTabWidth * (TabItems.tabHeight / TabItems.tabWidth),
-        resize: function(){
-          self.reloadBounds();
-        },
-        stop: function(){
-          self.reloadBounds();
-          self.pushAway();
-        } 
-      });
-    } else {
-      $resizer.fadeOut();
-      $(this.container).resizable('destroy');
-    }
   }
 });
 
 // ##########
 window.TabItems = {
-  minTabWidth: 40, 
   tabWidth: 160,
   tabHeight: 120, 
   fontSize: 9,
@@ -214,13 +149,18 @@ window.TabItems = {
       $("<div class='close'></div>").appendTo($div);
       $("<div class='expander'></div>").appendTo($div);
   
+      function onNewTab(){
+        var p = Page.findOpenSpaceFor($div); // TODO shouldn't know about Page
+        $div.css({left: p.x, top: p.y, width:TabItems.tabWidth, height:TabItems.tabHeight});
+      }
+  
+      // This code deals with adding a new tab.
+      if($div.length == 1) onNewTab();
+      
       $div.each(function() {
         var tab = Tabs.tab(this);
         $(this).data('tabItem', new TabItem(this, tab));     
       });
-      
-      if($div.length == 1)
-        Groups.newTab($div.data('tabItem'));
       
       // TODO: Figure out this really weird bug?
       // Why is that:

@@ -52,8 +52,6 @@ TabCanvas.prototype = {
   
     var w = $canvas.attr('width');
     var h = $canvas.attr('height');
-    if(!w || !h)
-      return;
   
     var fromWin = this.tab.contentWindow;
     if(fromWin == null) {
@@ -125,6 +123,8 @@ function Mirror(tab, manager) {
   if( this.tab.url.match("chrome:") )
     div.hide();
   
+  this.manager._customize(div);
+  
   this.needsPaint = 0;
   this.canvasSizeForced = false;
   this.el = div.get(0);
@@ -138,9 +138,6 @@ function Mirror(tab, manager) {
     this.tabCanvas.attach();
     this.triggerPaint();
   }
-  
-  this.tab.mirror = this;
-  this.manager._customize(div);
 }
 
 Mirror.prototype = $.extend(new Subscribable(), {  
@@ -262,7 +259,7 @@ TabMirror.prototype = {
   },
   
   _createEl: function(tab){
-    new Mirror(tab, this); // sets tab.mirror to itself
+    tab.mirror = new Mirror(tab, this);
   },
   
   update: function(tab){
