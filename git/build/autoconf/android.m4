@@ -98,7 +98,6 @@ case "$target" in
     fi
 
     dnl set up compilers
-    TOOLCHAIN_PREFIX="$android_toolchain/bin/$android_tool_prefix-"
     AS="$android_toolchain"/bin/"$android_tool_prefix"-as
     CC="$android_toolchain"/bin/"$android_tool_prefix"-gcc
     CXX="$android_toolchain"/bin/"$android_tool_prefix"-g++

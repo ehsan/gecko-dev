@@ -105,7 +105,7 @@ public class DoCommand {
     String ffxProvider = "org.mozilla.ffxcp";
     String fenProvider = "org.mozilla.fencp";
 
-    private final String prgVersion = "SUTAgentAndroid Version 1.09";
+    private final String prgVersion = "SUTAgentAndroid Version 1.08";
 
     public enum Command
         {
@@ -162,7 +162,6 @@ public class DoCommand {
         INST ("inst"),
         UPDT ("updt"),
         UNINST ("uninst"),
-        UNINSTALL ("uninstall"),
         TEST ("test"),
         DBG ("dbg"),
         TRACE ("trace"),
@@ -357,16 +356,9 @@ public class DoCommand {
 
             case UNINST:
                 if (Argc >= 2)
-                    strReturn = UnInstallApp(Argv[1], cmdOut, true);
+                    strReturn = UnInstallApp(Argv[1], cmdOut);
                 else
-                    strReturn = sErrorPrefix + "Wrong number of arguments for uninst command!";
-                break;
-
-            case UNINSTALL:
-                if (Argc >= 2)
-                    strReturn = UnInstallApp(Argv[1], cmdOut, false);
-                else
-                    strReturn = sErrorPrefix + "Wrong number of arguments for uninstall command!";
+                    strReturn = sErrorPrefix + "Wrong number of arguments for inst command!";
                 break;
 
             case ALRT:
@@ -3123,17 +3115,13 @@ private void CancelNotification()
         return theArgs;
         }
 
-    public String UnInstallApp(String sApp, OutputStream out, boolean reboot)
+    public String UnInstallApp(String sApp, OutputStream out)
         {
         String sRet = "";
 
         try
             {
-            if (reboot == true) {
-                pProc = Runtime.getRuntime().exec(this.getSuArgs("pm uninstall " + sApp + ";reboot;exit"));
-            } else {
-                pProc = Runtime.getRuntime().exec(this.getSuArgs("pm uninstall " + sApp + ";exit"));
-            }
+            pProc = Runtime.getRuntime().exec(this.getSuArgs("pm uninstall " + sApp + ";reboot;exit"));
 
             RedirOutputThread outThrd = new RedirOutputThread(pProc, out);
             outThrd.start();
@@ -3774,8 +3762,7 @@ private void CancelNotification()
             "zip zipfile src              - zip the source file/dir into zipfile\n" +
             "rebt                         - reboot device\n" +
             "inst /path/filename.apk      - install the referenced apk file\n" +
-            "uninst packagename           - uninstall the referenced package and reboot\n" +
-            "uninstall packagename        - uninstall the referenced package without a reboot\n" +
+            "uninst packagename           - uninstall the referenced package\n" +
             "updt pkgname pkgfile         - unpdate the referenced package\n" +
             "clok                         - the current device time expressed as the" +
             "                               number of millisecs since epoch\n" +

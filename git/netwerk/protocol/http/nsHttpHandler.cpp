@@ -245,8 +245,6 @@ nsHttpHandler::Init()
 
     mMisc.AssignLiteral("rv:" MOZILLA_UAVERSION);
 
-    mCompatFirefox.AssignLiteral("Firefox/" MOZILLA_UAVERSION);
-
     nsCOMPtr<nsIXULAppInfo> appInfo =
         do_GetService("@mozilla.org/xre/app-info;1");
 
@@ -570,19 +568,17 @@ nsHttpHandler::BuildUserAgent()
     mUserAgent += '/';
     mUserAgent += mProductSub;
 
-    bool isFirefox = mAppName.EqualsLiteral("Firefox");
-    if (isFirefox || mCompatFirefoxEnabled) {
-        // "Firefox/x.y" (compatibility) app token
+    // "Firefox/x.y.z" compatibility token
+    if (!mCompatFirefox.IsEmpty()) {
         mUserAgent += ' ';
         mUserAgent += mCompatFirefox;
     }
-    if (!isFirefox) {
-        // App portion
-        mUserAgent += ' ';
-        mUserAgent += mAppName;
-        mUserAgent += '/';
-        mUserAgent += mAppVersion;
-    }
+
+    // App portion
+    mUserAgent += ' ';
+    mUserAgent += mAppName;
+    mUserAgent += '/';
+    mUserAgent += mAppVersion;
 }
 
 #ifdef XP_WIN
@@ -751,7 +747,11 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
 
     if (PREF_CHANGED(UA_PREF("compatMode.firefox"))) {
         rv = prefs->GetBoolPref(UA_PREF("compatMode.firefox"), &cVar);
-        mCompatFirefoxEnabled = (NS_SUCCEEDED(rv) && cVar);
+        if (NS_SUCCEEDED(rv) && cVar) {
+            mCompatFirefox.AssignLiteral("Firefox/" MOZ_UA_FIREFOX_VERSION);
+        } else {
+            mCompatFirefox.Truncate();
+        }
         mUserAgentIsDirty = true;
     }
 

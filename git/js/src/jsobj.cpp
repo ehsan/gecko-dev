@@ -2802,7 +2802,6 @@ NewObject(JSContext *cx, Class *clasp, types::TypeObject *type_, JSObject *paren
     JS_ASSERT(clasp != &ArrayClass);
     JS_ASSERT_IF(clasp == &FunctionClass,
                  kind == JSFunction::FinalizeKind || kind == JSFunction::ExtendedFinalizeKind);
-    JS_ASSERT_IF(parent, parent->global() == cx->compartment->global());
 
     RootedTypeObject type(cx, type_);
 
@@ -2816,10 +2815,8 @@ NewObject(JSContext *cx, Class *clasp, types::TypeObject *type_, JSObject *paren
         return NULL;
 
     JSObject *obj = JSObject::create(cx, kind, shape, type, slots);
-    if (!obj) {
-        cx->free_(slots);
+    if (!obj)
         return NULL;
-    }
 
     /*
      * This will cancel an already-running incremental GC from doing any more

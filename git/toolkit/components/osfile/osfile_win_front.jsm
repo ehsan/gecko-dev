@@ -120,7 +120,7 @@
         */
        read: function read(buffer, nbytes, options) {
          // |gBytesReadPtr| is a pointer to |gBytesRead|.
-         throw_on_zero("read",
+         throw_on_zero(
            WinFile.ReadFile(this.fd, buffer, nbytes, gBytesReadPtr, null)
          );
          return gBytesRead.value;
@@ -141,7 +141,7 @@
         */
        write: function write(buffer, nbytes, options) {
          // |gBytesWrittenPtr| is a pointer to |gBytesWritten|.
-         throw_on_zero("write",
+         throw_on_zero(
            WinFile.WriteFile(this.fd, buffer, nbytes, gBytesWrittenPtr, null)
          );
          return gBytesWritten.value;
@@ -177,8 +177,7 @@
          // OS.File.POS_CURRENT == OS.Constants.Win.FILE_CURRENT
          // OS.File.POS_END == OS.Constants.Win.FILE_END
          whence = (whence == undefined)?Const.FILE_BEGIN:whence;
-         return throw_on_negative("setPosition",
-	   WinFile.SetFilePointer(this.fd, pos, null, whence));
+         return throw_on_negative(WinFile.SetFilePointer(this.fd, pos, null, whence));
        }
      };
 
@@ -371,8 +370,7 @@
        }
        // Now, perform manual truncation
        file.setPosition(0, File.POS_START);
-       throw_on_zero("open",
-         WinFile.SetEndOfFile(file.fd));
+       throw_on_zero(WinFile.SetEndOfFile(file.fd));
        return file;
      };
 
@@ -383,8 +381,7 @@
       * @throws {OS.File.Error} In case of I/O error.
       */
      File.remove = function remove(path) {
-       throw_on_zero("remove",
-         WinFile.DeleteFile(path));
+       throw_on_zero(WinFile.DeleteFile(path));
      };
 
      /**
@@ -412,7 +409,7 @@
      */
      File.copy = function copy(sourcePath, destPath, options) {
        options = options || noOptions;
-       throw_on_zero("copy",
+       throw_on_zero(
          WinFile.CopyFile(sourcePath, destPath, options.noOverwrite || false)
        );
      };
@@ -448,7 +445,7 @@
        } else {
          flags = Const.MOVEFILE_COPY_ALLOWED | Const.MOVEFILE_REPLACE_EXISTING;
        }
-       throw_on_zero("move",
+       throw_on_zero(
          WinFile.MoveFileEx(sourcePath, destPath, flags)
        );
      };
@@ -458,8 +455,7 @@
       */
      Object.defineProperty(File, "curDir", {
          set: function(path) {
-	   throw_on_zero("set curDir",
-             WinFile.SetCurrentDirectory(path));
+           WinFile.SetCurrentDirectory(path);
          },
          get: function() {
            // This function is more complicated than one could hope.
@@ -478,11 +474,11 @@
            let buffer_size = 4096;
            while (true) {
              let array = new (ctypes.ArrayType(ctypes.jschar, buffer_size))();
-             let expected_size = throw_on_zero("get curDir",
+             let expected_size = throw_on_zero(
                WinFile.GetCurrentDirectory(buffer_size, array)
              );
              if (expected_size <= buffer_size) {
-               return array.readString();
+               return array;
              }
              // At this point, we are in a case in which our buffer was not
              // large enough to hold the name of the current directory.
@@ -503,26 +499,20 @@
        }
        return new File(maybe);
      }
-     function throw_on_zero(operation, result) {
+     function throw_on_zero(result, operation) {
        if (result == 0) {
+         operation = operation || throw_on_zero.caller.name;
          throw new File.Error(operation);
        }
        return result;
      }
-     function throw_on_negative(operation, result) {
+     function throw_on_negative(result, operation) {
        if (result < 0) {
+         operation = operation || throw_on_negative.caller.name;
          throw new File.Error(operation);
        }
        return result;
      }
-     function throw_on_null(operation, result) {
-       if (result == null || (result.isNull && result.isNull())) {
-         throw new File.Error(operation);
-       }
-       return result;
-     }
-
-
 
 
      // Constants

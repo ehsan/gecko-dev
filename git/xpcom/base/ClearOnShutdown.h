@@ -37,7 +37,6 @@ class ShutdownObserver : public LinkedListElement<ShutdownObserver>
 {
 public:
   virtual void Shutdown() = 0;
-  virtual ~ShutdownObserver() {}
 };
 
 template<class SmartPtr>

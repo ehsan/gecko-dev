@@ -1434,7 +1434,6 @@ JSScript::ensureHasTypes(JSContext *cx)
 inline bool
 JSScript::ensureRanAnalysis(JSContext *cx, JSObject *scope)
 {
-    js::analyze::AutoEnterAnalysis aea(cx->compartment);
     JSScript *self = this;
     JS::SkipRoot root(cx, &self);
 
