@@ -104,7 +104,8 @@ BluetoothServiceChildProcess::GetDefaultAdapterPathInternal(
 
 nsresult
 BluetoothServiceChildProcess::GetDevicePropertiesInternal(
-                                                 const BluetoothSignal& aSignal)
+                                                   const nsAString& aDevicePath,
+                                                   const nsAString& aSignalPath)
 {
   MOZ_NOT_REACHED("Should never be called from child");
   return NS_ERROR_NOT_IMPLEMENTED;
@@ -125,7 +126,7 @@ BluetoothServiceChildProcess::GetPairedDevicePropertiesInternal(
 nsresult
 BluetoothServiceChildProcess::StopDiscoveryInternal(
                                               const nsAString& aAdapterPath,
-                                              BluetoothReplyRunnable* aRunnable)
+                                              BluetoothReplyRunnable* aRunnable) 
 {
   SendRequest(aRunnable, StopDiscoveryRequest(nsString(aAdapterPath)));
   return NS_OK;
@@ -230,7 +231,7 @@ BluetoothServiceChildProcess::SetPinCodeInternal(
 {
   SendRequest(aRunnable,
               SetPinCodeRequest(nsString(aDeviceAddress), nsString(aPinCode)));
-  return true;
+  return NS_OK;
 }
 
 bool
@@ -241,7 +242,7 @@ BluetoothServiceChildProcess::SetPasskeyInternal(
 {
   SendRequest(aRunnable,
               SetPasskeyRequest(nsString(aDeviceAddress), aPasskey));
-  return true;
+  return NS_OK;
 }
 
 bool
@@ -257,7 +258,7 @@ BluetoothServiceChildProcess::SetPairingConfirmationInternal(
     SendRequest(aRunnable,
                 DenyPairingConfirmationRequest(nsString(aDeviceAddress)));
   }
-  return true;
+  return NS_OK;
 }
 
 bool
@@ -273,14 +274,7 @@ BluetoothServiceChildProcess::SetAuthorizationInternal(
     SendRequest(aRunnable,
                 DenyAuthorizationRequest(nsString(aDeviceAddress)));
   }
-  return true;
-}
-
-nsresult
-BluetoothServiceChildProcess::PrepareAdapterInternal(const nsAString& aPath)
-{
-  MOZ_NOT_REACHED("Should never be called from child");
-  return NS_ERROR_NOT_IMPLEMENTED;
+  return NS_OK;
 }
 
 nsresult

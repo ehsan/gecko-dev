@@ -11,6 +11,7 @@
 
 #include <limits.h> /* make sure that <features.h> is included and we can use
                        __GLIBC__ to detect glibc presence */
+#include <new>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>

@@ -62,11 +62,8 @@ nsDataDocumentContentPolicy::ShouldLoad(uint32_t aContentType,
 
   // Nothing else is OK to load for data documents
   if (doc->IsLoadedAsData()) {
-    // ...but let static (print/print preview) documents to load fonts.
-    if (!doc->IsStaticDocument() || aContentType != nsIContentPolicy::TYPE_FONT) {
-      *aDecision = nsIContentPolicy::REJECT_TYPE;
-      return NS_OK;
-    }
+    *aDecision = nsIContentPolicy::REJECT_TYPE;
+    return NS_OK;
   }
 
   if (doc->IsBeingUsedAsImage()) {

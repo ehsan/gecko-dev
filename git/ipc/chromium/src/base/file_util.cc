@@ -194,7 +194,7 @@ bool ReadFileToString(const FilePath& path, std::string* contents) {
 FILE* CreateAndOpenTemporaryFile(FilePath* path) {
   FilePath directory;
   if (!GetTempDir(&directory))
-    return NULL;
+    return false;
 
   return CreateAndOpenTemporaryFileInDir(directory, path);
 }

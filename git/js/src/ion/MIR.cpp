@@ -488,9 +488,9 @@ MCall::addArg(size_t argnum, MPassArg *arg)
 }
 
 void
-MBitNot::infer(const TypeOracle::UnaryTypes &u)
+MBitNot::infer(const TypeOracle::Unary &u)
 {
-    if (u.inTypes->maybeObject())
+    if (u.ival == MIRType_Object)
         specialization_ = MIRType_None;
     else
         specialization_ = MIRType_Int32;
@@ -533,9 +533,9 @@ MBinaryBitwiseInstruction::foldsTo(bool useValueNumbers)
 }
 
 void
-MBinaryBitwiseInstruction::infer(const TypeOracle::BinaryTypes &b)
+MBinaryBitwiseInstruction::infer(const TypeOracle::Binary &b)
 {
-    if (b.lhsTypes->maybeObject() || b.rhsTypes->maybeObject()) {
+    if (b.lhs == MIRType_Object || b.rhs == MIRType_Object) {
         specialization_ = MIRType_None;
     } else {
         specialization_ = MIRType_Int32;
@@ -544,24 +544,24 @@ MBinaryBitwiseInstruction::infer(const TypeOracle::BinaryTypes &b)
 }
 
 void
-MShiftInstruction::infer(const TypeOracle::BinaryTypes &b)
+MShiftInstruction::infer(const TypeOracle::Binary &b)
 {
-    if (b.lhsTypes->maybeObject() || b.rhsTypes->maybeObject())
+    if (b.lhs == MIRType_Object || b.rhs == MIRType_Object)
         specialization_ = MIRType_None;
     else
         specialization_ = MIRType_Int32;
 }
 
 void
-MUrsh::infer(const TypeOracle::BinaryTypes &b)
+MUrsh::infer(const TypeOracle::Binary &b)
 {
-    if (b.lhsTypes->maybeObject() || b.rhsTypes->maybeObject()) {
+    if (b.lhs == MIRType_Object || b.rhs == MIRType_Object) {
         specialization_ = MIRType_None;
         setResultType(MIRType_Value);
         return;
     }
 
-    if (b.outTypes->getKnownTypeTag() == JSVAL_TYPE_DOUBLE) {
+    if (b.rval == MIRType_Double) {
         specialization_ = MIRType_Double;
         setResultType(MIRType_Double);
         return;

@@ -33,7 +33,6 @@ import android.util.Log;
   */
 class MemoryMonitor extends BroadcastReceiver {
     private static final String LOGTAG = "GeckoMemoryMonitor";
-    private static final String ACTION_MEMORY_DUMP = "org.mozilla.gecko.MEMORY_DUMP";
 
     private static final int MEMORY_PRESSURE_NONE = 0;
     private static final int MEMORY_PRESSURE_CLEANUP = 1;
@@ -61,7 +60,6 @@ class MemoryMonitor extends BroadcastReceiver {
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_DEVICE_STORAGE_LOW);
         filter.addAction(Intent.ACTION_DEVICE_STORAGE_OK);
-        filter.addAction(ACTION_MEMORY_DUMP);
         context.getApplicationContext().registerReceiver(this, filter);
     }
 
@@ -109,12 +107,6 @@ class MemoryMonitor extends BroadcastReceiver {
         } else if (Intent.ACTION_DEVICE_STORAGE_OK.equals(intent.getAction())) {
             Log.d(LOGTAG, "Device storage is ok");
             mStoragePressure = false;
-        } else if (ACTION_MEMORY_DUMP.equals(intent.getAction())) {
-            String label = intent.getStringExtra("label");
-            if (label == null) {
-                label = "default";
-            }
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Memory:Dump", label));
         }
     }
 

@@ -7,6 +7,8 @@
 
 #include "LifoAlloc.h"
 
+#include <new>
+
 using namespace js;
 
 namespace js {

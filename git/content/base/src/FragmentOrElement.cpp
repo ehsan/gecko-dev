@@ -747,7 +747,19 @@ FragmentOrElement::HasAttributes(bool* aReturn)
 NS_IMETHODIMP
 FragmentOrElement::GetAttributes(nsIDOMNamedNodeMap** aAttributes)
 {
-  *aAttributes = nullptr;
+  if (!IsElement()) {
+    *aAttributes = nullptr;
+    return NS_OK;
+  }
+
+  nsDOMSlots *slots = DOMSlots();
+
+  if (!slots->mAttributeMap) {
+    slots->mAttributeMap = new nsDOMAttributeMap(this->AsElement());
+  }
+
+  NS_ADDREF(*aAttributes = slots->mAttributeMap);
+
   return NS_OK;
 }
 

@@ -796,7 +796,7 @@ TelemetryPing.prototype = {
       initFlags |= PR_EXCL;
     }
     try {
-      ostream.init(file, initFlags, RW_OWNER, 0);
+      ostream.init(file, initFlags, RW_OWNER, ostream.DEFER_OPEN);
     } catch (e) {
       // Probably due to PR_EXCL.
       return;
@@ -805,13 +805,8 @@ TelemetryPing.prototype = {
     if (sync) {
       let utf8String = converter.ConvertFromUnicode(pingString);
       utf8String += converter.Finish();
-      let success = false;
-      try {
-        let amount = ostream.write(utf8String, utf8String.length);
-        success = amount == utf8String.length;
-      } catch (e) {
-      }
-      this.finishTelemetrySave(success, ostream);
+      let amount = ostream.write(utf8String, utf8String.length);
+      this.finishTelemetrySave(amount == utf8String.length, ostream);
     } else {
       let istream = converter.convertToInputStream(pingString)
       let self = this;

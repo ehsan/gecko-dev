@@ -152,13 +152,15 @@ class SharedContext
     // Unless its parent is strict, a context starts out in the UNKNOWN
     // state. Parser::setStrictMode() should be called when a context has been
     // determined to be strict or it cannot possibly become strict through the
-    // directive prologue.
+    // directive prologue. (It might become strict later if it is in the default
+    // expressions of a strict function.)
     //
-    // When parsing is done, no contexts can be in the UNKNOWN state, with the
-    // exception of functions defined in default expressions.  Any such context
-    // subsequently inherits its parent's state when it starts being used in
-    // BytecodeEmitter (see EmitFunc()).
+    // If the state is STRICT, all context children are STRICT, too. Neither of
+    // the other two states have this behavior. A funbox with the UNKNOWN state
+    // can have STRICT children but not NOTSTRICT children. NOTSTRICT funboxes
+    // can have any kind of children.
     //
+    // When parsing is done, no context may be in the UNKNOWN strictness state.
     StrictMode strictModeState;
 
     // If it's function code, funbox must be non-NULL and scopeChain must be NULL.
@@ -194,6 +196,8 @@ class FunctionBox : public SharedContext
 {
   public:
     ObjectBox       objbox;
+    FunctionBox     *siblings;
+    FunctionBox     *kids;
     Bindings        bindings;               /* bindings for this function */
     size_t          bufStart;
     size_t          bufEnd;
@@ -208,6 +212,8 @@ class FunctionBox : public SharedContext
                 StrictMode sms);
 
     JSFunction *fun() const { return objbox.object->toFunction(); }
+
+    void recursivelySetStrictMode(StrictMode strictness);
 
     bool isGenerator()              const { return funCxFlags.isGenerator; }
     bool mightAliasLocals()         const { return funCxFlags.mightAliasLocals; }

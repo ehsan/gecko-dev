@@ -16,27 +16,28 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/PermissionSettings.jsm");
 
-var cpm = Cc["@mozilla.org/childprocessmessagemanager;1"].getService(Ci.nsISyncMessageSender);
+var cpm = Components.classes["@mozilla.org/childprocessmessagemanager;1"].getService(Components.interfaces.nsISyncMessageSender);
 
 // PermissionSettings
 
 const PERMISSIONSETTINGS_CONTRACTID = "@mozilla.org/permissionSettings;1";
-const PERMISSIONSETTINGS_CID        = Components.ID("{18390770-02ab-11e2-a21f-0800200c9a66}");
-const nsIDOMPermissionSettings      = Ci.nsIDOMPermissionSettings;
+const PERMISSIONSETTINGS_CID        = Components.ID("{36e73ef0-c6f4-11e1-9b21-0800200c9a66}");
+const nsIDOMPermissionSettings      = Components.interfaces.nsIDOMPermissionSettings;
 
 function PermissionSettings()
 {
   debug("Constructor");
 }
 
-var permissionManager = Cc["@mozilla.org/permissionmanager;1"].getService(Ci.nsIPermissionManager);
-var secMan = Cc["@mozilla.org/scriptsecuritymanager;1"].getService(Ci.nsIScriptSecurityManager);
-var appsService = Cc["@mozilla.org/AppsService;1"].getService(Ci.nsIAppsService);
+var permissionManager = Components.classes["@mozilla.org/permissionmanager;1"].getService(Ci.nsIPermissionManager);
+var secMan = Components.classes["@mozilla.org/scriptsecuritymanager;1"].getService(Components.interfaces.nsIScriptSecurityManager);
+var appsService = Components.classes["@mozilla.org/AppsService;1"].getService(Components.interfaces.nsIAppsService);
 
 PermissionSettings.prototype = {
-  get: function get(aPermission, aManifestURL, aOrigin, aBrowserFlag) {
-    debug("Get called with: " + aPermission + ", " + aManifestURL + ", " + aOrigin + ", " + aBrowserFlag);
+  get: function get(aPermission, aAccess, aManifestURL, aOrigin, aBrowserFlag) {
+    debug("Get called with: " + aPermission + ", " + aAccess + ", " + aManifestURL + ", " + aOrigin + ", " + aBrowserFlag);
     let uri = Services.io.newURI(aOrigin, null, null);
     let appID = appsService.getAppLocalIdByManifestURL(aManifestURL);
     let principal = secMan.getAppCodebasePrincipal(uri, appID, aBrowserFlag);
@@ -58,11 +59,12 @@ PermissionSettings.prototype = {
     }
   },
 
-  set: function set(aPermission, aValue, aManifestURL, aOrigin, aBrowserFlag) {
-    debug("Set called with: " + aPermission + ", " + aManifestURL + ", " + aOrigin + ",  " + aValue + ", " + aBrowserFlag);
+  set: function set(aPermission, aAccess, aManifestURL, aOrigin, aValue, aBrowserFlag) {
+    debug("Set called with: " + aPermission + ", " + aAccess + ", " + aManifestURL + ", " + aOrigin + ",  " + aValue + ", " + aBrowserFlag);
     let action;
     cpm.sendSyncMessage("PermissionSettings:AddPermission", {
       type: aPermission,
+      access: aAccess,
       origin: aOrigin,
       manifestURL: aManifestURL,
       value: aValue,
@@ -72,11 +74,10 @@ PermissionSettings.prototype = {
 
   init: function(aWindow) {
     debug("init");
-
     // Set navigator.mozPermissionSettings to null.
-    let perm = Services.perms.testExactPermissionFromPrincipal(aWindow.document.nodePrincipal, "permissions");
     if (!Services.prefs.getBoolPref("dom.mozPermissionSettings.enabled")
-        || perm != Ci.nsIPermissionManager.ALLOW_ACTION) {
+        || Services.perms.testExactPermissionFromPrincipal(aWindow.document.nodePrincipal, "permissions")) {
+      debug("Permission to get/set permissions not granted!");
       return null;
     }
 

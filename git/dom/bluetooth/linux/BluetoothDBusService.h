@@ -25,34 +25,27 @@ class BluetoothDBusService : public BluetoothService
 {
 public:
   virtual nsresult StartInternal();
-
   virtual nsresult StopInternal();
-
   virtual nsresult GetDefaultAdapterPathInternal(BluetoothReplyRunnable* aRunnable);
-
   virtual nsresult GetPairedDevicePropertiesInternal(const nsTArray<nsString>& aDeviceAddresses,
                                                      BluetoothReplyRunnable* aRunnable);
-
   virtual nsresult StartDiscoveryInternal(const nsAString& aAdapterPath,
                                           BluetoothReplyRunnable* aRunnable);
-
   virtual nsresult StopDiscoveryInternal(const nsAString& aAdapterPath,
                                          BluetoothReplyRunnable* aRunnable);
-
   virtual nsresult
   GetProperties(BluetoothObjectType aType,
                 const nsAString& aPath,
                 BluetoothReplyRunnable* aRunnable);
-
   virtual nsresult
-  GetDevicePropertiesInternal(const BluetoothSignal& aSignal);
+  GetDevicePropertiesInternal(const nsAString& aDevicePath,
+                              const nsAString& aSignalPath);
 
   virtual nsresult
   SetProperty(BluetoothObjectType aType,
               const nsAString& aPath,
               const BluetoothNamedValue& aValue,
               BluetoothReplyRunnable* aRunnable);
-
   virtual bool
   GetDevicePath(const nsAString& aAdapterPath,
                 const nsAString& aDeviceAddress,
@@ -96,16 +89,13 @@ public:
   SetPasskeyInternal(const nsAString& aDeviceAddress, uint32_t aPasskey,
                      BluetoothReplyRunnable* aRunnable);
 
-  virtual bool
+  virtual bool 
   SetPairingConfirmationInternal(const nsAString& aDeviceAddress, bool aConfirm,
                                  BluetoothReplyRunnable* aRunnable);
 
-  virtual bool
+  virtual bool 
   SetAuthorizationInternal(const nsAString& aDeviceAddress, bool aAllow,
                            BluetoothReplyRunnable* aRunnable);
-
-  virtual nsresult
-  PrepareAdapterInternal(const nsAString& aPath);
 
 private:
   nsresult SendGetPropertyMessage(const nsAString& aPath,

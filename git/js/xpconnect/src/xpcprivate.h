@@ -631,33 +631,6 @@ private:
 
 /***************************************************************************/
 
-// class to export a JSString as an const nsAString, no refcounting :(
-class XPCReadableJSStringWrapper : public nsDependentString
-{
-public:
-    typedef nsDependentString::char_traits char_traits;
-
-    XPCReadableJSStringWrapper(const PRUnichar *chars, size_t length) :
-        nsDependentString(chars, length)
-    { }
-
-    XPCReadableJSStringWrapper() :
-        nsDependentString(char_traits::sEmptyBuffer, char_traits::sEmptyBuffer)
-    { SetIsVoid(true); }
-
-    JSBool init(JSContext* aContext, JSString* str)
-    {
-        size_t length;
-        const jschar* chars = JS_GetStringCharsZAndLength(aContext, str, &length);
-        if (!chars)
-            return false;
-
-        NS_ASSERTION(IsEmpty(), "init() on initialized string");
-        new(static_cast<nsDependentString *>(this)) nsDependentString(chars, length);
-        return true;
-    }
-};
-
 // In the current xpconnect system there can only be one XPCJSRuntime.
 // So, xpconnect can only be used on one JSRuntime within the process.
 
@@ -850,8 +823,6 @@ public:
         return false;
     }
 
-    XPCReadableJSStringWrapper *NewStringWrapper(const PRUnichar *str, uint32_t len);
-    void DeleteString(nsAString *string);
 
 #ifdef XPC_CHECK_WRAPPERS_AT_SHUTDOWN
    void DEBUG_AddWrappedNative(nsIXPConnectWrappedNative* wrapper)
@@ -946,23 +917,6 @@ private:
     nsCOMPtr<nsIException>   mPendingException;
     nsCOMPtr<nsIExceptionManager> mExceptionManager;
     bool mExceptionManagerNotAvailable;
-
-#define XPCCCX_STRING_CACHE_SIZE 2
-
-    // String wrapper entry, holds a string, and a boolean that tells
-    // whether the string is in use or not.
-    //
-    // NB: The string is not stored by value so that we avoid the cost of
-    // construction/destruction.
-    struct StringWrapperEntry
-    {
-        StringWrapperEntry() : mInUse(false) { }
-
-        mozilla::AlignedStorage2<XPCReadableJSStringWrapper> mString;
-        bool mInUse;
-    };
-
-    StringWrapperEntry mScratchStrings[XPCCCX_STRING_CACHE_SIZE];
 
     friend class AutoLockWatchdog;
     friend class XPCIncrementalReleaseRunnable;
@@ -1090,6 +1044,33 @@ private:
 #define NATIVE_CALLER  XPCContext::LANG_NATIVE
 #define JS_CALLER      XPCContext::LANG_JS
 
+// class to export a JSString as an const nsAString, no refcounting :(
+class XPCReadableJSStringWrapper : public nsDependentString
+{
+public:
+    typedef nsDependentString::char_traits char_traits;
+
+    XPCReadableJSStringWrapper(const PRUnichar *chars, size_t length) :
+        nsDependentString(chars, length)
+    { }
+
+    XPCReadableJSStringWrapper() :
+        nsDependentString(char_traits::sEmptyBuffer, char_traits::sEmptyBuffer)
+    { SetIsVoid(true); }
+
+    JSBool init(JSContext* aContext, JSString* str)
+    {
+        size_t length;
+        const jschar* chars = JS_GetStringCharsZAndLength(aContext, str, &length);
+        if (!chars)
+            return false;
+
+        NS_ASSERTION(IsEmpty(), "init() on initialized string");
+        new(static_cast<nsDependentString *>(this)) nsDependentString(chars, length);
+        return true;
+    }
+};
+
 // No virtuals
 // XPCCallContext is ALWAYS declared as a local variable in some function;
 // i.e. instance lifetime is always controled by some C++ function returning.
@@ -1200,6 +1181,9 @@ public:
 
     operator JSContext*() const {return GetJSContext();}
 
+    XPCReadableJSStringWrapper *NewStringWrapper(const PRUnichar *str, uint32_t len);
+    void DeleteString(nsAString *string);
+
 private:
 
     // no copy ctor or assignment allowed
@@ -1287,6 +1271,23 @@ private:
     jsval*                          mRetVal;
 
     uint16_t                        mMethodIndex;
+
+#define XPCCCX_STRING_CACHE_SIZE 2
+
+    // String wrapper entry, holds a string, and a boolean that tells
+    // whether the string is in use or not.
+    //
+    // NB: The string is not stored by value so that we avoid the cost of
+    // construction/destruction.
+    struct StringWrapperEntry
+    {
+        StringWrapperEntry() : mInUse(false) { }
+
+        js::AlignedStorage2<XPCReadableJSStringWrapper> mString;
+        bool mInUse;
+    };
+
+    StringWrapperEntry mScratchStrings[XPCCCX_STRING_CACHE_SIZE];
 };
 
 class XPCLazyCallContext
@@ -3037,7 +3038,7 @@ class nsXPCWrappedJSClass : public nsIXPCWrappedJSClass
 public:
 
     static nsresult
-    GetNewOrUsed(JSContext* cx,
+    GetNewOrUsed(XPCCallContext& ccx,
                  REFNSIID aIID,
                  nsXPCWrappedJSClass** clazz);
 
@@ -3051,13 +3052,13 @@ public:
     NS_IMETHOD DelegatedQueryInterface(nsXPCWrappedJS* self, REFNSIID aIID,
                                        void** aInstancePtr);
 
-    JSObject* GetRootJSObject(JSContext* cx, JSObject* aJSObj);
+    JSObject* GetRootJSObject(XPCCallContext& ccx, JSObject* aJSObj);
 
     NS_IMETHOD CallMethod(nsXPCWrappedJS* wrapper, uint16_t methodIndex,
                           const XPTMethodDescriptor* info,
                           nsXPTCMiniVariant* params);
 
-    JSObject*  CallQueryInterfaceOnJSObject(JSContext* cx,
+    JSObject*  CallQueryInterfaceOnJSObject(XPCCallContext& ccx,
                                             JSObject* jsobj, REFNSIID aIID);
 
     static nsresult BuildPropertyEnumerator(XPCCallContext& ccx,
@@ -3077,7 +3078,7 @@ public:
                                       bool aForceReport);
 private:
     nsXPCWrappedJSClass();   // not implemented
-    nsXPCWrappedJSClass(JSContext* cx, REFNSIID aIID,
+    nsXPCWrappedJSClass(XPCCallContext& ccx, REFNSIID aIID,
                         nsIInterfaceInfo* aInfo);
 
     JSObject*  NewOutObject(JSContext* cx, JSObject* scope);
@@ -3151,7 +3152,7 @@ public:
     */
 
     static nsresult
-    GetNewOrUsed(JSContext* cx,
+    GetNewOrUsed(XPCCallContext& ccx,
                  JSObject* aJSObj,
                  REFNSIID aIID,
                  nsISupports* aOuter,
@@ -3209,7 +3210,7 @@ public:
     virtual ~nsXPCWrappedJS();
 protected:
     nsXPCWrappedJS();   // not implemented
-    nsXPCWrappedJS(JSContext* cx,
+    nsXPCWrappedJS(XPCCallContext& ccx,
                    JSObject* aJSObj,
                    nsXPCWrappedJSClass* aClass,
                    nsXPCWrappedJS* root,
@@ -3295,7 +3296,6 @@ public:
      *        chain
      * @param pErr [out] relevant error code, if any.
      */
-
     static JSBool NativeData2JS(XPCCallContext& ccx, jsval* d, const void* s,
                                 const nsXPTType& type, const nsID* iid,
                                 nsresult* pErr)
@@ -3303,12 +3303,11 @@ public:
         XPCLazyCallContext lccx(ccx);
         return NativeData2JS(lccx, d, s, type, iid, pErr);
     }
-
     static JSBool NativeData2JS(XPCLazyCallContext& lccx, jsval* d,
                                 const void* s, const nsXPTType& type,
                                 const nsID* iid, nsresult* pErr);
 
-    static JSBool JSData2Native(JSContext* cx, void* d, jsval s,
+    static JSBool JSData2Native(XPCCallContext& ccx, void* d, jsval s,
                                 const nsXPTType& type,
                                 JSBool useAllocator, const nsID* iid,
                                 nsresult* pErr);
@@ -3355,7 +3354,7 @@ public:
                                                  void** dest, JSObject* src,
                                                  const nsID* iid,
                                                  nsresult* pErr);
-    static JSBool JSObject2NativeInterface(JSContext* cx,
+    static JSBool JSObject2NativeInterface(XPCCallContext& ccx,
                                            void** dest, JSObject* src,
                                            const nsID* iid,
                                            nsISupports* aOuter,
@@ -3379,11 +3378,11 @@ public:
                                  const nsXPTType& type, const nsID* iid,
                                  uint32_t count, nsresult* pErr);
 
-    static JSBool JSArray2Native(JSContext* cx, void** d, jsval s,
+    static JSBool JSArray2Native(XPCCallContext& ccx, void** d, jsval s,
                                  uint32_t count, const nsXPTType& type,
                                  const nsID* iid, nsresult* pErr);
 
-    static JSBool JSTypedArray2Native(JSContext* cx,
+    static JSBool JSTypedArray2Native(XPCCallContext& ccx,
                                       void** d,
                                       JSObject* jsarray,
                                       uint32_t count,
@@ -3940,7 +3939,7 @@ private:
 class AutoMarkingPtr
 {
   public:
-    AutoMarkingPtr(JSContext* cx) {
+    AutoMarkingPtr(XPCCallContext& ccx) {
         mRoot = XPCJSRuntime::Get()->GetAutoRootsAdr();
         mNext = *mRoot;
         *mRoot = this;
@@ -3976,8 +3975,8 @@ template<class T>
 class TypedAutoMarkingPtr : public AutoMarkingPtr
 {
   public:
-    TypedAutoMarkingPtr(JSContext* cx) : AutoMarkingPtr(cx), mPtr(nullptr) {}
-    TypedAutoMarkingPtr(JSContext* cx, T* ptr) : AutoMarkingPtr(cx), mPtr(ptr) {}
+    TypedAutoMarkingPtr(XPCCallContext& ccx) : AutoMarkingPtr(ccx), mPtr(nullptr) {}
+    TypedAutoMarkingPtr(XPCCallContext& ccx, T* ptr) : AutoMarkingPtr(ccx), mPtr(ptr) {}
 
     T* get() const { return mPtr; }
     operator T *() const { return mPtr; }
@@ -4016,10 +4015,10 @@ template<class T>
 class ArrayAutoMarkingPtr : public AutoMarkingPtr
 {
   public:
-    ArrayAutoMarkingPtr(JSContext* cx)
-      : AutoMarkingPtr(cx), mPtr(nullptr), mCount(0) {}
-    ArrayAutoMarkingPtr(JSContext* cx, T** ptr, uint32_t count, bool clear)
-      : AutoMarkingPtr(cx), mPtr(ptr), mCount(count)
+    ArrayAutoMarkingPtr(XPCCallContext& ccx)
+      : AutoMarkingPtr(ccx), mPtr(nullptr), mCount(0) {}
+    ArrayAutoMarkingPtr(XPCCallContext& ccx, T** ptr, uint32_t count, bool clear)
+      : AutoMarkingPtr(ccx), mPtr(ptr), mCount(count)
     {
         if (!mPtr) mCount = 0;
         else if (clear) memset(mPtr, 0, mCount*sizeof(T*));
@@ -4065,10 +4064,10 @@ typedef ArrayAutoMarkingPtr<XPCNativeInterface> AutoMarkingNativeInterfacePtrArr
 #define AUTO_MARK_JSVAL_HELPER2(tok, line) tok##line
 #define AUTO_MARK_JSVAL_HELPER(tok, line) AUTO_MARK_JSVAL_HELPER2(tok, line)
 
-#define AUTO_MARK_JSVAL(cx, val)                                              \
+#define AUTO_MARK_JSVAL(ccx, val)                                             \
     XPCMarkableJSVal AUTO_MARK_JSVAL_HELPER(_val_,__LINE__)(val);             \
     AutoMarkingJSVal AUTO_MARK_JSVAL_HELPER(_automarker_,__LINE__)            \
-    (cx, &AUTO_MARK_JSVAL_HELPER(_val_,__LINE__))
+    (ccx, &AUTO_MARK_JSVAL_HELPER(_val_,__LINE__))
 
 /***************************************************************************/
 // Allocates a string that grants all access ("AllAccess")
@@ -4107,7 +4106,7 @@ public:
     // if a given nsIVariant is in fact an XPCVariant.
     NS_DECLARE_STATIC_IID_ACCESSOR(XPCVARIANT_IID)
 
-    static XPCVariant* newVariant(JSContext* cx, jsval aJSVal);
+    static XPCVariant* newVariant(XPCCallContext& ccx, jsval aJSVal);
 
     /**
      * This getter clears the gray bit before handing out the jsval if the jsval
@@ -4130,7 +4129,7 @@ public:
      */
     jsval GetJSValPreserveColor() const {return mJSVal;}
 
-    XPCVariant(JSContext* cx, jsval aJSVal);
+    XPCVariant(XPCCallContext& ccx, jsval aJSVal);
 
     /**
      * Convert a variant into a jsval.
@@ -4164,7 +4163,7 @@ public:
 protected:
     virtual ~XPCVariant() { }
 
-    JSBool InitializeData(JSContext* cx);
+    JSBool InitializeData(XPCCallContext& ccx);
 
 protected:
     nsDiscriminatedUnion mData;
@@ -4179,10 +4178,10 @@ class XPCTraceableVariant: public XPCVariant,
                            public XPCRootSetElem
 {
 public:
-    XPCTraceableVariant(JSContext* cx, jsval aJSVal)
-        : XPCVariant(cx, aJSVal)
+    XPCTraceableVariant(XPCCallContext& ccx, jsval aJSVal)
+        : XPCVariant(ccx, aJSVal)
     {
-         nsXPConnect::GetRuntimeInstance()->AddVariantRoot(this);
+        ccx.GetRuntime()->AddVariantRoot(this);
     }
 
     virtual ~XPCTraceableVariant();

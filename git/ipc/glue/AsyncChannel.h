@@ -71,10 +71,7 @@ public:
         virtual void OnChannelError() = 0;
         virtual Result OnMessageReceived(const Message& aMessage) = 0;
         virtual void OnProcessingError(Result aError) = 0;
-        // FIXME/bug 792652: this doesn't really belong here, but a
-        // large refactoring is needed to put it where it belongs.
-        virtual int32_t GetProtocolTypeId() = 0;
-        virtual void OnChannelConnected(int32_t peer_pid) {}
+        virtual void OnChannelConnected(int32_t peer_pid) {};
     };
 
     enum Side { Parent, Child, Unknown };

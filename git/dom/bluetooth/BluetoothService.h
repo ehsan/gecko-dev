@@ -175,12 +175,14 @@ public:
   /** 
    * Fetches the propertes for the specified device
    *
-   * @param aSignal BluetoothSignal to be distrubuted after retrieving device properties
+   * @param aDevicePath Path of the object
+   * @param aSignalPath Path to distrubute signal after receiving properties
    *
    * @return NS_OK on function run, NS_ERROR_FAILURE otherwise
    */
   virtual nsresult
-  GetDevicePropertiesInternal(const BluetoothSignal& aSignal) = 0;
+  GetDevicePropertiesInternal(const nsAString& aDevicePath,
+                              const nsAString& aSignalPath) = 0;
 
   /**
    * Set a property for the specified object
@@ -249,9 +251,6 @@ public:
   virtual bool
   SetAuthorizationInternal(const nsAString& aDeviceAddress, bool aAllow,
                            BluetoothReplyRunnable* aRunnable) = 0;
-
-  virtual nsresult
-  PrepareAdapterInternal(const nsAString& aPath) = 0;
 
   bool
   IsEnabled() const

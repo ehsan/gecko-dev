@@ -392,7 +392,7 @@ bool CreateTemporaryFileName(FilePath* path) {
 FILE* CreateAndOpenTemporaryShmemFile(FilePath* path) {
   FilePath directory;
   if (!GetShmemTempDir(&directory))
-    return NULL;
+    return false;
 
   return CreateAndOpenTemporaryFileInDir(directory, path);
 }

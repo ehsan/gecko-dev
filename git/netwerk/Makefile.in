@@ -25,12 +25,6 @@ PARALLEL_DIRS = \
   ipc  \
   $(NULL)
 
-ifdef MOZ_SRTP
-PARALLEL_DIRS += \
-  srtp/src \
-  $(NULL)
-endif
-
 ifdef NECKO_WIFI
 PARALLEL_DIRS += wifi
 endif

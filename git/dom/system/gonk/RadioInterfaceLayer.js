@@ -527,9 +527,6 @@ RadioInterfaceLayer.prototype = {
       }
     }
 
-    this.checkRoamingBetweenOperators(voice);
-    this.checkRoamingBetweenOperators(data);
-
     if (voiceMessage || operatorMessage) {
       ppmm.broadcastAsyncMessage("RIL:VoiceInfoChanged", voice);
     }
@@ -540,32 +537,6 @@ RadioInterfaceLayer.prototype = {
     if (selectionMessage) {
       this.updateNetworkSelectionMode(selectionMessage);
     }
-  },
-
-  /**
-    * Fix the roaming. RIL can report roaming in some case it is not
-    * really the case. See bug 787967
-    *
-    * @param registration  The voiceMessage or dataMessage from which the
-    *                      roaming state will be changed (maybe, if needed).
-    */
-  checkRoamingBetweenOperators: function checkRoamingBetweenOperators(registration) {
-    let icc = this.rilContext.icc;
-    if (!icc || !registration.connected) {
-      return;
-    }
-
-    let spn = icc.spn;
-    let operator = registration.network;
-    let longName = operator.longName;
-    let shortName = operator.shortName;
-
-    let equalsLongName = longName && (spn == longName);
-    let equalsShortName = shortName && (spn == shortName);
-    let equalsMcc = icc.mcc == operator.mcc;
-
-    registration.roaming = registration.roaming &&
-                           !(equalsMcc && (equalsLongName || equalsShortName));
   },
 
   /**
@@ -1356,6 +1327,9 @@ RadioInterfaceLayer.prototype = {
     if (value == this.microphoneMuted) {
       return;
     }
+    gAudioManager.phoneState = value ?
+      nsIAudioManager.PHONE_STATE_IN_COMMUNICATION :
+      nsIAudioManager.PHONE_STATE_IN_CALL;  //XXX why is this needed?
     gAudioManager.microphoneMuted = value;
 
     if (!this._activeCall) {
@@ -1371,6 +1345,7 @@ RadioInterfaceLayer.prototype = {
     if (value == this.speakerEnabled) {
       return;
     }
+    gAudioManager.phoneState = nsIAudioManager.PHONE_STATE_IN_CALL; // XXX why is this needed?
     let force = value ? nsIAudioManager.FORCE_SPEAKER :
                         nsIAudioManager.FORCE_NONE;
     gAudioManager.setForceForUse(nsIAudioManager.USE_COMMUNICATION, force);

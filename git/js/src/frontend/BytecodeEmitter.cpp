@@ -14,6 +14,7 @@
 #ifdef HAVE_MEMORY_H
 #include <memory.h>
 #endif
+#include <new>
 #include <string.h>
 
 #include "jstypes.h"
@@ -4850,13 +4851,6 @@ EmitFunc(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     {
         SharedContext *outersc = bce->sc;
         FunctionBox *funbox = pn->pn_funbox;
-
-        // If funbox's strictModeState is still unknown (as can happen for
-        // functions defined in defaults), inherit it from the parent.
-        if (funbox->strictModeState == StrictMode::UNKNOWN) {
-            JS_ASSERT(outersc->strictModeState != StrictMode::UNKNOWN);
-            funbox->strictModeState = outersc->strictModeState;
-        }
         if (outersc->isFunction && outersc->asFunbox()->mightAliasLocals())
             funbox->setMightAliasLocals();      // inherit mightAliasLocals from parent
         JS_ASSERT_IF(outersc->inStrictMode(), funbox->inStrictMode());

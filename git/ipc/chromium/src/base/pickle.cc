@@ -492,7 +492,7 @@ char* Pickle::BeginWriteData(int length) {
     "There can only be one variable buffer in a Pickle";
 
   if (!WriteInt(length))
-    return NULL;
+    return false;
 
   char *data_ptr = BeginWrite(length, sizeof(uint32_t));
   if (!data_ptr)

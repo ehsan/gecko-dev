@@ -117,33 +117,7 @@ private:
 typedef nsTArray<nsRefPtr<GetUserMediaCallbackMediaStreamListener> > StreamListeners;
 typedef nsClassHashtable<nsUint64HashKey, StreamListeners> WindowTable;
 
-class MediaDevice : public nsIMediaDevice
-{
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIMEDIADEVICE
-
-  MediaDevice(MediaEngineVideoSource* aSource) {
-    mSource = aSource;
-    mType.Assign(NS_LITERAL_STRING("video"));
-    mSource->GetName(mName);
-  };
-  MediaDevice(MediaEngineAudioSource* aSource) {
-    mSource = aSource;
-    mType.Assign(NS_LITERAL_STRING("audio"));
-    mSource->GetName(mName);
-  };
-  virtual ~MediaDevice() {};
-
-  MediaEngineSource* GetSource();
-private:
-  nsString mName;
-  nsString mType;
-  nsRefPtr<MediaEngineSource> mSource;
-};
-
-class MediaManager MOZ_FINAL : public nsIObserver
-{
+class MediaManager MOZ_FINAL : public nsIObserver {
 public:
   static MediaManager* Get() {
     if (!sSingleton) {
@@ -161,12 +135,8 @@ public:
   MediaEngine* GetBackend();
   WindowTable* GetActiveWindows();
 
-  nsresult GetUserMedia(bool aPrivileged, nsPIDOMWindow* aWindow,
-    nsIMediaStreamOptions* aParams,
+  nsresult GetUserMedia(nsPIDOMWindow* aWindow, nsIMediaStreamOptions* aParams,
     nsIDOMGetUserMediaSuccessCallback* onSuccess,
-    nsIDOMGetUserMediaErrorCallback* onError);
-  nsresult GetUserMediaDevices(nsPIDOMWindow* aWindow,
-    nsIGetUserMediaDevicesSuccessCallback* onSuccess,
     nsIDOMGetUserMediaErrorCallback* onError);
   void OnNavigation(uint64_t aWindowID);
 

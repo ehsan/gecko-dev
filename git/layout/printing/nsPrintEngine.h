@@ -13,10 +13,7 @@
 #include "nsPrintData.h"
 #include "nsFrameList.h"
 #include "mozilla/Attributes.h"
-#include "nsIWebProgress.h"
 #include "nsHTMLCanvasElement.h"
-#include "nsIWebProgressListener.h"
-#include "nsWeakReference.h"
 
 // Interfaces
 #include "nsIDocument.h"
@@ -37,9 +34,7 @@ class nsIWeakReference;
 // nsPrintEngine Class
 //
 //------------------------------------------------------------------------
-class nsPrintEngine MOZ_FINAL : public nsIObserver,
-                                public nsIWebProgressListener,
-                                public nsSupportsWeakReference
+class nsPrintEngine MOZ_FINAL : public nsIObserver
 {
 public:
   // nsISupports interface...
@@ -47,8 +42,6 @@ public:
 
   // nsIObserver
   NS_DECL_NSIOBSERVER
-
-  NS_DECL_NSIWEBPROGRESSLISTENER
 
   // Old nsIWebBrowserPrint methods; not cleaned up yet
   NS_IMETHOD Print(nsIPrintSettings*       aPrintSettings,
@@ -278,23 +271,6 @@ protected:
 
   FILE* mDebugFile;
 
-  int32_t mLoadCounter;
-  bool mDidLoadDataForPrinting;
-
-  nsresult AfterNetworkPrint(bool aHandleError);
-
-  nsresult SetRootView(nsPrintObject* aPO,
-                       bool& aDoReturn,
-                       bool& aDocumentIsTopLevel,
-                       nsSize& aAdjSize);
-  nsIView* GetParentViewForRoot();
-  bool DoSetPixelScale();
-  void UpdateZoomRatio(nsPrintObject* aPO, bool aSetPixelScale);
-  nsresult ReconstructAndReflow(bool aDoSetPixelScale);
-  nsresult UpdateSelectionAndShrinkPrintObject(nsPrintObject* aPO,
-                                               bool aDocumentIsTopLevel);
-  nsresult InitPrintDocConstruction(bool aHandleError);
-  void FirePrintPreviewUpdateEvent();
 private:
   nsPrintEngine& operator=(const nsPrintEngine& aOther) MOZ_DELETE;
 };

@@ -365,12 +365,14 @@ bool ConvertToPrimitive(JSContext *cx, const JS::Value& v, T *retval)
 
 // static
 JSBool
-XPCConvert::JSData2Native(JSContext* cx, void* d, jsval s,
+XPCConvert::JSData2Native(XPCCallContext& ccx, void* d, jsval s,
                           const nsXPTType& type,
                           JSBool useAllocator, const nsID* iid,
                           nsresult* pErr)
 {
     NS_PRECONDITION(d, "bad param");
+
+    JSContext* cx = ccx.GetJSContext();
 
     JSBool isDOMString = true;
 
@@ -513,7 +515,7 @@ XPCConvert::JSData2Native(JSContext* cx, void* d, jsval s,
                     return false;
 
                 XPCReadableJSStringWrapper *wrapper =
-                    nsXPConnect::GetRuntimeInstance()->NewStringWrapper(strChars, strLength);
+                    ccx.NewStringWrapper(strChars, strLength);
                 if (!wrapper)
                     return false;
 
@@ -713,7 +715,7 @@ XPCConvert::JSData2Native(JSContext* cx, void* d, jsval s,
         NS_ASSERTION(iid,"can't do interface conversions without iid");
 
         if (iid->Equals(NS_GET_IID(nsIVariant))) {
-            XPCVariant* variant = XPCVariant::newVariant(cx, s);
+            XPCVariant* variant = XPCVariant::newVariant(ccx, s);
             if (!variant)
                 return false;
             *((nsISupports**)d) = static_cast<nsIVariant*>(variant);
@@ -750,7 +752,7 @@ XPCConvert::JSData2Native(JSContext* cx, void* d, jsval s,
             return false;
         }
 
-        return JSObject2NativeInterface(cx, (void**)d, &s.toObject(), iid,
+        return JSObject2NativeInterface(ccx, (void**)d, &s.toObject(), iid,
                                         nullptr, pErr);
     }
     default:
@@ -1008,7 +1010,7 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
 
 // static
 JSBool
-XPCConvert::JSObject2NativeInterface(JSContext* cx,
+XPCConvert::JSObject2NativeInterface(XPCCallContext& ccx,
                                      void** dest, JSObject* src,
                                      const nsID* iid,
                                      nsISupports* aOuter,
@@ -1018,6 +1020,7 @@ XPCConvert::JSObject2NativeInterface(JSContext* cx,
     NS_ASSERTION(src, "bad param");
     NS_ASSERTION(iid, "bad param");
 
+    JSContext* cx = ccx.GetJSContext();
     JSAutoCompartment ac(cx, src);
 
     *dest = nullptr;
@@ -1075,7 +1078,7 @@ XPCConvert::JSObject2NativeInterface(JSContext* cx,
     // else...
 
     nsXPCWrappedJS* wrapper;
-    nsresult rv = nsXPCWrappedJS::GetNewOrUsed(cx, src, *iid, aOuter, &wrapper);
+    nsresult rv = nsXPCWrappedJS::GetNewOrUsed(ccx, src, *iid, aOuter, &wrapper);
     if (pErr)
         *pErr = rv;
     if (NS_SUCCEEDED(rv) && wrapper) {
@@ -1531,7 +1534,7 @@ CheckTargetAndPopulate(JSContext *cx,
 
 // static
 JSBool
-XPCConvert::JSTypedArray2Native(JSContext* cx,
+XPCConvert::JSTypedArray2Native(XPCCallContext& ccx,
                                 void** d,
                                 JSObject* jsArray,
                                 uint32_t count,
@@ -1540,6 +1543,7 @@ XPCConvert::JSTypedArray2Native(JSContext* cx,
 {
     NS_ABORT_IF_FALSE(jsArray, "bad param");
     NS_ABORT_IF_FALSE(d, "bad param");
+    JSContext* cx = ccx.GetJSContext();
     NS_ABORT_IF_FALSE(JS_IsTypedArrayObject(jsArray, cx), "not a typed array");
 
     // Check the actual length of the input array against the
@@ -1637,11 +1641,13 @@ XPCConvert::JSTypedArray2Native(JSContext* cx,
 
 // static
 JSBool
-XPCConvert::JSArray2Native(JSContext* cx, void** d, JS::Value s,
+XPCConvert::JSArray2Native(XPCCallContext& ccx, void** d, JS::Value s,
                            uint32_t count, const nsXPTType& type,
                            const nsID* iid, nsresult* pErr)
 {
     NS_ABORT_IF_FALSE(d, "bad param");
+
+    JSContext* cx = ccx.GetJSContext();
 
     // XXX add support for getting chars from strings
 
@@ -1668,7 +1674,7 @@ XPCConvert::JSArray2Native(JSContext* cx, void** d, JS::Value s,
 
     // If this is a typed array, then try a fast conversion with memcpy.
     if (JS_IsTypedArrayObject(jsarray, cx)) {
-        return JSTypedArray2Native(cx, d, jsarray, count, type, pErr);
+        return JSTypedArray2Native(ccx, d, jsarray, count, type, pErr);
     }
 
     if (!JS_IsArrayObject(cx, jsarray)) {
@@ -1699,7 +1705,7 @@ XPCConvert::JSArray2Native(JSContext* cx, void** d, JS::Value s,
         }                                                                     \
         for (initedCount = 0; initedCount < count; initedCount++) {           \
             if (!JS_GetElement(cx, jsarray, initedCount, &current) ||         \
-                !JSData2Native(cx, ((_t*)array)+initedCount, current, type,  \
+                !JSData2Native(ccx, ((_t*)array)+initedCount, current, type,  \
                                true, iid, pErr))                              \
                 goto failure;                                                 \
         }                                                                     \

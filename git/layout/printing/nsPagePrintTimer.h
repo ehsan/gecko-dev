@@ -18,8 +18,8 @@ class nsPrintEngine;
 //---------------------------------------------------
 //-- Page Timer Class
 //---------------------------------------------------
-class nsPagePrintTimer MOZ_FINAL : public nsRunnable,
-                                   public nsITimerCallback
+class nsPagePrintTimer MOZ_FINAL : public nsITimerCallback,
+                                   public nsRunnable
 {
 public:
 

@@ -148,7 +148,10 @@ public:
   /**
    * Remember whether our presshell's view manager needs a flush
    */
-  void ScheduleViewManagerFlush();
+  void ScheduleViewManagerFlush() {
+    mViewManagerFlushIsPending = true;
+    EnsureTimerStarted(false);
+  }
   void RevokeViewManagerFlush() {
     mViewManagerFlushIsPending = false;
   }

@@ -102,6 +102,7 @@ public:
   VibratorRunnable()
     : mMonitor("VibratorRunnable")
     , mIndex(0)
+    , mShuttingDown(false)
   {
     nsCOMPtr<nsIObserverService> os = services::GetObserverService();
     if (!os) {
@@ -109,9 +110,8 @@ public:
       return;
     }
 
-    os->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false);
+    os->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, /* weak ref */ true);
   }
-
   NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
   NS_DECL_NSIOBSERVER
@@ -119,8 +119,6 @@ public:
   // Run on the main thread, not the vibrator thread.
   void Vibrate(const nsTArray<uint32_t> &pattern);
   void CancelVibrate();
-
-  static bool ShuttingDown() { return sShuttingDown; }
 
 private:
   Monitor mMonitor;
@@ -134,14 +132,10 @@ private:
 
   // Set to true in our shutdown observer.  When this is true, we kill the
   // vibrator thread.
-  static bool sShuttingDown;
+  bool mShuttingDown;
 };
 
-NS_IMPL_THREADSAFE_ISUPPORTS2(VibratorRunnable, nsIRunnable, nsIObserver);
-
-bool VibratorRunnable::sShuttingDown = false;
-
-static nsRefPtr<VibratorRunnable> sVibratorRunnable;
+NS_IMPL_ISUPPORTS2(VibratorRunnable, nsIRunnable, nsIObserver);
 
 NS_IMETHODIMP
 VibratorRunnable::Run()
@@ -157,7 +151,7 @@ VibratorRunnable::Run()
   // condvar onto another thread.  Better just to be chill about small errors in
   // the timing here.
 
-  while (!sShuttingDown) {
+  while (!mShuttingDown) {
     if (mIndex < mPattern.Length()) {
       uint32_t duration = mPattern[mIndex];
       if (mIndex % 2 == 0) {
@@ -170,7 +164,7 @@ VibratorRunnable::Run()
       mMonitor.Wait();
     }
   }
-  sVibratorRunnable = NULL;
+
   return NS_OK;
 }
 
@@ -180,9 +174,8 @@ VibratorRunnable::Observe(nsISupports *subject, const char *topic,
 {
   MOZ_ASSERT(strcmp(topic, NS_XPCOM_SHUTDOWN_OBSERVER_ID) == 0);
   MonitorAutoLock lock(mMonitor);
-  sShuttingDown = true;
+  mShuttingDown = true;
   mMonitor.Notify();
-
   return NS_OK;
 }
 
@@ -205,6 +198,8 @@ VibratorRunnable::CancelVibrate()
   mMonitor.Notify();
 }
 
+VibratorRunnable *sVibratorRunnable = NULL;
+
 void
 EnsureVibratorThreadInitialized()
 {
@@ -212,7 +207,8 @@ EnsureVibratorThreadInitialized()
     return;
   }
 
-  sVibratorRunnable = new VibratorRunnable();
+  nsRefPtr<VibratorRunnable> runnable = new VibratorRunnable();
+  sVibratorRunnable = runnable;
   nsCOMPtr<nsIThread> thread;
   NS_NewThread(getter_AddRefs(thread), sVibratorRunnable);
 }
@@ -222,10 +218,6 @@ EnsureVibratorThreadInitialized()
 void
 Vibrate(const nsTArray<uint32_t> &pattern, const hal::WindowIdentifier &)
 {
-  MOZ_ASSERT(NS_IsMainThread());
-  if (VibratorRunnable::ShuttingDown()) {
-    return;
-  }
   EnsureVibratorThreadInitialized();
   sVibratorRunnable->Vibrate(pattern);
 }
@@ -233,10 +225,6 @@ Vibrate(const nsTArray<uint32_t> &pattern, const hal::WindowIdentifier &)
 void
 CancelVibrate(const hal::WindowIdentifier &)
 {
-  MOZ_ASSERT(NS_IsMainThread());
-  if (VibratorRunnable::ShuttingDown()) {
-    return;
-  }
   EnsureVibratorThreadInitialized();
   sVibratorRunnable->CancelVibrate();
 }

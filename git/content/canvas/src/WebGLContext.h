@@ -41,8 +41,6 @@
 #include "mozilla/ErrorResult.h"
 #include "mozilla/dom/BindingUtils.h"
 
-#include "WebGLElementArrayCache.h"
-
 /* 
  * Minimum value constants defined in 6.2 State Tables of OpenGL ES - 2.0.25
  *   https://bugzilla.mozilla.org/show_bug.cgi?id=686732
@@ -1498,6 +1496,7 @@ public:
         , mHasEverBeenBound(false)
         , mByteLength(0)
         , mTarget(LOCAL_GL_NONE)
+        , mData(nullptr)
     {
         mContext->MakeContextCurrent();
         mContext->gl->fGenBuffers(1, &mGLName);
@@ -1511,14 +1510,14 @@ public:
     void Delete() {
         mContext->MakeContextCurrent();
         mContext->gl->fDeleteBuffers(1, &mGLName);
+        free(mData);
+        mData = nullptr;
         mByteLength = 0;
-        mCache = nullptr;
         LinkedListElement<WebGLBuffer>::remove(); // remove from mContext->mBuffers
     }
 
     size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
-        size_t sizeOfCache = mCache ? mCache->SizeOfIncludingThis(aMallocSizeOf) : 0;
-        return aMallocSizeOf(this) + sizeOfCache;
+        return aMallocSizeOf(this) + aMallocSizeOf(mData);
     }
 
     bool HasEverBeenBound() { return mHasEverBeenBound; }
@@ -1526,28 +1525,83 @@ public:
     GLuint GLName() const { return mGLName; }
     GLuint ByteLength() const { return mByteLength; }
     GLenum Target() const { return mTarget; }
+    const void *Data() const { return mData; }
 
     void SetByteLength(GLuint byteLength) { mByteLength = byteLength; }
+    void SetTarget(GLenum target) { mTarget = target; }
 
-    void SetTarget(GLenum target) {
-        mTarget = target;
-        if (!mCache && mTarget == LOCAL_GL_ELEMENT_ARRAY_BUFFER)
-            mCache = new WebGLElementArrayCache;
-     }
-
-    bool ElementArrayCacheBufferData(const void* ptr, size_t buffer_size_in_bytes) {
-        if (mTarget == LOCAL_GL_ELEMENT_ARRAY_BUFFER)
-            return mCache->BufferData(ptr, buffer_size_in_bytes);
+    // element array buffers are the only buffers for which we need to keep a copy of the data.
+    // this method assumes that the byte length has previously been set by calling SetByteLength.
+    bool CopyDataIfElementArray(const void* data) {
+        if (mTarget == LOCAL_GL_ELEMENT_ARRAY_BUFFER) {
+            mData = realloc(mData, mByteLength);
+            if (!mData) {
+                mByteLength = 0;
+                return false;
+            }
+            memcpy(mData, data, mByteLength);
+        }
         return true;
     }
 
-    void ElementArrayCacheBufferSubData(size_t pos, const void* ptr, size_t update_size_in_bytes) {
-        if (mTarget == LOCAL_GL_ELEMENT_ARRAY_BUFFER)
-            mCache->BufferSubData(pos, ptr, update_size_in_bytes);
+    // same comments as for CopyElementArrayData
+    bool ZeroDataIfElementArray() {
+        if (mTarget == LOCAL_GL_ELEMENT_ARRAY_BUFFER) {
+            mData = realloc(mData, mByteLength);
+            if (!mData) {
+                mByteLength = 0;
+                return false;
+            }
+            memset(mData, 0, mByteLength);
+        }
+        return true;
     }
 
-    bool Validate(WebGLenum type, uint32_t max_allowed, size_t first, size_t count) {
-        return mCache->Validate(type, max_allowed, first, count);
+    // same comments as for CopyElementArrayData
+    void CopySubDataIfElementArray(GLuint byteOffset, GLuint byteLength, const void* data) {
+        if (mTarget == LOCAL_GL_ELEMENT_ARRAY_BUFFER && mByteLength) {
+            memcpy((void*) (size_t(mData)+byteOffset), data, byteLength);
+        }
+    }
+
+    // this method too is only for element array buffers. It returns the maximum value in the part of
+    // the buffer starting at given offset, consisting of given count of elements. The type T is the type
+    // to interpret the array elements as, must be GLushort or GLubyte.
+    template<typename T>
+    T FindMaxElementInSubArray(GLuint count, GLuint byteOffset)
+    {
+        const T* start = reinterpret_cast<T*>(reinterpret_cast<size_t>(mData) + byteOffset);
+        const T* stop = start + count;
+        T result = 0;
+        for(const T* ptr = start; ptr != stop; ++ptr) {
+            if (*ptr > result) result = *ptr;
+        }
+        return result;
+    }
+
+    void InvalidateCachedMaxElements() {
+      mHasCachedMaxUbyteElement = false;
+      mHasCachedMaxUshortElement = false;
+    }
+
+    int32_t FindMaxUbyteElement() {
+      if (mHasCachedMaxUbyteElement) {
+        return mCachedMaxUbyteElement;
+      } else {
+        mHasCachedMaxUbyteElement = true;
+        mCachedMaxUbyteElement = FindMaxElementInSubArray<GLubyte>(mByteLength, 0);
+        return mCachedMaxUbyteElement;
+      }
+    }
+
+    int32_t FindMaxUshortElement() {
+      if (mHasCachedMaxUshortElement) {
+        return mCachedMaxUshortElement;
+      } else {
+        mHasCachedMaxUshortElement = true;
+        mCachedMaxUshortElement = FindMaxElementInSubArray<GLushort>(mByteLength>>1, 0);
+        return mCachedMaxUshortElement;
+      }
     }
 
     NS_DECL_ISUPPORTS
@@ -1560,7 +1614,12 @@ protected:
     GLuint mByteLength;
     GLenum mTarget;
 
-    nsAutoPtr<WebGLElementArrayCache> mCache;
+    uint8_t mCachedMaxUbyteElement;
+    bool mHasCachedMaxUbyteElement;
+    uint16_t mCachedMaxUshortElement;
+    bool mHasCachedMaxUshortElement;
+
+    void* mData; // in the case of an Element Array Buffer, we keep a copy.
 };
 
 // NOTE: When this class is switched to new DOM bindings, update the (then-slow)

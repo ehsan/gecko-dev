@@ -11,11 +11,8 @@
 #include "nsIHttpChannel.h"
 #include "nsIInputStream.h"
 #include "nsNetUtil.h"
-#include "mozilla/unused.h"
 
 #include <stdio.h>
-
-using namespace mozilla;
 
 /*
  * Test synchronous Open.
@@ -62,7 +59,7 @@ main(int argc, char **argv)
 
     uint32_t read;
     while (NS_SUCCEEDED(stream->Read(buf, sizeof(buf), &read)) && read) {
-      unused << fwrite(buf, 1, read, outfile);
+      fwrite(buf, 1, read, outfile);
     }
     printf("Done\n");
 

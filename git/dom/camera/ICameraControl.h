@@ -5,6 +5,8 @@
 #ifndef DOM_CAMERA_ICAMERACONTROL_H
 #define DOM_CAMERA_ICAMERACONTROL_H
 
+#include "base/basictypes.h"
+#include "prtypes.h"
 #include "jsapi.h"
 #include "nsIDOMCameraManager.h"
 #include "DictionaryHelpers.h"

@@ -519,15 +519,6 @@ nsRefreshDriver::IsRefreshObserver(nsARefreshObserver *aObserver,
 #endif
 
 void
-nsRefreshDriver::ScheduleViewManagerFlush()
-{
-  NS_ASSERTION(mPresContext->IsRoot(),
-               "Should only schedule view manager flush on root prescontexts");
-  mViewManagerFlushIsPending = true;
-  EnsureTimerStarted(false);
-}
-
-void
 nsRefreshDriver::ScheduleFrameRequestCallbacks(nsIDocument* aDocument)
 {
   NS_ASSERTION(mFrameRequestCallbackDocs.IndexOf(aDocument) ==

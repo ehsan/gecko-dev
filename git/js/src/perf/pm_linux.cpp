@@ -14,6 +14,7 @@ using namespace js;
  */
 
 #include <linux/perf_event.h>
+#include <new>
 #include <sys/syscall.h>
 #include <sys/ioctl.h>
 #include <errno.h>

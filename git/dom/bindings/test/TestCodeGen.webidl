@@ -217,7 +217,6 @@ interface TestInterface {
   void passStringSequence(sequence<DOMString> arg);
 
   sequence<any> receiveAnySequence();
-  sequence<any>? receiveNullableAnySequence();
 
   // Typed array types
   void passArrayBuffer(ArrayBuffer arg);
