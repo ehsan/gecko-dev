@@ -105,13 +105,6 @@ function testCompletion(hud) {
 
   is(jsterm.completeNode.value, "              ice", "non-object completion");
 
-  // Test string literal autocompletion.
-  input.value = "'Asimov'.sl";
-  jsterm.complete(jsterm.COMPLETE_HINT_ONLY, testNext);
-  yield;
-
-  is(jsterm.completeNode.value, "           ice", "string literal completion");
-
   testDriver = jsterm = input = null;
   executeSoon(finishTest);
   yield;
