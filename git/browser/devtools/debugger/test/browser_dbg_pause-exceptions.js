@@ -11,17 +11,12 @@ const TAB_URL = EXAMPLE_URL + "browser_dbg_pause-exceptions.html";
 var gPane = null;
 var gTab = null;
 var gDebugger = null;
-var gPrevPref = null;
+var gCount = 0;
 
 requestLongerTimeout(2);
 
 function test()
 {
-  gPrevPref = Services.prefs.getBoolPref(
-    "devtools.debugger.ui.pause-on-exceptions");
-  Services.prefs.setBoolPref(
-    "devtools.debugger.ui.pause-on-exceptions", true);
-
   debug_tab_pane(TAB_URL, function(aTab, aDebuggee, aPane) {
     gTab = aTab;
     gPane = aPane;
@@ -35,39 +30,33 @@ function test()
 
 function testWithFrame()
 {
-  let count = 0;
   gPane.panelWin.gClient.addOneTimeListener("paused", function() {
     gDebugger.addEventListener("Debugger:FetchedVariables", function testA() {
       // We expect 2 Debugger:FetchedVariables events, one from the global object
       // scope and the regular one.
-      if (++count < 2) {
-        is(count, 1, "A. First Debugger:FetchedVariables event received.");
+      if (++gCount < 2) {
+        is(gCount, 1, "A. First Debugger:FetchedVariables event received.");
         return;
       }
-      is(count, 2, "A. Second Debugger:FetchedVariables event received.");
+      is(gCount, 2, "A. Second Debugger:FetchedVariables event received.");
       gDebugger.removeEventListener("Debugger:FetchedVariables", testA, false);
 
       is(gDebugger.DebuggerController.activeThread.state, "paused",
         "Should be paused now.");
 
-      // Pause on exceptions should be already enabled.
-      is(gPrevPref, false,
-        "The pause-on-exceptions functionality should be disabled by default.");
-      is(gDebugger.Prefs.pauseOnExceptions, true,
-        "The pause-on-exceptions pref should be true from startup.");
-      is(gDebugger.DebuggerView.Options._pauseOnExceptionsItem.getAttribute("checked"), "true",
-        "Pause on exceptions should be enabled from startup. ")
+      gDebugger.DebuggerView.Options._pauseOnExceptionsItem.setAttribute("checked", "true");
+      gDebugger.DebuggerView.Options._togglePauseOnExceptions();
 
-      count = 0;
+      gCount = 0;
       gPane.panelWin.gClient.addOneTimeListener("resumed", function() {
         gDebugger.addEventListener("Debugger:FetchedVariables", function testB() {
           // We expect 2 Debugger:FetchedVariables events, one from the global object
           // scope and the regular one.
-          if (++count < 2) {
-            is(count, 1, "B. First Debugger:FetchedVariables event received.");
+          if (++gCount < 2) {
+            is(gCount, 1, "B. First Debugger:FetchedVariables event received.");
             return;
           }
-          is(count, 2, "B. Second Debugger:FetchedVariables event received.");
+          is(gCount, 2, "B. Second Debugger:FetchedVariables event received.");
           gDebugger.removeEventListener("Debugger:FetchedVariables", testB, false);
           Services.tm.currentThread.dispatch({ run: function() {
 
@@ -90,15 +79,7 @@ function testWithFrame()
             is(innerNodes[0].querySelector(".value").getAttribute("value"), "[object Error]",
               "Should have the right property value for the exception.");
 
-            // Disable pause on exceptions.
-            gDebugger.DebuggerView.Options._pauseOnExceptionsItem.setAttribute("checked", "false");
-            gDebugger.DebuggerView.Options._togglePauseOnExceptions();
-
-            is(gDebugger.Prefs.pauseOnExceptions, false,
-              "The pause-on-exceptions pref should have been set to false.");
-
             resumeAndFinish();
-
           }}, 0);
         }, false);
       });
@@ -118,8 +99,7 @@ function resumeAndFinish() {
   gPane.panelWin.gClient.addOneTimeListener("resumed", function() {
     Services.tm.currentThread.dispatch({ run: function() {
 
-      closeDebuggerAndFinish();
-
+      closeDebuggerAndFinish(false);
     }}, 0);
   });
 

@@ -797,8 +797,7 @@ this.WebConsoleUtils = {
 
     let type = typeof aObject;
     if (type != "object") {
-      // Grip class names should start with an uppercase letter.
-      return type.charAt(0).toUpperCase() + type.substr(1);
+      return type;
     }
 
     let className;

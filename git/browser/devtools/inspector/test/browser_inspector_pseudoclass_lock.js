@@ -8,7 +8,7 @@ let TargetFactory = tempScope.TargetFactory;
 let DOMUtils = Cc["@mozilla.org/inspector/dom-utils;1"].getService(Ci.inIDOMUtils);
 
 let doc;
-let parentDiv, div, div2;
+let div;
 let inspector;
 let ruleview;
 
@@ -30,14 +30,8 @@ function test()
 
 function createDocument()
 {
-  parentDiv = doc.createElement("div");
-  parentDiv.textContent = "parent div";
-
   div = doc.createElement("div");
   div.textContent = "test div";
-
-  div2 = doc.createElement("div");
-  div2.textContent = "test div2";
 
   let head = doc.getElementsByTagName('head')[0];
   let style = doc.createElement('style');
@@ -45,9 +39,7 @@ function createDocument()
 
   style.appendChild(rules);
   head.appendChild(style);
-  parentDiv.appendChild(div);
-  parentDiv.appendChild(div2);
-  doc.body.appendChild(parentDiv);
+  doc.body.appendChild(div);
 
   openInspector(selectNode);
 }
@@ -79,29 +71,8 @@ function performTests()
   // toggle it back on
   inspector.togglePseudoClass(pseudo);
 
-  testNavigate();
-
   // close the inspector
   finishUp();
-}
-
-function testNavigate()
-{
-  inspector.selection.setNode(parentDiv);
-
-  // make sure it's still on after naving to parent
-  is(DOMUtils.hasPseudoClassLock(div, pseudo), true,
-       "pseudo-class lock is still applied after inspecting ancestor");
-
-  inspector.selection.setNode(div2);
-
-  // make sure it's removed after naving to a non-hierarchy node
-  is(DOMUtils.hasPseudoClassLock(div, pseudo), false,
-       "pseudo-class lock is removed after inspecting sibling node");
-
-  // toggle it back on
-  inspector.selection.setNode(div);
-  inspector.togglePseudoClass(pseudo);
 }
 
 function testAdded()
@@ -128,7 +99,7 @@ function testAdded()
 
 function testRemoved()
 {
-  // lock removed from node and ancestors
+  // lock removed from node and ancestors  
   let node = div;
   do {
     is(DOMUtils.hasPseudoClassLock(node, pseudo), false,
@@ -141,11 +112,11 @@ function testRemovedFromUI()
 {
   // infobar selector doesn't contain pseudo-class
   let pseudoClassesBox = getActiveInspector().highlighter.nodeInfo.pseudoClassesBox;
-  is(pseudoClassesBox.textContent, "", "pseudo-class removed from infobar selector");
+  is(pseudoClassesBox.textContent, "", "pseudo-class removed from infobar selector");    
 
   // ruleview no longer contains pseudo-class rule
   is(ruleview.element.children.length, 2,
-     "rule view is showing 2 rules after removing lock");
+     "rule view is showing 2 rules after removing lock");    
 }
 
 function finishUp()
