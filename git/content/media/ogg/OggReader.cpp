@@ -489,6 +489,7 @@ nsresult OggReader::ReadMetadata(MediaInfo* aInfo,
     {
       // We didn't get a duration from the index or a Content-Duration header.
       // Seek to the end of file to find the end time.
+      mDecoder->GetResource()->StartSeekingForMetadata();
       int64_t length = resource->GetLength();
 
       NS_ASSERTION(length > 0, "Must have a content length to get end time");
@@ -502,6 +503,7 @@ nsresult OggReader::ReadMetadata(MediaInfo* aInfo,
         mDecoder->SetMediaEndTime(endTime);
         LOG(PR_LOG_DEBUG, ("Got Ogg duration from seeking to end %lld", endTime));
       }
+      mDecoder->GetResource()->EndSeekingForMetadata();
     }
   } else {
     return NS_ERROR_FAILURE;

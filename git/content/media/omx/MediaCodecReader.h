@@ -78,7 +78,6 @@ public:
   virtual bool HasAudio();
   virtual bool HasVideo();
 
-  virtual void PreReadMetadata() MOZ_OVERRIDE;
   // Read header data for all bitstreams in the file. Fills aInfo with
   // the data required to present the media, and optionally fills *aTags
   // with tag metadata from the file.
@@ -153,14 +152,7 @@ protected:
 
   virtual bool CreateExtractor();
 
-  // Check the underlying HW resource is available and store the result in
-  // mIsWaitingResources.
-  void UpdateIsWaitingMediaResources();
-
   android::sp<android::MediaExtractor> mExtractor;
-  // A cache value updated by UpdateIsWaitingMediaResources(), makes the
-  // "waiting resources state" is synchronous to StateMachine.
-  bool mIsWaitingResources;
 
 private:
   // An intermediary class that can be managed by android::sp<T>.

@@ -311,6 +311,8 @@ public:
   // The file strategy doesn't block for any great length of time so
   // is fine for a no-op cancel.
   virtual nsresult Seek(int32_t aWhence, int64_t aOffset) = 0;
+  virtual void StartSeekingForMetadata() = 0;
+  virtual void EndSeekingForMetadata() = 0;
   // Report the current offset in bytes from the start of the stream.
   virtual int64_t Tell() = 0;
   // Moves any existing channel loads into the background, so that they don't
@@ -586,6 +588,8 @@ public:
   virtual nsresult ReadAt(int64_t offset, char* aBuffer,
                           uint32_t aCount, uint32_t* aBytes);
   virtual nsresult Seek(int32_t aWhence, int64_t aOffset);
+  virtual void     StartSeekingForMetadata();
+  virtual void     EndSeekingForMetadata();
   virtual int64_t  Tell();
 
   // Any thread
@@ -709,6 +713,9 @@ protected:
   // to resume later. This is usually due to the channel not being in the
   // isPending state at the time of the suspend request.
   bool mIgnoreResume;
+
+  // True if we are seeking to get the real duration of the file.
+  bool mSeekingForMetadata;
 
   // Start and end offset of the bytes to be requested.
   MediaByteRange mByteRange;

@@ -31,11 +31,6 @@
 #include "gfx2DGlue.h"
 #include "GeckoTouchDispatcher.h"
 
-#ifdef MOZ_ENABLE_PROFILER_SPS
-#include "GeckoProfiler.h"
-#include "ProfilerMarkers.h"
-#endif
-
 #if ANDROID_VERSION >= 17
 #include "libdisplay/FramebufferSurface.h"
 #include "gfxPrefs.h"
@@ -75,8 +70,6 @@ using namespace mozilla::layers;
 namespace mozilla {
 
 #if ANDROID_VERSION >= 17
-nsecs_t sAndroidInitTime = 0;
-mozilla::TimeStamp sMozInitTime;
 static void
 HookInvalidate(const struct hwc_procs* aProcs)
 {
@@ -161,8 +154,6 @@ HwcComposer2D::Init(hwc_display_t dpy, hwc_surface_t sur, gl::GLContext* aGLCont
     }
 
     if (RegisterHwcEventCallback()) {
-        sAndroidInitTime = systemTime(SYSTEM_TIME_MONOTONIC);
-        sMozInitTime = TimeStamp::Now();
         EnableVsync(true);
     }
 #else
@@ -238,17 +229,9 @@ HwcComposer2D::RunVsyncEventControl(bool aEnable)
 }
 
 void
-HwcComposer2D::Vsync(int aDisplay, nsecs_t aVsyncTimestamp)
+HwcComposer2D::Vsync(int aDisplay, int64_t aTimestamp)
 {
-#ifdef MOZ_ENABLE_PROFILER_SPS
-    if (profiler_is_active()) {
-      nsecs_t timeSinceInit = aVsyncTimestamp - sAndroidInitTime;
-      TimeStamp vsyncTime = sMozInitTime + TimeDuration::FromMicroseconds(timeSinceInit / 1000);
-      CompositorParent::PostInsertVsyncProfilerMarker(vsyncTime);
-    }
-#endif
-
-    GeckoTouchDispatcher::NotifyVsync(aVsyncTimestamp);
+    GeckoTouchDispatcher::NotifyVsync(aTimestamp);
 }
 
 // Called on the "invalidator" thread (run from HAL).
