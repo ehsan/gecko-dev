@@ -165,7 +165,7 @@ public:
   // Timer Methods
   nsresult StartPagePrintTimer(nsPrintObject* aPO);
 
-  PRBool IsWindowsInOurSubTree(nsIDOMWindow * aDOMWindow);
+  PRBool IsWindowsInOurSubTree(nsPIDOMWindow * aDOMWindow);
   static PRBool IsParentAFrameSet(nsIDocShell * aParent);
   PRBool IsThereAnIFrameSelected(nsIDocShell* aDocShell,
                                  nsIDOMWindow* aDOMWin,
@@ -197,7 +197,7 @@ public:
 
   nsIWidget* GetPrintPreviewWindow() {return mPrtPreview->mPrintObject->mWindow;}
 
-  nsIViewManager* GetPrintPreviewViewManager() {return mPrtPreview->mPrintObject->mViewManager;}
+  nsIPresShell* GetPrintPreviewPresShell() {return mPrtPreview->mPrintObject->mPresShell;}
 
   float GetPrintPreviewScale() { return mPrtPreview->mPrintObject->
                                         mPresContext->GetPrintPreviewScale(); }

@@ -139,24 +139,24 @@ NS_IMPL_ISUPPORTS4(imgContainer, imgIContainer, nsITimerCallback, nsIProperties,
 //******************************************************************************
 imgContainer::imgContainer() :
   mSize(0,0),
-  mHasSize(PR_FALSE),
   mAnim(nsnull),
   mAnimationMode(kNormalAnimMode),
   mLoopCount(-1),
   mObserver(nsnull),
-  mDecodeOnDraw(PR_FALSE),
-  mMultipart(PR_FALSE),
-  mInitialized(PR_FALSE),
-  mDiscardable(PR_FALSE),
   mLockCount(0),
   mDiscardTimer(nsnull),
-  mHasSourceData(PR_FALSE),
-  mDecoded(PR_FALSE),
-  mHasBeenDecoded(PR_FALSE),
   mDecoder(nsnull),
   mWorker(nsnull),
   mBytesDecoded(0),
   mDecoderFlags(imgIDecoder::DECODER_FLAG_NONE),
+  mHasSize(PR_FALSE),
+  mDecodeOnDraw(PR_FALSE),
+  mMultipart(PR_FALSE),
+  mInitialized(PR_FALSE),
+  mDiscardable(PR_FALSE),
+  mHasSourceData(PR_FALSE),
+  mDecoded(PR_FALSE),
+  mHasBeenDecoded(PR_FALSE),
   mWorkerPending(PR_FALSE),
   mInDecoder(PR_FALSE),
   mError(PR_FALSE)
@@ -234,9 +234,9 @@ NS_IMETHODIMP imgContainer::Init(imgIDecoderObserver *aObserver,
   // Store initialization data
   mObserver = do_GetWeakReference(aObserver);
   mSourceDataMimeType.Assign(aMimeType);
-  mDiscardable = aFlags & INIT_FLAG_DISCARDABLE;
-  mDecodeOnDraw = aFlags & INIT_FLAG_DECODE_ON_DRAW;;
-  mMultipart = aFlags & INIT_FLAG_MULTIPART;
+  mDiscardable = !!(aFlags & INIT_FLAG_DISCARDABLE);
+  mDecodeOnDraw = !!(aFlags & INIT_FLAG_DECODE_ON_DRAW);
+  mMultipart = !!(aFlags & INIT_FLAG_MULTIPART);
 
   // Statistics
   if (mDiscardable) {
@@ -639,18 +639,38 @@ NS_IMETHODIMP imgContainer::GetDataSize(PRUint32 *_retval)
   *_retval = 0;
 
   // Account for any compressed source data
-  *_retval += mSourceData.Length();
+  *_retval += GetSourceDataSize();
   NS_ABORT_IF_FALSE(StoringSourceData() || (*_retval == 0),
                     "Non-zero source data size when we aren't storing it?");
 
   // Account for any uncompressed frames
+  *_retval += GetDecodedDataSize();
+  return NS_OK;
+}
+
+PRUint32 imgContainer::GetDecodedDataSize()
+{
+  PRUint32 val = 0;
   for (PRUint32 i = 0; i < mFrames.Length(); ++i) {
     imgFrame *frame = mFrames.SafeElementAt(i, nsnull);
     NS_ABORT_IF_FALSE(frame, "Null frame in frame array!");
-    *_retval += frame->GetImageDataLength();
+    val += frame->EstimateMemoryUsed();
   }
 
-  return NS_OK;
+  return val;
+}
+
+PRUint32 imgContainer::GetSourceDataSize()
+{
+  return mSourceData.Length();
+}
+
+void imgContainer::DeleteImgFrame(PRUint32 framenum)
+{
+  NS_ABORT_IF_FALSE(framenum < mFrames.Length(), "Deleting invalid frame!");
+
+  delete mFrames[framenum];
+  mFrames[framenum] = nsnull;
 }
 
 nsresult imgContainer::InternalAddFrameHelper(PRUint32 framenum, imgFrame *aFrame,
@@ -668,6 +688,10 @@ nsresult imgContainer::InternalAddFrameHelper(PRUint32 framenum, imgFrame *aFram
 
   frame->GetImageData(imageData, imageLength);
 
+  // We are in the middle of decoding. This will be unlocked when we finish the
+  // decoder->Write() call.
+  frame->LockImageData();
+
   mFrames.InsertElementAt(framenum, frame.forget());
 
   return NS_OK;
@@ -683,6 +707,11 @@ nsresult imgContainer::InternalAddFrame(PRUint32 framenum,
                                         PRUint32 **paletteData,
                                         PRUint32 *paletteLength)
 {
+  // We assume that we're in the middle of decoding because we unlock the
+  // previous frame when we create a new frame, and only when decoding do we
+  // lock frames.
+  NS_ABORT_IF_FALSE(mInDecoder, "Only decoders may add frames!");
+
   NS_ABORT_IF_FALSE(framenum <= mFrames.Length(), "Invalid frame index!");
   if (framenum > mFrames.Length())
     return NS_ERROR_INVALID_ARG;
@@ -692,6 +721,13 @@ nsresult imgContainer::InternalAddFrame(PRUint32 framenum,
 
   nsresult rv = frame->Init(aX, aY, aWidth, aHeight, aFormat, aPaletteDepth);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  // We know we are in a decoder. Therefore, we must unlock the previous frame
+  // when we move on to decoding into the next frame.
+  if (mFrames.Length() > 0) {
+    imgFrame *prevframe = mFrames.ElementAt(mFrames.Length() - 1);
+    prevframe->UnlockImageData();
+  }
 
   if (mFrames.Length() == 0) {
     return InternalAddFrameHelper(framenum, frame.forget(), imageData, imageLength, 
@@ -843,7 +879,7 @@ NS_IMETHODIMP imgContainer::EnsureCleanFrame(PRUint32 aFrameNum, PRInt32 aX, PRI
   nsIntRect rect = frame->GetRect();
   if (rect.x != aX || rect.y != aY || rect.width != aWidth || rect.height != aHeight ||
       frame->GetFormat() != aFormat) {
-    delete frame;
+    DeleteImgFrame(aFrameNum);
     return InternalAddFrame(aFrameNum, aX, aY, aWidth, aHeight, aFormat, 
                             /* aPaletteDepth = */ 0, imageData, imageLength,
                             /* aPaletteData = */ nsnull, 
@@ -2189,10 +2225,28 @@ imgContainer::WriteToDecoder(const char *aBuffer, PRUint32 aCount)
   // We should have a decoder
   NS_ABORT_IF_FALSE(mDecoder, "Trying to write to null decoder!");
 
+  // The decoder will start decoding into the current frame (if we have one).
+  // When it needs to add another frame, we will unlock this frame and lock the
+  // new frame.
+  // Our invariant is that, while in the decoder, the last frame is always
+  // locked, and all others are unlocked.
+  if (mFrames.Length() > 0) {
+    imgFrame *curframe = mFrames.ElementAt(mFrames.Length() - 1);
+    curframe->LockImageData();
+  }
+
   // Write
   mInDecoder = PR_TRUE;
   nsresult rv = mDecoder->Write(aBuffer, aCount);
   mInDecoder = PR_FALSE;
+
+  // We unlock the current frame, even if that frame is different from the
+  // frame we entered the decoder with. (See above.)
+  if (mFrames.Length() > 0) {
+    imgFrame *curframe = mFrames.ElementAt(mFrames.Length() - 1);
+    curframe->UnlockImageData();
+  }
+
   CONTAINER_ENSURE_SUCCESS(rv);
 
   // Keep track of the total number of bytes written over the lifetime of the

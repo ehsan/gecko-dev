@@ -1,7 +1,7 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et cindent: */
 /* ***** BEGIN LICENSE BLOCK *****
- * Version: ML 1.1/GPL 2.0/LGPL 2.1
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
@@ -221,6 +221,12 @@ class nsWaveDecoder : public nsMediaDecoder
   // main thread only.
   virtual void Resume();
 
+  // Calls mElement->UpdateReadyStateForData, telling it which state we have
+  // entered.  Main thread only.
+  void NextFrameUnavailableBuffering();
+  void NextFrameAvailable();
+  void NextFrameUnavailable();
+
   // Change the element's ready state as necessary. Main thread only.
   void UpdateReadyStateForData();
 
@@ -246,9 +252,6 @@ private:
 
   // Notifies the element that decoding has failed.
   void DecodeError();
-
-  void RegisterShutdownObserver();
-  void UnregisterShutdownObserver();
 
   // Volume that the audio backend will be initialized with.
   float mInitialVolume;

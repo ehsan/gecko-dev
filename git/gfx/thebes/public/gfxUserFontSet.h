@@ -46,6 +46,7 @@
 #include "nsCOMPtr.h"
 #include "nsIURI.h"
 #include "nsIFile.h"
+#include "nsISupportsImpl.h"
 
 class nsIURI;
 class gfxMixedFontFamily;
@@ -138,7 +139,7 @@ class THEBES_API gfxUserFontSet {
 
 public:
 
-    THEBES_INLINE_DECL_REFCOUNTING(gfxUserFontSet)
+    NS_INLINE_DECL_REFCOUNTING(gfxUserFontSet)
 
     gfxUserFontSet();
     virtual ~gfxUserFontSet();
@@ -241,6 +242,8 @@ public:
                       gfxSparseBitSet *aUnicodeRanges);
 
     virtual ~gfxProxyFontEntry();
+
+    virtual gfxFont *CreateFontInstance(const gfxFontStyle *aFontStyle, PRBool aNeedsBold);
 
     PRPackedBool                           mIsLoading;
     nsTArray<gfxFontFaceSrc>               mSrcList;

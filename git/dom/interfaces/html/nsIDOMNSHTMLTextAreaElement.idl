@@ -41,15 +41,23 @@
 
 interface nsIControllers;
 
-
-[scriptable, uuid(ca066b44-9ddf-11d3-bccc-0060b0fc76bd)]
+[scriptable, uuid(ca626eac-924b-49e5-9170-39e69e11000a)]
 interface nsIDOMNSHTMLTextAreaElement : nsISupports
 {
+           attribute boolean          autofocus;
   readonly attribute nsIControllers   controllers;
 
   readonly attribute long    textLength;
   attribute long             selectionStart;
   attribute long             selectionEnd;
+  attribute long             maxLength;
+  attribute DOMString        placeholder;
+
+  /**
+   * Reflects the wrap content attribute. Possible values are "soft, "hard" and
+   * "off". "soft" is the default.
+   */
+  [Null(Stringify)] attribute DOMString wrap;
 
   void                       setSelectionRange(in long selectionStart,
                                                in long selectionEnd);

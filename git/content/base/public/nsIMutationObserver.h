@@ -139,7 +139,11 @@ public:
                                     CharacterDataChangeInfo* aInfo) = 0;
 
   /**
-   * Notification that an attribute of an element will change.
+   * Notification that an attribute of an element will change.  This
+   * can happen before the BeginUpdate for the change and may not
+   * always be followed by an AttributeChanged (in particular, if the
+   * attribute doesn't actually change there will be no corresponding
+   * AttributeChanged).
    *
    * @param aDocument    The owner-document of aContent. Can be null.
    * @param aContent     The element whose attribute will change
@@ -179,11 +183,13 @@ public:
    * @param aDocument  The owner-document of aContent. Can be null.
    * @param aContainer The container that had new children appended. Is never
    *                   null.
+   * @param aFirstNewContent the node at aIndexInContainer in aContainer.
    * @param aNewIndexInContainer the index in the container of the first
    *                   new child
    */
   virtual void ContentAppended(nsIDocument *aDocument,
                                nsIContent* aContainer,
+                               nsIContent* aFirstNewContent,
                                PRInt32     aNewIndexInContainer) = 0;
 
   /**
@@ -282,6 +288,7 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsIMutationObserver, NS_IMUTATION_OBSERVER_IID)
 #define NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED                          \
     virtual void ContentAppended(nsIDocument* aDocument,                     \
                                  nsIContent* aContainer,                     \
+                                 nsIContent* aFirstNewContent,               \
                                  PRInt32 aNewIndexInContainer);
 
 #define NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED                          \
@@ -351,6 +358,7 @@ _class::AttributeChanged(nsIDocument* aDocument,                          \
 void                                                                      \
 _class::ContentAppended(nsIDocument* aDocument,                           \
                         nsIContent* aContainer,                           \
+                        nsIContent* aFirstNewContent,                     \
                         PRInt32 aNewIndexInContainer)                     \
 {                                                                         \
 }                                                                         \

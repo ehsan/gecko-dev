@@ -13,7 +13,7 @@
  *
  * The Original Code is Places unit test code.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation.
+ * The Initial Developer of the Original Code is Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -60,7 +60,7 @@ DummyObserver.prototype = {
   onDeleteURI: function(aURI) {},
   onClearHistory: function() {},
   onPageChanged: function(aURI, aWhat, aValue) {},
-  onPageExpired: function(aURI, aVisitTime, aWholeEntry) {},
+  onDeleteVisits: function(aURI, aVisitTime) {},
 
   // bookmark observer
   //onBeginUpdateBatch: function() {},

@@ -78,7 +78,7 @@ static const nsStyleAnimation::Value*
 GetZeroValueForUnit(nsStyleAnimation::Unit aUnit)
 {
   NS_ABORT_IF_FALSE(aUnit != nsStyleAnimation::eUnit_Null,
-                    "Need non-null unit for a zero value.");
+                    "Need non-null unit for a zero value");
   switch (aUnit) {
     case nsStyleAnimation::eUnit_Coord:
       return &sZeroCoord;
@@ -126,14 +126,13 @@ ExtractValueWrapper(const nsSMILValue& aValue)
 
 // Class methods
 // -------------
-nsresult
+void
 nsSMILCSSValueType::Init(nsSMILValue& aValue) const
 {
   NS_ABORT_IF_FALSE(aValue.IsNull(), "Unexpected SMIL value type");
 
   aValue.mU.mPtr = nsnull;
   aValue.mType = this;
-  return NS_OK;
 }
 
 void
@@ -170,6 +169,35 @@ nsSMILCSSValueType::Assign(nsSMILValue& aDest, const nsSMILValue& aSrc) const
   } // else, both are barely-initialized -- nothing to do.
 
   return NS_OK;
+}
+
+PRBool
+nsSMILCSSValueType::IsEqual(const nsSMILValue& aLeft,
+                            const nsSMILValue& aRight) const
+{
+  NS_ABORT_IF_FALSE(aLeft.mType == aRight.mType, "Incompatible SMIL types");
+  NS_ABORT_IF_FALSE(aLeft.mType == this, "Unexpected SMIL value");
+  const ValueWrapper* leftWrapper = ExtractValueWrapper(aLeft);
+  const ValueWrapper* rightWrapper = ExtractValueWrapper(aRight);
+
+  if (leftWrapper) {
+    if (rightWrapper) {
+      // Both non-null
+      NS_WARN_IF_FALSE(leftWrapper != rightWrapper,
+                       "Two nsSMILValues with matching ValueWrapper ptr");
+      // mPresContext doesn't really matter for equality comparison
+      return (leftWrapper->mPropID == rightWrapper->mPropID &&
+              leftWrapper->mCSSValue == rightWrapper->mCSSValue);
+    }
+    // Left non-null, right null
+    return PR_FALSE;
+  }
+  if (rightWrapper) {
+    // Left null, right non-null
+    return PR_FALSE;
+  }
+  // Both null
+  return PR_TRUE;
 }
 
 nsresult
@@ -276,7 +304,7 @@ nsSMILCSSValueType::Interpolate(const nsSMILValue& aStartVal,
     // No zero value for this unit --> doesn't support interpolation.
     return NS_ERROR_FAILURE;
   }
-  
+
   nsStyleAnimation::Value resultValue;
   if (nsStyleAnimation::Interpolate(endWrapper->mPropID, *startCSSValue,
                                     endWrapper->mCSSValue, aUnitDistance,
@@ -293,65 +321,92 @@ static nsPresContext*
 GetPresContextForElement(nsIContent* aElem)
 {
   nsIDocument* doc = aElem->GetCurrentDoc();
-  NS_ABORT_IF_FALSE(doc, "active animations should only be able to "
-                    "target elements that are in a document");
+  if (!doc) {
+    // This can happen if we process certain types of restyles mid-sample
+    // and remove anonymous animated content from the document as a result.
+    // See bug 534975.
+    return nsnull;
+  }
   nsIPresShell* shell = doc->GetPrimaryShell();
   return shell ? shell->GetPresContext() : nsnull;
 }
 
-PRBool
-nsSMILCSSValueType::ValueFromString(nsCSSProperty aPropID,
-                                    nsIContent* aTargetElement,
-                                    const nsAString& aString,
-                                    nsSMILValue& aValue) const
+// Helper function to parse a string into a nsStyleAnimation::Value
+static PRBool
+ValueFromStringHelper(nsCSSProperty aPropID,
+                      nsIContent* aTargetElement,
+                      nsPresContext* aPresContext,
+                      const nsAString& aString,
+                      PRBool aUseSVGMode,
+                      nsStyleAnimation::Value& aStyleAnimValue)
 {
-  NS_ABORT_IF_FALSE(aValue.mType == &nsSMILCSSValueType::sSingleton,
-                    "Passed-in value is wrong type");
-  NS_ABORT_IF_FALSE(!aValue.mU.mPtr, "expecting barely-initialized outparam");
-
-  nsPresContext* presContext = GetPresContextForElement(aTargetElement);
-  if (!presContext) {
-    NS_WARNING("Not parsing animation value; unable to get PresContext");
-    return PR_FALSE;
-  }
-
   // If value is negative, we'll strip off the "-" so the CSS parser won't
-  // barf, and then manually make the parsed value negative. (This is a partial
-  // solution to let us accept some otherwise out-of-bounds CSS values -- bug
-  // 501188 will provide a more complete fix.)
+  // barf, and then manually make the parsed value negative.
+  // (This is a partial solution to let us accept some otherwise out-of-bounds
+  // CSS values. Bug 501188 will provide a more complete fix.)
   PRBool isNegative = PR_FALSE;
   PRUint32 subStringBegin = 0;
   PRInt32 absValuePos = nsSMILParserUtils::CheckForNegativeNumber(aString);
   if (absValuePos > 0) {
-    subStringBegin = (PRUint32)absValuePos;
     isNegative = PR_TRUE;
+    subStringBegin = (PRUint32)absValuePos; // Start parsing after '-' sign
   }
   nsDependentSubstring subString(aString, subStringBegin);
-  nsStyleAnimation::Value parsedValue;
-  if (nsStyleAnimation::ComputeValue(aPropID, aTargetElement,
-                                     subString, parsedValue)) {
-    if (isNegative) {
-      InvertSign(parsedValue);
-    }
-    if (aPropID == eCSSProperty_font_size) {
-      // Divide out text-zoom, since SVG is supposed to ignore it
-      NS_ABORT_IF_FALSE(parsedValue.GetUnit() == nsStyleAnimation::eUnit_Coord,
-                        "'font-size' value with unexpected style unit");
-      parsedValue.SetCoordValue(parsedValue.GetCoordValue() /
-                                presContext->TextZoom());
-    }
-    aValue.mU.mPtr = new ValueWrapper(aPropID, parsedValue, presContext);
-    return aValue.mU.mPtr != nsnull;
+  if (!nsStyleAnimation::ComputeValue(aPropID, aTargetElement, subString,
+                                      aUseSVGMode, aStyleAnimValue)) {
+    return PR_FALSE;
   }
-  return PR_FALSE;
+  if (isNegative) {
+    InvertSign(aStyleAnimValue);
+  }
+  
+  if (aPropID == eCSSProperty_font_size) {
+    // Divide out text-zoom, since SVG is supposed to ignore it
+    NS_ABORT_IF_FALSE(aStyleAnimValue.GetUnit() ==
+                        nsStyleAnimation::eUnit_Coord,
+                      "'font-size' value with unexpected style unit");
+    aStyleAnimValue.SetCoordValue(aStyleAnimValue.GetCoordValue() /
+                                  aPresContext->TextZoom());
+  }
+  return PR_TRUE;
 }
 
+// static
+void
+nsSMILCSSValueType::ValueFromString(nsCSSProperty aPropID,
+                                    nsIContent* aTargetElement,
+                                    const nsAString& aString,
+                                    PRBool aUseSVGMode,
+                                    nsSMILValue& aValue)
+{
+  // XXXbz aTargetElement should be an Element
+  NS_ABORT_IF_FALSE(aValue.IsNull(), "Outparam should be null-typed");
+  nsPresContext* presContext = GetPresContextForElement(aTargetElement);
+  if (!presContext) {
+    NS_WARNING("Not parsing animation value; unable to get PresContext");
+    return;
+  }
+
+  nsStyleAnimation::Value parsedValue;
+  if (ValueFromStringHelper(aPropID, aTargetElement, presContext,
+                            aString, aUseSVGMode, parsedValue)) {
+    sSingleton.Init(aValue);
+    aValue.mU.mPtr = new ValueWrapper(aPropID, parsedValue, presContext);
+    if (!aValue.mU.mPtr) {
+      // Out of memory! Destroy outparam, to leave it as nsSMILNullType,
+      // which indicates to our caller that we failed.
+      sSingleton.Destroy(aValue);
+    }
+  }
+}
+
+// static
 PRBool
 nsSMILCSSValueType::ValueToString(const nsSMILValue& aValue,
-                                  nsAString& aString) const
+                                  nsAString& aString)
 {
   NS_ABORT_IF_FALSE(aValue.mType == &nsSMILCSSValueType::sSingleton,
-                    "Passed-in value is wrong type");
+                    "Unexpected SMIL value type");
   const ValueWrapper* wrapper = ExtractValueWrapper(aValue);
   return !wrapper ||
     nsStyleAnimation::UncomputeValue(wrapper->mPropID, wrapper->mPresContext,

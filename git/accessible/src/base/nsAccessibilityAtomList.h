@@ -153,6 +153,7 @@ ACCESSIBILITY_ATOM(toolbarspring, "toolbarspring")   // XUL
 ACCESSIBILITY_ATOM(toolbarspacer, "toolbarspacer")   // XUL
 ACCESSIBILITY_ATOM(tooltip, "tooltip")   // XUL
 ACCESSIBILITY_ATOM(tr, "tr")
+ACCESSIBILITY_ATOM(tree, "tree")
 ACCESSIBILITY_ATOM(ul, "ul")
 
   // Alphabetical list of attributes (DOM)
@@ -194,13 +195,16 @@ ACCESSIBILITY_ATOM(selected, "selected")
 ACCESSIBILITY_ATOM(summary, "summary")
 ACCESSIBILITY_ATOM(tabindex, "tabindex")
 ACCESSIBILITY_ATOM(title, "title")
+ACCESSIBILITY_ATOM(toolbarname, "toolbarname")
 ACCESSIBILITY_ATOM(tooltiptext, "tooltiptext")
 ACCESSIBILITY_ATOM(type, "type")
+ACCESSIBILITY_ATOM(usemap, "usemap")
 ACCESSIBILITY_ATOM(value, "value")
 
   // Alphabetical list of object attributes
 ACCESSIBILITY_ATOM(checkable, "checkable")
 ACCESSIBILITY_ATOM(display, "display")
+ACCESSIBILITY_ATOM(eventFromInput, "event-from-input")
 ACCESSIBILITY_ATOM(textAlign, "text-align")
 ACCESSIBILITY_ATOM(textIndent, "text-indent")
 
@@ -241,6 +245,7 @@ ACCESSIBILITY_ATOM(aria_level, "aria-level")
 ACCESSIBILITY_ATOM(aria_live, "aria-live")
 ACCESSIBILITY_ATOM(aria_multiline, "aria-multiline")
 ACCESSIBILITY_ATOM(aria_multiselectable, "aria-multiselectable")
+ACCESSIBILITY_ATOM(aria_orientation, "aria-orientation")
 ACCESSIBILITY_ATOM(aria_owns, "aria-owns")
 ACCESSIBILITY_ATOM(aria_posinset, "aria-posinset")
 ACCESSIBILITY_ATOM(aria_pressed, "aria-pressed")
@@ -259,6 +264,8 @@ ACCESSIBILITY_ATOM(aria_valuetext, "aria-valuetext")
 // a form property used to obtain the default label
 // of an HTML button from the button frame
 ACCESSIBILITY_ATOM(defaultLabel, "defaultLabel")
+// the attribute specifying the editor's bogus br node
+ACCESSIBILITY_ATOM(mozeditorbogusnode, "_moz_editor_bogus_node")
 
 // Object attributes
 ACCESSIBILITY_ATOM(tableCellIndex, "table-cell-index")

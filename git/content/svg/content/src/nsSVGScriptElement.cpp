@@ -58,8 +58,9 @@ class nsSVGScriptElement : public nsSVGScriptElementBase,
 {
 protected:
   friend nsresult NS_NewSVGScriptElement(nsIContent **aResult,
-                                         nsINodeInfo *aNodeInfo);
-  nsSVGScriptElement(nsINodeInfo *aNodeInfo);
+                                         nsINodeInfo *aNodeInfo,
+                                         PRBool aFromParser);
+  nsSVGScriptElement(nsINodeInfo *aNodeInfo, PRBool aFromParser);
   
 public:
   // interfaces:
@@ -88,6 +89,7 @@ public:
 
   // nsIContent specializations:
   virtual nsresult DoneAddingChildren(PRBool aHaveNotified);
+  virtual PRBool IsDoneAddingChildren();
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
                               PRBool aCompileEventHandlers);
@@ -107,7 +109,7 @@ nsSVGElement::StringInfo nsSVGScriptElement::sStringInfo[1] =
   { &nsGkAtoms::href, kNameSpaceID_XLink }
 };
 
-NS_IMPL_NS_NEW_SVG_ELEMENT(Script)
+NS_IMPL_NS_NEW_SVG_ELEMENT_CHECK_PARSER(Script)
 
 //----------------------------------------------------------------------
 // nsISupports methods
@@ -115,20 +117,24 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Script)
 NS_IMPL_ADDREF_INHERITED(nsSVGScriptElement,nsSVGScriptElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGScriptElement,nsSVGScriptElementBase)
 
+DOMCI_DATA(SVGScriptElement, nsSVGScriptElement)
+
 NS_INTERFACE_TABLE_HEAD(nsSVGScriptElement)
   NS_NODE_INTERFACE_TABLE8(nsSVGScriptElement, nsIDOMNode, nsIDOMElement,
                            nsIDOMSVGElement, nsIDOMSVGScriptElement,
                            nsIDOMSVGURIReference, nsIScriptLoaderObserver,
                            nsIScriptElement, nsIMutationObserver)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGScriptElement)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGScriptElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGScriptElementBase)
 
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGScriptElement::nsSVGScriptElement(nsINodeInfo *aNodeInfo)
+nsSVGScriptElement::nsSVGScriptElement(nsINodeInfo *aNodeInfo,
+                                       PRBool aFromParser)
   : nsSVGScriptElementBase(aNodeInfo)
 {
+  mDoneAddingChildren = !aFromParser;
   AddMutationObserver(this);
 }
 
@@ -140,7 +146,7 @@ nsSVGScriptElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 {
   *aResult = nsnull;
 
-  nsSVGScriptElement* it = new nsSVGScriptElement(aNodeInfo);
+  nsSVGScriptElement* it = new nsSVGScriptElement(aNodeInfo, PR_FALSE);
   if (!it) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -276,6 +282,12 @@ nsSVGScriptElement::DoneAddingChildren(PRBool aHaveNotified)
     mUri = nsnull;
   }
   return rv;
+}
+
+PRBool
+nsSVGScriptElement::IsDoneAddingChildren()
+{
+  return mDoneAddingChildren;
 }
 
 nsresult

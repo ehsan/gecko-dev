@@ -191,7 +191,7 @@ void imgRequestProxy::RemoveFromLoadGroup(PRBool releaseLoadGroup)
   */
   nsCOMPtr<imgIRequest> kungFuDeathGrip(this);
 
-  mLoadGroup->RemoveRequest(this, NS_OK, nsnull);
+  mLoadGroup->RemoveRequest(this, nsnull, NS_OK);
   mIsInLoadGroup = PR_FALSE;
 
   if (releaseLoadGroup) {
@@ -262,9 +262,21 @@ NS_IMETHODIMP imgRequestProxy::CancelAndForgetObserver(nsresult aStatus)
 
   mCanceled = PR_TRUE;
 
+  // Now cheat and make sure our removal from loadgroup happens async
+  PRBool oldIsInLoadGroup = mIsInLoadGroup;
+  mIsInLoadGroup = PR_FALSE;
+  
   // Passing false to aNotify means that mListener will still get
   // OnStopRequest, if needed.
   mOwner->RemoveProxy(this, aStatus, PR_FALSE);
+
+  mIsInLoadGroup = oldIsInLoadGroup;
+
+  if (mIsInLoadGroup) {
+    nsCOMPtr<nsIRunnable> ev =
+      NS_NewRunnableMethod(this, &imgRequestProxy::DoRemoveFromLoadGroup);
+    NS_DispatchToCurrentThread(ev);
+  }
 
   NullOutListener();
 

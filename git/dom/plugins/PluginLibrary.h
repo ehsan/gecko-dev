@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim: sw=4 ts=4 et :
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -41,7 +41,10 @@
 
 #include "prlink.h"
 #include "npapi.h"
+#include "npfunctions.h"
 #include "nscore.h"
+
+class nsNPAPIPlugin;
 
 namespace mozilla {
 
@@ -49,6 +52,12 @@ class PluginLibrary
 {
 public:
   virtual ~PluginLibrary() { }
+
+  /**
+   * Inform this library about the nsNPAPIPlugin which owns it. This
+   * object will hold a weak pointer to the plugin.
+   */
+  virtual void SetPlugin(nsNPAPIPlugin* plugin) = 0;
 
   virtual bool HasRequiredFunctions() = 0;
 
@@ -58,10 +67,10 @@ public:
   virtual nsresult NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error) = 0;
 #endif
   virtual nsresult NP_Shutdown(NPError* error) = 0;
-  virtual nsresult NP_GetMIMEDescription(char** mimeDesc) = 0;
+  virtual nsresult NP_GetMIMEDescription(const char** mimeDesc) = 0;
   virtual nsresult NP_GetValue(void *future, NPPVariable aVariable,
                                void *aValue, NPError* error) = 0;
-#if defined(XP_WIN) || defined(XP_MACOSX)
+#if defined(XP_WIN) || defined(XP_MACOSX) || defined(XP_OS2)
   virtual nsresult NP_GetEntryPoints(NPPluginFuncs* pFuncs, NPError* error) = 0;
 #endif
   virtual nsresult NPP_New(NPMIMEType pluginType, NPP instance,

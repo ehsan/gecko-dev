@@ -1,4 +1,4 @@
-// Copyright 2009 Google Inc. All Rights Reserved.
+// Copyright (c) 2010 Google Inc. All Rights Reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -26,7 +26,10 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+// Original author: Jim Blandy <jimb@mozilla.com> <jimb@red-bean.com>
+
 // This file implements the google_breakpad::StabsReader class.
+// See stabs_reader.h.
 
 #include <a.out.h>
 #include <stab.h>
@@ -43,6 +46,8 @@ StabsReader::StabsReader(const uint8_t *stab,    size_t stab_size,
     stabstr_(stabstr),
     stabstr_size_(stabstr_size),
     handler_(handler),
+    string_offset_(0),
+    next_cu_string_offset_(0),
     symbol_(NULL),
     current_source_file_(NULL) { 
   symbols_ = reinterpret_cast<const struct nlist *>(stab);
@@ -50,7 +55,7 @@ StabsReader::StabsReader(const uint8_t *stab,    size_t stab_size,
 }
 
 const char *StabsReader::SymbolString() {
-  ptrdiff_t offset = symbol_->n_un.n_strx;
+  ptrdiff_t offset = string_offset_ + symbol_->n_un.n_strx;
   if (offset < 0 || (size_t) offset >= stabstr_size_) {
     handler_->Warning("symbol %d: name offset outside the string section",
                       symbol_ - symbols_);
@@ -67,6 +72,21 @@ bool StabsReader::Process() {
     if (symbol_->n_type == N_SO) {
       if (! ProcessCompilationUnit())
         return false;
+    } else if (symbol_->n_type == N_UNDF) {
+      // At the head of each compilation unit's entries there is an
+      // N_UNDF stab giving the number of symbols in the compilation
+      // unit, and the number of bytes that compilation unit's strings
+      // take up in the .stabstr section. Each CU's strings are
+      // separate; the n_strx values are offsets within the current
+      // CU's portion of the .stabstr section.
+      //
+      // As an optimization, the GNU linker combines all the
+      // compilation units into one, with a single N_UNDF at the
+      // beginning. However, other linkers, like Gold, do not perform
+      // this optimization.
+      string_offset_ = next_cu_string_offset_;
+      next_cu_string_offset_ = SymbolValue();
+      symbol_++;
     } else
       symbol_++;
   }
@@ -94,8 +114,13 @@ bool StabsReader::ProcessCompilationUnit() {
     if (symbol_ >= symbols_end_ || symbol_->n_type != N_SO)
       return true;
     const char *name = SymbolString();
-    if (name[0] == '\0')
+    if (name[0] == '\0') {
+      // This seems to be a stray end-of-compilation-unit marker;
+      // consume it, but don't report the end, since we didn't see a
+      // beginning.
+      symbol_++;
       return true;
+    }
     current_source_file_ = name;
   }
 
@@ -107,9 +132,9 @@ bool StabsReader::ProcessCompilationUnit() {
   symbol_++;
 
   // The STABS documentation says that some compilers may emit
-  // additional N_SO units with names immediately following the first,
-  // and that they should be ignored.  However, the original Breakpad
-  // STABS reader doesn't ignore them, so we won't either.
+  // additional N_SO entries with names immediately following the
+  // first, and that they should be ignored.  However, the original
+  // Breakpad STABS reader doesn't ignore them, so we won't either.
 
   // Process the body of the compilation unit, up to the next N_SO.
   while (symbol_ < symbols_end_ && symbol_->n_type != N_SO) {

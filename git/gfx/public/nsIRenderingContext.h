@@ -55,7 +55,7 @@ class nsIFontMetrics;
 class nsTransform2D;
 class nsString;
 class nsIDeviceContext;
-class nsIRegion;
+class nsIntRegion;
 class nsIAtom;
 
 struct nsFont;
@@ -98,10 +98,9 @@ typedef enum
 
 
 // IID for the nsIRenderingContext interface
-// 37762dd8-8df0-48cd-a5d6-24573ffdb5b6
 #define NS_IRENDERING_CONTEXT_IID \
-{ 0x37762dd8, 0x8df0, 0x48cd, \
-  { 0xa5, 0xd6, 0x24, 0x57, 0x3f, 0xfd, 0xb5, 0xb6 } }
+{ 0xefbfeb6c, 0x937e, 0x4889, \
+  { 0x92, 0x46, 0x16, 0xc0, 0xe8, 0x4b, 0xfa, 0xae } }
 
 //----------------------------------------------------------------------
 
@@ -185,7 +184,7 @@ public:
    * @param aCombine how to combine this region with the current clip region.
    *        see the bottom of nsIRenderingContext.h
    */
-  NS_IMETHOD SetClipRegion(const nsIRegion& aRegion, nsClipCombine aCombine) = 0;
+  NS_IMETHOD SetClipRegion(const nsIntRegion& aRegion, nsClipCombine aCombine) = 0;
 
   /**
    * Sets the forground color for the RenderingContext
@@ -203,7 +202,14 @@ public:
    * Sets the font for the RenderingContext
    * @param aFont The font to use in the RenderingContext
    */
-  NS_IMETHOD SetFont(const nsFont& aFont, nsIAtom* aLangGroup,
+  NS_IMETHOD SetFont(const nsFont& aFont, nsIAtom* aLanguage,
+                     gfxUserFontSet *aUserFontSet) = 0;
+
+  /**
+   * Sets the font for the RenderingContext, without language info
+   * @param aFont The font to use in the RenderingContext
+   */
+  NS_IMETHOD SetFont(const nsFont& aFont,
                      gfxUserFontSet *aUserFontSet) = 0;
 
   /**

@@ -303,13 +303,16 @@ function getFrecency(url)
   return frecency;
 }
 
-function prepTest(testIndex, testName)
+function prepTest(testName, callback)
 {
-  print("Test " + testIndex + ": " + testName);
-  histServ.QueryInterface(Ci.nsIBrowserHistory).removeAllPages();
-  dbConn.executeSimpleSQL("DELETE FROM moz_places_view");
-  dbConn.executeSimpleSQL("DELETE FROM moz_bookmarks WHERE id > " +
-                          defaultBookmarksMaxId);
+  print("Test: " + testName);
+  waitForClearHistory(function() {
+    dbConn.executeSimpleSQL("DELETE FROM moz_places_view");
+    dbConn.executeSimpleSQL("DELETE FROM moz_bookmarks WHERE id > " +
+                            defaultBookmarksMaxId);
+    callback();
+    runNextTest();
+  });
 }
 
 function visit(uri)
@@ -326,6 +329,7 @@ function visit(uri)
 
 function run_test()
 {
+  do_test_pending();
   var stmt;
 
   dbConn =
@@ -339,9 +343,16 @@ function run_test()
   stmt.finalize();
   do_check_true(defaultBookmarksMaxId > 0);
 
-  for (let i= 0; i < tests.length; i++)
-  {
-    prepTest(i, tests[i].desc);
-    tests[i].run();
+  runNextTest();
+}
+
+let currentTest;
+function runNextTest() {
+  if (tests.length) {
+    currentTest = tests.shift();
+    prepTest(currentTest.desc, currentTest.run);
+  }
+  else {
+    do_test_finished();
   }
 }

@@ -44,8 +44,6 @@
 #include "nsCSSRendering.h"
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
-#include "nsIView.h"
-#include "nsIViewManager.h"
 #include "nsIRenderingContext.h"
 #include "nsGUIEvent.h"
 #include "nsStyleConsts.h"
@@ -57,11 +55,11 @@
 #include "nsDisplayList.h"
 #include "nsAbsoluteContainingBlock.h"
 #include "nsCSSFrameConstructor.h"
+#include "nsFrameManager.h"
 
 // for focus
 #include "nsIDOMWindowInternal.h"
 #include "nsIScrollableFrame.h"
-#include "nsIScrollableView.h"
 #include "nsIDocShell.h"
 
 #ifdef DEBUG_rods
@@ -79,76 +77,31 @@ NS_NewCanvasFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 
 NS_IMPL_FRAMEARENA_HELPERS(nsCanvasFrame)
 
-NS_IMPL_QUERY_INTERFACE1(nsCanvasFrame, nsIScrollPositionListener)
-
 NS_QUERYFRAME_HEAD(nsCanvasFrame)
   NS_QUERYFRAME_ENTRY(nsCanvasFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsHTMLContainerFrame)
 
-NS_IMETHODIMP
-nsCanvasFrame::Init(nsIContent*      aContent,
-                  nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow)
+void
+nsCanvasFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
-  nsresult rv = nsHTMLContainerFrame::Init(aContent, aParent, aPrevInFlow);
+  mAbsoluteContainer.DestroyFrames(this, aDestructRoot);
 
-  mViewManager = PresContext()->GetPresShell()->GetViewManager();
-
-  nsIScrollableView* scrollingView = nsnull;
-  mViewManager->GetRootScrollableView(&scrollingView);
-  if (scrollingView) {
-    scrollingView->AddScrollPositionListener(this);
+  nsIScrollableFrame* sf =
+    PresContext()->GetPresShell()->GetRootScrollFrameAsScrollable();
+  if (sf) {
+    sf->RemoveScrollPositionListener(this);
   }
 
-  return rv;
+  nsHTMLContainerFrame::DestroyFrom(aDestructRoot);
 }
 
 void
-nsCanvasFrame::Destroy()
+nsCanvasFrame::ScrollPositionWillChange(nscoord aX, nscoord aY)
 {
-  mAbsoluteContainer.DestroyFrames(this);
-
-  nsIScrollableView* scrollingView = nsnull;
-  mViewManager->GetRootScrollableView(&scrollingView);
-  if (scrollingView) {
-    scrollingView->RemoveScrollPositionListener(this);
-  }
-
-  nsHTMLContainerFrame::Destroy();
-}
-
-NS_IMETHODIMP
-nsCanvasFrame::ScrollPositionWillChange(nsIScrollableView* aScrollable, nscoord aX, nscoord aY)
-{
-#ifdef DEBUG_CANVAS_FOCUS
-  {
-    PRBool hasFocus = PR_FALSE;
-    nsCOMPtr<nsIViewObserver> observer;
-    mViewManager->GetViewObserver(*getter_AddRefs(observer));
-    nsCOMPtr<nsIPresShell> shell = do_QueryInterface(observer);
-    nsCOMPtr<nsPresContext> context;
-    shell->GetPresContext(getter_AddRefs(context));
-    nsCOMPtr<nsISupports> container;
-    context->GetContainer(getter_AddRefs(container));
-    nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(container));
-    if (docShell) {
-      docShell->GetHasFocus(&hasFocus);
-    }
-    printf("SPWC: %p  HF: %s  mDoPaintFocus: %s\n", docShell.get(), hasFocus?"Y":"N", mDoPaintFocus?"Y":"N");
-  }
-#endif
-
   if (mDoPaintFocus) {
     mDoPaintFocus = PR_FALSE;
-    mViewManager->UpdateAllViews(NS_VMREFRESH_NO_SYNC);
+    PresContext()->FrameManager()->GetRootFrame()->InvalidateOverflowRect();
   }
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsCanvasFrame::ScrollPositionDidChange(nsIScrollableView* aScrollable, nscoord aX, nscoord aY)
-{
-  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -156,14 +109,23 @@ nsCanvasFrame::SetHasFocus(PRBool aHasFocus)
 {
   if (mDoPaintFocus != aHasFocus) {
     mDoPaintFocus = aHasFocus;
-    mViewManager->UpdateAllViews(NS_VMREFRESH_NO_SYNC);
+    PresContext()->FrameManager()->GetRootFrame()->InvalidateOverflowRect();
+
+    if (!mAddedScrollPositionListener) {
+      nsIScrollableFrame* sf =
+        PresContext()->GetPresShell()->GetRootScrollFrameAsScrollable();
+      if (sf) {
+        sf->AddScrollPositionListener(this);
+        mAddedScrollPositionListener = PR_TRUE;
+      }
+    }
   }
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsCanvasFrame::SetInitialChildList(nsIAtom*        aListName,
-                                 nsFrameList&    aChildList)
+                                   nsFrameList&    aChildList)
 {
   if (nsGkAtoms::absoluteList == aListName)
     return mAbsoluteContainer.SetInitialChildList(this, aListName, aChildList);
@@ -175,10 +137,8 @@ nsCanvasFrame::SetInitialChildList(nsIAtom*        aListName,
 
 NS_IMETHODIMP
 nsCanvasFrame::AppendFrames(nsIAtom*        aListName,
-                          nsFrameList&    aFrameList)
+                            nsFrameList&    aFrameList)
 {
-  nsresult  rv;
-
   if (nsGkAtoms::absoluteList == aListName)
     return mAbsoluteContainer.AppendFrames(this, aListName, aFrameList);
 
@@ -186,57 +146,50 @@ nsCanvasFrame::AppendFrames(nsIAtom*        aListName,
   NS_PRECONDITION(mFrames.IsEmpty(), "already have a child frame");
   if (aListName) {
     // We only support unnamed principal child list
-    rv = NS_ERROR_INVALID_ARG;
-
-  } else if (!mFrames.IsEmpty()) {
-    // We only allow a single child frame
-    rv = NS_ERROR_FAILURE;
-
-  } else {
-    // Insert the new frames
-    NS_ASSERTION(aFrameList.FirstChild() == aFrameList.LastChild(),
-                 "Only one principal child frame allowed");
-#ifdef NS_DEBUG
-    nsFrame::VerifyDirtyBitSet(aFrameList);
-#endif
-    mFrames.AppendFrames(nsnull, aFrameList);
-
-    rv = PresContext()->PresShell()->
-           FrameNeedsReflow(this, nsIPresShell::eTreeChange,
-                            NS_FRAME_HAS_DIRTY_CHILDREN);
+    return NS_ERROR_INVALID_ARG;
   }
 
-  return rv;
+  if (!mFrames.IsEmpty()) {
+    // We only allow a single child frame
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  // Insert the new frames
+  NS_ASSERTION(aFrameList.FirstChild() == aFrameList.LastChild(),
+               "Only one principal child frame allowed");
+#ifdef NS_DEBUG
+  nsFrame::VerifyDirtyBitSet(aFrameList);
+#endif
+  mFrames.AppendFrames(nsnull, aFrameList);
+
+  PresContext()->PresShell()->
+    FrameNeedsReflow(this, nsIPresShell::eTreeChange,
+                     NS_FRAME_HAS_DIRTY_CHILDREN);
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsCanvasFrame::InsertFrames(nsIAtom*        aListName,
-                          nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList)
+                            nsIFrame*       aPrevFrame,
+                            nsFrameList&    aFrameList)
 {
-  nsresult  rv;
-
   if (nsGkAtoms::absoluteList == aListName)
     return mAbsoluteContainer.InsertFrames(this, aListName, aPrevFrame, aFrameList);
 
   // Because we only support a single child frame inserting is the same
   // as appending
   NS_PRECONDITION(!aPrevFrame, "unexpected previous sibling frame");
-  if (aPrevFrame) {
-    rv = NS_ERROR_UNEXPECTED;
-  } else {
-    rv = AppendFrames(aListName, aFrameList);
-  }
+  if (aPrevFrame)
+    return NS_ERROR_UNEXPECTED;
 
-  return rv;
+  return AppendFrames(aListName, aFrameList);
 }
 
 NS_IMETHODIMP
 nsCanvasFrame::RemoveFrame(nsIAtom*        aListName,
-                         nsIFrame*       aOldFrame)
+                           nsIFrame*       aOldFrame)
 {
-  nsresult  rv;
-
   if (nsGkAtoms::absoluteList == aListName) {
     mAbsoluteContainer.RemoveFrame(this, aListName, aOldFrame);
     return NS_OK;
@@ -245,26 +198,25 @@ nsCanvasFrame::RemoveFrame(nsIAtom*        aListName,
   NS_ASSERTION(!aListName, "unexpected child list name");
   if (aListName) {
     // We only support the unnamed principal child list
-    rv = NS_ERROR_INVALID_ARG;
-  
-  } else if (aOldFrame == mFrames.FirstChild()) {
-    // It's our one and only child frame
-    // Damage the area occupied by the deleted frame
-    // The child of the canvas probably can't have an outline, but why bother
-    // thinking about that?
-    Invalidate(aOldFrame->GetOverflowRect() + aOldFrame->GetPosition());
-
-    // Remove the frame and destroy it
-    mFrames.DestroyFrame(aOldFrame);
-
-    rv = PresContext()->PresShell()->
-           FrameNeedsReflow(this, nsIPresShell::eTreeChange,
-                            NS_FRAME_HAS_DIRTY_CHILDREN);
-  } else {
-    rv = NS_ERROR_FAILURE;
+    return NS_ERROR_INVALID_ARG;
   }
 
-  return rv;
+  if (aOldFrame != mFrames.FirstChild())
+    return NS_ERROR_FAILURE;
+
+  // It's our one and only child frame
+  // Damage the area occupied by the deleted frame
+  // The child of the canvas probably can't have an outline, but why bother
+  // thinking about that?
+  Invalidate(aOldFrame->GetOverflowRect() + aOldFrame->GetPosition());
+
+  // Remove the frame and destroy it
+  mFrames.DestroyFrame(aOldFrame);
+
+  PresContext()->PresShell()->
+    FrameNeedsReflow(this, nsIPresShell::eTreeChange,
+                     NS_FRAME_HAS_DIRTY_CHILDREN);
+  return NS_OK;
 }
 
 nsIAtom*
@@ -291,9 +243,8 @@ nsRect nsCanvasFrame::CanvasArea() const
 
   nsIScrollableFrame *scrollableFrame = do_QueryFrame(GetParent());
   if (scrollableFrame) {
-    nsIScrollableView* scrollableView = scrollableFrame->GetScrollableView();
-    nsRect vcr = scrollableView->View()->GetBounds();
-    result.UnionRect(result, nsRect(nsPoint(0, 0), vcr.Size()));
+    nsRect portRect = scrollableFrame->GetScrollPortRect();
+    result.UnionRect(result, nsRect(nsPoint(0, 0), portRect.Size()));
   }
   return result;
 }
@@ -362,8 +313,8 @@ public:
 
 NS_IMETHODIMP
 nsCanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                              const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists)
+                                const nsRect&           aDirtyRect,
+                                const nsDisplayListSet& aLists)
 {
   nsresult rv;
 
@@ -390,8 +341,7 @@ nsCanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   nsIFrame* kid;
   for (kid = GetFirstChild(nsnull); kid; kid = kid->GetNextSibling()) {
     // Put our child into its own pseudo-stack.
-    rv = BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists,
-                                  DISPLAY_CHILD_FORCE_PSEUDO_STACKING_CONTEXT);
+    rv = BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -431,14 +381,10 @@ nsCanvasFrame::PaintFocus(nsIRenderingContext& aRenderingContext, nsPoint aPt)
 
   nsIScrollableFrame *scrollableFrame = do_QueryFrame(GetParent());
   if (scrollableFrame) {
-    nsIScrollableView* scrollableView = scrollableFrame->GetScrollableView();
-    nsRect vcr = scrollableView->View()->GetBounds();
-    focusRect.width = vcr.width;
-    focusRect.height = vcr.height;
-    nscoord x,y;
-    scrollableView->GetScrollPosition(x, y);
-    focusRect.x += x;
-    focusRect.y += y;
+    nsRect portRect = scrollableFrame->GetScrollPortRect();
+    focusRect.width = portRect.width;
+    focusRect.height = portRect.height;
+    focusRect.MoveBy(scrollableFrame->GetScrollPosition());
   }
 
  // XXX use the root frame foreground color, but should we find BODY frame
@@ -639,8 +585,9 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
     if (nsSize(aDesiredSize.width, aDesiredSize.height) != GetSize()) {
       nsIFrame* rootElementFrame =
         aPresContext->PresShell()->FrameConstructor()->GetRootElementStyleFrame();
-      const nsStyleBackground* bg =
+      nsStyleContext* bgSC =
         nsCSSRendering::FindCanvasBackground(this, rootElementFrame);
+      const nsStyleBackground* bg = bgSC->GetStyleBackground();
       if (!bg->IsTransparent()) {
         NS_FOR_VISIBLE_BACKGROUND_LAYERS_BACK_TO_FRONT(i, bg) {
           const nsStyleBackground::Layer& layer = bg->mLayers[i];

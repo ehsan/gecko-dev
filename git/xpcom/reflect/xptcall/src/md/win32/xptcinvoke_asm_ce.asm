@@ -16,9 +16,8 @@
 
     GLOBAL asmXPTC_InvokeByIndex
 asmXPTC_InvokeByIndex
-    mov     r12, sp
-    stmdb   sp!, {r4 - r6, r12, lr} ; we're using registers 4, 5 and 6. Save them
-    sub     sp, sp, #16
+    stmdb   sp!, {r4 - r6, lr} ; we're using registers 4, 5 and 6. Save them
+    sub     sp, sp, #24
     mov     r6, r0          ; store 'that' (the target's this)
     mov     r5, r1, lsl #2  ; a vtable index = methodIndex * 4
     mov     r4, sp          ; Back up the initial stack pointer.
@@ -56,7 +55,7 @@ asmXPTC_InvokeByIndex
 
     mov     sp, r4          ; Restore the original stack pointer.
 
-    add     sp, sp, #16
-    ldmia   sp!, {r4 - r6, sp, pc} ; Restore registers and return.
+    add     sp, sp, #24
+    ldmia   sp!, {r4 - r6, pc} ; Restore registers and return.
 
     END

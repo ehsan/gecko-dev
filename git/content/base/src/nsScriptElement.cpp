@@ -58,7 +58,7 @@ nsScriptElement::ScriptAvailable(nsresult aResult,
     nsCOMPtr<nsIContent> cont =
       do_QueryInterface((nsIScriptElement*) this);
 
-    nsCOMPtr<nsPresContext> presContext =
+    nsRefPtr<nsPresContext> presContext =
       nsContentUtils::GetContextForContent(cont);
 
     nsEventStatus status = nsEventStatus_eIgnore;
@@ -91,7 +91,7 @@ nsScriptElement::ScriptEvaluated(nsresult aResult,
     nsCOMPtr<nsIContent> cont =
       do_QueryInterface((nsIScriptElement*) this);
 
-    nsCOMPtr<nsPresContext> presContext =
+    nsRefPtr<nsPresContext> presContext =
       nsContentUtils::GetContextForContent(cont);
 
     nsEventStatus status = nsEventStatus_eIgnore;
@@ -129,6 +129,7 @@ nsScriptElement::AttributeChanged(nsIDocument* aDocument,
 void
 nsScriptElement::ContentAppended(nsIDocument* aDocument,
                                  nsIContent* aContainer,
+                                 nsIContent* aFirstNewContent,
                                  PRInt32 aNewIndexInContainer)
 {
   MaybeProcessScript();

@@ -47,6 +47,7 @@
 #include "nsPIDOMWindow.h"
 #include "nsIDocShell.h"
 #include "nsIURI.h"
+#include "nsITextToSubURI.h"
 #include "nsContentErrors.h"
 
 // Print Options
@@ -161,6 +162,9 @@ static const char kPrintingPromptService[] = "@mozilla.org/embedcomp/printingpro
 #include "nsRange.h"
 #include "nsCDefaultURIFixup.h"
 #include "nsIURIFixup.h"
+#include "mozilla/dom/Element.h"
+
+using namespace mozilla::dom;
 
 //-----------------------------------------------------
 // PR LOGGING
@@ -384,8 +388,7 @@ nsPrintEngine::GetSeqFrameAndCountPagesInternal(nsPrintObject*  aPO,
   NS_ENSURE_ARG_POINTER(aPO);
 
   // Finds the SimplePageSequencer frame
-  nsIPageSequenceFrame* seqFrame = nsnull;
-  aPO->mPresShell->GetPageSequenceFrame(&seqFrame);
+  nsIPageSequenceFrame* seqFrame = aPO->mPresShell->GetPageSequenceFrame();
   if (seqFrame) {
     aSeqFrame = do_QueryFrame(seqFrame);
   } else {
@@ -558,7 +561,7 @@ nsPrintEngine::DoCommonPrint(PRBool                  aIsPrintPreview,
 
   // XXX This isn't really correct...
   if (!mPrt->mPrintObject->mDocument ||
-      !mPrt->mPrintObject->mDocument->GetRootContent())
+      !mPrt->mPrintObject->mDocument->GetRootElement())
     return NS_ERROR_GFX_PRINTER_STARTDOC;
 
   // Create the linkage from the sub-docs back to the content element
@@ -753,7 +756,13 @@ NS_IMETHODIMP
 nsPrintEngine::Print(nsIPrintSettings*       aPrintSettings,
                      nsIWebProgressListener* aWebProgressListener)
 {
-  nsCOMPtr<nsIDOMDocument> doc = do_QueryInterface(mDocument);
+  // If we have a print preview document, use that instead of the original
+  // mDocument. That way animated images etc. get printed using the same state
+  // as in print preview.
+  nsCOMPtr<nsIDOMDocument> doc =
+    do_QueryInterface(mPrtPreview && mPrtPreview->mPrintObject ?
+                        mPrtPreview->mPrintObject->mDocument : mDocument);
+
   return CommonPrint(PR_FALSE, aPrintSettings, aWebProgressListener, doc);
 }
 
@@ -1121,9 +1130,9 @@ nsPrintEngine::IsParentAFrameSet(nsIDocShell * aParent)
   nsCOMPtr<nsIDOMDocument> domDoc = do_GetInterface(aParent);
   nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
   if (doc) {
-    nsIContent *rootContent = doc->GetRootContent();
-    if (rootContent) {
-      isFrameSet = HasFramesetChild(rootContent);
+    nsIContent *rootElement = doc->GetRootElement();
+    if (rootElement) {
+      isFrameSet = HasFramesetChild(rootElement);
     }
   }
   return isFrameSet;
@@ -1205,7 +1214,18 @@ nsPrintEngine::GetDocumentTitleAndURL(nsIDocument* aDoc,
 
   nsCAutoString urlCStr;
   exposableURI->GetSpec(urlCStr);
-  *aURLStr = UTF8ToNewUnicode(urlCStr);
+
+  nsresult rv;
+  nsCOMPtr<nsITextToSubURI> textToSubURI = 
+    do_GetService(NS_ITEXTTOSUBURI_CONTRACTID, &rv);
+  if (NS_FAILED(rv)) return;
+
+  nsAutoString unescapedURI;
+  rv = textToSubURI->UnEscapeURIForUI(NS_LITERAL_CSTRING("UTF-8"),
+                                      urlCStr, unescapedURI);
+  if (NS_FAILED(rv)) return;
+
+  *aURLStr = ToNewUnicode(unescapedURI);
 }
 
 //---------------------------------------------------------------------
@@ -1233,9 +1253,9 @@ nsPrintEngine::MapContentToWebShells(nsPrintObject* aRootPO,
   nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
   if (!doc) return;
 
-  nsIContent* rootContent = doc->GetRootContent();
-  if (rootContent) {
-    MapContentForPO(aPO, rootContent);
+  Element* rootElement = doc->GetRootElement();
+  if (rootElement) {
+    MapContentForPO(aPO, rootElement);
   } else {
     NS_WARNING("Null root content on (sub)document.");
   }
@@ -1780,8 +1800,7 @@ nsPrintEngine::SetupToPrintContent()
   if (mIsCreatingPrintPreview) {
     // Print Preview -- Pass ownership of docTitleStr and docURLStr
     // to the pageSequenceFrame, to be displayed in the header
-    nsIPageSequenceFrame *seqFrame = nsnull;
-    mPrt->mPrintObject->mPresShell->GetPageSequenceFrame(&seqFrame);
+    nsIPageSequenceFrame *seqFrame = mPrt->mPrintObject->mPresShell->GetPageSequenceFrame();
     if (seqFrame) {
       seqFrame->StartPrint(mPrt->mPrintObject->mPresContext, 
                            mPrt->mPrintSettings, docTitleStr, docURLStr);
@@ -1817,8 +1836,7 @@ nsPrintEngine::ReflowDocList(nsPrintObject* aPO, PRBool aSetPixelScale)
 
   // Check to see if the subdocument's element has been hidden by the parent document
   if (aPO->mParent && aPO->mParent->mPresShell) {
-    nsIFrame * frame =
-      aPO->mParent->mPresShell->GetPrimaryFrameFor(aPO->mContent);
+    nsIFrame * frame = aPO->mContent->GetPrimaryFrame();
     if (frame) {
       if (!frame->GetStyleVisibility()->IsVisible()) {
         aPO->mDontPrint = PR_TRUE;
@@ -1872,14 +1890,13 @@ nsPrintEngine::ReflowPrintObject(nsPrintObject * aPO)
     return NS_OK;
 
   if (aPO->mParent && aPO->mParent->IsPrintable()) {
-    if (aPO->mParent->mPresShell) {
-      frame = aPO->mParent->mPresShell->FrameManager()->
-        GetPrimaryFrameFor(aPO->mContent, -1);
-    }
+    frame = aPO->mContent->GetPrimaryFrame();
     // Without a frame, this document can't be displayed; therefore, there is no
     // point to reflowing it
-    if (!frame)
+    if (!frame) {
+      SetPrintPO(aPO, PR_FALSE);
       return NS_OK;
+    }
 
     adjSize = frame->GetContentRect().Size();
     documentIsTopLevel = PR_FALSE;
@@ -2046,8 +2063,8 @@ nsPrintEngine::ReflowPrintObject(nsPrintObject * aPO)
   // this is the frame where the right-hand side of the frame extends
   // the furthest
   if (mPrt->mShrinkToFit && documentIsTopLevel) {
-    nsIPageSequenceFrame* pageSequence;
-    aPO->mPresShell->GetPageSequenceFrame(&pageSequence);
+    nsIPageSequenceFrame* pageSequence = aPO->mPresShell->GetPageSequenceFrame();
+    NS_ENSURE_STATE(pageSequence);
     pageSequence->GetSTFPercent(aPO->mShrinkRatio);
   }
 
@@ -2105,8 +2122,7 @@ nsPrintEngine::CalcNumPrintablePages(PRInt32& aNumPages)
     nsPrintObject* po = mPrt->mPrintDocList.ElementAt(i);
     NS_ASSERTION(po, "nsPrintObject can't be null!");
     if (po->mPresContext && po->mPresContext->IsRootPaginatedDocument()) {
-      nsIPageSequenceFrame* pageSequence;
-      po->mPresShell->GetPageSequenceFrame(&pageSequence);
+      nsIPageSequenceFrame* pageSequence = po->mPresShell->GetPageSequenceFrame();
       nsIFrame * seqFrame = do_QueryFrame(pageSequence);
       if (seqFrame) {
         nsIFrame* frame = seqFrame->GetFirstChild(nsnull);
@@ -2274,8 +2290,7 @@ nsPrintEngine::DoPrint(nsPrintObject * aPO)
     }
 
     // Ask the page sequence frame to print all the pages
-    nsIPageSequenceFrame* pageSequence;
-    poPresShell->GetPageSequenceFrame(&pageSequence);
+    nsIPageSequenceFrame* pageSequence = poPresShell->GetPageSequenceFrame();
     NS_ASSERTION(nsnull != pageSequence, "no page sequence frame");
 
     // We are done preparing for printing, so we can turn this off
@@ -2809,24 +2824,33 @@ already_AddRefed<nsIDOMWindow>
 nsPrintEngine::FindFocusedDOMWindow()
 {
   nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (fm) {
-    nsCOMPtr<nsIDOMWindow> domWin;
-    fm->GetFocusedWindow(getter_AddRefs(domWin));
-    if (domWin && IsWindowsInOurSubTree(domWin))
-      return domWin.forget();
+  NS_ENSURE_TRUE(fm, nsnull);
+
+  nsCOMPtr<nsPIDOMWindow> window(mDocument->GetWindow());
+  NS_ENSURE_TRUE(window, nsnull);
+
+  nsCOMPtr<nsPIDOMWindow> rootWindow = window->GetPrivateRoot();
+  NS_ENSURE_TRUE(rootWindow, nsnull);
+
+  nsPIDOMWindow* focusedWindow;
+  nsFocusManager::GetFocusedDescendant(rootWindow, PR_TRUE, &focusedWindow);
+  NS_ENSURE_TRUE(focusedWindow, nsnull);
+
+  if (IsWindowsInOurSubTree(focusedWindow)) {
+    return focusedWindow;
   }
 
+  NS_IF_RELEASE(focusedWindow);
   return nsnull;
 }
 
 //---------------------------------------------------------------------
 PRBool
-nsPrintEngine::IsWindowsInOurSubTree(nsIDOMWindow * aDOMWindow)
+nsPrintEngine::IsWindowsInOurSubTree(nsPIDOMWindow * window)
 {
   PRBool found = PR_FALSE;
 
   // now check to make sure it is in "our" tree of docshells
-  nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(aDOMWindow));
   if (window) {
     nsCOMPtr<nsIDocShellTreeItem> docShellAsItem =
       do_QueryInterface(window->GetDocShell());
@@ -3311,7 +3335,7 @@ nsPrintEngine::StartPagePrintTimer(nsPrintObject* aPO)
 
     // Get the delay time in between the printing of each page
     // this gives the user more time to press cancel
-    PRInt32 printPageDelay = 500;
+    PRInt32 printPageDelay = 50;
     mPrt->mPrintSettings->GetPrintPageDelay(&printPageDelay);
 
     mPagePrintTimer->Init(this, mDocViewerPrint, printPageDelay);

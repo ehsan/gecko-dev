@@ -72,15 +72,31 @@ nsFrameList::Destroy()
 }
 
 void
+nsFrameList::DestroyFrom(nsIFrame* aDestructRoot)
+{
+  NS_PRECONDITION(this != sEmptyList, "Shouldn't Destroy() sEmptyList");
+
+  DestroyFramesFrom(aDestructRoot);
+  delete this;
+}
+
+void
 nsFrameList::DestroyFrames()
 {
-  nsIFrame* next;
-  for (nsIFrame* frame = mFirstChild; frame; frame = next) {
-    next = frame->GetNextSibling();
+  while (nsIFrame* frame = RemoveFirstChild()) {
     frame->Destroy();
-    mFirstChild = next;
   }
+  mLastChild = nsnull;
+}
 
+void
+nsFrameList::DestroyFramesFrom(nsIFrame* aDestructRoot)
+{
+  NS_PRECONDITION(aDestructRoot, "Missing destruct root");
+
+  while (nsIFrame* frame = RemoveFirstChild()) {
+    frame->DestroyFrom(aDestructRoot);
+  }
   mLastChild = nsnull;
 }
 
@@ -152,14 +168,15 @@ nsFrameList::RemoveFramesAfter(nsIFrame* aAfterFrame)
   return nsFrameList(tail, tail ? oldLastChild : nsnull);
 }
 
-PRBool
+nsIFrame*
 nsFrameList::RemoveFirstChild()
 {
   if (mFirstChild) {
-    RemoveFrame(mFirstChild);
-    return PR_TRUE;
+    nsIFrame* firstChild = mFirstChild;
+    RemoveFrame(firstChild);
+    return firstChild;
   }
-  return PR_FALSE;
+  return nsnull;
 }
 
 void
@@ -343,24 +360,6 @@ nsFrameList::ContainsFrame(const nsIFrame* aFrame) const
   return PR_FALSE;
 }
 
-PRBool
-nsFrameList::ContainsFrameBefore(const nsIFrame* aFrame, const nsIFrame* aEnd) const
-{
-  NS_PRECONDITION(aFrame, "null ptr");
-
-  nsIFrame* frame = mFirstChild;
-  while (frame) {
-    if (frame == aEnd) {
-      return PR_FALSE;
-    }
-    if (frame == aFrame) {
-      return PR_TRUE;
-    }
-    frame = frame->GetNextSibling();
-  }
-  return PR_FALSE;
-}
-
 PRInt32
 nsFrameList::GetLength() const
 {
@@ -411,28 +410,6 @@ class CompareByContentOrderComparator
     return CompareByContentOrder(aA, aB) < 0;
   }
 };
-
-void
-nsFrameList::SortByContentOrder()
-{
-  if (IsEmpty())
-    return;
-
-  nsAutoTArray<nsIFrame*, 8> array;
-  nsIFrame* f;
-  for (f = mFirstChild; f; f = f->GetNextSibling()) {
-    array.AppendElement(f);
-  }
-  array.Sort(CompareByContentOrderComparator());
-  f = mFirstChild = array.ElementAt(0);
-  for (PRUint32 i = 1; i < array.Length(); ++i) {
-    nsIFrame* ff = array.ElementAt(i);
-    f->SetNextSibling(ff);
-    f = ff;
-  }
-  f->SetNextSibling(nsnull);
-  mLastChild = f;
-}
 
 void
 nsFrameList::ApplySetParent(nsIFrame* aParent) const

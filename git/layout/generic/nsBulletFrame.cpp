@@ -91,7 +91,7 @@ nsBulletFrame::~nsBulletFrame()
 }
 
 void
-nsBulletFrame::Destroy()
+nsBulletFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   // Stop image loading first
   if (mImageRequest) {
@@ -103,7 +103,7 @@ nsBulletFrame::Destroy()
     reinterpret_cast<nsBulletListener*>(mListener.get())->SetFrame(nsnull);
 
   // Let base class do the rest
-  nsFrame::Destroy();
+  nsFrame::DestroyFrom(aDestructRoot);
 }
 
 #ifdef NS_DEBUG
@@ -194,8 +194,10 @@ public:
   }
 #endif
 
-  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
-                            HitTestState* aState) { return mFrame; }
+  virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
+                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) {
+    aOutFrames->AppendElement(mFrame);
+  }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("Bullet")
@@ -247,10 +249,8 @@ nsBulletFrame::PaintBullet(nsIRenderingContext& aRenderingContext, nsPoint aPt,
     }
   }
 
-  const nsStyleColor* myColor = GetStyleColor();
-
   nsCOMPtr<nsIFontMetrics> fm;
-  aRenderingContext.SetColor(myColor->mColor);
+  aRenderingContext.SetColor(GetVisitedDependentColor(eCSSProperty_color));
 
   mTextIsRTL = PR_FALSE;
 
@@ -273,9 +273,25 @@ nsBulletFrame::PaintBullet(nsIRenderingContext& aRenderingContext, nsPoint aPt,
     break;
 
   case NS_STYLE_LIST_STYLE_SQUARE:
-    aRenderingContext.FillRect(mPadding.left + aPt.x, mPadding.top + aPt.y,
-                               mRect.width - (mPadding.left + mPadding.right),
-                               mRect.height - (mPadding.top + mPadding.bottom));
+    {
+      nsRect rect(mPadding.TopLeft() + aPt,
+                  nsSize(mRect.width - mPadding.LeftRight(),
+                         mRect.height - mPadding.TopBottom()));
+      // Snap the height and the width of the rectangle to device pixels,
+      // and then center the result within the original rectangle, so that
+      // all square bullets at the same font size have the same visual
+      // size (bug 376690).
+      // FIXME: We should really only do this if we're not transformed
+      // (like gfxContext::UserToDevicePixelSnapped does).
+      nsPresContext *pc = PresContext();
+      nsRect snapRect(rect.x, rect.y, 
+                      pc->RoundAppUnitsToNearestDevPixels(rect.width),
+                      pc->RoundAppUnitsToNearestDevPixels(rect.height));
+      snapRect.MoveBy((rect.width - snapRect.width) / 2,
+                      (rect.height - snapRect.height) / 2);
+      aRenderingContext.FillRect(snapRect.x, snapRect.y,
+                                 snapRect.width, snapRect.height);
+    }
     break;
 
   case NS_STYLE_LIST_STYLE_DECIMAL:

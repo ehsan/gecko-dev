@@ -45,13 +45,13 @@
 #include "nsCOMPtr.h"
 #include "nsIDOMEventTarget.h"
 #include "nsPIDOMWindow.h"
-#include "nsPresContext.h"
 #include "nsPoint.h"
 #include "nsGUIEvent.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsAutoPtr.h"
 
 class nsIContent;
-class nsIScrollableView;
+class nsPresContext;
  
 class nsDOMEvent : public nsIDOMEvent,
                    public nsIDOMNSEvent,
@@ -59,7 +59,7 @@ class nsDOMEvent : public nsIDOMEvent,
 {
 public:
 
-  // Note: this enum must be kept in sync with mEventNames in nsDOMEvent.cpp
+  // Note: this enum must be kept in sync with sEventNames in nsDOMEvent.cpp
   enum nsDOMEvents {
     eDOMEvents_mousedown=0,
     eDOMEvents_mouseup,
@@ -75,6 +75,7 @@ public:
     eDOMEvents_focus,
     eDOMEvents_blur,
     eDOMEvents_load,
+    eDOMEvents_popstate,
     eDOMEvents_beforeunload,
     eDOMEvents_unload,
     eDOMEvents_hashchange,
@@ -171,7 +172,8 @@ public:
     eDOMEvents_MozRotateGesture,
     eDOMEvents_MozTapGesture,
     eDOMEvents_MozPressTapGesture,
-    eDOMEvents_MozScrolledAreaChanged
+    eDOMEvents_MozScrolledAreaChanged,
+    eDOMEvents_transitionend
   };
 
   nsDOMEvent(nsPresContext* aPresContext, nsEvent* aEvent);
@@ -193,9 +195,6 @@ public:
   NS_IMETHOD_(nsEvent*)    GetInternalNSEvent();
   NS_IMETHOD    SetTrusted(PRBool aTrusted);
 
-  virtual void Serialize(IPC::Message* aMsg, PRBool aSerializeInterfaceType);
-  virtual PRBool Deserialize(const IPC::Message* aMsg, void** aIter);
-
   static PopupControlState GetEventPopupControlState(nsEvent *aEvent);
 
   static void PopupAllowedEventsChanged();
@@ -211,7 +210,7 @@ protected:
   nsresult ReportWrongPropertyAccessWarning(const char* aPropertyName);
 
   nsEvent*                    mEvent;
-  nsCOMPtr<nsPresContext>     mPresContext;
+  nsRefPtr<nsPresContext>     mPresContext;
   nsCOMPtr<nsIDOMEventTarget> mTmpRealOriginalTarget;
   nsCOMPtr<nsIDOMEventTarget> mExplicitOriginalTarget;
   nsString                    mCachedType;

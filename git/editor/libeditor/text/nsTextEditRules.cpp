@@ -57,6 +57,7 @@
 #include "nsIContentIterator.h"
 #include "nsEditorUtils.h"
 #include "EditTxn.h"
+#include "nsEditProperty.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
 #include "nsUnicharUtils.h"
@@ -67,13 +68,12 @@
 #include "nsIDOMNodeFilter.h"
 
 // for IBMBIDI
-#include "nsIPresShell.h"
 #include "nsFrameSelection.h"
 
 static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 
 #define CANCEL_OPERATION_IF_READONLY_OR_DISABLED \
-  if ((mFlags & nsIPlaintextEditor::eEditorReadonlyMask) || (mFlags & nsIPlaintextEditor::eEditorDisabledMask)) \
+  if (IsReadonly() || IsDisabled()) \
   {                     \
     *aCancel = PR_TRUE; \
     return NS_OK;       \
@@ -99,11 +99,12 @@ nsTextEditRules::nsTextEditRules()
 , mPasswordText()
 , mPasswordIMEText()
 , mPasswordIMEIndex(0)
-, mFlags(0) // initialized to 0 ("no flags set").  Real initial value is given in Init()
 , mActionNesting(0)
 , mLockRulesSniffing(PR_FALSE)
 , mDidExplicitlySetInterline(PR_FALSE)
 , mTheAction(0)
+, mLastStart(0)
+, mLastLength(0)
 {
 }
 
@@ -135,13 +136,11 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsTextEditRules)
  ********************************************************/
 
 NS_IMETHODIMP
-nsTextEditRules::Init(nsPlaintextEditor *aEditor, PRUint32 aFlags)
+nsTextEditRules::Init(nsPlaintextEditor *aEditor)
 {
   if (!aEditor) { return NS_ERROR_NULL_POINTER; }
 
   mEditor = aEditor;  // we hold a non-refcounted reference back to our editor
-  // call SetFlags only aftet mEditor has been initialized!
-  SetFlags(aFlags);
   nsCOMPtr<nsISelection> selection;
   mEditor->GetSelection(getter_AddRefs(selection));
   NS_ASSERTION(selection, "editor cannot get selection");
@@ -154,7 +153,17 @@ nsTextEditRules::Init(nsPlaintextEditor *aEditor, PRUint32 aFlags)
   nsresult res = CreateBogusNodeIfNeeded(selection);
   if (NS_FAILED(res)) return res;
 
-  if (mFlags & nsIPlaintextEditor::eEditorPlaintextMask)
+  // If the selection hasn't been set up yet, set it up collapsed to the end of
+  // our editable content.
+  PRInt32 rangeCount;
+  res = selection->GetRangeCount(&rangeCount);
+  NS_ENSURE_SUCCESS(res, res);
+  if (!rangeCount) {
+    res = mEditor->EndOfDocument();
+    NS_ENSURE_SUCCESS(res, res);
+  }
+
+  if (IsPlaintextEditor())
   {
     // ensure trailing br node
     res = CreateTrailingBRIfNeeded();
@@ -202,28 +211,6 @@ nsTextEditRules::DetachEditor()
     mTimer->Cancel();
 
   mEditor = nsnull;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsTextEditRules::GetFlags(PRUint32 *aFlags)
-{
-  if (!aFlags) { return NS_ERROR_NULL_POINTER; }
-  *aFlags = mFlags;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsTextEditRules::SetFlags(PRUint32 aFlags)
-{
-  if (mFlags == aFlags) return NS_OK;
-  
-  // XXX - this won't work if body element already has
-  // a style attribute on it, don't know why.
-  // SetFlags() is really meant to only be called once
-  // and at editor init time.  
-
-  mFlags = aFlags;
   return NS_OK;
 }
 
@@ -446,7 +433,7 @@ nsTextEditRules::WillInsertBreak(nsISelection *aSelection, PRBool *aCancel, PRBo
   if (!aSelection || !aCancel || !aHandled) { return NS_ERROR_NULL_POINTER; }
   CANCEL_OPERATION_IF_READONLY_OR_DISABLED
   *aHandled = PR_FALSE;
-  if (mFlags & nsIPlaintextEditor::eEditorSingleLineMask) {
+  if (IsSingleLineEditor()) {
     *aCancel = PR_TRUE;
   }
   else 
@@ -479,7 +466,9 @@ nsTextEditRules::DidInsertBreak(nsISelection *aSelection, nsresult aResult)
   // we only need to execute the stuff below if we are a plaintext editor.
   // html editors have a different mechanism for putting in mozBR's
   // (because there are a bunch more places you have to worry about it in html) 
-  if (!nsIPlaintextEditor::eEditorPlaintextMask & mFlags) return NS_OK;
+  if (!IsPlaintextEditor()) {
+    return NS_OK;
+  }
 
   // if we are at the end of the document, we need to insert 
   // a special mozBR following the normal br, and then set the
@@ -543,7 +532,7 @@ GetTextNode(nsISelection *selection, nsEditor *editor) {
 }
 #ifdef DEBUG
 #define ASSERT_PASSWORD_LENGTHS_EQUAL()                                \
-  if (mFlags & nsIPlaintextEditor::eEditorPasswordMask) {              \
+  if (IsPasswordEditor()) {                                            \
     PRInt32 txtLen;                                                    \
     mEditor->GetTextLength(&txtLen);                                   \
     NS_ASSERTION(mPasswordText.Length() == txtLen,                     \
@@ -552,6 +541,75 @@ GetTextNode(nsISelection *selection, nsEditor *editor) {
 #else
 #define ASSERT_PASSWORD_LENGTHS_EQUAL()
 #endif
+
+// static
+void
+nsTextEditRules::HandleNewLines(nsString &aString,
+                                PRInt32 aNewlineHandling)
+{
+  if (aNewlineHandling < 0) {
+    PRInt32 caretStyle;
+    nsPlaintextEditor::GetDefaultEditorPrefs(aNewlineHandling, caretStyle);
+  }
+
+  switch(aNewlineHandling)
+  {
+  case nsIPlaintextEditor::eNewlinesReplaceWithSpaces:
+    // Strip trailing newlines first so we don't wind up with trailing spaces
+    aString.Trim(CRLF, PR_FALSE, PR_TRUE);
+    aString.ReplaceChar(CRLF, ' ');
+    break;
+  case nsIPlaintextEditor::eNewlinesStrip:
+    aString.StripChars(CRLF);
+    break;
+  case nsIPlaintextEditor::eNewlinesPasteToFirst:
+  default:
+    {
+      PRInt32 firstCRLF = aString.FindCharInSet(CRLF);
+
+      // we get first *non-empty* line.
+      PRInt32 offset = 0;
+      while (firstCRLF == offset)
+      {
+        offset++;
+        firstCRLF = aString.FindCharInSet(CRLF, offset);
+      }
+      if (firstCRLF > 0)
+        aString.Truncate(firstCRLF);
+      if (offset > 0)
+        aString.Cut(0, offset);
+    }
+    break;
+  case nsIPlaintextEditor::eNewlinesReplaceWithCommas:
+    aString.Trim(CRLF, PR_TRUE, PR_TRUE);
+    aString.ReplaceChar(CRLF, ',');
+    break;
+  case nsIPlaintextEditor::eNewlinesStripSurroundingWhitespace:
+    {
+      // find each newline, and strip all the whitespace before
+      // and after it
+      PRInt32 firstCRLF = aString.FindCharInSet(CRLF);
+      while (firstCRLF >= 0)
+      {
+        PRUint32 wsBegin = firstCRLF, wsEnd = firstCRLF + 1;
+        // look backwards for the first non-whitespace char
+        while (wsBegin > 0 && NS_IS_SPACE(aString[wsBegin - 1]))
+          --wsBegin;
+        while (wsEnd < aString.Length() && NS_IS_SPACE(aString[wsEnd]))
+          ++wsEnd;
+        // now cut this range out of the string
+        aString.Cut(wsBegin, wsEnd - wsBegin);
+        // look for another CR or LF
+        firstCRLF = aString.FindCharInSet(CRLF);
+      }
+    }
+    break;
+  case nsIPlaintextEditor::eNewlinesPasteIntact:
+    // even if we're pasting newlines, don't paste leading/trailing ones
+    aString.Trim(CRLF, PR_TRUE, PR_TRUE);
+    break;
+  }
+}
 
 nsresult
 nsTextEditRules::WillInsertText(PRInt32          aAction,
@@ -589,7 +647,7 @@ nsTextEditRules::WillInsertText(PRInt32          aAction,
   PRUint32 end = 0;  
 
   // handle password field docs
-  if (mFlags & nsIPlaintextEditor::eEditorPasswordMask)
+  if (IsPasswordEditor())
   {
     res = mEditor->GetTextSelectionOffsets(aSelection, start, end);
     NS_ASSERTION((NS_SUCCEEDED(res)), "getTextSelectionOffsets failed!");
@@ -615,7 +673,7 @@ nsTextEditRules::WillInsertText(PRInt32          aAction,
   // handle password field data
   // this has the side effect of changing all the characters in aOutString
   // to the replacement character
-  if (mFlags & nsIPlaintextEditor::eEditorPasswordMask)
+  if (IsPasswordEditor())
   {
     if (aAction == kInsertTextIME)  {
       res = RemoveIMETextFromPWBuf(start, outString);
@@ -633,79 +691,22 @@ nsTextEditRules::WillInsertText(PRInt32          aAction,
   // 4. replace with commas
   // 5. strip newlines and surrounding whitespace
   // So find out what we're expected to do:
-  if (nsIPlaintextEditor::eEditorSingleLineMask & mFlags)
+  if (IsSingleLineEditor())
   {
     nsAutoString tString(*outString);
 
-    switch(mEditor->mNewlineHandling)
-    {
-    case nsIPlaintextEditor::eNewlinesReplaceWithSpaces:
-      // Strip trailing newlines first so we don't wind up with trailing spaces
-      tString.Trim(CRLF, PR_FALSE, PR_TRUE);
-      tString.ReplaceChar(CRLF, ' ');
-      break;
-    case nsIPlaintextEditor::eNewlinesStrip:
-      tString.StripChars(CRLF);
-      break;
-    case nsIPlaintextEditor::eNewlinesPasteToFirst:
-    default:
-      {
-        PRInt32 firstCRLF = tString.FindCharInSet(CRLF);
-
-        // we get first *non-empty* line.
-        PRInt32 offset = 0;
-        while (firstCRLF == offset)
-        {
-          offset++;
-          firstCRLF = tString.FindCharInSet(CRLF, offset);
-        }
-        if (firstCRLF > 0)
-          tString.Truncate(firstCRLF);
-        if (offset > 0)
-          tString.Cut(0, offset);
-      }
-      break;
-    case nsIPlaintextEditor::eNewlinesReplaceWithCommas:
-      tString.Trim(CRLF, PR_TRUE, PR_TRUE);
-      tString.ReplaceChar(CRLF, ',');
-      break;
-    case nsIPlaintextEditor::eNewlinesStripSurroundingWhitespace:
-      {
-        // find each newline, and strip all the whitespace before
-        // and after it
-        PRInt32 firstCRLF = tString.FindCharInSet(CRLF);
-        while (firstCRLF >= 0)
-        {
-          PRUint32 wsBegin = firstCRLF, wsEnd = firstCRLF + 1;
-          // look backwards for the first non-whitespace char
-          while (wsBegin > 0 && NS_IS_SPACE(tString[wsBegin - 1]))
-            --wsBegin;
-          while (wsEnd < tString.Length() && NS_IS_SPACE(tString[wsEnd]))
-            ++wsEnd;
-          // now cut this range out of the string
-          tString.Cut(wsBegin, wsEnd - wsBegin);
-          // look for another CR or LF
-          firstCRLF = tString.FindCharInSet(CRLF);
-        }
-      }
-      break;
-    case nsIPlaintextEditor::eNewlinesPasteIntact:
-      // even if we're pasting newlines, don't paste leading/trailing ones
-      tString.Trim(CRLF, PR_TRUE, PR_TRUE);
-      break;
-    }
+    HandleNewLines(tString, mEditor->mNewlineHandling);
 
     outString->Assign(tString);
   }
 
-  if (mFlags & nsIPlaintextEditor::eEditorPasswordMask)
+  if (IsPasswordEditor())
   {
     // manage the password buffer
     mPasswordText.Insert(*outString, start);
 
     nsCOMPtr<nsILookAndFeel> lookAndFeel = do_GetService(kLookAndFeelCID);
-    if (lookAndFeel->GetEchoPassword() && 
-        !(mFlags & nsIPlaintextEditor::eEditorDontEchoPassword)) {
+    if (lookAndFeel->GetEchoPassword() && !DontEchoPassword()) {
       HideLastPWInput();
       mLastStart = start;
       mLastLength = outString->Length();
@@ -796,7 +797,7 @@ nsTextEditRules::WillInsertText(PRInt32          aAction,
         // is it a return?
         if (subStr.EqualsLiteral(LFSTR))
         {
-          if (nsIPlaintextEditor::eEditorSingleLineMask & mFlags)
+          if (IsSingleLineEditor())
           {
             NS_ASSERTION((mEditor->mNewlineHandling == nsIPlaintextEditor::eNewlinesPasteIntact),
                   "Newline improperly getting into single-line edit field!");
@@ -913,7 +914,7 @@ nsTextEditRules::WillSetTextProperty(nsISelection *aSelection, PRBool *aCancel, 
     { return NS_ERROR_NULL_POINTER; }
 
   // XXX: should probably return a success value other than NS_OK that means "not allowed"
-  if (nsIPlaintextEditor::eEditorPlaintextMask & mFlags) {
+  if (IsPlaintextEditor()) {
     *aCancel = PR_TRUE;
   }
   return NS_OK;
@@ -932,7 +933,7 @@ nsTextEditRules::WillRemoveTextProperty(nsISelection *aSelection, PRBool *aCance
     { return NS_ERROR_NULL_POINTER; }
 
   // XXX: should probably return a success value other than NS_OK that means "not allowed"
-  if (nsIPlaintextEditor::eEditorPlaintextMask & mFlags) {
+  if (IsPlaintextEditor()) {
     *aCancel = PR_TRUE;
   }
   return NS_OK;
@@ -965,7 +966,7 @@ nsTextEditRules::WillDeleteSelection(nsISelection *aSelection,
 
   nsresult res = NS_OK;
 
-  if (mFlags & nsIPlaintextEditor::eEditorPasswordMask)
+  if (IsPasswordEditor())
   {
     res = mEditor->ExtendSelectionForDelete(aSelection, &aCollapsedAction);
     NS_ENSURE_SUCCESS(res, res);
@@ -1171,7 +1172,7 @@ nsTextEditRules::WillOutputText(nsISelection *aSelection,
   ToLowerCase(outputFormat);
   if (outputFormat.EqualsLiteral("text/plain"))
   { // only use these rules for plain text output
-    if (mFlags & nsIPlaintextEditor::eEditorPasswordMask)
+    if (IsPasswordEditor())
     {
       *aOutString = mPasswordText;
       *aHandled = PR_TRUE;
@@ -1273,7 +1274,7 @@ nsresult
 nsTextEditRules::CreateTrailingBRIfNeeded()
 {
   // but only if we aren't a single line edit field
-  if (mFlags & nsIPlaintextEditor::eEditorSingleLineMask)
+  if (IsSingleLineEditor())
     return NS_OK;
   nsIDOMNode *body = mEditor->GetRoot();
   if (!body)
@@ -1347,8 +1348,8 @@ nsTextEditRules::CreateBogusNodeIfNeeded(nsISelection *aSelection)
     if (!mBogusNode) return NS_ERROR_NULL_POINTER;
 
     // give it a special attribute
-    brElement->SetAttribute( kMOZEditorBogusNodeAttr,
-                             kMOZEditorBogusNodeValue );
+    newContent->SetAttr(kNameSpaceID_None, kMOZEditorBogusNodeAttrAtom,
+                        kMOZEditorBogusNodeValue, PR_FALSE);
     
     // put the node in the document
     res = mEditor->InsertNode(mBogusNode, body, 0);
@@ -1372,8 +1373,7 @@ nsTextEditRules::TruncateInsertionIfNeeded(nsISelection *aSelection,
   nsresult res = NS_OK;
   *aOutString = *aInString;
   
-  if ((-1 != aMaxLength) && (mFlags & nsIPlaintextEditor::eEditorPlaintextMask)
-      && !mEditor->IsIMEComposing() )
+  if ((-1 != aMaxLength) && IsPlaintextEditor() && !mEditor->IsIMEComposing() )
   {
     // Get the current text length.
     // Get the length of inString.
@@ -1483,6 +1483,7 @@ nsresult nsTextEditRules::HideLastPWInput() {
   return NS_OK;
 }
 
+// static
 nsresult
 nsTextEditRules::FillBufWithPWChars(nsAString *aOutString, PRInt32 aLength)
 {

@@ -111,7 +111,6 @@ rollbox.
   void CoordNeedsRecalc(nscoord& aCoord);
 
   void AddBorderAndPadding(nsSize& aSize);
-  void AddMargin(nsSize& aSize);
 
   static void AddBorderAndPadding(nsIBox* aBox, nsSize& aSize);
   static void AddMargin(nsIBox* aChild, nsSize& aSize);
@@ -129,7 +128,6 @@ protected:
   virtual void ListBox(nsAutoString& aResult);
 #endif
   
-  virtual PRBool GetDefaultFlex(PRInt32& aFlex);
   virtual void GetLayoutFlags(PRUint32& aFlags);
 
   NS_HIDDEN_(nsresult) BeginLayout(nsBoxLayoutState& aState);

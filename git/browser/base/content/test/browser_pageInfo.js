@@ -1,5 +1,3 @@
-var obs = Cc["@mozilla.org/observer-service;1"].getService(Ci.nsIObserverService);
-
 function test() {
   waitForExplicitFinish();
 
@@ -8,32 +6,30 @@ function test() {
   gBrowser.selectedBrowser.addEventListener("load", function () {
     gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
     pageInfo = BrowserPageInfo();
-    obs.addObserver(observer, "page-info-dialog-loaded", false);
+    Services.obs.addObserver(observer, "page-info-dialog-loaded", false);
   }, true);
   content.location =
     "https://example.com/browser/browser/base/content/test/feed_tab.html";
 
-  var observer = {
-    observe: function(win, topic, data) {
-      if (topic != "page-info-dialog-loaded")
-        return;
+  function observer(win, topic, data) {
+    if (topic != "page-info-dialog-loaded")
+      return;
 
-      switch (atTest) {
-        case 0:
-          atTest++;
-          handlePageInfo();
-          break;
-        case 1:
-          atTest++;
-          pageInfo = win;
-          testLockClick();
-          break;
-        case 2:
-          atTest++;
-          obs.removeObserver(observer, "page-info-dialog-loaded");
-          testLockDoubleClick();
-          break;
-      }
+    switch (atTest) {
+      case 0:
+        atTest++;
+        handlePageInfo();
+        break;
+      case 1:
+        atTest++;
+        pageInfo = win;
+        testLockClick();
+        break;
+      case 2:
+        atTest++;
+        Services.obs.removeObserver(observer, "page-info-dialog-loaded");
+        testLockDoubleClick();
+        break;
     }
   }
 
@@ -78,9 +74,7 @@ function test() {
   }
 
   function testLockDoubleClick() {
-    var pageInfoDialogs = Cc["@mozilla.org/appshell/window-mediator;1"]
-                            .getService(Ci.nsIWindowMediator)
-                            .getEnumerator("Browser:page-info");
+    var pageInfoDialogs = Services.wm.getEnumerator("Browser:page-info");
     var i = 0;
     while (pageInfoDialogs.hasMoreElements()) {
       i++;

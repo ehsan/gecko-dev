@@ -38,12 +38,12 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsHTMLTextAccessible.h"
-#include "nsAccessibleTreeWalker.h"
-#include "nsIAccessibleDocument.h"
-#include "nsIAccessibleEvent.h"
+
+#include "nsDocAccessible.h"
+#include "nsTextEquivUtils.h"
+
 #include "nsIFrame.h"
 #include "nsPresContext.h"
-#include "nsIPresShell.h"
 #include "nsISelection.h"
 #include "nsISelectionController.h"
 #include "nsComponentManagerUtils.h"
@@ -87,8 +87,7 @@ nsHTMLTextAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
   nsresult rv = nsTextAccessible::GetStateInternal(aState, aExtraState);
   NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIAccessible> docAccessible = 
-    do_QueryInterface(nsCOMPtr<nsIAccessibleDocument>(GetDocAccessible()));
+  nsDocAccessible *docAccessible = GetDocAccessible();
   if (docAccessible) {
      PRUint32 state, extState;
      docAccessible->GetState(&state, &extState);
@@ -270,7 +269,7 @@ void
 nsHTMLLIAccessible::CacheChildren()
 {
   if (mBulletAccessible) {
-    mChildren.AppendObject(mBulletAccessible);
+    mChildren.AppendElement(mBulletAccessible);
     mBulletAccessible->SetParent(this);
   }
 
@@ -339,11 +338,11 @@ nsHTMLListBulletAccessible::AppendTextTo(nsAString& aText, PRUint32 aStartOffset
   if (aLength > maxLength) {
     aLength = maxLength;
   }
-  aText += nsDependentSubstring(mBulletText, aStartOffset, aLength);
+  aText += Substring(mBulletText, aStartOffset, aLength);
   return NS_OK;
 }
 
-nsIAccessible*
+nsAccessible*
 nsHTMLListBulletAccessible::GetParent()
 {
   return mParent;

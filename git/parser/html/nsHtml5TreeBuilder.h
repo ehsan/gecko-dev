@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2007 Henri Sivonen
- * Copyright (c) 2007-2009 Mozilla Foundation
+ * Copyright (c) 2007-2010 Mozilla Foundation
  * Portions of comments Copyright 2004-2008 Apple Computer, Inc., Mozilla 
  * Foundation, and Opera Software ASA.
  *
@@ -56,7 +56,6 @@
 #include "nsAHtml5TreeBuilderState.h"
 
 class nsHtml5StreamParser;
-class nsHtml5SpeculativeLoader;
 
 class nsHtml5Tokenizer;
 class nsHtml5MetaScanner;
@@ -75,7 +74,8 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
     static jArray<const char*,PRInt32> QUIRKY_PUBLIC_IDS;
     PRInt32 mode;
     PRInt32 originalMode;
-    PRInt32 foreignFlag;
+    PRBool framesetOk;
+    PRBool inForeign;
   protected:
     nsHtml5Tokenizer* tokenizer;
   private:
@@ -100,7 +100,7 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
     void startTokenization(nsHtml5Tokenizer* self);
     void doctype(nsIAtom* name, nsString* publicIdentifier, nsString* systemIdentifier, PRBool forceQuirks);
     void comment(PRUnichar* buf, PRInt32 start, PRInt32 length);
-    void characters(PRUnichar* buf, PRInt32 start, PRInt32 length);
+    void characters(const PRUnichar* buf, PRInt32 start, PRInt32 length);
     void eof();
     void endTokenization();
     void startTag(nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes, PRBool selfClosing);
@@ -179,9 +179,9 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
     void appendVoidElementToCurrentMayFoster(PRInt32 ns, nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes);
     void appendVoidElementToCurrentMayFosterCamelCase(PRInt32 ns, nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes);
     void appendVoidElementToCurrent(PRInt32 ns, nsIAtom* name, nsHtml5HtmlAttributes* attributes, nsIContent** form);
-    void appendVoidElementToCurrent(PRInt32 ns, nsIAtom* name, nsHtml5HtmlAttributes* attributes);
+    void appendVoidFormToCurrent(nsHtml5HtmlAttributes* attributes);
   protected:
-    void accumulateCharacters(PRUnichar* buf, PRInt32 start, PRInt32 length);
+    void accumulateCharacters(const PRUnichar* buf, PRInt32 start, PRInt32 length);
     void accumulateCharacter(PRUnichar c);
     void requestSuspension();
     nsIContent** createElement(PRInt32 ns, nsIAtom* name, nsHtml5HtmlAttributes* attributes);
@@ -198,7 +198,7 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
     void appendCommentToDocument(PRUnichar* buf, PRInt32 start, PRInt32 length);
     void addAttributesToElement(nsIContent** element, nsHtml5HtmlAttributes* attributes);
     void markMalformedIfScript(nsIContent** elt);
-    void start(PRBool fragment);
+    void start(PRBool fragmentMode);
     void end();
     void appendDoctypeToDocument(nsIAtom* name, nsString* publicIdentifier, nsString* systemIdentifier);
     void elementPushed(PRInt32 ns, nsIAtom* name, nsIContent** node);
@@ -210,7 +210,6 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
   public:
     PRBool isScriptingEnabled();
     void setScriptingEnabled(PRBool scriptingEnabled);
-    PRBool inForeign();
     void flushCharacters();
   private:
     PRBool charBufferContainsNonWhitespace();
@@ -227,10 +226,11 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
     jArray<nsHtml5StackNode*,PRInt32> getStack();
     PRInt32 getMode();
     PRInt32 getOriginalMode();
-    PRInt32 getForeignFlag();
+    PRBool isFramesetOk();
+    PRBool isInForeign();
     PRBool isNeedToDropLF();
     PRBool isQuirks();
-    PRInt32 getListLength();
+    PRInt32 getListOfActiveFormattingElementsLength();
     PRInt32 getStackLength();
     static void initializeStatics();
     static void releaseStatics();
@@ -342,8 +342,6 @@ jArray<const char*,PRInt32> nsHtml5TreeBuilder::QUIRKY_PUBLIC_IDS = nsnull;
 #define NS_HTML5TREE_BUILDER_CHARSET_DOUBLE_QUOTED 10
 #define NS_HTML5TREE_BUILDER_CHARSET_UNQUOTED 11
 #define NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK PR_INT32_MAX
-#define NS_HTML5TREE_BUILDER_IN_FOREIGN 0
-#define NS_HTML5TREE_BUILDER_NOT_IN_FOREIGN 1
 
 
 #endif

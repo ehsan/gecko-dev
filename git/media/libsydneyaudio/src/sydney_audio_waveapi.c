@@ -45,8 +45,8 @@
 
 // FIX ME: block size and block should be determined based on the OggPlay offset 
 // for audio track
-#define BLOCK_SIZE  1024
-#define BLOCK_COUNT 32
+#define BLOCK_SIZE  16384
+#define BLOCK_COUNT 10
 #define DEFAULT_DEVICE_NAME "Default WAVE Device"
 #define DEFAULT_DEVICE WAVE_MAPPER
 
@@ -116,6 +116,8 @@ struct sa_stream {
   WAVEHDR*			  waveBlocks;  
   volatile int		waveFreeBlockCount;
   int				      waveCurrentBlock;
+
+  int playing;
 };
 
 
@@ -124,6 +126,7 @@ int allocateBlocks(int size, int count, WAVEHDR** blocks);
 int freeBlocks(WAVEHDR* blocks);
 int openAudio(sa_stream_t *s);
 int closeAudio(sa_stream_t * s);
+int writeBlock(sa_stream_t *s, WAVEHDR* current);
 int writeAudio(sa_stream_t *s, LPSTR data, int bytes);
 int getSAErrorCode(int waveErrorCode);
 
@@ -162,6 +165,7 @@ int sa_stream_create_pcm(sa_stream_t **s,
   _s->channels = nchannels;
   _s->deviceName = DEFAULT_DEVICE_NAME;
   _s->device = DEFAULT_DEVICE;
+  _s->playing = 0;
 
   *s = _s; 
   return SA_SUCCESS;
@@ -305,6 +309,8 @@ int sa_stream_resume(sa_stream_t *s) {
   status = waveOutRestart(s->hWaveOut);
   HANDLE_WAVE_ERROR(status, "resuming audio playback");
 
+  s->playing = 1;
+
   return SA_SUCCESS;
 }
 /** Pause audio playback (do not empty the buffer) */
@@ -316,12 +322,30 @@ int sa_stream_pause(sa_stream_t *s) {
   status = waveOutPause(s->hWaveOut);
   HANDLE_WAVE_ERROR(status, "resuming audio playback");
 
+  s->playing = 0;
+
   return SA_SUCCESS;
 }
+
 /** Block until all audio has been played */
 int sa_stream_drain(sa_stream_t *s) {
+  int status;
+  WAVEHDR* current;
+
   ERROR_IF_NO_INIT(s);
-  
+
+  current = &(s->waveBlocks[s->waveCurrentBlock]);
+  if (current->dwUser) {
+    /* We've got pending audio which hasn't been written, we must write it to
+       the hardware, else it will never be played. */
+    status = writeBlock(s, current);
+    HANDLE_WAVE_ERROR(status, "writing audio to audio device");
+  }
+
+  if (!s->playing) {
+    return SA_ERROR_INVALID;
+  }
+
   /* wait for all blocks to complete */
   EnterCriticalSection(&(s->waveCriticalSection));
   while(s->waveFreeBlockCount < BLOCK_COUNT) {
@@ -489,11 +513,45 @@ int closeAudio(sa_stream_t * s) {
     result = getSAErrorCode(status);
   }
 
+  s->playing = 0;
+
   DeleteCriticalSection(&(s->waveCriticalSection));
   CloseHandle(s->callbackEvent);
   
   return result;
 }
+
+/**
+ * \brief - writes a WAVEHDR block of PCM audio samples to hardware.
+ * \param s - valid handle to opened sydney stream
+ * \param current - pointer to WAVEHDR storing audio samples to be played
+ * \return - completion status
+ */
+int writeBlock(sa_stream_t *s, WAVEHDR* current) {
+  int status;
+  ERROR_IF_NO_INIT(s);
+
+  current->dwBufferLength = current->dwUser;
+  /* write to audio device */
+  waveOutPrepareHeader(s->hWaveOut, current, sizeof(WAVEHDR));
+  status = waveOutWrite(s->hWaveOut, current, sizeof(WAVEHDR));      
+  HANDLE_WAVE_ERROR(status, "writing audio to audio device");
+    
+  EnterCriticalSection(&(s->waveCriticalSection));
+  s->waveFreeBlockCount--;
+  LeaveCriticalSection(&(s->waveCriticalSection));
+
+  /*
+   * point to the next block
+   */
+  (s->waveCurrentBlock)++;
+  (s->waveCurrentBlock) %= BLOCK_COUNT;		
+
+  s->playing = 1;
+
+  return SA_SUCCESS;
+}
+
 /**
  * \brief - writes PCM audio samples to audio device
  * \param s - valid handle to opened sydney stream
@@ -528,25 +586,14 @@ int writeAudio(sa_stream_t *s, LPSTR data, int bytes) {
     }
 
     /* remain is even as BLOCK_SIZE and dwUser are even too */
-    remain = BLOCK_SIZE - current->dwUser;      
+    remain = BLOCK_SIZE - current->dwUser;
   	memcpy(current->lpData + current->dwUser, data, remain);
+    current->dwUser += remain;
     bytes -= remain;
     data += remain;
-	  current->dwBufferLength = BLOCK_SIZE;
-	  /* write to audio device */
-    waveOutPrepareHeader(s->hWaveOut, current, sizeof(WAVEHDR));
-	  status = waveOutWrite(s->hWaveOut, current, sizeof(WAVEHDR));      
-    HANDLE_WAVE_ERROR(status, "writing audio to audio device");
-      
-    EnterCriticalSection(&(s->waveCriticalSection));
-    s->waveFreeBlockCount--;
-    LeaveCriticalSection(&(s->waveCriticalSection));
 
-    /*
-     * point to the next block
-     */
-    (s->waveCurrentBlock)++;
-    (s->waveCurrentBlock) %= BLOCK_COUNT;		
+    status = writeBlock(s, current);
+    HANDLE_WAVE_ERROR(status, "writing audio to audio device");
 
     current = &(s->waveBlocks[s->waveCurrentBlock]);
     current->dwUser = 0;

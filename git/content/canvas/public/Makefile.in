@@ -45,17 +45,9 @@ include $(DEPTH)/config/autoconf.mk
 MODULE		= content
 XPIDL_MODULE = content_canvas
 
-EXPORTS_NAMESPACES = mozilla/ipc
-
 EXPORTS		= \
 		nsICanvasRenderingContextInternal.h \
-		nsICanvasElement.h \
-		WebGLArray.h \
-		$(NULL)
-
-EXPORTS_mozilla/ipc = \
-		DocumentRendererChild.h \
-		DocumentRendererParent.h \
+		nsICanvasElementExternal.h \
 		$(NULL)
 
 XPIDLSRCS	= \

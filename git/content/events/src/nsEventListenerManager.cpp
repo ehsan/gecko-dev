@@ -66,10 +66,10 @@
 #include "nsLayoutUtils.h"
 #include "nsINameSpaceManager.h"
 #include "nsIContent.h"
+#include "mozilla/dom/Element.h"
 #include "nsIFrame.h"
 #include "nsIView.h"
 #include "nsIViewManager.h"
-#include "nsIScrollableView.h"
 #include "nsCOMPtr.h"
 #include "nsIServiceManager.h"
 #include "nsIScriptSecurityManager.h"
@@ -95,6 +95,9 @@
 #include "nsCOMArray.h"
 #include "nsEventListenerService.h"
 #include "nsDOMEvent.h"
+#include "nsIContentSecurityPolicy.h"
+
+using namespace mozilla::dom;
 
 #define EVENT_TYPE_EQUALS( ls, type, userType ) \
   (ls->mEventType && ls->mEventType == type && \
@@ -664,6 +667,8 @@ nsEventListenerManager::AddScriptEventListener(nsISupports *aObject,
     return NS_ERROR_FAILURE;
   }
 
+  nsresult rv;
+
   nsCOMPtr<nsINode> node(do_QueryInterface(aObject));
 
   nsCOMPtr<nsIDocument> doc;
@@ -698,7 +703,31 @@ nsEventListenerManager::AddScriptEventListener(nsISupports *aObject,
     // loaded as data.
     return NS_OK;
   }
-  
+
+  // return early preventing the event listener from being added
+  // 'doc' is fetched above
+  if (doc) {
+    nsCOMPtr<nsIContentSecurityPolicy> csp;
+    rv = doc->NodePrincipal()->GetCsp(getter_AddRefs(csp));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    if (csp) {
+      PRBool inlineOK;
+      // this call will trigger violaton reports if necessary
+      rv = csp->GetAllowsInlineScript(&inlineOK);
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      if ( !inlineOK ) {
+        //can log something here too.
+        //nsAutoString attr;
+        //aName->ToString(attr);
+        //printf(" *** CSP bailing on adding event listener for: %s\n",
+        //       ToNewCString(attr));
+        return NS_OK;
+      }
+    }
+  }
+
   // This might be the first reference to this language in the global
   // We must init the language before we attempt to fetch its context.
   if (NS_FAILED(global->EnsureScriptEnvironment(aLanguage))) {
@@ -710,7 +739,6 @@ nsEventListenerManager::AddScriptEventListener(nsISupports *aObject,
   NS_ENSURE_TRUE(context, NS_ERROR_FAILURE);
 
   void *scope = global->GetScriptGlobal(aLanguage);
-  nsresult rv;
 
   if (!aDeferCompilation) {
     nsCOMPtr<nsIScriptEventHandlerOwner> handlerOwner =
@@ -753,7 +781,7 @@ nsEventListenerManager::AddScriptEventListener(nsISupports *aObject,
           nameSpace = content->GetNameSpaceID();
         }
         else if (doc) {
-          nsCOMPtr<nsIContent> root = doc->GetRootContent();
+          Element* root = doc->GetRootElement();
           if (root)
             nameSpace = root->GetNameSpaceID();
         }
@@ -1070,34 +1098,14 @@ static const EventDispatchData* sLatestEventDispData = nsnull;
 */
 
 nsresult
-nsEventListenerManager::HandleEvent(nsPresContext* aPresContext,
-                                    nsEvent* aEvent, nsIDOMEvent** aDOMEvent,
-                                    nsPIDOMEventTarget* aCurrentTarget,
-                                    PRUint32 aFlags,
-                                    nsEventStatus* aEventStatus,
-                                    nsCxPusher* aPusher)
+nsEventListenerManager::HandleEventInternal(nsPresContext* aPresContext,
+                                            nsEvent* aEvent,
+                                            nsIDOMEvent** aDOMEvent,
+                                            nsPIDOMEventTarget* aCurrentTarget,
+                                            PRUint32 aFlags,
+                                            nsEventStatus* aEventStatus,
+                                            nsCxPusher* aPusher)
 {
-  if (mListeners.IsEmpty() || aEvent->flags & NS_EVENT_FLAG_STOP_DISPATCH) {
-    return NS_OK;
-  }
-
-  if (!mMayHaveCapturingListeners &&
-      !(aEvent->flags & NS_EVENT_FLAG_BUBBLE)) {
-    return NS_OK;
-  }
-  
-  if (!mMayHaveSystemGroupListeners &&
-      aFlags & NS_EVENT_FLAG_SYSTEM_EVENT) {
-    return NS_OK;
-  }
-
-  // Check if we already know that there is no event listener for the event.
-  if (mNoListenerForEvent == aEvent->message &&
-      (mNoListenerForEvent != NS_USER_DEFINED_EVENT ||
-       mNoListenerForEventAtom == aEvent->userType)) {
-    return NS_OK;
-  }
-
   //Set the value of the internal PreventDefault flag properly based on aEventStatus
   if (*aEventStatus == nsEventStatus_eConsumeNoDefault) {
     aEvent->flags |= NS_EVENT_FLAG_NO_DEFAULT;
@@ -1289,7 +1297,7 @@ nsEventListenerManager::DispatchEvent(nsIDOMEvent* aEvent, PRBool *_retval)
 
   // Obtain a presentation shell
   nsIPresShell *shell = document->GetPrimaryShell();
-  nsCOMPtr<nsPresContext> context;
+  nsRefPtr<nsPresContext> context;
   if (shell) {
     context = shell->GetPresContext();
   }
@@ -1459,10 +1467,8 @@ nsEventListenerManager::GetListenerInfo(nsCOMArray<nsIEventListenerInfo>* aList)
     } else if (ls.mEventType == NS_USER_DEFINED_EVENT) {
       // Handle user defined event types.
       if (ls.mTypeAtom) {
-        nsAutoString atomName;
-        ls.mTypeAtom->ToString(atomName);
         const nsDependentSubstring& eventType =
-          Substring(atomName, 2, atomName.Length() - 2);
+          Substring(nsDependentAtomString(ls.mTypeAtom), 2);
         nsRefPtr<nsEventListenerInfo> info =
           new nsEventListenerInfo(eventType, ls.mListener, capturing,
                                   allowsUntrusted, systemGroup);

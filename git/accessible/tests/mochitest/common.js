@@ -8,6 +8,8 @@ const nsIAccessibleStateChangeEvent =
   Components.interfaces.nsIAccessibleStateChangeEvent;
 const nsIAccessibleCaretMoveEvent =
   Components.interfaces.nsIAccessibleCaretMoveEvent;
+const nsIAccessibleTextChangeEvent =
+  Components.interfaces.nsIAccessibleTextChangeEvent;
 
 const nsIAccessibleStates = Components.interfaces.nsIAccessibleStates;
 const nsIAccessibleRole = Components.interfaces.nsIAccessibleRole;
@@ -22,6 +24,7 @@ const nsIAccessibleCoordinateType =
       Components.interfaces.nsIAccessibleCoordinateType;
 
 const nsIAccessibleDocument = Components.interfaces.nsIAccessibleDocument;
+const nsIAccessibleApplication = Components.interfaces.nsIAccessibleApplication;
 
 const nsIAccessibleText = Components.interfaces.nsIAccessibleText;
 const nsIAccessibleEditableText = Components.interfaces.nsIAccessibleEditableText;
@@ -72,6 +75,7 @@ const STATE_SELECTED = nsIAccessibleStates.STATE_SELECTED;
 const STATE_TRAVERSED = nsIAccessibleStates.STATE_TRAVERSED;
 const STATE_UNAVAILABLE = nsIAccessibleStates.STATE_UNAVAILABLE;
 
+const EXT_STATE_ACTIVE = nsIAccessibleStates.EXT_STATE_ACTIVE;
 const EXT_STATE_EDITABLE = nsIAccessibleStates.EXT_STATE_EDITABLE;
 const EXT_STATE_EXPANDABLE = nsIAccessibleStates.EXT_STATE_EXPANDABLE;
 const EXT_STATE_HORIZONTAL = nsIAccessibleStates.EXT_STATE_HORIZONTAL;
@@ -79,11 +83,13 @@ const EXT_STATE_MULTI_LINE = nsIAccessibleStates.EXT_STATE_MULTI_LINE;
 const EXT_STATE_SINGLE_LINE = nsIAccessibleStates.EXT_STATE_SINGLE_LINE;
 const EXT_STATE_SUPPORTS_AUTOCOMPLETION = 
       nsIAccessibleStates.EXT_STATE_SUPPORTS_AUTOCOMPLETION;
+const EXT_STATE_VERTICAL = nsIAccessibleStates.EXT_STATE_VERTICAL;
 
 ////////////////////////////////////////////////////////////////////////////////
 // OS detect
 const MAC = (navigator.platform.indexOf("Mac") != -1)? true : false;
 const LINUX = (navigator.platform.indexOf("Linux") != -1)? true : false;
+const SOLARIS = (navigator.platform.indexOf("SunOS") != -1)? true : false;
 const WIN = (navigator.platform.indexOf("Win") != -1)? true : false;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -114,9 +120,9 @@ function addA11yLoadEvent(aFunc)
         if (state.value & STATE_BUSY)
           return waitForDocLoad();
 
-        aFunc.call();
+        window.setTimeout(aFunc, 150);
       },
-      200
+      0
     );
   }
 
@@ -124,7 +130,7 @@ function addA11yLoadEvent(aFunc)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Get DOM node/accesible helpers
+// Helpers for getting DOM node/accessible
 
 /**
  * Return the DOM node by identifier (may be accessible, DOM node or ID).
@@ -258,16 +264,9 @@ function isAccessible(aAccOrElmOrID, aInterfaces)
  */
 function getRootAccessible(aAccOrElmOrID)
 {
-  var acc = getAccessible(aAccOrElmOrID ? aAccOrElmOrID : document);
-  while (acc) {
-    var parent = acc.parent;
-    if (parent && !parent.parent)
-      return acc;
-
-    acc = parent;
-  }
-
-  return null;
+  var acc = getAccessible(aAccOrElmOrID ? aAccOrElmOrID : document,
+                          [nsIAccessNode]);
+  return acc ? acc.rootDocument.QueryInterface(nsIAccessible) : null;
 }
 
 /**
@@ -275,28 +274,8 @@ function getRootAccessible(aAccOrElmOrID)
  */
 function getApplicationAccessible()
 {
-  var acc = getAccessible(document), parent = null;
-  while (acc) {
-
-    try {
-      parent = acc.parent;
-    } catch (e) {
-      ok(false, "Can't get a parent for " + prettyName(acc));
-      return null;
-    }
-
-    if (!parent) {
-      if (acc.role == ROLE_APP_ROOT)
-        return acc;
-
-      ok(false, "No application accessible!");
-      return null;
-    }
-
-    acc = parent;
-  }
-
-  return null;
+  return gAccRetrieval.getApplicationAccessible().
+    QueryInterface(nsIAccessibleApplication);
 }
 
 /**

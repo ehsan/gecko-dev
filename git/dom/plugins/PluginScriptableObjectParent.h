@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: sw=4 ts=4 et :
+ * vim: sw=2 ts=2 et :
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -41,6 +41,7 @@
 
 #include "mozilla/plugins/PPluginScriptableObjectParent.h"
 
+#include "jsapi.h"
 #include "npfunctions.h"
 #include "npruntime.h"
 
@@ -49,13 +50,17 @@ namespace plugins {
 
 class PluginInstanceParent;
 class PluginScriptableObjectParent;
+class PPluginIdentifierParent;
 
 struct ParentNPObject : NPObject
 {
   ParentNPObject()
-    : parent(NULL) { }
+    : NPObject(), parent(NULL), invalidated(false) { }
 
+  // |parent| is always valid as long as the actor is alive. Once the actor is
+  // destroyed this will be set to null.
   PluginScriptableObjectParent* parent;
+  bool invalidated;
 };
 
 class PluginScriptableObjectParent : public PPluginScriptableObjectParent
@@ -63,18 +68,21 @@ class PluginScriptableObjectParent : public PPluginScriptableObjectParent
   friend class PluginInstanceParent;
 
 public:
-  PluginScriptableObjectParent();
+  PluginScriptableObjectParent(ScriptableObjectType aType);
   virtual ~PluginScriptableObjectParent();
 
-  virtual bool
-  AnswerInvalidate();
+  void
+  InitializeProxy();
+
+  void
+  InitializeLocal(NPObject* aObject);
 
   virtual bool
-  AnswerHasMethod(const NPRemoteIdentifier& aId,
+  AnswerHasMethod(PPluginIdentifierParent* aId,
                   bool* aHasMethod);
 
   virtual bool
-  AnswerInvoke(const NPRemoteIdentifier& aId,
+  AnswerInvoke(PPluginIdentifierParent* aId,
                const nsTArray<Variant>& aArgs,
                Variant* aResult,
                bool* aSuccess);
@@ -85,25 +93,25 @@ public:
                       bool* aSuccess);
 
   virtual bool
-  AnswerHasProperty(const NPRemoteIdentifier& aId,
+  AnswerHasProperty(PPluginIdentifierParent* aId,
                     bool* aHasProperty);
 
   virtual bool
-  AnswerGetProperty(const NPRemoteIdentifier& aId,
-                    Variant* aResult,
-                    bool* aSuccess);
+  AnswerGetParentProperty(PPluginIdentifierParent* aId,
+                          Variant* aResult,
+                          bool* aSuccess);
 
   virtual bool
-  AnswerSetProperty(const NPRemoteIdentifier& aId,
+  AnswerSetProperty(PPluginIdentifierParent* aId,
                     const Variant& aValue,
                     bool* aSuccess);
 
   virtual bool
-  AnswerRemoveProperty(const NPRemoteIdentifier& aId,
+  AnswerRemoveProperty(PPluginIdentifierParent* aId,
                        bool* aSuccess);
 
   virtual bool
-  AnswerEnumerate(nsTArray<NPRemoteIdentifier>* aProperties,
+  AnswerEnumerate(nsTArray<PPluginIdentifierParent*>* aProperties,
                   bool* aSuccess);
 
   virtual bool
@@ -116,9 +124,11 @@ public:
                      Variant* aResult,
                      bool* aSuccess);
 
-  void
-  Initialize(PluginInstanceParent* aInstance,
-             NPObject* aObject);
+  virtual bool
+  RecvProtect();
+
+  virtual bool
+  RecvUnprotect();
 
   static const NPClass*
   GetClass()
@@ -127,16 +137,42 @@ public:
   }
 
   PluginInstanceParent*
-  GetInstance()
+  GetInstance() const
   {
     return mInstance;
   }
 
   NPObject*
-  GetObject()
-  {
-    return mObject;
+  GetObject(bool aCanResurrect);
+
+  // Protect only affects LocalObject actors. It is called by the
+  // ProtectedVariant/Actor helper classes before the actor is used as an
+  // argument to an IPC call and when the child process resurrects a
+  // proxy object to the NPObject associated with this actor.
+  void Protect();
+
+  // Unprotect only affects LocalObject actors. It is called by the
+  // ProtectedVariant/Actor helper classes after the actor is used as an
+  // argument to an IPC call and when the child process is no longer using this
+  // actor.
+  void Unprotect();
+
+  // DropNPObject is only used for Proxy actors and is called when the parent
+  // process is no longer using the NPObject associated with this actor. The
+  // child process may subsequently use this actor again in which case a new
+  // NPObject will be created and associated with this actor (see
+  // ResurrectProxyObject).
+  void DropNPObject();
+
+  ScriptableObjectType
+  Type() const {
+    return mType;
   }
+
+  JSBool GetPropertyHelper(NPIdentifier aName,
+                           PRBool* aHasProperty,
+                           PRBool* aHasMethod,
+                           NPVariant* aResult);
 
 private:
   static NPObject*
@@ -195,12 +231,23 @@ private:
                       uint32_t aArgCount,
                       NPVariant* aResult);
 
+  NPObject*
+  CreateProxyObject();
+
+  // ResurrectProxyObject is only used with Proxy actors. It is called when the
+  // child process uses an actor whose NPObject was deleted by the parent
+  // process.
+  bool ResurrectProxyObject();
+
 private:
   PluginInstanceParent* mInstance;
 
   // This may be a ParentNPObject or some other kind depending on who created
   // it. Have to check its class to find out.
   NPObject* mObject;
+  int mProtectCount;
+
+  ScriptableObjectType mType;
 
   static const NPClass sNPClass;
 };

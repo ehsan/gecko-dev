@@ -53,8 +53,8 @@
 #include "nsIFrame.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsIMarkupDocumentViewer.h"
+#include "nsIScrollableFrame.h"
 
-class nsIScrollableView;
 class nsIPresShell;
 class nsIDocShell;
 class nsIDocShellTreeNode;
@@ -63,9 +63,9 @@ class imgIContainer;
 class nsDOMDataTransfer;
 
 // mac uses click-hold context menus, a holdover from 4.x
-// touch screens (like hildon) could use this also, 
+// touch screens (like maemo) could use this also, 
 // perhaps we should move to NS_TOUCHSCREEN
-#if defined(XP_MACOSX) || defined(MOZ_PLATFORM_HILDON)
+#if defined(XP_MACOSX) || defined(MOZ_PLATFORM_MAEMO)
 #define CLICK_HOLD_CONTEXT_MENUS 1
 #endif
 
@@ -120,7 +120,8 @@ public:
   NS_IMETHOD GetEventTarget(nsIFrame **aFrame);
   NS_IMETHOD GetEventTargetContent(nsEvent* aEvent, nsIContent** aContent);
 
-  NS_IMETHOD GetContentState(nsIContent *aContent, PRInt32& aState);
+  virtual PRInt32 GetContentState(nsIContent *aContent,
+                                  PRBool aFollowLabels = PR_FALSE);
   virtual PRBool SetContentState(nsIContent *aContent, PRInt32 aState);
   NS_IMETHOD ContentRemoved(nsIDocument* aDocument, nsIContent* aContent);
   NS_IMETHOD EventStatusOK(nsGUIEvent* aEvent, PRBool *aOK);
@@ -256,10 +257,6 @@ protected:
   PRBool IsShellVisible(nsIDocShell* aShell);
 
   // These functions are for mousewheel and pixel scrolling
-  nsresult GetParentScrollingView(nsInputEvent* aEvent,
-                                  nsPresContext* aPresContext,
-                                  nsIFrame* &targetOuterFrame,
-                                  nsPresContext* &presCtxOuter);
   void SendLineScrollEvent(nsIFrame* aTargetFrame,
                            nsMouseScrollEvent* aEvent,
                            nsPresContext* aPresContext,
@@ -269,15 +266,9 @@ protected:
                             nsMouseScrollEvent* aEvent,
                             nsPresContext* aPresContext,
                             nsEventStatus* aStatus);
-  typedef enum {
-    eScrollByPixel,
-    eScrollByLine,
-    eScrollByPage
-  } ScrollQuantity;
-  nsresult DoScrollText(nsPresContext* aPresContext,
-                        nsIFrame* aTargetFrame,
+  nsresult DoScrollText(nsIFrame* aTargetFrame,
                         nsMouseScrollEvent* aMouseEvent,
-                        ScrollQuantity aScrollQuantity,
+                        nsIScrollableFrame::ScrollUnit aScrollQuantity,
                         PRBool aAllowScrollSpeedOverride);
   void DoScrollHistory(PRInt32 direction);
   void DoScrollZoom(nsIFrame *aTargetFrame, PRInt32 adjustment);
@@ -346,6 +337,7 @@ protected:
   void FillInEventFromGestureDown(nsMouseEvent* aEvent);
 
   nsresult DoContentCommandEvent(nsContentCommandEvent* aEvent);
+  nsresult DoContentCommandScrollEvent(nsContentCommandEvent* aEvent);
 
   PRInt32     mLockCursor;
 
@@ -370,8 +362,11 @@ protected:
   PRPackedBool mGestureDownMeta;
 
   nsCOMPtr<nsIContent> mLastLeftMouseDownContent;
+  nsCOMPtr<nsIContent> mLastLeftMouseDownContentParent;
   nsCOMPtr<nsIContent> mLastMiddleMouseDownContent;
+  nsCOMPtr<nsIContent> mLastMiddleMouseDownContentParent;
   nsCOMPtr<nsIContent> mLastRightMouseDownContent;
+  nsCOMPtr<nsIContent> mLastRightMouseDownContentParent;
 
   nsCOMPtr<nsIContent> mActiveContent;
   nsCOMPtr<nsIContent> mHoverContent;

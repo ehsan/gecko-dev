@@ -38,13 +38,16 @@
 #ifndef NS_SMILTIMEVALUESPEC_H_
 #define NS_SMILTIMEVALUESPEC_H_
 
-#include "nsISupports.h"
-#include "nsCOMPtr.h"
-#include "nsSMILTypes.h"
+#include "nsSMILTimeValueSpecParams.h"
+#include "nsReferencedElement.h"
+#include "nsAutoPtr.h"
 
 class nsAString;
 class nsSMILTimeValue;
 class nsSMILTimedElement;
+class nsSMILTimeContainer;
+class nsSMILInstanceTime;
+class nsSMILInterval;
 
 //----------------------------------------------------------------------
 // nsSMILTimeValueSpec class
@@ -55,41 +58,63 @@ class nsSMILTimedElement;
 // and synchronisation (for syncbase specifications).
 //
 // For an overview of how this class is related to other SMIL time classes see
-// the documentstation in nsSMILTimeValue.h
+// the documentation in nsSMILTimeValue.h
 
-// {39d2f376-6bda-42c0-8510-a93b24828a80}
-#define NS_SMILTIMEVALUESPEC_IID \
-{ 0x39d2f376, 0x6bda, 0x42c0, { 0x85, 0x10, 0xa9, 0x3b, 0x24, 0x82, 0x8a, 0x80 } }
-
-class nsSMILTimeValueSpec : public nsISupports
+class nsSMILTimeValueSpec
 {
 public:
-  NS_DECLARE_STATIC_IID_ACCESSOR(NS_SMILTIMEVALUESPEC_IID)
-  NS_DECL_ISUPPORTS
+  nsSMILTimeValueSpec(nsSMILTimedElement& aOwner, PRBool aIsBegin);
+  ~nsSMILTimeValueSpec();
+
+  nsresult SetSpec(const nsAString& aStringSpec, nsIContent* aContextNode);
+  void     ResolveReferences(nsIContent* aContextNode);
+
+  void     HandleNewInterval(nsSMILInterval& aInterval,
+                             const nsSMILTimeContainer* aSrcContainer);
+
+  // For created nsSMILInstanceTime objects
+  PRBool   DependsOnBegin() const;
+  void     HandleChangedInstanceTime(const nsSMILInstanceTime& aBaseTime,
+                                     const nsSMILTimeContainer* aSrcContainer,
+                                     nsSMILInstanceTime& aInstanceTimeToUpdate,
+                                     PRBool aObjectChanged);
+  void     HandleDeletedInstanceTime(nsSMILInstanceTime& aInstanceTime);
+
+  // Cycle-collection support
+  void Traverse(nsCycleCollectionTraversalCallback* aCallback);
+  void Unlink();
 
 protected:
-  nsSMILTimeValueSpec(nsSMILTimedElement* aOwner, PRBool aIsBegin);
+  void UpdateTimebase(nsIContent* aFrom, nsIContent* aTo);
+  void UnregisterFromTimebase(nsSMILTimedElement* aTimedElement);
+  nsSMILTimedElement* GetTimedElementFromContent(nsIContent* aContent);
+  nsSMILTimedElement* GetTimebaseElement();
+  nsSMILTimeValue ConvertBetweenTimeContainers(const nsSMILTimeValue& aSrcTime,
+                                      const nsSMILTimeContainer* aSrcContainer);
 
-  friend already_AddRefed<nsSMILTimeValueSpec>
-  NS_NewSMILTimeValueSpec(nsSMILTimedElement* aOwner,
-                          PRBool aIsBegin,
-                          const nsAString& aStringSpec);
+  nsSMILTimedElement*           mOwner;
+  PRPackedBool                  mIsBegin; // Indicates if *we* are a begin spec,
+                                          // not to be confused with
+                                          // mParams.mSyncBegin which indicates
+                                          // if we're synced with the begin of
+                                          // the target.
+  nsSMILTimeValueSpecParams     mParams;
 
-  nsresult SetSpec(const nsAString& aStringSpec);
+  class TimebaseElement : public nsReferencedElement {
+  public:
+    TimebaseElement(nsSMILTimeValueSpec* aOwner) : mSpec(aOwner) { }
 
-  nsSMILTimedElement* mOwner;
-  PRPackedBool        mIsBegin;
-  nsSMILTime          mOffset;
+  protected:
+    virtual void ElementChanged(Element* aFrom, Element* aTo) {
+      nsReferencedElement::ElementChanged(aFrom, aTo);
+      mSpec->UpdateTimebase(aFrom, aTo);
+    }
+    virtual PRBool IsPersistent() { return PR_TRUE; }
+  private:
+    nsSMILTimeValueSpec* mSpec;
+  };
+
+  TimebaseElement mTimebase;
 };
-
-NS_DEFINE_STATIC_IID_ACCESSOR(nsSMILTimeValueSpec, NS_SMILTIMEVALUESPEC_IID)
-
-////////////////////////////////////////////////////////////////////////
-// Factory methods
-
-already_AddRefed<nsSMILTimeValueSpec>
-NS_NewSMILTimeValueSpec(nsSMILTimedElement* aOwner,
-                        PRBool aIsBegin,
-                        const nsAString& aStringSpec);
 
 #endif // NS_SMILTIMEVALUESPEC_H_

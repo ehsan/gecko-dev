@@ -84,7 +84,7 @@ public:
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
 
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
   
   NS_IMETHOD GetCursor(const nsPoint& aPoint,
                        nsIFrame::Cursor& aCursor);
@@ -306,6 +306,8 @@ public:
                                      nsTextPaintStyle& aTextPaintStyle,
                                      SelectionDetails* aDetails,
                                      SelectionType aSelectionType);
+
+  virtual nscolor GetCaretColorAt(PRInt32 aOffset);
 
   PRInt16 GetSelectionStatus(PRInt16* aSelectionFlags);
 

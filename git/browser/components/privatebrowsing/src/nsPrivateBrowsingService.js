@@ -87,6 +87,8 @@ const STATE_RESTORE_FINISHED = 3;
 //// PrivateBrowsingService
 
 function PrivateBrowsingService() {
+  this._obs = Cc["@mozilla.org/observer-service;1"].
+              getService(Ci.nsIObserverService);
   this._obs.addObserver(this, "profile-after-change", true);
   this._obs.addObserver(this, "quit-application-granted", true);
   this._obs.addObserver(this, "private-browsing", true);
@@ -95,22 +97,12 @@ function PrivateBrowsingService() {
 }
 
 PrivateBrowsingService.prototype = {
-  // Observer Service
-  __obs: null,
-  get _obs() {
-    if (!this.__obs)
-      this.__obs = Cc["@mozilla.org/observer-service;1"].
-                   getService(Ci.nsIObserverService);
-    return this.__obs;
-  },
-
   // Preferences Service
-  __prefs: null,
   get _prefs() {
-    if (!this.__prefs)
-      this.__prefs = Cc["@mozilla.org/preferences-service;1"].
-                     getService(Ci.nsIPrefBranch);
-    return this.__prefs;
+    let prefs = Cc["@mozilla.org/preferences-service;1"].
+                getService(Ci.nsIPrefBranch);
+    this.__defineGetter__("_prefs", function() prefs);
+    return this._prefs;
   },
 
   // Whether the private browsing mode is currently active or not.
@@ -450,7 +442,10 @@ PrivateBrowsingService.prototype = {
       case "command-line-startup":
         this._obs.removeObserver(this, "command-line-startup");
         aSubject.QueryInterface(Ci.nsICommandLine);
-        this.handle(aSubject);
+        if (aSubject.findFlag("private", false) >= 0) {
+          this.privateBrowsingEnabled = true;
+          this._autoStarted = true;
+        }
         break;
       case "sessionstore-browser-state-restored":
         if (this._currentStatus == STATE_WAITING_FOR_RESTORE) {
@@ -464,14 +459,17 @@ PrivateBrowsingService.prototype = {
   // nsICommandLineHandler
 
   handle: function PBS_handle(aCmdLine) {
-    if (aCmdLine.handleFlag("private", false)) {
-      this.privateBrowsingEnabled = true;
-      this._autoStarted = true;
+    if (aCmdLine.handleFlag("private", false))
+      ; // It has already been handled
+    else if (aCmdLine.handleFlag("private-toggle", false)) {
+      this.privateBrowsingEnabled = !this.privateBrowsingEnabled;
+      this._autoStarted = false;
     }
   },
 
-  get helpInfo PBS_get_helpInfo() {
-    return "  -private           Enable private browsing mode.\n";
+  get helpInfo() {
+    return "  -private            Enable private browsing mode.\n" +
+           "  -private-toggle     Toggle private browsing mode.\n";
   },
 
   // nsIPrivateBrowsingService
@@ -479,14 +477,14 @@ PrivateBrowsingService.prototype = {
   /**
    * Return the current status of private browsing.
    */
-  get privateBrowsingEnabled PBS_get_privateBrowsingEnabled() {
+  get privateBrowsingEnabled() {
     return this._inPrivateBrowsing;
   },
 
   /**
    * Enter or leave private browsing mode.
    */
-  set privateBrowsingEnabled PBS_set_privateBrowsingEnabled(val) {
+  set privateBrowsingEnabled(val) {
     // Allowing observers to set the private browsing status from their
     // notification handlers is not desired, because it will change the
     // status of the service while it's in the process of another transition.
@@ -548,7 +546,7 @@ PrivateBrowsingService.prototype = {
   /**
    * Whether private browsing has been started automatically.
    */
-  get autoStarted PBS_get_autoStarted() {
+  get autoStarted() {
     return this._inPrivateBrowsing && this._autoStarted;
   },
 
@@ -581,12 +579,11 @@ PrivateBrowsingService.prototype = {
 
     // Cookies
     let (cm = Cc["@mozilla.org/cookiemanager;1"].
-              getService(Ci.nsICookieManager)) {
-      let enumerator = cm.enumerator;
+              getService(Ci.nsICookieManager2)) {
+      let enumerator = cm.getCookiesFromHost(aDomain);
       while (enumerator.hasMoreElements()) {
         let cookie = enumerator.getNext().QueryInterface(Ci.nsICookie);
-        if (cookie.host.hasRootDomain(aDomain))
-          cm.remove(cookie.host, cookie.name, cookie.path, false);
+        cm.remove(cookie.host, cookie.name, cookie.path, false);
       }
     }
 

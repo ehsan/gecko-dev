@@ -37,6 +37,14 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
+
+#include <qfile.h>
+#include <qstringlist.h>
+#include <qapplication.h>
+#include <qgraphicsproxywidget.h>
+#include <qgraphicswidget.h>
+#include <qgraphicsscene.h>
+
 #include "nsFilePicker.h"
 
 #include "nsILocalFile.h"
@@ -47,9 +55,6 @@
 #include "nsNetUtil.h"
 #include "nsReadableUtils.h"
 #include "nsIWidget.h"
-
-#include <qfile.h>
-#include <qstringlist.h>
 
 /* Implementation file */
 NS_IMPL_ISUPPORTS1(nsFilePicker, nsIFilePicker)
@@ -104,14 +109,15 @@ nsFilePicker::AppendFilter(const nsAString & aTitle, const nsAString & aFilter)
 NS_IMETHODIMP
 nsFilePicker::GetDefaultString(nsAString & aDefaultString)
 {
-    mDefault = aDefaultString;
-
-    return NS_OK;
+    return NS_ERROR_FAILURE;
 }
+
 NS_IMETHODIMP
 nsFilePicker::SetDefaultString(const nsAString & aDefaultString)
 {
-    return NS_ERROR_FAILURE;
+    mDefault = aDefaultString;
+
+    return NS_OK;
 }
 
 /* attribute AString defaultExtension; */
@@ -212,6 +218,7 @@ nsFilePicker::Show(PRInt16 *aReturn)
         break;
     case nsIFilePicker::modeSave:
         mDialog->setFileMode(QFileDialog::AnyFile);
+        mDialog->setAcceptMode(QFileDialog::AcceptSave);
         break;
     case nsIFilePicker::modeGetFolder:
         mDialog->setFileMode(QFileDialog::DirectoryOnly);
@@ -241,7 +248,7 @@ nsFilePicker::Show(PRInt16 *aReturn)
         }
 
         QString path = QFile::encodeName(selected);
-        qDebug("path is '%s'", path.data());
+        qDebug("path is '%s'", path.toAscii().data());
         mFile.Assign(path.toUtf8().data());
         *aReturn = nsIFilePicker::returnOK;
         if (mMode == modeSave) {
@@ -273,9 +280,14 @@ nsFilePicker::Show(PRInt16 *aReturn)
 void nsFilePicker::InitNative(nsIWidget *parent, const nsAString &title, PRInt16 mode)
 {
     qDebug("nsFilePicker::InitNative()");
-    QWidget *parentWidget = (parent)? (QWidget*)parent->GetNativeData(NS_NATIVE_WIDGET):0;
 
     nsAutoString str(title);
-    mDialog = new QFileDialog(parentWidget, QString::fromUtf16(str.get()));
+    mDialog = new QFileDialog(0, QString::fromUtf16(str.get()));
+
+    QGraphicsWidget *parentWidget = static_cast<QGraphicsWidget*>(parent->GetNativeData(NS_NATIVE_WIDGET));
+    if (parentWidget && parentWidget->scene()) {
+        parentWidget->scene()->addWidget(mDialog);
+    }
+
     mMode = mode;
 }

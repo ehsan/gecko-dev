@@ -1,9 +1,7 @@
 function test()
 {
   const kPrefName_AutoScroll = "general.autoScroll";
-  var prefSvc = Components.classes["@mozilla.org/preferences-service;1"]
-                          .getService(Components.interfaces.nsIPrefBranch2);
-  prefSvc.setBoolPref(kPrefName_AutoScroll, true);
+  Services.prefs.setBoolPref(kPrefName_AutoScroll, true);
 
   const expectScrollNone = 0;
   const expectScrollVert = 1;
@@ -16,21 +14,24 @@ function test()
     {elem: 'c', expected: expectScrollHori},
     {elem: 'd', expected: expectScrollVert},
     {elem: 'e', expected: expectScrollVert},
-    {elem: 'f', expected: expectScrollNone}
+    {elem: 'f', expected: expectScrollNone},
+    {elem: 'g', expected: expectScrollBoth},
+    {elem: 'h', expected: expectScrollNone}
   ];
 
   var doc;
 
   function nextTest() {
     var test = allTests.shift();
-    if(!test) {
+    if (!test) {
       endTest();
       return;
     }
+
     var elem = doc.getElementById(test.elem);
-    EventUtils.synthesizeMouse(elem, 10, 10, { button: 1 },
+    EventUtils.synthesizeMouse(elem, 50, 50, { button: 1 },
                                gBrowser.contentWindow);
-    EventUtils.synthesizeMouse(elem, 80, 80,
+    EventUtils.synthesizeMouse(elem, 100, 100,
                                { type: "mousemove", clickCount: "0" },
                                gBrowser.contentWindow);
     // the autoscroll implementation uses a 20ms interval
@@ -50,8 +51,7 @@ function test()
   }
 
   waitForExplicitFinish();
-  gBrowser.addEventListener("load", onLoad, false);
-  var dataUri = 'data:text/html,<body>\
+  var dataUri = 'data:text/html,<body><style type="text/css">div { display: inline-block; }</style>\
     <div id="a" style="width: 100px; height: 100px; overflow: hidden;"><div style="width: 200px; height: 200px;"></div></div>\
     <div id="b" style="width: 100px; height: 100px; overflow: auto;"><div style="width: 200px; height: 200px;"></div></div>\
     <div id="c" style="width: 100px; height: 100px; overflow-x: auto; overflow-y: hidden;"><div style="width: 200px; height: 200px;"></div></div>\
@@ -62,11 +62,14 @@ function test()
     <select id="f" style="width: 100px; height: 100px;"><option>a</option><option>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</option><option>a</option>\
     <option>a</option><option>a</option><option>a</option><option>a</option><option>a</option><option>a</option><option>a</option>\
     <option>a</option><option>a</option><option>a</option><option>a</option><option>a</option><option>a</option><option>a</option></select>\
+    <div id="g" style="width: 99px; height: 99px; padding: 10px; border: 10px solid black; margin: 10px; overflow: auto;"><div style="width: 100px; height: 100px;"></div></div>\
+    <div id="h" style="width: 100px; height: 100px; overflow: -moz-hidden-unscrollable;"><div style="width: 200px; height: 200px;"></div></div>\
     </body>';
+  gBrowser.selectedBrowser.addEventListener("pageshow", onLoad, false);
   gBrowser.loadURI(dataUri);
 
   function onLoad() {
-    gBrowser.removeEventListener("load", onLoad, false);
+    gBrowser.selectedBrowser.removeEventListener("pageshow", onLoad, false);
     waitForFocus(onFocus, content);
   }
 
@@ -77,13 +80,14 @@ function test()
 
   function endTest() {
     // restore the changed prefs
-    if (prefSvc.prefHasUserValue(kPrefName_AutoScroll))
-      prefSvc.clearUserPref(kPrefName_AutoScroll);
+    if (Services.prefs.prefHasUserValue(kPrefName_AutoScroll))
+      Services.prefs.clearUserPref(kPrefName_AutoScroll);
 
     // cleaning-up
-    gBrowser.addTab().linkedBrowser.stop();
+    gBrowser.addTab("about:blank");
     gBrowser.removeCurrentTab();
 
-    finish();
+    // waitForFocus() fixes a failure in the next test if the latter runs too soon.
+    waitForFocus(finish);
   }
 }

@@ -46,7 +46,8 @@ VPATH		= @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 MODULE           = sqlite3
-LIBRARY_NAME     = sqlite3
+LIBRARY_NAME     = mozsqlite3
+SHORT_LIBNAME    = mozsqlt3
 FORCE_SHARED_LIB = 1
 VISIBILITY_FLAGS =
 LIB_IS_C_ONLY    = 1
@@ -99,6 +100,7 @@ CSRCS = \
 # don't have to vacuum to make sure the data is not visible in the file.
 # -DSQLITE_ENABLE_FTS3=1 enables the full-text index module.
 # -DSQLITE_CORE=1 statically links that module into the SQLite library.
+# Note: Be sure to update the configure.in checks when these change!
 DEFINES = \
   -DSQLITE_SECURE_DELETE=1 \
   -DSQLITE_THREADSAFE=1 \

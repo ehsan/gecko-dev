@@ -41,7 +41,6 @@
 #include "nsGUIEvent.h"
 #include "nsIDeviceContext.h"
 #include "nsIComponentManager.h"
-#include "nsIScrollableView.h"
 #include "nsGfxCIID.h"
 #include "nsIRegion.h"
 #include "nsIInterfaceRequestor.h"
@@ -53,10 +52,9 @@ static nsEventStatus HandleEvent(nsGUIEvent *aEvent);
 
 //#define SHOW_VIEW_BORDERS
 
-// {34297A07-A8FD-d811-87C6-000244212BCB}
 #define VIEW_WRAPPER_IID \
-{ 0x34297a07, 0xa8fd, 0xd811, { 0x87, 0xc6, 0x0, 0x2, 0x44, 0x21, 0x2b, 0xcb } }
-
+  { 0xbf4e1841, 0xe9ec, 0x47f2, \
+    { 0xb4, 0x77, 0x0f, 0xf6, 0x0f, 0x5a, 0xac, 0xbd } }
 
 /**
  * nsISupports-derived helper class that allows to store and get a view
@@ -87,8 +85,7 @@ NS_IMETHODIMP ViewWrapper::QueryInterface(REFNSIID aIID, void** aInstancePtr)
 {
   NS_ENSURE_ARG_POINTER(aInstancePtr);
 
-  NS_ASSERTION(!aIID.Equals(NS_GET_IID(nsIView)) &&
-               !aIID.Equals(NS_GET_IID(nsIScrollableView)),
+  NS_ASSERTION(!aIID.Equals(NS_GET_IID(nsIView)),
                "Someone expects a viewwrapper to be a view!");
   
   *aInstancePtr = nsnull;
@@ -115,10 +112,6 @@ NS_IMETHODIMP ViewWrapper::QueryInterface(REFNSIID aIID, void** aInstancePtr)
 
 NS_IMETHODIMP ViewWrapper::GetInterface(REFNSIID aIID, void** aInstancePtr)
 {
-  if (aIID.Equals(NS_GET_IID(nsIScrollableView))) {
-    *aInstancePtr = mView->ToScrollableView();
-    return NS_OK;
-  }
   if (aIID.Equals(NS_GET_IID(nsIView))) {
     *aInstancePtr = mView;
     return NS_OK;
@@ -335,16 +328,16 @@ void nsView::ResetWidgetBounds(PRBool aRecurse, PRBool aMoveOnly,
   }
 }
 
-PRBool nsView::IsEffectivelyVisible()
+PRBool nsIView::IsEffectivelyVisible()
 {
-  for (nsView* v = this; v; v = v->mParent) {
+  for (nsIView* v = this; v; v = v->mParent) {
     if (v->GetVisibility() == nsViewVisibility_kHide)
       return PR_FALSE;
   }
   return PR_TRUE;
 }
 
-nsIntRect nsView::CalcWidgetBounds(nsWindowType aType)
+nsIntRect nsIView::CalcWidgetBounds(nsWindowType aType)
 {
   nsCOMPtr<nsIDeviceContext> dx;
   mViewManager->GetDeviceContext(*getter_AddRefs(dx));
@@ -354,24 +347,35 @@ nsIntRect nsView::CalcWidgetBounds(nsWindowType aType)
   nsRect viewBounds(mDimBounds);
 
   if (GetParent()) {
-    // put offset into screen coordinates
     nsPoint offset;
     nsIWidget* parentWidget = GetParent()->GetNearestWidget(&offset);
+    // make viewBounds be relative to the parent widget, in appunits
     viewBounds += offset;
 
     if (parentWidget && aType == eWindowType_popup &&
         IsEffectivelyVisible()) {
+      // put offset into screen coordinates
       nsIntPoint screenPoint = parentWidget->WidgetToScreenOffset();
       viewBounds += nsPoint(NSIntPixelsToAppUnits(screenPoint.x, p2a),
                             NSIntPixelsToAppUnits(screenPoint.y, p2a));
     }
   }
 
+  // Compute widget bounds in device pixels
   nsIntRect newBounds = viewBounds.ToNearestPixels(p2a);
 
+  // Compute where the top-left of the widget ended up relative to the
+  // parent widget, in appunits
   nsPoint roundedOffset(NSIntPixelsToAppUnits(newBounds.x, p2a),
                         NSIntPixelsToAppUnits(newBounds.y, p2a));
-  mViewToWidgetOffset = viewBounds.TopLeft() - roundedOffset;
+
+  // mViewToWidgetOffset is added to coordinates relative to the view origin
+  // to get coordinates relative to the widget.
+  // The view origin, relative to the parent widget, is at
+  // (mPosX,mPosY) - mDimBounds.TopLeft() + viewBounds.TopLeft().
+  // Our widget, relative to the parent widget, is roundedOffset.
+  mViewToWidgetOffset = nsPoint(mPosX, mPosY)
+    - mDimBounds.TopLeft() + viewBounds.TopLeft() - roundedOffset;
 
   return newBounds;
 }
@@ -880,16 +884,4 @@ nsIView::SetDeletionObserver(nsWeakView* aDeletionObserver)
     aDeletionObserver->SetPrevious(mDeletionObserver);
   }
   mDeletionObserver = aDeletionObserver;
-}
-
-/* We invalidate the frame on a scroll iff this frame is marked as such or if
- * some parent is.
- */
-PRBool nsIView::NeedsInvalidateFrameOnScroll() const
-{
-  for (const nsIView *currView = this; currView != nsnull; currView = currView->GetParent())
-    if (currView->mVFlags & NS_VIEW_FLAG_INVALIDATE_ON_SCROLL)
-      return PR_TRUE;
-  
-  return PR_FALSE;
 }

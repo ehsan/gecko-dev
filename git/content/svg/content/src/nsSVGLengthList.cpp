@@ -119,12 +119,14 @@ nsSVGLengthList::~nsSVGLengthList()
 NS_IMPL_ADDREF(nsSVGLengthList)
 NS_IMPL_RELEASE(nsSVGLengthList)
 
+DOMCI_DATA(SVGLengthList, nsSVGLengthList)
+
 NS_INTERFACE_MAP_BEGIN(nsSVGLengthList)
   NS_INTERFACE_MAP_ENTRY(nsISVGValue)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGLengthList)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY(nsISVGValueObserver)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGLengthList)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGLengthList)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsISVGValue)
 NS_INTERFACE_MAP_END
 
@@ -151,7 +153,7 @@ nsSVGLengthList::SetValueString(const nsAString& aValue)
     nsCOMPtr<nsISVGLength> length;
     NS_NewSVGLength(getter_AddRefs(length), NS_ConvertASCIItoUTF16(token));
     if (!length) {
-      rv = NS_ERROR_FAILURE;
+      rv = NS_ERROR_DOM_SYNTAX_ERR;
       break;
     }
     AppendElement(length);

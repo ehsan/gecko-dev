@@ -79,11 +79,10 @@ public:
         mFTFontIndex = 0;
     }
 
-    FontEntry(const FontEntry& aFontEntry);
     ~FontEntry();
 
     const nsString& GetName() const {
-        return mFaceName;
+        return Name();
     }
 
     static FontEntry* 
@@ -101,7 +100,6 @@ public:
     FT_Face mFTFace;
     cairo_font_face_t *mFontFace;
 
-    nsString mFaceName;
     nsCString mFilename;
     PRUint8 mFTFontIndex;
 };
@@ -203,13 +201,13 @@ protected: // new functions
                                 void *closure);
     PRBool mEnableKerning;
 
-    void GetPrefFonts(const char *aLangGroup,
-                      nsTArray<nsRefPtr<FontEntry> >& aFontEntryList);
-    void GetCJKPrefFonts(nsTArray<nsRefPtr<FontEntry> >& aFontEntryList);
+    void GetPrefFonts(nsIAtom *aLangGroup,
+                      nsTArray<nsRefPtr<gfxFontEntry> >& aFontEntryList);
+    void GetCJKPrefFonts(nsTArray<nsRefPtr<gfxFontEntry> >& aFontEntryList);
     void FamilyListToArrayList(const nsString& aFamilies,
-                               const nsCString& aLangGroup,
-                               nsTArray<nsRefPtr<FontEntry> > *aFontEntryList);
-    already_AddRefed<gfxFT2Font> WhichFontSupportsChar(const nsTArray<nsRefPtr<FontEntry> >& aFontEntryList,
+                               nsIAtom *aLangGroup,
+                               nsTArray<nsRefPtr<gfxFontEntry> > *aFontEntryList);
+    already_AddRefed<gfxFT2Font> WhichFontSupportsChar(const nsTArray<nsRefPtr<gfxFontEntry> >& aFontEntryList,
                                                        PRUint32 aCh);
     already_AddRefed<gfxFont> WhichPrefFontSupportsChar(PRUint32 aCh);
     already_AddRefed<gfxFont> WhichSystemFontSupportsChar(PRUint32 aCh);

@@ -56,7 +56,7 @@ public:
   nsIsIndexFrame(nsStyleContext* aContext);
   virtual ~nsIsIndexFrame();
 
-  virtual void Destroy(); 
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
 private:
   void KeyPress(nsIDOMEvent* aKeyEvent);
@@ -98,6 +98,7 @@ public:
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
+  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements);
 
   NS_IMETHOD OnSubmit(nsPresContext* aPresContext);
 

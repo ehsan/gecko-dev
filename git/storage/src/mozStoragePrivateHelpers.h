@@ -38,8 +38,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef _mozStoragePrivateHelpers_h_
-#define _mozStoragePrivateHelpers_h_
+#ifndef mozStoragePrivateHelpers_h
+#define mozStoragePrivateHelpers_h
 
 /**
  * This file contains convenience methods for mozStorage.
@@ -49,8 +49,12 @@
 #include "nsIVariant.h"
 #include "mozStorage.h"
 #include "jsapi.h"
+#include "nsAutoPtr.h"
 
-class mozIStorageStatement;
+class mozIStorageCompletionCallback;
+class mozIStorageBaseStatement;
+class mozIStorageBindingParams;
+class nsIRunnable;
 
 namespace mozilla {
 namespace storage {
@@ -85,22 +89,31 @@ nsresult convertResultCode(int aSQLiteResultCode);
 void checkAndLogStatementPerformance(sqlite3_stmt *aStatement);
 
 /**
+ * Convert the provided jsval into a variant representation if possible.
  *
+ * @param aCtx
+ *        The JSContext the value is from.
+ * @param aValue
+ *        The JavaScript value to convert.  All primitive types are supported,
+ *        but only Date objects are supported from the Date family.  Date
+ *        objects are coerced to PRTime (nanoseconds since epoch) values.
+ * @return the variant if conversion was successful, nsnull if conversion
+ *         failed.  The caller is responsible for addref'ing if non-null.
  */
-bool
-bindJSValue(JSContext *aCtx,
-            mozIStorageStatement *aStatement,
-            int aIdx,
-            jsval aValue);
+nsIVariant *convertJSValToVariant(JSContext *aCtx, jsval aValue);
 
 /**
- * Used to convert an nsIVariant to the proper SQLite type.
+ * Obtains an event that will notify a completion callback about completion.
+ *
+ * @param aCallback
+ *        The callback to be notified.
+ * @return an nsIRunnable that can be dispatched to the calling thread.
  */
-template <typename T>
-int variantToSQLiteT(T aObj, nsIVariant *aValue);
-#include "variantToSQLiteT_impl.h" // To keep this file easier to read.
+already_AddRefed<nsIRunnable> newCompletionEvent(
+  mozIStorageCompletionCallback *aCallback
+);
 
 } // namespace storage
 } // namespace mozilla
 
-#endif // _mozStoragePrivateHelpers_h_
+#endif // mozStoragePrivateHelpers_h

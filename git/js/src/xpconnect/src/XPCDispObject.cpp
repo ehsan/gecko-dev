@@ -195,7 +195,7 @@ JSBool XPCDispObject::Dispatch(XPCCallContext& ccx, IDispatch * disp,
     // Scope the lock
     {
         // avoid deadlock in case the native method blocks somehow
-        AutoJSSuspendRequest req(ccx);  // scoped suspend of request
+        JSAutoSuspendRequest req(ccx);  // scoped suspend of request
         // call IDispatch's invoke
         invokeResult= disp->Invoke(
             dispID,                  // IDispatch ID
@@ -246,7 +246,7 @@ JSBool XPCDispObject::Dispatch(XPCCallContext& ccx, IDispatch * disp,
             *retval = val;
         }
     }
-    // Set the result and throw the error if one occured
+    // Set the result and throw the error if one occurred
     ccx.GetXPCContext()->SetLastResult(invokeResult);
 
     if(NS_FAILED(invokeResult))

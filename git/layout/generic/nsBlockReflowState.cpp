@@ -157,7 +157,8 @@ nsBlockReflowState::~nsBlockReflowState()
   }
 
   if (GetFlag(BRS_PROPTABLE_FLOATCLIST)) {
-    mBlock->UnsetProperty(nsGkAtoms::floatContinuationProperty);
+    mPresContext->PropertyTable()->
+      Delete(mBlock, nsBlockFrame::FloatContinuationProperty());
   }
 }
 
@@ -432,8 +433,9 @@ void
 nsBlockReflowState::SetupFloatContinuationList()
 {
   if (!GetFlag(BRS_PROPTABLE_FLOATCLIST)) {
-    mBlock->SetProperty(nsGkAtoms::floatContinuationProperty,
-                        &mFloatContinuations, nsnull);
+    mPresContext->PropertyTable()->
+      Set(mBlock, nsBlockFrame::FloatContinuationProperty(),
+          &mFloatContinuations);
     SetFlag(BRS_PROPTABLE_FLOATCLIST, PR_TRUE);
   }
 }
@@ -636,7 +638,7 @@ nsBlockReflowState::CanPlaceFloat(const nsSize& aFloatSize, PRUint8 aFloats,
   if (aFloatAvailableSpace.mHasFloats) {
     // XXX We should allow overflow by up to half a pixel here (bug 21193).
     if (aFloatAvailableSpace.mRect.width < aFloatSize.width) {
-      // The available width is too narrow (and its been impacted by a
+      // The available width is too narrow (and it's been impacted by a
       // prior float)
       result = PR_FALSE;
     }
@@ -650,12 +652,12 @@ nsBlockReflowState::CanPlaceFloat(const nsSize& aFloatSize, PRUint8 aFloats,
   // space.
   if (NSCoordGreaterThan(aFloatSize.height,
                          aFloatAvailableSpace.mRect.height)) {
-    // The available height is too short. However, its possible that
+    // The available height is too short. However, it's possible that
     // there is enough open space below which is not impacted by a
     // float.
     //
     // Compute the X coordinate for the float based on its float
-    // type, assuming its placed on the current line. This is
+    // type, assuming it's placed on the current line. This is
     // where the float will be placed horizontally if it can go
     // here.
     nscoord xa;
@@ -941,7 +943,7 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame*       aFloat,
     // area into which the float has grown or from which the float has
     // shrunk.
     nscoord top = NS_MIN(region.y, oldRegion.y) - borderPadding.top;
-    nscoord bottom = NS_MAX(region.YMost(), oldRegion.YMost()) - borderPadding.left;
+    nscoord bottom = NS_MAX(region.YMost(), oldRegion.YMost()) - borderPadding.top;
     mFloatManager->IncludeInDamage(top, bottom);
   }
 

@@ -57,9 +57,13 @@ void NS_NPAPI_CarbonWindowFrame(WindowRef aWindow, nsRect& outRect);
 // Get the rect for an entire top-level Cocoa window in screen coords.
 void NS_NPAPI_CocoaWindowFrame(void* aWindow, nsRect& outRect);
 
+// Returns whether or not a Cocoa NSWindow has main status.
+PRBool NS_NPAPI_CocoaWindowIsMain(void* aWindow);
+
 // Puts up a Cocoa context menu (NSMenu) for a particular NPCocoaEvent.
 NPError NS_NPAPI_ShowCocoaContextMenu(void* menu, nsIWidget* widget, NPCocoaEvent* event);
 
 NPBool NS_NPAPI_ConvertPointCocoa(void* inView,
                                   double sourceX, double sourceY, NPCoordinateSpace sourceSpace,
                                   double *destX, double *destY, NPCoordinateSpace destSpace);
+

@@ -109,48 +109,6 @@ extern "C" {
 
 @end
 
-static void DrawFocusRing(NSRect rect, float radius)
-{
-  NSSetFocusRingStyle(NSFocusRingOnly);
-  NSBezierPath* path = [NSBezierPath bezierPath];
-  rect = NSInsetRect(rect, radius, radius);
-  [path appendBezierPathWithArcWithCenter:NSMakePoint(NSMinX(rect), NSMinY(rect)) radius:radius startAngle:180.0 endAngle:270.0];
-  [path appendBezierPathWithArcWithCenter:NSMakePoint(NSMaxX(rect), NSMinY(rect)) radius:radius startAngle:270.0 endAngle:360.0];
-  [path appendBezierPathWithArcWithCenter:NSMakePoint(NSMaxX(rect), NSMaxY(rect)) radius:radius startAngle:  0.0 endAngle: 90.0];
-  [path appendBezierPathWithArcWithCenter:NSMakePoint(NSMinX(rect), NSMaxY(rect)) radius:radius startAngle: 90.0 endAngle:180.0];
-  [path closePath];
-  [path fill];
-}
-
-// On 10.4, NSSearchFieldCells and NSComboBoxCells can't draw focus rings.
-@interface SearchFieldCellWithFocusRing : NSSearchFieldCell {} @end
-
-@implementation SearchFieldCellWithFocusRing
-
-- (void) drawWithFrame:(NSRect)rect inView:(NSView*)controlView
-{
-  [super drawWithFrame:rect inView:controlView];
-  if (!nsToolkit::OnLeopardOrLater() && [self showsFirstResponder]) {
-    DrawFocusRing(rect, NSHeight(rect) / 2);
-  }
-}
-
-@end
-
-@interface ComboBoxCellWithFocusRing : NSComboBoxCell {} @end
-
-@implementation ComboBoxCellWithFocusRing
-
-- (void) drawWithFrame:(NSRect)rect inView:(NSView*)controlView
-{
-  [super drawWithFrame:rect inView:controlView];
-  if (!nsToolkit::OnLeopardOrLater() && [self showsFirstResponder]) {
-    DrawFocusRing(NSMakeRect(rect.origin.x, rect.origin.y + 2, rect.size.width - 3, rect.size.height - 4), 0);
-  }
-}
-
-@end
-
 // Copied from nsLookAndFeel.h
 // Apple hasn't defined a constant for scollbars with two arrows on each end, so we'll use this one.
 static const int kThemeScrollBarArrowsBoth = 2;
@@ -160,7 +118,6 @@ static const int kThemeScrollBarArrowsBoth = 2;
 
 // These enums are for indexing into the margin array.
 enum {
-  tigerOS,
   leopardOS
 };
 
@@ -190,7 +147,8 @@ static void InflateControlRect(NSRect* rect, NSControlSize cocoaControlSize, con
 {
   if (!marginSet)
     return;
-  static int osIndex = nsToolkit::OnLeopardOrLater() ? leopardOS : tigerOS;
+
+  static int osIndex = leopardOS;
   int controlSize = EnumSizeForCocoaSize(cocoaControlSize);
   const float* buttonMargins = marginSet[osIndex][controlSize];
   rect->origin.x -= buttonMargins[leftMargin];
@@ -252,7 +210,7 @@ nsNativeThemeCocoa::nsNativeThemeCocoa()
   [mCheckboxCell setButtonType:NSSwitchButton];
   [mCheckboxCell setAllowsMixedState:YES];
 
-  mSearchFieldCell = [[SearchFieldCellWithFocusRing alloc] initTextCell:@""];
+  mSearchFieldCell = [[NSSearchFieldCell alloc] initTextCell:@""];
   [mSearchFieldCell setBezelStyle:NSTextFieldRoundedBezel];
   [mSearchFieldCell setBezeled:YES];
   [mSearchFieldCell setEditable:YES];
@@ -260,7 +218,7 @@ nsNativeThemeCocoa::nsNativeThemeCocoa()
 
   mDropdownCell = [[NSPopUpButtonCell alloc] initTextCell:@"" pullsDown:NO];
 
-  mComboBoxCell = [[ComboBoxCellWithFocusRing alloc] initTextCell:@""];
+  mComboBoxCell = [[NSComboBoxCell alloc] initTextCell:@""];
   [mComboBoxCell setBezeled:YES];
   [mComboBoxCell setEditable:YES];
   [mComboBoxCell setFocusRingType:NSFocusRingTypeExterior];
@@ -1058,6 +1016,14 @@ nsNativeThemeCocoa::DrawFrame(CGContextRef cgContext, HIThemeFrameKind inKind,
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+static void
+RenderProgress(CGContextRef cgContext, const HIRect& aRenderRect, void* aData)
+{
+  HIThemeTrackDrawInfo* tdi = (HIThemeTrackDrawInfo*)aData;
+  tdi->bounds = aRenderRect;
+  HIThemeDrawTrack(tdi, NULL, cgContext, kHIThemeOrientationNormal);
+}
+
 void
 nsNativeThemeCocoa::DrawProgress(CGContextRef cgContext, const HIRect& inBoxRect,
                                  PRBool inIsIndeterminate, PRBool inIsHorizontal,
@@ -1082,7 +1048,8 @@ nsNativeThemeCocoa::DrawProgress(CGContextRef cgContext, const HIRect& inBoxRect
   tdi.trackInfo.progress.phase = PR_IntervalToMilliseconds(PR_IntervalNow()) /
                                  milliSecondsPerStep % 16;
 
-  HIThemeDrawTrack(&tdi, NULL, cgContext, HITHEME_ORIENTATION);
+  RenderTransformedHIThemeControl(cgContext, inBoxRect, RenderProgress, &tdi,
+                                  IsFrameRTL(aFrame));
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -1199,12 +1166,10 @@ nsNativeThemeCocoa::DrawTab(CGContextRef cgContext, HIRect inBoxRect,
   // selected tab shouldn't draw its left separator.
   tdi.adornment = kHIThemeTabAdornmentNone;
   if (isRTL ? IsBeforeSelectedTab(aFrame) : IsAfterSelectedTab(aFrame)) {
-    if (nsToolkit::OnLeopardOrLater()) {
-      // On Leopard, the tab's left edge must be shifted 1px to the right.
-      // On Tiger, this happens automatically when no leading separator is drawn.
-      inBoxRect.origin.x += 1;
-      inBoxRect.size.width -= 1;
-    }
+    // On Leopard, the tab's left edge must be shifted 1px to the right.
+    // On Tiger, this happens automatically when no leading separator is drawn.
+    inBoxRect.origin.x += 1;
+    inBoxRect.size.width -= 1;
   }
   else {
     tdi.adornment = kHIThemeTabAdornmentLeadingSeparator;
@@ -1212,11 +1177,9 @@ nsNativeThemeCocoa::DrawTab(CGContextRef cgContext, HIRect inBoxRect,
 
   if (isSelected && !isLast) {
     tdi.adornment |= kHIThemeTabAdornmentTrailingSeparator;
-    if (nsToolkit::OnLeopardOrLater()) {
-      // On Tiger, the right separator is drawn outside of the frame.
-      // On Leopard, the right edge must be shifted 1px to the right.
-      inBoxRect.size.width += 1;
-    }
+    // On Tiger, the right separator is drawn outside of the frame.
+    // On Leopard, the right edge must be shifted 1px to the right.
+    inBoxRect.size.width += 1;
   }
   
   if (inState & NS_EVENT_STATE_FOCUS)
@@ -1385,26 +1348,32 @@ static BOOL DrawingAtWindowTop(CGContextRef cgContext, float viewHeight, float y
   return ctm.ty - yPos >= viewHeight;
 }
 
+static BOOL
+ToolbarCanBeUnified(CGContextRef cgContext, const HIRect& inBoxRect, NSWindow* aWindow)
+{
+  return [aWindow isKindOfClass:[ToolbarWindow class]] &&
+    ![(ToolbarWindow*)aWindow drawsContentsIntoWindowFrame] &&
+    DrawingAtWindowTop(cgContext, [[aWindow contentView] bounds].size.height,
+                       inBoxRect.origin.y);
+}
+
 void
 nsNativeThemeCocoa::DrawUnifiedToolbar(CGContextRef cgContext, const HIRect& inBoxRect,
-                                       nsIFrame *aFrame)
+                                       NSWindow* aWindow)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
   float titlebarHeight = 0;
-  NSWindow* win = NativeWindowForFrame(aFrame);
 
-  if ([win isKindOfClass:[ToolbarWindow class]] &&
-      ![(ToolbarWindow*)win drawsContentsIntoWindowFrame] &&
-      DrawingAtWindowTop(cgContext, [[win contentView] bounds].size.height, inBoxRect.origin.y)) {
+  if (ToolbarCanBeUnified(cgContext, inBoxRect, aWindow)) {
     // Consider the titlebar height when calculating the gradient.
-    titlebarHeight = [(ToolbarWindow*)win titlebarHeight];
+    titlebarHeight = [(ToolbarWindow*)aWindow titlebarHeight];
     // Notify the window about the toolbar's height so that it can draw the
     // correct gradient in the titlebar.
-    [(ToolbarWindow*)win setUnifiedToolbarHeight:inBoxRect.size.height];
+    [(ToolbarWindow*)aWindow setUnifiedToolbarHeight:inBoxRect.size.height];
   }
   
-  BOOL isMain = [win isMainWindow] || ![NSView focusView];
+  BOOL isMain = [aWindow isMainWindow] || ![NSView focusView];
 
   // Draw the gradient
   UnifiedGradientInfo info = { titlebarHeight, inBoxRect.size.height, isMain, NO };
@@ -1707,11 +1676,16 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsIRenderingContext* aContext, nsIFrame
       break;
 
     case NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR:
-      DrawUnifiedToolbar(cgContext, macRect, aFrame);
+      DrawUnifiedToolbar(cgContext, macRect, NativeWindowForFrame(aFrame));
       break;
 
     case NS_THEME_TOOLBAR: {
-      BOOL isMain = [NativeWindowForFrame(aFrame) isMainWindow] || ![NSView focusView];
+      NSWindow* win = NativeWindowForFrame(aFrame);
+      if (ToolbarCanBeUnified(cgContext, macRect, win)) {
+        DrawUnifiedToolbar(cgContext, macRect, win);
+        break;
+      }
+      BOOL isMain = [win isMainWindow] || ![NSView focusView];
       CGRect drawRect = macRect;
 
       // top border
@@ -1765,6 +1739,8 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsIRenderingContext* aContext, nsIFrame
       // XUL textboxes set the native appearance on the containing box, while
       // concrete focus is set on the html:input element within it. We can
       // though, check the focused attribute of xul textboxes in this case.
+      // On Mac, focus rings are always shown for textboxes, so we do not need
+      // to check the window's focus ring state here
       if (aFrame->GetContent()->IsXUL() && IsFocused(aFrame)) {
         eventState |= NS_EVENT_STATE_FOCUS;
       }

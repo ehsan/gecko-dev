@@ -58,6 +58,10 @@
 #include "nsIStyleSheetLinkingElement.h"
 #include "nsIDOMDocumentType.h"
 #include "nsIMutationObserver.h"
+#include "nsIFormProcessor.h"
+#include "nsIServiceManager.h"
+
+static NS_DEFINE_CID(kFormProcessorCID, NS_FORMPROCESSOR_CID);
 
 /**
  * Helper class that opens a notification batch if the current doc
@@ -118,6 +122,9 @@ nsHtml5TreeOperation::~nsHtml5TreeOperation()
     case eTreeOpSetDocumentCharset:
     case eTreeOpNeedsCharsetSwitchTo:
       delete[] mOne.charPtr;
+      break;
+    case eTreeOpProcessOfflineManifest:
+      nsMemory::Free(mOne.unicharPtr);
       break;
     default: // keep the compiler happy
       break;
@@ -205,7 +212,7 @@ nsHtml5TreeOperation::Append(nsIContent* aNode,
 
   PRUint32 childCount = aParent->GetChildCount();
   rv = aParent->AppendChildTo(aNode, PR_FALSE);
-  nsNodeUtils::ContentAppended(aParent, childCount);
+  nsNodeUtils::ContentAppended(aParent, aNode, childCount);
 
   parentDoc->EndUpdate(UPDATE_CONTENT_MODEL);
   return rv;
@@ -269,7 +276,8 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
         didAppend = PR_TRUE;
       }
       if (didAppend) {
-        nsNodeUtils::ContentAppended(parent, childCount);
+        nsNodeUtils::ContentAppended(parent, parent->GetChildAt(childCount),
+                                     childCount);
       }
       return rv;
     }
@@ -279,7 +287,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       nsIContent* table = *(mThree.node);
       nsIContent* foster = table->GetParent();
 
-      if (foster && foster->IsNodeOfType(nsINode::eELEMENT)) {
+      if (foster && foster->IsElement()) {
         aBuilder->FlushPendingAppendNotifications();
 
         nsHtml5OtherDocUpdate update(foster->GetOwnerDoc(),
@@ -308,7 +316,8 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       nsIDocument* document = node->GetCurrentDoc();
 
       PRInt32 len = attributes->getLength();
-      for (PRInt32 i = 0; i < len; ++i) {
+      for (PRInt32 i = len; i > 0;) {
+        --i;
         // prefix doesn't need regetting. it is always null or a static atom
         // local name is never null
         nsCOMPtr<nsIAtom> localName = Reget(attributes->getLocalName(i));
@@ -359,6 +368,11 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       nsCOMPtr<nsIAtom> name = Reget(mTwo.atom);
       nsHtml5HtmlAttributes* attributes = mThree.attributes;
       
+      PRBool isKeygen = (name == nsHtml5Atoms::keygen && ns == kNameSpaceID_XHTML);
+      if (NS_UNLIKELY(isKeygen)) {
+        name = nsHtml5Atoms::select;
+      }
+      
       nsCOMPtr<nsIContent> newContent;
       nsCOMPtr<nsINodeInfo> nodeInfo = aBuilder->GetNodeInfoManager()->GetNodeInfo(name, nsnull, ns);
       NS_ASSERTION(nodeInfo, "Got null nodeinfo.");
@@ -373,9 +387,52 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
           ssle->InitStyleLinkElement(PR_FALSE);
           ssle->SetEnableUpdates(PR_FALSE);
         }
-      } else if (NS_UNLIKELY(name == nsHtml5Atoms::script && ns == kNameSpaceID_SVG)) {
-        nsCOMPtr<nsIScriptElement> sele = do_QueryInterface(newContent);
-        sele->WillCallDoneAddingChildren();
+      } else if (NS_UNLIKELY(isKeygen)) {
+        // Adapted from CNavDTD
+        nsCOMPtr<nsIFormProcessor> theFormProcessor =
+          do_GetService(kFormProcessorCID, &rv);
+        NS_ENSURE_SUCCESS(rv, rv);
+        
+        nsTArray<nsString> theContent;
+        nsAutoString theAttribute;
+         
+        (void) theFormProcessor->ProvideContent(NS_LITERAL_STRING("select"),
+                                                theContent,
+                                                theAttribute);
+
+        newContent->SetAttr(kNameSpaceID_None, 
+                            nsGkAtoms::moztype, 
+                            nsnull, 
+                            theAttribute,
+                            PR_FALSE);
+
+        nsCOMPtr<nsINodeInfo> optionNodeInfo = 
+          aBuilder->GetNodeInfoManager()->GetNodeInfo(nsHtml5Atoms::option, 
+                                                      nsnull, 
+                                                      kNameSpaceID_XHTML);
+                                                      
+        for (PRUint32 i = 0; i < theContent.Length(); ++i) {
+          nsCOMPtr<nsIContent> optionElt;
+          NS_NewElement(getter_AddRefs(optionElt), 
+                        optionNodeInfo->NamespaceID(), 
+                        optionNodeInfo, 
+                        PR_TRUE);
+          nsCOMPtr<nsIContent> optionText;
+          NS_NewTextNode(getter_AddRefs(optionText), 
+                         aBuilder->GetNodeInfoManager());
+          (void) optionText->SetText(theContent[i], PR_FALSE);
+          optionElt->AppendChildTo(optionText, PR_FALSE);
+          newContent->AppendChildTo(optionElt, PR_FALSE);
+          newContent->DoneAddingChildren(PR_FALSE);
+        }
+      } else if (name == nsHtml5Atoms::frameset && ns == kNameSpaceID_XHTML) {
+        nsIDocument* doc = aBuilder->GetDocument();
+        nsCOMPtr<nsIHTMLDocument> htmlDocument = do_QueryInterface(doc);
+        if (htmlDocument) {
+          // It seems harmless to call this multiple times, since this 
+          // is a simple field setter
+          htmlDocument->SetIsFrameset(PR_TRUE);
+        }
       }
 
       if (!attributes) {
@@ -383,13 +440,15 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       }
 
       PRInt32 len = attributes->getLength();
-      for (PRInt32 i = 0; i < len; ++i) {
+      for (PRInt32 i = len; i > 0;) {
+        --i;
         // prefix doesn't need regetting. it is always null or a static atom
         // local name is never null
         nsCOMPtr<nsIAtom> localName = Reget(attributes->getLocalName(i));
         newContent->SetAttr(attributes->getURI(i), localName, attributes->getPrefix(i), *(attributes->getValue(i)), PR_FALSE);
         // XXX what to do with nsresult?
       }
+
       return rv;
     }
     case eTreeOpSetFormElement: {
@@ -419,7 +478,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       
       nsIContent* foster = table->GetParent();
 
-      if (foster && foster->IsNodeOfType(nsINode::eELEMENT)) {
+      if (foster && foster->IsElement()) {
         aBuilder->FlushPendingAppendNotifications();
 
         nsHtml5OtherDocUpdate update(foster->GetOwnerDoc(),
@@ -529,8 +588,9 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     }
     case eTreeOpSetDocumentCharset: {
       char* str = mOne.charPtr;
+      PRInt32 charsetSource = mInt;
       nsDependentCString dependentString(str);
-      aBuilder->SetDocumentCharset(dependentString);
+      aBuilder->SetDocumentCharsetAndSource(dependentString, charsetSource);
       return rv;
     }
     case eTreeOpNeedsCharsetSwitchTo: {
@@ -544,19 +604,15 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       aBuilder->UpdateStyleSheet(node);
       return rv;
     }
-    case eTreeOpProcessBase: {
-      nsIContent* node = *(mOne.node);
-      rv = aBuilder->ProcessBASETag(node);
-      return rv;
-    }
     case eTreeOpProcessMeta: {
       nsIContent* node = *(mOne.node);
       rv = aBuilder->ProcessMETATag(node);
       return rv;
     }
     case eTreeOpProcessOfflineManifest: {
-      nsIContent* node = *(mOne.node);
-      aBuilder->ProcessOfflineManifest(node);
+      PRUnichar* str = mOne.unicharPtr;
+      nsDependentString dependentString(str);
+      aBuilder->ProcessOfflineManifest(dependentString);
       return rv;
     }
     case eTreeOpMarkMalformedIfScript: {
@@ -577,7 +633,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       return rv;
     }
     case eTreeOpDocumentMode: {
-      aBuilder->DocumentMode(mOne.mode);
+      aBuilder->SetDocumentMode(mOne.mode);
       return rv;
     }
     case eTreeOpSetStyleLineNumber: {

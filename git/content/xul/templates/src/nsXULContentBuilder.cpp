@@ -483,17 +483,14 @@ nsXULContentBuilder::BuildContentFromTemplate(nsIContent *aTemplateNode,
                ("nsXULContentBuilder::BuildContentFromTemplate (is unique: %d)",
                aIsUnique));
 
-        const char *tmpln, *resn, *realn;
-        aTemplateNode->Tag()->GetUTF8String(&tmpln);
-        aResourceNode->Tag()->GetUTF8String(&resn);
-        aRealNode->Tag()->GetUTF8String(&realn);
-
         nsAutoString id;
         aChild->GetId(id);
 
         PR_LOG(gXULTemplateLog, PR_LOG_ALWAYS,
                ("Tags: [Template: %s  Resource: %s  Real: %s] for id %s",
-               tmpln, resn, realn, NS_ConvertUTF16toUTF8(id).get()));
+                nsAtomCString(aTemplateNode->Tag()).get(), 
+                nsAtomCString(aResourceNode->Tag()).get(),
+                nsAtomCString(aRealNode->Tag()).get(), NS_ConvertUTF16toUTF8(id).get()));
     }
 #endif
 
@@ -562,11 +559,9 @@ nsXULContentBuilder::BuildContentFromTemplate(nsIContent *aTemplateNode,
 
 #ifdef PR_LOGGING
         if (PR_LOG_TEST(gXULTemplateLog, PR_LOG_DEBUG)) {
-            const char *tagname;
-            tag->GetUTF8String(&tagname);
             PR_LOG(gXULTemplateLog, PR_LOG_DEBUG,
                    ("xultemplate[%p]     building %s %s %s",
-                    this, tagname,
+                    this, nsAtomCString(tag).get(),
                     (isGenerationElement ? "[resource]" : ""),
                     (isUnique ? "[unique]" : "")));
         }
@@ -638,17 +633,6 @@ nsXULContentBuilder::BuildContentFromTemplate(nsIContent *aTemplateNode,
             rv = realKid->SetAttr(kNameSpaceID_None, nsGkAtoms::id, id, PR_FALSE);
             if (NS_FAILED(rv))
                 return rv;
-
-            if (! aNotify) {
-                // XUL document will watch us, and take care of making
-                // sure that we get added to or removed from the
-                // element map if aNotify is true. If not, we gotta do
-                // it ourselves. Yay.
-                nsCOMPtr<nsIXULDocument> xuldoc =
-                    do_QueryInterface(mRoot->GetDocument());
-                if (xuldoc)
-                    xuldoc->AddElementForID(realKid);
-            }
 
             // Set up the element's 'container' and 'empty' attributes.
             SetContainerAttrs(realKid, aChild, PR_TRUE, PR_FALSE);
@@ -1105,7 +1089,9 @@ nsXULContentBuilder::CreateContainerContents(nsIContent* aElement,
     if (aNotifyAtEnd && container) {
         MOZ_AUTO_DOC_UPDATE(container->GetCurrentDoc(), UPDATE_CONTENT_MODEL,
                             PR_TRUE);
-        nsNodeUtils::ContentAppended(container, newIndexInContainer);
+        nsNodeUtils::ContentAppended(container,
+                                     container->GetChildAt(newIndexInContainer),
+                                     newIndexInContainer);
     }
 
     NS_IF_RELEASE(container);
@@ -1211,6 +1197,9 @@ nsXULContentBuilder::CreateContainerContentsForQuerySet(nsIContent* aElement,
             rv = ReplaceMatch(removematch->mResult, nsnull, nsnull, aElement);
             if (NS_FAILED(rv))
                 return rv;
+
+            if (mFlags & eLoggingEnabled)
+                OutputMatchToLog(resultid, removematch, PR_FALSE);
         }
 
         if (generateContent) {
@@ -1242,6 +1231,9 @@ nsXULContentBuilder::CreateContainerContentsForQuerySet(nsIContent* aElement,
                                          aContainer, aNewIndexInContainer);
             }
         }
+
+        if (mFlags & eLoggingEnabled)
+            OutputMatchToLog(resultid, newmatch, PR_TRUE);
 
         if (prevmatch) {
             prevmatch->mNext = newmatch;
@@ -1345,7 +1337,7 @@ nsXULContentBuilder::RemoveGeneratedContent(nsIContent* aElement)
             //     it should be moved outside the inner loop. Bug 297290.
             if (element->NodeInfo()->Equals(nsGkAtoms::_template,
                                             kNameSpaceID_XUL) ||
-                !element->IsNodeOfType(nsINode::eELEMENT))
+                !element->IsElement())
                 continue;
 
             // If the element is in the template map, then we

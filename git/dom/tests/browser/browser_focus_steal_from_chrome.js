@@ -1,6 +1,10 @@
 function test() {
   waitForExplicitFinish();
 
+  let secMan = Components.classes["@mozilla.org/scriptsecuritymanager;1"]
+                         .getService(Components.interfaces
+                                               .nsIScriptSecurityManager);
+
   let fm = Components.classes["@mozilla.org/focus-manager;1"]
                      .getService(Components.interfaces.nsIFocusManager);
 
@@ -47,6 +51,7 @@ function test() {
   let canRetry;
   let callback;
   let loadedCount;
+  let setFocusToChrome;
 
   function runNextTest() {
     if (++testingIndex >= testingList.length) {
@@ -59,25 +64,39 @@ function test() {
       return;
     }
     callback = doTest1;
-    loadTestPage();
+    loadTestPage(false);
   }
 
-  function loadTestPage() {
+  function loadTestPage(aSetFocusToChrome) {
     loadedCount = 0;
     canRetry = 10;
+    setFocusToChrome = aSetFocusToChrome;
     // Set the focus to the contents.
     tabs[0].linkedBrowser.focus();
-    for (let i = 0; i < tabs.length; i++) {
-      tabs[i].linkedBrowser.addEventListener("load", onLoad, true);
-      tabs[i].linkedBrowser.loadURI(testingList[testingIndex].uri);
-    }
+    // Load on the tabs
+    tabs[0].linkedBrowser.addEventListener("load", onLoadForegroundTab, true);
+    tabs[0].linkedBrowser.loadURI(testingList[testingIndex].uri);
+    tabs[1].linkedBrowser.addEventListener("load", onLoadBackgroundTab, true);
+    tabs[1].linkedBrowser.loadURI(testingList[testingIndex].uri);
   }
 
-  function onLoad() {
+  function onLoadForegroundTab() {
+    tabs[0].linkedBrowser.removeEventListener("load", onLoadForegroundTab, true);
+    if (setFocusToChrome) {
+      // Set focus to a chrome element before the loaded content tries to move
+      // focus.
+      BrowserSearch.searchBar.focus();
+    }
+    onLoadComplete();
+  }
+
+  function onLoadBackgroundTab() {
+    tabs[1].linkedBrowser.removeEventListener("load", onLoadBackgroundTab, true);
+    onLoadComplete();
+  }
+
+  function onLoadComplete() {
     if (++loadedCount == tabs.length) {
-      for (let i = 0; i < tabs.length; i++) {
-        tabs[i].linkedBrowser.removeEventListener("load", onLoad, true);
-      }
       setTimeout(callback, 20);
     }
   }
@@ -123,10 +142,7 @@ function test() {
           " (Test1: content can steal focus)");
 
     callback = doTest2;
-    loadTestPage();
-
-    // Set focus to chrome element before onload events of the loading contents.
-    BrowserSearch.searchBar.focus();
+    loadTestPage(true);
   }
 
 

@@ -43,6 +43,7 @@
 #include "nsCoord.h"
 #include "nsRect.h"
 #include "nsPoint.h"
+#include "nsRegion.h"
 
 #include "prthread.h"
 #include "nsEvent.h"
@@ -60,10 +61,17 @@ class   nsIRenderingContext;
 class   nsIDeviceContext;
 struct  nsFont;
 class   nsIRollupListener;
+class   nsIMenuRollup;
 class   nsGUIEvent;
 class   imgIContainer;
 class   gfxASurface;
 class   nsIContent;
+
+namespace mozilla {
+namespace layers {
+class LayerManager;
+}
+}
 
 /**
  * Callback function that processes events.
@@ -102,9 +110,8 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 #endif
 
 #define NS_IWIDGET_IID \
-{ 0x6bdb96ba, 0x1727, 0x40ae, \
-  { 0x85, 0x55, 0x9c, 0x53, 0x4b, 0x95, 0x23, 0x98 } }
-
+{ 0xf286438a, 0x6ec6, 0x4766, \
+  { 0xa4, 0x76, 0x4a, 0x44, 0x80, 0x95, 0xd3, 0x1f } }
 /*
  * Window shadow styles
  * Also used for the -moz-window-shadow CSS property
@@ -112,6 +119,9 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 
 #define NS_STYLE_WINDOW_SHADOW_NONE             0
 #define NS_STYLE_WINDOW_SHADOW_DEFAULT          1
+#define NS_STYLE_WINDOW_SHADOW_MENU             2
+#define NS_STYLE_WINDOW_SHADOW_TOOLTIP          3
+#define NS_STYLE_WINDOW_SHADOW_SHEET            4
 
 /**
  * Cursor types.
@@ -176,6 +186,7 @@ enum nsTopLevelWidgetZPlacement { // for PlaceBehind()
 class nsIWidget : public nsISupports {
 
   public:
+    typedef mozilla::layers::LayerManager LayerManager;
 
     NS_DECLARE_STATIC_IID_ACCESSOR(NS_IWIDGET_IID)
 
@@ -579,6 +590,16 @@ class nsIWidget : public nsISupports {
     virtual nsTransparencyMode GetTransparencyMode() = 0;
 
     /**
+     * Updates a region of the window that might not have opaque content drawn. Widgets should
+     * assume that the initial possibly transparent region is empty.
+     *
+     * @param aDirtyRegion the region of the window that aMaybeTransparentRegion pertains to
+     * @param aPossiblyTransparentRegion the region of the window that is possibly transparent
+     */
+    virtual void UpdatePossiblyTransparentRegion(const nsIntRegion &aDirtyRegion,
+                                                 const nsIntRegion &aPossiblyTransparentRegion) {};
+
+    /**
      * This represents a command to set the bounds and clip region of
      * a child widget.
      */
@@ -664,6 +685,14 @@ class nsIWidget : public nsISupports {
     virtual nsIToolkit* GetToolkit() = 0;    
 
     /**
+     * Return the widget's LayerManager. The layer tree for that
+     * LayerManager is what gets rendered to the widget.
+     * The layer manager is guaranteed to be the same for the lifetime
+     * of the widget.
+     */
+    virtual LayerManager* GetLayerManager() = 0;
+
+    /**
      * Scroll a set of rectangles in this widget and (as simultaneously as
      * possible) modify the specified child widgets.
      * 
@@ -697,7 +726,6 @@ class nsIWidget : public nsISupports {
     virtual void RemoveChild(nsIWidget* aChild) = 0;
     virtual void* GetNativeData(PRUint32 aDataType) = 0;
     virtual void FreeNativeData(void * data, PRUint32 aDataType) = 0;//~~~
-    virtual nsIRenderingContext* GetRenderingContext() = 0;
 
     // GetDeviceContext returns a weak pointer to this widget's device context
     virtual nsIDeviceContext* GetDeviceContext() = 0;
@@ -764,7 +792,8 @@ class nsIWidget : public nsISupports {
      * @param aConsumeRollupEvent PR_TRUE consumes the rollup event, PR_FALSE dispatches rollup event
      *
      */
-    NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, PRBool aDoCapture, PRBool aConsumeRollupEvent) = 0;
+    NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, nsIMenuRollup * aMenuRollup,
+                                   PRBool aDoCapture, PRBool aConsumeRollupEvent) = 0;
 
     /**
      * Bring this window to the user's attention.  This is intended to be a more
@@ -926,7 +955,7 @@ class nsIWidget : public nsISupports {
      * Activates a native menu item at the position specified by the index
      * string. The index string is a string of positive integers separated
      * by the "|" (pipe) character. The last integer in the string represents
-     * the item index in a submenu located using the integers preceeding it.
+     * the item index in a submenu located using the integers preceding it.
      *
      * Example: 1|0|4
      * In this string, the first integer represents the top-level submenu
@@ -1032,6 +1061,11 @@ class nsIWidget : public nsISupports {
      * Destruct and don't commit the IME composition string.
      */
     NS_IMETHOD CancelIMEComposition() = 0;
+
+    /**
+     * Set accelerated rendering to 'True' or 'False'
+     */
+    NS_IMETHOD SetAcceleratedRendering(PRBool aEnabled) = 0;
 
     /*
      * Get toggled key states.

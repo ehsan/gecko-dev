@@ -51,7 +51,7 @@ struct NPRemoteEvent
 {
     NPEvent event;
     union {
-        NPRect rect;
+        RECT rect;
         WINDOWPOS windowpos;
     } lParamData;
 };
@@ -87,9 +87,9 @@ struct ParamTraits<mozilla::plugins::NPRemoteEvent>
                 paramCopy.lParamData.windowpos = *(reinterpret_cast<WINDOWPOS*>(paramCopy.event.lParam));
                 break;
             case WM_PAINT:
-                // The lParam paramter of WM_PAINT holds a pointer to an NPRect
+                // The lParam paramter of WM_PAINT holds a pointer to an RECT
                 // structure specifying the bounding box of the update area.
-                paramCopy.lParamData.rect = *(reinterpret_cast<NPRect*>(paramCopy.event.lParam));
+                paramCopy.lParamData.rect = *(reinterpret_cast<RECT*>(paramCopy.event.lParam));
                 break;
 
             // the white list of events that we will ipc to the client
@@ -112,6 +112,7 @@ struct ParamTraits<mozilla::plugins::NPRemoteEvent>
             case WM_CLEAR:
             case WM_UNDO:
 
+            case WM_MOUSELEAVE:
             case WM_MOUSEMOVE:
             case WM_LBUTTONDOWN:
             case WM_MBUTTONDOWN:
@@ -127,9 +128,17 @@ struct ParamTraits<mozilla::plugins::NPRemoteEvent>
             case WM_KILLFOCUS:
                 break;
 
-            // ignore any events we don't expect
             default:
-                return;
+                // RegisterWindowMessage events should be passed.
+                if (paramCopy.event.event >= 0xC000 && paramCopy.event.event <= 0xFFFF)
+                    break;
+
+                // FIXME/bug 567465: temporarily work around unhandled
+                // events by forwarding a "dummy event".  The eventual
+                // fix will be to stop trying to send these events
+                // entirely.
+                paramCopy.event.event = WM_NULL;
+                break;
         }
 
         aMsg->WriteBytes(&paramCopy, sizeof(paramType));
@@ -145,7 +154,7 @@ struct ParamTraits<mozilla::plugins::NPRemoteEvent>
         memcpy(aResult, bytes, sizeof(paramType));
 
         if (aResult->event.event == WM_PAINT) {
-            // restore the lParam to point at the NPRect
+            // restore the lParam to point at the RECT
             aResult->event.lParam = reinterpret_cast<LPARAM>(&aResult->lParamData.rect);
         } else if (aResult->event.event == WM_WINDOWPOSCHANGED) {
             // restore the lParam to point at the WINDOWPOS

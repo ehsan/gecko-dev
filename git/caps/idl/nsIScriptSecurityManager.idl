@@ -41,7 +41,7 @@
 interface nsIURI;
 interface nsIChannel;
 
-[scriptable, uuid(c0dbfd5e-b7ae-4c18-8674-82492f35d715)]
+[scriptable, uuid(50eda256-4dd2-4c7c-baed-96983910af9f)]
 interface nsIScriptSecurityManager : nsIXPCSecurityManager
 {
     ///////////////// Security Checks //////////////////
@@ -51,16 +51,8 @@ interface nsIScriptSecurityManager : nsIXPCSecurityManager
     [noscript] void checkPropertyAccess(in JSContextPtr aJSContext,
                                         in JSObjectPtr aJSObject,
                                         in string aClassName,
-                                        in JSVal aProperty,
+                                        in jsval aProperty,
                                         in PRUint32 aAction);
-
-    /**
-     * Checks whether the running script is allowed to connect to aTargetURI
-     */
-    [noscript] void checkConnect(in JSContextPtr aJSContext,
-                                 in nsIURI aTargetURI,
-                                 in string aClassName,
-                                 in string aProperty);
 
     /**
      * Check that the script currently running in context "cx" can load "uri".
@@ -324,7 +316,7 @@ interface nsIScriptSecurityManager : nsIXPCSecurityManager
      * If no scripted code is running "above" (or called from) fp, then
      * instead of looking at cx->globalObject, we will return |principal|.
      * This function only affects |cx|. If someone pushes another context onto
-     * the context stack, then it supercedes this call.
+     * the context stack, then it supersedes this call.
      * NOTE: If |fp| is non-null popContextPrincipal must be called before fp
      * has finished executing.
      *

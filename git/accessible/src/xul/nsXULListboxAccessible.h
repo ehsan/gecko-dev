@@ -129,11 +129,15 @@ public:
   virtual nsresult GetNameInternal(nsAString& aName);
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
-  virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
+  virtual void GetPositionAndSizeInternal(PRInt32 *aPosInSet,
+                                          PRInt32 *aSetSize);
   virtual PRBool GetAllowsAnonChildAccessibles();
 
 protected:
-  already_AddRefed<nsIAccessible> GetListAccessible();
+  /**
+   * Return listbox accessible for the listitem.
+   */
+  nsAccessible *GetListAccessible();
 
 private:
   PRBool mIsCheckbox;

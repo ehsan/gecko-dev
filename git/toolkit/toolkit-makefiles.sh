@@ -52,7 +52,6 @@ MAKEFILES_dom="
   ipc/chromium/Makefile
   ipc/glue/Makefile
   ipc/ipdl/Makefile
-  ipc/testshell/Makefile
   dom/Makefile
   dom/public/coreEvents/Makefile
   dom/interfaces/base/Makefile
@@ -86,7 +85,6 @@ MAKEFILES_dom="
   dom/src/threads/Makefile
   dom/locales/Makefile
   dom/plugins/Makefile
-  dom/ipc/Makefile
 "
 
 MAKEFILES_editor="
@@ -122,7 +120,9 @@ MAKEFILES_xmlparser="
 
 MAKEFILES_gfx="
   gfx/Makefile
+  gfx/ycbcr/Makefile
   gfx/idl/Makefile
+  gfx/layers/Makefile
   gfx/public/Makefile
   gfx/src/Makefile
   gfx/src/psshared/Makefile
@@ -204,17 +204,11 @@ MAKEFILES_xpconnect="
   js/src/xpconnect/tests/Makefile
   js/src/xpconnect/tests/components/Makefile
   js/src/xpconnect/tests/idl/Makefile
-  js/src/xpconnect/tools/Makefile
-  js/src/xpconnect/tools/idl/Makefile
 "
 
 MAKEFILES_jsdebugger="
   js/jsd/Makefile
   js/jsd/idl/Makefile
-"
-
-MAKEFILES_jsctypes="
-  js/ctypes/Makefile
 "
 
 MAKEFILES_content="
@@ -278,7 +272,6 @@ MAKEFILES_layout="
   layout/build/Makefile
   layout/forms/Makefile
   layout/generic/Makefile
-  layout/html/tests/Makefile
   layout/inspector/public/Makefile
   layout/inspector/src/Makefile
   layout/printing/Makefile
@@ -328,37 +321,12 @@ MAKEFILES_libtheora="
   media/libtheora/include/theora/Makefile
 "
 
-MAKEFILES_liboggz="
-  media/liboggz/Makefile
-  media/liboggz/src/Makefile
-  media/liboggz/src/liboggz/Makefile
-  media/liboggz/include/Makefile
-  media/liboggz/include/oggz/Makefile
-"
-
 MAKEFILES_libogg="
   media/libogg/Makefile
   media/libogg/src/Makefile
   media/libogg/include/Makefile
   media/libogg/include/ogg/Makefile
 "
-
-MAKEFILES_libfishsound="
-  media/libfishsound/Makefile
-  media/libfishsound/src/Makefile
-  media/libfishsound/src/libfishsound/Makefile
-  media/libfishsound/include/Makefile
-  media/libfishsound/include/fishsound/Makefile
-"
-
-MAKEFILES_liboggplay="
-  media/liboggplay/Makefile
-  media/liboggplay/src/Makefile
-  media/liboggplay/src/liboggplay/Makefile
-  media/liboggplay/include/Makefile
-  media/liboggplay/include/oggplay/Makefile
-"
-
 MAKEFILES_libsydneyaudio="
   media/libsydneyaudio/Makefile
   media/libsydneyaudio/include/Makefile
@@ -369,9 +337,6 @@ MAKEFILES_plugin="
   modules/plugin/Makefile
   modules/plugin/base/src/Makefile
   modules/plugin/base/public/Makefile
-  modules/plugin/default/mac/Makefile
-  modules/plugin/default/unix/Makefile
-  modules/plugin/default/windows/Makefile
   modules/plugin/sdk/Makefile
   modules/plugin/sdk/samples/Makefile
   modules/plugin/sdk/samples/common/Makefile
@@ -390,45 +355,20 @@ MAKEFILES_netwerk="
   netwerk/base/src/Makefile
   netwerk/build/Makefile
   netwerk/cache/Makefile
-  netwerk/cache/public/Makefile
-  netwerk/cache/src/Makefile
   netwerk/cookie/Makefile
-  netwerk/cookie/public/Makefile
-  netwerk/cookie/src/Makefile
   netwerk/wifi/Makefile
-  netwerk/wifi/public/Makefile
-  netwerk/wifi/src/Makefile
   netwerk/dns/Makefile
-  netwerk/dns/public/Makefile
-  netwerk/dns/src/Makefile
   netwerk/protocol/Makefile
   netwerk/protocol/about/Makefile
-  netwerk/protocol/about/public/Makefile
-  netwerk/protocol/about/src/Makefile
   netwerk/protocol/data/Makefile
-  netwerk/protocol/data/src/Makefile
   netwerk/protocol/file/Makefile
-  netwerk/protocol/file/public/Makefile
-  netwerk/protocol/file/src/Makefile
   netwerk/protocol/ftp/Makefile
-  netwerk/protocol/ftp/public/Makefile
-  netwerk/protocol/ftp/src/Makefile
   netwerk/protocol/gopher/Makefile
-  netwerk/protocol/gopher/src/Makefile
   netwerk/protocol/http/Makefile
-  netwerk/protocol/http/public/Makefile
-  netwerk/protocol/http/src/Makefile
   netwerk/protocol/res/Makefile
-  netwerk/protocol/res/public/Makefile
-  netwerk/protocol/res/src/Makefile
   netwerk/protocol/viewsource/Makefile
-  netwerk/protocol/viewsource/public/Makefile
-  netwerk/protocol/viewsource/src/Makefile
   netwerk/mime/Makefile
-  netwerk/mime/public/Makefile
-  netwerk/mime/src/Makefile
   netwerk/socket/Makefile
-  netwerk/socket/base/Makefile
   netwerk/streamconv/Makefile
   netwerk/streamconv/converters/Makefile
   netwerk/streamconv/public/Makefile
@@ -522,7 +462,6 @@ MAKEFILES_widget="
   widget/src/build/Makefile
   widget/src/gtk2/Makefile
   widget/src/gtkxtbin/Makefile
-  widget/src/photon/Makefile
   widget/src/cocoa/Makefile
   widget/src/os2/Makefile
   widget/src/windows/Makefile
@@ -583,24 +522,11 @@ MAKEFILES_xpcom_tests="
   xpcom/tests/static-checker/Makefile
 "
 
-MAKEFILES_xpinstall="
-  xpinstall/Makefile
-  xpinstall/public/Makefile
-  xpinstall/src/Makefile
-"
-
 MAKEFILES_xpfe="
   widget/src/xremoteclient/Makefile
   toolkit/components/remote/Makefile
-  xpfe/Makefile
-  xpfe/browser/Makefile
-  xpfe/browser/src/Makefile
   xpfe/components/Makefile
   xpfe/components/directory/Makefile
-  xpfe/components/find/Makefile
-  xpfe/components/find/public/Makefile
-  xpfe/components/find/src/Makefile
-  xpfe/components/intl/Makefile
   xpfe/components/autocomplete/Makefile
   xpfe/components/autocomplete/public/Makefile
   xpfe/components/autocomplete/src/Makefile
@@ -632,9 +558,6 @@ MAKEFILES_embedding="
   embedding/browser/gtk/Makefile
   embedding/browser/gtk/src/Makefile
   embedding/browser/gtk/tests/Makefile
-  embedding/browser/photon/Makefile
-  embedding/browser/photon/src/Makefile
-  embedding/browser/photon/tests/Makefile
   embedding/components/Makefile
   embedding/components/appstartup/Makefile
   embedding/components/appstartup/src/Makefile
@@ -656,9 +579,6 @@ MAKEFILES_embedding="
   embedding/components/windowwatcher/Makefile
   embedding/components/windowwatcher/public/Makefile
   embedding/components/windowwatcher/src/Makefile
-  embedding/components/ui/Makefile
-  embedding/components/ui/helperAppDlg/Makefile
-  embedding/components/ui/progressDlg/Makefile
   embedding/tests/Makefile
   embedding/tests/winEmbed/Makefile
 "
@@ -679,7 +599,7 @@ MAKEFILES_xulapp="
   toolkit/crashreporter/google-breakpad/src/common/Makefile
   toolkit/crashreporter/google-breakpad/src/common/linux/Makefile
   toolkit/crashreporter/google-breakpad/src/common/mac/Makefile
-  toolkit/crashreporter/google-breakpad/src/common/mac/dwarf/Makefile
+  toolkit/crashreporter/google-breakpad/src/common/dwarf/Makefile
   toolkit/crashreporter/google-breakpad/src/common/solaris/Makefile
   toolkit/crashreporter/google-breakpad/src/common/windows/Makefile
   toolkit/crashreporter/google-breakpad/src/tools/linux/dump_syms/Makefile
@@ -702,7 +622,6 @@ MAKEFILES_xulapp="
   toolkit/components/commandlines/src/Makefile
   toolkit/components/console/Makefile
   toolkit/components/contentprefs/Makefile
-  toolkit/components/contentprefs/public/Makefile
   toolkit/components/contentprefs/src/Makefile
   toolkit/components/cookie/Makefile
   toolkit/components/downloads/public/Makefile
@@ -715,7 +634,11 @@ MAKEFILES_xulapp="
   toolkit/components/filepicker/Makefile
   toolkit/components/filepicker/public/Makefile
   toolkit/components/filepicker/src/Makefile
+  toolkit/components/find/Makefile
+  toolkit/components/find/public/Makefile
+  toolkit/components/find/src/Makefile
   toolkit/components/help/Makefile
+  toolkit/components/intl/Makefile
   toolkit/components/microformats/Makefile
   toolkit/components/microformats/src/Makefile
   toolkit/components/parentalcontrols/Makefile
@@ -738,6 +661,7 @@ MAKEFILES_xulapp="
   toolkit/components/startup/Makefile
   toolkit/components/startup/public/Makefile
   toolkit/components/startup/src/Makefile
+  toolkit/components/statusfilter/Makefile
   toolkit/components/typeaheadfind/Makefile
   toolkit/components/typeaheadfind/public/Makefile
   toolkit/components/typeaheadfind/src/Makefile
@@ -752,17 +676,12 @@ MAKEFILES_xulapp="
   toolkit/locales/Makefile
   toolkit/mozapps/Makefile
   toolkit/mozapps/downloads/Makefile
-  toolkit/mozapps/downloads/src/Makefile
   toolkit/mozapps/extensions/Makefile
-  toolkit/mozapps/extensions/public/Makefile
-  toolkit/mozapps/extensions/src/Makefile
   toolkit/mozapps/handling/Makefile
-  toolkit/mozapps/handling/src/Makefile
   toolkit/mozapps/plugins/Makefile
+  toolkit/mozapps/readstrings/Makefile
   toolkit/mozapps/update/Makefile
-  toolkit/mozapps/update/public/Makefile
-  toolkit/mozapps/update/src/Makefile
-  toolkit/mozapps/update/src/updater/Makefile
+  toolkit/mozapps/update/updater/Makefile
   toolkit/mozapps/xpinstall/Makefile
   toolkit/profile/Makefile
   toolkit/profile/public/Makefile
@@ -787,6 +706,11 @@ MAKEFILES_xulapp="
   toolkit/themes/winstripe/help/Makefile
   toolkit/themes/winstripe/mozapps/Makefile
   toolkit/xre/Makefile
+"
+
+MAKEFILES_ctypes="
+  toolkit/components/ctypes/Makefile
+  toolkit/components/ctypes/tests/Makefile
 "
 
 MAKEFILES_libpr0n="
@@ -879,7 +803,6 @@ add_makefiles "
   $MAKEFILES_widget
   $MAKEFILES_xpcom
   $MAKEFILES_xpcom_tests
-  $MAKEFILES_xpinstall
   $MAKEFILES_xpfe
   $MAKEFILES_embedding
   $MAKEFILES_xulapp
@@ -972,7 +895,6 @@ if [ "$ENABLE_TESTS" ]; then
     extensions/pref/Makefile
     intl/locale/tests_multilocale/Makefile
     js/src/xpconnect/tests/mochitest/Makefile
-    js/ctypes/tests/Makefile
     layout/forms/test/Makefile
     layout/generic/test/Makefile
     layout/inspector/tests/Makefile
@@ -1002,6 +924,10 @@ if [ "$ENABLE_TESTS" ]; then
     testing/mochitest/ssltunnel/Makefile
     testing/mochitest/static/Makefile
     testing/mochitest/tests/Makefile
+    testing/mochitest/tests/MochiKit-1.4.2/Makefile
+    testing/mochitest/tests/MochiKit-1.4.2/MochiKit/Makefile
+    testing/mochitest/tests/MochiKit-1.4.2/tests/Makefile
+    testing/mochitest/tests/MochiKit-1.4.2/tests/SimpleTest/Makefile
     testing/mochitest/tests/SimpleTest/Makefile
     testing/mochitest/tests/browser/Makefile
     testing/xpcshell/Makefile
@@ -1039,7 +965,6 @@ if [ "$ENABLE_TESTS" ]; then
     widget/tests/Makefile
     xpcom/sample/program/Makefile
     xpcom/tests/external/Makefile
-    xpinstall/tests/Makefile
   "
 fi
 
@@ -1215,7 +1140,6 @@ if [ "$MOZ_MATHML" ]; then
     content/mathml/Makefile
     content/mathml/content/Makefile
     content/mathml/content/src/Makefile
-    intl/uconv/ucvmath/Makefile
     layout/mathml/Makefile
   "
 fi
@@ -1274,10 +1198,7 @@ if [ "$MOZ_OGG" ]; then
  add_makefiles "
    $MAKEFILES_libvorbis
    $MAKEFILES_libtheora
-   $MAKEFILES_liboggz
    $MAKEFILES_libogg
-   $MAKEFILES_libfishsound
-   $MAKEFILES_liboggplay
    content/media/ogg/Makefile
  "
 fi

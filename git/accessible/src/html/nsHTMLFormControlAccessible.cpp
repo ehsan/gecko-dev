@@ -36,10 +36,13 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// NOTE: alphabetically ordered
-#include "nsAccessibleTreeWalker.h"
-#include "nsAccessibilityAtoms.h"
 #include "nsHTMLFormControlAccessible.h"
+
+#include "nsAccessibilityAtoms.h"
+#include "nsAccUtils.h"
+#include "nsRelUtils.h"
+#include "nsTextEquivUtils.h"
+
 #include "nsIDOMDocument.h"
 #include "nsIDOMNSHTMLInputElement.h"
 #include "nsIDOMHTMLInputElement.h"
@@ -98,12 +101,14 @@ NS_IMETHODIMP nsHTMLCheckboxAccessible::GetActionName(PRUint8 aIndex, nsAString&
   return NS_ERROR_INVALID_ARG;
 }
 
-NS_IMETHODIMP nsHTMLCheckboxAccessible::DoAction(PRUint8 index)
+NS_IMETHODIMP
+nsHTMLCheckboxAccessible::DoAction(PRUint8 aIndex)
 {
-  if (index == 0) {   // 0 is the magic value for default action
-    return DoCommand();
-  }
-  return NS_ERROR_INVALID_ARG;
+  if (aIndex != 0)
+    return NS_ERROR_INVALID_ARG;
+
+  DoCommand();
+  return NS_OK;
 }
 
 nsresult
@@ -141,7 +146,9 @@ nsHTMLCheckboxAccessible::GetStateInternal(PRUint32 *aState,
   return NS_OK;
 }
 
-//------ Radio button -------
+////////////////////////////////////////////////////////////////////////////////
+// nsHTMLRadioButtonAccessible
+////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLRadioButtonAccessible::nsHTMLRadioButtonAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell):
 nsRadioButtonAccessible(aNode, aShell)
@@ -169,22 +176,16 @@ nsHTMLRadioButtonAccessible::GetStateInternal(PRUint32 *aState,
   return NS_OK;
 }
 
-nsresult
-nsHTMLRadioButtonAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes)
+void
+nsHTMLRadioButtonAccessible::GetPositionAndSizeInternal(PRInt32 *aPosInSet,
+                                                        PRInt32 *aSetSize)
 {
-  NS_ENSURE_ARG_POINTER(aAttributes);
-  NS_ENSURE_TRUE(mDOMNode, NS_ERROR_FAILURE);
-
-  nsresult rv = nsRadioButtonAccessible::GetAttributesInternal(aAttributes);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   nsAutoString nsURI;
   mDOMNode->GetNamespaceURI(nsURI);
   nsAutoString tagName;
   mDOMNode->GetLocalName(tagName);
 
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
-  NS_ENSURE_STATE(content);
 
   nsAutoString type;
   content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::type, type);
@@ -205,12 +206,12 @@ nsHTMLRadioButtonAccessible::GetAttributesInternal(nsIPersistentProperties *aAtt
       document->GetElementsByTagNameNS(nsURI, tagName, getter_AddRefs(inputs));
   }
 
-  NS_ENSURE_TRUE(inputs, NS_OK);
+  NS_ENSURE_TRUE(inputs, );
 
   PRUint32 inputsCount = 0;
   inputs->GetLength(&inputsCount);
 
-  // Get posinset and setsize.
+  // Compute posinset and setsize.
   PRInt32 indexOf = 0;
   PRInt32 count = 0;
 
@@ -232,12 +233,13 @@ nsHTMLRadioButtonAccessible::GetAttributesInternal(nsIPersistentProperties *aAtt
     }
   }
 
-  nsAccUtils::SetAccGroupAttrs(aAttributes, 0, indexOf, count);
-
-  return  NS_OK;
+  *aPosInSet = indexOf;
+  *aSetSize = count;
 }
 
-// ----- Button -----
+////////////////////////////////////////////////////////////////////////////////
+// nsHTMLButtonAccessible
+////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLButtonAccessible::nsHTMLButtonAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell):
 nsHyperTextAccessibleWrap(aNode, aShell)
@@ -259,12 +261,14 @@ NS_IMETHODIMP nsHTMLButtonAccessible::GetActionName(PRUint8 aIndex, nsAString& a
   return NS_ERROR_INVALID_ARG;
 }
 
-NS_IMETHODIMP nsHTMLButtonAccessible::DoAction(PRUint8 index)
+NS_IMETHODIMP
+nsHTMLButtonAccessible::DoAction(PRUint8 aIndex)
 {
-  if (index == eAction_Click) {
-    return DoCommand();
-  }
-  return NS_ERROR_INVALID_ARG;
+  if (aIndex != eAction_Click)
+    return NS_ERROR_INVALID_ARG;
+
+  DoCommand();
+  return NS_OK;
 }
 
 nsresult
@@ -352,12 +356,14 @@ NS_IMETHODIMP nsHTML4ButtonAccessible::GetActionName(PRUint8 aIndex, nsAString& 
   return NS_ERROR_INVALID_ARG;
 }
 
-NS_IMETHODIMP nsHTML4ButtonAccessible::DoAction(PRUint8 index)
+NS_IMETHODIMP
+nsHTML4ButtonAccessible::DoAction(PRUint8 aIndex)
 {
-  if (index == 0) {
-    return DoCommand();
-  }
-  return NS_ERROR_INVALID_ARG;
+  if (aIndex != 0)
+    return NS_ERROR_INVALID_ARG;
+
+  DoCommand();
+  return NS_OK;
 }
 
 nsresult
@@ -676,19 +682,20 @@ nsHTMLLegendAccessible::GetRelationByType(PRUint32 aRelationType,
 
   if (aRelationType == nsIAccessibleRelation::RELATION_LABEL_FOR) {
     // Look for groupbox parent
-    nsCOMPtr<nsIAccessible> groupboxAccessible = GetParent();
-    if (nsAccUtils::Role(groupboxAccessible) == nsIAccessibleRole::ROLE_GROUPING) {
+    nsAccessible* groupbox = GetParent();
+
+    if (nsAccUtils::Role(groupbox) == nsIAccessibleRole::ROLE_GROUPING) {
       // XXX: if group box exposes more than one relation of the given type
       // then we fail.
       nsCOMPtr<nsIAccessible> testLabelAccessible =
-        nsRelUtils::GetRelatedAccessible(groupboxAccessible,
+        nsRelUtils::GetRelatedAccessible(groupbox,
                                          nsIAccessibleRelation::RELATION_LABELLED_BY);
 
       if (testLabelAccessible == this) {
         // We're the first child of the parent groupbox, see
         // nsHTMLGroupboxAccessible::GetRelationByType().
         return nsRelUtils::
-          AddTarget(aRelationType, aRelation, groupboxAccessible);
+          AddTarget(aRelationType, aRelation, groupbox);
       }
     }
   }

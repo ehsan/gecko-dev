@@ -1,4 +1,4 @@
-// Copyright (c) 2009, Google Inc.
+// Copyright (c) 2010 Google Inc.
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -77,17 +77,21 @@
 #include <sys/ucontext.h>
 #include <sys/user.h>
 #include <sys/wait.h>
+#include <ucontext.h>
 #include <unistd.h>
+
+#include <algorithm>
+#include <vector>
 
 #include "common/linux/linux_libc_support.h"
 #include "common/linux/linux_syscall_support.h"
 #include "common/linux/memory.h"
-#include "client/linux/minidump_writer//minidump_writer.h"
+#include "client/linux/minidump_writer/minidump_writer.h"
 #include "common/linux/guid_creator.h"
 
 // A wrapper for the tgkill syscall: send a signal to a specific thread.
 static int tgkill(pid_t tgid, pid_t tid, int sig) {
-  syscall(__NR_tgkill, tgid, tid, sig);
+  return syscall(__NR_tgkill, tgid, tid, sig);
   return 0;
 }
 
@@ -113,28 +117,52 @@ ExceptionHandler::ExceptionHandler(const std::string &dump_path,
                                    MinidumpCallback callback,
                                    void *callback_context,
                                    bool install_handler)
-    : filter_(filter),
-      callback_(callback),
-      callback_context_(callback_context),
-      dump_path_(),
-      handler_installed_(install_handler),
-      crash_handler_(NULL) {
-  set_dump_path(dump_path);
+  : filter_(filter),
+    callback_(callback),
+    callback_context_(callback_context),
+    handler_installed_(install_handler)
+{
+  Init(dump_path, -1);
+}
 
-  if (install_handler) {
-    InstallHandlers();
-
-    pthread_mutex_lock(&handler_stack_mutex_);
-      if (handler_stack_ == NULL)
-        handler_stack_ = new std::vector<ExceptionHandler *>;
-      handler_stack_->push_back(this);
-    pthread_mutex_unlock(&handler_stack_mutex_);
-  }
+ExceptionHandler::ExceptionHandler(const std::string &dump_path,
+                                   FilterCallback filter,
+                                   MinidumpCallback callback,
+                                   void* callback_context,
+                                   bool install_handler,
+                                   const int server_fd)
+  : filter_(filter),
+    callback_(callback),
+    callback_context_(callback_context),
+    handler_installed_(install_handler)
+{
+  Init(dump_path, server_fd);
 }
 
 // Runs before crashing: normal context.
 ExceptionHandler::~ExceptionHandler() {
   UninstallHandlers();
+}
+
+void ExceptionHandler::Init(const std::string &dump_path,
+                            const int server_fd)
+{
+  crash_handler_ = NULL;
+  if (0 <= server_fd)
+    crash_generation_client_
+      .reset(CrashGenerationClient::TryCreate(server_fd));
+
+  if (handler_installed_)
+    InstallHandlers();
+
+  if (!IsOutOfProcess())
+    set_dump_path(dump_path);
+
+  pthread_mutex_lock(&handler_stack_mutex_);
+  if (handler_stack_ == NULL)
+    handler_stack_ = new std::vector<ExceptionHandler *>;
+  handler_stack_->push_back(this);
+  pthread_mutex_unlock(&handler_stack_mutex_);
 }
 
 // Runs before crashing: normal context.
@@ -183,7 +211,11 @@ void ExceptionHandler::UninstallHandlers() {
     sigaction(old_handlers_[i].first, action, NULL);
     delete action;
   }
-
+  pthread_mutex_lock(&handler_stack_mutex_);
+  std::vector<ExceptionHandler*>::iterator handler =
+      std::find(handler_stack_->begin(), handler_stack_->end(), this);
+  handler_stack_->erase(handler);
+  pthread_mutex_unlock(&handler_stack_mutex_);
   old_handlers_.clear();
 }
 
@@ -205,12 +237,15 @@ void ExceptionHandler::UpdateNextID() {
   }
 }
 
+// void ExceptionHandler::set_crash_handler(HandlerCallback callback) {
+//   crash_handler_ = callback;
+// }
+
 // This function runs in a compromised context: see the top of the file.
 // Runs on the crashing thread.
 // static
 void ExceptionHandler::SignalHandler(int sig, siginfo_t* info, void* uc) {
   // All the exception signals are blocked at this point.
-
   pthread_mutex_lock(&handler_stack_mutex_);
 
   if (!handler_stack_->size()) {
@@ -262,17 +297,32 @@ bool ExceptionHandler::HandleSignal(int sig, siginfo_t* info, void* uc) {
 
   // Allow ourselves to be dumped.
   sys_prctl(PR_SET_DUMPABLE, 1);
-
   CrashContext context;
   memcpy(&context.siginfo, info, sizeof(siginfo_t));
   memcpy(&context.context, uc, sizeof(struct ucontext));
-  memcpy(&context.float_state, ((struct ucontext *)uc)->uc_mcontext.fpregs,
-         sizeof(context.float_state));
+#if !defined(__ARM_EABI__)
+  // FP state is not part of user ABI on ARM Linux.
+  struct ucontext *uc_ptr = (struct ucontext*)uc;
+  if (uc_ptr->uc_mcontext.fpregs) {
+    memcpy(&context.float_state,
+           uc_ptr->uc_mcontext.fpregs,
+           sizeof(context.float_state));
+  }
+#endif
   context.tid = sys_gettid();
+  if (crash_handler_ != NULL) {
+    if (crash_handler_(&context, sizeof(context),
+                       callback_context_)) {
+      return true;
+    }
+  }
+  return GenerateDump(&context);
+}
 
-  if (crash_handler_ && crash_handler_(&context, sizeof(context),
-                                       callback_context_))
-    return true;
+// This function may run in a compromised context: see the top of the file.
+bool ExceptionHandler::GenerateDump(CrashContext *context) {
+  if (IsOutOfProcess())
+    return crash_generation_client_->RequestDump(context, sizeof(*context));
 
   static const unsigned kChildStackSize = 8000;
   PageAllocator allocator;
@@ -286,8 +336,8 @@ bool ExceptionHandler::HandleSignal(int sig, siginfo_t* info, void* uc) {
   ThreadArgument thread_arg;
   thread_arg.handler = this;
   thread_arg.pid = getpid();
-  thread_arg.context = &context;
-  thread_arg.context_size = sizeof(context);
+  thread_arg.context = context;
+  thread_arg.context_size = sizeof(*context);
 
   const pid_t child = sys_clone(
       ThreadEntry, stack, CLONE_FILES | CLONE_FS | CLONE_UNTRACED,
@@ -298,7 +348,7 @@ bool ExceptionHandler::HandleSignal(int sig, siginfo_t* info, void* uc) {
   } while (r == -1 && errno == EINTR);
 
   if (r == -1) {
-    static const char msg[] = "ExceptionHandler::HandleSignal: waitpid failed:";
+    static const char msg[] = "ExceptionHandler::GenerateDump waitpid failed:";
     sys_write(2, msg, sizeof(msg) - 1);
     sys_write(2, strerror(errno), strlen(strerror(errno)));
     sys_write(2, "\n", 1);
@@ -319,6 +369,80 @@ bool ExceptionHandler::DoDump(pid_t crashing_process, const void* context,
                               size_t context_size) {
   return google_breakpad::WriteMinidump(
       next_minidump_path_c_, crashing_process, context, context_size);
+}
+
+// static
+bool ExceptionHandler::WriteMinidump(const std::string &dump_path,
+                                     MinidumpCallback callback,
+                                     void* callback_context) {
+  return WriteMinidump(dump_path, false, callback, callback_context);
+}
+
+// static
+bool ExceptionHandler::WriteMinidump(const std::string &dump_path,
+                                     bool write_exception_stream,
+                                     MinidumpCallback callback,
+                                     void* callback_context) {
+  ExceptionHandler eh(dump_path, NULL, callback, callback_context, false);
+  return eh.WriteMinidump(write_exception_stream);
+}
+
+bool ExceptionHandler::WriteMinidump() {
+  return WriteMinidump(false);
+}
+
+bool ExceptionHandler::WriteMinidump(bool write_exception_stream) {
+#if !defined(__ARM_EABI__)
+  // Allow ourselves to be dumped.
+  sys_prctl(PR_SET_DUMPABLE, 1);
+
+  CrashContext context;
+  int getcontext_result = getcontext(&context.context);
+  if (getcontext_result)
+    return false;
+  memcpy(&context.float_state, context.context.uc_mcontext.fpregs,
+         sizeof(context.float_state));
+  context.tid = sys_gettid();
+
+  if (write_exception_stream) {
+    memset(&context.siginfo, 0, sizeof(context.siginfo));
+    context.siginfo.si_signo = SIGSTOP;
+#if defined(__i386)
+    context.siginfo.si_addr =
+      reinterpret_cast<void*>(context.context.uc_mcontext.gregs[REG_EIP]);
+#elif defined(__x86_64)
+    context.siginfo.si_addr =
+      reinterpret_cast<void*>(context.context.uc_mcontext.gregs[REG_RIP]);
+#elif defined(__ARMEL__)
+    context.siginfo.si_addr =
+      reinterpret_cast<void*>(context.context.uc_mcontext.arm_ip);
+#endif
+  }
+
+  bool success = GenerateDump(&context);
+  UpdateNextID();
+  return success;
+#else
+  return false;
+#endif  // !defined(__ARM_EABI__)
+}
+
+// static
+bool ExceptionHandler::WriteMinidumpForChild(pid_t child,
+                                             pid_t child_blamed_thread,
+                                             const std::string &dump_path,
+                                             MinidumpCallback callback,
+                                             void *callback_context)
+{
+  // This function is not run in a compromised context.
+  ExceptionHandler eh(dump_path, NULL, NULL, NULL, false);
+  if (!google_breakpad::WriteMinidump(eh.next_minidump_path_c_,
+                                      child,
+                                      child_blamed_thread))
+      return false;
+
+  return callback ? callback(eh.dump_path_c_, eh.next_minidump_id_c_,
+                             callback_context, true) : true;
 }
 
 }  // namespace google_breakpad

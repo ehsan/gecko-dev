@@ -8,10 +8,12 @@ JSRuntime* NativeJSContext::sJSScriptRuntime = 0;
 PRBool
 NativeJSContext::AddGCRoot(void *aPtr, const char *aName)
 {
+  NS_ASSERTION(NS_SUCCEEDED(error), "class failed to initialize and caller used class without checking!");
   if (!sJSScriptRuntime) {
     nsresult rv = CallGetService("@mozilla.org/js/xpc/RuntimeService;1",
                                  &sJSRuntimeService);
-    NS_ENSURE_TRUE(sJSRuntimeService, PR_FALSE);
+    NS_ENSURE_SUCCESS(rv, PR_FALSE);
+    NS_ABORT_IF_FALSE(sJSRuntimeService, "CallGetService succeeded but returned a null pointer?");
 
     sJSRuntimeService->GetRuntime(&sJSScriptRuntime);
     if (!sJSScriptRuntime) {
@@ -28,6 +30,7 @@ NativeJSContext::AddGCRoot(void *aPtr, const char *aName)
 void
 NativeJSContext::ReleaseGCRoot(void *aPtr)
 {
+  NS_ASSERTION(NS_SUCCEEDED(error), "class failed to initialize and caller used class without checking!");
   if (!sJSScriptRuntime) {
     NS_NOTREACHED("Trying to remove a JS GC root when none were added");
     return;

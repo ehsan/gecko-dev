@@ -53,11 +53,12 @@
 #include "nsHtml5AtomTable.h"
 #include "nsHtml5Speculation.h"
 #include "nsITimer.h"
+#include "nsICharsetDetector.h"
 
 class nsHtml5Parser;
 
 #define NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE 1024
-#define NS_HTML5_STREAM_PARSER_SNIFFING_BUFFER_SIZE 512
+#define NS_HTML5_STREAM_PARSER_SNIFFING_BUFFER_SIZE 1024
 
 enum eBomState {
   /**
@@ -107,7 +108,7 @@ class nsHtml5StreamParser : public nsIStreamListener,
   friend class nsHtml5RequestStopper;
   friend class nsHtml5DataAvailable;
   friend class nsHtml5StreamParserContinuation;
-  friend class nsHtml5StreamParserTimerFlusher;
+  friend class nsHtml5TimerKungFu;
 
   public:
     NS_DECL_AND_IMPL_ZEROING_OPERATOR_NEW
@@ -133,6 +134,7 @@ class nsHtml5StreamParser : public nsIStreamListener,
     NS_IMETHOD Notify(const char* aCharset, nsDetectionConfident aConf);
 
     // EncodingDeclarationHandler
+    // http://hg.mozilla.org/projects/htmlparser/file/tip/src/nu/validator/htmlparser/common/EncodingDeclarationHandler.java
     /**
      * Tree builder uses this to report a late <meta charset>
      */
@@ -160,8 +162,6 @@ class nsHtml5StreamParser : public nsIStreamListener,
       mObserver = aObserver;
     }
 
-    void SetSpeculativeLoaderWithDocument(nsIDocument* aDocument);
-
     nsresult GetChannel(nsIChannel** aChannel);
 
     /**
@@ -174,8 +174,7 @@ class nsHtml5StreamParser : public nsIStreamListener,
                               PRBool aLastWasCR);
 
     /**
-     * Uninterrupts and continues the stream parser if the charset switch 
-     * failed.
+     * Continues the stream parser if the charset switch failed.
      */
     void ContinueAfterFailedCharsetSwitch();
 
@@ -184,6 +183,8 @@ class nsHtml5StreamParser : public nsIStreamListener,
       mTerminated = PR_TRUE;
     }
     
+    void DropTimer();
+
   private:
 
 #ifdef DEBUG
@@ -194,18 +195,30 @@ class nsHtml5StreamParser : public nsIStreamListener,
     }
 #endif
 
+    /**
+     * Marks the stream parser as interrupted. If you ever add calls to this
+     * method, be sure to review Uninterrupt usage very, very carefully to
+     * avoid having a previous in-flight runnable cancel your Interrupt()
+     * call on the other thread too soon.
+     */
     void Interrupt() {
       mozilla::MutexAutoLock autoLock(mTerminatedMutex);
       mInterrupted = PR_TRUE;
     }
 
     void Uninterrupt() {
-      NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+      NS_ASSERTION(IsParserThread(), "Wrong thread!");
       mTokenizerMutex.AssertCurrentThreadOwns();
       // Not acquiring mTerminatedMutex because mTokenizerMutex is already
       // held at this point and is already stronger.
       mInterrupted = PR_FALSE;      
     }
+
+    /**
+     * Flushes the tree ops from the tree builder and disarms the flush
+     * timer.
+     */
+    void FlushTreeOpsAndDisarmTimer();
 
     void ParseAvailableData();
     
@@ -309,12 +322,6 @@ class nsHtml5StreamParser : public nsIStreamListener,
      * Callback for mFlushTimer.
      */
     static void TimerCallback(nsITimer* aTimer, void* aClosure);
-
-    /**
-     * Main thread entry point for (maybe) flushing the ops and posting
-     * a flush runnable back on the main thread.
-     */
-    void PostTimerFlush();
 
     /**
      * Parser thread entry point for (maybe) flushing the ops and posting
@@ -452,10 +459,12 @@ class nsHtml5StreamParser : public nsIStreamListener,
     
     nsCOMPtr<nsIRunnable>         mExecutorFlusher;
     
+    nsCOMPtr<nsIRunnable>         mLoadFlusher;
+
     /**
-     * The document wrapped by the speculative loader.
+     * The chardet instance if chardet is enabled.
      */
-    nsCOMPtr<nsIDocument>         mDocument;
+    nsCOMPtr<nsICharsetDetector>  mChardet;
 
     /**
      * Timer for flushing tree ops once in a while when not speculating.
@@ -463,24 +472,29 @@ class nsHtml5StreamParser : public nsIStreamListener,
     nsCOMPtr<nsITimer>            mFlushTimer;
 
     /**
-     * The pref html5.flushtimer.startdelay: Time in milliseconds between
-     * the start of the network stream and the first time the flush timer
-     * fires.
+     * Keeps track whether mFlushTimer has been armed. Unfortunately,
+     * nsITimer doesn't enable querying this from the timer itself.
      */
-    static PRInt32                sTimerStartDelay;
+    PRBool                        mFlushTimerArmed;
 
     /**
-     * The pref html5.flushtimer.continuedelay: Time in milliseconds between
-     * the return to non-speculating more and the first time the flush timer
-     * fires thereafter.
+     * False initially and true after the timer has fired at least once.
      */
-    static PRInt32                sTimerContinueDelay;
+    PRBool                        mFlushTimerEverFired;
 
     /**
-     * The pref html5.flushtimer.interval: Time in milliseconds between
-     * timer firings once the timer has starting firing.
+     * The pref html5.flushtimer.initialdelay: Time in milliseconds between
+     * the time a network buffer is seen and the timer firing when the
+     * timer hasn't fired previously in this parse.
      */
-    static PRInt32                sTimerInterval;
+    static PRInt32                sTimerInitialDelay;
+
+    /**
+     * The pref html5.flushtimer.subsequentdelay: Time in milliseconds between
+     * the time a network buffer is seen and the timer firing when the
+     * timer has already fired previously in this parse.
+     */
+    static PRInt32                sTimerSubsequentDelay;
 };
 
 #endif // nsHtml5StreamParser_h__

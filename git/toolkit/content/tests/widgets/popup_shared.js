@@ -38,16 +38,16 @@ var gWindowUtils;
 
 function startPopupTests(tests)
 {
-  document.addEventListener("popupshowing", eventOccured, false);
-  document.addEventListener("popupshown", eventOccured, false);
-  document.addEventListener("popuphiding", eventOccured, false);
-  document.addEventListener("popuphidden", eventOccured, false);
-  document.addEventListener("command", eventOccured, false);
-  document.addEventListener("DOMMenuItemActive", eventOccured, false);
-  document.addEventListener("DOMMenuItemInactive", eventOccured, false);
-  document.addEventListener("DOMMenuInactive", eventOccured, false);
-  document.addEventListener("DOMMenuBarActive", eventOccured, false);
-  document.addEventListener("DOMMenuBarInactive", eventOccured, false);
+  document.addEventListener("popupshowing", eventOccurred, false);
+  document.addEventListener("popupshown", eventOccurred, false);
+  document.addEventListener("popuphiding", eventOccurred, false);
+  document.addEventListener("popuphidden", eventOccurred, false);
+  document.addEventListener("command", eventOccurred, false);
+  document.addEventListener("DOMMenuItemActive", eventOccurred, false);
+  document.addEventListener("DOMMenuItemInactive", eventOccurred, false);
+  document.addEventListener("DOMMenuInactive", eventOccurred, false);
+  document.addEventListener("DOMMenuBarActive", eventOccurred, false);
+  document.addEventListener("DOMMenuBarInactive", eventOccurred, false);
 
   gPopupTests = tests;
   gWindowUtils = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
@@ -87,7 +87,7 @@ function disableNonTestMouse(aDisable) {
   gWindowUtils.disableNonTestMouseEvents(aDisable);
 }
 
-function eventOccured(event)
+function eventOccurred(event)
 {
    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
 
@@ -115,11 +115,21 @@ function eventOccured(event)
     }
 
     var eventitem = events[gTestEventIndex].split(" ");
-    var matches = (eventitem[1] == "#tooltip") ?
-                  (event.originalTarget.localName == "tooltip" &&
-                   event.originalTarget.getAttribute("default") == "true") :
-                  (eventitem[0] == event.type && eventitem[1] == event.target.id);
-    ok(matches, test.testname + " " + event.type + " fired");
+    var matches;
+    if (eventitem[1] == "#tooltip") {
+      is(event.originalTarget.localName, "tooltip",
+         test.testname + " event.originalTarget.localName is 'tooltip'");
+      is(event.originalTarget.getAttribute("default"), "true",
+         test.testname + " event.originalTarget default attribute is 'true'");
+      matches = event.originalTarget.localName == "tooltip" &&
+          event.originalTarget.getAttribute("default") == "true";
+    } else {
+      is(event.type, eventitem[0],
+         test.testname + " event type " + event.type + " fired");
+      is(event.target.id, eventitem[1],
+         test.testname + " event target ID " + event.target.id);
+      matches = eventitem[0] == event.type && eventitem[1] == event.target.id;
+    }
 
     var expectedState;
     switch (event.type) {

@@ -47,13 +47,12 @@
 #include "nsCSSAnonBoxes.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsCSSKeywords.h"
-#include "nsCSSLoader.h"
+#include "nsCSSParser.h"
 #include "nsCSSProps.h"
 #include "nsCSSPseudoClasses.h"
 #include "nsCSSPseudoElements.h"
 #include "nsCSSRendering.h"
 #include "nsCSSScanner.h"
-#include "nsICSSStyleSheet.h"
 #include "nsDOMAttribute.h"
 #include "nsDOMClassInfo.h"
 #include "nsEventListenerManager.h"
@@ -88,6 +87,7 @@
 #include "nsFocusManager.h"
 #include "nsFrameList.h"
 #include "nsListControlFrame.h"
+#include "nsFileControlFrame.h"
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -125,14 +125,14 @@ PRBool NS_SVGEnabled();
 #endif
 
 #include "nsError.h"
-#include "nsTraceRefcnt.h"
 
 #include "nsCycleCollector.h"
 #include "nsJSEnvironment.h"
+#include "nsContentSink.h"
 
 extern void NS_ShutdownChainItemPool();
 
-static nsrefcnt sLayoutStaticRefcnt;
+nsrefcnt nsLayoutStatics::sLayoutStaticRefcnt = 0;
 
 nsresult
 nsLayoutStatics::Initialize()
@@ -254,7 +254,11 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
-  nsCSSRuleProcessor::Startup();
+  rv = nsCSSRuleProcessor::Startup();
+  if (NS_FAILED(rv)) {
+    NS_ERROR("Could not initialize nsCSSRuleProcessor");
+    return rv;
+  }
 
 #ifdef MOZ_XUL
   rv = nsXULPopupManager::Init();
@@ -278,8 +282,10 @@ nsLayoutStatics::Initialize()
   nsAudioStream::InitLibrary();
 #endif
 
+  nsContentSink::InitializeStatics();
   nsHtml5Module::InitializeStatics();
-  
+  nsIPresShell::InitializeStatics();
+
   nsCrossSiteListenerProxy::Startup();
 
   rv = nsFrameList::Init();
@@ -305,10 +311,9 @@ nsLayoutStatics::Shutdown()
   nsDOMAttribute::Shutdown();
   nsDOMEventRTTearoff::Shutdown();
   nsEventListenerManager::Shutdown();
-  nsContentList::Shutdown();
   nsComputedDOMStyle::Shutdown();
-  CSSLoaderImpl::Shutdown();
-  nsCSSRuleProcessor::FreeSystemMetrics();
+  nsCSSParser::Shutdown();
+  nsCSSRuleProcessor::Shutdown();
   nsTextFrameTextRunCache::Shutdown();
   nsHTMLDNSPrefetch::Shutdown();
   nsCSSRendering::Shutdown();
@@ -329,7 +334,6 @@ nsLayoutStatics::Shutdown()
   nsXULContentUtils::Finish();
   nsXULElement::ReleaseGlobals();
   nsXULPrototypeCache::ReleaseGlobals();
-  nsXULPrototypeElement::ReleaseGlobals();
   nsSprocketLayout::Shutdown();
 #endif
 
@@ -356,7 +360,6 @@ nsLayoutStatics::Shutdown()
   nsJSRuntime::Shutdown();
   nsGlobalWindow::ShutDown();
   nsDOMClassInfo::ShutDown();
-  nsTextControlFrame::ShutDown();
   nsListControlFrame::Shutdown();
   nsXBLWindowKeyHandler::ShutDown();
   nsAutoCopyListener::Shutdown();
@@ -377,6 +380,8 @@ nsLayoutStatics::Shutdown()
 
   nsXMLHttpRequest::ShutdownACCache();
   
+  nsIPresShell::ReleaseStatics();
+
   nsHtml5Module::ReleaseStatics();
 
   nsRegion::ShutdownStatic();
@@ -384,26 +389,6 @@ nsLayoutStatics::Shutdown()
   NS_ShutdownChainItemPool();
 
   nsFrameList::Shutdown();
-}
 
-void
-nsLayoutStatics::AddRef()
-{
-  NS_ASSERTION(sLayoutStaticRefcnt,
-               "nsLayoutStatics already dropped to zero!");
-
-  ++sLayoutStaticRefcnt;
-  NS_LOG_ADDREF(&sLayoutStaticRefcnt, sLayoutStaticRefcnt,
-                "nsLayoutStatics", 1);
-}
-
-void
-nsLayoutStatics::Release()
-{
-  --sLayoutStaticRefcnt;
-  NS_LOG_RELEASE(&sLayoutStaticRefcnt, sLayoutStaticRefcnt,
-                 "nsLayoutStatics");
-
-  if (!sLayoutStaticRefcnt)
-    Shutdown();
+  nsFileControlFrame::DestroyUploadLastDir();
 }

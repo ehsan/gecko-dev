@@ -45,8 +45,6 @@
 #include "nsIDOMHTMLOptionsCollection.h"
 #include "nsIDOMHTMLOptionElement.h"
 #include "nsIDOMNode.h"
-#include "nsIAccessibilityService.h"
-#include "nsAccessibleTreeWalker.h"
 
 class nsIMutableArray;
 
@@ -104,10 +102,10 @@ protected:
 
     void CalcSelectionCount(PRInt32 *aSelectionCount);
     void Select(PRBool aSelect);
-    void AddAccessibleIfSelected(nsIAccessibilityService *aAccService, 
-                                 nsIMutableArray *aSelectedAccessibles, 
+    void AddAccessibleIfSelected(nsIMutableArray *aSelectedAccessibles, 
                                  nsPresContext *aContext);
-    PRBool GetAccessibleIfSelected(PRInt32 aIndex, nsIAccessibilityService *aAccService, nsPresContext *aContext, nsIAccessible **_retval);
+    PRBool GetAccessibleIfSelected(PRInt32 aIndex, nsPresContext *aContext,
+                                   nsIAccessible **aAccessible);
 
     PRBool Advance();
   };
@@ -162,7 +160,10 @@ public:
   virtual nsresult GetNameInternal(nsAString& aName);
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
-  virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
+
+  virtual PRInt32 GetLevelInternal();
+  virtual void GetPositionAndSizeInternal(PRInt32 *aPosInSet,
+                                          PRInt32 *aSetSize);
 
   nsIFrame*  GetBoundsFrame();
   static nsresult GetFocusedOptionNode(nsIDOMNode *aListNode, nsIDOMNode **aFocusedOptionNode);
@@ -239,7 +240,11 @@ protected:
   virtual void CacheChildren();
 
   // nsHTMLComboboxAccessible
-  already_AddRefed<nsIAccessible> GetFocusedOptionAccessible();
+
+  /**
+   * Return focused option accessible.
+   */
+  nsAccessible *GetFocusedOptionAccessible();
 
 private:
   nsRefPtr<nsHTMLComboboxListAccessible> mListAccessible;
@@ -268,7 +273,7 @@ public:
   // nsAccessible
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
   virtual void GetBoundsRect(nsRect& aBounds, nsIFrame** aBoundingFrame);
-  virtual nsIAccessible* GetParent();
+  virtual nsAccessible* GetParent();
 };
 
 #endif

@@ -108,7 +108,6 @@
 #include "nsIAccessibilityService.h"
 #endif
 #include "nsAutoPtr.h"
-#include "nsStyleSet.h"
 
 #include "nsBidiFrames.h"
 #include "nsBidiPresUtils.h"
@@ -119,6 +118,7 @@
 #include "gfxContext.h"
 #include "gfxTextRunWordCache.h"
 #include "gfxImageSurface.h"
+#include "mozilla/dom/Element.h"
 
 #ifdef NS_DEBUG
 #undef NOISY_BLINK
@@ -129,6 +129,16 @@
 #undef NOISY_REFLOW
 #undef NOISY_TRIM
 #endif
+
+using namespace mozilla;
+using namespace mozilla::dom;
+
+static void DestroyTabWidth(void* aPropertyValue)
+{
+  delete static_cast<nsTArray<gfxFloat>*>(aPropertyValue);
+}
+
+NS_DECLARE_FRAME_PROPERTY(TabWidthProperty, DestroyTabWidth)
 
 // The following flags are set during reflow
 
@@ -1083,7 +1093,7 @@ BuildTextRuns(gfxContext* aContext, nsTextFrame* aForFrame,
     }
 
     BuildTextRunsScanner::FindBoundaryState state = { stopAtFrame, nsnull, nsnull,
-      seenTextRunBoundaryOnLaterLine, PR_FALSE, PR_FALSE };
+      PRPackedBool(seenTextRunBoundaryOnLaterLine), PR_FALSE, PR_FALSE };
     nsIFrame* child = line->mFirstChild;
     PRBool foundBoundary = PR_FALSE;
     PRInt32 i;
@@ -1198,9 +1208,6 @@ PRBool BuildTextRunsScanner::IsTextRunValidForMappedFlows(gfxTextRun* aTextRun)
  */
 void BuildTextRunsScanner::FlushFrames(PRBool aFlushLineBreaks, PRBool aSuppressTrailingBreak)
 {
-  if (mMappedFlows.Length() == 0)
-    return;
-
   gfxTextRun* textRun = nsnull;
   if (!mMappedFlows.IsEmpty()) {
     if (!mSkipIncompleteTextRuns && mCurrentFramesAllSameTextRun &&
@@ -1344,7 +1351,7 @@ BuildTextRunsScanner::ContinueTextRunAcrossFrames(nsTextFrame* aFrame1, nsTextFr
   const nsStyleFont* fontStyle2 = sc2->GetStyleFont();
   const nsStyleText* textStyle2 = sc2->GetStyleText();
   return fontStyle1->mFont.BaseEquals(fontStyle2->mFont) &&
-    sc1->GetStyleVisibility()->mLangGroup == sc2->GetStyleVisibility()->mLangGroup &&
+    sc1->GetStyleVisibility()->mLanguage == sc2->GetStyleVisibility()->mLanguage &&
     nsLayoutUtils::GetTextRunFlagsForStyle(sc1, textStyle1, fontStyle1) ==
       nsLayoutUtils::GetTextRunFlagsForStyle(sc2, textStyle2, fontStyle2);
 }
@@ -1870,7 +1877,7 @@ BuildTextRunsScanner::SetupBreakSinksForTextRun(gfxTextRun* aTextRun,
                                                 PRBool aSuppressSink)
 {
   // textruns have uniform language
-  nsIAtom* lang = mMappedFlows[0].mStartFrame->GetStyleVisibility()->mLangGroup;
+  nsIAtom* language = mMappedFlows[0].mStartFrame->GetStyleVisibility()->mLanguage;
   // We keep this pointed at the skip-chars data for the current mappedFlow.
   // This lets us cheaply check whether the flow has compressed initial
   // whitespace...
@@ -1918,10 +1925,10 @@ BuildTextRunsScanner::SetupBreakSinksForTextRun(gfxTextRun* aTextRun,
     if (length > 0) {
       BreakSink* sink = aSuppressSink ? nsnull : (*breakSink).get();
       if (aTextRun->GetFlags() & gfxFontGroup::TEXT_IS_8BIT) {
-        mLineBreaker.AppendText(lang, aTextRun->GetText8Bit() + offset,
+        mLineBreaker.AppendText(language, aTextRun->GetText8Bit() + offset,
                                 length, flags, sink);
       } else {
-        mLineBreaker.AppendText(lang, aTextRun->GetTextUnicode() + offset,
+        mLineBreaker.AppendText(language, aTextRun->GetTextUnicode() + offset,
                                 length, flags, sink);
       }
     }
@@ -2102,7 +2109,7 @@ static PRBool IsJustifiableCharacter(const nsTextFragment* aFrag, PRInt32 aPos,
   PRUnichar ch = aFrag->CharAt(aPos);
   if (ch == '\n' || ch == '\t')
     return PR_TRUE;
-  if (ch == ' ') {
+  if (ch == ' ' || ch == CH_NBSP) {
     // Don't justify spaces that are combined with diacriticals
     if (!aFrag->Is2b())
       return PR_TRUE;
@@ -2161,13 +2168,16 @@ static PRInt32 FindChar(const nsTextFragment* frag,
   return -1;
 }
 
-static PRBool IsChineseJapaneseLangGroup(nsIFrame* aFrame)
+static PRBool IsChineseOrJapanese(nsIFrame* aFrame)
 {
-  nsIAtom* langGroup = aFrame->GetStyleVisibility()->mLangGroup;
-  return langGroup == nsGkAtoms::Japanese
-      || langGroup == nsGkAtoms::Chinese
-      || langGroup == nsGkAtoms::Taiwanese
-      || langGroup == nsGkAtoms::HongKongChinese;
+  nsIAtom* language = aFrame->GetStyleVisibility()->mLanguage;
+  if (!language) {
+    return PR_FALSE;
+  }
+  const PRUnichar *lang = language->GetUTF16String();
+  return (!nsCRT::strncmp(lang, NS_LITERAL_STRING("ja").get(), 2) ||
+          !nsCRT::strncmp(lang, NS_LITERAL_STRING("zh").get(), 2)) &&
+         (language->GetLength() == 2 || lang[2] == '-');
 }
 
 #ifdef DEBUG
@@ -2327,7 +2337,7 @@ PropertyProvider::ComputeJustifiableCharacters(PRInt32 aOffset, PRInt32 aLength)
     run(mStart, nsSkipCharsRunIterator::LENGTH_INCLUDES_SKIPPED, aLength);
   run.SetOriginalOffset(aOffset);
   PRUint32 justifiableChars = 0;
-  PRBool isCJK = IsChineseJapaneseLangGroup(mFrame);
+  PRBool isCJK = IsChineseOrJapanese(mFrame);
   while (run.NextRun()) {
     PRInt32 i;
     for (i = 0; i < run.GetRunLength(); ++i) {
@@ -2341,10 +2351,10 @@ PropertyProvider::ComputeJustifiableCharacters(PRInt32 aOffset, PRInt32 aLength)
 /**
  * Finds the offset of the first character of the cluster containing aPos
  */
-static void FindClusterStart(gfxTextRun* aTextRun,
+static void FindClusterStart(gfxTextRun* aTextRun, PRInt32 aOriginalStart,
                              gfxSkipCharsIterator* aPos)
 {
-  while (aPos->GetOriginalOffset() > 0) {
+  while (aPos->GetOriginalOffset() > aOriginalStart) {
     if (aPos->IsOriginalCharSkipped() ||
         aTextRun->IsClusterStart(aPos->GetSkippedOffset())) {
       break;
@@ -2452,7 +2462,7 @@ PropertyProvider::GetSpacingInternal(PRUint32 aStart, PRUint32 aLength,
     gfxFloat halfJustificationSpace = mJustificationSpacing/2;
     // Scan non-skipped characters and adjust justifiable chars, adding
     // justification space on either side of the cluster
-    PRBool isCJK = IsChineseJapaneseLangGroup(mFrame);
+    PRBool isCJK = IsChineseOrJapanese(mFrame);
     gfxSkipCharsIterator justificationStart(mStart), justificationEnd(mStart);
     FindJustificationRange(&justificationStart, &justificationEnd);
 
@@ -2461,13 +2471,14 @@ PropertyProvider::GetSpacingInternal(PRUint32 aStart, PRUint32 aLength,
     while (run.NextRun()) {
       PRInt32 i;
       gfxSkipCharsIterator iter = run.GetPos();
+      PRInt32 runOriginalOffset = run.GetOriginalOffset();
       for (i = 0; i < run.GetRunLength(); ++i) {
-        PRInt32 originalOffset = run.GetOriginalOffset() + i;
-        if (IsJustifiableCharacter(mFrag, originalOffset, isCJK)) {
-          iter.SetOriginalOffset(originalOffset);
-          FindClusterStart(mTextRun, &iter);
+        PRInt32 iterOriginalOffset = runOriginalOffset + i;
+        if (IsJustifiableCharacter(mFrag, iterOriginalOffset, isCJK)) {
+          iter.SetOriginalOffset(iterOriginalOffset);
+          FindClusterStart(mTextRun, runOriginalOffset, &iter);
           PRUint32 clusterFirstChar = iter.GetSkippedOffset();
-          FindClusterEnd(mTextRun, run.GetOriginalOffset() + run.GetRunLength(), &iter);
+          FindClusterEnd(mTextRun, runOriginalOffset + run.GetRunLength(), &iter);
           PRUint32 clusterLastChar = iter.GetSkippedOffset();
           // Only apply justification to characters before justificationEnd
           if (clusterFirstChar >= justificationStart.GetSkippedOffset() &&
@@ -2479,12 +2490,6 @@ PropertyProvider::GetSpacingInternal(PRUint32 aStart, PRUint32 aLength,
       }
     }
   }
-}
-
-static void TabWidthDestructor(void* aObject, nsIAtom* aProp, void* aValue,
-                               void* aData)
-{
-  delete static_cast<nsTArray<gfxFloat>*>(aValue);
 }
 
 static gfxFloat
@@ -2523,7 +2528,7 @@ PropertyProvider::GetTabWidths(PRUint32 aStart, PRUint32 aLength)
   if (!mTabWidths) {
     if (!mReflowing) {
       mTabWidths = static_cast<nsTArray<gfxFloat>*>
-                              (mFrame->GetProperty(nsGkAtoms::tabWidthProperty));
+        (mFrame->Properties().Get(TabWidthProperty()));
       if (!mTabWidths) {
         NS_WARNING("We need precomputed tab widths, but they're not here...");
         return nsnull;
@@ -2538,10 +2543,7 @@ PropertyProvider::GetTabWidths(PRUint32 aStart, PRUint32 aLength)
       nsAutoPtr<nsTArray<gfxFloat> > tabs(new nsTArray<gfxFloat>());
       if (!tabs)
         return nsnull;
-      nsresult rv = mFrame->SetProperty(nsGkAtoms::tabWidthProperty, tabs,
-                                        TabWidthDestructor, nsnull);
-      if (NS_FAILED(rv))
-        return nsnull;
+      mFrame->Properties().Set(TabWidthProperty(), tabs);
       mTabWidths = tabs.forget();
     }
   }
@@ -3005,7 +3007,7 @@ nsTextPaintStyle::EnsureSufficientContrast(nscolor *aForeColor, nscolor *aBackCo
 nscolor
 nsTextPaintStyle::GetTextColor()
 {
-  nscolor color = mFrame->GetStyleColor()->mColor;
+  nscolor color = mFrame->GetVisitedDependentColor(eCSSProperty_color);
   if (ShouldDarkenColors(mPresContext)) {
     color = DarkenColor(color);
   }
@@ -3087,18 +3089,16 @@ nsTextPaintStyle::InitCommonColors()
   if (mInitCommonColors)
     return;
 
-  nsStyleContext* sc = mFrame->GetStyleContext();
-
-  nsStyleContext* bgContext =
-    nsCSSRendering::FindNonTransparentBackground(sc);
-  NS_ASSERTION(bgContext, "Cannot find NonTransparentBackground.");
-  const nsStyleBackground* bg = bgContext->GetStyleBackground();
+  nsIFrame* bgFrame =
+    nsCSSRendering::FindNonTransparentBackgroundFrame(mFrame);
+  NS_ASSERTION(bgFrame, "Cannot find NonTransparentBackgroundFrame.");
+  nscolor bgColor =
+    bgFrame->GetVisitedDependentColor(eCSSProperty_background_color);
 
   nscolor defaultBgColor = mPresContext->DefaultBackgroundColor();
-  mFrameBackgroundColor = NS_ComposeColors(defaultBgColor,
-                                           bg->mBackgroundColor);
+  mFrameBackgroundColor = NS_ComposeColors(defaultBgColor, bgColor);
 
-  if (bgContext->GetStyleDisplay()->mAppearance) {
+  if (bgFrame->IsThemed()) {
     // Assume a native widget has sufficient contrast always
     mSufficientContrast = 0;
     mInitCommonColors = PR_TRUE;
@@ -3127,13 +3127,18 @@ nsTextPaintStyle::InitCommonColors()
   mInitCommonColors = PR_TRUE;
 }
 
-static nsIContent*
-FindElementAncestor(nsINode* aNode)
+static Element*
+FindElementAncestorForMozSelection(nsIContent* aContent)
 {
-  while (aNode && !aNode->IsNodeOfType(nsINode::eELEMENT)) {
-    aNode = aNode->GetParent();
+  NS_ENSURE_TRUE(aContent, nsnull);
+  while (aContent && aContent->IsInNativeAnonymousSubtree()) {
+    aContent = aContent->GetBindingParent();
   }
-  return static_cast<nsIContent*>(aNode);
+  NS_ASSERTION(aContent, "aContent isn't in non-anonymous tree?");
+  while (aContent && !aContent->IsElement()) {
+    aContent = aContent->GetParent();
+  }
+  return aContent ? aContent->AsElement() : nsnull;
 }
 
 PRBool
@@ -3155,20 +3160,21 @@ nsTextPaintStyle::InitSelectionColors()
   mInitSelectionColors = PR_TRUE;
 
   nsIFrame* nonGeneratedAncestor = nsLayoutUtils::GetNonGeneratedAncestor(mFrame);
-  nsIContent* selectionContent = FindElementAncestor(nonGeneratedAncestor->GetContent());
+  Element* selectionElement =
+    FindElementAncestorForMozSelection(nonGeneratedAncestor->GetContent());
 
-  if (selectionContent &&
+  if (selectionElement &&
       selectionStatus == nsISelectionController::SELECTION_ON) {
     nsRefPtr<nsStyleContext> sc = nsnull;
     sc = mPresContext->StyleSet()->
-      ProbePseudoElementStyle(selectionContent,
+      ProbePseudoElementStyle(selectionElement,
                               nsCSSPseudoElements::ePseudo_mozSelection,
                               mFrame->GetStyleContext());
     // Use -moz-selection pseudo class.
     if (sc) {
-      const nsStyleBackground* bg = sc->GetStyleBackground();
-      mSelectionBGColor = bg->mBackgroundColor;
-      mSelectionTextColor = sc->GetStyleColor()->mColor;
+      mSelectionBGColor =
+        sc->GetVisitedDependentColor(eCSSProperty_background_color);
+      mSelectionTextColor = sc->GetVisitedDependentColor(eCSSProperty_color);
       return PR_TRUE;
     }
   }
@@ -3198,8 +3204,8 @@ nsTextPaintStyle::InitSelectionColors()
 
   // On MacOS X, we don't exchange text color and BG color.
   if (mSelectionTextColor == NS_DONT_CHANGE_COLOR) {
-    mSelectionTextColor = EnsureDifferentColors(mFrame->GetStyleColor()->mColor,
-                                                mSelectionBGColor);
+    nscoord frameColor = mFrame->GetVisitedDependentColor(eCSSProperty_color);
+    mSelectionTextColor = EnsureDifferentColors(frameColor, mSelectionBGColor);
   } else {
     EnsureSufficientContrast(&mSelectionTextColor, &mSelectionBGColor);
   }
@@ -3408,6 +3414,11 @@ nsTextFrame::Init(nsIContent*      aContent,
   NS_ASSERTION(!aPrevInFlow, "Can't be a continuation!");
   NS_PRECONDITION(aContent->IsNodeOfType(nsINode::eTEXT),
                   "Bogus content!");
+
+  // Remove any NewlineOffsetProperty since it might be invalid
+  // if the content was modified while there was no frame
+  aContent->DeleteProperty(nsGkAtoms::newline);
+
   // Since our content has a frame now, this flag is no longer needed.
   aContent->UnsetFlags(NS_CREATE_FRAME_IF_NON_WHITESPACE);
   // We're not a continuing frame.
@@ -3416,7 +3427,7 @@ nsTextFrame::Init(nsIContent*      aContent,
 }
 
 void
-nsTextFrame::Destroy()
+nsTextFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   // We might want to clear NS_CREATE_FRAME_IF_NON_WHITESPACE or
   // NS_REFRAME_IF_WHITESPACE on mContent here, since our parent frame
@@ -3426,7 +3437,7 @@ nsTextFrame::Destroy()
     mNextContinuation->SetPrevInFlow(nsnull);
   }
   // Let the base class destroy the frame
-  nsFrame::Destroy();
+  nsFrame::DestroyFrom(aDestructRoot);
 }
 
 class nsContinuingTextFrame : public nsTextFrame {
@@ -3439,7 +3450,7 @@ public:
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
 
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   virtual nsIFrame* GetPrevContinuation() const {
     return mPrevContinuation;
@@ -3515,16 +3526,14 @@ nsContinuingTextFrame::Init(nsIContent* aContent,
   }
 #ifdef IBMBIDI
   if (aPrevInFlow->GetStateBits() & NS_FRAME_IS_BIDI) {
-    nsPropertyTable *propTable = PresContext()->PropertyTable();
-    propTable->SetProperty(this, nsGkAtoms::embeddingLevel,
-          propTable->GetProperty(aPrevInFlow, nsGkAtoms::embeddingLevel),
-                           nsnull, nsnull);
-    propTable->SetProperty(this, nsGkAtoms::baseLevel,
-              propTable->GetProperty(aPrevInFlow, nsGkAtoms::baseLevel),
-                           nsnull, nsnull);
-    propTable->SetProperty(this, nsGkAtoms::charType,
-               propTable->GetProperty(aPrevInFlow, nsGkAtoms::charType),
-                           nsnull, nsnull);
+    FramePropertyTable *propTable = PresContext()->PropertyTable();
+    // Get all the properties from the prev-in-flow first to take
+    // advantage of the propTable's cache and simplify the assertion below
+    void* embeddingLevel = propTable->Get(aPrevInFlow, EmbeddingLevelProperty());
+    void* baseLevel = propTable->Get(aPrevInFlow, BaseLevelProperty());
+    propTable->Set(this, EmbeddingLevelProperty(), embeddingLevel);
+    propTable->Set(this, BaseLevelProperty(), baseLevel);
+
     if (nextContinuation) {
       SetNextContinuation(nextContinuation);
       nextContinuation->SetPrevContinuation(this);
@@ -3532,13 +3541,9 @@ nsContinuingTextFrame::Init(nsIContent* aContent,
       while (nextContinuation &&
              nextContinuation->GetContentOffset() < mContentOffset) {
         NS_ASSERTION(
-          propTable->GetProperty(this, nsGkAtoms::embeddingLevel) ==
-          propTable->GetProperty(nextContinuation, nsGkAtoms::embeddingLevel) &&
-          propTable->GetProperty(this, nsGkAtoms::baseLevel) ==
-          propTable->GetProperty(nextContinuation, nsGkAtoms::baseLevel) &&
-          propTable->GetProperty(this, nsGkAtoms::charType) ==
-          propTable->GetProperty(nextContinuation, nsGkAtoms::charType),
-            "stealing text from different type of BIDI continuation");
+          embeddingLevel == propTable->Get(nextContinuation, EmbeddingLevelProperty()) &&
+          baseLevel == propTable->Get(nextContinuation, BaseLevelProperty()),
+          "stealing text from different type of BIDI continuation");
         nextContinuation->mContentOffset = mContentOffset;
         nextContinuation = static_cast<nsTextFrame*>(nextContinuation->GetNextContinuation());
       }
@@ -3551,7 +3556,7 @@ nsContinuingTextFrame::Init(nsIContent* aContent,
 }
 
 void
-nsContinuingTextFrame::Destroy()
+nsContinuingTextFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   // The text associated with this frame will become associated with our
   // prev-continuation. If that means the text has changed style, then
@@ -3574,7 +3579,7 @@ nsContinuingTextFrame::Destroy()
   }
   nsSplittableFrame::RemoveFromFlow(this);
   // Let the base class destroy the frame
-  nsFrame::Destroy();
+  nsFrame::DestroyFrom(aDestructRoot);
 }
 
 nsIFrame*
@@ -3781,6 +3786,8 @@ nsTextFrame::ClearTextRun()
 NS_IMETHODIMP
 nsTextFrame::CharacterDataChanged(CharacterDataChangeInfo* aInfo)
 {
+  mContent->DeleteProperty(nsGkAtoms::newline);
+
   // Find the first frame whose text has changed. Frames that are entirely
   // before the text change are completely unaffected.
   nsTextFrame* next;
@@ -3869,9 +3876,11 @@ public:
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder) {
     return mFrame->GetOverflowRect() + aBuilder->ToReferenceFrame(mFrame);
   }
-  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
-                            HitTestState* aState) {
-    return nsRect(aBuilder->ToReferenceFrame(mFrame), mFrame->GetSize()).Contains(aPt) ? mFrame : nsnull;
+  virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
+                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) {
+    if (nsRect(aBuilder->ToReferenceFrame(mFrame), mFrame->GetSize()).Intersects(aRect)) {
+      aOutFrames->AppendElement(mFrame);
+    }
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
@@ -3999,13 +4008,13 @@ nsTextFrame::GetTextDecorations(nsPresContext* aPresContext)
       // This handles the <a href="blah.html"><font color="green">La 
       // la la</font></a> case. The link underline should be green.
       useOverride = PR_TRUE;
-      overrideColor = context->GetStyleColor()->mColor;
+      overrideColor = context->GetVisitedDependentColor(eCSSProperty_color);
     }
 
     PRUint8 useDecorations = decorMask & styleText->mTextDecoration;
     if (useDecorations) {// a decoration defined here
-      nscolor color = context->GetStyleColor()->mColor;
-  
+      nscolor color = context->GetVisitedDependentColor(eCSSProperty_color);
+
       if (NS_STYLE_TEXT_DECORATION_UNDERLINE & useDecorations) {
         decorations.mUnderColor = useOverride ? overrideColor : color;
         decorMask &= ~NS_STYLE_TEXT_DECORATION_UNDERLINE;
@@ -4471,12 +4480,12 @@ nsTextFrame::PaintOneShadow(PRUint32 aOffset, PRUint32 aLength,
   gfxRect shadowGfxRect = shadowMetrics.mBoundingBox +
      gfxPoint(aFramePt.x, aTextBaselinePt.y) + shadowOffset;
   nsRect shadowRect(shadowGfxRect.X(), shadowGfxRect.Y(),
-                    shadowGfxRect.Width(), shadowGfxRect.Height());;
+                    shadowGfxRect.Width(), shadowGfxRect.Height());
 
   nsContextBoxBlur contextBoxBlur;
   gfxContext* shadowContext = contextBoxBlur.Init(shadowRect, blurRadius,
                                                   PresContext()->AppUnitsPerDevPixel(),
-                                                  aCtx, aDirtyRect);
+                                                  aCtx, aDirtyRect, nsnull);
   if (!shadowContext)
     return;
 
@@ -4710,6 +4719,48 @@ nsTextFrame::PaintTextWithSelection(gfxContext* aCtx,
 
   DestroySelectionDetails(details);
   return PR_TRUE;
+}
+
+nscolor
+nsTextFrame::GetCaretColorAt(PRInt32 aOffset)
+{
+  NS_PRECONDITION(aOffset >= 0, "aOffset must be positive");
+
+  gfxSkipCharsIterator iter = EnsureTextRun();
+  PropertyProvider provider(this, iter);
+  PRInt32 contentOffset = provider.GetStart().GetOriginalOffset();
+  PRInt32 contentLength = provider.GetOriginalLength();
+  NS_PRECONDITION(aOffset >= contentOffset &&
+                  aOffset <= contentOffset + contentLength,
+                  "aOffset must be in the frame's range");
+  PRInt32 offsetInFrame = aOffset - contentOffset;
+  if (offsetInFrame < 0 || offsetInFrame >= contentLength) {
+    return nsFrame::GetCaretColorAt(aOffset);
+  }
+
+  nsTextPaintStyle textPaintStyle(this);
+  SelectionDetails* details = GetSelectionDetails();
+  SelectionDetails* sdptr = details;
+  nscolor result = nsFrame::GetCaretColorAt(aOffset);
+  SelectionType type = 0;
+  while (sdptr) {
+    PRInt32 start = NS_MAX(0, sdptr->mStart - contentOffset);
+    PRInt32 end = NS_MIN(contentLength, sdptr->mEnd - contentOffset);
+    if (start <= offsetInFrame && offsetInFrame < end &&
+        (type == 0 || sdptr->mType < type)) {
+      nscolor foreground, background;
+      if (GetSelectionTextColors(sdptr->mType, textPaintStyle,
+                                 sdptr->mTextRangeStyle,
+                                 &foreground, &background)) {
+        result = foreground;
+        type = sdptr->mType;
+      }
+    }
+    sdptr = sdptr->mNext;
+  }
+
+  DestroySelectionDetails(details);
+  return result;
 }
 
 static PRUint32
@@ -5055,7 +5106,7 @@ nsTextFrame::SetSelectedRange(PRUint32 aStart,
   PRBool anySelected = PR_FALSE;
 
   nsTextFrame* f = this;
-  while (f && f->GetContentEnd() <= aStart) {
+  while (f && f->GetContentEnd() <= PRInt32(aStart)) {
     if (f->GetStateBits() & NS_FRAME_SELECTED_CONTENT) {
       anySelected = PR_TRUE;
     }
@@ -5063,7 +5114,7 @@ nsTextFrame::SetSelectedRange(PRUint32 aStart,
   }
 
   nsPresContext* presContext = PresContext();
-  while (f && f->GetContentOffset() < aEnd) {
+  while (f && f->GetContentOffset() < PRInt32(aEnd)) {
     if (aSelected) {
       f->AddStateBits(NS_FRAME_SELECTED_CONTENT);
       anySelected = PR_TRUE;
@@ -5080,15 +5131,17 @@ nsTextFrame::SetSelectedRange(PRUint32 aStart,
     // We may need to reflow to recompute the overflow area for
     // spellchecking or IME underline if their underline is thicker than
     // the normal decoration line.
-    PRBool didHaveOverflowingSelection =
-      (f->GetStateBits() & TEXT_SELECTION_UNDERLINE_OVERFLOWED) != 0;
-    nsRect r(nsPoint(0, 0), GetSize());
-    PRBool willHaveOverflowingSelection =
-      aSelected && f->CombineSelectionUnderlineRect(presContext, r);
-    if (didHaveOverflowingSelection || willHaveOverflowingSelection) {
-      presContext->PresShell()->FrameNeedsReflow(f,
-                                                 nsIPresShell::eStyleChange,
-                                                 NS_FRAME_IS_DIRTY);
+    if (aType & SelectionTypesWithDecorations) {
+      PRBool didHaveOverflowingSelection =
+        (f->GetStateBits() & TEXT_SELECTION_UNDERLINE_OVERFLOWED) != 0;
+      nsRect r(nsPoint(0, 0), GetSize());
+      PRBool willHaveOverflowingSelection =
+        aSelected && f->CombineSelectionUnderlineRect(presContext, r);
+      if (didHaveOverflowingSelection || willHaveOverflowingSelection) {
+        presContext->PresShell()->FrameNeedsReflow(f,
+                                                   nsIPresShell::eStyleChange,
+                                                   NS_FRAME_IS_DIRTY);
+      }
     }
     // Selection might change anything. Invalidate the overflow area.
     f->InvalidateOverflowRect();
@@ -5158,7 +5211,7 @@ nsTextFrame::GetPointFromOffset(PRInt32 inOffset,
       !iter.IsOriginalCharSkipped() &&
       !mTextRun->IsClusterStart(iter.GetSkippedOffset())) {
     NS_WARNING("GetPointFromOffset called for non-cluster boundary");
-    FindClusterStart(mTextRun, &iter);
+    FindClusterStart(mTextRun, trimmedOffset, &iter);
   }
 
   gfxFloat advanceWidth =
@@ -6032,6 +6085,18 @@ nsTextFrame::IsFloatingFirstLetterChild()
   return frame->GetStyleDisplay()->IsFloating();
 }
 
+struct NewlineProperty {
+  PRInt32 mStartOffset;
+  // The offset of the first \n after mStartOffset, or -1 if there is none
+  PRInt32 mNewlineOffset;
+
+  static void Destroy(void* aObject, nsIAtom* aPropertyName,
+                      void* aPropertyValue, void* aData)
+  {
+    delete static_cast<NewlineProperty*>(aPropertyValue);
+  }
+};
+
 NS_IMETHODIMP
 nsTextFrame::Reflow(nsPresContext*           aPresContext,
                     nsHTMLReflowMetrics&     aMetrics,
@@ -6088,7 +6153,7 @@ nsTextFrame::Reflow(nsPresContext*           aPresContext,
 
   const nsStyleText* textStyle = GetStyleText();
 
-  PRBool atStartOfLine = lineLayout.LineIsEmpty();
+  PRBool atStartOfLine = lineLayout.LineAtStart();
   if (atStartOfLine) {
     AddStateBits(TEXT_START_OF_LINE);
   }
@@ -6106,8 +6171,18 @@ nsTextFrame::Reflow(nsPresContext*           aPresContext,
 
   // Restrict preformatted text to the nearest newline
   PRInt32 newLineOffset = -1; // this will be -1 or a content offset
+  // Pointer to the nsGkAtoms::newline set on this frame's element
+  NewlineProperty* cachedNewlineOffset = nsnull;
   if (textStyle->NewlineIsSignificant()) {
-    newLineOffset = FindChar(frag, offset, length, '\n');
+    cachedNewlineOffset =
+      static_cast<NewlineProperty*>(mContent->GetProperty(nsGkAtoms::newline));
+    if (cachedNewlineOffset && cachedNewlineOffset->mStartOffset <= offset &&
+        (cachedNewlineOffset->mNewlineOffset == -1 ||
+         cachedNewlineOffset->mNewlineOffset >= offset)) {
+      newLineOffset = cachedNewlineOffset->mNewlineOffset;
+    } else {
+      newLineOffset = FindChar(frag, offset, length, '\n');
+    }
     if (newLineOffset >= 0) {
       length = newLineOffset + 1 - offset;
     }
@@ -6451,6 +6526,28 @@ nsTextFrame::Reflow(nsPresContext*           aPresContext,
     aStatus |= NS_INLINE_BREAK_FIRST_LETTER_COMPLETE;
   }
 
+  // Updated the cached NewlineProperty, or delete it.
+  if (contentLength < maxContentLength &&
+      textStyle->NewlineIsSignificant() &&
+      (newLineOffset < 0 || mContentOffset + contentLength <= newLineOffset)) {
+    if (!cachedNewlineOffset) {
+      cachedNewlineOffset = new NewlineProperty;
+      if (cachedNewlineOffset) {
+        if (NS_FAILED(mContent->SetProperty(nsGkAtoms::newline, cachedNewlineOffset,
+                                            NewlineProperty::Destroy))) {
+          delete cachedNewlineOffset;
+          cachedNewlineOffset = nsnull;
+        }
+      }
+    }
+    if (cachedNewlineOffset) {
+      cachedNewlineOffset->mStartOffset = offset;
+      cachedNewlineOffset->mNewlineOffset = newLineOffset;
+    }
+  } else if (cachedNewlineOffset) {
+    mContent->DeleteProperty(nsGkAtoms::newline);
+  }
+
   // Compute space and letter counts for justification, if required
   if (!textStyle->WhiteSpaceIsSignificant() &&
       lineContainer->GetStyleText()->mTextAlign == NS_STYLE_TEXT_ALIGN_JUSTIFY) {
@@ -6548,7 +6645,7 @@ nsTextFrame::TrimTrailingWhiteSpace(nsIRenderingContext* aRC)
     // Check if any character in the last cluster is justifiable
     PropertyProvider provider(mTextRun, textStyle, frag, this, start, contentLength,
                               nsnull, 0);
-    PRBool isCJK = IsChineseJapaneseLangGroup(this);
+    PRBool isCJK = IsChineseOrJapanese(this);
     gfxSkipCharsIterator justificationStart(start), justificationEnd(trimmedEndIter);
     provider.FindJustificationRange(&justificationStart, &justificationEnd);
 

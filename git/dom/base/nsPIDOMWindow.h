@@ -49,12 +49,11 @@
 #include "nsIDOMDocument.h"
 #include "nsCOMPtr.h"
 #include "nsEvent.h"
+#include "nsGUIEvent.h"
 
 #define DOM_WINDOW_DESTROYED_TOPIC "dom-window-destroyed"
 
 class nsIPrincipal;
-class nsICSSDeclaration;
-class nsComputedDOMStyle;
 
 // Popup control state enum. The values in this enum must go from most
 // permissive to least permissive so that it's safe to push state in
@@ -69,19 +68,18 @@ enum PopupControlState {
 };
 
 class nsIDocShell;
-class nsIFocusController;
 class nsIContent;
 class nsIDocument;
 class nsIScriptTimeoutHandler;
-class nsPresContext;
 struct nsTimeout;
 class nsScriptObjectHolder;
 class nsXBLPrototypeHandler;
 class nsIArray;
+class nsPIWindowRoot;
 
 #define NS_PIDOMWINDOW_IID \
-{ 0x70c9f57f, 0xf7b3, 0x4a37, \
-  { 0xbe, 0x36, 0xbb, 0xb2, 0xd7, 0xe9, 0x40, 0x13 } }
+{ 0x7cbe5277, 0x5de8, 0x45e4, \
+  { 0x9c, 0x2d, 0x81, 0x37, 0xa9, 0x5b, 0x42, 0xc6 } }
 
 class nsPIDOMWindow : public nsIDOMWindowInternal
 {
@@ -91,6 +89,19 @@ public:
   virtual nsPIDOMWindow* GetPrivateRoot() = 0;
 
   virtual void ActivateOrDeactivate(PRBool aActivate) = 0;
+
+  // this is called GetTopWindowRoot to avoid conflicts with nsIDOMWindow2::GetWindowRoot
+  virtual already_AddRefed<nsPIWindowRoot> GetTopWindowRoot() = 0;
+
+  virtual void SetActive(PRBool aActive)
+  {
+    mIsActive = aActive;
+  }
+
+  PRBool IsActive()
+  {
+    return mIsActive;
+  }
 
   nsPIDOMEventTarget* GetChromeEventHandler() const
   {
@@ -148,8 +159,6 @@ public:
 
     win->mMutationBits |= aType;
   }
-
-  virtual nsIFocusController* GetRootFocusController() = 0;
 
   // GetExtantDocument provides a backdoor to the DOM GetDocument accessor
   nsIDOMDocument* GetExtantDocument() const
@@ -250,10 +259,6 @@ public:
 
     return win->mIsHandlingResizeEvent;
   }
-
-  // Convenience method for getting an element's computed style
-  virtual already_AddRefed<nsComputedDOMStyle>
-    LookupComputedStyleFor(nsIContent* aElem) = 0;
 
   // Tell this window who opened it.  This only has an effect if there is
   // either no document currently in the window or if the document is the
@@ -358,8 +363,7 @@ public:
    * created.
    */
   virtual nsresult SetNewDocument(nsIDocument *aDocument,
-                                  nsISupports *aState,
-                                  PRBool aClearScope) = 0;
+                                  nsISupports *aState) = 0;
 
   /**
    * Set the opener window.  aOriginalOpener is true if and only if this is the
@@ -379,6 +383,9 @@ public:
    */
   virtual void EnterModalState() = 0;
   virtual void LeaveModalState() = 0;
+
+  virtual PRBool CanClose() = 0;
+  virtual nsresult ForceClose() = 0;
 
   void SetModalContentWindow(PRBool aIsModalContentWindow)
   {
@@ -425,7 +432,13 @@ public:
    * DO NOT CALL EITHER OF THESE METHODS DIRECTLY. USE THE FOCUS MANAGER
    * INSTEAD.
    */
-  virtual nsIContent* GetFocusedNode() = 0;
+  nsIContent* GetFocusedNode()
+  {
+    if (IsOuterWindow()) {
+      return mInnerWindow ? mInnerWindow->mFocusedNode.get() : nsnull;
+    }
+    return mFocusedNode;
+  }
   virtual void SetFocusedNode(nsIContent* aNode,
                               PRUint32 aFocusMethod = 0,
                               PRBool aNeedsFocus = PR_FALSE) = 0;
@@ -454,17 +467,37 @@ public:
   virtual void SetReadyForFocus() = 0;
 
   /**
+   * Whether the focused content within the window should show a focus ring.
+   */
+  virtual PRBool ShouldShowFocusRing() = 0;
+
+  /**
+   * Set the keyboard indicator state for accelerators and focus rings.
+   */
+  virtual void SetKeyboardIndicators(UIStateChangeType aShowAccelerators,
+                                     UIStateChangeType aShowFocusRings) = 0;
+
+  /**
+   * Get the keyboard indicator state for accelerators and focus rings.
+   */
+  virtual void GetKeyboardIndicators(PRBool* aShowAccelerators,
+                                     PRBool* aShowFocusRings) = 0;
+
+  /**
    * Indicates that the page in the window has been hidden. This is used to
    * reset the focus state.
    */
   virtual void PageHidden() = 0;
 
   /**
-   * Instructs this window to asynchronously dispatch a hashchange event.  This
-   * method must be called on an inner window.
+   * Instructs this window to synchronously dispatch a hashchange event.
    */
-  virtual nsresult DispatchAsyncHashchange() = 0;
+  virtual nsresult DispatchSyncHashchange() = 0;
 
+  /**
+   * Instructs this window to synchronously dispatch a popState event.
+   */
+  virtual nsresult DispatchSyncPopState() = 0;
 
   /**
    * Tell this window that there is an observer for orientation changes
@@ -485,15 +518,9 @@ protected:
   // be null if and only if the created window itself is an outer
   // window. In all other cases aOuterWindow should be the outer
   // window for the inner window that is being created.
-  nsPIDOMWindow(nsPIDOMWindow *aOuterWindow)
-    : mFrameElement(nsnull), mDocShell(nsnull), mModalStateDepth(0),
-      mRunningTimeout(nsnull), mMutationBits(0), mIsDocumentLoaded(PR_FALSE),
-      mIsHandlingResizeEvent(PR_FALSE), mIsInnerWindow(aOuterWindow != nsnull),
-      mMayHavePaintEventListener(PR_FALSE),
-      mIsModalContentWindow(PR_FALSE), mInnerWindow(nsnull),
-      mOuterWindow(aOuterWindow)
-  {
-  }
+  nsPIDOMWindow(nsPIDOMWindow *aOuterWindow);
+
+  ~nsPIDOMWindow();
 
   void SetChromeEventHandlerInternal(nsPIDOMEventTarget* aChromeEventHandler) {
     mChromeEventHandler = aChromeEventHandler;
@@ -525,9 +552,16 @@ protected:
   // should match).
   PRPackedBool           mIsModalContentWindow;
 
+  // Tracks activation state that's used for :-moz-window-inactive.
+  PRPackedBool           mIsActive;
+
   // And these are the references between inner and outer windows.
   nsPIDOMWindow         *mInnerWindow;
   nsPIDOMWindow         *mOuterWindow;
+
+  // the element within the document that is currently focused when this
+  // window is active
+  nsCOMPtr<nsIContent> mFocusedNode;
 };
 
 

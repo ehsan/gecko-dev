@@ -41,6 +41,7 @@
 #include "nsIContent.h"
 #include "nsHtml5DocumentMode.h"
 #include "nsHtml5HtmlAttributes.h"
+#include "nsXPCOMStrings.h"
 
 class nsHtml5TreeOpExecutor;
 class nsHtml5StateSnapshot;
@@ -73,7 +74,6 @@ enum eHtml5TreeOperation {
   eTreeOpSetDocumentCharset,
   eTreeOpNeedsCharsetSwitchTo,
   eTreeOpUpdateStyleSheet,
-  eTreeOpProcessBase,
   eTreeOpProcessMeta,
   eTreeOpProcessOfflineManifest,
   eTreeOpMarkMalformedIfScript,
@@ -136,6 +136,13 @@ class nsHtml5TreeOperation {
       mOpCode = aOpCode;
       mOne.node = aNode;
       mTwo.node = aParent;
+    }
+    
+    inline void Init(eHtml5TreeOperation aOpCode, 
+                     const nsACString& aString,
+                     PRInt32 aInt32) {
+      Init(aOpCode, aString);
+      mInt = aInt32;
     }
 
     inline void Init(eHtml5TreeOperation aOpCode,
@@ -263,6 +270,15 @@ class nsHtml5TreeOperation {
       mOne.charPtr = str;
     }
 
+    inline void Init(eHtml5TreeOperation aOpCode, const nsAString& aString) {
+      NS_PRECONDITION(mOpCode == eTreeOpUninitialized,
+        "Op code must be uninitialized when initializing.");
+
+      PRUnichar* str = NS_StringCloneData(aString);
+      mOpCode = aOpCode;
+      mOne.unicharPtr = str;
+    }
+    
     inline void Init(eHtml5TreeOperation aOpCode,
                      nsIContent** aNode,
                      PRInt32 aInt) {

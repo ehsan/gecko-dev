@@ -48,6 +48,7 @@
 #include "nsPIDOMWindow.h"
 #include "nsIPluginInstanceOwner.h"
 #include "nsITimer.h"
+#include "mozilla/TimeStamp.h"
 
 #include "npfunctions.h"
 #include "mozilla/PluginLibrary.h"
@@ -110,8 +111,18 @@ public:
   // Use Release() to destroy this
   virtual ~nsNPAPIPluginInstance();
 
-  // returns the state of mStarted
-  PRBool IsStarted();
+  // Indicates whether the plugin is running normally.
+  bool IsRunning() {
+    return RUNNING == mRunning;
+  }
+
+  // Indicates whether the plugin is running normally or being shut down
+  bool CanFireNotifications() {
+    return mRunning == RUNNING || mRunning == DESTROYING;
+  }
+
+  // return is only valid when the plugin is not running
+  mozilla::TimeStamp LastStopTime();
 
   // cache this NPAPI plugin
   nsresult SetCached(PRBool aCache);
@@ -150,12 +161,18 @@ protected:
   NPDrawingModel mDrawingModel;
 #endif
 
+  enum {
+    NOT_STARTED,
+    RUNNING,
+    DESTROYING,
+    DESTROYED
+  } mRunning;
+
   // these are used to store the windowless properties
   // which the browser will later query
   PRPackedBool mWindowless;
   PRPackedBool mWindowlessLocal;
   PRPackedBool mTransparent;
-  PRPackedBool mStarted;
   PRPackedBool mCached;
   PRPackedBool mWantsAllNetworkStreams;
 
@@ -178,6 +195,10 @@ private:
 
   // non-null during a HandleEvent call
   void* mCurrentPluginEvent;
+
+  // Timestamp for the last time this plugin was stopped.
+  // This is only valid when the plugin is actually stopped!
+  mozilla::TimeStamp mStopTime;
 };
 
 #endif // nsNPAPIPluginInstance_h_

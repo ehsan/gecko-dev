@@ -8,7 +8,8 @@ namespace _ipdltest {
 void
 TestShutdownParent::Main()
 {
-    SendStart();
+    if (!SendStart())
+        fail("sending Start()");
 }
 
 void
@@ -35,18 +36,14 @@ TestShutdownSubParent::ActorDestroy(ActorDestroyReason why)
     else if (!mExpectCrash && AbnormalShutdown == why)
         fail("wasn't expecting crash!");
 
-    nsTArray<PTestShutdownSubsubParent*> kidsArr;
-    ManagedPTestShutdownSubsubParent(kidsArr);
-    if (mExpectCrash && 0 == kidsArr.Length())
+    if (mExpectCrash && 0 == ManagedPTestShutdownSubsubParent().Length())
         fail("expected to *still* have kids");
 }
 
 void
 TestShutdownSubsubParent::ActorDestroy(ActorDestroyReason why)
 {
-    nsTArray<PTestShutdownSubsubParent*> broArr;
-    Manager()->ManagedPTestShutdownSubsubParent(broArr);
-    if (broArr.Length() == 0)
+    if (Manager()->ManagedPTestShutdownSubsubParent().Length() == 0)
         fail("manager should still have managees!");
 
     if (mExpectParentDeleted && AncestorDeletion != why)
@@ -94,13 +91,19 @@ TestShutdownChild::RecvStart()
         if (!c2s2)
             fail("problem sending ctor");
 
-        PTestShutdownSubsubChild::Send__delete__(c1s1);
-        PTestShutdownSubsubChild::Send__delete__(c1s2);
-        PTestShutdownSubsubChild::Send__delete__(c2s1);
-        PTestShutdownSubsubChild::Send__delete__(c2s2);
+        if (!PTestShutdownSubsubChild::Send__delete__(c1s1))
+            fail("problem sending dtor");
+        if (!PTestShutdownSubsubChild::Send__delete__(c1s2))
+            fail("problem sending dtor");
+        if (!PTestShutdownSubsubChild::Send__delete__(c2s1))
+            fail("problem sending dtor");
+        if (!PTestShutdownSubsubChild::Send__delete__(c2s2))
+            fail("problem sending dtor");
 
-        PTestShutdownSubChild::Send__delete__(c1);
-        PTestShutdownSubChild::Send__delete__(c2);
+        if (!c1->CallStackFrame())
+            fail("problem creating dummy stack frame");
+        if (!c2->CallStackFrame())
+            fail("problem creating dummy stack frame");
     }
 
     // test 2: alloc some actors and subactors, delete managers first
@@ -136,8 +139,10 @@ TestShutdownChild::RecvStart()
             fail("problem sending ctor");
 
         // delete parents without deleting kids
-        PTestShutdownSubChild::Send__delete__(c1);
-        PTestShutdownSubChild::Send__delete__(c2);
+        if (!c1->CallStackFrame())
+            fail("problem creating dummy stack frame");
+        if (!c2->CallStackFrame())
+            fail("problem creating dummy stack frame");
     }
 
     // test 3: alloc some actors and subactors, then crash
@@ -189,12 +194,21 @@ TestShutdownChild::ActorDestroy(ActorDestroyReason why)
     fail("hey wait ... we should have crashed!");
 }
 
+bool
+TestShutdownSubChild::AnswerStackFrame()
+{
+    if (!PTestShutdownSubChild::Send__delete__(this))
+        fail("problem sending dtor");
+
+    // WATCH OUT!  |this| has just deleted
+
+    return true;
+}
+
 void
 TestShutdownSubChild::ActorDestroy(ActorDestroyReason why)
 {
-    nsTArray<PTestShutdownSubChild*> broArr;
-    Manager()->ManagedPTestShutdownSubChild(broArr);
-    if (broArr.Length() == 0)
+    if (Manager()->ManagedPTestShutdownSubChild().Length() == 0)
         fail("manager should still have managees!");
 
     if (mExpectCrash && AbnormalShutdown != why)
@@ -202,18 +216,14 @@ TestShutdownSubChild::ActorDestroy(ActorDestroyReason why)
     else if (!mExpectCrash && AbnormalShutdown == why)
         fail("wasn't expecting crash!");
 
-    nsTArray<PTestShutdownSubsubChild*> kidsArr;
-    ManagedPTestShutdownSubsubChild(kidsArr);
-    if (mExpectCrash && 0 == kidsArr.Length())
+    if (mExpectCrash && 0 == ManagedPTestShutdownSubsubChild().Length())
         fail("expected to *still* have kids");
 }
 
 void
 TestShutdownSubsubChild::ActorDestroy(ActorDestroyReason why)
 {
-    nsTArray<PTestShutdownSubsubChild*> broArr;
-    Manager()->ManagedPTestShutdownSubsubChild(broArr);
-    if (broArr.Length() == 0)
+    if (Manager()->ManagedPTestShutdownSubsubChild().Length() == 0)
         fail("manager should still have managees!");
 
     if (mExpectParentDeleted && AncestorDeletion != why)

@@ -7,6 +7,8 @@
 </head>
 <body>
     <script class="testbody" type="text/javascript;version=1.7">
+    ok(window instanceof Object, "window is instanceof Object");
+
     location.foopy = 3;
 
     var xow_answer = [];
@@ -45,11 +47,23 @@
        xpcnw_expected.sort().toString(),
        'enumeration over XPCNWs walks the prototype chain');
 
+    var for_each_expected = [];
+    for each (let i in new XPCNativeWrapper(location))
+        for_each_expected.push(typeof i);
+
+    var for_each_answer = [];
+    for each (let i in Iterator(new XPCNativeWrapper(location)))
+        for_each_answer.push(typeof i);
+
+    is(for_each_answer.sort().toString(),
+       for_each_expected.sort().toString(),
+       'wrapper iterators are properly iterators');
+
     let sjow_answer = [];
-    let (obj = { a: 3 }) {
+    let (obj = { a: 3, next:1 }) {
         for (let i in XPCSafeJSObjectWrapper({ __proto__: obj}))
             sjow_answer.push(i);
-        is(sjow_answer.toString(), 'a',
+        is(sjow_answer.sort().toString(), ['a', 'next'].sort().toString(),
            'enumeration over SJOWs walks the prototype chain');
     }
 
@@ -170,6 +184,7 @@
     } catch (e) {
         ok(false, "some crazy exception was thrown");
     }
+
     </script>
 </body>
 </html>

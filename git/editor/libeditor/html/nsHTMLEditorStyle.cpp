@@ -21,6 +21,7 @@
  *
  * Contributor(s):
  *   Daniel Glazman <glazman@netscape.com>
+ *   Mats Palmgren <matspal@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -50,8 +51,6 @@
 #include "nsISelectionPrivate.h"
 #include "nsIDOMHTMLImageElement.h"
 #include "nsISelectionController.h"
-#include "nsICSSLoader.h"
-#include "nsICSSStyleSheet.h"
 #include "nsIDocumentObserver.h"
 #include "TypeInState.h"
 
@@ -611,7 +610,9 @@ nsresult nsHTMLEditor::SplitStyleAbovePoint(nsCOMPtr<nsIDOMNode> *aNode,
          isSet)                                         // or the style is specified in the style attribute
     {
       // found a style node we need to split
-      SplitNodeDeep(tmp, *aNode, *aOffset, &offset, PR_FALSE, outLeftNode, outRightNode);
+      nsresult rv = SplitNodeDeep(tmp, *aNode, *aOffset, &offset, PR_FALSE,
+                                  outLeftNode, outRightNode);
+      NS_ENSURE_SUCCESS(rv, rv);
       // reset startNode/startOffset
       tmp->GetParentNode(getter_AddRefs(*aNode));
       *aOffset = offset;
@@ -1141,7 +1142,7 @@ nsHTMLEditor::GetInlinePropertyBase(nsIAtom *aProperty,
           skipNode = PR_TRUE;
         }
       }
-      else if (content->IsNodeOfType(nsINode::eELEMENT))
+      else if (content->IsElement())
       { // handle non-text leaf nodes here
         skipNode = PR_TRUE;
       }

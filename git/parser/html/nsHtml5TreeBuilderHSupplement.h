@@ -40,11 +40,13 @@
   private:
 
     nsTArray<nsHtml5TreeOperation>         mOpQueue;
+    nsTArray<nsHtml5SpeculativeLoad>       mSpeculativeLoadQueue;
     nsAHtml5TreeOpSink*                    mOpSink;
     nsAutoArrayPtr<nsIContent*>            mHandles;
     PRInt32                                mHandlesUsed;
     nsTArray<nsAutoArrayPtr<nsIContent*> > mOldHandles;
-    nsRefPtr<nsHtml5SpeculativeLoader>     mSpeculativeLoader;
+    nsHtml5TreeOpStage*                    mSpeculativeLoadStage;
+    nsIContent**                           mDeepTreeSurrogateParent;
     PRBool                                 mCurrentHtmlScriptIsAsyncOrDefer;
 #ifdef DEBUG
     PRBool                                 mActive;
@@ -60,7 +62,8 @@
     
   public:
 
-    nsHtml5TreeBuilder(nsAHtml5TreeOpSink* aOpSink);
+    nsHtml5TreeBuilder(nsAHtml5TreeOpSink* aOpSink,
+                       nsHtml5TreeOpStage* aStage);
 
     ~nsHtml5TreeBuilder();
     
@@ -76,22 +79,14 @@
       mOpQueue.Clear();
     }
     
-    void SetSpeculativeLoaderWithDocument(nsIDocument* aDocument);
-
-    void DropSpeculativeLoader();
-
     PRBool Flush();
     
-    void SetDocumentCharset(nsACString& aCharset);
+    void FlushLoads();
+
+    void SetDocumentCharset(nsACString& aCharset, PRInt32 aCharsetSource);
 
     void StreamEnded();
 
     void NeedsCharsetSwitchTo(const nsACString& aEncoding);
 
     void AddSnapshotToScript(nsAHtml5TreeBuilderState* aSnapshot, PRInt32 aLine);
-
-    inline void Dispatch(nsIRunnable* aEvent) {
-      if (NS_FAILED(NS_DispatchToMainThread(aEvent))) {
-        NS_WARNING("Failed to dispatch speculative load runnable.");
-      }
-    }

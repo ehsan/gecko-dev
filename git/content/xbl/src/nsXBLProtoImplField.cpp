@@ -43,6 +43,7 @@
 #include "nsString.h"
 #include "nsUnicharUtils.h"
 #include "nsReadableUtils.h"
+#include "mozilla/FunctionTimer.h"
 #include "nsXBLProtoImplField.h"
 #include "nsIScriptContext.h"
 #include "nsContentUtils.h"
@@ -59,7 +60,7 @@ nsXBLProtoImplField::nsXBLProtoImplField(const PRUnichar* aName, const PRUnichar
   
   mJSAttributes = JSPROP_ENUMERATE;
   if (aReadOnly) {
-    nsAutoString readOnly; readOnly.Assign(*aReadOnly);
+    nsAutoString readOnly; readOnly.Assign(aReadOnly);
     if (readOnly.LowerCaseEqualsLiteral("true"))
       mJSAttributes |= JSPROP_READONLY;
   }
@@ -98,6 +99,7 @@ nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
                                   nsIURI* aBindingDocURI,
                                   PRBool* aDidInstall) const
 {
+  NS_TIME_FUNCTION_MIN(5);
   NS_PRECONDITION(aBoundNode,
                   "uh-oh, bound node should NOT be null or bad things will "
                   "happen");

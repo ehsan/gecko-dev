@@ -52,6 +52,7 @@
 #include "nsTArray.h"
 #include "nsStringEnumerator.h"
 #include "nsThreadUtils.h"
+#include "mozilla/Services.h"
 
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
@@ -111,12 +112,10 @@ nsresult nsCharsetConverterManager::LoadExtensibleBundle(
                                     const char* aCategory, 
                                     nsIStringBundle ** aResult)
 {
-  nsresult rv = NS_OK;
-
-  nsCOMPtr<nsIStringBundleService> sbServ = 
-           do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
-  if (NS_FAILED(rv))
-    return rv;
+  nsCOMPtr<nsIStringBundleService> sbServ =
+    mozilla::services::GetStringBundleService();
+  if (!sbServ)
+    return NS_ERROR_FAILURE;
 
   return sbServ->CreateExtensibleBundle(aCategory, aResult);
 }
@@ -433,8 +432,10 @@ nsCharsetConverterManager::GetCharsetLangGroupRaw(const char * aCharset,
   nsAutoString langGroup;
   rv = GetBundleValue(mDataBundle, aCharset, NS_LITERAL_STRING(".LangGroup"), langGroup);
 
-  if (NS_SUCCEEDED(rv))
+  if (NS_SUCCEEDED(rv)) {
+    ToLowerCase(langGroup); // use lowercase for all language atoms
     *aResult = NS_NewAtom(langGroup);
+  }
 
   return rv;
 }

@@ -38,8 +38,11 @@
 
 #include "nsXULSliderAccessible.h"
 
+#include "nsAccessibilityAtoms.h"
+
 #include "nsIDOMDocument.h"
 #include "nsIDOMDocumentXBL.h"
+#include "nsIFrame.h"
 
 // nsXULSliderAccessible
 
@@ -74,10 +77,7 @@ nsXULSliderAccessible::GetStateInternal(PRUint32 *aState,
   nsCOMPtr<nsIContent> sliderContent(GetSliderNode());
   NS_ENSURE_STATE(sliderContent);
 
-  nsCOMPtr<nsIPresShell> shell(do_QueryReferent(mWeakShell));
-  NS_ENSURE_STATE(shell);
-
-  nsIFrame *frame = shell->GetPrimaryFrameFor(sliderContent);
+  nsIFrame *frame = sliderContent->GetPrimaryFrame();
   if (frame && frame->IsFocusable())
     *aState |= nsIAccessibleStates::STATE_FOCUSABLE;
 
@@ -123,7 +123,8 @@ nsXULSliderAccessible::DoAction(PRUint8 aIndex)
   nsCOMPtr<nsIContent> sliderContent(GetSliderNode());
   NS_ENSURE_STATE(sliderContent);
 
-  return DoCommand(sliderContent);
+  DoCommand(sliderContent);
+  return NS_OK;
 }
 
 // nsIAccessibleValue

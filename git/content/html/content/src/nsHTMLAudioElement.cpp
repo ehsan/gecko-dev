@@ -1,7 +1,7 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et cindent: */
 /* ***** BEGIN LICENSE BLOCK *****
- * Version: ML 1.1/GPL 2.0/LGPL 2.1
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
@@ -39,8 +39,6 @@
 #include "nsIDOMHTMLSourceElement.h"
 #include "nsHTMLAudioElement.h"
 #include "nsGenericHTMLElement.h"
-#include "nsPresContext.h"
-#include "nsIPresShell.h"
 #include "nsGkAtoms.h"
 #include "nsSize.h"
 #include "nsIFrame.h"
@@ -94,6 +92,8 @@ NS_NewHTMLAudioElement(nsINodeInfo *aNodeInfo, PRBool aFromParser)
 NS_IMPL_ADDREF_INHERITED(nsHTMLAudioElement, nsHTMLMediaElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLAudioElement, nsHTMLMediaElement)
 
+DOMCI_DATA(HTMLAudioElement, nsHTMLAudioElement)
+
 NS_INTERFACE_TABLE_HEAD(nsHTMLAudioElement)
 NS_HTML_CONTENT_INTERFACE_TABLE3(nsHTMLAudioElement, nsIDOMHTMLMediaElement,
                                  nsIDOMHTMLAudioElement, nsIJSNativeInitializer)
@@ -135,5 +135,12 @@ nsHTMLAudioElement::Initialize(nsISupports* aOwner, JSContext* aContext,
     return NS_ERROR_FAILURE;
 
   nsDependentJSString str(jsstr);
-  return SetAttr(kNameSpaceID_None, nsGkAtoms::src, str, PR_TRUE);
+  rv = SetAttr(kNameSpaceID_None, nsGkAtoms::src, str, PR_TRUE);
+  if (NS_FAILED(rv))
+    return rv;
+
+  // We have been specified with a src URL. Begin a load.
+  QueueSelectResourceTask();
+
+  return NS_OK;
 }

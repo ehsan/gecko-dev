@@ -66,6 +66,7 @@ CMMSRCS = \
 		nsMenuItemX.mm \
 		nsMenuItemIconX.mm \
 		nsMenuUtilsX.mm \
+		nsMenuGroupOwnerX.mm \
 		nsFilePicker.mm \
 		nsDragService.mm \
 		nsToolkit.mm \
@@ -89,6 +90,8 @@ CMMSRCS = \
 		nsIdleServiceX.mm \
 		nsAccelerometerX.mm \
 		nsCocoaTextInputHandler.mm \
+		nsMacDockSupport.mm \
+		nsStandaloneNativeMenu.mm \
 		$(NULL)
 
 XPIDLSRCS	+= \

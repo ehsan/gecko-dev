@@ -56,7 +56,6 @@ CPPSRCS = \
           nsAnnotationService.cpp \
           nsFaviconService.cpp \
           nsNavHistory.cpp \
-          nsNavHistoryExpire.cpp \
           nsNavHistoryQuery.cpp \
           nsNavHistoryResult.cpp \
           nsNavBookmarks.cpp \
@@ -65,6 +64,9 @@ CPPSRCS = \
           nsPlacesModule.cpp \
           SQLFunctions.cpp \
           Helpers.cpp \
+          History.cpp \
+          nsPlacesImportExportService.cpp \
+          AsyncFaviconHelpers.cpp \
           $(NULL)
 
 EXTRA_DSO_LDOPTS += \
@@ -79,6 +81,8 @@ EXTRA_COMPONENTS = \
   nsLivemarkService.js \
   nsTaggingService.js \
   nsPlacesDBFlush.js \
+  nsPlacesExpiration.js \
+  nsMicrosummaryService.js \
   $(NULL)
 
 ifdef MOZ_XUL
@@ -86,10 +90,12 @@ EXTRA_COMPONENTS += nsPlacesAutoComplete.js
 endif
 
 EXTRA_JS_MODULES = \
-  utils.js \
   PlacesDBUtils.jsm \
+  utils.js \
   $(NULL)
 
-EXTRA_PP_JS_MODULES = utils.js
+EXTRA_PP_JS_MODULES = \
+  PlacesUtils.jsm \
+  $(NULL)
 
 include $(topsrcdir)/config/rules.mk

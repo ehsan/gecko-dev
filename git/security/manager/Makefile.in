@@ -69,10 +69,10 @@ ifndef MOZ_NATIVE_NSS
 ifneq (,$(filter OS2 WINCE WINNT,$(OS_ARCH)))
 SDK_LIBS = \
   $(DIST)/lib/$(LIB_PREFIX)crmf.$(LIB_SUFFIX) \
-  $(DIST)/lib/$(LIB_PREFIX)smime3.$(IMPORT_LIB_SUFFIX) \
-  $(DIST)/lib/$(LIB_PREFIX)ssl3.$(IMPORT_LIB_SUFFIX) \
-  $(DIST)/lib/$(LIB_PREFIX)nss3.$(IMPORT_LIB_SUFFIX) \
-  $(DIST)/lib/$(LIB_PREFIX)nssutil3.$(IMPORT_LIB_SUFFIX) \
+  $(DIST)/lib/$(LIB_PREFIX)smime3.$(LIB_SUFFIX) \
+  $(DIST)/lib/$(LIB_PREFIX)ssl3.$(LIB_SUFFIX) \
+  $(DIST)/lib/$(LIB_PREFIX)nss3.$(LIB_SUFFIX) \
+  $(DIST)/lib/$(LIB_PREFIX)nssutil3.$(LIB_SUFFIX) \
   $(NULL)
 else
 SDK_LIBS = \
@@ -182,7 +182,10 @@ DEFAULT_GMAKE_FLAGS += NSPR_LIB_DIR=$(NSPR_LIB_DIR)
 DEFAULT_GMAKE_FLAGS += MOZILLA_CLIENT=1
 DEFAULT_GMAKE_FLAGS += NO_MDUPDATE=1
 DEFAULT_GMAKE_FLAGS += NSS_ENABLE_ECC=1
-DEFAULT_GMAKE_FLAGS += IMPORT_LIB_SUFFIX=".$(IMPORT_LIB_SUFFIX)"
+DEFAULT_GMAKE_FLAGS += NSINSTALL="$(NSINSTALL)"
+ifndef MOZ_NATIVE_SQLITE
+DEFAULT_GMAKE_FLAGS += SQLITE=$(call EXPAND_LIBNAME,mozsqlite3)
+endif
 ifdef NSS_DISABLE_DBM 
 DEFAULT_GMAKE_FLAGS += NSS_DISABLE_DBM=1
 endif
@@ -240,11 +243,17 @@ ifeq ($(OS_ARCH),Linux)
 DEFAULT_GMAKE_FLAGS += FREEBL_NO_DEPEND=1
 endif
 
+# Turn off TLS compression support because NSS 3.12.6 can't be built
+# with Mozilla's zlib.h.  See bug 527659 comment 10.
+DEFAULT_GMAKE_FLAGS += NSS_ENABLE_ZLIB=
+
+# Disable building of the test programs in security/nss/lib/zlib
+DEFAULT_GMAKE_FLAGS += PROGRAMS=
+
 ifdef CROSS_COMPILE
 
 ifdef WINCE
 DEFAULT_GMAKE_FLAGS += \
-	NSINSTALL="$(NSINSTALL)" \
 	NATIVE_CC="$(HOST_CC)" \
 	CC="$(CC)" \
 	CCC="$(CC)" \
@@ -262,7 +271,6 @@ DEFAULT_GMAKE_FLAGS += \
 	$(NULL)
 else
 DEFAULT_GMAKE_FLAGS += \
-	NSINSTALL="$(NSINSTALL)" \
 	NATIVE_CC="$(HOST_CC)" \
 	CC="$(CC)" \
 	CCC="$(CXX)" \
@@ -277,8 +285,25 @@ DEFAULT_GMAKE_FLAGS += \
 	$(NULL)
 endif
 
+# Android has pthreads integrated into -lc, so OS_LIBS is set to nothing
+ifeq ($(OS_TARGET), Android)
+DEFAULT_GMAKE_FLAGS += \
+	OS_RELEASE="2.6" \
+	OS_LIBS= \
+	STANDARDS_CFLAGS="-std=gnu89" \
+	DSO_CFLAGS="$(CFLAGS) -DCHECK_FORK_GETPID -DRTLD_NOLOAD=0 -include $(topsrcdir)/security/manager/android_stub.h" \
+	DSO_LDOPTS="-shared $(LDFLAGS) $(WRAP_MALLOC_CFLAGS) $(WRAP_MALLOC_LIB) " \
+	$(NULL)
+endif
+
 SKIP_CHK=1
 endif
+ifdef WRAP_MALLOC_CFLAGS
+DEFAULT_GMAKE_FLAGS += \
+	LDFLAGS="$(LDFLAGS) $(WRAP_MALLOC_CFLAGS) $(WRAP_MALLOC_LIB) " \
+	$(NULL)
+endif
+
 SUBMAKEFILES = boot/Makefile ssl/Makefile pki/Makefile locales/Makefile
 
 include $(topsrcdir)/config/rules.mk
@@ -314,13 +339,12 @@ endif
 
 libs::
 ifndef MOZ_NATIVE_NSS
-	$(NSSMAKE) -C $(NSS_SRCDIR)/security/coreconf $(DEFAULT_GMAKE_FLAGS)
 ifndef NSS_DISABLE_DBM
 	$(NSSMAKE) -C $(NSS_SRCDIR)/security/dbm $(DEFAULT_GMAKE_FLAGS) 
 endif
 	$(NSSMAKE) -C $(NSS_SRCDIR)/security/nss/lib $(DEFAULT_GMAKE_FLAGS)
 ifdef ENABLE_TESTS
-	# Need certutil binary for mochitest certificates generation
+# Need certutil binary for mochitest certificates generation
 	$(NSSMAKE) -C $(NSS_SRCDIR)/security/nss/cmd/lib $(DEFAULT_GMAKE_FLAGS)
 	$(NSSMAKE) -C $(NSS_SRCDIR)/security/nss/cmd/certutil $(DEFAULT_GMAKE_FLAGS)
 	$(NSSMAKE) -C $(NSS_SRCDIR)/security/nss/cmd/pk12util $(DEFAULT_GMAKE_FLAGS)

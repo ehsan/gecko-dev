@@ -38,6 +38,10 @@
 #include "nsRect.h"
 #include "nsString.h"
 #include "nsIDeviceContext.h"
+#include "prlog.h"
+
+// the mozilla::css::Side sequence must match the nsMargin nscoord sequence
+PR_STATIC_ASSERT((NS_SIDE_TOP == 0) && (NS_SIDE_RIGHT == 1) && (NS_SIDE_BOTTOM == 2) && (NS_SIDE_LEFT == 3));
 
 // Containment
 PRBool nsRect::Contains(nscoord aX, nscoord aY) const
@@ -49,7 +53,7 @@ PRBool nsRect::Contains(nscoord aX, nscoord aY) const
 //Also Returns true if aRect is Empty
 PRBool nsRect::Contains(const nsRect &aRect) const
 {
-  return aRect.IsEmpty() || 
+  return aRect.IsEmpty() ||
           ((PRBool) ((aRect.x >= x) && (aRect.y >= y) &&
                     (aRect.XMost() <= XMost()) && (aRect.YMost() <= YMost())));
 }
@@ -78,20 +82,20 @@ PRBool nsRect::IntersectRect(const nsRect &aRect1, const nsRect &aRect2)
   // Compute the destination width
   temp = PR_MIN(xmost1, xmost2);
   if (temp <= x) {
-    Empty();
-    return PR_FALSE;
+    width = 0;
+  } else {
+    width = temp - x;
   }
-  width = temp - x;
 
   // Compute the destination height
   temp = PR_MIN(ymost1, ymost2);
   if (temp <= y) {
-    Empty();
-    return PR_FALSE;
+    height = 0;
+  } else {
+    height = temp - y;
   }
-  height = temp - y;
 
-  return PR_TRUE;
+  return !IsEmpty();
 }
 
 // Computes the smallest rectangle that contains both aRect1 and aRect2 and
@@ -185,7 +189,7 @@ nsMargin nsRect::operator-(const nsRect& aRect) const
 }
 
 // scale the rect but round to smallest containing rect
-nsRect& nsRect::ScaleRoundOut(float aScale) 
+nsRect& nsRect::ScaleRoundOut(float aScale)
 {
   nscoord right = NSToCoordCeil(float(XMost()) * aScale);
   nscoord bottom = NSToCoordCeil(float(YMost()) * aScale);

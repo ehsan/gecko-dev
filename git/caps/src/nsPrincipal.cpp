@@ -57,6 +57,7 @@
 #include "nsIPrefService.h"
 #include "nsIClassInfoImpl.h"
 #include "nsDOMError.h"
+#include "nsIContentSecurityPolicy.h"
 
 #include "nsPrincipal.h"
 
@@ -362,8 +363,7 @@ nsPrincipal::Equals(nsIPrincipal *aOther, PRBool *aResult)
     // Codebases are equal if they have the same origin.
     *aResult =
       NS_SUCCEEDED(nsScriptSecurityManager::CheckSameOriginPrincipal(this,
-                                                                     aOther,
-                                                                     PR_FALSE));
+                                                                     aOther));
     return NS_OK;
   }
 
@@ -381,7 +381,7 @@ static PRBool
 URIIsLocalFile(nsIURI *aURI)
 {
   PRBool isFile;
-  nsCOMPtr<nsINetUtil> util = do_GetIOService();
+  nsCOMPtr<nsINetUtil> util = do_GetNetUtil();
 
   return util && NS_SUCCEEDED(util->ProtocolHasFlags(aURI,
                                 nsIProtocolHandler::URI_IS_LOCAL_FILE,
@@ -775,6 +775,25 @@ nsPrincipal::GetCertificate(nsISupports** aCertificate)
 }
 
 NS_IMETHODIMP
+nsPrincipal::GetCsp(nsIContentSecurityPolicy** aCsp)
+{
+  NS_IF_ADDREF(*aCsp = mCSP);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsPrincipal::SetCsp(nsIContentSecurityPolicy* aCsp)
+{
+  // If CSP was already set, it should not be destroyed!  Instead, it should
+  // get set anew when a new principal is created.
+  if (mCSP)
+    return NS_ERROR_ALREADY_INITIALIZED;
+
+  mCSP = aCsp;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsPrincipal::GetHashValue(PRUint32* aValue)
 {
   NS_PRECONDITION(mCert || mCodebase, "Need a cert or codebase");
@@ -1042,7 +1061,11 @@ ReadAnnotationEntry(nsIObjectInputStream* aStream, nsHashKey** aKey,
 {
   nsresult rv;
   nsCStringKey* key = new nsCStringKey(aStream, &rv);
+  if (!key)
+    return NS_ERROR_OUT_OF_MEMORY;
+
   if (NS_FAILED(rv)) {
+    delete key;
     return rv;
   }
 

@@ -51,14 +51,14 @@
 #include <ctype.h>
 #include "jspubtd.h"
 #include "jsprvtd.h"
+#include "jshashtable.h"
 #include "jslock.h"
+#include "jsobj.h"
 
 JS_BEGIN_EXTERN_C
 
 #define JSSTRING_BIT(n)             ((size_t)1 << (n))
 #define JSSTRING_BITMASK(n)         (JSSTRING_BIT(n) - 1)
-
-class TraceRecorder;
 
 enum {
     UNIT_STRING_LIMIT        = 256U,
@@ -89,10 +89,6 @@ JS_STATIC_ASSERT(JS_BITS_PER_WORD >= 32);
  * A flat string with the ATOMIZED flag means that the string is hashed as
  * an atom. This flag is used to avoid re-hashing the already-atomized string.
  *
- * Any string with the DEFLATED flag means that the string has an entry in the
- * deflated string cache. The GC uses this flag to optimize string finalization
- * and avoid an expensive cache lookup for strings that were never deflated.
- *
  * When the DEPENDENT flag is set, the string depends on characters of another
  * string strongly referenced by the mBase field. The base member may point to
  * another dependent string if chars() has not been called yet.
@@ -100,7 +96,7 @@ JS_STATIC_ASSERT(JS_BITS_PER_WORD >= 32);
  * NB: Always use the length() and chars() accessor methods.
  */
 struct JSString {
-    friend class TraceRecorder;
+    friend class js::TraceRecorder;
 
     friend JSAtom *
     js_AtomizeString(JSContext *cx, JSString *str, uintN flags);
@@ -126,63 +122,57 @@ struct JSString {
     static const size_t DEPENDENT =     JSSTRING_BIT(1);
     static const size_t MUTABLE =       JSSTRING_BIT(2);
     static const size_t ATOMIZED =      JSSTRING_BIT(3);
-    static const size_t DEFLATED =      JSSTRING_BIT(4);
 
-    bool hasFlag(size_t flag) const {
+    inline bool hasFlag(size_t flag) const {
         return (mFlags & flag) != 0;
     }
 
   public:
-    /* Generous but sane length bound. */
-    static const size_t MAX_LENGTH = (1 << 28);
+    /*
+     * Generous but sane length bound; the "-1" is there for comptibility with
+     * OOM tests.
+     */
+    static const size_t MAX_LENGTH = (1 << 28) - 1;
 
-    bool isDependent() const {
+    inline bool isDependent() const {
         return hasFlag(DEPENDENT);
     }
 
-    bool isFlat() const {
+    inline bool isFlat() const {
         return !isDependent();
     }
 
-    bool isDeflated() const {
-        return hasFlag(DEFLATED);
-    }
-
-    void setDeflated() {
-        JS_ATOMIC_SET_MASK(&mFlags, DEFLATED);
-    }
-
-    bool isMutable() const {
+    inline bool isMutable() const {
         return !isDependent() && hasFlag(MUTABLE);
     }
 
-    bool isAtomized() const {
+    inline bool isAtomized() const {
         return !isDependent() && hasFlag(ATOMIZED);
     }
 
-    JS_ALWAYS_INLINE jschar *chars() {
+    inline jschar *chars() {
         return isDependent() ? dependentChars() : flatChars();
     }
 
-    JS_ALWAYS_INLINE size_t length() const {
+    inline size_t length() const {
         return mLength;
     }
 
-    JS_ALWAYS_INLINE bool empty() const {
+    inline bool empty() const {
         return length() == 0;
     }
 
-    JS_ALWAYS_INLINE void getCharsAndLength(const jschar *&chars, size_t &length) {
+    inline void getCharsAndLength(const jschar *&chars, size_t &length) {
         chars = this->chars();
         length = this->length();
     }
 
-    JS_ALWAYS_INLINE void getCharsAndEnd(const jschar *&chars, const jschar *&end) {
+    inline void getCharsAndEnd(const jschar *&chars, const jschar *&end) {
         end = length() + (chars = this->chars());
     }
 
     /* Specific flat string initializer and accessor methods. */
-    void initFlat(jschar *chars, size_t length) {
+    inline void initFlat(jschar *chars, size_t length) {
         JS_ASSERT(length <= MAX_LENGTH);
         mLength = length;
         mOffset = 0;
@@ -190,26 +180,14 @@ struct JSString {
         mChars = chars;
     }
 
-    jschar *flatChars() const {
+    inline jschar *flatChars() const {
         JS_ASSERT(isFlat());
         return mChars;
     }
 
-    JS_ALWAYS_INLINE size_t flatLength() const {
+    inline size_t flatLength() const {
         JS_ASSERT(isFlat());
         return length();
-    }
-
-    /*
-     * Special flat string initializer that preserves the DEFLATED flag.
-     * Use this method when reinitializing an existing string which may be
-     * hashed to its deflated bytes. Newborn strings must use initFlat.
-     */
-    void reinitFlat(jschar *chars, size_t length) {
-        mLength = length;
-        mOffset = 0;
-        mFlags = mFlags & DEFLATED;
-        mChars = chars;
     }
 
     /*
@@ -239,23 +217,23 @@ struct JSString {
      * js_AtomizeString.  This function would find that the string was already
      * hashed and return it with the atomized bit set.
      */
-    void flatSetAtomized() {
+    inline void flatSetAtomized() {
         JS_ASSERT(isFlat() && !isMutable());
         JS_ATOMIC_SET_MASK(&mFlags, ATOMIZED);
     }
 
-    void flatSetMutable() {
+    inline void flatSetMutable() {
         JS_ASSERT(isFlat() && !isAtomized());
         mFlags |= MUTABLE;
     }
 
-    void flatClearMutable() {
+    inline void flatClearMutable() {
         JS_ASSERT(isFlat());
         if (hasFlag(MUTABLE))
             mFlags &= ~MUTABLE;
     }
 
-    void initDependent(JSString *bstr, size_t off, size_t len) {
+    inline void initDependent(JSString *bstr, size_t off, size_t len) {
         JS_ASSERT(len <= MAX_LENGTH);
         mLength = len;
         mOffset = off;
@@ -263,31 +241,22 @@ struct JSString {
         mBase = bstr;
     }
 
-    /* See JSString::reinitFlat. */
-    void reinitDependent(JSString *bstr, size_t off, size_t len) {
-        JS_ASSERT(len <= MAX_LENGTH);
-        mLength = len;
-        mOffset = off;
-        mFlags = DEPENDENT | (mFlags & DEFLATED);
-        mBase = bstr;
-    }
-
-    JSString *dependentBase() const {
+    inline JSString *dependentBase() const {
         JS_ASSERT(isDependent());
         return mBase;
     }
 
-    JS_ALWAYS_INLINE jschar *dependentChars() {
+    inline jschar *dependentChars() {
         return dependentBase()->isDependent()
                ? js_GetDependentStringChars(this)
                : dependentBase()->flatChars() + dependentStart();
     }
 
-    JS_ALWAYS_INLINE size_t dependentStart() const {
+    inline size_t dependentStart() const {
         return mOffset;
     }
 
-    JS_ALWAYS_INLINE size_t dependentLength() const {
+    inline size_t dependentLength() const {
         JS_ASSERT(isDependent());
         return length();
     }
@@ -325,6 +294,7 @@ struct JSString {
     static JSString unitStringTable[];
     static JSString intStringTable[];
     static const char *deflatedIntStringTable[];
+    static const char deflatedUnitStringTable[];
 
     static JSString *unitString(jschar c);
     static JSString *getUnitString(JSContext *cx, JSString *str, size_t index);
@@ -501,21 +471,14 @@ JS_ISSPACE(jschar c)
 #define JS7_UNHEX(c)    (uintN)(JS7_ISDEC(c) ? (c) - '0' : 10 + tolower(c) - 'a')
 #define JS7_ISLET(c)    ((c) < 128 && isalpha(c))
 
-/* Initialize per-runtime string state for the first context in the runtime. */
-extern JSBool
-js_InitRuntimeStringState(JSContext *cx);
-
-extern JSBool
-js_InitDeflatedStringCache(JSRuntime *rt);
-
-extern void
-js_FinishRuntimeStringState(JSContext *cx);
-
-extern void
-js_FinishDeflatedStringCache(JSRuntime *rt);
-
 /* Initialize the String class, returning its prototype object. */
 extern JSClass js_StringClass;
+
+inline bool
+JSObject::isString() const
+{
+    return getClass() == &js_StringClass;
+}
 
 extern JSObject *
 js_InitStringClass(JSContext *cx, JSObject *obj);
@@ -661,35 +624,50 @@ js_DeflateString(JSContext *cx, const jschar *chars, size_t length);
  * Inflate bytes to JS chars into a buffer. 'chars' must be large enough for
  * 'length' jschars. The buffer is NOT null-terminated. The destination length
  * must be be initialized with the buffer size and will contain on return the
- * number of copied chars.
+ * number of copied chars. Conversion behavior depends on js_CStringsAreUTF8.
  */
 extern JSBool
 js_InflateStringToBuffer(JSContext *cx, const char *bytes, size_t length,
                          jschar *chars, size_t *charsLength);
 
 /*
- * Get number of bytes in the deflated sequence of characters.
+ * Same as js_InflateStringToBuffer, but always treats 'bytes' as UTF-8.
+ */
+extern JSBool
+js_InflateUTF8StringToBuffer(JSContext *cx, const char *bytes, size_t length,
+                             jschar *chars, size_t *charsLength);
+
+/*
+ * Get number of bytes in the deflated sequence of characters. Behavior depends
+ * on js_CStringsAreUTF8.
  */
 extern size_t
 js_GetDeflatedStringLength(JSContext *cx, const jschar *chars,
                            size_t charsLength);
 
 /*
+ * Same as js_GetDeflatedStringLength, but always treats the result as UTF-8.
+ */
+extern size_t
+js_GetDeflatedUTF8StringLength(JSContext *cx, const jschar *chars,
+                               size_t charsLength);
+
+/*
  * Deflate JS chars to bytes into a buffer. 'bytes' must be large enough for
  * 'length chars. The buffer is NOT null-terminated. The destination length
  * must to be initialized with the buffer size and will contain on return the
- * number of copied bytes.
+ * number of copied bytes. Conversion behavior depends on js_CStringsAreUTF8.
  */
 extern JSBool
 js_DeflateStringToBuffer(JSContext *cx, const jschar *chars,
                          size_t charsLength, char *bytes, size_t *length);
 
 /*
- * Associate bytes with str in the deflated string cache, returning true on
- * successful association, false on out of memory.
+ * Same as js_DeflateStringToBuffer, but always treats 'bytes' as UTF-8.
  */
 extern JSBool
-js_SetStringBytes(JSContext *cx, JSString *str, char *bytes, size_t length);
+js_DeflateStringToUTF8Buffer(JSContext *cx, const jschar *chars,
+                             size_t charsLength, char *bytes, size_t *length);
 
 /*
  * Find or create a deflated string cache entry for str that contains its
@@ -697,10 +675,6 @@ js_SetStringBytes(JSContext *cx, JSString *str, char *bytes, size_t length);
  */
 extern const char *
 js_GetStringBytes(JSContext *cx, JSString *str);
-
-/* Remove a deflated string cache entry associated with str if any. */
-extern void
-js_PurgeDeflatedStringCache(JSRuntime *rt, JSString *str);
 
 /* Export a few natives and a helper to other files in SpiderMonkey. */
 extern JSBool
@@ -747,5 +721,58 @@ extern JSBool
 js_String(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval);
 
 JS_END_EXTERN_C
+
+namespace js {
+
+class DeflatedStringCache {
+  public:
+    DeflatedStringCache();
+    bool init();
+    ~DeflatedStringCache();
+
+    void sweep(JSContext *cx);
+    void remove(JSString *str);
+    bool setBytes(JSContext *cx, JSString *str, char *bytes);
+
+  private:
+    struct StringPtrHasher
+    {
+        typedef JSString *Lookup;
+
+        static HashNumber hash(JSString *str) {
+            /*
+             * We hash only GC-allocated Strings. They are aligned on
+             * sizeof(JSString) boundary so we can improve hashing by stripping
+             * initial zeros.
+             */
+            const jsuword ALIGN_LOG = tl::FloorLog2<sizeof(JSString)>::result;
+            JS_STATIC_ASSERT(sizeof(JSString) == (size_t(1) << ALIGN_LOG));
+
+            jsuword ptr = reinterpret_cast<jsuword>(str);
+            jsuword key = ptr >> ALIGN_LOG;
+            JS_ASSERT((key << ALIGN_LOG) == ptr);
+            return HashNumber(key);
+        }
+
+        static bool match(JSString *s1, JSString *s2) {
+            return s1 == s2;
+        }
+    };
+
+    typedef HashMap<JSString *, char *, StringPtrHasher, SystemAllocPolicy> Map;
+
+    /* cx is NULL when the caller is JS_GetStringBytes(JSString *). */
+    char *getBytes(JSContext *cx, JSString *str);
+
+    friend const char *
+    ::js_GetStringBytes(JSContext *cx, JSString *str);
+
+    Map                 map;
+#ifdef JS_THREADSAFE
+    JSLock              *lock;
+#endif
+};
+
+} /* namespace js */
 
 #endif /* jsstr_h___ */

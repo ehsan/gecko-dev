@@ -261,6 +261,12 @@ typedef JSBool
 (* JSConvertOp)(JSContext *cx, JSObject *obj, JSType type, jsval *vp);
 
 /*
+ * Delegate typeof to an object so it can cloak a primitive or another object.
+ */
+typedef JSType
+(* JSTypeOfOp)(JSContext *cx, JSObject *obj);
+
+/*
  * Finalize obj, which the garbage collector has determined to be unreachable
  * from other live objects or from GC roots.  Obviously, finalizers must never
  * store a reference to obj.
@@ -375,7 +381,7 @@ extern JSMarkOp js_WrongTypeForClassTracer;
 #endif
 
 /*
- * Tracer callback, called for each traceable thing directly refrenced by a
+ * Tracer callback, called for each traceable thing directly referenced by a
  * particular object or runtime structure. It is the callback responsibility
  * to ensure the traversal of the full object graph via calling eventually
  * JS_TraceChildren on the passed thing. In this case the callback must be
@@ -577,6 +583,13 @@ typedef JSBool
  */
 typedef JSPrincipals *
 (* JSObjectPrincipalsFinder)(JSContext *cx, JSObject *obj);
+
+/*
+ * Used to check if a CSP instance wants to disable eval() and friends.
+ * See js_CheckCSPPermitsJSAction() in jsobj.
+ */
+typedef JSBool
+(* JSCSPEvalChecker)(JSContext *cx);
 
 JS_END_EXTERN_C
 

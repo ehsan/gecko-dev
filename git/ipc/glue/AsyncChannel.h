@@ -60,6 +60,7 @@ struct HasResultCodes
         MsgNotKnown,
         MsgNotAllowed,
         MsgPayloadError,
+        MsgProcessingError,
         MsgRouteError,
         MsgValueError,
     };
@@ -75,6 +76,7 @@ protected:
         ChannelClosed,
         ChannelOpening,
         ChannelConnected,
+        ChannelTimeout,
         ChannelClosing,
         ChannelError
     };
@@ -100,7 +102,7 @@ public:
     AsyncChannel(AsyncListener* aListener);
     virtual ~AsyncChannel();
 
-    // Open  from the perspective of the transport layer; the underlying
+    // "Open" from the perspective of the transport layer; the underlying
     // socketpair/pipe should already be created.
     //
     // Returns true iff the transport layer was successfully connected,
@@ -111,7 +113,7 @@ public:
     void Close();
 
     // Asynchronously send a message to the other side of the channel
-    bool Send(Message* msg);
+    virtual bool Send(Message* msg);
 
     //
     // These methods are called on the "IO" thread
@@ -124,29 +126,35 @@ public:
 
 protected:
     // Can be run on either thread
-    void AssertWorkerThread()
+    void AssertWorkerThread() const
     {
         NS_ABORT_IF_FALSE(mWorkerLoop == MessageLoop::current(),
                           "not on worker thread!");
     }
 
-    void AssertIOThread()
+    void AssertIOThread() const
     {
         NS_ABORT_IF_FALSE(mIOLoop == MessageLoop::current(),
                           "not on IO thread!");
     }
 
-    bool Connected() {
+    bool Connected() const {
         mMutex.AssertCurrentThreadOwns();
         return ChannelConnected == mChannelState;
     }
 
     // Run on the worker thread
     void OnDispatchMessage(const Message& aMsg);
-    bool MaybeHandleError(Result code, const char* channelName);
-    void ReportConnectionError(const char* channelName);
+    virtual bool OnSpecialMessage(uint16 id, const Message& msg);
+    void SendSpecialMessage(Message* msg) const;
 
-    void PrintErrorMessage(const char* channelName, const char* msg)
+    // Tell the IO thread to close the channel and wait for it to ACK.
+    void SynchronouslyClose();
+
+    bool MaybeHandleError(Result code, const char* channelName);
+    void ReportConnectionError(const char* channelName) const;
+
+    void PrintErrorMessage(const char* channelName, const char* msg) const
     {
         fprintf(stderr, "\n###!!! [%s][%s] Error: %s\n\n",
                 mChild ? "Child" : "Parent", channelName, msg);
@@ -154,19 +162,27 @@ protected:
 
     // Run on the worker thread
 
-    void SendGoodbye();
-    bool MaybeInterceptGoodbye(const Message& msg);
+    void SendThroughTransport(Message* msg) const;
 
+    void OnNotifyMaybeChannelError();
+    virtual bool ShouldDeferNotifyMaybeError() const {
+        return false;
+    }
     void NotifyChannelClosed();
     void NotifyMaybeChannelError();
 
-    void Clear();
+    virtual void Clear();
 
     // Run on the IO thread
 
     void OnChannelOpened();
-    void OnSend(Message* aMsg);
     void OnCloseChannel();
+    void PostErrorNotifyTask();
+
+    // Return true if |msg| is a special message targeted at the IO
+    // thread, in which case it shouldn't be delivered to the worker.
+    bool MaybeInterceptSpecialIOMessage(const Message& msg);
+    void ProcessGoodbyeMessage();
 
     Transport* mTransport;
     AsyncListener* mListener;
@@ -176,6 +192,7 @@ protected:
     MessageLoop* mIOLoop;       // thread where IO happens
     MessageLoop* mWorkerLoop;   // thread where work is done
     bool mChild;                // am I the child or parent?
+    CancelableTask* mChannelErrorTask; // NotifyMaybeChannelError runnable
 };
 
 

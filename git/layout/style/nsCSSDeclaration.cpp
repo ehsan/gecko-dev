@@ -118,12 +118,6 @@ nsCSSDeclaration::RemoveProperty(nsCSSProperty aProperty)
   return NS_OK;
 }
 
-nsresult
-nsCSSDeclaration::AppendComment(const nsAString& aComment)
-{
-  return /* NS_ERROR_NOT_IMPLEMENTED, or not any longer that is */ NS_OK;
-}
-
 PRBool nsCSSDeclaration::AppendValueToString(nsCSSProperty aProperty, nsAString& aResult) const
 {
   nsCSSCompressedDataBlock *data = GetValueIsImportant(aProperty)
@@ -232,6 +226,21 @@ nsCSSDeclaration::AppendStorageToString(nsCSSProperty aProperty,
   return aStorage != nsnull;
 }
 
+static inline PRBool
+IsCalcAdditiveUnit(nsCSSUnit aUnit)
+{
+  return aUnit == eCSSUnit_Calc_Plus ||
+         aUnit == eCSSUnit_Calc_Minus;
+}
+
+static inline PRBool
+IsCalcMultiplicativeUnit(nsCSSUnit aUnit)
+{
+  return aUnit == eCSSUnit_Calc_Times_L ||
+         aUnit == eCSSUnit_Calc_Times_R ||
+         aUnit == eCSSUnit_Calc_Divided;
+}
+
 /* static */ PRBool
 nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
                                          const nsCSSValue& aValue,
@@ -251,8 +260,11 @@ nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
     aValue.GetStringValue(buffer);
     if (unit == eCSSUnit_String) {
       nsStyleUtil::AppendEscapedCSSString(buffer, aResult);
-    } else {
+    } else if (unit == eCSSUnit_Families) {
+      // XXX We really need to do *some* escaping.
       aResult.Append(buffer);
+    } else {
+      nsStyleUtil::AppendEscapedCSSIdent(buffer, aResult);
     }
   }
   else if (eCSSUnit_Array <= unit && unit <= eCSSUnit_Cubic_Bezier) {
@@ -306,7 +318,9 @@ nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
       // We assume that the first argument is always of nsCSSKeyword type.
       const nsCSSKeyword functionId =
         static_cast<nsCSSKeyword>(functionName.GetIntValue());
-      AppendASCIItoUTF16(nsCSSKeywords::GetStringValue(functionId), aResult);
+      nsStyleUtil::AppendEscapedCSSIdent(
+        NS_ConvertASCIItoUTF16(nsCSSKeywords::GetStringValue(functionId)),
+        aResult);
     } else {
       AppendCSSValueToString(aProperty, functionName, aResult);
     }
@@ -323,6 +337,90 @@ nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
 
     /* Finally, append the closing parenthesis. */
     aResult.AppendLiteral(")");
+  }
+  else if (eCSSUnit_Calc <= unit && unit <= eCSSUnit_Calc_Maximum) {
+    const nsCSSValue::Array* array = aValue.GetArrayValue();
+    if (eCSSUnit_Calc == unit) {
+      NS_ABORT_IF_FALSE(array->Count() == 1, "unexpected length");
+      aResult.AppendLiteral("-moz-calc(");
+      // When we make recursive calls, we pass eCSSProperty_UNKNOWN as
+      // the property so we can distinguish min() and max() at toplevel
+      // (where we need to serialize with a -moz- prefix) from min() and
+      // max() within calc() (where we don't).
+      AppendCSSValueToString(eCSSProperty_UNKNOWN, array->Item(0), aResult);
+      aResult.AppendLiteral(")");
+    } else if (eCSSUnit_Calc_Minimum == unit ||
+               eCSSUnit_Calc_Maximum == unit) {
+      if (aProperty == eCSSProperty_UNKNOWN) {
+        // min() or max() inside calc()
+        if (eCSSUnit_Calc_Minimum == unit) {
+          aResult.AppendLiteral("min(");
+        } else {
+          aResult.AppendLiteral("max(");
+        }
+      } else {
+        // min() or max() at toplevel
+        if (eCSSUnit_Calc_Minimum == unit) {
+          aResult.AppendLiteral("-moz-min(");
+        } else {
+          aResult.AppendLiteral("-moz-max(");
+        }
+      }
+
+      for (PRUint32 i = 0, i_end = array->Count(); i < i_end; ++i) {
+        if (i != 0) {
+          aResult.AppendLiteral(", ");
+        }
+        // When we make recursive calls, we pass eCSSProperty_UNKNOWN as
+        // the property so we can distinguish min() and max() at toplevel
+        // (where we need to serialize with a -moz- prefix) from min() and
+        // max() within calc() (where we don't).
+        AppendCSSValueToString(eCSSProperty_UNKNOWN, array->Item(i), aResult);
+      }
+
+      aResult.AppendLiteral(")");
+    } else if (IsCalcAdditiveUnit(unit)) {
+      NS_ABORT_IF_FALSE(array->Count() == 2, "unexpected length");
+
+      AppendCSSValueToString(aProperty, array->Item(0), aResult);
+
+      if (eCSSUnit_Calc_Plus == unit) {
+        aResult.AppendLiteral(" + ");
+      } else {
+        NS_ABORT_IF_FALSE(eCSSUnit_Calc_Minus == unit, "unexpected unit");
+        aResult.AppendLiteral(" - ");
+      }
+
+      PRBool needParens = IsCalcAdditiveUnit(array->Item(1).GetUnit());
+      if (needParens)
+        aResult.AppendLiteral("(");
+      AppendCSSValueToString(aProperty, array->Item(1), aResult);
+      if (needParens)
+        aResult.AppendLiteral(")");
+    } else if (IsCalcMultiplicativeUnit(unit)) {
+      PRBool needParens = IsCalcAdditiveUnit(array->Item(0).GetUnit());
+      if (needParens)
+        aResult.AppendLiteral("(");
+      AppendCSSValueToString(aProperty, array->Item(0), aResult);
+      if (needParens)
+        aResult.AppendLiteral(")");
+
+      if (eCSSUnit_Calc_Times_L == unit || eCSSUnit_Calc_Times_R == unit) {
+        aResult.AppendLiteral(" * ");
+      } else {
+        NS_ABORT_IF_FALSE(eCSSUnit_Calc_Divided == unit, "unexpected unit");
+        aResult.AppendLiteral(" / ");
+      }
+
+      nsCSSUnit subUnit = array->Item(1).GetUnit();
+      needParens = IsCalcAdditiveUnit(subUnit) ||
+                   IsCalcMultiplicativeUnit(subUnit);
+      if (needParens)
+        aResult.AppendLiteral("(");
+      AppendCSSValueToString(aProperty, array->Item(1), aResult);
+      if (needParens)
+        aResult.AppendLiteral(")");
+    }
   }
   else if (eCSSUnit_Integer == unit) {
     nsAutoString tmpStr;
@@ -365,9 +463,6 @@ nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
                                            NS_STYLE_PAGE_MARKS_REGISTER,
                                            aResult);
       }
-    }
-    else if (eCSSProperty_transition_property == aProperty) {
-      AppendASCIItoUTF16(nsCSSProps::GetStringValue((nsCSSProperty) aValue.GetIntValue()), aResult);
     }
     else {
       const nsAFlatCString& name = nsCSSProps::LookupPropertyValue(aProperty, aValue.GetIntValue());
@@ -535,6 +630,14 @@ nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
     case eCSSUnit_Local_Font:   break;
     case eCSSUnit_Font_Format:  break;
     case eCSSUnit_Function:     break;
+    case eCSSUnit_Calc:         break;
+    case eCSSUnit_Calc_Plus:    break;
+    case eCSSUnit_Calc_Minus:   break;
+    case eCSSUnit_Calc_Times_L: break;
+    case eCSSUnit_Calc_Times_R: break;
+    case eCSSUnit_Calc_Divided: break;
+    case eCSSUnit_Calc_Minimum: break;
+    case eCSSUnit_Calc_Maximum: break;
     case eCSSUnit_Integer:      break;
     case eCSSUnit_Enumerated:   break;
     case eCSSUnit_EnumColor:    break;
@@ -876,6 +979,12 @@ nsCSSDeclaration::GetValue(nsCSSProperty aProperty,
       const nsCSSValuePairList *size =
         * data->ValuePairListStorageFor(eCSSProperty__moz_background_size);
       for (;;) {
+        if (size->mXValue.GetUnit() != eCSSUnit_Auto ||
+            size->mYValue.GetUnit() != eCSSUnit_Auto) {
+          // Non-default background-size, so can't be serialized as shorthand.
+          aValue.Truncate();
+          return NS_OK;
+        }
         AppendCSSValueToString(eCSSProperty_background_image,
                                image->mValue, aValue);
         aValue.Append(PRUnichar(' '));

@@ -167,6 +167,8 @@ NS_IMPL_CYCLE_COLLECTION_4(nsTreeContentView,
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsTreeContentView)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsTreeContentView)
 
+DOMCI_DATA(TreeContentView, nsTreeContentView)
+
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsTreeContentView)
   NS_INTERFACE_MAP_ENTRY(nsITreeView)
   NS_INTERFACE_MAP_ENTRY(nsITreeContentView)
@@ -829,6 +831,9 @@ nsTreeContentView::AttributeChanged(nsIDocument *aDocument,
         tag != nsGkAtoms::treerow &&
         tag != nsGkAtoms::treecell)
       return;
+    // We don't consider XUL nodes under non-XUL nodes.
+    if (!aContent->GetParent()->IsXUL())
+      return;
   }
   else {
     return;
@@ -946,7 +951,7 @@ nsTreeContentView::AttributeChanged(nsIDocument *aDocument,
       nsIContent* parent = aContent->GetParent();
       if (parent) {
         nsCOMPtr<nsIContent> grandParent = parent->GetParent();
-        if (grandParent) {
+        if (grandParent && grandParent->IsXUL()) {
           PRInt32 index = FindContent(grandParent);
           if (index >= 0 && mBoxObject) {
             // XXX Should we make an effort to invalidate only cell ?
@@ -961,13 +966,12 @@ nsTreeContentView::AttributeChanged(nsIDocument *aDocument,
 void
 nsTreeContentView::ContentAppended(nsIDocument *aDocument,
                                    nsIContent* aContainer,
-                                   PRInt32     aNewIndexInContainer)
+                                   nsIContent* aFirstNewContent,
+                                   PRInt32     /* unused */)
 {
-  PRUint32 childCount = aContainer->GetChildCount();
-  while ((PRUint32)aNewIndexInContainer < childCount) {
-    nsIContent *child = aContainer->GetChildAt(aNewIndexInContainer);
-    ContentInserted(aDocument, aContainer, child, aNewIndexInContainer);
-    aNewIndexInContainer++;
+  for (nsIContent* cur = aFirstNewContent; cur; cur = cur->GetNextSibling()) {
+    // Our contentinserted doesn't use the index
+    ContentInserted(aDocument, aContainer, cur, 0);
   }
 }
 
@@ -975,7 +979,7 @@ void
 nsTreeContentView::ContentInserted(nsIDocument *aDocument,
                                    nsIContent* aContainer,
                                    nsIContent* aChild,
-                                   PRInt32 aIndexInContainer)
+                                   PRInt32 /* unused */)
 {
   NS_ASSERTION(aChild, "null ptr");
 
@@ -994,6 +998,9 @@ nsTreeContentView::ContentInserted(nsIDocument *aDocument,
         childTag != nsGkAtoms::treechildren &&
         childTag != nsGkAtoms::treerow &&
         childTag != nsGkAtoms::treecell)
+      return;
+    // Don't allow XUL nodes to be inserted under non-XUL nodes.
+    if (!aContainer->IsXUL())
       return;
   }
   else {
@@ -1080,6 +1087,9 @@ nsTreeContentView::ContentRemoved(nsIDocument *aDocument,
         tag != nsGkAtoms::treerow &&
         tag != nsGkAtoms::treecell)
       return;
+    // We don't consider XUL nodes under non-XUL nodes.
+    if (!aContainer->IsXUL())
+      return;
   }
   else {
     return;
@@ -1149,13 +1159,16 @@ void
 nsTreeContentView::Serialize(nsIContent* aContent, PRInt32 aParentIndex,
                              PRInt32* aIndex, nsTArray<Row*>& aRows)
 {
+  // Don't allow XUL nodes under non-XUL nodes.
+  PRBool containerIsXUL = aContent->IsXUL();
+
   ChildIterator iter, last;
   for (ChildIterator::Init(aContent, &iter, &last); iter != last; ++iter) {
     nsIContent* content = *iter;
     nsIAtom *tag = content->Tag();
     PRInt32 count = aRows.Length();
 
-    if (content->IsXUL()) {
+    if (content->IsXUL() && containerIsXUL) {
       if (tag == nsGkAtoms::treeitem)
         SerializeItem(content, aParentIndex, aIndex, aRows);
       else if (tag == nsGkAtoms::treeseparator)
@@ -1263,6 +1276,7 @@ void
 nsTreeContentView::GetIndexInSubtree(nsIContent* aContainer,
                                      nsIContent* aContent, PRInt32* aIndex)
 {
+  PRBool containerIsXUL = aContainer->IsXUL();
   PRUint32 childCount = aContainer->GetChildCount();
   for (PRUint32 i = 0; i < childCount; i++) {
     nsIContent *content = aContainer->GetChildAt(i);
@@ -1272,7 +1286,7 @@ nsTreeContentView::GetIndexInSubtree(nsIContent* aContainer,
 
     nsIAtom *tag = content->Tag();
 
-    if (content->IsXUL()) {
+    if (content->IsXUL() && containerIsXUL) {
       if (tag == nsGkAtoms::treeitem) {
         if (! content->AttrValueIs(kNameSpaceID_None, nsGkAtoms::hidden,
                                    nsGkAtoms::_true, eCaseMatters)) {

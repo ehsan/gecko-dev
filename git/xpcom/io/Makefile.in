@@ -101,6 +101,7 @@ endif # OS2
 EXPORTS		= \
 		nsAppDirectoryServiceDefs.h \
 		nsDirectoryService.h \
+		nsDirectoryServiceAtomList.h \
 		nsEscape.h \
 		nsFastLoadService.h \
 		nsLinebreakConverter.h \
@@ -199,8 +200,8 @@ endif
 
 LOCAL_INCLUDES	= -I..
 
-ifdef MOZ_PLATFORM_HILDON
-CFLAGS          += $(MOZ_DBUS_GLIB_CFLAGS) $(LIBHILDONMIME_CFLAGS)
-CXXFLAGS        += $(MOZ_DBUS_GLIB_CFLAGS) $(LIBHILDONMIME_CFLAGS)
+ifeq ($(MOZ_PLATFORM_MAEMO), 5)
+CFLAGS          += $(MOZ_DBUS_CFLAGS) $(MOZ_PLATFORM_MAEMO_CFLAGS)
+CXXFLAGS        += $(MOZ_DBUS_CFLAGS) $(MOZ_PLATFORM_MAEMO_CFLAGS)
 endif
 

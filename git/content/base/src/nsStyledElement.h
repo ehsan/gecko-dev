@@ -64,9 +64,10 @@ protected:
 
 public:
 
-  // nsIContent interface methods for styling
+  // nsIContent interface methods
   virtual nsIAtom* GetClassAttributeName() const;
   virtual nsIAtom* GetIDAttributeName() const;
+  virtual nsIAtom* DoGetID() const;
   virtual const nsAttrValue* DoGetClasses() const;
 
   virtual nsICSSStyleRule* GetInlineStyleRule();
@@ -75,21 +76,23 @@ public:
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
                               PRBool aCompileEventHandlers);
+  virtual void UnbindFromTree(PRBool aDeep, PRBool aNullParent);
+
+  virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
+                             PRBool aNotify);
+
+protected:
 
   /**
    * Parse a style attr value into a CSS rulestruct (or, if there is no
    * document, leave it as a string) and return as nsAttrValue.
-   * Note: this function is used by other classes than nsStyledElement
    *
    * @param aValue the value to parse
    * @param aResult the resulting HTMLValue [OUT]
    */
-  static void ParseStyleAttribute(nsIContent* aContent,
-                                  const nsAString& aValue,
-                                  nsAttrValue& aResult,
-                                  PRBool aForceInDataDoc);
-
-protected:
+  void ParseStyleAttribute(const nsAString& aValue,
+                           nsAttrValue& aResult,
+                           PRBool aForceInDataDoc);
 
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID, nsIAtom* aAttribute,
                                 const nsAString& aValue, nsAttrValue& aResult);

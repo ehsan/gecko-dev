@@ -49,6 +49,8 @@
 #include "nsIServiceManager.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch2.h"
+#include "BasicLayers.h"
+#include "LayerManagerOGL.h"
 
 #ifdef DEBUG
 #include "nsIObserver.h"
@@ -61,6 +63,8 @@ static PRBool debug_InSecureKeyboardInputMode = PR_FALSE;
 #ifdef NOISY_WIDGET_LEAKS
 static PRInt32 gNumWidgets;
 #endif
+
+using namespace mozilla::layers;
 
 nsIContent* nsBaseWidget::mLastRollup = nsnull;
 
@@ -98,6 +102,7 @@ nsBaseWidget::nsBaseWidget()
 , mWindowType(eWindowType_child)
 , mBorderStyle(eBorderStyle_none)
 , mOnDestroyCalled(PR_FALSE)
+, mUseAcceleratedRendering(PR_FALSE)
 , mBounds(0,0,0,0)
 , mOriginalBounds(nsnull)
 , mClipRectCount(0)
@@ -629,40 +634,60 @@ NS_IMETHODIMP nsBaseWidget::MakeFullScreen(PRBool aFullScreen)
   return NS_OK;
 }
 
-//-------------------------------------------------------------------------
-//
-// Create a rendering context from this nsBaseWidget
-//
-//-------------------------------------------------------------------------
-nsIRenderingContext* nsBaseWidget::GetRenderingContext()
+nsBaseWidget::AutoLayerManagerSetup::AutoLayerManagerSetup(
+    nsBaseWidget* aWidget, gfxContext* aTarget)
+  : mWidget(aWidget)
 {
-  nsresult                      rv;
-  nsCOMPtr<nsIRenderingContext> renderingCtx;
-
-  if (mOnDestroyCalled)
-    return nsnull;
-
-  rv = mContext->CreateRenderingContextInstance(*getter_AddRefs(renderingCtx));
-  if (NS_SUCCEEDED(rv)) {
-    gfxASurface* surface = GetThebesSurface();
-    NS_ENSURE_TRUE(surface, nsnull);
-    rv = renderingCtx->Init(mContext, surface);
-    if (NS_SUCCEEDED(rv)) {
-      nsIRenderingContext *ret = renderingCtx;
-      /* Increment object refcount that the |ret| object is still a valid one
-       * after we leave this function... */
-      NS_ADDREF(ret);
-      return ret;
-    }
-    else {
-      NS_WARNING("GetRenderingContext: nsIRenderingContext::Init() failed.");
-    }  
+  BasicLayerManager* manager =
+    static_cast<BasicLayerManager*>(mWidget->GetLayerManager());
+  if (manager) {
+    NS_ASSERTION(manager->GetBackendType() == LayerManager::LAYERS_BASIC,
+      "AutoLayerManagerSetup instantiated for non-basic layer backend!");
+    manager->SetDefaultTarget(aTarget);
   }
-  else {
-    NS_WARNING("GetRenderingContext: Cannot create RenderingContext.");
-  }  
-  
-  return nsnull;
+}
+
+nsBaseWidget::AutoLayerManagerSetup::~AutoLayerManagerSetup()
+{
+  BasicLayerManager* manager =
+    static_cast<BasicLayerManager*>(mWidget->GetLayerManager());
+  if (manager) {
+    NS_ASSERTION(manager->GetBackendType() == LayerManager::LAYERS_BASIC,
+      "AutoLayerManagerSetup instantiated for non-basic layer backend!");
+    manager->SetDefaultTarget(nsnull);
+  }
+}
+
+LayerManager* nsBaseWidget::GetLayerManager()
+{
+  if (!mLayerManager) {
+    nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+
+    PRBool allowAcceleration = PR_TRUE;
+    if (prefs) {
+      prefs->GetBoolPref("mozilla.widget.accelerated-layers",
+                         &allowAcceleration);
+    }
+
+    if (mUseAcceleratedRendering && allowAcceleration) {
+      nsRefPtr<LayerManagerOGL> layerManager =
+        new mozilla::layers::LayerManagerOGL(this);
+      /**
+       * XXX - On several OSes initialization is expected to fail for now.
+       * If we'd get a none-basic layer manager they'd crash. This is ok though
+       * since on those platforms it will fail. Anyone implementing new
+       * platforms on LayerManagerOGL should ensure their widget is able to
+       * deal with it though!
+       */
+      if (layerManager->Initialize()) {
+        mLayerManager = layerManager;
+      }
+    }
+    if (!mLayerManager) {
+      mLayerManager = new BasicLayerManager(nsnull);
+    }
+  }
+  return mLayerManager;
 }
 
 //-------------------------------------------------------------------------
@@ -815,6 +840,23 @@ PRBool
 nsBaseWidget::ShowsResizeIndicator(nsIntRect* aResizerRect)
 {
   return PR_FALSE;
+}
+
+NS_IMETHODIMP
+nsBaseWidget::SetAcceleratedRendering(PRBool aEnabled)
+{
+  if (mUseAcceleratedRendering == aEnabled) {
+    return NS_OK;
+  }
+  mUseAcceleratedRendering = aEnabled;
+  mLayerManager = NULL;
+  return NS_OK;
+}
+
+PRBool
+nsBaseWidget::GetAcceleratedRendering()
+{
+  return mUseAcceleratedRendering;
 }
 
 NS_IMETHODIMP
@@ -1002,8 +1044,8 @@ void ScrollRectIterBase::Move(ScrollRect** aUnmovedLink)
   // which adds an O(n^2) cost to this algorithm (where n is the number of
   // rectangles across x).  The reverse-x ordering from InitialSortComparator
   // avoids this for the case when rectangles are aligned in y.
-  for (ScrollRect** nextLink = aUnmovedLink;
-       ScrollRect* otherRect = *nextLink; ) {
+  for (ScrollRect** nextLink = aUnmovedLink; *nextLink; ) {
+    ScrollRect* otherRect = *nextLink;
     NS_ASSERTION(otherRect->y >= rect->y, "Scroll rectangles out of order");
     if (otherRect->y >= rect->YMost()) // doesn't overlap vertically
       break;
@@ -1069,7 +1111,6 @@ case _value: eventName.AssignWithConversion(_name) ; break
   switch(aGuiEvent->message)
   {
     _ASSIGN_eventName(NS_BLUR_CONTENT,"NS_BLUR_CONTENT");
-    _ASSIGN_eventName(NS_CONTROL_CHANGE,"NS_CONTROL_CHANGE");
     _ASSIGN_eventName(NS_CREATE,"NS_CREATE");
     _ASSIGN_eventName(NS_DESTROY,"NS_DESTROY");
     _ASSIGN_eventName(NS_DRAGDROP_GESTURE,"NS_DND_GESTURE");
@@ -1088,7 +1129,6 @@ case _value: eventName.AssignWithConversion(_name) ; break
     _ASSIGN_eventName(NS_KEY_DOWN,"NS_KEY_DOWN");
     _ASSIGN_eventName(NS_KEY_PRESS,"NS_KEY_PRESS");
     _ASSIGN_eventName(NS_KEY_UP,"NS_KEY_UP");
-    _ASSIGN_eventName(NS_MENU_SELECTED,"NS_MENU_SELECTED");
     _ASSIGN_eventName(NS_MOUSE_ENTER,"NS_MOUSE_ENTER");
     _ASSIGN_eventName(NS_MOUSE_EXIT,"NS_MOUSE_EXIT");
     _ASSIGN_eventName(NS_MOUSE_BUTTON_DOWN,"NS_MOUSE_BUTTON_DOWN");
@@ -1098,6 +1138,7 @@ case _value: eventName.AssignWithConversion(_name) ; break
     _ASSIGN_eventName(NS_MOUSE_MOVE,"NS_MOUSE_MOVE");
     _ASSIGN_eventName(NS_MOVE,"NS_MOVE");
     _ASSIGN_eventName(NS_LOAD,"NS_LOAD");
+    _ASSIGN_eventName(NS_POPSTATE,"NS_POPSTATE");
     _ASSIGN_eventName(NS_PAGE_UNLOAD,"NS_PAGE_UNLOAD");
     _ASSIGN_eventName(NS_HASHCHANGE,"NS_HASHCHANGE");
     _ASSIGN_eventName(NS_PAINT,"NS_PAINT");
@@ -1329,20 +1370,6 @@ nsBaseWidget::debug_DumpPaintEvent(FILE *                aFileOut,
           (void *) aWidget,
           aWidgetName.get(),
           (void *) aWindowID);
-  
-  if (aPaintEvent->rect) 
-  {
-    fprintf(aFileOut,
-            "%3d,%-3d %3d,%-3d",
-            aPaintEvent->rect->x, 
-            aPaintEvent->rect->y,
-            aPaintEvent->rect->width, 
-            aPaintEvent->rect->height);
-  }
-  else
-  {
-    fprintf(aFileOut,"none");
-  }
   
   fprintf(aFileOut,"\n");
 }

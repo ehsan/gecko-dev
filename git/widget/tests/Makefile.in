@@ -69,7 +69,10 @@ _CHROME_FILES =	test_bug343416.xul \
 		test_wheeltransaction.xul \
 		window_wheeltransaction.xul \
 		test_imestate.html \
+		window_imestate_iframes.html \
 		test_plugin_scroll_consistency.html \
+		test_composition_text_querycontent.xul \
+		window_composition_text_querycontent.xul \
 		$(NULL)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
@@ -83,6 +86,8 @@ _CHROME_FILES += native_menus_window.xul \
                test_bug522217.xul \
                window_bug522217.xul \
                test_platform_colors.xul \
+               test_standalone_native_menu.xul \
+               standalone_native_menu_window.xul \
                $(NULL)
 endif
 

@@ -53,6 +53,7 @@
 #include "nsString.h"
 #include "nsReadableUtils.h"
 #include "nsStaticNameTable.h"
+#include "prlog.h" // for PR_STATIC_ASSERT
 
 // required to make the symbol external, so that TestCSSPropertyLookup.cpp can link with it
 extern const char* const kCSSRawProperties[];
@@ -370,6 +371,35 @@ nsCSSProps::GetStringValue(nsCSSFontDesc aFontDescID)
   }
 }
 
+nsCSSProperty
+nsCSSProps::OtherNameFor(nsCSSProperty aProperty)
+{
+  switch (aProperty) {
+    case eCSSProperty_border_left_color_value:
+      return eCSSProperty_border_left_color;
+    case eCSSProperty_border_left_style_value:
+      return eCSSProperty_border_left_style;
+    case eCSSProperty_border_left_width_value:
+      return eCSSProperty_border_left_width;
+    case eCSSProperty_border_right_color_value:
+      return eCSSProperty_border_right_color;
+    case eCSSProperty_border_right_style_value:
+      return eCSSProperty_border_right_style;
+    case eCSSProperty_border_right_width_value:
+      return eCSSProperty_border_right_width;
+    case eCSSProperty_margin_left_value:
+      return eCSSProperty_margin_left;
+    case eCSSProperty_margin_right_value:
+      return eCSSProperty_margin_right;
+    case eCSSProperty_padding_left_value:
+      return eCSSProperty_padding_left;
+    case eCSSProperty_padding_right_value:
+      return eCSSProperty_padding_right;
+    default:
+      NS_ABORT_IF_FALSE(PR_FALSE, "bad caller");
+  }
+  return eCSSProperty_UNKNOWN;
+}
 
 /***************************************************************************/
 
@@ -1077,6 +1107,14 @@ const PRInt32 nsCSSProps::kRadialGradientSizeKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
+const PRInt32 nsCSSProps::kResizeKTable[] = {
+  eCSSKeyword_none,       NS_STYLE_RESIZE_NONE,
+  eCSSKeyword_both,       NS_STYLE_RESIZE_BOTH,
+  eCSSKeyword_horizontal, NS_STYLE_RESIZE_HORIZONTAL,
+  eCSSKeyword_vertical,   NS_STYLE_RESIZE_VERTICAL,
+  eCSSKeyword_UNKNOWN,-1
+};
+
 const PRInt32 nsCSSProps::kSpeakKTable[] = {
   eCSSKeyword_none,      NS_STYLE_SPEAK_NONE,
   eCSSKeyword_normal,    NS_STYLE_SPEAK_NORMAL,
@@ -1263,6 +1301,9 @@ const PRInt32 nsCSSProps::kWidthKTable[] = {
 const PRInt32 nsCSSProps::kWindowShadowKTable[] = {
   eCSSKeyword_none, NS_STYLE_WINDOW_SHADOW_NONE,
   eCSSKeyword_default, NS_STYLE_WINDOW_SHADOW_DEFAULT,
+  eCSSKeyword_menu, NS_STYLE_WINDOW_SHADOW_MENU,
+  eCSSKeyword_tooltip, NS_STYLE_WINDOW_SHADOW_TOOLTIP,
+  eCSSKeyword_sheet, NS_STYLE_WINDOW_SHADOW_SHEET,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -1572,6 +1613,11 @@ static const nsCSSProperty gBorderSubpropTable[] = {
   eCSSProperty_border_left_color_value,
   eCSSProperty_border_left_color_ltr_source,
   eCSSProperty_border_left_color_rtl_source,
+  eCSSProperty_border_top_colors,
+  eCSSProperty_border_right_colors,
+  eCSSProperty_border_bottom_colors,
+  eCSSProperty_border_left_colors,
+  eCSSProperty_border_image,
   eCSSProperty_UNKNOWN
 };
 
@@ -1584,8 +1630,13 @@ static const nsCSSProperty gBorderBottomSubpropTable[] = {
   eCSSProperty_UNKNOWN
 };
 
+PR_STATIC_ASSERT(NS_SIDE_TOP == 0);
+PR_STATIC_ASSERT(NS_SIDE_RIGHT == 1);
+PR_STATIC_ASSERT(NS_SIDE_BOTTOM == 2);
+PR_STATIC_ASSERT(NS_SIDE_LEFT == 3);
 static const nsCSSProperty gBorderColorSubpropTable[] = {
   // Code relies on these being in top-right-bottom-left order.
+  // Code relies on these matching the NS_SIDE_* constants.
   eCSSProperty_border_top_color,
   eCSSProperty_border_right_color_value,
   eCSSProperty_border_bottom_color,

@@ -119,6 +119,7 @@ EXPORTS_NAMESPACES = mozilla
 
 EXPORTS = \
 		nsThreadUtils.h \
+		nsTPriorityQueue.h \
 		nsProxyRelease.h \
 		nsXPTCUtils.h \
 		$(NULL)
@@ -131,6 +132,7 @@ EXPORTS_mozilla = \
   Monitor.h \
   Mutex.h \
   SSE.h \
+  unused.h \
   $(NULL)
 
 SDK_LIBRARY     =                        \

@@ -1,4 +1,4 @@
-// Copyright (c) 2006, Google Inc.
+// Copyright (c) 2010 Google Inc.
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -50,6 +50,8 @@ typedef SSIZE_T ssize_t;
 #endif  // _WIN32
 
 #include <cassert>
+#include <fstream>
+#include <iostream>
 #include <limits>
 #include <map>
 #include <vector>
@@ -66,6 +68,8 @@ typedef SSIZE_T ssize_t;
 namespace google_breakpad {
 
 
+using std::istream;
+using std::ifstream;
 using std::numeric_limits;
 using std::vector;
 
@@ -616,6 +620,61 @@ bool MinidumpContext::Read(u_int32_t expected_size) {
         break;
       }
 
+      case MD_CONTEXT_ARM: {
+        if (expected_size != sizeof(MDRawContextARM)) {
+          BPLOG(ERROR) << "MinidumpContext arm size mismatch, " <<
+            expected_size << " != " << sizeof(MDRawContextARM);
+          return false;
+        }
+
+        scoped_ptr<MDRawContextARM> context_arm(new MDRawContextARM());
+
+        // Set the context_flags member, which has already been read, and
+        // read the rest of the structure beginning with the first member
+        // after context_flags.
+        context_arm->context_flags = context_flags;
+
+        size_t flags_size = sizeof(context_arm->context_flags);
+        u_int8_t* context_after_flags =
+            reinterpret_cast<u_int8_t*>(context_arm.get()) + flags_size;
+        if (!minidump_->ReadBytes(context_after_flags,
+                                  sizeof(MDRawContextARM) - flags_size)) {
+          BPLOG(ERROR) << "MinidumpContext could not read arm context";
+          return false;
+        }
+
+        // Do this after reading the entire MDRawContext structure because
+        // GetSystemInfo may seek minidump to a new position.
+        if (!CheckAgainstSystemInfo(cpu_type)) {
+          BPLOG(ERROR) << "MinidumpContext arm does not match system info";
+          return false;
+        }
+
+        if (minidump_->swap()) {
+          // context_arm->context_flags was already swapped.
+          for (unsigned int ireg_index = 0;
+               ireg_index < MD_CONTEXT_ARM_GPR_COUNT;
+               ++ireg_index) {
+            Swap(&context_arm->iregs[ireg_index]);
+          }
+          Swap(&context_arm->cpsr);
+          Swap(&context_arm->float_save.fpscr);
+          for (unsigned int fpr_index = 0;
+               fpr_index < MD_FLOATINGSAVEAREA_ARM_FPR_COUNT;
+               ++fpr_index) {
+            Swap(&context_arm->float_save.regs[fpr_index]);
+          }
+          for (unsigned int fpe_index = 0;
+               fpe_index < MD_FLOATINGSAVEAREA_ARM_FPEXTRA_COUNT;
+               ++fpe_index) {
+            Swap(&context_arm->float_save.extra[fpe_index]);
+          }
+        }
+        context_.arm = context_arm.release();
+
+        break;
+      }
+
       default: {
         // Unknown context type - Don't log as an error yet. Let the 
         // caller work that out.
@@ -681,6 +740,15 @@ const MDRawContextSPARC* MinidumpContext::GetContextSPARC() const {
   return context_.ctx_sparc;
 }
 
+const MDRawContextARM* MinidumpContext::GetContextARM() const {
+  if (GetContextCPU() != MD_CONTEXT_ARM) {
+    BPLOG(ERROR) << "MinidumpContext cannot get arm context";
+    return NULL;
+  }
+
+  return context_.arm;
+}
+
 void MinidumpContext::FreeContext() {
   switch (GetContextCPU()) {
     case MD_CONTEXT_X86:
@@ -697,6 +765,10 @@ void MinidumpContext::FreeContext() {
 
     case MD_CONTEXT_SPARC:
       delete context_.ctx_sparc;
+      break;
+
+    case MD_CONTEXT_ARM:
+      delete context_.arm;
       break;
 
     default:
@@ -756,6 +828,11 @@ bool MinidumpContext::CheckAgainstSystemInfo(u_int32_t context_cpu_type) {
 
     case MD_CONTEXT_SPARC:
       if (system_info_cpu_type == MD_CPU_ARCHITECTURE_SPARC)
+        return_value = true;
+      break;
+
+    case MD_CONTEXT_ARM:
+      if (system_info_cpu_type == MD_CPU_ARCHITECTURE_ARM)
         return_value = true;
       break;
   }
@@ -963,6 +1040,36 @@ void MinidumpContext::Print() {
       break;
     }
 
+    case MD_CONTEXT_ARM: {
+      const MDRawContextARM* context_arm = GetContextARM();
+      printf("MDRawContextARM\n");
+      printf("  context_flags       = 0x%x\n",
+             context_arm->context_flags);
+      for (unsigned int ireg_index = 0;
+           ireg_index < MD_CONTEXT_ARM_GPR_COUNT;
+           ++ireg_index) {
+        printf("  iregs[%2d]            = 0x%x\n",
+               ireg_index, context_arm->iregs[ireg_index]);
+      }
+      printf("  cpsr                = 0x%x\n", context_arm->cpsr);
+      printf("  float_save.fpscr     = 0x%" PRIx64 "\n",
+             context_arm->float_save.fpscr);
+      for (unsigned int fpr_index = 0;
+           fpr_index < MD_FLOATINGSAVEAREA_ARM_FPR_COUNT;
+           ++fpr_index) {
+        printf("  float_save.regs[%2d] = 0x%" PRIx64 "\n",
+               fpr_index, context_arm->float_save.regs[fpr_index]);
+      }
+      for (unsigned int fpe_index = 0;
+           fpe_index < MD_FLOATINGSAVEAREA_ARM_FPEXTRA_COUNT;
+           ++fpe_index) {
+        printf("  float_save.extra[%2d] = 0x%" PRIx32 "\n",
+               fpe_index, context_arm->float_save.extra[fpe_index]);
+      }
+
+      break;
+    }
+
     default: {
       break;
     }
@@ -999,7 +1106,7 @@ void MinidumpMemoryRegion::SetDescriptor(MDMemoryDescriptor* descriptor) {
 }
 
 
-const u_int8_t* MinidumpMemoryRegion::GetMemory() {
+const u_int8_t* MinidumpMemoryRegion::GetMemory() const {
   if (!valid_) {
     BPLOG(ERROR) << "Invalid MinidumpMemoryRegion for GetMemory";
     return NULL;
@@ -1038,7 +1145,7 @@ const u_int8_t* MinidumpMemoryRegion::GetMemory() {
 }
 
 
-u_int64_t MinidumpMemoryRegion::GetBase() {
+u_int64_t MinidumpMemoryRegion::GetBase() const {
   if (!valid_) {
     BPLOG(ERROR) << "Invalid MinidumpMemoryRegion for GetBase";
     return static_cast<u_int64_t>(-1);
@@ -1048,7 +1155,7 @@ u_int64_t MinidumpMemoryRegion::GetBase() {
 }
 
 
-u_int32_t MinidumpMemoryRegion::GetSize() {
+u_int32_t MinidumpMemoryRegion::GetSize() const {
   if (!valid_) {
     BPLOG(ERROR) << "Invalid MinidumpMemoryRegion for GetSize";
     return 0;
@@ -1066,7 +1173,7 @@ void MinidumpMemoryRegion::FreeMemory() {
 
 template<typename T>
 bool MinidumpMemoryRegion::GetMemoryAtAddressInternal(u_int64_t address,
-                                                      T*        value) {
+                                                      T*        value) const {
   BPLOG_IF(ERROR, !value) << "MinidumpMemoryRegion::GetMemoryAtAddressInternal "
                              "requires |value|";
   assert(value);
@@ -1108,25 +1215,25 @@ bool MinidumpMemoryRegion::GetMemoryAtAddressInternal(u_int64_t address,
 
 
 bool MinidumpMemoryRegion::GetMemoryAtAddress(u_int64_t  address,
-                                              u_int8_t*  value) {
+                                              u_int8_t*  value) const {
   return GetMemoryAtAddressInternal(address, value);
 }
 
 
 bool MinidumpMemoryRegion::GetMemoryAtAddress(u_int64_t  address,
-                                              u_int16_t* value) {
+                                              u_int16_t* value) const {
   return GetMemoryAtAddressInternal(address, value);
 }
 
 
 bool MinidumpMemoryRegion::GetMemoryAtAddress(u_int64_t  address,
-                                              u_int32_t* value) {
+                                              u_int32_t* value) const {
   return GetMemoryAtAddressInternal(address, value);
 }
 
 
 bool MinidumpMemoryRegion::GetMemoryAtAddress(u_int64_t  address,
-                                              u_int64_t* value) {
+                                              u_int64_t* value) const {
   return GetMemoryAtAddressInternal(address, value);
 }
 
@@ -2723,8 +2830,8 @@ MinidumpContext* MinidumpException::GetContext() {
 
     scoped_ptr<MinidumpContext> context(new MinidumpContext(minidump_));
 
-    // Don't log as an error if we can still fall back on th thread's context
-    // (which must be possible if we got his far.)
+    // Don't log as an error if we can still fall back on the thread's context
+    // (which must be possible if we got this far.)
     if (!context->Read(exception_.thread_context.data_size)) {
       BPLOG(INFO) << "MinidumpException cannot read context";
       return NULL;
@@ -3002,12 +3109,20 @@ string MinidumpSystemInfo::GetCPU() {
       cpu = "x86";
       break;
 
+    case MD_CPU_ARCHITECTURE_AMD64:
+      cpu = "x86-64";
+      break;
+
     case MD_CPU_ARCHITECTURE_PPC:
       cpu = "ppc";
       break;
 
     case MD_CPU_ARCHITECTURE_SPARC:
       cpu = "sparc";
+      break;
+
+    case MD_CPU_ARCHITECTURE_ARM:
+      cpu = "arm";
       break;
 
     default:
@@ -3331,35 +3446,44 @@ Minidump::Minidump(const string& path)
       directory_(NULL),
       stream_map_(new MinidumpStreamMap()),
       path_(path),
-      fd_(-1),
+      stream_(NULL),
       swap_(false),
       valid_(false) {
 }
 
+Minidump::Minidump(istream& stream)
+    : header_(),
+      directory_(NULL),
+      stream_map_(new MinidumpStreamMap()),
+      path_(),
+      stream_(&stream),
+      swap_(false),
+      valid_(false) {
+}
 
 Minidump::~Minidump() {
+  if (stream_) {
+    BPLOG(INFO) << "Minidump closing minidump";
+  }
+  if (!path_.empty()) {
+    delete stream_;
+  }
   delete directory_;
   delete stream_map_;
-  if (fd_ != -1) {
-    BPLOG(INFO) << "Minidump closing minidump on fd " << fd_;
-    close(fd_);
-  }
 }
 
 
 bool Minidump::Open() {
-  if (fd_ != -1) {
-    BPLOG(INFO) << "Minidump reopening minidump " << path_ << " on fd " << fd_;
+  if (stream_ != NULL) {
+    BPLOG(INFO) << "Minidump reopening minidump " << path_;
 
     // The file is already open.  Seek to the beginning, which is the position
     // the file would be at if it were opened anew.
     return SeekSet(0);
   }
 
-  // O_BINARY is useful (and defined) on Windows.  On other platforms, it's
-  // useless, and because it's defined as 0 above, harmless.
-  fd_ = open(path_.c_str(), O_RDONLY | O_BINARY);
-  if (fd_ == -1) {
+  stream_ = new ifstream(path_.c_str(), std::ios::in | std::ios::binary);
+  if (!stream_ || !stream_->good()) {
     string error_string;
     int error_code = ErrnoString(&error_string);
     BPLOG(ERROR) << "Minidump could not open minidump " << path_ <<
@@ -3367,7 +3491,7 @@ bool Minidump::Open() {
     return false;
   }
 
-  BPLOG(INFO) << "Minidump opened minidump " << path_ << " on fd " << fd_;
+  BPLOG(INFO) << "Minidump opened minidump " << path_;
   return true;
 }
 
@@ -3617,12 +3741,14 @@ const MDRawDirectory* Minidump::GetDirectoryEntryAtIndex(unsigned int index)
 
 bool Minidump::ReadBytes(void* bytes, size_t count) {
   // Can't check valid_ because Read needs to call this method before
-  // validity can be determined.  The only member that this method
-  // depends on is mFD, and an unset or invalid fd may generate an
-  // error but should not cause a crash.
-  ssize_t bytes_read = read(fd_, bytes, count);
-  if (static_cast<size_t>(bytes_read) != count) {
-    if (bytes_read == -1) {
+  // validity can be determined.
+  if (!stream_) {
+    return false;
+  }
+  stream_->read(static_cast<char*>(bytes), count);
+  size_t bytes_read = stream_->gcount();
+  if (bytes_read != count) {
+    if (bytes_read == size_t(-1)) {
       string error_string;
       int error_code = ErrnoString(&error_string);
       BPLOG(ERROR) << "ReadBytes: error " << error_code << ": " << error_string;
@@ -3637,21 +3763,26 @@ bool Minidump::ReadBytes(void* bytes, size_t count) {
 
 bool Minidump::SeekSet(off_t offset) {
   // Can't check valid_ because Read needs to call this method before
-  // validity can be determined.  The only member that this method
-  // depends on is mFD, and an unset or invalid fd may generate an
-  // error but should not cause a crash.
-  off_t sought = lseek(fd_, offset, SEEK_SET);
-  if (sought != offset) {
-    if (sought == -1) {
-      string error_string;
-      int error_code = ErrnoString(&error_string);
-      BPLOG(ERROR) << "SeekSet: error " << error_code << ": " << error_string;
-    } else {
-      BPLOG(ERROR) << "SeekSet: sought " << sought << "/" << offset;
-    }
+  // validity can be determined.
+  if (!stream_) {
+    return false;
+  }
+  stream_->seekg(offset, std::ios_base::beg);
+  if (!stream_->good()) {
+    string error_string;
+    int error_code = ErrnoString(&error_string);
+    BPLOG(ERROR) << "SeekSet: error " << error_code << ": " << error_string;
     return false;
   }
   return true;
+}
+
+off_t Minidump::Tell() {
+  if (!valid_ || !stream_) {
+    return (off_t)-1;
+  }
+
+  return stream_->tellg();
 }
 
 

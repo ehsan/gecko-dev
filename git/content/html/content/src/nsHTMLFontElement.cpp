@@ -95,6 +95,8 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLFontElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLFontElement, nsGenericElement)
 
 
+DOMCI_DATA(HTMLFontElement, nsHTMLFontElement)
+
 // QueryInterface implementation for nsHTMLFontElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLFontElement)
   NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLFontElement, nsIDOMHTMLFontElement)
@@ -148,9 +150,20 @@ nsHTMLFontElement::ParseAttribute(PRInt32 aNamespaceID,
       nsAutoString tmp(aValue);
       tmp.CompressWhitespace(PR_TRUE, PR_TRUE);
       PRUnichar ch = tmp.IsEmpty() ? 0 : tmp.First();
-      if ((ch == '+' || ch == '-') &&
-          aResult.ParseEnumValue(aValue, kRelFontSizeTable)) {
-        return PR_TRUE;
+      if ((ch == '+' || ch == '-')) {
+          if (aResult.ParseEnumValue(aValue, kRelFontSizeTable, PR_FALSE))
+              return PR_TRUE;
+
+          // truncate after digit, then parse it again.
+          PRUint32 i;
+          for (i = 1; i < tmp.Length(); i++) {
+              ch = tmp.CharAt(i);
+              if (!nsCRT::IsAsciiDigit(ch)) {
+                  tmp.Truncate(i);
+                  break;
+              }
+          }
+          return aResult.ParseEnumValue(tmp, kRelFontSizeTable, PR_FALSE);
       }
 
       return aResult.ParseIntValue(aValue);
@@ -198,7 +211,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
           if (unit == nsAttrValue::eInteger || unit == nsAttrValue::eEnum) { 
             PRInt32 size;
             if (unit == nsAttrValue::eEnum) // int (+/-)
-              size = value->GetEnumValue() + 3;  // XXX should be BASEFONT, not three see bug 3875
+              size = value->GetEnumValue() + 3;
             else
               size = value->GetIntegerValue();
 

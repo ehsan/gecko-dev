@@ -13,7 +13,7 @@
  *
  * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation.
+ * The Initial Developer of the Original Code is Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
@@ -41,6 +41,7 @@ const Ci = Components.interfaces;
 const Cr = Components.results;
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+Components.utils.import("resource://gre/modules/Services.jsm");
 
 /*
  * LoginManagerPromptFactory
@@ -51,9 +52,7 @@ Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
  * [embedding/components/windowwatcher/src/nsPrompt.cpp]
  */
 function LoginManagerPromptFactory() {
-    var observerService = Cc["@mozilla.org/observer-service;1"].
-                          getService(Ci.nsIObserverService);
-    observerService.addObserver(this, "quit-application-granted", true);
+    Services.obs.addObserver(this, "quit-application-granted", true);
 }
 
 LoginManagerPromptFactory.prototype = {
@@ -63,13 +62,14 @@ LoginManagerPromptFactory.prototype = {
     classID : Components.ID("{749e62f4-60ae-4569-a8a2-de78b649660e}"),
     QueryInterface : XPCOMUtils.generateQI([Ci.nsIPromptFactory, Ci.nsIObserver, Ci.nsISupportsWeakReference]),
 
+    _debug : false,
     _asyncPrompts : {},
     _asyncPromptInProgress : false,
 
     observe : function (subject, topic, data) {
         if (topic == "quit-application-granted") {
             var asyncPrompts = this._asyncPrompts;
-            this._asyncPrompts = {};
+            this.__proto__._asyncPrompts = {};
             for each (var asyncPrompt in asyncPrompts) {
                 for each (var consumer in asyncPrompt.consumers) {
                     if (consumer.callback) {
@@ -84,9 +84,78 @@ LoginManagerPromptFactory.prototype = {
     },
 
     getPrompt : function (aWindow, aIID) {
+        var prefBranch = Services.prefs.getBranch("signon.");
+        this._debug = prefBranch.getBoolPref("debug");
+
         var prompt = new LoginManagerPrompter().QueryInterface(aIID);
         prompt.init(aWindow, this);
         return prompt;
+    },
+
+    _doAsyncPrompt : function() {
+        if (this._asyncPromptInProgress) {
+            this.log("_doAsyncPrompt bypassed, already in progress");
+            return;
+        }
+
+        // Find the first prompt key we have in the queue
+        var hashKey = null;
+        for (hashKey in this._asyncPrompts)
+            break;
+
+        if (!hashKey) {
+            this.log("_doAsyncPrompt:run bypassed, no prompts in the queue");
+            return;
+        }
+
+        this._asyncPromptInProgress = true;
+        var self = this;
+
+        var runnable = {
+            run : function() {
+                var ok = false;
+                var prompt = self._asyncPrompts[hashKey];
+                try {
+                    self.log("_doAsyncPrompt:run - performing the prompt for '" + hashKey + "'");
+                    ok = prompt.prompter.promptAuth(prompt.channel,
+                                                    prompt.level,
+                                                    prompt.authInfo);
+                } catch (e) {
+                    Components.utils.reportError("LoginManagerPrompter: " +
+                        "_doAsyncPrompt:run: " + e + "\n");
+                }
+
+                delete self._asyncPrompts[hashKey];
+                self._asyncPromptInProgress = false;
+
+                for each (var consumer in prompt.consumers) {
+                    if (!consumer.callback)
+                        // Not having a callback means that consumer didn't provide it
+                        // or canceled the notification
+                        continue;
+
+                    self.log("Calling back to " + consumer.callback + " ok=" + ok);
+                    try {
+                        if (ok)
+                            consumer.callback.onAuthAvailable(consumer.context, prompt.authInfo);
+                        else
+                            consumer.callback.onAuthCancelled(consumer.context, true);
+                    } catch (e) { /* Throw away exceptions caused by callback */ }
+                }
+                self._doAsyncPrompt();
+            }
+        }
+
+        Services.tm.mainThread.dispatch(runnable, Ci.nsIThread.DISPATCH_NORMAL);
+        this.log("_doAsyncPrompt:run dispatched");
+    },
+
+    log : function (message) {
+        if (!this._debug)
+            return;
+
+        dump("Pwmgr PromptFactory: " + message + "\n");
+        Services.console.logStringMessage("Pwmgr PrompFactory: " + message);
     }
 }; // end of LoginManagerPromptFactory implementation
 
@@ -134,14 +203,6 @@ LoginManagerPrompter.prototype = {
         return this.__pwmgr;
     },
 
-    __logService : null, // Console logging service, used for debugging.
-    get _logService() {
-        if (!this.__logService)
-            this.__logService = Cc["@mozilla.org/consoleservice;1"].
-                                getService(Ci.nsIConsoleService);
-        return this.__logService;
-    },
-
     __promptService : null, // Prompt service for user interaction
     get _promptService() {
         if (!this.__promptService)
@@ -182,32 +243,13 @@ LoginManagerPrompter.prototype = {
     },
 
 
-    __ioService: null, // IO service for string -> nsIURI conversion
-    get _ioService() {
-        if (!this.__ioService)
-            this.__ioService = Cc["@mozilla.org/network/io-service;1"].
-                               getService(Ci.nsIIOService);
-        return this.__ioService;
-    },
-
-    __threadManager: null,
-    get _threadManager() {
-        if (!this.__threadManager)
-            this.__threadManager = Cc["@mozilla.org/thread-manager;1"].
-                                   getService(Ci.nsIThreadManager);        
-        return this.__threadManager;
-    },
-
-
     __ellipsis : null,
     get _ellipsis() {
         if (!this.__ellipsis) {
             this.__ellipsis = "\u2026";
             try {
-                var prefSvc = Cc["@mozilla.org/preferences-service;1"].
-                              getService(Ci.nsIPrefBranch);
-                this.__ellipsis = prefSvc.getComplexValue("intl.ellipsis",
-                                      Ci.nsIPrefLocalizedString).data;
+                this.__ellipsis = Services.prefs.getComplexValue(
+                                    "intl.ellipsis", Ci.nsIPrefLocalizedString).data;
             } catch (e) { }
         }
         return this.__ellipsis;
@@ -237,7 +279,7 @@ LoginManagerPrompter.prototype = {
             return;
 
         dump("Pwmgr Prompter: " + message + "\n");
-        this._logService.logStringMessage("Pwmgr Prompter: " + message);
+        Services.console.logStringMessage("Pwmgr Prompter: " + message);
     },
 
 
@@ -338,11 +380,6 @@ LoginManagerPrompter.prototype = {
             return ok;
         }
 
-        var newLogin = Cc["@mozilla.org/login-manager/loginInfo;1"].
-                       createInstance(Ci.nsILoginInfo);
-        newLogin.init(hostname, null, realm, aUsername.value, aPassword.value,
-                      "", "");
-
         // XXX We can't prompt with multiple logins yet (bug 227632), so
         // the entered login might correspond to an existing login
         // other than the one we originally selected.
@@ -353,13 +390,18 @@ LoginManagerPrompter.prototype = {
         if (!selectedLogin) {
             // add as new
             this.log("New login seen for " + realm);
+            var newLogin = Cc["@mozilla.org/login-manager/loginInfo;1"].
+                           createInstance(Ci.nsILoginInfo);
+            newLogin.init(hostname, null, realm,
+                          aUsername.value, aPassword.value, "", "");
             this._pwmgr.addLogin(newLogin);
         } else if (aPassword.value != selectedLogin.password) {
             // update password
             this.log("Updating password for  " + realm);
-            this._pwmgr.modifyLogin(selectedLogin, newLogin);
+            this._updateLogin(selectedLogin, aPassword.value);
         } else {
             this.log("Login unchanged, no further action needed.");
+            this._updateLogin(selectedLogin);
         }
 
         return ok;
@@ -394,16 +436,16 @@ LoginManagerPrompter.prototype = {
           var canRememberLogin = (aSavePassword ==
                                   Ci.nsIAuthPrompt.SAVE_PASSWORD_PERMANENTLY) &&
                                  this._pwmgr.getLoginSavingEnabled(hostname);
-  
+
           // if checkBoxLabel is null, the checkbox won't be shown at all.
           if (canRememberLogin)
               checkBoxLabel = this._getLocalizedString("rememberPassword");
-  
+
           if (!aPassword.value) {
               // Look for existing logins.
               var foundLogins = this._pwmgr.findLogins({}, hostname, null,
                                                        realm);
-  
+
               // XXX Like the original code, we can't deal with multiple
               // account selection (bug 227632). We can deal with finding the
               // account based on the supplied username - but in this case we'll
@@ -456,7 +498,7 @@ LoginManagerPrompter.prototype = {
         if (httpRealm.test(aRealmString))
             return [null, null, null];
 
-        var uri = this._ioService.newURI(aRealmString, null, null);
+        var uri = Services.io.newURI(aRealmString, null, null);
         var pathname = "";
 
         if (uri.path != "/")
@@ -486,6 +528,7 @@ LoginManagerPrompter.prototype = {
         var checkbox = { value : false };
         var checkboxLabel = null;
         var epicfail = false;
+        var canAutologin = false;
 
         try {
 
@@ -511,6 +554,17 @@ LoginManagerPrompter.prototype = {
                 selectedLogin = foundLogins[0];
                 this._SetAuthInfo(aAuthInfo, selectedLogin.username,
                                              selectedLogin.password);
+
+                // Allow automatic proxy login
+                if (aAuthInfo.flags & Ci.nsIAuthInformation.AUTH_PROXY &&
+                    !(aAuthInfo.flags & Ci.nsIAuthInformation.PREVIOUS_FAILED) &&
+                    Services.prefs.getBoolPref("signon.autologin.proxy") &&
+                    !this._inPrivateBrowsing) {
+
+                    this.log("Autologin enabled, skipping auth prompt.");
+                    canAutologin = true;
+                }
+
                 checkbox.value = true;
             }
 
@@ -528,8 +582,10 @@ LoginManagerPrompter.prototype = {
                 "Epic fail in promptAuth: " + e + "\n");
         }
 
-        var ok = this._promptService.promptAuth(this._window, aChannel,
-                                aLevel, aAuthInfo, checkboxLabel, checkbox);
+        var ok = canAutologin ||
+                 this._promptService.promptAuth(this._window,
+                                                aChannel, aLevel, aAuthInfo,
+                                                checkboxLabel, checkbox);
 
         // If there's a notification box, use it to allow the user to
         // determine if the login should be saved. If there isn't a
@@ -547,11 +603,6 @@ LoginManagerPrompter.prototype = {
                 return ok;
             }
 
-            var newLogin = Cc["@mozilla.org/login-manager/loginInfo;1"].
-                           createInstance(Ci.nsILoginInfo);
-            newLogin.init(hostname, null, httpRealm,
-                          username, password, "", "");
-
             // XXX We can't prompt with multiple logins yet (bug 227632), so
             // the entered login might correspond to an existing login
             // other than the one we originally selected.
@@ -560,9 +611,13 @@ LoginManagerPrompter.prototype = {
             // If we didn't find an existing login, or if the username
             // changed, save as a new login.
             if (!selectedLogin) {
-                // add as new
                 this.log("New login seen for " + username +
                          " @ " + hostname + " (" + httpRealm + ")");
+
+                var newLogin = Cc["@mozilla.org/login-manager/loginInfo;1"].
+                               createInstance(Ci.nsILoginInfo);
+                newLogin.init(hostname, null, httpRealm,
+                              username, password, "", "");
                 if (notifyBox)
                     this._showSaveLoginNotification(notifyBox, newLogin);
                 else
@@ -574,12 +629,13 @@ LoginManagerPrompter.prototype = {
                          " @ " + hostname + " (" + httpRealm + ")");
                 if (notifyBox)
                     this._showChangeLoginNotification(notifyBox,
-                                                      selectedLogin, newLogin);
+                                                      selectedLogin, password);
                 else
-                    this._pwmgr.modifyLogin(selectedLogin, newLogin);
+                    this._updateLogin(selectedLogin, password);
 
             } else {
                 this.log("Login unchanged, no further action needed.");
+                this._updateLogin(selectedLogin);
             }
         } catch (e) {
             Components.utils.reportError("LoginManagerPrompter: " +
@@ -620,11 +676,12 @@ LoginManagerPrompter.prototype = {
                 consumers: [cancelable],
                 channel: aChannel,
                 authInfo: aAuthInfo,
-                level: aLevel
+                level: aLevel,
+                prompter: this
             }
 
             this._factory._asyncPrompts[hashKey] = asyncPrompt;
-            this._doAsyncPrompt();
+            this._factory._doAsyncPrompt();
         }
         catch (e) {
             Components.utils.reportError("LoginManagerPrompter: " +
@@ -637,66 +694,6 @@ LoginManagerPrompter.prototype = {
         return cancelable;
     },
 
-    _doAsyncPrompt : function() {
-        if (this._factory._asyncPromptInProgress) {
-            this.log("_doAsyncPrompt bypassed, already in progress");
-            return;
-        }
-
-        // Find the first prompt key we have in the queue
-        var hashKey = null;
-        for (hashKey in this._factory._asyncPrompts)
-            break;
-
-        if (!hashKey) {
-            this.log("_doAsyncPrompt:run bypassed, no prompts in the queue");
-            return;
-        }
-
-        this._factory._asyncPromptInProgress = true;
-
-        var self = this;
-        var runnable = {
-            run : function() {
-                var ok = false;
-                var prompt = self._factory._asyncPrompts[hashKey];
-                try {
-                    self.log("_doAsyncPrompt:run - performing the prompt for '" + hashKey + "'");
-                    ok = self.promptAuth(
-                        prompt.channel,
-                        prompt.level,
-                        prompt.authInfo
-                    );
-                } catch (e) {
-                    Components.utils.reportError("LoginManagerPrompter: " +
-                        "_doAsyncPrompt:run: " + e + "\n");
-                }
-
-                delete self._factory._asyncPrompts[hashKey];
-                self._factory._asyncPromptInProgress = false;
-
-                for each (var consumer in prompt.consumers) {
-                    if (!consumer.callback)
-                        // Not having a callback means that consumer didn't provide it
-                        // or canceled the notification
-                        continue;
-
-                    self.log("Calling back to " + consumer.callback + " ok=" + ok);
-                    try {
-                        if (ok)
-                            consumer.callback.onAuthAvailable(consumer.context, prompt.authInfo);
-                        else
-                            consumer.callback.onAuthCancelled(consumer.context, true);
-                    } catch (e) { /* Throw away exceptions caused by callback */ }
-                }
-                self._doAsyncPrompt();
-            }
-        }
-
-        this._threadManager.mainThread.dispatch(runnable, 
-                                                Ci.nsIThread.DISPATCH_NORMAL);
-        this.log("_doAsyncPrompt:run dispatched");
-    },
 
 
 
@@ -713,8 +710,7 @@ LoginManagerPrompter.prototype = {
         this._window = aWindow;
         this._factory = aFactory || null;
 
-        var prefBranch = Cc["@mozilla.org/preferences-service;1"].
-                         getService(Ci.nsIPrefService).getBranch("signon.");
+        var prefBranch = Services.prefs.getBranch("signon.");
         this._debug = prefBranch.getBoolPref("debug");
         this.log("===== initialized =====");
     },
@@ -941,9 +937,9 @@ LoginManagerPrompter.prototype = {
         var notifyBox = this._getNotifyBox();
 
         if (notifyBox)
-            this._showChangeLoginNotification(notifyBox, aOldLogin, aNewLogin);
+            this._showChangeLoginNotification(notifyBox, aOldLogin, aNewLogin.password);
         else
-            this._showChangeLoginDialog(aOldLogin, aNewLogin);
+            this._showChangeLoginDialog(aOldLogin, aNewLogin.password);
     },
 
 
@@ -953,7 +949,7 @@ LoginManagerPrompter.prototype = {
      * Shows the Change Password notification bar.
      *
      */
-    _showChangeLoginNotification : function (aNotifyBox, aOldLogin, aNewLogin) {
+    _showChangeLoginNotification : function (aNotifyBox, aOldLogin, aNewPassword) {
         var notificationText;
         if (aOldLogin.username)
             notificationText  = this._getLocalizedString(
@@ -975,7 +971,7 @@ LoginManagerPrompter.prototype = {
         // The callbacks in |buttons| have a closure to access the variables
         // in scope here; set one to |this._pwmgr| so we can get back to pwmgr
         // without a getService() call.
-        var pwmgr = this._pwmgr;
+        var self = this;
 
         var buttons = [
             // "Yes" button
@@ -984,7 +980,7 @@ LoginManagerPrompter.prototype = {
                 accessKey: changeButtonAccessKey,
                 popup:     null,
                 callback:  function(aNotificationBar, aButton) {
-                    pwmgr.modifyLogin(aOldLogin, aNewLogin);
+                    self._updateLogin(aOldLogin, aNewPassword);
                 }
             },
 
@@ -1010,7 +1006,7 @@ LoginManagerPrompter.prototype = {
      * Shows the Change Password dialog.
      *
      */
-    _showChangeLoginDialog : function (aOldLogin, aNewLogin) {
+    _showChangeLoginDialog : function (aOldLogin, aNewPassword) {
         const buttonFlags = Ci.nsIPrompt.STD_YES_NO_BUTTONS;
 
         var dialogText;
@@ -1032,7 +1028,7 @@ LoginManagerPrompter.prototype = {
                                 null, {});
         if (ok) {
             this.log("Updating password for user " + aOldLogin.username);
-            this._pwmgr.modifyLogin(aOldLogin, aNewLogin);
+            this._updateLogin(aOldLogin, aNewPassword);
         }
     },
 
@@ -1065,17 +1061,10 @@ LoginManagerPrompter.prototype = {
                                 usernames.length, usernames,
                                 selectedIndex);
         if (ok) {
-            // Now that we know which login to change the password for,
-            // update the missing username info in the aNewLogin.
-
+            // Now that we know which login to use, modify its password.
             var selectedLogin = logins[selectedIndex.value];
-
             this.log("Updating password for user " + selectedLogin.username);
-
-            aNewLogin.username      = selectedLogin.username;
-            aNewLogin.usernameField = selectedLogin.usernameField;
-
-            this._pwmgr.modifyLogin(selectedLogin, aNewLogin);
+            this._updateLogin(selectedLogin, aNewLogin.password);
         }
     },
 
@@ -1086,6 +1075,25 @@ LoginManagerPrompter.prototype = {
 
 
 
+
+    /*
+     * _updateLogin
+     */
+    _updateLogin : function (login, newPassword) {
+        var now = Date.now();
+        var propBag = Cc["@mozilla.org/hash-property-bag;1"].
+                      createInstance(Ci.nsIWritablePropertyBag);
+        if (newPassword) {
+            propBag.setProperty("password", newPassword);
+            // Explicitly set the password change time here (even though it would
+            // be changed automatically), to ensure that it's exactly the same
+            // value as timeLastUsed.
+            propBag.setProperty("timePasswordChanged", now);
+        }
+        propBag.setProperty("timeLastUsed", now);
+        propBag.setProperty("timesUsedIncrement", 1);
+        this._pwmgr.modifyLogin(login, propBag);
+    },
 
     /*
      * _getNotifyBox
@@ -1219,7 +1227,7 @@ LoginManagerPrompter.prototype = {
         if (aURI instanceof Ci.nsIURI) {
             uri = aURI;
         } else {
-            uri = this._ioService.newURI(aURI, null, null);
+            uri = Services.io.newURI(aURI, null, null);
         }
         var scheme = uri.scheme;
 
@@ -1229,7 +1237,7 @@ LoginManagerPrompter.prototype = {
         // it's not the default. (We never want "http://foo.com:80")
         port = uri.port;
         if (port != -1) {
-            var handler = this._ioService.getProtocolHandler(scheme);
+            var handler = Services.io.getProtocolHandler(scheme);
             if (port != handler.defaultPort)
                 hostname += ":" + port;
         }
@@ -1253,7 +1261,7 @@ LoginManagerPrompter.prototype = {
         var idnService = Cc["@mozilla.org/network/idn-service;1"].
                          getService(Ci.nsIIDNService);
         try {
-            var uri = this._ioService.newURI(aURIString, null, null);
+            var uri = Services.io.newURI(aURIString, null, null);
             var baseDomain = eTLDService.getBaseDomain(uri);
             displayHost = idnService.convertToDisplayIDN(baseDomain, {});
         } catch (e) {

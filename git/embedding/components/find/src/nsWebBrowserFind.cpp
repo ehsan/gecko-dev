@@ -75,6 +75,7 @@
 #include "nsFind.h"
 #include "nsDOMError.h"
 #include "nsFocusManager.h"
+#include "mozilla/Services.h"
 
 #if DEBUG
 #include "nsIWebNavigation.h"
@@ -130,7 +131,7 @@ NS_IMETHODIMP nsWebBrowserFind::FindNext(PRBool *outDidFind)
     // this is used by nsTypeAheadFind, which controls find again when it was
     // the last executed find in the current window.
     nsCOMPtr<nsIObserverService> observerSvc =
-      do_GetService("@mozilla.org/observer-service;1");
+      mozilla::services::GetObserverService();
     if (observerSvc) {
         nsCOMPtr<nsISupportsInterfacePointer> windowSupportsData = 
           do_CreateInstance(NS_SUPPORTS_INTERFACE_POINTER_CONTRACTID, &rv);
@@ -400,7 +401,7 @@ void nsWebBrowserFind::SetSelectionAndScroll(nsIDOMWindow* aWindow,
   nsCOMPtr<nsIDOMNode> node;
   aRange->GetStartContainer(getter_AddRefs(node));
   nsCOMPtr<nsIContent> content(do_QueryInterface(node));
-  nsIFrame* frame = presShell->GetPrimaryFrameFor(content);
+  nsIFrame* frame = content->GetPrimaryFrame();
   if (!frame)
       return;
   nsCOMPtr<nsISelectionController> selCon;
@@ -412,7 +413,7 @@ void nsWebBrowserFind::SetSelectionAndScroll(nsIDOMWindow* aWindow,
   nsITextControlFrame *tcFrame = nsnull;
   for ( ; content; content = content->GetParent()) {
     if (!IsInNativeAnonymousSubtree(content)) {
-      nsIFrame* f = presShell->GetPrimaryFrameFor(content);
+      nsIFrame* f = content->GetPrimaryFrame();
       if (!f)
         return;
       tcFrame = do_QueryFrame(f);
@@ -847,7 +848,7 @@ nsWebBrowserFind::GetFrameSelection(nsIDOMWindow* aWindow,
       fm->GetFocusedElement(getter_AddRefs(focusedElement));
       nsCOMPtr<nsIContent> focusedContent(do_QueryInterface(focusedElement));
       if (focusedContent) {
-        frame = presShell->GetPrimaryFrameFor(focusedContent);
+        frame = focusedContent->GetPrimaryFrame();
         if (frame && frame->PresContext() != presContext)
           frame = nsnull;
       }

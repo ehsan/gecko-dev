@@ -44,9 +44,12 @@ relativesrcdir  = docshell/test
 MODULE = test_docshell
 
 DIRS += chrome \
-	browser \
 	navigation \
 	$(NULL)
+
+ifeq (browser,$(MOZ_BUILD_APP))
+	DIRS += browser
+endif
 
 XPCSHELL_TESTS = unit
 
@@ -81,6 +84,8 @@ _TEST_FILES = \
 		test_bug529119-1.html \
 		test_bug529119-2.html \
 		bug529119-window.html \
+		test_bug540462.html \
+		file_bug540462.html \
 		$(NULL)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)

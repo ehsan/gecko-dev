@@ -42,10 +42,7 @@
 
 
 #include "nsHTMLContainerFrame.h"
-#include "nsPresContext.h"
 #include "nsStyleContext.h"
-#include "nsIView.h"
-#include "nsIViewManager.h"
 #include "nsIRenderingContext.h"
 #include "nsGUIEvent.h"
 #include "nsGkAtoms.h"
@@ -53,8 +50,7 @@
 #include "nsDisplayList.h"
 #include "nsAbsoluteContainingBlock.h"
 
-// for focus
-#include "nsIScrollableView.h"
+class nsPresContext;
 
 /**
  * Root frame class.
@@ -68,20 +64,17 @@ class nsCanvasFrame : public nsHTMLContainerFrame,
 {
 public:
   nsCanvasFrame(nsStyleContext* aContext)
-  : nsHTMLContainerFrame(aContext), mDoPaintFocus(PR_FALSE),
+  : nsHTMLContainerFrame(aContext),
+    mDoPaintFocus(PR_FALSE),
+    mAddedScrollPositionListener(PR_FALSE),
     mAbsoluteContainer(nsGkAtoms::absoluteList) {}
 
   NS_DECL_QUERYFRAME_TARGET(nsCanvasFrame)
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
 
-  // nsISupports (nsIScrollPositionListener)
-  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
 
-  NS_IMETHOD Init(nsIContent*      aContent,
-                  nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow);
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
                                  nsFrameList&    aChildList);
@@ -121,10 +114,8 @@ public:
   void PaintFocus(nsIRenderingContext& aRenderingContext, nsPoint aPt);
 
   // nsIScrollPositionListener
-  NS_IMETHOD ScrollPositionWillChange(nsIScrollableView* aScrollable, nscoord aX, nscoord aY);
-  virtual void ViewPositionDidChange(nsIScrollableView* aScrollable,
-                                     nsTArray<nsIWidget::Configuration>* aConfigurations) {}
-  NS_IMETHOD ScrollPositionDidChange(nsIScrollableView* aScrollable, nscoord aX, nscoord aY);
+  virtual void ScrollPositionWillChange(nscoord aX, nscoord aY);
+  virtual void ScrollPositionDidChange(nscoord aX, nscoord aY) {}
 
   /**
    * Get the "type" of the frame
@@ -162,12 +153,8 @@ protected:
 
   // Data members
   PRPackedBool              mDoPaintFocus;
-  nsCOMPtr<nsIViewManager>  mViewManager;
+  PRPackedBool              mAddedScrollPositionListener;
   nsAbsoluteContainingBlock mAbsoluteContainer;
-
-private:
-  NS_IMETHOD_(nsrefcnt) AddRef() { return NS_OK; }
-  NS_IMETHOD_(nsrefcnt) Release() { return NS_OK; }
 };
 
 #endif /* nsCanvasFrame_h___ */
