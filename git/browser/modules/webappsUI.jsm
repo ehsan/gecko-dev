@@ -114,7 +114,7 @@ this.webappsUI = {
           }
 
           DOMApplicationRegistry.confirmInstall(aData, false, localDir);
-          installationSuccessNotification(aData, app, aWindow);
+          installationSuccessNotification(app, aWindow);
         } else {
           DOMApplicationRegistry.denyInstall(aData);
         }
@@ -140,15 +140,7 @@ this.webappsUI = {
   }
 }
 
-function installationSuccessNotification(aData, app, aWindow) {
-  let launcher = {
-    observe: function(aSubject, aTopic) {
-      if (aTopic == "alertclickcallback") {
-        WebappOSUtils.launch(aData.app);
-      }
-    }
-  };
-
+function installationSuccessNotification(app, aWindow) {
   let bundle = aWindow.gNavigatorBundle;
 
   if (("@mozilla.org/alerts-service;1" in Cc)) {
@@ -160,7 +152,7 @@ function installationSuccessNotification(aData, app, aWindow) {
       notifier.showAlertNotification(app.iconURI.spec,
                                     bundle.getString("webapps.install.success"),
                                     app.appNameAsFilename,
-                                    true, null, launcher);
+                                    false, null, null);
 
     } catch (ex) {}
   }

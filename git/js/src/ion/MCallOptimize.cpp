@@ -130,6 +130,8 @@ IonBuilder::inlineNativeCall(CallInfo &callInfo, JSNative native)
     // Parallel intrinsics.
     if (native == intrinsic_ShouldForceSequential)
         return inlineForceSequentialOrInParallelSection(callInfo);
+    if (native == testingFunc_inParallelSection)
+        return inlineForceSequentialOrInParallelSection(callInfo);
     if (native == intrinsic_NewParallelArray)
         return inlineNewParallelArray(callInfo);
     if (native == ParallelArrayObject::construct)
@@ -144,12 +146,6 @@ IonBuilder::inlineNativeCall(CallInfo &callInfo, JSNative native)
         return inlineHaveSameClass(callInfo);
     if (native == intrinsic_ToObject)
         return inlineToObject(callInfo);
-
-    // Testing Functions
-    if (native == testingFunc_inParallelSection)
-        return inlineForceSequentialOrInParallelSection(callInfo);
-    if (native == testingFunc_bailout)
-        return inlineBailout(callInfo);
 
     return InliningStatus_NotInlined;
 }
@@ -1499,18 +1495,6 @@ IonBuilder::inlineToObject(CallInfo &callInfo)
     MDefinition *object = callInfo.getArg(0);
 
     current->push(object);
-    return InliningStatus_Inlined;
-}
-
-IonBuilder::InliningStatus
-IonBuilder::inlineBailout(CallInfo &callInfo)
-{
-    callInfo.unwrapArgs();
-
-    current->add(MBail::New());
-
-    MConstant *undefined = MConstant::New(UndefinedValue());
-    current->push(undefined);
     return InliningStatus_Inlined;
 }
 

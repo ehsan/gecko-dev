@@ -496,13 +496,13 @@ CodeGeneratorX86::visitAsmJSLoadHeap(LAsmJSLoadHeap *ins)
         uint32_t after = masm.size();
         masm.cvtss2sd(dest, dest);
         masm.bind(ool->rejoin());
-        return gen->noteHeapAccess(AsmJSHeapAccess(before, after, vt, AnyRegister(dest), cmp.offset()));
+        return gen->noteHeapAccess(AsmJSHeapAccess(cmp.offset(), before, after, vt, AnyRegister(dest)));
     }
     uint32_t before = masm.size();
     loadViewTypeElement(vt, srcAddr, out);
     uint32_t after = masm.size();
     masm.bind(ool->rejoin());
-    return gen->noteHeapAccess(AsmJSHeapAccess(before, after, vt, ToAnyRegister(out), cmp.offset()));
+    return gen->noteHeapAccess(AsmJSHeapAccess(cmp.offset(), before, after, vt, ToAnyRegister(out)));
 }
 
 bool
@@ -583,13 +583,13 @@ CodeGeneratorX86::visitAsmJSStoreHeap(LAsmJSStoreHeap *ins)
         masm.movssWithPatch(ScratchFloatReg, dstAddr);
         uint32_t after = masm.size();
         masm.bind(&rejoin);
-        return gen->noteHeapAccess(AsmJSHeapAccess(before, after, cmp.offset()));
+        return gen->noteHeapAccess(AsmJSHeapAccess(cmp.offset(), before, after));
     }
     uint32_t before = masm.size();
     storeViewTypeElement(vt, value, dstAddr);
     uint32_t after = masm.size();
     masm.bind(&rejoin);
-    return gen->noteHeapAccess(AsmJSHeapAccess(before, after, cmp.offset()));
+    return gen->noteHeapAccess(AsmJSHeapAccess(cmp.offset(), before, after));
 }
 
 bool

@@ -1062,12 +1062,6 @@ class LCallDOMNative : public LJSCallInstructionHelper<BOX_PIECES, 0, 4>
     }
 };
 
-class LBail : public LInstructionHelper<0, 0, 0>
-{
-  public:
-    LIR_HEADER(Bail)
-};
-
 template <size_t defs, size_t ops>
 class LDOMPropertyInstructionHelper : public LCallInstructionHelper<defs, 1 + ops, 3>
 {
@@ -4409,6 +4403,10 @@ class LGuardThreadLocalObject : public LCallInstructionHelper<0, 2, 1>
         setTemp(0, temp1);
     }
 
+    bool isCall() const {
+        return true;
+    }
+
     const LAllocation *forkJoinSlice() {
         return getOperand(0);
     }
@@ -4854,7 +4852,7 @@ class LAsmJSCall MOZ_FINAL : public LInstruction
 
     bool isCall() const {
         return true;
-    }
+    };
 
     // LInstruction interface
     size_t numDefs() const {

@@ -312,7 +312,7 @@ IonRuntime::generateInvalidator(JSContext *cx)
     masm.lea(Operand(rsp, rbx, TimesOne, sizeof(InvalidationBailoutStack)), rsp);
 
     // Jump to shared bailout tail. The BailoutInfo pointer has to be in r9.
-    IonCode *bailoutTail = cx->runtime()->ionRuntime()->getBailoutTail();
+    IonCode *bailoutTail = cx->compartment()->ionCompartment()->getBailoutTail();
     masm.jmp(bailoutTail);
 
     Linker linker(masm);
@@ -446,7 +446,7 @@ GenerateBailoutThunk(JSContext *cx, MacroAssembler &masm, uint32_t frameClass)
     masm.lea(Operand(rsp, rcx, TimesOne, sizeof(void *)), rsp);
 
     // Jump to shared bailout tail. The BailoutInfo pointer has to be in r9.
-    IonCode *bailoutTail = cx->runtime()->ionRuntime()->getBailoutTail();
+    IonCode *bailoutTail = cx->compartment()->ionCompartment()->getBailoutTail();
     masm.jmp(bailoutTail);
 }
 
@@ -698,7 +698,8 @@ IonRuntime::generateDebugTrapHandler(JSContext *cx)
     masm.movePtr(ImmWord((void *)NULL), BaselineStubReg);
     EmitEnterStubFrame(masm, scratch3);
 
-    IonCode *code = cx->runtime()->ionRuntime()->getVMWrapper(HandleDebugTrapInfo);
+    IonCompartment *ion = cx->compartment()->ionCompartment();
+    IonCode *code = ion->getVMWrapper(HandleDebugTrapInfo);
     if (!code)
         return NULL;
 

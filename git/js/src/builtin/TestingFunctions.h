@@ -17,9 +17,6 @@ DefineTestingFunctions(JSContext *cx, HandleObject obj);
 JSBool
 testingFunc_inParallelSection(JSContext *cx, unsigned argc, jsval *vp);
 
-JSBool
-testingFunc_bailout(JSContext *cx, unsigned argc, jsval *vp);
-
 } /* namespace js */
 
 #endif /* builtin_TestingFunctions_h */

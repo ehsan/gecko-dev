@@ -33,7 +33,8 @@ BaselineCompilerShared::BaselineCompilerShared(JSContext *cx, HandleScript scrip
 bool
 BaselineCompilerShared::callVM(const VMFunction &fun)
 {
-    IonCode *code = cx->runtime()->ionRuntime()->getVMWrapper(fun);
+    IonCompartment *ion = cx->compartment()->ionCompartment();
+    IonCode *code = ion->getVMWrapper(fun);
     if (!code)
         return false;
 

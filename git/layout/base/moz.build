@@ -69,6 +69,7 @@ EXPORTS += [
     'nsPresState.h',
     'nsRefreshDriver.h',
     'nsStyleChangeList.h',
+    'nsStyleConsts.h',
 ]
 
 EXPORTS.mozilla += [

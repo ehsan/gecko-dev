@@ -17,12 +17,8 @@ class MercurialConfig(object):
     def __init__(self, infile=None):
         """Create a new instance, optionally from an existing hgrc file."""
 
-        # write_empty_values is necessary to prevent built-in extensions (which
-        # have no value) from being dropped on write.
-        # list_values aren't needed by Mercurial and disabling them prevents
-        # quotes from being added.
         self._c = ConfigObj(infile=infile, encoding='utf-8',
-            write_empty_values=True, list_values=False)
+            write_empty_values=True)
 
     @property
     def config(self):

@@ -477,13 +477,6 @@ LIRGenerator::visitApplyArgs(MApplyArgs *apply)
 }
 
 bool
-LIRGenerator::visitBail(MBail *bail)
-{
-    LBail *lir = new LBail();
-    return assignSnapshot(lir) && add(lir, bail);
-}
-
-bool
 LIRGenerator::visitGetDynamicName(MGetDynamicName *ins)
 {
     MDefinition *scopeChain = ins->getScopeChain();

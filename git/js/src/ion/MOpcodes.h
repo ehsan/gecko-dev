@@ -39,7 +39,6 @@ namespace ion {
     _(PassArg)                                                              \
     _(Call)                                                                 \
     _(ApplyArgs)                                                            \
-    _(Bail)                                                                 \
     _(GetDynamicName)                                                       \
     _(FilterArguments)                                                      \
     _(CallDirectEval)                                                       \
