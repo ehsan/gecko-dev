@@ -334,7 +334,7 @@ SetPropertyOperation(JSContext *cx, jsbytecode *pc, HandleValue lval, HandleValu
 
             if (shape->hasDefaultSetter() && shape->hasSlot()) {
                 /* Fast path for, e.g., plain Object instance properties. */
-                JSObject::nativeSetSlotWithType(cx, obj, shape, rval);
+                obj->nativeSetSlotWithType(cx, shape, rval);
             } else {
                 RootedValue rref(cx, rval);
                 bool strict = cx->stack.currentScript()->strictModeCode;
@@ -803,9 +803,9 @@ SetObjectElementOperation(JSContext *cx, Handle<JSObject*> obj, HandleId id, con
                     if (js_PrototypeHasIndexedProperties(cx, obj))
                         break;
                     if ((uint32_t)i >= obj->getArrayLength())
-                        JSObject::setArrayLength(cx, obj, i + 1);
+                        obj->setArrayLength(cx, i + 1);
                 }
-                JSObject::setDenseArrayElementWithType(cx, obj, i, value);
+                obj->setDenseArrayElementWithType(cx, i, value);
                 return true;
             } else {
                 if (!cx->fp()->beginsIonActivation()) {

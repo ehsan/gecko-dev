@@ -441,7 +441,7 @@ HttpBaseChannel::GetUploadStream(nsIInputStream **stream)
 NS_IMETHODIMP
 HttpBaseChannel::SetUploadStream(nsIInputStream *stream,
                                const nsACString &contentType,
-                               int64_t contentLength)
+                               int32_t contentLength)
 {
   // NOTE: for backwards compatibility and for compatibility with old style
   // plugins, |stream| may include headers, specifically Content-Type and
@@ -1580,7 +1580,7 @@ HttpBaseChannel::SetupReplacementChannel(nsIURI       *newURI,
           if (clen) {
             uploadChannel->SetUploadStream(mUploadStream,
                                            nsDependentCString(ctype),
-                                           nsCRT::atoll(clen));
+                                           atoi(clen));
           }
         }
       }

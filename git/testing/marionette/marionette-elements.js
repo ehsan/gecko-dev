@@ -255,7 +255,7 @@ ElementManager.prototype = {
     let found = all ? this.findElements(values.using, values.value, win.document, startNode) : this.findElement(values.using, values.value, win.document, startNode);
     if (found) {
       let type = Object.prototype.toString.call(found);
-      if ((type == '[object Array]') || (type == '[object HTMLCollection]') || (type == '[object NodeList]')) {
+      if ((type == '[object Array]') || (type == '[object HTMLCollection]')) {
         let ids = []
         for (let i = 0 ; i < found.length ; i++) {
           ids.push(this.addToKnownElements(found[i]));

@@ -307,13 +307,14 @@ BluetoothAdapter::Notify(const BluetoothSignal& aData)
     bool dummy;
     DispatchEvent(event, &dummy);
   } else if (aData.name().EqualsLiteral("PropertyChanged")) {
-    NS_ASSERTION(aData.value().type() == BluetoothValue::TArrayOfBluetoothNamedValue,
-                 "PropertyChanged: Invalid value type");
+    // Get BluetoothNamedValue, make sure array length is 1
     arr = aData.value().get_ArrayOfBluetoothNamedValue();
 
     NS_ASSERTION(arr.Length() == 1, "Got more than one property in a change message!");
-    BluetoothNamedValue v = arr[0];
+    NS_ASSERTION(arr[0].value().type() == BluetoothValue::TArrayOfBluetoothNamedValue,
+                 "PropertyChanged: Invalid value type");
 
+    BluetoothNamedValue v = arr[0];
     SetPropertyByValue(v);
     nsRefPtr<BluetoothPropertyEvent> e = BluetoothPropertyEvent::Create(v.name());
     e->Dispatch(ToIDOMEventTarget(), NS_LITERAL_STRING("propertychanged"));

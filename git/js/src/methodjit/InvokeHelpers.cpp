@@ -355,8 +355,7 @@ UncachedInlineCall(VMFrame &f, InitialFrameFlags initial,
 
     JS_CHECK_RECURSION(cx, return false);
 
-    RootedScript script(cx, newscript);
-    bool ok = RunScript(cx, script, cx->fp());
+    bool ok = RunScript(cx, newscript, cx->fp());
     f.cx->stack.popInlineFrame(regs);
 
     if (ok)
@@ -369,21 +368,21 @@ UncachedInlineCall(VMFrame &f, InitialFrameFlags initial,
 void * JS_FASTCALL
 stubs::UncachedNew(VMFrame &f, uint32_t argc)
 {
-    UncachedCallResult ucr(f.cx);
-    UncachedNewHelper(f, argc, ucr);
+    UncachedCallResult ucr;
+    UncachedNewHelper(f, argc, &ucr);
     return ucr.codeAddr;
 }
 
 void
-stubs::UncachedNewHelper(VMFrame &f, uint32_t argc, UncachedCallResult &ucr)
+stubs::UncachedNewHelper(VMFrame &f, uint32_t argc, UncachedCallResult *ucr)
 {
-    ucr.init();
+    ucr->init();
     JSContext *cx = f.cx;
     CallArgs args = CallArgsFromSp(argc, f.regs.sp);
 
     /* Try to do a fast inline call before the general Invoke path. */
-    if (IsFunctionObject(args.calleev(), ucr.fun.address()) && ucr.fun->isInterpretedConstructor()) {
-        if (!UncachedInlineCall(f, INITIAL_CONSTRUCT, &ucr.codeAddr, &ucr.unjittable, argc))
+    if (IsFunctionObject(args.calleev(), &ucr->fun) && ucr->fun->isInterpretedConstructor()) {
+        if (!UncachedInlineCall(f, INITIAL_CONSTRUCT, &ucr->codeAddr, &ucr->unjittable, argc))
             THROW();
     } else {
         if (!InvokeConstructorKernel(cx, args))
@@ -395,16 +394,16 @@ stubs::UncachedNewHelper(VMFrame &f, uint32_t argc, UncachedCallResult &ucr)
 void * JS_FASTCALL
 stubs::UncachedCall(VMFrame &f, uint32_t argc)
 {
-    UncachedCallResult ucr(f.cx);
-    UncachedCallHelper(f, argc, false, ucr);
+    UncachedCallResult ucr;
+    UncachedCallHelper(f, argc, false, &ucr);
     return ucr.codeAddr;
 }
 
 void * JS_FASTCALL
 stubs::UncachedLoweredCall(VMFrame &f, uint32_t argc)
 {
-    UncachedCallResult ucr(f.cx);
-    UncachedCallHelper(f, argc, true, ucr);
+    UncachedCallResult ucr;
+    UncachedCallHelper(f, argc, true, &ucr);
     return ucr.codeAddr;
 }
 
@@ -429,23 +428,23 @@ stubs::Eval(VMFrame &f, uint32_t argc)
 }
 
 void
-stubs::UncachedCallHelper(VMFrame &f, uint32_t argc, bool lowered, UncachedCallResult &ucr)
+stubs::UncachedCallHelper(VMFrame &f, uint32_t argc, bool lowered, UncachedCallResult *ucr)
 {
-    ucr.init();
+    ucr->init();
 
     JSContext *cx = f.cx;
     CallArgs args = CallArgsFromSp(argc, f.regs.sp);
 
-    if (IsFunctionObject(args.calleev(), ucr.fun.address())) {
-        if (ucr.fun->isInterpreted()) {
+    if (IsFunctionObject(args.calleev(), &ucr->fun)) {
+        if (ucr->fun->isInterpreted()) {
             InitialFrameFlags initial = lowered ? INITIAL_LOWERED : INITIAL_NONE;
-            if (!UncachedInlineCall(f, initial, &ucr.codeAddr, &ucr.unjittable, argc))
+            if (!UncachedInlineCall(f, initial, &ucr->codeAddr, &ucr->unjittable, argc))
                 THROW();
             return;
         }
 
-        if (ucr.fun->isNative()) {
-            if (!CallJSNative(cx, ucr.fun->native(), args))
+        if (ucr->fun->isNative()) {
+            if (!CallJSNative(cx, ucr->fun->native(), args))
                 THROW();
             types::TypeScript::Monitor(f.cx, f.script(), f.pc(), args.rval());
             return;

@@ -10,11 +10,10 @@
 #include "GrResource.h"
 #include "GrGpu.h"
 
-SK_DEFINE_INST_COUNT(GrResource)
-
 GrResource::GrResource(GrGpu* gpu) {
     fGpu        = gpu;
-    fCacheEntry = NULL;
+    fNext       = NULL;
+    fPrevious   = NULL;
     fGpu->insertResource(this);
 }
 

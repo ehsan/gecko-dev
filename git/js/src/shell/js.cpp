@@ -467,7 +467,11 @@ Process(JSContext *cx, JSObject *obj_, const char *filename, bool forceTTY)
             gCanceled = false;
             errno = 0;
 
-            char *line = GetLine(file, startline == lineno ? "js> " : "");
+            char *line;
+            {
+                JSAutoSuspendRequest suspended(cx);
+                line = GetLine(file, startline == lineno ? "js> " : "");
+            }
             if (!line) {
                 if (errno) {
                     JS_ReportError(cx, strerror(errno));
@@ -733,6 +737,7 @@ class AutoNewContext
   private:
     JSContext *oldcx;
     JSContext *newcx;
+    Maybe<JSAutoSuspendRequest> suspension;
     Maybe<JSAutoRequest> newRequest;
 
     AutoNewContext(const AutoNewContext &) MOZ_DELETE;
@@ -749,6 +754,7 @@ class AutoNewContext
         JS_SetOptions(newcx, JS_GetOptions(newcx) | JSOPTION_DONT_REPORT_UNCAUGHT);
         JS_SetGlobalObject(newcx, JS_GetGlobalForScopeChain(cx));
 
+        suspension.construct(cx);
         newRequest.construct(newcx);
         return true;
     }
@@ -762,9 +768,10 @@ class AutoNewContext
             if (throwing)
                 JS_GetPendingException(newcx, exc.address());
             newRequest.destroy();
+            suspension.destroy();
             if (throwing)
                 JS_SetPendingException(oldcx, exc);
-            DestroyContext(newcx, false);
+            JS_DestroyContextNoGC(newcx);
         }
     }
 };
@@ -2700,18 +2707,23 @@ Sleep_fn(JSContext *cx, unsigned argc, jsval *vp)
                   ? 0
                   : int64_t(PRMJ_USEC_PER_SEC * t_secs);
     }
-    PR_Lock(gWatchdogLock);
-    int64_t to_wakeup = PRMJ_Now() + t_ticks;
-    for (;;) {
-        PR_WaitCondVar(gSleepWakeup, t_ticks);
-        if (gCanceled)
-            break;
-        int64_t now = PRMJ_Now();
-        if (!IsBefore(now, to_wakeup))
-            break;
-        t_ticks = to_wakeup - now;
+    if (t_ticks == 0) {
+        JS_YieldRequest(cx);
+    } else {
+        JSAutoSuspendRequest suspended(cx);
+        PR_Lock(gWatchdogLock);
+        int64_t to_wakeup = PRMJ_Now() + t_ticks;
+        for (;;) {
+            PR_WaitCondVar(gSleepWakeup, t_ticks);
+            if (gCanceled)
+                break;
+            int64_t now = PRMJ_Now();
+            if (!IsBefore(now, to_wakeup))
+                break;
+            t_ticks = to_wakeup - now;
+        }
+        PR_Unlock(gWatchdogLock);
     }
-    PR_Unlock(gWatchdogLock);
     return !gCanceled;
 }
 

@@ -19,6 +19,7 @@
 #include "nsIEditor.h"                  // for nsIEditor
 #include "nsIHTMLEditor.h"              // for nsIHTMLEditor
 #include "nsLiteralString.h"            // for NS_LITERAL_STRING
+#include "prtypes.h"                    // for uint32_t
 
 using namespace mozilla;
 

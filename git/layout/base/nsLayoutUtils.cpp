@@ -860,7 +860,7 @@ nsLayoutUtils::FindSiblingViewFor(nsIView* aParentView, nsIFrame* aFrame) {
 
 //static
 nsIScrollableFrame*
-nsLayoutUtils::GetScrollableFrameFor(const nsIFrame *aScrolledFrame)
+nsLayoutUtils::GetScrollableFrameFor(nsIFrame *aScrolledFrame)
 {
   nsIFrame *frame = aScrolledFrame->GetParent();
   if (!frame) {

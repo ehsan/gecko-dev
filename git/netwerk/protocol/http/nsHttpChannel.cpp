@@ -407,7 +407,11 @@ nsHttpChannel::Connect()
     // Consider opening a TCP connection right away
     SpeculativeConnect();
 
-    if (PL_strcmp(mConnectionInfo->ProxyType(), "unknown") == 0)
+    // are we offline?
+    bool offline = gIOService->IsOffline();
+    if (offline)
+        mLoadFlags |= LOAD_ONLY_FROM_CACHE;
+    else if (PL_strcmp(mConnectionInfo->ProxyType(), "unknown") == 0)
         return ResolveProxy();  // Lazily resolve proxy info
 
     // Don't allow resuming when cache must be used

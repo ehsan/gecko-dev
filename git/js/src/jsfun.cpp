@@ -80,7 +80,7 @@ fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, MutableHandleValu
         if (!obj)
             return true;
     }
-    RootedFunction fun(cx, obj->toFunction());
+    JSFunction *fun = obj->toFunction();
 
     /*
      * Mark the function's script as uninlineable, to expand any of its
@@ -152,7 +152,7 @@ fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, MutableHandleValu
         jsbytecode *prevpc = fp->prevpc(&inlined);
         if (inlined) {
             mjit::JITChunk *chunk = fp->prev()->jit()->chunk(prevpc);
-            RawFunction fun = chunk->inlineFrames()[inlined->inlineIndex].fun;
+            JSFunction *fun = chunk->inlineFrames()[inlined->inlineIndex].fun;
             fun->script()->uninlineable = true;
             MarkTypeObjectFlags(cx, fun, OBJECT_FLAG_UNINLINEABLE);
         }

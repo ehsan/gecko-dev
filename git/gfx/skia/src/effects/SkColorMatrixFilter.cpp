@@ -8,7 +8,6 @@
 #include "SkColorMatrixFilter.h"
 #include "SkColorMatrix.h"
 #include "SkColorPriv.h"
-#include "SkFlattenableBuffers.h"
 #include "SkUnPreMultiply.h"
 
 static int32_t rowmul4(const int32_t array[], unsigned r, unsigned g,
@@ -120,7 +119,14 @@ static void Add16(SkColorMatrixFilter::State* state,
 
 // src is [20] but some compilers won't accept __restrict__ on anything
 // but an raw pointer or reference
-void SkColorMatrixFilter::initState(const SkScalar* SK_RESTRICT src) {
+void SkColorMatrixFilter::setup(const SkScalar* SK_RESTRICT src) {
+    if (NULL == src) {
+        fProc = NULL;   // signals identity
+        fFlags  = kNO_ALPHA_FLAGS;
+        // fState is undefined, but that is OK, since we shouldn't look at it
+        return;
+    }
+
     int32_t* array = fState.fArray;
     SkFixed max = 0;
     for (int i = 0; i < 20; i++) {
@@ -203,13 +209,16 @@ static int32_t pin(int32_t value, int32_t max) {
     return value;
 }
 
-SkColorMatrixFilter::SkColorMatrixFilter(const SkColorMatrix& cm) : fMatrix(cm) {
-    this->initState(cm.fMat);
+SkColorMatrixFilter::SkColorMatrixFilter() {
+    this->setup(NULL);
+}
+
+SkColorMatrixFilter::SkColorMatrixFilter(const SkColorMatrix& cm) {
+    this->setup(cm.fMat);
 }
 
 SkColorMatrixFilter::SkColorMatrixFilter(const SkScalar array[20]) {
-    memcpy(fMatrix.fMat, array, 20 * sizeof(SkScalar));
-    this->initState(array);
+    this->setup(array);
 }
 
 uint32_t SkColorMatrixFilter::getFlags() {
@@ -300,22 +309,42 @@ void SkColorMatrixFilter::filterSpan16(const uint16_t src[], int count,
 
 void SkColorMatrixFilter::flatten(SkFlattenableWriteBuffer& buffer) const {
     this->INHERITED::flatten(buffer);
-    SkASSERT(sizeof(fMatrix.fMat)/sizeof(SkScalar) == 20);
-    buffer.writeScalarArray(fMatrix.fMat, 20);
+
+    buffer.writeFunctionPtr((void*)fProc);
+    buffer.writeMul4(&fState, sizeof(fState));
+    buffer.write32(fFlags);
 }
 
 SkColorMatrixFilter::SkColorMatrixFilter(SkFlattenableReadBuffer& buffer)
         : INHERITED(buffer) {
-    SkASSERT(buffer.getArrayCount() == 20);
-    buffer.readScalarArray(fMatrix.fMat);
-    this->initState(fMatrix.fMat);
+    fProc = (Proc)buffer.readFunctionPtr();
+    buffer.read(&fState, sizeof(fState));
+    fFlags = buffer.readU32();
 }
 
 bool SkColorMatrixFilter::asColorMatrix(SkScalar matrix[20]) {
-    if (matrix) {
-        memcpy(matrix, fMatrix.fMat, 20 * sizeof(SkScalar));
+    int32_t* array = fState.fArray;
+    int unshift = 16 - fState.fShift;
+    for (int i = 0; i < 20; i++) {
+        matrix[i] = SkFixedToScalar(array[i] << unshift);
+    }
+    if (NULL != fProc) {
+        // Undo the offset applied to the constant column in setup().
+        SkFixed offset = 1 << (fState.fShift - 1);
+        matrix[4] = SkFixedToScalar((array[4] - offset) << unshift);
+        matrix[9] = SkFixedToScalar((array[9] - offset) << unshift);
+        matrix[14] = SkFixedToScalar((array[14] - offset) << unshift);
+        matrix[19] = SkFixedToScalar((array[19] - offset) << unshift);
     }
     return true;
+}
+
+void SkColorMatrixFilter::setMatrix(const SkColorMatrix& matrix) {
+    setup(matrix.fMat);
+}
+
+void SkColorMatrixFilter::setArray(const SkScalar array[20]) {
+    setup(array);
 }
 
 SK_DEFINE_FLATTENABLE_REGISTRAR(SkColorMatrixFilter)

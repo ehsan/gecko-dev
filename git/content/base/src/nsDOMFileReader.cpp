@@ -410,17 +410,7 @@ nsDOMFileReader::ReadFileContent(JSContext* aCx,
     rv = NS_NewURI(getter_AddRefs(uri), urlHolder.mUrl);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCOMPtr<nsILoadGroup> loadGroup;
-    if (HasOrHasHadOwner()) {
-      NS_ENSURE_STATE(GetOwner());
-      nsIDocument* doc = GetOwner()->GetExtantDoc();
-      if (doc) {
-        loadGroup = doc->GetDocumentLoadGroup();
-      }
-    }
-
-    rv = NS_NewChannel(getter_AddRefs(mChannel), uri, nullptr, loadGroup,
-                       nullptr, nsIRequest::LOAD_BACKGROUND);
+    rv = NS_NewChannel(getter_AddRefs(mChannel), uri);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 

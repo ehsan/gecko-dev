@@ -17,7 +17,6 @@
 #include "nsImageFrame.h"
 #include "nsRenderingContext.h"
 #include "MaskLayerImageCache.h"
-#include "nsIScrollableFrame.h"
 
 #include "mozilla/Preferences.h"
 #include "sampler.h"
@@ -1098,6 +1097,13 @@ GetTranslationForThebesLayer(ThebesLayer* aLayer)
 
 static const double SUBPIXEL_OFFSET_EPSILON = 0.02;
 
+static bool
+SubpixelOffsetFuzzyEqual(gfxPoint aV1, gfxPoint aV2)
+{
+  return fabs(aV2.x - aV1.x) < SUBPIXEL_OFFSET_EPSILON &&
+         fabs(aV2.y - aV1.y) < SUBPIXEL_OFFSET_EPSILON;
+}
+
 /**
  * This normally computes NSToIntRoundUp(aValue). However, if that would
  * give a residual near 0.5 while aOldResidual is near -0.5, or
@@ -1124,30 +1130,12 @@ RoundToMatchResidual(double aValue, double aOldResidual)
   return v;
 }
 
-static void
-ResetScrollPositionForLayerPixelAlignment(const nsIFrame* aActiveScrolledRoot)
-{
-  nsIScrollableFrame* sf = nsLayoutUtils::GetScrollableFrameFor(aActiveScrolledRoot);
-  if (sf) {
-    sf->ResetScrollPositionForLayerPixelAlignment();
-  }
-}
-
-static void
-InvalidateEntireThebesLayer(ThebesLayer* aLayer, const nsIFrame* aActiveScrolledRoot)
-{
-  nsIntRect invalidate = aLayer->GetValidRegion().GetBounds();
-  aLayer->InvalidateRegion(invalidate);
-  ResetScrollPositionForLayerPixelAlignment(aActiveScrolledRoot);
-}
-
 already_AddRefed<ThebesLayer>
 ContainerState::CreateOrRecycleThebesLayer(const nsIFrame* aActiveScrolledRoot, const nsIFrame* aReferenceFrame)
 {
   // We need a new thebes layer
   nsRefPtr<ThebesLayer> layer;
   ThebesDisplayItemLayerUserData* data;
-  bool didResetScrollPositionForLayerPixelAlignment = false;
   if (mNextFreeRecycledThebesLayer < mRecycledThebesLayers.Length()) {
     // Recycle a layer
     layer = mRecycledThebesLayers[mNextFreeRecycledThebesLayer];
@@ -1172,14 +1160,11 @@ ContainerState::CreateOrRecycleThebesLayer(const nsIFrame* aActiveScrolledRoot, 
     if (mInvalidateAllThebesContent ||
         data->mXScale != mParameters.mXScale ||
         data->mYScale != mParameters.mYScale) {
-      InvalidateEntireThebesLayer(layer, aActiveScrolledRoot);
-      didResetScrollPositionForLayerPixelAlignment = true;
+      nsIntRect invalidate = layer->GetValidRegion().GetBounds();
+      layer->InvalidateRegion(invalidate);
     } else {
-      nsIntRect bounds = mInvalidThebesContent.GetBounds();
-      if (!bounds.IsEmpty()) {
-        InvalidatePostTransformRegion(layer, mInvalidThebesContent,
-                                      GetTranslationForThebesLayer(layer));
-      }
+      InvalidatePostTransformRegion(layer, mInvalidThebesContent,
+                                    GetTranslationForThebesLayer(layer));
     }
     // We do not need to Invalidate these areas in the widget because we
     // assume the caller of InvalidateThebesLayerContents has ensured
@@ -1192,8 +1177,6 @@ ContainerState::CreateOrRecycleThebesLayer(const nsIFrame* aActiveScrolledRoot, 
     // Mark this layer as being used for Thebes-painting display items
     data = new ThebesDisplayItemLayerUserData();
     layer->SetUserData(&gThebesDisplayItemLayerUserData, data);
-    ResetScrollPositionForLayerPixelAlignment(aActiveScrolledRoot);
-    didResetScrollPositionForLayerPixelAlignment = true;
   }
   data->mXScale = mParameters.mXScale;
   data->mYScale = mParameters.mYScale;
@@ -1226,11 +1209,10 @@ ContainerState::CreateOrRecycleThebesLayer(const nsIFrame* aActiveScrolledRoot, 
   // If it has changed, then we need to invalidate the entire layer since the
   // pixels in the layer buffer have the content at a (subpixel) offset
   // from what we need.
-  if (!activeScrolledRootTopLeft.WithinEpsilonOf(data->mActiveScrolledRootPosition, SUBPIXEL_OFFSET_EPSILON)) {
+  if (!SubpixelOffsetFuzzyEqual(activeScrolledRootTopLeft, data->mActiveScrolledRootPosition)) {
     data->mActiveScrolledRootPosition = activeScrolledRootTopLeft;
-    InvalidateEntireThebesLayer(layer, aActiveScrolledRoot);
-  } else if (didResetScrollPositionForLayerPixelAlignment) {
-    data->mActiveScrolledRootPosition = activeScrolledRootTopLeft;
+    nsIntRect invalidate = layer->GetValidRegion().GetBounds();
+    layer->InvalidateRegion(invalidate);
   }
 #endif
 
@@ -2201,10 +2183,6 @@ ChooseScaleAndSetTransform(FrameLayerBuilder* aLayerBuilder,
   if (aTransform) {
     // aTransform is applied first, then the scale is applied to the result
     transform = (*aTransform)*transform;
-    // Set any matrix entries close to integers to be those exact integers.
-    // This protects against floating-point inaccuracies causing problems
-    // in the checks below.
-    transform.NudgeToIntegers();
   } 
   if (aContainerFrame && aState == LAYER_INACTIVE) {
     // When we have an inactive ContainerLayer, translate the container by the offset to the

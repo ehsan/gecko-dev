@@ -13,6 +13,7 @@
 #include "nsIDOMCharacterData.h"
 #include "nsString.h"
 #include "nscore.h"
+#include "prtypes.h"
 
 class nsEditor;
 class nsRangeUpdater;

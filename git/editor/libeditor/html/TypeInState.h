@@ -13,6 +13,7 @@
 #include "nsString.h"
 #include "nsTArray.h"
 #include "nscore.h"
+#include "prtypes.h"
 
 class nsIAtom;
 class nsIDOMNode;

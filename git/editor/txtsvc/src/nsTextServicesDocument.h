@@ -14,6 +14,7 @@
 #include "nsIWeakReferenceUtils.h"
 #include "nsTArray.h"
 #include "nscore.h"
+#include "prtypes.h"
 
 class OffsetEntry;
 class nsIAtom;

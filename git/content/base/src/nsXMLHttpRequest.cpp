@@ -500,7 +500,7 @@ nsXMLHttpRequest::ResetResponse()
   mResponseText.Truncate();
   mResponseBlob = nullptr;
   mDOMFile = nullptr;
-  mBlobSet = nullptr;
+  mBuilder = nullptr;
   mResultArrayBuffer = nullptr;
   mResultJSON = JSVAL_VOID;
   mLoadTransferred = 0;
@@ -870,7 +870,7 @@ nsXMLHttpRequest::CreateResponseParsedJSON(JSContext* aCx)
   return NS_OK;
 }
 
-void
+nsresult
 nsXMLHttpRequest::CreatePartialBlob()
 {
   if (mDOMFile) {
@@ -880,12 +880,12 @@ nsXMLHttpRequest::CreatePartialBlob()
       mResponseBlob =
         mDOMFile->CreateSlice(0, mLoadTransferred, EmptyString());
     }
-    return;
+    return NS_OK;
   }
 
-  // mBlobSet can be null if the request has been canceled
-  if (!mBlobSet) {
-    return;
+  // mBuilder can be null if the request has been canceled
+  if (!mBuilder) {
+    return NS_OK;
   }
 
   nsAutoCString contentType;
@@ -893,7 +893,8 @@ nsXMLHttpRequest::CreatePartialBlob()
     mChannel->GetContentType(contentType);
   }
 
-  mResponseBlob = mBlobSet->GetBlobInternal(contentType);
+  return mBuilder->GetBlobInternal(NS_ConvertASCIItoUTF16(contentType),
+                                   false, getter_AddRefs(mResponseBlob));
 }
 
 /* attribute AString responseType; */
@@ -1098,7 +1099,10 @@ nsXMLHttpRequest::GetResponse(JSContext* aCx, ErrorResult& aRv)
       }
 
       if (!mResponseBlob) {
-        CreatePartialBlob();
+        aRv = CreatePartialBlob();
+        if (aRv.Failed()) {
+          return JSVAL_NULL;
+        }
       }
     }
 
@@ -1818,10 +1822,10 @@ nsXMLHttpRequest::StreamReaderFunc(nsIInputStream* in,
   if (xmlHttpRequest->mResponseType == XML_HTTP_RESPONSE_TYPE_BLOB ||
       xmlHttpRequest->mResponseType == XML_HTTP_RESPONSE_TYPE_MOZ_BLOB) {
     if (!xmlHttpRequest->mDOMFile) {
-      if (!xmlHttpRequest->mBlobSet) {
-        xmlHttpRequest->mBlobSet = new BlobSet();
+      if (!xmlHttpRequest->mBuilder) {
+        xmlHttpRequest->mBuilder = new nsDOMBlobBuilder();
       }
-      rv = xmlHttpRequest->mBlobSet->AppendVoidPtr(fromRawSegment, count);
+      rv = xmlHttpRequest->mBuilder->AppendVoidPtr(fromRawSegment, count);
     }
     // Clear the cache so that the blob size is updated.
     if (xmlHttpRequest->mResponseType == XML_HTTP_RESPONSE_TYPE_MOZ_BLOB) {
@@ -1915,7 +1919,7 @@ bool nsXMLHttpRequest::CreateDOMFile(nsIRequest *request)
 
     mDOMFile =
       new nsDOMFileFile(file, NS_ConvertASCIItoUTF16(contentType), cacheToken);
-    mBlobSet = nullptr;
+    mBuilder = nullptr;
     NS_ASSERTION(mResponseBody.IsEmpty(), "mResponseBody should be empty");
   }
   return fromFile;
@@ -2262,17 +2266,18 @@ nsXMLHttpRequest::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult
       mResponseBlob = mDOMFile;
       mDOMFile = nullptr;
     } else {
-      // mBlobSet can be null if the channel is non-file non-cacheable
+      // mBuilder can be null if the channel is non-file non-cacheable
       // and if the response length is zero.
-      if (!mBlobSet) {
-        mBlobSet = new BlobSet();
+      if (!mBuilder) {
+        mBuilder = new nsDOMBlobBuilder();
       }
       // Smaller files may be written in cache map instead of separate files.
       // Also, no-store response cannot be written in persistent cache.
       nsAutoCString contentType;
       mChannel->GetContentType(contentType);
-      mResponseBlob = mBlobSet->GetBlobInternal(contentType);
-      mBlobSet = nullptr;
+      mBuilder->GetBlobInternal(NS_ConvertASCIItoUTF16(contentType),
+                                false, getter_AddRefs(mResponseBlob));
+      mBuilder = nullptr;
     }
     NS_ASSERTION(mResponseBody.IsEmpty(), "mResponseBody should be empty");
     NS_ASSERTION(mResponseText.IsEmpty(), "mResponseText should be empty");
@@ -2923,11 +2928,9 @@ nsXMLHttpRequest::Send(nsIVariant* aVariant, const Nullable<RequestBody>& aBody)
   if (!IsSystemXHR()) {
     // Always create a nsCORSListenerProxy here even if it's
     // a same-origin request right now, since it could be redirected.
-    nsRefPtr<nsCORSListenerProxy> corsListener =
-      new nsCORSListenerProxy(listener, mPrincipal, withCredentials);
-    rv = corsListener->Init(mChannel, true);
+    listener = new nsCORSListenerProxy(listener, mPrincipal, mChannel,
+                                       withCredentials, true, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
-    listener = corsListener;
   }
   else {
     // Because of bug 682305, we can't let listener be the XHR object itself

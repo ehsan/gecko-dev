@@ -535,17 +535,13 @@ TestRunner.updateUI = function(tests) {
   // Set the table values
   var trID = "tr-" + $('current-test-path').innerHTML;
   var row = $(trID);
-
-  // Only update the row if it actually exists (autoUI)
-  if (row != null) {
-    var tds = row.getElementsByTagName("td");
-    tds[0].style.backgroundColor = "#0d0";
-    tds[0].innerHTML = parseInt(tds[0].innerHTML) + parseInt(results.OK);
-    tds[1].style.backgroundColor = results.notOK > 0 ? "red" : "#0d0";
-    tds[1].innerHTML = parseInt(tds[1].innerHTML) + parseInt(results.notOK);
-    tds[2].style.backgroundColor = results.todo > 0 ? "orange" : "#0d0";
-    tds[2].innerHTML = parseInt(tds[2].innerHTML) + parseInt(results.todo);
-  }
+  var tds = row.getElementsByTagName("td");
+  tds[0].style.backgroundColor = "#0d0";
+  tds[0].innerHTML = parseInt(tds[0].innerHTML) + parseInt(results.OK);
+  tds[1].style.backgroundColor = results.notOK > 0 ? "red" : "#0d0";
+  tds[1].innerHTML = parseInt(tds[1].innerHTML) + parseInt(results.notOK);
+  tds[2].style.backgroundColor = results.todo > 0 ? "orange" : "#0d0";
+  tds[2].innerHTML = parseInt(tds[2].innerHTML) + parseInt(results.todo);
 
   //if we ran in a loop, display any found errors
   if (TestRunner.repeat > 0) {

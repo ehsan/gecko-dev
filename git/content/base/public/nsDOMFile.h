@@ -32,6 +32,9 @@
 class nsIFile;
 class nsIInputStream;
 class nsIClassInfo;
+class nsIBlobBuilder;
+
+nsresult NS_NewBlobBuilder(nsISupports* *aSupports);
 
 class nsDOMFileBase : public nsIDOMFile,
                       public nsIXHRSendable,

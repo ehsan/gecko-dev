@@ -29,7 +29,6 @@ let webappsUI = {
 
   observe: function webappsUI_observe(aSubject, aTopic, aData) {
     let data = JSON.parse(aData);
-    data.mm = aSubject;
 
     switch(aTopic) {
       case "webapps-ask-install":

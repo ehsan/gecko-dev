@@ -2,18 +2,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "base/basictypes.h"
+#include "mozilla/dom/ContentChild.h"
+#include "mozilla/dom/PBrowserChild.h"
+#include "mozilla/dom/ipc/Blob.h"
+#include "mozilla/dom/devicestorage/PDeviceStorageRequestChild.h"
+#include "mozilla/Attributes.h"
+#include "mozilla/dom/PContentPermissionRequestChild.h"
+#include "mozilla/ClearOnShutdown.h"
 
 #include "nsDeviceStorage.h"
-
-#include "mozilla/Attributes.h"
-#include "mozilla/ClearOnShutdown.h"
-#include "mozilla/dom/ContentChild.h"
-#include "mozilla/dom/devicestorage/PDeviceStorageRequestChild.h"
-#include "mozilla/dom/ipc/Blob.h"
-#include "mozilla/dom/PBrowserChild.h"
-#include "mozilla/dom/PContentPermissionRequestChild.h"
-#include "mozilla/Util.h" // DebugOnly
 
 #include "nsAutoPtr.h"
 #include "nsDOMEvent.h"
@@ -43,7 +40,7 @@
 #include "mozilla/dom/PermissionMessageUtils.h"
 #include "nsIMIMEService.h"
 #include "nsCExternalHandlerService.h"
-#include "nsIPermissionManager.h"
+
 #include "nsIStringBundle.h"
 
 // Microsoft's API Name hackery sucks
@@ -58,9 +55,7 @@
 #define DEVICESTORAGE_PICTURES   "pictures"
 #define DEVICESTORAGE_VIDEOS     "videos"
 #define DEVICESTORAGE_MUSIC      "music"
-#define DEVICESTORAGE_APPS       "apps"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::dom::devicestorage;
 
@@ -134,11 +129,6 @@ DeviceStorageTypeChecker::Check(const nsAString& aType, nsIDOMBlob* aBlob)
     return StringBeginsWith(mimeType, NS_LITERAL_STRING("audio/"));
   }
 
-  if (aType.EqualsLiteral(DEVICESTORAGE_APPS)) {
-    // Apps have no restriction on mime types
-    return true;
-  }
-
   return false;
 }
 
@@ -146,11 +136,6 @@ bool
 DeviceStorageTypeChecker::Check(const nsAString& aType, nsIFile* aFile)
 {
   NS_ASSERTION(aFile, "Calling Check without a file");
-
-  if (aType.EqualsLiteral(DEVICESTORAGE_APPS)) {
-    // apps have no restrictions on what file extensions used.
-    return true;
-  }
 
   nsString path;
   aFile->GetPath(path);
@@ -185,8 +170,7 @@ DeviceStorageTypeChecker::GetPermissionForType(const nsAString& aType, nsACStrin
 {
   if (!aType.EqualsLiteral(DEVICESTORAGE_PICTURES) &&
       !aType.EqualsLiteral(DEVICESTORAGE_VIDEOS) &&
-      !aType.EqualsLiteral(DEVICESTORAGE_MUSIC) &&
-      !aType.EqualsLiteral(DEVICESTORAGE_APPS)) {
+      !aType.EqualsLiteral(DEVICESTORAGE_MUSIC)) {
     // unknown type
     return NS_ERROR_FAILURE;
   }
@@ -237,7 +221,7 @@ DeviceStorageFile::DeviceStorageFile(const nsAString& aStorageType,
   AppendRelativePath();
   NormalizeFilePath();
 
-  DebugOnly<DeviceStorageTypeChecker*> typeChecker = DeviceStorageTypeChecker::CreateOrGet();
+  DeviceStorageTypeChecker* typeChecker = DeviceStorageTypeChecker::CreateOrGet();
   NS_ASSERTION(typeChecker, "DeviceStorageTypeChecker is null");
 }
 
@@ -250,7 +234,7 @@ DeviceStorageFile::DeviceStorageFile(const nsAString& aStorageType, nsIFile* aFi
   nsCOMPtr<nsIFile> file;
   aFile->Clone(getter_AddRefs(mFile));
 
-  DebugOnly<DeviceStorageTypeChecker*> typeChecker = DeviceStorageTypeChecker::CreateOrGet();
+  DeviceStorageTypeChecker* typeChecker = DeviceStorageTypeChecker::CreateOrGet();
   NS_ASSERTION(typeChecker, "DeviceStorageTypeChecker is null");
 }
 
@@ -628,7 +612,7 @@ nsDOMDeviceStorage::SetRootDirectoryForType(const nsAString& aType)
   NS_ASSERTION(dirService, "Must have directory service");
 
   // Picture directory
-  if (aType.EqualsLiteral(DEVICESTORAGE_PICTURES)) {
+  if (aType.Equals(NS_LITERAL_STRING("pictures"))) {
 #ifdef MOZ_WIDGET_GONK
     NS_NewLocalFile(NS_LITERAL_STRING("/sdcard"), false, getter_AddRefs(f));
 #elif defined (MOZ_WIDGET_COCOA)
@@ -641,7 +625,7 @@ nsDOMDeviceStorage::SetRootDirectoryForType(const nsAString& aType)
   }
 
   // Video directory
-  else if (aType.EqualsLiteral(DEVICESTORAGE_VIDEOS)) {
+  else if (aType.Equals(NS_LITERAL_STRING("videos"))) {
 #ifdef MOZ_WIDGET_GONK
     NS_NewLocalFile(NS_LITERAL_STRING("/sdcard"), false, getter_AddRefs(f));
 #elif defined (MOZ_WIDGET_COCOA)
@@ -654,7 +638,7 @@ nsDOMDeviceStorage::SetRootDirectoryForType(const nsAString& aType)
   }
 
   // Music directory
-  else if (aType.EqualsLiteral(DEVICESTORAGE_MUSIC)) {
+  else if (aType.Equals(NS_LITERAL_STRING("music"))) {
 #ifdef MOZ_WIDGET_GONK
     NS_NewLocalFile(NS_LITERAL_STRING("/sdcard"), false, getter_AddRefs(f));
 #elif defined (MOZ_WIDGET_COCOA)
@@ -663,18 +647,6 @@ nsDOMDeviceStorage::SetRootDirectoryForType(const nsAString& aType)
     dirService->Get(NS_UNIX_XDG_MUSIC_DIR, NS_GET_IID(nsIFile), getter_AddRefs(f));
 #elif defined (XP_WIN)
     dirService->Get(NS_WIN_MUSIC_DIR, NS_GET_IID(nsIFile), getter_AddRefs(f));
-#endif
-  }
-  
-  // Apps directory
-  else if (aType.EqualsLiteral(DEVICESTORAGE_APPS)) {
-#ifdef MOZ_WIDGET_GONK
-    NS_NewLocalFile(NS_LITERAL_STRING("/data"), false, getter_AddRefs(f));
-#else
-    dirService->Get(NS_APP_USER_PROFILE_50_DIR, NS_GET_IID(nsIFile), getter_AddRefs(f));
-    if (f) {
-      f->AppendRelativeNativePath(NS_LITERAL_CSTRING("webapps"));
-    }
 #endif
   }
 
@@ -1659,23 +1631,6 @@ nsDOMDeviceStorage::Init(nsPIDOMWindow* aWindow, const nsAString &aType)
     return NS_ERROR_FAILURE;
   }
   mPrincipal = doc->NodePrincipal();
-
-  // the 'apps' type is special.  We only want this exposed
-  // if the caller has the "webapps-manage" permission.
-  if (aType.EqualsLiteral("apps")) {
-    nsCOMPtr<nsIPermissionManager> permissionManager = do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
-    NS_ENSURE_TRUE(permissionManager, NS_ERROR_FAILURE);
-
-    uint32_t permission;
-    nsresult rv = permissionManager->TestPermissionFromPrincipal(mPrincipal,
-                                                                 "webapps-manage",
-                                                                 &permission);
-
-    if (NS_FAILED(rv) || permission != nsIPermissionManager::ALLOW_ACTION) {
-      return NS_ERROR_NOT_AVAILABLE;
-    }
-  }
-
   return NS_OK;
 }
 
@@ -2096,7 +2051,7 @@ nsDOMDeviceStorage::Observe(nsISupports *aSubject, const char *aTopic, const PRU
     }
     nsString volName;
     vol->GetName(volName);
-    if (!volName.EqualsLiteral("sdcard")) {
+    if (!volName.Equals(NS_LITERAL_STRING("sdcard"))) {
       return NS_OK;
     }
 

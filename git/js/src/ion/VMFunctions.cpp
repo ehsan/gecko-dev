@@ -237,9 +237,8 @@ IteratorMore(JSContext *cx, HandleObject obj, JSBool *res)
 }
 
 JSObject*
-NewInitArray(JSContext *cx, uint32_t count, types::TypeObject *typeArg)
+NewInitArray(JSContext *cx, uint32_t count, types::TypeObject *type)
 {
-    RootedTypeObject type(cx, typeArg);
     RootedObject obj(cx, NewDenseAllocatedArray(cx, count));
     if (!obj)
         return NULL;
@@ -328,18 +327,6 @@ ArrayShiftDense(JSContext *cx, HandleObject obj, MutableHandleValue rval)
     if (rval.isUndefined())
         types::TypeScript::Monitor(cx, rval);
     return true;
-}
-
-JSFixedString *
-StringFromCharCode(JSContext *cx, int32_t code)
-{
-    jschar c = jschar(code);
-
-    if (StaticStrings::hasUnit(c))
-        return cx->runtime->staticStrings.getUnit(c);
-
-    return js_NewStringCopyN(cx, &c, 1);
-
 }
 
 bool

@@ -466,14 +466,6 @@ class WebGLContext :
     friend class WebGLMemoryPressureObserver;
     friend class WebGLExtensionDepthTexture;
 
-    enum {
-        UNPACK_FLIP_Y_WEBGL = 0x9240,
-        UNPACK_PREMULTIPLY_ALPHA_WEBGL = 0x9241,
-        CONTEXT_LOST_WEBGL = 0x9242,
-        UNPACK_COLORSPACE_CONVERSION_WEBGL = 0x9243,
-        BROWSER_DEFAULT_WEBGL = 0x9244
-    };
-
 public:
     WebGLContext();
     virtual ~WebGLContext();
@@ -3005,7 +2997,8 @@ public:
 
         mContext->MakeContextCurrent();
 
-        WebGLenum status = mContext->CheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
+        WebGLenum status;
+        mContext->CheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER, &status);
         if (status != LOCAL_GL_FRAMEBUFFER_COMPLETE)
             return false;
 

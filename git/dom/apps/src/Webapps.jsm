@@ -60,8 +60,7 @@ let DOMApplicationRegistry = {
                      "Webapps:GetInstalled", "Webapps:GetNotInstalled",
                      "Webapps:Launch", "Webapps:GetAll",
                      "Webapps:InstallPackage", "Webapps:GetBasePath",
-                     "Webapps:GetList", "Webapps:RegisterForMessages",
-                     "Webapps:UnregisterForMessages"];
+                     "Webapps:GetList"];
 
     this.messages.forEach((function(msgName) {
       ppmm.addMessageListener(msgName, this);
@@ -320,96 +319,50 @@ let DOMApplicationRegistry = {
     }
   },
 
-  addMessageListener: function(aMsgNames, aMm) {
-    aMsgNames.forEach(function (aMsgName) {
-      if (!(aMsgName in this.children)) {
-        this.children[aMsgName] = [];
-      }
-      this.children[aMsgName].push(aMm);
-    }, this);
-  },
-
-  removeMessageListener: function(aMsgNames, aMm) {
-    aMsgNames.forEach(function (aMsgName) {
-      if (!(aMsgName in this.children)) {
-        return;
-      }
-
-      let index;
-      if ((index = this.children[aMsgName].indexOf(aMm)) != -1) {
-        this.children[aMsgName].splice(index, 1);
-      }
-    }, this);
-  },
-
   receiveMessage: function(aMessage) {
     // nsIPrefBranch throws if pref does not exist, faster to simply write
     // the pref instead of first checking if it is false.
     Services.prefs.setBoolPref("dom.mozApps.used", true);
 
     let msg = aMessage.json;
-    let mm = aMessage.target;
-    msg.mm = mm;
 
     switch (aMessage.name) {
       case "Webapps:Install":
         // always ask for UI to install
-        Services.obs.notifyObservers(mm, "webapps-ask-install", JSON.stringify(msg));
+        Services.obs.notifyObservers(this, "webapps-ask-install", JSON.stringify(msg));
         break;
       case "Webapps:GetSelf":
-        this.getSelf(msg, mm);
+        this.getSelf(msg);
         break;
       case "Webapps:Uninstall":
-        Services.obs.notifyObservers(mm, "webapps-uninstall", JSON.stringify(msg));
+        Services.obs.notifyObservers(this, "webapps-uninstall", JSON.stringify(msg));
         this.uninstall(msg);
         break;
       case "Webapps:Launch":
-        Services.obs.notifyObservers(mm, "webapps-launch", JSON.stringify(msg));
+        Services.obs.notifyObservers(this, "webapps-launch", JSON.stringify(msg));
         break;
       case "Webapps:GetInstalled":
-        this.getInstalled(msg, mm);
+        this.getInstalled(msg);
         break;
       case "Webapps:GetNotInstalled":
-        this.getNotInstalled(msg, mm);
+        this.getNotInstalled(msg);
         break;
       case "Webapps:GetAll":
         if (msg.hasPrivileges)
-          this.getAll(msg, mm);
+          this.getAll(msg);
         else
-          mm.sendAsyncMessage("Webapps:GetAll:Return:KO", msg);
+          ppmm.broadcastAsyncMessage("Webapps:GetAll:Return:KO", msg);
         break;
       case "Webapps:InstallPackage":
-        this.installPackage(msg, mm);
+        this.installPackage(msg);
         break;
       case "Webapps:GetBasePath":
         return this.webapps[msg.id].basePath;
         break;
-      case "Webapps:RegisterForMessages":
-        this.addMessageListener(msg, mm);
-        break;
-      case "Webapps:UnregisterForMessages":
-        this.removeMessageListener(msg, mm);
-        break;
       case "Webapps:GetList":
-        this.addMessageListener(["Webapps:AddApp", "Webapps:RemoveApp"], mm);
+        this.children.push(aMessage.target);
         return this.webapps;
     }
-  },
-
-  // Some messages can be listened by several content processes:
-  // Webapps:AddApp
-  // Webapps:RemoveApp
-  // Webapps:Install:Return:OK
-  // Webapps:Uninstall:Return:OK
-  // Webapps:OfflineCache
-  broadcastMessage: function broadcastMessage(aMsgName, aContent) {
-    if (!(aMsgName in this.children)) {
-      return;
-    }
-
-    this.children[aMsgName].forEach(function _doBroadcast(aMsgMgr) {
-      aMsgMgr.sendAsyncMessage(aMsgName, aContent);
-    });
   },
 
   _getAppDir: function(aId) {
@@ -443,7 +396,7 @@ let DOMApplicationRegistry = {
       } catch(e) {
       }
     }
-    aData.mm.sendAsyncMessage("Webapps:Install:Return:KO", aData);
+    ppmm.broadcastAsyncMessage("Webapps:Install:Return:KO", aData);
   },
 
   confirmInstall: function(aData, aFromSync, aProfileDir, aOfflineCacheObserver) {
@@ -505,9 +458,11 @@ let DOMApplicationRegistry = {
 
     if (!aFromSync)
       this._saveApps((function() {
-        this.broadcastMessage("Webapps:Install:Return:OK", aData);
+        ppmm.broadcastAsyncMessage("Webapps:Install:Return:OK", aData);
         Services.obs.notifyObservers(this, "webapps-sync-install", appNote);
-        this.broadcastMessage("Webapps:AddApp", { id: id, app: appObject });
+        this.children.forEach(function(aMsgMgr) {
+          aMsgMgr.sendAsyncMessage("Webapps:AddApp", { id: id, app: appObject });
+        });
       }).bind(this));
 
 #ifdef MOZ_SYS_MSG
@@ -584,7 +539,7 @@ let DOMApplicationRegistry = {
     }).bind(this));
   },
 
-  installPackage: function(aData, aMm) {
+  installPackage: function(aData) {
     // Here are the steps when installing a package:
     // - create a temp directory where to store the app.
     // - download the zip in this directory.
@@ -629,10 +584,10 @@ let DOMApplicationRegistry = {
       try {
         dir.remove(true);
       } catch (e) { }
-      aMm.sendAsyncMessage("Webapps:Install:Return:KO",
-                           { oid: aData.oid,
-                             requestID: aData.requestID,
-                             error: aError });
+      ppmm.broadcastAsyncMessage("Webapps:Install:Return:KO",
+                            { oid: aData.oid,
+                              requestID: aData.requestID,
+                              error: aError });
     }
 
     function getInferedStatus() {
@@ -770,18 +725,20 @@ let DOMApplicationRegistry = {
       delete this.webapps[id];
 
       this._saveApps((function() {
-        this.broadcastMessage("Webapps:Uninstall:Return:OK", aData);
+        ppmm.broadcastAsyncMessage("Webapps:Uninstall:Return:OK", aData);
         Services.obs.notifyObservers(this, "webapps-sync-uninstall", appNote);
-        this.broadcastMessage("Webapps:RemoveApp", { id: id });
+        this.children.forEach(function(aMsgMgr) {
+          aMsgMgr.broadcastAsyncMessage("Webapps:RemoveApp", { id: id });
+        });
       }).bind(this));
     }
 
     if (!found) {
-      aData.mm.broadcastMessage("Webapps:Uninstall:Return:KO", aData);
+      ppmm.broadcastAsyncMessage("Webapps:Uninstall:Return:KO", aData);
     }
   },
 
-  getSelf: function(aData, aMm) {
+  getSelf: function(aData) {
     aData.apps = [];
     let tmp = [];
     let id = this._appId(aData.origin);
@@ -795,11 +752,11 @@ let DOMApplicationRegistry = {
     this._readManifests(tmp, (function(aResult) {
       for (let i = 0; i < aResult.length; i++)
         aData.apps[i].manifest = aResult[i].manifest;
-      aMm.sendAsyncMessage("Webapps:GetSelf:Return:OK", aData);
+      ppmm.broadcastAsyncMessage("Webapps:GetSelf:Return:OK", aData);
     }).bind(this));
   },
 
-  getInstalled: function(aData, aMm) {
+  getInstalled: function(aData) {
     aData.apps = [];
     let tmp = [];
 
@@ -814,11 +771,11 @@ let DOMApplicationRegistry = {
     this._readManifests(tmp, (function(aResult) {
       for (let i = 0; i < aResult.length; i++)
         aData.apps[i].manifest = aResult[i].manifest;
-      aMm.sendAsyncMessage("Webapps:GetInstalled:Return:OK", aData);
+      ppmm.broadcastAsyncMessage("Webapps:GetInstalled:Return:OK", aData);
     }).bind(this));
   },
 
-  getNotInstalled: function(aData, aMm) {
+  getNotInstalled: function(aData) {
     aData.apps = [];
     let tmp = [];
 
@@ -832,11 +789,11 @@ let DOMApplicationRegistry = {
     this._readManifests(tmp, (function(aResult) {
       for (let i = 0; i < aResult.length; i++)
         aData.apps[i].manifest = aResult[i].manifest;
-      aMm.sendAsyncMessage("Webapps:GetNotInstalled:Return:OK", aData);
+      ppmm.broadcastAsyncMessage("Webapps:GetNotInstalled:Return:OK", aData);
     }).bind(this));
   },
 
-  getAll: function(aData, aMm) {
+  getAll: function(aData) {
     aData.apps = [];
     let tmp = [];
 
@@ -852,7 +809,7 @@ let DOMApplicationRegistry = {
     this._readManifests(tmp, (function(aResult) {
       for (let i = 0; i < aResult.length; i++)
         aData.apps[i].manifest = aResult[i].manifest;
-      aMm.sendAsyncMessage("Webapps:GetAll:Return:OK", aData);
+      ppmm.broadcastAsyncMessage("Webapps:GetAll:Return:OK", aData);
     }).bind(this));
   },
 
@@ -926,7 +883,7 @@ let DOMApplicationRegistry = {
           dir.remove(true);
         } catch (e) {
         }
-        this.broadcastMessage("Webapps:Uninstall:Return:OK", { origin: origin });
+        ppmm.broadcastAsyncMessage("Webapps:Uninstall:Return:OK", { origin: origin });
       } else {
         if (this.webapps[record.id]) {
           this.webapps[record.id] = record.value;
@@ -934,7 +891,7 @@ let DOMApplicationRegistry = {
         } else {
           let data = { app: record.value };
           this.confirmInstall(data, true);
-          this.broadcastMessage("Webapps:Install:Return:OK", data);
+          ppmm.broadcastAsyncMessage("Webapps:Install:Return:OK", data);
         }
       }
     }
@@ -1040,9 +997,7 @@ AppcacheObserver.prototype = {
     let setStatus = function appObs_setStatus(aStatus) {
       mustSave = (app.status != aStatus);
       app.status = aStatus;
-      DOMApplicationRegistry.broadcastMessage("Webapps:OfflineCache",
-                                              { manifest: app.manifestURL,
-                                                status: aStatus });
+      ppmm.broadcastAsyncMessage("Webapps:OfflineCache", { manifest: app.manifestURL, status: aStatus });
     }
 
     switch (aState) {

@@ -45,7 +45,7 @@ nsAccDocManager::GetDocAccessible(nsIDocument *aDocument)
     return nullptr;
 
   // Ensure CacheChildren is called before we query cache.
-  ApplicationAcc()->EnsureChildren();
+  nsAccessNode::GetApplicationAccessible()->EnsureChildren();
 
   DocAccessible* docAcc = mDocAccessibleCache.GetWeak(aDocument);
   if (docAcc)
@@ -393,7 +393,8 @@ nsAccDocManager::CreateDocOrRootAccessible(nsIDocument* aDocument)
 
   // Bind the document to the tree.
   if (isRootDoc) {
-    if (!ApplicationAcc()->AppendChild(docAcc)) {
+    Accessible* appAcc = nsAccessNode::GetApplicationAccessible();
+    if (!appAcc->AppendChild(docAcc)) {
       docAcc->Shutdown();
       return nullptr;
     }
@@ -403,8 +404,8 @@ nsAccDocManager::CreateDocOrRootAccessible(nsIDocument* aDocument)
     // constructed because event processing and tree construction are done by
     // the same document.
     nsRefPtr<AccEvent> reorderEvent =
-      new AccEvent(nsIAccessibleEvent::EVENT_REORDER, ApplicationAcc(),
-                   eAutoDetect, AccEvent::eCoalesceFromSameSubtree);
+      new AccEvent(nsIAccessibleEvent::EVENT_REORDER, appAcc, eAutoDetect,
+                   AccEvent::eCoalesceFromSameSubtree);
     docAcc->FireDelayedAccessibleEvent(reorderEvent);
 
   } else {

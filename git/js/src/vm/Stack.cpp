@@ -904,7 +904,7 @@ ContextStack::ensureOnTop(JSContext *cx, MaybeReportError report, unsigned nvars
      * runtime->ionTop.
      */
     if (regs && report != DONT_REPORT_ERROR) {
-        RootedFunction fun(cx);
+        JSFunction *fun = NULL;
         if (InlinedSite *site = regs->inlined()) {
             mjit::JITChunk *chunk = regs->fp()->jit()->chunk(regs->pc);
             fun = chunk->inlineFrames()[site->inlineIndex].fun;

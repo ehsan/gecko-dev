@@ -44,7 +44,6 @@ private:
     bool                      mDisableIPv6;
     bool                      mDisablePrefetch;
     bool                      mFirstTime;
-    bool                      mOffline;
     nsTHashtable<nsCStringHashKey> mLocalDomains;
 };
 

@@ -19,10 +19,9 @@
 #include "gl/SkNullGLContext.h"
 
 #include "GrContext.h"
-#include "SkTArray.h"
 
 /**
- * This is a simple class that is useful in test apps that use different
+ * This is a simple class that is useful in test apps that use different 
  * GrContexts backed by different types of GL contexts. It manages creating the
  * GL context and a GrContext that uses it. The GL/Gr contexts persist until the
  * factory is destroyed (though the caller can always grab a ref on the returned
@@ -69,23 +68,23 @@ public:
         SkAutoTUnref<GrContext> grCtx;
         switch (type) {
             case kNative_GLContextType:
-                glCtx.reset(SkNEW(SkNativeGLContext));
+                glCtx.reset(new SkNativeGLContext());
                 break;
 #ifdef SK_ANGLE
             case kANGLE_GLContextType:
-                glCtx.reset(SkNEW(SkANGLEGLContext));
+                glCtx.reset(new SkANGLEGLContext());
                 break;
 #endif
 #ifdef SK_MESA
             case kMESA_GLContextType:
-                glCtx.reset(SkNEW(SkMesaGLContext));
+                glCtx.reset(new SkMesaGLContext());
                 break;
 #endif
             case kNull_GLContextType:
-                glCtx.reset(SkNEW(SkNullGLContext));
+                glCtx.reset(new SkNullGLContext());
                 break;
             case kDebug_GLContextType:
-                glCtx.reset(SkNEW(SkDebugGLContext));
+                glCtx.reset(new SkDebugGLContext());
                 break;
         }
         static const int kBogusSize = 1;
@@ -109,19 +108,6 @@ public:
         ctx.fType = type;
         return ctx.fGrContext;
     }
-
-    // Returns the GLContext of the given type. If it has not been created yet,
-    // NULL is returned instead.
-    SkGLContext* getGLContext(GLContextType type) {
-        for (int i = 0; i < fContexts.count(); ++i) {
-            if (fContexts[i].fType == type) {
-                return fContexts[i].fGLContext;
-            }
-        }
-
-        return NULL;
-    }
-
 private:
     struct GPUContext {
         GLContextType             fType;

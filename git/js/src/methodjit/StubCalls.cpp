@@ -138,9 +138,9 @@ stubs::SetElem(VMFrame &f)
                     if (js_PrototypeHasIndexedProperties(cx, obj))
                         break;
                     if ((uint32_t)i >= obj->getArrayLength())
-                        JSObject::setArrayLength(cx, obj, i + 1);
+                        obj->setArrayLength(cx, i + 1);
                 }
-                JSObject::setDenseArrayElementWithType(cx, obj, i, rval);
+                obj->setDenseArrayElementWithType(cx, i, rval);
                 goto end_setelem;
             } else {
                 if (f.script()->hasAnalysis())

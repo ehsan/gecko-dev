@@ -50,6 +50,7 @@
 #include "nsTextEditRules.h"
 #include "nsTextEditUtils.h"
 #include "nscore.h"
+#include "prtypes.h"
 
 using namespace mozilla;
 

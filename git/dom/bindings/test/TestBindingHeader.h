@@ -397,7 +397,6 @@ public:
   void PassDictionaryOrLong(const Dict&);
   void PassDictionaryOrLong(int32_t);
   void PassDictContainingDict(const DictContainingDict&);
-  void PassDictContainingSequence(const DictContainingSequence&);
 
   // Typedefs
   void ExerciseTypedefInterfaces1(TestInterface&);

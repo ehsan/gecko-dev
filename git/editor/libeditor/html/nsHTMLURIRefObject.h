@@ -8,6 +8,7 @@
 #include "nsISupportsImpl.h"
 #include "nsIURIRefObject.h"
 #include "nscore.h"
+#include "prtypes.h"
 
 class nsIDOMNamedNodeMap;
 class nsIDOMNode;

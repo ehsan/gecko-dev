@@ -605,12 +605,10 @@ class StackFrame
      *   the same VMFrame. Other calls force expansion of the inlined frames.
      */
 
-    HandleScript script() const {
+    JSScript *script() const {
         return isFunctionFrame()
-               ? isEvalFrame()
-                 ? HandleScript::fromMarkedLocation(&u.evalScript)
-                 : fun()->script()
-               : HandleScript::fromMarkedLocation(&exec.script);
+               ? isEvalFrame() ? u.evalScript : fun()->script()
+               : exec.script;
     }
 
     /*

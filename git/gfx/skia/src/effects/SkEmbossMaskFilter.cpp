@@ -11,7 +11,7 @@
 #include "SkBlurMaskFilter.h"
 #include "SkBlurMask.h"
 #include "SkEmbossMask.h"
-#include "SkFlattenableBuffers.h"
+#include "SkBuffer.h"
 
 static inline int pin2byte(int n) {
     if (n < 0) {
@@ -36,11 +36,11 @@ SkMaskFilter* SkBlurMaskFilter::CreateEmboss(const SkScalar direction[3],
     int sp = pin2byte(SkScalarToFixed(specular) >> 12);
 
     SkEmbossMaskFilter::Light   light;
-
+    
     memcpy(light.fDirection, direction, sizeof(light.fDirection));
     light.fAmbient = SkToU8(am);
     light.fSpecular = SkToU8(sp);
-
+    
     return SkNEW_ARGS(SkEmbossMaskFilter, (light, blurRadius));
 }
 
@@ -117,8 +117,7 @@ bool SkEmbossMaskFilter::filterMask(SkMask* dst, const SkMask& src,
 
 SkEmbossMaskFilter::SkEmbossMaskFilter(SkFlattenableReadBuffer& buffer)
         : SkMaskFilter(buffer) {
-    SkASSERT(buffer.getArrayCount() == sizeof(Light));
-    buffer.readByteArray(&fLight);
+    buffer.read(&fLight, sizeof(fLight));
     SkASSERT(fLight.fPad == 0); // for the font-cache lookup to be clean
     fBlurRadius = buffer.readScalar();
 }
@@ -128,7 +127,7 @@ void SkEmbossMaskFilter::flatten(SkFlattenableWriteBuffer& buffer) const {
 
     Light tmpLight = fLight;
     tmpLight.fPad = 0;    // for the font-cache lookup to be clean
-    buffer.writeByteArray(&tmpLight, sizeof(tmpLight));
+    buffer.writeMul4(&tmpLight, sizeof(tmpLight));
     buffer.writeScalar(fBlurRadius);
 }
 

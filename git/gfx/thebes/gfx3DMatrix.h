@@ -320,8 +320,6 @@ public:
 
   gfxFloat Determinant() const;
 
-  void NudgeToIntegers(void);
-
 private:
 
   gfxFloat Determinant3x3() const;

@@ -11,7 +11,6 @@
 #include "SkColorFilter.h"
 #include "SkColorPriv.h"
 #include "SkColorShader.h"
-#include "SkFlattenableBuffers.h"
 #include "SkXfermode.h"
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -26,15 +25,15 @@ SkComposeShader::SkComposeShader(SkShader* sA, SkShader* sB, SkXfermode* mode) {
 
 SkComposeShader::SkComposeShader(SkFlattenableReadBuffer& buffer) :
     INHERITED(buffer) {
-    fShaderA = buffer.readFlattenableT<SkShader>();
+    fShaderA = static_cast<SkShader*>(buffer.readFlattenable());
     if (NULL == fShaderA) {
         fShaderA = SkNEW_ARGS(SkColorShader, (0));
     }
-    fShaderB = buffer.readFlattenableT<SkShader>();
+    fShaderB = static_cast<SkShader*>(buffer.readFlattenable());
     if (NULL == fShaderB) {
         fShaderB = SkNEW_ARGS(SkColorShader, (0));
     }
-    fMode = buffer.readFlattenableT<SkXfermode>();
+    fMode = static_cast<SkXfermode*>(buffer.readFlattenable());
 }
 
 SkComposeShader::~SkComposeShader() {
@@ -165,6 +164,4 @@ void SkComposeShader::shadeSpan(int x, int y, SkPMColor result[], int count) {
         } while (count > 0);
     }
 }
-
-SK_DEFINE_FLATTENABLE_REGISTRAR(SkComposeShader)
 

@@ -24,6 +24,7 @@
 #include "nsITransferable.h"
 #include "nsString.h"
 #include "nsAString.h"
+#include "prtypes.h"
 
 class nsISupports;
 

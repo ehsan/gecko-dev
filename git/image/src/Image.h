@@ -8,6 +8,7 @@
 
 #include "imgIContainer.h"
 #include "imgStatusTracker.h"
+#include "prtypes.h"
 
 namespace mozilla {
 namespace image {

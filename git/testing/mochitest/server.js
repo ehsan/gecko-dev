@@ -108,7 +108,6 @@ if (this["nsHttpServer"]) {
 }
 
 var serverBasePath;
-var displayResults = true;
 
 //
 // SERVER SETUP
@@ -146,11 +145,6 @@ function runServer()
       SERVER_PORT = _SERVER_PORT;
   } else {
     throw "please define _SERVER_PORT (as a port number) before running server.js";
-  }
-
-  // If DISPLAY_RESULTS is not specified, it defaults to true
-  if (typeof(_DISPLAY_RESULTS) != "undefined") {
-    displayResults = _DISPLAY_RESULTS;
   }
 
   server._start(SERVER_PORT, gServerAddress);
@@ -635,13 +629,10 @@ function testListing(metadata, response)
             A({href: "#", id: "toggleNonTests"}, "Show Non-Tests"),
             BR()
           ),
-
-          (
-           displayResults ?
-            TABLE({cellpadding: 0, cellspacing: 0, class: table_class, id: "test-table"},
-              TR(TD("Passed"), TD("Failed"), TD("Todo"), TD("Test Files")),
-              linksToTableRows(links, 0)
-            ) : ""
+    
+          TABLE({cellpadding: 0, cellspacing: 0, class: table_class, id: "test-table"},
+            TR(TD("Passed"), TD("Failed"), TD("Todo"), TD("Test Files")),
+            linksToTableRows(links, 0)
           ),
 
           BR(),

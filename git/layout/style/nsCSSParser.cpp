@@ -509,7 +509,7 @@ protected:
   bool ParseListStyle();
   bool ParseMargin();
   bool ParseMarks(nsCSSValue& aValue);
-  bool ParseTransform(bool aIsPrefixed);
+  bool ParseTransform();
   bool ParseOutline();
   bool ParseOverflow();
   bool ParsePadding();
@@ -599,7 +599,7 @@ protected:
   }
 
   /* Functions for transform Parsing */
-  bool ParseSingleTransform(bool aIsPrefixed, nsCSSValue& aValue, bool& aIs3D);
+  bool ParseSingleTransform(nsCSSValue& aValue, bool& aIs3D);
   bool ParseFunction(const nsString &aFunction, const int32_t aAllowedTypes[],
                        uint16_t aMinElems, uint16_t aMaxElems,
                        nsCSSValue &aValue);
@@ -6109,9 +6109,7 @@ CSSParserImpl::ParsePropertyByFunction(nsCSSProperty aPropID)
   case eCSSProperty_text_decoration:
     return ParseTextDecoration();
   case eCSSProperty_transform:
-    return ParseTransform(false);
-  case eCSSProperty__moz_transform:
-    return ParseTransform(true);
+    return ParseTransform();
   case eCSSProperty_transform_origin:
     return ParseTransformOrigin(false);
   case eCSSProperty_perspective_origin:
@@ -8343,11 +8341,10 @@ CSSParserImpl::ParseFunction(const nsString &aFunction,
  * @return Whether the information was loaded successfully.
  */
 static bool GetFunctionParseInformation(nsCSSKeyword aToken,
-                                        bool aIsPrefixed,
-                                        uint16_t &aMinElems,
-                                        uint16_t &aMaxElems,
-                                        const int32_t *& aVariantMask,
-                                        bool &aIs3D)
+                                          uint16_t &aMinElems,
+                                          uint16_t &aMaxElems,
+                                          const int32_t *& aVariantMask,
+                                          bool &aIs3D)
 {
 /* These types represent the common variant masks that will be used to
    * parse out the individual functions.  The order in the enumeration
@@ -8365,9 +8362,7 @@ static bool GetFunctionParseInformation(nsCSSKeyword aToken,
          eThreeNumbers,
          eThreeNumbersOneAngle,
          eMatrix,
-         eMatrixPrefixed,
          eMatrix3d,
-         eMatrix3dPrefixed,
          eNumVariantMasks };
   static const int32_t kMaxElemsPerFunction = 16;
   static const int32_t kVariantMasks[eNumVariantMasks][kMaxElemsPerFunction] = {
@@ -8385,19 +8380,13 @@ static bool GetFunctionParseInformation(nsCSSKeyword aToken,
     {VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER,
      VARIANT_NUMBER, VARIANT_NUMBER},
     {VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER,
-     VARIANT_LPNCALC, VARIANT_LPNCALC},
-    {VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER,
      VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER,
      VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER,
-     VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER},
-    {VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER,
-     VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER,
-     VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER,
-     VARIANT_LPNCALC, VARIANT_LPNCALC, VARIANT_LNCALC, VARIANT_NUMBER}};
+     VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER}};
 
 #ifdef DEBUG
   static const uint8_t kVariantMaskLengths[eNumVariantMasks] =
-    {1, 1, 2, 3, 1, 2, 1, 1, 2, 3, 4, 6, 6, 16, 16};
+    {1, 1, 2, 3, 1, 2, 1, 1, 2, 3, 4, 6, 16};
 #endif
 
   int32_t variantIndex = eNumVariantMasks;
@@ -8490,13 +8479,13 @@ static bool GetFunctionParseInformation(nsCSSKeyword aToken,
     break;
   case eCSSKeyword_matrix:
     /* Six values, all numbers. */
-    variantIndex = aIsPrefixed ? eMatrixPrefixed : eMatrix;
+    variantIndex = eMatrix;
     aMinElems = 6U;
     aMaxElems = 6U;
     break;
   case eCSSKeyword_matrix3d:
     /* 16 matrix values, all numbers */
-    variantIndex = aIsPrefixed ? eMatrix3dPrefixed : eMatrix3d;
+    variantIndex = eMatrix3d;
     aMinElems = 16U;
     aMaxElems = 16U;
     aIs3D = true;
@@ -8533,8 +8522,7 @@ static bool GetFunctionParseInformation(nsCSSKeyword aToken,
  * error if something goes wrong.
  */
 bool
-CSSParserImpl::ParseSingleTransform(bool aIsPrefixed,
-                                    nsCSSValue& aValue, bool& aIs3D)
+CSSParserImpl::ParseSingleTransform(nsCSSValue& aValue, bool& aIs3D)
 {
   if (!GetToken(true))
     return false;
@@ -8548,7 +8536,7 @@ CSSParserImpl::ParseSingleTransform(bool aIsPrefixed,
   uint16_t minElems, maxElems;
   nsCSSKeyword keyword = nsCSSKeywords::LookupKeyword(mToken.mIdent);
 
-  if (!GetFunctionParseInformation(keyword, aIsPrefixed,
+  if (!GetFunctionParseInformation(keyword,
                                    minElems, maxElems, variantMask, aIs3D))
     return false;
 
@@ -8587,7 +8575,7 @@ CSSParserImpl::ParseSingleTransform(bool aIsPrefixed,
 /* Parses a transform property list by continuously reading in properties
  * and constructing a matrix from it.
  */
-bool CSSParserImpl::ParseTransform(bool aIsPrefixed)
+bool CSSParserImpl::ParseTransform()
 {
   nsCSSValue value;
   if (ParseVariant(value, VARIANT_INHERIT | VARIANT_NONE, nullptr)) {
@@ -8599,7 +8587,7 @@ bool CSSParserImpl::ParseTransform(bool aIsPrefixed)
     nsCSSValueList* cur = value.SetListValue();
     for (;;) {
       bool is3D;
-      if (!ParseSingleTransform(aIsPrefixed, cur->mValue, is3D)) {
+      if (!ParseSingleTransform(cur->mValue, is3D)) {
         return false;
       }
       if (is3D && !nsLayoutUtils::Are3DTransformsEnabled()) {

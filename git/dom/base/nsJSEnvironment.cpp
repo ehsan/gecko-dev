@@ -1186,7 +1186,7 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(nsJSContext)
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsJSContext)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsJSContext)
-  NS_ASSERTION(!tmp->mContext || !js::ContextHasOutstandingRequests(tmp->mContext),
+  NS_ASSERTION(!tmp->mContext || js::GetContextOutstandingRequests(tmp->mContext) == 0,
                "Trying to unlink a context with outstanding requests.");
   tmp->mIsInitialized = false;
   tmp->mGCOnDestruction = false;
@@ -1215,14 +1215,8 @@ nsrefcnt
 nsJSContext::GetCCRefcnt()
 {
   nsrefcnt refcnt = mRefCnt.get();
-
-  // In the (abnormal) case of synchronous cycle-collection, the context may be
-  // actively running JS code in which case we must keep it alive by adding an
-  // extra refcount.
-  if (mContext && js::ContextHasOutstandingRequests(mContext)) {
-    refcnt++;
-  }
-
+  if (NS_LIKELY(mContext))
+    refcnt += js::GetContextOutstandingRequests(mContext);
   return refcnt;
 }
 

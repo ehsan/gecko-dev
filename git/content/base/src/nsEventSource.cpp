@@ -903,9 +903,9 @@ nsEventSource::InitChannelAndRequestEventSource()
     mHttpChannel->SetNotificationCallbacks(this);
   }
 
-  nsRefPtr<nsCORSListenerProxy> listener =
-    new nsCORSListenerProxy(this, mPrincipal, mWithCredentials);
-  rv = listener->Init(mHttpChannel);
+  nsCOMPtr<nsIStreamListener> listener =
+    new nsCORSListenerProxy(this, mPrincipal, mHttpChannel,
+                            mWithCredentials, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Start reading from the channel

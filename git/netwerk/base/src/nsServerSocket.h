@@ -22,7 +22,6 @@ public:
   // nsASocketHandler methods:
   virtual void OnSocketReady(PRFileDesc *fd, int16_t outFlags);
   virtual void OnSocketDetached(PRFileDesc *fd);
-  virtual void IsLocal(bool *aIsLocal);
 
   nsServerSocket();
 

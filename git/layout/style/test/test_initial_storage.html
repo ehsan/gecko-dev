@@ -58,13 +58,8 @@ function test_property(property)
 
   // We don't care particularly about the whitespace or the placement of
   // semicolons, but for simplicity we'll test the current behavior.
-  if ("alias_for" in info) {
-    is(gDeclaration.cssText, info.alias_for + ": -moz-initial;",
-      "declaration should serialize to exactly what went in (for -moz-initial)");
-  } else {
-    is(gDeclaration.cssText, property + ": -moz-initial;",
-      "declaration should serialize to exactly what went in (for -moz-initial)");
-  }
+  is(gDeclaration.cssText, property + ": -moz-initial;",
+    "declaration should serialize to exactly what went in (for -moz-initial)");
 
   gDeclaration.removeProperty(property);
 

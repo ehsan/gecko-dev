@@ -300,9 +300,9 @@ js::ion::GetPropertyCache(JSContext *cx, size_t cacheIndex, HandleObject obj, Mu
     IonCacheGetProperty &cache = ion->getCache(cacheIndex).toGetProperty();
     RootedPropertyName name(cx, cache.name());
 
-    RootedScript script(cx);
+    JSScript *script;
     jsbytecode *pc;
-    cache.getScriptedLocation(script.address(), &pc);
+    cache.getScriptedLocation(&script, &pc);
 
     // Override the return value if we are invalidated (bug 728188).
     AutoDetectInvalidation adi(cx, vp.address(), ion);

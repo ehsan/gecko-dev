@@ -21,9 +21,9 @@ public:
         last owner of this pixelref is gone. If addr is NULL, sk_malloc_throw()
         is called to allocate it.
      */
-    SkMallocPixelRef(void* addr, size_t size, SkColorTable* ctable, bool ownPixels = true);
+    SkMallocPixelRef(void* addr, size_t size, SkColorTable* ctable);
     virtual ~SkMallocPixelRef();
-
+    
     //! Return the allocation size for the pixels
     size_t getSize() const { return fSize; }
     void* getAddr() const { return fStorage; }
@@ -42,7 +42,6 @@ private:
     void*           fStorage;
     size_t          fSize;
     SkColorTable*   fCTable;
-    bool            fOwnPixels;
 
     typedef SkPixelRef INHERITED;
 };

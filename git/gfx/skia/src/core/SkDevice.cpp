@@ -9,33 +9,16 @@
 #include "SkDraw.h"
 #include "SkImageFilter.h"
 #include "SkMetaData.h"
-#include "SkRasterClip.h"
 #include "SkRect.h"
 
-SK_DEFINE_INST_COUNT(SkDevice)
-
 ///////////////////////////////////////////////////////////////////////////////
 
-#define CHECK_FOR_NODRAW_ANNOTATION(paint) \
-    do { if (paint.isNoDrawAnnotation()) { return; } } while (0)
-
-///////////////////////////////////////////////////////////////////////////////
-
-SkDevice::SkDevice(const SkBitmap& bitmap)
-    : fBitmap(bitmap)
-#ifdef SK_DEBUG
-    , fAttachedToCanvas(false)
-#endif
-{
+SkDevice::SkDevice(const SkBitmap& bitmap) : fBitmap(bitmap) {
     fOrigin.setZero();
     fMetaData = NULL;
 }
 
-SkDevice::SkDevice(SkBitmap::Config config, int width, int height, bool isOpaque)
-#ifdef SK_DEBUG
-    : fAttachedToCanvas(false)
-#endif
-{
+SkDevice::SkDevice(SkBitmap::Config config, int width, int height, bool isOpaque) {
     fOrigin.setZero();
     fMetaData = NULL;
 
@@ -49,13 +32,6 @@ SkDevice::SkDevice(SkBitmap::Config config, int width, int height, bool isOpaque
 
 SkDevice::~SkDevice() {
     delete fMetaData;
-}
-
-void SkDevice::replaceBitmapBackendForRasterSurface(const SkBitmap& bm) {
-    SkASSERT(bm.width() == fBitmap.width());
-    SkASSERT(bm.height() == fBitmap.height());
-    fBitmap = bm;   // intent is to use bm's pixelRef (and rowbytes/config)
-    fBitmap.lockPixels();
 }
 
 SkDevice* SkDevice::createCompatibleDevice(SkBitmap::Config config,
@@ -300,13 +276,8 @@ void SkDevice::writePixels(const SkBitmap& bitmap,
 
     SkPaint paint;
     paint.setXfermodeMode(SkXfermode::kSrc_Mode);
-    SkRasterClip clip(SkIRect::MakeWH(fBitmap.width(), fBitmap.height()));
-    SkDraw  draw;
-    draw.fRC = &clip;
-    draw.fClip = &clip.bwRgn();
-    draw.fBitmap = &fBitmap; // canvas should have already called accessBitmap
-    draw.fMatrix = &SkMatrix::I();
-    this->drawSprite(draw, *sprite, x, y, paint);
+    SkCanvas canvas(this);
+    canvas.drawSprite(*sprite, x, y, &paint);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -322,14 +293,12 @@ void SkDevice::drawPoints(const SkDraw& draw, SkCanvas::PointMode mode, size_t c
 
 void SkDevice::drawRect(const SkDraw& draw, const SkRect& r,
                             const SkPaint& paint) {
-    CHECK_FOR_NODRAW_ANNOTATION(paint);
     draw.drawRect(r, paint);
 }
 
 void SkDevice::drawPath(const SkDraw& draw, const SkPath& path,
                         const SkPaint& paint, const SkMatrix* prePathMatrix,
                         bool pathIsMutable) {
-    CHECK_FOR_NODRAW_ANNOTATION(paint);
     draw.drawPath(path, paint, prePathMatrix, pathIsMutable);
 }
 

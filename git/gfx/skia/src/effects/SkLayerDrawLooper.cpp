@@ -7,12 +7,9 @@
  */
 #include "SkCanvas.h"
 #include "SkColor.h"
-#include "SkFlattenableBuffers.h"
 #include "SkLayerDrawLooper.h"
 #include "SkPaint.h"
 #include "SkUnPreMultiply.h"
-
-SK_DEFINE_INST_COUNT(SkLayerDrawLooper)
 
 SkLayerDrawLooper::LayerInfo::LayerInfo() {
     fFlagsMask = 0;                     // ignore our paint flags
@@ -199,15 +196,15 @@ void SkLayerDrawLooper::flatten(SkFlattenableWriteBuffer& buffer) const {
 #endif
 
     buffer.writeInt(fCount);
-
+    
     Rec* rec = fRecs;
     for (int i = 0; i < fCount; i++) {
-        buffer.writeInt(rec->fInfo.fFlagsMask);
         buffer.writeInt(rec->fInfo.fPaintBits);
         buffer.writeInt(rec->fInfo.fColorMode);
-        buffer.writePoint(rec->fInfo.fOffset);
+        buffer.writeScalar(rec->fInfo.fOffset.fX);
+        buffer.writeScalar(rec->fInfo.fOffset.fY);
         buffer.writeBool(rec->fInfo.fPostTranslate);
-        buffer.writePaint(rec->fPaint);
+        rec->fPaint.flatten(buffer);
         rec = rec->fNext;
     }
 }
@@ -221,18 +218,18 @@ SkLayerDrawLooper::SkLayerDrawLooper(SkFlattenableReadBuffer& buffer)
 
     for (int i = 0; i < count; i++) {
         LayerInfo info;
-        info.fFlagsMask = buffer.readInt();
         info.fPaintBits = buffer.readInt();
         info.fColorMode = (SkXfermode::Mode)buffer.readInt();
-        buffer.readPoint(&info.fOffset);
+        info.fOffset.fX = buffer.readScalar();
+        info.fOffset.fY = buffer.readScalar();
         info.fPostTranslate = buffer.readBool();
-        buffer.readPaint(this->addLayer(info));
+        this->addLayer(info)->unflatten(buffer);
     }
     SkASSERT(count == fCount);
 
     // we're in reverse order, so fix it now
     fRecs = Rec::Reverse(fRecs);
-
+    
 #ifdef SK_DEBUG
     {
         Rec* rec = fRecs;

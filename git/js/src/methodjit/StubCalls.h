@@ -57,11 +57,9 @@ void JS_FASTCALL ScriptProbeOnlyEpilogue(VMFrame &f);
  *       to JM native code. Then all fields are non-NULL.
  */
 struct UncachedCallResult {
-    RootedFunction fun;        // callee function
-    void           *codeAddr;  // code address of compiled callee function
-    bool           unjittable; // did we try to JIT and fail?
-
-    UncachedCallResult(JSContext *cx) : fun(cx) {}
+    JSFunction *fun;          // callee function
+    void       *codeAddr;     // code address of compiled callee function
+    bool       unjittable;    // did we try to JIT and fail?
 
     void init() {
         fun = NULL;
@@ -75,8 +73,8 @@ struct UncachedCallResult {
  * These functions either execute the function, return a native code
  * pointer that can be used to call the function, or throw.
  */
-void UncachedCallHelper(VMFrame &f, uint32_t argc, bool lowered, UncachedCallResult &ucr);
-void UncachedNewHelper(VMFrame &f, uint32_t argc, UncachedCallResult &ucr);
+void UncachedCallHelper(VMFrame &f, uint32_t argc, bool lowered, UncachedCallResult *ucr);
+void UncachedNewHelper(VMFrame &f, uint32_t argc, UncachedCallResult *ucr);
 
 void JS_FASTCALL CreateThis(VMFrame &f, JSObject *proto);
 void JS_FASTCALL Throw(VMFrame &f);

@@ -25,11 +25,7 @@ try {
   kMaxPendingMessages = 5;
 }
 
-const kMessages =["SystemMessageManager:GetPending",
-                  "SystemMessageManager:Register",
-                  "SystemMessageManager:Unregister"]
-
-function debug(aMsg) {
+function debug(aMsg) { 
   //dump("-- SystemMessageInternal " + Date.now() + " : " + aMsg + "\n");
 }
 
@@ -39,25 +35,16 @@ function SystemMessageInternal() {
   // The set of pages registered by installed apps. We keep the
   // list of pending messages for each page here also.
   this._pages = [];
-  this._listeners = {};
   Services.obs.addObserver(this, "xpcom-shutdown", false);
-  kMessages.forEach((function(aMsg) {
-    ppmm.addMessageListener(aMsg, this);
-  }).bind(this));
+  ppmm.addMessageListener("SystemMessageManager:GetPending", this);
 }
 
 SystemMessageInternal.prototype = {
   sendMessage: function sendMessage(aType, aMessage, aPageURI, aManifestURI) {
     debug("Broadcasting " + aType + " " + JSON.stringify(aMessage));
-    if (this._listeners[aManifestURI.spec]) {
-      this._listeners[aManifestURI.spec].forEach(function sendMsg(aListener) {
-        aListener.sendAsyncMessage("SystemMessageManager:Message",
-                                   { type: aType,
-                                     msg: aMessage,
-                                     manifest: aManifestURI.spec })
-      });
-    }
-
+    ppmm.broadcastAsyncMessage("SystemMessageManager:Message" , { type: aType,
+                                                                  msg: aMessage,
+                                                                  manifest: aManifestURI.spec });
     this._pages.forEach(function sendMess_openPage(aPage) {
       if (aPage.type != aType ||
           aPage.manifest != aManifestURI.spec ||
@@ -74,14 +61,10 @@ SystemMessageInternal.prototype = {
     // Find pages that registered an handler for this type.
     this._pages.forEach(function(aPage) {
       if (aPage.type == aType) {
-        if (this._listeners[aPage.manifest]) {
-          this._listeners[aPage.manifest].forEach(function sendMsg(aListener) {
-            aListener.sendAsyncMessage("SystemMessageManager:Message",
-                                       { type: aType,
-                                         msg: aMessage,
-                                         manifest: aPage.manifest})
-          });
-        }
+        ppmm.broadcastAsyncMessage("SystemMessageManager:Message" , { type: aType,
+                                                                      msg: aMessage,
+                                                                      manifest: aPage.manifest });
+
         this._processPage(aPage, aMessage);
       }
     }.bind(this))
@@ -99,63 +82,37 @@ SystemMessageInternal.prototype = {
   },
 
   receiveMessage: function receiveMessage(aMessage) {
+    debug("received SystemMessageManager:GetPending " + aMessage.json.type + " for " + aMessage.json.uri + " @ " + aMessage.json.manifest);
+    // This is a sync call, use to return the pending message for a page.
     let msg = aMessage.json;
-    switch(aMessage.name) {
-      case "SystemMessageManager:Register":
-        let manifest = msg.manifest;
-        debug("Got Register from " + manifest);
-        if (!this._listeners[manifest]) {
-          this._listeners[manifest] = [];
-        }
-        this._listeners[manifest].push(aMessage.target);
-        debug("listeners for " + manifest + " : " + this._listeners[manifest].length);
-        break;
-      case "SystemMessageManager:Unregister":
-        debug("Got Unregister from " + aMessage.target);
-        let mm = aMessage.target;
-        for (let manifest in this._listeners) {
-          let index = this._listeners[manifest].indexOf(mm);
-          while (index != -1) {
-            debug("Removing " + mm + " at index " + index);
-            this._listeners[manifest].splice(index, 1);
-            index = this._listeners[manifest].indexOf(mm);
-          }
-        }
-        break;
-      case "SystemMessageManager:GetPending":
-        debug("received SystemMessageManager:GetPending " + aMessage.json.type +
-          " for " + aMessage.json.uri + " @ " + aMessage.json.manifest);
-        // This is a sync call, use to return the pending message for a page.
-        debug(JSON.stringify(msg));
-        // Find the right page.
-        let page = null;
-        this._pages.some(function(aPage) {
-          if (aPage.uri == msg.uri &&
-              aPage.type == msg.type &&
-              aPage.manifest == msg.manifest) {
-            page = aPage;
-          }
-          return page !== null;
-        });
-        if (!page) {
-          return null;
-        }
+    debug(JSON.stringify(msg));
 
-        let pending = page.pending;
-        // Clear the pending queue for this page.
-        // This is ok since we'll store pending events in SystemMessageManager.js
-        page.pending = [];
+    // Find the right page.
+    let page = null;
+    this._pages.some(function(aPage) {
+      if (aPage.uri == msg.uri &&
+          aPage.type == msg.type &&
+          aPage.manifest == msg.manifest) {
+        page = aPage;
+      }
+      return page !== null;
+    });
 
-        return pending;
-        break;
+    if (!page) {
+      return null;
     }
+
+    let pending = page.pending;
+    // Clear the pending queue for this page.
+    // This is ok since we'll store pending events in SystemMessageManager.js
+    page.pending = [];
+
+    return pending;
   },
 
   observe: function observe(aSubject, aTopic, aData) {
     if (aTopic == "xpcom-shutdown") {
-      kMessages.forEach((function(aMsg) {
-        ppmm.removeMessageListener(aMsg, this);
-      }).bind(this));
+      ppmm.removeMessageListener("SystemMessageManager:GetPending", this);
       Services.obs.removeObserver(this, "xpcom-shutdown");
       ppmm = null;
       this._pages = null;

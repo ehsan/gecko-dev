@@ -480,7 +480,7 @@ private:
                            nsHttpPipeline **);
     bool     RestrictConnections(nsConnectionEntry *);
     nsresult ProcessNewTransaction(nsHttpTransaction *);
-    nsresult EnsureSocketThreadTarget();
+    nsresult EnsureSocketThreadTargetIfOnline();
     void     ClosePersistentConnections(nsConnectionEntry *ent);
     nsresult CreateTransport(nsConnectionEntry *, nsAHttpTransaction *,
                              uint8_t, bool);

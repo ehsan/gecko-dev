@@ -42,6 +42,7 @@
 #include "nsStringFwd.h"
 #include "nsSubstringTuple.h"
 #include "nscore.h"
+#include "prtypes.h"
 
 class nsISelection;
 

@@ -17,9 +17,8 @@
 #include "SkTemplates.h"
 #include "SkTSort.h"
 
-#ifdef SK_USE_LEGACY_AA_COVERAGE
-    #define SK_USE_STD_SORT_FOR_EDGES
-#endif
+// undefine this to get faster inline sort
+#define SK_USE_STD_SORT_FOR_EDGES
 
 #define kEDGE_HEAD_Y    SK_MinS32
 #define kEDGE_TAIL_Y    SK_MaxS32
@@ -221,9 +220,9 @@ static void walk_convex_edges(SkEdge* prevHead, SkPath::FillType,
                               PrePostProc proc) {
     static int gCalls;
     gCalls++;
-
+    
     validate_sort(prevHead->fNext);
-
+    
     SkEdge* leftE = prevHead->fNext;
     SkEdge* riteE = leftE->fNext;
     SkEdge* currE = riteE->fNext;
@@ -237,7 +236,7 @@ static void walk_convex_edges(SkEdge* prevHead, SkPath::FillType,
     int local_top = SkMax32(leftE->fFirstY, riteE->fFirstY);
 #endif
     SkASSERT(local_top >= start_y);
-
+    
     int gLoops = 0;
     for (;;) {
         gLoops++;
@@ -249,11 +248,11 @@ static void walk_convex_edges(SkEdge* prevHead, SkPath::FillType,
                                       leftE->fDX > riteE->fDX)) {
             SkTSwap(leftE, riteE);
         }
-
+        
         int local_bot = SkMin32(leftE->fLastY, riteE->fLastY);
         local_bot = SkMin32(local_bot, stop_y - 1);
         SkASSERT(local_top <= local_bot);
-
+        
         SkFixed left = leftE->fX;
         SkFixed dLeft = leftE->fDX;
         SkFixed rite = riteE->fX;
@@ -300,7 +299,7 @@ static void walk_convex_edges(SkEdge* prevHead, SkPath::FillType,
             riteE = currE;
             currE = currE->fNext;
         }
-
+        
         SkASSERT(leftE);
         SkASSERT(riteE);
 
@@ -403,12 +402,12 @@ extern "C" {
 static bool operator<(const SkEdge& a, const SkEdge& b) {
     int valuea = a.fFirstY;
     int valueb = b.fFirstY;
-
+    
     if (valuea == valueb) {
         valuea = a.fX;
         valueb = b.fX;
     }
-
+    
     return valuea < valueb;
 }
 #endif
@@ -541,19 +540,14 @@ void sk_blit_below(SkBlitter* blitter, const SkIRect& ir, const SkRegion& clip) 
 
 ///////////////////////////////////////////////////////////////////////////////
 
-/**
- *  If the caller is drawing an inverse-fill path, then it pass true for
- *  skipRejectTest, so we don't abort drawing just because the src bounds (ir)
- *  is outside of the clip.
- */
 SkScanClipper::SkScanClipper(SkBlitter* blitter, const SkRegion* clip,
-                             const SkIRect& ir, bool skipRejectTest) {
+                             const SkIRect& ir) {
     fBlitter = NULL;     // null means blit nothing
     fClipRect = NULL;
 
     if (clip) {
         fClipRect = &clip->getBounds();
-        if (!skipRejectTest && !SkIRect::Intersects(*fClipRect, ir)) { // completely clipped out
+        if (!SkIRect::Intersects(*fClipRect, ir)) { // completely clipped out
             return;
         }
 
@@ -616,7 +610,7 @@ void SkScan::FillPath(const SkPath& path, const SkRegion& origClip,
         return;
     }
 
-    SkScanClipper clipper(blitter, clipPtr, ir, path.isInverseFillType());
+    SkScanClipper   clipper(blitter, clipPtr, ir);
 
     blitter = clipper.getBlitter();
     if (blitter) {

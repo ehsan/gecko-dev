@@ -18,6 +18,7 @@
 #include "nsITransactionListener.h"     // for nsITransactionListener
 #include "nsIWeakReferenceUtils.h"      // for nsWeakPtr
 #include "nscore.h"                     // for NS_IMETHOD, nsresult, etc
+#include "prtypes.h"                    // for int8_t
 
 class nsIDOMWindow;
 class nsITransaction;

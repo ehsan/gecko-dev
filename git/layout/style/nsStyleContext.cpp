@@ -33,7 +33,8 @@ using namespace mozilla;
 nsStyleContext::nsStyleContext(nsStyleContext* aParent,
                                nsIAtom* aPseudoTag,
                                nsCSSPseudoElements::Type aPseudoType,
-                               nsRuleNode* aRuleNode)
+                               nsRuleNode* aRuleNode,
+                               nsPresContext* aPresContext)
   : mParent(aParent),
     mChild(nullptr),
     mEmptyChild(nullptr),
@@ -65,7 +66,7 @@ nsStyleContext::nsStyleContext(nsStyleContext* aParent,
 #endif
   }
 
-  ApplyStyleFixups();
+  ApplyStyleFixups(aPresContext);
 
   #define eStyleStruct_LastItem (nsStyleStructID_Length - 1)
   NS_ASSERTION(NS_STYLE_INHERIT_MASK & NS_STYLE_INHERIT_BIT(LastItem),
@@ -297,7 +298,7 @@ nsStyleContext::SetStyle(nsStyleStructID aSID, void* aStruct)
 }
 
 void
-nsStyleContext::ApplyStyleFixups()
+nsStyleContext::ApplyStyleFixups(nsPresContext* aPresContext)
 {
   // See if we have any text decorations.
   // First see if our parent has text decorations.  If our parent does, then we inherit the bit.
@@ -674,11 +675,12 @@ already_AddRefed<nsStyleContext>
 NS_NewStyleContext(nsStyleContext* aParentContext,
                    nsIAtom* aPseudoTag,
                    nsCSSPseudoElements::Type aPseudoType,
-                   nsRuleNode* aRuleNode)
+                   nsRuleNode* aRuleNode,
+                   nsPresContext* aPresContext)
 {
   nsStyleContext* context =
-    new (aRuleNode->GetPresContext())
-      nsStyleContext(aParentContext, aPseudoTag, aPseudoType, aRuleNode);
+    new (aPresContext) nsStyleContext(aParentContext, aPseudoTag, aPseudoType,
+                                      aRuleNode, aPresContext);
   if (context)
     context->AddRef();
   return context;

@@ -2960,54 +2960,6 @@ Parser::matchInOrOf(bool *isForOfp)
     return false;
 }
 
-static bool
-IsValidForStatementLHS(ParseNode *pn1, JSVersion version, bool forDecl, bool forEach, bool forOf)
-{
-    if (forDecl) {
-        if (pn1->pn_count > 1)
-            return false;
-        if (pn1->isOp(JSOP_DEFCONST))
-            return false;
-#if JS_HAS_DESTRUCTURING
-        // In JS 1.7 only, for (var [K, V] in EXPR) has a special meaning.
-        // Hence all other destructuring decls are banned there.
-        if (version == JSVERSION_1_7 && !forEach && !forOf) {
-            ParseNode *lhs = pn1->pn_head;
-            if (lhs->isKind(PNK_ASSIGN))
-                lhs = lhs->pn_left;
-
-            if (lhs->isKind(PNK_OBJECT))
-                return false;
-            if (lhs->isKind(PNK_ARRAY) && lhs->pn_count != 2)
-                return false;
-        }
-#endif
-        return true;
-    }
-
-    switch (pn1->getKind()) {
-      case PNK_NAME:
-      case PNK_DOT:
-      case PNK_CALL:
-      case PNK_XMLUNARY:
-      case PNK_ELEM:
-        return true;
-
-#if JS_HAS_DESTRUCTURING
-      case PNK_ARRAY:
-      case PNK_OBJECT:
-        // In JS 1.7 only, for ([K, V] in EXPR) has a special meaning.
-        // Hence all other destructuring left-hand sides are banned there.
-        if (version == JSVERSION_1_7 && !forEach && !forOf)
-            return pn1->isKind(PNK_ARRAY) && pn1->pn_count == 2;
-        return true;
-#endif
-
-      default:
-        return false;
-    }
-}
-
 ParseNode *
 Parser::forStatement()
 {
@@ -3135,8 +3087,35 @@ Parser::forStatement()
         pn->pn_iflags |= (forOf ? JSITER_FOR_OF : JSITER_ENUMERATE);
 
         /* Check that the left side of the 'in' or 'of' is valid. */
-        bool forEach = bool(pn->pn_iflags & JSITER_FOREACH);
-        if (!IsValidForStatementLHS(pn1, versionNumber(), forDecl, forEach, forOf)) {
+        if (forDecl
+            ? (pn1->pn_count > 1 || pn1->isOp(JSOP_DEFCONST)
+#if JS_HAS_DESTRUCTURING
+               || (versionNumber() == JSVERSION_1_7 &&
+                   pn->isOp(JSOP_ITER) &&
+                   !(pn->pn_iflags & JSITER_FOREACH) &&
+                   (pn1->pn_head->isKind(PNK_OBJECT) ||
+                    (pn1->pn_head->isKind(PNK_ARRAY) &&
+                     pn1->pn_head->pn_count != 2) ||
+                    (pn1->pn_head->isKind(PNK_ASSIGN) &&
+                     (!pn1->pn_head->pn_left->isKind(PNK_ARRAY) ||
+                      pn1->pn_head->pn_left->pn_count != 2))))
+#endif
+              )
+            : (!pn1->isKind(PNK_NAME) &&
+               !pn1->isKind(PNK_DOT) &&
+#if JS_HAS_DESTRUCTURING
+               ((versionNumber() == JSVERSION_1_7 &&
+                 pn->isOp(JSOP_ITER) &&
+                 !(pn->pn_iflags & JSITER_FOREACH))
+                ? (!pn1->isKind(PNK_ARRAY) || pn1->pn_count != 2)
+                : (!pn1->isKind(PNK_ARRAY) && !pn1->isKind(PNK_OBJECT))) &&
+#endif
+               !pn1->isKind(PNK_CALL) &&
+#if JS_HAS_XML_SUPPORT
+               !pn1->isKind(PNK_XMLUNARY) &&
+#endif
+               !pn1->isKind(PNK_ELEM)))
+        {
             reportError(pn1, JSMSG_BAD_FOR_LEFTSIDE);
             return NULL;
         }
@@ -3260,7 +3239,7 @@ Parser::forStatement()
                  * in JS1.7.
                  */
                 JS_ASSERT(pn->isOp(JSOP_ITER));
-                if (!(pn->pn_iflags & JSITER_FOREACH) && !forOf)
+                if (!(pn->pn_iflags & JSITER_FOREACH))
                     pn->pn_iflags |= JSITER_FOREACH | JSITER_KEYVALUE;
             }
             break;
@@ -5261,10 +5240,7 @@ Parser::comprehensionTail(ParseNode *kid, unsigned blockid, bool isGenexp,
             if (!CheckDestructuring(context, &data, pn3, this))
                 return NULL;
 
-            if (versionNumber() == JSVERSION_1_7 &&
-                !(pn2->pn_iflags & JSITER_FOREACH) &&
-                !forOf)
-            {
+            if (versionNumber() == JSVERSION_1_7) {
                 /* Destructuring requires [key, value] enumeration in JS1.7. */
                 if (!pn3->isKind(PNK_ARRAY) || pn3->pn_count != 2) {
                     reportError(NULL, JSMSG_BAD_FOR_LEFTSIDE);
@@ -5273,7 +5249,8 @@ Parser::comprehensionTail(ParseNode *kid, unsigned blockid, bool isGenexp,
 
                 JS_ASSERT(pn2->isOp(JSOP_ITER));
                 JS_ASSERT(pn2->pn_iflags & JSITER_ENUMERATE);
-                pn2->pn_iflags |= JSITER_FOREACH | JSITER_KEYVALUE;
+                if (!(pn2->pn_iflags & JSITER_FOREACH))
+                    pn2->pn_iflags |= JSITER_FOREACH | JSITER_KEYVALUE;
             }
             break;
 #endif

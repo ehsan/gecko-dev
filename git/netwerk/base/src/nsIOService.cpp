@@ -245,7 +245,6 @@ nsIOService::InitializeSocketTransportService()
         rv = mSocketTransportService->Init();
         NS_ASSERTION(NS_SUCCEEDED(rv), "socket transport service init failed");
         mSocketTransportService->SetAutodialEnabled(mAutoDialEnabled);
-        mSocketTransportService->SetOffline(false);
     }
 
     return rv;
@@ -743,36 +742,41 @@ nsIOService::SetOffline(bool offline)
         }
     }
 
-    nsIIOService *subject = static_cast<nsIIOService *>(this);
-    nsresult rv;
     while (mSetOfflineValue != mOffline) {
         offline = mSetOfflineValue;
 
+        nsresult rv;
         if (offline && !mOffline) {
             NS_NAMED_LITERAL_STRING(offlineString, NS_IOSERVICE_OFFLINE);
             mOffline = true; // indicate we're trying to shutdown
 
-            // don't care if notifications fail
+            // don't care if notification fails
+            // this allows users to attempt a little cleanup before dns and socket transport are shut down.
             if (observerService)
-                observerService->NotifyObservers(subject,
+                observerService->NotifyObservers(static_cast<nsIIOService *>(this),
                                                  NS_IOSERVICE_GOING_OFFLINE_TOPIC,
                                                  offlineString.get());
 
-            if (mDNSService)
-                mDNSService->SetOffline(true);
+            // be sure to try and shutdown both (even if the first fails)...
+            // shutdown dns service first, because it has callbacks for socket transport
+            if (mDNSService) {
+                rv = mDNSService->Shutdown();
+                NS_ASSERTION(NS_SUCCEEDED(rv), "DNS service shutdown failed");
+            }
+            if (mSocketTransportService) {
+                rv = mSocketTransportService->Shutdown();
+                NS_ASSERTION(NS_SUCCEEDED(rv), "socket transport service shutdown failed");
+            }
 
-            if (mSocketTransportService)
-                mSocketTransportService->SetOffline(true);
-
+            // don't care if notification fails
             if (observerService)
-                observerService->NotifyObservers(subject,
+                observerService->NotifyObservers(static_cast<nsIIOService *>(this),
                                                  NS_IOSERVICE_OFFLINE_STATUS_TOPIC,
                                                  offlineString.get());
         }
         else if (!offline && mOffline) {
             // go online
             if (mDNSService) {
-                mDNSService->SetOffline(false);
                 rv = mDNSService->Init();
                 NS_ASSERTION(NS_SUCCEEDED(rv), "DNS service init failed");
             }
@@ -786,23 +790,9 @@ nsIOService::SetOffline(bool offline)
 
             // don't care if notification fails
             if (observerService)
-                observerService->NotifyObservers(subject,
+                observerService->NotifyObservers(static_cast<nsIIOService *>(this),
                                                  NS_IOSERVICE_OFFLINE_STATUS_TOPIC,
                                                  NS_LITERAL_STRING(NS_IOSERVICE_ONLINE).get());
-        }
-    }
-
-    // Don't notify here, as the above notifications (if used) suffice.
-    if (mShutdown && mOffline) {
-        // be sure to try and shutdown both (even if the first fails)...
-        // shutdown dns service first, because it has callbacks for socket transport
-        if (mDNSService) {
-            rv = mDNSService->Shutdown();
-            NS_ASSERTION(NS_SUCCEEDED(rv), "DNS service shutdown failed");
-        }
-        if (mSocketTransportService) {
-            rv = mSocketTransportService->Shutdown();
-            NS_ASSERTION(NS_SUCCEEDED(rv), "socket transport service shutdown failed");
         }
     }
 

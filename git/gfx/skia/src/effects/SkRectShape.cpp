@@ -9,7 +9,6 @@
 
 #include "SkRectShape.h"
 #include "SkCanvas.h"
-#include "SkFlattenableBuffers.h"
 
 SkPaintShape::SkPaintShape() {
     fPaint.setAntiAlias(true);
@@ -65,25 +64,24 @@ void SkRectShape::flatten(SkFlattenableWriteBuffer& buffer) const {
     this->INHERITED::flatten(buffer);
 
     buffer.writeRect(fBounds);
-    buffer.writeScalar(fRadii.fWidth);
-    buffer.writeScalar(fRadii.fHeight);
+    *(SkSize*)buffer.reserve(sizeof(SkSize)) = fRadii;
 }
 
-SkRectShape::SkRectShape(SkFlattenableReadBuffer& buffer) : INHERITED(buffer) {
-    buffer.readRect(&fBounds);
-    fRadii.fWidth = buffer.readScalar();
-    fRadii.fHeight = buffer.readScalar();
+SkRectShape::SkRectShape(SkFlattenableReadBuffer& buffer) : INHERITED(buffer) {    
+    buffer.read(&fBounds, sizeof(fBounds));
+    buffer.read(&fRadii, sizeof(fRadii));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
 void SkPaintShape::flatten(SkFlattenableWriteBuffer& buffer) const {
     this->INHERITED::flatten(buffer);
-    buffer.writePaint(fPaint);
+    
+    fPaint.flatten(buffer);
 }
 
 SkPaintShape::SkPaintShape(SkFlattenableReadBuffer& buffer) : INHERITED(buffer) {
-    buffer.readPaint(&fPaint);
+    fPaint.unflatten(buffer);
 }
 
 SK_DEFINE_FLATTENABLE_REGISTRAR(SkRectShape)

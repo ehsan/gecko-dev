@@ -21,6 +21,7 @@ class nsIContent;
 
 namespace mozilla {
 namespace a11y {
+class ApplicationAccessible;
 class RootAccessible;
 }
 }
@@ -39,6 +40,13 @@ public:
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS(nsAccessNode)
+
+  static void ShutdownXPAccessibility();
+
+  /**
+   * Return an application accessible.
+   */
+  static mozilla::a11y::ApplicationAccessible* GetApplicationAccessible();
 
   /**
    * Return the document accessible for this access node.
@@ -103,6 +111,8 @@ private:
   nsAccessNode() MOZ_DELETE;
   nsAccessNode(const nsAccessNode&) MOZ_DELETE;
   nsAccessNode& operator =(const nsAccessNode&) MOZ_DELETE;
+  
+  static mozilla::a11y::ApplicationAccessible* gApplicationAccessible;
 };
 
 #endif

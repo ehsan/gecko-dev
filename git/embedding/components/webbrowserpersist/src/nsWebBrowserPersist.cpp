@@ -2213,13 +2213,7 @@ nsWebBrowserPersist::CalculateAndAppendFileExt(nsIURI *aURI, nsIChannel *aChanne
                     uint32_t newLength = newFileName.Length() + fileExt.Length() + 1;
                     if (newLength > kDefaultMaxFilenameLength)
                     {
-                        if (fileExt.Length() > kDefaultMaxFilenameLength/2)
-                            fileExt.Truncate(kDefaultMaxFilenameLength/2);
-
-                        uint32_t diff = kDefaultMaxFilenameLength - 1 -
-                                        fileExt.Length();
-                        if (newFileName.Length() > diff)
-                            newFileName.Truncate(diff);
+                        newFileName.Truncate(newFileName.Length() - (newLength - kDefaultMaxFilenameLength));
                     }
                     newFileName.Append(".");
                     newFileName.Append(fileExt);

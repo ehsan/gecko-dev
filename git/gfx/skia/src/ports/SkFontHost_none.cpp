@@ -8,7 +8,6 @@
 
 
 #include "SkFontHost.h"
-#include "SkScalerContext.h"
 
 SkTypeface* SkFontHost::CreateTypeface(const SkTypeface* familyFace,
                                      const char famillyName[],

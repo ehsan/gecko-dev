@@ -78,13 +78,19 @@ nsHttpConnectionMgr::~nsHttpConnectionMgr()
 }
 
 nsresult
-nsHttpConnectionMgr::EnsureSocketThreadTarget()
+nsHttpConnectionMgr::EnsureSocketThreadTargetIfOnline()
 {
     nsresult rv;
     nsCOMPtr<nsIEventTarget> sts;
     nsCOMPtr<nsIIOService> ioService = do_GetIOService(&rv);
-    if (NS_SUCCEEDED(rv))
-        sts = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
+    if (NS_SUCCEEDED(rv)) {
+        bool offline = true;
+        ioService->GetOffline(&offline);
+
+        if (!offline) {
+            sts = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
+        }
+    }
 
     ReentrantMonitorAutoEnter mon(mReentrantMonitor);
 
@@ -120,7 +126,7 @@ nsHttpConnectionMgr::Init(uint16_t maxConns,
         mIsShuttingDown = false;
     }
 
-    return EnsureSocketThreadTarget();
+    return EnsureSocketThreadTargetIfOnline();
 }
 
 nsresult
@@ -155,7 +161,11 @@ nsHttpConnectionMgr::Shutdown()
 nsresult
 nsHttpConnectionMgr::PostEvent(nsConnEventHandler handler, int32_t iparam, void *vparam)
 {
-    EnsureSocketThreadTarget();
+    // This object doesn't get reinitialized if the offline state changes, so our
+    // socket thread target might be uninitialized if we were offline when this
+    // object was being initialized, and we go online later on.  This call takes
+    // care of initializing the socket thread target if that's the case.
+    EnsureSocketThreadTargetIfOnline();
 
     ReentrantMonitorAutoEnter mon(mReentrantMonitor);
 
@@ -328,7 +338,11 @@ nsHttpConnectionMgr::SpeculativeConnect(nsHttpConnectionInfo *ci,
 nsresult
 nsHttpConnectionMgr::GetSocketThreadTarget(nsIEventTarget **target)
 {
-    EnsureSocketThreadTarget();
+    // This object doesn't get reinitialized if the offline state changes, so our
+    // socket thread target might be uninitialized if we were offline when this
+    // object was being initialized, and we go online later on.  This call takes
+    // care of initializing the socket thread target if that's the case.
+    EnsureSocketThreadTargetIfOnline();
 
     ReentrantMonitorAutoEnter mon(mReentrantMonitor);
     NS_IF_ADDREF(*target = mSocketThreadTarget);

@@ -8,7 +8,6 @@
 #include "mozilla/HalTypes.h"
 #include "nsIDOMTimeManager.h"
 #include "mozilla/Observer.h"
-#include "mozilla/Attributes.h"
 
 class nsPIDOMWindow;
 
@@ -18,7 +17,7 @@ typedef Observer<hal::SystemTimeChange> SystemTimeObserver;
 
 namespace dom {
 namespace time {
-class TimeManager MOZ_FINAL : public nsIDOMMozTimeManager
+class TimeManager : public nsIDOMMozTimeManager
 {
 public:
   NS_DECL_ISUPPORTS

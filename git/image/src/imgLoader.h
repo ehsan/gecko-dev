@@ -16,6 +16,7 @@
 #include "nsRefPtrHashtable.h"
 #include "nsExpirationTracker.h"
 #include "nsAutoPtr.h"
+#include "prtypes.h"
 #include "imgRequest.h"
 #include "nsIObserverService.h"
 #include "nsIChannelPolicy.h"

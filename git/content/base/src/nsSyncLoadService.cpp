@@ -180,11 +180,9 @@ nsSyncLoader::LoadDocument(nsIChannel* aChannel,
     }
 
     if (aLoaderPrincipal) {
-        nsRefPtr<nsCORSListenerProxy> corsListener =
-          new nsCORSListenerProxy(listener, aLoaderPrincipal, false);
-        rv = corsListener->Init(mChannel);
+        listener = new nsCORSListenerProxy(listener, aLoaderPrincipal,
+                                           mChannel, false, &rv);
         NS_ENSURE_SUCCESS(rv, rv);
-        listener = corsListener;
     }
 
     if (aChannelIsSync) {
