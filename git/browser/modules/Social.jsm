@@ -158,9 +158,8 @@ this.Social = {
       return;
     }
     this.initialized = true;
-    // if SocialService.hasEnabledProviders, retreive the providers so the
-    // front-end can generate UI
-    if (SocialService.hasEnabledProviders) {
+
+    if (SocialService.enabled) {
       // Retrieve the current set of providers, and set the current provider.
       SocialService.getOrderedProviderList(function (providers) {
         Social._updateProviderCache(providers);

@@ -4,8 +4,6 @@
 
 // Test the top-level window UI for social.
 
-let SocialService = Cu.import("resource://gre/modules/SocialService.jsm", {}).SocialService;
-
 // This function should "reset" Social such that the next time Social.init()
 // is called (eg, when a new window is opened), it re-performs all
 // initialization.
@@ -14,6 +12,7 @@ function resetSocial() {
   Social._provider = null;
   Social.providers = [];
   // *sob* - listeners keep getting added...
+  let SocialService = Cu.import("resource://gre/modules/SocialService.jsm", {}).SocialService;
   SocialService._providerListeners.clear();
 }
 
@@ -53,10 +52,9 @@ function test() {
 }
 
 let tests = {
-  // check when social is totally disabled at startup (ie, no providers enabled)
+  // check when social is totally disabled at startup (ie, no providers)
   testInactiveStartup: function(cbnext) {
     is(Social.providers.length, 0, "needs zero providers to start this test.");
-    ok(!SocialService.hasEnabledProviders, "no providers are enabled");
     resetSocial();
     openWindowAndWaitForInit(function(w1) {
       checkSocialUI(w1);
@@ -69,13 +67,12 @@ let tests = {
     });
   },
 
-  // Check when providers are enabled and social is turned on at startup.
+  // Check when providers exist and social is turned on at startup.
   testEnabledStartup: function(cbnext) {
     runSocialTestWithProvider(manifest, function (finishcb) {
       resetSocial();
       openWindowAndWaitForInit(function(w1) {
         ok(Social.enabled, "social is enabled");
-        ok(SocialService.hasEnabledProviders, "providers are enabled");
         checkSocialUI(w1);
         // now init is complete, open a second window
         openWindowAndWaitForInit(function(w2) {
@@ -94,13 +91,11 @@ let tests = {
     }, cbnext);
   },
 
-  // Check when providers are enabled but social is turned off at startup.
+  // Check when providers exist but social is turned off at startup.
   testDisabledStartup: function(cbnext) {
-    setManifestPref("social.manifest.test", manifest);
-    SocialService.addProvider(manifest, function (provider) {
+    runSocialTestWithProvider(manifest, function (finishcb) {
       Services.prefs.setBoolPref("social.enabled", false);
       resetSocial();
-      ok(SocialService.hasEnabledProviders, "providers are enabled");
       openWindowAndWaitForInit(function(w1) {
         ok(!Social.enabled, "social is disabled");
         checkSocialUI(w1);
@@ -114,33 +109,33 @@ let tests = {
             ok(Social.enabled, "social is enabled");
             checkSocialUI(w2);
             checkSocialUI(w1);
-            SocialService.removeProvider(manifest.origin, function() {
-              Services.prefs.clearUserPref("social.manifest.test");
-              cbnext();
-            });
+            finishcb();
           });
         });
       });
     }, cbnext);
   },
 
-  // Check when the last provider is disabled.
+  // Check when the last provider is removed.
   testRemoveProvider: function(cbnext) {
-    setManifestPref("social.manifest.test", manifest);
-    SocialService.addProvider(manifest, function (provider) {
+    runSocialTestWithProvider(manifest, function (finishcb) {
       openWindowAndWaitForInit(function(w1) {
         checkSocialUI(w1);
         // now init is complete, open a second window
         openWindowAndWaitForInit(function(w2) {
           checkSocialUI(w2);
-          // disable the current provider.
+          // remove the current provider.
+          let SocialService = Cu.import("resource://gre/modules/SocialService.jsm", {}).SocialService;
           SocialService.removeProvider(manifest.origin, function() {
             ok(!Social.enabled, "social is disabled");
             is(Social.providers.length, 0, "no providers");
             checkSocialUI(w2);
             checkSocialUI(w1);
-            Services.prefs.clearUserPref("social.manifest.test");
-            cbnext();
+            // *sob* - runSocialTestWithProvider's cleanup fails when it can't
+            // remove the provider, so re-add it.
+            SocialService.addProvider(manifest, function() {
+              finishcb();
+            });
           });
         });
       });
