@@ -182,11 +182,8 @@
 
     function changeClickText(strId) {
       var second = document.getElementById(strId);
-      if (second.innerHTML == "Start") {
+      if (second.innerHTML == "Start" || second.innerHTML == "Context") {
         second.innerHTML = "End";
-      }
-      else if (second.innerHTML == "Context") {
-        second.innerHTML = "ContextEnd";
       }
       else {
         second.innerHTML = "Error";

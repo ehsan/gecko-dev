@@ -869,7 +869,6 @@ JS::DisableGenerationalGC(JSRuntime *rt)
 {
     rt->gcGenerationalEnabled = false;
 #ifdef JSGC_GENERATIONAL
-    rt->gcNursery.disable();
     rt->gcStoreBuffer.disable();
 #endif
 }

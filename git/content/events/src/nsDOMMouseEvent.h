@@ -37,13 +37,6 @@ public:
                                 JSContext* aCx, JS::Value* aVal);
 
   // Web IDL binding methods
-  virtual uint32_t Which() MOZ_OVERRIDE
-  {
-    uint32_t w = 0;
-    Which(&w);
-    return w;
-  }
-
   int32_t ScreenX();
   int32_t ScreenY();
   int32_t ClientX();

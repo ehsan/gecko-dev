@@ -1466,11 +1466,11 @@ GetStreams(JSContext* cx, PeerConnectionImpl* peerConnection,
 {
   nsAutoPtr<MediaStreamList> list(new MediaStreamList(peerConnection, type));
 
-  bool tookOwnership = false;
-  JSObject* obj = list->WrapObject(cx, &tookOwnership);
-  if (!tookOwnership) {
+  ErrorResult rv;
+  JSObject* obj = list->WrapObject(cx, rv);
+  if (rv.Failed()) {
     streams->setNull();
-    return NS_ERROR_FAILURE;
+    return rv.ErrorCode();
   }
 
   // Transfer ownership to the binding.

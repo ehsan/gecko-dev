@@ -326,11 +326,6 @@ DisableGGCForVerification(JSRuntime *rt)
     if (rt->gcVerifyPreData || rt->gcVerifyPostData)
         return;
 
-    if (rt->gcNursery.isEnabled()) {
-        MinorGC(rt, JS::gcreason::API);
-        rt->gcNursery.disable();
-    }
-
     if (rt->gcStoreBuffer.isEnabled())
         rt->gcStoreBuffer.disable();
 #endif
@@ -343,10 +338,8 @@ EnableGGCAfterVerification(JSRuntime *rt)
     if (rt->gcVerifyPreData || rt->gcVerifyPostData)
         return;
 
-    if (rt->gcGenerationalEnabled) {
-        rt->gcNursery.enable();
+    if (rt->gcGenerationalEnabled)
         rt->gcStoreBuffer.enable();
-    }
 #endif
 }
 
@@ -771,6 +764,10 @@ js::gc::EndVerifyPostBarriers(JSRuntime *rt)
         goto oom;
 
     /* Walk the heap. */
+    for (CompartmentsIter comp(rt); !comp.done(); comp.next()) {
+        if (comp->watchpointMap)
+            comp->watchpointMap->markAll(trc);
+    }
     for (GCZoneGroupIter zone(rt); !zone.done(); zone.next()) {
         for (size_t kind = 0; kind < FINALIZE_LIMIT; ++kind) {
             for (CellIterUnderGC cells(zone, AllocKind(kind)); !cells.done(); cells.next()) {

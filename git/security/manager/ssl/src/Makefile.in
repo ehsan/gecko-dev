@@ -20,6 +20,7 @@ LIBXUL_LIBRARY	= 1
 CPPSRCS = 				\
 	CryptoTask.cpp \
 	JARSignatureVerification.cpp \
+	nsCERTValInParamWrapper.cpp     \
 	nsNSSCleaner.cpp                \
 	nsCertOverrideService.cpp   \
 	nsRecentBadCerts.cpp \
@@ -71,12 +72,6 @@ CPPSRCS = 				\
   nsCertificatePrincipal.cpp \
   SharedSSLState.cpp \
   $(NULL)
-
-ifndef NSS_NO_LIBPKIX
-CPPSRCS += \
-  nsCERTValInParamWrapper.cpp \
-  $(NULL)
-endif
 
 ifndef MOZ_DISABLE_CRYPTOLEGACY
 CPPSRCS += \

@@ -95,7 +95,6 @@ class JSObject;
 namespace js {
 
 class Bindings;
-class Nursery;
 
 /* Limit on the number of slotful properties in an object. */
 static const uint32_t SHAPE_INVALID_SLOT = JS_BIT(24) - 1;
@@ -462,7 +461,6 @@ class Shape : public js::gc::Cell
     friend class ::JSObject;
     friend class ::JSFunction;
     friend class js::Bindings;
-    friend class js::Nursery;
     friend class js::ObjectImpl;
     friend class js::PropertyTree;
     friend class js::StaticBlockObject;

@@ -42,8 +42,6 @@ class LIRGeneratorARM : public LIRGeneratorShared
     bool lowerForFPU(LInstructionHelper<1, 2, 0> *ins, MDefinition *mir,
                      MDefinition *lhs, MDefinition *rhs);
 
-    bool lowerTruncateDToInt32(MTruncateToInt32 *ins);
-
     bool lowerConstantDouble(double d, MInstruction *ins);
     bool lowerDivI(MDiv *div);
     bool lowerModI(MMod *mod);

@@ -1469,12 +1469,6 @@ ReparentWrapper(JSContext* aCx, JS::HandleObject aObjArg)
     return NS_ERROR_FAILURE;
   }
 
-  bool isProxy = js::IsProxy(aObj);
-  JSObject* expandoObject;
-  if (isProxy) {
-    expandoObject = DOMProxyHandler::GetAndClearExpandoObject(aObj);
-  }
-
   JSAutoCompartment newAc(aCx, newParent);
 
   // First we clone the reflector. We get a copy of its properties and clone its
@@ -1503,23 +1497,18 @@ ReparentWrapper(JSContext* aCx, JS::HandleObject aObjArg)
   // clearing |aObj|'s reserved slot the reserved slot of |newobj| will be
   // set to null. |aObj| will go away soon, because we swap it with
   // another object during the transplant and let that object die.
-  JSObject* propertyHolder;
+  JSObject *propertyHolder;
   {
     AutoCloneDOMObjectSlotGuard cloneGuard(aObj, newobj);
 
-    JSObject* copyFrom = isProxy ? expandoObject : aObj;
-    if (copyFrom) {
-      propertyHolder = JS_NewObjectWithGivenProto(aCx, nullptr, nullptr,
-                                                  newParent);
-      if (!propertyHolder) {
-        return NS_ERROR_OUT_OF_MEMORY;
-      }
+    propertyHolder = JS_NewObjectWithGivenProto(aCx, nullptr, nullptr,
+                                                newParent);
+    if (!propertyHolder) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
 
-      if (!JS_CopyPropertiesFrom(aCx, propertyHolder, copyFrom)) {
-        return NS_ERROR_FAILURE;
-      }
-    } else {
-      propertyHolder = nullptr;
+    if (!JS_CopyPropertiesFrom(aCx, propertyHolder, aObj)) {
+      return NS_ERROR_FAILURE;
     }
 
     // Expandos from other compartments are attached to the target JS object.
@@ -1568,18 +1557,8 @@ ReparentWrapper(JSContext* aCx, JS::HandleObject aObjArg)
   cache->SetPreservingWrapper(false);
   cache->SetWrapper(aObj);
   cache->SetPreservingWrapper(preserving);
-
-  if (propertyHolder) {
-    JSObject* copyTo;
-    if (isProxy) {
-      copyTo = DOMProxyHandler::EnsureExpandoObject(aCx, aObj);
-    } else {
-      copyTo = aObj;
-    }
-
-    if (!copyTo || !JS_CopyPropertiesFrom(aCx, copyTo, propertyHolder)) {
-      MOZ_CRASH();
-    }
+  if (!JS_CopyPropertiesFrom(aCx, aObj, propertyHolder)) {
+    MOZ_CRASH();
   }
 
   nsObjectLoadingContent* htmlobject;

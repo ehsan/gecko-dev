@@ -594,10 +594,9 @@ JSObject::ensureDenseInitializedLength(JSContext *cx, uint32_t index, uint32_t e
     }
 }
 
-template<typename MallocProviderType>
+template<typename CONTEXT>
 JSObject::EnsureDenseResult
-JSObject::extendDenseElements(MallocProviderType *cx,
-                              unsigned requiredCapacity, unsigned extra)
+JSObject::extendDenseElements(CONTEXT *cx, unsigned requiredCapacity, unsigned extra)
 {
     /*
      * Don't grow elements for non-extensible objects or watched objects. Dense
@@ -949,10 +948,6 @@ JSObject::create(JSContext *cx, js::gc::AllocKind kind, js::gc::InitialHeap heap
         js_free(slots);
         return NULL;
     }
-
-#ifdef JSGC_GENERATIONAL
-    cx->runtime->gcNursery.notifyInitialSlots(obj, slots);
-#endif
 
     obj->shape_.init(shape);
     obj->type_.init(type);

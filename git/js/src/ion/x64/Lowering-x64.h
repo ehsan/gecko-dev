@@ -36,8 +36,6 @@ class LIRGeneratorX64 : public LIRGeneratorX86Shared
                      MDefinition *rhs);
     bool lowerForFPU(LMathD *ins, MDefinition *mir, MDefinition *lhs, MDefinition *rhs);
 
-    bool lowerTruncateDToInt32(MTruncateToInt32 *ins);
-
     LGetPropertyCacheT *newLGetPropertyCacheT(MGetPropertyCache *ins);
 
   public:

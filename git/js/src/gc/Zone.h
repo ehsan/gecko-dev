@@ -181,7 +181,7 @@ struct Zone : private JS::shadow::Zone, public js::gc::GraphNodeBase<JS::Zone>
      * tracer.
      */
     bool requireGCTracer() const {
-        return rt->isHeapMajorCollecting() && gcState != NoGC;
+        return rt->isHeapCollecting() && gcState != NoGC;
     }
 
     void setGCState(CompartmentGCState state) {

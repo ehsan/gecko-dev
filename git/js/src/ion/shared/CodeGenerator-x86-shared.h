@@ -15,6 +15,7 @@ namespace ion {
 class OutOfLineBailout;
 class OutOfLineUndoALUOperation;
 class MulNegativeZeroCheck;
+class OutOfLineTruncate;
 class OutOfLineTableSwitch;
 
 class CodeGeneratorX86Shared : public CodeGeneratorShared
@@ -104,6 +105,7 @@ class CodeGeneratorX86Shared : public CodeGeneratorShared
     virtual bool visitRound(LRound *lir);
     virtual bool visitGuardShape(LGuardShape *guard);
     virtual bool visitGuardClass(LGuardClass *guard);
+    virtual bool visitTruncateDToInt32(LTruncateDToInt32 *ins);
     virtual bool visitEffectiveAddress(LEffectiveAddress *ins);
     virtual bool visitAsmJSDivOrMod(LAsmJSDivOrMod *ins);
     virtual bool visitAsmJSPassStackArg(LAsmJSPassStackArg *ins);
@@ -115,6 +117,7 @@ class CodeGeneratorX86Shared : public CodeGeneratorShared
     bool visitOutOfLineBailout(OutOfLineBailout *ool);
     bool visitOutOfLineUndoALUOperation(OutOfLineUndoALUOperation *ool);
     bool visitMulNegativeZeroCheck(MulNegativeZeroCheck *ool);
+    bool visitOutOfLineTruncate(OutOfLineTruncate *ool);
     bool visitOutOfLineTableSwitch(OutOfLineTableSwitch *ool);
     bool generateInvalidateEpilogue();
 };

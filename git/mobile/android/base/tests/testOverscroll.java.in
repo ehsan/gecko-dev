@@ -32,7 +32,6 @@ public class testOverscroll extends PixelTest {
         Actions.RepeatedEventExpecter paintExpecter = mActions.expectPaint();
         meh.dragSync(10, 50, 10, 150);
         PaintedSurface painted = waitWithNoPaint(paintExpecter);
-        paintExpecter.unregisterListener();
         try {
             checkScrollWithBoxes(painted, 0, 0);
         } finally {
@@ -43,7 +42,6 @@ public class testOverscroll extends PixelTest {
         paintExpecter = mActions.expectPaint();
         meh.dragSync(50, 10, 150, 10);
         painted = waitWithNoPaint(paintExpecter);
-        paintExpecter.unregisterListener();
         try {
             checkScrollWithBoxes(painted, 0, 0);
         } finally {

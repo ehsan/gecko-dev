@@ -7,7 +7,6 @@
 #include "mozilla/dom/HTMLTextAreaElement.h"
 #include "mozilla/dom/HTMLTextAreaElementBinding.h"
 #include "mozilla/Util.h"
-#include "base/compiler_specific.h"
 
 #include "nsIControllers.h"
 #include "nsFocusManager.h"
@@ -60,7 +59,7 @@ HTMLTextAreaElement::HTMLTextAreaElement(already_AddRefed<nsINodeInfo> aNodeInfo
     mDisabledChanged(false),
     mCanShowInvalidUI(true),
     mCanShowValidUI(true),
-    ALLOW_THIS_IN_INITIALIZER_LIST(mState(this))
+    mState(this)
 {
   AddMutationObserver(this);
 

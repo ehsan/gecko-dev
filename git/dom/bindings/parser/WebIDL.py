@@ -2227,11 +2227,8 @@ class IDLValue(IDLObject):
         if type == self.type:
             return self # Nothing to do
 
-        # If the type allows null, rerun this matching on the inner type, except
-        # nullable enums.  We handle those specially, because we want our
-        # default string values to stay strings even when assigned to a nullable
-        # enum.
-        if type.nullable() and not type.isEnum():
+        # If the type allows null, rerun this matching on the inner type
+        if type.nullable():
             innerValue = self.coerceToType(type.inner, location)
             return IDLValue(self.location, type, innerValue.value)
 
@@ -2256,11 +2253,10 @@ class IDLValue(IDLObject):
                                   (self.value, type), [location])
         elif self.type.isString() and type.isEnum():
             # Just keep our string, but make sure it's a valid value for this enum
-            enum = type.unroll().inner
-            if self.value not in enum.values():
+            if self.value not in type.inner.values():
                 raise WebIDLError("'%s' is not a valid default value for enum %s"
-                                  % (self.value, enum.identifier.name),
-                                  [location, enum.location])
+                                  % (self.value, type.inner.identifier.name),
+                                  [location, type.inner.location])
             return self
         elif self.type.isFloat() and type.isFloat():
             if (not type.isUnrestricted() and

@@ -2365,28 +2365,6 @@ JSObject::setSlotSpan(JSContext *cx, HandleObject obj, uint32_t span)
     return true;
 }
 
-static HeapSlot *
-AllocateSlots(JSContext *cx, JSObject *obj, uint32_t nslots)
-{
-#ifdef JSGC_GENERATIONAL
-    return cx->runtime->gcNursery.allocateSlots(cx, obj, nslots);
-#else
-    return cx->pod_malloc<HeapSlot>(nslots);
-#endif
-}
-
-static HeapSlot *
-ReallocateSlots(JSContext *cx, JSObject *obj, HeapSlot *oldSlots,
-                uint32_t oldCount, uint32_t newCount)
-{
-#ifdef JSGC_GENERATIONAL
-    return cx->runtime->gcNursery.reallocateSlots(cx, obj, oldSlots, oldCount, newCount);
-#else
-    return (HeapSlot *)cx->realloc_(oldSlots, oldCount * sizeof(HeapSlot),
-                                    newCount * sizeof(HeapSlot));
-#endif
-}
-
 /* static */ bool
 JSObject::growSlots(JSContext *cx, HandleObject obj, uint32_t oldCount, uint32_t newCount)
 {
@@ -2425,14 +2403,15 @@ JSObject::growSlots(JSContext *cx, HandleObject obj, uint32_t oldCount, uint32_t
     }
 
     if (!oldCount) {
-        obj->slots = AllocateSlots(cx, obj, newCount);
+        obj->slots = cx->pod_malloc<HeapSlot>(newCount);
         if (!obj->slots)
             return false;
         Debug_SetSlotRangeToCrashOnTouch(obj->slots, newCount);
         return true;
     }
 
-    HeapSlot *newslots = ReallocateSlots(cx, obj, obj->slots, oldCount, newCount);
+    HeapSlot *newslots = (HeapSlot*) cx->realloc_(obj->slots, oldCount * sizeof(HeapSlot),
+                                                  newCount * sizeof(HeapSlot));
     if (!newslots)
         return false;  /* Leave slots at its old size. */
 
@@ -2446,15 +2425,6 @@ JSObject::growSlots(JSContext *cx, HandleObject obj, uint32_t oldCount, uint32_t
         types::MarkObjectStateChange(cx, obj);
 
     return true;
-}
-
-static void
-FreeSlots(JSContext *cx, HeapSlot *slots)
-{
-#ifdef JSGC_GENERATIONAL
-    if (!cx->runtime->gcNursery.isInside(slots))
-#endif
-        js_free(slots);
 }
 
 /* static */ void
@@ -2472,14 +2442,14 @@ JSObject::shrinkSlots(JSContext *cx, HandleObject obj, uint32_t oldCount, uint32
         return;
 
     if (newCount == 0) {
-        FreeSlots(cx, obj->slots);
+        js_free(obj->slots);
         obj->slots = NULL;
         return;
     }
 
     JS_ASSERT(newCount >= SLOT_CAPACITY_MIN);
 
-    HeapSlot *newslots = ReallocateSlots(cx, obj, obj->slots, oldCount, newCount);
+    HeapSlot *newslots = (HeapSlot *) cx->realloc_(obj->slots, newCount * sizeof(HeapSlot));
     if (!newslots)
         return;  /* Leave slots at its old size. */
 
@@ -2682,43 +2652,27 @@ JSObject::maybeDensifySparseElements(JSContext *cx, HandleObject obj)
     return ED_OK;
 }
 
-ObjectElements *
-AllocateElements(JSObject::MaybeContext maybecx, JSObject *obj, uint32_t nelems)
+bool
+JSObject::growElements(JSContext *cx, unsigned newcap)
 {
-    if (JSContext *cx = maybecx.context) {
-#ifdef JSGC_GENERATIONAL
-        return cx->runtime->gcNursery.allocateElements(cx, obj, nelems);
-#else
-        return static_cast<js::ObjectElements *>(cx->malloc_(nelems * sizeof(HeapValue)));
-#endif
+    if (!growElements(&cx->zone()->allocator, newcap)) {
+        JS_ReportOutOfMemory(cx);
+        return false;
     }
 
-    Allocator *alloc = maybecx.allocator;
-    return static_cast<js::ObjectElements *>(alloc->malloc_(nelems * sizeof(HeapValue)));
-}
-
-ObjectElements *
-ReallocateElements(JSObject::MaybeContext maybecx, JSObject *obj, ObjectElements *oldHeader,
-                   uint32_t oldCount, uint32_t newCount)
-{
-    if (JSContext *cx = maybecx.context) {
-#ifdef JSGC_GENERATIONAL
-        return cx->runtime->gcNursery.reallocateElements(cx, obj, oldHeader, oldCount, newCount);
-#else
-        return static_cast<js::ObjectElements *>(cx->realloc_(oldHeader,
-                                                              oldCount * sizeof(HeapValue),
-                                                              newCount * sizeof(HeapSlot)));
-#endif
-    }
-
-    Allocator *alloc = maybecx.allocator;
-    return static_cast<js::ObjectElements *>(alloc->realloc_(oldHeader, oldCount * sizeof(HeapSlot),
-                                                             newCount * sizeof(HeapSlot)));
+    return true;
 }
 
 bool
-JSObject::growElements(MaybeContext cx, unsigned newcap)
+JSObject::growElements(js::Allocator *alloc, unsigned newcap)
 {
+    /*
+     * This version of |growElements()|, which takes a
+     * |js::Allocator*| as opposed to a |JSContext*|, is intended to
+     * run either during sequential or parallel execution.  As per
+     * convention, since it does not take a JSContext*, it does not
+     * report an error on out of memory but simply returns false.
+     */
     JS_ASSERT(isExtensible());
 
     /*
@@ -2750,18 +2704,20 @@ JSObject::growElements(MaybeContext cx, unsigned newcap)
     }
 
     uint32_t initlen = getDenseInitializedLength();
-    uint32_t oldAllocated = oldcap + ObjectElements::VALUES_PER_HEADER;
     uint32_t newAllocated = actualCapacity + ObjectElements::VALUES_PER_HEADER;
 
     ObjectElements *newheader;
     if (hasDynamicElements()) {
-        newheader = ReallocateElements(cx, this, getElementsHeader(), oldAllocated, newAllocated);
+        uint32_t oldAllocated = oldcap + ObjectElements::VALUES_PER_HEADER;
+        newheader = (ObjectElements *)
+            alloc->realloc_(getElementsHeader(), oldAllocated * sizeof(Value),
+                            newAllocated * sizeof(Value));
         if (!newheader)
-            return false; /* Leave elements as its old size. */
+            return false;  /* Leave elements as its old size. */
     } else {
-        newheader = AllocateElements(cx, this, newAllocated);
+        newheader = (ObjectElements *) alloc->malloc_(newAllocated * sizeof(Value));
         if (!newheader)
-            return false; /* Leave elements as its old size. */
+            return false;  /* Ditto. */
         js_memcpy(newheader, getElementsHeader(),
                   (ObjectElements::VALUES_PER_HEADER + initlen) * sizeof(Value));
     }
@@ -2786,11 +2742,10 @@ JSObject::shrinkElements(JSContext *cx, unsigned newcap)
 
     newcap = Max(newcap, SLOT_CAPACITY_MIN);
 
-    uint32_t oldAllocated = oldcap + ObjectElements::VALUES_PER_HEADER;
     uint32_t newAllocated = newcap + ObjectElements::VALUES_PER_HEADER;
 
-    ObjectElements *newheader = ReallocateElements(cx, this, getElementsHeader(),
-                                                   oldAllocated, newAllocated);
+    ObjectElements *newheader = (ObjectElements *)
+        cx->realloc_(getElementsHeader(), newAllocated * sizeof(Value));
     if (!newheader)
         return;  /* Leave elements at its old size. */
 

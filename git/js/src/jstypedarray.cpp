@@ -259,7 +259,7 @@ NextView(JSObject *obj)
     return static_cast<JSObject*>(obj->getFixedSlot(BufferView::NEXT_VIEW_SLOT).toPrivate());
 }
 
-static HeapPtrObject *
+static JSObject **
 GetViewList(ArrayBufferObject *obj)
 {
 #if USE_NEW_OBJECT_REPRESENTATION
@@ -275,7 +275,7 @@ GetViewList(ArrayBufferObject *obj)
     struct OldObjectRepresentationHack {
             uint32_t capacity;
             uint32_t initializedLength;
-            HeapPtrObject views;
+            JSObject *views;
     };
     return &reinterpret_cast<OldObjectRepresentationHack*>(obj->getElementsHeader())->views;
 #endif
@@ -468,10 +468,8 @@ class WeakObjectSlotRef : public js::gc::BufferableRef
     }
 
     virtual void mark(JSTracer *trc) {
-        MarkObjectUnbarriered(trc, &owner, "weak TypeArrayView ref");
         JSObject *obj = static_cast<JSObject*>(owner->getFixedSlot(slot).toPrivate());
-        if (obj && obj != UNSET_BUFFER_LINK)
-            MarkObjectUnbarriered(trc, &obj, desc);
+        MarkObjectUnbarriered(trc, &obj, desc);
         owner->setFixedSlot(slot, PrivateValue(obj));
     }
 };
@@ -510,7 +508,7 @@ ArrayBufferObject::addView(RawObject view)
     // list was nonempty and will be made weak during this call (and weak
     // pointers cannot violate the snapshot-at-the-beginning invariant.)
 
-    HeapPtrObject *views = GetViewList(this);
+    JSObject **views = GetViewList(this);
     if (*views == NULL) {
         // This ArrayBuffer will have a single view at this point, so it is a
         // strong pointer (it will be marked during tracing.)
@@ -640,7 +638,7 @@ ArrayBufferObject::stealContents(JSContext *cx, JSObject *obj, void **contents,
 
     // Neuter the donor ArrayBuffer and all views of it
     ArrayBufferObject::setElementsHeader(header, 0);
-    GetViewList(&buffer)->init(views);
+    *GetViewList(&buffer) = views;
     for (JSObject *view = views; view; view = NextView(view))
         TypedArray::neuter(view);
 
@@ -673,22 +671,9 @@ ArrayBufferObject::obj_trace(JSTracer *trc, RawObject obj)
     // linked list during collection, and then swept to prune out their dead
     // views.
 
-    HeapPtrObject *views = GetViewList(&obj->asArrayBuffer());
+    JSObject **views = GetViewList(&obj->asArrayBuffer());
     if (!*views)
         return;
-
-    // During minor collections, these edges are normally kept alive by the
-    // store buffer. If the store buffer overflows, fallback marking should
-    // just treat these as strong references for simplicity.
-    if (trc->runtime->isHeapMinorCollecting()) {
-        MarkObject(trc, views, "arraybuffer.viewlist");
-        JSObject *prior = views->get();
-        for (JSObject *view = NextView(prior); view; prior = view, view = NextView(view)) {
-            MarkObjectUnbarriered(trc, &view, "arraybuffer.views");
-            prior->setFixedSlot(BufferView::NEXT_VIEW_SLOT, PrivateValue(view));
-        }
-        return;
-    }
 
     JSObject *firstView = *views;
     if (NextView(firstView) == NULL) {
@@ -696,9 +681,10 @@ ArrayBufferObject::obj_trace(JSTracer *trc, RawObject obj)
         // right now. Otherwise, the tracing pass for barrier verification will
         // fail if we add another view and the pointer becomes weak.
         if (IS_GC_MARKING_TRACER(trc))
-            MarkObject(trc, views, "arraybuffer.singleview");
+            MarkObjectUnbarriered(trc, views, "arraybuffer.singleview");
     } else {
         // Multiple views: do not mark, but append buffer to list.
+
         if (IS_GC_MARKING_TRACER(trc)) {
             // obj_trace may be called multiple times before sweep(), so avoid
             // adding this buffer to the list multiple times.
@@ -729,7 +715,7 @@ ArrayBufferObject::sweep(JSCompartment *compartment)
     compartment->gcLiveArrayBuffers = NULL;
 
     while (buffer) {
-        HeapPtrObject *views = GetViewList(&buffer->asArrayBuffer());
+        JSObject **views = GetViewList(&buffer->asArrayBuffer());
         JS_ASSERT(*views);
 
         JSObject *nextBuffer = BufferLink(*views);
@@ -749,7 +735,7 @@ ArrayBufferObject::sweep(JSCompartment *compartment)
             }
             view = nextView;
         }
-        *(views->unsafeGet()) = prevLiveView;
+        *views = prevLiveView;
 
         buffer = nextBuffer;
     }
@@ -1755,7 +1741,7 @@ class TypedArrayTemplate
         JS_ASSERT(bufobj->isArrayBuffer());
         Rooted<ArrayBufferObject *> buffer(cx, &bufobj->asArrayBuffer());
 
-        InitArrayBufferViewDataPointer(obj, buffer, byteOffset);
+        InitTypedArrayDataPointer(obj, buffer, byteOffset);
         obj->setSlot(LENGTH_SLOT, Int32Value(len));
         obj->setSlot(BYTEOFFSET_SLOT, Int32Value(byteOffset));
         obj->setSlot(BYTELENGTH_SLOT, Int32Value(len * sizeof(NativeType)));

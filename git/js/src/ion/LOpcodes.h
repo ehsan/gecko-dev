@@ -50,9 +50,6 @@
     _(CreateThis)                   \
     _(CreateThisWithProto)          \
     _(CreateThisWithTemplate)       \
-    _(CreateArgumentsObject)        \
-    _(GetArgumentsObjectArg)        \
-    _(SetArgumentsObjectArg)        \
     _(ReturnFromCtor)               \
     _(BitNotI)                      \
     _(BitNotV)                      \
@@ -210,7 +207,6 @@
     _(GetDOMProperty)               \
     _(SetDOMProperty)               \
     _(CallDOMNative)                \
-    _(IsCallable)                   \
     _(AsmJSLoadHeap)                \
     _(AsmJSStoreHeap)               \
     _(AsmJSLoadGlobalVar)           \

@@ -38,7 +38,6 @@ CPPSRCS = \
   $(NULL)
 
 LOCAL_INCLUDES += -I$(topsrcdir)/xpcom/build
-LOCAL_INCLUDES += -I$(topsrcdir)/xpcom/threads
 
 EXTRA_DSO_LDOPTS += \
   $(MOZ_COMPONENT_LIBS) \

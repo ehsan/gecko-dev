@@ -11,7 +11,6 @@
 #include "nsIDOMHTMLAnchorElement.h"
 #include "nsILink.h"
 #include "Link.h"
-#include "base/compiler_specific.h"
 
 namespace mozilla {
 namespace dom {
@@ -27,7 +26,7 @@ public:
 
   HTMLAnchorElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : nsGenericHTMLElement(aNodeInfo)
-    , ALLOW_THIS_IN_INITIALIZER_LIST(Link(this))
+    , Link(this)
   {
     SetIsDOMBinding();
   }

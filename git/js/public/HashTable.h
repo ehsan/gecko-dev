@@ -580,9 +580,6 @@ class HashMapEntry
     HashMapEntry(MoveRef<HashMapEntry> rhs)
       : key(Move(rhs->key)), value(Move(rhs->value)) { }
 
-    typedef Key KeyType;
-    typedef Value ValueType;
-
     const Key key;
     Value value;
 };

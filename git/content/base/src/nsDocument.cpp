@@ -1906,6 +1906,12 @@ nsDocument::Init()
   return NS_OK;
 }
 
+nsHTMLDocument*
+nsIDocument::AsHTMLDocument()
+{
+  return IsHTML() ? static_cast<nsHTMLDocument*>(this) : nullptr;
+}
+
 void
 nsIDocument::DeleteAllProperties()
 {
@@ -2941,11 +2947,11 @@ nsIDocument::GetActiveElement()
   }
 
   // No focused element anywhere in this document.  Try to get the BODY.
-  nsRefPtr<nsHTMLDocument> htmlDoc = AsHTMLDocument();
+  nsCOMPtr<nsIDOMHTMLDocument> htmlDoc = do_QueryObject(this);
   if (htmlDoc) {
     // Because of IE compatibility, return null when html document doesn't have
     // a body.
-    return htmlDoc->GetBody();
+    return static_cast<nsHTMLDocument*>(htmlDoc.get())->GetBody();
   }
 
   // If we couldn't get a BODY, return the root element.
@@ -3115,7 +3121,7 @@ nsIDocument::ReleaseCapture() const
 {
   // only release the capture if the caller can access it. This prevents a
   // page from stopping a scrollbar grab for example.
-  nsCOMPtr<nsINode> node = nsIPresShell::GetCapturingContent();
+  nsCOMPtr<nsIDOMNode> node = do_QueryInterface(nsIPresShell::GetCapturingContent());
   if (node && nsContentUtils::CanCallerAccess(node)) {
     nsIPresShell::SetCapturingContent(nullptr, 0);
   }
@@ -7445,7 +7451,7 @@ nsDocument::IsSafeToFlush() const
   return shell->IsSafeToFlush();
 }
 
-void
+nsresult
 nsDocument::Sanitize()
 {
   // Sanitize the document by resetting all password fields and any form
@@ -7457,16 +7463,24 @@ nsDocument::Sanitize()
   // First locate all input elements, regardless of whether they are
   // in a form, and reset the password and autocomplete=off elements.
 
-  nsRefPtr<nsContentList> nodes = GetElementsByTagName(NS_LITERAL_STRING("input"));
+  nsCOMPtr<nsIDOMNodeList> nodes;
+  nsresult rv = GetElementsByTagName(NS_LITERAL_STRING("input"),
+                                     getter_AddRefs(nodes));
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIContent> item;
+  uint32_t length = 0;
+  if (nodes)
+    nodes->GetLength(&length);
+
+  nsCOMPtr<nsIDOMNode> item;
   nsAutoString value;
+  uint32_t i;
 
-  uint32_t length = nodes->Length(true);
-  for (uint32_t i = 0; i < length; ++i) {
-    NS_ASSERTION(nodes->Item(i), "null item in node list!");
+  for (i = 0; i < length; ++i) {
+    nodes->Item(i, getter_AddRefs(item));
+    NS_ASSERTION(item, "null item in node list!");
 
-    nsCOMPtr<nsIDOMHTMLInputElement> input = do_QueryInterface(nodes->Item(i));
+    nsCOMPtr<nsIDOMHTMLInputElement> input = do_QueryInterface(item);
     if (!input)
       continue;
 
@@ -7488,13 +7502,18 @@ nsDocument::Sanitize()
   }
 
   // Now locate all _form_ elements that have autocomplete=off and reset them
-  nodes = GetElementsByTagName(NS_LITERAL_STRING("form"));
+  rv = GetElementsByTagName(NS_LITERAL_STRING("form"), getter_AddRefs(nodes));
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  length = nodes->Length(true);
-  for (uint32_t i = 0; i < length; ++i) {
-    NS_ASSERTION(nodes->Item(i), "null item in nodelist");
+  length = 0;
+  if (nodes)
+    nodes->GetLength(&length);
 
-    nsCOMPtr<nsIDOMHTMLFormElement> form = do_QueryInterface(nodes->Item(i));
+  for (i = 0; i < length; ++i) {
+    nodes->Item(i, getter_AddRefs(item));
+    NS_ASSERTION(item, "null item in nodelist");
+
+    nsCOMPtr<nsIDOMHTMLFormElement> form = do_QueryInterface(item);
     if (!form)
       continue;
 
@@ -7502,6 +7521,8 @@ nsDocument::Sanitize()
     if (value.LowerCaseEqualsLiteral("off"))
       form->Reset();
   }
+
+  return NS_OK;
 }
 
 struct SubDocEnumArgs
@@ -9163,17 +9184,16 @@ nsDocument::CreateTouch(nsIDOMWindow* aView,
                         float aForce,
                         nsIDOMTouch** aRetVal)
 {
-  nsCOMPtr<EventTarget> target = do_QueryInterface(aTarget);
-  *aRetVal = nsIDocument::CreateTouch(aView, target, aIdentifier, aPageX,
+  *aRetVal = nsIDocument::CreateTouch(aView, aTarget, aIdentifier, aPageX,
                                       aPageY, aScreenX, aScreenY, aClientX,
                                       aClientY, aRadiusX, aRadiusY,
                                       aRotationAngle, aForce).get();
   return NS_OK;
 }
 
-already_AddRefed<Touch>
+already_AddRefed<nsIDOMTouch>
 nsIDocument::CreateTouch(nsIDOMWindow* aView,
-                         EventTarget* aTarget,
+                         nsISupports* aTarget,
                          int32_t aIdentifier,
                          int32_t aPageX, int32_t aPageY,
                          int32_t aScreenX, int32_t aScreenY,
@@ -9182,14 +9202,15 @@ nsIDocument::CreateTouch(nsIDOMWindow* aView,
                          float aRotationAngle,
                          float aForce)
 {
-  nsRefPtr<Touch> touch = new Touch(aTarget,
-                                    aIdentifier,
-                                    aPageX, aPageY,
-                                    aScreenX, aScreenY,
-                                    aClientX, aClientY,
-                                    aRadiusX, aRadiusY,
-                                    aRotationAngle,
-                                    aForce);
+  nsCOMPtr<EventTarget> target = do_QueryInterface(aTarget);
+  nsCOMPtr<nsIDOMTouch> touch = new Touch(target,
+                                          aIdentifier,
+                                          aPageX, aPageY,
+                                          aScreenX, aScreenY,
+                                          aClientX, aClientY,
+                                          aRadiusX, aRadiusY,
+                                          aRotationAngle,
+                                          aForce);
   return touch.forget();
 }
 
@@ -9242,23 +9263,23 @@ nsIDocument::CreateTouchList()
 }
 
 already_AddRefed<nsIDOMTouchList>
-nsIDocument::CreateTouchList(Touch& aTouch,
-                             const Sequence<OwningNonNull<Touch> >& aTouches)
+nsIDocument::CreateTouchList(nsIDOMTouch* aTouch,
+                             const Sequence<nsRefPtr<nsIDOMTouch> >& aTouches)
 {
   nsRefPtr<nsDOMTouchList> retval = new nsDOMTouchList();
-  retval->Append(&aTouch);
+  retval->Append(aTouch);
   for (uint32_t i = 0; i < aTouches.Length(); ++i) {
-    retval->Append(aTouches[i].get());
+    retval->Append(aTouches[i]);
   }
   return retval.forget();
 }
 
 already_AddRefed<nsIDOMTouchList>
-nsIDocument::CreateTouchList(const Sequence<OwningNonNull<Touch> >& aTouches)
+nsIDocument::CreateTouchList(const Sequence<nsRefPtr<nsIDOMTouch> >& aTouches)
 {
   nsRefPtr<nsDOMTouchList> retval = new nsDOMTouchList();
   for (uint32_t i = 0; i < aTouches.Length(); ++i) {
-    retval->Append(aTouches[i].get());
+    retval->Append(aTouches[i]);
   }
   return retval.forget();
 }

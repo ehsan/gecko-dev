@@ -43,7 +43,6 @@ class BaseShape;
 class DebugScopeObject;
 class GCHelperThread;
 class GlobalObject;
-class Nursery;
 class PropertyName;
 class ScopeObject;
 class Shape;
@@ -51,10 +50,9 @@ class UnownedBaseShape;
 struct SliceBudget;
 
 enum HeapState {
-    Idle,             // doing nothing with the GC heap
-    Tracing,          // tracing the GC heap without collecting, e.g. IterateCompartments()
-    MajorCollecting,  // doing a GC of the major heap
-    MinorCollecting   // doing a GC of the minor heap (nursery)
+    Idle,       // doing nothing with the GC heap
+    Tracing,    // tracing the GC heap without collecting, e.g. IterateCompartments()
+    Collecting  // doing a GC of the heap
 };
 
 namespace ion {
@@ -243,8 +241,8 @@ struct ArenaList {
     void insert(ArenaHeader *arena);
 };
 
-struct ArenaLists
-{
+struct ArenaLists {
+
   private:
     /*
      * For each arena kind its free list is represented as the first span with
@@ -499,10 +497,7 @@ struct ArenaLists
     inline void queueForForegroundSweep(FreeOp *fop, AllocKind thingKind);
     inline void queueForBackgroundSweep(FreeOp *fop, AllocKind thingKind);
 
-    void *allocateFromArena(JS::Zone *zone, AllocKind thingKind);
-    inline void *allocateFromArenaInline(JS::Zone *zone, AllocKind thingKind);
-
-    friend class js::Nursery;
+    inline void *allocateFromArena(JS::Zone *zone, AllocKind thingKind);
 };
 
 /*
@@ -606,9 +601,6 @@ GCDebugSlice(JSRuntime *rt, bool limit, int64_t objCount);
 
 extern void
 PrepareForDebugGC(JSRuntime *rt);
-
-extern void
-MinorGC(JSRuntime *rt, JS::gcreason::Reason reason);
 
 #ifdef JS_GC_ZEAL
 extern void

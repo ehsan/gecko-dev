@@ -47,16 +47,6 @@ struct SetListBaseInformation
 
 SetListBaseInformation gSetListBaseInformation;
 
-// static
-JSObject*
-DOMProxyHandler::GetAndClearExpandoObject(JSObject* obj)
-{
-  JSObject* expando = GetExpandoObject(obj);
-  XPCWrappedNativeScope* scope = xpc::GetObjectScope(obj);
-  scope->RemoveDOMExpandoObject(obj);
-  js::SetProxyExtra(obj, JSPROXYSLOT_EXPANDO, UndefinedValue());
-  return expando;
-}
 
 // static
 JSObject*
@@ -143,8 +133,8 @@ DOMProxyHandler::defineProperty(JSContext* cx, JS::Handle<JSObject*> proxy, JS::
     return false;
   }
 
-  JSBool dummy;
-  return js_DefineOwnProperty(cx, expando, id, *desc, &dummy);
+  return JS_DefinePropertyById(cx, expando, id, desc->value, desc->getter, desc->setter,
+                               desc->attrs);
 }
 
 bool

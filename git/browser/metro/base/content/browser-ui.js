@@ -393,15 +393,29 @@ var BrowserUI = {
   },
 
   closeTab: function closeTab(aTab) {
+    // If we only have one tab, open a new one
+    if (Browser.tabs.length === 1 && !StartUI.isStartURI())
+      Browser.addTab(Browser.getHomePage());
+
+    // We only have the start tab
+    if (Browser.tabs.length === 1)
+      return;
+
     // If no tab is passed in, assume the current tab
     let tab = aTab || Browser.selectedTab;
-    Browser.closeTab(tab);
-  },
+    let tabToClose = tab instanceof XULElement ? Browser.getTabFromChrome(tab) : tab;
 
-  animateClosingTab: function animateClosingTab(tabToClose) {
     if (this.isTabsOnly) {
-      Browser.closeTab(tabToClose, { forceClose: true } );
+      Browser.closeTab(tabToClose);
     } else {
+      let nextTab = Browser.getNextTab(tabToClose);
+
+      if (!nextTab)
+        return;
+
+      if (nextTab)
+        Browser.selectedTab = nextTab;
+
       // Trigger closing animation
       tabToClose.chromeTab.setAttribute("closing", "true");
 
@@ -411,7 +425,7 @@ var BrowserUI = {
       }
 
       this.setOnTabAnimationEnd(function() {
-	Browser.closeTab(tabToClose, { forceClose: true } );
+        Browser.closeTab(tabToClose);
         if (wasCollapsed)
           ContextUI.dismissWithDelay(kNewTabAnimationDelayMsec);
       });

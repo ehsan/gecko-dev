@@ -33,7 +33,6 @@ public:
   bool Connect(const nsAString& aDeviceObjectPath);
   void Disconnect();
   bool Listen();
-  bool IsConnected();
 
 private:
   friend class BluetoothScoManagerObserver;

@@ -24,7 +24,6 @@ namespace js {
 
 class Debugger;
 class ObjectImpl;
-class Nursery;
 ForwardDeclare(Shape);
 
 class AutoPropDescArrayRooter;
@@ -931,7 +930,6 @@ class ObjectElements
     friend class ::JSObject;
     friend class ObjectImpl;
     friend class ArrayBufferObject;
-    friend class Nursery;
 
     /* See Flags enum above. */
     uint32_t flags;
@@ -1413,10 +1411,6 @@ class ObjectImpl : public gc::Cell
          * (which have at least two fixed slots) and can only result in a leak.
          */
         return elements != emptyObjectElements && elements != fixedElements();
-    }
-
-    inline bool hasFixedElements() const {
-        return elements == fixedElements();
     }
 
     inline bool hasEmptyElements() const {
