@@ -449,7 +449,7 @@ TabChildBase::HandlePossibleViewportChange(const ScreenIntSize& aOldScreenSize)
     // Return early rather than divide by 0.
     return false;
   }
-  metrics.SetScrollableRect(CSSRect(CSSPoint(), pageSize));
+  metrics.mScrollableRect = CSSRect(CSSPoint(), pageSize);
 
   // Calculate a display port _after_ having a scrollable rect because the
   // display port is clamped to the scrollable rect.
@@ -583,13 +583,13 @@ TabChildBase::ProcessUpdateFrame(const FrameMetrics& aFrameMetrics)
         data.AppendLiteral(" }");
     data.AppendLiteral(", \"cssPageRect\" : ");
         data.AppendLiteral("{ \"x\" : ");
-        data.AppendFloat(newMetrics.GetScrollableRect().x);
+        data.AppendFloat(newMetrics.mScrollableRect.x);
         data.AppendLiteral(", \"y\" : ");
-        data.AppendFloat(newMetrics.GetScrollableRect().y);
+        data.AppendFloat(newMetrics.mScrollableRect.y);
         data.AppendLiteral(", \"width\" : ");
-        data.AppendFloat(newMetrics.GetScrollableRect().width);
+        data.AppendFloat(newMetrics.mScrollableRect.width);
         data.AppendLiteral(", \"height\" : ");
-        data.AppendFloat(newMetrics.GetScrollableRect().height);
+        data.AppendFloat(newMetrics.mScrollableRect.height);
         data.AppendLiteral(" }");
     data.AppendLiteral(", \"cssCompositedRect\" : ");
         data.AppendLiteral("{ \"width\" : ");
