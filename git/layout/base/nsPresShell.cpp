@@ -3912,29 +3912,6 @@ PresShell::FlushPendingNotifications(mozilla::ChangesToFlush aFlush)
 }
 
 void
-PresShell::CharacterDataWillChange(nsIDocument *aDocument,
-                                   nsIContent*  aContent,
-                                   CharacterDataChangeInfo* aInfo)
-{
-  NS_PRECONDITION(!mIsDocumentGone, "Unexpected CharacterDataChanged");
-  NS_PRECONDITION(aDocument == mDocument, "Unexpected aDocument");
-
-  if (mCaret) {
-    // Invalidate the caret's current location before we call into the frame
-    // constructor. It is important to do this now, and not wait until the
-    // resulting reflow, because this call causes continuation frames of the
-    // text frame the caret is in to forget what part of the content they
-    // refer to, making it hard for them to return the correct continuation
-    // frame to the caret.
-    //
-    // It's also important to do this before the content actually changes, since
-    // in bidi text the caret needs to look at the content to determine its
-    // position and shape.
-    mCaret->InvalidateOutsideCaret();
-  }
-}
-
-void
 PresShell::CharacterDataChanged(nsIDocument *aDocument,
                                 nsIContent*  aContent,
                                 CharacterDataChangeInfo* aInfo)
@@ -3943,6 +3920,16 @@ PresShell::CharacterDataChanged(nsIDocument *aDocument,
   NS_PRECONDITION(aDocument == mDocument, "Unexpected aDocument");
 
   nsAutoCauseReflowNotifier crNotifier(this);
+
+  if (mCaret) {
+    // Invalidate the caret's current location before we call into the frame
+    // constructor. It is important to do this now, and not wait until the
+    // resulting reflow, because this call causes continuation frames of the
+    // text frame the caret is in to forget what part of the content they
+    // refer to, making it hard for them to return the correct continuation
+    // frame to the caret.
+    mCaret->InvalidateOutsideCaret();
+  }
 
   // Call this here so it only happens for real content mutations and
   // not cases when the frame constructor calls its own methods to force
