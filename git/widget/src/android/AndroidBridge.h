@@ -158,8 +158,6 @@ public:
                                            PRInt64 aProgressMax,
                                            const nsAString& aAlertText);
 
-    int GetDPI();
-
     struct AutoLocalJNIFrame {
         AutoLocalJNIFrame(int nEntries = 128) : mEntries(nEntries) {
             AndroidBridge::Bridge()->JNI()->PushLocalFrame(mEntries);
@@ -221,7 +219,7 @@ protected:
     jmethodID jSetClipboardText;
     jmethodID jShowAlertNotification;
     jmethodID jAlertsProgressListener_OnProgress;
-    jmethodID jGetDpi;
+    jmethodID jShowFilePicker;
 
     // stuff we need for CallEglCreateWindowSurface
     jclass jEGLSurfaceImplClass;

@@ -92,7 +92,6 @@
 #include "nsNetCID.h"
 #include "mozilla/Services.h"
 #include "mozilla/dom/Element.h"
-#include "nsGenericElement.h"
 
 using namespace mozilla::dom;
 
@@ -2031,21 +2030,6 @@ static PRBool SelectorMatches(RuleProcessorData &data,
         }
         break;
 
-      case nsCSSPseudoClasses::ePseudoClass_mozTableBorderNonzero:
-        {
-          if (!data.mIsHTMLContent || data.mContentTag != nsGkAtoms::table) {
-            return PR_FALSE;
-          }
-          nsGenericElement *ge = static_cast<nsGenericElement*>(data.mElement);
-          const nsAttrValue *val = ge->GetParsedAttr(nsGkAtoms::border);
-          if (!val ||
-              (val->Type() == nsAttrValue::eInteger &&
-               val->GetIntegerValue() == 0)) {
-            return PR_FALSE;
-          }
-        }
-        break;
-
       default:
         NS_ABORT_IF_FALSE(PR_FALSE, "How did that happen?");
       }
@@ -2661,6 +2645,20 @@ PRBool IsStateSelector(nsCSSSelector& aSelector)
   return PR_FALSE;
 }
 
+inline
+void AddSelectorDocumentStates(nsCSSSelector& aSelector, PRUint32* aStateMask)
+{
+  for (nsPseudoClassList* pseudoClass = aSelector.mPseudoClassList;
+       pseudoClass; pseudoClass = pseudoClass->mNext) {
+    if (pseudoClass->mAtom == nsCSSPseudoClasses::mozLocaleDir) {
+      *aStateMask |= NS_DOCUMENT_STATE_RTL_LOCALE;
+    }
+    else if (pseudoClass->mAtom == nsCSSPseudoClasses::mozWindowInactive) {
+      *aStateMask |= NS_DOCUMENT_STATE_WINDOW_INACTIVE;
+    }
+  }
+}
+
 static PRBool
 AddSelector(RuleCascadeData* aCascade,
             // The part between combinators at the top level of the selector
@@ -2668,32 +2666,8 @@ AddSelector(RuleCascadeData* aCascade,
             // The part we should look through (might be in :not or :-moz-any())
             nsCSSSelector* aSelectorPart)
 {
-  // Track both document states and attribute dependence in pseudo-classes.
-  for (nsPseudoClassList* pseudoClass = aSelectorPart->mPseudoClassList;
-       pseudoClass; pseudoClass = pseudoClass->mNext) {
-    switch (pseudoClass->mType) {
-      case nsCSSPseudoClasses::ePseudoClass_mozLocaleDir: {
-        aCascade->mSelectorDocumentStates |= NS_DOCUMENT_STATE_RTL_LOCALE;
-        break;
-      }
-      case nsCSSPseudoClasses::ePseudoClass_mozWindowInactive: {
-        aCascade->mSelectorDocumentStates |= NS_DOCUMENT_STATE_WINDOW_INACTIVE;
-        break;
-      }
-      case nsCSSPseudoClasses::ePseudoClass_mozTableBorderNonzero: {
-        nsTArray<nsCSSSelector*> *array =
-          aCascade->AttributeListFor(nsGkAtoms::border);
-        if (!array) {
-          return PR_FALSE;
-        }
-        array->AppendElement(aSelectorInTopLevel);
-        break;
-      }
-      default: {
-        break;
-      }
-    }
-  }
+  // Track the selectors that depend on document states.
+  AddSelectorDocumentStates(*aSelectorPart, &aCascade->mSelectorDocumentStates);
 
   // Build mStateSelectors.
   if (IsStateSelector(*aSelectorPart))
@@ -2730,7 +2704,8 @@ AddSelector(RuleCascadeData* aCascade,
     }
     array->AppendElement(aSelectorInTopLevel);
     if (attr->mLowercaseAttr != attr->mCasedAttr) {
-      array = aCascade->AttributeListFor(attr->mLowercaseAttr);
+      nsTArray<nsCSSSelector*> *array =
+        aCascade->AttributeListFor(attr->mLowercaseAttr);
       if (!array) {
         return PR_FALSE;
       }

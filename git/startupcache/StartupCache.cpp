@@ -104,7 +104,6 @@ StartupCache::InitSingleton()
   rv = StartupCache::gStartupCache->Init();
   if (NS_FAILED(rv)) {
     delete StartupCache::gStartupCache;
-    StartupCache::gStartupCache = nsnull;
   }
   return rv;
 }
@@ -117,10 +116,6 @@ StartupCache::StartupCache()
 
 StartupCache::~StartupCache() 
 {
-  if (mTimer) {
-    mTimer->Cancel();
-  }
-
   // Generally, the in-memory table should be empty here,
   // but in special cases (like Talos Ts tests) we
   // could shut down before we write.

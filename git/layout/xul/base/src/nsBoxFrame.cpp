@@ -759,7 +759,7 @@ nsBoxFrame::Reflow(nsPresContext*          aPresContext,
   aDesiredSize.height = mRect.height;
   aDesiredSize.ascent = ascent;
 
-  aDesiredSize.mOverflowAreas = GetOverflowAreas();
+  aDesiredSize.mOverflowArea = GetOverflowRect();
 
 #ifdef DO_NOISY_REFLOW
   {

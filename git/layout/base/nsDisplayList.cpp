@@ -119,7 +119,7 @@ static void MarkFrameForDisplay(nsIFrame* aFrame, nsIFrame* aStopAtFrame) {
 static void MarkOutOfFlowFrameForDisplay(nsIFrame* aDirtyFrame, nsIFrame* aFrame,
                                          const nsRect& aDirtyRect) {
   nsRect dirty = aDirtyRect - aFrame->GetOffsetTo(aDirtyFrame);
-  nsRect overflowRect = aFrame->GetVisualOverflowRect();
+  nsRect overflowRect = aFrame->GetOverflowRect();
   if (!dirty.IntersectRect(dirty, overflowRect))
     return;
   aFrame->Properties().Set(nsDisplayListBuilder::OutOfFlowDirtyRectProperty(),
@@ -894,7 +894,7 @@ nsDisplayBackground::GetBounds(nsDisplayListBuilder* aBuilder) {
 
 nsRect
 nsDisplayOutline::GetBounds(nsDisplayListBuilder* aBuilder) {
-  return mFrame->GetVisualOverflowRect() + ToReferenceFrame();
+  return mFrame->GetOverflowRect() + ToReferenceFrame();
 }
 
 void
@@ -1022,7 +1022,7 @@ nsDisplayBoxShadowOuter::Paint(nsDisplayListBuilder* aBuilder,
 
 nsRect
 nsDisplayBoxShadowOuter::GetBounds(nsDisplayListBuilder* aBuilder) {
-  return mFrame->GetVisualOverflowRect() + ToReferenceFrame();
+  return mFrame->GetOverflowRect() + ToReferenceFrame();
 }
 
 PRBool
@@ -1800,7 +1800,7 @@ void nsDisplayTransform::HitTest(nsDisplayListBuilder *aBuilder,
  */
 nsRect nsDisplayTransform::GetBounds(nsDisplayListBuilder *aBuilder)
 {
-  return mFrame->GetVisualOverflowRect() + ToReferenceFrame();
+  return mFrame->GetOverflowRect() + ToReferenceFrame();
 }
 
 /* The transform is opaque iff the transform consists solely of scales and
@@ -1931,7 +1931,7 @@ nsRect nsDisplayTransform::UntransformRect(const nsRect &aUntransformedBounds,
 nsDisplaySVGEffects::nsDisplaySVGEffects(nsDisplayListBuilder* aBuilder,
                                          nsIFrame* aFrame, nsDisplayList* aList)
     : nsDisplayWrapList(aBuilder, aFrame, aList), mEffectsFrame(aFrame),
-      mBounds(aFrame->GetVisualOverflowRectRelativeToSelf())
+      mBounds(aFrame->GetOverflowRectRelativeToSelf())
 {
   MOZ_COUNT_CTOR(nsDisplaySVGEffects);
 }

@@ -99,8 +99,6 @@ parent:
   // partial cleanup on parent. 
   DocumentChannelCleanup();
 
-  __delete__();
-
 child:
   OnStartRequest(nsHttpResponseHead  responseHead,
                  PRBool              useResponseHead,
@@ -134,7 +132,8 @@ child:
   // Called if redirect successful so that child can complete setup.
   Redirect3Complete();
 
-  DeleteSelf();
+both:
+  __delete__();
 };
 
 

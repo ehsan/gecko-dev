@@ -680,22 +680,6 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
                                               adjustedAvailableSpace.width,
                                               aFloat, offsets);
 
-  nsMargin floatMargin; // computed margin
-  nsReflowStatus reflowStatus;
-
-  // If it's a floating first-letter, we need to reflow it before we
-  // know how wide it is (since we don't compute which letters are part
-  // of the first letter until reflow!).
-  PRBool isLetter = aFloat->GetType() == nsGkAtoms::letterFrame;
-  if (isLetter) {
-    mBlock->ReflowFloat(*this, adjustedAvailableSpace, aFloat,
-                        floatMargin, PR_FALSE, reflowStatus);
-    floatMarginWidth = aFloat->GetSize().width + floatMargin.LeftRight();
-    NS_ASSERTION(NS_FRAME_IS_COMPLETE(reflowStatus),
-                 "letter frames shouldn't break, and if they do now, "
-                 "then they're breaking at the wrong point");
-  }
-
   // Find a place to place the float. The CSS2 spec doesn't want
   // floats overlapping each other or sticking out of the containing
   // block if possible (CSS2 spec section 9.5.1, see the rule list).
@@ -816,11 +800,11 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
 
   // Reflow the float after computing its vertical position so it knows
   // where to break.
-  if (!isLetter) {
-    PRBool pushedDown = mY != saveY;
-    mBlock->ReflowFloat(*this, adjustedAvailableSpace, aFloat,
-                        floatMargin, pushedDown, reflowStatus);
-  }
+  nsMargin floatMargin; // computed margin
+  PRBool pushedDown = mY != saveY;
+  nsReflowStatus reflowStatus;
+  mBlock->ReflowFloat(*this, adjustedAvailableSpace, aFloat,
+                      floatMargin, pushedDown, reflowStatus);
   if (aFloat->GetPrevInFlow())
     floatMargin.top = 0;
   if (NS_FRAME_IS_NOT_COMPLETE(reflowStatus))
@@ -861,8 +845,10 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
   nsContainerFrame::PositionChildViews(aFloat);
 
   // Update the float combined area state
+  nsRect combinedArea = aFloat->GetOverflowRect() + origin;
+
   // XXX Floats should really just get invalidated here if necessary
-  mFloatOverflowAreas.UnionWith(aFloat->GetOverflowAreas() + origin);
+  mFloatCombinedArea.UnionRect(combinedArea, mFloatCombinedArea);
 
   // Place the float in the float manager
   // calculate region

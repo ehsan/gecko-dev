@@ -95,13 +95,14 @@ class PacketQueue : private nsDeque {
   }
 };
 
+
 class nsWebMReader : public nsBuiltinDecoderReader
 {
 public:
   nsWebMReader(nsBuiltinDecoder* aDecoder);
   ~nsWebMReader();
 
-  virtual nsresult Init(nsBuiltinDecoderReader* aCloneDonor);
+  virtual nsresult Init();
   virtual nsresult ResetDecode();
   virtual PRBool DecodeAudioData();
 
@@ -191,9 +192,20 @@ private:
   // Number of samples we've decoded since decoding began at mAudioStartMs.
   PRUint64 mAudioSamples;
 
-  // Parser state and computed offset-time mappings.  Shared by multiple
-  // readers when decoder has been cloned.  Main thread only.
-  nsRefPtr<nsWebMBufferedState> mBufferedState;
+  // Time in ns by which raw timecodes from the media must be scaled to
+  // produce absolute timecodes.  Used by CalculateBufferedForRange.
+  PRUint64 mTimecodeScale;
+
+  // Update aBuffered with the time range for the given data range.
+  void CalculateBufferedForRange(nsTimeRanges* aBuffered,
+                                 PRInt64 aStartOffset, PRInt64 aEndOffset);
+
+  // Sorted (by offset) map of data offsets to timecodes.  Populated
+  // on the main thread as data is received and parsed by nsWebMBufferedParsers.
+  nsTArray<nsWebMTimeDataOffset> mTimeMapping;
+
+  // Sorted (by offset) live parser instances.  Main thread only.
+  nsTArray<nsWebMBufferedParser> mRangeParsers;
 
   // Booleans to indicate if we have audio and/or video data
   PRPackedBool mHasVideo;

@@ -539,10 +539,10 @@ nsTableCellFrame::GetSkipSides() const
   return skip;
 }
 
-/* virtual */ nsMargin
-nsTableCellFrame::GetBorderOverflow()
+/* virtual */ void
+nsTableCellFrame::GetSelfOverflow(nsRect& aOverflowArea)
 {
-  return nsMargin(0, 0, 0, 0);
+  aOverflowArea = nsRect(nsPoint(0,0), GetSize());
 }
 
 // Align the cell's child frame within the cell
@@ -601,11 +601,8 @@ void nsTableCellFrame::VerticallyAlignChild(nscoord aMaxAscent)
   nsHTMLReflowMetrics desiredSize;
   desiredSize.width = mRect.width;
   desiredSize.height = mRect.height;
-
-  nsRect overflow(nsPoint(0,0), GetSize());
-  overflow.Inflate(GetBorderOverflow());
-  desiredSize.mOverflowAreas.SetAllTo(overflow);
-  ConsiderChildOverflow(desiredSize.mOverflowAreas, firstKid);
+  GetSelfOverflow(desiredSize.mOverflowArea);
+  ConsiderChildOverflow(desiredSize.mOverflowArea, firstKid);
   FinishAndStoreOverflow(&desiredSize);
   if (kidYTop != kidRect.y) {
     // Make sure any child views are correctly positioned. We know the inner table
@@ -618,7 +615,7 @@ void nsTableCellFrame::VerticallyAlignChild(nscoord aMaxAscent)
   if (HasView()) {
     nsContainerFrame::SyncFrameViewAfterReflow(PresContext(), this,
                                                GetView(),
-                                               desiredSize.VisualOverflow(), 0);
+                                               &desiredSize.mOverflowArea, 0);
   }
 }
 
@@ -897,7 +894,7 @@ NS_METHOD nsTableCellFrame::Reflow(nsPresContext*           aPresContext,
 
   nsPoint kidOrigin(leftInset, topInset);
   nsRect origRect = firstKid->GetRect();
-  nsRect origVisualOverflow = firstKid->GetVisualOverflowRect();
+  nsRect origOverflowRect = firstKid->GetOverflowRect();
   PRBool firstReflow = (firstKid->GetStateBits() & NS_FRAME_FIRST_REFLOW) != 0;
 
   ReflowChild(firstKid, aPresContext, kidSize, kidReflowState,
@@ -933,7 +930,7 @@ NS_METHOD nsTableCellFrame::Reflow(nsPresContext*           aPresContext,
   FinishReflowChild(firstKid, aPresContext, &kidReflowState, kidSize,
                     kidOrigin.x, kidOrigin.y, 0);
 
-  nsTableFrame::InvalidateFrame(firstKid, origRect, origVisualOverflow,
+  nsTableFrame::InvalidateFrame(firstKid, origRect, origOverflowRect,
                                 firstReflow);
 
   // first, compute the height which can be set w/o being restricted by aMaxSize.height
@@ -1146,8 +1143,8 @@ nsBCTableCellFrame::SetBorderWidth(mozilla::css::Side aSide,
   }
 }
 
-/* virtual */ nsMargin
-nsBCTableCellFrame::GetBorderOverflow()
+/* virtual */ void
+nsBCTableCellFrame::GetSelfOverflow(nsRect& aOverflowArea)
 {
   nsMargin halfBorder;
   PRInt32 p2t = nsPresContext::AppUnitsPerCSSPixel();
@@ -1155,7 +1152,10 @@ nsBCTableCellFrame::GetBorderOverflow()
   halfBorder.right = BC_BORDER_RIGHT_HALF_COORD(p2t, mRightBorder);
   halfBorder.bottom = BC_BORDER_BOTTOM_HALF_COORD(p2t, mBottomBorder);
   halfBorder.left = BC_BORDER_LEFT_HALF_COORD(p2t, mLeftBorder);
-  return halfBorder;
+
+  nsRect overflow(nsPoint(0,0), GetSize());
+  overflow.Inflate(halfBorder);
+  aOverflowArea = overflow;
 }
 
 
