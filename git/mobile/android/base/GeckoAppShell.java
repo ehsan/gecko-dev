@@ -69,6 +69,7 @@ import android.view.ContextThemeWrapper;
 import android.view.HapticFeedbackConstants;
 import android.view.Surface;
 import android.view.SurfaceView;
+import android.view.TextureView;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
 import android.webkit.MimeTypeMap;
@@ -819,11 +820,6 @@ public class GeckoAppShell
         Bitmap bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
 
-        if (aType.equalsIgnoreCase(SHORTCUT_TYPE_WEBAPP)) {
-            Rect iconBounds = new Rect(0, 0, size, size);
-            canvas.drawBitmap(aSource, null, iconBounds, null);
-            return bitmap;
-        }
 
         // draw a base color
         Paint paint = new Paint();
@@ -831,6 +827,11 @@ public class GeckoAppShell
             // If we aren't drawing a favicon, just use an orange color.
             paint.setColor(Color.HSVToColor(DEFAULT_LAUNCHER_ICON_HSV));
             canvas.drawRoundRect(new RectF(kOffset, kOffset, size - kOffset, size - kOffset), kRadius, kRadius, paint);
+        } else if (aType.equalsIgnoreCase(SHORTCUT_TYPE_WEBAPP) || aSource.getWidth() >= insetSize || aSource.getHeight() >= insetSize) {
+            // otherwise, if this is a webapp or if the icons is lare enough, just draw it
+            Rect iconBounds = new Rect(0, 0, size, size);
+            canvas.drawBitmap(aSource, null, iconBounds, null);
+            return bitmap;
         } else {
             // otherwise use the dominant color from the icon + a layer of transparent white to lighten it somewhat
             int color = BitmapUtils.getDominantColor(aSource);
@@ -851,13 +852,6 @@ public class GeckoAppShell
         // by default, we scale the icon to this size
         int sWidth = insetSize / 2;
         int sHeight = sWidth;
-
-        if (aSource.getWidth() > insetSize || aSource.getHeight() > insetSize) {
-            // however, if the icon is larger than our minimum, we allow it to be drawn slightly larger
-            // (but not necessarily at its full resolution)
-            sWidth = Math.min(size / 3, aSource.getWidth() / 2);
-            sHeight = Math.min(size / 3, aSource.getHeight() / 2);
-        }
 
         int halfSize = size / 2;
         canvas.drawBitmap(aSource,
@@ -1964,6 +1958,7 @@ public class GeckoAppShell
     public interface AppStateListener {
         public void onPause();
         public void onResume();
+        public void onConfigurationChanged();
     }
 
     public interface GeckoInterface {
@@ -1981,7 +1976,7 @@ public class GeckoAppShell
         public void disableCameraView();
         public void addAppStateListener(AppStateListener listener);
         public void removeAppStateListener(AppStateListener listener);
-        public SurfaceView getCameraView();
+        public View getCameraView();
         public void notifyWakeLockChanged(String topic, String state);
         public FormAssistPopup getFormAssistPopup();
         public boolean areTabsShown();
@@ -2070,12 +2065,18 @@ public class GeckoAppShell
             }
 
             try {
-                if (getGeckoInterface() != null)
-                    sCamera.setPreviewDisplay(getGeckoInterface().getCameraView().getHolder());
+                if (getGeckoInterface() != null) {
+                    View cameraView = getGeckoInterface().getCameraView();
+                    if (cameraView instanceof SurfaceView) {
+                        sCamera.setPreviewDisplay(((SurfaceView)cameraView).getHolder());
+                    } else if (cameraView instanceof TextureView) {
+                        sCamera.setPreviewTexture(((TextureView)cameraView).getSurfaceTexture());
+                    }
+                }
             } catch(IOException e) {
-                Log.w(LOGTAG, "Error setPreviewDisplay:", e);
+                Log.w(LOGTAG, "Error setPreviewXXX:", e);
             } catch(RuntimeException e) {
-                Log.w(LOGTAG, "Error setPreviewDisplay:", e);
+                Log.w(LOGTAG, "Error setPreviewXXX:", e);
             }
 
             sCamera.setParameters(params);

@@ -83,6 +83,7 @@ import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -163,7 +164,7 @@ abstract public class GeckoApp
     protected RelativeLayout mMainLayout;
     protected RelativeLayout mGeckoLayout;
     public View getView() { return mGeckoLayout; }
-    public SurfaceView mCameraView;
+    private View mCameraView;
     public List<GeckoAppShell.AppStateListener> mAppStateListeners;
     private static GeckoApp sAppContext;
     protected MenuPanel mMenuPanel;
@@ -257,7 +258,7 @@ abstract public class GeckoApp
         return GeckoApp.sAppContext.getSharedPreferences(PREFS_NAME, 0);
     }
 
-    public SurfaceView getCameraView() {
+    public View getCameraView() {
         return mCameraView;
     }
 
@@ -555,9 +556,13 @@ abstract public class GeckoApp
                 geckoConnected();
 
                 // This method is already running on the background thread, so we
-                // know that mHealthRecorder will exist. This method is cheap, so
-                // don't spawn a new runnable.
-                mHealthRecorder.recordGeckoStartupTime(mGeckoReadyStartupTimer.getElapsed());
+                // know that mHealthRecorder will exist. That doesn't stop us being
+                // paranoid.
+                // This method is cheap, so don't spawn a new runnable.
+                final BrowserHealthRecorder rec = mHealthRecorder;
+                if (rec != null) {
+                  rec.recordGeckoStartupTime(mGeckoReadyStartupTimer.getElapsed());
+                }
             } else if (event.equals("ToggleChrome:Hide")) {
                 toggleChrome(false);
             } else if (event.equals("ToggleChrome:Show")) {
@@ -1303,8 +1308,12 @@ abstract public class GeckoApp
         mFormAssistPopup = (FormAssistPopup) findViewById(R.id.form_assist_popup);
 
         if (mCameraView == null) {
-            mCameraView = new SurfaceView(this);
-            mCameraView.getHolder().setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.ICE_CREAM_SANDWICH) {
+                mCameraView = new SurfaceView(this);
+                ((SurfaceView)mCameraView).getHolder().setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
+            } else {
+                mCameraView = new TextureView(this);
+            }
         }
 
         if (mLayerView == null) {
@@ -1524,7 +1533,10 @@ abstract public class GeckoApp
         ThreadUtils.getBackgroundHandler().postDelayed(new Runnable() {
             @Override
             public void run() {
-                mHealthRecorder.recordJavaStartupTime(javaDuration);
+                final BrowserHealthRecorder rec = mHealthRecorder;
+                if (rec != null) {
+                    rec.recordJavaStartupTime(javaDuration);
+                }
 
                 // Sync settings need Gecko to be loaded, so
                 // no hurry in starting this.
@@ -1688,12 +1700,23 @@ abstract public class GeckoApp
     }
 
     public void enableCameraView() {
+        if (mCameraView instanceof SurfaceView) {
+            // Try to make it fully transparent.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+                mCameraView.setAlpha(0.0f);
+            }
+        } else if (mCameraView instanceof TextureView) {
+            mCameraView.setAlpha(0.0f);
+        }
+        RelativeLayout mCameraLayout = (RelativeLayout) findViewById(R.id.camera_layout);
         // Some phones (eg. nexus S) need at least a 8x16 preview size
-        mMainLayout.addView(mCameraView, new AbsoluteLayout.LayoutParams(8, 16, 0, 0));
+        mCameraLayout.addView(mCameraView,
+                              new AbsoluteLayout.LayoutParams(8, 16, 0, 0));
     }
 
     public void disableCameraView() {
-        mMainLayout.removeView(mCameraView);
+        RelativeLayout mCameraLayout = (RelativeLayout) findViewById(R.id.camera_layout);
+        mCameraLayout.removeView(mCameraView);
     }
 
     public String getDefaultUAString() {
@@ -1860,7 +1883,6 @@ abstract public class GeckoApp
         // track the duration of the session.
         final long now = System.currentTimeMillis();
         final long realTime = android.os.SystemClock.elapsedRealtime();
-        final BrowserHealthRecorder rec = mHealthRecorder;
 
         ThreadUtils.postToBackgroundThread(new Runnable() {
             @Override
@@ -1875,8 +1897,11 @@ abstract public class GeckoApp
                 currentSession.recordBegin(editor);
                 editor.commit();
 
+                final BrowserHealthRecorder rec = mHealthRecorder;
                 if (rec != null) {
                     rec.setCurrentSession(currentSession);
+                } else {
+                    Log.w(LOGTAG, "Can't record session: rec is null.");
                 }
             }
          });
@@ -2059,6 +2084,12 @@ abstract public class GeckoApp
             if (mFormAssistPopup != null)
                 mFormAssistPopup.hide();
             refreshChrome();
+        }
+
+        if (mAppStateListeners != null) {
+            for (GeckoAppShell.AppStateListener listener: mAppStateListeners) {
+                listener.onConfigurationChanged();
+            }
         }
     }
 
