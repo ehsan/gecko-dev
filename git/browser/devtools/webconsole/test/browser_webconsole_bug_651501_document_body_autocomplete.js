@@ -100,7 +100,7 @@ function testPropertyPanel()
 function onVariablesViewReady(aEvent, aView)
 {
   findVariableViewProperties(aView, [
-    { name: "body", value: "HTMLBodyElement" },
+    { name: "body", value: "[object HTMLBodyElement]" },
   ], { webconsole: gHUD }).then(finishTest);
 }
 

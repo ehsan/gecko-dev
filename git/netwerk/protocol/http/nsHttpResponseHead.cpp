@@ -511,22 +511,14 @@ nsHttpResponseHead::GetMaxAgeValue(uint32_t *result) const
     if (!val)
         return NS_ERROR_NOT_AVAILABLE;
 
-    const char *p = nsHttp::FindToken(val, "max-age", HTTP_HEADER_VALUE_SEPS "=");
+    const char *p = PL_strcasestr(val, "max-age=");
     if (!p)
         return NS_ERROR_NOT_AVAILABLE;
-    p += 7;
-    while (*p == ' ' || *p == '\t')
-        ++p;
-    if (*p != '=')
-        return NS_ERROR_NOT_AVAILABLE;
-    ++p;
-    while (*p == ' ' || *p == '\t')
-        ++p;
 
-    int maxAgeValue = atoi(p);
+    int maxAgeValue = atoi(p + 8);
     if (maxAgeValue < 0)
         maxAgeValue = 0;
-    *result = static_cast<uint32_t>(maxAgeValue);
+    *result = uint32_t(maxAgeValue);
     return NS_OK;
 }
 

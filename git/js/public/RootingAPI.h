@@ -203,11 +203,8 @@ class Heap : public js::HeapBase<T>
             relocate();
     }
 
-    bool operator==(const Heap<T> &other) { return ptr == other.ptr; }
-    bool operator!=(const Heap<T> &other) { return ptr != other.ptr; }
-
-    bool operator==(const T &other) const { return ptr == other; }
     bool operator!=(const T &other) const { return ptr != other; }
+    bool operator==(const T &other) const { return ptr == other; }
 
     operator T() const { return ptr; }
     T operator->() const { return ptr; }

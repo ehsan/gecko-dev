@@ -510,17 +510,6 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     MBasicBlock *loopHeader_;
 
     jsbytecode *trackedPc_;
-
-#if defined (JS_ION_PERF)
-    unsigned lineno_;
-    unsigned columnIndex_;
-
-  public:
-    void setLineno(unsigned l) { lineno_ = l; }
-    unsigned lineno() const { return lineno_; }
-    void setColumnIndex(unsigned c) { columnIndex_ = c; }
-    unsigned columnIndex() const { return columnIndex_; }
-#endif
 };
 
 typedef InlineListIterator<MBasicBlock> MBasicBlockIterator;

@@ -749,8 +749,8 @@ pref("dom.payment.provider.0.type", "mozilla/payments/pay/v1");
 pref("dom.payment.provider.0.requestMethod", "GET");
 #endif
 
-// Support for the mozAudioChannel attribute on media elements is disabled in non-webapps
-pref("media.useAudioChannelService", false);
+// Make <audio> and <video> talk to the AudioChannelService.
+pref("media.useAudioChannelService", true);
 
 // Turn on the CSP 1.0 parser for Content Security Policy headers
 pref("security.csp.speccompliant", true);
