@@ -54,12 +54,12 @@ const DEFAULT_TIMER_DELAY_SECONDS = 3 * 60;
 
 // Provide a mock timer implementation, so there is no need to wait seconds to
 // achieve test results.
-const Cm = Components.manager.QueryInterface(Ci.nsIComponentRegistrar);
+const Cm = Components.manager;
 const TIMER_CONTRACT_ID = "@mozilla.org/timer;1";
-const kMockCID = Components.ID("52bdf457-4de3-48ae-bbbb-f3cbcbcad05f");
 
 // Used to preserve the original timer factory.
-let gOriginalCID = Cm.contractIDToCID(TIMER_CONTRACT_ID);
+let gOriginalFactory = Cm.getClassObjectByContractID(TIMER_CONTRACT_ID,
+                                                     Ci.nsIFactory);
 
 // The mock timer factory.
 let gMockTimerFactory = {
@@ -94,10 +94,12 @@ let mockTimerImpl = {
 }
 
 function replace_timer_factory() {
-  Cm.registerFactory(kMockCID,
-                     "Mock timer",
-                     TIMER_CONTRACT_ID,
-                     gMockTimerFactory);
+  let classInfo = gOriginalFactory.QueryInterface(Ci.nsIClassInfo);
+  let componentRegistrar = Cm.QueryInterface(Ci.nsIComponentRegistrar);
+  componentRegistrar.registerFactory(classInfo.classID,
+                                     "Mock " + classInfo.classDescription,
+                                     TIMER_CONTRACT_ID,
+                                     gMockTimerFactory);
 }
 
 do_register_cleanup(function() {
@@ -106,12 +108,14 @@ do_register_cleanup(function() {
   shutdownExpiration();
 
   // Restore original timer factory.
-  Cm.unregisterFactory(kMockCID,
-                       gMockTimerFactory);
-  Cm.registerFactory(gOriginalCID,
-                     "",
-                     TIMER_CONTRACT_ID,
-                     null);
+  let classInfo = gOriginalFactory.QueryInterface(Ci.nsIClassInfo);
+  let componentRegistrar = Cm.QueryInterface(Ci.nsIComponentRegistrar);
+  componentRegistrar.unregisterFactory(classInfo.classID,
+                                       gMockTimerFactory);
+  componentRegistrar.registerFactory(classInfo.classID,
+                                     classInfo.classDescription,
+                                     TIMER_CONTRACT_ID,
+                                     gOriginalFactory);
 });
 
 

@@ -49,6 +49,7 @@
 #include "nsIDOMNavigator.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsIEventTarget.h"
+#include "nsIGenericFactory.h"
 #include "nsIJSContextStack.h"
 #include "nsIJSRuntimeService.h"
 #include "nsIObserverService.h"

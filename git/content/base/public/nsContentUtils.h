@@ -130,7 +130,6 @@ class nsIMIMEHeaderParam;
 class nsIObserver;
 class nsPresContext;
 class nsIChannel;
-struct nsIntMargin;
 
 #ifndef have_PrefChangedFunc_typedef
 typedef int (*PR_CALLBACK PrefChangedFunc)(const char *, void *);
@@ -486,8 +485,6 @@ public:
 
   static imgILoader* GetImgLoader()
   {
-    if (!sImgLoaderInitialized)
-      InitImgLoader();
     return sImgLoader;
   }
 
@@ -1691,10 +1688,6 @@ private:
   // For old compatibility of RegisterPrefCallback
   static nsCOMArray<nsPrefOldCallback> *sPrefCallbackList;
 
-  static bool sImgLoaderInitialized;
-  static void InitImgLoader();
-
-  // The following two members are initialized lazily
   static imgILoader* sImgLoader;
   static imgICache* sImgCache;
 

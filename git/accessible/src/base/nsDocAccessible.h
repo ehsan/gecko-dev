@@ -113,6 +113,7 @@ public:
   virtual nsresult GetARIAState(PRUint32 *aState, PRUint32 *aExtraState);
 
   virtual void SetRoleMapEntry(nsRoleMapEntry* aRoleMapEntry);
+  virtual nsAccessible* GetParent();
 
 #ifdef DEBUG_ACCDOCMGR
   virtual nsresult HandleAccEvent(nsAccEvent *aAccEvent);

@@ -50,7 +50,7 @@ public:
     nsAboutBlank() {}
     virtual ~nsAboutBlank() {}
 
-    static nsresult
+    static NS_METHOD
     Create(nsISupports *aOuter, REFNSIID aIID, void **aResult);
 
 protected:

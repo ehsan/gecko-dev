@@ -60,7 +60,6 @@ EXPORTS_mozilla = \
 CPPSRCS		= \
 		nsNPAPIPlugin.cpp \
 		nsNPAPIPluginInstance.cpp \
-		nsNPAPIPluginStreamListener.cpp \
 		nsPluginHost.cpp \
 		nsPluginModule.cpp \
 		nsJSNPRuntime.cpp \

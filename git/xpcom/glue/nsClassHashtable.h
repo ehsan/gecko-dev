@@ -57,19 +57,12 @@ class nsClassHashtable :
 public:
   typedef typename KeyClass::KeyType KeyType;
   typedef T* UserDataType;
-  typedef nsBaseHashtable< KeyClass, nsAutoPtr<T>, T* > base_type;
 
   /**
    * @copydoc nsBaseHashtable::Get
    * @param pData if the key doesn't exist, pData will be set to nsnull.
    */
   PRBool Get(KeyType aKey, UserDataType* pData) const;
-
-  /**
-   * @copydoc nsBaseHashtable::Get
-   * @returns NULL if the key is not present.
-   */
-  UserDataType Get(KeyType aKey) const;
 };
 
 
@@ -87,7 +80,6 @@ class nsClassHashtableMT :
 public:
   typedef typename KeyClass::KeyType KeyType;
   typedef T* UserDataType;
-  typedef nsBaseHashtableMT< KeyClass, nsAutoPtr<T>, T* > base_type;
 
   /**
    * @copydoc nsBaseHashtable::Get
@@ -105,7 +97,8 @@ template<class KeyClass,class T>
 PRBool
 nsClassHashtable<KeyClass,T>::Get(KeyType aKey, T** retVal) const
 {
-  typename base_type::EntryType* ent = this->GetEntry(aKey);
+  typename nsBaseHashtable<KeyClass,nsAutoPtr<T>,T*>::EntryType* ent =
+    GetEntry(aKey);
 
   if (ent)
   {
@@ -121,19 +114,6 @@ nsClassHashtable<KeyClass,T>::Get(KeyType aKey, T** retVal) const
   return PR_FALSE;
 }
 
-template<class KeyClass,class T>
-T*
-nsClassHashtable<KeyClass,T>::Get(KeyType aKey) const
-{
-  typename nsBaseHashtable<KeyClass,nsAutoPtr<T>,T*>::EntryType* ent =
-    GetEntry(aKey);
-
-  if (!ent)
-    return NULL;
-
-  return ent->mData;
-}
-
 
 //
 // nsClassHashtableMT definitions
@@ -145,7 +125,8 @@ nsClassHashtableMT<KeyClass,T>::Get(KeyType aKey, T** retVal) const
 {
   PR_Lock(this->mLock);
 
-  typename base_type::EntryType* ent = this->GetEntry(aKey);
+  typename nsBaseHashtableMT<KeyClass,nsAutoPtr<T>,T*>::EntryType* ent =
+    GetEntry(aKey);
 
   if (ent)
   {

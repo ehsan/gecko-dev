@@ -39,14 +39,11 @@
 // Title: storage.js 
 
 // ##########
-// Class: Storage
-// Singleton for permanent storage of TabCandy data. 
 Storage = {
   GROUP_DATA_IDENTIFIER:  "tabcandy-group",
   GROUPS_DATA_IDENTIFIER: "tabcandy-groups",
   TAB_DATA_IDENTIFIER:    "tabcandy-tab",
   UI_DATA_IDENTIFIER:    "tabcandy-ui",
-  VISIBILITY_DATA_IDENTIFIER:    "tabcandy-visibility",
 
   // ----------
   // Function: onReady
@@ -87,8 +84,6 @@ Storage = {
   },
 
   // ----------
-  // Function: init
-  // Sets up the object. 
   init: function() {
     this._sessionStore =
       Components.classes["@mozilla.org/browser/sessionstore;1"]
@@ -96,8 +91,6 @@ Storage = {
   },
 
   // ----------
-  // Function: wipe
-  // Cleans out all the stored data, leaving empty objects. 
   wipe: function() {
     try {
       var win = Utils.getCurrentWindow();
@@ -112,7 +105,6 @@ Storage = {
       // ___ Other
       this.saveGroupsData(win, {});
       this.saveUIData(win, {});
-      this.saveVisibilityData(win, {});
       
       this._sessionStore.setWindowValue(win, this.GROUP_DATA_IDENTIFIER,
         JSON.stringify({}));
@@ -122,8 +114,6 @@ Storage = {
   },
   
   // ----------
-  // Function: saveTab
-  // Saves the data for a single tab. 
   saveTab: function(tab, data) {
     Utils.assert('tab', tab);
 
@@ -132,8 +122,6 @@ Storage = {
   },
 
   // ----------
-  // Function: getTabData
-  // Returns the data object associated with a single tab.
   getTabData: function(tab) {
     Utils.assert('tab', tab);
 
@@ -154,8 +142,6 @@ Storage = {
   },
 
   // ----------
-  // Function: saveGroup
-  // Saves the data for a single group, associated with a specific window. 
   saveGroup: function(win, data) {
     var id = data.id;
     var existingData = this.readGroupData(win);
@@ -165,8 +151,6 @@ Storage = {
   },
 
   // ----------
-  // Function: deleteGroup
-  // Deletes the data for a single group from the given window.
   deleteGroup: function(win, id) {
     var existingData = this.readGroupData(win);
     delete existingData[id];
@@ -175,8 +159,6 @@ Storage = {
   },
 
   // ----------
-  // Function: readGroupData
-  // Returns the data for all groups associated with the given window.
   readGroupData: function(win) {
     var existingData = {};
     try {
@@ -192,50 +174,26 @@ Storage = {
   },
 
   // ----------
-  // Function: saveGroupsData
-  // Saves the global data for the <Groups> singleton for the given window.  
   saveGroupsData: function(win, data) {
     this.saveData(win, this.GROUPS_DATA_IDENTIFIER, data);
   },
 
   // ----------
-  // Function: readGroupsData
-  // Reads the global data for the <Groups> singleton for the given window.  
   readGroupsData: function(win) {
     return this.readData(win, this.GROUPS_DATA_IDENTIFIER);
   },
   
   // ----------
-  // Function: saveUIData
-  // Saves the global data for the <UIClass> singleton for the given window.  
   saveUIData: function(win, data) {
     this.saveData(win, this.UI_DATA_IDENTIFIER, data);
   },
 
   // ----------
-  // Function: readUIData
-  // Reads the global data for the <UIClass> singleton for the given window.  
   readUIData: function(win) {
     return this.readData(win, this.UI_DATA_IDENTIFIER);
   },
-
+  
   // ----------
-  // Function: saveVisibilityData
-  // TODO: fold into saveUIData
-  saveVisibilityData: function(win, data) {
-    this.saveData(win, this.VISIBILITY_DATA_IDENTIFIER, data);
-  },
-
-  // ----------
-  // Function: readVisibilityData
-  // TODO: fold into readUIData
-  readVisibilityData: function(win) {
-    return this.readData(win, this.VISIBILITY_DATA_IDENTIFIER);
-  },
-    
-  // ----------
-  // Function: saveData
-  // Generic routine for saving data to a window. 
   saveData: function(win, id, data) {
     try {
       this._sessionStore.setWindowValue(win, id, JSON.stringify(data));
@@ -247,8 +205,6 @@ Storage = {
   },
 
   // ----------
-  // Function: readData
-  // Generic routine for reading data from a window. 
   readData: function(win, id) {
     var existingData = {};
     try {
@@ -264,6 +220,5 @@ Storage = {
   }
 };
 
-// ----------
 Storage.init();
 

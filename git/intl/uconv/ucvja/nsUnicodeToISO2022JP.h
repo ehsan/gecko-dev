@@ -79,6 +79,7 @@ protected:
       char * aDest, PRInt32 * aDestLength);
   NS_IMETHOD FinishNoBuff(char * aDest, PRInt32 * aDestLength);
   NS_IMETHOD Reset();
+  NS_IMETHOD FillInfo(PRUint32 *aInfo);
 };
 
 #endif /* nsUnicodeToISO2022JP_h___ */

@@ -46,7 +46,7 @@ static const PRUint16 g_utMappingTable[] = {
 #include "geostd8.ut"
 };
 
-nsresult
+NS_METHOD
 nsGEOSTD8ToUnicodeConstructor(nsISupports *aOuter, REFNSIID aIID,
                               void **aResult) 
 {

@@ -44,6 +44,8 @@ function LoginManagerStorage_legacy() { };
 
 LoginManagerStorage_legacy.prototype = {
 
+    classDescription  : "LoginManagerStorage_legacy",
+    contractID : "@mozilla.org/login-manager/storage/legacy;1",
     classID : Components.ID("{e09e4ca6-276b-4bb4-8b71-0635a3a2a007}"),
     QueryInterface : XPCOMUtils.generateQI([Ci.nsILoginManagerStorage,
                                     Ci.nsILoginManagerIEMigrationHelper]),
@@ -1489,4 +1491,7 @@ LoginManagerStorage_legacy.prototype = {
     }
 }; // end of nsLoginManagerStorage_legacy implementation
 
-var NSGetFactory = XPCOMUtils.generateNSGetFactory([LoginManagerStorage_legacy]);
+var component = [LoginManagerStorage_legacy];
+function NSGetModule(compMgr, fileSpec) {
+    return XPCOMUtils.generateModule(component);
+}

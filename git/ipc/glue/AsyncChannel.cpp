@@ -111,8 +111,7 @@ AsyncChannel::AsyncChannel(AsyncListener* aListener)
     mIOLoop(),
     mWorkerLoop(),
     mChild(false),
-    mChannelErrorTask(NULL),
-    mExistingListener(NULL)
+    mChannelErrorTask(NULL)
 {
     MOZ_COUNT_CTOR(AsyncChannel);
 }
@@ -132,7 +131,7 @@ AsyncChannel::Open(Transport* aTransport, MessageLoop* aIOLoop)
     // FIXME need to check for valid channel
 
     mTransport = aTransport;
-    mExistingListener = mTransport->set_listener(this);
+    mTransport->set_listener(this);
 
     // FIXME figure out whether we're in parent or child, grab IO loop
     // appropriately
@@ -387,7 +386,6 @@ AsyncChannel::MaybeHandleError(Result code, const char* channelName)
         break;
     case MsgProcessingError:
         errorMsg = "Processing error: message was deserialized, but the handler returned false (indicating failure)";
-        break;
     case MsgRouteError:
         errorMsg = "Route error: message sent to unknown actor ID";
         break;
@@ -417,10 +415,8 @@ AsyncChannel::ReportConnectionError(const char* channelName) const
         break;
     case ChannelTimeout:
         errorMsg = "Channel timeout: cannot send/recv";
-        break;
     case ChannelClosing:
         errorMsg = "Channel closing: too late to send/recv, messages will be lost";
-        break;
     case ChannelError:
         errorMsg = "Channel error: cannot send/recv";
         break;
@@ -464,14 +460,9 @@ AsyncChannel::OnChannelConnected(int32 peer_pid)
 {
     AssertIOThread();
 
-    {
-        MutexAutoLock lock(mMutex);
-        mChannelState = ChannelConnected;
-        mCvar.Notify();
-    }
-
-    if(mExistingListener)
-        mExistingListener->OnChannelConnected(peer_pid);
+    MutexAutoLock lock(mMutex);
+    mChannelState = ChannelConnected;
+    mCvar.Notify();
 }
 
 void

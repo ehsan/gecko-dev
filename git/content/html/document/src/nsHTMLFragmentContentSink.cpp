@@ -1006,10 +1006,7 @@ nsHTMLParanoidFragmentSink::AddAttributes(const nsIParserNode& aNode,
       nsContentUtils::TrimCharsInSet(kWhitespace, aNode.GetValueAt(i));
 
     // check the attributes we allow that contain URIs
-    // special case src attributes for img tags, because they can't
-    // run any dangerous code.
-    if (IsAttrURI(keyAtom) &&
-        !(nodeType == eHTMLTag_img && keyAtom == nsGkAtoms::src)) {
+    if (IsAttrURI(keyAtom)) {
       if (!baseURI) {
         baseURI = aContent->GetBaseURI();
       }

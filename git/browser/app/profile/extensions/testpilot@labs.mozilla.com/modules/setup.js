@@ -62,7 +62,7 @@ let TestPilotSetup = {
   startupComplete: false,
   _shortTimer: null,
   _longTimer: null,
-  _remoteExperimentLoader: null, // TODO make this a lazy initializer too?
+  _remoteExperimentLoader: null,
   taskList: [],
   version: "",
 
@@ -213,6 +213,35 @@ let TestPilotSetup = {
     }
   },
 
+  _setUpToolbarFeedbackButton: function TPS_toolbarFeedbackButton() {
+    /* If this is first run, and it's ffx4 beta version, and the feedback
+     * button is not in the expected place, put it there!
+     * (copied from MozReporterButtons extension) */
+    let logger = this._logger;
+    try {
+      let win = this._getFrontBrowserWindow();
+      let firefoxnav = win.document.getElementById("nav-bar");
+      let curSet = firefoxnav.currentSet;
+
+      if (-1 == curSet.indexOf("feedback-menu-button")) {
+        logger.info("Feedback toolbar button not present: Adding it.");
+        // place the buttons after the search box.
+        let newSet = curSet + ",feedback-menu-button";
+
+        firefoxnav.setAttribute("currentset", newSet);
+        firefoxnav.currentSet = newSet;
+        win.document.persist("nav-bar", "currentset");
+        // if you don't do the following call, funny things happen.
+        try {
+          BrowserToolboxCustomizeDone(true);
+        } catch (e) {
+        }
+      }
+    } catch (e) {
+      logger.warn("Error in setUpToolbarFeedbackButton: " + e);
+    }
+  },
+
   globalStartup: function TPS__doGlobalSetup() {
     // Only ever run this stuff ONCE, on the first window restore.
     // Should get called by the Test Pilot component.
@@ -267,8 +296,11 @@ let TestPilotSetup = {
             let url = self._prefs.getValue(FIRST_RUN_PREF, "");
             let tab = browser.addTab(url);
             browser.selectedTab = tab;
+          } else {
+            // Don't show first run page in ffx4 beta version... but do
+            // set up the Feedback button in the toolbar.
+            self._setUpToolbarFeedbackButton();
           }
-          // Don't show first run page in ffx4 beta version.
         }
 
         // Install tasks. (This requires knowing the version, so it is
@@ -372,16 +404,10 @@ let TestPilotSetup = {
                                                     iconClass, showSubmit,
 						    showAlwaysSubmitCheckbox,
                                                     linkText, linkUrl,
-						    isExtensionUpdate,
-                                                    onCloseCallback) {
-    /* TODO: Refactor the arguments of this function, it's getting really
-     * unweildly.... maybe pass in an object, or even make a notification an
-     * object that you create and then call .show() on. */
-
+						    isExtensionUpdate) {
     // If there are multiple windows, show notifications in the frontmost
     // window.
-    let window = this._getFrontBrowserWindow();
-    let doc = window.document;
+    let doc = this._getFrontBrowserWindow().document;
     let popup = doc.getElementById("pilot-notification-popup");
 
     let anchor;
@@ -428,14 +454,14 @@ let TestPilotSetup = {
 	    "testpilot.notification.update"));
 	submitBtn.onclick = function() {
           this._extensionUpdater.check(EXTENSION_ID);
-          self._hideNotification(window, onCloseCallback);
+          self._hideNotification();
 	};
       } else {
         submitBtn.setAttribute("label",
 	  this._stringBundle.GetStringFromName("testpilot.submit"));
         // Functionality for submit button:
         submitBtn.onclick = function() {
-          self._hideNotification(window, onCloseCallback);
+          self._hideNotification();
           if (showAlwaysSubmitCheckbox && alwaysSubmitCheckbox.checked) {
             self._prefs.setValue(ALWAYS_SUBMIT_DATA, true);
           }
@@ -470,7 +496,7 @@ let TestPilotSetup = {
 	  } else {
             self._openChromeless(linkUrl);
 	  }
-          self._hideNotification(window, onCloseCallback);
+          self._hideNotification();
         }
       };
       link.setAttribute("hidden", false);
@@ -479,7 +505,7 @@ let TestPilotSetup = {
     }
 
     closeBtn.onclick = function() {
-      self._hideNotification(window, onCloseCallback);
+      self._hideNotification();
     };
 
     // Show the popup:
@@ -493,19 +519,13 @@ let TestPilotSetup = {
     window.TestPilotWindowUtils.openChromeless(url);
   },
 
-  _hideNotification: function TPS__hideNotification(window, onCloseCallback) {
-    /* Note - we take window as an argument instead of just using the frontmost
-     * window because the window order might have changed since the notification
-     * appeared and we want to be sure we close the notification in the same
-     * window as we opened it in! */
+  _hideNotification: function TPS__hideNotification() {
+    let window = this._getFrontBrowserWindow();
     let popup = window.document.getElementById("pilot-notification-popup");
     popup.hidden = true;
     popup.setAttribute("open", "false");
     popup.removeAttribute("tpisextensionupdate");
     popup.hidePopup();
-    if (onCloseCallback) {
-      onCloseCallback();
-    }
   },
 
   _isShowingUpdateNotification : function() {
@@ -555,11 +575,11 @@ let TestPilotSetup = {
     if (this._prefs.getValue(POPUP_SHOW_ON_NEW, false)) {
       for (i = 0; i < this.taskList.length; i++) {
         task = this.taskList[i];
-        if (task.status == TaskConstants.STATUS_PENDING ||
+        if (task.status == TaskConstants.STATUS_STARTING ||
             task.status == TaskConstants.STATUS_NEW) {
           if (task.taskType == TaskConstants.TYPE_EXPERIMENT) {
 	    this._showNotification(
-	      task, false,
+	      task, true,
 	      this._stringBundle.formatStringFromName(
 		"testpilot.notification.newTestPilotStudy.message",
 		[task.title], 1),
@@ -567,16 +587,14 @@ let TestPilotSetup = {
 		"testpilot.notification.newTestPilotStudy"),
 	      "new-study", false, false,
 	      this._stringBundle.GetStringFromName("testpilot.moreInfo"),
-	      task.defaultUrl, false, function() {
-                /* on close callback (Bug 575767) -- when the "new study
-                 * starting" popup is dismissed, then the study can start. */
-                task.changeStatus(TaskConstants.STATUS_IN_PROGRESS, true);
-                TestPilotSetup.reloadRemoteExperiments();
-              });
+	      task.defaultUrl);
+            // Having shown the notification, update task status so that this
+            // notification won't be shown again.
+            task.changeStatus(TaskConstants.STATUS_IN_PROGRESS, true);
             return;
           } else if (task.taskType == TaskConstants.TYPE_SURVEY) {
 	    this._showNotification(
-	      task, false,
+	      task, true,
 	      this._stringBundle.formatStringFromName(
 		"testpilot.notification.newTestPilotSurvey.message",
 		[task.title], 1),

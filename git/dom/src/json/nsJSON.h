@@ -92,7 +92,7 @@ protected:
   nsCOMPtr<nsIURI> mURI;
 };
 
-nsresult
+NS_IMETHODIMP
 NS_NewJSON(nsISupports* aOuter, REFNSIID aIID, void** aResult);
 
 class nsJSONListener : public nsIStreamListener

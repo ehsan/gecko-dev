@@ -5452,15 +5452,8 @@ nsWindow::ClientMarginHitTestPoint(PRInt32 mx, PRInt32 my)
       testResult = HTRIGHT;
   }
 
-  // There's no HTTOP in maximized state (bug 575493)
-  if (mSizeMode == nsSizeMode_Maximized && testResult == HTTOP)
-    testResult = HTCAPTION;
-
   if (!mIsInMouseCapture && 
-      (testResult == HTCLIENT ||
-       testResult == HTTOP ||
-       testResult == HTTOPLEFT ||
-       testResult == HTCAPTION)) {
+      (testResult == HTCLIENT || testResult == HTTOP || testResult == HTTOPLEFT)) {
     LPARAM lParam = MAKELPARAM(mx, my);
     LPARAM lParamClient = lParamToClient(lParam);
     PRBool result = DispatchMouseEvent(NS_MOUSE_MOZHITTEST, 0, lParamClient,

@@ -68,6 +68,7 @@ public:
   virtual void Updated(const nsIntRect& aRect);
 
   // LayerD3D9 implementation
+  virtual LayerType GetType();
   virtual Layer* GetLayer();
   virtual void RenderLayer();
 

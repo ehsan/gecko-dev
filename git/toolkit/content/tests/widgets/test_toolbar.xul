@@ -55,6 +55,7 @@
   <script type="text/javascript"><![CDATA[
     const SPACER = /^spacer\d+/;
     const SEPARATOR = /^separator\d+/;
+    const SPLITTER = /^splitter\d+/;
     const SPRING = /^spring\d+/;
 
     function testSet(aTb, aIDs, aResultIDs, aUseFixed) {
@@ -130,11 +131,12 @@
          [["spacer"],    [SPACER]],
          [["spring"],    [SPRING]],
          [["separator"], [SEPARATOR]],
+         [["splitter"],  [SPLITTER]],
          [["p11", "p11", "p12", "spacer", "p11"], ["p11", "p12", SPACER]],
-         [["separator", "separator", "p11", "spring", "spacer"],
-          [SEPARATOR, SEPARATOR, "p11", SPRING, SPACER]],
-         [["separator", "spacer", "separator", "p11", "spring", "spacer", "p12", "spring"],
-          [SEPARATOR, SPACER, SEPARATOR, "p11", SPRING, SPACER, "p12", SPRING]],
+         [["splitter", "separator", "p11", "spring", "spacer"],
+          [SPLITTER, SEPARATOR, "p11", SPRING, SPACER]],
+         [["splitter", "spacer", "splitter", "p11", "spring", "spacer", "p12", "spring"],
+          [SPLITTER, SPACER, SPLITTER, "p11", SPRING, SPACER, "p12", SPRING]],
          emptySet
       ];
 

@@ -66,11 +66,15 @@ public:
 
   nsSVGPatternFrame(nsStyleContext* aContext);
 
+  nsresult PaintPattern(gfxASurface **surface,
+                        gfxMatrix *patternMatrix,
+                        nsSVGGeometryFrame *aSource,
+                        float aGraphicOpacity);
+
   // nsSVGPaintServerFrame methods:
-  virtual already_AddRefed<gfxPattern>
-    GetPaintServerPattern(nsIFrame *aSource,
-                          float aOpacity,
-                          const gfxRect *aOverrideBounds);
+  virtual PRBool SetupPaintServer(gfxContext *aContext,
+                                  nsSVGGeometryFrame *aSource,
+                                  float aGraphicOpacity);
 
 public:
   // nsSVGContainerFrame methods:
@@ -124,26 +128,20 @@ protected:
   const nsSVGViewBox &GetViewBox();
   const nsSVGPreserveAspectRatio &GetPreserveAspectRatio();
 
-
-  nsresult PaintPattern(gfxASurface **surface,
-                        gfxMatrix *patternMatrix,
-                        nsIFrame *aSource,
-                        float aGraphicOpacity,
-                        const gfxRect *aOverrideBounds);
   NS_IMETHOD GetPatternFirstChild(nsIFrame **kid);
   gfxRect    GetPatternRect(const gfxRect &bbox,
                             const gfxMatrix &callerCTM,
-                            nsIFrame *aTarget);
+                            nsSVGElement *content);
   gfxMatrix  GetPatternMatrix(const gfxRect &bbox,
                               const gfxRect &callerBBox,
                               const gfxMatrix &callerCTM);
   gfxMatrix  ConstructCTM(const gfxRect &callerBBox,
                           const gfxMatrix &callerCTM,
-                          nsIFrame *aTarget);
+                          nsSVGElement *aTargetContent);
   nsresult   GetTargetGeometry(gfxMatrix *aCTM,
                                gfxRect *aBBox,
-                               nsIFrame *aTarget,
-                               const gfxRect *aOverrideBounds);
+                               nsSVGElement **aTargetContent,
+                               nsSVGGeometryFrame *aTarget);
 
 private:
   // this is a *temporary* reference to the frame of the element currently

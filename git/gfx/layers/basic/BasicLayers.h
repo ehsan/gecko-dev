@@ -51,6 +51,9 @@ class BasicThebesLayer;
 
 /**
  * This is a cairo/Thebes-only, main-thread-only implementation of layers.
+ * Currently it only supports immediate mode but we will probably
+ * extend it to support retained buffers. In other words, currently,
+ * no buffers are retained between transactions.
  * 
  * In each transaction, the client sets up the layer tree and then during
  * the drawing phase, each ThebesLayer is painted directly into the target
@@ -66,13 +69,6 @@ public:
    */
   BasicLayerManager(gfxContext* aContext);
   virtual ~BasicLayerManager();
-
-  /**
-   * When aRetain is true, we will try to retain the visible contents of
-   * ThebesLayers as cairo surfaces. This can only be called outside a
-   * transaction.
-   */
-  void SetRetain(PRBool aRetain);
 
   /**
    * Set the default target context that will be used when BeginTransaction
@@ -98,10 +94,8 @@ public:
 #ifdef DEBUG
   PRBool InConstruction() { return mPhase == PHASE_CONSTRUCTION; }
   PRBool InDrawing() { return mPhase == PHASE_DRAWING; }
-  PRBool InTransaction() { return mPhase != PHASE_NONE; }
 #endif
   gfxContext* GetTarget() { return mTarget; }
-  PRBool IsRetained() { return mRetain; }
 
 private:
   // Paints aLayer to mTarget.
@@ -118,8 +112,6 @@ private:
   enum TransactionPhase { PHASE_NONE, PHASE_CONSTRUCTION, PHASE_DRAWING };
   TransactionPhase mPhase;
 #endif
-
-  PRPackedBool mRetain;
 };
 
 }

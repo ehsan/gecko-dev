@@ -308,7 +308,7 @@ window.Item.prototype = {
     
   // ----------
   // Function: setParent
-  // Sets the receiver's parent to the given <Item>. 
+  //
   setParent: function(parent) {
     this.parent = parent;
     this.removeTrenches();
@@ -323,7 +323,7 @@ window.Item.prototype = {
     
     var items = Items.getTopLevelItems();
     // setup each Item's pushAwayData attribute:
-    items.forEach(function pushAway_setupPushAwayData(item) {
+    iQ.each(items, function pushAway_setupPushAwayData(index, item) {
       var data = {};
       data.bounds = item.getBounds();
       data.startBounds = new Rect(data.bounds);
@@ -346,7 +346,7 @@ window.Item.prototype = {
       // bbc = center of the base's bounds
       var bbc = bb.center();
     
-      items.forEach(function(item) {
+      iQ.each(items, function(index, item) {
         if (item == baseItem || item.locked.bounds)
           return;
           
@@ -408,7 +408,7 @@ window.Item.prototype = {
 
     // ___ Squish!
     var pageBounds = Items.getSafeWindowBounds();
-    items.forEach(function(item) {
+    iQ.each(items, function(index, item) {
       var data = item.pushAwayData;
       if (data.generation == 0 || item.locked.bounds)
         return;
@@ -474,7 +474,7 @@ window.Item.prototype = {
 
     // ___ Unsquish
     var pairs = [];
-    items.forEach(function(item) {
+    iQ.each(items, function(index, item) {
       var data = item.pushAwayData;
       pairs.push({
         item: item,
@@ -485,7 +485,7 @@ window.Item.prototype = {
     Items.unsquish(pairs);
 
     // ___ Apply changes
-    items.forEach(function(item) {
+    iQ.each(items, function(index, item) {
       var data = item.pushAwayData;
       var bounds = data.bounds;
       if (!bounds.equals(data.startBounds)) {
@@ -551,19 +551,19 @@ window.Item.prototype = {
   // Function: removeTrenches
   // Removes the trenches for snapping to this item.
   removeTrenches: function() {
-    for (var edge in this.borderTrenches) {
+    for (let edge in this.borderTrenches) {
       Trenches.unregister(this.borderTrenches[edge]); // unregister can take an array
     }
     this.borderTrenches = null;
-    for (var edge in this.guideTrenches) {
+    for (let edge in this.guideTrenches) {
       Trenches.unregister(this.guideTrenches[edge]); // unregister can take an array
     }
     this.guideTrenches = null;
   },
   
   // ----------
-  // Function: snap
-  // The snap function used during group creation via drag-out
+  // Function: removeTrenches
+  // Removes the trenches for snapping to this item.
   snap: function() {
     // make the snapping work with a wider range!
     var defaultRadius = Trenches.defaultRadius;
@@ -626,7 +626,7 @@ window.Item.prototype = {
           score: 0
         };
         
-        droppables.forEach(function(droppable) {
+        iQ.each(droppables, function(index, droppable) {
           var intersection = box.intersection(droppable.bounds);
           if (intersection && intersection.area() > best.score) {
             var possibleDropTarget = droppable.item;
@@ -689,8 +689,8 @@ window.Item.prototype = {
         
         var cancel = false;
         var $target = iQ(e.target);
-        cancelClasses.forEach(function(className) {
-          if ($target.hasClass(className)) {
+        iQ.each(cancelClasses, function(index, class) {
+          if ($target.hasClass(class)) {
             cancel = true;
             return false;
           }
@@ -708,9 +708,9 @@ window.Item.prototype = {
         dropTarget = null;
         
         droppables = [];
-        iQ('.iq-droppable').each(function(elem) {
-          if (elem != self.container) {
-            var item = Items.item(elem);
+        iQ('.iq-droppable').each(function() {
+          if (this != self.container) {
+            var item = Items.item(this);
             droppables.push({
               item: item, 
               bounds: item.getBounds()
@@ -859,8 +859,8 @@ window.Items = {
   getTopLevelItems: function() {
     var items = [];
     
-    iQ('.tab, .group, .info-item').each(function(elem) {
-      var $this = iQ(elem);
+    iQ('.tab, .group, .info-item').each(function() {
+      var $this = iQ(this);
       var item = $this.data('item');  
       if (item && !item.parent && !$this.hasClass('phantom'))
         items.push(item);
@@ -1022,7 +1022,7 @@ window.Items = {
     if (!pairsProvided) {
       var items = Items.getTopLevelItems();
       pairs = [];
-      items.forEach(function(item) {
+      iQ.each(items, function(index, item) {
         pairs.push({
           item: item,
           bounds: item.getBounds()
@@ -1031,7 +1031,7 @@ window.Items = {
     }
   
     var pageBounds = Items.getSafeWindowBounds();
-    pairs.forEach(function(pair) {
+    iQ.each(pairs, function(index, pair) {
       var item = pair.item;
       if (item.locked.bounds || item == ignore)
         return;
@@ -1073,7 +1073,7 @@ window.Items = {
 
       if (!bounds.equals(newBounds)) {        
         var blocked = false;
-        pairs.forEach(function(pair2) {
+        iQ.each(pairs, function(index, pair2) {
           if (pair2 == pair || pair2.item == ignore)
             return;
             
@@ -1091,7 +1091,7 @@ window.Items = {
     });
 
     if (!pairsProvided) {
-      pairs.forEach(function(pair) {
+      iQ.each(pairs, function(index, pair) {
         pair.item.setBounds(pair.bounds);
       });
     }

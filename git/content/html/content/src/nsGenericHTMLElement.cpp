@@ -1581,9 +1581,9 @@ nsGenericHTMLElement::ParseTableVAlignValue(const nsAString& aString,
   return aResult.ParseEnumValue(aString, kTableVAlignTable, PR_FALSE);
 }
 
-PRBool
+PRBool 
 nsGenericHTMLElement::ParseDivAlignValue(const nsAString& aString,
-                                         nsAttrValue& aResult)
+                                         nsAttrValue& aResult) const
 {
   return aResult.ParseEnumValue(aString, kDivAlignTable, PR_FALSE);
 }

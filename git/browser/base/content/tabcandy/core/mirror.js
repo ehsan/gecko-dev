@@ -20,7 +20,6 @@
  *
  * Contributor(s):
  * Ian Gilman <ian@iangilman.com>
- * Michael Yoshitaka Erlewine <mitcho@mitcho.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -40,6 +39,11 @@
 // Title: mirror.js
 
 (function(){
+
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
 
 function _isIframe(doc){
   var win = doc.defaultView;
@@ -124,9 +128,10 @@ TabCanvas.prototype = {
   },
   
   // ----------
-  // Function: toImageData  
-  toImageData: function() {
-    return this.canvas.toDataURL("image/png", "");
+  // Function: animate
+  // Deprecated
+  animate: function(options, duration){
+    Utils.assert('this routine no longer exists', false);
   }
 };
 
@@ -143,9 +148,8 @@ function Mirror(tab, manager) {
     .data("tab", this.tab)
     .addClass('tab')
     .html("<div class='favicon'><img/></div>" +
-          "<div class='thumb'><div class='thumb-shadow'></div>" +
-	  "<img class='thumb-placeholder' style='display:none'/><canvas/></div>" +
-	  "<span class='tab-title'>&nbsp;</span>"
+          "<div class='thumb'><div class='thumbShadow'></div><canvas/></div>" +
+          "<span class='tab-title'>&nbsp;</span>"
     )
     .appendTo('body');
     
@@ -155,8 +159,7 @@ function Mirror(tab, manager) {
   this.favEl = iQ('.favicon>img', $div).get(0);
   this.nameEl = iQ('.tab-title', $div).get(0);
   this.canvasEl = iQ('.thumb canvas', $div).get(0);
-  this.canvasPlaceholderEl = iQ('.thumb-placeholder', $div).get(0);
-
+      
   var doc = this.tab.contentDocument;
   if ( !_isIframe(doc) ) {
     this.tabCanvas = new TabCanvas(this.tab, this.canvasEl);    
@@ -285,8 +288,8 @@ TabMirror.prototype = {
             mirror.favEl.src = iconUrl;
             mirror.triggerPaint();
           }
-          
-          if ($canvas.css("display") != "none" && $name.text() != label) {
+            
+          if ($name.text() != label) {
             $name.text(label);
             mirror.triggerPaint();
           }
@@ -360,7 +363,7 @@ TabMirror.prototype = {
   unlink: function(tab){
     var mirror = tab.mirror;
     if (mirror) {
-      mirror._sendToSubscribers("close");
+      mirror._sendOnClose();
       var tabCanvas = mirror.tabCanvas;
       if (tabCanvas)
         tabCanvas.detach();
@@ -385,8 +388,8 @@ window.TabMirror = {
   //     <Mirror> representing the tab in question. 
   customize: function(func) {
     // Apply the custom handlers to all existing elements
-    iQ('div.tab').each(function(elem) {
-      var tab = Tabs.tab(elem);
+    iQ('div.tab').each(function() {
+      var tab = Tabs.tab(this);
       func(tab.mirror);
     });
     

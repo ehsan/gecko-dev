@@ -63,6 +63,8 @@ const TEST_NETWORK_URI = "http://example.com/browser/toolkit/components/console/
 
 const TEST_FILTER_URI = "http://example.com/browser/toolkit/components/console/hudservice/tests/browser/test-filter.html";
 
+const TEST_MUTATION_URI = "http://example.com/browser/toolkit/components/console/hudservice/tests/browser/test-mutation.html";
+
 function noCacheUriSpec(aUriSpec) {
   return aUriSpec + "?_=" + Date.now();
 }
@@ -262,6 +264,26 @@ function testNet()
   });
 }
 
+// test DOM Mutation logging
+function testDOMMutation()
+{
+  HUDService.setFilterState(hudId, "mutation", true);
+  filterBox.value = "";
+  content.location = TEST_MUTATION_URI;
+  executeSoon(function() {
+                content.wrappedJSObject.addEventListener("DOMContentLoaded",
+                function () {
+                  var successMsg = "Found Mutation Log Message";
+                  var errMsg = "Could NOT find Mutation Log Message";
+                  var display = HUDService.getHeadsUpDisplay(hudId);
+                  var outputNode = display.querySelectorAll(".hud-output-node")[0];
+                  testLogEntry(outputNode,
+                  "Mutation", { success: successMsg, err: errMsg });
+                  }, false);
+                content.location.href = TEST_NETWORK_URI;
+              });
+}
+
 function testCreateDisplay() {
   ok(typeof cs.consoleDisplays == "object",
      "consoledisplays exist");
@@ -379,6 +401,7 @@ function test() {
       testConsoleLoggingAPI("exception");
 
       testNet();
+      // testDOMMutation();
 
       // ConsoleStorageTests
       testCreateDisplay();

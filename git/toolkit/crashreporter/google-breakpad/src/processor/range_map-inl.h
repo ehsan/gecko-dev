@@ -37,7 +37,7 @@
 #define PROCESSOR_RANGE_MAP_INL_H__
 
 
-#include <assert.h>
+#include <cassert>
 
 #include "processor/range_map.h"
 #include "processor/logging.h"

@@ -97,10 +97,6 @@ class ScopedDIRClose {
 };
 typedef scoped_ptr_malloc<DIR, ScopedDIRClose> ScopedDIR;
 
-#ifdef ANDROID
-typedef unsigned long int rlim_t;
-#endif
-
 void CloseSuperfluousFds(const base::InjectiveMultimap& saved_mapping) {
 #if defined(OS_LINUX)
   static const rlim_t kSystemDefaultMaxFds = 8192;

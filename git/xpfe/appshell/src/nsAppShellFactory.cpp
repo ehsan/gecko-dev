@@ -35,10 +35,13 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/ModuleUtils.h"
+#include "nsIFactory.h"
+#include "nsIComponentManager.h"
 #include "nscore.h"
+#include "nsIComponentManager.h"
 #include "nsIWindowMediator.h"
 #include "nsAbout.h"
+#include "nsIGenericFactory.h"
 
 #include "nsIAppShellService.h"
 #include "nsAppShellService.h"
@@ -50,44 +53,37 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsAppShellService)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsAbout)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsWindowMediator, Init)
 
-NS_DEFINE_NAMED_CID(NS_APPSHELLSERVICE_CID);
-NS_DEFINE_NAMED_CID(NS_WINDOWMEDIATOR_CID);
-NS_DEFINE_NAMED_CID(NS_ABOUT_CID);
-
-static const mozilla::Module::CIDEntry kAppShellCIDs[] = {
-  { &kNS_APPSHELLSERVICE_CID, false, NULL, nsAppShellServiceConstructor },
-  { &kNS_WINDOWMEDIATOR_CID, false, NULL, nsWindowMediatorConstructor },
-  { &kNS_ABOUT_CID, false, NULL, nsAboutConstructor },
-  { NULL }
-};
-
-static const mozilla::Module::ContractIDEntry kAppShellContracts[] = {
-  { NS_APPSHELLSERVICE_CONTRACTID, &kNS_APPSHELLSERVICE_CID },
-  { NS_WINDOWMEDIATOR_CONTRACTID, &kNS_WINDOWMEDIATOR_CID },
-  { NS_ABOUT_MODULE_CONTRACTID_PREFIX, &kNS_ABOUT_CID },
-  { NULL }
+static const nsModuleComponentInfo gAppShellModuleInfo[] =
+{
+  { "AppShell Service",
+    NS_APPSHELLSERVICE_CID,
+    NS_APPSHELLSERVICE_CONTRACTID,
+    nsAppShellServiceConstructor,
+  },
+  { "Window Mediator",
+    NS_WINDOWMEDIATOR_CID,
+    NS_WINDOWMEDIATOR_CONTRACTID,
+    nsWindowMediatorConstructor,
+  },
+  { "kAboutModuleCID",
+    NS_ABOUT_CID,
+    NS_ABOUT_MODULE_CONTRACTID_PREFIX,
+    nsAboutConstructor,
+  }
 };
 
 static nsresult
-nsAppShellModuleConstructor()
+nsAppShellModuleConstructor(nsIModule *aModule)
 {
   return nsChromeTreeOwner::InitGlobals();
 }
 
 static void
-nsAppShellModuleDestructor()
+nsAppShellModuleDestructor(nsIModule *aModule)
 {
   nsChromeTreeOwner::FreeGlobals();
 }
 
-static const mozilla::Module kAppShellModule = {
-  mozilla::Module::kVersion,
-  kAppShellCIDs,
-  kAppShellContracts,
-  NULL,
-  NULL,
-  nsAppShellModuleConstructor,
-  nsAppShellModuleDestructor
-};
-
-NSMODULE_DEFN(appshell) = &kAppShellModule;
+NS_IMPL_NSGETMODULE_WITH_CTOR_DTOR(appshell, gAppShellModuleInfo,
+                                   nsAppShellModuleConstructor,
+                                   nsAppShellModuleDestructor)

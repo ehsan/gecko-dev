@@ -593,7 +593,7 @@ NS_IMETHODIMP xpctestEcho::SetSomeValue(PRInt32 aSomeValue)
 /***************************************************************************/
 
 // static
-nsresult
+NS_IMETHODIMP
 xpctest::ConstructEcho(nsISupports *aOuter, REFNSIID aIID, void **aResult)
 {
     nsresult rv;

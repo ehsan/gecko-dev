@@ -1,41 +1,20 @@
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-
-var jps = Components.classes["@mozilla.org/jetpack/service;1"]
-  .getService(Components.interfaces.nsIJetpackService);
-var jetpack = null;
+/*
+var jps = jps || Components.classes["@mozilla.org/jetpack/service;1"]
+  .getService(Components.interfaces.nsIJetpackService),
+  jetpack = null;
+*/
 
 load("handle_tests.js");
 function createHandle() {
   return jetpack.createHandle();
 }
 
-const PR_RDONLY = 0x1;
-
-function read_file(f)
-{
-  var fis = Cc["@mozilla.org/network/file-input-stream;1"]
-    .createInstance(Ci.nsIFileInputStream);
-  fis.init(f, PR_RDONLY, 0444, Ci.nsIFileInputStream.CLOSE_ON_EOF);
-
-  var lis = Cc["@mozilla.org/intl/converter-input-stream;1"]
-    .createInstance(Ci.nsIConverterInputStream);
-  lis.init(fis, "UTF-8", 1024, 0);
-
-  var data = "";
-
-  var r = {};
-  while (lis.readString(0x0FFFFFFF, r))
-    data += r.value;
-
-  return data;
-}
-
 function run_test() {
-  jetpack = jps.createJetpack();
+  //jetpack = jps.createJetpack();
+  return;
   run_handle_tests();
 
-  jetpack.evalScript(read_file(do_get_file("impl.js")));
+  jetpack.loadImplementation("file://" + do_get_file("impl.js").path);
 
   var circ1 = {},
       circ2 = {},
@@ -186,13 +165,6 @@ function run_test() {
   jetpack.registerReceiver("duplicate receivers",
                            function() { do_test_finished() });
 
-  jetpack.registerReceiver("test result", function(name, c, msg) {
-    dump("TEST-INFO | test_jetpack.js | remote check '" + msg + "' result: " + c + "\n");
-    do_check_true(c);
-  });
-  jetpack.registerReceiver("sandbox done", do_test_finished);
-
-  do_test_pending();
   do_test_pending();
   do_test_pending();
   do_test_pending();
@@ -214,12 +186,5 @@ function run_test() {
                       undefined, null, true, false, 1, 2, 999, 1/4, "oyez");
   jetpack.sendMessage("drop methods", drop);
   jetpack.sendMessage("exception coping");
-
   jetpack.sendMessage("duplicate receivers");
-
-  jetpack.sendMessage("test sandbox");
-
-  do_register_cleanup(function() {
-    jetpack.destroy();
-  });
 }

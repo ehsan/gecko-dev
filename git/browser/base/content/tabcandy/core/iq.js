@@ -67,15 +67,33 @@ var iQ = function(selector, context) {
   // (both of which we optimize for)
   quickExpr = /^[^<]*(<[\w\W]+>)[^>]*$|^#([\w-]+)$/,
 
+  // Is it a simple selector
+  isSimple = /^.[^:#\[\.,]*$/,
+
+  // Check if a string has a non-whitespace character in it
+  rnotwhite = /\S/,
+
+  // Used for trimming whitespace
+  rtrim = /^(\s|\u00A0)+|(\s|\u00A0)+$/g,
+
   // Match a standalone tag
   rsingleTag = /^<(\w+)\s*\/?>(?:<\/\1>)?$/,
 
   // Save a reference to some core methods
   toString = Object.prototype.toString,
   hasOwnProperty = Object.prototype.hasOwnProperty,
+  push = Array.prototype.push,
+  slice = Array.prototype.slice,
+  indexOf = Array.prototype.indexOf;
 
-  rclass = /[\n\t]/g,
-  rspace = /\s+/;
+var rclass = /[\n\t]/g,
+  rspace = /\s+/,
+  rreturn = /\r/g,
+  rspecialurl = /href|src|style/,
+  rtype = /(button|input)/i,
+  rfocusable = /(button|input|object|select|textarea)/i,
+  rclickable = /^(a|area)$/i,
+  rradiocheck = /radio|checkbox/;
 
 // ##########
 // Class: iQ.fn
@@ -183,20 +201,7 @@ iQ.fn = iQ.prototype = {
       this.context = selector.context;
     }
 
-    // this used to be makeArray:
-    var ret = this || [];
-    if ( selector != null ) {
-      // The window, strings (and functions) also have 'length'
-      // The extra typeof function check is to prevent crashes
-      // in Safari 2 (See: #3039)
-      if ( selector.length == null || typeof selector === "string" || iQ.isFunction(selector) || (typeof selector !== "function" && selector.setInterval) ) {
-        Array.prototype.push.call( ret, selector );
-      } else {
-        iQ.merge( ret, selector );
-      }
-    }
-    return ret;
-    
+    return iQ.makeArray( selector, this );
   },
   
   // Start with an empty selector
@@ -209,6 +214,12 @@ iQ.fn = iQ.prototype = {
   length: 0, 
   
   // ----------
+  // Function: toArray
+  toArray: function() {
+    return slice.call( this, 0 );
+  },
+
+  // ----------
   // Function: get
   // Get the Nth element in the matched element set OR
   // Get the whole matched element set as a clean array
@@ -216,25 +227,56 @@ iQ.fn = iQ.prototype = {
     return num == null ?
 
       // Return a 'clean' array
-      // was toArray
-      Array.prototype.slice.call( this, 0 ) :
+      this.toArray() :
 
       // Return just the object
-      ( num < 0 ? this[ num + this.length ] : this[ num ] );
+      ( num < 0 ? this.slice(num)[ 0 ] : this[ num ] );
+  },
+
+  // ----------
+  // Function: pushStack
+  // Take an array of elements and push it onto the stack
+  // (returning the new matched element set)
+  pushStack: function( elems, name, selector ) {
+    // Build a new iQ matched element set
+    var ret = iQ();
+
+    if ( iQ.isArray( elems ) ) {
+      push.apply( ret, elems );
+    
+    } else {
+      iQ.merge( ret, elems );
+    }
+
+    // Add the old object onto the stack (as a reference)
+    ret.prevObject = this;
+
+    ret.context = this.context;
+
+    if ( name === "find" ) {
+      ret.selector = this.selector + (this.selector ? " " : "") + selector;
+    } else if ( name ) {
+      ret.selector = this.selector + "." + name + "(" + selector + ")";
+    }
+
+    // Return the newly-formed element set
+    return ret;
   },
 
   // ----------
   // Function: each
   // Execute a callback for every element in the matched set.
-  each: function( callback ) {
-    if ( !iQ.isFunction(callback) ) {
-      Utils.assert("each's argument must be a function", false);
-      return null;
-    }
-    for ( var i = 0, elem; (elem = this[i]) != null; i++ ) {
-      callback(elem);
-    }
-    return this;
+  // (You can seed the arguments with an array of args, but this is
+  // only used internally.)
+  each: function( callback, args ) {
+    return iQ.each( this, callback, args );
+  },
+  
+  // ----------
+  // Function: slice
+  slice: function() {
+    return this.pushStack( slice.apply( this, arguments ),
+      "slice", slice.call(arguments).join(",") );
   },
 
   // ----------
@@ -246,12 +288,24 @@ iQ.fn = iQ.prototype = {
     }
 
     if ( value && typeof value === "string" ) {
+      var classNames = (value || "").split( rspace );
+
       for ( var i = 0, l = this.length; i < l; i++ ) {
         var elem = this[i];
+
         if ( elem.nodeType === 1 ) {
-          (value || "").split( rspace ).forEach(function(className) {
-            elem.classList.add(className);
-          });
+          if ( !elem.className ) {
+            elem.className = value;
+
+          } else {
+            var className = " " + elem.className + " ", setClass = elem.className;
+            for ( var c = 0, cl = classNames.length; c < cl; c++ ) {
+              if ( className.indexOf( " " + classNames[c] + " " ) < 0 ) {
+                setClass += " " + classNames[c];
+              }
+            }
+            elem.className = iQ.trim( setClass );
+          }
         }
       }
     }
@@ -268,13 +322,19 @@ iQ.fn = iQ.prototype = {
     }
 
     if ( (value && typeof value === "string") || value === undefined ) {
+      var classNames = (value || "").split(rspace);
+
       for ( var i = 0, l = this.length; i < l; i++ ) {
         var elem = this[i];
+
         if ( elem.nodeType === 1 && elem.className ) {
           if ( value ) {
-            (value || "").split(rspace).forEach(function(className) {
-              elem.classList.remove(className);
-            });
+            var className = (" " + elem.className + " ").replace(rclass, " ");
+            for ( var c = 0, cl = classNames.length; c < cl; c++ ) {
+              className = className.replace(" " + classNames[c] + " ", " ");
+            }
+            elem.className = iQ.trim( className );
+
           } else {
             elem.className = "";
           }
@@ -288,11 +348,13 @@ iQ.fn = iQ.prototype = {
   // ----------
   // Function: hasClass
   hasClass: function( selector ) {
+    var className = " " + selector + " ";
     for ( var i = 0, l = this.length; i < l; i++ ) {
-      if ( this[i].classList.contains( selector ) ) {
+      if ( (" " + this[i].className + " ").replace(rclass, " ").indexOf( className ) > -1 ) {
         return true;
       }
     }
+
     return false;
   },
 
@@ -510,8 +572,7 @@ iQ.fn = iQ.prototype = {
     };
     
     for ( var i = 0, elem; (elem = this[i]) != null; i++ ) {
-      for (var key in properties) {
-        var value = properties[key];
+      iQ.each(properties, function(key, value) {
         if (pixels[key] && typeof(value) != 'string') 
           value += 'px';
         
@@ -519,7 +580,7 @@ iQ.fn = iQ.prototype = {
           elem.style.setProperty(key, value, '');
         else
           elem.style[key] = value;
-      }
+      });
     }
     
     return this; 
@@ -559,11 +620,11 @@ iQ.fn = iQ.prototype = {
       // css properties. So for each element to be animated, go through and
       // explicitly define 'em.
       var rupper = /([A-Z])/g;    
-      this.each(function(elem){
-        var cStyle = window.getComputedStyle(elem, null);      
+      this.each(function(){
+        var cStyle = window.getComputedStyle(this, null);      
         for (var prop in css){
           prop = prop.replace( rupper, "-$1" ).toLowerCase();
-          iQ(elem).css(prop, cStyle.getPropertyValue(prop));
+          iQ(this).css(prop, cStyle.getPropertyValue(prop));
         }    
       });
 
@@ -807,6 +868,9 @@ iQ.extend({
   
   // -----------
   // Function: isFunction
+  // See test/unit/core.js for details concerning isFunction.
+  // Since version 1.3, DOM methods and functions like alert
+  // aren't supported. They return false on IE (#2968).
   isFunction: function( obj ) {
     return toString.call(obj) === "[object Function]";
   },
@@ -851,7 +915,89 @@ iQ.extend({
     }
     return true;
   },
+
+  // ----------
+  // Function: each
+  // args is for internal usage only
+  each: function( object, callback, args ) {
+    var name, i = 0,
+      length = object.length,
+      isObj = length === undefined || iQ.isFunction(object);
+
+    if ( args ) {
+      if ( isObj ) {
+        for ( name in object ) {
+          if ( callback.apply( object[ name ], args ) === false ) {
+            break;
+          }
+        }
+      } else {
+        for ( ; i < length; ) {
+          if ( callback.apply( object[ i++ ], args ) === false ) {
+            break;
+          }
+        }
+      }
+
+    // A special, fast, case for the most common use of each
+    } else {
+      if ( isObj ) {
+        for ( name in object ) {
+          if ( callback.call( object[ name ], name, object[ name ] ) === false ) {
+            break;
+          }
+        }
+      } else {
+        for ( var value = object[0];
+          i < length && callback.call( value, i, value ) !== false; value = object[++i] ) {}
+      }
+    }
+
+    return object;
+  },
   
+  // ----------
+  // Function: trim
+  trim: function( text ) {
+    return (text || "").replace( rtrim, "" );
+  },
+
+  // ----------
+  // Function: makeArray
+  // results is for internal usage only
+  makeArray: function( array, results ) {
+    var ret = results || [];
+
+    if ( array != null ) {
+      // The window, strings (and functions) also have 'length'
+      // The extra typeof function check is to prevent crashes
+      // in Safari 2 (See: #3039)
+      if ( array.length == null || typeof array === "string" || iQ.isFunction(array) || (typeof array !== "function" && array.setInterval) ) {
+        push.call( ret, array );
+      } else {
+        iQ.merge( ret, array );
+      }
+    }
+
+    return ret;
+  },
+
+  // ----------
+  // Function: inArray
+  inArray: function( elem, array ) {
+    if ( array.indexOf ) {
+      return array.indexOf( elem );
+    }
+
+    for ( var i = 0, length = array.length; i < length; i++ ) {
+      if ( array[ i ] === elem ) {
+        return i;
+      }
+    }
+
+    return -1;
+  },
+
   // ----------
   // Function: merge
   merge: function( first, second ) {
@@ -871,6 +1017,22 @@ iQ.extend({
     first.length = i;
 
     return first;
+  },
+
+  // ----------
+  // Function: grep
+  grep: function( elems, callback, inv ) {
+    var ret = [];
+
+    // Go through the array, only saving the items
+    // that pass the validator function
+    for ( var i = 0, length = elems.length; i < length; i++ ) {
+      if ( !inv !== !callback( elems[ i ], i ) ) {
+        ret.push( elems[ i ] );
+      }
+    }
+
+    return ret;
   },
 
   // ----------
@@ -905,7 +1067,7 @@ iQ.extend({
     'focus'
   ];
   
-  events.forEach(function(event) {
+  iQ.each(events, function(index, event) {
     iQ.fn[event] = function(func) {
       return this.bind(event, func);
     };

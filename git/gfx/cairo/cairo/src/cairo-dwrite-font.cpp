@@ -1268,8 +1268,11 @@ _cairo_dwrite_show_glyphs_on_d2d_surface(void			*surface,
     if (op != CAIRO_OPERATOR_SOURCE && op != CAIRO_OPERATOR_OVER)
 	return CAIRO_INT_STATUS_UNSUPPORTED;
 
-    _cairo_d2d_begin_draw_state (dst);
-    _cairo_d2d_set_clip (dst, clip);
+    status = (cairo_int_status_t)_cairo_surface_clipper_set_clip (&dst->clipper, clip);
+    if (unlikely (status))
+	return status;
+
+    _cairo_d2d_begin_draw_state(dst);
 
     D2D1_TEXT_ANTIALIAS_MODE cleartype = D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE;
 

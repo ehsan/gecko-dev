@@ -60,7 +60,7 @@ nsDataHandler::~nsDataHandler() {
 
 NS_IMPL_ISUPPORTS1(nsDataHandler, nsIProtocolHandler)
 
-nsresult
+NS_METHOD
 nsDataHandler::Create(nsISupports* aOuter, const nsIID& aIID, void* *aResult) {
 
     nsDataHandler* ph = new nsDataHandler();

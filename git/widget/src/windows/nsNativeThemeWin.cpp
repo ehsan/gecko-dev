@@ -2942,7 +2942,7 @@ nsNativeThemeWin::GetWidgetNativeDrawingFlags(PRUint8 aWidgetType)
 // from nsWindow.cpp
 extern PRBool gDisableNativeTheme;
 
-nsresult NS_NewNativeTheme(nsISupports *aOuter, REFNSIID aIID, void **aResult)
+NS_METHOD NS_NewNativeTheme(nsISupports *aOuter, REFNSIID aIID, void **aResult)
 {
   if (gDisableNativeTheme)
     return NS_ERROR_NO_INTERFACE;

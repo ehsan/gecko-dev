@@ -255,6 +255,12 @@ ImageContainerOGL::GetCurrentSize()
   return gfxIntSize(0,0);
 }
 
+LayerOGL::LayerType
+ImageLayerOGL::GetType()
+{
+  return TYPE_IMAGE;
+}
+
 Layer*
 ImageLayerOGL::GetLayer()
 {

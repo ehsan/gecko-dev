@@ -1070,7 +1070,8 @@ nsXPConnect::InitClasses(JSContext * aJSContext, JSObject * aGlobalJSObj)
         return UnexpectedFailure(NS_ERROR_FAILURE);
     SaveFrame sf(aJSContext);
 
-    xpc_InitJSxIDClassObjects();
+    if(!xpc_InitJSxIDClassObjects())
+        return UnexpectedFailure(NS_ERROR_FAILURE);
 
     if(!xpc_InitWrappedNativeJSOps())
         return UnexpectedFailure(NS_ERROR_FAILURE);

@@ -163,7 +163,7 @@ window.TabItem = function(container, tab) {
   this._updateDebugBounds();
   
   TabItems.register(this);
-  this.tab.mirror.addSubscriber(this, "close", function(who, info) {
+  this.tab.mirror.addOnClose(this, function(who, info) {
     TabItems.unregister(self);
     self.removeTrenches();
   });   
@@ -178,25 +178,22 @@ window.TabItem = function(container, tab) {
 
 window.TabItem.prototype = iQ.extend(new Item(), {
   // ----------  
-  getStorageData: function(getImageData) {
+  getStorageData: function() {
     return {
       bounds: this.getBounds(), 
       userSize: (isPoint(this.userSize) ? new Point(this.userSize) : null),
       url: this.tab.url,
-      groupID: (this.parent ? this.parent.id : 0),
-      imageData: (getImageData && this.tab.mirror.tabCanvas ?
-                  this.tab.mirror.tabCanvas.toImageData() : null),
-      title: (getImageData && this.tab.raw.label ? this.tab.raw.label : null)
+      groupID: (this.parent ? this.parent.id : 0)
     };
   },
 
   // ----------
-  save: function(saveImageData) {
+  save: function() {
     try{
       if (!this.tab || !this.tab.raw || !this.reconnected) // too soon/late to save
         return;
 
-      var data = this.getStorageData(saveImageData);
+      var data = this.getStorageData();
       if (TabItems.storageSanity(data))
         Storage.saveTab(this.tab.raw, data);
     }catch(e){
@@ -347,7 +344,7 @@ window.TabItem.prototype = iQ.extend(new Item(), {
     if (!isRect(this.bounds))
       Utils.trace('TabItem.setBounds: this.bounds is not a real rectangle!', this.bounds);
     
-    if (!this.parent && !this.tab.closed)
+    if (this.parent === null)
       this.setTrenches(rect);
 
     this.save();
@@ -383,18 +380,13 @@ window.TabItem.prototype = iQ.extend(new Item(), {
   },
   
   // ----------
-  // Function: addOnClose
-  // Accepts a callback that will be called when this item closes. 
-  // The referenceObject is used to facilitate removal if necessary. 
   addOnClose: function(referenceObject, callback) {
-    this.tab.mirror.addSubscriber(referenceObject, "close", callback);      
+    this.tab.mirror.addOnClose(referenceObject, callback);      
   },
 
   // ----------
-  // Function: removeOnClose
-  // Removes the close event callback associated with referenceObject.
   removeOnClose: function(referenceObject) {
-    this.tab.mirror.removeSubscriber(referenceObject, "close");      
+    this.tab.mirror.removeOnClose(referenceObject);      
   },
   
   // ----------  
@@ -598,26 +590,31 @@ window.TabItems = {
     window.TabMirror.customize(function(mirror) {
       var $div = iQ(mirror.el);
       var tab = mirror.tab;
-      var item = new TabItem(mirror.el, tab);
-        
-      item.addOnClose(self, function() {
-        Items.unsquish(null, item);
-      });
 
-      if (!self.reconnect(item))
-        Groups.newTab(item);          
+      //if(tab == Utils.homeTab)
+      //  $div.hide();
+      //else {
+        var item = new TabItem(mirror.el, tab);
+        
+        item.addOnClose(self, function() {
+          Items.unsquish(null, item);
+        });
+
+        if (!self.reconnect(item))
+          Groups.newTab(item);          
+      //}
     });
   },
 
   // ----------  
   register: function(item) {
-    Utils.assert('only register once per item', this.items.indexOf(item) == -1);
+    Utils.assert('only register once per item', iQ.inArray(item, this.items) == -1);
     this.items.push(item);
   },
   
   // ----------  
   unregister: function(item) {
-    var index = this.items.indexOf(item);
+    var index = iQ.inArray(item, this.items);
     if (index != -1)
       this.items.splice(index, 1);  
   },
@@ -636,10 +633,10 @@ window.TabItems = {
   },
   
   // ----------
-  saveAll: function(saveImageData) {
+  saveAll: function() {
     var items = this.getItems();
-    items.forEach(function(item) {
-      item.save(saveImageData);
+    iQ.each(items, function(index, item) {
+      item.save();
     });
   },
   
@@ -687,72 +684,7 @@ window.TabItems = {
             if (item.tab == Utils.activeTab) 
               Groups.setActiveGroup(item.parent);
           }
-        }
-        
-        if (tab.imageData) {
-          var mirror = item.tab.mirror;
-          var rawTab = item.tab.raw;
-          var $nameElement = iQ(mirror.nameEl);
-          var $canvasElement = iQ(mirror.canvasEl);
-          var $canvasPlaceholderElement = iQ(mirror.canvasPlaceholderEl);
-          var hidePlaceholder = function() {
-            $canvasPlaceholderElement.hide();
-            $canvasElement.show();
-          };
-          var hidPlaceholder = false;
-          var webProgress = {           
-            onStateChange: function(aWebProgress, aRequest, aFlag, aStatus) {
-              if (aFlag &
-                  Components.interfaces.nsIWebProgressListener.STATE_STOP) {
-                if (hidPlaceholder) {
-                  rawtab.linkedBrowser.removeProgressListener(webProgress);
-                } else if (aFlag &
-                  Components.interfaces.nsIWebProgressListener.STATE_IS_WINDOW) {
-                  iQ.timeout(function() {
-                    if (!hidPlaceholder) {
-                      hidPlaceholder = true;
-                      hidePlaceholder();
-                    }
-                  }, 100);
-
-                  rawTab.linkedBrowser.removeProgressListener(webProgress);
-                }
-              }
-            },
-          
-            onLocationChange: function(aProgress, aRequest, aURI) { },
-            onProgressChange: function(
-              aWebProgress, aRequest, curSelf, maxSelf, curTot, maxTot) { },
-            onStatusChange: function(
-              aWebProgress, aRequest, aStatus, aMessage) { },
-            onSecurityChange: function(aWebProgress, aRequest, aState) { },
-
-            QueryInterface: function(aIID) {
-             if (aIID.equals(Components.interfaces.nsIWebProgressListener) ||
-                 aIID.equals(Components.interfaces.nsISupportsWeakReference) ||
-                 aIID.equals(Components.interfaces.nsISupports))
-               return this;
-             throw Components.results.NS_NOINTERFACE;
-            }
-          };
-          
-          // show the placeholders
-          $canvasPlaceholderElement.attr("src", tab.imageData).show();
-          $canvasElement.hide();
-          $nameElement.text(tab.title ? tab.title : "");
-          
-          // add progress listener
-          rawTab.linkedBrowser.addProgressListener(
-            webProgress, Components.interfaces.nsIWebProgress.NOTIFY_ALL);
-          // the code in the progress listener doesn't fire sometimes because
-          // tab is being restored so need to catch that.
-          iQ.timeout(function() {
-            if (!hidPlaceholder) {
-              hidPlaceholder = true;
-              hidePlaceholder();
-            }
-          }, 30000);
-        }
+        }  
         
         Groups.updateTabBarForActiveGroup();
         

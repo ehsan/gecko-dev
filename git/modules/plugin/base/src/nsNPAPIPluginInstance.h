@@ -42,16 +42,28 @@
 
 #include "nsCOMPtr.h"
 #include "nsTArray.h"
+#include "nsIPlugin.h"
 #include "nsIPluginInstance.h"
-#include "nsPIDOMWindow.h"
-#include "nsITimer.h"
 #include "nsIPluginTagInfo.h"
-
+#include "nsPIDOMWindow.h"
+#include "nsIPluginInstanceOwner.h"
+#include "nsITimer.h"
 #include "mozilla/TimeStamp.h"
+
+#include "npfunctions.h"
 #include "mozilla/PluginLibrary.h"
 
 class nsNPAPIPluginStreamListener;
-class nsIPluginInstanceOwner;
+class nsPIDOMWindow;
+
+struct nsInstanceStream
+{
+  nsInstanceStream *mNext;
+  nsNPAPIPluginStreamListener *mPluginStreamListener;
+
+  nsInstanceStream();
+  ~nsInstanceStream();
+};
 
 class nsNPAPITimer
 {
@@ -168,7 +180,7 @@ public:
   // True while creating the plugin, or calling NPP_SetWindow() on it.
   PRPackedBool mInPluginInitCall;
   PluginLibrary* mLibrary;
-  nsTArray<nsNPAPIPluginStreamListener*> mStreamListeners;
+  nsInstanceStream *mStreams;
 
 private:
   nsTArray<PopupControlState> mPopupStates;

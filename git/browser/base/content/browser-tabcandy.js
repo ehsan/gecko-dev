@@ -61,11 +61,5 @@ var TabCandy = {
       } 
     }
     return visibleTabs;
-  },
-  
-  getWindowTitle: function() {
-    var brandBundle = document.getElementById("bundle_brand");
-    var brandShortName = brandBundle.getString("brandShortName");
-    return gNavigatorBundle.getFormattedString("tabCandy.title", [brandShortName]);
   }
 };

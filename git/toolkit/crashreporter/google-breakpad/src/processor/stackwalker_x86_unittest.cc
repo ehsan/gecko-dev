@@ -35,7 +35,6 @@
 #include <vector>
 
 #include "breakpad_googletest_includes.h"
-#include "common/test_assembler.h"
 #include "google_breakpad/common/minidump_format.h"
 #include "google_breakpad/processor/basic_source_line_resolver.h"
 #include "google_breakpad/processor/call_stack.h"
@@ -43,6 +42,7 @@
 #include "google_breakpad/processor/stack_frame_cpu.h"
 #include "processor/stackwalker_unittest_utils.h"
 #include "processor/stackwalker_x86.h"
+#include "processor/test_assembler.h"
 #include "processor/windows_frame_info.h"
 
 using google_breakpad::BasicSourceLineResolver;

@@ -32,10 +32,10 @@
 // cfi_assembler.cc: Implementation of google_breakpad::CFISection class.
 // See cfi_assembler.h for details.
 
-#include "common/dwarf/cfi_assembler.h"
-
-#include <assert.h>
+#include <cassert>
 #include <stdlib.h>
+
+#include "common/dwarf/cfi_assembler.h"
 
 namespace google_breakpad {
 
@@ -52,14 +52,18 @@ CFISection &CFISection::CIEHeader(u_int64_t code_alignment_factor,
   in_fde_ = false;
 
   if (dwarf64) {
-    D32(kDwarf64InitialLengthMarker);
+    D32(0xffffffff);
     D64(entry_length_->length);
     entry_length_->start = Here();
-    D64(eh_frame_ ? kEHFrame64CIEIdentifier : kDwarf64CIEIdentifier);
+    // Write the CIE distinguished value. In .debug_frame sections, it's
+    // ~0; in .eh_frame sections, it's zero.
+    D64(eh_frame_ ? 0 : ~(u_int64_t)0);
   } else {
     D32(entry_length_->length);
     entry_length_->start = Here();
-    D32(eh_frame_ ? kEHFrame32CIEIdentifier : kDwarf32CIEIdentifier);
+    // Write the CIE distinguished value. In .debug_frame sections, it's
+    // ~0; in .eh_frame sections, it's zero.
+    D32(eh_frame_ ? 0 : ~(u_int32_t)0);
   }
   D8(version);
   AppendCString(augmentation);
@@ -188,11 +192,5 @@ CFISection &CFISection::EncodedPointer(u_int64_t address,
 
   return *this;
 };
-
-const u_int32_t CFISection::kDwarf64InitialLengthMarker;
-const u_int32_t CFISection::kDwarf32CIEIdentifier;
-const u_int64_t CFISection::kDwarf64CIEIdentifier;
-const u_int32_t CFISection::kEHFrame32CIEIdentifier;
-const u_int64_t CFISection::kEHFrame64CIEIdentifier;
 
 } // namespace google_breakpad

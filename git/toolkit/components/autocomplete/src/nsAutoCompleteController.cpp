@@ -50,10 +50,10 @@
 #include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"
 #include "nsITreeColumns.h"
+#include "nsIGenericFactory.h"
 #include "nsIObserverService.h"
 #include "nsIDOMKeyEvent.h"
 #include "mozilla/Services.h"
-#include "mozilla/ModuleUtils.h"
 
 static const char *kAutoCompleteSearchCID = "@mozilla.org/autocomplete/search;1?name=";
 
@@ -1552,25 +1552,17 @@ nsAutoCompleteController::RowIndexToSearch(PRInt32 aRowIndex, PRInt32 *aSearchIn
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsAutoCompleteController)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsAutoCompleteSimpleResult)
 
-NS_DEFINE_NAMED_CID(NS_AUTOCOMPLETECONTROLLER_CID);
-NS_DEFINE_NAMED_CID(NS_AUTOCOMPLETESIMPLERESULT_CID);
+static const nsModuleComponentInfo components[] =
+{
+  { "AutoComplete Controller",
+    NS_AUTOCOMPLETECONTROLLER_CID,
+    NS_AUTOCOMPLETECONTROLLER_CONTRACTID,
+    nsAutoCompleteControllerConstructor },
 
-static const mozilla::Module::CIDEntry kAutoCompleteCIDs[] = {
-  { &kNS_AUTOCOMPLETECONTROLLER_CID, false, NULL, nsAutoCompleteControllerConstructor },
-  { &kNS_AUTOCOMPLETESIMPLERESULT_CID, false, NULL, nsAutoCompleteSimpleResultConstructor },
-  { NULL }
+  { "AutoComplete Simple Result",
+    NS_AUTOCOMPLETESIMPLERESULT_CID,
+    NS_AUTOCOMPLETESIMPLERESULT_CONTRACTID,
+    nsAutoCompleteSimpleResultConstructor },
 };
 
-static const mozilla::Module::ContractIDEntry kAutoCompleteContracts[] = {
-  { NS_AUTOCOMPLETECONTROLLER_CONTRACTID, &kNS_AUTOCOMPLETECONTROLLER_CID },
-  { NS_AUTOCOMPLETESIMPLERESULT_CONTRACTID, &kNS_AUTOCOMPLETESIMPLERESULT_CID },
-  { NULL }
-};
-
-static const mozilla::Module kAutoCompleteModule = {
-  mozilla::Module::kVersion,
-  kAutoCompleteCIDs,
-  kAutoCompleteContracts
-};
-
-NSMODULE_DEFN(tkAutoCompleteModule) = &kAutoCompleteModule;
+NS_IMPL_NSGETMODULE(tkAutoCompleteModule, components)

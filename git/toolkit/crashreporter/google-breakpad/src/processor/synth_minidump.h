@@ -108,14 +108,13 @@
 #ifndef PROCESSOR_SYNTH_MINIDUMP_H_
 #define PROCESSOR_SYNTH_MINIDUMP_H_
 
-#include <assert.h>
-
+#include <cassert>
 #include <iostream>
 #include <string>
 
-#include "common/test_assembler.h"
 #include "google_breakpad/common/breakpad_types.h"
 #include "google_breakpad/common/minidump_format.h"
+#include "processor/test_assembler.h"
 
 namespace google_breakpad {
 

@@ -167,7 +167,7 @@ nsCoreUtils::DispatchMouseEvent(PRUint32 aEventType,
   if (!rootFrame)
     return PR_FALSE;
 
-  nsCOMPtr<nsIWidget> rootWidget = rootFrame->GetNearestWidget();
+  nsCOMPtr<nsIWidget> rootWidget = rootFrame->GetWindow();
   if (!rootWidget)
     return PR_FALSE;
 

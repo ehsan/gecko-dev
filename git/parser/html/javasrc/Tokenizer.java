@@ -5860,7 +5860,7 @@ public class Tokenizer implements Locator {
     private void emitReplacementCharacter(@NoLength char[] buf, int pos)
             throws SAXException {
         flushChars(buf, pos);
-        tokenHandler.zeroOriginatingReplacementCharacter();
+        tokenHandler.characters(Tokenizer.REPLACEMENT_CHARACTER, 0, 1);
         cstart = pos + 1;
     }
 

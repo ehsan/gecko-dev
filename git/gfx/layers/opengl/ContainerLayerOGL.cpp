@@ -119,6 +119,12 @@ ContainerLayerOGL::RemoveChild(Layer *aChild)
   }
 }
 
+LayerOGL::LayerType
+ContainerLayerOGL::GetType()
+{
+  return TYPE_CONTAINER;
+}
+
 Layer*
 ContainerLayerOGL::GetLayer()
 {

@@ -22,7 +22,6 @@
  * Aza Raskin <aza@mozilla.com>
  * Michael Yoshitaka Erlewine <mitcho@mitcho.com>
  * Ehsan Akhgari <ehsan@mozilla.com>
- * Raymond Lee <raymond@appcoast.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -301,7 +300,7 @@ window.Group = function(listOfEls, options) {
     this.$debug.css({zIndex: -1000});
   
   // ___ Children
-  Array.prototype.forEach.call(listOfEls, function(el) {  
+  iQ.each(listOfEls, function(index, el) {  
     self.add(el, null, options);
   });
 
@@ -335,19 +334,6 @@ window.Group.prototype = iQ.extend(new Item(), new Subscribable(), {
   // The prompt text for the title field.
   defaultName: "name this group...",
 
-  // ----------
-  // Accepts a callback that will be called when this item closes. 
-  // The referenceObject is used to facilitate removal if necessary. 
-  addOnClose: function(referenceObject, callback) {
-    this.addSubscriber(referenceObject, "close", callback);      
-  },
-
-  // ----------
-  // Removes the close event callback associated with referenceObject.
-  removeOnClose: function(referenceObject) {
-    this.removeSubscriber(referenceObject, "close");      
-  },
-  
   // -----------
   // Function: setActiveTab
   // Sets the active <TabItem> for this group
@@ -385,7 +371,7 @@ window.Group.prototype = iQ.extend(new Item(), new Subscribable(), {
   // Function: isEmpty
   // Returns true if the tab group is empty and unnamed.
   isEmpty: function() {
-    return !this._children.length && !this.getTitle();
+    return this._children.length == 0 && !this.getTitle();
   },
 
   // ----------
@@ -462,8 +448,10 @@ window.Group.prototype = iQ.extend(new Item(), new Subscribable(), {
       return;
     }
     
+    
     rect.width = Math.max( 110, rect.width );
     rect.height = Math.max( 125, rect.height);
+
     
     var titleHeight = this.$titlebar.height();
     
@@ -500,7 +488,7 @@ window.Group.prototype = iQ.extend(new Item(), new Subscribable(), {
     if (css.width || css.height) {
       this.arrange({animate: !immediately}); //(immediately ? 'sometimes' : true)});
     } else if (css.left || css.top) {
-      this._children.forEach(function(child) {
+      iQ.each(this._children, function(index, child) {
         var box = child.getBounds();
         child.setPosition(box.left + offset.x, box.top + offset.y, immediately);
       });
@@ -566,7 +554,7 @@ window.Group.prototype = iQ.extend(new Item(), new Subscribable(), {
       var topZIndex = value + count + 1;
       var zIndex = topZIndex;
       var self = this;
-      this._children.forEach(function(child) {
+      iQ.each(this._children, function(index, child) {
         if (child == self.topChild)
           child.setZ(topZIndex + 1);
         else {
@@ -582,7 +570,7 @@ window.Group.prototype = iQ.extend(new Item(), new Subscribable(), {
   // Closes the group, removing (but not closing) all of its children.
   close: function() {
     this.removeAll();
-    this._sendToSubscribers("close");
+    this._sendOnClose();
     Groups.unregister(this);
     this.removeTrenches();
     iQ(this.container).fadeOut(function() {
@@ -600,7 +588,7 @@ window.Group.prototype = iQ.extend(new Item(), new Subscribable(), {
     var self = this;
     if (this._children.length) {
       var toClose = iQ.merge([], this._children);
-      toClose.forEach(function(child) {
+      iQ.each(toClose, function(index, child) {
         child.removeOnClose(self);
         child.close();
       });
@@ -631,10 +619,10 @@ window.Group.prototype = iQ.extend(new Item(), new Subscribable(), {
         item = Items.item($el);
       }
       
-      Utils.assertThrow('shouldn\'t already be in another group', !item.parent || item.parent == this);
-
       item.removeTrenches();
-        
+      
+      Utils.assert('shouldn\'t already be in another group', !item.parent || item.parent == this);
+  
       if (!dropPos) 
         dropPos = {top:window.innerWidth, left:window.innerHeight};
         
@@ -644,7 +632,7 @@ window.Group.prototype = iQ.extend(new Item(), new Subscribable(), {
       var self = this;
       
       var wasAlreadyInThisGroup = false;
-      var oldIndex = this._children.indexOf(item);
+      var oldIndex = iQ.inArray(item, this._children);
       if (oldIndex != -1) {
         this._children.splice(oldIndex, 1); 
         wasAlreadyInThisGroup = true;
@@ -659,7 +647,7 @@ window.Group.prototype = iQ.extend(new Item(), new Subscribable(), {
         var best = {dist: Infinity, item: null};
         var index = 0;
         var box;
-        self._children.forEach(function(child) {        
+        iQ.each(self._children, function(index, child) {        
           box = child.getBounds();
           if (box.bottom < dropPos.top || box.top > dropPos.top)
             return;
@@ -674,7 +662,7 @@ window.Group.prototype = iQ.extend(new Item(), new Subscribable(), {
           }
         });
   
-        if ( self._children.length ){
+        if ( self._children.length > 0 ){
           if (best.item) {
             box = best.item.getBounds();
             var insertLeft = dropPos.left <= box.left + box.width/2;
@@ -749,7 +737,7 @@ window.Group.prototype = iQ.extend(new Item(), new Subscribable(), {
       if (typeof(options) == 'undefined')
         options = {};
       
-      var index = this._children.indexOf(item);
+      var index = iQ.inArray(item, this._children);
       if (index != -1)
         this._children.splice(index, 1); 
       
@@ -767,7 +755,7 @@ window.Group.prototype = iQ.extend(new Item(), new Subscribable(), {
       if (typeof(item.setResizable) == 'function')
         item.setResizable(true);
   
-      if (!this._children.length && !this.locked.close && !this.getTitle() && !options.dontClose){
+      if (this._children.length == 0 && !this.locked.close && !this.getTitle() && !options.dontClose){
         this.close();
       } else if (!options.dontArrange) {
         this.arrange();
@@ -783,7 +771,7 @@ window.Group.prototype = iQ.extend(new Item(), new Subscribable(), {
   removeAll: function() {
     var self = this;
     var toRemove = iQ.merge([], this._children);
-    toRemove.forEach(function(child) {
+    iQ.each(toRemove, function(index, child) {
       self.remove(child, {dontArrange: true});
     });
   },
@@ -910,7 +898,7 @@ window.Group.prototype = iQ.extend(new Item(), new Subscribable(), {
         // first, find the right of the rightmost tab! luckily, they're in order.
         // TODO: does this change for rtl?
         var rightMostRight = 0;
-        for each (var rect in rects) {
+        for each (let rect in rects) {
           if (rect.right > rightMostRight)
             rightMostRight = rect.right;
           else
@@ -918,7 +906,7 @@ window.Group.prototype = iQ.extend(new Item(), new Subscribable(), {
         }
         this.xDensity = (rightMostRight - bb.left) / (bb.width);
         
-        this._children.forEach(function(child, index) {
+        iQ.each(this._children, function(index, child) {
           if (!child.locked.bounds) {
             child.setBounds(rects[index], !animate);
             child.setRotation(0);
@@ -1004,14 +992,14 @@ window.Group.prototype = iQ.extend(new Item(), new Subscribable(), {
     
     var self = this;
     var children = [];
-    this._children.forEach(function(child) {
+    iQ.each(this._children, function(index, child) {
       if (child == self.topChild)
         children.unshift(child);
       else
         children.push(child);
     });
     
-    children.forEach(function(child, index) {
+    iQ.each(children, function(index, child) {
       if (!child.locked.bounds) {
         child.setZ(zIndex);
         zIndex--;
@@ -1284,7 +1272,7 @@ window.Group.prototype = iQ.extend(new Item(), new Subscribable(), {
   
   // ----------
   // Function: newTab
-  // Creates a new tab within this group.
+  // Creates a new tab within this groups.
   newTab: function(url) {
     Groups.setActiveGroup(this);          
     var newTab = Tabs.open(url || "about:blank", true);
@@ -1297,7 +1285,7 @@ window.Group.prototype = iQ.extend(new Item(), new Subscribable(), {
     iQ.timeout(function(){
       Page.hideChrome()
     }, 1);
-
+    
     var self = this;
     var doNextTab = function(tab){
       var group = Groups.getActiveGroup();
@@ -1394,10 +1382,8 @@ window.Group.prototype = iQ.extend(new Item(), new Subscribable(), {
   //  index - the index of the child tab to return, use negative
   //          numbers to index from the end (-1 is the last child)
   getChild: function(index){
-    if ( index < 0 )
-    	index = this._children.length + index;
-    if ( index >= this._children.length || index < 0 )
-    	return null;
+    if ( index < 0 ) index = this._children.length+index;
+    if ( index >= this._children.length || index < 0 ) return null;
     return this._children[index];
   },
   
@@ -1444,7 +1430,7 @@ window.Groups = {
   // Returns an object for saving Groups state to persistant storage. 
   getStorageData: function() {
     var data = {nextID: this.nextID, groups: []};
-    this.groups.forEach(function(group) {
+    iQ.each(this.groups, function(index, group) {
       data.groups.push(group.getStorageData());
     });
     
@@ -1456,7 +1442,7 @@ window.Groups = {
   // Saves Groups state, as well as the state of all of the groups.
   saveAll: function() {
     this.save();
-    this.groups.forEach(function(group) {
+    iQ.each(this.groups, function(index, group) {
       group.save();
     });
   },
@@ -1556,11 +1542,9 @@ window.Groups = {
   // ----------
   // Function: getGroupWithTitle
   // Returns the <Group> that has the given title, or null if none found.
-  // TODO: what if there are multiple groups with the same title??
-  //       Right now, looks like it'll return the last one.
   getGroupWithTitle: function(title) {
     var result = null;
-    this.groups.forEach(function(group) {
+    iQ.each(this.groups, function(index, group) {
       if (group.getTitle() == title) {
         result = group;
         return false;
@@ -1575,7 +1559,7 @@ window.Groups = {
   // Returns the "new tabs" <Group>, or null if not found.
   getNewTabGroup: function() {
     var groupTitle = 'New Tabs';
-    var array = this.groups.filter(function(group) {
+    var array = iQ.grep(this.groups, function(group) {
       return group.getTitle() == groupTitle;
     });
     
@@ -1611,7 +1595,7 @@ window.Groups = {
   // Adds the given <Group> to the list of groups we're tracking. 
   register: function(group) {
     Utils.assert('group', group);
-    Utils.assert('only register once per group', this.groups.indexOf(group) == -1);
+    Utils.assert('only register once per group', iQ.inArray(group, this.groups) == -1);
     this.groups.push(group);
   },
   
@@ -1619,7 +1603,7 @@ window.Groups = {
   // Function: unregister
   // Removes the given <Group> from the list of groups we're tracking.
   unregister: function(group) {
-    var index = this.groups.indexOf(group);
+    var index = iQ.inArray(group, this.groups);
     if (index != -1)
       this.groups.splice(index, 1);  
     
@@ -1633,7 +1617,7 @@ window.Groups = {
   // Currently only supports group ids. 
   group: function(a) {
     var result = null;
-    this.groups.forEach(function(candidate) {
+    iQ.each(this.groups, function(index, candidate) {
       if (candidate.id == a) {
         result = candidate;
         return false;
@@ -1661,7 +1645,7 @@ window.Groups = {
         (totalHeight / rows) - padding);
     
     var i = 0;
-    this.groups.forEach(function(group) {
+    iQ.each(this.groups, function(index, group) {
       if (group.locked.bounds)
         return; 
         
@@ -1681,7 +1665,7 @@ window.Groups = {
   // Removes all tabs from all groups (which automatically closes all unnamed groups).
   removeAll: function() {
     var toRemove = iQ.merge([], this.groups);
-    toRemove.forEach(function(group) {
+    iQ.each(toRemove, function(index, group) {
       group.removeAll();
     });
   },

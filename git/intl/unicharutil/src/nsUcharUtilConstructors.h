@@ -52,7 +52,7 @@
 // generic factory.
 
 #define UNICHARUTIL_MAKE_CTOR(_name)                                 \
-static nsresult                                                      \
+static NS_IMETHODIMP                                                 \
 CreateNew##_name(nsISupports* aOuter, REFNSIID aIID, void **aResult) \
 {                                                                    \
     if (!aResult) {                                                  \

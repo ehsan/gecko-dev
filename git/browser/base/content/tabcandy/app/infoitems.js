@@ -121,19 +121,6 @@ window.InfoItem = function(bounds, options) {
 
 // ----------
 window.InfoItem.prototype = iQ.extend(new Item(), new Subscribable(), {
-  // ----------
-  // Accepts a callback that will be called when this item closes. 
-  // The referenceObject is used to facilitate removal if necessary. 
-  addOnClose: function(referenceObject, callback) {
-    this.addSubscriber(referenceObject, "close", callback);      
-  },
-
-  // ----------
-  // Removes the close event callback associated with referenceObject.
-  removeOnClose: function(referenceObject) {
-    this.removeSubscriber(referenceObject, "close");      
-  },
-  
   // ----------  
   // Function: getStorageData
   // Returns all of the info worth storing about this item.
@@ -243,7 +230,7 @@ window.InfoItem.prototype = iQ.extend(new Item(), new Subscribable(), {
   // Closes the item. 
   close: function() {
     try {
-      this._sendToSubscribers("close");
+      this._sendOnClose();
       this.removeTrenches();
       iQ(this.container).fadeOut(function() {
         iQ(this).remove();

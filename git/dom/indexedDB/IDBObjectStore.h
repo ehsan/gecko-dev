@@ -125,11 +125,6 @@ public:
     return false;
   }
 
-  bool operator!=(const Key& aOther) const
-  {
-    return !(*this == aOther);
-  }
-
   bool operator<(const Key& aOther) const
   {
     switch (mType) {
@@ -228,15 +223,6 @@ public:
                     Key& aKey);
 
   static nsresult
-  GetKeyFromJSVal(jsval aKeyVal,
-                  Key& aKey);
-
-  static nsresult
-  GetJSValFromKey(const Key& aKey,
-                  JSContext* aCx,
-                  jsval* aKeyVal);
-
-  static nsresult
   GetJSONFromArg0(/* jsval arg0, */
                   nsAString& aJSON);
 
@@ -298,9 +284,8 @@ protected:
   IDBObjectStore();
   ~IDBObjectStore();
 
-  nsresult GetAddInfo(JSContext* aCx,
-                      jsval aValue,
-                      jsval aKeyVal,
+  nsresult GetAddInfo(/* jsval aValue, */
+                      nsIVariant* aKeyVariant,
                       nsString& aJSON,
                       Key& aKey,
                       nsTArray<IndexUpdateInfo>& aUpdateInfoArray);

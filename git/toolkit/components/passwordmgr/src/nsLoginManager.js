@@ -48,6 +48,8 @@ function LoginManager() {
 
 LoginManager.prototype = {
 
+    classDescription: "LoginManager",
+    contractID: "@mozilla.org/login-manager;1",
     classID: Components.ID("{cb9e0de8-3598-4ed7-857b-827f011ad5d8}"),
     QueryInterface : XPCOMUtils.generateQI([Ci.nsILoginManager,
                                             Ci.nsISupportsWeakReference]),
@@ -1354,4 +1356,7 @@ UserAutoCompleteResult.prototype = {
     }
 };
 
-var NSGetFactory = XPCOMUtils.generateNSGetFactory([LoginManager]);
+var component = [LoginManager];
+function NSGetModule (compMgr, fileSpec) {
+    return XPCOMUtils.generateModule(component);
+}

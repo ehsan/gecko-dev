@@ -117,7 +117,6 @@
 // This is an extra bit that says that a VARIANT_ANGLE allows unitless zero:
 #define VARIANT_ZERO_ANGLE    0x02000000  // unitless zero for angles
 #define VARIANT_CALC          0x04000000  // eCSSUnit_Calc
-#define VARIANT_CALC_NO_MIN_MAX 0x08000000 // no min() and max() for calc()
 
 // Common combinations of variants
 #define VARIANT_AL   (VARIANT_AUTO | VARIANT_LENGTH)
@@ -154,8 +153,6 @@
 #define VARIANT_TIMING_FUNCTION (VARIANT_KEYWORD | VARIANT_CUBIC_BEZIER)
 #define VARIANT_UK   (VARIANT_URL | VARIANT_KEYWORD)
 #define VARIANT_ANGLE_OR_ZERO (VARIANT_ANGLE | VARIANT_ZERO_ANGLE)
-#define VARIANT_TRANSFORM_LPCALC (VARIANT_LP | VARIANT_CALC | \
-                                  VARIANT_CALC_NO_MIN_MAX)
 
 //----------------------------------------------------------------------
 
@@ -4400,8 +4397,7 @@ CSSParserImpl::TranslateDimension(nsCSSValue& aValue,
   VARIANT_GRADIENT | \
   VARIANT_CUBIC_BEZIER | \
   VARIANT_ALL | \
-  VARIANT_CALC | \
-  VARIANT_CALC_NO_MIN_MAX
+  VARIANT_CALC
 
 // Note that callers passing VARIANT_CALC in aVariantMask will get
 // full-range parsing inside the calc() expression, and the code that
@@ -4675,8 +4671,7 @@ CSSParserImpl::ParseVariant(nsCSSValue& aValue,
        tk->mIdent.LowerCaseEqualsLiteral("-moz-min") ||
        tk->mIdent.LowerCaseEqualsLiteral("-moz-max"))) {
     // calc() currently allows only lengths and percents inside it.
-    return ParseCalc(aValue,
-                     aVariantMask & (VARIANT_LP | VARIANT_CALC_NO_MIN_MAX));
+    return ParseCalc(aValue, aVariantMask & VARIANT_LP);
   }
 
   UngetToken();
@@ -7155,21 +7150,6 @@ CSSParserImpl::ParseBorderColors(nsCSSValueList** aResult,
   return PR_FALSE;
 }
 
-static PRBool
-HasMinMax(const nsCSSValue::Array *aArray)
-{
-  for (PRUint32 i = 0, i_end = aArray->Count(); i != i_end; ++i) {
-    const nsCSSValue &v = aArray->Item(i);
-    if (v.IsCalcUnit() &&
-        (v.GetUnit() == eCSSUnit_Calc_Minimum ||
-         v.GetUnit() == eCSSUnit_Calc_Maximum ||
-         HasMinMax(v.GetArrayValue()))) {
-      return PR_TRUE;
-    }
-  }
-  return PR_FALSE;
-}
-
 // Parse the top level of a calc() expression, which can be calc(),
 // min(), or max().
 PRBool
@@ -7181,9 +7161,6 @@ CSSParserImpl::ParseCalc(nsCSSValue &aValue, PRInt32 aVariantMask)
   // values cannot themselves be numbers.
   NS_ASSERTION(!(aVariantMask & VARIANT_NUMBER), "unexpected variant mask");
   NS_ABORT_IF_FALSE(aVariantMask != 0, "unexpected variant mask");
-
-  PRBool noMinMax = aVariantMask & VARIANT_CALC_NO_MIN_MAX;
-  aVariantMask &= ~VARIANT_CALC_NO_MIN_MAX;
 
   nsCSSUnit unit;
   if (mToken.mIdent.LowerCaseEqualsLiteral("-moz-min")) {
@@ -7197,10 +7174,6 @@ CSSParserImpl::ParseCalc(nsCSSValue &aValue, PRInt32 aVariantMask)
   }
 
   if (unit != eCSSUnit_Calc) {
-    if (noMinMax) {
-      SkipUntil(')');
-      return PR_FALSE;
-    }
     return ParseCalcMinMax(aValue, unit, aVariantMask);
   }
 
@@ -7218,10 +7191,6 @@ CSSParserImpl::ParseCalc(nsCSSValue &aValue, PRInt32 aVariantMask)
 
     if (!ExpectSymbol(')', PR_TRUE))
       break;
-
-    if (noMinMax && HasMinMax(arr)) {
-      return PR_FALSE;
-    }
 
     aValue.SetArrayValue(arr, eCSSUnit_Calc);
     return PR_TRUE;
@@ -7280,8 +7249,7 @@ CSSParserImpl::ParseCalcAdditiveExpression(nsCSSValue& aValue,
   }
 }
 
-struct ReduceNumberCalcOps : public mozilla::css::BasicFloatCalcOps,
-                             public mozilla::css::CSSValueInputCalcOps
+struct ReduceNumberCalcOps : public mozilla::css::BasicFloatCalcOps
 {
   result_type ComputeLeafValue(const nsCSSValue& aValue)
   {
@@ -8098,8 +8066,8 @@ static PRBool GetFunctionParseInformation(nsCSSKeyword aToken,
    * parse out the individual functions.  The order in the enumeration
    * must match the order in which the masks are declared.
    */
-  enum { eLengthPercentCalc,
-         eTwoLengthPercentCalcs,
+  enum { eLengthPercent,
+         eTwoLengthPercents,
          eAngle,
          eTwoAngles,
          eNumber,
@@ -8108,14 +8076,14 @@ static PRBool GetFunctionParseInformation(nsCSSKeyword aToken,
          eNumVariantMasks };
   static const PRInt32 kMaxElemsPerFunction = 6;
   static const PRInt32 kVariantMasks[eNumVariantMasks][kMaxElemsPerFunction] = {
-    {VARIANT_TRANSFORM_LPCALC},
-    {VARIANT_TRANSFORM_LPCALC, VARIANT_TRANSFORM_LPCALC},
+    {VARIANT_LENGTH | VARIANT_PERCENT},
+    {VARIANT_LENGTH | VARIANT_PERCENT, VARIANT_LENGTH | VARIANT_PERCENT},
     {VARIANT_ANGLE_OR_ZERO},
     {VARIANT_ANGLE_OR_ZERO, VARIANT_ANGLE_OR_ZERO},
     {VARIANT_NUMBER},
     {VARIANT_NUMBER, VARIANT_NUMBER},
     {VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER,
-     VARIANT_TRANSFORM_LPCALC, VARIANT_TRANSFORM_LPCALC}};
+     VARIANT_LENGTH | VARIANT_PERCENT, VARIANT_LENGTH | VARIANT_PERCENT}};
 
 #ifdef DEBUG
   static const PRUint8 kVariantMaskLengths[eNumVariantMasks] =
@@ -8126,9 +8094,14 @@ static PRBool GetFunctionParseInformation(nsCSSKeyword aToken,
 
   switch (aToken) {
   case eCSSKeyword_translatex:
+    /* Exactly one length or percent. */
+    variantIndex = eLengthPercent;
+    aMinElems = 1U;
+    aMaxElems = 1U;
+    break;
   case eCSSKeyword_translatey:
     /* Exactly one length or percent. */
-    variantIndex = eLengthPercentCalc;
+    variantIndex = eLengthPercent;
     aMinElems = 1U;
     aMaxElems = 1U;
     break;
@@ -8152,7 +8125,7 @@ static PRBool GetFunctionParseInformation(nsCSSKeyword aToken,
     break;
   case eCSSKeyword_translate:
     /* One or two lengths or percents. */
-    variantIndex = eTwoLengthPercentCalcs;
+    variantIndex = eTwoLengthPercents;
     aMinElems = 1U;
     aMaxElems = 2U;
     break;

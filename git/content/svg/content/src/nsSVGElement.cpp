@@ -766,7 +766,7 @@ nsSVGElement::WalkContentStyleRules(nsRuleWalker* aRuleWalker)
       // want that to happen from SMIL-animated value of mapped attrs, so
       // ignore animated value for now, and request an animation restyle to
       // get our animated value noticed.
-      shell->RestyleForAnimation(this, eRestyle_Self);
+      shell->RestyleForAnimation(this);
     } else {
       // Ok, this is an animation restyle -- go ahead and update/walk the
       // animated content style rule.
@@ -1953,8 +1953,6 @@ nsSVGElement::GetAnimatedAttr(nsIAtom* aName)
   if (aName == nsGkAtoms::gradientTransform) {
     nsCOMPtr<nsIDOMSVGGradientElement> gradientElement(
             do_QueryInterface(static_cast<nsIContent*>(this)));
-    if (!gradientElement)
-      return nsnull;
 
     nsresult rv = gradientElement->GetGradientTransform(getter_AddRefs(transformList));
     NS_ENSURE_SUCCESS(rv, nsnull);
@@ -1962,8 +1960,6 @@ nsSVGElement::GetAnimatedAttr(nsIAtom* aName)
   if (aName == nsGkAtoms::patternTransform) {
     nsCOMPtr<nsIDOMSVGPatternElement> patternElement(
             do_QueryInterface(static_cast<nsIContent*>(this)));
-    if (!patternElement)
-      return nsnull;
 
     nsresult rv = patternElement->GetPatternTransform(getter_AddRefs(transformList));
     NS_ENSURE_SUCCESS(rv, nsnull);

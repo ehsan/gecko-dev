@@ -67,15 +67,6 @@ class ColorLayer;
 class ImageContainer;
 class CanvasLayer;
 
-#if defined(DEBUG) || defined(PR_LOGGING)
-#define NS_LAYER_DECL_NAME(n, e) \
-  virtual const char* Name() { return n; } \
-  virtual LayerType GetType() { return e; }
-#else
-#define NS_LAYER_DECL_NAME(n, e) \
-  virtual LayerType GetType() { return e; }
-#endif
-
 /*
  * Motivation: For truly smooth animation and video playback, we need to
  * be able to compose frames and render them on a dedicated thread (i.e.
@@ -156,16 +147,9 @@ public:
   /**
    * Function called to draw the contents of each ThebesLayer.
    * aRegionToDraw contains the region that needs to be drawn.
-   * This would normally be a subregion of the visible region.
-   * The callee must draw all of aRegionToDraw. Drawing outside
-   * aRegionToDraw will be clipped out or ignored.
+   * This would normally be a subregion of the visible region. Drawing is
+   * not necessarily clipped to aRegionToDraw.
    * The callee must draw all of aRegionToDraw.
-   * 
-   * aRegionToInvalidate contains a region whose contents have been
-   * changed by the layer manager and which must therefore be invalidated.
-   * For example, this could be non-empty if the layer internally switched
-   * from RGBA to RGB or back ... we might want to repaint it to
-   * consistently use subpixel-AA or not.
    * 
    * aContext must not be used after the call has returned.
    * We guarantee that buffered contents in the visible
@@ -174,7 +158,6 @@ public:
   typedef void (* DrawThebesLayerCallback)(ThebesLayer* aLayer,
                                            gfxContext* aContext,
                                            const nsIntRegion& aRegionToDraw,
-                                           const nsIntRegion& aRegionToInvalidate,
                                            void* aCallbackData);
   /**
    * Finish the construction phase of the transaction, perform the
@@ -254,14 +237,6 @@ class THEBES_API Layer {
   NS_INLINE_DECL_REFCOUNTING(Layer)  
 
 public:
-  enum LayerType {
-    TYPE_THEBES,
-    TYPE_CONTAINER,
-    TYPE_IMAGE,
-    TYPE_COLOR,
-    TYPE_CANVAS
-  };
-
   virtual ~Layer() {}
 
   /**
@@ -361,12 +336,7 @@ public:
    * a ThebesLayer.
    */
   virtual ThebesLayer* AsThebesLayer() { return nsnull; }
-
-#ifdef DEBUG
-  virtual const char* Name() = 0;
-#endif
-  virtual LayerType GetType() = 0;
-
+  
   /**
    * Only the implementation should call this. This is per-implementation
    * private data. Normally, all layers with a given layer manager
@@ -436,8 +406,6 @@ public:
 
   virtual ThebesLayer* AsThebesLayer() { return this; }
 
-  NS_LAYER_DECL_NAME("ThebesLayer", TYPE_THEBES)
-
 protected:
   ThebesLayer(LayerManager* aManager, void* aImplData)
     : Layer(aManager, aImplData) {}
@@ -469,8 +437,6 @@ public:
   // This getter can be used anytime.
   virtual Layer* GetFirstChild() { return mFirstChild; }
 
-  NS_LAYER_DECL_NAME("ContainerLayer", TYPE_CONTAINER)
-
 protected:
   ContainerLayer(LayerManager* aManager, void* aImplData)
     : Layer(aManager, aImplData),
@@ -498,8 +464,6 @@ public:
 
   // This getter can be used anytime.
   virtual const gfxRGBA& GetColor() { return mColor; }
-
-  NS_LAYER_DECL_NAME("ColorLayer", TYPE_COLOR)
 
 protected:
   ColorLayer(LayerManager* aManager, void* aImplData)
@@ -566,8 +530,6 @@ public:
    */
   void SetFilter(gfxPattern::GraphicsFilter aFilter) { mFilter = aFilter; }
   gfxPattern::GraphicsFilter GetFilter() const { return mFilter; }
-
-  NS_LAYER_DECL_NAME("CanvasLayer", TYPE_CANVAS)
 
 protected:
   CanvasLayer(LayerManager* aManager, void* aImplData)

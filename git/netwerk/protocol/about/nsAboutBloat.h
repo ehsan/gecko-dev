@@ -50,7 +50,7 @@ public:
     nsAboutBloat() {}
     virtual ~nsAboutBloat() {}
 
-    static nsresult
+    static NS_METHOD
     Create(nsISupports *aOuter, REFNSIID aIID, void **aResult);
 
 protected:

@@ -62,7 +62,7 @@ nsStreamLoader::Init(nsIStreamLoaderObserver* observer)
   return NS_OK;
 }
 
-nsresult
+NS_METHOD
 nsStreamLoader::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
 {
   if (aOuter) return NS_ERROR_NO_AGGREGATION;
