@@ -4,13 +4,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsITreeBoxObject.idl"
+#include "nsISupportsArray.idl"
 #include "domstubs.idl"
 
 interface nsITreeSelection;
 interface nsITreeColumn;
 interface nsIDOMDataTransfer;
 
-[scriptable, uuid(091116f0-0bdc-4b32-b9c8-c8d5a37cb088)]
+[scriptable, uuid(C06DC4D3-63A2-4422-A0A3-5F2EDDECA8C1)]
 interface nsITreeView : nsISupports
 {
   /**
@@ -24,28 +25,24 @@ interface nsITreeView : nsISupports
   attribute nsITreeSelection selection;
 
   /** 
-   * A whitespace delimited list of properties.  For each property X the view
-   * gives back will cause the pseudoclasses  ::-moz-tree-cell(x),
-   * ::-moz-tree-row(x), ::-moz-tree-twisty(x), ::-moz-tree-image(x),
-   * ::-moz-tree-cell-text(x).  to be matched on the pseudoelement
-   * ::moz-tree-row.
+   * An atomized list of properties for a given row.  Each property, x, that
+   * the view gives back will cause the pseudoclass :moz-tree-row-x
+   * to be matched on the pseudoelement ::moz-tree-row.
    */
-  AString getRowProperties(in long index);
+  void getRowProperties(in long index, in nsISupportsArray properties);
 
   /**
-   * A whitespace delimited list of properties for a given cell.  Each
-   * property, x, that the view gives back will cause the pseudoclasses
-   *  ::-moz-tree-cell(x), ::-moz-tree-row(x), ::-moz-tree-twisty(x),
-   *  ::-moz-tree-image(x), ::-moz-tree-cell-text(x). to be matched on the
-   *  cell.
+   * An atomized list of properties for a given cell.  Each property, x, that
+   * the view gives back will cause the pseudoclass :moz-tree-cell-x
+   * to be matched on the ::moz-tree-cell pseudoelement.
    */
-  AString getCellProperties(in long row, in nsITreeColumn col);
+  void getCellProperties(in long row, in nsITreeColumn col, in nsISupportsArray properties);
   
   /**
    * Called to get properties to paint a column background.  For shading the sort
    * column, etc.
    */
-  AString getColumnProperties(in nsITreeColumn col);
+  void getColumnProperties(in nsITreeColumn col, in nsISupportsArray properties);
 
   /**
    * Methods that can be used to test whether or not a twisty should be drawn,

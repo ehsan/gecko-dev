@@ -193,8 +193,9 @@ nsTreeContentView::SetSelection(nsITreeSelection* aSelection)
 }
 
 NS_IMETHODIMP
-nsTreeContentView::GetRowProperties(int32_t aIndex, nsAString& aProps)
+nsTreeContentView::GetRowProperties(int32_t aIndex, nsISupportsArray* aProperties)
 {
+  NS_ENSURE_ARG_POINTER(aProperties);
   NS_PRECONDITION(aIndex >= 0 && aIndex < int32_t(mRows.Length()), "bad index");
   if (aIndex < 0 || aIndex >= int32_t(mRows.Length()))
     return NS_ERROR_INVALID_ARG;   
@@ -207,17 +208,20 @@ nsTreeContentView::GetRowProperties(int32_t aIndex, nsAString& aProps)
     realRow = nsTreeUtils::GetImmediateChild(row->mContent, nsGkAtoms::treerow);
 
   if (realRow) {
-    realRow->GetAttr(kNameSpaceID_None, nsGkAtoms::properties, aProps);
+    nsAutoString properties;
+    realRow->GetAttr(kNameSpaceID_None, nsGkAtoms::properties, properties);
+    if (!properties.IsEmpty())
+      nsTreeUtils::TokenizeProperties(properties, aProperties);
   }
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsTreeContentView::GetCellProperties(int32_t aRow, nsITreeColumn* aCol,
-                                     nsAString& aProps)
+nsTreeContentView::GetCellProperties(int32_t aRow, nsITreeColumn* aCol, nsISupportsArray* aProperties)
 {
   NS_ENSURE_NATIVE_COLUMN(aCol);
+  NS_ENSURE_ARG_POINTER(aProperties);
   NS_PRECONDITION(aRow >= 0 && aRow < int32_t(mRows.Length()), "bad row");
   if (aRow < 0 || aRow >= int32_t(mRows.Length()))
     return NS_ERROR_INVALID_ARG;   
@@ -228,7 +232,10 @@ nsTreeContentView::GetCellProperties(int32_t aRow, nsITreeColumn* aCol,
   if (realRow) {
     nsIContent* cell = GetCell(realRow, aCol);
     if (cell) {
-      cell->GetAttr(kNameSpaceID_None, nsGkAtoms::properties, aProps);
+      nsAutoString properties;
+      cell->GetAttr(kNameSpaceID_None, nsGkAtoms::properties, properties);
+      if (!properties.IsEmpty())
+        nsTreeUtils::TokenizeProperties(properties, aProperties);
     }
   }
 
@@ -236,13 +243,19 @@ nsTreeContentView::GetCellProperties(int32_t aRow, nsITreeColumn* aCol,
 }
 
 NS_IMETHODIMP
-nsTreeContentView::GetColumnProperties(nsITreeColumn* aCol, nsAString& aProps)
+nsTreeContentView::GetColumnProperties(nsITreeColumn* aCol, nsISupportsArray* aProperties)
 {
   NS_ENSURE_NATIVE_COLUMN(aCol);
+  NS_ENSURE_ARG_POINTER(aProperties);
   nsCOMPtr<nsIDOMElement> element;
   aCol->GetElement(getter_AddRefs(element));
 
-  element->GetAttribute(NS_LITERAL_STRING("properties"), aProps);
+  nsAutoString properties;
+  element->GetAttribute(NS_LITERAL_STRING("properties"), properties);
+
+  if (!properties.IsEmpty())
+    nsTreeUtils::TokenizeProperties(properties, aProperties);
+
   return NS_OK;
 }
 

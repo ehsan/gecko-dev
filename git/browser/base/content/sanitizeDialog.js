@@ -804,6 +804,9 @@ var gContiguousSelectionTreeHelper = {
    */
   _makeTreeView: function CSTH__makeTreeView(aProtoTreeView)
   {
+    var atomServ = Cc["@mozilla.org/atom-service;1"].
+                   getService(Ci.nsIAtomService);
+
     var view = aProtoTreeView;
     var that = this;
 
@@ -834,29 +837,28 @@ var gContiguousSelectionTreeHelper = {
 
     view._getCellProperties = view.getCellProperties;
     view.getCellProperties =
-      function CSTH_View_getCellProperties(aRow, aCol)
+      function CSTH_View_getCellProperties(aRow, aCol, aProps)
       {
         var grippyRow = that.getGrippyRow();
         if (aRow === grippyRow)
-          return "grippyRow";
-        if (aRow < grippyRow)
-          return this._getCellProperties(aRow, aCol);
-
-        return this._getCellProperties(aRow - 1, aCol);
+          aProps.AppendElement(atomServ.getAtom("grippyRow"));
+        else if (aRow < grippyRow)
+          this._getCellProperties(aRow, aCol, aProps);
+        else
+          this._getCellProperties(aRow - 1, aCol, aProps);
       };
 
     view._getRowProperties = view.getRowProperties;
     view.getRowProperties =
-      function CSTH_View_getRowProperties(aRow)
+      function CSTH_View_getRowProperties(aRow, aProps)
       {
         var grippyRow = that.getGrippyRow();
         if (aRow === grippyRow)
-          return "grippyRow";
-
-        if (aRow < grippyRow)
-          return this._getRowProperties(aRow);
-
-        return this._getRowProperties(aRow - 1);
+          aProps.AppendElement(atomServ.getAtom("grippyRow"));
+        else if (aRow < grippyRow)
+          this._getRowProperties(aRow, aProps);
+        else
+          this._getRowProperties(aRow - 1, aProps);
       };
 
     view._getCellText = view.getCellText;

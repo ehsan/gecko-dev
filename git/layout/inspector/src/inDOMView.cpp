@@ -91,6 +91,25 @@ inDOMView::~inDOMView()
   SetRootNode(nullptr);
 }
 
+#define DOMVIEW_ATOM(name_, value_) nsIAtom* inDOMView::name_ = nullptr;
+#include "inDOMViewAtomList.h"
+#undef DOMVIEW_ATOM
+
+#define DOMVIEW_ATOM(name_, value_) NS_STATIC_ATOM_BUFFER(name_##_buffer, value_)
+#include "inDOMViewAtomList.h"
+#undef DOMVIEW_ATOM
+
+/* static */ const nsStaticAtom inDOMView::Atoms_info[] = {
+#define DOMVIEW_ATOM(name_, value_) NS_STATIC_ATOM(name_##_buffer, &inDOMView::name_),
+#include "inDOMViewAtomList.h"
+#undef DOMVIEW_ATOM
+};
+
+/* static */ void
+inDOMView::InitAtoms()
+{
+  NS_RegisterStaticAtoms(Atoms_info);
+}
 
 ////////////////////////////////////////////////////////////////////////
 // nsISupports
@@ -270,14 +289,13 @@ inDOMView::GetRowCount(int32_t *aRowCount)
 }
 
 NS_IMETHODIMP
-inDOMView::GetRowProperties(int32_t index, nsAString& aProps)
+inDOMView::GetRowProperties(int32_t index, nsISupportsArray *properties)
 {
   return NS_OK;
 }
 
 NS_IMETHODIMP
-inDOMView::GetCellProperties(int32_t row, nsITreeColumn* col,
-                             nsAString& aProps)
+inDOMView::GetCellProperties(int32_t row, nsITreeColumn* col, nsISupportsArray *properties)
 {
   inDOMViewNode* node = nullptr;
   RowToNode(row, &node);
@@ -285,47 +303,47 @@ inDOMView::GetCellProperties(int32_t row, nsITreeColumn* col,
 
   nsCOMPtr<nsIContent> content = do_QueryInterface(node->node);
   if (content && content->IsInAnonymousSubtree()) {
-    aProps.AppendLiteral("anonymous ");
+    properties->AppendElement(kAnonymousAtom);
   }
 
   uint16_t nodeType;
   node->node->GetNodeType(&nodeType);
   switch (nodeType) {
     case nsIDOMNode::ELEMENT_NODE:
-      aProps.AppendLiteral("ELEMENT_NODE");
+      properties->AppendElement(kElementNodeAtom);
       break;
     case nsIDOMNode::ATTRIBUTE_NODE:
-      aProps.AppendLiteral("ATTRIBUTE_NODE");
+      properties->AppendElement(kAttributeNodeAtom);
       break;
     case nsIDOMNode::TEXT_NODE:
-      aProps.AppendLiteral("TEXT_NODE");
+      properties->AppendElement(kTextNodeAtom);
       break;
     case nsIDOMNode::CDATA_SECTION_NODE:
-      aProps.AppendLiteral("CDATA_SECTION_NODE");
+      properties->AppendElement(kCDataSectionNodeAtom);
       break;
     case nsIDOMNode::ENTITY_REFERENCE_NODE:
-      aProps.AppendLiteral("ENTITY_REFERENCE_NODE");
+      properties->AppendElement(kEntityReferenceNodeAtom);
       break;
     case nsIDOMNode::ENTITY_NODE:
-      aProps.AppendLiteral("ENTITY_NODE");
+      properties->AppendElement(kEntityNodeAtom);
       break;
     case nsIDOMNode::PROCESSING_INSTRUCTION_NODE:
-      aProps.AppendLiteral("PROCESSING_INSTRUCTION_NODE");
+      properties->AppendElement(kProcessingInstructionNodeAtom);
       break;
     case nsIDOMNode::COMMENT_NODE:
-      aProps.AppendLiteral("COMMENT_NODE");
+      properties->AppendElement(kCommentNodeAtom);
       break;
     case nsIDOMNode::DOCUMENT_NODE:
-      aProps.AppendLiteral("DOCUMENT_NODE");
+      properties->AppendElement(kDocumentNodeAtom);
       break;
     case nsIDOMNode::DOCUMENT_TYPE_NODE:
-      aProps.AppendLiteral("DOCUMENT_TYPE_NODE");
+      properties->AppendElement(kDocumentTypeNodeAtom);
       break;
     case nsIDOMNode::DOCUMENT_FRAGMENT_NODE:
-      aProps.AppendLiteral("DOCUMENT_FRAGMENT_NODE");
+      properties->AppendElement(kDocumentFragmentNodeAtom);
       break;
     case nsIDOMNode::NOTATION_NODE:
-      aProps.AppendLiteral("NOTATION_NODE");
+      properties->AppendElement(kNotationNodeAtom);
       break;
   }
 
@@ -339,7 +357,7 @@ inDOMView::GetCellProperties(int32_t row, nsITreeColumn* col,
     nsresult rv =
       accService->GetAccessibleFor(node->node, getter_AddRefs(accessible));
     if (NS_SUCCEEDED(rv) && accessible)
-      aProps.AppendLiteral(" ACCESSIBLE_NODE");
+      properties->AppendElement(kAccessibleNodeAtom);
   }
 #endif
 
@@ -347,7 +365,7 @@ inDOMView::GetCellProperties(int32_t row, nsITreeColumn* col,
 }
 
 NS_IMETHODIMP
-inDOMView::GetColumnProperties(nsITreeColumn* col, nsAString& aProps)
+inDOMView::GetColumnProperties(nsITreeColumn* col, nsISupportsArray *properties)
 {
   return NS_OK;
 }

@@ -192,6 +192,8 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
+  inDOMView::InitAtoms();
+
 #endif
 
   nsMathMLOperators::AddRefTable();
