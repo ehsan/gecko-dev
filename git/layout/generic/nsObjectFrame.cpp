@@ -1672,26 +1672,9 @@ nsObjectFrame::PaintPlugin(nsIRenderingContext& aRenderingContext,
       PRBool doupdatewindow = PR_FALSE;
       // the offset of the DC
       nsPoint origin;
-
+      
       gfxWindowsNativeDrawing nativeDraw(ctx, frameGfxRect);
-#ifdef MOZ_IPC
-      if (nativeDraw.IsDoublePass()) {
-        // OOP plugin specific: let the shim know before we paint if we are doing a
-        // double pass render. If this plugin isn't oop, the register window message
-        // will be ignored.
-        if (!mDoublePassEvent)
-          mDoublePassEvent = ::RegisterWindowMessage(NS_OOPP_DOUBLEPASS_MSGID);
-        if (mDoublePassEvent) {
-          NPEvent pluginEvent;
-          pluginEvent.event = mDoublePassEvent;
-          pluginEvent.wParam = 0;
-          pluginEvent.lParam = 0;
-          PRBool eventHandled = PR_FALSE;
-
-          inst->HandleEvent(&pluginEvent, &eventHandled);
-        }
-      }
-#endif
+      PRBool doublePass = PR_FALSE;
       do {
         HDC hdc = nativeDraw.BeginNativeDrawing();
         if (!hdc)
@@ -1710,22 +1693,17 @@ nsObjectFrame::PaintPlugin(nsIRenderingContext& aRenderingContext,
           window->x = dest.left;
           window->y = dest.top;
 
-          // Windowless plugins on windows need a special event to update their location,
-          // see bug 135737.
-          //
+          // Windowless plugins on windows need a special event to update their location, see bug 135737
           // bug 271442: note, the rectangle we send is now purely the bounds of the plugin
-          // relative to the window it is contained in, which is useful for the plugin to
-          // correctly translate mouse coordinates.
+          // relative to the window it is contained in, which is useful for the plugin to correctly translate mouse coordinates
           //
           // this does not mesh with the comments for bug 135737 which imply that the rectangle
-          // must be clipped in some way to prevent the plugin attempting to paint over areas
-          // it shouldn't.
+          // must be clipped in some way to prevent the plugin attempting to paint over areas it shouldn't;
           //
-          // since the two uses of the rectangle are mutually exclusive in some cases, and
-          // since I don't see any incorrect painting (at least with Flash and ViewPoint -
-          // the originator of bug 135737), it seems that windowless plugins are not relying
-          // on information here for clipping their drawing, and we can safely use this message
-          // to tell the plugin exactly where it is in all cases.
+          // since the two uses of the rectangle are mutually exclusive in some cases,
+          // and since I don't see any incorrect painting (at least with Flash and ViewPoint - the originator of 135737),
+          // it seems that windowless plugins are not relying on information here for clipping their drawing,
+          // and we can safely use this message to tell the plugin exactly where it is in all cases.
 
           nsIntPoint origin = GetWindowOriginInPixels(PR_TRUE);
           nsIntRect winlessRect = nsIntRect(origin, nsIntSize(window->width, window->height));
@@ -1754,11 +1732,32 @@ nsObjectFrame::PaintPlugin(nsIRenderingContext& aRenderingContext,
             inst->HandleEvent(&pluginEvent, &eventHandled);
           }
 
-          inst->SetWindow(window);
+          inst->SetWindow(window);        
         }
+
         mInstanceOwner->Paint(dirty, hdc);
         nativeDraw.EndNativeDrawing();
-      } while (nativeDraw.ShouldRenderAgain());
+        doublePass = nativeDraw.ShouldRenderAgain();
+#ifdef MOZ_IPC
+        if (doublePass) {
+          // OOP plugin specific: let the shim know we are in the middle of a double pass
+          // render. The second pass will reuse the previous rendering without going over
+          // the wire.
+          if (!mDoublePassEvent)
+            mDoublePassEvent = ::RegisterWindowMessage(NS_OOPP_DOUBLEPASS_MSGID);
+          if (mDoublePassEvent) {
+            NPEvent pluginEvent;
+            pluginEvent.event = mDoublePassEvent;
+            pluginEvent.wParam = 0;
+            pluginEvent.lParam = 0;
+            PRBool eventHandled = PR_FALSE;
+
+            inst->HandleEvent(&pluginEvent, &eventHandled);
+          }          
+        }
+#endif
+      } while (doublePass);
+
       nativeDraw.PaintToContext();
     } else if (!(ctx->GetFlags() & gfxContext::FLAG_DESTINED_FOR_SCREEN)) {
       // Get PrintWindow dynamically since it's not present on Win2K,
