@@ -420,11 +420,7 @@ let NetworkHelper = {
       return true;
     }
 
-    // XML and JSON often come with custom MIME types, so in addition to the
-    // standard "application/xml" and "application/json", we also look for
-    // variants like "application/x-bigcorp-xml" by checking for either string
-    // after any word boundary.
-    if (/^application\/[a-z-]+\b(xml|json)/.test(aMimeType)) {
+    if (/^application\/[a-z-]+\+xml$/.test(aMimeType)) {
       return true;
     }
 

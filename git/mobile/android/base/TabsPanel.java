@@ -109,10 +109,7 @@ public class TabsPanel extends LinearLayout
 
         mTabWidget.addTab(R.drawable.tabs_normal, R.string.tabs_normal);
         mTabWidget.addTab(R.drawable.tabs_private, R.string.tabs_private);
-
-        if (!GeckoProfile.get(mContext).inGuestMode()) {
-            mTabWidget.addTab(R.drawable.tabs_synced, R.string.tabs_synced);
-        }
+        mTabWidget.addTab(R.drawable.tabs_synced, R.string.tabs_synced);
 
         mTabWidget.setTabSelectionListener(this);
     }

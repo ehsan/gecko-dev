@@ -93,21 +93,19 @@ AudioChannelService::~AudioChannelService()
 
 void
 AudioChannelService::RegisterAudioChannelAgent(AudioChannelAgent* aAgent,
-                                               AudioChannelType aType,
-                                               bool aWithVideo)
+                                               AudioChannelType aType)
 {
   MOZ_ASSERT(aType != AUDIO_CHANNEL_DEFAULT);
 
   AudioChannelAgentData* data = new AudioChannelAgentData(aType,
                                 true /* aElementHidden */,
-                                AUDIO_CHANNEL_STATE_MUTED /* aState */,
-                                aWithVideo);
+                                AUDIO_CHANNEL_STATE_MUTED /* aState */);
   mAgents.Put(aAgent, data);
-  RegisterType(aType, CONTENT_PROCESS_ID_MAIN, aWithVideo);
+  RegisterType(aType, CONTENT_PROCESS_ID_MAIN);
 }
 
 void
-AudioChannelService::RegisterType(AudioChannelType aType, uint64_t aChildID, bool aWithVideo)
+AudioChannelService::RegisterType(AudioChannelType aType, uint64_t aChildID)
 {
   AudioChannelInternalType type = GetInternalType(aType, true);
   mChannelCounters[type].AppendElement(aChildID);
@@ -118,11 +116,7 @@ AudioChannelService::RegisterType(AudioChannelType aType, uint64_t aChildID, boo
     if (mDeferTelChannelTimer && aType == AUDIO_CHANNEL_TELEPHONY) {
       mDeferTelChannelTimer->Cancel();
       mDeferTelChannelTimer = nullptr;
-      UnregisterTypeInternal(aType, mTimerElementHidden, mTimerChildID, false);
-    }
-
-    if (aWithVideo) {
-      mWithVideoChildIDs.AppendElement(aChildID);
+      UnregisterTypeInternal(aType, mTimerElementHidden, mTimerChildID);
     }
 
     // In order to avoid race conditions, it's safer to notify any existing
@@ -139,16 +133,14 @@ AudioChannelService::UnregisterAudioChannelAgent(AudioChannelAgent* aAgent)
   mAgents.RemoveAndForget(aAgent, data);
 
   if (data) {
-    UnregisterType(data->mType, data->mElementHidden,
-                   CONTENT_PROCESS_ID_MAIN, data->mWithVideo);
+    UnregisterType(data->mType, data->mElementHidden, CONTENT_PROCESS_ID_MAIN);
   }
 }
 
 void
 AudioChannelService::UnregisterType(AudioChannelType aType,
                                     bool aElementHidden,
-                                    uint64_t aChildID,
-                                    bool aWithVideo)
+                                    uint64_t aChildID)
 {
   // There are two reasons to defer the decrease of telephony channel.
   // 1. User can have time to remove device from his ear before music resuming.
@@ -164,14 +156,13 @@ AudioChannelService::UnregisterType(AudioChannelType aType,
     return;
   }
 
-  UnregisterTypeInternal(aType, aElementHidden, aChildID, aWithVideo);
+  UnregisterTypeInternal(aType, aElementHidden, aChildID);
 }
 
 void
 AudioChannelService::UnregisterTypeInternal(AudioChannelType aType,
                                             bool aElementHidden,
-                                            uint64_t aChildID,
-                                            bool aWithVideo)
+                                            uint64_t aChildID)
 {
   // The array may contain multiple occurrence of this appId but
   // this should remove only the first one.
@@ -190,12 +181,6 @@ AudioChannelService::UnregisterTypeInternal(AudioChannelType aType,
         !mChannelCounters[AUDIO_CHANNEL_INT_CONTENT].Contains(aChildID)) {
       mActiveContentChildIDs.RemoveElement(aChildID);
     }
-
-    if (aWithVideo) {
-      MOZ_ASSERT(mWithVideoChildIDs.Contains(aChildID));
-      mWithVideoChildIDs.RemoveElement(aChildID);
-    }
-
     SendAudioChannelChangedNotification(aChildID);
     Notify();
   }
@@ -273,19 +258,8 @@ AudioChannelService::GetStateInternal(AudioChannelType aType, uint64_t aChildID,
       mActiveContentChildIDs.RemoveElement(aChildID);
     }
   }
-  else if (newType == AUDIO_CHANNEL_INT_NORMAL &&
-           oldType == AUDIO_CHANNEL_INT_NORMAL_HIDDEN &&
-           mWithVideoChildIDs.Contains(aChildID)) {
-    if (mActiveContentChildIDsFrozen) {
-      mActiveContentChildIDsFrozen = false;
-      mActiveContentChildIDs.Clear();
-    }
-  }
 
-  if (newType != oldType &&
-      (aType == AUDIO_CHANNEL_CONTENT ||
-       (aType == AUDIO_CHANNEL_NORMAL &&
-        mWithVideoChildIDs.Contains(aChildID)))) {
+  if (newType != oldType && aType == AUDIO_CHANNEL_CONTENT) {
     Notify();
   }
 
@@ -534,7 +508,7 @@ AudioChannelService::Notify()
 NS_IMETHODIMP
 AudioChannelService::Notify(nsITimer* aTimer)
 {
-  UnregisterTypeInternal(AUDIO_CHANNEL_TELEPHONY, mTimerElementHidden, mTimerChildID, false);
+  UnregisterTypeInternal(AUDIO_CHANNEL_TELEPHONY, mTimerElementHidden, mTimerChildID);
   mDeferTelChannelTimer = nullptr;
   return NS_OK;
 }
@@ -595,7 +569,6 @@ AudioChannelService::Observe(nsISupports* aSubject, const char* aTopic, const PR
       return NS_OK;
     }
 
-    int32_t index;
     uint64_t childID = 0;
     nsresult rv = props->GetPropertyAsUint64(NS_LITERAL_STRING("childID"),
                                              &childID);
@@ -603,17 +576,14 @@ AudioChannelService::Observe(nsISupports* aSubject, const char* aTopic, const PR
       for (int32_t type = AUDIO_CHANNEL_INT_NORMAL;
            type < AUDIO_CHANNEL_INT_LAST;
            ++type) {
-
+        int32_t index;
         while ((index = mChannelCounters[type].IndexOf(childID)) != -1) {
           mChannelCounters[type].RemoveElementAt(index);
         }
-      }
 
-      while ((index = mActiveContentChildIDs.IndexOf(childID)) != -1) {
-        mActiveContentChildIDs.RemoveElementAt(index);
-      }
-      while ((index = mWithVideoChildIDs.IndexOf(childID)) != -1) {
-        mWithVideoChildIDs.RemoveElementAt(index);
+        if ((index = mActiveContentChildIDs.IndexOf(childID)) != -1) {
+          mActiveContentChildIDs.RemoveElementAt(index);
+        }
       }
 
       // We don't have to remove the agents from the mAgents hashtable because if
