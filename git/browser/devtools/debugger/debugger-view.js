@@ -68,7 +68,6 @@ let DebuggerView = {
     this.GlobalSearch.initialize();
     this._initializeVariablesView();
     this._initializeEditor(deferred.resolve);
-
     document.title = L10N.getStr("DebuggerWindowTitle");
 
     return deferred.promise;

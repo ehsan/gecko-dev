@@ -37,6 +37,7 @@ const Telemetry = require("devtools/shared/telemetry");
 const escodegen = require("escodegen/escodegen");
 const Editor    = require("devtools/sourceeditor/editor");
 const TargetFactory = require("devtools/framework/target").TargetFactory;
+const DevtoolsHelpers = require("devtools/shared/helpers");
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
@@ -72,9 +73,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "DebuggerClient",
 
 XPCOMUtils.defineLazyGetter(this, "REMOTE_TIMEOUT", () =>
   Services.prefs.getIntPref("devtools.debugger.remote-timeout"));
-
-XPCOMUtils.defineLazyModuleGetter(this, "ShortcutUtils",
-  "resource://gre/modules/ShortcutUtils.jsm");
 
 // Because we have no constructor / destructor where we can log metrics we need
 // to do so here.
@@ -1250,9 +1248,9 @@ var Scratchpad = {
 
     let initialText = this.strings.formatStringFromName(
       "scratchpadIntro1",
-      [ShortcutUtils.prettifyShortcut(document.getElementById("sp-key-run"), true),
-       ShortcutUtils.prettifyShortcut(document.getElementById("sp-key-inspect"), true),
-       ShortcutUtils.prettifyShortcut(document.getElementById("sp-key-display"), true)],
+      [DevtoolsHelpers.prettyKey(document.getElementById("sp-key-run")),
+       DevtoolsHelpers.prettyKey(document.getElementById("sp-key-inspect")),
+       DevtoolsHelpers.prettyKey(document.getElementById("sp-key-display"))],
       3);
 
     let args = window.arguments;
