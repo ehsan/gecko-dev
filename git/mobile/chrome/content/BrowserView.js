@@ -517,25 +517,21 @@ BrowserView.prototype = {
       }
       // !!! --- RESIZE HACK END -------
 
-      r.restrictTo(vs.viewportRect);
-      rects.push(r);
+      try {
+        r.restrictTo(vs.viewportRect);
+        rects.push(r);
+      } catch(ex) { dump("fail:(\n"); }
     }
-
-    // !!! --- RESIZE HACK BEGIN -----
-    // remove this, cf explanation in loop above
-    if (hackSizeChanged)
-      this.simulateMozAfterSizeChange(browser, hack.maxW, hack.maxH);
-    // !!! --- RESIZE HACK END -------
 
     tm.dirtyRects(rects, this.isRendering());
   },
 
   // !!! --- RESIZE HACK BEGIN -----
-  simulateMozAfterSizeChange: function simulateMozAfterSizeChange(browser, width, height) {
-    //let ev = document.createElement("MouseEvents");
-    //ev.initEvent("FakeMozAfterSizeChange", false, false, window, 0, width, height);
-    //browser.dispatchEvent(ev);
-    this.handleMozAfterSizeChange({screenX: width, screenY: height});
+  simulateMozAfterSizeChange: function simulateMozAfterSizeChange(width, height) {
+    let [w, h] = getBrowserDimensions(this._browser);
+    let ev = document.createEvent("MouseEvents");
+    ev.initMouseEvent("FakeMozAfterSizeChange", false, false, window, 0, w, h, 0, 0, false, false, false, false, 0, null);
+    this._browser.dispatchEvent(ev);
   },
   // !!! --- RESIZE HACK END -------
 
@@ -547,8 +543,7 @@ BrowserView.prototype = {
     let w = ev.screenX;
     let h = ev.screenY;
     // !!! --- RESIZE HACK END -------
-
-    this.setViewportDimensions(w, h);
+    this.setViewportDimensions(this.browserToViewport(w), this.browserToViewport(h));
   },
 
   zoomToPage: function zoomToPage() {
@@ -674,15 +669,15 @@ BrowserView.prototype = {
   _appendTile: function _appendTile(tile) {
     let canvas = tile.getContentImage();
 
-    //canvas.style.position = "absolute";
-    //canvas.style.left = tile.x + "px";
-    //canvas.style.top  = tile.y + "px";
-    //
+    canvas.style.position = "absolute";
+    canvas.style.left = tile.x + "px";
+    canvas.style.top  = tile.y + "px";
+
     // XXX The above causes a trace abort, and this function is called back in the tight
     // render-heavy loop in TileManager, so even though what we do below isn't so proper
     // and takes longer on the Platform/C++ emd, it's better than causing a trace abort
     // in our tight loop. :/
-    canvas.setAttribute("style", "position: absolute; left: " + tile.boundRect.left + "px; " + "top: " + tile.boundRect.top + "px;");
+    //canvas.setAttribute("style", "position: absolute; left: " + tile.boundRect.left + "px; " + "top: " + tile.boundRect.top + "px;");
 
     this._container.appendChild(canvas);
 
