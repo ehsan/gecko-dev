@@ -43,10 +43,11 @@
 #include "mozIStorageStatementWrapper.h"
 #include "nsIXPCScriptable.h"
 
+class mozStorageStatement;
+
+
 namespace mozilla {
 namespace storage {
-
-class Statement;
 
 class StatementRow : public mozIStorageStatementRow
                    , public nsIXPCScriptable
@@ -56,12 +57,12 @@ public:
   NS_DECL_MOZISTORAGESTATEMENTROW
   NS_DECL_NSIXPCSCRIPTABLE
 
-  StatementRow(Statement *aStatement);
+  StatementRow(mozStorageStatement *aStatement);
 protected:
 
-  Statement *mStatement;
+  mozStorageStatement *mStatement;
 
-  friend class Statement;
+  friend class ::mozStorageStatement;
 };
 
 } // namespace storage

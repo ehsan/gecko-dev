@@ -39,44 +39,34 @@
 
 #include "mozStorageError.h"
 
-namespace mozilla {
-namespace storage {
-
 ////////////////////////////////////////////////////////////////////////////////
-//// Error
-
-Error::Error(int aResult,
-             const char *aMessage)
-: mResult(aResult)
-, mMessage(aMessage)
-{
-}
+//// mozStorageError
 
 /**
  * Note:  This object is only ever accessed on one thread at a time.  It it not
  *        threadsafe, but it does need threadsafe AddRef and Release.
  */
-NS_IMPL_THREADSAFE_ISUPPORTS1(
-  Error,
-  mozIStorageError
-)
+NS_IMPL_THREADSAFE_ISUPPORTS1(mozStorageError, mozIStorageError)
+
+mozStorageError::mozStorageError(int aResult, const char *aMessage) :
+    mResult(aResult)
+  , mMessage(aMessage)
+{
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 //// mozIStorageError
 
 NS_IMETHODIMP
-Error::GetResult(PRInt32 *_result)
+mozStorageError::GetResult(PRInt32 *_result)
 {
   *_result = mResult;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-Error::GetMessage(nsACString &_message)
+mozStorageError::GetMessage(nsACString &_message)
 {
   _message = mMessage;
   return NS_OK;
 }
-
-} // namespace storage
-} // namespace mozilla

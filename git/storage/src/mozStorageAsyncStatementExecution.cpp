@@ -317,7 +317,7 @@ AsyncExecuteStatements::executeAndProcessStatement(sqlite3_stmt *aStatement,
 
 #ifdef DEBUG
   // Check to make sure that this statement was smart about what it did.
-  checkAndLogStatementPerformance(aStatement);
+  CheckAndLogStatementPerformance(aStatement);
 #endif
 
   // If we are done, we need to set our state accordingly while we still hold
@@ -342,10 +342,10 @@ AsyncExecuteStatements::buildAndNotifyResults(sqlite3_stmt *aStatement)
 
   // Build result object if we need it.
   if (!mResultSet)
-    mResultSet = new ResultSet();
+    mResultSet = new mozStorageResultSet();
   NS_ENSURE_TRUE(mResultSet, NS_ERROR_OUT_OF_MEMORY);
 
-  nsRefPtr<Row> row(new Row());
+  nsRefPtr<mozStorageRow> row(new mozStorageRow());
   NS_ENSURE_TRUE(row, NS_ERROR_OUT_OF_MEMORY);
 
   nsresult rv = row->initialize(aStatement);
@@ -425,7 +425,8 @@ AsyncExecuteStatements::notifyError(PRInt32 aErrorCode,
   if (!mCallback)
     return NS_OK;
 
-  nsCOMPtr<mozIStorageError> errorObj(new Error(aErrorCode, aMessage));
+  nsCOMPtr<mozIStorageError> errorObj =
+    new mozStorageError(aErrorCode, aMessage);
   NS_ENSURE_TRUE(errorObj, NS_ERROR_OUT_OF_MEMORY);
 
   nsRefPtr<ErrorNotifier> notifier =

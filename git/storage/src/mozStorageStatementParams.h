@@ -47,11 +47,10 @@
 #include "jsdate.h"
 
 class mozIStorageStatement;
+class mozStorageStatement;
 
 namespace mozilla {
 namespace storage {
-
-class Statement;
 
 class StatementParams : public mozIStorageStatementParams
                       , public nsIXPCScriptable
@@ -68,7 +67,7 @@ protected:
   mozIStorageStatement *mStatement;
   PRUint32 mParamCount;
 
-  friend class Statement;
+  friend class ::mozStorageStatement;
 };
 
 static

@@ -44,17 +44,14 @@
 #include "nsCOMArray.h"
 class mozIStorageRow;
 
-namespace mozilla {
-namespace storage {
-
-class ResultSet : public mozIStorageResultSet
+class mozStorageResultSet : public mozIStorageResultSet
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_MOZISTORAGERESULTSET
 
-  ResultSet();
-  ~ResultSet();
+  mozStorageResultSet();
+  ~mozStorageResultSet();
 
   /**
    * Adds a tuple to this result set.
@@ -71,14 +68,10 @@ private:
    * Stores the current index of the active result set.
    */
   PRInt32 mCurrentIndex;
-
   /**
    * Stores the tuples.
    */
   nsCOMArray<mozIStorageRow> mData;
 };
-
-} // namespace storage
-} // namespace mozilla
 
 #endif // __mozStorageResultSet_h__
