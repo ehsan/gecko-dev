@@ -106,7 +106,7 @@
 #include "nsUnicharUtils.h"
 #include "nsWeakReference.h"
 #include "nsIPageSequenceFrame.h"
-#include "nsCaret.h"
+#include "nsICaret.h"
 #include "nsIDOMHTMLDocument.h"
 #include "nsIXPointer.h"
 #include "nsIDOMXMLDocument.h"
@@ -917,14 +917,14 @@ public:
   NS_IMETHOD_(void) WillPaint();
 
   // caret handling
-  NS_IMETHOD GetCaret(nsCaret **aOutCaret);
+  NS_IMETHOD GetCaret(nsICaret **aOutCaret);
   NS_IMETHOD_(void) MaybeInvalidateCaretPosition();
   NS_IMETHOD SetCaretEnabled(PRBool aInEnable);
   NS_IMETHOD SetCaretReadOnly(PRBool aReadOnly);
   NS_IMETHOD GetCaretEnabled(PRBool *aOutEnabled);
   NS_IMETHOD SetCaretVisibilityDuringSelection(PRBool aVisibility);
   NS_IMETHOD GetCaretVisible(PRBool *_retval);
-  virtual void SetCaret(nsCaret *aNewCaret);
+  virtual void SetCaret(nsICaret *aNewCaret);
   virtual void RestoreCaret();
 
   NS_IMETHOD SetSelectionFlags(PRInt16 aInEnable);
@@ -1147,8 +1147,8 @@ protected:
 
   nsCOMPtr<nsIContent>          mLastAnchorScrolledTo;
   nscoord                       mLastAnchorScrollPositionY;
-  nsRefPtr<nsCaret>             mCaret;
-  nsRefPtr<nsCaret>             mOriginalCaret;
+  nsCOMPtr<nsICaret>            mCaret;
+  nsCOMPtr<nsICaret>            mOriginalCaret;
   PRInt16                       mSelectionFlags;
   FrameArena                    mFrameArena;
   StackArena                    mStackArena;
@@ -2674,7 +2674,7 @@ PresShell::NotifyDestroyingFrame(nsIFrame* aFrame)
 }
 
 // note that this can return a null caret, but NS_OK
-NS_IMETHODIMP PresShell::GetCaret(nsCaret **outCaret)
+NS_IMETHODIMP PresShell::GetCaret(nsICaret **outCaret)
 {
   NS_ENSURE_ARG_POINTER(outCaret);
   
@@ -2690,7 +2690,7 @@ NS_IMETHODIMP_(void) PresShell::MaybeInvalidateCaretPosition()
   }
 }
 
-void PresShell::SetCaret(nsCaret *aNewCaret)
+void PresShell::SetCaret(nsICaret *aNewCaret)
 {
   mCaret = aNewCaret;
 }
@@ -2714,10 +2714,10 @@ NS_IMETHODIMP PresShell::SetCaretEnabled(PRBool aInEnable)
     if (NS_SUCCEEDED(GetSelection(nsISelectionController::SELECTION_NORMAL, getter_AddRefs(domSel))) && domSel)
       mCaret->SetCaretDOMSelection(domSel);
 */
-    mCaret->SetCaretVisible(mCaretEnabled);
+    result = mCaret->SetCaretVisible(mCaretEnabled);
   }
 
-  return NS_OK;
+  return result;
 }
 
 NS_IMETHODIMP PresShell::SetCaretReadOnly(PRBool aReadOnly)
@@ -4555,8 +4555,6 @@ PresShell::DoFlushPendingNotifications(mozFlushType aType,
     // Process pending restyles, since any flush of the presshell wants
     // up-to-date style data.
     if (!mIsDestroying) {
-      mPresContext->FlushPendingMediaFeatureValuesChanged();
-
       mFrameConstructor->ProcessPendingRestyles();
     }
 
@@ -4637,7 +4635,7 @@ PresShell::CharacterDataChanged(nsIDocument *aDocument,
   nsIContent *container = aContent->GetParent();
   PRUint32 selectorFlags =
     container ? (container->GetFlags() & NODE_ALL_SELECTOR_FLAGS) : 0;
-  if (selectorFlags != 0 && !aContent->IsRootOfAnonymousSubtree()) {
+  if (selectorFlags != 0 && !aContent->IsNativeAnonymous()) {
     PRUint32 index;
     if (aInfo->mAppend &&
         container->GetChildAt((index = container->GetChildCount() - 1)) ==

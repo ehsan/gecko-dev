@@ -49,7 +49,6 @@
 #include "nsIInterfaceRequestor.h"
 // for do_CreateInstance
 #include "nsIComponentManager.h"
-#include "nsComponentManagerUtils.h"
 
 // for initializing our window watcher service
 #include "nsIWindowWatcher.h"

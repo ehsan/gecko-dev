@@ -54,6 +54,7 @@
 #include "nsWeakPtr.h"
 
 #include "nsIWidget.h"
+#include "nsIKBStateControl.h"
 #include "nsIAppShell.h"
 
 #include "nsIMouseListener.h"
@@ -195,8 +196,6 @@ public:
   static PRBool IsIMEEnabled() { return sIsIMEEnabled; }
   static PRBool IgnoreCommit() { return sIgnoreCommit; }
 
-  static void OnDestroyView(NSView<mozView>* aDestroyingView);
-
   // Note that we cannot get the actual state in TSM. But we can trust this
   // value. Because nsIMEStateManager reset this at every focus changing.
   static PRBool IsRomanKeyboardsOnly() { return sIsRomanKeyboardsOnly; }
@@ -230,7 +229,8 @@ private:
 //-------------------------------------------------------------------------
 
 class nsChildView : public nsBaseWidget,
-                    public nsIPluginWidget
+                    public nsIPluginWidget,
+                    public nsIKBStateControl
 {
 private:
   typedef nsBaseWidget Inherited;
@@ -240,6 +240,16 @@ public:
   virtual                 ~nsChildView();
   
   NS_DECL_ISUPPORTS_INHERITED
+
+  // nsIKBStateControl interface
+  NS_IMETHOD              ResetInputState();
+  NS_IMETHOD              SetIMEOpenState(PRBool aState);
+  NS_IMETHOD              GetIMEOpenState(PRBool* aState);
+  NS_IMETHOD              SetIMEEnabled(PRUint32 aState);
+  NS_IMETHOD              GetIMEEnabled(PRUint32* aState);
+  NS_IMETHOD              CancelIMEComposition();
+  NS_IMETHOD              GetToggledKeyState(PRUint32 aKeyCode,
+                                             PRBool* aLEDState);
 
   // nsIWidget interface
   NS_IMETHOD              Create(nsIWidget *aParent,
@@ -304,7 +314,6 @@ public:
   NS_IMETHOD              ScreenToWidget(const nsRect& aOldRect, nsRect& aNewRect);
   NS_IMETHOD              BeginResizingChildren(void);
   NS_IMETHOD              EndResizingChildren(void);
-  virtual PRBool          ShowsResizeIndicator(nsIntRect* aResizerRect);
 
   static  PRBool          ConvertStatus(nsEventStatus aStatus)
                           { return aStatus == nsEventStatus_eConsumeNoDefault; }
@@ -332,17 +341,7 @@ public:
 
   NS_IMETHOD        GetAttention(PRInt32 aCycleCount);
 
-  NS_IMETHOD        ActivateNativeMenuItemAt(const nsAString& indexString);
-  NS_IMETHOD        ForceNativeMenuReload();
-
-  NS_IMETHOD        ResetInputState();
-  NS_IMETHOD        SetIMEOpenState(PRBool aState);
-  NS_IMETHOD        GetIMEOpenState(PRBool* aState);
-  NS_IMETHOD        SetIMEEnabled(PRUint32 aState);
-  NS_IMETHOD        GetIMEEnabled(PRUint32* aState);
-  NS_IMETHOD        CancelIMEComposition();
-  NS_IMETHOD        GetToggledKeyState(PRUint32 aKeyCode,
-                                       PRBool* aLEDState);
+  NS_IMETHOD ActivateNativeMenuItemAt(const nsAString& indexString);
 
   // nsIPluginWidget
   NS_IMETHOD        GetPluginClipRect(nsRect& outClipRect, nsPoint& outOrigin, PRBool& outWidgetVisible);

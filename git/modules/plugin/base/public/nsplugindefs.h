@@ -201,8 +201,7 @@ enum nsPluginInstanceVariable {
     nsPluginInstanceVariable_CallSetWindowAfterDestroyBool = 6,
     nsPluginInstanceVariable_ScriptableInstance      = 10,
     nsPluginInstanceVariable_ScriptableIID           = 11,
-    nsPluginInstanceVariable_NeedsXEmbed             = 14,
-    nsPluginInstanceVariable_WantsAllNetworkStreams  = 18
+    nsPluginInstanceVariable_NeedsXEmbed             = 14
 #ifdef XP_MACOSX
     , nsPluginInstanceVariable_DrawingModel          = 20
 #endif

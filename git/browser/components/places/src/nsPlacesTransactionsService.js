@@ -897,26 +897,14 @@ placesSortFolderByNameTransactions.prototype = {
       newOrder = newOrder.concat(preSep);
     }
 
-    // set the nex indexes
-    var callback = {
-      runBatched: function() {
-        for (var i = 0; i < newOrder.length; ++i) {
-          PlacesUtils.bookmarks.setItemIndex(newOrder[i].itemId, i);
-        }
-      }
-    };
-    PlacesUtils.bookmarks.runInBatchMode(callback, null);
+    // set the nex indexs
+    for (var i = 0; i < count; ++i)
+      PlacesUtils.bookmarks.setItemIndex(newOrder[i].itemId, i);
   },
 
   undoTransaction: function PSSFBN_undoTransaction() {
-    var callback = {
-      _self: this,
-      runBatched: function() {
-        for (item in this._self._oldOrder)
-          PlacesUtils.bookmarks.setItemIndex(item, this._self._oldOrder[item]);
-      }
-    };
-    PlacesUtils.bookmarks.runInBatchMode(callback, null);
+    for (item in this._oldOrder)
+      PlacesUtils.bookmarks.setItemIndex(item, this._oldOrder[item]);
   }
 };
 

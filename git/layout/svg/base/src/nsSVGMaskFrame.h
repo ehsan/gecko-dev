@@ -104,4 +104,7 @@ private:
   virtual already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM();
 };
 
+nsIContent *
+NS_GetSVGMaskElement(nsIURI *aURI, nsIContent *aContent);
+
 #endif

@@ -2730,8 +2730,9 @@ nsJSContext::AddSupportsPrimitiveTojsvals(nsISupports *aArg, jsval *aArgv)
 
       p->GetData(&data);
 
-      JSBool ok = ::JS_NewNumberValue(cx, data, aArgv);
-      NS_ENSURE_TRUE(ok, NS_ERROR_OUT_OF_MEMORY);
+      jsdouble *d = ::JS_NewDouble(cx, data);
+
+      *aArgv = DOUBLE_TO_JSVAL(d);
 
       break;
     }
@@ -2743,8 +2744,9 @@ nsJSContext::AddSupportsPrimitiveTojsvals(nsISupports *aArg, jsval *aArgv)
 
       p->GetData(&data);
 
-      JSBool ok = ::JS_NewNumberValue(cx, data, aArgv);
-      NS_ENSURE_TRUE(ok, NS_ERROR_OUT_OF_MEMORY);
+      jsdouble *d = ::JS_NewDouble(cx, data);
+
+      *aArgv = DOUBLE_TO_JSVAL(d);
 
       break;
     }
@@ -3114,16 +3116,6 @@ static JSFunctionSpec CallgrindFunctions[] = {
 };
 #endif
 
-#ifdef MOZ_VTUNE
-static JSFunctionSpec VtuneFunctions[] = {
-    {"startVtune",                 js_StartVtune,              1, 0, 0},
-    {"stopVtune",                  js_StopVtune,               0, 0, 0},
-    {"pauseVtune",                 js_PauseVtune,              0, 0, 0},
-    {"resumeVtune",                js_ResumeVtune,             0, 0, 0},
-    {nsnull,                       nsnull,                     0, 0, 0}
-};
-#endif
-
 nsresult
 nsJSContext::InitClasses(void *aGlobalObj)
 {
@@ -3164,11 +3156,6 @@ nsJSContext::InitClasses(void *aGlobalObj)
 #ifdef MOZ_CALLGRIND
   // Attempt to initialize Callgrind functions
   ::JS_DefineFunctions(mContext, globalObj, CallgrindFunctions);
-#endif
-
-#ifdef MOZ_VTUNE
-  // Attempt to initialize Vtune functions
-  ::JS_DefineFunctions(mContext, globalObj, VtuneFunctions);
 #endif
 
   JSOptionChangedCallback(js_options_dot_str, this);

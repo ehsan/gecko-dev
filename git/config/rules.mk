@@ -231,7 +231,6 @@ endif # MOZ_MAPINFO
 
 ifdef DEFFILE
 OS_LDFLAGS += -DEF:$(DEFFILE)
-EXTRA_DEPS += $(DEFFILE)
 endif
 
 ifdef MAPFILE
@@ -624,7 +623,7 @@ alldep::
 endif # TIERS
 endif # SUPPRESS_DEFAULT_RULES
 
-ifeq ($(filter s,$(MAKEFLAGS)),)
+ifneq ($(filter s,$(MAKE_FLAGS)),)
 ECHO := echo
 QUIET :=
 else

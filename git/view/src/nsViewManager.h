@@ -286,9 +286,8 @@ private:
   void UpdateWidgetsForView(nsView* aView);
 
   /**
-   * Transforms a rectangle from aView's coordinate system to the coordinate
-   * system of the widget attached to aWidgetView, which should be an ancestor
-   * of aView.
+   * Transforms a rectangle from specified view's coordinate system to
+   * the first parent that has an attached widget.
    */
   void ViewToWidget(nsView *aView, nsView* aWidgetView, nsRect &aRect) const;
 

@@ -398,6 +398,11 @@ JavaArray_checkAccess(JSContext *cx, JSObject *obj, jsid id,
                                             JSJMSG_JARRAY_PROP_WATCH);
         return JS_FALSE;
 
+    case JSACC_IMPORT:
+        JS_ReportErrorNumber(cx, jsj_GetErrorMessage, NULL, 
+                                            JSJMSG_JARRAY_PROP_EXPORT);
+        return JS_FALSE;
+
     default:
         return JS_TRUE;
     }

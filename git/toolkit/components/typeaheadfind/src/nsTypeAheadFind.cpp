@@ -82,6 +82,7 @@
 #include "nsIDOMNSHTMLElement.h"
 #include "nsIEditor.h"
 
+#include "nsICaret.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIWebNavigation.h"
 #include "nsIInterfaceRequestor.h"

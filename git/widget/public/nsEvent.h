@@ -78,5 +78,7 @@ class nsTooltipEvent;
 class nsMenuEvent;
 
 struct nsTextEventReply;
+struct nsReconversionEventReply;
+struct nsQueryCaretRectEventReply;
 
 #endif // nsEvent_h__

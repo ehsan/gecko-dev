@@ -99,11 +99,6 @@ public:
   // when the video playback has ended.
   void PlaybackCompleted();
 
-  // Called by the decoder object, on the main thread, when
-  // approximately enough of the resource has been loaded to play
-  // through without pausing for buffering.
-  void CanPlayThrough();
-
   // Draw the latest video data. See nsVideoDecoder for 
   // details.
   void Paint(gfxContext* aContext, const gfxRect& aRect);
@@ -114,13 +109,13 @@ public:
   nsresult DispatchAsyncSimpleEvent(const nsAString& aName);
   nsresult DispatchAsyncProgressEvent(const nsAString& aName);
 
-  // Use this method to change the mReadyState member, so required
-  // events can be fired.
-  void ChangeReadyState(nsMediaReadyState aState);
-
 protected:
   nsresult PickMediaElement(nsAString& aChosenMediaResource);
   virtual nsresult InitializeDecoder(nsAString& aChosenMediaResource);
+
+  // Use this method to change the mReadyState member, so required
+  // events can be fired.
+  void ChangeReadyState(nsMediaReadyState aState);
 
   nsRefPtr<nsVideoDecoder> mDecoder;
 

@@ -46,7 +46,7 @@
 #include "nsIDOMRange.h"
 #include "nsRange.h"
 #include "nsGUIEvent.h"
-#include "nsCaret.h"
+#include "nsICaret.h"
 #include "nsFrameSelection.h"
 #include "nsIFrame.h"
 #include "nsIView.h"
@@ -413,7 +413,7 @@ nsQueryContentEventHandler::OnQueryTextContent(nsQueryContentEvent* aEvent)
 nsresult
 nsQueryContentEventHandler::QueryRectFor(nsQueryContentEvent* aEvent,
                                          nsIRange* aRange,
-                                         nsCaret* aCaret)
+                                         nsICaret* aCaret)
 {
   PRInt32 offsetInFrame;
   nsIFrame* frame;
@@ -474,7 +474,7 @@ nsQueryContentEventHandler::OnQueryCaretRect(nsQueryContentEvent* aEvent)
   if (NS_FAILED(rv))
     return rv;
 
-  nsRefPtr<nsCaret> caret;
+  nsCOMPtr<nsICaret> caret;
   rv = mPresShell->GetCaret(getter_AddRefs(caret));
   NS_ENSURE_SUCCESS(rv, rv);
   NS_ASSERTION(caret, "GetCaret succeeded, but the result is null");
@@ -491,7 +491,7 @@ nsQueryContentEventHandler::OnQueryCaretRect(nsQueryContentEvent* aEvent)
     NS_ENSURE_SUCCESS(rv, rv);
     if (offset == aEvent->mInput.mOffset) {
       PRBool isCollapsed;
-      rv = caret->GetCaretCoordinates(nsCaret::eTopLevelWindowCoordinates,
+      rv = caret->GetCaretCoordinates(nsICaret::eTopLevelWindowCoordinates,
                                       mSelection, &aEvent->mReply.mRect,
                                       &isCollapsed, nsnull);
       NS_ENSURE_SUCCESS(rv, rv);

@@ -157,10 +157,8 @@ class nsCSSScanner {
   NS_HIDDEN_(void) ReportUnexpectedParams(const char* aMessage,
                                           const PRUnichar **aParams,
                                           PRUint32 aParamsLength);
-  // aLookingFor is a plain string, not a format string
+  // aMessage must take no parameters
   NS_HIDDEN_(void) ReportUnexpectedEOF(const char* aLookingFor);
-  // aLookingFor is a single character
-  NS_HIDDEN_(void) ReportUnexpectedEOF(PRUnichar aLookingFor);
   // aMessage must take 1 parameter (for the string representation of the
   // unexpected token)
   NS_HIDDEN_(void) ReportUnexpectedToken(nsCSSToken& tok,

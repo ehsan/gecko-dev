@@ -164,8 +164,8 @@ nsTableRowFrame::Init(nsIContent*      aContent,
   // Let the base class do its initialization
   rv = nsHTMLContainerFrame::Init(aContent, aParent, aPrevInFlow);
 
-  NS_ASSERTION(NS_STYLE_DISPLAY_TABLE_ROW == GetStyleDisplay()->mDisplay,
-               "wrong display on table row frame");
+  // record that children that are ignorable whitespace should be excluded 
+  mState |= NS_FRAME_EXCLUDE_IGNORABLE_WHITESPACE;
 
   if (aPrevInFlow) {
     // Set the row index

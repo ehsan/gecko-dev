@@ -52,7 +52,6 @@
 #include "nsIEventListenerManager.h"
 #include "nsGenericElement.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsContentUtils.h"
 
 class nsIDOMAttr;
 class nsIDOMEventListener;
@@ -190,10 +189,6 @@ public:
   virtual nsresult RemoveEventListenerByIID(nsIDOMEventListener *aListener,
                                             const nsIID& aIID);
   virtual nsresult GetSystemEventGroup(nsIDOMEventGroup** aGroup);
-  virtual nsresult GetContextForEventHandlers(nsIScriptContext** aContext)
-  {
-    return nsContentUtils::GetContextForEventHandlers(this, aContext);
-  }
 
   // Implementation for nsIContent
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
@@ -269,9 +264,6 @@ public:
     return NS_OK;
   }
 
-  nsresult SplitData(PRUint32 aOffset, nsIContent** aReturn,
-                     PRBool aCloneAfterOriginal = PR_TRUE);
-
   //----------------------------------------
 
 #ifdef DEBUG
@@ -322,12 +314,12 @@ protected:
 
   friend class nsText3Tearoff;
 
-  static PRInt32 FirstLogicallyAdjacentTextNode(nsIContent* aParent,
-                                                PRInt32 aIndex);
+  static PRUint32 FirstLogicallyAdjacentTextNode(nsIContent* aParent,
+                                                 PRUint32 aIndex);
 
-  static PRInt32 LastLogicallyAdjacentTextNode(nsIContent* aParent,
-                                               PRInt32 aIndex,
-                                               PRUint32 aCount);
+  static PRUint32 LastLogicallyAdjacentTextNode(nsIContent* aParent,
+                                                PRUint32 aIndex,
+                                                PRUint32 aCount);
 
   nsresult GetWholeText(nsAString& aWholeText);
 

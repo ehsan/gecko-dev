@@ -198,7 +198,6 @@ private:
   nsresult GetBorderRadiusTopLeft(nsIDOMCSSValue** aValue);
   nsresult GetBorderRadiusTopRight(nsIDOMCSSValue** aValue);
   nsresult GetFloatEdge(nsIDOMCSSValue** aValue);
-  nsresult GetBorderImage(nsIDOMCSSValue** aValue);
 
   /* Box Shadow */
   nsresult GetBoxShadow(nsIDOMCSSValue** aValue);
@@ -249,7 +248,6 @@ private:
   nsresult GetLetterSpacing(nsIDOMCSSValue** aValue);
   nsresult GetWordSpacing(nsIDOMCSSValue** aValue);
   nsresult GetWhiteSpace(nsIDOMCSSValue** aValue);
-  nsresult GetWordWrap(nsIDOMCSSValue** aValue);
 
   /* Visibility properties */
   nsresult GetOpacity(nsIDOMCSSValue** aValue);
@@ -285,9 +283,6 @@ private:
   nsresult GetColumnCount(nsIDOMCSSValue** aValue);
   nsresult GetColumnWidth(nsIDOMCSSValue** aValue);
   nsresult GetColumnGap(nsIDOMCSSValue** aValue);
-  nsresult GetColumnRuleWidth(nsIDOMCSSValue** aValue);
-  nsresult GetColumnRuleStyle(nsIDOMCSSValue** aValue);
-  nsresult GetColumnRuleColor(nsIDOMCSSValue** aValue);
 
 #ifdef MOZ_SVG
   /* SVG properties */
