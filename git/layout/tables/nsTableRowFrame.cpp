@@ -166,7 +166,7 @@ nsTableRowFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsTableRowFrame::AppendFrames(ChildListID     aListID,
                               nsFrameList&    aFrameList)
 {
@@ -190,7 +190,7 @@ nsTableRowFrame::AppendFrames(ChildListID     aListID,
 }
 
 
-nsresult
+NS_IMETHODIMP
 nsTableRowFrame::InsertFrames(ChildListID     aListID,
                               nsIFrame*       aPrevFrame,
                               nsFrameList&    aFrameList)
@@ -225,7 +225,7 @@ nsTableRowFrame::InsertFrames(ChildListID     aListID,
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsTableRowFrame::RemoveFrame(ChildListID     aListID,
                              nsIFrame*       aOldFrame)
 {
@@ -1020,7 +1020,7 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
 /** Layout the entire row.
   * This method stacks cells horizontally according to HTML 4.0 rules.
   */
-nsresult
+NS_METHOD
 nsTableRowFrame::Reflow(nsPresContext*          aPresContext,
                         nsHTMLReflowMetrics&     aDesiredSize,
                         const nsHTMLReflowState& aReflowState,
@@ -1433,7 +1433,7 @@ NS_NewTableRowFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 NS_IMPL_FRAMEARENA_HELPERS(nsTableRowFrame)
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsTableRowFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("TableRow"), aResult);

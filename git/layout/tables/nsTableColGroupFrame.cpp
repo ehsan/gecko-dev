@@ -26,12 +26,8 @@ nsTableColGroupFrame::GetColType() const
 
 void nsTableColGroupFrame::SetColType(nsTableColGroupType aType) 
 {
-  NS_ASSERTION(GetColType() == eColGroupContent,
-               "should only call nsTableColGroupFrame::SetColType with aType "
-               "!= eColGroupContent once");
   uint32_t type = aType - eColGroupContent;
-  RemoveStateBits(COL_GROUP_TYPE_BITS);
-  AddStateBits(nsFrameState(type << COL_GROUP_TYPE_OFFSET));
+  mState |= nsFrameState(type << COL_GROUP_TYPE_OFFSET);
 }
 
 void nsTableColGroupFrame::ResetColIndices(nsIFrame*       aFirstColGroup,
@@ -131,7 +127,7 @@ nsTableColGroupFrame::GetLastRealColGroup(nsTableFrame* aTableFrame)
 }
 
 // don't set mColCount here, it is done in AddColsToTable
-nsresult
+NS_IMETHODIMP
 nsTableColGroupFrame::SetInitialChildList(ChildListID     aListID,
                                           nsFrameList&    aChildList)
 {
@@ -177,7 +173,7 @@ nsTableColGroupFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsTableColGroupFrame::AppendFrames(ChildListID     aListID,
                                    nsFrameList&    aFrameList)
 {
@@ -201,7 +197,7 @@ nsTableColGroupFrame::AppendFrames(ChildListID     aListID,
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsTableColGroupFrame::InsertFrames(ChildListID     aListID,
                                    nsIFrame*       aPrevFrame,
                                    nsFrameList&    aFrameList)
@@ -285,7 +281,7 @@ nsTableColGroupFrame::RemoveChild(nsTableColFrame& aChild,
                                                NS_FRAME_HAS_DIRTY_CHILDREN);
 }
 
-nsresult
+NS_IMETHODIMP
 nsTableColGroupFrame::RemoveFrame(ChildListID     aListID,
                                   nsIFrame*       aOldFrame)
 {
@@ -353,7 +349,7 @@ nsTableColGroupFrame::GetSkipSides(const nsHTMLReflowState* aReflowState) const
   return skip;
 }
 
-nsresult nsTableColGroupFrame::Reflow(nsPresContext*          aPresContext,
+NS_METHOD nsTableColGroupFrame::Reflow(nsPresContext*          aPresContext,
                                        nsHTMLReflowMetrics&     aDesiredSize,
                                        const nsHTMLReflowState& aReflowState,
                                        nsReflowStatus&          aStatus)
@@ -485,7 +481,7 @@ nsTableColGroupFrame::InvalidateFrameWithRect(const nsRect& aRect, uint32_t aDis
 }
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsTableColGroupFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("TableColGroup"), aResult);

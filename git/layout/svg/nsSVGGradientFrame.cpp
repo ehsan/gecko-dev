@@ -60,7 +60,7 @@ NS_IMPL_FRAMEARENA_HELPERS(nsSVGGradientFrame)
 //----------------------------------------------------------------------
 // nsIFrame methods:
 
-nsresult
+NS_IMETHODIMP
 nsSVGGradientFrame::AttributeChanged(int32_t         aNameSpaceID,
                                      nsIAtom*        aAttribute,
                                      int32_t         aModType)
@@ -417,7 +417,7 @@ nsSVGLinearGradientFrame::GetType() const
   return nsGkAtoms::svgLinearGradientFrame;
 }
 
-nsresult
+NS_IMETHODIMP
 nsSVGLinearGradientFrame::AttributeChanged(int32_t         aNameSpaceID,
                                            nsIAtom*        aAttribute,
                                            int32_t         aModType)
@@ -526,7 +526,7 @@ nsSVGRadialGradientFrame::GetType() const
   return nsGkAtoms::svgRadialGradientFrame;
 }
 
-nsresult
+NS_IMETHODIMP
 nsSVGRadialGradientFrame::AttributeChanged(int32_t         aNameSpaceID,
                                            nsIAtom*        aAttribute,
                                            int32_t         aModType)

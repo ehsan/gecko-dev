@@ -220,7 +220,7 @@ nsSplitterFrame::DestroyFrom(nsIFrame* aDestructRoot)
 }
 
 
-nsresult
+NS_IMETHODIMP
 nsSplitterFrame::GetCursor(const nsPoint&    aPoint,
                            nsIFrame::Cursor& aCursor)
 {
@@ -236,7 +236,7 @@ nsSplitterFrame::GetCursor(const nsPoint&    aPoint,
   */
 }
 
-nsresult
+NS_IMETHODIMP
 nsSplitterFrame::AttributeChanged(int32_t aNameSpaceID,
                                   nsIAtom* aAttribute,
                                   int32_t aModType)
@@ -374,7 +374,7 @@ nsSplitterFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsSplitterFrame::HandleEvent(nsPresContext* aPresContext,
                              WidgetGUIEvent* aEvent,
                              nsEventStatus* aEventStatus)

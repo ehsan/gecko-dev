@@ -96,7 +96,7 @@ nsProgressFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   BuildDisplayListForInline(aBuilder, aDirtyRect, aLists);
 }
 
-nsresult nsProgressFrame::Reflow(nsPresContext*           aPresContext,
+NS_IMETHODIMP nsProgressFrame::Reflow(nsPresContext*           aPresContext,
                                       nsHTMLReflowMetrics&     aDesiredSize,
                                       const nsHTMLReflowState& aReflowState,
                                       nsReflowStatus&          aStatus)
@@ -200,7 +200,7 @@ nsProgressFrame::ReflowBarFrame(nsIFrame*                aBarFrame,
                     xoffset, yoffset, 0);
 }
 
-nsresult
+NS_IMETHODIMP
 nsProgressFrame::AttributeChanged(int32_t  aNameSpaceID,
                                   nsIAtom* aAttribute,
                                   int32_t  aModType)

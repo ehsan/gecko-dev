@@ -68,7 +68,7 @@ nsBulletFrame::DestroyFrom(nsIFrame* aDestructRoot)
 }
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsBulletFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("Bullet"), aResult);
@@ -1651,7 +1651,7 @@ nsBulletFrame::GetDesiredSize(nsPresContext*  aCX,
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsBulletFrame::Reflow(nsPresContext* aPresContext,
                       nsHTMLReflowMetrics& aMetrics,
                       const nsHTMLReflowState& aReflowState,

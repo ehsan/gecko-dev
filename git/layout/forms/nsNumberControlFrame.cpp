@@ -60,7 +60,7 @@ nsNumberControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
   nsContainerFrame::DestroyFrom(aDestructRoot);
 }
 
-nsresult
+NS_IMETHODIMP
 nsNumberControlFrame::Reflow(nsPresContext* aPresContext,
                              nsHTMLReflowMetrics& aDesiredSize,
                              const nsHTMLReflowState& aReflowState,
@@ -167,7 +167,7 @@ nsNumberControlFrame::SyncDisabledState()
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsNumberControlFrame::AttributeChanged(int32_t  aNameSpaceID,
                                        nsIAtom* aAttribute,
                                        int32_t  aModType)

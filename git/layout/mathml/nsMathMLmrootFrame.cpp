@@ -145,7 +145,7 @@ GetRadicalXOffsets(nscoord aIndexWidth, nscoord aSqrWidth,
     *aSqrOffset = dxSqr;
 }
 
-nsresult
+NS_IMETHODIMP
 nsMathMLmrootFrame::Reflow(nsPresContext*          aPresContext,
                            nsHTMLReflowMetrics&     aDesiredSize,
                            const nsHTMLReflowState& aReflowState,

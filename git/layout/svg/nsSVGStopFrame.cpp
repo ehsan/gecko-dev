@@ -40,9 +40,9 @@ public:
                         const nsRect&           aDirtyRect,
                         const nsDisplayListSet& aLists) MOZ_OVERRIDE {}
 
-  virtual nsresult AttributeChanged(int32_t         aNameSpaceID,
-                                    nsIAtom*        aAttribute,
-                                    int32_t         aModType);
+  NS_IMETHOD AttributeChanged(int32_t         aNameSpaceID,
+                              nsIAtom*        aAttribute,
+                              int32_t         aModType);
 
   /**
    * Get the "type" of the frame
@@ -57,7 +57,7 @@ public:
   }
 
 #ifdef DEBUG_FRAME_DUMP
-  virtual nsresult GetFrameName(nsAString& aResult) const
+  NS_IMETHOD GetFrameName(nsAString& aResult) const
   {
     return MakeFrameName(NS_LITERAL_STRING("SVGStop"), aResult);
   }
@@ -90,7 +90,7 @@ nsSVGStopFrame::GetType() const
   return nsGkAtoms::svgStopFrame;
 }
 
-nsresult
+NS_IMETHODIMP
 nsSVGStopFrame::AttributeChanged(int32_t         aNameSpaceID,
                                  nsIAtom*        aAttribute,
                                  int32_t         aModType)

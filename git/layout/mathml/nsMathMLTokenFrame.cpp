@@ -88,7 +88,7 @@ nsMathMLTokenFrame::MarkTextFramesAsTokenMathML()
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsMathMLTokenFrame::SetInitialChildList(ChildListID     aListID,
                                         nsFrameList&    aChildList)
 {
@@ -102,7 +102,7 @@ nsMathMLTokenFrame::SetInitialChildList(ChildListID     aListID,
   return rv;
 }
 
-nsresult
+NS_IMETHODIMP
 nsMathMLTokenFrame::AppendFrames(ChildListID aListID,
                                  nsFrameList& aChildList)
 {
@@ -115,7 +115,7 @@ nsMathMLTokenFrame::AppendFrames(ChildListID aListID,
   return rv;
 }
 
-nsresult
+NS_IMETHODIMP
 nsMathMLTokenFrame::InsertFrames(ChildListID aListID,
                                  nsIFrame* aPrevFrame,
                                  nsFrameList& aChildList)

@@ -82,7 +82,7 @@ nsCanvasFrame::SetHasFocus(bool aHasFocus)
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsCanvasFrame::SetInitialChildList(ChildListID     aListID,
                                    nsFrameList&    aChildList)
 {
@@ -92,7 +92,7 @@ nsCanvasFrame::SetInitialChildList(ChildListID     aListID,
   return nsContainerFrame::SetInitialChildList(aListID, aChildList);
 }
 
-nsresult
+NS_IMETHODIMP
 nsCanvasFrame::AppendFrames(ChildListID     aListID,
                             nsFrameList&    aFrameList)
 {
@@ -125,7 +125,7 @@ nsCanvasFrame::AppendFrames(ChildListID     aListID,
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsCanvasFrame::InsertFrames(ChildListID     aListID,
                             nsIFrame*       aPrevFrame,
                             nsFrameList&    aFrameList)
@@ -139,7 +139,7 @@ nsCanvasFrame::InsertFrames(ChildListID     aListID,
   return AppendFrames(aListID, aFrameList);
 }
 
-nsresult
+NS_IMETHODIMP
 nsCanvasFrame::RemoveFrame(ChildListID     aListID,
                            nsIFrame*       aOldFrame)
 {
@@ -450,7 +450,7 @@ nsCanvasFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
   return result;
 }
 
-nsresult
+NS_IMETHODIMP
 nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
                       nsHTMLReflowMetrics&     aDesiredSize,
                       const nsHTMLReflowState& aReflowState,
@@ -591,7 +591,7 @@ nsCanvasFrame::GetType() const
   return nsGkAtoms::canvasFrame;
 }
 
-nsresult 
+NS_IMETHODIMP 
 nsCanvasFrame::GetContentForEvent(WidgetEvent* aEvent,
                                   nsIContent** aContent)
 {
@@ -610,7 +610,7 @@ nsCanvasFrame::GetContentForEvent(WidgetEvent* aEvent,
 }
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsCanvasFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("Canvas"), aResult);

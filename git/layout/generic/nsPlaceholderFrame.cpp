@@ -98,7 +98,7 @@ nsPlaceholderFrame::AddInlinePrefWidth(nsRenderingContext* aRenderingContext,
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsPlaceholderFrame::Reflow(nsPresContext*           aPresContext,
                            nsHTMLReflowMetrics&     aDesiredSize,
                            const nsHTMLReflowState& aReflowState,
@@ -236,7 +236,7 @@ nsPlaceholderFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 #endif // DEBUG || (MOZ_REFLOW_PERF_DSP && MOZ_REFLOW_PERF)
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsPlaceholderFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("Placeholder"), aResult);

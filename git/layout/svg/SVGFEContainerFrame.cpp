@@ -38,7 +38,7 @@ public:
   }
 
 #ifdef DEBUG_FRAME_DUMP
-  virtual nsresult GetFrameName(nsAString& aResult) const
+  NS_IMETHOD GetFrameName(nsAString& aResult) const
   {
     return MakeFrameName(NS_LITERAL_STRING("SVGFEContainer"), aResult);
   }
@@ -56,9 +56,9 @@ public:
    */
   virtual nsIAtom* GetType() const;
 
-  virtual nsresult AttributeChanged(int32_t  aNameSpaceID,
-                                    nsIAtom* aAttribute,
-                                    int32_t  aModType);
+  NS_IMETHOD AttributeChanged(int32_t  aNameSpaceID,
+                              nsIAtom* aAttribute,
+                              int32_t  aModType);
 
   virtual bool UpdateOverflow() {
     // We don't maintain a visual overflow rect
@@ -94,7 +94,7 @@ SVGFEContainerFrame::GetType() const
   return nsGkAtoms::svgFEContainerFrame;
 }
 
-nsresult
+NS_IMETHODIMP
 SVGFEContainerFrame::AttributeChanged(int32_t  aNameSpaceID,
                                       nsIAtom* aAttribute,
                                       int32_t  aModType)

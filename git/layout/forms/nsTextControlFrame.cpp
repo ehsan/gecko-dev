@@ -462,7 +462,7 @@ nsTextControlFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
   return autoSize;
 }
 
-nsresult
+NS_IMETHODIMP
 nsTextControlFrame::Reflow(nsPresContext*   aPresContext,
                            nsHTMLReflowMetrics&     aDesiredSize,
                            const nsHTMLReflowState& aReflowState,
@@ -1042,7 +1042,7 @@ nsTextControlFrame::GetSelectionRange(int32_t* aSelectionStart,
 /////END INTERFACE IMPLEMENTATIONS
 
 ////NSIFRAME
-nsresult
+NS_IMETHODIMP
 nsTextControlFrame::AttributeChanged(int32_t         aNameSpaceID,
                                      nsIAtom*        aAttribute,
                                      int32_t         aModType)
@@ -1187,7 +1187,7 @@ nsTextControlFrame::GetMaxLength(int32_t* aSize)
 
 // END IMPLEMENTING NS_IFORMCONTROLFRAME
 
-nsresult
+NS_IMETHODIMP
 nsTextControlFrame::SetInitialChildList(ChildListID     aListID,
                                         nsFrameList&    aChildList)
 {
@@ -1370,7 +1370,7 @@ nsTextControlFrame::RestoreState(nsPresState* aState)
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsTextControlFrame::PeekOffset(nsPeekOffsetStruct *aPos)
 {
   return NS_ERROR_FAILURE;

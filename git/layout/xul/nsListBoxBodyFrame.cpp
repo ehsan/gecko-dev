@@ -217,7 +217,7 @@ nsListBoxBodyFrame::DestroyFrom(nsIFrame* aDestructRoot)
   nsBoxFrame::DestroyFrom(aDestructRoot);
 }
 
-nsresult
+NS_IMETHODIMP
 nsListBoxBodyFrame::AttributeChanged(int32_t aNameSpaceID,
                                      nsIAtom* aAttribute, 
                                      int32_t aModType)

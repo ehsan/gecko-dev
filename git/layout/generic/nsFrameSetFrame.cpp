@@ -83,24 +83,24 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
 #ifdef DEBUG_FRAME_DUMP
-  virtual nsresult GetFrameName(nsAString& aResult) const;
+  NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
-  virtual nsresult HandleEvent(nsPresContext* aPresContext,
-                               WidgetGUIEvent* aEvent,
-                               nsEventStatus* aEventStatus);
+  NS_IMETHOD HandleEvent(nsPresContext* aPresContext,
+                         WidgetGUIEvent* aEvent,
+                         nsEventStatus* aEventStatus);
 
-  virtual nsresult GetCursor(const nsPoint&    aPoint,
-                             nsIFrame::Cursor& aCursor);
+  NS_IMETHOD GetCursor(const nsPoint&    aPoint,
+                       nsIFrame::Cursor& aCursor);
 
   virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,
                                 const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
-  virtual nsresult Reflow(nsPresContext*           aPresContext,
-                          nsHTMLReflowMetrics&     aDesiredSize,
-                          const nsHTMLReflowState& aReflowState,
-                          nsReflowStatus&          aStatus);
+  NS_IMETHOD Reflow(nsPresContext*           aPresContext,
+                    nsHTMLReflowMetrics&     aDesiredSize,
+                    const nsHTMLReflowState& aReflowState,
+                    nsReflowStatus&          aStatus);
 
   bool GetVisibility() { return mVisibility || mVisibilityOverride; }
   void SetVisibility(bool aVisibility);
@@ -137,7 +137,7 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
 #ifdef DEBUG_FRAME_DUMP
-  virtual nsresult GetFrameName(nsAString& aResult) const
+  NS_IMETHOD GetFrameName(nsAString& aResult) const
   {
     return MakeFrameName(NS_LITERAL_STRING("FramesetBlank"), aResult);
   }
@@ -147,10 +147,10 @@ public:
                                 const nsRect&           aDirtyRect,
                                 const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
-  virtual nsresult Reflow(nsPresContext*           aPresContext,
-                          nsHTMLReflowMetrics&     aDesiredSize,
-                          const nsHTMLReflowState& aReflowState,
-                          nsReflowStatus&          aStatus);
+  NS_IMETHOD Reflow(nsPresContext*           aPresContext,
+                    nsHTMLReflowMetrics&     aDesiredSize,
+                    const nsHTMLReflowState& aReflowState,
+                    nsReflowStatus&          aStatus);
 
 protected:
   nsHTMLFramesetBlankFrame(nsStyleContext* aContext) : nsLeafFrame(aContext) {}
@@ -392,7 +392,7 @@ nsHTMLFramesetFrame::Init(nsIContent*      aContent,
   mNonBorderChildCount = mChildCount;
 }
 
-nsresult
+NS_IMETHODIMP
 nsHTMLFramesetFrame::SetInitialChildList(ChildListID  aListID,
                                          nsFrameList& aChildList)
 {
@@ -678,7 +678,7 @@ void nsHTMLFramesetFrame::GetSizeOfChild(nsIFrame* aChild,
 }
 
 
-nsresult nsHTMLFramesetFrame::HandleEvent(nsPresContext* aPresContext,
+NS_METHOD nsHTMLFramesetFrame::HandleEvent(nsPresContext* aPresContext,
                                            WidgetGUIEvent* aEvent,
                                            nsEventStatus* aEventStatus)
 {
@@ -702,7 +702,7 @@ nsresult nsHTMLFramesetFrame::HandleEvent(nsPresContext* aPresContext,
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsHTMLFramesetFrame::GetCursor(const nsPoint&    aPoint,
                                nsIFrame::Cursor& aCursor)
 {
@@ -839,7 +839,7 @@ nscolor nsHTMLFramesetFrame::GetBorderColor(nsIContent* aContent)
   return GetBorderColor();
 }
 
-nsresult
+NS_IMETHODIMP
 nsHTMLFramesetFrame::Reflow(nsPresContext*           aPresContext,
                             nsHTMLReflowMetrics&     aDesiredSize,
                             const nsHTMLReflowState& aReflowState,
@@ -1149,7 +1149,7 @@ nsHTMLFramesetFrame::GetType() const
 }
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsHTMLFramesetFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("Frameset"), aResult);
@@ -1436,7 +1436,7 @@ void nsHTMLFramesetBorderFrame::SetColor(nscolor aColor)
 }
 
 
-nsresult
+NS_IMETHODIMP
 nsHTMLFramesetBorderFrame::Reflow(nsPresContext*           aPresContext,
                                   nsHTMLReflowMetrics&     aDesiredSize,
                                   const nsHTMLReflowState& aReflowState,
@@ -1573,7 +1573,7 @@ void nsHTMLFramesetBorderFrame::PaintBorder(nsRenderingContext& aRenderingContex
 }
 
 
-nsresult
+NS_IMETHODIMP
 nsHTMLFramesetBorderFrame::HandleEvent(nsPresContext* aPresContext,
                                        WidgetGUIEvent* aEvent,
                                        nsEventStatus* aEventStatus)
@@ -1597,7 +1597,7 @@ nsHTMLFramesetBorderFrame::HandleEvent(nsPresContext* aPresContext,
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsHTMLFramesetBorderFrame::GetCursor(const nsPoint&    aPoint,
                                      nsIFrame::Cursor& aCursor)
 {
@@ -1610,7 +1610,7 @@ nsHTMLFramesetBorderFrame::GetCursor(const nsPoint&    aPoint,
 }
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult nsHTMLFramesetBorderFrame::GetFrameName(nsAString& aResult) const
+NS_IMETHODIMP nsHTMLFramesetBorderFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("FramesetBorder"), aResult);
 }
@@ -1643,7 +1643,7 @@ nscoord nsHTMLFramesetBlankFrame::GetIntrinsicHeight()
   return 0;
 }
 
-nsresult
+NS_IMETHODIMP
 nsHTMLFramesetBlankFrame::Reflow(nsPresContext*           aPresContext,
                                  nsHTMLReflowMetrics&     aDesiredSize,
                                  const nsHTMLReflowState& aReflowState,

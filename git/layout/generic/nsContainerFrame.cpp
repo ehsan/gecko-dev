@@ -67,7 +67,7 @@ nsContainerFrame::Init(nsIContent* aContent,
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsContainerFrame::SetInitialChildList(ChildListID  aListID,
                                       nsFrameList& aChildList)
 {
@@ -91,7 +91,7 @@ nsContainerFrame::SetInitialChildList(ChildListID  aListID,
   return result;
 }
 
-nsresult
+NS_IMETHODIMP
 nsContainerFrame::AppendFrames(ChildListID  aListID,
                                nsFrameList& aFrameList)
 {
@@ -120,7 +120,7 @@ nsContainerFrame::AppendFrames(ChildListID  aListID,
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsContainerFrame::InsertFrames(ChildListID aListID,
                                nsIFrame* aPrevFrame,
                                nsFrameList& aFrameList)
@@ -153,7 +153,7 @@ nsContainerFrame::InsertFrames(ChildListID aListID,
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsContainerFrame::RemoveFrame(ChildListID aListID,
                               nsIFrame* aOldFrame)
 {

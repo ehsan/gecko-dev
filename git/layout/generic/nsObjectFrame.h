@@ -58,20 +58,20 @@ public:
                     nsIFrame* aPrevInFlow) MOZ_OVERRIDE;
   virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
-  virtual nsresult Reflow(nsPresContext* aPresContext,
-                          nsHTMLReflowMetrics& aDesiredSize,
-                          const nsHTMLReflowState& aReflowState,
-                          nsReflowStatus& aStatus);
-  virtual nsresult DidReflow(nsPresContext* aPresContext,
-                             const nsHTMLReflowState* aReflowState,
-                             nsDidReflowStatus aStatus);
+  NS_IMETHOD Reflow(nsPresContext* aPresContext,
+                    nsHTMLReflowMetrics& aDesiredSize,
+                    const nsHTMLReflowState& aReflowState,
+                    nsReflowStatus& aStatus);
+  NS_IMETHOD DidReflow(nsPresContext* aPresContext,
+                       const nsHTMLReflowState* aReflowState,
+                       nsDidReflowStatus aStatus);
   virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,
                                 const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
-  virtual nsresult  HandleEvent(nsPresContext* aPresContext,
-                                mozilla::WidgetGUIEvent* aEvent,
-                                nsEventStatus* aEventStatus);
+  NS_IMETHOD  HandleEvent(nsPresContext* aPresContext,
+                          mozilla::WidgetGUIEvent* aEvent,
+                          nsEventStatus* aEventStatus);
 
   virtual nsIAtom* GetType() const;
 
@@ -83,7 +83,7 @@ public:
   virtual bool NeedsView() { return true; }
 
 #ifdef DEBUG_FRAME_DUMP
-  virtual nsresult GetFrameName(nsAString& aResult) const;
+  NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
@@ -94,7 +94,7 @@ public:
 
   virtual void SetIsDocumentActive(bool aIsActive) MOZ_OVERRIDE;
 
-  virtual nsresult GetCursor(const nsPoint& aPoint, nsIFrame::Cursor& aCursor);
+  NS_IMETHOD GetCursor(const nsPoint& aPoint, nsIFrame::Cursor& aCursor);
 
   // APIs used by nsRootPresContext to set up the widget position/size/clip
   // region.
