@@ -17,8 +17,6 @@
 #include "LockedFile.h"
 #include "MetadataHelper.h"
 
-using namespace mozilla;
-using namespace mozilla::dom;
 USING_FILE_NAMESPACE
 
 namespace {
@@ -51,8 +49,17 @@ private:
 
 } // anonymous namespace
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_1(FileHandle, nsDOMEventTargetHelper,
-                                     mFileStorage)
+NS_IMPL_CYCLE_COLLECTION_CLASS(FileHandle)
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(FileHandle,
+                                                  nsDOMEventTargetHelper)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mFileStorage)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(FileHandle,
+                                                nsDOMEventTargetHelper)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mFileStorage)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(FileHandle)
   NS_INTERFACE_MAP_ENTRY(nsIDOMFileHandle)
@@ -65,14 +72,14 @@ NS_IMPL_EVENT_HANDLER(FileHandle, abort)
 NS_IMPL_EVENT_HANDLER(FileHandle, error)
 
 NS_IMETHODIMP
-FileHandle::GetDOMName(nsAString& aName)
+FileHandle::GetName(nsAString& aName)
 {
   aName = mName;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-FileHandle::GetDOMType(nsAString& aType)
+FileHandle::GetType(nsAString& aType)
 {
   aType = mType;
   return NS_OK;
@@ -83,77 +90,48 @@ FileHandle::Open(const nsAString& aMode,
                  uint8_t aOptionalArgCount,
                  nsIDOMLockedFile** _retval)
 {
-  FileMode mode;
-  if (aOptionalArgCount) {
-    if (aMode.EqualsLiteral("readwrite")) {
-      mode = FileModeValues::Readwrite;
-    } else if (aMode.EqualsLiteral("readonly")) {
-      mode = FileModeValues::Readonly;
-    } else {
-      return NS_ERROR_TYPE_ERR;
-    }
-  } else {
-    mode = FileModeValues::Readonly;
-  }
-
-  ErrorResult rv;
-  nsCOMPtr<nsIDOMLockedFile> lockedFile = Open(mode, rv);
-  lockedFile.forget(_retval);
-  return rv.ErrorCode();
-}
-
-already_AddRefed<nsIDOMLockedFile>
-FileHandle::Open(FileMode aMode, ErrorResult& aError)
-{
-  MOZ_ASSERT(NS_IsMainThread());
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   if (FileService::IsShuttingDown() || mFileStorage->IsStorageShuttingDown()) {
-    aError.Throw(NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR);
-    return nullptr;
+    return NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR;
   }
 
-  MOZ_STATIC_ASSERT(static_cast<uint32_t>(FileModeValues::Readonly) ==
-                    static_cast<uint32_t>(LockedFile::READ_ONLY),
-                    "Enum values should match.");
-  MOZ_STATIC_ASSERT(static_cast<uint32_t>(FileModeValues::Readwrite) ==
-                    static_cast<uint32_t>(LockedFile::READ_WRITE),
-                    "Enum values should match.");
-
-  nsRefPtr<LockedFile> lockedFile =
-    LockedFile::Create(this, static_cast<LockedFile::Mode>(aMode));
-  if (!lockedFile) {
-    aError.Throw(NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR);
-    return nullptr;
+  LockedFile::Mode mode;
+  if (aOptionalArgCount) {
+    if (aMode.EqualsLiteral("readwrite")) {
+      mode = LockedFile::READ_WRITE;
+    }
+    else if (aMode.EqualsLiteral("readonly")) {
+      mode = LockedFile::READ_ONLY;
+    }
+    else {
+      return NS_ERROR_TYPE_ERR;
+    }
+  }
+  else {
+    mode = LockedFile::READ_ONLY;
   }
 
-  return lockedFile.forget();
+  nsRefPtr<LockedFile> lockedFile = LockedFile::Create(this, mode);
+  NS_ENSURE_TRUE(lockedFile, NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR);
+
+  lockedFile.forget(_retval);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 FileHandle::GetFile(nsIDOMDOMRequest** _retval)
 {
-  ErrorResult rv;
-  nsCOMPtr<nsIDOMDOMRequest> request = GetFile(rv);
-  request.forget(_retval);
-  return rv.ErrorCode();
-}
-
-already_AddRefed<nsIDOMDOMRequest>
-FileHandle::GetFile(ErrorResult& aError)
-{
-  MOZ_ASSERT(NS_IsMainThread());
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   // Do nothing if the window is closed
   if (!GetOwner()) {
-    return nullptr;
+    return NS_OK;
   }
 
   nsRefPtr<LockedFile> lockedFile =
     LockedFile::Create(this, LockedFile::READ_ONLY, LockedFile::PARALLEL);
-  if (!lockedFile) {
-    aError.Throw(NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR);
-    return nullptr;
-  }
+  NS_ENSURE_TRUE(lockedFile, NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR);
 
   nsRefPtr<FileRequest> request =
     FileRequest::Create(GetOwner(), lockedFile, false);
@@ -165,13 +143,12 @@ FileHandle::GetFile(ErrorResult& aError)
     new GetFileHelper(lockedFile, request, params, this);
 
   nsresult rv = helper->Enqueue();
-  if (NS_FAILED(rv)) {
-    aError.Throw(NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR);
-    return nullptr;
-  }
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR);
 
-  nsRefPtr<DOMRequest> domRequest = request.forget();
-  return domRequest.forget();
+  nsCOMPtr<nsIDOMDOMRequest> result = static_cast<DOMRequest*>(request);
+  result.forget(_retval);
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP_(int64_t)
@@ -198,11 +175,4 @@ GetFileHelper::GetSuccessResult(JSContext* aCx, jsval* aVal)
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR);
 
   return NS_OK;
-}
-
-/* virtual */
-JSObject*
-FileHandle::WrapObject(JSContext* aCx, JSObject* aScope, bool* aTriedToWrap)
-{
-  return FileHandleBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }

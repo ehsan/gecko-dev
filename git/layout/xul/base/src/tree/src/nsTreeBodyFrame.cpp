@@ -59,7 +59,6 @@
 #include "nsIScriptableRegion.h"
 
 #include "mozilla/Likely.h"
-#include "mozilla/Util.h"
 
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"

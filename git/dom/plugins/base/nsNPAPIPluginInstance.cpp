@@ -31,11 +31,9 @@
 #include "nsSize.h"
 #include "nsNetCID.h"
 #include "nsIContent.h"
-#include "nsVersionComparator.h"
-#include "mozilla/Preferences.h"
-#include "mozilla/unused.h"
 
-using namespace mozilla;
+#include "mozilla/Preferences.h"
+#include "nsVersionComparator.h"
 
 #ifdef MOZ_WIDGET_ANDROID
 #include "ANPBase.h"
@@ -49,6 +47,7 @@ using namespace mozilla;
 #include "GLContextProvider.h"
 #include "TexturePoolOGL.h"
 
+using namespace mozilla;
 using namespace mozilla::gl;
 
 typedef nsNPAPIPluginInstance::TextureInfo TextureInfo;

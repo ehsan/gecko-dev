@@ -15,7 +15,6 @@ def extractLines(fp):
     lines = []
     watch = False
     for line in fp:
-        line = line.decode('utf-8')
         if line == '@@@ @@@ Failures\n':
             watch = True
         elif watch:
@@ -45,10 +44,9 @@ def dumpFailures(lines):
         files.append(jsonpath)
         ensuredir(jsonpath)
         obj = json.loads(objstr, object_pairs_hook=collections.OrderedDict)
-        formattedobjstr = json.dumps(obj, indent=2, separators=(',', sep)) + '\n'
-        formattedobj = formattedobjstr.encode('utf-8')
-        fp = open(jsonpath, 'wb')
-        fp.write(formattedobj)
+        formattedobj = json.dumps(obj, indent=2, separators=(',', sep))
+        fp = open(jsonpath, 'w')
+        fp.write(formattedobj + '\n')
         fp.close()
     return files
 
@@ -59,15 +57,14 @@ def writeMakefiles(files):
         pathmap.setdefault(dirp, []).append(leaf)
 
     for k, v in pathmap.items():
-        resultstr = writeMakefile.substMakefile('parseFailures.py', [], v)
-        result = resultstr.encode('utf-8')
+        result = writeMakefile.substMakefile('parseFailures.py', [], v)
 
-        fp = open(k + '/Makefile.in', 'wb')
+        fp = open(k + '/Makefile.in', 'w')
         fp.write(result)
         fp.close()
 
 def main(logPath):
-    fp = open(logPath, 'rb')
+    fp = open(logPath, 'r')
     lines = extractLines(fp)
     fp.close()
 

@@ -616,16 +616,14 @@ CopyElement(nsISupports* aElement, void *aData)
 }
 
 NS_IMETHODIMP
-nsSupportsArray::Clone(nsISupportsArray** aResult)
+nsSupportsArray::Clone(nsISupportsArray* *result)
 {
-  nsCOMPtr<nsISupportsArray> newArray;
-  nsresult rv = NS_NewISupportsArray(getter_AddRefs(newArray));
-  NS_ENSURE_SUCCESS(rv, rv);
-
+  nsresult rv;
+  nsISupportsArray* newArray;
+  rv = NS_NewISupportsArray(&newArray);
   bool ok = EnumerateForwards(CopyElement, newArray);
-  NS_ENSURE_TRUE(ok, NS_ERROR_OUT_OF_MEMORY);
-
-  newArray.forget(aResult);
+  if (!ok) return NS_ERROR_OUT_OF_MEMORY;
+  *result = newArray;
   return NS_OK;
 }
 

@@ -360,6 +360,7 @@ Breakpoint::nextInSite()
     return (link == &site->breakpoints) ? NULL : fromSiteLinks(link);
 }
 
+
 /*** Debugger hook dispatch **********************************************************************/
 
 Debugger::Debugger(JSContext *cx, JSObject *dbg)
@@ -368,7 +369,8 @@ Debugger::Debugger(JSContext *cx, JSObject *dbg)
 {
     assertSameCompartment(cx, dbg);
 
-    cx->runtime->debuggerList.insertBack(this);
+    JSRuntime *rt = cx->runtime;
+    JS_APPEND_LINK(&link, &rt->debuggerList);
     JS_INIT_CLIST(&breakpoints);
     JS_INIT_CLIST(&onNewGlobalObjectWatchersLink);
 }
@@ -379,6 +381,7 @@ Debugger::~Debugger()
 
     /* This always happens in the GC thread, so no locking is required. */
     JS_ASSERT(object->compartment()->rt->isHeapBusy());
+    JS_REMOVE_LINK(&link);
 
     /*
      * Since the inactive state for this link is a singleton cycle, it's always
@@ -1396,7 +1399,8 @@ Debugger::markCrossCompartmentDebuggerObjectReferents(JSTracer *tracer)
      * Mark all objects in comp that are referents of Debugger.Objects in other
      * compartments.
      */
-    for (Debugger *dbg = rt->debuggerList.getFirst(); dbg; dbg = dbg->getNext()) {
+    for (JSCList *p = &rt->debuggerList; (p = JS_NEXT_LINK(p)) != &rt->debuggerList;) {
+        Debugger *dbg = Debugger::fromLinks(p);
         if (!dbg->object->compartment()->isCollecting())
             dbg->markKeysInCompartment(tracer);
     }
@@ -1524,7 +1528,9 @@ Debugger::sweepAll(FreeOp *fop)
 {
     JSRuntime *rt = fop->runtime();
 
-    for (Debugger *dbg = rt->debuggerList.getFirst(); dbg; dbg = dbg->getNext()) {
+    for (JSCList *p = &rt->debuggerList; (p = JS_NEXT_LINK(p)) != &rt->debuggerList;) {
+        Debugger *dbg = Debugger::fromLinks(p);
+
         if (IsObjectAboutToBeFinalized(&dbg->object)) {
             /*
              * dbg is being GC'd. Detach it from its debuggees. The debuggee
@@ -1568,7 +1574,9 @@ Debugger::findCompartmentEdges(JSCompartment *comp, js::gc::ComponentFinder &fin
      * This ensure that debuggers and their debuggees are finalized in the same
      * group.
      */
-    for (Debugger *dbg = comp->rt->debuggerList.getFirst(); dbg; dbg = dbg->getNext()) {
+    JSRuntime *rt = comp->rt;
+    for (JSCList *p = &rt->debuggerList; (p = JS_NEXT_LINK(p)) != &rt->debuggerList;) {
+        Debugger *dbg = Debugger::fromLinks(p);
         JSCompartment *w = dbg->object->compartment();
         if (w == comp || !w->isGCMarking())
             continue;

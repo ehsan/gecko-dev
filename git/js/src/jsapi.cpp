@@ -886,6 +886,7 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     requestedHelperThreadCount(-1)
 {
     /* Initialize infallibly first, so we can goto bad and JS_DestroyRuntime. */
+    JS_INIT_CLIST(&debuggerList);
     JS_INIT_CLIST(&onNewGlobalObjectWatchers);
 
     PodZero(&debugHooks);

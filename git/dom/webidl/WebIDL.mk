@@ -32,7 +32,6 @@ webidl_files = \
   EventHandler.webidl \
   EventListener.webidl \
   EventTarget.webidl \
-  FileHandle.webidl \
   FileList.webidl \
   FileReaderSync.webidl \
   Function.webidl \

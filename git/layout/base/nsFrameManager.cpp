@@ -15,8 +15,6 @@
 
 /* storage of the frame tree and information about it */
 
-#include "mozilla/Util.h"
-
 #include "nscore.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
