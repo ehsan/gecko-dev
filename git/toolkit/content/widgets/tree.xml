@@ -710,13 +710,11 @@
           if (this._editingColumn) {
             this.stopEditing(true);
             this.focus();
+            event.stopPropagation();
           }
           else {
-            if (!this.changeOpenState(this.currentIndex))
-              return; // don't consume the event if the open state wasn't changed
+            this.changeOpenState(this.currentIndex);
           }
-          event.stopPropagation();
-          event.preventDefault();
         ]]>
       </handler>
       <handler event="keypress" keycode="VK_RETURN">
@@ -724,13 +722,11 @@
           if (this._editingColumn) {
             this.stopEditing(true);
             this.focus();
+            event.stopPropagation();
           }
           else {
-            if (!this.changeOpenState(this.currentIndex))
-              return; // don't consume the event if the open state wasn't changed
+            this.changeOpenState(this.currentIndex);
           }
-          event.stopPropagation();
-          event.preventDefault();
         ]]>
       </handler>
       <handler event="keypress" keycode="VK_ESCAPE">
@@ -739,7 +735,6 @@
             this.stopEditing(false);
             this.focus();
             event.stopPropagation();
-            event.preventDefault();
           }
         ]]>
       </handler>

@@ -177,6 +177,18 @@ radio[pane=paneAdvanced][selected="true"] {
 /**
  * Clear Private Data
  */
+#SanitizeDurationBox {
+  padding-bottom: 10px;
+}
+
+#sanitizeDurationChoice {
+  margin: 0; 
+}
+
+#sanitizeDurationLabel {
+  -moz-margin-start: 3px;
+}
+
 #SanitizeDialogPane > groupbox {
   margin-top: 0;
 }

@@ -442,9 +442,6 @@ nsFrame::RemoveFrame(nsIAtom*        aListName,
 void
 nsFrame::Destroy()
 {
-  NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
-    "destroy called on frame while scripts not blocked");
-
 #ifdef MOZ_SVG
   nsSVGEffects::InvalidateDirectRenderingObservers(this);
 #endif

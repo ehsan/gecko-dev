@@ -128,8 +128,6 @@
              value="&clearTimeDuration.suffix;"/>
     </hbox>
 
-    <separator class="thin"/>
-
 #ifdef CRH_DIALOG_TREE_VIEW
     <deck id="durationDeck">
       <tree id="placesTree" flex="1" hidecolumnpicker="true" rows="10"
@@ -151,7 +149,7 @@
         <spacer flex="1"/>
         <hbox align="center">
           <image id="sanitizeEverythingWarningIcon"/>
-          <vbox id="sanitizeEverythingWarningDescBox" flex="1">
+          <vbox id="sanitizeEverythingWarningDescBox">
             <description id="sanitizeEverythingWarning"/>
             <description id="sanitizeEverythingUndoWarning">&sanitizeEverythingUndoWarning;</description>
           </vbox>

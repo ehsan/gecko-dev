@@ -81,14 +81,10 @@ function prepare_test_1() {
 }
 
 function test_1_start() {
-  ok(true, "PFS loaded");
   gPFS.addEventListener("unload", prepare_test_2, false);
 
   gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function() {
     executeSoon(test_1_available);
-  }, false);
-  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
-    executeSoon(test_1_complete);
   }, false);
 }
 
@@ -96,6 +92,9 @@ function test_1_available() {
   is(getListCount(), 1, "Should have found 1 plugin to install");
   ok(hasListItem("Test plugin 1", null), "Should have seen the right plugin name");
 
+  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
+    executeSoon(test_1_complete);
+  }, false);
   gPFS.document.documentElement.getButton("next").click();
 }
 
@@ -125,14 +124,10 @@ function prepare_test_2() {
 }
 
 function test_2_start() {
-  ok(true, "PFS loaded");
   gPFS.addEventListener("unload", prepare_test_3, false);
 
   gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function() {
     executeSoon(test_2_available);
-  }, false);
-  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
-    executeSoon(test_2_complete);
   }, false);
 }
 
@@ -140,6 +135,9 @@ function test_2_available() {
   is(getListCount(), 1, "Should have found 1 plugin to install");
   ok(hasListItem("Test plugin 2", null), "Should have seen the right plugin name");
 
+  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
+    executeSoon(test_2_complete);
+  }, false);
   gPFS.document.documentElement.getButton("next").click();
 }
 
@@ -173,14 +171,10 @@ function prepare_test_3() {
 }
 
 function test_3_start() {
-  ok(true, "PFS loaded");
   gPFS.addEventListener("unload", prepare_test_4, false);
 
   gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function() {
     executeSoon(test_3_available);
-  }, false);
-  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
-    executeSoon(test_3_complete);
   }, false);
 }
 
@@ -189,6 +183,9 @@ function test_3_available() {
   ok(hasListItem("Test plugin 1", null), "Should have seen the right plugin name");
   ok(hasListItem("Test plugin 2", null), "Should have seen the right plugin name");
 
+  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
+    executeSoon(test_3_complete);
+  }, false);
   gPFS.document.documentElement.getButton("next").click();
 }
 
@@ -221,14 +218,10 @@ function prepare_test_4() {
 }
 
 function test_4_start() {
-  ok(true, "PFS loaded");
   gPFS.addEventListener("unload", prepare_test_5, false);
 
   gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function() {
     executeSoon(test_4_available);
-  }, false);
-  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
-    executeSoon(test_4_complete);
   }, false);
 }
 
@@ -236,6 +229,9 @@ function test_4_available() {
   is(getListCount(), 1, "Should have found 1 plugin to install");
   ok(hasListItem("Test plugin 3", null), "Should have seen the right plugin name");
 
+  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
+    executeSoon(test_4_complete);
+  }, false);
   gPFS.document.documentElement.getButton("next").click();
 }
 
@@ -266,14 +262,10 @@ function prepare_test_5() {
 }
 
 function test_5_start() {
-  ok(true, "PFS loaded");
   gPFS.addEventListener("unload", prepare_test_6, false);
 
   gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function() {
     executeSoon(test_5_available);
-  }, false);
-  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
-    executeSoon(test_5_complete);
   }, false);
 }
 
@@ -281,6 +273,9 @@ function test_5_available() {
   is(getListCount(), 1, "Should have found 1 plugin to install");
   ok(hasListItem("Test extension 1", null), "Should have seen the right plugin name");
 
+  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
+    executeSoon(test_5_complete);
+  }, false);
   gPFS.document.documentElement.getButton("next").click();
 }
 
@@ -315,14 +310,10 @@ function prepare_test_6() {
 }
 
 function test_6_start() {
-  ok(true, "PFS loaded");
   gPFS.addEventListener("unload", prepare_test_7, false);
 
   gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function() {
     executeSoon(test_6_available);
-  }, false);
-  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
-    executeSoon(test_6_complete);
   }, false);
 }
 
@@ -330,6 +321,9 @@ function test_6_available() {
   is(getListCount(), 1, "Should have found 1 plugin to install");
   ok(hasListItem("Test extension 2", null), "Should have seen the right plugin name");
 
+  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
+    executeSoon(test_6_complete);
+  }, false);
   gPFS.document.documentElement.getButton("next").click();
 }
 
@@ -363,14 +357,10 @@ function prepare_test_7() {
 }
 
 function test_7_start() {
-  ok(true, "PFS loaded");
   gPFS.addEventListener("unload", prepare_test_8, false);
 
   gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function() {
     executeSoon(test_7_available);
-  }, false);
-  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
-    executeSoon(test_7_complete);
   }, false);
 }
 
@@ -379,6 +369,9 @@ function test_7_available() {
   ok(hasListItem("Test extension 1", null), "Should have seen the right plugin name");
   ok(hasListItem("Test extension 2", null), "Should have seen the right plugin name");
 
+  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
+    executeSoon(test_7_complete);
+  }, false);
   gPFS.document.documentElement.getButton("next").click();
 }
 
@@ -416,14 +409,10 @@ function prepare_test_8() {
 }
 
 function test_8_start() {
-  ok(true, "PFS loaded");
   gPFS.addEventListener("unload", prepare_test_9, false);
 
   gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function() {
     executeSoon(test_8_available);
-  }, false);
-  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
-    executeSoon(test_8_complete);
   }, false);
 }
 
@@ -431,6 +420,9 @@ function test_8_available() {
   is(getListCount(), 1, "Should have found 1 plugin to install");
   ok(hasListItem("Test extension 3", null), "Should have seen the right plugin name");
 
+  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
+    executeSoon(test_8_complete);
+  }, false);
   gPFS.document.documentElement.getButton("next").click();
 }
 
@@ -464,12 +456,8 @@ function prepare_test_9() {
 }
 
 function test_9_start() {
-  ok(true, "PFS loaded");
   gPFS.addEventListener("unload", prepare_test_10, false);
 
-  gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function() {
-    ok(false, "Should not have found plugins to install");
-  }, false);
   gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
     executeSoon(test_9_complete);
   }, false);
@@ -500,12 +488,8 @@ function prepare_test_10() {
 }
 
 function test_10_start() {
-  ok(true, "PFS loaded");
   gPFS.addEventListener("unload", prepare_test_11, false);
 
-  gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function() {
-    ok(false, "Should not have found plugins to install");
-  }, false);
   gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
     executeSoon(test_10_complete);
   }, false);
@@ -536,12 +520,8 @@ function prepare_test_11() {
 }
 
 function test_11_start() {
-  ok(true, "PFS loaded");
   gPFS.addEventListener("unload", finishTest, false);
 
-  gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function() {
-    ok(false, "Should not have found plugins to install");
-  }, false);
   gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
     executeSoon(test_10_complete);
   }, false);
