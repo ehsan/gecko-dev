@@ -75,6 +75,11 @@ class RegExpStatics
         return matchPairs.length() / 2;
     }
 
+    size_t pairCountCrash() const {
+        JS_CRASH_UNLESS(matchPairs.length() % 2 == 0);
+        return pairCount();
+    }
+
     void copyTo(RegExpStatics &dst) {
         dst.matchPairs.clear();
         /* 'save' has already reserved space in matchPairs */
@@ -246,9 +251,9 @@ class RegExpStatics
     }
 
     size_t getParenLength(size_t parenNum) const {
-        if (pairCount() <= parenNum + 1)
+        if (pairCountCrash() <= parenNum + 1)
             return 0;
-        return get(parenNum + 1, 1) - get(parenNum + 1, 0);
+        return getCrash(parenNum + 1, 1) - getCrash(parenNum + 1, 0);
     }
 
     /* Value creators. */
