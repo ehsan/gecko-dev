@@ -52,8 +52,8 @@ function test()
   printBugNumber(BUGNUMBER);
   printStatus (summary);
 
-  function fun() {}
-  n = fun.prototype;
+  native = encodeURIComponent;
+  n = native.prototype;
   n.__defineGetter__("prototype", n.toSource);
   p = n.__lookupGetter__("prototype");
   n = p;

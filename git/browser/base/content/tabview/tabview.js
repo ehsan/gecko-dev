@@ -38,11 +38,6 @@ XPCOMUtils.defineLazyGetter(this, "gPrefBranch", function() {
     getBranch("browser.panorama.");
 });
 
-XPCOMUtils.defineLazyGetter(this, "gPrivateBrowsing", function() {
-  return Cc["@mozilla.org/privatebrowsing;1"].
-           getService(Ci.nsIPrivateBrowsingService);
-});
-
 # NB: Certain files need to evaluate before others
 
 #include iq.js

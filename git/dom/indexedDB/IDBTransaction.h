@@ -53,7 +53,6 @@
 #include "nsHashKeys.h"
 #include "nsInterfaceHashtable.h"
 
-class mozIStorageConnection;
 class mozIStorageStatement;
 class nsIThread;
 
@@ -90,9 +89,6 @@ public:
   bool StartSavepoint();
   nsresult ReleaseSavepoint();
   void RollbackSavepoint();
-
-  // Only meant to be called on mStorageThread!
-  nsresult GetOrCreateConnection(mozIStorageConnection** aConnection);
 
   already_AddRefed<mozIStorageStatement>
   AddStatement(bool aCreate,
@@ -132,24 +128,21 @@ public:
 
 #ifdef DEBUG
   bool TransactionIsOpen() const;
+  bool IsWriteAllowed() const;
 #else
   bool TransactionIsOpen() const
   {
     return mReadyState == nsIIDBTransaction::INITIAL ||
            mReadyState == nsIIDBTransaction::LOADING;
   }
-#endif
 
   bool IsWriteAllowed() const
   {
-    return mMode == nsIIDBTransaction::READ_WRITE ||
-           mMode == nsIIDBTransaction::VERSION_CHANGE;
+    return mMode == nsIIDBTransaction::READ_WRITE;
   }
+#endif
 
-  PRUint16 Mode()
-  {
-    return mMode;
-  }
+  enum { FULL_LOCK = nsIIDBTransaction::SNAPSHOT_READ + 1 };
 
   IDBDatabase* Database()
   {
@@ -160,6 +153,9 @@ public:
 private:
   IDBTransaction();
   ~IDBTransaction();
+
+  // Only meant to be called on mStorageThread!
+  nsresult GetOrCreateConnection(mozIStorageConnection** aConnection);
 
   nsresult CommitOrRollback();
 
@@ -185,6 +181,7 @@ private:
   // Only touched on the database thread.
   PRUint32 mSavepointCount;
 
+  bool mHasInitialSavepoint;
   bool mAborted;
 };
 
@@ -195,7 +192,6 @@ public:
   NS_DECL_NSIRUNNABLE
 
   CommitHelper(IDBTransaction* aTransaction);
-  ~CommitHelper();
 
   template<class T>
   bool AddDoomedObject(nsCOMPtr<T>& aCOMPtr)
@@ -214,12 +210,8 @@ private:
   nsRefPtr<IDBTransaction> mTransaction;
   nsCOMPtr<mozIStorageConnection> mConnection;
   nsAutoTArray<nsCOMPtr<nsISupports>, 10> mDoomedObjects;
-
-  nsString mOldVersion;
-  nsTArray<nsAutoPtr<ObjectStoreInfo> > mOldObjectStores;
-
   bool mAborted;
-  bool mHaveMetadata;
+  bool mHasInitialSavepoint;
 };
 
 END_INDEXEDDB_NAMESPACE

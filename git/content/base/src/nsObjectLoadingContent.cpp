@@ -359,7 +359,7 @@ class AutoNotifier {
     nsObjectLoadingContent*            mContent;
     PRBool                             mNotify;
     nsObjectLoadingContent::ObjectType mOldType;
-    nsEventStates                      mOldState;
+    PRInt32                            mOldState;
 };
 
 /**
@@ -1043,7 +1043,7 @@ nsObjectLoadingContent::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
 }
 
 // <public>
-nsEventStates
+PRInt32
 nsObjectLoadingContent::ObjectState() const
 {
   switch (mType) {
@@ -1056,7 +1056,7 @@ nsObjectLoadingContent::ObjectState() const
       // These are OK. If documents start to load successfully, they display
       // something, and are thus not broken in this sense. The same goes for
       // plugins.
-      return nsEventStates();
+      return 0;
     case eType_Null:
       if (mSuppressed)
         return NS_EVENT_STATE_SUPPRESSED;
@@ -1064,7 +1064,7 @@ nsObjectLoadingContent::ObjectState() const
         return NS_EVENT_STATE_USERDISABLED;
 
       // Otherwise, broken
-      nsEventStates state = NS_EVENT_STATE_BROKEN;
+      PRInt32 state = NS_EVENT_STATE_BROKEN;
       switch (mFallbackReason) {
         case ePluginDisabled:
           state |= NS_EVENT_STATE_HANDLER_DISABLED;
@@ -1083,7 +1083,7 @@ nsObjectLoadingContent::ObjectState() const
   };
   NS_NOTREACHED("unknown type?");
   // this return statement only exists to avoid a compile warning
-  return nsEventStates();
+  return 0;
 }
 
 // <protected>
@@ -1634,11 +1634,11 @@ nsObjectLoadingContent::UnloadContent()
 
 void
 nsObjectLoadingContent::NotifyStateChanged(ObjectType aOldType,
-                                          nsEventStates aOldState, PRBool aSync)
+                                          PRInt32 aOldState,
+                                          PRBool aSync)
 {
-  LOG(("OBJLC [%p]: Notifying about state change: (%u, %llx) -> (%u, %llx) (sync=%i)\n",
-       this, aOldType, aOldState.GetInternalValue(), mType,
-       ObjectState().GetInternalValue(), aSync));
+  LOG(("OBJLC [%p]: Notifying about state change: (%u, %x) -> (%u, %x) (sync=%i)\n",
+       this, aOldType, aOldState, mType, ObjectState(), aSync));
 
   nsCOMPtr<nsIContent> thisContent = 
     do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
@@ -1649,12 +1649,12 @@ nsObjectLoadingContent::NotifyStateChanged(ObjectType aOldType,
     return; // Nothing to do
   }
 
-  nsEventStates newState = ObjectState();
+  PRInt32 newState = ObjectState();
 
   if (newState != aOldState) {
     // This will trigger frame construction
     NS_ASSERTION(thisContent->IsInDoc(), "Something is confused");
-    nsEventStates changedBits = aOldState ^ newState;
+    PRInt32 changedBits = aOldState ^ newState;
 
     {
       mozAutoDocUpdate upd(doc, UPDATE_CONTENT_STATE, PR_TRUE);

@@ -319,6 +319,7 @@ nsRootAccessible::FireAccessibleFocusEvent(nsAccessible *aAccessible,
                                            nsINode *aNode,
                                            nsIDOMEvent *aFocusEvent,
                                            PRBool aForceEvent,
+                                           PRBool aIsAsynch,
                                            EIsFromUserInput aIsFromUserInput)
 {
   // Implementors: only fire delayed/async events from this method.
@@ -397,7 +398,7 @@ nsRootAccessible::FireAccessibleFocusEvent(nsAccessible *aAccessible,
           if (mCurrentARIAMenubar) {
             nsRefPtr<AccEvent> menuStartEvent =
               new AccEvent(nsIAccessibleEvent::EVENT_MENU_START,
-                           menuBarAccessible, aIsFromUserInput,
+                           menuBarAccessible, PR_FALSE, aIsFromUserInput,
                            AccEvent::eAllowDupes);
             if (menuStartEvent) {
               FireDelayedAccessibleEvent(menuStartEvent);
@@ -410,7 +411,7 @@ nsRootAccessible::FireAccessibleFocusEvent(nsAccessible *aAccessible,
   else if (mCurrentARIAMenubar) {
     nsRefPtr<AccEvent> menuEndEvent =
       new AccEvent(nsIAccessibleEvent::EVENT_MENU_END, mCurrentARIAMenubar,
-                   aIsFromUserInput, AccEvent::eAllowDupes);
+                   PR_FALSE, aIsFromUserInput, AccEvent::eAllowDupes);
     if (menuEndEvent) {
       FireDelayedAccessibleEvent(menuEndEvent);
     }
@@ -433,11 +434,13 @@ nsRootAccessible::FireAccessibleFocusEvent(nsAccessible *aAccessible,
   gLastFocusedNode = finalFocusNode;
   NS_IF_ADDREF(gLastFocusedNode);
 
+  gLastFocusedFrameType = (focusFrame && focusFrame->GetStyleVisibility()->IsVisible()) ? focusFrame->GetType() : 0;
+
   // Coalesce focus events from the same document, because DOM focus event might
   // be fired for the document node and then for the focused DOM element.
   FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_FOCUS,
                              finalFocusNode, AccEvent::eCoalesceFromSameDocument,
-                             aIsFromUserInput);
+                             aIsAsynch, aIsFromUserInput);
 
   return PR_TRUE;
 }
@@ -660,6 +663,7 @@ nsRootAccessible::HandleEvent(nsIDOMEvent* aEvent)
   }
   else if (eventType.EqualsLiteral("blur")) {
     NS_IF_RELEASE(gLastFocusedNode);
+    gLastFocusedFrameType = nsnull;
     gLastFocusedAccessiblesState = 0;
   }
   else if (eventType.EqualsLiteral("AlertActive")) { 
@@ -728,16 +732,16 @@ nsRootAccessible::HandleEvent(nsIDOMEvent* aEvent)
     if (fireFocus) {
       // Always asynch, always from user input.
       FireAccessibleFocusEvent(accessible, targetNode, aEvent, PR_TRUE,
-                               eFromUserInput);
+                               PR_TRUE, eFromUserInput);
     }
   }
-  else if (eventType.EqualsLiteral("DOMMenuBarActive")) {  // Always from user input
+  else if (eventType.EqualsLiteral("DOMMenuBarActive")) {  // Always asynch, always from user input
     nsEventShell::FireEvent(nsIAccessibleEvent::EVENT_MENU_START,
-                            accessible, eFromUserInput);
+                            accessible, PR_TRUE, eFromUserInput);
   }
-  else if (eventType.EqualsLiteral("DOMMenuBarInactive")) {  // Always from user input
+  else if (eventType.EqualsLiteral("DOMMenuBarInactive")) {  // Always asynch, always from user input
     nsEventShell::FireEvent(nsIAccessibleEvent::EVENT_MENU_END,
-                            accessible, eFromUserInput);
+                            accessible, PR_TRUE, eFromUserInput);
     FireCurrentFocusEvent();
   }
   else if (eventType.EqualsLiteral("ValueChange")) {

@@ -30,18 +30,13 @@
 #ifndef CLIENT_LINUX_HANDLER_EXCEPTION_HANDLER_H_
 #define CLIENT_LINUX_HANDLER_EXCEPTION_HANDLER_H_
 
-#include <string>
 #include <vector>
+#include <string>
 
-#include <pthread.h>
 #include <signal.h>
-#include <stdint.h>
 #include <stdio.h>
 
-#include "client/linux/android_ucontext.h"
 #include "client/linux/crash_generation/crash_generation_client.h"
-#include "client/linux/minidump_writer/minidump_writer.h"
-#include "google_breakpad/common/minidump_format.h"
 #include "processor/scoped_ptr.h"
 
 struct sigaction;
@@ -210,15 +205,6 @@ class ExceptionHandler {
       return crash_generation_client_.get() != NULL;
   }
 
-  // Add information about a memory mapping. This can be used if
-  // a custom library loader is used that maps things in a way
-  // that the linux dumper can't handle by reading the maps file.
-  void AddMappingInfo(const std::string& name,
-                      const u_int8_t identifier[sizeof(MDGUID)],
-                      uintptr_t start_address,
-                      size_t mapping_size,
-                      size_t file_offset);
-
  private:
   void Init(const std::string &dump_path,
             const int server_fd);
@@ -226,8 +212,6 @@ class ExceptionHandler {
   void UninstallHandlers();
   void PreresolveSymbols();
   bool GenerateDump(CrashContext *context);
-  void SendContinueSignalToChild();
-  void WaitForContinueSignal();
 
   void UpdateNextID();
   static void SignalHandler(int sig, siginfo_t* info, void* uc);
@@ -267,17 +251,6 @@ class ExceptionHandler {
 
   // A vector of the old signal handlers.
   std::vector<std::pair<int, struct sigaction *> > old_handlers_;
-
-  // We need to explicitly enable ptrace of parent processes on some
-  // kernels, but we need to know the PID of the cloned process before we
-  // can do this. We create a pipe which we can use to block the
-  // cloned process after creating it, until we have explicitly enabled 
-  // ptrace. This is used to store the file descriptors for the pipe
-  int fdes[2];
-
-  // Callers can add extra info about mappings for cases where the
-  // dumper code cannot extract enough information from /proc/<pid>/maps.
-  MappingList mapping_info_;
 };
 
 }  // namespace google_breakpad

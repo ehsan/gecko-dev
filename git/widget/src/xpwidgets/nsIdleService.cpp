@@ -60,8 +60,6 @@
 #define MAX_IDLE_POLL_INTERVAL 300 /* 5 min */
 // Pref for last time (seconds since epoch) daily notification was sent.
 #define PREF_LAST_DAILY "idle.lastDailyNotification"
-// Number of seconds in a day.
-#define SECONDS_PER_DAY 86400
 
 // Use this to find previously added observers in our array:
 class IdleListenerComparator
@@ -74,9 +72,6 @@ public:
   }
 };
 
-////////////////////////////////////////////////////////////////////////////////
-//// nsIdleServiceDaily
-
 NS_IMPL_ISUPPORTS1(nsIdleServiceDaily, nsIObserver)
 
 NS_IMETHODIMP
@@ -87,65 +82,32 @@ nsIdleServiceDaily::Observe(nsISupports *,
   // Notify anyone who cares.
   nsCOMPtr<nsIObserverService> observerService =
     mozilla::services::GetObserverService();
-  NS_ENSURE_STATE(observerService);
-  (void)observerService->NotifyObservers(nsnull,
-                                         OBSERVER_TOPIC_IDLE_DAILY,
-                                         nsnull);
 
-  // Notify the category observers.
-  const nsCOMArray<nsIObserver> &entries = mCategoryObservers.GetEntries();
-  for (PRInt32 i = 0; i < entries.Count(); ++i) {
-    (void)entries[i]->Observe(nsnull, OBSERVER_TOPIC_IDLE_DAILY, nsnull);
+  observerService->NotifyObservers(nsnull,
+                                   OBSERVER_TOPIC_IDLE_DAILY,
+                                   nsnull);
+  // Remove from idle timeout.
+  mIdleService->RemoveIdleObserver(this, MAX_IDLE_POLL_INTERVAL*1000);
+
+  // Start timer for next search in 1 day.
+  if (mTimer) {
+    mTimer->InitWithFuncCallback(DailyCallback, this, 24*60*60*1000,
+                                                       nsITimer::TYPE_ONE_SHOT);
   }
-
-  // Stop observing idle for today.
-  if (NS_SUCCEEDED(mIdleService->RemoveIdleObserver(this, MAX_IDLE_POLL_INTERVAL))) {
-    mObservesIdle = false;
-  }
-
-  // Set the last idle-daily time pref.
-  nsCOMPtr<nsIPrefBranch> pref = do_GetService(NS_PREFSERVICE_CONTRACTID);
-  if (pref) {
-    PRInt32 nowSec = static_cast<PRInt32>(PR_Now() / PR_USEC_PER_SEC);
-    (void)pref->SetIntPref(PREF_LAST_DAILY, nowSec);
-  }
-
-  // Start timer for the next check in one day.
-  (void)mTimer->InitWithFuncCallback(DailyCallback, this, SECONDS_PER_DAY * 1000,
-                                     nsITimer::TYPE_ONE_SHOT);
 
   return NS_OK;
 }
 
-nsIdleServiceDaily::nsIdleServiceDaily(nsIdleService* aIdleService)
-  : mIdleService(aIdleService)
-  , mObservesIdle(false)
-  , mTimer(do_CreateInstance(NS_TIMER_CONTRACTID))
-  , mCategoryObservers(OBSERVER_TOPIC_IDLE_DAILY)
+void
+nsIdleServiceDaily::Init(nsIdleService *aIdleService)
 {
-  // Check time of the last idle-daily notification.  If it was more than 24
-  // hours ago listen for idle, otherwise set a timer for 24 hours from now.
-  PRInt32 lastDaily = 0;
-  PRInt32 nowSec = static_cast<PRInt32>(PR_Now() / PR_USEC_PER_SEC);
-  nsCOMPtr<nsIPrefBranch> pref = do_GetService(NS_PREFSERVICE_CONTRACTID);
-  if (pref) {
-    if (NS_FAILED(pref->GetIntPref(PREF_LAST_DAILY, &lastDaily)) ||
-        lastDaily < 0 || lastDaily > nowSec) {
-      // The time is bogus, use default.
-      lastDaily = 0;
-    }
-  }
+  nsresult rv;
+  mTimer = do_CreateInstance(NS_TIMER_CONTRACTID, &rv);
 
-  // Check if it has been a day since the last notification.
-  if (nowSec - lastDaily > SECONDS_PER_DAY) {
-    // Wait for the user to become idle, so we can do todays idle tasks.
-    DailyCallback(nsnull, this);
-  }
-  else {
-    // Start timer for the next check in one day.
-    (void)mTimer->InitWithFuncCallback(DailyCallback, this, SECONDS_PER_DAY * 1000,
-                                       nsITimer::TYPE_ONE_SHOT);
-  }
+  mIdleService = aIdleService;
+
+  // Wait for the user to become idle, so we can do todays idle tasks.
+  DailyCallback(0, this);
 }
 
 void
@@ -155,15 +117,12 @@ nsIdleServiceDaily::Shutdown()
     mTimer->Cancel();
     mTimer = nsnull;
   }
-  if (mIdleService && mObservesIdle) {
-    if (NS_SUCCEEDED(mIdleService->RemoveIdleObserver(this, MAX_IDLE_POLL_INTERVAL))) {
-      mObservesIdle = false;
-    }
+  if (mIdleService) {
+    mIdleService->RemoveIdleObserver(this, MAX_IDLE_POLL_INTERVAL*1000);
     mIdleService = nsnull;
   }
 }
 
-// static
 void
 nsIdleServiceDaily::DailyCallback(nsITimer* aTimer, void* aClosure)
 {
@@ -171,19 +130,15 @@ nsIdleServiceDaily::DailyCallback(nsITimer* aTimer, void* aClosure)
 
   // The one thing we do every day is to start waiting for the user to "have
   // a significant idle time".
-  if (NS_SUCCEEDED(me->mIdleService->AddIdleObserver(me, MAX_IDLE_POLL_INTERVAL))) {
-    me->mObservesIdle = true;
-  }
+  me->mIdleService->AddIdleObserver(me, MAX_IDLE_POLL_INTERVAL*1000);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-//// nsIdleService
-
-nsIdleService::nsIdleService() : mLastIdleReset(0)
-                               , mLastHandledActivity(0)
-                               , mPolledIdleTimeIsValid(false)
+nsIdleService::nsIdleService() : mLastIdleReset(0), mLastHandledActivity(0)
 {
-  mDailyIdle = new nsIdleServiceDaily(this);
+  mDailyIdle = new nsIdleServiceDaily;
+  if (mDailyIdle) {
+    mDailyIdle->Init(this);
+  }
 }
 
 nsIdleService::~nsIdleService()
@@ -241,18 +196,13 @@ nsIdleService::RemoveIdleObserver(nsIObserver* aObserver, PRUint32 aTime)
 void
 nsIdleService::ResetIdleTimeOut()
 {
+  mLastIdleReset = PR_IntervalToSeconds(PR_IntervalNow());
   // A zero in mLastIdleReset indicates that this function has never been
   // called.
-  bool calledBefore = mLastIdleReset != 0;
-  mLastIdleReset = PR_IntervalToSeconds(PR_IntervalNow());
   if (!mLastIdleReset) mLastIdleReset = 1;
 
   // Now check if this changes anything
-  // Note that if we have never been called before, we cannot do the
-  // optimization of passing true to CheckAwayState, which avoids
-  // calculating the timer (because if we have never been called before,
-  // we need to recalculate the timer and start it there).
-  CheckAwayState(calledBefore);
+  CheckAwayState(true);
 }
 
 NS_IMETHODIMP
@@ -265,11 +215,12 @@ nsIdleService::GetIdleTime(PRUint32* idleTime)
 
   // Polled idle time in ms
   PRUint32 polledIdleTimeMS;
+  bool polledIdleTimeIsValid;
 
-  mPolledIdleTimeIsValid = PollIdleTime(&polledIdleTimeMS);
+  polledIdleTimeIsValid = PollIdleTime(&polledIdleTimeMS);
 
   // If we don't have any valid data, then we are not in idle - pr. definition.
-  if (!mPolledIdleTimeIsValid && 0 == mLastIdleReset) {
+  if (!polledIdleTimeIsValid && 0 == mLastIdleReset) {
     *idleTime = 0;
     return NS_OK;
   }
@@ -285,7 +236,7 @@ nsIdleService::GetIdleTime(PRUint32* idleTime)
     PR_IntervalToSeconds(PR_IntervalNow()) - mLastIdleReset;
 
   // If we did't get pulled data, return the time since last idle reset.
-  if (!mPolledIdleTimeIsValid) {
+  if (!polledIdleTimeIsValid) {
     // We need to convert to ms before returning the time.
     *idleTime = timeSinceReset * 1000;
     return NS_OK;
@@ -326,17 +277,12 @@ nsIdleService::CheckAwayState(bool aNoTimeReset)
    * call below to GetIdleTime, as we use the two values to detect if there
    * has been user activity since the last time we were here).
    */
-  PRUint32 curTime = static_cast<PRUint32>(PR_Now() / PR_USEC_PER_SEC);
+  PRUint32 curTime = PR_Now() / PR_USEC_PER_SEC;
   PRUint32 lastTime = curTime - mLastHandledActivity;
 
   // Get the idle time (in seconds).
   PRUint32 idleTime;
   if (NS_FAILED(GetIdleTime(&idleTime))) {
-    return;
-  }
-
-  // If we have no valid data about the idle time, stop
-  if (!mPolledIdleTimeIsValid && 0 == mLastIdleReset) {
     return;
   }
 

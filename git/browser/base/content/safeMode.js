@@ -94,8 +94,6 @@ function disableAddons() {
         aAddon.userDisabled = true;
       }
     });
-
-    restartApp();
   });
 }
 
@@ -114,18 +112,14 @@ function onOK() {
       restoreDefaultBookmarks();
     if (document.getElementById("resetToolbars").checked)
       deleteLocalstore();
+    if (document.getElementById("disableAddons").checked)
+      disableAddons();
     if (document.getElementById("restoreSearch").checked)
       restoreDefaultSearchEngines();
-    if (document.getElementById("disableAddons").checked) {
-      disableAddons();
-      // disableAddons will asynchronously restart the application
-      return false;
-    }
   } catch(e) {
   }
 
   restartApp();
-  return false;
 }
 
 function onCancel() {

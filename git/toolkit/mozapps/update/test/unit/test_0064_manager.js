@@ -39,12 +39,9 @@
 /* General Update Manager Tests */
 
 function run_test() {
-  do_test_pending();
-  do_register_cleanup(end_test);
-
-  logTestInfo("testing removal of an update download in progress for the " +
-              "same version of the application with the same application " +
-              "build id on startup (bug 536547)");
+  dump("Testing: removal of an update download in progress for the same " +
+       "version of the application with the same application build id on " +
+       "startup - bug 536547\n");
   removeUpdateDirsAndFiles();
   setUpdateChannel();
 
@@ -63,10 +60,5 @@ function run_test() {
 
   do_check_eq(gUpdateManager.activeUpdate, null);
   do_check_eq(gUpdateManager.updateCount, 0);
-
-  do_test_finished();
-}
-
-function end_test() {
   cleanUp();
 }

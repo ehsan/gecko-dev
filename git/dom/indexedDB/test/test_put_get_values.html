@@ -26,13 +26,12 @@
       let event = yield;
 
       let db = event.result;
-
-      request = db.setVersion("1");
+      request = db.createObjectStore(objectStoreName, "", false);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      let objectStore = db.createObjectStore(objectStoreName, "", false);
+      let objectStore = event.result;
 
       request = objectStore.add(testString.value, testString.key);
       request.onerror = errorHandler;

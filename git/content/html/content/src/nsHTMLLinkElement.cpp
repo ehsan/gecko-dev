@@ -117,7 +117,7 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsEventStates IntrinsicState() const;
+  virtual PRInt32 IntrinsicState() const;
 
   virtual nsXPCClassInfo* GetClassInfo();
 protected:
@@ -444,7 +444,7 @@ nsHTMLLinkElement::GetStyleSheetInfo(nsAString& aTitle,
   return;
 }
 
-nsEventStates
+PRInt32
 nsHTMLLinkElement::IntrinsicState() const
 {
   return Link::LinkState() | nsGenericHTMLElement::IntrinsicState();

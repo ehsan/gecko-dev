@@ -59,7 +59,7 @@ var testVerifyDefaultBookmarks = function() {
 
   // Default bookmarks toolbar should be closed
   var toolbar = new elementslib.XPath(controller.window.document, toolbarElemString);
-  controller.assertJSProperty(toolbar, "collapsed", true);
+  controller.assertProperty(toolbar, "collapsed", true);
 
   // Open the bookmarks toolbar via bookmarks button for the rest of the test
   var bookmarksButton = new elementslib.ID(controller.window.document, "bookmarks-menu-button");
@@ -70,14 +70,9 @@ var testVerifyDefaultBookmarks = function() {
   controller.mouseUp(bookmarkBarItem);
   
   // Make sure bookmarks toolbar is now open
-  
-  // TODO: Restore this after 1.5.1 lands
-  // controller.waitFor(function() {
-  //   return toolbar.getNode().collapsed == false;
-  // }, gTimeout, 100, 'Bookmarks toolbar is open' );
-  
-  controller.waitForEval("subject.collapsed == false", gTimeout, 100,
-                         toolbar.getNode());
+  controller.waitFor(function() {
+    return toolbar.getNode().collapsed == false;
+  }, gTimeout, 100, 'Bookmarks toolbar is open' );
 
   // Get list of items on the bookmarks toolbar and open container
   var toolbarNodes = getBookmarkToolbarItems();
@@ -90,12 +85,12 @@ var testVerifyDefaultBookmarks = function() {
   // Check if the Most Visited folder is visible and has the correct title
   var mostVisited = new elementslib.XPath(controller.window.document,
                                           elemString.replace("%1", "1"));
-  controller.assertJSProperty(mostVisited, "label", toolbarNodes.getChild(0).title);
+  controller.assertProperty(mostVisited, "label", toolbarNodes.getChild(0).title);
 
   // Check Getting Started bookmarks title and URI
   var gettingStarted = new elementslib.XPath(controller.window.document,
                                              elemString.replace("%1", "2"));
-  controller.assertJSProperty(gettingStarted, "label", toolbarNodes.getChild(1).title);
+  controller.assertProperty(gettingStarted, "label", toolbarNodes.getChild(1).title);
 
   var locationBar = new elementslib.ID(controller.window.document, "urlbar");
   controller.click(gettingStarted);
@@ -109,7 +104,7 @@ var testVerifyDefaultBookmarks = function() {
 
   // Check the title of the default RSS feed toolbar button
   var RSS = new elementslib.XPath(controller.window.document, elemString.replace("%1", "3"));
-  controller.assertJSProperty(RSS, "label", toolbarNodes.getChild(2).title);
+  controller.assertProperty(RSS, "label", toolbarNodes.getChild(2).title);
 
   // Close container again
   toolbarNodes.containerOpen = false;

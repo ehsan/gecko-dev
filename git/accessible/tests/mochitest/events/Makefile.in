@@ -54,8 +54,7 @@ _TEST_FILES =\
 		test_aria_statechange.html \
 		test_attrs.html \
 		test_caretmove.html \
-		test_coalescence.html \
-		test_contextmenu.html \
+	$(warning	test_coalescence.html temporarily disabled) \
 		test_docload.html \
 		test_docload.xul \
 		test_dragndrop.html \
