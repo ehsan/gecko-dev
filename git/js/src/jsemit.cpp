@@ -5225,12 +5225,8 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
              * debugger, and eval frames may need the value of the ultimate
              * expression statement as the script's result, despite the fact
              * that it appears useless to the compiler.
-             *
-             * API users may also set the JSOPTION_NO_SCRIPT_RVAL option when
-             * calling JS_Compile* suppress JSOP_POPV.
              */
-            useful = wantval =
-                !(cg->treeContext.flags & (TCF_IN_FUNCTION | TCF_NO_SCRIPT_RVAL));
+            useful = wantval = !(cg->treeContext.flags & TCF_IN_FUNCTION);
             if (!useful) {
                 if (!CheckSideEffects(cx, cg, pn2, &useful))
                     return JS_FALSE;

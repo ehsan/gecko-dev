@@ -1554,8 +1554,7 @@ js_Execute(JSContext *cx, JSObject *chain, JSScript *script,
     }
 
     ok = js_Interpret(cx);
-    if (result)
-        *result = frame.rval;
+    *result = frame.rval;
 
     if (hookData) {
         hook = cx->debugHooks->executeHook;
