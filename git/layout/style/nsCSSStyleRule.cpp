@@ -1215,8 +1215,11 @@ DOMCSSStyleRuleImpl::GetParentStyleSheet(nsIDOMCSSStyleSheet** aSheet)
   }
   nsRefPtr<nsCSSStyleSheet> sheet;
   Rule()->GetParentStyleSheet(getter_AddRefs(sheet));
-  NS_IF_ADDREF(*aSheet = sheet);
-  return NS_OK;
+  if (!sheet) {
+    *aSheet = nsnull;
+    return NS_OK;
+  }
+  return CallQueryInterface(sheet, aSheet);
 }
 
 NS_IMETHODIMP    
