@@ -176,7 +176,7 @@ NetAddrElement::~NetAddrElement()
 }
 
 AddrInfo::AddrInfo(const char *host, const PRAddrInfo *prAddrInfo,
-                   const char *cname)
+                   bool disableIPv4, const char *cname)
 {
   size_t hostlen = strlen(host);
   mHostName = static_cast<char*>(moz_xmalloc(hostlen + 1));
@@ -194,7 +194,7 @@ AddrInfo::AddrInfo(const char *host, const PRAddrInfo *prAddrInfo,
   void *iter = nullptr;
   do {
     iter = PR_EnumerateAddrInfo(iter, prAddrInfo, 0, &tmpAddr);
-    if (iter) {
+    if (iter && (!disableIPv4 || tmpAddr.raw.family != PR_AF_INET)) {
       NetAddrElement *addrElement = new NetAddrElement(&tmpAddr);
       mAddresses.insertBack(addrElement);
     }
