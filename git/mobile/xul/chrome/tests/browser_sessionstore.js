@@ -11,7 +11,6 @@ function test() {
   // The "runNextTest" approach is async, so we need to call "waitForExplicitFinish()"
   // We call "finish()" when the tests are finished
   waitForExplicitFinish();
-  ignoreAllUncaughtExceptions();
 
   ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
 

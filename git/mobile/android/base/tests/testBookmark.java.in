@@ -15,19 +15,18 @@ public class testBookmark extends BaseTest {
         mActions.sendSpecialKey(Actions.SpecialKey.DOWN);
         hitEnterAndWait();
 
-        //Click the top item in the bookmark list.
+        //Click the top item in the history list.
         clickOnAwesomeBar();
         mActions.sendSpecialKey(Actions.SpecialKey.RIGHT);
-
-        Actions.EventExpecter contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
-
+        mActions.sendSpecialKey(Actions.SpecialKey.RIGHT);
         ArrayList<TextView> l = null;
         while (l == null || l.size() < 1) {
-            l = mSolo.clickInList(1);
+            // first item in the history list is a heading ("Today");
+            // click on the next one
+            l = mSolo.clickInList(2);
         }
+        waitForLoad();
 
-        contentEventExpecter.blockForEvent();
-
-        //Items in bookmarks aren't constant so URL can't be tested.
+        //Order of history items isn't constant so URL can't be tested.
     }
 }
