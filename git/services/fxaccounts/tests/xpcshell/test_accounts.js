@@ -176,8 +176,7 @@ add_task(function test_get_signed_in_user_initially_unset() {
   do_check_eq(result.kB, credentials.kB);
 
   // sign out
-  let localOnly = true;
-  yield account.signOut(localOnly);
+  yield account.signOut();
 
   // user should be undefined after sign out
   let result = yield account.getSignedInUser();

@@ -149,6 +149,10 @@ const PanelUI = {
       } else {
         anchor = aEvent.target;
       }
+      let iconAnchor =
+        document.getAnonymousElementByAttribute(anchor, "class",
+                                                "toolbarbutton-icon");
+      this.panel.openPopup(iconAnchor || anchor);
 
       this.panel.addEventListener("popupshown", function onPopupShown() {
         this.removeEventListener("popupshown", onPopupShown);
@@ -158,11 +162,6 @@ const PanelUI = {
         gCustomizationTabPreloader.ensurePreloading();
         deferred.resolve();
       });
-
-      let iconAnchor =
-        document.getAnonymousElementByAttribute(anchor, "class",
-                                                "toolbarbutton-icon");
-      this.panel.openPopup(iconAnchor || anchor);
     });
 
     return deferred.promise;

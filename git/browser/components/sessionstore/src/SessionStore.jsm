@@ -3078,8 +3078,7 @@ let SessionStoreInternal = {
     return aTabState.entries.length &&
            !(aTabState.entries.length == 1 &&
                 (aTabState.entries[0].url == "about:blank" ||
-                 aTabState.entries[0].url == "about:newtab" ||
-                 aTabState.entries[0].url == "about:privatebrowsing") &&
+                 aTabState.entries[0].url == "about:newtab") &&
                  !aTabState.userTypedValue);
   },
 
