@@ -44,7 +44,6 @@ public:
   // nsSVGPaintServerFrame methods:
   virtual already_AddRefed<gfxPattern>
     GetPaintServerPattern(nsIFrame *aSource,
-                          const gfxMatrix& aContextMatrix,
                           nsStyleSVGPaint nsStyleSVG::*aFillOrStroke,
                           float aGraphicOpacity,
                           const gfxRect *aOverrideBounds);

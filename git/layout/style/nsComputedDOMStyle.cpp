@@ -429,8 +429,7 @@ nsComputedDOMStyle::GetPropertyCSSValue(const nsAString& aPropertyName,
   NS_ENSURE_TRUE(document, NS_ERROR_NOT_AVAILABLE);
   document->FlushPendingLinkUpdates();
 
-  nsCSSProperty prop = nsCSSProps::LookupProperty(aPropertyName,
-                                                  nsCSSProps::eEnabled);
+  nsCSSProperty prop = nsCSSProps::LookupProperty(aPropertyName);
 
   const ComputedStyleMapEntry* propEntry = nsnull;
   {

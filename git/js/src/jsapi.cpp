@@ -6409,14 +6409,6 @@ JS_ObjectIsDate(JSContext *cx, JSObject *obj)
     return obj->isDate();
 }
 
-JS_PUBLIC_API(void)
-JS_ClearDateCaches(JSContext *cx)
-{
-    AssertHeapIsIdle(cx);
-    CHECK_REQUEST(cx);
-    js_ClearDateCaches();
-}
-
 /************************************************************************/
 
 /*

@@ -40,7 +40,7 @@ TestProps()
     PL_strcpy(tagName, *et);
     index = nsCSSProperty(PRInt32(index) + 1);
 
-    id = nsCSSProps::LookupProperty(nsCString(tagName), nsCSSProps::eAny);
+    id = nsCSSProps::LookupProperty(nsCString(tagName));
     if (id == eCSSProperty_UNKNOWN) {
       printf("bug: can't find '%s'\n", tagName);
       success = false;
@@ -54,8 +54,7 @@ TestProps()
     if (('a' <= tagName[0]) && (tagName[0] <= 'z')) {
       tagName[0] = tagName[0] - 32;
     }
-    id = nsCSSProps::LookupProperty(NS_ConvertASCIItoUTF16(tagName),
-                                    nsCSSProps::eAny);
+    id = nsCSSProps::LookupProperty(NS_ConvertASCIItoUTF16(tagName));
     if (id < 0) {
       printf("bug: can't find '%s'\n", tagName);
       success = false;
@@ -70,7 +69,7 @@ TestProps()
   // Now make sure we don't find some garbage
   for (int i = 0; i < (int) (sizeof(kJunkNames) / sizeof(const char*)); i++) {
     const char* const tag = kJunkNames[i];
-    id = nsCSSProps::LookupProperty(nsCAutoString(tag), nsCSSProps::eAny);
+    id = nsCSSProps::LookupProperty(nsCAutoString(tag));
     if (id >= 0) {
       printf("bug: found '%s'\n", tag ? tag : "(null)");
       success = false;
