@@ -23,7 +23,8 @@ let testData = [
   {value: "red", expected: "block"},
   {value: "something", expected: "block"},
 
-  {escape: true, value: "inline", expected: "block"}
+  {escape: true, value: "inline", expected: "block"},
+  {escape: true, value: "block", expected: "block"}
 ];
 
 function startTest()

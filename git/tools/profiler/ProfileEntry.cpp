@@ -23,7 +23,7 @@
 // BEGIN ProfileEntry
 
 ProfileEntry::ProfileEntry()
-  : mTagData(nullptr)
+  : mTagData(NULL)
   , mTagName(0)
 { }
 

@@ -131,11 +131,6 @@ class UpvarCookie
     F(IMPORT) \
     F(IMPORT_SPEC_LIST) \
     F(IMPORT_SPEC) \
-    F(EXPORT) \
-    F(EXPORT_FROM) \
-    F(EXPORT_SPEC_LIST) \
-    F(EXPORT_SPEC) \
-    F(EXPORT_BATCH_SPEC) \
     F(SEQ) \
     F(FORIN) \
     F(FOROF) \

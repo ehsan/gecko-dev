@@ -209,7 +209,6 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
         if (mRenderer != null) {
             mRenderer.destroy();
         }
-        Tabs.unregisterOnTabsChangedListener(this);
     }
 
     public void addTouchInterceptor(final TouchEventInterceptor aTouchInterceptor) {

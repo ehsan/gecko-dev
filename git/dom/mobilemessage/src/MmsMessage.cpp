@@ -498,7 +498,7 @@ MmsMessage::GetDeliveryInfo(JSContext* aCx, JS::Value* aDeliveryInfo)
 
     tmpJsVal.setString(tmpJsStr);
     if (!JS_DefineProperty(aCx, infoJsObj, "receiver", tmpJsVal,
-                           nullptr, nullptr, JSPROP_ENUMERATE)) {
+                           NULL, NULL, JSPROP_ENUMERATE)) {
       return NS_ERROR_FAILURE;
     }
 
@@ -510,14 +510,14 @@ MmsMessage::GetDeliveryInfo(JSContext* aCx, JS::Value* aDeliveryInfo)
 
     tmpJsVal.setString(tmpJsStr);
     if (!JS_DefineProperty(aCx, infoJsObj, "deliveryStatus", tmpJsVal,
-                           nullptr, nullptr, JSPROP_ENUMERATE)) {
+                           NULL, NULL, JSPROP_ENUMERATE)) {
       return NS_ERROR_FAILURE;
     }
 
     // Get |info.deliveryTimestamp|.
     if (!JS_DefineProperty(aCx, infoJsObj,
                            "deliveryTimestamp", info.deliveryTimestamp,
-                           nullptr, nullptr, JSPROP_ENUMERATE)) {
+                           NULL, NULL, JSPROP_ENUMERATE)) {
       return NS_ERROR_FAILURE;
     }
 
