@@ -1341,7 +1341,8 @@ class Mochitest(MochitestUtilsMixin):
             "browser.tabs.remote.autostart=%s" %
             ('true' if options.e10s else 'false'))
         if options.strictContentSandbox:
-            options.extraPrefs.append("security.sandbox.content.level=1")
+            options.extraPrefs.append(
+                "security.sandbox.windows.content.moreStrict=true")
         options.extraPrefs.append(
             "dom.ipc.tabs.nested.enabled=%s" %
             ('true' if options.nested_oop else 'false'))

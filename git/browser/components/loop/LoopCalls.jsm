@@ -221,6 +221,8 @@ let LoopCallsInternal = {
 
     if (channelID == MozLoopService.channelIDs.callsFxA && MozLoopService.userProfile) {
       this._getCalls(LOOP_SESSION_TYPE.FXA, version);
+    } else {
+      this._getCalls(LOOP_SESSION_TYPE.GUEST, version);
     }
   },
 

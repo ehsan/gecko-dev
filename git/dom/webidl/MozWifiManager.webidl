@@ -58,7 +58,6 @@ dictionary NetworkProperties {
   boolean dontConnect;
   DOMString serverCertificate;
   DOMString subjectMatch;
-  DOMString userCertificate;
 };
 
 [Constructor(optional NetworkProperties properties),
@@ -97,7 +96,6 @@ interface MozWifiNetwork {
            attribute boolean? dontConnect;
            attribute DOMString? serverCertificate;
            attribute DOMString? subjectMatch;
-           attribute DOMString? userCertificate;
 };
 
 [JSImplementation="@mozilla.org/mozwificonnection;1",

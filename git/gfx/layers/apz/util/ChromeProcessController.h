@@ -11,7 +11,6 @@
 #include "nsRefPtr.h"
 
 class nsIDOMWindowUtils;
-class nsIDocument;
 class nsIPresShell;
 class nsIWidget;
 
@@ -65,7 +64,6 @@ private:
   void InitializeRoot();
   float GetPresShellResolution() const;
   nsIPresShell* GetPresShell() const;
-  nsIDocument* GetDocument() const;
   already_AddRefed<nsIDOMWindowUtils> GetDOMWindowUtils() const;
 };
 

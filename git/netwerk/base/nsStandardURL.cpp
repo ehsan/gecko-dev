@@ -788,10 +788,6 @@ nsStandardURL::ParseURL(const char *spec, int32_t specLen)
 {
     nsresult rv;
 
-    if (specLen > net_GetURLMaxLength()) {
-        return NS_ERROR_MALFORMED_URI;
-    }
-
     //
     // parse given URL string
     //
@@ -835,10 +831,6 @@ nsresult
 nsStandardURL::ParsePath(const char *spec, uint32_t pathPos, int32_t pathLen)
 {
     LOG(("ParsePath: %s pathpos %d len %d\n",spec,pathPos,pathLen));
-
-    if (pathLen > net_GetURLMaxLength()) {
-        return NS_ERROR_MALFORMED_URI;
-    }
 
     nsresult rv = mParser->ParsePath(spec + pathPos, pathLen,
                                      &mFilepath.mPos, &mFilepath.mLen,
@@ -1160,10 +1152,6 @@ nsStandardURL::SetSpec(const nsACString &input)
 
     if (!spec || !*spec)
         return NS_ERROR_MALFORMED_URI;
-
-    if (input.Length() > (uint32_t) net_GetURLMaxLength()) {
-        return NS_ERROR_MALFORMED_URI;
-    }
 
     // Make a backup of the curent URL
     nsStandardURL prevURL(false,false);
@@ -2736,10 +2724,6 @@ nsStandardURL::Init(uint32_t urlType,
                     nsIURI *baseURI)
 {
     ENSURE_MUTABLE();
-
-    if (spec.Length() > (uint32_t) net_GetURLMaxLength()) {
-        return NS_ERROR_MALFORMED_URI;
-    }
 
     InvalidateCache();
 

@@ -144,6 +144,24 @@ NfcContentHelper.prototype = {
     return this._rfState;
   },
 
+  encodeNDEFRecords: function encodeNDEFRecords(records) {
+    if (!Array.isArray(records)) {
+      return null;
+    }
+
+    let encodedRecords = [];
+    for (let i = 0; i < records.length; i++) {
+      let record = records[i];
+      encodedRecords.push({
+        tnf: record.tnf,
+        type: record.type || undefined,
+        id: record.id || undefined,
+        payload: record.payload || undefined,
+      });
+    }
+    return encodedRecords;
+  },
+
   setFocusApp: function setFocusApp(tabId, isFocus) {
     cpmm.sendAsyncMessage("NFC:SetFocusApp", {
       tabId: tabId,
@@ -166,10 +184,11 @@ NfcContentHelper.prototype = {
     let requestId = callback.getCallbackId();
     this._requestMap[requestId] = callback;
 
+    let encodedRecords = this.encodeNDEFRecords(records);
     cpmm.sendAsyncMessage("NFC:WriteNDEF", {
       requestId: requestId,
       sessionToken: sessionToken,
-      records: records
+      records: encodedRecords
     });
   },
 
@@ -264,10 +283,11 @@ NfcContentHelper.prototype = {
   callDefaultFoundHandler: function callDefaultFoundHandler(sessionToken,
                                                             isP2P,
                                                             records) {
+    let encodedRecords = this.encodeNDEFRecords(records);
     cpmm.sendAsyncMessage("NFC:CallDefaultFoundHandler",
                           {sessionToken: sessionToken,
                            isP2P: isP2P,
-                           records: records});
+                           records: encodedRecords});
   },
 
   callDefaultLostHandler: function callDefaultLostHandler(sessionToken, isP2P) {

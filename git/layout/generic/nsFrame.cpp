@@ -3929,7 +3929,7 @@ nsFrame::AddInlineMinISize(nsRenderingContext *aRenderingContext,
   NS_ASSERTION(GetParent(), "Must have a parent if we get here!");
   nsIFrame* parent = GetParent();
   bool canBreak = !CanContinueTextRun() &&
-    !parent->StyleContext()->ShouldSuppressLineBreak() &&
+    !parent->StyleContext()->IsInlineDescendantOfRuby() &&
     parent->StyleText()->WhiteSpaceCanWrap(parent);
   
   if (canBreak)

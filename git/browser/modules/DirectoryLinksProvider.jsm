@@ -84,11 +84,6 @@ let DirectoryLinksProvider = {
    */
   _enhancedLinks: new Map(),
 
-  /**
-   * A mapping from site to a list of related link objects
-   */
-  _relatedLinks: new Map(),
-
   get _observedPrefs() Object.freeze({
     enhanced: PREF_NEWTAB_ENHANCED,
     linksURL: PREF_DIRECTORY_SOURCE,
@@ -189,14 +184,6 @@ let DirectoryLinksProvider = {
     for (let pref in this._observedPrefs) {
       let prefName = this._observedPrefs[pref];
       Services.prefs.removeObserver(prefName, this);
-    }
-  },
-
-  _cacheRelatedLinks: function(link) {
-    for (let relatedSite of link.related) {
-      let relatedMap = this._relatedLinks.get(relatedSite) || new Map();
-      relatedMap.set(link.url, link);
-      this._relatedLinks.set(relatedSite, relatedMap);
     }
   },
 
@@ -402,33 +389,24 @@ let DirectoryLinksProvider = {
    */
   getLinks: function DirectoryLinksProvider_getLinks(aCallback) {
     this._readDirectoryLinksFile().then(rawLinks => {
-      // Reset the cache of related tiles and enhanced images for this new set of links
+      // Reset the cache of enhanced images for this new set of links
       this._enhancedLinks.clear();
-      this._relatedLinks.clear();
 
-      let links = [];
-      rawLinks.filter(link => {
+      return rawLinks.filter(link => {
         // Make sure the link url is allowed and images too if they exist
         return this.isURLAllowed(link.url, ALLOWED_LINK_SCHEMES) &&
                this.isURLAllowed(link.imageURI, ALLOWED_IMAGE_SCHEMES) &&
                this.isURLAllowed(link.enhancedImageURI, ALLOWED_IMAGE_SCHEMES);
-      }).forEach((link, position) => {
+      }).map((link, position) => {
         // Stash the enhanced image for the site
         if (link.enhancedImageURI) {
           this._enhancedLinks.set(NewTabUtils.extractSite(link.url), link);
         }
-        link.lastVisitDate = rawLinks.length - position;
 
-        // We cache related tiles here but do not push any of them in the links list yet.
-        // The decision for which related tile to include will be made separately.
-        if ("related" == link.type) {
-          this._cacheRelatedLinks(link);
-          return;
-        }
         link.frecency = DIRECTORY_FRECENCY;
-        links.push(link);
+        link.lastVisitDate = rawLinks.length - position;
+        return link;
       });
-      return links;
     }).catch(ex => {
       Cu.reportError(ex);
       return [];

@@ -30,7 +30,7 @@ function createScheduler(options) {
   // avoid typos in the test and other footguns in the options.
   let allowedOptions = ["expectedDelay", "expectNewTimer", "syncFunction"];
   for (let key of Object.keys(options)) {
-    if (allowedOptions.indexOf(key) == -1) {
+    if (!allowedOptions.includes(key)) {
       throw new Error("Invalid option " + key);
     }
   }

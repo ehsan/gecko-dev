@@ -182,9 +182,7 @@ let PerformanceController = {
     // ToolbarView, so that they may be accessible via the "gear" menu.
     // Every other pref should be registered here.
     this._nonBooleanPrefs = new ViewHelpers.Prefs("devtools.performance", {
-      "hidden-markers": ["Json", "timeline.hidden-markers"],
-      "memory-sample-probability": ["Float", "memory.sample-probability"],
-      "memory-max-log-length": ["Int", "memory.max-log-length"]
+      "hidden-markers": ["Json", "timeline.hidden-markers"]
     });
 
     this._nonBooleanPrefs.registerObserver();
@@ -264,13 +262,11 @@ let PerformanceController = {
     let withMemory = this.getOption("enable-memory");
     let withTicks = this.getOption("enable-framerate");
     let withAllocations = this.getOption("enable-memory");
-    let probability = this.getPref("memory-sample-probability");
-    let maxLogLength = this.getPref("memory-max-log-length");
 
-    let recording = this._createRecording({ withMemory, withTicks, withAllocations, probability, maxLogLength });
+    let recording = this._createRecording({ withMemory, withTicks, withAllocations });
 
     this.emit(EVENTS.RECORDING_WILL_START, recording);
-    yield recording.startRecording({ withMemory, withTicks, withAllocations, probability, maxLogLength });
+    yield recording.startRecording({ withTicks, withMemory, withAllocations });
     this.emit(EVENTS.RECORDING_STARTED, recording);
 
     this.setCurrentRecording(recording);

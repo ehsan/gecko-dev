@@ -439,6 +439,7 @@ this.SocialService = {
       // correctly.
       addon.pendingOperations -= AddonManager.PENDING_DISABLE;
       AddonManagerPrivate.callAddonListeners("onDisabled", addon);
+      AddonManagerPrivate.notifyAddonChanged(addon.id, ADDON_TYPE_SERVICE, false);
     }
 
     this.getOrderedProviderList(function (providers) {
