@@ -2103,7 +2103,7 @@ var LightWeightThemeWebInstaller = {
 
 var UserAgent = {
   DESKTOP_UA: null,
-  YOUTUBE_DOMAIN: /(^|\.)youtube\.com$/,
+  YOUTUBE_DOMAIN: /\.?youtube\.com$/,
 
   init: function ua_init() {
     Services.obs.addObserver(this, "DesktopMode:Change", false);
@@ -2141,18 +2141,15 @@ var UserAgent = {
   },
 
   getUserAgentForUriAndTab: function ua_getUserAgentForUriAndTab(aUri, aTab, defaultUA) {
-    // Send desktop UA if "Request Desktop Site" is enabled.
+    if (this.YOUTUBE_DOMAIN.test(aUri.host)) {
+      // Send the phone UA to youtube if this is a tablet
+      if (defaultUA.indexOf("Android; Mobile;") === -1)
+        return defaultUA.replace("Android;", "Android; Mobile;");
+    }
+
+    // Send desktop UA if "Request Desktop Site" is enabled
     if (aTab.desktopMode)
       return this.DESKTOP_UA;
-
-    // Not all schemes have a host member.
-    if (aUri.schemeIs("http") || aUri.schemeIs("https")) {
-      if (this.YOUTUBE_DOMAIN.test(aUri.host)) {
-        // Send the phone UA to Youtube if this is a tablet.
-        if (defaultUA.indexOf("Android; Mobile;") === -1)
-          return defaultUA.replace("Android;", "Android; Mobile;");
-      }
-    }
 
     return defaultUA;
   },
