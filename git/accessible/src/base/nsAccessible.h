@@ -301,11 +301,6 @@ public:
   virtual nsresult AppendTextTo(nsAString& aText, PRUint32 aStartOffset,
                                 PRUint32 aLength);
 
-  /**
-   * Assert if child not in parent's cache.
-   */
-  void TestChildCache(nsAccessible *aCachedChild);
-
 protected:
 
   //////////////////////////////////////////////////////////////////////////////
@@ -315,6 +310,11 @@ protected:
    * Cache accessible children.
    */
   virtual void CacheChildren();
+
+  /**
+   * Assert if child not in parent's cache.
+   */
+  void TestChildCache(nsAccessible *aCachedChild);
 
   /**
    * Cache children if necessary. Return true if the accessible is defunct.

@@ -205,7 +205,7 @@ xpctools_InterpreterHook(JSContext *cx, JSStackFrame *fp, JSBool before,
         ProfilerFunction* fun;
         if (self->mScriptTable.Get(script, &fun))
         {
-            if(before)
+            if(before == PR_TRUE)
             {
                 fun->IncrementCallCount();
                 fun->SetStartTime();

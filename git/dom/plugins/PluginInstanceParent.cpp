@@ -552,8 +552,10 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
             {
                 RECT rect;
                 SharedSurfaceBeforePaint(rect, npremoteevent);
-                CallNPP_HandleEvent(npremoteevent, &handled);
-                SharedSurfaceAfterPaint(npevent);
+                if (!CallNPP_HandleEvent(npremoteevent, &handled))
+                    return 0;
+                if (handled)
+                    SharedSurfaceAfterPaint(npevent);
             }
             break;
             default:
@@ -581,8 +583,6 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
         // an X event to the child that the child would wait for.
 #  ifdef MOZ_WIDGET_GTK2
         XSync(GDK_DISPLAY(), False);
-#  elif defined(MOZ_WIDGET_QT)
-        XSync(QX11Info::display(), False);
 #  endif
     }
 

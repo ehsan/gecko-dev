@@ -128,17 +128,19 @@ ContentPrefService.prototype = {
   //**************************************************************************//
   // nsIContentPrefService
 
-  getPref: function ContentPrefService_getPref(aGroup, aName, aCallback) {
+  getPref: function ContentPrefService_getPref(aGroup, aName) {
     if (!aName)
       throw Components.Exception("aName cannot be null or an empty string",
                                  Cr.NS_ERROR_ILLEGAL_VALUE);
 
     if (aGroup == null)
-      return this._selectGlobalPref(aName, aCallback);
+      return this._selectGlobalPref(aName);
     if (aGroup.constructor.name == "String")
-      return this._selectPref(aGroup.toString(), aName, aCallback);
-    if (aGroup instanceof Ci.nsIURI)
-      return this._selectPref(this.grouper.group(aGroup), aName, aCallback);
+      return this._selectPref(aGroup.toString(), aName);
+    if (aGroup instanceof Ci.nsIURI) {
+      var group = this.grouper.group(aGroup);
+      return this._selectPref(group, aName);
+    }
 
     throw Components.Exception("aGroup is not a string, nsIURI or null",
                                Cr.NS_ERROR_ILLEGAL_VALUE);
@@ -423,16 +425,14 @@ ContentPrefService.prototype = {
     return this.__stmtSelectPref;
   },
 
-  _selectPref: function ContentPrefService__selectPref(aGroup, aSetting, aCallback) {
+  _selectPref: function ContentPrefService__selectPref(aGroup, aSetting) {
     var value;
 
     try {
       this._stmtSelectPref.params.group = aGroup;
       this._stmtSelectPref.params.setting = aSetting;
 
-      if (aCallback)
-        new AsyncStatement(this._stmtSelectPref).execute(aCallback);
-      else if (this._stmtSelectPref.executeStep())
+      if (this._stmtSelectPref.executeStep())
         value = this._stmtSelectPref.row["value"];
     }
     finally {
@@ -456,15 +456,13 @@ ContentPrefService.prototype = {
     return this.__stmtSelectGlobalPref;
   },
 
-  _selectGlobalPref: function ContentPrefService__selectGlobalPref(aName, aCallback) {
+  _selectGlobalPref: function ContentPrefService__selectGlobalPref(aName) {
     var value;
 
     try {
       this._stmtSelectGlobalPref.params.name = aName;
 
-      if (aCallback)
-        new AsyncStatement(this._stmtSelectGlobalPref).execute(aCallback);
-      else if (this._stmtSelectGlobalPref.executeStep())
+      if (this._stmtSelectGlobalPref.executeStep())
         value = this._stmtSelectGlobalPref.row["value"];
     }
     finally {
@@ -1066,32 +1064,6 @@ HostnameGrouper.prototype = {
   }
 };
 
-function AsyncStatement(aStatement) {
-  this.stmt = aStatement;
-}
-
-AsyncStatement.prototype = {
-  execute: function AsyncStmt_execute(aCallback) {
-    let stmt = this.stmt;
-    stmt.executeAsync({
-      _callback: aCallback,
-      _hadResult: false,
-      handleResult: function(aResult) {
-        this._hadResult = true;
-        if (this._callback) {
-          let row = aResult.getNextRow();
-          this._callback.onResult(row.getResultByName("value"));
-        }
-      },
-      handleCompletion: function(aReason) {
-        if (!this._hadResult && this._callback &&
-            aReason == Ci.mozIStorageStatementCallback.REASON_FINISHED)
-          this._callback.onResult(undefined);
-      },
-      handleError: function(aError) {}
-    });
-  }
-};
 
 //****************************************************************************//
 // XPCOM Plumbing

@@ -2139,45 +2139,20 @@ nsWindow::MakeFullScreen(PRBool aFullScreen)
   RECT rc;
   if (aFullScreen) {
     SetForegroundWindow(mWnd);
-    if (nsWindowCE::sMenuBarShown) {
-      SIPINFO sipInfo;
-      memset(&sipInfo, 0, sizeof(SIPINFO));
-      sipInfo.cbSize = sizeof(SIPINFO);
-      if (SipGetInfo(&sipInfo))
-        SetRect(&rc, 0, 0, GetSystemMetrics(SM_CXSCREEN), 
-                sipInfo.rcVisibleDesktop.bottom);
-      else
-        SetRect(&rc, 0, 0, GetSystemMetrics(SM_CXSCREEN), 
-                GetSystemMetrics(SM_CYSCREEN));
-      RECT menuBarRect;
-      if (GetWindowRect(nsWindowCE::sSoftKeyMenuBarHandle, &menuBarRect) && 
-          menuBarRect.top < rc.bottom)
-        rc.bottom = menuBarRect.top;
-      SHFullScreen(mWnd, SHFS_HIDETASKBAR | SHFS_HIDESTARTICON | SHFS_SHOWSIPBUTTON);
-    } else {
-      
-      SHFullScreen(mWnd, SHFS_HIDETASKBAR | SHFS_HIDESTARTICON | SHFS_HIDESIPBUTTON);
-      SetRect(&rc, 0, 0, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
-    }
+    SHFullScreen(mWnd, SHFS_HIDETASKBAR | SHFS_HIDESTARTICON | SHFS_HIDESIPBUTTON);
+    SetRect(&rc, 0, 0, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
   }
   else {
     SHFullScreen(mWnd, SHFS_SHOWTASKBAR | SHFS_SHOWSTARTICON);
     SystemParametersInfo(SPI_GETWORKAREA, 0, &rc, FALSE);
   }
+  MoveWindow(mWnd, rc.left, rc.top, rc.right-rc.left, rc.bottom-rc.top, TRUE);
 
   if (aFullScreen)
     mSizeMode = nsSizeMode_Fullscreen;
-
-  // nsBaseWidget hides the chrome and resizes the window, replicate that here
-  HideWindowChrome(aFullScreen);
-  Resize(rc.left, rc.top, rc.right-rc.left, rc.bottom-rc.top, PR_TRUE);
-
-  return NS_OK;
-
-#else
+#endif
 
   return nsBaseWidget::MakeFullScreen(aFullScreen);
-#endif
 }
 
 /**************************************************************
@@ -2880,18 +2855,16 @@ nsWindow::OverrideSystemMouseScrollSpeed(PRInt32 aOriginalDelta,
   // on the document of SystemParametersInfo in MSDN.
   const PRInt32 kSystemDefaultScrollingSpeed = 3;
 
-  PRInt32 absOriginDelta = PR_ABS(aOriginalDelta);
-
   // Compute the simple overridden speed.
-  PRInt32 absComputedOverriddenDelta;
+  PRInt32 computedOverriddenDelta;
   nsresult rv =
-    nsBaseWidget::OverrideSystemMouseScrollSpeed(absOriginDelta, aIsHorizontal,
-                                                 absComputedOverriddenDelta);
+    nsBaseWidget::OverrideSystemMouseScrollSpeed(aOriginalDelta, aIsHorizontal,
+                                                 computedOverriddenDelta);
   NS_ENSURE_SUCCESS(rv, rv);
 
   aOverriddenDelta = aOriginalDelta;
 
-  if (absComputedOverriddenDelta == absOriginDelta) {
+  if (computedOverriddenDelta == aOriginalDelta) {
     // We don't override now.
     return NS_OK;
   }
@@ -2925,23 +2898,14 @@ nsWindow::OverrideSystemMouseScrollSpeed(PRInt32 aOriginalDelta,
   // driver might accelerate the scrolling speed already.  If so, we shouldn't
   // override the scrolling speed for preventing the unexpected high speed
   // scrolling.
-  PRInt32 absDeltaLimit;
+  PRInt32 deltaLimit;
   rv =
     nsBaseWidget::OverrideSystemMouseScrollSpeed(kSystemDefaultScrollingSpeed,
-                                                 aIsHorizontal, absDeltaLimit);
+                                                 aIsHorizontal, deltaLimit);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // If the given delta is larger than our computed limitation value, the delta
-  // was accelerated by the mouse driver.  So, we should do nothing here.
-  if (absDeltaLimit <= absOriginDelta) {
-    return NS_OK;
-  }
+  aOverriddenDelta = PR_MIN(computedOverriddenDelta, deltaLimit);
 
-  absComputedOverriddenDelta =
-    PR_MIN(absComputedOverriddenDelta, absDeltaLimit);
-
-  aOverriddenDelta = (aOriginalDelta > 0) ? absComputedOverriddenDelta :
-                                            -absComputedOverriddenDelta;
   return NS_OK;
 }
 

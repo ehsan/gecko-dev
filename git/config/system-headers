@@ -1009,10 +1009,12 @@ hunspell.hxx
 #if MOZ_NATIVE_BZ2==1
 bzlib.h
 #endif
-#if MOZ_PLATFORM_MAEMO==5
+#ifdef MOZ_PLATFORM_HILDON
 hildon-uri.h
 hildon-mime.h
 hildon-file-chooser-dialog.h
+#endif
+#ifdef NS_OSSO
 libosso.h
 osso-mem.h
 #endif

@@ -128,7 +128,7 @@ nsWifiMonitor::DoScanWithCoreWLAN()
     nsAutoMonitor mon(mMonitor);
     mon.Wait(PR_SecondsToInterval(60));
   }
-  while (mKeepGoing);
+  while (mKeepGoing == PR_TRUE);
   
   return NS_OK;
 }
@@ -264,7 +264,7 @@ nsWifiMonitor::DoScanOld()
     nsAutoMonitor mon(mMonitor);
     mon.Wait(PR_SecondsToInterval(60));
   }
-  while (mKeepGoing);
+  while (mKeepGoing == PR_TRUE);
   
   (*WirelessDetach_function_)(wifi_context_);
   

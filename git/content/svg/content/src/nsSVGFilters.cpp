@@ -330,12 +330,6 @@ nsSVGFE::DidAnimateEnum(PRUint8 aAttrEnum)
 }
 
 void
-nsSVGFE::DidAnimatePreserveAspectRatio(PRUint8 aAttrEnum)
-{
-  DidAnimateAttr(this);
-}
-
-void
 nsSVGFE::DidAnimateBoolean(PRUint8 aAttrEnum)
 {
   DidAnimateAttr(this);
@@ -4831,7 +4825,6 @@ nsSVGFELightingElement::Filter(nsSVGFilterInstance *instance,
                                                   lightPos + 1,
                                                   lightPos + 2,
                                                   nsnull);
-    instance->ConvertLocation(lightPos);
   }
   if (spotLight) {
     float limitingConeAngle;
@@ -4845,9 +4838,6 @@ nsSVGFELightingElement::Filter(nsSVGFilterInstance *instance,
                                                  &specularExponent,
                                                  &limitingConeAngle,
                                                  nsnull);
-    instance->ConvertLocation(lightPos);
-    instance->ConvertLocation(pointsAt);
-
     nsCOMPtr<nsIContent> spot = do_QueryInterface(spotLight);
     if (spot->HasAttr(kNameSpaceID_None, nsGkAtoms::limitingConeAngle)) {
       cosConeAngle = NS_MAX<double>(cos(limitingConeAngle * radPerDeg), 0.0);
@@ -5469,8 +5459,7 @@ nsSVGFEImageElement::Filter(nsSVGFilterInstance *instance,
     const gfxRect& filterSubregion = aTarget->mFilterPrimitiveSubregion;
 
     gfxMatrix viewBoxTM =
-      nsSVGUtils::GetViewBoxTransform(this,
-                                      filterSubregion.Width(), filterSubregion.Height(),
+      nsSVGUtils::GetViewBoxTransform(filterSubregion.Width(), filterSubregion.Height(),
                                       0,0, nativeWidth, nativeHeight,
                                       mPreserveAspectRatio);
 

@@ -333,13 +333,13 @@ var FullZoom = {
    * one.
    **/
   _applyPrefToSetting: function FullZoom__applyPrefToSetting(aValue, aBrowser) {
-    if ((!this.siteSpecific && !this._inPrivateBrowsing) ||
-        gInPrintPreviewMode)
+    if (!this.siteSpecific && !this._inPrivateBrowsing)
       return;
 
     var browser = aBrowser || gBrowser.selectedBrowser;
     try {
-      if (browser.contentDocument instanceof Ci.nsIImageDocument ||
+      if (gInPrintPreviewMode ||
+          browser.contentDocument instanceof Ci.nsIImageDocument ||
           this._inPrivateBrowsing)
         ZoomManager.setZoomForBrowser(browser, 1);
       else if (typeof aValue != "undefined")

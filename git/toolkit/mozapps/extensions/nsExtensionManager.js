@@ -2506,9 +2506,6 @@ ExtensionManager.prototype = {
       ERROR("Error flushing caches: " + e);
     }
 
-    // Reset the first run flag.
-    gFirstRun = false;
-
     return needsRestart;
   },
 
@@ -3182,7 +3179,6 @@ ExtensionManager.prototype = {
 
     var ds = this.datasource;
     var inactiveItemIDs = [];
-    var appEnabledItemIDs = [];
     var ctr = getContainer(ds, ds._itemRoot);
     var elements = ctr.GetElements();
     while (elements.hasMoreElements()) {
@@ -3193,8 +3189,6 @@ ExtensionManager.prototype = {
       if (appDisabled == "true" || appDisabled == OP_NEEDS_DISABLE ||
           userDisabled == "true" || userDisabled == OP_NEEDS_DISABLE)
         inactiveItemIDs.push(id);
-      if (appDisabled != "true" && appDisabled != OP_NEEDS_DISABLE)
-        appEnabledItemIDs.push(id);
     }
 
     if (isDirty)
@@ -3265,12 +3259,9 @@ ExtensionManager.prototype = {
         if (ds.getItemProperty(id, "appDisabled"))
           properties.appDisabled = null;
       }
-      else {
-        if (!ds.getItemProperty(id, "appDisabled"))
-          properties.appDisabled = EM_L("true");
-        // If this item used to be app enabled then the upgrade has made it incompatible
-        if (appEnabledItemIDs.indexOf(id) >= 0)
-          disabledAddons.push(id);
+      else if (!ds.getItemProperty(id, "appDisabled")) {
+        properties.appDisabled = EM_L("true");
+        disabledAddons.push(id);
       }
 
       ds.setItemProperties(id, properties);
@@ -3310,7 +3301,7 @@ ExtensionManager.prototype = {
 
     // Determine if we should check for compatibility updates when upgrading if
     // we have add-ons that aren't managed by the application.
-    if (!allAppManaged && !gFirstRun) {
+    if (!allAppManaged && !gFirstRun && disabledAddons.length > 0) {
       // Should we show a UI or just pass the list via a pref?
       if (getPref("getBoolPref", PREF_EM_SHOW_MISMATCH_UI, true)) {
         this._showMismatchWindow(inactiveItemIDs);

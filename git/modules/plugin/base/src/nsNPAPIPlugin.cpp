@@ -300,10 +300,10 @@ nsNPAPIPlugin::SetPluginRefNum(short aRefNum)
 
 #ifdef MOZ_IPC
 void
-nsNPAPIPlugin::PluginCrashed(const nsAString& dumpID)
+nsNPAPIPlugin::PluginCrashed()
 {
   nsRefPtr<nsPluginHost> host = dont_AddRef(nsPluginHost::GetInst());
-  host->PluginCrashed(this, dumpID);
+  host->PluginCrashed(this);
 }
 #endif
 
@@ -2017,11 +2017,7 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
         inst->GetValueFromPlugin(NPPVpluginNeedsXEmbed, &needXEmbed);
       }
       if (windowless || needXEmbed) {
-#ifdef MOZ_WIDGET_GTK2
         (*(Display **)result) = GDK_DISPLAY();
-#else
-        (*(Display **)result) = QX11Info::display();
-#endif
         return NPERR_NO_ERROR;
       }
     }
@@ -2143,7 +2139,7 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
     return NPERR_GENERIC_ERROR;
   }
 
-#if (MOZ_PLATFORM_MAEMO == 5)
+#ifdef MOZ_PLATFORM_HILDON
   case NPNVSupportsWindowlessLocal: {
     *(NPBool*)result = PR_TRUE;
     return NPERR_NO_ERROR;
@@ -2281,7 +2277,7 @@ _setvalue(NPP npp, NPPVariable variable, void *result)
       return inst->SetWindowless(bWindowless);
 #endif
     }
-#if (MOZ_PLATFORM_MAEMO == 5)
+#ifdef MOZ_PLATFORM_HILDON
     case NPPVpluginWindowlessLocalBool: {
       NPBool bWindowlessLocal = (result != nsnull);
       return inst->SetWindowlessLocal(bWindowlessLocal);

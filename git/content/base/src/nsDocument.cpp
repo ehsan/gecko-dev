@@ -1798,7 +1798,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDocument)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnloadBlocker)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFirstBaseNodeWithHref)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDOMImplementation)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOriginalDocument)
 
   // An element will only be in the linkmap as long as it's in the
   // document, so we'll traverse the table here instead of from the element.
@@ -1852,7 +1851,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocument)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDisplayDocument)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFirstBaseNodeWithHref)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDOMImplementation)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOriginalDocument)
 
   NS_IMPL_CYCLE_COLLECTION_UNLINK_USERDATA
 
@@ -2861,24 +2859,21 @@ nsDocument::GetElementsByClassNameHelper(nsINode* aRootNode,
       aRootNode->GetOwnerDoc()->GetCompatibilityMode() ==
         eCompatibility_NavQuirks ?
           eIgnoreCase : eCaseMatters;
-
-    elements =
-      NS_GetFuncStringContentList(aRootNode, MatchClassNames,
-                                  DestroyClassNameArray, info,
-                                  aClasses).get();
+  
+    elements = new nsContentList(aRootNode, MatchClassNames,
+                                 DestroyClassNameArray, info);
   } else {
     delete info;
     info = nsnull;
     elements = new nsBaseContentList();
-    NS_IF_ADDREF(elements);
   }
   if (!elements) {
     delete info;
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  // Transfer ownership
   *aReturn = elements;
+  NS_ADDREF(*aReturn);
 
   return NS_OK;
 }

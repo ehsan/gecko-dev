@@ -66,9 +66,6 @@ var gAdvancedPane = {
     this.updateModeItems();
 #endif
     this.updateOfflineApps();
-#ifdef MOZ_CRASHREPORTER
-    this.initSubmitCrashes();
-#endif
   },
 
   /**
@@ -141,35 +138,6 @@ var gAdvancedPane = {
     var checkbox = document.getElementById("checkSpelling");
     return checkbox.checked ? (this._storedSpellCheck == 2 ? 2 : 1) : 0;
   },
-
-  /**
-   *
-   */
-  initSubmitCrashes: function ()
-  {
-    var checkbox = document.getElementById("submitCrashesBox");
-    try {
-      var cr = Components.classes["@mozilla.org/toolkit/crash-reporter;1"].
-               getService(Components.interfaces.nsICrashReporter);
-      checkbox.checked = cr.submitReports;
-    } catch (e) {
-      checkbox.style.display = "none";
-    }
-  },
-
-  /**
-   *
-   */
-  updateSubmitCrashes: function ()
-  {
-    var checkbox = document.getElementById("submitCrashesBox");
-    try {
-      var cr = Components.classes["@mozilla.org/toolkit/crash-reporter;1"].
-               getService(Components.interfaces.nsICrashReporter);
-      cr.submitReports = checkbox.checked;
-    } catch (e) { }
-  },
-
 
   // NETWORK TAB
 

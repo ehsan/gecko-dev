@@ -93,9 +93,8 @@ public:
 
 #ifdef MOZ_IPC
   // The IPC mechanism notifies the nsNPAPIPlugin if the plugin crashes and is
-  // no longer usable. dumpID is the ID of a minidump that was written,
-  // or empty if no minidump was written.
-  void PluginCrashed(const nsAString& dumpID);
+  // no longer usable.
+  void PluginCrashed();
 #endif
 
 protected:

@@ -50,7 +50,6 @@ const NS_INSTALL_LOCATION_APPPROFILE = "app-profile";
 const XULAPPINFO_CONTRACTID = "@mozilla.org/xre/app-info;1";
 const XULAPPINFO_CID = Components.ID("{c763b610-9d49-455a-bbd2-ede71682a1ac}");
 
-var gXULAppInfo = null;
 var gEM = null;
 var gRDF = Components.classes["@mozilla.org/rdf/rdf-service;1"]
                      .getService(Components.interfaces.nsIRDFService);
@@ -157,7 +156,7 @@ function do_get_addon(name)
  */
 function createAppInfo(id, name, version, platformVersion)
 {
-  gXULAppInfo = {
+  var XULAppInfo = {
     vendor: "Mozilla",
     name: name,
     ID: id,
@@ -185,32 +184,12 @@ function createAppInfo(id, name, version, platformVersion)
     createInstance: function (outer, iid) {
       if (outer != null)
         throw Components.results.NS_ERROR_NO_AGGREGATION;
-      return gXULAppInfo.QueryInterface(iid);
+      return XULAppInfo.QueryInterface(iid);
     }
   };
   var registrar = Components.manager.QueryInterface(Components.interfaces.nsIComponentRegistrar);
   registrar.registerFactory(XULAPPINFO_CID, "XULAppInfo",
                             XULAPPINFO_CONTRACTID, XULAppInfoFactory);
-}
-
-function startEM(upgraded) {
-  var needsRestart = false;
-  if (upgraded) {
-    try {
-      needsRestart = gEM.checkForMismatches();
-    }
-    catch (e) {
-      do_throw("checkForMismatches threw an exception: " + e + "\n");
-      needsRestart = false;
-      upgraded = false;
-    }
-  }
-
-  if (!upgraded || !needsRestart)
-    needsRestart = gEM.start();
-
-  if (needsRestart)
-    restartEM();
 }
 
 /**
@@ -227,7 +206,19 @@ function startupEM()
 
   // First run is a new profile which nsAppRunner would consider as an update
   // (no existing compatibility.ini)
-  startEM(true);
+  var upgraded = true;
+  var needsRestart = false;
+  try {
+    needsRestart = gEM.checkForMismatches();
+  }
+  catch (e) {
+    dump("checkForMismatches threw an exception: " + e + "\n");
+    needsRestart = false;
+    upgraded = false;
+  }
+
+  if (!upgraded || !needsRestart)
+    needsRestart = gEM.start();
 }
 
 /**
@@ -244,15 +235,11 @@ function shutdownEM()
  * Many operations require restarts to take effect. This function should
  * perform all that is necessary for this to happen.
  */
-function restartEM(newVersion)
+function restartEM()
 {
-  if (newVersion) {
-    gXULAppInfo.version = newVersion;
-    startEM(true);
-  }
-  else {
-    startEM(false);
-  }
+  var needsRestart = gEM.start();
+  if (needsRestart)
+    gEM.start();
 }
 
 var gDirSvc = Components.classes["@mozilla.org/file/directory_service;1"]

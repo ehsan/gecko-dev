@@ -753,7 +753,6 @@ MAKEFILES_xulapp="
   toolkit/mozapps/extensions/Makefile
   toolkit/mozapps/handling/Makefile
   toolkit/mozapps/plugins/Makefile
-  toolkit/mozapps/readstrings/Makefile
   toolkit/mozapps/update/Makefile
   toolkit/mozapps/update/updater/Makefile
   toolkit/mozapps/xpinstall/Makefile

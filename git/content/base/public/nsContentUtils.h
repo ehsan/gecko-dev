@@ -46,6 +46,7 @@
 #include "jsnum.h"
 #include "nsAString.h"
 #include "nsIStatefulFrame.h"
+#include "nsIPref.h"
 #include "nsINodeInfo.h"
 #include "nsNodeInfoManager.h"
 #include "nsContentList.h"
@@ -59,7 +60,6 @@
 #include "nsTArray.h"
 #include "nsTextFragment.h"
 #include "nsReadableUtils.h"
-#include "nsIPrefBranch2.h"
 
 struct nsNativeKeyEvent; // Don't include nsINativeKeyBindings.h here: it will force strange compilation error!
 
@@ -84,7 +84,7 @@ class imgIDecoderObserver;
 class imgIRequest;
 class imgILoader;
 class imgICache;
-class nsIPrefBranch2;
+class nsIPrefBranch;
 class nsIImageLoadingContent;
 class nsIDOMHTMLFormElement;
 class nsIDOMDocument;
@@ -100,6 +100,7 @@ class nsIScriptContext;
 class nsIRunnable;
 class nsIInterfaceRequestor;
 template<class E> class nsCOMArray;
+class nsIPref;
 struct JSRuntime;
 class nsICaseConversion;
 class nsIUGenCategory;
@@ -109,7 +110,6 @@ class nsPIDOMWindow;
 class nsPIDOMEventTarget;
 class nsIPresShell;
 class nsIXPConnectJSObjectHolder;
-class nsPrefOldCallback;
 #ifdef MOZ_XTF
 class nsIXTFService;
 #endif
@@ -117,11 +117,6 @@ class nsIXTFService;
 class nsIBidiKeyboard;
 #endif
 class nsIMIMEHeaderParam;
-
-#ifndef have_PrefChangedFunc_typedef
-typedef int (*PR_CALLBACK PrefChangedFunc)(const char *, void *);
-#define have_PrefChangedFunc_typedef
-#endif
 
 extern const char kLoadAsData[];
 
@@ -564,7 +559,7 @@ public:
                                      void * aClosure);
   static void AddBoolPrefVarCache(const char* aPref, PRBool* aVariable);
   static void AddIntPrefVarCache(const char* aPref, PRInt32* aVariable);
-  static nsIPrefBranch2 *GetPrefBranch()
+  static nsIPrefBranch *GetPrefBranch()
   {
     return sPrefBranch;
   }
@@ -1542,9 +1537,9 @@ private:
   static nsIXTFService *sXTFService;
 #endif
 
-  static nsIPrefBranch2 *sPrefBranch;
-  // For old compatibility of RegisterPrefCallback
-  static nsCOMArray<nsPrefOldCallback> *sPrefCallbackList;
+  static nsIPrefBranch *sPrefBranch;
+
+  static nsIPref *sPref;
 
   static imgILoader* sImgLoader;
   static imgICache* sImgCache;

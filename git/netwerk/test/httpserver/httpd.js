@@ -57,9 +57,6 @@ const PR_UINT32_MAX = Math.pow(2, 32) - 1;
 /** True if debugging output is enabled, false otherwise. */
 var DEBUG = false; // non-const *only* so tweakable in server tests
 
-/** True if debugging output should be timestamped. */
-var DEBUG_TIMESTAMP = false; // non-const so tweakable in server tests
-
 var gGlobalObject = this;
 
 /**
@@ -78,7 +75,7 @@ function NS_ASSERT(cond, msg)
 
     var stack = new Error().stack.split(/\n/);
     dumpn(stack.map(function(val) { return "###!!!   " + val; }).join("\n"));
-
+    
     throw Cr.NS_ERROR_ABORT;
   }
 }
@@ -167,32 +164,12 @@ const HEADERS_SUFFIX = HIDDEN_CHAR + "headers" + HIDDEN_CHAR;
 /** Type used to denote SJS scripts for CGI-like functionality. */
 const SJS_TYPE = "sjs";
 
-/** Base for relative timestamps produced by dumpn(). */
-var firstStamp = 0;
 
-/** dump(str) with a trailing "\n" -- only outputs if DEBUG. */
+/** dump(str) with a trailing "\n" -- only outputs if DEBUG */
 function dumpn(str)
 {
   if (DEBUG)
-  {
-    var prefix = "HTTPD-INFO | ";
-    if (DEBUG_TIMESTAMP)
-    {
-      if (firstStamp === 0)
-        firstStamp = Date.now();
-
-      var elapsed = Date.now() - firstStamp; // milliseconds
-      var min = Math.floor(elapsed / 60000);
-      var sec = (elapsed % 60000) / 1000;
-
-      if (sec < 10)
-        prefix += min + ":0" + sec.toFixed(3) + " | ";
-      else
-        prefix += min + ":" + sec.toFixed(3) + " | ";
-    }
-
-    dump(prefix + str + "\n");
-  }
+    dump(str + "\n");
 }
 
 /** Dumps the current JS stack if DEBUG. */

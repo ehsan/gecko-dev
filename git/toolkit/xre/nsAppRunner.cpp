@@ -975,19 +975,6 @@ nsXULAppInfo::AppendObjCExceptionInfoToAppNotes(void* aException)
   return NS_ERROR_NOT_IMPLEMENTED;
 #endif
 }
-
-NS_IMETHODIMP
-nsXULAppInfo::GetSubmitReports(PRBool* aEnabled)
-{
-  return CrashReporter::GetSubmitReports(aEnabled);
-}
-
-NS_IMETHODIMP
-nsXULAppInfo::SetSubmitReports(PRBool aEnabled)
-{
-  return CrashReporter::SetSubmitReports(aEnabled);
-}
-
 #endif
 
 static const nsXULAppInfo kAppInfo;

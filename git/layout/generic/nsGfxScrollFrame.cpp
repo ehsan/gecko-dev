@@ -79,7 +79,6 @@
 #include "nsDisplayList.h"
 #include "nsBidiUtils.h"
 #include "nsFrameManager.h"
-#include "nsIPrefService.h"
 
 //----------------------------------------------------------------------
 

@@ -50,24 +50,6 @@ using namespace mozilla::plugins;
 
 PR_STATIC_ASSERT(sizeof(NPIdentifier) == sizeof(void*));
 
-class PluginCrashed : public nsRunnable
-{
-public:
-    PluginCrashed(nsNPAPIPlugin* plugin,
-                  const nsString& dumpID)
-        : mDumpID(dumpID),
-          mPlugin(plugin) { }
-
-    NS_IMETHOD Run() {
-        mPlugin->PluginCrashed(mDumpID);
-        return NS_OK;
-    }
-
-private:
-    nsNPAPIPlugin* mPlugin;
-    nsString mDumpID;
-};
-
 // static
 PluginLibrary*
 PluginModuleParent::LoadModule(const char* aFilePath)
@@ -178,13 +160,8 @@ PluginModuleParent::ActorDestroy(ActorDestroyReason why)
     switch (why) {
     case AbnormalShutdown: {
         nsCOMPtr<nsIFile> dump;
-        nsAutoString dumpID;
         if (GetMinidump(getter_AddRefs(dump))) {
             WriteExtraDataForMinidump(dump);
-            if (NS_SUCCEEDED(dump->GetLeafName(dumpID))) {
-                dumpID.Replace(dumpID.Length() - 4, 4,
-                               NS_LITERAL_STRING(""));
-            }
         }
         else {
             NS_WARNING("[PluginModuleParent::ActorDestroy] abnormal shutdown without minidump!");
@@ -195,7 +172,8 @@ PluginModuleParent::ActorDestroy(ActorDestroyReason why)
         // and potentially modify the actor child list while enumerating it.
         if (mPlugin) {
             nsCOMPtr<nsIRunnable> r =
-                new PluginCrashed(mPlugin, dumpID);
+                new nsRunnableMethod<nsNPAPIPlugin>(
+                    mPlugin, &nsNPAPIPlugin::PluginCrashed);
             NS_DispatchToMainThread(r);
         }
         break;

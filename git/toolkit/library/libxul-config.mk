@@ -363,7 +363,7 @@ COMPONENT_LIBS += gkdebug
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
-OS_LIBS += -framework OpenGL -lcups
+EXTRA_DSO_LDOPTS += -framework OpenGL -lcups
 endif
 
 EXTRA_DSO_LDOPTS += \

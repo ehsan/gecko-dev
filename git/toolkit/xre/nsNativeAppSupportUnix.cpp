@@ -59,7 +59,7 @@
 #include <glib-object.h>
 #include <gtk/gtk.h>
 
-#ifdef MOZ_PLATFORM_MAEMO
+#ifdef NS_OSSO
 struct DBusMessage;  /* libosso.h references internals of dbus */
 
 #include <dbus/dbus.h>
@@ -157,7 +157,7 @@ public:
   NS_IMETHOD Stop(PRBool *aResult);
 
 private:
-#ifdef MOZ_PLATFORM_MAEMO
+#ifdef NS_OSSO
   osso_context_t *m_osso_context;    
   /* A note about why we need to have m_hw_state:
      the osso hardware callback does not tell us what changed, just
@@ -168,7 +168,7 @@ private:
 #endif
 };
 
-#ifdef MOZ_PLATFORM_MAEMO
+#ifdef NS_OSSO
 
 static void OssoDisplayCallback(osso_display_state_t state, gpointer data)
 {
@@ -309,7 +309,7 @@ nsNativeAppSupportUnix::Start(PRBool *aRetVal)
     exit(0);
   }
 
-#ifdef MOZ_PLATFORM_MAEMO
+#ifdef NS_OSSO
   /* zero state out. */
   memset(&m_hw_state, 0, sizeof(osso_hw_state_t));
 
@@ -454,7 +454,7 @@ nsNativeAppSupportUnix::Stop(PRBool *aResult)
   NS_ENSURE_ARG(aResult);
   *aResult = PR_TRUE;
 
-#ifdef MOZ_PLATFORM_MAEMO
+#ifdef NS_OSSO
   if (m_osso_context) {
     osso_hw_unset_event_cb(m_osso_context, nsnull);
     osso_rpc_unset_default_cb_f(m_osso_context, OssoDbusCallback, nsnull);
