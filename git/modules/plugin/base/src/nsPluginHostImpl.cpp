@@ -48,9 +48,9 @@
 #include "prmem.h"
 #include "nsNPAPIPlugin.h"
 #include "nsNPAPIPluginStreamListener.h"
+#include "nsPluginInstancePeer.h"
 #include "nsIPlugin.h"
 #include "nsIPluginInstanceInternal.h"
-#include "nsNPAPIPluginInstance.h"
 #include "nsIPluginStreamListener.h"
 #include "nsIHTTPHeaderListener.h"
 #include "nsIHttpHeaderVisitor.h"
@@ -77,6 +77,7 @@
 #include "nsNetUtil.h"
 #include "nsIProgressEventSink.h"
 #include "nsIDocument.h"
+#include "nsIScriptablePlugin.h"
 #include "nsICachingChannel.h"
 #include "nsHashtable.h"
 #include "nsIProxyInfo.h"
@@ -105,6 +106,7 @@
 #include "nsIScriptGlobalObjectOwner.h"
 #include "nsIPrincipal.h"
 
+#include "nsIServiceManager.h"
 #include "nsNetCID.h"
 #include "nsICookieService.h"
 #include "nsIDOMPlugin.h"
@@ -168,6 +170,10 @@
 #include <mach-o/fat.h>
 #endif
 
+#ifdef XP_OS2
+#include "nsILegacyPluginWrapperOS2.h"
+#endif
+
 // this is the name of the directory which will be created
 // to cache temporary files.
 #define kPluginTmpDirName NS_LITERAL_CSTRING("plugtmp")
@@ -183,9 +189,8 @@
 // 0.08 mime entry point on MachO, bug 137535
 // 0.09 the file encoding is changed to UTF-8, bug 420285
 // 0.10 added plugin versions on appropriate platforms, bug 427743
-// 0.11 file name and full path fields now store expected values on all platforms, bug 488181
 // The current plugin registry version (and the maximum version we know how to read)
-static const char *kPluginRegistryVersion = "0.11";
+static const char *kPluginRegistryVersion = "0.10";
 // The minimum registry version we know how to read
 static const char *kMinimumRegistryVersion = "0.9";
 
@@ -194,6 +199,8 @@ static NS_DEFINE_IID(kIPluginInstanceIID, NS_IPLUGININSTANCE_IID);
 static NS_DEFINE_CID(kPluginCID, NS_PLUGIN_CID);
 static NS_DEFINE_IID(kIPluginTagInfo2IID, NS_IPLUGINTAGINFO2_IID);
 static const char kDirectoryServiceContractID[] = "@mozilla.org/file/directory_service;1";
+// for the dialog
+static NS_DEFINE_CID(kCPluginManagerCID, NS_PLUGINMANAGER_CID); // needed for NS_TRY_SAFE_CALL
 
 // Registry keys for caching plugin info
 static const char kPluginsRootKey[] = "software/plugins";
@@ -311,15 +318,20 @@ NS_IMETHODIMP nsPluginDocReframeEvent::Run() {
 nsPluginInstanceTag::nsPluginInstanceTag(nsPluginTag* aPluginTag,
                                nsIPluginInstance* aInstance,
                                const char * url,
-                               PRBool aDefaultPlugin)
+                               PRBool aDefaultPlugin,
+                               nsIPluginInstancePeer* peer)
 {
   mNext = nsnull;
+  mPeer = nsnull;
   mPluginTag = aPluginTag;
 
   mURL = PL_strdup(url);
   mInstance = aInstance;
-  if (aInstance)
+  if (aInstance && peer) {
+    mPeer = peer;
+    NS_ADDREF(mPeer);
     NS_ADDREF(aInstance);
+  }
   mXPConnected = PR_FALSE;
   mDefaultPlugin = aDefaultPlugin;
   mStopped = PR_FALSE;
@@ -330,13 +342,30 @@ nsPluginInstanceTag::~nsPluginInstanceTag()
 {
   mPluginTag = nsnull;
   if (mInstance) {
-    nsCOMPtr<nsIPluginInstanceOwner> owner;
-    mInstance->GetOwner(getter_AddRefs(owner));
-    if (owner)
-      owner->SetInstance(nsnull);
-    mInstance->InvalidateOwner();
+    if (mPeer) {
+      nsresult rv = NS_OK;
+      nsCOMPtr<nsPIPluginInstancePeer> peer(do_QueryInterface(mPeer));
+      nsCOMPtr<nsIPluginInstanceOwner> owner;
+      rv = peer->GetOwner(getter_AddRefs(owner));
+      if (owner)
+        owner->SetInstance(nsnull);
+
+      nsCOMPtr<nsIPluginInstancePeer2> peer2(do_QueryInterface(peer));
+
+      if (peer2)
+        peer2->InvalidateOwner();
+    }
+
+    // now check for cached plugins because they haven't had nsIPluginInstance::Destroy()
+    // called yet. For non-cached plugins, nsIPluginInstance::Destroy() is called
+    // in either nsObjectFrame::Destroy() or nsPluginInstanceTagList::stopRunning()
+    PRBool doCache = PR_TRUE;
+    mInstance->GetValue(nsPluginInstanceVariable_DoCacheBool, (void *) &doCache);
+    if (doCache)
+      mInstance->Destroy();
 
     NS_RELEASE(mInstance);
+    NS_IF_RELEASE(mPeer);
   }
   PL_strfree(mURL);
 }
@@ -474,11 +503,13 @@ void nsPluginInstanceTagList::stopRunning(nsISupportsArray* aReloadDocs,
                              (void *) &doCallSetWindowAfterDestroy);
       if (doCallSetWindowAfterDestroy) {
         p->mInstance->Stop();
+        p->mInstance->Destroy();
         p->mInstance->SetWindow(nsnull);
       }
       else {
         p->mInstance->SetWindow(nsnull);
         p->mInstance->Stop();
+        p->mInstance->Destroy();
       }
       doCallSetWindowAfterDestroy = PR_FALSE;
       p->setStopped(PR_TRUE);
@@ -486,9 +517,10 @@ void nsPluginInstanceTagList::stopRunning(nsISupportsArray* aReloadDocs,
       // If we've been passed an array to return, lets collect all our documents,
       // removing duplicates. These will be reframed (embedded) or reloaded (full-page) later
       // to kickstart our instances.
-      if (aReloadDocs && p->mInstance) {
+      if (aReloadDocs && p->mPeer) {
+        nsCOMPtr<nsPIPluginInstancePeer> peer(do_QueryInterface(p->mPeer));
         nsCOMPtr<nsIPluginInstanceOwner> owner;
-        p->mInstance->GetOwner(getter_AddRefs(owner));
+        peer->GetOwner(getter_AddRefs(owner));
         if (owner) {
           nsCOMPtr<nsIDocument> doc;
           owner->GetDocument(getter_AddRefs(doc));
@@ -539,16 +571,18 @@ nsPluginInstanceTag * nsPluginInstanceTagList::find(const char * mimetype)
 
   for (nsPluginInstanceTag * p = mFirst; p != nsnull; p = p->mNext) {
     // give it some special treatment for the default plugin first
-    // because we cannot tell the default plugin by asking instance for a mime type
+    // because we cannot tell the default plugin by asking peer for a mime type
     if (defaultplugin && p->mDefaultPlugin)
       return p;
 
-    if (!p->mInstance)
+    if (!p->mPeer)
       continue;
 
     nsMIMEType mt;
-    nsresult rv = p->mInstance->GetMIMEType(&mt);
-    if (NS_FAILED(rv))
+
+    nsresult res = p->mPeer->GetMIMEType(&mt);
+
+    if (NS_FAILED(res))
       continue;
 
     if (PL_strcasecmp(mt, mimetype) == 0) {
@@ -557,7 +591,7 @@ nsPluginInstanceTag * nsPluginInstanceTagList::find(const char * mimetype)
       p->mInstance->GetValue(nsPluginInstanceVariable_DoCacheBool, (void *) &doCache);
       NS_ASSERTION(!p->mStopped || doCache, "This plugin is not supposed to be cached!");
 #endif
-      return p;
+       return p;
     }
   }
   return nsnull;
@@ -831,11 +865,13 @@ NS_IMPL_ISUPPORTS1(nsPluginTag, nsIPluginTag)
 static nsresult ConvertToUTF8(nsIUnicodeDecoder *aUnicodeDecoder,
                               nsAFlatCString& aString)
 {
+  nsresult rv;
+
   PRInt32 numberOfBytes = aString.Length();
   PRInt32 outUnicodeLen;
   nsAutoString buffer;
-  nsresult rv = aUnicodeDecoder->GetMaxLength(aString.get(), numberOfBytes,
-                                              &outUnicodeLen);
+  rv = aUnicodeDecoder->GetMaxLength(aString.get(), numberOfBytes,
+                                     &outUnicodeLen);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!EnsureStringLength(buffer, outUnicodeLen))
     return NS_ERROR_OUT_OF_MEMORY;
@@ -1017,6 +1053,12 @@ nsresult PostPluginUnloadEvent(PRLibrary* aLibrary)
 
 void nsPluginTag::TryUnloadPlugin(PRBool aForceShutdown)
 {
+  PRBool isXPCOM = PR_FALSE;
+  if (!(mFlags & NS_PLUGIN_FLAG_NPAPI))
+    isXPCOM = PR_TRUE;
+
+  if (isXPCOM && !aForceShutdown) return;
+
   if (mEntryPoint) {
     mEntryPoint->Shutdown();
     mEntryPoint->Release();
@@ -1024,7 +1066,8 @@ void nsPluginTag::TryUnloadPlugin(PRBool aForceShutdown)
   }
 
   // before we unload check if we are allowed to, see bug #61388
-  if (mLibrary && mCanUnloadLibrary) {
+  // also, never unload an XPCOM plugin library
+  if (mLibrary && mCanUnloadLibrary && !isXPCOM) {
     // NPAPI plugins can be unloaded now if they don't use XPConnect
     if (!mXPConnected)
       // unload the plugin asynchronously by posting a PLEvent
@@ -1197,7 +1240,7 @@ private:
   PRPackedBool            mRequestFailed;
 
   /*
-   * Set to PR_TRUE after nsIPluginStreamListener::OnStartBinding() has
+   * Set to PR_TRUE after nsIPluginInstancePeer::OnStartBinding() has
    * been called.  Checked in ::OnStopRequest so we can call the
    * plugin's OnStartBinding if, for some reason, it has not already
    * been called.
@@ -2246,13 +2289,13 @@ nsresult nsPluginStreamListenerPeer::SetUpStreamListener(nsIRequest *request,
   // NOTE: this should only happen when a stream was NOT created
   // with GetURL or PostURL (i.e. it's the initial stream we
   // send to the plugin as determined by the SRC or DATA attribute)
-  if (!mPStreamListener && mInstance)
-    rv = mInstance->NewStreamToPlugin(&mPStreamListener);
+  if (mPStreamListener == nsnull && mInstance != nsnull)
+    rv = mInstance->NewStream(&mPStreamListener);
 
-  if (NS_FAILED(rv))
+  if (rv != NS_OK)
     return rv;
 
-  if (!mPStreamListener)
+  if (mPStreamListener == nsnull)
     return NS_ERROR_NULL_POINTER;
 
   PRBool useLocalCache = PR_FALSE;
@@ -2480,8 +2523,12 @@ nsPluginHostImpl::~nsPluginHostImpl()
   sInst = nsnull;
 }
 
-NS_IMPL_ISUPPORTS4(nsPluginHostImpl,
+NS_IMPL_ISUPPORTS8(nsPluginHostImpl,
+                   nsIPluginManager,
+                   nsIPluginManager2,
                    nsIPluginHost,
+                   nsIFileUtilities,
+                   nsICookieStorage,
                    nsIObserver,
                    nsPIPluginHost,
                    nsISupportsWeakReference)
@@ -2519,12 +2566,38 @@ nsPluginHostImpl::GetPluginName(nsIPluginInstance *aPluginInstance)
   return nsnull;
 }
 
+NS_IMETHODIMP nsPluginHostImpl::GetValue(nsPluginManagerVariable aVariable, void *aValue)
+{
+  nsresult rv = NS_OK;
+
+  NS_ENSURE_ARG_POINTER(aValue);
+
+#if defined(XP_UNIX) && !defined(XP_MACOSX) && defined(MOZ_X11)
+  if (nsPluginManagerVariable_XDisplay == aVariable) {
+    Display** value = reinterpret_cast<Display**>(aValue);
+#if defined (MOZ_WIDGET_GTK2)
+    *value = GDK_DISPLAY();
+#endif
+    if (!(*value))
+      return NS_ERROR_FAILURE;
+  }
+#endif
+  if (nsPluginManagerVariable_SupportsXEmbed == aVariable) {
+#ifdef MOZ_WIDGET_GTK2
+    *(NPBool*)aValue = PR_TRUE;
+#else
+    *(NPBool*)aValue = PR_FALSE;
+#endif
+  }
+  return rv;
+}
+
 PRBool nsPluginHostImpl::IsRunningPlugin(nsPluginTag * plugin)
 {
   if (!plugin)
     return PR_FALSE;
 
-  // we can check for mLibrary to be non-zero and then ask nsIPluginInstance
+  // we can check for mLibrary to be non-zero and then querry nsIPluginInstancePeer
   // in nsPluginInstanceTagList to see if plugin with matching mime type is not stopped
   if (!plugin->mLibrary)
     return PR_FALSE;
@@ -2586,8 +2659,12 @@ nsresult nsPluginHostImpl::ReloadPlugins(PRBool reloadPages)
   for (nsRefPtr<nsPluginTag> p = mPlugins; p != nsnull;) {
     next = p->mNext;
 
-    // only remove our plugin from the list if it's not running.
-    if (!IsRunningPlugin(p)) {
+    // XXX only remove our plugin from the list if it's not running and not
+    // an XPCOM plugin. XPCOM plugins do not get a call to nsIPlugin::Shutdown
+    // if plugins are reloaded. This also fixes a crash on UNIX where the call
+    // to shutdown would break the ProxyJNI connection to the JRE after a reload.
+    // see bug 86591
+    if (!IsRunningPlugin(p) && (!p->mEntryPoint || p->HasFlag(NS_PLUGIN_FLAG_NPAPI))) {
       if (p == mPlugins)
         mPlugins = next;
       else
@@ -2707,7 +2784,7 @@ NS_IMETHODIMP nsPluginHostImpl::GetURL(nsISupports* pluginInst,
                            altHost, referrer, forceJSEnabled, nsnull, nsnull);
 }
 
-nsresult nsPluginHostImpl::GetURLWithHeaders(nsISupports* pluginInst,
+NS_IMETHODIMP nsPluginHostImpl::GetURLWithHeaders(nsISupports* pluginInst,
                      const char* url,
                      const char* target,
                      nsIPluginStreamListener* streamListener,
@@ -2732,16 +2809,21 @@ nsresult nsPluginHostImpl::GetURLWithHeaders(nsISupports* pluginInst,
 
   if (NS_SUCCEEDED(rv)) {
     if (target) {
-      nsCOMPtr<nsIPluginInstanceOwner> owner;
-      rv = instance->GetOwner(getter_AddRefs(owner));
-      if (owner) {
-        if ((0 == PL_strcmp(target, "newwindow")) ||
-            (0 == PL_strcmp(target, "_new")))
-          target = "_blank";
-        else if (0 == PL_strcmp(target, "_current"))
-          target = "_self";
+      nsCOMPtr<nsIPluginInstancePeer> peer;
+      rv = instance->GetPeer(getter_AddRefs(peer));
+      if (NS_SUCCEEDED(rv) && peer) {
+        nsCOMPtr<nsPIPluginInstancePeer> privpeer(do_QueryInterface(peer));
+        nsCOMPtr<nsIPluginInstanceOwner> owner;
+        rv = privpeer->GetOwner(getter_AddRefs(owner));
+        if (owner) {
+          if ((0 == PL_strcmp(target, "newwindow")) ||
+              (0 == PL_strcmp(target, "_new")))
+            target = "_blank";
+          else if (0 == PL_strcmp(target, "_current"))
+            target = "_self";
 
-        rv = owner->GetURL(url, target, nsnull, 0, (void *) getHeaders, getHeadersLength);
+          rv = owner->GetURL(url, target, nsnull, 0, (void *) getHeaders, getHeadersLength);
+        }
       }
     }
 
@@ -2800,21 +2882,28 @@ NS_IMETHODIMP nsPluginHostImpl::PostURL(nsISupports* pluginInst,
     }
 
     if (target) {
-      nsCOMPtr<nsIPluginInstanceOwner> owner;
-      rv = instance->GetOwner(getter_AddRefs(owner));
-      if (owner) {
-        if (!target) {
-          target = "_self";
-        } else {
-          if ((0 == PL_strcmp(target, "newwindow")) ||
-              (0 == PL_strcmp(target, "_new"))) {
-            target = "_blank";
-          } else if (0 == PL_strcmp(target, "_current")) {
+      nsCOMPtr<nsIPluginInstancePeer> peer;
+      rv = instance->GetPeer(getter_AddRefs(peer));
+      if (NS_SUCCEEDED(rv) && peer) {
+        nsCOMPtr<nsPIPluginInstancePeer> privpeer(do_QueryInterface(peer));
+        nsCOMPtr<nsIPluginInstanceOwner> owner;
+        rv = privpeer->GetOwner(getter_AddRefs(owner));
+        if (owner) {
+          if (!target) {
             target = "_self";
           }
+          else {
+            if ((0 == PL_strcmp(target, "newwindow")) ||
+                (0 == PL_strcmp(target, "_new"))) {
+              target = "_blank";
+            }
+            else if (0 == PL_strcmp(target, "_current")) {
+              target = "_self";
+            }
+          }
+          rv = owner->GetURL(url, target, (void*)dataToPost, postDataLen,
+                             (void*)postHeaders, postHeadersLength, isFile);
         }
-        rv = owner->GetURL(url, target, (void*)dataToPost, postDataLen,
-                           (void*)postHeaders, postHeadersLength, isFile);
       }
     }
 
@@ -2830,6 +2919,43 @@ NS_IMETHODIMP nsPluginHostImpl::PostURL(nsISupports* pluginInst,
 
   return rv;
 }
+
+NS_IMETHODIMP nsPluginHostImpl::RegisterPlugin(REFNSIID aCID,
+                                               const char* aPluginName,
+                                               const char* aDescription,
+                                               const char** aMimeTypes,
+                                               const char** aMimeDescriptions,
+                                               const char** aFileExtensions,
+                                               PRInt32 aCount)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP nsPluginHostImpl::UnregisterPlugin(REFNSIID aCID)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP nsPluginHostImpl::BeginWaitCursor(void)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP nsPluginHostImpl::EndWaitCursor(void)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP nsPluginHostImpl::SupportsURLProtocol(const char* protocol, PRBool *result)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP nsPluginHostImpl::NotifyStatusChange(nsIPlugin* plugin, nsresult errorStatus)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
 
 /* This method queries the prefs for proxy information.
  * It has been tested and is known to work in the following three cases
@@ -2903,6 +3029,31 @@ NS_IMETHODIMP nsPluginHostImpl::FindProxyForURL(const char* url, char* *result)
     res = NS_ERROR_OUT_OF_MEMORY;
 
   return res;
+}
+
+NS_IMETHODIMP nsPluginHostImpl::RegisterWindow(nsIEventHandler* handler, nsPluginPlatformWindowRef window)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP nsPluginHostImpl::UnregisterWindow(nsIEventHandler* handler, nsPluginPlatformWindowRef window)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP nsPluginHostImpl::AllocateMenuID(nsIEventHandler* handler, PRBool isSubmenu, PRInt16 *result)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP nsPluginHostImpl::DeallocateMenuID(nsIEventHandler* handler, PRInt16 menuID)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP nsPluginHostImpl::HasAllocatedMenuID(nsIEventHandler* handler, PRInt16 menuID, PRBool *result)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP nsPluginHostImpl::CreateInstance(nsISupports *aOuter,
@@ -3344,7 +3495,10 @@ nsresult nsPluginHostImpl::FindStoppedPluginForURL(nsIURI* aURL,
     aOwner->GetWindow(window);
 
     aOwner->SetInstance(instance);
-    instance->SetOwner(aOwner);
+
+    // we have to reset the owner and instance in the plugin instance peer
+    //instance->GetPeer(&peer);
+    ((nsPluginInstancePeerImpl*)plugin->mPeer)->SetOwner(aOwner);
 
     instance->Start();
     aOwner->CreateWidget();
@@ -3364,7 +3518,8 @@ nsresult nsPluginHostImpl::FindStoppedPluginForURL(nsIURI* aURL,
 nsresult nsPluginHostImpl::AddInstanceToActiveList(nsCOMPtr<nsIPlugin> aPlugin,
                                                nsIPluginInstance* aInstance,
                                                nsIURI* aURL,
-                                               PRBool aDefaultPlugin)
+                                               PRBool aDefaultPlugin,
+                                               nsIPluginInstancePeer* peer)
 
 {
   nsCAutoString url;
@@ -3373,9 +3528,11 @@ nsresult nsPluginHostImpl::AddInstanceToActiveList(nsCOMPtr<nsIPlugin> aPlugin,
   if (aURL)
     aURL->GetSpec(url);
 
-  // Let's find the corresponding plugin tag by matching nsIPlugin pointer.
-  // It is going to be used later when we decide whether or not we should delay
-  // unloading NPAPI dll from memory.
+  // let's find the corresponding plugin tag by matching nsIPlugin pointer
+  // it's legal for XPCOM plugins not to have nsIPlugin implemented but
+  // this is OK, we don't need the plugin tag for XPCOM plugins. It is going
+  // to be used later when we decide whether or not we should delay unloading
+  // NPAPI dll from memory, and XPCOM dlls will stay in memory anyway.
   nsPluginTag * pluginTag = nsnull;
   if (aPlugin) {
     for (pluginTag = mPlugins; pluginTag != nsnull; pluginTag = pluginTag->mNext) {
@@ -3385,7 +3542,7 @@ nsresult nsPluginHostImpl::AddInstanceToActiveList(nsCOMPtr<nsIPlugin> aPlugin,
     NS_ASSERTION(pluginTag, "Plugin tag not found");
   }
 
-  nsPluginInstanceTag * plugin = new nsPluginInstanceTag(pluginTag, aInstance, url.get(), aDefaultPlugin);
+  nsPluginInstanceTag * plugin = new nsPluginInstanceTag(pluginTag, aInstance, url.get(), aDefaultPlugin, peer);
 
   if (!plugin)
     return NS_ERROR_OUT_OF_MEMORY;
@@ -3505,7 +3662,7 @@ NS_IMETHODIMP nsPluginHostImpl::SetUpPluginInstance(const char *aMimeType,
   return rv;
 }
 
-nsresult
+NS_IMETHODIMP
 nsPluginHostImpl::TrySetUpPluginInstance(const char *aMimeType,
                                          nsIURI *aURL,
                                          nsIPluginInstanceOwner *aOwner)
@@ -3545,56 +3702,86 @@ nsPluginHostImpl::TrySetUpPluginInstance(const char *aMimeType,
       return NS_ERROR_FAILURE;
     }
   }
-  else {
+  else
     mimetype = aMimeType;
-  }
 
   NS_ASSERTION(pluginTag, "Must have plugin tag here!");
+  PRBool isJavaPlugin = pluginTag->mIsJavaPlugin;
+
+  nsCAutoString contractID(
+          NS_LITERAL_CSTRING(NS_INLINE_PLUGIN_CONTRACTID_PREFIX) +
+          nsDependentCString(mimetype));
 
   GetPluginFactory(mimetype, getter_AddRefs(plugin));
 
-  if (plugin) {
-#if defined(XP_WIN) && !defined(WINCE)
-    static BOOL firstJavaPlugin = FALSE;
-    BOOL restoreOrigDir = FALSE;
-    char origDir[_MAX_PATH];
-    if (pluginTag->mIsJavaPlugin && !firstJavaPlugin) {
-      DWORD dw = ::GetCurrentDirectory(_MAX_PATH, origDir);
-      NS_ASSERTION(dw <= _MAX_PATH, "Falied to obtain the current directory, which may leads to incorrect class laoding");
-      nsCOMPtr<nsIFile> binDirectory;
-      result = NS_GetSpecialDirectory(NS_XPCOM_CURRENT_PROCESS_DIR,
-                                      getter_AddRefs(binDirectory));
+  instance = do_CreateInstance(contractID.get(), &result);
 
+  // couldn't create an XPCOM plugin, try to create wrapper for a
+  // legacy plugin
+  if (NS_FAILED(result)) {
+    if (plugin) {
+#if defined(XP_WIN) && !defined(WINCE)
+      static BOOL firstJavaPlugin = FALSE;
+      BOOL restoreOrigDir = FALSE;
+      char origDir[_MAX_PATH];
+      if (isJavaPlugin && !firstJavaPlugin) {
+        DWORD dw = ::GetCurrentDirectory(_MAX_PATH, origDir);
+        NS_ASSERTION(dw <= _MAX_PATH, "Falied to obtain the current directory, which may leads to incorrect class laoding");
+        nsCOMPtr<nsIFile> binDirectory;
+        result = NS_GetSpecialDirectory(NS_XPCOM_CURRENT_PROCESS_DIR,
+                                        getter_AddRefs(binDirectory));
+
+        if (NS_SUCCEEDED(result)) {
+          nsCAutoString path;
+          binDirectory->GetNativePath(path);
+          restoreOrigDir = ::SetCurrentDirectory(path.get());
+        }
+      }
+#endif
+      result = plugin->CreateInstance(NULL, kIPluginInstanceIID, (void **)getter_AddRefs(instance));
+
+#if defined(XP_WIN) && !defined(WINCE)
+      if (!firstJavaPlugin && restoreOrigDir) {
+        BOOL bCheck = ::SetCurrentDirectory(origDir);
+        NS_ASSERTION(bCheck, " Error restoring driectoy");
+        firstJavaPlugin = TRUE;
+      }
+#endif
+    }
+
+    if (NS_FAILED(result)) {
+      nsCOMPtr<nsIPlugin> bwPlugin =
+        do_GetService("@mozilla.org/blackwood/pluglet-engine;1", &result);
       if (NS_SUCCEEDED(result)) {
-        nsCAutoString path;
-        binDirectory->GetNativePath(path);
-        restoreOrigDir = ::SetCurrentDirectory(path.get());
+        result = bwPlugin->CreatePluginInstance(NULL,
+                                                kIPluginInstanceIID,
+                                                aMimeType,
+                                                (void **)getter_AddRefs(instance));
       }
     }
-#endif
-    result = plugin->CreateInstance(NULL, kIPluginInstanceIID, (void **)getter_AddRefs(instance));
-
-#if defined(XP_WIN) && !defined(WINCE)
-    if (!firstJavaPlugin && restoreOrigDir) {
-      BOOL bCheck = ::SetCurrentDirectory(origDir);
-      NS_ASSERTION(bCheck, " Error restoring driectoy");
-      firstJavaPlugin = TRUE;
-    }
-#endif
   }
 
+  // neither an XPCOM or legacy plugin could be instantiated,
+  // so return the failure
   if (NS_FAILED(result))
     return result;
 
   // it is adreffed here
   aOwner->SetInstance(instance);
 
-  result = instance->Initialize(aOwner, mimetype);  // this should not addref the instance or owner
+  nsRefPtr<nsPluginInstancePeerImpl> peer = new nsPluginInstancePeerImpl();
+  if (!peer)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  // set up the peer for the instance
+  peer->Initialize(aOwner, mimetype);
+
+  result = instance->Initialize(peer);  // this should addref the peer but not the instance or owner
   if (NS_FAILED(result))                // except in some cases not Java, see bug 140931
     return result;                      // our COM pointer will free the peer
 
   // instance and peer will be addreffed here
-  result = AddInstanceToActiveList(plugin, instance, aURL, PR_FALSE);
+  result = AddInstanceToActiveList(plugin, instance, aURL, PR_FALSE, peer);
 
 #ifdef PLUGIN_LOGGING
   nsCAutoString urlSpec2;
@@ -3618,6 +3805,7 @@ nsPluginHostImpl::SetUpDefaultPluginInstance(const char *aMimeType,
 {
   if (mDefaultPluginDisabled) {
     // The default plugin is disabled, don't load it.
+
     return NS_OK;
   }
 
@@ -3630,15 +3818,29 @@ nsPluginHostImpl::SetUpDefaultPluginInstance(const char *aMimeType,
 
   GetPluginFactory("*", getter_AddRefs(plugin));
 
-  nsresult result = NS_ERROR_OUT_OF_MEMORY;
-  if (plugin)
-    result = plugin->CreateInstance(NULL, kIPluginInstanceIID,
-                                    getter_AddRefs(instance));
+  nsresult result;
+  instance = do_CreateInstance(NS_INLINE_PLUGIN_CONTRACTID_PREFIX "*",
+                               &result);
+
+  // couldn't create an XPCOM plugin, try to create wrapper for a
+  // legacy plugin
+  if (NS_FAILED(result)) {
+    if (plugin)
+      result = plugin->CreateInstance(NULL, kIPluginInstanceIID,
+                                      getter_AddRefs(instance));
+  }
+
+  // neither an XPCOM or legacy plugin could be instantiated, so
+  // return the failure
   if (NS_FAILED(result))
     return result;
 
   // it is adreffed here
   aOwner->SetInstance(instance);
+
+  nsRefPtr<nsPluginInstancePeerImpl> peer = new nsPluginInstancePeerImpl();
+  if (!peer)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   // if we don't have a mimetype, check by file extension
   nsXPIDLCString mt;
@@ -3652,13 +3854,18 @@ nsPluginHostImpl::SetUpDefaultPluginInstance(const char *aMimeType,
     }
   }
 
-  // this should not addref the instance or owner
-  result = instance->Initialize(aOwner, mimetype);
+  // set up the peer for the instance
+  peer->Initialize(aOwner, mimetype);
+
+  // this should addref the peer but not the instance or owner except
+  // in some cases not Java, see bug 140931 our COM pointer will free
+  // the peer
+  result = instance->Initialize(peer);
   if (NS_FAILED(result))
     return result;
 
-  // instance will be addreffed here
-  result = AddInstanceToActiveList(plugin, instance, aURL, PR_TRUE);
+  // instance and peer will be addreffed here
+  result = AddInstanceToActiveList(plugin, instance, aURL, PR_TRUE, peer);
 
   return result;
 }
@@ -3788,14 +3995,33 @@ public:
     PRBool bShowPath;
     nsCOMPtr<nsIPrefBranch> prefService = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (prefService &&
-        NS_SUCCEEDED(prefService->GetBoolPref("plugin.expose_full_path", &bShowPath)) &&
+        NS_SUCCEEDED(prefService->GetBoolPref("plugin.expose_full_path",&bShowPath)) &&
         bShowPath) {
+      // only show the full path if people have set the pref,
+      // the default should not reveal path information (bug 88183)
+#if defined(XP_MACOSX)
       CopyUTF8toUTF16(mPluginTag.mFullPath, aFilename);
-    } else {
+#else
       CopyUTF8toUTF16(mPluginTag.mFileName, aFilename);
+#endif
+      return NS_OK;
     }
 
-    return NS_OK;
+    nsAutoString spec;
+    if (!mPluginTag.mFullPath.IsEmpty()) {
+#if !defined(XP_MACOSX)
+      NS_ERROR("Only MAC should be using nsPluginTag::mFullPath!");
+#endif
+      CopyUTF8toUTF16(mPluginTag.mFullPath, spec);
+    } else {
+      CopyUTF8toUTF16(mPluginTag.mFileName, spec);
+    }
+
+    nsCString leafName;
+    nsCOMPtr<nsILocalFile> pluginPath;
+    NS_NewLocalFile(spec, PR_TRUE, getter_AddRefs(pluginPath));
+
+    return pluginPath->GetLeafName(aFilename);
   }
 
   NS_METHOD GetVersion(nsAString& aVersion)
@@ -3971,6 +4197,102 @@ nsPluginHostImpl::FindPluginEnabledForExtension(const char* aExtension,
   return nsnull;
 }
 
+#if defined(XP_MACOSX)
+/* The following code examines the format of a Mac OS X binary, and determines whether it
+ * is compatible with the current executable.
+ */
+
+#include <sys/stat.h>
+#include <sys/fcntl.h>
+#include <unistd.h>
+
+static inline PRBool is_directory(const char* path)
+{
+  struct stat sb;
+  return ::stat(path, &sb) == 0 && S_ISDIR(sb.st_mode);
+}
+
+static inline PRBool is_symbolic_link(const char* path)
+{
+  struct stat sb;
+  return ::lstat(path, &sb) == 0 && S_ISLNK(sb.st_mode);
+}
+
+static int open_executable(const char* path)
+{
+  int fd = 0;
+  char resolvedPath[PATH_MAX] = "\0";
+
+  // If the root of the bundle as referred to by path is a symbolic link,
+  // CFBundleCopyExecutableURL will not return an absolute URL, but will
+  // instead only return the executable name, such as "MRJPlugin".  Work
+  // around that by always using a fully-resolved absolute pathname.
+  if (is_symbolic_link(path)) {
+    path = realpath(path, resolvedPath);
+    if (!path)
+      return fd;
+  }
+
+  // if this is a directory, it must be a bundle, so get the true path using CFBundle...
+  if (is_directory(path)) {
+    CFBundleRef bundle = NULL;
+    CFStringRef pathRef = CFStringCreateWithCString(NULL, path, kCFStringEncodingUTF8);
+    if (pathRef) {
+      CFURLRef bundleURL = CFURLCreateWithFileSystemPath(NULL, pathRef, kCFURLPOSIXPathStyle, true);
+      CFRelease(pathRef);
+      if (bundleURL != NULL) {
+        bundle = CFBundleCreate(NULL, bundleURL);
+        CFRelease(bundleURL);
+        if (bundle) {
+          CFURLRef executableURL = CFBundleCopyExecutableURL(bundle);
+          if (executableURL) {
+            pathRef = CFURLCopyFileSystemPath(executableURL, kCFURLPOSIXPathStyle);
+            CFRelease(executableURL);
+            if (pathRef) {
+              CFIndex bufferSize = CFStringGetMaximumSizeForEncoding(CFStringGetLength(pathRef), kCFStringEncodingUTF8) + 1;
+              char* executablePath = new char[bufferSize];
+              if (executablePath && CFStringGetCString(pathRef, executablePath, bufferSize, kCFStringEncodingUTF8)) {
+                fd = open(executablePath, O_RDONLY, 0);
+                delete[] executablePath;
+                            }
+              CFRelease(pathRef);
+            }
+          }
+          CFRelease(bundle);
+        }
+      }
+    }
+  } else {
+    fd = open(path, O_RDONLY, 0);
+  }
+  return fd;
+}
+
+static PRBool IsCompatibleExecutable(const char* path)
+{
+  int fd = open_executable(path);
+  if (fd > 0) {
+    // Check the executable header to see if it is something we can use. Currently
+    // we can only use 32-bit mach-o and FAT binaries (FAT headers are always big
+    // endian, so we do network-to-host swap on the bytes from disk).
+    // Note: We assume FAT binaries contain the right arch. Maybe fix that later.
+    UInt32 magic;
+    ssize_t n = read(fd, &magic, sizeof(magic));
+    close(fd);
+    if (n == sizeof(magic)) {
+      if ((magic == MH_MAGIC) || (PR_ntohl(magic) == FAT_MAGIC))
+        return PR_TRUE;
+    }
+  }
+  return PR_FALSE;
+}
+
+#else
+
+inline PRBool IsCompatibleExecutable(const char* path) { return PR_TRUE; }
+
+#endif
+
 static nsresult ConvertToNative(nsIUnicodeEncoder *aEncoder,
                                 const nsACString& aUTF8String,
                                 nsACString& aNativeString)
@@ -3989,7 +4311,8 @@ static nsresult ConvertToNative(nsIUnicodeEncoder *aEncoder,
   return NS_OK;
 }
 
-static nsresult CreateNPAPIPlugin(const nsPluginTag *aPluginTag,
+static nsresult CreateNPAPIPlugin(nsIServiceManagerObsolete* aServiceManager,
+                                  const nsPluginTag *aPluginTag,
                                   nsIPlugin **aOutNPAPIPlugnin)
 {
   nsresult rv;
@@ -4001,7 +4324,7 @@ static nsresult CreateNPAPIPlugin(const nsPluginTag *aPluginTag,
   rv = pcs->GetCharset(kPlatformCharsetSel_FileName, charset);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCAutoString fullPath;
+  nsCAutoString fileName, fullPath;
   if (!charset.LowerCaseEqualsLiteral("utf-8")) {
     nsCOMPtr<nsIUnicodeEncoder> encoder;
     nsCOMPtr<nsICharsetConverterManager> ccm =
@@ -4009,13 +4332,17 @@ static nsresult CreateNPAPIPlugin(const nsPluginTag *aPluginTag,
     NS_ENSURE_SUCCESS(rv, rv);
     rv = ccm->GetUnicodeEncoderRaw(charset.get(), getter_AddRefs(encoder));
     NS_ENSURE_SUCCESS(rv, rv);
+    rv = ConvertToNative(encoder, aPluginTag->mFileName, fileName);
+    NS_ENSURE_SUCCESS(rv, rv);
     rv = ConvertToNative(encoder, aPluginTag->mFullPath, fullPath);
     NS_ENSURE_SUCCESS(rv, rv);
   } else {
+    fileName = aPluginTag->mFileName;
     fullPath = aPluginTag->mFullPath;
   }
 
-  return nsNPAPIPlugin::CreatePlugin(fullPath.get(),
+  return nsNPAPIPlugin::CreatePlugin(fileName.get(),
+                                     fullPath.get(),
                                      aPluginTag->mLibrary,
                                      aOutNPAPIPlugnin);
 }
@@ -4044,10 +4371,14 @@ NS_IMETHODIMP nsPluginHostImpl::GetPluginFactory(const char *aMimeType, nsIPlugi
 #endif
 
     if (!pluginTag->mLibrary) { // if we haven't done this yet
+     nsCOMPtr<nsILocalFile> file = do_CreateInstance("@mozilla.org/file/local;1");
+#if !defined(XP_MACOSX)
+      file->InitWithPath(NS_ConvertUTF8toUTF16(pluginTag->mFileName));
+#else
       if (pluginTag->mFullPath.IsEmpty())
         return NS_ERROR_FAILURE;
-      nsCOMPtr<nsILocalFile> file = do_CreateInstance("@mozilla.org/file/local;1");
       file->InitWithPath(NS_ConvertUTF8toUTF16(pluginTag->mFullPath));
+#endif
       nsPluginFile pluginFile(file);
       PRLibrary* pluginLibrary = NULL;
 
@@ -4063,11 +4394,64 @@ NS_IMETHODIMP nsPluginHostImpl::GetPluginFactory(const char *aMimeType, nsIPlugi
 
     nsIPlugin* plugin = pluginTag->mEntryPoint;
     if (!plugin) {
-      // Now lets try to get the entry point from an NPAPI plugin
-      rv = CreateNPAPIPlugin(pluginTag, &plugin);
-      if (NS_SUCCEEDED(rv))
+      // nsIPlugin* of xpcom plugins can be found thru a call to
+      // nsIComponentManager::GetClassObjectByContractID()
+      nsCAutoString contractID(
+              NS_LITERAL_CSTRING(NS_INLINE_PLUGIN_CONTRACTID_PREFIX) +
+              nsDependentCString(aMimeType));
+      nsresult rv = CallGetClassObject(contractID.get(), &plugin);
+      if (NS_SUCCEEDED(rv) && plugin) {
+        // plugin is already addref'd
         pluginTag->mEntryPoint = plugin;
-      pluginTag->Mark(NS_PLUGIN_FLAG_NPAPI);
+        plugin->Initialize();
+      }
+    }
+
+    if (!plugin) {
+      // No, this is not a leak. GetGlobalServiceManager() doesn't
+      // addref the pointer on the way out. It probably should.
+      nsIServiceManagerObsolete* serviceManager;
+      nsServiceManager::GetGlobalServiceManager((nsIServiceManager**)&serviceManager);
+
+      // need to get the plugin factory from this plugin.
+      nsFactoryProc nsGetFactory = nsnull;
+#ifdef XP_OS2
+      nsGetFactory = (nsFactoryProc) PR_FindFunctionSymbol(pluginTag->mLibrary, "_NSGetFactory");
+#else
+      nsGetFactory = (nsFactoryProc) PR_FindFunctionSymbol(pluginTag->mLibrary, "NSGetFactory");
+#endif
+      if (nsGetFactory && IsCompatibleExecutable(pluginTag->mFullPath.get())) {
+        rv = nsGetFactory(serviceManager, kPluginCID, nsnull, nsnull,    // XXX fix ClassName/ContractID
+                          (nsIFactory**)&pluginTag->mEntryPoint);
+        plugin = pluginTag->mEntryPoint;
+        if (plugin)
+          plugin->Initialize();
+      }
+#ifdef XP_OS2
+      // on OS2, first check if this might be legacy XPCOM module.
+      else if (PR_FindSymbol(pluginTag->mLibrary, "NSGetFactory") &&
+               IsCompatibleExecutable(pluginTag->mFullPath.get())) {
+        // Possibly a legacy XPCOM module. We'll need to create a calling
+        // vtable/calling convention wrapper for it.
+        nsCOMPtr<nsILegacyPluginWrapperOS2> wrapper =
+                       do_GetService(NS_LEGACY_PLUGIN_WRAPPER_CONTRACTID, &rv);
+        if (NS_SUCCEEDED(rv)) {
+          rv = wrapper->GetFactory(serviceManager, kPluginCID, nsnull, nsnull,
+                                   pluginTag->mLibrary, &pluginTag->mEntryPoint);
+          plugin = pluginTag->mEntryPoint;
+          if (plugin)
+            plugin->Initialize();
+        }
+      }
+#endif
+      else {
+        // Now lets try to get the entry point from an NPAPI plugin
+        rv = CreateNPAPIPlugin(serviceManager, pluginTag, &plugin);
+        if (NS_SUCCEEDED(rv))
+          pluginTag->mEntryPoint = plugin;
+        pluginTag->Mark(NS_PLUGIN_FLAG_NPAPI);
+        // no need to initialize, already done by CreatePlugin()
+      }
     }
 
     if (plugin) {
@@ -4157,7 +4541,7 @@ PRBool nsPluginHostImpl::IsDuplicatePlugin(nsPluginTag * aPluginTag)
 // Structure for collecting plugin files found during directory scanning
 struct pluginFileinDirectory
 {
-  nsString mFilePath;
+  nsString mFilename;
   PRInt64  mModTime;
 
   pluginFileinDirectory()
@@ -4176,7 +4560,7 @@ class nsDefaultComparator<pluginFileinDirectory, pluginFileinDirectory>
   PRBool Equals(const pluginFileinDirectory& aA,
                 const pluginFileinDirectory& aB) const {
     if (aA.mModTime == aB.mModTime &&
-        Compare(aA.mFilePath, aB.mFilePath,
+        Compare(aA.mFilename, aB.mFilename,
                 nsCaseInsensitiveStringComparator()) == 0)
       return PR_TRUE;
     else
@@ -4187,7 +4571,7 @@ class nsDefaultComparator<pluginFileinDirectory, pluginFileinDirectory>
     if (aA.mModTime < aB.mModTime)
       return PR_TRUE;
     else if(aA.mModTime == aB.mModTime)
-      return Compare(aA.mFilePath, aB.mFilePath,
+      return Compare(aA.mFilename, aB.mFilename,
                      nsCaseInsensitiveStringComparator()) < 0;
     else
       return PR_FALSE;
@@ -4289,7 +4673,7 @@ nsresult nsPluginHostImpl::ScanPluginsDirectory(nsIFile * pluginsDir,
       dirEntry->GetLastModifiedTime(&fileModTime);
 
       item->mModTime = fileModTime;
-      item->mFilePath = filePath;
+      item->mFilename = filePath;
     }
   } // end round of up of plugin files
 
@@ -4302,12 +4686,12 @@ nsresult nsPluginHostImpl::ScanPluginsDirectory(nsIFile * pluginsDir,
     pluginFileinDirectory &pfd = pluginFilesArray[i];
     nsCOMPtr <nsIFile> file = do_CreateInstance("@mozilla.org/file/local;1");
     nsCOMPtr <nsILocalFile> localfile = do_QueryInterface(file);
-    localfile->InitWithPath(pfd.mFilePath);
+    localfile->InitWithPath(pfd.mFilename);
     PRInt64 fileModTime = pfd.mModTime;
 
     // Look for it in our cache
     nsRefPtr<nsPluginTag> pluginTag;
-    RemoveCachedPluginsInfo(NS_ConvertUTF16toUTF8(pfd.mFilePath).get(),
+    RemoveCachedPluginsInfo(NS_ConvertUTF16toUTF8(pfd.mFilename).get(),
                             getter_AddRefs(pluginTag));
 
     PRBool enabled = PR_TRUE;
@@ -4550,6 +4934,8 @@ nsresult nsPluginHostImpl::FindPlugins(PRBool aCreatePluginList, PRBool * aPlugi
 
   nsCOMPtr<nsIComponentManager> compManager;
   NS_GetComponentManager(getter_AddRefs(compManager));
+  if (compManager)
+    LoadXPCOMPlugins(compManager);
 
 #ifdef XP_WIN
   // Failure here is not a show-stopper so just warn.
@@ -4692,6 +5078,15 @@ nsresult nsPluginHostImpl::FindPlugins(PRBool aCreatePluginList, PRBool * aPlugi
   // No more need for cached plugins. Clear it up.
   mCachedPlugins = nsnull;
 
+  /*
+   * XXX Big time hack alert!!!!
+   *     Because Real Player 8 installs in the components folder, we must have this one off
+   *     scan for nppl3260.dll because XPCOM has shut off nsGetFactory type plugins.
+   *     When we stop supporting Real 8 or they fix their installer, this can go away.
+   */
+  if (aCreatePluginList)
+    ScanForRealInComponentsFolder(compManager);
+
   // reverse our list of plugins
   nsRefPtr<nsPluginTag> next;
   nsRefPtr<nsPluginTag> prev;
@@ -4705,6 +5100,23 @@ nsresult nsPluginHostImpl::FindPlugins(PRBool aCreatePluginList, PRBool * aPlugi
 
   NS_TIMELINE_STOP_TIMER("LoadPlugins");
   NS_TIMELINE_MARK_TIMER("LoadPlugins");
+
+  return NS_OK;
+}
+
+nsresult
+nsPluginHostImpl::LoadXPCOMPlugins(nsIComponentManager* aComponentManager)
+{
+  // the component reg is a flat file now see 48888
+  // we have to reimplement this method if we need it
+
+  // The "new style" XPCOM plugins have their information stored in
+  // the component registry, under the key
+  //
+  //   nsIRegistry::Common/software/plugins
+  //
+  // Enumerate through that list now, creating an nsPluginTag for
+  // each.
 
   return NS_OK;
 }
@@ -4944,43 +5356,14 @@ nsPluginHostImpl::ReadPluginInfo()
   if (!ReadSectionHeader(reader, "PLUGINS"))
     return rv;
 
-#if defined(XP_MACOSX)
-  PRBool hasFullPathInFileNameField = PR_FALSE;
-#else
-  PRBool hasFullPathInFileNameField = (NS_CompareVersions(values[1], "0.11") < 0);
-#endif
-
   while (reader.NextLine()) {
-    const char *filename;
-    const char *fullpath;
-    nsCAutoString derivedFileName;
-    
-    if (hasFullPathInFileNameField) {
-      fullpath = reader.LinePtr();
-      if (!reader.NextLine())
-        return rv;
-      // try to derive a file name from the full path
-      if (fullpath) {
-        nsCOMPtr<nsILocalFile> file = do_CreateInstance("@mozilla.org/file/local;1");
-        file->InitWithNativePath(nsDependentCString(fullpath));
-        file->GetNativeLeafName(derivedFileName);
-        filename = derivedFileName.get();
-      } else {
-        filename = NULL;
-      }
+    const char *filename = reader.LinePtr();
+    if (!reader.NextLine())
+      return rv;
 
-      // skip the next line, useless in this version
-      if (!reader.NextLine())
-        return rv;
-    } else {
-      filename = reader.LinePtr();
-      if (!reader.NextLine())
-        return rv;
-
-      fullpath = reader.LinePtr();
-      if (!reader.NextLine())
-        return rv;
-    }
+    const char *fullpath = reader.LinePtr();
+    if (!reader.NextLine())
+      return rv;
 
     const char *version;
     if (regHasVersion) {
@@ -4996,7 +5379,7 @@ nsPluginHostImpl::ReadPluginInfo()
       return rv;
 
     // If this is an old plugin registry mark this plugin tag to be refreshed
-    PRInt64 lastmod = (vdiff == 0) ? nsCRT::atoll(values[0]) : -1;
+    PRInt64 lastmod = vdiff == 0 ? nsCRT::atoll(values[0]) : -1;
     PRBool canunload = atoi(values[1]);
     PRUint32 tagflag = atoi(values[2]);
     if (!reader.NextLine())
@@ -5052,7 +5435,7 @@ nsPluginHostImpl::ReadPluginInfo()
     nsRefPtr<nsPluginTag> tag = new nsPluginTag(name,
       description,
       filename,
-      fullpath,
+      (*fullpath ? fullpath : 0), // we have to pass 0 prt if it's empty str
       version,
       (const char* const*)mimetypes,
       (const char* const*)mimedescriptions,
@@ -5082,13 +5465,17 @@ nsPluginHostImpl::ReadPluginInfo()
 }
 
 void
-nsPluginHostImpl::RemoveCachedPluginsInfo(const char *filePath, nsPluginTag **result)
+nsPluginHostImpl::RemoveCachedPluginsInfo(const char *filename, nsPluginTag **result)
 {
   nsRefPtr<nsPluginTag> prev;
   nsRefPtr<nsPluginTag> tag = mCachedPlugins;
   while (tag)
   {
-    if (tag->mFullPath.Equals(filePath)) {
+    // compare filename or else the mFullPath if it exists. Mac seems to use
+    // mFullPath for fullpath and mFileName for just the leafname of fullpath.
+    // On win and unix, mFullPath is never used and mFileName is contains the
+    // full pathname. All this should move to using nsIFile.
+    if (tag->mFileName.Equals(filename) || tag->mFullPath.Equals(filename)) {
       // Found it. Remove it from our list
       if (prev)
         prev->mNext = tag->mNext;
@@ -5124,14 +5511,15 @@ nsPluginHostImpl::EnsurePrivateDirServiceProvider()
 }
 #endif /* XP_WIN */
 
-nsresult nsPluginHostImpl::NewPluginURLStream(const nsString& aURL,
-                                              nsIPluginInstance *aInstance,
-                                              nsIPluginStreamListener* aListener,
-                                              const char *aPostData,
-                                              PRBool aIsFile,
-                                              PRUint32 aPostDataLen,
-                                              const char *aHeadersData,
-                                              PRUint32 aHeadersDataLen)
+// Called by GetURL and PostURL
+NS_IMETHODIMP nsPluginHostImpl::NewPluginURLStream(const nsString& aURL,
+                                                   nsIPluginInstance *aInstance,
+                                                   nsIPluginStreamListener* aListener,
+                                                   const char *aPostData,
+                                                   PRBool aIsFile,
+                                                   PRUint32 aPostDataLen,
+                                                   const char *aHeadersData,
+                                                   PRUint32 aHeadersDataLen)
 {
   nsCOMPtr<nsIURI> url;
   nsAutoString absUrl;
@@ -5143,13 +5531,18 @@ nsresult nsPluginHostImpl::NewPluginURLStream(const nsString& aURL,
   // get the full URL of the document that the plugin is embedded
   //   in to create an absolute url in case aURL is relative
   nsCOMPtr<nsIDocument> doc;
+  nsCOMPtr<nsIPluginInstancePeer> peer;
   nsCOMPtr<nsIPluginInstanceOwner> owner;
-  aInstance->GetOwner(getter_AddRefs(owner));
-  if (owner) {
-    rv = owner->GetDocument(getter_AddRefs(doc));
-    if (NS_SUCCEEDED(rv) && doc) {
-      // Create an absolute URL
-      rv = NS_MakeAbsoluteURI(absUrl, aURL, doc->GetBaseURI());
+  rv = aInstance->GetPeer(getter_AddRefs(peer));
+  if (NS_SUCCEEDED(rv) && peer) {
+    nsCOMPtr<nsPIPluginInstancePeer> privpeer(do_QueryInterface(peer));
+    rv = privpeer->GetOwner(getter_AddRefs(owner));
+    if (owner) {
+      rv = owner->GetDocument(getter_AddRefs(doc));
+      if (NS_SUCCEEDED(rv) && doc) {
+        // Create an absolute URL
+        rv = NS_MakeAbsoluteURI(absUrl, aURL, doc->GetBaseURI());
+      }
     }
   }
 
@@ -5264,27 +5657,35 @@ nsresult
 nsPluginHostImpl::DoURLLoadSecurityCheck(nsIPluginInstance *aInstance,
                                          const char* aURL)
 {
+  nsresult rv;
+
   if (!aURL || *aURL == '\0')
     return NS_OK;
 
   // get the URL of the document that loaded the plugin
+  nsCOMPtr<nsIDocument> doc;
+  nsCOMPtr<nsIPluginInstancePeer> peer;
+  rv = aInstance->GetPeer(getter_AddRefs(peer));
+  if (NS_FAILED(rv) || !peer)
+    return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsPIPluginInstancePeer> privpeer(do_QueryInterface(peer));
   nsCOMPtr<nsIPluginInstanceOwner> owner;
-  aInstance->GetOwner(getter_AddRefs(owner));
+  rv = privpeer->GetOwner(getter_AddRefs(owner));
   if (!owner)
     return NS_ERROR_FAILURE;
 
-  nsCOMPtr<nsIDocument> doc;
-  owner->GetDocument(getter_AddRefs(doc));
+  rv = owner->GetDocument(getter_AddRefs(doc));
   if (!doc)
     return NS_ERROR_FAILURE;
 
   // Create an absolute URL for the target in case the target is relative
   nsCOMPtr<nsIURI> targetURL;
-  NS_NewURI(getter_AddRefs(targetURL), aURL, doc->GetBaseURI());
+  rv = NS_NewURI(getter_AddRefs(targetURL), aURL, doc->GetBaseURI());
+
   if (!targetURL)
     return NS_ERROR_FAILURE;
 
-  nsresult rv;
   nsCOMPtr<nsIScriptSecurityManager> secMan(
     do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv));
   if (NS_FAILED(rv))
@@ -5295,7 +5696,7 @@ nsPluginHostImpl::DoURLLoadSecurityCheck(nsIPluginInstance *aInstance,
 
 }
 
-nsresult
+NS_IMETHODIMP
 nsPluginHostImpl::AddHeadersToChannel(const char *aHeadersData,
                                       PRUint32 aHeadersDataLen,
                                       nsIChannel *aGenericChannel)
@@ -5488,6 +5889,134 @@ nsresult nsPluginHostImpl::NewFullPagePluginStream(nsIStreamListener *&aStreamLi
   return rv;
 }
 
+
+// nsIFileUtilities interface
+NS_IMETHODIMP nsPluginHostImpl::GetProgramPath(const char* *result)
+{
+  nsresult rv;
+  NS_ENSURE_ARG_POINTER(result);
+  *result = nsnull;
+
+  nsCOMPtr<nsIProperties> dirService(do_GetService(kDirectoryServiceContractID, &rv));
+  if (NS_FAILED(rv))
+    return rv;
+  nsCOMPtr<nsILocalFile> programDir;
+  rv = dirService->Get(NS_XPCOM_CURRENT_PROCESS_DIR, NS_GET_IID(nsILocalFile), getter_AddRefs(programDir));
+  if (NS_FAILED(rv))
+    return rv;
+
+  nsCAutoString temp;
+  rv = programDir->GetNativePath(temp);
+  *result = ToNewCString(temp);
+  return rv;
+}
+
+NS_IMETHODIMP nsPluginHostImpl::GetTempDirPath(const char* *result)
+{
+  nsresult rv;
+  NS_ENSURE_ARG_POINTER(result);
+  *result = nsnull;
+
+  nsCOMPtr<nsIProperties> dirService(do_GetService(kDirectoryServiceContractID, &rv));
+  if (NS_FAILED(rv))
+    return rv;
+  nsCOMPtr<nsILocalFile> tempDir;
+  rv = dirService->Get(NS_OS_TEMP_DIR, NS_GET_IID(nsILocalFile), getter_AddRefs(tempDir));
+  if (NS_FAILED(rv))
+    return rv;
+
+  nsCAutoString temp;
+  rv = tempDir->GetNativePath(temp);
+  *result = ToNewCString(temp);
+  return rv;
+}
+
+NS_IMETHODIMP nsPluginHostImpl::NewTempFileName(const char* prefix, PRUint32 bufLen, char* resultBuf)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+// nsICookieStorage interface
+
+NS_IMETHODIMP nsPluginHostImpl::GetCookie(const char* inCookieURL, void* inOutCookieBuffer, PRUint32& inOutCookieSize)
+{
+  nsresult rv = NS_ERROR_NOT_IMPLEMENTED;
+  nsXPIDLCString cookieString;
+  PRUint32 cookieStringLen = 0;
+  nsCOMPtr<nsIURI> uriIn;
+
+  if (!inCookieURL || (0 >= inOutCookieSize)) {
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  nsCOMPtr<nsIIOService> ioService(do_GetService(NS_IOSERVICE_CONTRACTID, &rv));
+
+  if (NS_FAILED(rv) || !ioService)
+    return rv;
+
+  nsCOMPtr<nsICookieService> cookieService =
+           do_GetService(NS_COOKIESERVICE_CONTRACTID, &rv);
+
+  if (NS_FAILED(rv) || !cookieService)
+    return NS_ERROR_INVALID_ARG;
+
+  // make an nsURI from the argument url
+  rv = ioService->NewURI(nsDependentCString(inCookieURL), nsnull, nsnull, getter_AddRefs(uriIn));
+  if (NS_FAILED(rv))
+    return rv;
+
+  rv = cookieService->GetCookieString(uriIn, nsnull, getter_Copies(cookieString));
+
+  if (NS_FAILED(rv) || !cookieString ||
+      (inOutCookieSize <= (cookieStringLen = PL_strlen(cookieString.get())))) {
+    return NS_ERROR_FAILURE;
+  }
+
+  PL_strcpy((char *) inOutCookieBuffer, cookieString.get());
+  inOutCookieSize = cookieStringLen;
+  rv = NS_OK;
+
+  return rv;
+}
+
+NS_IMETHODIMP nsPluginHostImpl::SetCookie(const char* inCookieURL, const void* inCookieBuffer, PRUint32 inCookieSize)
+{
+  nsresult rv = NS_ERROR_NOT_IMPLEMENTED;
+  nsCOMPtr<nsIURI> uriIn;
+
+  if (!inCookieURL || !inCookieBuffer ||
+      (0 >= inCookieSize)) {
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  nsCOMPtr<nsIIOService> ioService(do_GetService(NS_IOSERVICE_CONTRACTID, &rv));
+
+  if (NS_FAILED(rv) || !ioService)
+    return rv;
+
+  nsCOMPtr<nsICookieService> cookieService =
+           do_GetService(NS_COOKIESERVICE_CONTRACTID, &rv);
+
+  if (NS_FAILED(rv) || !cookieService)
+    return NS_ERROR_FAILURE;
+
+  // make an nsURI from the argument url
+  rv = ioService->NewURI(nsDependentCString(inCookieURL), nsnull, nsnull, getter_AddRefs(uriIn));
+  if (NS_FAILED(rv))
+    return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsIPrompt> prompt;
+  GetPrompt(nsnull, getter_AddRefs(prompt));
+
+  char * cookie = (char *)inCookieBuffer;
+  char c = cookie[inCookieSize];
+  cookie[inCookieSize] = '\0';
+  rv = cookieService->SetCookieString(uriIn, prompt, cookie, nsnull);
+  cookie[inCookieSize] = c;
+
+  return rv;
+}
+
 NS_IMETHODIMP nsPluginHostImpl::Observe(nsISupports *aSubject,
                                         const char *aTopic,
                                         const PRUnichar *someData)
@@ -5548,8 +6077,15 @@ nsPluginHostImpl::HandleBadPlugin(PRLibrary* aLibrary, nsIPluginInstance *aInsta
     return rv;
 
   nsCOMPtr<nsIPluginInstanceOwner> owner;
-  if (aInstance)
-    aInstance->GetOwner(getter_AddRefs(owner));
+
+  if (aInstance) {
+    nsCOMPtr<nsIPluginInstancePeer> peer;
+    rv = aInstance->GetPeer(getter_AddRefs(peer));
+    if (NS_SUCCEEDED(rv) && peer) {
+      nsCOMPtr<nsPIPluginInstancePeer> privpeer(do_QueryInterface(peer));
+      privpeer->GetOwner(getter_AddRefs(owner));
+    }
+  }
 
   nsCOMPtr<nsIPrompt> prompt;
   GetPrompt(owner, getter_AddRefs(prompt));
@@ -5946,6 +6482,78 @@ nsPluginHostImpl::GetPluginName(nsIPluginInstance *aPluginInstance,
 
 // end of nsPIPluginHost implementation
 
+nsresult
+nsPluginHostImpl::ScanForRealInComponentsFolder(nsIComponentManager * aCompManager)
+{
+  nsresult rv = NS_OK;
+
+#ifdef XP_WIN
+
+  // First, lets check if we already have Real. No point in doing this if it's installed correctly
+  if (NS_SUCCEEDED(IsPluginEnabledForType("audio/x-pn-realaudio-plugin")))
+    return rv;
+
+  // Next, maybe the pref wants to override
+  PRBool bSkipRealPlayerHack = PR_FALSE;
+  if (!mPrefService ||
+     (NS_SUCCEEDED(mPrefService->GetBoolPref("plugin.skip_real_player_hack", &bSkipRealPlayerHack)) &&
+     bSkipRealPlayerHack))
+  return rv;
+
+  // now we need the XPCOM components folder
+  nsCOMPtr<nsIFile> RealPlugin;
+  if (NS_FAILED(NS_GetSpecialDirectory(NS_XPCOM_COMPONENT_DIR, getter_AddRefs(RealPlugin))) || !RealPlugin)
+    return rv;
+
+  // make sure the file is actually there
+  RealPlugin->AppendNative(nsDependentCString("nppl3260.dll"));
+  PRBool exists;
+  nsCAutoString filePath;
+  RealPlugin->Exists(&exists);
+  if (!exists || NS_FAILED(RealPlugin->GetNativePath(filePath)))
+    return rv;
+
+  // now make sure it's a plugin
+  nsCOMPtr<nsILocalFile> localfile;
+  NS_NewNativeLocalFile(filePath,
+                        PR_TRUE,
+                        getter_AddRefs(localfile));
+
+  if (!nsPluginsDir::IsPluginFile(localfile))
+    return rv;
+
+  // try to get the mime info and descriptions out of the plugin
+  nsPluginFile pluginFile(localfile);
+  nsPluginInfo info;
+  memset(&info, 0, sizeof(info));
+  if (NS_FAILED(pluginFile.GetPluginInfo(info)))
+    return rv;
+
+  nsCOMPtr<nsIComponentManager> compManager;
+  NS_GetComponentManager(getter_AddRefs(compManager));
+
+  // finally, create our "plugin tag" and add it to the list
+  if (info.fMimeTypeArray) {
+    nsRefPtr<nsPluginTag> pluginTag = new nsPluginTag(&info);
+    if (pluginTag) {
+      pluginTag->SetHost(this);
+      pluginTag->mNext = mPlugins;
+      mPlugins = pluginTag;
+
+      // last thing we need is to register this plugin with layout so it can be used in full-page mode
+      if (pluginTag->IsEnabled())
+        pluginTag->RegisterWithCategoryManager(mOverrideInternalTypes);
+    }
+  }
+
+  // free allocated strings in GetPluginInfo
+  pluginFile.FreePluginInfo(info);
+
+#endif
+
+  return rv;
+}
+
 nsresult nsPluginHostImpl::AddUnusedLibrary(PRLibrary * aLibrary)
 {
   if (!mUnusedLibraries.Contains(aLibrary)) // don't add duplicates
@@ -5971,23 +6579,29 @@ nsresult nsPluginStreamListenerPeer::ServeStreamAsFile(nsIRequest *request,
   // mInstance->Stop calls mPStreamListener->CleanUpStream(), so stream will be properly clean up
   mInstance->Stop();
   mInstance->Start();
-  nsCOMPtr<nsIPluginInstanceOwner> owner;
-  mInstance->GetOwner(getter_AddRefs(owner));
-  if (owner) {
-    nsPluginWindow    *window = nsnull;
-    owner->GetWindow(window);
+  nsCOMPtr<nsIPluginInstancePeer> peer;
+  mInstance->GetPeer(getter_AddRefs(peer));
+  if (peer) {
+    nsCOMPtr<nsPIPluginInstancePeer> privpeer(do_QueryInterface(peer));
+    nsCOMPtr<nsIPluginInstanceOwner> owner;
+    privpeer->GetOwner(getter_AddRefs(owner));
+    if (owner) {
+      nsPluginWindow    *window = nsnull;
+      owner->GetWindow(window);
 #if defined (MOZ_WIDGET_GTK2)
-    // Should call GetPluginPort() here.
-    // This part is copied from nsPluginInstanceOwner::GetPluginPort(). 
-    nsCOMPtr<nsIWidget> widget;
-    ((nsPluginNativeWindow*)window)->GetPluginWidget(getter_AddRefs(widget));
-    if (widget) {
-      window->window = (nsPluginPort*) widget->GetNativeData(NS_NATIVE_PLUGIN_PORT);
-    }
+      // Should call GetPluginPort() here.
+      // This part is copied from nsPluginInstanceOwner::GetPluginPort(). 
+      nsCOMPtr<nsIWidget> widget;
+      ((nsPluginNativeWindow*)window)->GetPluginWidget(getter_AddRefs(widget));
+      if (widget) {
+        window->window = (nsPluginPort*) widget->GetNativeData(NS_NATIVE_PLUGIN_PORT);
+      }
 #endif
-    if (window->window) {
-      nsCOMPtr<nsIPluginInstance> inst = mInstance;
-      ((nsPluginNativeWindow*)window)->CallSetWindow(inst);
+      if (window->window)
+      {
+        nsCOMPtr<nsIPluginInstance> inst = mInstance;
+        ((nsPluginNativeWindow*)window)->CallSetWindow(inst);
+      }
     }
   }
 

@@ -97,15 +97,14 @@ class nsIScrollableFrame;
 class gfxASurface;
 class gfxContext;
 class nsPIDOMEventTarget;
-class nsIDOMEvent;
 
 typedef short SelectionType;
 typedef PRUint32 nsFrameState;
 
-// 189d234b-3823-4e8f-bbd2-63c0282b9fac
+// 4fb87dae-8986-429f-b6ba-f040750e3ee8
 #define NS_IPRESSHELL_IID \
-  { 0x189d234b, 0x3823, 0x4e8f, \
-    { 0xbb, 0xd2, 0x63, 0xc0, 0x28, 0x2b, 0x9f, 0xac } }
+  { 0x4fb87dae, 0x8986, 0x429f, \
+    { 0xb6, 0xba, 0xf0, 0x40, 0x75, 0x0e, 0x3e, 0xe8 } }
 
 // Constants for ScrollContentIntoView() function
 #define NS_PRESSHELL_SCROLL_TOP      0
@@ -576,14 +575,6 @@ public:
                                       nsEventStatus* aStatus) = 0;
 
   /**
-   * Dispatch event to content only (NOT full processing)
-   * @note The caller must have a strong reference to the PresShell.
-   */
-  NS_IMETHOD HandleDOMEventWithTarget(nsIContent* aTargetContent,
-                                      nsIDOMEvent* aEvent,
-                                      nsEventStatus* aStatus) = 0;
-
-  /**
     * Gets the current target event frame from the PresShell
     */
   NS_IMETHOD GetEventTargetFrame(nsIFrame** aFrame) = 0;
@@ -716,6 +707,7 @@ public:
    */
   virtual void Thaw() = 0;
 
+  virtual void NeedsFocusOrBlurAfterSuppression(nsPIDOMEventTarget* aTarget, PRUint32 aEventType) = 0;
   virtual void FireOrClearDelayedEvents(PRBool aFireEvents) = 0;
 
   /**

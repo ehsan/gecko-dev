@@ -40,8 +40,11 @@
 
 #include "nsIXMLHttpRequest.h"
 #include "nsISupportsUtils.h"
+#include "nsCOMPtr.h"
 #include "nsString.h"
 #include "nsIDOMLoadListener.h"
+#include "nsIDOMEventTarget.h"
+#include "nsIDOMNSEventTarget.h"
 #include "nsIDOMDocument.h"
 #include "nsIURI.h"
 #include "nsIHttpChannel.h"
@@ -57,17 +60,20 @@
 #include "nsCOMArray.h"
 #include "nsJSUtils.h"
 #include "nsTArray.h"
+#include "nsCycleCollectionParticipant.h"
 #include "nsIJSNativeInitializer.h"
+#include "nsPIDOMWindow.h"
 #include "nsIDOMLSProgressEvent.h"
 #include "nsClassHashtable.h"
 #include "nsHashKeys.h"
 #include "prclist.h"
 #include "prtime.h"
+#include "nsIEventListenerManager.h"
 #include "nsIDOMNSEvent.h"
 #include "nsITimer.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsDOMProgressEvent.h"
-#include "nsDOMEventTargetHelper.h"
+#include "nsIScriptGlobalObject.h"
 
 class nsILoadGroup;
 
@@ -137,18 +143,73 @@ private:
   PRCList mList;
 };
 
-class nsXHREventTarget : public nsDOMEventTargetHelper,
-                         public nsIXMLHttpRequestEventTarget,
+class nsDOMEventListenerWrapper : public nsIDOMEventListener
+{
+public:
+  nsDOMEventListenerWrapper(nsIDOMEventListener* aListener)
+  : mListener(aListener) {}
+
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTION_CLASS(nsDOMEventListenerWrapper)
+
+  NS_DECL_NSIDOMEVENTLISTENER
+
+  nsIDOMEventListener* GetInner() { return mListener; }
+protected:
+  nsCOMPtr<nsIDOMEventListener> mListener;
+};
+
+class nsXHREventTarget : public nsIXMLHttpRequestEventTarget,
+                         public nsPIDOMEventTarget,
+                         public nsIDOMNSEventTarget,
                          public nsWrapperCache
 {
 public:
+  nsXHREventTarget() : mLang(nsIProgrammingLanguage::JAVASCRIPT) {}
   virtual ~nsXHREventTarget() {}
-  NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsXHREventTarget,
-                                           nsDOMEventTargetHelper)
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsXHREventTarget,
+                                           nsIXMLHttpRequestEventTarget)
+  NS_DECL_NSIDOMNSEVENTTARGET
   NS_DECL_NSIXMLHTTPREQUESTEVENTTARGET
-  NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
-  NS_FORWARD_NSIDOMNSEVENTTARGET(nsDOMEventTargetHelper::)
+  NS_DECL_NSIDOMEVENTTARGET
+  // nsPIDOMEventTarget
+  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
+  virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
+  virtual nsresult DispatchDOMEvent(nsEvent* aEvent, nsIDOMEvent* aDOMEvent,
+                                    nsPresContext* aPresContext,
+                                    nsEventStatus* aEventStatus);
+  virtual nsresult GetListenerManager(PRBool aCreateIfNotFound,
+                                      nsIEventListenerManager** aResult);
+  virtual nsresult AddEventListenerByIID(nsIDOMEventListener *aListener,
+                                         const nsIID& aIID);
+  virtual nsresult RemoveEventListenerByIID(nsIDOMEventListener *aListener,
+                                            const nsIID& aIID);
+  virtual nsresult GetSystemEventGroup(nsIDOMEventGroup** aGroup);
+  virtual nsIScriptContext* GetContextForEventHandlers(nsresult* aRv);
+
+  PRBool HasListenersFor(const nsAString& aType)
+  {
+    return mListenerManager && mListenerManager->HasListenersFor(aType);
+  }
+  nsresult RemoveAddEventListener(const nsAString& aType,
+                                  nsRefPtr<nsDOMEventListenerWrapper>& aCurrent,
+                                  nsIDOMEventListener* aNew);
+
+  nsresult GetInnerEventListener(nsRefPtr<nsDOMEventListenerWrapper>& aWrapper,
+                                 nsIDOMEventListener** aListener);
+
+  nsresult CheckInnerWindowCorrectness()
+  {
+    if (mOwner) {
+      NS_ASSERTION(mOwner->IsInnerWindow(), "Should have inner window here!\n");
+      nsPIDOMWindow* outer = mOwner->GetOuterWindow();
+      if (!outer || outer->GetCurrentInnerWindow() != mOwner) {
+        return NS_ERROR_FAILURE;
+      }
+    }
+    return NS_OK;
+  }
 
   void GetParentObject(nsIScriptGlobalObject **aParentObject)
   {
@@ -162,15 +223,15 @@ public:
 
   static nsXHREventTarget* FromSupports(nsISupports* aSupports)
   {
-    nsPIDOMEventTarget* target =
-      static_cast<nsPIDOMEventTarget*>(aSupports);
+    nsIXMLHttpRequestEventTarget* target =
+      static_cast<nsIXMLHttpRequestEventTarget*>(aSupports);
 #ifdef DEBUG
     {
-      nsCOMPtr<nsPIDOMEventTarget> target_qi =
+      nsCOMPtr<nsIXMLHttpRequestEventTarget> target_qi =
         do_QueryInterface(aSupports);
 
       // If this assertion fires the QI implementation for the object in
-      // question doesn't use the nsPIDOMEventTarget pointer as the
+      // question doesn't use the nsIXMLHttpRequestEventTarget pointer as the
       // nsISupports pointer. That must be fixed, or we'll crash...
       NS_ASSERTION(target_qi == target, "Uh, fix QI!");
     }
@@ -185,6 +246,11 @@ protected:
   nsRefPtr<nsDOMEventListenerWrapper> mOnAbortListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnLoadStartListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnProgressListener;
+  nsCOMPtr<nsIEventListenerManager> mListenerManager;
+  PRUint32 mLang;
+  // These may be null (native callers or xpcshell).
+  nsCOMPtr<nsIScriptContext> mScriptContext;
+  nsCOMPtr<nsPIDOMWindow>    mOwner; // Inner window.
 };
 
 class nsXMLHttpRequestUpload : public nsXHREventTarget,
@@ -269,8 +335,6 @@ public:
   NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* cx, JSObject* obj,
                        PRUint32 argc, jsval* argv);
 
-  NS_FORWARD_NSIDOMEVENTTARGET(nsXHREventTarget::)
-  NS_FORWARD_NSIDOMNSEVENTTARGET(nsXHREventTarget::)
 
   // This creates a trusted readystatechange event, which is not cancelable and
   // doesn't bubble.
@@ -465,6 +529,14 @@ public:
   {
     return mInner->SetTarget(aTarget);
   }
+  NS_IMETHOD SetCurrentTarget(nsIDOMEventTarget* aTarget)
+  {
+    return mInner->SetCurrentTarget(aTarget);
+  }
+  NS_IMETHOD SetOriginalTarget(nsIDOMEventTarget* aTarget)
+  {
+    return mInner->SetOriginalTarget(aTarget);
+  }
   NS_IMETHOD_(PRBool) IsDispatchStopped()
   {
     return mInner->IsDispatchStopped();
@@ -472,6 +544,10 @@ public:
   NS_IMETHOD_(nsEvent*) GetInternalNSEvent()
   {
     return mInner->GetInternalNSEvent();
+  }
+  NS_IMETHOD_(PRBool) HasOriginalTarget()
+  {
+    return mInner->HasOriginalTarget();
   }
   NS_IMETHOD SetTrusted(PRBool aTrusted)
   {

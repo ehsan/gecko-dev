@@ -120,8 +120,6 @@ NS_INTERFACE_MAP_BEGIN(nsGenericDOMDataNode)
   NS_INTERFACE_MAP_ENTRY_TEAROFF(nsISupportsWeakReference,
                                  new nsNodeSupportsWeakRefTearoff(this))
   NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOM3Node, new nsNode3Tearoff(this))
-  NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOMXPathNSResolver,
-                                 new nsNode3Tearoff(this))
   // nsNodeSH::PreCreate() depends on the identity pointer being the
   // same as nsINode (which nsIContent inherits), so if you change the
   // below line, make sure nsNodeSH::PreCreate() still does the right
@@ -587,9 +585,9 @@ nsGenericDOMDataNode::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 void
 nsGenericDOMDataNode::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
-  // Unset frame flags; if we need them again later, they'll get set again.
-  UnsetFlags(NS_CREATE_FRAME_IF_NON_WHITESPACE |
-             NS_REFRAME_IF_WHITESPACE);
+  // Unset FRAMETREE_DEPENDS_ON_CHARS; if we need it again later, it'll get set
+  // again.
+  UnsetFlags(FRAMETREE_DEPENDS_ON_CHARS);
   
   nsIDocument *document = GetCurrentDoc();
   if (document) {
@@ -686,37 +684,46 @@ nsGenericDOMDataNode::DispatchDOMEvent(nsEvent* aEvent,
                                              aPresContext, aEventStatus);
 }
 
-nsIEventListenerManager*
-nsGenericDOMDataNode::GetListenerManager(PRBool aCreateIfNotFound)
+nsresult
+nsGenericDOMDataNode::GetListenerManager(PRBool aCreateIfNotFound,
+                                         nsIEventListenerManager** aResult)
 {
-  return nsContentUtils::GetListenerManager(this, aCreateIfNotFound);
+  return nsContentUtils::GetListenerManager(this, aCreateIfNotFound, aResult);
 }
 
 nsresult
 nsGenericDOMDataNode::AddEventListenerByIID(nsIDOMEventListener *aListener,
                                             const nsIID& aIID)
 {
-  nsIEventListenerManager* elm = GetListenerManager(PR_TRUE);
-  NS_ENSURE_STATE(elm);
-  return elm->AddEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE);
+  nsCOMPtr<nsIEventListenerManager> elm;
+  nsresult rv = GetListenerManager(PR_TRUE, getter_AddRefs(elm));
+  if (elm) {
+    return elm->AddEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE);
+  }
+  return rv;
 }
 
 nsresult
 nsGenericDOMDataNode::RemoveEventListenerByIID(nsIDOMEventListener *aListener,
                                                const nsIID& aIID)
 {
-  nsIEventListenerManager* elm = GetListenerManager(PR_FALSE);
-  return elm ?
-    elm->RemoveEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE) :
-    NS_OK;
+  nsCOMPtr<nsIEventListenerManager> elm;
+  GetListenerManager(PR_FALSE, getter_AddRefs(elm));
+  if (elm) {
+    return elm->RemoveEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE);
+  }
+  return NS_OK;
 }
 
 nsresult
 nsGenericDOMDataNode::GetSystemEventGroup(nsIDOMEventGroup** aGroup)
 {
-  nsIEventListenerManager* elm = GetListenerManager(PR_TRUE);
-  NS_ENSURE_STATE(elm);
-  return elm->GetSystemEventGroupLM(aGroup);
+  nsCOMPtr<nsIEventListenerManager> elm;
+  nsresult rv = GetListenerManager(PR_TRUE, getter_AddRefs(elm));
+  if (elm) {
+    return elm->GetSystemEventGroupLM(aGroup);
+  }
+  return rv;
 }
 
 PRUint32
@@ -752,7 +759,7 @@ nsGenericDOMDataNode::InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
 }
 
 nsresult
-nsGenericDOMDataNode::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent)
+nsGenericDOMDataNode::RemoveChildAt(PRUint32 aIndex, PRBool aNotify)
 {
   return NS_OK;
 }

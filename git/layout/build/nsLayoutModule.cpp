@@ -100,7 +100,6 @@
 #include "nsILanguageAtomService.h"
 #include "nsStyleSheetService.h"
 #include "nsXULPopupManager.h"
-#include "nsFocusManager.h"
 
 // Transformiix stuff
 #include "nsXPathEvaluator.h"
@@ -127,6 +126,8 @@
 #include "nsDOMScriptObjectFactory.h"
 #include "nsDOMStorage.h"
 #include "nsJSON.h"
+
+#include "nsIFocusEventSuppressor.h"
 
 // Editor stuff
 #include "nsEditorCID.h"
@@ -210,9 +211,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsHTMLEditor)
 
 #ifdef MOZ_ENABLE_CANVAS
 #include "nsIDOMCanvasRenderingContext2D.h"
-#ifdef MOZ_ENABLE_CANVAS3D
-#include "nsICanvasRenderingContextGLWeb20.h"
-#endif
 #endif
 
 class nsIDocumentLoaderFactory;
@@ -407,9 +405,6 @@ nsresult NS_NewTreeBoxObject(nsIBoxObject** aResult);
 
 #ifdef MOZ_ENABLE_CANVAS
 nsresult NS_NewCanvasRenderingContext2D(nsIDOMCanvasRenderingContext2D** aResult);
-#ifdef MOZ_ENABLE_CANVAS3D
-nsresult NS_NewCanvasRenderingContextGLWeb20(nsICanvasRenderingContextGLWeb20** aResult);
-#endif
 #endif
 
 nsresult NS_CreateFrameTraversal(nsIFrameTraversal** aResult);
@@ -430,6 +425,7 @@ nsresult NS_NewTextEncoder(nsIDocumentEncoder** aResult);
 nsresult NS_NewXBLService(nsIXBLService** aResult);
 nsresult NS_NewContentPolicy(nsIContentPolicy** aResult);
 nsresult NS_NewDOMEventGroup(nsIDOMEventGroup** aResult);
+nsresult NS_NewFocusEventSuppressorService(nsIFocusEventSuppressorService** aResult);
 
 NS_IMETHODIMP NS_NewXULControllers(nsISupports* aOuter, REFNSIID aIID, void** aResult);
 
@@ -518,6 +514,7 @@ MAKE_CTOR(CreateSanitizingHTMLSerializer, nsIContentSerializer,        NS_NewSan
 MAKE_CTOR(CreateXBLService,               nsIXBLService,               NS_NewXBLService)
 MAKE_CTOR(CreateContentPolicy,            nsIContentPolicy,            NS_NewContentPolicy)
 MAKE_CTOR(CreateComputedDOMStyle,         nsIComputedDOMStyle,         NS_NewComputedDOMStyle)
+MAKE_CTOR(CreateFocusEventSuppressorService,nsIFocusEventSuppressorService,NS_NewFocusEventSuppressorService)
 #ifdef MOZ_XUL
 MAKE_CTOR(CreateXULSortService,           nsIXULSortService,           NS_NewXULSortService)
 // NS_NewXULContentBuilder
@@ -542,13 +539,9 @@ MAKE_CTOR(CreatePluginDocument,           nsIDocument,                 NS_NewPlu
 #ifdef MOZ_MEDIA
 MAKE_CTOR(CreateVideoDocument,            nsIDocument,                 NS_NewVideoDocument)
 #endif
-MAKE_CTOR(CreateFocusManager,             nsIFocusManager,      NS_NewFocusManager)
 
 #ifdef MOZ_ENABLE_CANVAS
 MAKE_CTOR(CreateCanvasRenderingContext2D, nsIDOMCanvasRenderingContext2D, NS_NewCanvasRenderingContext2D)
-#ifdef MOZ_ENABLE_CANVAS3D
-MAKE_CTOR(CreateCanvasRenderingContextGLWeb20, nsICanvasRenderingContextGLWeb20, NS_NewCanvasRenderingContextGLWeb20)
-#endif
 #endif
 
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsStyleSheetService, Init)
@@ -1089,12 +1082,6 @@ static const nsModuleComponentInfo gComponents[] = {
     NS_CANVASRENDERINGCONTEXT2D_CID,
     "@mozilla.org/content/canvas-rendering-context;1?id=2d",
     CreateCanvasRenderingContext2D },
-#ifdef MOZ_ENABLE_CANVAS3D
-  { "Canvas OpenGL Web 2.0 Rendering Context",
-    NS_CANVASRENDERINGCONTEXTGLWEB20_CID,
-    "@mozilla.org/content/canvas-rendering-context;1?id=moz-glweb20",
-    CreateCanvasRenderingContextGLWeb20 },
-#endif
 #endif
 
   { "XML document encoder",
@@ -1346,6 +1333,11 @@ static const nsModuleComponentInfo gComponents[] = {
   { "View Manager", NS_VIEW_MANAGER_CID, "@mozilla.org/view-manager;1",
     nsViewManagerConstructor },
 
+  { "Focus Event Suppressor",
+    NS_NSIFOCUSEVENTSUPPRESSORSERVICE_CID,
+    NS_NSIFOCUSEVENTSUPPRESSORSERVICE_CONTRACTID,
+    CreateFocusEventSuppressorService },
+
   { "Plugin Document Loader Factory",
     NS_PLUGINDOCLOADERFACTORY_CID,
     "@mozilla.org/content/plugin/document-loader-factory;1",
@@ -1467,11 +1459,6 @@ static const nsModuleComponentInfo gComponents[] = {
       nsGeolocationServiceConstructor },
 
 
-
-  { "Focus Manager",
-    NS_FOCUSMANAGER_CID,
-    "@mozilla.org/focus-manager;1",
-    CreateFocusManager },
 };
 
 NS_IMPL_NSGETMODULE_WITH_CTOR(nsLayoutModule, gComponents, Initialize)

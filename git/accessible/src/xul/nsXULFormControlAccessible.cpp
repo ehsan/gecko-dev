@@ -179,7 +179,8 @@ void nsXULButtonAccessible::CacheChildren()
   if (mAccChildCount == eChildCountUninitialized) {
     mAccChildCount = 0;  // Avoid reentry
     SetFirstChild(nsnull);
-    PRBool allowsAnonChildren = GetAllowsAnonChildAccessibles();
+    PRBool allowsAnonChildren = PR_FALSE;
+    GetAllowsAnonChildAccessibles(&allowsAnonChildren);
     nsAccessibleTreeWalker walker(mWeakShell, mDOMNode, allowsAnonChildren);
     walker.GetFirstChild();
     nsCOMPtr<nsIAccessible> dropMarkerAccessible;
@@ -196,10 +197,9 @@ void nsXULButtonAccessible::CacheChildren()
       if (nsAccUtils::RoleInternal(dropMarkerAccessible) ==
           nsIAccessibleRole::ROLE_PUSHBUTTON) {
         SetFirstChild(dropMarkerAccessible);
-        nsRefPtr<nsAccessible> childAcc =
-          nsAccUtils::QueryAccessible(dropMarkerAccessible);
-        childAcc->SetNextSibling(nsnull);
-        childAcc->SetParent(this);
+        nsCOMPtr<nsPIAccessible> privChildAcc = do_QueryInterface(dropMarkerAccessible);
+        privChildAcc->SetNextSibling(nsnull);
+        privChildAcc->SetParent(this);
         mAccChildCount = 1;
       }
     }
@@ -873,18 +873,6 @@ already_AddRefed<nsIDOMNode> nsXULTextFieldAccessible::GetInputField()
 }
 
 nsresult
-nsXULTextFieldAccessible::GetARIAState(PRUint32 *aState, PRUint32 *aExtraState)
-{
-  nsresult rv = nsHyperTextAccessibleWrap::GetARIAState(aState, aExtraState);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
-  nsStateMapEntry::MapToStates(content, aState, aExtraState, eARIAAutoComplete);
-
-  return NS_OK;
-}
-
-nsresult
 nsXULTextFieldAccessible::GetStateInternal(PRUint32 *aState,
                                            PRUint32 *aExtraState)
 {
@@ -1001,10 +989,11 @@ NS_IMETHODIMP nsXULTextFieldAccessible::DoAction(PRUint8 index)
   return NS_ERROR_INVALID_ARG;
 }
 
-PRBool
-nsXULTextFieldAccessible::GetAllowsAnonChildAccessibles()
+NS_IMETHODIMP
+nsXULTextFieldAccessible::GetAllowsAnonChildAccessibles(PRBool *aAllowsAnonChildren)
 {
-  return PR_FALSE;
+  *aAllowsAnonChildren = PR_FALSE;
+  return NS_OK;
 }
 
 NS_IMETHODIMP nsXULTextFieldAccessible::GetAssociatedEditor(nsIEditor **aEditor)

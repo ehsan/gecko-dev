@@ -129,10 +129,8 @@
       <field name="_chevron">document.getAnonymousElementByAttribute(this, "class", "chevron")</field>
 
       <field name="_openedMenuButton">null</field>
-      <field name="_allowPopupShowing">true</field>
 
       <field name="_result">null</field>
-      <field name="_resultNode">null</field>
 
       <!-- nsIPlacesView -->
       <method name="getResult">
@@ -480,8 +478,6 @@
           // object which is already set for this viewer. At that point,
           // we should do nothing.
           if (this._self._result != val) {
-            if (this._self._result)
-              this._self._result.root.containerOpen = false;
             this._self._containerNodesMap = [];
             this._self._result = val;
             if (val) // this calls _rebuild through invalidateContainer
@@ -528,7 +524,7 @@
               return;
 
             var children = popup.childNodes;
-            for (var i = popup._startMarker + 1; i < children.length; i++) {
+            for (var i = 0; i < children.length; i++) {
               if (children[i].node == aNode) {
                 this._self.removeItem(children[i]);
                 if (!popup.hasChildNodes() ||
@@ -561,7 +557,7 @@
                 this._self.insertBefore(button, children[aNewIndex]);
                 if (chevronPopup) {
                   // Maintain chevron in sync
-                  var menuitem = chevronPopup.childNodes[i];
+                  menuitem = chevronPopup.childNodes[i];
                   chevronPopup.removeChild(menuitem);
                   chevronPopup.insertBefore(menuitem,
                                             chevronPopup.childNodes[aNewIndex]);
@@ -571,16 +567,14 @@
               }
             }
           }
-          else {
-            var popup = this._getPopupForContainer(aNewParent);
-            var children = popup.childNodes;
-            for (var i = popup._startMarker + 1; i < children.length; i++) {
-              var menuItem = children[i];
-              if (menuItem.node == aItem) {
-                popup.removeChild(menuItem);
-                popup.insertBefore(menuItem, children[aNewIndex]);
-                return;
-              }
+          var popup = this._getPopupForContainer(aNewParent);
+          var children = popup.childNodes;
+          for (var i = 0; i < children.length; i++) {
+            var menuItem = children[i];
+            if (menuItem.node == aItem) {
+              popup.removeChild(menuItem);
+              popup.insertBefore(menuItem, children[aNewIndex]);
+              return;
             }
           }
         },
@@ -590,11 +584,6 @@
           var parentNode = aNode.parent;
           if (!parentNode)
             return;
-
-          if (PlacesUtils.nodeIsSeparator(aNode)) {
-            // nothing to do when a separator changes
-            return;
-          }
 
           var element;
           var onToolbar = false;
@@ -616,13 +605,18 @@
               return;
 
             var children = popup.childNodes;
-            for (var i = popup._startMarker + 1; i < children.length; i++) {
+            for (var i = 0; i < children.length; i++) {
               if (children[i].node == aNode) {
                 element = children[i];
                 break;
               }
             }
             var title = PlacesUIUtils.getBestTitle(aNode);
+          }
+
+          if (PlacesUtils.nodeIsSeparator(aNode)) {
+            // nothing to do when a separator changes
+            return;
           }
 
           var iconURI = aNode.icon;
@@ -666,6 +660,8 @@
               }
             }
           }
+          else
+            this._forwardToChildView(aParentNode, "itemReplaced", arguments);
         },
 
         containerOpened: function TV_V_containerOpened(aNode) {
@@ -729,7 +725,11 @@
         <parameter name="aPopup"/>
         <body><![CDATA[
           this._contextMenuShown = true;
-          window.updateCommands("places");
+          // Activate the controller
+          this.focus();
+          // The above call may not always fire a consumable event for
+          // commandUpdater, so we force a command update.
+          window.updateCommands("focus");
           return this.controller.buildContextMenu(aPopup);
         ]]></body>
       </method>
@@ -952,7 +952,7 @@
 
           // * Timer to turn off indicator bar.
           if (aTimer == this._ibTimer) {
-            this._dropIndicatorBar.removeAttribute('dragging');
+            ib = this._dropIndicatorBar.removeAttribute('dragging');
             this._ibTimer = null;
           }
 
@@ -1197,17 +1197,14 @@
         }
       ]]></handler>
 
-#ifdef XP_UNIX
-#ifndef XP_MACOSX
       <handler event="mousedown"><![CDATA[
         var target = event.target;
         if (event.button == 0 &&
             target.localName == "toolbarbutton" &&
             target.getAttribute("type") == "menu") {
           this._allowPopupShowing = false;
-          // On Linux we can open the popup only after a delay.
-          // Indeed as soon as the menupopup opens we are unable to start a
-          // drag event.  See bug 500081 for details.
+          // This is a container, we will open the menu if the user clicks
+          // or drag toward down or after a delay
           this._mouseDownTimer = Cc["@mozilla.org/timer;1"]
                                    .createInstance(Ci.nsITimer);
           var callback = {
@@ -1219,12 +1216,15 @@
             }
           };
 
-          this._mouseDownTimer.initWithCallback(callback, 300,
+          this._mouseDownTimer.initWithCallback(callback, 500,
                                                 Ci.nsITimer.TYPE_ONE_SHOT);
         }
+        else {
+          // allow opening popups, like the chevron and context menus
+          this._allowPopupShowing = true;
+        }
       ]]></handler>
-#endif
-#endif
+
       <handler event="mouseup"><![CDATA[
         if (event.button != 0)
           return;

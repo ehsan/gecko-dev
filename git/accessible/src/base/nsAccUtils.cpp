@@ -41,16 +41,15 @@
 
 #include "nsIAccessibleStates.h"
 #include "nsIAccessibleTypes.h"
+#include "nsPIAccessible.h"
 
 #include "nsAccessibleEventData.h"
 #include "nsHyperTextAccessible.h"
 #include "nsHTMLTableAccessible.h"
-#include "nsDocAccessible.h"
 #include "nsAccessibilityAtoms.h"
 #include "nsAccessibleTreeWalker.h"
 #include "nsAccessible.h"
 #include "nsARIAMap.h"
-#include "nsXULTreeAccessible.h"
 
 #include "nsIDOMXULContainerElement.h"
 #include "nsIDOMXULSelectCntrlEl.h"
@@ -281,23 +280,20 @@ nsAccUtils::SetLiveContainerAttributes(nsIPersistentProperties *aAttributes,
         ancestor->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_relevant, relevant))
       SetAccAttr(aAttributes, nsAccessibilityAtoms::containerRelevant, relevant);
 
-    // container-live, and container-live-role attributes
+    // container-live attribute
     if (live.IsEmpty()) {
-      nsCOMPtr<nsIDOMNode> node(do_QueryInterface(ancestor));
-      nsRoleMapEntry *role = GetRoleMapEntry(node);
       if (nsAccUtils::HasDefinedARIAToken(ancestor,
                                           nsAccessibilityAtoms::aria_live)) {
         ancestor->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_live,
                           live);
-      } else if (role) {
-        GetLiveAttrValue(role->liveAttRule, live);
-      }
-      if (!live.IsEmpty()) {
         SetAccAttr(aAttributes, nsAccessibilityAtoms::containerLive, live);
+      } else {
+        nsCOMPtr<nsIDOMNode> node(do_QueryInterface(ancestor));
+        nsRoleMapEntry *role = GetRoleMapEntry(node);
         if (role) {
-          nsAccUtils::SetAccAttr(aAttributes,
-                                 nsAccessibilityAtoms::containerLiveRole,
-                                 NS_ConvertASCIItoUTF16(role->roleString));
+          nsAutoString live;
+          GetLiveAttrValue(role->liveAttRule, live);
+          SetAccAttr(aAttributes, nsAccessibilityAtoms::containerLive, live);
         }
       }
     }
@@ -344,13 +340,14 @@ nsAccUtils::FireAccEvent(PRUint32 aEventType, nsIAccessible *aAccessible,
 {
   NS_ENSURE_ARG(aAccessible);
 
-  nsRefPtr<nsAccessible> acc(nsAccUtils::QueryAccessible(aAccessible));
+  nsCOMPtr<nsPIAccessible> pAccessible(do_QueryInterface(aAccessible));
+  NS_ASSERTION(pAccessible, "Accessible doesn't implement nsPIAccessible");
 
   nsCOMPtr<nsIAccessibleEvent> event =
     new nsAccEvent(aEventType, aAccessible, aIsAsynch);
   NS_ENSURE_TRUE(event, NS_ERROR_OUT_OF_MEMORY);
 
-  return acc->FireAccessibleEvent(event);
+  return pAccessible->FireAccessibleEvent(event);
 }
 
 PRBool
@@ -722,21 +719,11 @@ nsAccUtils::GetLiveAttrValue(PRUint32 aRule, nsAString& aValue)
 already_AddRefed<nsAccessible>
 nsAccUtils::QueryAccessible(nsIAccessible *aAccessible)
 {
-  nsAccessible* acc = nsnull;
+  nsAccessible* accessible = nsnull;
   if (aAccessible)
-    CallQueryInterface(aAccessible, &acc);
-
-  return acc;
-}
-
-already_AddRefed<nsAccessible>
-nsAccUtils::QueryAccessible(nsIAccessNode *aAccessNode)
-{
-  nsAccessible* acc = nsnull;
-  if (aAccessNode)
-    CallQueryInterface(aAccessNode, &acc);
-
-  return acc;
+    CallQueryInterface(aAccessible, &accessible);
+  
+  return accessible;
 }
 
 already_AddRefed<nsHTMLTableAccessible>
@@ -748,48 +735,6 @@ nsAccUtils::QueryAccessibleTable(nsIAccessibleTable *aAccessibleTable)
   
   return accessible;
 }
-
-already_AddRefed<nsDocAccessible>
-nsAccUtils::QueryAccessibleDocument(nsIAccessible *aAccessible)
-{
-  nsDocAccessible* accessible = nsnull;
-  if (aAccessible)
-    CallQueryInterface(aAccessible, &accessible);
-
-  return accessible;
-}
-
-already_AddRefed<nsDocAccessible>
-nsAccUtils::QueryAccessibleDocument(nsIAccessibleDocument *aAccessibleDocument)
-{
-  nsDocAccessible* accessible = nsnull;
-  if (aAccessibleDocument)
-    CallQueryInterface(aAccessibleDocument, &accessible);
-
-  return accessible;
-}
-
-#ifdef MOZ_XUL
-already_AddRefed<nsXULTreeAccessible>
-nsAccUtils::QueryAccessibleTree(nsIAccessible *aAccessible)
-{
-  nsXULTreeAccessible* accessible = nsnull;
-  if (aAccessible)
-    CallQueryInterface(aAccessible, &accessible);
-
-  return accessible;
-}
-
-already_AddRefed<nsXULTreeitemAccessible>
-nsAccUtils::QueryAccessibleTreeitem(nsIAccessNode *aAccessNode)
-{
-  nsXULTreeitemAccessible* accessible = nsnull;
-  if (aAccessNode)
-    CallQueryInterface(aAccessNode, &accessible);
-
-  return accessible;
-}
-#endif
 
 #ifdef DEBUG_A11Y
 
@@ -852,10 +797,10 @@ nsAccUtils::TextLength(nsIAccessible *aAccessible)
   // text. They don't have their own frame.
   // XXX In the future, list bullets may have frame and anon content, so 
   // we should be able to remove this at that point
-  nsRefPtr<nsAccessible> acc(nsAccUtils::QueryAccessible(aAccessible));
-
+  nsCOMPtr<nsPIAccessible> pAcc(do_QueryInterface(aAccessible));
+  
   nsAutoString text;
-  acc->AppendTextTo(text, 0, PR_UINT32_MAX); // Get all the text
+  pAcc->AppendTextTo(text, 0, PR_UINT32_MAX); // Get all the text
   return text.Length();
 }
 

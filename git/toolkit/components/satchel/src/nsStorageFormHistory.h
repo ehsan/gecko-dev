@@ -95,6 +95,19 @@ public:
   nsFormHistory();
   nsresult Init();
 
+  static nsFormHistory* GetInstance()
+    {
+      if (!gFormHistory) {
+        nsCOMPtr<nsIFormHistory2> fh = do_GetService(NS_FORMHISTORY_CONTRACTID);
+      }
+      return gFormHistory;
+    }
+
+  nsresult AutoCompleteSearch(const nsAString &aInputName,
+			      const nsAString &aInputValue,
+                              nsIAutoCompleteSimpleResult *aPrevResult,
+			      nsIAutoCompleteResult **aNewResult);
+
  private:
   ~nsFormHistory();
 
@@ -124,6 +137,7 @@ public:
 
   nsCOMPtr<nsIPrefBranch> mPrefBranch;
   nsCOMPtr<mozIStorageService> mStorageService;
+  nsCOMPtr<mozIStorageStatement> mDBGetMatchingField;
   nsCOMPtr<mozIStorageStatement> mDBFindEntry;
   nsCOMPtr<mozIStorageStatement> mDBFindEntryByName;
   nsCOMPtr<mozIStorageStatement> mDBSelectEntries;

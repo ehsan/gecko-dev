@@ -211,7 +211,7 @@ nsXMLContentSink::WillParse(void)
 }
 
 NS_IMETHODIMP
-nsXMLContentSink::WillBuildModel(nsDTDMode aDTDMode)
+nsXMLContentSink::WillBuildModel(void)
 {
   WillBuildModelImpl();
 
@@ -1430,6 +1430,33 @@ nsXMLContentSink::ParsePIData(const nsString &aData, nsString &aHref,
   aIsAlternate = alternate.EqualsLiteral("yes");
 
   return PR_TRUE;
+}
+
+/*
+ * Extends nsContentSink::ProcessMETATag to grab the 'viewport' meta tag. This
+ * information is ignored by the generic content sink because it only stores
+ * http-equiv meta tags. We need it in the XMLContentSink for XHTML documents.
+ *
+ * Initially implemented for bug #436083
+ */
+nsresult
+nsXMLContentSink::ProcessMETATag(nsIContent *aContent) {
+
+  /* Call the superclass method. */
+  nsContentSink::ProcessMETATag(aContent);
+
+  nsresult rv = NS_OK;
+
+  /* Look for the viewport meta tag. If we find it, process it and put the
+   * data into the document header. */
+  if (aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name,
+                            nsGkAtoms::viewport, eIgnoreCase)) {
+    nsAutoString value;
+    aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::content, value);
+    rv = nsContentUtils::ProcessViewportInfo(mDocument, value);
+  }
+
+  return rv;
 }
 
 NS_IMETHODIMP

@@ -303,8 +303,6 @@ public:
    *  see nsTablePainter about continuous borders
    */
   nscoord GetContinuousLeftBCBorderWidth() const;
-  void SetContinuousLeftBCBorderWidth(nscoord aValue);
-
   friend class nsDelayedCalcBCBorders;
   
   void SetBCDamageArea(const nsRect& aValue);
@@ -607,6 +605,9 @@ protected:
     */
   void AdjustForCollapsingRowsCols(nsHTMLReflowMetrics& aDesiredSize,
                                    nsMargin             aBorderPadding);
+
+  /** check if columns or colgroups are collapsed  */
+  void CheckCollapsedColumns();
 
   nsITableLayoutStrategy* LayoutStrategy() const {
     return static_cast<nsTableFrame*>(GetFirstInFlow())->
@@ -911,12 +912,12 @@ inline void nsTableFrame::SetRowInserted(PRBool aValue)
 
 inline void nsTableFrame::SetNeedToCollapse(PRBool aValue)
 {
-  static_cast<nsTableFrame*>(GetFirstInFlow())->mBits.mNeedToCollapse = (unsigned)aValue;
+  mBits.mNeedToCollapse = (unsigned)aValue;
 }
 
 inline PRBool nsTableFrame::NeedToCollapse() const
 {
-  return (PRBool) static_cast<nsTableFrame*>(GetFirstInFlow())->mBits.mNeedToCollapse;
+  return (PRBool)mBits.mNeedToCollapse;
 }
 
 inline void nsTableFrame::SetHasZeroColSpans(PRBool aValue)
@@ -975,11 +976,6 @@ nsTableFrame::GetContinuousLeftBCBorderWidth() const
 {
   PRInt32 aPixelsToTwips = nsPresContext::AppUnitsPerCSSPixel();
   return BC_BORDER_RIGHT_HALF_COORD(aPixelsToTwips, mBits.mLeftContBCBorder);
-}
-
-inline void nsTableFrame::SetContinuousLeftBCBorderWidth(nscoord aValue)
-{
-  mBits.mLeftContBCBorder = (unsigned) aValue;
 }
 
 class nsTableIterator

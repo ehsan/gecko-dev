@@ -493,28 +493,10 @@ UnionRange(gfxFloat aX, gfxFloat* aDestMin, gfxFloat* aDestMax)
     *aDestMax = PR_MAX(*aDestMax, aX);
 }
 
-// We get precise glyph extents if the textrun creator requested them, or
-// if the font is a user font --- in which case the author may be relying
-// on overflowing glyphs.
-static PRBool
-NeedsGlyphExtents(gfxFont *aFont, gfxTextRun *aTextRun)
-{
-    return (aTextRun->GetFlags() & gfxTextRunFactory::TEXT_NEED_BOUNDING_BOX) ||
-        aFont->GetFontEntry()->IsUserFont();
-}
-
 static PRBool
 NeedsGlyphExtents(gfxTextRun *aTextRun)
 {
-    if (aTextRun->GetFlags() & gfxTextRunFactory::TEXT_NEED_BOUNDING_BOX)
-        return PR_TRUE;
-    PRUint32 numRuns;
-    const gfxTextRun::GlyphRun *glyphRuns = aTextRun->GetGlyphRuns(&numRuns);
-    for (PRUint32 i = 0; i < numRuns; ++i) {
-        if (glyphRuns[i].mFont->GetFontEntry()->IsUserFont())
-            return PR_TRUE;
-    }
-    return PR_FALSE;
+    return (aTextRun->GetFlags() & gfxTextRunFactory::TEXT_NEED_BOUNDING_BOX) != 0;
 }
 
 gfxFont::RunMetrics
@@ -540,10 +522,9 @@ gfxFont::Measure(gfxTextRun *aTextRun,
     const gfxTextRun::CompressedGlyph *charGlyphs = aTextRun->GetCharacterGlyphs();
     PRBool isRTL = aTextRun->IsRightToLeft();
     double direction = aTextRun->GetDirection();
-    PRBool needsGlyphExtents = NeedsGlyphExtents(this, aTextRun);
     gfxGlyphExtents *extents =
         (aBoundingBoxType == LOOSE_INK_EXTENTS &&
-            !needsGlyphExtents &&
+            !NeedsGlyphExtents(aTextRun) &&
             !aTextRun->HasDetailedGlyphs()) ? nsnull
         : GetOrCreateGlyphExtents(aTextRun->GetAppUnitsPerDevUnit());
     double x = 0;
@@ -557,8 +538,8 @@ gfxFont::Measure(gfxTextRun *aTextRun,
             double advance = glyphData->GetSimpleAdvance();
             // Only get the real glyph horizontal extent if we were asked
             // for the tight bounding box or we're in quality mode
-            if ((aBoundingBoxType != LOOSE_INK_EXTENTS || needsGlyphExtents) &&
-                extents) {
+            if ((aBoundingBoxType != LOOSE_INK_EXTENTS ||
+                 NeedsGlyphExtents(aTextRun)) && extents) {
                 PRUint32 glyphIndex = glyphData->GetSimpleGlyph();
                 PRUint16 extentsWidth = extents->GetContainedGlyphWidthAppUnits(glyphIndex);
                 if (extentsWidth != gfxGlyphExtents::INVALID_WIDTH &&
@@ -2512,8 +2493,7 @@ gfxTextRun::SetSpaceGlyph(gfxFont *aFont, gfxContext *aContext, PRUint32 aCharIn
 void
 gfxTextRun::FetchGlyphExtents(gfxContext *aRefContext)
 {
-    PRBool needsGlyphExtents = NeedsGlyphExtents(this);
-    if (!needsGlyphExtents && !mDetailedGlyphs)
+    if (!NeedsGlyphExtents(this) && !mDetailedGlyphs)
         return;
 
     PRUint32 i;
@@ -2532,7 +2512,7 @@ gfxTextRun::FetchGlyphExtents(gfxContext *aRefContext)
             if (glyphData->IsSimpleGlyph()) {
                 // If we're in speed mode, don't set up glyph extents here; we'll
                 // just return "optimistic" glyph bounds later
-                if (needsGlyphExtents) {
+                if (NeedsGlyphExtents(this)) {
                     PRUint32 glyphIndex = glyphData->GetSimpleGlyph();
                     if (!extents->IsGlyphKnown(glyphIndex)) {
                         if (!fontIsSetup) {

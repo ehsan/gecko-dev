@@ -52,7 +52,6 @@
 #include "nsIObjectFrame.h"
 #include "nsIPluginDocument.h"
 #include "nsIPluginHost.h"
-#include "nsIPluginInstance.h"
 #include "nsIPresShell.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptSecurityManager.h"
@@ -85,6 +84,8 @@
 
 #include "nsObjectLoadingContent.h"
 #include "mozAutoDocUpdate.h"
+
+static NS_DEFINE_CID(kCPluginManagerCID, NS_PLUGINMANAGER_CID);
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gObjectLog = PR_NewLogModule("objlc");
@@ -300,7 +301,7 @@ IsSupportedImage(const nsCString& aMimeType)
 static PRBool
 IsSupportedPlugin(const nsCString& aMIMEType)
 {
-  nsCOMPtr<nsIPluginHost> host(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
+  nsCOMPtr<nsIPluginHost> host(do_GetService("@mozilla.org/plugin/host;1"));
   if (!host) {
     return PR_FALSE;
   }
@@ -338,7 +339,7 @@ IsPluginEnabledByExtension(nsIURI* uri, nsCString& mimeType)
   if (ext.IsEmpty())
     return PR_FALSE;
 
-  nsCOMPtr<nsIPluginHost> host(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
+  nsCOMPtr<nsIPluginHost> host(do_GetService("@mozilla.org/plugin/host;1"));
   const char* typeFromExt;
   if (host &&
       NS_SUCCEEDED(host->IsPluginEnabledForExtension(ext.get(), typeFromExt))) {
@@ -1583,7 +1584,7 @@ nsObjectLoadingContent::TypeForClassID(const nsAString& aClassID,
                                        nsACString& aType)
 {
   // Need a plugin host for any class id support
-  nsCOMPtr<nsIPluginHost> pluginHost(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
+  nsCOMPtr<nsIPluginHost> pluginHost(do_GetService(kCPluginManagerCID));
   if (!pluginHost) {
     return NS_ERROR_NOT_AVAILABLE;
   }
@@ -1833,7 +1834,7 @@ nsObjectLoadingContent::GetPluginSupportState(nsIContent* aContent,
 /* static */ PluginSupportState
 nsObjectLoadingContent::GetPluginDisabledState(const nsCString& aContentType)
 {
-  nsCOMPtr<nsIPluginHost> host(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
+  nsCOMPtr<nsIPluginHost> host(do_GetService("@mozilla.org/plugin/host;1"));
   if (!host) {
     return ePluginUnsupported;
   }

@@ -426,15 +426,6 @@ GetObserverList(nsIFrame *aFrame)
   return static_cast<nsSVGRenderingObserverList*>(aFrame->GetProperty(nsGkAtoms::observer));
 }
 
-static void
-DeleteObserverList(void    *aObject,
-                   nsIAtom *aPropertyName,
-                   void    *aPropertyValue,
-                   void    *aData)
-{
-  delete static_cast<nsSVGRenderingObserverList*>(aPropertyValue);
-}
-
 void
 nsSVGEffects::AddRenderingObserver(nsIFrame *aFrame, nsSVGRenderingObserver *aObserver)
 {
@@ -448,7 +439,7 @@ nsSVGEffects::AddRenderingObserver(nsIFrame *aFrame, nsSVGRenderingObserver *aOb
     for (nsIFrame* f = aFrame; f; f = f->GetNextContinuation()) {
       f->AddStateBits(NS_FRAME_MAY_BE_TRANSFORMED_OR_HAVE_RENDERING_OBSERVERS);
     }
-    aFrame->SetProperty(nsGkAtoms::observer, observerList, DeleteObserverList);
+    aFrame->SetProperty(nsGkAtoms::observer, observerList);
   }
   observerList->Add(aObserver);
 }

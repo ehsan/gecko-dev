@@ -138,7 +138,6 @@ XPCWrappedNativeScope::XPCWrappedNativeScope(XPCCallContext& ccx,
     :   mRuntime(ccx.GetRuntime()),
         mWrappedNativeMap(Native2WrappedNativeMap::newMap(XPC_NATIVE_MAP_SIZE)),
         mWrappedNativeProtoMap(ClassInfo2WrappedNativeProtoMap::newMap(XPC_NATIVE_PROTO_MAP_SIZE)),
-        mMainThreadWrappedNativeProtoMap(ClassInfo2WrappedNativeProtoMap::newMap(XPC_NATIVE_PROTO_MAP_SIZE)),
         mWrapperMap(WrappedNative2WrapperMap::newMap(XPC_WRAPPER_MAP_SIZE)),
         mComponents(nsnull),
         mNext(nsnull),
@@ -318,12 +317,6 @@ XPCWrappedNativeScope::~XPCWrappedNativeScope()
     {
         NS_ASSERTION(0 == mWrappedNativeProtoMap->Count(), "scope has non-empty map");
         delete mWrappedNativeProtoMap;
-    }
-
-    if(mMainThreadWrappedNativeProtoMap)
-    {
-        NS_ASSERTION(0 == mMainThreadWrappedNativeProtoMap->Count(), "scope has non-empty map");
-        delete mMainThreadWrappedNativeProtoMap;
     }
 
     if(mWrapperMap)
@@ -539,7 +532,6 @@ XPCWrappedNativeScope::MarkAllWrappedNativesAndProtos()
     {
         cur->mWrappedNativeMap->Enumerate(WrappedNativeMarker, nsnull);
         cur->mWrappedNativeProtoMap->Enumerate(WrappedNativeProtoMarker, nsnull);
-        cur->mMainThreadWrappedNativeProtoMap->Enumerate(WrappedNativeProtoMarker, nsnull);
     }
 
     DEBUG_TrackScopeTraversal();
@@ -571,8 +563,6 @@ XPCWrappedNativeScope::ASSERT_NoInterfaceSetsAreMarked()
         cur->mWrappedNativeMap->Enumerate(
             ASSERT_WrappedNativeSetNotMarked, nsnull);
         cur->mWrappedNativeProtoMap->Enumerate(
-            ASSERT_WrappedNativeProtoSetNotMarked, nsnull);
-        cur->mMainThreadWrappedNativeProtoMap->Enumerate(
             ASSERT_WrappedNativeProtoSetNotMarked, nsnull);
     }
 }
@@ -687,8 +677,6 @@ XPCWrappedNativeScope::SystemIsBeingShutDown(JSContext* cx)
         // Walk the protos first. Wrapper shutdown can leave dangling
         // proto pointers in the proto map.
         cur->mWrappedNativeProtoMap->
-                Enumerate(WrappedNativeProtoShutdownEnumerator,  &data);
-        cur->mMainThreadWrappedNativeProtoMap->
                 Enumerate(WrappedNativeProtoShutdownEnumerator,  &data);
         cur->mWrappedNativeMap->
                 Enumerate(WrappedNativeShutdownEnumerator,  &data);
@@ -879,7 +867,6 @@ XPCWrappedNativeScope::ClearAllWrappedNativeSecurityPolicies(XPCCallContext& ccx
     for(XPCWrappedNativeScope* cur = gScopes; cur; cur = cur->mNext)
     {
         cur->mWrappedNativeProtoMap->Enumerate(WNProtoSecPolicyClearer, nsnull);
-        cur->mMainThreadWrappedNativeProtoMap->Enumerate(WNProtoSecPolicyClearer, nsnull);
         cur->mWrappedNativeMap->Enumerate(WNSecPolicyClearer, nsnull);
     }
 
@@ -908,8 +895,6 @@ XPCWrappedNativeScope::RemoveWrappedNativeProtos()
     XPCAutoLock al(mRuntime->GetMapLock());
     
     mWrappedNativeProtoMap->Enumerate(WNProtoRemover, 
-        GetRuntime()->GetDetachedWrappedNativeProtoMap());
-    mMainThreadWrappedNativeProtoMap->Enumerate(WNProtoRemover, 
         GetRuntime()->GetDetachedWrappedNativeProtoMap());
 }
 
@@ -989,17 +974,6 @@ XPCWrappedNativeScope::DebugDump(PRInt16 depth)
         {
             XPC_LOG_INDENT();
             mWrappedNativeProtoMap->Enumerate(WrappedNativeProtoMapDumpEnumerator, &depth);
-            XPC_LOG_OUTDENT();
-        }
-
-        XPC_LOG_ALWAYS(("mMainThreadWrappedNativeProtoMap @ %x with %d protos(s)", \
-                         mMainThreadWrappedNativeProtoMap, \
-                         mMainThreadWrappedNativeProtoMap ? mMainThreadWrappedNativeProtoMap->Count() : 0));
-        // iterate contexts...
-        if(depth && mMainThreadWrappedNativeProtoMap && mMainThreadWrappedNativeProtoMap->Count())
-        {
-            XPC_LOG_INDENT();
-            mMainThreadWrappedNativeProtoMap->Enumerate(WrappedNativeProtoMapDumpEnumerator, &depth);
             XPC_LOG_OUTDENT();
         }
     XPC_LOG_OUTDENT();

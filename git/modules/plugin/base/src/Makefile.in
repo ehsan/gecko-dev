@@ -85,6 +85,7 @@ CPPSRCS		= \
 		nsNPAPIPluginInstance.cpp \
 		nsPluginHostImpl.cpp \
 		nsPluginModule.cpp \
+		nsPluginInstancePeer.cpp \
 		nsJSNPRuntime.cpp \
 		$(NULL)
 

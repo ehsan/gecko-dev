@@ -38,6 +38,8 @@
 #ifndef nsPluginHostImpl_h_
 #define nsPluginHostImpl_h_
 
+#include "nsIPluginManager.h"
+#include "nsIPluginManager2.h"
 #include "nsIPluginHost.h"
 #include "nsIObserver.h"
 #include "nsPIPluginHost.h"
@@ -51,7 +53,10 @@
 #include "nsIPlugin.h"
 #include "nsIPluginTag.h"
 #include "nsIPluginTagInfo2.h"
+#include "nsIPluginInstancePeer2.h"
 
+#include "nsIFileUtilities.h"
+#include "nsICookieStorage.h"
 #include "nsPluginsDir.h"
 #include "nsPluginDirServiceProvider.h"
 #include "nsAutoPtr.h"
@@ -168,6 +173,7 @@ struct nsPluginInstanceTag
 {
   nsPluginInstanceTag*   mNext;
   char*                  mURL;
+  nsIPluginInstancePeer* mPeer;
   nsRefPtr<nsPluginTag>  mPluginTag;
   nsIPluginInstance*     mInstance;
   PRTime                 mllStopTime;
@@ -180,7 +186,8 @@ struct nsPluginInstanceTag
   nsPluginInstanceTag(nsPluginTag* aPluginTag,
                       nsIPluginInstance* aInstance, 
                       const char * url,
-                      PRBool aDefaultPlugin);
+                      PRBool aDefaultPlugin,
+                      nsIPluginInstancePeer *peer);
   ~nsPluginInstanceTag();
 
   void setStopped(PRBool stopped);
@@ -209,7 +216,10 @@ public:
   PRBool IsLastInstance(nsPluginInstanceTag *plugin);
 };
 
-class nsPluginHostImpl : public nsIPluginHost,
+class nsPluginHostImpl : public nsIPluginManager2,
+                         public nsIPluginHost,
+                         public nsIFileUtilities,
+                         public nsICookieStorage,
                          public nsIObserver,
                          public nsPIPluginHost,
                          public nsSupportsWeakReference
@@ -219,15 +229,23 @@ public:
   virtual ~nsPluginHostImpl();
 
   static nsPluginHostImpl* GetInst();
-  static const char *GetPluginName(nsIPluginInstance *aPluginInstance);
 
   NS_DECL_AND_IMPL_ZEROING_OPERATOR_NEW
 
   NS_DECL_ISUPPORTS
-  NS_DECL_NSIPLUGINHOST
-  NS_DECL_NSIFACTORY
-  NS_DECL_NSIOBSERVER
-  NS_DECL_NSPIPLUGINHOST
+
+  static const char *GetPluginName(nsIPluginInstance *aPluginInstance);
+
+  //nsIPluginManager interface - the main interface nsIPlugin communicates to
+
+  NS_IMETHOD
+  GetValue(nsPluginManagerVariable variable, void *value);
+
+  NS_IMETHOD
+  ReloadPlugins(PRBool reloadPages);
+
+  NS_IMETHOD
+  UserAgent(const char* *resultingAgentString);
 
   NS_IMETHOD
   GetURL(nsISupports* pluginInst, 
@@ -237,6 +255,17 @@ public:
            const char* altHost = NULL,
            const char* referrer = NULL,
            PRBool forceJSEnabled = PR_FALSE);
+
+  NS_IMETHOD
+  GetURLWithHeaders(nsISupports* pluginInst, 
+                    const char* url, 
+                    const char* target = NULL,
+                    nsIPluginStreamListener* streamListener = NULL,
+                    const char* altHost = NULL,
+                    const char* referrer = NULL,
+                    PRBool forceJSEnabled = PR_FALSE,
+                    PRUint32 getHeadersLength = 0, 
+                    const char* getHeaders = NULL);
   
   NS_IMETHOD
   PostURL(nsISupports* pluginInst,
@@ -252,7 +281,29 @@ public:
             PRUint32 postHeadersLength = 0, 
             const char* postHeaders = NULL);
 
-  nsresult
+  NS_IMETHOD
+  RegisterPlugin(REFNSIID aCID,
+                 const char* aPluginName,
+                 const char* aDescription,
+                 const char** aMimeTypes,
+                 const char** aMimeDescriptions,
+                 const char** aFileExtensions,
+                 PRInt32 aCount);
+
+  NS_IMETHOD
+  UnregisterPlugin(REFNSIID aCID);
+
+  NS_DECL_NSIPLUGINHOST
+  NS_DECL_NSIPLUGINMANAGER2
+  NS_DECL_NSIFACTORY
+  NS_DECL_NSIFILEUTILITIES
+  NS_DECL_NSICOOKIESTORAGE
+  NS_DECL_NSIOBSERVER
+  NS_DECL_NSPIPLUGINHOST
+
+  /* Called by GetURL and PostURL */
+
+  NS_IMETHOD
   NewPluginURLStream(const nsString& aURL, 
                      nsIPluginInstance *aInstance, 
                      nsIPluginStreamListener *aListener,
@@ -263,25 +314,14 @@ public:
                      PRUint32 aHeadersDataLen = 0);
 
   nsresult
-  GetURLWithHeaders(nsISupports* pluginInst, 
-                    const char* url, 
-                    const char* target = NULL,
-                    nsIPluginStreamListener* streamListener = NULL,
-                    const char* altHost = NULL,
-                    const char* referrer = NULL,
-                    PRBool forceJSEnabled = PR_FALSE,
-                    PRUint32 getHeadersLength = 0, 
-                    const char* getHeaders = NULL);
-
-  nsresult
   DoURLLoadSecurityCheck(nsIPluginInstance *aInstance,
                          const char* aURL);
 
-  nsresult
+  NS_IMETHOD
   AddHeadersToChannel(const char *aHeadersData, PRUint32 aHeadersDataLen, 
                       nsIChannel *aGenericChannel);
 
-  nsresult
+  NS_IMETHOD
   AddUnusedLibrary(PRLibrary * aLibrary);
 
   static nsresult GetPluginTempDir(nsIFile **aDir);
@@ -294,11 +334,12 @@ public:
   // that does Java)
   static PRBool IsJavaMIMEType(const char *aType);
 
-  static nsresult GetPrompt(nsIPluginInstanceOwner *aOwner, nsIPrompt **aPrompt);
-
 private:
-  nsresult
+  NS_IMETHOD
   TrySetUpPluginInstance(const char *aMimeType, nsIURI *aURL, nsIPluginInstanceOwner *aOwner);
+
+  nsresult
+  LoadXPCOMPlugins(nsIComponentManager* aComponentManager);
 
   nsresult
   NewEmbeddedPluginStreamListener(nsIURI* aURL, nsIPluginInstanceOwner *aOwner,
@@ -328,7 +369,8 @@ private:
   nsresult
   AddInstanceToActiveList(nsCOMPtr<nsIPlugin> aPlugin,
                           nsIPluginInstance* aInstance,
-                          nsIURI* aURL, PRBool aDefaultPlugin);
+                          nsIURI* aURL, PRBool aDefaultPlugin,
+                          nsIPluginInstancePeer *peer);
 
   nsresult
   FindPlugins(PRBool aCreatePluginList, PRBool * aPluginsChanged);
@@ -355,9 +397,9 @@ private:
   // Loads all cached plugins info into mCachedPlugins
   nsresult ReadPluginInfo();
 
-  // Given a file path, returns the plugins info from our cache
+  // Given a filename, returns the plugins info from our cache
   // and removes it from the cache.
-  void RemoveCachedPluginsInfo(const char *filePath,
+  void RemoveCachedPluginsInfo(const char *filename,
                                nsPluginTag **result);
 
   //checks if the list already have the same plugin as given
@@ -368,6 +410,11 @@ private:
   PRBool IsDuplicatePlugin(nsPluginTag * aPluginTag);
 
   nsresult EnsurePrivateDirServiceProvider();
+
+  nsresult GetPrompt(nsIPluginInstanceOwner *aOwner, nsIPrompt **aPrompt);
+
+  // one-off hack to include nppl3260.dll from the components folder
+  nsresult ScanForRealInComponentsFolder(nsIComponentManager * aCompManager);
 
   // calls PostPluginUnloadEvent for each library in mUnusedLibraries
   void UnloadUnusedLibraries();

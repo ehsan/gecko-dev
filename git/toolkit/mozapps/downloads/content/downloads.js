@@ -674,26 +674,29 @@ function buildContextMenu(aEvent)
 
 var gDownloadDNDObserver =
 {
-  onDragOver: function (aEvent)
+  onDragOver: function (aEvent, aFlavour, aDragSession)
   {
-    var types = aEvent.dataTransfer.types;
-    if (types.contains("text/uri-list") ||
-        types.contains("text/x-moz-url") ||
-        types.contains("text/plain"))
-      aEvent.preventDefault();
+    aDragSession.canDrop = true;
   },
 
-  onDrop: function(aEvent)
+  onDrop: function(aEvent, aXferData, aDragSession)
   {
-    var dt = aEvent.dataTransfer;
-    var url = dt.getData("URL");
-    var name;
-    if (!url) {
-      url = dt.getData("text/x-moz-url") || dt.getData("text/plain");
-      [url, name] = url.split("\n");
+    var split = aXferData.data.split("\n");
+    var url = split[0];
+    if (url != aXferData.data) {  //do nothing, not a valid URL
+      var name = split[1];
+      saveURL(url, name, null, true, true);
     }
-    if (url)
-      saveURL(url, name ? name : url, null, true, true);
+  },
+  _flavourSet: null,
+  getSupportedFlavours: function ()
+  {
+    if (!this._flavourSet) {
+      this._flavourSet = new FlavourSet();
+      this._flavourSet.appendFlavour("text/x-moz-url");
+      this._flavourSet.appendFlavour("text/unicode");
+    }
+    return this._flavourSet;
   }
 }
 
@@ -1295,7 +1298,7 @@ function downloadMatchesSearch(aItem)
 
   // Make sure each of the terms are found
   for each (let term in gSearchTerms)
-    if (combinedSearch.indexOf(term) == -1)
+    if (combinedSearch.search(term) == -1)
       return false;
 
   return true;

@@ -40,8 +40,10 @@
  * Retrieves and displays icons in native menu items on Mac OS X.
  */
 
+
 #ifndef nsMenuItemIconX_h_
 #define nsMenuItemIconX_h_
+
 
 #include "nsCOMPtr.h"
 #include "imgIDecoderObserver.h"
@@ -53,6 +55,7 @@ class nsMenuObjectX;
 
 #import <Carbon/Carbon.h>
 #import <Cocoa/Cocoa.h>
+
 
 class nsMenuItemIconX : public imgIDecoderObserver
 {

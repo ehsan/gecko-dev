@@ -57,10 +57,6 @@
 #include "nsIPrefBranch.h"
 #include "nsToolkit.h"
 #include "nsPrintfCString.h"
-#include "nsIServiceManager.h"
-#include "nsIDOMWindow.h"
-#include "nsPIDOMWindow.h"
-#include "nsIDOMElement.h"
 #include "nsThreadUtils.h"
 #include "nsMenuBarX.h"
 #include "nsMenuUtilsX.h"
@@ -83,6 +79,8 @@ PRInt32 gXULModalLevel = 0;
 // also made app-modal.)  See nsCocoaWindow::SetModal().
 nsCocoaWindowList *gGeckoAppModalWindowList = NULL;
 
+PRBool gCocoaWindowMethodsSwizzled = PR_FALSE;
+
 PRBool gConsumeRollupEvent;
 
 // defined in nsMenuBarX.mm
@@ -97,17 +95,20 @@ extern BOOL                gSomeMenuBarPainted;
 
 NS_IMPL_ISUPPORTS_INHERITED1(nsCocoaWindow, Inherited, nsPIWidgetCocoa)
 
+
 // A note on testing to see if your object is a sheet...
 // |mWindowType == eWindowType_sheet| is true if your gecko nsIWidget is a sheet
 // widget - whether or not the sheet is showing. |[mWindow isSheet]| will return
 // true *only when the sheet is actually showing*. Choose your test wisely.
 
+
 // roll up any popup windows
 static void RollUpPopups()
 {
   if (gRollupListener && gRollupWidget)
-    gRollupListener->Rollup(nsnull, nsnull);
+    gRollupListener->Rollup(nsnull);
 }
+
 
 nsCocoaWindow::nsCocoaWindow()
 : mParent(nsnull)
@@ -123,6 +124,7 @@ nsCocoaWindow::nsCocoaWindow()
 {
 
 }
+
 
 // Under unusual circumstances, an nsCocoaWindow object can be destroyed
 // before the nsChildView objects it contains are destroyed.  But this will
@@ -142,18 +144,6 @@ static void TellNativeViewsGoodbye(NSView *aNativeView)
     TellNativeViewsGoodbye((NSView *)[immediateSubviews objectAtIndex:i]);
 }
 
-void nsCocoaWindow::DestroyNativeWindow()
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
-
-  // We want to unhook the delegate here because we don't want events
-  // sent to it after this object has been destroyed.
-  [mWindow setDelegate:nil];
-  [mWindow close];
-  [mDelegate autorelease];
-
-  NS_OBJC_END_TRY_ABORT_BLOCK;
-}
 
 nsCocoaWindow::~nsCocoaWindow()
 {
@@ -177,7 +167,11 @@ nsCocoaWindow::~nsCocoaWindow()
   if (mWindow) {
     TellNativeViewsGoodbye([mWindow contentView]);
     if (mWindowMadeHere) {
-      DestroyNativeWindow();
+      // we want to unhook the delegate here because we don't want events
+      // sent to it after this object has been destroyed
+      [mWindow setDelegate:nil];
+      [mWindow autorelease];
+      [mDelegate autorelease];
     }
   }
 
@@ -192,6 +186,7 @@ nsCocoaWindow::~nsCocoaWindow()
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
+
 
 // Very large windows work in Cocoa, but can take a long time to
 // process (multiple minutes), during which time the system is
@@ -214,18 +209,6 @@ static bool WindowSizeAllowed(PRInt32 aWidth, PRInt32 aHeight)
   return true;
 }
 
-// Some applications like Camino use native popup windows
-// (native context menus, native tooltips)
-static PRBool UseNativePopupWindows()
-{
-  nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-  if (!prefs)
-    return PR_FALSE;
-
-  PRBool useNativePopupWindows;
-  nsresult rv = prefs->GetBoolPref("ui.use_native_popup_windows", &useNativePopupWindows);
-  return (NS_SUCCEEDED(rv) && useNativePopupWindows);
-}
 
 // Utility method for implementing both Create(nsIWidget ...) and
 // Create(nsNativeWidget...)
@@ -245,188 +228,213 @@ nsresult nsCocoaWindow::StandardCreate(nsIWidget *aParent,
 
   Inherited::BaseCreate(aParent, aRect, aHandleEventFunction, aContext, aAppShell,
                         aToolkit, aInitData);
-
+  
   mParent = aParent;
-  SetWindowType(aInitData ? aInitData->mWindowType : eWindowType_toplevel);
-  SetBorderStyle(aInitData ? aInitData->mBorderStyle : eBorderStyle_default);
-
-  // Create a window if we aren't given one, or if this should be a non-native popup.
-  if ((mWindowType == eWindowType_popup) ? !UseNativePopupWindows() : !aNativeWindow) {
-    nsresult rv = CreateNativeWindow(aRect, mBorderStyle);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    if (mWindowType == eWindowType_popup) {
-      rv = CreatePopupContentView(aRect, aHandleEventFunction, aContext, aAppShell, aToolkit);
-      NS_ENSURE_SUCCESS(rv, rv);
+  
+  // create a window if we aren't given one, always create if this should be a popup
+  if (!aNativeWindow || (aInitData && aInitData->mWindowType == eWindowType_popup)) {
+    // decide on a window type
+    PRBool allOrDefault = PR_FALSE;
+    if (aInitData) {
+      allOrDefault = aInitData->mBorderStyle == eBorderStyle_all ||
+                     aInitData->mBorderStyle == eBorderStyle_default;
+      mWindowType = aInitData->mWindowType;
+      // if a toplevel window was requested without a titlebar, use a dialog
+      if (mWindowType == eWindowType_toplevel &&
+          (aInitData->mBorderStyle == eBorderStyle_none ||
+           !allOrDefault &&
+           !(aInitData->mBorderStyle & eBorderStyle_title)))
+        mWindowType = eWindowType_dialog;
     }
-  } else {
+    else {
+      allOrDefault = PR_TRUE;
+      mWindowType = eWindowType_toplevel;
+    }
+
+    // Some applications like Camino use native popup windows
+    // (native context menus, native tooltips)
+    nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    if (prefs) {
+      PRBool useNativeContextMenus;
+      nsresult rv = prefs->GetBoolPref("ui.use_native_popup_windows", &useNativeContextMenus);
+      if (NS_SUCCEEDED(rv) && useNativeContextMenus && mWindowType == eWindowType_popup)
+        return NS_OK;
+    }
+
+    // we default to NSBorderlessWindowMask, add features if needed
+    unsigned int features = NSBorderlessWindowMask;
+    
+    // Configure the window we will create based on the window type
+    switch (mWindowType)
+    {
+      case eWindowType_invisible:
+      case eWindowType_child:
+        break;
+      case eWindowType_dialog:
+        if (aInitData) {
+          switch (aInitData->mBorderStyle)
+          {
+            case eBorderStyle_none:
+              break;
+            case eBorderStyle_default:
+              features |= NSTitledWindowMask;
+              break;
+            case eBorderStyle_all:
+              features |= NSClosableWindowMask;
+              features |= NSTitledWindowMask;
+              features |= NSResizableWindowMask;
+              features |= NSMiniaturizableWindowMask;
+              break;
+            default:
+              if (aInitData->mBorderStyle & eBorderStyle_title) {
+                features |= NSTitledWindowMask;
+                features |= NSMiniaturizableWindowMask;
+              }
+              if (aInitData->mBorderStyle & eBorderStyle_resizeh)
+                features |= NSResizableWindowMask;
+              if (aInitData->mBorderStyle & eBorderStyle_close)
+                features |= NSClosableWindowMask;
+              break;
+          }
+        }
+        else {
+          features |= NSTitledWindowMask;
+          features |= NSMiniaturizableWindowMask;
+        }
+        break;
+      case eWindowType_sheet:
+        if (aInitData) {
+          nsWindowType parentType;
+          aParent->GetWindowType(parentType);
+          if (parentType != eWindowType_invisible &&
+              aInitData->mBorderStyle & eBorderStyle_resizeh) {
+            features = NSResizableWindowMask;
+          }
+          else {
+            features = NSMiniaturizableWindowMask;
+          }
+        }
+        else {
+          features = NSMiniaturizableWindowMask;
+        }
+        features |= NSTitledWindowMask;
+        break;
+      case eWindowType_popup:
+        features |= NSBorderlessWindowMask;
+        break;
+      case eWindowType_toplevel:
+        features |= NSTitledWindowMask;
+        features |= NSMiniaturizableWindowMask;
+        if (allOrDefault || aInitData->mBorderStyle & eBorderStyle_close)
+          features |= NSClosableWindowMask;
+        if (allOrDefault || aInitData->mBorderStyle & eBorderStyle_resizeh)
+          features |= NSResizableWindowMask;
+        break;
+      default:
+        NS_ERROR("Unhandled window type!");
+        return NS_ERROR_FAILURE;
+    }
+
+    /* Apple's docs on NSWindow styles say that "a window's style mask should
+     * include NSTitledWindowMask if it includes any of the others [besides
+     * NSBorderlessWindowMask]".  This implies that a borderless window
+     * shouldn't have any other styles than NSBorderlessWindowMask.
+     */
+    if (!(features & NSTitledWindowMask))
+      features = NSBorderlessWindowMask;
+    
+    /* 
+     * We pass a content area rect to initialize the native Cocoa window. The
+     * content rect we give is the same size as the size we're given by gecko.
+     * The origin we're given for non-popup windows is moved down by the height
+     * of the menu bar so that an origin of (0,100) from gecko puts the window
+     * 100 pixels below the top of the available desktop area. We also move the
+     * origin down by the height of a title bar if it exists. This is so the
+     * origin that gecko gives us for the top-left of  the window turns out to
+     * be the top-left of the window we create. This is how it was done in
+     * Carbon. If it ought to be different we'll probably need to look at all
+     * the callers.
+     *
+     * Note: This means that if you put a secondary screen on top of your main
+     * screen and open a window in the top screen, it'll be incorrectly shifted
+     * down by the height of the menu bar. Same thing would happen in Carbon.
+     *
+     * Note: If you pass a rect with 0,0 for an origin, the window ends up in a
+     * weird place for some reason. This stops that without breaking popups.
+     */
+    NSRect rect = nsCocoaUtils::GeckoRectToCocoaRect(aRect);
+    
+    // compensate for difference between frame and content area height (e.g. title bar)
+    NSRect newWindowFrame = [NSWindow frameRectForContentRect:rect styleMask:features];
+
+    rect.origin.y -= (newWindowFrame.size.height - rect.size.height);
+    
+    if (mWindowType != eWindowType_popup)
+      rect.origin.y -= ::GetMBarHeight();
+
+    // NSLog(@"Top-level window being created at Cocoa rect: %f, %f, %f, %f\n",
+    //       rect.origin.x, rect.origin.y, rect.size.width, rect.size.height);
+
+    Class windowClass = [NSWindow class];
+    // If we have a titlebar on a top-level window, we want to be able to control the 
+    // titlebar color (for unified windows), so use the special ToolbarWindow class. 
+    // Note that we need to check the window type because we mark sheets sheets as 
+    // having titlebars.
+    if (mWindowType == eWindowType_toplevel &&
+        (features & NSTitledWindowMask))
+      windowClass = [ToolbarWindow class];
+    // If we're a popup window we need to use the PopupWindow class.
+    else if (mWindowType == eWindowType_popup)
+      windowClass = [PopupWindow class];
+    // If we're a non-popup borderless window we need to use the
+    // BorderlessWindow class.
+    else if (features == NSBorderlessWindowMask)
+      windowClass = [BorderlessWindow class];
+
+    // Create the window
+    mWindow = [[windowClass alloc] initWithContentRect:rect styleMask:features 
+                                   backing:NSBackingStoreBuffered defer:YES];
+    
+    if (mWindowType == eWindowType_popup) {
+      [mWindow setLevel:NSPopUpMenuWindowLevel];
+      [mWindow setHasShadow:YES];
+
+      // we need to make our content view a ChildView
+      mPopupContentView = new nsChildView();
+      if (mPopupContentView) {
+        NS_ADDREF(mPopupContentView);
+
+        nsIWidget* thisAsWidget = static_cast<nsIWidget*>(this);
+        mPopupContentView->StandardCreate(thisAsWidget, aRect, aHandleEventFunction,
+                                          aContext, aAppShell, aToolkit, nsnull, nsnull);
+
+        ChildView* newContentView = (ChildView*)mPopupContentView->GetNativeData(NS_NATIVE_WIDGET);
+        [mWindow setContentView:newContentView];
+      }
+    }
+    else if (mWindowType == eWindowType_invisible) {
+      [mWindow setLevel:kCGDesktopWindowLevelKey];
+    }
+
+    [mWindow setBackgroundColor:[NSColor whiteColor]];
+    [mWindow setContentMinSize:NSMakeSize(60, 60)];
+    [mWindow setReleasedWhenClosed:NO];
+
+    // setup our notification delegate. Note that setDelegate: does NOT retain.
+    mDelegate = [[WindowDelegate alloc] initWithGeckoWindow:this];
+    [mWindow setDelegate:mDelegate];
+    
+    mWindowMadeHere = PR_TRUE;
+  }
+  else {
     mWindow = (NSWindow*)aNativeWindow;
   }
-
-  [[WindowDataMap sharedWindowDataMap] ensureDataForWindow:mWindow];
-
+  
   return NS_OK;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-static unsigned int WindowMaskForBorderStyle(nsBorderStyle aBorderStyle)
-{
-  PRBool allOrDefault = (aBorderStyle == eBorderStyle_all ||
-                         aBorderStyle == eBorderStyle_default);
-
-  /* Apple's docs on NSWindow styles say that "a window's style mask should
-   * include NSTitledWindowMask if it includes any of the others [besides
-   * NSBorderlessWindowMask]".  This implies that a borderless window
-   * shouldn't have any other styles than NSBorderlessWindowMask.
-   */
-  if (!allOrDefault && !(aBorderStyle & eBorderStyle_title))
-    return NSBorderlessWindowMask;
-
-  unsigned int mask = NSTitledWindowMask | NSMiniaturizableWindowMask;
-  if (allOrDefault || aBorderStyle & eBorderStyle_close)
-    mask |= NSClosableWindowMask;
-  if (allOrDefault || aBorderStyle & eBorderStyle_resizeh)
-    mask |= NSResizableWindowMask;
-
-  return mask;
-}
-
-nsresult nsCocoaWindow::CreateNativeWindow(const nsIntRect &aRect,
-                                           nsBorderStyle aBorderStyle)
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
-
-  // We default to NSBorderlessWindowMask, add features if needed.
-  unsigned int features = NSBorderlessWindowMask;
-
-  // Configure the window we will create based on the window type.
-  switch (mWindowType)
-  {
-    case eWindowType_invisible:
-    case eWindowType_child:
-    case eWindowType_popup:
-      break;
-    case eWindowType_toplevel:
-    case eWindowType_dialog:
-      features = WindowMaskForBorderStyle(aBorderStyle);
-      break;
-    case eWindowType_sheet:
-      nsWindowType parentType;
-      mParent->GetWindowType(parentType);
-      if (parentType != eWindowType_invisible &&
-          aBorderStyle & eBorderStyle_resizeh) {
-        features = NSResizableWindowMask;
-      }
-      else {
-        features = NSMiniaturizableWindowMask;
-      }
-      features |= NSTitledWindowMask;
-      break;
-    default:
-      NS_ERROR("Unhandled window type!");
-      return NS_ERROR_FAILURE;
-  }
-
-  /* 
-   * We pass a content area rect to initialize the native Cocoa window. The
-   * content rect we give is the same size as the size we're given by gecko.
-   * The origin we're given for non-popup windows is moved down by the height
-   * of the menu bar so that an origin of (0,100) from gecko puts the window
-   * 100 pixels below the top of the available desktop area. We also move the
-   * origin down by the height of a title bar if it exists. This is so the
-   * origin that gecko gives us for the top-left of  the window turns out to
-   * be the top-left of the window we create. This is how it was done in
-   * Carbon. If it ought to be different we'll probably need to look at all
-   * the callers.
-   *
-   * Note: This means that if you put a secondary screen on top of your main
-   * screen and open a window in the top screen, it'll be incorrectly shifted
-   * down by the height of the menu bar. Same thing would happen in Carbon.
-   *
-   * Note: If you pass a rect with 0,0 for an origin, the window ends up in a
-   * weird place for some reason. This stops that without breaking popups.
-   */
-  NSRect rect = nsCocoaUtils::GeckoRectToCocoaRect(aRect);
-
-  // compensate for difference between frame and content area height (e.g. title bar)
-  NSRect newWindowFrame = [NSWindow frameRectForContentRect:rect styleMask:features];
-
-  rect.origin.y -= (newWindowFrame.size.height - rect.size.height);
-
-  if (mWindowType != eWindowType_popup)
-    rect.origin.y -= ::GetMBarHeight();
-
-  // NSLog(@"Top-level window being created at Cocoa rect: %f, %f, %f, %f\n",
-  //       rect.origin.x, rect.origin.y, rect.size.width, rect.size.height);
-
-  Class windowClass = [NSWindow class];
-  // If we have a titlebar on a top-level window, we want to be able to control the 
-  // titlebar color (for unified windows), so use the special ToolbarWindow class. 
-  // Note that we need to check the window type because we mark sheets as 
-  // having titlebars.
-  if (mWindowType == eWindowType_toplevel &&
-      (features & NSTitledWindowMask))
-    windowClass = [ToolbarWindow class];
-  // If we're a popup window we need to use the PopupWindow class.
-  else if (mWindowType == eWindowType_popup)
-    windowClass = [PopupWindow class];
-  // If we're a non-popup borderless window we need to use the
-  // BorderlessWindow class.
-  else if (features == NSBorderlessWindowMask)
-    windowClass = [BorderlessWindow class];
-
-  // Create the window
-  mWindow = [[windowClass alloc] initWithContentRect:rect styleMask:features 
-                                 backing:NSBackingStoreBuffered defer:YES];
-
-  if (mWindowType == eWindowType_invisible) {
-    [mWindow setLevel:kCGDesktopWindowLevelKey];
-  } else if (mWindowType == eWindowType_popup) {
-    [mWindow setLevel:NSPopUpMenuWindowLevel];
-    [mWindow setHasShadow:YES];
-  }
-
-  [mWindow setBackgroundColor:[NSColor whiteColor]];
-  [mWindow setContentMinSize:NSMakeSize(60, 60)];
-
-  // setup our notification delegate. Note that setDelegate: does NOT retain.
-  mDelegate = [[WindowDelegate alloc] initWithGeckoWindow:this];
-  [mWindow setDelegate:mDelegate];
-
-  mWindowMadeHere = PR_TRUE;
-
-  return NS_OK;
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
-}
-
-NS_IMETHODIMP nsCocoaWindow::CreatePopupContentView(const nsIntRect &aRect,
-                             EVENT_CALLBACK aHandleEventFunction,
-                             nsIDeviceContext *aContext,
-                             nsIAppShell *aAppShell,
-                             nsIToolkit *aToolkit)
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
-
-  // We need to make our content view a ChildView.
-  mPopupContentView = new nsChildView();
-  if (!mPopupContentView)
-    return NS_ERROR_FAILURE;
-
-  NS_ADDREF(mPopupContentView);
-
-  nsIWidget* thisAsWidget = static_cast<nsIWidget*>(this);
-  mPopupContentView->StandardCreate(thisAsWidget, aRect, aHandleEventFunction,
-                                    aContext, aAppShell, aToolkit, nsnull, nsnull);
-
-  ChildView* newContentView = (ChildView*)mPopupContentView->GetNativeData(NS_NATIVE_WIDGET);
-  [mWindow setContentView:newContentView];
-
-  return NS_OK;
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
-}
 
 // Create a nsCocoaWindow using a native window provided by the application
 NS_IMETHODIMP nsCocoaWindow::Create(nsNativeWidget aNativeWindow,
@@ -441,6 +449,7 @@ NS_IMETHODIMP nsCocoaWindow::Create(nsNativeWidget aNativeWindow,
                         aAppShell, aToolkit, aInitData, aNativeWindow));
 }
 
+
 NS_IMETHODIMP nsCocoaWindow::Create(nsIWidget* aParent,
                       const nsIntRect &aRect,
                       EVENT_CALLBACK aHandleEventFunction,
@@ -453,6 +462,7 @@ NS_IMETHODIMP nsCocoaWindow::Create(nsIWidget* aParent,
                         aAppShell, aToolkit, aInitData, nsnull));
 }
 
+
 NS_IMETHODIMP nsCocoaWindow::Destroy()
 {
   if (mPopupContentView)
@@ -464,6 +474,7 @@ NS_IMETHODIMP nsCocoaWindow::Destroy()
   return NS_OK;
 }
 
+
 nsIWidget* nsCocoaWindow::GetSheetWindowParent(void)
 {
   if (mWindowType != eWindowType_sheet)
@@ -473,6 +484,7 @@ nsIWidget* nsCocoaWindow::GetSheetWindowParent(void)
     parent = static_cast<nsCocoaWindow*>(parent->mParent);
   return parent;
 }
+
 
 void* nsCocoaWindow::GetNativeData(PRUint32 aDataType)
 {
@@ -504,6 +516,7 @@ void* nsCocoaWindow::GetNativeData(PRUint32 aDataType)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSNULL;
 }
 
+
 NS_IMETHODIMP nsCocoaWindow::IsVisible(PRBool & aState)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -513,6 +526,7 @@ NS_IMETHODIMP nsCocoaWindow::IsVisible(PRBool & aState)
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
+
 
 NS_IMETHODIMP nsCocoaWindow::SetModal(PRBool aState)
 {
@@ -582,6 +596,7 @@ NS_IMETHODIMP nsCocoaWindow::SetModal(PRBool aState)
   }
   return NS_OK;
 }
+
 
 // Hide or show this window
 NS_IMETHODIMP nsCocoaWindow::Show(PRBool bState)
@@ -819,6 +834,7 @@ NS_IMETHODIMP nsCocoaWindow::Show(PRBool bState)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+
 void nsCocoaWindow::MakeBackgroundTransparent(PRBool aTransparent)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
@@ -832,6 +848,7 @@ void nsCocoaWindow::MakeBackgroundTransparent(PRBool aTransparent)
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+
 nsTransparencyMode nsCocoaWindow::GetTransparencyMode()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
@@ -840,6 +857,7 @@ nsTransparencyMode nsCocoaWindow::GetTransparencyMode()
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(eTransparencyOpaque);
 }
+
 
 // This is called from nsMenuPopupFrame when making a popup transparent.
 // For other window types, nsChildView::SetTransparencyMode is used.
@@ -865,6 +883,7 @@ void nsCocoaWindow::SetTransparencyMode(nsTransparencyMode aMode)
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+
 NS_METHOD nsCocoaWindow::AddEventListener(nsIEventListener * aListener)
 {
   nsBaseWidget::AddEventListener(aListener);
@@ -875,10 +894,12 @@ NS_METHOD nsCocoaWindow::AddEventListener(nsIEventListener * aListener)
   return NS_OK;
 }
 
+
 NS_IMETHODIMP nsCocoaWindow::Enable(PRBool aState)
 {
   return NS_OK;
 }
+
 
 NS_IMETHODIMP nsCocoaWindow::IsEnabled(PRBool *aState)
 {
@@ -887,11 +908,13 @@ NS_IMETHODIMP nsCocoaWindow::IsEnabled(PRBool *aState)
   return NS_OK;
 }
 
+
 NS_IMETHODIMP nsCocoaWindow::ConstrainPosition(PRBool aAllowSlop,
                                                PRInt32 *aX, PRInt32 *aY)
 {
   return NS_OK;
 }
+
 
 NS_IMETHODIMP nsCocoaWindow::Move(PRInt32 aX, PRInt32 aY)
 {
@@ -906,12 +929,14 @@ NS_IMETHODIMP nsCocoaWindow::Move(PRInt32 aX, PRInt32 aY)
   return NS_OK;
 }
 
+
 // Position the window behind the given window
 NS_METHOD nsCocoaWindow::PlaceBehind(nsTopLevelWidgetZPlacement aPlacement,
                                      nsIWidget *aWidget, PRBool aActivate)
 {
   return NS_OK;
 }
+
 
 // Note bug 278777, we need to update state when the window is unminimized
 // from the dock by users.
@@ -946,6 +971,7 @@ NS_METHOD nsCocoaWindow::SetSizeMode(PRInt32 aMode)
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
+
 
 NS_IMETHODIMP nsCocoaWindow::Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint)
 {
@@ -993,6 +1019,7 @@ NS_IMETHODIMP nsCocoaWindow::Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRIn
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+
 NS_IMETHODIMP nsCocoaWindow::Resize(PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -1006,6 +1033,7 @@ NS_IMETHODIMP nsCocoaWindow::Resize(PRInt32 aWidth, PRInt32 aHeight, PRBool aRep
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+
 NS_IMETHODIMP nsCocoaWindow::GetScreenBounds(nsIntRect &aRect)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -1017,10 +1045,12 @@ NS_IMETHODIMP nsCocoaWindow::GetScreenBounds(nsIntRect &aRect)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+
 PRBool nsCocoaWindow::OnPaint(nsPaintEvent &event)
 {
   return PR_TRUE; // don't dispatch the update event
 }
+
 
 NS_IMETHODIMP nsCocoaWindow::SetTitle(const nsAString& aTitle)
 {
@@ -1035,6 +1065,7 @@ NS_IMETHODIMP nsCocoaWindow::SetTitle(const nsAString& aTitle)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+
 NS_IMETHODIMP nsCocoaWindow::Invalidate(const nsIntRect & aRect, PRBool aIsSynchronous)
 {
   if (mPopupContentView)
@@ -1042,6 +1073,7 @@ NS_IMETHODIMP nsCocoaWindow::Invalidate(const nsIntRect & aRect, PRBool aIsSynch
 
   return NS_OK;
 }
+
 
 NS_IMETHODIMP nsCocoaWindow::Invalidate(PRBool aIsSynchronous)
 {
@@ -1051,6 +1083,7 @@ NS_IMETHODIMP nsCocoaWindow::Invalidate(PRBool aIsSynchronous)
   return NS_OK;
 }
 
+
 NS_IMETHODIMP nsCocoaWindow::Update()
 {
   if (mPopupContentView)
@@ -1058,6 +1091,7 @@ NS_IMETHODIMP nsCocoaWindow::Update()
 
   return NS_OK;
 }
+
 
 // Pass notification of some drag event to Gecko
 //
@@ -1070,6 +1104,7 @@ PRBool nsCocoaWindow::DragEvent(unsigned int aMessage, Point aMouseGlobal, UInt1
 {
   return PR_FALSE;
 }
+
 
 NS_IMETHODIMP nsCocoaWindow::SendSetZLevelEvent()
 {
@@ -1086,6 +1121,7 @@ NS_IMETHODIMP nsCocoaWindow::SendSetZLevelEvent()
 
   return NS_OK;
 }
+
 
 NS_IMETHODIMP nsCocoaWindow::GetChildSheet(PRBool aShown, nsCocoaWindow** _retval)
 {
@@ -1110,11 +1146,13 @@ NS_IMETHODIMP nsCocoaWindow::GetChildSheet(PRBool aShown, nsCocoaWindow** _retva
   return NS_OK;
 }
 
+
 NS_IMETHODIMP nsCocoaWindow::GetRealParent(nsIWidget** parent)
 {
   *parent = mParent;
   return NS_OK;
 }
+
 
 NS_IMETHODIMP nsCocoaWindow::GetIsSheet(PRBool* isSheet)
 {
@@ -1122,16 +1160,19 @@ NS_IMETHODIMP nsCocoaWindow::GetIsSheet(PRBool* isSheet)
   return NS_OK;
 }
 
+
 NS_IMETHODIMP nsCocoaWindow::GetSheetWindowParent(NSWindow** sheetWindowParent)
 {
   *sheetWindowParent = mSheetWindowParent;
   return NS_OK;
 }
 
+
 NS_IMETHODIMP nsCocoaWindow::ResetInputState()
 {
   return NS_OK;
 }
+
 
 // Invokes callback and ProcessEvent methods on Event Listener object
 NS_IMETHODIMP 
@@ -1153,6 +1194,7 @@ nsCocoaWindow::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
 
   return NS_OK;
 }
+
 
 void
 nsCocoaWindow::DispatchSizeModeEvent(nsSizeMode aSizeMode)
@@ -1191,36 +1233,28 @@ nsCocoaWindow::ReportSizeEvent(NSRect *r)
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+
 void nsCocoaWindow::SetMenuBar(nsMenuBarX *aMenuBar)
 {
   if (mMenuBar)
     mMenuBar->SetParent(nsnull);
   mMenuBar = aMenuBar;
-
-  // Only paint for active windows, or paint the hidden window menu bar if no
-  // other menu bar has been painted yet so that some reasonable menu bar is
-  // displayed when the app starts up.
-  id windowDelegate = [mWindow delegate];
-  if (mMenuBar &&
-      ((!gSomeMenuBarPainted && nsMenuUtilsX::GetHiddenWindowMenuBar() == mMenuBar) ||
-       (windowDelegate && [windowDelegate toplevelActiveState])))
+  
+  // We paint the hidden window menu bar if no other menu bar has been painted
+  // yet so that some reasonable menu bar is displayed when the app starts up.
+  if (!gSomeMenuBarPainted && mMenuBar && (nsMenuUtilsX::GetHiddenWindowMenuBar() == mMenuBar))
     mMenuBar->Paint();
 }
 
+
 NS_IMETHODIMP nsCocoaWindow::SetFocus(PRBool aState)
 {
-  if (mPopupContentView) {
+  if (mPopupContentView)
     mPopupContentView->SetFocus(aState);
-  }
-  else if (aState && [mWindow isVisible]) {
-    // if the window is shown, move it to the front
-    [mWindow setAcceptsMouseMovedEvents:YES];
-    [mWindow makeKeyAndOrderFront:nil];
-    SendSetZLevelEvent();
-  }
 
   return NS_OK;
 }
+
 
 nsIntPoint nsCocoaWindow::WidgetToScreenOffset()
 {
@@ -1233,10 +1267,12 @@ nsIntPoint nsCocoaWindow::WidgetToScreenOffset()
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(nsIntPoint(0,0));
 }
 
+
 nsMenuBarX* nsCocoaWindow::GetMenuBar()
 {
   return mMenuBar;
 }
+
 
 NS_IMETHODIMP nsCocoaWindow::CaptureRollupEvents(nsIRollupListener * aListener, 
                                                  PRBool aDoCapture, 
@@ -1280,6 +1316,7 @@ NS_IMETHODIMP nsCocoaWindow::CaptureRollupEvents(nsIRollupListener * aListener,
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+
 NS_IMETHODIMP nsCocoaWindow::GetAttention(PRInt32 aCycleCount)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -1306,6 +1343,7 @@ NS_IMETHODIMP nsCocoaWindow::SetWindowShadowStyle(PRInt32 aStyle)
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
+
 
 NS_IMETHODIMP nsCocoaWindow::SetWindowTitlebarColor(nscolor aColor, PRBool aActive)
 {
@@ -1350,12 +1388,14 @@ NS_IMETHODIMP nsCocoaWindow::SetWindowTitlebarColor(nscolor aColor, PRBool aActi
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+
 gfxASurface* nsCocoaWindow::GetThebesSurface()
 {
   if (mPopupContentView)
     return mPopupContentView->GetThebesSurface();
   return nsnull;
 }
+
 
 NS_IMETHODIMP nsCocoaWindow::BeginSecureKeyboardInput()
 {
@@ -1369,6 +1409,7 @@ NS_IMETHODIMP nsCocoaWindow::BeginSecureKeyboardInput()
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+
 NS_IMETHODIMP nsCocoaWindow::EndSecureKeyboardInput()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -1380,6 +1421,7 @@ NS_IMETHODIMP nsCocoaWindow::EndSecureKeyboardInput()
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
+
 
 // Callback used by the default titlebar and toolbar shading.
 // *aIn == 0 at the top of the titlebar/toolbar, *aIn == 1 at the bottom
@@ -1401,7 +1443,9 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const float* aIn, float* aOut)
   aOut[3] = 1.0f;
 }
 
+
 @implementation WindowDelegate
+
 
 // We try to find a gecko menu bar to paint. If one does not exist, just paint
 // the application menu by itself so that a window doesn't have some other
@@ -1450,6 +1494,7 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const float* aIn, float* aOut)
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+
 - (id)initWithGeckoWindow:(nsCocoaWindow*)geckoWind
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
@@ -1462,12 +1507,14 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const float* aIn, float* aOut)
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
+
 - (NSSize)windowWillResize:(NSWindow *)sender toSize:(NSSize)proposedFrameSize
 {
   RollUpPopups();
   
   return proposedFrameSize;
 }
+
 
 - (void)windowDidResize:(NSNotification *)aNotification
 {
@@ -1476,6 +1523,7 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const float* aIn, float* aOut)
 
   mGeckoWindow->ReportSizeEvent();
 }
+
 
 - (void)windowDidBecomeMain:(NSNotification *)aNotification
 {
@@ -1494,6 +1542,7 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const float* aIn, float* aOut)
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+
 - (void)windowDidResignMain:(NSNotification *)aNotification
 {
   RollUpPopups();
@@ -1509,6 +1558,7 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const float* aIn, float* aOut)
   }
 }
 
+
 - (void)windowDidBecomeKey:(NSNotification *)aNotification
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
@@ -1519,6 +1569,7 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const float* aIn, float* aOut)
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
+
 
 - (void)windowDidResignKey:(NSNotification *)aNotification
 {
@@ -1533,10 +1584,12 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const float* aIn, float* aOut)
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+
 - (void)windowWillMove:(NSNotification *)aNotification
 {
   RollUpPopups();
 }
+
 
 - (void)windowDidMove:(NSNotification *)aNotification
 {
@@ -1551,6 +1604,7 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const float* aIn, float* aOut)
   mGeckoWindow->DispatchEvent(&guiEvent, status);
 }
 
+
 - (BOOL)windowShouldClose:(id)sender
 {
   // We only want to send NS_XUL_CLOSE and let gecko close the window
@@ -1561,15 +1615,18 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const float* aIn, float* aOut)
   return NO; // gecko will do it
 }
 
+
 - (void)windowWillClose:(NSNotification *)aNotification
 {
   RollUpPopups();
 }
 
+
 - (void)windowWillMiniaturize:(NSNotification *)aNotification
 {
   RollUpPopups();
 }
+
 
 - (void)windowDidMiniaturize:(NSNotification *)aNotification
 {
@@ -1577,11 +1634,13 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const float* aIn, float* aOut)
     mGeckoWindow->DispatchSizeModeEvent(nsSizeMode_Minimized);
 }
 
+
 - (void)windowDidDeminiaturize:(NSNotification *)aNotification
 {
   if (mGeckoWindow)
     mGeckoWindow->DispatchSizeModeEvent(nsSizeMode_Normal);
 }
+
 
 - (void)sendFocusEvent:(PRUint32)eventType
 {
@@ -1593,6 +1652,7 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const float* aIn, float* aOut)
   focusGuiEvent.time = PR_IntervalNow();
   mGeckoWindow->DispatchEvent(&focusGuiEvent, status);
 }
+
 
 - (void)didEndSheet:(NSWindow*)sheet returnCode:(int)returnCode contextInfo:(void*)contextInfo
 {
@@ -1613,33 +1673,40 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const float* aIn, float* aOut)
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+
 - (nsCocoaWindow*)geckoWidget
 {
   return mGeckoWindow;
 }
+
 
 - (PRBool)toplevelActiveState
 {
   return mToplevelActiveState;
 }
 
+
 - (void)sendToplevelActivateEvents
 {
   if (!mToplevelActiveState) {
+    [self sendFocusEvent:NS_GOTFOCUS];
     [self sendFocusEvent:NS_ACTIVATE];
     mToplevelActiveState = PR_TRUE;
   }
 }
 
+
 - (void)sendToplevelDeactivateEvents
 {
   if (mToplevelActiveState) {
     [self sendFocusEvent:NS_DEACTIVATE];
+    [self sendFocusEvent:NS_LOSTFOCUS];
     mToplevelActiveState = PR_FALSE;
   }
 }
 
 @end
+
 
 // Category on NSWindow so callers can use the same method on both ToolbarWindows
 // and NSWindows for accessing the background color.
@@ -1656,11 +1723,13 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const float* aIn, float* aOut)
 
 @end
 
+
 @interface ToolbarWindow(Private)
 
 - (void)redrawTitlebar;
 
 @end
+
 
 // This class allows us to have a "unified toolbar" style window. It works like this:
 // 1) We set the window's style to textured.
@@ -1722,6 +1791,7 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const float* aIn, float* aOut)
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
+
 - (void)dealloc
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
@@ -1731,6 +1801,7 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const float* aIn, float* aOut)
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
+
 
 // We don't provide our own implementation of -backgroundColor because NSWindow
 // looks at it, apparently. This is here to keep someone from messing with our
@@ -1744,6 +1815,7 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const float* aIn, float* aOut)
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+
 // If you need to get at the background color of the window (in the traditional
 // sense) use this method instead.
 - (NSColor*)windowBackgroundColor
@@ -1754,6 +1826,7 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const float* aIn, float* aOut)
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
+
 
 // Pass nil here to get the default appearance.
 - (void)setTitlebarColor:(NSColor*)aColor forActiveWindow:(BOOL)aActive
@@ -1777,6 +1850,7 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const float* aIn, float* aOut)
   [self redrawTitlebar];
 }
 
+
 - (float)unifiedToolbarHeight
 {
   return mUnifiedToolbarHeight;
@@ -1798,6 +1872,7 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const float* aIn, float* aOut)
 {
   return YES;
 }
+
 
 // Dispatch a toolbar pill button clicked message to Gecko.
 - (void)_toolbarPillButtonClicked:(id)sender
@@ -1908,6 +1983,7 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const float* aIn, float* aOut)
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
+
 - (void)dealloc
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
@@ -1978,6 +2054,7 @@ void patternDraw(void* aInfo, CGContextRef aContext)
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+
 - (void)setFill
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
@@ -2003,6 +2080,7 @@ void patternDraw(void* aInfo, CGContextRef aContext)
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+
 // Pass nil here to get the default appearance.
 - (void)setTitlebarColor:(NSColor*)aColor forActiveWindow:(BOOL)aActive
 {
@@ -2019,15 +2097,18 @@ void patternDraw(void* aInfo, CGContextRef aContext)
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+
 - (NSColor*)activeTitlebarColor
 {
   return mActiveTitlebarColor;
 }
 
+
 - (NSColor*)inactiveTitlebarColor
 {
   return mInactiveTitlebarColor;
 }
+
 
 - (void)setBackgroundColor:(NSColor*)aColor
 {
@@ -2039,20 +2120,24 @@ void patternDraw(void* aInfo, CGContextRef aContext)
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+
 - (NSColor*)backgroundColor
 {
   return mBackgroundColor;
 }
+
 
 - (NSWindow*)window
 {
   return mWindow;
 }
 
+
 - (NSString*)colorSpaceName
 {
   return NSDeviceRGBColorSpace;
 }
+
 
 - (void)set
 {
@@ -2061,6 +2146,59 @@ void patternDraw(void* aInfo, CGContextRef aContext)
   [self setFill];
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
+}
+
+@end
+
+
+@interface NSWindow (MethodSwizzling)
+- (void)nsCocoaWindow_NSWindow_sendEvent:(NSEvent *)anEvent;
+@end
+
+@implementation NSWindow (MethodSwizzling)
+
+// An NSLeftMouseDown event can change the focus, but it doesn't always do
+// this correctly/appropriately.  As a result, Gecko keyboard events may be
+// sent to the wrong nsChildView object, and thereby "lost".  So if we know
+// which ChildView object should have the focus in our NSWindow, and if
+// processing an NSLeftMouseDown event has caused the focus to be set
+// incorrectly, we change the focus back to where it belongs.  This resolves
+// bmo bugs 314160, 403232, 404433 and 357535/418031.
+//
+// Only check for incorrect focus if our NSWindow's "new" first responder is
+// also a ChildView object:  Embedders (like Camino) sometimes legitimately
+// use NSView objects which are not ChildView objects (which don't have
+// corresponding child widgets), and expect them to be focusable via an
+// NSLeftMouseDown event.
+//
+// For non-embedders (e.g. Firefox, Thunderbird and Seamonkey), it would
+// probably only be necessary to add a sendEvent: method to the ToolbarWindow
+// class.  But embedders (like Camino) generally create their own NSWindows.
+// So in order to fix this problem everywhere, it's necessary to "hook"
+// NSWindow's own sendEvent: method.
+- (void)nsCocoaWindow_NSWindow_sendEvent:(NSEvent *)anEvent
+{
+  // Since we've hooked a "system call" ([NSWindow sendEvent:]), we're always
+  // called from system code (not browser code).  So avoid crashing on any
+  // Objective-C exceptions that occur here.
+  NS_OBJC_BEGIN_TRY_LOGONLY_BLOCK;
+
+  [self nsCocoaWindow_NSWindow_sendEvent:anEvent];
+
+  if ([anEvent type] == NSLeftMouseDown) {
+    NSResponder *newFirstResponder = [self firstResponder];
+    if ([newFirstResponder isKindOfClass:[ChildView class]]) {
+      WindowDataMap *windowMap = [WindowDataMap sharedWindowDataMap];
+      TopLevelWindowData *windowData = [windowMap dataForWindow:self];
+      if (windowData) {
+        ChildView *shouldFocusView = [windowData getShouldFocusView];
+        if (shouldFocusView && (shouldFocusView != newFirstResponder))
+          [self makeFirstResponder:shouldFocusView];
+      }
+    }
+  }
+
+  NS_OBJC_END_TRY_LOGONLY_BLOCK;
 }
 
 @end
@@ -2195,6 +2333,7 @@ void patternDraw(void* aInfo, CGContextRef aContext)
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+
 - (id)initWithContentRect:(NSRect)contentRect styleMask:(unsigned int)styleMask
       backing:(NSBackingStoreType)bufferingType defer:(BOOL)deferCreation
 {
@@ -2207,15 +2346,18 @@ void patternDraw(void* aInfo, CGContextRef aContext)
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
+
 - (BOOL)isContextMenu
 {
   return mIsContextMenu;
 }
 
+
 - (void)setIsContextMenu:(BOOL)flag
 {
   mIsContextMenu = flag;
 }
+
 
 @end
 
@@ -2231,6 +2373,7 @@ void patternDraw(void* aInfo, CGContextRef aContext)
 {
   return YES;
 }
+
 
 - (void)sendEvent:(NSEvent *)anEvent
 {
@@ -2270,6 +2413,7 @@ void patternDraw(void* aInfo, CGContextRef aContext)
 
   [super sendEvent:anEvent];
 }
+
 
 // Apple's doc on this method says that the NSWindow class's default is not to
 // become main if the window isn't "visible" -- so we should replicate that

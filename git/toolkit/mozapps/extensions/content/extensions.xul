@@ -65,6 +65,7 @@
   <script type="application/javascript" src="chrome://global/content/globalOverlay.js"/>
   <script type="application/javascript" src="chrome://global/content/contentAreaUtils.js"/>
   <script type="application/javascript" src="chrome://mozapps/content/extensions/extensions.js"/>
+  <script type="application/javascript" src="chrome://global/content/nsDragAndDrop.js"/>
 
   <stringbundleset id="extensionsSet">
     <stringbundle id="brandStrings" src="chrome://branding/locale/brand.properties"/>
@@ -199,9 +200,9 @@
       <hbox flex="1">
         <richlistbox id="extensionsView" flex="1" 
                      datasources="rdf:null" context="addonContextMenu"
-                     ondragenter="gExtensionsDNDObserver.onDragOver(event)"
-                     ondragover="gExtensionsDNDObserver.onDragOver(event)"
-                     ondrop="gExtensionsDNDObserver.onDrop(event)"
+                     ondragenter="nsDragAndDrop.dragEnter(event, gExtensionsDNDObserver);"
+                     ondragover="nsDragAndDrop.dragOver(event, gExtensionsDNDObserver);"
+                     ondragdrop="nsDragAndDrop.drop(event, gExtensionsDNDObserver);"
                      ondblclick="onViewDoubleClick(event);"/>
   
         <splitter id="themeSplitter" hidden="true" collapse="none" persist="state"/>
@@ -274,9 +275,9 @@
               tooltiptext="&cmd.continue.tooltip;"
               command="cmd_continue"
               hidden="true"/>
-      <button id="installUpdatesAllButton" label="&cmd.installUpdatesAll2.label;"
-              accesskey="&cmd.installUpdatesAll2.accesskey;"
-              tooltiptext="&cmd.installUpdatesAll2.tooltip;"
+      <button id="installUpdatesAllButton" label="&cmd.installUpdatesAll.label;"
+              accesskey="&cmd.installUpdatesAll.accesskey;"
+              tooltiptext="&cmd.installUpdatesAll.tooltip;"
               command="cmd_installUpdatesAll"/>
 #else
       <button id="installFileButton" label="&cmd.installLocalFile.label;"
@@ -290,9 +291,9 @@
               tooltiptext="&cmd.continue.tooltip;"
               command="cmd_continue"
               hidden="true"/>
-      <button id="installUpdatesAllButton" label="&cmd.installUpdatesAll2.label;"
-              accesskey="&cmd.installUpdatesAll2.accesskey;"
-              tooltiptext="&cmd.installUpdatesAll2.tooltip;"
+      <button id="installUpdatesAllButton" label="&cmd.installUpdatesAll.label;"
+              accesskey="&cmd.installUpdatesAll.accesskey;"
+              tooltiptext="&cmd.installUpdatesAll.tooltip;"
               command="cmd_installUpdatesAll"/>
       <button id="checkUpdatesAllButton" label="&cmd.checkUpdatesAll.label;"
               accesskey="&cmd.checkUpdatesAll.accesskey;"

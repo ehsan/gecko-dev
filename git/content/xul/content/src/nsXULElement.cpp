@@ -73,7 +73,9 @@
 #include "nsIDOMFocusListener.h"
 #include "nsIDOMKeyListener.h"
 #include "nsIDOMFormListener.h"
+#include "nsIDOMXULListener.h"
 #include "nsIDOMContextMenuListener.h"
+#include "nsIDOMDragListener.h"
 #include "nsIDOMEventListener.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIDOMNodeList.h"
@@ -84,7 +86,6 @@
 #include "nsIDocument.h"
 #include "nsIEventListenerManager.h"
 #include "nsIEventStateManager.h"
-#include "nsFocusManager.h"
 #include "nsIFastLoadService.h"
 #include "nsHTMLStyleSheet.h"
 #include "nsINameSpaceManager.h"
@@ -138,8 +139,7 @@
 #include "nsFrameLoader.h"
 #include "prlog.h"
 #include "rdf.h"
-#include "nsIDOM3EventTarget.h"
-#include "nsIDOMEventGroup.h"
+
 #include "nsIControllers.h"
 
 // The XUL doc interface
@@ -507,12 +507,12 @@ nsXULElement::GetEventListenerManagerForAttr(nsIEventListenerManager** aManager,
         if (!piTarget)
             return NS_ERROR_UNEXPECTED;
 
+        nsresult rv = piTarget->GetListenerManager(PR_TRUE, aManager);
+        if (NS_SUCCEEDED(rv)) {
+            NS_ADDREF(*aTarget = window);
+        }
         *aDefer = PR_FALSE;
-        *aManager = piTarget->GetListenerManager(PR_TRUE);
-        NS_ENSURE_STATE(*aManager);
-        NS_ADDREF(*aManager);
-        NS_ADDREF(*aTarget = window);
-        return NS_OK;
+        return rv;
     }
 
     return nsGenericElement::GetEventListenerManagerForAttr(aManager,
@@ -653,30 +653,8 @@ nsXULElement::PerformAccesskey(PRBool aKeyCausesActivation,
     if (elm) {
         // Define behavior for each type of XUL element.
         nsIAtom *tag = content->Tag();
-        if (tag != nsGkAtoms::toolbarbutton) {
-          nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-          if (fm) {
-            nsCOMPtr<nsIDOMElement> element;
-            // for radio buttons, focus the radiogroup instead
-            if (tag == nsGkAtoms::radio) {
-              nsCOMPtr<nsIDOMXULSelectControlItemElement> controlItem(do_QueryInterface(elm));
-              if (controlItem) {
-                PRBool disabled;
-                controlItem->GetDisabled(&disabled);
-                if (!disabled) {
-                  nsCOMPtr<nsIDOMXULSelectControlElement> selectControl;
-                  controlItem->GetControl(getter_AddRefs(selectControl));
-                  element = do_QueryInterface(selectControl);
-                }
-              }
-            }
-            else {
-              element = do_QueryInterface(content);
-            }
-            if (element)
-              fm->SetFocus(element, nsIFocusManager::FLAG_BYKEY);
-          }
-        }
+        if (tag != nsGkAtoms::toolbarbutton)
+            elm->Focus();
         if (aKeyCausesActivation && tag != nsGkAtoms::textbox && tag != nsGkAtoms::menulist)
             elm->Click();
     }
@@ -912,9 +890,8 @@ nsXULElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 }
 
 nsresult
-nsXULElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent)
+nsXULElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify)
 {
-    NS_ASSERTION(aMutationEvent, "Someone tried to inhibit mutations on XUL child removal.");
     nsresult rv;
     nsCOMPtr<nsIContent> oldKid = mAttrsAndChildren.GetSafeChildAt(aIndex);
     if (!oldKid) {
@@ -981,7 +958,7 @@ nsXULElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEve
       }
     }
 
-    rv = nsGenericElement::RemoveChildAt(aIndex, aNotify, aMutationEvent);
+    rv = nsGenericElement::RemoveChildAt(aIndex, aNotify);
     
     if (newCurrentIndex == -2)
         controlElement->SetCurrentItem(nsnull);
@@ -1316,9 +1293,10 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
     PRUint32 stateMask;
     if (aNotify) {
         stateMask = PRUint32(IntrinsicState());
- 
-        nsNodeUtils::AttributeWillChange(this, aNameSpaceID, aName,
-                                         nsIDOMMutationEvent::REMOVAL);
+
+        if (doc) {
+            doc->AttributeWillChange(this, aNameSpaceID, aName);
+        }
     }
 
     PRBool hasMutationListeners = aNotify &&
@@ -1563,30 +1541,14 @@ nsXULElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
     aVisitor.mForceContentDispatch = PR_TRUE; //FIXME! Bug 329119
     nsIAtom* tag = Tag();
-    if (IsRootOfNativeAnonymousSubtree() &&
-        (tag == nsGkAtoms::scrollbar || tag == nsGkAtoms::scrollcorner) &&
-        (aVisitor.mEvent->message == NS_MOUSE_CLICK ||
-         aVisitor.mEvent->message == NS_MOUSE_DOUBLECLICK ||
-         aVisitor.mEvent->message == NS_XUL_COMMAND ||
-         aVisitor.mEvent->message == NS_CONTEXTMENU)) {
-        // Don't propagate these events from native anonymous scrollbar.
-        aVisitor.mCanHandle = PR_TRUE;
-        aVisitor.mParentTarget = nsnull;
-        return NS_OK;
-    }
     if (aVisitor.mEvent->message == NS_XUL_COMMAND &&
-        aVisitor.mEvent->eventStructType == NS_INPUT_EVENT &&
         aVisitor.mEvent->originalTarget == static_cast<nsIContent*>(this) &&
         tag != nsGkAtoms::command) {
-        // Check that we really have an xul command event. That will be handled
-        // in a special way.
-        nsCOMPtr<nsIDOMXULCommandEvent> xulEvent =
-            do_QueryInterface(aVisitor.mDOMEvent);
         // See if we have a command elt.  If so, we execute on the command
         // instead of on our content element.
         nsAutoString command;
-        if (xulEvent && GetAttr(kNameSpaceID_None, nsGkAtoms::command, command) &&
-            !command.IsEmpty()) {
+        GetAttr(kNameSpaceID_None, nsGkAtoms::command, command);
+        if (!command.IsEmpty()) {
             // Stop building the event target chain for the original event.
             // We don't want it to propagate to any DOM nodes.
             aVisitor.mCanHandle = PR_FALSE;
@@ -1602,6 +1564,29 @@ nsXULElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
                 // pointed to by the command attribute.  The new event's
                 // sourceEvent will be the original command event that we're
                 // handling.
+
+                nsXULCommandEvent event(NS_IS_TRUSTED_EVENT(aVisitor.mEvent),
+                                        NS_XUL_COMMAND, nsnull);
+                if (aVisitor.mEvent->eventStructType == NS_XUL_COMMAND_EVENT) {
+                    nsXULCommandEvent *orig =
+                        static_cast<nsXULCommandEvent*>(aVisitor.mEvent);
+
+                    event.isShift = orig->isShift;
+                    event.isControl = orig->isControl;
+                    event.isAlt = orig->isAlt;
+                    event.isMeta = orig->isMeta;
+                } else {
+                    NS_WARNING("Incorrect eventStructType for command event");
+                }
+
+                if (!aVisitor.mDOMEvent) {
+                    // We need to create a new DOMEvent for the original event
+                    nsEventDispatcher::CreateEvent(aVisitor.mPresContext,
+                                                   aVisitor.mEvent,
+                                                   EmptyString(),
+                                                   &aVisitor.mDOMEvent);
+                }
+
                 nsCOMPtr<nsIDOMNSEvent> nsevent =
                     do_QueryInterface(aVisitor.mDOMEvent);
                 while (nsevent) {
@@ -1617,17 +1602,12 @@ nsXULElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
                     nsevent = do_QueryInterface(tmp);
                 }
 
-                nsInputEvent* orig =
-                    static_cast<nsInputEvent*>(aVisitor.mEvent);
-                nsContentUtils::DispatchXULCommand(
-                  commandContent,
-                  NS_IS_TRUSTED_EVENT(aVisitor.mEvent),
-                  aVisitor.mDOMEvent,
-                  nsnull,
-                  orig->isControl,
-                  orig->isAlt,
-                  orig->isShift,
-                  orig->isMeta);
+                event.sourceEvent = aVisitor.mDOMEvent;
+
+                nsEventStatus status = nsEventStatus_eIgnore;
+                nsEventDispatcher::Dispatch(commandContent,
+                                            aVisitor.mPresContext,
+                                            &event, nsnull, &status);
             } else {
                 NS_WARNING("A XUL element is attached to a command that doesn't exist!\n");
             }
@@ -2047,25 +2027,46 @@ nsXULElement::GetParentTree(nsIDOMXULMultiSelectControlElement** aTreeElement)
 NS_IMETHODIMP
 nsXULElement::Focus()
 {
-    nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-    nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(static_cast<nsIContent*>(this));
-    return fm ? fm->SetFocus(this, 0) : NS_OK;
+    if (!nsGenericElement::ShouldFocus(this)) {
+        return NS_OK;
+    }
+
+    nsIDocument* doc = GetCurrentDoc();
+    // What kind of crazy tries to focus an element without a doc?
+    if (!doc)
+        return NS_OK;
+
+    // Obtain a presentation context and then call SetFocus.
+
+    nsIPresShell *shell = doc->GetPrimaryShell();
+    if (!shell)
+        return NS_OK;
+
+    // Set focus
+    nsCOMPtr<nsPresContext> context = shell->GetPresContext();
+    SetFocus(context);
+
+    return NS_OK;
 }
 
 NS_IMETHODIMP
 nsXULElement::Blur()
 {
-    if (!ShouldBlur(this))
-      return NS_OK;
-
     nsIDocument* doc = GetCurrentDoc();
+    // What kind of crazy tries to blur an element without a doc?
     if (!doc)
-      return NS_OK;
+        return NS_OK;
 
-    nsIDOMWindow* win = doc->GetWindow();
-    nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-    if (win && fm)
-      return fm->ClearFocus(win);
+    // Obtain a presentation context and then call SetFocus.
+    nsIPresShell *shell = doc->GetPrimaryShell();
+    if (!shell)
+        return NS_OK;
+
+    // Set focus
+    nsCOMPtr<nsPresContext> context = shell->GetPresContext();
+    if (ShouldBlur(this))
+      RemoveFocus(context);
+
     return NS_OK;
 }
 
@@ -2118,10 +2119,41 @@ nsXULElement::DoCommand()
 {
     nsCOMPtr<nsIDocument> doc = GetCurrentDoc(); // strong just in case
     if (doc) {
-        nsContentUtils::DispatchXULCommand(this, PR_TRUE);
+        nsPresShellIterator iter(doc);
+        nsCOMPtr<nsIPresShell> shell;
+        while ((shell = iter.GetNextShell())) {
+            nsCOMPtr<nsPresContext> context = shell->GetPresContext();
+            nsEventStatus status = nsEventStatus_eIgnore;
+            nsXULCommandEvent event(PR_TRUE, NS_XUL_COMMAND, nsnull);
+            nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this),
+                                        context, &event, nsnull, &status);
+        }
     }
 
     return NS_OK;
+}
+
+// nsIFocusableContent interface and helpers
+void
+nsXULElement::SetFocus(nsPresContext* aPresContext)
+{
+    if (BoolAttrIsTrue(nsGkAtoms::disabled))
+        return;
+
+    aPresContext->EventStateManager()->SetContentState(this,
+                                                       NS_EVENT_STATE_FOCUS);
+}
+
+void
+nsXULElement::RemoveFocus(nsPresContext* aPresContext)
+{
+  if (!aPresContext) 
+    return;
+  
+  if (IsInDoc()) {
+    aPresContext->EventStateManager()->SetContentState(nsnull,
+                                                       NS_EVENT_STATE_FOCUS);
+  }
 }
 
 nsIContent *
@@ -2145,19 +2177,13 @@ PopupListenerPropertyDtor(void* aObject, nsIAtom* aPropertyName,
   if (!listener) {
     return;
   }
-  nsCOMPtr<nsIDOM3EventTarget> target =
+  nsCOMPtr<nsIDOMEventTarget> target =
     do_QueryInterface(static_cast<nsINode*>(aObject));
   if (target) {
-    nsCOMPtr<nsIDOMEventGroup> systemGroup;
-    static_cast<nsPIDOMEventTarget*>(aObject)->
-      GetSystemEventGroup(getter_AddRefs(systemGroup));
-    if (systemGroup) {
-      target->RemoveGroupedEventListener(NS_LITERAL_STRING("mousedown"),
-                                         listener, PR_FALSE, systemGroup);
-
-      target->RemoveGroupedEventListener(NS_LITERAL_STRING("contextmenu"),
-                                         listener, PR_FALSE, systemGroup);
-    }
+    target->RemoveEventListener(NS_LITERAL_STRING("mousedown"), listener,
+                                PR_FALSE);
+    target->RemoveEventListener(NS_LITERAL_STRING("contextmenu"), listener,
+                                PR_FALSE);
   }
   NS_RELEASE(listener);
 }
@@ -2179,17 +2205,13 @@ nsXULElement::AddPopupListener(nsIAtom* aName)
         return NS_OK;
     }
 
-    nsCOMPtr<nsIDOMEventGroup> systemGroup;
-    GetSystemEventGroup(getter_AddRefs(systemGroup));
-    NS_ENSURE_STATE(systemGroup);
-
     nsresult rv = NS_NewXULPopupListener(this, isContext,
                                          getter_AddRefs(popupListener));
     if (NS_FAILED(rv))
         return rv;
 
     // Add the popup as a listener on this element.
-    nsCOMPtr<nsIDOM3EventTarget> target(do_QueryInterface(static_cast<nsIContent *>(this)));
+    nsCOMPtr<nsIDOMEventTarget> target(do_QueryInterface(static_cast<nsIContent *>(this)));
     NS_ENSURE_TRUE(target, NS_ERROR_FAILURE);
     rv = SetProperty(listenerAtom, popupListener, PopupListenerPropertyDtor,
                      PR_TRUE);
@@ -2197,14 +2219,10 @@ nsXULElement::AddPopupListener(nsIAtom* aName)
     // Want the property to have a reference to the listener.
     nsIDOMEventListener* listener = nsnull;
     popupListener.swap(listener);
-
-    if (isContext) {
-      target->AddGroupedEventListener(NS_LITERAL_STRING("contextmenu"),
-                                      listener, PR_FALSE, systemGroup);
-    } else {
-      target->AddGroupedEventListener(NS_LITERAL_STRING("mousedown"),
-                                      listener, PR_FALSE, systemGroup);
-    }
+    if (isContext)
+      target->AddEventListener(NS_LITERAL_STRING("contextmenu"), listener, PR_FALSE);
+    else
+      target->AddEventListener(NS_LITERAL_STRING("mousedown"), listener, PR_FALSE);
     return NS_OK;
 }
 

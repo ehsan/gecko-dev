@@ -94,7 +94,6 @@ REQUIRES	= xpcom \
 		  uconv \
 		  txtsvc \
 		  thebes \
-		  html5 \
 		  $(NULL)
 
 CPPSRCS		= \
@@ -140,12 +139,11 @@ SHARED_LIBRARY_LIBS = \
 	$(DEPTH)/dom/src/threads/$(LIB_PREFIX)domthreads_s.$(LIB_SUFFIX) \
 	$(DEPTH)/editor/libeditor/text/$(LIB_PREFIX)texteditor_s.$(LIB_SUFFIX) \
 	$(DEPTH)/editor/libeditor/base/$(LIB_PREFIX)editorbase_s.$(LIB_SUFFIX) \
-	$(DEPTH)/parser/html/$(LIB_PREFIX)html5p_s.$(LIB_SUFFIX) \
 	$(NULL)
 
 ifdef MOZ_MEDIA
 SHARED_LIBRARY_LIBS 	+= \
-	$(DEPTH)/content/media/$(LIB_PREFIX)gkconmedia_s.$(LIB_SUFFIX) \
+	$(DEPTH)/content/media/video/src/$(LIB_PREFIX)gkconvideo_s.$(LIB_SUFFIX) \
 	$(NULL)
 endif
 
@@ -157,13 +155,6 @@ SHARED_LIBRARY_LIBS 	+= \
 	$(DEPTH)/media/liboggz/src/liboggz/$(LIB_PREFIX)oggz.$(LIB_SUFFIX) \
 	$(DEPTH)/media/libtheora/lib/$(LIB_PREFIX)theora.$(LIB_SUFFIX) \
 	$(DEPTH)/media/libvorbis/lib/$(LIB_PREFIX)vorbis.$(LIB_SUFFIX) \
-	$(DEPTH)/content/media/ogg/$(LIB_PREFIX)gkconogg_s.$(LIB_SUFFIX) \
-	$(NULL)
-endif
-
-ifdef MOZ_WAVE
-SHARED_LIBRARY_LIBS 	+= \
-	$(DEPTH)/content/media/wave/$(LIB_PREFIX)gkconwave_s.$(LIB_SUFFIX) \
 	$(NULL)
 endif
 
@@ -267,11 +258,9 @@ endif
 EXTRA_DSO_LDOPTS += $(MOZ_LOCATION_LIBS)
 
 ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
-EXTRA_DSO_LDOPTS += $(TK_LIBS)
-
-ifdef MOZ_ENABLE_CANVAS3D
-EXTRA_DSO_LDOPTS += -framework OpenGL
-endif
+EXTRA_DSO_LDOPTS += \
+	$(TK_LIBS) \
+	$(NULL)
 endif
 
 # Add explicit X11 dependency when building against X11 toolkits

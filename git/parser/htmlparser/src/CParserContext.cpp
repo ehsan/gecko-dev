@@ -105,8 +105,25 @@ CParserContext::GetTokenizer(nsIDTD* aDTD,
   if (!mTokenizer) {
     if (type == NS_IPARSER_FLAG_HTML || mParserCommand == eViewSource) {
       nsCOMPtr<nsIHTMLContentSink> theSink = do_QueryInterface(aSink);
-      mTokenizer = new nsHTMLTokenizer(mDTDMode, mDocType, mParserCommand,
-                                       nsHTMLTokenizer::GetFlags(aSink));
+      PRUint16 theFlags = 0;
+
+      if (theSink) {
+        // XXX This code is repeated both here and in CNavDTD. Can the two
+        // callsites be combined?
+        PRBool enabled;
+        theSink->IsEnabled(eHTMLTag_frameset, &enabled);
+        if(enabled) {
+          theFlags |= NS_IPARSER_FLAG_FRAMES_ENABLED;
+        }
+        
+        theSink->IsEnabled(eHTMLTag_script, &enabled);
+        if(enabled) {
+          theFlags |= NS_IPARSER_FLAG_SCRIPT_ENABLED;
+        }
+      }
+
+      mTokenizer = new nsHTMLTokenizer(mDTDMode, mDocType,
+                                       mParserCommand, theFlags);
       if (!mTokenizer) {
         return NS_ERROR_OUT_OF_MEMORY;
       }

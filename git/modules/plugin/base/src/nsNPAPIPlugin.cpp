@@ -54,8 +54,10 @@
 #include "nsIPrefBranch.h"
 #include "nsPluginLogging.h"
 
+#include "nsIPluginInstancePeer2.h"
 #include "nsIJSContextStack.h"
 
+#include "nsPIPluginInstancePeer.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMDocument.h"
 #include "nsPIDOMWindow.h"
@@ -96,6 +98,8 @@ enum eNPPStreamTypeInternal {
   eNPPStreamTypeInternal_Post
 };
 
+static NS_DEFINE_IID(kCPluginManagerCID, NS_PLUGINMANAGER_CID);
+static NS_DEFINE_IID(kPluginManagerCID, NS_PLUGINMANAGER_CID);
 static NS_DEFINE_IID(kMemoryCID, NS_MEMORY_CID);
 
 // Static stub functions that are exported to the 4.x plugin as entry
@@ -349,8 +353,8 @@ nsNPAPIPlugin::SetPluginRefNum(short aRefNum)
 
 // Creates the nsNPAPIPlugin object. One nsNPAPIPlugin object exists per plugin (not instance).
 nsresult
-nsNPAPIPlugin::CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
-                            nsIPlugin** aResult)
+nsNPAPIPlugin::CreatePlugin(const char* aFileName, const char* aFullPath,
+                            PRLibrary* aLibrary, nsIPlugin** aResult)
 {
   CheckClassInitialized();
 
@@ -373,8 +377,7 @@ nsNPAPIPlugin::CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
 
   NS_ADDREF(*aResult);
 
-  // Do not initialize if the file path is NULL.
-  if (!aFilePath)
+  if (!aFileName) //do not call NP_Initialize in this case, bug 74938
     return NS_OK;
 
   // we must init here because the plugin may call NPN functions
@@ -460,7 +463,7 @@ nsNPAPIPlugin::CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
   unsigned long origDiskNum, pluginDiskNum, logicalDisk;
 
   char pluginPath[CCHMAXPATH], origPath[CCHMAXPATH];
-  strcpy(pluginPath, aFilePath);
+  strcpy(pluginPath, aFileName);
   char* slash = strrchr(pluginPath, '\\');
   *slash = '\0';
 
@@ -510,7 +513,7 @@ nsNPAPIPlugin::CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
   short pluginRefNum;
 
   nsCOMPtr<nsILocalFile> pluginPath;
-  NS_NewNativeLocalFile(nsDependentCString(aFilePath), PR_TRUE,
+  NS_NewNativeLocalFile(nsDependentCString(aFullPath), PR_TRUE,
                         getter_AddRefs(pluginPath));
 
   nsPluginFile pluginFile(pluginPath);
@@ -684,12 +687,14 @@ MakeNewNPAPIStreamInternal(NPP npp, const char *relativeURL, const char *target,
   PluginDestructionGuard guard(npp);
 
   nsIPluginInstance *inst = (nsIPluginInstance *) npp->ndata;
+
+  NS_ASSERTION(inst, "null instance");
   if (!inst)
     return NPERR_INVALID_INSTANCE_ERROR;
 
-  nsCOMPtr<nsIPluginHost> pluginHost = do_GetService(MOZ_PLUGIN_HOST_CONTRACTID);
-  NS_ASSERTION(pluginHost, "failed to get plugin host");
-  if (!pluginHost) return NPERR_GENERIC_ERROR;
+  nsCOMPtr<nsIPluginManager> pm = do_GetService(kPluginManagerCID);
+  NS_ASSERTION(pm, "failed to get plugin manager");
+  if (!pm) return NPERR_GENERIC_ERROR;
 
   nsCOMPtr<nsIPluginStreamListener> listener;
   if (!target)
@@ -700,13 +705,13 @@ MakeNewNPAPIStreamInternal(NPP npp, const char *relativeURL, const char *target,
   switch (type) {
   case eNPPStreamTypeInternal_Get:
     {
-      if (NS_FAILED(pluginHost->GetURL(inst, relativeURL, target, listener)))
+      if (NS_FAILED(pm->GetURL(inst, relativeURL, target, listener)))
         return NPERR_GENERIC_ERROR;
       break;
     }
   case eNPPStreamTypeInternal_Post:
     {
-      if (NS_FAILED(pluginHost->PostURL(inst, relativeURL, len, buf, file, target,
+      if (NS_FAILED(pm->PostURL(inst, relativeURL, len, buf, file, target,
                                 listener)))
         return NPERR_GENERIC_ERROR;
       break;
@@ -880,8 +885,11 @@ _newstream(NPP npp, NPMIMEType type, const char* target, NPStream* *result)
     PluginDestructionGuard guard(inst);
 
     nsCOMPtr<nsIOutputStream> stream;
-    if (NS_SUCCEEDED(inst->NewStreamFromPlugin((const char*) type, target,
-                                               getter_AddRefs(stream)))) {
+    nsCOMPtr<nsIPluginInstancePeer> peer;
+    if (NS_SUCCEEDED(inst->GetPeer(getter_AddRefs(peer))) &&
+      peer &&
+      NS_SUCCEEDED(peer->NewStream((const char*) type, target,
+                                   getter_AddRefs(stream)))) {
       nsNPAPIStreamWrapper* wrapper = new nsNPAPIStreamWrapper(stream);
       if (wrapper) {
         (*result) = wrapper->GetNPStream();
@@ -995,7 +1003,10 @@ _status(NPP npp, const char *message)
 
   PluginDestructionGuard guard(inst);
 
-  inst->ShowStatus(message);
+  nsCOMPtr<nsIPluginInstancePeer> peer;
+  if (NS_SUCCEEDED(inst->GetPeer(getter_AddRefs(peer))) && peer) {
+    peer->ShowStatus(message);
+  }
 }
 
 void NP_CALLBACK
@@ -1032,11 +1043,11 @@ _reloadplugins(NPBool reloadPages)
   NPN_PLUGIN_LOG(PLUGIN_LOG_NORMAL,
                  ("NPN_ReloadPlugins: reloadPages=%d\n", reloadPages));
 
-  nsCOMPtr<nsIPluginHost> pluginHost(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
-  if (!pluginHost)
+  nsCOMPtr<nsIPluginManager> pm(do_GetService(kPluginManagerCID));
+  if (!pm)
     return;
 
-  pluginHost->ReloadPlugins(reloadPages);
+  pm->ReloadPlugins(reloadPages);
 }
 
 void NP_CALLBACK
@@ -1060,7 +1071,14 @@ _invalidaterect(NPP npp, NPRect *invalidRect)
 
   PluginDestructionGuard guard(inst);
 
-  inst->InvalidateRect((nsPluginRect *)invalidRect);
+  nsCOMPtr<nsIPluginInstancePeer> peer;
+  if (NS_SUCCEEDED(inst->GetPeer(getter_AddRefs(peer))) && peer) {
+    nsCOMPtr<nsIWindowlessPluginInstancePeer> wpeer(do_QueryInterface(peer));
+    if (wpeer) {
+      // XXX nsRect & NPRect are structurally equivalent
+      wpeer->InvalidateRect((nsPluginRect *)invalidRect);
+    }
+  }
 }
 
 void NP_CALLBACK
@@ -1083,7 +1101,14 @@ _invalidateregion(NPP npp, NPRegion invalidRegion)
 
   PluginDestructionGuard guard(inst);
 
-  inst->InvalidateRegion((nsPluginRegion)invalidRegion);
+  nsCOMPtr<nsIPluginInstancePeer> peer;
+  if (NS_SUCCEEDED(inst->GetPeer(getter_AddRefs(peer))) && peer) {
+    nsCOMPtr<nsIWindowlessPluginInstancePeer> wpeer(do_QueryInterface(peer));
+    if (wpeer) {
+      // nsPluginRegion & NPRegion are typedef'd to the same thing
+      wpeer->InvalidateRegion((nsPluginRegion)invalidRegion);
+    }
+  }
 }
 
 void NP_CALLBACK
@@ -1104,7 +1129,13 @@ _forceredraw(NPP npp)
 
   PluginDestructionGuard guard(inst);
 
-  inst->ForceRedraw();
+  nsCOMPtr<nsIPluginInstancePeer> peer;
+  if (NS_SUCCEEDED(inst->GetPeer(getter_AddRefs(peer))) && peer) {
+    nsCOMPtr<nsIWindowlessPluginInstancePeer> wpeer(do_QueryInterface(peer));
+    if (wpeer) {
+      wpeer->ForceRedraw();
+    }
+  }
 }
 
 static nsIDocument *
@@ -1117,8 +1148,13 @@ GetDocumentFromNPP(NPP npp)
 
   PluginDestructionGuard guard(inst);
 
+  nsCOMPtr<nsIPluginInstancePeer> pip;
+  inst->GetPeer(getter_AddRefs(pip));
+  nsCOMPtr<nsPIPluginInstancePeer> pp(do_QueryInterface(pip));
+  NS_ENSURE_TRUE(pp, nsnull);
+
   nsCOMPtr<nsIPluginInstanceOwner> owner;
-  inst->GetOwner(getter_AddRefs(owner));
+  pp->GetOwner(getter_AddRefs(owner));
   NS_ENSURE_TRUE(owner, nsnull);
 
   nsCOMPtr<nsIDocument> doc;
@@ -1885,11 +1921,11 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
 
     nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *) npp->ndata;
 
-    nsCOMPtr<nsIPluginInstanceOwner> owner;
-    inst->GetOwner(getter_AddRefs(owner));
-    NS_ENSURE_TRUE(owner, nsnull);
-
-    if (NS_SUCCEEDED(owner->GetNetscapeWindow(result))) {
+    nsCOMPtr<nsIPluginInstancePeer> peer;
+    if (NS_SUCCEEDED(inst->GetPeer(getter_AddRefs(peer))) &&
+        peer &&
+        NS_SUCCEEDED(peer->GetValue(nsPluginInstancePeerVariable_NetscapeWindow,
+                                    result))) {
       return NPERR_NO_ERROR;
     }
     return NPERR_GENERIC_ERROR;
@@ -1925,10 +1961,47 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
     return NPERR_NO_ERROR;
   }
 
-  case NPNVserviceManager:
-  case NPNVDOMElement:
+  case NPNVserviceManager: {
+    nsIServiceManager * sm;
+    res = NS_GetServiceManager(&sm);
+    if (NS_SUCCEEDED(res)) {
+      *(nsIServiceManager**)result = sm;
+      return NPERR_NO_ERROR;
+    } else {
+      return NPERR_GENERIC_ERROR;
+    }
+  }
+
+  case NPNVDOMElement: {
+    nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *) npp->ndata;
+    NS_ENSURE_TRUE(inst, NPERR_GENERIC_ERROR);
+
+    nsCOMPtr<nsIPluginInstancePeer> pip;
+    inst->GetPeer(getter_AddRefs(pip));
+    nsCOMPtr<nsIPluginTagInfo2> pti2 (do_QueryInterface(pip));
+    if (pti2) {
+      nsCOMPtr<nsIDOMElement> e;
+      pti2->GetDOMElement(getter_AddRefs(e));
+      if (e) {
+        NS_ADDREF(*(nsIDOMElement**)result = e.get());
+        return NPERR_NO_ERROR;
+      }
+    }
+    return NPERR_GENERIC_ERROR;
+  }
+
   case NPNVDOMWindow: {
-    // we no longer hand out any XPCOM objects
+    nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *)npp->ndata;
+    NS_ENSURE_TRUE(inst, NPERR_GENERIC_ERROR);
+
+    nsIDOMWindow *domWindow = inst->GetDOMWindow().get();
+
+    if (domWindow) {
+      // Pass over ownership of domWindow to the caller.
+      (*(nsIDOMWindow**)result) = domWindow;
+
+      return NPERR_NO_ERROR;
+    }
     return NPERR_GENERIC_ERROR;
   }
 
@@ -2070,11 +2143,23 @@ _setvalue(NPP npp, NPPVariable variable, void *result)
           do_GetService("@mozilla.org/js/xpc/ContextStack;1", &rv);
         if (NS_SUCCEEDED(rv)) {
           NPBool bPushCaller = (result != nsnull);
+
           if (bPushCaller) {
-            JSContext *cx;
-            rv = inst->GetJSContext(&cx);
-            if (NS_SUCCEEDED(rv))
-              rv = contextStack->Push(cx);
+            rv = NS_ERROR_FAILURE;
+
+            nsCOMPtr<nsIPluginInstancePeer> peer;
+            if (NS_SUCCEEDED(inst->GetPeer(getter_AddRefs(peer))) && peer) {
+              nsCOMPtr<nsIPluginInstancePeer2> peer2 =
+                do_QueryInterface(peer);
+
+              if (peer2) {
+                JSContext *cx;
+                rv = peer2->GetJSContext(&cx);
+
+                if (NS_SUCCEEDED(rv))
+                  rv = contextStack->Push(cx);
+              }
+            }
           } else {
             rv = contextStack->Pop(nsnull);
           }
@@ -2164,12 +2249,12 @@ _useragent(NPP npp)
   }
   NPN_PLUGIN_LOG(PLUGIN_LOG_NORMAL, ("NPN_UserAgent: npp=%p\n", (void*)npp));
 
-  nsCOMPtr<nsIPluginHost> pluginHost(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
-  if (!pluginHost)
+  nsCOMPtr<nsIPluginManager> pm(do_GetService(kPluginManagerCID));
+  if (!pm)
     return nsnull;
 
   const char *retstr;
-  nsresult rv = pluginHost->UserAgent(&retstr);
+  nsresult rv = pm->UserAgent(&retstr);
   if (NS_FAILED(rv))
     return nsnull;
 
@@ -2340,9 +2425,9 @@ _getvalueforurl(NPP instance, NPNURLVariable variable, const char *url,
   switch (variable) {
   case NPNURLVProxy:
     {
-      nsCOMPtr<nsIPluginHost> pluginHost(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
+      nsCOMPtr<nsIPluginManager2> pm(do_GetService(kPluginManagerCID));
 
-      if (pluginHost && NS_SUCCEEDED(pluginHost->FindProxyForURL(url, value))) {
+      if (pm && NS_SUCCEEDED(pm->FindProxyForURL(url, value))) {
         *len = *value ? PL_strlen(*value) : 0;
         return NPERR_NO_ERROR;
       }
@@ -2402,33 +2487,11 @@ _setvalueforurl(NPP instance, NPNURLVariable variable, const char *url,
   switch (variable) {
   case NPNURLVCookie:
     {
-      if (!url || !value || (0 >= len))
-        return NPERR_INVALID_PARAM;
+      nsCOMPtr<nsICookieStorage> cs = do_GetService(kPluginManagerCID);
 
-      nsresult rv = NS_ERROR_FAILURE;
-      nsCOMPtr<nsIIOService> ioService(do_GetService(NS_IOSERVICE_CONTRACTID, &rv));
-      if (NS_FAILED(rv))
-        return NPERR_GENERIC_ERROR;
-
-      nsCOMPtr<nsICookieService> cookieService = do_GetService(NS_COOKIESERVICE_CONTRACTID, &rv);
-      if (NS_FAILED(rv))
-        return NPERR_GENERIC_ERROR;
-
-      nsCOMPtr<nsIURI> uriIn;
-      rv = ioService->NewURI(nsDependentCString(url), nsnull, nsnull, getter_AddRefs(uriIn));
-      if (NS_FAILED(rv))
-        return NPERR_GENERIC_ERROR;
-
-      nsCOMPtr<nsIPrompt> prompt;
-      nsPluginHostImpl::GetPrompt(nsnull, getter_AddRefs(prompt));
-
-      char *cookie = (char*)value;
-      char c = cookie[len];
-      cookie[len] = '\0';
-      rv = cookieService->SetCookieString(uriIn, prompt, cookie, nsnull);
-      cookie[len] = c;
-      if (NS_SUCCEEDED(rv))
+      if (cs && NS_SUCCEEDED(cs->SetCookie(url, value, len))) {
         return NPERR_NO_ERROR;
+      }
     }
 
     break;

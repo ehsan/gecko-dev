@@ -132,10 +132,7 @@ nsEmbedStream::OpenStream(nsIURI *aBaseURI, const nsACString& aContentType)
 
   // find a document loader for this content type
 
-  nsCString flatContentType;
-  rv = mChannel->GetContentType(flatContentType);
-  if (NS_FAILED(rv))
-    return rv;
+  const nsCString& flatContentType = PromiseFlatCString(aContentType);
 
   nsXPIDLCString docLoaderContractID;
   nsCOMPtr<nsICategoryManager> catMan(do_GetService(NS_CATEGORYMANAGER_CONTRACTID, &rv));

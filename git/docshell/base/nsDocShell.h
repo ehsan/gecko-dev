@@ -347,8 +347,7 @@ protected:
                                nsIDocShell ** aDocShell,
                                nsIRequest ** aRequest,
                                PRBool aIsNewWindowTarget,
-                               PRBool aBypassClassifier,
-                               PRBool aForceAllowCookies);
+                               PRBool aBypassClassifier);
     NS_IMETHOD AddHeadersToChannel(nsIInputStream * aHeadersData, 
                                   nsIChannel * aChannel);
     virtual nsresult DoChannelLoad(nsIChannel * aChannel,
@@ -625,7 +624,7 @@ protected:
         RestorePresentationEvent(nsDocShell *ds) : mDocShell(ds) {}
         void Revoke() { mDocShell = nsnull; }
     private:
-        nsRefPtr<nsDocShell> mDocShell;
+        nsDocShell *mDocShell;
     };
 
     // hash of session storages, keyed by domain
@@ -729,6 +728,8 @@ protected:
     PRPackedBool               mAllowMetaRedirects;
     PRPackedBool               mAllowImages;
     PRPackedBool               mAllowDNSPrefetch;
+    PRPackedBool               mFocusDocFirst;
+    PRPackedBool               mHasFocus;
     PRPackedBool               mCreatingDocument; // (should be) debugging only
     PRPackedBool               mUseErrorPages;
     PRPackedBool               mObserveErrorPages;

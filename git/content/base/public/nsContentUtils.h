@@ -106,7 +106,6 @@ class nsIWidget;
 class nsIDragSession;
 class nsPIDOMWindow;
 class nsPIDOMEventTarget;
-class nsIPresShell;
 #ifdef MOZ_XTF
 class nsIXTFService;
 #endif
@@ -938,9 +937,11 @@ public:
    * @param aNode The node for which to get the eventlistener manager.
    * @param aCreateIfNotFound If PR_FALSE, returns a listener manager only if
    *                          one already exists.
+   * @param aResult [out] Set to the eventlistener manager for aNode.
    */
-  static nsIEventListenerManager* GetListenerManager(nsINode* aNode,
-                                                     PRBool aCreateIfNotFound);
+  static nsresult GetListenerManager(nsINode *aNode,
+                                     PRBool aCreateIfNotFound,
+                                     nsIEventListenerManager **aResult);
 
   /**
    * Remove the eventlistener manager for aNode.
@@ -1258,15 +1259,6 @@ public:
    */
   static already_AddRefed<nsIDragSession> GetDragSession();
 
-  /*
-   * Initialize and set the dataTransfer field of an nsDragEvent.
-   */
-  static nsresult SetDataTransferInEvent(nsDragEvent* aDragEvent);
-
-  // filters the drag and drop action to fit within the effects allowed and
-  // returns it.
-  static PRUint32 FilterDropEffect(PRUint32 aAction, PRUint32 aEffectAllowed);
-
   /**
    * Return true if aURI is a local file URI (i.e. file://).
    */
@@ -1402,37 +1394,6 @@ public:
                                nsString& aOrigin);
   static nsresult GetUTFOrigin(nsIURI* aURI, nsString& aOrigin);
 
-  /**
-   * This method creates and dispatches "command" event, which implements
-   * nsIDOMXULCommandEvent.
-   * If aShell is not null, dispatching goes via
-   * nsIPresShell::HandleDOMEventWithTarget.
-   */
-  static nsresult DispatchXULCommand(nsIContent* aTarget,
-                                     PRBool aTrusted,
-                                     nsIDOMEvent* aSourceEvent = nsnull,
-                                     nsIPresShell* aShell = nsnull,
-                                     PRBool aCtrl = PR_FALSE,
-                                     PRBool aAlt = PR_FALSE,
-                                     PRBool aShift = PR_FALSE,
-                                     PRBool aMeta = PR_FALSE);
-
-  /**
-   * Gets the nsIDocument given the script context. Will return nsnull on failure.
-   *
-   * @param aScriptContext the script context to get the document for; can be null
-   *
-   * @return the document associated with the script context
-   */
-  static already_AddRefed<nsIDocument>
-  GetDocumentFromScriptContext(nsIScriptContext *aScriptContext);
-
-  /**
-   * The method checks whether the caller can access native anonymous content.
-   * If there is no JS in the stack or privileged JS is running, this
-   * method returns PR_TRUE, otherwise PR_FALSE.
-   */
-  static PRBool CanAccessNativeAnon();
 private:
 
   static PRBool InitializeEventTable();

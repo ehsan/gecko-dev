@@ -64,7 +64,6 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsIDocument.h"
 #include "nsIDOMNodeSelector.h"
-#include "nsIDOMXPathNSResolver.h"
 
 #ifdef MOZ_SMIL
 #include "nsISMILAttr.h"
@@ -145,14 +144,14 @@ private:
 /**
  * A tearoff class for nsGenericElement to implement additional interfaces
  */
-class nsNode3Tearoff : public nsIDOM3Node, public nsIDOMXPathNSResolver
+class nsNode3Tearoff : public nsIDOM3Node
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
   NS_DECL_NSIDOM3NODE
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsNode3Tearoff, nsIDOM3Node)
+  NS_DECL_CYCLE_COLLECTION_CLASS(nsNode3Tearoff)
 
   nsNode3Tearoff(nsIContent *aContent) : mContent(aContent)
   {
@@ -354,13 +353,14 @@ public:
   virtual PRInt32 IndexOf(nsINode* aPossibleChild) const;
   virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
                                  PRBool aNotify);
-  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent = PR_TRUE);
+  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify);
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
   virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
   virtual nsresult DispatchDOMEvent(nsEvent* aEvent, nsIDOMEvent* aDOMEvent,
                                     nsPresContext* aPresContext,
                                     nsEventStatus* aEventStatus);
-  virtual nsIEventListenerManager* GetListenerManager(PRBool aCreateIfNotFound);
+  virtual nsresult GetListenerManager(PRBool aCreateIfNotFound,
+                                      nsIEventListenerManager** aResult);
   virtual nsresult AddEventListenerByIID(nsIDOMEventListener *aListener,
                                          const nsIID& aIID);
   virtual nsresult RemoveEventListenerByIID(nsIDOMEventListener *aListener,
@@ -417,6 +417,7 @@ public:
                               PRBool aNotify);
   virtual PRBool TextIsOnlyWhitespace();
   virtual void AppendTextTo(nsAString& aResult);
+  virtual void SetFocus(nsPresContext* aContext);
   virtual nsIContent *GetBindingParent() const;
   virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
   virtual already_AddRefed<nsIURI> GetBaseURI() const;
@@ -583,6 +584,8 @@ public:
   static already_AddRefed<nsIDOMNSFeatureFactory>
     GetDOMFeatureFactory(const nsAString& aFeature, const nsAString& aVersion);
 
+  static PRBool ShouldFocus(nsIContent *aContent);
+
   static PRBool ShouldBlur(nsIContent *aContent);
 
   /**
@@ -654,8 +657,7 @@ public:
   static nsresult doRemoveChildAt(PRUint32 aIndex, PRBool aNotify,
                                   nsIContent* aKid, nsIContent* aParent,
                                   nsIDocument* aDocument,
-                                  nsAttrAndChildArray& aChildArray,
-                                  PRBool aMutationEvent);
+                                  nsAttrAndChildArray& aChildArray);
 
   /**
    * Helper methods for implementing querySelector/querySelectorAll

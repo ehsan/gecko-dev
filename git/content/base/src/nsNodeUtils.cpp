@@ -98,18 +98,6 @@ nsNodeUtils::CharacterDataChanged(nsIContent* aContent,
 }
 
 void
-nsNodeUtils::AttributeWillChange(nsIContent* aContent,
-                                 PRInt32 aNameSpaceID,
-                                 nsIAtom* aAttribute,
-                                 PRInt32 aModType)
-{
-  nsIDocument* doc = aContent->GetOwnerDoc();
-  IMPL_MUTATION_NOTIFICATION(AttributeWillChange, aContent,
-                             (doc, aContent, aNameSpaceID, aAttribute,
-                              aModType));
-}
-
-void
 nsNodeUtils::AttributeChanged(nsIContent* aContent,
                               PRInt32 aNameSpaceID,
                               nsIAtom* aAttribute,
@@ -234,8 +222,9 @@ nsNodeUtils::LastRelease(nsINode* aNode)
   if (aNode->HasFlag(NODE_HAS_LISTENERMANAGER)) {
 #ifdef DEBUG
     if (nsContentUtils::IsInitialized()) {
-      nsIEventListenerManager* manager =
-        nsContentUtils::GetListenerManager(aNode, PR_FALSE);
+      nsCOMPtr<nsIEventListenerManager> manager;
+      nsContentUtils::GetListenerManager(aNode, PR_FALSE,
+                                         getter_AddRefs(manager));
       if (!manager) {
         NS_ERROR("Huh, our bit says we have a listener manager list, "
                  "but there's nothing in the hash!?!!");
@@ -594,7 +583,8 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
 
       nsPIDOMWindow* window = newDoc->GetInnerWindow();
       if (window) {
-        nsIEventListenerManager* elm = aNode->GetListenerManager(PR_FALSE);
+        nsCOMPtr<nsIEventListenerManager> elm;
+        aNode->GetListenerManager(PR_FALSE, getter_AddRefs(elm));
         if (elm) {
           window->SetMutationListeners(elm->MutationListenerBits());
           if (elm->MayHavePaintEventListener()) {

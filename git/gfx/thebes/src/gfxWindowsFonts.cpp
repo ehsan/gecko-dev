@@ -583,6 +583,7 @@ FontEntry::LoadFont(const gfxProxyFontEntry &aProxyEntry,
     if (!fe)
         return fe;
 
+    fe->mUserFont = PR_TRUE;
     if (isCFF)
         fe->mForceGDI = PR_TRUE;
  
@@ -734,7 +735,7 @@ FontEntry::LoadLocalFont(const gfxProxyFontEntry &aProxyEntry,
     if (!fe)
         return fe;
 
-    fe->mIsUserFont = PR_TRUE;
+    fe->mUserFont = PR_TRUE;
     return fe;
 }
 
@@ -1063,7 +1064,7 @@ gfxWindowsFont::FillLogFont(gfxFloat aSize)
 
     // if user font, disable italics/bold if defined to be italics/bold face
     // this avoids unwanted synthetic italics/bold
-    if (fe->mIsUserFont) {
+    if (fe->mUserFont) {
         if (fe->IsItalic())
             isItalic = PR_FALSE; // avoid synthetic italic
         if (fe->IsBold())

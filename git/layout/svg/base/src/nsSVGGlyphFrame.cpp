@@ -292,7 +292,7 @@ nsSVGGlyphFrame::Init(nsIContent* aContent,
   nsIFrame* ancestorFrame = nsSVGUtils::GetFirstNonAAncestorFrame(aParent);
   NS_ASSERTION(ancestorFrame, "Must have ancestor");
 
-  nsSVGTextContainerFrame *metrics = do_QueryFrame(ancestorFrame);
+  nsISVGTextContentMetrics *metrics = do_QueryFrame(ancestorFrame);
   NS_ASSERTION(metrics,
                "trying to construct an SVGGlyphFrame for an invalid container");
 
@@ -720,65 +720,6 @@ nsSVGGlyphFrame::GetCharacterPositions(nsTArray<CharacterPosition>* aCharacterPo
   return PR_TRUE;
 }
 
-float
-nsSVGGlyphFrame::GetSubStringAdvance(PRUint32 charnum, 
-                                     PRUint32 fragmentChars)
-{
-  if (fragmentChars == 0)
-    return 0.0f;
-
-  gfxFloat advance = mTextRun->GetAdvanceWidth(charnum, fragmentChars, nsnull);
-  return float(advance);
-}
-
-gfxFloat
-nsSVGGlyphFrame::GetBaselineOffset(PRBool aForceGlobalTransform)
-{
-  float drawScale, metricsScale;
-
-  if (!EnsureTextRun(&drawScale, &metricsScale, aForceGlobalTransform))
-    return 0.0;
-
-  gfxTextRun::Metrics metrics =
-    mTextRun->MeasureText(0, mTextRun->GetLength(),
-                          gfxFont::LOOSE_INK_EXTENTS, nsnull, nsnull);
-
-  PRUint16 dominantBaseline;
-
-  for (nsIFrame *frame = GetParent(); frame; frame = frame->GetParent()) {
-    dominantBaseline = frame->GetStyleSVGReset()->mDominantBaseline;
-    if (dominantBaseline != NS_STYLE_DOMINANT_BASELINE_AUTO ||
-        frame->GetType() == nsGkAtoms::svgTextFrame) {
-      break;
-    }
-  }
-
-  gfxFloat baselineAppUnits;
-  switch (dominantBaseline) {
-  case NS_STYLE_DOMINANT_BASELINE_HANGING:
-    // not really right, but the best we can do with the information provided
-    // FALLTHROUGH
-  case NS_STYLE_DOMINANT_BASELINE_TEXT_BEFORE_EDGE:
-    baselineAppUnits = -metrics.mAscent;
-    break;
-  case NS_STYLE_DOMINANT_BASELINE_TEXT_AFTER_EDGE:
-  case NS_STYLE_DOMINANT_BASELINE_IDEOGRAPHIC:
-    baselineAppUnits = metrics.mDescent;
-    break;
-  case NS_STYLE_DOMINANT_BASELINE_CENTRAL:
-  case NS_STYLE_DOMINANT_BASELINE_MIDDLE:
-    baselineAppUnits = -(metrics.mAscent - metrics.mDescent) / 2.0;
-    break;
-  case NS_STYLE_DOMINANT_BASELINE_AUTO:
-  case NS_STYLE_DOMINANT_BASELINE_ALPHABETIC:
-    return 0.0;
-  default:
-    NS_WARNING("We don't know about this type of dominant-baseline");
-    return 0.0;
-  }
-  return baselineAppUnits * metricsScale;
-}
-
 //----------------------------------------------------------------------
 
 // Utilities for converting from indices in the uncompressed content
@@ -821,6 +762,13 @@ CompressIndex(int index, const nsTextFragment*fragment)
   }
     
   return ci;
+}
+
+static int
+UncompressIndex(int index, PRBool bRightAffinity, const nsTextFragment*fragment)
+{
+  // XXX
+  return index;
 }
 
 nsresult
@@ -917,9 +865,9 @@ nsSVGGlyphFrame::GetHighlight(PRUint32 *charnum, PRUint32 *nchars,
 // nsISVGGlyphFragmentLeaf interface:
 
 NS_IMETHODIMP_(void)
-nsSVGGlyphFrame::SetGlyphPosition(float x, float y, PRBool aForceGlobalTransform)
+nsSVGGlyphFrame::SetGlyphPosition(float x, float y)
 {
-  mPosition.MoveTo(x, y - GetBaselineOffset(aForceGlobalTransform));
+  mPosition.MoveTo(x, y);
   nsSVGUtils::UpdateGraphic(this);
 }
 
@@ -1000,14 +948,51 @@ nsSVGGlyphFrame::GetRotationOfChar(PRUint32 charnum, float *_retval)
 }
 
 NS_IMETHODIMP_(float)
+nsSVGGlyphFrame::GetBaselineOffset(PRUint16 baselineIdentifier,
+                                   PRBool aForceGlobalTransform)
+{
+  float drawScale, metricsScale;
+
+  if (!EnsureTextRun(&drawScale, &metricsScale, aForceGlobalTransform))
+    return 0.0f;
+
+  gfxTextRun::Metrics metrics =
+    mTextRun->MeasureText(0, mTextRun->GetLength(),
+                          gfxFont::LOOSE_INK_EXTENTS, nsnull, nsnull);
+
+  gfxFloat baselineAppUnits;
+  switch (baselineIdentifier) {
+  case BASELINE_HANGING:
+    // not really right, but the best we can do with the information provided
+    // FALLTHROUGH
+  case BASELINE_TEXT_BEFORE_EDGE:
+    baselineAppUnits = -metrics.mAscent;
+    break;
+  case BASELINE_TEXT_AFTER_EDGE:
+    baselineAppUnits = metrics.mDescent;
+    break;
+  case BASELINE_CENTRAL:
+  case BASELINE_MIDDLE:
+    baselineAppUnits = -(metrics.mAscent - metrics.mDescent) / 2.0f;
+    break;
+  case BASELINE_ALPHABETIC:
+  default:
+    baselineAppUnits = 0.0;
+    break;
+  }
+  return float(baselineAppUnits)*metricsScale;
+}
+
+NS_IMETHODIMP_(float)
 nsSVGGlyphFrame::GetAdvance(PRBool aForceGlobalTransform)
 {
   float drawScale, metricsScale;
   if (!EnsureTextRun(&drawScale, &metricsScale, aForceGlobalTransform))
     return 0.0f;
 
-  float advanceAppUnits = GetSubStringAdvance(0, mTextRun->GetLength());
-  return advanceAppUnits * metricsScale;
+  gfxFloat advanceAppUnits =
+    mTextRun->GetAdvanceWidth(0, mTextRun->GetLength(), nsnull);
+  return float(advanceAppUnits)*metricsScale;
 }
 
 NS_IMETHODIMP_(nsSVGTextPathFrame*) 
@@ -1121,7 +1106,7 @@ nsSVGGlyphFrame::IsAbsolutelyPositioned()
 //----------------------------------------------------------------------
 // nsISVGGlyphFragmentNode interface:
 
-PRUint32
+NS_IMETHODIMP_(PRUint32)
 nsSVGGlyphFrame::GetNumberOfChars()
 {
   if (mWhitespaceHandling == PRESERVE_WHITESPACE)
@@ -1132,24 +1117,25 @@ nsSVGGlyphFrame::GetNumberOfChars()
   return text.Length();
 }
 
-float
+NS_IMETHODIMP_(float)
 nsSVGGlyphFrame::GetComputedTextLength()
 {
   return GetAdvance(PR_FALSE);
 }
 
-float
+NS_IMETHODIMP_(float)
 nsSVGGlyphFrame::GetSubStringLength(PRUint32 charnum, PRUint32 fragmentChars)
 {
   float drawScale, metricsScale;
   if (!EnsureTextRun(&drawScale, &metricsScale, PR_FALSE))
     return 0.0f;
 
-  float advanceAppUnits = GetSubStringAdvance(charnum, fragmentChars);
-  return advanceAppUnits * metricsScale;
+  gfxFloat advanceAppUnits =
+    mTextRun->GetAdvanceWidth(charnum, fragmentChars, nsnull);
+  return float(advanceAppUnits)*metricsScale;
 }
 
-PRInt32
+NS_IMETHODIMP_(PRInt32)
 nsSVGGlyphFrame::GetCharNumAtPosition(nsIDOMSVGPoint *point)
 {
   float xPos, yPos;

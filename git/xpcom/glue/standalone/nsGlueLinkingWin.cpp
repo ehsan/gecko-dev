@@ -82,9 +82,10 @@ ReadDependentCB(const char *aDependentLib)
     HINSTANCE h =
         LoadLibraryExW(wideDependentLib, NULL, MOZ_LOADLIBRARY_FLAGS);
 
-    if (!h)
+    if (!h) {
+        wprintf(L"Error loading %s\n", wideDependentLib);
         return;
-
+    }
     AppendDependentLib(h);
 }
 
@@ -136,8 +137,8 @@ bool ns_isRelPath(wchar_t* path)
     
 }
 
-nsresult
-XPCOMGlueLoad(const char *aXpcomFile, GetFrozenFunctionsFunc *func)
+GetFrozenFunctionsFunc
+XPCOMGlueLoad(const char *aXpcomFile)
 {
     wchar_t xpcomFile[MAXPATHLEN];
     MultiByteToWideChar(CP_UTF8, 0, aXpcomFile,-1,
@@ -171,10 +172,9 @@ XPCOMGlueLoad(const char *aXpcomFile, GetFrozenFunctionsFunc *func)
             sXULLibrary =
                 LoadLibraryExW(xpcomDir, NULL, MOZ_LOADLIBRARY_FLAGS);
 
+#ifdef DEBUG
             if (!sXULLibrary) 
             {
-                DWORD err = GetLastError();
-#ifdef DEBUG
                 LPVOID lpMsgBuf;
                 FormatMessage(
                               FORMAT_MESSAGE_ALLOCATE_BUFFER |
@@ -189,10 +189,8 @@ XPCOMGlueLoad(const char *aXpcomFile, GetFrozenFunctionsFunc *func)
                               );
                 wprintf(L"Error loading %s: %s\n", xpcomDir, lpMsgBuf);
                 LocalFree(lpMsgBuf);
-#endif //DEBUG
-                return (err == ERROR_NOT_ENOUGH_MEMORY || err == ERROR_OUTOFMEMORY)
-                    ? NS_ERROR_OUT_OF_MEMORY : NS_ERROR_FAILURE;
             }
+#endif //DEBUG                
         }
     }
     HINSTANCE h =
@@ -200,7 +198,6 @@ XPCOMGlueLoad(const char *aXpcomFile, GetFrozenFunctionsFunc *func)
 
     if (!h) 
     {
-        DWORD err = GetLastError();
 #ifdef DEBUG
         LPVOID lpMsgBuf;
         FormatMessage(
@@ -208,7 +205,7 @@ XPCOMGlueLoad(const char *aXpcomFile, GetFrozenFunctionsFunc *func)
                       FORMAT_MESSAGE_FROM_SYSTEM |
                       FORMAT_MESSAGE_IGNORE_INSERTS,
                       NULL,
-                      err,
+                      GetLastError(),
                       MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
                       (LPTSTR) &lpMsgBuf,
                       0,
@@ -217,8 +214,7 @@ XPCOMGlueLoad(const char *aXpcomFile, GetFrozenFunctionsFunc *func)
         wprintf(L"Error loading %s: %s\n", xpcomFile, lpMsgBuf);
         LocalFree(lpMsgBuf);
 #endif        
-        return (err == ERROR_NOT_ENOUGH_MEMORY || err == ERROR_OUTOFMEMORY)
-            ? NS_ERROR_OUT_OF_MEMORY : NS_ERROR_FAILURE;
+        return nsnull;
     }
 
     AppendDependentLib(h);
@@ -226,14 +222,10 @@ XPCOMGlueLoad(const char *aXpcomFile, GetFrozenFunctionsFunc *func)
     GetFrozenFunctionsFunc sym =
         (GetFrozenFunctionsFunc) GetProcAddress(h, "NS_GetFrozenFunctions");
 
-    if (!sym) { // No symbol found.
+    if (!sym)
         XPCOMGlueUnload();
-        return NS_ERROR_NOT_AVAILABLE;
-    }
 
-    *func = sym;
-
-    return NS_OK;
+    return sym;
 }
 
 void

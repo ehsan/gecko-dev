@@ -184,6 +184,13 @@ public:
     return !mIsRegularHTML;
   }
 
+#ifdef DEBUG
+  virtual nsresult CreateElem(nsIAtom *aName, nsIAtom *aPrefix,
+                              PRInt32 aNamespaceID,
+                              PRBool aDocumentDefaultType,
+                              nsIContent** aResult);
+#endif
+
   nsresult ChangeContentEditableCount(nsIContent *aElement, PRInt32 aChange);
 
   virtual EditingState GetEditingState()
@@ -267,7 +274,7 @@ protected:
 
   virtual PRInt32 GetDefaultNamespaceID() const
   {
-    return kNameSpaceID_XHTML;
+    return mIsRegularHTML ? kNameSpaceID_None : kNameSpaceID_XHTML;
   }
 
   nsCOMArray<nsIDOMHTMLMapElement> mImageMaps;

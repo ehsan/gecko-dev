@@ -246,7 +246,6 @@ NO_PKG_FILES += \
 	msmap* \
 	nm2tsv* \
 	nsinstall* \
-	nspr-config \
 	rebasedlls* \
 	res/samples \
 	res/throbber \
@@ -272,7 +271,7 @@ ifndef PACKAGER_NO_LIBS
 libs:: make-package
 endif
 
-DEFINES += -DDLL_PREFIX=$(DLL_PREFIX) -DDLL_SUFFIX=$(DLL_SUFFIX) -DBIN_SUFFIX=$(BIN_SUFFIX)
+DEFINES += -DDLL_PREFIX=$(DLL_PREFIX) -DDLL_SUFFIX=$(DLL_SUFFIX)
 
 ifdef MOZ_PKG_REMOVALS
 MOZ_PKG_REMOVALS_GEN = removed-files
@@ -371,11 +370,11 @@ endif
 endif
 else
 	@cd $(DIST)/bin && tar $(TAR_CREATE_FLAGS) - * | (cd ../$(MOZ_PKG_DIR); tar -xf -)
+endif # DMG
 	@echo "Linking XPT files..."
 	@rm -rf $(DIST)/xpt
 	@$(NSINSTALL) -D $(DIST)/xpt
 	@($(XPIDL_LINK) $(DIST)/xpt/$(MOZ_PKG_APPNAME).xpt $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)/components/*.xpt && rm -f $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)/components/*.xpt && cp $(DIST)/xpt/$(MOZ_PKG_APPNAME).xpt $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)/components) || echo No *.xpt files found in: $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)/components/.  Continuing...
-endif # DMG
 endif # MOZ_PKG_MANIFEST
 ifndef PKG_SKIP_STRIP
 	@echo "Stripping package directory..."

@@ -353,7 +353,7 @@ nsMathMLElement::MapMathMLAttributesInto(const nsMappedAttributes* aAttributes,
           NS_STYLE_FONT_SIZE_LARGE
         };
         str.CompressWhitespace();
-        for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(sizes); ++i) {
+        for (PRInt32 i = 0; i < NS_ARRAY_LENGTH(sizes); ++i) {
           if (str.EqualsASCII(sizes[i])) {
             aData->mFontData->mSize.SetIntValue(values[i], eCSSUnit_Enumerated);
             break;
@@ -377,10 +377,15 @@ nsMathMLElement::MapMathMLAttributesInto(const nsMappedAttributes* aAttributes,
     if (!value) {
       value = aAttributes->GetAttr(nsGkAtoms::background);
     }
-    if (value && aData->mColorData->mBackColor.GetUnit() == eCSSUnit_Null) {
+    if (value &&
+        aData->mColorData->mBackColor.mXValue.GetUnit() == eCSSUnit_Null) {
+      NS_ASSERTION(aData->mColorData->mBackColor.mYValue.GetUnit()
+                     == eCSSUnit_Null,
+                   "half a property?");
       nscolor color;
       if (value->GetColorValue(color)) {
-        aData->mColorData->mBackColor.SetColorValue(color);
+        aData->mColorData->mBackColor.mXValue.SetColorValue(color);
+        aData->mColorData->mBackColor.mYValue.SetColorValue(color);
       }
     }
   }

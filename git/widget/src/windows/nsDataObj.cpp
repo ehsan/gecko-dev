@@ -2001,7 +2001,7 @@ HRESULT nsDataObj::GetFileContents_IStream(FORMATETC& aFE, STGMEDIUM& aSTG)
 
   aSTG.tymed = TYMED_ISTREAM;
   aSTG.pstm = pStream;
-  aSTG.pUnkForRelease = NULL;
+  aSTG.pUnkForRelease = pStream;
 
   return S_OK;
 }

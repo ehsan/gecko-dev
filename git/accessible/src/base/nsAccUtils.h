@@ -55,11 +55,6 @@
 class nsAccessNode;
 class nsAccessible;
 class nsHTMLTableAccessible;
-class nsDocAccessible;
-#ifdef MOZ_XUL
-class nsXULTreeAccessible;
-class nsXULTreeitemAccessible;
-#endif
 
 class nsAccUtils
 {
@@ -335,43 +330,11 @@ public:
     QueryAccessible(nsIAccessible *aAccessible);
 
   /**
-   * Query nsAccessible from the given nsIAccessNode.
-   */
-  static already_AddRefed<nsAccessible>
-    QueryAccessible(nsIAccessNode *aAccessNode);
-
-  /**
    * Query nsHTMLTableAccessible from the given nsIAccessibleTable.
    */
   static already_AddRefed<nsHTMLTableAccessible>
     QueryAccessibleTable(nsIAccessibleTable *aAccessibleTable);
-
-  /**
-   * Query nsDocAccessible from the given nsIAccessible.
-   */
-  static already_AddRefed<nsDocAccessible>
-    QueryAccessibleDocument(nsIAccessible *aAccessible);
-
-  /**
-   * Query nsDocAccessible from the given nsIAccessibleDocument.
-   */
-  static already_AddRefed<nsDocAccessible>
-    QueryAccessibleDocument(nsIAccessibleDocument *aAccessibleDocument);
-
-#ifdef MOZ_XUL
-  /**
-   * Query nsXULTreeAccessible from the given nsIAccessible.
-   */
-  static already_AddRefed<nsXULTreeAccessible>
-    QueryAccessibleTree(nsIAccessible *aAccessible);
-
-  /**
-   * Query nsXULTreeitemAccessible from the given nsIAccessNode.
-   */
-  static already_AddRefed<nsXULTreeitemAccessible>
-    QueryAccessibleTreeitem(nsIAccessNode *aAccessNode);
-#endif
-
+  
 #ifdef DEBUG_A11Y
   /**
    * Detect whether the given accessible object implements nsIAccessibleText,

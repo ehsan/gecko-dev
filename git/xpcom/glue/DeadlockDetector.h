@@ -370,17 +370,6 @@ public:
     }
 
     /**
-     * ~DeadlockDetector
-     *
-     * *NOT* thread safe.
-     */
-    ~DeadlockDetector()
-    {
-        PL_HashTableDestroy(mOrdering);
-        PR_DestroyLock(mLock);
-    }
-
-    /**
      * Add
      * Make the deadlock detector aware of |aResource|.
      *

@@ -89,12 +89,11 @@ function run_test() {
   do_check_eq(observer._itemChangedProperty, "dateAdded");
   do_check_eq(observer._itemChangedValue, newDate);
   // test saved value
-  var dateAdded = bmsvc.getItemDateAdded(bookmarkId);
-  do_check_eq(dateAdded, newDate);
+  do_check_eq(bmsvc.getItemDateAdded(bookmarkId), newDate);
 
   // after just inserting, modified should not be set
   var lastModified = bmsvc.getItemLastModified(bookmarkId);
-  do_check_eq(lastModified, dateAdded);
+  do_check_eq(lastModified, 0);
 
   bmsvc.setItemLastModified(bookmarkId, newDate);
   // test notification

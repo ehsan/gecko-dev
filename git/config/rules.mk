@@ -834,7 +834,7 @@ HOST_LIBS_DEPS = $(filter %.$(LIB_SUFFIX), $(HOST_LIBS))
 DSO_LDOPTS_DEPS = $(EXTRA_DSO_LIBS) $(filter %.$(LIB_SUFFIX), $(EXTRA_DSO_LDOPTS))
 
 # Dependancies which, if modified, should cause everything to rebuild
-GLOBAL_DEPS += Makefile Makefile.in $(DEPTH)/config/autoconf.mk $(topsrcdir)/config/config.mk
+GLOBAL_DEPS += Makefile Makefile.in $(DEPTH)/config/autoconf.mk $(DEPTH)/config/config.mk
 
 ##############################################
 ifdef PARALLEL_DIRS
@@ -945,6 +945,12 @@ endif # NO_PROFILE_GUIDED_OPTIMIZE
 
 checkout:
 	$(MAKE) -C $(topsrcdir) -f client.mk checkout
+
+run_viewer: $(FINAL_TARGET)/viewer
+	cd $(FINAL_TARGET); \
+	MOZILLA_FIVE_HOME=`pwd` \
+	LD_LIBRARY_PATH=".:$(LIBS_PATH):$$LD_LIBRARY_PATH" \
+	viewer
 
 clean clobber realclean clobber_all:: $(SUBMAKEFILES)
 	-rm -f $(ALL_TRASH)
@@ -2100,7 +2106,7 @@ endif
 # Fake targets.  Always run these rules, even if a file/directory with that
 # name already exists.
 #
-.PHONY: all alltags boot checkout chrome realchrome clean clobber clobber_all export install libs makefiles realclean run_apprunner tools $(DIRS) $(TOOL_DIRS) FORCE
+.PHONY: all alltags boot checkout chrome realchrome clean clobber clobber_all export install libs makefiles realclean run_viewer run_apprunner tools $(DIRS) $(TOOL_DIRS) FORCE
 
 # Used as a dependency to force targets to rebuild
 FORCE:

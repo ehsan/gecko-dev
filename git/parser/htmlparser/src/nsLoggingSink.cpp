@@ -99,14 +99,14 @@ nsLoggingSink::WillParse() {
 }
 
 NS_IMETHODIMP
-nsLoggingSink::WillBuildModel(nsDTDMode aDTDMode) {
+nsLoggingSink::WillBuildModel() {
   
   WriteTabs(mOutput,++mLevel);
   PR_fprintf(mOutput, "<begin>\n");
   
   //proxy the call to the real sink if you have one.
   if(mSink) {
-    mSink->WillBuildModel(aDTDMode);
+    mSink->WillBuildModel();
   }
 
   return NS_OK;

@@ -92,6 +92,8 @@ public:
   virtual PRBool IsLink(nsIURI** aURI) const;
   virtual void GetLinkTarget(nsAString& aTarget);
 
+  virtual void SetFocus(nsPresContext* aPresContext);
+
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
                               PRBool aCompileEventHandlers);
@@ -195,6 +197,21 @@ nsHTMLAreaElement::GetLinkTarget(nsAString& aTarget)
   GetAttr(kNameSpaceID_None, nsGkAtoms::target, aTarget);
   if (aTarget.IsEmpty()) {
     GetBaseTarget(aTarget);
+  }
+}
+
+void
+nsHTMLAreaElement::SetFocus(nsPresContext* aPresContext)
+{
+  if (!aPresContext ||
+      !aPresContext->EventStateManager()->SetContentState(this, 
+                                                          NS_EVENT_STATE_FOCUS)) {
+    return;
+  }
+  nsCOMPtr<nsIPresShell> presShell = aPresContext->GetPresShell();
+  if (presShell) {
+    presShell->ScrollContentIntoView(this, NS_PRESSHELL_SCROLL_ANYWHERE,
+                                     NS_PRESSHELL_SCROLL_ANYWHERE);
   }
 }
 

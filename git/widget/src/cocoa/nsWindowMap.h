@@ -41,6 +41,7 @@
 
 #import <Cocoa/Cocoa.h>
 
+// 
 //  WindowDataMap
 // 
 //  In both mozilla and embedding apps, we need to have a place to put
@@ -52,6 +53,7 @@
 // 
 //  So we have a global map of NSWindow -> TopLevelWindowData, and set
 //  up TopLevelWindowData as a notification observer etc.
+// 
 
 @interface WindowDataMap : NSObject
 {
@@ -61,7 +63,6 @@
 
 + (WindowDataMap*)sharedWindowDataMap;
 
-- (void)ensureDataForWindow:(NSWindow*)inWindow;
 - (id)dataForWindow:(NSWindow*)inWindow;
 
 // set data for a given window. inData is retained (and any previously set data
@@ -73,18 +74,25 @@
 
 @end
 
+
 @class ChildView;
 
+// 
 //  TopLevelWindowData
 // 
 //  Class to hold per-window data, and handle window state changes.
+// 
 
 @interface TopLevelWindowData : NSObject
 {
 @private
+  ChildView *mShouldFocusView; // Strong
 }
 
 - (id)initWithWindow:(NSWindow*)inWindow;
+- (ChildView *)getShouldFocusView;
+- (void)markShouldFocus:(ChildView *)aView;
+- (void)markShouldUnfocus:(ChildView *)aView;
 + (void)activateInWindow:(NSWindow*)aWindow;
 + (void)deactivateInWindow:(NSWindow*)aWindow;
 + (void)activateInWindowViews:(NSWindow*)aWindow;

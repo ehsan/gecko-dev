@@ -50,10 +50,6 @@ NS_IMETHODIMP nsISO2022KRToUnicode::Convert(const char * aSrc, PRInt32 * aSrcLen
   PRUnichar* dest = aDest;
   while((src < srcEnd))
   {
-    // if LF/CR, return to US-ASCII unconditionally.
-    if ( *src == 0x0a || *src == 0x0d )
-      mState = mState_Init;
-
     switch(mState)
     {
       case mState_Init:
@@ -210,13 +206,15 @@ NS_IMETHODIMP nsISO2022KRToUnicode::Convert(const char * aSrc, PRInt32 * aSrcLen
 
     } // switch
     src++;
-  }
-  *aDestLen = dest - aDest;
-  return NS_OK;
+    if ( *src == 0x0a || *src == 0x0d )   // if LF/CR, return to US-ASCII unconditionally.
+      mState = mState_Init;
+   }
+   *aDestLen = dest - aDest;
+   return NS_OK;
 
 error1:
-  *aDestLen = dest-aDest;
-  *aSrcLen = src-(unsigned char*)aSrc;
-  return NS_OK_UDEC_MOREOUTPUT;
+   *aDestLen = dest-aDest;
+   *aSrcLen = src-(unsigned char*)aSrc;
+   return NS_OK_UDEC_MOREOUTPUT;
 }
 

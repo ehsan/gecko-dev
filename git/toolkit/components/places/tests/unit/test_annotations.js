@@ -116,8 +116,8 @@ function run_test() {
   // string item-annotation
   try {
     var lastModified = bmsvc.getItemLastModified(testItemId);
-    // Verify that lastModified equals dateAdded before we set the annotation.
-    do_check_eq(lastModified, bmsvc.getItemDateAdded(testItemId));
+    // verify that lastModified is 0 before we set the annotation
+    do_check_eq(lastModified, 0);
     annosvc.setItemAnnotation(testItemId, testAnnoName, testAnnoVal, 0, 0);
     var lastModified2 = bmsvc.getItemLastModified(testItemId);
     // verify that setting the annotation updates the last modified time

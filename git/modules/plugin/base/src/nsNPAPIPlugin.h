@@ -40,6 +40,8 @@
 
 #include "nsIFactory.h"
 #include "nsIPlugin.h"
+#include "nsIPluginInstancePeer.h"
+#include "nsIWindowlessPlugInstPeer.h"
 #include "prlink.h"
 #include "npfunctions.h"
 #include "nsPluginHostImpl.h"
@@ -83,9 +85,10 @@ public:
   NS_DECL_NSIFACTORY
   NS_DECL_NSIPLUGIN
 
-  // Constructs and initializes an nsNPAPIPlugin object. A NULL file path
-  // will prevent this from calling NP_Initialize.
-  static nsresult CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
+  // Constructs and initializes an nsNPAPIPlugin object
+  static nsresult CreatePlugin(const char* aFileName,
+                               const char* aFullPath,
+                               PRLibrary* aLibrary,
                                nsIPlugin** aResult);
 #ifdef XP_MACOSX
   void SetPluginRefNum(short aRefNum);

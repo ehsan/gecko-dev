@@ -128,7 +128,6 @@ CPPSRCS		= \
 		nsSVGSwitchElement.cpp \
 		nsSVGSymbolElement.cpp \
 		nsSVGTSpanElement.cpp \
-		nsSVGTextContentElement.cpp \
 		nsSVGTextElement.cpp \
 		nsSVGTextPathElement.cpp \
 		nsSVGTitleElement.cpp \
@@ -156,6 +155,9 @@ include $(topsrcdir)/config/config.mk
 FORCE_STATIC_LIB = 1
 
 EXPORTS =  			\
+	nsIDOMSVGListener.h \
+	nsIDOMSVGZoomListener.h \
+	nsISVGTextContentMetrics.h \
 	nsISVGValue.h              \
 	nsISVGValueObserver.h      \
 	nsISVGValueUtils.h         \
@@ -174,8 +176,6 @@ INCLUDES += 	\
 		-I$(srcdir)/../../../xml/content/src \
 		-I$(srcdir)/../../../../dom \
 		-I$(srcdir)/../../../base/src \
-		-I$(srcdir)/../../../../layout/generic \
-		-I$(srcdir)/../../../../layout/xul/base/src \
 		-I$(srcdir)/../../../../layout/svg/base/src \
 		-I$(srcdir)/../../../../layout/style \
 		-I$(srcdir)/../../../events/src \

@@ -81,9 +81,18 @@ static const char kMaxEntriesPref[] =  "offline.max_site_resources";
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMOfflineResourceList)
 
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDOMOfflineResourceList,
-                                                  nsDOMEventTargetHelper)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMOfflineResourceList)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mWindow)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mCacheUpdate)
+
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mCheckingListeners)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mErrorListeners)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mNoUpdateListeners)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mDownloadingListeners)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mProgressListeners)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mCachedListeners)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mUpdateReadyListeners)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mObsoleteListeners)
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnCheckingListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnErrorListener)
@@ -94,13 +103,26 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDOMOfflineResourceList,
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnUpdateReadyListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnObsoleteListener)
 
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mPendingEvents);
+  for (PRUint32 i = 0; i < tmp->mPendingEvents.Length(); i++) {
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPendingEvents[i].event);
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPendingEvents[i].listener);
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mPendingEvents[i].listeners);
+  }
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMOfflineResourceList,
-                                                nsDOMEventTargetHelper)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMOfflineResourceList)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mWindow)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCacheUpdate)
+
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mCheckingListeners)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mErrorListeners)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mNoUpdateListeners)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mDownloadingListeners)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mProgressListeners)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mCachedListeners)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mUpdateReadyListeners)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mObsoleteListeners)
 
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnCheckingListener)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnErrorListener)
@@ -111,33 +133,37 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMOfflineResourceList,
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnUpdateReadyListener)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnObsoleteListener)
 
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mPendingEvents)
+  for (PRUint32 i = 0; i < tmp->mPendingEvents.Length(); i++) {
+    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mPendingEvents[i].event);
+    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mPendingEvents[i].listener);
+    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mPendingEvents[i].listeners);
+  }
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMOfflineResourceList)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMOfflineResourceList)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMOfflineResourceList)
   NS_INTERFACE_MAP_ENTRY(nsIDOMOfflineResourceList)
   NS_INTERFACE_MAP_ENTRY(nsIOfflineCacheUpdateObserver)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMEventTarget)
   NS_INTERFACE_MAP_ENTRY(nsIObserver)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(OfflineResourceList)
-NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
+NS_INTERFACE_MAP_END
 
-NS_IMPL_ADDREF_INHERITED(nsDOMOfflineResourceList, nsDOMEventTargetHelper)
-NS_IMPL_RELEASE_INHERITED(nsDOMOfflineResourceList, nsDOMEventTargetHelper)
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMOfflineResourceList)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMOfflineResourceList)
 
 nsDOMOfflineResourceList::nsDOMOfflineResourceList(nsIURI *aManifestURI,
                                                    nsIURI *aDocumentURI,
-                                                   nsPIDOMWindow *aWindow,
-                                                   nsIScriptContext* aScriptContext)
+                                                   nsIDOMWindow *aWindow)
   : mInitialized(PR_FALSE)
   , mManifestURI(aManifestURI)
   , mDocumentURI(aDocumentURI)
   , mCachedKeys(nsnull)
   , mCachedKeysCount(0)
 {
-  mOwner = aWindow;
-  mScriptContext = aScriptContext;
+  mWindow = do_GetWeakReference(aWindow);
 }
 
 nsDOMOfflineResourceList::~nsDOMOfflineResourceList()
@@ -208,6 +234,15 @@ nsDOMOfflineResourceList::Init()
 void
 nsDOMOfflineResourceList::Disconnect()
 {
+  mCheckingListeners.Clear();
+  mErrorListeners.Clear();
+  mNoUpdateListeners.Clear();
+  mDownloadingListeners.Clear();
+  mProgressListeners.Clear();
+  mCachedListeners.Clear();
+  mUpdateReadyListeners.Clear();
+  mObsoleteListeners.Clear();
+
   mOnCheckingListener = nsnull;
   mOnErrorListener = nsnull;
   mOnNoUpdateListener = nsnull;
@@ -218,11 +253,6 @@ nsDOMOfflineResourceList::Disconnect()
   mOnObsoleteListener = nsnull;
 
   mPendingEvents.Clear();
-
-  if (mListenerManager) {
-    mListenerManager->Disconnect();
-    mListenerManager = nsnull;
-  }
 }
 
 //
@@ -542,128 +572,348 @@ nsDOMOfflineResourceList::SwapCache()
 NS_IMETHODIMP
 nsDOMOfflineResourceList::GetOnchecking(nsIDOMEventListener **aOnchecking)
 {
-  return GetInnerEventListener(mOnCheckingListener, aOnchecking);
+  nsresult rv = Init();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  NS_ENSURE_ARG_POINTER(aOnchecking);
+  NS_IF_ADDREF(*aOnchecking = mOnCheckingListener);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMOfflineResourceList::SetOnchecking(nsIDOMEventListener *aOnchecking)
 {
-  return RemoveAddEventListener(NS_LITERAL_STRING(CHECKING_STR),
-                                mOnCheckingListener, aOnchecking);
+  nsresult rv = Init();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  mOnCheckingListener = aOnchecking;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMOfflineResourceList::GetOnerror(nsIDOMEventListener **aOnerror)
 {
-  return GetInnerEventListener(mOnErrorListener, aOnerror);
+  nsresult rv = Init();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  NS_ENSURE_ARG_POINTER(aOnerror);
+  NS_IF_ADDREF(*aOnerror = mOnErrorListener);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMOfflineResourceList::SetOnerror(nsIDOMEventListener *aOnerror)
 {
-  return RemoveAddEventListener(NS_LITERAL_STRING(ERROR_STR), mOnErrorListener,
-                                aOnerror);
+  nsresult rv = Init();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  mOnErrorListener = aOnerror;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMOfflineResourceList::GetOnnoupdate(nsIDOMEventListener **aOnnoupdate)
 {
-  return GetInnerEventListener(mOnNoUpdateListener, aOnnoupdate);
+  nsresult rv = Init();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  NS_ENSURE_ARG_POINTER(aOnnoupdate);
+  NS_IF_ADDREF(*aOnnoupdate = mOnNoUpdateListener);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMOfflineResourceList::SetOnnoupdate(nsIDOMEventListener *aOnnoupdate)
 {
-  return RemoveAddEventListener(NS_LITERAL_STRING(NOUPDATE_STR),
-                                mOnNoUpdateListener, aOnnoupdate);
+  nsresult rv = Init();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  mOnNoUpdateListener = aOnnoupdate;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMOfflineResourceList::GetOndownloading(nsIDOMEventListener **aOndownloading)
 {
-  return GetInnerEventListener(mOnDownloadingListener, aOndownloading);
+  nsresult rv = Init();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  NS_ENSURE_ARG_POINTER(aOndownloading);
+  NS_IF_ADDREF(*aOndownloading = mOnDownloadingListener);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMOfflineResourceList::SetOndownloading(nsIDOMEventListener *aOndownloading)
 {
-  return RemoveAddEventListener(NS_LITERAL_STRING(DOWNLOADING_STR),
-                                mOnDownloadingListener, aOndownloading);
+  nsresult rv = Init();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  mOnDownloadingListener = aOndownloading;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMOfflineResourceList::GetOnprogress(nsIDOMEventListener **aOnprogress)
 {
-  return GetInnerEventListener(mOnProgressListener, aOnprogress);
+  nsresult rv = Init();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  NS_ENSURE_ARG_POINTER(aOnprogress);
+  NS_IF_ADDREF(*aOnprogress = mOnProgressListener);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMOfflineResourceList::SetOnprogress(nsIDOMEventListener *aOnprogress)
 {
-  return RemoveAddEventListener(NS_LITERAL_STRING(PROGRESS_STR),
-                                mOnProgressListener, aOnprogress);
+  nsresult rv = Init();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  mOnProgressListener = aOnprogress;
+  return NS_OK;
 }
 
 
 NS_IMETHODIMP
 nsDOMOfflineResourceList::GetOnupdateready(nsIDOMEventListener **aOnupdateready)
 {
-  return GetInnerEventListener(mOnUpdateReadyListener, aOnupdateready);
+  nsresult rv = Init();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  NS_ENSURE_ARG_POINTER(aOnupdateready);
+  NS_IF_ADDREF(*aOnupdateready = mOnUpdateReadyListener);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMOfflineResourceList::SetOncached(nsIDOMEventListener *aOncached)
 {
-  return RemoveAddEventListener(NS_LITERAL_STRING(CACHED_STR),
-                                mOnCachedListener, aOncached);
+  nsresult rv = Init();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  mOnCachedListener = aOncached;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMOfflineResourceList::GetOncached(nsIDOMEventListener **aOncached)
 {
-  return GetInnerEventListener(mOnCachedListener, aOncached);
+  nsresult rv = Init();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  NS_ENSURE_ARG_POINTER(aOncached);
+  NS_IF_ADDREF(*aOncached = mOnCachedListener);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMOfflineResourceList::SetOnupdateready(nsIDOMEventListener *aOnupdateready)
 {
-  return RemoveAddEventListener(NS_LITERAL_STRING(UPDATEREADY_STR),
-                                mOnUpdateReadyListener, aOnupdateready);
+  nsresult rv = Init();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  mOnUpdateReadyListener = aOnupdateready;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMOfflineResourceList::GetOnobsolete(nsIDOMEventListener **aOnobsolete)
 {
-  return GetInnerEventListener(mOnObsoleteListener, aOnobsolete);
+  nsresult rv = Init();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  NS_ENSURE_ARG_POINTER(aOnobsolete);
+  NS_IF_ADDREF(*aOnobsolete = mOnObsoleteListener);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMOfflineResourceList::SetOnobsolete(nsIDOMEventListener *aOnobsolete)
 {
-  return RemoveAddEventListener(NS_LITERAL_STRING(OBSOLETE_STR),
-                                mOnObsoleteListener, aOnobsolete);
+  nsresult rv = Init();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  mOnObsoleteListener = aOnobsolete;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMOfflineResourceList::AddEventListener(const nsAString& aType,
+                                           nsIDOMEventListener *aListener,
+                                           PRBool aUseCapture)
+{
+  nsresult rv = Init();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  NS_ENSURE_ARG(aListener);
+
+  nsCOMArray<nsIDOMEventListener> *array;
+
+#define IMPL_ADD_LISTENER(_type, _member)    \
+  if (aType.EqualsLiteral(_type)) {           \
+    array = &(_member);                      \
+  } else
+
+  IMPL_ADD_LISTENER(CHECKING_STR, mCheckingListeners)
+  IMPL_ADD_LISTENER(ERROR_STR, mErrorListeners)
+  IMPL_ADD_LISTENER(NOUPDATE_STR, mNoUpdateListeners)
+  IMPL_ADD_LISTENER(DOWNLOADING_STR, mDownloadingListeners)
+  IMPL_ADD_LISTENER(PROGRESS_STR, mProgressListeners)
+  IMPL_ADD_LISTENER(CACHED_STR, mCachedListeners)
+  IMPL_ADD_LISTENER(UPDATEREADY_STR, mUpdateReadyListeners)
+  IMPL_ADD_LISTENER(OBSOLETE_STR, mObsoleteListeners)
+  {
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  array->AppendObject(aListener);
+#undef IMPL_ADD_LISTENER
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMOfflineResourceList::RemoveEventListener(const nsAString &aType,
+                                              nsIDOMEventListener *aListener,
+                                              PRBool aUseCapture)
+{
+  nsresult rv = Init();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  NS_ENSURE_ARG(aListener);
+
+  nsCOMArray<nsIDOMEventListener> *array;
+
+#define IMPL_REMOVE_LISTENER(_type, _member)  \
+  if (aType.EqualsLiteral(_type)) {            \
+    array = &(_member);                       \
+  } else
+
+  IMPL_REMOVE_LISTENER(CHECKING_STR, mCheckingListeners)
+  IMPL_REMOVE_LISTENER(ERROR_STR, mErrorListeners)
+  IMPL_REMOVE_LISTENER(NOUPDATE_STR, mNoUpdateListeners)
+  IMPL_REMOVE_LISTENER(DOWNLOADING_STR, mDownloadingListeners)
+  IMPL_REMOVE_LISTENER(PROGRESS_STR, mProgressListeners)
+  IMPL_REMOVE_LISTENER(CACHED_STR, mCachedListeners)
+  IMPL_REMOVE_LISTENER(UPDATEREADY_STR, mUpdateReadyListeners)
+  IMPL_REMOVE_LISTENER(OBSOLETE_STR, mObsoleteListeners)
+  {
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  // Allow a caller to remove O(N^2) behavior by removing end-to-start.
+  for (PRUint32 i = array->Count() - 1; i != PRUint32(-1); --i) {
+    if (array->ObjectAt(i) == aListener) {
+      array->RemoveObjectAt(i);
+      break;
+    }
+  }
+
+#undef IMPL_REMOVE_LISTENER
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMOfflineResourceList::DispatchEvent(nsIDOMEvent *evt, PRBool *_retval)
+{
+  // Ignored
+
+  return NS_OK;
+}
+
+static nsresult
+CheckInnerWindowCorrectness(nsPIDOMWindow* aOwner)
+{
+  NS_ASSERTION(aOwner->IsInnerWindow(), "Should have inner window here!\n");
+  NS_ENSURE_STATE(aOwner && aOwner->GetOuterWindow() &&
+                  aOwner->GetOuterWindow()->GetCurrentInnerWindow() == aOwner);
+  return NS_OK;
+}
+
+void
+nsDOMOfflineResourceList::NotifyEventListeners(nsIDOMEventListener *aListener,
+                                               const nsCOMArray<nsIDOMEventListener>& aListeners,
+                                               nsIDOMEvent* aEvent)
+{
+  // XXXbz wouldn't it be easier to just have an actual nsEventListenerManager
+  // to work with or something?  I feel like we're duplicating code here...
+  //
+  // (and this was duplicated from XMLHttpRequest)
+  if (!aEvent)
+    return;
+
+  nsCOMPtr<nsIJSContextStack> stack;
+  JSContext *cx = nsnull;
+
+  nsCOMPtr<nsIScriptGlobalObject> scriptGlobal = do_QueryReferent(mWindow);
+  nsCOMPtr<nsPIDOMWindow> owner = do_QueryReferent(mWindow);
+  if (!scriptGlobal ||  NS_FAILED(CheckInnerWindowCorrectness(owner)))
+    return;
+
+  nsCOMPtr<nsIScriptContext> context = scriptGlobal->GetContext();
+  if (context) {
+    stack = do_GetService("@mozilla.org/js/xpc/ContextStack;1");
+
+    if (stack) {
+      cx = (JSContext *)context->GetNativeContext();
+
+      if (cx) {
+        stack->Push(cx);
+      }
+    }
+  }
+
+  nsCOMArray<nsIDOMEventListener> listeners = aListeners;
+  PRInt32 count = listeners.Count();
+
+  if (aListener) {
+    aListener->HandleEvent(aEvent);
+  }
+
+  for (PRInt32 index = 0; index < count; ++index) {
+    nsIDOMEventListener* listener = listeners[index];
+
+    if (listener) {
+      if (NS_FAILED(CheckInnerWindowCorrectness(owner))) {
+         break;
+      }
+      listener->HandleEvent(aEvent);
+    }
+  }
+
+  if (cx) {
+    stack->Pop(&cx);
+  }
 }
 
 void
 nsDOMOfflineResourceList::FirePendingEvents()
 {
-  for (PRInt32 i = 0; i < mPendingEvents.Count(); ++i) {
-    PRBool dummy;
-    nsCOMPtr<nsIDOMEvent> event = mPendingEvents[i];
-    DispatchEvent(event, &dummy);
+  for (PRUint32 i = 0; i < mPendingEvents.Length(); i++) {
+    const PendingEvent &pending = mPendingEvents[i];
+    NotifyEventListeners(pending.listener, pending.listeners, pending.event);
   }
   mPendingEvents.Clear();
 }
 
 nsresult
-nsDOMOfflineResourceList::SendEvent(const nsAString &aEventName)
+nsDOMOfflineResourceList::SendEvent(const nsAString &aEventName,
+                                    nsIDOMEventListener *aListener,
+                                    const nsCOMArray<nsIDOMEventListener> &aListeners)
 {
-  // Don't send events to closed windows
-  if (!mOwner) {
+  if (!aListener && aListeners.Count() == 0) {
     return NS_OK;
   }
 
-  if (!mOwner->GetDocShell()) {
+  // Don't send events to closed windows
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
+  if (!window) {
+    return NS_OK;
+  }
+
+  if (!window->GetDocShell()) {
     return NS_OK;
   }
 
@@ -680,18 +930,26 @@ nsDOMOfflineResourceList::SendEvent(const nsAString &aEventName)
 
   event->InitEvent(aEventName, PR_FALSE, PR_TRUE);
 
+  privevent->SetTarget(this);
+  privevent->SetCurrentTarget(this);
+  privevent->SetOriginalTarget(this);
+
   // We assume anyone that managed to call SendEvent is trusted
   privevent->SetTrusted(PR_TRUE);
 
   // If the window is frozen or we're still catching up on events that were
   // queued while frozen, save the event for later.
-  if (mOwner->IsFrozen() || mPendingEvents.Count() > 0) {
-    mPendingEvents.AppendObject(event);
+  if (window->IsFrozen() || mPendingEvents.Length() > 0) {
+    PendingEvent *pending = mPendingEvents.AppendElement();
+    pending->event = event;
+    pending->listener = aListener;
+    pending->listeners.SetCapacity(aListeners.Count());
+    pending->listeners.AppendObjects(aListeners);
+
     return NS_OK;
   }
 
-  PRBool dummy;
-  DispatchEvent(event, &dummy);
+  NotifyEventListeners(aListener, aListeners, event);
 
   return NS_OK;
 }
@@ -726,7 +984,7 @@ nsDOMOfflineResourceList::Observe(nsISupports *aSubject,
 NS_IMETHODIMP
 nsDOMOfflineResourceList::Error(nsIOfflineCacheUpdate *aUpdate)
 {
-  SendEvent(NS_LITERAL_STRING(ERROR_STR));
+  SendEvent(NS_LITERAL_STRING(ERROR_STR), mOnErrorListener, mErrorListeners);
 
   return NS_OK;
 }
@@ -734,21 +992,24 @@ nsDOMOfflineResourceList::Error(nsIOfflineCacheUpdate *aUpdate)
 NS_IMETHODIMP
 nsDOMOfflineResourceList::Checking(nsIOfflineCacheUpdate *aUpdate)
 {
-  SendEvent(NS_LITERAL_STRING(CHECKING_STR));
+  SendEvent(NS_LITERAL_STRING(CHECKING_STR),
+            mOnCheckingListener, mCheckingListeners);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMOfflineResourceList::NoUpdate(nsIOfflineCacheUpdate *aUpdate)
 {
-  SendEvent(NS_LITERAL_STRING(NOUPDATE_STR));
+  SendEvent(NS_LITERAL_STRING(NOUPDATE_STR),
+            mOnNoUpdateListener, mNoUpdateListeners);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMOfflineResourceList::Downloading(nsIOfflineCacheUpdate *aUpdate)
 {
-  SendEvent(NS_LITERAL_STRING(DOWNLOADING_STR));
+  SendEvent(NS_LITERAL_STRING(DOWNLOADING_STR),
+            mOnDownloadingListener, mDownloadingListeners);
   return NS_OK;
 }
 
@@ -756,7 +1017,8 @@ NS_IMETHODIMP
 nsDOMOfflineResourceList::ItemStarted(nsIOfflineCacheUpdate *aUpdate,
                                       nsIDOMLoadStatus *aItem)
 {
-  SendEvent(NS_LITERAL_STRING(PROGRESS_STR));
+  SendEvent(NS_LITERAL_STRING(PROGRESS_STR),
+            mOnProgressListener, mProgressListeners);
   return NS_OK;
 }
 
@@ -770,7 +1032,8 @@ nsDOMOfflineResourceList::ItemCompleted(nsIOfflineCacheUpdate *aUpdate,
 NS_IMETHODIMP
 nsDOMOfflineResourceList::Obsolete(nsIOfflineCacheUpdate *aUpdate)
 {
-  SendEvent(NS_LITERAL_STRING(OBSOLETE_STR));
+  SendEvent(NS_LITERAL_STRING(OBSOLETE_STR),
+            mOnObsoleteListener, mObsoleteListeners);
   return NS_OK;
 }
 
@@ -825,7 +1088,12 @@ nsDOMOfflineResourceList::UpdateAdded(nsIOfflineCacheUpdate *aUpdate)
 already_AddRefed<nsIApplicationCacheContainer>
 nsDOMOfflineResourceList::GetDocumentAppCacheContainer()
 {
-  nsCOMPtr<nsIWebNavigation> webnav = do_GetInterface(mOwner);
+  nsCOMPtr<nsIDOMWindow> window = do_QueryReferent(mWindow);
+  if (!window) {
+    return nsnull;
+  }
+
+  nsCOMPtr<nsIWebNavigation> webnav = do_GetInterface(window);
   if (!webnav) {
     return nsnull;
   }
@@ -872,9 +1140,11 @@ nsDOMOfflineResourceList::UpdateCompleted(nsIOfflineCacheUpdate *aUpdate)
 
   if (NS_SUCCEEDED(rv) && succeeded && !partial) {
     if (isUpgrade) {
-      SendEvent(NS_LITERAL_STRING(UPDATEREADY_STR));
+      SendEvent(NS_LITERAL_STRING(UPDATEREADY_STR),
+                mOnUpdateReadyListener, mUpdateReadyListeners);
     } else {
-      SendEvent(NS_LITERAL_STRING(CACHED_STR));
+      SendEvent(NS_LITERAL_STRING(CACHED_STR),
+                mOnCachedListener, mCachedListeners);
     }
   }
 

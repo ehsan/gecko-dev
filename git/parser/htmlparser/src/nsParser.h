@@ -181,6 +181,14 @@ class nsParser : public nsIParser,
     NS_IMETHOD_(void) SetParserFilter(nsIParserFilter* aFilter);
 
     /**
+     *  Retrieve the scanner from the topmost parser context
+     *  
+     *  @update  gess 6/9/98
+     *  @return  ptr to scanner
+     */
+    NS_IMETHOD_(nsDTDMode) GetParseMode(void);
+
+    /**
      * Cause parser to parse input from given URL 
      * @update	gess5/11/98
      * @param   aURL is a descriptor for source document
@@ -216,12 +224,7 @@ class nsParser : public nsIParser,
                              const nsACString& aContentType,
                              nsDTDMode aMode = eDTDMode_autodetect);
 
-    NS_IMETHOD ParseFragment(const nsAString& aSourceBuffer,
-                             nsISupports* aTargetNode,
-                             nsIAtom* aContextLocalName,
-                             PRInt32 aContextNamespace,
-                             PRBool aQuirks);
-                             
+
     /**
      * This method gets called when the tokens have been consumed, and it's time
      * to build the model via the content sink.

@@ -72,7 +72,6 @@ gfxProxyFontEntry::gfxProxyFontEntry(const nsTArray<gfxFontFaceSrc>& aFontFaceSr
     mWeight = aWeight;
     mStretch = aStretch;
     mItalic = (aItalicStyle & (FONT_STYLE_ITALIC | FONT_STYLE_OBLIQUE)) != 0;
-    mIsUserFont = PR_TRUE;
 }
 
 gfxProxyFontEntry::~gfxProxyFontEntry()

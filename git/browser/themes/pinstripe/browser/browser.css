@@ -1552,6 +1552,7 @@ tabbrowser > tabbox {
 }
 
 .tabbrowser-tab[selected="true"] {
+  -moz-user-focus: normal;
   padding: 0 6px 1px;
   border-width: 2px;
   -moz-border-left-colors: rgba(0, 0, 0, .1) rgba(0, 0, 0, .2);
@@ -1561,7 +1562,7 @@ tabbrowser > tabbox {
   background-color: -moz-mac-chrome-active;
 }
 
-.tabbrowser-tab:focus > .tab-text {
+.tabbrowser-tab[selected="true"]:focus > .tab-text {
   -moz-box-shadow: 0 0 4px -moz-mac-focusring,
                    0 0 4px -moz-mac-focusring,
                    0 0 3px -moz-mac-focusring,
@@ -1762,13 +1763,19 @@ tabbrowser > tabbox > tabpanels {
 }
 
 .tabs-closebutton {
-  -moz-padding-end: 4px;
-  list-style-image: url("chrome://global/skin/icons/closetab.png");
+  padding-right: 4px;
+  list-style-image: url("chrome://global/skin/icons/closetab.png") !important;
+  list-style-image: none;
   border: none;
+  -moz-box-align: stretch;
+}
+
+.tabs-closebutton:hover > .toolbarbutton-icon {
+	background-image: none !important;
 }
 
 .tabs-closebutton:hover:active {
-  list-style-image: url("chrome://global/skin/icons/closetab-active.png");
+	list-style-image: url("chrome://global/skin/icons/closetab-active.png") !important;
 }
 
 tabpanels.plain {

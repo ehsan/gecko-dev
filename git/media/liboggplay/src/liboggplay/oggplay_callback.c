@@ -237,7 +237,6 @@ oggplay_callback_cmml (OGGZ * oggz, ogg_packet * op, long serialno,
     }
 
     common->current_loc = granulepos * common->granuleperiod;
-    common->last_granulepos = granulepos;
 
     oggplay_data_handle_cmml_data (&(decoder->decoder), op->packet, op->bytes);
   }
@@ -389,7 +388,7 @@ oggplay_callback_audio (OGGZ * oggz, ogg_packet * op, long serialno,
 
   fish_sound_prepare_truncation (decoder->sound_handle, op->granulepos,
                                                                 op->e_o_s);
-  if (fish_sound_decode (decoder->sound_handle, op->packet, op->bytes) == -1) {
+  if (fish_sound_decode (decoder->sound_handle, op->packet, op->bytes) != 0) {
     // Unrecoverable error, disable track
     op->e_o_s = 1;
     common->active = 0;
@@ -491,7 +490,6 @@ oggplay_callback_kate (OGGZ * oggz, ogg_packet * op, long serialno,
     base = (granulepos >> granuleshift);
     offset = granulepos - (base << granuleshift);
     common->current_loc = (base+offset) * common->granuleperiod;
-    common->last_granulepos = granulepos;
   } else {
     common->current_loc = -1;
   }
@@ -576,7 +574,7 @@ oggplay_initialise_decoder(OggPlay *me, int content_type, int serialno) {
    * set to -1 until headers decoded
    */
   decoder->current_loc = -1;
-  decoder->last_granulepos = -1;
+  decoder->last_granulepos = 0;
 
   /*
    * the offset is how far advanced or delayed this track is to the "standard"
@@ -644,41 +642,33 @@ oggplay_callback_predetected (OGGZ *oggz, ogg_packet *op, long serialno,
    */
   for (i = 0; i < me->num_tracks; i++) {
     if (serialno == me->decode_data[i]->serialno) {
-      int ret = 0;
-      
+
+      me->all_tracks_initialised = 1;
+
       /*
        * call appropriate callback
        */
       if (callbacks[content_type].callback != NULL) {
-        ret = callbacks[content_type].callback(oggz, op, serialno,
-                                               me->decode_data[i]);
+        callbacks[content_type].callback(oggz, op, serialno,
+                                          me->decode_data[i]);
       }
 
-      if 
-      (
-        (op->granulepos >= 0) 
-        ||
-        (op->granulepos == -1 && me->decode_data[i]->last_granulepos != -1)
-      )
-      {
-        /*
-         * set up all the other callbacks
-         */
-        for (i = 0; i < me->num_tracks; i++) {
-          serialno = me->decode_data[i]->serialno;
-          content_type = oggz_stream_get_content (me->oggz, serialno);
-          oggz_set_read_callback(me->oggz, serialno,
-                          callbacks[content_type].callback, me->decode_data[i]);
-        }
-
-        /*
-         * destroy this callback
-         */
-        oggz_set_read_callback (me->oggz, -1, NULL, NULL);
-        me->all_tracks_initialised = 1;
+      /*
+       * set up all the other callbacks
+       */
+      for (i = 0; i < me->num_tracks; i++) {
+        serialno = me->decode_data[i]->serialno;
+        content_type = oggz_stream_get_content (me->oggz, serialno);
+        oggz_set_read_callback(me->oggz, serialno,
+                        callbacks[content_type].callback, me->decode_data[i]);
       }
 
-      return ret < 0 ? OGGZ_ERR_HOLE_IN_DATA : ret;
+      /*
+       * destroy this callback
+       */
+      oggz_set_read_callback (me->oggz, -1, NULL, NULL);
+
+      return 0;
     }
   }
 
@@ -702,8 +692,8 @@ oggplay_callback_predetected (OGGZ *oggz, ogg_packet *op, long serialno,
    * call appropriate callback
    */
   if (callbacks[content_type].callback != NULL) {
-    return callbacks[content_type].callback(oggz, op, serialno,
-                                            me->decode_data[me->num_tracks - 1]);
+    callbacks[content_type].callback(oggz, op, serialno,
+                                          me->decode_data[me->num_tracks - 1]);
   }
 
   return 0;

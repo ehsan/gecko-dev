@@ -76,19 +76,15 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsAccEvent)
 // nsAccEvent. Constructors
 
 nsAccEvent::nsAccEvent(PRUint32 aEventType, nsIAccessible *aAccessible,
-                       PRBool aIsAsynch, EEventRule aEventRule)
-  : mEventType(aEventType)
-  , mEventRule(aEventRule)
-  , mAccessible(aAccessible)
+                       PRBool aIsAsynch, EEventRule aEventRule):
+  mEventType(aEventType), mAccessible(aAccessible), mEventRule(aEventRule)
 {
   CaptureIsFromUserInput(aIsAsynch);
 }
 
 nsAccEvent::nsAccEvent(PRUint32 aEventType, nsIDOMNode *aDOMNode,
-                       PRBool aIsAsynch, EEventRule aEventRule)
-  : mEventType(aEventType)
-  , mEventRule(aEventRule)
-  , mDOMNode(aDOMNode)
+                       PRBool aIsAsynch, EEventRule aEventRule):
+  mEventType(aEventType), mDOMNode(aDOMNode), mEventRule(aEventRule)
 {
   CaptureIsFromUserInput(aIsAsynch);
 }
@@ -268,7 +264,6 @@ nsAccEvent::GetAccessibleByNode()
 
   nsIAccessible *accessible = nsnull;
   accService->GetAccessibleFor(mDOMNode, &accessible);
-
 #ifdef MOZ_XUL
   // hack for xul tree table. We need a better way for firing delayed event
   // against xul tree table. see bug 386821.
@@ -283,12 +278,18 @@ nsAccEvent::GetAccessibleByNode()
       PRInt32 treeIndex = -1;
       multiSelect->GetCurrentIndex(&treeIndex);
       if (treeIndex >= 0) {
-        nsRefPtr<nsXULTreeAccessible> treeCache =
-          nsAccUtils::QueryAccessibleTree(accessible);
-        if (treeCache) {
-          treeCache->GetCachedTreeitemAccessible(treeIndex, nsnull,
-                                                 &accessible);
+        nsCOMPtr<nsIAccessibleTreeCache> treeCache(do_QueryInterface(accessible));
+        NS_IF_RELEASE(accessible);
+        nsCOMPtr<nsIAccessible> treeItemAccessible;
+        if (!treeCache ||
+            NS_FAILED(treeCache->GetCachedTreeitemAccessible(
+                      treeIndex,
+                      nsnull,
+                      getter_AddRefs(treeItemAccessible))) ||
+                      !treeItemAccessible) {
+          return nsnull;
         }
+        NS_IF_ADDREF(accessible = treeItemAccessible);
       }
     }
   }
@@ -380,9 +381,6 @@ nsAccEvent::ApplyEventRules(nsCOMArray<nsIAccessibleEvent> &aEventsToFire)
           }
         }
       } break; // case eRemoveDupes
-
-      default:
-        break; // case eAllowDupes, eDoNotEmit
     } // switch
   } // for (tail)
 }

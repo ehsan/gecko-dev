@@ -143,11 +143,8 @@ enum {
                                  NODE_HAS_EDGE_CHILD_SELECTOR |
                                  NODE_HAS_SLOW_SELECTOR_NOAPPEND,
 
-  NODE_MAY_HAVE_CONTENT_EDITABLE_ATTR
-                               = 0x00040000U,
-
   // Four bits for the script-type ID
-  NODE_SCRIPT_TYPE_OFFSET =               19,
+  NODE_SCRIPT_TYPE_OFFSET =               18,
 
   NODE_SCRIPT_TYPE_SIZE =                  4,
 
@@ -439,13 +436,10 @@ public:
    * @param aNotify whether to notify the document (current document for
    *        nsIContent, and |this| for nsIDocument) that the remove has
    *        occurred
-   * @param aMutationEvent whether to fire a mutation event
    *
    * Note: If there is no child at aIndex, this method will simply do nothing.
    */
-  virtual nsresult RemoveChildAt(PRUint32 aIndex, 
-                                 PRBool aNotify, 
-                                 PRBool aMutationEvent = PR_TRUE) = 0;
+  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify) = 0;
 
   /**
    * Get a property associated with this node.

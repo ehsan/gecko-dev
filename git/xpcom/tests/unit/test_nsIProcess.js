@@ -34,8 +34,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 // nsIProcess unit test
-const TEST_ARGS = ["mozilla", "firefox", "thunderbird", "seamonkey", "foo",
-                   "bar", "argument with spaces", "\"argument with quotes\""];
 
 var isWindows = ("@mozilla.org/windows-registry-key;1" in Components.classes);
 
@@ -122,7 +120,9 @@ function test_arguments()
                           .createInstance(Components.interfaces.nsIProcess);
   process.init(file);
   
-  process.run(true, TEST_ARGS, TEST_ARGS.length);
+  var args= ["mozilla"];
+  
+  process.run(true, args, args.length);
   
   do_check_eq(process.exitValue, 0);
 }
@@ -155,7 +155,7 @@ function test_notify_nonblocking()
                           .createInstance(Components.interfaces.nsIProcess);
   process.init(file);
 
-  process.runAsync(TEST_ARGS, TEST_ARGS.length, {
+  process.runAsync(["mozilla"], 1, {
     observe: function(subject, topic, data) {
       process = subject.QueryInterface(Components.interfaces.nsIProcess);
       do_check_eq(topic, "process-finished");

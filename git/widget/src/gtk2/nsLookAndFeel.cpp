@@ -48,8 +48,6 @@
 
 nscolor   nsLookAndFeel::sInfoText = 0;
 nscolor   nsLookAndFeel::sInfoBackground = 0;
-nscolor   nsLookAndFeel::sMenuBarText = 0;
-nscolor   nsLookAndFeel::sMenuBarHoverText = 0;
 nscolor   nsLookAndFeel::sMenuText = 0;
 nscolor   nsLookAndFeel::sMenuHover = 0;
 nscolor   nsLookAndFeel::sMenuHoverText = 0;
@@ -321,12 +319,6 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor& aColor)
         break;
     case eColor__moz_combobox:
         aColor = sComboBoxBackground;
-        break;
-    case eColor__moz_menubartext:
-        aColor = sMenuBarText;
-        break;
-    case eColor__moz_menubarhovertext:
-        aColor = sMenuBarHoverText;
         break;
     default:
         /* default color is BLACK */
@@ -672,11 +664,10 @@ nsLookAndFeel::InitLookAndFeel()
     GtkWidget *accel_label = gtk_accel_label_new("M");
     GtkWidget *menuitem = gtk_menu_item_new();
     GtkWidget *menu = gtk_menu_new();
-
     g_object_ref_sink(GTK_OBJECT(menu));
 
     gtk_container_add(GTK_CONTAINER(menuitem), accel_label);
-    gtk_menu_shell_append(GTK_MENU_SHELL(menu), menuitem);
+    gtk_menu_shell_append((GtkMenuShell *)GTK_MENU(menu), menuitem);
 
     gtk_widget_set_style(accel_label, NULL);
     gtk_widget_set_style(menu, NULL);
@@ -711,7 +702,6 @@ nsLookAndFeel::InitLookAndFeel()
     GtkWidget *window = gtk_window_new(GTK_WINDOW_POPUP);
     GtkWidget *treeView = gtk_tree_view_new();
     GtkWidget *linkButton = gtk_link_button_new("http://example.com/");
-    GtkWidget *menuBar = gtk_menu_bar_new();
 
     gtk_container_add(GTK_CONTAINER(button), label);
     gtk_container_add(GTK_CONTAINER(combobox), comboboxLabel);
@@ -719,7 +709,6 @@ nsLookAndFeel::InitLookAndFeel()
     gtk_container_add(GTK_CONTAINER(parent), treeView);
     gtk_container_add(GTK_CONTAINER(parent), linkButton);
     gtk_container_add(GTK_CONTAINER(parent), combobox);
-    gtk_container_add(GTK_CONTAINER(parent), menuBar);
     gtk_container_add(GTK_CONTAINER(window), parent);
 
     gtk_widget_set_style(button, NULL);
@@ -728,7 +717,6 @@ nsLookAndFeel::InitLookAndFeel()
     gtk_widget_set_style(linkButton, NULL);
     gtk_widget_set_style(combobox, NULL);
     gtk_widget_set_style(comboboxLabel, NULL);
-    gtk_widget_set_style(menuBar, NULL);
 
     gtk_widget_realize(button);
     gtk_widget_realize(label);
@@ -736,7 +724,6 @@ nsLookAndFeel::InitLookAndFeel()
     gtk_widget_realize(linkButton);
     gtk_widget_realize(combobox);
     gtk_widget_realize(comboboxLabel);
-    gtk_widget_realize(menuBar);
 
     style = gtk_widget_get_style(label);
     if (style) {
@@ -750,12 +737,6 @@ nsLookAndFeel::InitLookAndFeel()
     style = gtk_widget_get_style(combobox);
     if (style) {
         sComboBoxBackground = GDK_COLOR_TO_NS_RGB(style->bg[GTK_STATE_NORMAL]);
-    }
-
-    style = gtk_widget_get_style(menuBar);
-    if (style) {
-        sMenuBarText = GDK_COLOR_TO_NS_RGB(style->fg[GTK_STATE_NORMAL]);
-        sMenuBarHoverText = GDK_COLOR_TO_NS_RGB(style->fg[GTK_STATE_SELECTED]);
     }
 
     // GTK's guide to fancy odd row background colors:

@@ -56,7 +56,6 @@
 #include "nsIControllers.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsIFocusController.h"
-#include "nsFocusManager.h"
 #include "nsPIWindowRoot.h"
 #include "nsIURI.h"
 #include "nsNetUtil.h"
@@ -66,6 +65,7 @@
 #include "nsIDOMNSDocument.h"
 #include "nsPIWindowRoot.h"
 #include "nsPIDOMWindow.h"
+#include "nsIFocusController.h"
 #include "nsIDocShell.h"
 #include "nsIPresShell.h"
 #include "nsIPrivateDOMEvent.h"
@@ -449,18 +449,20 @@ nsXBLWindowKeyHandler::ShutDown()
 PRBool
 nsXBLWindowKeyHandler::IsEditor()
 {
-  // XXXndeakin even though this is only used for key events which should be
-  // going to the focused frame anyway, this doesn't seem like the right way
-  // to determine if something is an editor.
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (!fm)
+  nsCOMPtr<nsPIWindowRoot> windowRoot(do_QueryInterface(mTarget));
+  NS_ENSURE_TRUE(windowRoot, PR_FALSE);
+  nsCOMPtr<nsIFocusController> focusController;
+  windowRoot->GetFocusController(getter_AddRefs(focusController));
+  if (!focusController) {
+    NS_WARNING("********* Something went wrong! No focus controller on the root!!!\n");
     return PR_FALSE;
+  }
 
-  nsCOMPtr<nsIDOMWindow> focusedWindow;
-  fm->GetFocusedWindow(getter_AddRefs(focusedWindow));
+  nsCOMPtr<nsIDOMWindowInternal> focusedWindow;
+  focusController->GetFocusedWindow(getter_AddRefs(focusedWindow));
   if (!focusedWindow)
     return PR_FALSE;
-
+  
   nsCOMPtr<nsPIDOMWindow> piwin(do_QueryInterface(focusedWindow));
   nsIDocShell *docShell = piwin->GetDocShell();
   nsCOMPtr<nsIPresShell> presShell;

@@ -2643,9 +2643,7 @@ nsTreeBodyFrame::HandleEvent(nsPresContext* aPresContext,
     // Save last values, we will need them.
     PRInt32 lastDropRow = mSlots->mDropRow;
     PRInt16 lastDropOrient = mSlots->mDropOrient;
-#ifndef XP_MACOSX
     PRInt16 lastScrollLines = mSlots->mScrollLines;
-#endif
 
     // Find out the current drag action
     PRUint32 lastDragAction = mSlots->mDragAction;
@@ -2720,14 +2718,9 @@ nsTreeBodyFrame::HandleEvent(nsPresContext* aPresContext,
           }
         }
 
-        NS_ASSERTION(aEvent->eventStructType == NS_DRAG_EVENT, "wrong event type");
-        nsDragEvent* dragEvent = static_cast<nsDragEvent*>(aEvent);
-        nsContentUtils::SetDataTransferInEvent(dragEvent);
-
         PRBool canDropAtNewLocation = PR_FALSE;
-        mView->CanDrop(mSlots->mDropRow, mSlots->mDropOrient,
-                       dragEvent->dataTransfer, &canDropAtNewLocation);
-
+        mView->CanDrop(mSlots->mDropRow, mSlots->mDropOrient, &canDropAtNewLocation);
+      
         if (canDropAtNewLocation) {
           // Invalidate row at the new location.
           mSlots->mDropAllowed = canDropAtNewLocation;
@@ -2756,11 +2749,7 @@ nsTreeBodyFrame::HandleEvent(nsPresContext* aPresContext,
       rv = mView->GetParentIndex(parentIndex, &parentIndex);
     }
 
-    NS_ASSERTION(aEvent->eventStructType == NS_DRAG_EVENT, "wrong event type");
-    nsDragEvent* dragEvent = static_cast<nsDragEvent*>(aEvent);
-    nsContentUtils::SetDataTransferInEvent(dragEvent);
-
-    mView->Drop(mSlots->mDropRow, mSlots->mDropOrient, dragEvent->dataTransfer);
+    mView->Drop(mSlots->mDropRow, mSlots->mDropOrient);
     mSlots->mDropRow = -1;
     mSlots->mDropOrient = -1;
     *aEventStatus = nsEventStatus_eConsumeNoDefault; // already handled the drop
@@ -4128,7 +4117,7 @@ nsTreeBodyFrame::ScrollInternal(const ScrollParts& aParts, PRInt32 aRow)
   // See if we have a transparent background or a background image.  
   // If we do, then we cannot blit.
   const nsStyleBackground* background = GetStyleBackground();
-  if (background->BottomLayer().mImage ||
+  if (background->BottomLayer().mImage.mRequest ||
       background->mImageCount > 1 ||
       NS_GET_A(background->mBackgroundColor) < 255 ||
       PR_ABS(delta)*mRowHeight >= mRect.height) {
@@ -4168,7 +4157,7 @@ nsTreeBodyFrame::ScrollHorzInternal(const ScrollParts& aParts, PRInt32 aPosition
   // See if we have a transparent background or a background image.  
   // If we do, then we cannot blit.
   const nsStyleBackground* background = GetStyleBackground();
-  if (background->BottomLayer().mImage ||
+  if (background->BottomLayer().mImage.mRequest ||
       background->mImageCount > 1 ||
       NS_GET_A(background->mBackgroundColor) < 255 ||
       PR_ABS(delta) >= mRect.width) {

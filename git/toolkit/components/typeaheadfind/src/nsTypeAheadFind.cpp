@@ -70,6 +70,7 @@
 #include "nsIDOMNSHTMLDocument.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsIEventStateManager.h"
+#include "nsIFocusController.h"
 #include "nsIViewManager.h"
 #include "nsIScrollableView.h"
 #include "nsIDocument.h"
@@ -92,7 +93,6 @@
 #include "nsINameSpaceManager.h"
 #include "nsIWindowWatcher.h"
 #include "nsIObserverService.h"
-#include "nsFocusManager.h"
 
 #include "nsTypeAheadFind.h"
 
@@ -462,15 +462,15 @@ nsTypeAheadFind::FindItNow(nsIPresShell *aPresShell, PRBool aIsLinksOnly,
       if (!window)
         return NS_ERROR_UNEXPECTED;
 
-      nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
       if (usesIndependentSelection) {
         /* If a search result is found inside an editable element, we'll focus
          * the element only if focus is in our content window, i.e.
          * |if (focusedWindow.top == ourWindow.top)| */
         PRBool shouldFocusEditableElement = false;
-        if (fm) {
-          nsCOMPtr<nsIDOMWindow> focusedWindow;
-          nsresult rv = fm->GetFocusedWindow(getter_AddRefs(focusedWindow));
+        nsIFocusController* focusController = window->GetRootFocusController();
+        if (focusController) {
+          nsCOMPtr<nsIDOMWindowInternal> focusedWindow;
+          nsresult rv = focusController->GetFocusedWindow(getter_AddRefs(focusedWindow));
           if (NS_SUCCEEDED(rv)) {
             nsCOMPtr<nsPIDOMWindow> fwPI(do_QueryInterface(focusedWindow, &rv));
             if (NS_SUCCEEDED(rv)) {
@@ -515,8 +515,11 @@ nsTypeAheadFind::FindItNow(nsIPresShell *aPresShell, PRBool aIsLinksOnly,
               break;
 
             // Otherwise move focus/caret to editable element
-            if (fm)
-              fm->SetFocus(mFoundEditable, 0);
+            nsCOMPtr<nsIContent> content = do_QueryInterface(mFoundEditable);
+            if (content) {
+              content->SetFocus(presContext);
+              presContext->EventStateManager()->MoveCaretToFocus();
+            }
             break;
           }
           nsIDOMNode* tmp = node;
@@ -547,16 +550,26 @@ nsTypeAheadFind::FindItNow(nsIPresShell *aPresShell, PRBool aIsLinksOnly,
         selection->AddRange(returnRange);
       }
 
-      if (!mFoundEditable && fm) {
-        nsCOMPtr<nsIDOMWindow> win = do_QueryInterface(window);
-        fm->MoveFocus(win, nsnull, nsIFocusManager::MOVEFOCUS_CARET,
-                      nsIFocusManager::FLAG_NOSCROLL | nsIFocusManager::FLAG_NOSWITCHFRAME,
-                      getter_AddRefs(mFoundLink));
+      if (!mFoundEditable) {
+        currentDocShell->SetHasFocus(PR_TRUE);  // What does this do?
+
+        // Keep track of whether we've found a link, so we can focus it, jump
+        // to its target, etc.
+        nsIEventStateManager *esm = presContext->EventStateManager();
+        PRBool isSelectionWithFocus;
+        esm->MoveFocusToCaret(PR_TRUE, &isSelectionWithFocus);
+        if (isSelectionWithFocus) {
+          nsCOMPtr<nsIContent> lastFocusedContent;
+          esm->GetLastFocusedContent(getter_AddRefs(lastFocusedContent));
+          nsCOMPtr<nsIDOMElement>
+            lastFocusedElement(do_QueryInterface(lastFocusedContent));
+          mFoundLink = lastFocusedElement;
+        }
       }
 
       // Change selection color to ATTENTION and scroll to it.  Careful: we
       // must wait until after we goof with focus above before changing to
-      // ATTENTION, or when we MoveFocus() and the selection is not on a
+      // ATTENTION, or when we MoveFocusToCaret() and the selection is not on a
       // link, we'll blur, which will lose the ATTENTION.
       if (selectionController) {
         // Beware! This may flush notifications via synchronous
@@ -990,19 +1003,14 @@ nsTypeAheadFind::Find(const nsAString& aSearchString, PRBool aLinksOnly,
       // Get focused content from esm. If it's null, the document is focused.
       // If not, make sure the selection is in sync with the focus, so we can 
       // start our search from there.
+      nsCOMPtr<nsIContent> focusedContent;
       nsPresContext* presContext = presShell->GetPresContext();
       NS_ENSURE_TRUE(presContext, NS_OK);
 
-      nsCOMPtr<nsIDocument> document =
-        do_QueryInterface(presShell->GetDocument());
-      if (!document)
-        return NS_ERROR_UNEXPECTED;
-
-      nsCOMPtr<nsIDOMWindow> window = do_QueryInterface(document->GetWindow());
-
-      nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
-      if (fm) {
-        fm->MoveCaretToFocus(window);
+      nsIEventStateManager *esm = presContext->EventStateManager();
+      esm->GetFocusedContent(getter_AddRefs(focusedContent));
+      if (focusedContent) {
+        esm->MoveCaretToFocus();
         isFirstVisiblePreferred = PR_FALSE;
       }
     }

@@ -95,6 +95,7 @@ tab[chromedir="rtl"] {
 }
 
 tab[selected="true"] {
+  -moz-user-focus: normal;
   margin-top: 0;
   border-bottom-color: transparent;
   padding: 1px 6px 4px 6px;

@@ -93,17 +93,24 @@ function getBoolPref ( prefname, def )
 
 // Change focus for this browser window to |aElement|, without focusing the
 // window itself.
-function focusElement(aElement)
-{
-  // if a content window, focus the <browser> instead as window.focus()
-  // raises the window
-  if (aElement instanceof Window) {
-    var browser = getBrowserFromContentWindow(aElement);
-    if (browser)
-      browser.focus();
-  }
-  else {
+function focusElement(aElement) {
+  // This is a redo of the fix for jag bug 91884
+  var ww = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
+                     .getService(Components.interfaces.nsIWindowWatcher);
+  if (window == ww.activeWindow)
     aElement.focus();
+  else {
+    // set the element in command dispatcher so focus will restore properly
+    // when the window does become active
+    var cmdDispatcher = document.commandDispatcher;
+    if (aElement instanceof Window) {
+      cmdDispatcher.focusedWindow = aElement;
+      cmdDispatcher.focusedElement = null;
+    }
+    else if (aElement instanceof Element) {
+      cmdDispatcher.focusedWindow = aElement.ownerDocument.defaultView;
+      cmdDispatcher.focusedElement = aElement;
+    }
   }
 }
 
@@ -242,25 +249,16 @@ function openUILinkIn( url, where, allowThirdPartyFixup, postData, referrerUrl )
     loadInBackground = !loadInBackground;
     // fall through
   case "tab":
-    let browser = w.getBrowser();
+    var browser = w.getBrowser();
     browser.loadOneTab(url, referrerUrl, null, postData, loadInBackground,
                        allowThirdPartyFixup || false);
     break;
   }
 
-  // If this window is active, focus the target window. Otherwise, focus the
-  // content but don't raise the window, since the URI we just loaded may have
+  // Call focusElement(w.content) instead of w.content.focus() to make sure
+  // that we don't raise the old window, since the URI we just loaded may have
   // resulted in a new frontmost window (e.g. "javascript:window.open('');").
-  var fm = Components.classes["@mozilla.org/focus-manager;1"].
-             getService(Components.interfaces.nsIFocusManager);
-  if (window == fm.activeWindow) {
-    w.content.focus();
-  }
-  else {
-    let browser = w.getBrowserFromContentWindow(w.content);
-    if (browser)
-      browser.focus();
-  }
+  focusElement(w.content);
 }
 
 // Used as an onclick handler for UI elements with link-like behavior.

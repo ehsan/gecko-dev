@@ -39,6 +39,7 @@
 #include "nsPrintSessionX.h"
 #include "nsObjCExceptions.h"
 
+
 NS_IMPL_ISUPPORTS_INHERITED1(nsPrintSessionX, 
                              nsPrintSession, 
                              nsIPrintSessionX)
@@ -46,6 +47,7 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsPrintSessionX,
 nsPrintSessionX::nsPrintSessionX()
 {
 }
+
 
 nsPrintSessionX::~nsPrintSessionX()
 {
@@ -58,6 +60,7 @@ nsPrintSessionX::~nsPrintSessionX()
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
+
 
 nsresult nsPrintSessionX::Init()
 {
@@ -75,6 +78,7 @@ nsresult nsPrintSessionX::Init()
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
+
 
 NS_IMETHODIMP nsPrintSessionX::GetNativeSession(PMPrintSession *aNativeSession)
 {

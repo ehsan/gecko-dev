@@ -188,15 +188,8 @@ protected:
  */
 class nsSVGRenderingObserverList {
 public:
-  nsSVGRenderingObserverList() {
-    MOZ_COUNT_CTOR(nsSVGRenderingObserverList);
-    mObservers.Init(5);
-  }
-
-  ~nsSVGRenderingObserverList() {
-    InvalidateAll();
-    MOZ_COUNT_DTOR(nsSVGRenderingObserverList);
-  }
+  nsSVGRenderingObserverList() { mObservers.Init(5); }
+  ~nsSVGRenderingObserverList() { InvalidateAll(); }
 
   void Add(nsSVGRenderingObserver* aObserver)
   { mObservers.PutEntry(aObserver); }

@@ -115,7 +115,6 @@
 #include "nsIDOMWindowInternal.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDOMElement.h"
-#include "nsFocusManager.h"
 
 // for radio group stuff
 #include "nsIDOMHTMLInputElement.h"
@@ -153,7 +152,6 @@ static NS_DEFINE_CID(kDOMEventGroupCID, NS_DOMEVENTGROUP_CID);
 #include "nsIDOMXPathEvaluator.h"
 #include "nsDOMCID.h"
 
-#include "jsapi.h"
 #include "nsIJSContextStack.h"
 #include "nsIXPConnect.h"
 #include "nsCycleCollector.h"
@@ -168,7 +166,7 @@ static NS_DEFINE_CID(kDOMEventGroupCID, NS_DOMEVENTGROUP_CID);
 #include "nsIXULDocument.h"
 #include "nsIPrompt.h"
 #include "nsIPropertyBag2.h"
-#include "nsIDOMPageTransitionEvent.h"
+
 #include "nsFrameLoader.h"
 
 #include "mozAutoDocUpdate.h"
@@ -572,7 +570,7 @@ NS_INTERFACE_TABLE_HEAD(nsDOMStyleSheetList)
                       nsIDocumentObserver,
                       nsIMutationObserver)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(StyleSheetList)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(DocumentStyleSheetList)
 NS_INTERFACE_MAP_END
 
 
@@ -1611,7 +1609,6 @@ NS_INTERFACE_TABLE_HEAD(nsDocument)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIMutationObserver)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIDOMNodeSelector)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIApplicationCacheContainer)
-    NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIDOMXPathNSResolver)
   NS_OFFSET_AND_INTERFACE_TABLE_END
   NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
   NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsDocument)
@@ -2397,9 +2394,8 @@ nsDocument::ContentRemoved(nsIDocument* aDocument,
 }
 
 void
-nsDocument::AttributeWillChange(nsIDocument* aDocument,
-                                nsIContent* aContent, PRInt32 aNameSpaceID,
-                                nsIAtom* aAttribute, PRInt32 aModType)
+nsDocument::AttributeWillChange(nsIContent* aContent, PRInt32 aNameSpaceID,
+                                nsIAtom* aAttribute)
 {
   NS_ABORT_IF_FALSE(aContent, "Null content!");
   NS_PRECONDITION(aAttribute, "Must have an attribute that's changing!");
@@ -2497,15 +2493,28 @@ nsDocument::HasFocus(PRBool* aResult)
 {
   *aResult = PR_FALSE;
 
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (!fm)
-    return NS_ERROR_NOT_AVAILABLE;
+  nsPIDOMWindow* window = GetWindow();
+  nsIFocusController* focusController = window ?
+    window->GetRootFocusController() : nsnull;
+  if (!focusController) {
+    return NS_OK;
+  }
+
+  // Does the top-level window have focus?
+  PRBool active;
+  nsresult rv = focusController->GetActive(&active);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!active){
+    return NS_OK;
+  }
 
   // Is there a focused DOMWindow?
-  nsCOMPtr<nsIDOMWindow> focusedWindow;
-  fm->GetFocusedWindow(getter_AddRefs(focusedWindow));
-  if (!focusedWindow)
-    return NS_OK;
+  nsCOMPtr<nsIDOMWindowInternal> focusedWindow;
+  rv = focusController->GetFocusedWindow(getter_AddRefs(focusedWindow));
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!focusedWindow) {
+    return NS_ERROR_FAILURE;
+  }
 
   // Are we an ancestor of the focused DOMWindow?
   nsCOMPtr<nsIDOMDocument> domDocument;
@@ -2537,29 +2546,56 @@ nsDocument::GetActiveElement(nsIDOMElement **aElement)
   *aElement = nsnull;
 
   // Get the focused element.
-  nsCOMPtr<nsPIDOMWindow> window = GetWindow();
+  nsPIDOMWindow* window = GetWindow();
   if (!window) {
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (!fm)
-    return NS_ERROR_NOT_AVAILABLE;
+  nsIFocusController* focusController = window->GetRootFocusController();
+  if (!focusController) {
+    return NS_ERROR_FAILURE;
+  }
 
-  nsCOMPtr<nsPIDOMWindow> focusedWindow;
-  nsIContent* focusedContent =
-    nsFocusManager::GetFocusedDescendant(window, PR_FALSE, getter_AddRefs(focusedWindow));
-
-  // an element in this document is focused, so return it
-  if (focusedContent) {
-    // be safe and make sure the element is from this document
-    if (focusedContent->GetOwnerDoc() != this) {
-      NS_WARNING("Focused element found from another document");
-      return NS_ERROR_FAILURE;
+  nsCOMPtr<nsIDOMElement> focusedElement;
+  focusController->GetFocusedElement(getter_AddRefs(focusedElement));
+  nsCOMPtr<nsIContent> content = do_QueryInterface(focusedElement);
+  if (content) {
+    // Found a focused element.  See if it's in this document.
+    nsIDocument* currentDoc = content->GetCurrentDoc();
+    if (currentDoc == this) {
+      focusedElement.swap(*aElement);
+      return NS_OK;
     }
 
-    CallQueryInterface(focusedContent, aElement);
-    return NS_OK;
+    // Not in this document.  If it's in a child document, return the iframe in
+    // this document that's an ancestor of the child.
+    if (currentDoc) {
+      *aElement = CheckAncestryAndGetFrame(currentDoc).get();
+      if (*aElement) {
+        return NS_OK;
+      }
+    }
+  }
+
+  // Couldn't find a focused element.  Check if something like an IFRAME is
+  // focused, which will give us a focused window rather than a focused
+  // element.
+  nsCOMPtr<nsIDOMWindowInternal> focusedWindow;
+  focusController->GetFocusedWindow(getter_AddRefs(focusedWindow));
+  if (focusedWindow) {
+    // Found a focused window.  See if it's in a child of this document.  (If
+    // the window's document is this, then we should just fall through to
+    // returning the BODY below).
+    nsCOMPtr<nsIDOMDocument> domDocument;
+    focusedWindow->GetDocument(getter_AddRefs(domDocument));
+    nsCOMPtr<nsIDocument> document = do_QueryInterface(domDocument);
+
+    if (document && (document != this)) {
+      *aElement = CheckAncestryAndGetFrame(document).get();
+      if (*aElement) {
+        return NS_OK;
+      }
+    }
   }
 
   // No focused element anywhere in this document.  Try to get the BODY.
@@ -3222,9 +3258,8 @@ nsDocument::AppendChildTo(nsIContent* aKid, PRBool aNotify)
 }
 
 nsresult
-nsDocument::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent)
+nsDocument::RemoveChildAt(PRUint32 aIndex, PRBool aNotify)
 {
-  NS_ASSERTION(aMutationEvent, "Someone tried to inhibit mutations on document child removal.");
   nsCOMPtr<nsIContent> oldKid = GetChildAt(aIndex);
   if (!oldKid) {
     return NS_OK;
@@ -3236,8 +3271,7 @@ nsDocument::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent
   }
 
   nsresult rv = nsGenericElement::doRemoveChildAt(aIndex, aNotify, oldKid,
-                                                  nsnull, this, mChildren, 
-                                                  aMutationEvent);
+                                                  nsnull, this, mChildren);
   mCachedRootContent = nsnull;
   return rv;
 }
@@ -3537,34 +3571,6 @@ nsDocument::SetScriptGlobalObject(nsIScriptGlobalObject *aScriptGlobalObject)
     // Go back to using the docshell for the layout history state
     mLayoutHistoryState = nsnull;
     mScopeObject = do_GetWeakReference(aScriptGlobalObject);
-
-    // If we already have a wrapper at this point, it might have the wrong
-    // parent and scope, so reparent it.
-    nsIXPConnectWrappedNative *wrapper =
-      static_cast<nsIXPConnectWrappedNative*>(GetWrapper());
-    if (wrapper) {
-      JSObject *obj = nsnull;
-      wrapper->GetJSObject(&obj);
-      if (obj) {
-        JSObject *newScope = aScriptGlobalObject->GetGlobalJSObject();
-        nsIScriptContext *scx = aScriptGlobalObject->GetContext();
-        JSContext *cx = scx ? (JSContext *)scx->GetNativeContext() : nsnull;
-        if (!cx) {
-          nsContentUtils::ThreadJSContextStack()->Peek(&cx);
-          if (!cx) {
-            nsContentUtils::ThreadJSContextStack()->GetSafeJSContext(&cx);
-            NS_ASSERTION(cx, "Uhoh, no context, this is bad!");
-          }
-        }
-        if (cx) {
-          nsCOMPtr<nsIXPConnectJSObjectHolder> newWrapper;
-          nsContentUtils::XPConnect()->
-            ReparentWrappedNativeIfFound(cx, JS_GetGlobalForObject(cx, obj),
-                                         newScope, wrapper->Native(),
-                                         getter_AddRefs(newWrapper));
-        }
-      }
-    }
 
     if (mAllowDNSPrefetch) {
       nsCOMPtr<nsIDocShell> docShell = do_QueryReferent(mDocumentContainer);
@@ -6019,27 +6025,42 @@ nsDocument::GetOwnerDocument(nsIDOMDocument** aOwnerDocument)
   return nsINode::GetOwnerDocument(aOwnerDocument);
 }
 
-nsIEventListenerManager*
-nsDocument::GetListenerManager(PRBool aCreateIfNotFound)
+nsresult
+nsDocument::GetListenerManager(PRBool aCreateIfNotFound,
+                               nsIEventListenerManager** aInstancePtrResult)
 {
-  if (mListenerManager || !aCreateIfNotFound) {
-    return mListenerManager;
+  if (mListenerManager) {
+    *aInstancePtrResult = mListenerManager;
+    NS_ADDREF(*aInstancePtrResult);
+
+    return NS_OK;
+  }
+  if (!aCreateIfNotFound) {
+    *aInstancePtrResult = nsnull;
+    return NS_OK;
   }
 
   nsresult rv = NS_NewEventListenerManager(getter_AddRefs(mListenerManager));
-  NS_ENSURE_SUCCESS(rv, nsnull);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   mListenerManager->SetListenerTarget(static_cast<nsIDocument *>(this));
 
-  return mListenerManager;
+  *aInstancePtrResult = mListenerManager;
+  NS_ADDREF(*aInstancePtrResult);
+
+  return NS_OK;
 }
 
 nsresult
 nsDocument::GetSystemEventGroup(nsIDOMEventGroup **aGroup)
 {
-  nsIEventListenerManager* manager = GetListenerManager(PR_TRUE);
-  NS_ENSURE_STATE(manager);
-  return manager->GetSystemEventGroupLM(aGroup);
+  nsCOMPtr<nsIEventListenerManager> manager;
+  if (NS_SUCCEEDED(GetListenerManager(PR_TRUE, getter_AddRefs(manager))) &&
+      manager) {
+    return manager->GetSystemEventGroupLM(aGroup);
+  }
+
+  return NS_ERROR_FAILURE;
 }
 
 nsresult
@@ -6079,19 +6100,28 @@ nsresult
 nsDocument::AddEventListenerByIID(nsIDOMEventListener *aListener,
                                   const nsIID& aIID)
 {
-  nsIEventListenerManager* manager = GetListenerManager(PR_TRUE);
-  NS_ENSURE_STATE(manager);
-  return manager->AddEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE);
+  nsCOMPtr<nsIEventListenerManager> manager;
+
+  GetListenerManager(PR_TRUE, getter_AddRefs(manager));
+  if (manager) {
+    manager->AddEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE);
+    return NS_OK;
+  }
+
+  return NS_ERROR_FAILURE;
 }
 
 nsresult
 nsDocument::RemoveEventListenerByIID(nsIDOMEventListener *aListener,
                                      const nsIID& aIID)
 {
-  return mListenerManager ?
-    mListenerManager->RemoveEventListenerByIID(aListener, aIID,
-                                               NS_EVENT_FLAG_BUBBLE) :
-    NS_OK;
+  if (!mListenerManager) {
+    return NS_ERROR_FAILURE;
+  }
+
+  mListenerManager->RemoveEventListenerByIID(aListener, aIID,
+                                             NS_EVENT_FLAG_BUBBLE);
+  return NS_OK;
 }
 
 nsresult
@@ -6136,10 +6166,17 @@ nsDocument::AddGroupedEventListener(const nsAString& aType,
                                     PRBool aUseCapture,
                                     nsIDOMEventGroup *aEvtGrp)
 {
-  nsIEventListenerManager* manager = GetListenerManager(PR_TRUE);
-  NS_ENSURE_STATE(manager);
-  PRInt32 flags = aUseCapture ? NS_EVENT_FLAG_CAPTURE : NS_EVENT_FLAG_BUBBLE;
-  return manager->AddEventListenerByType(aListener, aType, flags, aEvtGrp);
+  nsCOMPtr<nsIEventListenerManager> manager;
+
+  nsresult rv = GetListenerManager(PR_TRUE, getter_AddRefs(manager));
+  if (NS_SUCCEEDED(rv) && manager) {
+    PRInt32 flags = aUseCapture ? NS_EVENT_FLAG_CAPTURE : NS_EVENT_FLAG_BUBBLE;
+
+    manager->AddEventListenerByType(aListener, aType, flags, aEvtGrp);
+    return NS_OK;
+  }
+
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -6148,11 +6185,14 @@ nsDocument::RemoveGroupedEventListener(const nsAString& aType,
                                        PRBool aUseCapture,
                                        nsIDOMEventGroup *aEvtGrp)
 {
-  if (mListenerManager) {
-    PRInt32 flags = aUseCapture ? NS_EVENT_FLAG_CAPTURE : NS_EVENT_FLAG_BUBBLE;
-    mListenerManager->RemoveEventListenerByType(aListener, aType, flags,
-                                                aEvtGrp);
+  if (!mListenerManager) {
+    return NS_ERROR_FAILURE;
   }
+
+  PRInt32 flags = aUseCapture ? NS_EVENT_FLAG_CAPTURE : NS_EVENT_FLAG_BUBBLE;
+
+  mListenerManager->RemoveEventListenerByType(aListener, aType, flags,
+                                              aEvtGrp);
   return NS_OK;
 }
 
@@ -6173,8 +6213,9 @@ nsDocument::AddEventListener(const nsAString& aType,
                              nsIDOMEventListener *aListener,
                              PRBool aUseCapture, PRBool aWantsUntrusted)
 {
-  nsIEventListenerManager* manager = GetListenerManager(PR_TRUE);
-  NS_ENSURE_STATE(manager);
+  nsCOMPtr<nsIEventListenerManager> manager;
+  nsresult rv = GetListenerManager(PR_TRUE, getter_AddRefs(manager));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   PRInt32 flags = aUseCapture ? NS_EVENT_FLAG_CAPTURE : NS_EVENT_FLAG_BUBBLE;
 
@@ -6819,8 +6860,8 @@ nsDocument::CanSavePresentation(nsIRequest *aNewRequest)
   // Check our event listener manager for unload/beforeunload listeners.
   nsCOMPtr<nsPIDOMEventTarget> piTarget = do_QueryInterface(mScriptGlobalObject);
   if (piTarget) {
-    nsIEventListenerManager* manager =
-      piTarget->GetListenerManager(PR_FALSE);
+    nsCOMPtr<nsIEventListenerManager> manager;
+    piTarget->GetListenerManager(PR_FALSE, getter_AddRefs(manager));
     if (manager && manager->HasUnloadListeners()) {
       return PR_FALSE;
     }
@@ -7058,24 +7099,14 @@ nsDocument::CheckAncestryAndGetFrame(nsIDocument* aDocument) const
 }
 
 void
-nsDocument::DispatchPageTransition(nsPIDOMEventTarget* aDispatchTarget,
-                                   const nsAString& aType,
-                                   PRBool aPersisted)
+nsDocument::DispatchEventToWindow(nsEvent *aEvent)
 {
-  if (aDispatchTarget) {
-    nsCOMPtr<nsIDOMEvent> event;
-    CreateEvent(NS_LITERAL_STRING("pagetransition"), getter_AddRefs(event));
-    nsCOMPtr<nsIDOMPageTransitionEvent> ptEvent = do_QueryInterface(event);
-    nsCOMPtr<nsIPrivateDOMEvent> pEvent = do_QueryInterface(ptEvent);
-    if (pEvent && NS_SUCCEEDED(ptEvent->InitPageTransitionEvent(aType, PR_TRUE,
-                                                                PR_TRUE,
-                                                                aPersisted))) {
-      pEvent->SetTrusted(PR_TRUE);
-      pEvent->SetTarget(this);
-      nsEventDispatcher::DispatchDOMEvent(aDispatchTarget, nsnull, event,
-                                          nsnull, nsnull);
-    }
-  }
+  nsPIDOMWindow *window = GetWindow();
+  if (!window)
+    return;
+
+  aEvent->target = static_cast<nsIDocument*>(this);
+  nsEventDispatcher::Dispatch(window, nsnull, aEvent);
 }
 
 void
@@ -7114,10 +7145,14 @@ nsDocument::OnPageShow(PRBool aPersisted, nsIDOMEventTarget* aDispatchStartTarge
     mAnimationController->OnPageShow();
   }
 #endif
-  nsCOMPtr<nsPIDOMEventTarget> target =
-    aDispatchStartTarget ? do_QueryInterface(aDispatchStartTarget) :
-                           do_QueryInterface(GetWindow());
-  DispatchPageTransition(target, NS_LITERAL_STRING("pageshow"), aPersisted);
+  
+  nsPageTransitionEvent event(PR_TRUE, NS_PAGE_SHOW, aPersisted);
+  if (aDispatchStartTarget) {
+    event.target = static_cast<nsIDocument*>(this);
+    nsEventDispatcher::Dispatch(aDispatchStartTarget, nsnull, &event);
+  } else {
+    DispatchEventToWindow(&event);
+  }
 }
 
 void
@@ -7156,10 +7191,13 @@ nsDocument::OnPageHide(PRBool aPersisted, nsIDOMEventTarget* aDispatchStartTarge
 #endif
   
   // Now send out a PageHide event.
-  nsCOMPtr<nsPIDOMEventTarget> target =
-    aDispatchStartTarget ? do_QueryInterface(aDispatchStartTarget) :
-                           do_QueryInterface(GetWindow());
-  DispatchPageTransition(target, NS_LITERAL_STRING("pagehide"), aPersisted);
+  nsPageTransitionEvent event(PR_TRUE, NS_PAGE_HIDE, aPersisted);
+  if (aDispatchStartTarget) {
+    event.target = static_cast<nsIDocument*>(this);
+    nsEventDispatcher::Dispatch(aDispatchStartTarget, nsnull, &event);
+  } else {
+    DispatchEventToWindow(&event);
+  }
 
   mVisible = PR_FALSE;
 }
@@ -7462,13 +7500,8 @@ static void
 FireOrClearDelayedEvents(nsTArray<nsCOMPtr<nsIDocument> >& aDocuments,
                          PRBool aFireEvents)
 {
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (!fm)
-    return;
-
   for (PRUint32 i = 0; i < aDocuments.Length(); ++i) {
     if (!aDocuments[i]->EventHandlingSuppressed()) {
-      fm->FireDelayedEvents(aDocuments[i]);
       nsPresShellIterator iter(aDocuments[i]);
       nsCOMPtr<nsIPresShell> shell;
       while ((shell = iter.GetNextShell())) {

@@ -54,7 +54,7 @@
 #include "nsIDOMText.h"
 #include "nsIContentIterator.h"
 #include "nsIEventListenerManager.h"
-#include "nsFocusManager.h"
+#include "nsIFocusController.h"
 #include "nsILinkHandler.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIURL.h"
@@ -124,6 +124,7 @@
 #include "nsIEditorDocShell.h"
 #include "nsEventDispatcher.h"
 #include "nsContentCreatorFunctions.h"
+#include "nsIFocusController.h"
 #include "nsIControllers.h"
 #include "nsLayoutUtils.h"
 #include "nsIView.h"
@@ -251,37 +252,46 @@ nsINode::UnsetProperty(PRUint16 aCategory, nsIAtom *aPropertyName,
                                              aStatus);
 }
 
-nsIEventListenerManager*
-nsGenericElement::GetListenerManager(PRBool aCreateIfNotFound)
+nsresult
+nsGenericElement::GetListenerManager(PRBool aCreateIfNotFound,
+                                     nsIEventListenerManager** aResult)
 {
-  return nsContentUtils::GetListenerManager(this, aCreateIfNotFound);
+  return nsContentUtils::GetListenerManager(this, aCreateIfNotFound, aResult);
 }
 
 nsresult
 nsGenericElement::AddEventListenerByIID(nsIDOMEventListener *aListener,
                                        const nsIID& aIID)
 {
-  nsIEventListenerManager* elm = GetListenerManager(PR_TRUE);
-  NS_ENSURE_STATE(elm);
-  return elm->AddEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE);
+  nsCOMPtr<nsIEventListenerManager> elm;
+  nsresult rv = GetListenerManager(PR_TRUE, getter_AddRefs(elm));
+  if (elm) {
+    return elm->AddEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE);
+  }
+  return rv;
 }
 
 nsresult
 nsGenericElement::RemoveEventListenerByIID(nsIDOMEventListener *aListener,
                                            const nsIID& aIID)
 {
-  nsIEventListenerManager* elm = GetListenerManager(PR_FALSE);
-  return elm ?
-    elm->RemoveEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE) :
-    NS_OK;
+  nsCOMPtr<nsIEventListenerManager> elm;
+  GetListenerManager(PR_FALSE, getter_AddRefs(elm));
+  if (elm) {
+    return elm->RemoveEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE);
+  }
+  return NS_OK;
 }
 
 nsresult
 nsGenericElement::GetSystemEventGroup(nsIDOMEventGroup** aGroup)
 {
-  nsIEventListenerManager* elm = GetListenerManager(PR_TRUE);
-  NS_ENSURE_STATE(elm);
-  return elm->GetSystemEventGroupLM(aGroup);
+  nsCOMPtr<nsIEventListenerManager> elm;
+  nsresult rv = GetListenerManager(PR_TRUE, getter_AddRefs(elm));
+  if (elm) {
+    return elm->GetSystemEventGroupLM(aGroup);
+  }
+  return rv;
 }
 
 nsINode::nsSlots*
@@ -627,7 +637,6 @@ NS_IMPL_CYCLE_COLLECTION_1(nsNode3Tearoff, mContent)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsNode3Tearoff)
   NS_INTERFACE_MAP_ENTRY(nsIDOM3Node)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMXPathNSResolver)
 NS_INTERFACE_MAP_END_AGGREGATED(mContent)
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsNode3Tearoff)
@@ -848,8 +857,7 @@ nsNode3Tearoff::GetFeature(const nsAString& aFeature,
                            const nsAString& aVersion,
                            nsISupports** aReturn)
 {
-  return nsGenericElement::InternalGetFeature(static_cast<nsIDOM3Node*>(this),
-                                              aFeature, aVersion, aReturn);
+  return nsGenericElement::InternalGetFeature(this, aFeature, aVersion, aReturn);
 }
 
 NS_IMETHODIMP
@@ -1609,9 +1617,11 @@ nsDOMEventRTTearoff::LastRelease()
 nsresult
 nsDOMEventRTTearoff::GetDOM3EventTarget(nsIDOM3EventTarget **aTarget)
 {
-  nsIEventListenerManager* listener_manager =
-    mNode->GetListenerManager(PR_TRUE);
-  NS_ENSURE_STATE(listener_manager);
+  nsCOMPtr<nsIEventListenerManager> listener_manager;
+  nsresult rv =
+    mNode->GetListenerManager(PR_TRUE, getter_AddRefs(listener_manager));
+  NS_ENSURE_SUCCESS(rv, rv);
+
   return CallQueryInterface(listener_manager, aTarget);
 }
 
@@ -1651,8 +1661,11 @@ nsDOMEventRTTearoff::RemoveEventListener(const nsAString& aType,
 NS_IMETHODIMP
 nsDOMEventRTTearoff::DispatchEvent(nsIDOMEvent *aEvt, PRBool* _retval)
 {
-  nsCOMPtr<nsIDOMEventTarget> target =
-    do_QueryInterface(mNode->GetListenerManager(PR_TRUE));
+  nsCOMPtr<nsIEventListenerManager> listener_manager;
+  nsresult rv =
+    mNode->GetListenerManager(PR_TRUE, getter_AddRefs(listener_manager));
+  NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(listener_manager);
   NS_ENSURE_STATE(target);
   return target->DispatchEvent(aEvt, _retval);
 }
@@ -1705,9 +1718,10 @@ nsDOMEventRTTearoff::AddEventListener(const nsAString& aType,
                                       PRBool aUseCapture,
                                       PRBool aWantsUntrusted)
 {
-  nsIEventListenerManager* listener_manager =
-    mNode->GetListenerManager(PR_TRUE);
-  NS_ENSURE_STATE(listener_manager);
+  nsCOMPtr<nsIEventListenerManager> listener_manager;
+  nsresult rv =
+    mNode->GetListenerManager(PR_TRUE, getter_AddRefs(listener_manager));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   PRInt32 flags = aUseCapture ? NS_EVENT_FLAG_CAPTURE : NS_EVENT_FLAG_BUBBLE;
 
@@ -3058,29 +3072,84 @@ nsGenericElement::IsLink(nsIURI** aURI) const
   return PR_FALSE;
 }
 
+void
+nsGenericElement::SetFocus(nsPresContext* aPresContext)
+{
+  // Traditionally focusable elements can take focus as long as they don't set
+  // the disabled attribute
+
+  nsCOMPtr<nsIPresShell> presShell = aPresContext->PresShell();
+  if (!presShell) {
+    return;
+  }
+  nsIFrame* frame = presShell->GetPrimaryFrameFor(this);
+  if (frame && frame->IsFocusable() &&
+      aPresContext->EventStateManager()->SetContentState(this,
+                                                         NS_EVENT_STATE_FOCUS)) {
+    presShell->ScrollContentIntoView(this, NS_PRESSHELL_SCROLL_IF_NOT_VISIBLE,
+                                     NS_PRESSHELL_SCROLL_IF_NOT_VISIBLE);
+  }
+}
+
+// static
+PRBool
+nsGenericElement::ShouldFocus(nsIContent *aContent)
+{
+  // Default to false, since if the document is not attached to a window,
+  // we should not focus any of its content.
+  PRBool visible = PR_FALSE;
+
+  // Figure out if we're focusing an element in an inactive (hidden)
+  // tab (whose docshell is not visible), if so, drop this focus
+  // request on the floor
+
+  nsIDocument *document = aContent->GetDocument();
+
+  if (document) {
+    nsIScriptGlobalObject *sgo = document->GetScriptGlobalObject();
+
+    if (sgo) {
+      nsCOMPtr<nsIWebNavigation> webNav(do_GetInterface(sgo));
+      nsCOMPtr<nsIBaseWindow> baseWin(do_QueryInterface(webNav));
+
+      if (baseWin) {
+        baseWin->GetVisibility(&visible);
+      }
+    }
+  }
+
+  return visible;
+}
+
 // static
 PRBool
 nsGenericElement::ShouldBlur(nsIContent *aContent)
 {
   // Determine if the current element is focused, if it is not focused
   // then we should not try to blur
+  PRBool isFocused = PR_FALSE;
+
   nsIDocument *document = aContent->GetDocument();
-  if (!document)
-    return PR_FALSE;
 
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(document->GetWindow());
-  if (!window)
-    return PR_FALSE;
+  if (document) {
+    nsPIDOMWindow *win = document->GetWindow();
 
-  nsCOMPtr<nsPIDOMWindow> focusedFrame;
-  nsIContent* contentToBlur =
-    nsFocusManager::GetFocusedDescendant(window, PR_FALSE, getter_AddRefs(focusedFrame));
-  if (contentToBlur == aContent)
-    return PR_TRUE;
+    if (win) {
+      nsCOMPtr<nsIFocusController> focusController =
+           win->GetRootFocusController();
 
-  // if focus on this element would get redirected, then check the redirected
-  // content as well when blurring.
-  return (contentToBlur && nsFocusManager::GetRedirectedFocus(aContent) == contentToBlur);
+      if (focusController) {
+        nsCOMPtr<nsIDOMElement> focusedElement;
+        focusController->GetFocusedElement(getter_AddRefs(focusedElement));    
+        nsCOMPtr<nsIDOMElement> domElement = do_QueryInterface(aContent);
+        //when the element is the same as the focused element, blur it
+        if (domElement == focusedElement)
+          isFocused = PR_TRUE;
+      }
+    }
+  }
+
+  return isFocused;
 }
 
 nsIContent*
@@ -3246,14 +3315,14 @@ nsGenericElement::doInsertChildAt(nsIContent* aKid, PRUint32 aIndex,
 }
 
 nsresult
-nsGenericElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent)
+nsGenericElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify)
 {
   nsCOMPtr<nsIContent> oldKid = mAttrsAndChildren.GetSafeChildAt(aIndex);
   NS_ASSERTION(oldKid == GetChildAt(aIndex), "Unexpected child in RemoveChildAt");
 
   if (oldKid) {
     return doRemoveChildAt(aIndex, aNotify, oldKid, this, GetCurrentDoc(),
-                           mAttrsAndChildren, aMutationEvent);
+                           mAttrsAndChildren);
   }
 
   return NS_OK;
@@ -3264,8 +3333,7 @@ nsresult
 nsGenericElement::doRemoveChildAt(PRUint32 aIndex, PRBool aNotify,
                                   nsIContent* aKid, nsIContent* aParent,
                                   nsIDocument* aDocument,
-                                  nsAttrAndChildArray& aChildArray,
-                                  PRBool aMutationEvent)
+                                  nsAttrAndChildArray& aChildArray)
 {
   NS_PRECONDITION(aParent || aDocument, "Must have document if no parent!");
   NS_PRECONDITION(!aParent || aParent->GetCurrentDoc() == aDocument,
@@ -3301,7 +3369,6 @@ nsGenericElement::doRemoveChildAt(PRUint32 aIndex, PRBool aNotify,
 
   mozAutoSubtreeModified subtree(nsnull, nsnull);
   if (aNotify &&
-      aMutationEvent &&
       nsContentUtils::HasMutationListeners(aKid,
         NS_EVENT_BITS_MUTATION_NODEREMOVED, container)) {
     mozAutoRemovableBlockerRemover blockerRemover;
@@ -4067,8 +4134,6 @@ NS_INTERFACE_MAP_BEGIN(nsGenericElement)
                                  new nsNodeSupportsWeakRefTearoff(this))
   NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOMNodeSelector,
                                  new nsNodeSelectorTearoff(this))
-  NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOMXPathNSResolver,
-                                 new nsNode3Tearoff(this))
   // nsNodeSH::PreCreate() depends on the identity pointer being the
   // same as nsINode (which nsIContent inherits), so if you change the
   // below line, make sure nsNodeSH::PreCreate() still does the right
@@ -4123,16 +4188,21 @@ nsGenericElement::AddScriptEventListener(nsIAtom* aEventName,
   PRBool defer = PR_TRUE;
   nsCOMPtr<nsIEventListenerManager> manager;
 
-  GetEventListenerManagerForAttr(getter_AddRefs(manager),
-                                 getter_AddRefs(target),
-                                 &defer);
-  NS_ENSURE_STATE(manager);
+  nsresult rv = GetEventListenerManagerForAttr(getter_AddRefs(manager),
+                                               getter_AddRefs(target),
+                                               &defer);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  defer = defer && aDefer; // only defer if everyone agrees...
-  PRUint32 lang = GetScriptTypeID();
-  return
-    manager->AddScriptEventListener(target, aEventName, aValue, lang, defer,
-                                    !nsContentUtils::IsChromeDoc(ownerDoc));
+  if (manager) {
+    defer = defer && aDefer; // only defer if everyone agrees...
+
+    PRUint32 lang = GetScriptTypeID();
+    rv =
+      manager->AddScriptEventListener(target, aEventName, aValue, lang, defer,
+                                      !nsContentUtils::IsChromeDoc(ownerDoc));
+  }
+
+  return rv;
 }
 
 
@@ -4255,7 +4325,9 @@ nsGenericElement::SetAttrAndNotify(PRInt32 aNamespaceID,
   if (aNotify) {
     stateMask = PRUint32(IntrinsicState());
     
-    nsNodeUtils::AttributeWillChange(this, aNamespaceID, aName, modType);
+    if (document) {
+      document->AttributeWillChange(this, aNamespaceID, aName);
+    }
   }
 
   if (aNamespaceID == kNameSpaceID_None) {
@@ -4370,12 +4442,12 @@ nsGenericElement::GetEventListenerManagerForAttr(nsIEventListenerManager** aMana
                                                  nsISupports** aTarget,
                                                  PRBool* aDefer)
 {
-  *aManager = GetListenerManager(PR_TRUE);
+  nsresult rv = GetListenerManager(PR_TRUE, aManager);
+  if (NS_SUCCEEDED(rv)) {
+    NS_ADDREF(*aTarget = static_cast<nsIContent*>(this));
+  }
   *aDefer = PR_TRUE;
-  NS_ENSURE_STATE(*aManager);
-  NS_ADDREF(*aManager);
-  NS_ADDREF(*aTarget = static_cast<nsIContent*>(this));
-  return NS_OK;
+  return rv;
 }
 
 nsGenericElement::nsAttrInfo
@@ -4493,16 +4565,15 @@ nsGenericElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
   
   nsIDocument *document = GetCurrentDoc();    
   mozAutoDocUpdate updateBatch(document, UPDATE_CONTENT_MODEL, aNotify);
+  if (document) {
+    if (kNameSpaceID_XLink == aNameSpaceID && nsGkAtoms::href == aName) {
+      // XLink URI might be changing.
+      document->ForgetLink(this);
+    }
 
-  if (aNotify) {
-    nsNodeUtils::AttributeWillChange(this, aNameSpaceID, aName,
-                                     nsIDOMMutationEvent::REMOVAL);
-  }
-
-  if (document && kNameSpaceID_XLink == aNameSpaceID &&
-      nsGkAtoms::href == aName) {
-    // XLink URI might be changing.
-    document->ForgetLink(this);
+    if (aNotify) {
+      document->AttributeWillChange(this, aNameSpaceID, aName);
+    }
   }
 
   // When notifying, make sure to keep track of states whose value
@@ -4926,15 +4997,28 @@ nsGenericElement::PostHandleEventForLinks(nsEventChainPostVisitor& aVisitor)
         // don't make the link grab the focus if there is no link handler
         nsILinkHandler *handler = aVisitor.mPresContext->GetLinkHandler();
         nsIDocument *document = GetCurrentDoc();
-        if (handler && document) {
-          nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-          if (fm) {
-            nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(this);
-            fm->SetFocus(elem, nsIFocusManager::FLAG_BYMOUSE);
+        if (handler && document && ShouldFocus(this)) {
+          // If the window is not active, do not allow the focus to bring the
+          // window to the front. We update the focus controller, but do nothing
+          // else.
+          nsPIDOMWindow *win = document->GetWindow();
+          if (win) {
+            nsIFocusController *focusController =
+              win->GetRootFocusController();
+            if (focusController) {
+              PRBool isActive = PR_FALSE;
+              focusController->GetActive(&isActive);
+              if (!isActive) {
+                nsCOMPtr<nsIDOMElement> domElement = do_QueryInterface(this);
+                if(domElement)
+                  focusController->SetFocusedElement(domElement);
+                break;
+              }
+            }
           }
-
+  
           aVisitor.mPresContext->EventStateManager()->
-            SetContentState(this, NS_EVENT_STATE_ACTIVE);
+            SetContentState(this, NS_EVENT_STATE_ACTIVE | NS_EVENT_STATE_FOCUS);
         }
       }
     }

@@ -60,7 +60,8 @@
   (DOM_BASE_SCRIPTABLE_FLAGS |                                             \
    nsIXPCScriptable::WANT_NEWRESOLVE |                                     \
    nsIXPCScriptable::WANT_CHECKACCESS |                                    \
-   nsIXPCScriptable::WANT_PRECREATE)
+   nsIXPCScriptable::WANT_PRECREATE |                                      \
+   nsIXPCScriptable::WANT_POSTCREATE)
 
 #define DOM_DEFAULT_SCRIPTABLE_FLAGS                                       \
   (DEFAULT_SCRIPTABLE_FLAGS |                                              \

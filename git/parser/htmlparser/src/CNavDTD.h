@@ -258,8 +258,6 @@ private:
      */
     PRInt32 LastOf(eHTMLTags aTagSet[], PRInt32 aCount) const;
 
-    nsresult HandleToken(CToken* aToken);
-
     /**
      *  This method gets called when a start token has been
      *  encountered in the parse process. If the current container
@@ -296,7 +294,8 @@ private:
     nsresult    HandleAttributeToken(CToken* aToken);
     nsresult    HandleProcessingInstructionToken(CToken* aToken);
     nsresult    HandleDocTypeDeclToken(CToken* aToken);
-    nsresult    BuildNeglectedTarget(eHTMLTags aTarget, eHTMLTokenTypes aType);
+    nsresult    BuildNeglectedTarget(eHTMLTags aTarget, eHTMLTokenTypes aType,
+                                     nsIParser* aParser, nsIContentSink* aSink);
 
     nsresult OpenHTML(const nsCParserNode *aNode);
     nsresult OpenBody(const nsCParserNode *aNode);
@@ -376,13 +375,21 @@ protected:
     PRBool          IsBlockElement(PRInt32 aTagID, PRInt32 aParentID) const;
     PRBool          IsInlineElement(PRInt32 aTagID, PRInt32 aParentID) const;
 
+    PRBool          IsParserInDocWrite() const
+    {
+      NS_ASSERTION(mParser && mParser->PeekContext(),
+                   "Parser must be parsing to use this function");
+
+      return mParser->PeekContext()->mPrevContext != nsnull;
+    }
+    
     nsDeque             mMisplacedContent;
     
     nsCOMPtr<nsIHTMLContentSink> mSink;
     nsTokenAllocator*   mTokenAllocator;
     nsDTDContext*       mBodyContext;
     nsDTDContext*       mTempContext;
-    PRBool              mCountLines;
+    nsParser*           mParser;
     nsITokenizer*       mTokenizer; // weak
    
     nsString            mFilename; 

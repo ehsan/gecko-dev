@@ -1890,8 +1890,7 @@ nsXULTreeBuilder::SortSubtree(nsTreeRows::Subtree* aSubtree)
 
 /* boolean canDrop (in long index, in long orientation); */
 NS_IMETHODIMP
-nsXULTreeBuilder::CanDrop(PRInt32 index, PRInt32 orientation,
-                          nsIDOMDataTransfer* dataTransfer, PRBool *_retval)
+nsXULTreeBuilder::CanDrop(PRInt32 index, PRInt32 orientation, PRBool *_retval)
 {
     *_retval = PR_FALSE;
     if (mObservers) {
@@ -1900,7 +1899,7 @@ nsXULTreeBuilder::CanDrop(PRInt32 index, PRInt32 orientation,
         for (PRUint32 i = 0; i < count; ++i) {
             nsCOMPtr<nsIXULTreeBuilderObserver> observer = do_QueryElementAt(mObservers, i);
             if (observer) {
-                observer->CanDrop(index, orientation, dataTransfer, _retval);
+                observer->CanDrop(index, orientation, _retval);
                 if (*_retval)
                     break;
             }
@@ -1911,7 +1910,7 @@ nsXULTreeBuilder::CanDrop(PRInt32 index, PRInt32 orientation,
 }
 
 NS_IMETHODIMP
-nsXULTreeBuilder::Drop(PRInt32 row, PRInt32 orient, nsIDOMDataTransfer* dataTransfer)
+nsXULTreeBuilder::Drop(PRInt32 row, PRInt32 orient)
 {
     if (mObservers) {
         PRUint32 count;
@@ -1920,9 +1919,9 @@ nsXULTreeBuilder::Drop(PRInt32 row, PRInt32 orient, nsIDOMDataTransfer* dataTran
             nsCOMPtr<nsIXULTreeBuilderObserver> observer = do_QueryElementAt(mObservers, i);
             if (observer) {
                 PRBool canDrop = PR_FALSE;
-                observer->CanDrop(row, orient, dataTransfer, &canDrop);
+                observer->CanDrop(row, orient, &canDrop);
                 if (canDrop)
-                    observer->OnDrop(row, orient, dataTransfer);
+                    observer->OnDrop(row, orient);
             }
         }
     }

@@ -131,7 +131,14 @@ public:
   virtual PRBool GetMatrixPropagation();
   virtual gfxRect GetBBoxContribution(const gfxMatrix &aToBBoxUserspace);
   NS_IMETHOD_(PRBool) IsDisplayContainer() { return PR_TRUE; }
-  NS_IMETHOD_(PRBool) HasValidCoveredRect() { return PR_TRUE; }
+  NS_IMETHOD_(PRBool) HasValidCoveredRect() { return PR_FALSE; }
+
+  // foreignobject public methods
+  /**
+   * @param aPt a point in the app unit coordinate system of the SVG outer frame
+   * Transforms the point to a point in this frame's app unit coordinate system
+   */
+  nsPoint TransformPointFromOuter(nsPoint aPt);
 
   gfxMatrix GetCanvasTM();
 
@@ -143,10 +150,8 @@ protected:
   void DoReflow();
   void RequestReflow(nsIPresShell::IntrinsicDirty aType);
   void UpdateGraphic();
-
-  // Returns GetCanvasTM followed by a scale from CSS px to Dev px. Used for
-  // painting, because children expect to paint to device space, not userspace.
-  gfxMatrix GetCanvasTMForChildren();
+  already_AddRefed<nsIDOMSVGMatrix> GetUnZoomedTMIncludingOffset();
+  nsresult TransformPointFromOuterPx(const nsPoint &aIn, nsPoint* aOut);
   void InvalidateDirtyRect(nsSVGOuterSVGFrame* aOuter,
                            const nsRect& aRect, PRUint32 aFlags);
   void FlushDirtyRegion();
@@ -155,12 +160,10 @@ protected:
   PRBool IsDisabled() const { return mRect.width <= 0 || mRect.height <= 0; }
 
   nsCOMPtr<nsIDOMSVGMatrix> mCanvasTM;
-
-  // Areas dirtied by changes to decendents that are in our document
+  // Damage area due to in-this-doc invalidation
   nsRegion mSameDocDirtyRegion;
-
-  // Areas dirtied by changes to sub-documents embedded by our decendents
-  nsRegion mSubDocDirtyRegion;
+  // Damage area due to cross-doc invalidation
+  nsRegion mCrossDocDirtyRegion;
 
   PRPackedBool mInReflow;
 };

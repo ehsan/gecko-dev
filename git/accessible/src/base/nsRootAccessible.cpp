@@ -60,6 +60,7 @@
 #include "nsIDOMXULPopupElement.h"
 #include "nsIDocument.h"
 #include "nsIEventListenerManager.h"
+#include "nsIFocusController.h"
 #include "nsIFrame.h"
 #include "nsIMenuFrame.h"
 #include "nsIHTMLDocument.h"
@@ -74,7 +75,6 @@
 #include "nsRootAccessible.h"
 #include "nsIDOMNSEventTarget.h"
 #include "nsIDOMDocumentEvent.h"
-#include "nsFocusManager.h"
 
 #ifdef MOZ_XUL
 #include "nsXULTreeAccessible.h"
@@ -234,18 +234,16 @@ nsRootAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 
   nsCOMPtr<nsIDOMWindow> domWin;
   GetWindow(getter_AddRefs(domWin));
-  nsCOMPtr<nsIDocShellTreeItem> dsti = do_GetInterface(domWin);
-  if (dsti) {
-    nsCOMPtr<nsIDocShellTreeItem> root;
-    dsti->GetRootTreeItem(getter_AddRefs(root));
-    nsCOMPtr<nsIDOMWindow> rootWindow = do_GetInterface(root);
-
-    nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
-    if (fm && rootWindow) {
-      nsCOMPtr<nsIDOMWindow> activeWindow;
-      fm->GetActiveWindow(getter_AddRefs(activeWindow));
-      if (activeWindow == rootWindow)
+  nsCOMPtr<nsPIDOMWindow> privateDOMWindow(do_QueryInterface(domWin));
+  if (privateDOMWindow) {
+    nsIFocusController *focusController =
+      privateDOMWindow->GetRootFocusController();
+    if (focusController) {
+      PRBool isActive = PR_FALSE;
+      focusController->GetActive(&isActive);
+      if (isActive) {
         *aExtraState |= nsIAccessibleStates::EXT_STATE_ACTIVE;
+      }
     }
   }
 #ifdef MOZ_XUL
@@ -663,22 +661,19 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
   if (eventType.EqualsLiteral("popuphiding"))
     return HandlePopupHidingEvent(aTargetNode, accessible);
 
-  nsRefPtr<nsAccessible> acc(nsAccUtils::QueryAccessible(accessible));
-  if (!acc)
+  nsCOMPtr<nsPIAccessible> privAcc(do_QueryInterface(accessible));
+  if (!privAcc)
     return NS_OK;
 
 #ifdef MOZ_XUL
   if (isTree) {
-    nsRefPtr<nsXULTreeAccessible> treeAcc =
-      nsAccUtils::QueryAccessibleTree(accessible);
+    nsCOMPtr<nsIAccessibleTreeCache> treeAcc(do_QueryInterface(accessible));
     NS_ASSERTION(treeAcc,
-                 "Accessible for xul:tree isn't nsXULTreeAccessible.");
+                 "Accessible for xul:tree doesn't implement nsIAccessibleTreeCache interface.");
 
     if (treeAcc) {
-      if (eventType.EqualsLiteral("TreeViewChanged")) {
-        treeAcc->TreeViewChanged();
-        return NS_OK;
-      }
+      if (eventType.EqualsLiteral("TreeViewChanged"))
+        return treeAcc->TreeViewChanged();
 
       if (eventType.EqualsLiteral("TreeRowCountChanged"))
         return HandleTreeRowCountChangedEvent(aEvent, treeAcc);
@@ -702,7 +697,7 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
     nsCOMPtr<nsIAccessibleStateChangeEvent> accEvent =
       new nsAccStateChangeEvent(accessible, nsIAccessibleStates::STATE_CHECKED,
                                 PR_FALSE, isEnabled);
-    acc->FireAccessibleEvent(accEvent);
+    privAcc->FireAccessibleEvent(accEvent);
 
     if (isEnabled)
       FireAccessibleFocusEvent(accessible, aTargetNode, aEvent);
@@ -720,7 +715,7 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
                                 nsIAccessibleStates::STATE_CHECKED,
                                 PR_FALSE, isEnabled);
 
-    return acc->FireAccessibleEvent(accEvent);
+    return privAcc->FireAccessibleEvent(accEvent);
   }
 
   nsCOMPtr<nsIAccessible> treeItemAccessible;
@@ -733,14 +728,16 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
       PRInt32 treeIndex = -1;
       multiSelect->GetCurrentIndex(&treeIndex);
       if (treeIndex >= 0) {
-        nsRefPtr<nsXULTreeAccessible> treeCache =
-          nsAccUtils::QueryAccessibleTree(accessible);
-        if (treeCache) {
-          treeCache->GetCachedTreeitemAccessible(treeIndex, nsnull,
-                                                 getter_AddRefs(treeItemAccessible));
-          if (treeItemAccessible)
-            accessible = treeItemAccessible;
+        nsCOMPtr<nsIAccessibleTreeCache> treeCache(do_QueryInterface(accessible));
+        if (!treeCache ||
+            NS_FAILED(treeCache->GetCachedTreeitemAccessible(
+                      treeIndex,
+                      nsnull,
+                      getter_AddRefs(treeItemAccessible))) ||
+                      !treeItemAccessible) {
+          return NS_ERROR_OUT_OF_MEMORY;
         }
+        accessible = treeItemAccessible;
       }
     }
   }
@@ -1071,26 +1068,27 @@ nsRootAccessible::GetRelationByType(PRUint32 aRelationType,
   return NS_OK;
 }
 
-void
-nsRootAccessible::FireDocLoadEvents(PRUint32 aEventType)
+NS_IMETHODIMP nsRootAccessible::FireDocLoadEvents(PRUint32 aEventType)
 {
-  if (IsDefunct())
-    return;
+  if (!mDocument || !mWeakShell) {
+    return NS_OK;  // Document has been shut down
+  }
 
   nsCOMPtr<nsIDocShellTreeItem> docShellTreeItem =
     nsCoreUtils::GetDocShellTreeItemFor(mDOMNode);
   NS_ASSERTION(docShellTreeItem, "No doc shell tree item for document");
-  if (!docShellTreeItem)
-    return;
-
+  NS_ENSURE_TRUE(docShellTreeItem, NS_ERROR_FAILURE);
   PRInt32 contentType;
   docShellTreeItem->GetItemType(&contentType);
-  if (contentType == nsIDocShellTreeItem::typeContent)
-    nsDocAccessibleWrap::FireDocLoadEvents(aEventType); // Content might need to fire event
+  if (contentType == nsIDocShellTreeItem::typeContent) {
+    return nsDocAccessibleWrap::FireDocLoadEvents(aEventType); // Content might need to fire event
+  }
 
   // Root chrome: don't fire event
   mIsContentLoaded = (aEventType == nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_COMPLETE ||
                       aEventType == nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_STOPPED);
+
+  return NS_OK;
 }
 
 nsresult
@@ -1128,8 +1126,9 @@ nsRootAccessible::HandlePopupShownEvent(nsIAccessible *aAccessible)
                                   PR_FALSE, PR_TRUE);
       NS_ENSURE_TRUE(event, NS_ERROR_OUT_OF_MEMORY);
 
-      nsRefPtr<nsAccessible> acc(nsAccUtils::QueryAccessible(comboboxAcc));
-      return acc->FireAccessibleEvent(event);
+      nsCOMPtr<nsPIAccessible> pComboboxAcc(do_QueryInterface(comboboxAcc));
+
+      return pComboboxAcc->FireAccessibleEvent(event);
     }
   }
 
@@ -1172,8 +1171,9 @@ nsRootAccessible::HandlePopupHidingEvent(nsIDOMNode *aNode,
                                 PR_FALSE, PR_FALSE);
     NS_ENSURE_TRUE(event, NS_ERROR_OUT_OF_MEMORY);
 
-    nsRefPtr<nsAccessible> acc(nsAccUtils::QueryAccessible(comboboxAcc));
-    return acc->FireAccessibleEvent(event);
+    nsCOMPtr<nsPIAccessible> pComboboxAcc(do_QueryInterface(comboboxAcc));
+
+    return pComboboxAcc->FireAccessibleEvent(event);
   }
 
   return NS_OK;
@@ -1182,7 +1182,7 @@ nsRootAccessible::HandlePopupHidingEvent(nsIDOMNode *aNode,
 #ifdef MOZ_XUL
 nsresult
 nsRootAccessible::HandleTreeRowCountChangedEvent(nsIDOMEvent *aEvent,
-                                                 nsXULTreeAccessible *aAccessible)
+                                                 nsIAccessibleTreeCache *aAccessible)
 {
   nsCOMPtr<nsIDOMDataContainerEvent> dataEvent(do_QueryInterface(aEvent));
   if (!dataEvent)
@@ -1204,13 +1204,12 @@ nsRootAccessible::HandleTreeRowCountChangedEvent(nsIDOMEvent *aEvent,
   indexVariant->GetAsInt32(&index);
   countVariant->GetAsInt32(&count);
 
-  aAccessible->InvalidateCache(index, count);
-  return NS_OK;
+  return aAccessible->InvalidateCache(index, count);
 }
 
 nsresult
 nsRootAccessible::HandleTreeInvalidatedEvent(nsIDOMEvent *aEvent,
-                                             nsXULTreeAccessible *aAccessible)
+                                             nsIAccessibleTreeCache *aAccessible)
 {
   nsCOMPtr<nsIDOMDataContainerEvent> dataEvent(do_QueryInterface(aEvent));
   if (!dataEvent)
@@ -1242,8 +1241,7 @@ nsRootAccessible::HandleTreeInvalidatedEvent(nsIDOMEvent *aEvent,
   if (endColVariant)
     endColVariant->GetAsInt32(&endCol);
 
-  aAccessible->TreeViewInvalidated(startRow, endRow, startCol, endCol);
-  return NS_OK;
+  return aAccessible->TreeViewInvalidated(startRow, endRow, startCol, endCol);
 }
 #endif
 

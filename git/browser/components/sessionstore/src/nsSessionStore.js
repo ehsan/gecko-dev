@@ -1182,9 +1182,6 @@ SessionStoreService.prototype = {
     }
     entry.ID = aEntry.ID;
     
-    if (aEntry.referrerURI)
-      entry.referrer = aEntry.referrerURI.spec;
-
     if (aEntry.contentType)
       entry.contentType = aEntry.contentType;
     
@@ -2049,8 +2046,6 @@ SessionStoreService.prototype = {
     shEntry.loadType = Ci.nsIDocShellLoadInfo.loadHistory;
     if (aEntry.contentType)
       shEntry.contentType = aEntry.contentType;
-    if (aEntry.referrer) 
-      shEntry.referrerURI = ioService.newURI(aEntry.referrer, null, null);
     
     if (aEntry.cacheKey) {
       var cacheKey = Cc["@mozilla.org/supports-PRUint32;1"].
@@ -2766,7 +2761,7 @@ SessionStoreService.prototype = {
     let normalWindowIndex = 0;
     // try to find a non-popup window in this._closedWindows
     while (normalWindowIndex < this._closedWindows.length &&
-           !!this._closedWindows[normalWindowIndex].isPopup)
+           this._closedWindows[normalWindowIndex].isPopup)
       normalWindowIndex++;
     if (normalWindowIndex >= maxWindowsUndo)
       spliceTo = normalWindowIndex + 1;

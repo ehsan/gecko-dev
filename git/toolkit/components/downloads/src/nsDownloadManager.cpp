@@ -2206,8 +2206,19 @@ nsDownload::SetState(DownloadState aState)
           if (pref)
             pref->GetBoolPref(PREF_BDM_ADDTORECENTDOCS, &addToRecentDocs);
 
-          if (addToRecentDocs)
-            ::SHAddToRecentDocs(SHARD_PATHW, path.get());
+          LPSHELLFOLDER lpShellFolder = NULL;
+          if (addToRecentDocs && SUCCEEDED(::SHGetDesktopFolder(&lpShellFolder))) {
+            PRUnichar *filePath = ToNewUnicode(path);
+            LPITEMIDLIST lpItemIDList = NULL;
+            if (SUCCEEDED(lpShellFolder->ParseDisplayName(NULL, NULL, filePath,
+                                                          NULL, &lpItemIDList,
+                                                          NULL))) {
+              ::SHAddToRecentDocs(SHARD_PIDL, lpItemIDList);
+              ::CoTaskMemFree(lpItemIDList);
+            }
+            nsMemory::Free(filePath);
+            lpShellFolder->Release();
+          }
         }
 
         // On Vista and up, we rely on native security prompting when users

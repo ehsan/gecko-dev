@@ -1036,6 +1036,21 @@ nsParser::GetContentSink()
 }
 
 /**
+ *  Retrieve parsemode from topmost parser context
+ *
+ *  @return  parsemode
+ */
+NS_IMETHODIMP_(nsDTDMode)
+nsParser::GetParseMode()
+{
+  if (mParserContext) {
+    return mParserContext->mDTDMode;
+  }
+  NS_NOTREACHED("no parser context");
+  return eDTDMode_unknown;
+}
+
+/**
  * Determine what DTD mode (and thus what layout nsCompatibility mode)
  * to use for this document based on the first chunk of data received
  * from the network (each parsercontext can have its own mode).  (No,
@@ -1487,57 +1502,6 @@ nsParser::CancelParsingEvents()
 
 ////////////////////////////////////////////////////////////////////////
 
-/**
- * Evalutes EXPR1 and EXPR2 exactly once each, in that order.  Stores the value
- * of EXPR2 in RV is EXPR2 fails, otherwise RV contains the result of EXPR1
- * (which could be success or failure).
- *
- * To understand the motivation for this construct, consider these example
- * methods:
- *
- *   nsresult nsSomething::DoThatThing(nsIWhatever* obj) {
- *     nsresult rv = NS_OK;
- *     ...
- *     return obj->DoThatThing();
- *     NS_ENSURE_SUCCESS(rv, rv);
- *     ...
- *     return rv;
- *   }
- *
- *   void nsCaller::MakeThingsHappen() {
- *     return mSomething->DoThatThing(mWhatever);
- *   }
- *
- * Suppose, for whatever reason*, we want to shift responsibility for calling
- * mWhatever->DoThatThing() from nsSomething::DoThatThing up to
- * nsCaller::MakeThingsHappen.  We might rewrite the two methods as follows:
- *
- *   nsresult nsSomething::DoThatThing() {
- *     nsresult rv = NS_OK;
- *     ...
- *     ...
- *     return rv;
- *   }
- *
- *   void nsCaller::MakeThingsHappen() {
- *     nsresult rv;
- *     PREFER_LATTER_ERROR_CODE(mSomething->DoThatThing(),
- *                              mWhatever->DoThatThing(),
- *                              rv);
- *     return rv;
- *   }
- *
- * *Possible reasons include: nsCaller doesn't want to give mSomething access
- * to mWhatever, nsCaller wants to guarantee that mWhatever->DoThatThing() will
- * be called regardless of how nsSomething::DoThatThing behaves, &c.
- */
-#define PREFER_LATTER_ERROR_CODE(EXPR1, EXPR2, RV) {                          \
-  nsresult RV##__temp = EXPR1;                                                \
-  RV = EXPR2;                                                                 \
-  if (NS_FAILED(RV)) {                                                        \
-    RV = RV##__temp;                                                          \
-  }                                                                           \
-}
 
 /**
  * This gets called just prior to the model actually
@@ -1576,16 +1540,7 @@ nsParser::WillBuildModel(nsString& aFilename)
   nsresult rv = mParserContext->GetTokenizer(mDTD, mSink, tokenizer);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = mDTD->WillBuildModel(*mParserContext, tokenizer, mSink);
-  nsresult sinkResult = mSink->WillBuildModel(mDTD->GetMode());
-  // nsIDTD::WillBuildModel used to be responsible for calling
-  // nsIContentSink::WillBuildModel, but that obligation isn't expressible
-  // in the nsIDTD interface itself, so it's sounder and simpler to give that
-  // responsibility back to the parser. The former behavior of the DTD was to
-  // NS_ENSURE_SUCCESS the sink WillBuildModel call, so if the sink returns
-  // failure we should use sinkResult instead of rv, to preserve the old error
-  // handling behavior of the DTD:
-  return NS_FAILED(sinkResult) ? sinkResult : rv;
+  return mDTD->WillBuildModel(*mParserContext, tokenizer, mSink);
 }
 
 /**
@@ -1605,16 +1560,7 @@ nsParser::DidBuildModel(nsresult anErrorCode)
       PRBool terminated = mInternalState == NS_ERROR_HTMLPARSER_STOPPARSING;
       if (mDTD && mSink &&
           mSink->ReadyToCallDidBuildModel(terminated)) {
-        nsresult dtdResult =  mDTD->DidBuildModel(anErrorCode),
-                sinkResult = mSink->DidBuildModel();
-        // nsIDTD::DidBuildModel used to be responsible for calling
-        // nsIContentSink::DidBuildModel, but that obligation isn't expressible
-        // in the nsIDTD interface itself, so it's sounder and simpler to give
-        // that responsibility back to the parser. The former behavior of the
-        // DTD was to NS_ENSURE_SUCCESS the sink DidBuildModel call, so if the
-        // sink returns failure we should use sinkResult instead of dtdResult,
-        // to preserve the old error handling behavior of the DTD:
-        result = NS_FAILED(sinkResult) ? sinkResult : dtdResult;
+        result = mDTD->DidBuildModel(anErrorCode,PR_TRUE,this,mSink);
       }
 
       //Ref. to bug 61462.
@@ -2126,16 +2072,6 @@ nsParser::Parse(const nsAString& aSourceBuffer,
 
 NS_IMETHODIMP
 nsParser::ParseFragment(const nsAString& aSourceBuffer,
-                        nsISupports* aTargetNode,
-                        nsIAtom* aContextLocalName,
-                        PRInt32 aContextNamespace,
-                        PRBool aQuirks)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsParser::ParseFragment(const nsAString& aSourceBuffer,
                         void* aKey,
                         nsTArray<nsString>& aTagStack,
                         PRBool aXMLMode,
@@ -2307,7 +2243,7 @@ nsParser::ResumeParse(PRBool allowIteration, PRBool aIsFinalChunk,
     }
 
     if (mDTD) {
-      mSink->WillResume();
+      mDTD->WillResumeParse(mSink);
       PRBool theIterationIsOk = PR_TRUE;
 
       while (result == NS_OK && theIterationIsOk) {
@@ -2344,7 +2280,10 @@ nsParser::ResumeParse(PRBool allowIteration, PRBool aIsFinalChunk,
         // If we're told to block the parser, we disable all further parsing
         // (and cache any data coming in) until the parser is re-enabled.
         if (NS_ERROR_HTMLPARSER_BLOCK == result) {
-          mSink->WillInterrupt();
+          if (mDTD) {
+            mDTD->WillInterruptParse(mSink);
+          }
+
           if (mFlags & NS_PARSER_FLAG_PARSER_ENABLED) {
             // If we were blocked by a recursive invocation, don't re-block.
             BlockParser();
@@ -2400,7 +2339,7 @@ nsParser::ResumeParse(PRBool allowIteration, PRBool aIsFinalChunk,
               result = mInternalState;
               aIsFinalChunk = mParserContext &&
                               mParserContext->mStreamListenerState == eOnStop;
-              // ...then intentionally fall through to mSink->WillInterrupt()...
+              // ...then intentionally fall through to WillInterruptParse()...
             }
           }
         }
@@ -2408,7 +2347,9 @@ nsParser::ResumeParse(PRBool allowIteration, PRBool aIsFinalChunk,
         if (theTokenizerResult == kEOF ||
             result == NS_ERROR_HTMLPARSER_INTERRUPTED) {
           result = (result == NS_ERROR_HTMLPARSER_INTERRUPTED) ? NS_OK : result;
-          mSink->WillInterrupt();
+          if (mDTD) {
+            mDTD->WillInterruptParse(mSink);
+          }
         }
       }
     } else {
@@ -2439,13 +2380,7 @@ nsParser::BuildModel()
   if (NS_SUCCEEDED(result)) {
     if (mDTD) {
       MOZ_TIMER_START(mDTDTime);
-      // XXXbenjamn CanInterrupt() and !inDocWrite appear to be covariant.
-      PRBool inDocWrite = !!mParserContext->mPrevContext;
-      result = mDTD->BuildModel(theTokenizer,
-                                // ignore interruptions in document.write
-                                CanInterrupt() && !inDocWrite,
-                                !inDocWrite, // don't count lines in document.write
-                                &mCharset);
+      result = mDTD->BuildModel(this, theTokenizer, nsnull, mSink);
       MOZ_TIMER_STOP(mDTDTime);
     }
   } else {

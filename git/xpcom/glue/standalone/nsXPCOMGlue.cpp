@@ -67,11 +67,13 @@ nsresult XPCOMGlueStartup(const char* xpcomFile)
     if (!xpcomFile)
         xpcomFile = XPCOM_DLL;
     
-    nsresult rv = XPCOMGlueLoad(xpcomFile, &func);
-    if (NS_FAILED(rv))
-        return rv;
 
-    rv = (*func)(&xpcomFunctions, nsnull);
+    func = XPCOMGlueLoad(xpcomFile);
+
+    if (!func)
+        return NS_ERROR_FAILURE;
+
+    nsresult rv = (*func)(&xpcomFunctions, nsnull);
     if (NS_FAILED(rv)) {
         XPCOMGlueUnload();
         return rv;

@@ -335,8 +335,7 @@ nsTreeContentView::IsSorted(PRBool *_retval)
 }
 
 NS_IMETHODIMP
-nsTreeContentView::CanDrop(PRInt32 aIndex, PRInt32 aOrientation,
-                           nsIDOMDataTransfer* aDataTransfer, PRBool *_retval)
+nsTreeContentView::CanDrop(PRInt32 aIndex, PRInt32 aOrientation, PRBool *_retval)
 {
   NS_PRECONDITION(aIndex >= 0 && aIndex < PRInt32(mRows.Length()), "bad index");
   if (aIndex < 0 || aIndex >= PRInt32(mRows.Length()))
@@ -348,7 +347,7 @@ nsTreeContentView::CanDrop(PRInt32 aIndex, PRInt32 aOrientation,
 }
  
 NS_IMETHODIMP
-nsTreeContentView::Drop(PRInt32 aRow, PRInt32 aOrientation, nsIDOMDataTransfer* aDataTransfer)
+nsTreeContentView::Drop(PRInt32 aRow, PRInt32 aOrientation)
 {
   NS_PRECONDITION(aRow >= 0 && aRow < PRInt32(mRows.Length()), "bad row");
   if (aRow < 0 || aRow >= PRInt32(mRows.Length()))

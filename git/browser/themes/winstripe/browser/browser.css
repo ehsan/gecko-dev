@@ -1404,7 +1404,7 @@ tabpanels {
   border: 1px dotted transparent;
 }
 
-.tabbrowser-tab:focus > .tab-text {
+.tabbrowser-tab[selected="true"]:focus > .tab-text {
   border: 1px dotted -moz-DialogText;
 }
 
@@ -1551,6 +1551,7 @@ tabpanels {
 }
 
 .tabs-newtab-button {
+  opacity: .8;
   list-style-image: url(chrome://browser/skin/tabbrowser/newtab.png);
   -moz-image-region: rect(0, 18px, 18px, 0);
 }

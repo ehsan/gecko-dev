@@ -1234,10 +1234,7 @@ public:
     GetWrapperMap() const {return mWrapperMap;}
 
     ClassInfo2WrappedNativeProtoMap*
-    GetWrappedNativeProtoMap(JSBool aMainThreadOnly) const
-        {return aMainThreadOnly ?
-                mMainThreadWrappedNativeProtoMap :
-                mWrappedNativeProtoMap;}
+    GetWrappedNativeProtoMap() const {return mWrappedNativeProtoMap;}
 
     nsXPCComponents*
     GetComponents() const {return mComponents;}
@@ -1343,7 +1340,6 @@ private:
     XPCJSRuntime*                    mRuntime;
     Native2WrappedNativeMap*         mWrappedNativeMap;
     ClassInfo2WrappedNativeProtoMap* mWrappedNativeProtoMap;
-    ClassInfo2WrappedNativeProtoMap* mMainThreadWrappedNativeProtoMap;
     WrappedNative2WrapperMap*        mWrapperMap;
     nsXPCComponents*                 mComponents;
     XPCWrappedNativeScope*           mNext;
@@ -1811,8 +1807,6 @@ public:
 
     void
     SetCallback(nsIXPCScriptable* s) {mCallback = s;}
-    void
-    SetCallback(already_AddRefed<nsIXPCScriptable> s) {mCallback = s;}
 
     void
     SetScriptableShared(XPCNativeScriptableShared* shared) {mShared = shared;}
@@ -1861,9 +1855,6 @@ public:
 
     void
     SetCallback(nsIXPCScriptable* callback) {mCallback = callback;}
-    void
-    SetCallback(already_AddRefed<nsIXPCScriptable> callback)
-      {mCallback = callback;}
 
     void
     SetFlags(const XPCNativeScriptableFlags& flags)  {mFlags = flags;}

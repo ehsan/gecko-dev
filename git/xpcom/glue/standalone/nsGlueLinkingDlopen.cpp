@@ -83,8 +83,8 @@ ReadDependentCB(const char *aDependentLib)
     AppendDependentLib(libHandle);
 }
 
-nsresult
-XPCOMGlueLoad(const char *xpcomFile, GetFrozenFunctionsFunc *func)
+GetFrozenFunctionsFunc
+XPCOMGlueLoad(const char *xpcomFile)
 {
     char xpcomDir[MAXPATHLEN];
     if (realpath(xpcomFile, xpcomDir)) {
@@ -116,14 +116,10 @@ XPCOMGlueLoad(const char *xpcomFile, GetFrozenFunctionsFunc *func)
         (GetFrozenFunctionsFunc) dlsym(libHandle,
                                        LEADING_UNDERSCORE "NS_GetFrozenFunctions");
 
-    if (!sym) { // No symbol found.
+    if (!sym)
         XPCOMGlueUnload();
-        return NS_ERROR_NOT_AVAILABLE;
-    }
 
-    *func = sym;
-
-    return NS_OK;
+    return sym;
 }
 
 void

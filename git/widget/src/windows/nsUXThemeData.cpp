@@ -120,7 +120,7 @@ nsUXThemeData::Initialize()
     CheckForCompositor();
   }
 
-  PRInt32 version = nsWindow::GetWindowsVersion();
+  PRInt32 version = ::GetWindowsVersion();
   sIsXPOrLater = version >= WINXP_VERSION;
   sIsVistaOrLater = version >= VISTA_VERSION;
   Invalidate();

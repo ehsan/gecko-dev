@@ -51,41 +51,34 @@
 
 static char dempty[] = "<null>";
 
-static char *
-jsdtrace_fun_classname(JSFunction *fun)
+char *
+jsdtrace_funcclass_name(JSFunction *fun)
 {
-    return (fun &&
-            !FUN_INTERPRETED(fun) &&
+    return (!FUN_INTERPRETED(fun) &&
             !(fun->flags & JSFUN_TRACEABLE) &&
             FUN_CLASP(fun))
            ? (char *)FUN_CLASP(fun)->name
            : dempty;
 }
 
-static char *
+char *
 jsdtrace_filename(JSStackFrame *fp)
 {
+    while (fp && fp->script == NULL)
+        fp = fp->down;
     return (fp && fp->script && fp->script->filename)
            ? (char *)fp->script->filename
            : dempty;
 }
 
-static int
-jsdtrace_fun_linenumber(JSContext *cx, JSFunction *fun)
-{
-    if (fun && FUN_INTERPRETED(fun))
-        return (int) JS_GetScriptBaseLineNumber(cx, FUN_SCRIPT(fun));
-
-    return 0;
-}
-
 int
-jsdtrace_frame_linenumber(JSContext *cx, JSStackFrame *fp)
+jsdtrace_linenumber(JSContext *cx, JSStackFrame *fp)
 {
-    if (fp && fp->regs)
-        return (int) js_FramePCToLineNumber(cx, fp);
-
-    return 0;
+    while (fp && fp->script == NULL)
+        fp = fp->down;
+    return (fp && fp->regs)
+           ? (int) js_PCToLineNumber(cx, fp->script, fp->regs->pc)
+           : -1;
 }
 
 /*
@@ -108,7 +101,7 @@ jsdtrace_frame_linenumber(JSContext *cx, JSStackFrame *fp)
  * This is used by the function-args and function-rval probes, which also
  * provide raw (unmasked) jsvals should type info be useful from D scripts.
  */
-static void *
+void *
 jsdtrace_jsvaltovoid(JSContext *cx, jsval argval)
 {
     JSType type = TYPEOF(cx, argval);
@@ -135,23 +128,68 @@ jsdtrace_jsvaltovoid(JSContext *cx, jsval argval)
     /* NOTREACHED */
 }
 
-static char *
-jsdtrace_fun_name(JSContext *cx, JSFunction *fun)
+char *
+jsdtrace_function_name(JSContext *cx, JSStackFrame *fp, JSFunction *fun)
 {
     JSAtom *atom;
+    JSFrameRegs *regs;
+    JSScript *script;
+    jsbytecode *pc;
     char *name;
-
-    if (!fun)
-        return dempty;
 
     atom = fun->atom;
     if (!atom) {
+        if (fp->fun != fun || !fp->down)
+            return dempty;
+
+        regs = fp->down->regs;
+        if (!regs)
+            return dempty;
+
         /*
-         * TODO: maybe do more work here to figure out the name of the property
-         * or variable that held the anonymous function that we're calling, if anyone
-         * cares; an easy workaround is to just give your anonymous functions names.
+         * An anonymous function called from an active script or interpreted
+         * function: try to fetch the variable or property name by which the
+         * anonymous function was invoked.
          */
-        return dempty;
+        pc = regs->pc;
+        script = fp->down->script;
+        switch ((JSOp) *pc) {
+          case JSOP_CALL:
+          case JSOP_EVAL:
+            JS_ASSERT(fp->argv == regs->sp - (int)GET_ARGC(pc));
+
+            /*
+             * FIXME bug 422864: update this code to use the pc stack from the
+             * decompiler.
+             */
+            break;
+          default: ;
+        }
+
+        switch ((JSOp) *pc) {
+          case JSOP_CALLNAME:
+          case JSOP_CALLPROP:
+          case JSOP_NAME:
+          case JSOP_SETNAME:
+          case JSOP_GETPROP:
+          case JSOP_SETPROP:
+            GET_ATOM_FROM_BYTECODE(script, pc, 0, atom);
+            break;
+
+          case JSOP_CALLELEM:
+          case JSOP_GETELEM:
+          case JSOP_SETELEM:
+          case JSOP_CALLGVAR:
+          case JSOP_GETGVAR:
+          case JSOP_SETGVAR:
+          case JSOP_CALLARG:
+          case JSOP_CALLLOCAL:
+            /* FIXME: try to recover a name from these ops. */
+            /* FALL THROUGH */
+
+          default:
+            return dempty;
+        }
     }
 
     name = (char *)js_GetStringBytes(cx, ATOM_TO_STRING(atom));
@@ -170,8 +208,8 @@ jsdtrace_function_entry(JSContext *cx, JSStackFrame *fp, JSFunction *fun)
 {
     JAVASCRIPT_FUNCTION_ENTRY(
         jsdtrace_filename(fp),
-        jsdtrace_fun_classname(fun),
-        jsdtrace_fun_name(cx, fun)
+        jsdtrace_funcclass_name(fun),
+        jsdtrace_function_name(cx, fp, fun)
     );
 }
 
@@ -181,40 +219,39 @@ jsdtrace_function_info(JSContext *cx, JSStackFrame *fp, JSStackFrame *dfp,
 {
     JAVASCRIPT_FUNCTION_INFO(
         jsdtrace_filename(fp),
-        jsdtrace_fun_classname(fun),
-        jsdtrace_fun_name(cx, fun),
-        jsdtrace_fun_linenumber(cx, fun),
+        jsdtrace_funcclass_name(fun),
+        jsdtrace_function_name(cx, fp, fun),
+        fp->script->lineno,
         jsdtrace_filename(dfp),
-        jsdtrace_frame_linenumber(cx, dfp)
+        jsdtrace_linenumber(cx, dfp)
     );
 }
 
 void
-jsdtrace_function_args(JSContext *cx, JSStackFrame *fp, JSFunction *fun, jsuint argc, jsval *argv)
+jsdtrace_function_args(JSContext *cx, JSStackFrame *fp, JSFunction *fun)
 {
     JAVASCRIPT_FUNCTION_ARGS(
         jsdtrace_filename(fp),
-        jsdtrace_fun_classname(fun),
-        jsdtrace_fun_name(cx, fun),
-        argc, (void *)argv,
-        (argc > 0) ? jsdtrace_jsvaltovoid(cx, argv[0]) : 0,
-        (argc > 1) ? jsdtrace_jsvaltovoid(cx, argv[1]) : 0,
-        (argc > 2) ? jsdtrace_jsvaltovoid(cx, argv[2]) : 0,
-        (argc > 3) ? jsdtrace_jsvaltovoid(cx, argv[3]) : 0,
-        (argc > 4) ? jsdtrace_jsvaltovoid(cx, argv[4]) : 0
+        jsdtrace_funcclass_name(fun),
+        jsdtrace_function_name(cx, fp, fun),
+        fp->argc, (void *)fp->argv,
+        (fp->argc > 0) ? jsdtrace_jsvaltovoid(cx, fp->argv[0]) : 0,
+        (fp->argc > 1) ? jsdtrace_jsvaltovoid(cx, fp->argv[1]) : 0,
+        (fp->argc > 2) ? jsdtrace_jsvaltovoid(cx, fp->argv[2]) : 0,
+        (fp->argc > 3) ? jsdtrace_jsvaltovoid(cx, fp->argv[3]) : 0,
+        (fp->argc > 4) ? jsdtrace_jsvaltovoid(cx, fp->argv[4]) : 0
     );
 }
 
 void
-jsdtrace_function_rval(JSContext *cx, JSStackFrame *fp, JSFunction *fun, jsval *rval)
+jsdtrace_function_rval(JSContext *cx, JSStackFrame *fp, JSFunction *fun)
 {
     JAVASCRIPT_FUNCTION_RVAL(
         jsdtrace_filename(fp),
-        jsdtrace_fun_classname(fun),
-        jsdtrace_fun_name(cx, fun),
-        jsdtrace_fun_linenumber(cx, fun),
-        (void *)rval,
-        jsdtrace_jsvaltovoid(cx, *rval)
+        jsdtrace_funcclass_name(fun),
+        jsdtrace_function_name(cx, fp, fun),
+        jsdtrace_linenumber(cx, fp), (void *)fp->rval,
+        jsdtrace_jsvaltovoid(cx, fp->rval)
     );
 }
 
@@ -223,8 +260,8 @@ jsdtrace_function_return(JSContext *cx, JSStackFrame *fp, JSFunction *fun)
 {
     JAVASCRIPT_FUNCTION_RETURN(
         jsdtrace_filename(fp),
-        jsdtrace_fun_classname(fun),
-        jsdtrace_fun_name(cx, fun)
+        jsdtrace_funcclass_name(fun),
+        jsdtrace_function_name(cx, fp, fun)
     );
 }
 
@@ -247,7 +284,7 @@ jsdtrace_object_create(JSContext *cx, JSClass *clasp, JSObject *obj)
         jsdtrace_filename(cx->fp),
         (char *)clasp->name,
         (uintptr_t)obj,
-        jsdtrace_frame_linenumber(cx, cx->fp)
+        jsdtrace_linenumber(cx, cx->fp)
     );
 }
 

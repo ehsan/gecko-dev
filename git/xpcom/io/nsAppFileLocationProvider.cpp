@@ -231,12 +231,7 @@ nsAppFileLocationProvider::GetFile(const char *prop, PRBool *persistent, nsIFile
     }
 #ifdef XP_UNIX
     else if (nsCRT::strcmp(prop, NS_SYSTEM_PLUGINS_DIR) == 0) {
-        static const char *const sysLPlgDir = 
-#if defined(HAVE_USR_LIB64_DIR) && defined(__LP64__)
-          "/usr/lib64/mozilla/plugins";
-#else
-          "/usr/lib/mozilla/plugins";
-#endif
+        static const char *const sysLPlgDir = "/usr/lib/mozilla/plugins";
         rv = NS_NewNativeLocalFile(nsDependentCString(sysLPlgDir),
                                    PR_FALSE, getter_AddRefs(localFile));
     }

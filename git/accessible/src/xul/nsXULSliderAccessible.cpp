@@ -188,11 +188,15 @@ nsXULSliderAccessible::SetCurrentValue(double aValue)
   return SetSliderAttr(nsAccessibilityAtoms::curpos, aValue);
 }
 
-PRBool
-nsXULSliderAccessible::GetAllowsAnonChildAccessibles()
+// nsPIAccessible
+NS_IMETHODIMP
+nsXULSliderAccessible::GetAllowsAnonChildAccessibles(PRBool *aAllowsAnonChildren)
 {
+  NS_ENSURE_ARG_POINTER(aAllowsAnonChildren);
+
   // Do not allow anonymous xul:slider be accessible.
-  return PR_FALSE;
+  *aAllowsAnonChildren = PR_FALSE;
+  return NS_OK;
 }
 
 // Utils

@@ -224,13 +224,22 @@ var gEngineManagerDialog = {
   }
 };
 
-function onDragEngineStart(event) {
-  var selectedIndex = gEngineView.selectedIndex;
-  if (selectedIndex > 0) {
-    event.dataTransfer.setData(ENGINE_FLAVOR, selectedIndex.toString());
-    event.dataTransfer.effectAllowed = "move";
-  }
-}
+var gDragObserver = {
+  onDragStart: function (aEvent, aXferData, aDragAction) {
+    var selectedIndex = gEngineView.selectedIndex;
+    if (selectedIndex == -1)
+      return;
+
+    aXferData.data = new TransferData();
+    aXferData.data.addDataForFlavour(ENGINE_FLAVOR, selectedIndex.toString());
+
+    aDragAction.action = Ci.nsIDragService.DRAGDROP_ACTION_MOVE;
+  },
+  onDrop: function (aEvent, aXferData, aDragSession) { },
+  onDragExit: function (aEvent, aDragSession) { },
+  onDragOver: function (aEvent, aFlavour, aDragSession) { },
+  getSupportedFlavours: function() { return null; }
+};
 
 // "Operation" objects
 function EngineMoveOp(aEngineClone, aNewIndex) {

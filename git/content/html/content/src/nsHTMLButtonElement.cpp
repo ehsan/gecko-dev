@@ -60,7 +60,6 @@
 #include "nsEventDispatcher.h"
 #include "nsPresState.h"
 #include "nsLayoutErrors.h"
-#include "nsFocusManager.h"
 
 #define NS_IN_SUBMIT_CLICK      (1 << 0)
 #define NS_OUTER_ACTIVATE_EVENT (1 << 1)
@@ -111,6 +110,7 @@ public:
                                  const nsAString* aValue, PRBool aNotify);
   
   // nsIContent overrides...
+  virtual void SetFocus(nsPresContext* aPresContext);
   virtual PRBool IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex);
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
@@ -193,13 +193,21 @@ NS_IMPL_STRING_ATTR_DEFAULT_VALUE(nsHTMLButtonElement, Type, type, "submit")
 NS_IMETHODIMP
 nsHTMLButtonElement::Blur()
 {
-  return nsGenericHTMLElement::Blur();
+  if (ShouldBlur(this)) {
+    SetElementFocus(PR_FALSE);
+  }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsHTMLButtonElement::Focus()
 {
-  return nsGenericHTMLElement::Focus();
+  if (ShouldFocus(this)) {
+    SetElementFocus(PR_TRUE);
+  }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -246,9 +254,15 @@ nsHTMLButtonElement::IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex)
     *aTabIndex = -1;
   }
 
-  *aIsFocusable = !HasAttr(kNameSpaceID_None, nsGkAtoms::disabled);
+  *aIsFocusable = PR_TRUE;
 
   return PR_FALSE;
+}
+
+void
+nsHTMLButtonElement::SetFocus(nsPresContext* aPresContext)
+{
+  DoSetFocus(aPresContext);
 }
 
 static const nsAttrValue::EnumTable kButtonTypeTable[] = {
@@ -390,11 +404,7 @@ nsHTMLButtonElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
             if (static_cast<nsMouseEvent*>(aVisitor.mEvent)->button ==
                   nsMouseEvent::eLeftButton) {
               aVisitor.mPresContext->EventStateManager()->
-                SetContentState(this, NS_EVENT_STATE_ACTIVE);
-              nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-              if (fm)
-                fm->SetFocus(this, nsIFocusManager::FLAG_BYMOUSE |
-                                   nsIFocusManager::FLAG_NOSCROLL);
+                SetContentState(this, NS_EVENT_STATE_ACTIVE | NS_EVENT_STATE_FOCUS);
               aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
             } else if (static_cast<nsMouseEvent*>(aVisitor.mEvent)->button ==
                          nsMouseEvent::eMiddleButton ||

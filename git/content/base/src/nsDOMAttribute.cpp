@@ -105,9 +105,9 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 // QueryInterface implementation for nsDOMAttribute
 NS_INTERFACE_TABLE_HEAD(nsDOMAttribute)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
-  NS_NODE_INTERFACE_TABLE8(nsDOMAttribute, nsIDOMAttr, nsIAttribute, nsINode,
+  NS_NODE_INTERFACE_TABLE7(nsDOMAttribute, nsIDOMAttr, nsIAttribute, nsINode,
                            nsIDOMNode, nsIDOM3Node, nsIDOM3Attr,
-                           nsPIDOMEventTarget, nsIDOMXPathNSResolver)
+                           nsPIDOMEventTarget)
   NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsDOMAttribute)
   NS_INTERFACE_MAP_ENTRY_TEAROFF(nsISupportsWeakReference,
                                  new nsNodeSupportsWeakRefTearoff(this))
@@ -699,9 +699,8 @@ nsDOMAttribute::AppendChildTo(nsIContent* aKid, PRBool aNotify)
 }
 
 nsresult
-nsDOMAttribute::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent)
+nsDOMAttribute::RemoveChildAt(PRUint32 aIndex, PRBool aNotify)
 {
-  NS_ASSERTION(aMutationEvent, "Someone tried to inhibit mutations on attribute child removal.");
   if (aIndex != 0 || !mChild) {
     return NS_OK;
   }
@@ -758,37 +757,46 @@ nsDOMAttribute::DispatchDOMEvent(nsEvent* aEvent, nsIDOMEvent* aDOMEvent,
                                              aPresContext, aEventStatus);
 }
 
-nsIEventListenerManager*
-nsDOMAttribute::GetListenerManager(PRBool aCreateIfNotFound)
+nsresult
+nsDOMAttribute::GetListenerManager(PRBool aCreateIfNotFound,
+                                   nsIEventListenerManager** aResult)
 {
-  return nsContentUtils::GetListenerManager(this, aCreateIfNotFound);
+  return nsContentUtils::GetListenerManager(this, aCreateIfNotFound, aResult);
 }
 
 nsresult
 nsDOMAttribute::AddEventListenerByIID(nsIDOMEventListener *aListener,
                                       const nsIID& aIID)
 {
-  nsIEventListenerManager* elm = GetListenerManager(PR_TRUE);
-  NS_ENSURE_STATE(elm);
-  return elm->AddEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE);
+  nsCOMPtr<nsIEventListenerManager> elm;
+  nsresult rv = GetListenerManager(PR_TRUE, getter_AddRefs(elm));
+  if (elm) {
+    return elm->AddEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE);
+  }
+  return rv;
 }
 
 nsresult
 nsDOMAttribute::RemoveEventListenerByIID(nsIDOMEventListener *aListener,
                                          const nsIID& aIID)
 {
-  nsIEventListenerManager* elm = GetListenerManager(PR_FALSE);
-  return elm ? 
-    elm->RemoveEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE) :
-    NS_OK;
+  nsCOMPtr<nsIEventListenerManager> elm;
+  GetListenerManager(PR_FALSE, getter_AddRefs(elm));
+  if (elm) {
+    return elm->RemoveEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE);
+  }
+  return NS_OK;
 }
 
 nsresult
 nsDOMAttribute::GetSystemEventGroup(nsIDOMEventGroup** aGroup)
 {
-  nsIEventListenerManager* elm = GetListenerManager(PR_TRUE);
-  NS_ENSURE_STATE(elm);
-  return elm->GetSystemEventGroupLM(aGroup);
+  nsCOMPtr<nsIEventListenerManager> elm;
+  nsresult rv = GetListenerManager(PR_TRUE, getter_AddRefs(elm));
+  if (elm) {
+    return elm->GetSystemEventGroupLM(aGroup);
+  }
+  return rv;
 }
 
 nsresult

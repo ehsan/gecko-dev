@@ -70,13 +70,13 @@ NSSCleanupAutoPtrClass_WithParam(SECItem, SECITEM_FreeItem, TrueParam, PR_TRUE)
 
 struct nsMyTrustedEVInfo
 {
-  const char *dotted_oid;
-  const char *oid_name; // Set this to null to signal an invalid structure,
+  char *dotted_oid;
+  char *oid_name; // Set this to null to signal an invalid structure,
                   // (We can't have an empty list, so we'll use a dummy entry)
   SECOidTag oid_tag;
-  const char *ev_root_sha1_fingerprint;
-  const char *issuer_base64;
-  const char *serial_base64;
+  char *ev_root_sha1_fingerprint;
+  char *issuer_base64;
+  char *serial_base64;
   CERTCertificate *cert;
 };
 
@@ -454,12 +454,11 @@ nsMyTrustedEVInfoClass::nsMyTrustedEVInfoClass()
 
 nsMyTrustedEVInfoClass::~nsMyTrustedEVInfoClass()
 {
-  // Cast away const-ness in order to free these strings
-  free(const_cast<char*>(dotted_oid));
-  free(const_cast<char*>(oid_name));
-  free(const_cast<char*>(ev_root_sha1_fingerprint));
-  free(const_cast<char*>(issuer_base64));
-  free(const_cast<char*>(serial_base64));
+  free(dotted_oid);
+  free(oid_name);
+  free(ev_root_sha1_fingerprint);
+  free(issuer_base64);
+  free(serial_base64);
   if (cert)
     CERT_DestroyCertificate(cert);
 }

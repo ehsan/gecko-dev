@@ -607,7 +607,7 @@ nsNavHistory::Init()
     rv = NS_GetSpecialDirectory(NS_APP_HISTORY_50_FILE,
                                 getter_AddRefs(historyFile));
     if (NS_SUCCEEDED(rv) && historyFile) {
-      (void)ImportHistory(historyFile);
+      ImportHistory(historyFile);
     }
   }
 
@@ -729,7 +729,7 @@ nsNavHistory::InitDBFile(PRBool aForceInit)
 // nsNavHistory::InitDB
 //
 
-#define PLACES_SCHEMA_VERSION 10
+#define PLACES_SCHEMA_VERSION 9
 
 nsresult
 nsNavHistory::InitDB()
@@ -891,13 +891,7 @@ nsNavHistory::InitDB()
         NS_ENSURE_SUCCESS(rv, rv);
       }
 
-      // Migrate places up to V10
-      if (DBSchemaVersion < 10) {
-        rv = MigrateV10Up(mDBConn);
-        NS_ENSURE_SUCCESS(rv, rv);
-      }
-
-      // Schema Upgrades must add migration code here.
+      // XXX Upgrades >V9 must add migration code here.
 
     } else {
       // Downgrading
@@ -1871,19 +1865,6 @@ nsNavHistory::MigrateV9Up(mozIStorageConnection *aDBConn)
   }
 
   return transaction.Commit();
-}
-
-nsresult
-nsNavHistory::MigrateV10Up(mozIStorageConnection *aDBConn)
-{
-  // LastModified is set to the same value as dateAdded on item creation.
-  // This way we can use lastModified index to sort.
-  nsresult rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-      "UPDATE moz_bookmarks SET lastModified = dateAdded "
-      "WHERE lastModified IS NULL"));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
 }
    
 // nsNavHistory::GetUrlIdFor
@@ -3282,18 +3263,17 @@ PlacesSQLQueryBuilder::SelectAsURI()
         "WHERE 1 "
           "{QUERY_OPTIONS_VISITS} {QUERY_OPTIONS_PLACES} "
           "{ADDITIONAL_CONDITIONS} "
-        "GROUP BY h.id "
-        "UNION ALL "
+        "UNION "
         "SELECT h.id, h.url, h.title, h.rev_host, h.visit_count, "
         "h.last_visit_date, f.url, v.session, null "
         "FROM moz_places_temp h "
         "JOIN moz_historyvisits v ON h.id = v.place_id "
         "LEFT JOIN moz_favicons f ON h.favicon_id = f.id "
-        "WHERE h.id NOT IN (SELECT place_id FROM moz_historyvisits_temp) "
+        // WHERE 1 is a no-op since additonal conditions will start with AND.
+        "WHERE 1 "
           "{QUERY_OPTIONS_VISITS} {QUERY_OPTIONS_PLACES} "
           "{ADDITIONAL_CONDITIONS} "
-        "GROUP BY h.id "
-        "UNION ALL "
+        "UNION "
         "SELECT h.id, h.url, h.title, h.rev_host, h.visit_count, "
         "h.last_visit_date, f.url, v.session, null "
         "FROM moz_places h "
@@ -3302,15 +3282,13 @@ PlacesSQLQueryBuilder::SelectAsURI()
         "WHERE h.id NOT IN (SELECT id FROM moz_places_temp) "
           "{QUERY_OPTIONS_VISITS} {QUERY_OPTIONS_PLACES} "
           "{ADDITIONAL_CONDITIONS} "
-        "GROUP BY h.id "
-        "UNION ALL "
+        "UNION "
         "SELECT h.id, h.url, h.title, h.rev_host, h.visit_count, "
         "h.last_visit_date, f.url, v.session, null "
         "FROM moz_places h "
         "JOIN moz_historyvisits v ON h.id = v.place_id "
         "LEFT JOIN moz_favicons f ON h.favicon_id = f.id "
         "WHERE h.id NOT IN (SELECT id FROM moz_places_temp) "
-          "AND h.id NOT IN (SELECT place_id FROM moz_historyvisits_temp) "
           "{QUERY_OPTIONS_VISITS} {QUERY_OPTIONS_PLACES} "
           "{ADDITIONAL_CONDITIONS} "
         "GROUP BY h.id ");
@@ -3336,34 +3314,34 @@ PlacesSQLQueryBuilder::SelectAsURI()
             "h.visit_count, h.last_visit_date, f.url, null, b2.id, "
             "b2.dateAdded, b2.lastModified "
           "FROM moz_bookmarks b2 "
-          "JOIN (SELECT b.fk "
-                "FROM moz_bookmarks b "
-                // ADDITIONAL_CONDITIONS will filter on parent.
-                "WHERE b.type = 1 {ADDITIONAL_CONDITIONS} "
-                ") AS seed ON b2.fk = seed.fk "
-          "JOIN moz_places_temp h ON h.id = b2.fk "
+          "JOIN moz_places_temp h ON b2.fk = h.id AND b2.type = 1 "
           "LEFT OUTER JOIN moz_favicons f ON h.favicon_id = f.id "
-          "WHERE NOT EXISTS ( "
-            "SELECT id FROM moz_bookmarks WHERE id = b2.parent AND parent = ") +
+          "WHERE b2.id IN ( "
+            "SELECT b1.id FROM moz_bookmarks b1 "
+            "WHERE b1.fk IN "
+              "(SELECT b.fk FROM moz_bookmarks b WHERE b.type = 1 {ADDITIONAL_CONDITIONS}) "
+            "AND NOT EXISTS ( "
+              "SELECT id FROM moz_bookmarks WHERE id = b1.parent AND parent = ") +
                 nsPrintfCString("%lld", history->GetTagsFolder()) +
-          NS_LITERAL_CSTRING(") "
+              NS_LITERAL_CSTRING(") "
+          ") "
           "UNION ALL "
           "SELECT b2.fk, h.url, COALESCE(b2.title, h.title), h.rev_host, "
             "h.visit_count, h.last_visit_date, f.url, null, b2.id, "
             "b2.dateAdded, b2.lastModified "
           "FROM moz_bookmarks b2 "
-          "JOIN (SELECT b.fk "
-                "FROM moz_bookmarks b "
-                // ADDITIONAL_CONDITIONS will filter on parent.
-                "WHERE b.type = 1 {ADDITIONAL_CONDITIONS} "
-                ") AS seed ON b2.fk = seed.fk "
-          "JOIN moz_places h ON h.id = b2.fk "
+          "JOIN moz_places h ON b2.fk = h.id AND b2.type = 1 "
           "LEFT OUTER JOIN moz_favicons f ON h.favicon_id = f.id "
-          "WHERE NOT EXISTS ( "
-            "SELECT id FROM moz_bookmarks WHERE id = b2.parent AND parent = ") +
+          "WHERE b2.id IN ( "
+            "SELECT b1.id FROM moz_bookmarks b1 "
+            "WHERE h.id NOT IN (SELECT id FROM moz_places_temp) "
+            "AND b1.fk IN "
+              "(SELECT b.fk FROM moz_bookmarks b WHERE b.type = 1 {ADDITIONAL_CONDITIONS}) "
+            "AND NOT EXISTS ( "
+              "SELECT id FROM moz_bookmarks WHERE id = b1.parent AND parent = ") +
                 nsPrintfCString("%lld", history->GetTagsFolder()) +
-          NS_LITERAL_CSTRING(") "
-            "AND h.id NOT IN (SELECT id FROM moz_places_temp) "
+              NS_LITERAL_CSTRING(") "
+          ") "          
           "ORDER BY b2.fk DESC, b2.lastModified DESC");
       }
       else {
@@ -7557,7 +7535,8 @@ nsNavHistory::CalculateFrecencyInternal(PRInt64 aPlaceId,
           break;
         default:
           // 0 == undefined (see bug #375777 for details)
-          NS_WARN_IF_FALSE(!visitType, "new transition but no weight for frecency");
+          if (visitType)
+            NS_WARNING("new transition but no weight for frecency");
           bonus = mDefaultVisitBonus;
           break;
       }

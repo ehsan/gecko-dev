@@ -55,7 +55,6 @@
 #include "nsILocalFileOS2.h"
 #include "nsIDocument.h"
 #include "nsGUIEvent.h"
-#include "nsISelection.h"
 
 // --------------------------------------------------------------------------
 // Local defines
@@ -237,13 +236,8 @@ NS_IMETHODIMP nsDragService::InvokeDragSession(nsIDOMNode *aDOMNode,
     dragimage.hImage  = WinQuerySysPointer(HWND_DESKTOP, SPTR_FILE, FALSE);
     
   mDoingDrag = PR_TRUE;
-  LONG escState = WinGetKeyState(HWND_DESKTOP, VK_ESC) & 0x01;
   HWND hwndDest = DrgDrag(mDragWnd, pDragInfo, &dragimage, 1, VK_BUTTON2,
                   (void*)0x80000000L); // Don't lock the desktop PS
-
-    // determine whether the drag ended because Escape was pressed
-  if (hwndDest == 0 && (WinGetKeyState(HWND_DESKTOP, VK_ESC) & 0x01) != escState)
-    mUserCancelled = PR_TRUE;
   FireDragEventAtSource(NS_DRAGDROP_END);
   mDoingDrag = PR_FALSE;
 
@@ -253,23 +247,11 @@ NS_IMETHODIMP nsDragService::InvokeDragSession(nsIDOMNode *aDOMNode,
       DrgDeleteDraginfoStrHandles(pDragInfo);
   DrgFreeDraginfo(pDragInfo);
 
-    // reset nsDragService's members
+  mSourceNode = 0;
+  mSourceDocument = 0;
   mSourceDataItems = 0;
   mSourceData = 0;
   mMimeType = 0;
-
-    // reset nsBaseDragService's members
-  mSourceDocument = nsnull;
-  mSourceNode = nsnull;
-  mSelection = nsnull;
-  mDataTransfer = nsnull;
-  mUserCancelled = PR_FALSE;
-  mHasImage = PR_FALSE;
-  mImage = nsnull;
-  mImageX = 0;
-  mImageY = 0;
-  mScreenX = -1;
-  mScreenY = -1;
 
   return NS_OK;
 }
@@ -1028,7 +1010,6 @@ NS_IMETHODIMP nsDragService::ExitSession(PRUint32* dragFlags)
 
   if (!mSourceNode) {
     mSourceDataItems = 0;
-    mDataTransfer = 0;
     mDoingDrag = FALSE;
 
       // if we created a temp file, delete it
@@ -1096,12 +1077,11 @@ NS_IMETHODIMP nsDragService::DropMsg(PDRAGINFO pdinfo, HWND hwnd,
     // otherwise, set the flags & free the native drag structures
 
     *dragFlags = DND_EXITSESSION;
-    if (NS_SUCCEEDED(rv)) {
+    if (NS_SUCCEEDED(rv))
       if (mSourceNode)
         *dragFlags |= DND_DISPATCHEVENT | DND_INDROP | DND_MOZDRAG;
       else
         *dragFlags |= DND_DISPATCHEVENT | DND_INDROP | DND_NATIVEDRAG;
-    }
 
     DrgDeleteDraginfoStrHandles(pdinfo);
     DrgFreeDraginfo(pdinfo);
@@ -1437,7 +1417,7 @@ nsresult RenderToOS2File( PDRAGITEM pditem, HWND hwnd)
   nsXPIDLCString fileName;
 
   if (NS_SUCCEEDED(GetTempFileName(getter_Copies(fileName)))) {
-    const char * pszRMF;
+    char * pszRMF;
     if (DrgVerifyRMF(pditem, "DRM_OS2FILE", "DRF_TEXT"))
       pszRMF = OS2FILE_TXTRMF;
     else

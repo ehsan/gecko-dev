@@ -162,11 +162,6 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsCPrefetchService.h"
 #include "nsIChromeRegistry.h"
 #include "nsIMIMEHeaderParam.h"
-#include "nsIDOMXULCommandEvent.h"
-#include "nsIDOMAbstractView.h"
-#include "nsIDOMDragEvent.h"
-#include "nsDOMDataTransfer.h"
-#include "nsHtml5Module.h"
 
 #ifdef IBMBIDI
 #include "nsIBidiKeyboard.h"
@@ -179,7 +174,6 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsIConsoleService.h"
 
 #include "mozAutoDocUpdate.h"
-#include "jsinterp.h"
 
 const char kLoadAsData[] = "loadAsData";
 
@@ -3395,7 +3389,8 @@ nsContentUtils::HasMutationListeners(nsINode* aNode,
   if (aNode->IsInDoc()) {
     nsCOMPtr<nsPIDOMEventTarget> piTarget(do_QueryInterface(window));
     if (piTarget) {
-      nsIEventListenerManager* manager = piTarget->GetListenerManager(PR_FALSE);
+      nsCOMPtr<nsIEventListenerManager> manager;
+      piTarget->GetListenerManager(PR_FALSE, getter_AddRefs(manager));
       if (manager) {
         PRBool hasListeners = PR_FALSE;
         manager->HasMutationListeners(&hasListeners);
@@ -3410,7 +3405,8 @@ nsContentUtils::HasMutationListeners(nsINode* aNode,
   // might not be in our chain.  If we don't have a window, we might have a
   // mutation listener.  Check quickly to see.
   while (aNode) {
-    nsIEventListenerManager* manager = aNode->GetListenerManager(PR_FALSE);
+    nsCOMPtr<nsIEventListenerManager> manager;
+    aNode->GetListenerManager(PR_FALSE, getter_AddRefs(manager));
     if (manager) {
       PRBool hasListeners = PR_FALSE;
       manager->HasMutationListeners(&hasListeners);
@@ -3454,19 +3450,22 @@ nsContentUtils::TraverseListenerManager(nsINode *aNode,
   }
 }
 
-nsIEventListenerManager*
+nsresult
 nsContentUtils::GetListenerManager(nsINode *aNode,
-                                   PRBool aCreateIfNotFound)
+                                   PRBool aCreateIfNotFound,
+                                   nsIEventListenerManager **aResult)
 {
+  *aResult = nsnull;
+
   if (!aCreateIfNotFound && !aNode->HasFlag(NODE_HAS_LISTENERMANAGER)) {
-    return nsnull;
+    return NS_OK;
   }
   
   if (!sEventListenerManagersHash.ops) {
     // We're already shut down, don't bother creating an event listener
     // manager.
 
-    return nsnull;
+    return NS_ERROR_NOT_AVAILABLE;
   }
 
   if (!aCreateIfNotFound) {
@@ -3475,9 +3474,10 @@ nsContentUtils::GetListenerManager(nsINode *aNode,
                  (PL_DHashTableOperate(&sEventListenerManagersHash, aNode,
                                           PL_DHASH_LOOKUP));
     if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
-      return entry->mListenerManager;
+      *aResult = entry->mListenerManager;
+      NS_ADDREF(*aResult);
     }
-    return nsnull;
+    return NS_OK;
   }
 
   EventListenerManagerMapEntry *entry =
@@ -3486,7 +3486,7 @@ nsContentUtils::GetListenerManager(nsINode *aNode,
                                         PL_DHASH_ADD));
 
   if (!entry) {
-    return nsnull;
+    return NS_ERROR_OUT_OF_MEMORY;
   }
 
   if (!entry->mListenerManager) {
@@ -3496,7 +3496,7 @@ nsContentUtils::GetListenerManager(nsINode *aNode,
     if (NS_FAILED(rv)) {
       PL_DHashTableRawRemove(&sEventListenerManagersHash, entry);
 
-      return nsnull;
+      return rv;
     }
 
     entry->mListenerManager->SetListenerTarget(aNode);
@@ -3504,7 +3504,9 @@ nsContentUtils::GetListenerManager(nsINode *aNode,
     aNode->SetFlags(NODE_HAS_LISTENERMANAGER);
   }
 
-  return entry->mListenerManager;
+  NS_ADDREF(*aResult = entry->mListenerManager);
+
+  return NS_OK;
 }
 
 /* static */
@@ -3582,58 +3584,6 @@ nsContentUtils::CreateContextualFragment(nsIDOMNode* aContextNode,
   // for compiling event handlers... so just bail out.
   nsCOMPtr<nsIDocument> document = node->GetOwnerDoc();
   NS_ENSURE_TRUE(document, NS_ERROR_NOT_AVAILABLE);
-  
-  PRBool bCaseSensitive = document->IsCaseSensitive();
-
-  nsCOMPtr<nsIHTMLDocument> htmlDoc(do_QueryInterface(document));
-  PRBool bHTML = htmlDoc && !bCaseSensitive;
-
-  if (bHTML && nsHtml5Module::Enabled) {
-    // See if the document has a cached fragment parser. nsHTMLDocument is the
-    // only one that should really have one at the moment.
-    nsCOMPtr<nsIParser> parser = document->GetFragmentParser();
-    if (parser) {
-      // Get the parser ready to use.
-      parser->Reset();
-    }
-    else {
-      // Create a new parser for this operation.
-      parser = nsHtml5Module::NewHtml5Parser();
-      if (!parser) {
-        return NS_ERROR_OUT_OF_MEMORY;
-      }
-      document->SetFragmentParser(parser);
-    }
-    nsCOMPtr<nsIDOMDocumentFragment> frag;
-    rv = NS_NewDocumentFragment(getter_AddRefs(frag), document->NodeInfoManager());
-    NS_ENSURE_SUCCESS(rv, rv);
-    
-    nsCOMPtr<nsIContent> contextAsContent = do_QueryInterface(aContextNode);
-    if (contextAsContent && !contextAsContent->IsNodeOfType(nsINode::eELEMENT)) {
-      contextAsContent = contextAsContent->GetParent();
-      if (contextAsContent && !contextAsContent->IsNodeOfType(nsINode::eELEMENT)) {
-        // can this even happen?
-        contextAsContent = nsnull;
-      }
-    }
-    
-    if (contextAsContent) {
-      parser->ParseFragment(aFragment, 
-                            frag, 
-                            contextAsContent->Tag(), 
-                            contextAsContent->GetNameSpaceID(), 
-                            (document->GetCompatibilityMode() == eCompatibility_NavQuirks));    
-    } else {
-      parser->ParseFragment(aFragment, 
-                            frag, 
-                            nsGkAtoms::body, 
-                            kNameSpaceID_XHTML, 
-                            (document->GetCompatibilityMode() == eCompatibility_NavQuirks));
-    }
-  
-    NS_ADDREF(*aReturn = frag);
-    return NS_OK;
-  }
 
   nsAutoTArray<nsString, 32> tagStack;
   nsAutoString uriStr, nameStr;
@@ -3691,9 +3641,14 @@ nsContentUtils::CreateContextualFragment(nsIDOMNode* aContextNode,
   }
 
   nsCAutoString contentType;
+  PRBool bCaseSensitive = PR_TRUE;
   nsAutoString buf;
   document->GetContentType(buf);
   LossyCopyUTF16toASCII(buf, contentType);
+  bCaseSensitive = document->IsCaseSensitive();
+
+  nsCOMPtr<nsIHTMLDocument> htmlDoc(do_QueryInterface(document));
+  PRBool bHTML = htmlDoc && !bCaseSensitive;
 
   // See if the document has a cached fragment parser. nsHTMLDocument is the
   // only one that should really have one at the moment.
@@ -4582,115 +4537,6 @@ nsContentUtils::GetDragSession()
 }
 
 /* static */
-nsresult
-nsContentUtils::SetDataTransferInEvent(nsDragEvent* aDragEvent)
-{
-  if (aDragEvent->dataTransfer || !NS_IS_TRUSTED_EVENT(aDragEvent))
-    return NS_OK;
-
-  // For draggesture and dragstart events, the data transfer object is
-  // created before the event fires, so it should already be set. For other
-  // drag events, get the object from the drag session.
-  NS_ASSERTION(aDragEvent->message != NS_DRAGDROP_GESTURE &&
-               aDragEvent->message != NS_DRAGDROP_START,
-               "draggesture event created without a dataTransfer");
-
-  nsCOMPtr<nsIDragSession> dragSession = GetDragSession();
-  NS_ENSURE_TRUE(dragSession, NS_OK); // no drag in progress
-
-  nsCOMPtr<nsIDOMDataTransfer> initialDataTransfer;
-  dragSession->GetDataTransfer(getter_AddRefs(initialDataTransfer));
-  if (!initialDataTransfer) {
-    // A dataTransfer won't exist when a drag was started by some other
-    // means, for instance calling the drag service directly, or a drag
-    // from another application. In either case, a new dataTransfer should
-    // be created that reflects the data. Pass true to the constructor for
-    // the aIsExternal argument, so that only system access is allowed.
-    PRUint32 action = 0;
-    dragSession->GetDragAction(&action);
-    initialDataTransfer =
-      new nsDOMDataTransfer(aDragEvent->message, action);
-    NS_ENSURE_TRUE(initialDataTransfer, NS_ERROR_OUT_OF_MEMORY);
-
-    // now set it in the drag session so we don't need to create it again
-    dragSession->SetDataTransfer(initialDataTransfer);
-  }
-
-  // each event should use a clone of the original dataTransfer.
-  nsCOMPtr<nsIDOMNSDataTransfer> initialDataTransferNS =
-    do_QueryInterface(initialDataTransfer);
-  NS_ENSURE_TRUE(initialDataTransferNS, NS_ERROR_FAILURE);
-  initialDataTransferNS->Clone(aDragEvent->message, aDragEvent->userCancelled,
-                               getter_AddRefs(aDragEvent->dataTransfer));
-  NS_ENSURE_TRUE(aDragEvent->dataTransfer, NS_ERROR_OUT_OF_MEMORY);
-
-  // for the dragenter and dragover events, initialize the drop effect
-  // from the drop action, which platform specific widget code sets before
-  // the event is fired based on the keyboard state.
-  if (aDragEvent->message == NS_DRAGDROP_ENTER ||
-      aDragEvent->message == NS_DRAGDROP_OVER) {
-    nsCOMPtr<nsIDOMNSDataTransfer> newDataTransfer =
-      do_QueryInterface(aDragEvent->dataTransfer);
-    NS_ENSURE_TRUE(newDataTransfer, NS_ERROR_FAILURE);
-
-    PRUint32 action, effectAllowed;
-    dragSession->GetDragAction(&action);
-    newDataTransfer->GetEffectAllowedInt(&effectAllowed);
-    newDataTransfer->SetDropEffectInt(FilterDropEffect(action, effectAllowed));
-  }
-  else if (aDragEvent->message == NS_DRAGDROP_DROP ||
-           aDragEvent->message == NS_DRAGDROP_DRAGDROP ||
-           aDragEvent->message == NS_DRAGDROP_END) {
-    // For the drop and dragend events, set the drop effect based on the
-    // last value that the dropEffect had. This will have been set in
-    // nsEventStateManager::PostHandleEvent for the last dragenter or
-    // dragover event.
-    nsCOMPtr<nsIDOMNSDataTransfer> newDataTransfer =
-      do_QueryInterface(aDragEvent->dataTransfer);
-    NS_ENSURE_TRUE(newDataTransfer, NS_ERROR_FAILURE);
-
-    PRUint32 dropEffect;
-    initialDataTransferNS->GetDropEffectInt(&dropEffect);
-    newDataTransfer->SetDropEffectInt(dropEffect);
-  }
-
-  return NS_OK;
-}
-
-/* static */
-PRUint32
-nsContentUtils::FilterDropEffect(PRUint32 aAction, PRUint32 aEffectAllowed)
-{
-  // It is possible for the drag action to include more than one action, but
-  // the widget code which sets the action from the keyboard state should only
-  // be including one. If multiple actions were set, we just consider them in
-  //  the following order:
-  //   copy, link, move
-  if (aAction & nsIDragService::DRAGDROP_ACTION_COPY)
-    aAction = nsIDragService::DRAGDROP_ACTION_COPY;
-  else if (aAction & nsIDragService::DRAGDROP_ACTION_LINK)
-    aAction = nsIDragService::DRAGDROP_ACTION_LINK;
-  else if (aAction & nsIDragService::DRAGDROP_ACTION_MOVE)
-    aAction = nsIDragService::DRAGDROP_ACTION_MOVE;
-
-  // Filter the action based on the effectAllowed. If the effectAllowed
-  // doesn't include the action, then that action cannot be done, so adjust
-  // the action to something that is allowed. For a copy, adjust to move or
-  // link. For a move, adjust to copy or link. For a link, adjust to move or
-  // link. Otherwise, use none.
-  if (aAction & aEffectAllowed ||
-      aEffectAllowed == nsIDragService::DRAGDROP_ACTION_UNINITIALIZED)
-    return aAction;
-  if (aEffectAllowed & nsIDragService::DRAGDROP_ACTION_MOVE)
-    return nsIDragService::DRAGDROP_ACTION_MOVE;
-  if (aEffectAllowed & nsIDragService::DRAGDROP_ACTION_COPY)
-    return nsIDragService::DRAGDROP_ACTION_COPY;
-  if (aEffectAllowed & nsIDragService::DRAGDROP_ACTION_LINK)
-    return nsIDragService::DRAGDROP_ACTION_LINK;
-  return nsIDragService::DRAGDROP_ACTION_NONE;
-}
-
-/* static */
 PRBool
 nsContentUtils::URIIsLocalFile(nsIURI *aURI)
 {
@@ -4954,27 +4800,6 @@ nsContentUtils::GetUTFOrigin(nsIURI* aURI, nsString& aOrigin)
   
   return NS_OK;
 }
-
-/* static */
-already_AddRefed<nsIDocument>
-nsContentUtils::GetDocumentFromScriptContext(nsIScriptContext *aScriptContext)
-{
-  if (!aScriptContext)
-    return nsnull;
-
-  nsCOMPtr<nsIDOMWindow> window =
-    do_QueryInterface(aScriptContext->GetGlobalObject());
-  nsIDocument *doc = nsnull;
-  if (window) {
-    nsCOMPtr<nsIDOMDocument> domdoc;
-    window->GetDocument(getter_AddRefs(domdoc));
-    if (domdoc) {
-      CallQueryInterface(domdoc, &doc);
-    }
-  }
-  return doc;
-}
-
 nsContentTypeParser::nsContentTypeParser(const nsAString& aString)
   : mString(aString), mService(nsnull)
 {
@@ -4993,95 +4818,4 @@ nsContentTypeParser::GetParameter(const char* aParameterName, nsAString& aResult
   return mService->GetParameter(mString, aParameterName,
                                 EmptyCString(), PR_FALSE, nsnull,
                                 aResult);
-}
-
-/* static */
-
-// If you change this code, change also AllowedToAct() in
-// XPCSystemOnlyWrapper.cpp!
-PRBool
-nsContentUtils::CanAccessNativeAnon()
-{
-  JSContext* cx = nsnull;
-  sThreadJSContextStack->Peek(&cx);
-  if (!cx) {
-    return PR_TRUE;
-  }
-  JSStackFrame* fp;
-  nsIPrincipal* principal =
-    sSecurityManager->GetCxSubjectPrincipalAndFrame(cx, &fp);
-  NS_ENSURE_TRUE(principal, PR_FALSE);
-
-  if (!fp) {
-    if (!JS_FrameIterator(cx, &fp)) {
-      // No code at all is running. So we must be arriving here as the result
-      // of C++ code asking us to do something. Allow access.
-      return PR_TRUE;
-    }
-
-    // Some code is running, we can't make the assumption, as above, but we
-    // can't use a native frame, so clear fp.
-    fp = nsnull;
-  }
-
-  void *annotation = fp ? JS_GetFrameAnnotation(cx, fp) : nsnull;
-  PRBool privileged;
-  if (NS_SUCCEEDED(principal->IsCapabilityEnabled("UniversalXPConnect",
-                                                  annotation,
-                                                  &privileged)) &&
-      privileged) {
-    // UniversalXPConnect things are allowed to touch us.
-    return PR_TRUE;
-  }
-
-  // XXX HACK EWW! Allow chrome://global/ access to these things, even
-  // if they've been cloned into less privileged contexts.
-  static const char prefix[] = "chrome://global/";
-  const char *filename;
-  if (fp && fp->script &&
-      (filename = fp->script->filename) &&
-      !strncmp(filename, prefix, NS_ARRAY_LENGTH(prefix) - 1)) {
-    return PR_TRUE;
-  }
-
-  return PR_FALSE;
-}
-
-/* static */ nsresult
-nsContentUtils::DispatchXULCommand(nsIContent* aTarget,
-                                   PRBool aTrusted,
-                                   nsIDOMEvent* aSourceEvent,
-                                   nsIPresShell* aShell,
-                                   PRBool aCtrl,
-                                   PRBool aAlt,
-                                   PRBool aShift,
-                                   PRBool aMeta)
-{
-  NS_ENSURE_STATE(aTarget);
-  nsIDocument* doc = aTarget->GetOwnerDoc();
-  nsCOMPtr<nsIDOMDocumentEvent> docEvent = do_QueryInterface(doc);
-  NS_ENSURE_STATE(docEvent);
-  nsCOMPtr<nsIDOMEvent> event;
-  docEvent->CreateEvent(NS_LITERAL_STRING("xulcommandevent"),
-                        getter_AddRefs(event));
-  nsCOMPtr<nsIDOMXULCommandEvent> xulCommand = do_QueryInterface(event);
-  nsCOMPtr<nsIPrivateDOMEvent> pEvent = do_QueryInterface(xulCommand);
-  NS_ENSURE_STATE(pEvent);
-  nsCOMPtr<nsIDOMAbstractView> view = do_QueryInterface(doc->GetWindow());
-  nsresult rv = xulCommand->InitCommandEvent(NS_LITERAL_STRING("command"),
-                                             PR_TRUE, PR_TRUE, view,
-                                             0, aCtrl, aAlt, aShift, aMeta,
-                                             aSourceEvent);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (aShell) {
-    nsEventStatus status = nsEventStatus_eIgnore;
-    nsCOMPtr<nsIPresShell> kungFuDeathGrip = aShell;
-    return aShell->HandleDOMEventWithTarget(aTarget, event, &status);
-  }
-
-  nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(aTarget);
-  NS_ENSURE_STATE(target);
-  PRBool dummy;
-  return target->DispatchEvent(event, &dummy);
 }

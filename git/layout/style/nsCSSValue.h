@@ -249,8 +249,6 @@ public:
     return mValue.mColor;
   }
 
-  PRBool IsNonTransparentColor() const;
-
   Array* GetArrayValue() const
   {
     NS_ASSERTION(eCSSUnit_Array <= mUnit && mUnit <= eCSSUnit_Function,

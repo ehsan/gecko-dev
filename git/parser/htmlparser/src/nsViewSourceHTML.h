@@ -95,8 +95,6 @@ public:
     virtual void SetVerification(PRBool aEnable);
 
 private:
-    nsresult HandleToken(CToken* aToken);
-
     nsresult WriteTag(PRInt32 tagType,
                       const nsSubstring &aText,
                       PRInt32 attrCount,
@@ -136,7 +134,7 @@ private:
 
 protected:
 
-    nsCString           mCharset;
+    nsParser*           mParser;
     nsIHTMLContentSink* mSink;
     PRInt32             mLineNumber;
     nsITokenizer*       mTokenizer; // weak

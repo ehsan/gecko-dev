@@ -296,7 +296,7 @@ nsHTMLButtonAccessible::GetRoleInternal(PRUint32 *aRole)
 nsresult
 nsHTMLButtonAccessible::GetNameInternal(nsAString& aName)
 {
-  nsAccessible::GetNameInternal(aName);
+  nsresult rv = nsAccessible::GetNameInternal(aName);
   if (!aName.IsEmpty())
     return NS_OK;
 

@@ -56,6 +56,7 @@
 #include "nsIDocumentEncoder.h"
 #include "nsTArray.h"
 
+
 class nsPlainTextSerializer : public nsIContentSerializer,
                               public nsIHTMLContentSink,
                               public nsIHTMLToTextSink
@@ -96,6 +97,8 @@ public:
 
   // nsIContentSink
   NS_IMETHOD WillParse(void) { return NS_OK; }
+  NS_IMETHOD WillBuildModel(void) { return NS_OK; }
+  NS_IMETHOD DidBuildModel(void) { return NS_OK; }
   NS_IMETHOD WillInterrupt(void) { return NS_OK; }
   NS_IMETHOD WillResume(void) { return NS_OK; }
   NS_IMETHOD SetParser(nsIParser* aParser) { return NS_OK; }

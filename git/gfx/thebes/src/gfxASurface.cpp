@@ -46,7 +46,7 @@
 #include "gfxWindowsSurface.h"
 #endif
 
-#ifdef MOZ_X11
+#ifdef CAIRO_HAS_XLIB_SURFACE
 #include "gfxXlibSurface.h"
 #endif
 
@@ -55,7 +55,7 @@
 #include "gfxQuartzImageSurface.h"
 #endif
 
-#ifdef MOZ_DFB
+#ifdef CAIRO_HAS_DIRECTFB_SURFACE
 #include "gfxDirectFBSurface.h"
 #endif
 
@@ -162,7 +162,7 @@ gfxASurface::Wrap (cairo_surface_t *csurf)
         result = new gfxWindowsSurface(csurf);
     }
 #endif
-#ifdef MOZ_X11
+#ifdef CAIRO_HAS_XLIB_SURFACE
     else if (stype == CAIRO_SURFACE_TYPE_XLIB) {
         result = new gfxXlibSurface(csurf);
     }
@@ -175,7 +175,7 @@ gfxASurface::Wrap (cairo_surface_t *csurf)
         result = new gfxQuartzImageSurface(csurf);
     }
 #endif
-#ifdef MOZ_DFB
+#ifdef CAIRO_HAS_DIRECTFB_SURFACE
     else if (stype == CAIRO_SURFACE_TYPE_DIRECTFB) {
         result = new gfxDirectFBSurface(csurf);
     }

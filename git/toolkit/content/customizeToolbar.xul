@@ -57,6 +57,7 @@
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
 <script type="application/javascript" src="chrome://global/content/customizeToolbar.js"/>
+<script type="application/javascript" src="chrome://global/content/nsDragAndDrop.js"/>
 
 <stringbundle id="stringBundle" src="chrome://global/locale/customizeToolbar.properties"/>
 
@@ -72,9 +73,9 @@
   </description>
 
   <vbox flex="1" id="palette-box"
-        ondragstart="onToolbarDragStart(event)"
-        ondragover="onPaletteDragOver(event)"
-        ondrop="onPaletteDrop(event)"/>
+        ondraggesture="nsDragAndDrop.startDrag(event, dragStartObserver);"
+        ondragover="nsDragAndDrop.dragOver(event, paletteDNDObserver);"
+        ondragdrop="nsDragAndDrop.drop(event, paletteDNDObserver);"/>
 
   <box align="center">
     <label value="&show.label;"/>
@@ -85,9 +86,9 @@
         <menuitem value="text" label="&text.label;"/>
       </menupopup>
     </menulist>
-
+    
     <checkbox id="smallicons" oncommand="updateIconSize(this.checked);" label="&useSmallIcons.label;"/>
-
+    
     <button label="&addNewToolbar.label;" oncommand="addNewToolbar();" icon="add"/>
     <button label="&restoreDefaultSet.label;" oncommand="restoreDefaultSet();" icon="revert"/>
   </box>

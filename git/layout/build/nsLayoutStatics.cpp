@@ -80,11 +80,10 @@
 #include "nsTextFragment.h"
 #include "nsCSSRuleProcessor.h"
 #include "nsXMLHttpRequest.h"
+#include "nsIFocusEventSuppressor.h"
 #include "nsDOMThreadService.h"
 #include "nsHTMLDNSPrefetch.h"
-#include "nsHtml5Module.h"
 #include "nsCrossSiteListenerProxy.h"
-#include "nsFocusManager.h"
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -126,8 +125,6 @@ PRBool NS_SVGEnabled();
 
 #include "nsCycleCollector.h"
 #include "nsJSEnvironment.h"
-
-extern void NS_ShutdownChainItemPool();
 
 static nsrefcnt sLayoutStaticRefcnt;
 
@@ -257,12 +254,6 @@ nsLayoutStatics::Initialize()
   }
 #endif
 
-  rv = nsFocusManager::Init();
-  if (NS_FAILED(rv)) {
-    NS_ERROR("Could not initialize nsFocusManager");
-    return rv;
-  }
-
 #ifdef MOZ_MEDIA
   rv = nsMediaDecoder::InitLogger();
   if (NS_FAILED(rv)) {
@@ -277,8 +268,6 @@ nsLayoutStatics::Initialize()
   nsAudioStream::InitLibrary();
 #endif
 
-  nsHtml5Module::InitializeStatics();
-  
   nsCrossSiteListenerProxy::Startup();
 
   return NS_OK;
@@ -287,7 +276,6 @@ nsLayoutStatics::Initialize()
 void
 nsLayoutStatics::Shutdown()
 {
-  nsFocusManager::Shutdown();
 #ifdef MOZ_XUL
   nsXULPopupManager::Shutdown();
 #endif
@@ -358,6 +346,8 @@ nsLayoutStatics::Shutdown()
 
   nsDOMThreadService::Shutdown();
 
+  NS_ShutdownFocusSuppressor();
+
 #ifdef MOZ_MEDIA
   nsHTMLMediaElement::ShutdownMediaTypes();
 #endif
@@ -366,10 +356,6 @@ nsLayoutStatics::Shutdown()
 #endif
 
   nsXMLHttpRequest::ShutdownACCache();
-  
-  nsHtml5Module::ReleaseStatics();
-
-  NS_ShutdownChainItemPool();
 }
 
 void

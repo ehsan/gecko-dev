@@ -49,7 +49,6 @@ const nsIPropertyElement = Components.interfaces.nsIPropertyElement;
 ////////////////////////////////////////////////////////////////////////////////
 // States
 
-const STATE_BUSY = nsIAccessibleStates.STATE_BUSY;
 const STATE_CHECKED = nsIAccessibleStates.STATE_CHECKED;
 const STATE_CHECKABLE = nsIAccessibleStates.STATE_CHECKABLE;
 const STATE_COLLAPSED = nsIAccessibleStates.STATE_COLLAPSED;
@@ -58,14 +57,11 @@ const STATE_EXTSELECTABLE = nsIAccessibleStates.STATE_EXTSELECTABLE;
 const STATE_FOCUSABLE = nsIAccessibleStates.STATE_FOCUSABLE;
 const STATE_FOCUSED = nsIAccessibleStates.STATE_FOCUSED;
 const STATE_HASPOPUP = nsIAccessibleStates.STATE_HASPOPUP;
-const STATE_INVALID = nsIAccessibleStates.STATE_INVALID;
 const STATE_LINKED = nsIAccessibleStates.STATE_LINKED;
 const STATE_MIXED = nsIAccessibleStates.STATE_MIXED;
 const STATE_MULTISELECTABLE = nsIAccessibleStates.STATE_MULTISELECTABLE;
-const STATE_OFFSCREEN = nsIAccessibleStates.STATE_OFFSCREEN;
 const STATE_PRESSED = nsIAccessibleStates.STATE_PRESSED;
 const STATE_READONLY = nsIAccessibleStates.STATE_READONLY;
-const STATE_REQUIRED = nsIAccessibleStates.STATE_REQUIRED;
 const STATE_SELECTABLE = nsIAccessibleStates.STATE_SELECTABLE;
 const STATE_SELECTED = nsIAccessibleStates.STATE_SELECTED;
 const STATE_TRAVERSED = nsIAccessibleStates.STATE_TRAVERSED;
@@ -74,8 +70,9 @@ const STATE_UNAVAILABLE = nsIAccessibleStates.STATE_UNAVAILABLE;
 const EXT_STATE_EDITABLE = nsIAccessibleStates.EXT_STATE_EDITABLE;
 const EXT_STATE_EXPANDABLE = nsIAccessibleStates.EXT_STATE_EXPANDABLE;
 const EXT_STATE_HORIZONTAL = nsIAccessibleStates.EXT_STATE_HORIZONTAL;
+const EXT_STATE_INVALID = nsIAccessibleStates.STATE_INVALID;
 const EXT_STATE_MULTI_LINE = nsIAccessibleStates.EXT_STATE_MULTI_LINE;
-const EXT_STATE_SINGLE_LINE = nsIAccessibleStates.EXT_STATE_SINGLE_LINE;
+const EXT_STATE_REQUIRED = nsIAccessibleStates.STATE_REQUIRED;
 const EXT_STATE_SUPPORTS_AUTOCOMPLETION = 
       nsIAccessibleStates.EXT_STATE_SUPPORTS_AUTOCOMPLETION;
 
@@ -110,7 +107,7 @@ function addA11yLoadEvent(aFunc)
         var accDoc = getAccessible(document);
         var state = {};
         accDoc.getState(state, {});
-        if (state.value & STATE_BUSY)
+        if (state.value & nsIAccessibleStates.STATE_BUSY)
           return waitForDocLoad();
 
         aFunc.call();
@@ -328,11 +325,8 @@ function statesToString(aStates, aExtraStates)
   var list = gAccRetrieval.getStringStates(aStates, aExtraStates);
 
   var str = "";
-  for (var index = 0; index < list.length - 1; index++)
+  for (var index = 0; index < list.length; index++)
     str += list.item(index) + ", ";
-
-  if (list.length != 0)
-    str += list.item(index)
 
   return str;
 }

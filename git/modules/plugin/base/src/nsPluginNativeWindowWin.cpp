@@ -52,6 +52,7 @@
 
 #include "nsGUIEvent.h"
 
+#include "nsIPluginInstancePeer.h"
 #include "nsIPluginInstanceInternal.h"
 #include "nsPluginSafety.h"
 #include "nsPluginNativeWindow.h"
@@ -59,10 +60,9 @@
 #include "nsAutoPtr.h"
 #include "nsTWeakRef.h"
 
+static NS_DEFINE_CID(kCPluginManagerCID, NS_PLUGINMANAGER_CID); // needed for NS_TRY_SAFE_CALL
+
 #define NS_PLUGIN_WINDOW_PROPERTY_ASSOCIATION TEXT("MozillaPluginWindowPropertyAssociation")
-#define NS_PLUGIN_CUSTOM_MSG_ID TEXT("MozFlashUserRelay")
-#define WM_USER_FLASH WM_USER+1
-static UINT sWM_FLASHBOUNCEMSG = 0;
 
 typedef nsTWeakRef<class nsPluginNativeWindowWin> PluginWindowWeakRef;
 
@@ -162,21 +162,12 @@ public:
 static PRBool sInMessageDispatch = PR_FALSE;
 static UINT sLastMsg = 0;
 
-static PRBool ProcessFlashMessageDelayed(nsPluginNativeWindowWin * aWin, nsIPluginInstance * aInst,
+static PRBool ProcessFlashMessageDelayed(nsPluginNativeWindowWin * aWin, 
                                          HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
   NS_ENSURE_TRUE(aWin, NS_ERROR_NULL_POINTER);
-  NS_ENSURE_TRUE(aInst, NS_ERROR_NULL_POINTER);
 
-  if (msg == sWM_FLASHBOUNCEMSG) {
-    // See PluginWindowEvent::Run() below.
-    NS_ASSERTION((sWM_FLASHBOUNCEMSG != 0), "RegisterWindowMessage failed in flash plugin WM_USER message handling!");
-    NS_TRY_SAFE_CALL_VOID(::CallWindowProc((WNDPROC)aWin->GetWindowProc(), hWnd, WM_USER_FLASH, wParam, lParam),
-                                           nsnull, aInst);
-    return TRUE;
-  }
-
-  if (msg != WM_USER_FLASH)
+  if (msg != WM_USER+1)
     return PR_FALSE; // no need to delay
 
   // do stuff
@@ -226,15 +217,19 @@ static LRESULT CALLBACK PluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
   // Flash will need special treatment later
   if (win->mPluginType == nsPluginType_Unknown) {
     if (inst) {
-      nsMIMEType mimetype = nsnull;
-      inst->GetMIMEType(&mimetype);
-      if (mimetype) { 
-        if (!strcmp(mimetype, "application/x-shockwave-flash"))
-          win->mPluginType = nsPluginType_Flash;
-        else if (!strcmp(mimetype, "audio/x-pn-realaudio-plugin"))
-          win->mPluginType = nsPluginType_Real;
-        else
-          win->mPluginType = nsPluginType_Other;
+      nsCOMPtr<nsIPluginInstancePeer> pip;
+      inst->GetPeer(getter_AddRefs(pip));
+      if (pip) {
+        nsMIMEType mimetype = nsnull;
+        pip->GetMIMEType(&mimetype);
+        if (mimetype) { 
+          if (!strcmp(mimetype, "application/x-shockwave-flash"))
+            win->mPluginType = nsPluginType_Flash;
+          else if (!strcmp(mimetype, "audio/x-pn-realaudio-plugin"))
+            win->mPluginType = nsPluginType_Real;
+          else
+            win->mPluginType = nsPluginType_Other;
+        }
       }
     }
   }
@@ -312,7 +307,7 @@ static LRESULT CALLBACK PluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
         nsCOMPtr<nsIWidget> widget;
         win->GetPluginWidget(getter_AddRefs(widget));
         if (widget) {
-          nsGUIEvent event(PR_TRUE, NS_PLUGIN_ACTIVATE, widget);
+          nsFocusEvent event(PR_TRUE, NS_PLUGIN_ACTIVATE, widget);
           nsEventStatus status;
           widget->DispatchEvent(&event, status);
         }
@@ -339,7 +334,7 @@ static LRESULT CALLBACK PluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
   // (WM_USER+1) causing 100% CPU consumption and GUI freeze, see mozilla bug 132759;
   // we can prevent this from happening by delaying the processing such messages;
   if (win->mPluginType == nsPluginType_Flash) {
-    if (ProcessFlashMessageDelayed(win, inst, hWnd, msg, wParam, lParam))
+    if (ProcessFlashMessageDelayed(win, hWnd, msg, wParam, lParam))
       return TRUE;
   }
 
@@ -406,10 +401,6 @@ nsPluginNativeWindowWin::nsPluginNativeWindowWin() : nsPluginNativeWindow()
   mPrevWinProc = NULL;
   mPluginWinProc = NULL;
   mPluginType = nsPluginType_Unknown;
-  
-  if (sWM_FLASHBOUNCEMSG == 0)
-    sWM_FLASHBOUNCEMSG = ::RegisterWindowMessage(NS_PLUGIN_CUSTOM_MSG_ID);
-
 }
 
 nsPluginNativeWindowWin::~nsPluginNativeWindowWin()
@@ -441,23 +432,12 @@ NS_IMETHODIMP PluginWindowEvent::Run()
 
   nsCOMPtr<nsIPluginInstance> inst;
   win->GetPluginInstance(inst);
-
-  if (GetMsg() == WM_USER_FLASH) {
-    // XXX Unwind issues related to runnable event callback depth for this
-    // event and destruction of the plugin. (Bug 493601)
-    ::PostMessage(hWnd, sWM_FLASHBOUNCEMSG, GetWParam(), GetLParam());
-  }
-  else {
-    // Currently not used, but added so that processing events here
-    // is more generic.
-    NS_TRY_SAFE_CALL_VOID(::CallWindowProc(win->GetWindowProc(), 
-                          hWnd, 
-                          GetMsg(), 
-                          GetWParam(), 
-                          GetLParam()),
-                          nsnull, inst);
-  }
-
+  NS_TRY_SAFE_CALL_VOID(::CallWindowProc(win->GetWindowProc(), 
+                        hWnd, 
+                        GetMsg(), 
+                        GetWParam(), 
+                        GetLParam()),
+                        nsnull, inst);
   Clear();
   return NS_OK;
 }

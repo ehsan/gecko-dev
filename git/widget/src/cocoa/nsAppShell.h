@@ -78,6 +78,7 @@ private:
   nsTArray<nsCocoaAppModalWindowListItem> mList;
 };
 
+
 @class AppShellDelegate;
 
 class nsAppShell : public nsBaseAppShell
@@ -136,8 +137,6 @@ protected:
 
   PRInt32            mRecursionDepth;
   PRInt32            mNativeEventCallbackDepth;
-  // Can be set from different threads, so must be modified atomically
-  PRInt32            mNativeEventScheduledDepth;
 };
 
 #endif // nsAppShell_h_

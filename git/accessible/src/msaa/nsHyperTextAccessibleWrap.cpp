@@ -48,7 +48,7 @@ IMPL_IUNKNOWN_INHERITED2(nsHyperTextAccessibleWrap,
                          CAccessibleHypertext,
                          CAccessibleEditableText);
 
-nsresult
+NS_IMETHODIMP
 nsHyperTextAccessibleWrap::FireAccessibleEvent(nsIAccessibleEvent *aEvent)
 {
   PRUint32 eventType;

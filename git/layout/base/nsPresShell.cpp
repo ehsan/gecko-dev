@@ -152,7 +152,7 @@
 #include "nsIReflowCallback.h"
 
 #include "nsPIDOMWindow.h"
-#include "nsFocusManager.h"
+#include "nsIFocusController.h"
 #include "nsIPluginInstance.h"
 #include "nsIObjectFrame.h"
 #include "nsIObjectLoadingContent.h"
@@ -768,7 +768,6 @@ struct nsCallbackEventRequest
 
 // ----------------------------------------------------------------------------
 class nsPresShellEventCB;
-class nsAutoCauseReflowNotifier;
 
 class PresShell : public nsIPresShell, public nsIViewObserver,
                   public nsStubDocumentObserver,
@@ -811,7 +810,6 @@ public:
 
   NS_IMETHOD BeginObservingDocument();
   NS_IMETHOD EndObservingDocument();
-  NS_IMETHOD GetDidInitialReflow(PRBool *aDidInitialReflow);
   NS_IMETHOD InitialReflow(nscoord aWidth, nscoord aHeight);
   NS_IMETHOD ResizeReflow(nscoord aWidth, nscoord aHeight);
   NS_IMETHOD StyleChangeReflow();
@@ -883,6 +881,8 @@ public:
   virtual nsresult ReconstructFrames(void);
   virtual void Freeze();
   virtual void Thaw();
+  virtual void NeedsFocusOrBlurAfterSuppression(nsPIDOMEventTarget* aTarget,
+                                                PRUint32 aEventType);
   virtual void FireOrClearDelayedEvents(PRBool aFireEvents);
 
   virtual nsIFrame* GetFrameForPoint(nsIFrame* aFrame, nsPoint aPt);
@@ -918,9 +918,6 @@ public:
                          nsEventStatus*  aEventStatus);
   NS_IMETHOD HandleDOMEventWithTarget(nsIContent* aTargetContent,
                                       nsEvent* aEvent,
-                                      nsEventStatus* aStatus);
-  NS_IMETHOD HandleDOMEventWithTarget(nsIContent* aTargetContent,
-                                      nsIDOMEvent* aEvent,
                                       nsEventStatus* aStatus);
   NS_IMETHOD ResizeReflow(nsIView *aView, nscoord aWidth, nscoord aHeight);
   NS_IMETHOD_(PRBool) IsVisible();
@@ -1031,25 +1028,13 @@ protected:
 
   void UnsuppressAndInvalidate();
 
-  void WillCauseReflow() {
-    nsContentUtils::AddScriptBlocker();
-    ++mChangeNestCount;
-  }
-  nsresult DidCauseReflow();
-  friend class nsAutoCauseReflowNotifier;
-
   void     WillDoReflow();
   void     DidDoReflow(PRBool aInterruptible);
   // ProcessReflowCommands returns whether we processed all our dirty roots
   // without interruptions.
   PRBool   ProcessReflowCommands(PRBool aInterruptible);
   void     ClearReflowEventStatus();
-  // PostReflowEvent checks if posting a reflow is needed, then checks if the
-  // last reflow was interupted. In the interupted case DoPostReflowEvent is
-  // called off a timer, otherwise it is called directly.
   void     PostReflowEvent();
-  // Actually posts a reflow event to the current thread.
-  void     DoPostReflowEvent();
 
   // DoReflow returns whether the reflow finished without interruption
   PRBool DoReflow(nsIFrame* aFrame, PRBool aInterruptible);
@@ -1159,11 +1144,6 @@ protected:
 
   PRPackedBool mIgnoreFrameDestruction;
   PRPackedBool mHaveShutDown;
-
-  // This is used to protect ourselves from triggering reflow while in the
-  // middle of frame construction and the like... it really shouldn't be
-  // needed, one hopes, but it is for now.
-  PRUint32  mChangeNestCount;
   
   nsIFrame*   mCurrentEventFrame;
   nsCOMPtr<nsIContent> mCurrentEventContent;
@@ -1210,6 +1190,28 @@ protected:
     {
       return PR_FALSE;
     }
+  };
+
+  class nsDelayedFocusBlur : public nsDelayedEvent
+  {
+  public:
+    nsDelayedFocusBlur(nsPIDOMEventTarget* aTarget, PRUint32 aEventType)
+    : mTarget(aTarget), mEventType(aEventType) {}
+
+    virtual void Dispatch(PresShell* aShell)
+    {
+      nsEvent event(PR_TRUE, mEventType);
+      event.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
+      nsEventDispatcher::Dispatch(mTarget, aShell->GetPresContext(), &event);
+    }
+
+    virtual PRBool Equals(nsPIDOMEventTarget* aTarget, PRUint32 aEventType)
+    {
+      return aTarget == mTarget && aEventType == mEventType;
+    }
+
+    nsCOMPtr<nsPIDOMEventTarget> mTarget;
+    PRUint32                     mEventType;
   };
 
   class nsDelayedInputEvent : public nsDelayedEvent
@@ -1314,14 +1316,6 @@ protected:
 
   static void sPaintSuppressionCallback(nsITimer* aTimer, void* aPresShell); // A callback for the timer.
 
-  // On Win32 after interupting a reflow we need to post the resume reflow
-  // event off a timer to avoid event starvation because posted messages are
-  // processed before other messages when the modal moving/sizing loop is
-  // running, see bug 491700 for details.
-  nsCOMPtr<nsITimer> mReflowContinueTimer;
-  static void sReflowContinueCallback(nsITimer* aTimer, void* aPresShell);
-  PRBool PostReflowEventOffTimer();
-
   MOZ_TIMER_DECLARE(mReflowWatch)  // Used for measuring time spent in reflow
   MOZ_TIMER_DECLARE(mFrameCreationWatch)  // Used for measuring time spent in frame creation 
 
@@ -1333,10 +1327,6 @@ protected:
 
 
   nsCOMPtr<nsIDocumentObserver> mDocumentObserverForNonDynamicContext;
-
-  // false if a check should be done for key/ime events that should be
-  // retargeted to the currently focused presshell
-  static PRBool sDontRetargetEvents;
 
 private:
 
@@ -1391,29 +1381,6 @@ private:
   void EnumeratePlugins(nsIDOMDocument *aDocument,
                         const nsString &aPluginTag,
                         nsPluginEnumCallback aCallback);
-};
-
-class nsAutoCauseReflowNotifier
-{
-public:
-  nsAutoCauseReflowNotifier(PresShell* aShell)
-    : mShell(aShell)
-  {
-    mShell->WillCauseReflow();
-  }
-  ~nsAutoCauseReflowNotifier()
-  {
-    // This check should not be needed. Currently the only place that seem
-    // to need it is the code that deals with bug 337586.
-    if (!mShell->mHaveShutDown) {
-      mShell->DidCauseReflow();
-    }
-    else {
-      nsContentUtils::RemoveScriptBlocker();
-    }
-  }
-
-  PresShell* mShell;
 };
 
 class NS_STACK_CLASS nsPresShellEventCB : public nsDispatchingCallback
@@ -1554,7 +1521,6 @@ NS_IMPL_ISUPPORTS2(nsDocumentObserverForNonDynamicPresContext,
                    nsIMutationObserver)
 
 PRBool PresShell::sDisableNonTestMouseEvents = PR_FALSE;
-PRBool PresShell::sDontRetargetEvents = PR_FALSE;
 
 #ifdef PR_LOGGING
 PRLogModuleInfo* PresShell::gLog;
@@ -1951,12 +1917,6 @@ PresShell::Destroy()
   if (mPaintSuppressionTimer) {
     mPaintSuppressionTimer->Cancel();
     mPaintSuppressionTimer = nsnull;
-  }
-
-  // Same for our reflow continuation timer
-  if (mReflowContinueTimer) {
-    mReflowContinueTimer->Cancel();
-    mReflowContinueTimer = nsnull;
   }
 
   if (mCaret) {
@@ -2601,15 +2561,76 @@ PresShell::EndObservingDocument()
 char* nsPresShell_ReflowStackPointerTop;
 #endif
 
-NS_IMETHODIMP
-PresShell::GetDidInitialReflow(PRBool *aDidInitialReflow)
+static void CheckForFocus(nsPIDOMWindow* aOurWindow,
+                          nsIFocusController* aFocusController,
+                          nsIDocument* aDocument)
 {
-  if (!aDidInitialReflow)
-    return NS_ERROR_FAILURE;
+  NS_ASSERTION(aOurWindow->IsOuterWindow(),
+               "Uh, our window has to be an outer window!");
 
-  *aDidInitialReflow = mDidInitialReflow;
+  // Now that we have a root frame, we can set focus on the presshell.
+  // We do this only if our DOM window is currently focused or is an
+  // an ancestor of a previously focused window.
 
-  return NS_OK;
+  if (!aFocusController)
+    return;
+
+  nsCOMPtr<nsIDOMWindowInternal> focusedWindow;
+  aFocusController->GetFocusedWindow(getter_AddRefs(focusedWindow));
+  if (!focusedWindow) {
+    // This happens if the window has not been shown yet. We don't need to
+    // focus anything now because showing the window will set the focus.
+    return;
+  }
+
+  // Walk up the document chain, starting with focusedWindow's document.
+  // We stop walking when we find a document that has a null DOMWindow
+  // (meaning that the DOMWindow has a new document now) or find aOurWindow
+  // as the document's window.  We also stop if we hit aDocument, since
+  // that means there is a child document which loaded before us that's
+  // already been given focus.
+
+  nsCOMPtr<nsIDOMDocument> focusedDOMDoc;
+  focusedWindow->GetDocument(getter_AddRefs(focusedDOMDoc));
+
+  nsCOMPtr<nsIDocument> curDoc = do_QueryInterface(focusedDOMDoc);
+  if (!curDoc) {
+    // This can happen if the previously focused DOM window has been
+    // unhooked from its document during document teardown.  We don't
+    // really have any other information to help us determine where
+    // focusedWindow fits into the DOM window hierarchy.  For now, we'll
+    // go ahead and allow this window to take focus, so that something
+    // ends up focused.
+
+    curDoc = aDocument;
+  }
+
+  while (curDoc) {
+    nsPIDOMWindow *curWin = curDoc->GetWindow();
+
+    if (!curWin || curWin == aOurWindow)
+      break;
+
+    curDoc = curDoc->GetParentDocument();
+    if (curDoc == aDocument)
+      return;
+  }
+
+  if (!curDoc) {
+    // We reached the top of the document chain, and did not encounter
+    // aOurWindow or a windowless document. So, focus should be unaffected
+    // by this document load.
+    return;
+  }
+
+  PRBool active;
+  aFocusController->GetActive(&active);
+  if (active)
+    aOurWindow->Focus();
+
+  // We need to ensure that the focus controller is updated, since it may be
+  // suppressed when this function is called.
+  aFocusController->SetFocusedWindow(aOurWindow);
 }
 
 NS_IMETHODIMP
@@ -2679,7 +2700,7 @@ PresShell::InitialReflow(nscoord aWidth, nscoord aHeight)
     MOZ_TIMER_START(mFrameCreationWatch);
 
     {
-      nsAutoCauseReflowNotifier reflowNotifier(this);
+      nsAutoScriptBlocker scriptBlocker;
       mFrameConstructor->BeginUpdate();
 
       // Have the style sheet processor construct frame for the root
@@ -2818,7 +2839,7 @@ PresShell::ResizeReflow(nscoord aWidth, nscoord aHeight)
       // the way don't have region accumulation issues?
 
       {
-        nsAutoCauseReflowNotifier crNotifier(this);
+        nsAutoScriptBlocker scriptBlocker;
         WillDoReflow();
 
         // Kick off a top-down reflow
@@ -3314,7 +3335,6 @@ PresShell::RestoreRootScrollPosition()
   // scrollable frame will cause it to reenter ScrollToRestoredPosition(), and
   // it'll get all confused.
   nsAutoScriptBlocker scriptBlocker;
-  ++mChangeNestCount;
 
   if (historyState) {
     nsIFrame* scrollFrame = GetRootScrollFrame();
@@ -3327,8 +3347,6 @@ PresShell::RestoreRootScrollPosition()
       }
     }
   }
-
-  --mChangeNestCount;
 }
 
 void
@@ -3558,17 +3576,10 @@ PresShell::FrameNeedsToContinueReflow(nsIFrame *aFrame)
 nsIScrollableView*
 PresShell::GetViewToScroll(nsLayoutUtils::Direction aDirection)
 {
+  nsCOMPtr<nsIEventStateManager> esm = mPresContext->EventStateManager();
   nsIScrollableView* scrollView = nsnull;
-
   nsCOMPtr<nsIContent> focusedContent;
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (fm && mDocument) {
-    nsCOMPtr<nsIDOMWindow> window = do_QueryInterface(mDocument->GetWindow());
-
-    nsCOMPtr<nsIDOMElement> focusedElement;
-    fm->GetFocusedElementForWindow(window, PR_FALSE, nsnull, getter_AddRefs(focusedElement));
-    focusedContent = do_QueryInterface(focusedElement);
-  }
+  esm->GetFocusedContent(getter_AddRefs(focusedContent));
   if (!focusedContent && mSelection) {
     nsISelection* domSelection = mSelection->
       GetSelection(nsISelectionController::SELECTION_NORMAL);
@@ -3653,10 +3664,7 @@ PresShell::RecreateFramesFor(nsIContent* aContent)
   nsStyleChangeList changeList;
   changeList.AppendChange(nsnull, aContent, nsChangeHint_ReconstructFrame);
 
-  // Mark ourselves as not safe to flush while we're doing frame construction.
-  ++mChangeNestCount;
   nsresult rv = mFrameConstructor->ProcessRestyledFrames(changeList);
-  --mChangeNestCount;
   
   batch.EndUpdateViewBatch(NS_VMREFRESH_NO_SYNC);
 #ifdef ACCESSIBILITY
@@ -3978,12 +3986,15 @@ PresShell::GoToAnchor(const nsAString& aAnchorName, PRBool aScroll)
       // Now focus the document itself if focus is on an element within it.
       nsPIDOMWindow *win = mDocument->GetWindow();
 
-      nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-      if (fm && win) {
-        nsCOMPtr<nsIDOMWindow> focusedWindow;
-        fm->GetFocusedWindow(getter_AddRefs(focusedWindow));
-        if (SameCOMIdentity(win, focusedWindow))
-          fm->ClearFocus(focusedWindow);
+      if (win) {
+        nsCOMPtr<nsIFocusController> focusController = win->GetRootFocusController();
+        if (focusController) {
+          nsCOMPtr<nsIDOMWindowInternal> focusedWin;
+          focusController->GetFocusedWindow(getter_AddRefs(focusedWin));
+          if (SameCOMIdentity(win, focusedWin)) {
+            esm->ChangeFocusWith(nsnull, nsIEventStateManager::eEventFocusedByApplication);
+          }
+        }
       }
     }
   } else {
@@ -4242,6 +4253,27 @@ PresShell::ScrollContentIntoView(nsIContent* aContent,
   nsCOMPtr<nsIDocument> currentDoc = content->GetCurrentDoc();
   NS_ENSURE_STATE(currentDoc);
 
+  // Before we scroll the frame into view, ask the command dispatcher
+  // if we're resetting focus because a window just got an activate
+  // event. If we are, we do not want to scroll the frame into view.
+  // Example: The user clicks on an anchor, and then deactivates the 
+  // window. When they reactivate the window, the expected behavior
+  // is not for the anchor link to scroll back into view. That is what
+  // this check is preventing.
+  // XXX: The dependency on the command dispatcher needs to be fixed.
+  nsPIDOMWindow* ourWindow = currentDoc->GetWindow();
+  if (ourWindow) {
+    nsIFocusController *focusController = ourWindow->GetRootFocusController();
+    if (focusController) {
+      PRBool dontScroll = PR_FALSE;
+      focusController->GetSuppressFocusScroll(&dontScroll);
+      if (dontScroll) {
+        mContentToScrollTo = nsnull;
+        return NS_OK;
+      }
+    }
+  }
+
   mContentToScrollTo = aContent;
   mContentScrollVPosition = aVPercent;
   mContentScrollHPosition = aHPercent;
@@ -4404,13 +4436,14 @@ PresShell::GetSelectionForCopy(nsISelection** outSelection)
   if (!mDocument) return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIContent> content;
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (fm) {
-    nsCOMPtr<nsIDOMWindow> window = do_QueryInterface(mDocument->GetWindow());
-
-    nsCOMPtr<nsIDOMElement> focusedElement;
-    fm->GetFocusedElementForWindow(window, PR_FALSE, nsnull, getter_AddRefs(focusedElement));
-    content = do_QueryInterface(focusedElement);
+  nsPIDOMWindow *ourWindow = mDocument->GetWindow();
+  if (ourWindow) {
+    nsIFocusController *focusController = ourWindow->GetRootFocusController();
+    if (focusController) {
+      nsCOMPtr<nsIDOMElement> focusedElement;
+      focusController->GetFocusedElement(getter_AddRefs(focusedElement));
+      content = do_QueryInterface(focusedElement);
+    }
   }
 
   nsCOMPtr<nsISelection> sel;
@@ -4598,7 +4631,7 @@ PresShell::IsPaintingSuppressed(PRBool* aResult)
 void
 PresShell::UnsuppressAndInvalidate()
 {
-  if (!mPresContext->EnsureVisible() || mHaveShutDown) {
+  if (!mPresContext->EnsureVisible(PR_FALSE) || mHaveShutDown) {
     // No point; we're about to be torn down anyway.
     return;
   }
@@ -4611,10 +4644,18 @@ PresShell::UnsuppressAndInvalidate()
     rootFrame->Invalidate(rect);
   }
 
-  // now that painting is unsuppressed, focus may be set on the document
-  nsPIDOMWindow *win = mDocument->GetWindow();
-  if (win)
-    win->SetReadyForFocus();
+  // This makes sure to get the same thing that nsPresContext::EnsureVisible()
+  // got.
+  nsCOMPtr<nsISupports> container = mPresContext->GetContainer();
+  nsCOMPtr<nsPIDOMWindow> ourWindow = do_GetInterface(container);
+  nsCOMPtr<nsIFocusController> focusController =
+    ourWindow ? ourWindow->GetRootFocusController() : nsnull;
+
+  if (ourWindow)
+    CheckForFocus(ourWindow, focusController, mDocument);
+
+  if (focusController) // Unsuppress now that we've shown the new window and focused it.
+    focusController->SetSuppressFocus(PR_FALSE, "PresShell suppression on Web page loads");
 
   if (!mHaveShutDown && mViewManager)
     mViewManager->SynthesizeMouseMove(PR_FALSE);
@@ -4760,22 +4801,21 @@ PresShell::HandlePostedReflowCallbacks(PRBool aInterruptible)
 NS_IMETHODIMP 
 PresShell::IsSafeToFlush(PRBool& aIsSafeToFlush)
 {
+  aIsSafeToFlush = nsContentUtils::IsSafeToRunScript();
+#ifdef DEBUG
   // Not safe if we are reflowing or in the middle of frame construction
-  aIsSafeToFlush = !mIsReflowing &&
-                   !mChangeNestCount;
-
-  if (aIsSafeToFlush) {
-    // Not safe if we are painting
-    nsIViewManager* viewManager = GetViewManager();
-    if (viewManager) {
-      PRBool isPainting = PR_FALSE;
-      viewManager->IsPainting(isPainting);
-      if (isPainting) {
-        aIsSafeToFlush = PR_FALSE;
-      }
+  PRBool isSafeToFlush = !mIsReflowing;
+  // Not safe if we are painting
+  nsIViewManager* viewManager = GetViewManager();
+  if (viewManager) {
+    PRBool isPainting = PR_FALSE;
+    viewManager->IsPainting(isPainting);
+    if (isPainting) {
+      isSafeToFlush = PR_FALSE;
     }
   }
-
+  NS_ASSERTION(!aIsSafeToFlush || isSafeToFlush, "Missing a script blocker!");
+#endif
   return NS_OK;
 }
 
@@ -4787,7 +4827,6 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
   
   PRBool isSafeToFlush;
   IsSafeToFlush(isSafeToFlush);
-  isSafeToFlush = isSafeToFlush && nsContentUtils::IsSafeToRunScript();
 
   NS_ASSERTION(!isSafeToFlush || mViewManager, "Must have view manager");
   // Make sure the view manager stays alive while batching view updates.
@@ -4897,7 +4936,7 @@ PresShell::CharacterDataChanged(nsIDocument *aDocument,
   NS_PRECONDITION(!mIsDocumentGone, "Unexpected CharacterDataChanged");
   NS_PRECONDITION(aDocument == mDocument, "Unexpected aDocument");
 
-  nsAutoCauseReflowNotifier crNotifier(this);
+  nsAutoScriptBlocker scriptBlocker;
 
   if (mCaret) {
     // Invalidate the caret's current location before we call into the frame
@@ -4939,7 +4978,7 @@ PresShell::ContentStatesChanged(nsIDocument* aDocument,
   NS_PRECONDITION(aDocument == mDocument, "Unexpected aDocument");
 
   if (mDidInitialReflow) {
-    nsAutoCauseReflowNotifier crNotifier(this);
+    nsAutoScriptBlocker scriptBlocker;
     mFrameConstructor->ContentStatesChanged(aContent1, aContent2, aStateMask);
     VERIFY_STYLE_TREE;
   }
@@ -4961,7 +5000,7 @@ PresShell::AttributeChanged(nsIDocument* aDocument,
   // initial reflow to begin observing the document. That would
   // squelch any other inappropriate notifications as well.
   if (mDidInitialReflow) {
-    nsAutoCauseReflowNotifier crNotifier(this);
+    nsAutoScriptBlocker scriptBlocker;
     mFrameConstructor->AttributeChanged(aContent, aNameSpaceID,
                                         aAttribute, aModType, aStateMask);
     VERIFY_STYLE_TREE;
@@ -4981,7 +5020,7 @@ PresShell::ContentAppended(nsIDocument *aDocument,
     return;
   }
   
-  nsAutoCauseReflowNotifier crNotifier(this);
+  nsAutoScriptBlocker scriptBlocker;
   MOZ_TIMER_DEBUGLOG(("Start: Frame Creation: PresShell::ContentAppended(), this=%p\n", this));
   MOZ_TIMER_START(mFrameCreationWatch);
 
@@ -5010,7 +5049,7 @@ PresShell::ContentInserted(nsIDocument* aDocument,
     return;
   }
   
-  nsAutoCauseReflowNotifier crNotifier(this);
+  nsAutoScriptBlocker scriptBlocker;
 
   // Call this here so it only happens for real content mutations and
   // not cases when the frame constructor calls its own methods to force
@@ -5039,9 +5078,9 @@ PresShell::ContentRemoved(nsIDocument *aDocument,
 
   // Notify the ESM that the content has been removed, so that
   // it can clean up any state related to the content.
-  mPresContext->EventStateManager()->ContentRemoved(aDocument, aChild);
+  mPresContext->EventStateManager()->ContentRemoved(aChild);
 
-  nsAutoCauseReflowNotifier crNotifier(this);
+  nsAutoScriptBlocker scriptBlocker;
 
   // Call this here so it only happens for real content mutations and
   // not cases when the frame constructor calls its own methods to force
@@ -5050,9 +5089,8 @@ PresShell::ContentRemoved(nsIDocument *aDocument,
     mFrameConstructor->RestyleForRemove(aContainer, aChild, aIndexInContainer);
 
   PRBool didReconstruct;
-  mFrameConstructor->ContentRemoved(aContainer, aChild, aIndexInContainer,
-                                    nsCSSFrameConstructor::REMOVE_CONTENT,
-                                    &didReconstruct);
+  mFrameConstructor->ContentRemoved(aContainer, aChild,
+                                    aIndexInContainer, &didReconstruct);
 
   VERIFY_STYLE_TREE;
 }
@@ -5063,7 +5101,7 @@ PresShell::ReconstructFrames(void)
   if (!mPresContext || !mPresContext->IsDynamic()) {
     return NS_OK;
   }
-  nsAutoCauseReflowNotifier crNotifier(this);
+  nsAutoScriptBlocker scriptBlocker;
   mFrameConstructor->BeginUpdate();
   nsresult rv = mFrameConstructor->ReconstructDocElementHierarchy();
   VERIFY_STYLE_TREE;
@@ -5877,10 +5915,8 @@ nsresult PresShell::RetargetEventToParent(nsGUIEvent*     aEvent,
   nsIView *parentRootView;
   parentPresShell->GetViewManager()->GetRootView(parentRootView);
   
-  sDontRetargetEvents = PR_TRUE;
-  nsresult rv = parentViewObserver->HandleEvent(parentRootView, aEvent, aEventStatus);
-  sDontRetargetEvents = PR_FALSE;
-  return rv;
+  return parentViewObserver->HandleEvent(parentRootView, aEvent, 
+                                         aEventStatus);
 }
 
 NS_IMETHODIMP
@@ -5911,45 +5947,6 @@ PresShell::HandleEvent(nsIView         *aView,
   }
 #endif
 
-  // key and IME events must be targeted at the presshell for the focused frame
-  if (!sDontRetargetEvents &&
-      (NS_IS_KEY_EVENT(aEvent) || NS_IS_IME_EVENT(aEvent) ||
-       NS_IS_CONTEXT_MENU_KEY(aEvent))) {
-    nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-    if (!fm)
-      return NS_ERROR_FAILURE;
-
-    nsCOMPtr<nsIDOMWindow> window;
-    fm->GetFocusedWindow(getter_AddRefs(window));
-
-    // if there is no focused frame, there isn't anything to fire a key event
-    // at so just return
-    nsCOMPtr<nsPIDOMWindow> piWindow = do_QueryInterface(window);
-    if (!piWindow)
-      return NS_OK;
-
-    nsCOMPtr<nsIDocument> doc(do_QueryInterface(piWindow->GetExtantDocument()));    
-    if (!doc)
-      return NS_OK;
-
-    nsIPresShell *presShell = doc->GetPrimaryShell();
-    if (!presShell)
-      return NS_OK;
-
-    if (presShell != this) {
-      nsCOMPtr<nsIViewObserver> viewObserver = do_QueryInterface(presShell);
-      if (!viewObserver)
-        return NS_ERROR_FAILURE;
-
-      nsIView *view;
-      presShell->GetViewManager()->GetRootView(view);
-      sDontRetargetEvents = PR_TRUE;
-      nsresult rv = viewObserver->HandleEvent(view, aEvent, aEventStatus);
-      sDontRetargetEvents = PR_FALSE;
-      return rv;
-    }
-  }
-
   // Check for a theme change up front, since the frame type is irrelevant
   if (aEvent->message == NS_THEMECHANGED && mPresContext) {
     mPresContext->ThemeChanged();
@@ -5976,25 +5973,34 @@ PresShell::HandleEvent(nsIView         *aView,
     return NS_OK;
   }
 
+  PRBool widgetHandlingEvent =
+    (aEvent->message == NS_GOTFOCUS ||
+     aEvent->message == NS_LOSTFOCUS ||
+     aEvent->message == NS_ACTIVATE ||
+     aEvent->message == NS_DEACTIVATE);
   if (mDocument && mDocument->EventHandlingSuppressed()) {
-    nsDelayedEvent* event = nsnull;
-    if (aEvent->eventStructType == NS_KEY_EVENT) {
-      if (aEvent->message == NS_KEY_DOWN) {
-        mNoDelayedKeyEvents = PR_TRUE;
-      } else if (!mNoDelayedKeyEvents) {
-        event = new nsDelayedKeyEvent(static_cast<nsKeyEvent*>(aEvent));
+    if (!widgetHandlingEvent) {
+      nsDelayedEvent* event = nsnull;
+      if (aEvent->eventStructType == NS_KEY_EVENT) {
+        if (aEvent->message == NS_KEY_DOWN) {
+          mNoDelayedKeyEvents = PR_TRUE;
+        } else if (!mNoDelayedKeyEvents) {
+          event = new nsDelayedKeyEvent(static_cast<nsKeyEvent*>(aEvent));
+        }
+      } else if (aEvent->eventStructType == NS_MOUSE_EVENT) {
+        if (aEvent->message == NS_MOUSE_BUTTON_DOWN) {
+          mNoDelayedMouseEvents = PR_TRUE;
+        } else if (!mNoDelayedMouseEvents && aEvent->message == NS_MOUSE_BUTTON_UP) {
+          event = new nsDelayedMouseEvent(static_cast<nsMouseEvent*>(aEvent));
+        }
       }
-    } else if (aEvent->eventStructType == NS_MOUSE_EVENT) {
-      if (aEvent->message == NS_MOUSE_BUTTON_DOWN) {
-        mNoDelayedMouseEvents = PR_TRUE;
-      } else if (!mNoDelayedMouseEvents && aEvent->message == NS_MOUSE_BUTTON_UP) {
-        event = new nsDelayedMouseEvent(static_cast<nsMouseEvent*>(aEvent));
+      if (event && !mDelayedEvents.AppendElement(event)) {
+        delete event;
       }
+      return NS_OK;
     }
-    if (event && !mDelayedEvents.AppendElement(event)) {
-      delete event;
-    }
-    return NS_OK;
+  } else if (widgetHandlingEvent) {
+    FireOrClearDelayedEvents(PR_FALSE);
   }
 
   nsIFrame* frame = static_cast<nsIFrame*>(aView->GetClientData());
@@ -6097,36 +6103,40 @@ PresShell::HandleEvent(nsIView         *aView,
     PushCurrentEventInfo(nsnull, nsnull);
 
     // key and IME events go to the focused frame
+    nsIEventStateManager *esm = mPresContext->EventStateManager();
+
     if (NS_IS_KEY_EVENT(aEvent) || NS_IS_IME_EVENT(aEvent) ||
         NS_IS_CONTEXT_MENU_KEY(aEvent) || NS_IS_PLUGIN_EVENT(aEvent)) {
-      nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-      if (!fm)
-        return NS_ERROR_FAILURE;
-
-      nsCOMPtr<nsIDOMElement> element;
-      fm->GetFocusedElement(getter_AddRefs(element));
-      mCurrentEventContent = do_QueryInterface(element);
-
-      // a key or IME event may come in to an inactive window. In this
-      // situation, look for the element that would be focused if this
-      // window was active.
-      if (!mCurrentEventContent &&
-          NS_TargetUnfocusedEventToLastFocusedContent(aEvent)) {
-        nsPIDOMWindow *win = mDocument->GetWindow();
-        nsCOMPtr<nsPIDOMWindow> focusedWindow;
-        mCurrentEventContent =
-          nsFocusManager::GetFocusedDescendant(win, PR_TRUE, getter_AddRefs(focusedWindow));
+      esm->GetFocusedFrame(&mCurrentEventFrame);
+      if (mCurrentEventFrame) {
+        esm->GetFocusedContent(getter_AddRefs(mCurrentEventContent));
+      } else {
+        if (NS_TargetUnfocusedEventToLastFocusedContent(aEvent)) {
+          nsPIDOMWindow *ourWindow = mDocument->GetWindow();
+          if (ourWindow) {
+            nsIFocusController *focusController =
+              ourWindow->GetRootFocusController();
+            if (focusController) {
+              PRBool active = PR_FALSE;
+              // check input focus is in Mozilla
+              focusController->GetActive(&active);
+              if (!active) {
+                // if not, search for pre-focused element
+                nsCOMPtr<nsIDOMElement> focusedElement;
+                focusController->GetFocusedElement(getter_AddRefs(focusedElement));
+                if (focusedElement) {
+                  // get mCurrentEventContent from focusedElement
+                  mCurrentEventContent = do_QueryInterface(focusedElement);
+                }
+              }
+            }
+          }
+        }
+        if (!mCurrentEventContent) {
+          mCurrentEventContent = mDocument->GetRootContent();
+        }
+        mCurrentEventFrame = nsnull; // XXXldb Isn't it already?
       }
-
-      // otherwise, if there is no focused content or the focused content has
-      // no frame, just use the root content. This ensures that key events
-      // still get sent to the window properly if nothing is focused or if a
-      // frame goes away while it is focused.
-      if (!mCurrentEventContent || !GetCurrentEventFrame())
-        mCurrentEventContent = mDocument->GetRootContent();
-      mCurrentEventFrame = nsnull;
-
-        
       if (!mCurrentEventContent || InZombieDocument(mCurrentEventContent)) {
         rv = RetargetEventToParent(aEvent, aEventStatus);
         PopCurrentEventInfo();
@@ -6145,7 +6155,7 @@ PresShell::HandleEvent(nsIView         *aView,
     PopCurrentEventInfo();
   } else {
     // Focus events need to be dispatched even if no frame was found, since
-    // we don't want the focus to be out of sync.
+    // we don't want the focus controller to be out of sync.
 
     if (!NS_EVENT_NEEDS_FRAME(aEvent)) {
       mCurrentEventFrame = nsnull;
@@ -6294,6 +6304,17 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
 
     if (NS_IS_TRUSTED_EVENT(aEvent)) {
       switch (aEvent->message) {
+      case NS_GOTFOCUS:
+      case NS_LOSTFOCUS:
+      case NS_ACTIVATE:
+      case NS_DEACTIVATE:
+        // Treat focus/blur events as user input if they happen while
+        // executing trusted script, or no script at all. If they
+        // happen during execution of non-trusted script, then they
+        // should not be considered user input.
+        if (!nsContentUtils::IsCallerChrome()) {
+          break;
+        }
       case NS_MOUSE_BUTTON_DOWN:
       case NS_MOUSE_BUTTON_UP:
       case NS_KEY_PRESS:
@@ -6384,23 +6405,6 @@ PresShell::HandleDOMEventWithTarget(nsIContent* aTargetContent, nsEvent* aEvent,
   return NS_OK;
 }
 
-// See the method above.
-NS_IMETHODIMP
-PresShell::HandleDOMEventWithTarget(nsIContent* aTargetContent,
-                                    nsIDOMEvent* aEvent,
-                                    nsEventStatus* aStatus)
-{
-  PushCurrentEventInfo(nsnull, aTargetContent);
-  nsCOMPtr<nsISupports> container = mPresContext->GetContainer();
-  if (container) {
-    nsEventDispatcher::DispatchDOMEvent(aTargetContent, nsnull, aEvent,
-                                        mPresContext, aStatus);
-  }
-
-  PopCurrentEventInfo();
-  return NS_OK;
-}
-
 PRBool
 PresShell::AdjustContextMenuKeyEvent(nsMouseEvent* aEvent)
 {
@@ -6458,21 +6462,28 @@ PresShell::AdjustContextMenuKeyEvent(nsMouseEvent* aEvent)
   // If we're here because of the key-equiv for showing context menus, we
   // have to reset the event target to the currently focused element. Get it
   // from the focus controller.
-  nsCOMPtr<nsIDOMElement> currentFocus;
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (fm)
-    fm->GetFocusedElement(getter_AddRefs(currentFocus));
-
-  // Reset event coordinates relative to focused frame in view
-  if (currentFocus) {
-    nsCOMPtr<nsIContent> currentPointElement;
-    GetCurrentItemAndPositionForElement(currentFocus,
-                                        getter_AddRefs(currentPointElement),
-                                        aEvent->refPoint);
-    if (currentPointElement) {
-      mCurrentEventContent = currentPointElement;
-      mCurrentEventFrame = nsnull;
-      GetCurrentEventFrame();
+  nsIDocument *doc = GetDocument();
+  if (doc) {
+    nsPIDOMWindow* privWindow = doc->GetWindow();
+    if (privWindow) {
+      nsIFocusController *focusController =
+        privWindow->GetRootFocusController();
+      if (focusController) {
+        nsCOMPtr<nsIDOMElement> currentFocus;
+        focusController->GetFocusedElement(getter_AddRefs(currentFocus));
+        // Reset event coordinates relative to focused frame in view
+        if (currentFocus) {
+          nsCOMPtr<nsIContent> currentPointElement;
+          GetCurrentItemAndPositionForElement(currentFocus,
+                                              getter_AddRefs(currentPointElement),
+                                              aEvent->refPoint);
+          if (currentPointElement) {
+            mCurrentEventContent = currentPointElement;
+            mCurrentEventFrame = nsnull;
+            GetCurrentEventFrame();
+          }
+        }
+      }
     }
   }
 
@@ -6844,16 +6855,32 @@ PresShell::FireOrClearDelayedEvents(PRBool aFireEvents)
     return;
   }
 
-  if (mDocument) {
+  if (!mIsDestroying && mDocument) {
     nsCOMPtr<nsIDocument> doc = mDocument;
-    while (!mIsDestroying && mDelayedEvents.Length() &&
-           !doc->EventHandlingSuppressed()) {
-      nsAutoPtr<nsDelayedEvent> ev(mDelayedEvents[0].forget());
+    while (mDelayedEvents.Length() && !doc->EventHandlingSuppressed()) {
+      mDelayedEvents[0]->Dispatch(this);
       mDelayedEvents.RemoveElementAt(0);
-      ev->Dispatch(this);
     }
     if (!doc->EventHandlingSuppressed()) {
       mDelayedEvents.Clear();
+    }
+  }
+}
+
+void
+PresShell::NeedsFocusOrBlurAfterSuppression(nsPIDOMEventTarget* aTarget,
+                                            PRUint32 aEventType)
+{
+  if (mDocument && mDocument->EventHandlingSuppressed()) {
+    for (PRUint32 i = mDelayedEvents.Length(); i > 0; --i) {
+      if (mDelayedEvents[i - 1]->Equals(aTarget, aEventType)) {
+        mDelayedEvents.RemoveElementAt(i - 1);
+      }
+    }
+
+    nsDelayedFocusBlur* delayed = new nsDelayedFocusBlur(aTarget, aEventType);
+    if (delayed && !mDelayedEvents.AppendElement(delayed)) {
+      delete delayed;
     }
   }
 }
@@ -6949,14 +6976,6 @@ PresShell::PostReflowEvent()
       mDirtyRoots.Length() == 0)
     return;
 
-  if (!mPresContext->HasPendingInterrupt() || !PostReflowEventOffTimer()) {
-    DoPostReflowEvent();
-  }
-}
-
-void
-PresShell::DoPostReflowEvent()
-{
   nsRefPtr<ReflowEvent> ev = new ReflowEvent(this);
   if (NS_FAILED(NS_DispatchToCurrentThread(ev))) {
     NS_WARNING("failed to dispatch reflow event");
@@ -6964,21 +6983,10 @@ PresShell::DoPostReflowEvent()
     mReflowEvent = ev;
 #ifdef DEBUG
     if (VERIFY_REFLOW_NOISY_RC & gVerifyReflowFlags) {
-      printf("\n*** PresShell::DoPostReflowEvent(), this=%p, event=%p\n",
-             (void*)this, (void*)ev);
+      printf("\n*** PresShell::PostReflowEvent(), this=%p, event=%p\n", (void*)this, (void*)ev);
     }
 #endif    
   }
-}
-
-nsresult
-PresShell::DidCauseReflow()
-{
-  NS_ASSERTION(mChangeNestCount != 0, "Unexpected call to DidCauseReflow()");
-  --mChangeNestCount;
-  nsContentUtils::RemoveScriptBlocker();
-
-  return NS_OK;
 }
 
 void
@@ -7028,32 +7036,6 @@ MarkFramesDirtyToRoot(nsPtrHashKey<nsIFrame>* p, void* closure)
   }
 
   return PL_DHASH_NEXT;
-}
-
-void
-PresShell::sReflowContinueCallback(nsITimer* aTimer, void* aPresShell)
-{
-  nsRefPtr<PresShell> self = static_cast<PresShell*>(aPresShell);
-
-  NS_PRECONDITION(aTimer == self->mReflowContinueTimer, "Unexpected timer");
-  self->mReflowContinueTimer = nsnull;
-  self->DoPostReflowEvent();
-}
-
-PRBool
-PresShell::PostReflowEventOffTimer()
-{
-  NS_PRECONDITION(!mReflowEvent.IsPending(), "Shouldn't get here");
-  if (!mReflowContinueTimer) {
-    mReflowContinueTimer = do_CreateInstance("@mozilla.org/timer;1");
-    if (!mReflowContinueTimer ||
-        NS_FAILED(mReflowContinueTimer->
-                    InitWithFuncCallback(sReflowContinueCallback, this, 0,
-                                         nsITimer::TYPE_ONE_SHOT))) {
-      return PR_FALSE;
-    }
-  }
-  return PR_TRUE;
 }
 
 PRBool
@@ -7217,6 +7199,8 @@ PresShell::ProcessReflowCommands(PRBool aInterruptible)
     }
 #endif
 
+    WillDoReflow();
+
     // If reflow is interruptible, then make a note of our deadline.
     const PRIntervalTime deadline = aInterruptible
         ? PR_IntervalNow() + PR_MicrosecondsToInterval(gMaxRCProcessingTime)
@@ -7225,7 +7209,6 @@ PresShell::ProcessReflowCommands(PRBool aInterruptible)
     // Scope for the reflow entry point
     {
       nsAutoScriptBlocker scriptBlocker;
-      WillDoReflow();
       AUTO_LAYOUT_PHASE_ENTRY_POINT(GetPresContext(), Reflow);
 
       do {
@@ -7393,9 +7376,7 @@ PresShell::Observe(nsISupports* aSubject,
       // construction.
       {
         nsAutoScriptBlocker scriptBlocker;
-        ++mChangeNestCount;
         mFrameConstructor->ProcessRestyledFrames(changeList);
-        --mChangeNestCount;
       }
 
       batch.EndUpdateViewBatch(NS_VMREFRESH_NO_SYNC);
@@ -7904,7 +7885,7 @@ PresShell::VerifyIncrementalReflow()
   sh->SetVerifyReflowEnable(PR_FALSE); // turn off verify reflow while we're reflowing the test frame tree
   vm->SetViewObserver((nsIViewObserver *)((PresShell*)sh.get()));
   {
-    nsAutoCauseReflowNotifier crNotifier(this);
+    nsAutoScriptBlocker scriptBlocker;
     sh->InitialReflow(r.width, r.height);
   }
   mDocument->BindingManager()->ProcessAttachedQueue();

@@ -75,6 +75,9 @@ enum nsDOMClassInfoID {
   eDOMClassInfo_NodeList_id,
   eDOMClassInfo_NamedNodeMap_id,
 
+  // StyleSheet classes
+  eDOMClassInfo_DocumentStyleSheetList_id,
+
   // Event classes
   eDOMClassInfo_Event_id,
   eDOMClassInfo_MutationEvent_id,
@@ -460,10 +463,6 @@ enum nsDOMClassInfoID {
 #endif
 
   eDOMClassInfo_Worker_id,
-
-#ifdef MOZ_ENABLE_CANVAS3D
-  eDOMClassInfo_CanvasRenderingContextGLWeb20_id,
-#endif
 
   // This one better be the last one in this list
   eDOMClassInfoIDCount

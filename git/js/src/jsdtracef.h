@@ -50,10 +50,10 @@ jsdtrace_function_info(JSContext *cx, JSStackFrame *fp, JSStackFrame *dfp,
                        JSFunction *fun);
 
 extern void
-jsdtrace_function_args(JSContext *cx, JSStackFrame *fp, JSFunction *fun, jsuint argc, jsval *argv);
+jsdtrace_function_args(JSContext *cx, JSStackFrame *fp, JSFunction *fun);
 
 extern void
-jsdtrace_function_rval(JSContext *cx, JSStackFrame *fp, JSFunction *fun, jsval *rval);
+jsdtrace_function_rval(JSContext *cx, JSStackFrame *fp, JSFunction *fun);
 
 extern void
 jsdtrace_function_return(JSContext *cx, JSStackFrame *fp, JSFunction *fun);

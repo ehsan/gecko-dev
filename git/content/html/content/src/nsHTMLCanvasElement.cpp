@@ -88,7 +88,7 @@ public:
   // nsICanvasElement
   NS_IMETHOD GetPrimaryCanvasFrame(nsIFrame **aFrame);
   NS_IMETHOD GetSize(PRUint32 *width, PRUint32 *height);
-  NS_IMETHOD RenderContexts(gfxContext *ctx, gfxPattern::GraphicsFilter aFilter);
+  NS_IMETHOD RenderContexts(gfxContext *ctx);
   virtual PRBool IsWriteOnly();
   virtual void SetWriteOnly();
   NS_IMETHOD InvalidateFrame ();
@@ -521,12 +521,12 @@ nsHTMLCanvasElement::GetSize(PRUint32 *width, PRUint32 *height)
 }
 
 NS_IMETHODIMP
-nsHTMLCanvasElement::RenderContexts(gfxContext *ctx, gfxPattern::GraphicsFilter aFilter)
+nsHTMLCanvasElement::RenderContexts(gfxContext *ctx)
 {
   if (!mCurrentContext)
     return NS_OK;
 
-  return mCurrentContext->Render(ctx, aFilter);
+  return mCurrentContext->Render(ctx);
 }
 
 PRBool

@@ -80,6 +80,7 @@
 #include "nsIXPConnect.h"
 #include "nsContentList.h"
 #include "nsDOMError.h"
+#include "nsContentErrors.h"
 #include "nsIPrincipal.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsAttrName.h"
@@ -141,7 +142,6 @@
 #include "nsRange.h"
 #include "mozAutoDocUpdate.h"
 #include "nsCCUncollectableMarker.h"
-#include "nsHtml5Module.h"
 #include "prprf.h"
 
 #define NS_MAX_DOCUMENT_WRITE_DEPTH 20
@@ -655,11 +655,6 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
                                   PRBool aReset,
                                   nsIContentSink* aSink)
 {
-  PRBool loadAsHtml5 = nsHtml5Module::Enabled;
-  if (aSink) {
-    loadAsHtml5 = PR_FALSE;
-  }
-
   nsCAutoString contentType;
   aChannel->GetContentType(contentType);
 
@@ -669,11 +664,6 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
 
     mIsRegularHTML = PR_FALSE;
     mCompatMode = eCompatibility_FullStandards;
-    loadAsHtml5 = PR_FALSE;
-  }
-  
-  if (!(contentType.Equals("text/html") && aCommand && !nsCRT::strcmp(aCommand, "view"))) {
-    loadAsHtml5 = PR_FALSE;
   }
 #ifdef DEBUG
   else {
@@ -720,12 +710,8 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
   }
 
   if (needsParser) {
-    if (loadAsHtml5) {
-      mParser = nsHtml5Module::NewHtml5Parser();
-    } else {
-      mParser = do_CreateInstance(kCParserCID, &rv);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
+    mParser = do_CreateInstance(kCParserCID, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   PRInt32 textType = GET_BIDI_OPTION_TEXTTYPE(GetBidiOptions());
@@ -940,10 +926,9 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
     // create the content sink
     nsCOMPtr<nsIContentSink> sink;
 
-    if (aSink) {
-      NS_ASSERTION((!loadAsHtml5), "Panic: We are loading as HTML5 and someone tries to set an external sink!");
+    if (aSink)
       sink = aSink;
-    } else {
+    else {
       if (IsXHTML()) {
         nsCOMPtr<nsIXMLContentSink> xmlsink;
         rv = NS_NewXMLContentSink(getter_AddRefs(xmlsink), this, uri,
@@ -951,17 +936,12 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
 
         sink = xmlsink;
       } else {
-        if (loadAsHtml5) {
-          nsHtml5Module::Initialize(mParser, this, uri, docShell, aChannel);
-          sink = mParser->GetContentSink();
-        } else {
-          nsCOMPtr<nsIHTMLContentSink> htmlsink;
+        nsCOMPtr<nsIHTMLContentSink> htmlsink;
 
-          rv = NS_NewHTMLContentSink(getter_AddRefs(htmlsink), this, uri,
-                                     docShell, aChannel);
+        rv = NS_NewHTMLContentSink(getter_AddRefs(htmlsink), this, uri,
+                                   docShell, aChannel);
 
-          sink = htmlsink;
-        }
+        sink = htmlsink;
       }
       NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1232,7 +1212,7 @@ nsHTMLDocument::CreateElement(const nsAString& aTagName,
   nsCOMPtr<nsIAtom> name = do_GetAtom(tagName);
 
   nsCOMPtr<nsIContent> content;
-  rv = CreateElem(name, nsnull, kNameSpaceID_XHTML, PR_TRUE,
+  rv = CreateElem(name, nsnull, GetDefaultNamespaceID(), PR_TRUE,
                   getter_AddRefs(content));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1613,7 +1593,7 @@ NS_IMETHODIMP
 nsHTMLDocument::GetImages(nsIDOMHTMLCollection** aImages)
 {
   if (!mImages) {
-    mImages = new nsContentList(this, nsGkAtoms::img, kNameSpaceID_XHTML);
+    mImages = new nsContentList(this, nsGkAtoms::img, GetDefaultNamespaceID());
     if (!mImages) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -1629,7 +1609,8 @@ NS_IMETHODIMP
 nsHTMLDocument::GetApplets(nsIDOMHTMLCollection** aApplets)
 {
   if (!mApplets) {
-    mApplets = new nsContentList(this, nsGkAtoms::applet, kNameSpaceID_XHTML);
+    mApplets = new nsContentList(this, nsGkAtoms::applet,
+                                 GetDefaultNamespaceID());
     if (!mApplets) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -1662,9 +1643,10 @@ nsHTMLDocument::MatchLinks(nsIContent *aContent, PRInt32 aNamespaceID,
 #endif
 
     nsINodeInfo *ni = aContent->NodeInfo();
+    PRInt32 namespaceID = doc->GetDefaultNamespaceID();
 
     nsIAtom *localName = ni->NameAtom();
-    if (ni->NamespaceID() == kNameSpaceID_XHTML &&
+    if (ni->NamespaceID() == namespaceID &&
         (localName == nsGkAtoms::a || localName == nsGkAtoms::area)) {
       return aContent->HasAttr(kNameSpaceID_None, nsGkAtoms::href);
     }
@@ -1706,7 +1688,8 @@ nsHTMLDocument::MatchAnchors(nsIContent *aContent, PRInt32 aNamespaceID,
   }
 #endif
 
-  if (aContent->NodeInfo()->Equals(nsGkAtoms::a, kNameSpaceID_XHTML)) {
+  PRInt32 namespaceID = aContent->GetCurrentDoc()->GetDefaultNamespaceID();
+  if (aContent->NodeInfo()->Equals(nsGkAtoms::a, namespaceID)) {
     return aContent->HasAttr(kNameSpaceID_None, nsGkAtoms::name);
   }
 
@@ -1804,8 +1787,6 @@ nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
 
     return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
   }
-
-  PRBool loadAsHtml5 = nsHtml5Module::Enabled;
 
   nsresult rv = NS_OK;
 
@@ -1958,12 +1939,7 @@ nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
   // resetting the document.
   mSecurityInfo = securityInfo;
 
-  if (loadAsHtml5) {
-    mParser = nsHtml5Module::NewHtml5Parser();
-    rv = NS_OK;
-  } else {
-    mParser = do_CreateInstance(kCParserCID, &rv);  
-  }
+  mParser = do_CreateInstance(kCParserCID, &rv);
 
   // This will be propagated to the parser when someone actually calls write()
   mContentType = aContentType;
@@ -1971,22 +1947,18 @@ nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
   mWriteState = eDocumentOpened;
 
   if (NS_SUCCEEDED(rv)) {
-    if (loadAsHtml5) {
-      nsHtml5Module::Initialize(mParser, this, uri, shell, channel);
-    } else {
-      nsCOMPtr<nsIHTMLContentSink> sink;
+    nsCOMPtr<nsIHTMLContentSink> sink;
 
-      rv = NS_NewHTMLContentSink(getter_AddRefs(sink), this, uri, shell,
-                                 channel);
-      if (NS_FAILED(rv)) {
-        // Don't use a parser without a content sink.
-        mParser = nsnull;
-        mWriteState = eNotWriting;
-        return rv;
-      }
-
-      mParser->SetContentSink(sink);
+    rv = NS_NewHTMLContentSink(getter_AddRefs(sink), this, uri, shell,
+                               channel);
+    if (NS_FAILED(rv)) {
+      // Don't use a parser without a content sink.
+      mParser = nsnull;
+      mWriteState = eNotWriting;
+      return rv;
     }
+
+    mParser->SetContentSink(sink);
   }
 
   // Prepare the docshell and the document viewer for the impending
@@ -2283,7 +2255,13 @@ nsHTMLDocument::GetElementsByTagNameNS(const nsAString& aNamespaceURI,
                                        const nsAString& aLocalName,
                                        nsIDOMNodeList** aReturn)
 {
-  return nsDocument::GetElementsByTagNameNS(aNamespaceURI, aLocalName, aReturn);
+  nsAutoString tmp(aLocalName);
+
+  if (!IsXHTML()) {
+    ToLowerCase(tmp); // HTML elements are lower case internally.
+  }
+
+  return nsDocument::GetElementsByTagNameNS(aNamespaceURI, tmp, aReturn);
 }
 
 NS_IMETHODIMP
@@ -2299,10 +2277,8 @@ nsHTMLDocument::MatchNameAttribute(nsIContent* aContent, PRInt32 aNamespaceID,
 {
   NS_PRECONDITION(aContent, "Must have content node to work with!");
   nsString* elementName = static_cast<nsString*>(aData);
-  return
-    aContent->GetNameSpaceID() == kNameSpaceID_XHTML &&
-    aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name,
-                          *elementName, eCaseMatters);
+  return aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name,
+                               *elementName, eCaseMatters);
 }
 
 NS_IMETHODIMP
@@ -2417,14 +2393,37 @@ nsHTMLDocument::GetHeight(PRInt32* aHeight)
   return GetBodySize(&width, aHeight);
 }
 
+static void
+LegacyRGBToHex(nscolor aColor, nsAString& aResult)
+{
+  if (NS_GET_A(aColor) == 255) {
+    char buf[10];
+    PR_snprintf(buf, sizeof(buf), "#%02x%02x%02x",
+                NS_GET_R(aColor), NS_GET_G(aColor), NS_GET_B(aColor));
+    CopyASCIItoUTF16(buf, aResult);
+  } else if (aColor == NS_RGBA(0,0,0,0)) {
+    aResult.AssignLiteral("transparent");
+  } else {
+    NS_NOTREACHED("translucent color property cannot be stringified");
+    aResult.Truncate();
+  }
+}
+
 NS_IMETHODIMP
 nsHTMLDocument::GetAlinkColor(nsAString& aAlinkColor)
 {
   aAlinkColor.Truncate();
 
   nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
+
   if (body) {
     body->GetALink(aAlinkColor);
+  } else if (mAttrStyleSheet) {
+    nscolor color;
+    nsresult rv = mAttrStyleSheet->GetActiveLinkColor(color);
+    if (NS_SUCCEEDED(rv) && rv != NS_HTML_STYLE_PROPERTY_NOT_THERE) {
+      LegacyRGBToHex(color, aAlinkColor);
+    }
   }
 
   return NS_OK;
@@ -2434,8 +2433,16 @@ NS_IMETHODIMP
 nsHTMLDocument::SetAlinkColor(const nsAString& aAlinkColor)
 {
   nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
+
   if (body) {
     body->SetALink(aAlinkColor);
+  } else if (mAttrStyleSheet) {
+    nsAttrValue value;
+    if (value.ParseColor(aAlinkColor, this)) {
+      nscolor color;
+      value.GetColorValue(color);
+      mAttrStyleSheet->SetActiveLinkColor(color);
+    }
   }
 
   return NS_OK;
@@ -2447,8 +2454,15 @@ nsHTMLDocument::GetLinkColor(nsAString& aLinkColor)
   aLinkColor.Truncate();
 
   nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
+
   if (body) {
     body->GetLink(aLinkColor);
+  } else if (mAttrStyleSheet) {
+    nscolor color;
+    nsresult rv = mAttrStyleSheet->GetLinkColor(color);
+    if (NS_SUCCEEDED(rv) && rv != NS_HTML_STYLE_PROPERTY_NOT_THERE) {
+      LegacyRGBToHex(color, aLinkColor);
+    }
   }
 
   return NS_OK;
@@ -2458,8 +2472,16 @@ NS_IMETHODIMP
 nsHTMLDocument::SetLinkColor(const nsAString& aLinkColor)
 {
   nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
+
   if (body) {
     body->SetLink(aLinkColor);
+  } else if (mAttrStyleSheet) {
+    nsAttrValue value;
+    if (value.ParseColor(aLinkColor, this)) {
+      nscolor color;
+      value.GetColorValue(color);
+      mAttrStyleSheet->SetLinkColor(color);
+    }
   }
 
   return NS_OK;
@@ -2471,8 +2493,15 @@ nsHTMLDocument::GetVlinkColor(nsAString& aVlinkColor)
   aVlinkColor.Truncate();
 
   nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
+
   if (body) {
     body->GetVLink(aVlinkColor);
+  } else if (mAttrStyleSheet) {
+    nscolor color;
+    nsresult rv = mAttrStyleSheet->GetVisitedLinkColor(color);
+    if (NS_SUCCEEDED(rv) && rv != NS_HTML_STYLE_PROPERTY_NOT_THERE) {
+      LegacyRGBToHex(color, aVlinkColor);
+    }
   }
 
   return NS_OK;
@@ -2482,8 +2511,16 @@ NS_IMETHODIMP
 nsHTMLDocument::SetVlinkColor(const nsAString& aVlinkColor)
 {
   nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
+
   if (body) {
     body->SetVLink(aVlinkColor);
+  } else if (mAttrStyleSheet) {
+    nsAttrValue value;
+    if (value.ParseColor(aVlinkColor, this)) {
+      nscolor color;
+      value.GetColorValue(color);
+      mAttrStyleSheet->SetVisitedLinkColor(color);
+    }
   }
 
   return NS_OK;
@@ -2495,6 +2532,7 @@ nsHTMLDocument::GetBgColor(nsAString& aBgColor)
   aBgColor.Truncate();
 
   nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
+
   if (body) {
     body->GetBgColor(aBgColor);
   }
@@ -2506,9 +2544,11 @@ NS_IMETHODIMP
 nsHTMLDocument::SetBgColor(const nsAString& aBgColor)
 {
   nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
+
   if (body) {
     body->SetBgColor(aBgColor);
   }
+  // XXXldb And otherwise?
 
   return NS_OK;
 }
@@ -2519,6 +2559,7 @@ nsHTMLDocument::GetFgColor(nsAString& aFgColor)
   aFgColor.Truncate();
 
   nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
+
   if (body) {
     body->GetText(aFgColor);
   }
@@ -2530,9 +2571,11 @@ NS_IMETHODIMP
 nsHTMLDocument::SetFgColor(const nsAString& aFgColor)
 {
   nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
+
   if (body) {
     body->SetText(aFgColor);
   }
+  // XXXldb And otherwise?
 
   return NS_OK;
 }
@@ -2542,7 +2585,7 @@ NS_IMETHODIMP
 nsHTMLDocument::GetEmbeds(nsIDOMHTMLCollection** aEmbeds)
 {
   if (!mEmbeds) {
-    mEmbeds = new nsContentList(this, nsGkAtoms::embed, kNameSpaceID_XHTML);
+    mEmbeds = new nsContentList(this, nsGkAtoms::embed, GetDefaultNamespaceID());
     if (!mEmbeds) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -2875,7 +2918,7 @@ nsContentList*
 nsHTMLDocument::GetForms()
 {
   if (!mForms)
-    mForms = new nsContentList(this, nsGkAtoms::form, kNameSpaceID_XHTML);
+    mForms = new nsContentList(this, nsGkAtoms::form, GetDefaultNamespaceID());
 
   return mForms;
 }
@@ -3093,7 +3136,7 @@ DocAllResultMatch(nsIContent* aContent, PRInt32 aNamespaceID, nsIAtom* aAtom,
   }
 
   nsGenericHTMLElement* elm = nsGenericHTMLElement::FromContent(aContent);
-  if (!elm) {
+  if (!elm || aContent->GetNameSpaceID() != kNameSpaceID_None) {
     return PR_FALSE;
   }
 
@@ -4015,6 +4058,31 @@ nsHTMLDocument::QueryCommandValue(const nsAString & commandID,
 
   return rv;
 }
+
+#ifdef DEBUG
+nsresult
+nsHTMLDocument::CreateElem(nsIAtom *aName, nsIAtom *aPrefix,
+                           PRInt32 aNamespaceID, PRBool aDocumentDefaultType,
+                           nsIContent** aResult)
+{
+  NS_ASSERTION(!aDocumentDefaultType || IsXHTML() ||
+               aNamespaceID == kNameSpaceID_None,
+               "HTML elements in an HTML document should have "
+               "kNamespaceID_None as their namespace ID.");
+
+  if (IsXHTML() &&
+      (aDocumentDefaultType || aNamespaceID == kNameSpaceID_XHTML)) {
+    nsCAutoString name, lcName;
+    aName->ToUTF8String(name);
+    ToLowerCase(name, lcName);
+    NS_ASSERTION(lcName.Equals(name),
+                 "aName should be lowercase, fix caller.");
+  }
+
+  return nsDocument::CreateElem(aName, aPrefix, aNamespaceID,
+                                aDocumentDefaultType, aResult);
+}
+#endif
 
 nsresult
 nsHTMLDocument::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const

@@ -500,7 +500,8 @@ nsSVGElement::UnsetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
       mContentStyleRule = nsnull;
 
     if (IsEventName(aName)) {
-      nsIEventListenerManager* manager = GetListenerManager(PR_FALSE);
+      nsCOMPtr<nsIEventListenerManager> manager;
+      GetListenerManager(PR_FALSE, getter_AddRefs(manager));
       if (manager) {
         nsIAtom* eventName = GetEventNameForAttr(aName);
         manager->RemoveScriptEventListener(eventName);
@@ -932,8 +933,7 @@ nsSVGElement::GetOwnerSVGElement(nsIDOMSVGSVGElement * *aOwnerSVGElement)
 NS_IMETHODIMP
 nsSVGElement::GetViewportElement(nsIDOMSVGElement * *aViewportElement)
 {
-  nsSVGUtils::GetNearestViewportElement(this, aViewportElement);
-  return NS_OK; // we can't throw exceptions from this API.
+  return nsSVGUtils::GetNearestViewportElement(this, aViewportElement);
 }
 
 //----------------------------------------------------------------------
@@ -1544,7 +1544,7 @@ nsSVGElement::ParseNumberOptionalNumber(const nsAString& aValue,
   float x = float(PR_strtod(str, &rest));
   float y = x;
 
-  if (str == rest || !NS_FloatIsFinite(x)) {
+  if (str == rest) {
     //first value was illformed
     return NS_ERROR_FAILURE;
   }
@@ -1558,7 +1558,7 @@ nsSVGElement::ParseNumberOptionalNumber(const nsAString& aValue,
     }
 
     y = float(PR_strtod(rest, &rest));
-    if (*rest != '\0' || !NS_FloatIsFinite(y)) {
+    if (*rest != '\0') {
       //second value was illformed or there was trailing content
       return NS_ERROR_FAILURE;
     }

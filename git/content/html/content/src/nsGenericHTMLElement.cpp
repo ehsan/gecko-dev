@@ -76,7 +76,6 @@
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "nsIDocShell.h"
-#include "nsIDocShellTreeItem.h"
 #include "nsINameSpaceManager.h"
 #include "nsDOMError.h"
 #include "nsScriptLoader.h"
@@ -98,7 +97,6 @@
 #include "nsIForm.h"
 #include "nsIFormControl.h"
 #include "nsIDOMHTMLFormElement.h"
-#include "nsFocusManager.h"
 
 #include "nsMutationEvent.h"
 
@@ -307,7 +305,7 @@ nsGenericHTMLElement::SetAttribute(const nsAString& aName,
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIAtom> nameAtom;
-    if (IsInHTMLDocument()) {
+    if (mNodeInfo->NamespaceEquals(kNameSpaceID_None)) {
       nsAutoString lower;
       ToLowerCase(aName, lower);
       nameAtom = do_GetAtom(lower);
@@ -329,8 +327,23 @@ nsGenericHTMLElement::GetNodeName(nsAString& aNodeName)
 {
   mNodeInfo->GetQualifiedName(aNodeName);
 
-  if (IsInHTMLDocument())
+  if (mNodeInfo->NamespaceEquals(kNameSpaceID_None))
     ToUpperCase(aNodeName);
+
+  return NS_OK;
+}
+
+nsresult
+nsGenericHTMLElement::GetLocalName(nsAString& aLocalName)
+{
+  mNodeInfo->GetLocalName(aLocalName);
+
+  if (mNodeInfo->NamespaceEquals(kNameSpaceID_None)) {
+    // No namespace, this means we're dealing with a good ol' HTML
+    // element, so uppercase the local name.
+
+    ToUpperCase(aLocalName);
+  }
 
   return NS_OK;
 }
@@ -341,11 +354,29 @@ nsGenericHTMLElement::GetElementsByTagName(const nsAString& aTagname,
 {
   nsAutoString tagName(aTagname);
 
-  // Only lowercase the name if this is an HTML document.
-  if (IsInHTMLDocument())
+  // Only lowercase the name if this element has no namespace (i.e.
+  // it's a HTML element, not an XHTML element).
+  if (mNodeInfo && mNodeInfo->NamespaceEquals(kNameSpaceID_None))
     ToLowerCase(tagName);
 
   return nsGenericHTMLElementBase::GetElementsByTagName(tagName, aReturn);
+}
+
+nsresult
+nsGenericHTMLElement::GetElementsByTagNameNS(const nsAString& aNamespaceURI,
+                                             const nsAString& aLocalName,
+                                             nsIDOMNodeList** aReturn)
+{
+  nsAutoString localName(aLocalName);
+
+  // Only lowercase the name if this element has no namespace (i.e.
+  // it's a HTML element, not an XHTML element).
+  if (mNodeInfo && mNodeInfo->NamespaceEquals(kNameSpaceID_None))
+    ToLowerCase(localName);
+
+  return nsGenericHTMLElementBase::GetElementsByTagNameNS(aNamespaceURI,
+                                                          localName,
+                                                          aReturn);
 }
 
 // Implementation for nsIDOMHTMLElement
@@ -640,7 +671,8 @@ nsGenericHTMLElement::GetInnerHTML(nsAString& aInnerHTML)
   nsresult rv = NS_OK;
 
   nsAutoString contentType;
-  if (IsInHTMLDocument()) {
+  if (!doc->IsCaseSensitive()) {
+    // All case-insensitive documents are HTML as far as we're concerned
     contentType.AssignLiteral("text/html");
   } else {
     doc->GetContentType(contentType);
@@ -1083,11 +1115,10 @@ nsGenericHTMLElement::GetEventListenerManagerForAttr(nsIEventListenerManager** a
       nsCOMPtr<nsPIDOMEventTarget> piTarget(do_QueryInterface(win));
       NS_ENSURE_TRUE(piTarget, NS_ERROR_FAILURE);
 
-      *aManager = piTarget->GetListenerManager(PR_TRUE);
+      rv = piTarget->GetListenerManager(PR_TRUE, aManager);
 
-      if (*aManager) {
+      if (NS_SUCCEEDED(rv)) {
         NS_ADDREF(*aTarget = win);
-        NS_ADDREF(*aManager);
       }
       *aDefer = PR_FALSE;
     } else {
@@ -1114,7 +1145,6 @@ nsGenericHTMLElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
   PRInt32 change;
   if (contentEditable) {
     change = GetContentEditableValue() == eTrue ? -1 : 0;
-    SetFlags(NODE_MAY_HAVE_CONTENT_EDITABLE_ATTR);
   }
 
   nsresult rv = nsGenericElement::SetAttr(aNameSpaceID, aName, aPrefix, aValue,
@@ -1147,7 +1177,9 @@ nsGenericHTMLElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
   // Check for event handlers
   if (aNameSpaceID == kNameSpaceID_None) {
     if (nsContentUtils::IsEventAttributeName(aAttribute, EventNameType_HTML)) {
-      nsIEventListenerManager* manager = GetListenerManager(PR_FALSE);
+      nsCOMPtr<nsIEventListenerManager> manager;
+      GetListenerManager(PR_FALSE, getter_AddRefs(manager));
+
       if (manager) {
         manager->RemoveScriptEventListener(aAttribute);
       }
@@ -1168,6 +1200,8 @@ nsGenericHTMLElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
 already_AddRefed<nsIURI>
 nsGenericHTMLElement::GetBaseURI() const
 {
+  nsIDocument* doc = GetOwnerDoc();
+
   void* prop;
   if (HasFlag(NODE_HAS_PROPERTIES) && (prop = GetProperty(nsGkAtoms::htmlBaseHref))) {
     nsIURI* uri = static_cast<nsIURI*>(prop);
@@ -1178,12 +1212,15 @@ nsGenericHTMLElement::GetBaseURI() const
 
   // If we are a plain old HTML element (not XHTML), don't bother asking the
   // base class -- our base URI is determined solely by the document base.
-  if (IsInHTMLDocument()) {
-    // If we got here, GetOwnerDoc() is not null
-    nsIURI *uri = GetOwnerDoc()->GetBaseURI();
-    NS_IF_ADDREF(uri);
+  if (mNodeInfo->NamespaceEquals(kNameSpaceID_None)) {
+    if (doc) {
+      nsIURI *uri = doc->GetBaseURI();
+      NS_IF_ADDREF(uri);
 
-    return uri;
+      return uri;
+    }
+
+    return nsnull;
   }
 
   return nsGenericHTMLElementBase::GetBaseURI();
@@ -1949,12 +1986,16 @@ nsGenericHTMLElement::MapBGColorInto(const nsMappedAttributes* aAttributes,
   if (!(aData->mSIDs & NS_STYLE_INHERIT_BIT(Background)))
     return;
 
-  if (aData->mColorData->mBackColor.GetUnit() == eCSSUnit_Null &&
+  if (aData->mColorData->mBackColor.mXValue.GetUnit() == eCSSUnit_Null &&
       aData->mPresContext->UseDocumentColors()) {
+    NS_ASSERTION(aData->mColorData->mBackColor.mYValue.GetUnit() ==
+                   eCSSUnit_Null,
+                 "half a property?");
     const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::bgcolor);
     nscolor color;
     if (value && value->GetColorValue(color)) {
-      aData->mColorData->mBackColor.SetColorValue(color);
+      aData->mColorData->mBackColor.mXValue.SetColorValue(color);
+      aData->mColorData->mBackColor.mYValue.SetColorValue(color);
     }
   }
 }
@@ -2594,35 +2635,6 @@ nsGenericHTMLFormElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                             aValue, aNotify);
 }
 
-nsresult
-nsGenericHTMLFormElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
-{
-  if (NS_IS_TRUSTED_EVENT(aVisitor.mEvent)) {
-    switch (aVisitor.mEvent->message) {
-      case NS_FOCUS_CONTENT:
-      {
-        // Check to see if focus has bubbled up from a form control's
-        // child textfield or button.  If that's the case, don't focus
-        // this parent file control -- leave focus on the child.
-        nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_TRUE);
-        if (formControlFrame &&
-            aVisitor.mEvent->originalTarget == static_cast<nsINode*>(this))
-          formControlFrame->SetFocus(PR_TRUE, PR_TRUE);
-        break;
-      }
-      case NS_BLUR_CONTENT:
-      {
-        nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_TRUE);
-        if (formControlFrame)
-          formControlFrame->SetFocus(PR_FALSE, PR_FALSE);
-        break;
-      }
-    }
-  }
-
-  return nsGenericHTMLElement::PreHandleEvent(aVisitor);
-}
-
 PRBool
 nsGenericHTMLFormElement::CanBeDisabled() const
 {
@@ -2678,6 +2690,37 @@ nsGenericHTMLFormElement::IntrinsicState() const
   return state;
 }
 
+void
+nsGenericHTMLFormElement::SetFocusAndScrollIntoView(nsPresContext* aPresContext)
+{
+  nsIEventStateManager *esm = aPresContext->EventStateManager();
+  if (esm->SetContentState(this, NS_EVENT_STATE_FOCUS)) {
+    // XXXldb once bug 43114 is fixed, we don't need to flush here.
+    aPresContext->Document()->
+      FlushPendingNotifications(Flush_InterruptibleLayout);
+    nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_FALSE);
+    if (formControlFrame) {
+      formControlFrame->SetFocus(PR_TRUE, PR_TRUE);
+      nsCOMPtr<nsIPresShell> presShell = aPresContext->GetPresShell();
+      if (presShell) {
+        presShell->ScrollContentIntoView(this, NS_PRESSHELL_SCROLL_IF_NOT_VISIBLE,
+                                         NS_PRESSHELL_SCROLL_IF_NOT_VISIBLE);
+      }
+    }
+  }
+}
+
+void
+nsGenericHTMLFormElement::DoSetFocus(nsPresContext* aPresContext)
+{
+  if (!aPresContext)
+    return;
+
+  if (FocusState() == eActiveWindow) {
+    SetFocusAndScrollIntoView(aPresContext);
+  }
+}
+
 nsGenericHTMLFormElement::FocusTristate
 nsGenericHTMLFormElement::FocusState()
 {
@@ -2694,23 +2737,24 @@ nsGenericHTMLFormElement::FocusState()
   // If the window is not active, do not allow the focus to bring the
   // window to the front.  We update the focus controller, but do
   // nothing else.
-  nsCOMPtr<nsIDocShellTreeItem> dsti = do_GetInterface(doc->GetWindow());
-  if (dsti) {
-    nsCOMPtr<nsIDocShellTreeItem> root;
-    dsti->GetRootTreeItem(getter_AddRefs(root));
-    nsCOMPtr<nsIDOMWindow> rootWindow = do_GetInterface(root);
+  nsCOMPtr<nsPIDOMWindow> win = doc->GetWindow();
+  if (win) {
+    nsIFocusController *focusController = win->GetRootFocusController();
+    if (focusController) {
+      PRBool isActive = PR_FALSE;
+      focusController->GetActive(&isActive);
+      if (!isActive) {
+        focusController->SetFocusedWindow(win);
+        nsCOMPtr<nsIDOMElement> el =
+          do_QueryInterface(static_cast<nsGenericHTMLElement*>(this));
+        focusController->SetFocusedElement(el);
 
-    nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
-    if (fm && rootWindow) {
-      nsCOMPtr<nsIDOMWindow> activeWindow;
-      fm->GetActiveWindow(getter_AddRefs(activeWindow));
-      if (activeWindow == rootWindow) {
-        return eActiveWindow;
+        return eInactiveWindow;
       }
     }
   }
 
-  return eInactiveWindow;
+  return eActiveWindow;
 }
 
 //----------------------------------------------------------------------
@@ -2902,19 +2946,34 @@ nsGenericHTMLFrameElement::DestroyContent()
 
 //----------------------------------------------------------------------
 
+void
+nsGenericHTMLElement::SetElementFocus(PRBool aDoFocus)
+{
+  nsCOMPtr<nsPresContext> presContext = GetPresContext();
+  if (!presContext)
+    return;
+
+  if (aDoFocus) {
+    if (IsInDoc()) {
+      // Make sure that our frames are up to date so we focus the right thing.
+      GetCurrentDoc()->FlushPendingNotifications(Flush_Frames);
+    }
+
+    SetFocus(presContext);
+
+    presContext->EventStateManager()->MoveCaretToFocus();
+    return;
+  }
+
+  RemoveFocus(presContext);
+}
+
 nsresult
 nsGenericHTMLElement::Blur()
 {
-  if (!ShouldBlur(this))
-    return NS_OK;
-
-  nsIDocument* doc = GetCurrentDoc();
-  if (!doc)
-    return NS_OK;
-
-  nsIDOMWindow* win = doc->GetWindow();
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-  return (win && fm) ? fm->ClearFocus(win) : NS_OK;
+  if (ShouldBlur(this)) {
+    SetElementFocus(PR_FALSE);
+  }
 
   return NS_OK;
 }
@@ -2922,9 +2981,33 @@ nsGenericHTMLElement::Blur()
 nsresult
 nsGenericHTMLElement::Focus()
 {
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-  nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(this);
-  return fm ? fm->SetFocus(elem, 0) : NS_OK;
+  // Generic HTML elements are focusable only if tabindex explicitly set.
+  // SetFocus() will check to see if we're focusable and then
+  // call into esm to do the work of focusing.
+  if (ShouldFocus(this)) {
+    SetElementFocus(PR_TRUE);
+  }
+
+  return NS_OK;
+}
+
+void
+nsGenericHTMLElement::RemoveFocus(nsPresContext *aPresContext)
+{
+  if (!aPresContext) 
+    return;
+
+  if (IsNodeOfType(eHTML_FORM_CONTROL)) {
+    nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_TRUE);
+    if (formControlFrame) {
+      formControlFrame->SetFocus(PR_FALSE, PR_FALSE);
+    }
+  }
+  
+  if (IsInDoc()) {
+    aPresContext->EventStateManager()->SetContentState(nsnull,
+                                                       NS_EVENT_STATE_FOCUS);
+  }
 }
 
 PRBool
@@ -2945,13 +3028,14 @@ nsGenericHTMLElement::IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex)
   PRInt32 tabIndex = 0;   // Default value for non HTML elements with -moz-user-focus
   GetTabIndex(&tabIndex);
 
-  PRBool override, disabled = PR_FALSE;
+  PRBool override, disabled;
   if (IsEditableRoot()) {
     // Editable roots should always be focusable.
     override = PR_TRUE;
 
     // Ignore the disabled attribute in editable contentEditable/designMode
     // roots.
+    disabled = PR_FALSE;
     if (!HasAttr(kNameSpaceID_None, nsGkAtoms::tabindex)) {
       // The default value for tabindex should be 0 for editable
       // contentEditable roots.
@@ -2961,7 +3045,7 @@ nsGenericHTMLElement::IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex)
   else {
     override = PR_FALSE;
 
-    // Just check for disabled attribute on form controls
+    // Just check for disabled attribute on all HTML elements
     disabled = HasAttr(kNameSpaceID_None, nsGkAtoms::disabled);
     if (disabled) {
       tabIndex = -1;
@@ -3012,12 +3096,12 @@ nsGenericHTMLElement::PerformAccesskey(PRBool aKeyCausesActivation,
   if (!presContext)
     return;
 
+  nsIEventStateManager *esm = presContext->EventStateManager();
+  if (!esm)
+    return;
+
   // It's hard to say what HTML4 wants us to do in all cases.
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (fm) {
-    nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(this);
-    fm->SetFocus(elem, nsIFocusManager::FLAG_BYKEY);
-  }
+  esm->ChangeFocusWith(this, nsIEventStateManager::eEventFocusedByKey);
 
   if (aKeyCausesActivation) {
     // Click on it if the users prefs indicate to do so.
@@ -3377,7 +3461,7 @@ nsGenericHTMLElement::GetHashFromHrefURI(nsAString& aHash)
 const nsAttrName*
 nsGenericHTMLElement::InternalGetExistingAttrNameFromQName(const nsAString& aStr) const
 {
-  if (IsInHTMLDocument()) {
+  if (mNodeInfo->NamespaceEquals(kNameSpaceID_None)) {
     nsAutoString lower;
     ToLowerCase(aStr, lower);
     return mAttrsAndChildren.GetExistingAttrNameFromQName(

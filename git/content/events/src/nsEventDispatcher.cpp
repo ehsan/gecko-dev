@@ -81,7 +81,6 @@ public:
       nsEventTargetChainItem* parent = item->mParent;
       item->~nsEventTargetChainItem();
       aAllocator->Free(item, sizeof(nsEventTargetChainItem));
-      --sCurrentEtciCount;
       item = parent;
     }
   }
@@ -166,13 +165,6 @@ public:
    */
   nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
 
-  static PRUint32 MaxEtciCount() { return sMaxEtciCount; }
-
-  static void ResetMaxEtciCount()
-  {
-    NS_ASSERTION(!sCurrentEtciCount, "Wrong time to call ResetMaxEtciCount()!");
-    sMaxEtciCount = 0;
-  }
 
   nsCOMPtr<nsPIDOMEventTarget>      mTarget;
   nsEventTargetChainItem*           mChild;
@@ -184,13 +176,7 @@ public:
   nsCOMPtr<nsPIDOMEventTarget>      mNewTarget;
   // Cache mTarget's event listener manager.
   nsCOMPtr<nsIEventListenerManager> mManager;
-
-  static PRUint32                   sMaxEtciCount;
-  static PRUint32                   sCurrentEtciCount;
 };
-
-PRUint32 nsEventTargetChainItem::sMaxEtciCount = 0;
-PRUint32 nsEventTargetChainItem::sCurrentEtciCount = 0;
 
 nsEventTargetChainItem::nsEventTargetChainItem(nsPIDOMEventTarget* aTarget,
                                                nsEventTargetChainItem* aChild)
@@ -199,10 +185,6 @@ nsEventTargetChainItem::nsEventTargetChainItem(nsPIDOMEventTarget* aTarget,
   mTarget = aTarget->GetTargetForEventTargetChain();
   if (mChild) {
     mChild->mParent = this;
-  }
-
-  if (++sCurrentEtciCount > sMaxEtciCount) {
-    sMaxEtciCount = sCurrentEtciCount;
   }
 }
 
@@ -233,17 +215,18 @@ nsEventTargetChainItem::HandleEvent(nsEventChainPostVisitor& aVisitor,
     if (!aMayHaveNewListenerManagers) {
       return NS_OK;
     }
-    mManager = mTarget->GetListenerManager(PR_FALSE);
+    mTarget->GetListenerManager(PR_FALSE, getter_AddRefs(mManager));
   }
   if (mManager) {
-    NS_ASSERTION(aVisitor.mEvent->currentTarget == nsnull,
-                 "CurrentTarget should be null!");
-    mManager->HandleEvent(aVisitor.mPresContext, aVisitor.mEvent,
-                          &aVisitor.mDOMEvent,
-                          CurrentTarget(), aFlags,
-                          &aVisitor.mEventStatus);
-    NS_ASSERTION(aVisitor.mEvent->currentTarget == nsnull,
-                 "CurrentTarget should be null!");
+    nsPIDOMEventTarget* currentTarget = CurrentTarget()->GetTargetForDOMEvent();
+    aVisitor.mEvent->currentTarget = currentTarget;
+    if (aVisitor.mEvent->currentTarget) {
+      mManager->HandleEvent(aVisitor.mPresContext, aVisitor.mEvent,
+                            &aVisitor.mDOMEvent,
+                            currentTarget, aFlags,
+                            &aVisitor.mEventStatus);
+      aVisitor.mEvent->currentTarget = nsnull;
+    }
   }
   return NS_OK;
 }
@@ -325,6 +308,8 @@ nsEventTargetChainItem::HandleEventTargetChain(nsEventChainPostVisitor& aVisitor
     if (!(aVisitor.mEvent->flags & NS_EVENT_FLAG_CANT_BUBBLE) || newTarget) {
       if ((!(aVisitor.mEvent->flags & NS_EVENT_FLAG_NO_CONTENT_DISPATCH) ||
            item->ForceContentDispatch()) &&
+          (!(aFlags & NS_EVENT_FLAG_SYSTEM_EVENT) ||
+           aVisitor.mEventStatus != nsEventStatus_eConsumeNoDefault) &&
           !(aVisitor.mEvent->flags & NS_EVENT_FLAG_STOP_DISPATCH)) {
         item->HandleEvent(aVisitor, aFlags & NS_EVENT_BUBBLE_MASK,
                           createdELMs != nsEventListenerManager::sCreatedCount);
@@ -363,8 +348,6 @@ nsEventTargetChainItem::HandleEventTargetChain(nsEventChainPostVisitor& aVisitor
   return NS_OK;
 }
 
-#define NS_CHAIN_POOL_SIZE 128
-
 class ChainItemPool {
 public:
   ChainItemPool() {
@@ -374,7 +357,7 @@ public:
         static const size_t kBucketSizes[] = { sizeof(nsEventTargetChainItem) };
         static const PRInt32 kNumBuckets = sizeof(kBucketSizes) / sizeof(size_t);
         static const PRInt32 kInitialPoolSize =
-          NS_SIZE_IN_HEAP(sizeof(nsEventTargetChainItem)) * NS_CHAIN_POOL_SIZE;
+          NS_SIZE_IN_HEAP(sizeof(nsEventTargetChainItem)) * 128;
         nsresult rv = sEtciPool->Init("EventTargetChainItem Pool", kBucketSizes,
                                       kNumBuckets, kInitialPoolSize);
         if (NS_FAILED(rv)) {
@@ -393,20 +376,8 @@ public:
       --sEtciPoolUsers;
     }
     if (!sEtciPoolUsers) {
-      if (nsEventTargetChainItem::MaxEtciCount() > NS_CHAIN_POOL_SIZE) {
-        delete sEtciPool;
-        sEtciPool = nsnull;
-        nsEventTargetChainItem::ResetMaxEtciCount();
-      }
-    }
-  }
-
-  static void Shutdown()
-  {
-    if (!sEtciPoolUsers) {
       delete sEtciPool;
       sEtciPool = nsnull;
-      nsEventTargetChainItem::ResetMaxEtciCount();
     }
   }
 
@@ -418,8 +389,6 @@ public:
 
 nsFixedSizeAllocator* ChainItemPool::sEtciPool = nsnull;
 PRInt32 ChainItemPool::sEtciPoolUsers = 0;
-
-void NS_ShutdownChainItemPool() { ChainItemPool::Shutdown(); }
 
 /* static */ nsresult
 nsEventDispatcher::Dispatch(nsISupports* aTarget,
@@ -638,9 +607,22 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
     case NS_DRAG_EVENT:
       return NS_NewDOMDragEvent(aDOMEvent, aPresContext,
                                  static_cast<nsDragEvent*>(aEvent));
+    case NS_POPUPBLOCKED_EVENT:
+      return NS_NewDOMPopupBlockedEvent(aDOMEvent, aPresContext,
+                                        static_cast<nsPopupBlockedEvent*>
+                                                   (aEvent));
     case NS_TEXT_EVENT:
       return NS_NewDOMTextEvent(aDOMEvent, aPresContext,
                                 static_cast<nsTextEvent*>(aEvent));
+    case NS_BEFORE_PAGE_UNLOAD_EVENT:
+      return
+        NS_NewDOMBeforeUnloadEvent(aDOMEvent, aPresContext,
+                                   static_cast<nsBeforePageUnloadEvent*>
+                                              (aEvent));
+    case NS_PAGETRANSITION_EVENT:
+      return NS_NewDOMPageTransitionEvent(aDOMEvent, aPresContext,
+                                          static_cast<nsPageTransitionEvent*>
+                                                     (aEvent));
 #ifdef MOZ_SVG
     case NS_SVG_EVENT:
       return NS_NewDOMSVGEvent(aDOMEvent, aPresContext,
@@ -650,9 +632,17 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
                                    static_cast<nsGUIEvent*>(aEvent));
 #endif // MOZ_SVG
 
+    case NS_XUL_COMMAND_EVENT:
+      return NS_NewDOMXULCommandEvent(aDOMEvent, aPresContext,
+                                      static_cast<nsXULCommandEvent*>
+                                                 (aEvent));
     case NS_COMMAND_EVENT:
       return NS_NewDOMCommandEvent(aDOMEvent, aPresContext,
                                    static_cast<nsCommandEvent*>(aEvent));
+    case NS_NOTIFYPAINT_EVENT:
+      return NS_NewDOMNotifyPaintEvent(aDOMEvent, aPresContext,
+                                       static_cast<nsNotifyPaintEvent*>
+                                                     (aEvent));
     case NS_SIMPLE_GESTURE_EVENT:
       return NS_NewDOMSimpleGestureEvent(aDOMEvent, aPresContext,
                                          static_cast<nsSimpleGestureEvent*>(aEvent));
@@ -716,10 +706,6 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
     return NS_NewDOMNotifyPaintEvent(aDOMEvent, aPresContext, nsnull);
   if (aEventType.LowerCaseEqualsLiteral("simplegestureevent"))
     return NS_NewDOMSimpleGestureEvent(aDOMEvent, aPresContext, nsnull);
-  if (aEventType.LowerCaseEqualsLiteral("beforeunloadevent"))
-    return NS_NewDOMBeforeUnloadEvent(aDOMEvent, aPresContext, nsnull);
-  if (aEventType.LowerCaseEqualsLiteral("pagetransition"))
-    return NS_NewDOMPageTransitionEvent(aDOMEvent, aPresContext, nsnull);
 
   return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
 }

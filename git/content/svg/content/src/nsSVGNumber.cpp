@@ -120,18 +120,17 @@ nsSVGNumber::SetValueString(const nsAString& aValue)
   nsresult rv = NS_OK;
   WillModify();
   
-  NS_ConvertUTF16toUTF8 value(aValue);
-  const char *str = value.get();
+  char *str = ToNewCString(aValue);
 
   if (*str) {
     char *rest;
-    float val = float(PR_strtod(str, &rest));
-    if (rest && rest!=str && NS_FloatIsFinite(val)) {
+    double value = PR_strtod(str, &rest);
+    if (rest && rest!=str) {
       if (*rest=='%') {
-        rv = SetValue(val / 100.0f);
+        rv = SetValue(float(value/100.0));
         rest++;
       } else {
-        rv = SetValue(val);
+        rv = SetValue(float(value));
       }
       // skip trailing spaces
       while (*rest && isspace(*rest))
@@ -147,6 +146,7 @@ nsSVGNumber::SetValueString(const nsAString& aValue)
       // no number
     }
   }
+  nsMemory::Free(str);
   DidModify();
   return rv;
 }
