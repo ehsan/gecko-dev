@@ -292,12 +292,7 @@ nsRubyFrame::ReflowSegment(nsPresContext* aPresContext,
         mFrames.InsertFrame(nullptr, newLastChild, newTextContainer);
         newLastChild = newTextContainer;
       }
-    }
-    if (lastChild != mFrames.LastChild()) {
-      // Always push the next frame after the last child in this segment.
-      // It is possible that we pulled it back before our next-in-flow
-      // drain our overflow.
-      PushChildren(lastChild->GetNextSibling(), lastChild);
+      PushChildren(newBaseContainer, lastChild);
       aReflowState.mLineLayout->SetDirtyNextLine();
     }
   } else {
@@ -313,7 +308,6 @@ nsRubyFrame::ReflowSegment(nsPresContext* aPresContext,
     }
   }
 
-  nscoord segmentISize = baseMetrics.ISize(lineWM);
   nsRect baseRect = aBaseContainer->GetRect();
   // We need to position our rtc frames on one side or the other of the
   // base container's rect, using a coordinate space that's relative to
@@ -346,14 +340,11 @@ nsRubyFrame::ReflowSegment(nsPresContext* aPresContext,
     // handled when reflowing the base containers.
     NS_ASSERTION(textReflowStatus == NS_FRAME_COMPLETE,
                  "Ruby text container must not break itself inside");
-    nscoord isize = textMetrics.ISize(lineWM);
-    nscoord bsize = textMetrics.BSize(lineWM);
-    textContainer->SetSize(LogicalSize(lineWM, isize, bsize));
-
-    nscoord reservedISize = RubyUtils::GetReservedISize(textContainer);
-    segmentISize = std::max(segmentISize, isize + reservedISize);
+    textContainer->SetSize(LogicalSize(lineWM, textMetrics.ISize(lineWM),
+                                       textMetrics.BSize(lineWM)));
 
     nscoord x, y;
+    nscoord bsize = textMetrics.BSize(lineWM);
     uint8_t rubyPosition = textContainer->StyleText()->mRubyPosition;
 #ifdef DEBUG
     SanityCheckRubyPosition(rubyPosition);
@@ -385,14 +376,6 @@ nsRubyFrame::ReflowSegment(nsPresContext* aPresContext,
     }
     FinishReflowChild(textContainer, aPresContext, textMetrics,
                       &textReflowState, x, y, 0);
-  }
-
-  nscoord deltaISize = segmentISize - baseMetrics.ISize(lineWM);
-  if (deltaISize <= 0) {
-    RubyUtils::ClearReservedISize(aBaseContainer);
-  } else {
-    RubyUtils::SetReservedISize(aBaseContainer, deltaISize);
-    aReflowState.mLineLayout->AdvanceICoord(deltaISize);
   }
 }
 

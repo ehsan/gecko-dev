@@ -48,7 +48,8 @@ add_task(function*() {
 
   yield waitUntil(() => !waterfall._outstandingMarkers.length);
 
-  is(overview.fixedHeight, heightBefore, "Overview height hasn't changed");
+  // A row is 11px. See markers-overview.js
+  is(overview.fixedHeight, heightBefore - 11, "Overview is smaller");
   ok(!$(".waterfall-marker-bar[type=Styles]"), "No 'Styles' marker (2)");
   ok($(".waterfall-marker-bar[type=Reflow]"), "Found at least one 'Reflow' marker (2)");
   ok($(".waterfall-marker-bar[type=Paint]"), "Found at least one 'Paint' marker (2)");
@@ -59,7 +60,7 @@ add_task(function*() {
 
   yield waitUntil(() => !waterfall._outstandingMarkers.length);
 
-  is(overview.fixedHeight, heightBefore, "Overview height hasn't changed");
+  is(overview.fixedHeight, heightBefore - 11, "Overview is smaller");
   ok(!$(".waterfall-marker-bar[type=Styles]"), "No 'Styles' marker (3)");
   ok(!$(".waterfall-marker-bar[type=Reflow]"), "No 'Reflow' marker (3)");
   ok($(".waterfall-marker-bar[type=Paint]"), "Found at least one 'Paint' marker (3)");
@@ -70,7 +71,6 @@ add_task(function*() {
 
   yield waitUntil(() => !waterfall._outstandingMarkers.length);
 
-  // A row is 11px. See markers-overview.js
   is(overview.fixedHeight, heightBefore - 11, "Overview is smaller");
   ok(!$(".waterfall-marker-bar[type=Styles]"), "No 'Styles' marker (4)");
   ok(!$(".waterfall-marker-bar[type=Reflow]"), "No 'Reflow' marker (4)");

@@ -274,22 +274,11 @@ let gFxAccounts = {
     let note = null;
     switch (this._migrationInfo.state) {
       case this.fxaMigrator.STATE_USER_FXA: {
-        // There are 2 cases here - no email address means it is an offer on
-        // the first device (so the user is prompted to create an account).
-        // If there is an email address it is the "join the party" flow, so the
-        // user is prompted to sign in with the address they previously used.
-        let msg, upgradeLabel, upgradeAccessKey;
-        if (this._migrationInfo.email) {
-          msg = this.strings.formatStringFromName("signInAfterUpgradeOnOtherDevice.description",
-                                                  [this._migrationInfo.email],
-                                                  1);
-          upgradeLabel = this.strings.GetStringFromName("signInAfterUpgradeOnOtherDevice.label");
-          upgradeAccessKey = this.strings.GetStringFromName("signInAfterUpgradeOnOtherDevice.accessKey");
-        } else {
-          msg = this.strings.GetStringFromName("needUserLong");
-          upgradeLabel = this.strings.GetStringFromName("upgradeToFxA.label");
-          upgradeAccessKey = this.strings.GetStringFromName("upgradeToFxA.accessKey");
-        }
+        let msg = this.strings.GetStringFromName("needUserLong");
+        let upgradeLabel =
+          this.strings.GetStringFromName("upgradeToFxA.label");
+        let upgradeAccessKey =
+          this.strings.GetStringFromName("upgradeToFxA.accessKey");
         note = new Weave.Notification(
           undefined, msg, undefined, Weave.Notifications.PRIORITY_WARNING, [
             new Weave.NotificationButton(upgradeLabel, upgradeAccessKey, () => {
@@ -332,9 +321,11 @@ let gFxAccounts = {
       this.openSignInAgainPage("menupanel");
       break;
     case "migrate-signup":
+      this.fxaMigrator.createFxAccount(window);
+      break;
     case "migrate-verify":
-      // The migration flow calls for the menu item to open sync prefs rather
-      // than requesting migration start immediately.
+      // Instead of using the migrator module directly here the UX calls for
+      // us to open prefs which has a "resend" button.
       this.openPreferences();
       break;
     default:

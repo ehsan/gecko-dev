@@ -1054,7 +1054,7 @@ public:
   NS_DECL_NSIDOMCSSSTYLERULE
 
   // nsICSSStyleRuleDOMWrapper
-  NS_IMETHOD GetCSSStyleRule(StyleRule **aResult) MOZ_OVERRIDE;
+  NS_IMETHOD GetCSSStyleRule(StyleRule **aResult);
 
   DOMCSSDeclarationImpl* DOMDeclaration() { return &mDOMDeclaration; }
 

@@ -144,9 +144,6 @@ private:
   nsDataHashtable<nsCStringHashKey, bool> mPersistentStorageAllowed;
 };
 
-nsresult ReadSalt(nsIFile* aPath, nsACString& aOutData);
-bool MatchOrigin(nsIFile* aPath, const nsACString& aOrigin);
-
 } // namespace gmp
 } // namespace mozilla
 

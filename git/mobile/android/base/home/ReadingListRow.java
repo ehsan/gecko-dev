@@ -10,12 +10,10 @@ import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.db.BrowserContract.ReadingListItems;
 import org.mozilla.gecko.home.TwoLinePageRow;
-import org.mozilla.gecko.util.StringUtils;
 
 import android.content.Context;
 import android.content.res.Resources;
 import android.database.Cursor;
-import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.view.LayoutInflater;
 import android.widget.LinearLayout;
@@ -57,13 +55,11 @@ public class ReadingListRow extends LinearLayout {
             return;
         }
 
-        final String url = cursor.getString(cursor.getColumnIndexOrThrow(ReadingListItems.URL));
+        final int titleIndex = cursor.getColumnIndexOrThrow(ReadingListItems.TITLE);
+        title.setText(cursor.getString(titleIndex));
 
-        final String titleText = cursor.getString(cursor.getColumnIndexOrThrow(ReadingListItems.TITLE));
-        title.setText(TextUtils.isEmpty(titleText) ? StringUtils.stripCommonSubdomains(StringUtils.stripScheme(url)) : titleText);
-
-        final String excerptText = cursor.getString(cursor.getColumnIndexOrThrow(ReadingListItems.EXCERPT));
-        excerpt.setText(TextUtils.isEmpty(excerptText) ? url : excerptText);
+        final int excerptIndex = cursor.getColumnIndexOrThrow(ReadingListItems.EXCERPT);
+        excerpt.setText(cursor.getString(excerptIndex));
 
         /* Disabled until UX issues are fixed (see bug 1110461).
         final int lengthIndex = cursor.getColumnIndexOrThrow(ReadingListItems.LENGTH);

@@ -29,6 +29,10 @@ namespace js {
 class Nursery;
 class Shape;
 
+namespace gc {
+class ForkJoinNursery;
+}
+
 /*
  * To really poison a set of values, using 'magic' or 'undefined' isn't good
  * enough since often these will just be ignored by buggy code (see bug 629974)
@@ -186,6 +190,7 @@ class ObjectElements
     friend class NativeObject;
     friend class ArrayObject;
     friend class Nursery;
+    friend class gc::ForkJoinNursery;
 
     template <ExecutionMode mode>
     friend bool
@@ -442,6 +447,7 @@ class NativeObject : public JSObject
 
   private:
     friend class Nursery;
+    friend class gc::ForkJoinNursery;
 
     /*
      * Get internal pointers to the range of values starting at start and

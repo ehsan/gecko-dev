@@ -27,6 +27,11 @@
     })();
     //
     (function() {
+        if (typeof ParallelArray !== "undefined")
+        ParallelArray([1606], Math.fround)
+    })();
+    //
+    (function() {
         x = y = {};
         z = new Float32Array(6)
         for (c in this) {
