@@ -31,7 +31,6 @@
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
 #include "nsStyleCoord.h"
-#include "nsStyleUtil.h"
 #include "nsTransform2D.h"
 #include "nsImageMap.h"
 #include "nsIIOService.h"
@@ -347,36 +346,25 @@ nsImageFrame::UpdateIntrinsicRatio(imgIContainer* aImage)
 bool
 nsImageFrame::GetSourceToDestTransform(nsTransform2D& aTransform)
 {
-  // First, figure out destRect (the rect we're rendering into).
-  // NOTE: We use mComputedSize instead of just GetInnerArea()'s own size here,
-  // because GetInnerArea() might be smaller if we're fragmented, whereas
-  // mComputedSize has our full content-box size (which we need for
-  // ComputeObjectDestRect to work correctly).
-  nsRect constraintRect(GetInnerArea().TopLeft(), mComputedSize);
-  constraintRect.y -= GetContinuationOffset();
-
-  nsRect destRect = nsLayoutUtils::ComputeObjectDestRect(constraintRect,
-                                                         mIntrinsicSize,
-                                                         mIntrinsicRatio,
-                                                         StylePosition());
-  // Set the translation components, based on destRect
+  // Set the translation components.
   // XXXbz does this introduce rounding errors because of the cast to
   // float?  Should we just manually add that stuff in every time
   // instead?
-  aTransform.SetToTranslate(float(destRect.x),
-                            float(destRect.y));
+  nsRect innerArea = GetInnerArea();
+  aTransform.SetToTranslate(float(innerArea.x),
+                            float(innerArea.y - GetContinuationOffset()));
 
-  // Set the scale factors, based on destRect and intrinsic size.
+  // Set the scale factors.
   if (mIntrinsicSize.width.GetUnit() == eStyleUnit_Coord &&
       mIntrinsicSize.width.GetCoordValue() != 0 &&
       mIntrinsicSize.height.GetUnit() == eStyleUnit_Coord &&
       mIntrinsicSize.height.GetCoordValue() != 0 &&
-      mIntrinsicSize.width.GetCoordValue() != destRect.width &&
-      mIntrinsicSize.height.GetCoordValue() != destRect.height) {
+      mIntrinsicSize.width.GetCoordValue() != mComputedSize.width &&
+      mIntrinsicSize.height.GetCoordValue() != mComputedSize.height) {
 
-    aTransform.SetScale(float(destRect.width)  /
+    aTransform.SetScale(float(mComputedSize.width)  /
                         float(mIntrinsicSize.width.GetCoordValue()),
-                        float(destRect.height) /
+                        float(mComputedSize.height) /
                         float(mIntrinsicSize.height.GetCoordValue()));
     return true;
   }
@@ -1500,18 +1488,9 @@ nsImageFrame::PaintImage(nsRenderingContext& aRenderingContext, nsPoint aPt,
   // Render the image into our content area (the area inside
   // the borders and padding)
   NS_ASSERTION(GetInnerArea().width == mComputedSize.width, "bad width");
-
-  // NOTE: We use mComputedSize instead of just GetInnerArea()'s own size here,
-  // because GetInnerArea() might be smaller if we're fragmented, whereas
-  // mComputedSize has our full content-box size (which we need for
-  // ComputeObjectDestRect to work correctly).
-  nsRect constraintRect(aPt + GetInnerArea().TopLeft(), mComputedSize);
-  constraintRect.y -= GetContinuationOffset();
-
-  nsRect dest = nsLayoutUtils::ComputeObjectDestRect(constraintRect,
-                                                     mIntrinsicSize,
-                                                     mIntrinsicRatio,
-                                                     StylePosition());
+  nsRect inner = GetInnerArea() + aPt;
+  nsRect dest(inner.TopLeft(), mComputedSize);
+  dest.y -= GetContinuationOffset();
 
   nsLayoutUtils::DrawSingleImage(*aRenderingContext.ThebesContext(),
     PresContext(), aImage,
@@ -1521,7 +1500,7 @@ nsImageFrame::PaintImage(nsRenderingContext& aRenderingContext, nsPoint aPt,
   nsImageMap* map = GetImageMap();
   if (map) {
     gfxPoint devPixelOffset =
-      nsLayoutUtils::PointToGfxPoint(dest.TopLeft(),
+      nsLayoutUtils::PointToGfxPoint(inner.TopLeft(),
                                      PresContext()->AppUnitsPerDevPixel());
     AutoRestoreTransform autoRestoreTransform(drawTarget);
     drawTarget->SetTransform(
@@ -1549,12 +1528,8 @@ nsImageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
   DisplayBorderBackgroundOutline(aBuilder, aLists);
 
-  uint32_t clipFlags =
-    nsStyleUtil::ObjectPropsMightCauseOverflow(StylePosition()) ?
-    0 : DisplayListClipState::ASSUME_DRAWING_RESTRICTED_TO_CONTENT_RECT;
-
   DisplayListClipState::AutoClipContainingBlockDescendantsToContentBox
-    clip(aBuilder, this, clipFlags);
+    clip(aBuilder, this, DisplayListClipState::ASSUME_DRAWING_RESTRICTED_TO_CONTENT_RECT);
 
   if (mComputedSize.width != 0 && mComputedSize.height != 0) {
     nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mContent);

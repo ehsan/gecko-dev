@@ -6,8 +6,6 @@
 
 #include "jit/BaselineCompiler.h"
 
-#include "mozilla/UniquePtr.h"
-
 #include "jit/BaselineHelpers.h"
 #include "jit/BaselineIC.h"
 #include "jit/BaselineJIT.h"
@@ -182,16 +180,15 @@ BaselineCompiler::compile()
     // Note: There is an extra entry in the bytecode type map for the search hint, see below.
     size_t bytecodeTypeMapEntries = script->nTypeSets() + 1;
 
-    mozilla::UniquePtr<BaselineScript, JS::DeletePolicy<BaselineScript> > baselineScript(
-        BaselineScript::New(script, prologueOffset_.offset(),
-                            epilogueOffset_.offset(),
-                            spsPushToggleOffset_.offset(),
-                            postDebugPrologueOffset_.offset(),
-                            icEntries_.length(),
-                            pcMappingIndexEntries.length(),
-                            pcEntries.length(),
-                            bytecodeTypeMapEntries,
-                            yieldOffsets_.length()));
+    BaselineScript *baselineScript = BaselineScript::New(script, prologueOffset_.offset(),
+                                                         epilogueOffset_.offset(),
+                                                         spsPushToggleOffset_.offset(),
+                                                         postDebugPrologueOffset_.offset(),
+                                                         icEntries_.length(),
+                                                         pcMappingIndexEntries.length(),
+                                                         pcEntries.length(),
+                                                         bytecodeTypeMapEntries,
+                                                         yieldOffsets_.length());
     if (!baselineScript)
         return Method_Error;
 
@@ -199,7 +196,7 @@ BaselineCompiler::compile()
     baselineScript->setTemplateScope(templateScope);
 
     JitSpew(JitSpew_BaselineScripts, "Created BaselineScript %p (raw %p) for %s:%d",
-            (void *) baselineScript.get(), (void *) code->raw(),
+            (void *) baselineScript, (void *) code->raw(),
             script->filename(), script->lineno());
 
 #ifdef JS_ION_PERF
@@ -256,7 +253,7 @@ BaselineCompiler::compile()
     // Register a native => bytecode mapping entry for this script if needed.
     if (cx->runtime()->jitRuntime()->isNativeToBytecodeMapEnabled(cx->runtime())) {
         JitSpew(JitSpew_Profiling, "Added JitcodeGlobalEntry for baseline script %s:%d (%p)",
-                    script->filename(), script->lineno(), baselineScript.get());
+                    script->filename(), script->lineno(), baselineScript);
         JitcodeGlobalEntry::BaselineEntry entry;
         entry.init(code->raw(), code->raw() + code->instructionsSize(), script);
 
@@ -268,7 +265,7 @@ BaselineCompiler::compile()
         code->setHasBytecodeMap();
     }
 
-    script->setBaselineScript(cx, baselineScript.release());
+    script->setBaselineScript(cx, baselineScript);
 
     return Method_Compiled;
 }

@@ -262,7 +262,7 @@ JSRuntime::init(uint32_t maxbytes, uint32_t maxNurseryBytes)
     size_t openFlags = THREAD_GET_CONTEXT | THREAD_SET_CONTEXT | THREAD_SUSPEND_RESUME;
     HANDLE self = OpenThread(openFlags, false, GetCurrentThreadId());
     if (!self)
-        return false;
+        MOZ_CRASH("Unable to open thread handle");
     static_assert(sizeof(HANDLE) <= sizeof(ownerThreadNative_), "need bigger field");
     ownerThreadNative_ = (size_t)self;
 #else

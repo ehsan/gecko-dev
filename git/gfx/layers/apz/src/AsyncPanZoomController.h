@@ -20,7 +20,6 @@
 #include "InputData.h"
 #include "Axis.h"
 #include "InputQueue.h"
-#include "LayersTypes.h"
 #include "TaskThrottler.h"
 #include "mozilla/gfx/Matrix.h"
 #include "nsRegion.h"
@@ -998,27 +997,22 @@ private:
    * hit-testing to see which APZC instance should handle touch events.
    */
 public:
-  void SetLayerHitTestData(const EventRegions& aRegions, const Matrix4x4& aTransformToLayer) {
-    mEventRegions = aRegions;
+  void SetLayerHitTestData(const nsIntRegion& aRegion, const Matrix4x4& aTransformToLayer) {
+    mVisibleRegion = aRegion;
     mAncestorTransform = aTransformToLayer;
   }
 
-  void AddHitTestRegions(const EventRegions& aRegions) {
-    mEventRegions.OrWith(aRegions);
+  void AddHitTestRegion(const nsIntRegion& aRegion) {
+    mVisibleRegion.OrWith(aRegion);
   }
 
   Matrix4x4 GetAncestorTransform() const {
     return mAncestorTransform;
   }
 
-  bool HitRegionContains(const ParentLayerPoint& aPoint) const {
+  bool VisibleRegionContains(const ParentLayerPoint& aPoint) const {
     ParentLayerIntPoint point = RoundedToInt(aPoint);
-    return mEventRegions.mHitRegion.Contains(point.x, point.y);
-  }
-
-  bool DispatchToContentRegionContains(const ParentLayerPoint& aPoint) const {
-    ParentLayerIntPoint point = RoundedToInt(aPoint);
-    return mEventRegions.mDispatchToContentHitRegion.Contains(point.x, point.y);
+    return mVisibleRegion.Contains(point.x, point.y);
   }
 
   bool IsOverscrolled() const {
@@ -1026,11 +1020,11 @@ public:
   }
 
 private:
-  /* This is the union of the hit regions of the layers that this APZC
-   * corresponds to, in the local screen pixels of those layers. (This is the
-   * same coordinate system in which this APZC receives events in
+  /* This is the union of the visible regions of the layers that this APZC
+   * corresponds to, in the screen pixels of those layers. (This is the same
+   * coordinate system in which this APZC receives events in
    * ReceiveInputEvent()). */
-  EventRegions mEventRegions;
+  nsIntRegion mVisibleRegion;
   /* This is the cumulative CSS transform for all the layers from (and including)
    * the parent APZC down to (but excluding) this one. */
   Matrix4x4 mAncestorTransform;

@@ -78,7 +78,7 @@ public:
   void OnSVGDocumentError();
 
 protected:
-  explicit VectorImage(ProgressTracker* aProgressTracker = nullptr,
+  explicit VectorImage(imgStatusTracker* aStatusTracker = nullptr,
                        ImageURL* aURI = nullptr);
   virtual ~VectorImage();
 
@@ -106,8 +106,8 @@ private:
   bool           mHasPendingInvalidation; // Invalidate observers next refresh
                                           // driver tick.
 
-  // Initializes ProgressTracker and resets it on RasterImage destruction.
-  nsAutoPtr<ProgressTrackerInit> mProgressTrackerInit;
+  // Initializes imgStatusTracker and resets it on RasterImage destruction.
+  nsAutoPtr<imgStatusTrackerInit> mStatusTrackerInit;
 
   friend class ImageFactory;
 };

@@ -879,15 +879,16 @@ nsJARChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *ctx)
                                       mLoadFlags & ~(LOAD_DOCUMENT_URI | LOAD_CALL_CONTENT_SNIFFERS));
             }
             else {
-              rv = NS_OpenURI(mDownloader,
-                              nullptr,   // aContext
-                              mJarBaseURI,
-                              nsContentUtils::GetSystemPrincipal(),
-                              nsILoadInfo::SEC_NORMAL,
-                              nsIContentPolicy::TYPE_OTHER,
-                              mLoadGroup,
-                              mCallbacks,
-                              mLoadFlags & ~(LOAD_DOCUMENT_URI | LOAD_CALL_CONTENT_SNIFFERS));
+              rv = NS_OpenURIInternal(mDownloader,
+                                      nullptr,   // aContext
+                                      mJarBaseURI,
+                                      nullptr, // aRequestingNode,
+                                      nsContentUtils::GetSystemPrincipal(),
+                                      nsILoadInfo::SEC_NORMAL,
+                                      nsIContentPolicy::TYPE_OTHER,
+                                      mLoadGroup,
+                                      mCallbacks,
+                                      mLoadFlags & ~(LOAD_DOCUMENT_URI | LOAD_CALL_CONTENT_SNIFFERS));
             }
         }
     } else if (mOpeningRemote) {

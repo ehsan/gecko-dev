@@ -1,5 +1,5 @@
 /*
- * Test for PNG encoding in ImageLib
+ * Test for PNG encoding in libpr0n
  *
  */
 

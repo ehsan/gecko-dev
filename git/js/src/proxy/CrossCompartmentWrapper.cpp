@@ -78,6 +78,15 @@ CrossCompartmentWrapper::delete_(JSContext *cx, HandleObject wrapper, HandleId i
 }
 
 bool
+CrossCompartmentWrapper::enumerate(JSContext *cx, HandleObject wrapper, AutoIdVector &props) const
+{
+    PIERCE(cx, wrapper,
+           NOTHING,
+           Wrapper::enumerate(cx, wrapper, props),
+           NOTHING);
+}
+
+bool
 CrossCompartmentWrapper::getPrototypeOf(JSContext *cx, HandleObject wrapper,
                                         MutableHandleObject protop) const
 {
@@ -185,16 +194,6 @@ CrossCompartmentWrapper::getOwnEnumerablePropertyKeys(JSContext *cx, HandleObjec
     PIERCE(cx, wrapper,
            NOTHING,
            Wrapper::getOwnEnumerablePropertyKeys(cx, wrapper, props),
-           NOTHING);
-}
-
-bool
-CrossCompartmentWrapper::getEnumerablePropertyKeys(JSContext *cx, HandleObject wrapper,
-                                                   AutoIdVector &props) const
-{
-    PIERCE(cx, wrapper,
-           NOTHING,
-           Wrapper::getEnumerablePropertyKeys(cx, wrapper, props),
            NOTHING);
 }
 

@@ -27,10 +27,10 @@ ImageWrapper::Init(const char* aMimeType, uint32_t aFlags)
   return mInnerImage->Init(aMimeType, aFlags);
 }
 
-already_AddRefed<ProgressTracker>
-ImageWrapper::GetProgressTracker()
+already_AddRefed<imgStatusTracker>
+ImageWrapper::GetStatusTracker()
 {
-  return mInnerImage->GetProgressTracker();
+  return mInnerImage->GetStatusTracker();
 }
 
 nsIntRect

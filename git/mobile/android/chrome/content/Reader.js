@@ -43,10 +43,6 @@ let Reader = {
   },
 
   updatePageAction: function(tab) {
-    if (!tab.getActive()) {
-      return;
-    }
-
     if (this.pageAction.id) {
       PageActions.remove(this.pageAction.id);
       delete this.pageAction.id;
@@ -69,7 +65,7 @@ let Reader = {
     // Only stop a reader session if the foreground viewer is not visible.
     UITelemetry.stopSession("reader.1", "", null);
 
-    if (tab.savedArticle) {
+    if (tab.readerEnabled) {
       this.pageAction.id = PageActions.add({
         title: Strings.browser.GetStringFromName("readerMode.enter"),
         icon: "drawable://reader",

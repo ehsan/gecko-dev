@@ -939,11 +939,6 @@ gfxPlatform::UseAcceleratedSkiaCanvas()
          mPreferredCanvasBackend == BackendType::SKIA;
 }
 
-bool gfxPlatform::HaveChoiceOfHWAndSWCanvas()
-{
-  return mPreferredCanvasBackend == BackendType::SKIA;
-}
-
 void
 gfxPlatform::InitializeSkiaCacheLimits()
 {

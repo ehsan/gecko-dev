@@ -34,9 +34,8 @@ MaybeFinish()
   }
 }
 
-FakeDecryptor::FakeDecryptor(GMPDecryptorHost* aHost)
+FakeDecryptor::FakeDecryptor()
   : mCallback(nullptr)
-  , mHost(aHost)
 {
   MOZ_ASSERT(!sInstance);
   sInstance = this;
@@ -329,12 +328,6 @@ FakeDecryptor::UpdateSession(uint32_t aPromiseId,
     ReadRecord("shutdown-token", new ReportReadRecordContinuation("shutdown-token"));
   } else if (task == "test-op-apis") {
     mozilla::gmptest::TestOuputProtectionAPIs();
-  } else if (task == "retrieve-plugin-voucher") {
-    const uint8_t* rawVoucher = nullptr;
-    uint32_t length = 0;
-    mHost->GetPluginVoucher(&rawVoucher, &length);
-    std::string voucher((const char*)rawVoucher, (const char*)(rawVoucher + length));
-    Message("retrieved plugin-voucher: " + voucher);
   }
 }
 

@@ -1147,11 +1147,8 @@ public:
         return mDOMExpandoSet->put(expando);
     }
     void RemoveDOMExpandoObject(JSObject *expando) {
-        if (mDOMExpandoSet) {
-            DOMExpandoSet::Ptr p = mDOMExpandoSet->lookup(expando);
-            MOZ_ASSERT(p.found());
-            mDOMExpandoSet->remove(p);
-        }
+        if (mDOMExpandoSet)
+            mDOMExpandoSet->remove(expando);
     }
 
     typedef js::HashMap<JSAddonId *,

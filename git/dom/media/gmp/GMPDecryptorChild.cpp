@@ -26,11 +26,10 @@
 namespace mozilla {
 namespace gmp {
 
-GMPDecryptorChild::GMPDecryptorChild(GMPChild* aPlugin,
-                                     const nsTArray<uint8_t>& aPluginVoucher)
+GMPDecryptorChild::GMPDecryptorChild(GMPChild* aPlugin, const std::string& aNodeId)
   : mSession(nullptr)
   , mPlugin(aPlugin)
-  , mPluginVoucher(aPluginVoucher)
+  , mNodeId(aNodeId)
 {
   MOZ_ASSERT(mPlugin);
 }
@@ -175,12 +174,17 @@ GMPDecryptorChild::SetCapabilities(uint64_t aCaps)
 }
 
 void
-GMPDecryptorChild::GetSandboxVoucher(const uint8_t** aVoucher,
-                                     uint32_t* aVoucherLength)
+GMPDecryptorChild::GetNodeId(const char** aOutNodeId,
+                             uint32_t* aOutNodeIdLength)
 {
-  if (!aVoucher || !aVoucherLength) {
-    return;
-  }
+  *aOutNodeId = mNodeId.c_str();
+  *aOutNodeIdLength = mNodeId.size();
+}
+
+void
+GMPDecryptorChild::GetSandboxVoucher(const uint8_t** aVoucher,
+                                     uint8_t* aVoucherLength)
+{
   const char* voucher = "placeholder_sandbox_voucher.";
   *aVoucher = (uint8_t*)voucher;
   *aVoucherLength = strlen(voucher);
@@ -188,13 +192,11 @@ GMPDecryptorChild::GetSandboxVoucher(const uint8_t** aVoucher,
 
 void
 GMPDecryptorChild::GetPluginVoucher(const uint8_t** aVoucher,
-                                    uint32_t* aVoucherLength)
+                                    uint8_t* aVoucherLength)
 {
-  if (!aVoucher || !aVoucherLength) {
-    return;
-  }
-  *aVoucher = mPluginVoucher.Elements();
-  *aVoucherLength = mPluginVoucher.Length();
+  const char* voucher = "placeholder_plugin_voucher.";
+  *aVoucher = (uint8_t*)voucher;
+  *aVoucherLength = strlen(voucher);
 }
 
 bool

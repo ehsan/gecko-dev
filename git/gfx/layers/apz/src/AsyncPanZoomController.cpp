@@ -1502,7 +1502,7 @@ nsEventStatus AsyncPanZoomController::OnPanBegin(const PanGestureInput& aEvent) 
     CancelAnimation();
   }
 
-  mPanGestureState = MakeUnique<InputBlockState>(this, true);
+  mPanGestureState = MakeUnique<InputBlockState>(this);
 
   mX.StartTouch(aEvent.mLocalPanStartPoint.x, aEvent.mTime);
   mY.StartTouch(aEvent.mLocalPanStartPoint.y, aEvent.mTime);
@@ -1580,7 +1580,7 @@ nsEventStatus AsyncPanZoomController::OnPanMomentumStart(const PanGestureInput& 
     CancelAnimation();
   }
 
-  mPanGestureState = MakeUnique<InputBlockState>(this, true);
+  mPanGestureState = MakeUnique<InputBlockState>(this);
 
   return nsEventStatus_eConsumeNoDefault;
 }
@@ -2011,7 +2011,7 @@ void AsyncPanZoomController::HandleFlingOverscroll(const ParentLayerPoint& aVelo
                                                             true /* handoff */))) {
     // No one wanted the fling, so we "take it" ourselves by entering an
     // overscroll animation starting with the fling's velocity.
-    if (IsPannable() && gfxPrefs::APZOverscrollEnabled()) {
+    if (IsPannable()) {
       StartOverscrollAnimation(aVelocity);
     }
   }

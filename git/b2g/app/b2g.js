@@ -433,6 +433,7 @@ pref("dom.mozBrowserFramesEnabled", true);
 pref("dom.ipc.processCount", 100000);
 
 pref("dom.ipc.browser_frames.oop_by_default", false);
+pref("dom.browser_frames.useAsyncPanZoom", true);
 
 // SMS/MMS
 pref("dom.sms.enabled", true);
@@ -1007,9 +1008,9 @@ pref("apz.subframe.enabled", true);
 
 // Overscroll-related settings
 pref("apz.overscroll.enabled", true);
-pref("apz.overscroll.stretch_factor", "0.15");
-pref("apz.overscroll.spring_stiffness", "0.002");
-pref("apz.overscroll.spring_friction", "0.02");
+pref("apz.overscroll.stretch_factor", "0.5");
+pref("apz.overscroll.spring_stiffness", "0.001");
+pref("apz.overscroll.spring_friction", "0.015");
 pref("apz.overscroll.stop_distance_threshold", "5.0");
 pref("apz.overscroll.stop_velocity_threshold", "0.01");
 

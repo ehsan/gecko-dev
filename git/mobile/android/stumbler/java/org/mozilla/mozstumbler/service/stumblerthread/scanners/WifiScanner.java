@@ -65,11 +65,7 @@ public class WifiScanner extends BroadcastReceiver {
     }
 
     private List<ScanResult> getScanResults() {
-        WifiManager manager = getWifiManager();
-        if (manager == null) {
-            return null;
-        }
-        return getWifiManager().getScanResults();
+        return (sIsTestMode)? mTestModeFakeScanResults : getWifiManager().getScanResults();
     }
 
 
@@ -109,12 +105,8 @@ public class WifiScanner extends BroadcastReceiver {
                 deactivatePeriodicScan();
             }
         } else if (WifiManager.SCAN_RESULTS_AVAILABLE_ACTION.equals(action)) {
-            final List<ScanResult> scanResultList = getScanResults();
-            if (scanResultList == null) {
-                return;
-            }
-            final ArrayList<ScanResult> scanResults = new ArrayList<ScanResult>();
-            for (ScanResult scanResult : scanResultList) {
+            ArrayList<ScanResult> scanResults = new ArrayList<ScanResult>();
+            for (ScanResult scanResult : getScanResults()) {
                 scanResult.BSSID = BSSIDBlockList.canonicalizeBSSID(scanResult.BSSID);
                 if (shouldLog(scanResult)) {
                     scanResults.add(scanResult);

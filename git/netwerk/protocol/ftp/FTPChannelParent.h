@@ -66,7 +66,6 @@ protected:
                    const nsCString& aEntityID,
                    const OptionalInputStreamParams& aUploadStream,
                    const ipc::PrincipalInfo& aRequestingPrincipalInfo,
-                   const ipc::PrincipalInfo& aTriggeringPrincipalInfo,
                    const uint32_t& aSecurityFlags,
                    const uint32_t& aContentPolicyType);
 

@@ -2837,16 +2837,18 @@
 
       <method name="attachFormFill">
         <body><![CDATA[
-          for (let browser of this.browsers) {
-            browser.attachFormFill();
+          for (var i = 0; i < this.mPanelContainer.childNodes.length; ++i) {
+            var cb = this.getBrowserAtIndex(i);
+            cb.attachFormFill();
           }
         ]]></body>
       </method>
 
       <method name="detachFormFill">
         <body><![CDATA[
-          for (let browser of this.browsers) {
-            browser.detachFormFill();
+          for (var i = 0; i < this.mPanelContainer.childNodes.length; ++i) {
+            var cb = this.getBrowserAtIndex(i);
+            cb.detachFormFill();
           }
         ]]></body>
       </method>

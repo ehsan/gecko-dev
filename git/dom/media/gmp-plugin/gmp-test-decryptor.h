@@ -14,7 +14,7 @@
 class FakeDecryptor : public GMPDecryptor {
 public:
 
-  FakeDecryptor(GMPDecryptorHost* aHost);
+  FakeDecryptor();
 
   virtual void Init(GMPDecryptorCallback* aCallback) MOZ_OVERRIDE {
     mCallback = aCallback;
@@ -76,7 +76,6 @@ private:
   void TestStorage();
 
   GMPDecryptorCallback* mCallback;
-  GMPDecryptorHost* mHost;
 };
 
 class TestAsyncShutdown : public GMPAsyncShutdown {
