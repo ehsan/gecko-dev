@@ -21,11 +21,11 @@ function run_test()
 function test_get_actor() {
   let bpStore = new BreakpointActorMap();
   let location = {
-    sourceActor: { actor: 'actor1' },
+    source: { actor: 'actor1' },
     line: 3
   };
   let columnLocation = {
-    sourceActor: { actor: 'actor2' },
+    source: { actor: 'actor2' },
     line: 5,
     column: 15
   };
@@ -59,7 +59,7 @@ function test_set_actor() {
   // Breakpoint with column
   let bpStore = new BreakpointActorMap();
   let location = {
-    sourceActor: { actor: 'actor1' },
+    source: { actor: 'actor1' },
     line: 10,
     column: 9
   };
@@ -69,7 +69,7 @@ function test_set_actor() {
 
   // Breakpoint without column (whole line breakpoint)
   location = {
-    sourceActor: { actor: 'actor2' },
+    source: { actor: 'actor2' },
     line: 103
   };
   bpStore.setActor(location, {});
@@ -81,7 +81,7 @@ function test_delete_actor() {
   // Breakpoint with column
   let bpStore = new BreakpointActorMap();
   let location = {
-    sourceActor: { actor: 'actor1' },
+    source: { actor: 'actor1' },
     line: 10,
     column: 9
   };
@@ -92,7 +92,7 @@ function test_delete_actor() {
 
   // Breakpoint without column (whole line breakpoint)
   location = {
-    sourceActor: { actor: 'actor2' },
+    source: { actor: 'actor2' },
     line: 103
   };
   bpStore.setActor(location, {});
@@ -103,14 +103,14 @@ function test_delete_actor() {
 
 function test_find_actors() {
   let bps = [
-    { sourceActor: { actor: "actor1" }, line: 10 },
-    { sourceActor: { actor: "actor1" }, line: 10, column: 3 },
-    { sourceActor: { actor: "actor1" }, line: 10, column: 10 },
-    { sourceActor: { actor: "actor1" }, line: 23, column: 89 },
-    { sourceActor: { actor: "actor2" }, line: 10, column: 1 },
-    { sourceActor: { actor: "actor2" }, line: 20, column: 5 },
-    { sourceActor: { actor: "actor2" }, line: 30, column: 34 },
-    { sourceActor: { actor: "actor2" }, line: 40, column: 56 }
+    { source: { actor: "actor1" }, line: 10 },
+    { source: { actor: "actor1" }, line: 10, column: 3 },
+    { source: { actor: "actor1" }, line: 10, column: 10 },
+    { source: { actor: "actor1" }, line: 23, column: 89 },
+    { source: { actor: "actor2" }, line: 10, column: 1 },
+    { source: { actor: "actor2" }, line: 20, column: 5 },
+    { source: { actor: "actor2" }, line: 30, column: 34 },
+    { source: { actor: "actor2" }, line: 40, column: 56 }
   ];
 
   let bpStore = new BreakpointActorMap();
@@ -130,8 +130,8 @@ function test_find_actors() {
 
   // Breakpoints by URL
 
-  bpSet = Set(bps.filter(bp => { return bp.sourceActor.actorID === "actor1" }));
-  for (let bp of bpStore.findActors({ sourceActor: { actorID: "actor1" } })) {
+  bpSet = Set(bps.filter(bp => { return bp.source.actor === "actor1" }));
+  for (let bp of bpStore.findActors({ source: { actor: "actor1" } })) {
     bpSet.delete(bp);
   }
   do_check_eq(bpSet.size, 0,
@@ -139,9 +139,9 @@ function test_find_actors() {
 
   // Breakpoints by URL and line
 
-  bpSet = Set(bps.filter(bp => { return bp.sourceActor.actorID === "actor1" && bp.line === 10; }));
+  bpSet = Set(bps.filter(bp => { return bp.source.actor === "actor1" && bp.line === 10; }));
   let first = true;
-  for (let bp of bpStore.findActors({ sourceActor: { actorID: "actor1" }, line: 10 })) {
+  for (let bp of bpStore.findActors({ source: { actor: "actor1" }, line: 10 })) {
     if (first) {
       do_check_eq(bp.column, undefined,
                   "Should always get the whole line breakpoint first");
@@ -161,7 +161,7 @@ function test_duplicate_actors() {
 
   // Breakpoint with column
   let location = {
-    sourceActor: { actorID: "foo-actor" },
+    source: { actor: "foo-actor" },
     line: 10,
     column: 9
   };
@@ -172,7 +172,7 @@ function test_duplicate_actors() {
 
   // Breakpoint without column (whole line breakpoint)
   location = {
-    sourceActor: { actorID: "foo-actor" },
+    source: { actor: "foo-actor" },
     line: 15
   };
   bpStore.setActor(location, {});

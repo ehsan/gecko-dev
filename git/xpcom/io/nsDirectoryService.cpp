@@ -298,7 +298,7 @@ nsDirectoryService::GetKeys(uint32_t* aCount, char*** aKeys)
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-struct MOZ_STACK_CLASS FileData
+struct FileData
 {
   FileData(const char* aProperty, const nsIID& aUUID)
     : property(aProperty)
@@ -309,7 +309,7 @@ struct MOZ_STACK_CLASS FileData
   }
 
   const char*   property;
-  nsCOMPtr<nsISupports> data;
+  nsISupports*  data;
   bool          persistent;
   const nsIID&  uuid;
 };
@@ -329,13 +329,13 @@ FindProviderFile(nsIDirectoryServiceProvider* aElement, FileData* aData)
           nsCOMPtr<nsISimpleEnumerator> unionFiles;
 
           NS_NewUnionEnumerator(getter_AddRefs(unionFiles),
-                                (nsISimpleEnumerator*)aData->data.get(), newFiles);
+                                (nsISimpleEnumerator*)aData->data, newFiles);
 
           if (unionFiles) {
             unionFiles.swap(*(nsISimpleEnumerator**)&aData->data);
           }
         } else {
-          aData->data = newFiles;
+          NS_ADDREF(aData->data = newFiles);
         }
 
         aData->persistent = false; // Enumerators can never be persistent
@@ -380,20 +380,20 @@ nsDirectoryService::Get(const char* aProp, const nsIID& aUuid, void** aResult)
   }
   if (fileData.data) {
     if (fileData.persistent) {
-      Set(aProp, static_cast<nsIFile*>(fileData.data.get()));
+      Set(aProp, static_cast<nsIFile*>(fileData.data));
     }
     nsresult rv = (fileData.data)->QueryInterface(aUuid, aResult);
-    fileData.data = nullptr; // AddRef occurs in FindProviderFile()
+    NS_RELEASE(fileData.data);  // addref occurs in FindProviderFile()
     return rv;
   }
 
   FindProviderFile(static_cast<nsIDirectoryServiceProvider*>(this), &fileData);
   if (fileData.data) {
     if (fileData.persistent) {
-      Set(aProp, static_cast<nsIFile*>(fileData.data.get()));
+      Set(aProp, static_cast<nsIFile*>(fileData.data));
     }
     nsresult rv = (fileData.data)->QueryInterface(aUuid, aResult);
-    fileData.data = nullptr; // AddRef occurs in FindProviderFile()
+    NS_RELEASE(fileData.data);  // addref occurs in FindProviderFile()
     return rv;
   }
 

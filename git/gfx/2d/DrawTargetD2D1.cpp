@@ -859,12 +859,7 @@ DrawTargetD2D1::factory()
     return mFactory;
   }
 
-  ID2D1Factory* d2dFactory = D2DFactory();
-  if (!d2dFactory) {
-    return nullptr;
-  }
-
-  HRESULT hr = d2dFactory->QueryInterface((ID2D1Factory1**)&mFactory);
+  HRESULT hr = D2DFactory()->QueryInterface((ID2D1Factory1**)&mFactory);
 
   if (FAILED(hr)) {
     return nullptr;

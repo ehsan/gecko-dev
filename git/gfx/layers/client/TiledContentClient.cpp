@@ -1168,7 +1168,7 @@ ClientTiledLayerBuffer::ValidateTile(TileClient aTile,
     } else {
       moz2DTile.mDrawTarget = dt;
     }
-    moz2DTile.mTileOrigin = gfx::IntPoint(aTileOrigin.x, aTileOrigin.y);
+    moz2DTile.mTileOrigin = gfx::IntPoint(aTileOrigin.x * mResolution, aTileOrigin.y * mResolution);
     if (!dt || (backBufferOnWhite && !dtOnWhite)) {
       aTile.DiscardFrontBuffer();
       aTile.DiscardBackBuffer();

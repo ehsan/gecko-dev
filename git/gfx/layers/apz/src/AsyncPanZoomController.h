@@ -20,7 +20,6 @@
 #include "InputData.h"
 #include "Axis.h"
 #include "InputQueue.h"
-#include "APZUtils.h"
 #include "LayersTypes.h"
 #include "TaskThrottler.h"
 #include "mozilla/gfx/Matrix.h"
@@ -219,12 +218,6 @@ public:
   ViewTransform GetCurrentAsyncTransform() const;
 
   /**
-   * Returns the same transform as GetCurrentAsyncTransform(), but includes
-   * any transform due to axis over-scroll.
-   */
-  Matrix4x4 GetCurrentAsyncTransformWithOverscroll() const;
-
-  /**
    * Returns the transform to take something from the coordinate space of the
    * last thing we know gecko painted, to the coordinate space of the last thing
    * we asked gecko to paint. In cases where that last request has not yet been
@@ -292,10 +285,8 @@ public:
 
   /**
    * Cancels any currently running animation.
-   * aFlags is a bit-field to provide specifics of how to cancel the animation.
-   * See CancelAnimationFlags.
    */
-  void CancelAnimation(CancelAnimationFlags aFlags = Default);
+  void CancelAnimation();
 
   /**
    * Clear any overscroll on this APZC.

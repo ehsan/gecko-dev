@@ -145,7 +145,7 @@ dont_AddRef(already_AddRefed<T>&& aAlreadyAddRefedPtr)
  *
  * See |class nsGetInterface| for an example.
  */
-class MOZ_STACK_CLASS nsCOMPtr_helper
+class nsCOMPtr_helper
 {
 public:
   virtual nsresult NS_FASTCALL operator()(const nsIID&, void**) const = 0;

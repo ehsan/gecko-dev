@@ -132,6 +132,11 @@ nsLoadGroup::nsLoadGroup(nsISupports* outer)
 #endif
 
     LOG(("LOADGROUP [%x]: Created.\n", this));
+
+    // Initialize the ops in the hash to null to make sure we get
+    // consistent errors if someone fails to call ::Init() on an
+    // nsLoadGroup.
+    mRequests.ops = nullptr;
 }
 
 nsLoadGroup::~nsLoadGroup()
@@ -139,7 +144,7 @@ nsLoadGroup::~nsLoadGroup()
     DebugOnly<nsresult> rv = Cancel(NS_BINDING_ABORTED);
     NS_ASSERTION(NS_SUCCEEDED(rv), "Cancel failed");
 
-    if (mRequests.IsInitialized()) {
+    if (mRequests.ops) {
         PL_DHashTableFinish(&mRequests);
     }
 

@@ -36,14 +36,14 @@ public:
   void SetData(const nsTArray<uint8_t>& aData)
   {
     MOZ_ASSERT(!mPtr && !mRemaining);
-    mPtr = aData.Elements();
+    mPtr = &aData[0];
     mRemaining = aData.Length();
     mLength = mRemaining;
   }
 
   ~ByteReader()
   {
-    NS_ASSERTION(!mRemaining, "Not all bytes have been processed");
+    MOZ_ASSERT(!mRemaining);
   }
 
   size_t Offset()

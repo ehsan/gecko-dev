@@ -76,7 +76,7 @@ enum EParserSpecial
   eParserSpecial_Unicode        // parsing a \Uxxx value
 };
 
-class MOZ_STACK_CLASS nsPropertiesParser
+class nsPropertiesParser
 {
 public:
   explicit nsPropertiesParser(nsIPersistentProperties* aProps)
@@ -177,7 +177,7 @@ private:
   EParserState mState;
   // if we see a '\' then we enter this special state
   EParserSpecial mSpecialState;
-  nsCOMPtr<nsIPersistentProperties> mProps;
+  nsIPersistentProperties* mProps;
 };
 
 inline bool
@@ -460,6 +460,8 @@ nsPropertiesParser::ParseBuffer(const char16_t* aBuffer,
 nsPersistentProperties::nsPersistentProperties()
   : mIn(nullptr)
 {
+  mSubclass = static_cast<nsIPersistentProperties*>(this);
+
   PL_DHashTableInit(&mTable, &property_HashTableOps,
                     sizeof(PropertyTableEntry), 16);
 
@@ -469,7 +471,7 @@ nsPersistentProperties::nsPersistentProperties()
 nsPersistentProperties::~nsPersistentProperties()
 {
   PL_FinishArenaPool(&mArena);
-  if (mTable.IsInitialized()) {
+  if (mTable.ops) {
     PL_DHashTableFinish(&mTable);
   }
 }
@@ -498,7 +500,7 @@ nsPersistentProperties::Load(nsIInputStream* aIn)
     return NS_ERROR_FAILURE;
   }
 
-  nsPropertiesParser parser(this);
+  nsPropertiesParser parser(mSubclass);
 
   uint32_t nProcessed;
   // If this 4096 is changed to some other value, make sure to adjust
@@ -548,6 +550,16 @@ NS_IMETHODIMP
 nsPersistentProperties::Save(nsIOutputStream* aOut, const nsACString& aHeader)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+nsPersistentProperties::Subclass(nsIPersistentProperties* aSubclass)
+{
+  if (aSubclass) {
+    mSubclass = aSubclass;
+  }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP

@@ -262,8 +262,7 @@ protected:
 
   // Accessible
   virtual Accessible* GetSiblingAtOffset(int32_t aOffset,
-                                         nsresult* aError = nullptr) const
-    MOZ_OVERRIDE;
+                                         nsresult *aError = nullptr) const;
 };
 
 

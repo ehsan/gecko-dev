@@ -86,12 +86,14 @@ nsHTMLEntities::AddRefTable(void)
     if (!PL_DHashTableInit(&gEntityToUnicode, &EntityToUnicodeOps,
                            sizeof(EntityNodeEntry),
                            fallible_t(), NS_HTML_ENTITY_COUNT)) {
+      gEntityToUnicode.ops = nullptr;
       return NS_ERROR_OUT_OF_MEMORY;
     }
     if (!PL_DHashTableInit(&gUnicodeToEntity, &UnicodeToEntityOps,
                            sizeof(EntityNodeEntry),
                            fallible_t(), NS_HTML_ENTITY_COUNT)) {
       PL_DHashTableFinish(&gEntityToUnicode);
+      gEntityToUnicode.ops = gUnicodeToEntity.ops = nullptr;
       return NS_ERROR_OUT_OF_MEMORY;
     }
     for (const EntityNode *node = gEntityArray,
@@ -126,25 +128,27 @@ nsHTMLEntities::AddRefTable(void)
 }
 
 void
-nsHTMLEntities::ReleaseTable(void)
+nsHTMLEntities::ReleaseTable(void) 
 {
   if (--gTableRefCnt != 0)
     return;
 
-  if (gEntityToUnicode.IsInitialized()) {
+  if (gEntityToUnicode.ops) {
     PL_DHashTableFinish(&gEntityToUnicode);
+    gEntityToUnicode.ops = nullptr;
   }
-  if (gUnicodeToEntity.IsInitialized()) {
+  if (gUnicodeToEntity.ops) {
     PL_DHashTableFinish(&gUnicodeToEntity);
+    gUnicodeToEntity.ops = nullptr;
   }
+
 }
 
-int32_t
+int32_t 
 nsHTMLEntities::EntityToUnicode(const nsCString& aEntity)
 {
-  NS_ASSERTION(gEntityToUnicode.IsInitialized(),
-               "no lookup table, needs addref");
-  if (!gEntityToUnicode.IsInitialized())
+  NS_ASSERTION(gEntityToUnicode.ops, "no lookup table, needs addref");
+  if (!gEntityToUnicode.ops)
     return -1;
 
     //this little piece of code exists because entities may or may not have the terminating ';'.
@@ -181,8 +185,7 @@ nsHTMLEntities::EntityToUnicode(const nsAString& aEntity) {
 const char*
 nsHTMLEntities::UnicodeToEntity(int32_t aUnicode)
 {
-  NS_ASSERTION(gUnicodeToEntity.IsInitialized(),
-               "no lookup table, needs addref");
+  NS_ASSERTION(gUnicodeToEntity.ops, "no lookup table, needs addref");
   EntityNodeEntry* entry =
     static_cast<EntityNodeEntry*>
                (PL_DHashTableLookup(&gUnicodeToEntity, NS_INT32_TO_PTR(aUnicode)));

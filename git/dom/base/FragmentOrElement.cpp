@@ -2548,8 +2548,12 @@ ShouldEscape(nsIContent* aParent)
 }
 
 static inline bool
-IsVoidTag(nsIAtom* aTag)
+IsVoidTag(Element* aElement)
 {
+  if (!aElement->IsHTML()) {
+    return false;
+  }
+
   static const nsIAtom* voidElements[] = {
     nsGkAtoms::area, nsGkAtoms::base, nsGkAtoms::basefont,
     nsGkAtoms::bgsound, nsGkAtoms::br, nsGkAtoms::col,
@@ -2568,31 +2572,16 @@ IsVoidTag(nsIAtom* aTag)
       sFilter.add(voidElements[i]);
     }
   }
-
-  if (sFilter.mightContain(aTag)) {
+  
+  nsIAtom* tag = aElement->Tag();
+  if (sFilter.mightContain(tag)) {
     for (uint32_t i = 0; i < ArrayLength(voidElements); ++i) {
-      if (aTag == voidElements[i]) {
+      if (tag == voidElements[i]) {
         return true;
       }
     }
   }
   return false;
-}
-
-static inline bool
-IsVoidTag(Element* aElement)
-{
-  if (!aElement->IsHTML()) {
-    return false;
-  }
-  return IsVoidTag(aElement->Tag());
-}
-
-/* static */
-bool
-FragmentOrElement::IsHTMLVoid(nsIAtom* aLocalName)
-{
-  return aLocalName && IsVoidTag(aLocalName);
 }
 
 static bool

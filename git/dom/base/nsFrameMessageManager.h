@@ -148,8 +148,7 @@ public:
   {
   }
 
-  virtual bool ToObject(JSContext* aCx, JS::MutableHandle<JSObject*> aObjp)
-    MOZ_OVERRIDE;
+  bool ToObject(JSContext* aCx, JS::MutableHandle<JSObject*> aObjp);
 
 private:
   JS::Rooted<JSObject*> mObj;

@@ -2928,21 +2928,21 @@ JitProfilingFrameIterator::operator++()
     JitFrameLayout *frame = framePtr();
     FrameType prevType = frame->prevType();
 
-    if (prevType == JitFrame_IonJS || prevType == JitFrame_Unwound_IonJS) {
+    if (prevType == JitFrame_IonJS) {
         returnAddressToFp_ = frame->returnAddress();
         fp_ = GetPreviousRawFrame<JitFrameLayout, uint8_t *>(frame);
         type_ = JitFrame_IonJS;
         return;
     }
 
-    if (prevType == JitFrame_BaselineJS || prevType == JitFrame_Unwound_BaselineJS) {
+    if (prevType == JitFrame_BaselineJS) {
         returnAddressToFp_ = frame->returnAddress();
         fp_ = GetPreviousRawFrame<JitFrameLayout, uint8_t *>(frame);
         type_ = JitFrame_BaselineJS;
         return;
     }
 
-    if (prevType == JitFrame_BaselineStub || prevType == JitFrame_Unwound_BaselineStub) {
+    if (prevType == JitFrame_BaselineStub) {
         BaselineStubFrameLayout *stubFrame =
             GetPreviousRawFrame<JitFrameLayout, BaselineStubFrameLayout *>(frame);
         MOZ_ASSERT(stubFrame->prevType() == JitFrame_BaselineJS);
@@ -2954,7 +2954,7 @@ JitProfilingFrameIterator::operator++()
         return;
     }
 
-    if (prevType == JitFrame_Rectifier || prevType == JitFrame_Unwound_Rectifier) {
+    if (prevType == JitFrame_Rectifier) {
         RectifierFrameLayout *rectFrame =
             GetPreviousRawFrame<JitFrameLayout, RectifierFrameLayout *>(frame);
         FrameType rectPrevType = rectFrame->prevType();
@@ -3009,21 +3009,6 @@ InvalidationBailoutStack::checkInvariants() const
     uint8_t *osiPoint = osiPointReturnAddress();
     MOZ_ASSERT(rawBase <= osiPoint && osiPoint <= rawLimit);
 #endif
-}
-
-void
-AssertValidJitStack(JSContext *cx)
-{
-    for (JitActivationIterator activations(cx->runtime()); !activations.done(); ++activations) {
-        JitFrameIterator frames(activations);
-        for (; !frames.done(); ++frames)
-            continue;
-
-        MOZ_RELEASE_ASSERT(frames.type() == JitFrame_Entry,
-          "The first frame of a Jit activation should be an entry frame");
-        MOZ_RELEASE_ASSERT(reinterpret_cast<size_t>(frames.fp()) % JitStackAlignment == 0,
-          "The entry frame should be properly aligned");
-    }
 }
 
 } // namespace jit

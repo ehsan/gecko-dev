@@ -126,8 +126,7 @@ public:
    */
   EntryType* GetEntry(KeyType aKey) const
   {
-    NS_ASSERTION(mTable.IsInitialized(),
-                 "nsTHashtable was not initialized properly.");
+    NS_ASSERTION(mTable.ops, "nsTHashtable was not initialized properly.");
 
     EntryType* entry = reinterpret_cast<EntryType*>(
       PL_DHashTableLookup(const_cast<PLDHashTable*>(&mTable),
@@ -158,8 +157,7 @@ public:
   }
 
   EntryType* PutEntry(KeyType aKey, const fallible_t&) NS_WARN_UNUSED_RESULT {
-    NS_ASSERTION(mTable.IsInitialized(),
-                 "nsTHashtable was not initialized properly.");
+    NS_ASSERTION(mTable.ops, "nsTHashtable was not initialized properly.");
 
     return static_cast<EntryType*>(PL_DHashTableAdd(
       &mTable, EntryType::KeyToPointer(aKey)));
@@ -171,8 +169,7 @@ public:
    */
   void RemoveEntry(KeyType aKey)
   {
-    NS_ASSERTION(mTable.IsInitialized(),
-                 "nsTHashtable was not initialized properly.");
+    NS_ASSERTION(mTable.ops, "nsTHashtable was not initialized properly.");
 
     PL_DHashTableRemove(&mTable,
                         EntryType::KeyToPointer(aKey));
@@ -212,8 +209,7 @@ public:
    */
   uint32_t EnumerateEntries(Enumerator aEnumFunc, void* aUserArg)
   {
-    NS_ASSERTION(mTable.IsInitialized(),
-                 "nsTHashtable was not initialized properly.");
+    NS_ASSERTION(mTable.ops, "nsTHashtable was not initialized properly.");
 
     s_EnumArgs args = { aEnumFunc, aUserArg };
     return PL_DHashTableEnumerate(&mTable, s_EnumStub, &args);
@@ -224,8 +220,7 @@ public:
    */
   void Clear()
   {
-    NS_ASSERTION(mTable.IsInitialized(),
-                 "nsTHashtable was not initialized properly.");
+    NS_ASSERTION(mTable.ops, "nsTHashtable was not initialized properly.");
 
     PL_DHashTableEnumerate(&mTable, PL_DHashStubEnumRemove, nullptr);
   }
@@ -300,8 +295,8 @@ public:
    */
   void SwapElements(nsTHashtable<EntryType>& aOther)
   {
-    MOZ_ASSERT_IF(this->mTable.Ops() && aOther.mTable.Ops(),
-                  this->mTable.Ops() == aOther.mTable.Ops());
+    MOZ_ASSERT_IF(this->mTable.ops && aOther.mTable.ops,
+                  this->mTable.ops == aOther.mTable.ops);
     mozilla::Swap(this->mTable, aOther.mTable);
   }
 
@@ -314,8 +309,7 @@ public:
    */
   void MarkImmutable()
   {
-    NS_ASSERTION(mTable.IsInitialized(),
-                 "nsTHashtable was not initialized properly.");
+    NS_ASSERTION(mTable.ops, "nsTHashtable was not initialized properly.");
 
     PL_DHashMarkTableImmutable(&mTable);
   }
@@ -408,13 +402,13 @@ nsTHashtable<EntryType>::nsTHashtable(nsTHashtable<EntryType>&& aOther)
 
   // Indicate that aOther is not initialized.  This will make its destructor a
   // nop, which is what we want.
-  aOther.mTable.SetOps(nullptr);
+  aOther.mTable.ops = nullptr;
 }
 
 template<class EntryType>
 nsTHashtable<EntryType>::~nsTHashtable()
 {
-  if (mTable.IsInitialized()) {
+  if (mTable.ops) {
     PL_DHashTableFinish(&mTable);
   }
 }

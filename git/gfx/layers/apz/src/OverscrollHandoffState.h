@@ -11,7 +11,6 @@
 #include "nsAutoPtr.h"
 #include "nsISupportsImpl.h"  // for NS_INLINE_DECL_REFCOUNTING
 #include "Units.h"            // for ScreenPoint
-#include "APZUtils.h"         // for CancelAnimationFlags
 
 namespace mozilla {
 namespace layers {
@@ -94,7 +93,7 @@ public:
   void FlushRepaints() const;
 
   // Cancel animations all the way up the chain.
-  void CancelAnimations(CancelAnimationFlags aFlags = Default) const;
+  void CancelAnimations() const;
 
   // Clear overscroll all the way up the chain.
   void ClearOverscroll() const;

@@ -9,7 +9,6 @@
 #include "Types.h"
 #include "Rect.h"
 #include "Point.h"
-#include <iosfwd>
 #include <math.h>
 #include "mozilla/Attributes.h"
 #include "mozilla/DebugOnly.h"
@@ -43,8 +42,6 @@ public:
   {
     return Matrix(*this);
   }
-
-  friend std::ostream& operator<<(std::ostream& aStream, const Matrix& aMatrix);
 
   Point operator *(const Point &aPoint) const
   {
