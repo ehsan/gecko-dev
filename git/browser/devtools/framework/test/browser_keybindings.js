@@ -58,7 +58,7 @@ function test()
     }
 
     gDevTools.once("toolbox-ready", (e, toolbox) => {
-      inspectorShouldBeOpenAndHighlighting(toolbox.getCurrentPanel(), toolbox);
+      inspectorShouldBeOpenAndHighlighting(toolbox.getCurrentPanel(), toolbox)
     });
 
     keysetMap.inspector.synthesizeKey();
@@ -74,30 +74,30 @@ function test()
 
       aToolbox.once("picker-stopped", () => {
         ok(true, "picker-stopped event received, highlighter stopped");
-        gDevTools.once("select-tool-command", () => {
-          webconsoleShouldBeSelected(aToolbox);
+        aToolbox.once("webconsole-ready", (e, panel) => {
+          webconsoleShouldBeSelected(aToolbox, panel);
         });
         keysetMap.webconsole.synthesizeKey();
       });
     });
   }
 
-  function webconsoleShouldBeSelected(aToolbox)
+  function webconsoleShouldBeSelected(aToolbox, panel)
   {
-      is (aToolbox.currentToolId, "webconsole", "webconsole should be selected.");
+      is (aToolbox.currentToolId, "webconsole");
 
-      gDevTools.once("select-tool-command", () => {
-        jsdebuggerShouldBeSelected(aToolbox);
+      aToolbox.once("jsdebugger-ready", (e, panel) => {
+        jsdebuggerShouldBeSelected(aToolbox, panel);
       });
       keysetMap.jsdebugger.synthesizeKey();
   }
 
-  function jsdebuggerShouldBeSelected(aToolbox)
+  function jsdebuggerShouldBeSelected(aToolbox, panel)
   {
-      is (aToolbox.currentToolId, "jsdebugger", "jsdebugger should be selected.");
+      is (aToolbox.currentToolId, "jsdebugger");
 
-      gDevTools.once("select-tool-command", () => {
-        netmonitorShouldBeSelected(aToolbox);
+      aToolbox.once("netmonitor-ready", (e, panel) => {
+        netmonitorShouldBeSelected(aToolbox, panel);
       });
 
       keysetMap.netmonitor.synthesizeKey();
@@ -105,7 +105,7 @@ function test()
 
   function netmonitorShouldBeSelected(aToolbox, panel)
   {
-      is (aToolbox.currentToolId, "netmonitor", "netmonitor should be selected.");
+      is (aToolbox.currentToolId, "netmonitor");
       finishUp();
   }
 
