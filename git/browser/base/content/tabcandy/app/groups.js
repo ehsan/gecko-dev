@@ -40,9 +40,6 @@ window.Group = function(listOfEls, options) {
   this.isAGroup = true;
   this.id = options.id || Groups.getNextID();
   this.userSize = options.userSize || null;
-  this._isStacked = false;
-  this._stackAngles = [0];
-  this.big = null;
 
   var self = this;
 
@@ -190,7 +187,7 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
   // ----------  
   getStorageData: function() {
     var data = {
-      bounds: (this.big ? this.big.saveBounds : this.getBounds()), 
+      bounds: this.getBounds(), 
       userSize: this.userSize,
       locked: this.locked, 
       title: this.getTitle(),
@@ -373,29 +370,24 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
       var best = {dist: Infinity, item: null};
       var index = 0;
       var box;
-      $.each(self._children, function(index, child) {        
+      for each(var child in self._children){
         box = child.getBounds();
-        if(box.bottom < dropPos.top || box.top > dropPos.top)
-          return;
-        
         var dist = Math.sqrt( Math.pow((box.top+box.height/2)-dropPos.top,2) + Math.pow((box.left+box.width/2)-dropPos.left,2) );
         if( dist <= best.dist ){
           best.item = child;
           best.dist = dist;
           best.index = index;
         }
-      });
+        index += 1;
+      }
 
       if( self._children.length > 0 ){
-        if(best.item) {
-          box = best.item.getBounds();
-          var insertLeft = dropPos.left <= box.left + box.width/2;
-          if( !insertLeft ) 
-            return best.index+1;
-          else 
-            return best.index;
-        } else 
-          return self._children.length;
+        box = best.item.getBounds();
+        var insertLeft = dropPos.left <= box.left + box.width/2;
+        if( !insertLeft ) 
+          return best.index+1;
+        else 
+          return best.index;
       }
       
       return 0;      
@@ -456,9 +448,7 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
     
     item.parent = null;
     $el.removeClass("tabInGroup");
-    
     item.setSize(item.defaultSize.x, item.defaultSize.y);
-
     $el.droppable("enable");    
     item.removeOnClose(this);
     
@@ -483,144 +473,19 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
     
   // ----------  
   arrange: function(options) {
-    var count = this._children.length;
-    if(!count)
-      return;
-
     var bb = this.getContentBounds();
     bb.inset(6, 6);
 
-    if((bb.width * bb.height) / count > 7000) {
-      Items.arrange(this._children, bb, options);
-      this._isStacked = false;
-    } else
-      this._stackArrange(bb, options);
-  },
-  
-  // ----------
-  _stackArrange: function(bb, options) { 
-    var animate;
-    if(!options || typeof(options.animate) == 'undefined') 
-      animate = true;
-    else 
-      animate = options.animate;
-
-    if(typeof(options) == 'undefined')
-      options = {};
-
-    var count = this._children.length;
-    if(!count)
-      return;
-    
-    var zIndex = this.getZ() + count + 1;
-    
-    var scale = 0.8;
-    var w;
-    var h; 
-    var itemAspect = TabItems.tabHeight / TabItems.tabWidth;
-    var bbAspect = bb.height / bb.width;
-    if(bbAspect > itemAspect) { // Tall, thin group
-      w = bb.width * scale;
-      h = w * itemAspect;
-    } else { // Short, wide group
-      h = bb.height * scale;
-      w = h * (1 / itemAspect);
-    }
-    
-    var x = (bb.width - w) / 2;
-    var y = Math.min(x, (bb.height - h) / 2);
-    var box = new Rect(bb.left + x, bb.top + y, w, h);
-    
-    var self = this;
-    $.each(this._children, function(index, child) {
-      child.setZ(zIndex);
-      zIndex--;
-      
-      child.setBounds(box, !animate);
-      child.setRotation(self._randRotate(35, index));
-    });
-    
-    self._isStacked = true;
-  },
-
-  // ----------
-  _randRotate: function(spread, index){
-    if( index >= this._stackAngles.length ){
-      var randAngle = parseInt( ((Math.random()+.6)/1.3)*spread-(spread/2) );
-      this._stackAngles.push(randAngle);
-      return randAngle;          
-    }
-
-    return this._stackAngles[index];
-  },
-
-  // ----------
-  childHit: function(child) {
-    if(!this._isStacked) {
-      this.collapse();
-      return false;
-    }
-      
-    this.big = {
-      saveBounds: this.getBounds(),
-      saveZ: this.getZ()
-    };
-    
-    var box = Items.getPageBounds();
-    box.inset(box.width * 0.1, box.height * 0.1);
-    this.setBounds(box);
-    this.setZ(9999);
-
-    var self = this;
-    var inside = 1;
-    var changeInside = function(delta) {
-      inside += delta;
-      if(inside <= 0) {
-        setTimeout(function() {
-          if(inside <= 0)
-            self.collapse();
-        }, 10);
-      }
-    };
-    
-    $.each(this._children, function(index, child) {
-      $(child.container)
-        .mouseover(function() {
-          changeInside(1);
-        })
-        .mouseout(function() {
-          changeInside(-1);
-        });
-    });
-    
-    $(this.container)
-      .mouseover(function() {
-        changeInside(1);
-      })
-      .mouseout(function() {
-        changeInside(-1);
-      });
-    
-    return true;
-  },
-
-  // ----------
-  collapse: function() {
-    if(this.big) {
-      this.setBounds(this.big.saveBounds);
-      this.setZ(this.big.saveZ);
-      this.big = null;
-    }
+    Items.arrange(this._children, bb, options);
   },
   
   // ----------  
-  _addHandlers: function(container) {
+  _addHandlers: function(container){
     var self = this;
     
     if(!this.locked) {
       $(container).draggable({
         scroll: false,
-        cancel: '.close',
         start: function(){
           drag.info = new DragInfo(this);
         },
@@ -635,20 +500,13 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
     }
     
     $(container).droppable({
-      tolerance: "intersect",
       over: function(){
         drag.info.$el.addClass("willGroup");
       },
       out: function(){
         var group = drag.info.item.parent;
-        if(group) {
+        if(group)
           group.remove(drag.info.$el);
-          
-          if(group.big) {  
-/*             drag.info.$el.draggable( "option", "refreshPositions", true ); */
-            group.collapse();
-          }
-        }
           
         drag.info.$el.removeClass("willGroup");
       },
@@ -695,7 +553,7 @@ var DragInfo = function(element) {
   this.parent = this.item.parent;
   
   this.$el.data('isDragging', true);
-  this.item.setZ(99999);
+  this.item.setZ(9999);
 };
 
 DragInfo.prototype = {
@@ -741,8 +599,6 @@ window.Groups = {
   // ----------  
   dragOptions: {
     scroll: false,
-    cancel: '.close',
-    refreshPositions: true,
     start: function(e, ui) {
       drag.info = new DragInfo(this);
     },
@@ -758,7 +614,7 @@ window.Groups = {
   // ----------  
   dropOptions: {
     accept: ".tab",
-    tolerance: "intersect",
+    tolerance: "pointer",
     greedy: true,
     drop: function(e){
       $target = $(e.target);  
