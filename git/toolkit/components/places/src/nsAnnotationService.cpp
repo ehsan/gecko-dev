@@ -1894,18 +1894,8 @@ nsAnnotationService::StartSetAnnotation(PRInt64 aFkId,
         rv = mDBAddAnnotationName->Execute();
         NS_ENSURE_SUCCESS(rv, rv);
 
-        {
-          mozStorageStatementScoper scoper(mDBGetAnnotationNameID);
-
-          rv = mDBGetAnnotationNameID->BindUTF8StringParameter(0, aName);
-          NS_ENSURE_SUCCESS(rv, rv);
-
-          PRBool hasResult;
-          rv = mDBGetAnnotationNameID->ExecuteStep(&hasResult);
-          NS_ENSURE_SUCCESS(rv, rv);
-          NS_ASSERTION(hasResult, "hasResult is false but the call succeeded?");
-          nameID = mDBGetAnnotationNameID->AsInt64(0);
-        }
+        rv = mDBConn->GetLastInsertRowID(&nameID);
+        NS_ENSURE_SUCCESS(rv, rv);
       } else {
         nameID = mDBGetAnnotationNameID->AsInt64(0);
       }

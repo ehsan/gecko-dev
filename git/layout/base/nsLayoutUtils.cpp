@@ -70,7 +70,6 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsCSSRendering.h"
 #include "nsContentUtils.h"
-#include "nsThemeConstants.h"
 #include "nsPIDOMWindow.h"
 #include "nsIBaseWindow.h"
 #include "nsIDocShell.h"
@@ -79,6 +78,8 @@
 
 #ifdef MOZ_SVG
 #include "nsSVGUtils.h"
+#endif
+#ifdef MOZ_SVG_FOREIGNOBJECT
 #include "nsSVGForeignObjectFrame.h"
 #include "nsSVGOuterSVGFrame.h"
 #endif
@@ -247,19 +248,12 @@ nsLayoutUtils::IsGeneratedContentFor(nsIContent* aContent,
   if (!aFrame->IsGeneratedContentFrame()) {
     return PR_FALSE;
   }
-  nsIFrame* parent = aFrame->GetParent();
-  NS_ASSERTION(parent, "Generated content can't be root frame");
-  if (parent->IsGeneratedContentFrame()) {
-    // Not the root of the generated content
-    return PR_FALSE;
-  }
   
-  if (aContent && parent->GetContent() != aContent) {
+  if (aContent && aFrame->GetContent() != aContent) {
     return PR_FALSE;
   }
 
-  return (aFrame->GetContent()->Tag() == nsGkAtoms::mozgeneratedcontentbefore) ==
-    (aPseudoElement == nsCSSPseudoElements::before);
+  return aFrame->GetStyleContext()->GetPseudoType() == aPseudoElement;
 }
 
 // static
@@ -637,7 +631,7 @@ nsLayoutUtils::GetEventCoordinatesRelativeTo(const nsEvent* aEvent, nsIFrame* aF
   // then we need to do extra work
   nsIFrame* rootFrame = aFrame;
   for (nsIFrame* f = aFrame; f; f = GetCrossDocParentFrame(f)) {
-#ifdef MOZ_SVG
+#ifdef MOZ_SVG_FOREIGNOBJECT
     if (f->IsFrameOfType(nsIFrame::eSVGForeignObject) && f->GetFirstChild(nsnull)) {
       nsSVGForeignObjectFrame* fo = static_cast<nsSVGForeignObjectFrame*>(f);
       nsIFrame* outer = nsSVGUtils::GetOuterSVGFrame(fo);
@@ -1004,22 +998,18 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
 
 static void
 AccumulateItemInRegion(nsRegion* aRegion, const nsRect& aAreaRect,
-                       const nsRect& aItemRect, const nsRect& aExclude,
-                       nsDisplayItem* aItem)
+                       const nsRect& aItemRect, nsDisplayItem* aItem)
 {
   nsRect damageRect;
   if (damageRect.IntersectRect(aAreaRect, aItemRect)) {
-    nsRegion r;
-    r.Sub(damageRect, aExclude);
 #ifdef DEBUG
     if (gDumpRepaintRegionForCopy) {
-      nsRect bounds = r.GetBounds();
       fprintf(stderr, "Adding rect %d,%d,%d,%d for frame %p\n",
-              bounds.x, bounds.y, bounds.width, bounds.height,
+              damageRect.x, damageRect.y, damageRect.width, damageRect.height,
               (void*)aItem->GetUnderlyingFrame());
     }
 #endif
-    aRegion->Or(*aRegion, r);
+    aRegion->Or(*aRegion, damageRect);
   }
 }
 
@@ -1061,28 +1051,25 @@ AddItemsToRegion(nsDisplayListBuilder* aBuilder, nsDisplayList* aList,
       if (r.IntersectRect(aClipRect, item->GetBounds(aBuilder))) {
         nsIFrame* f = item->GetUnderlyingFrame();
         NS_ASSERTION(f, "Must have an underlying frame for leaf item");
-        nsRect exclude;
         if (aBuilder->IsMovingFrame(f)) {
           if (item->IsVaryingRelativeToMovingFrame(aBuilder)) {
             // something like background-attachment:fixed that varies
             // its drawing when it moves
-            AccumulateItemInRegion(aRegion, aRect + aDelta, r, exclude, item);
+            AccumulateItemInRegion(aRegion, aRect + aDelta, r, item);
           }
         } else {
-          // not moving.
-          if (item->IsUniform(aBuilder)) {
-            // If it's uniform, we don't need to invalidate where one part
-            // of the item was copied to another part.
-            exclude.IntersectRect(r, r + aDelta);
+          // not moving. If it's uniform and it includes both the old and
+          // new areas, then we don't need to paint it
+          PRBool skip = r.Contains(aRect) && r.Contains(aRect + aDelta) &&
+              item->IsUniform(aBuilder);
+          if (!skip) {
+            // area where a non-moving element is visible must be repainted
+            AccumulateItemInRegion(aRegion, aRect + aDelta, r, item);
+            // we may have bitblitted an area that was painted by a non-moving
+            // element. This bitblitted data is invalid and was copied to
+            // "r + aDelta".
+            AccumulateItemInRegion(aRegion, aRect + aDelta, r + aDelta, item);
           }
-          // area where a non-moving element is visible must be repainted
-          AccumulateItemInRegion(aRegion, aRect + aDelta, r, exclude, item);
-          // we may have bitblitted an area that was painted by a non-moving
-          // element. This bitblitted data is invalid and was copied to
-          // "r + aDelta". The area to exclude was also copied and is now
-          // at "exclude + aDelta".
-          AccumulateItemInRegion(aRegion, aRect + aDelta, r + aDelta,
-                                 exclude + aDelta, item);
         }
       }
     }
@@ -2295,17 +2282,24 @@ nsLayoutUtils::GetStringWidth(const nsIFrame*      aFrame,
                               PRInt32              aLength)
 {
 #ifdef IBMBIDI
-  nsPresContext* presContext = aFrame->PresContext();
-  if (presContext->BidiEnabled()) {
-    nsBidiPresUtils* bidiUtils = presContext->GetBidiUtils();
+  PRUint32 hints = 0;
+  aContext->GetHints(hints);
+  // Only do bidi resolution for width measurement if we have a "real"
+  // textrun implementation. Otherwise assume the platform can get
+  // things right for a mixed-direction string.
+  if (hints & NS_RENDERING_HINT_NEW_TEXT_RUNS) {
+    nsPresContext* presContext = aFrame->PresContext();
+    if (presContext->BidiEnabled()) {
+      nsBidiPresUtils* bidiUtils = presContext->GetBidiUtils();
 
-    if (bidiUtils) {
-      const nsStyleVisibility* vis = aFrame->GetStyleVisibility();
-      nsBidiDirection direction =
-        (NS_STYLE_DIRECTION_RTL == vis->mDirection) ?
-        NSBIDI_RTL : NSBIDI_LTR;
-      return bidiUtils->MeasureTextWidth(aString, aLength,
-                                         direction, presContext, *aContext);
+      if (bidiUtils) {
+        const nsStyleVisibility* vis = aFrame->GetStyleVisibility();
+        nsBidiDirection direction =
+          (NS_STYLE_DIRECTION_RTL == vis->mDirection) ?
+          NSBIDI_RTL : NSBIDI_LTR;
+        return bidiUtils->MeasureTextWidth(aString, aLength,
+                                           direction, presContext, *aContext);
+      }
     }
   }
 #endif // IBMBIDI
@@ -2649,7 +2643,7 @@ static PRBool NonZeroStyleCoord(const nsStyleCoord& aCoord)
   }
 }
 
-/* static */ PRBool 
+/* static */ PRBool
 nsLayoutUtils::HasNonZeroSide(const nsStyleSides& aSides)
 {
   return NonZeroStyleCoord(aSides.GetTop()) ||
@@ -2658,30 +2652,28 @@ nsLayoutUtils::HasNonZeroSide(const nsStyleSides& aSides)
          NonZeroStyleCoord(aSides.GetLeft());
 }
 
-/* static */ nsTransparencyMode
-nsLayoutUtils::GetFrameTransparency(nsIFrame* aFrame) {
+/* static */ PRBool
+nsLayoutUtils::FrameHasTransparency(nsIFrame* aFrame) {
   if (aFrame->GetStyleContext()->GetStyleDisplay()->mOpacity < 1.0f)
-    return eTransparencyTransparent;
+    return PR_TRUE;
 
   if (HasNonZeroSide(aFrame->GetStyleContext()->GetStyleBorder()->mBorderRadius))
-    return eTransparencyTransparent;
+    return PR_TRUE;
 
   if (aFrame->IsThemed())
-    return eTransparencyOpaque;
+    return PR_FALSE;
 
-  if (aFrame->GetStyleDisplay()->mAppearance == NS_THEME_WIN_GLASS)
-    return eTransparencyGlass;
   PRBool isCanvas;
   const nsStyleBackground* bg;
   if (!nsCSSRendering::FindBackground(aFrame->PresContext(), aFrame, &bg, &isCanvas))
-    return eTransparencyTransparent;
+    return PR_TRUE;
   if (bg->mBackgroundFlags & NS_STYLE_BG_COLOR_TRANSPARENT)
-    return eTransparencyTransparent;
+    return PR_TRUE;
   if (NS_GET_A(bg->mBackgroundColor) < 255)
-    return eTransparencyTransparent;
+    return PR_TRUE;
   if (bg->mBackgroundClip != NS_STYLE_BG_CLIP_BORDER)
-    return eTransparencyTransparent;
-  return eTransparencyOpaque;
+    return PR_TRUE;
+  return PR_FALSE;
 }
 
 static PRBool

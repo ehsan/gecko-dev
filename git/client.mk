@@ -44,7 +44,8 @@
 #    1. hg clone ssh://hg.mozilla.org/mozilla-central mozilla
 #    2. cd mozilla
 #    3. create your .mozconfig file with
-#       ac_add_options --enable-application=browser
+#       mk_add_options MOZ_CO_PROJECT=
+#         suite,browser
 #    4. gmake -f client.mk 
 #
 # Other targets (gmake -f client.mk [targets...]),
@@ -92,7 +93,7 @@ endif
 ifeq (Darwin,$(shell uname -s))
 AUTOCONF ?= autoconf213
 else
-AUTOCONF ?= $(shell which autoconf-2.13 autoconf2.13 autoconf213 | head -1)
+AUTOCONF ?= autoconf-2.13
 endif
 
 MKDIR := mkdir

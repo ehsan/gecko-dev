@@ -299,18 +299,8 @@ nsFaviconService::SetFaviconUrlForPageInternal(nsIURI* aPageURI,
     rv = mDBInsertIcon->Execute();
     NS_ENSURE_SUCCESS(rv, rv);
 
-    {
-      mozStorageStatementScoper scoper(mDBGetIconInfo);
-
-      rv = BindStatementURI(mDBGetIconInfo, 0, aFaviconURI);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      PRBool hasResult;
-      rv = mDBGetIconInfo->ExecuteStep(&hasResult);
-      NS_ENSURE_SUCCESS(rv, rv);
-      NS_ASSERTION(hasResult, "hasResult is false but the call succeeded?");
-      iconId = mDBGetIconInfo->AsInt64(0);
-    }
+    rv = mDBConn->GetLastInsertRowID(&iconId);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   // now link our icon entry with the page

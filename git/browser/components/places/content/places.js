@@ -224,8 +224,10 @@ var PlacesOrganizer = {
 
     // Make sure the search UI is hidden.
     PlacesSearchBox.hideSearchUI();
-    if (resetSearchBox)
-      PlacesSearchBox.searchFilter.reset();
+    if (resetSearchBox) {
+      var searchFilter = document.getElementById("searchFilter");
+      searchFilter.reset();
+    }
 
     this._setSearchScopeForNode(node);
     if (this._places.treeBoxObject.focused)
@@ -835,7 +837,7 @@ var PlacesSearchBox = {
     // contents of the current scope.
     // XXX this might be to jumpy, maybe should search for "", so results
     // are ungrouped, and search box not reset
-    if (filterString == "") {
+    if ((filterString == "" || this.searchFilter.hasAttribute("empty"))) {
       PO.onPlaceSelected(false);
       return;
     }
@@ -877,6 +879,7 @@ var PlacesSearchBox = {
     }
 
     PlacesSearchBox.showSearchUI();
+    this.searchFilter.setAttribute("filtered", "true");
 
     // Update the details panel
     PlacesOrganizer.onContentTreeSelect();

@@ -1800,11 +1800,6 @@ NPObjWrapperPluginDestroyedCallback(PLDHashTable *table, PLDHashEntryHdr *hdr,
   NppAndCx *nppcx = reinterpret_cast<NppAndCx *>(arg);
 
   if (entry->mNpp == nppcx->npp) {
-    // Prevent invalidate() and deallocate() from touching the hash
-    // we're enumerating.
-    const PLDHashTableOps *ops = table->ops;
-    table->ops = nsnull;
-
     NPObject *npobj = entry->mNPObj;
 
     if (npobj->_class && npobj->_class->invalidate) {
@@ -1820,8 +1815,6 @@ NPObjWrapperPluginDestroyedCallback(PLDHashTable *table, PLDHashEntryHdr *hdr,
     }
 
     ::JS_SetPrivate(nppcx->cx, entry->mJSObj, nsnull);
-
-    table->ops = ops;    
 
     return PL_DHASH_REMOVE;
   }

@@ -37,12 +37,8 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-#include <windows.h>
+#include <Windows.h>
 #include "nscore.h"
-
-#ifndef WM_DWMCOMPOSITIONCHANGED
-#define WM_DWMCOMPOSITIONCHANGED        0x031E
-#endif
 
 enum nsUXThemeClass {
   eUXButton = 0,
@@ -78,18 +74,15 @@ struct MARGINS
 
 class nsUXThemeData {
   static HMODULE sThemeDLL;
-  static HMODULE sDwmDLL;
   static HANDLE sThemes[eUXNumClasses];
   
   static const wchar_t *GetClassName(nsUXThemeClass);
 
 public:
   static const char kThemeLibraryName[];
-  static const char kDwmLibraryName[];
   static BOOL sFlatMenus;
   static PRPackedBool sIsXPOrLater;
   static PRPackedBool sIsVistaOrLater;
-  static PRPackedBool sHaveCompositor;
   static void Initialize();
   static void Teardown();
   static void Invalidate();
@@ -106,7 +99,7 @@ public:
     return getThemeColor(GetTheme(cls), iPartId, iStateId, iPropId, pFont);
   }
 
-  // UXTheme.dll Function typedefs and declarations
+  // Function typedefs and declarations
   typedef HANDLE (WINAPI*OpenThemeDataPtr)(HWND hwnd, LPCWSTR pszClassList);
   typedef HRESULT (WINAPI*CloseThemeDataPtr)(HANDLE hTheme);
   typedef HRESULT (WINAPI*DrawThemeBackgroundPtr)(HANDLE hTheme, HDC hdc, int iPartId, 
@@ -132,7 +125,6 @@ public:
   typedef HRESULT (WINAPI*GetCurrentThemeNamePtr)(LPWSTR pszThemeFileName, int dwMaxNameChars,
                                                   LPWSTR pszColorBuff, int cchMaxColorChars,
                                                   LPWSTR pszSizeBuff, int cchMaxSizeChars);
-  typedef COLORREF (WINAPI*GetThemeSysColorPtr)(HANDLE hTheme, int iColorID);
 
   static OpenThemeDataPtr openTheme;
   static CloseThemeDataPtr closeTheme;
@@ -145,19 +137,4 @@ public:
   static GetThemeMarginsPtr getThemeMargins;
   static IsAppThemedPtr isAppThemed;
   static GetCurrentThemeNamePtr getCurrentThemeName;
-  static GetThemeSysColorPtr getThemeSysColor;
-
-  // dwmapi.dll function typedefs and declarations
-  typedef HRESULT (WINAPI*DwmExtendFrameIntoClientAreaProc)(HWND hWnd, const MARGINS *pMarInset);
-  typedef HRESULT (WINAPI*DwmIsCompositionEnabledProc)(BOOL *pfEnabled);
-
-  static DwmExtendFrameIntoClientAreaProc dwmExtendFrameIntoClientAreaPtr;
-  static DwmIsCompositionEnabledProc dwmIsCompositionEnabledPtr;
-
-  static PRBool CheckForCompositor() {
-    BOOL compositionIsEnabled = FALSE;
-    if(dwmIsCompositionEnabledPtr)
-      dwmIsCompositionEnabledPtr(&compositionIsEnabled);
-    return sHaveCompositor = (compositionIsEnabled != 0);
-  }
 };

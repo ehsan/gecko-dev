@@ -587,21 +587,15 @@ js_BooleanToNumber(JSContext* cx, jsint unboxed)
     return unboxed;
 }
 
-JSString* FASTCALL
-js_ObjectToString(JSContext* cx, JSObject* obj)
-{
-    if (!obj)
-        return ATOM_TO_STRING(cx->runtime->atomState.nullAtom);
-    jsval v;
-    if (!OBJ_DEFAULT_VALUE(cx, obj, JSTYPE_STRING, &v))
-        return NULL;
-    JS_ASSERT(JSVAL_IS_STRING(v));
-    return JSVAL_TO_STRING(v);
-}
-
 #define LO ARGSIZE_LO
 #define F  ARGSIZE_F
 #define Q  ARGSIZE_Q
+
+#if defined AVMPLUS_64BIT
+#define P	ARGSIZE_Q
+#else
+#define P	ARGSIZE_LO
+#endif
 
 #ifdef DEBUG
 #define NAME(op) ,#op

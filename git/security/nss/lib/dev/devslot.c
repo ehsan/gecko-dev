@@ -35,7 +35,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #ifdef DEBUG
-static const char CVS_ID[] = "@(#) $RCSfile: devslot.c,v $ $Revision: 1.24 $ $Date: 2008/08/09 01:25:58 $";
+static const char CVS_ID[] = "@(#) $RCSfile: devslot.c,v $ $Revision: 1.23 $ $Date: 2007/11/16 05:29:25 $";
 #endif /* DEBUG */
 
 #ifndef NSSCKEPV_H
@@ -49,8 +49,6 @@ static const char CVS_ID[] = "@(#) $RCSfile: devslot.c,v $ $Revision: 1.24 $ $Da
 #ifndef CKHELPER_H
 #include "ckhelper.h"
 #endif /* CKHELPER_H */
-
-#include "pk11pub.h"
 
 /* measured in seconds */
 #define NSSSLOT_TOKEN_DELAY_TIME 1
@@ -165,13 +163,13 @@ nssSlot_IsTokenPresent (
     nssSession *session;
     CK_SLOT_INFO slotInfo;
     void *epv;
-    /* permanent slots are always present unless they're disabled */
+    /* permanent slots are always present */
     if (nssSlot_IsPermanent(slot)) {
-	return !PK11_IsDisabled(slot->pk11slot);
+	return PR_TRUE;
     }
     /* avoid repeated calls to check token status within set interval */
     if (within_token_delay_period(slot)) {
-	return ((slot->ckFlags & CKF_TOKEN_PRESENT) != 0);
+	return (PRBool)((slot->ckFlags & CKF_TOKEN_PRESENT) != 0);
     }
 
     /* First obtain the slot info */
@@ -190,20 +188,18 @@ nssSlot_IsTokenPresent (
     /* check for the presence of the token */
     if ((slot->ckFlags & CKF_TOKEN_PRESENT) == 0) {
 	if (!slot->token) {
-	    /* token was never present */
+	    /* token was ne'er present */
 	    return PR_FALSE;
 	}
 	session = nssToken_GetDefaultSession(slot->token);
-	if (session) {
-	    nssSession_EnterMonitor(session);
-	    /* token is not present */
-	    if (session->handle != CK_INVALID_SESSION) {
-		/* session is valid, close and invalidate it */
-		CKAPI(epv)->C_CloseSession(session->handle);
-		session->handle = CK_INVALID_SESSION;
-	    }
-	    nssSession_ExitMonitor(session);
+	nssSession_EnterMonitor(session);
+	/* token is not present */
+	if (session->handle != CK_INVALID_SESSION) {
+	    /* session is valid, close and invalidate it */
+	    CKAPI(epv)->C_CloseSession(session->handle);
+	    session->handle = CK_INVALID_SESSION;
 	}
+	nssSession_ExitMonitor(session);
 	if (slot->token->base.name[0] != 0) {
 	    /* notify the high-level cache that the token is removed */
 	    slot->token->base.name[0] = 0; /* XXX */
@@ -218,36 +214,36 @@ nssSlot_IsTokenPresent (
      * has been removed and reinserted.
      */
     session = nssToken_GetDefaultSession(slot->token);
-    if (session) {
-	nssSession_EnterMonitor(session);
-	if (session->handle != CK_INVALID_SESSION) {
-	    CK_SESSION_INFO sessionInfo;
-	    ckrv = CKAPI(epv)->C_GetSessionInfo(session->handle, &sessionInfo);
-	    if (ckrv != CKR_OK) {
-		/* session is screwy, close and invalidate it */
-		CKAPI(epv)->C_CloseSession(session->handle);
-		session->handle = CK_INVALID_SESSION;
-	    }
+    nssSession_EnterMonitor(session);
+    if (session->handle != CK_INVALID_SESSION) {
+	CK_SESSION_INFO sessionInfo;
+	ckrv = CKAPI(epv)->C_GetSessionInfo(session->handle, &sessionInfo);
+	if (ckrv != CKR_OK) {
+	    /* session is screwy, close and invalidate it */
+	    CKAPI(epv)->C_CloseSession(session->handle);
+	    session->handle = CK_INVALID_SESSION;
 	}
-	nssSession_ExitMonitor(session);
-	/* token not removed, finished */
-	if (session->handle != CK_INVALID_SESSION)
-	    return PR_TRUE;
-    } 
-    /* the token has been removed, and reinserted, or the slot contains
-     * a token it doesn't recognize. invalidate all the old
-     * information we had on this token, if we can't refresh, clear
-     * the present flag */
-    nssToken_NotifyCertsNotVisible(slot->token);
-    nssToken_Remove(slot->token);
-    /* token has been removed, need to refresh with new session */
-    nssrv = nssSlot_Refresh(slot);
-    if (nssrv != PR_SUCCESS) {
-        slot->token->base.name[0] = 0; /* XXX */
-        slot->ckFlags &= ~CKF_TOKEN_PRESENT;
-        return PR_FALSE;
     }
-    return PR_TRUE;
+    nssSession_ExitMonitor(session);
+    /* token not removed, finished */
+    if (session->handle != CK_INVALID_SESSION) {
+	return PR_TRUE;
+    } else {
+	/* the token has been removed, and reinserted, or the slot contains
+	 * a token it doesn't recognize. invalidate all the old
+	 * information we had on this token, if we can't refresh, clear
+	 * the present flag */
+	nssToken_NotifyCertsNotVisible(slot->token);
+	nssToken_Remove(slot->token);
+	/* token has been removed, need to refresh with new session */
+	nssrv = nssSlot_Refresh(slot);
+	if (nssrv != PR_SUCCESS) {
+	    slot->token->base.name[0] = 0; /* XXX */
+	    slot->ckFlags &= ~CKF_TOKEN_PRESENT;
+	    return PR_FALSE;
+	}
+	return PR_TRUE;
+    }
 }
 
 NSS_IMPLEMENT void *

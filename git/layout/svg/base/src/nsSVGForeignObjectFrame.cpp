@@ -254,7 +254,7 @@ nsSVGForeignObjectFrame::PaintSVG(nsSVGRenderState *aContext,
 
   gfxMatrix matrix = nsSVGUtils::ConvertSVGMatrixToThebes(tm);
 
-  nsIRenderingContext *ctx = aContext->GetRenderingContext(this);
+  nsIRenderingContext *ctx = aContext->GetRenderingContext();
 
   if (!ctx || matrix.IsSingular()) {
     NS_WARNING("Can't render foreignObject element!");
@@ -477,14 +477,10 @@ nsSVGForeignObjectFrame::GetOverrideCTM()
 NS_IMETHODIMP
 nsSVGForeignObjectFrame::GetBBox(nsIDOMSVGRect **_retval)
 {
-  *_retval = nsnull;
-
-  if (mParent->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)
+  if (mParent->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD) {
+    *_retval = nsnull;
     return NS_ERROR_FAILURE;
-
-  nsCOMPtr<nsIDOMSVGMatrix> ctm = GetCanvasTM();
-  if (!ctm)
-    return NS_ERROR_FAILURE;
+  }
 
   float x, y, w, h;
   static_cast<nsSVGForeignObjectElement*>(mContent)->
@@ -493,9 +489,7 @@ nsSVGForeignObjectFrame::GetBBox(nsIDOMSVGRect **_retval)
   if (w < 0.0f) w = 0.0f;
   if (h < 0.0f) h = 0.0f;
 
-  gfxRect bounds =
-    nsSVGUtils::ConvertSVGMatrixToThebes(ctm).TransformBounds(gfxRect(x, y, w, h));
-  return NS_NewSVGRect(_retval, bounds);
+  return NS_NewSVGRect(_retval, x, y, w, h);
 }
 
 //----------------------------------------------------------------------

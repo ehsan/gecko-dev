@@ -1036,11 +1036,11 @@ TraceRecorder::import(LIns* base, ptrdiff_t offset, jsval* p, uint8& t,
         ins = lir->ins1(LIR_i2f, ins);
     } else {
         JS_ASSERT(isNumber(*p) == (t == JSVAL_DOUBLE));
-		if (t == JSVAL_DOUBLE) {
-			ins = lir->insLoad(LIR_ldq, base, offset);
-		} else {
-	        ins = lir->insLoad(LIR_ldp, base, offset);
-		}
+        if (t == JSVAL_DOUBLE) {
+            ins = lir->insLoad(LIR_ldq, base, offset);
+        } else {
+            ins = lir->insLoad(LIR_ldp, base, offset);
+        }
     }
     tracker.set(p, ins);
 #ifdef DEBUG
@@ -1143,11 +1143,11 @@ LIns*
 TraceRecorder::writeBack(LIns* i, LIns* base, ptrdiff_t offset)
 {
     /* Sink all type casts targeting the stack into the side exit by simply storing the original
-       (uncasted) value. Each guard generates the side exit map based on the types of the
-       last stores to every stack location, so its safe to not perform them on-trace. */
-    if (isPromoteInt(i))
-        i = ::demote(lir, i);
-    return lir->insStorei(i, base, offset);
+        (uncasted) value. Each guard generates the side exit map based on the types of the
+        last stores to every stack location, so its safe to not perform them on-trace. */
+     if (isPromoteInt(i))
+         i = ::demote(lir, i);
+     return lir->insStorei(i, base, offset);
 }
 
 /* Update the tracker, then issue a write back store. */
@@ -1227,41 +1227,6 @@ struct FrameInfo {
     };
 };
 
-/* Promote slots if necessary to match the called tree' type map and report error if thats
-   impossible. */
-bool
-TraceRecorder::adjustCallerTypes(Fragment* f)
-{
-    JSTraceMonitor* tm = traceMonitor;
-    uint8* m = tm->globalTypeMap->data();
-    uint16* gslots = traceMonitor->globalSlots->data();
-    unsigned ngslots = traceMonitor->globalSlots->length();
-    FORALL_GLOBAL_SLOTS(cx, ngslots, gslots, 
-        LIns* i = get(vp);
-        bool isPromote = isPromoteInt(i);
-        if (isPromote && *m == JSVAL_DOUBLE) 
-            lir->insStorei(get(vp), gp_ins, nativeGlobalOffset(vp));
-        ++m;
-    );
-    m = ((TreeInfo*)f->vmprivate)->stackTypeMap.data();
-    FORALL_SLOTS_IN_PENDING_FRAMES(cx, callDepth,
-        LIns* i = get(vp);
-        bool isPromote = isPromoteInt(i);
-        if (isPromote && *m == JSVAL_DOUBLE) 
-            lir->insStorei(get(vp), lirbuf->sp, 
-                           -treeInfo->nativeStackBase + nativeStackOffset(vp));
-        ++m;
-    );
-    return true;
-}
-
-/* Find a peer fragment that we can call, considering our current type distribution. */
-bool TraceRecorder::selectCallablePeerFragment(Fragment** first)
-{
-    /* Until we have multiple trees per start point this is always the first fragment. */
-    return (*first)->code();
-}
-
 SideExit*
 TraceRecorder::snapshot(ExitType exitType)
 {
@@ -1295,6 +1260,7 @@ TraceRecorder::snapshot(ExitType exitType)
         *m = isNumber(*vp)
                ? (isPromoteInt(i) ? JSVAL_INT : JSVAL_DOUBLE)
                : JSVAL_TAG(*vp);
+               if (*m == JSVAL_INT && JSVAL_TAG(*vp) == 2)
         JS_ASSERT((*m != JSVAL_INT) || isInt32(*vp));
         ++m;
     );
@@ -1457,7 +1423,7 @@ TraceRecorder::closeLoop(Fragmento* fragmento)
 
 /* Emit code to adjust the stack to match the inner tree's stack expectations. */
 void
-TraceRecorder::prepareTreeCall(Fragment* inner)
+TraceRecorder::emitTreeCallStackSetup(Fragment* inner)
 {
     TreeInfo* ti = (TreeInfo*)inner->vmprivate;
     inner_sp_ins = lirbuf->sp;
@@ -1468,7 +1434,7 @@ TraceRecorder::prepareTreeCall(Fragment* inner)
     if (callDepth > 0) {
         /* Calculate the amount we have to lift the native stack pointer by to compensate for
            any outer frames that the inner tree doesn't expect but the outer tree has. */
-        ptrdiff_t sp_adj = nativeStackOffset(&cx->fp->argv[-1]) + sizeof(double);
+        ptrdiff_t sp_adj = nativeStackOffset(&cx->fp->argv[0]);
         /* Calculate the amount we have to lift the call stack by */
         ptrdiff_t rp_adj = callDepth * sizeof(FrameInfo);
         /* Guard that we have enough stack space for the tree we are trying to call on top
@@ -1810,11 +1776,27 @@ js_ContinueRecording(JSContext* cx, TraceRecorder* r, jsbytecode* oldpc, uintN& 
     }
     /* does this branch go to an inner loop? */
     Fragment* f = fragmento->getLoop(cx->fp->regs->pc);
-    if (nesting_enabled && 
-        f && /* must have a fragment at that location */
-        r->selectCallablePeerFragment(&f) && /* is there a potentially matching peer fragment? */
-        r->adjustCallerTypes(f)) { /* make sure we can make our arguments fit */
-        r->prepareTreeCall(f);
+    if (nesting_enabled && f && f->code()) {
+        /* We have to emit the tree call stack setup code before we execute the tree, because
+           we sink demotions (i.e. i2f or quad(0)) into side exits and thus if we emit
+           a guard right now, it might see such a demotable instruction and flag it as an
+           integer result in the type map. However, if we decide to call the inner tree,
+           it invalidates many of these instruction reference, since the inner tree can
+           change the values of variables in the scope it was called from (hence the
+           import right after the tree call in emitTreeCall). Taking a snapshot after the
+           tree for code that we logically expect to execute in a state before the tree
+           call is not safe, because after the tree call we can get values on the
+           interpreter stack that might not be in the integer range any more (whereas this
+           was guaranteed prior to the call, for example because that value was a constant
+           integer). Thus, we first do the tree call stack setup (which emits a guard),
+           then do the actually tree call, and then finally emit the actual tree call
+           and stack de-construction code after the call. One additional slight complication
+           is that we won't know which peer fragment js_ExecuteTree chooses until it
+           actually returns to us, so emitTreeCallStackSetup actually always emits the
+           tree call stack setup code with the first fragment. This is safe, however, since
+           the stack layout of all peer fragments is always identical (it depends on the
+           program counter location, which is the same for all peer fragments.) */
+        r->emitTreeCallStackSetup(f);
         GuardRecord* lr = js_ExecuteTree(cx, &f, inlineCallCount);
         if (!lr) {
             js_AbortRecording(cx, oldpc, "Couldn't call inner tree");
@@ -2241,9 +2223,11 @@ TraceRecorder::ifop()
         guard((d == 0 || JSDOUBLE_IS_NaN(d)), lir->ins2(LIR_feq, get(&v), lir->insImmq(u.u64)), BRANCH_EXIT);
     } else if (JSVAL_IS_STRING(v)) {
         guard(JSSTRING_LENGTH(JSVAL_TO_STRING(v)) == 0,
-              lir->ins_eq0(lir->ins2(LIR_and,
-                                     lir->insLoadi(get(&v), offsetof(JSString, length)),
-                                     INS_CONST(JSSTRING_LENGTH_MASK))),
+              lir->ins_eq0(lir->ins2(LIR_piand,
+                                     lir->insLoad(LIR_ldp, 
+                                                  get(&v), 
+                                                  (int)offsetof(JSString, length)),
+                                     INS_CONSTPTR(JSSTRING_LENGTH_MASK))),
               BRANCH_EXIT);
     } else {
         JS_NOT_REACHED("ifop");
@@ -2464,7 +2448,6 @@ TraceRecorder::binary(LOpcode op)
     if ((op >= LIR_sub && op <= LIR_ush) ||  // sub, mul, (callh), or, xor, (not,) lsh, rsh, ush
         (op >= LIR_fsub && op <= LIR_fdiv)) { // fsub, fmul, fdiv
         LIns* args[] = { NULL, cx_ins };
-        JS_ASSERT(op != LIR_callh);
         if (JSVAL_IS_STRING(l)) {
             args[0] = a;
             a = lir->insCall(F_StringToNumber, args);
@@ -3188,16 +3171,11 @@ TraceRecorder::record_JSOP_ADD()
         LIns* args[] = { NULL, get(&l), cx_ins };
         if (JSVAL_IS_STRING(r)) {
             args[0] = get(&r);
-        } else {
+        } else if (JSVAL_IS_NUMBER(r)) {
             LIns* args2[] = { get(&r), cx_ins };
-            if (JSVAL_IS_NUMBER(r)) {
-                args[0] = lir->insCall(F_NumberToString, args2);
-            } else if (JSVAL_IS_OBJECT(r)) {
-                args[0] = lir->insCall(F_ObjectToString, args2);
-            } else {
-                ABORT_TRACE("untraceable right operand to string-JSOP_ADD");
-            }
-            guard(false, lir->ins_eq0(args[0]), OOM_EXIT);
+            args[0] = lir->insCall(F_NumberToString, args2);
+        } else {
+            ABORT_TRACE("untraceable right operand to string-JSOP_ADD");
         }
         LIns* concat = lir->insCall(F_ConcatStrings, args);
         guard(false, lir->ins_eq0(concat), OOM_EXIT);
@@ -5374,11 +5352,11 @@ TraceRecorder::record_JSOP_LENGTH()
         if (!JSVAL_IS_STRING(l))
             ABORT_TRACE("non-string primitives unsupported");
         LIns* str_ins = get(&l);
-        LIns* len_ins = lir->insLoadi(str_ins, offsetof(JSString, length));
+        LIns* len_ins = lir->insLoad(LIR_ldp, str_ins, (int)offsetof(JSString, length));
 
-        LIns* masked_len_ins = lir->ins2(LIR_and,
+        LIns* masked_len_ins = lir->ins2(LIR_qiand,
                                          len_ins,
-                                         INS_CONST(JSSTRING_LENGTH_MASK));
+                                         INS_CONSTPTR(JSSTRING_LENGTH_MASK));
 
         LIns *choose_len_ins =
             lir->ins_choose(lir->ins_eq0(lir->ins2(LIR_piand,

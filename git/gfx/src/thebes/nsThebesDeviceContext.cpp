@@ -55,14 +55,11 @@
 
 #include <gtk/gtk.h>
 #include <gdk/gdk.h>
-
+#include <gdk/gdkx.h>
 #include "nsFont.h"
 
 #include <pango/pango.h>
-#ifdef MOZ_X11
-#include <gdk/gdkx.h>
 #include <pango/pangox.h>
-#endif /* MOZ_X11 */
 #include <pango/pango-fontmap.h>
 #endif /* GTK2 */
 
@@ -91,14 +88,11 @@ static nsSystemFontsBeOS *gSystemFonts = nsnull;
 #include "gfxQuartzSurface.h"
 #include "gfxImageSurface.h"
 static nsSystemFontsMac *gSystemFonts = nsnull;
-#elif defined(MOZ_WIDGET_QT)
-#include "nsSystemFontsQt.h"
-static nsSystemFontsQt *gSystemFonts = nsnull;
 #else
 #error Need to declare gSystemFonts!
 #endif
 
-#if defined(MOZ_ENABLE_GTK2) && defined(MOZ_X11)
+#ifdef MOZ_ENABLE_GTK2
 extern "C" {
 static int x11_error_handler (Display *dpy, XErrorEvent *err) {
     NS_ASSERTION(PR_FALSE, "X Error");
@@ -231,9 +225,6 @@ nsThebesDeviceContext::SetDPI()
         // we probably want to actually get a real DPI here?
         dpi = 96;
 
-#elif defined(MOZ_WIDGET_QT)
-		// TODO: get real DPI here with Qt methods
-        dpi = 96;
 #else
 #error undefined platform dpi
 #endif
@@ -280,7 +271,7 @@ nsThebesDeviceContext::Init(nsNativeWidget aWidget)
     SetDPI();
 
 
-#if defined(MOZ_ENABLE_GTK2) && defined(MOZ_X11)
+#ifdef MOZ_ENABLE_GTK2
     if (getenv ("MOZ_X_SYNC")) {
         PR_LOG (gThebesGFXLog, PR_LOG_DEBUG, ("+++ Enabling XSynchronize\n"));
         XSynchronize (gdk_x11_get_default_xdisplay(), True);
@@ -402,8 +393,6 @@ nsThebesDeviceContext::GetSystemFont(nsSystemFontID aID, nsFont *aFont) const
         gSystemFonts = new nsSystemFontsBeOS();
 #elif XP_MACOSX
         gSystemFonts = new nsSystemFontsMac();
-#elif defined(MOZ_WIDGET_QT)
-        gSystemFonts = new nsSystemFontsQt();
 #else
 #error Need to know how to create gSystemFonts, fix me!
 #endif

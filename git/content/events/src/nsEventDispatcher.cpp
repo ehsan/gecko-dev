@@ -79,7 +79,6 @@ public:
 
   PRBool IsValid()
   {
-    NS_WARN_IF_FALSE(!!(mTarget), "Event target is not valid!");
     return !!(mTarget);
   }
 
@@ -563,6 +562,8 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
                                     static_cast<nsMutationEvent*>(aEvent));
     case NS_GUI_EVENT:
     case NS_COMPOSITION_EVENT:
+    case NS_RECONVERSION_EVENT:
+    case NS_QUERYCARETRECT_EVENT:
     case NS_SCROLLPORT_EVENT:
       return NS_NewDOMUIEvent(aDOMEvent, aPresContext,
                               static_cast<nsGUIEvent*>(aEvent));
@@ -570,11 +571,9 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
       return NS_NewDOMKeyboardEvent(aDOMEvent, aPresContext,
                                     static_cast<nsKeyEvent*>(aEvent));
     case NS_MOUSE_EVENT:
+    case NS_MOUSE_SCROLL_EVENT:
     case NS_POPUP_EVENT:
       return NS_NewDOMMouseEvent(aDOMEvent, aPresContext,
-                                 static_cast<nsInputEvent*>(aEvent));
-    case NS_MOUSE_SCROLL_EVENT:
-      return NS_NewDOMMouseScrollEvent(aDOMEvent, aPresContext,
                                  static_cast<nsInputEvent*>(aEvent));
     case NS_POPUPBLOCKED_EVENT:
       return NS_NewDOMPopupBlockedEvent(aDOMEvent, aPresContext,
@@ -618,10 +617,9 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
 
   if (aEventType.LowerCaseEqualsLiteral("mouseevent") ||
       aEventType.LowerCaseEqualsLiteral("mouseevents") ||
+      aEventType.LowerCaseEqualsLiteral("mousescrollevents") ||
       aEventType.LowerCaseEqualsLiteral("popupevents"))
     return NS_NewDOMMouseEvent(aDOMEvent, aPresContext, nsnull);
-  if (aEventType.LowerCaseEqualsLiteral("mousescrollevents"))
-    return NS_NewDOMMouseScrollEvent(aDOMEvent, aPresContext, nsnull);
   if (aEventType.LowerCaseEqualsLiteral("keyboardevent") ||
       aEventType.LowerCaseEqualsLiteral("keyevents"))
     return NS_NewDOMKeyboardEvent(aDOMEvent, aPresContext, nsnull);
@@ -659,8 +657,10 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
     return NS_NewDOMDataContainerEvent(aDOMEvent, aPresContext, nsnull);
   if (aEventType.LowerCaseEqualsLiteral("messageevent"))
     return NS_NewDOMMessageEvent(aDOMEvent, aPresContext, nsnull);
+#ifdef MOZ_MEDIA
   if (aEventType.LowerCaseEqualsLiteral("progressevent"))
     return NS_NewDOMProgressEvent(aDOMEvent, aPresContext, nsnull);
+#endif // MOZ_MEDIA
 
   return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
 }

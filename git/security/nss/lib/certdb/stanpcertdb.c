@@ -308,6 +308,7 @@ __CERT_AddTempCertToPerm(CERTCertificate *cert, char *nickname,
     nssCertificateStore_Lock(context->certStore, &lockTrace);
     nssCertificateStore_RemoveCertLOCKED(context->certStore, c);
     nssCertificateStore_Unlock(context->certStore, &lockTrace, &unlockTrace);
+    nssCertificateStore_Check(&lockTrace, &unlockTrace);
     c->object.cryptoContext = NULL;
     /* Import the perm instance onto the internal token */
     slot = PK11_GetInternalKeySlot();
@@ -979,7 +980,7 @@ CERT_FindSMimeProfile(CERTCertificate *cert)
 }
 
 /*
- * deprecated functions that are now just stubs.
+ * depricated functions that are now just stubs.
  */
 /*
  * Close the database
@@ -987,7 +988,7 @@ CERT_FindSMimeProfile(CERTCertificate *cert)
 void
 __CERT_ClosePermCertDB(CERTCertDBHandle *handle)
 {
-    PORT_Assert("CERT_ClosePermCertDB is Deprecated" == NULL);
+    PORT_Assert("CERT_ClosePermCertDB is Depricated" == NULL);
     return;
 }
 
@@ -995,14 +996,14 @@ SECStatus
 CERT_OpenCertDBFilename(CERTCertDBHandle *handle, char *certdbname,
                         PRBool readOnly)
 {
-    PORT_Assert("CERT_OpenCertDBFilename is Deprecated" == NULL);
+    PORT_Assert("CERT_OpenCertDBFilename is Depricated" == NULL);
     return SECFailure;
 }
 
 SECItem *
 SECKEY_HashPassword(char *pw, SECItem *salt)
 {
-    PORT_Assert("SECKEY_HashPassword is Deprecated" == NULL);
+    PORT_Assert("SECKEY_HashPassword is Depricated" == NULL);
     return NULL;
 }
 
@@ -1011,7 +1012,7 @@ __CERT_TraversePermCertsForSubject(CERTCertDBHandle *handle,
                                  SECItem *derSubject,
                                  void *cb, void *cbarg)
 {
-    PORT_Assert("CERT_TraversePermCertsForSubject is Deprecated" == NULL);
+    PORT_Assert("CERT_TraversePermCertsForSubject is Depricated" == NULL);
     return SECFailure;
 }
 
@@ -1020,7 +1021,7 @@ SECStatus
 __CERT_TraversePermCertsForNickname(CERTCertDBHandle *handle, char *nickname,
                                   void *cb, void *cbarg)
 {
-    PORT_Assert("CERT_TraversePermCertsForNickname is Deprecated" == NULL);
+    PORT_Assert("CERT_TraversePermCertsForNickname is Depricated" == NULL);
     return SECFailure;
 }
 

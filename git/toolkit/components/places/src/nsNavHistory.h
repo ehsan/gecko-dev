@@ -49,7 +49,6 @@
 #include "nsCOMPtr.h"
 #include "nsDataHashtable.h"
 #include "nsINavHistoryService.h"
-#include "nsPIPlacesDatabase.h"
 #ifdef MOZ_XUL
 #include "nsIAutoCompleteController.h"
 #include "nsIAutoCompleteInput.h"
@@ -127,7 +126,6 @@ class nsNavHistory : public nsSupportsWeakReference,
                      public nsIGlobalHistory3,
                      public nsIDownloadHistory,
                      public nsICharsetResolver
-                   , public nsPIPlacesDatabase
 #ifdef MOZ_XUL
                      , public nsIAutoCompleteSearch,
                      public nsIAutoCompleteSimpleResultListener
@@ -148,7 +146,6 @@ public:
   NS_DECL_NSIDOWNLOADHISTORY
   NS_DECL_NSIBROWSERHISTORY
   NS_DECL_NSIOBSERVER
-  NS_DECL_NSPIPLACESDATABASE
 #ifdef MOZ_XUL
   NS_DECL_NSIAUTOCOMPLETESEARCH
   NS_DECL_NSIAUTOCOMPLETESIMPLERESULTLISTENER
@@ -396,7 +393,6 @@ protected:
   nsCOMPtr<mozIStorageStatement> mDBGetIdPageInfo;     // kGetInfoIndex_* results
 
   nsCOMPtr<mozIStorageStatement> mDBRecentVisitOfURL; // converts URL into most recent visit ID/session ID
-  nsCOMPtr<mozIStorageStatement> mDBRecentVisitOfPlace; // converts placeID into most recent visit ID/session ID
   nsCOMPtr<mozIStorageStatement> mDBInsertVisit; // used by AddVisit
   nsCOMPtr<mozIStorageStatement> mDBGetPageVisitStats; // used by AddVisit
   nsCOMPtr<mozIStorageStatement> mDBIsPageVisited; // used by IsURIStringVisited

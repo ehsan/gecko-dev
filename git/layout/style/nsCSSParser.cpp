@@ -250,11 +250,6 @@ protected:
                        PRUint32 aLineNumber, nsIURI* aBaseURI,
                        nsIPrincipal* aSheetPrincipal);
   nsresult ReleaseScanner(void);
-#ifdef MOZ_SVG
-  PRBool IsSVGMode() const {
-    return mScanner.IsSVGMode();
-  }
-#endif
 
   PRBool GetToken(nsresult& aErrorCode, PRBool aSkipWS);
   PRBool GetURLToken(nsresult& aErrorCode);
@@ -552,6 +547,11 @@ protected:
   // True if unsafe rules should be allowed
   PRPackedBool mUnsafeRulesEnabled : 1;
 
+#ifdef MOZ_SVG
+  // True if we are in SVG mode; false in "normal" CSS
+  PRPackedBool  mSVGMode : 1;
+#endif
+
   // True for parsing media lists for HTML attributes, where we have to
   // ignore CSS comments.
   PRPackedBool mHTMLMediaMode : 1;
@@ -658,6 +658,9 @@ CSSParserImpl::CSSParserImpl()
     mHavePushBack(PR_FALSE),
     mNavQuirkMode(PR_FALSE),
     mUnsafeRulesEnabled(PR_FALSE),
+#ifdef MOZ_SVG
+    mSVGMode(PR_FALSE),
+#endif
     mHTMLMediaMode(PR_FALSE),
     mCaseSensitive(PR_FALSE),
     mParsingCompoundProperty(PR_FALSE),
@@ -713,9 +716,8 @@ CSSParserImpl::SetQuirkMode(PRBool aQuirkMode)
 NS_IMETHODIMP
 CSSParserImpl::SetSVGMode(PRBool aSVGMode)
 {
-  NS_ASSERTION(aSVGMode == PR_TRUE || aSVGMode == PR_FALSE,
-               "bad PRBool value");
-  mScanner.SetSVGMode(aSVGMode);
+  NS_ASSERTION(aSVGMode == PR_TRUE || aSVGMode == PR_FALSE, "bad PRBool value");
+  mSVGMode = aSVGMode;
   return NS_OK;
 }
 #endif
@@ -4328,7 +4330,7 @@ PRBool CSSParserImpl::ParseVariant(nsresult& aErrorCode, nsCSSValue& aValue,
   }
 
 #ifdef  MOZ_SVG
-  if (IsSVGMode() && !IsParsingCompoundProperty()) {
+  if (mSVGMode && !IsParsingCompoundProperty()) {
     // STANDARD: SVG Spec states that lengths and coordinates can be unitless
     // in which case they default to user-units (1 px = 1 user unit)
     if (((aVariantMask & VARIANT_LENGTH) != 0) &&

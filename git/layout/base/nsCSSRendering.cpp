@@ -1221,7 +1221,7 @@ nsCSSRendering::PaintBoxShadow(nsPresContext* aPresContext,
     blurRadius /= twipsPerPixel;
     shadowContext = blurringArea.Init(shadowRect, blurRadius, 1, renderContext);
     if (!shadowContext)
-      continue;
+      return;
 
     // Set the shadow color; if not specified, use the foreground color
     nscolor shadowColor;
@@ -1312,9 +1312,9 @@ nsCSSRendering::PaintBackground(nsPresContext* aPresContext,
     if (!rootView->GetParent()) {
       PRBool widgetIsTransparent = PR_FALSE;
 
-      if (rootView->HasWidget())
-        // We don't want to draw a bg for glass windows either
-        widgetIsTransparent = eTransparencyOpaque != rootView->GetWidget()->GetTransparencyMode();
+      if (rootView->HasWidget()) {
+        rootView->GetWidget()->GetHasTransparentBackground(widgetIsTransparent);
+      }
       
       if (!widgetIsTransparent) {
         // Ensure that we always paint a color for the root (in case there's
@@ -1410,36 +1410,6 @@ PixelSnapPoint(gfxContext* aContext, nsIDeviceContext *aDC, nsPoint& aPoint)
   }
 }
 
-static PRBool
-IsSolidBorderEdge(const nsStyleBorder& aBorder, PRUint32 aSide)
-{
-  if (aBorder.GetActualBorder().side(aSide) == 0)
-    return PR_TRUE;
-  if (aBorder.GetBorderStyle(aSide) != NS_STYLE_BORDER_STYLE_SOLID)
-    return PR_FALSE;
-
-  nscolor color;
-  PRBool isTransparent;
-  PRBool isForeground;
-  aBorder.GetBorderColor(aSide, color, isTransparent, isForeground);
-  return !isTransparent && NS_GET_A(color) == 255;
-}
-
-/**
- * Returns true if all border edges are either missing or opaque.
- */
-static PRBool
-IsSolidBorder(const nsStyleBorder& aBorder)
-{
-  if (nsLayoutUtils::HasNonZeroSide(aBorder.mBorderRadius) || aBorder.mBorderColors)
-    return PR_FALSE;
-  for (PRUint32 i = 0; i < 4; ++i) {
-    if (!IsSolidBorderEdge(aBorder, i))
-      return PR_FALSE;
-  }
-  return PR_TRUE;
-}
-
 void
 nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
                                       nsIRenderingContext& aRenderingContext,
@@ -1484,10 +1454,9 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
   else {
     // The background is rendered over the 'background-clip' area.
     bgClipArea = aBorderArea;
-    // If the border is solid, then clip the background to the padding-box
-    // so that we don't draw unnecessary tiles.
-    if (aColor.mBackgroundClip != NS_STYLE_BG_CLIP_BORDER ||
-        IsSolidBorder(aBorder)) {
+    if (aColor.mBackgroundClip != NS_STYLE_BG_CLIP_BORDER) {
+      NS_ASSERTION(aColor.mBackgroundClip == NS_STYLE_BG_CLIP_PADDING,
+                   "unknown background-clip value");
       nsMargin border = aForFrame->GetUsedBorder();
       aForFrame->ApplySkipSides(border);
       bgClipArea.Deflate(border);

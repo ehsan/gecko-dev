@@ -254,16 +254,29 @@ nsXMLDocument::OnChannelRedirect(nsIChannel *aOldChannel,
 {
   NS_PRECONDITION(aNewChannel, "Redirecting to null channel?");
 
+  nsCOMPtr<nsIURI> newLocation;
+  nsresult rv = aNewChannel->GetURI(getter_AddRefs(newLocation)); // The redirected URI
+  if (NS_FAILED(rv)) 
+    return rv;
+
+  nsIScriptSecurityManager *secMan = nsContentUtils::GetSecurityManager();
+
   nsCOMPtr<nsIURI> oldURI;
-  nsresult rv = aOldChannel->GetURI(getter_AddRefs(oldURI));
+  rv = aOldChannel->GetURI(getter_AddRefs(oldURI));
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIURI> newURI;
   rv = aNewChannel->GetURI(getter_AddRefs(newURI));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return nsContentUtils::GetSecurityManager()->
+  rv = nsContentUtils::GetSecurityManager()->
     CheckSameOriginURI(oldURI, newURI, PR_TRUE);
+
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP

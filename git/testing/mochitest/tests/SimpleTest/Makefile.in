@@ -51,7 +51,6 @@ _SIMPLETEST_FILES =	MozillaFileLogger.js \
 			TestRunner.js \
 			setup.js \
 			EventUtils.js \
-			WindowSnapshot.js \
 			$(NULL)
 
 libs:: $(_SIMPLETEST_FILES)

@@ -28,10 +28,7 @@
 # include "dec/quant.h"
 
 /* debug macros */
-#if defined(_MSC_VER) && _MSC_VER < 1400
-static const dframe = 0;
-static void TH_DEBUG(const char *fmt, ...) {}
-#elif defined(_TH_DEBUG_)
+#ifdef _TH_DEBUG_
 #include <stdio.h>
 extern long dframe;
 extern FILE *debugout;

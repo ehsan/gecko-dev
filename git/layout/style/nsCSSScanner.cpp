@@ -189,9 +189,6 @@ nsCSSToken::AppendToString(nsString& aBuffer)
 nsCSSScanner::nsCSSScanner()
   : mInputStream(nsnull)
   , mReadPointer(nsnull)
-#ifdef MOZ_SVG
-  , mSVGMode(PR_FALSE)
-#endif
 #ifdef CSS_REPORT_PARSE_ERRORS
   , mError(mErrorBuf, NS_ARRAY_LENGTH(mErrorBuf), 0)
 #endif
@@ -1030,37 +1027,12 @@ PRBool nsCSSScanner::ParseNumber(nsresult& aErrorCode, PRInt32 c,
   }
 
   // Gather up characters that make up the number
-  PRBool gotE = PR_FALSE;
   for (;;) {
     c = Read(aErrorCode);
     if (c < 0) break;
-    if (!gotDot  && !gotE && (c == '.') &&
+    if (!gotDot && (c == '.') &&
         IsDigit(Peek(aErrorCode))) {
       gotDot = PR_TRUE;
-#ifdef MOZ_SVG
-    } else if (!gotE && (c == 'e' || c == 'E')) {
-      if (!IsSVGMode()) {
-        break;
-      }
-      PRInt32 nextChar = Peek(aErrorCode);
-      PRInt32 sign = 0;
-      if (nextChar == '-' || nextChar == '+') {
-        sign = Read(aErrorCode);
-        nextChar = Peek(aErrorCode);
-      }
-      if (IsDigit(nextChar)) {
-        gotE = PR_TRUE;
-        if (sign) {
-          ident.Append(PRUnichar(c));
-          c = sign;
-        }
-      } else {
-        if (sign) {
-          Pushback(sign);
-        }
-        break;
-      }
-#endif
     } else if (!IsDigit(c)) {
       break;
     }
@@ -1075,7 +1047,7 @@ PRBool nsCSSScanner::ParseNumber(nsresult& aErrorCode, PRInt32 c,
   // Set mIntegerValid for all cases (except %, below) because we need
   // it for the "2n" in :nth-child(2n).
   aToken.mIntegerValid = PR_FALSE;
-  if (!gotDot && !gotE) {
+  if (!gotDot) {
     aToken.mInteger = ident.ToInteger(&ec);
     aToken.mIntegerValid = PR_TRUE;
   }

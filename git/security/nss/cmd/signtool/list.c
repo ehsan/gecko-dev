@@ -87,7 +87,7 @@ ListCerts(char *key, int list_certs)
 
     /* Traverse non-internal DBs */
     rv = PK11_TraverseSlotCerts(cert_trav_callback, (void * )&list_certs,
-         		&pwdata);
+         		NULL /*wincx*/);
 
     if (rv) {
 	PR_fprintf(outputFD, "**Traverse of non-internal DBs failed**\n");
@@ -119,7 +119,7 @@ ListCerts(char *key, int list_certs)
     if (key) {
 	/* Do an analysis of the given cert */
 
-	cert = PK11_FindCertFromNickname(key, &pwdata);
+	cert = PK11_FindCertFromNickname(key, NULL /*wincx*/);
 
 	if (cert) {
 	    PR_fprintf(outputFD,
@@ -138,7 +138,7 @@ ListCerts(char *key, int list_certs)
 	    }
 
 	    rv = CERT_VerifyCert (db, cert, PR_TRUE,
-	        certUsageObjectSigner, PR_Now(), &pwdata, &errlog);
+	        certUsageObjectSigner, PR_Now(), NULL, &errlog);
 
 	    if (rv != SECSuccess) {
 		failed = 1;
@@ -239,7 +239,7 @@ cert_trav_callback(CERTCertificate *cert, SECItem *k, void *data)
 
 		if (rv == SECSuccess) {
 		    rv = CERT_VerifyCertNow (cert->dbhandle, cert,
-		        PR_TRUE, certUsageObjectSigner, &pwdata);
+		        PR_TRUE, certUsageObjectSigner, NULL);
 
 		    if (rv != SECSuccess) {
 			rv = PORT_GetError();
@@ -262,7 +262,7 @@ cert_trav_callback(CERTCertificate *cert, SECItem *k, void *data)
 
 		if (rv == SECSuccess) {
 		    rv = CERT_VerifyCertNow (issuerCert->dbhandle, issuerCert, 
-		        PR_TRUE, certUsageVerifyCA, &pwdata);
+		        PR_TRUE, certUsageVerifyCA, NULL);
 		    if (rv != SECSuccess) {
 			rv = PORT_GetError();
 			PR_fprintf(outputFD,

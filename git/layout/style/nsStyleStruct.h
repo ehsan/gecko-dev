@@ -820,16 +820,9 @@ struct nsStyleText {
            mWhiteSpace == NS_STYLE_WHITESPACE_PRE_WRAP;
   }
 
-  PRBool NewlineIsSignificant() const {
-    return mWhiteSpace == NS_STYLE_WHITESPACE_PRE ||
-           mWhiteSpace == NS_STYLE_WHITESPACE_PRE_WRAP ||
-           mWhiteSpace == NS_STYLE_WHITESPACE_PRE_LINE;
-  }
-
   PRBool WhiteSpaceCanWrap() const {
     return mWhiteSpace == NS_STYLE_WHITESPACE_NORMAL ||
-           mWhiteSpace == NS_STYLE_WHITESPACE_PRE_WRAP ||
-           mWhiteSpace == NS_STYLE_WHITESPACE_PRE_LINE;
+           mWhiteSpace == NS_STYLE_WHITESPACE_PRE_WRAP;
   }
 
   PRBool WordCanWrap() const {
@@ -1064,9 +1057,6 @@ struct nsStyleQuotes {
     this->~nsStyleQuotes();
     aContext->FreeToShell(sizeof(nsStyleQuotes), this);
   }
-
-  void SetInitial();
-  void CopyFrom(const nsStyleQuotes& aSource);
 
   nsChangeHint CalcDifference(const nsStyleQuotes& aOther) const;
 #ifdef DEBUG

@@ -54,12 +54,6 @@
 #include "nsIView.h"
 #include "nsIViewManager.h"
 #include "nsIDOMKeyListener.h"
-#ifdef MOZ_X11
-#ifdef MOZ_WIDGET_QT
-#include <QWidget>
-#include <QX11Info>
-#endif
-#endif
 #include "nsIPluginHost.h"
 #include "nsplugin.h"
 #include "nsString.h"
@@ -165,18 +159,11 @@ enum { XKeyPress = KeyPress };
 #ifdef KeyPress
 #undef KeyPress
 #endif
+#include "gfxXlibNativeRenderer.h"
 #ifdef MOZ_WIDGET_GTK2
 #include <gdk/gdkwindow.h>
 #include <gdk/gdkx.h>
 #endif
-#endif
-
-#ifdef MOZ_WIDGET_GTK2
-#include "gfxGdkNativeRenderer.h"
-#endif
-
-#ifdef MOZ_WIDGET_QT
-#include "gfxQtNativeRenderer.h"
 #endif
 
 #ifdef XP_WIN
@@ -374,7 +361,7 @@ public:
   void Paint(const nsRect& aDirtyRect, HDC ndc);
 #elif defined(XP_MACOSX)
   void Paint(const nsRect& aDirtyRect);  
-#elif defined(MOZ_X11) || defined(MOZ_DFB)
+#elif defined(MOZ_X11)
   void Paint(gfxContext* aContext,
              const gfxRect& aFrameRect,
              const gfxRect& aDirtyRect);
@@ -490,32 +477,18 @@ private:
 
   nsresult EnsureCachedAttrParamArrays();
 
-#if defined(MOZ_WIDGET_GTK2)
-  class Renderer : public gfxGdkNativeRenderer {
+#ifdef MOZ_X11
+  class Renderer : public gfxXlibNativeRenderer {
   public:
     Renderer(nsPluginWindow* aWindow, nsIPluginInstance* aInstance,
              const nsIntSize& aPluginSize, const nsIntRect& aDirtyRect)
       : mWindow(aWindow), mInstance(aInstance),
         mPluginSize(aPluginSize), mDirtyRect(aDirtyRect)
     {}
-    virtual nsresult NativeDraw(GdkDrawable * drawable, short offsetX, 
-            short offsetY, GdkRectangle * clipRects, PRUint32 numClipRects);
-  private:
-    nsPluginWindow* mWindow;
-    nsIPluginInstance* mInstance;
-    const nsIntSize& mPluginSize;
-    const nsIntRect& mDirtyRect;
-  };
-#elif defined(MOZ_WIDGET_QT)
-  class Renderer : public gfxQtNativeRenderer {
-  public:
-    Renderer(nsPluginWindow* aWindow, nsIPluginInstance* aInstance,
-             const nsIntSize& aPluginSize, const nsIntRect& aDirtyRect)
-      : mWindow(aWindow), mInstance(aInstance),
-        mPluginSize(aPluginSize), mDirtyRect(aDirtyRect)
-    {}
-    virtual nsresult NativeDraw(QWidget * drawable, short offsetX, 
-            short offsetY, QRect * clipRects, PRUint32 numClipRects);
+    virtual nsresult NativeDraw(Screen* screen, Drawable drawable,
+                                Visual* visual, Colormap colormap,
+                                short offsetX, short offsetY,
+                                XRectangle* clipRects, PRUint32 numClipRects);
   private:
     nsPluginWindow* mWindow;
     nsIPluginInstance* mInstance;
@@ -1399,7 +1372,7 @@ nsObjectFrame::PaintPlugin(nsIRenderingContext& aRenderingContext,
       mInstanceOwner->Paint(aDirtyRect);
     }
   }
-#elif defined(MOZ_X11) || defined(MOZ_DFB)
+#elif defined(MOZ_X11)
   if (mInstanceOwner)
     {
       nsPluginWindow * window;
@@ -2529,9 +2502,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetValue(nsPluginInstancePeerVariable varia
         if (!gdkWindow)
           return rv;
         gdkWindow = gdk_window_get_toplevel(gdkWindow);
-#ifdef MOZ_X11
         *static_cast<Window*>(value) = GDK_WINDOW_XID(gdkWindow);
-#endif
         return NS_OK;
 #endif
       } else NS_ASSERTION(mOwner, "plugin owner has no owner in getting doc's window handle");
@@ -4071,7 +4042,7 @@ void nsPluginInstanceOwner::Paint(const nsRect& aDirtyRect, HPS aHPS)
 }
 #endif
 
-#if defined(MOZ_X11) || defined(MOZ_DFB)
+#ifdef MOZ_X11
 void nsPluginInstanceOwner::Paint(gfxContext* aContext,
                                   const gfxRect& aFrameRect,
                                   const gfxRect& aDirtyRect)
@@ -4134,11 +4105,16 @@ void nsPluginInstanceOwner::Paint(gfxContext* aContext,
   gfxContextAutoSaveRestore autoSR(aContext);
   aContext->Translate(pluginRect.pos);
 
-  renderer.Draw(aContext, window->width, window->height,
+  // The display used by gfxXlibNativeRenderer will be the one for the cairo
+  // surface (provided that it is an Xlib surface) but the display argument
+  // here needs to be non-NULL for cairo_draw_with_xlib ->
+  // _create_temp_xlib_surface -> DefaultScreen(dpy).
+  NPSetWindowCallbackStruct* ws_info = 
+    static_cast<NPSetWindowCallbackStruct*>(window->ws_info);
+  renderer.Draw(ws_info->display, aContext, pluginSize.width, pluginSize.height,
                 rendererFlags, nsnull);
 }
 
-#ifdef MOZ_X11
 static int
 DepthOfVisual(const Screen* screen, const Visual* visual)
 {
@@ -4153,35 +4129,14 @@ DepthOfVisual(const Screen* screen, const Visual* visual)
   NS_ERROR("Visual not on Screen.");
   return 0;
 }
-#endif
 
-#if defined(MOZ_WIDGET_GTK2)
 nsresult
-nsPluginInstanceOwner::Renderer::NativeDraw(GdkDrawable * drawable, 
+nsPluginInstanceOwner::Renderer::NativeDraw(Screen* screen, Drawable drawable,
+                                            Visual* visual, Colormap colormap,
                                             short offsetX, short offsetY,
-                                            GdkRectangle * clipRects, 
-                                            PRUint32 numClipRects)
-
-{
-#ifdef MOZ_X11
-  Visual * visual = GDK_VISUAL_XVISUAL(gdk_drawable_get_visual(drawable));
-  Colormap colormap = GDK_COLORMAP_XCOLORMAP(gdk_drawable_get_colormap(drawable));
-  Screen * screen = GDK_SCREEN_XSCREEN (gdk_drawable_get_screen(drawable));
-#endif
-#elif defined(MOZ_WIDGET_QT)
-nsresult
-nsPluginInstanceOwner::Renderer::NativeDraw(QWidget * drawable,
-                                            short offsetX, short offsetY,
-                                            QRect * clipRects,
+                                            XRectangle* clipRects,
                                             PRUint32 numClipRects)
 {
-#ifdef MOZ_X11
-  QX11Info xinfo = drawable->x11Info();
-  Visual * visual = (Visual*) xinfo.visual();
-  Colormap colormap = xinfo.colormap();
-  Screen * screen = (Screen*) xinfo.screen();
-#endif
-#endif
   // See if the plugin must be notified of new window parameters.
   PRBool doupdatewindow = PR_FALSE;
 
@@ -4201,17 +4156,10 @@ nsPluginInstanceOwner::Renderer::NativeDraw(QWidget * drawable,
   NS_ASSERTION(numClipRects <= 1, "We don't support multiple clip rectangles!");
   nsIntRect clipRect;
   if (numClipRects) {
-#if defined(MOZ_WIDGET_GTK2)
     clipRect.x = clipRects[0].x;
     clipRect.y = clipRects[0].y;
     clipRect.width  = clipRects[0].width;
     clipRect.height = clipRects[0].height;
-#elif defined(MOZ_WIDGET_QT)
-    clipRect.x = clipRects[0].x();
-    clipRect.y = clipRects[0].y();
-    clipRect.width  = clipRects[0].width();
-    clipRect.height = clipRects[0].height();
-#endif
   }
   else {
     // nsPluginRect members are unsigned, but
@@ -4239,19 +4187,16 @@ nsPluginInstanceOwner::Renderer::NativeDraw(QWidget * drawable,
 
   NPSetWindowCallbackStruct* ws_info = 
     static_cast<NPSetWindowCallbackStruct*>(mWindow->ws_info);
-#ifdef MOZ_X11
   if (ws_info->visual != visual || ws_info->colormap != colormap) {
     ws_info->visual = visual;
     ws_info->colormap = colormap;
     ws_info->depth = DepthOfVisual(screen, visual);
     doupdatewindow = PR_TRUE;
   }
-#endif
 
   if (doupdatewindow)
       mInstance->SetWindow(mWindow);
 
-#ifdef MOZ_X11
   // Translate the dirty rect to drawable coordinates.
   nsIntRect dirtyRect = mDirtyRect + nsIntPoint(offsetX, offsetY);
   // Intersect the dirty rect with the clip rect to ensure that it lies within
@@ -4264,16 +4209,11 @@ nsPluginInstanceOwner::Renderer::NativeDraw(QWidget * drawable,
   // set the drawing info
   exposeEvent.type = GraphicsExpose;
   exposeEvent.display = DisplayOfScreen(screen);
-  exposeEvent.drawable =
-#if defined(MOZ_WIDGET_GTK2)
-      GDK_DRAWABLE_XID(drawable);
-#elif defined(MOZ_WIDGET_QT)
-      drawable->x11PictureHandle();
-#endif
-  exposeEvent.x = mDirtyRect.x + offsetX;
-  exposeEvent.y = mDirtyRect.y + offsetY;
-  exposeEvent.width  = mDirtyRect.width;
-  exposeEvent.height = mDirtyRect.height;
+  exposeEvent.drawable = drawable;
+  exposeEvent.x = dirtyRect.x;
+  exposeEvent.y = dirtyRect.y;
+  exposeEvent.width  = dirtyRect.width;
+  exposeEvent.height = dirtyRect.height;
   exposeEvent.count = 0;
   // information not set:
   exposeEvent.serial = 0;
@@ -4283,7 +4223,6 @@ nsPluginInstanceOwner::Renderer::NativeDraw(QWidget * drawable,
 
   PRBool eventHandled = PR_FALSE;
   mInstance->HandleEvent(&pluginEvent, &eventHandled);
-#endif
 
   return NS_OK;
 }

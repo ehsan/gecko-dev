@@ -246,21 +246,6 @@ gfxFontCache::DestroyFont(gfxFont *aFont)
     delete aFont;
 }
 
-void
-gfxFont::RunMetrics::CombineWith(const RunMetrics& aOther, PRBool aOtherIsOnLeft)
-{
-    mAscent = PR_MAX(mAscent, aOther.mAscent);
-    mDescent = PR_MAX(mDescent, aOther.mDescent);
-    if (aOtherIsOnLeft) {
-        mBoundingBox =
-            (mBoundingBox + gfxPoint(aOther.mAdvanceWidth, 0)).Union(aOther.mBoundingBox);
-    } else {
-        mBoundingBox =
-            mBoundingBox.Union(aOther.mBoundingBox + gfxPoint(mAdvanceWidth, 0));
-    }
-    mAdvanceWidth += aOther.mAdvanceWidth;
-}
-
 gfxFont::gfxFont(gfxFontEntry *aFontEntry, const gfxFontStyle *aFontStyle) :
     mIsValid(PR_TRUE), mStyle(*aFontStyle), mFontEntry(aFontEntry), mSyntheticBoldOffset(0)
 {
@@ -961,10 +946,8 @@ gfxFontGroup::ForEachFontInternal(const nsAString& aFamilies,
                 genericFamily.SetIsVoid(PR_TRUE);
             }
         }
-
-        if (generic) {
-            ForEachFontInternal(family, lang, PR_FALSE, aResolveFontName, fc, closure);
-        } else if (!family.IsEmpty()) {
+        
+        if (!family.IsEmpty()) {
             NS_LossyConvertUTF16toASCII gf(genericFamily);
             if (aResolveFontName) {
                 ResolveData data(fc, gf, closure);
@@ -1123,7 +1106,7 @@ void gfxFontGroup::ComputeRanges(nsTArray<gfxTextRange>& aRanges, const PRUnicha
         }
         
         // find the font for this char
-        nsRefPtr<gfxFont> font = FindFontForChar(ch, prevCh, nextCh, (aRanges.Length() == 0) ? nsnull : aRanges[aRanges.Length() - 1].font.get());
+        nsRefPtr<gfxFont> font = FindFontForChar(ch, prevCh, nextCh, (aRanges.Length() == 0) ? nsnull : aRanges[aRanges.Length() - 1].font);
 
         prevCh = ch;
 
@@ -1770,6 +1753,7 @@ gfxTextRun::DrawToPath(gfxContext *aContext, gfxPoint aPt,
     }
 }
 
+
 void
 gfxTextRun::AccumulateMetricsForRun(gfxFont *aFont,
                                     PRUint32 aStart, PRUint32 aEnd,
@@ -1783,7 +1767,13 @@ gfxTextRun::AccumulateMetricsForRun(gfxFont *aFont,
         aSpacingStart, aSpacingEnd, &spacingBuffer);
     Metrics metrics = aFont->Measure(this, aStart, aEnd, aTight, aRefContext,
                                      haveSpacing ? spacingBuffer.Elements() : nsnull);
-    aMetrics->CombineWith(metrics, IsRightToLeft());
+ 
+    if (IsRightToLeft()) {
+        metrics.CombineWith(*aMetrics);
+        *aMetrics = metrics;
+    } else {
+        aMetrics->CombineWith(metrics);
+    }
 }
 
 void
@@ -1819,7 +1809,12 @@ gfxTextRun::AccumulatePartialLigatureMetrics(gfxFont *aFont,
             : data.mPartAdvance;    
     metrics.mAdvanceWidth = data.mPartWidth;
 
-    aMetrics->CombineWith(metrics, IsRightToLeft());
+    if (IsRightToLeft()) {
+        metrics.CombineWith(*aMetrics);
+        *aMetrics = metrics;
+    } else {
+        aMetrics->CombineWith(metrics);
+    }
 }
 
 gfxTextRun::Metrics

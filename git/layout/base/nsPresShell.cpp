@@ -4989,7 +4989,6 @@ PresShell::RenderDocument(const nsRect& aRect, PRBool aUntrusted,
       builder.SetIgnoreScrollFrame(rootScrollFrame);
     }
 
-    builder.SetBackgroundOnly(PR_FALSE);
     builder.EnterPresShell(rootFrame, rect);
 
     nsresult rv = rootFrame->BuildDisplayListForStackingContext(&builder, rect, &list);   
@@ -5407,8 +5406,9 @@ PresShell::Paint(nsIView*             aView,
   mViewManager->GetDefaultBackgroundColor(&backgroundColor);
   for (nsIView *view = aView; view; view = view->GetParent()) {
     if (view->HasWidget()) {
-      // Both glass and transparent windows need the transparent bg color
-      if (eTransparencyOpaque != view->GetWidget()->GetTransparencyMode()) {
+      PRBool widgetIsTransparent;
+      view->GetWidget()->GetHasTransparentBackground(widgetIsTransparent);
+      if (widgetIsTransparent) {
         backgroundColor = NS_RGBA(0,0,0,0);
         break;
       }

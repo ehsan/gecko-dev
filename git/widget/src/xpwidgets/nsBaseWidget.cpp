@@ -544,11 +544,13 @@ NS_IMETHODIMP nsBaseWidget::SetWindowType(nsWindowType aWindowType)
 //
 //-------------------------------------------------------------------------
 
-void nsBaseWidget::SetTransparencyMode(nsTransparencyMode aMode) {
+NS_IMETHODIMP nsBaseWidget::SetHasTransparentBackground(PRBool aTransparent) {
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-nsTransparencyMode nsBaseWidget::GetTransparencyMode() {
-  return eTransparencyOpaque;
+NS_IMETHODIMP nsBaseWidget::GetHasTransparentBackground(PRBool& aTransparent) {
+  aTransparent = PR_FALSE;
+  return NS_OK;
 }
 
 //-------------------------------------------------------------------------

@@ -41,8 +41,6 @@
 #include "nsReadableUtils.h"
 #include "nsCRT.h"
 
-namespace TestStrings {
-
 void test_assign_helper(const nsACString& in, nsACString &_retval)
   {
     _retval = in;
@@ -941,9 +939,7 @@ tests[] =
     { nsnull, nsnull }
   };
 
-}
-
-using namespace TestStrings;
+//----
 
 int main(int argc, char **argv)
   {

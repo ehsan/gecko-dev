@@ -42,11 +42,7 @@ VPATH     = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-DIRS	= global mozapps
-
-ifdef MOZ_HELP_VIEWER
-DIRS	+= help
-endif
+DIRS	= global mozapps help
 
 ifdef MOZ_MOCHITEST
 DIRS  += tests

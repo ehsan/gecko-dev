@@ -39,7 +39,7 @@
  * Implementation of OCSP services, for both client and server.
  * (XXX, really, mostly just for client right now, but intended to do both.)
  *
- * $Id: ocsp.c,v 1.54 2008/07/08 21:34:32 alexei.volkov.bugs%sun.com Exp $
+ * $Id: ocsp.c,v 1.50.6.1 2008/05/28 18:03:11 kaie%kuix.de Exp $
  */
 
 #include "prerror.h"
@@ -1646,6 +1646,7 @@ ocsp_CreateCertID(PRArenaPool *arena, CERTCertificate *cert, int64 time)
 {
     CERTOCSPCertID *certID;
     CERTCertificate *issuerCert = NULL;
+    SECItem *tempItem = NULL;
     void *mark = PORT_ArenaMark(arena);
     SECStatus rv;
 
@@ -1716,6 +1717,9 @@ ocsp_CreateCertID(PRArenaPool *arena, CERTCertificate *cert, int64 time)
 loser:
     if (issuerCert != NULL) {
 	CERT_DestroyCertificate(issuerCert);
+    }
+    if (tempItem != NULL) {
+	SECITEM_FreeItem(tempItem, PR_TRUE);
     }
     PORT_ArenaRelease(arena, mark);
     return NULL;
@@ -2718,7 +2722,7 @@ ocsp_ParseURL(const char *url, char **pHostname, PRUint16 *pPort, char **pPath)
     unsigned short port = 80;		/* default, in case not in url */
     char *hostname = NULL;
     char *path = NULL;
-    const char *save;
+    char *save;
     char c;
     int len;
 
@@ -4481,7 +4485,7 @@ loser:
  *
  * The result needs to be freed (PORT_Free) when no longer in use.
  */
-char *
+static char *
 ocsp_GetResponderLocation(CERTCertDBHandle *handle, CERTCertificate *cert,
 			  PRBool *isDefault)
 {

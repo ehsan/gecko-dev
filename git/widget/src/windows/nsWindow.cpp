@@ -152,8 +152,6 @@
 #include "prprf.h"
 #include "prmem.h"
 
-#include "nsUXThemeData.h"
-
 #ifdef PR_LOGGING
 PRLogModuleInfo* sWindowsLog = nsnull;
 #endif
@@ -257,6 +255,10 @@ PRInt32 GetWindowsVersion()
   return version;
 }
 
+
+// Pick some random timer ID.  Is there a better way?
+#define NS_FLASH_TIMER_ID 0x011231984
+
 static NS_DEFINE_CID(kCClipboardCID,       NS_CLIPBOARD_CID);
 static NS_DEFINE_IID(kRenderingContextCID, NS_RENDERING_CONTEXT_CID);
 
@@ -290,8 +292,10 @@ PRUint32*  nsWindow::sIMECompClauseArray       = NULL;
 PRInt32    nsWindow::sIMECompClauseArrayLength = 0;
 PRInt32    nsWindow::sIMECompClauseArraySize   = 0;
 long       nsWindow::sIMECursorPosition        = 0;
+PRUnichar* nsWindow::sIMEReconvertUnicode      = NULL;
 
 RECT*      nsWindow::sIMECompCharPos           = nsnull;
+PRInt32    nsWindow::sIMECaretHeight           = 0;
 
 PRBool nsWindow::sIsInEndSession = PR_FALSE;
 
@@ -424,6 +428,119 @@ static PRBool is_vk_down(int vk)
 
 #endif  // #ifndef APPCOMMAND_BROWSER_BACKWARD
 
+/* This object maintains a correlation between attention timers and the
+   windows to which they belong. It's lighter than a hashtable (expected usage
+   is really just one at a time) and allows nsWindow::GetNSWindowPtr
+   to remain private. */
+class nsAttentionTimerMonitor {
+public:
+  nsAttentionTimerMonitor() : mHeadTimer(0) { }
+  ~nsAttentionTimerMonitor() {
+    TimerInfo *current, *next;
+    for (current = mHeadTimer; current; current = next) {
+      next = current->next;
+      delete current;
+    }
+  }
+  void AddTimer(HWND timerWindow, HWND flashWindow, PRInt32 maxFlashCount, UINT timerID) {
+    TimerInfo *info;
+    PRBool    newInfo = PR_FALSE;
+    info = FindInfo(timerWindow);
+    if (!info) {
+      info = new TimerInfo;
+      newInfo = PR_TRUE;
+    }
+    if (info) {
+      info->timerWindow = timerWindow;
+      info->flashWindow = flashWindow;
+      info->maxFlashCount = maxFlashCount;
+      info->flashCount = 0;
+      info->timerID = timerID;
+      info->hasFlashed = PR_FALSE;
+      info->next = 0;
+      if (newInfo)
+        AppendTimer(info);
+    }
+  }
+  HWND GetFlashWindowFor(HWND timerWindow) {
+    TimerInfo *info = FindInfo(timerWindow);
+    return info ? info->flashWindow : 0;
+  }
+  PRInt32 GetMaxFlashCount(HWND timerWindow) {
+    TimerInfo *info = FindInfo(timerWindow);
+    return info ? info->maxFlashCount : -1;
+  }
+  PRInt32 GetFlashCount(HWND timerWindow) {
+    TimerInfo *info = FindInfo(timerWindow);
+    return info ? info->flashCount : -1;
+  }
+  void IncrementFlashCount(HWND timerWindow) {
+    TimerInfo *info = FindInfo(timerWindow);
+    ++(info->flashCount);
+  }
+  void KillTimer(HWND timerWindow) {
+    TimerInfo *info = FindInfo(timerWindow);
+    if (info) {
+      // make sure it's unflashed and kill the timer
+
+      if (info->hasFlashed)
+        ::FlashWindow(info->flashWindow, FALSE);
+
+      ::KillTimer(info->timerWindow, info->timerID);
+      RemoveTimer(info);
+      delete info;
+    }
+  }
+  void SetFlashed(HWND timerWindow) {
+    TimerInfo *info = FindInfo(timerWindow);
+    if (info)
+      info->hasFlashed = PR_TRUE;
+  }
+
+private:
+  struct TimerInfo {
+    HWND       timerWindow,
+               flashWindow;
+    UINT       timerID;
+    PRInt32    maxFlashCount;
+    PRInt32    flashCount;
+    PRBool     hasFlashed;
+    TimerInfo *next;
+  };
+  TimerInfo *FindInfo(HWND timerWindow) {
+    TimerInfo *scan;
+    for (scan = mHeadTimer; scan; scan = scan->next)
+      if (scan->timerWindow == timerWindow)
+        break;
+    return scan;
+  }
+  void AppendTimer(TimerInfo *info) {
+    if (!mHeadTimer)
+      mHeadTimer = info;
+    else {
+      TimerInfo *scan, *last;
+      for (scan = mHeadTimer; scan; scan = scan->next)
+        last = scan;
+      last->next = info;
+    }
+  }
+  void RemoveTimer(TimerInfo *info) {
+    TimerInfo *scan, *last = 0;
+    for (scan = mHeadTimer; scan && scan != info; scan = scan->next)
+      last = scan;
+    if (scan) {
+      if (last)
+        last->next = scan->next;
+      else
+        mHeadTimer = scan->next;
+    }
+  }
+
+  TimerInfo *mHeadTimer;
+};
+
+static nsAttentionTimerMonitor *gAttentionTimerMonitor = 0;
+
 HWND nsWindow::GetTopLevelHWND(HWND aWnd, PRBool aStopOnFirstTopLevel)
 {
   HWND curWnd = aWnd;
@@ -531,7 +648,7 @@ nsWindow::nsWindow() : nsBaseWidget()
   mIsVisible          = PR_FALSE;
   mHas3DBorder        = PR_FALSE;
 #ifdef MOZ_XUL
-  mTransparencyMode   = eTransparencyOpaque;
+  mIsTransparent      = PR_FALSE;
   mTransparentSurface = nsnull;
   mMemoryDC           = NULL;
 #endif
@@ -629,6 +746,8 @@ nsWindow::~nsWindow()
       delete [] sIMEAttributeArray;
     if (sIMECompClauseArray) 
       delete [] sIMECompClauseArray;
+    if (sIMEReconvertUnicode)
+      nsMemory::Free(sIMEReconvertUnicode);
 
     NS_IF_RELEASE(gCursorImgContainer);
 
@@ -1316,6 +1435,8 @@ NS_METHOD nsWindow::Destroy()
   if (mWnd) {
     // prevent the widget from causing additional events
     mEventCallback = nsnull;
+    if (gAttentionTimerMonitor)
+      gAttentionTimerMonitor->KillTimer(mWnd);
 
     // if IME is disabled, restore it.
     if (mOldIMC) {
@@ -1333,9 +1454,9 @@ NS_METHOD nsWindow::Destroy()
       ::DestroyIcon(icon);
 
 #ifdef MOZ_XUL
-    if (eTransparencyTransparent == mTransparencyMode)
+    if (mIsTransparent)
     {
-      SetupTranslucentWindowMemoryBitmap(eTransparencyOpaque);
+      SetupTranslucentWindowMemoryBitmap(PR_FALSE);
 
     }
 #endif
@@ -1868,7 +1989,7 @@ NS_METHOD nsWindow::Resize(PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint)
   NS_ASSERTION((aHeight >=0 ), "Negative height passed to nsWindow::Resize");
 
 #ifdef MOZ_XUL
-  if (eTransparencyTransparent == mTransparencyMode)
+  if (mIsTransparent)
     ResizeTranslucentWindow(aWidth, aHeight);
 #endif
 
@@ -1918,7 +2039,7 @@ NS_METHOD nsWindow::Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeig
   NS_ASSERTION((aHeight >=0 ), "Negative height passed to nsWindow::Resize");
 
 #ifdef MOZ_XUL
-  if (eTransparencyTransparent == mTransparencyMode)
+  if (mIsTransparent)
     ResizeTranslucentWindow(aWidth, aHeight);
 #endif
 
@@ -2648,7 +2769,7 @@ void* nsWindow::GetNativeData(PRUint32 aDataType)
     case NS_NATIVE_GRAPHIC:
       // XXX:  This is sleezy!!  Remember to Release the DC after using it!
 #ifdef MOZ_XUL
-      return (void*)(eTransparencyTransparent == mTransparencyMode) ?
+      return (void*)(mIsTransparent) ?
         mMemoryDC : ::GetDC(mWnd);
 #else
       return (void*)::GetDC(mWnd);
@@ -2668,7 +2789,7 @@ void nsWindow::FreeNativeData(void * data, PRUint32 aDataType)
   {
     case NS_NATIVE_GRAPHIC:
 #ifdef MOZ_XUL
-      if (eTransparencyTransparent != mTransparencyMode)
+      if (!mIsTransparent)
         ::ReleaseDC(mWnd, (HDC)data);
 #else
       ::ReleaseDC(mWnd, (HDC)data);
@@ -4692,7 +4813,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam, LRESULT 
 
 
 #ifdef MOZ_XUL
-        if (eTransparencyTransparent == mTransparencyMode)
+        if (mIsTransparent)
           ResizeTranslucentWindow(newWidth, newHeight);
 #endif
 
@@ -4732,7 +4853,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam, LRESULT 
         // If we're being minimized, don't send the resize event to Gecko because
         // it will cause the scrollbar in the content area to go away and we'll
         // forget the scroll position of the page.
-        if ( !newWidth && !newHeight && IsIconic(mWnd)) {
+        if ( !newWidth && !newHeight ) {
           result = PR_FALSE;
           break;
         }
@@ -5150,14 +5271,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam, LRESULT 
 #endif // WINCE
 
     }
-    break;
-  case WM_DWMCOMPOSITIONCHANGED:
-    if (nsUXThemeData::CheckForCompositor() && mTransparencyMode == eTransparencyGlass) {
-      MARGINS margins = { -1, -1, -1, -1 };
-      nsUXThemeData::dwmExtendFrameIntoClientAreaPtr(mWnd, &margins);
-    }
-    BroadcastMsg(mWnd, WM_DWMCOMPOSITIONCHANGED);
-    DispatchStandardEvent(NS_THEMECHANGED);
     break;
   }
 
@@ -5590,7 +5703,7 @@ PRBool nsWindow::OnPaint(HDC aDC)
   nsEventStatus eventStatus = nsEventStatus_eIgnore;
 
 #ifdef MOZ_XUL
-  if (!aDC && (eTransparencyTransparent == mTransparencyMode))
+  if (!aDC && mIsTransparent)
   {
     // For layered translucent windows all drawing should go to memory DC and no
     // WM_PAINT messages are normally generated. To support asynchronous painting
@@ -5624,7 +5737,7 @@ PRBool nsWindow::OnPaint(HDC aDC)
   HRGN paintRgn = NULL;
 
 #ifdef MOZ_XUL
-  if (aDC || (eTransparencyTransparent == mTransparencyMode)) {
+  if (aDC || mIsTransparent) {
 #else
   if (aDC) {
 #endif
@@ -5674,7 +5787,7 @@ PRBool nsWindow::OnPaint(HDC aDC)
 
 #ifdef MOZ_XUL
       nsRefPtr<gfxASurface> targetSurface;
-      if (eTransparencyTransparent == mTransparencyMode) {
+      if (mIsTransparent) {
         targetSurface = mTransparentSurface;
       } else {
         targetSurface = new gfxWindowsSurface(hDC);
@@ -5686,9 +5799,7 @@ PRBool nsWindow::OnPaint(HDC aDC)
       nsRefPtr<gfxContext> thebesContext = new gfxContext(targetSurface);
 
 #ifdef MOZ_XUL
-      if (eTransparencyGlass == mTransparencyMode && nsUXThemeData::sHaveCompositor) {
-        thebesContext->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
-      } else if (eTransparencyTransparent == mTransparencyMode) {
+      if (mIsTransparent) {
         // If we're rendering with translucency, we're going to be
         // rendering the whole window; make sure we clear it first
         thebesContext->SetOperator(gfxContext::OPERATOR_CLEAR);
@@ -5718,7 +5829,7 @@ PRBool nsWindow::OnPaint(HDC aDC)
       event.renderingContext = nsnull;
 
 #ifdef MOZ_XUL
-      if (eTransparencyTransparent == mTransparencyMode) {
+      if (mIsTransparent) {
         // Data from offscreen drawing surface was copied to memory bitmap of transparent
         // bitmap. Now it can be read from memory bitmap to apply alpha channel and after
         // that displayed on the screen.
@@ -6328,9 +6439,7 @@ nsWindow::HandleTextEvent(HIMC hIMEContext,PRBool aCheckAttr)
   if (event.theReply.mCursorPosition.width || event.theReply.mCursorPosition.height)
   {
     nsRect cursorPosition;
-    ResolveIMECaretPos(event.theReply.mReferenceWidget,
-                       event.theReply.mCursorPosition,
-                       this, cursorPosition);
+    ResolveIMECaretPos(this, event.theReply.mCursorPosition, cursorPosition);
     CANDIDATEFORM candForm;
     candForm.dwIndex = 0;
     candForm.dwStyle = CFS_EXCLUDE;
@@ -6374,6 +6483,7 @@ nsWindow::HandleTextEvent(HIMC hIMEContext,PRBool aCheckAttr)
       sIMECompCharPos[sIMECursorPosition].top = cursorPosition.y;
       sIMECompCharPos[sIMECursorPosition].bottom = cursorPosition.YMost();
     }
+    sIMECaretHeight = cursorPosition.height;
   } else {
     // for some reason we don't know yet, theReply may contain invalid result
     // need more debugging in nsCaret to find out the reason
@@ -6392,6 +6502,11 @@ nsWindow::HandleStartComposition(HIMC hIMEContext)
   if (sIMEIsComposing)
     return PR_TRUE;
 
+  if (sIMEReconvertUnicode) {
+    nsMemory::Free(sIMEReconvertUnicode);
+    sIMEReconvertUnicode = NULL;
+  }
+
   nsCompositionEvent event(PR_TRUE, NS_COMPOSITION_START, this);
   nsPoint point(0, 0);
   CANDIDATEFORM candForm;
@@ -6405,9 +6520,7 @@ nsWindow::HandleStartComposition(HIMC hIMEContext)
   if (event.theReply.mCursorPosition.width || event.theReply.mCursorPosition.height)
   {
     nsRect cursorPosition;
-    ResolveIMECaretPos(event.theReply.mReferenceWidget,
-                       event.theReply.mCursorPosition,
-                       this, cursorPosition);
+    ResolveIMECaretPos(this, event.theReply.mCursorPosition, cursorPosition);
     candForm.dwIndex = 0;
     candForm.dwStyle = CFS_CANDIDATEPOS;
     candForm.ptCurrentPos.x = cursorPosition.x + IME_X_OFFSET;
@@ -6436,6 +6549,7 @@ nsWindow::HandleStartComposition(HIMC hIMEContext)
       sIMECompCharPos[0].top = cursorPosition.y;
       sIMECompCharPos[0].bottom = cursorPosition.YMost();
     }
+    sIMECaretHeight = cursorPosition.height;
   } else {
     // for some reason we don't know yet, theReply may contain invalid result
     // need more debugging in nsCaret to find out the reason
@@ -6468,6 +6582,7 @@ nsWindow::HandleEndComposition(void)
   DispatchWindowEvent(&event);
   PR_FREEIF(sIMECompCharPos);
   sIMECompCharPos = nsnull;
+  sIMECaretHeight = 0;
   sIMEIsComposing = PR_FALSE;
 }
 
@@ -6927,48 +7042,70 @@ PRBool nsWindow::OnIMEReconvert(LPARAM aData, LRESULT *oResult)
   printf("OnIMEReconvert\n");
 #endif
 
-  *oResult = 0;
+  PRBool           result  = PR_FALSE;
   RECONVERTSTRING* pReconv = (RECONVERTSTRING*) aData;
-
-  nsQueryContentEvent selection(PR_TRUE, NS_QUERY_SELECTED_TEXT, this);
-  nsPoint point(0, 0);
-  InitEvent(selection, &point);
-  DispatchWindowEvent(&selection);
-  if (!selection.mSucceeded)
-    return PR_FALSE;
+  int              len = 0;
 
   if (!pReconv) {
-    // Return need size to reconvert.
-    if (selection.mReply.mString.IsEmpty())
-      return PR_FALSE;
-    PRUint32 len = selection.mReply.mString.Length();
+
+    //
+    // When reconvert, it must return need size to reconvert.
+    //
+    if (sIMEReconvertUnicode) {
+      nsMemory::Free(sIMEReconvertUnicode);
+      sIMEReconvertUnicode = NULL;
+    }
+
+    // Get reconversion string
+    nsReconversionEvent event(PR_TRUE, NS_RECONVERSION_QUERY, this);
+    nsPoint point(0, 0);
+
+    InitEvent(event, &point);
+    event.theReply.mReconversionString = NULL;
+    DispatchWindowEvent(&event);
+
+    sIMEReconvertUnicode = event.theReply.mReconversionString;
+
+    // Return need size
+
+    if (sIMEReconvertUnicode) {
+      len = nsCRT::strlen(sIMEReconvertUnicode);
+      *oResult = sizeof(RECONVERTSTRING) + len * sizeof(WCHAR);
+
+      result = PR_TRUE;
+    }
+  } else {
+
+    //
+    // Fill reconvert struct
+    //
+
+    len = nsCRT::strlen(sIMEReconvertUnicode);
     *oResult = sizeof(RECONVERTSTRING) + len * sizeof(WCHAR);
-    return PR_TRUE;
+
+    if (pReconv->dwSize < *oResult) {
+      *oResult = 0;
+      return PR_FALSE;
+    }
+
+    DWORD tmpSize = pReconv->dwSize;
+    ::ZeroMemory(pReconv, tmpSize);
+    pReconv->dwSize            = tmpSize;
+    pReconv->dwVersion         = 0;
+    pReconv->dwStrLen          = len;
+    pReconv->dwStrOffset       = sizeof(RECONVERTSTRING);
+    pReconv->dwCompStrLen      = len;
+    pReconv->dwCompStrOffset   = 0;
+    pReconv->dwTargetStrLen    = len;
+    pReconv->dwTargetStrOffset = 0;
+
+    ::CopyMemory((LPVOID) (aData + sizeof(RECONVERTSTRING)),
+                 sIMEReconvertUnicode, len * sizeof(WCHAR));
+
+    result = PR_TRUE;
   }
 
-  // Fill reconvert struct
-  PRUint32 len = selection.mReply.mString.Length();
-  PRUint32 needSize = sizeof(RECONVERTSTRING) + len * sizeof(WCHAR);
-
-  if (pReconv->dwSize < needSize)
-    return PR_FALSE;
-
-  *oResult = needSize;
-
-  DWORD tmpSize = pReconv->dwSize;
-  ::ZeroMemory(pReconv, tmpSize);
-  pReconv->dwSize            = tmpSize;
-  pReconv->dwVersion         = 0;
-  pReconv->dwStrLen          = len;
-  pReconv->dwStrOffset       = sizeof(RECONVERTSTRING);
-  pReconv->dwCompStrLen      = len;
-  pReconv->dwCompStrOffset   = 0;
-  pReconv->dwTargetStrLen    = len;
-  pReconv->dwTargetStrOffset = 0;
-
-  ::CopyMemory((LPVOID) (aData + sizeof(RECONVERTSTRING)),
-               selection.mReply.mString.get(), len * sizeof(WCHAR));
-  return PR_TRUE;
+  return result;
 }
 
 //==========================================================================
@@ -6977,57 +7114,72 @@ PRBool nsWindow::OnIMEQueryCharPosition(LPARAM aData, LRESULT *oResult)
 #ifdef DEBUG_IME
   printf("OnIMEQueryCharPosition\n");
 #endif
-
-  PRUint32 len = sIMEIsComposing ? sIMECompUnicode->Length() : 0;
-  *oResult = FALSE;
   IMECHARPOSITION* pCharPosition = (IMECHARPOSITION*)aData;
   if (!pCharPosition ||
       pCharPosition->dwSize < sizeof(IMECHARPOSITION) ||
-      ::GetFocus() != mWnd ||
-      pCharPosition->dwCharPos > len)
+      ::GetFocus() != mWnd) {
+    *oResult = FALSE;
     return PR_FALSE;
-
-  nsPoint point(0, 0);
-
-  nsQueryContentEvent selection(PR_TRUE, NS_QUERY_SELECTED_TEXT, this);
-  InitEvent(selection, &point);
-  DispatchWindowEvent(&selection);
-  if (!selection.mSucceeded)
-    return PR_FALSE;
-
-  PRUint32 offset = selection.mReply.mOffset + pCharPosition->dwCharPos;
-  PRBool useCaretRect = selection.mReply.mString.IsEmpty();
-
-  nsRect r;
-  if (!useCaretRect) {
-    nsQueryContentEvent charRect(PR_TRUE, NS_QUERY_CHARACTER_RECT, this);
-    charRect.InitForQueryCharacterRect(offset);
-    InitEvent(charRect, &point);
-    DispatchWindowEvent(&charRect);
-    if (charRect.mSucceeded)
-      r = charRect.mReply.mRect;
-    else
-      useCaretRect = PR_TRUE;
   }
 
-  if (useCaretRect) {
-    nsQueryContentEvent caretRect(PR_TRUE, NS_QUERY_CARET_RECT, this);
-    caretRect.InitForQueryCaretRect(offset);
-    InitEvent(caretRect, &point);
-    DispatchWindowEvent(&caretRect);
-    if (!caretRect.mSucceeded)
+  if (!sIMEIsComposing) {  // Including |!sIMECompUnicode| and |!sIMECompUnicode->IsEmpty|.
+    if (pCharPosition->dwCharPos != 0) {
+      *oResult = FALSE;
       return PR_FALSE;
-    r = caretRect.mReply.mRect;
+    }
+    nsPoint point(0, 0);
+    nsQueryCaretRectEvent event(PR_TRUE, NS_QUERYCARETRECT, this);
+    InitEvent(event, &point);
+    DispatchWindowEvent(&event);
+    // The active widget doesn't support this event.
+    if (!event.theReply.mRectIsValid) {
+      *oResult = FALSE;
+      return PR_FALSE;
+    }
+
+    nsRect screenRect;
+    ResolveIMECaretPos(nsnull, event.theReply.mCaretRect, screenRect);
+    pCharPosition->pt.x = screenRect.x;
+    pCharPosition->pt.y = screenRect.y;
+
+    pCharPosition->cLineHeight = event.theReply.mCaretRect.height;
+
+    ::GetWindowRect(mWnd, &pCharPosition->rcDocument);
+
+    *oResult = TRUE;
+    return PR_TRUE;
   }
 
-  nsRect screenRect;
-  ResolveIMECaretPos(GetTopLevelWindow(), r, nsnull, screenRect);
-  pCharPosition->pt.x = screenRect.x;
-  pCharPosition->pt.y = screenRect.y;
+  // If the char positions are not cached, we should not return the values by LPARAM.
+  // Because in this case, the active widget is not editor.
+  if (!sIMECompCharPos) {
+    *oResult = FALSE;
+    return PR_FALSE;
+  }
 
-  pCharPosition->cLineHeight = r.height;
+  long charPosition;
+  if (pCharPosition->dwCharPos > sIMECompUnicode->Length()) {
+    *oResult = FALSE;
+    return PR_FALSE;
+  }
+  charPosition = pCharPosition->dwCharPos;
 
-  // XXX Should we create "query focused content rect event"?
+  // We only support insertion at the cursor position or at the leftmost position.
+  // Because sIMECompCharPos may be broken by user converting the string.
+  // But leftmost position and cursor position is always correctly.
+  if ((charPosition != 0 && charPosition != sIMECursorPosition) ||
+      charPosition > IME_MAX_CHAR_POS) {
+    *oResult = FALSE;
+    return PR_FALSE;
+  }
+  POINT pt;
+  pt.x = sIMECompCharPos[charPosition].left;
+  pt.y = sIMECompCharPos[charPosition].top;
+  ::ClientToScreen(mWnd, &pt);
+  pCharPosition->pt = pt;
+
+  pCharPosition->cLineHeight = sIMECaretHeight;
+
   ::GetWindowRect(mWnd, &pCharPosition->rcDocument);
 
   *oResult = TRUE;
@@ -7036,21 +7188,17 @@ PRBool nsWindow::OnIMEQueryCharPosition(LPARAM aData, LRESULT *oResult)
 
 //==========================================================================
 void
-nsWindow::ResolveIMECaretPos(nsIWidget* aReferenceWidget,
-                             nsRect&    aCursorRect,
-                             nsIWidget* aNewOriginWidget,
-                             nsRect&    aOutRect)
+nsWindow::ResolveIMECaretPos(nsWindow* aClient,
+                             nsRect&   aEventResult,
+                             nsRect&   aResult)
 {
-  aOutRect = aCursorRect;
-
-  if (aReferenceWidget == aNewOriginWidget)
+  // RootView coordinates -> Screen coordinates
+  GetTopLevelWindow()->WidgetToScreen(aEventResult, aResult);
+  // if aClient is nsnull, returns screen coordinates
+  if (!aClient)
     return;
-
-  if (aReferenceWidget)
-    aReferenceWidget->WidgetToScreen(aOutRect, aOutRect);
-
-  if (aNewOriginWidget)
-    aNewOriginWidget->ScreenToWidget(aOutRect, aOutRect);
+  // screen coordinates -> client coordinates
+  aClient->ScreenToWidget(aResult, aResult);
 }
 
 //==========================================================================
@@ -7352,6 +7500,38 @@ void nsWindow::GetCompositionWindowPos(HIMC hIMC, PRUint32 aEventType, COMPOSITI
   cpForm->rcArea.bottom = cpForm->ptCurrentPos.y + event.theReply.mCursorPosition.height;
 }
 
+// This function is called on a timer to do the flashing.  It simply toggles the flash
+// status until the window comes to the foreground.
+static VOID CALLBACK nsGetAttentionTimerFunc(HWND hwnd, UINT uMsg, UINT idEvent, DWORD dwTime)
+{
+  // flash the window until we're in the foreground.
+  if (::GetForegroundWindow() != hwnd)
+  {
+    // flash the outermost owner
+    HWND flashwnd = gAttentionTimerMonitor->GetFlashWindowFor(hwnd);
+
+    PRInt32 maxFlashCount = gAttentionTimerMonitor->GetMaxFlashCount(hwnd);
+    PRInt32 flashCount = gAttentionTimerMonitor->GetFlashCount(hwnd);
+    if (maxFlashCount > 0) {
+      // We have a max flash count, if we haven't met it yet, flash again.
+      if (flashCount < maxFlashCount) {
+        ::FlashWindow(flashwnd, TRUE);
+        gAttentionTimerMonitor->IncrementFlashCount(hwnd);
+      }
+      else
+        gAttentionTimerMonitor->KillTimer(hwnd);
+    }
+    else {
+      // The caller didn't specify a flash count.
+      ::FlashWindow(flashwnd, TRUE);
+    }
+
+    gAttentionTimerMonitor->SetFlashed(hwnd);
+  }
+  else
+    gAttentionTimerMonitor->KillTimer(hwnd);
+}
+
 // Draw user's attention to this window until it comes to foreground.
 NS_IMETHODIMP
 nsWindow::GetAttention(PRInt32 aCycleCount)
@@ -7360,24 +7540,28 @@ nsWindow::GetAttention(PRInt32 aCycleCount)
   if (!mWnd)
     return NS_ERROR_NOT_INITIALIZED;
 
-  // Don't flash if the flash count is 0 or if the 
-  // top level window is already active.
-  if (aCycleCount == 0 || ::GetForegroundWindow() == GetTopLevelHWND(mWnd))
+  // Don't flash if the flash count is 0.
+  if (aCycleCount == 0)
     return NS_OK;
 
-  DWORD defaultCycleCount = 0;
-  ::SystemParametersInfo(SPI_GETFOREGROUNDFLASHCOUNT, 0, &defaultCycleCount, 0);
-  HWND flashWnd = mWnd;
-  while (HWND ownerWnd = ::GetWindow(flashWnd, GW_OWNER))
-    flashWnd = ownerWnd;
+  // timer is on the parentmost window; window to flash is its ownermost
+  HWND timerwnd = GetTopLevelHWND(mWnd);
+  HWND flashwnd = timerwnd;
+  HWND nextwnd;
+  while ((nextwnd = ::GetWindow(flashwnd, GW_OWNER)) != 0)
+    flashwnd = nextwnd;
 
-  FLASHWINFO flashInfo;
-  ZeroMemory(&flashInfo, sizeof(FLASHWINFO));
-  flashInfo.cbSize = sizeof(FLASHWINFO);
-  flashInfo.hwnd = flashWnd;
-  flashInfo.dwFlags = FLASHW_ALL;
-  flashInfo.uCount = aCycleCount > 0 ? aCycleCount : defaultCycleCount;
-  ::FlashWindowEx(&flashInfo);
+  // If window is in foreground, no notification is necessary.
+  if (::GetForegroundWindow() != timerwnd) {
+    // kick off a timer that does single flash until the window comes to the foreground
+    if (!gAttentionTimerMonitor)
+      gAttentionTimerMonitor = new nsAttentionTimerMonitor;
+    if (gAttentionTimerMonitor) {
+      gAttentionTimerMonitor->AddTimer(timerwnd, flashwnd, aCycleCount, NS_FLASH_TIMER_ID);
+      ::SetTimer(timerwnd, NS_FLASH_TIMER_ID, GetCaretBlinkTime(), (TIMERPROC)nsGetAttentionTimerFunc);
+    }
+  }
+
   return NS_OK;
 }
 
@@ -7844,64 +8028,67 @@ void nsWindow::ResizeTranslucentWindow(PRInt32 aNewWidth, PRInt32 aNewHeight, PR
   mMemoryDC = mTransparentSurface->GetDC();
 }
 
-nsTransparencyMode nsWindow::GetTransparencyMode()
+NS_IMETHODIMP nsWindow::GetHasTransparentBackground(PRBool& aTransparent)
 {
-  return GetTopLevelWindow()->GetWindowTranslucencyInner();
+  aTransparent = GetTopLevelWindow()->GetWindowTranslucencyInner();
+
+  return NS_OK;
 }
 
-void nsWindow::SetTransparencyMode(nsTransparencyMode aMode)
+NS_IMETHODIMP nsWindow::SetHasTransparentBackground(PRBool aTransparent)
 {
-  GetTopLevelWindow()->SetWindowTranslucencyInner(aMode);
+  nsresult rv = GetTopLevelWindow()->SetWindowTranslucencyInner(aTransparent);
+
+  return rv;
 }
 
-void nsWindow::SetWindowTranslucencyInner(nsTransparencyMode aMode)
+nsresult nsWindow::SetWindowTranslucencyInner(PRBool aTransparent)
 {
-  if (aMode == mTransparencyMode)
-    return;
-
+  if (aTransparent == mIsTransparent)
+    return NS_OK;
+  
   HWND hWnd = GetTopLevelHWND(mWnd, PR_TRUE);
   nsWindow* topWindow = GetNSWindowPtr(hWnd);
 
   if (!topWindow)
   {
     NS_WARNING("Trying to use transparent chrome in an embedded context");
-    return;
+    return NS_ERROR_FAILURE;
   }
 
   LONG style, exStyle;
 
-  style = topWindow->WindowStyle();
-  exStyle = topWindow->WindowExStyle();
+  if (aTransparent)
+  {
+    style = ::GetWindowLongW(hWnd, GWL_STYLE) &
+            ~(WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX);
+    exStyle = ::GetWindowLongW(hWnd, GWL_EXSTYLE) &
+              ~(WS_EX_DLGMODALFRAME | WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE);
 
-  switch(aMode) {
-    case eTransparencyTransparent:
-      exStyle |= WS_EX_LAYERED;
-    case eTransparencyOpaque:
-    case eTransparencyGlass:
-      topWindow->mTransparencyMode = aMode;
-      break;
+    exStyle |= WS_EX_LAYERED;
+  } else
+  {
+    style = topWindow->WindowStyle();
+    exStyle = topWindow->WindowExStyle();
   }
   ::SetWindowLongW(hWnd, GWL_STYLE, style);
   ::SetWindowLongW(hWnd, GWL_EXSTYLE, exStyle);
 
-  mTransparencyMode = aMode;
+  mIsTransparent = aTransparent;
 
-  SetupTranslucentWindowMemoryBitmap(aMode);
-  MARGINS margins = { 0, 0, 0, 0 };
-  if(eTransparencyGlass == aMode)
-    margins.cxLeftWidth = -1;
-  if(nsUXThemeData::sHaveCompositor)
-    nsUXThemeData::dwmExtendFrameIntoClientAreaPtr(hWnd, &margins);
+  return SetupTranslucentWindowMemoryBitmap(aTransparent);
 }
 
-void nsWindow::SetupTranslucentWindowMemoryBitmap(nsTransparencyMode aMode)
+nsresult nsWindow::SetupTranslucentWindowMemoryBitmap(PRBool aTransparent)
 {
-  if (eTransparencyTransparent == aMode) {
+  if (aTransparent) {
     ResizeTranslucentWindow(mBounds.width, mBounds.height, PR_TRUE);
   } else {
     mTransparentSurface = nsnull;
     mMemoryDC = NULL;
   }
+
+  return NS_OK;
 }
 
 nsresult nsWindow::UpdateTranslucentWindow()

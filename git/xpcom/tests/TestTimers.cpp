@@ -65,11 +65,11 @@ public:
     mThread->Shutdown();
   }
 
-  operator nsIThread*() const {
+  operator nsDerivedSafe<nsIThread>*() const {
     return mThread;
   }
 
-  nsIThread* operator->() const {
+  nsDerivedSafe<nsIThread>* operator->() const {
     return mThread;
   }
 

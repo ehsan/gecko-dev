@@ -947,9 +947,8 @@ nsHTMLTextAreaElement::RestoreState(nsPresState* aState)
   nsAutoString value;
   nsresult rv =
     aState->GetStateProperty(NS_LITERAL_STRING("value"), value);
-  if (rv == NS_STATE_PROPERTY_EXISTS) {
-    SetValue(value);
-  }
+  NS_ASSERTION(NS_SUCCEEDED(rv), "value restore failed!");
+  SetValue(value);
 
   nsAutoString disabled;
   rv = aState->GetStateProperty(NS_LITERAL_STRING("disabled"), disabled);

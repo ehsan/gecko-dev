@@ -304,7 +304,7 @@ nsHttpDigestAuth::GenerateCredentials(nsIHttpChannel *httpChannel,
   }
   else {
     nsCOMPtr<nsISupportsPRUint32> v(
-            do_CreateInstance(NS_SUPPORTS_PRUINT32_CONTRACTID));
+            do_CreateInstance(NS_SUPPORTS_PRUINT32_CONTRACTID, &rv));
     if (v) {        
       v->SetData(1);
       NS_ADDREF(*sessionState = v);

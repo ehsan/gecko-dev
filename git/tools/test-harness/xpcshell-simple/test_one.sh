@@ -49,9 +49,7 @@ XPCOM_DEBUG_BREAK=stack-and-abort; export XPCOM_DEBUG_BREAK
 
 exit_status=0
 
-# Launch a single test by calling:
-# make SOLO_FILE=(filename) -C (test directory) check-one
-# or
+# Launch single tests by calling:
 # make SOLO_FILE=(filename) -C (test directory) check-interactive
 # js>_execute_test();
 # js>quit();

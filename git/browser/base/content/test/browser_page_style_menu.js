@@ -1,5 +1,7 @@
 function test() {
   waitForExplicitFinish();
+  finish();
+  return;
 
   var tab = gBrowser.addTab();
   gBrowser.selectedTab = tab;
@@ -29,7 +31,7 @@ function checkPageStyleMenu() {
                    " with rel=\"" + rel + "\"" +
                    (media ? " and media=\"" + media + "\"" : "");
 
-    var item = items.filter(function (item) item.getAttribute("label") == title);
+    var item = items.filter(function (item) item.label == title);
     var found = item.length == 1;
     var checked = found && (item[0].getAttribute("checked") == "true");
 

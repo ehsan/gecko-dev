@@ -50,7 +50,9 @@
 #endif
 
 #ifdef XP_MACOSX
-#   include <Carbon/Carbon.h>
+#   include <Quickdraw.h>
+#   include <Events.h>
+#   include <MacWindows.h>
 #endif
 
 #if defined(XP_UNIX) && defined(MOZ_X11)
