@@ -1273,7 +1273,7 @@ int NS_main(int argc, NS_tchar **argv)
     SHELLEXECUTEINFO sinfo;
     memset(&sinfo, 0, sizeof(SHELLEXECUTEINFO));
     sinfo.cbSize       = sizeof(SHELLEXECUTEINFO);
-    sinfo.fMask        = SEE_MASK_FLAG_DDEWAIT |
+    sinfo.fMask        = SEE_MASK_NOASYNC |
                          SEE_MASK_FLAG_NO_UI |
                          SEE_MASK_NOCLOSEPROCESS;
     sinfo.hwnd         = NULL;
