@@ -113,7 +113,7 @@ function populate() {
 
 function validate() {
   yield testCanonicalBookmarks();
-  yield testToolbarFolder();
+  testToolbarFolder();
   testUnfiledBookmarks();
   testTags();
 }
@@ -217,11 +217,16 @@ function testToolbarFolder() {
   // title
   do_check_eq("Latest Headlines", livemark.title);
 
-  let foundLivemark = yield PlacesUtils.livemarks.getLivemark({ id: livemark.itemId });
-  do_check_eq("http://en-us.fxfeeds.mozilla.com/en-US/firefox/livebookmarks/",
-              foundLivemark.siteURI.spec);
-  do_check_eq("http://en-us.fxfeeds.mozilla.com/en-US/firefox/headlines.xml",
-              foundLivemark.feedURI.spec);
+  PlacesUtils.livemarks.getLivemark(
+    { id: livemark.itemId },
+    function (aStatus, aLivemark) {
+      do_check_true(Components.isSuccessCode(aStatus));
+      do_check_eq("http://en-us.fxfeeds.mozilla.com/en-US/firefox/livebookmarks/",
+                  aLivemark.siteURI.spec);
+      do_check_eq("http://en-us.fxfeeds.mozilla.com/en-US/firefox/headlines.xml",
+                  aLivemark.feedURI.spec);
+    }
+  );
 
   // test added bookmark data
   var child = toolbar.getChild(2);

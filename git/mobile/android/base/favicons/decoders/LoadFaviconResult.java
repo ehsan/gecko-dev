@@ -21,15 +21,15 @@ import java.util.Iterator;
 public class LoadFaviconResult {
     private static final String LOGTAG = "LoadFaviconResult";
 
-    byte[] faviconBytes;
-    int offset;
-    int length;
+    byte[] mFaviconBytes;
+    int mOffset;
+    int mLength;
 
-    boolean isICO;
-    Iterator<Bitmap> bitmapsDecoded;
+    boolean mIsICO;
+    Iterator<Bitmap> mBitmapsDecoded;
 
     public Iterator<Bitmap> getBitmaps() {
-        return bitmapsDecoded;
+        return mBitmapsDecoded;
     }
 
     /**
@@ -40,17 +40,17 @@ public class LoadFaviconResult {
      */
     public byte[] getBytesForDatabaseStorage() {
         // Begin by normalising the buffer.
-        if (offset != 0 || length != faviconBytes.length) {
-            final byte[] normalised = new byte[length];
-            System.arraycopy(faviconBytes, offset, normalised, 0, length);
-            offset = 0;
-            faviconBytes = normalised;
+        if (mOffset != 0 || mLength != mFaviconBytes.length) {
+            final byte[] normalised = new byte[mLength];
+            System.arraycopy(mFaviconBytes, mOffset, normalised, 0, mLength);
+            mOffset = 0;
+            mFaviconBytes = normalised;
         }
 
         // For results containing a single image, we re-encode the result as a PNG in an effort to
         // save space.
-        if (!isICO) {
-            Bitmap favicon = ((FaviconDecoder.SingleBitmapIterator) bitmapsDecoded).peek();
+        if (!mIsICO) {
+            Bitmap favicon = ((FaviconDecoder.SingleBitmapIterator) mBitmapsDecoded).peek();
             byte[] data = null;
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
 
@@ -68,7 +68,7 @@ public class LoadFaviconResult {
         // We may instead want to consider re-encoding the entire ICO as a collection of efficiently
         // encoded PNGs. This may not be worth the CPU time (Indeed, the encoding of single-image
         // favicons may also not be worth the time/space tradeoff.).
-        return faviconBytes;
+        return mFaviconBytes;
     }
 
 }

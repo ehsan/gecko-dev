@@ -147,13 +147,17 @@ var gEditItemOverlay = {
       else {
         this._uri = null;
         this._isLivemark = false;
-        PlacesUtils.livemarks.getLivemark({id: this._itemId })
-          .then(aLivemark => {
-            this._isLivemark = true;
-            this._initTextField("feedLocationField", aLivemark.feedURI.spec, true);
-            this._initTextField("siteLocationField", aLivemark.siteURI ? aLivemark.siteURI.spec : "", true);
-            this._showHideRows();
-          }, () => undefined);
+        PlacesUtils.livemarks.getLivemark(
+          {id: this._itemId },
+          (function (aStatus, aLivemark) {
+            if (Components.isSuccessCode(aStatus)) {
+              this._isLivemark = true;
+              this._initTextField("feedLocationField", aLivemark.feedURI.spec, true);
+              this._initTextField("siteLocationField", aLivemark.siteURI ? aLivemark.siteURI.spec : "", true);
+              this._showHideRows();
+            }
+          }).bind(this)
+        );
       }
 
       // folder picker

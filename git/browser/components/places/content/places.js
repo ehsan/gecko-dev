@@ -326,13 +326,10 @@ var PlacesOrganizer = {
   },
 
   openFlatContainer: function PO_openFlatContainerFlatContainer(aContainer) {
-    if (aContainer.itemId != -1) {
-      PlacesUtils.asContainer(this._places.selectedNode).containerOpen = true;
+    if (aContainer.itemId != -1)
       this._places.selectItems([aContainer.itemId], false);
-    }
-    else if (PlacesUtils.nodeIsQuery(aContainer)) {
+    else if (PlacesUtils.nodeIsQuery(aContainer))
       this._places.selectPlaceURI(aContainer.uri);
-    }
   },
 
   /**

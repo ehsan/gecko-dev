@@ -1121,13 +1121,10 @@ public class GeckoAppShell
     /**
      * Given the inputs to <code>getOpenURIIntent</code>, plus an optional
      * package name and class name, create and fire an intent to open the
-     * provided URI. If a class name is specified but a package name is not,
-     * we will default to using the current fennec package.
+     * provided URI.
      *
      * @param targetURI the string spec of the URI to open.
      * @param mimeType an optional MIME type string.
-     * @param packageName an optional app package name.
-     * @param className an optional intent class name.
      * @param action an Android action specifier, such as
      *               <code>Intent.ACTION_SEND</code>.
      * @param title the title to use in <code>ACTION_SEND</code> intents.
@@ -1148,13 +1145,8 @@ public class GeckoAppShell
             return false;
         }
 
-        if (!TextUtils.isEmpty(className)) {
-            if (!TextUtils.isEmpty(packageName)) {
-                intent.setClassName(packageName, className);
-            } else {
-                // Default to using the fennec app context.
-                intent.setClassName(context, className);
-            }
+        if (packageName.length() > 0 && className.length() > 0) {
+            intent.setClassName(packageName, className);
         }
 
         intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);

@@ -154,11 +154,19 @@ function database_check() {
     // title
     do_check_eq("Latest Headlines", livemark.title);
 
-    let foundLivemark = yield PlacesUtils.livemarks.getLivemark({ id: livemark.itemId });
-    do_check_eq("http://en-us.fxfeeds.mozilla.com/en-US/firefox/livebookmarks/",
-                foundLivemark.siteURI.spec);
-    do_check_eq("http://en-us.fxfeeds.mozilla.com/en-US/firefox/headlines.xml",
-                foundLivemark.feedURI.spec);
+    let deferGetLivemark = Promise.defer();
+    PlacesUtils.livemarks.getLivemark(
+      { id: livemark.itemId },
+      function (aStatus, aLivemark) {
+        do_check_true(Components.isSuccessCode(aStatus));
+        do_check_eq("http://en-us.fxfeeds.mozilla.com/en-US/firefox/livebookmarks/",
+                    aLivemark.siteURI.spec);
+        do_check_eq("http://en-us.fxfeeds.mozilla.com/en-US/firefox/headlines.xml",
+                    aLivemark.feedURI.spec);
+        deferGetLivemark.resolve();
+      }
+    );
+    yield deferGetLivemark.promise;
 
     // cleanup
     toolbar.containerOpen = false;

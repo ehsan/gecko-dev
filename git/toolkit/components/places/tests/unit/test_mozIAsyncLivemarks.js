@@ -178,52 +178,82 @@ add_task(function test_addLivemark_noCallback_succeeds()
 });
 
 
-add_task(function test_addLivemark_noSiteURI_succeeds()
+add_task(function test_addLivemark_noSiteURI_callback_succeeds()
 {
+  let checkLivemark = aLivemark => {
+    do_check_true(aLivemark.id > 0);
+    do_check_valid_places_guid(aLivemark.guid);
+    do_check_eq(aLivemark.title, "test");
+    do_check_eq(aLivemark.parentId, PlacesUtils.unfiledBookmarksFolderId);
+    do_check_eq(aLivemark.index, PlacesUtils.bookmarks.getItemIndex(aLivemark.id));
+    do_check_eq(aLivemark.lastModified, PlacesUtils.bookmarks.getItemLastModified(aLivemark.id));
+    do_check_true(aLivemark.feedURI.equals(FEED_URI));
+    do_check_eq(aLivemark.siteURI, null);
+  };
+
+  // The deprecated callback is called before resolving the promise.
+  let callbackCalled = false;
   let livemark = yield PlacesUtils.livemarks.addLivemark(
     { title: "test"
     , parentId: PlacesUtils.unfiledBookmarksFolderId
     , index: PlacesUtils.bookmarks.DEFAULT_INDEX
     , feedURI: FEED_URI
-    });
-  do_check_true(livemark.id > 0);
-  do_check_valid_places_guid(livemark.guid);
-  do_check_eq(livemark.title, "test");
-  do_check_eq(livemark.parentId, PlacesUtils.unfiledBookmarksFolderId);
-  do_check_eq(livemark.index, PlacesUtils.bookmarks.getItemIndex(livemark.id));
-  do_check_eq(livemark.lastModified, PlacesUtils.bookmarks.getItemLastModified(livemark.id));
-  do_check_true(livemark.feedURI.equals(FEED_URI));
-  do_check_eq(livemark.siteURI, null);
+    },
+    (aStatus, aLivemark) => {
+      callbackCalled = true;
+      do_check_true(Components.isSuccessCode(aStatus));
+      checkLivemark(aLivemark);
+    } );
+  do_check_true(callbackCalled);
+  checkLivemark(livemark);
 });
 
-add_task(function test_addLivemark_succeeds()
+add_task(function test_addLivemark_callback_succeeds()
 {
+  let checkLivemark = aLivemark => {
+    do_check_true(aLivemark.id > 0);
+    do_check_valid_places_guid(aLivemark.guid);
+    do_check_eq(aLivemark.title, "test");
+    do_check_eq(aLivemark.parentId, PlacesUtils.unfiledBookmarksFolderId);
+    do_check_eq(aLivemark.index, PlacesUtils.bookmarks.getItemIndex(aLivemark.id));
+    do_check_eq(aLivemark.lastModified, PlacesUtils.bookmarks.getItemLastModified(aLivemark.id));
+    do_check_true(aLivemark.feedURI.equals(FEED_URI));
+    do_check_true(aLivemark.siteURI.equals(SITE_URI));
+    do_check_true(PlacesUtils.annotations
+                             .itemHasAnnotation(aLivemark.id,
+                                                PlacesUtils.LMANNO_FEEDURI));
+    do_check_true(PlacesUtils.annotations
+                             .itemHasAnnotation(aLivemark.id,
+                                                PlacesUtils.LMANNO_SITEURI));
+  };
+
+  // The deprecated callback is called before resolving the promise.
+  let callbackCalled = false;
   let livemark = yield PlacesUtils.livemarks.addLivemark(
     { title: "test"
     , parentId: PlacesUtils.unfiledBookmarksFolderId
     , index: PlacesUtils.bookmarks.DEFAULT_INDEX
     , feedURI: FEED_URI
     , siteURI: SITE_URI
-    });
-
-  do_check_true(livemark.id > 0);
-  do_check_valid_places_guid(livemark.guid);
-  do_check_eq(livemark.title, "test");
-  do_check_eq(livemark.parentId, PlacesUtils.unfiledBookmarksFolderId);
-  do_check_eq(livemark.index, PlacesUtils.bookmarks.getItemIndex(livemark.id));
-  do_check_eq(livemark.lastModified, PlacesUtils.bookmarks.getItemLastModified(livemark.id));
-  do_check_true(livemark.feedURI.equals(FEED_URI));
-  do_check_true(livemark.siteURI.equals(SITE_URI));
-  do_check_true(PlacesUtils.annotations
-                           .itemHasAnnotation(livemark.id,
-                                              PlacesUtils.LMANNO_FEEDURI));
-  do_check_true(PlacesUtils.annotations
-                           .itemHasAnnotation(livemark.id,
-                                              PlacesUtils.LMANNO_SITEURI));
+    },
+    (aStatus, aLivemark) => {
+      callbackCalled = true;
+      do_check_true(Components.isSuccessCode(aStatus));
+      checkLivemark(aLivemark);
+    } );
+  do_check_true(callbackCalled);
+  checkLivemark(livemark);
 });
 
-add_task(function test_addLivemark_bogusid_succeeds()
+add_task(function test_addLivemark_bogusid_callback_succeeds()
 {
+  let checkLivemark = aLivemark => {
+    do_check_true(aLivemark.id > 0);
+    do_check_neq(aLivemark.id, 100);
+  };
+
+  // The deprecated callback is called before resolving the promise.
+  let callbackCalled = false;
   let livemark = yield PlacesUtils.livemarks.addLivemark(
     { id: 100 // Should be ignored.
     , title: "test"
@@ -231,72 +261,118 @@ add_task(function test_addLivemark_bogusid_succeeds()
     , index: PlacesUtils.bookmarks.DEFAULT_INDEX
     , feedURI: FEED_URI
     , siteURI: SITE_URI
-    });
-  do_check_true(livemark.id > 0);
-  do_check_neq(livemark.id, 100);
+    },
+    (aStatus, aLivemark) => {
+      callbackCalled = true;
+      do_check_true(Components.isSuccessCode(aStatus));
+      checkLivemark(aLivemark);
+    } );
+  do_check_true(callbackCalled);
+  checkLivemark(livemark);
 });
 
-add_task(function test_addLivemark_bogusParent_fails()
+add_task(function test_addLivemark_bogusParent_callback_fails()
 {
+  // The deprecated callback is called before resolving the promise.
+  let callbackCalled = false;
   try {
     yield PlacesUtils.livemarks.addLivemark(
       { title: "test"
       , parentId: 187
       , index: PlacesUtils.bookmarks.DEFAULT_INDEX
       , feedURI: FEED_URI
-      });
+      },
+      (aStatus, aLivemark) => {
+        callbackCalled = true;
+        do_check_false(Components.isSuccessCode(aStatus));
+        do_check_eq(aLivemark, null);
+      } );
     do_throw("Adding a livemark with a bogus parent should fail");
-  } catch(ex) {}
+  }
+  catch(ex) {
+    do_check_true(callbackCalled);
+  }
 });
 
-add_task(function test_addLivemark_intoLivemark_fails()
+add_task(function test_addLivemark_intoLivemark_callback_fails()
 {
+  // The deprecated callback is called before resolving the promise.
+  let callbackCalled = false;
   let livemark = yield PlacesUtils.livemarks.addLivemark(
     { title: "test"
     , parentId: PlacesUtils.unfiledBookmarksFolderId
     , index: PlacesUtils.bookmarks.DEFAULT_INDEX
     , feedURI: FEED_URI
-    });
+    },
+    (aStatus, aLivemark) => {
+      callbackCalled = true;
+      do_check_true(Components.isSuccessCode(aStatus));
+    } );
+  do_check_true(callbackCalled);
   do_check_true(Boolean(livemark));
 
+  callbackCalled = false;
   try {
     yield PlacesUtils.livemarks.addLivemark(
       { title: "test"
       , parentId: livemark.id
       , index: PlacesUtils.bookmarks.DEFAULT_INDEX
       , feedURI: FEED_URI
-      });
+      },
+      (aStatus, aLivemark) => {
+        callbackCalled = true;
+        do_check_false(Components.isSuccessCode(aStatus));
+        do_check_eq(aLivemark, null);
+      } );
     do_throw("Adding a livemark into a livemark should fail");
-  } catch(ex) {}
+  }
+  catch(ex) {
+    do_check_true(callbackCalled);
+  }
 });
 
-add_task(function test_addLivemark_forceGuid_succeeds()
+add_task(function test_addLivemark_forceGuid_callback_succeeds()
 {
   let checkLivemark = aLivemark => {
     do_check_eq(aLivemark.guid, "1234567890AB");
     do_check_guid_for_bookmark(aLivemark.id, "1234567890AB");
   };
 
+  // The deprecated callback is called before resolving the promise.
+  let callbackCalled = false;
   let livemark = yield PlacesUtils.livemarks.addLivemark(
     { title: "test"
     , parentId: PlacesUtils.unfiledBookmarksFolderId
     , index: PlacesUtils.bookmarks.DEFAULT_INDEX
     , feedURI: FEED_URI
     , guid: "1234567890AB"
-    });
+    },
+    (aStatus, aLivemark) => {
+      callbackCalled = true;
+      do_check_true(Components.isSuccessCode(aStatus));
+      checkLivemark(aLivemark);
+    } );
+  do_check_true(callbackCalled);
   checkLivemark(livemark);
 });
 
-add_task(function test_addLivemark_lastModified_succeeds()
+add_task(function test_addLivemark_lastModified_callback_succeeds()
 {
   let now = Date.now() * 1000;
+  let callbackCalled = false;
   let livemark = yield PlacesUtils.livemarks.addLivemark(
     { title: "test"
     , parentId: PlacesUtils.unfiledBookmarksFolderId
     , index: PlacesUtils.bookmarks.DEFAULT_INDEX
     , feedURI: FEED_URI
     , lastModified: now
-    });
+    },
+    (aStatus, aLivemark) => {
+      callbackCalled = true;
+      do_check_true(Components.isSuccessCode(aStatus));
+      do_check_eq(aLivemark.lastModified, now);
+    } );
+  do_check_true(callbackCalled);
   do_check_eq(livemark.lastModified, now);
 });
 
@@ -322,11 +398,19 @@ add_task(function test_removeLivemark_noValidId_throws()
 
 add_task(function test_removeLivemark_nonExistent_fails()
 {
+  let callbackCalled = false;
   try {
-    yield PlacesUtils.livemarks.removeLivemark({ id: 1337 });
+    yield PlacesUtils.livemarks.removeLivemark(
+      { id: 1337 },
+      (aStatus, aLivemark) => {
+        callbackCalled = true;
+        do_check_false(Components.isSuccessCode(aStatus));
+        do_check_eq(aLivemark, null);
+      } );
     do_throw("Removing a non-existent livemark should fail");
   }
   catch(ex) {
+    do_check_true(callbackCalled);
   }
 });
 
@@ -385,20 +469,36 @@ add_task(function test_getLivemark_noValidId_throws()
 
 add_task(function test_getLivemark_nonExistentId_fails()
 {
+  let callbackCalled = false;
   try {
-    yield PlacesUtils.livemarks.getLivemark({ id: 1234 });
+    yield PlacesUtils.livemarks.getLivemark({ id: 1234 },
+      (aStatus, aLivemark) => {
+        callbackCalled = true;
+        do_check_false(Components.isSuccessCode(aStatus));
+        do_check_eq(aLivemark, null);
+      } );
     do_throw("getLivemark for a non existent id should fail");
   }
-  catch(ex) {}
+  catch(ex) {
+    do_check_true(callbackCalled);
+  }
 });
 
 add_task(function test_getLivemark_nonExistentGUID_fails()
 {
+  let callbackCalled = false;
   try {
-    yield PlacesUtils.livemarks.getLivemark({ guid: "34567890ABCD" });
+    yield PlacesUtils.livemarks.getLivemark({ guid: "34567890ABCD" },
+      (aStatus, aLivemark) => {
+        callbackCalled = true;
+        do_check_false(Components.isSuccessCode(aStatus));
+        do_check_eq(aLivemark, null);
+      } );
     do_throw("getLivemark for a non-existent guid should fail");
   }
-  catch(ex) {}
+  catch(ex) {
+    do_check_true(callbackCalled);
+  }
 });
 
 add_task(function test_getLivemark_guid_succeeds()
@@ -410,16 +510,26 @@ add_task(function test_getLivemark_guid_succeeds()
     , feedURI: FEED_URI
     , guid: "34567890ABCD" });
 
+  let checkLivemark = aLivemark => {
+    do_check_eq(aLivemark.title, "test");
+    do_check_eq(aLivemark.parentId, PlacesUtils.unfiledBookmarksFolderId);
+    do_check_eq(aLivemark.index, PlacesUtils.bookmarks.getItemIndex(aLivemark.id));
+    do_check_true(aLivemark.feedURI.equals(FEED_URI));
+    do_check_eq(aLivemark.siteURI, null);
+    do_check_eq(aLivemark.guid, "34567890ABCD");
+  };
+
   // invalid id to check the guid wins.
   let livemark =
-    yield PlacesUtils.livemarks.getLivemark({ id: 789, guid: "34567890ABCD" });
+    yield PlacesUtils.livemarks.getLivemark({ id: 789, guid: "34567890ABCD" },
+      (aStatus, aLivemark) => {
+        callbackCalled = true;
+        do_check_true(Components.isSuccessCode(aStatus));
+        checkLivemark(aLivemark)
+      } );
 
-  do_check_eq(livemark.title, "test");
-  do_check_eq(livemark.parentId, PlacesUtils.unfiledBookmarksFolderId);
-  do_check_eq(livemark.index, PlacesUtils.bookmarks.getItemIndex(livemark.id));
-  do_check_true(livemark.feedURI.equals(FEED_URI));
-  do_check_eq(livemark.siteURI, null);
-  do_check_eq(livemark.guid, "34567890ABCD");
+  do_check_true(callbackCalled);
+  checkLivemark(livemark);
 });
 
 add_task(function test_getLivemark_id_succeeds()
@@ -431,14 +541,26 @@ add_task(function test_getLivemark_id_succeeds()
     , feedURI: FEED_URI
     });
 
-  livemark = yield PlacesUtils.livemarks.getLivemark({ id: livemark.id });
+  let checkLivemark = aLivemark => {
+    do_check_eq(aLivemark.title, "test");
+    do_check_eq(aLivemark.parentId, PlacesUtils.unfiledBookmarksFolderId);
+    do_check_eq(aLivemark.index, PlacesUtils.bookmarks.getItemIndex(aLivemark.id));
+    do_check_true(aLivemark.feedURI.equals(FEED_URI));
+    do_check_eq(aLivemark.siteURI, null);
+    do_check_guid_for_bookmark(aLivemark.id, aLivemark.guid);
+  };
 
-  do_check_eq(livemark.title, "test");
-  do_check_eq(livemark.parentId, PlacesUtils.unfiledBookmarksFolderId);
-  do_check_eq(livemark.index, PlacesUtils.bookmarks.getItemIndex(livemark.id));
-  do_check_true(livemark.feedURI.equals(FEED_URI));
-  do_check_eq(livemark.siteURI, null);
-  do_check_guid_for_bookmark(livemark.id, livemark.guid);
+  let callbackCalled = false;
+  livemark = yield PlacesUtils.livemarks.getLivemark(
+    { id: livemark.id },
+    (aStatus, aLivemark) => {
+      callbackCalled = true;
+      do_check_true(Components.isSuccessCode(aStatus));
+      checkLivemark(aLivemark);
+    } );
+
+  do_check_true(callbackCalled);
+  checkLivemark(livemark);
 });
 
 add_task(function test_getLivemark_removeItem_contention()
@@ -457,14 +579,26 @@ add_task(function test_getLivemark_removeItem_contention()
   let id = PlacesUtils.bookmarks.getIdForItemAt(PlacesUtils.unfiledBookmarksFolderId,
                                                 PlacesUtils.bookmarks.DEFAULT_INDEX);
 
-  let livemark = yield PlacesUtils.livemarks.getLivemark({ id: id });
+  let checkLivemark = (aLivemark) => {
+    do_check_eq(aLivemark.title, "test");
+    do_check_eq(aLivemark.parentId, PlacesUtils.unfiledBookmarksFolderId);
+    do_check_eq(aLivemark.index, PlacesUtils.bookmarks.getItemIndex(aLivemark.id));
+    do_check_true(aLivemark.feedURI.equals(FEED_URI));
+    do_check_eq(aLivemark.siteURI, null);
+    do_check_guid_for_bookmark(aLivemark.id, aLivemark.guid);
+  };
 
-  do_check_eq(livemark.title, "test");
-  do_check_eq(livemark.parentId, PlacesUtils.unfiledBookmarksFolderId);
-  do_check_eq(livemark.index, PlacesUtils.bookmarks.getItemIndex(livemark.id));
-  do_check_true(livemark.feedURI.equals(FEED_URI));
-  do_check_eq(livemark.siteURI, null);
-  do_check_guid_for_bookmark(livemark.id, livemark.guid);
+  let callbackCalled = false;
+  let livemark = yield PlacesUtils.livemarks.getLivemark(
+    { id: id },
+    (aStatus, aLivemark) => {
+      callbackCalled = true;
+      do_check_true(Components.isSuccessCode(aStatus));
+      checkLivemark(aLivemark);
+    } );
+
+  do_check_true(callbackCalled);
+  checkLivemark(livemark);
 });
 
 add_task(function test_title_change()

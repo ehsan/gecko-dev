@@ -11,8 +11,8 @@ Services.prefs.setBoolPref("devtools.debugger.log", true);
 let gProcess;
 
 function test() {
-  // Windows XP and 8.1 test slaves are terribly slow at this test.
-  requestLongerTimeout(5);
+  // Windows XP test slaves are terribly slow at this test.
+  requestLongerTimeout(4);
 
   initChromeDebugger(aOnClose).then(aProcess => {
     gProcess = aProcess;
