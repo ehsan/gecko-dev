@@ -1,4 +1,3 @@
-#
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
 #
@@ -12,14 +11,15 @@
 # for the specific language governing rights and limitations under the
 # License.
 #
-# The Original Code is mozilla.org code.
+# The Original Code is Url Classifier code
 #
 # The Initial Developer of the Original Code is
-# Netscape Communications Corporation.
-# Portions created by the Initial Developer are Copyright (C) 1998
+# Google Inc.
+# Portions created by the Initial Developer are Copyright (C) 2006
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
+#   Tony Chang <tony@ponderer.org>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,52 +35,35 @@
 #
 # ***** END LICENSE BLOCK *****
 
-DEPTH = ../../..
-topsrcdir = @top_srcdir@
-srcdir = @srcdir@
-VPATH = @srcdir@
+// We wastefully reload the same JS files across components.  This puts all
+// the common JS files used by safebrowsing and url-classifier into a
+// single component.
 
-include $(DEPTH)/config/autoconf.mk
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const G_GDEBUG = false;
 
-MODULE = feeds
-LIBRARY_NAME = feed_s
-MOZILLA_INTERNAL_API = 1
-FORCE_STATIC_LIB = 1
-LIBXUL_LIBRARY = 1
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
-XPIDLSRCS = \
-  nsIFeed.idl \
-  nsIFeedContainer.idl \
-  nsIFeedElementBase.idl \
-  nsIFeedEntry.idl \
-  nsIFeedGenerator.idl \
-  nsIFeedListener.idl \
-  nsIFeedPerson.idl \
-  nsIFeedProcessor.idl \
-  nsIFeedResult.idl \
-  nsIFeedTextConstruct.idl \
-  nsIScriptableUnescapeHTML.idl \
-  $(NULL)
+#include ./content/moz/lang.js
+#include ./content/moz/preferences.js
+#include ./content/moz/debug.js
+#include ./content/moz/alarm.js
+#include ./content/moz/cryptohasher.js
+#include ./content/moz/observer.js
+#include ./content/moz/protocol4.js
 
-CPPSRCS = \
-  nsScriptableUnescapeHTML.cpp \
-  $(NULL)
+#include ./content/request-backoff.js
+#include ./content/url-crypto-key-manager.js
+#include ./content/xml-fetcher.js
 
-EXTRA_COMPONENTS = FeedProcessor.js FeedProcessor.manifest
+// Expose this whole component.
+var lib = this;
 
-include $(topsrcdir)/config/rules.mk
+function UrlClassifierLib() {
+  this.wrappedJSObject = lib;
+}
+UrlClassifierLib.prototype.classID = Components.ID("{26a4a019-2827-4a89-a85c-5931a678823a}");
+UrlClassifierLib.prototype.QueryInterface = XPCOMUtils.generateQI([]);
 
-ABS_SRCDIR := $(shell cd $(srcdir) && pwd)
-ifeq ($(OS_ARCH),WINNT)
-
-ABS_DEPTH := $(shell cd $(DEPTH) && pwd)
-
-check::
-	cd $(srcdir)/test; $(ABS_DEPTH)/dist/bin/xpcshell$(BIN_SUFFIX) shell.js 
-
-else
-
-check::
-	$(RUN_TEST_PROGRAM) $(DIST)/bin/xpcshell$(BIN_SUFFIX) $(srcdir)/test/shell.js $(ABS_SRCDIR)/test
-
-endif # WINNT
+var NSGetFactory = XPCOMUtils.generateNSGetFactory([UrlClassifierLib]);
