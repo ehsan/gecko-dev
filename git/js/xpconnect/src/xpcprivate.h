@@ -179,7 +179,7 @@
 #define XPC_JS_MAP_LENGTH                       32
 #define XPC_JS_CLASS_MAP_LENGTH                 32
 
-#define XPC_NATIVE_MAP_LENGTH                   32
+#define XPC_NATIVE_MAP_LENGTH                    8
 #define XPC_NATIVE_PROTO_MAP_LENGTH              8
 #define XPC_DYING_NATIVE_PROTO_MAP_LENGTH        8
 #define XPC_DETACHED_NATIVE_PROTO_MAP_LENGTH    16
@@ -3370,6 +3370,7 @@ struct GlobalProperties {
     bool TextDecoder : 1;
     bool TextEncoder : 1;
     bool URL : 1;
+    bool URLSearchParams : 1;
     bool atob : 1;
     bool btoa : 1;
 };
