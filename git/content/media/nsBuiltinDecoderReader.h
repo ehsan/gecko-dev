@@ -376,7 +376,7 @@ public:
       mTimeEnd(aTimeEnd)
   {}
 
-  PRBool IsNull() const {
+  PRBool IsNull() {
     return mOffsetStart == 0 &&
            mOffsetEnd == 0 &&
            mTimeStart == 0 &&
@@ -438,12 +438,8 @@ public:
   virtual PRInt64 FindEndTime(PRInt64 aEndOffset);
 
   // Moves the decode head to aTime milliseconds. aStartTime and aEndTime
-  // denote the start and end times of the media in ms, and aCurrentTime
-  // is the current playback position in ms.
-  virtual nsresult Seek(PRInt64 aTime,
-                        PRInt64 aStartTime,
-                        PRInt64 aEndTime,
-                        PRInt64 aCurrentTime) = 0;
+  // denote the start and end times of the media.
+  virtual nsresult Seek(PRInt64 aTime, PRInt64 aStartTime, PRInt64 aEndTime) = 0;
 
   // Gets presentation info required for playback.
   const nsVideoInfo& GetInfo() {
@@ -464,10 +460,6 @@ public:
                                PRInt64 aStartTime) = 0;
 
 protected:
-
-  // Pumps the decode until we reach frames/samples required to play at
-  // time aTarget (ms).
-  nsresult DecodeToTarget(PRInt64 aTarget);
 
   // Reader decode function. Matches DecodeVideoFrame() and
   // DecodeAudioData().

@@ -301,8 +301,11 @@ nsGenericHTMLElement::CopyInnerTo(nsGenericElement* aDst) const
         value->Type() == nsAttrValue::eCSSStyleRule) {
       // We can't just set this as a string, because that will fail
       // to reparse the string into style data until the node is
-      // inserted into the document.  Clone the nsICSSRule instead.
-      nsCOMPtr<nsICSSRule> ruleClone = value->GetCSSStyleRuleValue()->Clone();
+      // inserted into the document.  Clone the HTMLValue instead.
+      nsCOMPtr<nsICSSRule> ruleClone;
+      rv = value->GetCSSStyleRuleValue()->Clone(*getter_AddRefs(ruleClone));
+      NS_ENSURE_SUCCESS(rv, rv);
+
       nsCOMPtr<nsICSSStyleRule> styleRule = do_QueryInterface(ruleClone);
       NS_ENSURE_TRUE(styleRule, NS_ERROR_UNEXPECTED);
 
@@ -1916,8 +1919,7 @@ nsGenericHTMLElement::MapBackgroundInto(const nsMappedAttributes* aAttributes,
     return;
 
   nsPresContext* presContext = aData->mPresContext;
-  if (aData->mColorData->mBackImage.GetUnit() == eCSSUnit_Null &&
-      presContext->UseDocumentColors()) {
+  if (!aData->mColorData->mBackImage && presContext->UseDocumentColors()) {
     // background
     const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::background);
     if (value && value->Type() == nsAttrValue::eString) {
@@ -1947,9 +1949,11 @@ nsGenericHTMLElement::MapBackgroundInto(const nsMappedAttributes* aAttributes,
                                     doc->NodePrincipal(), doc);
             buffer->Release();
             if (NS_LIKELY(img != 0)) {
-              nsCSSValueList* list =
-                aData->mColorData->mBackImage.SetListValue();
-              list->mValue.SetImageValue(img);
+              // Use nsRuleDataColor's temporary mTempBackImage to
+              // make a value list.
+              aData->mColorData->mTempBackImage.mValue.SetImageValue(img);
+              aData->mColorData->mBackImage =
+                &aData->mColorData->mTempBackImage;
             }
           }
         }
@@ -1957,8 +1961,10 @@ nsGenericHTMLElement::MapBackgroundInto(const nsMappedAttributes* aAttributes,
       else if (presContext->CompatibilityMode() == eCompatibility_NavQuirks) {
         // in NavQuirks mode, allow the empty string to set the
         // background to empty
-        nsCSSValueList* list = aData->mColorData->mBackImage.SetListValue();
-        list->mValue.SetNoneValue();
+        // Use nsRuleDataColor's temporary mTempBackImage to make a value list.
+        aData->mColorData->mBackImage = nsnull;
+        aData->mColorData->mTempBackImage.mValue.SetNoneValue();
+        aData->mColorData->mBackImage = &aData->mColorData->mTempBackImage;
       }
     }
   }
@@ -2703,10 +2709,8 @@ nsGenericHTMLFormElement::IsSingleLineTextControlInternal(PRBool aExcludePasswor
                                                           PRInt32 aType) const
 {
   return aType == NS_FORM_INPUT_TEXT ||
-         aType == NS_FORM_INPUT_EMAIL ||
          aType == NS_FORM_INPUT_SEARCH ||
          aType == NS_FORM_INPUT_TEL ||
-         aType == NS_FORM_INPUT_URL ||
          (!aExcludePassword && aType == NS_FORM_INPUT_PASSWORD);
 }
 
@@ -2872,7 +2876,7 @@ nsGenericHTMLFrameElement::EnsureFrameLoader()
     return NS_OK;
   }
 
-  mFrameLoader = nsFrameLoader::Create(this, mNetworkCreated);
+  mFrameLoader = nsFrameLoader::Create(this);
   return NS_OK;
 }
 
@@ -2935,10 +2939,7 @@ nsGenericHTMLFrameElement::BindToTree(nsIDocument* aDocument,
     // We're in a document now.  Kick off the frame load.
     LoadSrc();
   }
-
-  // We're now in document and scripts may move us, so clear
-  // the mNetworkCreated flag.
-  mNetworkCreated = PR_FALSE;
+  
   return rv;
 }
 
@@ -2999,7 +3000,7 @@ nsGenericHTMLFrameElement::CopyInnerTo(nsGenericElement* aDest) const
   if (doc->IsStaticDocument() && mFrameLoader) {
     nsGenericHTMLFrameElement* dest =
       static_cast<nsGenericHTMLFrameElement*>(aDest);
-    nsFrameLoader* fl = nsFrameLoader::Create(dest, PR_FALSE);
+    nsFrameLoader* fl = nsFrameLoader::Create(dest);
     NS_ENSURE_STATE(fl);
     dest->mFrameLoader = fl;
     static_cast<nsFrameLoader*>(mFrameLoader.get())->CreateStaticClone(fl);

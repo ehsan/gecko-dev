@@ -97,9 +97,6 @@ var gPlayTests = [
   { name:"audio-overhang.ogg", type:"audio/ogg", duration:2.3 },
   { name:"video-overhang.ogg", type:"audio/ogg", duration:3.966 },
 
-  // bug461281.ogg with the middle second chopped out.
-  { name:"audio-gaps.ogg", type:"audio/ogg", duration:2.208 },
-
   // Test playback/metadata work after a redirect
   { name:"redirect.sjs?domain=mochi.test:8888&file=320x240.ogv",
     type:"video/ogg", duration:0.233 },
@@ -203,7 +200,6 @@ var gSeekTests = [
   { name:"seek.ogv", type:"video/ogg", duration:3.966 },
   { name:"320x240.ogv", type:"video/ogg", duration:0.233 },
   { name:"seek.webm", type:"video/webm", duration:3.966 },
-  { name:"bug516323.indexed.ogv", type:"video/ogg", duration:4.208 },
   { name:"bogus.duh", type:"bogus/duh", duration:123 }
 ];
 

@@ -66,6 +66,7 @@
 #include "mozFlushType.h"
 #include "nsWeakReference.h"
 #include <stdio.h> // for FILE definition
+#include "nsRefreshDriver.h"
 #include "nsChangeHint.h"
 
 class nsIContent;
@@ -101,8 +102,6 @@ struct nsPoint;
 struct nsIntPoint;
 struct nsRect;
 struct nsIntRect;
-class nsRefreshDriver;
-class nsARefreshObserver;
 
 typedef short SelectionType;
 typedef PRUint64 nsFrameState;
@@ -139,8 +138,8 @@ typedef struct CapturingContentInfo {
 } CapturingContentInfo;
 
 #define NS_IPRESSHELL_IID     \
-  { 0xe63a350c, 0x4e04, 0x4056, \
-    { 0x8d, 0xa0, 0x51, 0xcc, 0x55, 0x68, 0x68, 0x42 } }
+  { 0xe82aae32, 0x2d68, 0x452a, \
+    { 0x88, 0x95, 0x86, 0xc6, 0x07, 0xe1, 0xec, 0x91 } }
 
 // Constants for ScrollContentIntoView() function
 #define NS_PRESSHELL_SCROLL_TOP      0
@@ -479,11 +478,11 @@ public:
   virtual NS_HIDDEN_(void) ClearFrameRefs(nsIFrame* aFrame) = 0;
 
   /**
-   * Get a reference rendering context. This is a context that should not
-   * be rendered to, but is suitable for measuring text and performing
-   * other non-rendering operations.
+   * Given a frame, create a rendering context suitable for use with
+   * the frame.
    */
-  virtual already_AddRefed<nsIRenderingContext> GetReferenceRenderingContext() = 0;
+  virtual NS_HIDDEN_(nsresult) CreateRenderingContext(nsIFrame *aFrame,
+                                                      nsIRenderingContext** aContext) = 0;
 
   /**
    * Informs the pres shell that the document is now at the anchor with
@@ -980,7 +979,10 @@ public:
     return mObservesMutationsForPrint;
   }
 
-  virtual nsresult SetIsActive(PRBool aIsActive) = 0;
+  void SetIsActive(PRBool aIsActive)
+  {
+    mIsActive = aIsActive;
+  }
 
   PRBool IsActive()
   {
@@ -1091,8 +1093,6 @@ public:
   static void ReleaseStatics();
 
 protected:
-  friend class nsRefreshDriver;
-
   // IMPORTANT: The ownership implicit in the following member variables
   // has been explicitly checked.  If you add any members to this class,
   // please make the ownership explicit (pinkerton, scc).
@@ -1102,7 +1102,7 @@ protected:
   nsIDocument*              mDocument;      // [STRONG]
   nsPresContext*            mPresContext;   // [STRONG]
   nsStyleSet*               mStyleSet;      // [OWNS]
-  nsCSSFrameConstructor*    mFrameConstructor; // [OWNS]
+  nsCSSFrameConstructor*    mFrameConstructor; // [STRONG]
   nsIViewManager*           mViewManager;   // [WEAK] docViewer owns it so I don't have to
   nsFrameSelection*         mSelection;
   nsFrameManagerBase        mFrameManager;  // [OWNS]
@@ -1125,7 +1125,6 @@ protected:
   PRPackedBool              mPaintingSuppressed;  // For all documents we initially lock down painting.
   PRPackedBool              mIsThemeSupportDisabled;  // Whether or not form controls should use nsITheme in this shell.
   PRPackedBool              mIsActive;
-  PRPackedBool              mFrozen;
 
 #ifdef ACCESSIBILITY
   /**
@@ -1141,13 +1140,6 @@ protected:
 
   PRPackedBool              mObservesMutationsForPrint;
 
-  PRPackedBool              mReflowScheduled; // If true, we have a reflow
-                                              // scheduled. Guaranteed to be
-                                              // false if mReflowContinueTimer
-                                              // is non-null.
-
-  PRPackedBool              mSuppressInterruptibleReflows;
-
   // A list of weak frames. This is a pointer to the last item in the list.
   nsWeakFrame*              mWeakFrames;
 
@@ -1157,8 +1149,6 @@ protected:
   // Live pres shells, for memory and other tracking
   typedef nsPtrHashKey<nsIPresShell> PresShellPtrKey;
   static nsTHashtable<PresShellPtrKey> *sLiveShells;
-
-  static nsIContent* gKeyDownTarget;
 };
 
 /**

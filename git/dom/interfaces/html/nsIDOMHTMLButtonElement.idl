@@ -47,16 +47,12 @@
  * http://www.w3.org/TR/DOM-Level-2-HTML/
  */
 
-interface nsIDOMValidityState;
-
-[scriptable, uuid(f80d0ab0-a9a0-11df-94e2-0800200c9a66)]
+[scriptable, uuid(dfed25e8-07e8-41a9-8f9e-9fbf59c539ea)]
 interface nsIDOMHTMLButtonElement : nsIDOMHTMLElement
 {
            attribute boolean               autofocus;
            attribute boolean               disabled;
   readonly attribute nsIDOMHTMLFormElement form;
-           attribute DOMString             formAction;
-           attribute DOMString             formTarget;
 
            attribute DOMString             name;
            attribute DOMString             type;
@@ -68,13 +64,5 @@ interface nsIDOMHTMLButtonElement : nsIDOMHTMLElement
   void                      blur();
   void                      focus();
   void                      click();
-
-  // The following lines are parte of the constraint validation API, see:
-  // http://dev.w3.org/html5/spec/forms.html#the-constraint-validation-api
-  readonly attribute boolean             willValidate;
-  readonly attribute nsIDOMValidityState validity;
-  readonly attribute DOMString           validationMessage;
-  boolean checkValidity();
-  void setCustomValidity(in DOMString error);
 };
 

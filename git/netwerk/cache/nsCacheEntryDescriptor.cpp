@@ -513,6 +513,7 @@ nsInputStreamWrapper::LazyInit()
     nsCacheEntry* cacheEntry = mDescriptor->CacheEntry();
     if (!cacheEntry) return NS_ERROR_NOT_AVAILABLE;
 
+    nsCOMPtr<nsIInputStream> input;
     rv = nsCacheService::OpenInputStreamForEntry(cacheEntry, mode,
                                                  mStartOffset,
                                                  getter_AddRefs(mInput));

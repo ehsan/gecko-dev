@@ -72,7 +72,6 @@
 #include <signal.h>
 #include <stdio.h>
 #include <sys/mman.h>
-#include <sys/prctl.h>
 #include <sys/signal.h>
 #include <sys/syscall.h>
 #include <sys/ucontext.h>
@@ -269,10 +268,7 @@ void ExceptionHandler::SignalHandler(int sig, siginfo_t* info, void* uc) {
   // crashed. The default action for all the signals which we catch is Core, so
   // this is the end of us.
   signal(sig, SIG_DFL);
-
-  // TODO(markus): mask signal and return to caller
-  tgkill(getpid(), syscall(__NR_gettid), sig);
-  _exit(1);
+  tgkill(getpid(), sys_gettid(), sig);
 
   // not reached.
 }
@@ -300,7 +296,7 @@ bool ExceptionHandler::HandleSignal(int sig, siginfo_t* info, void* uc) {
     return false;
 
   // Allow ourselves to be dumped.
-  prctl(PR_SET_DUMPABLE, 1);
+  sys_prctl(PR_SET_DUMPABLE, 1);
   CrashContext context;
   memcpy(&context.siginfo, info, sizeof(siginfo_t));
   memcpy(&context.context, uc, sizeof(struct ucontext));
@@ -313,7 +309,7 @@ bool ExceptionHandler::HandleSignal(int sig, siginfo_t* info, void* uc) {
            sizeof(context.float_state));
   }
 #endif
-  context.tid = syscall(__NR_gettid);
+  context.tid = sys_gettid();
   if (crash_handler_ != NULL) {
     if (crash_handler_(&context, sizeof(context),
                        callback_context_)) {

@@ -24,9 +24,6 @@
 <!ENTITY  pinTab.accesskey                   "p">
 <!ENTITY  unpinTab.label                     "Make into Normal Tab">
 <!ENTITY  unpinTab.accesskey                 "k">
-<!ENTITY  moveToGroup.label                  "Move to Group">
-<!ENTITY  moveToGroup.accesskey              "M">
-<!ENTITY  moveToNewGroup.label               "New Group">
 <!ENTITY  bookmarkThisTab.label              "Bookmark This Tab">
 <!ENTITY  bookmarkThisTab.accesskey          "B">
 <!ENTITY  bookmarkAllTabs.label              "Bookmark All Tabs…">
@@ -130,8 +127,6 @@
 
 <!-- Toolbar items --> 
 <!ENTITY  homeButton.label            "Home">
-<!ENTITY tabViewButton2.label         "Tab Groups">
-<!ENTITY tabViewButton2.tooltip       "Group Your Tabs">
 
 <!ENTITY bookmarksButton.label          "Bookmarks">
 <!ENTITY bookmarksButton.tooltip        "Display your bookmarks">
@@ -191,12 +186,6 @@
 <!ENTITY inspectStyleButton.label     "Style">
 <!ENTITY inspectStyleButton.accesskey "S">
 <!ENTITY inspectStylePanelTitle.label  "Style">
-<!-- LOCALIZATION NOTE (inspectDOMButton.label): This button label
-  -  stands for Document Object Model and appears on the inspector's toolbar.
-  -  It is used to open and closed the DOM panel. There is also a DOM label in
-  -  inspector.properties for the panel titlebar. -->
-<!ENTITY inspectDOMButton.label       "DOM">
-<!ENTITY inspectDOMButton.accesskey       "D">
 
 <!ENTITY fileMenu.label         "File"> 
 <!ENTITY fileMenu.accesskey       "F">
@@ -244,8 +233,6 @@
 
 <!ENTITY viewMenu.label         "View"> 
 <!ENTITY viewMenu.accesskey       "V"> 
-<!ENTITY showTabView2.label     "Group Your Tabs…">
-<!ENTITY showTabView2.accesskey     "G">
 <!ENTITY viewToolbarsMenu.label       "Toolbars"> 
 <!ENTITY viewToolbarsMenu.accesskey     "T"> 
 <!ENTITY viewSidebarMenu.label "Sidebar">
@@ -265,12 +252,11 @@
 <!ENTITY showAllHistoryCmd2.label "Show All History">
 <!ENTITY showAllHistoryCmd.commandkey "H">
 
+<!ENTITY appMenuPrintCmd.label "Print">
 <!ENTITY appMenuCustomize.label "Customize">
 <!ENTITY appMenuToolbarLayout.label "Toolbar Layout…">
 <!ENTITY appMenuSidebars.label "Sidebars">
-<!ENTITY appMenuFind.label "Find…">
-<!ENTITY appMenuUnsorted.label "Unsorted Bookmarks">
-<!ENTITY appMenuGettingStarted.label "Getting Started">
+<!ENTITY appMenuHelp.label "Help">
 
 <!ENTITY developerMenu.label "Developer">
 

@@ -56,8 +56,6 @@
 
 #include "gfxPlatform.h"
 
-using namespace mozilla::imagelib;
-
 extern "C" {
 #include "iccjpeg.h"
 
@@ -147,11 +145,9 @@ NS_IMETHODIMP nsJPEGDecoder::Init(imgIContainer *aImage,
                                   imgIDecoderObserver *aObserver,
                                   PRUint32 aFlags)
 {
-  NS_ABORT_IF_FALSE(aImage->GetType() == imgIContainer::TYPE_RASTER,
-                    "wrong type of imgIContainer for decoding into");
 
   /* Grab the parameters. */
-  mImage = static_cast<RasterImage*>(aImage);
+  mImage = aImage;
   mObserver = aObserver;
   mFlags = aFlags;
 

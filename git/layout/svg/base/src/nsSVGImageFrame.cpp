@@ -45,7 +45,6 @@
 #include "gfxContext.h"
 #include "gfxMatrix.h"
 #include "nsIInterfaceRequestorUtils.h"
-#include "gfxPlatform.h"
 
 class nsSVGImageFrame;
 
@@ -59,8 +58,7 @@ public:
   NS_IMETHOD OnStopDecode(imgIRequest *aRequest, nsresult status,
                           const PRUnichar *statusArg);
   // imgIContainerObserver (override nsStubImageDecoderObserver)
-  NS_IMETHOD FrameChanged(imgIContainer *aContainer,
-                          const nsIntRect *aDirtyRect);
+  NS_IMETHOD FrameChanged(imgIContainer *aContainer, nsIntRect * dirtyRect);
   // imgIContainerObserver (override nsStubImageDecoderObserver)
   NS_IMETHOD OnStartContainer(imgIRequest *aRequest,
                               imgIContainer *aContainer);
@@ -328,7 +326,7 @@ nsSVGImageFrame::UpdateCoveredRegion()
 {
   mRect.Empty();
 
-  gfxContext context(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
+  gfxContext context(nsSVGUtils::GetThebesComputationalSurface());
 
   GeneratePath(&context);
   context.IdentityMatrix();
@@ -404,7 +402,7 @@ NS_IMETHODIMP nsSVGImageListener::OnStopDecode(imgIRequest *aRequest,
 }
 
 NS_IMETHODIMP nsSVGImageListener::FrameChanged(imgIContainer *aContainer,
-                                               const nsIntRect *aDirtyRect)
+                                               nsIntRect * dirtyRect)
 {
   if (!mFrame)
     return NS_ERROR_FAILURE;

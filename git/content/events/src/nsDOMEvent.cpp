@@ -65,7 +65,7 @@ static const char* const sEventNames[] = {
   "mouseout", "MozMouseHittest", "mousemove", "contextmenu", "keydown", "keyup", "keypress",
   "focus", "blur", "load", "popstate", "beforeunload", "unload",
   "hashchange", "readystatechange", "abort", "error",
-  "submit", "reset", "change", "select", "input", "invalid", "text",
+  "submit", "reset", "change", "select", "input", "text",
   "compositionstart", "compositionend", "popupshowing", "popupshown",
   "popuphiding", "popuphidden", "close", "command", "broadcast", "commandupdate",
   "dragenter", "dragover", "dragexit", "dragdrop", "draggesture",
@@ -91,7 +91,6 @@ static const char* const sEventNames[] = {
   "durationchange", "volumechange",
 #endif // MOZ_MEDIA
   "MozAfterPaint",
-  "MozBeforePaint",
   "MozSwipeGesture",
   "MozMagnifyGestureStart",
   "MozMagnifyGestureUpdate",
@@ -401,7 +400,7 @@ nsDOMEvent::GetCancelable(PRBool* aCancelable)
 NS_IMETHODIMP
 nsDOMEvent::GetTimeStamp(PRUint64* aTimeStamp)
 {
-  *aTimeStamp = mEvent->time;
+  LL_UI2L(*aTimeStamp, mEvent->time);
   return NS_OK;
 }
 
@@ -1149,8 +1148,6 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_select];
   case NS_FORM_INPUT:
     return sEventNames[eDOMEvents_input];
-  case NS_FORM_INVALID:
-    return sEventNames[eDOMEvents_invalid];
   case NS_RESIZE_EVENT:
     return sEventNames[eDOMEvents_resize];
   case NS_SCROLL_EVENT:
@@ -1305,8 +1302,6 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
 #endif
   case NS_AFTERPAINT:
     return sEventNames[eDOMEvents_afterpaint];
-  case NS_BEFOREPAINT:
-    return sEventNames[eDOMEvents_beforepaint];
   case NS_SIMPLE_GESTURE_SWIPE:
     return sEventNames[eDOMEvents_MozSwipeGesture];
   case NS_SIMPLE_GESTURE_MAGNIFY_START:

@@ -88,7 +88,6 @@ public:
     eDOMEvents_change,
     eDOMEvents_select,
     eDOMEvents_input,
-    eDOMEvents_invalid,
     eDOMEvents_text,
     eDOMEvents_compositionstart,
     eDOMEvents_compositionend,
@@ -171,7 +170,6 @@ public:
     eDOMEvents_volumechange,
 #endif
     eDOMEvents_afterpaint,
-    eDOMEvents_beforepaint,
     eDOMEvents_MozSwipeGesture,
     eDOMEvents_MozMagnifyGestureStart,
     eDOMEvents_MozMagnifyGestureUpdate,

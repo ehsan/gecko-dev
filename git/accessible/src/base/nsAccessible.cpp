@@ -103,8 +103,6 @@
 #include "nsIDOMCharacterData.h"
 #endif
 
-#include "mozilla/unused.h"
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessible. nsISupports
@@ -195,8 +193,8 @@ nsresult nsAccessible::QueryInterface(REFNSIID aIID, void** aInstancePtr)
 
 nsAccessible::nsAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
   nsAccessNodeWrap(aContent, aShell),
-  mParent(nsnull), mIndexInParent(-1), mChildrenFlags(eChildrenUninitialized),
-  mIndexOfEmbeddedChild(-1), mRoleMapEntry(nsnull)
+  mParent(nsnull), mAreChildrenInitialized(PR_FALSE), mIndexInParent(-1),
+  mRoleMapEntry(nsnull)
 {
 #ifdef NS_DEBUG_X
    {
@@ -1102,7 +1100,7 @@ nsAccessible::TakeFocus()
   nsIContent* focusContent = mContent;
 
   // If the current element can't take real DOM focus and if it has an ID and
-  // an ancestor with an aria-activedescendant attribute present, then set DOM
+  // ancestor with a the aria-activedescendant attribute present, then set DOM
   // focus to that ancestor and set aria-activedescendant on the ancestor to
   // the ID of the desired element.
   if (!frame->IsFocusable()) {
@@ -2753,7 +2751,6 @@ nsAccessible::UnbindFromParent()
 {
   mParent = nsnull;
   mIndexInParent = -1;
-  mIndexOfEmbeddedChild = -1;
   mGroupInfo = nsnull;
 }
 
@@ -2766,9 +2763,8 @@ nsAccessible::InvalidateChildren()
     child->UnbindFromParent();
   }
 
-  mEmbeddedObjCollector = nsnull;
   mChildren.Clear();
-  mChildrenFlags = eChildrenUninitialized;
+  mAreChildrenInitialized = PR_FALSE;
 }
 
 PRBool
@@ -2776,9 +2772,6 @@ nsAccessible::AppendChild(nsAccessible* aChild)
 {
   if (!mChildren.AppendElement(aChild))
     return PR_FALSE;
-
-  if (nsAccUtils::IsText(aChild))
-    mChildrenFlags = eMixedChildren;
 
   aChild->BindToParent(this, mChildren.Length() - 1);
   return PR_TRUE;
@@ -2792,11 +2785,6 @@ nsAccessible::InsertChildAt(PRUint32 aIndex, nsAccessible* aChild)
 
   for (PRUint32 idx = aIndex + 1; idx < mChildren.Length(); idx++)
     mChildren[idx]->mIndexInParent++;
-
-  if (nsAccUtils::IsText(aChild))
-    mChildrenFlags = eMixedChildren;
-
-  mEmbeddedObjCollector = nsnull;
 
   aChild->BindToParent(this, aIndex);
   return PR_TRUE;
@@ -2812,8 +2800,6 @@ nsAccessible::RemoveChild(nsAccessible* aChild)
     mChildren[idx]->mIndexInParent--;
 
   mChildren.RemoveElementAt(aChild->mIndexInParent);
-  mEmbeddedObjCollector = nsnull;
-
   aChild->UnbindFromParent();
   return PR_TRUE;
 }
@@ -2887,55 +2873,8 @@ PRInt32
 nsAccessible::GetIndexInParent()
 {
   // XXX: call GetParent() to repair the tree if it's broken.
-  GetParent();
+  nsAccessible* parent = GetParent();
   return mIndexInParent;
-}
-
-PRInt32
-nsAccessible::GetEmbeddedChildCount()
-{
-  if (EnsureChildren())
-    return -1;
-
-  if (mChildrenFlags == eMixedChildren) {
-    if (!mEmbeddedObjCollector)
-      mEmbeddedObjCollector = new EmbeddedObjCollector(this);
-    return mEmbeddedObjCollector ? mEmbeddedObjCollector->Count() : -1;
-  }
-
-  return GetChildCount();
-}
-
-nsAccessible*
-nsAccessible::GetEmbeddedChildAt(PRUint32 aIndex)
-{
-  if (EnsureChildren())
-    return nsnull;
-
-  if (mChildrenFlags == eMixedChildren) {
-    if (!mEmbeddedObjCollector)
-      mEmbeddedObjCollector = new EmbeddedObjCollector(this);
-    return mEmbeddedObjCollector ?
-      mEmbeddedObjCollector->GetAccessibleAt(aIndex) : nsnull;
-  }
-
-  return GetChildAt(aIndex);
-}
-
-PRInt32
-nsAccessible::GetIndexOfEmbeddedChild(nsAccessible* aChild)
-{
-  if (EnsureChildren())
-    return -1;
-
-  if (mChildrenFlags == eMixedChildren) {
-    if (!mEmbeddedObjCollector)
-      mEmbeddedObjCollector = new EmbeddedObjCollector(this);
-    return mEmbeddedObjCollector ?
-      mEmbeddedObjCollector->GetIndexAt(aChild) : -1;
-  }
-
-  return GetIndexOf(aChild);
 }
 
 #ifdef DEBUG
@@ -2973,8 +2912,7 @@ nsAccessible::TestChildCache(nsAccessible *aCachedChild)
 #ifdef DEBUG
   PRInt32 childCount = mChildren.Length();
   if (childCount == 0) {
-    NS_ASSERTION(mChildrenFlags == eChildrenUninitialized,
-                 "No children but initialized!");
+    NS_ASSERTION(!mAreChildrenInitialized, "No children but initialized!");
     return;
   }
 
@@ -2995,15 +2933,14 @@ PRBool
 nsAccessible::EnsureChildren()
 {
   if (IsDefunct()) {
-    mChildrenFlags = eChildrenUninitialized;
+    mAreChildrenInitialized = PR_FALSE;
     return PR_TRUE;
   }
 
-  if (mChildrenFlags != eChildrenUninitialized)
+  if (mAreChildrenInitialized)
     return PR_FALSE;
 
-  // State is embedded children until text leaf accessible is appended.
-  mChildrenFlags = eEmbeddedChildren; // Prevent reentry
+  mAreChildrenInitialized = PR_TRUE; // Prevent reentry
   CacheChildren();
 
   return PR_FALSE;

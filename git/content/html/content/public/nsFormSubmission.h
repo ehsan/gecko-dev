@@ -122,37 +122,26 @@ public:
     aCharset = mCharset;
   }
 
-  nsIContent* GetOriginatingElement() const
-  {
-    return mOriginatingElement.get();
-  }
-
 protected:
   /**
    * Can only be constructed by subclasses.
    *
    * @param aCharset the charset of the form as a string
-   * @param aOriginatingElement the originating element (can be null)
    */
-  nsFormSubmission(const nsACString& aCharset, nsIContent* aOriginatingElement)
+  nsFormSubmission(const nsACString& aCharset)
     : mCharset(aCharset)
-    , mOriginatingElement(aOriginatingElement)
   {
     MOZ_COUNT_CTOR(nsFormSubmission);
   }
 
   // The name of the encoder charset
   nsCString mCharset;
-
-  // Originating element.
-  nsCOMPtr<nsIContent> mOriginatingElement;
 };
 
 class nsEncodingFormSubmission : public nsFormSubmission
 {
 public:
-  nsEncodingFormSubmission(const nsACString& aCharset,
-                           nsIContent* aOriginatingElement);
+  nsEncodingFormSubmission(const nsACString& aCharset);
 
   virtual ~nsEncodingFormSubmission();
 
@@ -180,8 +169,7 @@ public:
   /**
    * @param aCharset the charset of the form as a string
    */
-  nsFSMultipartFormData(const nsACString& aCharset,
-                        nsIContent* aOriginatingElement);
+  nsFSMultipartFormData(const nsACString& aCharset);
   ~nsFSMultipartFormData();
  
   virtual nsresult AddNameValuePair(const nsAString& aName,
@@ -235,11 +223,9 @@ private:
  * Get a submission object based on attributes in the form (ENCTYPE and METHOD)
  *
  * @param aForm the form to get a submission object based on
- * @param aOriginatingElement the originating element (can be null)
  * @param aFormSubmission the form submission object (out param)
  */
 nsresult GetSubmissionFromForm(nsGenericHTMLElement* aForm,
-                               nsIContent* aOriginatingElement,
                                nsFormSubmission** aFormSubmission);
 
 #endif /* nsIFormSubmission_h___ */
