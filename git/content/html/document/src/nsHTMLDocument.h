@@ -163,8 +163,13 @@ public:
   nsIContent *GetBody(nsresult *aResult);
   already_AddRefed<nsContentList> GetElementsByName(const nsAString & aName)
   {
-    return NS_GetFuncStringContentList(this, MatchNameAttribute, nsnull,
-                                       UseExistingNameString, aName);
+    nsString* elementNameData = new nsString(aName);
+
+    return NS_GetFuncStringContentList(this,
+                                       MatchNameAttribute,
+                                       nsContentUtils::DestroyMatchString,
+                                       elementNameData,
+                                       *elementNameData);
   }
 
   // nsIDOMNSHTMLDocument interface
@@ -254,7 +259,6 @@ protected:
                              nsIAtom* aAtom, void* aData);
   static PRBool MatchNameAttribute(nsIContent* aContent, PRInt32 aNamespaceID,
                                    nsIAtom* aAtom, void* aData);
-  static void* UseExistingNameString(nsINode* aRootNode, const nsString* aName);
 
   static void DocumentWriteTerminationFunc(nsISupports *aRef);
 
