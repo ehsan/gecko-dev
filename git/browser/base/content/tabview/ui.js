@@ -26,7 +26,6 @@
  * Raymond Lee <raymond@appcoast.com>
  * Sean Dunn <seanedunn@yahoo.com>
  * Tim Taubert <tim.taubert@gmx.de>
- * Mihai Sucan <mihai.sucan@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -81,10 +80,6 @@ let UI = {
   // If true, a closed tab has just been restored.
   restoredClosedTab: false,
 
-  // Variable: _isChangingVisibility
-  // Tracks whether we're currently in the process of showing/hiding the tabview.
-  _isChangingVisibility: false,
-
   // Variable: _reorderTabItemsOnShow
   // Keeps track of the <GroupItem>s which their tab items' tabs have been moved
   // and re-orders the tab items when switching to TabView.
@@ -128,9 +123,9 @@ let UI = {
     wasInTabView: false 
   },
   
-  // Variable: _storageBusy
-  // Tells whether the storage is currently busy or not.
-  _storageBusy: false,
+  // Variable: _storageBusyCount
+  // Used to keep track of how many calls to storageBusy vs storageReady.
+  _storageBusyCount: 0,
 
   // Variable: isDOMWindowClosing
   // Tells wether the parent window is about to close
@@ -174,10 +169,6 @@ let UI = {
 
       // ___ storage
       Storage.init();
-
-      if (Storage.readWindowBusyState(gWindow))
-        this.storageBusy();
-
       let data = Storage.readUIData(gWindow);
       this._storageSanity(data);
       this._pageBounds = data.pageBounds;
@@ -239,15 +230,6 @@ let UI = {
         self.uninit();
       });
 
-      // ___ setup DOMWillOpenModalDialog message handler
-      let mm = gWindow.messageManager;
-      let callback = this._onDOMWillOpenModalDialog.bind(this);
-      mm.addMessageListener("Panorama:DOMWillOpenModalDialog", callback);
-
-      this._cleanupFunctions.push(function () {
-        mm.removeMessageListener("Panorama:DOMWillOpenModalDialog", callback);
-      });
-
       // ___ setup key handlers
       this._setTabViewFrameKeyHandlers();
 
@@ -289,10 +271,6 @@ let UI = {
         TabItems.saveAll(true);
         self._save();
       }, false);
-
-      // ___ load frame script
-      let frameScript = "chrome://browser/content/tabview-content.js";
-      gWindow.messageManager.loadFrameScript(frameScript, true);
 
       // ___ Done
       this._frameInitialized = true;
@@ -499,10 +477,8 @@ let UI = {
   // Parameters:
   //   zoomOut - true for zoom out animation, false for nothing.
   showTabView: function UI_showTabView(zoomOut) {
-    if (this.isTabViewVisible() || this._isChangingVisibility)
+    if (this.isTabViewVisible())
       return;
-
-    this._isChangingVisibility = true;
 
     // initialize the direction of the page
     this._initPageDirection();
@@ -546,7 +522,6 @@ let UI = {
         self.setActive(item);
 
         self._resize(true);
-        self._isChangingVisibility = false;
         dispatchEvent(event);
 
         // Flush pending updates
@@ -556,7 +531,6 @@ let UI = {
       });
     } else {
       self.clearActiveTab();
-      self._isChangingVisibility = false;
       dispatchEvent(event);
 
       // Flush pending updates
@@ -573,10 +547,8 @@ let UI = {
   // Function: hideTabView
   // Hides TabView and shows the main browser UI.
   hideTabView: function UI_hideTabView() {
-    if (!this.isTabViewVisible() || this._isChangingVisibility)
+    if (!this.isTabViewVisible())
       return;
-
-    this._isChangingVisibility = true;
 
     // another tab might be select if user decides to stay on a page when
     // a onclose confirmation prompts.
@@ -603,8 +575,6 @@ let UI = {
     this.setTitlebarColors(false);
 #endif
     Storage.saveVisibilityData(gWindow, "false");
-
-    this._isChangingVisibility = false;
 
     let event = document.createEvent("Events");
     event.initEvent("tabviewhidden", true, false);
@@ -642,13 +612,12 @@ let UI = {
   // Pauses the storage activity that conflicts with sessionstore updates and 
   // private browsing mode switches. Calls can be nested. 
   storageBusy: function UI_storageBusy() {
-    if (this._storageBusy)
-      return;
-
-    this._storageBusy = true;
-
-    TabItems.pauseReconnecting();
-    GroupItems.pauseAutoclose();
+    if (!this._storageBusyCount) {
+      TabItems.pauseReconnecting();
+      GroupItems.pauseAutoclose();
+    }
+    
+    this._storageBusyCount++;
   },
   
   // ----------
@@ -656,18 +625,16 @@ let UI = {
   // Resumes the activity paused by storageBusy, and updates for any new group
   // information in sessionstore. Calls can be nested. 
   storageReady: function UI_storageReady() {
-    if (!this._storageBusy)
-      return;
-
-    this._storageBusy = false;
-
-    let hasGroupItemsData = GroupItems.load();
-    if (!hasGroupItemsData)
-      this.reset();
-
-    TabItems.resumeReconnecting();
-    GroupItems._updateTabBar();
-    GroupItems.resumeAutoclose();
+    this._storageBusyCount--;
+    if (!this._storageBusyCount) {
+      let hasGroupItemsData = GroupItems.load();
+      if (!hasGroupItemsData)
+        this.reset();
+  
+      TabItems.resumeReconnecting();
+      GroupItems._updateTabBar();
+      GroupItems.resumeAutoclose();
+    }
   },
 
   // ----------
@@ -711,7 +678,6 @@ let UI = {
         }
       } else if (topic == "private-browsing-change-granted") {
         if (data == "enter" || data == "exit") {
-          hideSearch();
           self._privateBrowsing.transitionMode = data;
           self.storageBusy();
         }
@@ -737,8 +703,9 @@ let UI = {
     });
 
     // TabOpen
-    this._eventListeners.open = function (event) {
-      let tab = event.target;
+    this._eventListeners.open = function(tab) {
+      if (tab.ownerDocument.defaultView != gWindow)
+        return;
 
       // if it's an app tab, add it to all the group items
       if (tab.pinned)
@@ -748,8 +715,9 @@ let UI = {
     };
     
     // TabClose
-    this._eventListeners.close = function (event) {
-      let tab = event.target;
+    this._eventListeners.close = function(tab) {
+      if (tab.ownerDocument.defaultView != gWindow)
+        return;
 
       // if it's an app tab, remove it from all the group items
       if (tab.pinned)
@@ -762,7 +730,7 @@ let UI = {
       } else {
         // If we're currently in the process of entering private browsing,
         // we don't want to go to the Tab View UI. 
-        if (self._storageBusy)
+        if (self._storageBusyCount)
           return;
 
         // if not closing the last tab
@@ -781,14 +749,21 @@ let UI = {
               groupItem._children.length == 1 && 
               groupItem._children[0].tab == tab);
 
-          // 2) When a blank tab is active while restoring a closed tab the
+          // 2) Take care of the case where you've closed the last tab in
+          // an un-named groupItem, which means that the groupItem is gone (null) and
+          // there are no visible tabs. 
+          let closingUnnamedGroup = (groupItem == null &&
+              gBrowser.visibleTabs.length <= 1); 
+
+          // 3) When a blank tab is active while restoring a closed tab the
           // blank tab gets removed. The active group is not closed as this is
           // where the restored tab goes. So do not show the TabView.
           let tabItem = tab && tab._tabViewTabItem;
           let closingBlankTabAfterRestore =
             (tabItem && tabItem.isRemovedAfterRestore);
 
-          if (closingLastOfGroup && !closingBlankTabAfterRestore) {
+          if ((closingLastOfGroup || closingUnnamedGroup) &&
+              !closingBlankTabAfterRestore) {
             // for the tab focus event to pick up.
             self._closedLastVisibleTab = true;
             self.showTabView();
@@ -798,8 +773,9 @@ let UI = {
     };
 
     // TabMove
-    this._eventListeners.move = function (event) {
-      let tab = event.target;
+    this._eventListeners.move = function(tab) {
+      if (tab.ownerDocument.defaultView != gWindow)
+        return;
 
       if (GroupItems.groupItems.length > 0) {
         if (tab.pinned) {
@@ -814,21 +790,26 @@ let UI = {
     };
 
     // TabSelect
-    this._eventListeners.select = function (event) {
-      self.onTabSelect(event.target);
+    this._eventListeners.select = function(tab) {
+      if (tab.ownerDocument.defaultView != gWindow)
+        return;
+
+      self.onTabSelect(tab);
     };
 
     // TabPinned
-    this._eventListeners.pinned = function (event) {
-      let tab = event.target;
+    this._eventListeners.pinned = function(tab) {
+      if (tab.ownerDocument.defaultView != gWindow)
+        return;
 
       TabItems.handleTabPin(tab);
       GroupItems.addAppTab(tab);
     };
 
     // TabUnpinned
-    this._eventListeners.unpinned = function (event) {
-      let tab = event.target;
+    this._eventListeners.unpinned = function(tab) {
+      if (tab.ownerDocument.defaultView != gWindow)
+        return;
 
       TabItems.handleTabUnpin(tab);
       GroupItems.removeAppTab(tab);
@@ -902,14 +883,8 @@ let UI = {
 
     // if TabView is visible but we didn't just close the last tab or
     // selected tab, show chrome.
-    if (this.isTabViewVisible()) {
-      // Unhide the group of the tab the user is activating.
-      if (tab && tab._tabViewTabItem && tab._tabViewTabItem.parent &&
-          tab._tabViewTabItem.parent.hidden)
-        tab._tabViewTabItem.parent._unhide({immediately: true});
-
+    if (this.isTabViewVisible())
       this.hideTabView();
-    }
 
     // another tab might be selected when hideTabView() is invoked so a
     // validation is needed.
@@ -941,27 +916,6 @@ let UI = {
       if (GroupItems.getActiveGroupItem())
         GroupItems._updateTabBar();
     }
-  },
-
-  // ----------
-  // Function: _onDOMWillOpenModalDialog
-  // Called when a web page is about to show a modal dialog.
-  _onDOMWillOpenModalDialog: function UI__onDOMWillOpenModalDialog(cx) {
-    if (!this.isTabViewVisible())
-      return;
-
-    let index = gBrowser.browsers.indexOf(cx.target);
-    if (index == -1)
-      return;
-
-    let tab = gBrowser.tabs[index];
-
-    // When TabView is visible, we need to call onTabSelect to make sure that
-    // TabView is hidden and that the correct group is activated. When a modal
-    // dialog is shown for currently selected tab the onTabSelect event handler
-    // is not called, so we need to do it.
-    if (gBrowser.selectedTab == tab && this._currentTab == tab)
-      this.onTabSelect(tab);
   },
 
   // ----------

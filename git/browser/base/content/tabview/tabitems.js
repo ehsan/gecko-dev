@@ -478,22 +478,29 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     // closing tab doesn't belong to a group and no empty group, create a new 
     // one for the new tab.
     if (!groupClose && gBrowser.tabs.length == 1) {
-      let group = this.tab._tabViewTabItem.parent;
+      let group;
+      if (this.tab._tabViewTabItem.parent) {
+        group = this.tab._tabViewTabItem.parent;
+      } else {
+        let emptyGroups = GroupItems.groupItems.filter(function (groupItem) {
+          return (!groupItem.getChildren().length);
+        });
+        group = (emptyGroups.length ? emptyGroups[0] : GroupItems.newGroup());
+      }
       group.newTab(null, { closedLastTab: true });
     }
-
     // when "TabClose" event is fired, the browser tab is about to close and our 
     // item "close" is fired before the browser tab actually get closed. 
     // Therefore, we need "tabRemoved" event below.
     gBrowser.removeTab(this.tab);
-    let tabClosed = !this.tab;
-
-    if (tabClosed)
+    let tabNotClosed = 
+      Array.some(gBrowser.tabs, function(tab) { return tab == this.tab; }, this);
+    if (!tabNotClosed)
       this._sendToSubscribers("tabRemoved");
 
     // No need to explicitly delete the tab data, becasue sessionstore data
     // associated with the tab will automatically go away
-    return tabClosed;
+    return !tabNotClosed;
   },
 
   // ----------
@@ -739,26 +746,27 @@ let TabItems = {
     this.tempCanvas.height = 112;
 
     // When a tab is opened, create the TabItem
-    this._eventListeners.open = function (event) {
-      let tab = event.target;
+    this._eventListeners["open"] = function(tab) {
+      if (tab.ownerDocument.defaultView != gWindow || tab.pinned)
+        return;
 
-      if (!tab.pinned)
-        self.link(tab);
+      self.link(tab);
     }
     // When a tab's content is loaded, show the canvas and hide the cached data
     // if necessary.
-    this._eventListeners.attrModified = function (event) {
-      let tab = event.target;
+    this._eventListeners["attrModified"] = function(tab) {
+      if (tab.ownerDocument.defaultView != gWindow || tab.pinned)
+        return;
 
-      if (!tab.pinned)
-        self.update(tab);
+      self.update(tab);
     }
     // When a tab is closed, unlink.
-    this._eventListeners.close = function (event) {
-      let tab = event.target;
+    this._eventListeners["close"] = function(tab) {
+      if (tab.ownerDocument.defaultView != gWindow || tab.pinned)
+        return;
 
       // XXX bug #635975 - don't unlink the tab if the dom window is closing.
-      if (!tab.pinned && !UI.isDOMWindowClosing)
+      if (!UI.isDOMWindowClosing)
         self.unlink(tab);
     }
     for (let name in this._eventListeners) {
@@ -766,8 +774,8 @@ let TabItems = {
     }
 
     // For each tab, create the link.
-    AllTabs.tabs.forEach(function (tab) {
-      if (tab.pinned)
+    AllTabs.tabs.forEach(function(tab) {
+      if (tab.ownerDocument.defaultView != gWindow || tab.pinned)
         return;
 
       self.link(tab, {immediately: true});

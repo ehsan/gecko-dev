@@ -79,6 +79,9 @@ let Storage = {
 
       // ___ Tabs
       AllTabs.tabs.forEach(function(tab) {
+        if (tab.ownerDocument.defaultView != gWindow)
+          return;
+
         self.saveTab(tab, null);
       });
 
@@ -179,23 +182,6 @@ let Storage = {
       Utils.log("Error in readGroupItemData: "+e, data);
     }
     return existingData;
-  },
-
-  // ----------
-  // Function: readWindowBusyState
-  // Returns the current busyState for the given window.
-  readWindowBusyState: function Storage_readWindowBusyState(win) {
-    let state;
-
-    try {
-      let data = this._sessionStore.getWindowState(win);
-      if (data)
-        state = JSON.parse(data);
-    } catch (e) {
-      Utils.log("Error while parsing window state");
-    }
-
-    return (state && state.windows[0].busy);
   },
 
   // ----------

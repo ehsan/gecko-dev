@@ -15,7 +15,7 @@ function loadTabs (win) {
 function testTopOfStack(win) {
   registerCleanupFunction(function () { win.close(); });
   let cw = win.TabView.getContentWindow();
-  let groupItem = cw.GroupItems.getActiveGroupItem();
+  groupItem = cw.GroupItems.getActiveGroupItem();
   ok(!groupItem.isStacked(), 'groupItem is not stacked');
   groupItem.setSize(150, 150);
   groupItem.setUserSize();

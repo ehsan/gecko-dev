@@ -868,11 +868,8 @@ var InspectorUI = {
       delete this.treeBrowserDocument;
     }
 
-    if (this.treeIFrame) {
-      let parent = this.treeIFrame.parentNode;
-      parent.removeChild(this.treeIFrame);
+    if (this.treeIFrame)
       delete this.treeIFrame;
-    }
     delete this.ioBox;
 
     if (this.domplate) {
@@ -896,8 +893,6 @@ var InspectorUI = {
     this.treeLoaded = false;
 
     this.treePanel.addEventListener("popuphidden", function treePanelHidden() {
-      this.removeEventListener("popuphidden", treePanelHidden, false);
-
       InspectorUI.closing = false;
       Services.obs.notifyObservers(null, INSPECTOR_NOTIFICATIONS.CLOSED, null);
     }, false);

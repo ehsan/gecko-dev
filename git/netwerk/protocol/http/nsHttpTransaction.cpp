@@ -592,6 +592,8 @@ nsHttpTransaction::Close(nsresult reason)
         return;
     }
 
+    mTimings.responseEnd = mozilla::TimeStamp::Now();
+
     if (mActivityDistributor) {
         // report the reponse is complete if not already reported
         if (!mResponseIsComplete)
@@ -1118,9 +1120,6 @@ nsHttpTransaction::HandleContent(char *buf,
         // the transaction is done with a complete response.
         mTransactionDone = PR_TRUE;
         mResponseIsComplete = PR_TRUE;
-
-        if (TimingEnabled())
-            mTimings.responseEnd = mozilla::TimeStamp::Now();
 
         // report the entire response has arrived
         if (mActivityDistributor)
