@@ -1003,7 +1003,8 @@ MacroAssembler::generateBailoutTail(Register scratch, Register bailoutInfo)
         load32(Address(temp, BaselineFrame::reverseOffsetOfFrameSize()), temp);
         makeFrameDescriptor(temp, IonFrame_BaselineJS);
         push(temp);
-        push(Address(bailoutInfo, offsetof(BaselineBailoutInfo, resumeAddr)));
+        loadPtr(Address(bailoutInfo, offsetof(BaselineBailoutInfo, resumeAddr)), temp);
+        push(temp);
         enterFakeExitFrame();
 
         // If monitorStub is non-null, handle resumeAddr appropriately.
@@ -1020,9 +1021,12 @@ MacroAssembler::generateBailoutTail(Register scratch, Register bailoutInfo)
         {
             // Save needed values onto stack temporarily.
             pushValue(Address(bailoutInfo, offsetof(BaselineBailoutInfo, valueR0)));
-            push(Address(bailoutInfo, offsetof(BaselineBailoutInfo, resumeFramePtr)));
-            push(Address(bailoutInfo, offsetof(BaselineBailoutInfo, resumeAddr)));
-            push(Address(bailoutInfo, offsetof(BaselineBailoutInfo, monitorStub)));
+            loadPtr(Address(bailoutInfo, offsetof(BaselineBailoutInfo, resumeFramePtr)), temp);
+            push(temp);
+            loadPtr(Address(bailoutInfo, offsetof(BaselineBailoutInfo, resumeAddr)), temp);
+            push(temp);
+            loadPtr(Address(bailoutInfo, offsetof(BaselineBailoutInfo, monitorStub)), temp);
+            push(temp);
 
             // Call a stub to free allocated memory and create arguments objects.
             setupUnalignedABICall(1, temp);
@@ -1036,6 +1040,7 @@ MacroAssembler::generateBailoutTail(Register scratch, Register bailoutInfo)
             enterMonRegs.take(BaselineStubReg);
             enterMonRegs.take(BaselineFrameReg);
             enterMonRegs.takeUnchecked(BaselineTailCallReg);
+            Register jitcodeReg = enterMonRegs.takeAny();
 
             pop(BaselineStubReg);
             pop(BaselineTailCallReg);
@@ -1045,10 +1050,11 @@ MacroAssembler::generateBailoutTail(Register scratch, Register bailoutInfo)
             // Discard exit frame.
             addPtr(Imm32(IonExitFrameLayout::SizeWithFooter()), StackPointer);
 
+            loadPtr(Address(BaselineStubReg, ICStub::offsetOfStubCode()), jitcodeReg);
 #if defined(JS_CPU_X86) || defined(JS_CPU_X64)
             push(BaselineTailCallReg);
 #endif
-            jump(Address(BaselineStubReg, ICStub::offsetOfStubCode()));
+            jump(jitcodeReg);
         }
 
         //
@@ -1059,8 +1065,10 @@ MacroAssembler::generateBailoutTail(Register scratch, Register bailoutInfo)
             // Save needed values onto stack temporarily.
             pushValue(Address(bailoutInfo, offsetof(BaselineBailoutInfo, valueR0)));
             pushValue(Address(bailoutInfo, offsetof(BaselineBailoutInfo, valueR1)));
-            push(Address(bailoutInfo, offsetof(BaselineBailoutInfo, resumeFramePtr)));
-            push(Address(bailoutInfo, offsetof(BaselineBailoutInfo, resumeAddr)));
+            loadPtr(Address(bailoutInfo, offsetof(BaselineBailoutInfo, resumeFramePtr)), temp);
+            push(temp);
+            loadPtr(Address(bailoutInfo, offsetof(BaselineBailoutInfo, resumeAddr)), temp);
+            push(temp);
 
             // Call a stub to free allocated memory and create arguments objects.
             setupUnalignedABICall(1, temp);

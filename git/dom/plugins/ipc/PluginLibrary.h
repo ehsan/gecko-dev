@@ -13,7 +13,6 @@
 #include "nscore.h"
 #include "nsTArray.h"
 #include "nsError.h"
-#include "mozilla/EventForwards.h"
 
 class gfxASurface;
 class gfxContext;
@@ -21,6 +20,7 @@ class nsCString;
 struct nsIntRect;
 struct nsIntSize;
 class nsNPAPIPlugin;
+class nsGUIEvent;
 
 namespace mozilla {
 namespace layers {

@@ -113,7 +113,7 @@ nsWindowRoot::AddEventListener(const nsAString& aType,
 
 void
 nsWindowRoot::AddEventListener(const nsAString& aType,
-                                EventListener* aListener,
+                                nsIDOMEventListener* aListener,
                                 bool aUseCapture,
                                 const Nullable<bool>& aWantsUntrusted,
                                 ErrorResult& aRv)

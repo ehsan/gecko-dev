@@ -99,7 +99,7 @@ BasicPlanarYCbCrImage::SetData(const Data& aData)
     return;
   }
 
-  gfxImageFormat format = GetOffscreenFormat();
+  gfxASurface::gfxImageFormat format = GetOffscreenFormat();
 
   gfxIntSize size(mScaleHint);
   gfxUtils::GetYCbCrToRGBDestFormatAndSize(aData, format, size);
@@ -143,7 +143,7 @@ BasicPlanarYCbCrImage::GetAsSurface()
     return PlanarYCbCrImage::GetAsSurface();
   }
 
-  gfxImageFormat format = GetOffscreenFormat();
+  gfxASurface::gfxImageFormat format = GetOffscreenFormat();
 
   nsRefPtr<gfxImageSurface> imgSurface =
       new gfxImageSurface(mDecodedBuffer, mSize, mStride, format);

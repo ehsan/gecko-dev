@@ -4378,8 +4378,8 @@ PresShell::RenderDocument(const nsRect& aRect, uint32_t aFlags,
 
   if (needsGroup) {
     aThebesContext->PushGroup(NS_GET_A(aBackgroundColor) == 0xff ?
-                              GFX_CONTENT_COLOR :
-                              GFX_CONTENT_COLOR_ALPHA);
+                              gfxASurface::CONTENT_COLOR :
+                              gfxASurface::CONTENT_COLOR_ALPHA);
     aThebesContext->Save();
 
     if (oldOperator != gfxContext::OPERATOR_OVER) {
@@ -4710,7 +4710,7 @@ PresShell::PaintRangePaintInfo(nsTArray<nsAutoPtr<RangePaintInfo> >* aItems,
 
   nsRefPtr<gfxImageSurface> surface =
     new gfxImageSurface(gfxIntSize(pixelArea.width, pixelArea.height),
-                        gfxImageFormatARGB32);
+                        gfxImageSurface::ImageFormatARGB32);
   if (surface->CairoStatus()) {
     return nullptr;
   }
@@ -6017,7 +6017,7 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
 
   if (mIsDestroying ||
       (sDisableNonTestMouseEvents && !aEvent->mFlags.mIsSynthesizedForTests &&
-       aEvent->HasMouseEventMessage())) {
+       NS_IS_MOUSE_EVENT(aEvent))) {
     return NS_OK;
   }
 
@@ -6027,9 +6027,8 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
     return NS_OK;
 
   nsIContent* capturingContent =
-    (aEvent->HasMouseEventMessage() ||
-     aEvent->eventStructType == NS_WHEEL_EVENT ? GetCapturingContent() :
-                                                 nullptr);
+    NS_IS_MOUSE_EVENT(aEvent) || aEvent->eventStructType == NS_WHEEL_EVENT ?
+      GetCapturingContent() : nullptr;
 
   nsCOMPtr<nsIDocument> retargetEventDoc;
   if (!aDontRetargetEvents) {
@@ -6042,7 +6041,7 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
     // active window.  So, the events should be handled on the last focused
     // content in the last focused DOM window in same top level window.
     // Note, if no DOM window has been focused yet, we can discard the events.
-    if (aEvent->IsTargetedAtFocusedWindow()) {
+    if (NS_IsEventTargetedAtFocusedWindow(aEvent)) {
       nsCOMPtr<nsPIDOMWindow> window = GetFocusedDOMWindowInOurWindow();
       // No DOM window in same top level window has not been focused yet,
       // discard the events.
@@ -6072,7 +6071,7 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
         nsIFrame* frame = presShell->GetRootFrame();
         if (!frame) {
           if (aEvent->message == NS_QUERY_TEXT_CONTENT ||
-              aEvent->IsContentCommandEvent()) {
+              NS_IS_CONTENT_COMMAND_EVENT(aEvent)) {
             return NS_OK;
           }
 
@@ -6110,7 +6109,7 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
     frame = GetNearestFrameContainingPresShell(this);
   }
 
-  bool dispatchUsingCoordinates = aEvent->IsUsingCoordinates();
+  bool dispatchUsingCoordinates = NS_IsEventUsingCoordinates(aEvent);
   if (dispatchUsingCoordinates) {
     NS_WARN_IF_FALSE(frame, "Nothing to handle this event!");
     if (!frame)
@@ -6377,7 +6376,7 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
     // to the active document when mouse is over some subdocument.
     nsEventStateManager* activeESM =
       nsEventStateManager::GetActiveEventStateManager();
-    if (activeESM && aEvent->HasMouseEventMessage() &&
+    if (activeESM && NS_IS_MOUSE_EVENT(aEvent) &&
         activeESM != shell->GetPresContext()->EventStateManager() &&
         static_cast<nsEventStateManager*>(activeESM)->GetPresContext()) {
       nsIPresShell* activeShell =
@@ -6410,7 +6409,7 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
     PushCurrentEventInfo(nullptr, nullptr);
 
     // key and IME related events go to the focused frame in this DOM window.
-    if (aEvent->IsTargetedAtFocusedContent()) {
+    if (NS_IsEventTargetedAtFocusedContent(aEvent)) {
       mCurrentEventContent = nullptr;
 
       nsCOMPtr<nsPIDOMWindow> window =
@@ -6500,7 +6499,7 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
       mCurrentEventFrame = nullptr;
       return HandleEventInternal(aEvent, aEventStatus);
     }
-    else if (aEvent->HasKeyEventMessage()) {
+    else if (NS_IS_KEY_EVENT(aEvent)) {
       // Keypress events in new blank tabs should not be completely thrown away.
       // Retarget them -- the parent chrome shell might make use of them.
       return RetargetEventToParent(aEvent, aEventStatus);
@@ -6873,7 +6872,7 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsEventStatus* aStatus)
       if (aEvent->eventStructType == NS_KEY_EVENT) {
         nsContentUtils::SetIsHandlingKeyBoardEvent(true);
       }
-      if (aEvent->IsAllowedToDispatchDOMEvent()) {
+      if (NS_IsAllowedToDispatchDOMEvent(aEvent)) {
         nsPresShellEventCB eventCB(this);
         if (aEvent->eventStructType == NS_TOUCH_EVENT) {
           DispatchTouchEvent(aEvent, aStatus, &eventCB, touchIsNew);
@@ -8587,14 +8586,14 @@ DumpToPNG(nsIPresShell* shell, nsAString& name) {
 
   nsRefPtr<gfxImageSurface> imgSurface =
      new gfxImageSurface(gfxIntSize(width, height),
-                         gfxImageFormatARGB32);
+                         gfxImageSurface::ImageFormatARGB32);
 
   nsRefPtr<gfxContext> imgContext = new gfxContext(imgSurface);
 
   nsRefPtr<gfxASurface> surface = 
     gfxPlatform::GetPlatform()->
     CreateOffscreenSurface(gfxIntSize(width, height),
-      gfxASurface::ContentFromFormat(gfxImageFormatARGB32));
+      gfxASurface::ContentFromFormat(gfxASurface::ImageFormatARGB32));
   NS_ENSURE_TRUE(surface, NS_ERROR_OUT_OF_MEMORY);
 
   nsRefPtr<gfxContext> context = new gfxContext(surface);

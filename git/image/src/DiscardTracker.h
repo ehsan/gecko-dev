@@ -10,7 +10,6 @@
 #include "mozilla/LinkedList.h"
 #include "mozilla/TimeStamp.h"
 #include "prlock.h"
-#include "nsThreadUtils.h"
 
 class nsITimer;
 

@@ -19,6 +19,7 @@ struct nsHTMLReflowState;
 struct nsSize;
 class  nsIAtom;
 class  nsHTMLFramesetBorderFrame;
+class  nsGUIEvent;
 class  nsHTMLFramesetFrame;
 
 #define NO_COLOR 0xFFFFFFFA

@@ -21,7 +21,6 @@
 #include "js/TypeDecls.h"
 #include "js/RootingAPI.h"
 #include "mozilla/Assertions.h"
-#include "mozilla/EventForwards.h"
 #include "mozilla/GuardObjects.h"
 #include "mozilla/TimeStamp.h"
 #include "nsContentListDeclarations.h"
@@ -35,6 +34,8 @@ class imgIRequest;
 class imgLoader;
 class imgRequestProxy;
 class nsAutoScriptBlockerSuppressNodeRemoved;
+class nsDragEvent;
+class nsEvent;
 class nsEventListenerManager;
 class nsHtml5StringParser;
 class nsIChannel;
@@ -83,6 +84,7 @@ class nsIWidget;
 class nsIWordBreaker;
 class nsIXPConnect;
 class nsIXPConnectJSObjectHolder;
+class nsKeyEvent;
 class nsNodeInfoManager;
 class nsPIDOMWindow;
 class nsPresContext;

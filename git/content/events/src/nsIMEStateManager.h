@@ -6,7 +6,7 @@
 #ifndef nsIMEStateManager_h__
 #define nsIMEStateManager_h__
 
-#include "mozilla/EventForwards.h"
+#include "nsEvent.h"
 #include "nsIWidget.h"
 
 class nsDispatchingCallback;

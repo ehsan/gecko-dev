@@ -78,7 +78,6 @@ class MochitestRunner(MozbuildObject):
     """
 
     def get_webapp_runtime_path(self):
-        import mozinfo
         appname = 'webapprt-stub' + mozinfo.info.get('bin_suffix', '')
         if sys.platform.startswith('darwin'):
             appname = os.path.join(self.distdir, self.substs['MOZ_MACBUNDLE_NAME'],

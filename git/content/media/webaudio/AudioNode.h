@@ -57,6 +57,44 @@ private:
   bool mHeld;
 };
 
+template<class T>
+class SelfCountedReference {
+public:
+  SelfCountedReference() : mRefCnt(0) {}
+  ~SelfCountedReference()
+  {
+    NS_ASSERTION(mRefCnt == 0, "Forgot to drop the self reference?");
+  }
+
+  void Take(T* t)
+  {
+    if (mRefCnt++ == 0) {
+      t->AddRef();
+    }
+  }
+  void Drop(T* t)
+  {
+    if (mRefCnt > 0) {
+      --mRefCnt;
+      if (mRefCnt == 0) {
+        t->Release();
+      }
+    }
+  }
+  void ForceDrop(T* t)
+  {
+    if (mRefCnt > 0) {
+      mRefCnt = 0;
+      t->Release();
+    }
+  }
+
+  operator bool() const { return mRefCnt > 0; }
+
+private:
+  nsrefcnt mRefCnt;
+};
+
 /**
  * The DOM object representing a Web Audio AudioNode.
  *
@@ -173,14 +211,6 @@ public:
   const nsTArray<InputNode>& InputNodes() const
   {
     return mInputNodes;
-  }
-  const nsTArray<nsRefPtr<AudioNode> >& OutputNodes() const
-  {
-    return mOutputNodes;
-  }
-  const nsTArray<nsRefPtr<AudioParam> >& OutputParams() const
-  {
-    return mOutputParams;
   }
 
   void RemoveOutputParam(AudioParam* aParam);

@@ -11,7 +11,6 @@
 #include "mozilla/layers/ImageBridgeChild.h"
 #include "mozilla/layers/GrallocTextureClient.h"
 #include "gfx2DGlue.h"
-#include "gfxImageSurface.h"
 
 #include <OMX_IVCommon.h>
 #include <ColorConverter.h>
@@ -230,7 +229,7 @@ GrallocImage::GetAsSurface()
   }
 
   nsRefPtr<gfxImageSurface> imageSurface =
-    new gfxImageSurface(GetSize(), gfxImageFormatRGB16_565);
+    new gfxImageSurface(GetSize(), gfxASurface::ImageFormatRGB16_565);
 
   uint32_t width = GetSize().width;
   uint32_t height = GetSize().height;

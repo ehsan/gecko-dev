@@ -670,7 +670,7 @@ DefinePropertyOnObject(JSContext *cx, HandleObject obj, HandleId id, const PropD
                     return Reject(cx, JSMSG_CANT_REDEFINE_PROP, throwError, id, rval);
                 }
 
-                if (!js_NativeGet(cx, obj, obj2, shape, &v))
+                if (!js_NativeGet(cx, obj, obj2, shape, 0, &v))
                     return false;
             }
 
@@ -4021,6 +4021,7 @@ NativeGetInline(JSContext *cx,
                 typename MaybeRooted<JSObject*, allowGC>::HandleType receiver,
                 typename MaybeRooted<JSObject*, allowGC>::HandleType pobj,
                 typename MaybeRooted<Shape*, allowGC>::HandleType shape,
+                unsigned getHow,
                 typename MaybeRooted<Value, allowGC>::MutableHandleType vp)
 {
     JS_ASSERT(pobj->isNative());
@@ -4075,9 +4076,9 @@ NativeGetInline(JSContext *cx,
 
 bool
 js_NativeGet(JSContext *cx, Handle<JSObject*> obj, Handle<JSObject*> pobj, Handle<Shape*> shape,
-             MutableHandle<Value> vp)
+             unsigned getHow, MutableHandle<Value> vp)
 {
-    return NativeGetInline<CanGC>(cx, obj, obj, pobj, shape, vp);
+    return NativeGetInline<CanGC>(cx, obj, obj, pobj, shape, getHow, vp);
 }
 
 
@@ -4134,6 +4135,7 @@ GetPropertyHelperInline(JSContext *cx,
                         typename MaybeRooted<JSObject*, allowGC>::HandleType obj,
                         typename MaybeRooted<JSObject*, allowGC>::HandleType receiver,
                         typename MaybeRooted<jsid, allowGC>::HandleType id,
+                        uint32_t getHow,
                         typename MaybeRooted<Value, allowGC>::MutableHandleType vp)
 {
     /* This call site is hot -- use the always-inlined variant of LookupPropertyWithFlags(). */
@@ -4231,24 +4233,30 @@ GetPropertyHelperInline(JSContext *cx,
     }
 
     /* This call site is hot -- use the always-inlined variant of js_NativeGet(). */
-    if (!NativeGetInline<allowGC>(cx, obj, receiver, obj2, shape, vp))
+    if (!NativeGetInline<allowGC>(cx, obj, receiver, obj2, shape, getHow, vp))
         return false;
 
     return true;
 }
 
 bool
+js::GetPropertyHelper(JSContext *cx, HandleObject obj, HandleId id, uint32_t getHow, MutableHandleValue vp)
+{
+    return GetPropertyHelperInline<CanGC>(cx, obj, obj, id, getHow, vp);
+}
+
+bool
 baseops::GetProperty(JSContext *cx, HandleObject obj, HandleObject receiver, HandleId id, MutableHandleValue vp)
 {
     /* This call site is hot -- use the always-inlined variant of GetPropertyHelper(). */
-    return GetPropertyHelperInline<CanGC>(cx, obj, receiver, id, vp);
+    return GetPropertyHelperInline<CanGC>(cx, obj, receiver, id, 0, vp);
 }
 
 bool
 baseops::GetPropertyNoGC(JSContext *cx, JSObject *obj, JSObject *receiver, jsid id, Value *vp)
 {
     AutoAssertNoException nogc(cx);
-    return GetPropertyHelperInline<NoGC>(cx, obj, receiver, id, vp);
+    return GetPropertyHelperInline<NoGC>(cx, obj, receiver, id, 0, vp);
 }
 
 static JS_ALWAYS_INLINE bool
@@ -4433,7 +4441,7 @@ baseops::GetElement(JSContext *cx, HandleObject obj, HandleObject receiver, uint
         return false;
 
     /* This call site is hot -- use the always-inlined variant of js_GetPropertyHelper(). */
-    return GetPropertyHelperInline<CanGC>(cx, obj, receiver, id, vp);
+    return GetPropertyHelperInline<CanGC>(cx, obj, receiver, id, 0, vp);
 }
 
 static bool
