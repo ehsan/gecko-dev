@@ -3,22 +3,22 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsUDPSocket_h__
-#define nsUDPSocket_h__
+#ifndef nsUDPServerSocket_h__
+#define nsUDPServerSocket_h__
 
-#include "nsIUDPSocket.h"
+#include "nsIUDPServerSocket.h"
 #include "mozilla/Mutex.h"
 #include "nsIOutputStream.h"
 #include "nsAutoPtr.h"
 
 //-----------------------------------------------------------------------------
 
-class nsUDPSocket : public nsASocketHandler
-                  , public nsIUDPSocket
+class nsUDPServerSocket : public nsASocketHandler
+                        , public nsIUDPServerSocket
 {
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
-  NS_DECL_NSIUDPSOCKET
+  NS_DECL_NSIUDPSERVERSOCKET
 
   // nsASocketHandler methods:
   virtual void OnSocketReady(PRFileDesc* fd, int16_t outFlags);
@@ -30,10 +30,10 @@ public:
 
   void AddOutputBytes(uint64_t aBytes);
 
-  nsUDPSocket();
+  nsUDPServerSocket();
 
   // This must be public to support older compilers (xlC_r on AIX)
-  virtual ~nsUDPSocket();
+  virtual ~nsUDPServerSocket();
 
 private:
   void OnMsgClose();
@@ -47,7 +47,7 @@ private:
   mozilla::Mutex                       mLock;
   PRFileDesc                           *mFD;
   mozilla::net::NetAddr                mAddr;
-  nsCOMPtr<nsIUDPSocketListener>       mListener;
+  nsCOMPtr<nsIUDPServerSocketListener> mListener;
   nsCOMPtr<nsIEventTarget>             mListenerTarget;
   bool                                 mAttached;
   nsRefPtr<nsSocketTransportService>   mSts;
@@ -85,16 +85,16 @@ public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIOUTPUTSTREAM
 
-  nsUDPOutputStream(nsUDPSocket* aSocket,
+  nsUDPOutputStream(nsUDPServerSocket* aServer,
                     PRFileDesc* aFD,
                     PRNetAddr& aPrClientAddr);
   virtual ~nsUDPOutputStream();
 
 private:
-  nsRefPtr<nsUDPSocket>       mSocket;
+  nsRefPtr<nsUDPServerSocket> mServer;
   PRFileDesc                  *mFD;
   PRNetAddr                   mPrClientAddr;
   bool                        mIsClosed;
 };
 
-#endif // nsUDPSocket_h__
+#endif // nsUDPServerSocket_h__

@@ -106,7 +106,7 @@ XPIDL_SOURCES += [
     'nsITimedChannel.idl',
     'nsITraceableChannel.idl',
     'nsITransport.idl',
-    'nsIUDPSocket.idl',
+    'nsIUDPServerSocket.idl',
     'nsIUnicharStreamLoader.idl',
     'nsIUploadChannel.idl',
     'nsIUploadChannel2.idl',
