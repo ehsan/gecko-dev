@@ -73,7 +73,6 @@
 #include "nsIWidget.h"
 #include "mozilla/TimeStamp.h"
 #include "nsIContent.h"
-#include "prclist.h"
 
 class nsImageLoader;
 #ifdef IBMBIDI
@@ -90,7 +89,7 @@ class nsFrameManager;
 class nsILinkHandler;
 class nsStyleContext;
 class nsIAtom;
-class nsIEventStateManager;
+class nsEventStateManager;
 class nsIURI;
 class nsILookAndFeel;
 class nsICSSPseudoComparator;
@@ -108,7 +107,6 @@ class nsAnimationManager;
 #endif
 class nsRefreshDriver;
 class imgIContainer;
-class nsIDOMMediaQueryList;
 
 #ifdef MOZ_REFLOW_PERF
 class nsRenderingContext;
@@ -270,12 +268,6 @@ public:
     if (mPendingMediaFeatureValuesChanged)
       MediaFeatureValuesChanged(PR_FALSE);
   }
-
-  /**
-   * Support for window.matchMedia()
-   */
-  void MatchMedia(const nsAString& aMediaQueryList,
-                  nsIDOMMediaQueryList** aResult);
 
   /**
    * Access compatibility mode for this context.  This is the same as
@@ -553,7 +545,7 @@ public:
   void SetPrintPreviewScale(float aScale) { mPPScale = aScale; }
 
   nsDeviceContext* DeviceContext() { return mDeviceContext; }
-  nsIEventStateManager* EventStateManager() { return mEventManager; }
+  nsEventStateManager* EventStateManager() { return mEventManager; }
   nsIAtom* GetLanguageFromCharset() { return mLanguage; }
 
   float TextZoom() { return mTextZoom; }
@@ -1061,7 +1053,7 @@ protected:
                                         // Cannot reintroduce cycles
                                         // since there is no dependency
                                         // from gfx back to layout.
-  nsIEventStateManager* mEventManager;  // [STRONG]
+  nsEventStateManager* mEventManager;   // [STRONG]
   nsILookAndFeel*       mLookAndFeel;   // [STRONG]
   nsRefPtr<nsRefreshDriver> mRefreshDriver;
   nsRefPtr<nsTransitionManager> mTransitionManager;
@@ -1084,8 +1076,6 @@ protected:
                         mImageLoaders[IMAGE_LOAD_TYPE_COUNT];
 
   nsWeakPtr             mContainer;
-
-  PRCList               mDOMMediaQueryLists;
 
   PRInt32               mMinFontSize;   // Min font size, defaults to 0
   float                 mTextZoom;      // Text zoom, defaults to 1.0

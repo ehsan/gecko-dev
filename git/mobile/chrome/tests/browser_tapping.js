@@ -223,9 +223,7 @@ gTests.push({
       ok(checkEvents([]), "Fired a pan + delay which should be seen as a non-event");
       clearEvents();
 
-      window.addEventListener("PanFinished", function() {
-        setTimeout(gCurrentTest.longTapPassTest, 0);
-      }, true);
+      gCurrentTest.longTapPassTest();
     }, 500);
   },
 

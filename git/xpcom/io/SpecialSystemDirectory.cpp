@@ -681,10 +681,6 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
 
         case Win_HomeDirectory:
         {
-            nsresult rv = GetWindowsFolder(CSIDL_PROFILE, aFile);
-            if (NS_SUCCEEDED(rv))
-                return rv;
-
             PRInt32 len;
             if ((len = ::GetEnvironmentVariableW(L"HOME", path, MAX_PATH)) > 0)
             {
@@ -695,11 +691,9 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
                 path[len]   = L'\\';
                 path[++len] = L'\0';
 
-                rv = NS_NewLocalFile(nsDependentString(path, len),
-                                     PR_TRUE,
-                                     aFile);
-                if (NS_SUCCEEDED(rv))
-                    return rv;
+                return NS_NewLocalFile(nsDependentString(path, len),
+                                       PR_TRUE,
+                                       aFile);
             }
 
             len = ::GetEnvironmentVariableW(L"HOMEDRIVE", path, MAX_PATH);

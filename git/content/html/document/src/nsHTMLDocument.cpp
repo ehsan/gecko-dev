@@ -124,7 +124,6 @@
 #include "nsIMutableArray.h"
 #include "nsArrayUtils.h"
 #include "nsIEffectiveTLDService.h"
-#include "nsIEventStateManager.h"
 
 #include "nsIPrompt.h"
 //AHMED 12-2
@@ -1366,6 +1365,18 @@ nsHTMLDocument::SetXmlVersion(const nsAString& aXmlVersion)
   }
 
   return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
+}
+
+NS_IMETHODIMP
+nsHTMLDocument::GetStrictErrorChecking(PRBool* aStrictErrorChecking)
+{
+  return nsDocument::GetStrictErrorChecking(aStrictErrorChecking);
+}
+
+NS_IMETHODIMP
+nsHTMLDocument::SetStrictErrorChecking(PRBool aStrictErrorChecking)
+{
+  return nsDocument::SetStrictErrorChecking(aStrictErrorChecking);
 }
 
 NS_IMETHODIMP
