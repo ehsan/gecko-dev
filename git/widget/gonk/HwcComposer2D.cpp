@@ -154,7 +154,9 @@ HwcComposer2D::Init(hwc_display_t dpy, hwc_surface_t sur, gl::GLContext* aGLCont
         mRBSwapSupport = false;
     }
 
-    RegisterHwcEventCallback();
+    if (RegisterHwcEventCallback()) {
+        EnableVsync(true);
+    }
 #else
     char propValue[PROPERTY_VALUE_MAX];
     property_get("ro.display.colorfill", propValue, "0");
@@ -179,22 +181,17 @@ HwcComposer2D::GetInstance()
     return sInstance;
 }
 
-bool
+void
 HwcComposer2D::EnableVsync(bool aEnable)
 {
 #if ANDROID_VERSION >= 17
-    MOZ_ASSERT(NS_IsMainThread());
-    if (!mHasHWVsync) {
-      return false;
+    if (NS_IsMainThread()) {
+        RunVsyncEventControl(aEnable);
+    } else {
+        nsRefPtr<nsIRunnable> event =
+            NS_NewRunnableMethodWithArg<bool>(this, &HwcComposer2D::RunVsyncEventControl, aEnable);
+        NS_DispatchToMainThread(event);
     }
-
-    HwcDevice* device = (HwcDevice*)GetGonkDisplay()->GetHWCDevice();
-    if (!device) {
-      return false;
-    }
-
-    device->eventControl(device, HWC_DISPLAY_PRIMARY, HWC_EVENT_VSYNC, aEnable);
-    return aEnable;
 #endif
 }
 
@@ -211,8 +208,25 @@ HwcComposer2D::RegisterHwcEventCallback()
     // Disable Vsync first, and then register callback functions.
     device->eventControl(device, HWC_DISPLAY_PRIMARY, HWC_EVENT_VSYNC, false);
     device->registerProcs(device, &sHWCProcs);
-    mHasHWVsync = gfxPrefs::HardwareVsyncEnabled();
+    mHasHWVsync = true;
+
+    if (!gfxPrefs::HardwareVsyncEnabled()) {
+        device->eventControl(device, HWC_DISPLAY_PRIMARY, HWC_EVENT_VSYNC, false);
+        mHasHWVsync = false;
+    }
+
     return mHasHWVsync;
+}
+
+void
+HwcComposer2D::RunVsyncEventControl(bool aEnable)
+{
+    if (mHasHWVsync) {
+        HwcDevice* device = (HwcDevice*)GetGonkDisplay()->GetHWCDevice();
+        if (device && device->eventControl) {
+            device->eventControl(device, HWC_DISPLAY_PRIMARY, HWC_EVENT_VSYNC, aEnable);
+        }
+    }
 }
 
 void

@@ -198,22 +198,11 @@ loop.shared.actions = (function() {
     }),
 
     /**
-     * When a room has been created.
-     * XXX: should move to some roomActions module - refs bug 1079284
-     */
-    CreatedRoom: Action.define("createdRoom", {
-      roomToken: String
-    }),
-
-    /**
      * Rooms creation error.
      * XXX: should move to some roomActions module - refs bug 1079284
      */
     CreateRoomError: Action.define("createRoomError", {
-      // There's two types of error possible - one thrown by our code (and Error)
-      // and the other is an Object about the error codes from the server as
-      // returned by the Hawk request.
-      error: Object
+      error: Error
     }),
 
     /**
@@ -229,10 +218,7 @@ loop.shared.actions = (function() {
      * XXX: should move to some roomActions module - refs bug 1079284
      */
     DeleteRoomError: Action.define("deleteRoomError", {
-      // There's two types of error possible - one thrown by our code (and Error)
-      // and the other is an Object about the error codes from the server as
-      // returned by the Hawk request.
-      error: Object
+      error: Error
     }),
 
     /**

@@ -939,24 +939,12 @@
             this.closePopup();
             controller.handleEscape();
 
+            // Fill in the search bar's value
+            searchBar.value = search;
+
             // open the search results according to the clicking subtlety
             var where = whereToOpenLink(aEvent, false, true);
-
-            // But open ctrl/cmd clicks on autocomplete items in a new background tab.
-            if (where == "tab" && (aEvent instanceof MouseEvent) &&
-                (aEvent.button == 1 ||
-#ifdef XP_MACOSX
-                 aEvent.metaKey))
-#else
-                 aEvent.ctrlKey))
-#endif
-              where = "tab-background";
-
             searchBar.doSearch(search, where);
-            if (where == "tab-background")
-              searchBar.focus();
-            else
-              searchBar.value = search;
           }
         ]]></body>
       </method>
@@ -1040,8 +1028,6 @@
                                                      [currentEngine.name], 1);
         document.getAnonymousElementByAttribute(this, "anonid", "searchbar-engine-name")
                 .setAttribute("value", headerText);
-        document.getAnonymousElementByAttribute(this, "anonid", "searchbar-engine")
-                .engine = currentEngine;
 
         // Update the 'Search for <keywords> with:" header.
         let headerSearchText =
@@ -1200,13 +1186,11 @@
           return; // ignore right clicks.
 
         let button = event.originalTarget;
-        let engine = button.engine || button.parentNode.engine;
-
-        if (!engine)
+        if (button.localName != "button" || !button.engine)
           return;
 
         let searchbar = document.getElementById("searchbar");
-        searchbar.handleSearchCommand(event, engine);
+        searchbar.handleSearchCommand(event, button.engine);
       ]]></handler>
 
       <handler event="command"><![CDATA[

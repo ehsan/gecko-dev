@@ -115,10 +115,6 @@ static RedirEntry kRedirMap[] = {
     nsIAboutModule::ENABLE_INDEXED_DB,
     // Shares an IndexedDB origin with about:loopconversation.
     "loopconversation" },
-  { "reader", "chrome://global/content/reader/aboutReader.html",
-    nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
-    nsIAboutModule::ALLOW_SCRIPT |
-    nsIAboutModule::HIDE_FROM_ABOUTABOUT },
 };
 static const int kRedirTotal = ArrayLength(kRedirMap);
 

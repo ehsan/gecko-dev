@@ -38,9 +38,7 @@ exports.items = [{
     let chromeWindow = context.environment.chromeWindow;
     let target = context.environment.target;
 
-    let dropper = EyedropperManager.createInstance(chromeWindow,
-                                                   { context: "command",
-                                                     copyOnSelect: true });
+    let dropper = EyedropperManager.createInstance(chromeWindow);
     dropper.open();
 
     eventEmitter.emit("changed", { target: target });
