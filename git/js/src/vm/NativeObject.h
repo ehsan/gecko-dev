@@ -1344,6 +1344,10 @@ extern bool
 NativeGetExistingProperty(JSContext *cx, HandleObject receiver, HandleNativeObject obj,
                           HandleShape shape, MutableHandle<Value> vp);
 
+extern bool
+NativeSetPropertyAttributes(JSContext *cx, HandleNativeObject obj, HandleId id, unsigned *attrsp);
+
+
 /* * */
 
 /*

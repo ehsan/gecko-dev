@@ -510,6 +510,12 @@ Parser<ParseHandler>::Parser(ExclusiveContext *cx, LifoAlloc *alloc,
 #endif
     abortedSyntaxParse(false),
     isUnexpectedEOF_(false),
+    sawDeprecatedForEach(false),
+    sawDeprecatedDestructuringForIn(false),
+    sawDeprecatedLegacyGenerator(false),
+    sawDeprecatedExpressionClosure(false),
+    sawDeprecatedLetBlock(false),
+    sawDeprecatedLetExpression(false),
     handler(cx, *alloc, tokenStream, syntaxParser, lazyOuterFunction)
 {
     {
@@ -544,6 +550,8 @@ template <typename ParseHandler>
 Parser<ParseHandler>::~Parser()
 {
     MOZ_ASSERT(checkOptionsCalled);
+
+    accumulateTelemetry();
 
     alloc.release(tempPoolMark);
 
@@ -1140,7 +1148,6 @@ Parser<FullParseHandler>::makeDefIntoUse(Definition *dn, ParseNode *pn, JSAtom *
         handler.prepareNodeForMutation(dn);
         dn->setKind(PNK_NOP);
         dn->setArity(PN_NULLARY);
-        dn->setDefn(false);
         return true;
     }
 
@@ -2537,7 +2544,7 @@ Parser<ParseHandler>::functionArgsAndBodyGeneric(Node pn, HandleFunction fun, Fu
 
         if (kind != Arrow) {
 #if JS_HAS_EXPR_CLOSURES
-            addTelemetry(JSCompartment::DeprecatedExpressionClosure);
+            sawDeprecatedExpressionClosure = true;
 #else
             report(ParseError, false, null(), JSMSG_CURLY_BEFORE_BODY);
             return false;
@@ -3683,7 +3690,7 @@ Parser<ParseHandler>::deprecatedLetBlockOrExpression(LetContext letContext)
             return null();
         MUST_MATCH_TOKEN(TOK_RC, JSMSG_CURLY_AFTER_LET);
 
-        addTelemetry(JSCompartment::DeprecatedLetBlock);
+        sawDeprecatedLetBlock = true;
         if (!report(ParseWarning, pc->sc->strict, expr, JSMSG_DEPRECATED_LET_BLOCK))
             return null();
     } else {
@@ -3692,7 +3699,7 @@ Parser<ParseHandler>::deprecatedLetBlockOrExpression(LetContext letContext)
         if (!expr)
             return null();
 
-        addTelemetry(JSCompartment::DeprecatedLetExpression);
+        sawDeprecatedLetExpression = true;
         if (!report(ParseWarning, pc->sc->strict, expr, JSMSG_DEPRECATED_LET_EXPRESSION))
             return null();
     }
@@ -4614,7 +4621,7 @@ Parser<FullParseHandler>::forStatement()
         if (matched) {
             iflags = JSITER_FOREACH;
             isForEach = true;
-            addTelemetry(JSCompartment::DeprecatedForEach);
+            sawDeprecatedForEach = true;
             if (versionNumber() < JSVERSION_LATEST) {
                 if (!report(ParseWarning, pc->sc->strict, null(), JSMSG_DEPRECATED_FOR_EACH))
                     return null();
@@ -4849,7 +4856,7 @@ Parser<FullParseHandler>::forStatement()
                  */
                 if (!isForEach && headKind == PNK_FORIN) {
                     iflags |= JSITER_FOREACH | JSITER_KEYVALUE;
-                    addTelemetry(JSCompartment::DeprecatedDestructuringForIn);
+                    sawDeprecatedDestructuringForIn = true;
                 }
             }
             break;
@@ -5415,7 +5422,7 @@ Parser<ParseHandler>::yieldExpression()
         }
 
         pc->sc->asFunctionBox()->setGeneratorKind(LegacyGenerator);
-        addTelemetry(JSCompartment::DeprecatedLegacyGenerator);
+        sawDeprecatedLegacyGenerator = true;
 
         if (pc->funHasReturnExpr) {
             /* As in Python (see PEP-255), disallow return v; in generators. */
@@ -6812,7 +6819,7 @@ Parser<FullParseHandler>::legacyComprehensionTail(ParseNode *bodyExpr, unsigned 
                 return null();
             if (matched) {
                 pn2->pn_iflags |= JSITER_FOREACH;
-                addTelemetry(JSCompartment::DeprecatedForEach);
+                sawDeprecatedForEach = true;
                 if (versionNumber() < JSVERSION_LATEST) {
                     if (!report(ParseWarning, pc->sc->strict, pn2, JSMSG_DEPRECATED_FOR_EACH))
                         return null();
@@ -7720,17 +7727,15 @@ Parser<ParseHandler>::arrayInitializer()
     TokenKind tt;
     if (!tokenStream.getToken(&tt, TokenStream::Operand))
         return null();
-
-    // Handle an ES7 array comprehension first.
-    if (tt == TOK_FOR)
-        return arrayComprehension(begin);
-
     if (tt == TOK_RB) {
         /*
          * Mark empty arrays as non-constant, since we cannot easily
          * determine their type.
          */
         handler.setListFlag(literal, PNX_NONCONST);
+    } else if (tt == TOK_FOR) {
+        // ES6 array comprehension.
+        return arrayComprehension(begin);
     } else {
         tokenStream.ungetToken();
 
@@ -8379,12 +8384,48 @@ Parser<ParseHandler>::exprInParens()
 
 template <typename ParseHandler>
 void
-Parser<ParseHandler>::addTelemetry(JSCompartment::DeprecatedLanguageExtension e)
+Parser<ParseHandler>::accumulateTelemetry()
 {
     JSContext* cx = context->maybeJSContext();
     if (!cx)
         return;
-    cx->compartment()->addTelemetry(e);
+    const char* filename = getFilename();
+    if (!filename)
+        return;
+
+    bool isAddon = !!cx->compartment()->addonId;
+    bool isHTTP = strncmp(filename, "http://", 7) == 0 || strncmp(filename, "https://", 8) == 0;
+
+    // Only report telemetry for web content, not add-ons or chrome JS.
+    if (isAddon || !isHTTP)
+        return;
+
+    enum DeprecatedLanguageExtensions {
+        DeprecatedForEach = 0,            // JS 1.6+
+        DeprecatedDestructuringForIn = 1, // JS 1.7 only
+        DeprecatedLegacyGenerator = 2,    // JS 1.7+
+        DeprecatedExpressionClosure = 3,  // Added in JS 1.8, but not version-gated
+        DeprecatedLetBlock = 4,           // Added in JS 1.7, but not version-gated
+        DeprecatedLetExpression = 5,      // Added in JS 1.7, but not version-gated
+    };
+
+    // Hazard analysis can't tell that the telemetry callbacks don't GC.
+    JS::AutoSuppressGCAnalysis nogc;
+
+    // Call back into Firefox's Telemetry reporter.
+    int id = JS_TELEMETRY_DEPRECATED_LANGUAGE_EXTENSIONS_IN_CONTENT;
+    if (sawDeprecatedForEach)
+         cx->runtime()->addTelemetry(id, DeprecatedForEach);
+    if (sawDeprecatedDestructuringForIn)
+         cx->runtime()->addTelemetry(id, DeprecatedDestructuringForIn);
+    if (sawDeprecatedLegacyGenerator)
+        cx->runtime()->addTelemetry(id, DeprecatedLegacyGenerator);
+    if (sawDeprecatedExpressionClosure)
+         cx->runtime()->addTelemetry(id, DeprecatedExpressionClosure);
+    if (sawDeprecatedLetBlock)
+         cx->runtime()->addTelemetry(id, DeprecatedLetBlock);
+    if (sawDeprecatedLetExpression)
+         cx->runtime()->addTelemetry(id, DeprecatedLetExpression);
 }
 
 template class Parser<FullParseHandler>;

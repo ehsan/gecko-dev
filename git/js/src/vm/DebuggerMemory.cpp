@@ -42,8 +42,7 @@ DebuggerMemory::create(JSContext *cx, Debugger *dbg)
 
     Value memoryProto = dbg->object->getReservedSlot(Debugger::JSSLOT_DEBUG_MEMORY_PROTO);
     RootedNativeObject memory(cx, NewNativeObjectWithGivenProto(cx, &class_,
-                                                                &memoryProto.toObject(),
-                                                                NullPtr()));
+                                                                &memoryProto.toObject(), nullptr));
     if (!memory)
         return nullptr;
 
@@ -220,7 +219,6 @@ DebuggerMemory::drainAllocationsLog(JSContext *cx, unsigned argc, Value *vp)
         js_delete(allocSite);
     }
 
-    dbg->allocationsLogOverflowed = false;
     dbg->allocationsLogLength = 0;
     args.rval().setObject(*result);
     return true;
@@ -292,14 +290,6 @@ DebuggerMemory::setAllocationSamplingProbability(JSContext *cx, unsigned argc, V
 
     memory->getDebugger()->allocationSamplingProbability = probability;
     args.rval().setUndefined();
-    return true;
-}
-
-/* static */ bool
-DebuggerMemory::getAllocationsLogOverflowed(JSContext *cx, unsigned argc, Value *vp)
-{
-    THIS_DEBUGGER_MEMORY(cx, argc, vp, "(get allocationsLogOverflowed)", args, memory);
-    args.rval().setBoolean(memory->getDebugger()->allocationsLogOverflowed);
     return true;
 }
 
@@ -814,7 +804,6 @@ DebuggerMemory::takeCensus(JSContext *cx, unsigned argc, Value *vp)
     JS_PSGS("trackingAllocationSites", getTrackingAllocationSites, setTrackingAllocationSites, 0),
     JS_PSGS("maxAllocationsLogLength", getMaxAllocationsLogLength, setMaxAllocationsLogLength, 0),
     JS_PSGS("allocationSamplingProbability", getAllocationSamplingProbability, setAllocationSamplingProbability, 0),
-    JS_PSG("allocationsLogOverflowed", getAllocationsLogOverflowed, 0),
     JS_PS_END
 };
 

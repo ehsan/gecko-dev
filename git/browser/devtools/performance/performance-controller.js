@@ -18,27 +18,27 @@ devtools.lazyRequireGetter(this, "DevToolsUtils",
   "devtools/toolkit/DevToolsUtils");
 
 devtools.lazyRequireGetter(this, "TIMELINE_BLUEPRINT",
-  "devtools/shared/timeline/global", true);
+  "devtools/timeline/global", true);
 devtools.lazyRequireGetter(this, "L10N",
-  "devtools/shared/profiler/global", true);
+  "devtools/profiler/global", true);
 devtools.lazyRequireGetter(this, "RecordingUtils",
   "devtools/performance/recording-utils", true);
 devtools.lazyRequireGetter(this, "RecordingModel",
   "devtools/performance/recording-model", true);
 devtools.lazyRequireGetter(this, "MarkersOverview",
-  "devtools/shared/timeline/markers-overview", true);
+  "devtools/timeline/markers-overview", true);
 devtools.lazyRequireGetter(this, "MemoryOverview",
-  "devtools/shared/timeline/memory-overview", true);
+  "devtools/timeline/memory-overview", true);
 devtools.lazyRequireGetter(this, "Waterfall",
-  "devtools/shared/timeline/waterfall", true);
+  "devtools/timeline/waterfall", true);
 devtools.lazyRequireGetter(this, "MarkerDetails",
-  "devtools/shared/timeline/marker-details", true);
+  "devtools/timeline/marker-details", true);
 devtools.lazyRequireGetter(this, "CallView",
-  "devtools/shared/profiler/tree-view", true);
+  "devtools/profiler/tree-view", true);
 devtools.lazyRequireGetter(this, "ThreadNode",
-  "devtools/shared/profiler/tree-model", true);
+  "devtools/profiler/tree-model", true);
 devtools.lazyRequireGetter(this, "FrameNode",
-  "devtools/shared/profiler/tree-model", true);
+  "devtools/profiler/tree-model", true);
 devtools.lazyRequireGetter(this, "OptionsView",
   "devtools/shared/options-view", true);
 

@@ -861,7 +861,7 @@ BufferTextureClient::AllocateForYCbCr(gfx::IntSize aYSize,
 
   size_t bufSize = YCbCrImageDataSerializer::ComputeMinBufferSize(aYSize,
                                                                   aCbCrSize);
-  if (!bufSize || !Allocate(bufSize)) {
+  if (!Allocate(bufSize)) {
     return false;
   }
   YCbCrImageDataSerializer serializer(GetBuffer(), GetBufferSize());

@@ -21,9 +21,6 @@ add_task(function*() {
 
   ok(front, "The AnimationsFront was created");
   ok(front.getAnimationPlayersForNode, "The getAnimationPlayersForNode method exists");
-  ok(front.toggleAll, "The toggleAll method exists");
-  ok(front.playAll, "The playAll method exists");
-  ok(front.pauseAll, "The pauseAll method exists");
 
   let didThrow = false;
   try {

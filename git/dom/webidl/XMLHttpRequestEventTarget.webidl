@@ -10,7 +10,8 @@
  * liability, trademark and document use rules apply.
  */
 
-[Exposed=(Window,Worker)]
+[NoInterfaceObject,
+ Exposed=(Window,Worker)]
 interface XMLHttpRequestEventTarget : EventTarget {
   // event handlers
   [SetterThrows=Workers, GetterThrows=Workers]

@@ -416,18 +416,17 @@ let CallWatcherActor = exports.CallWatcherActor = protocol.ActorClass({
       // the arguments array is inaccessible to it. Get Xrays back.
       let originalFunc = Cu.unwaiveXrays(target[name]);
 
-      Cu.exportFunction(function(...args) {
-        let result = Cu.waiveXrays(originalFunc.apply(this, args));
-
-        if (self._recording) {
-          let stack = getStack(name);
-          let type = CallWatcherFront.METHOD_FUNCTION;
-          callback(unwrappedWindow, global, this, type, name, stack, args, result);
-        }
-        return result;
-      }, target, { defineAs: name });
-
       Object.defineProperty(target, name, {
+        value: function(...args) {
+          let result = Cu.waiveXrays(originalFunc.apply(this, args));
+
+          if (self._recording) {
+            let stack = getStack(name);
+            let type = CallWatcherFront.METHOD_FUNCTION;
+            callback(unwrappedWindow, global, this, type, name, stack, args, result);
+          }
+          return result;
+        },
         configurable: descriptor.configurable,
         enumerable: descriptor.enumerable,
         writable: true

@@ -166,8 +166,7 @@ js::OnUnknownMethod(JSContext *cx, HandleObject obj, Value idval_, MutableHandle
         return false;
 
     if (value.isObject()) {
-        NativeObject *obj = NewNativeObjectWithClassProto(cx, &js_NoSuchMethodClass, nullptr,
-                                                          NullPtr());
+        NativeObject *obj = NewNativeObjectWithClassProto(cx, &js_NoSuchMethodClass, nullptr, nullptr);
         if (!obj)
             return false;
 
@@ -199,8 +198,6 @@ NoSuchMethod(JSContext *cx, unsigned argc, Value *vp)
     args[1].setObject(*argsobj);
     bool ok = Invoke(cx, args);
     vp[0] = args.rval();
-
-    cx->compartment()->addTelemetry(JSCompartment::DeprecatedNoSuchMethod);
     return ok;
 }
 

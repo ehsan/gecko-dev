@@ -131,13 +131,6 @@ public:
                             unsigned short height);
 
   /**
-   * Function to select and change the encoding frame rate based on incoming frame rate
-   * and max-mbps setting.
-   * @param framerate
-   */
-  bool SelectSendFrameRate(unsigned int framerate);
-
-  /**
    * Function to deliver a capture video frame for encoding and transport
    * @param video_frame: pointer to captured video-frame.
    * @param video_frame_length: size of the frame
@@ -332,7 +325,6 @@ private:
   unsigned short mSendingHeight;
   unsigned short mReceivingWidth;
   unsigned short mReceivingHeight;
-  unsigned int   mSendingFramerate;
   bool mVideoLatencyTestEnable;
   uint64_t mVideoLatencyAvg;
   uint32_t mMinBitrate;

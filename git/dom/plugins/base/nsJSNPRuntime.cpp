@@ -227,6 +227,7 @@ const static js::Class sNPObjectJSWrapperClass =
         nullptr, // getProperty
         nullptr, // setProperty
         nullptr, // getOwnPropertyDescriptor
+        nullptr, // setPropertyAttributes
         nullptr, // deleteProperty
         nullptr, nullptr, // watch/unwatch
         nullptr, // getElements
@@ -1871,7 +1872,7 @@ nsNPObjWrapper::GetNewOrUsed(NPP npp, JSContext *cx, NPObject *npobj)
   }
 
   NPObjWrapperHashEntry *entry = static_cast<NPObjWrapperHashEntry *>
-    (PL_DHashTableAdd(&sNPObjWrappers, npobj, fallible));
+    (PL_DHashTableAdd(&sNPObjWrappers, npobj));
 
   if (!entry) {
     // Out of memory
@@ -2034,7 +2035,7 @@ LookupNPP(NPObject *npobj)
   }
 
   NPObjWrapperHashEntry *entry = static_cast<NPObjWrapperHashEntry *>
-    (PL_DHashTableAdd(&sNPObjWrappers, npobj, fallible));
+    (PL_DHashTableAdd(&sNPObjWrappers, npobj));
 
   if (!entry) {
     return nullptr;

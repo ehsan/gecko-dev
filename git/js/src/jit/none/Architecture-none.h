@@ -21,11 +21,7 @@ static const uint32_t AsmJSStackAlignment = 4;
 class Registers
 {
   public:
-    enum RegisterID {
-        r0 = 0,
-        invalid_reg
-    };
-    typedef RegisterID Code;
+    typedef uint8_t Code;
     typedef uint8_t SetType;
 
     static uint32_t SetSize(SetType) { MOZ_CRASH(); }
@@ -34,8 +30,8 @@ class Registers
     static const char *GetName(Code) { MOZ_CRASH(); }
     static Code FromName(const char *) { MOZ_CRASH(); }
 
-    static const Code StackPointer = invalid_reg;
-    static const Code Invalid = invalid_reg;
+    static const Code StackPointer = 0;
+    static const Code Invalid = 0;
     static const uint32_t Total = 1;
     static const uint32_t TotalPhys = 0;
     static const uint32_t Allocatable = 0;
@@ -55,17 +51,13 @@ typedef uint8_t PackedRegisterMask;
 class FloatRegisters
 {
   public:
-    enum FPRegisterID {
-        f0 = 0,
-        invalid_reg
-    };
-    typedef FPRegisterID  Code;
+    typedef uint8_t Code;
     typedef uint32_t SetType;
 
     static const char *GetName(Code) { MOZ_CRASH(); }
     static Code FromName(const char *) { MOZ_CRASH(); }
 
-    static const Code Invalid = invalid_reg;
+    static const Code Invalid = 0;
     static const uint32_t Total = 0;
     static const uint32_t TotalPhys = 0;
     static const uint32_t Allocatable = 0;

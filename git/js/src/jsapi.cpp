@@ -168,11 +168,12 @@ JS_GetEmptyString(JSRuntime *rt)
 JS_PUBLIC_API(bool)
 JS_GetCompartmentStats(JSRuntime *rt, CompartmentStatsVector &stats)
 {
-    for (CompartmentsIter c(rt, WithAtoms); !c.done(); c.next()) {
-        if (!stats.growBy(1))
-            return false;
+    if (!stats.resizeUninitialized(rt->numCompartments))
+        return false;
 
-        CompartmentTimeStats *stat = &stats.back();
+    size_t pos = 0;
+    for (CompartmentsIter c(rt, WithAtoms); !c.done(); c.next()) {
+        CompartmentTimeStats *stat = &stats[pos];
         stat->time = c.get()->totalTime;
         stat->compartment = c.get();
         stat->addonId = c.get()->addonId;
@@ -183,6 +184,7 @@ JS_GetCompartmentStats(JSRuntime *rt, CompartmentStatsVector &stats)
         } else {
             strcpy(stat->compartmentName, "<unknown>");
         }
+        pos++;
     }
     return true;
 }

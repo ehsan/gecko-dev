@@ -742,7 +742,7 @@ ThreadActor.prototype = {
       }
       packet.why = aReason;
 
-      let loc = this.sources.getFrameLocation(aFrame);
+      let loc = getFrameLocation(aFrame);
       this.sources.getOriginalLocation(loc).then(aOrigPosition => {
         if (!aOrigPosition.sourceActor) {
           // The only time the source actor will be null is if there
@@ -805,7 +805,7 @@ ThreadActor.prototype = {
 
   _makeOnEnterFrame: function ({ pauseAndRespond }) {
     return aFrame => {
-      const generatedLocation = this.sources.getFrameLocation(aFrame);
+      const generatedLocation = getFrameLocation(aFrame);
       let { sourceActor } = this.synchronize(this.sources.getOriginalLocation(
         generatedLocation));
       let url = sourceActor.url;
@@ -820,7 +820,7 @@ ThreadActor.prototype = {
     return function (aCompletion) {
       // onPop is called with 'this' set to the current frame.
 
-      const generatedLocation = thread.sources.getFrameLocation(this);
+      const generatedLocation = getFrameLocation(this);
       const { sourceActor } = thread.synchronize(thread.sources.getOriginalLocation(
         generatedLocation));
       const url = sourceActor.url;
@@ -862,7 +862,7 @@ ThreadActor.prototype = {
     return function () {
       // onStep is called with 'this' set to the current frame.
 
-      const generatedLocation = thread.sources.getFrameLocation(this);
+      const generatedLocation = getFrameLocation(this);
       const newLocation = thread.synchronize(thread.sources.getOriginalLocation(
         generatedLocation));
 
@@ -942,7 +942,7 @@ ThreadActor.prototype = {
                       message: "Unknown resumeLimit type" });
     }
 
-    const generatedLocation = this.sources.getFrameLocation(this.youngestFrame);
+    const generatedLocation = getFrameLocation(this.youngestFrame);
     return this.sources.getOriginalLocation(generatedLocation)
       .then(originalLocation => {
         const { onEnterFrame, onPop, onStep } = this._makeSteppingHooks(originalLocation,
@@ -1289,7 +1289,7 @@ ThreadActor.prototype = {
       frames.push(form);
 
       let promise = this.sources.getOriginalLocation({
-        sourceActor: this.sources.createNonSourceMappedActor(frame.script.source),
+        source: frame.script.source,
         line: form.where.line,
         column: form.where.column
       }).then((aOrigLocation) => {
@@ -1902,7 +1902,7 @@ ThreadActor.prototype = {
   onDebuggerStatement: function (aFrame) {
     // Don't pause if we are currently stepping (in or over) or the frame is
     // black-boxed.
-    const generatedLocation = this.sources.getFrameLocation(aFrame);
+    const generatedLocation = getFrameLocation(aFrame);
     const { sourceActor } = this.synchronize(this.sources.getOriginalLocation(
       generatedLocation));
     const url = sourceActor ? sourceActor.url : null;
@@ -1934,7 +1934,7 @@ ThreadActor.prototype = {
       return undefined;
     }
 
-    const generatedLocation = this.sources.getFrameLocation(aFrame);
+    const generatedLocation = getFrameLocation(aFrame);
     const { sourceActor } = this.synchronize(this.sources.getOriginalLocation(
       generatedLocation));
     const url = sourceActor ? sourceActor.url : null;
@@ -2956,7 +2956,7 @@ SourceActor.prototype = {
     return Promise.resolve().then(() => {
       if (actualLocation.sourceActor.source) {
         return this.threadActor.sources.getOriginalLocation({
-          sourceActor: actualLocation.sourceActor,
+          source: actualLocation.sourceActor.source,
           line: actualLocation.line,
           column: actualLocation.column
         });
@@ -3330,7 +3330,7 @@ ObjectActor.prototype = {
     }
 
     const generatedLocation = {
-      sourceActor: this.threadActor.sources.createNonSourceMappedActor(this.obj.script.source),
+      source: this.obj.script.source,
       line: this.obj.script.startLine,
       // TODO bug 901138: use Debugger.Script.prototype.startColumn.
       column: 0
@@ -4573,12 +4573,7 @@ FrameActor.prototype = {
     form.this = threadActor.createValueGrip(this.frame.this);
     form.arguments = this._args();
     if (this.frame.script) {
-      var loc = this.threadActor.sources.getFrameLocation(this.frame);
-      form.where = {
-        source: loc.sourceActor.form(),
-        line: loc.line,
-        column: loc.column
-      };
+      form.where = getFrameLocation(this.frame);
     }
 
     if (!this.frame.older) {
@@ -4714,7 +4709,7 @@ BreakpointActor.prototype = {
   hit: function (aFrame) {
     // Don't pause if we are currently stepping (in or over) or the frame is
     // black-boxed.
-    let loc = this.threadActor.sources.getFrameLocation(aFrame);
+    let loc = getFrameLocation(aFrame);
     let { sourceActor } = this.threadActor.synchronize(
       this.threadActor.sources.getOriginalLocation(loc));
     let url = sourceActor.url;
@@ -5542,36 +5537,13 @@ ThreadSources.prototype = {
   },
 
   /**
-   * Return the non-source-mapped location of the given Debugger.Frame. If the
-   * frame does not have a script, the location's properties are all null.
-   *
-   * @param Debugger.Frame aFrame
-   *        The frame whose location we are getting.
-   * @returns Object
-   *          Returns an object of the form { source, line, column }
-   */
-  getFrameLocation: function (aFrame) {
-    if (!aFrame || !aFrame.script) {
-      return { sourceActor: null, line: null, column: null };
-    }
-    return {
-      sourceActor: this.createNonSourceMappedActor(aFrame.script.source),
-      line: aFrame.script.getOffsetLine(aFrame.offset),
-      column: getOffsetColumn(aFrame.offset, aFrame.script)
-    }
-  },
-
-  /**
    * Returns a promise of the location in the original source if the source is
    * source mapped, otherwise a promise of the same location. This can
    * be called with a source from *any* Debugger instance and we make
    * sure to that it works properly, reusing source maps if already
    * fetched. Use this from any actor that needs sourcemapping.
    */
-  getOriginalLocation: function ({ sourceActor, line, column }) {
-    let source = sourceActor.source;
-    let url = source ? source.url : sourceActor._originalUrl;
-
+  getOriginalLocation: function ({ source, line, column }) {
     // In certain scenarios the source map may have not been fetched
     // yet (or at least tied to this Debugger.Source instance), so use
     // `fetchSourceMap` instead of `getSourceMap`. This allows this
@@ -5610,8 +5582,8 @@ ThreadSources.prototype = {
 
       // No source map
       return resolve({
-        sourceActor: sourceActor,
-        url: url,
+        sourceActor: this.createNonSourceMappedActor(source),
+        url: source.url,
         line: line,
         column: column
       });
@@ -5763,6 +5735,26 @@ exports.ThreadSources = ThreadSources;
 function isHiddenSource(aSource) {
   // Ignore the internal Function.prototype script
   return aSource.text === '() {\n}';
+}
+
+/**
+ * Return the non-source-mapped location of the given Debugger.Frame. If the
+ * frame does not have a script, the location's properties are all null.
+ *
+ * @param Debugger.Frame aFrame
+ *        The frame whose location we are getting.
+ * @returns Object
+ *          Returns an object of the form { source, line, column }
+ */
+function getFrameLocation(aFrame) {
+  if (!aFrame || !aFrame.script) {
+    return { source: null, line: null, column: null };
+  }
+  return {
+    source: aFrame.script.source,
+    line: aFrame.script.getOffsetLine(aFrame.offset),
+    column: getOffsetColumn(aFrame.offset, aFrame.script)
+  }
 }
 
 /**

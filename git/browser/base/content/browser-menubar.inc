@@ -107,11 +107,11 @@
                           oncommand="BrowserOffline.toggleOfflineStatus();"/>
                 <menuitem id="menu_FileQuitItem"
 #ifdef XP_WIN
-                          label="&quitApplicationCmdWin2.label;"
-                          accesskey="&quitApplicationCmdWin2.accesskey;"
+                          label="&quitApplicationCmdWin.label;"
+                          accesskey="&quitApplicationCmdWin.accesskey;"
 #else
 #ifdef XP_MACOSX
-                          label="&quitApplicationCmdMac2.label;"
+                          label="&quitApplicationCmdMac.label;"
 #else
                           label="&quitApplicationCmd.label;"
                           accesskey="&quitApplicationCmd.accesskey;"

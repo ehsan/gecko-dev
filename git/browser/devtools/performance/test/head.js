@@ -417,8 +417,3 @@ function getSourceActor(aSources, aURL) {
 function fireKey (e) {
   EventUtils.synthesizeKey(e, {});
 }
-
-function reload (aTarget, aEvent = "navigate") {
-  aTarget.activeTab.reload();
-  return once(aTarget, aEvent);
-}

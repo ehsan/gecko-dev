@@ -17,9 +17,6 @@
 
 #include "webrtc/typedefs.h"
 
-// Added by Mozilla since there are a maximum of 16 timerSetEvent() timers per process
-#define WIN32_USE_TIMER_QUEUES
-
 namespace webrtc {
 
 class EventWindows : public EventWrapper {
@@ -31,21 +28,12 @@ class EventWindows : public EventWrapper {
   virtual bool Set();
   virtual bool Reset();
 
-#ifdef WIN32_USE_TIMER_QUEUES
-  static void CALLBACK TimerRoutine(PVOID lpParam, BOOLEAN TimerOrWaitFired);
-#endif
-
   virtual bool StartTimer(bool periodic, unsigned long time);
   virtual bool StopTimer();
 
  private:
   HANDLE  event_;
-#ifdef WIN32_USE_TIMER_QUEUES
-  HANDLE  timerHandle_;
-  bool pulse_;
-#else
   uint32_t timerID_;
-#endif
 };
 
 }  // namespace webrtc

@@ -2608,11 +2608,6 @@ Navigator::RequestMediaKeySystemAccess(const nsAString& aKeySystem,
     return nullptr;
   }
 
-  if (!Preferences::GetBool("media.eme.enabled", false)) {
-    p->MaybeReject(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
-    return p.forget();
-  }
-
   if (aKeySystem.IsEmpty() ||
       (aOptions.WasPassed() && aOptions.Value().IsEmpty())) {
     p->MaybeReject(NS_ERROR_DOM_INVALID_ACCESS_ERR);

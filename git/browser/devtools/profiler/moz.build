@@ -5,7 +5,10 @@
 
 EXTRA_JS_MODULES.devtools.profiler += [
     'panel.js',
-    'utils/shared.js'
+    'utils/global.js',
+    'utils/shared.js',
+    'utils/tree-model.js',
+    'utils/tree-view.js'
 ]
 
 BROWSER_CHROME_MANIFESTS += ['test/browser.ini']

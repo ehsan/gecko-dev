@@ -21,7 +21,6 @@ import org.mozilla.gecko.favicons.Favicons;
 import org.mozilla.gecko.favicons.LoadFaviconTask;
 import org.mozilla.gecko.favicons.OnFaviconLoadedListener;
 import org.mozilla.gecko.favicons.RemoteFavicon;
-import org.mozilla.gecko.gfx.BitmapUtils;
 import org.mozilla.gecko.gfx.Layer;
 import org.mozilla.gecko.toolbar.BrowserToolbar.TabEditingState;
 import org.mozilla.gecko.util.ThreadUtils;
@@ -642,7 +641,7 @@ public class Tab {
                 if (!TextUtils.equals(oldURL, getURL()))
                     return;
 
-                ThumbnailHelper.getInstance().getAndProcessThumbnailFor(tab);
+                ThumbnailHelper.getInstance().getAndProcessThumbnailFor(tab, mDB);
             }
         }, 500);
     }
@@ -658,7 +657,7 @@ public class Tab {
         }
 
         try {
-            final String url = getURL();
+            String url = getURL();
             if (url == null) {
                 return;
             }
@@ -669,33 +668,11 @@ public class Tab {
         }
     }
 
-    public void loadThumbnailFromDB(final BrowserDB db) {
-        try {
-            final String url = getURL();
-            if (url == null) {
-                return;
-            }
-
-            byte[] thumbnail = db.getThumbnailForUrl(getContentResolver(), url);
-            if (thumbnail == null) {
-                return;
-            }
-
-            Bitmap bitmap = BitmapUtils.decodeByteArray(thumbnail);
-            mThumbnail = new BitmapDrawable(mAppContext.getResources(), bitmap);
-
-            Tabs.getInstance().notifyListeners(Tab.this, Tabs.TabEvents.THUMBNAIL);
-        } catch (Exception e) {
-            // ignore
-        }
-    }
-
     private void clearThumbnailFromDB(final BrowserDB db) {
         try {
-            final String url = getURL();
-            if (url == null) {
+            String url = getURL();
+            if (url == null)
                 return;
-            }
 
             // Passing in a null thumbnail will delete the stored thumbnail for this url
             db.updateThumbnailForUrl(getContentResolver(), url, null);

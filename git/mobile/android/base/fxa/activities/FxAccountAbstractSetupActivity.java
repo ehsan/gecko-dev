@@ -308,13 +308,12 @@ abstract public class FxAccountAbstractSetupActivity extends FxAccountAbstractAc
     public final PasswordStretcher passwordStretcher;
     public final String serverURI;
     public final Map<String, Boolean> selectedEngines;
-    public final Map<String, Boolean> authoritiesToSyncAutomaticallyMap;
 
     public AddAccountDelegate(String email, PasswordStretcher passwordStretcher, String serverURI) {
-      this(email, passwordStretcher, serverURI, null, AndroidFxAccount.DEFAULT_AUTHORITIES_TO_SYNC_AUTOMATICALLY_MAP);
+      this(email, passwordStretcher, serverURI, null);
     }
 
-    public AddAccountDelegate(String email, PasswordStretcher passwordStretcher, String serverURI, Map<String, Boolean> selectedEngines, Map<String, Boolean> authoritiesToSyncAutomaticallyMap) {
+    public AddAccountDelegate(String email, PasswordStretcher passwordStretcher, String serverURI, Map<String, Boolean> selectedEngines) {
       if (email == null) {
         throw new IllegalArgumentException("email must not be null");
       }
@@ -324,9 +323,6 @@ abstract public class FxAccountAbstractSetupActivity extends FxAccountAbstractAc
       if (serverURI == null) {
         throw new IllegalArgumentException("serverURI must not be null");
       }
-      if (authoritiesToSyncAutomaticallyMap == null) {
-        throw new IllegalArgumentException("authoritiesToSyncAutomaticallyMap must not be null");
-      }
       this.email = email;
       this.passwordStretcher = passwordStretcher;
       this.serverURI = serverURI;
@@ -334,8 +330,6 @@ abstract public class FxAccountAbstractSetupActivity extends FxAccountAbstractAc
       // userSelectedEngines to prefs. This makes any created meta/global record
       // have the default set of engines to sync.
       this.selectedEngines = selectedEngines;
-      // authoritiesToSyncAutomaticallymap cannot be null.
-      this.authoritiesToSyncAutomaticallyMap = authoritiesToSyncAutomaticallyMap;
     }
 
     @Override
@@ -363,8 +357,7 @@ abstract public class FxAccountAbstractSetupActivity extends FxAccountAbstractAc
             profile,
             serverURI,
             tokenServerURI,
-            state,
-            this.authoritiesToSyncAutomaticallyMap);
+            state);
         if (fxAccount == null) {
           throw new RuntimeException("Could not add Android account.");
         }
