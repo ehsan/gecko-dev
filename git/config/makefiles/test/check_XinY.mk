@@ -7,8 +7,10 @@
 # Verify dependencies are available
 $(call requiredfunction,getargv subargv is_XinY errorifneq)
 
+#############################
 ifdef VERBOSE
-  $(warning loading test)
+  $(warning )
+  $(call banner,Unit test: is_XinY)
 endif
 
 zero := 0

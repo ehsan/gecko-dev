@@ -316,8 +316,6 @@ IsTypedArrayProto(JSObject *obj)
 
 class DataViewObject : public JSObject
 { 
-    static Class protoClass;
-
     static const size_t BYTEOFFSET_SLOT = 0;
     static const size_t BYTELENGTH_SLOT = 1;
     static const size_t BUFFER_SLOT     = 2;

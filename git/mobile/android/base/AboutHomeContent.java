@@ -334,10 +334,8 @@ public class AboutHomeContent extends ScrollView
         // UI thread as it touches disk to access a sqlite DB.
         final boolean syncIsSetup = isSyncSetup();
 
-        final ContentResolver resolver = GeckoApp.mAppContext.getContentResolver();
-        final Cursor oldCursor = mCursor;
-        // Swap in the new cursor.
-        mCursor = BrowserDB.getTopSites(resolver, NUMBER_OF_TOP_SITES_PORTRAIT);;
+        ContentResolver resolver = GeckoApp.mAppContext.getContentResolver();
+        mCursor = BrowserDB.getTopSites(resolver, NUMBER_OF_TOP_SITES_PORTRAIT);
 
         GeckoApp.mAppContext.mMainHandler.post(new Runnable() {
             public void run() {
@@ -356,10 +354,6 @@ public class AboutHomeContent extends ScrollView
                 }
 
                 updateLayout(startupMode, syncIsSetup);
-
-                // Free the old Cursor in the right thread now.
-                if (oldCursor != null && !oldCursor.isClosed())
-                    oldCursor.close();
             }
         });
     }

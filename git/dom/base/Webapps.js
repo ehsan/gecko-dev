@@ -312,7 +312,7 @@ WebappsApplicationMgmt.prototype = {
   },
 
   get onuninstall() {
-    return this._onuninstall;
+    this._onuninstall;
   },
 
   set oninstall(aCallback) {

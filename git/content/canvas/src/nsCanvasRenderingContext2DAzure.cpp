@@ -700,7 +700,7 @@ protected:
             dash(other.dash),
             dashOffset(other.dashOffset),
             op(other.op),
-            fillRule(other.fillRule),
+            fillRule(FILL_WINDING),
             lineCap(other.lineCap),
             lineJoin(other.lineJoin),
             imageSmoothingEnabled(other.imageSmoothingEnabled)
