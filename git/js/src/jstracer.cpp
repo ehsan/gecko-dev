@@ -1810,7 +1810,7 @@ js_InitJIT(JSTraceMonitor *tm)
 }
 
 extern void
-js_DestroyJIT(JSTraceMonitor *tm)
+js_FinishJIT(JSTraceMonitor *tm)
 {
 #ifdef DEBUG
     printf("recorder: started(%llu), aborted(%llu), completed(%llu), different header(%llu), "
@@ -2691,22 +2691,6 @@ TraceRecorder::record_JSOP_EQ()
         set(&l, x);
         return true;
     }
-    if (JSVAL_IS_OBJECT(l) && JSVAL_IS_OBJECT(r)) {
-        bool cond = (l == r);
-        LIns* x = lir->ins2(LIR_eq, get(&l), get(&r));
-        /* The interpreter fuses comparisons and the following branch,
-           so we have to do that here as well. */
-        if (cx->fp->regs->pc[1] == JSOP_IFEQ || cx->fp->regs->pc[1] == JSOP_IFNE)
-            guard(cond, x, BRANCH_EXIT);
-
-        /* We update the stack after the guard. This is safe since
-           the guard bails out at the comparison and the interpreter
-           will this re-execute the comparison. This way the
-           value of the condition doesn't have to be calculated and
-           saved on the stack in most cases. */
-        set(&l, x);
-        return true;
-    }
     return cmp(LIR_feq);
 }
 
@@ -2719,22 +2703,6 @@ TraceRecorder::record_JSOP_NE()
         LIns* args[] = { get(&r), get(&l) };
         bool cond = !js_EqualStrings(JSVAL_TO_STRING(l), JSVAL_TO_STRING(r));
         LIns* x = lir->ins_eq0(lir->insCall(F_EqualStrings, args));
-        /* The interpreter fuses comparisons and the following branch,
-           so we have to do that here as well. */
-        if (cx->fp->regs->pc[1] == JSOP_IFEQ || cx->fp->regs->pc[1] == JSOP_IFNE)
-            guard(cond, x, BRANCH_EXIT);
-
-        /* We update the stack after the guard. This is safe since
-           the guard bails out at the comparison and the interpreter
-           will this re-execute the comparison. This way the
-           value of the condition doesn't have to be calculated and
-           saved on the stack in most cases. */
-        set(&l, x);
-        return true;
-    }
-    if (JSVAL_IS_OBJECT(l) && JSVAL_IS_OBJECT(r)) {
-        bool cond = (l != r);
-        LIns* x = lir->ins_eq0(lir->ins2(LIR_eq, get(&l), get(&r)));
         /* The interpreter fuses comparisons and the following branch,
            so we have to do that here as well. */
         if (cx->fp->regs->pc[1] == JSOP_IFEQ || cx->fp->regs->pc[1] == JSOP_IFNE)
