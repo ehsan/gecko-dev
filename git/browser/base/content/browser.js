@@ -1487,9 +1487,7 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   }
 
   // Enable Chrome Debugger?
-  let enabled = gPrefService.getBoolPref("devtools.chrome.enabled") &&
-                gPrefService.getBoolPref("devtools.debugger.chrome-enabled") &&
-                gPrefService.getBoolPref("devtools.debugger.remote-enabled");
+  let enabled = gPrefService.getBoolPref("devtools.chrome.enabled");
   if (enabled) {
     document.getElementById("menu_chromeDebugger").hidden = false;
     document.getElementById("Tools:ChromeDebugger").removeAttribute("disabled");

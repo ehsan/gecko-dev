@@ -5247,7 +5247,7 @@ var WebappsUI = {
 
 var RemoteDebugger = {
   init: function rd_init() {
-    Services.prefs.addObserver("devtools.debugger.", this, false);
+    Services.prefs.addObserver("remote-debugger.", this, false);
 
     if (this._isEnabled())
       this._start();
@@ -5258,14 +5258,14 @@ var RemoteDebugger = {
       return;
 
     switch (aData) {
-      case "devtools.debugger.remote-enabled":
+      case "remote-debugger.enabled":
         if (this._isEnabled())
           this._start();
         else
           this._stop();
         break;
 
-      case "devtools.debugger.remote-port":
+      case "remote-debugger.port":
         if (this._isEnabled())
           this._restart();
         break;
@@ -5273,16 +5273,16 @@ var RemoteDebugger = {
   },
 
   uninit: function rd_uninit() {
-    Services.prefs.removeObserver("devtools.debugger.", this);
+    Services.prefs.removeObserver("remote-debugger.", this);
     this._stop();
   },
 
   _getPort: function _rd_getPort() {
-    return Services.prefs.getIntPref("devtools.debugger.remote-port");
+    return Services.prefs.getIntPref("remote-debugger.port");
   },
 
   _isEnabled: function rd_isEnabled() {
-    return Services.prefs.getBoolPref("devtools.debugger.remote-enabled");
+    return Services.prefs.getBoolPref("remote-debugger.enabled");
   },
 
   /**
@@ -5304,7 +5304,7 @@ var RemoteDebugger = {
       return true;
     if (result == 2) {
       this._stop();
-      Services.prefs.setBoolPref("devtools.debugger.remote-enabled", false);
+      Services.prefs.setBoolPref("remote-debugger.enabled", false);
     }
     return false;
   },
