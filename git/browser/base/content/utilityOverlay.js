@@ -50,12 +50,8 @@ function getBrowserURL()
   return "chrome://browser/content/browser.xul";
 }
 
-function getTopWin(skipPopups) {
-  if (skipPopups) {
-    return Components.classes["@mozilla.org/browser/browserglue;1"]
-                     .getService(Components.interfaces.nsIBrowserGlue)
-                     .getMostRecentBrowserWindow();
-  }
+function getTopWin()
+{
   return Services.wm.getMostRecentWindow("navigator:browser");
 }
 
@@ -162,33 +158,18 @@ function whereToOpenLink( e, ignoreButton, ignoreAlt )
  *   relatedToCurrent     (boolean)
  */
 function openUILinkIn(url, where, aAllowThirdPartyFixup, aPostData, aReferrerURI) {
-  var params;
-
-  if (arguments.length == 3 && typeof arguments[2] == "object") {
-    params = aAllowThirdPartyFixup;
-  } else {
-    params = {
-      allowThirdPartyFixup: aAllowThirdPartyFixup,
-      postData: aPostData,
-      referrerURI: aReferrerURI
-    };
-  }
-
-  params.fromContent = false;
-
-  openLinkIn(url, where, params);
-}
-
-function openLinkIn(url, where, params) {
   if (!where || !url)
     return;
 
-  var aFromContent          = params.fromContent;
-  var aAllowThirdPartyFixup = params.allowThirdPartyFixup;
-  var aPostData             = params.postData;
-  var aCharset              = params.charset;
-  var aReferrerURI          = params.referrerURI;
-  var aRelatedToCurrent     = params.relatedToCurrent;
+  var aRelatedToCurrent;
+  if (arguments.length == 3 &&
+      typeof arguments[2] == "object") {
+    let params = arguments[2];
+    aAllowThirdPartyFixup = params.allowThirdPartyFixup;
+    aPostData             = params.postData;
+    aReferrerURI          = params.referrerURI;
+    aRelatedToCurrent     = params.relatedToCurrent;
+  }
 
   if (where == "save") {
     saveURL(url, null, null, true, null, aReferrerURI);
@@ -198,11 +179,6 @@ function openLinkIn(url, where, params) {
   const Ci = Components.interfaces;
 
   var w = getTopWin();
-  if ((where == "tab" || where == "tabshifted") &&
-      w.document.documentElement.getAttribute("chromehidden")) {
-    w = getTopWin(true);
-    aRelatedToCurrent = false;
-  }
 
   if (!w || where == "window") {
     var sa = Cc["@mozilla.org/supports-array;1"].
@@ -212,19 +188,12 @@ function openLinkIn(url, where, params) {
                createInstance(Ci.nsISupportsString);
     wuri.data = url;
 
-    let charset = null;
-    if (aCharset) {
-      charset = Cc["@mozilla.org/supports-string;1"]
-                  .createInstance(Ci.nsISupportsString);
-      charset.data = "charset=" + aCharset;
-    }
-
     var allowThirdPartyFixupSupports = Cc["@mozilla.org/supports-PRBool;1"].
                                        createInstance(Ci.nsISupportsPRBool);
     allowThirdPartyFixupSupports.data = aAllowThirdPartyFixup;
 
     sa.AppendElement(wuri);
-    sa.AppendElement(charset);
+    sa.AppendElement(null);
     sa.AppendElement(aReferrerURI);
     sa.AppendElement(aPostData);
     sa.AppendElement(allowThirdPartyFixupSupports);
@@ -241,9 +210,7 @@ function openLinkIn(url, where, params) {
     return;
   }
 
-  var loadInBackground = aFromContent ?
-                         getBoolPref("browser.tabs.loadInBackground") :
-                         getBoolPref("browser.tabs.loadBookmarksInBackground");
+  var loadInBackground = getBoolPref("browser.tabs.loadBookmarksInBackground");
 
   if (where == "current" && w.gBrowser.selectedTab.pinned) {
     try {
@@ -270,7 +237,6 @@ function openLinkIn(url, where, params) {
     let browser = w.gBrowser;
     browser.loadOneTab(url, {
                        referrerURI: aReferrerURI,
-                       charset: aCharset,
                        postData: aPostData,
                        inBackground: loadInBackground,
                        allowThirdPartyFixup: aAllowThirdPartyFixup,

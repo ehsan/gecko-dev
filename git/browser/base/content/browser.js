@@ -787,6 +787,7 @@ const gFormSubmitObserver = {
   init: function()
   {
     this.panel = document.getElementById('invalid-form-popup');
+    this.panel.appendChild(document.createTextNode(""));
   },
 
   panelIsOpen: function()
@@ -819,7 +820,8 @@ const gFormSubmitObserver = {
       return;
     }
 
-    this.panel.firstChild.textContent = element.validationMessage;
+    // Limit the message to 256 characters.
+    this.panel.firstChild.nodeValue = element.validationMessage.substring(0, 256);
 
     element.focus();
 
@@ -5090,28 +5092,54 @@ function asyncOpenWebPanel(event)
    return true;
  }
 
-function handleLinkClick(event, href, linkNode) {
-  if (event.button == 2) // right click
-    return false;
-
-  var where = whereToOpenLink(event);
-  if (where == "current")
-    return false;
-
+function handleLinkClick(event, href, linkNode)
+{
   var doc = event.target.ownerDocument;
 
-  if (where == "save") {
-    saveURL(href, linkNode ? gatherTextUnder(linkNode) : "", null, true,
-            true, doc.documentURIObject);
-    return true;
-  }
+  switch (event.button) {
+    case 0:    // if left button clicked
+#ifdef XP_MACOSX
+      if (event.metaKey) { // Cmd
+#else
+      if (event.ctrlKey) {
+#endif
+        openNewTabWith(href, doc, null, event, false);
+        event.stopPropagation();
+        return true;
+      }
 
-  urlSecurityCheck(href, doc.nodePrincipal);
-  openLinkIn(href, where, { fromContent: true,
-                            referrerURI: doc.documentURIObject,
-                            charset: doc.characterSet });
-  event.stopPropagation();
-  return true;
+      if (event.shiftKey && event.altKey) {
+        var feedService =
+            Cc["@mozilla.org/browser/feeds/result-service;1"].
+            getService(Ci.nsIFeedResultService);
+        feedService.forcePreviewPage = true;
+        loadURI(href, null, null, false);
+        return false;
+      }
+
+      if (event.shiftKey) {
+        openNewWindowWith(href, doc, null, false);
+        event.stopPropagation();
+        return true;
+      }
+
+      if (event.altKey) {
+        saveURL(href, linkNode ? gatherTextUnder(linkNode) : "", null, true,
+                true, doc.documentURIObject);
+        return true;
+      }
+
+      return false;
+    case 1:    // if middle button clicked
+      var tab = gPrefService.getBoolPref("browser.tabs.opentabfor.middleclick");
+      if (tab)
+        openNewTabWith(href, doc, null, event, false);
+      else
+        openNewWindowWith(href, doc, null, false);
+      event.stopPropagation();
+      return true;
+  }
+  return false;
 }
 
 function middleMousePaste(event) {

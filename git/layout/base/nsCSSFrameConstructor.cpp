@@ -740,13 +740,13 @@ public:
   // we have not yet created the relevant frame.
   PRPackedBool              mHavePendingPopupgroup;
 
-  // If false (which is the default) then call SetPrimaryFrame() as needed
-  // during frame construction.  If true, don't make any SetPrimaryFrame()
-  // calls.  The mCreatingExtraFrames == PR_TRUE mode is meant to be used for
+  // If true (which is the default) then call SetPrimaryFrame() as needed
+  // during frame construction.  If false, don't make any SetPrimaryFrame()
+  // calls.  The mSetPrimaryFrames == PR_FALSE mode is meant to be used for
   // construction of random "extra" frames for elements via normal frame
   // construction APIs (e.g. replication of things across pages in paginated
   // mode).
-  PRPackedBool              mCreatingExtraFrames;
+  PRPackedBool              mSetPrimaryFrames;
 
   nsCOMArray<nsIContent>    mGeneratedTextNodesWithInitializer;
 
@@ -911,7 +911,7 @@ nsFrameConstructorState::nsFrameConstructorState(nsIPresShell*          aPresShe
                       aAbsoluteContainingBlock->GetStyleDisplay()->
                         HasTransform()),
     mHavePendingPopupgroup(PR_FALSE),
-    mCreatingExtraFrames(PR_FALSE),
+    mSetPrimaryFrames(PR_TRUE),
     mCurrentPendingBindingInsertionPoint(&mPendingBindings)
 {
 #ifdef MOZ_XUL
@@ -943,7 +943,7 @@ nsFrameConstructorState::nsFrameConstructorState(nsIPresShell* aPresShell,
                       aAbsoluteContainingBlock->GetStyleDisplay()->
                         HasTransform()),
     mHavePendingPopupgroup(PR_FALSE),
-    mCreatingExtraFrames(PR_FALSE),
+    mSetPrimaryFrames(PR_TRUE),
     mCurrentPendingBindingInsertionPoint(&mPendingBindings)
 {
 #ifdef MOZ_XUL
@@ -2162,7 +2162,7 @@ NeedFrameFor(const nsFrameConstructorState& aState,
   // XXX the GetContent() != aChildContent check is needed due to bug 135040.
   // Remove it once that's fixed.
   NS_PRECONDITION(!aChildContent->GetPrimaryFrame() ||
-                  aState.mCreatingExtraFrames ||
+                  !aState.mSetPrimaryFrames ||
                   aChildContent->GetPrimaryFrame()->GetContent() != aChildContent,
                   "Why did we get called?");
 
@@ -3435,7 +3435,7 @@ nsCSSFrameConstructor::ConstructTextFrame(const FrameConstructionData* aData,
   // Add the newly constructed frame to the flow
   aFrameItems.AddChild(newFrame);
 
-  if (!aState.mCreatingExtraFrames)
+  if (aState.mSetPrimaryFrames)
     aContent->SetPrimaryFrame(newFrame);
   
   return rv;
@@ -3710,13 +3710,6 @@ nsCSSFrameConstructor::ConstructFrameFromItemInternal(FrameConstructionItem& aIt
   CHECK_ONLY_ONE_BIT(FCDATA_MAY_NEED_SCROLLFRAME, FCDATA_FORCE_VIEW);
 #undef CHECK_ONLY_ONE_BIT
 
-  // Don't create a subdocument frame for iframes if we're creating extra frames
-  if (aState.mCreatingExtraFrames && aItem.mContent->IsHTML() &&
-      aItem.mContent->Tag() == nsGkAtoms::iframe)
-  {
-    return NS_OK;
-  }
-
   nsStyleContext* const styleContext = aItem.mStyleContext;
   const nsStyleDisplay* display = styleContext->GetStyleDisplay();
 
@@ -3872,7 +3865,7 @@ nsCSSFrameConstructor::ConstructFrameFromItemInternal(FrameConstructionItem& aIt
                ((bits & FCDATA_IS_LINE_PARTICIPANT) != 0),
                "Incorrectly set FCDATA_IS_LINE_PARTICIPANT bits");
 
-  if (!aState.mCreatingExtraFrames && !(bits & FCDATA_SKIP_FRAMESET)) {
+  if (aState.mSetPrimaryFrames && !(bits & FCDATA_SKIP_FRAMESET)) {
     aItem.mContent->SetPrimaryFrame(primaryFrame);
   }
 
@@ -8414,7 +8407,7 @@ nsCSSFrameConstructor::CreateContinuingTableFrame(nsIPresShell* aPresShell,
         nsFrameConstructorState state(mPresShell, mFixedContainingBlock,
                                       GetAbsoluteContainingBlock(newFrame),
                                       nsnull);
-        state.mCreatingExtraFrames = PR_TRUE;
+        state.mSetPrimaryFrames = PR_FALSE;
 
         headerFooterFrame = static_cast<nsTableRowGroupFrame*>
                                        (NS_NewTableRowGroupFrame(aPresShell, rowGroupFrame->GetStyleContext()));
@@ -8741,7 +8734,7 @@ nsCSSFrameConstructor::ReplicateFixedFrames(nsPageContentFrame* aParentFrame)
   nsFrameConstructorState state(mPresShell, aParentFrame,
                                 nsnull,
                                 mRootElementFrame);
-  state.mCreatingExtraFrames = PR_TRUE;
+  state.mSetPrimaryFrames = PR_FALSE;
 
   // Iterate across fixed frames and replicate each whose placeholder is a
   // descendant of aFrame. (We don't want to explicitly copy placeholders that
@@ -11727,7 +11720,7 @@ PRBool
 nsCSSFrameConstructor::
 FrameConstructionItem::IsWhitespace(nsFrameConstructorState& aState) const
 {
-  NS_PRECONDITION(aState.mCreatingExtraFrames ||
+  NS_PRECONDITION(!aState.mSetPrimaryFrames ||
                   !mContent->GetPrimaryFrame(), "How did that happen?");
   if (!mIsText) {
     return PR_FALSE;

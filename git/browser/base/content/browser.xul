@@ -167,9 +167,7 @@
     <panel type="autocomplete-richlistbox" id="PopupAutoCompleteRichResult" noautofocus="true" hidden="true"/>
 
     <!-- for invalid form error message -->
-    <panel id="invalid-form-popup" noautofocus="true" hidden="true" level="parent">
-      <description/>
-    </panel>
+    <panel id="invalid-form-popup" noautofocus="true" hidden="true" level="parent"/>
 
     <panel id="editBookmarkPanel"
            orient="vertical"

@@ -2495,7 +2495,8 @@ PaintBackgroundLayer(nsPresContext* aPresContext,
       }
     }
 
-    if (aFlags & nsCSSRendering::PAINTBG_TO_WINDOW) {
+    if (aRenderingContext.ThebesContext()->GetFlags() &
+        gfxContext::FLAG_DESTINED_FOR_SCREEN) {
       // Clip background-attachment:fixed backgrounds to the viewport, if we're
       // painting to the screen. This avoids triggering tiling in common cases,
       // without affecting output since drawing is always clipped to the viewport

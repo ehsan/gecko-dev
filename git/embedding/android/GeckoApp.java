@@ -426,7 +426,7 @@ abstract public class GeckoApp
         outFile.setLastModified(fileEntry.getTime());
     }
 
-    public void addEnvToIntent(Intent intent) {
+    public String getEnvString() {
         Map<String,String> envMap = System.getenv();
         Set<Map.Entry<String,String>> envSet = envMap.entrySet();
         Iterator<Map.Entry<String,String>> envIter = envSet.iterator();
@@ -434,25 +434,39 @@ abstract public class GeckoApp
         int c = 0;
         while (envIter.hasNext()) {
             Map.Entry<String,String> entry = envIter.next();
-            intent.putExtra("env" + c, entry.getKey() + "=" 
-                            + entry.getValue());
-            c++;
+            // No need to pass env vars that we know the system provides
+            // Unnecessary vars need to be trimmed since amount of data
+            // we can pass this way is limited
+            if (!entry.getKey().equals("BOOTCLASSPATH") &&
+                !entry.getKey().equals("ANDROID_SOCKET_zygote") && 
+                !entry.getKey().equals("TMPDIR") &&
+                !entry.getKey().equals("ANDROID_BOOTLOGO") &&
+                !entry.getKey().equals("EXTERNAL_STORAGE") &&
+                !entry.getKey().equals("ANDROID_ASSETS") &&
+                !entry.getKey().equals("PATH") &&
+                !entry.getKey().equals("TERMINFO") &&
+                !entry.getKey().equals("LD_LIBRARY_PATH") &&
+                !entry.getKey().equals("ANDROID_DATA") &&
+                !entry.getKey().equals("ANDROID_PROPERTY_WORKSPACE") &&
+                !entry.getKey().equals("ANDROID_ROOT")) {
+                envstr.append(" --es env" + c + " " + entry.getKey() + "=" 
+                              + entry.getValue());
+                c++;
+            }
         }
+        return envstr.toString();        
     }
 
     public void doRestart() {
         try {
             String action = "org.mozilla.gecko.restart" + getAppName();
-            Intent intent = new Intent(action);
-            intent.setClassName("org.mozilla." + getAppName(),
-                                "org.mozilla." + getAppName() + ".Restarter");
-            addEnvToIntent(intent);
-            Log.i("GeckoAppJava", intent.toString());
-            sendBroadcast(intent);
+            String amCmd = "/system/bin/am broadcast -a " + action + getEnvString() + " -n org.mozilla." + getAppName() + "/org.mozilla." + getAppName() + ".Restarter";
+            Log.i("GeckoAppJava", amCmd);
+            Runtime.getRuntime().exec(amCmd);
         } catch (Exception e) {
             Log.i("GeckoAppJava", e.toString());
         }
-        finish();
+        System.exit(0);
     }
 
     public void handleNotification(String action, String alertName, String alertCookie) {

@@ -78,30 +78,6 @@ struct SelectionState {
   PRInt32 mEnd;
 };
 
-class RestoreSelectionState : public nsRunnable {
-public:
-  RestoreSelectionState(nsTextControlFrame *aFrame, PRInt32 aStart, PRInt32 aEnd)
-    : mFrame(aFrame),
-      mWeakFrame(aFrame),
-      mStart(aStart),
-      mEnd(aEnd)
-  {
-  }
-
-  NS_IMETHOD Run() {
-    if (mWeakFrame.IsAlive()) {
-      mFrame->SetSelectionRange(mStart, mEnd);
-    }
-    return NS_OK;
-  }
-
-private:
-  nsTextControlFrame* mFrame;
-  nsWeakFrame mWeakFrame;
-  PRInt32 mStart;
-  PRInt32 mEnd;
-};
-
 /*static*/
 PRBool
 nsITextControlElement::GetWrapPropertyEnum(nsIContent* aContent,
@@ -184,7 +160,7 @@ public:
   NS_IMETHOD SetSelectionFlags(PRInt16 aInEnable);
   NS_IMETHOD GetSelectionFlags(PRInt16 *aOutEnable);
   NS_IMETHOD GetSelection(PRInt16 type, nsISelection **_retval);
-  NS_IMETHOD ScrollSelectionIntoView(PRInt16 aType, PRInt16 aRegion, PRInt16 aFlags);
+  NS_IMETHOD ScrollSelectionIntoView(PRInt16 aType, PRInt16 aRegion, PRBool aIsSynchronous);
   NS_IMETHOD RepaintSelection(PRInt16 type);
   NS_IMETHOD RepaintSelection(nsPresContext* aPresContext, SelectionType aSelectionType);
   NS_IMETHOD SetCaretEnabled(PRBool enabled);
@@ -303,12 +279,12 @@ nsTextInputSelectionImpl::GetSelection(PRInt16 type, nsISelection **_retval)
 }
 
 NS_IMETHODIMP
-nsTextInputSelectionImpl::ScrollSelectionIntoView(PRInt16 aType, PRInt16 aRegion, PRInt16 aFlags)
+nsTextInputSelectionImpl::ScrollSelectionIntoView(PRInt16 aType, PRInt16 aRegion, PRBool aIsSynchronous)
 {
   if (!mFrameSelection) 
     return NS_ERROR_FAILURE; 
 
-  return mFrameSelection->ScrollSelectionIntoView(aType, aRegion, aFlags);
+  return mFrameSelection->ScrollSelectionIntoView(aType, aRegion, aIsSynchronous); 
 }
 
 NS_IMETHODIMP
@@ -485,8 +461,7 @@ nsTextInputSelectionImpl::PageMove(PRBool aForward, PRBool aExtend)
   }
   // After ScrollSelectionIntoView(), the pending notifications might be
   // flushed and PresShell/PresContext/Frames may be dead. See bug 418470.
-  return ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL, nsISelectionController::SELECTION_FOCUS_REGION,
-                                 nsISelectionController::SCROLL_SYNCHRONOUS);
+  return ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL, nsISelectionController::SELECTION_FOCUS_REGION, PR_TRUE);
 }
 
 NS_IMETHODIMP
@@ -1353,7 +1328,7 @@ nsTextEditorState::PrepareEditor(const nsAString *aValue)
 
   // Restore our selection after being bound to a new frame
   if (mSelState) {
-    nsContentUtils::AddScriptRunner(new RestoreSelectionState(mBoundFrame, mSelState->mStart, mSelState->mEnd));
+    mBoundFrame->SetSelectionRange(mSelState->mStart, mSelState->mEnd);
     mSelState = nsnull;
   }
 

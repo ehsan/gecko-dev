@@ -161,9 +161,6 @@ nsDisplayListBuilder::GetBackgroundPaintFlags() {
   if (mSyncDecodeImages) {
     flags |= nsCSSRendering::PAINTBG_SYNC_DECODE_IMAGES;
   }
-  if (mIsPaintingToWindow) {
-    flags |= nsCSSRendering::PAINTBG_TO_WINDOW;
-  }
   return flags;
 }
 
