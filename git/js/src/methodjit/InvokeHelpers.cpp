@@ -487,18 +487,16 @@ stubs::UncachedNewHelper(VMFrame &f, uint32 argc, UncachedCallResult *ucr)
 
     /* Try to do a fast inline call before the general Invoke path. */
     if (IsFunctionObject(*vp, &ucr->fun) && ucr->fun->isInterpreted() && 
-        !ucr->fun->script()->isEmpty())
-    {
-        if (!stubs::NewObject(f, argc))
-            return;
-
+        !ucr->fun->script()->isEmpty()) {
         ucr->callee = &vp->toObject();
         if (!UncachedInlineCall(f, JSFRAME_CONSTRUCTING, &ucr->codeAddr, argc))
             THROW();
-    } else {
-        if (!InvokeConstructor(cx, InvokeArgsAlreadyOnTheStack(vp, argc)))
-            THROW();
+        return;
     }
+
+    if (!InvokeConstructor(cx, InvokeArgsAlreadyOnTheStack(vp, argc)))
+        THROW();
+    return;
 }
 
 void * JS_FASTCALL
