@@ -211,11 +211,6 @@ Store.prototype = {
     for each (let record in records) {
       try {
         this.applyIncoming(record);
-      } catch (ex if (ex.code == Engine.prototype.eEngineAbortApplyIncoming)) {
-        // This kind of exception should have a 'cause' attribute, which is an
-        // originating exception.
-        // ex.cause will carry its stack with it when rethrown.
-        throw ex.cause;
       } catch (ex) {
         this._log.warn("Failed to apply incoming record " + record.id);
         this._log.warn("Encountered exception: " + Utils.exceptionStr(ex));
@@ -366,10 +361,6 @@ Engine.prototype = {
   // _storeObj, and _trackerObj should to be overridden in subclasses
   _storeObj: Store,
   _trackerObj: Tracker,
-
-  // Local 'constant'.
-  // Signal to the engine that processing further records is pointless.
-  eEngineAbortApplyIncoming: "error.engine.abort.applyincoming",
 
   get prefName() this.name,
   get enabled() Svc.Prefs.get("engine." + this.prefName, false),
@@ -668,22 +659,9 @@ SyncEngine.prototype = {
     // Reset previousFailed for each sync since previously failed items may not fail again.
     this.previousFailed = [];
 
-    // Used (via exceptions) to allow the record handler/reconciliation/etc.
-    // methods to signal that they would like processing of incoming records to
-    // cease.
-    let aborting = undefined;
-
     function doApplyBatch() {
       this._tracker.ignoreAll = true;
-      try {
-        failed = failed.concat(this._store.applyIncomingBatch(applyBatch));
-      } catch (ex) {
-        // Catch any error that escapes from applyIncomingBatch. At present
-        // those will all be abort events.
-        this._log.warn("Got exception " + Utils.exceptionStr(ex) +
-                       ", aborting processIncoming.");
-        aborting = ex;
-      }
+      failed = failed.concat(this._store.applyIncomingBatch(applyBatch));
       this._tracker.ignoreAll = false;
       applyBatch = [];
     }
@@ -706,10 +684,6 @@ SyncEngine.prototype = {
     // called for every incoming record.
     let self = this;
     newitems.recordHandler = function(item) {
-      if (aborting) {
-        return;
-      }
-
       // Grab a later last modified if possible
       if (self.lastModified == null || item.modified > self.lastModified)
         self.lastModified = item.modified;
@@ -763,10 +737,6 @@ SyncEngine.prototype = {
       let shouldApply;
       try {
         shouldApply = self._reconcile(item);
-      } catch (ex if (ex.code == Engine.prototype.eEngineAbortApplyIncoming)) {
-        self._log.warn("Reconciliation failed: aborting incoming processing.");
-        failed.push(item.id);
-        aborting = ex.cause;
       } catch (ex) {
         self._log.warn("Failed to reconcile incoming record " + item.id);
         self._log.warn("Encountered exception: " + Utils.exceptionStr(ex));
@@ -795,10 +765,6 @@ SyncEngine.prototype = {
       if (!resp.success) {
         resp.failureCode = ENGINE_DOWNLOAD_FAIL;
         throw resp;
-      }
-
-      if (aborting) {
-        throw aborting;
       }
     }
 
@@ -838,7 +804,7 @@ SyncEngine.prototype = {
     batchSize = isMobile ? this.mobileGUIDFetchBatchSize :
                            this.guidFetchBatchSize;
 
-    while (fetchBatch.length && !aborting) {
+    while (fetchBatch.length) {
       // Reuse the original query, but get rid of the restricting params
       // and batch remaining records.
       newitems.limit = 0;
@@ -862,11 +828,6 @@ SyncEngine.prototype = {
         this._log.debug("Records that failed to apply: " + failed);
       }
       failed = [];
-
-      if (aborting) {
-        throw aborting;
-      }
-
       if (this.lastSync < this.lastModified) {
         this.lastSync = this.lastModified;
       }
