@@ -16,7 +16,6 @@
 
 static bool gDisableOptimize = false;
 
-#include "cairo.h"
 #include "GeckoProfiler.h"
 #include "mozilla/Likely.h"
 #include "mozilla/MemoryReporting.h"
@@ -24,9 +23,12 @@ static bool gDisableOptimize = false;
 #include "mozilla/CheckedInt.h"
 #include "mozilla/gfx/Tools.h"
 
-using namespace mozilla;
-using namespace mozilla::gfx;
-using namespace mozilla::image;
+
+namespace mozilla {
+
+using namespace gfx;
+
+namespace image {
 
 static UserDataKey kVolatileBuffer;
 
@@ -349,12 +351,12 @@ imgFrame::SurfaceForDrawing(bool               aDoPadding,
       imageSpaceToUserSpace.Invert();
       SurfacePattern pattern(aSurface,
                              ExtendMode::REPEAT,
-                             Matrix(imageSpaceToUserSpace.xx,
-                                    imageSpaceToUserSpace.xy,
-                                    imageSpaceToUserSpace.yx,
-                                    imageSpaceToUserSpace.yy,
-                                    imageSpaceToUserSpace.x0,
-                                    imageSpaceToUserSpace.y0));
+                             Matrix(imageSpaceToUserSpace._11,
+                                    imageSpaceToUserSpace._21,
+                                    imageSpaceToUserSpace._12,
+                                    imageSpaceToUserSpace._22,
+                                    imageSpaceToUserSpace._31,
+                                    imageSpaceToUserSpace._32));
       target->FillRect(fillRect, pattern);
     }
 
@@ -371,7 +373,7 @@ imgFrame::SurfaceForDrawing(bool               aDoPadding,
   aFill = imageSpaceToUserSpace.Transform(aSourceRect);
 
   aSubimage = aSubimage.Intersect(available) - gfxPoint(aPadding.left, aPadding.top);
-  aUserSpaceToImageSpace.Multiply(gfxMatrix().Translate(-gfxPoint(aPadding.left, aPadding.top)));
+  aUserSpaceToImageSpace *= gfxMatrix::Translation(-aPadding.left, -aPadding.top);
   aSourceRect = aSourceRect - gfxPoint(aPadding.left, aPadding.top);
   aImageRect = gfxRect(0, 0, mSize.width, mSize.height);
 
@@ -397,20 +399,6 @@ bool imgFrame::Draw(gfxContext *aContext, GraphicsFilter aFilter,
 
   if (mSinglePixel && !doPadding && !doPartialDecode) {
     if (mSinglePixelColor.a == 0.0) {
-      return true;
-    }
-
-    if (aContext->IsCairo()) {
-      gfxContext::GraphicsOperator op = aContext->CurrentOperator();
-      if (op == gfxContext::OPERATOR_OVER && mSinglePixelColor.a == 1.0) {
-        aContext->SetOperator(gfxContext::OPERATOR_SOURCE);
-      }
-      aContext->SetDeviceColor(ThebesColor(mSinglePixelColor));
-      aContext->NewPath();
-      aContext->Rectangle(aFill);
-      aContext->Fill();
-      aContext->SetOperator(op);
-      aContext->SetDeviceColor(gfxRGBA(0,0,0,0));
       return true;
     }
     RefPtr<DrawTarget> dt = aContext->GetDrawTarget();
@@ -770,7 +758,7 @@ void imgFrame::SetCompositingFailed(bool val)
 // |aMallocSizeOf|.  If that fails (because the platform doesn't support it) or
 // it's non-heap memory, we fall back to computing the size analytically.
 size_t
-imgFrame::SizeOfExcludingThisWithComputedFallbackIfHeap(gfxMemoryLocation aLocation, mozilla::MallocSizeOf aMallocSizeOf) const
+imgFrame::SizeOfExcludingThisWithComputedFallbackIfHeap(gfxMemoryLocation aLocation, MallocSizeOf aMallocSizeOf) const
 {
   // aMallocSizeOf is only used if aLocation==gfxMemoryLocation::IN_PROCESS_HEAP.  It
   // should be nullptr otherwise.
@@ -807,3 +795,6 @@ imgFrame::SizeOfExcludingThisWithComputedFallbackIfHeap(gfxMemoryLocation aLocat
 
   return n;
 }
+
+} // namespace image
+} // namespace mozilla

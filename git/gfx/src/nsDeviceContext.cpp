@@ -54,7 +54,6 @@ class nsFontCache MOZ_FINAL : public nsIObserver
 {
 public:
     nsFontCache()   { MOZ_COUNT_CTOR(nsFontCache); }
-    ~nsFontCache()  { MOZ_COUNT_DTOR(nsFontCache); }
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIOBSERVER
@@ -72,6 +71,8 @@ public:
     void Flush();
 
 protected:
+    ~nsFontCache()  { MOZ_COUNT_DTOR(nsFontCache); }
+
     nsDeviceContext*          mContext; // owner
     nsCOMPtr<nsIAtom>         mLocaleLanguage;
     nsTArray<nsFontMetrics*>  mFontMetrics;
@@ -630,11 +631,17 @@ nsDeviceContext::ComputeFullAreaUsingScreen(nsRect* outRect)
 void
 nsDeviceContext::FindScreen(nsIScreen** outScreen)
 {
-    if (mWidget && mWidget->GetNativeData(NS_NATIVE_WINDOW))
+    if (mWidget && mWidget->GetOwningTabChild()) {
+        mScreenManager->ScreenForNativeWidget((void *)mWidget->GetOwningTabChild(),
+                                              outScreen);
+    }
+    else if (mWidget && mWidget->GetNativeData(NS_NATIVE_WINDOW)) {
         mScreenManager->ScreenForNativeWidget(mWidget->GetNativeData(NS_NATIVE_WINDOW),
                                               outScreen);
-    else
+    }
+    else {
         mScreenManager->GetPrimaryScreen(outScreen);
+    }
 }
 
 void

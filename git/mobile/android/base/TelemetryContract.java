@@ -31,6 +31,10 @@ public interface TelemetryContract {
         // Cancel a state, action, etc.
         CANCEL("cancel.1"),
 
+        // Start casting a video.
+        // Note: Only used in JavaScript for now, but here for completeness.
+        CAST("cast.1"),
+
         // Editing an item.
         EDIT("edit.1"),
 
@@ -59,6 +63,15 @@ public interface TelemetryContract {
 
         // Saving a resource (reader, bookmark, etc) for viewing later.
         SAVE("save.1"),
+
+        // Remove a search engine.
+        SEARCH_REMOVE("search.remove.1"),
+
+        // Restore default search engines.
+        SEARCH_RESTORE_DEFAULTS("search.restoredefaults.1"),
+
+        // Set default search engine.
+        SEARCH_SET_DEFAULT("search.setdefault.1"),
 
         // Sharing content.
         SHARE("share.1"),
@@ -120,6 +133,9 @@ public interface TelemetryContract {
         // Action occurred via an intent.
         INTENT("intent"),
 
+        // Action occurred via a homescreen launcher.
+        HOMESCREEN("homescreen"),
+
         // Action triggered from a list.
         LIST("list"),
 
@@ -175,9 +191,6 @@ public interface TelemetryContract {
 
         // Awesomescreen frecency search is active.
         FRECENCY("frecency.1"),
-
-        // Started when a user enters about:home.
-        HOME("home.1"),
 
         // Started when a user enters a given home panel.
         // Session name is dynamic, encoded as "homepanel.1:<panel_id>"

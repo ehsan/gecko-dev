@@ -1,4 +1,4 @@
-/* -*- js2-basic-offset: 2; indent-tabs-mode: nil; -*- */
+/* -*- js-indent-level: 2; indent-tabs-mode: nil -*- */
 /* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -7,10 +7,10 @@
 "use strict";
 
 const { Cc, Ci, Cu } = require("chrome");
-const Debugger = require("Debugger");
 const { DebuggerServer, ActorPool } = require("devtools/server/main");
 const { EnvironmentActor, LongStringActor, ObjectActor, ThreadActor } = require("devtools/server/actors/script");
 const { update } = require("devtools/toolkit/DevToolsUtils");
+const Debugger = require("Debugger");
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
@@ -750,10 +750,19 @@ WebConsoleActor.prototype =
       }
     }
 
+    // If a value is encountered that the debugger server doesn't support yet,
+    // the console should remain functional.
+    let resultGrip;
+    try {
+      resultGrip = this.createValueGrip(result);
+    } catch (e) {
+      errorMessage = e;
+    }
+
     return {
       from: this.actorID,
       input: input,
-      result: this.createValueGrip(result),
+      result: resultGrip,
       timestamp: timestamp,
       exception: errorGrip,
       exceptionMessage: errorMessage,

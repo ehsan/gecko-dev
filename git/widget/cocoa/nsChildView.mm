@@ -2135,16 +2135,6 @@ nsChildView::NewCompositorParent(int aSurfaceWidth, int aSurfaceHeight)
   return compositor;
 }
 
-gfxASurface*
-nsChildView::GetThebesSurface()
-{
-  if (!mTempThebesSurface) {
-    mTempThebesSurface = new gfxQuartzSurface(gfxSize(1, 1), gfxImageFormat::ARGB32);
-  }
-
-  return mTempThebesSurface;
-}
-
 void
 nsChildView::NotifyDirtyRegion(const nsIntRegion& aDirtyRegion)
 {
@@ -5216,15 +5206,15 @@ static int32_t RoundUp(double aDouble)
     // animations. They are only dispatched on 10.8 or later, and only by
     // relatively modern devices.
     if (phase == NSEventPhaseMayBegin) {
-      apzctm->ReceiveInputEvent(PanGestureInput(PanGestureInput::PANGESTURE_MAYSTART,
-                                                eventTime, eventTimeStamp, location,
-                                                ScreenPoint(0, 0), 0), &guid);
+      PanGestureInput panInput(PanGestureInput::PANGESTURE_MAYSTART, eventTime,
+                               eventTimeStamp, location, ScreenPoint(0, 0), 0);
+      apzctm->ReceiveInputEvent(panInput, &guid);
       return;
     }
     if (phase == NSEventPhaseCancelled) {
-      apzctm->ReceiveInputEvent(PanGestureInput(PanGestureInput::PANGESTURE_CANCELLED,
-                                                eventTime, eventTimeStamp, location,
-                                                ScreenPoint(0, 0), 0), &guid);
+      PanGestureInput panInput(PanGestureInput::PANGESTURE_CANCELLED, eventTime,
+                               eventTimeStamp, location, ScreenPoint(0, 0), 0);
+      apzctm->ReceiveInputEvent(panInput, &guid);
       return;
     }
 
@@ -5239,36 +5229,36 @@ static int32_t RoundUp(double aDouble)
       momentumPhase == NSEventPhaseNone && delta != ScreenPoint(0, 0));
 
     if (phase == NSEventPhaseBegan || isLegacyScroll) {
-      apzctm->ReceiveInputEvent(PanGestureInput(PanGestureInput::PANGESTURE_START,
-                                                eventTime, eventTimeStamp, location,
-                                                ScreenPoint(0, 0), 0), &guid);
+      PanGestureInput panInput(PanGestureInput::PANGESTURE_START, eventTime,
+                               eventTimeStamp, location, ScreenPoint(0, 0), 0);
+      apzctm->ReceiveInputEvent(panInput, &guid);
     }
     if (momentumPhase == NSEventPhaseNone && delta != ScreenPoint(0, 0)) {
-      apzctm->ReceiveInputEvent(PanGestureInput(PanGestureInput::PANGESTURE_PAN,
-                                                eventTime, eventTimeStamp, location,
-                                                delta, 0), &guid);
+      PanGestureInput panInput(PanGestureInput::PANGESTURE_PAN, eventTime,
+                               eventTimeStamp, location, delta, 0);
+      apzctm->ReceiveInputEvent(panInput, &guid);
     }
     if (phase == NSEventPhaseEnded || isLegacyScroll) {
-      apzctm->ReceiveInputEvent(PanGestureInput(PanGestureInput::PANGESTURE_END,
-                                                eventTime, eventTimeStamp, location,
-                                                ScreenPoint(0, 0), 0), &guid);
+      PanGestureInput panInput(PanGestureInput::PANGESTURE_END, eventTime,
+                               eventTimeStamp, location, ScreenPoint(0, 0), 0);
+      apzctm->ReceiveInputEvent(panInput, &guid);
     }
 
     // Any device that can dispatch momentum events supports all three momentum phases.
     if (momentumPhase == NSEventPhaseBegan) {
-      apzctm->ReceiveInputEvent(PanGestureInput(PanGestureInput::PANGESTURE_MOMENTUMSTART,
-                                                eventTime, eventTimeStamp, location,
-                                                ScreenPoint(0, 0), 0), &guid);
+      PanGestureInput panInput(PanGestureInput::PANGESTURE_MOMENTUMSTART, eventTime,
+                               eventTimeStamp, location, ScreenPoint(0, 0), 0);
+      apzctm->ReceiveInputEvent(panInput, &guid);
     }
     if (momentumPhase == NSEventPhaseChanged && delta != ScreenPoint(0, 0)) {
-      apzctm->ReceiveInputEvent(PanGestureInput(PanGestureInput::PANGESTURE_MOMENTUMPAN,
-                                                eventTime, eventTimeStamp, location,
-                                                delta, 0), &guid);
+      PanGestureInput panInput(PanGestureInput::PANGESTURE_MOMENTUMPAN, eventTime,
+                               eventTimeStamp, location, delta, 0);
+      apzctm->ReceiveInputEvent(panInput, &guid);
     }
     if (momentumPhase == NSEventPhaseEnded) {
-      apzctm->ReceiveInputEvent(PanGestureInput(PanGestureInput::PANGESTURE_MOMENTUMEND,
-                                                eventTime, eventTimeStamp, location,
-                                                ScreenPoint(0, 0), 0), &guid);
+      PanGestureInput panInput(PanGestureInput::PANGESTURE_MOMENTUMEND, eventTime,
+                               eventTimeStamp, location, ScreenPoint(0, 0), 0);
+      apzctm->ReceiveInputEvent(panInput, &guid);
     }
   }
 }
