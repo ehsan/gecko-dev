@@ -408,12 +408,12 @@ nsXBLDocGlobalObject::GetPrincipal()
     return nsnull;
   }
 
-  nsRefPtr<nsXBLDocumentInfo> docInfo =
-    static_cast<nsXBLDocumentInfo*>(mGlobalObjectOwner);
+  nsCOMPtr<nsIXBLDocumentInfo> docInfo = do_QueryInterface(mGlobalObjectOwner, &rv);
+  NS_ENSURE_SUCCESS(rv, nsnull);
 
-  nsCOMPtr<nsIDocument> document = docInfo->GetDocument();
-  if (!document)
-    return NULL;
+  nsCOMPtr<nsIDocument> document;
+  rv = docInfo->GetDocument(getter_AddRefs(document));
+  NS_ENSURE_SUCCESS(rv, nsnull);
 
   return document->NodePrincipal();
 }
@@ -487,14 +487,15 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsXBLDocumentInfo)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsXBLDocumentInfo)
+  NS_INTERFACE_MAP_ENTRY(nsIXBLDocumentInfo)
   NS_INTERFACE_MAP_ENTRY(nsIScriptGlobalObjectOwner)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIScriptGlobalObjectOwner)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIXBLDocumentInfo)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsXBLDocumentInfo, nsIScriptGlobalObjectOwner)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsXBLDocumentInfo, nsIXBLDocumentInfo)
 NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsXBLDocumentInfo,
-                                           nsIScriptGlobalObjectOwner)
+                                           nsIXBLDocumentInfo)
 
 nsXBLDocumentInfo::nsXBLDocumentInfo(nsIDocument* aDocument)
   : mDocument(aDocument),
@@ -531,20 +532,24 @@ nsXBLDocumentInfo::~nsXBLDocumentInfo()
   }
 }
 
-nsXBLPrototypeBinding*
-nsXBLDocumentInfo::GetPrototypeBinding(const nsACString& aRef)
+NS_IMETHODIMP
+nsXBLDocumentInfo::GetPrototypeBinding(const nsACString& aRef, nsXBLPrototypeBinding** aResult)
 {
+  *aResult = nsnull;
   if (!mBindingTable)
-    return NULL;
+    return NS_OK;
 
   if (aRef.IsEmpty()) {
     // Return our first binding
-    return mFirstBinding;
+    *aResult = mFirstBinding;
+    return NS_OK;
   }
 
   const nsPromiseFlatCString& flat = PromiseFlatCString(aRef);
   nsCStringKey key(flat.get());
-  return static_cast<nsXBLPrototypeBinding*>(mBindingTable->Get(&key));
+  *aResult = static_cast<nsXBLPrototypeBinding*>(mBindingTable->Get(&key));
+
+  return NS_OK;
 }
 
 static PRBool
@@ -555,11 +560,13 @@ DeletePrototypeBinding(nsHashKey* aKey, void* aData, void* aClosure)
   return PR_TRUE;
 }
 
-nsresult
+NS_IMETHODIMP
 nsXBLDocumentInfo::SetPrototypeBinding(const nsACString& aRef, nsXBLPrototypeBinding* aBinding)
 {
   if (!mBindingTable) {
     mBindingTable = new nsObjectHashtable(nsnull, nsnull, DeletePrototypeBinding, nsnull);
+    if (!mBindingTable)
+      return NS_ERROR_OUT_OF_MEMORY;
 
     NS_HOLD_JS_OBJECTS(this, nsXBLDocumentInfo);
   }
@@ -572,10 +579,12 @@ nsXBLDocumentInfo::SetPrototypeBinding(const nsACString& aRef, nsXBLPrototypeBin
   return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 nsXBLDocumentInfo::SetFirstPrototypeBinding(nsXBLPrototypeBinding* aBinding)
 {
   mFirstBinding = aBinding;
+
+  return NS_OK;
 }
 
 PRBool FlushScopedSkinSheets(nsHashKey* aKey, void* aData, void* aClosure)
@@ -585,11 +594,13 @@ PRBool FlushScopedSkinSheets(nsHashKey* aKey, void* aData, void* aClosure)
   return PR_TRUE;
 }
 
-void
+NS_IMETHODIMP
 nsXBLDocumentInfo::FlushSkinStylesheets()
 {
   if (mBindingTable)
     mBindingTable->Enumerate(FlushScopedSkinSheets);
+  return NS_OK;
+
 }
 
 //----------------------------------------------------------------------
@@ -611,13 +622,15 @@ nsXBLDocumentInfo::GetScriptGlobalObject()
   return mGlobalObject;
 }
 
-nsXBLDocumentInfo* NS_NewXBLDocumentInfo(nsIDocument* aDocument)
+nsresult NS_NewXBLDocumentInfo(nsIDocument* aDocument, nsIXBLDocumentInfo** aResult)
 {
   NS_PRECONDITION(aDocument, "Must have a document!");
 
-  nsXBLDocumentInfo* result;
+  *aResult = new nsXBLDocumentInfo(aDocument);
+  if (!*aResult) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
-  result = new nsXBLDocumentInfo(aDocument);
-  NS_ADDREF(result);
-  return result;
+  NS_ADDREF(*aResult);
+  return NS_OK;
 }

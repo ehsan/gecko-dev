@@ -29,8 +29,7 @@
 
 // Original author: Jim Blandy <jimb@mozilla.com> <jimb@red-bean.com>
 
-// synth_minidump_unittest.cc: Unit tests for google_breakpad::SynthMinidump
-// classes.
+// test_assembler_unittest.cc: Unit tests for google_breakpad::TestAssembler.
 
 #include <sstream>
 #include <string>

@@ -49,7 +49,6 @@
 
 #include "gfxContext.h"
 #include "gfxPattern.h"
-#include "gfxUtils.h"
 
 #include "CanvasUtils.h"
 #include "NativeJSContext.h"
@@ -74,21 +73,15 @@ NS_NewCanvasRenderingContextWebGL(nsICanvasRenderingContextWebGL** aResult)
 
 WebGLContext::WebGLContext()
     : mCanvasElement(nsnull),
-      gl(nsnull)
+      gl(nsnull),
+      mWidth(0), mHeight(0),
+      mGeneration(0),
+      mInvalidated(PR_FALSE),
+      mActiveTexture(0),
+      mSynthesizedGLError(LOCAL_GL_NO_ERROR),
+      mPixelStoreFlipY(PR_FALSE),
+      mPixelStorePremultiplyAlpha(PR_FALSE)
 {
-    mWidth = mHeight = 0;
-    mGeneration = 0;
-    mInvalidated = PR_FALSE;
-    mResetLayer = PR_TRUE;
-
-    mActiveTexture = 0;
-    mSynthesizedGLError = LOCAL_GL_NO_ERROR;
-    mPixelStoreFlipY = PR_FALSE;
-    mPixelStorePremultiplyAlpha = PR_FALSE;
-
-    // eventually true
-    mShaderValidation = PR_FALSE;
-
     mMapBuffers.Init();
     mMapTextures.Init();
     mMapPrograms.Init();
@@ -110,7 +103,7 @@ WebGLContext::Invalidate()
     if (mInvalidated)
         return;
 
-    mInvalidated = PR_TRUE;
+    mInvalidated = true;
     HTMLCanvasElement()->InvalidateFrame();
 }
 
@@ -144,8 +137,8 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
     // If incrementing the generation would cause overflow,
     // don't allow it.  Allowing this would allow us to use
     // resource handles created from older context generations.
-    if (!(mGeneration+1).valid())
-        return NS_ERROR_FAILURE; // exit without changing the value of mGeneration
+    if (mGeneration + 1 == 0)
+        return NS_ERROR_FAILURE;
 
     if (mWidth == width && mHeight == height)
         return NS_OK;
@@ -172,17 +165,6 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
 
     gl = gl::sGLContextProvider.CreatePBuffer(gfxIntSize(width, height), format);
 
-#ifdef USE_GLES2
-    // On native GLES2, no need to validate, the compiler will do it
-    mShaderValidation = PR_FALSE;
-#else
-    // Check the shader validator pref
-    nsCOMPtr<nsIPrefBranch> prefService = do_GetService(NS_PREFSERVICE_CONTRACTID);
-    NS_ENSURE_TRUE(prefService != nsnull, NS_ERROR_FAILURE);
-
-    prefService->GetBoolPref("webgl.shader_validator", &mShaderValidation);
-#endif
-
     if (!InitAndValidateGL()) {
         gl = gl::GLContextProviderOSMesa::CreatePBuffer(gfxIntSize(width, height), format);
         if (!InitAndValidateGL()) {
@@ -196,10 +178,9 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
 
     mWidth = width;
     mHeight = height;
-    mResetLayer = PR_TRUE;
 
     // increment the generation number
-    ++mGeneration;
+    mGeneration++;
 
     MakeContextCurrent();
 
@@ -315,28 +296,14 @@ WebGLContext::GetThebesSurface(gfxASurface **surface)
     return NS_ERROR_NOT_AVAILABLE;
 }
 
-static PRUint8 gWebGLLayerUserData;
-
 already_AddRefed<layers::CanvasLayer>
-WebGLContext::GetCanvasLayer(CanvasLayer *aOldLayer,
-                             LayerManager *aManager)
+WebGLContext::GetCanvasLayer(LayerManager *manager)
 {
-    if (!mResetLayer && aOldLayer &&
-        aOldLayer->GetUserData() == &gWebGLLayerUserData) {
-        NS_ADDREF(aOldLayer);
-        if (mInvalidated) {
-            aOldLayer->Updated(nsIntRect(0, 0, mWidth, mHeight));
-            mInvalidated = PR_FALSE;
-        }
-        return aOldLayer;
-    }
-
-    nsRefPtr<CanvasLayer> canvasLayer = aManager->CreateCanvasLayer();
+    nsRefPtr<CanvasLayer> canvasLayer = manager->CreateCanvasLayer();
     if (!canvasLayer) {
         NS_WARNING("CreateCanvasLayer returned null!");
         return nsnull;
     }
-    canvasLayer->SetUserData(&gWebGLLayerUserData);
 
     CanvasLayer::Data data;
 
@@ -367,10 +334,10 @@ WebGLContext::GetCanvasLayer(CanvasLayer *aOldLayer,
     canvasLayer->Updated(nsIntRect(0, 0, mWidth, mHeight));
 
     mInvalidated = PR_FALSE;
-    mResetLayer = PR_FALSE;
 
     return canvasLayer.forget().get();
 }
+
 
 //
 // XPCOM goop

@@ -1356,7 +1356,7 @@ void
 nsListBoxBodyFrame::OnContentRemoved(nsPresContext* aPresContext,
                                      nsIContent* aContainer,
                                      nsIFrame* aChildFrame,
-                                     nsIContent* aOldNextSibling)
+                                     PRInt32 aIndex)
 {
   NS_ASSERTION(!aChildFrame || aChildFrame->GetParent() == this,
                "Removing frame that's not our child... Not good");
@@ -1368,12 +1368,12 @@ nsListBoxBodyFrame::OnContentRemoved(nsPresContext* aPresContext,
     if (!aChildFrame) {
       // The row we are removing is out of view, so we need to try to
       // determine the index of its next sibling.
+      nsIContent *oldNextSiblingContent = aContainer->GetChildAt(aIndex);
+  
       PRInt32 siblingIndex = -1;
-      if (aOldNextSibling) {
+      if (oldNextSiblingContent) {
         nsCOMPtr<nsIContent> nextSiblingContent;
-        GetListItemNextSibling(aOldNextSibling,
-                               getter_AddRefs(nextSiblingContent),
-                               siblingIndex);
+        GetListItemNextSibling(oldNextSiblingContent, getter_AddRefs(nextSiblingContent), siblingIndex);
       }
     
       // if the row being removed is off-screen and above the top frame, we need to
@@ -1394,9 +1394,8 @@ nsListBoxBodyFrame::OnContentRemoved(nsPresContext* aPresContext,
       // if the last content node has a frame, we are scrolled to the bottom
       ChildIterator iter, last;
       ChildIterator::Init(mContent, &iter, &last);
-      if (iter != last) {
-        iter = last;
-        --iter;
+      if (last.position() > 0) {
+        iter.seek(last.position() - 1);
         nsIContent *lastChild = *iter;
         nsIFrame* lastChildFrame = lastChild->GetPrimaryFrame();
       

@@ -242,8 +242,6 @@ UnmapPages(void *addr, size_t size)
 
 namespace js {
 
-GCChunkAllocator defaultGCChunkAllocator;
-
 inline void *
 FindChunkStart(void *p)
 {
@@ -252,7 +250,7 @@ FindChunkStart(void *p)
     return reinterpret_cast<void *>(addr);
 }
 
-JS_FRIEND_API(void *)
+void *
 AllocGCChunk()
 {
     void *p;
@@ -299,7 +297,7 @@ AllocGCChunk()
     return p;
 }
 
-JS_FRIEND_API(void)
+void
 FreeGCChunk(void *p)
 {
     JS_ASSERT(p);

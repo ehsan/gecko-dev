@@ -52,13 +52,14 @@ class nsIDocument;
 class nsPIDOMEventTarget;
 class nsIDOMNodeList;
 class nsXBLBinding;
-class nsXBLDocumentInfo;
+class nsIXBLDocumentInfo;
 class nsIURI;
 class nsIAtom;
 class nsIPrincipal;
 
 #define NS_IXBLSERVICE_IID      \
-{ 0x8a25483c, 0x1ac6, 0x4796, { 0xa6, 0x12, 0x5a, 0xe0, 0x5c, 0x83, 0x65, 0x0b } }
+{ 0x8d3b37f5, 0xde7e, 0x4595,   \
+ { 0xb8, 0x56, 0xf7, 0x11, 0xe8, 0xe7, 0xb5, 0x59 } }
 
 class nsIXBLService : public nsISupports
 {
@@ -85,7 +86,7 @@ public:
                                      nsIURI* aBindingURI,
                                      nsIPrincipal* aOriginPrincipal,
                                      PRBool aForceSyncLoad,
-                                     nsXBLDocumentInfo** aResult) = 0;
+                                     nsIXBLDocumentInfo** aResult) = 0;
 
   // Hooks up the global key event handlers to the document root.
   NS_IMETHOD AttachGlobalKeyHandler(nsPIDOMEventTarget* aTarget)=0;

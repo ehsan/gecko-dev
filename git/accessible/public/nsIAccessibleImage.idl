@@ -36,6 +36,10 @@
 
 #include "nsISupports.idl"
 
+/**
+ *
+ * @status UNDER_REVIEW
+ */
 [scriptable, uuid(09086623-0f09-4310-ac56-c2cda7c29648)]
 interface nsIAccessibleImage : nsISupports
 {

@@ -67,6 +67,12 @@ public:
       char * aDest, PRInt32 * aDestLength, PRInt32 aTableCount, 
       uScanClassID * aScanClassArray, 
       uShiftOutTable ** aShiftOutTable, uMappingTable  ** aMappingTable);
+
+  /**
+   * Create Char Representable Info
+   */
+  static nsresult FillInfo(PRUint32* aInfo, uMappingTable  * aMappingTable);
+  static nsresult FillInfo(PRUint32* aInfo, PRInt32 aTableCount, uMappingTable  ** aMappingTable);
 };
 
 #endif // nsUnicodeEncodeHelper_h__

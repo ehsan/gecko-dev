@@ -59,9 +59,6 @@ EXTRA_DSO_LDOPTS = \
 
 LOCAL_INCLUDES = \
 		-I$(topsrcdir)/dom/base \
-		-I$(topsrcdir)/dom/ipc \
-		-I$(topsrcdir)/content/base/src \
-		-I$(topsrcdir)/content/events/src \
 		$(NULL)
 
 ifdef WINCE_WINDOWS_MOBILE
@@ -80,14 +77,10 @@ endif
 
 EXTRA_COMPONENTS = \
                  NetworkGeolocationProvider.js \
-                 NetworkGeolocationProvider.manifest \
                  GPSDGeolocationProvider.js \
-                 GPSDGeolocationProvider.manifest \
                  $(NULL)
 
 
-include $(topsrcdir)/config/config.mk
-include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk
 
 DEFINES += -D_IMPL_NS_LAYOUT

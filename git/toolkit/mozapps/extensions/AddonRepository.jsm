@@ -144,12 +144,6 @@ AddonSearchResult.prototype = {
   userDisabled: false,
 
   /**
-   * The size of the add-on's files in bytes. For an add-on that have not yet
-   * been downloaded this may be an estimated value.
-   */
-  size: null,
-
-  /**
    * Indicates what scope the add-on is installed in, per profile, user,
    * system or application
    */
@@ -484,11 +478,9 @@ var AddonRepository = {
                 break;
             }
             result.xpiURL = node.textContent.trim();
-            if (node.hasAttribute("size"))
-              addon.size = node.getAttribute("size");
 
             // Ignore add-on installs
-            if (aSkip.sourceURIs.indexOf(result.xpiURL) != -1)
+            if (aSkip.sourceURLs.indexOf(result.xpiURL) != -1)
               return;
 
             result.xpiHash = node.hasAttribute("hash") ? node.getAttribute("hash") : null;
@@ -548,19 +540,19 @@ var AddonRepository = {
       var totalResults = elements.length;
 
     var self = this;
-    var skip = {ids: null, sourceURIs: null};
+    var skip = {ids: null, sourceURLs: null};
 
     AddonManager.getAllAddons(function(aAddons) {
       skip.ids  = [a.id for each (a in aAddons)];
-      if (skip.sourceURIs)
+      if (skip.sourceURLs)
         self._parseAddons(elements, totalResults, skip);
     });
 
     AddonManager.getAllInstalls(function(aInstalls) {
-      skip.sourceURIs = [];
+      skip.sourceURLs = [];
       aInstalls.forEach(function(aInstall) {
         if (aInstall.state != AddonManager.STATE_AVAILABLE)
-          skip.sourceURIs.push(aInstall.sourceURI.spec);
+          skip.sourceURLs.push(aInstall.sourceURL);
       });
 
       if (skip.ids)

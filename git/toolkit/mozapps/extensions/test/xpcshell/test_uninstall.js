@@ -23,7 +23,7 @@ function run_test() {
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "1.9.2");
 
   do_test_pending();
-  startupManager();
+  startupManager(1);
 
   AddonManager.getAddonByID("addon1@tests.mozilla.org", function(olda1) {
     do_check_eq(olda1, null);
@@ -32,7 +32,7 @@ function run_test() {
     dest.append("addon1@tests.mozilla.org");
     writeInstallRDFToDir(addon1, dest);
 
-    restartManager();
+    restartManager(1);
 
     AddonManager.getAddonByID("addon1@tests.mozilla.org", function(a1) {
       do_check_neq(a1, null);
@@ -76,7 +76,7 @@ function run_test_1() {
 }
 
 function check_test_1() {
-  restartManager();
+  restartManager(0);
 
   AddonManager.getAddonByID("addon1@tests.mozilla.org", function(a1) {
     do_check_eq(a1, null);
@@ -87,7 +87,7 @@ function check_test_1() {
     dest.append("addon1@tests.mozilla.org");
     do_check_false(dest.exists());
     writeInstallRDFToDir(addon1, dest);
-    restartManager();
+    restartManager(1);
 
     run_test_2();
   });
@@ -127,7 +127,7 @@ function run_test_2() {
 }
 
 function check_test_2() {
-  restartManager();
+  restartManager(0);
 
   AddonManager.getAddonByID("addon1@tests.mozilla.org", function(a1) {
     do_check_neq(a1, null);
@@ -180,7 +180,7 @@ function check_test_3() {
     a1.cancelUninstall();
     ensure_test_completed();
 
-    restartManager();
+    restartManager(0);
     run_test_4();
   });
 }

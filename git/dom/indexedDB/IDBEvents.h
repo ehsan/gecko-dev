@@ -46,13 +46,14 @@
 #include "nsIIDBErrorEvent.h"
 #include "nsIIDBSuccessEvent.h"
 #include "nsIIDBTransactionEvent.h"
-#include "nsIIDBTransaction.h"
+#include "nsIIDBTransactionRequest.h"
 #include "nsIRunnable.h"
 #include "nsIVariant.h"
 
+#include "jsapi.h"
 #include "nsDOMEvent.h"
 
-#include "mozilla/dom/indexedDB/IDBObjectStore.h"
+#include "mozilla/dom/indexedDB/IDBObjectStoreRequest.h"
 
 #define SUCCESS_EVT_STR "success"
 #define ERROR_EVT_STR "error"
@@ -63,7 +64,7 @@
 BEGIN_INDEXEDDB_NAMESPACE
 
 class IDBRequest;
-class IDBTransaction;
+class IDBTransactionRequest;
 
 class IDBEvent : public nsDOMEvent,
                  public nsIIDBEvent
@@ -124,18 +125,18 @@ public:
   static already_AddRefed<nsIDOMEvent>
   Create(IDBRequest* aRequest,
          nsIVariant* aResult,
-         nsIIDBTransaction* aTransaction);
+         nsIIDBTransactionRequest* aTransaction);
 
   static already_AddRefed<nsIRunnable>
   CreateRunnable(IDBRequest* aRequest,
                  nsIVariant* aResult,
-                 nsIIDBTransaction* aTransaction);
+                 nsIIDBTransactionRequest* aTransaction);
 
 protected:
   IDBSuccessEvent() { }
 
   nsCOMPtr<nsIVariant> mResult;
-  nsCOMPtr<nsIIDBTransaction> mTransaction;
+  nsCOMPtr<nsIIDBTransactionRequest> mTransaction;
 };
 
 class GetSuccessEvent : public IDBSuccessEvent
@@ -150,15 +151,14 @@ public:
   ~GetSuccessEvent()
   {
     if (mJSRuntime) {
-      js_RemoveRoot(mJSRuntime, &mCachedValue);
+      JS_RemoveRootRT(mJSRuntime, &mCachedValue);
     }
   }
 
-  NS_IMETHOD GetResult(JSContext* aCx,
-                       jsval* aResult);
+  NS_IMETHOD GetResult(nsIVariant** aResult);
 
   nsresult Init(IDBRequest* aRequest,
-                IDBTransaction* aTransaction);
+                IDBTransactionRequest* aTransaction);
 
 private:
   nsString mValue;
@@ -179,8 +179,7 @@ public:
     }
   }
 
-  NS_IMETHOD GetResult(JSContext* aCx,
-                       jsval* aResult);
+  NS_IMETHOD GetResult(nsIVariant** aResult);
 
 private:
   nsTArray<nsString> mValues;
@@ -197,8 +196,7 @@ public:
     }
   }
 
-  NS_IMETHOD GetResult(JSContext* aCx,
-                       jsval* aResult);
+  NS_IMETHOD GetResult(nsIVariant** aResult);
 
 private:
   nsTArray<Key> mKeys;

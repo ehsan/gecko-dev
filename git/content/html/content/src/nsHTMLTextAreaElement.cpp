@@ -960,7 +960,7 @@ nsHTMLTextAreaElement::ContentAppended(nsIDocument* aDocument,
                                        nsIContent* aFirstNewContent,
                                        PRInt32 /* unused */)
 {
-  ContentChanged(aFirstNewContent);
+  ContentChanged(aContainer);
 }
 
 void

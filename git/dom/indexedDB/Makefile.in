@@ -54,30 +54,30 @@ EXPORTS_NAMESPACES = mozilla/dom/indexedDB
 CPPSRCS = \
   AsyncConnectionHelper.cpp \
   DatabaseInfo.cpp \
-  IDBCursor.cpp \
-  IDBDatabase.cpp \
+  IDBCursorRequest.cpp \
+  IDBDatabaseRequest.cpp \
   IDBEvents.cpp \
-  IDBIndex.cpp \
+  IDBIndexRequest.cpp \
   IDBKeyRange.cpp \
-  IDBObjectStore.cpp \
+  IDBObjectStoreRequest.cpp \
   IDBRequest.cpp \
-  IDBTransaction.cpp \
-  IDBFactory.cpp \
+  IDBTransactionRequest.cpp \
+  IndexedDatabaseRequest.cpp \
   LazyIdleThread.cpp \
   TransactionThreadPool.cpp \
   $(NULL)
 
 EXPORTS_mozilla/dom/indexedDB = \
-  IDBCursor.h \
-  IDBDatabase.h \
+  IDBCursorRequest.h \
+  IDBDatabaseRequest.h \
   IDBEvents.h \
-  IDBIndex.h \
+  IDBIndexRequest.h \
   IDBKeyRange.h \
-  IDBObjectStore.h \
+  IDBObjectStoreRequest.h \
   IDBRequest.h \
-  IDBTransaction.h \
+  IDBTransactionRequest.h \
   IndexedDatabase.h \
-  IDBFactory.h \
+  IndexedDatabaseRequest.h \
   LazyIdleThread.h \
   $(NULL)
 
@@ -93,18 +93,23 @@ DEFINES += -D_IMPL_NS_LAYOUT
 # js/src/xpconnect/src/dom_quickstubs.qsconf.
 XPIDLSRCS = \
   nsIIDBCursor.idl \
+  nsIIDBCursorRequest.idl \
   nsIIDBDatabase.idl \
   nsIIDBDatabaseException.idl \
+  nsIIDBDatabaseRequest.idl \
   nsIIDBEvent.idl \
   nsIIDBErrorEvent.idl \
   nsIIDBIndex.idl \
+  nsIIDBIndexRequest.idl \
   nsIIDBKeyRange.idl \
   nsIIDBObjectStore.idl \
+  nsIIDBObjectStoreRequest.idl \
   nsIIDBRequest.idl \
   nsIIDBSuccessEvent.idl \
   nsIIDBTransaction.idl \
   nsIIDBTransactionEvent.idl \
-  nsIIDBFactory.idl \
+  nsIIDBTransactionRequest.idl \
+  nsIIndexedDatabaseRequest.idl \
   $(NULL)
 
 ifdef ENABLE_TESTS

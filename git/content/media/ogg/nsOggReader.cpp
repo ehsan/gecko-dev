@@ -904,11 +904,10 @@ PRInt64 nsOggReader::FindEndTime(PRInt64 aEndOffset)
       // This page is from a bitstream which we haven't encountered yet.
       // It's probably from a new "link" in a "chained" ogg. Don't
       // bother even trying to find a duration...
-      endTime = -1;
       break;
     }
 
-    PRInt64 t = codecState->Time(granulepos);
+    PRInt64 t = codecState ? codecState->Time(granulepos) : -1;
     if (t != -1) {
       endTime = t;
     }
@@ -1365,14 +1364,16 @@ nsresult nsOggReader::SeekBisection(PRInt64 aTarget,
 
     if (granuleTime >= seekTarget) {
       // We've landed after the seek target.
-      NS_ASSERTION(pageOffset < endOffset, "offset_end must decrease");
+      ogg_int64_t old_offset_end = endOffset;
       endOffset = pageOffset;
+      NS_ASSERTION(endOffset < old_offset_end, "offset_end must decrease");
       endTime = granuleTime;
     } else if (granuleTime < seekTarget) {
       // Landed before seek target.
-      NS_ASSERTION(pageOffset > startOffset, "offset_start must increase");
+      ogg_int64_t old_offset_start = startOffset;
       startOffset = pageOffset;
       startLength = pageLength;
+      NS_ASSERTION(startOffset > old_offset_start, "offset_start must increase");
       startTime = granuleTime;
     }
     NS_ASSERTION(startTime < seekTarget, "Must be before seek target");

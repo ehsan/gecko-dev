@@ -402,7 +402,7 @@ public:
                      nsIRenderingContext* aCtx);
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
 
-  NS_DISPLAY_DECL_NAME("TableCellBackground", TYPE_TABLE_CELL_BACKGROUND)
+  NS_DISPLAY_DECL_NAME("TableCellBackground")
 };
 
 void nsDisplayTableCellBackground::Paint(nsDisplayListBuilder* aBuilder,
@@ -496,8 +496,7 @@ nsTableCellFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       (GetStateBits() & NS_FRAME_SELECTED_CONTENT) == NS_FRAME_SELECTED_CONTENT;
     if (isSelected) {
       nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
-          nsDisplayGeneric(this, ::PaintTableCellSelection, "TableCellSelection",
-                           nsDisplayItem::TYPE_TABLE_CELL_SELECTION));
+          nsDisplayGeneric(this, ::PaintTableCellSelection, "TableCellSelection"));
       NS_ENSURE_SUCCESS(rv, rv);
     }
   }
@@ -1001,17 +1000,15 @@ NS_QUERYFRAME_HEAD(nsTableCellFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsHTMLContainerFrame)
 
 #ifdef ACCESSIBILITY
-already_AddRefed<nsAccessible>
-nsTableCellFrame::CreateAccessible()
+NS_IMETHODIMP nsTableCellFrame::GetAccessible(nsIAccessible** aAccessible)
 {
   nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
 
   if (accService) {
-    return accService->CreateHTMLTableCellAccessible(mContent,
-                                                     PresContext()->PresShell());
+    return accService->CreateHTMLTableCellAccessible(static_cast<nsIFrame*>(this), aAccessible);
   }
 
-  return nsnull;
+  return NS_ERROR_FAILURE;
 }
 #endif
 

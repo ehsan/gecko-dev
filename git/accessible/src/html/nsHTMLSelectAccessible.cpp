@@ -371,7 +371,6 @@ nsHTMLSelectListAccessible::CacheChildren()
 void
 nsHTMLSelectListAccessible::CacheOptSiblings(nsIContent *aParentContent)
 {
-  nsCOMPtr<nsIPresShell> presShell(do_QueryReferent(mWeakShell));
   PRUint32 numChildren = aParentContent->GetChildCount();
   for (PRUint32 count = 0; count < numChildren; count ++) {
     nsIContent *childContent = aParentContent->GetChildAt(count);
@@ -384,11 +383,12 @@ nsHTMLSelectListAccessible::CacheOptSiblings(nsIContent *aParentContent)
         tag == nsAccessibilityAtoms::optgroup) {
 
       // Get an accessible for option or optgroup and cache it.
-      nsRefPtr<nsAccessible> accessible =
-        GetAccService()->GetOrCreateAccessible(childContent, presShell,
-                                               mWeakShell);
-      if (accessible)
-        AppendChild(accessible);
+      nsAccessible *accessible =
+        GetAccService()->GetAccessibleInWeakShell(childContent, mWeakShell);
+      if (accessible) {
+        mChildren.AppendElement(accessible);
+        accessible->SetParent(this);
+      }
 
       // Deep down into optgroup element.
       if (tag == nsAccessibilityAtoms::optgroup)
@@ -406,6 +406,26 @@ nsHTMLSelectOptionAccessible::
   nsHTMLSelectOptionAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
   nsHyperTextAccessibleWrap(aContent, aShell)
 {
+  nsIContent *parentContent = aContent->GetParent();
+  if (!parentContent)
+    return;
+
+  // If the parent node is a Combobox, then the option's accessible parent
+  // is nsHTMLComboboxListAccessible, not the nsHTMLComboboxAccessible that
+  // GetParent would normally return. This is because the 
+  // nsHTMLComboboxListAccessible is inserted into the accessible hierarchy
+  // where there is no DOM node for it.
+  nsAccessible *parentAcc =
+    GetAccService()->GetAccessibleInWeakShell(parentContent, mWeakShell);
+  if (!parentAcc)
+    return;
+
+  if (nsAccUtils::RoleInternal(parentAcc) == nsIAccessibleRole::ROLE_COMBOBOX) {
+    PRInt32 childCount = parentAcc->GetChildCount();
+    parentAcc = parentAcc->GetChildAt(childCount - 1);
+  }
+
+  SetParent(parentAcc);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -452,7 +472,6 @@ nsHTMLSelectOptionAccessible::GetNameInternal(nsAString& aName)
   return NS_OK;
 }
 
-// nsAccessible protected
 nsIFrame* nsHTMLSelectOptionAccessible::GetBoundsFrame()
 {
   PRUint32 state = 0;
@@ -803,8 +822,10 @@ nsIContent* nsHTMLSelectOptionAccessible::GetSelectState(PRUint32* aState,
     content = content->GetParent();
   }
 
-  if (content) {
-    nsAccessible* selAcc = GetAccService()->GetAccessible(content);
+  nsCOMPtr<nsIDOMNode> selectNode(do_QueryInterface(content));
+  if (selectNode) {
+    nsCOMPtr<nsIAccessible> selAcc;
+    GetAccService()->GetAccessibleFor(selectNode, getter_AddRefs(selAcc));
     if (selAcc) {
       selAcc->GetState(aState, aExtraState);
       return content;
@@ -913,18 +934,11 @@ nsHTMLComboboxAccessible::CacheChildren()
     if (!mListAccessible)
       return;
 
-    // Initialize and put into cache.
-    if (!mListAccessible->Init()) {
-      mListAccessible->Shutdown();
-      return;
-    }
+    mListAccessible->Init();
   }
 
-  AppendChild(mListAccessible);
-
-  // Cache combobox option accessibles so that we build complete accessible tree
-  // for combobox.
-  mListAccessible->EnsureChildren();
+  mChildren.AppendElement(mListAccessible);
+  mListAccessible->SetParent(this);
 }
 
 void
@@ -1158,4 +1172,11 @@ void nsHTMLComboboxListAccessible::GetBoundsRect(nsRect& aBounds, nsIFrame** aBo
 
   *aBoundingFrame = frame->GetParent();
   aBounds = (*aBoundingFrame)->GetRect();
+}
+
+// nsHTMLComboboxListAccessible. nsAccessible public mehtod
+nsAccessible*
+nsHTMLComboboxListAccessible::GetParent()
+{
+  return mParent;
 }

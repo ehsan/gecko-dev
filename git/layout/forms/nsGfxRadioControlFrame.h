@@ -55,7 +55,7 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,

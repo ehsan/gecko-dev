@@ -287,7 +287,7 @@ protected:
   nsWindow*               GetParentWindow(PRBool aIncludeOwner);
   virtual void            SubclassWindow(BOOL bState);
   PRBool                  CanTakeFocus();
-  PRBool                  UpdateNonClientMargins(PRInt32 aSizeMode = -1, PRBool aRefreshWindow = PR_TRUE);
+  PRBool                  UpdateNonClientMargins();
 #if !defined(WINCE)
   static void             InitTrackPointHack();
 #endif
@@ -352,7 +352,7 @@ protected:
   PRBool                  OnHotKey(WPARAM wParam, LPARAM lParam);
   BOOL                    OnInputLangChange(HKL aHKL);
   void                    OnSettingsChange(WPARAM wParam, LPARAM lParam);
-  PRBool                  OnPaint(HDC aDC, PRUint32 aNestingLevel);
+  virtual PRBool          OnPaint(HDC aDC = nsnull);
   void                    OnWindowPosChanged(WINDOWPOS *wp, PRBool& aResult);
 #if defined(CAIRO_HAS_DDRAW_SURFACE)
   PRBool                  OnPaintImageDDraw16();
@@ -444,7 +444,6 @@ protected:
   PRPackedBool          mIsInMouseCapture;
   PRPackedBool          mUnicodeWidget;
   PRPackedBool          mPainting;
-  PRPackedBool          mExitToNonClientArea;
   PRUint32              mBlurSuppressLevel;
   nsContentType         mContentType;
   DWORD_PTR             mOldStyle;
@@ -456,7 +455,6 @@ protected:
   nsPopupType           mPopupType;
   PRPackedBool          mDisplayPanFeedback;
   PRPackedBool          mHideChrome;
-  nsSizeMode            mOldSizeMode;
   WindowHook            mWindowHook;
   static PRUint32       sInstanceCount;
   static TriStateBool   sCanQuit;
@@ -485,8 +483,7 @@ protected:
   // Disable non client margins on non-comsitor desktops
   PRPackedBool          mCompositorFlag;
   // Cached copy of L&F's resize border  
-  PRInt32               mHorResizeMargin;
-  PRInt32               mVertResizeMargin;
+  PRInt32               mResizeMargin;
   // Height of the caption plus border
   PRInt32               mCaptionHeight;
 

@@ -43,7 +43,7 @@
 /**
  * A character set converter from Unicode to MacDevanagari.
  */
-nsresult
+NS_METHOD
 nsUnicodeToMacDevanagariConstructor(nsISupports *aOuter, REFNSIID aIID,
                                     void **aResult);
 

@@ -94,7 +94,6 @@
 #include "nsListControlFrame.h"
 #include "ImageLayers.h"
 #include "mozilla/dom/Element.h"
-#include "nsCanvasFrame.h"
 
 #ifdef MOZ_SVG
 #include "nsSVGUtils.h"
@@ -678,31 +677,6 @@ nsLayoutUtils::GetScrollableFrameFor(nsIFrame *aScrolledFrame)
   return sf;
 }
 
-nsIFrame*
-nsLayoutUtils::GetActiveScrolledRootFor(nsIFrame* aFrame,
-                                        nsIFrame* aStopAtAncestor,
-                                        nsPoint* aOffset)
-{
-  nsPoint offset(0,0);
-  nsIFrame* f = aFrame;
-  while (f != aStopAtAncestor) {
-    NS_ASSERTION(!IsPopup(f), "Should have stopped before popup");
-    nsPoint extraOffset(0,0);
-    nsIFrame* parent = GetCrossDocParentFrame(f, &extraOffset);
-    if (!parent)
-      break;
-    nsIScrollableFrame* sf = do_QueryFrame(parent);
-    if (sf && sf->IsScrollingActive() && sf->GetScrolledFrame() == f)
-      break;
-    offset += f->GetPosition() + extraOffset;
-    f = parent;
-  }
-  if (aOffset) {
-    *aOffset = offset;
-  }
-  return f;
-}
-
 // static
 nsIScrollableFrame*
 nsLayoutUtils::GetNearestScrollableFrameForDirection(nsIFrame* aFrame,
@@ -1034,6 +1008,7 @@ nsLayoutUtils::CombineBreakType(PRUint8 aOrigBreakType,
 
 static PRBool gDumpPaintList = PR_FALSE;
 static PRBool gDumpEventList = PR_FALSE;
+static PRBool gDumpRepaintRegionForCopy = PR_FALSE;
 #endif
 
 nsIFrame*
@@ -1192,20 +1167,9 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
                           const nsRegion& aDirtyRegion, nscolor aBackstop,
                           PRUint32 aFlags)
 {
-  nsPresContext* presContext = aFrame->PresContext();
-  nsIPresShell* presShell = presContext->PresShell();
-
-  nsRegion visibleRegion;
-  if (aFlags & PAINT_WIDGET_LAYERS) {
-    // This layer tree will be reused, so we'll need to calculate it
-    // for the whole visible area of the window
-    visibleRegion = aFrame->GetOverflowRectRelativeToSelf();
-  } else {
-    visibleRegion = aDirtyRegion;
-  }
-
-  nsDisplayListBuilder builder(aFrame, PR_FALSE, !(aFlags & PAINT_HIDE_CARET));
+  nsDisplayListBuilder builder(aFrame, PR_FALSE, PR_TRUE);
   nsDisplayList list;
+  nsRect dirtyRect = aDirtyRegion.GetBounds();
   if (aFlags & PAINT_IN_TRANSFORM) {
     builder.SetInTransform(PR_TRUE);
   }
@@ -1215,36 +1179,8 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
   if (aFlags & PAINT_WIDGET_LAYERS) {
     builder.SetPaintingToWindow(PR_TRUE);
   }
-  if (aFlags & PAINT_IGNORE_SUPPRESSION) {
-    builder.SetBackgroundOnly(PR_FALSE);
-  }
-  nsRect canvasArea(nsPoint(0, 0), aFrame->GetSize());
-  if (aFlags & PAINT_IGNORE_VIEWPORT_SCROLLING) {
-    NS_ASSERTION(!aFrame->GetParent(), "must have root frame");
-    nsIFrame* rootScrollFrame = presShell->GetRootScrollFrame();
-    if (rootScrollFrame) {
-      nsIScrollableFrame* rootScrollableFrame =
-        presShell->GetRootScrollFrameAsScrollable();
-      // Make visibleRegion and aRenderingContext relative to the
-      // scrolled frame instead of the root frame.
-      nsPoint pos = rootScrollableFrame->GetScrollPosition();
-      visibleRegion.MoveBy(-pos);
-      aRenderingContext->Translate(pos.x, pos.y);
-      builder.SetIgnoreScrollFrame(rootScrollFrame);
-
-      nsCanvasFrame* canvasFrame =
-        do_QueryFrame(rootScrollableFrame->GetScrolledFrame());
-      if (canvasFrame) {
-        // Use UnionRect here to ensure that areas where the scrollbars
-        // were are still filled with the background color.
-        canvasArea.UnionRect(canvasArea,
-          canvasFrame->CanvasArea() + builder.ToReferenceFrame(canvasFrame));
-      }
-    }
-  }
   nsresult rv;
 
-  nsRect dirtyRect = visibleRegion.GetBounds();
   builder.EnterPresShell(aFrame, dirtyRect);
 
   rv = aFrame->BuildDisplayListForStackingContext(&builder, dirtyRect, &list);
@@ -1271,9 +1207,9 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
   // For the viewport frame in print preview/page layout we want to paint
   // the grey background behind the page, not the canvas color.
   if (frameType == nsGkAtoms::viewportFrame &&
-      presContext->IsRootPaginatedDocument() &&
-      (presContext->Type() == nsPresContext::eContext_PrintPreview ||
-       presContext->Type() == nsPresContext::eContext_PageLayout)) {
+      aFrame->PresContext()->IsRootPaginatedDocument() &&
+      (aFrame->PresContext()->Type() == nsPresContext::eContext_PrintPreview ||
+       aFrame->PresContext()->Type() == nsPresContext::eContext_PageLayout)) {
     nsRect bounds = nsRect(builder.ToReferenceFrame(aFrame),
                            aFrame->GetSize());
     rv = list.AppendNewToBottom(new (&builder) nsDisplaySolidColor(
@@ -1285,11 +1221,9 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
     // an nsPageContentFrame. We only want to add the canvas background color
     // item once, for the nsPageContentFrame.
 
-    // Add the canvas background color to the bottom of the list. This
-    // happens after we've built the list so that AddCanvasBackgroundColorItem
-    // can monkey with the contents if necessary.
-    rv = presShell->AddCanvasBackgroundColorItem(
-           builder, list, aFrame, canvasArea, aBackstop);
+    // Add the canvas background color.
+    rv = aFrame->PresContext()->PresShell()->AddCanvasBackgroundColorItem(
+           builder, list, aFrame, nsnull, aBackstop);
   }
 
   builder.LeavePresShell(aFrame, dirtyRect);
@@ -1303,6 +1237,7 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
   }
 #endif
 
+  nsRegion visibleRegion = aDirtyRegion;
   list.ComputeVisibility(&builder, &visibleRegion, nsnull);
 
 #ifdef DEBUG
@@ -1315,36 +1250,254 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
   PRUint32 flags = nsDisplayList::PAINT_DEFAULT;
   if (aFlags & PAINT_WIDGET_LAYERS) {
     flags |= nsDisplayList::PAINT_USE_WIDGET_LAYERS;
-    nsIWidget *widget = aFrame->GetNearestWidget();
-    PRInt32 pixelRatio = presContext->AppUnitsPerDevPixel();
+    nsIWidget *widget = aFrame->GetWindow();
+    PRInt32 pixelRatio = widget->GetDeviceContext()->AppUnitsPerDevPixel();
     nsIntRegion visibleWindowRegion(visibleRegion.ToOutsidePixels(pixelRatio));
     nsIntRegion dirtyWindowRegion(aDirtyRegion.ToOutsidePixels(pixelRatio));
 
-    if (aFlags & (PAINT_IGNORE_SUPPRESSION |
-                  PAINT_IGNORE_VIEWPORT_SCROLLING |
-                  PAINT_HIDE_CARET)) {
-      // We're going to display something different from what we'd normally
-      // paint in a window, so make sure we flush out any retained layer
-      // trees before *and after* we draw
-      flags |= nsDisplayList::PAINT_FLUSH_LAYERS;
-    } else {
-      // XXX we should simplify this API now that dirtyWindowRegion always
-      // covers the entire window
-      widget->UpdatePossiblyTransparentRegion(dirtyWindowRegion, visibleWindowRegion);
-    }
+    widget->UpdatePossiblyTransparentRegion(dirtyWindowRegion, visibleWindowRegion);
   }
-
   list.PaintRoot(&builder, aRenderingContext, flags);
+  // Flush the list so we don't trigger the IsEmpty-on-destruction assertion
+  list.DeleteAll();
+  return NS_OK;
+}
 
 #ifdef DEBUG
-  if (gDumpPaintList) {
-    fprintf(stderr, "Painting --- retained layer tree:\n");
-    builder.LayerBuilder()->DumpRetainedLayerTree();
+static void
+PrintAddedRegion(const char* aFormat, nsIFrame* aFrame,
+                 const nsRegion& aRegion)
+{
+  if (!gDumpRepaintRegionForCopy)
+    return;
+  fprintf(stderr, aFormat, (void*)aFrame);
+  fprintf(stderr, " : [");
+  nsRegionRectIterator iter(aRegion);
+  PRBool first = PR_TRUE;
+  const nsRect* r;
+  while ((r = iter.Next()) != nsnull) {
+    if (!first) {
+      fprintf(stderr, ",");
+    }
+    fprintf(stderr, "(%d,%d,%d,%d)",
+            r->x, r->y, r->XMost(), r->YMost());
+  }
+  fprintf(stderr, "]\n");
+}
+#endif
+
+static void
+AccumulateItemInRegion(nsRegion* aRegion, const nsRect& aUpdateRect,
+                       const nsRect& aItemRect, const nsRect& aExclude,
+                       nsDisplayItem* aItem)
+{
+  nsRect damageRect;
+  if (damageRect.IntersectRect(aUpdateRect, aItemRect)) {
+    nsRegion r;
+    r.Sub(damageRect, aExclude);
+#ifdef DEBUG
+    PrintAddedRegion("Adding rect for frame %p",
+                     aItem->GetUnderlyingFrame(), r);
+#endif
+    aRegion->Or(*aRegion, r);
+  }
+}
+
+static void
+AddItemsToRegion(nsDisplayListBuilder* aBuilder, nsDisplayList* aList,
+                 const nsRect& aUpdateRect, const nsRect& aClipRect, nsPoint aDelta,
+                 nsRegion* aRegion)
+{
+  for (nsDisplayItem* item = aList->GetBottom(); item; item = item->GetAbove()) {
+    nsDisplayList* sublist = item->GetList();
+    if (sublist) {
+      nsDisplayItem::Type type = item->GetType();
+#ifdef MOZ_SVG
+      if (type == nsDisplayItem::TYPE_SVG_EFFECTS) {
+        nsDisplaySVGEffects* effectsItem = static_cast<nsDisplaySVGEffects*>(item);
+        if (!aBuilder->IsMovingFrame(effectsItem->GetEffectsFrame())) {
+          // Invalidate the whole thing
+          nsRect r;
+          r.IntersectRect(aClipRect, effectsItem->GetBounds(aBuilder));
+ #ifdef DEBUG
+          PrintAddedRegion("Adding region for SVG effects frame %p",
+                           effectsItem->GetEffectsFrame(), nsRegion(r));
+ #endif
+          aRegion->Or(*aRegion, r);
+        }
+      } else
+#endif
+      if (type == nsDisplayItem::TYPE_CLIP) {
+        nsDisplayClip* clipItem = static_cast<nsDisplayClip*>(item);
+        nsRect clip = aClipRect;
+        // If the clipping frame is moving, then it isn't clipping any
+        // non-moving content (see ApplyAbsPosClipping), so we don't need
+        // to do anything special, but we should not restrict aClipRect.
+        // If the clipping frame is not moving, but the moving frames
+        // are not in its descendants, then again we don't need to
+        // do anything special.
+        nsIFrame* clipFrame = clipItem->GetClippingFrame();
+        if (!aBuilder->IsMovingFrame(clipFrame) &&
+            nsLayoutUtils::IsProperAncestorFrameCrossDoc(clipFrame, aBuilder->GetRootMovingFrame())) {
+          nscoord appUnitsPerDevPixel = clipFrame->PresContext()->AppUnitsPerDevPixel();
+          // We know the nsDisplayClip will snap because we're in a context
+          // where pixels can be blitted and we don't traverse down through
+          // an nsDisplayTransform.
+          nsRect snappedClip =
+            clipItem->GetClipRect().ToNearestPixels(appUnitsPerDevPixel).
+            ToAppUnits(appUnitsPerDevPixel);
+          clip.IntersectRect(clip, snappedClip);
+
+          // Invalidate the translation of the source area that was clipped out
+          nsRegion clippedOutSource;
+          clippedOutSource.Sub(aUpdateRect - aDelta, clip);
+          clippedOutSource.MoveBy(aDelta);
+ #ifdef DEBUG
+          PrintAddedRegion("Adding region for clipped out source frame %p",
+                           clipFrame, clippedOutSource);
+ #endif
+          aRegion->Or(*aRegion, clippedOutSource);
+
+          // Invalidate the destination area that is clipped out
+          nsRegion clippedOutDestination;
+          clippedOutDestination.Sub(aUpdateRect, clip);
+ #ifdef DEBUG
+          PrintAddedRegion("Adding region for clipped out destination frame %p",
+                           clipFrame, clippedOutDestination);
+ #endif
+          aRegion->Or(*aRegion, clippedOutDestination);
+        }
+        AddItemsToRegion(aBuilder, sublist, aUpdateRect, clip, aDelta, aRegion);
+      } else {
+        // opacity, or a generic sublist
+        AddItemsToRegion(aBuilder, sublist, aUpdateRect, aClipRect, aDelta, aRegion);
+      }
+    } else {
+      nsRect r;
+      if (r.IntersectRect(aClipRect, item->GetBounds(aBuilder))) {
+        nsIFrame* f = item->GetUnderlyingFrame();
+        NS_ASSERTION(f, "Must have an underlying frame for leaf item");
+        nsRect exclude;
+        if (aBuilder->IsMovingFrame(f)) {
+          if (item->IsVaryingRelativeToMovingFrame(aBuilder)) {
+            // something like background-attachment:fixed that varies
+            // its drawing when it moves
+            AccumulateItemInRegion(aRegion, aUpdateRect, r, exclude, item);
+          }
+        } else {
+          // not moving.
+          nscolor color;
+          if (item->IsUniform(aBuilder, &color)) {
+            // If it's uniform, we don't need to invalidate where one part
+            // of the item was copied to another part.
+            exclude.IntersectRect(r, r + aDelta);
+          }
+          // area where a non-moving element is visible must be repainted
+          AccumulateItemInRegion(aRegion, aUpdateRect, r, exclude, item);
+          // we may have bitblitted an area that was painted by a non-moving
+          // element. This bitblitted data is invalid and was copied to
+          // "r + aDelta".
+          AccumulateItemInRegion(aRegion, aUpdateRect, r + aDelta,
+                                 exclude, item);
+        }
+      }
+    }
+  }
+}
+
+nsresult
+nsLayoutUtils::ComputeRepaintRegionForCopy(nsIFrame* aRootFrame,
+                                           nsIFrame* aMovingFrame,
+                                           nsPoint aDelta,
+                                           const nsRect& aUpdateRect,
+                                           nsRegion* aBlitRegion,
+                                           nsRegion* aRepaintRegion)
+{
+  NS_ASSERTION(aRootFrame != aMovingFrame,
+               "The root frame shouldn't be the one that's moving, that makes no sense");
+
+  // Build the 'after' display list over the whole area of interest.
+  // (We have to build the 'after' display list because the frame/view
+  // hierarchy has already been updated for the move.
+  // We need to ensure that the non-moving frame display items we get
+  // are the same ones we would have gotten if we had constructed the
+  // 'before' display list. So opaque moving items are only considered to
+  // cover the intersection of their old and new bounds (see
+  // nsDisplayItem::ComputeVisibility). A moving clip item is not allowed
+  // to clip non-moving items --- this is enforced by the code that sets
+  // up nsDisplayClip items, in particular see ApplyAbsPosClipping.
+  // XXX but currently a non-moving clip item can incorrectly clip
+  // moving items! See bug 428156.
+  nsDisplayListBuilder builder(aRootFrame, PR_FALSE, PR_TRUE);
+  // Retrieve the area of the moving content (considered in both its
+  // before- and after-movement positions) that's visible. This is the
+  // only area that needs to be blitted or repainted.
+  nsRegion visibleRegionOfMovingContent;
+  builder.SetMovingFrame(aMovingFrame, aDelta, &visibleRegionOfMovingContent);
+  nsDisplayList list;
+
+  builder.EnterPresShell(aRootFrame, aUpdateRect);
+
+  nsresult rv =
+    aRootFrame->BuildDisplayListForStackingContext(&builder, aUpdateRect, &list);
+
+  builder.LeavePresShell(aRootFrame, aUpdateRect);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+#ifdef DEBUG
+  if (gDumpRepaintRegionForCopy) {
+    fprintf(stderr,
+            "Repaint region for copy --- before optimization (area %d,%d,%d,%d, frame %p):\n",
+            aUpdateRect.x, aUpdateRect.y, aUpdateRect.width, aUpdateRect.height,
+            (void*)aMovingFrame);
+    nsFrame::PrintDisplayList(&builder, list);
   }
 #endif
 
+  // Optimize for visibility, but frames under aMovingFrame will not be
+  // considered opaque, so they don't cover non-moving frames.
+  nsRegion visibleRegion(aUpdateRect);
+  nsRegion visibleRegionBeforeMove(aUpdateRect);
+  list.ComputeVisibility(&builder, &visibleRegion, &visibleRegionBeforeMove);
+
+#ifdef DEBUG
+  if (gDumpRepaintRegionForCopy) {
+    fprintf(stderr, "Repaint region for copy --- after optimization:\n");
+    nsFrame::PrintDisplayList(&builder, list);
+  }
+#endif
+
+  // It's possible that there was moving content which was visible but
+  // has now been scrolled out of view so it does not intersect aUpdateRect,
+  // so it's not in our display list. So compute the region that that content
+  // could have occupied --- the complete region that has been scrolled out
+  // of view --- and add it to visibleRegionOfMovingContent.
+  // Note that aRepaintRegion does not depend on moving content which has
+  // been scrolled out of view.
+  nsRegion scrolledOutOfView;
+  scrolledOutOfView.Sub(aUpdateRect, aUpdateRect - aDelta);
+  visibleRegionOfMovingContent.Or(visibleRegionOfMovingContent, scrolledOutOfView);
+
+  aRepaintRegion->SetEmpty();
+  // Any visible non-moving display items get added to the repaint region
+  // a) at their current location and b) offset by -aPt (their position in
+  // the 'before' display list) (unless they're uniform and we can exclude them).
+  // Also, any visible position-varying display items get added to the
+  // repaint region. All these areas are confined to aUpdateRect.
+  // We could do more work here: e.g., do another optimize-visibility pass
+  // with the moving items taken into account, either on the before-list
+  // or the after-list, or even both if we cloned the display lists ... but
+  // it's probably not worth it.
+  AddItemsToRegion(&builder, &list, aUpdateRect, aUpdateRect, aDelta, aRepaintRegion);
   // Flush the list so we don't trigger the IsEmpty-on-destruction assertion
   list.DeleteAll();
+
+  // Finalize output regions. The region of moving content that's not
+  // visible --- hidden by overlaid opaque non-moving content --- need not
+  // be blitted or repainted.
+  visibleRegionOfMovingContent.And(visibleRegionOfMovingContent, aUpdateRect);
+  aRepaintRegion->And(*aRepaintRegion, visibleRegionOfMovingContent);
+  aBlitRegion->Sub(visibleRegionOfMovingContent, *aRepaintRegion);
   return NS_OK;
 }
 
@@ -2038,10 +2191,8 @@ nsLayoutUtils::ComputeWidthDependentValue(
                  nscoord              aContainingBlockWidth,
                  const nsStyleCoord&  aCoord)
 {
-  NS_WARN_IF_FALSE(aContainingBlockWidth != NS_UNCONSTRAINEDSIZE,
-                   "have unconstrained width; this should only result from "
-                   "very large sizes, not attempts at intrinsic width "
-                   "calculation");
+  NS_PRECONDITION(aContainingBlockWidth != NS_UNCONSTRAINEDSIZE,
+                  "unconstrained widths no longer supported");
 
   if (eStyleUnit_Coord == aCoord.GetUnit()) {
     return aCoord.GetCoordValue();
@@ -2768,79 +2919,47 @@ MapToFloatUserPixels(const gfxSize& aSize,
                   aPt.y*aDest.size.height/aSize.height + aDest.pos.y);
 }
 
-// helper function to convert a nsRect to a gfxRect
-// borrowed from nsCSSRendering.cpp
-static gfxRect
-RectToGfxRect(const nsRect& aRect, PRInt32 aAppUnitsPerDevPixel)
-{
-  return gfxRect(gfxFloat(aRect.x) / aAppUnitsPerDevPixel,
-                 gfxFloat(aRect.y) / aAppUnitsPerDevPixel,
-                 gfxFloat(aRect.width) / aAppUnitsPerDevPixel,
-                 gfxFloat(aRect.height) / aAppUnitsPerDevPixel);
-}
-
-struct SnappedImageDrawingParameters {
-  // A transform from either device space or user space (depending on mResetCTM)
-  // to image space
-  gfxMatrix mUserSpaceToImageSpace;
-  // A device-space, pixel-aligned rectangle to fill
-  gfxRect mFillRect;
-  // A pixel rectangle in tiled image space outside of which gfx should not
-  // sample (using EXTEND_PAD as necessary)
-  nsIntRect mSubimage;
-  // Whether there's anything to draw at all
-  PRPackedBool mShouldDraw;
-  // PR_TRUE iff the CTM of the rendering context needs to be reset to the
-  // identity matrix before drawing
-  PRPackedBool mResetCTM;
-
-  SnappedImageDrawingParameters()
-   : mShouldDraw(PR_FALSE)
-   , mResetCTM(PR_FALSE)
-  {}
-
-  SnappedImageDrawingParameters(const gfxMatrix& aUserSpaceToImageSpace,
-                                const gfxRect&   aFillRect,
-                                const nsIntRect& aSubimage,
-                                PRBool           aResetCTM)
-   : mUserSpaceToImageSpace(aUserSpaceToImageSpace)
-   , mFillRect(aFillRect)
-   , mSubimage(aSubimage)
-   , mShouldDraw(PR_TRUE)
-   , mResetCTM(aResetCTM)
-  {}
-};
-
-/**
- * Given a set of input parameters, compute certain output parameters
- * for drawing an image with the image snapping algorithm.
- * See https://wiki.mozilla.org/Gecko:Image_Snapping_and_Rendering
- *
- *  @see nsLayoutUtils::DrawImage() for the descriptions of input parameters
- */
-static SnappedImageDrawingParameters
-ComputeSnappedImageDrawingParameters(gfxContext*     aCtx,
-                                     PRInt32         aAppUnitsPerDevPixel,
-                                     const nsRect    aDest,
-                                     const nsRect    aFill,
-                                     const nsPoint   aAnchor,
-                                     const nsRect    aDirty,
-                                     const nsIntSize aImageSize)
-
+static nsresult
+DrawImageInternal(nsIRenderingContext* aRenderingContext,
+                  imgIContainer*       aImage,
+                  gfxPattern::GraphicsFilter aGraphicsFilter,
+                  const nsRect&        aDest,
+                  const nsRect&        aFill,
+                  const nsPoint&       aAnchor,
+                  const nsRect&        aDirty,
+                  const nsIntSize&     aImageSize,
+                  PRUint32             aImageFlags)
 {
   if (aDest.IsEmpty() || aFill.IsEmpty())
-    return SnappedImageDrawingParameters();
+    return NS_OK;
 
-  gfxRect devPixelDest = RectToGfxRect(aDest, aAppUnitsPerDevPixel);
-  gfxRect devPixelFill = RectToGfxRect(aFill, aAppUnitsPerDevPixel);
-  gfxRect devPixelDirty = RectToGfxRect(aDirty, aAppUnitsPerDevPixel);
+  nsCOMPtr<nsIDeviceContext> dc;
+  aRenderingContext->GetDeviceContext(*getter_AddRefs(dc));
+  gfxFloat appUnitsPerDevPixel = dc->AppUnitsPerDevPixel();
+  gfxContext *ctx = aRenderingContext->ThebesContext();
 
+  gfxRect devPixelDest(aDest.x/appUnitsPerDevPixel,
+                       aDest.y/appUnitsPerDevPixel,
+                       aDest.width/appUnitsPerDevPixel,
+                       aDest.height/appUnitsPerDevPixel);
+
+  // Compute the pixel-snapped area that should be drawn
+  gfxRect devPixelFill(aFill.x/appUnitsPerDevPixel,
+                       aFill.y/appUnitsPerDevPixel,
+                       aFill.width/appUnitsPerDevPixel,
+                       aFill.height/appUnitsPerDevPixel);
   PRBool ignoreScale = PR_FALSE;
 #ifdef MOZ_GFX_OPTIMIZE_MOBILE
   ignoreScale = PR_TRUE;
 #endif
   gfxRect fill = devPixelFill;
-  PRBool didSnap = aCtx->UserToDevicePixelSnapped(fill, ignoreScale);
+  PRBool didSnap = ctx->UserToDevicePixelSnapped(fill, ignoreScale);
+
+  // Compute dirty rect in gfx space
+  gfxRect dirty(aDirty.x/appUnitsPerDevPixel,
+                aDirty.y/appUnitsPerDevPixel,
+                aDirty.width/appUnitsPerDevPixel,
+                aDirty.height/appUnitsPerDevPixel);
 
   gfxSize imageSize(aImageSize.width, aImageSize.height);
 
@@ -2858,33 +2977,35 @@ ComputeSnappedImageDrawingParameters(gfxContext*     aCtx,
   // Compute the anchor point and compute final fill rect.
   // This code assumes that pixel-based devices have one pixel per
   // device unit!
-  gfxPoint anchorPoint(gfxFloat(aAnchor.x)/aAppUnitsPerDevPixel,
-                       gfxFloat(aAnchor.y)/aAppUnitsPerDevPixel);
+  gfxPoint anchorPoint(aAnchor.x/appUnitsPerDevPixel,
+                       aAnchor.y/appUnitsPerDevPixel);
   gfxPoint imageSpaceAnchorPoint =
     MapToFloatImagePixels(imageSize, devPixelDest, anchorPoint);
-  gfxMatrix currentMatrix = aCtx->CurrentMatrix();
+  gfxContextMatrixAutoSaveRestore saveMatrix(ctx);
 
   if (didSnap) {
-    NS_ASSERTION(!currentMatrix.HasNonAxisAlignedTransform(),
+    NS_ASSERTION(!saveMatrix.Matrix().HasNonAxisAlignedTransform(),
                  "How did we snap, then?");
     imageSpaceAnchorPoint.Round();
     anchorPoint = imageSpaceAnchorPoint;
     anchorPoint = MapToFloatUserPixels(imageSize, devPixelDest, anchorPoint);
-    anchorPoint = currentMatrix.Transform(anchorPoint);
+    anchorPoint = saveMatrix.Matrix().Transform(anchorPoint);
     anchorPoint.Round();
 
     // This form of Transform is safe to call since non-axis-aligned
     // transforms wouldn't be snapped.
-    devPixelDirty = currentMatrix.Transform(devPixelDirty);
+    dirty = saveMatrix.Matrix().Transform(dirty);
+
+    ctx->IdentityMatrix();
   }
 
-  gfxFloat scaleX = imageSize.width*aAppUnitsPerDevPixel/aDest.width;
-  gfxFloat scaleY = imageSize.height*aAppUnitsPerDevPixel/aDest.height;
+  gfxFloat scaleX = imageSize.width*appUnitsPerDevPixel/aDest.width;
+  gfxFloat scaleY = imageSize.height*appUnitsPerDevPixel/aDest.height;
   if (didSnap) {
-    // We'll reset aCTX to the identity matrix before drawing, so we need to
-    // adjust our scales to match.
-    scaleX /= currentMatrix.xx;
-    scaleY /= currentMatrix.yy;
+    // ctx now has the identity matrix, so we need to adjust our
+    // scales to match
+    scaleX /= saveMatrix.Matrix().xx;
+    scaleY /= saveMatrix.Matrix().yy;
   }
   gfxFloat translateX = imageSpaceAnchorPoint.x - anchorPoint.x*scaleX;
   gfxFloat translateY = imageSpaceAnchorPoint.y - anchorPoint.y*scaleY;
@@ -2895,51 +3016,18 @@ ComputeSnappedImageDrawingParameters(gfxContext*     aCtx,
   // translation by integers, then filtering will occur, and
   // restricting the fill rect to the dirty rect would change the values
   // computed for edge pixels, which we can't allow.
-  // Also, if didSnap is false then rounding out 'devPixelDirty' might not
+  // Also, if didSnap is false then rounding out 'dirty' might not
   // produce pixel-aligned coordinates, which would also break the values
   // computed for edge pixels.
   if (didSnap && !transform.HasNonIntegerTranslation()) {
-    devPixelDirty.RoundOut();
-    finalFillRect = fill.Intersect(devPixelDirty);
+    dirty.RoundOut();
+    finalFillRect = fill.Intersect(dirty);
   }
   if (finalFillRect.IsEmpty())
-    return SnappedImageDrawingParameters();
-
-  return SnappedImageDrawingParameters(transform, finalFillRect, intSubimage,
-                                       didSnap);
-}
-
-
-static nsresult
-DrawImageInternal(nsIRenderingContext* aRenderingContext,
-                  imgIContainer*       aImage,
-                  gfxPattern::GraphicsFilter aGraphicsFilter,
-                  const nsRect&        aDest,
-                  const nsRect&        aFill,
-                  const nsPoint&       aAnchor,
-                  const nsRect&        aDirty,
-                  const nsIntSize&     aImageSize,
-                  PRUint32             aImageFlags)
-{
-  nsCOMPtr<nsIDeviceContext> dc;
-  aRenderingContext->GetDeviceContext(*getter_AddRefs(dc));
-  PRInt32 appUnitsPerDevPixel = dc->AppUnitsPerDevPixel();
-  gfxContext* ctx = aRenderingContext->ThebesContext();
-
-  SnappedImageDrawingParameters drawingParams =
-    ComputeSnappedImageDrawingParameters(ctx, appUnitsPerDevPixel, aDest, aFill,
-                                         aAnchor, aDirty, aImageSize);
-
-  if (!drawingParams.mShouldDraw)
     return NS_OK;
 
-  gfxContextMatrixAutoSaveRestore saveMatrix(ctx);
-  if (drawingParams.mResetCTM) {
-    ctx->IdentityMatrix();
-  }
-
-  aImage->Draw(ctx, aGraphicsFilter, drawingParams.mUserSpaceToImageSpace,
-               drawingParams.mFillRect, drawingParams.mSubimage, aImageFlags);
+  aImage->Draw(ctx, aGraphicsFilter, transform, finalFillRect, intSubimage,
+               aImageFlags);
   return NS_OK;
 }
 

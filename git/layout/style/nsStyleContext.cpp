@@ -70,7 +70,6 @@ nsStyleContext::nsStyleContext(nsStyleContext* aParent,
     mEmptyChild(nsnull),
     mPseudoTag(aPseudoTag),
     mRuleNode(aRuleNode),
-    mAllocations(nsnull),
     mCachedResetData(nsnull),
     mBits(((PRUint32)aPseudoType) << NS_STYLE_CONTEXT_TYPE_SHIFT),
     mRefCnt(0)
@@ -124,8 +123,6 @@ nsStyleContext::~nsStyleContext()
   if (mCachedResetData) {
     mCachedResetData->Destroy(mBits, presContext);
   }
-
-  FreeAllocations(presContext);
 }
 
 void nsStyleContext::AddChild(nsStyleContext* aChild)
@@ -412,6 +409,9 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
   // our position in the rule node tree is also the same.
   PRBool compare = mRuleNode != aOther->mRuleNode;
 
+  nsChangeHint maxHint = nsChangeHint(NS_STYLE_HINT_FRAMECHANGE |
+      nsChangeHint_UpdateCursor);
+  
 #define DO_STRUCT_DIFFERENCE(struct_)                                         \
   PR_BEGIN_MACRO                                                              \
     NS_ASSERTION(NS_IsHintSubset(nsStyle##struct_::MaxDifference(), maxHint), \
@@ -435,12 +435,7 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
   // causing the maximal difference, a FRAMECHANGE.
   // FRAMECHANGE Structs: Display, XUL, Content, UserInterface,
   // Visibility, Outline, TableBorder, Table, Text, UIReset, Quotes
-  nsChangeHint maxHint = nsChangeHint(NS_STYLE_HINT_FRAMECHANGE |
-      nsChangeHint_UpdateOpacityLayer);
   DO_STRUCT_DIFFERENCE(Display);
-
-  maxHint = nsChangeHint(NS_STYLE_HINT_FRAMECHANGE |
-      nsChangeHint_UpdateCursor);
   DO_STRUCT_DIFFERENCE(XUL);
   DO_STRUCT_DIFFERENCE(Column);
   DO_STRUCT_DIFFERENCE(Content);
@@ -772,32 +767,4 @@ nsStyleContext::CombineVisitedColors(nscolor *aColors, PRBool aLinkIsVisited)
   nscolor alphaColor = aColors[set.alphaIndex];
   return NS_RGBA(NS_GET_R(colorColor), NS_GET_G(colorColor),
                  NS_GET_B(colorColor), NS_GET_A(alphaColor));
-}
-
-void*
-nsStyleContext::Alloc(size_t aSize)
-{
-  nsIPresShell *shell = PresContext()->PresShell();
-
-  aSize += offsetof(AllocationHeader, mStorageStart);
-  AllocationHeader *alloc =
-    static_cast<AllocationHeader*>(shell->AllocateMisc(aSize));
-
-  alloc->mSize = aSize; // NOTE: inflated by header
-
-  alloc->mNext = mAllocations;
-  mAllocations = alloc;
-
-  return static_cast<void*>(&alloc->mStorageStart);
-}
-
-void
-nsStyleContext::FreeAllocations(nsPresContext *aPresContext)
-{
-  nsIPresShell *shell = aPresContext->PresShell();
-
-  for (AllocationHeader *alloc = mAllocations, *next; alloc; alloc = next) {
-    next = alloc->mNext;
-    shell->FreeMisc(alloc->mSize, alloc);
-  }
 }

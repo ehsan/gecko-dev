@@ -86,6 +86,7 @@
         windowtype="navigator:browser"
         screenX="4" screenY="4"
         browsingmode="normal"
+        toggletoolbar="true"
         persist="screenX screenY width height sizemode"> 
 
 # All JS files which are not content (only) dependent that browser.xul
@@ -125,12 +126,6 @@
                 accesskey="&openTabInNewWindow.accesskey;"
                 tbattr="tabbrowser-multiple"
                 oncommand="gBrowser.replaceTabWithWindow(TabContextMenu.contextTab);"/>
-      <menuitem id="context_pinTab" label="&pinTab.label;"
-                accesskey="&pinTab.accesskey;"
-                oncommand="gBrowser.pinTab(TabContextMenu.contextTab);"/>
-      <menuitem id="context_unpinTab" label="&unpinTab.label;" hidden="true"
-                accesskey="&unpinTab.accesskey;"
-                oncommand="gBrowser.unpinTab(TabContextMenu.contextTab);"/>
       <menuseparator/>
       <menuitem id="context_bookmarkTab"
                 label="&bookmarkThisTab.label;"
@@ -146,6 +141,7 @@
                 command="History:UndoCloseTab"/>
       <menuseparator/>
       <menuitem id="context_closeTab" label="&closeTab.label;" accesskey="&closeTab.accesskey;"
+                tbattr="tabbrowser-multiple"
                 oncommand="gBrowser.removeTab(TabContextMenu.contextTab);"/>
     </menupopup>
 
@@ -392,7 +388,7 @@
             type="menu"
             label="&brandShortName;"
             style="-moz-user-focus: ignore;">
-      <menupopup id="appmenu-popup">
+      <menupopup>
         <menuitem id="appmenu_newNavigator"
                   label="&newNavigatorCmd.label;"
                   command="cmd_newNavigator"/>
@@ -612,7 +608,6 @@
                  onblur="setTimeout(function() document.getElementById('identity-box').style.MozUserFocus = '', 0);">
           <box id="notification-popup-box" hidden="true" align="center">
             <image id="geo-notification-icon" class="notification-anchor-icon"/>
-            <image id="addons-notification-icon" class="notification-anchor-icon"/>
           </box>
           <!-- Use onclick instead of normal popup= syntax since the popup
                code fires onmousedown, and hence eats our favicon drag events.
@@ -792,7 +787,7 @@
                                                    ._placesView._onChevronPopupShowing(event);">
               <menupopup id="PlacesChevronPopup"
                          placespopup="true"
-                         tooltip="bhTooltip" popupsinherittooltip="true"
+                         popupsinherittooltip="true"
                          context="placesContext"/>
             </toolbarbutton>
           </hbox>

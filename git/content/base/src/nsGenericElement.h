@@ -75,7 +75,7 @@ class nsIDOMAttr;
 class nsIDOMEventListener;
 class nsIFrame;
 class nsIDOMNamedNodeMap;
-class nsICSSDeclaration;
+class nsDOMCSSDeclaration;
 class nsIDOMCSSStyleDeclaration;
 class nsIURI;
 class nsINodeInfo;
@@ -746,8 +746,6 @@ public:
     return NS_OK;
   }
   nsIDOMDOMTokenList* GetClassList(nsresult *aResult);
-  void SetCapture(PRBool aRetargetToElement);
-  void ReleaseCapture();
   PRBool MozMatchesSelector(const nsAString& aSelector);
 
   /**
@@ -925,13 +923,13 @@ public:
      * The .style attribute (an interface that forwards to the actual
      * style rules)
      * @see nsGenericHTMLElement::GetStyle */
-    nsCOMPtr<nsICSSDeclaration> mStyle;
+    nsRefPtr<nsDOMCSSDeclaration> mStyle;
 
     /**
      * SMIL Overridde style rules (for SMIL animation of CSS properties)
      * @see nsIContent::GetSMILOverrideStyle
      */
-    nsCOMPtr<nsICSSDeclaration> mSMILOverrideStyle;
+    nsRefPtr<nsDOMCSSDeclaration> mSMILOverrideStyle;
 
     /**
      * Holds any SMIL override style rules for this element.

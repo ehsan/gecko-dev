@@ -468,9 +468,6 @@ Assembler::nInit(AvmCore*)
 #else
     blx_lr_bug = 0;
 #endif
-    nHints[LIR_calli]  = rmask(retRegs[0]);
-    nHints[LIR_hcalli] = rmask(retRegs[1]);
-    nHints[LIR_paramp] = PREFER_SPECIAL;
 }
 
 void Assembler::nBeginAssembly()
@@ -511,7 +508,7 @@ Assembler::genPrologue()
 }
 
 void
-Assembler::nFragExit(LIns* guard)
+Assembler::nFragExit(LInsp guard)
 {
     SideExit *  exit = guard->record()->exit;
     Fragment *  frag = exit->target;
@@ -615,7 +612,7 @@ Assembler::genEpilogue()
  *   alignment.
  */
 void
-Assembler::asm_arg(ArgType ty, LIns* arg, Register& r, int& stkd)
+Assembler::asm_arg(ArgType ty, LInsp arg, Register& r, int& stkd)
 {
     // The stack pointer must always be at least aligned to 4 bytes.
     NanoAssert((stkd & 3) == 0);
@@ -640,7 +637,7 @@ Assembler::asm_arg(ArgType ty, LIns* arg, Register& r, int& stkd)
 // This function operates in the same way as asm_arg, except that it will only
 // handle arguments where (ArgType)ty == ARGTYPE_D.
 void
-Assembler::asm_arg_64(LIns* arg, Register& r, int& stkd)
+Assembler::asm_arg_64(LInsp arg, Register& r, int& stkd)
 {
     // The stack pointer must always be at least aligned to 4 bytes.
     NanoAssert((stkd & 3) == 0);
@@ -738,7 +735,7 @@ Assembler::asm_arg_64(LIns* arg, Register& r, int& stkd)
 }
 
 void
-Assembler::asm_regarg(ArgType ty, LIns* p, Register r)
+Assembler::asm_regarg(ArgType ty, LInsp p, Register r)
 {
     NanoAssert(deprecated_isKnownReg(r));
     if (ty == ARGTYPE_I || ty == ARGTYPE_UI)
@@ -778,7 +775,7 @@ Assembler::asm_regarg(ArgType ty, LIns* p, Register r)
 }
 
 void
-Assembler::asm_stkarg(LIns* arg, int stkd)
+Assembler::asm_stkarg(LInsp arg, int stkd)
 {
     bool isF64 = arg->isD();
 
@@ -833,7 +830,7 @@ Assembler::asm_stkarg(LIns* arg, int stkd)
 }
 
 void
-Assembler::asm_call(LIns* ins)
+Assembler::asm_call(LInsp ins)
 {
     if (_config.arm_vfp && ins->isop(LIR_calld)) {
         /* Because ARM actually returns the result in (R0,R1), and not in a
@@ -1176,13 +1173,20 @@ Assembler::nPatchBranch(NIns* branch, NIns* target)
 }
 
 RegisterMask
-Assembler::nHint(LIns* ins)
+Assembler::hint(LIns* ins)
 {
-    NanoAssert(ins->isop(LIR_paramp)); 
-    RegisterMask prefer = 0;
-    if (ins->paramKind() == 0)
-        if (ins->paramArg() < 4)
-            prefer = rmask(argRegs[ins->paramArg()]);
+    uint32_t op = ins->opcode();
+    int prefer = 0;
+    if (op == LIR_calli)
+        prefer = rmask(R0);
+    else if (op == LIR_hcalli)
+        prefer = rmask(R1);
+    else if (op == LIR_paramp) {
+        if (ins->paramKind() == 0) {
+            if (ins->paramArg() < 4)
+                prefer = rmask(argRegs[ins->paramArg()]);
+        }
+    }
     return prefer;
 }
 
@@ -1266,7 +1270,7 @@ Assembler::canRemat(LIns* ins)
 }
 
 void
-Assembler::asm_restore(LIns* i, Register r)
+Assembler::asm_restore(LInsp i, Register r)
 {
     // The following registers should never be restored:
     NanoAssert(r != PC);
@@ -1356,7 +1360,7 @@ Assembler::asm_spill(Register rr, int d, bool pop, bool quad)
 }
 
 void
-Assembler::asm_load64(LIns* ins)
+Assembler::asm_load64(LInsp ins)
 {
     //asm_output("<<< load64");
 
@@ -1440,7 +1444,7 @@ Assembler::asm_load64(LIns* ins)
 }
 
 void
-Assembler::asm_store64(LOpcode op, LIns* value, int dr, LIns* base)
+Assembler::asm_store64(LOpcode op, LInsp value, int dr, LInsp base)
 {
     //asm_output("<<< store64 (dr: %d)", dr);
 
@@ -1469,18 +1473,14 @@ Assembler::asm_store64(LOpcode op, LIns* value, int dr, LIns* base)
                 Register baseReg = rb;
                 intptr_t baseOffset = dr;
 
-                // VFP cannot do non-word-aligned accesses, even with a
-                // register base.
-                NanoAssert((dr%4) == 0);
-
-                if (!isS8(dr/4)) {
+                if (!isS8(dr)) {
                     baseReg = IP;
                     baseOffset = 0;
                 }
 
                 FSTD(rv, baseReg, baseOffset);
 
-                if (!isS8(dr/4)) {
+                if (!isS8(dr)) {
                     asm_add_imm(IP, rb, dr);
                 }
 
@@ -1503,13 +1503,14 @@ Assembler::asm_store64(LOpcode op, LIns* value, int dr, LIns* base)
                 Register rb = findRegFor(base, GpRegs);
 
                 if (value->isImmD()) {
-                    union {
-                        float       f;
-                        uint32_t    i;
-                    } imm;
-                    imm.f = (float)(value->immD());
+                    underrunProtect(LD32_size*2 + 8);
+
+                    // XXX use another reg, get rid of dependency
                     asm_str(IP, rb, dr);
-                    asm_ld_imm(IP, imm.i);
+                    asm_ld_imm(IP, value->immDlo(), false);
+                    asm_str(IP, rb, dr+4);
+                    asm_ld_imm(IP, value->immDhi(), false);
+
                     return;
                 }
 
@@ -1521,18 +1522,14 @@ Assembler::asm_store64(LOpcode op, LIns* value, int dr, LIns* base)
                 Register baseReg = rb;
                 intptr_t baseOffset = dr;
 
-                // VFP cannot do non-word-aligned accesses, even with a
-                // register base.
-                NanoAssert((dr%4) == 0);
-
-                if (!isS8(dr/4)) {
+                if (!isS8(dr)) {
                     baseReg = IP;
                     baseOffset = 0;
                 }
 
                 FSTS(S14, baseReg, baseOffset);
 
-                if (!isS8(dr/4)) {
+                if (!isS8(dr)) {
                     asm_add_imm(IP, rb, dr);
                 }
 
@@ -1581,7 +1578,7 @@ Assembler::asm_immd_nochk(Register rr, int32_t immDlo, int32_t immDhi)
 }
 
 void
-Assembler::asm_immd(LIns* ins)
+Assembler::asm_immd(LInsp ins)
 {
     int d = deprecated_disp(ins);
     Register rr = ins->deprecated_getReg();
@@ -1618,7 +1615,7 @@ Assembler::asm_nongp_copy(Register r, Register s)
 }
 
 Register
-Assembler::asm_binop_rhs_reg(LIns*)
+Assembler::asm_binop_rhs_reg(LInsp)
 {
     return deprecated_UnknownReg;
 }
@@ -2043,9 +2040,9 @@ Assembler::asm_str(Register rt, Register rr, int32_t offset)
             STR(rt, IP, -((-offset) & 0xfff));
             asm_sub_imm(IP, rr, (-offset) & ~0xfff);
         } else {
-            int32_t adj = ((-offset) & ~0xfff);
-            asm_add_imm(rr, rr, adj);
-            STR(rt, rr, offset+adj);
+            int32_t adj = -((-offset) & 0xfff);
+            asm_add_imm(IP, rr, adj);
+            STR(rt, rr, offset-adj);
             asm_sub_imm(rr, rr, adj);
         }
     }
@@ -2232,7 +2229,7 @@ Assembler::B_cond_chk(ConditionCode _c, NIns* _t, bool _chk)
  */
 
 void
-Assembler::asm_i2d(LIns* ins)
+Assembler::asm_i2d(LInsp ins)
 {
     Register rr = deprecated_prepResultReg(ins, FpRegs);
     Register srcr = findRegFor(ins->oprnd1(), GpRegs);
@@ -2245,7 +2242,7 @@ Assembler::asm_i2d(LIns* ins)
 }
 
 void
-Assembler::asm_ui2d(LIns* ins)
+Assembler::asm_ui2d(LInsp ins)
 {
     Register rr = deprecated_prepResultReg(ins, FpRegs);
     Register sr = findRegFor(ins->oprnd1(), GpRegs);
@@ -2257,7 +2254,7 @@ Assembler::asm_ui2d(LIns* ins)
     FMSR(S14, sr);
 }
 
-void Assembler::asm_d2i(LIns* ins)
+void Assembler::asm_d2i(LInsp ins)
 {
     // where our result goes
     Register rr = deprecated_prepResultReg(ins, GpRegs);
@@ -2268,9 +2265,9 @@ void Assembler::asm_d2i(LIns* ins)
 }
 
 void
-Assembler::asm_fneg(LIns* ins)
+Assembler::asm_fneg(LInsp ins)
 {
-    LIns* lhs = ins->oprnd1();
+    LInsp lhs = ins->oprnd1();
     Register rr = deprecated_prepResultReg(ins, FpRegs);
 
     Register sr = ( !lhs->isInReg()
@@ -2281,10 +2278,10 @@ Assembler::asm_fneg(LIns* ins)
 }
 
 void
-Assembler::asm_fop(LIns* ins)
+Assembler::asm_fop(LInsp ins)
 {
-    LIns* lhs = ins->oprnd1();
-    LIns* rhs = ins->oprnd2();
+    LInsp lhs = ins->oprnd1();
+    LInsp rhs = ins->oprnd2();
     LOpcode op = ins->opcode();
 
     // rr = ra OP rb
@@ -2307,10 +2304,10 @@ Assembler::asm_fop(LIns* ins)
 }
 
 void
-Assembler::asm_cmpd(LIns* ins)
+Assembler::asm_cmpd(LInsp ins)
 {
-    LIns* lhs = ins->oprnd1();
-    LIns* rhs = ins->oprnd2();
+    LInsp lhs = ins->oprnd1();
+    LInsp rhs = ins->oprnd2();
     LOpcode op = ins->opcode();
 
     NanoAssert(isCmpDOpcode(op));
@@ -2329,7 +2326,7 @@ Assembler::asm_cmpd(LIns* ins)
  * will be patched up later.
  */
 NIns*
-Assembler::asm_branch(bool branchOnFalse, LIns* cond, NIns* targ)
+Assembler::asm_branch(bool branchOnFalse, LInsp cond, NIns* targ)
 {
     LOpcode condop = cond->opcode();
     NanoAssert(cond->isCmp());
@@ -2394,23 +2391,22 @@ Assembler::asm_branch(bool branchOnFalse, LIns* cond, NIns* targ)
     return at;
 }
 
-NIns* Assembler::asm_branch_ov(LOpcode op, NIns* target)
+void Assembler::asm_branch_xov(LOpcode op, NIns* target)
 {
     // Because MUL can't set the V flag, we use SMULL and CMP to set the Z flag
     // to detect overflow on multiply. Thus, if we have a LIR_mulxovi, we must
     // be conditional on !Z, not V.
-    ConditionCode cc = ( (op == LIR_mulxovi) || (op == LIR_muljovi) ? NE : VS );
+    ConditionCode cc = ( op == LIR_mulxovi ? NE : VS );
 
     // Emit a suitable branch instruction.
     B_cond(cc, target);
-    return _nIns;
 }
 
 void
 Assembler::asm_cmp(LIns *cond)
 {
-    LIns* lhs = cond->oprnd1();
-    LIns* rhs = cond->oprnd2();
+    LInsp lhs = cond->oprnd1();
+    LInsp rhs = cond->oprnd2();
 
     NanoAssert(lhs->isI() && rhs->isI());
 
@@ -2453,7 +2449,7 @@ Assembler::asm_cmpi(Register r, int32_t imm)
 }
 
 void
-Assembler::asm_condd(LIns* ins)
+Assembler::asm_condd(LInsp ins)
 {
     // only want certain regs
     Register r = deprecated_prepResultReg(ins, AllowableFlagRegs);
@@ -2471,7 +2467,7 @@ Assembler::asm_condd(LIns* ins)
 }
 
 void
-Assembler::asm_cond(LIns* ins)
+Assembler::asm_cond(LInsp ins)
 {
     Register r = deprecated_prepResultReg(ins, AllowableFlagRegs);
     LOpcode op = ins->opcode();
@@ -2493,11 +2489,11 @@ Assembler::asm_cond(LIns* ins)
 }
 
 void
-Assembler::asm_arith(LIns* ins)
+Assembler::asm_arith(LInsp ins)
 {
     LOpcode op = ins->opcode();
-    LIns*   lhs = ins->oprnd1();
-    LIns*   rhs = ins->oprnd2();
+    LInsp   lhs = ins->oprnd1();
+    LInsp   rhs = ins->oprnd2();
 
     RegisterMask    allow = GpRegs;
 
@@ -2527,7 +2523,7 @@ Assembler::asm_arith(LIns* ins)
     // basic arithmetic instructions to generate constant multiplications.
     // However, LIR_muli is never invoked with a constant during
     // trace-tests.js so it is very unlikely to be worthwhile implementing it.
-    if (rhs->isImmI() && (op != LIR_muli) && (op != LIR_mulxovi) && (op != LIR_muljovi))
+    if (rhs->isImmI() && op != LIR_muli && op != LIR_mulxovi)
     {
         if ((op == LIR_addi || op == LIR_addxovi) && lhs->isop(LIR_allocp)) {
             // Add alloc+const. The result should be the address of the
@@ -2544,10 +2540,8 @@ Assembler::asm_arith(LIns* ins)
         switch (op)
         {
             case LIR_addi:       asm_add_imm(rr, ra, immI);     break;
-            case LIR_addjovi:
             case LIR_addxovi:    asm_add_imm(rr, ra, immI, 1);  break;
             case LIR_subi:       asm_sub_imm(rr, ra, immI);     break;
-            case LIR_subjovi:
             case LIR_subxovi:    asm_sub_imm(rr, ra, immI, 1);  break;
             case LIR_andi:       asm_and_imm(rr, ra, immI);     break;
             case LIR_ori:        asm_orr_imm(rr, ra, immI);     break;
@@ -2582,10 +2576,8 @@ Assembler::asm_arith(LIns* ins)
     switch (op)
     {
         case LIR_addi:       ADDs(rr, ra, rb, 0);    break;
-        case LIR_addjovi:
         case LIR_addxovi:    ADDs(rr, ra, rb, 1);    break;
         case LIR_subi:       SUBs(rr, ra, rb, 0);    break;
-        case LIR_subjovi:
         case LIR_subxovi:    SUBs(rr, ra, rb, 1);    break;
         case LIR_andi:       ANDs(rr, ra, rb, 0);    break;
         case LIR_ori:        ORRs(rr, ra, rb, 0);    break;
@@ -2593,7 +2585,6 @@ Assembler::asm_arith(LIns* ins)
 
         // XXX: LIR_muli can be done more efficiently than LIR_mulxovi.  See bug 542629.
         case LIR_muli:
-        case LIR_muljovi:
         case LIR_mulxovi:
             // ARMv5 and earlier cores cannot do a MUL where the first operand
             // is also the result, so we need a special case to handle that.
@@ -2681,7 +2672,7 @@ Assembler::asm_arith(LIns* ins)
 }
 
 void
-Assembler::asm_neg_not(LIns* ins)
+Assembler::asm_neg_not(LInsp ins)
 {
     LOpcode op = ins->opcode();
     Register rr = deprecated_prepResultReg(ins, GpRegs);
@@ -2701,7 +2692,7 @@ Assembler::asm_neg_not(LIns* ins)
 }
 
 void
-Assembler::asm_load32(LIns* ins)
+Assembler::asm_load32(LInsp ins)
 {
     LOpcode op = ins->opcode();
     LIns* base = ins->oprnd1();
@@ -2761,7 +2752,7 @@ Assembler::asm_load32(LIns* ins)
 }
 
 void
-Assembler::asm_cmov(LIns* ins)
+Assembler::asm_cmov(LInsp ins)
 {
     LIns* condval = ins->oprnd1();
     LIns* iftrue  = ins->oprnd2();
@@ -2793,7 +2784,7 @@ Assembler::asm_cmov(LIns* ins)
 }
 
 void
-Assembler::asm_qhi(LIns* ins)
+Assembler::asm_qhi(LInsp ins)
 {
     Register rr = deprecated_prepResultReg(ins, GpRegs);
     LIns *q = ins->oprnd1();
@@ -2802,7 +2793,7 @@ Assembler::asm_qhi(LIns* ins)
 }
 
 void
-Assembler::asm_qlo(LIns* ins)
+Assembler::asm_qlo(LInsp ins)
 {
     Register rr = deprecated_prepResultReg(ins, GpRegs);
     LIns *q = ins->oprnd1();
@@ -2811,7 +2802,7 @@ Assembler::asm_qlo(LIns* ins)
 }
 
 void
-Assembler::asm_param(LIns* ins)
+Assembler::asm_param(LInsp ins)
 {
     uint32_t a = ins->paramArg();
     uint32_t kind = ins->paramKind();
@@ -2835,7 +2826,7 @@ Assembler::asm_param(LIns* ins)
 }
 
 void
-Assembler::asm_immi(LIns* ins)
+Assembler::asm_immi(LInsp ins)
 {
     Register rr = deprecated_prepResultReg(ins, GpRegs);
     asm_ld_imm(rr, ins->immI());

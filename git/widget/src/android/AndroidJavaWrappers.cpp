@@ -83,7 +83,6 @@ jmethodID AndroidLocation::jGetTimeMethod = 0;
 jclass AndroidGeckoSurfaceView::jGeckoSurfaceViewClass = 0;
 jmethodID AndroidGeckoSurfaceView::jBeginDrawingMethod = 0;
 jmethodID AndroidGeckoSurfaceView::jEndDrawingMethod = 0;
-jmethodID AndroidGeckoSurfaceView::jDraw2DMethod = 0;
 jmethodID AndroidGeckoSurfaceView::jGetSoftwareDrawBufferMethod = 0;
 jmethodID AndroidGeckoSurfaceView::jGetHolderMethod = 0;
 
@@ -148,7 +147,6 @@ AndroidGeckoSurfaceView::InitGeckoSurfaceViewClass(JNIEnv *jEnv)
     jBeginDrawingMethod = getMethod("beginDrawing", "()I");
     jGetSoftwareDrawBufferMethod = getMethod("getSoftwareDrawBuffer", "()Ljava/nio/ByteBuffer;");
     jEndDrawingMethod = getMethod("endDrawing", "()V");
-    jDraw2DMethod = getMethod("draw2D", "(Ljava/nio/ByteBuffer;)V");
     jGetHolderMethod = getMethod("getHolder", "()Landroid/view/SurfaceHolder;");
 }
 
@@ -288,10 +286,7 @@ AndroidGeckoEvent::Init(JNIEnv *jenv, jobject jobj)
 
         case MOTION_EVENT:
             mTime = jenv->GetLongField(jobj, jTimeField);
-            mCount = jenv->GetIntField(jobj, jCountField);
             ReadP0Field(jenv);
-            if (mCount > 1)
-                ReadP1Field(jenv);
             break;
 
         case IME_EVENT:
@@ -366,16 +361,23 @@ AndroidGeckoSurfaceView::EndDrawing()
     JNI()->CallVoidMethod(wrapped_obj, jEndDrawingMethod);
 }
 
-void
-AndroidGeckoSurfaceView::Draw2D(jobject buffer)
+unsigned char *
+AndroidGeckoSurfaceView::GetSoftwareDrawBuffer(int *cap)
 {
-    JNI()->CallVoidMethod(wrapped_obj, jDraw2DMethod, buffer);
-}
+    jobject buf = JNI()->CallObjectMethod(wrapped_obj, jGetSoftwareDrawBufferMethod);
+    if (!buf)
+        return nsnull;
 
-jobject
-AndroidGeckoSurfaceView::GetSoftwareDrawBuffer()
-{
-    return JNI()->CallObjectMethod(wrapped_obj, jGetSoftwareDrawBufferMethod);
+    void *bp = JNI()->GetDirectBufferAddress(buf);
+    jlong blen = JNI()->GetDirectBufferCapacity(buf);
+
+    if (!bp || blen == -1)
+        return nsnull;
+
+    if (cap)
+        *cap = blen;
+
+    return (unsigned char*) bp;
 }
 
 jobject

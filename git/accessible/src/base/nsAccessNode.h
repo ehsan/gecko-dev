@@ -177,9 +177,10 @@ public:
   already_AddRefed<nsIPresShell> GetPresShell();
 
   /**
-   * Return presentation shell for the accessible.
+   * Return true if the accessible still has presentation shell. Light-weight
+   * version of IsDefunct() method.
    */
-  nsIWeakReference* GetWeakShell() const { return mWeakShell; }
+  PRBool HasWeakShell() const { return !!mWeakShell; }
 
 protected:
     nsPresContext* GetPresContext();

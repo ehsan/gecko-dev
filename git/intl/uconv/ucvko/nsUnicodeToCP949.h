@@ -46,7 +46,7 @@
  * @created         14/May/2001  (patterned after Unicode to EUCKR converter
  * @author  Jungshik Shin 
  */
-nsresult
+NS_METHOD
 nsUnicodeToCP949Constructor(nsISupports *aOuter, REFNSIID aIID,
                             void **aResult);
 

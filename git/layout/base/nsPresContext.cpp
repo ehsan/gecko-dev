@@ -107,7 +107,6 @@
 #endif // IBMBIDI
 
 #include "nsContentUtils.h"
-#include "nsPIWindowRoot.h"
 
 // Needed for Start/Stop of Image Animation
 #include "imgIContainer.h"
@@ -1685,14 +1684,10 @@ static void
 InsertFontFaceRule(nsCSSFontFaceRule *aRule, gfxUserFontSet* aFontSet,
                    PRUint8 aSheetType)
 {
-#ifdef DEBUG
-  {
-    PRInt32 type;
-    NS_ABORT_IF_FALSE(NS_SUCCEEDED(aRule->GetType(type)) 
-                      && type == nsICSSRule::FONT_FACE_RULE, 
-                      "InsertFontFaceRule passed a non-fontface CSS rule");
-  }
-#endif
+  PRInt32 type;
+  NS_ABORT_IF_FALSE(NS_SUCCEEDED(aRule->GetType(type)) 
+                    && type == nsICSSRule::FONT_FACE_RULE, 
+                    "InsertFontFaceRule passed a non-fontface CSS rule");
 
   // aRule->List();
 
@@ -1703,7 +1698,6 @@ InsertFontFaceRule(nsCSSFontFaceRule *aRule, gfxUserFontSet* aFontSet,
   PRUint32 weight = NS_STYLE_FONT_WEIGHT_NORMAL;
   PRUint32 stretch = NS_STYLE_FONT_STRETCH_NORMAL;
   PRUint32 italicStyle = FONT_STYLE_NORMAL;
-  nsString featureSettings, languageOverride;
 
   // set up family name
   aRule->GetDesc(eCSSFontDesc_Family, val);
@@ -1752,30 +1746,6 @@ InsertFontFaceRule(nsCSSFontFaceRule *aRule, gfxUserFontSet* aFontSet,
   } else {
     NS_ASSERTION(unit == eCSSUnit_Null,
                  "@font-face style has unexpected unit");
-  }
-
-  // set up font features
-  aRule->GetDesc(eCSSFontDesc_FontFeatureSettings, val);
-  unit = val.GetUnit();
-  if (unit == eCSSUnit_Normal) {
-    // empty feature string
-  } else if (unit == eCSSUnit_String) {
-    val.GetStringValue(featureSettings);
-  } else {
-    NS_ASSERTION(unit == eCSSUnit_Null,
-                 "@font-face font-feature-settings has unexpected unit");
-  }
-
-  // set up font language override
-  aRule->GetDesc(eCSSFontDesc_FontLanguageOverride, val);
-  unit = val.GetUnit();
-  if (unit == eCSSUnit_Normal) {
-    // empty feature string
-  } else if (unit == eCSSUnit_String) {
-    val.GetStringValue(languageOverride);
-  } else {
-    NS_ASSERTION(unit == eCSSUnit_Null,
-                 "@font-face font-language-override has unexpected unit");
   }
 
   // set up src array
@@ -1853,8 +1823,7 @@ InsertFontFaceRule(nsCSSFontFaceRule *aRule, gfxUserFontSet* aFontSet,
   }
   
   if (!fontfamily.IsEmpty() && srcArray.Length() > 0) {
-    aFontSet->AddFontFace(fontfamily, srcArray, weight, stretch, italicStyle,
-                          featureSettings, languageOverride);
+    aFontSet->AddFontFace(fontfamily, srcArray, weight, stretch, italicStyle);
   }
 }
 
@@ -2122,12 +2091,7 @@ MayHavePaintEventListener(nsPIDOMWindow* aInnerWindow)
   if (window)
     return MayHavePaintEventListener(window);
 
-  nsCOMPtr<nsPIWindowRoot> root = do_QueryInterface(parentTarget);
-  nsPIDOMEventTarget* tabChildGlobal;
-  return root &&
-         (tabChildGlobal = root->GetParentTarget()) &&
-         (manager = tabChildGlobal->GetListenerManager(PR_FALSE)) &&
-         manager->MayHavePaintEventListener();
+  return PR_FALSE;
 }
 
 PRBool
@@ -2288,7 +2252,7 @@ nsPresContext::HavePendingInputEvent()
     case ModeEvent: {
       nsIFrame* f = PresShell()->GetRootFrame();
       if (f) {
-        nsIWidget* w = f->GetNearestWidget();
+        nsIWidget* w = f->GetWindow();
         if (w) {
           return w->HasPendingInputEvent();
         }
@@ -2365,12 +2329,10 @@ nsPresContext::CheckForInterrupt(nsIFrame* aFrame)
 
 nsRootPresContext::nsRootPresContext(nsIDocument* aDocument,
                                      nsPresContextType aType)
-  : nsPresContext(aDocument, aType),
-    mUpdatePluginGeometryForFrame(nsnull),
-    mNeedsToUpdatePluginGeometry(PR_FALSE)
+  : nsPresContext(aDocument, aType)
 {
   mRegisteredPlugins.Init();
-}
+}  
 
 nsRootPresContext::~nsRootPresContext()
 {
@@ -2526,150 +2488,17 @@ nsRootPresContext::GetPluginGeometryUpdates(nsIFrame* aChangedSubtree,
   closure.mAffectedPlugins.EnumerateEntries(PluginHideEnumerator, &closure);
 }
 
-static PRBool
-HasOverlap(const nsIntPoint& aOffset1, const nsTArray<nsIntRect>& aClipRects1,
-           const nsIntPoint& aOffset2, const nsTArray<nsIntRect>& aClipRects2)
-{
-  nsIntPoint offsetDelta = aOffset1 - aOffset2;
-  for (PRUint32 i = 0; i < aClipRects1.Length(); ++i) {
-    for (PRUint32 j = 0; j < aClipRects2.Length(); ++j) {
-      if ((aClipRects1[i] + offsetDelta).Intersects(aClipRects2[j]))
-        return PR_TRUE;
-    }
-  }
-  return PR_FALSE;
-}
-
-/**
- * Given a list of plugin windows to move to new locations, sort the list
- * so that for each window move, the window moves to a location that
- * does not intersect other windows. This minimizes flicker and repainting.
- * It's not always possible to do this perfectly, since in general
- * we might have cycles. But we do our best.
- * We need to take into account that windows are clipped to particular
- * regions and the clip regions change as the windows are moved.
- */
-static void
-SortConfigurations(nsTArray<nsIWidget::Configuration>* aConfigurations)
-{
-  if (aConfigurations->Length() > 10) {
-    // Give up, we don't want to get bogged down here
-    return;
-  }
-
-  nsTArray<nsIWidget::Configuration> pluginsToMove;
-  pluginsToMove.SwapElements(*aConfigurations);
-
-  // Our algorithm is quite naive. At each step we try to identify
-  // a window that can be moved to its new location that won't overlap
-  // any other windows at the new location. If there is no such
-  // window, we just move the last window in the list anyway.
-  while (!pluginsToMove.IsEmpty()) {
-    // Find a window whose destination does not overlap any other window
-    PRUint32 i;
-    for (i = 0; i + 1 < pluginsToMove.Length(); ++i) {
-      nsIWidget::Configuration* config = &pluginsToMove[i];
-      PRBool foundOverlap = PR_FALSE;
-      for (PRUint32 j = 0; j < pluginsToMove.Length(); ++j) {
-        if (i == j)
-          continue;
-        nsIntRect bounds;
-        pluginsToMove[j].mChild->GetBounds(bounds);
-        nsAutoTArray<nsIntRect,1> clipRects;
-        pluginsToMove[j].mChild->GetWindowClipRegion(&clipRects);
-        if (HasOverlap(bounds.TopLeft(), clipRects,
-                       config->mBounds.TopLeft(),
-                       config->mClipRegion)) {
-          foundOverlap = PR_TRUE;
-          break;
-        }
-      }
-      if (!foundOverlap)
-        break;
-    }
-    // Note that we always move the last plugin in pluginsToMove, if we
-    // can't find any other plugin to move
-    aConfigurations->AppendElement(pluginsToMove[i]);
-    pluginsToMove.RemoveElementAt(i);
-  }
-}
-
 void
-nsRootPresContext::UpdatePluginGeometry()
+nsRootPresContext::UpdatePluginGeometry(nsIFrame* aChangedSubtree)
 {
-  if (!mNeedsToUpdatePluginGeometry)
-    return;
-  mNeedsToUpdatePluginGeometry = PR_FALSE;
-
-  nsIFrame* f = mUpdatePluginGeometryForFrame;
-  if (f) {
-    mUpdatePluginGeometryForFrame->PresContext()->
-      SetContainsUpdatePluginGeometryFrame(PR_FALSE);
-    mUpdatePluginGeometryForFrame = nsnull;
-  } else {
-    f = FrameManager()->GetRootFrame();
-  }
-
   nsTArray<nsIWidget::Configuration> configurations;
-  GetPluginGeometryUpdates(f, &configurations);
+  GetPluginGeometryUpdates(aChangedSubtree, &configurations);
   if (configurations.IsEmpty())
     return;
-  SortConfigurations(&configurations);
-  nsIWidget* widget = FrameManager()->GetRootFrame()->GetNearestWidget();
+  nsIWidget* widget = FrameManager()->GetRootFrame()->GetWindow();
   NS_ASSERTION(widget, "Plugins must have a parent window");
   widget->ConfigureChildren(configurations);
   DidApplyPluginGeometryUpdates();
-}
-
-void
-nsRootPresContext::ForcePluginGeometryUpdate()
-{
-  // Force synchronous paint
-  nsIPresShell* shell = GetPresShell();
-  if (!shell)
-    return;
-  nsIFrame* rootFrame = shell->GetRootFrame();
-  if (!rootFrame)
-    return;
-  nsCOMPtr<nsIWidget> widget = rootFrame->GetNearestWidget();
-  if (!widget)
-    return;
-  // Force synchronous paint of a single pixel, just to force plugin
-  // updates to be flushed. Doing plugin updates during paint is the best
-  // way to ensure that plugin updates are in sync with our content.
-  widget->Invalidate(nsIntRect(0,0,1,1), PR_TRUE);
-
-  // Update plugin geometry just in case that invalidate didn't work
-  // (e.g. if none of the widget is visible, it might not have processed
-  // a paint event). Normally this won't need to do anything.
-  UpdatePluginGeometry();
-}
-
-void
-nsRootPresContext::RequestUpdatePluginGeometry(nsIFrame* aFrame)
-{
-  if (mRegisteredPlugins.Count() == 0)
-    return;
-
-  if (!mNeedsToUpdatePluginGeometry) {
-    // Dispatch a Gecko event to ensure plugin geometry gets updated
-    nsCOMPtr<nsIRunnable> event =
-      NS_NewRunnableMethod(this, &nsRootPresContext::ForcePluginGeometryUpdate);
-    NS_DispatchToMainThread(event);
-  }
-
-  mNeedsToUpdatePluginGeometry = PR_TRUE;
-  if (aFrame == mUpdatePluginGeometryForFrame)
-    return;
-  if (!mUpdatePluginGeometryForFrame) {
-    mUpdatePluginGeometryForFrame = aFrame;
-    mUpdatePluginGeometryForFrame->PresContext()->
-      SetContainsUpdatePluginGeometryFrame(PR_TRUE);
-  } else {
-    mUpdatePluginGeometryForFrame->PresContext()->
-      SetContainsUpdatePluginGeometryFrame(PR_FALSE);
-    mUpdatePluginGeometryForFrame = nsnull;
-  }
 }
 
 static PLDHashOperator
@@ -2684,14 +2513,4 @@ void
 nsRootPresContext::DidApplyPluginGeometryUpdates()
 {
   mRegisteredPlugins.EnumerateEntries(PluginDidSetGeometryEnumerator, nsnull);
-}
-
-void
-nsRootPresContext::RootForgetUpdatePluginGeometryFrame(nsIFrame* aFrame)
-{
-  if (aFrame == mUpdatePluginGeometryForFrame) {
-    mUpdatePluginGeometryForFrame->PresContext()->
-      SetContainsUpdatePluginGeometryFrame(PR_FALSE);
-    mUpdatePluginGeometryForFrame = nsnull;
-  }
 }

@@ -129,6 +129,8 @@ public:
   virtual nsresult AppendTextTo(nsAString& aText, PRUint32 aStartOffset,
                                 PRUint32 aLength);
 
+  virtual nsAccessible* GetParent();
+
 protected:
   // XXX: Ideally we'd get the bullet text directly from the bullet frame via
   // nsBulletFrame::GetListItemText(), but we'd need an interface for getting

@@ -149,7 +149,7 @@ public:
 
   // accessibility support
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #ifdef XP_WIN
   NS_IMETHOD GetPluginPort(HWND *aPort);
 #endif
@@ -275,6 +275,7 @@ public:
   }
 #endif
 
+  virtual Type GetType() { return TYPE_PLUGIN; }
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
   virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder);
   virtual void Paint(nsDisplayListBuilder* aBuilder,
@@ -283,7 +284,7 @@ public:
                                    nsRegion* aVisibleRegion,
                                    nsRegion* aVisibleRegionBeforeMove);
 
-  NS_DISPLAY_DECL_NAME("Plugin", TYPE_PLUGIN)
+  NS_DISPLAY_DECL_NAME("Plugin")
 
   // Compute the desired position and clip region of the plugin's widget.
   // This will only be called for plugins which have been registered

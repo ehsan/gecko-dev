@@ -57,10 +57,10 @@
 #include "nsBoxFrame.h"
 #include "nsImageFrame.h"
 #include "nsIImageLoadingContent.h"
-#include "nsDisplayList.h"
 
 #ifdef ACCESSIBILITY
 #include "nsIServiceManager.h"
+#include "nsIAccessible.h"
 #include "nsIAccessibilityService.h"
 #endif
 
@@ -176,8 +176,7 @@ CorrectForAspectRatio(const gfxRect& aRect, const nsIntSize& aRatio)
 
 already_AddRefed<Layer>
 nsVideoFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
-                         LayerManager* aManager,
-                         nsDisplayItem* aItem)
+                         LayerManager* aManager)
 {
   nsRect area = GetContentRect() + aBuilder->ToReferenceFrame(GetParent());
   nsHTMLVideoElement* element = static_cast<nsHTMLVideoElement*>(GetContent());
@@ -241,13 +240,9 @@ nsVideoFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
                       presContext->AppUnitsToGfxUnits(area.height));
   r = CorrectForAspectRatio(r, videoSize);
 
-  nsRefPtr<ImageLayer> layer = static_cast<ImageLayer*>
-    (aBuilder->LayerBuilder()->GetLeafLayerFor(aBuilder, aManager, aItem));
-  if (!layer) {
-    layer = aManager->CreateImageLayer();
-    if (!layer)
-      return nsnull;
-  }
+  nsRefPtr<ImageLayer> layer = aManager->CreateImageLayer();
+  if (!layer)
+    return nsnull;
 
   layer->SetContainer(container);
   layer->SetFilter(nsLayoutUtils::GetGraphicsFilterForFrame(this));
@@ -354,7 +349,7 @@ public:
   }
 #endif
   
-  NS_DISPLAY_DECL_NAME("Video", TYPE_VIDEO)
+  NS_DISPLAY_DECL_NAME("Video")
 
   // It would be great if we could override IsOpaque to return false here,
   // but it's probably not safe to do so in general. Video frames are
@@ -373,16 +368,7 @@ public:
   virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
                                              LayerManager* aManager)
   {
-    return static_cast<nsVideoFrame*>(mFrame)->BuildLayer(aBuilder, aManager, this);
-  }
-
-  virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
-                                   LayerManager* aManager)
-  {
-    nsHTMLMediaElement* elem =
-      static_cast<nsHTMLMediaElement*>(mFrame->GetContent());
-    return elem->IsPotentiallyPlaying() ? mozilla::LAYER_ACTIVE :
-      mozilla::LAYER_INACTIVE;
+    return static_cast<nsVideoFrame*>(mFrame)->BuildLayer(aBuilder, aManager);
   }
 };
 
@@ -433,14 +419,15 @@ nsVideoFrame::GetType() const
 }
 
 #ifdef ACCESSIBILITY
-already_AddRefed<nsAccessible>
-nsVideoFrame::CreateAccessible()
+NS_IMETHODIMP
+nsVideoFrame::GetAccessible(nsIAccessible** aAccessible)
 {
   nsCOMPtr<nsIAccessibilityService> accService =
     do_GetService("@mozilla.org/accessibilityService;1");
-  return accService ?
-    accService->CreateHTMLMediaAccessible(mContent, PresContext()->PresShell()) :
-    nsnull;
+  NS_ENSURE_STATE(accService);
+
+  return accService->CreateHTMLMediaAccessible(static_cast<nsIFrame*>(this),
+                                               aAccessible);
 }
 #endif
 

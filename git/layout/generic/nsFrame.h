@@ -260,7 +260,7 @@ public:
   virtual void ChildIsDirty(nsIFrame* aChild);
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD  GetAccessible(nsIAccessible** aAccessible);
 #endif
 
   NS_IMETHOD GetParentStyleContextFrame(nsPresContext* aPresContext,
@@ -487,8 +487,6 @@ public:
   static void DisplayReflowStartup();
   static void DisplayReflowShutdown();
 #endif
-
-  static void ShutdownLayerActivityTimer();
 
   /**
    * Adds display item for standard CSS background if necessary.

@@ -84,8 +84,12 @@ function UpdateServiceStub() {
   }
 }
 UpdateServiceStub.prototype = {
+  classDescription: "Update Service Stub",
+  contractID: "@mozilla.org/updates/update-service-stub;1",
   classID: Components.ID("{e43b0010-04ba-4da6-b523-1f92580bc150}"),
+  _xpcom_categories: [{ category: "profile-after-change" }],
   QueryInterface: XPCOMUtils.generateQI([])
 };
 
-var NSGetFactory = XPCOMUtils.generateNSGetFactory([UpdateServiceStub]);
+function NSGetModule(compMgr, fileSpec)
+  XPCOMUtils.generateModule([UpdateServiceStub]);

@@ -37,10 +37,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifdef MOZ_IPC
-#include "base/basictypes.h"
-#include "IPC/IPCMessageUtils.h"
-#endif
 #include "nsCOMPtr.h"
 #include "nsDOMEvent.h"
 #include "nsEventStateManager.h"
@@ -62,7 +58,7 @@
 
 static const char* const sEventNames[] = {
   "mousedown", "mouseup", "click", "dblclick", "mouseover",
-  "mouseout", "MozMouseHittest", "mousemove", "contextmenu", "keydown", "keyup", "keypress",
+  "mouseout", "mousemove", "contextmenu", "keydown", "keyup", "keypress",
   "focus", "blur", "load", "popstate", "beforeunload", "unload",
   "hashchange", "readystatechange", "abort", "error",
   "submit", "reset", "change", "select", "input", "text",
@@ -1077,8 +1073,6 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_mouseover];
   case NS_MOUSE_EXIT_SYNTH:
     return sEventNames[eDOMEvents_mouseout];
-  case NS_MOUSE_MOZHITTEST:
-    return sEventNames[eDOMEvents_MozMouseHittest];
   case NS_MOUSE_MOVE:
     return sEventNames[eDOMEvents_mousemove];
   case NS_KEY_UP:
@@ -1328,61 +1322,6 @@ nsDOMEvent::GetPreventDefault(PRBool* aReturn)
   *aReturn = mEvent && (mEvent->flags & NS_EVENT_FLAG_NO_DEFAULT);
   return NS_OK;
 }
-
-void
-nsDOMEvent::Serialize(IPC::Message* aMsg, PRBool aSerializeInterfaceType)
-{
-#ifdef MOZ_IPC
-  if (aSerializeInterfaceType) {
-    IPC::WriteParam(aMsg, NS_LITERAL_STRING("event"));
-  }
-
-  nsString type;
-  GetType(type);
-  IPC::WriteParam(aMsg, type);
-
-  PRBool bubbles = PR_FALSE;
-  GetBubbles(&bubbles);
-  IPC::WriteParam(aMsg, bubbles);
-
-  PRBool cancelable = PR_FALSE;
-  GetCancelable(&cancelable);
-  IPC::WriteParam(aMsg, cancelable);
-
-  PRBool trusted = PR_FALSE;
-  GetIsTrusted(&trusted);
-  IPC::WriteParam(aMsg, trusted);
-
-  // No timestamp serialization for now!
-#endif
-}
-
-PRBool
-nsDOMEvent::Deserialize(const IPC::Message* aMsg, void** aIter)
-{
-#ifdef MOZ_IPC
-  nsString type;
-  NS_ENSURE_TRUE(IPC::ReadParam(aMsg, aIter, &type), PR_FALSE);
-
-  PRBool bubbles = PR_FALSE;
-  NS_ENSURE_TRUE(IPC::ReadParam(aMsg, aIter, &bubbles), PR_FALSE);
-
-  PRBool cancelable = PR_FALSE;
-  NS_ENSURE_TRUE(IPC::ReadParam(aMsg, aIter, &cancelable), PR_FALSE);
-
-  PRBool trusted = PR_FALSE;
-  NS_ENSURE_TRUE(IPC::ReadParam(aMsg, aIter, &trusted), PR_FALSE);
-
-  nsresult rv = InitEvent(type, bubbles, cancelable);
-  NS_ENSURE_SUCCESS(rv, PR_FALSE);
-  SetTrusted(trusted);
-
-  return PR_TRUE;
-#else
-  return PR_FALSE;
-#endif
-}
-
 
 nsresult NS_NewDOMEvent(nsIDOMEvent** aInstancePtrResult,
                         nsPresContext* aPresContext,

@@ -46,7 +46,9 @@
 #include <string.h>
 #include <time.h>
 
+#define __STDC_LIMIT_MACROS
 #include "jsstdint.h"
+
 #include "jstypes.h"
 #include "jsutil.h"
 

@@ -71,7 +71,7 @@ struct QueuedDispatchInfo
   : finish(false)
   { }
 
-  nsRefPtr<IDBTransaction> transaction;
+  nsRefPtr<IDBTransactionRequest> transaction;
   nsCOMPtr<nsIRunnable> runnable;
   nsCOMPtr<nsIRunnable> finishRunnable;
   bool finish;
@@ -83,11 +83,11 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
 
-  inline FinishTransactionRunnable(IDBTransaction* aTransaction,
+  inline FinishTransactionRunnable(IDBTransactionRequest* aTransaction,
                                    nsCOMPtr<nsIRunnable>& aFinishRunnable);
 
 private:
-  IDBTransaction* mTransaction;
+  IDBTransactionRequest* mTransaction;
   nsCOMPtr<nsIRunnable> mFinishRunnable;
 };
 
@@ -189,13 +189,13 @@ TransactionThreadPool::Cleanup()
 }
 
 void
-TransactionThreadPool::FinishTransaction(IDBTransaction* aTransaction)
+TransactionThreadPool::FinishTransaction(IDBTransactionRequest* aTransaction)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(aTransaction, "Null pointer!");
 
   // AddRef here because removing from the hash will call Release.
-  nsRefPtr<IDBTransaction> transaction(aTransaction);
+  nsRefPtr<IDBTransactionRequest> transaction(aTransaction);
 
   const PRUint32 databaseId = aTransaction->mDatabase->Id();
 
@@ -211,7 +211,7 @@ TransactionThreadPool::FinishTransaction(IDBTransaction* aTransaction)
   PRUint32 count = transactionsInProgress.Length();
 
 #ifdef DEBUG
-  if (aTransaction->mMode == IDBTransaction::FULL_LOCK) {
+  if (aTransaction->mMode == IDBTransactionRequest::FULL_LOCK) {
     NS_ASSERTION(dbTransactionInfo->locked, "Should be locked!");
     NS_ASSERTION(count == 1, "More transactions running than should be!");
   }
@@ -255,7 +255,7 @@ TransactionThreadPool::FinishTransaction(IDBTransaction* aTransaction)
 }
 
 bool
-TransactionThreadPool::TransactionCanRun(IDBTransaction* aTransaction,
+TransactionThreadPool::TransactionCanRun(IDBTransactionRequest* aTransaction,
                                          TransactionQueue** aQueue)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -279,7 +279,7 @@ TransactionThreadPool::TransactionCanRun(IDBTransaction* aTransaction,
 
   PRUint32 transactionCount = transactionsInProgress.Length();
 
-  if (mode == IDBTransaction::FULL_LOCK) {
+  if (mode == IDBTransactionRequest::FULL_LOCK) {
     switch (transactionCount) {
       case 0: {
         *aQueue = nsnull;
@@ -390,7 +390,7 @@ TransactionThreadPool::TransactionCanRun(IDBTransaction* aTransaction,
 }
 
 nsresult
-TransactionThreadPool::Dispatch(IDBTransaction* aTransaction,
+TransactionThreadPool::Dispatch(IDBTransactionRequest* aTransaction,
                                 nsIRunnable* aRunnable,
                                 bool aFinish,
                                 nsIRunnable* aFinishRunnable)
@@ -423,7 +423,7 @@ TransactionThreadPool::Dispatch(IDBTransaction* aTransaction,
   const PRUint32 databaseId = aTransaction->mDatabase->Id();
 
 #ifdef DEBUG
-  if (aTransaction->mMode == IDBTransaction::FULL_LOCK) {
+  if (aTransaction->mMode == IDBTransactionRequest::FULL_LOCK) {
     NS_ASSERTION(!mTransactionsInProgress.Get(databaseId, nsnull),
                  "Shouldn't have anything in progress!");
   }
@@ -438,7 +438,7 @@ TransactionThreadPool::Dispatch(IDBTransaction* aTransaction,
     dbTransactionInfo = autoDBTransactionInfo;
   }
 
-  if (aTransaction->mMode == IDBTransaction::FULL_LOCK) {
+  if (aTransaction->mMode == IDBTransactionRequest::FULL_LOCK) {
     NS_ASSERTION(!dbTransactionInfo->locked, "Already locked?!");
     dbTransactionInfo->locked = true;
   }
@@ -494,7 +494,7 @@ TransactionThreadPool::Observe(nsISupports* /* aSubject */,
 }
 
 TransactionThreadPool::
-TransactionQueue::TransactionQueue(IDBTransaction* aTransaction,
+TransactionQueue::TransactionQueue(IDBTransactionRequest* aTransaction,
                                    nsIRunnable* aRunnable)
 : mMutex("TransactionQueue::mMutex"),
   mCondVar(mMutex, "TransactionQueue::mCondVar"),
@@ -585,7 +585,7 @@ TransactionThreadPool::TransactionQueue::Run()
 }
 
 FinishTransactionRunnable::FinishTransactionRunnable(
-                                         IDBTransaction* aTransaction,
+                                         IDBTransactionRequest* aTransaction,
                                          nsCOMPtr<nsIRunnable>& aFinishRunnable)
 : mTransaction(aTransaction)
 {

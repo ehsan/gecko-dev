@@ -1067,24 +1067,30 @@ var PlacesStarButton = {
 // after closing the toolbar customization dialog.
 let PlacesToolbarHelper = {
   _place: "place:folder=TOOLBAR",
+  _cachedElt: null,
 
-  get _viewElt() {
-    return document.getElementById("PlacesToolbar");
+  onBrowserWindowClose: function PTH_onBrowserWindowClose() {
+    if (this._cachedElt)
+      this._cachedElt._placesView.uninit();
   },
 
-  init: function PTH_init() {
-    if (this._viewElt)
+  updateState: function PTH_updateState() {
+    let currentElt = document.getElementById("PlacesToolbar");
+
+    // Bail out if the state has not changed.
+    if (currentElt == this._cachedElt)
+      return;
+
+    if (!this._cachedElt) {
+      // The toolbar has been added.
       new PlacesToolbar(this._place);
-  },
-
-  customizeStart: function PTH_customizeStart() {
-    let viewElt = this._viewElt;
-    if (viewElt && viewElt._placesView)
-      viewElt._placesView.uninit();
-  },
-
-  customizeDone: function PTH_customizeDone() {
-    this.init();
+      this._cachedElt = currentElt;
+    }
+    else {
+      // The toolbar has been removed.
+      this._cachedElt._placesView.uninit();
+      this._cachedElt = null;
+    }
   }
 };
 
@@ -1156,7 +1162,7 @@ let BookmarksMenuButton = {
     this._popupNeedsUpdating = true;
 
     let bookmarksToolbarItem = this.bookmarksToolbarItem;
-    if (bookmarksToolbarItem && !bookmarksToolbarItem.parentNode.collapsed) {
+    if (isElementVisible(bookmarksToolbarItem)) {
       if (this.button.parentNode != bookmarksToolbarItem) {
         this.resetView();
         bookmarksToolbarItem.appendChild(this.button);

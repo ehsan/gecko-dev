@@ -37,12 +37,13 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-
+#include "nsIDOMHTMLOptionElement.h"
 #include "nsIDOMNSHTMLOptionElement.h"
-#include "nsHTMLOptionElement.h"
+#include "nsIOptionElement.h"
 #include "nsIDOMHTMLOptGroupElement.h"
 #include "nsIDOMHTMLFormElement.h"
 #include "nsIDOMEventTarget.h"
+#include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
 #include "nsIFormControl.h"
@@ -51,6 +52,7 @@
 #include "nsIDOMNode.h"
 #include "nsGenericElement.h"
 #include "nsIDOMHTMLCollection.h"
+#include "nsIJSNativeInitializer.h"
 #include "nsISelectElement.h"
 #include "nsISelectControlFrame.h"
 
@@ -70,6 +72,70 @@
 /**
  * Implementation of &lt;option&gt;
  */
+class nsHTMLOptionElement : public nsGenericHTMLElement,
+                            public nsIDOMHTMLOptionElement,
+                            public nsIDOMNSHTMLOptionElement,
+                            public nsIJSNativeInitializer,
+                            public nsIOptionElement
+{
+public:
+  nsHTMLOptionElement(nsINodeInfo *aNodeInfo);
+  virtual ~nsHTMLOptionElement();
+
+  // nsISupports
+  NS_DECL_ISUPPORTS_INHERITED
+
+  // nsIDOMNode
+  NS_FORWARD_NSIDOMNODE(nsGenericHTMLElement::)
+
+  // nsIDOMElement
+  NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLElement::)
+
+  // nsIDOMHTMLElement
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
+
+  // nsIDOMHTMLOptionElement
+  NS_DECL_NSIDOMHTMLOPTIONELEMENT
+
+  // nsIDOMNSHTMLOptionElement
+  NS_IMETHOD SetText(const nsAString & aText); 
+
+  // nsIJSNativeInitializer
+  NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* aContext,
+                        JSObject *aObj, PRUint32 argc, jsval *argv);
+
+  virtual nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute,
+                                              PRInt32 aModType) const;
+
+  virtual nsresult BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
+                                 const nsAString* aValue, PRBool aNotify);
+  
+  // nsIOptionElement
+  NS_IMETHOD SetSelectedInternal(PRBool aValue, PRBool aNotify);
+
+  // nsIContent
+  virtual PRInt32 IntrinsicState() const;
+
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+
+  nsresult CopyInnerTo(nsGenericElement* aDest) const;
+
+protected:
+  /**
+   * Get the select content element that contains this option, this
+   * intentionally does not return nsresult, all we care about is if
+   * there's a select associated with this option or not.
+   * @param aSelectElement the select element (out param)
+   */
+  nsIContent* GetSelect();
+
+  PRPackedBool mSelectedChanged;
+  PRPackedBool mIsSelected;
+
+  // True only while we're under the SetOptionsSelectedByIndex call when our
+  // "selected" attribute is changing and mSelectedChanged is false.
+  PRPackedBool mIsInSetDefaultSelected;
+};
 
 nsGenericHTMLElement*
 NS_NewHTMLOptionElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser)
@@ -116,10 +182,11 @@ DOMCI_DATA(HTMLOptionElement, nsHTMLOptionElement)
 
 // QueryInterface implementation for nsHTMLOptionElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLOptionElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE3(nsHTMLOptionElement,
+  NS_HTML_CONTENT_INTERFACE_TABLE4(nsHTMLOptionElement,
                                    nsIDOMHTMLOptionElement,
                                    nsIDOMNSHTMLOptionElement,
-                                   nsIJSNativeInitializer)
+                                   nsIJSNativeInitializer,
+                                   nsIOptionElement)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLOptionElement,
                                                nsGenericHTMLElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLOptionElement)
@@ -143,7 +210,7 @@ nsHTMLOptionElement::GetForm(nsIDOMHTMLFormElement** aForm)
   return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 nsHTMLOptionElement::SetSelectedInternal(PRBool aValue, PRBool aNotify)
 {
   mSelectedChanged = PR_TRUE;
@@ -158,6 +225,8 @@ nsHTMLOptionElement::SetSelectedInternal(PRBool aValue, PRBool aNotify)
       document->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_CHECKED);
     }
   }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -208,8 +277,7 @@ nsHTMLOptionElement::SetSelected(PRBool aValue)
                                                 PR_FALSE, PR_TRUE, PR_TRUE,
                                                 nsnull);
   } else {
-    SetSelectedInternal(aValue, PR_TRUE);
-    return NS_OK;
+    return SetSelectedInternal(aValue, PR_TRUE);
   }
 
   return NS_OK;

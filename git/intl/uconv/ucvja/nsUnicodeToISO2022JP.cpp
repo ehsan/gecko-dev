@@ -228,6 +228,12 @@ nsresult nsUnicodeToISO2022JP::ConvertHankaku(const PRUnichar * aSrc,
 //----------------------------------------------------------------------
 // Subclassing of nsTableEncoderSupport class [implementation]
 
+NS_IMETHODIMP nsUnicodeToISO2022JP::FillInfo(PRUint32* aInfo)
+{
+  return nsUnicodeEncodeHelper::FillInfo(aInfo, SIZE_OF_TABLES, 
+                                         (uMappingTable **) g_ufMappingTables);
+
+}
 NS_IMETHODIMP nsUnicodeToISO2022JP::ConvertNoBuffNoErr(
                                     const PRUnichar * aSrc, 
                                     PRInt32 * aSrcLength, 

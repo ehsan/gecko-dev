@@ -38,6 +38,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#define __STDC_LIMIT_MACROS
+
 /*
  * JS number type and wrapper class.
  */
@@ -997,7 +999,14 @@ ValueToNumberSlow(JSContext *cx, jsval v, double *out)
             break;
 
         JS_ASSERT(!JSVAL_IS_PRIMITIVE(v));
-        if (!DefaultValue(cx, JSVAL_TO_OBJECT(v), JSTYPE_NUMBER, &v))
+        JSObject *obj = JSVAL_TO_OBJECT(v);
+
+        /*
+         * defaultValue has a special contract whereby the callee may not
+         * assume vp is rooted. Since obj is rooted elsewhere and no GC may
+         * occur after calling defaultValue, we can just use v.
+         */
+        if (!obj->defaultValue(cx, JSTYPE_NUMBER, &v))
             return JSVAL_NULL;
         if (!JSVAL_IS_PRIMITIVE(v))
             break;

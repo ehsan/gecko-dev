@@ -50,7 +50,7 @@
 #include "nsContentCreatorFunctions.h"
 
 #include "nsIDOMHTMLOptGroupElement.h"
-#include "nsHTMLOptionElement.h"
+#include "nsIOptionElement.h"
 #include "nsIEventStateManager.h"
 #include "nsGUIEvent.h"
 #include "nsIPrivateDOMEvent.h"
@@ -828,8 +828,7 @@ nsHTMLSelectElement::OnOptionSelected(nsISelectControlFrame* aSelectFrame,
     nsCOMPtr<nsIDOMNode> option;
     Item(aIndex, getter_AddRefs(option));
     if (option) {
-      nsRefPtr<nsHTMLOptionElement> optionElement = 
-        static_cast<nsHTMLOptionElement*>(option.get());
+      nsCOMPtr<nsIOptionElement> optionElement(do_QueryInterface(option));
       optionElement->SetSelectedInternal(aSelected, aNotify);
     }
   }
@@ -1231,6 +1230,9 @@ nsHTMLSelectElement::IsHTMLFocusable(PRBool aWithMouse,
 {
   if (nsGenericHTMLElement::IsHTMLFocusable(aWithMouse, aIsFocusable, aTabIndex)) {
     return PR_TRUE;
+  }
+  if (aTabIndex && (sTabFocusModel & eTabFocus_formElementsMask) == 0) {
+    *aTabIndex = -1;
   }
 
   *aIsFocusable = !HasAttr(kNameSpaceID_None, nsGkAtoms::disabled);

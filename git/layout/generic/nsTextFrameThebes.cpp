@@ -104,6 +104,7 @@
 
 #include "nsIServiceManager.h"
 #ifdef ACCESSIBILITY
+#include "nsIAccessible.h"
 #include "nsIAccessibilityService.h"
 #endif
 #include "nsAutoPtr.h"
@@ -3387,24 +3388,22 @@ nsTextPaintStyle::GetResolvedForeColor(nscolor aColor,
 //-----------------------------------------------------------------------------
 
 #ifdef ACCESSIBILITY
-already_AddRefed<nsAccessible>
-nsTextFrame::CreateAccessible()
+NS_IMETHODIMP nsTextFrame::GetAccessible(nsIAccessible** aAccessible)
 {
   if (IsEmpty()) {
     nsAutoString renderedWhitespace;
     GetRenderedText(&renderedWhitespace, nsnull, nsnull, 0, 1);
     if (renderedWhitespace.IsEmpty()) {
-      return nsnull;
+      return NS_ERROR_FAILURE;
     }
   }
 
   nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
 
   if (accService) {
-    return accService->CreateHTMLTextAccessible(mContent,
-                                                PresContext()->PresShell());
+    return accService->CreateHTMLTextAccessible(static_cast<nsIFrame*>(this), aAccessible);
   }
-  return nsnull;
+  return NS_ERROR_FAILURE;
 }
 #endif
 
@@ -3888,7 +3887,7 @@ public:
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
-  NS_DISPLAY_DECL_NAME("Text", TYPE_TEXT)
+  NS_DISPLAY_DECL_NAME("Text")
 };
 
 void

@@ -120,18 +120,18 @@ nsGfxCheckboxControlFrame::~nsGfxCheckboxControlFrame()
 }
 
 #ifdef ACCESSIBILITY
-already_AddRefed<nsAccessible>
-nsGfxCheckboxControlFrame::CreateAccessible()
+NS_IMETHODIMP
+nsGfxCheckboxControlFrame::GetAccessible(nsIAccessible** aAccessible)
 {
   nsCOMPtr<nsIAccessibilityService> accService
     = do_GetService("@mozilla.org/accessibilityService;1");
 
   if (accService) {
-    return accService->CreateHTMLCheckboxAccessible(mContent,
-                                                    PresContext()->PresShell());
+    return accService->CreateHTMLCheckboxAccessible(
+      static_cast<nsIFrame*>(this), aAccessible);
   }
 
-  return nsnull;
+  return NS_ERROR_FAILURE;
 }
 #endif
 
@@ -156,8 +156,7 @@ nsGfxCheckboxControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     nsDisplayGeneric(this,
                      IsIndeterminate()
                      ? PaintIndeterminateMark : PaintCheckMark,
-                     "CheckedCheckbox",
-                     nsDisplayItem::TYPE_CHECKED_CHECKBOX));
+                     "CheckedCheckbox"));
 }
 
 //------------------------------------------------------------

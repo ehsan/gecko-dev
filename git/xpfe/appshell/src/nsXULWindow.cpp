@@ -96,8 +96,6 @@
 
 #include "nsWebShellWindow.h" // get rid of this one, too...
 
-#include "prenv.h"
-
 #define SIZEMODE_NORMAL     NS_LITERAL_STRING("normal")
 #define SIZEMODE_MAXIMIZED  NS_LITERAL_STRING("maximized")
 #define SIZEMODE_MINIMIZED  NS_LITERAL_STRING("minimized")
@@ -1389,13 +1387,7 @@ void nsXULWindow::SyncAttributesToWidget()
 
   // "accelerated" attribute
   PRBool isAccelerated;
-  static const char *acceleratedEnv = PR_GetEnv("MOZ_ACCELERATED");
-  if (acceleratedEnv && *acceleratedEnv) {
-    isAccelerated = *acceleratedEnv != '0';
-    rv = NS_OK;
-  } else
-    rv = windowElement->HasAttribute(NS_LITERAL_STRING("accelerated"), &isAccelerated);
-
+  rv = windowElement->HasAttribute(NS_LITERAL_STRING("accelerated"), &isAccelerated);
   if (NS_SUCCEEDED(rv)) {
     mWindow->SetAcceleratedRendering(isAccelerated);
   }
@@ -2061,12 +2053,6 @@ NS_IMETHODIMP nsXULWindow::ApplyChromeFlags()
   // so no need to compare to the old value.
   window->SetAttribute(NS_LITERAL_STRING("chromehidden"), newvalue);
 
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsXULWindow::WillShowWindow(PRBool *aRetval)
-{
-  *aRetval = mShowAfterLoad && !mChromeLoaded;
   return NS_OK;
 }
 

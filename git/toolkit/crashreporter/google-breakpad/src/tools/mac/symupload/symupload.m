@@ -129,16 +129,15 @@ static void Start(Options *options) {
   NSData *data = [ul send:&error];
   NSString *result = [[NSString alloc] initWithData:data
                                            encoding:NSUTF8StringEncoding];
-  int status = [[ul response] statusCode];
 
   fprintf(stdout, "Send: %s\n", error ? [[error description] UTF8String] :
           "No Error");
-  fprintf(stdout, "Response: %d\n", status);
+  fprintf(stdout, "Response: %d\n", [[ul response] statusCode]);
   fprintf(stdout, "Result: %d bytes\n%s\n", [data length], [result UTF8String]);
 
   [result release];
   [ul release];
-  options->success = !error && status==200;
+  options->success = !error;
 }
 
 //=============================================================================

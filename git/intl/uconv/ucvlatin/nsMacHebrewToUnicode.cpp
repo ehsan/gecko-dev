@@ -45,7 +45,7 @@ static const PRUint16 g_utMappingTable[] = {
 #include "machebrew.ut"
 };
 
-nsresult
+NS_METHOD
 nsMacHebrewToUnicodeConstructor(nsISupports *aOuter, REFNSIID aIID,
                                 void **aResult) 
 {

@@ -126,7 +126,6 @@ StatementParams::NewEnumerate(nsIXPConnectWrappedNative *aWrapper,
 
   switch (aEnumOp) {
     case JSENUMERATE_INIT:
-    case JSENUMERATE_INIT_ALL:
     {
       // Start our internal index at zero.
       *_statep = JSVAL_ZERO;
@@ -206,7 +205,7 @@ StatementParams::NewResolve(nsIXPConnectWrappedNative *aWrapper,
       return NS_ERROR_INVALID_ARG;
 
     ok = ::JS_DefineElement(aCtx, aScopeObj, idx, JSVAL_VOID, nsnull,
-                            nsnull, JSPROP_ENUMERATE);
+                            nsnull, 0);
     resolved = true;
   }
   else if (JSVAL_IS_STRING(aId)) {
@@ -222,7 +221,7 @@ StatementParams::NewResolve(nsIXPConnectWrappedNative *aWrapper,
     nsresult rv = mStatement->GetParameterIndex(name, &idx);
     if (NS_SUCCEEDED(rv)) {
       ok = ::JS_DefineUCProperty(aCtx, aScopeObj, nameChars, nameLength,
-                                 JSVAL_VOID, nsnull, nsnull, JSPROP_ENUMERATE);
+                                 JSVAL_VOID, nsnull, nsnull, 0);
       resolved = true;
     }
   }

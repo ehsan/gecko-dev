@@ -663,7 +663,6 @@ GK_ATOM(onmousedown, "onmousedown")
 GK_ATOM(onmousemove, "onmousemove")
 GK_ATOM(onmouseout, "onmouseout")
 GK_ATOM(onmouseover, "onmouseover")
-GK_ATOM(onMozMouseHittest, "onMozMouseHittest")
 GK_ATOM(onmouseup, "onmouseup")
 GK_ATOM(onMozAfterPaint, "onMozAfterPaint")
 GK_ATOM(onMozMousePixelScroll, "onMozMousePixelScroll")
@@ -1687,9 +1686,6 @@ GK_ATOM(Unicode, "x-unicode")
 GK_ATOM(TypingTxnName, "Typing")
 GK_ATOM(IMETxnName, "IME")
 GK_ATOM(DeleteTxnName, "Deleting")
-
-// IPC stuff
-GK_ATOM(Remote, "remote")
 
 // Names for system metrics
 GK_ATOM(scrollbar_start_backward, "scrollbar-start-backward")

@@ -108,7 +108,7 @@ public:
   virtual PRBool IsContainingBlock() const;
 
 #ifdef ACCESSIBILITY  
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD  GetAccessible(nsIAccessible** aAccessible);
 #endif
 
 #ifdef DEBUG
@@ -190,7 +190,7 @@ public:
                        HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames);
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
-  NS_DISPLAY_DECL_NAME("FieldSetBorderBackground", TYPE_FIELDSET_BORDER_BACKGROUND)
+  NS_DISPLAY_DECL_NAME("FieldSetBorderBackground")
 };
 
 void nsDisplayFieldSetBorderBackground::HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
@@ -649,17 +649,15 @@ nsFieldSetFrame::RemoveFrame(nsIAtom*       aListName,
 }
 
 #ifdef ACCESSIBILITY
-already_AddRefed<nsAccessible>
-nsFieldSetFrame::CreateAccessible()
+NS_IMETHODIMP nsFieldSetFrame::GetAccessible(nsIAccessible** aAccessible)
 {
   nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
 
   if (accService) {
-    return accService->CreateHTMLGroupboxAccessible(mContent,
-                                                    PresContext()->PresShell());
+    return accService->CreateHTMLGroupboxAccessible(static_cast<nsIFrame*>(this), aAccessible);
   }
 
-  return nsnull;
+  return NS_ERROR_FAILURE;
 }
 #endif
 

@@ -231,7 +231,7 @@ __try {
         // not an extra parent window for just the scrollbars
         nsIScrollableFrame *scrollFrame = do_QueryFrame(frame);
         if (scrollFrame) {
-          hwnd = (HWND)scrollFrame->GetScrolledFrame()->GetNearestWidget()->GetNativeData(NS_NATIVE_WINDOW);
+          hwnd = (HWND)scrollFrame->GetScrolledFrame()->GetWindow()->GetNativeData(NS_NATIVE_WINDOW);
           NS_ASSERTION(hwnd, "No window handle for window");
         }
       }
@@ -1681,7 +1681,7 @@ nsAccessibleWrap::FirePlatformEvent(nsAccEvent *aEvent)
   if (eventType == nsIAccessibleEvent::EVENT_HIDE) {
     // Don't use frame from current accessible when we're hiding that
     // accessible.
-    newAccessible = accessible->GetCachedParent();
+    newAccessible = accessible->GetParent();
   } else {
     newAccessible = accessible;
   }
@@ -1735,7 +1735,7 @@ nsAccessibleWrap::GetHWNDFor(nsAccessible *aAccessible)
 
   nsIFrame *frame = aAccessible->GetFrame();
   if (frame) {
-    nsIWidget *window = frame->GetNearestWidget();
+    nsIWidget *window = frame->GetWindow();
     PRBool isVisible;
     window->IsVisible(isVisible);
     if (isVisible) {
@@ -1753,7 +1753,7 @@ nsAccessibleWrap::GetHWNDFor(nsAccessible *aAccessible)
       // JAWS doesn't echo the current option as it changes in a closed
       // combo box, we need to use an ensure that we never fire an event with
       // an HWND for a hidden window.
-      hWnd = (HWND)frame->GetNearestWidget()->GetNativeData(NS_NATIVE_WINDOW);
+      hWnd = (HWND)frame->GetWindow()->GetNativeData(NS_NATIVE_WINDOW);
     }
   }
 

@@ -57,8 +57,6 @@ class nsInterfaceHashtable :
 public:
   typedef typename KeyClass::KeyType KeyType;
   typedef Interface* UserDataType;
-  typedef nsBaseHashtable< KeyClass, nsCOMPtr<Interface> , Interface* >
-          base_type;
 
   /**
    * @copydoc nsBaseHashtable::Get
@@ -66,11 +64,6 @@ public:
    *   If the key doesn't exist, pData will be set to nsnull.
    */
   PRBool Get(KeyType aKey, UserDataType* pData NS_OUTPARAM) const;
-
-  /**
-   * @copydoc nsBaseHashtable::Get
-   */
-  already_AddRefed<Interface> Get(KeyType aKey) const;
 
   /**
    * Gets a weak reference to the hashtable entry.
@@ -94,8 +87,6 @@ class nsInterfaceHashtableMT :
 public:
   typedef typename KeyClass::KeyType KeyType;
   typedef Interface* UserDataType;
-  typedef nsBaseHashtableMT< KeyClass, nsCOMPtr<Interface> , Interface* >
-          base_type;
 
   /**
    * @copydoc nsBaseHashtable::Get
@@ -119,7 +110,8 @@ PRBool
 nsInterfaceHashtable<KeyClass,Interface>::Get
   (KeyType aKey, UserDataType* pInterface) const
 {
-  typename base_type::EntryType* ent = this->GetEntry(aKey);
+  typename nsBaseHashtable<KeyClass, nsCOMPtr<Interface>, Interface*>::EntryType* ent =
+    GetEntry(aKey);
 
   if (ent)
   {
@@ -141,25 +133,13 @@ nsInterfaceHashtable<KeyClass,Interface>::Get
   return PR_FALSE;
 }
 
-template<class KeyClass, class Interface>
-already_AddRefed<Interface>
-nsInterfaceHashtable<KeyClass,Interface>::Get(KeyType aKey) const
-{
-  typename nsBaseHashtable<KeyClass, nsCOMPtr<Interface>, Interface*>::EntryType* ent =
-    GetEntry(aKey);
-  if (!ent)
-    return NULL;
-
-  NS_IF_ADDREF(ent->mData);
-  return already_AddRefed<Interface>(ent->mData);
-}
-
 template<class KeyClass,class Interface>
 Interface*
 nsInterfaceHashtable<KeyClass,Interface>::GetWeak
   (KeyType aKey, PRBool* aFound) const
 {
-  typename base_type::EntryType* ent = this->GetEntry(aKey);
+  typename nsBaseHashtable<KeyClass, nsCOMPtr<Interface>, Interface*>::EntryType* ent =
+    GetEntry(aKey);
 
   if (ent)
   {
@@ -186,7 +166,8 @@ nsInterfaceHashtableMT<KeyClass,Interface>::Get
 {
   PR_Lock(this->mLock);
 
-  typename base_type::EntryType* ent = this->GetEntry(aKey);
+  typename nsBaseHashtableMT<KeyClass, nsCOMPtr<Interface>, Interface*>::EntryType* ent =
+    GetEntry(aKey);
 
   if (ent)
   {

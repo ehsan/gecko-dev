@@ -204,11 +204,7 @@ NS_IMETHODIMP DeleteRangeTxn::DoTransaction(void)
   {
     nsCOMPtr<nsISelection> selection;
     result = mEditor->GetSelection(getter_AddRefs(selection));
-    // At this point, it is possible that the frame for our root element
-    // might have been destroyed, in which case, the above call returns
-    // an error.  We eat that error here intentionally.  See bug 574558
-    // for a sample case where this happens.
-    NS_ENSURE_SUCCESS(result, NS_OK);
+    NS_ENSURE_SUCCESS(result, result);
     NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
     result = selection->Collapse(mStartParent, mStartOffset);
   }

@@ -172,8 +172,7 @@ private:
   /**
    * Call WillPaint() on all view observers under this vm root.
    */
-  void CallWillPaintOnObservers(PRBool aWillSendDidPaint);
-  void CallDidPaintOnObservers();
+  void CallWillPaintOnObservers();
   void ReparentChildWidgets(nsIView* aView, nsIWidget *aNewWidget);
   void ReparentWidgets(nsIView* aView, nsIView *aParent);
   void UpdateWidgetArea(nsView *aWidgetView, nsIWidget* aWidget,
@@ -204,11 +203,11 @@ private:
   void UpdateWidgetsForView(nsView* aView);
 
   /**
-   * Intersects aRect with aView's bounds and then transforms it from aView's
-   * coordinate system to the coordinate system of the widget attached to
-   * aView.
+   * Transforms a rectangle from aView's coordinate system to the coordinate
+   * system of the widget attached to aWidgetView, which should be an ancestor
+   * of aView.
    */
-  nsIntRect ViewToWidget(nsView *aView, const nsRect &aRect) const;
+  nsIntRect ViewToWidget(nsView *aView, nsView* aWidgetView, const nsRect &aRect) const;
 
   void DoSetWindowDimensions(nscoord aWidth, nscoord aHeight);
 
@@ -252,6 +251,11 @@ public: // NOT in nsIViewManager, so private to the view module
 
   nsEventStatus HandleEvent(nsView* aView, nsGUIEvent* aEvent);
 
+  virtual nsresult WillBitBlit(nsIView* aView, const nsRect& aRect,
+                               nsPoint aScrollAmount);
+  virtual void UpdateViewAfterScroll(nsIView *aView,
+                                     const nsRegion& aUpdateRegion);
+
   nsresult CreateRegion(nsIRegion* *result);
 
   PRBool IsRefreshEnabled() { return RootViewManager()->mUpdateBatchCnt == 0; }
@@ -294,6 +298,7 @@ private:
   PRInt32           mUpdateCnt;
   PRInt32           mUpdateBatchCnt;
   PRUint32          mUpdateBatchFlags;
+  PRInt32           mScrollCnt;
   // Use IsPainting() and SetPainting() to access mPainting.
   PRPackedBool      mPainting;
   PRPackedBool      mRecursiveRefreshPending;

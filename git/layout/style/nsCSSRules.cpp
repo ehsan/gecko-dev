@@ -1576,9 +1576,7 @@ nsCSSFontFaceStyleDecl::Fields[] = {
     &nsCSSFontFaceStyleDecl::mWeight,
     &nsCSSFontFaceStyleDecl::mStretch,
     &nsCSSFontFaceStyleDecl::mSrc,
-    &nsCSSFontFaceStyleDecl::mUnicodeRange,
-    &nsCSSFontFaceStyleDecl::mFontFeatureSettings,
-    &nsCSSFontFaceStyleDecl::mFontLanguageOverride
+    &nsCSSFontFaceStyleDecl::mUnicodeRange
 };
 
 DOMCI_DATA(CSSFontFaceStyleDecl, nsCSSFontFaceStyleDecl)

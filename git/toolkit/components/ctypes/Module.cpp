@@ -39,7 +39,7 @@
 
 #include "Module.h"
 #include "jsapi.h"
-#include "mozilla/ModuleUtils.h"
+#include "nsIGenericFactory.h"
 #include "nsMemory.h"
 
 #define JSCTYPES_CONTRACTID \
@@ -121,22 +121,15 @@ Module::Call(nsIXPConnectWrappedNative* wrapper,
 }
 }
 
-NS_DEFINE_NAMED_CID(JSCTYPES_CID);
-
-static const mozilla::Module::CIDEntry kCTypesCIDs[] = {
-  { &kJSCTYPES_CID, false, NULL, mozilla::ctypes::ModuleConstructor },
-  { NULL }
+static nsModuleComponentInfo components[] =
+{
+  {
+    "jsctypes",
+    JSCTYPES_CID,
+    JSCTYPES_CONTRACTID,
+    mozilla::ctypes::ModuleConstructor,
+  }
 };
 
-static const mozilla::Module::ContractIDEntry kCTypesContracts[] = {
-  { JSCTYPES_CONTRACTID, &kJSCTYPES_CID },
-  { NULL }
-};
+NS_IMPL_NSGETMODULE(jsctypes, components)
 
-static const mozilla::Module kCTypesModule = {
-  mozilla::Module::kVersion,
-  kCTypesCIDs,
-  kCTypesContracts
-};
-
-NSMODULE_DEFN(jsctypes) = &kCTypesModule;

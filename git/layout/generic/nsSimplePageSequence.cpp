@@ -715,8 +715,7 @@ nsSimplePageSequenceFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = aLists.Content()->AppendNewToTop(new (aBuilder)
-        nsDisplayGeneric(this, ::PaintPageSequence, "PageSequence",
-                         nsDisplayItem::TYPE_PAGE_SEQUENCE));
+        nsDisplayGeneric(this, ::PaintPageSequence, "PageSequence"));
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;

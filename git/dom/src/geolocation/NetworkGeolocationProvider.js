@@ -44,6 +44,9 @@ WifiGeoAddressObject.prototype = {
     },
 
     getHelperForLanguage: function(language) null,
+    contractID: "",
+    classDescription: "wifi geo position address object",
+    classID: null,
     implementationLanguage: Ci.nsIProgrammingLanguage.JAVASCRIPT,
     flags: Ci.nsIClassInfo.DOM_OBJECT,
 };
@@ -67,7 +70,9 @@ WifiGeoCoordsObject.prototype = {
     },
 
     getHelperForLanguage: function(language) null,
+    contractID: "",
     classDescription: "wifi geo position coords object",
+    classID: null,
     implementationLanguage: Ci.nsIProgrammingLanguage.JAVASCRIPT,
     flags: Ci.nsIClassInfo.DOM_OBJECT,
 
@@ -116,7 +121,9 @@ WifiGeoPositionObject.prototype = {
     },
 
     getHelperForLanguage: function(language) null,
+    contractID: "",
     classDescription: "wifi geo location position object",
+    classID: null,
     implementationLanguage: Ci.nsIProgrammingLanguage.JAVASCRIPT,
     flags: Ci.nsIClassInfo.DOM_OBJECT,
 
@@ -221,7 +228,9 @@ function WifiGeoPositionProvider() {
 };
 
 WifiGeoPositionProvider.prototype = {
+    classDescription: "A component that returns a geolocation based on WIFI",
     classID:          Components.ID("{77DA64D3-7458-4920-9491-86CC9914F904}"),
+    contractID:       "@mozilla.org/geolocation/provider;1",
     QueryInterface:   XPCOMUtils.generateQI([Ci.nsIGeolocationProvider,
                                              Ci.nsIWifiListener,
                                              Ci.nsITimerCallback]),
@@ -342,7 +351,7 @@ WifiGeoPositionProvider.prototype = {
 
             // if we get a bad response, we will throw and never report a location
             var response;
-            switch (protocol) {
+            switch (this.protocol) {
                 case 1:
                     LOG("service returned: " + req.target.responseXML);
                     response = HELD.decode(req.target.responseXML);
@@ -437,4 +446,7 @@ WifiGeoPositionProvider.prototype = {
 
 };
 
-var NSGetFactory = XPCOMUtils.generateNSGetFactory([WifiGeoPositionProvider]);
+var components = [WifiGeoPositionProvider];
+function NSGetModule(compMgr, fileSpec) {
+  return XPCOMUtils.generateModule(components);
+}

@@ -312,7 +312,8 @@ void ThreadData::RunOnAllThreads(void (*function)()) {
 bool ThreadData::StartTracking(bool status) {
 #ifndef TRACK_ALL_TASK_OBJECTS
   return false;  // Not compiled in.
-#else
+#endif
+
   if (!status) {
     AutoLock lock(list_lock_);
     DCHECK(status_ == ACTIVE || status_ == SHUTDOWN);
@@ -324,7 +325,6 @@ bool ThreadData::StartTracking(bool status) {
   CHECK(tls_index_.Initialize(NULL));
   status_ = ACTIVE;
   return true;
-#endif
 }
 
 // static

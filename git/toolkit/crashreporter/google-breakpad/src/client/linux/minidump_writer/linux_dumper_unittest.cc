@@ -108,16 +108,16 @@ TEST(LinuxDumperTest, VerifyStackReadWithMultipleThreads) {
   ThreadInfo one_thread;
   for(size_t i = 0; i < dumper.threads().size(); ++i) {
     EXPECT_TRUE(dumper.ThreadInfoGet(dumper.threads()[i], &one_thread));
-    // In the helper program, we stored a pointer to the thread id in a
-    // specific register. Check that we can recover its value.
+    // We know the threads are in a function which has allocated exactly
+    // one word off the stack to store its thread id.
 #if defined(__ARM_EABI__)
-    pid_t *process_tid_location = (pid_t *)(one_thread.regs.uregs[3]);
+    void* process_tid_location = (void *)(one_thread.regs.uregs[11] - 8);
 #elif defined(__i386)
-    pid_t *process_tid_location = (pid_t *)(one_thread.regs.ecx);
+    void* process_tid_location = (void *)(one_thread.regs.ebp - 4);
 #elif defined(__x86_64)
-    pid_t *process_tid_location = (pid_t *)(one_thread.regs.rcx);
+    void* process_tid_location = (void *)(one_thread.regs.rbp - 4);
 #else
-#error This test has not been ported to this platform.
+#error Platform not supported!
 #endif
     pid_t one_thread_id;
     dumper.CopyFromProcess(&one_thread_id,

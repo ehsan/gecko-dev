@@ -44,7 +44,10 @@ function WeaveService() {
   this.wrappedJSObject = this;
 }
 WeaveService.prototype = {
+  classDescription: "Weave Service",
+  contractID: "@mozilla.org/weave/service;1",
   classID: Components.ID("{74b89fb0-f200-4ae8-a3ec-dd164117f6de}"),
+  _xpcom_categories: [{ category: "app-startup", service: true }],
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,
                                          Ci.nsISupportsWeakReference]),
@@ -80,14 +83,20 @@ WeaveService.prototype = {
     if (resProt.hasSubstitution("services-sync"))
       return;
 
-    let uri = ioService.newURI("resource://gre/modules/services-sync/",
+    let uri = ioService.newURI("resource://gre/modules/services-sync",
                                null, null);
-    resProt.setSubstitution("services-sync", uri);
+    let file = uri.QueryInterface(Ci.nsIFileURL)
+               .file.QueryInterface(Ci.nsILocalFile);
+
+    let aliasURI = ioService.newFileURI(file);
+    resProt.setSubstitution("services-sync", aliasURI);
   }
 };
 
 function AboutWeaveLog() {}
 AboutWeaveLog.prototype = {
+  classDescription: "about:sync-log",
+  contractID: "@mozilla.org/network/protocol/about;1?what=sync-log",
   classID: Components.ID("{d28f8a0b-95da-48f4-b712-caf37097be41}"),
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIAboutModule,
@@ -114,6 +123,8 @@ AboutWeaveLog.prototype = {
 
 function AboutWeaveLog1() {}
 AboutWeaveLog1.prototype = {
+  classDescription: "about:sync-log.1",
+  contractID: "@mozilla.org/network/protocol/about;1?what=sync-log.1",
   classID: Components.ID("{a08ee179-df50-48e0-9c87-79e4dd5caeb1}"),
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIAboutModule,
@@ -138,13 +149,10 @@ AboutWeaveLog1.prototype = {
   }
 };
 
-let components = [WeaveService, AboutWeaveLog, AboutWeaveLog1];
-
-// Gecko <2.0
 function NSGetModule(compMgr, fileSpec) {
-  return XPCOMUtils.generateModule(components);
+  return XPCOMUtils.generateModule([
+    WeaveService,
+    AboutWeaveLog,
+    AboutWeaveLog1
+  ]);
 }
-
-// Gecko >=2.0
-if (typeof XPCOMUtils.generateNSGetFactory == "function")
-    const NSGetFactory = XPCOMUtils.generateNSGetFactory(components);
