@@ -18,11 +18,6 @@
 
 /* a presentation of a document, part 2 */
 
-#ifdef MOZ_LOGGING
-#define FORCE_PR_LOG /* Allow logging in the release build */
-#endif
-#include "prlog.h"
-
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/TabChild.h"
 #include "mozilla/Likely.h"
@@ -49,6 +44,7 @@
 #include "nsViewManager.h"
 #include "nsView.h"
 #include "nsCRTGlue.h"
+#include "prlog.h"
 #include "prprf.h"
 #include "prinrval.h"
 #include "nsTArray.h"
@@ -685,10 +681,8 @@ PresShell::PresShell()
   mReflowCountMgr->SetPresShell(this);
 #endif
 #ifdef PR_LOGGING
-  mLoadBegin = TimeStamp::Now();
-  if (!gLog) {
+  if (! gLog)
     gLog = PR_NewLogModule("PresShell");
-  }
 #endif
   mSelectionFlags = nsISelectionDisplay::DISPLAY_TEXT | nsISelectionDisplay::DISPLAY_IMAGES;
   mIsThemeSupportDisabled = false;
@@ -2397,20 +2391,6 @@ void
 PresShell::BeginLoad(nsIDocument *aDocument)
 {  
   mDocumentLoading = true;
-
-#ifdef PR_LOGGING
-  if (gLog && PR_LOG_TEST(gLog, PR_LOG_DEBUG)) {
-    mLoadBegin = TimeStamp::Now();
-    nsIURI* uri = mDocument->GetDocumentURI();
-    nsAutoCString spec;
-    if (uri) {
-      uri->GetSpec(spec);
-    }
-    PR_LOG(gLog, PR_LOG_DEBUG,
-           ("(presshell) %p begin load [%s]\n",
-            this, spec.get()));
-  }
-#endif
 }
 
 void
@@ -2421,21 +2401,6 @@ PresShell::EndLoad(nsIDocument *aDocument)
   RestoreRootScrollPosition();
   
   mDocumentLoading = false;
-
-#ifdef PR_LOGGING
-  // log load
-  if (gLog && PR_LOG_TEST(gLog, PR_LOG_DEBUG)) {
-    TimeDuration loadTime = TimeStamp::Now() - mLoadBegin;
-    nsIURI* uri = mDocument->GetDocumentURI();
-    nsAutoCString spec;
-    if (uri) {
-      uri->GetSpec(spec);
-    }
-    PR_LOG(gLog, PR_LOG_DEBUG,
-           ("(presshell) %p end load time-ms: %9.2f [%s]\n",
-            this, loadTime.ToMilliseconds(), spec.get()));
-  }
-#endif
 }
 
 #ifdef DEBUG

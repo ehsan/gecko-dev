@@ -59,8 +59,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <string>
 #include <vector>
 
-#include "mozilla/Mutex.h"
-
 #include "m_cpp_utils.h"
 
 namespace mozilla {
@@ -112,7 +110,6 @@ class RLogRingBuffer {
     std::deque<std::string> log_messages_;
     /* Max size of log buffer (should we use time-depth instead/also?) */
     uint32_t log_limit_;
-    OffTheBooksMutex mutex_;
 
     DISALLOW_COPY_ASSIGN(RLogRingBuffer);
 }; // class RLogRingBuffer

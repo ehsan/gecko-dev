@@ -3025,7 +3025,6 @@ xpc::CreateObjectIn(JSContext *cx, HandleValue vobj, CreateObjectInOptions &opti
         JS_ReportError(cx, "Permission denied to create object in the target scope");
         return false;
     }
-
     RootedObject obj(cx);
     {
         JSAutoCompartment ac(cx, scope);
@@ -3035,64 +3034,23 @@ xpc::CreateObjectIn(JSContext *cx, HandleValue vobj, CreateObjectInOptions &opti
 
         if (!JSID_IS_VOID(options.defineAs) &&
             !JS_DefinePropertyById(cx, scope, options.defineAs, ObjectValue(*obj),
-                                   JS_PropertyStub, JS_StrictPropertyStub,
-                                   JSPROP_ENUMERATE))
+                                       JS_PropertyStub, JS_StrictPropertyStub,
+                                       JSPROP_ENUMERATE))
             return false;
     }
 
-    rval.setObject(*obj);
-    if (!WrapperFactory::WaiveXrayAndWrap(cx, rval))
+    if (!JS_WrapObject(cx, &obj))
         return false;
 
+    rval.setObject(*obj);
     return true;
 }
 
-/* jsval evalInWindow(in string source, in jsval window); */
+/* jsval createObjectIn(in jsval vobj); */
 NS_IMETHODIMP
-nsXPCComponents_Utils::EvalInWindow(const nsAString &source, const Value &window,
-                                    JSContext *cx, Value *rval)
+nsXPCComponents_Utils::CreateObjectIn(const Value &vobj, JSContext *cx, Value *rval)
 {
-    if (!window.isObject())
-        return NS_ERROR_INVALID_ARG;
-
-    RootedObject rwindow(cx, &window.toObject());
-    RootedValue res(cx);
-    if (!xpc::EvalInWindow(cx, source, rwindow, &res))
-        return NS_ERROR_FAILURE;
-
-    *rval = res;
-    return NS_OK;
-}
-
-/* jsval exportFunction(in jsval vfunction, in jsval vscope, in jsval vname); */
-NS_IMETHODIMP
-nsXPCComponents_Utils::ExportFunction(const Value &vfunction, const Value &vscope,
-                                      const Value &vname, JSContext *cx, Value *rval)
-{
-    RootedValue rfunction(cx, vfunction);
-    RootedValue rscope(cx, vscope);
-    RootedValue rname(cx, vname);
-    RootedValue res(cx);
-    if (!xpc::ExportFunction(cx, rfunction, rscope, rname, &res))
-        return NS_ERROR_FAILURE;
-    *rval = res;
-    return NS_OK;
-}
-
-/* jsval createObjectIn(in jsval vobj, [optional] in jsval voptions); */
-NS_IMETHODIMP
-nsXPCComponents_Utils::CreateObjectIn(const Value &vobj, const Value &voptions,
-                                      JSContext *cx, Value *rval)
-{
-    RootedObject optionsObject(cx, voptions.isObject() ? &voptions.toObject()
-                                                       : nullptr);
-    CreateObjectInOptions options(cx, optionsObject);
-    if (voptions.isObject() &&
-        !options.Parse())
-    {
-        return NS_ERROR_FAILURE;
-    }
-
+    CreateObjectInOptions options;
     RootedValue rvobj(cx, vobj);
     RootedValue res(cx);
     if (!xpc::CreateObjectIn(cx, rvobj, options, &res))

@@ -48,7 +48,7 @@ bool
 WebGLFramebuffer::Attachment::HasAlpha() const {
     GLenum format = 0;
     if (Texture() && Texture()->HasImageInfoAt(mTexImageTarget, mTexImageLevel))
-        format = Texture()->ImageInfoAt(mTexImageTarget, mTexImageLevel).InternalFormat();
+        format = Texture()->ImageInfoAt(mTexImageTarget, mTexImageLevel).Format();
     else if (Renderbuffer())
         format = Renderbuffer()->InternalFormat();
     return FormatHasAlpha(format);
@@ -105,26 +105,6 @@ WebGLFramebuffer::Attachment::HasSameDimensionsAs(const Attachment& other) const
            thisRect->HasSameDimensionsAs(*otherRect);
 }
 
-static inline bool
-IsValidAttachedTextureColorFormat(GLenum format) {
-    return (
-        /* linear 8-bit formats */
-        format == LOCAL_GL_ALPHA ||
-        format == LOCAL_GL_LUMINANCE ||
-        format == LOCAL_GL_LUMINANCE_ALPHA ||
-        format == LOCAL_GL_RGB ||
-        format == LOCAL_GL_RGBA ||
-        /* sRGB 8-bit formats */
-        format == LOCAL_GL_SRGB_EXT ||
-        format == LOCAL_GL_SRGB_ALPHA_EXT ||
-        /* linear float32 formats */
-        format ==  LOCAL_GL_ALPHA32F_ARB ||
-        format ==  LOCAL_GL_LUMINANCE32F_ARB ||
-        format ==  LOCAL_GL_LUMINANCE_ALPHA32F_ARB ||
-        format ==  LOCAL_GL_RGB32F_ARB ||
-        format ==  LOCAL_GL_RGBA32F_ARB);
-}
-
 bool
 WebGLFramebuffer::Attachment::IsComplete() const {
     const WebGLRectangleObject *thisRect = RectangleObject();
@@ -138,7 +118,7 @@ WebGLFramebuffer::Attachment::IsComplete() const {
         if (!mTexturePtr->HasImageInfoAt(mTexImageTarget, mTexImageLevel))
             return false;
 
-        GLenum format = mTexturePtr->ImageInfoAt(mTexImageTarget, mTexImageLevel).InternalFormat();
+        GLenum format = mTexturePtr->ImageInfoAt(mTexImageTarget, mTexImageLevel).Format();
 
         if (mAttachmentPoint == LOCAL_GL_DEPTH_ATTACHMENT) {
             return format == LOCAL_GL_DEPTH_COMPONENT;
@@ -148,7 +128,11 @@ WebGLFramebuffer::Attachment::IsComplete() const {
         }
         else if (mAttachmentPoint >= LOCAL_GL_COLOR_ATTACHMENT0 &&
                  mAttachmentPoint < GLenum(LOCAL_GL_COLOR_ATTACHMENT0 + WebGLContext::sMaxColorAttachments)) {
-            return IsValidAttachedTextureColorFormat(format);
+            return (format == LOCAL_GL_ALPHA ||
+                    format == LOCAL_GL_LUMINANCE ||
+                    format == LOCAL_GL_LUMINANCE_ALPHA ||
+                    format == LOCAL_GL_RGB ||
+                    format == LOCAL_GL_RGBA);
         }
         MOZ_CRASH("Invalid WebGL attachment poin?");
     }
@@ -169,8 +153,7 @@ WebGLFramebuffer::Attachment::IsComplete() const {
                  mAttachmentPoint < GLenum(LOCAL_GL_COLOR_ATTACHMENT0 + WebGLContext::sMaxColorAttachments)) {
             return (format == LOCAL_GL_RGB565 ||
                     format == LOCAL_GL_RGB5_A1 ||
-                    format == LOCAL_GL_RGBA4 ||
-                    format == LOCAL_GL_SRGB8_ALPHA8_EXT);
+                    format == LOCAL_GL_RGBA4);
         }
         MOZ_CRASH("Invalid WebGL attachment poin?");
     }
