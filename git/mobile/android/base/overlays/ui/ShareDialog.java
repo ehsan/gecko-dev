@@ -295,17 +295,14 @@ public class ShareDialog extends LocaleAware.LocaleAwareActivity implements Send
      * launching Fennec").
      */
 
-    @Override
-    public void onSendTabActionSelected() {
-        // This requires an override intent.
-        Assert.isTrue(sendTabOverrideIntent != null);
+    public void sendTab(String targetGUID) {
+        // If an override intent has been set, dispatch it.
+        if (sendTabOverrideIntent != null) {
+            startActivity(sendTabOverrideIntent);
+            finish();
+            return;
+        }
 
-        startActivity(sendTabOverrideIntent);
-        finish();
-    }
-
-    @Override
-    public void onSendTabTargetSelected(String targetGUID) {
         // targetGUID being null with no override intent should be an impossible state.
         Assert.isTrue(targetGUID != null);
 
@@ -321,6 +318,11 @@ public class ShareDialog extends LocaleAware.LocaleAwareActivity implements Send
 
         startService(serviceIntent);
         slideOut();
+    }
+
+    @Override
+    public void onSendTabTargetSelected(String targetGUID) {
+        sendTab(targetGUID);
     }
 
     public void addToReadingList() {

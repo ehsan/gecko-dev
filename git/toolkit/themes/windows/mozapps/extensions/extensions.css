@@ -473,7 +473,7 @@
 }
 
 .addon[active="false"] .icon {
-  filter: grayscale(1);
+  filter: url("chrome://mozapps/skin/extensions/extensions.svg#greyscale");
 }
 
 

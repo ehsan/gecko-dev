@@ -36,7 +36,6 @@ struct CommandOptions
     COPY_OPT_FIELD(mSessionId, 0)
     COPY_OPT_FIELD(mPowerLevel, 0)
     COPY_OPT_FIELD(mTechType, 0)
-    COPY_OPT_FIELD(mIsP2P, false)
 
     if (!aOther.mRecords.WasPassed()) {
       return;
@@ -78,7 +77,6 @@ struct CommandOptions
   nsString mRequestId;
   int32_t mPowerLevel;
   int32_t mTechType;
-  bool mIsP2P;
   nsTArray<NDEFRecordStruct> mRecords;
 };
 
