@@ -3199,9 +3199,8 @@ js_GC(JSContext *cx, JSGCInvocationKind gckind)
   }
 #endif
 
-    /* Clear property and JIT caches (only for cx->thread if JS_THREADSAFE). */
+    /* Clear property cache weak references. */
     js_FlushPropertyCache(cx);
-    js_FlushJITCache(cx);
 
 #ifdef JS_THREADSAFE
     /*
@@ -3228,6 +3227,8 @@ js_GC(JSContext *cx, JSGCInvocationKind gckind)
 #else
     /* The thread-unsafe case just has to clear the runtime's GSN cache. */
     GSN_CACHE_CLEAR(&rt->gsnCache);
+    /* Flush the JIT code cache. */
+    js_FlushJITCache(cx);
 #endif
 
   restart:
