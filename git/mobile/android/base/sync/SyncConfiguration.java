@@ -234,7 +234,11 @@ public class SyncConfiguration {
   public Map<String, Boolean> userSelectedEngines;
   public long userSelectedEnginesTimestamp;
 
-  public SharedPreferences prefs;
+  // Fields that maintain a reference to a SharedPreferences instance, used for
+  // persistence.
+  // Behavior is undefined if the PrefsSource is switched out in flight.
+  public String          prefsPath;
+  public PrefsSource     prefsSource;
 
   protected final AuthHeaderProvider authHeaderProvider;
 
@@ -263,23 +267,16 @@ public class SyncConfiguration {
    * provide access to preferences.
    */
   public SyncConfiguration(String username, AuthHeaderProvider authHeaderProvider, String prefsPath, PrefsSource prefsSource) {
-    this(username, authHeaderProvider, prefsSource.getPrefs(prefsPath, Utils.SHARED_PREFERENCES_MODE));
-  }
-
-  public SyncConfiguration(String username, AuthHeaderProvider authHeaderProvider, SharedPreferences prefs) {
     this.username = username;
     this.authHeaderProvider = authHeaderProvider;
-    this.prefs = prefs;
-    this.loadFromPrefs(prefs);
-  }
-
-  public SyncConfiguration(String username, AuthHeaderProvider authHeaderProvider, SharedPreferences prefs, KeyBundle syncKeyBundle) {
-    this(username, authHeaderProvider, prefs);
-    this.syncKeyBundle = syncKeyBundle;
+    this.prefsPath   = prefsPath;
+    this.prefsSource = prefsSource;
+    this.loadFromPrefs(getPrefs());
   }
 
   public SharedPreferences getPrefs() {
-    return this.prefs;
+    Logger.trace(LOG_TAG, "Returning prefs for " + prefsPath);
+    return prefsSource.getPrefs(prefsPath, Utils.SHARED_PREFERENCES_MODE);
   }
 
   /**

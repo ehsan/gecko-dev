@@ -12,9 +12,10 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import android.util.Log;
-import android.util.SparseArray;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Helper class to get/set gecko prefs.
@@ -23,7 +24,7 @@ public final class PrefsHelper {
     private static final String LOGTAG = "GeckoPrefsHelper";
 
     private static boolean sRegistered = false;
-    private static final SparseArray<PrefHandler> sCallbacks = new SparseArray<PrefHandler>();
+    private static final Map<Integer, PrefHandler> sCallbacks = new HashMap<Integer, PrefHandler>();
     private static int sUniqueRequestId = 1;
 
     public static int getPref(String prefName, PrefHandler callback) {
@@ -72,7 +73,7 @@ public final class PrefsHelper {
                             int requestId = message.getInt("requestId");
                             callback = sCallbacks.get(requestId);
                             if (callback != null && !callback.isObserver()) {
-                                sCallbacks.delete(requestId);
+                                sCallbacks.remove(requestId);
                             }
                         } catch (Exception e) {
                             callback = null;
@@ -143,9 +144,7 @@ public final class PrefsHelper {
         }
 
         synchronized (PrefsHelper.class) {
-            PrefHandler callback = sCallbacks.get(requestId);
-            sCallbacks.delete(requestId);
-
+            PrefHandler callback = sCallbacks.remove(requestId);
             if (callback == null) {
                 Log.e(LOGTAG, "Unknown request ID " + requestId);
                 return;

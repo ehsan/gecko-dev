@@ -11,8 +11,9 @@ import org.mozilla.gecko.R;
 import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.background.fxa.FxAccountClient10.RequestDelegate;
 import org.mozilla.gecko.background.fxa.FxAccountClient20;
-import org.mozilla.gecko.background.fxa.FxAccountClientException.FxAccountClientRemoteException;
 import org.mozilla.gecko.fxa.FxAccountConstants;
+import org.mozilla.gecko.sync.HTTPFailureException;
+import org.mozilla.gecko.sync.net.SyncStorageResponse;
 
 import android.app.Activity;
 import android.content.Context;
@@ -21,6 +22,7 @@ import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.TextView;
 import android.widget.Toast;
+import ch.boye.httpclientandroidlib.HttpResponse;
 
 /**
  * Activity which displays account created successfully screen to the user, and
@@ -86,7 +88,7 @@ public class FxAccountConfirmAccountActivity extends Activity implements OnClick
     protected final byte[] sessionToken;
 
     public FxAccountResendCodeTask(Context context, byte[] sessionToken, FxAccountClient20 client, RequestDelegate<Void> delegate) {
-      super(context, null, client, delegate);
+      super(context, false, client, delegate);
       this.sessionToken = sessionToken;
     }
 
@@ -112,8 +114,8 @@ public class FxAccountConfirmAccountActivity extends Activity implements OnClick
     }
 
     @Override
-    public void handleFailure(FxAccountClientRemoteException e) {
-      handleError(e);
+    public void handleFailure(int status, HttpResponse response) {
+      handleError(new HTTPFailureException(new SyncStorageResponse(response)));
     }
 
     @Override

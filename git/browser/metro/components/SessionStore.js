@@ -9,7 +9,6 @@ const Cr = Components.results;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/WindowsPrefSync.jsm");
 
 #ifdef MOZ_CRASHREPORTER
 XPCOMUtils.defineLazyServiceGetter(this, "CrashReporter",
@@ -200,10 +199,6 @@ SessionStore.prototype = {
         break;
       case "final-ui-startup":
         observerService.removeObserver(this, "final-ui-startup");
-        if (WindowsPrefSync) {
-          // Pulls in Desktop controlled prefs and pushes out Metro controlled prefs
-          WindowsPrefSync.init();
-        }
         this.init();
         break;
       case "domwindowopened":
@@ -345,12 +340,9 @@ SessionStore.prototype = {
       this._lastSaveTime = Date.now();
 
       // Nothing to restore, notify observers things are complete
-      if (!this.shouldRestore()) {
+      if (!this._shouldRestore) {
         this._clearCache();
         Services.obs.notifyObservers(null, "sessionstore-windows-restored", "");
-
-        // If nothing is being restored, we only have our single Metro window.
-        this._orderedWindows.push(aWindow.__SSID);
       }
     }
 
@@ -734,7 +726,7 @@ SessionStore.prototype = {
   },
 
   shouldRestore: function ss_shouldRestore() {
-    return this._shouldRestore || (3 == Services.prefs.getIntPref("browser.startup.page"));
+    return this._shouldRestore;
   },
 
   restoreLastSession: function ss_restoreLastSession(aBringToFront) {

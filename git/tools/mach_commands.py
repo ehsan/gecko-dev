@@ -301,13 +301,7 @@ class ReviewboardToolsProvider(MachCommandBase):
             args = ['help']
 
         self._activate_virtualenv()
-        # We install RBTools from source control because the currently released
-        # version doesn't have patches that make Mercurial usable in many
-        # scenarios.
-        commit = '416a728292dff3f279e5d695f48a29749b51b77a'
-        self.virtualenv_manager.install_pip_package(
-            'git+https://github.com/reviewboard/rbtools.git@%s#egg=RBTools' %
-            commit)
+        self.virtualenv_manager.install_pip_package('RBTools')
 
         from rbtools.commands.main import main
 

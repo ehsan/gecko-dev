@@ -16,7 +16,6 @@ import org.json.JSONObject;
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoEvent;
 import org.mozilla.gecko.util.GeckoEventListener;
-import org.mozilla.gecko.util.ThreadUtils;
 
 public class SearchPreferenceCategory extends CustomListCategory implements GeckoEventListener {
     public static final String LOGTAG = "SearchPrefCategory";
@@ -82,7 +81,7 @@ public class SearchPreferenceCategory extends CustomListCategory implements Geck
                     JSONObject engineJSON = engines.getJSONObject(i);
                     final String engineName = engineJSON.getString("name");
 
-                    final SearchEnginePreference enginePreference = new SearchEnginePreference(getContext(), this);
+                    SearchEnginePreference enginePreference = new SearchEnginePreference(getContext(), this);
                     enginePreference.setSearchEngineFromJSON(engineJSON);
                     enginePreference.setOnPreferenceClickListener(new OnPreferenceClickListener() {
                         @Override
@@ -101,12 +100,7 @@ public class SearchPreferenceCategory extends CustomListCategory implements Geck
                         // We set this here, not in setSearchEngineFromJSON, because it allows us to
                         // keep a reference  to the default engine to use when the AlertDialog
                         // callbacks are used.
-                        ThreadUtils.postToUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                enginePreference.setIsDefault(true);
-                            }
-                        });
+                        enginePreference.setIsDefault(true);
                         mDefaultReference = enginePreference;
                     }
                 } catch (JSONException e) {
