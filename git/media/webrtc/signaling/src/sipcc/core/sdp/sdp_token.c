@@ -1196,14 +1196,14 @@ sdp_result_e sdp_parse_media (sdp_t *sdp_p, u16 level, const char *ptr)
         }
     }
 
-    /* TODO(ehugg): Remove this next block when backward
-       compatibility with versions earlier than FF24
-       is no longer required.  See Bug 886134 */
-#define DATACHANNEL_OLD_TRANSPORT "SCTP/DTLS"
+    /* TODO(ehugg): This block is for forward
+       compatibility with FF24.  Should be in FF23 only.
+       See Bug 886134 */
+#define DATACHANNEL_NEW_TRANSPORT "DTLS/SCTP"
     if (mca_p->transport == SDP_TRANSPORT_UNSUPPORTED) {
-        if (cpr_strncasecmp(tmp, DATACHANNEL_OLD_TRANSPORT,
-            strlen(DATACHANNEL_OLD_TRANSPORT)) == 0) {
-            mca_p->transport = SDP_TRANSPORT_DTLSSCTP;
+        if (cpr_strncasecmp(tmp, DATACHANNEL_NEW_TRANSPORT,
+            strlen(DATACHANNEL_NEW_TRANSPORT)) == 0) {
+            mca_p->transport = SDP_TRANSPORT_SCTPDTLS;
         }
     }
 
@@ -1231,7 +1231,7 @@ sdp_result_e sdp_parse_media (sdp_t *sdp_p, u16 level, const char *ptr)
             (mca_p->transport == SDP_TRANSPORT_UDPTL) ||
             (mca_p->transport == SDP_TRANSPORT_UDPSPRT) ||
             (mca_p->transport == SDP_TRANSPORT_LOCAL) ||
-            (mca_p->transport == SDP_TRANSPORT_DTLSSCTP)) {
+            (mca_p->transport == SDP_TRANSPORT_SCTPDTLS)) {
             /* Port format is simply <port>.  Make sure that either
              * the choose param is allowed or that the choose value
              * wasn't specified.
@@ -1383,8 +1383,8 @@ sdp_result_e sdp_parse_media (sdp_t *sdp_p, u16 level, const char *ptr)
         sdp_parse_payload_types(sdp_p, mca_p, ptr);
     }
 
-    /* Parse DTLS/SCTP port */
-    if (mca_p->transport == SDP_TRANSPORT_DTLSSCTP) {
+    /* Parse SCTP/DTLS port */
+    if (mca_p->transport == SDP_TRANSPORT_SCTPDTLS) {
         ptr = sdp_getnextstrtok(ptr, port, sizeof(port), " \t", &result);
         if (result != SDP_SUCCESS) {
             sdp_parse_error(sdp_p->peerconnection,
@@ -1565,7 +1565,7 @@ sdp_result_e sdp_build_media (sdp_t *sdp_p, u16 level, flex_string *fs)
     flex_string_sprintf(fs, "%s",
                      sdp_get_transport_name(mca_p->transport));
 
-    if(mca_p->transport != SDP_TRANSPORT_DTLSSCTP) {
+    if(mca_p->transport != SDP_TRANSPORT_SCTPDTLS) {
 
         /* Build the format lists */
         for (i=0; i < mca_p->num_payloads; i++) {
@@ -1577,7 +1577,7 @@ sdp_result_e sdp_build_media (sdp_t *sdp_p, u16 level, flex_string *fs)
             }
         }
     } else {
-        /* Add port to SDP if transport is DTLS/SCTP */
+        /* Add port to SDP if transport is SCTP/DTLS */
     	flex_string_sprintf(fs, " %u ", (u32)mca_p->sctpport);
     }
 

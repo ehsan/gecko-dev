@@ -1420,12 +1420,12 @@ bool
 LookupPropertyPure(JSObject *obj, jsid id, JSObject **objp, Shape **propp);
 
 bool
-GetPropertyPure(ThreadSafeContext *tcx, JSObject *obj, jsid id, Value *vp);
+GetPropertyPure(JSObject *obj, jsid id, Value *vp);
 
 inline bool
-GetPropertyPure(ThreadSafeContext *tcx, JSObject *obj, PropertyName *name, Value *vp)
+GetPropertyPure(JSObject *obj, PropertyName *name, Value *vp)
 {
-    return GetPropertyPure(tcx, obj, NameToId(name), vp);
+    return GetPropertyPure(obj, NameToId(name), vp);
 }
 
 bool
@@ -1456,9 +1456,6 @@ CheckAccess(JSContext *cx, JSObject *obj, HandleId id, JSAccessMode mode,
 
 extern bool
 IsDelegate(JSContext *cx, HandleObject obj, const Value &v, bool *result);
-
-bool
-GetObjectElementOperationPure(ThreadSafeContext *tcx, JSObject *obj, const Value &prop, Value *vp);
 
 } /* namespace js */
 

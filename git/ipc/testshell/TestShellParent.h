@@ -28,10 +28,10 @@ class TestShellParent : public PTestShellParent
 {
 public:
   PTestShellCommandParent*
-  AllocPTestShellCommandParent(const nsString& aCommand);
+  AllocPTestShellCommand(const nsString& aCommand);
 
   bool
-  DeallocPTestShellCommandParent(PTestShellCommandParent* aActor);
+  DeallocPTestShellCommand(PTestShellCommandParent* aActor);
 
   bool
   CommandDone(TestShellCommandParent* aActor, const nsString& aResponse);
@@ -54,7 +54,7 @@ protected:
   bool ExecuteCallback(const nsString& aResponse);
 
   void ActorDestroy(ActorDestroyReason why);
-
+  
   bool Recv__delete__(const nsString& aResponse) {
     return ExecuteCallback(aResponse);
   }

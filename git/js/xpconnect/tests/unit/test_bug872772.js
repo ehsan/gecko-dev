@@ -2,9 +2,7 @@ const Cu = Components.utils;
 function run_test() {
 
   // Make a content sandbox with an Xrayable object.
-  // NB: We use an nsEP here so that we can have access to Components, but still
-  // have Xray behavior from this scope.
-  var contentSB = new Cu.Sandbox(['http://www.google.com'],
+  var contentSB = new Cu.Sandbox('http://www.google.com',
                                  {wantXHRConstructor: true, wantComponents: true});
 
   // Make an XHR in the content sandbox.

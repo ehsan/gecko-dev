@@ -210,27 +210,27 @@ IndexedDBChild::ActorDestroy(ActorDestroyReason aWhy)
 }
 
 PIndexedDBDatabaseChild*
-IndexedDBChild::AllocPIndexedDBDatabaseChild(const nsString& aName,
-                                             const uint64_t& aVersion)
+IndexedDBChild::AllocPIndexedDBDatabase(const nsString& aName,
+                                        const uint64_t& aVersion)
 {
   return new IndexedDBDatabaseChild(aName, aVersion);
 }
 
 bool
-IndexedDBChild::DeallocPIndexedDBDatabaseChild(PIndexedDBDatabaseChild* aActor)
+IndexedDBChild::DeallocPIndexedDBDatabase(PIndexedDBDatabaseChild* aActor)
 {
   delete aActor;
   return true;
 }
 
 PIndexedDBDeleteDatabaseRequestChild*
-IndexedDBChild::AllocPIndexedDBDeleteDatabaseRequestChild(const nsString& aName)
+IndexedDBChild::AllocPIndexedDBDeleteDatabaseRequest(const nsString& aName)
 {
   MOZ_CRASH("Caller is supposed to manually construct a request!");
 }
 
 bool
-IndexedDBChild::DeallocPIndexedDBDeleteDatabaseRequestChild(
+IndexedDBChild::DeallocPIndexedDBDeleteDatabaseRequest(
                                    PIndexedDBDeleteDatabaseRequestChild* aActor)
 {
   delete aActor;
@@ -533,7 +533,7 @@ IndexedDBDatabaseChild::RecvPIndexedDBTransactionConstructor(
 }
 
 PIndexedDBTransactionChild*
-IndexedDBDatabaseChild::AllocPIndexedDBTransactionChild(
+IndexedDBDatabaseChild::AllocPIndexedDBTransaction(
                                                const TransactionParams& aParams)
 {
   MOZ_ASSERT(aParams.type() ==
@@ -542,7 +542,7 @@ IndexedDBDatabaseChild::AllocPIndexedDBTransactionChild(
 }
 
 bool
-IndexedDBDatabaseChild::DeallocPIndexedDBTransactionChild(
+IndexedDBDatabaseChild::DeallocPIndexedDBTransaction(
                                              PIndexedDBTransactionChild* aActor)
 {
   delete aActor;
@@ -656,14 +656,14 @@ IndexedDBTransactionChild::RecvComplete(const CompleteParams& aParams)
 }
 
 PIndexedDBObjectStoreChild*
-IndexedDBTransactionChild::AllocPIndexedDBObjectStoreChild(
+IndexedDBTransactionChild::AllocPIndexedDBObjectStore(
                                     const ObjectStoreConstructorParams& aParams)
 {
   MOZ_CRASH("Caller is supposed to manually construct an object store!");
 }
 
 bool
-IndexedDBTransactionChild::DeallocPIndexedDBObjectStoreChild(
+IndexedDBTransactionChild::DeallocPIndexedDBObjectStore(
                                              PIndexedDBObjectStoreChild* aActor)
 {
   delete aActor;
@@ -754,14 +754,14 @@ IndexedDBObjectStoreChild::RecvPIndexedDBCursorConstructor(
 }
 
 PIndexedDBRequestChild*
-IndexedDBObjectStoreChild::AllocPIndexedDBRequestChild(
+IndexedDBObjectStoreChild::AllocPIndexedDBRequest(
                                         const ObjectStoreRequestParams& aParams)
 {
   MOZ_CRASH("Caller is supposed to manually construct a request!");
 }
 
 bool
-IndexedDBObjectStoreChild::DeallocPIndexedDBRequestChild(
+IndexedDBObjectStoreChild::DeallocPIndexedDBRequest(
                                                  PIndexedDBRequestChild* aActor)
 {
   delete aActor;
@@ -769,28 +769,28 @@ IndexedDBObjectStoreChild::DeallocPIndexedDBRequestChild(
 }
 
 PIndexedDBIndexChild*
-IndexedDBObjectStoreChild::AllocPIndexedDBIndexChild(
+IndexedDBObjectStoreChild::AllocPIndexedDBIndex(
                                           const IndexConstructorParams& aParams)
 {
   MOZ_CRASH("Caller is supposed to manually construct an index!");
 }
 
 bool
-IndexedDBObjectStoreChild::DeallocPIndexedDBIndexChild(PIndexedDBIndexChild* aActor)
+IndexedDBObjectStoreChild::DeallocPIndexedDBIndex(PIndexedDBIndexChild* aActor)
 {
   delete aActor;
   return true;
 }
 
 PIndexedDBCursorChild*
-IndexedDBObjectStoreChild::AllocPIndexedDBCursorChild(
+IndexedDBObjectStoreChild::AllocPIndexedDBCursor(
                               const ObjectStoreCursorConstructorParams& aParams)
 {
   return new IndexedDBCursorChild();
 }
 
 bool
-IndexedDBObjectStoreChild::DeallocPIndexedDBCursorChild(
+IndexedDBObjectStoreChild::DeallocPIndexedDBCursor(
                                                   PIndexedDBCursorChild* aActor)
 {
   delete aActor;
@@ -895,27 +895,27 @@ IndexedDBIndexChild::RecvPIndexedDBCursorConstructor(
 }
 
 PIndexedDBRequestChild*
-IndexedDBIndexChild::AllocPIndexedDBRequestChild(const IndexRequestParams& aParams)
+IndexedDBIndexChild::AllocPIndexedDBRequest(const IndexRequestParams& aParams)
 {
   MOZ_CRASH("Caller is supposed to manually construct a request!");
 }
 
 bool
-IndexedDBIndexChild::DeallocPIndexedDBRequestChild(PIndexedDBRequestChild* aActor)
+IndexedDBIndexChild::DeallocPIndexedDBRequest(PIndexedDBRequestChild* aActor)
 {
   delete aActor;
   return true;
 }
 
 PIndexedDBCursorChild*
-IndexedDBIndexChild::AllocPIndexedDBCursorChild(
+IndexedDBIndexChild::AllocPIndexedDBCursor(
                                     const IndexCursorConstructorParams& aParams)
 {
   return new IndexedDBCursorChild();
 }
 
 bool
-IndexedDBIndexChild::DeallocPIndexedDBCursorChild(PIndexedDBCursorChild* aActor)
+IndexedDBIndexChild::DeallocPIndexedDBCursor(PIndexedDBCursorChild* aActor)
 {
   delete aActor;
   return true;
@@ -972,13 +972,13 @@ IndexedDBCursorChild::ActorDestroy(ActorDestroyReason aWhy)
 }
 
 PIndexedDBRequestChild*
-IndexedDBCursorChild::AllocPIndexedDBRequestChild(const CursorRequestParams& aParams)
+IndexedDBCursorChild::AllocPIndexedDBRequest(const CursorRequestParams& aParams)
 {
   MOZ_CRASH("Caller is supposed to manually construct a request!");
 }
 
 bool
-IndexedDBCursorChild::DeallocPIndexedDBRequestChild(PIndexedDBRequestChild* aActor)
+IndexedDBCursorChild::DeallocPIndexedDBRequest(PIndexedDBRequestChild* aActor)
 {
   delete aActor;
   return true;

@@ -34,7 +34,6 @@ class LIRGeneratorX86 : public LIRGeneratorX86Shared
     bool defineUntypedPhi(MPhi *phi, size_t lirIndex);
 
     LGetPropertyCacheT *newLGetPropertyCacheT(MGetPropertyCache *ins);
-    LGetElementCacheT *newLGetElementCacheT(MGetElementCache *ins);
 
   public:
     bool visitBox(MBox *box);

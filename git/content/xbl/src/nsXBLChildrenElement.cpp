@@ -4,43 +4,40 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/dom/XBLChildrenElement.h"
+#include "nsXBLChildrenElement.h"
 #include "nsCharSeparatedTokenizer.h"
 #include "mozilla/dom/NodeListBinding.h"
 
-namespace mozilla {
-namespace dom {
-
-XBLChildrenElement::~XBLChildrenElement()
+nsXBLChildrenElement::~nsXBLChildrenElement()
 {
 }
 
-NS_IMPL_ADDREF_INHERITED(XBLChildrenElement, Element)
-NS_IMPL_RELEASE_INHERITED(XBLChildrenElement, Element)
+NS_IMPL_ADDREF_INHERITED(nsXBLChildrenElement, Element)
+NS_IMPL_RELEASE_INHERITED(nsXBLChildrenElement, Element)
 
-NS_INTERFACE_TABLE_HEAD(XBLChildrenElement)
-  NS_INTERFACE_TABLE_INHERITED2(XBLChildrenElement, nsIDOMNode,
+NS_INTERFACE_TABLE_HEAD(nsXBLChildrenElement)
+  NS_INTERFACE_TABLE_INHERITED2(nsXBLChildrenElement, nsIDOMNode,
                                                       nsIDOMElement)
   NS_ELEMENT_INTERFACE_TABLE_TO_MAP_SEGUE
 NS_INTERFACE_MAP_END_INHERITING(Element)
 
-NS_IMPL_ELEMENT_CLONE(XBLChildrenElement)
+NS_IMPL_ELEMENT_CLONE(nsXBLChildrenElement)
 
 nsIAtom*
-XBLChildrenElement::GetIDAttributeName() const
+nsXBLChildrenElement::GetIDAttributeName() const
 {
   return nullptr;
 }
 
 nsIAtom*
-XBLChildrenElement::DoGetID() const
+nsXBLChildrenElement::DoGetID() const
 {
   return nullptr;
 }
 
 nsresult
-XBLChildrenElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
-                              bool aNotify)
+nsXBLChildrenElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
+                                bool aNotify)
 {
   if (aAttribute == nsGkAtoms::includes &&
       aNameSpaceID == kNameSpaceID_None) {
@@ -51,10 +48,10 @@ XBLChildrenElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
 }
 
 bool
-XBLChildrenElement::ParseAttribute(int32_t aNamespaceID,
-                                   nsIAtom* aAttribute,
-                                   const nsAString& aValue,
-                                   nsAttrValue& aResult)
+nsXBLChildrenElement::ParseAttribute(int32_t aNamespaceID,
+                                     nsIAtom* aAttribute,
+                                     const nsAString& aValue,
+                                     nsAttrValue& aResult)
 {
   if (aAttribute == nsGkAtoms::includes &&
       aNamespaceID == kNameSpaceID_None) {
@@ -68,11 +65,6 @@ XBLChildrenElement::ParseAttribute(int32_t aNamespaceID,
 
   return false;
 }
-
-} // namespace mozilla
-} // namespace dom
-
-using namespace mozilla::dom;
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(nsAnonymousContentList, mParent)
 
@@ -102,7 +94,7 @@ nsAnonymousContentList::GetLength(uint32_t* aLength)
        child;
        child = child->GetNextSibling()) {
     if (child->NodeInfo()->Equals(nsGkAtoms::children, kNameSpaceID_XBL)) {
-      XBLChildrenElement* point = static_cast<XBLChildrenElement*>(child);
+      nsXBLChildrenElement* point = static_cast<nsXBLChildrenElement*>(child);
       if (!point->mInsertedChildren.IsEmpty()) {
         count += point->mInsertedChildren.Length();
       }
@@ -143,7 +135,7 @@ nsAnonymousContentList::Item(uint32_t aIndex)
        child;
        child = child->GetNextSibling()) {
     if (child->NodeInfo()->Equals(nsGkAtoms::children, kNameSpaceID_XBL)) {
-      XBLChildrenElement* point = static_cast<XBLChildrenElement*>(child);
+      nsXBLChildrenElement* point = static_cast<nsXBLChildrenElement*>(child);
       if (!point->mInsertedChildren.IsEmpty()) {
         if (remIndex < point->mInsertedChildren.Length()) {
           return point->mInsertedChildren[remIndex];
@@ -184,7 +176,7 @@ nsAnonymousContentList::IndexOf(nsIContent* aContent)
        child;
        child = child->GetNextSibling()) {
     if (child->NodeInfo()->Equals(nsGkAtoms::children, kNameSpaceID_XBL)) {
-      XBLChildrenElement* point = static_cast<XBLChildrenElement*>(child);
+      nsXBLChildrenElement* point = static_cast<nsXBLChildrenElement*>(child);
       if (!point->mInsertedChildren.IsEmpty()) {
         uint32_t insIndex = point->mInsertedChildren.IndexOf(aContent);
         if (insIndex != point->mInsertedChildren.NoIndex) {

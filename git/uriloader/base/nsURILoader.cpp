@@ -30,12 +30,10 @@
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIDocShellTreeOwner.h"
-#include "nsIThreadRetargetableStreamListener.h"
 
 #include "nsXPIDLString.h"
 #include "nsString.h"
 #include "nsNetUtil.h"
-#include "nsThreadUtils.h"
 #include "nsReadableUtils.h"
 #include "nsError.h"
 
@@ -65,7 +63,6 @@ PRLogModuleInfo* nsURILoader::mLog = nullptr;
  * (or aborted).
  */
 class nsDocumentOpenInfo MOZ_FINAL : public nsIStreamListener
-                                   , public nsIThreadRetargetableStreamListener
 {
 public:
   // Needed for nsCOMPtr to work right... Don't call this!
@@ -113,8 +110,6 @@ public:
   // nsIStreamListener methods:
   NS_DECL_NSISTREAMLISTENER
 
-  // nsIThreadRetargetableStreamListener
-  NS_DECL_NSITHREADRETARGETABLESTREAMLISTENER
 protected:
   ~nsDocumentOpenInfo();
 
@@ -164,7 +159,6 @@ NS_INTERFACE_MAP_BEGIN(nsDocumentOpenInfo)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIRequestObserver)
   NS_INTERFACE_MAP_ENTRY(nsIRequestObserver)
   NS_INTERFACE_MAP_ENTRY(nsIStreamListener)
-  NS_INTERFACE_MAP_ENTRY(nsIThreadRetargetableStreamListener)
 NS_INTERFACE_MAP_END_THREADSAFE
 
 nsDocumentOpenInfo::nsDocumentOpenInfo()
@@ -269,22 +263,6 @@ NS_IMETHODIMP nsDocumentOpenInfo::OnStartRequest(nsIRequest *request, nsISupport
 
   LOG(("  OnStartRequest returning: 0x%08X", rv));
   
-  return rv;
-}
-
-NS_IMETHODIMP
-nsDocumentOpenInfo::CheckListenerChain()
-{
-  NS_ASSERTION(NS_IsMainThread(), "Should be on the main thread!");
-  nsresult rv = NS_OK;
-  nsCOMPtr<nsIThreadRetargetableStreamListener> retargetableListener =
-    do_QueryInterface(m_targetStreamListener, &rv);
-  if (retargetableListener) {
-    rv = retargetableListener->CheckListenerChain();
-  }
-  LOG(("[0x%p] nsDocumentOpenInfo::CheckListenerChain %s listener %p rv %x",
-       this, (NS_SUCCEEDED(rv) ? "success" : "failure"),
-       (nsIStreamListener*)m_targetStreamListener, rv));
   return rv;
 }
 
@@ -580,7 +558,7 @@ nsDocumentOpenInfo::ConvertData(nsIRequest *request,
   // stream is split up into multiple destination streams.  This
   // intermediate instance is used to target these "decoded" streams...
   //
-  nsRefPtr<nsDocumentOpenInfo> nextLink =
+  nsCOMPtr<nsDocumentOpenInfo> nextLink =
     new nsDocumentOpenInfo(m_originalContext, mFlags, mURILoader);
   if (!nextLink) return NS_ERROR_OUT_OF_MEMORY;
 
@@ -834,7 +812,7 @@ nsresult nsURILoader::OpenChannel(nsIChannel* channel,
 
   // we need to create a DocumentOpenInfo object which will go ahead and open
   // the url and discover the content type....
-  nsRefPtr<nsDocumentOpenInfo> loader =
+  nsCOMPtr<nsDocumentOpenInfo> loader =
     new nsDocumentOpenInfo(aWindowContext, aFlags, this);
 
   if (!loader) return NS_ERROR_OUT_OF_MEMORY;

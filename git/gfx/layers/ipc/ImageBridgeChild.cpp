@@ -239,13 +239,13 @@ ImageBridgeChild::Connect(CompositableClient* aCompositable)
 }
 
 PCompositableChild*
-ImageBridgeChild::AllocPCompositableChild(const TextureInfo& aInfo, uint64_t* aID)
+ImageBridgeChild::AllocPCompositable(const TextureInfo& aInfo, uint64_t* aID)
 {
   return new CompositableChild();
 }
 
 bool
-ImageBridgeChild::DeallocPCompositableChild(PCompositableChild* aActor)
+ImageBridgeChild::DeallocPCompositable(PCompositableChild* aActor)
 {
   delete aActor;
   return true;
@@ -522,8 +522,8 @@ ImageBridgeChild::CreateImageClientNow(CompositableType aType)
 }
 
 PGrallocBufferChild*
-ImageBridgeChild::AllocPGrallocBufferChild(const gfxIntSize&, const uint32_t&, const uint32_t&,
-                                           MaybeMagicGrallocBufferHandle*)
+ImageBridgeChild::AllocPGrallocBuffer(const gfxIntSize&, const uint32_t&, const uint32_t&,
+                                      MaybeMagicGrallocBufferHandle*)
 {
 #ifdef MOZ_HAVE_SURFACEDESCRIPTORGRALLOC
   return GrallocBufferActor::Create();
@@ -534,7 +534,7 @@ ImageBridgeChild::AllocPGrallocBufferChild(const gfxIntSize&, const uint32_t&, c
 }
 
 bool
-ImageBridgeChild::DeallocPGrallocBufferChild(PGrallocBufferChild* actor)
+ImageBridgeChild::DeallocPGrallocBuffer(PGrallocBufferChild* actor)
 {
 #ifdef MOZ_HAVE_SURFACEDESCRIPTORGRALLOC
   delete actor;

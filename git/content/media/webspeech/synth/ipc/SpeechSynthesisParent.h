@@ -27,14 +27,14 @@ public:
 protected:
   SpeechSynthesisParent();
   virtual ~SpeechSynthesisParent();
-  PSpeechSynthesisRequestParent* AllocPSpeechSynthesisRequestParent(const nsString& aText,
-                                                                    const nsString& aLang,
-                                                                    const nsString& aUri,
-                                                                    const float& aVolume,
-                                                                    const float& aRate,
-                                                                    const float& aPitch);
+  PSpeechSynthesisRequestParent* AllocPSpeechSynthesisRequest(const nsString& aText,
+                                                              const nsString& aLang,
+                                                              const nsString& aUri,
+                                                              const float& aVolume,
+                                                              const float& aRate,
+                                                              const float& aPitch);
 
-  bool DeallocPSpeechSynthesisRequestParent(PSpeechSynthesisRequestParent* aActor);
+  bool DeallocPSpeechSynthesisRequest(PSpeechSynthesisRequestParent* aActor);
 
   bool RecvPSpeechSynthesisRequestConstructor(PSpeechSynthesisRequestParent* aActor,
                                               const nsString& aText,

@@ -105,12 +105,12 @@ protected:
     virtual bool
     AnswerHandleTextEvent(const nsTextEvent& aEvent, bool* handled);
 
-    virtual PPluginSurfaceChild* AllocPPluginSurfaceChild(const WindowsSharedMemoryHandle&,
-                                                          const gfxIntSize&, const bool&) {
+    virtual PPluginSurfaceChild* AllocPPluginSurface(const WindowsSharedMemoryHandle&,
+                                                     const gfxIntSize&, const bool&) {
         return new PPluginSurfaceChild();
     }
 
-    virtual bool DeallocPPluginSurfaceChild(PPluginSurfaceChild* s) {
+    virtual bool DeallocPPluginSurface(PPluginSurfaceChild* s) {
         delete s;
         return true;
     }
@@ -132,24 +132,24 @@ protected:
     AnswerNPP_Destroy(NPError* result);
 
     virtual PPluginScriptableObjectChild*
-    AllocPPluginScriptableObjectChild();
+    AllocPPluginScriptableObject();
 
     virtual bool
-    DeallocPPluginScriptableObjectChild(PPluginScriptableObjectChild* aObject);
+    DeallocPPluginScriptableObject(PPluginScriptableObjectChild* aObject);
 
     virtual bool
     RecvPPluginScriptableObjectConstructor(PPluginScriptableObjectChild* aActor) MOZ_OVERRIDE;
 
     virtual PBrowserStreamChild*
-    AllocPBrowserStreamChild(const nsCString& url,
-                             const uint32_t& length,
-                             const uint32_t& lastmodified,
-                             PStreamNotifyChild* notifyData,
-                             const nsCString& headers,
-                             const nsCString& mimeType,
-                             const bool& seekable,
-                             NPError* rv,
-                             uint16_t *stype);
+    AllocPBrowserStream(const nsCString& url,
+                        const uint32_t& length,
+                        const uint32_t& lastmodified,
+                        PStreamNotifyChild* notifyData,
+                        const nsCString& headers,
+                        const nsCString& mimeType,
+                        const bool& seekable,
+                        NPError* rv,
+                        uint16_t *stype);
 
     virtual bool
     AnswerPBrowserStreamConstructor(
@@ -165,24 +165,24 @@ protected:
             uint16_t* stype);
         
     virtual bool
-    DeallocPBrowserStreamChild(PBrowserStreamChild* stream);
+    DeallocPBrowserStream(PBrowserStreamChild* stream);
 
     virtual PPluginStreamChild*
-    AllocPPluginStreamChild(const nsCString& mimeType,
-                            const nsCString& target,
-                            NPError* result);
+    AllocPPluginStream(const nsCString& mimeType,
+                       const nsCString& target,
+                       NPError* result);
 
     virtual bool
-    DeallocPPluginStreamChild(PPluginStreamChild* stream);
+    DeallocPPluginStream(PPluginStreamChild* stream);
 
     virtual PStreamNotifyChild*
-    AllocPStreamNotifyChild(const nsCString& url, const nsCString& target,
-                            const bool& post, const nsCString& buffer,
-                            const bool& file,
-                            NPError* result);
+    AllocPStreamNotify(const nsCString& url, const nsCString& target,
+                       const bool& post, const nsCString& buffer,
+                       const bool& file,
+                       NPError* result);
 
     virtual bool
-    DeallocPStreamNotifyChild(PStreamNotifyChild* notifyData) MOZ_OVERRIDE;
+    DeallocPStreamNotify(PStreamNotifyChild* notifyData) MOZ_OVERRIDE;
 
     virtual bool
     AnswerSetPluginFocus();
@@ -260,13 +260,13 @@ private:
                                       const nsIntRect& aRect) MOZ_OVERRIDE;
 
     virtual PPluginBackgroundDestroyerChild*
-    AllocPPluginBackgroundDestroyerChild() MOZ_OVERRIDE;
+    AllocPPluginBackgroundDestroyer() MOZ_OVERRIDE;
 
     virtual bool
     RecvPPluginBackgroundDestroyerConstructor(PPluginBackgroundDestroyerChild* aActor) MOZ_OVERRIDE;
 
     virtual bool
-    DeallocPPluginBackgroundDestroyerChild(PPluginBackgroundDestroyerChild* aActor) MOZ_OVERRIDE;
+    DeallocPPluginBackgroundDestroyer(PPluginBackgroundDestroyerChild* aActor) MOZ_OVERRIDE;
 
 #if defined(OS_WIN)
     static bool RegisterWindowClass();

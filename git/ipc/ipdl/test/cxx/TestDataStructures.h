@@ -48,14 +48,14 @@ public:
     void Main();
 
 protected:
-    virtual PTestDataStructuresSubParent* AllocPTestDataStructuresSubParent(const int& i) MOZ_OVERRIDE
+    virtual PTestDataStructuresSubParent* AllocPTestDataStructuresSub(const int& i) MOZ_OVERRIDE
     {
         PTestDataStructuresSubParent* actor = new TestDataStructuresSub(i);
         mKids.AppendElement(actor);
         return actor;
     }
 
-    virtual bool DeallocPTestDataStructuresSubParent(PTestDataStructuresSubParent* actor) MOZ_OVERRIDE;
+    virtual bool DeallocPTestDataStructuresSub(PTestDataStructuresSubParent* actor) MOZ_OVERRIDE;
 
     virtual bool RecvTest1(
             const InfallibleTArray<int>& i1,
@@ -180,14 +180,14 @@ public:
     virtual ~TestDataStructuresChild();
 
 protected:
-    virtual PTestDataStructuresSubChild* AllocPTestDataStructuresSubChild(const int& i) MOZ_OVERRIDE
+    virtual PTestDataStructuresSubChild* AllocPTestDataStructuresSub(const int& i) MOZ_OVERRIDE
     {
         PTestDataStructuresSubChild* actor = new TestDataStructuresSub(i);
         mKids.AppendElement(actor);
         return actor;
     }
 
-    virtual bool DeallocPTestDataStructuresSubChild(PTestDataStructuresSubChild* actor) MOZ_OVERRIDE
+    virtual bool DeallocPTestDataStructuresSub(PTestDataStructuresSubChild* actor) MOZ_OVERRIDE
     {
         delete actor;
         return true;

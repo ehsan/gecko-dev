@@ -139,8 +139,7 @@ nsSystemTimeChangeObserver::RemoveWindowListenerImpl(nsPIDOMWindow* aWindow)
     }
   }
 
-  nsWeakPtr windowWeakRef = do_GetWeakReference(aWindow);
-  mWindowListeners.RemoveElement(windowWeakRef);
+  mWindowListeners.RemoveElement(NS_GetWeakReference(aWindow));
 
   if (mWindowListeners.IsEmpty()) {
     UnregisterSystemClockChangeObserver(sObserver);

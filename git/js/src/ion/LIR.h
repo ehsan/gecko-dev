@@ -164,9 +164,6 @@ class LAllocation : public TempObject
     bool isRegister() const {
         return isGeneralReg() || isFloatReg();
     }
-    bool isRegister(bool needFloat) const {
-        return needFloat ? isFloatReg() : isGeneralReg();
-    }
     bool isMemory() const {
         return isStackSlot() || isArgument();
     }

@@ -48,7 +48,7 @@
 #include "nsIPrincipal.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsGUIEvent.h"
-#include "mozilla/dom/XBLChildrenElement.h"
+#include "nsXBLChildrenElement.h"
 
 #include "prprf.h"
 #include "nsNodeUtils.h"
@@ -338,7 +338,7 @@ nsXBLBinding::GenerateAnonymousContent()
     // order.
     for (nsIContent* child = mContent; child; child = child->GetNextNode(mContent)) {
       if (child->NodeInfo()->Equals(nsGkAtoms::children, kNameSpaceID_XBL)) {
-        XBLChildrenElement* point = static_cast<XBLChildrenElement*>(child);
+        nsXBLChildrenElement* point = static_cast<nsXBLChildrenElement*>(child);
         if (point->IsDefaultInsertion()) {
           mDefaultInsertionPoint = point;
         } else {
@@ -361,7 +361,7 @@ nsXBLBinding::GenerateAnonymousContent()
     } else if (!mInsertionPoints.IsEmpty()) {
       ExplicitChildIterator iter(mBoundElement);
       for (nsIContent* child = iter.GetNextChild(); child; child = iter.GetNextChild()) {
-        XBLChildrenElement* point = FindInsertionPointForInternal(child);
+        nsXBLChildrenElement* point = FindInsertionPointForInternal(child);
         if (point) {
           point->AppendInsertedChild(child, bindingManager);
         }
@@ -404,7 +404,7 @@ nsXBLBinding::GenerateAnonymousContent()
   }
 }
 
-XBLChildrenElement*
+nsXBLChildrenElement*
 nsXBLBinding::FindInsertionPointFor(nsIContent* aChild)
 {
   // XXX We should get rid of this function as it causes us to traverse the
@@ -417,11 +417,11 @@ nsXBLBinding::FindInsertionPointFor(nsIContent* aChild)
                       : nullptr;
 }
 
-XBLChildrenElement*
+nsXBLChildrenElement*
 nsXBLBinding::FindInsertionPointForInternal(nsIContent* aChild)
 {
   for (uint32_t i = 0; i < mInsertionPoints.Length(); ++i) {
-    XBLChildrenElement* point = mInsertionPoints[i];
+    nsXBLChildrenElement* point = mInsertionPoints[i];
     if (point->Includes(aChild)) {
       return point;
     }
@@ -681,7 +681,7 @@ nsXBLBinding::UnhookEventHandlers()
 
 static void
 UpdateInsertionParent(nsBindingManager* aBindingManager,
-                      XBLChildrenElement* aPoint,
+                      nsXBLChildrenElement* aPoint,
                       nsIContent* aOldBoundElement)
 {
   if (aPoint->IsDefaultInsertion()) {

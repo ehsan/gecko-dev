@@ -1674,9 +1674,10 @@ CodeGeneratorARM::generateInvalidateEpilogue()
 }
 
 void
-DispatchIonCache::initializeAddCacheState(LInstruction *ins, AddCacheState *addState)
+ParallelGetPropertyIC::initializeAddCacheState(LInstruction *ins, AddCacheState *addState)
 {
     // Can always use the scratch register on ARM.
+    JS_ASSERT(ins->isGetPropertyCacheV() || ins->isGetPropertyCacheT());
     addState->dispatchScratch = ScratchRegister;
 }
 

@@ -18,13 +18,13 @@ using mozilla::ipc::PTestShellCommandParent;
 using mozilla::dom::ContentParent;
 
 PTestShellCommandParent*
-TestShellParent::AllocPTestShellCommandParent(const nsString& aCommand)
+TestShellParent::AllocPTestShellCommand(const nsString& aCommand)
 {
   return new TestShellCommandParent();
 }
 
 bool
-TestShellParent::DeallocPTestShellCommandParent(PTestShellCommandParent* aActor)
+TestShellParent::DeallocPTestShellCommand(PTestShellCommandParent* aActor)
 {
   delete aActor;
   return true;
@@ -74,7 +74,7 @@ TestShellCommandParent::RunCallback(const nsString& aResponse)
 
   JS::Rooted<JS::Value> rval(mCx);
   JSBool ok = JS_CallFunctionValue(mCx, global, mCallback, 1, strVal.address(),
-                                   rval.address());
+				   rval.address());
   NS_ENSURE_TRUE(ok, JS_FALSE);
 
   return JS_TRUE;

@@ -24,6 +24,7 @@
 #include "mozilla/Decimal.h"
 
 class nsDOMFileList;
+class nsIFilePicker;
 class nsIRadioGroupContainer;
 class nsIRadioGroupVisitor;
 class nsIRadioVisitor;

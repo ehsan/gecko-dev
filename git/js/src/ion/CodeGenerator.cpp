@@ -1178,34 +1178,6 @@ CodeGenerator::visitConvertElementsToDoubles(LConvertElementsToDoubles *lir)
 }
 
 bool
-CodeGenerator::visitMaybeToDoubleElement(LMaybeToDoubleElement *lir)
-{
-    Register elements = ToRegister(lir->elements());
-    Register value = ToRegister(lir->value());
-    ValueOperand out = ToOutValue(lir);
-
-    FloatRegister temp = ToFloatRegister(lir->tempFloat());
-    Label convert, done;
-
-    // If the CONVERT_DOUBLE_ELEMENTS flag is set, convert the int32
-    // value to double. Else, just box it.
-    masm.branchTest32(Assembler::NonZero,
-                      Address(elements, ObjectElements::offsetOfFlags()),
-                      Imm32(ObjectElements::CONVERT_DOUBLE_ELEMENTS),
-                      &convert);
-
-    masm.tagValue(JSVAL_TYPE_INT32, value, out);
-    masm.jump(&done);
-
-    masm.bind(&convert);
-    masm.convertInt32ToDouble(value, temp);
-    masm.boxDouble(temp, out);
-
-    masm.bind(&done);
-    return true;
-}
-
-bool
 CodeGenerator::visitFunctionEnvironment(LFunctionEnvironment *lir)
 {
     Address environment(ToRegister(lir->function()), JSFunction::offsetOfEnvironment());
@@ -2465,7 +2437,7 @@ CodeGenerator::maybeCreateScriptCounts()
     // If scripts are being profiled, create a new IonScriptCounts and attach
     // it to the script. This must be done on the main thread.
     JSContext *cx = GetIonContext()->cx;
-    if (!cx || !cx->runtime()->profilingScripts)
+    if (!cx)
         return NULL;
 
     IonScriptCounts *counts = NULL;
@@ -2473,7 +2445,14 @@ CodeGenerator::maybeCreateScriptCounts()
     CompileInfo *outerInfo = &gen->info();
     JSScript *script = outerInfo->script();
 
-    if (script && !script->hasScriptCounts && !script->initScriptCounts(cx))
+    if (cx->runtime()->profilingScripts) {
+        if (script && !script->hasScriptCounts && !script->initScriptCounts(cx))
+            return NULL;
+    } else if (!script) {
+        return NULL;
+    }
+
+    if (script && !script->hasScriptCounts)
         return NULL;
 
     counts = js_new<IonScriptCounts>();
@@ -5831,31 +5810,15 @@ CodeGenerator::visitParallelGetPropertyIC(OutOfLineUpdateCache *ool, ParallelGet
 }
 
 bool
-CodeGenerator::addGetElementCache(LInstruction *ins, Register obj, ConstantOrRegister index,
-                                  TypedOrValueRegister output, bool monitoredResult)
-{
-    switch (gen->info().executionMode()) {
-      case SequentialExecution: {
-        GetElementIC cache(obj, index, output, monitoredResult);
-        return addCache(ins, allocateCache(cache));
-      }
-      case ParallelExecution: {
-        ParallelGetElementIC cache(obj, index, output, monitoredResult);
-        return addCache(ins, allocateCache(cache));
-      }
-      default:
-        MOZ_ASSUME_UNREACHABLE("Bad execution mode");
-    }
-}
-
-bool
 CodeGenerator::visitGetElementCacheV(LGetElementCacheV *ins)
 {
     Register obj = ToRegister(ins->object());
     ConstantOrRegister index = TypedOrValueRegister(ToValue(ins, LGetElementCacheV::Index));
     TypedOrValueRegister output = TypedOrValueRegister(GetValueOutput(ins));
 
-    return addGetElementCache(ins, obj, index, output, ins->mir()->monitoredResult());
+    GetElementIC cache(obj, index, output, ins->mir()->monitoredResult());
+
+    return addCache(ins, allocateCache(cache));
 }
 
 bool
@@ -5865,7 +5828,9 @@ CodeGenerator::visitGetElementCacheT(LGetElementCacheT *ins)
     ConstantOrRegister index = TypedOrValueRegister(MIRType_Int32, ToAnyRegister(ins->index()));
     TypedOrValueRegister output(ins->mir()->type(), ToAnyRegister(ins->output()));
 
-    return addGetElementCache(ins, obj, index, output, ins->mir()->monitoredResult());
+    GetElementIC cache(obj, index, output, ins->mir()->monitoredResult());
+
+    return addCache(ins, allocateCache(cache));
 }
 
 typedef bool (*GetElementICFn)(JSContext *, size_t, HandleObject, HandleValue, MutableHandleValue);
@@ -5938,29 +5903,6 @@ CodeGenerator::visitSetElementIC(OutOfLineUpdateCache *ool, SetElementIC *ic)
     if (!callVM(SetElementIC::UpdateInfo, lir))
         return false;
     restoreLive(lir);
-
-    masm.jump(ool->rejoin());
-    return true;
-}
-
-typedef ParallelResult (*ParallelGetElementICFn)(ForkJoinSlice *, size_t, HandleObject,
-                                                 HandleValue, MutableHandleValue);
-const VMFunction ParallelGetElementIC::UpdateInfo =
-    FunctionInfo<ParallelGetElementICFn>(ParallelGetElementIC::update);
-
-bool
-CodeGenerator::visitParallelGetElementIC(OutOfLineUpdateCache *ool, ParallelGetElementIC *ic)
-{
-    LInstruction *lir = ool->lir();
-    saveLive(lir);
-
-    pushArg(ic->index());
-    pushArg(ic->object());
-    pushArg(Imm32(ool->getCacheIndex()));
-    if (!callVM(ParallelGetElementIC::UpdateInfo, lir))
-        return false;
-    StoreValueTo(ic->output()).generate(this);
-    restoreLiveIgnore(lir, StoreValueTo(ic->output()).clobbered());
 
     masm.jump(ool->rejoin());
     return true;

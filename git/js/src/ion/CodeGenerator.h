@@ -88,7 +88,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitStoreSlotV(LStoreSlotV *store);
     bool visitElements(LElements *lir);
     bool visitConvertElementsToDoubles(LConvertElementsToDoubles *lir);
-    bool visitMaybeToDoubleElement(LMaybeToDoubleElement *lir);
     bool visitTypeBarrier(LTypeBarrier *lir);
     bool visitMonitorTypes(LMonitorTypes *lir);
     bool visitPostWriteBarrierO(LPostWriteBarrierO *lir);
@@ -288,7 +287,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitParallelGetPropertyIC(OutOfLineUpdateCache *ool, ParallelGetPropertyIC *ic);
     bool visitSetPropertyIC(OutOfLineUpdateCache *ool, SetPropertyIC *ic);
     bool visitGetElementIC(OutOfLineUpdateCache *ool, GetElementIC *ic);
-    bool visitParallelGetElementIC(OutOfLineUpdateCache *ool, ParallelGetElementIC *ic);
     bool visitSetElementIC(OutOfLineUpdateCache *ool, SetElementIC *ic);
     bool visitBindNameIC(OutOfLineUpdateCache *ool, BindNameIC *ic);
     bool visitNameIC(OutOfLineUpdateCache *ool, NameIC *ic);
@@ -304,8 +302,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool addGetPropertyCache(LInstruction *ins, RegisterSet liveRegs, Register objReg,
                              PropertyName *name, TypedOrValueRegister output,
                              bool allowGetters);
-    bool addGetElementCache(LInstruction *ins, Register obj, ConstantOrRegister index,
-                            TypedOrValueRegister output, bool monitoredResult);
     bool checkForParallelBailout(LInstruction *lir);
 
     bool generateBranchV(const ValueOperand &value, Label *ifTrue, Label *ifFalse, FloatRegister fr);

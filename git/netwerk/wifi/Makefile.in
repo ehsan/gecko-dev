@@ -18,6 +18,10 @@ ifneq ($(OS_ARCH),Darwin)
 FAIL_ON_WARNINGS := 1
 endif
 
+ifeq ($(OS_ARCH),Darwin)
+DISABLED_CMMSRCS = osx_corewlan.mm
+endif
+
 ifeq ($(OS_ARCH),SunOS)
 OS_INCLUDES += $(GLIB_CFLAGS)
 endif

@@ -27,7 +27,7 @@
 #include "nsXBLBinding.h"
 #include "nsXBLPrototypeBinding.h"
 #include "nsXBLDocumentInfo.h"
-#include "mozilla/dom/XBLChildrenElement.h"
+#include "nsXBLChildrenElement.h"
 
 #include "nsIStyleRuleProcessor.h"
 #include "nsRuleProcessorData.h"
@@ -48,7 +48,6 @@
 #include "mozilla/dom/NodeListBinding.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 //
 // Generic pldhash table stuff for mapping one nsISupports to another
@@ -971,7 +970,7 @@ nsBindingManager::AppendAllSheets(nsTArray<nsCSSStyleSheet*>& aArray)
 
 static void
 InsertAppendedContent(nsBindingManager* aManager,
-                      XBLChildrenElement* aPoint,
+                      nsXBLChildrenElement* aPoint,
                       nsIContent* aFirstNewContent)
 {
   uint32_t insertionIndex;
@@ -1009,7 +1008,7 @@ nsBindingManager::ContentAppended(nsIDocument* aDocument,
   }
 
   // Try to find insertion points for all the new kids.
-  XBLChildrenElement* point = nullptr;
+  nsXBLChildrenElement* point = nullptr;
   nsIContent* parent = aContainer;
   bool first = true;
   do {
@@ -1082,7 +1081,7 @@ nsBindingManager::ContentRemoved(nsIDocument* aDocument,
 {
   SetInsertionParent(aChild, nullptr);
 
-  XBLChildrenElement* point = nullptr;
+  nsXBLChildrenElement* point = nullptr;
   nsIContent* parent = aContainer;
   do {
     nsXBLBinding* binding = GetBindingWithContent(parent);
@@ -1119,7 +1118,7 @@ void
 nsBindingManager::ClearInsertionPointsRecursively(nsIContent* aContent)
 {
   if (aContent->NodeInfo()->Equals(nsGkAtoms::children, kNameSpaceID_XBL)) {
-    static_cast<XBLChildrenElement*>(aContent)->ClearInsertedChildrenAndInsertionParents(this);
+    static_cast<nsXBLChildrenElement*>(aContent)->ClearInsertedChildrenAndInsertionParents(this);
   }
 
   uint32_t childCount = aContent->GetChildCount();
@@ -1212,7 +1211,7 @@ nsBindingManager::HandleChildInsertion(nsIContent* aContainer,
                   uint32_t(aContainer->IndexOf(aChild)) == aIndexInContainer,
                   "Child not at the right index?");
 
-  XBLChildrenElement* point = nullptr;
+  nsXBLChildrenElement* point = nullptr;
   nsIContent* parent = aContainer;
   while (parent) {
     nsXBLBinding* binding = GetBindingWithContent(parent);
@@ -1264,7 +1263,7 @@ nsBindingManager::FindNestedInsertionPoint(nsIContent* aContainer,
 
   nsIContent* parent = aContainer;
   if (aContainer->NodeInfo()->Equals(nsGkAtoms::children, kNameSpaceID_XBL)) {
-    if (static_cast<XBLChildrenElement*>(aContainer)->
+    if (static_cast<nsXBLChildrenElement*>(aContainer)->
           HasInsertedChildren()) {
       return nullptr;
     }
@@ -1277,7 +1276,7 @@ nsBindingManager::FindNestedInsertionPoint(nsIContent* aContainer,
       break;
     }
   
-    XBLChildrenElement* point = binding->FindInsertionPointFor(aChild);
+    nsXBLChildrenElement* point = binding->FindInsertionPointFor(aChild);
     if (!point) {
       return nullptr;
     }
@@ -1300,7 +1299,7 @@ nsBindingManager::FindNestedSingleInsertionPoint(nsIContent* aContainer,
 
   nsIContent* parent = aContainer;
   if (aContainer->NodeInfo()->Equals(nsGkAtoms::children, kNameSpaceID_XBL)) {
-    if (static_cast<XBLChildrenElement*>(aContainer)->
+    if (static_cast<nsXBLChildrenElement*>(aContainer)->
           HasInsertedChildren()) {
       return nullptr;
     }
@@ -1318,7 +1317,7 @@ nsBindingManager::FindNestedSingleInsertionPoint(nsIContent* aContainer,
       return nullptr;
     }
 
-    XBLChildrenElement* point = binding->GetDefaultInsertionPoint();
+    nsXBLChildrenElement* point = binding->GetDefaultInsertionPoint();
     if (!point) {
       return nullptr;
     }
