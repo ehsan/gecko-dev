@@ -83,7 +83,6 @@ gfxGDIFont::ShapeText(gfxContext     *aContext,
                       uint32_t        aOffset,
                       uint32_t        aLength,
                       int32_t         aScript,
-                      bool            aVertical,
                       gfxShapedText  *aShapedText)
 {
     if (!mMetrics) {
@@ -103,7 +102,7 @@ gfxGDIFont::ShapeText(gfxContext     *aContext,
     }
 
     return gfxFont::ShapeText(aContext, aText, aOffset, aLength, aScript,
-                              aVertical, aShapedText);
+                              aShapedText);
 }
 
 const gfxFont::Metrics&

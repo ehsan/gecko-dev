@@ -51,14 +51,14 @@ class InlineMap
     }
 
     bool switchToMap() {
-        MOZ_ASSERT(inlNext == InlineElems);
+        JS_ASSERT(inlNext == InlineElems);
 
         if (map.initialized()) {
             map.clear();
         } else {
             if (!map.init(count()))
                 return false;
-            MOZ_ASSERT(map.initialized());
+            JS_ASSERT(map.initialized());
         }
 
         for (InlineElem *it = inl, *end = inl + inlNext; it != end; ++it) {
@@ -67,8 +67,8 @@ class InlineMap
         }
 
         inlNext = InlineElems + 1;
-        MOZ_ASSERT(map.count() == inlCount);
-        MOZ_ASSERT(usingMap());
+        JS_ASSERT(map.count() == inlCount);
+        JS_ASSERT(usingMap());
         return true;
     }
 
@@ -133,12 +133,12 @@ class InlineMap
         }
 
         K &key() {
-            MOZ_ASSERT(found());
+            JS_ASSERT(found());
             return isInlinePtr ? inlPtr->key : mapPtr->key();
         }
 
         V &value() {
-            MOZ_ASSERT(found());
+            JS_ASSERT(found());
             return isInlinePtr ? inlPtr->value : mapPtr->value();
         }
     }; /* class Ptr */
@@ -175,7 +175,7 @@ class InlineMap
         }
 
         V &value() {
-            MOZ_ASSERT(found());
+            JS_ASSERT(found());
             if (isInlinePtr)
                 return inlAddPtr->value;
             return mapAddPtr->value();
@@ -200,17 +200,17 @@ class InlineMap
     }
 
     const WordMap &asMap() const {
-        MOZ_ASSERT(isMap());
+        JS_ASSERT(isMap());
         return map;
     }
 
     const InlineElem *asInline() const {
-        MOZ_ASSERT(!isMap());
+        JS_ASSERT(!isMap());
         return inl;
     }
 
     const InlineElem *inlineEnd() const {
-        MOZ_ASSERT(!isMap());
+        JS_ASSERT(!isMap());
         return inl + inlNext;
     }
 
@@ -247,18 +247,18 @@ class InlineMap
 
     MOZ_ALWAYS_INLINE
     bool add(AddPtr &p, const K &key, const V &value) {
-        MOZ_ASSERT(!p);
+        JS_ASSERT(!p);
 
         if (p.isInlinePtr) {
             InlineElem *addPtr = p.inlAddPtr;
-            MOZ_ASSERT(addPtr == inl + inlNext);
+            JS_ASSERT(addPtr == inl + inlNext);
 
             /* Switching to map mode before we add this pointer. */
             if (addPtr == inl + InlineElems)
                 return switchAndAdd(key, value);
 
-            MOZ_ASSERT(!p.found());
-            MOZ_ASSERT(uintptr_t(inl + inlNext) == uintptr_t(p.inlAddPtr));
+            JS_ASSERT(!p.found());
+            JS_ASSERT(uintptr_t(inl + inlNext) == uintptr_t(p.inlAddPtr));
             p.inlAddPtr->key = key;
             p.inlAddPtr->value = value;
             ++inlCount;
@@ -280,15 +280,15 @@ class InlineMap
     }
 
     void remove(Ptr p) {
-        MOZ_ASSERT(p);
+        JS_ASSERT(p);
         if (p.isInlinePtr) {
-            MOZ_ASSERT(inlCount > 0);
-            MOZ_ASSERT(p.inlPtr->key != nullptr);
+            JS_ASSERT(inlCount > 0);
+            JS_ASSERT(p.inlPtr->key != nullptr);
             p.inlPtr->key = nullptr;
             --inlCount;
             return;
         }
-        MOZ_ASSERT(map.initialized() && usingMap());
+        JS_ASSERT(map.initialized() && usingMap());
         map.remove(p.mapPtr);
     }
 
@@ -310,7 +310,7 @@ class InlineMap
           : cur(nullptr), end(nullptr), /* Avoid GCC 4.3.3 over-warning. */
             isInline(false) {
             mapRange = r;
-            MOZ_ASSERT(!isInlineRange());
+            JS_ASSERT(!isInlineRange());
         }
 
         Range(const InlineElem *begin, const InlineElem *end_)
@@ -318,17 +318,17 @@ class InlineMap
             end(const_cast<InlineElem *>(end_)),
             isInline(true) {
             advancePastNulls(cur);
-            MOZ_ASSERT(isInlineRange());
+            JS_ASSERT(isInlineRange());
         }
 
         bool checkInlineRangeInvariants() const {
-            MOZ_ASSERT(uintptr_t(cur) <= uintptr_t(end));
-            MOZ_ASSERT_IF(cur != end, cur->key != nullptr);
+            JS_ASSERT(uintptr_t(cur) <= uintptr_t(end));
+            JS_ASSERT_IF(cur != end, cur->key != nullptr);
             return true;
         }
 
         bool isInlineRange() const {
-            MOZ_ASSERT_IF(isInline, checkInlineRangeInvariants());
+            JS_ASSERT_IF(isInline, checkInlineRangeInvariants());
             return isInline;
         }
 
@@ -336,12 +336,12 @@ class InlineMap
             InlineElem *newCur = begin;
             while (newCur < end && nullptr == newCur->key)
                 ++newCur;
-            MOZ_ASSERT(uintptr_t(newCur) <= uintptr_t(end));
+            JS_ASSERT(uintptr_t(newCur) <= uintptr_t(end));
             cur = newCur;
         }
 
         void bumpCurPtr() {
-            MOZ_ASSERT(isInlineRange());
+            JS_ASSERT(isInlineRange());
             advancePastNulls(cur + 1);
         }
 
@@ -353,14 +353,14 @@ class InlineMap
         }
 
         Entry front() {
-            MOZ_ASSERT(!empty());
+            JS_ASSERT(!empty());
             if (isInlineRange())
                 return Entry(cur->key, cur->value);
             return Entry(mapRange.front().key(), mapRange.front().value());
         }
 
         void popFront() {
-            MOZ_ASSERT(!empty());
+            JS_ASSERT(!empty());
             if (isInlineRange())
                 bumpCurPtr();
             else

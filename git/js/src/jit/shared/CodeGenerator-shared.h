@@ -133,7 +133,7 @@ class CodeGeneratorShared : public LInstructionVisitor
     }
 
     inline void setOsrEntryOffset(size_t offset) {
-        MOZ_ASSERT(osrEntryOffset_ == 0);
+        JS_ASSERT(osrEntryOffset_ == 0);
         osrEntryOffset_ = offset;
     }
     inline size_t getOsrEntryOffset() const {
@@ -145,7 +145,7 @@ class CodeGeneratorShared : public LInstructionVisitor
     size_t skipArgCheckEntryOffset_;
 
     inline void setSkipArgCheckEntryOffset(size_t offset) {
-        MOZ_ASSERT(skipArgCheckEntryOffset_ == 0);
+        JS_ASSERT(skipArgCheckEntryOffset_ == 0);
         skipArgCheckEntryOffset_ = offset;
     }
     inline size_t getSkipArgCheckEntryOffset() const {
@@ -191,9 +191,9 @@ class CodeGeneratorShared : public LInstructionVisitor
     }
 
     inline int32_t SlotToStackOffset(int32_t slot) const {
-        MOZ_ASSERT(slot > 0 && slot <= int32_t(graph.localSlotCount()));
+        JS_ASSERT(slot > 0 && slot <= int32_t(graph.localSlotCount()));
         int32_t offset = masm.framePushed() - frameInitialAdjustment_ - slot;
-        MOZ_ASSERT(offset >= 0);
+        JS_ASSERT(offset >= 0);
         return offset;
     }
     inline int32_t StackOffsetToSlot(int32_t offset) const {
@@ -209,7 +209,7 @@ class CodeGeneratorShared : public LInstructionVisitor
     // For argument construction for calls. Argslots are Value-sized.
     inline int32_t StackOffsetOfPassedArg(int32_t slot) const {
         // A slot of 0 is permitted only to calculate %esp offset for calls.
-        MOZ_ASSERT(slot >= 0 && slot <= int32_t(graph.argumentSlotCount()));
+        JS_ASSERT(slot >= 0 && slot <= int32_t(graph.argumentSlotCount()));
         int32_t offset = masm.framePushed() -
                        graph.paddedLocalSlotsSize() -
                        (slot * sizeof(Value));
@@ -220,8 +220,8 @@ class CodeGeneratorShared : public LInstructionVisitor
         // by sizeof(Value) is desirable since everything on the stack is a Value.
         // Note that paddedLocalSlotCount() aligns to at least a Value boundary
         // specifically to support this.
-        MOZ_ASSERT(offset >= 0);
-        MOZ_ASSERT(offset % sizeof(Value) == 0);
+        JS_ASSERT(offset >= 0);
+        JS_ASSERT(offset % sizeof(Value) == 0);
         return offset;
     }
 
@@ -288,7 +288,7 @@ class CodeGeneratorShared : public LInstructionVisitor
   protected:
 
     size_t allocateData(size_t size) {
-        MOZ_ASSERT(size % sizeof(void *) == 0);
+        JS_ASSERT(size % sizeof(void *) == 0);
         size_t dataOffset = runtimeData_.length();
         masm.propagateOOM(runtimeData_.appendN(0, size));
         return dataOffset;
@@ -300,7 +300,7 @@ class CodeGeneratorShared : public LInstructionVisitor
         if (masm.oom())
             return SIZE_MAX;
         // Use the copy constructor on the allocated space.
-        MOZ_ASSERT(index == cacheList_.back());
+        JS_ASSERT(index == cacheList_.back());
         new (&runtimeData_[index]) T(cache);
         return index;
     }
@@ -358,7 +358,7 @@ class CodeGeneratorShared : public LInstructionVisitor
     // actually branch directly to.
     MBasicBlock *skipTrivialBlocks(MBasicBlock *block) {
         while (block->lir()->isTrivial()) {
-            MOZ_ASSERT(block->lir()->rbegin()->numSuccessors() == 1);
+            JS_ASSERT(block->lir()->rbegin()->numSuccessors() == 1);
             block = block->lir()->rbegin()->getSuccessor(0);
         }
         return block;
@@ -767,8 +767,8 @@ inline OutOfLineCode *
 CodeGeneratorShared::oolCallVM(const VMFunction &fun, LInstruction *lir, const ArgSeq &args,
                                const StoreOutputTo &out)
 {
-    MOZ_ASSERT(lir->mirRaw());
-    MOZ_ASSERT(lir->mirRaw()->isInstruction());
+    JS_ASSERT(lir->mirRaw());
+    JS_ASSERT(lir->mirRaw()->isInstruction());
 
     OutOfLineCode *ool = new(alloc()) OutOfLineCallVM<ArgSeq, StoreOutputTo>(lir, fun, args, out);
     if (!addOutOfLineCode(ool, lir->mirRaw()->toInstruction()))

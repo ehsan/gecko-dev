@@ -104,7 +104,7 @@ js::SetPropertyIgnoringNamedGetter(JSContext *cx, const BaseProxyHandler *handle
 {
     /* The control-flow here differs from ::get() because of the fall-through case below. */
     if (descIsOwn) {
-        MOZ_ASSERT(desc.object());
+        JS_ASSERT(desc.object());
 
         // Check for read-only properties.
         if (desc.isReadonly())
@@ -168,7 +168,7 @@ bool
 BaseProxyHandler::keys(JSContext *cx, HandleObject proxy, AutoIdVector &props) const
 {
     assertEnteredPolicy(cx, proxy, JSID_VOID, ENUMERATE);
-    MOZ_ASSERT(props.length() == 0);
+    JS_ASSERT(props.length() == 0);
 
     if (!getOwnPropertyNames(cx, proxy, props))
         return false;
@@ -177,7 +177,7 @@ BaseProxyHandler::keys(JSContext *cx, HandleObject proxy, AutoIdVector &props) c
     RootedId id(cx);
     size_t i = 0;
     for (size_t j = 0, len = props.length(); j < len; j++) {
-        MOZ_ASSERT(i <= j);
+        JS_ASSERT(i <= j);
         id = props[j];
         if (JSID_IS_SYMBOL(id))
             continue;
@@ -190,7 +190,7 @@ BaseProxyHandler::keys(JSContext *cx, HandleObject proxy, AutoIdVector &props) c
             props[i++].set(id);
     }
 
-    MOZ_ASSERT(i <= props.length());
+    JS_ASSERT(i <= props.length());
     props.resize(i);
 
     return true;

@@ -2939,11 +2939,6 @@ Element::MozRequestPointerLock()
 void
 Element::GetAnimationPlayers(nsTArray<nsRefPtr<AnimationPlayer> >& aPlayers)
 {
-  nsIDocument* doc = GetComposedDoc();
-  if (doc) {
-    doc->FlushPendingNotifications(Flush_Style);
-  }
-
   nsIAtom* properties[] = { nsGkAtoms::transitionsProperty,
                             nsGkAtoms::animationsProperty };
   for (size_t propIdx = 0; propIdx < MOZ_ARRAY_LENGTH(properties);
@@ -2958,7 +2953,7 @@ Element::GetAnimationPlayers(nsTArray<nsRefPtr<AnimationPlayer> >& aPlayers)
          playerIdx < collection->mPlayers.Length();
          playerIdx++) {
       AnimationPlayer* player = collection->mPlayers[playerIdx];
-      if (player->HasCurrentSource() || player->HasInEffectSource()) {
+      if (player->IsCurrent()) {
         aPlayers.AppendElement(player);
       }
     }

@@ -96,17 +96,17 @@ class TypedObjectPrediction {
     }
 
     const TypedProto &proto() const {
-        MOZ_ASSERT(predictionKind() == Proto);
+        JS_ASSERT(predictionKind() == Proto);
         return *data_.proto;
     }
 
     const TypeDescr &descr() const {
-        MOZ_ASSERT(predictionKind() == Descr);
+        JS_ASSERT(predictionKind() == Descr);
         return *data_.descr;
     }
 
     const PrefixData &prefix() const {
-        MOZ_ASSERT(predictionKind() == Prefix);
+        JS_ASSERT(predictionKind() == Prefix);
         return data_.prefix;
     }
 

@@ -219,10 +219,9 @@ gfxDWriteFont::ComputeMetrics(AntialiasOption anAAOption)
                                       TRUETYPE_TAG('h','h','e','a'));
     if (hheaTable) {
         uint32_t len;
-        const MetricsHeader* hhea =
-            reinterpret_cast<const MetricsHeader*>
-                (hb_blob_get_data(hheaTable, &len));
-        if (len >= sizeof(MetricsHeader)) {
+        const HheaTable* hhea =
+            reinterpret_cast<const HheaTable*>(hb_blob_get_data(hheaTable, &len));
+        if (len >= sizeof(HheaTable)) {
             mMetrics->maxAdvance =
                 uint16_t(hhea->advanceWidthMax) * mFUnitsConvFactor;
         }

@@ -435,7 +435,6 @@ public class UpdateService extends IntentService {
 
     private File downloadUpdatePackage(UpdateInfo info, boolean overwriteExisting) {
         File path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-        path.mkdirs();
         String fileName = new File(info.url.getFile()).getName();
         File downloadFile = new File(path, fileName);
 

@@ -147,8 +147,8 @@ class Binding
 
     Binding(PropertyName *name, Kind kind, bool aliased) {
         JS_STATIC_ASSERT(CONSTANT <= KIND_MASK);
-        MOZ_ASSERT((uintptr_t(name) & ~NAME_MASK) == 0);
-        MOZ_ASSERT((uintptr_t(kind) & ~KIND_MASK) == 0);
+        JS_ASSERT((uintptr_t(name) & ~NAME_MASK) == 0);
+        JS_ASSERT((uintptr_t(kind) & ~KIND_MASK) == 0);
         bits_ = uintptr_t(name) | uintptr_t(kind) | (aliased ? ALIASED_BIT : 0);
     }
 
@@ -236,10 +236,10 @@ class Bindings
     // helper updates the number of block scoped variables in a script as it is
     // being parsed.
     void updateNumBlockScoped(unsigned numBlockScoped) {
-        MOZ_ASSERT(!callObjShape_);
-        MOZ_ASSERT(numVars_ == 0);
-        MOZ_ASSERT(numBlockScoped < LOCALNO_LIMIT);
-        MOZ_ASSERT(numBlockScoped >= numBlockScoped_);
+        JS_ASSERT(!callObjShape_);
+        JS_ASSERT(numVars_ == 0);
+        JS_ASSERT(numBlockScoped < LOCALNO_LIMIT);
+        JS_ASSERT(numBlockScoped >= numBlockScoped_);
         numBlockScoped_ = numBlockScoped;
     }
 
@@ -500,7 +500,7 @@ class ScriptSource
     ~ScriptSource();
     void incref() { refs++; }
     void decref() {
-        MOZ_ASSERT(refs != 0);
+        JS_ASSERT(refs != 0);
         if (--refs == 0)
             js_delete(this);
     }
@@ -514,11 +514,11 @@ class ScriptSource
     bool hasSourceData() const { return dataType != DataMissing; }
     bool hasCompressedSource() const { return dataType == DataCompressed; }
     size_t length() const {
-        MOZ_ASSERT(hasSourceData());
+        JS_ASSERT(hasSourceData());
         return length_;
     }
     bool argumentsNotIncluded() const {
-        MOZ_ASSERT(hasSourceData());
+        JS_ASSERT(hasSourceData());
         return argumentsNotIncluded_;
     }
     const char16_t *chars(JSContext *cx, UncompressedSourceCache::AutoHoldEntry &asp);
@@ -528,32 +528,32 @@ class ScriptSource
                                 JS::ScriptSourceInfo *info) const;
 
     const char16_t *uncompressedChars() const {
-        MOZ_ASSERT(dataType == DataUncompressed);
+        JS_ASSERT(dataType == DataUncompressed);
         return data.uncompressed.chars;
     }
 
     bool ownsUncompressedChars() const {
-        MOZ_ASSERT(dataType == DataUncompressed);
+        JS_ASSERT(dataType == DataUncompressed);
         return data.uncompressed.ownsChars;
     }
 
     void *compressedData() const {
-        MOZ_ASSERT(dataType == DataCompressed);
+        JS_ASSERT(dataType == DataCompressed);
         return data.compressed.raw;
     }
 
     size_t compressedBytes() const {
-        MOZ_ASSERT(dataType == DataCompressed);
+        JS_ASSERT(dataType == DataCompressed);
         return data.compressed.nbytes;
     }
 
     HashNumber compressedHash() const {
-        MOZ_ASSERT(dataType == DataCompressed);
+        JS_ASSERT(dataType == DataCompressed);
         return data.compressed.hash;
     }
 
     ScriptSource *parent() const {
-        MOZ_ASSERT(dataType == DataParent);
+        JS_ASSERT(dataType == DataParent);
         return data.parent;
     }
 
@@ -574,7 +574,7 @@ class ScriptSource
         return introductionType_;
     }
     const char *introductionType() const {
-        MOZ_ASSERT(hasIntroductionType());
+        JS_ASSERT(hasIntroductionType());
         return introductionType_;
     }
     const char *filename() const {
@@ -601,12 +601,12 @@ class ScriptSource
 
     bool hasIntroductionOffset() const { return hasIntroductionOffset_; }
     uint32_t introductionOffset() const {
-        MOZ_ASSERT(hasIntroductionOffset());
+        JS_ASSERT(hasIntroductionOffset());
         return introductionOffset_;
     }
     void setIntroductionOffset(uint32_t offset) {
-        MOZ_ASSERT(!hasIntroductionOffset());
-        MOZ_ASSERT(offset <= (uint32_t)INT32_MAX);
+        JS_ASSERT(!hasIntroductionOffset());
+        JS_ASSERT(offset <= (uint32_t)INT32_MAX);
         introductionOffset_ = offset;
         hasIntroductionOffset_ = true;
     }
@@ -700,7 +700,7 @@ GeneratorKindAsBits(GeneratorKind generatorKind) {
 
 static inline GeneratorKind
 GeneratorKindFromBits(unsigned val) {
-    MOZ_ASSERT(val <= StarGenerator);
+    JS_ASSERT(val <= StarGenerator);
     return static_cast<GeneratorKind>(val);
 }
 
@@ -1020,12 +1020,12 @@ class JSScript : public js::gc::TenuredCell
     }
 
     size_t pcToOffset(const jsbytecode *pc) const {
-        MOZ_ASSERT(containsPC(pc));
+        JS_ASSERT(containsPC(pc));
         return size_t(pc - code());
     }
 
     jsbytecode *offsetToPC(size_t offset) const {
-        MOZ_ASSERT(offset < length());
+        JS_ASSERT(offset < length());
         return code() + offset;
     }
 
@@ -1139,13 +1139,13 @@ class JSScript : public js::gc::TenuredCell
     bool directlyInsideEval() const { return directlyInsideEval_; }
 
     void cacheForEval() {
-        MOZ_ASSERT(isActiveEval() && !isCachedEval());
+        JS_ASSERT(isActiveEval() && !isCachedEval());
         isActiveEval_ = false;
         isCachedEval_ = true;
     }
 
     void uncacheForEval() {
-        MOZ_ASSERT(isCachedEval() && !isActiveEval());
+        JS_ASSERT(isCachedEval() && !isActiveEval());
         isCachedEval_ = false;
         isActiveEval_ = true;
     }
@@ -1208,7 +1208,7 @@ class JSScript : public js::gc::TenuredCell
     bool argumentsHasVarBinding() const {
         return argsHasVarBinding_;
     }
-    jsbytecode *argumentsBytecode() const { MOZ_ASSERT(code()[0] == JSOP_ARGUMENTS); return code(); }
+    jsbytecode *argumentsBytecode() const { JS_ASSERT(code()[0] == JSOP_ARGUMENTS); return code(); }
     void setArgumentsHasVarBinding();
     bool argumentsAliasesFormals() const {
         return argumentsHasVarBinding() && !strict();
@@ -1223,7 +1223,7 @@ class JSScript : public js::gc::TenuredCell
     void setGeneratorKind(js::GeneratorKind kind) {
         // A script only gets its generator kind set as part of initialization,
         // so it can only transition from not being a generator.
-        MOZ_ASSERT(!isGenerator());
+        JS_ASSERT(!isGenerator());
         generatorKindBits_ = GeneratorKindAsBits(kind);
     }
 
@@ -1240,7 +1240,7 @@ class JSScript : public js::gc::TenuredCell
     bool analyzedArgsUsage() const { return !needsArgsAnalysis_; }
     inline bool ensureHasAnalyzedArgsUsage(JSContext *cx);
     bool needsArgsObj() const {
-        MOZ_ASSERT(analyzedArgsUsage());
+        JS_ASSERT(analyzedArgsUsage());
         return needsArgsObj_;
     }
     void setNeedsArgsObj(bool needsArgsObj);
@@ -1277,7 +1277,7 @@ class JSScript : public js::gc::TenuredCell
     }
 
     js::jit::IonScript *ionScript() const {
-        MOZ_ASSERT(hasIonScript());
+        JS_ASSERT(hasIonScript());
         return ion;
     }
     js::jit::IonScript *maybeIonScript() const {
@@ -1303,7 +1303,7 @@ class JSScript : public js::gc::TenuredCell
         return baseline != BASELINE_DISABLED_SCRIPT;
     }
     js::jit::BaselineScript *baselineScript() const {
-        MOZ_ASSERT(hasBaselineScript());
+        JS_ASSERT(hasBaselineScript());
         return baseline;
     }
     inline void setBaselineScript(JSContext *maybecx, js::jit::BaselineScript *baselineScript);
@@ -1311,12 +1311,12 @@ class JSScript : public js::gc::TenuredCell
     void updateBaselineOrIonRaw(JSContext *maybecx);
 
     void setPendingIonBuilder(JSContext *maybecx, js::jit::IonBuilder *builder) {
-        MOZ_ASSERT(!builder || !ion->pendingBuilder());
+        JS_ASSERT(!builder || !ion->pendingBuilder());
         ion->setPendingBuilderPrivate(builder);
         updateBaselineOrIonRaw(maybecx);
     }
     js::jit::IonBuilder *pendingIonBuilder() {
-        MOZ_ASSERT(hasIonScript());
+        JS_ASSERT(hasIonScript());
         return ion->pendingBuilder();
     }
 
@@ -1333,7 +1333,7 @@ class JSScript : public js::gc::TenuredCell
     }
 
     js::jit::IonScript *parallelIonScript() const {
-        MOZ_ASSERT(hasParallelIonScript());
+        JS_ASSERT(hasParallelIonScript());
         return parallelIon;
     }
     js::jit::IonScript *maybeParallelIonScript() const {
@@ -1498,27 +1498,27 @@ class JSScript : public js::gc::TenuredCell
     size_t dataSize() const { return dataSize_; }
 
     js::ConstArray *consts() {
-        MOZ_ASSERT(hasConsts());
+        JS_ASSERT(hasConsts());
         return reinterpret_cast<js::ConstArray *>(data + constsOffset());
     }
 
     js::ObjectArray *objects() {
-        MOZ_ASSERT(hasObjects());
+        JS_ASSERT(hasObjects());
         return reinterpret_cast<js::ObjectArray *>(data + objectsOffset());
     }
 
     js::ObjectArray *regexps() {
-        MOZ_ASSERT(hasRegexps());
+        JS_ASSERT(hasRegexps());
         return reinterpret_cast<js::ObjectArray *>(data + regexpsOffset());
     }
 
     js::TryNoteArray *trynotes() {
-        MOZ_ASSERT(hasTrynotes());
+        JS_ASSERT(hasTrynotes());
         return reinterpret_cast<js::TryNoteArray *>(data + trynotesOffset());
     }
 
     js::BlockScopeArray *blockScopes() {
-        MOZ_ASSERT(hasBlockScopes());
+        JS_ASSERT(hasBlockScopes());
         return reinterpret_cast<js::BlockScopeArray *>(data + blockScopesOffset());
     }
 
@@ -1527,12 +1527,12 @@ class JSScript : public js::gc::TenuredCell
     size_t natoms() const { return natoms_; }
 
     js::HeapPtrAtom &getAtom(size_t index) const {
-        MOZ_ASSERT(index < natoms());
+        JS_ASSERT(index < natoms());
         return atoms[index];
     }
 
     js::HeapPtrAtom &getAtom(jsbytecode *pc) const {
-        MOZ_ASSERT(containsPC(pc) && containsPC(pc + sizeof(uint32_t)));
+        JS_ASSERT(containsPC(pc) && containsPC(pc + sizeof(uint32_t)));
         return getAtom(GET_UINT32_INDEX(pc));
     }
 
@@ -1541,13 +1541,13 @@ class JSScript : public js::gc::TenuredCell
     }
 
     js::PropertyName *getName(jsbytecode *pc) const {
-        MOZ_ASSERT(containsPC(pc) && containsPC(pc + sizeof(uint32_t)));
+        JS_ASSERT(containsPC(pc) && containsPC(pc + sizeof(uint32_t)));
         return getAtom(GET_UINT32_INDEX(pc))->asPropertyName();
     }
 
     JSObject *getObject(size_t index) {
         js::ObjectArray *arr = objects();
-        MOZ_ASSERT(index < arr->length);
+        JS_ASSERT(index < arr->length);
         return arr->vector[index];
     }
 
@@ -1557,7 +1557,7 @@ class JSScript : public js::gc::TenuredCell
     }
 
     JSObject *getObject(jsbytecode *pc) {
-        MOZ_ASSERT(containsPC(pc) && containsPC(pc + sizeof(uint32_t)));
+        JS_ASSERT(containsPC(pc) && containsPC(pc + sizeof(uint32_t)));
         return getObject(GET_UINT32_INDEX(pc));
     }
 
@@ -1574,7 +1574,7 @@ class JSScript : public js::gc::TenuredCell
 
     const js::Value &getConst(size_t index) {
         js::ConstArray *arr = consts();
-        MOZ_ASSERT(index < arr->length);
+        JS_ASSERT(index < arr->length);
         return arr->vector[index];
     }
 
@@ -1671,16 +1671,16 @@ class BindingIter
 
     bool done() const { return i_ == bindings_->count(); }
     operator bool() const { return !done(); }
-    void operator++(int) { MOZ_ASSERT(!done()); i_++; }
+    void operator++(int) { JS_ASSERT(!done()); i_++; }
     BindingIter &operator++() { (*this)++; return *this; }
 
     uint32_t frameIndex() const {
-        MOZ_ASSERT(!done());
+        JS_ASSERT(!done());
         return i_ < bindings_->numArgs() ? i_ : i_ - bindings_->numArgs();
     }
 
-    const Binding &operator*() const { MOZ_ASSERT(!done()); return bindings_->bindingArray()[i_]; }
-    const Binding *operator->() const { MOZ_ASSERT(!done()); return &bindings_->bindingArray()[i_]; }
+    const Binding &operator*() const { JS_ASSERT(!done()); return bindings_->bindingArray()[i_]; }
+    const Binding *operator->() const { JS_ASSERT(!done()); return &bindings_->bindingArray()[i_]; }
 };
 
 /*
@@ -1713,12 +1713,12 @@ class AliasedFormalIter
 
     bool done() const { return p_ == end_; }
     operator bool() const { return !done(); }
-    void operator++(int) { MOZ_ASSERT(!done()); p_++; slot_++; settle(); }
+    void operator++(int) { JS_ASSERT(!done()); p_++; slot_++; settle(); }
 
-    const Binding &operator*() const { MOZ_ASSERT(!done()); return *p_; }
-    const Binding *operator->() const { MOZ_ASSERT(!done()); return p_; }
-    unsigned frameIndex() const { MOZ_ASSERT(!done()); return p_ - begin_; }
-    unsigned scopeSlot() const { MOZ_ASSERT(!done()); return slot_; }
+    const Binding &operator*() const { JS_ASSERT(!done()); return *p_; }
+    const Binding *operator->() const { JS_ASSERT(!done()); return p_; }
+    unsigned frameIndex() const { JS_ASSERT(!done()); return p_ - begin_; }
+    unsigned scopeSlot() const { JS_ASSERT(!done()); return slot_; }
 };
 
 // Information about a script which may be (or has been) lazily compiled to
@@ -1887,9 +1887,9 @@ class LazyScript : public gc::TenuredCell
     void setGeneratorKind(GeneratorKind kind) {
         // A script only gets its generator kind set as part of initialization,
         // so it can only transition from NotGenerator.
-        MOZ_ASSERT(!isGenerator());
+        JS_ASSERT(!isGenerator());
         // Legacy generators cannot currently be lazy.
-        MOZ_ASSERT(kind != LegacyGenerator);
+        JS_ASSERT(kind != LegacyGenerator);
         p_.generatorKindBits = GeneratorKindAsBits(kind);
     }
 

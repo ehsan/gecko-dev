@@ -145,11 +145,6 @@ XPathExpression::EvaluateWithContext(nsINode& aContextNode,
     }
 
     nsAutoPtr<txXPathNode> contextNode(txXPathNativeNode::createXPathNode(&aContextNode));
-    if (!contextNode) {
-      aRv.Throw(NS_ERROR_FAILURE);
-      return nullptr;
-    }
-
     EvalContextImpl eContext(*contextNode, aContextPosition, aContextSize,
                              mRecycler);
     nsRefPtr<txAExprResult> exprResult;

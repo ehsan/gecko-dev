@@ -51,7 +51,7 @@ URLSearchParams::Constructor(const GlobalObject& aGlobal,
                              ErrorResult& aRv)
 {
   nsRefPtr<URLSearchParams> sp = new URLSearchParams();
-  sp->mSearchParams = aInit.mSearchParams;
+  aInit.mSearchParams.EnumerateRead(CopyEnumerator, sp);
   return sp.forget();
 }
 
@@ -207,6 +207,20 @@ URLSearchParams::ConvertString(const nsACString& aInput, nsAString& aOutput)
   }
 }
 
+/* static */ PLDHashOperator
+URLSearchParams::CopyEnumerator(const nsAString& aName,
+                                nsTArray<nsString>* aArray,
+                                void *userData)
+{
+  URLSearchParams* aSearchParams = static_cast<URLSearchParams*>(userData);
+
+  nsTArray<nsString>* newArray = new nsTArray<nsString>();
+  newArray->AppendElements(*aArray);
+
+  aSearchParams->mSearchParams.Put(aName, newArray);
+  return PL_DHASH_NEXT;
+}
+
 void
 URLSearchParams::AddObserver(URLSearchParamsObserver* aObserver)
 {
@@ -231,45 +245,37 @@ URLSearchParams::RemoveObservers()
 void
 URLSearchParams::Get(const nsAString& aName, nsString& aRetval)
 {
-  aRetval.Truncate();
-
-  for (uint32_t i = 0, len = mSearchParams.Length(); i < len; ++i) {
-    if (mSearchParams[i].mKey.Equals(aName)) {
-      aRetval.Assign(mSearchParams[i].mValue);
-      break;
-    }
+  nsTArray<nsString>* array;
+  if (!mSearchParams.Get(aName, &array)) {
+    aRetval.Truncate();
+    return;
   }
+
+  aRetval.Assign(array->ElementAt(0));
 }
 
 void
 URLSearchParams::GetAll(const nsAString& aName, nsTArray<nsString>& aRetval)
 {
-  aRetval.Clear();
-
-  for (uint32_t i = 0, len = mSearchParams.Length(); i < len; ++i) {
-    if (mSearchParams[i].mKey.Equals(aName)) {
-      aRetval.AppendElement(mSearchParams[i].mValue);
-    }
+  nsTArray<nsString>* array;
+  if (!mSearchParams.Get(aName, &array)) {
+    return;
   }
+
+  aRetval.AppendElements(*array);
 }
 
 void
 URLSearchParams::Set(const nsAString& aName, const nsAString& aValue)
 {
-  Param* param = nullptr;
-  for (uint32_t i = 0, len = mSearchParams.Length(); i < len; ++i) {
-    if (mSearchParams[i].mKey.Equals(aName)) {
-      param = &mSearchParams[i];
-      break;
-    }
+  nsTArray<nsString>* array;
+  if (!mSearchParams.Get(aName, &array)) {
+    array = new nsTArray<nsString>();
+    array->AppendElement(aValue);
+    mSearchParams.Put(aName, array);
+  } else {
+    array->ElementAt(0) = aValue;
   }
-
-  if (!param) {
-    param = mSearchParams.AppendElement();
-    param->mKey = aName;
-  }
-
-  param->mValue = aValue;
 
   NotifyObservers(nullptr);
 }
@@ -284,39 +290,32 @@ URLSearchParams::Append(const nsAString& aName, const nsAString& aValue)
 void
 URLSearchParams::AppendInternal(const nsAString& aName, const nsAString& aValue)
 {
-  Param* param = mSearchParams.AppendElement();
-  param->mKey = aName;
-  param->mValue = aValue;
+  nsTArray<nsString>* array;
+  if (!mSearchParams.Get(aName, &array)) {
+    array = new nsTArray<nsString>();
+    mSearchParams.Put(aName, array);
+  }
+
+  array->AppendElement(aValue);
 }
 
 bool
 URLSearchParams::Has(const nsAString& aName)
 {
-  for (uint32_t i = 0, len = mSearchParams.Length(); i < len; ++i) {
-    if (mSearchParams[i].mKey.Equals(aName)) {
-      return true;
-    }
-  }
-
-  return false;
+  return mSearchParams.Get(aName, nullptr);
 }
 
 void
 URLSearchParams::Delete(const nsAString& aName)
 {
-  bool found = false;
-  for (uint32_t i = 0; i < mSearchParams.Length();) {
-    if (mSearchParams[i].mKey.Equals(aName)) {
-      mSearchParams.RemoveElementAt(i);
-      found = true;
-    } else {
-      ++i;
-    }
+  nsTArray<nsString>* array;
+  if (!mSearchParams.Get(aName, &array)) {
+    return;
   }
 
-  if (found) {
-    NotifyObservers(nullptr);
-  }
+  mSearchParams.Remove(aName);
+
+  NotifyObservers(nullptr);
 }
 
 void
@@ -325,49 +324,67 @@ URLSearchParams::DeleteAll()
   mSearchParams.Clear();
 }
 
-namespace {
-
-void SerializeString(const nsCString& aInput, nsAString& aValue)
+class MOZ_STACK_CLASS SerializeData
 {
-  const unsigned char* p = (const unsigned char*) aInput.get();
+public:
+  SerializeData()
+    : mFirst(true)
+  {}
 
-  while (p && *p) {
-    // ' ' to '+'
-    if (*p == 0x20) {
-      aValue.Append(0x2B);
-    // Percent Encode algorithm
-    } else if (*p == 0x2A || *p == 0x2D || *p == 0x2E ||
-               (*p >= 0x30 && *p <= 0x39) ||
-               (*p >= 0x41 && *p <= 0x5A) || *p == 0x5F ||
-               (*p >= 0x61 && *p <= 0x7A)) {
-      aValue.Append(*p);
-    } else {
-      aValue.AppendPrintf("%%%.2X", *p);
+  nsAutoString mValue;
+  bool mFirst;
+
+  void Serialize(const nsCString& aInput)
+  {
+    const unsigned char* p = (const unsigned char*) aInput.get();
+
+    while (p && *p) {
+      // ' ' to '+'
+      if (*p == 0x20) {
+        mValue.Append(0x2B);
+      // Percent Encode algorithm
+      } else if (*p == 0x2A || *p == 0x2D || *p == 0x2E ||
+                 (*p >= 0x30 && *p <= 0x39) ||
+                 (*p >= 0x41 && *p <= 0x5A) || *p == 0x5F ||
+                 (*p >= 0x61 && *p <= 0x7A)) {
+        mValue.Append(*p);
+      } else {
+        mValue.AppendPrintf("%%%.2X", *p);
+      }
+
+      ++p;
     }
-
-    ++p;
   }
-}
-
-} // anonymous namespace
+};
 
 void
 URLSearchParams::Serialize(nsAString& aValue) const
 {
-  aValue.Truncate();
-  bool first = true;
+  SerializeData data;
+  mSearchParams.EnumerateRead(SerializeEnumerator, &data);
+  aValue.Assign(data.mValue);
+}
 
-  for (uint32_t i = 0, len = mSearchParams.Length(); i < len; ++i) {
-    if (first) {
-      first = false;
+/* static */ PLDHashOperator
+URLSearchParams::SerializeEnumerator(const nsAString& aName,
+                                     nsTArray<nsString>* aArray,
+                                     void *userData)
+{
+  SerializeData* data = static_cast<SerializeData*>(userData);
+
+  for (uint32_t i = 0, len = aArray->Length(); i < len; ++i) {
+    if (data->mFirst) {
+      data->mFirst = false;
     } else {
-      aValue.Append('&');
+      data->mValue.Append('&');
     }
 
-    SerializeString(NS_ConvertUTF16toUTF8(mSearchParams[i].mKey), aValue);
-    aValue.Append('=');
-    SerializeString(NS_ConvertUTF16toUTF8(mSearchParams[i].mValue), aValue);
+    data->Serialize(NS_ConvertUTF16toUTF8(aName));
+    data->mValue.Append('=');
+    data->Serialize(NS_ConvertUTF16toUTF8(aArray->ElementAt(i)));
   }
+
+  return PL_DHASH_NEXT;
 }
 
 void

@@ -56,7 +56,7 @@ class LOsiPoint : public LInstructionHelper<0, 0, 0>
     LOsiPoint(LSafepoint *safepoint, LSnapshot *snapshot)
       : safepoint_(safepoint)
     {
-        MOZ_ASSERT(safepoint && snapshot);
+        JS_ASSERT(safepoint && snapshot);
         assignSnapshot(snapshot);
     }
 
@@ -326,28 +326,6 @@ class LSimdBinaryBitwiseX4 : public LInstructionHelper<1, 2, 0>
     }
 };
 
-class LSimdShift : public LInstructionHelper<1, 2, 0>
-{
-  public:
-    LIR_HEADER(SimdShift)
-    LSimdShift(const LAllocation &vec, const LAllocation &val) {
-        setOperand(0, vec);
-        setOperand(1, val);
-    }
-    const LAllocation *vector() {
-        return getOperand(0);
-    }
-    const LAllocation *value() {
-        return getOperand(1);
-    }
-    MSimdShift::Operation operation() const {
-        return mir_->toSimdShift()->operation();
-    }
-    MSimdShift *mir() const {
-        return mir_->toSimdShift();
-    }
-};
-
 // SIMD selection of lanes from two int32x4 or float32x4 arguments based on a
 // int32x4 argument.
 class LSimdSelect : public LInstructionHelper<1, 3, 0>
@@ -420,7 +398,7 @@ class LPointer : public LInstructionHelper<1, 0, 0>
     }
 
     gc::Cell *gcptr() const {
-        MOZ_ASSERT(kind() == GC_THING);
+        JS_ASSERT(kind() == GC_THING);
         return (gc::Cell *) ptr_;
     }
 };
@@ -1412,7 +1390,7 @@ class LJSCallInstructionHelper : public LCallInstructionHelper<Defs, Operands, T
     // argument includes the |undefined| padding added in case of underflow.
     // Does not include |this|.
     uint32_t numStackArgs() const {
-        MOZ_ASSERT(mir()->numStackArgs() >= 1);
+        JS_ASSERT(mir()->numStackArgs() >= 1);
         return mir()->numStackArgs() - 1; // |this| is not a formal argument.
     }
     // Does not include |this|.
@@ -3404,11 +3382,11 @@ class LValueToInt32 : public LInstructionHelper<1, BOX_PIECES, 2>
         return getTemp(1);
     }
     MToInt32 *mirNormal() const {
-        MOZ_ASSERT(mode_ == NORMAL);
+        JS_ASSERT(mode_ == NORMAL);
         return mir_->toToInt32();
     }
     MTruncateToInt32 *mirTruncate() const {
-        MOZ_ASSERT(mode_ == TRUNCATE);
+        JS_ASSERT(mode_ == TRUNCATE);
         return mir_->toTruncateToInt32();
     }
     MInstruction *mir() const {
@@ -6056,22 +6034,22 @@ class LPhi MOZ_FINAL : public LInstruction
         return 1;
     }
     LDefinition *getDef(size_t index) {
-        MOZ_ASSERT(index == 0);
+        JS_ASSERT(index == 0);
         return &def_;
     }
     void setDef(size_t index, const LDefinition &def) {
-        MOZ_ASSERT(index == 0);
+        JS_ASSERT(index == 0);
         def_ = def;
     }
     size_t numOperands() const {
         return mir_->toPhi()->numOperands();
     }
     LAllocation *getOperand(size_t index) {
-        MOZ_ASSERT(index < numOperands());
+        JS_ASSERT(index < numOperands());
         return &inputs_[index];
     }
     void setOperand(size_t index, const LAllocation &a) {
-        MOZ_ASSERT(index < numOperands());
+        JS_ASSERT(index < numOperands());
         inputs_[index] = a;
     }
     size_t numTemps() const {
@@ -6388,23 +6366,23 @@ class LAsmJSCall MOZ_FINAL : public LInstruction
         return def_.isBogusTemp() ? 0 : 1;
     }
     LDefinition *getDef(size_t index) {
-        MOZ_ASSERT(numDefs() == 1);
-        MOZ_ASSERT(index == 0);
+        JS_ASSERT(numDefs() == 1);
+        JS_ASSERT(index == 0);
         return &def_;
     }
     void setDef(size_t index, const LDefinition &def) {
-        MOZ_ASSERT(index == 0);
+        JS_ASSERT(index == 0);
         def_ = def;
     }
     size_t numOperands() const {
         return numOperands_;
     }
     LAllocation *getOperand(size_t index) {
-        MOZ_ASSERT(index < numOperands_);
+        JS_ASSERT(index < numOperands_);
         return &operands_[index];
     }
     void setOperand(size_t index, const LAllocation &a) {
-        MOZ_ASSERT(index < numOperands_);
+        JS_ASSERT(index < numOperands_);
         operands_[index] = a;
     }
     size_t numTemps() const {

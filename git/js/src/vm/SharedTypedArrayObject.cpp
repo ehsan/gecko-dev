@@ -128,7 +128,7 @@ class SharedTypedArrayObjectTemplate : public SharedTypedArrayObject
     static SharedTypedArrayObject *
     makeProtoInstance(JSContext *cx, HandleObject proto, AllocKind allocKind)
     {
-        MOZ_ASSERT(proto);
+        JS_ASSERT(proto);
 
         RootedObject obj(cx, NewBuiltinClassInstance(cx, instanceClass(), allocKind));
         if (!obj)
@@ -145,7 +145,7 @@ class SharedTypedArrayObjectTemplate : public SharedTypedArrayObject
     static SharedTypedArrayObject *
     makeTypedInstance(JSContext *cx, uint32_t len, AllocKind allocKind)
     {
-        MOZ_ASSERT(len <= MAX_LENGTH / sizeof(NativeType));
+        JS_ASSERT(len <= MAX_LENGTH / sizeof(NativeType));
 
         // Multiplication is safe due to preconditions for makeInstance().
         if (len * sizeof(NativeType) >= SharedTypedArrayObject::SINGLETON_TYPE_BYTE_LENGTH) {
@@ -174,9 +174,9 @@ class SharedTypedArrayObjectTemplate : public SharedTypedArrayObject
     makeInstance(JSContext *cx, Handle<SharedArrayBufferObject *> buffer, uint32_t byteOffset, uint32_t len,
                  HandleObject proto)
     {
-        MOZ_ASSERT(buffer);
-        MOZ_ASSERT(byteOffset <= MAX_BYTEOFFSET);
-        MOZ_ASSERT(len <= MAX_LENGTH / sizeof(NativeType));
+        JS_ASSERT(buffer);
+        JS_ASSERT(byteOffset <= MAX_BYTEOFFSET);
+        JS_ASSERT(len <= MAX_LENGTH / sizeof(NativeType));
 
         gc::AllocKind allocKind = GetGCObjectKind(instanceClass());
 
@@ -200,12 +200,12 @@ class SharedTypedArrayObjectTemplate : public SharedTypedArrayObject
             uint32_t arrayByteLength = obj->byteLength();
             uint32_t arrayByteOffset = obj->byteOffset();
             uint32_t bufferByteLength = buffer->byteLength();
-            MOZ_ASSERT(bufferByteLength - arrayByteOffset >= arrayByteLength);
-            MOZ_ASSERT(arrayByteOffset <= bufferByteLength);
+            JS_ASSERT(bufferByteLength - arrayByteOffset >= arrayByteLength);
+            JS_ASSERT(arrayByteOffset <= bufferByteLength);
         }
 
         // Verify that the private slot is at the expected place
-        MOZ_ASSERT(obj->numFixedSlots() == DATA_SLOT);
+        JS_ASSERT(obj->numFixedSlots() == DATA_SLOT);
 #endif
 
         return obj;
@@ -310,7 +310,7 @@ class SharedTypedArrayObjectTemplate : public SharedTypedArrayObject
     static bool
     GetterImpl(JSContext *cx, CallArgs args)
     {
-        MOZ_ASSERT(is(args.thisv()));
+        JS_ASSERT(is(args.thisv()));
         args.rval().set(ValueGetter(&args.thisv().toObject().as<SharedTypedArrayObject>()));
         return true;
     }
@@ -329,7 +329,7 @@ class SharedTypedArrayObjectTemplate : public SharedTypedArrayObject
     static bool
     BufferGetterImpl(JSContext *cx, CallArgs args)
     {
-        MOZ_ASSERT(is(args.thisv()));
+        JS_ASSERT(is(args.thisv()));
         Rooted<SharedTypedArrayObject *> tarray(cx, &args.thisv().toObject().as<SharedTypedArrayObject>());
         args.rval().set(bufferValue(tarray));
         return true;
@@ -379,7 +379,7 @@ class SharedTypedArrayObjectTemplate : public SharedTypedArrayObject
         if (ArrayTypeIsFloatingPoint()) {
             setIndex(tarray, index, NativeType(d));
         } else if (ArrayTypeIsUnsigned()) {
-            MOZ_ASSERT(sizeof(NativeType) <= 4);
+            JS_ASSERT(sizeof(NativeType) <= 4);
             uint32_t n = ToUint32(d);
             setIndex(tarray, index, NativeType(n));
         } else if (ArrayTypeID() == Scalar::Uint8Clamped) {
@@ -387,7 +387,7 @@ class SharedTypedArrayObjectTemplate : public SharedTypedArrayObject
             // for doubles.
             setIndex(tarray, index, NativeType(d));
         } else {
-            MOZ_ASSERT(sizeof(NativeType) <= 4);
+            JS_ASSERT(sizeof(NativeType) <= 4);
             int32_t n = ToInt32(d);
             setIndex(tarray, index, NativeType(n));
         }

@@ -36,7 +36,7 @@ JSObject *
 Wrapper::New(JSContext *cx, JSObject *obj, JSObject *parent, const Wrapper *handler,
              const WrapperOptions &options)
 {
-    MOZ_ASSERT(parent);
+    JS_ASSERT(parent);
 
     RootedValue priv(cx, ObjectValue(*obj));
     return NewProxyObject(cx, handler, priv, options.proto(), parent, options);
@@ -52,14 +52,14 @@ Wrapper::Renew(JSContext *cx, JSObject *existing, JSObject *obj, const Wrapper *
 const Wrapper *
 Wrapper::wrapperHandler(JSObject *wrapper)
 {
-    MOZ_ASSERT(wrapper->is<WrapperObject>());
+    JS_ASSERT(wrapper->is<WrapperObject>());
     return static_cast<const Wrapper*>(wrapper->as<ProxyObject>().handler());
 }
 
 JSObject *
 Wrapper::wrappedObject(JSObject *wrapper)
 {
-    MOZ_ASSERT(wrapper->is<WrapperObject>());
+    JS_ASSERT(wrapper->is<WrapperObject>());
     return wrapper->as<ProxyObject>().target();
 }
 
@@ -131,7 +131,7 @@ js::TransparentObjectWrapper(JSContext *cx, HandleObject existing, HandleObject 
                              HandleObject parent)
 {
     // Allow wrapping outer window proxies.
-    MOZ_ASSERT(!obj->is<WrapperObject>() || obj->getClass()->ext.innerObject);
+    JS_ASSERT(!obj->is<WrapperObject>() || obj->getClass()->ext.innerObject);
     return Wrapper::New(cx, obj, parent, &CrossCompartmentWrapper::singleton);
 }
 
@@ -165,5 +165,5 @@ bool Wrapper::finalizeInBackground(Value priv) const
      */
     if (IsInsideNursery(&priv.toObject()))
         return true;
-    return IsBackgroundFinalized(priv.toObject().asTenured().getAllocKind());
+    return IsBackgroundFinalized(priv.toObject().asTenured()->getAllocKind());
 }

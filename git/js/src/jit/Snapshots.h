@@ -192,17 +192,17 @@ class RValueAllocation
 
     // TYPED_REG or TYPED_STACK
     static RValueAllocation Typed(JSValueType type, Register reg) {
-        MOZ_ASSERT(type != JSVAL_TYPE_DOUBLE &&
-                   type != JSVAL_TYPE_MAGIC &&
-                   type != JSVAL_TYPE_NULL &&
-                   type != JSVAL_TYPE_UNDEFINED);
+        JS_ASSERT(type != JSVAL_TYPE_DOUBLE &&
+                  type != JSVAL_TYPE_MAGIC &&
+                  type != JSVAL_TYPE_NULL &&
+                  type != JSVAL_TYPE_UNDEFINED);
         return RValueAllocation(TYPED_REG, payloadOfValueType(type),
                                 payloadOfRegister(reg));
     }
     static RValueAllocation Typed(JSValueType type, int32_t offset) {
-        MOZ_ASSERT(type != JSVAL_TYPE_MAGIC &&
-                   type != JSVAL_TYPE_NULL &&
-                   type != JSVAL_TYPE_UNDEFINED);
+        JS_ASSERT(type != JSVAL_TYPE_MAGIC &&
+                  type != JSVAL_TYPE_NULL &&
+                  type != JSVAL_TYPE_UNDEFINED);
         return RValueAllocation(TYPED_STACK, payloadOfValueType(type),
                                 payloadOfStackOffset(offset));
     }
@@ -272,33 +272,33 @@ class RValueAllocation
     }
 
     uint32_t index() const {
-        MOZ_ASSERT(layoutFromMode(mode()).type1 == PAYLOAD_INDEX);
+        JS_ASSERT(layoutFromMode(mode()).type1 == PAYLOAD_INDEX);
         return arg1_.index;
     }
     int32_t stackOffset() const {
-        MOZ_ASSERT(layoutFromMode(mode()).type1 == PAYLOAD_STACK_OFFSET);
+        JS_ASSERT(layoutFromMode(mode()).type1 == PAYLOAD_STACK_OFFSET);
         return arg1_.stackOffset;
     }
     Register reg() const {
-        MOZ_ASSERT(layoutFromMode(mode()).type1 == PAYLOAD_GPR);
+        JS_ASSERT(layoutFromMode(mode()).type1 == PAYLOAD_GPR);
         return arg1_.gpr;
     }
     FloatRegister fpuReg() const {
-        MOZ_ASSERT(layoutFromMode(mode()).type1 == PAYLOAD_FPU);
+        JS_ASSERT(layoutFromMode(mode()).type1 == PAYLOAD_FPU);
         FloatRegisterBits b = arg1_.fpu;
         return FloatRegister::FromCode(b.data);
     }
     JSValueType knownType() const {
-        MOZ_ASSERT(layoutFromMode(mode()).type1 == PAYLOAD_PACKED_TAG);
+        JS_ASSERT(layoutFromMode(mode()).type1 == PAYLOAD_PACKED_TAG);
         return arg1_.type;
     }
 
     int32_t stackOffset2() const {
-        MOZ_ASSERT(layoutFromMode(mode()).type2 == PAYLOAD_STACK_OFFSET);
+        JS_ASSERT(layoutFromMode(mode()).type2 == PAYLOAD_STACK_OFFSET);
         return arg2_.stackOffset;
     }
     Register reg2() const {
-        MOZ_ASSERT(layoutFromMode(mode()).type2 == PAYLOAD_GPR);
+        JS_ASSERT(layoutFromMode(mode()).type2 == PAYLOAD_GPR);
         return arg2_.gpr;
     }
 

@@ -18,7 +18,7 @@ namespace js {
 void
 ValueReadBarrier(const Value &value)
 {
-    MOZ_ASSERT(!CurrentThreadIsIonCompiling());
+    JS_ASSERT(!CurrentThreadIsIonCompiling());
     if (value.isObject())
         JSObject::readBarrier(&value.toObject());
     else if (value.isString())
@@ -26,7 +26,7 @@ ValueReadBarrier(const Value &value)
     else if (value.isSymbol())
         JS::Symbol::readBarrier(value.toSymbol());
     else
-        MOZ_ASSERT(!value.isMarkable());
+        JS_ASSERT(!value.isMarkable());
 }
 
 #ifdef DEBUG

@@ -11,7 +11,6 @@
 #include "Point.h"
 #include <math.h>
 #include "mozilla/Attributes.h"
-#include "mozilla/DebugOnly.h"
 
 namespace mozilla {
 namespace gfx {
@@ -185,14 +184,6 @@ public:
     _32 = inv_det * F;
 
     return true;
-  }
-
-  Matrix Inverse() const
-  {
-    Matrix clone = *this;
-    DebugOnly<bool> inverted = clone.Invert();
-    MOZ_ASSERT(inverted, "Attempted to get the inverse of a non-invertible matrix");
-    return clone;
   }
 
   Float Determinant() const
@@ -679,14 +670,6 @@ public:
   }
 
   bool Invert();
-
-  Matrix4x4 Inverse() const
-  {
-    Matrix4x4 clone = *this;
-    DebugOnly<bool> inverted = clone.Invert();
-    MOZ_ASSERT(inverted, "Attempted to get the inverse of a non-invertible matrix");
-    return clone;
-  }
 
   void Normalize()
   {

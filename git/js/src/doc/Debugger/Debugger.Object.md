@@ -156,9 +156,6 @@ from its prototype:
 `isBoundFunction`
 :   `true` if the referent is a bound function; `false` otherwise.
 
-`isArrowFunction`
-:   `true` if the referent is an arrow function; `false` otherwise.
-
 `boundTargetFunction`
 :   If the referent is a bound function, this is its target function—the
     function that was bound to a particular `this` object. If the referent

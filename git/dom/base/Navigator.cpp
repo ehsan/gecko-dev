@@ -1251,8 +1251,11 @@ Navigator::MozGetUserMedia(const MediaStreamConstraints& aConstraints,
     return;
   }
 
+  bool privileged = nsContentUtils::IsChromeDoc(mWindow->GetExtantDoc());
+
   MediaManager* manager = MediaManager::Get();
-  aRv = manager->GetUserMedia(mWindow, aConstraints, onsuccess, onerror);
+  aRv = manager->GetUserMedia(privileged, mWindow, aConstraints,
+                              onsuccess, onerror);
 }
 
 void

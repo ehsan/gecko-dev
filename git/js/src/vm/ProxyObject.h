@@ -58,24 +58,24 @@ class ProxyObject : public JSObject
     }
 
     const Value &extra(size_t n) const {
-        MOZ_ASSERT(n == 0 || n == 1);
+        JS_ASSERT(n == 0 || n == 1);
         return GetReservedSlot(const_cast<ProxyObject*>(this), EXTRA_SLOT + n);
     }
 
     void setExtra(size_t n, const Value &extra) {
-        MOZ_ASSERT(n == 0 || n == 1);
+        JS_ASSERT(n == 0 || n == 1);
         SetReservedSlot(this, EXTRA_SLOT + n, extra);
     }
 
   private:
     HeapSlot *slotOfExtra(size_t n) {
-        MOZ_ASSERT(n == 0 || n == 1);
+        JS_ASSERT(n == 0 || n == 1);
         return &getReservedSlotRef(EXTRA_SLOT + n);
     }
 
     HeapSlot *slotOfClassSpecific(size_t n) {
-        MOZ_ASSERT(n >= PROXY_MINIMUM_SLOTS);
-        MOZ_ASSERT(n < JSCLASS_RESERVED_SLOTS(getClass()));
+        JS_ASSERT(n >= PROXY_MINIMUM_SLOTS);
+        JS_ASSERT(n < JSCLASS_RESERVED_SLOTS(getClass()));
         return &getReservedSlotRef(n);
     }
 

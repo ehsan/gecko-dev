@@ -116,15 +116,15 @@ JSFunction *
 js::ExistingCloneFunctionAtCallsite(const CallsiteCloneTable &table, JSFunction *fun,
                                     JSScript *script, jsbytecode *pc)
 {
-    MOZ_ASSERT(fun->nonLazyScript()->shouldCloneAtCallsite());
-    MOZ_ASSERT(!fun->nonLazyScript()->enclosingStaticScope());
-    MOZ_ASSERT(types::UseNewTypeForClone(fun));
+    JS_ASSERT(fun->nonLazyScript()->shouldCloneAtCallsite());
+    JS_ASSERT(!fun->nonLazyScript()->enclosingStaticScope());
+    JS_ASSERT(types::UseNewTypeForClone(fun));
 
     /*
      * If we start allocating function objects in the nursery, then the callsite
      * clone table will need a postbarrier.
      */
-    MOZ_ASSERT(fun->isTenured());
+    JS_ASSERT(fun->isTenured());
 
     if (!table.initialized())
         return nullptr;
@@ -258,7 +258,7 @@ js::DestroyContext(JSContext *cx, DestroyContextMode mode)
             c->types.print(cx, false);
     }
     if (mode == DCM_FORCE_GC) {
-        MOZ_ASSERT(!rt->isHeapBusy());
+        JS_ASSERT(!rt->isHeapBusy());
         JS::PrepareForFullGC(rt);
         rt->gc.gc(GC_NORMAL, JS::gcreason::DESTROY_CONTEXT);
     }
@@ -269,17 +269,17 @@ void
 ContextFriendFields::checkNoGCRooters() {
 #ifdef DEBUG
     for (int i = 0; i < THING_ROOT_LIMIT; ++i)
-        MOZ_ASSERT(thingGCRooters[i] == nullptr);
+        JS_ASSERT(thingGCRooters[i] == nullptr);
 #endif
 }
 
 bool
 AutoResolving::alreadyStartedSlow() const
 {
-    MOZ_ASSERT(link);
+    JS_ASSERT(link);
     AutoResolving *cursor = link;
     do {
-        MOZ_ASSERT(this != cursor);
+        JS_ASSERT(this != cursor);
         if (object.get() == cursor->object && id.get() == cursor->id && kind == cursor->kind)
             return true;
     } while (!!(cursor = cursor->link));
@@ -296,7 +296,7 @@ ReportError(JSContext *cx, const char *message, JSErrorReport *reportp,
      * exception is thrown, then the JSREPORT_EXCEPTION flag will be set
      * on the error report, and exception-aware hosts should ignore it.
      */
-    MOZ_ASSERT(reportp);
+    JS_ASSERT(reportp);
     if ((!callback || callback == js_GetErrorMessage) &&
         reportp->errorNumber == JSMSG_UNCAUGHT_EXCEPTION)
     {
@@ -402,7 +402,7 @@ js_ReportOutOfMemory(ThreadSafeContext *cxArg)
      * does not need wrapping. If no JS code is running, no exception should be
      * set at all.
      */
-    MOZ_ASSERT(!cx->isExceptionPending());
+    JS_ASSERT(!cx->isExceptionPending());
 }
 
 JS_FRIEND_API(void)
@@ -525,9 +525,9 @@ js::ReportUsageError(JSContext *cx, HandleObject callee, const char *msg)
     PropertyName *usageAtom = Atomize(cx, usageStr, strlen(usageStr))->asPropertyName();
     RootedId id(cx, NameToId(usageAtom));
     DebugOnly<Shape *> shape = static_cast<Shape *>(callee->nativeLookup(cx, id));
-    MOZ_ASSERT(!shape->configurable());
-    MOZ_ASSERT(!shape->writable());
-    MOZ_ASSERT(shape->hasDefaultGetter());
+    JS_ASSERT(!shape->configurable());
+    JS_ASSERT(!shape->writable());
+    JS_ASSERT(shape->hasDefaultGetter());
 
     RootedValue usage(cx);
     if (!JS_LookupProperty(cx, callee, "usage", &usage))
@@ -657,7 +657,7 @@ js_ExpandErrorArguments(ExclusiveContext *cx, JSErrorCallback callback,
         size_t totalArgsLength = 0;
         size_t argLengths[10]; /* only {0} thru {9} supported */
         argCount = efs->argCount;
-        MOZ_ASSERT(argCount <= 10);
+        JS_ASSERT(argCount <= 10);
         if (argCount > 0) {
             /*
              * Gather the arguments into an array, and accumulate
@@ -666,7 +666,7 @@ js_ExpandErrorArguments(ExclusiveContext *cx, JSErrorCallback callback,
              * pointers later.
              */
             if (messageArgsPassed) {
-                MOZ_ASSERT(!reportp->messageArgs[argCount]);
+                JS_ASSERT(!reportp->messageArgs[argCount]);
             } else {
                 reportp->messageArgs = cx->pod_malloc<const char16_t*>(argCount + 1);
                 if (!reportp->messageArgs)
@@ -721,7 +721,7 @@ js_ExpandErrorArguments(ExclusiveContext *cx, JSErrorCallback callback,
                     if (*fmt == '{') {
                         if (isdigit(fmt[1])) {
                             int d = JS7_UNDEC(fmt[1]);
-                            MOZ_ASSERT(d < argCount);
+                            JS_ASSERT(d < argCount);
                             js_strncpy(out, reportp->messageArgs[d],
                                        argLengths[d]);
                             out += argLengths[d];
@@ -732,7 +732,7 @@ js_ExpandErrorArguments(ExclusiveContext *cx, JSErrorCallback callback,
                     }
                     *out++ = *fmt++;
                 }
-                MOZ_ASSERT(expandedArgs == argCount);
+                JS_ASSERT(expandedArgs == argCount);
                 *out = 0;
                 js_free(buffer);
                 size_t msgLen = PointerRangeSize(static_cast<const char16_t *>(reportp->ucmessage),
@@ -744,7 +744,7 @@ js_ExpandErrorArguments(ExclusiveContext *cx, JSErrorCallback callback,
             }
         } else {
             /* Non-null messageArgs should have at least one non-null arg. */
-            MOZ_ASSERT(!reportp->messageArgs);
+            JS_ASSERT(!reportp->messageArgs);
             /*
              * Zero arguments: the format string (if it exists) is the
              * entire message.
@@ -872,8 +872,8 @@ js_ReportErrorNumberUCArray(JSContext *cx, unsigned flags, JSErrorCallback callb
 void
 js::CallErrorReporter(JSContext *cx, const char *message, JSErrorReport *reportp)
 {
-    MOZ_ASSERT(message);
-    MOZ_ASSERT(reportp);
+    JS_ASSERT(message);
+    JS_ASSERT(reportp);
 
     if (JSErrorReporter onError = cx->runtime()->errorReporter)
         onError(cx, message, reportp);
@@ -908,7 +908,7 @@ js_ReportIsNullOrUndefined(JSContext *cx, int spindex, HandleValue v,
                                           JSMSG_UNEXPECTED_TYPE, bytes,
                                           js_undefined_str, nullptr);
     } else {
-        MOZ_ASSERT(v.isNull());
+        JS_ASSERT(v.isNull());
         ok = JS_ReportErrorFlagsAndNumber(cx, JSREPORT_ERROR,
                                           js_GetErrorMessage, nullptr,
                                           JSMSG_UNEXPECTED_TYPE, bytes,
@@ -949,8 +949,8 @@ js_ReportValueErrorFlags(JSContext *cx, unsigned flags, const unsigned errorNumb
     char *bytes;
     bool ok;
 
-    MOZ_ASSERT(js_ErrorFormatString[errorNumber].argCount >= 1);
-    MOZ_ASSERT(js_ErrorFormatString[errorNumber].argCount <= 3);
+    JS_ASSERT(js_ErrorFormatString[errorNumber].argCount >= 1);
+    JS_ASSERT(js_ErrorFormatString[errorNumber].argCount <= 3);
     bytes = DecompileValueGenerator(cx, spindex, v, fallback);
     if (!bytes)
         return false;
@@ -979,10 +979,10 @@ js_GetErrorMessage(void *userRef, const unsigned errorNumber)
 bool
 js::InvokeInterruptCallback(JSContext *cx)
 {
-    MOZ_ASSERT(cx->runtime()->requestDepth >= 1);
+    JS_ASSERT(cx->runtime()->requestDepth >= 1);
 
     JSRuntime *rt = cx->runtime();
-    MOZ_ASSERT(rt->interrupt);
+    JS_ASSERT(rt->interrupt);
 
     // Reset the callback counter first, then run GC and yield. If another
     // thread is racing us here we will accumulate another callback request
@@ -1077,7 +1077,7 @@ ThreadSafeContext::isForkJoinContext() const
 ForkJoinContext *
 ThreadSafeContext::asForkJoinContext()
 {
-    MOZ_ASSERT(isForkJoinContext());
+    JS_ASSERT(isForkJoinContext());
     return reinterpret_cast<ForkJoinContext *>(this);
 }
 
@@ -1115,20 +1115,20 @@ JSContext::JSContext(JSRuntime *rt)
 #endif
     innermostGenerator_(nullptr)
 {
-    MOZ_ASSERT(static_cast<ContextFriendFields*>(this) ==
-               ContextFriendFields::get(this));
+    JS_ASSERT(static_cast<ContextFriendFields*>(this) ==
+              ContextFriendFields::get(this));
 }
 
 JSContext::~JSContext()
 {
     /* Free the stuff hanging off of cx. */
-    MOZ_ASSERT(!resolvingList);
+    JS_ASSERT(!resolvingList);
 }
 
 bool
 JSContext::getPendingException(MutableHandleValue rval)
 {
-    MOZ_ASSERT(throwing);
+    JS_ASSERT(throwing);
     rval.set(unwrappedException_);
     if (IsAtomsCompartment(compartment()))
         return true;
@@ -1149,7 +1149,7 @@ JSContext::isThrowingOutOfMemory()
 void
 JSContext::enterGenerator(JSGenerator *gen)
 {
-    MOZ_ASSERT(!gen->prevGenerator);
+    JS_ASSERT(!gen->prevGenerator);
     gen->prevGenerator = innermostGenerator_;
     innermostGenerator_ = gen;
 }
@@ -1157,7 +1157,7 @@ JSContext::enterGenerator(JSGenerator *gen)
 void
 JSContext::leaveGenerator(JSGenerator *gen)
 {
-    MOZ_ASSERT(innermostGenerator_ == gen);
+    JS_ASSERT(innermostGenerator_ == gen);
     innermostGenerator_ = innermostGenerator_->prevGenerator;
     gen->prevGenerator = nullptr;
 }
@@ -1181,7 +1181,7 @@ JSContext::saveFrameChain()
 void
 JSContext::restoreFrameChain()
 {
-    MOZ_ASSERT(enterCompartmentDepth_ == 0); // We're about to clobber it, and it
+    JS_ASSERT(enterCompartmentDepth_ == 0); // We're about to clobber it, and it
                                             // will be wrong forevermore.
     SavedFrameChain sfc = savedFrameChains_.popCopy();
     setCompartment(sfc.compartment);
@@ -1331,8 +1331,8 @@ JSContext::findVersion() const
 JS::AutoCheckRequestDepth::AutoCheckRequestDepth(JSContext *cx)
     : cx(cx)
 {
-    MOZ_ASSERT(cx->runtime()->requestDepth || cx->runtime()->isHeapBusy());
-    MOZ_ASSERT(CurrentThreadCanAccessRuntime(cx->runtime()));
+    JS_ASSERT(cx->runtime()->requestDepth || cx->runtime()->isHeapBusy());
+    JS_ASSERT(CurrentThreadCanAccessRuntime(cx->runtime()));
     cx->runtime()->checkRequestDepth++;
 }
 
@@ -1340,8 +1340,8 @@ JS::AutoCheckRequestDepth::AutoCheckRequestDepth(ContextFriendFields *cxArg)
     : cx(static_cast<ThreadSafeContext *>(cxArg)->maybeJSContext())
 {
     if (cx) {
-        MOZ_ASSERT(cx->runtime()->requestDepth || cx->runtime()->isHeapBusy());
-        MOZ_ASSERT(CurrentThreadCanAccessRuntime(cx->runtime()));
+        JS_ASSERT(cx->runtime()->requestDepth || cx->runtime()->isHeapBusy());
+        JS_ASSERT(CurrentThreadCanAccessRuntime(cx->runtime()));
         cx->runtime()->checkRequestDepth++;
     }
 }
@@ -1349,7 +1349,7 @@ JS::AutoCheckRequestDepth::AutoCheckRequestDepth(ContextFriendFields *cxArg)
 JS::AutoCheckRequestDepth::~AutoCheckRequestDepth()
 {
     if (cx) {
-        MOZ_ASSERT(cx->runtime()->checkRequestDepth != 0);
+        JS_ASSERT(cx->runtime()->checkRequestDepth != 0);
         cx->runtime()->checkRequestDepth--;
     }
 }

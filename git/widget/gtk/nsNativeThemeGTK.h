@@ -3,9 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef _GTK_NSNATIVETHEMEGTK_H_
-#define _GTK_NSNATIVETHEMEGTK_H_
-
 #include "nsITheme.h"
 #include "nsCOMPtr.h"
 #include "nsIAtom.h"
@@ -83,5 +80,3 @@ private:
   uint8_t mSafeWidgetStates[1024];    // 256 widgets * 32 bits per widget
   static const char* sDisabledEngines[];
 };
-
-#endif

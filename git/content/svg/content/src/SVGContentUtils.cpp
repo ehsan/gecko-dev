@@ -25,7 +25,6 @@
 #include "nsContentUtils.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/gfx/Types.h"
-#include "mozilla/FloatingPoint.h"
 #include "nsStyleContext.h"
 #include "nsSVGPathDataParser.h"
 #include "SVGPathData.h"
@@ -665,7 +664,7 @@ SVGContentUtils::ParseNumber(RangedPtr<const char16_t>& aIter,
     return false;
   }
   floatType floatValue = floatType(value);
-  if (!IsFinite(floatValue)) {
+  if (!NS_finite(floatValue)) {
     return false;
   }
   aValue = floatValue;

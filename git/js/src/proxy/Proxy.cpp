@@ -67,7 +67,7 @@ void
 js::AutoEnterPolicy::recordLeave()
 {
     if (enteredProxy) {
-        MOZ_ASSERT(context->runtime()->enteredPolicy == this);
+        JS_ASSERT(context->runtime()->enteredPolicy == this);
         context->runtime()->enteredPolicy = prev;
     }
 }
@@ -520,7 +520,7 @@ JSObject * const TaggedProto::LazyProto = reinterpret_cast<JSObject *>(0x1);
 bool
 Proxy::getPrototypeOf(JSContext *cx, HandleObject proxy, MutableHandleObject proto)
 {
-    MOZ_ASSERT(proxy->getTaggedProto().isLazy());
+    JS_ASSERT(proxy->getTaggedProto().isLazy());
     JS_CHECK_RECURSION(cx, return false);
     return proxy->as<ProxyObject>().handler()->getPrototypeOf(cx, proxy, proto);
 }
@@ -528,7 +528,7 @@ Proxy::getPrototypeOf(JSContext *cx, HandleObject proxy, MutableHandleObject pro
 bool
 Proxy::setPrototypeOf(JSContext *cx, HandleObject proxy, HandleObject proto, bool *bp)
 {
-    MOZ_ASSERT(proxy->getTaggedProto().isLazy());
+    JS_ASSERT(proxy->getTaggedProto().isLazy());
     JS_CHECK_RECURSION(cx, return false);
     return proxy->as<ProxyObject>().handler()->setPrototypeOf(cx, proxy, proto, bp);
 }
@@ -557,7 +557,7 @@ Proxy::slice(JSContext *cx, HandleObject proxy, uint32_t begin, uint32_t end,
                            /* mayThrow = */ true);
     if (!policy.allowed()) {
         if (policy.returnValue()) {
-            MOZ_ASSERT(!cx->isExceptionPending());
+            JS_ASSERT(!cx->isExceptionPending());
             return js::SliceSlowly(cx, proxy, proxy, begin, end, result);
         }
         return false;
@@ -722,7 +722,7 @@ js::proxy_DeleteGeneric(JSContext *cx, HandleObject obj, HandleId id, bool *succ
 void
 js::proxy_Trace(JSTracer *trc, JSObject *obj)
 {
-    MOZ_ASSERT(obj->is<ProxyObject>());
+    JS_ASSERT(obj->is<ProxyObject>());
     ProxyObject::trace(trc, obj);
 }
 
@@ -741,8 +741,8 @@ ProxyObject::trace(JSTracer *trc, JSObject *obj)
              */
             Value key = ObjectValue(*referent);
             WrapperMap::Ptr p = proxy->compartment()->lookupWrapper(key);
-            MOZ_ASSERT(p);
-            MOZ_ASSERT(*p->value().unsafeGet() == ObjectValue(*proxy));
+            JS_ASSERT(p);
+            JS_ASSERT(*p->value().unsafeGet() == ObjectValue(*proxy));
         }
     }
 #endif
@@ -771,28 +771,28 @@ ProxyObject::trace(JSTracer *trc, JSObject *obj)
 JSObject *
 js::proxy_WeakmapKeyDelegate(JSObject *obj)
 {
-    MOZ_ASSERT(obj->is<ProxyObject>());
+    JS_ASSERT(obj->is<ProxyObject>());
     return obj->as<ProxyObject>().handler()->weakmapKeyDelegate(obj);
 }
 
 bool
 js::proxy_Convert(JSContext *cx, HandleObject proxy, JSType hint, MutableHandleValue vp)
 {
-    MOZ_ASSERT(proxy->is<ProxyObject>());
+    JS_ASSERT(proxy->is<ProxyObject>());
     return Proxy::defaultValue(cx, proxy, hint, vp);
 }
 
 void
 js::proxy_Finalize(FreeOp *fop, JSObject *obj)
 {
-    MOZ_ASSERT(obj->is<ProxyObject>());
+    JS_ASSERT(obj->is<ProxyObject>());
     obj->as<ProxyObject>().handler()->finalize(fop, obj);
 }
 
 void
 js::proxy_ObjectMoved(JSObject *obj, const JSObject *old)
 {
-    MOZ_ASSERT(obj->is<ProxyObject>());
+    JS_ASSERT(obj->is<ProxyObject>());
     obj->as<ProxyObject>().handler()->objectMoved(obj, old);
 }
 
@@ -811,7 +811,7 @@ js::proxy_Call(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     RootedObject proxy(cx, &args.callee());
-    MOZ_ASSERT(proxy->is<ProxyObject>());
+    JS_ASSERT(proxy->is<ProxyObject>());
     return Proxy::call(cx, proxy, args);
 }
 
@@ -820,7 +820,7 @@ js::proxy_Construct(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     RootedObject proxy(cx, &args.callee());
-    MOZ_ASSERT(proxy->is<ProxyObject>());
+    JS_ASSERT(proxy->is<ProxyObject>());
     return Proxy::construct(cx, proxy, args);
 }
 
@@ -861,11 +861,11 @@ js::NewProxyObject(JSContext *cx, const BaseProxyHandler *handler, HandleValue p
 void
 ProxyObject::renew(JSContext *cx, const BaseProxyHandler *handler, Value priv)
 {
-    MOZ_ASSERT_IF(IsCrossCompartmentWrapper(this), IsDeadProxyObject(this));
-    MOZ_ASSERT(getParent() == cx->global());
-    MOZ_ASSERT(getClass() == &ProxyObject::class_);
-    MOZ_ASSERT(!getClass()->ext.innerObject);
-    MOZ_ASSERT(getTaggedProto().isLazy());
+    JS_ASSERT_IF(IsCrossCompartmentWrapper(this), IsDeadProxyObject(this));
+    JS_ASSERT(getParent() == cx->global());
+    JS_ASSERT(getClass() == &ProxyObject::class_);
+    JS_ASSERT(!getClass()->ext.innerObject);
+    JS_ASSERT(getTaggedProto().isLazy());
 
     setHandler(handler);
     setCrossCompartmentSlot(PRIVATE_SLOT, priv);

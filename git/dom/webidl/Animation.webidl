@@ -14,8 +14,5 @@
 interface Animation {
   // FIXME: |effect| should have type (AnimationEffect or EffectCallback)?
   // but we haven't implemented EffectCallback yet.
-  [Cached,Pure]
-  readonly attribute AnimationEffect? effect;
-  // FIXME: This should be writeable (bug 1067769)
-  readonly attribute Element?         target;
+  [Cached,Pure] readonly attribute AnimationEffect? effect;
 };

@@ -177,7 +177,7 @@ class IonCache
     void incrementStubCount() {
         // The IC should stop generating stubs before wrapping stubCount.
         stubCount_++;
-        MOZ_ASSERT(stubCount_);
+        JS_ASSERT(stubCount_);
     }
 
   public:
@@ -207,7 +207,7 @@ class IonCache
     }
 
     void setProfilerLeavePC(jsbytecode *pc) {
-        MOZ_ASSERT(pc != nullptr);
+        JS_ASSERT(pc != nullptr);
         profilerLeavePc_ = pc;
     }
 
@@ -268,14 +268,14 @@ class IonCache
         return idempotent_;
     }
     void setIdempotent() {
-        MOZ_ASSERT(!idempotent_);
-        MOZ_ASSERT(!script_);
-        MOZ_ASSERT(!pc_);
+        JS_ASSERT(!idempotent_);
+        JS_ASSERT(!script_);
+        JS_ASSERT(!pc_);
         idempotent_ = true;
     }
 
     void setScriptedLocation(JSScript *script, jsbytecode *pc) {
-        MOZ_ASSERT(!idempotent_);
+        JS_ASSERT(!idempotent_);
         script_ = script;
         pc_ = pc;
     }
@@ -286,7 +286,7 @@ class IonCache
     }
 
     jsbytecode *pc() const {
-        MOZ_ASSERT(pc_);
+        JS_ASSERT(pc_);
         return pc_;
     }
 };
@@ -611,23 +611,23 @@ class GetPropertyIC : public RepatchIonCache
 
     void setHasTypedArrayLengthStub(HandleObject obj) {
         if (obj->is<TypedArrayObject>()) {
-            MOZ_ASSERT(!hasTypedArrayLengthStub_);
+            JS_ASSERT(!hasTypedArrayLengthStub_);
             hasTypedArrayLengthStub_ = true;
         } else {
-            MOZ_ASSERT(!hasSharedTypedArrayLengthStub_);
+            JS_ASSERT(!hasSharedTypedArrayLengthStub_);
             hasSharedTypedArrayLengthStub_ = true;
         }
     }
 
     void setLocationInfo(size_t locationsIndex, size_t numLocations) {
-        MOZ_ASSERT(idempotent());
-        MOZ_ASSERT(!numLocations_);
-        MOZ_ASSERT(numLocations);
+        JS_ASSERT(idempotent());
+        JS_ASSERT(!numLocations_);
+        JS_ASSERT(numLocations);
         locationsIndex_ = locationsIndex;
         numLocations_ = numLocations;
     }
     void getLocationInfo(uint32_t *index, uint32_t *num) const {
-        MOZ_ASSERT(idempotent());
+        JS_ASSERT(idempotent());
         *index = locationsIndex_;
         *num = numLocations_;
     }
@@ -821,13 +821,13 @@ class GetElementIC : public RepatchIonCache
         return strict ? hasStrictArgumentsStub_ : hasNormalArgumentsStub_;
     }
     void setHasDenseStub() {
-        MOZ_ASSERT(!hasDenseStub());
+        JS_ASSERT(!hasDenseStub());
         hasDenseStub_ = true;
     }
 
     // Helpers for CanAttachNativeGetProp
     typedef JSContext * Context;
-    bool allowGetters() const { MOZ_ASSERT(!idempotent()); return true; }
+    bool allowGetters() const { JS_ASSERT(!idempotent()); return true; }
     bool allowArrayLength(Context, HandleObject) const { return false; }
     bool canMonitorSingletonUndefinedSlot(HandleObject holder, HandleShape shape) const {
         return monitoredResult();
@@ -936,7 +936,7 @@ class SetElementIC : public RepatchIonCache
         return hasDenseStub_;
     }
     void setHasDenseStub() {
-        MOZ_ASSERT(!hasDenseStub());
+        JS_ASSERT(!hasDenseStub());
         hasDenseStub_ = true;
     }
 
@@ -1142,10 +1142,10 @@ class GetPropertyParIC : public ParallelIonCache
 
     void setHasTypedArrayLengthStub(HandleObject obj) {
         if (obj->is<TypedArrayObject>()) {
-            MOZ_ASSERT(!hasTypedArrayLengthStub_);
+            JS_ASSERT(!hasTypedArrayLengthStub_);
             hasTypedArrayLengthStub_ = true;
         } else {
-            MOZ_ASSERT(!hasSharedTypedArrayLengthStub_);
+            JS_ASSERT(!hasSharedTypedArrayLengthStub_);
             hasSharedTypedArrayLengthStub_ = true;
         }
     }
@@ -1360,12 +1360,12 @@ class SetElementParIC : public ParallelIonCache
 #define CACHE_CASTS(ickind)                                             \
     ickind##IC &IonCache::to##ickind()                                  \
     {                                                                   \
-        MOZ_ASSERT(is##ickind());                                       \
+        JS_ASSERT(is##ickind());                                        \
         return *static_cast<ickind##IC *>(this);                        \
     }                                                                   \
     const ickind##IC &IonCache::to##ickind() const                      \
     {                                                                   \
-        MOZ_ASSERT(is##ickind());                                       \
+        JS_ASSERT(is##ickind());                                        \
         return *static_cast<const ickind##IC *>(this);                  \
     }
 IONCACHE_KIND_LIST(CACHE_CASTS)

@@ -282,7 +282,7 @@ ActiveLayerTracker::IsStyleAnimated(nsIFrame* aFrame, nsCSSProperty aProperty)
   }
   nsIContent* content = aFrame->GetContent();
   if (content) {
-    return nsLayoutUtils::HasCurrentAnimationsForProperty(content, aProperty);
+    return nsLayoutUtils::HasAnimations(content, aProperty);
   }
 
   return false;
