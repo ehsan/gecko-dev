@@ -77,12 +77,12 @@ CrossCompartmentWrapper::defineProperty(JSContext *cx, HandleObject wrapper, Han
 }
 
 bool
-CrossCompartmentWrapper::ownPropertyKeys(JSContext *cx, HandleObject wrapper,
-                                         AutoIdVector &props) const
+CrossCompartmentWrapper::getOwnPropertyNames(JSContext *cx, HandleObject wrapper,
+                                             AutoIdVector &props) const
 {
     PIERCE(cx, wrapper,
            NOTHING,
-           Wrapper::ownPropertyKeys(cx, wrapper, props),
+           Wrapper::getOwnPropertyNames(cx, wrapper, props),
            NOTHING);
 }
 

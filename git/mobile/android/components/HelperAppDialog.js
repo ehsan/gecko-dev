@@ -119,7 +119,7 @@ HelperAppLauncherDialog.prototype = {
 
       Services.console.logStringMessage("Refusing download of non-downloadable file.");
       let bundle = Services.strings.createBundle("chrome://browser/locale/handling.properties");
-      let failedText = bundle.GetStringFromName("download.blocked");
+      let failedText = bundle.GetStringFromName("protocol.failed");
       win.toast.show(failedText, "long");
 
       return;

@@ -1936,9 +1936,7 @@ Accessible::BindToParent(Accessible* aParent, uint32_t aIndexInParent)
   mParent = aParent;
   mIndexInParent = aIndexInParent;
 
-#ifdef DEBUG
-  AssertInMutatingSubtree();
-#endif
+  mParent->InvalidateChildrenGroupInfo();
 
   // Note: this is currently only used for richlistitems and their children.
   if (mParent->HasNameDependentParent() || mParent->IsXULListItem())
@@ -1951,9 +1949,7 @@ Accessible::BindToParent(Accessible* aParent, uint32_t aIndexInParent)
 void
 Accessible::UnbindFromParent()
 {
-#ifdef DEBUG
-  AssertInMutatingSubtree();
-#endif
+  mParent->InvalidateChildrenGroupInfo();
   mParent = nullptr;
   mIndexInParent = -1;
   mIndexOfEmbeddedChild = -1;
@@ -2662,21 +2658,6 @@ Accessible::StaticAsserts() const
                 "Accessible::mGenericType was oversized by eLastAccGenericType!");
 }
 
-void
-Accessible::AssertInMutatingSubtree() const
-{
-  if (IsDoc() || IsApplication())
-    return;
-
-  const Accessible *acc = this;
-  while (!acc->IsDoc() && !(acc->mStateFlags & eSubtreeMutating)) {
-    acc = acc->Parent();
-    if (!acc)
-      return;
-  }
-
-  MOZ_ASSERT(acc->mStateFlags & eSubtreeMutating);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // KeyBinding class

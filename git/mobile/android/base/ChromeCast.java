@@ -193,8 +193,7 @@ class ChromeCast implements GeckoMediaPlayer {
             .addConnectionCallbacks(new GoogleApiClient.ConnectionCallbacks() {
                 @Override
                 public void onConnected(Bundle connectionHint) {
-                    // Sometimes apiClient is null here. See bug 1061032
-                    if (apiClient != null && !apiClient.isConnected()) {
+                    if (!apiClient.isConnected()) {
                         debug("Connection failed");
                         callback.sendError("Not connected");
                         return;
@@ -254,23 +253,18 @@ class ChromeCast implements GeckoMediaPlayer {
             return;
         }
 
-        try {
-            remoteMediaPlayer.play(apiClient).setResultCallback(new ResultCallback<MediaChannelResult>() {
-                @Override
-                public void onResult(MediaChannelResult result) {
-                    Status status = result.getStatus();
-                    if (!status.isSuccess()) {
-                        debug("Unable to play: " + status.getStatusCode());
-                        callback.sendError(status.toString());
-                    } else {
-                        callback.sendSuccess(null);
-                    }
+        remoteMediaPlayer.play(apiClient).setResultCallback(new ResultCallback<MediaChannelResult>() {
+            @Override
+            public void onResult(MediaChannelResult result) {
+                Status status = result.getStatus();
+                if (!status.isSuccess()) {
+                    debug("Unable to play: " + status.getStatusCode());
+                    callback.sendError(status.toString());
+                } else {
+                    callback.sendSuccess(null);
                 }
-            });
-        } catch(IllegalStateException ex) {
-            // The media player may throw if the session has been killed. For now, we're just catching this here.
-            callback.sendError("Error playing");
-        }
+            }
+        });
     }
 
     public void pause(final EventCallback callback) {
@@ -278,23 +272,18 @@ class ChromeCast implements GeckoMediaPlayer {
             return;
         }
 
-        try {
-            remoteMediaPlayer.pause(apiClient).setResultCallback(new ResultCallback<MediaChannelResult>() {
-                @Override
-                public void onResult(MediaChannelResult result) {
-                    Status status = result.getStatus();
-                    if (!status.isSuccess()) {
-                        debug("Unable to pause: " + status.getStatusCode());
-                        callback.sendError(status.toString());
-                    } else {
-                        callback.sendSuccess(null);
-                    }
+        remoteMediaPlayer.pause(apiClient).setResultCallback(new ResultCallback<MediaChannelResult>() {
+            @Override
+            public void onResult(MediaChannelResult result) {
+                Status status = result.getStatus();
+                if (!status.isSuccess()) {
+                    debug("Unable to pause: " + status.getStatusCode());
+                    callback.sendError(status.toString());
+                } else {
+                    callback.sendSuccess(null);
                 }
-            });
-        } catch(IllegalStateException ex) {
-            // The media player may throw if the session has been killed. For now, we're just catching this here.
-            callback.sendError("Error pausing");
-        }
+            }
+        });
     }
 
     public void end(final EventCallback callback) {
@@ -302,37 +291,32 @@ class ChromeCast implements GeckoMediaPlayer {
             return;
         }
 
-        try {
-            Cast.CastApi.stopApplication(apiClient).setResultCallback(new ResultCallback<Status>() {
-                @Override
-                public void onResult(Status result) {
-                    if (result.isSuccess()) {
-                        try {
-                            Cast.CastApi.removeMessageReceivedCallbacks(apiClient, remoteMediaPlayer.getNamespace());
-                            remoteMediaPlayer = null;
-                            mSessionId = null;
-                            apiClient.disconnect();
-                            apiClient = null;
+        Cast.CastApi.stopApplication(apiClient).setResultCallback(new ResultCallback<Status>() {
+            @Override
+            public void onResult(Status result) {
+                if (result.isSuccess()) {
+                    try {
+                        Cast.CastApi.removeMessageReceivedCallbacks(apiClient, remoteMediaPlayer.getNamespace());
+                        remoteMediaPlayer = null;
+                        mSessionId = null;
+                        apiClient.disconnect();
+                        apiClient = null;
 
-                            if (callback != null) {
-                                callback.sendSuccess(null);
-                            }
-
-                            return;
-                        } catch(Exception ex) {
-                            debug("Error ending", ex);
+                        if (callback != null) {
+                            callback.sendSuccess(null);
                         }
-                    }
 
-                    if (callback != null) {
-                        callback.sendError(result.getStatus().toString());
+                        return;
+                    } catch(Exception ex) {
+                        debug("Error ending", ex);
                     }
                 }
-            });
-        } catch(IllegalStateException ex) {
-            // The media player may throw if the session has been killed. For now, we're just catching this here.
-            callback.sendError("Error stopping");
-        }
+
+                if (callback != null) {
+                    callback.sendError(result.getStatus().toString());
+                }
+            }
+        });
     }
 
     class MirrorChannel implements MessageReceivedCallback {
@@ -429,8 +413,7 @@ class ChromeCast implements GeckoMediaPlayer {
             .addConnectionCallbacks(new GoogleApiClient.ConnectionCallbacks() {
                     @Override
                     public void onConnected(Bundle connectionHint) {
-                        // Sometimes apiClient is null here. See bug 1061032
-                        if (apiClient == null || !apiClient.isConnected()) {
+                        if (!apiClient.isConnected()) {
                             return;
                         }
 

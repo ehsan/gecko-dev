@@ -23,7 +23,7 @@
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
 
-#include "vm/NativeObject-inl.h"
+#include "vm/ObjectImpl-inl.h"
 
 using namespace js;
 using namespace js::gc;
@@ -164,14 +164,14 @@ Proxy::defineProperty(JSContext *cx, HandleObject proxy, HandleId id,
 }
 
 bool
-Proxy::ownPropertyKeys(JSContext *cx, HandleObject proxy, AutoIdVector &props)
+Proxy::getOwnPropertyNames(JSContext *cx, HandleObject proxy, AutoIdVector &props)
 {
     JS_CHECK_RECURSION(cx, return false);
     const BaseProxyHandler *handler = proxy->as<ProxyObject>().handler();
     AutoEnterPolicy policy(cx, handler, proxy, JSID_VOIDHANDLE, BaseProxyHandler::ENUMERATE, true);
     if (!policy.allowed())
         return policy.returnValue();
-    return proxy->as<ProxyObject>().handler()->ownPropertyKeys(cx, proxy, props);
+    return proxy->as<ProxyObject>().handler()->getOwnPropertyNames(cx, proxy, props);
 }
 
 bool
@@ -220,7 +220,7 @@ Proxy::enumerate(JSContext *cx, HandleObject proxy, AutoIdVector &props)
         return false;
     AutoIdVector protoProps(cx);
     INVOKE_ON_PROTOTYPE(cx, handler, proxy,
-                        GetPropertyKeys(cx, proto, 0, &protoProps) &&
+                        GetPropertyNames(cx, proto, 0, &protoProps) &&
                         AppendUnique(cx, props, protoProps));
 }
 

@@ -989,7 +989,7 @@ AddonsProvider.prototype = Object.freeze({
 
       // We count plugins separately below.
       if (addon.type == "plugin") {
-        if (addon.isGMPlugin) {
+        if (addon.gmPlugin) {
           data.gmPlugins[addon.id] = {
             version: addon.version,
             userDisabled: addon.userDisabled,

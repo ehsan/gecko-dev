@@ -52,7 +52,7 @@ int64_t
 WebGLTexture::ImageInfo::MemoryUsage() const {
     if (mImageDataStatus == WebGLImageDataStatus::NoImageData)
         return 0;
-    int64_t bitsPerTexel = GetBitsPerTexel(mEffectiveInternalFormat);
+    int64_t bitsPerTexel = WebGLContext::GetBitsPerTexel(mInternalFormat, mType);
     return int64_t(mWidth) * int64_t(mHeight) * bitsPerTexel/8;
 }
 
@@ -138,7 +138,8 @@ WebGLTexture::Bind(TexTarget aTexTarget) {
 void
 WebGLTexture::SetImageInfo(TexImageTarget aTexImageTarget, GLint aLevel,
                            GLsizei aWidth, GLsizei aHeight,
-                           TexInternalFormat aEffectiveInternalFormat, WebGLImageDataStatus aStatus)
+                           TexInternalFormat aInternalFormat, TexType aType,
+                           WebGLImageDataStatus aStatus)
 {
     MOZ_ASSERT(TexImageTargetToTexTarget(aTexImageTarget) == mTarget);
     if (TexImageTargetToTexTarget(aTexImageTarget) != mTarget)
@@ -146,7 +147,7 @@ WebGLTexture::SetImageInfo(TexImageTarget aTexImageTarget, GLint aLevel,
 
     EnsureMaxLevelWithCustomImagesAtLeast(aLevel);
 
-    ImageInfoAt(aTexImageTarget, aLevel) = ImageInfo(aWidth, aHeight, aEffectiveInternalFormat, aStatus);
+    ImageInfoAt(aTexImageTarget, aLevel) = ImageInfo(aWidth, aHeight, aInternalFormat, aType, aStatus);
 
     if (aLevel > 0)
         SetCustomMipmap();
@@ -328,9 +329,7 @@ WebGLTexture::ResolvedFakeBlackStatus() {
         }
     }
 
-    TexType type = TypeFromInternalFormat(ImageInfoBase().mEffectiveInternalFormat);
-
-    if (type == LOCAL_GL_FLOAT &&
+    if (ImageInfoBase().mType == LOCAL_GL_FLOAT &&
         !Context()->IsExtensionEnabled(WebGLExtensionID::OES_texture_float_linear))
     {
         if (mMinFilter == LOCAL_GL_LINEAR ||
@@ -350,7 +349,7 @@ WebGLTexture::ResolvedFakeBlackStatus() {
                                       "Try enabling the OES_texture_float_linear extension if supported.", msg_rendering_as_black);
             mFakeBlackStatus = WebGLTextureFakeBlackStatus::IncompleteTexture;
         }
-    } else if (type == LOCAL_GL_HALF_FLOAT &&
+    } else if (ImageInfoBase().mType == LOCAL_GL_HALF_FLOAT_OES &&
                !Context()->IsExtensionEnabled(WebGLExtensionID::OES_texture_half_float_linear))
     {
         if (mMinFilter == LOCAL_GL_LINEAR ||
@@ -535,11 +534,13 @@ WebGLTexture::DoDeferredImageInitialization(TexImageTarget imageTarget, GLint le
     mContext->MakeContextCurrent();
 
     // Try to clear with glCLear.
+    TexInternalFormat internalformat = imageInfo.mInternalFormat;
+    TexType type = imageInfo.mType;
+    WebGLTexelFormat texelformat = GetWebGLTexelFormat(internalformat, type);
 
     bool cleared = ClearWithTempFB(mContext, GLName(),
                                    imageTarget, level,
-                                   imageInfo.mEffectiveInternalFormat,
-                                   imageInfo.mHeight, imageInfo.mWidth);
+                                   internalformat, imageInfo.mHeight, imageInfo.mWidth);
     if (cleared) {
         SetImageDataStatus(imageTarget, level, WebGLImageDataStatus::InitializedImageData);
         return;
@@ -548,26 +549,22 @@ WebGLTexture::DoDeferredImageInitialization(TexImageTarget imageTarget, GLint le
     // That didn't work. Try uploading zeros then.
     gl::ScopedBindTexture autoBindTex(mContext->gl, GLName(), mTarget.get());
 
-    size_t bitspertexel = GetBitsPerTexel(imageInfo.mEffectiveInternalFormat);
-    MOZ_ASSERT((bitspertexel % 8) == 0); // that would only happen for compressed images, which
-                                         // cannot use deferred initialization.
-    size_t bytespertexel = bitspertexel / 8;
+    uint32_t texelsize = WebGLTexelConversions::TexelBytesForFormat(texelformat);
     CheckedUint32 checked_byteLength
         = WebGLContext::GetImageSize(
                         imageInfo.mHeight,
                         imageInfo.mWidth,
-                        bytespertexel,
+                        texelsize,
                         mContext->mPixelStoreUnpackAlignment);
     MOZ_ASSERT(checked_byteLength.isValid()); // should have been checked earlier
     ScopedFreePtr<void> zeros;
     zeros = calloc(1, checked_byteLength.value());
 
     gl::GLContext* gl = mContext->gl;
+    GLenum driverType = DriverTypeFromType(gl, type);
     GLenum driverInternalFormat = LOCAL_GL_NONE;
     GLenum driverFormat = LOCAL_GL_NONE;
-    GLenum driverType = LOCAL_GL_NONE;
-    DriverFormatsFromEffectiveInternalFormat(gl, imageInfo.mEffectiveInternalFormat,
-                                             &driverInternalFormat, &driverFormat, &driverType);
+    DriverFormatsFromFormatAndType(gl, internalformat, type, &driverInternalFormat, &driverFormat);
 
     mContext->GetAndFlushUnderlyingGLErrors();
     gl->fTexImage2D(imageTarget.get(), level, driverInternalFormat,

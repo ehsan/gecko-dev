@@ -4,6 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+
 #include "vm/SavedStacks.h"
 
 #include "mozilla/Attributes.h"
@@ -25,7 +26,7 @@
 
 #include "jscntxtinlines.h"
 
-#include "vm/NativeObject-inl.h"
+#include "vm/ObjectImpl-inl.h"
 
 using mozilla::AddToHash;
 using mozilla::HashString;

@@ -483,13 +483,7 @@ DocAccessible::Shutdown()
 
   mDependentIDsHash.Clear();
   mNodeToAccessibleMap.Clear();
-
-  {
-    // We're about to get rid of all of our children so there won't be anything
-    // to invalidate.
-    AutoTreeMutation mut(this, false);
-    ClearCache(mAccessibleCache);
-  }
+  ClearCache(mAccessibleCache);
 
   HyperTextAccessibleWrap::Shutdown();
 
@@ -1324,10 +1318,8 @@ DocAccessible::ProcessInvalidationList()
     }
 
     // Make sure the subtree is created.
-    if (accessible) {
-      AutoTreeMutation mut(accessible);
+    if (accessible)
       CacheChildrenInSubtree(accessible);
-    }
   }
 
   mInvalidationList.Clear();
@@ -1433,9 +1425,7 @@ DocAccessible::DoInitialUpdate()
     SetRoleMapEntry(aria::GetRoleMap(mContent));
   }
 
-  // Build initial tree.  Since its the initial tree there's no group info to
-  // invalidate.
-  AutoTreeMutation mut(this, false);
+  // Build initial tree.
   CacheChildrenInSubtree(this);
 
   // Fire reorder event after the document tree is constructed. Note, since
@@ -1669,9 +1659,6 @@ DocAccessible::ProcessContentInserted(Accessible* aContainer,
       // accessibles into accessible tree. We need to invalidate children even
       // there's no inserted accessibles in the end because accessible children
       // are created while parent recaches child accessibles.
-      // XXX Group invalidation here may be redundant with invalidation in
-      // UpdateTree.
-      AutoTreeMutation mut(aContainer);
       aContainer->InvalidateChildren();
       CacheChildrenInSubtree(aContainer);
     }
@@ -1704,7 +1691,6 @@ DocAccessible::UpdateTree(Accessible* aContainer, nsIContent* aChildNode,
 #endif
 
   nsRefPtr<AccReorderEvent> reorderEvent = new AccReorderEvent(aContainer);
-  AutoTreeMutation mut(aContainer);
 
   if (child) {
     updateFlags |= UpdateTreeInternal(child, aIsInsert, reorderEvent);

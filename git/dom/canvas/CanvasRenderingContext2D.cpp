@@ -3507,9 +3507,8 @@ CanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
   processor.mFontgrp->UpdateUserFonts(); // ensure user font generation is current
   const gfxFont::Metrics& fontMetrics =
     processor.mFontgrp->GetFirstValidFont()->GetMetrics(
-      ((processor.mTextRunFlags & gfxTextRunFactory::TEXT_ORIENT_MASK) ==
-        gfxTextRunFactory::TEXT_ORIENT_HORIZONTAL)
-      ? gfxFont::eHorizontal : gfxFont::eVertical);
+      processor.mTextRun->IsVertical() ? gfxFont::eVertical :
+                                         gfxFont::eHorizontal);
 
   gfxFloat anchorY;
 

@@ -19,7 +19,7 @@ class ClearKeyDecryptor;
 class ClearKeyDecryptionManager MOZ_FINAL : public GMPDecryptor
 {
 public:
-  explicit ClearKeyDecryptionManager(GMPDecryptorHost* aHost);
+  ClearKeyDecryptionManager(GMPDecryptorHost* aHost);
   ~ClearKeyDecryptionManager();
 
   virtual void Init(GMPDecryptorCallback* aCallback) MOZ_OVERRIDE;
