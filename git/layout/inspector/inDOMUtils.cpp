@@ -522,7 +522,7 @@ static void GetKeywordsForProperty(const nsCSSProperty aProperty,
   }
   const nsCSSProps::KTableValue *keywordTable =
     nsCSSProps::kKeywordTableTable[aProperty];
-  if (keywordTable) {
+  if (keywordTable && keywordTable != nsCSSProps::kBoxPropSourceKTable) {
     size_t i = 0;
     while (nsCSSKeyword(keywordTable[i]) != eCSSKeyword_UNKNOWN) {
       nsCSSKeyword word = nsCSSKeyword(keywordTable[i]);
@@ -748,8 +748,7 @@ inDOMUtils::GetCSSValuesForProperty(const nsAString& aProperty,
     GetOtherValuesForProperty(propertyParserVariant, array);
   } else {
     // Property is shorthand.
-    CSSPROPS_FOR_SHORTHAND_SUBPROPERTIES(subproperty, propertyID,
-                                         nsCSSProps::eEnabledForAllContent) {
+    CSSPROPS_FOR_SHORTHAND_SUBPROPERTIES(subproperty, propertyID) {
       // Get colors (once) first.
       uint32_t propertyParserVariant = nsCSSProps::ParserVariant(*subproperty);
       if (propertyParserVariant & VARIANT_COLOR) {
@@ -757,8 +756,7 @@ inDOMUtils::GetCSSValuesForProperty(const nsAString& aProperty,
         break;
       }
     }
-    CSSPROPS_FOR_SHORTHAND_SUBPROPERTIES(subproperty, propertyID,
-                                         nsCSSProps::eEnabledForAllContent) {
+    CSSPROPS_FOR_SHORTHAND_SUBPROPERTIES(subproperty, propertyID) {
       uint32_t propertyParserVariant = nsCSSProps::ParserVariant(*subproperty);
       if (propertyParserVariant & VARIANT_KEYWORD) {
         GetKeywordsForProperty(*subproperty, array);

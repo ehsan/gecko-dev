@@ -952,9 +952,10 @@ void WebMReader::PushVideoPacket(NesteggPacketHolder* aItem)
 }
 
 nsRefPtr<MediaDecoderReader::SeekPromise>
-WebMReader::Seek(int64_t aTarget, int64_t aEndTime)
+WebMReader::Seek(int64_t aTarget, int64_t aStartTime, int64_t aEndTime,
+                      int64_t aCurrentTime)
 {
-  nsresult res = SeekInternal(aTarget);
+  nsresult res = SeekInternal(aTarget, aStartTime);
   if (NS_FAILED(res)) {
     return SeekPromise::CreateAndReject(res, __func__);
   } else {
@@ -962,7 +963,7 @@ WebMReader::Seek(int64_t aTarget, int64_t aEndTime)
   }
 }
 
-nsresult WebMReader::SeekInternal(int64_t aTarget)
+nsresult WebMReader::SeekInternal(int64_t aTarget, int64_t aStartTime)
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
   if (mVideoDecoder) {
@@ -979,7 +980,7 @@ nsresult WebMReader::SeekInternal(int64_t aTarget)
   uint64_t target = aTarget * NS_PER_USEC;
 
   if (mSeekPreroll) {
-    target = std::max(uint64_t(mStartTime * NS_PER_USEC),
+    target = std::max(uint64_t(aStartTime * NS_PER_USEC),
                       target - mSeekPreroll);
   }
   int r = nestegg_track_seek(mContext, trackToSeek, target);

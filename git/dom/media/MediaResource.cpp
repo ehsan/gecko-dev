@@ -918,19 +918,10 @@ ChannelMediaResource::RecreateChannel()
   nsCOMPtr<nsILoadGroup> loadGroup = element->GetDocumentLoadGroup();
   NS_ENSURE_TRUE(loadGroup, NS_ERROR_NULL_POINTER);
 
-  nsSecurityFlags securityFlags = nsILoadInfo::SEC_NORMAL;
-  if (nsContentUtils::ChannelShouldInheritPrincipal(element->NodePrincipal(),
-                                                    mURI,
-                                                    false, // aInheritForAboutBlank
-                                                    false // aForceInherit
-                                                    )) {
-    securityFlags = nsILoadInfo::SEC_FORCE_INHERIT_PRINCIPAL;
-  }
-
   nsresult rv = NS_NewChannel(getter_AddRefs(mChannel),
                               mURI,
                               element,
-                              securityFlags,
+                              nsILoadInfo::SEC_NORMAL,
                               nsIContentPolicy::TYPE_MEDIA,
                               loadGroup,
                               nullptr,  // aCallbacks
@@ -1445,21 +1436,12 @@ already_AddRefed<MediaResource> FileMediaResource::CloneData(MediaDecoder* aDeco
   nsCOMPtr<nsILoadGroup> loadGroup = element->GetDocumentLoadGroup();
   NS_ENSURE_TRUE(loadGroup, nullptr);
 
-  nsSecurityFlags securityFlags = nsILoadInfo::SEC_NORMAL;
-  if (nsContentUtils::ChannelShouldInheritPrincipal(element->NodePrincipal(),
-                                                    mURI,
-                                                    false, // aInheritForAboutBlank
-                                                    false // aForceInherit
-                                                    )) {
-    securityFlags = nsILoadInfo::SEC_FORCE_INHERIT_PRINCIPAL;
-  }
-
   nsCOMPtr<nsIChannel> channel;
   nsresult rv =
     NS_NewChannel(getter_AddRefs(channel),
                   mURI,
                   element,
-                  securityFlags,
+                  nsILoadInfo::SEC_NORMAL,
                   nsIContentPolicy::TYPE_MEDIA,
                   loadGroup);
 

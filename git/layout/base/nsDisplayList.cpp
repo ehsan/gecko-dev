@@ -769,9 +769,9 @@ nsDisplayScrollLayer::ComputeFrameMetrics(nsIFrame* aForFrame,
   // Only the root scrollable frame for a given presShell should pick up
   // the presShell's resolution. All the other frames are 1.0.
   if (aScrollFrame == presShell->GetRootScrollFrame()) {
-    metrics.SetPresShellResolution(presShell->GetXResolution());
+    metrics.mPresShellResolution = presShell->GetXResolution();
   } else {
-    metrics.SetPresShellResolution(1.0f);
+    metrics.mPresShellResolution = 1.0f;
   }
   // The cumulative resolution is the resolution at which the scroll frame's
   // content is actually rendered. It includes the pres shell resolutions of

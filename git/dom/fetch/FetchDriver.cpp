@@ -8,7 +8,6 @@
 #include "nsIInputStream.h"
 #include "nsIOutputStream.h"
 #include "nsIHttpChannel.h"
-#include "nsIHttpChannelInternal.h"
 #include "nsIHttpHeaderVisitor.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIThreadRetargetableRequest.h"
@@ -42,7 +41,6 @@ FetchDriver::FetchDriver(InternalRequest* aRequest, nsIPrincipal* aPrincipal,
   , mLoadGroup(aLoadGroup)
   , mRequest(aRequest)
   , mFetchRecursionCount(0)
-  , mReferrerPolicy(net::RP_Default)
   , mResponseAvailableCalled(false)
 {
 }
@@ -388,19 +386,16 @@ FetchDriver::HttpFetch(bool aCORSFlag, bool aCORSPreflightFlag, bool aAuthentica
       httpChan->SetRequestHeader(headers[i].mName, headers[i].mValue, false /* merge */);
     }
 
-    // Step 2. Set the referrer.
-    nsAutoString referrer;
-    mRequest->GetReferrer(referrer);
-    // The referrer should have already been resolved to a URL by the caller.
-    MOZ_ASSERT(!referrer.EqualsLiteral(kFETCH_CLIENT_REFERRER_STR));
+    // Step 2. Set the referrer. This is handled better in Bug 1112922.
+    MOZ_ASSERT(mRequest->ReferrerIsURL());
+    nsCString referrer = mRequest->ReferrerAsURL();
     if (!referrer.IsEmpty()) {
-      nsCOMPtr<nsIURI> refURI;
-      rv = NS_NewURI(getter_AddRefs(refURI), referrer, nullptr, nullptr);
+      nsCOMPtr<nsIURI> uri;
+      rv = NS_NewURI(getter_AddRefs(uri), referrer, nullptr, nullptr, ios);
       if (NS_WARN_IF(NS_FAILED(rv))) {
         return FailWithNetworkError();
       }
-
-      rv = httpChan->SetReferrerWithPolicy(refURI, mReferrerPolicy);
+      rv = httpChan->SetReferrer(uri);
       if (NS_WARN_IF(NS_FAILED(rv))) {
         return FailWithNetworkError();
       }
@@ -449,14 +444,6 @@ FetchDriver::HttpFetch(bool aCORSFlag, bool aCORSPreflightFlag, bool aAuthentica
         return FailWithNetworkError();
       }
     }
-  }
-
-  // Set skip serviceworker flag.
-  // While the spec also gates on the client being a ServiceWorker, we can't
-  // infer that here. Instead we rely on callers to set the flag correctly.
-  if (mRequest->SkipServiceWorker()) {
-    nsCOMPtr<nsIHttpChannelInternal> internalChan = do_QueryInterface(httpChan);
-    internalChan->ForceNoIntercept();
   }
 
   // Set up a CORS proxy that will handle the various requirements of the CORS

@@ -39,7 +39,8 @@ RtspMediaCodecReader::CreateExtractor()
 }
 
 nsRefPtr<MediaDecoderReader::SeekPromise>
-RtspMediaCodecReader::Seek(int64_t aTime, int64_t aEndTime)
+RtspMediaCodecReader::Seek(int64_t aTime, int64_t aStartTime,
+                           int64_t aEndTime, int64_t aCurrentTime)
 {
   // The seek function of Rtsp is time-based, we call the SeekTime function in
   // RtspMediaResource. The SeekTime function finally send a seek command to
@@ -47,7 +48,7 @@ RtspMediaCodecReader::Seek(int64_t aTime, int64_t aEndTime)
   // RtspMediaResource.
   mRtspResource->SeekTime(aTime);
 
-  return MediaCodecReader::Seek(aTime, aEndTime);
+  return MediaCodecReader::Seek(aTime, aStartTime, aEndTime, aCurrentTime);
 }
 
 void

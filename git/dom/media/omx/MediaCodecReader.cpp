@@ -995,7 +995,10 @@ MediaCodecReader::DecodeVideoFrameSync(int64_t aTimeThreshold)
 }
 
 nsRefPtr<MediaDecoderReader::SeekPromise>
-MediaCodecReader::Seek(int64_t aTime, int64_t aEndTime)
+MediaCodecReader::Seek(int64_t aTime,
+                       int64_t aStartTime,
+                       int64_t aEndTime,
+                       int64_t aCurrentTime)
 {
   MOZ_ASSERT(mDecoder->OnDecodeThread(), "Should be on decode thread.");
 

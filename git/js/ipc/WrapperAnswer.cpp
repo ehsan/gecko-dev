@@ -387,7 +387,7 @@ WrapperAnswer::RecvIsExtensible(const ObjectId &objId, ReturnStatus *rs, bool *r
 
 bool
 WrapperAnswer::RecvCallOrConstruct(const ObjectId &objId,
-                                   InfallibleTArray<JSParam> &&argv,
+                                   const nsTArray<JSParam> &argv,
                                    const bool &construct,
                                    ReturnStatus *rs,
                                    JSVariant *result,

@@ -217,7 +217,7 @@ PluginWidgetParent::RecvMove(const double& aX, const double& aY)
 }
 
 bool
-PluginWidgetParent::RecvSetWindowClipRegion(InfallibleTArray<nsIntRect>&& Regions,
+PluginWidgetParent::RecvSetWindowClipRegion(const nsTArray<nsIntRect>& Regions,
                                             const bool& aIntersectWithExisting)
 {
   ENSURE_CHANNEL;

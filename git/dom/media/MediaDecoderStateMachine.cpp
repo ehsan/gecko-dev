@@ -188,7 +188,6 @@ MediaDecoderStateMachine::MediaDecoderStateMachine(MediaDecoder* aDecoder,
   mPlayDuration(0),
   mStartTime(-1),
   mEndTime(-1),
-  mDurationSet(false),
   mFragmentEndTime(-1),
   mReader(aReader),
   mCurrentFrameTime(0),
@@ -220,12 +219,10 @@ MediaDecoderStateMachine::MediaDecoderStateMachine(MediaDecoder* aDecoder,
   mDropVideoUntilNextDiscontinuity(false),
   mDecodeToSeekTarget(false),
   mWaitingForDecoderSeek(false),
-  mCancelingSeek(false),
   mCurrentTimeBeforeSeek(0),
   mLastFrameStatus(MediaDecoderOwner::NEXT_FRAME_UNINITIALIZED),
-  mDecodingFrozenAtStateDecoding(false),
-  mSentLoadedMetadataEvent(false),
-  mSentFirstFrameLoadedEvent(false)
+  mDecodingFrozenAtStateMetadata(false),
+  mDecodingFrozenAtStateDecoding(false)
 {
   MOZ_COUNT_CTOR(MediaDecoderStateMachine);
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
@@ -1411,14 +1408,6 @@ int64_t MediaDecoderStateMachine::GetDuration()
   return mEndTime - mStartTime;
 }
 
-int64_t MediaDecoderStateMachine::GetEndTime()
-{
-  if (mEndTime == -1 && mDurationSet) {
-    return INT64_MAX;
-  }
-  return mEndTime;
-}
-
 void MediaDecoderStateMachine::SetDuration(int64_t aDuration)
 {
   NS_ASSERTION(NS_IsMainThread() || OnDecodeThread(),
@@ -1426,19 +1415,11 @@ void MediaDecoderStateMachine::SetDuration(int64_t aDuration)
   AssertCurrentThreadInMonitor();
 
   if (aDuration == -1) {
-    mDurationSet = false;
     return;
   }
-
-  mDurationSet = true;
 
   if (mStartTime == -1) {
     SetStartTime(0);
-  }
-
-  if (aDuration == INT64_MAX) {
-    mEndTime = -1;
-    return;
   }
 
   mEndTime = mStartTime + aDuration;
@@ -1500,9 +1481,9 @@ void MediaDecoderStateMachine::SetDormant(bool aDormant)
     mCurrentSeekTarget.Reset();
     ScheduleStateMachine();
     SetState(DECODER_STATE_DORMANT);
-    StopPlayback();
     mDecoder->GetReentrantMonitor().NotifyAll();
   } else if ((aDormant != true) && (mState == DECODER_STATE_DORMANT)) {
+    mDecodingFrozenAtStateMetadata = true;
     mDecodingFrozenAtStateDecoding = true;
     ScheduleStateMachine();
     mCurrentFrameTime = 0;
@@ -1704,6 +1685,10 @@ void MediaDecoderStateMachine::Seek(const SeekTarget& aTarget)
     return;
   }
 
+  // MediaDecoder::mPlayState should be SEEKING while we seek, and
+  // in that case MediaDecoder shouldn't be calling us.
+  NS_ASSERTION(mState != DECODER_STATE_SEEKING,
+               "We shouldn't already be seeking");
   NS_ASSERTION(mState > DECODER_STATE_DECODING_METADATA,
                "We should have got duration already");
 
@@ -1750,13 +1735,12 @@ MediaDecoderStateMachine::StartSeek(const SeekTarget& aTarget)
   }
 
   // Bound the seek time to be inside the media range.
-  int64_t end = GetEndTime();
   NS_ASSERTION(mStartTime != -1, "Should know start time by now");
-  NS_ASSERTION(end != -1, "Should know end time by now");
+  NS_ASSERTION(mEndTime != -1, "Should know end time by now");
   int64_t seekTime = aTarget.mTime + mStartTime;
-  seekTime = std::min(seekTime, end);
+  seekTime = std::min(seekTime, mEndTime);
   seekTime = std::max(mStartTime, seekTime);
-  NS_ASSERTION(seekTime >= mStartTime && seekTime <= end,
+  NS_ASSERTION(seekTime >= mStartTime && seekTime <= mEndTime,
                "Can only seek in range [0,duration]");
   mSeekTarget = SeekTarget(seekTime, aTarget.mType);
 
@@ -1912,14 +1896,24 @@ MediaDecoderStateMachine::EnqueueDecodeSeekTask()
                "Should be on state machine or decode thread.");
   AssertCurrentThreadInMonitor();
 
+  if (mState != DECODER_STATE_SEEKING ||
+      !mSeekTarget.IsValid() ||
+      mCurrentSeekTarget.IsValid()) {
+    return NS_OK;
+  }
+  mCurrentSeekTarget = mSeekTarget;
+  mSeekTarget.Reset();
+  mDropAudioUntilNextDiscontinuity = HasAudio();
+  mDropVideoUntilNextDiscontinuity = HasVideo();
+
   RefPtr<nsIRunnable> task(
     NS_NewRunnableMethod(this, &MediaDecoderStateMachine::DecodeSeek));
   nsresult rv = DecodeTaskQueue()->Dispatch(task);
   if (NS_FAILED(rv)) {
     DECODER_WARN("Dispatch DecodeSeek task failed.");
+    mCurrentSeekTarget.Reset();
     DecodeError();
   }
-
   return rv;
 }
 
@@ -2194,7 +2188,7 @@ nsresult MediaDecoderStateMachine::DecodeMetadata()
     return NS_ERROR_FAILURE;
   }
   mDecoder->StartProgressUpdates();
-  mGotDurationFromMetaData = (GetDuration() != -1) || mDurationSet;
+  mGotDurationFromMetaData = (GetDuration() != -1);
 
   if (mGotDurationFromMetaData) {
     // We have all the information required: duration and size
@@ -2220,20 +2214,8 @@ MediaDecoderStateMachine::EnqueueLoadedMetadataEvent()
   nsAutoPtr<MediaInfo> info(new MediaInfo());
   *info = mInfo;
   nsCOMPtr<nsIRunnable> metadataLoadedEvent =
-    new MetadataEventRunner(mDecoder, info, mMetadataTags, mSentLoadedMetadataEvent);
+    new MetadataEventRunner(mDecoder, info, mMetadataTags);
   NS_DispatchToMainThread(metadataLoadedEvent, NS_DISPATCH_NORMAL);
-  mSentLoadedMetadataEvent = true;
-}
-
-void
-MediaDecoderStateMachine::EnqueueFirstFrameLoadedEvent()
-{
-  nsAutoPtr<MediaInfo> info(new MediaInfo());
-  *info = mInfo;
-  nsCOMPtr<nsIRunnable> event =
-    new FirstFrameLoadedEventRunner(mDecoder, info, mSentFirstFrameLoadedEvent);
-  NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
-  mSentFirstFrameLoadedEvent = true;
 }
 
 void
@@ -2272,10 +2254,7 @@ MediaDecoderStateMachine::DecodeFirstFrame()
     SetStartTime(0);
     nsresult res = FinishDecodeFirstFrame();
     NS_ENSURE_SUCCESS(res, res);
-  } else if (mSentFirstFrameLoadedEvent) {
-    // We're resuming from dormant state, so we don't need to request
-    // the first samples in order to determine the media start time,
-    // we have the start time from last time we loaded.
+  } else if (mDecodingFrozenAtStateMetadata) {
     SetStartTime(mStartTime);
     nsresult res = FinishDecodeFirstFrame();
     NS_ENSURE_SUCCESS(res, res);
@@ -2310,7 +2289,7 @@ MediaDecoderStateMachine::FinishDecodeFirstFrame()
     return NS_ERROR_FAILURE;
   }
 
-  if (!IsRealTime() && !mSentFirstFrameLoadedEvent) {
+  if (!IsRealTime() && !mDecodingFrozenAtStateMetadata) {
     const VideoData* v = VideoQueue().PeekFront();
     const AudioData* a = AudioQueue().PeekFront();
     SetStartTime(mReader->ComputeStartTime(v, a));
@@ -2321,13 +2300,19 @@ MediaDecoderStateMachine::FinishDecodeFirstFrame()
   }
 
   NS_ASSERTION(mStartTime != -1, "Must have start time");
+  MOZ_ASSERT((!HasVideo() && !HasAudio()) ||
+               !(mDecoder->IsMediaSeekable() && mDecoder->IsTransportSeekable()) ||
+               mEndTime != -1,
+             "Active seekable media should have end time");
   MOZ_ASSERT(!(mDecoder->IsMediaSeekable() && mDecoder->IsTransportSeekable()) ||
-               (GetDuration() != -1) || mDurationSet,
+               GetDuration() != -1,
              "Seekable media should have duration");
   DECODER_LOG("Media goes from %lld to %lld (duration %lld) "
               "transportSeekable=%d, mediaSeekable=%d",
               mStartTime, mEndTime, GetDuration(),
               mDecoder->IsTransportSeekable(), mDecoder->IsMediaSeekable());
+
+  mDecodingFrozenAtStateMetadata = false;
 
   if (HasAudio() && !HasVideo()) {
     // We're playing audio only. We don't need to worry about slow video
@@ -2345,15 +2330,20 @@ MediaDecoderStateMachine::FinishDecodeFirstFrame()
 
   nsAutoPtr<MediaInfo> info(new MediaInfo());
   *info = mInfo;
+  nsCOMPtr<nsIRunnable> event;
   if (!mGotDurationFromMetaData) {
     // We now have a duration, we can fire the LoadedMetadata and
     // FirstFrame event.
-    EnqueueLoadedMetadataEvent();
-    EnqueueFirstFrameLoadedEvent();
+    event =
+      new MetadataUpdatedEventRunner(mDecoder,
+                                     info,
+                                     mMetadataTags);
   } else {
     // Inform the element that we've loaded the first frame.
-    EnqueueFirstFrameLoadedEvent();
+    event =
+      new FirstFrameLoadedEventRunner(mDecoder, info);
   }
+  NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
 
   if (mState == DECODER_STATE_DECODING_FIRSTFRAME) {
     StartDecoding();
@@ -2376,34 +2366,9 @@ void MediaDecoderStateMachine::DecodeSeek()
 {
   ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
   NS_ASSERTION(OnDecodeThread(), "Should be on decode thread.");
-
-  if (mState != DECODER_STATE_SEEKING ||
-      !mSeekTarget.IsValid()) {
-    DECODER_LOG("Early returning from DecodeSeek");
+  if (mState != DECODER_STATE_SEEKING) {
     return;
   }
-
-  // If there's already an existing seek in progress, we need to handle that.
-  if (mCurrentSeekTarget.IsValid()) {
-    // There are 3 states we might be in, listed in the order that they occur:
-    //   (1) Waiting for the seek to be resolved.
-    //   (2) Waiting for the seek to be resolved, having already issued a cancel.
-    //   (3) After seek resolution, waiting for SeekComplete to run.
-    //
-    // If we're in the first state, we move to the second. Otherwise, we just wait
-    // for things to sort themselves out.
-    if (mWaitingForDecoderSeek && !mCancelingSeek) {
-      mReader->CancelSeek();
-      mCancelingSeek = true;
-    }
-
-    return;
-  }
-
-  mCurrentSeekTarget = mSeekTarget;
-  mSeekTarget.Reset();
-  mDropAudioUntilNextDiscontinuity = HasAudio();
-  mDropVideoUntilNextDiscontinuity = HasVideo();
 
   // During the seek, don't have a lock on the decoder state,
   // otherwise long seek operations can block the main thread.
@@ -2464,7 +2429,7 @@ void MediaDecoderStateMachine::DecodeSeek()
       // the reader, since it could do I/O or deadlock some other way.
       res = mReader->ResetDecode();
       if (NS_SUCCEEDED(res)) {
-        mReader->Seek(seekTime, GetEndTime())
+        mReader->Seek(seekTime, mStartTime, mEndTime, mCurrentTimeBeforeSeek)
                ->Then(DecodeTaskQueue(), __func__, this,
                       &MediaDecoderStateMachine::OnSeekCompleted,
                       &MediaDecoderStateMachine::OnSeekFailed);
@@ -2483,7 +2448,6 @@ MediaDecoderStateMachine::OnSeekCompleted(int64_t aTime)
 {
   ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
   mWaitingForDecoderSeek = false;
-  mCancelingSeek = false;
 
   // We must decode the first samples of active streams, so we can determine
   // the new stream time. So dispatch tasks to do that.
@@ -2495,21 +2459,12 @@ void
 MediaDecoderStateMachine::OnSeekFailed(nsresult aResult)
 {
   ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-  bool wasCanceled = mCancelingSeek;
   mWaitingForDecoderSeek = false;
-  mCancelingSeek = false;
-
+  // Sometimes we reject the promise for non-failure reasons, like
+  // when we request a second seek before the previous one has
+  // completed.
   if (NS_FAILED(aResult)) {
     DecodeError();
-  } else if (wasCanceled && mSeekTarget.IsValid() && mState == DECODER_STATE_SEEKING) {
-    // Try again.
-    mCurrentSeekTarget = mSeekTarget;
-    mSeekTarget.Reset();
-    mReader->Seek(mCurrentSeekTarget.mTime, mEndTime)
-           ->Then(DecodeTaskQueue(), __func__, this,
-                  &MediaDecoderStateMachine::OnSeekCompleted,
-                  &MediaDecoderStateMachine::OnSeekFailed);
-    mWaitingForDecoderSeek = true;
   }
 }
 
@@ -2572,12 +2527,7 @@ MediaDecoderStateMachine::SeekCompleted()
 
   nsCOMPtr<nsIRunnable> stopEvent;
   bool isLiveStream = mDecoder->GetResource()->GetLength() == -1;
-  if (mSeekTarget.IsValid()) {
-    // A new seek target came in while we were processing the old one. No rest
-    // for the seeking.
-    DECODER_LOG("A new seek came along while we were finishing the old one - staying in SEEKING");
-    SetState(DECODER_STATE_SEEKING);
-  } else if (GetMediaTime() == mEndTime && !isLiveStream) {
+  if (GetMediaTime() == mEndTime && !isLiveStream) {
     // Seeked to end of media, move to COMPLETED state. Note we don't do
     // this if we're playing a live stream, since the end of media will advance
     // once we download more data!
@@ -3294,7 +3244,7 @@ void MediaDecoderStateMachine::SetStartTime(int64_t aStartTimeUsecs)
   mStartTime = 0;
   if (aStartTimeUsecs != 0) {
     mStartTime = aStartTimeUsecs;
-    if (mGotDurationFromMetaData && GetEndTime() != INT64_MAX) {
+    if (mGotDurationFromMetaData) {
       NS_ASSERTION(mEndTime != -1,
                    "We should have mEndTime as supplied duration here");
       // We were specified a duration from a Content-Duration HTTP header.

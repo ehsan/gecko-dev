@@ -29,7 +29,7 @@ public:
 
   virtual bool RecvAsyncMessage(const nsString& aMsg,
                                 const ClonedMessageData& aData,
-                                InfallibleTArray<jsipc::CpowEntry>&& aCpows,
+                                const InfallibleTArray<jsipc::CpowEntry>& aCpows,
                                 const IPC::Principal& aPrincipal) MOZ_OVERRIDE;
 
   virtual PBlobChild*

@@ -13,11 +13,6 @@
 #include "nsIContentPolicy.h"
 #include "nsIInputStream.h"
 #include "nsISupportsImpl.h"
-#ifdef DEBUG
-#include "nsIURLParser.h"
-#include "nsNetCID.h"
-#include "nsServiceManagerUtils.h"
-#endif
 
 class nsIDocument;
 class nsPIDOMWindow;
@@ -27,8 +22,6 @@ namespace dom {
 
 class FetchBodyStream;
 class Request;
-
-#define kFETCH_CLIENT_REFERRER_STR "about:client"
 
 class InternalRequest MOZ_FINAL
 {
@@ -45,6 +38,14 @@ public:
     FRAMETYPE_NONE,
   };
 
+  // Since referrer type can be none, client or a URL.
+  enum ReferrerType
+  {
+    REFERRER_NONE = 0,
+    REFERRER_CLIENT,
+    REFERRER_URL,
+  };
+
   enum ResponseTainting
   {
     RESPONSETAINT_BASIC,
@@ -56,7 +57,7 @@ public:
     : mMethod("GET")
     , mHeaders(new InternalHeaders(HeadersGuardEnum::None))
     , mContextFrameType(FRAMETYPE_NONE)
-    , mReferrer(NS_LITERAL_STRING(kFETCH_CLIENT_REFERRER_STR))
+    , mReferrerType(REFERRER_CLIENT)
     , mMode(RequestMode::No_cors)
     , mCredentialsMode(RequestCredentials::Omit)
     , mResponseTainting(RESPONSETAINT_BASIC)
@@ -83,7 +84,8 @@ public:
     , mBodyStream(aOther.mBodyStream)
     , mContext(aOther.mContext)
     , mContextFrameType(aOther.mContextFrameType)
-    , mReferrer(aOther.mReferrer)
+    , mReferrerType(aOther.mReferrerType)
+    , mReferrerURL(aOther.mReferrerURL)
     , mMode(aOther.mMode)
     , mCredentialsMode(aOther.mCredentialsMode)
     , mResponseTainting(aOther.mResponseTainting)
@@ -132,63 +134,38 @@ public:
     mURL.Assign(aURL);
   }
 
-  void
-  GetReferrer(nsAString& aReferrer) const
+  bool
+  ReferrerIsNone() const
   {
-    aReferrer.Assign(mReferrer);
-  }
-
-  void
-  SetReferrer(const nsAString& aReferrer)
-  {
-#ifdef DEBUG
-    bool validReferrer = false;
-    if (aReferrer.IsEmpty() ||
-        aReferrer.EqualsLiteral(kFETCH_CLIENT_REFERRER_STR)) {
-      validReferrer = true;
-    } else {
-      nsCOMPtr<nsIURLParser> parser = do_GetService(NS_STDURLPARSER_CONTRACTID);
-      if (!parser) {
-        NS_WARNING("Could not get parser to validate URL!");
-      } else {
-        uint32_t schemePos;
-        int32_t schemeLen;
-        uint32_t authorityPos;
-        int32_t authorityLen;
-        uint32_t pathPos;
-        int32_t pathLen;
-
-        NS_ConvertUTF16toUTF8 ref(aReferrer);
-        nsresult rv = parser->ParseURL(ref.get(), ref.Length(),
-                                       &schemePos, &schemeLen,
-                                       &authorityPos, &authorityLen,
-                                       &pathPos, &pathLen);
-        if (NS_FAILED(rv)) {
-          NS_WARNING("Invalid referrer URL!");
-        } else if (schemeLen < 0 || authorityLen < 0) {
-          NS_WARNING("Invalid referrer URL!");
-        } else {
-          validReferrer = true;
-        }
-      }
-    }
-
-    MOZ_ASSERT(validReferrer);
-#endif
-
-    mReferrer.Assign(aReferrer);
+    return mReferrerType == REFERRER_NONE;
   }
 
   bool
-  SkipServiceWorker() const
+  ReferrerIsURL() const
   {
-    return mSkipServiceWorker;
+    return mReferrerType == REFERRER_URL;
+  }
+
+  bool
+  ReferrerIsClient() const
+  {
+    return mReferrerType == REFERRER_CLIENT;
+  }
+
+  nsCString
+  ReferrerAsURL() const
+  {
+    MOZ_ASSERT(ReferrerIsURL());
+    return mReferrerURL;
   }
 
   void
-  SetSkipServiceWorker()
+  SetReferrer(const nsACString& aReferrer)
   {
-    mSkipServiceWorker = true;
+    // May be removed later.
+    MOZ_ASSERT(!ReferrerIsNone());
+    mReferrerType = REFERRER_URL;
+    mReferrerURL.Assign(aReferrer);
   }
 
   bool
@@ -315,11 +292,10 @@ private:
   nsContentPolicyType mContext;
 
   ContextFrameType mContextFrameType;
+  ReferrerType mReferrerType;
 
-  // Empty string: no-referrer
-  // "about:client": client (default)
-  // URL: an URL
-  nsString mReferrer;
+  // When mReferrerType is REFERRER_URL.
+  nsCString mReferrerURL;
 
   RequestMode mMode;
   RequestCredentials mCredentialsMode;

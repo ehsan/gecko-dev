@@ -493,9 +493,14 @@ AppleMP3Reader::SetupDecoder()
 
 
 nsRefPtr<MediaDecoderReader::SeekPromise>
-AppleMP3Reader::Seek(int64_t aTime, int64_t aEndTime)
+AppleMP3Reader::Seek(int64_t aTime,
+                     int64_t aStartTime,
+                     int64_t aEndTime,
+                     int64_t aCurrentTime)
 {
   MOZ_ASSERT(mDecoder->OnDecodeThread(), "Should be on decode thread");
+  NS_ASSERTION(aStartTime < aEndTime,
+               "Seeking should happen over a positive range");
 
   // Find the exact frame/packet that contains |aTime|.
   mCurrentAudioFrame = aTime * mAudioSampleRate / USECS_PER_S;

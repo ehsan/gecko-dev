@@ -136,15 +136,14 @@ const char PREDICTOR_ORIGIN_EXTENSION[] = "predictor-origin";
 
 // Get the full origin (scheme, host, port) out of a URI (maybe should be part
 // of nsIURI instead?)
-static nsresult
+static void
 ExtractOrigin(nsIURI *uri, nsIURI **originUri, nsIIOService *ioService)
 {
   nsAutoCString s;
   s.Truncate();
-  nsresult rv = nsContentUtils::GetASCIIOrigin(uri, s);
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsContentUtils::GetASCIIOrigin(uri, s);
 
-  return NS_NewURI(originUri, s, nullptr, nullptr, ioService);
+  NS_NewURI(originUri, s, nullptr, nullptr, ioService);
 }
 
 // All URIs we get passed *must* be http or https if they're not null. This
@@ -838,8 +837,7 @@ Predictor::Predict(nsIURI *targetURI, nsIURI *sourceURI,
 
   // Now we do the origin-only (and therefore predictor-only) entry
   nsCOMPtr<nsIURI> targetOrigin;
-  nsresult rv = ExtractOrigin(uriKey, getter_AddRefs(targetOrigin), mIOService);
-  NS_ENSURE_SUCCESS(rv, rv);
+  ExtractOrigin(uriKey, getter_AddRefs(targetOrigin), mIOService);
   if (!originKey) {
     originKey = targetOrigin;
   }
@@ -1228,15 +1226,13 @@ Predictor::Learn(nsIURI *targetURI, nsIURI *sourceURI,
   nsCOMPtr<nsIURI> sourceOrigin;
   nsCOMPtr<nsIURI> uriKey;
   nsCOMPtr<nsIURI> originKey;
-  nsresult rv;
 
   switch (reason) {
   case nsINetworkPredictor::LEARN_LOAD_TOPLEVEL:
     if (!targetURI || sourceURI) {
       return NS_ERROR_INVALID_ARG;
     }
-    rv = ExtractOrigin(targetURI, getter_AddRefs(targetOrigin), mIOService);
-    NS_ENSURE_SUCCESS(rv, rv);
+    ExtractOrigin(targetURI, getter_AddRefs(targetOrigin), mIOService);
     uriKey = targetURI;
     originKey = targetOrigin;
     break;
@@ -1244,8 +1240,7 @@ Predictor::Learn(nsIURI *targetURI, nsIURI *sourceURI,
     if (!targetURI || sourceURI) {
       return NS_ERROR_INVALID_ARG;
     }
-    rv = ExtractOrigin(targetURI, getter_AddRefs(targetOrigin), mIOService);
-    NS_ENSURE_SUCCESS(rv, rv);
+    ExtractOrigin(targetURI, getter_AddRefs(targetOrigin), mIOService);
     uriKey = mStartupURI;
     originKey = mStartupURI;
     break;
@@ -1254,10 +1249,8 @@ Predictor::Learn(nsIURI *targetURI, nsIURI *sourceURI,
     if (!targetURI || !sourceURI) {
       return NS_ERROR_INVALID_ARG;
     }
-    rv = ExtractOrigin(targetURI, getter_AddRefs(targetOrigin), mIOService);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = ExtractOrigin(sourceURI, getter_AddRefs(sourceOrigin), mIOService);
-    NS_ENSURE_SUCCESS(rv, rv);
+    ExtractOrigin(targetURI, getter_AddRefs(targetOrigin), mIOService);
+    ExtractOrigin(sourceURI, getter_AddRefs(sourceOrigin), mIOService);
     uriKey = sourceURI;
     originKey = sourceOrigin;
     break;
@@ -1272,7 +1265,7 @@ Predictor::Learn(nsIURI *targetURI, nsIURI *sourceURI,
   argReason.mLearn = reason;
 
   // We always open the full uri (general cache) entry first, so we don't gum up
-  // the works waiting on predictor-only entries to open
+  // the works waiting on predictor-only entires to open
   nsRefPtr<Predictor::Action> uriAction =
     new Predictor::Action(Predictor::Action::IS_FULL_URI,
                           Predictor::Action::DO_LEARN, argReason, targetURI,

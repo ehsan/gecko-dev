@@ -22,8 +22,6 @@
 #include "nsString.h"
 #include "nsTArray.h"
 
-#include <stack>
-
 class nsIContent;
 
 namespace mozilla {
@@ -114,9 +112,6 @@ protected:
 
   bool ShouldReplaceContainerWithPlaceholder(nsIAtom* aTag);
 
-private:
-  bool IsElementPreformatted(mozilla::dom::Element* aElement);
-
 protected:
   nsString         mCurrentLine;
   uint32_t         mHeadLevel;
@@ -200,11 +195,6 @@ protected:
   // refcounted.
   nsIAtom**        mTagStack;
   uint32_t         mTagStackIndex;
-
-  // The stack indicating whether the elements we've been operating on are
-  // CSS preformatted elements, so that we can tell if the text inside them
-  // should be formatted.
-  std::stack<bool> mPreformatStack;
 
   // Content in the stack above this index should be ignored:
   uint32_t          mIgnoreAboveIndex;

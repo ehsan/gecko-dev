@@ -877,10 +877,6 @@ void
 WrapperOwner::ActorDestroy(ActorDestroyReason why)
 {
     inactive_ = true;
-
-    objects_.clear();
-    unwaivedObjectIds_.clear();
-    waivedObjectIds_.clear();
 }
 
 bool

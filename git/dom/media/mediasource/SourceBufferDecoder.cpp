@@ -93,15 +93,13 @@ SourceBufferDecoder::IsMediaSeekable()
 
 void
 SourceBufferDecoder::MetadataLoaded(nsAutoPtr<MediaInfo> aInfo,
-                                    nsAutoPtr<MetadataTags> aTags,
-                                    bool aRestoredFromDromant)
+                                    nsAutoPtr<MetadataTags> aTags)
 {
   MSE_DEBUG("SourceBufferDecoder(%p)::MetadataLoaded UNIMPLEMENTED", this);
 }
 
 void
-SourceBufferDecoder::FirstFrameLoaded(nsAutoPtr<MediaInfo> aInfo,
-                                      bool aRestoredFromDromant)
+SourceBufferDecoder::FirstFrameLoaded(nsAutoPtr<MediaInfo> aInfo)
 {
   MSE_DEBUG("SourceBufferDecoder(%p)::FirstFrameLoaded UNIMPLEMENTED", this);
 }

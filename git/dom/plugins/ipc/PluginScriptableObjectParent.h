@@ -54,12 +54,12 @@ public:
 
   virtual bool
   AnswerInvoke(const PluginIdentifier& aId,
-               InfallibleTArray<Variant>&& aArgs,
+               const InfallibleTArray<Variant>& aArgs,
                Variant* aResult,
                bool* aSuccess) MOZ_OVERRIDE;
 
   virtual bool
-  AnswerInvokeDefault(InfallibleTArray<Variant>&& aArgs,
+  AnswerInvokeDefault(const InfallibleTArray<Variant>& aArgs,
                       Variant* aResult,
                       bool* aSuccess) MOZ_OVERRIDE;
 
@@ -86,7 +86,7 @@ public:
                   bool* aSuccess) MOZ_OVERRIDE;
 
   virtual bool
-  AnswerConstruct(InfallibleTArray<Variant>&& aArgs,
+  AnswerConstruct(const InfallibleTArray<Variant>& aArgs,
                   Variant* aResult,
                   bool* aSuccess) MOZ_OVERRIDE;
 

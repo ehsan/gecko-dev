@@ -35,8 +35,8 @@ class FilePickerParent : public PFilePickerParent
                         const bool& aAddToRecentDocs,
                         const nsString& aDefaultFile,
                         const nsString& aDefaultExtension,
-                        InfallibleTArray<nsString>&& aFilters,
-                        InfallibleTArray<nsString>&& aFilterNames,
+                        const InfallibleTArray<nsString>& aFilters,
+                        const InfallibleTArray<nsString>& aFilterNames,
                         const nsString& aDisplayDirectory) MOZ_OVERRIDE;
 
   virtual void ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;

@@ -79,7 +79,7 @@ private:
 
   virtual bool RecvSessionMessage(const nsCString& aSessionId,
                                   const GMPSessionMessageType& aMessageType,
-                                  nsTArray<uint8_t>&& aMessage) MOZ_OVERRIDE;
+                                  const nsTArray<uint8_t>& aMessage) MOZ_OVERRIDE;
 
   virtual bool RecvExpirationChange(const nsCString& aSessionId,
                                     const double& aExpiryTime) MOZ_OVERRIDE;
@@ -92,14 +92,14 @@ private:
                                 const nsCString& aMessage) MOZ_OVERRIDE;
 
   virtual bool RecvKeyIdUsable(const nsCString& aSessionId,
-                               InfallibleTArray<uint8_t>&& aKeyId) MOZ_OVERRIDE;
+                                const nsTArray<uint8_t>& aKeyId) MOZ_OVERRIDE;
 
   virtual bool RecvKeyIdNotUsable(const nsCString& aSessionId,
-                                  InfallibleTArray<uint8_t>&& aKeyId) MOZ_OVERRIDE;
+                                  const nsTArray<uint8_t>& aKeyId) MOZ_OVERRIDE;
 
   virtual bool RecvDecrypted(const uint32_t& aId,
                              const GMPErr& aErr,
-                             InfallibleTArray<uint8_t>&& aBuffer) MOZ_OVERRIDE;
+                             const nsTArray<uint8_t>& aBuffer) MOZ_OVERRIDE;
 
   virtual bool RecvSetCaps(const uint64_t& aCaps) MOZ_OVERRIDE;
 

@@ -1425,9 +1425,12 @@ nsresult OggReader::SeekInUnbuffered(int64_t aTarget,
 }
 
 nsRefPtr<MediaDecoderReader::SeekPromise>
-OggReader::Seek(int64_t aTarget, int64_t aEndTime)
+OggReader::Seek(int64_t aTarget,
+                int64_t aStartTime,
+                int64_t aEndTime,
+                int64_t aCurrentTime)
 {
-  nsresult res = SeekInternal(aTarget, aEndTime);
+  nsresult res = SeekInternal(aTarget, aStartTime, aEndTime, aCurrentTime);
   if (NS_FAILED(res)) {
     return SeekPromise::CreateAndReject(res, __func__);
   } else {
@@ -1435,7 +1438,10 @@ OggReader::Seek(int64_t aTarget, int64_t aEndTime)
   }
 }
 
-nsresult OggReader::SeekInternal(int64_t aTarget, int64_t aEndTime)
+nsresult OggReader::SeekInternal(int64_t aTarget,
+                                 int64_t aStartTime,
+                                 int64_t aEndTime,
+                                 int64_t aCurrentTime)
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
   if (mIsChained)
@@ -1446,10 +1452,10 @@ nsresult OggReader::SeekInternal(int64_t aTarget, int64_t aEndTime)
   NS_ENSURE_TRUE(resource != nullptr, NS_ERROR_FAILURE);
   int64_t adjustedTarget = aTarget;
   if (HasAudio() && mOpusState){
-    adjustedTarget = std::max(mStartTime, aTarget - SEEK_OPUS_PREROLL);
+    adjustedTarget = std::max(aStartTime, aTarget - SEEK_OPUS_PREROLL);
   }
 
-  if (adjustedTarget == mStartTime) {
+  if (adjustedTarget == aStartTime) {
     // We've seeked to the media start. Just seek to the offset of the first
     // content page.
     res = resource->Seek(nsISeekableStream::NS_SEEK_SET, 0);
@@ -1458,10 +1464,10 @@ nsresult OggReader::SeekInternal(int64_t aTarget, int64_t aEndTime)
     res = ResetDecode(true);
     NS_ENSURE_SUCCESS(res,res);
 
-    NS_ASSERTION(mStartTime != -1, "mStartTime should be known");
+    NS_ASSERTION(aStartTime != -1, "mStartTime should be known");
     {
       ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-      mDecoder->UpdatePlaybackPosition(mStartTime);
+      mDecoder->UpdatePlaybackPosition(aStartTime);
     }
   } else {
     // TODO: This may seek back unnecessarily far in the video, but we don't
@@ -1478,18 +1484,18 @@ nsresult OggReader::SeekInternal(int64_t aTarget, int64_t aEndTime)
       NS_ENSURE_SUCCESS(res,res);
 
       // Figure out if the seek target lies in a buffered range.
-      SeekRange r = SelectSeekRange(ranges, aTarget, mStartTime, aEndTime, true);
+      SeekRange r = SelectSeekRange(ranges, aTarget, aStartTime, aEndTime, true);
 
       if (!r.IsNull()) {
         // We know the buffered range in which the seek target lies, do a
         // bisection search in that buffered range.
-        res = SeekInBufferedRange(aTarget, adjustedTarget, mStartTime, aEndTime, ranges, r);
+        res = SeekInBufferedRange(aTarget, adjustedTarget, aStartTime, aEndTime, ranges, r);
         NS_ENSURE_SUCCESS(res,res);
       } else {
         // The target doesn't lie in a buffered range. Perform a bisection
         // search over the whole media, using the known buffered ranges to
         // reduce the search space.
-        res = SeekInUnbuffered(aTarget, mStartTime, aEndTime, ranges);
+        res = SeekInUnbuffered(aTarget, aStartTime, aEndTime, ranges);
         NS_ENSURE_SUCCESS(res,res);
       }
     }

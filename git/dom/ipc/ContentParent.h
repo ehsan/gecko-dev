@@ -154,7 +154,6 @@ public:
     virtual bool RecvBridgeToChildProcess(const ContentParentId& aCpId) MOZ_OVERRIDE;
 
     virtual bool RecvLoadPlugin(const uint32_t& aPluginId) MOZ_OVERRIDE;
-    virtual bool RecvConnectPluginBridge(const uint32_t& aPluginId) MOZ_OVERRIDE;
     virtual bool RecvFindPlugins(const uint32_t& aPluginEpoch,
                                  nsTArray<PluginTag>* aPlugins,
                                  uint32_t* aNewPluginEpoch) MOZ_OVERRIDE;
@@ -395,7 +394,7 @@ private:
     ContentParent(ContentParent* aTemplate,
                   const nsAString& aAppManifestURL,
                   base::ProcessHandle aPid,
-                  InfallibleTArray<ProtocolFdMapping>&& aFds);
+                  const nsTArray<ProtocolFdMapping>& aFds);
 #endif
 
     // The common initialization for the constructors.
@@ -484,10 +483,6 @@ private:
     PBackgroundParent*
     AllocPBackgroundParent(Transport* aTransport, ProcessId aOtherProcess)
                            MOZ_OVERRIDE;
-
-    PProcessHangMonitorParent*
-    AllocPProcessHangMonitorParent(Transport* aTransport,
-                                   ProcessId aOtherProcess) MOZ_OVERRIDE;
 
     virtual bool RecvGetProcessAttributes(ContentParentId* aCpId,
                                           bool* aIsForApp,
@@ -643,17 +638,17 @@ private:
 
     virtual bool RecvSyncMessage(const nsString& aMsg,
                                  const ClonedMessageData& aData,
-                                 InfallibleTArray<CpowEntry>&& aCpows,
+                                 const InfallibleTArray<CpowEntry>& aCpows,
                                  const IPC::Principal& aPrincipal,
                                  InfallibleTArray<nsString>* aRetvals) MOZ_OVERRIDE;
     virtual bool RecvRpcMessage(const nsString& aMsg,
                                 const ClonedMessageData& aData,
-                                InfallibleTArray<CpowEntry>&& aCpows,
+                                const InfallibleTArray<CpowEntry>& aCpows,
                                 const IPC::Principal& aPrincipal,
                                 InfallibleTArray<nsString>* aRetvals) MOZ_OVERRIDE;
     virtual bool RecvAsyncMessage(const nsString& aMsg,
                                   const ClonedMessageData& aData,
-                                  InfallibleTArray<CpowEntry>&& aCpows,
+                                  const InfallibleTArray<CpowEntry>& aCpows,
                                   const IPC::Principal& aPrincipal) MOZ_OVERRIDE;
 
     virtual bool RecvFilePathUpdateNotify(const nsString& aType,
@@ -714,7 +709,7 @@ private:
     virtual bool RecvNuwaWaitForFreeze() MOZ_OVERRIDE;
 
     virtual bool RecvAddNewProcess(const uint32_t& aPid,
-                                   InfallibleTArray<ProtocolFdMapping>&& aFds) MOZ_OVERRIDE;
+                                   const InfallibleTArray<ProtocolFdMapping>& aFds) MOZ_OVERRIDE;
 
     virtual bool RecvCreateFakeVolume(const nsString& fsName, const nsString& mountPoint) MOZ_OVERRIDE;
 
@@ -843,8 +838,6 @@ private:
     static int32_t sNuwaPid;
     static bool sNuwaReady;
 #endif
-
-    PProcessHangMonitorParent* mHangMonitorActor;
 };
 
 } // namespace dom

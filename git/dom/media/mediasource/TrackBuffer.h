@@ -61,8 +61,6 @@ public:
   // Mark the current decoder's resource as ended, clear mCurrentDecoder and
   // reset mLast{Start,End}Timestamp.
   void DiscardDecoder();
-  // Mark the current decoder's resource as ended.
-  void EndCurrentDecoder();
 
   void Detach();
 
@@ -81,11 +79,6 @@ public:
 
   // Call ResetDecode() on each decoder in mDecoders.
   void ResetDecode();
-
-  // Run MSE Reset Parser State Algorithm.
-  // 3.5.2 Reset Parser State
-  // http://w3c.github.io/media-source/#sourcebuffer-reset-parser-state
-  void ResetParserState();
 
   // Returns a reference to mInitializedDecoders, used by MediaSourceReader
   // to select decoders.

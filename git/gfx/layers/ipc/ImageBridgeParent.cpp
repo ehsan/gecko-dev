@@ -111,7 +111,7 @@ private:
 };
 
 bool
-ImageBridgeParent::RecvUpdate(EditArray&& aEdits, EditReplyArray* aReply)
+ImageBridgeParent::RecvUpdate(const EditArray& aEdits, EditReplyArray* aReply)
 {
   AutoImageBridgeParentAsyncMessageSender autoAsyncMessageSender(this);
 
@@ -144,10 +144,10 @@ ImageBridgeParent::RecvUpdate(EditArray&& aEdits, EditReplyArray* aReply)
 }
 
 bool
-ImageBridgeParent::RecvUpdateNoSwap(EditArray&& aEdits)
+ImageBridgeParent::RecvUpdateNoSwap(const EditArray& aEdits)
 {
   InfallibleTArray<EditReply> noReplies;
-  bool success = RecvUpdate(Move(aEdits), &noReplies);
+  bool success = RecvUpdate(aEdits, &noReplies);
   NS_ABORT_IF_FALSE(noReplies.Length() == 0, "RecvUpdateNoSwap requires a sync Update to carry Edits");
   return success;
 }
@@ -268,7 +268,7 @@ ImageBridgeParent::SendAsyncMessage(const InfallibleTArray<AsyncParentMessageDat
 }
 
 bool
-ImageBridgeParent::RecvChildAsyncMessages(InfallibleTArray<AsyncChildMessageData>&& aMessages)
+ImageBridgeParent::RecvChildAsyncMessages(const InfallibleTArray<AsyncChildMessageData>& aMessages)
 {
   for (AsyncChildMessageArray::index_type i = 0; i < aMessages.Length(); ++i) {
     const AsyncChildMessageData& message = aMessages[i];

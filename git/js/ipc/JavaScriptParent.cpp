@@ -51,9 +51,11 @@ JavaScriptParent::init()
 void
 JavaScriptParent::trace(JSTracer *trc)
 {
-    objects_.trace(trc);
-    unwaivedObjectIds_.trace(trc);
-    waivedObjectIds_.trace(trc);
+    if (active()) {
+        objects_.trace(trc);
+        unwaivedObjectIds_.trace(trc);
+        waivedObjectIds_.trace(trc);
+    }
 }
 
 JSObject *

@@ -314,8 +314,7 @@ private:
   size_t SizeOfDecodedWithComputedFallbackIfHeap(gfxMemoryLocation aLocation,
                                                  MallocSizeOf aMallocSizeOf) const;
 
-  already_AddRefed<layers::Image>
-    GetCurrentImage(layers::ImageContainer* aContainer);
+  already_AddRefed<layers::Image> GetCurrentImage();
   void UpdateImageContainer();
 
   // We would like to just check if we have a zero lock count, but we can't do
@@ -361,9 +360,11 @@ private: // data
   // A hint for image decoder that directly scale the image to smaller buffer
   int                        mRequestedSampleSize;
 
-  // A weak pointer to our ImageContainer, which stays alive only as long as
-  // the layer system needs it.
-  WeakPtr<layers::ImageContainer> mImageContainer;
+  // Cached value for GetImageContainer.
+  nsRefPtr<layers::ImageContainer> mImageContainer;
+
+  // If not cached in mImageContainer, this might have our image container
+  WeakPtr<layers::ImageContainer> mImageContainerCache;
 
 #ifdef DEBUG
   uint32_t                       mFramesNotified;

@@ -131,6 +131,7 @@ void MediaDecoder::SetDormantIfNecessary(bool aDormant)
 
   if(aDormant) {
     // enter dormant state
+    DestroyDecodedStream();
     mDecoderStateMachine->SetDormant(true);
 
     int64_t timeUsecs = 0;
@@ -632,8 +633,10 @@ nsresult MediaDecoder::Seek(double aTime, SeekTarget::Type aSeekType)
   mRequestedSeekTarget = SeekTarget(timeUsecs, aSeekType);
   mCurrentTime = aTime;
 
-  // If we are already in the seeking state, the new seek overrides the old one.
-  if (mPlayState != PLAY_STATE_LOADING) {
+  // If we are already in the seeking state, then setting mRequestedSeekTarget
+  // above will result in the new seek occurring when the current seek
+  // completes.
+  if (mPlayState != PLAY_STATE_LOADING && mPlayState != PLAY_STATE_SEEKING) {
     bool paused = false;
     if (mOwner) {
       paused = mOwner->GetPaused();
@@ -694,8 +697,7 @@ MediaDecoder::IsExpectingMoreData()
 }
 
 void MediaDecoder::MetadataLoaded(nsAutoPtr<MediaInfo> aInfo,
-                                  nsAutoPtr<MetadataTags> aTags,
-                                  bool aRestoredFromDromant)
+                                  nsAutoPtr<MetadataTags> aTags)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -725,14 +727,11 @@ void MediaDecoder::MetadataLoaded(nsAutoPtr<MediaInfo> aInfo,
     // Make sure the element and the frame (if any) are told about
     // our new size.
     Invalidate();
-    if (!aRestoredFromDromant) {
-      mOwner->MetadataLoaded(mInfo, nsAutoPtr<const MetadataTags>(aTags.forget()));
-    }
+    mOwner->MetadataLoaded(mInfo, nsAutoPtr<const MetadataTags>(aTags.forget()));
   }
 }
 
-void MediaDecoder::FirstFrameLoaded(nsAutoPtr<MediaInfo> aInfo,
-                                    bool aRestoredFromDromant)
+void MediaDecoder::FirstFrameLoaded(nsAutoPtr<MediaInfo> aInfo)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -748,9 +747,7 @@ void MediaDecoder::FirstFrameLoaded(nsAutoPtr<MediaInfo> aInfo,
 
   if (mOwner) {
     Invalidate();
-    if (!aRestoredFromDromant) {
-      mOwner->FirstFrameLoaded();
-    }
+    mOwner->FirstFrameLoaded();
   }
 
   // This can run cache callbacks.

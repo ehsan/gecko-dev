@@ -22,7 +22,6 @@
 #include "mozilla/dom/Element.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/BinarySearch.h"
-#include "nsComputedDOMStyle.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -357,7 +356,6 @@ nsPlainTextSerializer::AppendElementStart(Element* aElement,
 
   if (isContainer) {
     rv = DoOpenContainer(id);
-    mPreformatStack.push(IsElementPreformatted(mElement));
   }
   else {
     rv = DoAddLeaf(id);
@@ -391,7 +389,6 @@ nsPlainTextSerializer::AppendElementEnd(Element* aElement,
   rv = NS_OK;
   if (isContainer) {
     rv = DoCloseContainer(id);
-    mPreformatStack.pop();
   }
 
   mElement = nullptr;
@@ -1540,7 +1537,7 @@ nsPlainTextSerializer::Write(const nsAString& aStr)
 
     // This mustn't be mixed with intelligent wrapping without clearing
     // the mCurrentLine buffer before!!!
-    NS_ASSERTION(mCurrentLine.IsEmpty() || IsInPre(),
+    NS_ASSERTION(mCurrentLine.IsEmpty(),
                  "Mixed wrapping data and nonwrapping data on the same line");
     if (!mCurrentLine.IsEmpty()) {
       FlushLine();
@@ -1758,22 +1755,28 @@ nsPlainTextSerializer::GetIdForContent(nsIContent* aContent)
   return localName->IsStaticAtom() ? localName : nullptr;
 }
 
+/**
+ * Returns true if we currently are inside a <pre>. The check is done
+ * by traversing the tag stack looking for <pre> until we hit a block
+ * level tag which is assumed to override any <pre>:s below it in
+ * the stack. To do this correctly to a 100% would require access
+ * to style which we don't support in this converter.
+ */  
 bool
 nsPlainTextSerializer::IsInPre()
 {
-  return !mPreformatStack.empty() && mPreformatStack.top();
-}
-
-bool
-nsPlainTextSerializer::IsElementPreformatted(Element* aElement)
-{
-  nsRefPtr<nsStyleContext> styleContext =
-    nsComputedDOMStyle::GetStyleContextForElementNoFlush(aElement, nullptr,
-                                                         nullptr);
-  if (styleContext) {
-    const nsStyleText* textStyle = styleContext->StyleText();
-    return textStyle->WhiteSpaceOrNewlineIsSignificant();
+  int32_t i = mTagStackIndex;
+  while(i > 0) {
+    if (mTagStack[i - 1] == nsGkAtoms::pre)
+      return true;
+    if (nsContentUtils::IsHTMLBlock(mTagStack[i - 1])) {
+      // We assume that every other block overrides a <pre>
+      return false;
+    }
+    --i;
   }
+
+  // Not a <pre> in the whole stack
   return false;
 }
 

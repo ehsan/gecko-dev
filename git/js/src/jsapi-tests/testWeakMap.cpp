@@ -129,9 +129,6 @@ BEGIN_TEST(testWeakMap_keyDelegates)
 
 static void DelegateObjectMoved(JSObject *obj, const JSObject *old)
 {
-    if (!keyDelegate)
-        return;  // Object got moved before we set keyDelegate to point to it.
-
     MOZ_RELEASE_ASSERT(keyDelegate == old);
     keyDelegate = obj;
 }
@@ -236,6 +233,12 @@ JSObject *newDelegate()
     global = JS_NewGlobalObject(cx, Jsvalify(&delegateClass), nullptr, JS::FireOnNewGlobalHook,
                                 options);
     JS_SetReservedSlot(global, 0, JS::Int32Value(42));
+
+    /*
+     * Ensure the delegate is not in the nursery because for the purpose of this
+     * test we're going to put it in a private slot where it won't get updated.
+     */
+    JS_GC(rt);
 
     return global;
 }

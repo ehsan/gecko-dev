@@ -235,7 +235,7 @@ UDPSocketChild::RecvCallbackClosed()
 
 bool
 UDPSocketChild::RecvCallbackReceivedData(const UDPAddressInfo& aAddressInfo,
-                                         InfallibleTArray<uint8_t>&& aData)
+                                         const InfallibleTArray<uint8_t>& aData)
 {
   nsresult rv = mSocket->CallListenerReceivedData(aAddressInfo.addr(), aAddressInfo.port(),
                                                   aData.Elements(), aData.Length());
