@@ -1441,9 +1441,6 @@ ScanObjectGroup(GCMarker *gcmarker, ObjectGroup *group)
     if (group->maybeUnboxedLayout())
         group->unboxedLayout().trace(gcmarker);
 
-    if (ObjectGroup *unboxedGroup = group->maybeOriginalUnboxedGroup())
-        PushMarkStack(gcmarker, unboxedGroup);
-
     if (TypeDescr *descr = group->maybeTypeDescr())
         PushMarkStack(gcmarker, descr);
 
@@ -1471,11 +1468,6 @@ gc::MarkChildren(JSTracer *trc, ObjectGroup *group)
 
     if (group->maybeUnboxedLayout())
         group->unboxedLayout().trace(trc);
-
-    if (ObjectGroup *unboxedGroup = group->maybeOriginalUnboxedGroup()) {
-        MarkObjectGroupUnbarriered(trc, &unboxedGroup, "group_original_unboxed_group");
-        group->setOriginalUnboxedGroup(unboxedGroup);
-    }
 
     if (JSObject *descr = group->maybeTypeDescr()) {
         MarkObjectUnbarriered(trc, &descr, "group_type_descr");

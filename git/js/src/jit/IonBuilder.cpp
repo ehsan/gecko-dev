@@ -9186,8 +9186,7 @@ IonBuilder::jsop_rest()
 }
 
 uint32_t
-IonBuilder::getDefiniteSlot(TemporaryTypeSet *types, PropertyName *name, uint32_t *pnfixed,
-                            BaselineInspector::ObjectGroupVector &convertUnboxedGroups)
+IonBuilder::getDefiniteSlot(TemporaryTypeSet *types, PropertyName *name)
 {
     if (!types || types->unknownObject()) {
         trackOptimizationOutcome(TrackedOutcome::NoTypeInfo);
@@ -9236,17 +9235,6 @@ IonBuilder::getDefiniteSlot(TemporaryTypeSet *types, PropertyName *name, uint32_
             return UINT32_MAX;
         }
 
-        // If we encounter a group for an unboxed property which has a
-        // corresponding native group, look for a definite slot in that native
-        // group, and force conversion of incoming objects to the native group.
-        if (key->isGroup() && key->group()->maybeUnboxedLayout()) {
-            if (ObjectGroup *nativeGroup = key->group()->unboxedLayout().nativeGroup()) {
-                if (!convertUnboxedGroups.append(key->group()))
-                    CrashAtUnhandlableOOM("IonBuilder::getDefiniteSlot");
-                key = TypeSet::ObjectKey::get(nativeGroup);
-            }
-        }
-
         HeapTypeSetKey property = key->property(NameToId(name));
         if (!property.maybeTypes() ||
             !property.maybeTypes()->definiteProperty() ||
@@ -9256,18 +9244,10 @@ IonBuilder::getDefiniteSlot(TemporaryTypeSet *types, PropertyName *name, uint32_
             return UINT32_MAX;
         }
 
-        // Definite slots will always be fixed slots when they are in the
-        // allowable range for fixed slots, except for objects which were
-        // converted from unboxed objects and have a smaller allocation size.
-        size_t nfixed = NativeObject::MAX_FIXED_SLOTS;
-        if (ObjectGroup *group = key->group()->maybeOriginalUnboxedGroup())
-            nfixed = gc::GetGCKindSlots(group->unboxedLayout().getAllocKind());
-
         uint32_t propertySlot = property.maybeTypes()->definiteSlot();
         if (slot == UINT32_MAX) {
             slot = propertySlot;
-            *pnfixed = nfixed;
-        } else if (slot != propertySlot || nfixed != *pnfixed) {
+        } else if (slot != propertySlot) {
             trackOptimizationOutcome(TrackedOutcome::InconsistentFixedSlot);
             return UINT32_MAX;
         }
@@ -9312,13 +9292,6 @@ IonBuilder::getUnboxedOffset(TemporaryTypeSet *types, PropertyName *name, JSValu
             trackOptimizationOutcome(TrackedOutcome::StructNoField);
             return UINT32_MAX;
         }
-
-        if (layout->nativeGroup()) {
-            trackOptimizationOutcome(TrackedOutcome::UnboxedConvertedToNative);
-            return UINT32_MAX;
-        }
-
-        key->watchStateChangeForUnboxedConvertedToNative(constraints());
 
         if (offset == UINT32_MAX) {
             offset = property->offset;
@@ -10055,27 +10028,13 @@ IonBuilder::getPropTryComplexPropOfTypedObject(bool *emitted,
                                   fieldPrediction, fieldTypeObj);
 }
 
-MDefinition *
-IonBuilder::convertUnboxedObjects(MDefinition *obj,
-                                  const BaselineInspector::ObjectGroupVector &list)
-{
-    for (size_t i = 0; i < list.length(); i++) {
-        obj = MConvertUnboxedObjectToNative::New(alloc(), obj, list[i]);
-        current->add(obj->toInstruction());
-    }
-    return obj;
-}
-
 bool
 IonBuilder::getPropTryDefiniteSlot(bool *emitted, MDefinition *obj, PropertyName *name,
                                    BarrierKind barrier, TemporaryTypeSet *types)
 {
     MOZ_ASSERT(*emitted == false);
 
-    BaselineInspector::ObjectGroupVector convertUnboxedGroups(alloc());
-
-    uint32_t nfixed;
-    uint32_t slot = getDefiniteSlot(obj->resultTypeSet(), name, &nfixed, convertUnboxedGroups);
+    uint32_t slot = getDefiniteSlot(obj->resultTypeSet(), name);
     if (slot == UINT32_MAX)
         return true;
 
@@ -10085,16 +10044,14 @@ IonBuilder::getPropTryDefiniteSlot(bool *emitted, MDefinition *obj, PropertyName
         obj = guard;
     }
 
-    obj = convertUnboxedObjects(obj, convertUnboxedGroups);
-
     MInstruction *load;
-    if (slot < nfixed) {
+    if (slot < NativeObject::MAX_FIXED_SLOTS) {
         load = MLoadFixedSlot::New(alloc(), obj, slot);
     } else {
         MInstruction *slots = MSlots::New(alloc(), obj);
         current->add(slots);
 
-        load = MLoadSlot::New(alloc(), slots, slot - nfixed);
+        load = MLoadSlot::New(alloc(), slots, slot - NativeObject::MAX_FIXED_SLOTS);
     }
 
     if (barrier == BarrierKind::NoBarrier)
@@ -10416,14 +10373,12 @@ IonBuilder::getPropTryInlineAccess(bool *emitted, MDefinition *obj, PropertyName
     }
 
     BaselineInspector::ShapeVector nativeShapes(alloc());
-    BaselineInspector::ObjectGroupVector unboxedGroups(alloc()), convertUnboxedGroups(alloc());
-    if (!inspector->maybeInfoForPropertyOp(pc, nativeShapes, unboxedGroups, convertUnboxedGroups))
+    BaselineInspector::ObjectGroupVector unboxedGroups(alloc());
+    if (!inspector->maybeInfoForPropertyOp(pc, nativeShapes, unboxedGroups))
         return false;
 
     if (!canInlinePropertyOpShapes(nativeShapes, unboxedGroups))
         return true;
-
-    obj = convertUnboxedObjects(obj, convertUnboxedGroups);
 
     MIRType rvalType = types->getKnownMIRType();
     if (barrier != BarrierKind::NoBarrier || IsNullOrUndefined(rvalType))
@@ -10962,10 +10917,7 @@ IonBuilder::setPropTryDefiniteSlot(bool *emitted, MDefinition *obj,
         return true;
     }
 
-    BaselineInspector::ObjectGroupVector convertUnboxedGroups(alloc());
-
-    uint32_t nfixed;
-    uint32_t slot = getDefiniteSlot(obj->resultTypeSet(), name, &nfixed, convertUnboxedGroups);
+    uint32_t slot = getDefiniteSlot(obj->resultTypeSet(), name);
     if (slot == UINT32_MAX)
         return true;
 
@@ -10983,10 +10935,8 @@ IonBuilder::setPropTryDefiniteSlot(bool *emitted, MDefinition *obj,
         writeBarrier |= property.needsBarrier(constraints());
     }
 
-    obj = convertUnboxedObjects(obj, convertUnboxedGroups);
-
     MInstruction *store;
-    if (slot < nfixed) {
+    if (slot < NativeObject::MAX_FIXED_SLOTS) {
         store = MStoreFixedSlot::New(alloc(), obj, slot, value);
         if (writeBarrier)
             store->toStoreFixedSlot()->setNeedsBarrier();
@@ -10994,7 +10944,7 @@ IonBuilder::setPropTryDefiniteSlot(bool *emitted, MDefinition *obj,
         MInstruction *slots = MSlots::New(alloc(), obj);
         current->add(slots);
 
-        store = MStoreSlot::New(alloc(), slots, slot - nfixed, value);
+        store = MStoreSlot::New(alloc(), slots, slot - NativeObject::MAX_FIXED_SLOTS, value);
         if (writeBarrier)
             store->toStoreSlot()->setNeedsBarrier();
     }
@@ -11103,14 +11053,12 @@ IonBuilder::setPropTryInlineAccess(bool *emitted, MDefinition *obj,
     }
 
     BaselineInspector::ShapeVector nativeShapes(alloc());
-    BaselineInspector::ObjectGroupVector unboxedGroups(alloc()), convertUnboxedGroups(alloc());
-    if (!inspector->maybeInfoForPropertyOp(pc, nativeShapes, unboxedGroups, convertUnboxedGroups))
+    BaselineInspector::ObjectGroupVector unboxedGroups(alloc());
+    if (!inspector->maybeInfoForPropertyOp(pc, nativeShapes, unboxedGroups))
         return false;
 
     if (!canInlinePropertyOpShapes(nativeShapes, unboxedGroups))
         return true;
-
-    obj = convertUnboxedObjects(obj, convertUnboxedGroups);
 
     if (nativeShapes.length() == 1 && unboxedGroups.empty()) {
         spew("Inlining monomorphic SETPROP");

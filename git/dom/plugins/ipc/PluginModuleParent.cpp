@@ -97,7 +97,6 @@ mozilla::plugins::SetupBridge(uint32_t aPluginId,
                               bool aForceBridgeNow,
                               nsresult* rv)
 {
-    PluginModuleChromeParent::ClearInstantiationFlag();
     nsRefPtr<nsPluginHost> host = nsPluginHost::GetInst();
     nsRefPtr<nsNPAPIPlugin> plugin;
     *rv = host->GetPluginForContentProcess(aPluginId, getter_AddRefs(plugin));
@@ -106,8 +105,7 @@ mozilla::plugins::SetupBridge(uint32_t aPluginId,
     }
     PluginModuleChromeParent* chromeParent = static_cast<PluginModuleChromeParent*>(plugin->GetLibrary());
     chromeParent->SetContentParent(aContentParent);
-    if (!aForceBridgeNow && chromeParent->IsStartingAsync() &&
-        PluginModuleChromeParent::DidInstantiate()) {
+    if (!aForceBridgeNow && chromeParent->IsStartingAsync()) {
         // We'll handle the bridging asynchronously
         return true;
     }
@@ -563,8 +561,6 @@ PluginModuleContentParent::~PluginModuleContentParent()
     Preferences::UnregisterCallback(TimeoutChanged, kContentTimeoutPref, this);
 }
 
-bool PluginModuleChromeParent::sInstantiated = false;
-
 PluginModuleChromeParent::PluginModuleChromeParent(const char* aFilePath, uint32_t aPluginId)
     : PluginModuleParent(true)
     , mSubprocess(new PluginProcessParent(aFilePath))
@@ -592,7 +588,6 @@ PluginModuleChromeParent::PluginModuleChromeParent(const char* aFilePath, uint32
     , mIsFlashPlugin(false)
 {
     NS_ASSERTION(mSubprocess, "Out of memory!");
-    sInstantiated = true;
 
     RegisterSettingsCallbacks();
 
@@ -1387,7 +1382,7 @@ NP_END_MACRO
 
 NPError
 PluginModuleParent::NPP_Destroy(NPP instance,
-                                NPSavedData** saved)
+                                NPSavedData** /*saved*/)
 {
     // FIXME/cjones:
     //  (1) send a "destroy" message to the child
@@ -1396,12 +1391,7 @@ PluginModuleParent::NPP_Destroy(NPP instance,
     //  (4) free parent
 
     PLUGIN_LOG_DEBUG_FUNCTION;
-    PluginAsyncSurrogate* surrogate = nullptr;
-    PluginInstanceParent* parentInstance =
-        PluginInstanceParent::Cast(instance, &surrogate);
-    if (surrogate && (!parentInstance || parentInstance->UseSurrogate())) {
-        return surrogate->NPP_Destroy(saved);
-    }
+    PluginInstanceParent* parentInstance = PluginInstanceParent::Cast(instance);
 
     if (!parentInstance)
         return NPERR_NO_ERROR;
@@ -1652,8 +1642,6 @@ PluginModuleParent::OnInitFailure()
         Close();
     }
 
-    mShutdown = true;
-
     if (mIsStartingAsync) {
         /* If we've failed then we need to enumerate any pending NPP_New calls
            and clean them up. */
@@ -1780,18 +1768,13 @@ PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs
         return NS_ERROR_FAILURE;
     }
 
-    *error = NPERR_NO_ERROR;
     if (mIsStartingAsync) {
-        if (GetIPCChannel()->CanSend()) {
-            // We're already connected, so we may call this immediately.
-            RecvNP_InitializeResult(*error);
-        } else {
-            PluginAsyncSurrogate::NP_GetEntryPoints(pFuncs);
-        }
+        PluginAsyncSurrogate::NP_GetEntryPoints(pFuncs);
     } else {
         SetPluginFuncs(pFuncs);
     }
 
+    *error = NPERR_NO_ERROR;
     return NS_OK;
 }
 
@@ -1906,22 +1889,6 @@ PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error)
     *error = NPERR_NO_ERROR;
     return NS_OK;
 }
-
-#if defined(XP_WIN) || defined(XP_MACOSX)
-
-nsresult
-PluginModuleContentParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error)
-{
-    PLUGIN_LOG_DEBUG_METHOD;
-    nsresult rv = PluginModuleParent::NP_Initialize(bFuncs, error);
-    if (mIsStartingAsync && GetIPCChannel()->CanSend()) {
-        // We're already connected, so we may call this immediately.
-        RecvNP_InitializeResult(*error);
-    }
-    return rv;
-}
-
-#endif
 
 nsresult
 PluginModuleChromeParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error)
