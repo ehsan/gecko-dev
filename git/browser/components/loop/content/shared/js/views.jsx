@@ -85,8 +85,6 @@ loop.shared.views = (function(_, l10n) {
    *                                 loop.shared.utils.SCREEN_SHARE_STATES
    */
   var ScreenShareControlButton = React.createClass({
-    mixins: [sharedMixins.DropdownMenuMixin],
-
     propTypes: {
       dispatcher: React.PropTypes.instanceOf(loop.Dispatcher).isRequired,
       visible: React.PropTypes.bool.isRequired,
@@ -98,12 +96,9 @@ loop.shared.views = (function(_, l10n) {
         this.props.dispatcher.dispatch(
           new sharedActions.EndScreenShare({}));
       } else {
-        this.toggleDropdownMenu();
+        this.props.dispatcher.dispatch(
+          new sharedActions.StartScreenShare({}));
       }
-    },
-
-    _handleShareWindows: function() {
-      this.props.dispatcher.dispatch(new sharedActions.StartScreenShare({}));
     },
 
     _getTitle: function() {
@@ -118,36 +113,18 @@ loop.shared.views = (function(_, l10n) {
         return null;
       }
 
-      var cx = React.addons.classSet;
-
-      var isActive = this.props.state === SCREEN_SHARE_STATES.ACTIVE;
-      var screenShareClasses = cx({
+      var screenShareClasses = React.addons.classSet({
         "btn": true,
         "btn-screen-share": true,
         "transparent-button": true,
-        "menu-showing": this.state.showMenu,
-        "active": isActive,
+        "active": this.props.state === SCREEN_SHARE_STATES.ACTIVE,
         "disabled": this.props.state === SCREEN_SHARE_STATES.PENDING
-      });
-      var dropdownMenuClasses = cx({
-        "native-dropdown-menu": true,
-        "conversation-window-dropdown": true,
-        "visually-hidden": !this.state.showMenu
       });
 
       return (
-        <div>
-          <button className={screenShareClasses}
-                  onClick={this.handleClick}
-                  title={this._getTitle()}>
-            {isActive ? null : <span className="chevron"/>}
-          </button>
-          <ul ref="menu" className={dropdownMenuClasses}>
-            <li onClick={this._handleShareWindows}>
-              {l10n.get("share_windows_button_title")}
-            </li>
-          </ul>
-        </div>
+        <button className={screenShareClasses}
+                onClick={this.handleClick}
+                title={this._getTitle()}></button>
       );
     }
   });
@@ -381,7 +358,7 @@ loop.shared.views = (function(_, l10n) {
           <div className="conversation in-call">
             <div className="media nested">
               <div className="video_wrapper remote_wrapper">
-                <div className="video_inner remote focus-stream"></div>
+                <div className="video_inner remote remote-stream"></div>
               </div>
               <div className={localStreamClasses}></div>
             </div>

@@ -7,7 +7,6 @@ this.EXPORTED_SYMBOLS = ["RemoteAddonsParent"];
 const Ci = Components.interfaces;
 const Cc = Components.classes;
 const Cu = Components.utils;
-const Cr = Components.results;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import('resource://gre/modules/Services.jsm');
@@ -513,33 +512,22 @@ let EventTargetParent = {
 
       for (let [handler, target] of handlers) {
         let EventProxy = {
-          get: function(knownProps, name) {
-            if (knownProps.hasOwnProperty(name))
-              return knownProps[name];
-            return event[name];
+          get: function(actualEvent, name) {
+            if (name == "currentTarget") {
+              return target;
+            } else {
+              return actualEvent[name];
+            }
           }
-        }
-        let proxyEvent = new Proxy({
-          currentTarget: target,
-          target: eventTarget,
-          type: type,
-          QueryInterface: function(iid) {
-            if (iid.equals(Ci.nsISupports) ||
-                iid.equals(Ci.nsIDOMEventTarget))
-              return proxyEvent;
-            // If event deson't support the interface this will throw. If it
-            // does we want to return the proxy
-            event.QueryInterface(iid);
-            return proxyEvent;
-          }
-        }, EventProxy);
+        };
+        let proxyEvent = new Proxy(event, EventProxy);
 
         try {
           Prefetcher.withPrefetching(prefetched, cpows, () => {
             if ("handleEvent" in handler) {
               handler.handleEvent(proxyEvent);
             } else {
-              handler.call(eventTarget, proxyEvent);
+              handler.call(event.target, proxyEvent);
             }
           });
         } catch (e) {

@@ -30,7 +30,6 @@ const StreamUtils = require("devtools/toolkit/transport/stream-utils");
 const { Packet, JSONPacket, BulkPacket } =
   require("devtools/toolkit/transport/packets");
 const promise = require("promise");
-const EventEmitter = require("devtools/toolkit/event-emitter");
 
 DevToolsUtils.defineLazyGetter(this, "Pipe", () => {
   return CC("@mozilla.org/pipe;1", "nsIPipe", "init");
@@ -101,8 +100,6 @@ const PACKET_HEADER_MAX = 200;
  * details on the format of these packets.
  */
 function DebuggerTransport(input, output) {
-  EventEmitter.decorate(this);
-
   this._input = input;
   this._scriptableInput = new ScriptableInputStream(input);
   this._output = output;
@@ -134,8 +131,6 @@ DebuggerTransport.prototype = {
    * they are passed to this method.
    */
   send: function(object) {
-    this.emit("send", object);
-
     let packet = new JSONPacket(this);
     packet.object = object;
     this._outgoing.push(packet);
@@ -184,8 +179,6 @@ DebuggerTransport.prototype = {
    *                     that is copied.  See stream-utils.js.
    */
   startBulkSend: function(header) {
-    this.emit("startBulkSend", header);
-
     let packet = new BulkPacket(this);
     packet.header = header;
     this._outgoing.push(packet);
@@ -200,8 +193,6 @@ DebuggerTransport.prototype = {
    *        closing the transport (likely because a stream closed or failed).
    */
   close: function(reason) {
-    this.emit("onClosed", reason);
-
     this.active = false;
     this._input.close();
     this._scriptableInput.close();
@@ -467,7 +458,6 @@ DebuggerTransport.prototype = {
     DevToolsUtils.executeSoon(DevToolsUtils.makeInfallible(() => {
       // Ensure the transport is still alive by the time this runs.
       if (this.active) {
-        this.emit("onPacket", object);
         this.hooks.onPacket(object);
       }
     }, "DebuggerTransport instance's this.hooks.onPacket"));
@@ -483,7 +473,6 @@ DebuggerTransport.prototype = {
     DevToolsUtils.executeSoon(DevToolsUtils.makeInfallible(() => {
       // Ensure the transport is still alive by the time this runs.
       if (this.active) {
-        this.emit("onBulkPacket", ...args);
         this.hooks.onBulkPacket(...args);
       }
     }, "DebuggerTransport instance's this.hooks.onBulkPacket"));
@@ -517,8 +506,6 @@ exports.DebuggerTransport = DebuggerTransport;
  * @see DebuggerTransport
  */
 function LocalDebuggerTransport(other) {
-  EventEmitter.decorate(this);
-
   this.other = other;
   this.hooks = null;
 
@@ -537,8 +524,6 @@ LocalDebuggerTransport.prototype = {
    * endpoint.
    */
   send: function(packet) {
-    this.emit("send", packet);
-
     let serial = this._serial.count++;
     if (dumpn.wantLogging) {
       /* Check 'from' first, as 'echo' packets have both. */
@@ -557,7 +542,6 @@ LocalDebuggerTransport.prototype = {
           dumpn("Received packet " + serial + ": " + JSON.stringify(packet, null, 2));
         }
         if (other.hooks) {
-          other.emit("onPacket", packet);
           other.hooks.onPacket(packet);
         }
       }, "LocalDebuggerTransport instance's this.other.hooks.onPacket"));
@@ -574,8 +558,6 @@ LocalDebuggerTransport.prototype = {
    * done with it.
    */
   startBulkSend: function({actor, type, length}) {
-    this.emit("startBulkSend", {actor, type, length});
-
     let serial = this._serial.count++;
 
     dumpn("Sent bulk packet " + serial + " for actor " + actor);
@@ -593,7 +575,8 @@ LocalDebuggerTransport.prototype = {
 
       // Receiver
       let deferred = promise.defer();
-      let packet = {
+
+      this.other.hooks.onBulkPacket({
         actor: actor,
         type: type,
         length: length,
@@ -605,10 +588,7 @@ LocalDebuggerTransport.prototype = {
         },
         stream: pipe.inputStream,
         done: deferred
-      };
-
-      this.other.emit("onBulkPacket", packet);
-      this.other.hooks.onBulkPacket(packet);
+      });
 
       // Await the result of reading from the stream
       deferred.promise.then(() => pipe.inputStream.close(), this.close);
@@ -644,8 +624,6 @@ LocalDebuggerTransport.prototype = {
    * Close the transport.
    */
   close: function() {
-    this.emit("close");
-
     if (this.other) {
       // Remove the reference to the other endpoint before calling close(), to
       // avoid infinite recursion.
@@ -703,8 +681,6 @@ exports.LocalDebuggerTransport = LocalDebuggerTransport;
  * <prefix> is |prefix|, whose data is the protocol packet.
  */
 function ChildDebuggerTransport(sender, prefix) {
-  EventEmitter.decorate(this);
-
   this._sender = sender.QueryInterface(Ci.nsIMessageSender);
   this._messageName = "debug:" + prefix + ":packet";
 }
@@ -725,17 +701,14 @@ ChildDebuggerTransport.prototype = {
 
   close: function () {
     this._sender.removeMessageListener(this._messageName, this);
-    this.emit("onClosed");
     this.hooks.onClosed();
   },
 
   receiveMessage: function ({data}) {
-    this.emit("onPacket", data);
     this.hooks.onPacket(data);
   },
 
   send: function (packet) {
-    this.emit("send", packet);
     this._sender.sendAsyncMessage(this._messageName, packet);
   },
 
