@@ -33,10 +33,7 @@ if (!gl) {
   testFailed("context does not exist");
 } else {
   testPassed("context exists");
-  if ("WebGLDebugUtils" in window)
-    WebGLDebugUtils.init(gl);
-  else
-    WebGLDebugUtils = false;
+  WebGLDebugUtils.init(gl);
 
   debug("");
   debug("Checking texture formats.");
@@ -192,7 +189,7 @@ if (!gl) {
     gl.uniform1i(loc, 0);
 
     function checkType(r, g, b, a, type, format, buf) {
-      var typeName = WebGLDebugUtils ? WebGLDebugUtils.glEnumToString(type) : type;
+      var typeName = WebGLDebugUtils.glEnumToString(type);
       debug("");
       debug("checking gl.texImage2D with type: " + typeName);
       gl.texImage2D(gl.TEXTURE_2D,

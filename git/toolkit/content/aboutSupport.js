@@ -64,9 +64,7 @@ const PREFS_WHITELIST = [
   "extensions.lastAppVersion",
   "font.",
   "general.useragent.",
-  "gfx.",
-  "mozilla.widget.render-mode",
-  "layers.",
+  "gfx.color_management.mode",
   "javascript.",
   "keyword.",
   "layout.css.dpi",
@@ -92,7 +90,6 @@ window.onload = function () {
   // Update the application basics section.
   document.getElementById("application-box").textContent = Application.name;
   document.getElementById("version-box").textContent = Application.version;
-  document.getElementById("useragent-box").textContent = navigator.userAgent;
   document.getElementById("supportLink").href = supportUrl;
 
   // Update the other sections.
@@ -151,14 +148,12 @@ function populateGraphicsSection() {
     return elem;
   }
   
-  let SBS = Cc["@mozilla.org/intl/stringbundle;1"].getService(Ci.nsIStringBundleService);
-  let bundle = SBS.createBundle("chrome://global/locale/aboutSupport.properties");
-  let graphics_tbody = document.getElementById("graphics-tbody");
-
   try {
     // nsIGfxInfo is currently only implemented on Windows
     let gfxInfo = Cc["@mozilla.org/gfx/info;1"].getService(Ci.nsIGfxInfo);
     let trGraphics = [];
+    var SBS = Cc["@mozilla.org/intl/stringbundle;1"].getService(Ci.nsIStringBundleService);
+    var bundle = SBS.createBundle("chrome://global/locale/aboutSupport.properties");
     trGraphics.push(createParentElement("tr", [
       createHeader(bundle.GetStringFromName("adapterDescription")),
       createElement("td", gfxInfo.adapterDescription),
@@ -198,35 +193,11 @@ function populateGraphicsSection() {
       createElement("td", gfxInfo.DWriteEnabled),
     ]));
 
-    appendChildren(graphics_tbody, trGraphics);
+    appendChildren(document.getElementById("graphics-tbody"), trGraphics);
 
   } catch (e) {
   }
 
-  let ww = Cc["@mozilla.org/embedcomp/window-watcher;1"]
-    .getService(Ci.nsIWindowWatcher);
-  let windows = ww.getWindowEnumerator();
-  let acceleratedWindows = 0;
-  let totalWindows = 0;
-  let mgrType;
-  while (windows.hasMoreElements()) {
-    totalWindows++;
-
-    let awindow = windows.getNext().QueryInterface(Ci.nsIInterfaceRequestor);
-    let windowutils = awindow.getInterface(Ci.nsIDOMWindowUtils);
-    if (windowutils.layerManagerType != "Basic") {
-      acceleratedWindows++;
-      mgrType = windowutils.layerManagerType;
-    }
-  }
-
-  let msg = acceleratedWindows + "/" + totalWindows;
-  if (acceleratedWindows)
-    msg += " " + mgrType;
-
-  let header = createHeader(bundle.GetStringFromName("acceleratedWindows"));
-
-  appendChildren(graphics_tbody, [ header, createElement("td", msg) ]);
 }
 
 

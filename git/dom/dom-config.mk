@@ -6,7 +6,6 @@ DOM_SRCDIRS = \
   dom/src/storage \
   dom/src/offline \
   dom/src/geolocation \
-  dom/src/notification \
   dom/src/threads \
   content/xbl/src \
   content/xul/document/src \

@@ -379,8 +379,7 @@ Connection::getAsyncExecutionTarget()
 }
 
 nsresult
-Connection::initialize(nsIFile *aDatabaseFile,
-                       const char* aVFSName)
+Connection::initialize(nsIFile *aDatabaseFile)
 {
   NS_ASSERTION (!mDBConn, "Initialize called on already opened database!");
 
@@ -395,11 +394,11 @@ Connection::initialize(nsIFile *aDatabaseFile,
     NS_ENSURE_SUCCESS(rv, rv);
 
     srv = ::sqlite3_open_v2(NS_ConvertUTF16toUTF8(path).get(), &mDBConn, mFlags,
-                            aVFSName);
+                            NULL);
   }
   else {
     // in memory database requested, sqlite uses a magic file name
-    srv = ::sqlite3_open_v2(":memory:", &mDBConn, mFlags, aVFSName);
+    srv = ::sqlite3_open_v2(":memory:", &mDBConn, mFlags, NULL);
   }
   if (srv != SQLITE_OK) {
     mDBConn = nsnull;
@@ -1103,16 +1102,6 @@ Connection::RemoveProgressHandler(mozIStorageProgressHandler **_oldHandler)
   mProgressHandler = nsnull;
   ::sqlite3_progress_handler(mDBConn, 0, NULL, NULL);
 
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-Connection::SetGrowthIncrement(PRInt32 aChunkSize, const nsACString &aDatabaseName)
-{
-  (void)::sqlite3_file_control(mDBConn,
-                               aDatabaseName.Length() ? nsPromiseFlatCString(aDatabaseName).get() : NULL,
-                               SQLITE_FCNTL_CHUNK_SIZE,
-                               &aChunkSize);
   return NS_OK;
 }
 

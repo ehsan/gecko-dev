@@ -41,6 +41,8 @@
 // **********
 // Title: infoitems.js
 
+(function() {
+
 // ##########
 // Class: InfoItem
 // An <Item> in TabView used for displaying information, such as the welcome video.
@@ -56,7 +58,7 @@
 // Possible options:
 //   locked - see <Item.locked>; default is {}
 //   dontPush - true if this infoItem shouldn't push away on creation; default is false
-function InfoItem(bounds, options) {
+window.InfoItem = function(bounds, options) {
   try {
     Utils.assertThrow(Utils.isRect(bounds), 'bounds');
 
@@ -119,12 +121,12 @@ function InfoItem(bounds, options) {
 };
 
 // ----------
-InfoItem.prototype = Utils.extend(new Item(), new Subscribable(), {
+window.InfoItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
   // ----------
   // Function: getStorageData
   // Returns all of the info worth storing about this item.
-  getStorageData: function InfoItem_getStorageData() {
+  getStorageData: function() {
     var data = null;
 
     try {
@@ -142,7 +144,7 @@ InfoItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
   // Function: save
   // Saves this item to persistent storage.
-  save: function InfoItem_save() {
+  save: function() {
     try {
       if (!this._inited) // too soon to save now
         return;
@@ -157,7 +159,7 @@ InfoItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
   // Function: setBounds
   // Sets the bounds with the given <Rect>, animating unless "immediately" is false.
-  setBounds: function InfoItem_setBounds(rect, immediately) {
+  setBounds: function(rect, immediately) {
     try {
       Utils.assertThrow(Utils.isRect(rect), 'InfoItem.setBounds: rect must be a real rectangle!');
 
@@ -208,7 +210,7 @@ InfoItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
   // Function: setZ
   // Set the Z order for the item's container.
-  setZ: function InfoItem_setZ(value) {
+  setZ: function(value) {
     try {
       Utils.assertThrow(typeof value == 'number', 'value must be a number');
 
@@ -226,7 +228,7 @@ InfoItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
   // Function: close
   // Closes the item.
-  close: function InfoItem_close() {
+  close: function() {
     try {
       this._sendToSubscribers("close");
       this.removeTrenches();
@@ -243,7 +245,7 @@ InfoItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
   // Function: html
   // Sets the item's container's html to the specified value.
-  html: function InfoItem_html(value) {
+  html: function(value) {
     try {
       Utils.assertThrow(typeof value == 'string', 'value must be a string');
       this.$contents.html(value);
@@ -252,3 +254,5 @@ InfoItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     }
   }
 });
+
+})();

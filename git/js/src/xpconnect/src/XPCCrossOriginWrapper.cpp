@@ -78,10 +78,11 @@ XPC_XOW_CheckAccess(JSContext *cx, JSObject *obj, jsid id, JSAccessMode mode,
                     jsval *vp);
 
 static JSBool
-XPC_XOW_Call(JSContext *cx, uintN argc, jsval *vp);
+XPC_XOW_Call(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval);
 
 static JSBool
-XPC_XOW_Construct(JSContext *cx, uintN argc, jsval *vp);
+XPC_XOW_Construct(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
+                  jsval *rval);
 
 static JSBool
 XPC_XOW_HasInstance(JSContext *cx, JSObject *obj, const jsval *v, JSBool *bp);
@@ -142,7 +143,8 @@ GetWrappedObject(JSContext *cx, JSObject *wrapper)
 }
 
 static JSBool
-XPC_XOW_FunctionWrapper(JSContext *cx, uintN argc, jsval *vp);
+XPC_XOW_FunctionWrapper(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
+                        jsval *rval);
 
 // This flag is set on objects that were created for UniversalXPConnect-
 // enabled code.
@@ -493,7 +495,8 @@ WrapObject(JSContext *cx, JSObject *parent, jsval *vp, XPCWrappedNative* wn)
 using namespace XPCCrossOriginWrapper;
 
 static JSBool
-XPC_XOW_toString(JSContext *cx, uintN argc, jsval *vp);
+XPC_XOW_toString(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
+                 jsval *rval);
 
 static JSBool
 IsValFrame(JSObject *obj, jsid id, XPCWrappedNative *wn)
@@ -529,12 +532,9 @@ static JSBool
 WrapSameOriginProp(JSContext *cx, JSObject *outerObj, jsval *vp);
 
 static JSBool
-XPC_XOW_FunctionWrapper(JSContext *cx, uintN argc, jsval *vp)
+XPC_XOW_FunctionWrapper(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
+                        jsval *rval)
 {
-  JSObject *obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj)
-    return JS_FALSE;
-
   JSObject *wrappedObj, *outerObj = obj;
 
   // Allow 'this' to be either an XOW, in which case we unwrap it.
@@ -551,7 +551,7 @@ XPC_XOW_FunctionWrapper(JSContext *cx, uintN argc, jsval *vp)
     wrappedObj = obj;
   }
 
-  JSObject *funObj = JSVAL_TO_OBJECT(JS_CALLEE(cx, vp));
+  JSObject *funObj = JSVAL_TO_OBJECT(argv[-2]);
   jsval funToCall;
   if (!JS_GetReservedSlot(cx, funObj, eWrappedFunctionSlot, &funToCall)) {
     return JS_FALSE;
@@ -577,15 +577,15 @@ XPC_XOW_FunctionWrapper(JSContext *cx, uintN argc, jsval *vp)
   NS_ASSERTION(native, "How'd we get here with a scripted function?");
 #endif
 
-  if (!JS_CallFunctionValue(cx, wrappedObj, funToCall, argc, JS_ARGV(cx, vp), vp)) {
+  if (!JS_CallFunctionValue(cx, wrappedObj, funToCall, argc, argv, rval)) {
     return JS_FALSE;
   }
 
   if (NS_SUCCEEDED(rv)) {
-    return WrapSameOriginProp(cx, outerObj, vp);
+    return WrapSameOriginProp(cx, outerObj, rval);
   }
 
-  return RewrapIfNeeded(cx, obj, vp);
+  return RewrapIfNeeded(cx, obj, rval);
 }
 
 static JSBool
@@ -997,8 +997,7 @@ XPC_XOW_Convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp)
     // Converting the prototype to something.
 
     if (type == JSTYPE_STRING || type == JSTYPE_VOID) {
-      jsval args[2] = { JSVAL_VOID, OBJECT_TO_JSVAL(obj) };
-      return XPC_XOW_toString(cx, 0, args);
+      return XPC_XOW_toString(cx, obj, 0, nsnull, vp);
     }
 
     *vp = OBJECT_TO_JSVAL(obj);
@@ -1081,13 +1080,8 @@ XPC_XOW_CheckAccess(JSContext *cx, JSObject *obj, jsid id, JSAccessMode mode,
 }
 
 static JSBool
-XPC_XOW_Call(JSContext *cx, uintN argc, jsval *vp)
+XPC_XOW_Call(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
-  JSObject *obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj) {
-    return JS_FALSE;
-  }
-
   JSObject *wrappedObj = GetWrappedObject(cx, obj);
   if (!wrappedObj) {
     // Nothing to call.
@@ -1104,21 +1098,22 @@ XPC_XOW_Call(JSContext *cx, uintN argc, jsval *vp)
     return JS_FALSE;
   }
 
-  JSObject *callee = JSVAL_TO_OBJECT(JS_CALLEE(cx, vp));
+  JSObject *callee = JSVAL_TO_OBJECT(argv[-2]);
   NS_ASSERTION(GetWrappedObject(cx, callee), "How'd we get here?");
   callee = GetWrappedObject(cx, callee);
-  if (!JS_CallFunctionValue(cx, obj, OBJECT_TO_JSVAL(callee), argc,
-                            JS_ARGV(cx, vp), vp)) {
+  if (!JS_CallFunctionValue(cx, obj, OBJECT_TO_JSVAL(callee), argc, argv,
+                            rval)) {
     return JS_FALSE;
   }
 
-  return RewrapIfNeeded(cx, callee, vp);
+  return RewrapIfNeeded(cx, callee, rval);
 }
 
 static JSBool
-XPC_XOW_Construct(JSContext *cx, uintN argc, jsval *vp)
+XPC_XOW_Construct(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
+                  jsval *rval)
 {
-  JSObject *realObj = GetWrapper(JSVAL_TO_OBJECT(JS_CALLEE(cx, vp)));
+  JSObject *realObj = GetWrapper(JSVAL_TO_OBJECT(argv[-2]));
   JSObject *wrappedObj = GetWrappedObject(cx, realObj);
   if (!wrappedObj) {
     // Nothing to construct.
@@ -1134,13 +1129,12 @@ XPC_XOW_Construct(JSContext *cx, uintN argc, jsval *vp)
     return JS_FALSE;
   }
 
-  JSObject *obj = JS_New(cx, wrappedObj, argc, JS_ARGV(cx, vp));
-  if (!obj) {
+  if (!JS_CallFunctionValue(cx, obj, OBJECT_TO_JSVAL(wrappedObj), argc, argv,
+                            rval)) {
     return JS_FALSE;
   }
 
-  JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(obj));
-  return RewrapIfNeeded(cx, wrappedObj, vp);
+  return RewrapIfNeeded(cx, wrappedObj, rval);
 }
 
 static JSBool
@@ -1281,12 +1275,9 @@ XPC_XOW_WrappedObject(JSContext *cx, JSObject *obj)
 }
 
 static JSBool
-XPC_XOW_toString(JSContext *cx, uintN argc, jsval *vp)
+XPC_XOW_toString(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
+                 jsval *rval)
 {
-  JSObject *obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj)
-    return JS_FALSE;
-
   obj = GetWrapper(obj);
   if (!obj) {
     return ThrowException(NS_ERROR_UNEXPECTED, cx);
@@ -1301,7 +1292,7 @@ XPC_XOW_toString(JSContext *cx, uintN argc, jsval *vp)
     if (!str) {
       return JS_FALSE;
     }
-    JS_SET_RVAL(cx, vp, STRING_TO_JSVAL(str));
+    *rval = STRING_TO_JSVAL(str);
     return JS_TRUE;
   }
 
@@ -1327,5 +1318,5 @@ XPC_XOW_toString(JSContext *cx, uintN argc, jsval *vp)
 
   XPCWrappedNative *wn =
     XPCWrappedNative::GetWrappedNativeOfJSObject(cx, wrappedObj);
-  return NativeToString(cx, wn, argc, JS_ARGV(cx, vp), vp, JS_FALSE);
+  return NativeToString(cx, wn, argc, argv, rval, JS_FALSE);
 }

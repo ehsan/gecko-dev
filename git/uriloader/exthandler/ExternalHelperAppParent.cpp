@@ -50,12 +50,10 @@
 namespace mozilla {
 namespace dom {
 
-NS_IMPL_ISUPPORTS_INHERITED4(ExternalHelperAppParent,
+NS_IMPL_ISUPPORTS_INHERITED2(ExternalHelperAppParent,
                              nsHashPropertyBag,
                              nsIRequest,
-                             nsIChannel,
-                             nsIMultiPartChannel,
-                             nsIResumableChannel)
+                             nsIChannel)
 
 ExternalHelperAppParent::ExternalHelperAppParent(
     const IPC::URI& uri,
@@ -71,7 +69,6 @@ ExternalHelperAppParent::ExternalHelperAppParent(
 void
 ExternalHelperAppParent::Init(TabParent *parent,
                               const nsCString& aMimeContentType,
-                              const nsCString& aContentDisposition,
                               const PRBool& aForceSave)
 {
   nsHashPropertyBag::Init();
@@ -86,7 +83,6 @@ ExternalHelperAppParent::Init(TabParent *parent,
   NS_ASSERTION(helperAppService, "No Helper App Service!");
 
   SetPropertyAsInt64(NS_CHANNEL_PROP_CONTENT_LENGTH, mContentLength);
-  SetContentDisposition(aContentDisposition);
   helperAppService->DoContent(aMimeContentType, this, ir,
                               aForceSave, getter_AddRefs(mListener));
 }
@@ -332,42 +328,6 @@ ExternalHelperAppParent::GetEntityID(nsACString& aEntityID)
 {
   aEntityID = mEntityID;
   return NS_OK;
-}
-
-//
-// nsIMultiPartChannel implementation
-//
-
-NS_IMETHODIMP
-ExternalHelperAppParent::GetBaseChannel(nsIChannel* *aChannel)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-ExternalHelperAppParent::GetContentDisposition(nsACString& aContentDisposition)
-{
-  aContentDisposition = mContentDisposition;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-ExternalHelperAppParent::SetContentDisposition(const nsACString& aDisposition)
-{
-  mContentDisposition = aDisposition;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-ExternalHelperAppParent::GetPartID(PRUint32* aPartID)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-ExternalHelperAppParent::GetIsLastPart(PRBool* aIsLastPart)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 } // namespace dom

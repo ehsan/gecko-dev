@@ -10,14 +10,11 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=441737
   <script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
 
   <script type="application/javascript"
-    src="common.js"></script>
+    src="chrome://mochikit/content/a11y/accessible/common.js"></script>
   <script type="application/javascript"
-    src="role.js"></script>
+    src="chrome://mochikit/content/a11y/accessible/role.js"></script>
   <script type="application/javascript"
-    src="states.js"></script>
-
-  <script type="application/javascript"
-          src="chrome://mochikit/content/chrome-harness.js"/>
+    src="chrome://mochikit/content/a11y/accessible/states.js"></script>
 
   <script type="application/javascript">
     function doTest()
@@ -42,8 +39,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=441737
            "Wrong attribute on document!");
 
         // nsIAccessibleDocument
-        var rootDir = getRootDirectory(window.location.href);
-        is(docAcc.URL, rootDir.path + "test_nsIAccessibleDocument.html",
+        is(docAcc.URL, "chrome://mochikit/content/a11y/accessible/test_nsIAccessibleDocument.html",
            "Wrong URL for document!");
         is(docAcc.title, "nsIAccessibleDocument chrome tests",        
            "Wrong title for document!");

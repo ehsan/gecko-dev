@@ -321,9 +321,8 @@ function finish() {
   }
 
   // Close the test window and signal the framework that the test is done.
-  let opener = window.opener;
   window.close();
-  opener.wrappedJSObject.SimpleTest.finish();
+  window.opener.wrappedJSObject.SimpleTest.finish();
 }
 
 /**

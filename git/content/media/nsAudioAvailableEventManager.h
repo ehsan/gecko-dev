@@ -51,7 +51,6 @@ class nsAudioAvailableEventManager
 {
 public:
   nsAudioAvailableEventManager(nsBuiltinDecoder* aDecoder);
-  ~nsAudioAvailableEventManager();
 
   // Initialize the event manager with audio metadata.  Called before
   // audio begins to get queued or events are dispatched.

@@ -247,10 +247,6 @@ nsXPCWrappedJSClass::CallQueryInterfaceOnJSObject(XPCCallContext& ccx,
     JSBool success = JS_FALSE;
     jsid funid;
     jsval fun;
-    JSAutoCrossCompartmentCall accc;
-
-    if(!accc.enter(cx, jsobj))
-        return nsnull;
 
     // Don't call the actual function on a content object. We'll determine
     // whether or not a content object is capable of implementing the
@@ -1120,7 +1116,7 @@ nsXPCWrappedJSClass::CheckForException(XPCCallContext & ccx,
                     JSStackFrame * fp = nsnull;
                     while((fp = JS_FrameIterator(cx, &fp)))
                     {
-                        if(JS_IsScriptFrame(cx, fp))
+                        if(!JS_IsNativeFrame(cx, fp))
                         {
                             onlyNativeStackFrames = PR_FALSE;
                             break;

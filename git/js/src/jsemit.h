@@ -247,11 +247,6 @@ struct JSStmtInfo {
 #define TCF_FUN_MUTATES_PARAMETER 0x1000000
 
 /*
- * Compiling an eval() script.
- */
-#define TCF_COMPILE_FOR_EVAL     0x2000000
-
-/*
  * Flags to check for return; vs. return expr; in a function.
  */
 #define TCF_RETURN_FLAGS        (TCF_RETURN_EXPR | TCF_RETURN_VOID)
@@ -300,8 +295,6 @@ struct JSTreeContext {              /* tree context for semantic checks */
                                        Compiler::compileFunctionBody */
     JSFunctionBox   *functionList;
 
-    JSParseNode     *innermostWith; /* innermost WITH parse node */
-
 #ifdef JS_SCOPE_DEPTH_METER
     uint16          scopeDepth;     /* current lexical scope chain depth */
     uint16          maxScopeDepth;  /* maximum lexical scope chain depth */
@@ -311,7 +304,7 @@ struct JSTreeContext {              /* tree context for semantic checks */
       : flags(0), ngvars(0), bodyid(0), blockidGen(0),
         topStmt(NULL), topScopeStmt(NULL), blockChain(NULL), blockNode(NULL),
         parser(prs), scopeChain(NULL), parent(prs->tc), staticLevel(0),
-        funbox(NULL), functionList(NULL), innermostWith(NULL), sharpSlotBase(-1)
+        funbox(NULL), functionList(NULL), sharpSlotBase(-1)
     {
         prs->tc = this;
         JS_SCOPE_DEPTH_METERING(scopeDepth = maxScopeDepth = 0);
@@ -351,8 +344,6 @@ struct JSTreeContext {              /* tree context for semantic checks */
      */
     int sharpSlotBase;
     bool ensureSharpSlots();
-
-    js::Compiler *compiler() { return (js::Compiler *)parser; }
 
     // Return true there is a generator function within |skip| lexical scopes
     // (going upward) from this context's lexical scope. Always return true if
@@ -545,11 +536,6 @@ struct JSCodeGenerator : public JSTreeContext
     JSAtomList      upvarList;      /* map of atoms to upvar indexes */
     JSUpvarArray    upvarMap;       /* indexed upvar pairs (JS_realloc'ed) */
 
-    typedef js::Vector<js::GlobalSlotArray::Entry, 16, js::ContextAllocPolicy> GlobalUseVector;
-
-    GlobalUseVector globalUses;     /* per-script global uses */
-    JSAtomList      globalMap;      /* per-script map of global name to globalUses vector */
-
     /*
      * Initialize cg to allocate bytecode space from codePool, source note
      * space from notePool, and all other arena-allocated temporaries from
@@ -569,8 +555,6 @@ struct JSCodeGenerator : public JSTreeContext
      */
     ~JSCodeGenerator();
 
-    bool addGlobalUse(JSAtom *atom, uint32 slot, js::UpvarCookie &cooke);
-
     bool hasSharps() {
         bool rv = !!(flags & TCF_HAS_SHARPS);
         JS_ASSERT((sharpSlotBase >= 0) == rv);
@@ -580,8 +564,6 @@ struct JSCodeGenerator : public JSTreeContext
     uintN sharpSlots() {
         return hasSharps() ? SHARP_NSLOTS : 0;
     }
-
-    bool compilingForEval() { return !!(flags & TCF_COMPILE_FOR_EVAL); }
 };
 
 #define CG_TS(cg)               TS((cg)->parser)

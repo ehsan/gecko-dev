@@ -524,18 +524,14 @@ TabParent::DeallocPDocumentRendererNativeID(PDocumentRendererNativeIDParent* act
     return true;
 }
 
-PContentPermissionRequestParent*
-TabParent::AllocPContentPermissionRequest(const nsCString& type, const IPC::URI& uri)
+PGeolocationRequestParent*
+TabParent::AllocPGeolocationRequest(const IPC::URI& uri)
 {
-  if (type.Equals(NS_LITERAL_CSTRING("geolocation"))) {
-    return new GeolocationRequestParent(mFrameElement, uri);
-  }
-
-  return nsnull;
+  return new GeolocationRequestParent(mFrameElement, uri);
 }
   
 bool
-TabParent::DeallocPContentPermissionRequest(PContentPermissionRequestParent* actor)
+TabParent::DeallocPGeolocationRequest(PGeolocationRequestParent* actor)
 {
   delete actor;
   return true;
@@ -815,13 +811,12 @@ TabParent::GetFrameLoader() const
 PExternalHelperAppParent*
 TabParent::AllocPExternalHelperApp(const IPC::URI& uri,
                                    const nsCString& aMimeContentType,
-                                   const nsCString& aContentDisposition,
                                    const bool& aForceSave,
                                    const PRInt64& aContentLength)
 {
   ExternalHelperAppParent *parent = new ExternalHelperAppParent(uri, aContentLength);
   parent->AddRef();
-  parent->Init(this, aMimeContentType, aContentDisposition, aForceSave);
+  parent->Init(this, aMimeContentType, aForceSave);
   return parent;
 }
 

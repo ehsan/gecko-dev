@@ -205,7 +205,9 @@ function run_test() {
 
   // Add an extension to the profile to make sure the dialog doesn't show up
   // on new profiles
-  var dest = writeInstallRDFForExtension({
+  var dest = profileDir.clone();
+  dest.append("addon1@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "addon1@tests.mozilla.org",
     version: "1.0",
     targetApplications: [{
@@ -214,7 +216,7 @@ function run_test() {
       maxVersion: "1"
     }],
     name: "Test Addon 1",
-  }, profileDir);
+  }, dest);
 
   startupManager();
 

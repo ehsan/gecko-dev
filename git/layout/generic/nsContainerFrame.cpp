@@ -590,10 +590,9 @@ nsContainerFrame::SyncFrameViewProperties(nsPresContext*  aPresContext,
 
 static nscoord GetCoord(const nsStyleCoord& aCoord, nscoord aIfNotCoord)
 {
-  if (aCoord.ConvertsToLength()) {
-    return nsRuleNode::ComputeCoordPercentCalc(aCoord, 0);
-  }
-  return aIfNotCoord;
+  return aCoord.GetUnit() == eStyleUnit_Coord
+           ? aCoord.GetCoordValue()
+           : aIfNotCoord;
 }
 
 void
@@ -629,8 +628,7 @@ nsContainerFrame::DoInlineIntrinsicWidth(nsIRenderingContext *aRenderingContext,
   // border.
   if (!GetPrevContinuation()) {
     aData->currentLine +=
-      // clamp negative calc() to 0
-      NS_MAX(GetCoord(stylePadding->mPadding.Get(startSide), 0), 0) +
+      GetCoord(stylePadding->mPadding.Get(startSide), 0) +
       styleBorder->GetActualBorderWidth(startSide) +
       GetCoord(styleMargin->mMargin.Get(startSide), 0);
   }
@@ -671,8 +669,7 @@ nsContainerFrame::DoInlineIntrinsicWidth(nsIRenderingContext *aRenderingContext,
   // the endSide border.
   if (!lastInFlow->GetNextContinuation()) {
     aData->currentLine +=
-      // clamp negative calc() to 0
-      NS_MAX(GetCoord(stylePadding->mPadding.Get(endSide), 0), 0) +
+      GetCoord(stylePadding->mPadding.Get(endSide), 0) +
       styleBorder->GetActualBorderWidth(endSide) +
       GetCoord(styleMargin->mMargin.Get(endSide), 0);
   }

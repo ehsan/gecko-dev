@@ -133,12 +133,6 @@ nsresult TestRegular()
                           kCoreServiceA_CID, kExtServiceA_CID);
 }
 
-nsresult TestJar()
-{
-  return execRegOrderTest("TestJar", SERVICE_B_CONTRACT_ID,
-                          kCoreServiceB_CID, kExtServiceB_CID);
-}
-
 bool TestContractFirst()
 {
   nsCOMPtr<nsIComponentRegistrar> r;
@@ -173,8 +167,7 @@ GetRegDirectory(const char* basename, const char* dirname, const char* leafname)
         return NULL;
 
     f->AppendNative(nsDependentCString(dirname));
-    if (leafname)
-        f->AppendNative(nsDependentCString(leafname));
+    f->AppendNative(nsDependentCString(leafname));
     return f.forget();
 }
 
@@ -195,17 +188,12 @@ int main(int argc, char** argv)
                           nsCOMPtr<nsILocalFile>(GetRegDirectory(regPath, "core", "component.manifest")));
   XRE_AddManifestLocation(NS_COMPONENT_LOCATION,
                           nsCOMPtr<nsILocalFile>(GetRegDirectory(regPath, "extension", "extComponent.manifest")));
-  XRE_AddJarManifestLocation(NS_COMPONENT_LOCATION,
-                          nsCOMPtr<nsILocalFile>(GetRegDirectory(regPath, "extension2.jar", NULL)));
   ScopedXPCOM xpcom("RegistrationOrder");
   if (xpcom.failed())
     return 1;
 
   int rv = 0;
   if (NS_FAILED(TestRegular()))
-    rv = 1;
-
-  if (NS_FAILED(TestJar()))
     rv = 1;
 
   if (!TestContractFirst())

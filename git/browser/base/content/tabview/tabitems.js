@@ -48,7 +48,8 @@
 //
 // Parameters:
 //   tab - a xul:tab
-function TabItem(tab) {
+window.TabItem = function(tab) {
+
   Utils.assert(tab, "tab");
 
   this.tab = tab;
@@ -58,7 +59,7 @@ function TabItem(tab) {
   // ___ set up div
   var $div = iQ('<div>')
     .addClass('tab')
-    .html("<div class='thumb'>" +
+    .html("<div class='thumb'><div class='thumb-shadow'></div>" +
           "<img class='cached-thumb' style='display:none'/><canvas/></div>" +
           "<div class='favicon'><img/></div>" +
           "<span class='tab-title'>&nbsp;</span>"
@@ -206,12 +207,12 @@ function TabItem(tab) {
     GroupItems.newTab(this);
 };
 
-TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
+window.TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
   // Function: forceCanvasSize
   // Repaints the thumbnail with the given resolution, and forces it
   // to stay that resolution until unforceCanvasSize is called.
-  forceCanvasSize: function TabItem_forceCanvasSize(w, h) {
+  forceCanvasSize: function(w, h) {
     this.canvasSizeForced = true;
     this.canvasEl.width = w;
     this.canvasEl.height = h;
@@ -224,7 +225,7 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // size of thumbnail on screen. Note that this call does not nest, unlike
   // <TabItems.resumePainting>; if you call forceCanvasSize multiple
   // times, you just need a single unforce to clear them all.
-  unforceCanvasSize: function TabItem_unforceCanvasSize() {
+  unforceCanvasSize: function() {
     this.canvasSizeForced = false;
   },
 
@@ -232,7 +233,7 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // Function: showCachedData
   // Shows the cached data i.e. image and title.  Note: this method should only
   // be called at browser startup with the cached data avaliable.
-  showCachedData: function TabItem_showCachedData(tabData) {
+  showCachedData: function(tabData) {
     this.isShowingCachedData = true;
     var $nameElement = iQ(this.nameEl);
     var $canvasElement = iQ(this.canvasEl);
@@ -245,7 +246,7 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
   // Function: hideCachedData
   // Hides the cached data i.e. image and title and show the canvas.
-  hideCachedData: function TabItem_hideCachedData() {
+  hideCachedData: function() {
     var $canvasElement = iQ(this.canvasEl);
     var $cachedThumbElement = iQ(this.cachedThumbEl);
     $cachedThumbElement.hide();
@@ -259,7 +260,7 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   //
   // Parameters:
   //   getImageData - true to include thumbnail pixels (and page title as well); default false
-  getStorageData: function TabItem_getStorageData(getImageData) {
+  getStorageData: function(getImageData) {
     return {
       bounds: this.getBounds(),
       userSize: (Utils.isPoint(this.userSize) ? new Point(this.userSize) : null),
@@ -277,7 +278,7 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   //
   // Parameters:
   //   saveImageData - true to include thumbnail pixels (and page title as well); default false
-  save: function TabItem_save(saveImageData) {
+  save: function(saveImageData) {
     try{
       if (!this.tab || this.tab.parentNode == null || !this.reconnected) // too soon/late to save
         return;
@@ -301,7 +302,7 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   //
   // Possible options:
   //   force - true to always update the DOM even if the bounds haven't changed; default false
-  setBounds: function TabItem_setBounds(rect, immediately, options) {
+  setBounds: function(rect, immediately, options) {
     if (!Utils.isRect(rect)) {
       Utils.trace('TabItem.setBounds: rect is not a real rectangle!', rect);
       return;
@@ -415,7 +416,7 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
   // Function: getBoundsWithTitle
   // Returns a <Rect> for the groupItem's bounds, including the title
-  getBoundsWithTitle: function TabItem_getBoundsWithTitle() {
+  getBoundsWithTitle: function() {
     var b = this.getBounds();
     var $title = iQ(this.container).find('.tab-title');
     var height = b.height;
@@ -427,14 +428,14 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
   // Function: inStack
   // Returns true if this item is in a stacked groupItem.
-  inStack: function TabItem_inStack() {
+  inStack: function() {
     return iQ(this.container).hasClass("stacked");
   },
 
   // ----------
   // Function: setZ
   // Sets the z-index for this item.
-  setZ: function TabItem_setZ(value) {
+  setZ: function(value) {
     this.zIndex = value;
     iQ(this.container).css({zIndex: value});
   },
@@ -443,7 +444,7 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // Function: close
   // Closes this item (actually closes the tab associated with it, which automatically
   // closes the item.
-  close: function TabItem_close() {
+  close: function() {
     gBrowser.removeTab(this.tab);
     this._sendToSubscribers("tabRemoved");
 
@@ -454,14 +455,14 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
   // Function: addClass
   // Adds the specified CSS class to this item's container DOM element.
-  addClass: function TabItem_addClass(className) {
+  addClass: function(className) {
     iQ(this.container).addClass(className);
   },
 
   // ----------
   // Function: removeClass
   // Removes the specified CSS class from this item's container DOM element.
-  removeClass: function TabItem_removeClass(className) {
+  removeClass: function(className) {
     iQ(this.container).removeClass(className);
   },
 
@@ -469,7 +470,7 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // Function: setResizable
   // If value is true, makes this item resizable, otherwise non-resizable.
   // Shows/hides a visible resize handle as appropriate.
-  setResizable: function TabItem_setResizable(value) {
+  setResizable: function(value) {
     var $resizer = iQ('.expander', this.container);
 
     this.resizeOptions.minWidth = TabItems.minTabWidth;
@@ -487,15 +488,18 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
   // Function: makeActive
   // Updates this item to visually indicate that it's active.
-  makeActive: function TabItem_makeActive() {
-    iQ(this.container).addClass("focus");
+  makeActive: function() {
+   iQ(this.container).find("canvas").addClass("focus");
+   iQ(this.container).find("img.cached-thumb").addClass("focus");
+
   },
 
   // ----------
   // Function: makeDeactive
   // Updates this item to visually indicate that it's not active.
-  makeDeactive: function TabItem_makeDeactive() {
-    iQ(this.container).removeClass("focus");
+  makeDeactive: function() {
+   iQ(this.container).find("canvas").removeClass("focus");
+   iQ(this.container).find("img.cached-thumb").removeClass("focus");
   },
 
   // ----------
@@ -504,11 +508,7 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // to the tab in Firefox to interact with.
   // Parameters:
   //   isNewBlankTab - boolean indicates whether it is a newly opened blank tab.
-  zoomIn: function TabItem_zoomIn(isNewBlankTab) {
-    // don't allow zoom in if its group is hidden
-    if (this.parent && this.parent.hidden)
-      return;
-
+  zoomIn: function(isNewBlankTab) {
     var self = this;
     var $tabEl = iQ(this.container);
     var childHitResult = { shouldZoom: true };
@@ -528,7 +528,11 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
           .css(orig.css())
           .removeClass("front");
 
-        UI.goToTab(tab);
+        // If it's not focused, the onFocus lsitener would handle it.
+        if (gBrowser.selectedTab == tab)
+          UI.onTabSelect(tab);
+        else
+          gBrowser.selectedTab = tab;
 
         if (isNewBlankTab)
           gWindow.gURLBar.focus();
@@ -567,7 +571,7 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   //
   // Parameters:
   //   complete - a function to call after the zoom down animation
-  zoomOut: function TabItem_zoomOut(complete) {
+  zoomOut: function(complete) {
     var $tab = iQ(this.container);
 
     var box = this.getBounds();
@@ -603,7 +607,7 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // Either go into or return from (depending on <value>) "zoom prep" mode,
   // where the tab fills a large portion of the screen in anticipation of
   // the zoom out animation.
-  setZoomPrep: function TabItem_setZoomPrep(value) {
+  setZoomPrep: function(value) {
     var $div = iQ(this.container);
     var data;
 
@@ -640,7 +644,7 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 // ##########
 // Class: TabItems
 // Singleton for managing <TabItem>s
-let TabItems = {
+window.TabItems = {
   minTabWidth: 40,
   tabWidth: 160,
   tabHeight: 120,
@@ -656,13 +660,13 @@ let TabItems = {
   // ----------
   // Function: init
   // Set up the necessary tracking to maintain the <TabItems>s.
-  init: function TabItems_init() {
+  init: function() {
     Utils.assert(window.AllTabs, "AllTabs must be initialized first");
     var self = this;
 
     // When a tab is opened, create the TabItem
     this._eventListeners["open"] = function(tab) {
-      if (tab.ownerDocument.defaultView != gWindow || tab.pinned)
+      if (tab.ownerDocument.defaultView != gWindow)
         return;
 
       self.link(tab);
@@ -670,14 +674,14 @@ let TabItems = {
     // When a tab's content is loaded, show the canvas and hide the cached data
     // if necessary.
     this._eventListeners["attrModified"] = function(tab) {
-      if (tab.ownerDocument.defaultView != gWindow || tab.pinned)
+      if (tab.ownerDocument.defaultView != gWindow)
         return;
 
       self.update(tab);
     }
     // When a tab is closed, unlink.
     this._eventListeners["close"] = function(tab) {
-      if (tab.ownerDocument.defaultView != gWindow || tab.pinned)
+      if (tab.ownerDocument.defaultView != gWindow)
         return;
 
       self.unlink(tab);
@@ -688,7 +692,7 @@ let TabItems = {
 
     // For each tab, create the link.
     AllTabs.tabs.forEach(function(tab) {
-      if (tab.ownerDocument.defaultView != gWindow || tab.pinned)
+      if (tab.ownerDocument.defaultView != gWindow)
         return;
 
       self.link(tab);
@@ -698,7 +702,7 @@ let TabItems = {
 
   // ----------
   // Function: uninit
-  uninit: function TabItems_uninit() {
+  uninit: function() {
     for (let name in this._eventListeners) {
       AllTabs.unregister(name, this._eventListeners[name]);
     }
@@ -718,11 +722,9 @@ let TabItems = {
   // ----------
   // Function: update
   // Takes in a xul:tab.
-  update: function TabItems_update(tab) {
+  update: function(tab) {
     try {
       Utils.assertThrow(tab, "tab");
-      Utils.assertThrow(!tab.pinned, "shouldn't be an app tab");
-      Utils.assertThrow(tab.tabItem, "should already be linked");
 
       let shouldDefer = (
         this.isPaintingPaused() ||
@@ -748,7 +750,7 @@ let TabItems = {
   // ----------
   // Function: _update
   // Takes in a xul:tab.
-  _update: function TabItems__update(tab) {
+  _update: function(tab) {
     try {
       Utils.assertThrow(tab, "tab");
 
@@ -764,7 +766,7 @@ let TabItems = {
       // ___ icon
       let iconUrl = tab.image;
       if (iconUrl == null)
-        iconUrl = Utils.defaultFaviconURL;
+        iconUrl = "chrome://mozapps/skin/places/defaultFavicon.png";
 
       if (iconUrl != tabItem.favEl.src)
         tabItem.favEl.src = iconUrl;
@@ -813,11 +815,10 @@ let TabItems = {
 
   // ----------
   // Function: link
-  // Takes in a xul:tab, creates a TabItem for it and adds it to the scene. 
-  link: function TabItems_link(tab){
+  // Takes in a xul:tab.
+  link: function(tab){
     try {
       Utils.assertThrow(tab, "tab");
-      Utils.assertThrow(!tab.pinned, "shouldn't be an app tab");
       Utils.assertThrow(!tab.tabItem, "shouldn't already be linked");
       new TabItem(tab); // sets tab.tabItem to itself
     } catch(e) {
@@ -827,12 +828,11 @@ let TabItems = {
 
   // ----------
   // Function: unlink
-  // Takes in a xul:tab and destroys the TabItem associated with it. 
-  unlink: function TabItems_unlink(tab) {
+  // Takes in a xul:tab.
+  unlink: function(tab) {
     try {
       Utils.assertThrow(tab, "tab");
       Utils.assertThrow(tab.tabItem, "should already be linked");
-      // note that it's ok to unlink an app tab; see .handleTabUnpin
 
       this.unregister(tab.tabItem);
       tab.tabItem._sendToSubscribers("close");
@@ -852,22 +852,9 @@ let TabItems = {
   },
 
   // ----------
-  // when a tab becomes pinned, destroy its TabItem
-  handleTabPin: function TabItems_handleTabPin(xulTab) {
-    this.unlink(xulTab);
-  },
-
-  // ----------
-  // when a tab becomes unpinned, create a TabItem for it
-  handleTabUnpin: function TabItems_handleTabUnpin(xulTab) {
-    this.link(xulTab);
-    this.update(xulTab);
-  },
-
-  // ----------
   // Function: heartbeat
   // Allows us to spreadout update calls over a period of time.
-  heartbeat: function TabItems_heartbeat() {
+  heartbeat: function() {
     if (!this._heartbeatOn)
       return;
 
@@ -891,7 +878,7 @@ let TabItems = {
   // animations without thumbnail paints causing stutters).
   // pausePainting can be called multiple times, but every call to
   // pausePainting needs to be mirrored with a call to <resumePainting>.
-  pausePainting: function TabItems_pausePainting() {
+  pausePainting: function() {
     this.paintingPaused++;
 
     if (this.isPaintingPaused() && this._heartbeatOn)
@@ -903,7 +890,7 @@ let TabItems = {
   // Undoes a call to <pausePainting>. For instance, if you called
   // pausePainting three times in a row, you'll need to call resumePainting
   // three times before TabItems will start updating thumbnails again.
-  resumePainting: function TabItems_resumePainting() {
+  resumePainting: function() {
     this.paintingPaused--;
 
     if (!this.isPaintingPaused() &&
@@ -918,14 +905,14 @@ let TabItems = {
   // Function: isPaintingPaused
   // Returns a boolean indicating whether painting
   // is paused or not.
-  isPaintingPaused: function TabItems_isPaintingPaused() {
+  isPaintingPaused: function() {
     return this.paintingPaused > 0;
   },
 
   // ----------
   // Function: register
   // Adds the given <TabItem> to the master list.
-  register: function TabItems_register(item) {
+  register: function(item) {
     Utils.assert(item && item.isAnItem, 'item must be a TabItem');
     Utils.assert(this.items.indexOf(item) == -1, 'only register once per item');
     this.items.push(item);
@@ -934,7 +921,7 @@ let TabItems = {
   // ----------
   // Function: unregister
   // Removes the given <TabItem> from the master list.
-  unregister: function TabItems_unregister(item) {
+  unregister: function(item) {
     var index = this.items.indexOf(item);
     if (index != -1)
       this.items.splice(index, 1);
@@ -943,7 +930,7 @@ let TabItems = {
   // ----------
   // Function: getItems
   // Returns a copy of the master array of <TabItem>s.
-  getItems: function TabItems_getItems() {
+  getItems: function() {
     return Utils.copy(this.items);
   },
 
@@ -953,7 +940,7 @@ let TabItems = {
   //
   // Parameters:
   //   saveImageData - true to include thumbnail pixels (and page title as well); default false
-  saveAll: function TabItems_saveAll(saveImageData) {
+  saveAll: function(saveImageData) {
     var items = this.getItems();
     items.forEach(function(item) {
       item.save(saveImageData);
@@ -965,7 +952,7 @@ let TabItems = {
   // Checks the specified data (as returned by TabItem.getStorageData or loaded from storage)
   // and returns true if it looks valid.
   // TODO: check everything
-  storageSanity: function TabItems_storageSanity(data) {
+  storageSanity: function(data) {
     var sane = true;
     if (!Utils.isRect(data.bounds)) {
       Utils.log('TabItems.storageSanity: bad bounds', data.bounds);
@@ -978,7 +965,7 @@ let TabItems = {
   // ----------
   // Function: reconnect
   // Given a <TabItem>, attempts to load its persistent data from storage.
-  reconnect: function TabItems_reconnect(item) {
+  reconnect: function(item) {
     var found = false;
 
     try{
@@ -1040,14 +1027,14 @@ let TabItems = {
 // Class: TabCanvas
 // Takes care of the actual canvas for the tab thumbnail
 // Does not need to be accessed from outside of tabitems.js
-function TabCanvas(tab, canvas) {
+var TabCanvas = function(tab, canvas) {
   this.init(tab, canvas);
 };
 
 TabCanvas.prototype = {
   // ----------
   // Function: init
-  init: function TabCanvas_init(tab, canvas) {
+  init: function(tab, canvas) {
     this.tab = tab;
     this.canvas = canvas;
 
@@ -1060,7 +1047,7 @@ TabCanvas.prototype = {
 
   // ----------
   // Function: paint
-  paint: function TabCanvas_paint(evt) {
+  paint: function(evt) {
     var ctx = this.canvas.getContext("2d");
 
     var w = this.canvas.width;
@@ -1091,7 +1078,7 @@ TabCanvas.prototype = {
 
   // ----------
   // Function: toImageData
-  toImageData: function TabCanvas_toImageData() {
+  toImageData: function() {
     return this.canvas.toDataURL("image/png", "");
   }
 };

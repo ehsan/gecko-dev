@@ -559,7 +559,7 @@ NS_ScriptErrorReporter(JSContext *cx,
   if (!JSREPORT_IS_WARNING(report->flags)) {
     JSStackFrame * fp = nsnull;
     while ((fp = JS_FrameIterator(cx, &fp))) {
-      if (JS_IsScriptFrame(cx, fp)) {
+      if (!JS_IsNativeFrame(cx, fp)) {
         return;
       }
     }
@@ -961,6 +961,79 @@ nsJSContext::DOMOperationCallback(JSContext *cx)
   ctx->mOperationCallbackTime = callbackTime;
   ctx->mModalStateTime = modalStateTime;
 
+  // Check to see if we are running OOM
+  nsCOMPtr<nsIMemory> mem;
+  NS_GetMemoryManager(getter_AddRefs(mem));
+  if (!mem) {
+    JS_ClearPendingException(cx);
+    return JS_FALSE;
+  }
+
+  PRBool lowMemory;
+  mem->IsLowMemory(&lowMemory);
+  if (lowMemory) {
+    // try to clean up:
+    nsJSContext::CC();
+
+    // never prevent system scripts from running
+    if (!::JS_IsSystemObject(cx, ::JS_GetGlobalObject(cx))) {
+
+      // lets see if CC() did anything, if not, cancel the script.
+      mem->IsLowMemory(&lowMemory);
+      if (lowMemory) {
+
+        if (nsContentUtils::GetBoolPref("dom.prevent_oom_dialog", PR_FALSE)) {
+          JS_ClearPendingException(cx);
+          return JS_FALSE;
+        }
+
+        nsCOMPtr<nsIScriptError> errorObject =
+          do_CreateInstance("@mozilla.org/scripterror;1");
+
+        if (errorObject) {
+          nsXPIDLString msg;
+          nsContentUtils::GetLocalizedString(nsContentUtils::eDOM_PROPERTIES,
+                                             "LowMemoryMessage",
+                                             msg);
+
+          JSStackFrame *fp, *iterator = nsnull;
+          fp = ::JS_FrameIterator(cx, &iterator);
+          PRUint32 lineno = 0;
+          nsAutoString sourcefile;
+          if (fp) {
+            JSScript* script = ::JS_GetFrameScript(cx, fp);
+            if (script) {
+              const char* filename = ::JS_GetScriptFilename(cx, script);
+              if (filename) {
+                CopyUTF8toUTF16(nsDependentCString(filename), sourcefile);
+              }
+              jsbytecode* pc = ::JS_GetFramePC(cx, fp);
+              if (pc) {
+                lineno = ::JS_PCToLineNumber(cx, script, pc);
+              }
+            }
+          }
+
+          rv = errorObject->Init(msg.get(),
+                                 sourcefile.get(),
+                                 EmptyString().get(),
+                                 lineno, 0, nsIScriptError::errorFlag,
+                                 "content javascript");
+          if (NS_SUCCEEDED(rv)) {
+            nsCOMPtr<nsIConsoleService> consoleService =
+              do_GetService(NS_CONSOLESERVICE_CONTRACTID, &rv);
+            if (NS_SUCCEEDED(rv)) {
+              consoleService->LogMessage(errorObject);
+            }
+          }
+        }
+
+        JS_ClearPendingException(cx);
+        return JS_FALSE;
+      }
+    }
+  }
+
   PRTime now = PR_Now();
 
   if (callbackTime == 0) {
@@ -972,6 +1045,7 @@ nsJSContext::DOMOperationCallback(JSContext *cx)
 
   if (ctx->mModalStateDepth) {
     // We're waiting on a modal dialog, nothing more to do here.
+
     return JS_TRUE;
   }
 
@@ -1218,10 +1292,8 @@ static const char js_relimit_option_str[]= JS_OPTIONS_DOT_STR "relimit";
 #ifdef JS_GC_ZEAL
 static const char js_zeal_option_str[]   = JS_OPTIONS_DOT_STR "gczeal";
 #endif
-static const char js_tracejit_content_str[]   = JS_OPTIONS_DOT_STR "tracejit.content";
-static const char js_tracejit_chrome_str[]    = JS_OPTIONS_DOT_STR "tracejit.chrome";
-static const char js_methodjit_content_str[]   = JS_OPTIONS_DOT_STR "methodjit.content";
-static const char js_methodjit_chrome_str[]    = JS_OPTIONS_DOT_STR "methodjit.chrome";
+static const char js_jit_content_str[]   = JS_OPTIONS_DOT_STR "jit.content";
+static const char js_jit_chrome_str[]    = JS_OPTIONS_DOT_STR "jit.chrome";
 
 int
 nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
@@ -1241,31 +1313,21 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
   // XXX components be covered by the chrome pref instead of the content one?
   nsCOMPtr<nsIDOMChromeWindow> chromeWindow(do_QueryInterface(global));
 
-  PRBool useTraceJIT = nsContentUtils::GetBoolPref(chromeWindow ?
-                                                   js_tracejit_chrome_str :
-                                                   js_tracejit_content_str);
-  PRBool useMethodJIT = nsContentUtils::GetBoolPref(chromeWindow ?
-                                                    js_methodjit_chrome_str :
-                                                    js_methodjit_content_str);
+  PRBool useJIT = nsContentUtils::GetBoolPref(chromeWindow ?
+                                              js_jit_chrome_str :
+                                              js_jit_content_str);
   nsCOMPtr<nsIXULRuntime> xr = do_GetService(XULRUNTIME_SERVICE_CONTRACTID);
   if (xr) {
     PRBool safeMode = PR_FALSE;
     xr->GetInSafeMode(&safeMode);
-    if (safeMode) {
-      useTraceJIT = PR_FALSE;
-      useMethodJIT = PR_FALSE;
-    }
+    if (safeMode)
+      useJIT = PR_FALSE;
   }    
 
-  if (useTraceJIT)
+  if (useJIT)
     newDefaultJSOptions |= JSOPTION_JIT;
   else
     newDefaultJSOptions &= ~JSOPTION_JIT;
-
-  if (useMethodJIT)
-    newDefaultJSOptions |= JSOPTION_METHODJIT;
-  else
-    newDefaultJSOptions &= ~JSOPTION_METHODJIT;
 
 #ifdef DEBUG
   // In debug builds, warnings are enabled in chrome context if javascript.options.strict.debug is true
@@ -3087,23 +3149,21 @@ static JSClass OptionsClass = {
 #include "nsTraceMalloc.h"
 
 static JSBool
-TraceMallocDisable(JSContext *cx, uintN argc, jsval *vp)
+TraceMallocDisable(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     NS_TraceMallocDisable();
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 static JSBool
-TraceMallocEnable(JSContext *cx, uintN argc, jsval *vp)
+TraceMallocEnable(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     NS_TraceMallocEnable();
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 static JSBool
-TraceMallocOpenLogFile(JSContext *cx, uintN argc, jsval *vp)
+TraceMallocOpenLogFile(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     int fd;
     JSString *str;
@@ -3112,7 +3172,7 @@ TraceMallocOpenLogFile(JSContext *cx, uintN argc, jsval *vp)
     if (argc == 0) {
         fd = -1;
     } else {
-        str = JS_ValueToString(cx, JS_ARGV(cx, vp)[0]);
+        str = JS_ValueToString(cx, argv[0]);
         if (!str)
             return JS_FALSE;
         filename = JS_GetStringBytes(str);
@@ -3122,19 +3182,19 @@ TraceMallocOpenLogFile(JSContext *cx, uintN argc, jsval *vp)
             return JS_FALSE;
         }
     }
-    JS_SET_RVAL(cx, vp, INT_TO_JSVAL(fd));
+    *rval = INT_TO_JSVAL(fd);
     return JS_TRUE;
 }
 
 static JSBool
-TraceMallocChangeLogFD(JSContext *cx, uintN argc, jsval *vp)
+TraceMallocChangeLogFD(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     int32 fd, oldfd;
 
     if (argc == 0) {
         oldfd = -1;
     } else {
-        if (!JS_ValueToECMAInt32(cx, JS_ARGV(cx, vp)[0], &fd))
+        if (!JS_ValueToECMAInt32(cx, argv[0], &fd))
             return JS_FALSE;
         oldfd = NS_TraceMallocChangeLogFD(fd);
         if (oldfd == -2) {
@@ -3142,46 +3202,44 @@ TraceMallocChangeLogFD(JSContext *cx, uintN argc, jsval *vp)
             return JS_FALSE;
         }
     }
-    JS_SET_RVAL(cx, vp, INT_TO_JSVAL(oldfd));
+    *rval = INT_TO_JSVAL(oldfd);
     return JS_TRUE;
 }
 
 static JSBool
-TraceMallocCloseLogFD(JSContext *cx, uintN argc, jsval *vp)
+TraceMallocCloseLogFD(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     int32 fd;
 
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     if (argc == 0)
         return JS_TRUE;
-    if (!JS_ValueToECMAInt32(cx, JS_ARGV(cx, vp)[0], &fd))
+    if (!JS_ValueToECMAInt32(cx, argv[0], &fd))
         return JS_FALSE;
     NS_TraceMallocCloseLogFD((int) fd);
     return JS_TRUE;
 }
 
 static JSBool
-TraceMallocLogTimestamp(JSContext *cx, uintN argc, jsval *vp)
+TraceMallocLogTimestamp(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     JSString *str;
     const char *caption;
 
-    str = JS_ValueToString(cx, argc ? JS_ARGV(cx, vp)[0] : JSVAL_VOID);
+    str = JS_ValueToString(cx, argv[0]);
     if (!str)
         return JS_FALSE;
     caption = JS_GetStringBytes(str);
     NS_TraceMallocLogTimestamp(caption);
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 static JSBool
-TraceMallocDumpAllocations(JSContext *cx, uintN argc, jsval *vp)
+TraceMallocDumpAllocations(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     JSString *str;
     const char *pathname;
 
-    str = JS_ValueToString(cx, argc ? JS_ARGV(cx, vp)[0] : JSVAL_VOID);
+    str = JS_ValueToString(cx, argv[0]);
     if (!str)
         return JS_FALSE;
     pathname = JS_GetStringBytes(str);
@@ -3189,19 +3247,18 @@ TraceMallocDumpAllocations(JSContext *cx, uintN argc, jsval *vp)
         JS_ReportError(cx, "can't dump to %s: %s", pathname, strerror(errno));
         return JS_FALSE;
     }
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 static JSFunctionSpec TraceMallocFunctions[] = {
-    {"TraceMallocDisable",         TraceMallocDisable,         0, 0},
-    {"TraceMallocEnable",          TraceMallocEnable,          0, 0},
-    {"TraceMallocOpenLogFile",     TraceMallocOpenLogFile,     1, 0},
-    {"TraceMallocChangeLogFD",     TraceMallocChangeLogFD,     1, 0},
-    {"TraceMallocCloseLogFD",      TraceMallocCloseLogFD,      1, 0},
-    {"TraceMallocLogTimestamp",    TraceMallocLogTimestamp,    1, 0},
-    {"TraceMallocDumpAllocations", TraceMallocDumpAllocations, 1, 0},
-    {nsnull,                       nsnull,                     0, 0}
+    {"TraceMallocDisable",         TraceMallocDisable,         0, 0, 0},
+    {"TraceMallocEnable",          TraceMallocEnable,          0, 0, 0},
+    {"TraceMallocOpenLogFile",     TraceMallocOpenLogFile,     1, 0, 0},
+    {"TraceMallocChangeLogFD",     TraceMallocChangeLogFD,     1, 0, 0},
+    {"TraceMallocCloseLogFD",      TraceMallocCloseLogFD,      1, 0, 0},
+    {"TraceMallocLogTimestamp",    TraceMallocLogTimestamp,    1, 0, 0},
+    {"TraceMallocDumpAllocations", TraceMallocDumpAllocations, 1, 0, 0},
+    {nsnull,                       nsnull,                     0, 0, 0}
 };
 
 #endif /* NS_TRACE_MALLOC */
@@ -3221,7 +3278,8 @@ void NS_JProfStartProfiling();
 void NS_JProfStopProfiling();
 
 static JSBool
-JProfStartProfilingJS(JSContext *cx, uintN argc, jsval *vp)
+JProfStartProfilingJS(JSContext *cx, JSObject *obj,
+                      uintN argc, jsval *argv, jsval *rval)
 {
   NS_JProfStartProfiling();
   return JS_TRUE;
@@ -3259,7 +3317,8 @@ void NS_JProfStartProfiling()
 }
 
 static JSBool
-JProfStopProfilingJS(JSContext *cx, uintN argc, jsval *vp)
+JProfStopProfilingJS(JSContext *cx, JSObject *obj,
+                     uintN argc, jsval *argv, jsval *rval)
 {
   NS_JProfStopProfiling();
   return JS_TRUE;
@@ -3273,47 +3332,47 @@ NS_JProfStopProfiling()
 }
 
 static JSFunctionSpec JProfFunctions[] = {
-    {"JProfStartProfiling",        JProfStartProfilingJS,      0, 0},
-    {"JProfStopProfiling",         JProfStopProfilingJS,       0, 0},
-    {nsnull,                       nsnull,                     0, 0}
+    {"JProfStartProfiling",        JProfStartProfilingJS,      0, 0, 0},
+    {"JProfStopProfiling",         JProfStopProfilingJS,       0, 0, 0},
+    {nsnull,                       nsnull,                     0, 0, 0}
 };
 
 #endif /* defined(MOZ_JPROF) */
 
 #ifdef MOZ_SHARK
 static JSFunctionSpec SharkFunctions[] = {
-    {"startShark",                 js_StartShark,              0, 0},
-    {"stopShark",                  js_StopShark,               0, 0},
-    {"connectShark",               js_ConnectShark,            0, 0},
-    {"disconnectShark",            js_DisconnectShark,         0, 0},
-    {nsnull,                       nsnull,                     0, 0}
+    {"startShark",                 js_StartShark,              0, 0, 0},
+    {"stopShark",                  js_StopShark,               0, 0, 0},
+    {"connectShark",               js_ConnectShark,            0, 0, 0},
+    {"disconnectShark",            js_DisconnectShark,         0, 0, 0},
+    {nsnull,                       nsnull,                     0, 0, 0}
 };
 #endif
 
 #ifdef MOZ_CALLGRIND
 static JSFunctionSpec CallgrindFunctions[] = {
-    {"startCallgrind",             js_StartCallgrind,          0, 0},
-    {"stopCallgrind",              js_StopCallgrind,           0, 0},
-    {"dumpCallgrind",              js_DumpCallgrind,           1, 0},
-    {nsnull,                       nsnull,                     0, 0}
+    {"startCallgrind",             js_StartCallgrind,          0, 0, 0},
+    {"stopCallgrind",              js_StopCallgrind,           0, 0, 0},
+    {"dumpCallgrind",              js_DumpCallgrind,           1, 0, 0},
+    {nsnull,                       nsnull,                     0, 0, 0}
 };
 #endif
 
 #ifdef MOZ_VTUNE
 static JSFunctionSpec VtuneFunctions[] = {
-    {"startVtune",                 js_StartVtune,              1, 0},
-    {"stopVtune",                  js_StopVtune,               0, 0},
-    {"pauseVtune",                 js_PauseVtune,              0, 0},
-    {"resumeVtune",                js_ResumeVtune,             0, 0},
-    {nsnull,                       nsnull,                     0, 0}
+    {"startVtune",                 js_StartVtune,              1, 0, 0},
+    {"stopVtune",                  js_StopVtune,               0, 0, 0},
+    {"pauseVtune",                 js_PauseVtune,              0, 0, 0},
+    {"resumeVtune",                js_ResumeVtune,             0, 0, 0},
+    {nsnull,                       nsnull,                     0, 0, 0}
 };
 #endif
 
 #ifdef MOZ_TRACEVIS
 static JSFunctionSpec EthogramFunctions[] = {
-    {"initEthogram",               js_InitEthogram,            0, 0},
-    {"shutdownEthogram",           js_ShutdownEthogram,        0, 0},
-    {nsnull,                       nsnull,                     0, 0}
+    {"initEthogram",               js_InitEthogram,            0, 0, 0},
+    {"shutdownEthogram",           js_ShutdownEthogram,        0, 0, 0},
+    {nsnull,                       nsnull,                     0, 0, 0}
 };
 #endif
 

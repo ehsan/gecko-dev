@@ -91,11 +91,6 @@ pref("offline-apps.quota.max",          7000);
 pref("offline-apps.quota.warn",         4000);
 #endif
 
-// Whether or not indexedDB is enabled.
-pref("dom.indexedDB.enabled", true);
-// Space to allow indexedDB databases before prompting (in MB).
-pref("dom.indexedDB.warningQuota", 50);
-
 // Fastback caching - if this pref is negative, then we calculate the number
 // of content viewers to cache based on the amount of available memory.
 pref("browser.sessionhistory.max_total_viewers", -1);
@@ -188,7 +183,11 @@ pref("gfx.3d_video.enabled", false);
 
 pref("gfx.downloadable_fonts.enabled", true);
 
+#ifdef XP_MACOSX
 pref("gfx.font_rendering.harfbuzz.level", 1);
+#else
+pref("gfx.font_rendering.harfbuzz.level", 0);
+#endif
 
 #ifdef XP_WIN
 #ifndef WINCE
@@ -577,10 +576,8 @@ pref("javascript.options.strict",           false);
 pref("javascript.options.strict.debug",     true);
 #endif
 pref("javascript.options.relimit",          true);
-pref("javascript.options.tracejit.content",  true);
-pref("javascript.options.tracejit.chrome",   true);
-pref("javascript.options.methodjit.content", true);
-pref("javascript.options.methodjit.chrome",  false);
+pref("javascript.options.jit.content",      true);
+pref("javascript.options.jit.chrome",       true);
 // This preference limits the memory usage of javascript.
 // If you want to change these values for your device,
 // please find Bug 417052 comment 17 and Bug 456721
@@ -3172,7 +3169,6 @@ pref("webgl.shader_validator", true);
 pref("webgl.force_osmesa", false);
 pref("webgl.mochitest_native_gl", false);
 pref("webgl.osmesalib", "");
-pref("webgl.verbose", false);
 
 #ifdef XP_WIN
 #ifndef WINCE
@@ -3190,11 +3186,7 @@ pref("gfx.color_management.mode", 0);
 pref("mozilla.widget.render-mode", -1);
 
 // Default value of acceleration for all widgets.
-#ifdef XP_WIN
-pref("layers.accelerate-all", true);
-#else
 pref("layers.accelerate-all", false);
-#endif
 
 // Whether to allow acceleration on layers at all.
 pref("layers.accelerate-none", false);
@@ -3234,7 +3226,6 @@ pref("browser.history.maxStateObjectSize", 655360);
 
 // XPInstall prefs
 pref("xpinstall.whitelist.required", true);
-pref("extensions.alwaysUnpack", false);
 
 pref("network.buffer.cache.count", 24);
 pref("network.buffer.cache.size",  32768);

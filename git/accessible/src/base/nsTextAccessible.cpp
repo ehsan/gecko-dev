@@ -50,10 +50,11 @@ nsTextAccessible::
 {
 }
 
-PRUint32
-nsTextAccessible::NativeRole()
+nsresult
+nsTextAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_TEXT_LEAF;
+  *aRole = nsIAccessibleRole::ROLE_TEXT_LEAF;
+  return NS_OK;
 }
 
 nsresult

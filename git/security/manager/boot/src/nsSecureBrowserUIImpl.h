@@ -93,8 +93,6 @@ public:
 
   NS_IMETHOD Notify(nsIDOMHTMLFormElement* formNode, nsIDOMWindowInternal* window,
                     nsIURI *actionURL, PRBool* cancelSubmit);
-  NS_IMETHOD NotifyInvalidSubmit(nsIDOMHTMLFormElement* formNode,
-                                 nsIArray* invalidElements) { return NS_OK; };
   
 protected:
   PRMonitor *mMonitor;

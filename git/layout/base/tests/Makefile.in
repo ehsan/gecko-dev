@@ -92,9 +92,6 @@ _TEST_FILES =	\
 		     bug106855-1.html \
 		     bug106855-2.html \
 		     bug106855-1-ref.html \
-		     bug240933-1.html \
-		     bug240933-2.html \
-		     bug240933-1-ref.html \
 		     bug482484.html \
 		     bug482484-ref.html \
 		     bug512295-1.html \
@@ -283,7 +280,6 @@ _TEST_FILES += \
 		test_bug570378-persian-5g.html \
 		bug570378-persian-5.html \
 		bug570378-persian-5-ref.html \
-		test_bug588174.html \
 		$(NULL)
 endif
 

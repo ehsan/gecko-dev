@@ -104,22 +104,17 @@ XPCJSContextStack::Pop(JSContext * *_retval)
 
         XPCJSContextInfo & e = mStack[idx];
         NS_ASSERTION(!e.frame || e.cx, "Shouldn't have frame without a cx!");
-        NS_ASSERTION(!e.suspendDepth || e.cx, "Shouldn't have suspendDepth without a cx!");
-        if(e.cx)
-        {
-            if(e.suspendDepth)
-            {
-                JS_ResumeRequest(e.cx, e.suspendDepth);
-                e.suspendDepth = 0;
-            }
+        if(e.requestDepth)
+            JS_ResumeRequest(e.cx, e.requestDepth);
 
-            if(e.frame)
-            {
-                // Pop() can be called outside any request for e.cx.
-                JSAutoRequest ar(e.cx);
-                JS_RestoreFrameChain(e.cx, e.frame);
-                e.frame = nsnull;
-            }
+        e.requestDepth = 0;
+
+        if(e.cx && e.frame)
+        {
+            // Pop() can be called outside any request for e.cx.
+            JSAutoRequest ar(e.cx);
+            JS_RestoreFrameChain(e.cx, e.frame);
+            e.frame = nsnull;
         }
     }
     return NS_OK;
@@ -142,7 +137,6 @@ GetPrincipalFromCx(JSContext *cx)
 NS_IMETHODIMP
 XPCJSContextStack::Push(JSContext * cx)
 {
-    JS_ASSERT_IF(cx, JS_GetContextThread(cx));
     if(!mStack.AppendElement(cx))
         return NS_ERROR_OUT_OF_MEMORY;
     if(mStack.Length() > 1)
@@ -176,8 +170,8 @@ XPCJSContextStack::Push(JSContext * cx)
                 e.frame = JS_SaveFrameChain(e.cx);
             }
 
-            if(!cx)
-                e.suspendDepth = JS_SuspendRequest(e.cx);
+            if(e.cx != cx && JS_GetContextThread(e.cx))
+                e.requestDepth = JS_SuspendRequest(e.cx);
         }
     }
     return NS_OK;
@@ -259,26 +253,13 @@ XPCJSContextStack::GetSafeJSContext(JSContext * *aSafeJSContext)
             mSafeJSContext = JS_NewContext(rt, 8192);
             if(mSafeJSContext)
             {
-                nsCString origin;
-                principal->GetOrigin(getter_Copies(origin));
-
                 // scoped JS Request
                 JSAutoRequest req(mSafeJSContext);
-
-                JSCompartment *compartment;
-                nsresult rv = xpc_CreateGlobalObject(mSafeJSContext, &global_class,
-                                                     origin, principal, &glob,
-                                                     &compartment);
-                if(NS_FAILED(rv))
-                    glob = nsnull;
+                glob = JS_NewGlobalObject(mSafeJSContext, &global_class);
 
 #ifndef XPCONNECT_STANDALONE
                 if(glob)
                 {
-                    // Make sure the context is associated with a proper compartment
-                    // and not the default compartment.
-                    JS_SetGlobalObject(mSafeJSContext, glob);
-
                     // Note: make sure to set the private before calling
                     // InitClasses
                     nsIScriptObjectPrincipal* priv = nsnull;

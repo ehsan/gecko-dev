@@ -182,10 +182,8 @@ nsHTMLButtonControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     nsMargin border = GetStyleBorder()->GetActualBorder();
     nsRect rect(aBuilder->ToReferenceFrame(this), GetSize());
     rect.Deflate(border);
-    nscoord radii[8];
-    GetPaddingBoxBorderRadii(radii);
-
-    nsresult rv = OverflowClip(aBuilder, set, aLists, rect, radii);
+  
+    nsresult rv = OverflowClip(aBuilder, set, aLists, rect);
     NS_ENSURE_SUCCESS(rv, rv);
   } else {
     set.MoveTo(aLists);
@@ -195,7 +193,7 @@ nsHTMLButtonControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   NS_ENSURE_SUCCESS(rv, rv);
 
   // to draw border when selected in editor
-  return DisplaySelectionOverlay(aBuilder, aLists.Content());
+  return DisplaySelectionOverlay(aBuilder, aLists);
 }
 
 nscoord

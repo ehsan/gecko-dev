@@ -611,6 +611,17 @@ nsHTMLReflowState::ComputeRelativeOffsets(const nsHTMLReflowState* cbrs,
   PRBool  leftIsAuto = eStyleUnit_Auto == mStylePosition->mOffset.GetLeftUnit();
   PRBool  rightIsAuto = eStyleUnit_Auto == mStylePosition->mOffset.GetRightUnit();
 
+  // Check for percentage based values and an unconstrained containing
+  // block width. Treat them like 'auto'
+  if (NS_UNCONSTRAINEDSIZE == aContainingBlockWidth) {
+    if (mStylePosition->OffsetHasPercent(NS_SIDE_LEFT)) {
+      leftIsAuto = PR_TRUE;
+    }
+    if (mStylePosition->OffsetHasPercent(NS_SIDE_RIGHT)) {
+      rightIsAuto = PR_TRUE;
+    }
+  }
+
   // If neither 'left' not 'right' are auto, then we're over-constrained and
   // we ignore one of them
   if (!leftIsAuto && !rightIsAuto) {
@@ -783,7 +794,7 @@ static PRBool
 GetIntrinsicSizeFor(nsIFrame* aFrame, nsSize& aIntrinsicSize)
 {
   // See if it is an image frame
-  PRBool success = PR_FALSE;
+  PRBool    result = PR_FALSE;
 
   // Currently the only type of replaced frame that we can get the intrinsic
   // size for is an image frame
@@ -792,11 +803,10 @@ GetIntrinsicSizeFor(nsIFrame* aFrame, nsSize& aIntrinsicSize)
   if (aFrame->GetType() == nsGkAtoms::imageFrame) {
     nsImageFrame* imageFrame = (nsImageFrame*)aFrame;
 
-    if (NS_SUCCEEDED(imageFrame->GetIntrinsicImageSize(aIntrinsicSize))) {
-      success = (aIntrinsicSize != nsSize(0, 0));
-    }
+    imageFrame->GetIntrinsicImageSize(aIntrinsicSize);
+    result = (aIntrinsicSize != nsSize(0, 0));
   }
-  return success;
+  return result;
 }
 
 /**
@@ -2153,12 +2163,25 @@ nsCSSOffsetState::ComputeMargin(nscoord aContainingBlockWidth)
   const nsStyleMargin *styleMargin = frame->GetStyleMargin();
   if (!styleMargin->GetMargin(mComputedMargin)) {
     // We have to compute the value
-    mComputedMargin.left = nsLayoutUtils::
-      ComputeWidthDependentValue(aContainingBlockWidth,
-                                 styleMargin->mMargin.GetLeft());
-    mComputedMargin.right = nsLayoutUtils::
-      ComputeWidthDependentValue(aContainingBlockWidth,
-                                 styleMargin->mMargin.GetRight());
+    if (NS_UNCONSTRAINEDSIZE == aContainingBlockWidth) {
+      mComputedMargin.left = 0;
+      mComputedMargin.right = 0;
+
+      if (eStyleUnit_Coord == styleMargin->mMargin.GetLeftUnit()) {
+        mComputedMargin.left = styleMargin->mMargin.GetLeft().GetCoordValue();
+      }
+      if (eStyleUnit_Coord == styleMargin->mMargin.GetRightUnit()) {
+        mComputedMargin.right = styleMargin->mMargin.GetRight().GetCoordValue();
+      }
+
+    } else {
+      mComputedMargin.left = nsLayoutUtils::
+        ComputeWidthDependentValue(aContainingBlockWidth,
+                                   styleMargin->mMargin.GetLeft());
+      mComputedMargin.right = nsLayoutUtils::
+        ComputeWidthDependentValue(aContainingBlockWidth,
+                                   styleMargin->mMargin.GetRight());
+    }
 
     // According to the CSS2 spec, margin percentages are
     // calculated with respect to the *width* of the containing
@@ -2187,22 +2210,21 @@ nsCSSOffsetState::ComputePadding(nscoord aContainingBlockWidth)
   const nsStylePadding *stylePadding = frame->GetStylePadding();
   if (!stylePadding->GetPadding(mComputedPadding)) {
     // We have to compute the value
-    // clamp negative calc() results to 0
-    mComputedPadding.left = NS_MAX(0, nsLayoutUtils::
+    mComputedPadding.left = nsLayoutUtils::
       ComputeWidthDependentValue(aContainingBlockWidth,
-                                 stylePadding->mPadding.GetLeft()));
-    mComputedPadding.right = NS_MAX(0, nsLayoutUtils::
+                                 stylePadding->mPadding.GetLeft());
+    mComputedPadding.right = nsLayoutUtils::
       ComputeWidthDependentValue(aContainingBlockWidth,
-                                 stylePadding->mPadding.GetRight()));
+                                 stylePadding->mPadding.GetRight());
 
     // According to the CSS2 spec, percentages are calculated with respect to
     // containing block width for padding-top and padding-bottom
-    mComputedPadding.top = NS_MAX(0, nsLayoutUtils::
+    mComputedPadding.top = nsLayoutUtils::
       ComputeWidthDependentValue(aContainingBlockWidth,
-                                 stylePadding->mPadding.GetTop()));
-    mComputedPadding.bottom = NS_MAX(0, nsLayoutUtils::
+                                 stylePadding->mPadding.GetTop());
+    mComputedPadding.bottom = nsLayoutUtils::
       ComputeWidthDependentValue(aContainingBlockWidth,
-                                 stylePadding->mPadding.GetBottom()));
+                                 stylePadding->mPadding.GetBottom());
 
     frame->Properties().Set(nsIFrame::UsedPaddingProperty(),
                             new nsMargin(mComputedPadding));

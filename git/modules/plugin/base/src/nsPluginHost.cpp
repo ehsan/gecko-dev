@@ -1822,13 +1822,13 @@ static PRBool isUnwantedPlugin(nsPluginTag * tag)
     return PR_TRUE;
 
   for (PRInt32 i = 0; i < tag->mVariants; ++i) {
-    if (!PL_strcasecmp(tag->mMimeTypeArray[i], "application/pdf"))
+    if (nsnull == PL_strcasecmp(tag->mMimeTypeArray[i], "application/pdf"))
       return PR_FALSE;
 
-    if (!PL_strcasecmp(tag->mMimeTypeArray[i], "application/x-shockwave-flash"))
+    if (nsnull == PL_strcasecmp(tag->mMimeTypeArray[i], "application/x-shockwave-flash"))
       return PR_FALSE;
 
-    if (!PL_strcasecmp(tag->mMimeTypeArray[i], "application/x-director"))
+    if (nsnull == PL_strcasecmp(tag->mMimeTypeArray[i],"application/x-director"))
       return PR_FALSE;
   }
 

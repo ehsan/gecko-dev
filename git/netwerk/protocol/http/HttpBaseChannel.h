@@ -165,8 +165,6 @@ public:
   NS_IMETHOD GetForceAllowThirdPartyCookie(PRBool *aForce);
   NS_IMETHOD SetForceAllowThirdPartyCookie(PRBool aForce);
   NS_IMETHOD GetCanceled(PRBool *aCanceled);
-  NS_IMETHOD GetChannelIsForDownload(PRBool *aChannelIsForDownload);
-  NS_IMETHOD SetChannelIsForDownload(PRBool aChannelIsForDownload);
 
   // nsISupportsPriority
   NS_IMETHOD GetPriority(PRInt32 *value);
@@ -232,7 +230,6 @@ protected:
   PRUint32                          mInheritApplicationCache    : 1;
   PRUint32                          mChooseApplicationCache     : 1;
   PRUint32                          mLoadedFromApplicationCache : 1;
-  PRUint32                          mChannelIsForDownload       : 1;
 };
 
 

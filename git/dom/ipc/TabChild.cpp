@@ -87,7 +87,7 @@
 #include "nsIFrame.h"
 #include "nsIView.h"
 #include "nsIEventListenerManager.h"
-#include "PCOMContentPermissionRequestChild.h"
+#include "nsGeolocation.h"
 
 #ifdef MOZ_WIDGET_QT
 #include <QGraphicsView>
@@ -968,18 +968,21 @@ TabChild::DeallocPContentDialog(PContentDialogChild* aDialog)
   return true;
 }
 
-PContentPermissionRequestChild*
-TabChild::AllocPContentPermissionRequest(const nsCString& aType, const IPC::URI&)
+/* The PGeolocationRequestChild actor is implemented by a refcounted
+   nsGeolocationRequest, and has an identical lifetime. */
+
+PGeolocationRequestChild*
+TabChild::AllocPGeolocationRequest(const IPC::URI&)
 {
   NS_RUNTIMEABORT("unused");
   return nsnull;
 }
 
 bool
-TabChild::DeallocPContentPermissionRequest(PContentPermissionRequestChild* actor)
+TabChild::DeallocPGeolocationRequest(PGeolocationRequestChild* actor)
 {
-    static_cast<PCOMContentPermissionRequestChild*>(actor)->IPDLRelease();
-    return true;
+  static_cast<nsGeolocationRequest*>(actor)->Release();
+  return true;
 }
 
 bool
@@ -1190,7 +1193,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(TabChildGlobal)
   NS_INTERFACE_MAP_ENTRY(nsIFrameMessageManager)
-  NS_INTERFACE_MAP_ENTRY(nsISyncMessageSender)
   NS_INTERFACE_MAP_ENTRY(nsIContentFrameMessageManager)
   NS_INTERFACE_MAP_ENTRY(nsIScriptContextPrincipal)
   NS_INTERFACE_MAP_ENTRY(nsIScriptObjectPrincipal)
@@ -1241,7 +1243,6 @@ TabChildGlobal::GetPrincipal()
 PExternalHelperAppChild*
 TabChild::AllocPExternalHelperApp(const IPC::URI& uri,
                                   const nsCString& aMimeContentType,
-                                  const nsCString& aContentDisposition,
                                   const bool& aForceSave,
                                   const PRInt64& aContentLength)
 {

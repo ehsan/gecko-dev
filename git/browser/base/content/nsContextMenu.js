@@ -404,8 +404,7 @@ nsContextMenu.prototype = {
     this.showItem("context-video-fullscreen", this.onVideo);
     // Disable them when there isn't a valid media source loaded.
     if (onMedia) {
-      var hasError = this.target.error != null ||
-                     this.target.networkState == this.target.NETWORK_NO_SOURCE;
+      var hasError = (this.target.error != null);
       this.setItemAttr("context-media-play",  "disabled", hasError);
       this.setItemAttr("context-media-pause", "disabled", hasError);
       this.setItemAttr("context-media-mute",   "disabled", hasError);
