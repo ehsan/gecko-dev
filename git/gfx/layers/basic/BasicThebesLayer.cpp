@@ -27,9 +27,7 @@ BasicThebesLayer::CreateBuffer(Buffer::ContentType aType, const nsIntSize& aSize
       referenceSurface = defaultTarget->CurrentSurface();
     } else {
       nsIWidget* widget = BasicManager()->GetRetainerWidget();
-      if (widget) {
-        referenceSurface = widget->GetThebesSurface();
-      } else {
+      if (!widget || !(referenceSurface = widget->GetThebesSurface())) {
         referenceSurface = BasicManager()->GetTarget()->CurrentSurface();
       }
     }
@@ -106,10 +104,7 @@ BasicThebesLayer::PaintThebes(gfxContext* aContext,
                           gfxASurface::CONTENT_COLOR_ALPHA;
   float opacity = GetEffectiveOpacity();
   
-  if (!BasicManager()->IsRetained() ||
-      (!canUseOpaqueSurface &&
-       (mContentFlags & CONTENT_COMPONENT_ALPHA) &&
-       !MustRetainContent())) {
+  if (!BasicManager()->IsRetained()) {
     NS_ASSERTION(readbackUpdates.IsEmpty(), "Can't do readback for non-retained layer");
 
     mValidRegion.SetEmpty();
