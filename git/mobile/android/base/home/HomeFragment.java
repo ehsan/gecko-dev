@@ -203,7 +203,6 @@ abstract class HomeFragment extends Fragment {
             final GeckoApp geckoApp = (GeckoApp) context;
             geckoApp.getButtonToast().show(false,
                     message,
-                    ButtonToast.LENGTH_SHORT,
                     buttonMessage,
                     R.drawable.switch_button_icon,
                     new ButtonToast.ToastListener() {

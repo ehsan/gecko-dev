@@ -727,7 +727,7 @@ ManifestHelper.prototype = {
     // If no start point is specified, we use the root launch path.
     // In all error cases, we just return null.
     if ((aStartPoint || "") === "") {
-      return this._baseURI.resolve(this._localeProp("launch_path") || "/");
+      return this._baseURI.resolve(this._localeProp("launch_path") || "");
     }
 
     // Search for the l10n entry_points property.
@@ -737,7 +737,7 @@ ManifestHelper.prototype = {
     }
 
     if (entryPoints[aStartPoint]) {
-      return this._baseURI.resolve(entryPoints[aStartPoint].launch_path || "/");
+      return this._baseURI.resolve(entryPoints[aStartPoint].launch_path || "");
     }
 
     return null;
@@ -753,12 +753,12 @@ ManifestHelper.prototype = {
 
   fullAppcachePath: function() {
     let appcachePath = this._localeProp("appcache_path");
-    return this._baseURI.resolve(appcachePath ? appcachePath : "/");
+    return this._baseURI.resolve(appcachePath ? appcachePath : "");
   },
 
   fullPackagePath: function() {
     let packagePath = this._localeProp("package_path");
-    return this._manifestURL.resolve(packagePath ? packagePath : "/");
+    return this._manifestURL.resolve(packagePath ? packagePath : "");
   },
 
   get role() {

@@ -20,10 +20,7 @@ function test() {
     ok(!toolbox.splitConsole, "Split console is hidden by default.");
     yield toggleSplitConsoleWithEscape();
     ok(toolbox.splitConsole, "Split console is now visible.");
-    ok(getVisiblePrefValue(), "Visibility pref is true");
-
-    is(getHeightPrefValue(), toolbox.webconsolePanel.height, "Panel height matches the pref");
-    toolbox.webconsolePanel.height = 200;
+    ok(getPrefValue(), "Pref is true");
 
     yield toolbox.destroy();
 
@@ -33,24 +30,11 @@ function test() {
     toolbox = yield gDevTools.showToolbox(target, "inspector");
 
     ok(toolbox.splitConsole, "Split console is visible by default.");
-    is(getHeightPrefValue(), 200, "Height is set based on panel height after closing");
-
-    toolbox.webconsolePanel.height = 1;
-    ok (toolbox.webconsolePanel.clientHeight > 1,
-        "The actual height of the console is bound with a min height");
-
-    toolbox.webconsolePanel.height = 10000;
-    ok (toolbox.webconsolePanel.clientHeight < 10000,
-        "The actual height of the console is bound with a max height");
-
     yield toggleSplitConsoleWithEscape();
     ok(!toolbox.splitConsole, "Split console is now hidden.");
-    ok(!getVisiblePrefValue(), "Visibility pref is false");
+    ok(!getPrefValue(), "Pref is false");
 
     yield toolbox.destroy();
-
-    is(getHeightPrefValue(), 10000, "Height is set based on panel height after closing");
-
 
     info("Opening a tab while there is a false user setting on split console pref");
     let {tab} = yield loadTab(TEST_URI);
@@ -58,17 +42,13 @@ function test() {
     toolbox = yield gDevTools.showToolbox(target, "inspector");
 
     ok(!toolbox.splitConsole, "Split console is hidden by default.");
-    ok(!getVisiblePrefValue(), "Visibility pref is false");
+    ok(!getPrefValue(), "Pref is false");
 
     yield toolbox.destroy();
   }
 
-  function getVisiblePrefValue() {
+  function getPrefValue() {
     return Services.prefs.getBoolPref("devtools.toolbox.splitconsoleEnabled");
-  }
-
-  function getHeightPrefValue() {
-    return Services.prefs.getIntPref("devtools.toolbox.splitconsoleHeight");
   }
 
   function toggleSplitConsoleWithEscape() {
@@ -82,7 +62,6 @@ function test() {
   function finish() {
     toolbox = TEST_URI = null;
     Services.prefs.clearUserPref("devtools.toolbox.splitconsoleEnabled");
-    Services.prefs.clearUserPref("devtools.toolbox.splitconsoleHeight");
     finishTest();
   }
 }

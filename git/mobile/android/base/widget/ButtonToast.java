@@ -32,8 +32,7 @@ public class ButtonToast {
     @SuppressWarnings("unused")
     private final static String LOGTAG = "GeckoButtonToast";
 
-    public static int LENGTH_SHORT = 3000;
-    public static int LENGTH_LONG = 5000;
+    private final static int TOAST_DURATION = 5000;
 
     private final View mView;
     private final TextView mMessageView;
@@ -54,14 +53,11 @@ public class ButtonToast {
         public final CharSequence buttonMessage;
         public Drawable buttonDrawable;
         public final CharSequence message;
-        public final int duration;
         public ToastListener listener;
 
-        public Toast(CharSequence aMessage, int aDuration,
-                CharSequence aButtonMessage, Drawable aDrawable,
-                ToastListener aListener) {
+        public Toast(CharSequence aMessage, CharSequence aButtonMessage,
+                     Drawable aDrawable, ToastListener aListener) {
             message = aMessage;
-            duration = aDuration;
             buttonMessage = aButtonMessage;
             buttonDrawable = aDrawable;
             listener = aListener;
@@ -95,16 +91,16 @@ public class ButtonToast {
     }
 
     public void show(boolean immediate, CharSequence message,
-                     int duration, CharSequence buttonMessage,
-                     int buttonDrawableId, ToastListener listener) {
+                     CharSequence buttonMessage, int buttonDrawableId,
+                     ToastListener listener) {
         final Drawable d = mView.getContext().getResources().getDrawable(buttonDrawableId);
-        show(false, message, duration, buttonMessage, d, listener);
+        show(false, message, buttonMessage, d, listener);
     }
 
     public void show(boolean immediate, CharSequence message,
-                     int duration, CharSequence buttonMessage,
-                     Drawable buttonDrawable, ToastListener listener) {
-        show(new Toast(message, duration, buttonMessage, buttonDrawable, listener), immediate);
+                     CharSequence buttonMessage, Drawable buttonDrawable,
+                     ToastListener listener) {
+        show(new Toast(message, buttonMessage, buttonDrawable, listener), immediate);
     }
 
     private void show(Toast t, boolean immediate) {
@@ -123,7 +119,7 @@ public class ButtonToast {
         mButton.setCompoundDrawablesWithIntrinsicBounds(t.buttonDrawable, null, null, null);
 
         mHideHandler.removeCallbacks(mHideRunnable);
-        mHideHandler.postDelayed(mHideRunnable, t.duration);
+        mHideHandler.postDelayed(mHideRunnable, TOAST_DURATION);
 
         mView.setVisibility(View.VISIBLE);
         int duration = immediate ? 0 : mView.getResources().getInteger(android.R.integer.config_longAnimTime);
