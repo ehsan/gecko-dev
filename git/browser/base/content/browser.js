@@ -3610,7 +3610,8 @@ var XULBrowserWindow = {
       if (gURLBar) {
         URLBarSetURI(aLocationURI);
 
-        BookmarkingUI.onLocationChange();
+        // Update starring UI
+        BookmarkingUI.updateStarState();
         SocialUI.updateState();
       }
 
