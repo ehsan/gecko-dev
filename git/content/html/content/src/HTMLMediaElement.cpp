@@ -970,11 +970,6 @@ static bool IsAutoplayEnabled()
   return Preferences::GetBool("media.autoplay.enabled");
 }
 
-static bool UseAudioChannelService()
-{
-  return Preferences::GetBool("media.useAudioChannelService");
-}
-
 void HTMLMediaElement::UpdatePreloadAction()
 {
   PreloadAction nextAction = PRELOAD_UNDEFINED;
@@ -2168,10 +2163,7 @@ bool HTMLMediaElement::ParseAttribute(int32_t aNamespaceID,
 
 bool HTMLMediaElement::CheckAudioChannelPermissions(const nsAString& aString)
 {
-  if (!UseAudioChannelService()) {
-    return true;
-  }
-
+#ifdef ANDROID
   // Only normal channel doesn't need permission.
   if (!aString.EqualsASCII("normal")) {
     nsCOMPtr<nsIPermissionManager> permissionManager =
@@ -2187,7 +2179,7 @@ bool HTMLMediaElement::CheckAudioChannelPermissions(const nsAString& aString)
       return false;
     }
   }
-
+#endif
   return true;
 }
 
@@ -3226,17 +3218,17 @@ void HTMLMediaElement::SuspendOrResumeElement(bool aPauseElement, bool aSuspendE
 void HTMLMediaElement::NotifyOwnerDocumentActivityChanged()
 {
   nsIDocument* ownerDoc = OwnerDoc();
-  if (UseAudioChannelService()) {
-    nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(OwnerDoc());
-    if (domDoc) {
-      bool hidden = false;
-      domDoc->GetHidden(&hidden);
-      // SetVisibilityState will update mChannelSuspended via the CanPlayChanged callback.
-      if (mPlayingThroughTheAudioChannel && mAudioChannelAgent) {
-        mAudioChannelAgent->SetVisibilityState(!hidden);
-      }
+#ifdef ANDROID
+  nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(OwnerDoc());
+  if (domDoc) {
+    bool hidden = false;
+    domDoc->GetHidden(&hidden);
+    // SetVisibilityState will update mChannelSuspended via the CanPlayChanged callback.
+    if (mPlayingThroughTheAudioChannel && mAudioChannelAgent) {
+      mAudioChannelAgent->SetVisibilityState(!hidden);
     }
   }
+#endif
   bool suspendEvents = !ownerDoc->IsActive() || !ownerDoc->IsVisible();
   bool pauseElement = suspendEvents || mChannelSuspended;
 
@@ -3664,10 +3656,9 @@ ImageContainer* HTMLMediaElement::GetImageContainer()
 
 nsresult HTMLMediaElement::UpdateChannelMuteState(bool aCanPlay)
 {
-  if (!UseAudioChannelService()) {
-    return NS_OK;
-  }
-
+  // Only on B2G we mute the HTMLMediaElement following the rules of
+  // AudioChannelService.
+#ifdef ANDROID
   // We have to mute this channel:
   if (!aCanPlay && !mChannelSuspended) {
     mChannelSuspended = true;
@@ -3678,15 +3669,15 @@ nsresult HTMLMediaElement::UpdateChannelMuteState(bool aCanPlay)
   }
 
   SuspendOrResumeElement(mChannelSuspended, false);
+#endif
+
   return NS_OK;
 }
 
 void HTMLMediaElement::UpdateAudioChannelPlayingState()
 {
-  if (!UseAudioChannelService()) {
-    return;
-  }
-
+  // The HTMLMediaElement is registered to the AudioChannelService only on B2G.
+#ifdef ANDROID
   bool playingThroughTheAudioChannel =
      (!mPaused &&
       (HasAttr(kNameSpaceID_None, nsGkAtoms::loop) ||
@@ -3720,6 +3711,7 @@ void HTMLMediaElement::UpdateAudioChannelPlayingState()
       mAudioChannelAgent = nullptr;
     }
   }
+#endif
 }
 
 /* void canPlayChanged (in boolean canPlay); */

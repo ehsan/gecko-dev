@@ -382,11 +382,5 @@ Attr::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
   return AttrBinding::Wrap(aCx, aScope, this);
 }
 
-Element*
-Attr::GetContentInternal() const
-{
-  return mAttrMap ? mAttrMap->GetContent() : nullptr;
-}
-
 } // namespace dom
 } // namespace mozilla

@@ -8,7 +8,7 @@
 /*****************************************************************************/
 
 #include "mozilla/StandardInteger.h"
-const PRTime gPreloadListExpirationTime = INT64_C(1377890142384000);
+const PRTime gPreloadListExpirationTime = INT64_C(1374654832387000);
 
 class nsSTSPreload
 {
@@ -18,17 +18,14 @@ class nsSTSPreload
 };
 
 static const nsSTSPreload kSTSPreloadList[] = {
-  { "alpha.irccloud.com", false },
   { "api.intercom.io", false },
   { "app.recurly.com", false },
   { "arivo.com.br", true },
-  { "bassh.net", true },
   { "blog.torproject.org", false },
   { "bugzilla.mozilla.org", true },
   { "business.medbank.com.mt", true },
   { "check.torproject.org", false },
   { "cloudsecurityalliance.org", true },
-  { "controlcenter.gigahost.dk", true },
   { "crate.io", true },
   { "crm.onlime.ch", false },
   { "crypto.cat", false },
@@ -40,7 +37,7 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "ebanking.indovinabank.com.vn", false },
   { "entropia.de", false },
   { "espra.com", true },
-  { "factor.cc", false },
+  { "factor.cc", true },
   { "gocardless.com", true },
   { "howrandom.org", true },
   { "id.mayfirst.org", false },
@@ -63,7 +60,6 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "mylookout.com", false },
   { "neg9.org", false },
   { "passwd.io", true },
-  { "pay.gigahost.dk", true },
   { "paymill.com", true },
   { "paymill.de", true },
   { "piratenlogin.de", true },
@@ -73,7 +69,6 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "sandbox.mydigipass.com", false },
   { "serverdensity.io", true },
   { "silentcircle.com", true },
-  { "simple.com", false },
   { "stocktrade.de", false },
   { "stripe.com", true },
   { "support.mayfirst.org", false },
@@ -97,10 +92,8 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "www.mydigipass.com", false },
   { "www.mylookout.com", false },
   { "www.noisebridge.net", false },
-  { "www.simple.com", false },
   { "www.surfeasy.com", false },
   { "www.therapynotes.com", false },
   { "www.torproject.org", false },
-  { "www.twitter.com", false },
   { "zoo24.de", true },
 };

@@ -646,7 +646,13 @@ BrowserElementChild.prototype = {
     }
 
     this._forcedVisible = data.json.visible;
-    this._updateVisibility();
+    this._updateDocShellVisibility();
+
+    // Fire a notification to the ProcessPriorityManager to reset this
+    // process's priority now (as opposed to after a brief delay).
+    var os = Cc["@mozilla.org/observer-service;1"].getService(Ci.nsIObserverService);
+    os.notifyObservers(/* subject */ null, 'process-priority:reset-now',
+                       /* data */ null);
   },
 
   _recvVisible: function(data) {
@@ -663,14 +669,13 @@ BrowserElementChild.prototype = {
   _recvOwnerVisibilityChange: function(data) {
     debug("Received ownerVisibilityChange: (" + data.json.visible + ")");
     this._ownerVisible = data.json.visible;
-    this._updateVisibility();
+    this._updateDocShellVisibility();
   },
 
-  _updateVisibility: function() {
+  _updateDocShellVisibility: function() {
     var visible = this._forcedVisible && this._ownerVisible;
     if (docShell.isActive !== visible) {
       docShell.isActive = visible;
-      sendAsyncMsg('visibility-change', {visibility: visible});
     }
   },
 

@@ -24,7 +24,6 @@ CPPSRCS = \
   CrashReporterParent.cpp \
   CrashReporterChild.cpp \
   PermissionMessageUtils.cpp \
-  PreallocatedProcessManager.cpp \
   ProcessPriorityManager.cpp \
   StructuredCloneUtils.cpp \
   TabParent.cpp \

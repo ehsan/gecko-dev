@@ -17,6 +17,7 @@
 #include "nsString.h"
 #include "nsCOMPtr.h"
 #include "nsINodeInfo.h"
+#include "nsDOMAttributeMap.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsStubMutationObserver.h"
 
@@ -106,7 +107,10 @@ protected:
 
 private:
   already_AddRefed<nsIAtom> GetNameAtom(nsIContent* aContent);
-  mozilla::dom::Element* GetContentInternal() const;
+  mozilla::dom::Element *GetContentInternal() const
+  {
+    return mAttrMap ? mAttrMap->GetContent() : nullptr;
+  }
 
   nsString mValue;
 };

@@ -60,9 +60,26 @@ public:
     return mozilla::dom::TouchEventBinding::Wrap(aCx, aScope, this);
   }
 
-  nsDOMTouchList* Touches();
-  nsDOMTouchList* TargetTouches();
-  nsDOMTouchList* ChangedTouches();
+  already_AddRefed<nsIDOMTouchList> GetTouches()
+  {
+    nsCOMPtr<nsIDOMTouchList> t;
+    GetTouches(getter_AddRefs(t));
+    return t.forget();
+  }
+
+  already_AddRefed<nsIDOMTouchList> GetTargetTouches()
+  {
+    nsCOMPtr<nsIDOMTouchList> t;
+    GetTargetTouches(getter_AddRefs(t));
+    return t.forget();
+  }
+
+  already_AddRefed<nsIDOMTouchList> GetChangedTouches()
+  {
+    nsCOMPtr<nsIDOMTouchList> t;
+    GetChangedTouches(getter_AddRefs(t));
+    return t.forget();
+  }
 
   bool AltKey()
   {
@@ -105,9 +122,9 @@ public:
 
   static bool PrefEnabled();
 protected:
-  nsRefPtr<nsDOMTouchList> mTouches;
-  nsRefPtr<nsDOMTouchList> mTargetTouches;
-  nsRefPtr<nsDOMTouchList> mChangedTouches;
+  nsCOMPtr<nsIDOMTouchList> mTouches;
+  nsCOMPtr<nsIDOMTouchList> mTargetTouches;
+  nsCOMPtr<nsIDOMTouchList> mChangedTouches;
 };
 
 #endif /* !defined(nsDOMTouchEvent_h_) */

@@ -889,9 +889,9 @@ protected:
   static void TimerCallback(nsITimer *aTimer, void *aClosure);
 
   // Helper Functions
-  already_AddRefed<nsIDocShellTreeOwner> GetTreeOwner();
-  already_AddRefed<nsIBaseWindow> GetTreeOwnerWindow();
-  already_AddRefed<nsIWebBrowserChrome> GetWebBrowserChrome();
+  nsresult GetTreeOwner(nsIDocShellTreeOwner** aTreeOwner);
+  nsresult GetTreeOwner(nsIBaseWindow** aTreeOwner);
+  nsresult GetWebBrowserChrome(nsIWebBrowserChrome** aBrowserChrome);
   nsresult SecurityCheckURL(const char *aURL);
   nsresult BuildURIfromBase(const char *aURL,
                             nsIURI **aBuiltURI,
@@ -917,11 +917,11 @@ protected:
 
   void FlushPendingNotifications(mozFlushType aType);
   void EnsureReflowFlushAndPaint();
-  void CheckSecurityWidthAndHeight(int32_t* width, int32_t* height);
-  void CheckSecurityLeftAndTop(int32_t* left, int32_t* top);
+  nsresult CheckSecurityWidthAndHeight(int32_t* width, int32_t* height);
+  nsresult CheckSecurityLeftAndTop(int32_t* left, int32_t* top);
 
   // Arguments to this function should have values in app units
-  void SetCSSViewportWidthAndHeight(nscoord width, nscoord height);
+  nsresult SetCSSViewportWidthAndHeight(nscoord width, nscoord height);
   // Arguments to this function should have values in device pixels
   nsresult SetDocShellWidthAndHeight(int32_t width, int32_t height);
 
