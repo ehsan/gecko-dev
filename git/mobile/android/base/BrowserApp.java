@@ -132,7 +132,7 @@ abstract public class BrowserApp extends GeckoApp
     private BrowserToolbar mBrowserToolbar;
     private HomePager mHomePager;
     private TabsPanel mTabsPanel;
-    private ViewGroup mHomePagerContainer;
+    private View mHomePagerContainer;
     protected Telemetry.Timer mAboutHomeStartupTimer = null;
     private ActionModeCompat mActionMode;
     private boolean mShowActionModeEndAnimation = false;
@@ -480,7 +480,7 @@ abstract public class BrowserApp extends GeckoApp
             }
         });
 
-        mHomePagerContainer = (ViewGroup) findViewById(R.id.home_pager_container);
+        mHomePagerContainer = findViewById(R.id.home_pager_container);
 
         mBrowserSearchContainer = findViewById(R.id.search_container);
         mBrowserSearch = (BrowserSearch) getSupportFragmentManager().findFragmentByTag(BROWSER_SEARCH_TAG);
@@ -1693,17 +1693,8 @@ abstract public class BrowserApp extends GeckoApp
             final ViewStub homePagerStub = (ViewStub) findViewById(R.id.home_pager_stub);
             mHomePager = (HomePager) homePagerStub.inflate();
 
-            final HomeBanner homeBanner = (HomeBanner) findViewById(R.id.home_banner);
+            HomeBanner homeBanner = (HomeBanner) findViewById(R.id.home_banner);
             mHomePager.setBanner(homeBanner);
-
-            // Remove the banner from the view hierarchy if it is dismissed.
-            homeBanner.setOnDismissListener(new HomeBanner.OnDismissListener() {
-                @Override
-                public void onDismiss() {
-                    mHomePager.setBanner(null);
-                    mHomePagerContainer.removeView(homeBanner);
-                }
-            });
         }
 
         mHomePagerContainer.setVisibility(View.VISIBLE);
