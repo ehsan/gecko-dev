@@ -601,7 +601,7 @@ let SettingsRequestManager = {
           p.reject("Invalid operation: " + currentTask.operation);
       }
       p.then(function(ret) {
-        ret.task.defer.resolve("results" in ret ? ret.results : null);
+        ret.task.defer.resolve(ret.results);
       }.bind(currentTask), function(ret) {
         ret.task.defer.reject(ret.error);
       });

@@ -871,17 +871,13 @@ DeviceStorageFile::GetRootDirectoryForType(const nsAString& aStorageType,
   InitDirs();
 
 #ifdef MOZ_WIDGET_GONK
-  nsresult rv;
   nsString volMountPoint;
   if (DeviceStorageTypeChecker::IsVolumeBased(aStorageType)) {
     nsCOMPtr<nsIVolumeService> vs = do_GetService(NS_VOLUMESERVICE_CONTRACTID);
     NS_ENSURE_TRUE_VOID(vs);
+    nsresult rv;
     nsCOMPtr<nsIVolume> vol;
     rv = vs->GetVolumeByName(aStorageName, getter_AddRefs(vol));
-    if(NS_FAILED(rv)) {
-      printf_stderr("##### DeviceStorage: GetVolumeByName('%s') failed\n",
-                    NS_LossyConvertUTF16toASCII(aStorageName).get());
-    }
     NS_ENSURE_SUCCESS_VOID(rv);
     vol->GetMountPoint(volMountPoint);
   }
@@ -890,12 +886,7 @@ DeviceStorageFile::GetRootDirectoryForType(const nsAString& aStorageType,
   // Picture directory
   if (aStorageType.EqualsLiteral(DEVICESTORAGE_PICTURES)) {
 #ifdef MOZ_WIDGET_GONK
-    rv = NS_NewLocalFile(volMountPoint, false, getter_AddRefs(f));
-    if(NS_FAILED(rv)) {
-      printf_stderr("##### DeviceStorage: NS_NewLocalFile failed StorageType: '%s' path '%s'\n",
-                    NS_LossyConvertUTF16toASCII(volMountPoint).get(),
-                    NS_LossyConvertUTF16toASCII(aStorageType).get());
-    }
+    NS_NewLocalFile(volMountPoint, false, getter_AddRefs(f));
 #else
     f = sDirs->pictures;
 #endif
@@ -904,12 +895,7 @@ DeviceStorageFile::GetRootDirectoryForType(const nsAString& aStorageType,
   // Video directory
   else if (aStorageType.EqualsLiteral(DEVICESTORAGE_VIDEOS)) {
 #ifdef MOZ_WIDGET_GONK
-    rv = NS_NewLocalFile(volMountPoint, false, getter_AddRefs(f));
-    if(NS_FAILED(rv)) {
-      printf_stderr("##### DeviceStorage: NS_NewLocalFile failed StorageType: '%s' path '%s'\n",
-                    NS_LossyConvertUTF16toASCII(volMountPoint).get(),
-                    NS_LossyConvertUTF16toASCII(aStorageType).get());
-    }
+    NS_NewLocalFile(volMountPoint, false, getter_AddRefs(f));
 #else
     f = sDirs->videos;
 #endif
@@ -918,12 +904,7 @@ DeviceStorageFile::GetRootDirectoryForType(const nsAString& aStorageType,
   // Music directory
   else if (aStorageType.EqualsLiteral(DEVICESTORAGE_MUSIC)) {
 #ifdef MOZ_WIDGET_GONK
-    rv = NS_NewLocalFile(volMountPoint, false, getter_AddRefs(f));
-    if(NS_FAILED(rv)) {
-      printf_stderr("##### DeviceStorage: NS_NewLocalFile failed StorageType: '%s' path '%s'\n",
-                    NS_LossyConvertUTF16toASCII(volMountPoint).get(),
-                    NS_LossyConvertUTF16toASCII(aStorageType).get());
-    }
+    NS_NewLocalFile(volMountPoint, false, getter_AddRefs(f));
 #else
     f = sDirs->music;
 #endif
@@ -938,12 +919,7 @@ DeviceStorageFile::GetRootDirectoryForType(const nsAString& aStorageType,
    // default SDCard
    else if (aStorageType.EqualsLiteral(DEVICESTORAGE_SDCARD)) {
 #ifdef MOZ_WIDGET_GONK
-     rv = NS_NewLocalFile(volMountPoint, false, getter_AddRefs(f));
-     if(NS_FAILED(rv)) {
-       printf_stderr("##### DeviceStorage: NS_NewLocalFile failed StorageType: '%s' path '%s'\n",
-                     NS_LossyConvertUTF16toASCII(volMountPoint).get(),
-                     NS_LossyConvertUTF16toASCII(aStorageType).get());
-     }
+     NS_NewLocalFile(volMountPoint, false, getter_AddRefs(f));
 #else
      f = sDirs->sdcard;
 #endif
@@ -969,12 +945,6 @@ DeviceStorageFile::GetRootDirectoryForType(const nsAString& aStorageType,
 
   if (f) {
     f->Clone(aFile);
-  } else {
-    // This should never happen unless something is severely wrong. So
-    // scream a little.
-    printf_stderr("##### GetRootDirectoryForType('%s', '%s') failed #####",
-                  NS_LossyConvertUTF16toASCII(aStorageType).get(),
-                  NS_LossyConvertUTF16toASCII(aStorageName).get());
   }
 }
 
