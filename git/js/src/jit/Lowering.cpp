@@ -3988,9 +3988,3 @@ LIRGenerator::visitArrayState(MArrayState *objState)
     // ArrayState nodes are always recovered on bailouts
     MOZ_CRASH("Unexpected ArrayState node during Lowering.");
 }
-
-bool
-LIRGenerator::visitUnknownValue(MUnknownValue *ins)
-{
-    MOZ_CRASH("Can not lower unknown value.");
-}

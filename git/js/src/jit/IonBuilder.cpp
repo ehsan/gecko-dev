@@ -106,7 +106,7 @@ jit::NewBaselineFrameInspector(TempAllocator *temp, BaselineFrame *frame, Compil
     return inspector;
 }
 
-IonBuilder::IonBuilder(CompileCompartment *comp,
+IonBuilder::IonBuilder(JSContext *analysisContext, CompileCompartment *comp,
                        const JitCompileOptions &options, TempAllocator *temp,
                        MIRGraph *graph, types::CompilerConstraintList *constraints,
                        BaselineInspector *inspector, CompileInfo *info,
@@ -115,6 +115,7 @@ IonBuilder::IonBuilder(CompileCompartment *comp,
                        uint32_t loopDepth)
   : MIRGenerator(comp, options, temp, graph, info, optimizationInfo),
     backgroundCodegen_(nullptr),
+    analysisContext(analysisContext),
     baselineFrame_(baselineFrame),
     constraints_(constraints),
     analysis_(*temp, info->script()),
@@ -146,6 +147,7 @@ IonBuilder::IonBuilder(CompileCompartment *comp,
     abortReason_ = AbortReason_Disable;
 
     JS_ASSERT(script()->hasBaselineScript() == (info->executionMode() != ArgumentsUsageAnalysis));
+    JS_ASSERT(!!analysisContext == (info->executionMode() == DefinitePropertiesAnalysis));
 
     if (!info->executionModeIsAnalysis())
         script()->baselineScript()->setIonCompiledOrInlined();
@@ -154,6 +156,7 @@ IonBuilder::IonBuilder(CompileCompartment *comp,
 void
 IonBuilder::clearForBackEnd()
 {
+    JS_ASSERT(!analysisContext);
     baselineFrame_ = nullptr;
 
     // The caches below allocate data from the malloc heap. Release this before
@@ -345,6 +348,22 @@ IonBuilder::canInlineTarget(JSFunction *target, CallInfo &callInfo)
 
     if (!target->isInterpreted())
         return DontInline(nullptr, "Non-interpreted target");
+
+    // Allow constructing lazy scripts when performing the definite properties
+    // analysis, as baseline has not been used to warm the caller up yet.
+    if (target->isInterpreted() && info().executionMode() == DefinitePropertiesAnalysis) {
+        RootedScript script(analysisContext, target->getOrCreateScript(analysisContext));
+        if (!script)
+            return InliningDecision_Error;
+
+        if (!script->hasBaselineScript() && script->canBaselineCompile()) {
+            MethodStatus status = BaselineCompile(analysisContext, script);
+            if (status == Method_Error)
+                return InliningDecision_Error;
+            if (status != Method_Compiled)
+                return InliningDecision_DontInline;
+        }
+    }
 
     if (!target->hasScript())
         return DontInline(nullptr, "Lazy script");
@@ -639,11 +658,11 @@ IonBuilder::build()
     } else if (info().executionMode() == SequentialExecution && script()->hasIonScript()) {
         JitSpew(JitSpew_Scripts, "Recompiling script %s:%d (%p) (warmup-counter=%d, level=%s)",
                 script()->filename(), script()->lineno(), (void *)script(),
-                (int)script()->getWarmUpCount(), OptimizationLevelString(optimizationInfo().level()));
+                (int)script()->getWarmUpCounter(), OptimizationLevelString(optimizationInfo().level()));
     } else {
         JitSpew(JitSpew_Scripts, "Compiling script %s:%d (%p) (warmup-counter=%d, level=%s)",
                 script()->filename(), script()->lineno(), (void *)script(),
-                (int)script()->getWarmUpCount(), OptimizationLevelString(optimizationInfo().level()));
+                (int)script()->getWarmUpCounter(), OptimizationLevelString(optimizationInfo().level()));
     }
 #endif
 
@@ -1258,11 +1277,11 @@ IonBuilder::traverseBytecode()
         // adding any SSA uses and doesn't call setImplicitlyUsedUnchecked on it.
         Vector<MDefinition *, 4, IonAllocPolicy> popped(alloc());
         Vector<size_t, 4, IonAllocPolicy> poppedUses(alloc());
-        unsigned nuses = GetUseCount(script_, script_->pcToOffset(pc));
+        unsigned nuses = GetWarmUpCounter(script_, script_->pcToOffset(pc));
 
         for (unsigned i = 0; i < nuses; i++) {
             MDefinition *def = current->peek(-int32_t(i + 1));
-            if (!popped.append(def) || !poppedUses.append(def->defUseCount()))
+            if (!popped.append(def) || !poppedUses.append(def->defWarmUpCounter()))
                 return false;
         }
 #endif
@@ -1309,7 +1328,7 @@ IonBuilder::traverseBytecode()
                           // for more details.
                           popped[i]->isNewDerivedTypedObject() ||
 
-                          popped[i]->defUseCount() > poppedUses[i]);
+                          popped[i]->defWarmUpCounter() > poppedUses[i]);
                 break;
             }
         }
@@ -3210,8 +3229,8 @@ IonBuilder::improveTypesAtCompare(MCompare *ins, bool trueBranch, MTest *test)
     }
 
     types::TemporaryTypeSet *type =
-        subject->resultTypeSet()->filter(alloc_->lifoAlloc(), filtersUndefined,
-                                                              filtersNull);
+        type = subject->resultTypeSet()->filter(alloc_->lifoAlloc(), filtersUndefined,
+                                                                     filtersNull);
     if (!type)
         return false;
 
@@ -4184,10 +4203,16 @@ IonBuilder::inlineScriptedCall(CallInfo &callInfo, JSFunction *target)
     AutoAccumulateReturns aar(graph(), returns);
 
     // Build the graph.
-    IonBuilder inlineBuilder(compartment, options, &alloc(), &graph(), constraints(),
+    IonBuilder inlineBuilder(analysisContext, compartment, options, &alloc(), &graph(), constraints(),
                              &inspector, info, &optimizationInfo(), nullptr, inliningDepth_ + 1,
                              loopDepth_);
     if (!inlineBuilder.buildInline(this, outerResumePoint, callInfo)) {
+        if (analysisContext && analysisContext->isExceptionPending()) {
+            JitSpew(JitSpew_Abort, "Inline builder raised exception.");
+            abortReason_ = AbortReason_Error;
+            return false;
+        }
+
         // Inlining the callee failed. Mark the callee as uninlineable only if
         // the inlining was aborted for a non-exception reason.
         if (inlineBuilder.abortReason_ == AbortReason_Disable) {
@@ -4342,7 +4367,7 @@ IonBuilder::makeInliningDecision(JSFunction *target, CallInfo &callInfo)
         // Callee must have been called a few times to have somewhat stable
         // type information, except for definite properties analysis,
         // as the caller has not run yet.
-        if (targetScript->getWarmUpCount() < optimizationInfo().inliningWarmUpThreshold() &&
+        if (targetScript->getWarmUpCounter() < optimizationInfo().inliningWarmUpThreshold() &&
             !targetScript->baselineScript()->ionCompiledOrInlined() &&
             info().executionMode() != DefinitePropertiesAnalysis)
         {
@@ -5708,24 +5733,11 @@ bool
 IonBuilder::jsop_newarray(uint32_t count)
 {
     JSObject *templateObject = inspector->getTemplateObject(pc);
-    if (!templateObject) {
-        if (info().executionMode() == ArgumentsUsageAnalysis) {
-            MUnknownValue *unknown = MUnknownValue::New(alloc());
-            current->add(unknown);
-            current->push(unknown);
-            return true;
-        }
+    if (!templateObject)
         return abort("No template object for NEWARRAY");
-    }
 
     JS_ASSERT(templateObject->is<ArrayObject>());
     if (templateObject->type()->unknownProperties()) {
-        if (info().executionMode() == ArgumentsUsageAnalysis) {
-            MUnknownValue *unknown = MUnknownValue::New(alloc());
-            current->add(unknown);
-            current->push(unknown);
-            return true;
-        }
         // We will get confused in jsop_initelem_array if we can't find the
         // type object being initialized.
         return abort("New array has unknown properties");
@@ -5776,15 +5788,8 @@ bool
 IonBuilder::jsop_newobject()
 {
     JSObject *templateObject = inspector->getTemplateObject(pc);
-    if (!templateObject) {
-        if (info().executionMode() == ArgumentsUsageAnalysis) {
-            MUnknownValue *unknown = MUnknownValue::New(alloc());
-            current->add(unknown);
-            current->push(unknown);
-            return true;
-        }
+    if (!templateObject)
         return abort("No template object for NEWOBJECT");
-    }
 
     JS_ASSERT(templateObject->is<JSObject>());
     MConstant *templateConst = MConstant::NewConstraintlessObject(alloc(), templateObject);
@@ -5824,19 +5829,15 @@ IonBuilder::jsop_initelem_array()
     // intializer, and that arrays are marked as non-packed when writing holes
     // to them during initialization.
     bool needStub = false;
-    if (obj->isUnknownValue()) {
-        needStub = true;
-    } else {
-        types::TypeObjectKey *initializer = obj->resultTypeSet()->getObject(0);
-        if (value->type() == MIRType_MagicHole) {
-            if (!initializer->hasFlags(constraints(), types::OBJECT_FLAG_NON_PACKED))
-                needStub = true;
-        } else if (!initializer->unknownProperties()) {
-            types::HeapTypeSetKey elemTypes = initializer->property(JSID_VOID);
-            if (!TypeSetIncludes(elemTypes.maybeTypes(), value->type(), value->resultTypeSet())) {
-                elemTypes.freeze(constraints());
-                needStub = true;
-            }
+    types::TypeObjectKey *initializer = obj->resultTypeSet()->getObject(0);
+    if (value->type() == MIRType_MagicHole) {
+        if (!initializer->hasFlags(constraints(), types::OBJECT_FLAG_NON_PACKED))
+            needStub = true;
+    } else if (!initializer->unknownProperties()) {
+        types::HeapTypeSetKey elemTypes = initializer->property(JSID_VOID);
+        if (!TypeSetIncludes(elemTypes.maybeTypes(), value->type(), value->resultTypeSet())) {
+            elemTypes.freeze(constraints());
+            needStub = true;
         }
     }
 
@@ -5897,28 +5898,20 @@ IonBuilder::jsop_initprop(PropertyName *name)
     MDefinition *value = current->pop();
     MDefinition *obj = current->peek(-1);
 
-    JSObject *templateObject = nullptr;
-    Shape *shape = nullptr;
+    JSObject *templateObject = obj->toNewObject()->templateObject();
 
-    bool useSlowPath = false;
+    Shape *shape = templateObject->lastProperty()->searchLinear(NameToId(name));
 
-    if (obj->isUnknownValue()) {
-        useSlowPath = true;
-    } else {
-        templateObject = obj->toNewObject()->templateObject();
-        shape = templateObject->lastProperty()->searchLinear(NameToId(name));
-
-        if (!shape)
-            useSlowPath = true;
+    if (!shape) {
+        // JSOP_NEWINIT becomes an MNewObject without preconfigured properties.
+        MInitProp *init = MInitProp::New(alloc(), obj, name, value);
+        current->add(init);
+        return resumeAfter(init);
     }
 
     if (PropertyWriteNeedsTypeBarrier(alloc(), constraints(), current,
                                       &obj, name, &value, /* canModify = */ true))
     {
-        useSlowPath = true;
-    }
-
-    if (useSlowPath) {
         // JSOP_NEWINIT becomes an MNewObject without preconfigured properties.
         MInitProp *init = MInitProp::New(alloc(), obj, name, value);
         current->add(init);
@@ -6388,12 +6381,12 @@ IonBuilder::insertRecompileCheck()
     while (topBuilder->callerBuilder_)
         topBuilder = topBuilder->callerBuilder_;
 
-    // Add recompile check to recompile when the warm-up count reaches the
+    // Add recompile check to recompile when the warm-up counter reaches the
     // threshold of the next optimization level.
     OptimizationLevel nextLevel = js_IonOptimizations.nextLevel(curLevel);
     const OptimizationInfo *info = js_IonOptimizations.get(nextLevel);
-    uint32_t warmUpThreshold = info->compilerWarmUpThreshold(topBuilder->script());
-    current->add(MRecompileCheck::New(alloc(), topBuilder->script(), warmUpThreshold));
+    uint32_t warmUpCounter = info->compilerWarmUpThreshold(topBuilder->script());
+    current->add(MRecompileCheck::New(alloc(), topBuilder->script(), warmUpCounter));
 }
 
 JSObject *
@@ -6418,6 +6411,8 @@ IonBuilder::testSingletonProperty(JSObject *obj, PropertyName *name)
             return nullptr;
 
         types::TypeObjectKey *objType = types::TypeObjectKey::get(obj);
+        if (analysisContext)
+            objType->ensureTrackedProperty(analysisContext, NameToId(name));
 
         if (objType->unknownProperties())
             return nullptr;
@@ -6499,6 +6494,8 @@ IonBuilder::testSingletonPropertyTypes(MDefinition *obj, JSObject *singleton, Pr
             types::TypeObjectKey *object = types->getObject(i);
             if (!object)
                 continue;
+            if (analysisContext)
+                object->ensureTrackedProperty(analysisContext, NameToId(name));
 
             const Class *clasp = object->clasp();
             if (!ClassHasEffectlessLookup(clasp, name) || ClassHasResolveHook(compartment, clasp, name))
@@ -6706,6 +6703,8 @@ IonBuilder::getStaticName(JSObject *staticObject, PropertyName *name, bool *psuc
     }
 
     types::TypeObjectKey *staticType = types::TypeObjectKey::get(staticObject);
+    if (analysisContext)
+        staticType->ensureTrackedProperty(analysisContext, NameToId(name));
 
     if (staticType->unknownProperties()) {
         *psucceeded = false;
@@ -6724,7 +6723,7 @@ IonBuilder::getStaticName(JSObject *staticObject, PropertyName *name, bool *psuc
     }
 
     types::TemporaryTypeSet *types = bytecodeTypes(pc);
-    BarrierKind barrier = PropertyReadNeedsTypeBarrier(constraints(), staticType,
+    BarrierKind barrier = PropertyReadNeedsTypeBarrier(analysisContext, constraints(), staticType,
                                                        name, types, /* updateObserved = */ true);
 
     JSObject *singleton = types->getSingleton();
@@ -7540,7 +7539,8 @@ IonBuilder::getElemTryCache(bool *emitted, MDefinition *obj, MDefinition *index)
     // Emit GetElementCache.
 
     types::TemporaryTypeSet *types = bytecodeTypes(pc);
-    BarrierKind barrier = PropertyReadNeedsTypeBarrier(constraints(), obj, nullptr, types);
+    BarrierKind barrier = PropertyReadNeedsTypeBarrier(analysisContext, constraints(), obj,
+                                                       nullptr, types);
 
     // Always add a barrier if the index might be a string or symbol, so that
     // the cache can attach stubs for particular properties.
@@ -7588,7 +7588,8 @@ IonBuilder::jsop_getelem_dense(MDefinition *obj, MDefinition *index)
         AddObjectsForPropertyRead(obj, nullptr, types);
     }
 
-    BarrierKind barrier = PropertyReadNeedsTypeBarrier(constraints(), obj, nullptr, types);
+    BarrierKind barrier = PropertyReadNeedsTypeBarrier(analysisContext, constraints(), obj,
+                                                       nullptr, types);
     bool needsHoleCheck = !ElementAccessIsPacked(constraints(), obj);
 
     // Reads which are on holes in the object do not have to bail out if
@@ -8904,7 +8905,8 @@ IonBuilder::jsop_getprop(PropertyName *name)
     if (!getPropTryArgumentsCallee(&emitted, obj, name) || emitted)
         return emitted;
 
-    BarrierKind barrier = PropertyReadNeedsTypeBarrier(constraints(), obj, name, types);
+    BarrierKind barrier = PropertyReadNeedsTypeBarrier(analysisContext, constraints(),
+                                                       obj, name, types);
 
     // Always use a call if we are performing analysis and
     // not actually emitting code, to simplify later analysis. Also skip deeper
@@ -9586,7 +9588,8 @@ IonBuilder::getPropTryInnerize(bool *emitted, MDefinition *obj, PropertyName *na
 
     // Passing the inner object to GetProperty IC is safe, see the
     // needsOuterizedThisObject check in IsCacheableGetPropCallNative.
-    BarrierKind barrier = PropertyReadNeedsTypeBarrier(constraints(), inner, name, types);
+    BarrierKind barrier = PropertyReadNeedsTypeBarrier(analysisContext, constraints(),
+                                                       inner, name, types);
     if (!getPropTryCache(emitted, inner, name, barrier, types) || *emitted)
         return *emitted;
 

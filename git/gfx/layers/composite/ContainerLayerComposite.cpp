@@ -184,7 +184,7 @@ ContainerPrepare(ContainerT* aContainer,
     }
 
     RenderTargetIntRect clipRect = layerToRender->GetLayer()->
-        CalculateScissorRect(aClipRect);
+        CalculateScissorRect(aClipRect, &aManager->GetWorldTransform());
     if (clipRect.IsEmpty()) {
       continue;
     }

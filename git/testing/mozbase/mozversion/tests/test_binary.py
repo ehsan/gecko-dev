@@ -9,8 +9,7 @@ import tempfile
 import unittest
 
 import mozfile
-
-from mozversion import errors, get_version
+from mozversion import get_version
 
 
 class BinaryTest(unittest.TestCase):
@@ -42,12 +41,6 @@ SourceRepository = PlatformSourceRepo
         os.chdir(self.cwd)
         mozfile.remove(self.tempdir)
 
-    @unittest.skipIf(not os.environ.get('BROWSER_PATH'),
-                     'No binary has been specified.')
-    def test_real_binary(self):
-        v = get_version(os.environ.get('BROWSER_PATH'))
-        self.assertTrue(isinstance(v, dict))
-
     def test_binary(self):
         with open(os.path.join(self.tempdir, 'application.ini'), 'w') as f:
             f.writelines(self.application_ini)
@@ -70,18 +63,9 @@ SourceRepository = PlatformSourceRepo
         self.assertRaises(IOError, get_version,
                           os.path.join(self.tempdir, 'invalid'))
 
-    def test_without_ini_files(self):
-        """With missing ini files an exception should be thrown"""
-        self.assertRaises(errors.AppNotFoundError, get_version,
-                          self.binary)
-
-    def test_without_platform_file(self):
-        """With a missing platform file no exception should be thrown"""
-        with open(os.path.join(self.tempdir, 'application.ini'), 'w') as f:
-            f.writelines(self.application_ini)
-
+    def test_missing_ini_files(self):
         v = get_version(self.binary)
-        self.assertTrue(isinstance(v, dict))
+        self.assertEqual(v, {})
 
     def _check_version(self, version):
         self.assertEqual(version.get('application_name'), 'AppName')

@@ -158,7 +158,7 @@ ContainerLayerD3D10::RenderLayer()
     }
 
     nsIntRect scissorRect =
-        RenderTargetPixel::ToUntyped(layerToRender->GetLayer()->CalculateScissorRect(RenderTargetPixel::FromUntyped(oldScissor)));
+        RenderTargetPixel::ToUntyped(layerToRender->GetLayer()->CalculateScissorRect(RenderTargetPixel::FromUntyped(oldScissor), nullptr));
     if (scissorRect.IsEmpty()) {
       continue;
     }

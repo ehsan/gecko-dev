@@ -12,6 +12,7 @@
 
 interface Principal;
 interface URI;
+interface UserDataHandler;
 
 interface Node : EventTarget {
   const unsigned short ELEMENT_NODE = 1;
@@ -104,7 +105,7 @@ interface Node : EventTarget {
   [Pure]
   boolean hasAttributes();
   [Throws, Func="IsChromeOrXBL"]
-  any setUserData(DOMString key, any data);
+  any setUserData(DOMString key, any data, UserDataHandler? handler);
   [Throws, Func="IsChromeOrXBL"]
   any getUserData(DOMString key);
   [ChromeOnly]
