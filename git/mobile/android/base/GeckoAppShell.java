@@ -13,7 +13,6 @@ import org.mozilla.gecko.gfx.IntSize;
 import org.mozilla.gecko.gfx.LayerView;
 import org.mozilla.gecko.gfx.RectUtils;
 import org.mozilla.gecko.gfx.ScreenshotLayer;
-import org.mozilla.gecko.gfx.TouchEventHandler;
 import org.mozilla.gecko.mozglue.DirectBufferAllocator;
 import org.mozilla.gecko.util.EventDispatcher;
 import org.mozilla.gecko.util.FloatUtils;
@@ -1503,10 +1502,7 @@ public class GeckoAppShell
         getMainHandler().post(new Runnable() {
             public void run() {
                 LayerView view = GeckoApp.mAppContext.getLayerView();
-                TouchEventHandler handler = (view == null ? null : view.getTouchEventHandler());
-                if (handler != null) {
-                    handler.handleEventListenerAction(!defaultPrevented);
-                }
+                view.getTouchEventHandler().handleEventListenerAction(!defaultPrevented);
             }
         });
     }
