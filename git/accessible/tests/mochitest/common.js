@@ -347,14 +347,8 @@ function prettyName(aIdentifier)
 {
   if (aIdentifier instanceof nsIAccessible) {
     var acc = getAccessible(aIdentifier, [nsIAccessNode]);
-    var msg = "[" + getNodePrettyName(acc.DOMNode) +
-      ", role: " + roleToString(acc.role);
-
-    if (acc.name)
-      msg += ", name: '" + acc.name + "'"
-    msg += "]";
-
-    return msg;
+    return getNodePrettyName(acc.DOMNode) + ", role: " +
+      roleToString(acc.role);
   }
 
   if (aIdentifier instanceof nsIDOMNode)

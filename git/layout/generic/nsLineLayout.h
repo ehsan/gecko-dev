@@ -95,9 +95,12 @@ public:
    * due to available space for the line boxes changing.
    * @param aX/aY/aWidth/aHeight are the new available
    * space rectangle, relative to the containing block.
+   * @param aPlacedLeftFloat whether we placed a left float or a right
+   * float to trigger the available space change
    * @param aFloatFrame the float frame that was placed.
    */
   void UpdateBand(const nsRect& aNewAvailableSpace,
+                  PRBool aPlacedLeftFloat,
                   nsIFrame* aFloatFrame);
 
   nsresult BeginSpan(nsIFrame* aFrame,
@@ -544,6 +547,8 @@ protected:
   PRUint16 mFlags;
 
   PRUint8 mTextAlign;
+
+  PRUint8 mPlacedFloats;
 
   nsresult NewPerFrameData(PerFrameData** aResult);
 

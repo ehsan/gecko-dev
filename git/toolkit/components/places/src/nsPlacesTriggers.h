@@ -87,8 +87,7 @@
                 "IFNULL((SELECT MAX(id) FROM moz_places), 0)) + 1," \
             "NEW.url, NEW.title, NEW.rev_host, " \
             "IFNULL(NEW.visit_count, 0), " /* enforce having a value */ \
-            "NEW.hidden, NEW.typed, NEW.favicon_id, NEW.frecency, " \
-            "NEW.last_visit_date);" \
+            "NEW.hidden, NEW.typed, NEW.favicon_id, NEW.frecency);" \
   "END" \
 )
 
@@ -133,8 +132,7 @@
         "hidden = IFNULL(NEW.hidden, OLD.hidden), " \
         "typed = IFNULL(NEW.typed, OLD.typed), " \
         "favicon_id = IFNULL(NEW.favicon_id, OLD.favicon_id), " \
-        "frecency = IFNULL(NEW.frecency, OLD.frecency), " \
-        "last_visit_date = IFNULL(NEW.last_visit_date, OLD.last_visit_date) " \
+        "frecency = IFNULL(NEW.frecency, OLD.frecency) " \
     "WHERE id = OLD.id; " \
   "END" \
 )
@@ -145,9 +143,7 @@
  * greater than the largest id value found.  It then updates moz_places_view
  * with the new visit count.
  * We use INSERT OR IGNORE to avoid looking if the place already exists in the
- * temp table.
- * In this case when updating last_visit_date we can simply check the maximum
- * between new visit date and the actual cached value (or 0 if it is NULL).
+ * temp table. 
  */
 #define CREATE_HISTORYVISITS_VIEW_INSERT_TRIGGER NS_LITERAL_CSTRING( \
   "CREATE TEMPORARY TRIGGER moz_historyvisits_view_insert_trigger " \
@@ -167,9 +163,6 @@
     "SET visit_count = visit_count + 1 " \
     "WHERE id = NEW.place_id " \
     "AND NEW.visit_type NOT IN (" EXCLUDED_VISIT_TYPES "); " \
-    "UPDATE moz_places_temp " \
-    "SET last_visit_date = MAX(IFNULL(last_visit_date, 0), NEW.visit_date)" \
-    "WHERE id = NEW.place_id;" \
   "END" \
 )
 
@@ -198,15 +191,6 @@
     "SET visit_count = visit_count - 1 " \
     "WHERE id = OLD.place_id " \
     "AND OLD.visit_type NOT IN (" EXCLUDED_VISIT_TYPES "); " \
-    "UPDATE moz_places_temp " \
-    "SET last_visit_date = " \
-      "(SELECT visit_date FROM moz_historyvisits_temp " \
-       "WHERE place_id = OLD.place_id " \
-       "UNION ALL " \
-       "SELECT visit_date FROM moz_historyvisits " \
-       "WHERE place_id = OLD.place_id " \
-       "ORDER BY visit_date DESC LIMIT 1) " \
-    "WHERE id = OLD.place_id; " \
   "END" \
 )
 

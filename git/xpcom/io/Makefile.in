@@ -66,17 +66,16 @@ CPPSRCS		= \
 		nsLinebreakConverter.cpp \
 		nsLocalFileCommon.cpp \
 		nsMultiplexInputStream.cpp \
-		nsNativeCharsetUtils.cpp \
 		nsPipe3.cpp \
 		nsStreamUtils.cpp \
 		nsScriptableInputStream.cpp \
 		nsSegmentedBuffer.cpp \
+		SpecialSystemDirectory.cpp \
 		nsStorageStream.cpp \
 		nsStringStream.cpp \
 		nsUnicharInputStream.cpp \
+		nsNativeCharsetUtils.cpp \
 		nsIOUtil.cpp \
-		nsWildCard.cpp \
-		SpecialSystemDirectory.cpp \
 		$(NULL)
 
 ifndef MOZ_NO_FAST_LOAD
@@ -108,12 +107,11 @@ EXPORTS		= \
 		nsLinebreakConverter.h \
 		nsLocalFile.h \
 		nsMultiplexInputStream.h \
-		nsNativeCharsetUtils.h \
 		nsScriptableInputStream.h \
 		nsStorageStream.h \
 		nsStringStream.h \
 		nsStreamUtils.h \
-		nsWildCard.h \
+		nsNativeCharsetUtils.h \
 		$(NULL)			
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),os2)

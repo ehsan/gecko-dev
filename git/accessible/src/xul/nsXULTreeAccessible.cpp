@@ -269,27 +269,20 @@ NS_IMETHODIMP nsXULTreeAccessible::GetFirstChild(nsIAccessible **aFirstChild)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsXULTreeAccessible::GetLastChild(nsIAccessible **aLastChild)
+NS_IMETHODIMP nsXULTreeAccessible::GetLastChild(nsIAccessible **aLastChild)
 {
-  NS_ENSURE_ARG_POINTER(aLastChild);
-  *aLastChild = nsnull;
-
   NS_ENSURE_TRUE(mTree && mTreeView, NS_ERROR_FAILURE);
 
-  PRInt32 rowCount = 0;
+  PRInt32 rowCount;
   mTreeView->GetRowCount(&rowCount);
   if (rowCount > 0) {
     nsCOMPtr<nsITreeColumn> column = GetLastVisibleColumn(mTree);
-    nsresult rv = GetCachedTreeitemAccessible(rowCount - 1, column, aLastChild);
-    NS_ENSURE_SUCCESS(rv, rv);
+    return GetCachedTreeitemAccessible(rowCount - 1, column, aLastChild);
   }
+  else // if there is not any rows, use treecols as tree's last child
+    nsAccessible::GetLastChild(aLastChild);
 
-  if (*aLastChild)
-    return NS_OK;
-
-  // If there is not any rows, use treecols as tree's last child.
-  return nsAccessible::GetLastChild(aLastChild);
+  return NS_OK;
 }
 
 // tree's children count is row count + treecols count

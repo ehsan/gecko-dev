@@ -157,8 +157,11 @@ public:
     // Write the audio data from the frame to the Audio stream.
     void Write(nsAudioStream* aStream)
     {
-      aStream->Write(mAudioData.Elements(), mAudioData.Length());
-      mAudioData.Clear(); 
+      PRUint32 length = mAudioData.Length();
+      if (length == 0)
+        return;
+
+      aStream->Write(mAudioData.Elements(), length);
     }
 
     void SetVideoHeader(OggPlayDataHeader* aVideoHeader)
@@ -227,20 +230,6 @@ public:
       return !mEmpty && mHead == mTail;
     }
 
-    float ResetTimes(float aPeriod)
-    {
-      float time = 0.0;
-      if (!mEmpty) {
-        PRInt32 current = mHead;
-        do {
-          mQueue[current]->mTime = time;
-          time += aPeriod;
-          current = (current + 1) % OGGPLAY_BUFFER_SIZE;
-        } while (current != mTail);
-      }
-      return time;
-    }
-
   private:
     FrameData* mQueue[OGGPLAY_BUFFER_SIZE];
     PRInt32 mHead;
@@ -303,11 +292,8 @@ public:
   // must be locked when calling this method.
   void PlayVideo(FrameData* aFrame);
 
-  // Plays the audio for the frame, plus any outstanding audio data
-  // buffered by nsAudioStream and not yet written to the
-  // hardware. The audio data for the frame is cleared out so
-  // subsequent calls with the same frame do not re-write the data.
-  // The decode monitor must be locked when calling this method.
+  // Play the audio data from the given frame. The decode monitor must
+  // be locked when calling this method.
   void PlayAudio(FrameData* aFrame);
 
   // Called from the main thread to get the current frame time. The decoder
@@ -379,21 +365,10 @@ protected:
   void StopAudio();
 
   // Start playback of media. Must be called with the decode monitor held.
-  // This opens or re-opens the audio stream for playback to start.
   void StartPlayback();
 
   // Stop playback of media. Must be called with the decode monitor held.
-  // This actually closes the audio stream and releases any OS resources.
   void StopPlayback();
-
-  // Pause playback of media. Must be called with the decode monitor held.
-  // This does not close the OS based audio stream - it suspends it to be
-  // resumed later.
-  void PausePlayback();
-
-  // Resume playback of media. Must be called with the decode monitor held.
-  // This resumes a paused audio stream.
-  void ResumePlayback();
 
   // Update the playback position. This can result in a timeupdate event
   // and an invalidate of the frame being dispatched asynchronously if
@@ -401,11 +376,6 @@ protected:
   // Only called on the decoder thread. Must be called with
   // the decode monitor held.
   void UpdatePlaybackPosition(float aTime);
-
-  // Takes decoded frames from liboggplay's internal buffer and
-  // places them in our frame queue. Must be called with the decode
-  // monitor held.
-  void QueueDecodedFrames();
 
 private:
   // *****
@@ -783,7 +753,7 @@ void nsOggDecodeStateMachine::PlayFrame() {
 
   if (mDecoder->GetState() == nsOggDecoder::PLAY_STATE_PLAYING) {
     if (!mPlaying) {
-      ResumePlayback();
+      StartPlayback();
     }
 
     if (!mDecodedFrames.IsEmpty()) {
@@ -799,14 +769,7 @@ void nsOggDecodeStateMachine::PlayFrame() {
 
       double time;
       for (;;) {
-        // Even if the frame has had its audio data written we call
-        // PlayAudio to ensure that any data we have buffered in the
-        // nsAudioStream is written to the hardware.
-        PlayAudio(frame);
-        double hwtime = mAudioStream ? mAudioStream->GetPosition() : -1.0;
-        time = hwtime < 0.0 ?
-          (TimeStamp::Now() - mPlayStartTime - mPauseDuration).ToSeconds() :
-          hwtime;
+        time = (TimeStamp::Now() - mPlayStartTime - mPauseDuration).ToSeconds();
         if (time < frame->mTime) {
           mon.Wait(PR_MillisecondsToInterval(PRInt64((frame->mTime - time)*1000)));
           if (mState == DECODER_STATE_SHUTDOWN)
@@ -817,33 +780,24 @@ void nsOggDecodeStateMachine::PlayFrame() {
       }
 
       mDecodedFrames.Pop();
-      QueueDecodedFrames();
 
       // Skip frames up to the one we should be showing.
       while (!mDecodedFrames.IsEmpty() && time >= mDecodedFrames.Peek()->mTime) {
         LOG(PR_LOG_DEBUG, ("Skipping frame time %f with audio at time %f", mDecodedFrames.Peek()->mTime, time));
-        PlayAudio(frame);
         delete frame;
         frame = mDecodedFrames.Peek();
         mDecodedFrames.Pop();
       }
-      if (time < frame->mTime + mCallbackPeriod) {
-        PlayAudio(frame);
-        PlayVideo(frame);
-        mDecoder->mPlaybackPosition = frame->mEndStreamPosition;
-        UpdatePlaybackPosition(frame->mDecodedFrameTime);
-        delete frame;
-      }
-      else {
-        PlayAudio(frame);
-        delete frame;
-        frame = 0;
-      }
+      PlayAudio(frame);
+      PlayVideo(frame);
+      mDecoder->mPlaybackPosition = frame->mEndStreamPosition;
+      UpdatePlaybackPosition(frame->mDecodedFrameTime);
+      delete frame;
     }
   }
   else {
     if (mPlaying) {
-      PausePlayback();
+      StopPlayback();
     }
 
     if (mState == DECODER_STATE_DECODING) {
@@ -950,50 +904,14 @@ void nsOggDecodeStateMachine::StartPlayback()
     // Null out mPauseStartTime
     mPauseStartTime = TimeStamp();
   }
-  mPlayStartTime = TimeStamp::Now();
-  mPauseDuration = 0;
-
 }
 
 void nsOggDecodeStateMachine::StopPlayback()
 {
   //  NS_ASSERTION(PR_InMonitor(mDecoder->GetMonitor()), "StopPlayback() called without acquiring decoder monitor");
-  mLastFrameTime = mDecodedFrames.ResetTimes(mCallbackPeriod);
   StopAudio();
   mPlaying = PR_FALSE;
   mPauseStartTime = TimeStamp::Now();
-}
-
-void nsOggDecodeStateMachine::PausePlayback()
-{
-  if (!mAudioStream) {
-    StopPlayback();
-    return;
-  }
-
-  mAudioStream->Pause();
-  mPlaying = PR_FALSE;
-  mPauseStartTime = TimeStamp::Now();
-}
-
-void nsOggDecodeStateMachine::ResumePlayback()
-{
- if (!mAudioStream) {
-    StartPlayback();
-    return;
- }
- 
- mAudioStream->Resume();
- mPlaying = PR_TRUE;
-
- // Compute duration spent paused
- if (!mPauseStartTime.IsNull()) {
-   mPauseDuration += TimeStamp::Now() - mPauseStartTime;
-   // Null out mPauseStartTime
-   mPauseStartTime = TimeStamp();
- }
- mPlayStartTime = TimeStamp::Now();
- mPauseDuration = 0;
 }
 
 void nsOggDecodeStateMachine::UpdatePlaybackPosition(float aTime)
@@ -1005,15 +923,6 @@ void nsOggDecodeStateMachine::UpdatePlaybackPosition(float aTime)
     nsCOMPtr<nsIRunnable> event =
       NS_NEW_RUNNABLE_METHOD(nsOggDecoder, mDecoder, PlaybackPositionChanged);
     NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
-  }
-}
-
-void nsOggDecodeStateMachine::QueueDecodedFrames()
-{
-  //  NS_ASSERTION(PR_InMonitor(mDecoder->GetMonitor()), "QueueDecodedFrames() called without acquiring decoder monitor");
-  FrameData* frame;
-  while (!mDecodedFrames.IsFull() && (frame = NextFrame())) {
-    mDecodedFrames.Push(frame);
   }
 }
 
@@ -1187,7 +1096,10 @@ nsresult nsOggDecodeStateMachine::Run()
           mon.Wait(PR_MillisecondsToInterval(PRInt64(mCallbackPeriod*500)));
           if (mState != DECODER_STATE_DECODING)
             break;
-          QueueDecodedFrames();
+          FrameData* frame = NextFrame();
+          if (frame) {
+            mDecodedFrames.Push(frame);
+          }
         }
 
         if (mState != DECODER_STATE_DECODING)
@@ -1196,11 +1108,11 @@ nsresult nsOggDecodeStateMachine::Run()
         if (mDecodingCompleted) {
           LOG(PR_LOG_DEBUG, ("Changed state from DECODING to COMPLETED"));
           mState = DECODER_STATE_COMPLETED;
+          mStepDecodeThread->Shutdown();
+          mStepDecodeThread = nsnull;
           mDecodingCompleted = PR_FALSE;
           mBufferExhausted = PR_FALSE;
           mon.NotifyAll();
-          mStepDecodeThread->Shutdown();
-          mStepDecodeThread = nsnull;
           continue;
         }
 
@@ -1218,7 +1130,7 @@ nsresult nsOggDecodeStateMachine::Run()
           // more data to load. Let's buffer to make sure we can play a
           // decent amount of video in the future.
           if (mPlaying) {
-            PausePlayback();
+            StopPlayback();
           }
 
           // We need to tell the element that buffering has started.
@@ -1241,7 +1153,7 @@ nsresult nsOggDecodeStateMachine::Run()
               BUFFERING_RATE(playbackRate) * BUFFERING_WAIT;
           mState = DECODER_STATE_BUFFERING;
           if (mPlaying) {
-            PausePlayback();
+            StopPlayback();
           }
           LOG(PR_LOG_DEBUG, ("Changed state from DECODING to BUFFERING"));
         } else {
@@ -1372,7 +1284,7 @@ nsresult nsOggDecodeStateMachine::Run()
           NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
           if (mDecoder->GetState() == nsOggDecoder::PLAY_STATE_PLAYING) {
             if (!mPlaying) {
-              ResumePlayback();
+              StartPlayback();
             }
           }
         }
@@ -1384,18 +1296,23 @@ nsresult nsOggDecodeStateMachine::Run()
       {
         // Get all the remaining decoded frames in the liboggplay buffer and
         // place them in the frame queue.
-        QueueDecodedFrames();
+        FrameData* frame;
+        do {
+          frame = NextFrame();
+          if (frame) {
+            mDecodedFrames.Push(frame);
+          }
+        } while (frame);
 
         // Play the remaining frames in the frame queue
         while (mState == DECODER_STATE_COMPLETED &&
                !mDecodedFrames.IsEmpty()) {
           PlayFrame();
-          if (mState == DECODER_STATE_COMPLETED) {
+          if (mState != DECODER_STATE_SHUTDOWN) {
             // Wait for the time of one frame so we don't tight loop
             // and we need to release the monitor so timeupdate and
             // invalidate's on the main thread can occur.
             mon.Wait(PR_MillisecondsToInterval(PRInt64(mCallbackPeriod*1000)));
-            QueueDecodedFrames();
           }
         }
 

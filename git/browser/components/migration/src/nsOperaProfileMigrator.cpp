@@ -1216,11 +1216,7 @@ nsOperaProfileMigrator::CopySmartKeywords(nsINavBookmarksService* aBMS,
     section.AppendInt(sectionIndex++);
 
     rv = parser.GetString(section.get(), "Name", name);
-    if (NS_FAILED(rv)) {
-      // No more smart keywords found, stop parsing the file.
-      break;
-    }
-    if (name.IsEmpty())
+    if (NS_FAILED(rv) || name.IsEmpty())
       continue;
 
     rv = parser.GetString(section.get(), "URL", url);

@@ -3467,13 +3467,8 @@ js_GC(JSContext *cx, JSGCInvocationKind gckind)
     JS_ASSERT(!rt->gcUntracedArenaStackTop);
     JS_ASSERT(rt->gcTraceLaterCount == 0);
 
-    /*
-     * Reset the property cache's type id generator so we can compress ids.
-     * Same for the protoHazardShape proxy-shape standing in for all object
-     * prototypes having readonly or setter properties.
-     */
+    /* Reset the property cache's type id generator so we can compress ids. */
     rt->shapeGen = 0;
-    rt->protoHazardShape = 0;
 
     /*
      * Mark phase.
