@@ -1245,8 +1245,7 @@ var gBrowserInit = {
     gDelayedStartupTimeoutId = null;
 
 #ifdef MOZ_SAFE_BROWSING
-    // Bug 778855 - Perf regression if we do this here. To be addressed in bug 779008.
-    setTimeout(function() { SafeBrowsing.init(); }, 2000);
+    SafeBrowsing.init();
 #endif
 
     Services.obs.addObserver(gSessionHistoryObserver, "browser:purge-session-history", false);

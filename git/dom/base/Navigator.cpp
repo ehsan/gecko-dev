@@ -50,8 +50,6 @@
 #include "nsIDOMBluetoothManager.h"
 #include "BluetoothManager.h"
 #endif
-#include "nsIDOMCameraManager.h"
-#include "DOMCameraManager.h"
 
 #include "nsIDOMGlobalPropertyInitializer.h"
 
@@ -114,7 +112,6 @@ NS_INTERFACE_MAP_BEGIN(Navigator)
 #ifdef MOZ_B2G_BT
   NS_INTERFACE_MAP_ENTRY(nsIDOMNavigatorBluetooth)
 #endif
-  NS_INTERFACE_MAP_ENTRY(nsIDOMNavigatorCamera)
   NS_INTERFACE_MAP_ENTRY(nsIDOMNavigatorSystemMessages)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Navigator)
 NS_INTERFACE_MAP_END
@@ -183,8 +180,6 @@ Navigator::Invalidate()
     mBluetooth = nullptr;
   }
 #endif
-
-  mCameraManager = nullptr;
 
 #ifdef MOZ_SYS_MSG
   if (mMessagesManager) {
@@ -1325,30 +1320,6 @@ Navigator::MozSetMessageHandler(const nsAString& aType,
 #endif
 }
 
-//*****************************************************************************
-//    nsNavigator::nsIDOMNavigatorCamera
-//*****************************************************************************
-
-NS_IMETHODIMP
-Navigator::GetMozCameras(nsIDOMCameraManager** aCameraManager)
-{
-  if (!mCameraManager) {
-    nsCOMPtr<nsPIDOMWindow> win = do_QueryReferent(mWindow);
-    NS_ENSURE_TRUE(win, NS_ERROR_FAILURE);
-
-    if (!win->GetOuterWindow() || win->GetOuterWindow()->GetCurrentInnerWindow() != win) {
-      return NS_ERROR_NOT_AVAILABLE;
-    }
-
-    mCameraManager = nsDOMCameraManager::Create(win->WindowID());
-  }
-
-  nsRefPtr<nsDOMCameraManager> cameraManager = mCameraManager;
-  cameraManager.forget(aCameraManager);
-
-  return NS_OK;
-}
-
 size_t
 Navigator::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
@@ -1373,19 +1344,12 @@ Navigator::SetWindow(nsPIDOMWindow *aInnerWindow)
 void
 Navigator::OnNavigation()
 {
-  nsCOMPtr<nsPIDOMWindow> win = do_QueryReferent(mWindow);
-  if (!win) {
-    return;
-  }
-
-#ifdef MOZ_MEDIA_NAVIGATOR
   // Inform MediaManager in case there are live streams or pending callbacks.
+#ifdef MOZ_MEDIA_NAVIGATOR
   MediaManager *manager = MediaManager::Get();
-  manager->OnNavigation(win->WindowID());
+  nsCOMPtr<nsPIDOMWindow> win = do_QueryReferent(mWindow);
+  return manager->OnNavigation(win->WindowID());
 #endif
-  if (mCameraManager) {
-    mCameraManager->OnNavigation(win->WindowID());
-  }
 }
 
 } // namespace dom
