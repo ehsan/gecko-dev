@@ -1,8 +1,6 @@
 /* -*- js-indent-level: 2; tab-width: 2; indent-tabs-mode: nil -*- */
 const TEST_PACKAGE = "chrome://mochitests/content/";
-
-// Make sure to use the real add-on ID to get the e10s shims activated
-const TEST_ID = "mochikit@mozilla.org";
+const TEST_ID = "jetpack-tests@mozilla.org";
 
 var gConfig;
 
@@ -28,7 +26,7 @@ window.addEventListener("load", function testOnLoad() {
 });
 
 // Tests a single module
-function testModule(require, { url, expected }) {
+function testModule(require, url) {
   return new Promise(resolve => {
     let path = url.substring(TEST_PACKAGE.length);
 

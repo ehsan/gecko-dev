@@ -288,6 +288,7 @@ BytecodeFallsThrough(JSOp op)
       case JSOP_DEFAULT:
       case JSOP_RETURN:
       case JSOP_RETRVAL:
+      case JSOP_FINALYIELD:
       case JSOP_FINALYIELDRVAL:
       case JSOP_THROW:
       case JSOP_TABLESWITCH:
@@ -596,6 +597,7 @@ FlowsIntoNext(JSOp op)
       case JSOP_THROW:
       case JSOP_GOTO:
       case JSOP_RETSUB:
+      case JSOP_FINALYIELD:
       case JSOP_FINALYIELDRVAL:
         return false;
       default:

@@ -4551,14 +4551,15 @@ function nsBrowserAccess() { }
 nsBrowserAccess.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIBrowserDOMWindow, Ci.nsISupports]),
 
-  _openURIInNewTab: function(aURI, aReferrer, aIsPrivate, aIsExternal) {
+  _openURIInNewTab: function(aURI, aOpener, aIsExternal) {
     let win, needToFocusWin;
 
     // try the current window.  if we're in a popup, fall back on the most recent browser window
     if (window.toolbar.visible)
       win = window;
     else {
-      win = RecentWindow.getMostRecentBrowserWindow({private: aIsPrivate});
+      let isPrivate = PrivateBrowsingUtils.isWindowPrivate(aOpener || window);
+      win = RecentWindow.getMostRecentBrowserWindow({private: isPrivate});
       needToFocusWin = true;
     }
 
@@ -4574,9 +4575,10 @@ nsBrowserAccess.prototype = {
     }
 
     let loadInBackground = gPrefService.getBoolPref("browser.tabs.loadDivertedInBackground");
+    let referrer = aOpener ? makeURI(aOpener.location.href) : null;
 
     let tab = win.gBrowser.loadOneTab(aURI ? aURI.spec : "about:blank", {
-                                      referrerURI: aReferrer,
+                                      referrerURI: referrer,
                                       fromExternal: aIsExternal,
                                       inBackground: loadInBackground});
     let browser = win.gBrowser.getBrowserForTab(tab);
@@ -4613,9 +4615,7 @@ nsBrowserAccess.prototype = {
         newWindow = openDialog(getBrowserURL(), "_blank", "all,dialog=no", url, null, null, null);
         break;
       case Ci.nsIBrowserDOMWindow.OPEN_NEWTAB :
-        let referrer = aOpener ? makeURI(aOpener.location.href) : null;
-        let isPrivate = PrivateBrowsingUtils.isWindowPrivate(aOpener || window);
-        let browser = this._openURIInNewTab(aURI, referrer, isPrivate, isExternal);
+        let browser = this._openURIInNewTab(aURI, aOpener, isExternal);
         if (browser)
           newWindow = browser.contentWindow;
         break;
@@ -4634,14 +4634,14 @@ nsBrowserAccess.prototype = {
     return newWindow;
   },
 
-  openURIInFrame: function browser_openURIInFrame(aURI, aParams, aWhere, aContext) {
+  openURIInFrame: function browser_openURIInFrame(aURI, aOpener, aWhere, aContext) {
     if (aWhere != Ci.nsIBrowserDOMWindow.OPEN_NEWTAB) {
       dump("Error: openURIInFrame can only open in new tabs");
       return null;
     }
 
     var isExternal = (aContext == Ci.nsIBrowserDOMWindow.OPEN_EXTERNAL);
-    let browser = this._openURIInNewTab(aURI, aParams.referrer, aParams.isPrivate, isExternal);
+    let browser = this._openURIInNewTab(aURI, aOpener, isExternal);
     if (browser)
       return browser.QueryInterface(Ci.nsIFrameLoaderOwner);
 

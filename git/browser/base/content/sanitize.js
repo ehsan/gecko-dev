@@ -74,7 +74,7 @@ Sanitizer.prototype = {
       itemsToClear.splice(openWindowsIndex, 1);
       let item = this.items.openWindows;
 
-      let ok = item.clear(() => {
+      function onWindowsCleaned() {
         try {
           let clearedPromise = this.sanitize(itemsToClear);
           clearedPromise.then(deferred.resolve, deferred.reject);
@@ -83,7 +83,9 @@ Sanitizer.prototype = {
           Cu.reportError(error);
           deferred.reject(error);
         }
-      });
+      }
+
+      let ok = item.clear(onWindowsCleaned.bind(this));
       // When cancelled, reject immediately
       if (!ok) {
         deferred.reject("Sanitizer canceled closing windows");

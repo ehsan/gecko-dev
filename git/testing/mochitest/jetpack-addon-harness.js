@@ -106,7 +106,7 @@ function waitForResults() {
 }
 
 // Runs tests for the add-on available at URL.
-let testAddon = Task.async(function*({ url, expected }) {
+let testAddon = Task.async(function*(url) {
   let addon = yield installAddon(url);
   let results = yield waitForResults();
   yield uninstallAddon(addon);

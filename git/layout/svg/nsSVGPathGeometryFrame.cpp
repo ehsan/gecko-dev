@@ -139,9 +139,7 @@ nsSVGPathGeometryFrame::AttributeChanged(int32_t         aNameSpaceID,
   if (aNameSpaceID == kNameSpaceID_None &&
       (static_cast<nsSVGPathGeometryElement*>
                   (mContent)->AttributeDefinesGeometry(aAttribute))) {
-    nsLayoutUtils::PostRestyleEvent(
-      mContent->AsElement(), nsRestyleHint(0),
-      nsChangeHint_InvalidateRenderingObservers);
+    nsSVGEffects::InvalidateRenderingObservers(this);
     nsSVGUtils::ScheduleReflowSVG(this);
   }
   return NS_OK;

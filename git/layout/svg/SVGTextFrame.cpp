@@ -3324,9 +3324,7 @@ SVGTextFrame::ReflowSVGNonDisplayText()
   // element is within a <mask>, say, the element referencing the <mask> will
   // be updated, which will then cause this SVGTextFrame to be painted and
   // in doing so cause the anonymous block frame to be reflowed.
-  nsLayoutUtils::PostRestyleEvent(
-    mContent->AsElement(), nsRestyleHint(0),
-    nsChangeHint_InvalidateRenderingObservers);
+  nsSVGEffects::InvalidateRenderingObservers(this);
 
   // Finally, we need to actually reflow the anonymous block frame and update
   // mPositions, in case we are being reflowed immediately after a DOM
@@ -5197,9 +5195,7 @@ void
 SVGTextFrame::NotifyGlyphMetricsChange()
 {
   AddStateBits(NS_STATE_SVG_POSITIONING_DIRTY);
-  nsLayoutUtils::PostRestyleEvent(
-    mContent->AsElement(), nsRestyleHint(0),
-    nsChangeHint_InvalidateRenderingObservers);
+  nsSVGEffects::InvalidateRenderingObservers(this);
   ScheduleReflowSVG();
 }
 

@@ -7,12 +7,13 @@
 // Test that the layout-view for elements within iframes also updates when they
 // change
 
-add_task(function*() {
+let test = asyncTest(function*() {
   yield addTab(TEST_URL_ROOT + "doc_layoutview_iframe1.html");
   let iframe2 = getNode("iframe").contentDocument.querySelector("iframe");
 
   let {toolbox, inspector, view} = yield openLayoutView();
   yield runTests(inspector, view, iframe2);
+  yield destroyToolbox(inspector);
 });
 
 addTest("Test that resizing an element in an iframe updates its box model",

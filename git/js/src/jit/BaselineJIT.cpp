@@ -60,7 +60,7 @@ static const unsigned BASELINE_MAX_ARGS_LENGTH = 20000;
 static bool
 CheckFrame(InterpreterFrame *fp)
 {
-    if (fp->script()->isGenerator()) {
+    if (fp->isGeneratorFrame()) {
         JitSpew(JitSpew_BaselineAbort, "generator frame");
         return false;
     }

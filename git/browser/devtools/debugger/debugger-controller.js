@@ -215,8 +215,6 @@ let DebuggerController = {
         yield this._startTracingTab(traceActor);
       }
     }
-
-    this._hideUnsupportedFeatures();
   }),
 
   /**
@@ -231,16 +229,6 @@ let DebuggerController = {
     this._connected = false;
     this.client = null;
     this.activeThread = null;
-  },
-
-  _hideUnsupportedFeatures: function() {
-    if (this.client.mainRoot.traits.noPrettyPrinting) {
-      DebuggerView.Sources.hidePrettyPrinting();
-    }
-
-    if (this.client.mainRoot.traits.noBlackBoxing) {
-      DebuggerView.Sources.hideBlackBoxing();
-    }
   },
 
   /**

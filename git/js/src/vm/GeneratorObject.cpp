@@ -16,16 +16,19 @@ using namespace js;
 using namespace js::types;
 
 JSObject *
-GeneratorObject::create(JSContext *cx, AbstractFramePtr frame)
+GeneratorObject::create(JSContext *cx, const InterpreterRegs &regs)
 {
-    MOZ_ASSERT(frame.script()->isGenerator());
-    MOZ_ASSERT(frame.script()->nfixed() == 0);
+    MOZ_ASSERT(regs.stackDepth() == 0);
+    InterpreterFrame *fp = regs.fp();
 
-    Rooted<GlobalObject*> global(cx, cx->global());
+    MOZ_ASSERT(fp->script()->isGenerator());
+    MOZ_ASSERT(fp->script()->nfixed() == 0);
+
+    Rooted<GlobalObject*> global(cx, &fp->global());
     RootedNativeObject obj(cx);
-    if (frame.script()->isStarGenerator()) {
+    if (fp->script()->isStarGenerator()) {
         RootedValue pval(cx);
-        RootedObject fun(cx, frame.fun());
+        RootedObject fun(cx, fp->fun());
         // FIXME: This would be faster if we could avoid doing a lookup to get
         // the prototype for the instance.  Bug 906600.
         if (!JSObject::getProperty(cx, fun, fun, cx->names().prototype, &pval))
@@ -38,7 +41,7 @@ GeneratorObject::create(JSContext *cx, AbstractFramePtr frame)
         }
         obj = NewNativeObjectWithGivenProto(cx, &StarGeneratorObject::class_, proto, global);
     } else {
-        MOZ_ASSERT(frame.script()->isLegacyGenerator());
+        MOZ_ASSERT(fp->script()->isLegacyGenerator());
         JSObject *proto = GlobalObject::getOrCreateLegacyGeneratorObjectPrototype(cx, global);
         if (!proto)
             return nullptr;
@@ -47,19 +50,20 @@ GeneratorObject::create(JSContext *cx, AbstractFramePtr frame)
     if (!obj)
         return nullptr;
 
-    GeneratorObject *genObj = &obj->as<GeneratorObject>();
-    genObj->setCallee(*frame.callee());
-    genObj->setThisValue(frame.thisValue());
-    genObj->setScopeChain(*frame.scopeChain());
-    if (frame.script()->needsArgsObj())
-        genObj->setArgsObj(frame.argsObj());
+    Rooted<GeneratorObject *> genObj(cx, &obj->as<GeneratorObject>());
+
+    genObj->setCallee(fp->callee());
+    genObj->setThisValue(fp->thisValue());
+    genObj->setScopeChain(*fp->scopeChain());
+    if (fp->script()->needsArgsObj())
+        genObj->setArgsObj(fp->argsObj());
     genObj->clearExpressionStack();
 
     return obj;
 }
 
 bool
-GeneratorObject::suspend(JSContext *cx, HandleObject obj, AbstractFramePtr frame, jsbytecode *pc,
+GeneratorObject::suspend(JSContext *cx, HandleObject obj, InterpreterFrame *fp, jsbytecode *pc,
                          Value *vp, unsigned nvalues, GeneratorObject::SuspendKind suspendKind)
 {
     Rooted<GeneratorObject*> genObj(cx, &obj->as<GeneratorObject>());
@@ -67,13 +71,13 @@ GeneratorObject::suspend(JSContext *cx, HandleObject obj, AbstractFramePtr frame
 
     if (suspendKind == NORMAL && genObj->isClosing()) {
         MOZ_ASSERT(genObj->is<LegacyGeneratorObject>());
-        RootedValue val(cx, ObjectValue(*frame.callee()));
-        js_ReportValueError(cx, JSMSG_BAD_GENERATOR_YIELD, JSDVG_SEARCH_STACK, val, NullPtr());
+        RootedValue val(cx, ObjectValue(fp->callee()));
+        js_ReportValueError(cx, JSMSG_BAD_GENERATOR_YIELD, JSDVG_SEARCH_STACK, val, js::NullPtr());
         return false;
     }
 
-    genObj->setSuspendedBytecodeOffset(pc - frame.script()->code(), suspendKind == INITIAL);
-    genObj->setScopeChain(*frame.scopeChain());
+    genObj->setSuspendedBytecodeOffset(pc - fp->script()->code(), suspendKind == INITIAL);
+    genObj->setScopeChain(*fp->scopeChain());
 
     if (nvalues) {
         ArrayObject *stack = NewDenseCopiedArray(cx, nvalues, vp);
@@ -128,12 +132,15 @@ GeneratorObject::resume(JSContext *cx, InterpreterActivation &activation,
 
     activation.regs().pc = callee->nonLazyScript()->code() + genObj->suspendedBytecodeOffset();
 
-    // Always push on a value, even if we are raising an exception. In the
-    // exception case, the stack needs to have something on it so that exception
-    // handling doesn't skip the catch blocks. See TryNoteIter::settle.
-    activation.regs().sp++;
-    MOZ_ASSERT(activation.regs().spForStackDepth(activation.regs().stackDepth()));
-    activation.regs().sp[-1] = arg;
+    // If we are resuming a JSOP_YIELD, always push on a value, even if we are
+    // raising an exception.  In the exception case, the stack needs to have
+    // something on it so that exception handling doesn't skip the catch
+    // blocks.  See TryNoteIter::settle.
+    if (!genObj->isNewborn()) {
+        activation.regs().sp++;
+        MOZ_ASSERT(activation.regs().spForStackDepth(activation.regs().stackDepth()));
+        activation.regs().sp[-1] = arg;
+    }
 
     switch (resumeKind) {
       case NEXT:

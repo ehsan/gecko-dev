@@ -315,7 +315,7 @@ nsSVGClipPathFrame::AttributeChanged(int32_t         aNameSpaceID,
                                             nsISVGChildFrame::TRANSFORM_CHANGED);
     }
     if (aAttribute == nsGkAtoms::clipPathUnits) {
-      nsSVGEffects::InvalidateDirectRenderingObservers(this);
+      nsSVGEffects::InvalidateRenderingObservers(this);
     }
   }
 

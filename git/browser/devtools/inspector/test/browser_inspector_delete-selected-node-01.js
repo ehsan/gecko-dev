@@ -7,18 +7,22 @@
 
 const TEST_URL = TEST_URL_ROOT + "doc_inspector_delete-selected-node-01.html";
 
-add_task(function* () {
-  let {inspector} = yield openInspectorForURL(TEST_URL);
+let test = asyncTest(function* () {
+  let { inspector } = yield openInspectorForURL(TEST_URL);
+  let iframe = getNode("iframe");
+  let span = getNode("span", { document: iframe.contentDocument });
 
-  let span = yield getNodeFrontInFrame("span", "iframe", inspector);
   yield selectNode(span, inspector);
 
   info("Removing selected <span> element.");
-  let parentNode = span.parentNode();
-  yield inspector.walker.removeNode(span);
+  let parentNode = span.parentNode;
+  span.remove();
+
+  let lh = new LayoutHelpers(window.content);
+  ok(!lh.isNodeConnected(span), "Node considered as disconnected.");
 
   // Wait for the inspector to process the mutation
   yield inspector.once("inspector-updated");
-  is(inspector.selection.nodeFront, parentNode,
+  is(inspector.selection.node, parentNode,
     "Parent node of selected <span> got selected.");
 });
