@@ -442,24 +442,7 @@ const queryOptionSwitches = [
         aQueryOptions.queryType = aQueryOptions.QUERY_TYPE_UNIFIED;
       }
     ]
-  },
-  // redirectsMode
-  {
-    property: "redirectsMode",
-    desc:     "nsINavHistoryQueryOptions.redirectsMode",
-    matches:  simplePropertyMatches,
-    runs:     [
-      function (aQuery, aQueryOptions) {
-        aQueryOptions.redirectsMode = aQueryOptions.REDIRECTS_MODE_ALL;
-      },
-      function (aQuery, aQueryOptions) {
-        aQueryOptions.redirectsMode = aQueryOptions.REDIRECTS_MODE_TARGET;
-      },
-      function (aQuery, aQueryOptions) {
-        aQueryOptions.redirectsMode = aQueryOptions.REDIRECTS_MODE_SOURCE;
-      }
-    ]
-  },
+  }
 ];
 
 ///////////////////////////////////////////////////////////////////////////////

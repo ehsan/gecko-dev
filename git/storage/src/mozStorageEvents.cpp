@@ -214,9 +214,9 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(
 /**
  * Executes a statement asynchronously in the background.
  */
-class AsyncExecuteStatements : public nsIRunnable
-                             , public mozIStoragePendingStatement
-                             , public iEventStatus
+class AsyncExecute : public nsIRunnable
+                   , public mozIStoragePendingStatement
+                   , public iEventStatus
 {
 public:
   NS_DECL_ISUPPORTS
@@ -224,9 +224,9 @@ public:
   /**
    * This takes ownership of both the statement and the callback.
    */
-  AsyncExecuteStatements(nsTArray<sqlite3_stmt *> &aStatements,
-                         mozIStorageConnection *aConnection,
-                         mozIStorageStatementCallback *aCallback) :
+  AsyncExecute(nsTArray<sqlite3_stmt *> &aStatements,
+               mozIStorageConnection *aConnection,
+               mozIStorageStatementCallback *aCallback) :
       mConnection(aConnection)
     , mTransactionManager(nsnull)
     , mCallback(aCallback)
@@ -235,7 +235,7 @@ public:
     , mIntervalStart(PR_IntervalNow())
     , mState(PENDING)
     , mCancelRequested(PR_FALSE)
-    , mLock(nsAutoLock::NewLock("AsyncExecuteStatements::mLock"))
+    , mLock(nsAutoLock::NewLock("AsyncExecute::mLock"))
   {
     (void)mStatements.SwapElements(aStatements);
     NS_ASSERTION(mStatements.Length(), "We weren't given any statements!");
@@ -335,7 +335,9 @@ public:
   }
 
 private:
-  ~AsyncExecuteStatements()
+  AsyncExecute() : mMaxIntervalWait(0) { }
+
+  ~AsyncExecute()
   {
     nsAutoLock::DestroyLock(mLock);
   }
@@ -623,7 +625,7 @@ private:
   PRLock *mLock;
 };
 NS_IMPL_THREADSAFE_ISUPPORTS2(
-  AsyncExecuteStatements,
+  AsyncExecute,
   nsIRunnable,
   mozIStoragePendingStatement
 )
@@ -635,8 +637,7 @@ NS_executeAsync(nsTArray<sqlite3_stmt *> &aStatements,
                 mozIStoragePendingStatement **_stmt)
 {
   // Create our event to run in the background
-  nsRefPtr<AsyncExecuteStatements> event =
-    new AsyncExecuteStatements(aStatements, aConnection, aCallback);
+  nsRefPtr<AsyncExecute> event(new AsyncExecute(aStatements, aConnection, aCallback));
   NS_ENSURE_TRUE(event, NS_ERROR_OUT_OF_MEMORY);
 
   nsresult rv = event->initialize();

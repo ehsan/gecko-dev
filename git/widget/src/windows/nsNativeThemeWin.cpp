@@ -411,8 +411,8 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, PRUint8 aWidgetType,
       if (IsDisabled(aFrame)) {
         aState = TS_DISABLED;
         return NS_OK;
-      } else if (IsOpenButton(aFrame) ||
-                 IsCheckedButton(aFrame)) {
+      } else if (CheckBooleanAttr(aFrame, nsWidgetAtoms::open) ||
+                 CheckBooleanAttr(aFrame, nsWidgetAtoms::checked)) {
         aState = TS_ACTIVE;
         return NS_OK;
       }
@@ -548,10 +548,6 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, PRUint8 aWidgetType,
 
       if (IsDisabled(aFrame)) {
         aState = TS_DISABLED;
-        return NS_OK;
-      }
-      if (IsOpenButton(aFrame)) {
-        aState = TS_ACTIVE;
         return NS_OK;
       }
       PRInt32 eventState = GetContentState(aFrame, aWidgetType);
@@ -785,7 +781,7 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, PRUint8 aWidgetType,
         aState = TS_DISABLED;
       } else if (IsReadOnly(aFrame)) {
         aState = TS_NORMAL;
-      } else if (IsOpenButton(aFrame)) {
+      } else if (CheckBooleanAttr(aFrame, nsWidgetAtoms::open)) {
         aState = TS_ACTIVE;
       } else {
         PRInt32 eventState = GetContentState(aFrame, aWidgetType);
@@ -803,12 +799,10 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, PRUint8 aWidgetType,
     }
     case NS_THEME_DROPDOWN_BUTTON: {
       PRBool isHTML = IsHTMLContent(aFrame);
+      nsIFrame* origFrame = aFrame;
       nsIFrame* parentFrame = aFrame->GetParent();
-      PRBool isMenulist = !isHTML && parentFrame->GetType() == nsWidgetAtoms::menuFrame;
-      PRBool isOpen = PR_FALSE;
-
-      // HTML select and XUL menulist dropdown buttons get state from the parent.
-      if (isHTML || isMenulist)
+      if ((parentFrame && parentFrame->GetType() == nsWidgetAtoms::menuFrame) || isHTML)
+        // XUL menu lists and HTML selects get state from parent
         aFrame = parentFrame;
 
       aPart = nsUXThemeData::sIsVistaOrLater ? CBP_DROPMARKER_VISTA : CBP_DROPMARKER;
@@ -824,23 +818,17 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, PRUint8 aWidgetType,
         return NS_OK;
       }
 
-      if (isHTML) {
-        nsIComboboxControlFrame* ccf = do_QueryFrame(aFrame);
-        isOpen = (ccf && ccf->IsDroppedDown());
-      }
-      else
-        isOpen = IsOpenButton(aFrame);
-
       if (nsUXThemeData::sIsVistaOrLater) {
         if (isHTML) {
-          if (isOpen) {
-            /* Hover is propagated, but we need to know whether we're
-             * hovering just the combobox frame, not the dropdown frame.
-             * But, we can't get that information, since hover is on the
-             * content node, and they share the same content node.  So,
-             * instead, we cheat -- if the dropdown is open, we always
-             * show the hover state.  This looks fine in practice.
-             */
+          nsIComboboxControlFrame* ccf = do_QueryFrame(aFrame);
+          if (ccf && ccf->IsDroppedDown()) {
+          /* Hover is propagated, but we need to know whether we're
+           * hovering just the combobox frame, not the dropdown frame.
+           * But, we can't get that information, since hover is on the
+           * content node, and they share the same content node.  So,
+           * instead, we cheat -- if the dropdown is open, we always
+           * show the hover state.  This looks fine in practice.
+           */
             aState = TS_HOVER;
             return NS_OK;
           }
@@ -850,33 +838,13 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, PRUint8 aWidgetType,
            * isn't HTML content, we cheat and force the dropdown state
            * to be normal. (Bug 430434)
            */
-          aState = TS_NORMAL;
-          return NS_OK;
+            aState = TS_NORMAL;
+            return NS_OK;
         }
       }
+  
+      aState = StandardGetState(aFrame, aWidgetType, PR_FALSE);
 
-      aState = TS_NORMAL;
-      PRInt32 eventState = GetContentState(aFrame, aWidgetType);
-
-      // Dropdown button active state doesn't need :hover.
-      if (eventState & NS_EVENT_STATE_ACTIVE) {
-        if (isOpen && (isHTML || isMenulist)) {
-          // XXX Button should look active until the mouse is released, but
-          //     without making it look active when the popup is clicked.
-          return NS_OK;
-        }
-        aState = TS_ACTIVE;
-      }
-      else if (eventState & NS_EVENT_STATE_HOVER) {
-        // No hover effect for XUL menulists and autocomplete dropdown buttons
-        // while the dropdown menu is open.
-        if (isOpen) {
-          // XXX HTML select dropdown buttons should have the hover effect when
-          //     hovering the combobox frame, but not the popup frame.
-          return NS_OK;
-        }
-        aState = TS_HOVER;
-      }
       return NS_OK;
     }
     case NS_THEME_MENUPOPUP: {
@@ -2041,9 +2009,9 @@ nsresult nsNativeThemeWin::ClassicGetThemePartAndState(nsIFrame* aFrame, PRUint8
       contentState = GetContentState(aFrame, aWidgetType);
       if (IsDisabled(aFrame))
         aState |= DFCS_INACTIVE;
-      else if (IsOpenButton(aFrame))
+      else if (CheckBooleanAttr(aFrame, nsWidgetAtoms::open))
         aState |= DFCS_PUSHED;
-      else if (IsCheckedButton(aFrame))
+      else if (CheckBooleanAttr(aFrame, nsWidgetAtoms::checked))
         aState |= DFCS_CHECKED;
       else {
         if (contentState & NS_EVENT_STATE_ACTIVE && contentState & NS_EVENT_STATE_HOVER) {
@@ -2196,40 +2164,25 @@ nsresult nsNativeThemeWin::ClassicGetThemePartAndState(nsIFrame* aFrame, PRUint8
 
       aPart = DFC_SCROLL;
       aState = DFCS_SCROLLCOMBOBOX;
-
+      
+      nsIContent* content = aFrame->GetContent();
       nsIFrame* parentFrame = aFrame->GetParent();
-      PRBool isHTML = IsHTMLContent(aFrame);
-      PRBool isMenulist = !isHTML && parentFrame->GetType() == nsWidgetAtoms::menuFrame;
-      PRBool isOpen = PR_FALSE;
+      if (parentFrame->GetType() == nsWidgetAtoms::menuFrame ||
+          (content && content->IsNodeOfType(nsINode::eHTML)))
+         // XUL menu lists and HTML selects get state from parent         
+         aFrame = parentFrame;
+         // XXX the button really shouldn't depress when clicking the 
+         // parent, but the button frame is never :active for these controls..
 
-      // HTML select and XUL menulist dropdown buttons get state from the parent.
-      if (isHTML || isMenulist)
-        aFrame = parentFrame;
-
-      if (IsDisabled(aFrame)) {
+      if (IsDisabled(aFrame))
         aState |= DFCS_INACTIVE;
-        return NS_OK;
-      }
-
+      else {     
+        PRInt32 eventState = GetContentState(aFrame, aWidgetType);
 #ifndef WINCE
-      if (isHTML) {
-        nsIComboboxControlFrame* ccf = do_QueryFrame(aFrame);
-        isOpen = (ccf && ccf->IsDroppedDown());
-      }
-      else
-        isOpen = IsOpenButton(aFrame);
-
-      // XXX Button should look active until the mouse is released, but
-      //     without making it look active when the popup is clicked.
-      if (isOpen && (isHTML || isMenulist))
-        return NS_OK;
-
-      PRInt32 eventState = GetContentState(aFrame, aWidgetType);
-
-      // Dropdown button active state doesn't need :hover.
-      if (eventState & NS_EVENT_STATE_ACTIVE)
-        aState |= DFCS_PUSHED | DFCS_FLAT;
+        if (eventState & NS_EVENT_STATE_HOVER && eventState & NS_EVENT_STATE_ACTIVE)
+          aState |= DFCS_PUSHED | DFCS_FLAT;
 #endif
+      }
 
       return NS_OK;
     }

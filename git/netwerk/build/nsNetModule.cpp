@@ -60,7 +60,6 @@
 #include "nsMimeTypes.h"
 #include "nsNetStrings.h"
 #include "nsDNSPrefetch.h"
-#include "nsAboutProtocolHandler.h"
 
 #include "nsNetCID.h"
 
@@ -171,15 +170,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsStreamListenerTee)
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsCookieService, nsCookieService::GetSingleton)
 #endif
 
-
-///////////////////////////////////////////////////////////////////////////////
-#ifdef NECKO_WIFI
-
-#include "nsWifiMonitor.h"
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsWifiMonitor)
-
-#endif
-
 ///////////////////////////////////////////////////////////////////////////////
 // protocols
 ///////////////////////////////////////////////////////////////////////////////
@@ -189,7 +179,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsWifiMonitor)
 #include "nsAboutBlank.h"
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsAboutProtocolHandler)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsSafeAboutProtocolHandler)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsNestedAboutURI)
 
 #ifdef NECKO_PROTOCOL_about
 // about
@@ -281,7 +270,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsSimpleNestedURI)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsIDNService, Init)
 
 ///////////////////////////////////////////////////////////////////////////////
-#if defined(XP_WIN)
+#if defined(XP_WIN) && !defined(WINCE)
 #include "nsNotifyAddrListener.h"
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsNotifyAddrListener, Init)
 #elif defined(MOZ_WIDGET_COCOA)
@@ -1025,10 +1014,6 @@ static const nsModuleComponentInfo gNetModuleInfo[] = {
       NS_ABOUT_MODULE_CONTRACTID_PREFIX "blank", 
       nsAboutBlank::Create
     },
-    { "Nested about: URI",
-      NS_NESTEDABOUTURI_CID,
-      nsnull,
-      nsNestedAboutURIConstructor },
 #ifdef NECKO_PROTOCOL_about
 #ifdef NS_BUILD_REFCNT_LOGGING
     { "about:bloat", 
@@ -1100,15 +1085,6 @@ static const nsModuleComponentInfo gNetModuleInfo[] = {
     },
 #endif
 
-#ifdef NECKO_WIFI
-    {
-      NS_WIFI_MONITOR_CLASSNAME,
-      NS_WIFI_MONITOR_COMPONENT_CID,
-      NS_WIFI_MONITOR_CONTRACTID,
-      nsWifiMonitorConstructor
-    },
-#endif
-
 #ifdef NECKO_PROTOCOL_gopher
     //gopher:
     { "The Gopher Protocol Handler", 
@@ -1135,7 +1111,7 @@ static const nsModuleComponentInfo gNetModuleInfo[] = {
     },
 #endif
 
-#if defined(XP_WIN)
+#if defined(XP_WIN) && !defined(WINCE)
     { NS_NETWORK_LINK_SERVICE_CLASSNAME,
       NS_NETWORK_LINK_SERVICE_CID,
       NS_NETWORK_LINK_SERVICE_CONTRACTID,

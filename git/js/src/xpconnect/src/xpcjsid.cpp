@@ -516,9 +516,12 @@ nsJSIID::NewResolve(nsIXPConnectWrappedNative *wrapper,
             return NS_ERROR_OUT_OF_MEMORY;
 
         *objp = obj;
-        *_retval = JS_DefinePropertyById(cx, obj, idid, val, nsnull, nsnull,
-                                         JSPROP_ENUMERATE | JSPROP_READONLY |
-                                         JSPROP_PERMANENT);
+        *_retval = OBJ_DEFINE_PROPERTY(cx, obj, idid, val,
+                                       nsnull, nsnull,
+                                       JSPROP_ENUMERATE |
+                                       JSPROP_READONLY |
+                                       JSPROP_PERMANENT,
+                                       nsnull);
     }
 
     return NS_OK;

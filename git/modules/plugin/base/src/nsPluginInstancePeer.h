@@ -35,8 +35,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsPluginInstancePeer_h_
-#define nsPluginInstancePeer_h_
+#ifndef nsPluginInstancePeer_h___
+#define nsPluginInstancePeer_h___
 
 #include "nsIPluginInstancePeer2.h"
 #include "nsIWindowlessPlugInstPeer.h"
