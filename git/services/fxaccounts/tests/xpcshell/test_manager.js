@@ -12,10 +12,6 @@ Cu.import("resource://gre/modules/Promise.jsm");
 
 // === Mocks ===
 
-// Globals representing server state
-let passwordResetOnServer = false;
-let deletedOnServer = false;
-
 // Override FxAccountsUIGlue.
 const kFxAccountsUIGlueUUID = "{8f6d5d87-41ed-4bb5-aa28-625de57564c5}";
 const kFxAccountsUIGlueContractID =
@@ -58,7 +54,6 @@ let FxAccountsUIGlue = {
     if (this._reject) {
       deferred.reject(this._error);
     } else {
-      passwordResetOnServer = false;
       FxAccountsManager._activeSession = this._activeSession || {
         email: "user@domain.org",
         verified: false,
@@ -73,7 +68,6 @@ let FxAccountsUIGlue = {
   },
 
   signInFlow: function() {
-    deletedOnServer = false;
     this._signInFlowCalled = true;
     return this._promise();
   },
@@ -110,23 +104,13 @@ FxAccountsManager._fxAccounts = {
     this._reject = false;
   },
 
-  accountStatus: function() {
-    let deferred = Promise.defer();
-    deferred.resolve(!deletedOnServer);
-    return deferred.promise;
-  },
-
   getAssertion: function() {
     if (!this._signedInUser) {
       return null;
     }
 
     let deferred = Promise.defer();
-    if (passwordResetOnServer || deletedOnServer) {
-      deferred.reject({errno: ERRNO_INVALID_AUTH_TOKEN});
-    } else {
-      deferred.resolve(this._assertion);
-    }
+    deferred.resolve(this._assertion);
     return deferred.promise;
   },
 
@@ -388,38 +372,6 @@ add_test(function(test_getAssertion_refreshAuth) {
     },
     error => {
       do_throw("Unexpected error: " + error);
-    }
-  );
-});
-
-add_test(function(test_getAssertion_server_state_change) {
-  FxAccountsManager._fxAccounts._signedInUser.verified = true;
-  FxAccountsManager._activeSession.verified = true;
-  passwordResetOnServer = true;
-  FxAccountsManager.getAssertion("audience").then(
-    (result) => {
-      // For password reset, the UIGlue mock simulates sucessful
-      // refreshAuth which supplies new password, not signin/signup.
-      do_check_true(FxAccountsUIGlue._refreshAuthCalled);
-      do_check_false(FxAccountsUIGlue._signInFlowCalled)
-      do_check_eq(result, "assertion");
-      FxAccountsUIGlue._refreshAuthCalled = false;
-    }
-  ).then(
-    () => {
-      deletedOnServer = true;
-      FxAccountsManager.getAssertion("audience").then(
-        (result) => {
-          // For account deletion, the UIGlue's signin/signup is called.
-          do_check_true(FxAccountsUIGlue._signInFlowCalled)
-          do_check_false(FxAccountsUIGlue._refreshAuthCalled);
-          do_check_eq(result, "assertion");
-          deletedOnServer = false;
-          passwordResetOnServer = false;
-          FxAccountsUIGlue._reset()
-          run_next_test();
-        }
-      );
     }
   );
 });

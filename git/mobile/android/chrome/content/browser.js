@@ -991,15 +991,10 @@ var BrowserApp = {
       let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
       let closedTabData = ss.getClosedTabs(window)[0];
 
-      let message;
-      let title = closedTabData.entries[closedTabData.index - 1].title;
+      let historyEntry = closedTabData.entries[closedTabData.index - 1];
+      let title = historyEntry.title || historyEntry.url;
 
-      if (title) {
-        message = Strings.browser.formatStringFromName("undoCloseToast.message", [title], 1);
-      } else {
-        message = Strings.browser.GetStringFromName("undoCloseToast.messageDefault");
-      }
-
+      let message = Strings.browser.formatStringFromName("undoCloseToast.message", [title], 1);
       NativeWindow.toast.show(message, "short", {
         button: {
           icon: "drawable://undo_button_icon",
