@@ -33,7 +33,7 @@ function testAnonCall() {
       is(frames.querySelectorAll(".dbg-stackframe").length, 3,
         "Should have three frames.");
 
-      is(frames.querySelector("#stackframe-0 .dbg-stackframe-name").getAttribute("value"),
+      is(frames.querySelector("#stackframe-0 .dbg-stackframe-name").textContent,
         "anonFunc", "Frame name should be anonFunc");
 
       resumeAndFinish();
