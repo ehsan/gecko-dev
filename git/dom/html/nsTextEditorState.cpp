@@ -1397,8 +1397,7 @@ nsTextEditorState::PrepareEditor(const nsAString *aValue)
     rv = newEditor->EnableUndo(false);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    bool success = SetValue(defaultValue, false, false);
-    NS_ENSURE_TRUE(success, NS_ERROR_OUT_OF_MEMORY);
+    SetValue(defaultValue, false, false);
 
     rv = newEditor->EnableUndo(true);
     NS_ASSERTION(NS_SUCCEEDED(rv),"Transaction Manager must have failed");
@@ -1656,9 +1655,7 @@ nsTextEditorState::UnbindFromFrame(nsTextControlFrame* aFrame)
   // Now that we don't have a frame any more, store the value in the text buffer.
   // The only case where we don't do this is if a value transfer is in progress.
   if (!mValueTransferInProgress) {
-    bool success = SetValue(value, false, false);
-    // TODO Find something better to do if this fails...
-    NS_ENSURE_TRUE_VOID(success);
+    SetValue(value, false, false);
   }
 
   if (mRootNode && mMutationObserver) {
@@ -1871,12 +1868,10 @@ nsTextEditorState::GetValue(nsAString& aValue, bool aIgnoreWrap) const
   }
 }
 
-bool
+void
 nsTextEditorState::SetValue(const nsAString& aValue, bool aUserInput,
                             bool aSetValueChanged)
 {
-  mozilla::fallible_t fallible;
-
   if (mEditor && mBoundFrame) {
     // The InsertText call below might flush pending notifications, which
     // could lead into a scheduled PrepareEditor to be called.  That will
@@ -1906,21 +1901,16 @@ nsTextEditorState::SetValue(const nsAString& aValue, bool aUserInput,
       // so convert windows and mac platform linebreaks to \n:
       // Unfortunately aValue is declared const, so we have to copy
       // in order to do this substitution.
-      nsString newValue;
-      if (!newValue.Assign(aValue, fallible)) {
-        return false;
-      }
+      nsString newValue(aValue);
       if (aValue.FindChar(char16_t('\r')) != -1) {
-        if (!nsContentUtils::PlatformToDOMLineBreaks(newValue, fallible)) {
-          return false;
-        }
+        nsContentUtils::PlatformToDOMLineBreaks(newValue);
       }
 
       nsCOMPtr<nsIDOMDocument> domDoc;
       mEditor->GetDocument(getter_AddRefs(domDoc));
       if (!domDoc) {
         NS_WARNING("Why don't we have a document?");
-        return true;
+        return;
       }
 
       // Time to mess with our security context... See comments in GetValue()
@@ -1957,7 +1947,7 @@ nsTextEditorState::SetValue(const nsAString& aValue, bool aUserInput,
         nsCOMPtr<nsIPlaintextEditor> plaintextEditor = do_QueryInterface(mEditor);
         if (!plaintextEditor || !weakFrame.IsAlive()) {
           NS_WARNING("Somehow not a plaintext editor?");
-          return true;
+          return;
         }
 
         valueSetter.Init();
@@ -1996,15 +1986,13 @@ nsTextEditorState::SetValue(const nsAString& aValue, bool aUserInput,
           // the existing selection -- see bug 574558), in which case we don't
           // need to reset the value here.
           if (!mBoundFrame) {
-            return SetValue(newValue, false, aSetValueChanged);
+            SetValue(newValue, false, aSetValueChanged);
           }
-          return true;
+          return;
         }
 
         if (!IsSingleLineTextControl()) {
-          if (!mCachedValue.Assign(newValue, fallible)) {
-            return false;
-          }
+          mCachedValue = newValue;
         }
 
         plaintextEditor->SetMaxTextLength(savedMaxLength);
@@ -2017,16 +2005,9 @@ nsTextEditorState::SetValue(const nsAString& aValue, bool aUserInput,
     if (!mValue) {
       mValue = new nsCString;
     }
-    nsString value;
-    if (!value.Assign(aValue, fallible)) {
-      return false;
-    }
-    if (!nsContentUtils::PlatformToDOMLineBreaks(value, fallible)) {
-      return false;
-    }
-    if (!CopyUTF16toUTF8(value, *mValue, fallible)) {
-      return false;
-    }
+    nsString value(aValue);
+    nsContentUtils::PlatformToDOMLineBreaks(value);
+    CopyUTF16toUTF8(value, *mValue);
 
     // Update the frame display if needed
     if (mBoundFrame) {
@@ -2039,8 +2020,6 @@ nsTextEditorState::SetValue(const nsAString& aValue, bool aUserInput,
   ValueWasChanged(!!mRootNode);
 
   mTextCtrlElement->OnValueChanged(!!mRootNode);
-
-  return true;
 }
 
 void

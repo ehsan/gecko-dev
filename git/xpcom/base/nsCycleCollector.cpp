@@ -807,6 +807,7 @@ static PLDHashTableOps PtrNodeOps = {
   PtrToNodeMatchEntry,
   PL_DHashMoveEntryStub,
   PL_DHashClearEntryStub,
+  PL_DHashFinalizeStub,
   nullptr
 };
 
@@ -848,7 +849,7 @@ public:
   void Init()
   {
     MOZ_ASSERT(IsEmpty(), "Failed to call CCGraph::Clear");
-    PL_DHashTableInit(&mPtrToNodeMap, &PtrNodeOps,
+    PL_DHashTableInit(&mPtrToNodeMap, &PtrNodeOps, nullptr,
                       sizeof(PtrToNodeEntry), 16384);
   }
 

@@ -425,10 +425,11 @@ nsTHashtable<EntryType>::Init(uint32_t aInitLength)
     s_MatchEntry,
     EntryType::ALLOW_MEMMOVE ? ::PL_DHashMoveEntryStub : s_CopyEntry,
     s_ClearEntry,
+    ::PL_DHashFinalizeStub,
     s_InitEntry
   };
 
-  PL_DHashTableInit(&mTable, &sOps, sizeof(EntryType), aInitLength);
+  PL_DHashTableInit(&mTable, &sOps, nullptr, sizeof(EntryType), aInitLength);
 }
 
 // static

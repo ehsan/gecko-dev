@@ -750,7 +750,6 @@ int gettimeofday(struct timeval *tv, void *tz)
     return 0;
   }
 
-#if _MSC_VER < 1900
 int snprintf(char *buffer, size_t n, const char *format, ...)
 {
   va_list argp;
@@ -761,7 +760,6 @@ int snprintf(char *buffer, size_t n, const char *format, ...)
   va_end(argp);
   return ret;
 }
-#endif
 
 #endif
 

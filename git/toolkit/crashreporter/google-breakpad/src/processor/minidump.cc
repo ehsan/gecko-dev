@@ -46,9 +46,7 @@
 #include <io.h>
 #define PRIx64 "llx"
 #define PRIx32 "lx"
-#if defined(_MSC_VER) && _MSC_VER < 1900
 #define snprintf _snprintf
-#endif
 #else  // _WIN32
 #include <unistd.h>
 #define O_BINARY 0

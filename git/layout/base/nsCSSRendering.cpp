@@ -57,7 +57,6 @@
 #include "gfxColor.h"
 #include "gfxGradientCache.h"
 #include "GraphicsFilter.h"
-#include "nsInlineFrame.h"
 #include <algorithm>
 
 using namespace mozilla;
@@ -98,7 +97,7 @@ struct InlineBackgroundData
    */
   nsRect GetContinuousRect(nsIFrame* aFrame)
   {
-    MOZ_ASSERT(static_cast<nsInlineFrame*>(do_QueryFrame(aFrame)));
+    MOZ_ASSERT(aFrame->GetType() == nsGkAtoms::inlineFrame);
 
     SetFrame(aFrame);
 
@@ -546,7 +545,7 @@ static nsRect
 JoinBoxesForSlice(nsIFrame* aFrame, const nsRect& aBorderArea,
                   InlineBoxOrder aOrder)
 {
-  if (static_cast<nsInlineFrame*>(do_QueryFrame(aFrame))) {
+  if (aFrame->GetType() == nsGkAtoms::inlineFrame) {
     return (aOrder == eForBorder
             ? gInlineBGData->GetBorderContinuousRect(aFrame, aBorderArea)
             : gInlineBGData->GetContinuousRect(aFrame)) +

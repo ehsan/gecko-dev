@@ -287,7 +287,7 @@ private:
 
   // Updates the subdocument position and size. This gets called only
   // when we have our own in-process DocShell.
-  void UpdateBaseWindowPositionAndSize(nsSubDocumentFrame *aIFrame);
+  nsresult UpdateBaseWindowPositionAndSize(nsSubDocumentFrame *aIFrame);
   nsresult CheckURILoad(nsIURI* aURI);
   void FireErrorEvent();
   nsresult ReallyStartLoadingInternal();

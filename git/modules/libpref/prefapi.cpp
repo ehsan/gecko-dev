@@ -83,6 +83,7 @@ static PLDHashTableOps     pref_HashTableOps = {
     matchPrefEntry,
     PL_DHashMoveEntryStub,
     clearPrefEntry,
+    PL_DHashFinalizeStub,
     nullptr,
 };
 
@@ -148,7 +149,7 @@ static nsresult pref_HashPref(const char *key, PrefValue value, PrefType type, u
 nsresult PREF_Init()
 {
     if (!gHashTable.ops) {
-        if (!PL_DHashTableInit(&gHashTable, &pref_HashTableOps,
+        if (!PL_DHashTableInit(&gHashTable, &pref_HashTableOps, nullptr,
                                sizeof(PrefHashEntry), fallible_t(),
                                PREF_HASHTABLE_INITIAL_LENGTH)) {
             gHashTable.ops = nullptr;

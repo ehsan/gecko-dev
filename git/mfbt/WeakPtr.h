@@ -93,6 +93,9 @@ public:
   T* get() const { return mPtr; }
 
 #ifdef MOZ_REFCOUNTED_LEAK_CHECKING
+#ifdef XP_WIN
+#define snprintf _snprintf
+#endif
   const char* typeName() const
   {
     static char nameBuffer[1024];
@@ -103,17 +106,15 @@ public:
     MOZ_ASSERT(strlen(innerType) + sizeof("WeakReference<>") <
                ArrayLength(nameBuffer),
                "Exceedingly large type name");
-#if defined(_MSC_VER) && _MSC_VER < 1900
-    _snprintf
-#else
-    ::snprintf
-#endif
-         (nameBuffer, ArrayLength(nameBuffer), "WeakReference<%s>", innerType);
+    snprintf(nameBuffer, ArrayLength(nameBuffer), "WeakReference<%s>",
+             innerType);
     // This is usually not OK, but here we are returning a pointer to a static
     // buffer which will immediately be used by the caller.
     return nameBuffer;
   }
+
   size_t typeSize() const { return sizeof(*this); }
+#undef snprintf
 #endif
 
 private:

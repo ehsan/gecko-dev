@@ -1963,11 +1963,10 @@ nsFrameLoader::UpdatePositionAndSize(nsSubDocumentFrame *aIFrame)
     }
     return NS_OK;
   }
-  UpdateBaseWindowPositionAndSize(aIFrame);
-  return NS_OK;
+  return UpdateBaseWindowPositionAndSize(aIFrame);
 }
 
-void
+nsresult
 nsFrameLoader::UpdateBaseWindowPositionAndSize(nsSubDocumentFrame *aIFrame)
 {
   nsCOMPtr<nsIDocShell> docShell;
@@ -1981,17 +1980,19 @@ nsFrameLoader::UpdateBaseWindowPositionAndSize(nsSubDocumentFrame *aIFrame)
 
     nsWeakFrame weakFrame(aIFrame);
 
-    baseWindow->GetPosition(&x, &y);
+    baseWindow->GetPositionAndSize(&x, &y, nullptr, nullptr);
 
     if (!weakFrame.IsAlive()) {
-      // GetPosition() killed us
-      return;
+      // GetPositionAndSize() killed us
+      return NS_OK;
     }
 
     nsIntSize size = aIFrame->GetSubdocumentSize();
 
     baseWindow->SetPositionAndSize(x, y, size.width, size.height, false);
   }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP

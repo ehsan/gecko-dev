@@ -573,7 +573,7 @@ public:
     NotificationCallbacks() {
     }
 
-    NS_IMETHOD GetInterface(const nsIID& iid, void* *result) MOZ_OVERRIDE {
+    NS_IMETHOD GetInterface(const nsIID& iid, void* *result) {
         nsresult rv = NS_ERROR_FAILURE;
 
         if (iid.Equals(NS_GET_IID(nsIChannelEventSink))) {

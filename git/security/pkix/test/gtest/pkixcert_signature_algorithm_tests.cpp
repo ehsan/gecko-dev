@@ -45,7 +45,7 @@ CreateCert(const char* issuerCN,
   return certDER;
 }
 
-class AlgorithmTestsTrustDomain final : public TrustDomain
+class AlgorithmTestsTrustDomain : public TrustDomain
 {
 public:
   AlgorithmTestsTrustDomain(const ByteString& rootDER,
@@ -60,8 +60,9 @@ public:
   }
 
 private:
-  Result GetCertTrust(EndEntityOrCA, const CertPolicyId&, Input candidateCert,
-                      /*out*/ TrustLevel& trustLevel) override
+  virtual Result GetCertTrust(EndEntityOrCA, const CertPolicyId&,
+                              Input candidateCert,
+                              /*out*/ TrustLevel& trustLevel)
   {
     if (InputEqualsByteString(candidateCert, rootDER)) {
       trustLevel = TrustLevel::TrustAnchor;
@@ -71,8 +72,8 @@ private:
     return Success;
   }
 
-  Result FindIssuer(Input encodedIssuerName, IssuerChecker& checker, Time)
-                    override
+  virtual Result FindIssuer(Input encodedIssuerName, IssuerChecker& checker,
+                            Time)
   {
     ByteString* issuerDER = nullptr;
     if (InputEqualsByteString(encodedIssuerName, rootSubjectDER)) {
@@ -92,31 +93,31 @@ private:
     return checker.Check(issuerCert, nullptr, keepGoing);
   }
 
-  Result CheckRevocation(EndEntityOrCA, const CertID&, Time, const Input*,
-                         const Input*) override
+  virtual Result CheckRevocation(EndEntityOrCA, const CertID&, Time,
+                                 const Input*, const Input*)
   {
     return Success;
   }
 
-  Result IsChainValid(const DERArray&, Time) override
+  virtual Result IsChainValid(const DERArray&, Time)
   {
     return Success;
   }
 
-  Result VerifySignedData(const SignedDataWithSignature& signedData,
-                          Input subjectPublicKeyInfo) override
+  virtual Result VerifySignedData(const SignedDataWithSignature& signedData,
+                                  Input subjectPublicKeyInfo)
   {
     EXPECT_NE(SignatureAlgorithm::unsupported_algorithm, signedData.algorithm);
     return TestVerifySignedData(signedData, subjectPublicKeyInfo);
   }
 
-  Result DigestBuf(Input, uint8_t*, size_t) override
+  virtual Result DigestBuf(Input, uint8_t*, size_t)
   {
     ADD_FAILURE();
     return Result::FATAL_ERROR_LIBRARY_FAILURE;
   }
 
-  Result CheckPublicKey(Input subjectPublicKeyInfo) override
+  virtual Result CheckPublicKey(Input subjectPublicKeyInfo)
   {
     return TestCheckPublicKey(subjectPublicKeyInfo);
   }
@@ -129,7 +130,7 @@ private:
 
 static const ByteString NO_INTERMEDIATE; // empty
 
-struct ChainValidity final
+struct ChainValidity
 {
   // In general, a certificate is generated for each of these.  However, if
   // optionalIntermediateSignatureAlgorithm is NO_INTERMEDIATE, then only 2

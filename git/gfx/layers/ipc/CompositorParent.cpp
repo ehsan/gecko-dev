@@ -854,8 +854,8 @@ CompositorParent::CompositeCallback(TimeStamp aScheduleTime)
 
 // Go down the composite layer tree, setting properties to match their
 // content-side counterparts.
-/* static */ void
-CompositorParent::SetShadowProperties(Layer* aLayer)
+static void
+SetShadowProperties(Layer* aLayer)
 {
   // FIXME: Bug 717688 -- Do these updates in LayerTransactionParent::RecvUpdate.
   LayerComposite* layerComposite = aLayer->AsLayerComposite();
@@ -1672,7 +1672,7 @@ CrossProcessCompositorParent::ShadowLayersUpdated(
 
   Layer* shadowRoot = aLayerTree->GetRoot();
   if (shadowRoot) {
-    CompositorParent::SetShadowProperties(shadowRoot);
+    SetShadowProperties(shadowRoot);
   }
   UpdateIndirectTree(id, shadowRoot, aTargetConfig);
 

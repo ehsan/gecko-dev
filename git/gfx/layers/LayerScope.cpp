@@ -6,7 +6,6 @@
 /* This must occur *after* layers/PLayers.h to avoid typedefs conflicts. */
 #include "LayerScope.h"
 
-#include "nsAppRunner.h"
 #include "Composer2D.h"
 #include "Effects.h"
 #include "mozilla/TimeStamp.h"
@@ -982,7 +981,7 @@ bool
 LayerScope::CheckSendable()
 {
     // Only compositor threads check LayerScope status
-    MOZ_ASSERT(CompositorParent::IsInCompositorThread() || gIsGtest);
+    MOZ_ASSERT(CompositorParent::IsInCompositorThread());
 
     if (!gfxPrefs::LayerScopeEnabled()) {
         return false;

@@ -98,6 +98,7 @@ static const PLDHashTableOps gMapOps = {
   CompareCacheMatchEntry,
   PL_DHashMoveEntryStub,
   CompareCacheClearEntry,
+  PL_DHashFinalizeStub,
   CompareCacheInitEntry
 };
 
@@ -185,7 +186,7 @@ void nsCertTree::ClearCompareHash()
 nsresult nsCertTree::InitCompareHash()
 {
   ClearCompareHash();
-  if (!PL_DHashTableInit(&mCompareCache, &gMapOps,
+  if (!PL_DHashTableInit(&mCompareCache, &gMapOps, nullptr,
                          sizeof(CompareCacheHashEntryPtr), fallible_t(), 64)) {
     mCompareCache.ops = nullptr;
     return NS_ERROR_OUT_OF_MEMORY;

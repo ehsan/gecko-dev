@@ -39,7 +39,7 @@ enum class CertStatus : uint8_t {
   Unknown = der::CONTEXT_SPECIFIC | 2
 };
 
-class Context final
+class Context
 {
 public:
   Context(TrustDomain& trustDomain, const CertID& certID, Time time,

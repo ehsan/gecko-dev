@@ -1703,9 +1703,7 @@ gfxFontGroup::FindPlatformFont(const nsAString& aName,
                 uint32_t count = userfonts.Length();
                 for (uint32_t i = 0; i < count; i++) {
                     fe = userfonts[i];
-                    FamilyFace ff(family, fe, needsBold);
-                    ff.CheckState(mSkipDrawing);
-                    mFonts.AppendElement(ff);
+                    mFonts.AppendElement(FamilyFace(family, fe, needsBold));
                 }
             }
         }

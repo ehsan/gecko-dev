@@ -141,39 +141,39 @@ class SessionMessageTask : public nsRunnable {
 public:
   SessionMessageTask(CDMProxy* aProxy,
                      const nsCString& aSessionId,
-                     GMPSessionMessageType aMessageType,
-                     const nsTArray<uint8_t>& aMessage)
+                     const nsTArray<uint8_t>& aMessage,
+                     const nsCString& aDestinationURL)
     : mProxy(aProxy)
     , mSid(NS_ConvertUTF8toUTF16(aSessionId))
-    , mMsgType(aMessageType)
+    , mURL(NS_ConvertUTF8toUTF16(aDestinationURL))
   {
     mMsg.AppendElements(aMessage);
   }
 
   NS_IMETHOD Run() {
-    mProxy->OnSessionMessage(mSid, mMsgType, mMsg);
+    mProxy->OnSessionMessage(mSid, mMsg, mURL);
     return NS_OK;
   }
 
   nsRefPtr<CDMProxy> mProxy;
   dom::PromiseId mPid;
   nsString mSid;
-  GMPSessionMessageType mMsgType;
   nsTArray<uint8_t> mMsg;
+  nsString mURL;
 };
 
 void
 CDMCallbackProxy::SessionMessage(const nsCString& aSessionId,
-                                 GMPSessionMessageType aMessageType,
-                                 const nsTArray<uint8_t>& aMessage)
+                                 const nsTArray<uint8_t>& aMessage,
+                                 const nsCString& aDestinationURL)
 {
   MOZ_ASSERT(mProxy->IsOnGMPThread());
 
   nsRefPtr<nsIRunnable> task;
   task = new SessionMessageTask(mProxy,
                                 aSessionId,
-                                aMessageType,
-                                aMessage);
+                                aMessage,
+                                aDestinationURL);
   NS_DispatchToMainThread(task);
 }
 

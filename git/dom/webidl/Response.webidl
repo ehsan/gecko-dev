@@ -12,8 +12,7 @@
  Func="mozilla::dom::Headers::PrefEnabled"]
 interface Response {
   [NewObject] static Response error();
-  [Throws,
-   NewObject] static Response redirect(USVString url, optional unsigned short status = 302);
+  [NewObject] static Response redirect(USVString url, optional unsigned short status = 302);
 
   readonly attribute ResponseType type;
 

@@ -214,8 +214,6 @@ static nsIProfileLock* gProfileLock;
 int    gRestartArgc;
 char **gRestartArgv;
 
-bool gIsGtest = false;
-
 #ifdef MOZ_WIDGET_QT
 static int    gQtOnlyArgc;
 static char **gQtOnlyArgv;
@@ -3561,9 +3559,7 @@ XREMain::XRE_mainStartup(bool* aExitFlag)
 #endif
     // RunGTest will only be set if we're in xul-unit
     if (mozilla::RunGTest) {
-      gIsGtest = true;
       result = mozilla::RunGTest();
-      gIsGtest = false;
     } else {
       result = 1;
       printf("TEST-UNEXPECTED-FAIL | gtest | Not compiled with enable-tests\n");

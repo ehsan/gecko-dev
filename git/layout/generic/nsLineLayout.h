@@ -137,10 +137,7 @@ public:
    * combined area (== overflow area) for the line, and handle view
    * sizing/positioning and the setting of the overflow rect.
    */
-  void RelativePositionFrames(nsOverflowAreas& aOverflowAreas)
-  {
-    RelativePositionFrames(mRootSpan, aOverflowAreas);
-  }
+  void RelativePositionFrames(nsOverflowAreas& aOverflowAreas);
 
   // Support methods for word-wrapping during line reflow
 
@@ -361,15 +358,15 @@ public:
    * Move the inline position where the next frame will be reflowed forward by
    * aAmount.
    */
-  void AdvanceICoord(nscoord aAmount) { mCurrentSpan->mICoord += aAmount; }
+  void AdvanceICoord(nscoord aAmount);
   /**
    * Returns the writing mode for the root span.
    */
-  mozilla::WritingMode GetWritingMode() { return mRootSpan->mWritingMode; }
+  mozilla::WritingMode GetWritingMode();
   /**
    * Returns the inline position where the next frame will be reflowed.
    */
-  nscoord GetCurrentICoord() { return mCurrentSpan->mICoord; }
+  nscoord GetCurrentICoord();
 
 protected:
   // This state is constant for a given block frame doing line layout

@@ -54,13 +54,6 @@ struct ParamTraits<GMPDOMException>
 {};
 
 template <>
-struct ParamTraits<GMPSessionMessageType>
-: public ContiguousEnumSerializer<GMPSessionMessageType,
-                                  kGMPLicenseRequest,
-                                  kGMPMessageInvalid>
-{};
-
-template <>
 struct ParamTraits<GMPSessionType>
 : public ContiguousEnumSerializer<GMPSessionType,
                                   kGMPTemporySession,

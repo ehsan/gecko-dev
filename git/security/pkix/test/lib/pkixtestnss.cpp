@@ -74,7 +74,7 @@ InitReusedKeyPair()
   return reusedKeyPair ? PR_SUCCESS : PR_FAILURE;
 }
 
-class NSSTestKeyPair final : public TestKeyPair
+class NSSTestKeyPair : public TestKeyPair
 {
 public:
   // NSSTestKeyPair takes ownership of privateKey.
@@ -86,8 +86,9 @@ public:
   {
   }
 
-  Result SignData(const ByteString& tbs, const ByteString& signatureAlgorithm,
-                  /*out*/ ByteString& signature) const override
+  virtual Result SignData(const ByteString& tbs,
+                          const ByteString& signatureAlgorithm,
+                          /*out*/ ByteString& signature) const
   {
     // signatureAlgorithm is of the form SEQUENCE { OID { <OID bytes> } },
     // whereas SECOID_GetAlgorithmTag wants just the OID bytes, so we have to
@@ -125,7 +126,7 @@ public:
     return Success;
   }
 
-  TestKeyPair* Clone() const override
+  virtual TestKeyPair* Clone() const
   {
     ScopedSECKEYPrivateKey
       privateKeyCopy(SECKEY_CopyPrivateKey(privateKey.get()));

@@ -80,12 +80,6 @@ public:
   void Attributes(nsTArray<Attribute> *aAttrs) const;
 
   /**
-   * Get the text between the given offsets.
-   */
-  void TextSubstring(int32_t aStartOffset, int32_t aEndOfset,
-                     nsString& aText) const;
-
-  /**
    * Allow the platform to store a pointers worth of data on us.
    */
   uintptr_t GetWrapper() const { return mWrapper; }
@@ -112,11 +106,6 @@ private:
   uint64_t mID;
   role mRole : 31;
   bool mOuterDoc : 1;
-};
-
-enum Interfaces
-{
-  HYPERTEXT = 1
 };
 
 }

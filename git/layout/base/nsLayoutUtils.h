@@ -2540,7 +2540,8 @@ public:
 
   static void SetBSizeFromFontMetrics(const nsIFrame* aFrame,
                                       nsHTMLReflowMetrics& aMetrics,
-                                      const mozilla::LogicalMargin& aFramePadding,
+                                      const nsHTMLReflowState& aReflowState,
+                                      mozilla::LogicalMargin aFramePadding, 
                                       mozilla::WritingMode aLineWM,
                                       mozilla::WritingMode aFrameWM);
 

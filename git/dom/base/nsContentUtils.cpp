@@ -485,11 +485,12 @@ nsContentUtils::Init()
       PL_DHashMatchEntryStub,
       PL_DHashMoveEntryStub,
       EventListenerManagerHashClearEntry,
+      PL_DHashFinalizeStub,
       EventListenerManagerHashInitEntry
     };
 
     PL_DHashTableInit(&sEventListenerManagersHash, &hash_table_ops,
-                      sizeof(EventListenerManagerMapEntry));
+                      nullptr, sizeof(EventListenerManagerMapEntry));
 
     RegisterStrongMemoryReporter(new DOMEventListenerManagersHashReporter());
   }
@@ -6258,31 +6259,15 @@ void nsContentUtils::RemoveNewlines(nsString &aString)
 void
 nsContentUtils::PlatformToDOMLineBreaks(nsString &aString)
 {
-  if (!PlatformToDOMLineBreaks(aString, mozilla::fallible_t())) {
-    aString.AllocFailed(aString.Length());
-  }
-}
-
-bool
-nsContentUtils::PlatformToDOMLineBreaks(nsString& aString, const fallible_t& aFallible)
-{
   if (aString.FindChar(char16_t('\r')) != -1) {
     // Windows linebreaks: Map CRLF to LF:
-    if (!aString.ReplaceSubstring(MOZ_UTF16("\r\n"),
-                                  MOZ_UTF16("\n"),
-                                  aFallible)) {
-      return false;
-    }
+    aString.ReplaceSubstring(MOZ_UTF16("\r\n"),
+                             MOZ_UTF16("\n"));
 
     // Mac linebreaks: Map any remaining CR to LF:
-    if (!aString.ReplaceSubstring(MOZ_UTF16("\r"),
-                                  MOZ_UTF16("\n"),
-                                  aFallible)) {
-      return false;
-    }
+    aString.ReplaceSubstring(MOZ_UTF16("\r"),
+                             MOZ_UTF16("\n"));
   }
-
-  return true;
 }
 
 void

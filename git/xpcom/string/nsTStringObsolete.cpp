@@ -454,41 +454,17 @@ nsTString_CharT::ReplaceChar( const char* aSet, char_type aNewChar )
 void ReleaseData(void* aData, uint32_t aFlags);
 
 void
-nsTString_CharT::ReplaceSubstring(const char_type* aTarget,
-                                  const char_type* aNewValue)
+nsTString_CharT::ReplaceSubstring( const char_type* aTarget, const char_type* aNewValue )
 {
   ReplaceSubstring(nsTDependentString_CharT(aTarget),
                    nsTDependentString_CharT(aNewValue));
 }
 
-bool
-nsTString_CharT::ReplaceSubstring(const char_type* aTarget,
-                                  const char_type* aNewValue,
-                                  const fallible_t& fallible)
-{
-  return ReplaceSubstring(nsTDependentString_CharT(aTarget),
-                          nsTDependentString_CharT(aNewValue),
-                          fallible);
-}
-
 void
-nsTString_CharT::ReplaceSubstring(const self_type& aTarget,
-                                  const self_type& aNewValue)
-{
-  if (!ReplaceSubstring(aTarget, aNewValue, fallible_t())) {
-    // Note that this may wildly underestimate the allocation that failed, as
-    // we could have been replacing multiple copies of aTarget.
-    AllocFailed(mLength + (aNewValue.Length() - aTarget.Length()));
-  }
-}
-
-bool
-nsTString_CharT::ReplaceSubstring(const self_type& aTarget,
-                                  const self_type& aNewValue,
-                                  const fallible_t&)
+nsTString_CharT::ReplaceSubstring( const self_type& aTarget, const self_type& aNewValue )
 {
   if (aTarget.Length() == 0)
-    return true;
+    return;
 
   // Remember all of the non-matching parts.
   nsAutoTArray<Segment, 16> nonMatching;
@@ -519,7 +495,7 @@ nsTString_CharT::ReplaceSubstring(const self_type& aTarget,
   if (nonMatching.Length() == 1) {
     MOZ_ASSERT(nonMatching[0].mBegin == 0 && nonMatching[0].mLength == mLength,
                "We should have the correct non-matching segment.");
-    return true;
+    return;
   }
 
   // Make sure that we can mutate our buffer.
@@ -529,7 +505,7 @@ nsTString_CharT::ReplaceSubstring(const self_type& aTarget,
   char_type* oldData;
   uint32_t oldFlags;
   if (!MutatePrep(XPCOM_MAX(mLength, newLength), &oldData, &oldFlags))
-    return false;
+    return;
   if (oldData) {
     // Copy all of the old data to the new buffer.
     char_traits::copy(mData, oldData, mLength);
@@ -573,8 +549,6 @@ nsTString_CharT::ReplaceSubstring(const self_type& aTarget,
   // Adjust the length and make sure the string is null terminated.
   mLength = newLength;
   mData[mLength] = char_type(0);
-
-  return true;
 }
 
 /**

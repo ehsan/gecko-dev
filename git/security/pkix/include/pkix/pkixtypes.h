@@ -73,7 +73,7 @@ enum class SignatureAlgorithm
   unsupported_algorithm = 19,
 };
 
-struct SignedDataWithSignature final
+struct SignedDataWithSignature
 {
 public:
   Input data;
@@ -85,8 +85,7 @@ public:
 
 enum class EndEntityOrCA { MustBeEndEntity = 0, MustBeCA = 1 };
 
-enum class KeyUsage : uint8_t
-{
+enum class KeyUsage : uint8_t {
   digitalSignature = 0,
   nonRepudiation   = 1,
   keyEncipherment  = 2,
@@ -99,8 +98,7 @@ enum class KeyUsage : uint8_t
   noParticularKeyUsageRequired = 0xff,
 };
 
-enum class KeyPurposeId
-{
+enum class KeyPurposeId {
   anyExtendedKeyUsage = 0,
   id_kp_serverAuth = 1,           // id-kp-serverAuth
   id_kp_clientAuth = 2,           // id-kp-clientAuth
@@ -109,8 +107,7 @@ enum class KeyPurposeId
   id_kp_OCSPSigning = 9,          // id-kp-OCSPSigning
 };
 
-struct CertPolicyId final
-{
+struct CertPolicyId {
   uint16_t numBytes;
   static const uint16_t MAX_BYTES = 24;
   uint8_t bytes[MAX_BYTES];
@@ -120,8 +117,7 @@ struct CertPolicyId final
   static const CertPolicyId anyPolicy;
 };
 
-enum class TrustLevel
-{
+enum class TrustLevel {
   TrustAnchor = 1,        // certificate is a trusted root CA certificate or
                           // equivalent *for the given policy*.
   ActivelyDistrusted = 2, // certificate is known to be bad
@@ -139,7 +135,7 @@ enum class TrustLevel
 // field from the issuer's certificate. serialNumber is the entire DER-encoded
 // serial number from the subject certificate (the certificate for which we are
 // checking the revocation status).
-struct CertID final
+struct CertID
 {
 public:
   CertID(Input issuer, Input issuerSubjectPublicKeyInfo, Input serialNumber)
