@@ -217,16 +217,10 @@ and writes it to a file.
 
 .. automodule:: mozlog.structured.handlers
 
-.. autoclass:: BaseHandler
-  :members:
-
 .. autoclass:: StreamHandler
   :members:
 
 .. autoclass:: LogLevelFilter
-  :members:
-
-.. autoclass:: BufferHandler
   :members:
 
 Formatters

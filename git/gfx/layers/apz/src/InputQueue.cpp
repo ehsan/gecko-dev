@@ -127,12 +127,7 @@ InputQueue::ReceiveScrollWheelInput(const nsRefPtr<AsyncPanZoomController>& aTar
                                     uint64_t* aOutInputBlockId) {
   WheelBlockState* block = nullptr;
   if (!mInputBlockQueue.IsEmpty()) {
-    block = mInputBlockQueue.LastElement()->AsWheelBlock();
-
-    // If the block's APZC has been destroyed, request a new block.
-    if (block && block->GetTargetApzc()->IsDestroyed()) {
-      block = nullptr;
-    }
+    block = mInputBlockQueue.LastElement().get()->AsWheelBlock();
   }
 
   if (!block) {

@@ -164,7 +164,8 @@ APZCCallbackHelper::UpdateRootFrame(nsIDOMWindowUtils* aUtils,
                                             margins.bottom,
                                             element, 0);
     CSSRect baseCSS = aMetrics.CalculateCompositedRectInCssPixels();
-    nsRect base(0, 0,
+    nsRect base(baseCSS.x * nsPresContext::AppUnitsPerCSSPixel(),
+                baseCSS.y * nsPresContext::AppUnitsPerCSSPixel(),
                 baseCSS.width * nsPresContext::AppUnitsPerCSSPixel(),
                 baseCSS.height * nsPresContext::AppUnitsPerCSSPixel());
     nsLayoutUtils::SetDisplayPortBaseIfNotSet(content, base);
@@ -207,7 +208,8 @@ APZCCallbackHelper::UpdateSubFrame(nsIContent* aContent,
                                                margins.bottom,
                                                element, 0);
         CSSRect baseCSS = aMetrics.CalculateCompositedRectInCssPixels();
-        nsRect base(0, 0,
+        nsRect base(baseCSS.x * nsPresContext::AppUnitsPerCSSPixel(),
+                    baseCSS.y * nsPresContext::AppUnitsPerCSSPixel(),
                     baseCSS.width * nsPresContext::AppUnitsPerCSSPixel(),
                     baseCSS.height * nsPresContext::AppUnitsPerCSSPixel());
         nsLayoutUtils::SetDisplayPortBaseIfNotSet(aContent, base);

@@ -603,9 +603,7 @@ TabParent::Show(const nsIntSize& size)
         }
     }
 
-    TryCacheDPIAndScale();
-    ShowInfo info(EmptyString(), false, false, mDPI, mDefaultScale.scale);
-
+    ShowInfo info(EmptyString(), false, false);
     if (mFrameElement) {
       nsAutoString name;
       mFrameElement->GetAttr(kNameSpaceID_None, nsGkAtoms::name, name);
@@ -613,7 +611,7 @@ TabParent::Show(const nsIntSize& size)
         mFrameElement->HasAttr(kNameSpaceID_None, nsGkAtoms::allowfullscreen) ||
         mFrameElement->HasAttr(kNameSpaceID_None, nsGkAtoms::mozallowfullscreen);
       bool isPrivate = mFrameElement->HasAttr(kNameSpaceID_None, nsGkAtoms::mozprivatebrowsing);
-      info = ShowInfo(name, allowFullscreen, isPrivate, mDPI, mDefaultScale.scale);
+      info = ShowInfo(name, allowFullscreen, isPrivate);
     }
 
     unused << SendShow(size, info, scrolling, textureFactoryIdentifier, layersId, renderFrame);
