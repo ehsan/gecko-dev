@@ -9,7 +9,6 @@
 #include "mozilla/DebugOnly.h"
 
 #include "jit/IonLinker.h"
-#include "jit/PerfSpewer.h"
 
 #include "jit/IonFrames-inl.h"
 #include "vm/Stack-inl.h"
