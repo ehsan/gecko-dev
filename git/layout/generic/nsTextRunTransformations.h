@@ -144,9 +144,8 @@ private:
                        gfxFontGroup* aFontGroup,
                        const PRUnichar* aString, PRUint32 aLength,
                        const PRUint32 aFlags, nsStyleContext** aStyles,
-                       PRBool aOwnsFactory,
-                       CompressedGlyph *aGlyphStorage)
-    : gfxTextRun(aParams, aString, aLength, aFontGroup, aFlags, aGlyphStorage),
+                       PRBool aOwnsFactory)
+    : gfxTextRun(aParams, aString, aLength, aFontGroup, aFlags, sizeof(nsTransformedTextRun)),
       mFactory(aFactory), mOwnsFactory(aOwnsFactory), mNeedsRebuild(PR_TRUE)
   {
     PRUint32 i;
