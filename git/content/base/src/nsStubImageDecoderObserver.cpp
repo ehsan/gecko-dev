@@ -113,8 +113,7 @@ nsStubImageDecoderObserver::OnImageIsAnimated(imgIRequest *aRequest)
 }
 
 NS_IMETHODIMP
-nsStubImageDecoderObserver::FrameChanged(imgIRequest* aRequest,
-                                         imgIContainer *aContainer,
+nsStubImageDecoderObserver::FrameChanged(imgIContainer *aContainer,
                                          const nsIntRect *aDirtyRect)
 {
     return NS_OK;

@@ -159,11 +159,10 @@ nsImageLoadingContent::~nsImageLoadingContent()
  * imgIContainerObserver impl
  */
 NS_IMETHODIMP
-nsImageLoadingContent::FrameChanged(imgIRequest* aRequest,
-                                    imgIContainer* aContainer,
+nsImageLoadingContent::FrameChanged(imgIContainer* aContainer,
                                     const nsIntRect* aDirtyRect)
 {
-  LOOP_OVER_OBSERVERS(FrameChanged(aRequest, aContainer, aDirtyRect));
+  LOOP_OVER_OBSERVERS(FrameChanged(aContainer, aDirtyRect));
   return NS_OK;
 }
             

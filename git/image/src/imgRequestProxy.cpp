@@ -614,7 +614,7 @@ void imgRequestProxy::FrameChanged(imgIContainer *container,
   if (mListener && !mCanceled) {
     // Hold a ref to the listener while we call it, just in case.
     nsCOMPtr<imgIDecoderObserver> kungFuDeathGrip(mListener);
-    mListener->FrameChanged(this, container, dirtyRect);
+    mListener->FrameChanged(container, dirtyRect);
   }
 }
 
