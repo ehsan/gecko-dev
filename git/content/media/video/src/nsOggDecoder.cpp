@@ -1315,7 +1315,7 @@ NS_IMETHODIMP nsOggDecoder::Observe(nsISupports *aSubjet,
   return NS_OK;
 }
 
-PRUint64 nsOggDecoder::GetBytesLoaded()
+PRUint32 nsOggDecoder::GetBytesLoaded()
 {
   return mBytesDownloaded;
 }
@@ -1330,7 +1330,7 @@ void nsOggDecoder::SetTotalBytes(PRInt64 aBytes)
   mContentLength = aBytes;
 }
 
-void nsOggDecoder::UpdateBytesDownloaded(PRUint64 aBytes)
+void nsOggDecoder::UpdateBytesDownloaded(PRUint32 aBytes)
 {
   mBytesDownloaded = aBytes;
 }

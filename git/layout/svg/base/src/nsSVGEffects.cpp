@@ -398,7 +398,7 @@ nsSVGEffects::GetFilterProperty(nsIFrame *aFrame)
   return static_cast<nsSVGFilterProperty *>(aFrame->GetProperty(nsGkAtoms::filter));
 }
 
-static PLDHashOperator
+static PLDHashOperator PR_CALLBACK
 GatherEnumerator(nsVoidPtrHashKey* aEntry, void* aArg)
 {
   nsTArray<nsSVGRenderingObserver*>* array =

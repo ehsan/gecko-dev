@@ -486,11 +486,6 @@ nsHTMLMediaElement::Play(void)
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  if (mEnded) {
-    mEnded = PR_FALSE;
-    SetCurrentTime(0);
-  }
-
   // TODO: If the playback has ended, then the user agent must set 
   // currentLoop to zero and seek to the effective start.
   float rate = 1.0;
@@ -505,6 +500,7 @@ nsHTMLMediaElement::Play(void)
 
   if (oldPaused)
     DispatchAsyncSimpleEvent(NS_LITERAL_STRING("play"));
+
 
   return NS_OK;
 }
@@ -712,6 +708,7 @@ void nsHTMLMediaElement::PlaybackEnded()
   mBegun = PR_FALSE;
   mEnded = PR_TRUE;
   mPaused = PR_TRUE;
+  SetCurrentTime(0);
   DispatchSimpleEvent(NS_LITERAL_STRING("ended"));
 }
 

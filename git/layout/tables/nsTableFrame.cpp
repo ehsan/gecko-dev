@@ -6881,9 +6881,13 @@ nsTableFrame::InvalidateFrame(nsIFrame* aFrame,
     aFrame->Invalidate(overflowRect);
     parent->Invalidate(aOrigOverflowRect + aOrigRect.TopLeft());
   } else {
+    nsHTMLReflowMetrics desiredSize;
     nsRect rect = aFrame->GetRect();
+    desiredSize.width = rect.width;
+    desiredSize.height = rect.height;
+    desiredSize.mOverflowArea = overflowRect;
     aFrame->CheckInvalidateSizeChange(aOrigRect, aOrigOverflowRect,
-                                      rect.Size());
+                                      desiredSize);
     aFrame->InvalidateRectDifference(aOrigOverflowRect, overflowRect);
     parent->InvalidateRectDifference(aOrigRect, rect);
   }    

@@ -2708,7 +2708,7 @@ SetChildFullZoom(nsIMarkupDocumentViewer* aChild, void* aClosure)
   aChild->SetFullZoom(ZoomInfo->mZoom);
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 SetExtResourceTextZoom(nsIDocument* aDocument, void* aClosure)
 {
   // Would it be better to enumerate external resource viewers instead?
@@ -2724,7 +2724,7 @@ SetExtResourceTextZoom(nsIDocument* aDocument, void* aClosure)
   return PR_TRUE;
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 SetExtResourceFullZoom(nsIDocument* aDocument, void* aClosure)
 {
   // Would it be better to enumerate external resource viewers instead?
