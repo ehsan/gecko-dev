@@ -134,8 +134,7 @@ RestyleTracker::ProcessOneRestyle(Element* aElement,
 void
 RestyleTracker::DoProcessRestyles()
 {
-  PROFILER_LABEL("RestyleTracker", "ProcessRestyles",
-    js::ProfileEntry::Category::CSS);
+  PROFILER_LABEL("CSS", "ProcessRestyles");
 
   mRestyleManager->BeginProcessingRestyles();
 

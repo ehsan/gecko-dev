@@ -812,6 +812,8 @@ class OutOfLinePropagateAbortPar : public OutOfLineCode
     bool generate(CodeGeneratorShared *codegen);
 };
 
+extern const VMFunction InterruptCheckInfo;
+
 } // namespace jit
 } // namespace js
 

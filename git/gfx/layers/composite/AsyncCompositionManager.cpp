@@ -854,9 +854,7 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer)
 bool
 AsyncCompositionManager::TransformShadowTree(TimeStamp aCurrentFrame)
 {
-  PROFILER_LABEL("AsyncCompositionManager", "TransformShadowTree",
-    js::ProfileEntry::Category::GRAPHICS);
-
+  PROFILER_LABEL("AsyncCompositionManager", "TransformShadowTree");
   Layer* root = mLayerManager->GetRoot();
   if (!root) {
     return false;

@@ -5,18 +5,15 @@
 "use strict";
 
 const { Ci, Cc, Cu, Cr, CC } = require("chrome");
+const { Promise: promise } =
+  Cu.import("resource://gre/modules/Promise.jsm", {});
 const Services = require("Services");
 const DevToolsUtils = require("devtools/toolkit/DevToolsUtils");
 const { dumpv } = DevToolsUtils;
+const IOUtil = Cc["@mozilla.org/io-util;1"].getService(Ci.nsIIOUtil);
 
-DevToolsUtils.defineLazyGetter(this, "IOUtil", () => {
-  return Cc["@mozilla.org/io-util;1"].getService(Ci.nsIIOUtil);
-});
-
-DevToolsUtils.defineLazyGetter(this, "ScriptableInputStream", () => {
-  return CC("@mozilla.org/scriptableinputstream;1",
-            "nsIScriptableInputStream", "init");
-});
+const ScriptableInputStream = CC("@mozilla.org/scriptableinputstream;1",
+                                 "nsIScriptableInputStream", "init");
 
 const BUFFER_SIZE = 0x8000;
 

@@ -33,9 +33,7 @@ using namespace mozilla::gfx;
 void
 ClientThebesLayer::PaintThebes()
 {
-  PROFILER_LABEL("ClientThebesLayer", "PaintThebes",
-    js::ProfileEntry::Category::GRAPHICS);
-
+  PROFILER_LABEL("ClientThebesLayer", "PaintThebes");
   NS_ASSERTION(ClientManager()->InDrawing(),
                "Can only draw in drawing phase");
   

@@ -5571,7 +5571,7 @@ CheckFunctionsSequential(ModuleCompiler &m)
 
 // Currently, only one asm.js parallel compilation is allowed at a time.
 // This RAII class attempts to claim this parallel compilation using atomic ops
-// on the helper thread state's asmJSCompilationInProgress.
+// on rt->workerThreadState->asmJSCompilationInProgress.
 class ParallelCompilationGuard
 {
     bool parallelState_;
@@ -5579,13 +5579,13 @@ class ParallelCompilationGuard
     ParallelCompilationGuard() : parallelState_(false) {}
     ~ParallelCompilationGuard() {
         if (parallelState_) {
-            JS_ASSERT(HelperThreadState().asmJSCompilationInProgress == true);
-            HelperThreadState().asmJSCompilationInProgress = false;
+            JS_ASSERT(WorkerThreadState().asmJSCompilationInProgress == true);
+            WorkerThreadState().asmJSCompilationInProgress = false;
         }
     }
     bool claim() {
         JS_ASSERT(!parallelState_);
-        if (!HelperThreadState().asmJSCompilationInProgress.compareExchange(false, true))
+        if (!WorkerThreadState().asmJSCompilationInProgress.compareExchange(false, true))
             return false;
         parallelState_ = true;
         return true;
@@ -5597,11 +5597,11 @@ ParallelCompilationEnabled(ExclusiveContext *cx)
 {
     // If 'cx' isn't a JSContext, then we are already off the main thread so
     // off-thread compilation must be enabled. However, since there are a fixed
-    // number of helper threads and one is already being consumed by this
+    // number of worker threads and one is already being consumed by this
     // parsing task, ensure that there another free thread to avoid deadlock.
     // (Note: there is at most one thread used for parsing so we don't have to
     // worry about general dining philosophers.)
-    if (HelperThreadState().threadCount <= 1)
+    if (WorkerThreadState().threadCount <= 1)
         return false;
 
     if (!cx->isJSContext())
@@ -5621,18 +5621,18 @@ struct ParallelGroupState
     { }
 };
 
-// Block until a helper-assigned LifoAlloc becomes finished.
+// Block until a worker-assigned LifoAlloc becomes finished.
 static AsmJSParallelTask *
 GetFinishedCompilation(ModuleCompiler &m, ParallelGroupState &group)
 {
-    AutoLockHelperThreadState lock;
+    AutoLockWorkerThreadState lock;
 
-    while (!HelperThreadState().asmJSFailed()) {
-        if (!HelperThreadState().asmJSFinishedList().empty()) {
+    while (!WorkerThreadState().asmJSWorkerFailed()) {
+        if (!WorkerThreadState().asmJSFinishedList().empty()) {
             group.outstandingJobs--;
-            return HelperThreadState().asmJSFinishedList().popCopy();
+            return WorkerThreadState().asmJSFinishedList().popCopy();
         }
-        HelperThreadState().wait(GlobalHelperThreadState::CONSUMER);
+        WorkerThreadState().wait(GlobalWorkerThreadState::CONSUMER);
     }
 
     return nullptr;
@@ -5658,7 +5658,7 @@ GenerateCodeForFinishedJob(ModuleCompiler &m, ParallelGroupState &group, AsmJSPa
 
     group.compiledJobs++;
 
-    // Clear the LifoAlloc for use by another helper.
+    // Clear the LifoAlloc for use by another worker.
     TempAllocator &tempAlloc = task->mir->alloc();
     tempAlloc.TempAllocator::~TempAllocator();
     task->lifo.releaseAll();
@@ -5672,7 +5672,7 @@ GetUnusedTask(ParallelGroupState &group, uint32_t i, AsmJSParallelTask **outTask
 {
     // Since functions are dispatched in order, if fewer than |numLifos| functions
     // have been generated, then the |i'th| LifoAlloc must never have been
-    // assigned to a helper thread.
+    // assigned to a worker thread.
     if (i >= group.tasks.length())
         return false;
     *outTask = &group.tasks[i];
@@ -5684,12 +5684,12 @@ CheckFunctionsParallelImpl(ModuleCompiler &m, ParallelGroupState &group)
 {
 #ifdef DEBUG
     {
-        AutoLockHelperThreadState lock;
-        JS_ASSERT(HelperThreadState().asmJSWorklist().empty());
-        JS_ASSERT(HelperThreadState().asmJSFinishedList().empty());
+        AutoLockWorkerThreadState lock;
+        JS_ASSERT(WorkerThreadState().asmJSWorklist().empty());
+        JS_ASSERT(WorkerThreadState().asmJSFinishedList().empty());
     }
 #endif
-    HelperThreadState().resetAsmJSFailureState();
+    WorkerThreadState().resetAsmJSFailureState();
 
     for (unsigned i = 0; PeekToken(m.parser()) == TOK_FUNCTION; i++) {
         // Get exclusive access to an empty LifoAlloc from the thread group's pool.
@@ -5703,7 +5703,7 @@ CheckFunctionsParallelImpl(ModuleCompiler &m, ParallelGroupState &group)
         if (!CheckFunction(m, task->lifo, &mir, &func))
             return false;
 
-        // Perform optimizations and LIR generation on a helper thread.
+        // Perform optimizations and LIR generation on a worker thread.
         task->init(m.cx()->compartment()->runtimeFromAnyThread(), func, mir);
         if (!StartOffThreadAsmJSCompile(m.cx(), task))
             return false;
@@ -5711,7 +5711,7 @@ CheckFunctionsParallelImpl(ModuleCompiler &m, ParallelGroupState &group)
         group.outstandingJobs++;
     }
 
-    // Block for all outstanding helpers to complete.
+    // Block for all outstanding workers to complete.
     while (group.outstandingJobs > 0) {
         AsmJSParallelTask *ignored = nullptr;
         if (!GenerateCodeForFinishedJob(m, group, &ignored))
@@ -5725,12 +5725,12 @@ CheckFunctionsParallelImpl(ModuleCompiler &m, ParallelGroupState &group)
     JS_ASSERT(group.compiledJobs == m.numFunctions());
 #ifdef DEBUG
     {
-        AutoLockHelperThreadState lock;
-        JS_ASSERT(HelperThreadState().asmJSWorklist().empty());
-        JS_ASSERT(HelperThreadState().asmJSFinishedList().empty());
+        AutoLockWorkerThreadState lock;
+        JS_ASSERT(WorkerThreadState().asmJSWorklist().empty());
+        JS_ASSERT(WorkerThreadState().asmJSFinishedList().empty());
     }
 #endif
-    JS_ASSERT(!HelperThreadState().asmJSFailed());
+    JS_ASSERT(!WorkerThreadState().asmJSWorkerFailed());
     return true;
 }
 
@@ -5741,38 +5741,38 @@ CancelOutstandingJobs(ModuleCompiler &m, ParallelGroupState &group)
     // The problem is that all memory for compilation is stored in LifoAllocs
     // maintained in the scope of CheckFunctionsParallel() -- so in order
     // for that function to safely return, and thereby remove the LifoAllocs,
-    // none of that memory can be in use or reachable by helpers.
+    // none of that memory can be in use or reachable by workers.
 
     JS_ASSERT(group.outstandingJobs >= 0);
     if (!group.outstandingJobs)
         return;
 
-    AutoLockHelperThreadState lock;
+    AutoLockWorkerThreadState lock;
 
-    // From the compiling tasks, eliminate those waiting for helper assignation.
-    group.outstandingJobs -= HelperThreadState().asmJSWorklist().length();
-    HelperThreadState().asmJSWorklist().clear();
+    // From the compiling tasks, eliminate those waiting for worker assignation.
+    group.outstandingJobs -= WorkerThreadState().asmJSWorklist().length();
+    WorkerThreadState().asmJSWorklist().clear();
 
     // From the compiling tasks, eliminate those waiting for codegen.
-    group.outstandingJobs -= HelperThreadState().asmJSFinishedList().length();
-    HelperThreadState().asmJSFinishedList().clear();
+    group.outstandingJobs -= WorkerThreadState().asmJSFinishedList().length();
+    WorkerThreadState().asmJSFinishedList().clear();
 
     // Eliminate tasks that failed without adding to the finished list.
-    group.outstandingJobs -= HelperThreadState().harvestFailedAsmJSJobs();
+    group.outstandingJobs -= WorkerThreadState().harvestFailedAsmJSJobs();
 
     // Any remaining tasks are therefore undergoing active compilation.
     JS_ASSERT(group.outstandingJobs >= 0);
     while (group.outstandingJobs > 0) {
-        HelperThreadState().wait(GlobalHelperThreadState::CONSUMER);
+        WorkerThreadState().wait(GlobalWorkerThreadState::CONSUMER);
 
-        group.outstandingJobs -= HelperThreadState().harvestFailedAsmJSJobs();
-        group.outstandingJobs -= HelperThreadState().asmJSFinishedList().length();
-        HelperThreadState().asmJSFinishedList().clear();
+        group.outstandingJobs -= WorkerThreadState().harvestFailedAsmJSJobs();
+        group.outstandingJobs -= WorkerThreadState().asmJSFinishedList().length();
+        WorkerThreadState().asmJSFinishedList().clear();
     }
 
     JS_ASSERT(group.outstandingJobs == 0);
-    JS_ASSERT(HelperThreadState().asmJSWorklist().empty());
-    JS_ASSERT(HelperThreadState().asmJSFinishedList().empty());
+    JS_ASSERT(WorkerThreadState().asmJSWorklist().empty());
+    JS_ASSERT(WorkerThreadState().asmJSFinishedList().empty());
 }
 
 static const size_t LIFO_ALLOC_PARALLEL_CHUNK_SIZE = 1 << 12;
@@ -5783,7 +5783,7 @@ CheckFunctionsParallel(ModuleCompiler &m)
     // If parallel compilation isn't enabled (not enough cores, disabled by
     // pref, etc) or another thread is currently compiling asm.js in parallel,
     // fall back to sequential compilation. (We could lift the latter
-    // constraint by hoisting asmJS* state out of HelperThreadState so multiple
+    // constraint by hoisting asmJS* state out of WorkerThreadState so multiple
     // concurrent asm.js parallel compilations don't race.)
     ParallelCompilationGuard g;
     if (!ParallelCompilationEnabled(m.cx()) || !g.claim())
@@ -5791,8 +5791,8 @@ CheckFunctionsParallel(ModuleCompiler &m)
 
     IonSpew(IonSpew_Logs, "Can't log asm.js script. (Compiled on background thread.)");
 
-    // Saturate all helper threads plus the main thread.
-    size_t numParallelJobs = HelperThreadState().threadCount + 1;
+    // Saturate all worker threads plus the main thread.
+    size_t numParallelJobs = WorkerThreadState().threadCount + 1;
 
     // Allocate scoped AsmJSParallelTask objects. Each contains a unique
     // LifoAlloc that provides all necessary memory for compilation.
@@ -5803,13 +5803,13 @@ CheckFunctionsParallel(ModuleCompiler &m)
     for (size_t i = 0; i < numParallelJobs; i++)
         tasks.infallibleAppend(LIFO_ALLOC_PARALLEL_CHUNK_SIZE);
 
-    // With compilation memory in-scope, dispatch helper threads.
+    // With compilation memory in-scope, dispatch worker threads.
     ParallelGroupState group(tasks);
     if (!CheckFunctionsParallelImpl(m, group)) {
         CancelOutstandingJobs(m, group);
 
-        // If failure was triggered by a helper thread, report error.
-        if (void *maybeFunc = HelperThreadState().maybeAsmJSFailedFunction()) {
+        // If failure was triggered by a worker thread, report error.
+        if (void *maybeFunc = WorkerThreadState().maybeAsmJSFailedFunction()) {
             ModuleCompiler::Func *func = reinterpret_cast<ModuleCompiler::Func *>(maybeFunc);
             return m.failOffset(func->srcOffset(), "allocation failure during compilation");
         }
@@ -7073,7 +7073,7 @@ EstablishPreconditions(ExclusiveContext *cx, AsmJSParser &parser)
 
 #ifdef JS_THREADSAFE
     if (ParallelCompilationEnabled(cx))
-        EnsureHelperThreadsInitialized(cx);
+        EnsureWorkerThreadsInitialized(cx);
 #endif
 
     return true;

@@ -4425,7 +4425,8 @@ ICGetElem_String::Compiler::generateStubCode(MacroAssembler &masm)
                   key, &failure);
 
     // Get char code.
-    masm.loadStringChar(str, key, scratchReg);
+    masm.loadStringChars(str, scratchReg);
+    masm.load16ZeroExtend(BaseIndex(scratchReg, key, TimesTwo, 0), scratchReg);
 
     // Check if char code >= UNIT_STATIC_LIMIT.
     masm.branch32(Assembler::AboveOrEqual, scratchReg, Imm32(StaticStrings::UNIT_STATIC_LIMIT),

@@ -17,7 +17,6 @@ class BaseMachFormatter(base.BaseFormatter):
     def __init__(self, start_time=None, write_interval=False, write_times=True):
         if start_time is None:
             start_time = time.time()
-        start_time = int(start_time * 1000)
         self.start_time = start_time
         self.write_interval = write_interval
         self.write_times = write_times
@@ -90,14 +89,14 @@ class BaseMachFormatter(base.BaseFormatter):
         return self.status_buffer.get(test, {"count": 0, "unexpected": 0, "pass": 0})
 
     def _time(self, data):
-        entry_time = data["time"]
+        entry_time = (data["time"] / 1000)
         if self.write_interval and self.last_time is not None:
             t = entry_time - self.last_time
             self.last_time = entry_time
         else:
             t = entry_time - self.start_time
 
-        return t / 1000.
+        return t
 
 
 class MachFormatter(BaseMachFormatter):

@@ -400,19 +400,12 @@ nsresult nsCocoaUtils::CreateNSImageFromImageContainer(imgIContainer *aImage, ui
     int scaledWidth = (int)ceilf(width * scaleFactor);
     int scaledHeight = (int)ceilf(height * scaleFactor);
 
-    RefPtr<DrawTarget> drawTarget = gfxPlatform::GetPlatform()->
-      CreateOffscreenContentDrawTarget(IntSize(scaledWidth, scaledHeight),
-                                       SurfaceFormat::B8G8R8A8);
-    if (!drawTarget) {
-      NS_ERROR("Failed to create DrawTarget");
-      return NS_ERROR_FAILURE;
-    }
+    nsRefPtr<gfxImageSurface> frame =
+      new gfxImageSurface(gfxIntSize(scaledWidth, scaledHeight), gfxImageFormat::ARGB32);
+    NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
 
-    nsRefPtr<gfxContext> context = new gfxContext(drawTarget);
-    if (!context) {
-      NS_ERROR("Failed to create gfxContext");
-      return NS_ERROR_FAILURE;
-    }
+    nsRefPtr<gfxContext> context = new gfxContext(frame);
+    NS_ENSURE_TRUE(context, NS_ERROR_FAILURE);
 
     aImage->Draw(context, GraphicsFilter::FILTER_NEAREST, gfxMatrix(),
       gfxRect(0.0f, 0.0f, scaledWidth, scaledHeight),
@@ -420,7 +413,8 @@ nsresult nsCocoaUtils::CreateNSImageFromImageContainer(imgIContainer *aImage, ui
       nsIntSize(scaledWidth, scaledHeight),
       nullptr, aWhichFrame, imgIContainer::FLAG_SYNC_DECODE);
 
-    surface = drawTarget->Snapshot();
+    surface =
+      gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(nullptr, frame);
   } else {
     surface = aImage->GetFrame(aWhichFrame, imgIContainer::FLAG_SYNC_DECODE);
   }

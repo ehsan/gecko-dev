@@ -126,9 +126,7 @@ ClientCanvasLayer::Initialize(const Data& aData)
 void
 ClientCanvasLayer::RenderLayer()
 {
-  PROFILER_LABEL("ClientCanvasLayer", "RenderLayer",
-    js::ProfileEntry::Category::GRAPHICS);
-
+  PROFILER_LABEL("ClientCanvasLayer", "Paint");
   if (!IsDirty()) {
     return;
   }

@@ -38,9 +38,7 @@
  * @constructor
  */
 
-const { Cc, Ci, Cu } = require("chrome");
-const Services = require("Services");
-const DevToolsUtils = require("devtools/toolkit/DevToolsUtils");
+const {Cc, Ci, Cu} = require("chrome");
 
 const RX_UNIVERSAL_SELECTOR = /\s*\*\s*/g;
 const RX_NOT = /:not\((.*?)\)/g;
@@ -50,11 +48,9 @@ const RX_ID = /\s*#\w+\s*/g;
 const RX_CLASS_OR_ATTRIBUTE = /\s*(?:\.\w+|\[.+?\])\s*/g;
 const RX_PSEUDO = /\s*:?:([\w-]+)(\(?\)?)\s*/g;
 
-// This should be ok because none of the functions that use this should be used
-// on the worker thread, where Cu is not available.
-if (Cu) {
-  Cu.importGlobalProperties(['CSS']);
-}
+Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.importGlobalProperties(['CSS']);
 
 function CssLogic()
 {
@@ -734,8 +730,8 @@ CssLogic.getSelectors = function CssLogic_getSelectors(aDOMRule)
  */
 CssLogic.l10n = function(aName) CssLogic._strings.GetStringFromName(aName);
 
-DevToolsUtils.defineLazyGetter(CssLogic, "_strings", function() Services.strings
-             .createBundle("chrome://global/locale/devtools/styleinspector.properties"));
+XPCOMUtils.defineLazyGetter(CssLogic, "_strings", function() Services.strings
+        .createBundle("chrome://global/locale/devtools/styleinspector.properties"));
 
 /**
  * Is the given property sheet a content stylesheet?
@@ -1805,6 +1801,6 @@ CssSelectorInfo.prototype = {
   },
 };
 
-DevToolsUtils.defineLazyGetter(this, "domUtils", function() {
+XPCOMUtils.defineLazyGetter(this, "domUtils", function() {
   return Cc["@mozilla.org/inspector/dom-utils;1"].getService(Ci.inIDOMUtils);
 });

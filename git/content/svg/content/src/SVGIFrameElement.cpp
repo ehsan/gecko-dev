@@ -275,8 +275,7 @@ SVGIFrameElement::BindToTree(nsIDocument* aDocument,
     NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
                  "Missing a script blocker!");
 
-    PROFILER_LABEL("SVGIFrameElement", "BindToTree",
-      js::ProfileEntry::Category::OTHER);
+    PROFILER_LABEL("SVGIFrameElement", "BindToTree");
 
     // We're in a document now.  Kick off the frame load.
     LoadSrc();

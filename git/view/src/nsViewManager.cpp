@@ -722,8 +722,7 @@ nsViewManager::DispatchEvent(WidgetGUIEvent *aEvent,
                              nsView* aView,
                              nsEventStatus* aStatus)
 {
-  PROFILER_LABEL("nsViewManager", "DispatchEvent",
-    js::ProfileEntry::Category::EVENTS);
+  PROFILER_LABEL("event", "nsViewManager::DispatchEvent");
 
   WidgetMouseEvent* mouseEvent = aEvent->AsMouseEvent();
   if ((mouseEvent &&

@@ -554,10 +554,6 @@
   background-image: url("chrome://browser/skin/devtools/command-paintflashing.png");
 }
 
-#command-button-screenshot > image {
-  background-image: url("chrome://browser/skin/devtools/command-screenshot.png");
-}
-
 #command-button-responsive > image {
   background-image: url("chrome://browser/skin/devtools/command-responsivemode.png");
 }
@@ -586,10 +582,6 @@
 @media (min-resolution: 2dppx) {
   #command-button-paintflashing > image {
     background-image: url("chrome://browser/skin/devtools/command-paintflashing@2x.png");
-  }
-
-  #command-button-screenshot > image {
-    background-image: url("chrome://browser/skin/devtools/command-screenshot@2x.png");
   }
 
   #command-button-responsive > image {

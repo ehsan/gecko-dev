@@ -547,8 +547,7 @@ nsTimerImpl::Fire()
     return;
   }
 
-  PROFILER_LABEL("Timer", "Fire",
-    js::ProfileEntry::Category::OTHER);
+  PROFILER_LABEL("Timer", "Fire");
 
 #ifdef MOZ_TASK_TRACER
   mozilla::tasktracer::AutoRunFakeTracedTask runTracedTask(mTracedTask);

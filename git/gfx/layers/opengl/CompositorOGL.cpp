@@ -308,27 +308,16 @@ CompositorOGL::Initialize()
     0.0f, 0.0f, 0.0f, 0.0f,
     1.0f, 0.0f, 0.0f, 0.0f,
     0.0f, 1.0f, 0.0f, 0.0f,
-    1.0f, 0.0f, 0.0f, 0.0f,
-    0.0f, 1.0f, 0.0f, 0.0f,
     1.0f, 1.0f, 0.0f, 0.0f,
-
     0.0f, 0.0f, 0.0f, 1.0f,
     1.0f, 0.0f, 0.0f, 1.0f,
     0.0f, 1.0f, 0.0f, 1.0f,
-    1.0f, 0.0f, 0.0f, 1.0f,
-    0.0f, 1.0f, 0.0f, 1.0f,
     1.0f, 1.0f, 0.0f, 1.0f,
-
     0.0f, 0.0f, 0.0f, 2.0f,
     1.0f, 0.0f, 0.0f, 2.0f,
     0.0f, 1.0f, 0.0f, 2.0f,
-    1.0f, 0.0f, 0.0f, 2.0f,
-    0.0f, 1.0f, 0.0f, 2.0f,
     1.0f, 1.0f, 0.0f, 2.0f,
-
     0.0f, 0.0f, 0.0f, 3.0f,
-    1.0f, 0.0f, 0.0f, 3.0f,
-    0.0f, 1.0f, 0.0f, 3.0f,
     1.0f, 0.0f, 0.0f, 3.0f,
     0.0f, 1.0f, 0.0f, 3.0f,
     1.0f, 1.0f, 0.0f, 3.0f,
@@ -685,9 +674,7 @@ CompositorOGL::BeginFrame(const nsIntRegion& aInvalidRegion,
                           Rect *aClipRectOut,
                           Rect *aRenderBoundsOut)
 {
-  PROFILER_LABEL("CompositorOGL", "BeginFrame",
-    js::ProfileEntry::Category::GRAPHICS);
-
+  PROFILER_LABEL("CompositorOGL", "BeginFrame");
   MOZ_ASSERT(!mFrameInProgress, "frame still in progress (should have called EndFrame or AbortFrame");
 
   LayerScope::BeginFrame(mGLContext, PR_Now());
@@ -986,9 +973,7 @@ CompositorOGL::DrawQuad(const Rect& aRect,
                         Float aOpacity,
                         const gfx::Matrix4x4 &aTransform)
 {
-  PROFILER_LABEL("CompositorOGL", "DrawQuad",
-    js::ProfileEntry::Category::GRAPHICS);
-
+  PROFILER_LABEL("CompositorOGL", "DrawQuad");
   MOZ_ASSERT(mFrameInProgress, "frame not started");
 
   IntRect intClipRect;
@@ -1259,9 +1244,7 @@ CompositorOGL::DrawQuad(const Rect& aRect,
 void
 CompositorOGL::EndFrame()
 {
-  PROFILER_LABEL("CompositorOGL", "EndFrame",
-    js::ProfileEntry::Category::GRAPHICS);
-
+  PROFILER_LABEL("CompositorOGL", "EndFrame");
   MOZ_ASSERT(mCurrentRenderTarget == mWindowRenderTarget, "Rendering target not properly restored");
 
 #ifdef MOZ_DUMP_PAINTING
@@ -1536,9 +1519,7 @@ CompositorOGL::BindAndDrawQuads(ShaderProgramOGL *aProg,
     aProg->SetTextureRects(aTextureRects);
   }
 
-  // We are using GL_TRIANGLES here because the Mac Intel drivers fail to properly
-  // process uniform arrays with GL_TRIANGLE_STRIP. Go figure.
-  mGLContext->fDrawArrays(LOCAL_GL_TRIANGLES, 0, 6 * aQuads);
+  mGLContext->fDrawArrays(LOCAL_GL_TRIANGLE_STRIP, 0, 4 * aQuads);
 }
 
 GLuint
