@@ -126,11 +126,31 @@ PRMJ_LocalGMTDifference()
 #define G2037GMTMICROHI        0x00e45fab /* micro secs to 2037 high */
 #define G2037GMTMICROLOW       0x7a238000 /* micro secs to 2037 low */
 
-#if defined(XP_WIN)
+#ifdef HAVE_SYSTEMTIMETOFILETIME
 
 static const int64_t win2un = 0x19DB1DED53E8000;
 
 #define FILETIME2INT64(ft) (((int64_t)ft.dwHighDateTime) << 32LL | (int64_t)ft.dwLowDateTime)
+
+#endif
+
+#if defined(HAVE_GETSYSTEMTIMEASFILETIME) || defined(HAVE_SYSTEMTIMETOFILETIME)
+
+#if defined(HAVE_GETSYSTEMTIMEASFILETIME)
+inline void
+LowResTime(LPFILETIME lpft)
+{
+    GetSystemTimeAsFileTime(lpft);
+}
+#elif defined(HAVE_SYSTEMTIMETOFILETIME)
+inline void
+LowResTime(LPFILETIME lpft)
+{
+    GetCurrentFT(lpft);
+}
+#else
+#error "No implementation of PRMJ_Now was selected."
+#endif
 
 typedef struct CalibrationData {
     long double freq;         /* The performance counter frequency */
@@ -140,7 +160,7 @@ typedef struct CalibrationData {
     /* The last high res time that we returned since recalibrating */
     int64_t last;
 
-    bool calibrated;
+    JSBool calibrated;
 
 #ifdef JS_THREADSAFE
     CRITICAL_SECTION data_lock;
@@ -170,9 +190,9 @@ NowCalibrate()
         /* By wrapping a timeBegin/EndPeriod pair of calls around this loop,
            the loop seems to take much less time (1 ms vs 15ms) on Vista. */
         timeBeginPeriod(1);
-        GetSystemTimeAsFileTime(&ftStart);
+        LowResTime(&ftStart);
         do {
-            GetSystemTimeAsFileTime(&ft);
+            LowResTime(&ft);
         } while (memcmp(&ftStart,&ft, sizeof(ft)) == 0);
         timeEndPeriod(1);
 
@@ -193,7 +213,7 @@ NowCalibrate()
         calibration.offset *= 0.1;
         calibration.last = 0;
 
-        calibration.calibrated = true;
+        calibration.calibrated = JS_TRUE;
     }
 }
 
@@ -235,7 +255,7 @@ static PRCallOnceType calibrationOnce = { 0 };
 
 #endif
 
-#endif /* XP_WIN */
+#endif /* HAVE_GETSYSTEMTIMEASFILETIME */
 
 
 #if defined(XP_OS2)
@@ -338,8 +358,8 @@ PRMJ_Now(void)
     long double lowresTime, highresTimerValue;
     FILETIME ft;
     LARGE_INTEGER now;
-    bool calibrated = false;
-    bool needsCalibration = false;
+    JSBool calibrated = JS_FALSE;
+    JSBool needsCalibration = JS_FALSE;
     int64_t returnedTime;
     long double cachedOffset = 0.0;
 
@@ -349,7 +369,7 @@ PRMJ_Now(void)
        calls seem to immediately take effect. */
     int thiscall = JS_ATOMIC_INCREMENT(&nCalls);
     if (thiscall <= CALIBRATION_DELAY_COUNT) {
-        GetSystemTimeAsFileTime(&ft);
+        LowResTime(&ft);
         return (FILETIME2INT64(ft)-win2un)/10L;
     }
 
@@ -370,7 +390,7 @@ PRMJ_Now(void)
 
                 NowCalibrate();
 
-                calibrated = true;
+                calibrated = JS_TRUE;
 
                 /* Restore spin count */
                 MUTEX_SETSPINCOUNT(&calibration.data_lock, DATALOCK_SPINCOUNT);
@@ -381,7 +401,7 @@ PRMJ_Now(void)
 
 
         /* Calculate a low resolution time */
-        GetSystemTimeAsFileTime(&ft);
+        LowResTime(&ft);
         lowresTime = 0.1*(long double)(FILETIME2INT64(ft) - win2un);
 
         if (calibration.freq > 0.0) {
@@ -442,7 +462,7 @@ PRMJ_Now(void)
                        future, the user will want the high resolution timer, so
                        we don't disable it entirely. */
                     returnedTime = int64_t(lowresTime);
-                    needsCalibration = false;
+                    needsCalibration = JS_FALSE;
                 } else {
                     /* It is possible that when we recalibrate, we will return a
                        value less than what we have returned before; this is
@@ -453,12 +473,12 @@ PRMJ_Now(void)
                        cannot maintain the invariant that Date.now() never
                        decreases; the old implementation has this behavior as
                        well. */
-                    needsCalibration = true;
+                    needsCalibration = JS_TRUE;
                 }
             } else {
                 /* No detectable clock skew */
                 returnedTime = int64_t(highresTime);
-                needsCalibration = false;
+                needsCalibration = JS_FALSE;
             }
         } else {
             /* No high resolution timer is available, so fall back */
@@ -638,7 +658,7 @@ DSTOffsetCache::computeDSTOffsetMilliseconds(int64_t localTimeSeconds)
 }
 
 int64_t
-DSTOffsetCache::getDSTOffsetMilliseconds(int64_t localTimeMilliseconds)
+DSTOffsetCache::getDSTOffsetMilliseconds(int64_t localTimeMilliseconds, JSContext *cx)
 {
     sanityCheck();
 

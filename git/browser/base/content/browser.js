@@ -90,9 +90,6 @@ __defineSetter__("PluralForm", function (val) {
 XPCOMUtils.defineLazyModuleGetter(this, "TelemetryStopwatch",
                                   "resource://gre/modules/TelemetryStopwatch.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "AboutHomeUtils",
-                                  "resource:///modules/AboutHomeUtils.jsm");
-
 #ifdef MOZ_SERVICES_SYNC
 XPCOMUtils.defineLazyGetter(this, "Weave", function() {
   let tmp = {};
@@ -154,8 +151,11 @@ XPCOMUtils.defineLazyGetter(this, "SafeBrowsing", function() {
 });
 #endif
 
-XPCOMUtils.defineLazyModuleGetter(this, "gBrowserNewTabPreloader",
-  "resource:///modules/BrowserNewTabPreloader.jsm", "BrowserNewTabPreloader");
+XPCOMUtils.defineLazyGetter(this, "gBrowserNewTabPreloader", function () {
+  let tmp = {};
+  Cu.import("resource:///modules/BrowserNewTabPreloader.jsm", tmp);
+  return new tmp.BrowserNewTabPreloader();
+});
 
 let gInitialPages = [
   "about:blank",
@@ -219,14 +219,17 @@ XPCOMUtils.defineLazyGetter(this, "PageMenu", function() {
 * one listener that calls all real handlers.
 */
 function pageShowEventHandlers(event) {
-  charsetLoadListener();
-  XULBrowserWindow.asyncUpdateUI();
+  // Filter out events that are not about the document load we are interested in
+  if (event.target == content.document) {
+    charsetLoadListener();
+    XULBrowserWindow.asyncUpdateUI();
 
-  // The PluginClickToPlay events are not fired when navigating using the
-  // BF cache. |event.persisted| is true when the page is loaded from the
-  // BF cache, so this code reshows the notification if necessary.
-  if (event.persisted)
-    gPluginHandler.reshowClickToPlayNotification();
+    // The PluginClickToPlay events are not fired when navigating using the
+    // BF cache. |event.persisted| is true when the page is loaded from the
+    // BF cache, so this code reshows the notification if necessary.
+    if (event.persisted)
+      gPluginHandler.reshowClickToPlayNotification();
+  }
 }
 
 function UpdateBackForwardCommands(aWebNavigation) {
@@ -733,7 +736,7 @@ const gFormSubmitObserver = {
         offset = parseInt(style.paddingLeft) + parseInt(style.borderLeftWidth);
       }
 
-      offset = Math.round(offset * utils.fullZoom);
+      offset = Math.round(offset * utils.screenPixelsPerCSSPixel);
 
       position = "after_start";
     }
@@ -1011,12 +1014,15 @@ var gBrowserInit = {
 
     gBrowser.addEventListener("DOMUpdatePageReport", gPopupBlockerObserver, false);
 
-    // Note that the XBL binding is untrusted
-    gBrowser.addEventListener("PluginBindingAttached", gPluginHandler, true, true);
-    gBrowser.addEventListener("PluginScripted",        gPluginHandler, true);
-    gBrowser.addEventListener("PluginCrashed",         gPluginHandler, true);
-    gBrowser.addEventListener("PluginOutdated",        gPluginHandler, true);
-
+    gBrowser.addEventListener("PluginNotFound",     gPluginHandler, true);
+    gBrowser.addEventListener("PluginCrashed",      gPluginHandler, true);
+    gBrowser.addEventListener("PluginBlocklisted",  gPluginHandler, true);
+    gBrowser.addEventListener("PluginOutdated",     gPluginHandler, true);
+    gBrowser.addEventListener("PluginDisabled",     gPluginHandler, true);
+    gBrowser.addEventListener("PluginClickToPlay",  gPluginHandler, true);
+    gBrowser.addEventListener("PluginPlayPreview",  gPluginHandler, true);
+    gBrowser.addEventListener("PluginVulnerableUpdatable", gPluginHandler, true);
+    gBrowser.addEventListener("PluginVulnerableNoUpdate", gPluginHandler, true);
     gBrowser.addEventListener("NewPluginInstalled", gPluginHandler.newPluginInstalled, true);
 #ifdef XP_MACOSX
     gBrowser.addEventListener("npapi-carbon-event-model-failure", gPluginHandler, true);
@@ -1043,7 +1049,7 @@ var gBrowserInit = {
 
     // set default character set if provided
     if ("arguments" in window && window.arguments.length > 1 && window.arguments[1]) {
-      if (window.arguments[1].startsWith("charset=")) {
+      if (window.arguments[1].indexOf("charset=") != -1) {
         var arrayArgComponents = window.arguments[1].split("=");
         if (arrayArgComponents) {
           //we should "inherit" the charset menu setting in a new window
@@ -1120,7 +1126,7 @@ var gBrowserInit = {
       else if (window.arguments.length >= 3) {
         loadURI(uriToLoad, window.arguments[2], window.arguments[3] || null,
                 window.arguments[4] || false);
-        window.focus();
+        content.focus();
       }
       // Note: loadOneOrMoreURIs *must not* be called if window.arguments.length >= 3.
       // Such callers expect that window.arguments[0] is handled as a single URI.
@@ -1267,11 +1273,7 @@ var gBrowserInit = {
     SocialUI.init();
     AddonManager.addAddonListener(AddonsMgrListener);
 
-    gBrowser.addEventListener("pageshow", function(event) {
-      // Filter out events that are not about the document load we are interested in
-      if (event.target == content.document)
-        setTimeout(pageShowEventHandlers, 0, event);
-    }, true);
+    gBrowser.addEventListener("pageshow", function(evt) { setTimeout(pageShowEventHandlers, 0, evt); }, true);
 
     // Ensure login manager is up and running.
     Cc["@mozilla.org/login-manager;1"].getService(Ci.nsILoginManager);
@@ -1403,6 +1405,12 @@ var gBrowserInit = {
     gSyncUI.init();
 #endif
 
+    // Don't preload new tab pages when the toolbar is hidden
+    // (i.e. when the current window is a popup window).
+    if (window.toolbar.visible) {
+      gBrowserNewTabPreloader.init(window);
+    }
+
     gBrowserThumbnails.init();
     TabView.init();
 
@@ -1424,6 +1432,14 @@ var gBrowserInit = {
       if (gPrefService.getBoolPref("devtools.toolbar.visible")) {
         DeveloperToolbar.show(false);
       }
+    }
+
+    // Enable Inspector?
+    let enabled = gPrefService.getBoolPref("devtools.inspector.enabled");
+    if (enabled) {
+      let cmd = document.getElementById("Tools:Inspect");
+      cmd.removeAttribute("disabled");
+      cmd.removeAttribute("hidden");
     }
 
     // Enable Debugger?
@@ -1453,9 +1469,8 @@ var gBrowserInit = {
     }
 
     // Enable Error Console?
-    // Temporarily enabled. See bug 798925.
-    let consoleEnabled = true || gPrefService.getBoolPref("devtools.errorconsole.enabled") ||
-                         gPrefService.getBoolPref("devtools.chrome.enabled");
+    // XXX Temporarily always-enabled, see bug 601201
+    let consoleEnabled = true || gPrefService.getBoolPref("devtools.errorconsole.enabled");
     if (consoleEnabled) {
       let cmd = document.getElementById("Tools:ErrorConsole");
       cmd.removeAttribute("disabled");
@@ -1551,6 +1566,10 @@ var gBrowserInit = {
     FullScreen.cleanup();
 
     Services.obs.removeObserver(gPluginHandler.pluginCrashed, "plugin-crashed");
+
+    if (!__lookupGetter__("gBrowserNewTabPreloader")) {
+      gBrowserNewTabPreloader.uninit();
+    }
 
     try {
       gBrowser.removeProgressListener(window.XULBrowserWindow);
@@ -1674,8 +1693,6 @@ var gBrowserInit = {
         }
       }
     }
-
-    SocialUI.nonBrowserWindowInit();
 
     gDelayedStartupTimeoutId = setTimeout(this.nonBrowserWindowDelayedStartup.bind(this), 0);
   },
@@ -1970,9 +1987,11 @@ function focusAndSelectUrlBar() {
     if (window.fullScreen)
       FullScreen.mouseoverToggle(true);
 
-    gURLBar.select();
-    if (document.activeElement == gURLBar.inputField)
+    gURLBar.focus();
+    if (document.activeElement == gURLBar.inputField) {
+      gURLBar.select();
       return true;
+    }
   }
   return false;
 }
@@ -2076,28 +2095,21 @@ function BrowserOpenFileWindow()
 {
   // Get filepicker component.
   try {
-    const nsIFilePicker = Ci.nsIFilePicker;
-    let fp = Cc["@mozilla.org/filepicker;1"].createInstance(nsIFilePicker);
-    let fpCallback = function fpCallback_done(aResult) {
-      if (aResult == nsIFilePicker.returnOK) {
-        try {
-          if (fp.file) {
-            gLastOpenDirectory.path =
-              fp.file.parent.QueryInterface(Ci.nsILocalFile);
-          }
-        } catch (ex) {
-        }
-        openUILinkIn(fp.fileURL.spec, "current");
-      }
-    };
-
-    fp.init(window, gNavigatorBundle.getString("openFile"),
-            nsIFilePicker.modeOpen);
-    fp.appendFilters(nsIFilePicker.filterAll | nsIFilePicker.filterText |
-                     nsIFilePicker.filterImages | nsIFilePicker.filterXML |
-                     nsIFilePicker.filterHTML);
+    const nsIFilePicker = Components.interfaces.nsIFilePicker;
+    var fp = Components.classes["@mozilla.org/filepicker;1"].createInstance(nsIFilePicker);
+    fp.init(window, gNavigatorBundle.getString("openFile"), nsIFilePicker.modeOpen);
+    fp.appendFilters(nsIFilePicker.filterAll | nsIFilePicker.filterText | nsIFilePicker.filterImages |
+                     nsIFilePicker.filterXML | nsIFilePicker.filterHTML);
     fp.displayDirectory = gLastOpenDirectory.path;
-    fp.open(fpCallback);
+
+    if (fp.show() == nsIFilePicker.returnOK) {
+      try {
+        if (fp.file)
+          gLastOpenDirectory.path = fp.file.parent.QueryInterface(Ci.nsILocalFile);
+      } catch(e) {
+      }
+      openUILinkIn(fp.fileURL.spec, "current");
+    }
   } catch (ex) {
   }
 }
@@ -2351,10 +2363,6 @@ function URLBarSetURI(aURI) {
 
   if (value == null) {
     let uri = aURI || gBrowser.currentURI;
-    // Strip off "wyciwyg://" and passwords for the location bar
-    try {
-      uri = Services.uriFixup.createExposableURI(uri);
-    } catch (e) {}
 
     // Replace initial page URIs with an empty string
     // only if there's no opener (bug 370555).
@@ -2494,19 +2502,10 @@ function BrowserOnAboutPageLoad(document) {
     // the hidden attribute set on the apps button in aboutHome.xhtml
     if (getBoolPref("browser.aboutHome.apps", false))
       document.getElementById("apps").removeAttribute("hidden");
-
     let ss = Components.classes["@mozilla.org/browser/sessionstore;1"].
              getService(Components.interfaces.nsISessionStore);
-    if (ss.canRestoreLastSession)
-      document.getElementById("launcher").setAttribute("session", "true");
-
-    // Inject search engine and snippets URL.
-    let docElt = document.documentElement;
-    docElt.setAttribute("snippetsURL", AboutHomeUtils.snippetsURL);
-    docElt.setAttribute("searchEngineName",
-                        AboutHomeUtils.defaultSearchEngine.name);
-    docElt.setAttribute("searchEngineURL",
-                        AboutHomeUtils.defaultSearchEngine.searchURL);
+    if (!ss.canRestoreLastSession)
+      document.getElementById("launcher").removeAttribute("session");
   }
 }
 
@@ -2525,13 +2524,13 @@ let BrowserOnClick = {
 
     // If the event came from an ssl error page, it is probably either the "Add
     // Exception…" or "Get me out of here!" button
-    if (ownerDoc.documentURI.startsWith("about:certerror")) {
+    if (/^about:certerror/.test(ownerDoc.documentURI)) {
       this.onAboutCertError(originalTarget, ownerDoc);
     }
-    else if (ownerDoc.documentURI.startsWith("about:blocked")) {
+    else if (/^about:blocked/.test(ownerDoc.documentURI)) {
       this.onAboutBlocked(originalTarget, ownerDoc);
     }
-    else if (ownerDoc.documentURI.startsWith("about:neterror")) {
+    else if (/^about:neterror/.test(ownerDoc.documentURI)) {
       this.onAboutNetError(originalTarget, ownerDoc);
     }
     else if (/^about:home$/i.test(ownerDoc.documentURI)) {
@@ -2767,7 +2766,7 @@ function getMeOutOfHere() {
     url = prefs.getComplexValue("browser.startup.homepage",
                                 Ci.nsIPrefLocalizedString).data;
     // If url is a pipe-delimited set of pages, just take the first one.
-    if (url.contains("|"))
+    if (url.indexOf("|") != -1)
       url = url.split("|")[0];
   } catch(e) {
     Components.utils.reportError("Couldn't get homepage pref: " + e);
@@ -3325,9 +3324,12 @@ const BrowserSearch = {
     if (searchBar && window.fullScreen)
       FullScreen.mouseoverToggle(true);
     if (searchBar)
+      searchBar.focus();
+    if (searchBar && document.activeElement == searchBar.textbox.inputField) {
       searchBar.select();
-    if (!searchBar || document.activeElement != searchBar.textbox.inputField)
+    } else {
       openUILinkIn(Services.search.defaultEngine.searchForm, "current");
+    }
   },
 
   /**
@@ -3473,7 +3475,7 @@ function FillHistoryMenu(aParent) {
 
 function addToUrlbarHistory(aUrlToAdd) {
   if (aUrlToAdd &&
-      !aUrlToAdd.contains(" ") &&
+      aUrlToAdd.indexOf(" ") == -1 &&
       !/[\x00-\x1F]/.test(aUrlToAdd))
     PlacesUIUtils.markPageAsTyped(aUrlToAdd);
 }
@@ -3653,7 +3655,7 @@ function BrowserToolboxCustomizeDone(aToolboxChanged) {
   if (!getBoolPref("ui.click_hold_context_menus", false))
     SetClickAndHoldHandlers();
 
-  gBrowser.selectedBrowser.focus();
+  window.content.focus();
 }
 
 function BrowserToolboxCustomizeChange(aType) {
@@ -4028,7 +4030,6 @@ var XULBrowserWindow = {
   },
 
   onLocationChange: function (aWebProgress, aRequest, aLocationURI, aFlags) {
-    const nsIWebProgressListener = Ci.nsIWebProgressListener;
     var location = aLocationURI ? aLocationURI.spec : "";
     this._hostChanged = true;
 
@@ -4115,7 +4116,12 @@ var XULBrowserWindow = {
       }
 
       if (gURLBar) {
-        URLBarSetURI(aLocationURI);
+        // Strip off "wyciwyg://" and passwords for the location bar
+        let uri = aLocationURI;
+        try {
+          uri = this._uriFixup.createExposableURI(uri);
+        } catch (e) {}
+        URLBarSetURI(uri);
 
         // Update starring UI
         PlacesStarButton.updateState();
@@ -4133,46 +4139,22 @@ var XULBrowserWindow = {
           document.documentElement.removeAttribute("disablechrome");
       }
 
-      // Utility functions for disabling find
-      function shouldDisableFind(aDocument) {
-        let docElt = aDocument.documentElement;
-        return docElt && docElt.getAttribute("disablefastfind") == "true";
-      }
-
-      function disableFindCommands(aDisable) {
-        let findCommands = [document.getElementById("cmd_find"),
-                            document.getElementById("cmd_findAgain"),
-                            document.getElementById("cmd_findPrevious")];
-        for (let elt of findCommands) {
-          if (aDisable)
-            elt.setAttribute("disabled", "true");
-          else
-            elt.removeAttribute("disabled");
-        }
-      }
-
-      function onContentRSChange(e) {
-        if (e.target.readyState != "interactive" && e.target.readyState != "complete")
-          return;
-
-        e.target.removeEventListener("readystate", onContentRSChange);
-        disableFindCommands(shouldDisableFind(e.target));
-      }
-
       // Disable find commands in documents that ask for them to be disabled.
+      let disableFind = false;
       if (aLocationURI &&
           (aLocationURI.schemeIs("about") || aLocationURI.schemeIs("chrome"))) {
-        // Don't need to re-enable/disable find commands for same-document location changes
-        // (e.g. the replaceStates in about:addons)
-        if (!(aFlags & nsIWebProgressListener.LOCATION_CHANGE_SAME_DOCUMENT)) {
-          if (content.document.readyState == "interactive" || content.document.readyState == "complete")
-            disableFindCommands(shouldDisableFind(content.document));
-          else {
-            content.document.addEventListener("readystatechange", onContentRSChange);
-          }
-        }
-      } else
-        disableFindCommands(false);
+        let docElt = content.document.documentElement;
+        disableFind = docElt && docElt.getAttribute("disablefastfind") == "true";
+      }
+      let findCommands = [document.getElementById("cmd_find"),
+                          document.getElementById("cmd_findAgain"),
+                          document.getElementById("cmd_findPrevious")];
+      for (let elt of findCommands) {
+        if (disableFind)
+          elt.setAttribute("disabled", "true");
+        else
+          elt.removeAttribute("disabled");
+      }
 
       if (gFindBarInitialized) {
         if (gFindBar.findMode != gFindBar.FIND_NORMAL) {
@@ -4502,15 +4484,6 @@ var TabsProgressListener = {
     }
 #endif
 
-    // Collect telemetry data about tab load times.
-    if (aWebProgress.DOMWindow == aWebProgress.DOMWindow.top &&
-        aStateFlags & Ci.nsIWebProgressListener.STATE_IS_WINDOW) {
-      if (aStateFlags & Ci.nsIWebProgressListener.STATE_START)
-        TelemetryStopwatch.start("FX_PAGE_LOAD_MS", aBrowser);
-      else if (aStateFlags & Ci.nsIWebProgressListener.STATE_STOP)
-        TelemetryStopwatch.finish("FX_PAGE_LOAD_MS", aBrowser);
-    }
-
     // Attach a listener to watch for "click" events bubbling up from error
     // pages and other similar page. This lets us fix bugs like 401575 which
     // require error page UI to do privileged things, without letting error
@@ -4520,7 +4493,7 @@ var TabsProgressListener = {
 
     if (aStateFlags & Ci.nsIWebProgressListener.STATE_STOP &&
         Components.isSuccessCode(aStatus) &&
-        aWebProgress.DOMWindow.document.documentURI.startsWith("about:")) {
+        /^about:/.test(aWebProgress.DOMWindow.document.documentURI)) {
       aBrowser.addEventListener("click", BrowserOnClick, true);
       aBrowser.addEventListener("pagehide", function onPageHide(event) {
         if (event.target.defaultView.frameElement)
@@ -4544,7 +4517,6 @@ var TabsProgressListener = {
         // Initialize the click-to-play state.
         aBrowser._clickToPlayDoorhangerShown = false;
         aBrowser._clickToPlayPluginsActivated = false;
-        aBrowser._pluginScriptedState = PLUGIN_SCRIPTED_STATE_NONE;
       }
       FullZoom.onLocationChange(aLocationURI, false, aBrowser);
     }
@@ -4677,7 +4649,7 @@ nsBrowserAccess.prototype = {
           gBrowser.loadURIWithFlags(aURI.spec, loadflags, referrer, null, null);
         }
         if (!gPrefService.getBoolPref("browser.tabs.loadDivertedInBackground"))
-          window.focus();
+          content.focus();
     }
     return newWindow;
   },
@@ -4995,7 +4967,7 @@ function toggleSidebar(commandID, forceOpen) {
       sidebarTitle.value = "";
       sidebarBox.hidden = true;
       sidebarSplitter.hidden = true;
-      gBrowser.selectedBrowser.focus();
+      content.focus();
     } else {
       fireSidebarFocusedEvent();
     }
@@ -5346,7 +5318,7 @@ function handleLinkClick(event, href, linkNode) {
 
   if (where == "save") {
     saveURL(href, linkNode ? gatherTextUnder(linkNode) : "", null, true,
-            true, doc.documentURIObject, doc);
+            true, doc.documentURIObject);
     event.preventDefault();
     return true;
   }
@@ -5716,11 +5688,13 @@ var OfflineApps = {
   // OfflineApps Public Methods
   init: function ()
   {
+    Services.obs.addObserver(this, "dom-storage-warn-quota-exceeded", false);
     Services.obs.addObserver(this, "offline-cache-update-completed", false);
   },
 
   uninit: function ()
   {
+    Services.obs.removeObserver(this, "dom-storage-warn-quota-exceeded");
     Services.obs.removeObserver(this, "offline-cache-update-completed");
   },
 
@@ -5838,6 +5812,10 @@ var OfflineApps = {
         usage += cache.usage;
       }
     }
+
+    var storageManager = Cc["@mozilla.org/dom/storagemanager;1"].
+                         getService(Ci.nsIDOMStorageManager);
+    usage += storageManager.getUsage(host);
 
     return usage;
   },
@@ -5958,7 +5936,19 @@ var OfflineApps = {
   // nsIObserver
   observe: function (aSubject, aTopic, aState)
   {
-    if (aTopic == "offline-cache-update-completed") {
+    if (aTopic == "dom-storage-warn-quota-exceeded") {
+      if (aSubject) {
+        var uri = makeURI(aSubject.location.href);
+
+        if (OfflineApps._checkUsage(uri)) {
+          var browserWindow =
+            this._getBrowserWindowForContentWindow(aSubject);
+          var browser = this._getBrowserForContentWindow(browserWindow,
+                                                         aSubject);
+          OfflineApps._warnUsage(browser, uri);
+        }
+      }
+    } else if (aTopic == "offline-cache-update-completed") {
       var cacheUpdate = aSubject.QueryInterface(Ci.nsIOfflineCacheUpdate);
 
       var uri = cacheUpdate.manifestURI;
@@ -7582,9 +7572,9 @@ var MousePosTracker = {
   },
 
   handleEvent: function (event) {
-    var fullZoom = this._windowUtils.fullZoom;
-    this._x = event.screenX / fullZoom - window.mozInnerScreenX;
-    this._y = event.screenY / fullZoom - window.mozInnerScreenY;
+    var screenPixelsPerCSSPixel = this._windowUtils.screenPixelsPerCSSPixel;
+    this._x = event.screenX / screenPixelsPerCSSPixel - window.mozInnerScreenX;
+    this._y = event.screenY / screenPixelsPerCSSPixel - window.mozInnerScreenY;
 
     this._listeners.forEach(function (listener) {
       try {

@@ -25,8 +25,7 @@ TEST_F(ViEExtendedIntegrationTest, RunsBaseTestWithoutErrors) {
   tests_->ViEBaseExtendedTest();
 }
 
-// TODO(phoglund): Crashes on the v4l2loopback camera.
-TEST_F(ViEExtendedIntegrationTest, DISABLED_RunsCaptureTestWithoutErrors) {
+TEST_F(ViEExtendedIntegrationTest, RunsCaptureTestWithoutErrors) {
   tests_->ViECaptureExtendedTest();
 }
 

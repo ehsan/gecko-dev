@@ -66,8 +66,6 @@ EXPORTS = \
   nsIScriptObjectPrincipal.h \
   nsIScriptRuntime.h \
   nsIScriptTimeoutHandler.h \
-  nsJSEnvironment.h \
-  nsJSUtils.h \
   nsPIDOMWindow.h \
   nsPIWindowRoot.h \
   nsFocusManager.h \
@@ -127,10 +125,6 @@ ifdef MOZ_B2G_RIL
 DEFINES += -DMOZ_B2G_RIL
 endif
 
-ifdef MOZ_B2G_FM
-DEFINES += -DMOZ_B2G_FM
-endif
-
 include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
 
@@ -148,6 +142,5 @@ LDFLAGS += $(TK_LIBS)
 endif
 
 XPIDL_FLAGS += \
-  -I$(topsrcdir)/dom/interfaces/base \
   -I$(topsrcdir)/dom/interfaces/events \
   $(NULL)

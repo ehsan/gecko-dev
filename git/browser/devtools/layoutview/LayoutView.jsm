@@ -12,9 +12,9 @@ Cu.import("resource:///modules/inspector.jsm");
 Cu.import("resource:///modules/devtools/LayoutHelpers.jsm");
 Cu.import("resource:///modules/devtools/CssLogic.jsm");
 
-this.EXPORTED_SYMBOLS = ["LayoutView"];
+var EXPORTED_SYMBOLS = ["LayoutView"];
 
-this.LayoutView = function LayoutView(aOptions)
+function LayoutView(aOptions)
 {
   this.chromeDoc = aOptions.document;
   this.inspector = aOptions.inspector;
@@ -123,14 +123,12 @@ LayoutView.prototype = {
    * Destroy the nodes. Remove listeners.
    */
   destroy: function LV_destroy() {
-    this.inspector.off("select", this.onSelect);
-    this.inspector.off("unlocked", this.onUnlock);
+    this.inspector.removeListener("select", this.onSelect);
+    this.inspector.removeListener("unlocked", this.onUnlock);
     this.browser.removeEventListener("MozAfterPaint", this.update, true);
     this.iframe.removeEventListener("keypress", this.bound_handleKeypress, true);
     this.inspector.chromeWindow.removeEventListener("message", this.onMessage, true);
     this.close();
-    this.sizeHeadingLabel = null;
-    this.sizeLabel = null;
     this.iframe = null;
     this.view.parentNode.removeChild(this.view);
   },
@@ -160,10 +158,6 @@ LayoutView.prototype = {
   onDocumentReady: function LV_onDocumentReady() {
     this.documentReady = true;
     this.doc = this.iframe.contentDocument;
-
-    // Save reference to the labels displaying size of the node.
-    this.sizeLabel = this.doc.querySelector(".size > span");
-    this.sizeHeadingLabel = this.doc.getElementById("element-size");
 
     // We can't do that earlier because open() and close() need to do stuff
     // inside the iframe.
@@ -305,9 +299,10 @@ LayoutView.prototype = {
     let width = Math.round(clientRect.width);
     let height = Math.round(clientRect.height);
 
+    let elt = this.doc.querySelector("#element-size");
     let newLabel = width + "x" + height;
-    if (this.sizeHeadingLabel.textContent != newLabel) {
-      this.sizeHeadingLabel.textContent = newLabel;
+    if (elt.textContent != newLabel) {
+      elt.textContent = newLabel;
     }
 
     // If the view is closed, no need to do anything more.
@@ -317,6 +312,7 @@ LayoutView.prototype = {
     let style = this.browser.contentWindow.getComputedStyle(node);;
 
     for (let i in this.map) {
+      let selector = this.map[i].selector;
       let property = this.map[i].property;
       this.map[i].value = parseInt(style.getPropertyValue(property));
     }
@@ -330,10 +326,6 @@ LayoutView.prototype = {
     for (let i in this.map) {
       let selector = this.map[i].selector;
       let span = this.doc.querySelector(selector);
-      if (span.textContent.length > 0 &&
-          span.textContent == this.map[i].value) {
-        continue;
-      }
       span.textContent = this.map[i].value;
     }
 
@@ -343,10 +335,7 @@ LayoutView.prototype = {
     height -= this.map.borderTop.value + this.map.borderBottom.value +
               this.map.paddingTop.value + this.map.paddingBottom.value;
 
-    let newValue = width + "x" + height;
-    if (this.sizeLabel.textContent != newValue) {
-      this.sizeLabel.textContent = newValue;
-    }
+    this.doc.querySelector(".size > span").textContent = width + "x" + height;
   },
 
   /**

@@ -5,7 +5,6 @@
 #ifndef nsButtonBoxFrame_h___
 #define nsButtonBoxFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsBoxFrame.h"
 
 class nsButtonBoxFrame : public nsBoxFrame
@@ -22,17 +21,17 @@ public:
 
   NS_IMETHOD BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
                                          const nsRect&           aDirtyRect,
-                                         const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+                                         const nsDisplayListSet& aLists);
 
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext, 
                                       nsGUIEvent* aEvent,
-                                      nsEventStatus* aEventStatus) MOZ_OVERRIDE;
+                                      nsEventStatus* aEventStatus);
 
   virtual void MouseClicked (nsPresContext* aPresContext, nsGUIEvent* aEvent)
   { DoMouseClick(aEvent, false); }
 
 #ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE {
+  NS_IMETHOD GetFrameName(nsAString& aResult) const {
     return MakeFrameName(NS_LITERAL_STRING("ButtonBoxFrame"), aResult);
   }
 #endif
@@ -42,7 +41,7 @@ public:
    * @param aTrustEvent if true and aEvent as null, then assume the event was trusted
    */
   void DoMouseClick(nsGUIEvent* aEvent, bool aTrustEvent);
-  void UpdateMouseThrough() MOZ_OVERRIDE { AddStateBits(NS_FRAME_MOUSE_THROUGH_NEVER); }
+  void UpdateMouseThrough() { AddStateBits(NS_FRAME_MOUSE_THROUGH_NEVER); }
 }; // class nsButtonBoxFrame
 
 #endif /* nsButtonBoxFrame_h___ */

@@ -14,9 +14,7 @@ NS_IMPL_ISUPPORTS1(SmsDatabaseService, nsISmsDatabaseService)
 NS_IMETHODIMP
 SmsDatabaseService::SaveReceivedMessage(const nsAString& aSender,
                                         const nsAString& aBody,
-                                        const nsAString& aMessageClass,
-                                        uint64_t aDate,
-                                        int32_t* aId)
+                                        uint64_t aDate, int32_t* aId)
 {
   *aId = -1;
   NS_ERROR("We should not be here!");
@@ -34,24 +32,16 @@ SmsDatabaseService::SaveSentMessage(const nsAString& aReceiver,
 }
 
 NS_IMETHODIMP
-SmsDatabaseService::SetMessageDeliveryStatus(int32_t aMessageId,
-                                             const nsAString& aDeliveryStatus)
+SmsDatabaseService::GetMessageMoz(int32_t aMessageId, int32_t aRequestId,
+                                  uint64_t aProcessId)
 {
   NS_ERROR("We should not be here!");
   return NS_OK;
 }
 
 NS_IMETHODIMP
-SmsDatabaseService::GetMessageMoz(int32_t aMessageId,
-                                  nsISmsRequest* aRequest)
-{
-  NS_ERROR("We should not be here!");
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-SmsDatabaseService::DeleteMessage(int32_t aMessageId,
-                                  nsISmsRequest* aRequest)
+SmsDatabaseService::DeleteMessage(int32_t aMessageId, int32_t aRequestId,
+                                  uint64_t aProcessId)
 {
   NS_ERROR("We should not be here!");
   return NS_OK;
@@ -59,16 +49,16 @@ SmsDatabaseService::DeleteMessage(int32_t aMessageId,
 
 NS_IMETHODIMP
 SmsDatabaseService::CreateMessageList(nsIDOMMozSmsFilter* aFilter,
-                                      bool aReverse,
-                                      nsISmsRequest* aRequest)
+                                      bool aReverse, int32_t aRequestId,
+                                      uint64_t aProcessId)
 {
   NS_ERROR("We should not be here!");
   return NS_OK;
 }
 
 NS_IMETHODIMP
-SmsDatabaseService::GetNextMessageInList(int32_t aListId,
-                                         nsISmsRequest* aRequest)
+SmsDatabaseService::GetNextMessageInList(int32_t aListId, int32_t aRequestId,
+                                         uint64_t aProcessId)
 {
   NS_ERROR("We should not be here!");
   return NS_OK;
@@ -82,16 +72,8 @@ SmsDatabaseService::ClearMessageList(int32_t aListId)
 }
 
 NS_IMETHODIMP
-SmsDatabaseService::MarkMessageRead(int32_t aMessageId,
-                                    bool aValue,
-                                    nsISmsRequest* aRequest)
-{
-  NS_ERROR("We should not be here!");
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-SmsDatabaseService::GetThreadList(nsISmsRequest* aRequest)
+SmsDatabaseService::MarkMessageRead(int32_t aMessageId, bool aValue,
+                                  int32_t aRequestId, uint64_t aProcessId)
 {
   NS_ERROR("We should not be here!");
   return NS_OK;

@@ -3,24 +3,24 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 .viewContainer {
-  background: hsl(0,0%,89%); /* This will be seen as the continuation of the ruler */
+  background: #cddae5; /* This will be seen as the continuation of the ruler */
   font-family: monospace;
   font-size: inherit; /* inherit browser's default monospace font size */
 }
 
 .view {
   color: black; /* Default text color */
-  background: white; /* Background of the editor */
+  background: #f0f0ff; /* Background of the editor */
   padding-left: 4px;
 }
 
 .readonly > .view {
-  background: #fdfefd; /* super light green */
+  background: #f0f0ff;
 }
 
 .ruler {
-  background: hsl(0,0%,89%);
-  color: hsl(0,0%,55%);
+  background: #cddae5;
+  color: #7a8a99;
 }
 .ruler.annotations {
   width: 16px;
@@ -105,10 +105,16 @@
   outline: 1px solid grey;
 }
 
-.token_singleline_comment,
-.token_multiline_comment,
-.token_doc_comment  {
-  color: hsl(90,2%,50%); /* grey */
+.token_singleline_comment {
+  color: #45a946; /* green */
+}
+
+.token_multiline_comment {
+  color: #45a946; /* green */
+}
+
+.token_doc_comment {
+  color: #45a946; /* green */
 }
 
 .token_doc_html_markup {
@@ -125,12 +131,12 @@
 }
 
 .token_string {
-  color: hsl(72,100%,27%); /* green */
+  color: #1e66b1; /* blue */
   font-style: italic;
 }
 
 .token_keyword {
-  color: hsl(276,44%,45%); /* purple */
+  color: #dd0058; /* purple */
 }
 
 .token_space {
@@ -149,33 +155,34 @@
 
 .line_caret,
 .annotationLine.currentLine { /* Current line */
-  background: hsl(208, 93%, 94%);
+  background: #dae2ee; /* lighter than the background */
 }
 
 .readonly .line_caret,
 .readonly .annotationLine.currentLine {
-  background: hsl(208, 80%, 90%);
+  background: #cddae5; /* a bit darker than the background */
 }
 
 /* Styling for html syntax highlighting */
 .entity-name-tag {
-  color: hsl(208,48%,40%); /* blue */
+  color: #dd0058; /* purple */
 }
 
 .entity-other-attribute-name {
-  color: hsl(208,48%,40%); /* blue */
+  color: #dd0058; /* purple */
 }
 
 .punctuation-definition-comment {
-  color: hsl(90,2%,50%); /* grey */
+  color: #45a946; /* green */
 }
 
 .comment {
-  color: hsl(90,2%,50%); /* grey */
+  color: #45a946; /* green */
 }
 
 .string-quoted {
-  color: hsl(24,85%,39%); /* orange */
+  color: #1e66b1; /* blue */
+  font-style: italic;
 }
 
 .invalid {

@@ -65,6 +65,7 @@ public:
                          bufferSize);
             return 0;
         }
+        ViETest::Log("callback DeliverFrame is good\n");
         return 0;
     }
 

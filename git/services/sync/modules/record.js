@@ -2,8 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-this.EXPORTED_SYMBOLS = ["WBORecord", "RecordManager", "Records",
-                         "CryptoWrapper", "CollectionKeys", "Collection"];
+const EXPORTED_SYMBOLS = ["WBORecord", "RecordManager", "Records",
+                          "CryptoWrapper", "CollectionKeys", "Collection"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -20,7 +20,7 @@ Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-sync/resource.js");
 Cu.import("resource://services-sync/util.js");
 
-this.WBORecord = function WBORecord(collection, id) {
+function WBORecord(collection, id) {
   this.data = {};
   this.payload = {};
   this.collection = collection;      // Optional.
@@ -97,7 +97,7 @@ XPCOMUtils.defineLazyGetter(this, "Records", function () {
   return new RecordManager();
 });
 
-this.RecordManager = function RecordManager() {
+function RecordManager() {
   this._log = Log4Moz.repository.getLogger(this._logName);
   this._records = {};
 }
@@ -154,7 +154,7 @@ RecordManager.prototype = {
   }
 };
 
-this.CryptoWrapper = function CryptoWrapper(collection, id) {
+function CryptoWrapper(collection, id) {
   this.cleartext = {};
   WBORecord.call(this, collection, id);
   this.ciphertext = null;
@@ -498,7 +498,7 @@ CollectionKeyManager.prototype = {
   }
 }
 
-this.Collection = function Collection(uri, recordObj) {
+function Collection(uri, recordObj) {
   Resource.call(this, uri);
   this._recordObj = recordObj;
 

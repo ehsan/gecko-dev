@@ -17,11 +17,8 @@ EXTRA_COMPONENTS = \
     Identity.manifest \
     $(NULL)
 
-EXTRA_PP_JS_MODULES = \
-    DOMIdentity.jsm \
-    $(NULL)
-
 EXTRA_JS_MODULES = \
+    DOMIdentity.jsm \
     $(NULL)
 
 ifdef ENABLE_TESTS

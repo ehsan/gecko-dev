@@ -208,16 +208,13 @@ nsNPAPIPluginStreamListener::CleanUpStream(NPReason reason)
 
   // Seekable streams have an extra addref when they are created which must
   // be matched here.
-  if (NP_SEEK == mStreamType && mStreamStarted)
+  if (NP_SEEK == mStreamType)
     NS_RELEASE_THIS();
-
-  if (mStreamListenerPeer) {
-    mStreamListenerPeer->CancelRequests(NS_BINDING_ABORTED);
-    mStreamListenerPeer = nullptr;
-  }
-
+  
   if (!mInst || !mInst->CanFireNotifications())
     return rv;
+  
+  mStreamListenerPeer = nullptr;
   
   PluginDestructionGuard guard(mInst);
 
@@ -283,7 +280,7 @@ nsNPAPIPluginStreamListener::CallURLNotify(NPReason reason)
 nsresult
 nsNPAPIPluginStreamListener::OnStartBinding(nsPluginStreamListenerPeer* streamPeer)
 {
-  if (!mInst || !mInst->CanFireNotifications() || mStreamCleanedUp)
+  if (!mInst || !mInst->CanFireNotifications())
     return NS_ERROR_FAILURE;
 
   PluginDestructionGuard guard(mInst);
@@ -852,7 +849,7 @@ nsNPAPIPluginStreamListener::HandleRedirectNotification(nsIChannel *oldChannel, 
     if (NS_SUCCEEDED(oldHttpChannel->GetResponseStatus(&status))) {
       nsCOMPtr<nsIURI> uri;
       if (NS_SUCCEEDED(newHttpChannel->GetURI(getter_AddRefs(uri))) && uri) {
-        nsAutoCString spec;
+        nsCAutoString spec;
         if (NS_SUCCEEDED(uri->GetAsciiSpec(spec))) {
           // At this point the plugin will be responsible for making the callback
           // so save the callback object.
@@ -863,7 +860,6 @@ nsNPAPIPluginStreamListener::HandleRedirectNotification(nsIChannel *oldChannel, 
 #if defined(XP_WIN) || defined(XP_OS2)
           NS_TRY_SAFE_CALL_VOID((*pluginFunctions->urlredirectnotify)(npp, spec.get(), static_cast<int32_t>(status), mNPStreamWrapper->mNPStream.notifyData), mInst);
 #else
-          MAIN_THREAD_JNI_REF_GUARD;
           (*pluginFunctions->urlredirectnotify)(npp, spec.get(), static_cast<int32_t>(status), mNPStreamWrapper->mNPStream.notifyData);
 #endif
           return true;

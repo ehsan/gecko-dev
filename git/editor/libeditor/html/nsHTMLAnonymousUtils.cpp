@@ -44,6 +44,7 @@
 #include "nsStringFwd.h"
 #include "nsUnicharUtils.h"
 #include "nscore.h"
+#include "prtypes.h"
 
 class nsIDOMEventListener;
 class nsISelection;

@@ -95,9 +95,9 @@ static bool test_basic_array(ElementType *data,
     return false;
   if (ary[index] != extra)
     return false;
-  if (ary.IndexOf(extra) == UINT32_MAX)
+  if (ary.IndexOf(extra) == PR_UINT32_MAX)
     return false;
-  if (ary.LastIndexOf(extra) == UINT32_MAX)
+  if (ary.LastIndexOf(extra) == PR_UINT32_MAX)
     return false;
   // ensure proper searching
   if (ary.IndexOf(extra) > ary.LastIndexOf(extra))
@@ -118,12 +118,6 @@ static bool test_basic_array(ElementType *data,
   ary.RemoveElementsAt(copy.Length(), copy.Length());
   ary.Compact();
   if (ary.Capacity() == cap)
-    return false;
-
-  ary.Clear();
-  if (ary.IndexOf(extra) != UINT32_MAX)
-    return false;
-  if (ary.LastIndexOf(extra) != UINT32_MAX)
     return false;
 
   ary.Clear();
@@ -327,7 +321,7 @@ typedef nsCOMPtr<nsIFile> FilePointer;
 class nsFileNameComparator {
   public:
     bool Equals(const FilePointer &a, const char *b) const {
-      nsAutoCString name;
+      nsCAutoString name;
       a->GetNativeLeafName(name);
       return name.Equals(b);
     }

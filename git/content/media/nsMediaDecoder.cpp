@@ -11,7 +11,6 @@
 #include "nsError.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 // Number of milliseconds between progress events as defined by spec
 static const uint32_t PROGRESS_MS = 350;
@@ -31,8 +30,7 @@ nsMediaDecoder::nsMediaDecoder() :
   mElement(nullptr),
   mFrameBufferLength(0),
   mPinnedForSeek(false),
-  mShuttingDown(false),
-  mAudioChannelType(AUDIO_CHANNEL_NORMAL)
+  mShuttingDown(false)
 {
   MOZ_COUNT_CTOR(nsMediaDecoder);
   MediaMemoryReporter::AddMediaDecoder(this);

@@ -15,8 +15,8 @@
  * - all path concatenations go through function |join|.
  */
 if (typeof Components != "undefined") {
-  this.EXPORTED_SYMBOLS = ["OS"];
-  Components.utils.import("resource://gre/modules/osfile/osfile_unix_allthreads.jsm", this);
+  var EXPORTED_SYMBOLS = ["OS"];
+  Components.utils.import("resource://gre/modules/osfile/osfile_unix_allthreads.jsm");
 }
 (function(exports) {
    "use strict";
@@ -112,6 +112,9 @@ if (typeof Components != "undefined") {
            stack.push(v);
          }
        });
+       if (exports.OS.Shared.DEBUG) {
+         exports.OS.Shared.LOG("normalize", "stack", stack.toSource());
+       }
        let string = stack.join("/");
        return absolute ? "/" + string : string;
      },

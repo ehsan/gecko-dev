@@ -17,6 +17,7 @@
 #include "States.h"
 #include "XULMenuAccessible.h"
 
+#include "nsIDOMHTMLInputElement.h"
 #include "nsIDOMNSEditableElement.h"
 #include "nsIDOMXULButtonElement.h"
 #include "nsIDOMXULCheckboxElement.h"
@@ -181,7 +182,7 @@ XULButtonAccessible::CacheChildren()
     mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
                           nsGkAtoms::menuButton, eCaseMatters);
 
-  NS_ENSURE_TRUE_VOID(mDoc);
+  NS_ENSURE_TRUE(mDoc,);
   if (!isMenu && !isMenuButton)
     return;
 
@@ -823,7 +824,7 @@ XULTextFieldAccessible::GetEditor() const
 void
 XULTextFieldAccessible::CacheChildren()
 {
-  NS_ENSURE_TRUE_VOID(mDoc);
+  NS_ENSURE_TRUE(mDoc,);
   // Create child accessibles for native anonymous content of underlying HTML
   // input element.
   nsCOMPtr<nsIContent> inputContent(GetInputField());

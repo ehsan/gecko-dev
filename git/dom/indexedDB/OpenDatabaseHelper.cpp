@@ -1361,7 +1361,7 @@ protected:
                                                  MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE
   {
     return Success_NotSent;
   }
@@ -1435,7 +1435,7 @@ protected:
   }
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE
   {
     return Success_NotSent;
   }
@@ -2018,9 +2018,7 @@ OpenDatabaseHelper::Run()
     IndexedDatabaseManager* manager = IndexedDatabaseManager::Get();
     NS_ASSERTION(manager, "This should never be null!");
 
-    manager->AllowNextSynchronizedOp(
-                                OriginOrPatternString::FromOrigin(mASCIIOrigin),
-                                mDatabaseId);
+    manager->AllowNextSynchronizedOp(mASCIIOrigin, mDatabaseId);
 
     ReleaseMainThreadObjects();
 
@@ -2111,9 +2109,8 @@ OpenDatabaseHelper::EnsureSuccessResult()
   dbInfo->nextIndexId = mLastIndexId + 1;
 
   nsRefPtr<IDBDatabase> database =
-    IDBDatabase::Create(mOpenDBRequest, mOpenDBRequest->Factory(),
-                        dbInfo.forget(), mASCIIOrigin, mFileManager,
-                        mContentParent);
+    IDBDatabase::Create(mOpenDBRequest, dbInfo.forget(), mASCIIOrigin,
+                        mFileManager, mContentParent);
   if (!database) {
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }

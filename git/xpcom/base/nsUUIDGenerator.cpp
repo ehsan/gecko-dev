@@ -100,7 +100,7 @@ nsUUIDGenerator::GenerateUUIDInPlace(nsID* id)
 
 #if defined(XP_WIN)
     HRESULT hr = CoCreateGuid((GUID*)id);
-    if (FAILED(hr))
+    if (NS_FAILED(hr))
         return NS_ERROR_FAILURE;
 #elif defined(XP_MACOSX)
     CFUUIDRef uuid = CFUUIDCreate(kCFAllocatorDefault);

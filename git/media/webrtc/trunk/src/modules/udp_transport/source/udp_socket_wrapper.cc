@@ -18,6 +18,7 @@
 #include "udp_socket_manager_wrapper.h"
 
 #if defined(_WIN32)
+    #include "udp_socket_windows.h"
     #include "udp_socket2_windows.h"
 #else
     #include "udp_socket_posix.h"
@@ -57,12 +58,21 @@ void UdpSocketWrapper::SetEventToNull()
     }
 }
 
+#ifdef USE_WINSOCK2
 UdpSocketWrapper* UdpSocketWrapper::CreateSocket(const WebRtc_Word32 id,
                                                  UdpSocketManager* mgr,
                                                  CallbackObj obj,
                                                  IncomingSocketCallback cb,
                                                  bool ipV6Enable,
                                                  bool disableGQOS)
+#else
+UdpSocketWrapper* UdpSocketWrapper::CreateSocket(const WebRtc_Word32 id,
+                                                 UdpSocketManager* mgr,
+                                                 CallbackObj obj,
+                                                 IncomingSocketCallback cb,
+                                                 bool ipV6Enable,
+                                                 bool /*disableGQOS*/)
+#endif
 
 {
     WEBRTC_TRACE(kTraceMemory, kTraceTransport, id,
@@ -91,7 +101,12 @@ UdpSocketWrapper* UdpSocketWrapper::CreateSocket(const WebRtc_Word32 id,
         _initiated = true;
     }
 
+#ifdef USE_WINSOCK2
     s = new UdpSocket2Windows(id, mgr, ipV6Enable, disableGQOS);
+#else
+    #pragma message("Error: No non-Winsock2 implementation for WinCE")
+    s = new UdpSocketWindows(id, mgr, ipV6Enable);
+#endif
 
 #else
     if (!_initiated)

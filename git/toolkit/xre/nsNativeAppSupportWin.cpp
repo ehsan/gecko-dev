@@ -332,6 +332,22 @@ NS_IMPL_RELEASE_INHERITED(nsNativeAppSupportWin, nsNativeAppSupportBase)
 
 void
 nsNativeAppSupportWin::CheckConsole() {
+    // Try to attach console to the parent process.
+    // It will succeed when the parent process is a command line,
+    // so that stdio will be displayed in it.
+    if (AttachConsole(ATTACH_PARENT_PROCESS)) {
+        // Change std handles to refer to new console handles. Before doing so,
+        // ensure that stdout/stderr haven't been redirected to a valid file
+        if (_fileno(stdout) == -1 || _get_osfhandle(fileno(stdout)) == -1)
+            freopen("CONOUT$", "w", stdout);
+        // There isn't any `CONERR$`, so that we merge stderr into CONOUT$
+        // http://msdn.microsoft.com/en-us/library/windows/desktop/ms683231%28v=vs.85%29.aspx
+        if (_fileno(stderr) == -1 || _get_osfhandle(fileno(stderr)) == -1)
+            freopen("CONOUT$", "w", stderr);
+        if (_fileno(stdin) == -1 || _get_osfhandle(fileno(stdin)) == -1)
+            freopen("CONIN$", "r", stdin);
+    }
+
     for ( int i = 1; i < gArgc; i++ ) {
         if ( strcmp( "-console", gArgv[i] ) == 0
              ||
@@ -392,27 +408,8 @@ nsNativeAppSupportWin::CheckConsole() {
 
             --gArgc;
 
-        } else if ( strcmp( "-attach-console", gArgv[i] ) == 0
-                    ||
-                    strcmp( "/attach-console", gArgv[i] ) == 0 ) {
-            // Try to attach console to the parent process.
-            // It will succeed when the parent process is a command line,
-            // so that stdio will be displayed in it.
-            if (AttachConsole(ATTACH_PARENT_PROCESS)) {
-                // Change std handles to refer to new console handles.
-                // Before doing so, ensure that stdout/stderr haven't been
-                // redirected to a valid file
-                if (_fileno(stdout) == -1 ||
-                    _get_osfhandle(fileno(stdout)) == -1)
-                    freopen("CONOUT$", "w", stdout);
-                // Merge stderr into CONOUT$ since there isn't any `CONERR$`.
-                // http://msdn.microsoft.com/en-us/library/windows/desktop/ms683231%28v=vs.85%29.aspx
-                if (_fileno(stderr) == -1 ||
-                    _get_osfhandle(fileno(stderr)) == -1)
-                    freopen("CONOUT$", "w", stderr);
-                if (_fileno(stdin) == -1 || _get_osfhandle(fileno(stdin)) == -1)
-                    freopen("CONIN$", "r", stdin);
-            }
+            // Don't bother doing this more than once.
+            break;
         }
     }
 
@@ -1033,10 +1030,10 @@ nsNativeAppSupportWin::HandleDDENotification( UINT uType,       // transaction t
 
                         // Use a string buffer for the output data, first
                         // save a quote.
-                        nsAutoCString   outpt( NS_LITERAL_CSTRING("\"") );
+                        nsCAutoString   outpt( NS_LITERAL_CSTRING("\"") );
                         // Now copy the URL converting the Unicode string
                         // to a single-byte ASCII string
-                        nsAutoCString tmpNativeStr;
+                        nsCAutoString tmpNativeStr;
                         NS_CopyUnicodeToNative( url, tmpNativeStr );
                         outpt.Append( tmpNativeStr );
                         // Add the "," used to separate the URL and the page
@@ -1265,7 +1262,7 @@ nsNativeAppSupportWin::HandleCommandLine(const char* aCmdLineString,
     int between, quoted, bSlashCount;
     int argc;
     const char *p;
-    nsAutoCString arg;
+    nsCAutoString arg;
 
     nsCOMPtr<nsICommandLineRunner> cmdLine
         (do_CreateInstance("@mozilla.org/toolkit/command-line;1"));

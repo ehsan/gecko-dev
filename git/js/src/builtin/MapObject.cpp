@@ -746,7 +746,7 @@ class js::MapIteratorObject : public JSObject
     enum { TargetSlot, RangeSlot, SlotCount };
     static JSFunctionSpec methods[];
     static MapIteratorObject *create(JSContext *cx, HandleObject mapobj, ValueMap *data);
-    static void finalize(FreeOp *fop, RawObject obj);
+    static void finalize(FreeOp *fop, JSObject *obj);
 
   private:
     static inline bool is(const Value &v);
@@ -817,7 +817,7 @@ MapIteratorObject::create(JSContext *cx, HandleObject mapobj, ValueMap *data)
 
     JSObject *iterobj = NewObjectWithGivenProto(cx, &MapIteratorClass, proto, global);
     if (!iterobj) {
-        js_delete(range);
+        cx->delete_(range);
         return NULL;
     }
     iterobj->setSlot(TargetSlot, ObjectValue(*mapobj));
@@ -826,7 +826,7 @@ MapIteratorObject::create(JSContext *cx, HandleObject mapobj, ValueMap *data)
 }
 
 void
-MapIteratorObject::finalize(FreeOp *fop, RawObject obj)
+MapIteratorObject::finalize(FreeOp *fop, JSObject *obj)
 {
     fop->delete_(obj->asMapIterator().range());
 }
@@ -845,7 +845,7 @@ MapIteratorObject::next_impl(JSContext *cx, CallArgs args)
     if (!range)
         return js_ThrowStopIteration(cx);
     if (range->empty()) {
-        js_delete(range);
+        cx->delete_(range);
         thisobj.setReservedSlot(RangeSlot, PrivateValue(NULL));
         return js_ThrowStopIteration(cx);
     }
@@ -916,7 +916,8 @@ InitClass(JSContext *cx, Handle<GlobalObject*> global, Class *clasp, JSProtoKey 
         return NULL;
     proto->setPrivate(NULL);
 
-    Rooted<JSFunction*> ctor(cx, global->createConstructor(cx, construct, ClassName(key, cx), 1));
+    JSAtom *atom = cx->runtime->atomState.classAtoms[key];
+    Rooted<JSFunction*> ctor(cx, global->createConstructor(cx, construct, atom, 1));
     if (!ctor ||
         !LinkConstructorAndPrototype(cx, ctor, proto) ||
         !DefinePropertiesAndBrand(cx, proto, NULL, methods) ||
@@ -962,7 +963,7 @@ MarkKey(Range &r, const HashableValue &key, JSTracer *trc)
 }
 
 void
-MapObject::mark(JSTracer *trc, RawObject obj)
+MapObject::mark(JSTracer *trc, JSObject *obj)
 {
     if (ValueMap *map = obj->asMap().getData()) {
         for (ValueMap::Range r = map->all(); !r.empty(); r.popFront()) {
@@ -973,7 +974,7 @@ MapObject::mark(JSTracer *trc, RawObject obj)
 }
 
 void
-MapObject::finalize(FreeOp *fop, RawObject obj)
+MapObject::finalize(FreeOp *fop, JSObject *obj)
 {
     if (ValueMap *map = obj->asMap().getData())
         fop->delete_(map);
@@ -1180,7 +1181,7 @@ MapObject::iterator(JSContext *cx, unsigned argc, Value *vp)
 }
 
 JSObject *
-js_InitMapClass(JSContext *cx, HandleObject obj)
+js_InitMapClass(JSContext *cx, JSObject *obj)
 {
     return MapObject::initClass(cx, obj);
 }
@@ -1194,7 +1195,7 @@ class js::SetIteratorObject : public JSObject
     enum { TargetSlot, RangeSlot, SlotCount };
     static JSFunctionSpec methods[];
     static SetIteratorObject *create(JSContext *cx, HandleObject setobj, ValueSet *data);
-    static void finalize(FreeOp *fop, RawObject obj);
+    static void finalize(FreeOp *fop, JSObject *obj);
 
   private:
     static inline bool is(const Value &v);
@@ -1264,7 +1265,7 @@ SetIteratorObject::create(JSContext *cx, HandleObject setobj, ValueSet *data)
 
     JSObject *iterobj = NewObjectWithGivenProto(cx, &SetIteratorClass, proto, global);
     if (!iterobj) {
-        js_delete(range);
+        cx->delete_(range);
         return NULL;
     }
     iterobj->setSlot(TargetSlot, ObjectValue(*setobj));
@@ -1273,7 +1274,7 @@ SetIteratorObject::create(JSContext *cx, HandleObject setobj, ValueSet *data)
 }
 
 void
-SetIteratorObject::finalize(FreeOp *fop, RawObject obj)
+SetIteratorObject::finalize(FreeOp *fop, JSObject *obj)
 {
     fop->delete_(obj->asSetIterator().range());
 }
@@ -1292,7 +1293,7 @@ SetIteratorObject::next_impl(JSContext *cx, CallArgs args)
     if (!range)
         return js_ThrowStopIteration(cx);
     if (range->empty()) {
-        js_delete(range);
+        cx->delete_(range);
         thisobj.setReservedSlot(RangeSlot, PrivateValue(NULL));
         return js_ThrowStopIteration(cx);
     }
@@ -1355,7 +1356,7 @@ SetObject::initClass(JSContext *cx, JSObject *obj)
 }
 
 void
-SetObject::mark(JSTracer *trc, RawObject obj)
+SetObject::mark(JSTracer *trc, JSObject *obj)
 {
     SetObject *setobj = static_cast<SetObject *>(obj);
     if (ValueSet *set = setobj->getData()) {
@@ -1365,7 +1366,7 @@ SetObject::mark(JSTracer *trc, RawObject obj)
 }
 
 void
-SetObject::finalize(FreeOp *fop, RawObject obj)
+SetObject::finalize(FreeOp *fop, JSObject *obj)
 {
     SetObject *setobj = static_cast<SetObject *>(obj);
     if (ValueSet *set = setobj->getData())
@@ -1521,7 +1522,7 @@ SetObject::iterator(JSContext *cx, unsigned argc, Value *vp)
 }
 
 JSObject *
-js_InitSetClass(JSContext *cx, HandleObject obj)
+js_InitSetClass(JSContext *cx, JSObject *obj)
 {
     return SetObject::initClass(cx, obj);
 }

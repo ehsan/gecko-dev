@@ -154,14 +154,14 @@ function popstateExpected(msg) {
 
 function getColor(elem) {
   var utils = SpecialPowers.wrap(document).defaultView.
-                QueryInterface(SpecialPowers.Ci.nsIInterfaceRequestor).
-                getInterface(SpecialPowers.Ci.nsIDOMWindowUtils);
+                QueryInterface(Components.interfaces.nsIInterfaceRequestor).
+                getInterface(Components.interfaces.nsIDOMWindowUtils);
   return utils.getVisitedDependentComputedStyle(elem, "", "color");
 }
 
 function getSHistory(theWindow)
 {
-  const Ci = SpecialPowers.Ci;
+  const Ci = Components.interfaces;
   var sh = SpecialPowers.wrap(theWindow.QueryInterface(Ci.nsIInterfaceRequestor))
                         .getInterface(Ci.nsIWebNavigation)
                         .sessionHistory;

@@ -190,9 +190,7 @@ function checkPayload(request, reason, successfulPings) {
   const TELEMETRY_PING = "TELEMETRY_PING";
   const TELEMETRY_SUCCESS = "TELEMETRY_SUCCESS";
   const TELEMETRY_TEST_FLAG = "TELEMETRY_TEST_FLAG";
-  const READ_SAVED_PING_SUCCESS = "READ_SAVED_PING_SUCCESS";
   do_check_true(TELEMETRY_PING in payload.histograms);
-  do_check_true(READ_SAVED_PING_SUCCESS in payload.histograms);
   let rh = Telemetry.registeredHistograms;
   for (let name in rh) {
     if (/SQLITE/.test(name) && name in payload.histograms) {
@@ -223,9 +221,6 @@ function checkPayload(request, reason, successfulPings) {
   };
   let tc = payload.histograms[TELEMETRY_SUCCESS];
   do_check_eq(uneval(tc), uneval(expected_tc));
-
-  let h = payload.histograms[READ_SAVED_PING_SUCCESS];
-  do_check_eq(h.values[0], 1);
 
   // The ping should include data from memory reporters.  We can't check that
   // this data is correct, because we can't control the values returned by the
@@ -298,16 +293,6 @@ function checkPersistedHistogramsAsync(request, response) {
 function checkHistogramsAsync(request, response) {
   httpserver.registerPathHandler(PATH, checkPersistedHistogramsAsync);
   checkPayload(request, "test-ping", 3);
-}
-
-function runInvalidJSONTest() {
-  let histogramsFile = getSavedHistogramsFile("invalid-histograms.dat");
-  writeStringToFile(histogramsFile, "this.is.invalid.JSON");
-  do_check_true(histogramsFile.exists());
-  
-  const TelemetryPing = Cc["@mozilla.org/base/telemetry-ping;1"].getService(Ci.nsIObserver);
-  TelemetryPing.observe(histogramsFile, "test-load-histograms", null);
-  do_check_false(histogramsFile.exists());
 }
 
 function runOldPingFileTest() {
@@ -416,7 +401,11 @@ function registerFakePluginHost() {
                             PLUGINHOST_CONTRACTID, PluginHostFactory);
 }
 
-function writeStringToFile(file, contents) {
+function write_fake_shutdown_file() {
+  let profileDirectory = Services.dirsvc.get("ProfD", Ci.nsIFile);
+  let file = profileDirectory.clone();
+  file.append("Telemetry.ShutdownTime.txt");
+  let contents = "" + SHUTDOWN_TIME;
   let ostream = Cc["@mozilla.org/network/safe-file-output-stream;1"]
                 .createInstance(Ci.nsIFileOutputStream);
   ostream.init(file, PR_WRONLY | PR_CREATE_FILE | PR_TRUNCATE,
@@ -424,14 +413,6 @@ function writeStringToFile(file, contents) {
   ostream.write(contents, contents.length);
   ostream.QueryInterface(Ci.nsISafeOutputStream).finish();
   ostream.close();
-}
-
-function write_fake_shutdown_file() {
-  let profileDirectory = Services.dirsvc.get("ProfD", Ci.nsIFile);
-  let file = profileDirectory.clone();
-  file.append("Telemetry.ShutdownTime.txt");
-  let contents = "" + SHUTDOWN_TIME;
-  writeStringToFile(file, contents);
 }
 
 function run_test() {
@@ -460,8 +441,6 @@ function run_test() {
 
   // fake plugin host for consistent flash version data
   registerFakePluginHost();
-
-  runInvalidJSONTest();
 
   Services.obs.addObserver(nonexistentServerObserver, "telemetry-test-xhr-complete", false);
   telemetry_ping();

@@ -22,6 +22,7 @@
 #include "nsString.h"
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
+#include "mozilla/FunctionTimer.h"
 #include "nsIDOMScriptObjectFactory.h"
 #include "nsDOMCID.h"
 #include "nsNodeInfoManager.h"
@@ -244,6 +245,7 @@ nsXULPrototypeDocument::NewXULPDGlobalObject()
 NS_IMETHODIMP
 nsXULPrototypeDocument::Read(nsIObjectInputStream* aStream)
 {
+    NS_TIME_FUNCTION;
     nsresult rv;
 
     rv = aStream->ReadObject(true, getter_AddRefs(mURI));
@@ -321,11 +323,11 @@ nsXULPrototypeDocument::Read(nsIObjectInputStream* aStream)
         }
 
         nsCOMPtr<nsINodeInfo> nodeInfo;
-        // Using UINT16_MAX here as we don't know which nodeinfos will be
+        // Using PR_UINT16_MAX here as we don't know which nodeinfos will be
         // used for attributes and which for elements. And that doesn't really
         // matter.
         tmp = mNodeInfoManager->GetNodeInfo(localName, prefix, namespaceURI,
-                                            UINT16_MAX,
+                                            PR_UINT16_MAX,
                                             getter_AddRefs(nodeInfo));
         if (NS_FAILED(tmp)) {
           rv = tmp;
@@ -756,8 +758,8 @@ nsXULPDGlobalObject::EnsureScriptEnvironment()
     JSObject *newGlob;
     JSCompartment *compartment;
 
-    rv = xpc::CreateGlobalObject(cx, &gSharedGlobalClass, principal, false,
-                                 &newGlob, &compartment);
+    rv = xpc_CreateGlobalObject(cx, &gSharedGlobalClass, principal, nullptr,
+                                false, &newGlob, &compartment);
     NS_ENSURE_SUCCESS(rv, NS_OK);
 
     ::JS_SetGlobalObject(cx, newGlob);

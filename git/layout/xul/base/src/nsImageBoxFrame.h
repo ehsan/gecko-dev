@@ -5,7 +5,6 @@
 #ifndef nsImageBoxFrame_h___
 #define nsImageBoxFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsLeafBoxFrame.h"
 
 #include "imgILoader.h"
@@ -14,8 +13,6 @@
 #include "nsStubImageDecoderObserver.h"
 
 class nsImageBoxFrame;
-
-class nsDisplayXULImage;
 
 class nsImageBoxListener : public nsStubImageDecoderObserver
 {
@@ -45,31 +42,30 @@ private:
 class nsImageBoxFrame : public nsLeafBoxFrame
 {
 public:
-  friend class nsDisplayXULImage;
   NS_DECL_FRAMEARENA_HELPERS
 
   virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState);
   virtual nsSize GetMinSize(nsBoxLayoutState& aBoxLayoutState);
-  virtual nscoord GetBoxAscent(nsBoxLayoutState& aBoxLayoutState) MOZ_OVERRIDE;
-  virtual void MarkIntrinsicWidthsDirty() MOZ_OVERRIDE;
+  virtual nscoord GetBoxAscent(nsBoxLayoutState& aBoxLayoutState);
+  virtual void MarkIntrinsicWidthsDirty();
 
   friend nsIFrame* NS_NewImageBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   NS_IMETHOD  Init(nsIContent*      aContent,
                    nsIFrame*        aParent,
-                   nsIFrame*        asPrevInFlow) MOZ_OVERRIDE;
+                   nsIFrame*        asPrevInFlow);
 
   NS_IMETHOD AttributeChanged(int32_t aNameSpaceID,
                               nsIAtom* aAttribute,
-                              int32_t aModType) MOZ_OVERRIDE;
+                              int32_t aModType);
 
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext) MOZ_OVERRIDE;
+  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
 #ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
   /** 
@@ -87,7 +83,7 @@ public:
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+                              const nsDisplayListSet& aLists);
 
   NS_IMETHOD OnStartContainer(imgIRequest *request, imgIContainer *image);
   NS_IMETHOD OnStopContainer(imgIRequest *request, imgIContainer *image);
@@ -106,7 +102,6 @@ public:
                    const nsRect& aDirtyRect,
                    nsPoint aPt, uint32_t aFlags);
 
-  already_AddRefed<mozilla::layers::ImageContainer> GetContainer();
 protected:
   nsImageBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext);
 
@@ -130,33 +125,5 @@ private:
   bool mUseSrcAttr; ///< Whether or not the image src comes from an attribute.
   bool mSuppressStyleCheck;
 }; // class nsImageBoxFrame
-
-class nsDisplayXULImage : public nsDisplayImageContainer {
-public:
-  nsDisplayXULImage(nsDisplayListBuilder* aBuilder,
-                    nsImageBoxFrame* aFrame) :
-    nsDisplayImageContainer(aBuilder, aFrame) {
-    MOZ_COUNT_CTOR(nsDisplayXULImage);
-  }
-#ifdef NS_BUILD_REFCNT_LOGGING
-  virtual ~nsDisplayXULImage() {
-    MOZ_COUNT_DTOR(nsDisplayXULImage);
-  }
-#endif
-
-  virtual already_AddRefed<ImageContainer> GetContainer() MOZ_OVERRIDE;
-  virtual void ConfigureLayer(ImageLayer* aLayer, const nsIntPoint& aOffset) MOZ_OVERRIDE;
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap)
-  {
-    *aSnap = true;
-    return nsRect(ToReferenceFrame(), GetUnderlyingFrame()->GetSize());
-  }
-
-  // Doesn't handle HitTest because nsLeafBoxFrame already creates an
-  // event receiver for us
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx);
-  NS_DISPLAY_DECL_NAME("XULImage", TYPE_XUL_IMAGE)
-};
 
 #endif /* nsImageBoxFrame_h___ */

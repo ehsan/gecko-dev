@@ -326,7 +326,7 @@ private:
   nsRefPtr<nsCERTValInParamWrapper> mDefaultCERTValInParam;
   nsRefPtr<nsCERTValInParamWrapper> mDefaultCERTValInParamLocalOnly;
 
-  static PRStatus IdentityInfoInit(void);
+  static PRStatus PR_CALLBACK IdentityInfoInit(void);
   PRCallOnceType mIdentityInfoCallOnce;
 
 public:

@@ -145,7 +145,7 @@ class nsGIOInputStream : public nsIInputStream
       , mChannel(nullptr)
       , mHandle(nullptr)
       , mStream(nullptr)
-      , mBytesRemaining(UINT64_MAX)
+      , mBytesRemaining(PR_UINT64_MAX)
       , mStatus(NS_OK)
       , mDirList(nullptr)
       , mDirListPtr(nullptr)
@@ -770,7 +770,7 @@ mount_operation_ask_password (GMountOperation   *mount_op,
     return;
   }
 
-  nsAutoCString scheme, hostPort;
+  nsCAutoString scheme, hostPort;
   uri->GetScheme(scheme);
   uri->GetHostPort(hostPort);
 
@@ -1046,7 +1046,7 @@ nsGIOProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **aResult)
   NS_ENSURE_ARG_POINTER(aURI);
   nsresult rv;
 
-  nsAutoCString spec;
+  nsCAutoString spec;
   rv = aURI->GetSpec(spec);
   if (NS_FAILED(rv))
     return rv;

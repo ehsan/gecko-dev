@@ -8,7 +8,7 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
 
-this.EXPORTED_SYMBOLS = [];
+var EXPORTED_SYMBOLS = [];
 
 Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
@@ -762,8 +762,8 @@ function loadManifestFromRDF(aUri, aStream) {
     }
   }
   else {
-    // spell check dictionaries and language packs never require a restart
-    if (addon.type == "dictionary" || addon.type == "locale")
+    // spell check dictionaries never require a restart
+    if (addon.type == "dictionary")
       addon.bootstrap = true;
 
     // Only extensions are allowed to provide an optionsURL, optionsType or aboutURL. For
@@ -2281,13 +2281,23 @@ var XPIProvider = {
    * @param  aOldPlatformVersion
    *         The version of the platform last run with this profile or null
    *         if it is a new profile or the version is unknown
+   * @param  aMigrateData
+   *         an object generated from a previous version of the database
+   *         holding information about what add-ons were previously userDisabled
+   *         and updated compatibility information if present
+   * @param  aActiveBundles
+   *         When performing recovery after startup this will be an array of
+   *         persistent descriptors of add-ons that are known to be active,
+   *         otherwise it will be null
    * @return a boolean indicating if a change requiring flushing the caches was
    *         detected
    */
   processFileChanges: function XPI_processFileChanges(aState, aManifests,
                                                       aUpdateCompatibility,
                                                       aOldAppVersion,
-                                                      aOldPlatformVersion) {
+                                                      aOldPlatformVersion,
+                                                      aMigrateData,
+                                                      aActiveBundles) {
     let visibleAddons = {};
     let oldBootstrappedAddons = this.bootstrappedAddons;
     this.bootstrappedAddons = {};
@@ -2613,11 +2623,10 @@ var XPIProvider = {
       if (aInstallLocation.name in aManifests)
         newAddon = aManifests[aInstallLocation.name][aId];
 
-      // If we had staged data for this add-on or we aren't recovering from a
-      // corrupt database and we don't have migration data for this add-on then
-      // this must be a new install.
-      let isNewInstall = (!!newAddon) || (!XPIDatabase.activeBundles && !aMigrateData);
-
+      // If we aren't recovering from a corrupt database or we don't have
+      // migration data for this add-on then this must be a new install.
+      let isNewInstall = !aActiveBundles && !aMigrateData;
+ 
       // If it's a new install and we haven't yet loaded the manifest then it
       // must be something dropped directly into the install location
       let isDetectedInstall = isNewInstall && !newAddon;
@@ -2697,14 +2706,14 @@ var XPIProvider = {
           newAddon.userDisabled = true;
       }
 
-      // If we have a list of what add-ons should be marked as active then use
-      // it to guess at migration data.
-      if (!isNewInstall && XPIDatabase.activeBundles) {
+      if (aActiveBundles) {
+        // If we have a list of what add-ons should be marked as active then use
+        // it to guess at migration data
         // For themes we know which is active by the current skin setting
         if (newAddon.type == "theme")
           newAddon.active = newAddon.internalName == XPIProvider.currentSkin;
         else
-          newAddon.active = XPIDatabase.activeBundles.indexOf(aAddonState.descriptor) != -1;
+          newAddon.active = aActiveBundles.indexOf(aAddonState.descriptor) != -1;
 
         // If the add-on wasn't active and it isn't already disabled in some way
         // then it was probably either softDisabled or userDisabled
@@ -2762,10 +2771,9 @@ var XPIProvider = {
           let oldBootstrap = oldBootstrappedAddons[newAddon.id];
           XPIProvider.bootstrappedAddons[newAddon.id] = oldBootstrap;
 
-          // If the old version is the same as the new version, or we're
-          // recovering from a corrupt DB, don't call uninstall and install
-          // methods.
-          if (sameVersion || !isNewInstall)
+          // If the old version is the same as the new version, don't call
+          // uninstall and install methods.
+          if (sameVersion)
             return false;
 
           installReason = Services.vc.compare(oldBootstrap.version, newAddon.version) < 0 ?
@@ -2872,8 +2880,8 @@ var XPIProvider = {
 
       // Get the migration data for this install location.
       let locMigrateData = {};
-      if (XPIDatabase.migrateData && installLocation.name in XPIDatabase.migrateData)
-        locMigrateData = XPIDatabase.migrateData[installLocation.name];
+      if (aMigrateData && installLocation.name in aMigrateData)
+        locMigrateData = aMigrateData[installLocation.name];
       for (let id in addonStates) {
         changed = addMetadata(installLocation, id, addonStates[id],
                               locMigrateData[id]) || changed;
@@ -2894,9 +2902,6 @@ var XPIProvider = {
     // Cache the new install location states
     let cache = JSON.stringify(this.getInstallLocationStates());
     Services.prefs.setCharPref(PREF_INSTALL_CACHE, cache);
-
-    // Clear out any cached migration data.
-    XPIDatabase.migrateData = null;
 
     return changed;
   },
@@ -2960,18 +2965,14 @@ var XPIProvider = {
 
     // Load the list of bootstrapped add-ons first so processFileChanges can
     // modify it
-    try {
-      this.bootstrappedAddons = JSON.parse(Prefs.getCharPref(PREF_BOOTSTRAP_ADDONS,
-                                           "{}"));
-    } catch (e) {
-      WARN("Error parsing enabled bootstrapped extensions cache", e);
-    }
+    this.bootstrappedAddons = JSON.parse(Prefs.getCharPref(PREF_BOOTSTRAP_ADDONS,
+                                         "{}"));
 
     // First install any new add-ons into the locations, if there are any
     // changes then we must update the database with the information in the
     // install locations
     let manifests = {};
-    updateDatabase = this.processPendingFileChanges(manifests) || updateDatabase;
+    updateDatabase = this.processPendingFileChanges(manifests) | updateDatabase;
 
     // This will be true if the previous session made changes that affect the
     // active state of add-ons but didn't commit them properly (normally due
@@ -2979,19 +2980,19 @@ var XPIProvider = {
     let hasPendingChanges = Prefs.getBoolPref(PREF_PENDING_OPERATIONS);
 
     // If the schema appears to have changed then we should update the database
-    updateDatabase = updateDatabase || DB_SCHEMA != Prefs.getIntPref(PREF_DB_SCHEMA, 0);
+    updateDatabase |= DB_SCHEMA != Prefs.getIntPref(PREF_DB_SCHEMA, 0);
 
     // If the application has changed then check for new distribution add-ons
     if (aAppChanged !== false &&
         Prefs.getBoolPref(PREF_INSTALL_DISTRO_ADDONS, true))
-      updateDatabase = this.installDistributionAddons(manifests) || updateDatabase;
+      updateDatabase = this.installDistributionAddons(manifests) | updateDatabase;
 
     let state = this.getInstallLocationStates();
 
     if (!updateDatabase) {
       // If the state has changed then we must update the database
       let cache = Prefs.getCharPref(PREF_INSTALL_CACHE, null);
-      updateDatabase = cache != JSON.stringify(state);
+      updateDatabase |= cache != JSON.stringify(state);
     }
 
     // If the database doesn't exist and there are add-ons installed then we
@@ -3030,13 +3031,14 @@ var XPIProvider = {
       if (updateDatabase || hasPendingChanges) {
         XPIDatabase.beginTransaction();
         transationBegun = true;
-        XPIDatabase.openConnection(false, true);
+        let migrateData = XPIDatabase.openConnection(false, true);
 
         try {
           extensionListChanged = this.processFileChanges(state, manifests,
                                                          aAppChanged,
                                                          aOldAppVersion,
-                                                         aOldPlatformVersion);
+                                                         aOldPlatformVersion,
+                                                         migrateData, null);
         }
         catch (e) {
           ERROR("Error processing file changes", e);
@@ -3717,11 +3719,6 @@ var XPIProvider = {
       Components.manager.addBootstrappedManifestLocation(aFile);
 
     try {
-      // Don't call bootstrap.js methods for language packs,
-      // they only contain chrome.
-      if (aType == "locale")
-         return;
-
       // Load the scope if it hasn't already been loaded
       if (!(aId in this.bootstrapScopes))
         this.loadBootstrapScope(aId, aFile, aVersion, aType);

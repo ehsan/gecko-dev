@@ -1,7 +1,42 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* $Id: mpmontg.c,v 1.25 2012/11/14 01:14:11 wtc%google.com Exp $ */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Sheueling Chang Shantz <sheueling.chang@sun.com>,
+ *   Stephen Fung <stephen.fung@sun.com>, and
+ *   Douglas Stebila <douglas@stebila.ca> of Sun Laboratories.
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
+/* $Id: mpmontg.c,v 1.23 2010/07/20 01:26:02 wtc%google.com Exp $ */
 
 /* This file implements moduluar exponentiation using Montgomery's
  * method for modular reduction.  This file implements the method
@@ -34,6 +69,12 @@
 #define STATIC
 
 #define MAX_ODD_INTS    32   /* 2 ** (WINDOW_BITS - 1) */
+
+#if defined(_WIN32_WCE)
+#define ABORT  res = MP_UNDEF; goto CLEANUP
+#else
+#define ABORT abort()
+#endif
 
 /*! computes T = REDC(T), 2^b == R 
     \param T < RN
@@ -251,7 +292,7 @@ mp_err mp_exptmod_f(const mp_int *   montBase,
       } else if (smallExp & 1) {
 	SQR; MUL(0); 
       } else {
-	abort();
+	ABORT;
       }
     } else if (window_bits == 4) {
       if (!smallExp) {
@@ -265,7 +306,7 @@ mp_err mp_exptmod_f(const mp_int *   montBase,
       } else if (smallExp & 8) {
 	SQR; MUL(smallExp/16); SQR; SQR; SQR; 
       } else {
-	abort();
+	ABORT;
       }
     } else if (window_bits == 5) {
       if (!smallExp) {
@@ -281,7 +322,7 @@ mp_err mp_exptmod_f(const mp_int *   montBase,
       } else if (smallExp & 0x10) {
 	SQR; MUL(smallExp/32); SQR; SQR; SQR; SQR;
       } else {
-	abort();
+	ABORT;
       }
     } else if (window_bits == 6) {
       if (!smallExp) {
@@ -299,10 +340,10 @@ mp_err mp_exptmod_f(const mp_int *   montBase,
       } else if (smallExp & 0x20) {
 	SQR; MUL(smallExp/64); SQR; SQR; SQR; SQR; SQR; 
       } else {
-	abort();
+	ABORT;
       }
     } else {
-      abort();
+      ABORT;
     }
   }
 
@@ -399,7 +440,7 @@ mp_err mp_exptmod_i(const mp_int *   montBase,
       } else if (smallExp & 1) {
 	SQR(pa1,pa2); MUL(0,pa2,pa1);
       } else {
-	abort();
+	ABORT;
       }
     } else if (window_bits == 4) {
       if (!smallExp) {
@@ -417,7 +458,7 @@ mp_err mp_exptmod_i(const mp_int *   montBase,
 	SQR(pa1,pa2); MUL(smallExp/16,pa2,pa1); SQR(pa1,pa2); 
 	SQR(pa2,pa1); SQR(pa1,pa2); SWAPPA;
       } else {
-	abort();
+	ABORT;
       }
     } else if (window_bits == 5) {
       if (!smallExp) {
@@ -439,7 +480,7 @@ mp_err mp_exptmod_i(const mp_int *   montBase,
 	SQR(pa1,pa2); MUL(smallExp/32,pa2,pa1); SQR(pa1,pa2); 
 	SQR(pa2,pa1); SQR(pa1,pa2); SQR(pa2,pa1);
       } else {
-	abort();
+	ABORT;
       }
     } else if (window_bits == 6) {
       if (!smallExp) {
@@ -465,10 +506,10 @@ mp_err mp_exptmod_i(const mp_int *   montBase,
 	SQR(pa1,pa2); MUL(smallExp/64,pa2,pa1); SQR(pa1,pa2); 
 	SQR(pa2,pa1); SQR(pa1,pa2); SQR(pa2,pa1); SQR(pa1,pa2); SWAPPA;
       } else {
-	abort();
+	ABORT;
       }
     } else {
-      abort();
+      ABORT;
     }
   }
 
@@ -1007,7 +1048,7 @@ mp_err mp_exptmod_safe_i(const mp_int *   montBase,
 	} else if (smallExp & 1) {
 	    SQR(pa1,pa2); MUL_NOWEAVE(montBase,pa2,pa1);
 	} else {
-	    abort();
+	    ABORT;
 	}
 	break;
     case 6:
@@ -1022,7 +1063,7 @@ mp_err mp_exptmod_safe_i(const mp_int *   montBase,
 	SQR(pa1,pa2); MUL(smallExp,pa2,pa1);
 	break;
     default:
-	abort(); /* could do a loop? */
+	ABORT; /* could do a loop? */
     }
   }
 

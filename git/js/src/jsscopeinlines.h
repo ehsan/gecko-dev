@@ -7,6 +7,8 @@
 #ifndef jsscopeinlines_h___
 #define jsscopeinlines_h___
 
+#include <new>
+
 #include "jsarray.h"
 #include "jsbool.h"
 #include "jscntxt.h"
@@ -266,7 +268,6 @@ Shape::matchesParamsAfterId(BaseShape *base, uint32_t aslot,
 inline bool
 Shape::getUserId(JSContext *cx, jsid *idp) const
 {
-    AssertCanGC();
     const Shape *self = this;
 #ifdef DEBUG
     {

@@ -222,7 +222,7 @@ nsresult nsIconChannel::MakeInputStream(nsIInputStream **_retval,
   nsCOMPtr<nsIFile> localFile;
   uint32_t desiredImageSize;
   nsXPIDLCString contentType;
-  nsAutoCString filePath;
+  nsCAutoString filePath;
   nsresult rv = ExtractIconInfoFromUrl(getter_AddRefs(localFile),
                                        &desiredImageSize, contentType,
                                        filePath);
@@ -456,7 +456,7 @@ static HPOINTER GetIcon(nsCString& file, bool fExists,
       NS_FAILED(tempPath->AppendNative(file)))
     return 0;
 
-  nsAutoCString pathStr;
+  nsCAutoString pathStr;
   tempPath->GetNativePath(pathStr);
   FILE* fp = fopen(pathStr.get(), "wb+");
   if (fp) {
@@ -606,19 +606,7 @@ nsIconChannel::GetContentDisposition(uint32_t *aContentDisposition)
 }
 
 NS_IMETHODIMP
-nsIconChannel::SetContentDisposition(uint32_t aContentDisposition)
-{
-  return NS_ERROR_NOT_AVAILABLE;
-}
-
-NS_IMETHODIMP
 nsIconChannel::GetContentDispositionFilename(nsAString &aContentDispositionFilename)
-{
-  return NS_ERROR_NOT_AVAILABLE;
-}
-
-NS_IMETHODIMP
-nsIconChannel::SetContentDispositionFilename(const nsAString &aContentDispositionFilename)
 {
   return NS_ERROR_NOT_AVAILABLE;
 }
@@ -703,7 +691,7 @@ NS_IMETHODIMP nsIconChannel::OnStopRequest(nsIRequest* aRequest, nsISupports* aC
 NS_IMETHODIMP nsIconChannel::OnDataAvailable(nsIRequest* aRequest,
                                              nsISupports* aContext,
                                              nsIInputStream* aStream,
-                                             uint64_t aOffset,
+                                             uint32_t aOffset,
                                              uint32_t aCount)
 {
   if (mListener)

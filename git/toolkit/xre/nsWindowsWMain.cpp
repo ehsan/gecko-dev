@@ -42,11 +42,7 @@ int main(int argc, char **argv)
 
 #define main NS_internal_main
 
-#ifndef XRE_WANT_ENVIRON
 int main(int argc, char **argv);
-#else
-int main(int argc, char **argv, char **envp);
-#endif
 
 static char*
 AllocConvertUTF16toUTF8(const WCHAR *arg)
@@ -101,13 +97,7 @@ int wmain(int argc, WCHAR **argv)
   }
   for (int i = 0; i < argc; i++)
     deleteUs[i] = argvConverted[i];
-#ifndef XRE_WANT_ENVIRON
   int result = main(argc, argvConverted);
-#else
-  // Force creation of the multibyte _environ variable.
-  getenv("PATH");
-  int result = main(argc, argvConverted, _environ);
-#endif
 
   delete[] argvConverted;
   FreeAllocStrings(argc, deleteUs);

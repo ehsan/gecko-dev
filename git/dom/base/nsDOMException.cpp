@@ -39,7 +39,6 @@ enum DOM4ErrorTypeCodeMap {
   TimeoutError               = nsIDOMDOMException::TIMEOUT_ERR,
   InvalidNodeTypeError       = nsIDOMDOMException::INVALID_NODE_TYPE_ERR,
   DataCloneError             = nsIDOMDOMException::DATA_CLONE_ERR,
-  EncodingError              = 0,
 
   /* XXX Should be JavaScript native errors */
   TypeError                  = 0,
@@ -320,7 +319,7 @@ nsDOMException::ToString(char **aReturn)
   static const char format[] =
     "[Exception... \"%s\"  code: \"%d\" nsresult: \"0x%x (%s)\"  location: \"%s\"]";
 
-  nsAutoCString location;
+  nsCAutoString location;
 
   if (mInner) {
     nsXPIDLCString filename;

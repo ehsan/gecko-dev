@@ -27,12 +27,14 @@ ScopeObject::enclosingScope() const
     return getReservedSlot(SCOPE_CHAIN_SLOT).toObject();
 }
 
-inline void
-ScopeObject::setEnclosingScope(HandleObject obj)
+inline bool
+ScopeObject::setEnclosingScope(JSContext *cx, HandleObject obj)
 {
-    JS_ASSERT_IF(obj->isCall() || obj->isDeclEnv() || obj->isBlock(),
-                 obj->isDelegate());
-    setFixedSlot(SCOPE_CHAIN_SLOT, ObjectValue(*obj));
+    RootedObject self(cx, this);
+    if (!obj->setDelegate(cx))
+        return false;
+    self->setFixedSlot(SCOPE_CHAIN_SLOT, ObjectValue(*obj));
+    return true;
 }
 
 inline const Value &
@@ -83,12 +85,6 @@ CallObject::setAliasedVar(AliasedFormalIter fi, const Value &v)
     setSlot(fi.scopeSlot(), v);
 }
 
-/*static*/ inline size_t
-CallObject::offsetOfCallee()
-{
-    return getFixedSlotOffset(CALLEE_SLOT);
-}
-
 inline uint32_t
 NestedScopeObject::stackDepth() const
 {
@@ -129,12 +125,14 @@ BlockObject::localIndexToSlot(const Bindings &bindings, unsigned i)
 inline const Value &
 BlockObject::slotValue(unsigned i)
 {
+    JS_ASSERT(i < slotCount());
     return getSlotRef(RESERVED_SLOTS + i);
 }
 
 inline void
 BlockObject::setSlotValue(unsigned i, const Value &v)
 {
+    JS_ASSERT(i < slotCount());
     setSlot(RESERVED_SLOTS + i, v);
 }
 

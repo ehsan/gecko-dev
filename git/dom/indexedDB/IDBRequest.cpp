@@ -22,7 +22,6 @@
 
 #include "AsyncConnectionHelper.h"
 #include "IDBEvents.h"
-#include "IDBFactory.h"
 #include "IDBTransaction.h"
 #include "DOMError.h"
 
@@ -81,6 +80,12 @@ IDBRequest::NotifyHelperCompleted(HelperBase* aHelper)
   NS_ASSERTION(!mHaveResultOrErrorCode, "Already called!");
   NS_ASSERTION(JSVAL_IS_VOID(mResultVal), "Should be undefined!");
 
+  // See if our window is still valid. If not then we're going to pretend that
+  // we never completed.
+  if (NS_FAILED(CheckInnerWindowCorrectness())) {
+    return NS_OK;
+  }
+
   mHaveResultOrErrorCode = true;
 
   nsresult rv = aHelper->GetResultCode();
@@ -88,12 +93,6 @@ IDBRequest::NotifyHelperCompleted(HelperBase* aHelper)
   // If the request failed then set the error code and return.
   if (NS_FAILED(rv)) {
     SetError(rv);
-    return NS_OK;
-  }
-
-  // See if our window is still valid. If not then we're going to pretend that
-  // we never completed.
-  if (NS_FAILED(CheckInnerWindowCorrectness())) {
     return NS_OK;
   }
 
@@ -232,11 +231,11 @@ IDBRequest::GetReadyState(nsAString& aReadyState)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  if (IsPending()) {
-    aReadyState.AssignLiteral("pending");
+  if (mHaveResultOrErrorCode) {
+    aReadyState.AssignLiteral("done");
   }
   else {
-    aReadyState.AssignLiteral("done");
+    aReadyState.AssignLiteral("pending");
   }
 
   return NS_OK;
@@ -294,6 +293,8 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(IDBRequest)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(IDBRequest, IDBWrapperCache)
   // Don't need NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS because
   // nsDOMEventTargetHelper does it for us.
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(success)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(error)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mSource)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mTransaction,
                                                        nsPIDOMEventTarget)
@@ -301,6 +302,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IDBRequest, IDBWrapperCache)
   tmp->mResultVal = JSVAL_VOID;
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(success)
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(error)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mSource)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTransaction)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -321,8 +324,8 @@ NS_IMPL_RELEASE_INHERITED(IDBRequest, IDBWrapperCache)
 
 DOMCI_DATA(IDBRequest, IDBRequest)
 
-NS_IMPL_EVENT_HANDLER(IDBRequest, success)
-NS_IMPL_EVENT_HANDLER(IDBRequest, error)
+NS_IMPL_EVENT_HANDLER(IDBRequest, success);
+NS_IMPL_EVENT_HANDLER(IDBRequest, error);
 
 nsresult
 IDBRequest::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
@@ -341,15 +344,12 @@ IDBOpenDBRequest::~IDBOpenDBRequest()
 
 // static
 already_AddRefed<IDBOpenDBRequest>
-IDBOpenDBRequest::Create(IDBFactory* aFactory,
-                         nsPIDOMWindow* aOwner,
+IDBOpenDBRequest::Create(nsPIDOMWindow* aOwner,
                          JSObject* aScriptOwner,
                          JSContext* aCallingCx)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(aFactory, "Null pointer!");
-
-  nsRefPtr<IDBOpenDBRequest> request = new IDBOpenDBRequest();
+  nsRefPtr<IDBOpenDBRequest> request(new IDBOpenDBRequest());
 
   request->BindToOwner(aOwner);
   if (!request->SetScriptOwner(aScriptOwner)) {
@@ -357,7 +357,6 @@ IDBOpenDBRequest::Create(IDBFactory* aFactory,
   }
 
   request->CaptureCaller(aCallingCx);
-  request->mFactory = aFactory;
 
   return request.forget();
 }
@@ -377,12 +376,14 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(IDBOpenDBRequest)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(IDBOpenDBRequest,
                                                   IDBRequest)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFactory)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(upgradeneeded)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(blocked)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IDBOpenDBRequest,
                                                 IDBRequest)
-  // Don't unlink mFactory!
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(upgradeneeded)
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(blocked)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(IDBOpenDBRequest)
@@ -395,8 +396,8 @@ NS_IMPL_RELEASE_INHERITED(IDBOpenDBRequest, IDBRequest)
 
 DOMCI_DATA(IDBOpenDBRequest, IDBOpenDBRequest)
 
-NS_IMPL_EVENT_HANDLER(IDBOpenDBRequest, blocked)
-NS_IMPL_EVENT_HANDLER(IDBOpenDBRequest, upgradeneeded)
+NS_IMPL_EVENT_HANDLER(IDBOpenDBRequest, blocked);
+NS_IMPL_EVENT_HANDLER(IDBOpenDBRequest, upgradeneeded);
 
 nsresult
 IDBOpenDBRequest::PostHandleEvent(nsEventChainPostVisitor& aVisitor)

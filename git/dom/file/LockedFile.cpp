@@ -327,11 +327,17 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(LockedFile,
                                                   nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mFileHandle,
                                                        nsIDOMEventTarget)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(complete)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(abort)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(error)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(LockedFile,
                                                 nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFileHandle)
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(complete)
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(abort)
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(error)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(LockedFile)
@@ -507,7 +513,7 @@ LockedFile::GetLocation(JSContext* aCx,
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  if (mLocation == UINT64_MAX) {
+  if (mLocation == LL_MAXUINT) {
     *aLocation = JSVAL_NULL;
   }
   else {
@@ -524,7 +530,7 @@ LockedFile::SetLocation(JSContext* aCx,
 
   // Null means the end-of-file.
   if (JSVAL_IS_NULL(aLocation)) {
-    mLocation = UINT64_MAX;
+    mLocation = LL_MAXUINT;
     return NS_OK;
   }
 
@@ -592,7 +598,7 @@ LockedFile::ReadAsArrayBuffer(uint64_t aSize,
     return NS_ERROR_DOM_FILEHANDLE_LOCKEDFILE_INACTIVE_ERR;
   }
 
-  if (mLocation == UINT64_MAX) {
+  if (mLocation == LL_MAXUINT) {
     return NS_ERROR_DOM_FILEHANDLE_NOT_ALLOWED_ERR;
   }
 
@@ -634,7 +640,7 @@ LockedFile::ReadAsText(uint64_t aSize,
     return NS_ERROR_DOM_FILEHANDLE_LOCKEDFILE_INACTIVE_ERR;
   }
 
-  if (mLocation == UINT64_MAX) {
+  if (mLocation == LL_MAXUINT) {
     return NS_ERROR_DOM_FILEHANDLE_NOT_ALLOWED_ERR;
   }
 
@@ -703,11 +709,11 @@ LockedFile::Truncate(uint64_t aSize,
   uint64_t location;
   if (aOptionalArgCount) {
     // Just in case someone calls us from C++
-    NS_ASSERTION(aSize != UINT64_MAX, "Passed wrong size!");
+    NS_ASSERTION(aSize != LL_MAXUINT, "Passed wrong size!");
     location = aSize;
   }
   else {
-    if (mLocation == UINT64_MAX) {
+    if (mLocation == LL_MAXUINT) {
       return NS_ERROR_DOM_FILEHANDLE_NOT_ALLOWED_ERR;
     }
     location = mLocation;
@@ -855,7 +861,7 @@ LockedFile::WriteOrAppend(const jsval& aValue,
     return NS_ERROR_DOM_FILEHANDLE_READ_ONLY_ERR;
   }
 
-  if (!aAppend && mLocation == UINT64_MAX) {
+  if (!aAppend && mLocation == LL_MAXUINT) {
     return NS_ERROR_DOM_FILEHANDLE_NOT_ALLOWED_ERR;
   }
 
@@ -878,7 +884,7 @@ LockedFile::WriteOrAppend(const jsval& aValue,
   nsRefPtr<FileRequest> fileRequest = GenerateFileRequest();
   NS_ENSURE_TRUE(fileRequest, NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR);
 
-  uint64_t location = aAppend ? UINT64_MAX : mLocation;
+  uint64_t location = aAppend ? LL_MAXUINT : mLocation;
 
   nsRefPtr<WriteHelper> helper =
     new WriteHelper(this, fileRequest, location, inputStream, inputLength);
@@ -887,7 +893,7 @@ LockedFile::WriteOrAppend(const jsval& aValue,
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR);
 
   if (aAppend) {
-    mLocation = UINT64_MAX;
+    mLocation = LL_MAXUINT;
   }
   else {
     mLocation += inputLength;

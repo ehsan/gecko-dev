@@ -10,8 +10,8 @@
 #include "nsIDOMPaintRequestList.h"
 #include "nsPresContext.h"
 #include "nsIDOMEvent.h"
+#include "dombindings.h"
 #include "mozilla/Attributes.h"
-#include "nsWrapperCache.h"
 
 class nsPaintRequest MOZ_FINAL : public nsIDOMPaintRequest
 {
@@ -44,7 +44,12 @@ public:
   NS_DECL_NSIDOMPAINTREQUESTLIST
   
   virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
-                               bool *triedToWrap);
+                               bool *triedToWrap)
+  {
+    return mozilla::dom::oldproxybindings::PaintRequestList::create(cx, scope, this,
+                                                           triedToWrap);
+  }
+
   nsISupports* GetParentObject()
   {
     return mParent;
@@ -67,21 +72,6 @@ public:
 #endif
 
     return static_cast<nsPaintRequestList*>(aSupports);
-  }
-
-  uint32_t Length()
-  {
-    return mArray.Count();
-  }
-
-  nsIDOMPaintRequest* Item(uint32_t aIndex)
-  {
-    return mArray.SafeObjectAt(aIndex);
-  }
-  nsIDOMPaintRequest* IndexedGetter(uint32_t aIndex, bool& aFound)
-  {
-    aFound = aIndex < static_cast<uint32_t>(mArray.Count());
-    return aFound ? mArray.ObjectAt(aIndex) : nullptr;
   }
 
 private:

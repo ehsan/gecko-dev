@@ -193,13 +193,6 @@ EnsureSharedSurfaceSize(gfxIntSize size)
   return (sSharedSurfaceData != nullptr);
 }
 
-nsIWidgetListener* nsWindow::GetPaintListener()
-{
-  if (mDestroyCalled)
-    return nullptr;
-  return mAttachedWidgetListener ? mAttachedWidgetListener : mWidgetListener;
-}
-
 bool nsWindow::OnPaint(HDC aDC, uint32_t aNestingLevel)
 {
   // We never have reentrant paint events, except when we're running our RPC
@@ -242,14 +235,10 @@ bool nsWindow::OnPaint(HDC aDC, uint32_t aNestingLevel)
     return true;
   }
 
-  nsIWidgetListener* listener = GetPaintListener();
+  nsIWidgetListener* listener = mAttachedWidgetListener ? mAttachedWidgetListener : mWidgetListener;
   if (listener) {
     listener->WillPaintWindow(this, true);
   }
-  // Re-get the listener since the will paint notification may have killed it.
-  listener = GetPaintListener();
-  if (!listener)
-    return false;
 
   bool result = true;
   PAINTSTRUCT ps;
@@ -304,7 +293,7 @@ bool nsWindow::OnPaint(HDC aDC, uint32_t aNestingLevel)
     debug_DumpPaintEvent(stdout,
                          this,
                          region,
-                         nsAutoCString("noname"),
+                         nsCAutoString("noname"),
                          (int32_t) mWnd);
 #endif // WIDGET_DEBUG_OUTPUT
 

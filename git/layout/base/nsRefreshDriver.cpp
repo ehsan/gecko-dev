@@ -25,7 +25,9 @@
 #include "mozilla/Preferences.h"
 #include "nsIViewManager.h"
 #include "sampler.h"
-#include "nsNPAPIPluginInstance.h"
+
+using mozilla::TimeStamp;
+using mozilla::TimeDuration;
 
 using namespace mozilla;
 
@@ -98,11 +100,6 @@ nsRefreshDriver::~nsRefreshDriver()
   NS_ABORT_IF_FALSE(ObserverCount() == 0,
                     "observers should have unregistered");
   NS_ABORT_IF_FALSE(!mTimer, "timer should be gone");
-  
-  for (uint32_t i = 0; i < mPresShellsToInvalidateIfHidden.Length(); i++) {
-    mPresShellsToInvalidateIfHidden[i]->InvalidatePresShellIfHidden();
-  }
-  mPresShellsToInvalidateIfHidden.Clear();
 }
 
 // Method for testing.  See nsIDOMWindowUtils.advanceTimeAndRefresh
@@ -308,11 +305,6 @@ nsRefreshDriver::Notify(nsITimer *aTimer)
   NS_PRECONDITION(mPresContext, "Why are we notified after disconnection?");
   NS_PRECONDITION(!nsContentUtils::GetCurrentJSContext(),
                   "Shouldn't have a JSContext on the stack");
-  if (nsNPAPIPluginInstance::InPluginCall()) {
-    NS_ERROR("Refresh driver should not run during plugin call!");
-    // Try to survive this by just ignoring the refresh tick.
-    return NS_OK;
-  }
 
   if (mTestControllingRefreshes && aTimer) {
     // Ignore real refreshes from our timer (but honor the others).
@@ -420,11 +412,6 @@ nsRefreshDriver::Notify(nsITimer *aTimer)
     mRequests.EnumerateEntries(nsRefreshDriver::ImageRequestEnumerator, &parms);
     EnsureTimerStarted(false);
   }
-    
-  for (uint32_t i = 0; i < mPresShellsToInvalidateIfHidden.Length(); i++) {
-    mPresShellsToInvalidateIfHidden[i]->InvalidatePresShellIfHidden();
-  }
-  mPresShellsToInvalidateIfHidden.Clear();
 
   if (mViewManagerFlushIsPending) {
 #ifdef DEBUG_INVALIDATIONS
@@ -531,15 +518,6 @@ nsRefreshDriver::IsRefreshObserver(nsARefreshObserver *aObserver,
   return array.Contains(aObserver);
 }
 #endif
-
-void
-nsRefreshDriver::ScheduleViewManagerFlush()
-{
-  NS_ASSERTION(mPresContext->IsRoot(),
-               "Should only schedule view manager flush on root prescontexts");
-  mViewManagerFlushIsPending = true;
-  EnsureTimerStarted(false);
-}
 
 void
 nsRefreshDriver::ScheduleFrameRequestCallbacks(nsIDocument* aDocument)

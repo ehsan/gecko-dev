@@ -149,8 +149,8 @@ extern "C" {
   tdi.version = 0;
   tdi.min = 0;
 
-  tdi.value = INT32_MAX * (mValue / mMax);
-  tdi.max = INT32_MAX;
+  tdi.value = PR_INT32_MAX * (mValue / mMax);
+  tdi.max = PR_INT32_MAX;
   tdi.bounds = NSRectToCGRect(cellFrame);
   tdi.attributes = mIsHorizontal ? kThemeTrackHorizontal : 0;
   tdi.enableState = [self controlTint] == NSClearControlTint ? kThemeTrackInactive
@@ -460,16 +460,6 @@ nsNativeThemeCocoa::~nsNativeThemeCocoa()
 // different amounts of RAM.
 #define BITMAP_MAX_AREA 500000
 
-static int
-GetBackingScaleFactorForRendering(CGContextRef cgContext)
-{
-  CGAffineTransform ctm = CGContextGetUserSpaceToDeviceSpaceTransform(cgContext);
-  CGRect transformedUserSpacePixel = CGRectApplyAffineTransform(CGRectMake(0, 0, 1, 1), ctm);
-  float maxScale = NS_MAX(fabs(transformedUserSpacePixel.size.width),
-                          fabs(transformedUserSpacePixel.size.height));
-  return maxScale > 1.0 ? 2 : 1;  
-}
-
 /*
  * Draw the given NSCell into the given cgContext.
  *
@@ -552,11 +542,10 @@ static void DrawCellWithScaling(NSCell *cell,
     w += MAX_FOCUS_RING_WIDTH * 2.0;
     h += MAX_FOCUS_RING_WIDTH * 2.0;
 
-    int backingScaleFactor = GetBackingScaleFactorForRendering(cgContext);
     CGColorSpaceRef rgb = CGColorSpaceCreateDeviceRGB();
     CGContextRef ctx = CGBitmapContextCreate(NULL,
-                                             (int) w * backingScaleFactor, (int) h * backingScaleFactor,
-                                             8, (int) w * backingScaleFactor * 4,
+                                             (int) w, (int) h,
+                                             8, (int) w * 4,
                                              rgb, kCGImageAlphaPremultipliedFirst);
     CGColorSpaceRelease(rgb);
 
@@ -571,8 +560,6 @@ static void DrawCellWithScaling(NSCell *cell,
 
     NSGraphicsContext* savedContext = [NSGraphicsContext currentContext];
     [NSGraphicsContext setCurrentContext:[NSGraphicsContext graphicsContextWithGraphicsPort:ctx flipped:YES]];
-
-    CGContextScaleCTM(ctx, backingScaleFactor, backingScaleFactor);
 
     // This is the second flip transform, applied to ctx.
     CGContextScaleCTM(ctx, 1.0f, -1.0f);
@@ -980,18 +967,12 @@ RenderTransformedHIThemeControl(CGContextRef aCGContext, const HIRect& aRect,
     int w = ceil(drawRect.size.width) + 2 * MAX_FOCUS_RING_WIDTH;
     int h = ceil(drawRect.size.height) + 2 * MAX_FOCUS_RING_WIDTH;
 
-    int backingScaleFactor = GetBackingScaleFactorForRendering(aCGContext);
     CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
-    CGContextRef bitmapctx = CGBitmapContextCreate(NULL,
-                                                   w * backingScaleFactor,
-                                                   h * backingScaleFactor,
-                                                   8,
-                                                   w * backingScaleFactor * 4,
+    CGContextRef bitmapctx = CGBitmapContextCreate(NULL, w, h, 8, w * 4,
                                                    colorSpace,
                                                    kCGImageAlphaPremultipliedFirst);
     CGColorSpaceRelease(colorSpace);
 
-    CGContextScaleCTM(bitmapctx, backingScaleFactor, backingScaleFactor);
     CGContextTranslateCTM(bitmapctx, MAX_FOCUS_RING_WIDTH, MAX_FOCUS_RING_WIDTH);
 
     // HITheme always wants to draw into a flipped context, or things
@@ -1793,12 +1774,10 @@ ToolbarCanBeUnified(CGContextRef cgContext, const HIRect& inBoxRect, NSWindow* a
     return false;
 
   float unifiedToolbarHeight = [(ToolbarWindow*)aWindow unifiedToolbarHeight];
-  CGAffineTransform ctm = CGContextGetUserSpaceToDeviceSpaceTransform(cgContext);
-  CGRect deviceRect = CGRectApplyAffineTransform(inBoxRect, ctm);
   return inBoxRect.origin.x == 0 &&
-         deviceRect.size.width >= [aWindow frame].size.width &&
+         inBoxRect.size.width >= [aWindow frame].size.width &&
          inBoxRect.origin.y <= 0.0 &&
-         floor(inBoxRect.origin.y + inBoxRect.size.height) <= unifiedToolbarHeight;
+         inBoxRect.origin.y + inBoxRect.size.height <= unifiedToolbarHeight;
 }
 
 void
@@ -1897,13 +1876,6 @@ nsNativeThemeCocoa::DrawResizer(CGContextRef cgContext, const HIRect& aRect,
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-static bool
-IsHiDPIContext(nsDeviceContext* aContext)
-{
-  return nsPresContext::AppUnitsPerCSSPixel() >=
-    2 * aContext->UnscaledAppUnitsPerDevPixel();
-}
-
 NS_IMETHODIMP
 nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
                                          nsIFrame* aFrame,
@@ -1929,18 +1901,7 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
   if (!thebesCtx)
     return NS_ERROR_FAILURE;
 
-  gfxContextMatrixAutoSaveRestore save(thebesCtx);
-
-  bool hidpi = IsHiDPIContext(aContext->DeviceContext());
-  if (hidpi) {
-    // Use high-resolution drawing.
-    nativeWidgetRect.ScaleInverse(2.0f);
-    nativeDirtyRect.ScaleInverse(2.0f);
-    thebesCtx->Scale(2.0f, 2.0f);
-  }
-
-  gfxQuartzNativeDrawing nativeDrawing(thebesCtx, nativeDirtyRect,
-                                       hidpi ? 2.0f : 1.0f);
+  gfxQuartzNativeDrawing nativeDrawing(thebesCtx, nativeDirtyRect);
 
   CGContextRef cgContext = nativeDrawing.BeginNativeDrawing();
   if (cgContext == nullptr) {
@@ -2337,8 +2298,8 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
       CGContextFillRect(cgContext, macRect);
 
       // #8E8E8E for the top border, #BEBEBE for the rest.
-      float x = macRect.origin.x, y = macRect.origin.y;
-      float w = macRect.size.width, h = macRect.size.height;
+      int x = macRect.origin.x, y = macRect.origin.y;
+      int w = macRect.size.width, h = macRect.size.height;
       CGContextSetRGBFillColor(cgContext, 0.557, 0.557, 0.557, 1.0);
       CGContextFillRect(cgContext, CGRectMake(x, y, w, 1));
       CGContextSetRGBFillColor(cgContext, 0.745, 0.745, 0.745, 1.0);
@@ -2486,10 +2447,6 @@ nsNativeThemeCocoa::GetWidgetBorder(nsDeviceContext* aContext,
     case NS_THEME_STATUSBAR:
       aResult->SizeTo(0, 1, 0, 0);
       break;
-  }
-
-  if (IsHiDPIContext(aContext)) {
-    *aResult = *aResult + *aResult; // doubled
   }
 
   return NS_OK;
@@ -2759,10 +2716,6 @@ nsNativeThemeCocoa::GetMinimumWidgetSize(nsRenderingContext* aContext,
       aResult->SizeTo(bounds.size.width, bounds.size.height);
       *aIsOverridable = false;
     }
-  }
-
-  if (IsHiDPIContext(aContext->DeviceContext())) {
-    *aResult = *aResult * 2;
   }
 
   return NS_OK;

@@ -9,7 +9,6 @@
 
 #include "SerializedLoadContext.h"
 #include "mozilla/Attributes.h"
-#include "nsWeakReference.h"
 
 namespace mozilla {
 
@@ -29,16 +28,13 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSILOADCONTEXT
 
-  LoadContext(const IPC::SerializedLoadContext& aToCopy)
-    : mIsNotNull(aToCopy.mIsNotNull)
-    , mIsContent(aToCopy.mIsContent)
-    , mUsePrivateBrowsing(aToCopy.mUsePrivateBrowsing)
-    , mIsInBrowserElement(aToCopy.mIsInBrowserElement)
-    , mAppId(aToCopy.mAppId)
+  LoadContext(const IPC::SerializedLoadContext& toCopy)
+    : mIsNotNull(toCopy.mIsNotNull)
+    , mIsContent(toCopy.mIsContent)
+    , mUsePrivateBrowsing(toCopy.mUsePrivateBrowsing)
+    , mIsInBrowserElement(toCopy.mIsInBrowserElement)
+    , mAppId(toCopy.mAppId)
   {}
-
-  LoadContext(const IPC::SerializedLoadContext& aToCopy,
-              nsIDOMElement* aTopFrameElemenet);
 
 private:
   bool          mIsNotNull;
@@ -46,7 +42,6 @@ private:
   bool          mUsePrivateBrowsing;
   bool          mIsInBrowserElement;
   uint32_t      mAppId;
-  nsWeakPtr     mTopFrameElement;
 };
 
 } // namespace mozilla

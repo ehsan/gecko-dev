@@ -11,10 +11,6 @@ var gScripts = null;
 var gSearchBox = null;
 var gMenulist = null;
 
-/**
- * Tests basic functionality of scripts filtering (token search and line jump).
- */
-
 function test()
 {
   let scriptShown = false;
@@ -68,30 +64,25 @@ function testScriptSearching() {
        gEditor.getCaretPosition().col == 44 + token.length,
       "The editor didn't jump to the correct token. (1)");
 
-    EventUtils.sendKey("DOWN");
+    EventUtils.sendKey("RETURN");
     ok(gEditor.getCaretPosition().line == 8 &&
        gEditor.getCaretPosition().col == 2 + token.length,
       "The editor didn't jump to the correct token. (2)");
 
-    EventUtils.sendKey("DOWN");
+    EventUtils.sendKey("ENTER");
     ok(gEditor.getCaretPosition().line == 12 &&
        gEditor.getCaretPosition().col == 8 + token.length,
       "The editor didn't jump to the correct token. (3)");
 
-    EventUtils.sendKey("RETURN");
+    EventUtils.sendKey("ENTER");
     ok(gEditor.getCaretPosition().line == 19 &&
        gEditor.getCaretPosition().col == 4 + token.length,
       "The editor didn't jump to the correct token. (4)");
 
-    EventUtils.sendKey("ENTER");
+    EventUtils.sendKey("RETURN");
     ok(gEditor.getCaretPosition().line == 2 &&
        gEditor.getCaretPosition().col == 44 + token.length,
       "The editor didn't jump to the correct token. (5)");
-
-    EventUtils.sendKey("UP");
-    ok(gEditor.getCaretPosition().line == 19 &&
-       gEditor.getCaretPosition().col == 4 + token.length,
-      "The editor didn't jump to the correct token. (5.1)");
 
 
     token = "debugger;";
@@ -161,12 +152,12 @@ function testScriptSearching() {
       "The editor didn't jump to the correct token. (14)");
 
 
-    EventUtils.sendKey("DOWN");
+    EventUtils.sendKey("RETURN");
     ok(gEditor.getCaretPosition().line == 8 &&
        gEditor.getCaretPosition().col == 2 + token.length,
       "The editor didn't jump to the correct token. (15)");
 
-    EventUtils.sendKey("DOWN");
+    EventUtils.sendKey("ENTER");
     ok(gEditor.getCaretPosition().line == 12 &&
        gEditor.getCaretPosition().col == 8 + token.length,
       "The editor didn't jump to the correct token. (16)");
@@ -181,15 +172,10 @@ function testScriptSearching() {
        gEditor.getCaretPosition().col == 44 + token.length,
       "The editor didn't jump to the correct token. (18)");
 
-    EventUtils.sendKey("UP");
-    ok(gEditor.getCaretPosition().line == 19 &&
-       gEditor.getCaretPosition().col == 4 + token.length,
-      "The editor didn't jump to the correct token. (18.1)");
-
 
     clear();
-    ok(gEditor.getCaretPosition().line == 19 &&
-       gEditor.getCaretPosition().col == 4 + token.length,
+    ok(gEditor.getCaretPosition().line == 2 &&
+       gEditor.getCaretPosition().col == 44 + token.length,
       "The editor didn't remain at the correct token. (19)");
     is(gScripts.visibleItemsCount, 1,
       "Not all the scripts are shown after the search. (20)");

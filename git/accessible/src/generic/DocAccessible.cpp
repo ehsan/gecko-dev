@@ -45,7 +45,7 @@
 #include "nsFocusManager.h"
 #include "mozilla/dom/Element.h"
 
-#ifdef A11Y_LOG
+#ifdef DEBUG
 #include "Logging.h"
 #endif
 
@@ -386,7 +386,7 @@ DocAccessible::GetURL(nsAString& aURL)
 
   nsCOMPtr<nsISupports> container = mDocument->GetContainer();
   nsCOMPtr<nsIWebNavigation> webNav(do_GetInterface(container));
-  nsAutoCString theURL;
+  nsCAutoString theURL;
   if (webNav) {
     nsCOMPtr<nsIURI> pURI;
     webNav->GetCurrentURI(getter_AddRefs(pURI));
@@ -607,7 +607,7 @@ DocAccessible::GetAccessible(nsINode* aNode) const
 void
 DocAccessible::Init()
 {
-#ifdef A11Y_LOG
+#ifdef DEBUG
   if (logging::IsEnabled(logging::eDocCreate))
     logging::DocCreate("document initialize", mDocument, this);
 #endif
@@ -630,7 +630,7 @@ DocAccessible::Shutdown()
   if (!mPresShell) // already shutdown
     return;
 
-#ifdef A11Y_LOG
+#ifdef DEBUG
   if (logging::IsEnabled(logging::eDocDestroy))
     logging::DocDestroy("document shutdown", mDocument, this);
 #endif
@@ -856,7 +856,7 @@ DocAccessible::AddScrollListener()
   nsIScrollableFrame* sf = mPresShell->GetRootScrollFrameAsScrollableExternal();
   if (sf) {
     sf->AddScrollPositionListener(this);
-#ifdef A11Y_LOG
+#ifdef DEBUG
     if (logging::IsEnabled(logging::eDocCreate))
       logging::Text("add scroll listener");
 #endif
@@ -1221,20 +1221,17 @@ DocAccessible::ARIAAttributeChanged(nsIContent* aContent, nsIAtom* aAttribute)
 void
 DocAccessible::ARIAActiveDescendantChanged(nsIContent* aElm)
 {
-  Accessible* widget = GetAccessible(aElm);
-  if (widget && widget->IsActiveWidget()) {
+  if (FocusMgr()->HasDOMFocus(aElm)) {
     nsAutoString id;
     if (aElm->GetAttr(kNameSpaceID_None, nsGkAtoms::aria_activedescendant, id)) {
-      dom::Element* activeDescendantElm = aElm->OwnerDoc()->GetElementById(id);
+      nsIDocument* DOMDoc = aElm->OwnerDoc();
+      dom::Element* activeDescendantElm = DOMDoc->GetElementById(id);
       if (activeDescendantElm) {
         Accessible* activeDescendant = GetAccessible(activeDescendantElm);
         if (activeDescendant) {
           FocusMgr()->ActiveItemChanged(activeDescendant, false);
-#ifdef A11Y_LOG
-          if (logging::IsEnabled(logging::eFocus))
-            logging::ActiveItemChangeCausedBy("ARIA activedescedant changed",
-                                              activeDescendant);
-#endif
+          A11YDEBUG_FOCUS_ACTIVEITEMCHANGE_CAUSE("ARIA activedescedant changed",
+                                                 activeDescendant)
         }
       }
     }
@@ -1318,7 +1315,7 @@ DocAccessible::ParentChainChanged(nsIContent* aContent)
 ////////////////////////////////////////////////////////////////////////////////
 // Accessible
 
-#ifdef A11Y_LOG
+#ifdef DEBUG
 nsresult
 DocAccessible::HandleAccEvent(AccEvent* aEvent)
 {
@@ -1416,10 +1413,7 @@ DocAccessible::UnbindFromDocument(Accessible* aAccessible)
   // from the tree.
   if (FocusMgr()->IsActiveItem(aAccessible)) {
     FocusMgr()->ActiveItemChanged(nullptr);
-#ifdef A11Y_LOG
-          if (logging::IsEnabled(logging::eFocus))
-            logging::ActiveItemChangeCausedBy("tree shutdown", aAccessible);
-#endif
+    A11YDEBUG_FOCUS_ACTIVEITEMCHANGE_CAUSE("tree shutdown", aAccessible)
   }
 
   // Remove an accessible from node-to-accessible map if it exists there.
@@ -1578,11 +1572,6 @@ void
 DocAccessible::ProcessLoad()
 {
   mLoadState |= eCompletelyLoaded;
-
-#ifdef A11Y_LOG
-  if (logging::IsEnabled(logging::eDocLoad))
-    logging::DocCompleteLoad(this, IsLoadEventTarget());
-#endif
 
   // Do not fire document complete/stop events for root chrome document
   // accessibles and for frame/iframe documents because
@@ -1769,7 +1758,7 @@ DocAccessible::FireDelayedAccessibleEvent(AccEvent* aEvent)
 {
   NS_ENSURE_ARG(aEvent);
 
-#ifdef A11Y_LOG
+#ifdef DEBUG
   if (logging::IsEnabled(logging::eDocLoad))
     logging::DocLoadEventFired(aEvent);
 #endif
@@ -1860,7 +1849,7 @@ DocAccessible::UpdateTree(Accessible* aContainer, nsIContent* aChildNode,
 
   // If child node is not accessible then look for its accessible children.
   Accessible* child = GetAccessible(aChildNode);
-#ifdef A11Y_LOG
+#ifdef DEBUG
   if (logging::IsEnabled(logging::eTree)) {
     logging::MsgBegin("TREE", "process content %s",
                       (aIsInsert ? "insertion" : "removal"));
@@ -1878,23 +1867,6 @@ DocAccessible::UpdateTree(Accessible* aContainer, nsIContent* aChildNode,
   if (child) {
     updateFlags |= UpdateTreeInternal(child, aIsInsert);
 
-    // XXX: since select change insertion point of option contained by optgroup
-    // then we need to have special processing for them (bug 690417).
-    if (!aIsInsert && aChildNode->IsHTML(nsGkAtoms::optgroup) &&
-        aContainer->GetContent()->IsHTML(nsGkAtoms::select)) {
-      for (nsIContent* optContent = aChildNode->GetFirstChild(); optContent;
-           optContent = optContent->GetNextSibling()) {
-        if (optContent->IsHTML(nsGkAtoms::option)) {
-          Accessible* option = GetAccessible(optContent);
-          if (option) {
-            NS_ASSERTION(option->Parent() == aContainer,
-                         "Not expected hierarchy on HTML select!");
-            if (option->Parent() == aContainer)
-              updateFlags |= UpdateTreeInternal(option, aIsInsert);
-          }
-        }
-      }
-    }
   } else {
     nsAccTreeWalker walker(this, aChildNode,
                            aContainer->CanHaveAnonChildren(), true);
@@ -2086,31 +2058,25 @@ bool
 DocAccessible::IsLoadEventTarget() const
 {
   nsCOMPtr<nsISupports> container = mDocument->GetContainer();
-  nsCOMPtr<nsIDocShellTreeItem> treeItem = do_QueryInterface(container);
-  NS_ASSERTION(treeItem, "No document shell for document!");
+  nsCOMPtr<nsIDocShellTreeItem> docShellTreeItem =
+    do_QueryInterface(container);
+  NS_ASSERTION(docShellTreeItem, "No document shell for document!");
 
   nsCOMPtr<nsIDocShellTreeItem> parentTreeItem;
-  treeItem->GetParent(getter_AddRefs(parentTreeItem));
+  docShellTreeItem->GetParent(getter_AddRefs(parentTreeItem));
 
-  // Not a root document.
+  // Return true if it's not a root document (either tab document or
+  // frame/iframe document) and its parent document is not in loading state.
+  // Note: we can get notifications while document is loading (and thus
+  // while there's no parent document yet).
   if (parentTreeItem) {
-    // Return true if it's either:
-    // a) tab document;
-    nsCOMPtr<nsIDocShellTreeItem> rootTreeItem;
-    treeItem->GetRootTreeItem(getter_AddRefs(rootTreeItem));
-    if (parentTreeItem == rootTreeItem)
-      return true;
-
-    // b) frame/iframe document and its parent document is not in loading state
-    // Note: we can get notifications while document is loading (and thus
-    // while there's no parent document yet).
     DocAccessible* parentDoc = ParentDocument();
     return parentDoc && parentDoc->HasLoadState(eCompletelyLoaded);
   }
 
   // It's content (not chrome) root document.
   int32_t contentType;
-  treeItem->GetItemType(&contentType);
+  docShellTreeItem->GetItemType(&contentType);
   return (contentType == nsIDocShellTreeItem::typeContent);
 }
 

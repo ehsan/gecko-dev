@@ -43,7 +43,6 @@
 #include "nsIForm.h"
 #include "nsIFormControl.h"
 
-#include "nsDeckFrame.h"
 #include "nsLayoutUtils.h"
 #include "nsIPresShell.h"
 #include "nsIStringBundle.h"
@@ -139,12 +138,12 @@ Accessible::QueryInterface(REFNSIID aIID, void** aInstancePtr)
   }
 
   if (aIID.Equals(NS_GET_IID(nsIAccessibleValue))) {
-    if (HasNumericValue()) {
+    if (mRoleMapEntry && mRoleMapEntry->valueRule != eNoValue) {
       *aInstancePtr = static_cast<nsIAccessibleValue*>(this);
       NS_ADDREF_THIS();
       return NS_OK;
     }
-  }
+  }                       
 
   if (aIID.Equals(NS_GET_IID(nsIAccessibleHyperLink))) {
     if (IsLink()) {
@@ -607,57 +606,26 @@ Accessible::TranslateString(const nsString& aKey, nsAString& aStringOut)
 uint64_t
 Accessible::VisibilityState()
 {
+  uint64_t vstates = states::INVISIBLE | states::OFFSCREEN;
+
   nsIFrame* frame = GetFrame();
   if (!frame)
-    return states::INVISIBLE;
+    return vstates;
 
-  // Walk the parent frame chain to see if there's invisible parent or the frame
-  // is in background tab.
-  if (!frame->GetStyleVisibility()->IsVisible())
-    return states::INVISIBLE;
+  nsIPresShell* shell(mDoc->PresShell());
+  if (!shell)
+    return vstates;
 
-  nsIFrame* curFrame = frame;
-  nsPoint framePos(0, 0);
-  do {
-    nsIView* view = curFrame->GetView();
-    if (view && view->GetVisibility() == nsViewVisibility_kHide)
-      return states::INVISIBLE;
+  // We need to know if at least a kMinPixels around the object is visible,
+  // otherwise it will be marked states::OFFSCREEN.
+  const uint16_t kMinPixels  = 12;
+  const nsSize frameSize = frame->GetSize();
+  const nsRectVisibility rectVisibility =
+    shell->GetRectVisibility(frame, nsRect(nsPoint(0,0), frameSize),
+                             nsPresContext::CSSPixelsToAppUnits(kMinPixels));
 
-    // Offscreen state for background tab content and invisible for not selected
-    // deck panel.
-    nsIFrame* parentFrame = curFrame->GetParent();
-    nsDeckFrame* deckFrame = do_QueryFrame(parentFrame);
-    if (deckFrame && deckFrame->GetSelectedBox() != curFrame) {
-      if (deckFrame->GetContent()->IsXUL() &&
-          deckFrame->GetContent()->Tag() == nsGkAtoms::tabpanels)
-        return states::OFFSCREEN;
-
-      return states::INVISIBLE;
-    }
-
-    // If contained by scrollable frame then check that at least 12 pixels
-    // around the object is visible, otherwise the object is offscreen.
-    framePos += curFrame->GetPosition();
-    nsIScrollableFrame* scrollableFrame = do_QueryFrame(parentFrame);
-    if (scrollableFrame) {
-      nsRect scrollPortRect = scrollableFrame->GetScrollPortRect();
-      nsRect frameRect(framePos, frame->GetSize());
-      if (!scrollPortRect.Contains(frameRect)) {
-        const nscoord kMinPixels = nsPresContext::CSSPixelsToAppUnits(12);
-        scrollPortRect.Deflate(kMinPixels, kMinPixels);
-        if (!scrollPortRect.Intersects(frameRect))
-          return states::OFFSCREEN;
-      }
-    }
-
-    if (!parentFrame) {
-      parentFrame = nsLayoutUtils::GetCrossDocParentFrame(curFrame);
-      if (parentFrame && !parentFrame->GetStyleVisibility()->IsVisible())
-        return states::INVISIBLE;
-    }
-
-    curFrame = parentFrame;
-  } while (curFrame);
+  if (rectVisibility == nsRectVisibility_kVisible)
+    vstates &= ~states::OFFSCREEN;
 
   // Zero area rects can occur in the first frame of a multi-frame text flow,
   // in which case the rendered text is not empty and the frame should not be
@@ -670,10 +638,16 @@ Accessible::VisibilityState()
     nsAutoString renderedText;
     frame->GetRenderedText(&renderedText, nullptr, nullptr, 0, 1);
     if (renderedText.IsEmpty())
-      return states::INVISIBLE;
+      return vstates;
+
   }
 
-  return 0;
+  // XXX Do we really need to cross from content to chrome ancestor?
+  if (!frame->IsVisibleConsideringAncestors(nsIFrame::VISIBILITY_CROSS_CHROME_CONTENT_BOUNDARY))
+    return vstates;
+
+  // Assume we are visible enough.
+  return vstates &= ~states::INVISIBLE;
 }
 
 uint64_t
@@ -2754,7 +2728,7 @@ Accessible::SelectedItems()
   if (!selectedItems)
     return nullptr;
 
-  AccIterator iter(this, filters::GetSelected);
+  AccIterator iter(this, filters::GetSelected, AccIterator::eTreeNav);
   nsIAccessible* selected = nullptr;
   while ((selected = iter.Next()))
     selectedItems->AppendElement(selected, false);
@@ -2768,7 +2742,7 @@ uint32_t
 Accessible::SelectedItemCount()
 {
   uint32_t count = 0;
-  AccIterator iter(this, filters::GetSelected);
+  AccIterator iter(this, filters::GetSelected, AccIterator::eTreeNav);
   Accessible* selected = nullptr;
   while ((selected = iter.Next()))
     ++count;
@@ -2779,7 +2753,7 @@ Accessible::SelectedItemCount()
 Accessible*
 Accessible::GetSelectedItem(uint32_t aIndex)
 {
-  AccIterator iter(this, filters::GetSelected);
+  AccIterator iter(this, filters::GetSelected, AccIterator::eTreeNav);
   Accessible* selected = nullptr;
 
   uint32_t index = 0;
@@ -2793,7 +2767,7 @@ bool
 Accessible::IsItemSelected(uint32_t aIndex)
 {
   uint32_t index = 0;
-  AccIterator iter(this, filters::GetSelectable);
+  AccIterator iter(this, filters::GetSelectable, AccIterator::eTreeNav);
   Accessible* selected = nullptr;
   while ((selected = iter.Next()) && index < aIndex)
     index++;
@@ -2806,7 +2780,7 @@ bool
 Accessible::AddItemToSelection(uint32_t aIndex)
 {
   uint32_t index = 0;
-  AccIterator iter(this, filters::GetSelectable);
+  AccIterator iter(this, filters::GetSelectable, AccIterator::eTreeNav);
   Accessible* selected = nullptr;
   while ((selected = iter.Next()) && index < aIndex)
     index++;
@@ -2821,7 +2795,7 @@ bool
 Accessible::RemoveItemFromSelection(uint32_t aIndex)
 {
   uint32_t index = 0;
-  AccIterator iter(this, filters::GetSelectable);
+  AccIterator iter(this, filters::GetSelectable, AccIterator::eTreeNav);
   Accessible* selected = nullptr;
   while ((selected = iter.Next()) && index < aIndex)
     index++;
@@ -2838,7 +2812,7 @@ Accessible::SelectAll()
   bool success = false;
   Accessible* selectable = nullptr;
 
-  AccIterator iter(this, filters::GetSelectable);
+  AccIterator iter(this, filters::GetSelectable, AccIterator::eTreeNav);
   while((selectable = iter.Next())) {
     success = true;
     selectable->SetSelected(true);
@@ -2852,7 +2826,7 @@ Accessible::UnselectAll()
   bool success = false;
   Accessible* selected = nullptr;
 
-  AccIterator iter(this, filters::GetSelected);
+  AccIterator iter(this, filters::GetSelected, AccIterator::eTreeNav);
   while ((selected = iter.Next())) {
     success = true;
     selected->SetSelected(false);
@@ -2872,21 +2846,7 @@ Accessible::IsWidget() const
 bool
 Accessible::IsActiveWidget() const
 {
-  if (FocusMgr()->HasDOMFocus(mContent))
-    return true;
-
-  // If text entry of combobox widget has a focus then the combobox widget is
-  // active.
-  if (mRoleMapEntry && mRoleMapEntry->Is(nsGkAtoms::combobox)) {
-    uint32_t childCount = ChildCount();
-    for (uint32_t idx = 0; idx < childCount; idx++) {
-      Accessible* child = mChildren.ElementAt(idx);
-      if (child->Role() == roles::ENTRY)
-        return FocusMgr()->HasDOMFocus(child->GetContent());
-    }
-  }
-
-  return false;
+  return FocusMgr()->IsFocused(this);
 }
 
 bool
@@ -2955,7 +2915,7 @@ void
 Accessible::CacheChildren()
 {
   DocAccessible* doc = Document();
-  NS_ENSURE_TRUE_VOID(doc);
+  NS_ENSURE_TRUE(doc,);
 
   nsAccTreeWalker walker(doc, mContent, CanHaveAnonChildren());
 

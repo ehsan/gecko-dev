@@ -308,13 +308,9 @@ nsNativeKeyBindings::KeyPressInternal(const nsNativeKeyEvent& aEvent,
   gCurrentCallbackData = aCallbackData;
 
   gHandled = false;
-#if (MOZ_WIDGET_GTK == 2)
+
   gtk_bindings_activate(GTK_OBJECT(mNativeTarget),
                         aKeyCode, GdkModifierType(modifiers));
-#else
-  gtk_bindings_activate(G_OBJECT(mNativeTarget),
-                        aKeyCode, GdkModifierType(modifiers));
-#endif
 
   gCurrentCallback = nullptr;
   gCurrentCallbackData = nullptr;

@@ -105,13 +105,6 @@ my_malloc_logger(uint32_t type, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3,
   NS_StackWalk(stack_callback, 0, const_cast<char*>(name), 0);
 }
 
-// This is called from NS_LogInit() and from the stack walking functions, but
-// only the first call has any effect.  We need to call this function from both
-// places because it must run before any mutexes are created, and also before
-// any objects whose refcounts we're logging are created.  Running this
-// function during NS_LogInit() ensures that we meet the first criterion, and
-// running this function during the stack walking functions ensures we meet the
-// second criterion.
 void
 StackWalkInitCriticalAddress()
 {
@@ -182,6 +175,7 @@ StackWalkInitCriticalAddress()
 #include <stdio.h>
 #include <malloc.h>
 #include "plstr.h"
+#include "mozilla/FunctionTimer.h"
 
 #include "nspr.h"
 #include <imagehlp.h>
@@ -198,7 +192,7 @@ StackWalkInitCriticalAddress()
 //
 //   http://msdn.microsoft.com/library/periodic/period97/F1/D3/S245C6.htm
 //
-extern "C" {
+PR_BEGIN_EXTERN_C
 
 extern HANDLE hStackWalkMutex; 
 
@@ -229,7 +223,7 @@ void WalkStackMain64(struct WalkStackData* data);
 DWORD gStackWalkThread;
 CRITICAL_SECTION gDbgHelpCS;
 
-}
+PR_END_EXTERN_C
 
 // Routine to print an error message to standard error.
 // Will also call callback with error, if data supplied.
@@ -455,14 +449,14 @@ EXPORT_XPCOM_API(nsresult)
 NS_StackWalk(NS_WalkStackCallback aCallback, uint32_t aSkipFrames,
              void *aClosure, uintptr_t aThread)
 {
-    StackWalkInitCriticalAddress();
+    MOZ_ASSERT(gCriticalAddress.mInit);
     static HANDLE myProcess = NULL;
     HANDLE myThread;
     DWORD walkerReturn;
     struct WalkStackData data;
 
     if (!EnsureImageHlpInitialized())
-        return NS_OK;
+        return false;
 
     HANDLE targetThread = ::GetCurrentThread();
     data.walkCallingThread = true;
@@ -682,6 +676,8 @@ EnsureSymInitialized()
 
     if (gInitialized)
         return gInitialized;
+
+    NS_TIME_FUNCTION;
 
     if (!EnsureImageHlpInitialized())
         return false;
@@ -1006,10 +1002,9 @@ EXPORT_XPCOM_API(nsresult)
 NS_StackWalk(NS_WalkStackCallback aCallback, uint32_t aSkipFrames,
              void *aClosure, uintptr_t aThread)
 {
+    MOZ_ASSERT(gCriticalAddress.mInit);
     MOZ_ASSERT(!aThread);
     struct my_user_args args;
-
-    StackWalkInitCriticalAddress();
 
     if (!initialized)
         myinit();
@@ -1134,8 +1129,8 @@ EXPORT_XPCOM_API(nsresult)
 NS_StackWalk(NS_WalkStackCallback aCallback, uint32_t aSkipFrames,
              void *aClosure, uintptr_t aThread)
 {
+  MOZ_ASSERT(gCriticalAddress.mInit);
   MOZ_ASSERT(!aThread);
-  StackWalkInitCriticalAddress();
 
   // Get the frame pointer
   void **bp;
@@ -1193,25 +1188,16 @@ EXPORT_XPCOM_API(nsresult)
 NS_StackWalk(NS_WalkStackCallback aCallback, uint32_t aSkipFrames,
              void *aClosure, uintptr_t aThread)
 {
+    MOZ_ASSERT(gCriticalAddress.mInit);
     MOZ_ASSERT(!aThread);
-    StackWalkInitCriticalAddress();
     unwind_info info;
     info.callback = aCallback;
     info.skip = aSkipFrames + 1;
     info.closure = aClosure;
 
     _Unwind_Reason_Code t = _Unwind_Backtrace(unwind_callback, &info);
-#if defined(ANDROID) && defined(__arm__)
-    // Ignore the _Unwind_Reason_Code on Android + ARM, because bionic's
-    // _Unwind_Backtrace usually (always?) returns _URC_FAILURE.  See
-    // https://bugzilla.mozilla.org/show_bug.cgi?id=717853#c110.
-    //
-    // (Ideally, the #if above would be specifically for bionic, not for
-    // Android + ARM, but we don't have a define specifically for bionic.)
-#else
     if (t != _URC_END_OF_STACK)
         return NS_ERROR_UNEXPECTED;
-#endif
     return NS_OK;
 }
 
@@ -1281,6 +1267,7 @@ EXPORT_XPCOM_API(nsresult)
 NS_StackWalk(NS_WalkStackCallback aCallback, uint32_t aSkipFrames,
              void *aClosure, uintptr_t aThread)
 {
+    MOZ_ASSERT(gCriticalAddress.mInit);
     MOZ_ASSERT(!aThread);
     return NS_ERROR_NOT_IMPLEMENTED;
 }

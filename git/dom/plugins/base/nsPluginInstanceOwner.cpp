@@ -22,6 +22,9 @@
 #include "gfxXlibSurface.h"
 /* X headers suck */
 enum { XKeyPress = KeyPress };
+#ifdef KeyPress
+#undef KeyPress
+#endif
 #include "mozilla/X11Util.h"
 using mozilla::DefaultXDisplay;
 #endif
@@ -262,9 +265,10 @@ nsPluginInstanceOwner::UseAsyncRendering()
   }
 #endif
 
-  bool isOOP;
+  bool useAsyncRendering;
   bool result = (mInstance &&
-          NS_SUCCEEDED(mInstance->GetIsOOP(&isOOP)) && isOOP
+          NS_SUCCEEDED(mInstance->UseAsyncPainting(&useAsyncRendering)) &&
+          useAsyncRendering
 #ifndef XP_MACOSX
           && (!mPluginWindow ||
            mPluginWindow->type == NPWindowTypeDrawable)
@@ -307,6 +311,9 @@ nsPluginInstanceOwner::nsPluginInstanceOwner()
   mWidgetCreationComplete = false;
 #ifdef XP_MACOSX
   memset(&mCGPluginPortCopy, 0, sizeof(NP_CGContext));
+#ifndef NP_NO_QUICKDRAW
+  memset(&mQDPluginPortCopy, 0, sizeof(NP_Port));
+#endif
   mInCGPaintLevel = 0;
   mSentInitialTopLevelWindowEvent = false;
   mColorProfile = nullptr;
@@ -322,7 +329,7 @@ nsPluginInstanceOwner::nsPluginInstanceOwner()
   mCachedAttrParamValues = nullptr;
 
 #ifdef XP_MACOSX
-#ifndef NP_NO_CARBON
+#ifndef NP_NO_QUICKDRAW
   mEventModel = NPEventModelCarbon;
 #else
   mEventModel = NPEventModelCocoa;
@@ -394,7 +401,7 @@ nsPluginInstanceOwner::~nsPluginInstanceOwner()
 #endif
 
   if (mInstance) {
-    mInstance->SetOwner(nullptr);
+    mInstance->InvalidateOwner();
   }
 }
 
@@ -411,10 +418,10 @@ nsPluginInstanceOwner::SetInstance(nsNPAPIPluginInstance *aInstance)
   NS_ASSERTION(!mInstance || !aInstance, "mInstance should only be set or unset!");
 
   // If we're going to null out mInstance after use, be sure to call
-  // mInstance->SetOwner(nullptr) here, since it now won't be called
+  // mInstance->InvalidateOwner() here, since it now won't be called
   // from our destructor.  This fixes bug 613376.
   if (mInstance && !aInstance) {
-    mInstance->SetOwner(nullptr);
+    mInstance->InvalidateOwner();
 
 #ifdef MOZ_WIDGET_ANDROID
     RemovePluginView();
@@ -543,7 +550,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetURL(const char *aURL,
   nsAutoString  unitarget;
   unitarget.AssignASCII(aTarget); // XXX could this be nonascii?
 
-  nsCOMPtr<nsIURI> baseURI = GetBaseURI();
+  nsCOMPtr<nsIURI> baseURI = mContent->GetBaseURI();
 
   // Create an absolute URL
   nsCOMPtr<nsIURI> uri;
@@ -648,6 +655,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::InvalidateRect(NPRect *invalidRect)
   // date and update our ImageContainer with the new surface.
   nsRefPtr<ImageContainer> container;
   mInstance->GetImageContainer(getter_AddRefs(container));
+  gfxIntSize oldSize(0, 0);
 
 #ifndef XP_MACOSX
   // Windowed plugins should not be calling NPN_InvalidateRect, but
@@ -659,17 +667,24 @@ NS_IMETHODIMP nsPluginInstanceOwner::InvalidateRect(NPRect *invalidRect)
     return NS_OK;
   }
 #endif
-  nsIntRect rect(invalidRect->left,
-                 invalidRect->top,
-                 invalidRect->right - invalidRect->left,
-                 invalidRect->bottom - invalidRect->top);
-  // invalidRect is in "display pixels".  In non-HiDPI modes "display pixels"
-  // are device pixels.  But in HiDPI modes each display pixel corresponds
-  // to more than one device pixel.
-  double scaleFactor = 1.0;
-  GetContentsScaleFactor(&scaleFactor);
-  rect.ScaleRoundOut(scaleFactor);
-  mObjectFrame->InvalidateLayer(nsDisplayItem::TYPE_PLUGIN, &rect);
+
+  nsPresContext* presContext = mObjectFrame->PresContext();
+  nsRect rect(presContext->DevPixelsToAppUnits(invalidRect->left),
+              presContext->DevPixelsToAppUnits(invalidRect->top),
+              presContext->DevPixelsToAppUnits(invalidRect->right - invalidRect->left),
+              presContext->DevPixelsToAppUnits(invalidRect->bottom - invalidRect->top));
+  if (container) {
+    gfxIntSize newSize = container->GetCurrentSize();
+    if (newSize != oldSize) {
+      // The image size has changed - invalidate the old area too, bug 635405.
+      nsRect oldRect = nsRect(0, 0,
+                              presContext->DevPixelsToAppUnits(oldSize.width),
+                              presContext->DevPixelsToAppUnits(oldSize.height));
+      rect.UnionRect(rect, oldRect);
+    }
+  }
+  rect.MoveBy(mObjectFrame->GetContentRectRelativeToSelf().TopLeft());
+  mObjectFrame->InvalidateLayer(rect, nsDisplayItem::TYPE_PLUGIN);
   return NS_OK;
 }
 
@@ -682,7 +697,7 @@ NS_IMETHODIMP
 nsPluginInstanceOwner::RedrawPlugin()
 {
   if (mObjectFrame) {
-    mObjectFrame->InvalidateLayer(nsDisplayItem::TYPE_PLUGIN);
+    mObjectFrame->InvalidateLayer(mObjectFrame->GetContentRectRelativeToSelf(), nsDisplayItem::TYPE_PLUGIN);
   }
   return NS_OK;
 }
@@ -927,7 +942,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetParameter(const char* name, const char* 
 
   return NS_ERROR_FAILURE;
 }
-
+  
 NS_IMETHODIMP nsPluginInstanceOwner::GetDocumentBase(const char* *result)
 {
   NS_ENSURE_ARG_POINTER(result);
@@ -1378,8 +1393,6 @@ static void InitializeNPCocoaEvent(NPCocoaEvent* event)
 NPDrawingModel nsPluginInstanceOwner::GetDrawingModel()
 {
 #ifndef NP_NO_QUICKDRAW
-  // We don't support the Quickdraw drawing model any more but it's still
-  // the default model for i386 per NPAPI.
   NPDrawingModel drawingModel = NPDrawingModelQuickDraw;
 #else
   NPDrawingModel drawingModel = NPDrawingModelCoreGraphics;
@@ -1402,14 +1415,6 @@ bool nsPluginInstanceOwner::IsRemoteDrawingCoreAnimation()
     return false;
 
   return coreAnimation;
-}
-
-nsresult nsPluginInstanceOwner::ContentsScaleFactorChanged(double aContentsScaleFactor)
-{
-  if (!mInstance) {
-    return NS_ERROR_NULL_POINTER;
-  }
-  return mInstance->ContentsScaleFactorChanged(aContentsScaleFactor);
 }
 
 NPEventModel nsPluginInstanceOwner::GetEventModel()
@@ -1510,24 +1515,16 @@ void nsPluginInstanceOwner::RenderCoreAnimation(CGContextRef aCGContext,
     mCARenderer = new nsCARenderer();
   }
 
-  // aWidth and aHeight are in "display pixels".  In non-HiDPI modes
-  // "display pixels" are device pixels.  But in HiDPI modes each
-  // display pixel corresponds to more than one device pixel.
-  double scaleFactor = 1.0;
-  GetContentsScaleFactor(&scaleFactor);
-
   if (!mIOSurface ||
       (mIOSurface->GetWidth() != (size_t)aWidth ||
-       mIOSurface->GetHeight() != (size_t)aHeight ||
-       mIOSurface->GetContentsScaleFactor() != scaleFactor)) {
+       mIOSurface->GetHeight() != (size_t)aHeight)) {
     mIOSurface = nullptr;
 
     // If the renderer is backed by an IOSurface, resize it as required.
-    mIOSurface = MacIOSurface::CreateIOSurface(aWidth, aHeight, scaleFactor);
+    mIOSurface = MacIOSurface::CreateIOSurface(aWidth, aHeight);
     if (mIOSurface) {
       RefPtr<MacIOSurface> attachSurface = MacIOSurface::LookupSurface(
-                                              mIOSurface->GetIOSurfaceID(),
-                                              scaleFactor);
+                                              mIOSurface->GetIOSurfaceID());
       if (attachSurface) {
         mCARenderer->AttachIOSurface(attachSurface);
       } else {
@@ -1550,8 +1547,7 @@ void nsPluginInstanceOwner::RenderCoreAnimation(CGContextRef aCGContext,
 
     // We don't run Flash in-process so we can unconditionally disallow
     // the offliner renderer.
-    mCARenderer->SetupRenderer(caLayer, aWidth, aHeight, scaleFactor,
-                               DISALLOW_OFFLINE_RENDERER);
+    mCARenderer->SetupRenderer(caLayer, aWidth, aHeight, DISALLOW_OFFLINE_RENDERER);
 
     // Setting up the CALayer requires resetting the painting otherwise we
     // get garbage for the first few frames.
@@ -1560,15 +1556,15 @@ void nsPluginInstanceOwner::RenderCoreAnimation(CGContextRef aCGContext,
   }
 
   CGImageRef caImage = NULL;
-  nsresult rt = mCARenderer->Render(aWidth, aHeight, scaleFactor, &caImage);
+  nsresult rt = mCARenderer->Render(aWidth, aHeight, &caImage);
   if (rt == NS_OK && mIOSurface && mColorProfile) {
     nsCARenderer::DrawSurfaceToCGContext(aCGContext, mIOSurface, mColorProfile,
                                          0, 0, aWidth, aHeight);
   } else if (rt == NS_OK && caImage != NULL) {
     // Significant speed up by resetting the scaling
     ::CGContextSetInterpolationQuality(aCGContext, kCGInterpolationNone );
-    ::CGContextTranslateCTM(aCGContext, 0, (double) aHeight * scaleFactor);
-    ::CGContextScaleCTM(aCGContext, scaleFactor, -scaleFactor);
+    ::CGContextTranslateCTM(aCGContext, 0, aHeight);
+    ::CGContextScaleCTM(aCGContext, 1.0, -1.0);
 
     ::CGContextDrawImage(aCGContext, CGRectMake(0,0,aWidth,aHeight), caImage);
   } else {
@@ -1578,6 +1574,10 @@ void nsPluginInstanceOwner::RenderCoreAnimation(CGContextRef aCGContext,
 
 void* nsPluginInstanceOwner::GetPluginPortCopy()
 {
+#ifndef NP_NO_QUICKDRAW
+  if (GetDrawingModel() == NPDrawingModelQuickDraw)
+    return &mQDPluginPortCopy;
+#endif
   if (GetDrawingModel() == NPDrawingModelCoreGraphics || 
       GetDrawingModel() == NPDrawingModelCoreAnimation ||
       GetDrawingModel() == NPDrawingModelInvalidatingCoreAnimation)
@@ -1606,18 +1606,31 @@ void* nsPluginInstanceOwner::SetPluginPortAndDetectChange()
     return nullptr;
   mPluginWindow->window = pluginPort;
 
-#ifndef NP_NO_CARBON
-  if (GetEventModel() == NPEventModelCarbon &&
-      GetDrawingModel() == NPDrawingModelCoreGraphics) {
-    NP_CGContext* windowCGPort = static_cast<NP_CGContext*>(mPluginWindow->window);
-    if ((windowCGPort->context != mCGPluginPortCopy.context) ||
-        (windowCGPort->window != mCGPluginPortCopy.window)) {
-      mCGPluginPortCopy.context = windowCGPort->context;
-      mCGPluginPortCopy.window = windowCGPort->window;
+#ifndef NP_NO_QUICKDRAW
+  NPDrawingModel drawingModel = GetDrawingModel();
+  if (drawingModel == NPDrawingModelQuickDraw) {
+    NP_Port* windowQDPort = static_cast<NP_Port*>(mPluginWindow->window);
+    if (windowQDPort->port != mQDPluginPortCopy.port) {
+      mQDPluginPortCopy.port = windowQDPort->port;
       mPluginPortChanged = true;
     }
-  }
+  } else if (drawingModel == NPDrawingModelCoreGraphics || 
+             drawingModel == NPDrawingModelCoreAnimation ||
+             drawingModel == NPDrawingModelInvalidatingCoreAnimation)
 #endif
+  {
+#ifndef NP_NO_CARBON
+    if (GetEventModel() == NPEventModelCarbon) {
+      NP_CGContext* windowCGPort = static_cast<NP_CGContext*>(mPluginWindow->window);
+      if ((windowCGPort->context != mCGPluginPortCopy.context) ||
+          (windowCGPort->window != mCGPluginPortCopy.window)) {
+        mCGPluginPortCopy.context = windowCGPort->context;
+        mCGPluginPortCopy.window = windowCGPort->window;
+        mPluginPortChanged = true;
+      }
+    }
+#endif
+  }
 
   return mPluginWindow->window;
 }
@@ -1815,9 +1828,6 @@ already_AddRefed<ImageContainer> nsPluginInstanceOwner::GetImageContainerForVide
 
   data.mHandle = mInstance->GLContext()->CreateSharedHandle(gl::TextureImage::ThreadShared, aVideoInfo->mSurfaceTexture, gl::GLContext::SurfaceTexture);
   data.mShareType = mozilla::gl::TextureImage::ThreadShared;
-
-  // The logic below for Honeycomb is just a guess, but seems to work. We don't have a separate
-  // inverted flag for video.
   data.mInverted = AndroidBridge::Bridge()->IsHoneycomb() ? true : mInstance->Inverted();
   data.mSize = gfxIntSize(aVideoInfo->mDimensions.width, aVideoInfo->mDimensions.height);
 
@@ -1946,7 +1956,7 @@ nsresult nsPluginInstanceOwner::Text(nsIDOMEvent* aTextEvent)
 }
 #endif
 
-nsresult nsPluginInstanceOwner::ProcessKeyPress(nsIDOMEvent* aKeyEvent)
+nsresult nsPluginInstanceOwner::KeyPress(nsIDOMEvent* aKeyEvent)
 {
 #ifdef XP_MACOSX
 #ifndef NP_NO_CARBON
@@ -2016,7 +2026,7 @@ nsresult nsPluginInstanceOwner::DispatchKeyToPlugin(nsIDOMEvent* aKeyEvent)
 }    
 
 nsresult
-nsPluginInstanceOwner::ProcessMouseDown(nsIDOMEvent* aMouseEvent)
+nsPluginInstanceOwner::MouseDown(nsIDOMEvent* aMouseEvent)
 {
 #if !defined(XP_MACOSX)
   if (!mPluginWindow || (mPluginWindow->type == NPWindowTypeWindow))
@@ -2083,7 +2093,7 @@ nsPluginInstanceOwner::HandleEvent(nsIDOMEvent* aEvent)
     return DispatchFocusToPlugin(aEvent);
   }
   if (eventType.EqualsLiteral("mousedown")) {
-    return ProcessMouseDown(aEvent);
+    return MouseDown(aEvent);
   }
   if (eventType.EqualsLiteral("mouseup")) {
     // Don't send a mouse-up event to the plugin if it isn't focused.  This can
@@ -2108,7 +2118,7 @@ nsPluginInstanceOwner::HandleEvent(nsIDOMEvent* aEvent)
     return DispatchKeyToPlugin(aEvent);
   }
   if (eventType.EqualsLiteral("keypress")) {
-    return ProcessKeyPress(aEvent);
+    return KeyPress(aEvent);
   }
 #if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
   if (eventType.EqualsLiteral("text")) {
@@ -2173,17 +2183,12 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
   nsLayoutUtils::GetEventCoordinatesRelativeTo(&anEvent, mObjectFrame) -
   mObjectFrame->GetContentRectRelativeToSelf().TopLeft();
   nsPresContext* presContext = mObjectFrame->PresContext();
-  // Plugin event coordinates need to be translated from device pixels
-  // into "display pixels" in HiDPI modes.
-  double scaleFactor = 1.0;
-  GetContentsScaleFactor(&scaleFactor);
-  size_t intScaleFactor = ceil(scaleFactor);
-  nsIntPoint ptPx(presContext->AppUnitsToDevPixels(pt.x) / intScaleFactor,
-                  presContext->AppUnitsToDevPixels(pt.y) / intScaleFactor);
+  nsIntPoint ptPx(presContext->AppUnitsToDevPixels(pt.x),
+                  presContext->AppUnitsToDevPixels(pt.y));
 #ifndef NP_NO_CARBON
   nsIntPoint geckoScreenCoords = mWidget->WidgetToScreenOffset();
-  ::Point carbonPt = { static_cast<short>(ptPx.y + geckoScreenCoords.y / intScaleFactor),
-                       static_cast<short>(ptPx.x + geckoScreenCoords.x / intScaleFactor) };
+  ::Point carbonPt = { static_cast<short>(ptPx.y + geckoScreenCoords.y),
+                       static_cast<short>(ptPx.x + geckoScreenCoords.x) };
   if (eventModel == NPEventModelCarbon) {
     if (event && anEvent.eventStructType == NS_MOUSE_EVENT) {
       static_cast<EventRecord*>(event)->where = carbonPt;
@@ -2834,17 +2839,7 @@ void nsPluginInstanceOwner::Paint(const gfxRect& aDirtyRect, CGContextRef cgCont
 {
   if (!mInstance || !mObjectFrame)
     return;
-
-  gfxRect dirtyRectCopy = aDirtyRect; 
-  double scaleFactor = 1.0;
-  GetContentsScaleFactor(&scaleFactor);
-  if (scaleFactor != 1.0) {
-    ::CGContextScaleCTM(cgContext, scaleFactor, scaleFactor);
-    // Convert aDirtyRect from device pixels to "display pixels"
-    // for HiDPI modes
-    dirtyRectCopy.ScaleRoundOut(1.0 / scaleFactor);
-  }
-
+ 
   nsCOMPtr<nsIPluginWidget> pluginWidget = do_QueryInterface(mWidget);
   if (pluginWidget && NS_SUCCEEDED(pluginWidget->StartDrawPlugin())) {
 #ifndef NP_NO_CARBON
@@ -2859,7 +2854,7 @@ void nsPluginInstanceOwner::Paint(const gfxRect& aDirtyRect, CGContextRef cgCont
     } else if (GetEventModel() == NPEventModelCocoa)
 #endif
     {
-      DoCocoaEventDrawRect(dirtyRectCopy, cgContext);
+      DoCocoaEventDrawRect(aDirtyRect, cgContext);
     }
     pluginWidget->EndDrawPlugin();
   }
@@ -3414,7 +3409,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::CreateWidget(void)
     static_cast<NPSetWindowCallbackStruct*>(mPluginWindow->ws_info);
     ws_info->display = DefaultXDisplay();
     
-    nsAutoCString description;
+    nsCAutoString description;
     GetPluginDescription(description);
     NS_NAMED_LITERAL_CSTRING(flash10Head, "Shockwave Flash 10.");
     mFlash10Quirks = StringBeginsWith(description, flash10Head);
@@ -3490,31 +3485,38 @@ void* nsPluginInstanceOwner::FixUpPluginWindow(int32_t inPaintState)
 
   // printf("GetPluginClipRect returning visible %d\n", widgetVisible);
 
-  // This would be a lot easier if we could use obj-c here,
-  // but we can't. Since we have only nsIWidget and we can't
-  // use its native widget (an obj-c object) we have to go
-  // from the widget's screen coordinates to its window coords
-  // instead of straight to window coords.
-  nsIntPoint geckoScreenCoords = mWidget->WidgetToScreenOffset();
-
-  nsRect windowRect;
-#ifndef NP_NO_CARBON
-  if (eventModel == NPEventModelCarbon) {
-    NS_NPAPI_CarbonWindowFrame(static_cast<WindowRef>(static_cast<NP_CGContext*>(pluginPort)->window), windowRect);
-  } else
+#ifndef NP_NO_QUICKDRAW
+  // set the port coordinates
+  NPDrawingModel drawingModel = GetDrawingModel();
+  if (drawingModel == NPDrawingModelQuickDraw) {
+    mPluginWindow->x = -static_cast<NP_Port*>(pluginPort)->portx;
+    mPluginWindow->y = -static_cast<NP_Port*>(pluginPort)->porty;
+  }
+  else if (drawingModel == NPDrawingModelCoreGraphics || 
+           drawingModel == NPDrawingModelCoreAnimation ||
+           drawingModel == NPDrawingModelInvalidatingCoreAnimation)
 #endif
   {
-    NS_NPAPI_CocoaWindowFrame(cocoaTopLevelWindow, windowRect);
+    // This would be a lot easier if we could use obj-c here,
+    // but we can't. Since we have only nsIWidget and we can't
+    // use its native widget (an obj-c object) we have to go
+    // from the widget's screen coordinates to its window coords
+    // instead of straight to window coords.
+    nsIntPoint geckoScreenCoords = mWidget->WidgetToScreenOffset();
+
+    nsRect windowRect;
+#ifndef NP_NO_CARBON
+    if (eventModel == NPEventModelCarbon)
+      NS_NPAPI_CarbonWindowFrame(static_cast<WindowRef>(static_cast<NP_CGContext*>(pluginPort)->window), windowRect);
+    else
+#endif
+    {
+      NS_NPAPI_CocoaWindowFrame(cocoaTopLevelWindow, windowRect);
+    }
+
+    mPluginWindow->x = geckoScreenCoords.x - windowRect.x;
+    mPluginWindow->y = geckoScreenCoords.y - windowRect.y;
   }
-
-  double scaleFactor = 1.0;
-  GetContentsScaleFactor(&scaleFactor);
-  int intScaleFactor = ceil(scaleFactor);
-
-  // Convert geckoScreenCoords from device pixels to "display pixels"
-  // for HiDPI modes.
-  mPluginWindow->x = geckoScreenCoords.x/intScaleFactor - windowRect.x;
-  mPluginWindow->y = geckoScreenCoords.y/intScaleFactor - windowRect.y;
 
   NPRect oldClipRect = mPluginWindow->clipRect;
   
@@ -3582,8 +3584,13 @@ void* nsPluginInstanceOwner::FixUpPluginWindow(int32_t inPaintState)
     ProcessEvent(pluginEvent);
   }
 
+#ifndef NP_NO_QUICKDRAW
+  if (drawingModel == NPDrawingModelQuickDraw)
+    return ::GetWindowFromPort(static_cast<NP_Port*>(pluginPort)->port);
+#endif
+
 #ifdef MAC_CARBON_PLUGINS
-  if (GetDrawingModel() == NPDrawingModelCoreGraphics && eventModel == NPEventModelCarbon)
+  if (drawingModel == NPDrawingModelCoreGraphics && eventModel == NPEventModelCarbon)
     return static_cast<NP_CGContext*>(pluginPort)->window;
 #endif
 
@@ -3732,39 +3739,6 @@ void nsPluginInstanceOwner::RemoveScrollPositionListener()
 }
 #endif
 
-NS_IMETHODIMP
-nsPluginInstanceOwner::GetContentsScaleFactor(double *result)
-{
-  NS_ENSURE_ARG_POINTER(result);
-  double scaleFactor = 1.0;
-  // On Mac, device pixels need to be translated to (and from) "display pixels"
-  // for plugins. On other platforms, plugin coordinates are always in device
-  // pixels.
-#if defined(XP_MACOSX)
-  if (mWidget) {
-    scaleFactor = mWidget->GetDefaultScale();
-  } else {
-    nsCOMPtr<nsIScreenManager> screenMgr =
-      do_GetService("@mozilla.org/gfx/screenmanager;1");
-    if (screenMgr) {
-      nsCOMPtr<nsIScreen> screen;
-      nsIntRect screenRect = mObjectFrame->GetScreenRect();
-      screenMgr->ScreenForRect(screenRect.x, screenRect.y,
-                               screenRect.width, screenRect.height,
-                               getter_AddRefs(screen));
-      if (screen) {
-        nsresult rv = screen->GetContentsScaleFactor(&scaleFactor);
-        if (NS_FAILED(rv)) {
-          scaleFactor = 1.0;
-        }
-      }
-    }
-  }
-#endif
-  *result = scaleFactor;
-  return NS_OK;
-}
-
 void nsPluginInstanceOwner::SetFrame(nsObjectFrame *aFrame)
 {
   // Don't do anything if the frame situation hasn't changed.
@@ -3799,7 +3773,7 @@ void nsPluginInstanceOwner::SetFrame(nsObjectFrame *aFrame)
     }
 
     // Scroll position listening is only required for Carbon event model plugins on Mac OS X.
-#if defined(XP_MACOSX) && !defined(NP_NO_CARBON)
+#if defined(XP_MACOSX) && !defined(NP_NO_QUICKDRAW)
     RemoveScrollPositionListener();
 #endif
 
@@ -3819,10 +3793,10 @@ void nsPluginInstanceOwner::SetFrame(nsObjectFrame *aFrame)
       mObjectFrame->PrepForDrawing(mWidget);
     }
     mObjectFrame->FixupWindow(mObjectFrame->GetContentRectRelativeToSelf().Size());
-    mObjectFrame->InvalidateFrame();
+    mObjectFrame->Invalidate(mObjectFrame->GetContentRectRelativeToSelf());
 
     // Scroll position listening is only required for Carbon event model plugins on Mac OS X.
-#if defined(XP_MACOSX) && !defined(NP_NO_CARBON)
+#if defined(XP_MACOSX) && !defined(NP_NO_QUICKDRAW)
     AddScrollPositionListener();
 #endif
     
@@ -3843,8 +3817,9 @@ nsObjectFrame* nsPluginInstanceOwner::GetFrame()
 // |value| for certain inputs of |name|
 void nsPluginInstanceOwner::FixUpURLS(const nsString &name, nsAString &value)
 {
-  if (name.LowerCaseEqualsLiteral("pluginspage")) {
-    nsCOMPtr<nsIURI> baseURI = GetBaseURI();
+  if (name.LowerCaseEqualsLiteral("pluginurl") ||
+      name.LowerCaseEqualsLiteral("pluginspage")) {        
+    nsCOMPtr<nsIURI> baseURI = mContent->GetBaseURI();
     nsAutoString newURL;
     NS_MakeAbsoluteURI(newURL, value, baseURI);
     if (!newURL.IsEmpty())
@@ -3855,14 +3830,6 @@ void nsPluginInstanceOwner::FixUpURLS(const nsString &name, nsAString &value)
 NS_IMETHODIMP nsPluginInstanceOwner::PrivateModeChanged(bool aEnabled)
 {
   return mInstance ? mInstance->PrivateModeStateChanged(aEnabled) : NS_OK;
-}
-
-already_AddRefed<nsIURI> nsPluginInstanceOwner::GetBaseURI() const
-{
-  if (!mContent) {
-    return nullptr;
-  }
-  return mContent->GetBaseURI();
 }
 
 // nsPluginDOMContextMenuListener class implementation

@@ -15,23 +15,19 @@
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
-
 #include <fcntl.h>
 
 #include "android/log.h"
 #include "ui/FramebufferNativeWindow.h"
 
-#include "mozilla/dom/TabParent.h"
 #include "mozilla/Hal.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/FileUtils.h"
-#include "BootAnimation.h"
 #include "Framebuffer.h"
 #include "gfxContext.h"
 #include "gfxPlatform.h"
 #include "gfxUtils.h"
 #include "GLContextProvider.h"
-#include "HwcComposer2D.h"
 #include "LayerManagerOGL.h"
 #include "nsAutoPtr.h"
 #include "nsAppShell.h"
@@ -66,14 +62,37 @@ static nsRefPtr<GLContext> sGLContext;
 static nsTArray<nsWindow *> sTopWindows;
 static nsWindow *gWindowToRedraw = nullptr;
 static nsWindow *gFocusedWindow = nullptr;
+static android::FramebufferNativeWindow *gNativeWindow = nullptr;
 static bool sFramebufferOpen;
 static bool sUsingOMTC;
-static bool sUsingHwc;
 static bool sScreenInitialized;
 static nsRefPtr<gfxASurface> sOMTCSurface;
 static pthread_t sFramebufferWatchThread;
 
 namespace {
+
+static int
+CancelBufferNoop(ANativeWindow* aWindow, android_native_buffer_t* aBuffer)
+{
+    return 0;
+}
+
+android::FramebufferNativeWindow*
+NativeWindow()
+{
+    if (!gNativeWindow) {
+        // We (apparently) don't have a way to tell if allocating the
+        // fbs succeeded or failed.
+        gNativeWindow = new android::FramebufferNativeWindow();
+
+        // Bug 776742: FrambufferNativeWindow doesn't set the cancelBuffer
+        // function pointer, causing EGL to segfault when the window surface
+        // is destroyed (i.e. on process exit). This workaround stops us
+        // from hard crashing in that situation.
+        gNativeWindow->cancelBuffer = CancelBufferNoop;
+    }
+    return gNativeWindow;
+}
 
 static uint32_t
 EffectiveScreenRotation()
@@ -144,6 +163,9 @@ static void *frameBufferWatcher(void *) {
 nsWindow::nsWindow()
 {
     if (!sScreenInitialized) {
+        // workaround Bug 725143
+        hal::SetScreenEnabled(true);
+
         // Watching screen on/off state by using a pthread
         // which implicitly calls exit() when the main thread ends
         if (pthread_create(&sFramebufferWatchThread, NULL, frameBufferWatcher, NULL)) {
@@ -151,10 +173,8 @@ nsWindow::nsWindow()
         }
 
         nsIntSize screenSize;
-        bool gotFB = Framebuffer::GetSize(&screenSize);
-        if (!gotFB) {
-            NS_RUNTIMEABORT("Failed to get size from framebuffer, aborting...");
-        }
+        mozilla::DebugOnly<bool> gotFB = Framebuffer::GetSize(&screenSize);
+        MOZ_ASSERT(gotFB);
         gScreenBounds = nsIntRect(nsIntPoint(0, 0), screenSize);
 
         char propValue[PROPERTY_VALUE_MAX];
@@ -189,7 +209,6 @@ nsWindow::nsWindow()
         // This has to happen after other init has finished.
         gfxPlatform::GetPlatform();
         sUsingOMTC = UseOffMainThreadCompositing();
-        sUsingHwc = Preferences::GetBool("layers.composer2d.enabled", false);
 
         if (sUsingOMTC) {
           sOMTCSurface = new gfxImageSurface(gfxIntSize(1, 1),
@@ -214,8 +233,6 @@ nsWindow::DoDraw(void)
         LOG("  no window to draw, bailing");
         return;
     }
-
-    StopBootAnimation();
 
     nsIntRegion region = gWindowToRedraw->mDirtyRegion;
     gWindowToRedraw->mDirtyRegion.SetEmpty();
@@ -261,30 +278,15 @@ nsWindow::DoDraw(void)
 }
 
 nsEventStatus
-nsWindow::DispatchInputEvent(nsGUIEvent &aEvent, bool* aWasCaptured)
+nsWindow::DispatchInputEvent(nsGUIEvent &aEvent)
 {
-    if (aWasCaptured) {
-        *aWasCaptured = false;
-    }
-    if (!gFocusedWindow) {
+    if (!gFocusedWindow)
         return nsEventStatus_eIgnore;
-    }
 
     gFocusedWindow->UserActivity();
 
-    aEvent.widget = gFocusedWindow;
-
-    if (TabParent* capturer = TabParent::GetEventCapturer()) {
-        bool captured = capturer->TryCapture(aEvent);
-        if (aWasCaptured) {
-            *aWasCaptured = captured;
-        }
-        if (captured) {
-            return nsEventStatus_eConsumeNoDefault;
-        }
-    }
-
     nsEventStatus status;
+    aEvent.widget = gFocusedWindow;
     gFocusedWindow->DispatchEvent(&aEvent, status);
     return status;
 }
@@ -668,18 +670,6 @@ nsWindow::NeedsPaint()
     return false;
   }
   return nsIWidget::NeedsPaint();
-}
-
-Composer2D*
-nsWindow::GetComposer2D()
-{
-    if (!sUsingHwc) {
-        return nullptr;
-    }
-    if (HwcComposer2D* hwc = HwcComposer2D::GetInstance()) {
-        return hwc->Initialized() ? hwc : nullptr;
-    }
-    return nullptr;
 }
 
 // nsScreenGonk.cpp

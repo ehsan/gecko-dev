@@ -135,6 +135,7 @@ nsPlaceholderFrame::DestroyFrom(nsIFrame* aDestructRoot)
   nsIPresShell* shell = PresContext()->GetPresShell();
   nsIFrame* oof = mOutOfFlowFrame;
   if (oof) {
+    oof->InvalidateFrameSubtree();
     // Unregister out-of-flow frame
     shell->FrameManager()->UnregisterPlaceholderFrame(this);
     mOutOfFlowFrame = nullptr;
@@ -145,7 +146,7 @@ nsPlaceholderFrame::DestroyFrom(nsIFrame* aDestructRoot)
         ((GetStateBits() & PLACEHOLDER_FOR_POPUP) ||
          !nsLayoutUtils::IsProperAncestorFrame(aDestructRoot, oof))) {
       ChildListID listId = nsLayoutUtils::GetChildListNameFor(oof);
-      shell->FrameManager()->RemoveFrame(listId, oof);
+      shell->FrameManager()->RemoveFrame(listId, oof, false);
     }
     // else oof will be destroyed by its parent
   }
@@ -227,7 +228,7 @@ nsPlaceholderFrame::GetFrameName(nsAString& aResult) const
 }
 
 NS_IMETHODIMP
-nsPlaceholderFrame::List(FILE* out, int32_t aIndent, uint32_t aFlags) const
+nsPlaceholderFrame::List(FILE* out, int32_t aIndent) const
 {
   IndentBy(out, aIndent);
   ListTag(out);

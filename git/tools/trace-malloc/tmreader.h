@@ -11,9 +11,7 @@
 #include "nsTraceMalloc.h"
 #include "plarena.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+PR_BEGIN_EXTERN_C
 
 typedef struct tmreader     tmreader;
 typedef struct tmevent      tmevent;
@@ -185,8 +183,6 @@ extern tmcallsite   *tmreader_callsite(tmreader *tmr, uint32 serial);
 extern int tmgraphnode_connect(tmgraphnode *from, tmgraphnode *to,
                                tmcallsite *site);
 
-#ifdef __cplusplus
-}
-#endif
+PR_END_EXTERN_C
 
 #endif /* tmreader_h___ */

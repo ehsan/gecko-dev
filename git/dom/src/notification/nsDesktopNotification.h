@@ -72,6 +72,7 @@ class nsDOMDesktopNotification : public nsDOMEventTargetHelper,
 
 public:
   NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsDOMDesktopNotification,nsDOMEventTargetHelper)
   NS_DECL_NSIDOMDESKTOPNOTIFICATION
 
   nsDOMDesktopNotification(const nsAString & title,
@@ -81,8 +82,6 @@ public:
                            nsIPrincipal* principal);
 
   virtual ~nsDOMDesktopNotification();
-
-  void Init();
 
   /*
    * PostDesktopNotification
@@ -104,6 +103,9 @@ protected:
   nsString mTitle;
   nsString mDescription;
   nsString mIconURL;
+
+  nsRefPtr<nsDOMEventListenerWrapper> mOnClickCallback;
+  nsRefPtr<nsDOMEventListenerWrapper> mOnCloseCallback;
 
   nsRefPtr<AlertServiceObserver> mObserver;
   nsCOMPtr<nsIPrincipal> mPrincipal;
@@ -170,18 +172,12 @@ class AlertServiceObserver: public nsIObserver
           const char *aTopic,
           const PRUnichar *aData)
   {
-
     // forward to parent
-    if (mNotification) {
-#ifdef MOZ_B2G
-    if (NS_FAILED(mNotification->CheckInnerWindowCorrectness()))
-      return NS_ERROR_NOT_AVAILABLE;
-#endif
+    if (mNotification)
       mNotification->HandleAlertServiceNotification(aTopic);
-    }
     return NS_OK;
   };
-
+  
  private:
   nsDOMDesktopNotification* mNotification;
 };

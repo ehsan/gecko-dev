@@ -21,7 +21,6 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE         = hal
 LIBRARY_NAME   = hal_s
-XPIDL_MODULE   = hal
 FORCE_STATIC_LIB = 1
 LIBXUL_LIBRARY = 1
 EXPORT_LIBRARY = 1
@@ -35,10 +34,6 @@ EXPORTS_mozilla = \
   HalSensor.h \
   HalTypes.h \
   HalWakeLock.h \
-  $(NULL)
-
-XPIDLSRCS = \
-  nsIRecoveryService.idl \
   $(NULL)
 
 CPPSRCS = \
@@ -62,7 +57,6 @@ CPPSRCS += \
   GonkSensor.cpp \
   UeventPoller.cpp \
   GonkSwitch.cpp \
-  GonkFMRadio.cpp \
   $(NULL)
 else ifeq (Linux,$(OS_TARGET))
 CPPSRCS += \
@@ -88,7 +82,7 @@ CPPSRCS += \
   $(NULL)
 else ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 CPPSRCS += \
-  CocoaBattery.cpp \
+  FallbackBattery.cpp \
   FallbackVibration.cpp \
   FallbackPower.cpp \
   FallbackScreenConfiguration.cpp \
@@ -98,7 +92,7 @@ CMMSRCS += \
   CocoaSensor.mm \
   smslib.mm \
   $(NULL)
-else ifneq (,$(filter OpenBSD NetBSD FreeBSD DragonFly,$(OS_TARGET)))
+else ifneq (,$(filter OpenBSD NetBSD FreeBSD DragonFlyBSD,$(OS_TARGET)))
 CPPSRCS += \
   FallbackSensor.cpp \
   FallbackVibration.cpp \
@@ -131,8 +125,6 @@ CPPSRCS += \
   FallbackSwitch.cpp \
   FallbackScreenPower.cpp \
   FallbackProcessPriority.cpp \
-  FallbackFMRadio.cpp \
-  FallbackFactoryReset.cpp \
   $(NULL)
 endif #}
 

@@ -11,7 +11,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 
 const STORAGE_MAX_EVENTS = 200;
 
-this.EXPORTED_SYMBOLS = ["ConsoleAPIStorage"];
+var EXPORTED_SYMBOLS = ["ConsoleAPIStorage"];
 
 var _consoleStorage = {};
 
@@ -36,7 +36,7 @@ var _consoleStorage = {};
  *    // Clear the events for the given inner window ID.
  *    ConsoleAPIStorage.clearEvents(innerWindowID);
  */
-this.ConsoleAPIStorage = {
+var ConsoleAPIStorage = {
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver]),
 
@@ -69,33 +69,17 @@ this.ConsoleAPIStorage = {
   },
 
   /**
-   * Get the events array by inner window ID or all events from all windows.
+   * Get the events array by inner window ID.
    *
-   * @param string [aId]
-   *        Optional, the inner window ID for which you want to get the array of
-   *        cached events.
+   * @param string aId
+   *        The inner window ID for which you want to get the array of cached
+   *        events.
    * @returns array
-   *          The array of cached events for the given window. If no |aId| is
-   *          given this function returns all of the cached events, from any
-   *          window.
+   *          The array of cached events for the given window.
    */
   getEvents: function CS_getEvents(aId)
   {
-    if (aId != null) {
-      return (_consoleStorage[aId] || []).slice(0);
-    }
-
-    let ids = [];
-
-    for each (let events in _consoleStorage) {
-      ids.push(events);
-    }
-
-    let result = [].concat.apply([], ids);
-
-    return result.sort(function(a, b) {
-      return a.timeStamp - b.timeStamp;
-    });
+    return (_consoleStorage[aId] || []).slice(0);
   },
 
   /**

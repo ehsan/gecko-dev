@@ -22,7 +22,6 @@ import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Rect;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
@@ -33,7 +32,6 @@ import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
@@ -53,22 +51,8 @@ abstract public class BrowserApp extends GeckoApp
 
     public static BrowserToolbar mBrowserToolbar;
     private AboutHomeContent mAboutHomeContent;
-    private Boolean mAboutHomeShowing = null;
 
-    private static final int ADDON_MENU_OFFSET = 1000;
-    private class MenuItemInfo {
-        int id;
-        String label;
-        String icon;
-
-        public MenuItemInfo(int id, String label, String icon) {
-            this.id = id;
-            this.label = label;
-            this.icon = icon;
-        }
-    }
-
-    private Vector<MenuItemInfo> mAddonMenuItemsCache;
+    static Vector<MenuItem> sAddonMenuItems = new Vector<MenuItem>();
 
     private PropertyAnimator mMainLayoutAnimator;
 
@@ -147,8 +131,8 @@ abstract public class BrowserApp extends GeckoApp
 
     @Override
     void handleClearHistory() {
-        super.handleClearHistory();
         updateAboutHomeTopSites();
+        super.handleClearHistory();
     }
 
     @Override
@@ -204,8 +188,6 @@ abstract public class BrowserApp extends GeckoApp
 
         LinearLayout actionBar = (LinearLayout) getActionBarLayout();
         mMainLayout.addView(actionBar, 0);
-
-        ((GeckoApp.MainLayout) mMainLayout).setOnInterceptTouchListener(new HideTabsTouchListener());
 
         mBrowserToolbar = new BrowserToolbar(this);
         mBrowserToolbar.from(actionBar);
@@ -362,7 +344,7 @@ abstract public class BrowserApp extends GeckoApp
         try {
             if (event.equals("Menu:Add")) {
                 final String label = message.getString("name");
-                final int id = message.getInt("id") + ADDON_MENU_OFFSET;
+                final int id = message.getInt("id");
                 String iconRes = null;
                 try { // icon is optional
                     iconRes = message.getString("icon");
@@ -374,7 +356,7 @@ abstract public class BrowserApp extends GeckoApp
                     }
                 });
             } else if (event.equals("Menu:Remove")) {
-                final int id = message.getInt("id") + ADDON_MENU_OFFSET;
+                final int id = message.getInt("id");
                 mMainHandler.post(new Runnable() {
                     public void run() {
                         removeAddonMenuItem(id);
@@ -562,10 +544,14 @@ abstract public class BrowserApp extends GeckoApp
                 if (favicon == null)
                     return;
 
+                Log.i(LOGTAG, "Favicon successfully loaded for URL = " + pageUrl);
+
                 // The tab might be pointing to another URL by the time the
                 // favicon is finally loaded, in which case we simply ignore it.
                 if (!tab.getURL().equals(pageUrl))
                     return;
+
+                Log.i(LOGTAG, "Favicon is for current URL = " + pageUrl);
 
                 tab.updateFavicon(favicon);
                 tab.setFaviconLoadId(Favicons.NOT_LOADING);
@@ -602,29 +588,17 @@ abstract public class BrowserApp extends GeckoApp
         mAboutHomeContent.update(EnumSet.of(AboutHomeContent.UpdateFlags.TOP_SITES));
     }
 
-    private void showAboutHome() {
-        // Don't create an additional AboutHomeRunnable if about:home
-        // is already visible.
-        if (mAboutHomeShowing != null && mAboutHomeShowing)
-            return;
-
-        mAboutHomeShowing = true;
+    public void showAboutHome() {
         Runnable r = new AboutHomeRunnable(true);
         mMainHandler.postAtFrontOfQueue(r);
     }
 
-    private void hideAboutHome() {
-        // If hideAboutHome gets called before showAboutHome, we still need
-        // to create an AboutHomeRunnable to hide the about:home content.
-        if (mAboutHomeShowing != null && !mAboutHomeShowing)
-            return;
-
-        mAboutHomeShowing = false;
+    public void hideAboutHome() {
         Runnable r = new AboutHomeRunnable(false);
         mMainHandler.postAtFrontOfQueue(r);
     }
 
-    private class AboutHomeRunnable implements Runnable {
+    public class AboutHomeRunnable implements Runnable {
         boolean mShow;
         AboutHomeRunnable(boolean show) {
             mShow = show;
@@ -643,15 +617,12 @@ abstract public class BrowserApp extends GeckoApp
                             loadUrl(url, AwesomeBar.Target.CURRENT_TAB);
                         }
                     });
-                    mAboutHomeContent.setLoadCompleteCallback(new AboutHomeContent.VoidCallback() {
-                         public void callback() {
-                             mAboutHomeStartupTimer.stop();
-                         }
-                    });
+                    mAboutHomeContent.setOnInterceptTouchListener(new ContentTouchListener());
                 } else {
                     mAboutHomeContent.update(EnumSet.of(AboutHomeContent.UpdateFlags.TOP_SITES,
                                                         AboutHomeContent.UpdateFlags.REMOTE_TABS));
                 }
+            
                 mAboutHomeContent.setVisibility(View.VISIBLE);
             } else {
                 findViewById(R.id.abouthome_content).setVisibility(View.GONE);
@@ -659,59 +630,9 @@ abstract public class BrowserApp extends GeckoApp
         } 
     }
 
-    private class HideTabsTouchListener implements OnInterceptTouchListener {
-        private boolean mIsHidingTabs = false;
-
-        @Override
-        public boolean onInterceptTouchEvent(View view, MotionEvent event) {
-            // We need to account for scroll state for the touched view otherwise
-            // tapping on an "empty" part of the view will still be considered a
-            // valid touch event.
-            if (view.getScrollX() != 0 || view.getScrollY() != 0) {
-                Rect rect = new Rect();
-                view.getHitRect(rect);
-                rect.offset(-view.getScrollX(), -view.getScrollY());
-
-                int[] viewCoords = new int[2];
-                view.getLocationOnScreen(viewCoords);
-
-                int x = (int) event.getRawX() - viewCoords[0];
-                int y = (int) event.getRawY() - viewCoords[1];
-
-                if (!rect.contains(x, y))
-                    return false;
-            }
-
-            // If the tab tray is showing, hide the tab tray and don't send the event to content.
-            if (event.getActionMasked() == MotionEvent.ACTION_DOWN && autoHideTabs()) {
-                mIsHidingTabs = true;
-                return true;
-            }
-            return false;
-        }
-
-        @Override
-        public boolean onTouch(View view, MotionEvent event) {
-            if (mIsHidingTabs) {
-                // Keep consuming events until the gesture finishes.
-                int action = event.getActionMasked();
-                if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
-                    mIsHidingTabs = false;
-                }
-                return true;
-            }
-            return false;
-        }
-    }
-
     private void addAddonMenuItem(final int id, final String label, final String icon) {
-        if (mMenu == null) {
-            if (mAddonMenuItemsCache == null)
-                mAddonMenuItemsCache = new Vector<MenuItemInfo>();
-
-            mAddonMenuItemsCache.add(new MenuItemInfo(id, label, icon));
+        if (mMenu == null)
             return;
-        }
 
         final MenuItem item = mMenu.add(Menu.NONE, id, Menu.NONE, label);
 
@@ -719,7 +640,8 @@ abstract public class BrowserApp extends GeckoApp
             @Override
             public boolean onMenuItemClick(MenuItem item) {
                 Log.i(LOGTAG, "menu item clicked");
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Menu:Clicked", Integer.toString(id - ADDON_MENU_OFFSET)));
+                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Menu:Clicked", Integer.toString(id)));
+                ((Activity) GeckoApp.mAppContext).closeOptionsMenu();
                 return true;
             }
         });
@@ -737,12 +659,8 @@ abstract public class BrowserApp extends GeckoApp
                         try {
                             URL url = new URL(icon);
                             InputStream is = (InputStream) url.getContent();
-                            try {
-                                Drawable drawable = Drawable.createFromStream(is, "src");
-                                item.setIcon(drawable);
-                            } finally {
-                                is.close();
-                            }
+                            Drawable drawable = Drawable.createFromStream(is, "src");
+                            item.setIcon(drawable);
                         } catch (Exception e) {
                             Log.w(LOGTAG, "Unable to set icon", e);
                         }
@@ -750,25 +668,24 @@ abstract public class BrowserApp extends GeckoApp
                 });
             }
         }
+        sAddonMenuItems.add(item);
     }
 
     private void removeAddonMenuItem(int id) {
-        // Remove add-on menu item from cache, if available.
-        if (mAddonMenuItemsCache != null && !mAddonMenuItemsCache.isEmpty()) {
-            for (MenuItemInfo item : mAddonMenuItemsCache) {
-                 if (item.id == id) {
-                     mAddonMenuItemsCache.remove(item);
-                     break;
-                 }
+        for (MenuItem item : sAddonMenuItems) {
+            if (item.getItemId() == id) {
+                sAddonMenuItems.remove(item);
+
+                if (mMenu == null)
+                    break;
+
+                MenuItem menuItem = mMenu.findItem(id);
+                if (menuItem != null)
+                    mMenu.removeItem(id);
+
+                break;
             }
         }
-
-        if (mMenu == null)
-            return;
-
-        MenuItem menuItem = mMenu.findItem(id);
-        if (menuItem != null)
-            mMenu.removeItem(id);
     }
 
     @Override
@@ -781,16 +698,6 @@ abstract public class BrowserApp extends GeckoApp
 
         MenuInflater inflater = getMenuInflater();
         inflater.inflate(R.menu.browser_app_menu, mMenu);
-
-        // Add add-on menu items if any.
-        if (mAddonMenuItemsCache != null && !mAddonMenuItemsCache.isEmpty()) {
-            for (MenuItemInfo item : mAddonMenuItemsCache) {
-                 addAddonMenuItem(item.id, item.label, item.icon);
-            }
-
-            mAddonMenuItemsCache.clear();
-        }
-
         return true;
     }
 
@@ -838,6 +745,7 @@ abstract public class BrowserApp extends GeckoApp
         MenuItem bookmark = aMenu.findItem(R.id.bookmark);
         MenuItem forward = aMenu.findItem(R.id.forward);
         MenuItem share = aMenu.findItem(R.id.share);
+        MenuItem readingList = aMenu.findItem(R.id.reading_list);
         MenuItem saveAsPDF = aMenu.findItem(R.id.save_as_pdf);
         MenuItem charEncoding = aMenu.findItem(R.id.char_encoding);
         MenuItem findInPage = aMenu.findItem(R.id.find_in_page);
@@ -847,6 +755,7 @@ abstract public class BrowserApp extends GeckoApp
             bookmark.setEnabled(false);
             forward.setEnabled(false);
             share.setEnabled(false);
+            readingList.setEnabled(false);
             saveAsPDF.setEnabled(false);
             findInPage.setEnabled(false);
             return true;
@@ -854,12 +763,28 @@ abstract public class BrowserApp extends GeckoApp
 
         bookmark.setEnabled(!tab.getURL().startsWith("about:reader"));
         bookmark.setCheckable(true);
-        bookmark.setChecked(tab.isBookmark());
-        bookmark.setIcon(tab.isBookmark() ? R.drawable.ic_menu_bookmark_remove : R.drawable.ic_menu_bookmark_add);
+        
+        if (tab.isBookmark()) {
+            bookmark.setChecked(true);
+            bookmark.setIcon(R.drawable.ic_menu_bookmark_remove);
+        } else {
+            bookmark.setChecked(false);
+            bookmark.setIcon(R.drawable.ic_menu_bookmark_add);
+        }
+
+        readingList.setEnabled(tab.getReaderEnabled());
+        readingList.setCheckable(true);
+
+        if (tab.isReadingListItem()) {
+            readingList.setChecked(true);
+            readingList.setIcon(R.drawable.ic_menu_reading_list_remove);
+        } else {
+            readingList.setChecked(false);
+            readingList.setIcon(R.drawable.ic_menu_reading_list_add);
+        }
 
         forward.setEnabled(tab.canDoForward());
         desktopMode.setChecked(tab.getDesktopMode());
-        desktopMode.setIcon(tab.getDesktopMode() ? R.drawable.ic_menu_desktop_mode_on : R.drawable.ic_menu_desktop_mode_off);
 
         String url = tab.getURL();
         if (ReaderModeUtils.isAboutReader(url))
@@ -903,6 +828,19 @@ abstract public class BrowserApp extends GeckoApp
                 return true;
             case R.id.share:
                 shareCurrentUrl();
+                return true;
+            case R.id.reading_list:
+                tab = Tabs.getInstance().getSelectedTab();
+                if (tab != null) {
+                    if (item.isChecked()) {
+                        tab.removeFromReadingList();
+                        item.setIcon(R.drawable.ic_menu_reading_list_add);
+                        Toast.makeText(this, R.string.reading_list_removed, Toast.LENGTH_SHORT).show();
+                    } else {
+                        tab.addToReadingList();
+                        item.setIcon(R.drawable.ic_menu_reading_list_remove);
+                    }
+                }
                 return true;
             case R.id.reload:
                 tab = Tabs.getInstance().getSelectedTab();

@@ -99,7 +99,11 @@ PuppetWidget::Create(nsIWidget        *aParent,
                                       gfxASurface::ContentFromFormat(gfxASurface::ImageFormatARGB32));
 
   mIMEComposing = false;
-  mNeedIMEStateInit = MightNeedIMEFocus(aInitData);
+  if (MightNeedIMEFocus(aInitData)) {
+    uint32_t chromeSeqno;
+    mTabChild->SendNotifyIMEFocus(false, &mIMEPreference, &chromeSeqno);
+    mIMELastBlurSeqno = mIMELastReceivedSeqno = chromeSeqno;
+  }
 
   PuppetWidget* parent = static_cast<PuppetWidget*>(aParent);
   if (parent) {
@@ -111,17 +115,6 @@ PuppetWidget::Create(nsIWidget        *aParent,
   }
 
   return NS_OK;
-}
-
-void
-PuppetWidget::InitIMEState()
-{
-  if (mNeedIMEStateInit) {
-    uint32_t chromeSeqno;
-    mTabChild->SendNotifyIMEFocus(false, &mIMEPreference, &chromeSeqno);
-    mIMELastBlurSeqno = mIMELastReceivedSeqno = chromeSeqno;
-    mNeedIMEStateInit = false;
-  }
 }
 
 already_AddRefed<nsIWidget>
@@ -162,17 +155,8 @@ PuppetWidget::Show(bool aState)
   bool wasVisible = mVisible;
   mVisible = aState;
 
-  if (mChild) {
-    mChild->mVisible = aState;
-  }
-
-  if (!mVisible && mLayerManager) {
-    mLayerManager->ClearCachedResources();
-  }
-
   if (!wasVisible && mVisible) {
     Resize(mBounds.width, mBounds.height, false);
-    Invalidate(mBounds);
   }
 
   return NS_OK;
@@ -218,7 +202,7 @@ PuppetWidget::Invalidate(const nsIntRect& aRect)
 {
 #ifdef DEBUG
   debug_DumpInvalidate(stderr, this, &aRect,
-                       nsAutoCString("PuppetWidget"), 0);
+                       nsCAutoString("PuppetWidget"), 0);
 #endif
 
   if (mChild) {
@@ -255,7 +239,7 @@ PuppetWidget::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
 {
 #ifdef DEBUG
   debug_DumpEvent(stdout, event->widget, event,
-                  nsAutoCString("PuppetWidget"), 0);
+                  nsCAutoString("PuppetWidget"), 0);
 #endif
 
   NS_ABORT_IF_FALSE(!mChild || mChild->mWindowType == eWindowType_popup,
@@ -409,7 +393,7 @@ PuppetWidget::OnIMEFocusChange(bool aFocus)
     nsQueryContentEvent queryEvent(true, NS_QUERY_TEXT_CONTENT, this);
     InitEvent(queryEvent, nullptr);
     // Query entire content
-    queryEvent.InitForQueryTextContent(0, UINT32_MAX);
+    queryEvent.InitForQueryTextContent(0, PR_UINT32_MAX);
     DispatchEvent(&queryEvent, status);
 
     if (queryEvent.mSucceeded) {
@@ -447,7 +431,7 @@ PuppetWidget::OnIMETextChange(uint32_t aStart, uint32_t aEnd, uint32_t aNewEnd)
     nsEventStatus status;
     nsQueryContentEvent queryEvent(true, NS_QUERY_TEXT_CONTENT, this);
     InitEvent(queryEvent, nullptr);
-    queryEvent.InitForQueryTextContent(0, UINT32_MAX);
+    queryEvent.InitForQueryTextContent(0, PR_UINT32_MAX);
     DispatchEvent(&queryEvent, status);
 
     if (queryEvent.mSucceeded) {
@@ -484,17 +468,10 @@ PuppetWidget::OnIMESelectionChange(void)
 NS_IMETHODIMP
 PuppetWidget::SetCursor(nsCursor aCursor)
 {
-  if (mCursor == aCursor) {
-    return NS_OK;
-  }
-
   if (!mTabChild ||
       !mTabChild->SendSetCursor(aCursor)) {
     return NS_ERROR_FAILURE;
   }
-
-  mCursor = aCursor;
-
   return NS_OK;
 }
 
@@ -515,7 +492,7 @@ PuppetWidget::Paint()
   {
 #ifdef DEBUG
     debug_DumpPaintEvent(stderr, this, region,
-                         nsAutoCString("PuppetWidget"), 0);
+                         nsCAutoString("PuppetWidget"), 0);
 #endif
 
     if (mozilla::layers::LAYERS_D3D10 == mLayerManager->GetBackendType()) {
@@ -531,9 +508,7 @@ PuppetWidget::Paint()
     }
   }
 
-  if (mAttachedWidgetListener) {
-    mAttachedWidgetListener->DidPaintWindow();
-  }
+  mAttachedWidgetListener->DidPaintWindow();
 
   return NS_OK;
 }
@@ -557,18 +532,12 @@ PuppetWidget::PaintTask::Run()
   return NS_OK;
 }
 
-bool
-PuppetWidget::NeedsPaint()
-{
-  return mVisible;
-}
-
 float
 PuppetWidget::GetDPI()
 {
   if (mDPI < 0) {
     NS_ABORT_IF_FALSE(mTabChild, "Need TabChild to get the DPI from!");
-    mTabChild->GetDPI(&mDPI);
+    mTabChild->SendGetDPI(&mDPI);
   }
 
   return mDPI;

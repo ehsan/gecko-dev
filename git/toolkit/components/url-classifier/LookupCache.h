@@ -152,9 +152,6 @@ private:
   CompletionArray mCompletions;
   // Set of prefixes known to be in the database
   nsRefPtr<nsUrlClassifierPrefixSet> mPrefixSet;
-
-  // Fx18 temporary; true if this is a -simple test table.
-  bool mTestTable;
 };
 
 }

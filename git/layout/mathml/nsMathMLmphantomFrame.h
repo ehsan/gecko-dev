@@ -6,7 +6,6 @@
 #ifndef nsMathMLmphantomFrame_h___
 #define nsMathMLmphantomFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
 #include "nsMathMLContainerFrame.h"
 
@@ -30,7 +29,7 @@ public:
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists) MOZ_OVERRIDE { return NS_OK; }
+                              const nsDisplayListSet& aLists) { return NS_OK; }
 
 protected:
   nsMathMLmphantomFrame(nsStyleContext* aContext)

@@ -4,7 +4,7 @@
 
 {
   if (typeof Components != "undefined") {
-    this.EXPORTED_SYMBOLS = ["OS"];
+    var EXPORTED_SYMBOLS = ["OS"];
   }
   (function(exports) {
      "use strict";
@@ -32,7 +32,7 @@
      }
 
      // Define a lazy getter for a property
-     let defineLazyGetter = function defineLazyGetter(object, name, getter) {
+     let defineLazyGetter = function(object, name, getter) {
        Object.defineProperty(object, name, {
          configurable: true,
          get: function lazy() {
@@ -45,7 +45,6 @@
          }
        });
      };
-     exports.OS.Shared.defineLazyGetter = defineLazyGetter;
 
      /**
       * A variable controlling whether we should printout logs.
@@ -236,14 +235,6 @@
        }
      };
 
-     /**
-      * Utility function used to determine whether an object is a typed array
-      */
-     let isTypedArray = function isTypedArray(obj) {
-       return typeof obj == "object"
-         && "byteOffset" in obj;
-     };
-     exports.OS.Shared.isTypedArray = isTypedArray;
 
      /**
       * A |Type| of pointers.
@@ -272,7 +263,7 @@
       * Protocol:
       * - |null| returns |null|
       * - a string returns |{string: value}|
-      * - a typed array returns |{ptr: address_of_buffer}|
+      * - an ArrayBuffer returns |{ptr: address_of_buffer}|
       * - a C array returns |{ptr: address_of_buffer}|
       * everything else raises an error
       */
@@ -284,11 +275,8 @@
          return { string: value };
        }
        let normalized;
-       if (isTypedArray(value)) { // Typed array
-         normalized = Types.uint8_t.in_ptr.implementation(value.buffer);
-         if (value.byteOffset != 0) {
-           normalized = exports.OS.Shared.offsetBy(normalized, value.byteOffset);
-         }
+       if ("byteLength" in value) { // ArrayBuffer
+         normalized = Types.uint8_t.in_ptr.implementation(value);
        } else if ("addressOfElement" in value) { // C array
          normalized = value.addressOfElement(0);
        } else if ("isNull" in value) { // C pointer

@@ -4,14 +4,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "SVGLengthList.h"
-#include "nsCharSeparatedTokenizer.h"
+#include "SVGAnimatedLengthList.h"
+#include "SVGLength.h"
+#include "nsSVGElement.h"
 #include "nsError.h"
 #include "nsString.h"
-#include "nsSVGElement.h"
+#include "nsSVGUtils.h"
+#include "nsCharSeparatedTokenizer.h"
 #include "string.h"
-#include "SVGAnimatedLengthList.h"
-#include "SVGContentUtils.h"
-#include "SVGLength.h"
 
 namespace mozilla {
 
@@ -57,7 +57,7 @@ SVGLengthList::SetValueFromString(const nsAString& aValue)
   nsCharSeparatedTokenizerTemplate<IsSVGWhitespace>
     tokenizer(aValue, ',', nsCharSeparatedTokenizer::SEPARATOR_OPTIONAL);
 
-  nsAutoCString str;  // outside loop to minimize memory churn
+  nsCAutoString str;  // outside loop to minimize memory churn
 
   while (tokenizer.hasMoreTokens()) {
     SVGLength length;

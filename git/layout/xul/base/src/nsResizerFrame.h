@@ -5,7 +5,6 @@
 #ifndef nsResizerFrame_h___
 #define nsResizerFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsTitleBarFrame.h"
 
 class nsIBaseWindow;
@@ -28,9 +27,9 @@ public:
 
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext, 
                                       nsGUIEvent* aEvent,
-                                      nsEventStatus* aEventStatus) MOZ_OVERRIDE;
+                                      nsEventStatus* aEventStatus);
 
-  virtual void MouseClicked(nsPresContext* aPresContext, nsGUIEvent *aEvent) MOZ_OVERRIDE;
+  virtual void MouseClicked(nsPresContext* aPresContext, nsGUIEvent *aEvent);
 
 protected:
   nsIContent* GetContentToResize(nsIPresShell* aPresShell, nsIBaseWindow** aWindow);

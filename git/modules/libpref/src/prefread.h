@@ -8,9 +8,7 @@
 #include "prtypes.h"
 #include "prefapi.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+PR_BEGIN_EXTERN_C
 
 /**
  * Callback function used to notify consumer of preference name value pairs.
@@ -99,7 +97,5 @@ void PREF_FinalizeParseState(PrefParseState *ps);
  */
 bool PREF_ParseBuf(PrefParseState *ps, const char *buf, int bufLen);
 
-#ifdef __cplusplus
-}
-#endif
+PR_END_EXTERN_C
 #endif /* prefread_h__ */

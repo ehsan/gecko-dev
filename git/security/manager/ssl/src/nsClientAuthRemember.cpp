@@ -118,7 +118,7 @@ nsClientAuthRememberService::RememberDecision(const nsACString & aHostName,
   if (aHostName.IsEmpty())
     return NS_ERROR_INVALID_ARG;
 
-  nsAutoCString fpStr;
+  nsCAutoString fpStr;
   nsresult rv = GetCertFingerprintByOidTag(aServerCert, SEC_OID_SHA256, fpStr);
   if (NS_FAILED(rv))
     return rv;
@@ -160,12 +160,12 @@ nsClientAuthRememberService::HasRememberedDecision(const nsACString & aHostName,
   *_retval = false;
 
   nsresult rv;
-  nsAutoCString fpStr;
+  nsCAutoString fpStr;
   rv = GetCertFingerprintByOidTag(aCert, SEC_OID_SHA256, fpStr);
   if (NS_FAILED(rv))
     return rv;
 
-  nsAutoCString hostCert;
+  nsCAutoString hostCert;
   GetHostWithCert(aHostName, fpStr, hostCert);
   nsClientAuthRemember settings;
 
@@ -188,7 +188,7 @@ nsClientAuthRememberService::AddEntryToList(const nsACString &aHostName,
                                       const nsACString &db_key)
 
 {
-  nsAutoCString hostCert;
+  nsCAutoString hostCert;
   GetHostWithCert(aHostName, fingerprint, hostCert);
 
   {
@@ -216,7 +216,7 @@ nsClientAuthRememberService::GetHostWithCert(const nsACString & aHostName,
                                              const nsACString & fingerprint, 
                                              nsACString& _retval)
 {
-  nsAutoCString hostCert(aHostName);
+  nsCAutoString hostCert(aHostName);
   hostCert.AppendLiteral(":");
   hostCert.Append(fingerprint);
   

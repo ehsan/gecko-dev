@@ -22,7 +22,7 @@
 
 typedef struct JSDStaticLock JSDStaticLock;
 
-extern JSDStaticLock*
+extern void*
 jsd_CreateLock();
 
 extern void

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012 The WebRTC project authors. All Rights Reserved.
+ *  Copyright (c) 2011 The WebRTC project authors. All Rights Reserved.
  *
  *  Use of this source code is governed by a BSD-style license
  *  that can be found in the LICENSE file in the root of the source
@@ -17,465 +17,476 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
  * Method:    NativeInit
  * Signature: (Landroid/content/Context;)Z
  */
-JNIEXPORT jboolean JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_NativeInit
-  (JNIEnv *, jobject, jobject);
+JNIEXPORT jboolean JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_NativeInit
+(JNIEnv *, jobject, jobject);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
  * Method:    GetVideoEngine
  * Signature: ()I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_GetVideoEngine
-  (JNIEnv *, jobject);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_GetVideoEngine
+(JNIEnv *, jobject);
+
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
  * Method:    Init
- * Signature: (Z)I
+ * Signature: (IIIZ)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_Init
-  (JNIEnv *, jobject, jboolean);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_Init
+(JNIEnv *, jobject, jboolean);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
  * Method:    Terminate
  * Signature: ()I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_Terminate
-  (JNIEnv *, jobject);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_Terminate
+(JNIEnv *, jobject);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
  * Method:    StartSend
  * Signature: (I)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_StartSend
-  (JNIEnv *, jobject, jint);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_StartSend
+(JNIEnv *, jobject, jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
  * Method:    StopRender
  * Signature: (I)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_StopRender
-  (JNIEnv *, jobject, jint);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_StopRender
+(JNIEnv *, jobject, jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
  * Method:    StopSend
- * Signature: (I)I
+ * Signature: ()I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_StopSend
-  (JNIEnv *, jobject, jint);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_StopSend
+(JNIEnv *, jobject,jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
  * Method:    StartReceive
- * Signature: (I)I
+ * Signature: ()I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_StartReceive
-  (JNIEnv *, jobject, jint);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_StartReceive
+(JNIEnv *, jobject,jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
  * Method:    StopReceive
- * Signature: (I)I
+ * Signature: ()I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_StopReceive
-  (JNIEnv *, jobject, jint);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_StopReceive
+(JNIEnv *, jobject,jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
  * Method:    CreateChannel
  * Signature: (I)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_CreateChannel
-  (JNIEnv *, jobject, jint);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_CreateChannel
+(JNIEnv *, jobject,jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
  * Method:    SetLocalReceiver
  * Signature: (II)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_SetLocalReceiver
-  (JNIEnv *, jobject, jint, jint);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_SetLocalReceiver
+(JNIEnv *, jobject, jint, jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
  * Method:    SetSendDestination
- * Signature: (IILjava/lang/String)I
+ * Signature: (II[B)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_SetSendDestination
-  (JNIEnv *, jobject, jint, jint, jstring);
-
-/*
- * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    GetCodecs(
- * Signature: ()I
- */
-JNIEXPORT jobjectArray JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_GetCodecs(
-    JNIEnv *env,
-    jobject);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_SetSendDestination
+(JNIEnv *, jobject, jint, jint, jbyteArray);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
  * Method:    SetReceiveCodec
- * Signature: (IIIIII)I
+ * Signature: (IIIIIIZ)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_SetReceiveCodec
-  (JNIEnv *, jobject, jint, jint, jint, jint, jint, jint);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_SetReceiveCodec
+(JNIEnv *, jobject, jint, jint, jint, jint, jint, jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
  * Method:    SetSendCodec
- * Signature: (IIIIII)I
+ * Signature: (IIIIIIZ)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_SetSendCodec
-  (JNIEnv *, jobject, jint, jint, jint, jint, jint, jint);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_SetSendCodec
+(JNIEnv *, jobject, jint, jint, jint, jint, jint, jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
  * Method:    AddRemoteRenderer
- * Signature: (ILjava/lang/Object;)I
+ * Signature: (ILandroid/view/SurfaceView;)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_AddRemoteRenderer
-  (JNIEnv *, jobject, jint, jobject);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_AddRemoteRenderer
+(JNIEnv *, jobject, jint, jobject);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
  * Method:    RemoveRemoteRenderer
  * Signature: (I)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_RemoveRemoteRenderer
-  (JNIEnv *, jobject, jint);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_RemoveRemoteRenderer
+(JNIEnv *, jobject,jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
  * Method:    StartRender
  * Signature: (I)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_StartRender
-  (JNIEnv *, jobject, jint);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_StartRender
+(JNIEnv *, jobject, jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
  * Method:    StartCamera
  * Signature: (II)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_StartCamera
-  (JNIEnv *, jobject, jint, jint);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_StartCamera
+(JNIEnv *, jobject,jint channel,jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
  * Method:    StopCamera
  * Signature: (I)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_StopCamera
-  (JNIEnv *, jobject, jint);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_StopCamera
+(JNIEnv *, jobject,jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
  * Method:    GetCameraOrientation
  * Signature: (I)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_GetCameraOrientation
-  (JNIEnv *, jobject, jint);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_GetCameraOrientation
+(JNIEnv *, jobject, jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
  * Method:    SetRotation
- * Signature: (II)I
+ * Signature: (I)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_SetRotation
-  (JNIEnv *, jobject, jint, jint);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_SetRotation
+(JNIEnv *, jobject, jint, jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
  * Method:    EnableNACK
  * Signature: (IZ)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_EnableNACK
-  (JNIEnv *, jobject, jint, jboolean);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_EnableNACK
+(JNIEnv *, jobject, jint, jboolean);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
  * Method:    EnablePLI
  * Signature: (IZ)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_EnablePLI
-  (JNIEnv *, jobject, jint, jboolean);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_EnablePLI
+(JNIEnv *, jobject, jint, jboolean);
+
+/*
+ * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
+ * Method:    StartSendNative
+ * Signature: (III[BIIIIIILandroid/view/SurfaceView;III)I
+ */
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_StartSendNative
+(JNIEnv *, jobject, jint, jint, jint, jbyteArray, jint, jint,
+jint, jint, jint, jint, jobject, jint, jint, jint);
+
+/*
+ * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
+ * Method:    StartListenNative
+ * Signature: (III[BIIIIIIILandroid/view/SurfaceView;)I
+ */
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_StartListenNative
+(JNIEnv *, jobject, jint, jint, jint, jbyteArray, jint, jint,
+jint, jint, jint, jint, jint, jobject);
+
+/*
+ * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
+ * Method:    StopAllNative
+ * Signature: (I)I
+ */
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_StopAllNative
+(JNIEnv *, jobject, jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
  * Method:    SetCallback
  * Signature: (ILorg/webrtc/videoengineapp/IViEAndroidCallback;)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_SetCallback
-  (JNIEnv *, jobject, jint, jobject);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_SetCallback
+(JNIEnv *, jobject, jint, jobject);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    StartIncomingRTPDump
- * Signature: (ILjava/lang/String;)I
+ * Method:    VE_Create
+ * Signature: (Landroid/app/Activity;)Z
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_StartIncomingRTPDump
-  (JNIEnv *, jobject, jint, jstring);
+JNIEXPORT jboolean JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VE_Create
+(JNIEnv *, jobject, jobject);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    StopIncomingRTPDump
- * Signature: (I)I
- */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_StopIncomingRTPDump
-  (JNIEnv *, jobject, jint);
-
-/*
- * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_Create
+ * Method:    VE_Delete
  * Signature: ()Z
  */
-JNIEXPORT jboolean JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1Create
-  (JNIEnv *, jobject);
+JNIEXPORT jboolean JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VE_Delete
+(JNIEnv *, jobject);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_Delete
- * Signature: ()Z
+ * Method:    VE_Init
+ * Signature: (IIIZZ)I
  */
-JNIEXPORT jboolean JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1Delete
-  (JNIEnv *, jobject);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VE_Init
+(JNIEnv *, jobject, jint, jint, jint, jboolean, jboolean);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_Init
- * Signature: (Z)I
- */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1Init
-  (JNIEnv *, jobject, jboolean);
-
-/*
- * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_Terminate
+ * Method:    VE_Terminate
  * Signature: ()I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1Terminate
-  (JNIEnv *, jobject);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VE_Terminate
+(JNIEnv *, jobject);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_CreateChannel
+ * Method:    VE_CreateChannel
  * Signature: ()I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1CreateChannel
-  (JNIEnv *, jobject);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VE_CreateChannel
+(JNIEnv *, jobject);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_DeleteChannel
+ * Method:    VE_DeleteChannel
  * Signature: (I)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1DeleteChannel
-  (JNIEnv *, jobject, jint);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VE_DeleteChannel
+(JNIEnv *, jobject, jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_SetLocalReceiver
+ * Method:    VE_SetLocalReceiver
  * Signature: (II)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1SetLocalReceiver
-  (JNIEnv *, jobject, jint, jint);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VE_SetLocalReceiver
+(JNIEnv *, jobject, jint, jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_SetSendDestination
+ * Method:    VE_SetSendDestination
  * Signature: (IILjava/lang/String;)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1SetSendDestination
-  (JNIEnv *, jobject, jint, jint, jstring);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VE_SetSendDestination
+(JNIEnv *, jobject, jint, jint, jstring);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_StartListen
+ * Method:    VE_StartListen
  * Signature: (I)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1StartListen
-  (JNIEnv *, jobject, jint);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VE_StartListen
+(JNIEnv *, jobject, jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_StartPlayout
+ * Method:    VE_StartPlayout
  * Signature: (I)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1StartPlayout
-  (JNIEnv *, jobject, jint);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VE_StartPlayout
+(JNIEnv *, jobject, jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_StartSend
+ * Method:    VE_StartSend
  * Signature: (I)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1StartSend
-  (JNIEnv *, jobject, jint);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VE_StartSend
+(JNIEnv *, jobject, jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_StopListen
+ * Method:    VE_StopListen
  * Signature: (I)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1StopListen
-  (JNIEnv *, jobject, jint);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VE_StopListen
+(JNIEnv *, jobject, jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_StopPlayout
+ * Method:    VE_StopPlayout
  * Signature: (I)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1StopPlayout
-  (JNIEnv *, jobject, jint);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VE_StopPlayout
+(JNIEnv *, jobject, jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_StopSend
+ * Method:    VE_StopSend
  * Signature: (I)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1StopSend
-  (JNIEnv *, jobject, jint);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VE_StopSend
+(JNIEnv *, jobject, jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_SetSpeakerVolume
+ * Method:    VE_SetSpeakerVolume
  * Signature: (I)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1SetSpeakerVolume
-  (JNIEnv *, jobject, jint);
-
-
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VE_SetSpeakerVolume
+(JNIEnv *, jobject, jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_SetLoudspeakerStatus
+ * Method:    VE_SetLoudspeakerStatus
  * Signature: (Z)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1SetLoudspeakerStatus
-  (JNIEnv *, jobject, jboolean);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VE_SetLoudspeakerStatus
+(JNIEnv *, jobject, jboolean);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_StartPlayingFileLocally
+ * Method:    VE_StartPlayingFileLocally
  * Signature: (ILjava/lang/String;Z)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1StartPlayingFileLocally
-  (JNIEnv *, jobject, jint, jstring, jboolean);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VE_StartPlayingFileLocally
+(JNIEnv *, jobject, jint, jstring, jboolean);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_StopPlayingFileLocally
+ * Method:    VE_StopPlayingFileLocally
  * Signature: (I)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1StopPlayingFileLocally
-  (JNIEnv *, jobject, jint);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VE_StopPlayingFileLocally
+(JNIEnv *, jobject, jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_StartPlayingFileAsMicrophone
+ * Method:    VE_StartPlayingFileAsMicrophone
  * Signature: (ILjava/lang/String;Z)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1StartPlayingFileAsMicrophone
-  (JNIEnv *, jobject, jint, jstring, jboolean);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VE_StartPlayingFileAsMicrophone
+(JNIEnv *, jobject, jint, jstring, jboolean);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_StopPlayingFileAsMicrophone
+ * Method:    VE_StopPlayingFileAsMicrophone
  * Signature: (I)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1StopPlayingFileAsMicrophone
-  (JNIEnv *, jobject, jint);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VE_StopPlayingFileAsMicrophone
+(JNIEnv *, jobject, jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_NumOfCodecs
+ * Method:    VE_NumOfCodecs
  * Signature: ()I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1NumOfCodecs
-  (JNIEnv *, jobject);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VE_NumOfCodecs
+(JNIEnv *, jobject);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_NumOfCodecs
- * Signature: ()Z
- */
-JNIEXPORT jobjectArray JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1GetCodecs
-  (JNIEnv *, jobject);
-
-/*
- * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_SetSendCodec
+ * Method:    VE_SetSendCodec
  * Signature: (II)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1SetSendCodec
-  (JNIEnv *, jobject, jint, jint);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VE_SetSendCodec
+(JNIEnv *, jobject, jint, jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_SetECStatus
- * Signature: (Z)I
- */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1SetECStatus
-  (JNIEnv *, jobject, jboolean);
-
-/*
- * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_SetAGCStatus
- * Signature: (Z)I
- */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1SetAGCStatus
-  (JNIEnv *, jobject, jboolean);
-
-/*
- * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_SetNSStatus
+ * Method:    VE_SetECStatus
  * Signature: (ZI)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1SetNSStatus
-  (JNIEnv *, jobject, jboolean);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VE_SetECStatus
+(JNIEnv *, jobject, jboolean, jint, jint, jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_StartDebugRecording
- * Signature: (Ljava/lang/String)I
+ * Method:    VE_SetNSStatus
+ * Signature: (ZI)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1StartDebugRecording
-  (JNIEnv *, jobject, jstring);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VE_SetNSStatus
+(JNIEnv *, jobject, jboolean, jint);
 
 /*
  * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_StopDebugRecording
- * Signature: ()I
+ * Method:    VE_SetAGCStatus
+ * Signature: (ZI)I
  */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1StopDebugRecording
-  (JNIEnv *, jobject);
-
-/*
- * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_StartIncomingRTPDump
- * Signature: (ILjava/lang/String;)I
- */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1StartIncomingRTPDump
-   (JNIEnv *, jobject, jint, jstring);
-
-/*
- * Class:     org_webrtc_videoengineapp_ViEAndroidJavaAPI
- * Method:    VoE_StopIncomingRTPDump
- * Signature: (I)I
- */
-JNIEXPORT jint JNICALL Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VoE_1StopIncomingRTPDump
-   (JNIEnv *, jobject, jint);
+JNIEXPORT jint JNICALL
+Java_org_webrtc_videoengineapp_ViEAndroidJavaAPI_VE_SetAGCStatus
+(JNIEnv *, jobject, jboolean, jint);
 
 #ifdef __cplusplus
 }

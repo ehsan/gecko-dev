@@ -14,6 +14,7 @@
 #include "nsTransactionStack.h"
 #include "nsWeakReference.h"
 #include "nscore.h"
+#include "prtypes.h"
 
 class nsITransaction;
 class nsITransactionListener;

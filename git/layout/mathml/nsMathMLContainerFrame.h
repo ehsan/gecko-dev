@@ -6,7 +6,6 @@
 #ifndef nsMathMLContainerFrame_h___
 #define nsMathMLContainerFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
 #include "nsContainerFrame.h"
 #include "nsBlockFrame.h"
@@ -90,11 +89,11 @@ public:
   NS_IMETHOD
   InsertFrames(ChildListID     aListID,
                nsIFrame*       aPrevFrame,
-               nsFrameList&    aFrameList) MOZ_OVERRIDE;
+               nsFrameList&    aFrameList);
 
   NS_IMETHOD
   RemoveFrame(ChildListID     aListID,
-              nsIFrame*       aOldFrame) MOZ_OVERRIDE;
+              nsIFrame*       aOldFrame);
 
   /**
    * Both GetMinWidth and GetPrefWidth return whatever
@@ -133,7 +132,7 @@ public:
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+                              const nsDisplayListSet& aLists);
 
   virtual bool UpdateOverflow();
 
@@ -405,7 +404,7 @@ public:
   NS_IMETHOD
   InsertFrames(ChildListID     aListID,
                nsIFrame*       aPrevFrame,
-               nsFrameList&    aFrameList) MOZ_OVERRIDE
+               nsFrameList&    aFrameList)
   {
     NS_ASSERTION(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
                  "unexpected frame list");
@@ -417,7 +416,7 @@ public:
 
   NS_IMETHOD
   RemoveFrame(ChildListID     aListID,
-              nsIFrame*       aOldFrame) MOZ_OVERRIDE
+              nsIFrame*       aOldFrame)
   {
     NS_ASSERTION(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
                  "unexpected frame list");
@@ -427,7 +426,7 @@ public:
     return rv;
   }
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE {
+  virtual bool IsFrameOfType(uint32_t aFlags) const {
     return nsBlockFrame::IsFrameOfType(aFlags &
               ~(nsIFrame::eMathML | nsIFrame::eExcludesIgnorableWhitespace));
   }
@@ -462,7 +461,7 @@ public:
 
   NS_IMETHOD
   AppendFrames(ChildListID     aListID,
-               nsFrameList&    aFrameList) MOZ_OVERRIDE
+               nsFrameList&    aFrameList)
   {
     NS_ASSERTION(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
                  "unexpected frame list");
@@ -475,7 +474,7 @@ public:
   NS_IMETHOD
   InsertFrames(ChildListID     aListID,
                nsIFrame*       aPrevFrame,
-               nsFrameList&    aFrameList) MOZ_OVERRIDE
+               nsFrameList&    aFrameList)
   {
     NS_ASSERTION(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
                  "unexpected frame list");
@@ -487,7 +486,7 @@ public:
 
   NS_IMETHOD
   RemoveFrame(ChildListID     aListID,
-              nsIFrame*       aOldFrame) MOZ_OVERRIDE
+              nsIFrame*       aOldFrame)
   {
     NS_ASSERTION(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
                  "unexpected frame list");

@@ -243,7 +243,7 @@ struct DateHashEntry : public PLDHashEntryHdr {
         int64_t h64, l64;
         LL_USHR(h64, t, 32);
         l64 = LL_INIT(0, 0xffffffff);
-        l64 &= t;
+        LL_AND(l64, l64, t);
         int32_t h32, l32;
         LL_L2I(h32, h64);
         LL_L2I(l32, l64);
@@ -257,7 +257,7 @@ struct DateHashEntry : public PLDHashEntryHdr {
         const DateHashEntry *entry =
             static_cast<const DateHashEntry *>(hdr);
 
-        return *static_cast<const PRTime *>(key) == entry->mKey;
+        return LL_EQ(*static_cast<const PRTime *>(key), entry->mKey);
     }
 };
 
@@ -939,7 +939,7 @@ RDFServiceImpl::GetResource(const nsACString& aURI, nsIRDFResource** aResource)
             // Try to find a factory using the component manager.
             nsACString::const_iterator begin;
             aURI.BeginReading(begin);
-            nsAutoCString contractID;
+            nsCAutoString contractID;
             contractID = NS_LITERAL_CSTRING(NS_RDF_RESOURCE_FACTORY_CONTRACTID_PREFIX) +
                          Substring(begin, p);
 
@@ -1017,7 +1017,7 @@ static int32_t kShift = 6;
     }
 
     nsresult rv;
-    nsAutoCString s;
+    nsCAutoString s;
 
     do {
         // Ugh, this is a really sloppy way to do this; I copied the
@@ -1371,7 +1371,7 @@ RDFServiceImpl::GetDataSource(const char* aURI, bool aBlock, nsIRDFDataSource** 
     // Attempt to canonify the URI before we look for it in the
     // cache. We won't bother doing this on `rdf:' URIs to avoid
     // useless (and expensive) protocol handler lookups.
-    nsAutoCString spec(aURI);
+    nsCAutoString spec(aURI);
 
     if (!StringBeginsWith(spec, NS_LITERAL_CSTRING("rdf:"))) {
         nsCOMPtr<nsIURI> uri;
@@ -1397,7 +1397,7 @@ RDFServiceImpl::GetDataSource(const char* aURI, bool aBlock, nsIRDFDataSource** 
     nsCOMPtr<nsIRDFDataSource> ds;
     if (StringBeginsWith(spec, NS_LITERAL_CSTRING("rdf:"))) {
         // It's a built-in data source. Convert it to a contract ID.
-        nsAutoCString contractID(
+        nsCAutoString contractID(
                 NS_LITERAL_CSTRING(NS_RDF_DATASOURCE_CONTRACTID_PREFIX) +
                 Substring(spec, 4, spec.Length() - 4));
 

@@ -176,7 +176,7 @@ nsMutationReceiver::AttributeWillChange(nsIDocument* aDocument,
 {
   if (nsAutoMutationBatch::IsBatching() ||
       !ObservesAttr(aElement, aNameSpaceID, aAttribute) ||
-      aElement->ChromeOnlyAccess()) {
+      aElement->IsInNativeAnonymousSubtree()) {
     return;
   }
 
@@ -213,7 +213,7 @@ nsMutationReceiver::CharacterDataWillChange(nsIDocument *aDocument,
 {
   if (nsAutoMutationBatch::IsBatching() ||
       !CharacterData() || !(Subtree() || aContent == Target()) ||
-      aContent->ChromeOnlyAccess()) {
+      aContent->IsInNativeAnonymousSubtree()) {
     return;
   }
   
@@ -239,7 +239,7 @@ nsMutationReceiver::ContentAppended(nsIDocument* aDocument,
 {
   nsINode* parent = NODE_FROM(aContainer, aDocument);
   bool wantsChildList = ChildList() && (Subtree() || parent == Target());
-  if (!wantsChildList || aFirstNewContent->ChromeOnlyAccess()) {
+  if (!wantsChildList || aFirstNewContent->IsInNativeAnonymousSubtree()) {
     return;
   }
 
@@ -277,7 +277,7 @@ nsMutationReceiver::ContentInserted(nsIDocument* aDocument,
 {
   nsINode* parent = NODE_FROM(aContainer, aDocument);
   bool wantsChildList = ChildList() && (Subtree() || parent == Target());
-  if (!wantsChildList || aChild->ChromeOnlyAccess()) {
+  if (!wantsChildList || aChild->IsInNativeAnonymousSubtree()) {
     return;
   }
 
@@ -308,7 +308,7 @@ nsMutationReceiver::ContentRemoved(nsIDocument* aDocument,
                                    int32_t aIndexInContainer,
                                    nsIContent* aPreviousSibling)
 {
-  if (aChild->ChromeOnlyAccess()) {
+  if (aChild->IsInNativeAnonymousSubtree()) {
     return;
   }
 
@@ -390,7 +390,6 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMMutationObserver)
 DOMCI_DATA(MutationObserver, nsDOMMutationObserver)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMMutationObserver)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMMutationObserver)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMutationObserver)
   NS_INTERFACE_MAP_ENTRY(nsIJSNativeInitializer)
@@ -400,12 +399,7 @@ NS_INTERFACE_MAP_END
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMMutationObserver)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMMutationObserver)
 
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsDOMMutationObserver)
-  NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
-NS_IMPL_CYCLE_COLLECTION_TRACE_END
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMMutationObserver)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mScriptContext)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOwner)
   for (int32_t i = 0; i < tmp->mReceivers.Count(); ++i) {
@@ -418,7 +412,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMMutationObserver)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMMutationObserver)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mScriptContext)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOwner)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mReceivers)

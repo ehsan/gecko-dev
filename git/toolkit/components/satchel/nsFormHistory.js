@@ -977,4 +977,4 @@ FormHistory.prototype = {
 };
 
 let component = [FormHistory];
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory(component);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory(component);

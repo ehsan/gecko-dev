@@ -150,7 +150,7 @@ public:
     nsCOMPtr<nsISupportsPRUint32> indexSupports(do_QueryInterface(aContext));
     NS_ASSERTION(indexSupports, "This should never fail!");
 
-    uint32_t index = UINT32_MAX;
+    uint32_t index = PR_UINT32_MAX;
     if (NS_FAILED(indexSupports->GetData(&index)) ||
         index >= mLoadInfos.Length()) {
       NS_ERROR("Bad index!");
@@ -496,15 +496,6 @@ public:
       }
 
       mWorkerPrivate->SetPrincipal(channelPrincipal);
-
-      if (parent) {
-        // XHR Params Allowed
-        mWorkerPrivate->SetXHRParamsAllowed(parent->XHRParamsAllowed());
-
-        // Set Eval and ContentSecurityPolicy
-        mWorkerPrivate->SetCSP(parent->GetCSP());
-        mWorkerPrivate->SetEvalAllowed(parent->IsEvalAllowed());
-      }
     }
 
     return NS_OK;
@@ -513,8 +504,8 @@ public:
   void
   ExecuteFinishedScripts()
   {
-    uint32_t firstIndex = UINT32_MAX;
-    uint32_t lastIndex = UINT32_MAX;
+    uint32_t firstIndex = PR_UINT32_MAX;
+    uint32_t lastIndex = PR_UINT32_MAX;
 
     // Find firstIndex based on whether mExecutionScheduled is unset.
     for (uint32_t index = 0; index < mLoadInfos.Length(); index++) {
@@ -526,7 +517,7 @@ public:
 
     // Find lastIndex based on whether mChannel is set, and update
     // mExecutionScheduled on the ones we're about to schedule.
-    if (firstIndex != UINT32_MAX) {
+    if (firstIndex != PR_UINT32_MAX) {
       for (uint32_t index = firstIndex; index < mLoadInfos.Length(); index++) {
         ScriptLoadInfo& loadInfo = mLoadInfos[index];
 
@@ -542,7 +533,7 @@ public:
       }
     }
 
-    if (firstIndex != UINT32_MAX && lastIndex != UINT32_MAX) {
+    if (firstIndex != PR_UINT32_MAX && lastIndex != PR_UINT32_MAX) {
       nsRefPtr<ScriptExecutorRunnable> runnable =
         new ScriptExecutorRunnable(*this, mSyncQueueKey, firstIndex, lastIndex);
       if (!runnable->Dispatch(nullptr)) {
@@ -585,7 +576,7 @@ ScriptExecutorRunnable::WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
     }
   }
 
-  js::RootedObject global(aCx, JS_GetGlobalObject(aCx));
+  JS::RootedObject global(aCx, JS_GetGlobalObject(aCx));
   NS_ASSERTION(global, "Must have a global by now!");
 
   JSPrincipals* principal = GetWorkerPrincipal();

@@ -91,10 +91,4 @@
 
   <iframe name="Evaluator" id="Evaluator" collapsed="true"/>
 
-  <statusbar>
-    <statusbarpanel flex="1" pack="start">
-      <textbox placeholder="&filter.label;" accesskey="&filter.accesskey;" type="search"
-               id="Filter" oncommand="changeFilter();"/>
-    </statusbarpanel>
-  </statusbar>
 </window>

@@ -7,6 +7,9 @@
 #define mozilla_a11y_HTMLSelectAccessible_h__
 
 #include "HTMLFormControlAccessible.h"
+#include "nsIDOMHTMLOptionsCollection.h"
+#include "nsIDOMHTMLOptionElement.h"
+#include "nsIDOMNode.h"
 
 class nsIMutableArray;
 
@@ -222,6 +225,7 @@ public:
 
   // nsAccessNode
   virtual nsIFrame* GetFrame() const;
+  virtual bool IsPrimaryForNode() const;
 
   // Accessible
   virtual a11y::role NativeRole();

@@ -54,7 +54,7 @@
  * of GCLI and can be run as a test case.
  */
 
-this.EXPORTED_SYMBOLS = [ 'helpers' ];
+var EXPORTED_SYMBOLS = [ 'helpers' ];
 
 var test = { };
 
@@ -375,7 +375,7 @@ DeveloperToolbarTest.exec = function DTT_exec(tests) {
  * the tests have completed. If a single test function is passed then this
  * function should arrange for 'finish()' to be called on completion.
  */
-DeveloperToolbarTest.test = function DTT_test(uri, target, isGcli) {
+DeveloperToolbarTest.test = function DTT_test(uri, target) {
   let menuItem = document.getElementById("menu_devToolbar");
   let command = document.getElementById("Tools:DevToolbar");
   let appMenuItem = document.getElementById("appmenu_devToolbar");
@@ -420,21 +420,14 @@ DeveloperToolbarTest.test = function DTT_test(uri, target, isGcli) {
     browser.removeEventListener("load", onTabLoad, true);
 
     DeveloperToolbarTest.show(function() {
-      var options = {
-        window: content,
-        display: DeveloperToolbar.display,
-        isFirefox: true
-      };
-
-      if (helpers && !isGcli) {
-        helpers.setup(options);
+      if (helpers) {
+        helpers.setup({ display: DeveloperToolbar.display });
       }
 
       if (Array.isArray(target)) {
         try {
           target.forEach(function(func) {
-            var args = isGcli ? [ options ] : [ browser, tab ];
-            func.apply(null, args);
+            func(browser, tab);
           })
         }
         finally {
@@ -503,20 +496,20 @@ DeveloperToolbarTest.closeAllTabs = function() {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-this.helpers = {};
-
-var assert = { ok: ok, is: is, log: info };
+var helpers = {};
 
 helpers._display = undefined;
-helpers._options = undefined;
 
 helpers.setup = function(options) {
-  helpers._options = options;
   helpers._display = options.display;
+  if (typeof ok !== 'undefined') {
+    test.ok = ok;
+    test.is = is;
+    test.log = info;
+  }
 };
 
 helpers.shutdown = function(options) {
-  helpers._options = undefined;
   helpers._display = undefined;
 };
 
@@ -635,23 +628,10 @@ helpers.setInput = function(typed, cursor) {
   if (cursor) {
     helpers._display.inputter.setCursor({ start: cursor, end: cursor });
   }
-  else {
-    // This is a hack because jsdom appears to not handle cursor updates
-    // in the same way as most browsers.
-    if (helpers._options.isJsdom) {
-      helpers._display.inputter.setCursor({
-        start: typed.length,
-        end: typed.length
-      });
-    }
-  }
 
   helpers._display.focusManager.onInputChange();
 
-  // Firefox testing is noisy and distant, so logging helps
-  if (helpers._options.isFirefox) {
-    assert.log('setInput("' + typed + '"' + (cursor == null ? '' : ', ' + cursor) + ')');
-  }
+  test.log('setInput("' + typed + '"' + (cursor == null ? '' : ', ' + cursor) + ')');
 };
 
 /**
@@ -712,35 +692,35 @@ helpers.pressKey = function(keyCode) {
  */
 helpers.check = function(checks) {
   if ('input' in checks) {
-    assert.is(helpers._actual.input(), checks.input, 'input');
+    test.is(helpers._actual.input(), checks.input, 'input');
   }
 
   if ('cursor' in checks) {
-    assert.is(helpers._actual.cursor(), checks.cursor, 'cursor');
+    test.is(helpers._actual.cursor(), checks.cursor, 'cursor');
   }
 
   if ('current' in checks) {
-    assert.is(helpers._actual.current(), checks.current, 'current');
+    test.is(helpers._actual.current(), checks.current, 'current');
   }
 
   if ('status' in checks) {
-    assert.is(helpers._actual.status(), checks.status, 'status');
+    test.is(helpers._actual.status(), checks.status, 'status');
   }
 
   if ('markup' in checks) {
-    assert.is(helpers._actual.markup(), checks.markup, 'markup');
+    test.is(helpers._actual.markup(), checks.markup, 'markup');
   }
 
   if ('hints' in checks) {
-    assert.is(helpers._actual.hints(), checks.hints, 'hints');
+    test.is(helpers._actual.hints(), checks.hints, 'hints');
   }
 
   if ('tooltipState' in checks) {
-    assert.is(helpers._actual.tooltipState(), checks.tooltipState, 'tooltipState');
+    test.is(helpers._actual.tooltipState(), checks.tooltipState, 'tooltipState');
   }
 
   if ('outputState' in checks) {
-    assert.is(helpers._actual.outputState(), checks.outputState, 'outputState');
+    test.is(helpers._actual.outputState(), checks.outputState, 'outputState');
   }
 
   if (checks.args != null) {
@@ -757,42 +737,42 @@ helpers.check = function(checks) {
       }
 
       if (assignment == null) {
-        assert.ok(false, 'Unknown arg: ' + paramName);
+        test.ok(false, 'Unknown arg: ' + paramName);
         return;
       }
 
       if ('value' in check) {
-        assert.is(assignment.value,
+        test.is(assignment.value,
                 check.value,
                 'arg.' + paramName + '.value');
       }
 
       if ('name' in check) {
-        assert.is(assignment.value.name,
+        test.is(assignment.value.name,
                 check.name,
                 'arg.' + paramName + '.name');
       }
 
       if ('type' in check) {
-        assert.is(assignment.arg.type,
+        test.is(assignment.arg.type,
                 check.type,
                 'arg.' + paramName + '.type');
       }
 
       if ('arg' in check) {
-        assert.is(assignment.arg.toString(),
+        test.is(assignment.arg.toString(),
                 check.arg,
                 'arg.' + paramName + '.arg');
       }
 
       if ('status' in check) {
-        assert.is(assignment.getStatus().toString(),
+        test.is(assignment.getStatus().toString(),
                 check.status,
                 'arg.' + paramName + '.status');
       }
 
       if ('message' in check) {
-        assert.is(assignment.getMessage(),
+        test.is(assignment.getMessage(),
                 check.message,
                 'arg.' + paramName + '.message');
       }
@@ -826,19 +806,19 @@ helpers.exec = function(tests) {
   var typed = inputter.getInputState().typed;
   var output = requisition.exec({ hidden: true });
 
-  assert.is(typed, output.typed, 'output.command for: ' + typed);
+  test.is(typed, output.typed, 'output.command for: ' + typed);
 
   if (tests.completed !== false) {
-    assert.ok(output.completed, 'output.completed false for: ' + typed);
+    test.ok(output.completed, 'output.completed false for: ' + typed);
   }
   else {
     // It is actually an error if we say something is async and it turns
     // out not to be? For now we're saying 'no'
-    // assert.ok(!output.completed, 'output.completed true for: ' + typed);
+    // test.ok(!output.completed, 'output.completed true for: ' + typed);
   }
 
   if (tests.args != null) {
-    assert.is(Object.keys(tests.args).length, Object.keys(output.args).length,
+    test.is(Object.keys(tests.args).length, Object.keys(output.args).length,
             'arg count for ' + typed);
 
     Object.keys(output.args).forEach(function(arg) {
@@ -847,36 +827,36 @@ helpers.exec = function(tests) {
 
       if (Array.isArray(expectedArg)) {
         if (!Array.isArray(actualArg)) {
-          assert.ok(false, 'actual is not an array. ' + typed + '/' + arg);
+          test.ok(false, 'actual is not an array. ' + typed + '/' + arg);
           return;
         }
 
-        assert.is(expectedArg.length, actualArg.length,
+        test.is(expectedArg.length, actualArg.length,
                 'array length: ' + typed + '/' + arg);
         for (var i = 0; i < expectedArg.length; i++) {
-          assert.is(expectedArg[i], actualArg[i],
+          test.is(expectedArg[i], actualArg[i],
                   'member: "' + typed + '/' + arg + '/' + i);
         }
       }
       else {
-        assert.is(expectedArg, actualArg, 'typed: "' + typed + '" arg: ' + arg);
+        test.is(expectedArg, actualArg, 'typed: "' + typed + '" arg: ' + arg);
       }
     });
   }
 
-  if (!helpers._options.window.document.createElement) {
-    assert.log('skipping output tests (missing doc.createElement) for ' + typed);
+  if (!options.window.document.createElement) {
+    test.log('skipping output tests (missing doc.createElement) for ' + typed);
     return;
   }
 
-  var div = helpers._options.window.document.createElement('div');
+  var div = options.window.document.createElement('div');
   output.toDom(div);
   var displayed = div.textContent.trim();
 
   if (tests.outputMatch) {
     var doTest = function(match, against) {
       if (!match.test(against)) {
-        assert.ok(false, "html output for " + typed + " against " + match.source);
+        test.ok(false, "html output for " + typed + " against " + match.source);
         console.log("Actual textContent");
         console.log(against);
       }
@@ -893,7 +873,7 @@ helpers.exec = function(tests) {
 
   if (tests.blankOutput != null) {
     if (!/^$/.test(displayed)) {
-      assert.ok(false, "html for " + typed + " (textContent sent to info)");
+      test.ok(false, "html for " + typed + " (textContent sent to info)");
       console.log("Actual textContent");
       console.log(displayed);
     }

@@ -42,7 +42,6 @@
 #include <uuids.h>
 
 #include "audio_device_utility.h"
-#include "system_wrappers/interface/sleep.h"
 #include "trace.h"
 
 // Macro that calls a COM method returning HRESULT value.
@@ -3569,16 +3568,6 @@ DWORD AudioDeviceWindowsCore::DoRenderThread()
         {
             _Lock();
 
-            // Sanity check to ensure that essential states are not modified
-            // during the unlocked period.
-            if (_ptrRenderClient == NULL || _ptrClientOut == NULL)
-            {
-                _UnLock();
-                WEBRTC_TRACE(kTraceCritical, kTraceAudioDevice, _id,
-                    "output state has been modified during unlocked period");
-                goto Exit;
-            }
-
             // Get the number of frames of padding (queued up to play) in the endpoint buffer.
             UINT32 padding = 0;
             hr = _ptrClientOut->GetCurrentPadding(&padding);
@@ -3668,7 +3657,7 @@ DWORD AudioDeviceWindowsCore::DoRenderThread()
 
     // ------------------ THREAD LOOP ------------------ <<
 
-    SleepMs(static_cast<DWORD>(endpointBufferSizeMS+0.5));
+    Sleep(static_cast<DWORD>(endpointBufferSizeMS+0.5));
     hr = _ptrClientOut->Stop();
 
 Exit:
@@ -4026,16 +4015,6 @@ DWORD AudioDeviceWindowsCore::DoCaptureThread()
             UINT64 recPos = 0;
 
             _Lock();
-
-            // Sanity check to ensure that essential states are not modified
-            // during the unlocked period.
-            if (_ptrCaptureClient == NULL || _ptrClientIn == NULL)
-            {
-                _UnLock();
-                WEBRTC_TRACE(kTraceCritical, kTraceAudioDevice, _id,
-                    "input state has been modified during unlocked period");
-                goto Exit;
-            }
 
             //  Find out how much capture data is available
             //

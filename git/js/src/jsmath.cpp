@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 sw=4 et tw=99:
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -248,14 +247,8 @@ js_math_ceil(JSContext *cx, unsigned argc, Value *vp)
     return JS_TRUE;
 }
 
-double
-js::math_cos_impl(MathCache *cache, double x)
-{
-    return cache->lookup(cos, x);
-}
-
-JSBool
-js::math_cos(JSContext *cx, unsigned argc, Value *vp)
+static JSBool
+math_cos(JSContext *cx, unsigned argc, Value *vp)
 {
     double x, z;
 
@@ -268,7 +261,7 @@ js::math_cos(JSContext *cx, unsigned argc, Value *vp)
     MathCache *mathCache = cx->runtime->getMathCache(cx);
     if (!mathCache)
         return JS_FALSE;
-    z = math_cos_impl(mathCache, x);
+    z = mathCache->lookup(cos, x);
     vp->setDouble(z);
     return JS_TRUE;
 }
@@ -328,18 +321,8 @@ js_math_floor(JSContext *cx, unsigned argc, Value *vp)
     return JS_TRUE;
 }
 
-double
-js::math_log_impl(MathCache *cache, double x)
-{
-#if defined(SOLARIS) && defined(__GNUC__)
-    if (x < 0)
-        return js_NaN;
-#endif
-    return cache->lookup(log, x);
-}
-
-JSBool
-js::math_log(JSContext *cx, unsigned argc, Value *vp)
+static JSBool
+math_log(JSContext *cx, unsigned argc, Value *vp)
 {
     double x, z;
 
@@ -349,10 +332,16 @@ js::math_log(JSContext *cx, unsigned argc, Value *vp)
     }
     if (!ToNumber(cx, vp[2], &x))
         return JS_FALSE;
+#if defined(SOLARIS) && defined(__GNUC__)
+    if (x < 0) {
+        vp->setDouble(js_NaN);
+        return JS_TRUE;
+    }
+#endif
     MathCache *mathCache = cx->runtime->getMathCache(cx);
     if (!mathCache)
         return JS_FALSE;
-    z = math_log_impl(mathCache, x);
+    z = mathCache->lookup(log, x);
     vp->setNumber(z);
     return JS_TRUE;
 }
@@ -417,12 +406,8 @@ js_math_min(JSContext *cx, unsigned argc, Value *vp)
     return JS_TRUE;
 }
 
-// Disable PGO for Math.pow() and related functions (see bug 791214).
-#if defined(_MSC_VER)
-# pragma optimize("g", off)
-#endif
-double
-js::powi(double x, int y)
+static double
+powi(double x, int y)
 {
     unsigned n = (y < 0) ? -y : y;
     double m = x;
@@ -448,33 +433,7 @@ js::powi(double x, int y)
         m *= m;
     }
 }
-#if defined(_MSC_VER)
-# pragma optimize("", on)
-#endif
 
-// Disable PGO for Math.pow() and related functions (see bug 791214).
-#if defined(_MSC_VER)
-# pragma optimize("g", off)
-#endif
-double
-js::ecmaPow(double x, double y)
-{
-    /*
-     * Because C99 and ECMA specify different behavior for pow(),
-     * we need to wrap the libm call to make it ECMA compliant.
-     */
-    if (!MOZ_DOUBLE_IS_FINITE(y) && (x == 1.0 || x == -1.0))
-        return js_NaN;
-    return pow(x, y);
-}
-#if defined(_MSC_VER)
-# pragma optimize("", on)
-#endif
-
-// Disable PGO for Math.pow() and related functions (see bug 791214).
-#if defined(_MSC_VER)
-# pragma optimize("g", off)
-#endif
 JSBool
 js_math_pow(JSContext *cx, unsigned argc, Value *vp)
 {
@@ -500,6 +459,14 @@ js_math_pow(JSContext *cx, unsigned argc, Value *vp)
             return JS_TRUE;
         }
     }
+    /*
+     * Because C99 and ECMA specify different behavior for pow(),
+     * we need to wrap the libm call to make it ECMA compliant.
+     */
+    if (!MOZ_DOUBLE_IS_FINITE(y) && (x == 1.0 || x == -1.0)) {
+        vp->setDouble(js_NaN);
+        return JS_TRUE;
+    }
     /* pow(x, +-0) is always 1, even for x = NaN. */
     if (y == 0) {
         vp->setInt32(1);
@@ -514,14 +481,11 @@ js_math_pow(JSContext *cx, unsigned argc, Value *vp)
     if (int32_t(y) == y)
         z = powi(x, int32_t(y));
     else
-        z = ecmaPow(x, y);
+        z = pow(x, y);
 
     vp->setNumber(z);
     return JS_TRUE;
 }
-#if defined(_MSC_VER)
-# pragma optimize("", on)
-#endif
 
 static const int64_t RNG_MULTIPLIER = 0x5DEECE66DLL;
 static const int64_t RNG_ADDEND = 0xBLL;
@@ -566,15 +530,8 @@ random_nextDouble(JSContext *cx)
            RNG_DSCALE;
 }
 
-double
-math_random_no_outparam(JSContext *cx)
-{
-    /* Calculate random without memory traffic, for use in the JITs. */
-    return random_nextDouble(cx);
-}
-
-JSBool
-js_math_random(JSContext *cx, unsigned argc, Value *vp)
+static JSBool
+math_random(JSContext *cx, unsigned argc, Value *vp)
 {
     double z = random_nextDouble(cx);
     vp->setDouble(z);
@@ -611,14 +568,8 @@ js_math_round(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-double
-js::math_sin_impl(MathCache *cache, double x)
-{
-    return cache->lookup(sin, x);
-}
-
-JSBool
-js::math_sin(JSContext *cx, unsigned argc, Value *vp)
+static JSBool
+math_sin(JSContext *cx, unsigned argc, Value *vp)
 {
     double x, z;
 
@@ -631,7 +582,7 @@ js::math_sin(JSContext *cx, unsigned argc, Value *vp)
     MathCache *mathCache = cx->runtime->getMathCache(cx);
     if (!mathCache)
         return JS_FALSE;
-    z = math_sin_impl(mathCache, x);
+    z = mathCache->lookup(sin, x);
     vp->setDouble(z);
     return JS_TRUE;
 }
@@ -655,14 +606,8 @@ js_math_sqrt(JSContext *cx, unsigned argc, Value *vp)
     return JS_TRUE;
 }
 
-double
-js::math_tan_impl(MathCache *cache, double x)
-{
-    return cache->lookup(tan, x);
-}
-
-JSBool
-js::math_tan(JSContext *cx, unsigned argc, Value *vp)
+static JSBool
+math_tan(JSContext *cx, unsigned argc, Value *vp)
 {
     double x, z;
 
@@ -675,7 +620,7 @@ js::math_tan(JSContext *cx, unsigned argc, Value *vp)
     MathCache *mathCache = cx->runtime->getMathCache(cx);
     if (!mathCache)
         return JS_FALSE;
-    z = math_tan_impl(mathCache, x);
+    z = mathCache->lookup(tan, x);
     vp->setDouble(z);
     return JS_TRUE;
 }
@@ -684,7 +629,7 @@ js::math_tan(JSContext *cx, unsigned argc, Value *vp)
 static JSBool
 math_toSource(JSContext *cx, unsigned argc, Value *vp)
 {
-    vp->setString(cx->names().Math);
+    vp->setString(CLASS_NAME(cx, Math));
     return JS_TRUE;
 }
 #endif
@@ -706,7 +651,7 @@ static JSFunctionSpec math_static_methods[] = {
     JS_FN("max",            js_math_max,          2, 0),
     JS_FN("min",            js_math_min,          2, 0),
     JS_FN("pow",            js_math_pow,          2, 0),
-    JS_FN("random",         js_math_random,       0, 0),
+    JS_FN("random",         math_random,          0, 0),
     JS_FN("round",          js_math_round,        1, 0),
     JS_FN("sin",            math_sin,             1, 0),
     JS_FN("sqrt",           js_math_sqrt,         1, 0),
@@ -715,8 +660,9 @@ static JSFunctionSpec math_static_methods[] = {
 };
 
 JSObject *
-js_InitMathClass(JSContext *cx, HandleObject obj)
+js_InitMathClass(JSContext *cx, JSObject *obj_)
 {
+    RootedObject obj(cx, obj_);
     RootedObject Math(cx, NewObjectWithClassProto(cx, &MathClass, NULL, obj));
     if (!Math || !JSObject::setSingletonType(cx, Math))
         return NULL;

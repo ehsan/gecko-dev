@@ -18,7 +18,7 @@
     COMPONENT(PERSISTENTPROPERTIES, nsPersistentProperties::Create)
 
     COMPONENT(SUPPORTSARRAY, nsSupportsArray::Create)
-    COMPONENT(ARRAY, nsArray::XPCOMConstructor)
+    COMPONENT(ARRAY, nsArrayConstructor)
     COMPONENT(CONSOLESERVICE, nsConsoleServiceConstructor)
     COMPONENT(EXCEPTIONSERVICE, nsExceptionServiceConstructor)
     COMPONENT(ATOMSERVICE, nsAtomServiceConstructor)
@@ -78,4 +78,3 @@
     COMPONENT(MEMORY_REPORTER_MANAGER, nsMemoryReporterManagerConstructor)
     COMPONENT(IOUTIL, nsIOUtilConstructor)
     COMPONENT(CYCLE_COLLECTOR_LOGGER, nsCycleCollectorLoggerConstructor)
-    COMPONENT(MESSAGE_LOOP, nsMessageLoopConstructor)

@@ -315,7 +315,7 @@ GetAppShell()
   NS_NAMED_LITERAL_CSTRING(contractSuffix, ";1");
 
   for (size_t index = 0; index < ArrayLength(platforms); index++) {
-    nsAutoCString contractID(contractPrefix);
+    nsCAutoString contractID(contractPrefix);
     contractID.AppendASCII(platforms[index]);
     contractID.Append(contractSuffix);
 

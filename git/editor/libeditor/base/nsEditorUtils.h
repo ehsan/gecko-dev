@@ -14,6 +14,7 @@
 #include "nsIDOMNode.h"
 #include "nsIEditor.h"
 #include "nscore.h"
+#include "prtypes.h"
 
 class nsIAtom;
 class nsIContentIterator;

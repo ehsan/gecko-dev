@@ -54,6 +54,10 @@ protected:
 
     WebRtc_Word16 InternalCreateDecoder();
 
+    WebRtc_Word16 UnregisterFromNetEqSafe(
+        ACMNetEQ*       netEq,
+        WebRtc_Word16   payloadType);
+
     void InternalDestructEncoderInst(
         void* ptrInst);
 

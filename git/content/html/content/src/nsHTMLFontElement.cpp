@@ -9,7 +9,6 @@
 #include "nsIDOMHTMLFontElement.h"
 #include "nsIDOMEventTarget.h"
 #include "nsGenericHTMLElement.h"
-#include "nsAttrValueInlines.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"

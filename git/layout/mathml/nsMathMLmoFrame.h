@@ -6,7 +6,6 @@
 #ifndef nsMathMLmoFrame_h___
 #define nsMathMLmoFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
 #include "nsMathMLTokenFrame.h"
 
@@ -33,26 +32,26 @@ public:
                               const nsDisplayListSet& aLists);
 
   NS_IMETHOD
-  InheritAutomaticData(nsIFrame* aParent) MOZ_OVERRIDE;
+  InheritAutomaticData(nsIFrame* aParent);
 
   NS_IMETHOD
-  TransmitAutomaticData() MOZ_OVERRIDE;
+  TransmitAutomaticData();
 
   NS_IMETHOD
   Reflow(nsPresContext*          aPresContext,
          nsHTMLReflowMetrics&     aDesiredSize,
          const nsHTMLReflowState& aReflowState,
-         nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+         nsReflowStatus&          aStatus);
 
-  virtual void MarkIntrinsicWidthsDirty() MOZ_OVERRIDE;
+  virtual void MarkIntrinsicWidthsDirty();
 
   virtual nscoord
-  GetIntrinsicWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
+  GetIntrinsicWidth(nsRenderingContext *aRenderingContext);
 
   NS_IMETHOD
   AttributeChanged(int32_t         aNameSpaceID,
                    nsIAtom*        aAttribute,
-                   int32_t         aModType) MOZ_OVERRIDE;
+                   int32_t         aModType);
 
   // This method is called by the parent frame to ask <mo> 
   // to stretch itself.
@@ -60,13 +59,13 @@ public:
   Stretch(nsRenderingContext& aRenderingContext,
           nsStretchDirection   aStretchDirection,
           nsBoundingMetrics&   aContainerSize,
-          nsHTMLReflowMetrics& aDesiredStretchSize) MOZ_OVERRIDE;
+          nsHTMLReflowMetrics& aDesiredStretchSize);
 
 protected:
   nsMathMLmoFrame(nsStyleContext* aContext) : nsMathMLTokenFrame(aContext) {}
   virtual ~nsMathMLmoFrame();
   
-  virtual int GetSkipSides() const MOZ_OVERRIDE { return 0; }
+  virtual int GetSkipSides() const { return 0; }
 
   nsMathMLChar     mMathMLChar; // Here is the MathMLChar that will deal with the operator.
   nsOperatorFlags  mFlags;
@@ -76,7 +75,7 @@ protected:
   bool UseMathMLChar();
 
   // overload the base method so that we can setup our nsMathMLChar
-  virtual void ProcessTextData() MOZ_OVERRIDE;
+  virtual void ProcessTextData();
 
   // helper to get our 'form' and lookup in the Operator Dictionary to fetch 
   // our default data that may come from there, and to complete the setup

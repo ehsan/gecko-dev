@@ -125,7 +125,6 @@ static bool getLastMouseY(NPObject* npobj, const NPVariant* args, uint32_t argCo
 static bool getPaintCount(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getWidthAtLastPaint(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool setInvalidateDuringPaint(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool setSlowPaint(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getError(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool doInternalConsistencyCheck(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool setColor(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
@@ -187,7 +186,6 @@ static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "getPaintCount",
   "getWidthAtLastPaint",
   "setInvalidateDuringPaint",
-  "setSlowPaint",
   "getError",
   "doInternalConsistencyCheck",
   "setColor",
@@ -250,7 +248,6 @@ static const ScriptableFunction sPluginMethodFunctions[] = {
   getPaintCount,
   getWidthAtLastPaint,
   setInvalidateDuringPaint,
-  setSlowPaint,
   getError,
   doInternalConsistencyCheck,
   setColor,
@@ -500,15 +497,6 @@ static void sendBufferToFrame(NPP instance)
       instanceData->err << "NPN_GetURL returned " << err;
     }
   }
-}
-
-static void XPSleep(unsigned int seconds)
-{
-#ifdef XP_WIN
-  Sleep(1000 * seconds);
-#else
-  sleep(seconds);
-#endif
 }
 
 TestFunction
@@ -777,7 +765,6 @@ NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* 
   instanceData->hasWidget = false;
   instanceData->npnNewStream = false;
   instanceData->invalidateDuringPaint = false;
-  instanceData->slowPaint = false;
   instanceData->writeCount = 0;
   instanceData->writeReadyCount = 0;
   memset(&instanceData->window, 0, sizeof(instanceData->window));
@@ -1094,10 +1081,8 @@ NPP_SetWindow(NPP instance, NPWindow* window)
 
   if (instanceData->asyncDrawing == AD_BITMAP) {
     if (instanceData->frontBuffer &&
-	instanceData->frontBuffer->size.width >= 0 &&
-       (uint32_t)instanceData->frontBuffer->size.width == window->width &&
-       instanceData ->frontBuffer->size.height >= 0 &&
-       (uint32_t)instanceData->frontBuffer->size.height == window->height) {
+        instanceData->frontBuffer->size.width == window->width &&
+        instanceData->frontBuffer->size.height == window->height) {
           return NPERR_NO_ERROR;
     }
     if (instanceData->frontBuffer) {
@@ -2503,22 +2488,6 @@ setInvalidateDuringPaint(NPObject* npobj, const NPVariant* args, uint32_t argCou
 }
 
 static bool
-setSlowPaint(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  if (argCount != 1)
-    return false;
-
-  if (!NPVARIANT_IS_BOOLEAN(args[0]))
-    return false;
-  bool slow = NPVARIANT_TO_BOOLEAN(args[0]);
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-  id->slowPaint = slow;
-  return true;
-}
-
-static bool
 getError(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
 {
   if (argCount != 0)
@@ -2805,10 +2774,6 @@ void notifyDidPaint(InstanceData* instanceData)
     r.right = instanceData->window.width;
     r.bottom = instanceData->window.height;
     NPN_InvalidateRect(instanceData->npp, &r);
-  }
-
-  if (instanceData->slowPaint) {
-    XPSleep(1);
   }
 
   if (instanceData->runScriptOnPaint) {
@@ -3199,7 +3164,11 @@ FinishGCRace(void* closure)
 {
   GCRaceData* rd = static_cast<GCRaceData*>(closure);
 
-  XPSleep(5);
+#ifdef XP_WIN
+  Sleep(5000);
+#else
+  sleep(5);
+#endif
 
   NPVariant arg;
   OBJECT_TO_NPVARIANT(rd->localFunc_, arg);
@@ -3623,10 +3592,10 @@ bool setSitesWithData(NPObject* npobj, const NPVariant* args, uint32_t argCount,
 
     // Parse out the three tokens into a siteData struct.
     const char* siteEnd = strchr(iterator, ':');
-    *((char*) siteEnd) = '\0';
+    *((char*) siteEnd) = NULL;
     const char* flagsEnd = strchr(siteEnd + 1, ':');
-    *((char*) flagsEnd) = '\0';
-    *((char*) next) = '\0';
+    *((char*) flagsEnd) = NULL;
+    *((char*) next) = NULL;
     
     siteData data;
     data.site = string(iterator);

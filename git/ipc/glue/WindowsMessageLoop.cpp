@@ -92,6 +92,7 @@ HHOOK gDeferredGetMsgHook = NULL;
 HHOOK gDeferredCallWndProcHook = NULL;
 
 DWORD gUIThreadId = 0;
+int gEventLoopDepth = 0;
 static UINT sAppShellGeckoMsgId;
 
 LRESULT CALLBACK
@@ -278,7 +279,7 @@ ProcessOrDeferMessage(HWND hwnd,
       } else {
         // Unknown messages only
 #ifdef DEBUG
-        nsAutoCString log("Received \"nonqueued\" message ");
+        nsCAutoString log("Received \"nonqueued\" message ");
         log.AppendInt(uMsg);
         log.AppendLiteral(" during a synchronous IPC message for window ");
         log.AppendInt((int64_t)hwnd);
@@ -389,7 +390,7 @@ WindowIsDeferredWindow(HWND hWnd)
     nsCOMPtr<nsIXULAppInfo> appInfo =
       do_GetService("@mozilla.org/xre/app-info;1");
     if (appInfo) {
-      nsAutoCString appName;
+      nsCAutoString appName;
       if (NS_SUCCEEDED(appInfo->GetName(appName))) {
         appName.Append("MessageWindow");
         nsDependentString windowName(gAppMessageWindowName);
@@ -462,7 +463,7 @@ RestoreWindowProcedure(HWND hWnd)
     NS_ASSERTION(oldWndProc != (LONG_PTR)NeuteredWindowProc,
                  "This shouldn't be possible!");
 
-    DebugOnly<LONG_PTR> currentWndProc =
+    LONG_PTR currentWndProc =
       SetWindowLongPtr(hWnd, GWLP_WNDPROC, oldWndProc);
     NS_ASSERTION(currentWndProc == (LONG_PTR)NeuteredWindowProc,
                  "This should never be switched out from under us!");
@@ -538,7 +539,7 @@ struct TimeoutData
 
 void
 InitTimeoutData(TimeoutData* aData,
-                int32_t aTimeoutMs)
+                int32 aTimeoutMs)
 {
   aData->startTicks = GetTickCount();
   if (!aData->startTicks) {
@@ -709,7 +710,7 @@ SyncChannel::WaitForNotify()
 
   bool timedout = false;
 
-  UINT_PTR timerId = 0;
+  UINT_PTR timerId = NULL;
   TimeoutData timeoutData = { 0 };
 
   if (mTimeoutMs != kNoTimeout) {
@@ -836,7 +837,7 @@ RPCChannel::WaitForNotify()
 
   bool timedout = false;
 
-  UINT_PTR timerId = 0;
+  UINT_PTR timerId = NULL;
   TimeoutData timeoutData = { 0 };
 
   // windowHook is used as a flag variable for the loop below: if it is set
@@ -856,7 +857,7 @@ RPCChannel::WaitForNotify()
 
         if (timerId) {
           KillTimer(NULL, timerId);
-          timerId = 0;
+          timerId = NULL;
         }
 
         // Used by widget to assert on incoming native events
@@ -1041,7 +1042,7 @@ DeferredSettingChangeMessage::DeferredSettingChangeMessage(HWND aHWnd,
   }
   else {
     lParamString = NULL;
-    lParam = 0;
+    lParam = NULL;
   }
 }
 

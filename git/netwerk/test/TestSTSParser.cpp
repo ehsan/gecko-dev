@@ -92,11 +92,11 @@ main(int32_t argc, char *argv[])
     // grab handle to the service
     nsCOMPtr<nsIStrictTransportSecurityService> stss;
     stss = do_GetService("@mozilla.org/stsservice;1", &rv);
-    NS_ENSURE_SUCCESS(rv, -1);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIPermissionManager> pm;
     pm = do_GetService("@mozilla.org/permissionmanager;1", &rv);
-    NS_ENSURE_SUCCESS(rv, -1);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     int rv0, rv1;
 

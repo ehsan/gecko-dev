@@ -10,40 +10,38 @@
 #include "nsBidiKeyboard.h"
 #include <gtk/gtk.h>
 
-#if (MOZ_WIDGET_GTK == 2)
+
+static PRLibrary *gtklib = nullptr;
+
 typedef gboolean (*GdkKeymapHaveBidiLayoutsType)(GdkKeymap *keymap);
 static GdkKeymapHaveBidiLayoutsType GdkKeymapHaveBidiLayouts = nullptr;
-#endif
+
 
 NS_IMPL_ISUPPORTS1(nsBidiKeyboard, nsIBidiKeyboard)
 
 nsBidiKeyboard::nsBidiKeyboard()
 {
-#if (MOZ_WIDGET_GTK == 2)
-    PRLibrary *gtklib = nullptr;
 #if defined(MOZ_X11)
-    if (!GdkKeymapHaveBidiLayouts) {
-        GdkKeymapHaveBidiLayouts = (GdkKeymapHaveBidiLayoutsType) 
-            PR_FindFunctionSymbolAndLibrary("gdk_keymap_have_bidi_layouts",
-                                            &gtklib);
-        if (gtklib)
-            PR_UnloadLibrary(gtklib);
-    }
+    if (!gtklib)
+        gtklib = PR_LoadLibrary("libgtk-x11-2.0.so.0");
+#else
+    return;
 #endif
 
-    mHaveBidiKeyboards = false;
-    if (GdkKeymapHaveBidiLayouts)
-        mHaveBidiKeyboards = (*GdkKeymapHaveBidiLayouts)(NULL);
-#else
-    mHaveBidiKeyboards = gdk_keymap_have_bidi_layouts(gdk_keymap_get_default());
-#endif
+    if (gtklib && !GdkKeymapHaveBidiLayouts)
+            GdkKeymapHaveBidiLayouts = (GdkKeymapHaveBidiLayoutsType) PR_FindFunctionSymbol(gtklib, "gdk_keymap_have_bidi_layouts");
+
+    SetHaveBidiKeyboards();
 }
 
 nsBidiKeyboard::~nsBidiKeyboard()
 {
-#if (MOZ_WIDGET_GTK == 2)
-    GdkKeymapHaveBidiLayouts = nullptr;
-#endif
+    if (gtklib) {
+        PR_UnloadLibrary(gtklib);
+        gtklib = nullptr;
+
+        GdkKeymapHaveBidiLayouts = nullptr;
+    }
 }
 
 NS_IMETHODIMP
@@ -52,7 +50,20 @@ nsBidiKeyboard::IsLangRTL(bool *aIsRTL)
     if (!mHaveBidiKeyboards)
         return NS_ERROR_FAILURE;
 
-    *aIsRTL = (gdk_keymap_get_direction(gdk_keymap_get_default()) == PANGO_DIRECTION_RTL);
+    *aIsRTL = (gdk_keymap_get_direction(NULL) == PANGO_DIRECTION_RTL);
+
+    return NS_OK;
+}
+
+nsresult
+nsBidiKeyboard::SetHaveBidiKeyboards()
+{
+    mHaveBidiKeyboards = false;
+
+    if (!gtklib || !GdkKeymapHaveBidiLayouts)
+        return NS_ERROR_FAILURE;
+
+    mHaveBidiKeyboards = (*GdkKeymapHaveBidiLayouts)(NULL);
 
     return NS_OK;
 }

@@ -67,6 +67,14 @@ public:
   void CancelTouch();
 
   /**
+   * Sets axis locking. This prevents any panning along this axis. If the
+   * current touch point is updated and the axis is locked, the velocity will
+   * not be recalculated. Any already-existing velocity will however stay the
+   * same.
+   */
+  void LockPanning();
+
+  /**
    * Gets displacement that should have happened since the previous touch.
    * Note: Does not reset the displacement. It gets recalculated on the next
    * UpdateWithTouchAtDevicePoint(), however it is not safe to assume this will
@@ -107,12 +115,6 @@ public:
    * GetOverscroll() first.
    */
   float GetExcess();
-
-  /**
-   * Gets the factor of acceleration applied to the velocity, based on the
-   * amount of flings that have been done successively.
-   */
-  float GetAccelerationFactor();
 
   /**
    * Gets the raw velocity of this axis at this moment.
@@ -163,10 +165,10 @@ public:
   bool ScaleWillOverscrollBothSides(float aScale);
 
   float GetOrigin();
-  float GetCompositionLength();
+  float GetViewportLength();
   float GetPageStart();
   float GetPageLength();
-  float GetCompositionEnd();
+  float GetViewportEnd();
   float GetPageEnd();
 
   virtual float GetPointOffset(const gfx::Point& aPoint) = 0;
@@ -184,6 +186,7 @@ protected:
   // reach one of the extremes of the page.
   int32_t mAcceleration;
   nsRefPtr<AsyncPanZoomController> mAsyncPanZoomController;
+  bool mLockPanning;
 };
 
 class AxisX : public Axis {

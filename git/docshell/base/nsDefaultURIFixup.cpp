@@ -47,7 +47,7 @@ nsDefaultURIFixup::CreateExposableURI(nsIURI *aURI, nsIURI **aReturn)
     bool isWyciwyg = false;
     aURI->SchemeIs("wyciwyg", &isWyciwyg);
 
-    nsAutoCString userPass;
+    nsCAutoString userPass;
     aURI->GetUserPass(userPass);
 
     // most of the time we can just AddRef and return
@@ -62,7 +62,7 @@ nsDefaultURIFixup::CreateExposableURI(nsIURI *aURI, nsIURI **aReturn)
     nsCOMPtr<nsIURI> uri;
     if (isWyciwyg)
     {
-        nsAutoCString path;
+        nsCAutoString path;
         nsresult rv = aURI->GetPath(path);
         NS_ENSURE_SUCCESS(rv, rv);
 
@@ -82,7 +82,7 @@ nsDefaultURIFixup::CreateExposableURI(nsIURI *aURI, nsIURI **aReturn)
         }
 
         // Get the charset of the original URI so we can pass it to our fixed up URI.
-        nsAutoCString charset;
+        nsCAutoString charset;
         aURI->GetOriginCharset(charset);
 
         rv = NS_NewURI(getter_AddRefs(uri),
@@ -119,7 +119,7 @@ nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, uint32_t aFixupF
     nsresult rv;
     *aURI = nullptr;
 
-    nsAutoCString uriString(aStringURI);
+    nsCAutoString uriString(aStringURI);
     uriString.Trim(" ");  // Cleanup the empty spaces that might be on each end.
 
     // Eliminate embedded newlines, which single-line text fields now allow:
@@ -129,7 +129,7 @@ nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, uint32_t aFixupF
 
     nsCOMPtr<nsIIOService> ioService = do_GetService(NS_IOSERVICE_CONTRACTID, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
-    nsAutoCString scheme;
+    nsCAutoString scheme;
     ioService->ExtractScheme(aStringURI, scheme);
     
     // View-source is a pseudo scheme. We're interested in fixing up the stuff
@@ -148,7 +148,7 @@ nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, uint32_t aFixupF
                              newFixupFlags, getter_AddRefs(uri));
         if (NS_FAILED(rv))
             return NS_ERROR_FAILURE;
-        nsAutoCString spec;
+        nsCAutoString spec;
         uri->GetSpec(spec);
         uriString.Assign(NS_LITERAL_CSTRING("view-source:") + spec);
     }
@@ -182,8 +182,8 @@ nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, uint32_t aFixupF
             // slash. The forward slash test is to stop before trampling over
             // URIs which legitimately contain a mix of both forward and
             // backward slashes.
-            nsAutoCString::iterator start;
-            nsAutoCString::iterator end;
+            nsCAutoString::iterator start;
+            nsCAutoString::iterator end;
             uriString.BeginWriting(start);
             uriString.EndWriting(end);
             while (start != end) {
@@ -280,7 +280,7 @@ nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, uint32_t aFixupF
             hostPos = uriString.Length();
 
         // extract host name
-        nsAutoCString hostSpec;
+        nsCAutoString hostSpec;
         uriString.Left(hostSpec, hostPos);
 
         // insert url spec corresponding to host name
@@ -322,7 +322,7 @@ NS_IMETHODIMP nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
     NS_ENSURE_STATE(Preferences::GetRootBranch());
 
     // Strip leading "?" and leading/trailing spaces from aKeyword
-    nsAutoCString keyword(aKeyword);
+    nsCAutoString keyword(aKeyword);
     if (StringBeginsWith(keyword, NS_LITERAL_CSTRING("?"))) {
         keyword.Cut(0, 1);
     }
@@ -337,7 +337,7 @@ NS_IMETHODIMP nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
     // If the pref is set and non-empty, use it.
     if (!url.IsEmpty()) {
         // Escape keyword, then prepend URL
-        nsAutoCString spec;
+        nsCAutoString spec;
         if (!NS_Escape(keyword, spec, url_XPAlphas)) {
             return NS_ERROR_OUT_OF_MEMORY;
         }
@@ -410,14 +410,14 @@ bool nsDefaultURIFixup::MakeAlternateURI(nsIURI *aURI)
     }
 
     // Security - URLs with user / password info should NOT be fixed up
-    nsAutoCString userpass;
+    nsCAutoString userpass;
     aURI->GetUserPass(userpass);
     if (!userpass.IsEmpty()) {
         return false;
     }
 
-    nsAutoCString oldHost;
-    nsAutoCString newHost;
+    nsCAutoString oldHost;
+    nsCAutoString newHost;
     aURI->GetHost(oldHost);
 
     // Count the dots
@@ -436,7 +436,7 @@ bool nsDefaultURIFixup::MakeAlternateURI(nsIURI *aURI)
     // Get the prefix and suffix to stick onto the new hostname. By default these
     // are www. & .com but they could be any other value, e.g. www. & .org
 
-    nsAutoCString prefix("www.");
+    nsCAutoString prefix("www.");
     nsAdoptingCString prefPrefix =
         Preferences::GetCString("browser.fixup.alternate.prefix");
     if (prefPrefix)
@@ -444,7 +444,7 @@ bool nsDefaultURIFixup::MakeAlternateURI(nsIURI *aURI)
         prefix.Assign(prefPrefix);
     }
 
-    nsAutoCString suffix(".com");
+    nsCAutoString suffix(".com");
     nsAdoptingCString prefSuffix =
         Preferences::GetCString("browser.fixup.alternate.suffix");
     if (prefSuffix)
@@ -531,7 +531,7 @@ bool nsDefaultURIFixup::IsLikelyFTP(const nsCString &aHostSpec)
 nsresult nsDefaultURIFixup::FileURIFixup(const nsACString& aStringURI, 
                                          nsIURI** aURI)
 {
-    nsAutoCString uriSpecOut;
+    nsCAutoString uriSpecOut;
 
     nsresult rv = ConvertFileToStringURI(aStringURI, uriSpecOut);
     if (NS_SUCCEEDED(rv))
@@ -748,7 +748,7 @@ const char * nsDefaultURIFixup::GetFileSystemCharset()
   if (mFsCharset.IsEmpty())
   {
     nsresult rv;
-    nsAutoCString charset;
+    nsCAutoString charset;
     nsCOMPtr<nsIPlatformCharset> plat(do_GetService(NS_PLATFORMCHARSET_CONTRACTID, &rv));
     if (NS_SUCCEEDED(rv))
       rv = plat->GetCharset(kPlatformCharsetSel_FileName, charset);

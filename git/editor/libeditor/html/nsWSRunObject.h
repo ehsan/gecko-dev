@@ -13,6 +13,7 @@
 #include "nsIEditor.h"
 #include "nsINode.h"
 #include "nscore.h"
+#include "prtypes.h"
 
 class nsHTMLEditor;
 class nsIDOMDocument;

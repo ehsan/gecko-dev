@@ -34,6 +34,9 @@ protected:
   void RewindTo(const char* aPos);
   virtual nsresult Match()=0;
 
+  nsresult MatchNonNegativeNumber(float* aX);
+  bool IsTokenNonNegativeNumberStarter();
+  
   nsresult MatchNumber(float* x);
   bool IsTokenNumberStarter();
   

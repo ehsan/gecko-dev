@@ -54,11 +54,7 @@ LookupCache::LookupCache(const nsACString& aTableName, nsIFile* aStoreDir,
   , mPerClientRandomize(aPerClientRandomize)
   , mTableName(aTableName)
   , mStoreDirectory(aStoreDir)
-  , mTestTable(false)
 {
-  if (mTableName.RFind(NS_LITERAL_CSTRING("-simple")) != kNotFound) {
-    mTestTable = true;
-  }
 }
 
 nsresult
@@ -187,7 +183,7 @@ LookupCache::Dump()
     return;
 
   for (uint32 i = 0; i < mCompletions.Length(); i++) {
-    nsAutoCString str;
+    nsCAutoString str;
     mCompletions[i].ToString(str);
     LOG(("Completion: %s", str.get()));
   }
@@ -202,6 +198,14 @@ LookupCache::Has(const Completion& aCompletion,
                  Prefix* aOrigPrefix)
 {
   *aHas = *aComplete = false;
+
+  // check completion store first
+  if (mCompletions.BinaryIndexOf(aCompletion) != nsTArray<Completion>::NoIndex) {
+    LOG(("Complete in %s", mTableName.get()));
+    *aComplete = true;
+    *aHas = true;
+    return NS_OK;
+  }
 
   uint32_t prefix = aCompletion.ToUint32();
   uint32_t hostkey = aHostkey.ToUint32();
@@ -219,14 +223,8 @@ LookupCache::Has(const Completion& aCompletion,
 
   LOG(("Probe in %s: %X, found %d", mTableName.get(), prefix, found));
 
-  if (found || mTestTable) {
-    *aHas = found;
-    // check completion store
-    if (mCompletions.BinaryIndexOf(aCompletion) != nsTArray<Completion>::NoIndex) {
-      LOG(("Complete in %s", mTableName.get()));
-      *aHas = true;
-      *aComplete = true;
-    }
+  if (found) {
+    *aHas = true;
   }
 
   return NS_OK;
@@ -404,7 +402,7 @@ LookupCache::GetKey(const nsACString& aSpec,
   const nsCSubstring& host = Substring(begin, iter);
 
   if (IsCanonicalizedIP(host)) {
-    nsAutoCString key;
+    nsCAutoString key;
     key.Assign(host);
     key.Append("/");
     return aHash->FromPlaintext(key, aCryptoHash);
@@ -417,7 +415,7 @@ LookupCache::GetKey(const nsACString& aSpec,
     return NS_ERROR_FAILURE;
 
   int32_t last = int32_t(hostComponents.Length()) - 1;
-  nsAutoCString lookupHost;
+  nsCAutoString lookupHost;
 
   if (hostComponents.Length() > 2) {
     lookupHost.Append(hostComponents[last - 2]);
@@ -449,7 +447,7 @@ LookupCache::GetLookupFragments(const nsACString& aSpec,
   }
 
   const nsCSubstring& host = Substring(begin, iter++);
-  nsAutoCString path;
+  nsCAutoString path;
   path.Assign(Substring(iter, end));
 
   /**
@@ -493,7 +491,7 @@ LookupCache::GetLookupFragments(const nsACString& aSpec,
    *    appended that was not present in the original url.
    */
   nsTArray<nsCString> paths;
-  nsAutoCString pathToAdd;
+  nsCAutoString pathToAdd;
 
   path.BeginReading(begin);
   path.EndReading(end);

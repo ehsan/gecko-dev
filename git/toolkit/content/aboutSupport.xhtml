@@ -44,12 +44,8 @@
     </div>
 
     <div>
-      <button id="copy-raw-data-to-clipboard"
-              onclick="copyRawDataToClipboard(this);">
-        &aboutSupport.copyRawDataToClipboard.label;
-      </button>
-      <button id="copy-to-clipboard" onclick="copyContentsToClipboard()">
-        &aboutSupport.copyTextToClipboard.label;
+      <button onclick="copyContentsToClipboard()">
+        &aboutSupport.copyToClipboard.label;
       </button>
     </div>
 
@@ -90,7 +86,7 @@
             </td>
           </tr>
 
-          <tr id="profile-row" class="no-copy">
+          <tr>
             <th class="column">
 #ifdef XP_WIN
               &aboutSupport.appBasicsProfileDirWinMac;
@@ -118,7 +114,7 @@
             </td>
           </tr>
 
-          <tr class="no-copy">
+          <tr>
             <th class="column">
               &aboutSupport.appBasicsEnabledPlugins;
             </th>
@@ -138,7 +134,7 @@
             </td>
           </tr>
 
-          <tr class="no-copy">
+          <tr>
             <th class="column">
               &aboutSupport.appBasicsCrashIDs;
             </th>
@@ -148,7 +144,7 @@
             </td>
           </tr>
 
-          <tr class="no-copy">
+          <tr>
             <th class="column">
               &aboutSupport.appBasicsMemoryUse;
             </th>
@@ -240,7 +236,7 @@
             <td id="javascript-incremental-gc">
             </td>
           </tr>
-        </tbody>
+	</tbody>
       </table>
 
       <!-- - - - - - - - - - - - - - - - - - - - - -->
@@ -266,7 +262,7 @@
             <td id="a11y-force-disabled">
             </td>
           </tr>
-        </tbody>
+	</tbody>
       </table>
 
       <!-- - - - - - - - - - - - - - - - - - - - - -->

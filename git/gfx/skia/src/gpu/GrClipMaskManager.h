@@ -9,18 +9,14 @@
 #ifndef GrClipMaskManager_DEFINED
 #define GrClipMaskManager_DEFINED
 
-#include "GrContext.h"
-#include "GrNoncopyable.h"
 #include "GrRect.h"
-#include "GrStencil.h"
-#include "GrTexture.h"
-
-#include "SkClipStack.h"
-#include "SkDeque.h"
 #include "SkPath.h"
+#include "GrNoncopyable.h"
+#include "GrClip.h"
 #include "SkRefCnt.h"
-
-#include "GrClipMaskCache.h"
+#include "GrTexture.h"
+#include "SkDeque.h"
+#include "GrContext.h"
 
 class GrGpu;
 class GrPathRenderer;
@@ -30,42 +26,289 @@ class GrTexture;
 class GrDrawState;
 
 /**
- * The clip mask creator handles the generation of the clip mask. If anti
- * aliasing is requested it will (in the future) generate a single channel
- * (8bit) mask. If no anti aliasing is requested it will generate a 1-bit
+ * Scissoring needs special handling during stencil clip mask creation
+ * since the creation process re-entrantly invokes setupClipAndFlushState.
+ * During this process the call stack is used to keep 
+ * track of (and apply to the GPU) the current scissor settings.
+ */
+struct ScissoringSettings {
+    bool    fEnableScissoring;
+    GrIRect fScissorRect;
+
+    void setupScissoring(GrGpu* gpu);
+};
+
+/**
+ * The stencil buffer stores the last clip path - providing a single entry
+ * "cache". This class provides similar functionality for AA clip paths
+ */
+class GrClipMaskCache : public GrNoncopyable {
+public:
+    GrClipMaskCache() 
+    : fContext(NULL)
+    , fStack(sizeof(GrClipStackFrame)) {
+        // We need an initial frame to capture the clip state prior to 
+        // any pushes
+        new (fStack.push_back()) GrClipStackFrame();
+    }
+
+    ~GrClipMaskCache() {
+
+        while (!fStack.empty()) {
+            GrClipStackFrame* temp = (GrClipStackFrame*) fStack.back();
+            temp->~GrClipStackFrame();
+            fStack.pop_back();
+        }
+    }
+
+    bool canReuse(const GrClip& clip, int width, int height) {
+
+        if (fStack.empty()) {
+            GrAssert(false);
+            return false;
+        }
+
+        GrClipStackFrame* back = (GrClipStackFrame*) fStack.back();
+
+        if (back->fLastMask.texture() &&
+            back->fLastMask.texture()->width() >= width &&
+            back->fLastMask.texture()->height() >= height &&
+            clip == back->fLastClip) {
+            return true;
+        }
+
+        return false;
+    }
+
+    void reset() {
+        if (fStack.empty()) {
+//            GrAssert(false);
+            return;
+        }
+
+        GrClipStackFrame* back = (GrClipStackFrame*) fStack.back();
+
+        back->reset();
+    }
+
+    /**
+     * After a "push" the clip state is entirely open. Currently, the
+     * entire clip stack will be re-rendered into a new clip mask.
+     * TODO: can we take advantage of the nested nature of the clips to
+     * reduce the mask creation cost?
+     */
+    void push() {
+        new (fStack.push_back()) GrClipStackFrame();
+    }
+
+    void pop() {
+        //GrAssert(!fStack.empty());
+
+        if (!fStack.empty()) {
+            GrClipStackFrame* back = (GrClipStackFrame*) fStack.back();
+
+            back->~GrClipStackFrame();
+            fStack.pop_back();
+        }
+    }
+
+    void getLastClip(GrClip* clip) const {
+
+        if (fStack.empty()) {
+            GrAssert(false);
+            clip->setEmpty();
+            return;
+        }
+
+        GrClipStackFrame* back = (GrClipStackFrame*) fStack.back();
+
+        *clip = back->fLastClip;
+    }
+
+    GrTexture* getLastMask() {
+
+        if (fStack.empty()) {
+            GrAssert(false);
+            return NULL;
+        }
+
+        GrClipStackFrame* back = (GrClipStackFrame*) fStack.back();
+
+        return back->fLastMask.texture();
+    }
+
+    const GrTexture* getLastMask() const {
+
+        if (fStack.empty()) {
+            GrAssert(false);
+            return NULL;
+        }
+
+        GrClipStackFrame* back = (GrClipStackFrame*) fStack.back();
+
+        return back->fLastMask.texture();
+    }
+
+    void acquireMask(const GrClip& clip,
+                     const GrTextureDesc& desc,
+                     const GrIRect& bound) {
+
+        if (fStack.empty()) {
+            GrAssert(false);
+            return;
+        }
+
+        GrClipStackFrame* back = (GrClipStackFrame*) fStack.back();
+
+        back->acquireMask(fContext, clip, desc, bound);
+    }
+
+    int getLastMaskWidth() const {
+
+        if (fStack.empty()) {
+            GrAssert(false);
+            return -1;
+        }
+
+        GrClipStackFrame* back = (GrClipStackFrame*) fStack.back();
+
+        if (NULL == back->fLastMask.texture()) {
+            return -1;
+        }
+
+        return back->fLastMask.texture()->width();
+    }
+
+    int getLastMaskHeight() const {
+
+        if (fStack.empty()) {
+            GrAssert(false);
+            return -1;
+        }
+
+        GrClipStackFrame* back = (GrClipStackFrame*) fStack.back();
+
+        if (NULL == back->fLastMask.texture()) {
+            return -1;
+        }
+
+        return back->fLastMask.texture()->height();
+    }
+
+    void getLastBound(GrIRect* bound) const {
+
+        if (fStack.empty()) {
+            GrAssert(false);
+            bound->setEmpty();
+            return;
+        }
+
+        GrClipStackFrame* back = (GrClipStackFrame*) fStack.back();
+
+        *bound = back->fLastBound;
+    }
+
+    void setContext(GrContext* context) {
+        fContext = context;
+    }
+
+    GrContext* getContext() {
+        return fContext;
+    }
+
+    void releaseResources() {
+
+        SkDeque::F2BIter iter(fStack);
+        for (GrClipStackFrame* frame = (GrClipStackFrame*) iter.next();
+                frame != NULL;
+                frame = (GrClipStackFrame*) iter.next()) {
+            frame->reset();
+        }
+    }
+
+protected:
+private:
+    struct GrClipStackFrame {
+
+        GrClipStackFrame() {
+            reset();
+        }
+
+        void acquireMask(GrContext* context,
+                         const GrClip& clip, 
+                         const GrTextureDesc& desc,
+                         const GrIRect& bound) {
+
+            fLastClip = clip;
+
+            fLastMask.set(context, desc);
+
+            fLastBound = bound;
+        }
+
+        void reset () {
+            fLastClip.setEmpty();
+
+            const GrTextureDesc desc = { kNone_GrTextureFlags, 0, 0, 
+                                         kUnknown_GrPixelConfig, 0 };
+
+            fLastMask.set(NULL, desc);
+            fLastBound.setEmpty();
+        }
+
+        GrClip                  fLastClip;
+        // The mask's width & height values are used in setupDrawStateAAClip to 
+        // correctly scale the uvs for geometry drawn with this mask
+        GrAutoScratchTexture    fLastMask;
+        // fLastBound stores the bounding box of the clip mask in canvas 
+        // space. The left and top fields are used to offset the uvs for 
+        // geometry drawn with this mask (in setupDrawStateAAClip)
+        GrIRect                 fLastBound;
+    };
+
+    GrContext*   fContext;
+    SkDeque      fStack;
+
+    typedef GrNoncopyable INHERITED;
+};
+
+/**
+ * The clip mask creator handles the generation of the clip mask. If anti 
+ * aliasing is requested it will (in the future) generate a single channel 
+ * (8bit) mask. If no anti aliasing is requested it will generate a 1-bit 
  * mask in the stencil buffer. In the non anti-aliasing case, if the clip
  * mask can be represented as a rectangle then scissoring is used. In all
  * cases scissoring is used to bound the range of the clip mask.
  */
 class GrClipMaskManager : public GrNoncopyable {
 public:
-    GR_DECLARE_RESOURCE_CACHE_DOMAIN(GetAlphaMaskDomain)
-
     GrClipMaskManager()
-        : fGpu(NULL)
-        , fCurrClipMaskType(kNone_ClipMaskType) {
+        : fClipMaskInStencil(false)
+        , fClipMaskInAlpha(false) {
     }
 
-    /**
-     * Creates a clip mask if necessary as a stencil buffer or alpha texture
-     * and sets the GrGpu's scissor and stencil state. If the return is false
-     * then the draw can be skipped.
-     */
-    bool setupClipping(const GrClipData* clipDataIn);
+    bool createClipMask(GrGpu* gpu, 
+                        const GrClip& clip, 
+                        ScissoringSettings* scissorSettings);
 
     void releaseResources();
 
-    bool isClipInStencil() const {
-        return kStencil_ClipMaskType == fCurrClipMaskType;
-    }
-    bool isClipInAlpha() const {
-        return kAlpha_ClipMaskType == fCurrClipMaskType;
+    bool isClipInStencil() const { return fClipMaskInStencil; }
+    bool isClipInAlpha() const { return fClipMaskInAlpha; }
+
+    void resetMask() {
+        fClipMaskInStencil = false;
     }
 
-    void invalidateStencilMask() {
-        if (kStencil_ClipMaskType == fCurrClipMaskType) {
-            fCurrClipMaskType = kNone_ClipMaskType;
-        }
+    void postClipPush() {
+        // TODO: make sure that, if the clip stack is unaltered, the 
+        // prior clip mask is reused (i.e., a push w/ no change to the 
+        // clip stack)
+        fAACache.push();
+    }
+
+    void preClipPop() {
+        fAACache.pop();
     }
 
     void setContext(GrContext* context) {
@@ -76,80 +319,44 @@ public:
         return fAACache.getContext();
     }
 
-    void setGpu(GrGpu* gpu) {
-        fGpu = gpu;
-    }
-
+protected:
 private:
-    /**
-     * Informs the helper function adjustStencilParams() about how the stencil
-     * buffer clip is being used.
-     */
-    enum StencilClipMode {
-        // Draw to the clip bit of the stencil buffer
-        kModifyClip_StencilClipMode,
-        // Clip against the existing representation of the clip in the high bit
-        // of the stencil buffer.
-        kRespectClip_StencilClipMode,
-        // Neither writing to nor clipping against the clip bit.
-        kIgnoreClip_StencilClipMode,
-    };
-
-    GrGpu* fGpu;
-
-    /**
-     * We may represent the clip as a mask in the stencil buffer or as an alpha
-     * texture. It may be neither because the scissor rect suffices or we
-     * haven't yet examined the clip.
-     */
-    enum ClipMaskType {
-        kNone_ClipMaskType,
-        kStencil_ClipMaskType,
-        kAlpha_ClipMaskType,
-    } fCurrClipMaskType;
-
+    bool fClipMaskInStencil;        // is the clip mask in the stencil buffer?
+    bool fClipMaskInAlpha;          // is the clip mask in an alpha texture?
     GrClipMaskCache fAACache;       // cache for the AA path
 
-    bool createStencilClipMask(const GrClipData& clipDataIn,
-                               const GrIRect& devClipBounds);
-    bool createAlphaClipMask(const GrClipData& clipDataIn,
+    bool createStencilClipMask(GrGpu* gpu, 
+                               const GrClip& clip, 
+                               const GrRect& bounds,
+                               ScissoringSettings* scissorSettings);
+    bool createAlphaClipMask(GrGpu* gpu,
+                             const GrClip& clipIn,
                              GrTexture** result,
-                             GrIRect *devResultBounds);
-    bool createSoftwareClipMask(const GrClipData& clipDataIn,
+                             GrIRect *resultBounds);
+    bool createSoftwareClipMask(GrGpu* gpu,
+                                const GrClip& clipIn,
                                 GrTexture** result,
-                                GrIRect *devResultBounds);
-    bool clipMaskPreamble(const GrClipData& clipDataIn,
+                                GrIRect *resultBounds);
+    bool clipMaskPreamble(GrGpu* gpu,
+                          const GrClip& clipIn,
                           GrTexture** result,
-                          GrIRect *devResultBounds);
+                          GrIRect *resultBounds);
 
-    bool useSWOnlyPath(const SkClipStack& clipIn);
+    bool useSWOnlyPath(GrGpu* gpu, const GrClip& clipIn);
 
-    bool drawClipShape(GrTexture* target,
-                       const SkClipStack::Iter::Clip* clip,
-                       const GrIRect& resultBounds);
+    bool drawClipShape(GrGpu* gpu,
+                       GrTexture* target,
+                       const GrClip& clipIn,
+                       int index);
 
-    void drawTexture(GrTexture* target,
+    void drawTexture(GrGpu* gpu,
+                     GrTexture* target,
                      GrTexture* texture);
 
     void getTemp(const GrIRect& bounds, GrAutoScratchTexture* temp);
 
-    void setupCache(const SkClipStack& clip,
+    void setupCache(const GrClip& clip, 
                     const GrIRect& bounds);
-
-    /**
-     * Called prior to return control back the GrGpu in setupClipping. It
-     * updates the GrGpu with stencil settings that account stencil-based
-     * clipping.
-     */
-    void setGpuStencil();
-
-    /**
-     * Adjusts the stencil settings to account for interaction with stencil
-     * clipping.
-     */
-    void adjustStencilParams(GrStencilSettings* settings,
-                             StencilClipMode mode,
-                             int stencilBitCnt);
 
     typedef GrNoncopyable INHERITED;
 };

@@ -107,11 +107,11 @@ public:
   }
   void SetUncompiledMethod(nsXBLUncompiledMethod* aUncompiledMethod)
   {
-    mUncompiledMethod = uintptr_t(aUncompiledMethod) | BIT_UNCOMPILED;
+    mUncompiledMethod = PRUptrdiff(aUncompiledMethod) | BIT_UNCOMPILED;
   }
   nsXBLUncompiledMethod* GetUncompiledMethod() const
   {
-    uintptr_t unmasked = mUncompiledMethod & ~BIT_UNCOMPILED;
+    PRUptrdiff unmasked = mUncompiledMethod & ~BIT_UNCOMPILED;
     return reinterpret_cast<nsXBLUncompiledMethod*>(unmasked);
   }
 
@@ -119,7 +119,7 @@ protected:
   enum { BIT_UNCOMPILED = 1 << 0 };
 
   union {
-    uintptr_t mUncompiledMethod; // An object that represents the method before being compiled.
+    PRUptrdiff mUncompiledMethod; // An object that represents the method before being compiled.
     JSObject* mJSMethodObject;    // The JS object for the method (after compilation)
   };
 

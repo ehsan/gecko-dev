@@ -335,12 +335,10 @@ class AsyncCloseConnection : public nsRunnable
 public:
   AsyncCloseConnection(Connection *aConnection,
                        nsIEventTarget *aCallingThread,
-                       nsIRunnable *aCallbackEvent,
-                       already_AddRefed<nsIThread> aAsyncExecutionThread)
+                       nsIRunnable *aCallbackEvent)
   : mConnection(aConnection)
   , mCallingThread(aCallingThread)
   , mCallbackEvent(aCallbackEvent)
-  , mAsyncExecutionThread(aAsyncExecutionThread)
   {
   }
 
@@ -352,13 +350,6 @@ public:
     bool onCallingThread = false;
     (void)mCallingThread->IsOnCurrentThread(&onCallingThread);
     if (!onCallingThread) {
-#ifdef DEBUG
-      {
-        bool onAsyncThread = false;
-        (void)mAsyncExecutionThread->IsOnCurrentThread(&onAsyncThread);
-        MOZ_ASSERT(onAsyncThread);
-      }
-#endif
       (void)mCallingThread->Dispatch(this, NS_DISPATCH_NORMAL);
       return NS_OK;
     }
@@ -366,7 +357,6 @@ public:
     (void)mConnection->internalClose();
     if (mCallbackEvent)
       (void)mCallingThread->Dispatch(mCallbackEvent, NS_DISPATCH_NORMAL);
-    (void)mAsyncExecutionThread->Shutdown();
 
     // Because we have no guarantee that the invocation of this method on the
     // asynchronous thread has fully completed (including the Release of the
@@ -386,7 +376,6 @@ private:
   nsRefPtr<Connection> mConnection;
   nsCOMPtr<nsIEventTarget> mCallingThread;
   nsCOMPtr<nsIRunnable> mCallbackEvent;
-  nsCOMPtr<nsIThread> mAsyncExecutionThread;
 };
 
 } // anonymous namespace
@@ -413,8 +402,6 @@ Connection::Connection(Service *aService,
 Connection::~Connection()
 {
   (void)Close();
-
-  MOZ_ASSERT(!mAsyncExecutionThread);
 }
 
 NS_IMPL_THREADSAFE_ADDREF(Connection)
@@ -508,7 +495,7 @@ Connection::initialize(nsIFile *aDatabaseFile,
 
   ::sqlite3_trace(mDBConn, tracefunc, this);
 
-  nsAutoCString leafName(":memory");
+  nsCAutoString leafName(":memory");
   if (aDatabaseFile)
     (void)aDatabaseFile->GetNativeLeafName(leafName);
   PR_LOG(gStorageLog, PR_LOG_NOTICE, ("Opening connection to '%s' (%p)",
@@ -519,7 +506,7 @@ Connection::initialize(nsIFile *aDatabaseFile,
   // the database has just been created, otherwise, if the database does not
   // use WAL journal mode, a VACUUM operation will updated its page_size.
   int64_t pageSize = DEFAULT_PAGE_SIZE;
-  nsAutoCString pageSizeQuery(MOZ_STORAGE_UNIQUIFY_QUERY_STR
+  nsCAutoString pageSizeQuery(MOZ_STORAGE_UNIQUIFY_QUERY_STR
                               "PRAGMA page_size = ");
   pageSizeQuery.AppendInt(pageSize);
   rv = ExecuteSimpleSQL(pageSizeQuery);
@@ -540,7 +527,7 @@ Connection::initialize(nsIFile *aDatabaseFile,
   // Setting the cache_size forces the database open, verifying if it is valid
   // or corrupt.  So this is executed regardless it being actually needed.
   // The cache_size is calculated from the actual page_size, to save memory.
-  nsAutoCString cacheSizeQuery(MOZ_STORAGE_UNIQUIFY_QUERY_STR
+  nsCAutoString cacheSizeQuery(MOZ_STORAGE_UNIQUIFY_QUERY_STR
                                "PRAGMA cache_size = ");
   cacheSizeQuery.AppendInt(NS_MIN(DEFAULT_CACHE_SIZE_PAGES,
                                   int32_t(MAX_CACHE_SIZE_BYTES / pageSize)));
@@ -594,7 +581,7 @@ Connection::databaseElementExists(enum DatabaseElementType aElementType,
 {
   if (!mDBConn) return NS_ERROR_NOT_INITIALIZED;
 
-  nsAutoCString query("SELECT name FROM sqlite_master WHERE type = '");
+  nsCAutoString query("SELECT name FROM sqlite_master WHERE type = '");
   switch (aElementType) {
     case INDEX:
       query.Append("index");
@@ -683,7 +670,8 @@ Connection::setClosedState()
 bool
 Connection::isAsyncClosing() {
   MutexAutoLock lockedScope(sharedAsyncExecutionMutex);
-  return mAsyncExecutionThreadShuttingDown && ConnectionReady();
+  return mAsyncExecutionThreadShuttingDown && !!mAsyncExecutionThread &&
+    ConnectionReady();
 }
 
 nsresult
@@ -708,7 +696,7 @@ Connection::internalClose()
 #endif
 
 #ifdef PR_LOGGING
-  nsAutoCString leafName(":memory");
+  nsCAutoString leafName(":memory");
   if (mDatabaseFile)
       (void)mDatabaseFile->GetNativeLeafName(leafName);
   PR_LOG(gStorageLog, PR_LOG_NOTICE, ("Closing connection to '%s'",
@@ -924,17 +912,13 @@ Connection::AsyncClose(mozIStorageCompletionCallback *aCallback)
   nsCOMPtr<nsIRunnable> completeEvent;
   if (aCallback) {
     completeEvent = newCompletionEvent(aCallback);
+    NS_ENSURE_TRUE(completeEvent, NS_ERROR_OUT_OF_MEMORY);
   }
 
   // Create and dispatch our close event to the background thread.
-  nsCOMPtr<nsIRunnable> closeEvent;
-  {
-    // We need to lock because we're modifying mAsyncExecutionThread
-    MutexAutoLock lockedScope(sharedAsyncExecutionMutex);
-    closeEvent = new AsyncCloseConnection(this, NS_GetCurrentThread(),
-                                          completeEvent,
-                                          mAsyncExecutionThread.forget());
-  }
+  nsCOMPtr<nsIRunnable> closeEvent =
+    new AsyncCloseConnection(this, NS_GetCurrentThread(), completeEvent);
+  NS_ENSURE_TRUE(closeEvent, NS_ERROR_OUT_OF_MEMORY);
 
   rv = asyncThread->Dispatch(closeEvent, NS_DISPATCH_NORMAL);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -981,7 +965,7 @@ Connection::Clone(bool aReadOnly,
       continue;
     }
 
-    nsAutoCString pragmaQuery("PRAGMA ");
+    nsCAutoString pragmaQuery("PRAGMA ");
     pragmaQuery.Append(pragmas[i]);
     nsCOMPtr<mozIStorageStatement> stmt;
     rv = CreateStatement(pragmaQuery, getter_AddRefs(stmt));
@@ -1084,7 +1068,7 @@ Connection::SetSchemaVersion(int32_t aVersion)
 {
   if (!mDBConn) return NS_ERROR_NOT_INITIALIZED;
 
-  nsAutoCString stmt(NS_LITERAL_CSTRING("PRAGMA user_version = "));
+  nsCAutoString stmt(NS_LITERAL_CSTRING("PRAGMA user_version = "));
   stmt.AppendInt(aVersion);
 
   return ExecuteSimpleSQL(stmt);

@@ -8,7 +8,6 @@
 
 #include "mozilla/dom/devicestorage/PDeviceStorageRequestParent.h"
 #include "mozilla/dom/ContentChild.h"
-#include "mozilla/dom/ContentParent.h"
 
 #include "nsThreadUtils.h"
 #include "nsDeviceStorage.h"
@@ -25,10 +24,6 @@ public:
 
   NS_IMETHOD_(nsrefcnt) AddRef();
   NS_IMETHOD_(nsrefcnt) Release();
-
-  bool EnsureRequiredPermissions(mozilla::dom::ContentParent* aParent);
-  void Dispatch();
-
   virtual void ActorDestroy(ActorDestroyReason);
 
 protected:
@@ -36,15 +31,15 @@ protected:
 
 private:
   nsAutoRefCnt mRefCnt;
-  DeviceStorageParams mParams;
 
   class CancelableRunnable : public nsRunnable
   {
   public:
     CancelableRunnable(DeviceStorageRequestParent* aParent)
       : mParent(aParent)
+      , mCanceled(false)
     {
-      mCanceled = !(mParent->AddRunnable(this));
+      mParent->AddRunnable(this);
     }
 
     virtual ~CancelableRunnable() {
@@ -54,9 +49,15 @@ private:
       nsresult rv = NS_OK;
       if (!mCanceled) {
         rv = CancelableRun();
-        mParent->RemoveRunnable(this);
+
+        nsCOMPtr<nsIRunnable> event = NS_NewRunnableMethod(this, &CancelableRunnable::RemoveRunnable);
+        NS_DispatchToMainThread(event);
       }
       return rv;
+    }
+
+    void RemoveRunnable() {
+      mParent->RemoveRunnable(this);
     }
 
     void Cancel() {
@@ -92,12 +93,11 @@ private:
   class PostBlobSuccessEvent : public CancelableRunnable
   {
     public:
-      PostBlobSuccessEvent(DeviceStorageRequestParent* aParent, DeviceStorageFile* aFile, uint32_t aLength, nsACString& aMimeType, uint64_t aLastModifiedDate);
+      PostBlobSuccessEvent(DeviceStorageRequestParent* aParent, DeviceStorageFile* aFile, uint32_t aLength, nsACString& aMimeType);
       virtual ~PostBlobSuccessEvent();
       virtual nsresult CancelableRun();
     private:
       uint32_t mLength;
-      uint64_t mLastModificationDate;
       nsRefPtr<DeviceStorageFile> mFile;
       nsCString mMimeType;
   };
@@ -189,22 +189,14 @@ private:
    };
 
 protected:
-  bool AddRunnable(CancelableRunnable* aRunnable) {
-    MutexAutoLock lock(mMutex);
-    if (mActorDestoryed)
-      return false;
-
+  void AddRunnable(CancelableRunnable* aRunnable) {
+    NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
     mRunnables.AppendElement(aRunnable);
-    return true;
   }
-
   void RemoveRunnable(CancelableRunnable* aRunnable) {
-    MutexAutoLock lock(mMutex);
+    NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
     mRunnables.RemoveElement(aRunnable);
   }
-
-  Mutex mMutex;
-  bool mActorDestoryed;
   nsTArray<nsRefPtr<CancelableRunnable> > mRunnables;
 };
 

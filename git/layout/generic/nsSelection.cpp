@@ -881,18 +881,6 @@ nsFrameSelection::MoveCaret(uint32_t          aKeycode,
   if (!sel)
     return NS_ERROR_NULL_POINTER;
 
-  int32_t scrollFlags = 0;
-  nsINode* focusNode = sel->GetFocusNode();
-  if (focusNode &&
-      (focusNode->IsEditable() ||
-       (focusNode->IsElement() &&
-        focusNode->AsElement()->State().
-          HasState(NS_EVENT_STATE_MOZ_READWRITE)))) {
-    // If caret moves in editor, it should cause scrolling even if it's in
-    // overflow: hidden;.
-    scrollFlags |= Selection::SCROLL_OVERFLOW_HIDDEN;
-  }
-
   nsresult result = sel->GetIsCollapsed(&isCollapsed);
   if (NS_FAILED(result))
     return result;
@@ -924,9 +912,7 @@ nsFrameSelection::MoveCaret(uint32_t          aKeycode,
                           anchorFocusRange->StartOffset());
           }
           mHint = HINTRIGHT;
-          sel->ScrollIntoView(nsISelectionController::SELECTION_FOCUS_REGION,
-                              nsIPresShell::ScrollAxis(),
-                              nsIPresShell::ScrollAxis(), scrollFlags);
+          sel->ScrollIntoView(nsISelectionController::SELECTION_FOCUS_REGION);
           return NS_OK;
         }
 
@@ -939,9 +925,7 @@ nsFrameSelection::MoveCaret(uint32_t          aKeycode,
                           anchorFocusRange->EndOffset());
           }
           mHint = HINTLEFT;
-          sel->ScrollIntoView(nsISelectionController::SELECTION_FOCUS_REGION,
-                              nsIPresShell::ScrollAxis(),
-                              nsIPresShell::ScrollAxis(), scrollFlags);
+          sel->ScrollIntoView(nsISelectionController::SELECTION_FOCUS_REGION);
           return NS_OK;
         }
     }
@@ -953,7 +937,7 @@ nsFrameSelection::MoveCaret(uint32_t          aKeycode,
                                             aVisualMovement);
 
   if (NS_FAILED(result) || !frame)
-    return NS_FAILED(result) ? result : NS_ERROR_FAILURE;
+    return result?result:NS_ERROR_FAILURE;
 
   //set data using mLimiter to stop on scroll views.  If we have a limiter then we stop peeking
   //when we hit scrollable views.  If no limiter then just let it go ahead
@@ -1066,9 +1050,7 @@ nsFrameSelection::MoveCaret(uint32_t          aKeycode,
   if (NS_SUCCEEDED(result))
   {
     result = mDomSelections[index]->
-      ScrollIntoView(nsISelectionController::SELECTION_FOCUS_REGION,
-                     nsIPresShell::ScrollAxis(), nsIPresShell::ScrollAxis(),
-                     scrollFlags);
+      ScrollIntoView(nsISelectionController::SELECTION_FOCUS_REGION);
   }
 
   return result;
@@ -1103,7 +1085,7 @@ Selection::ToStringWithFormat(const char* aFormatType, uint32_t aFlags,
                               int32_t aWrapCol, nsAString& aReturn)
 {
   nsresult rv = NS_OK;
-  nsAutoCString formatType( NS_DOC_ENCODER_CONTRACTID_BASE );
+  nsCAutoString formatType( NS_DOC_ENCODER_CONTRACTID_BASE );
   formatType.Append(aFormatType);
   nsCOMPtr<nsIDocumentEncoder> encoder =
            do_CreateInstance(formatType.get(), &rv);
@@ -1744,9 +1726,6 @@ nsFrameSelection::ScrollSelectionIntoView(SelectionType   aType,
     flags |= Selection::SCROLL_SYNCHRONOUS;
   } else if (aFlags & nsISelectionController::SCROLL_FIRST_ANCESTOR_ONLY) {
     flags |= Selection::SCROLL_FIRST_ANCESTOR_ONLY;
-  }
-  if (aFlags & nsISelectionController::SCROLL_OVERFLOW_HIDDEN) {
-    flags |= Selection::SCROLL_OVERFLOW_HIDDEN;
   }
   if (aFlags & nsISelectionController::SCROLL_CENTER_VERTICALLY) {
     verticalScroll = nsIPresShell::ScrollAxis(
@@ -3488,10 +3467,8 @@ Selection::AddItem(nsRange* aItem, int32_t* aOutIndex)
     return NS_ERROR_NULL_POINTER;
   if (!aItem->IsPositioned())
     return NS_ERROR_UNEXPECTED;
-
-  NS_ASSERTION(aOutIndex, "aOutIndex can't be null");
-
-  *aOutIndex = -1;
+  if (aOutIndex)
+    *aOutIndex = -1;
 
   // a common case is that we have no ranges yet
   if (mRanges.Length() == 0) {
@@ -3499,7 +3476,8 @@ Selection::AddItem(nsRange* aItem, int32_t* aOutIndex)
       return NS_ERROR_OUT_OF_MEMORY;
     aItem->SetInSelection(true);
 
-    *aOutIndex = 0;
+    if (aOutIndex)
+      *aOutIndex = 0;
     return NS_OK;
   }
 
@@ -3529,7 +3507,8 @@ Selection::AddItem(nsRange* aItem, int32_t* aOutIndex)
                                         aItem->GetEndParent(),
                                         aItem->EndOffset(), startIndex);
   if (sameRange) {
-    *aOutIndex = startIndex;
+    if (aOutIndex)
+      *aOutIndex = startIndex;
     return NS_OK;
   }
 
@@ -3538,7 +3517,8 @@ Selection::AddItem(nsRange* aItem, int32_t* aOutIndex)
     if (!mRanges.InsertElementAt(startIndex, RangeData(aItem)))
       return NS_ERROR_OUT_OF_MEMORY;
     aItem->SetInSelection(true);
-    *aOutIndex = startIndex;
+    if (aOutIndex)
+      *aOutIndex = startIndex;
     return NS_OK;
   }
 
@@ -4607,8 +4587,7 @@ Selection::Collapse(nsINode* aParentNode, int32_t aOffset)
   }
 #endif
 
-  int32_t rangeIndex = -1;
-  result = AddItem(range, &rangeIndex);
+  result = AddItem(range);
   if (NS_FAILED(result))
     return result;
   setAnchorFocusRange(0);
@@ -4741,7 +4720,7 @@ Selection::SetAnchorFocusToRange(nsRange* aRange)
 void
 Selection::ReplaceAnchorFocusRange(nsRange* aRange)
 {
-  NS_ENSURE_TRUE_VOID(mAnchorFocusRange);
+  NS_ENSURE_TRUE(mAnchorFocusRange, );
   nsRefPtr<nsPresContext> presContext;
   GetPresContext(getter_AddRefs(presContext));
   if (presContext) {
@@ -5269,17 +5248,20 @@ Selection::ScrollSelectionIntoViewEvent::Run()
 
   int32_t flags = Selection::SCROLL_DO_FLUSH |
                   Selection::SCROLL_SYNCHRONOUS;
+  if (mFirstAncestorOnly) {
+    flags |= Selection::SCROLL_FIRST_ANCESTOR_ONLY;
+  }
 
   mSelection->mScrollEvent.Forget();
   mSelection->ScrollIntoView(mRegion, mVerticalScroll,
-                             mHorizontalScroll, mFlags | flags);
+                             mHorizontalScroll, flags);
   return NS_OK;
 }
 
 nsresult
 Selection::PostScrollSelectionIntoViewEvent(
                                          SelectionRegion aRegion,
-                                         int32_t aFlags,
+                                         bool aFirstAncestorOnly,
                                          nsIPresShell::ScrollAxis aVertical,
                                          nsIPresShell::ScrollAxis aHorizontal)
 {
@@ -5291,7 +5273,7 @@ Selection::PostScrollSelectionIntoViewEvent(
 
   nsRefPtr<ScrollSelectionIntoViewEvent> ev =
       new ScrollSelectionIntoViewEvent(this, aRegion, aVertical, aHorizontal,
-                                       aFlags);
+                                       aFirstAncestorOnly);
   nsresult rv = NS_DispatchToCurrentThread(ev);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -5332,7 +5314,8 @@ Selection::ScrollIntoView(SelectionRegion aRegion,
     return NS_OK;
 
   if (!(aFlags & Selection::SCROLL_SYNCHRONOUS))
-    return PostScrollSelectionIntoViewEvent(aRegion, aFlags,
+    return PostScrollSelectionIntoViewEvent(aRegion,
+      !!(aFlags & Selection::SCROLL_FIRST_ANCESTOR_ONLY),
       aVertical, aHorizontal);
 
   //
@@ -5376,17 +5359,9 @@ Selection::ScrollIntoView(SelectionRegion aRegion,
     // vertical scrollbar or the scroll range is at least one device pixel)
     aVertical.mOnlyIfPerceivedScrollableDirection = true;
 
-
-    uint32_t flags = 0;
-    if (aFlags & Selection::SCROLL_FIRST_ANCESTOR_ONLY) {
-      flags |= nsIPresShell::SCROLL_FIRST_ANCESTOR_ONLY;
-    }
-    if (aFlags & Selection::SCROLL_OVERFLOW_HIDDEN) {
-      flags |= nsIPresShell::SCROLL_OVERFLOW_HIDDEN;
-    }
-
     presShell->ScrollFrameRectIntoView(frame, rect, aVertical, aHorizontal,
-      flags);
+      (aFlags & Selection::SCROLL_FIRST_ANCESTOR_ONLY) ?
+       nsIPresShell::SCROLL_FIRST_ANCESTOR_ONLY : 0);
     return NS_OK;
   }
   return result;
@@ -5612,7 +5587,7 @@ Selection::SelectionLanguageChange(bool aLangRTL)
   uint8_t levelBefore, levelAfter;
   result = GetPresContext(getter_AddRefs(context));
   if (NS_FAILED(result) || !context)
-    return NS_FAILED(result) ? result : NS_ERROR_FAILURE;
+    return result?result:NS_ERROR_FAILURE;
 
   uint8_t level = NS_GET_EMBEDDING_LEVEL(focusFrame);
   int32_t focusOffset = GetFocusOffset();

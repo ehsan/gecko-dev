@@ -324,9 +324,15 @@ GetInitArgs(JSContext *cx, uint32_t argc, jsval *argv,
             nsIPrincipal** aPrincipal, nsIURI** aDocumentURI,
             nsIURI** aBaseURI)
 {
-  if (!nsContentUtils::IsCallerChrome()) {
+  // Only proceed if the caller has UniversalXPConnect.
+  bool haveUniversalXPConnect;
+  nsresult rv = nsContentUtils::GetSecurityManager()->
+    IsCapabilityEnabled("UniversalXPConnect", &haveUniversalXPConnect);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!haveUniversalXPConnect) {
     return NS_ERROR_DOM_SECURITY_ERR;
-  }
+  }    
   
   nsIXPConnect* xpc = nsContentUtils::XPConnect();
   

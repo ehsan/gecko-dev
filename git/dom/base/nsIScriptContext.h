@@ -181,7 +181,6 @@ public:
                                        const char* aURL,
                                        uint32_t aLineNo,
                                        uint32_t aVersion,
-                                       bool aIsXBL,
                                        nsScriptObjectHolder<JSObject>& aHandler) = 0;
 
   /**
@@ -242,7 +241,6 @@ public:
                                    uint32_t aLineNo,
                                    uint32_t aVersion,
                                    bool aShared,
-                                   bool aIsXBL,
                                    JSObject** aFunctionObject) = 0;
 
   /**

@@ -36,7 +36,7 @@ public:
     RTCPMethod Status() const;
     WebRtc_Word32 SetRTCPStatus(const RTCPMethod method);
 
-    WebRtc_Word64 LastReceived();
+    WebRtc_UWord32 LastReceived();
 
     void SetSSRC( const WebRtc_UWord32 ssrc);
     void SetRelaySSRC( const WebRtc_UWord32 ssrc);
@@ -44,9 +44,9 @@ public:
 
     WebRtc_UWord32 RelaySSRC() const;
 
-    void RegisterRtcpObservers(RtcpIntraFrameObserver* intra_frame_callback,
-                               RtcpBandwidthObserver* bandwidth_callback,
-                               RtcpFeedback* feedback_callback);
+    WebRtc_Word32 RegisterIncomingRTCPCallback(RtcpFeedback* incomingMessagesCallback);
+
+    WebRtc_Word32 RegisterIncomingVideoCallback(RtpVideoFeedback* incomingMessagesCallback);
 
     WebRtc_Word32 IncomingRTCPPacket(RTCPHelp::RTCPPacketInformation& rtcpPacketInformation,
                                    RTCPUtility::RTCPParserV2 *rtcpParser);
@@ -76,7 +76,16 @@ public:
 
     WebRtc_Word32 ResetRTT(const WebRtc_UWord32 remoteSSRC);
 
+    void UpdateLipSync(const WebRtc_Word32 audioVideoOffset) const;
+
     WebRtc_Word32 SenderInfoReceived(RTCPSenderInfo* senderInfo) const;
+
+    void OnReceivedIntraFrameRequest(const FrameType frameType,
+                                     const WebRtc_UWord8 streamIdx) const;
+
+    void OnReceivedSliceLossIndication(const WebRtc_UWord8 pitureID) const;
+    void OnReceivedReferencePictureSelectionIndication(
+        const WebRtc_UWord64 pitureID) const;
 
     // get statistics
     WebRtc_Word32 StatisticsReceived(
@@ -89,7 +98,7 @@ public:
 
     bool UpdateRTCPReceiveInformationTimers();
 
-    WebRtc_Word32 BoundingSet(bool &tmmbrOwner, TMMBRSet* boundingSetRec);
+    WebRtc_Word32 BoundingSet(bool &tmmbrOwner, TMMBRSet*& boundingSetRec);
 
     WebRtc_Word32 UpdateTMMBR();
 
@@ -163,8 +172,7 @@ protected:
                          RTCPHelp::RTCPPacketInformation& rtcpPacketInformation,
                          const WebRtc_UWord32 senderSSRC);
 
-    void HandleTMMBN(RTCPUtility::RTCPParserV2& rtcpParser,
-                     RTCPHelp::RTCPPacketInformation& rtcpPacketInformation);
+    void HandleTMMBN(RTCPUtility::RTCPParserV2& rtcpParser);
 
     void HandleSR_REQ(RTCPUtility::RTCPParserV2& rtcpParser,
                       RTCPHelp::RTCPPacketInformation& rtcpPacketInformation);
@@ -175,7 +183,7 @@ protected:
     void HandleFIR(RTCPUtility::RTCPParserV2& rtcpParser,
                    RTCPHelp::RTCPPacketInformation& rtcpPacketInformation);
 
-    void HandleFIRItem(RTCPHelp::RTCPReceiveInformation* receiveInfo,
+    void HandleFIRItem(RTCPHelp::RTCPReceiveInformation& receiveInfo,
                        const RTCPUtility::RTCPPacket& rtcpPacket,
                        RTCPHelp::RTCPPacketInformation& rtcpPacketInformation);
 
@@ -189,13 +197,12 @@ protected:
   WebRtc_Word32           _id;
   RtpRtcpClock&           _clock;
   RTCPMethod              _method;
-  WebRtc_Word64           _lastReceived;
+  WebRtc_UWord32          _lastReceived;
   ModuleRtpRtcpImpl&      _rtpRtcp;
 
   CriticalSectionWrapper* _criticalSectionFeedbacks;
   RtcpFeedback*           _cbRtcpFeedback;
-  RtcpBandwidthObserver*  _cbRtcpBandwidthObserver;
-  RtcpIntraFrameObserver* _cbRtcpIntraFrameObserver;
+  RtpVideoFeedback*       _cbVideoFeedback;
 
   CriticalSectionWrapper* _criticalSectionRTCPReceiver;
   WebRtc_UWord32          _SSRC;

@@ -8,7 +8,6 @@
 #ifndef nsContainerFrame_h___
 #define nsContainerFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsSplittableFrame.h"
 #include "nsFrameList.h"
 #include "nsLayoutUtils.h"
@@ -54,27 +53,27 @@ public:
                   nsIFrame*   aParent,
                   nsIFrame*   aPrevInFlow);
   NS_IMETHOD SetInitialChildList(ChildListID  aListID,
-                                 nsFrameList& aChildList) MOZ_OVERRIDE;
+                                 nsFrameList& aChildList);
   NS_IMETHOD AppendFrames(ChildListID  aListID,
                           nsFrameList& aFrameList);
   NS_IMETHOD InsertFrames(ChildListID aListID,
                           nsIFrame* aPrevFrame,
                           nsFrameList& aFrameList);
   NS_IMETHOD RemoveFrame(ChildListID aListID,
-                         nsIFrame* aOldFrame) MOZ_OVERRIDE;
+                         nsIFrame* aOldFrame);
 
-  virtual const nsFrameList& GetChildList(ChildListID aList) const MOZ_OVERRIDE;
-  virtual void GetChildLists(nsTArray<ChildList>* aLists) const MOZ_OVERRIDE;
-  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
-  virtual void ChildIsDirty(nsIFrame* aChild) MOZ_OVERRIDE;
+  virtual const nsFrameList& GetChildList(ChildListID aList) const;
+  virtual void GetChildLists(nsTArray<ChildList>* aLists) const;
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void ChildIsDirty(nsIFrame* aChild);
 
   virtual bool IsLeaf() const;
-  virtual bool PeekOffsetNoAmount(bool aForward, int32_t* aOffset) MOZ_OVERRIDE;
+  virtual bool PeekOffsetNoAmount(bool aForward, int32_t* aOffset);
   virtual bool PeekOffsetCharacter(bool aForward, int32_t* aOffset,
-                                     bool aRespectClusters = true) MOZ_OVERRIDE;
+                                     bool aRespectClusters = true);
   
 #ifdef DEBUG
-  NS_IMETHOD List(FILE* out, int32_t aIndent, uint32_t aFlags = 0) const MOZ_OVERRIDE;
+  NS_IMETHOD List(FILE* out, int32_t aIndent) const;
 #endif  
 
   // nsContainerFrame methods
@@ -183,7 +182,7 @@ public:
   virtual nsSize ComputeAutoSize(nsRenderingContext *aRenderingContext,
                                  nsSize aCBSize, nscoord aAvailableWidth,
                                  nsSize aMargin, nsSize aBorder,
-                                 nsSize aPadding, bool aShrinkWrap) MOZ_OVERRIDE;
+                                 nsSize aPadding, bool aShrinkWrap);
 
   /**
    * Invokes the WillReflow() function, positions the frame and its view (if

@@ -8,10 +8,9 @@
 
 (function(){
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
+let Cc = Components.classes;
+let Ci = Components.interfaces;
+let Cu = Components.utils;
 
 const MSG_INSTALL_ENABLED  = "WebInstallerIsInstallEnabled";
 const MSG_INSTALL_ADDONS   = "WebInstallerInstallAddonsFromWebpage";
@@ -66,8 +65,7 @@ function createInstallTrigger(window) {
      */
     install: function(aArgs, aCallback) {
       if (!aArgs || typeof aArgs != "object")
-        throw Components.Exception("Incorrect arguments passed to InstallTrigger.install()",
-                                   Cr.NS_ERROR_INVALID_ARGS);
+        throw new Error("Incorrect arguments passed to InstallTrigger.install()");
 
       var params = {
         installerId: this.installerId,
@@ -84,13 +82,13 @@ function createInstallTrigger(window) {
         if (typeof item === 'string') {
           item = { URL: item };
         } else if (!("URL" in item) || item.URL === undefined) {
-          throw Components.Exception("Missing URL property for '" + name + "'");
+          throw new Error("Missing URL property for '" + name + "'");
         }
 
         // Resolve and validate urls
         var url = this.resolveURL(item.URL);
         if (!this.checkLoadURIFromScript(url))
-          throw Components.Exception("Insufficient permissions to install: " + url);
+          throw new Error("insufficient permissions to install: " + url);
 
         var iconUrl = null;
         if ("IconURL" in item && item.IconURL !== undefined) {

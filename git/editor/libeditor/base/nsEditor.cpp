@@ -11,7 +11,6 @@
 #include "DeleteNodeTxn.h"              // for DeleteNodeTxn
 #include "DeleteRangeTxn.h"             // for DeleteRangeTxn
 #include "DeleteTextTxn.h"              // for DeleteTextTxn
-#include "EditActionListener.h"         // for EditActionListener
 #include "EditAggregateTxn.h"           // for EditAggregateTxn
 #include "EditTxn.h"                    // for EditTxn
 #include "IMETextTxn.h"                 // for IMETextTxn
@@ -23,6 +22,7 @@
 #include "mozFlushType.h"               // for mozFlushType::Flush_Frames
 #include "mozISpellCheckingEngine.h"
 #include "mozInlineSpellChecker.h"      // for mozInlineSpellChecker
+#include "mozilla/FunctionTimer.h"      // for NS_TIME_FUNCTION
 #include "mozilla/Preferences.h"        // for Preferences
 #include "mozilla/Selection.h"          // for Selection, etc
 #include "mozilla/Services.h"           // for GetObserverService
@@ -70,6 +70,7 @@
 #include "nsIDocument.h"                // for nsIDocument
 #include "nsIDocumentStateListener.h"   // for nsIDocumentStateListener
 #include "nsIEditActionListener.h"      // for nsIEditActionListener
+#include "nsIEditorObserver.h"          // for nsIEditorObserver
 #include "nsIEditorSpellCheck.h"        // for nsIEditorSpellCheck
 #include "nsIEnumerator.h"              // for nsIEnumerator, etc
 #include "nsIFrame.h"                   // for nsIFrame
@@ -135,7 +136,6 @@ nsEditor::nsEditor()
 :  mPlaceHolderName(nullptr)
 ,  mSelState(nullptr)
 ,  mPhonetic(nullptr)
-,  mEditActionListener(nullptr)
 ,  mModCount(0)
 ,  mFlags(0)
 ,  mUpdateCount(0)
@@ -175,6 +175,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsEditor)
  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mIMETextRangeList)
  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mIMETextNode)
  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mActionListeners)
+ NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mEditorObservers)
  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mDocStateListeners)
  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mEventTarget)
  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mEventListener)
@@ -193,6 +194,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsEditor)
  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mIMETextRangeList)
  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mIMETextNode)
  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mActionListeners)
+ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mEditorObservers)
  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mDocStateListeners)
  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mEventTarget)
  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mEventListener)
@@ -444,7 +446,7 @@ nsEditor::PreDestroy(bool aDestroyingFrames)
   // Unregister event listeners
   RemoveEventListeners();
   mActionListeners.Clear();
-  mEditActionListener = nullptr;
+  mEditorObservers.Clear();
   mDocStateListeners.Clear();
   mInlineSpellChecker = nullptr;
   mSpellcheckCheckboxState = eTriUnset;
@@ -981,7 +983,7 @@ nsEditor::EndPlaceHolderTransaction()
     }
   }
   mPlaceHolderBatch--;
-
+  
   return NS_OK;
 }
 
@@ -1310,6 +1312,8 @@ NS_IMETHODIMP nsEditor::Observe(nsISupports* aSubj, const char *aTopic,
 
 NS_IMETHODIMP nsEditor::SyncRealTimeSpell()
 {
+  NS_TIME_FUNCTION;
+
   bool enable = GetDesiredSpellCheckState();
 
   // Initializes mInlineSpellChecker
@@ -1758,21 +1762,34 @@ nsEditor::MoveNode(nsIDOMNode *aNode, nsIDOMNode *aParent, int32_t aOffset)
   return InsertNode(node, aParent, aOffset);
 }
 
-NS_IMETHODIMP
-nsEditor::SetEditorObserver(EditActionListener* aObserver)
-{
-  NS_ENSURE_TRUE(aObserver, NS_ERROR_NULL_POINTER);
-  MOZ_ASSERT(!mEditActionListener);
 
-  mEditActionListener = aObserver;
+NS_IMETHODIMP
+nsEditor::AddEditorObserver(nsIEditorObserver *aObserver)
+{
+  // we don't keep ownership of the observers.  They must
+  // remove themselves as observers before they are destroyed.
+  
+  NS_ENSURE_TRUE(aObserver, NS_ERROR_NULL_POINTER);
+
+  // Make sure the listener isn't already on the list
+  if (mEditorObservers.IndexOf(aObserver) == -1) 
+  {
+    if (!mEditorObservers.AppendObject(aObserver))
+      return NS_ERROR_FAILURE;
+  }
+
   return NS_OK;
 }
 
 
 NS_IMETHODIMP
-nsEditor::RemoveEditorObserver()
+nsEditor::RemoveEditorObserver(nsIEditorObserver *aObserver)
 {
-  mEditActionListener = nullptr;
+  NS_ENSURE_TRUE(aObserver, NS_ERROR_FAILURE);
+
+  if (!mEditorObservers.RemoveObject(aObserver))
+    return NS_ERROR_FAILURE;
+
   return NS_OK;
 }
 
@@ -1816,11 +1833,10 @@ private:
   bool mIsTrusted;
 };
 
-void
-nsEditor::NotifyEditorObservers(void)
+void nsEditor::NotifyEditorObservers(void)
 {
-  if (mEditActionListener) {
-    mEditActionListener->EditAction();
+  for (int32_t i = 0; i < mEditorObservers.Count(); i++) {
+    mEditorObservers[i]->EditAction();
   }
 
   if (!mDispatchInputEvent) {
@@ -1833,10 +1849,10 @@ nsEditor::NotifyEditorObservers(void)
   // overwork.  We don't need to do it for the very rare case.
 
   nsCOMPtr<nsIContent> target = GetInputEventTargetContent();
-  NS_ENSURE_TRUE_VOID(target);
+  NS_ENSURE_TRUE(target, );
 
   nsContentUtils::AddScriptRunner(
-    new EditorInputEventDispatcher(this, mHandlingTrustedAction, target));
+     new EditorInputEventDispatcher(this, mHandlingTrustedAction, target));
 }
 
 NS_IMETHODIMP
@@ -1994,7 +2010,7 @@ nsEditor::BeginIMEComposition()
 void
 nsEditor::EndIMEComposition()
 {
-  NS_ENSURE_TRUE_VOID(mInIMEMode); // nothing to do
+  NS_ENSURE_TRUE(mInIMEMode, ); // nothing to do
 
   // commit the IME transaction..we can get at it via the transaction mgr.
   // Note that this means IME won't work without an undo stack!
@@ -2321,7 +2337,7 @@ NS_IMETHODIMP nsEditor::ScrollSelectionIntoView(bool aScrollToAnchor)
       region = nsISelectionController::SELECTION_ANCHOR_REGION;
 
     selCon->ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL,
-      region, nsISelectionController::SCROLL_OVERFLOW_HIDDEN);
+                                    region, 0);
   }
 
   return NS_OK;
@@ -5167,7 +5183,7 @@ nsEditor::SwitchTextDirectionTo(uint32_t aDirection)
   // Get the current root direction from its frame
   dom::Element *rootElement = GetRoot();
   nsresult rv = DetermineCurrentDirection();
-  NS_ENSURE_SUCCESS_VOID(rv);
+  NS_ENSURE_SUCCESS(rv, );
 
   // Apply the requested direction
   if (aDirection == nsIPlaintextEditor::eEditorLeftToRight &&
@@ -5229,7 +5245,7 @@ nsEditor::DumpNode(nsIDOMNode *aNode, int32_t indent)
     nsCOMPtr<nsIDOMCharacterData> textNode = do_QueryInterface(aNode);
     nsAutoString str;
     textNode->GetData(str);
-    nsAutoCString cstr;
+    nsCAutoString cstr;
     LossyCopyUTF16toASCII(str, cstr);
     cstr.ReplaceChar('\n', ' ');
     printf("<textnode> %s\n", cstr.get());

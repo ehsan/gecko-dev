@@ -6,7 +6,7 @@
 
 "use strict";
 
-this.EXPORTED_SYMBOLS = ["IdentityService"];
+const EXPORTED_SYMBOLS = ["IdentityService"];
 
 const Cu = Components.utils;
 const Ci = Components.interfaces;
@@ -131,7 +131,7 @@ IDService.prototype = {
     let provId = rp.provId;
 
     let rpLoginOptions = {
-      loggedInUser: aIdentity,
+      loggedInEmail: aIdentity,
       origin: rp.origin
     };
     log("selectIdentity: provId:", provId, "origin:", rp.origin);
@@ -302,4 +302,4 @@ IDService.prototype = {
 
 };
 
-this.IdentityService = new IDService();
+let IdentityService = new IDService();

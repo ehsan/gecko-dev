@@ -6,7 +6,6 @@
 #include "nsGUIEvent.h"
 #include "nsEventDispatcher.h"
 #include "nsHTMLMenuItemElement.h"
-#include "nsAttrValueInlines.h"
 #include "nsContentUtils.h"
 
 using namespace mozilla::dom;

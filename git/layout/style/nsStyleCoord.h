@@ -135,7 +135,6 @@ public:
   double      GetAngleValueInRadians() const;
   Calc*       GetCalcValue() const;
   void        GetUnionValue(nsStyleUnion& aValue) const;
-  uint32_t    HashValue(uint32_t aHash) const;
 
   void  Reset();  // sets to null
   void  SetCoordValue(nscoord aValue);

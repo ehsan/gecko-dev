@@ -10,6 +10,7 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsISupportsImpl.h"
 #include "nscore.h"
+#include "prtypes.h"
 
 class nsITransaction;
 class nsTransactionManager;

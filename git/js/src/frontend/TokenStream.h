@@ -21,6 +21,11 @@
 
 #include "js/Vector.h"
 
+#define JS_KEYWORD(keyword, type, op, version) \
+    extern const char js_##keyword##_str[];
+#include "jskeyword.tbl"
+#undef JS_KEYWORD
+
 namespace js {
 namespace frontend {
 
@@ -99,8 +104,6 @@ enum TokenKind {
     TOK_YIELD,                     /* yield from generator function */
     TOK_LEXICALSCOPE,              /* block scope AST node label */
     TOK_LET,                       /* let keyword */
-    TOK_EXPORT,                    /* export keyword */
-    TOK_IMPORT,                    /* import keyword */
     TOK_RESERVED,                  /* reserved keywords */
     TOK_STRICT_RESERVED,           /* reserved keywords in strict mode */
 
@@ -430,14 +433,16 @@ struct CompileError {
     void throwError();
 };
 
+namespace StrictMode {
 /* For an explanation of how these are used, see the comment in the FunctionBox definition. */
-MOZ_BEGIN_ENUM_CLASS(StrictMode, uint8_t)
+enum StrictModeState {
     NOTSTRICT,
     UNKNOWN,
     STRICT
-MOZ_END_ENUM_CLASS(StrictMode)
+};
+}
 
-inline StrictMode
+inline StrictMode::StrictModeState
 StrictModeFromContext(JSContext *cx)
 {
     return cx->hasRunOption(JSOPTION_STRICT_MODE) ? StrictMode::STRICT : StrictMode::UNKNOWN;
@@ -458,7 +463,7 @@ class StrictModeGetter {
   public:
     StrictModeGetter(Parser *p) : parser(p) { }
 
-    StrictMode get() const;
+    StrictMode::StrictModeState get() const;
     CompileError *queuedStrictModeError() const;
     void setQueuedStrictModeError(CompileError *e);
 };
@@ -531,9 +536,9 @@ class TokenStream
     void setXMLOnlyMode(bool enabled = true) { setFlag(enabled, TSF_XMLONLYMODE); }
     void setUnexpectedEOF(bool enabled = true) { setFlag(enabled, TSF_UNEXPECTED_EOF); }
 
-    StrictMode strictModeState() const
+    StrictMode::StrictModeState strictModeState() const
     {
-        return strictModeGetter ? strictModeGetter->get() : StrictMode(StrictMode::NOTSTRICT);
+        return strictModeGetter ? strictModeGetter->get() : StrictMode::NOTSTRICT;
     }
     bool isXMLTagMode() const { return !!(flags & TSF_XMLTAGMODE); }
     bool isXMLOnlyMode() const { return !!(flags & TSF_XMLONLYMODE); }
@@ -845,17 +850,17 @@ class TokenStream
     void updateFlagsForEOL();
 
     Token               tokens[ntokens];/* circular token buffer */
-    js::SkipRoot        tokensRoot;     /* prevent overwriting of token buffer */
+    JS::SkipRoot        tokensRoot;     /* prevent overwriting of token buffer */
     unsigned            cursor;         /* index of last parsed token */
     unsigned            lookahead;      /* count of lookahead tokens */
     unsigned            lineno;         /* current line number */
     unsigned            flags;          /* flags -- see above */
     const jschar        *linebase;      /* start of current line;  points into userbuf */
     const jschar        *prevLinebase;  /* start of previous line;  NULL if on the first line */
-    js::SkipRoot        linebaseRoot;
-    js::SkipRoot        prevLinebaseRoot;
+    JS::SkipRoot        linebaseRoot;
+    JS::SkipRoot        prevLinebaseRoot;
     TokenBuf            userbuf;        /* user input buffer */
-    js::SkipRoot        userbufRoot;
+    JS::SkipRoot        userbufRoot;
     const char          *filename;      /* input filename or null */
     jschar              *sourceMap;     /* source map's filename or null */
     void                *listenerTSData;/* listener data for this TokenStream */

@@ -108,7 +108,7 @@ BasicCanvasLayer::Initialize(const Data& aData)
     mNeedsYFlip = true;
   } else if (aData.mDrawTarget) {
     mDrawTarget = aData.mDrawTarget;
-    mSurface = gfxPlatform::GetPlatform()->CreateThebesSurfaceAliasForDrawTarget_hack(mDrawTarget);
+    mSurface = gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(mDrawTarget);
     mNeedsYFlip = false;
   } else {
     NS_ERROR("CanvasLayer created without mSurface, mDrawTarget or mGLContext?");
@@ -120,20 +120,10 @@ BasicCanvasLayer::Initialize(const Data& aData)
 void
 BasicCanvasLayer::UpdateSurface(gfxASurface* aDestSurface, Layer* aMaskLayer)
 {
-  if (!IsDirty())
-    return;
-  Painted();
-
   if (mDrawTarget) {
     mDrawTarget->Flush();
-    if (mDrawTarget->GetType() == BACKEND_COREGRAPHICS_ACCELERATED) {
-      // We have an accelerated CG context which has changed, unlike a bitmap surface
-      // where we can alias the bits on initializing the mDrawTarget, we need to readback
-      // and copy the accelerated surface each frame. We want to support this for quick
-      // thumbnail but if we're going to be doing this every frame it likely is better
-      // to use a non accelerated (bitmap) canvas.
-      mSurface = gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(mDrawTarget);
-    }
+    // TODO Fix me before turning accelerated quartz canvas by default
+    //mSurface = gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(mDrawTarget);
   }
 
   if (!mGLContext && aDestSurface) {
@@ -142,6 +132,10 @@ BasicCanvasLayer::UpdateSurface(gfxASurface* aDestSurface, Layer* aMaskLayer)
     BasicCanvasLayer::PaintWithOpacity(tmpCtx, 1.0f, aMaskLayer);
     return;
   }
+
+  if (!mDirty)
+    return;
+  mDirty = false;
 
   if (mGLContext) {
     if (aDestSurface && aDestSurface->GetType() != gfxASurface::SurfaceTypeImage) {
@@ -321,11 +315,6 @@ public:
   virtual void Initialize(const Data& aData);
   virtual void Paint(gfxContext* aContext, Layer* aMaskLayer);
 
-  virtual void ClearCachedResources() MOZ_OVERRIDE
-  {
-    DestroyBackBuffer();
-  }
-
   virtual void FillSpecificAttributes(SpecificLayerAttributes& aAttrs)
   {
     aAttrs = CanvasLayerAttributes(mFilter);
@@ -403,9 +392,6 @@ BasicShadowableCanvasLayer::Paint(gfxContext* aContext, Layer* aMaskLayer)
     BasicCanvasLayer::Paint(aContext, aMaskLayer);
     return;
   }
-
-  if (!IsDirty())
-    return;
 
   if (mGLContext &&
       !mForceReadback &&

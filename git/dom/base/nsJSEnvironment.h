@@ -85,7 +85,6 @@ public:
                                        const nsAString& aBody,
                                        const char *aURL, uint32_t aLineNo,
                                        uint32_t aVersion,
-                                       bool aIsXBL,
                                        nsScriptObjectHolder<JSObject>& aHandler);
   virtual nsresult CallEventHandler(nsISupports* aTarget, JSObject* aScope,
                                     JSObject* aHandler,
@@ -103,7 +102,6 @@ public:
                                    uint32_t aLineNo,
                                    uint32_t aVersion,
                                    bool aShared,
-                                   bool aIsXBL,
                                    JSObject** aFunctionObject);
 
   virtual nsIScriptGlobalObject *GetGlobalObject();

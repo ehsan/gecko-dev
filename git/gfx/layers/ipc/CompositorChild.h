@@ -45,13 +45,6 @@ protected:
 
   virtual void ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
 
-  virtual PGrallocBufferChild* AllocPGrallocBuffer(
-    const gfxIntSize&, const uint32_t&, const uint32_t&,
-    MaybeMagicGrallocBufferHandle*) MOZ_OVERRIDE
-  { return nullptr; }
-  virtual bool DeallocPGrallocBuffer(PGrallocBufferChild*)
-  { return false; }
-
 private:
   nsRefPtr<LayerManager> mLayerManager;
 

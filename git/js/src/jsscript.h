@@ -21,24 +21,16 @@
 
 namespace js {
 
-namespace ion {
-    struct IonScript;
-}
-
-# define ION_DISABLED_SCRIPT ((js::ion::IonScript *)0x1)
-# define ION_COMPILING_SCRIPT ((js::ion::IonScript *)0x2)
-
 struct Shape;
-
 class BindingIter;
 
 namespace mjit {
-    struct JITScript;
-    class CallCompiler;
+struct JITScript;
+class CallCompiler;
 }
 
 namespace analyze {
-    class ScriptAnalysis;
+class ScriptAnalysis;
 }
 
 }
@@ -126,9 +118,6 @@ class Binding
 
 JS_STATIC_ASSERT(sizeof(Binding) == sizeof(uintptr_t));
 
-class Bindings;
-typedef InternalHandle<Bindings *> InternalBindingsHandle;
-
 /*
  * Formal parameters and local variables are stored in a shape tree
  * path encapsulated within this class.  This class represents bindings for
@@ -171,18 +160,14 @@ class Bindings
      * storage is release, switchToScriptStorage must be called, providing a
      * pointer into the Binding array stored in script->data.
      */
-    static bool initWithTemporaryStorage(JSContext *cx, InternalBindingsHandle self,
-                                         unsigned numArgs, unsigned numVars,
-                                         Binding *bindingArray);
-
+    bool initWithTemporaryStorage(JSContext *cx, unsigned numArgs, unsigned numVars, Binding *bindingArray);
     uint8_t *switchToScriptStorage(Binding *newStorage);
 
     /*
      * Clone srcScript's bindings (as part of js::CloneScript). dstScriptData
      * is the pointer to what will eventually be dstScript->data.
      */
-    static bool clone(JSContext *cx, InternalBindingsHandle self, uint8_t *dstScriptData,
-                      HandleScript srcScript);
+    bool clone(JSContext *cx, uint8_t *dstScriptData, HandleScript srcScript);
 
     unsigned numArgs() const { return numArgs_; }
     unsigned numVars() const { return numVars_; }
@@ -192,7 +177,7 @@ class Bindings
     Shape *callObjShape() const { return callObjShape_; }
 
     /* Convenience method to get the var index of 'arguments'. */
-    static unsigned argumentsVarIndex(JSContext *cx, InternalBindingsHandle);
+    unsigned argumentsVarIndex(JSContext *cx) const;
 
     /* Return whether the binding at bindingIndex is aliased. */
     bool bindingIsAliased(unsigned bindingIndex);
@@ -201,15 +186,26 @@ class Bindings
     bool hasAnyAliasedBindings() const { return !callObjShape_->isEmptyShape(); }
 
     void trace(JSTracer *trc);
+    class AutoRooter;
 };
 
-template <>
-struct RootMethods<Bindings> {
-    static Bindings initial();
-    static ThingRootKind kind() { return THING_ROOT_BINDINGS; }
-    static bool poisoned(const Bindings &bindings) {
-        return IsPoisonedPtr(bindings.callObjShape());
+class Bindings::AutoRooter : private AutoGCRooter
+{
+  public:
+    explicit AutoRooter(JSContext *cx, Bindings *bindings_
+                        JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : AutoGCRooter(cx, BINDINGS), bindings(bindings_), skip(cx, bindings_)
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
+
+    friend void AutoGCRooter::trace(JSTracer *trc);
+    void trace(JSTracer *trc);
+
+  private:
+    Bindings *bindings;
+    SkipRoot skip;
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 class ScriptCounts
@@ -397,9 +393,9 @@ struct JSScript : public js::gc::Cell
                                  * or has had backedges taken. Reset if the
                                  * script's JIT code is forcibly discarded. */
 
-    uint32_t        maxLoopCount; /* Maximum loop count that has been encountered. */
-    uint32_t        loopCount;    /* Number of times a LOOPHEAD has been encountered.
-                                     after a LOOPENTRY. Modified only by interpreter. */
+#if !defined(JS_METHODJIT) && JS_BITS_PER_WORD == 32
+    uint32_t        pad32;
+#endif
 
 #ifdef DEBUG
     // Unique identifier within the compartment for this script, used for
@@ -409,16 +405,14 @@ struct JSScript : public js::gc::Cell
     uint32_t        idpad;
 #endif
 
+    uint32_t        PADDING;
+
     // 16-bit fields.
 
   private:
-    uint16_t        PADDING;
-
     uint16_t        version;    /* JS version under which script was compiled */
 
   public:
-    uint16_t        ndefaults;  /* number of defaults the function has */
-
     uint16_t        nfixed;     /* number of slots besides stack operands in
                                    slot array */
 
@@ -473,7 +467,6 @@ struct JSScript : public js::gc::Cell
     bool            debugMode:1;      /* script was compiled in debug mode */
     bool            failedBoundsCheck:1; /* script has had hoisted bounds checks fail */
 #endif
-    bool            invalidatedIdempotentCache:1; /* idempotent cache has triggered invalidation */
     bool            isGenerator:1;    /* is a generator */
     bool            isGeneratorExp:1; /* is a generator expression */
     bool            hasScriptCounts:1;/* script has an entry in
@@ -482,7 +475,6 @@ struct JSScript : public js::gc::Cell
                                          JSCompartment::debugScriptMap */
     bool            hasFreezeConstraints:1; /* freeze constraints for stack
                                              * type sets have been generated */
-    bool            userBit:1; /* Opaque, used by the embedding. */
 
   private:
     /* See comments below. */
@@ -531,7 +523,7 @@ struct JSScript : public js::gc::Cell
     bool analyzedArgsUsage() const { return !needsArgsAnalysis_; }
     bool needsArgsObj() const { JS_ASSERT(analyzedArgsUsage()); return needsArgsObj_; }
     void setNeedsArgsObj(bool needsArgsObj);
-    static bool argumentsOptimizationFailed(JSContext *cx, js::HandleScript script);
+    static bool argumentsOptimizationFailed(JSContext *cx, JSScript *script);
 
     /*
      * Arguments access (via JSOP_*ARG* opcodes) must access the canonical
@@ -546,26 +538,6 @@ struct JSScript : public js::gc::Cell
         return needsArgsObj() && !strictModeCode;
     }
 
-    js::ion::IonScript *ion;          /* Information attached by Ion */
-
-#if defined(JS_METHODJIT) && JS_BITS_PER_WORD == 32
-    void *padding_;
-#endif
-
-    bool hasIonScript() const {
-        return ion && ion != ION_DISABLED_SCRIPT && ion != ION_COMPILING_SCRIPT;
-    }
-    bool canIonCompile() const {
-        return ion != ION_DISABLED_SCRIPT;
-    }
-    bool isIonCompilingOffThread() const {
-        return ion == ION_COMPILING_SCRIPT;
-    }
-    js::ion::IonScript *ionScript() const {
-        JS_ASSERT(hasIonScript());
-        return ion;
-    }
-
     /*
      * Original compiled function for the script, if it has a function.
      * NULL for global and eval scripts.
@@ -573,7 +545,7 @@ struct JSScript : public js::gc::Cell
     JSFunction *function() const { return function_; }
     void setFunction(JSFunction *fun);
 
-    JSFlatString *sourceData(JSContext *cx);
+    JSFixedString *sourceData(JSContext *cx);
 
     bool loadSource(JSContext *cx, bool *worked);
 
@@ -581,7 +553,7 @@ struct JSScript : public js::gc::Cell
         return scriptSource_;
     }
 
-    void setScriptSource(js::ScriptSource *ss);
+    void setScriptSource(JSContext *cx, js::ScriptSource *ss);
 
   public:
 
@@ -610,10 +582,10 @@ struct JSScript : public js::gc::Cell
     inline void clearAnalysis();
     inline js::analyze::ScriptAnalysis *analysis();
 
-    /* Heuristic to check if the function is expected to be "short running". */
-    bool isShortRunning();
-
     inline void clearPropertyReadTypes();
+
+    inline bool hasGlobal() const;
+    inline bool hasClearedGlobal() const;
 
     inline js::GlobalObject &global() const;
 
@@ -676,25 +648,9 @@ struct JSScript : public js::gc::Cell
     inline void *nativeCodeForPC(bool constructing, jsbytecode *pc);
 
     uint32_t getUseCount() const  { return useCount; }
-    uint32_t incUseCount(uint32_t amount = 1) { return useCount += amount; }
+    uint32_t incUseCount() { return ++useCount; }
     uint32_t *addressOfUseCount() { return &useCount; }
     void resetUseCount() { useCount = 0; }
-
-    void resetLoopCount() {
-        if (loopCount > maxLoopCount)
-            maxLoopCount = loopCount;
-        loopCount = 0;
-    }
-
-    void incrLoopCount() {
-        ++loopCount;
-    }
-
-    uint32_t getMaxLoopCount() {
-        if (loopCount > maxLoopCount)
-            maxLoopCount = loopCount;
-        return maxLoopCount;
-    }
 
     /*
      * Size of the JITScript and all sections.  If |mallocSizeOf| is NULL, the
@@ -800,7 +756,7 @@ struct JSScript : public js::gc::Cell
     inline JSFunction *getFunction(size_t index);
     inline JSFunction *getCallerFunction();
 
-    inline js::RegExpObject *getRegExp(size_t index);
+    inline JSObject *getRegExp(size_t index);
 
     const js::Value &getConst(size_t index) {
         js::ConstArray *arr = consts();
@@ -848,7 +804,7 @@ struct JSScript : public js::gc::Cell
 
     void destroyBreakpointSite(js::FreeOp *fop, jsbytecode *pc);
 
-    void clearBreakpointsIn(js::FreeOp *fop, js::Debugger *dbg, js::RawObject handler);
+    void clearBreakpointsIn(js::FreeOp *fop, js::Debugger *dbg, JSObject *handler);
     void clearTraps(js::FreeOp *fop);
 
     void markTrapClosures(JSTracer *trc);
@@ -905,14 +861,14 @@ namespace js {
  */
 class BindingIter
 {
-    const InternalBindingsHandle bindings_;
+    const Bindings *bindings_;
     unsigned i_;
 
     friend class Bindings;
+    BindingIter(const Bindings &bindings, unsigned i) : bindings_(&bindings), i_(i) {}
 
   public:
-    explicit BindingIter(const InternalBindingsHandle &bindings) : bindings_(bindings), i_(0) {}
-    explicit BindingIter(const HandleScript &script) : bindings_(script, &script->bindings), i_(0) {}
+    explicit BindingIter(const Bindings &bindings) : bindings_(&bindings), i_(0) {}
 
     bool done() const { return i_ == bindings_->count(); }
     operator bool() const { return !done(); }
@@ -936,7 +892,7 @@ class BindingIter
 typedef Vector<Binding, 32> BindingVector;
 
 extern bool
-FillBindingVector(HandleScript fromScript, BindingVector *vec);
+FillBindingVector(Bindings &bindings, BindingVector *vec);
 
 /*
  * Iterator over the aliased formal bindings in ascending index order. This can
@@ -1047,7 +1003,7 @@ struct ScriptSource
         JS_ASSERT(hasSourceData());
         return argumentsNotIncluded_;
     }
-    JSFlatString *substring(JSContext *cx, uint32_t start, uint32_t stop);
+    JSFixedString *substring(JSContext *cx, uint32_t start, uint32_t stop);
     size_t sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf);
 
     // XDR handling
@@ -1160,7 +1116,7 @@ struct SourceCompressionToken
 };
 
 extern void
-CallDestroyScriptHook(FreeOp *fop, js::RawScript script);
+CallDestroyScriptHook(FreeOp *fop, JSScript *script);
 
 extern const char *
 SaveScriptFilename(JSContext *cx, const char *filename);
@@ -1210,19 +1166,26 @@ struct ScriptAndCounts
 
 } /* namespace js */
 
+/*
+ * To perturb as little code as possible, we introduce a js_GetSrcNote lookup
+ * cache without adding an explicit cx parameter.  Thus js_GetSrcNote becomes
+ * a macro that uses cx from its calls' lexical environments.
+ */
+#define js_GetSrcNote(script,pc) js_GetSrcNoteCached(cx, script, pc)
+
 extern jssrcnote *
-js_GetSrcNote(JSContext *cx, js::RawScript script, jsbytecode *pc);
+js_GetSrcNoteCached(JSContext *cx, JSScript *script, jsbytecode *pc);
 
 extern jsbytecode *
-js_LineNumberToPC(js::RawScript script, unsigned lineno);
+js_LineNumberToPC(JSScript *script, unsigned lineno);
 
 extern JS_FRIEND_API(unsigned)
-js_GetScriptLineExtent(js::RawScript script);
+js_GetScriptLineExtent(JSScript *script);
 
 namespace js {
 
 extern unsigned
-PCToLineNumber(js::RawScript script, jsbytecode *pc, unsigned *columnp = NULL);
+PCToLineNumber(JSScript *script, jsbytecode *pc, unsigned *columnp = NULL);
 
 extern unsigned
 PCToLineNumber(unsigned startLine, jssrcnote *notes, jsbytecode *code, jsbytecode *pc,
@@ -1259,7 +1222,7 @@ CloneScript(JSContext *cx, HandleObject enclosingScope, HandleFunction fun, Hand
 template<XDRMode mode>
 bool
 XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enclosingScript,
-          HandleFunction fun, MutableHandleScript scriptp);
+          HandleFunction fun, JSScript **scriptp);
 
 } /* namespace js */
 

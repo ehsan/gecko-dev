@@ -19,7 +19,6 @@
 #include "nsTObserverArray.h"
 #include "nsURIHashKey.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/CORSMode.h"
 
 class nsIAtom;
 class nsICSSLoaderObserver;
@@ -33,41 +32,38 @@ class nsCycleCollectionTraversalCallback;
 
 namespace mozilla {
 
-class URIPrincipalAndCORSModeHashKey : public nsURIHashKey
+class URIAndPrincipalHashKey : public nsURIHashKey
 {
 public:
-  typedef URIPrincipalAndCORSModeHashKey* KeyType;
-  typedef const URIPrincipalAndCORSModeHashKey* KeyTypePointer;
+  typedef URIAndPrincipalHashKey* KeyType;
+  typedef const URIAndPrincipalHashKey* KeyTypePointer;
 
-  URIPrincipalAndCORSModeHashKey(const URIPrincipalAndCORSModeHashKey* aKey)
-    : nsURIHashKey(aKey->mKey), mPrincipal(aKey->mPrincipal),
-      mCORSMode(aKey->mCORSMode)
+  URIAndPrincipalHashKey(const URIAndPrincipalHashKey* aKey)
+    : nsURIHashKey(aKey->mKey), mPrincipal(aKey->mPrincipal)
   {
-    MOZ_COUNT_CTOR(URIPrincipalAndCORSModeHashKey);
+    MOZ_COUNT_CTOR(URIAndPrincipalHashKey);
   }
-  URIPrincipalAndCORSModeHashKey(nsIURI* aURI, nsIPrincipal* aPrincipal,
-                                 CORSMode aCORSMode)
-    : nsURIHashKey(aURI), mPrincipal(aPrincipal), mCORSMode(aCORSMode)
+  URIAndPrincipalHashKey(nsIURI* aURI, nsIPrincipal* aPrincipal)
+    : nsURIHashKey(aURI), mPrincipal(aPrincipal)
   {
-    MOZ_COUNT_CTOR(URIPrincipalAndCORSModeHashKey);
+    MOZ_COUNT_CTOR(URIAndPrincipalHashKey);
   }
-  URIPrincipalAndCORSModeHashKey(const URIPrincipalAndCORSModeHashKey& toCopy)
-    : nsURIHashKey(toCopy), mPrincipal(toCopy.mPrincipal),
-      mCORSMode(toCopy.mCORSMode)
+  URIAndPrincipalHashKey(const URIAndPrincipalHashKey& toCopy)
+    : nsURIHashKey(toCopy), mPrincipal(toCopy.mPrincipal)
   {
-    MOZ_COUNT_CTOR(URIPrincipalAndCORSModeHashKey);
+    MOZ_COUNT_CTOR(URIAndPrincipalHashKey);
   }
-  ~URIPrincipalAndCORSModeHashKey()
+  ~URIAndPrincipalHashKey()
   {
-    MOZ_COUNT_DTOR(URIPrincipalAndCORSModeHashKey);
+    MOZ_COUNT_DTOR(URIAndPrincipalHashKey);
   }
 
-  URIPrincipalAndCORSModeHashKey* GetKey() const {
-    return const_cast<URIPrincipalAndCORSModeHashKey*>(this);
+  URIAndPrincipalHashKey* GetKey() const {
+    return const_cast<URIAndPrincipalHashKey*>(this);
   }
-  const URIPrincipalAndCORSModeHashKey* GetKeyPointer() const { return this; }
+  const URIAndPrincipalHashKey* GetKeyPointer() const { return this; }
 
-  bool KeyEquals(const URIPrincipalAndCORSModeHashKey* aKey) const {
+  bool KeyEquals(const URIAndPrincipalHashKey* aKey) const {
     if (!nsURIHashKey::KeyEquals(aKey->mKey)) {
       return false;
     }
@@ -77,19 +73,14 @@ public:
       return false;
     }
 
-    if (mCORSMode != aKey->mCORSMode) {
-      // Different CORS modes; we don't match
-      return false;
-    }
-
     bool eq;
     return !mPrincipal ||
       (NS_SUCCEEDED(mPrincipal->Equals(aKey->mPrincipal, &eq)) && eq);
   }
 
-  static const URIPrincipalAndCORSModeHashKey*
-  KeyToPointer(URIPrincipalAndCORSModeHashKey* aKey) { return aKey; }
-  static PLDHashNumber HashKey(const URIPrincipalAndCORSModeHashKey* aKey) {
+  static const URIAndPrincipalHashKey*
+  KeyToPointer(URIAndPrincipalHashKey* aKey) { return aKey; }
+  static PLDHashNumber HashKey(const URIAndPrincipalHashKey* aKey) {
     return nsURIHashKey::HashKey(aKey->mKey);
   }
 
@@ -97,7 +88,6 @@ public:
 
 protected:
   nsCOMPtr<nsIPrincipal> mPrincipal;
-  CORSMode mCORSMode;
 };
 
 
@@ -124,7 +114,9 @@ public:
   Loader(nsIDocument*);
   ~Loader();
 
-  NS_INLINE_DECL_REFCOUNTING(Loader)
+  // This isn't a COM class but it's reference-counted like one.
+  NS_IMETHOD_(nsrefcnt) AddRef();
+  NS_IMETHOD_(nsrefcnt) Release();
 
   void DropDocumentReference(); // notification that doc is going away
 
@@ -177,7 +169,6 @@ public:
    * @param aMedia the media string for the sheet.
    * @param aHasAlternateRel whether the rel for this link included
    *        "alternate".
-   * @param aCORSMode the CORS mode for this load.
    * @param aObserver the observer to notify when the load completes.
    *                  May be null.
    * @param [out] aIsAlternate whether the stylesheet actually ended up beinga
@@ -189,7 +180,6 @@ public:
                          const nsAString& aTitle,
                          const nsAString& aMedia,
                          bool aHasAlternateRel,
-                         CORSMode aCORSMode,
                          nsICSSLoaderObserver* aObserver,
                          bool* aIsAlternate);
 
@@ -285,8 +275,7 @@ public:
   nsresult LoadSheet(nsIURI* aURL,
                      nsIPrincipal* aOriginPrincipal,
                      const nsCString& aCharset,
-                     nsICSSLoaderObserver* aObserver,
-                     CORSMode aCORSMode = CORS_NONE);
+                     nsICSSLoaderObserver* aObserver);
 
   /**
    * Stop loading all sheets.  All nsICSSLoaderObservers involved will be
@@ -360,9 +349,6 @@ public:
   // should only be called from the document that owns this loader.
   void UnlinkCachedSheets();
 
-  // Measure our size.
-  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
-
 private:
   friend class SheetLoadData;
 
@@ -380,7 +366,6 @@ private:
   nsresult CreateSheet(nsIURI* aURI,
                        nsIContent* aLinkingContent,
                        nsIPrincipal* aLoaderPrincipal,
-                       CORSMode aCORSMode,
                        bool aSyncLoad,
                        bool aHasAlternateRel,
                        const nsAString& aTitle,
@@ -411,8 +396,7 @@ private:
                                         nsIPrincipal* aOriginPrincipal,
                                         const nsCString& aCharset,
                                         nsCSSStyleSheet** aSheet,
-                                        nsICSSLoaderObserver* aObserver,
-                                        CORSMode aCORSMode = CORS_NONE);
+                                        nsICSSLoaderObserver* aObserver);
 
   // Post a load event for aObserver to be notified about aSheet.  The
   // notification will be sent with status NS_OK unless the load event is
@@ -455,11 +439,11 @@ private:
   void DoSheetComplete(SheetLoadData* aLoadData, nsresult aStatus,
                        LoadDataArray& aDatasToNotify);
 
-  nsRefPtrHashtable<URIPrincipalAndCORSModeHashKey, nsCSSStyleSheet>
+  nsRefPtrHashtable<URIAndPrincipalHashKey, nsCSSStyleSheet>
                     mCompleteSheets;
-  nsDataHashtable<URIPrincipalAndCORSModeHashKey, SheetLoadData*>
+  nsDataHashtable<URIAndPrincipalHashKey, SheetLoadData*>
                     mLoadingDatas; // weak refs
-  nsDataHashtable<URIPrincipalAndCORSModeHashKey, SheetLoadData*>
+  nsDataHashtable<URIAndPrincipalHashKey, SheetLoadData*>
                     mPendingDatas; // weak refs
 
   // We're not likely to have many levels of @import...  But likely to have
@@ -477,6 +461,9 @@ private:
   // the load data needs access to the document...
   nsIDocument*      mDocument;  // the document we live for
 
+  // Refcounting
+  nsAutoRefCnt      mRefCnt;
+  NS_DECL_OWNINGTHREAD
 
   // Number of datas still waiting to be notified on if we're notifying on a
   // whole bunch at once (e.g. in one of the stop methods).  This is used to

@@ -25,14 +25,6 @@ using namespace mozilla::hal;
 namespace mozilla {
 namespace hal_sandbox {
 
-static bool sHalChildIsLive = false;
-
-bool
-IsHalChildLive()
-{
-  return sHalChildIsLive;
-}
-
 static PHalChild* sHal;
 static PHalChild*
 Hal()
@@ -192,7 +184,7 @@ GetLight(hal::LightType light, hal::LightConfiguration* aConfig)
 }
 
 void 
-AdjustSystemClock(int64_t aDeltaMilliseconds)
+AdjustSystemClock(int32_t aDeltaMilliseconds)
 {
   Hal()->SendAdjustSystemClock(aDeltaMilliseconds);
 }
@@ -203,54 +195,16 @@ SetTimezone(const nsCString& aTimezoneSpec)
   Hal()->SendSetTimezone(nsCString(aTimezoneSpec));
 } 
 
-nsCString
-GetTimezone()
-{
-  nsCString timezone;
-  Hal()->SendGetTimezone(&timezone);
-  return timezone;
-}
-
-void
-EnableSystemClockChangeNotifications()
-{
-  Hal()->SendEnableSystemClockChangeNotifications();
-}
-
-void
-DisableSystemClockChangeNotifications()
-{
-  Hal()->SendDisableSystemClockChangeNotifications();
-}
-
-void
-EnableSystemTimezoneChangeNotifications()
-{
-  Hal()->SendEnableSystemTimezoneChangeNotifications();
-}
-
-void
-DisableSystemTimezoneChangeNotifications()
-{
-  Hal()->SendDisableSystemTimezoneChangeNotifications();
-}
-
 void
 Reboot()
 {
-  NS_RUNTIMEABORT("Reboot() can't be called from sandboxed contexts.");
+  Hal()->SendReboot();
 }
 
 void
 PowerOff()
 {
-  NS_RUNTIMEABORT("PowerOff() can't be called from sandboxed contexts.");
-}
-
-void
-StartForceQuitWatchdog(ShutdownMode aMode, int32_t aTimeoutSecs)
-{
-  NS_RUNTIMEABORT("StartForceQuitWatchdog() can't be called from sandboxed contexts.");
+  Hal()->SendPowerOff();
 }
 
 void
@@ -276,12 +230,9 @@ DisableWakeLockNotifications()
 }
 
 void
-ModifyWakeLockInternal(const nsAString &aTopic,
-                       WakeLockControl aLockAdjust,
-                       WakeLockControl aHiddenAdjust,
-                       uint64_t aProcessID)
+ModifyWakeLock(const nsAString &aTopic, WakeLockControl aLockAdjust, WakeLockControl aHiddenAdjust)
 {
-  Hal()->SendModifyWakeLock(nsString(aTopic), aLockAdjust, aHiddenAdjust, aProcessID);
+  Hal()->SendModifyWakeLock(nsString(aTopic), aLockAdjust, aHiddenAdjust);
 }
 
 void
@@ -336,72 +287,6 @@ SetProcessPriority(int aPid, ProcessPriority aPriority)
   Hal()->SendSetProcessPriority(aPid, aPriority);
 }
 
-void
-EnableFMRadio(const hal::FMRadioSettings& aSettings)
-{
-  Hal()->SendEnableFMRadio(aSettings);
-}
-
-void
-DisableFMRadio()
-{
-  Hal()->SendDisableFMRadio();
-}
-
-void
-FMRadioSeek(const hal::FMRadioSeekDirection& aDirection)
-{
-  Hal()->SendFMRadioSeek(aDirection);
-}
-
-void
-GetFMRadioSettings(FMRadioSettings* aSettings)
-{
-  Hal()->SendGetFMRadioSettings(aSettings);
-}
-
-void
-SetFMRadioFrequency(const uint32_t aFrequency)
-{
-  Hal()->SendSetFMRadioFrequency(aFrequency);
-}
-
-uint32_t
-GetFMRadioFrequency()
-{
-  uint32_t frequency;
-  Hal()->SendGetFMRadioFrequency(&frequency);
-  return frequency;
-}
-
-bool
-IsFMRadioOn()
-{
-  bool FMRadioOn;
-  Hal()->SendIsFMRadioOn(&FMRadioOn);
-  return FMRadioOn;
-}
-
-uint32_t
-GetFMRadioSignalStrength()
-{
-  uint32_t strength;
-  Hal()->SendGetFMRadioSignalStrength(&strength);
-  return strength;
-}
-
-void
-CancelFMRadioSeek()
-{
-  Hal()->SendCancelFMRadioSeek();
-}
-
-void
-FactoryReset()
-{
-  Hal()->SendFactoryReset();
-}
-
 class HalParent : public PHalParent
                 , public BatteryObserver
                 , public NetworkObserver
@@ -409,34 +294,31 @@ class HalParent : public PHalParent
                 , public WakeLockObserver
                 , public ScreenConfigurationObserver
                 , public SwitchObserver
-                , public SystemClockChangeObserver
-                , public SystemTimezoneChangeObserver
 {
 public:
-  virtual void
-  ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE
-  {
-    // NB: you *must* unconditionally unregister your observer here,
-    // if it *may* be registered below.
-    hal::UnregisterBatteryObserver(this);
-    hal::UnregisterNetworkObserver(this);
-    hal::UnregisterScreenConfigurationObserver(this);
-    for (int32_t sensor = SENSOR_UNKNOWN + 1;
-         sensor < NUM_SENSOR_TYPE; ++sensor) {
-      hal::UnregisterSensorObserver(SensorType(sensor), this);
-    }
-    hal::UnregisterWakeLockObserver(this);
-    hal::UnregisterSystemClockChangeObserver(this);
-    hal::UnregisterSystemTimezoneChangeObserver(this);
-  }
-
   virtual bool
   RecvVibrate(const InfallibleTArray<unsigned int>& pattern,
               const InfallibleTArray<uint64_t> &id,
               PBrowserParent *browserParent) MOZ_OVERRIDE
   {
     // We give all content vibration permission.
+
+    // Check whether browserParent is active.  We should have already
+    // checked that the corresponding window is active, but this check
+    // isn't redundant.  A window may be inactive in an active
+    // browser.  And a window is not notified synchronously when it's
+    // deactivated, so the window may think it's active when the tab
+    // is actually inactive.  This also mitigates user annoyance that
+    // buggy/malicious processes could cause.
     TabParent *tabParent = static_cast<TabParent*>(browserParent);
+    if (!tabParent->Active()) {
+      HAL_LOG(("RecvVibrate: Tab is not active. Cancelling."));
+      return true;
+    }
+
+    // Forward to hal::, not hal_impl::, because we might be a
+    // subprocess of another sandboxed process.  The hal:: entry point
+    // will do the right thing.
     nsCOMPtr<nsIDOMWindow> window =
       do_QueryInterface(tabParent->GetBrowserDOMWindow());
     WindowIdentifier newID(id, window);
@@ -548,7 +430,7 @@ public:
   virtual bool
   RecvGetScreenEnabled(bool *enabled) MOZ_OVERRIDE
   {
-    if (!AssertAppProcessPermission(this, "power")) {
+    if (!AppProcessHasPermission(this, "power")) {
       return false;
     }
     *enabled = hal::GetScreenEnabled();
@@ -558,7 +440,7 @@ public:
   virtual bool
   RecvSetScreenEnabled(const bool &enabled) MOZ_OVERRIDE
   {
-    if (!AssertAppProcessPermission(this, "power")) {
+    if (!AppProcessHasPermission(this, "power")) {
       return false;
     }
     hal::SetScreenEnabled(enabled);
@@ -568,7 +450,7 @@ public:
   virtual bool
   RecvGetCpuSleepAllowed(bool *allowed) MOZ_OVERRIDE
   {
-    if (!AssertAppProcessPermission(this, "power")) {
+    if (!AppProcessHasPermission(this, "power")) {
       return false;
     }
     *allowed = hal::GetCpuSleepAllowed();
@@ -578,7 +460,7 @@ public:
   virtual bool
   RecvSetCpuSleepAllowed(const bool &allowed) MOZ_OVERRIDE
   {
-    if (!AssertAppProcessPermission(this, "power")) {
+    if (!AppProcessHasPermission(this, "power")) {
       return false;
     }
     hal::SetCpuSleepAllowed(allowed);
@@ -588,7 +470,7 @@ public:
   virtual bool
   RecvGetScreenBrightness(double *brightness) MOZ_OVERRIDE
   {
-    if (!AssertAppProcessPermission(this, "power")) {
+    if (!AppProcessHasPermission(this, "power")) {
       return false;
     }
     *brightness = hal::GetScreenBrightness();
@@ -598,7 +480,7 @@ public:
   virtual bool
   RecvSetScreenBrightness(const double &brightness) MOZ_OVERRIDE
   {
-    if (!AssertAppProcessPermission(this, "power")) {
+    if (!AppProcessHasPermission(this, "power")) {
       return false;
     }
     hal::SetScreenBrightness(brightness);
@@ -612,7 +494,7 @@ public:
     // controlled as a unit.  Those are set through the power API, and
     // there's no other way to poke lights currently, so we require
     // "power" privileges here.
-    if (!AssertAppProcessPermission(this, "power")) {
+    if (!AppProcessHasPermission(this, "power")) {
       return false;
     }
     *status = hal::SetLight(aLight, aConfig);
@@ -622,7 +504,7 @@ public:
   virtual bool
   RecvGetLight(const LightType& aLight, LightConfiguration* aConfig, bool* status) MOZ_OVERRIDE
   {
-    if (!AssertAppProcessPermission(this, "power")) {
+    if (!AppProcessHasPermission(this, "power")) {
       return false;
     }
     *status = hal::GetLight(aLight, aConfig);
@@ -630,9 +512,9 @@ public:
   }
 
   virtual bool
-  RecvAdjustSystemClock(const int64_t &aDeltaMilliseconds) MOZ_OVERRIDE
+  RecvAdjustSystemClock(const int32_t &aDeltaMilliseconds) MOZ_OVERRIDE
   {
-    if (!AssertAppProcessPermission(this, "time")) {
+    if (!AppProcessHasPermission(this, "systemclock-write")) {
       return false;
     }
     hal::AdjustSystemClock(aDeltaMilliseconds);
@@ -642,7 +524,7 @@ public:
   virtual bool 
   RecvSetTimezone(const nsCString& aTimezoneSpec) MOZ_OVERRIDE
   {
-    if (!AssertAppProcessPermission(this, "time")) {
+    if (!AppProcessHasPermission(this, "systemclock-write")) {
       return false;
     }
     hal::SetTimezone(aTimezoneSpec);
@@ -650,40 +532,22 @@ public:
   }
 
   virtual bool
-  RecvGetTimezone(nsCString *aTimezoneSpec) MOZ_OVERRIDE
+  RecvReboot() MOZ_OVERRIDE
   {
-    if (!AssertAppProcessPermission(this, "time")) {
+    if (!AppProcessHasPermission(this, "power")) {
       return false;
     }
-    *aTimezoneSpec = hal::GetTimezone();
+    hal::Reboot();
     return true;
   }
 
   virtual bool
-  RecvEnableSystemClockChangeNotifications() MOZ_OVERRIDE
+  RecvPowerOff() MOZ_OVERRIDE
   {
-    hal::RegisterSystemClockChangeObserver(this);
-    return true;
-  }
-
-  virtual bool
-  RecvDisableSystemClockChangeNotifications() MOZ_OVERRIDE
-  {
-    hal::UnregisterSystemClockChangeObserver(this);
-    return true;
-  }
-
-  virtual bool
-  RecvEnableSystemTimezoneChangeNotifications() MOZ_OVERRIDE
-  {
-    hal::RegisterSystemTimezoneChangeObserver(this);
-    return true;
-  }
-
-  virtual bool
-  RecvDisableSystemTimezoneChangeNotifications() MOZ_OVERRIDE
-  {
-    hal::UnregisterSystemTimezoneChangeObserver(this);
+    if (!AppProcessHasPermission(this, "power")) {
+      return false;
+    }
+    hal::PowerOff();
     return true;
   }
 
@@ -706,13 +570,12 @@ public:
   }
 
   virtual bool
-  RecvModifyWakeLock(const nsString& aTopic,
-                     const WakeLockControl& aLockAdjust,
-                     const WakeLockControl& aHiddenAdjust,
-                     const uint64_t& aProcessID) MOZ_OVERRIDE
+  RecvModifyWakeLock(const nsString &aTopic,
+                     const WakeLockControl &aLockAdjust,
+                     const WakeLockControl &aHiddenAdjust) MOZ_OVERRIDE
   {
     // We allow arbitrary content to use wake locks.
-    hal::ModifyWakeLockInternal(aTopic, aLockAdjust, aHiddenAdjust, aProcessID);
+    hal::ModifyWakeLock(aTopic, aLockAdjust, aHiddenAdjust);
     return true;
   }
 
@@ -734,7 +597,7 @@ public:
   virtual bool
   RecvGetWakeLockInfo(const nsString &aTopic, WakeLockInformation *aWakeLockInfo) MOZ_OVERRIDE
   {
-    if (!AssertAppProcessPermission(this, "power")) {
+    if (!AppProcessHasPermission(this, "power")) {
       return false;
     }
     hal::GetWakeLockInfo(aTopic, aWakeLockInfo);
@@ -750,8 +613,7 @@ public:
   RecvEnableSwitchNotifications(const SwitchDevice& aDevice) MOZ_OVERRIDE
   {
     // Content has no reason to listen to switch events currently.
-    hal::RegisterSwitchObserver(aDevice, this);
-    return true;
+    return false;
   }
 
   virtual bool
@@ -770,8 +632,7 @@ public:
   RecvGetCurrentSwitchState(const SwitchDevice& aDevice, hal::SwitchState *aState) MOZ_OVERRIDE
   {
     // Content has no reason to listen to switch events currently.
-    *aState = hal::GetCurrentSwitchState(aDevice);
-    return true;
+    return false;
   }
 
   virtual bool
@@ -782,131 +643,10 @@ public:
     hal::SetProcessPriority(aPid, aPriority);
     return true;
   }
-
-  void Notify(const int64_t& aClockDeltaMS)
-  {
-    unused << SendNotifySystemClockChange(aClockDeltaMS);
-  }
-
-  void Notify(const SystemTimezoneChangeInformation& aSystemTimezoneChangeInfo)
-  {
-    unused << SendNotifySystemTimezoneChange(aSystemTimezoneChangeInfo);
-  }
-
-  virtual bool
-  RecvEnableFMRadio(const hal::FMRadioSettings& aSettings)
-  {
-    if (!AssertAppProcessPermission(this, "fmradio")) {
-      return false;
-    }
-    hal::EnableFMRadio(aSettings);
-    return true;
-  }
-
-  virtual bool
-  RecvDisableFMRadio()
-  {
-    if (!AssertAppProcessPermission(this, "fmradio")) {
-      return false;
-    }
-    hal::DisableFMRadio();
-    return true;
-  }
-
-  virtual bool
-  RecvFMRadioSeek(const hal::FMRadioSeekDirection& aDirection)
-  {
-    if (!AssertAppProcessPermission(this, "fmradio")) {
-      return false;
-    }
-    hal::FMRadioSeek(aDirection);
-    return true;
-  }
-
-  virtual bool
-  RecvGetFMRadioSettings(hal::FMRadioSettings* aSettings)
-  {
-    if (!AssertAppProcessPermission(this, "fmradio")) {
-      return false;
-    }
-    hal::GetFMRadioSettings(aSettings);
-    return true;
-  }
-
-  virtual bool
-  RecvSetFMRadioFrequency(const uint32_t& aFrequency)
-  {
-    if (!AssertAppProcessPermission(this, "fmradio")) {
-      return false;
-    }
-    hal::SetFMRadioFrequency(aFrequency);
-    return true;
-  }
-
-  virtual bool
-  RecvGetFMRadioFrequency(uint32_t* aFrequency)
-  {
-    if (!AssertAppProcessPermission(this, "fmradio")) {
-      return false;
-    }
-    *aFrequency = hal::GetFMRadioFrequency();
-    return true;
-  }
-
-  void Notify(const hal::FMRadioOperationInformation& aRadioStatus)
-  {
-    unused << SendNotifyFMRadioStatus(aRadioStatus);
-  }
-
-  virtual bool
-  RecvIsFMRadioOn(bool* radioOn)
-  {
-    if (!AssertAppProcessPermission(this, "fmradio")) {
-      return false;
-    }
-    *radioOn = hal::IsFMRadioOn();
-    return true;
-  }
-
-  virtual bool
-  RecvGetFMRadioSignalStrength(uint32_t* strength)
-  {
-    if (!AssertAppProcessPermission(this, "fmradio")) {
-      return false;
-    }
-    *strength = hal::GetFMRadioSignalStrength();
-    return true;
-  }
-
-  virtual bool
-  RecvCancelFMRadioSeek()
-  {
-    if (!AssertAppProcessPermission(this, "fmradio")) {
-      return false;
-    }
-    hal::CancelFMRadioSeek();
-    return true;
-  }
-
-  virtual bool
-  RecvFactoryReset()
-  {
-    if (!AssertAppProcessPermission(this, "power")) {
-      return false;
-    }
-    hal::FactoryReset();
-    return true;
-  }
 };
 
 class HalChild : public PHalChild {
 public:
-  virtual void
-  ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE
-  {
-    sHalChildIsLive = true;
-  }
-
   virtual bool
   RecvNotifyBatteryChange(const BatteryInformation& aBatteryInfo) MOZ_OVERRIDE {
     hal::NotifyBatteryChange(aBatteryInfo);
@@ -937,25 +677,6 @@ public:
   virtual bool
   RecvNotifySwitchChange(const mozilla::hal::SwitchEvent& aEvent) MOZ_OVERRIDE {
     hal::NotifySwitchChange(aEvent);
-    return true;
-  }
-
-  virtual bool
-  RecvNotifySystemClockChange(const int64_t& aClockDeltaMS) {
-    hal::NotifySystemClockChange(aClockDeltaMS);
-    return true;
-  }
-
-  virtual bool
-  RecvNotifySystemTimezoneChange(
-    const SystemTimezoneChangeInformation& aSystemTimezoneChangeInfo) {
-    hal::NotifySystemTimezoneChange(aSystemTimezoneChangeInfo);
-    return true;
-  }
-
-  virtual bool
-  RecvNotifyFMRadioStatus(const FMRadioOperationInformation& aRadioStatus) {
-    hal::NotifyFMRadioStatus(aRadioStatus);
     return true;
   }
 };

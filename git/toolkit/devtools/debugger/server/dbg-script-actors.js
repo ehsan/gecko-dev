@@ -5,7 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 "use strict";
-
 /**
  * JSD2 actors.
  */
@@ -40,6 +39,8 @@ ThreadActor.prototype = {
 
   get state() { return this._state; },
 
+  get dbg() { return this._dbg; },
+
   get _breakpointStore() { return ThreadActor._breakpointStore; },
 
   get threadLifetimePool() {
@@ -51,10 +52,10 @@ ThreadActor.prototype = {
   },
 
   clearDebuggees: function TA_clearDebuggees() {
-    if (this.dbg) {
-      let debuggees = this.dbg.getDebuggees();
+    if (this._dbg) {
+      let debuggees = this._dbg.getDebuggees();
       for (let debuggee of debuggees) {
-        this.dbg.removeDebuggee(debuggee);
+        this._dbg.removeDebuggee(debuggee);
       }
     }
     this.conn.removeActorPool(this._threadLifetimePool || undefined);
@@ -77,11 +78,11 @@ ThreadActor.prototype = {
     // medium- to long-term, and will be managed by the engine
     // instead.
 
-    if (!this.dbg) {
-      this.dbg = new Debugger();
-      this.dbg.uncaughtExceptionHook = this.uncaughtExceptionHook.bind(this);
-      this.dbg.onDebuggerStatement = this.onDebuggerStatement.bind(this);
-      this.dbg.onNewScript = this.onNewScript.bind(this);
+    if (!this._dbg) {
+      this._dbg = new Debugger();
+      this._dbg.uncaughtExceptionHook = this.uncaughtExceptionHook.bind(this);
+      this._dbg.onDebuggerStatement = this.onDebuggerStatement.bind(this);
+      this._dbg.onNewScript = this.onNewScript.bind(this);
       // Keep the debugger disabled until a client attaches.
       this.dbg.enabled = this._state != "detached";
     }
@@ -113,11 +114,11 @@ ThreadActor.prototype = {
 
     this.clearDebuggees();
 
-    if (!this.dbg) {
+    if (!this._dbg) {
       return;
     }
-    this.dbg.enabled = false;
-    this.dbg = null;
+    this._dbg.enabled = false;
+    this._dbg = null;
   },
 
   /**
@@ -259,26 +260,26 @@ ThreadActor.prototype = {
         return undefined;
       }
 
-      let steppingType = aRequest.resumeLimit.type;
-      if (["step", "next", "finish"].indexOf(steppingType) == -1) {
-            return { error: "badParameterType",
-                     message: "Unknown resumeLimit type" };
-      }
-      // Make sure there is still a frame on the stack if we are to continue
-      // stepping.
-      let stepFrame = this._getNextStepFrame(startFrame);
-      if (stepFrame) {
-        switch (steppingType) {
-          case "step":
-            this.dbg.onEnterFrame = onEnterFrame;
-            // Fall through.
-          case "next":
+      switch (aRequest.resumeLimit.type) {
+        case "step":
+          this.dbg.onEnterFrame = onEnterFrame;
+          // Fall through.
+        case "next":
+          let stepFrame = this._getNextStepFrame(startFrame);
+          if (stepFrame) {
             stepFrame.onStep = onStep;
             stepFrame.onPop = onPop;
-            break;
-          case "finish":
+          }
+          break;
+        case "finish":
+          stepFrame = this._getNextStepFrame(startFrame);
+          if (stepFrame) {
             stepFrame.onPop = onPop;
-        }
+          }
+          break;
+        default:
+          return { error: "badParameterType",
+                   message: "Unknown resumeLimit type" };
       }
     }
 
@@ -546,12 +547,10 @@ ThreadActor.prototype = {
         if (!this._scripts[url][i]) {
           continue;
         }
-
         let script = {
           url: url,
           startLine: i,
-          lineCount: this._scripts[url][i].lineCount,
-          source: this.sourceGrip(this._scripts[url][i], this)
+          lineCount: this._scripts[url][i].lineCount
         };
         scripts.push(script);
       }
@@ -783,18 +782,10 @@ ThreadActor.prototype = {
 
   /**
    * Create a grip for the given debuggee value.  If the value is an
-   * object, will create an actor with the given lifetime.
+   * object, will create a pause-lifetime actor.
    */
-  createValueGrip: function TA_createValueGrip(aValue, aPool=false) {
-    if (!aPool) {
-      aPool = this._pausePool;
-    }
+  createValueGrip: function TA_createValueGrip(aValue) {
     let type = typeof(aValue);
-
-    if (type === "string" && this._stringIsLong(aValue)) {
-      return this.longStringGrip(aValue, aPool);
-    }
-
     if (type === "boolean" || type === "string" || type === "number") {
       return aValue;
     }
@@ -808,7 +799,7 @@ ThreadActor.prototype = {
     }
 
     if (typeof(aValue) === "object") {
-      return this.objectGrip(aValue, aPool);
+      return this.pauseObjectGrip(aValue);
     }
 
     dbg_assert(false, "Failed to provide a grip for: " + aValue);
@@ -881,80 +872,6 @@ ThreadActor.prototype = {
     return this.objectGrip(aValue, this.threadLifetimePool);
   },
 
-  /**
-   * Create a grip for the given string.
-   *
-   * @param aString String
-   *        The string we are creating a grip for.
-   * @param aPool ActorPool
-   *        The actor pool where the new actor will be added.
-   */
-  longStringGrip: function TA_longStringGrip(aString, aPool) {
-    if (!aPool.longStringActors) {
-      aPool.longStringActors = {};
-    }
-
-    if (aPool.longStringActors.hasOwnProperty(aString)) {
-      return aPool.longStringActors[aString].grip();
-    }
-
-    let actor = new LongStringActor(aString, this);
-    aPool.addActor(actor);
-    aPool.longStringActors[aString] = actor;
-    return actor.grip();
-  },
-
-  /**
-   * Create a long string grip that is scoped to a pause.
-   *
-   * @param aString String
-   *        The string we are creating a grip for.
-   */
-  pauseLongStringGrip: function TA_pauseLongStringGrip (aString) {
-    return this.longStringGrip(aString, this._pausePool);
-  },
-
-  /**
-   * Create a long string grip that is scoped to a thread.
-   *
-   * @param aString String
-   *        The string we are creating a grip for.
-   */
-  threadLongStringGrip: function TA_pauseLongStringGrip (aString) {
-    return this.longStringGrip(aString, this._threadLifetimePool);
-  },
-
-  /**
-   * Returns true if the string is long enough to use a LongStringActor instead
-   * of passing the value directly over the protocol.
-   *
-   * @param aString String
-   *        The string we are checking the length of.
-   */
-  _stringIsLong: function TA__stringIsLong(aString) {
-    return aString.length >= DebuggerServer.LONG_STRING_LENGTH;
-  },
-
-  /**
-   * Create a source grip for the given script.
-   */
-  sourceGrip: function TA_sourceGrip(aScript) {
-    // TODO: Once we have Debugger.Source, this should be replaced with a
-    // weakmap mapping Debugger.Source instances to SourceActor instances.
-    if (!this.threadLifetimePool.sourceActors) {
-      this.threadLifetimePool.sourceActors = {};
-    }
-
-    if (this.threadLifetimePool.sourceActors[aScript.url]) {
-      return this.threadLifetimePool.sourceActors[aScript.url].grip();
-    }
-
-    let actor = new SourceActor(aScript, this);
-    this.threadLifetimePool.addActor(actor);
-    this.threadLifetimePool.sourceActors[aScript.url] = actor;
-    return actor.grip();
-  },
-
   // JS Debugger API hooks.
 
   /**
@@ -1024,8 +941,7 @@ ThreadActor.prototype = {
         type: "newScript",
         url: aScript.url,
         startLine: aScript.startLine,
-        lineCount: aScript.lineCount,
-        source: this.sourceGrip(aScript, this)
+        lineCount: aScript.lineCount
       });
     }
   },
@@ -1105,249 +1021,6 @@ PauseActor.prototype = {
 
 
 /**
- * A base actor for any actors that should only respond receive messages in the
- * paused state. Subclasses may expose a `threadActor` which is used to help
- * determine when we are in a paused state. Subclasses should set their own
- * "constructor" property if they want better error messages. You should never
- * instantiate a PauseScopedActor directly, only through subclasses.
- */
-function PauseScopedActor()
-{
-}
-
-/**
- * A function decorator for creating methods to handle protocol messages that
- * should only be received while in the paused state.
- *
- * @param aMethod Function
- *        The function we are decorating.
- */
-PauseScopedActor.withPaused = function PSA_withPaused(aMethod) {
-  return function () {
-    if (this.isPaused()) {
-      return aMethod.apply(this, arguments);
-    } else {
-      return this._wrongState();
-    }
-  };
-};
-
-PauseScopedActor.prototype = {
-
-  /**
-   * Returns true if we are in the paused state.
-   */
-  isPaused: function PSA_isPaused() {
-    // When there is not a ThreadActor available (like in the webconsole) we
-    // have to be optimistic and assume that we are paused so that we can
-    // respond to requests.
-    return this.threadActor ? this.threadActor.state === "paused" : true;
-  },
-
-  /**
-   * Returns the wrongState response packet for this actor.
-   */
-  _wrongState: function PSA_wrongState() {
-    return {
-      error: "wrongState",
-      message: this.constructor.name +
-        " actors can only be accessed while the thread is paused."
-    }
-  }
-};
-
-
-/**
- * Utility function for updating an object with the properties of another
- * object.
- *
- * @param aTarget Object
- *        The object being updated.
- * @param aNewAttrs Object
- *        The new attributes being set on the target.
- */
-function update(aTarget, aNewAttrs) {
-  for (let key in aNewAttrs) {
-    let desc = Object.getOwnPropertyDescriptor(aNewAttrs, key);
-
-    if (desc) {
-      Object.defineProperty(aTarget, key, desc);
-    }
-  }
-}
-
-
-/**
- * A SourceActor provides information about the source of a script.
- *
- * @param aScript Debugger.Script
- *        The script whose source we are representing.
- * @param aThreadActor ThreadActor
- *        The current thread actor.
- */
-function SourceActor(aScript, aThreadActor) {
-  this._threadActor = aThreadActor;
-  this._script = aScript;
-}
-
-SourceActor.prototype = {
-  constructor: SourceActor,
-  actorPrefix: "source",
-
-  get threadActor() { return this._threadActor; },
-
-  grip: function SA_grip() {
-    return this.actorID;
-  },
-
-  disconnect: function LSA_disconnect() {
-    if (this.registeredPool && this.registeredPool.sourceActors) {
-      delete this.registeredPool.sourceActors[this.actorID];
-    }
-  },
-
-  /**
-   * Handler for the "source" packet.
-   */
-  onSource: function SA_onSource(aRequest) {
-    this
-      ._loadSource()
-      .chainPromise(function(aSource) {
-        return this._threadActor.createValueGrip(
-          aSource, this.threadActor.threadLifetimePool);
-      }.bind(this))
-      .chainPromise(function (aSourceGrip) {
-        return {
-          from: this.actorID,
-          source: aSourceGrip
-        };
-      }.bind(this))
-      .trap(function (aError) {
-        return {
-          "from": this.actorID,
-          "error": "loadSourceError",
-          "message": "Could not load the source for " + this._script.url + "."
-        };
-      }.bind(this))
-      .chainPromise(function (aPacket) {
-        this.conn.send(aPacket);
-      }.bind(this));
-  },
-
-  /**
-   * Convert a given string, encoded in a given character set, to unicode.
-   * @param string aString
-   *        A string.
-   * @param string aCharset
-   *        A character set.
-   * @return string
-   *         A unicode string.
-   */
-  _convertToUnicode: function SS__convertToUnicode(aString, aCharset) {
-    // Decoding primitives.
-    let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"]
-        .createInstance(Ci.nsIScriptableUnicodeConverter);
-
-    try {
-      converter.charset = aCharset || "UTF-8";
-      return converter.ConvertToUnicode(aString);
-    } catch(e) {
-      return aString;
-    }
-  },
-
-  /**
-   * Performs a request to load the desired URL and returns a promise.
-   *
-   * @param aURL String
-   *        The URL we will request.
-   * @returns Promise
-   *
-   * XXX: It may be better to use nsITraceableChannel to get to the sources
-   * without relying on caching when we can (not for eval, etc.):
-   * http://www.softwareishard.com/blog/firebug/nsitraceablechannel-intercept-http-traffic/
-   */
-  _loadSource: function SA__loadSource() {
-    let promise = new Promise();
-    let url = this._script.url;
-    let scheme;
-    try {
-      scheme = Services.io.extractScheme(url);
-    } catch (e) {
-      // In the xpcshell tests, the script url is the absolute path of the test
-      // file, which will make a malformed URI error be thrown. Add the file
-      // scheme prefix ourselves.
-      url = "file://" + url;
-      scheme = Services.io.extractScheme(url);
-    }
-
-    switch (scheme) {
-      case "file":
-      case "chrome":
-      case "resource":
-        try {
-          NetUtil.asyncFetch(url, function onFetch(aStream, aStatus) {
-            if (!Components.isSuccessCode(aStatus)) {
-              promise.reject(new Error("Request failed"));
-              return;
-            }
-
-            let source = NetUtil.readInputStreamToString(aStream, aStream.available());
-            promise.resolve(this._convertToUnicode(source));
-            aStream.close();
-          }.bind(this));
-        } catch (ex) {
-          promise.reject(new Error("Request failed"));
-        }
-        break;
-
-      default:
-        let channel;
-        try {
-          channel = Services.io.newChannel(url, null, null);
-        } catch (e if e.name == "NS_ERROR_UNKNOWN_PROTOCOL") {
-          // On Windows xpcshell tests, c:/foo/bar can pass as a valid URL, but
-          // newChannel won't be able to handle it.
-          url = "file:///" + url;
-          channel = Services.io.newChannel(url, null, null);
-        }
-        let chunks = [];
-        let streamListener = {
-          onStartRequest: function(aRequest, aContext, aStatusCode) {
-            if (!Components.isSuccessCode(aStatusCode)) {
-              promise.reject("Request failed");
-            }
-          },
-          onDataAvailable: function(aRequest, aContext, aStream, aOffset, aCount) {
-            chunks.push(NetUtil.readInputStreamToString(aStream, aCount));
-          },
-          onStopRequest: function(aRequest, aContext, aStatusCode) {
-            if (!Components.isSuccessCode(aStatusCode)) {
-              promise.reject("Request failed");
-              return;
-            }
-
-            promise.resolve(this._convertToUnicode(chunks.join(""),
-                                                   channel.contentCharset));
-          }.bind(this)
-        };
-
-        channel.loadFlags = channel.LOAD_FROM_CACHE;
-        channel.asyncOpen(streamListener, null);
-        break;
-    }
-
-    return promise;
-  }
-
-};
-
-SourceActor.prototype.requestTypes = {
-  "source": SourceActor.prototype.onSource
-};
-
-
-/**
  * Creates an actor for the specified object.
  *
  * @param aObj Debugger.Object
@@ -1361,11 +1034,13 @@ function ObjectActor(aObj, aThreadActor)
   this.threadActor = aThreadActor;
 }
 
-ObjectActor.prototype = Object.create(PauseScopedActor.prototype);
-
-update(ObjectActor.prototype, {
-  constructor: ObjectActor,
+ObjectActor.prototype = {
   actorPrefix: "obj",
+
+  WRONG_STATE_RESPONSE: {
+    error: "wrongState",
+    message: "Object actors can only be accessed while the thread is paused."
+  },
 
   /**
    * Returns a grip for this actor for returning in a protocol message.
@@ -1391,11 +1066,14 @@ update(ObjectActor.prototype, {
    * @param aRequest object
    *        The protocol request object.
    */
-  onOwnPropertyNames:
-  PauseScopedActor.withPaused(function OA_onOwnPropertyNames(aRequest) {
+  onOwnPropertyNames: function OA_onOwnPropertyNames(aRequest) {
+    if (this.threadActor.state !== "paused") {
+      return this.WRONG_STATE_RESPONSE;
+    }
+
     return { from: this.actorID,
              ownPropertyNames: this.obj.getOwnPropertyNames() };
-  }),
+  },
 
   /**
    * Handle a protocol request to provide the prototype and own properties of
@@ -1404,8 +1082,11 @@ update(ObjectActor.prototype, {
    * @param aRequest object
    *        The protocol request object.
    */
-  onPrototypeAndProperties:
-  PauseScopedActor.withPaused(function OA_onPrototypeAndProperties(aRequest) {
+  onPrototypeAndProperties: function OA_onPrototypeAndProperties(aRequest) {
+    if (this.threadActor.state !== "paused") {
+      return this.WRONG_STATE_RESPONSE;
+    }
+
     let ownProperties = {};
     for each (let name in this.obj.getOwnPropertyNames()) {
       try {
@@ -1421,7 +1102,7 @@ update(ObjectActor.prototype, {
     return { from: this.actorID,
              prototype: this.threadActor.createValueGrip(this.obj.proto),
              ownProperties: ownProperties };
-  }),
+  },
 
   /**
    * Handle a protocol request to provide the prototype of the object.
@@ -1429,10 +1110,14 @@ update(ObjectActor.prototype, {
    * @param aRequest object
    *        The protocol request object.
    */
-  onPrototype: PauseScopedActor.withPaused(function OA_onPrototype(aRequest) {
+  onPrototype: function OA_onPrototype(aRequest) {
+    if (this.threadActor.state !== "paused") {
+      return this.WRONG_STATE_RESPONSE;
+    }
+
     return { from: this.actorID,
              prototype: this.threadActor.createValueGrip(this.obj.proto) };
-  }),
+  },
 
   /**
    * Handle a protocol request to provide the property descriptor of the
@@ -1441,7 +1126,10 @@ update(ObjectActor.prototype, {
    * @param aRequest object
    *        The protocol request object.
    */
-  onProperty: PauseScopedActor.withPaused(function OA_onProperty(aRequest) {
+  onProperty: function OA_onProperty(aRequest) {
+    if (this.threadActor.state !== "paused") {
+      return this.WRONG_STATE_RESPONSE;
+    }
     if (!aRequest.name) {
       return { error: "missingParameter",
                message: "no property name was specified" };
@@ -1450,7 +1138,7 @@ update(ObjectActor.prototype, {
     let desc = this.obj.getOwnPropertyDescriptor(aRequest.name);
     return { from: this.actorID,
              descriptor: this._propertyDescriptor(desc) };
-  }),
+  },
 
   /**
    * A helper method that creates a property descriptor for the provided object,
@@ -1479,7 +1167,11 @@ update(ObjectActor.prototype, {
    * @param aRequest object
    *        The protocol request object.
    */
-  onDecompile: PauseScopedActor.withPaused(function OA_onDecompile(aRequest) {
+  onDecompile: function OA_onDecompile(aRequest) {
+    if (this.threadActor.state !== "paused") {
+      return this.WRONG_STATE_RESPONSE;
+    }
+
     if (this.obj.class !== "Function") {
       return { error: "objectNotFunction",
                message: "decompile request is only valid for object grips " +
@@ -1488,7 +1180,7 @@ update(ObjectActor.prototype, {
 
     return { from: this.actorID,
              decompiledCode: this.obj.decompile(!!aRequest.pretty) };
-  }),
+  },
 
   /**
    * Handle a protocol request to provide the lexical scope of a function.
@@ -1496,7 +1188,11 @@ update(ObjectActor.prototype, {
    * @param aRequest object
    *        The protocol request object.
    */
-  onScope: PauseScopedActor.withPaused(function OA_onScope(aRequest) {
+  onScope: function OA_onScope(aRequest) {
+    if (this.threadActor.state !== "paused") {
+      return this.WRONG_STATE_RESPONSE;
+    }
+
     if (this.obj.class !== "Function") {
       return { error: "objectNotFunction",
                message: "scope request is only valid for object grips with a" +
@@ -1516,7 +1212,7 @@ update(ObjectActor.prototype, {
     // use the 'scope' request in the debugger frontend.
     return { name: this.obj.name || null,
              scope: envActor.form(this.obj) };
-  }),
+  },
 
   /**
    * Handle a protocol request to provide the name and parameters of a function.
@@ -1524,7 +1220,11 @@ update(ObjectActor.prototype, {
    * @param aRequest object
    *        The protocol request object.
    */
-  onNameAndParameters: PauseScopedActor.withPaused(function OA_onNameAndParameters(aRequest) {
+  onNameAndParameters: function OA_onNameAndParameters(aRequest) {
+    if (this.threadActor.state !== "paused") {
+      return this.WRONG_STATE_RESPONSE;
+    }
+
     if (this.obj.class !== "Function") {
       return { error: "objectNotFunction",
                message: "nameAndParameters request is only valid for object " +
@@ -1533,7 +1233,7 @@ update(ObjectActor.prototype, {
 
     return { name: this.obj.name || null,
              parameters: this.obj.parameterNames };
-  }),
+  },
 
   /**
    * Handle a protocol request to promote a pause-lifetime grip to a
@@ -1542,9 +1242,13 @@ update(ObjectActor.prototype, {
    * @param aRequest object
    *        The protocol request object.
    */
-  onThreadGrip: PauseScopedActor.withPaused(function OA_onThreadGrip(aRequest) {
+  onThreadGrip: function OA_onThreadGrip(aRequest) {
+    if (this.threadActor.state !== "paused") {
+      return this.WRONG_STATE_RESPONSE;
+    }
+
     return { threadGrip: this.threadActor.threadObjectGrip(this.obj) };
-  }),
+  },
 
   /**
    * Handle a protocol request to release a thread-lifetime grip.
@@ -1552,7 +1256,10 @@ update(ObjectActor.prototype, {
    * @param aRequest object
    *        The protocol request object.
    */
-  onRelease: PauseScopedActor.withPaused(function OA_onRelease(aRequest) {
+  onRelease: function OA_onRelease(aRequest) {
+    if (this.threadActor.state !== "paused") {
+      return this.WRONG_STATE_RESPONSE;
+    }
     if (this.registeredPool !== this.threadActor.threadLifetimePool) {
       return { error: "notReleasable",
                message: "only thread-lifetime actors can be released." };
@@ -1560,8 +1267,8 @@ update(ObjectActor.prototype, {
 
     this.release();
     return {};
-  }),
-});
+  },
+};
 
 ObjectActor.prototype.requestTypes = {
   "nameAndParameters": ObjectActor.prototype.onNameAndParameters,
@@ -1573,65 +1280,6 @@ ObjectActor.prototype.requestTypes = {
   "decompile": ObjectActor.prototype.onDecompile,
   "threadGrip": ObjectActor.prototype.onThreadGrip,
   "release": ObjectActor.prototype.onRelease,
-};
-
-
-/**
- * Creates an actor for the specied "very long" string. "Very long" is specified
- * at the server's discretion.
- *
- * @param aString String
- *        The string.
- */
-function LongStringActor(aString)
-{
-  this.string = aString;
-  this.stringLength = aString.length;
-}
-
-LongStringActor.prototype = {
-
-  actorPrefix: "longString",
-
-  disconnect: function LSA_disconnect() {
-    // Because longStringActors is not a weak map, we won't automatically leave
-    // it so we need to manually leave on disconnect so that we don't leak
-    // memory.
-    if (this.registeredPool && this.registeredPool.longStringActors) {
-      delete this.registeredPool.longStringActors[this.actorID];
-    }
-  },
-
-  /**
-   * Returns a grip for this actor for returning in a protocol message.
-   */
-  grip: function LSA_grip() {
-    return {
-      "type": "longString",
-      "initial": this.string.substring(
-        0, DebuggerServer.LONG_STRING_INITIAL_LENGTH),
-      "length": this.stringLength,
-      "actor": this.actorID
-    };
-  },
-
-  /**
-   * Handle a request to extract part of this actor's string.
-   *
-   * @param aRequest object
-   *        The protocol request object.
-   */
-  onSubstring: function LSA_onSubString(aRequest) {
-    return {
-      "from": this.actorID,
-      "substring": this.string.substring(aRequest.start, aRequest.end)
-    };
-  }
-
-};
-
-LongStringActor.prototype.requestTypes = {
-  "substring": LongStringActor.prototype.onSubstring
 };
 
 
@@ -2037,14 +1685,9 @@ function getFunctionName(aFunction) {
   if (aFunction.name) {
     name = aFunction.name;
   } else {
-    // Check if the developer has added a de-facto standard displayName
-    // property for us to use.
     let desc = aFunction.getOwnPropertyDescriptor("displayName");
     if (desc && desc.value && typeof desc.value == "string") {
       name = desc.value;
-    } else {
-      // Otherwise use SpiderMonkey's inferred name.
-      name = aFunction.displayName;
     }
   }
   return name;

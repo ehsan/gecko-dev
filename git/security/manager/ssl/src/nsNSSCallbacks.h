@@ -15,10 +15,10 @@
 #include "mozilla/Mutex.h"
 #include "mozilla/Attributes.h"
 
-char*
+char* PR_CALLBACK
 PK11PasswordPrompt(PK11SlotInfo *slot, PRBool retry, void* arg);
 
-void HandshakeCallback(PRFileDesc *fd, void *client_data);
+void PR_CALLBACK HandshakeCallback(PRFileDesc *fd, void *client_data);
 
 SECStatus RegisterMyOCSPAIAInfoCallback();
 SECStatus UnregisterMyOCSPAIAInfoCallback();

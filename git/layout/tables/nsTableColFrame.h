@@ -5,7 +5,6 @@
 #ifndef nsTableColFrame_h__
 #define nsTableColFrame_h__
 
-#include "mozilla/Attributes.h"
 #include "nscore.h"
 #include "nsContainerFrame.h"
 #include "nsTablePainter.h"
@@ -40,7 +39,7 @@ public:
   friend nsTableColFrame* NS_NewTableColFrame(nsIPresShell* aPresShell,
                                               nsStyleContext*  aContext);
   /** @see nsIFrame::DidSetStyleContext */
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext) MOZ_OVERRIDE;
+  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
   
   int32_t GetColIndex() const;
   
@@ -51,7 +50,7 @@ public:
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
-                    nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+                    nsReflowStatus&          aStatus);
 
   /**
    * Table columns never paint anything, nor receive events.
@@ -65,13 +64,13 @@ public:
    *
    * @see nsGkAtoms::tableColFrame
    */
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
   
 #ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
-  virtual nsSplittableType GetSplittableType() const MOZ_OVERRIDE;
+  virtual nsSplittableType GetSplittableType() const;
 
   /** return the number of the columns the col represents.  always >= 1 */
   int32_t GetSpan();
@@ -263,10 +262,6 @@ public:
   nscoord GetFinalWidth() {
     return mFinalWidth;
   }
-  
-  virtual void InvalidateFrame(uint32_t aDisplayItemKey = 0) MOZ_OVERRIDE;
-  virtual void InvalidateFrameWithRect(const nsRect& aRect, uint32_t aDisplayItemKey = 0) MOZ_OVERRIDE;
-  virtual void InvalidateFrameForRemoval() MOZ_OVERRIDE { InvalidateFrameSubtree(); }
 
 protected:
 
@@ -285,10 +280,10 @@ protected:
   // when colspans were present).
   nscoord mFinalWidth;
 
-  // the index of the column with respect to the whole table (starting at 0) 
+  // the index of the column with respect to the whole tabble (starting at 0) 
   // it should never be smaller then the start column index of the parent 
   // colgroup
-  uint32_t mColIndex;
+  uint32_t mColIndex:        16;
   
   // border width in pixels of the inner half of the border only
   BCPixelSize mLeftBorderWidth;

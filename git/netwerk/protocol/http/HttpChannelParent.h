@@ -14,17 +14,13 @@
 #include "mozilla/net/NeckoCommon.h"
 #include "nsIParentRedirectingChannel.h"
 #include "nsIProgressEventSink.h"
+#include "nsITabParent.h"
 #include "nsHttpChannel.h"
 
 class nsICacheEntryDescriptor;
 class nsIAssociatedContentSecurity;
 
 namespace mozilla {
-
-namespace dom{
-class TabParent;
-}
-
 namespace net {
 
 class HttpChannelParentListener;
@@ -43,8 +39,7 @@ public:
   NS_DECL_NSIPROGRESSEVENTSINK
   NS_DECL_NSIINTERFACEREQUESTOR
 
-  HttpChannelParent(mozilla::dom::PBrowserParent* iframeEmbedding,
-                    const IPC::SerializedLoadContext& loadContext);
+  HttpChannelParent(mozilla::dom::PBrowserParent* iframeEmbedding);
   virtual ~HttpChannelParent();
 
 protected:
@@ -66,7 +61,8 @@ protected:
                              const nsCString&           entityID,
                              const bool&                chooseApplicationCache,
                              const nsCString&           appCacheClientID,
-                             const bool&                allowSpdy) MOZ_OVERRIDE;
+                             const bool&                allowSpdy,
+                             const IPC::SerializedLoadContext& loadContext) MOZ_OVERRIDE;
 
   virtual bool RecvConnectChannel(const uint32_t& channelId);
   virtual bool RecvSetPriority(const uint16_t& priority);
@@ -87,7 +83,7 @@ protected:
 
 protected:
   friend class mozilla::net::HttpChannelParentListener;
-  nsRefPtr<mozilla::dom::TabParent> mTabParent;
+  nsCOMPtr<nsITabParent> mTabParent;
 
 private:
   nsCOMPtr<nsIChannel>                    mChannel;
@@ -109,14 +105,6 @@ private:
   bool mSentRedirect1Begin          : 1;
   bool mSentRedirect1BeginFailed    : 1;
   bool mReceivedRedirect2Verify     : 1;
-
-  // Used to override channel Private Browsing status if needed.
-  enum PBOverrideStatus {
-    kPBOverride_Unset = 0,
-    kPBOverride_Private,
-    kPBOverride_NotPrivate
-  };
-  PBOverrideStatus mPBOverride;
 
   nsCOMPtr<nsILoadContext> mLoadContext;
 };

@@ -71,13 +71,6 @@ PowerManager::Reboot()
 }
 
 NS_IMETHODIMP
-PowerManager::FactoryReset()
-{
-  hal::FactoryReset();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 PowerManager::PowerOff()
 {
   nsCOMPtr<nsIPowerManagerService> pmService =
@@ -182,12 +175,22 @@ PowerManager::SetCpuSleepAllowed(bool aAllowed)
 already_AddRefed<PowerManager>
 PowerManager::CheckPermissionAndCreateInstance(nsPIDOMWindow* aWindow)
 {
+  nsPIDOMWindow* innerWindow = aWindow->IsInnerWindow() ?
+    aWindow :
+    aWindow->GetCurrentInnerWindow();
+
+  // Need the document for security check.
+  nsCOMPtr<nsIDocument> document = innerWindow->GetExtantDoc();
+  NS_ENSURE_TRUE(document, nullptr);
+
+  nsCOMPtr<nsIPrincipal> principal = document->NodePrincipal();
+
   nsCOMPtr<nsIPermissionManager> permMgr =
     do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
   NS_ENSURE_TRUE(permMgr, nullptr);
 
   uint32_t permission = nsIPermissionManager::DENY_ACTION;
-  permMgr->TestPermissionFromWindow(aWindow, "power", &permission);
+  permMgr->TestPermissionFromPrincipal(principal, "power", &permission);
 
   if (permission != nsIPermissionManager::ALLOW_ACTION) {
     return nullptr;

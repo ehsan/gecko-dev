@@ -72,7 +72,7 @@ XBLFinalize(JSFreeOp *fop, JSObject *obj)
 {
   nsXBLDocumentInfo* docInfo =
     static_cast<nsXBLDocumentInfo*>(::JS_GetPrivate(obj));
-  xpc::DeferredRelease(static_cast<nsIScriptGlobalObjectOwner*>(docInfo));
+  NS_RELEASE(docInfo);
   
   nsXBLJSClass* c = static_cast<nsXBLJSClass*>(::JS_GetClass(obj));
   c->Drop();
@@ -171,7 +171,7 @@ InstallXBLField(JSContext* cx,
   {
     JSAutoCompartment ac(cx, callee);
 
-    js::Rooted<JSObject*> xblProto(cx);
+    JS::Rooted<JSObject*> xblProto(cx);
     xblProto = &js::GetFunctionNativeReserved(callee, XBLPROTO_SLOT).toObject();
 
     JS::Value name = js::GetFunctionNativeReserved(callee, FIELD_SLOT);
@@ -217,11 +217,11 @@ FieldGetterImpl(JSContext *cx, JS::CallArgs args)
   const JS::Value &thisv = args.thisv();
   MOZ_ASSERT(ValueHasISupportsPrivate(thisv));
 
-  js::Rooted<JSObject*> thisObj(cx, &thisv.toObject());
+  JS::Rooted<JSObject*> thisObj(cx, &thisv.toObject());
 
   bool installed = false;
-  js::Rooted<JSObject*> callee(cx, &args.calleev().toObject());
-  js::Rooted<jsid> id(cx);
+  JS::Rooted<JSObject*> callee(cx, &args.calleev().toObject());
+  JS::Rooted<jsid> id(cx);
   if (!InstallXBLField(cx, callee, thisObj, id.address(), &installed)) {
     return false;
   }
@@ -231,7 +231,7 @@ FieldGetterImpl(JSContext *cx, JS::CallArgs args)
     return true;
   }
 
-  js::Rooted<JS::Value> v(cx);
+  JS::Rooted<JS::Value> v(cx);
   if (!JS_GetPropertyById(cx, thisObj, id, v.address())) {
     return false;
   }
@@ -253,24 +253,18 @@ FieldSetterImpl(JSContext *cx, JS::CallArgs args)
   const JS::Value &thisv = args.thisv();
   MOZ_ASSERT(ValueHasISupportsPrivate(thisv));
 
-  js::Rooted<JSObject*> thisObj(cx, &thisv.toObject());
+  JS::Rooted<JSObject*> thisObj(cx, &thisv.toObject());
 
   bool installed = false;
-  js::Rooted<JSObject*> callee(cx, &args.calleev().toObject());
-  js::Rooted<jsid> id(cx);
+  JS::Rooted<JSObject*> callee(cx, &args.calleev().toObject());
+  JS::Rooted<jsid> id(cx);
   if (!InstallXBLField(cx, callee, thisObj, id.address(), &installed)) {
     return false;
   }
 
-  if (installed) {
-    js::Rooted<JS::Value> v(cx,
-                            args.length() > 0 ? args[0] : JS::UndefinedValue());
-    if (!::JS_SetPropertyById(cx, thisObj, id, v.address())) {
-      return false;
-    }
-  }
-  args.rval().setUndefined();
-  return true;
+  JS::Rooted<JS::Value> v(cx,
+                          args.length() > 0 ? args[0] : JS::UndefinedValue());
+  return JS_SetPropertyById(cx, thisObj, id, v.address());
 }
 
 static JSBool
@@ -306,9 +300,9 @@ XBLResolve(JSContext *cx, JSHandleObject obj, JSHandleId id, unsigned flags,
 
   // We have a field: now install a getter/setter pair which will resolve the
   // field onto the actual object, when invoked.
-  js::Rooted<JSObject*> global(cx, JS_GetGlobalForObject(cx, obj));
+  JS::Rooted<JSObject*> global(cx, JS_GetGlobalForObject(cx, obj));
 
-  js::Rooted<JSObject*> get(cx);
+  JS::Rooted<JSObject*> get(cx);
   get = ::JS_GetFunctionObject(js::NewFunctionByIdWithReserved(cx, FieldGetter,
                                                                0, 0, global,
                                                                id));
@@ -319,7 +313,7 @@ XBLResolve(JSContext *cx, JSHandleObject obj, JSHandleId id, unsigned flags,
   js::SetFunctionNativeReserved(get, FIELD_SLOT,
                                 JS::StringValue(JSID_TO_STRING(id)));
 
-  js::Rooted<JSObject*> set(cx);
+  JS::Rooted<JSObject*> set(cx);
   set = ::JS_GetFunctionObject(js::NewFunctionByIdWithReserved(cx, FieldSetter,
                                                                1, 0, global,
                                                                id));
@@ -351,10 +345,7 @@ XBLEnumerate(JSContext *cx, JS::Handle<JSObject*> obj)
   return protoBinding->ResolveAllFields(cx, obj);
 }
 
-uint64_t nsXBLJSClass::sIdCount = 0;
-
-nsXBLJSClass::nsXBLJSClass(const nsAFlatCString& aClassName,
-                           const nsCString& aKey)
+nsXBLJSClass::nsXBLJSClass(const nsAFlatCString& aClassName)
 {
   memset(this, 0, sizeof(nsXBLJSClass));
   next = prev = static_cast<JSCList*>(this);
@@ -370,7 +361,6 @@ nsXBLJSClass::nsXBLJSClass(const nsAFlatCString& aClassName,
   resolve = (JSResolveOp)XBLResolve;
   convert = ::JS_ConvertStub;
   finalize = XBLFinalize;
-  mKey = aKey;
 }
 
 nsrefcnt
@@ -380,9 +370,8 @@ nsXBLJSClass::Destroy()
                "referenced nsXBLJSClass is on LRU list already!?");
 
   if (nsXBLService::gClassTable) {
-    nsCStringKey key(mKey);
+    nsCStringKey key(name);
     (nsXBLService::gClassTable)->Remove(&key);
-    mKey.Truncate();
   }
 
   if (nsXBLService::gClassLRUListLength >= nsXBLService::gClassLRUListQuota) {
@@ -476,8 +465,7 @@ nsXBLBinding::SetBaseBinding(nsXBLBinding* aBinding)
 }
 
 void
-nsXBLBinding::InstallAnonymousContent(nsIContent* aAnonParent, nsIContent* aElement,
-                                      bool aChromeOnlyContent)
+nsXBLBinding::InstallAnonymousContent(nsIContent* aAnonParent, nsIContent* aElement)
 {
   // We need to ensure two things.
   // (1) The anonymous content should be fooled into thinking it's in the bound
@@ -496,10 +484,6 @@ nsXBLBinding::InstallAnonymousContent(nsIContent* aAnonParent, nsIContent* aElem
        child;
        child = child->GetNextSibling()) {
     child->UnbindFromTree();
-    if (aChromeOnlyContent) {
-      child->SetFlags(NODE_CHROME_ONLY_ACCESS |
-                      NODE_IS_ROOT_OF_CHROME_ONLY_ACCESS);
-    }
     nsresult rv =
       child->BindToTree(doc, aElement, mBoundElement, allowScripts);
     if (NS_FAILED(rv)) {
@@ -709,9 +693,7 @@ RealizeDefaultContent(nsISupports* aKey,
         // Now that we have the cloned content, install the default content as
         // if it were additional anonymous content.
         nsCOMPtr<nsIContent> clonedContent(do_QueryInterface(clonedNode));
-        binding->InstallAnonymousContent(clonedContent, insParent,
-                                         binding->PrototypeBinding()->
-                                           ChromeOnlyContent());
+        binding->InstallAnonymousContent(clonedContent, insParent);
 
         // Cache the clone so that it can be properly destroyed if/when our
         // other anonymous content is destroyed.
@@ -775,8 +757,8 @@ nsXBLBinding::GenerateAnonymousContent()
   // See if there's an includes attribute.
   if (nsContentUtils::HasNonEmptyAttr(content, kNameSpaceID_None,
                                       nsGkAtoms::includes)) {
-    nsAutoCString message("An XBL Binding with URI ");
-    nsAutoCString uri;
+    nsCAutoString message("An XBL Binding with URI ");
+    nsCAutoString uri;
     mPrototypeBinding->BindingURI()->GetSpec(uri);
     message += uri;
     message += " is still using the deprecated\n<content includes=\"\"> syntax! Use <children> instead!\n"; 
@@ -823,8 +805,7 @@ nsXBLBinding::GenerateAnonymousContent()
                          nodesWithProperties, getter_AddRefs(clonedNode));
 
       mContent = do_QueryInterface(clonedNode);
-      InstallAnonymousContent(mContent, mBoundElement,
-                              mPrototypeBinding->ChromeOnlyContent());
+      InstallAnonymousContent(mContent, mBoundElement);
 
       if (hasInsertionPoints) {
         // Now check and see if we have a single insertion point 
@@ -1236,9 +1217,7 @@ nsXBLBinding::ChangeDocument(nsIDocument* aOldDocument, nsIDocument* aNewDocumen
               JSAutoCompartment ac(cx, scriptObject);
 
               for ( ; true; base = proto) { // Will break out on null proto
-                if (!JS_GetPrototype(cx, base, &proto)) {
-                  return;
-                }
+                proto = ::JS_GetPrototype(base);
                 if (!proto) {
                   break;
                 }
@@ -1270,10 +1249,7 @@ nsXBLBinding::ChangeDocument(nsIDocument* aOldDocument, nsIDocument* aNewDocumen
 
                 // Alright!  This is the right prototype.  Pull it out of the
                 // proto chain.
-                JSObject* grandProto;
-                if (!JS_GetPrototype(cx, proto, &grandProto)) {
-                  return;
-                }
+                JSObject* grandProto = ::JS_GetPrototype(proto);
                 ::JS_SetPrototype(cx, base, grandProto);
                 break;
               }
@@ -1362,21 +1338,18 @@ nsXBLBinding::DoInitJSClass(JSContext *cx, JSObject *global, JSObject *obj,
                             JSObject** aClassObject)
 {
   // First ensure our JS class is initialized.
-  nsAutoCString className(aClassName);
-  nsAutoCString xblKey(aClassName);
+  nsCAutoString className(aClassName);
   JSObject* parent_proto = nullptr;  // If we have an "obj" we can set this
   JSAutoRequest ar(cx);
 
   JSAutoCompartment ac(cx, global);
-  nsXBLJSClass* c = nullptr;
+
   if (obj) {
     // Retrieve the current prototype of obj.
-    if (!JS_GetPrototype(cx, obj, &parent_proto)) {
-      return NS_ERROR_FAILURE;
-    }
+    parent_proto = ::JS_GetPrototype(obj);
     if (parent_proto) {
       // We need to create a unique classname based on aClassName and
-      // id.  Append a space (an invalid URI character) to ensure that
+      // parent_proto.  Append a space (an invalid URI character) to ensure that
       // we don't have accidental collisions with the case when parent_proto is
       // null and aClassName ends in some bizarre numbers (yeah, it's unlikely).
       jsid parent_proto_id;
@@ -1390,23 +1363,8 @@ nsXBLBinding::DoInitJSClass(JSContext *cx, JSObject *global, JSObject *obj,
       // string representation of what we're printing does not fit in the buffer
       // provided).
       char buf[20];
-      if (sizeof(jsid) == 4) {
-        PR_snprintf(buf, sizeof(buf), " %lx", parent_proto_id);
-      } else {
-        MOZ_ASSERT(sizeof(jsid) == 8);
-        PR_snprintf(buf, sizeof(buf), " %llx", parent_proto_id);
-      }
-      xblKey.Append(buf);
-      nsCStringKey key(xblKey);
-
-      c = static_cast<nsXBLJSClass*>(nsXBLService::gClassTable->Get(&key));
-      if (c) {
-        className.Assign(c->name);
-      } else {
-        char buf[20];
-        PR_snprintf(buf, sizeof(buf), " %llx", nsXBLJSClass::NewId());
-        className.Append(buf);
-      }
+      PR_snprintf(buf, sizeof(buf), " %lx", parent_proto_id);
+      className.Append(buf);
     }
   }
 
@@ -1416,11 +1374,14 @@ nsXBLBinding::DoInitJSClass(JSContext *cx, JSObject *global, JSObject *obj,
       JSVAL_IS_PRIMITIVE(val)) {
     // We need to initialize the class.
 
-    nsCStringKey key(xblKey);
-    if (!c) {
-      c = static_cast<nsXBLJSClass*>(nsXBLService::gClassTable->Get(&key));
-    }
-    if (c) {
+    nsXBLJSClass* c;
+    void* classObject;
+    nsCStringKey key(className);
+    classObject = (nsXBLService::gClassTable)->Get(&key);
+
+    if (classObject) {
+      c = static_cast<nsXBLJSClass*>(classObject);
+
       // If c is on the LRU list (i.e., not linked to itself), remove it now!
       JSCList* link = static_cast<JSCList*>(c);
       if (c->next != link) {
@@ -1430,7 +1391,7 @@ nsXBLBinding::DoInitJSClass(JSContext *cx, JSObject *global, JSObject *obj,
     } else {
       if (JS_CLIST_IS_EMPTY(&nsXBLService::gClassLRUList)) {
         // We need to create a struct for this class.
-        c = new nsXBLJSClass(className, xblKey);
+        c = new nsXBLJSClass(className);
 
         if (!c)
           return NS_ERROR_OUT_OF_MEMORY;
@@ -1442,13 +1403,12 @@ nsXBLBinding::DoInitJSClass(JSContext *cx, JSObject *global, JSObject *obj,
 
         // Remove any mapping from the old name to the class struct.
         c = static_cast<nsXBLJSClass*>(lru);
-        nsCStringKey oldKey(c->Key());
+        nsCStringKey oldKey(c->name);
         (nsXBLService::gClassTable)->Remove(&oldKey);
 
         // Change the class name and we're done.
         nsMemory::Free((void*) c->name);
         c->name = ToNewCString(className);
-        c->SetKey(xblKey);
       }
 
       // Add c to our table.
@@ -1544,7 +1504,21 @@ nsXBLBinding::AllowScripts()
   bool canExecute;
   nsresult rv =
     mgr->CanExecuteScripts(cx, ourDocument->NodePrincipal(), &canExecute);
-  return NS_SUCCEEDED(rv) && canExecute;
+  if (NS_FAILED(rv) || !canExecute) {
+    return false;
+  }
+
+  // Now one last check: make sure that we're not allowing a privilege
+  // escalation here.
+  bool haveCert;
+  doc->NodePrincipal()->GetHasCertificate(&haveCert);
+  if (!haveCert) {
+    return true;
+  }
+
+  bool subsumes;
+  rv = ourDocument->NodePrincipal()->Subsumes(doc->NodePrincipal(), &subsumes);
+  return NS_SUCCEEDED(rv) && subsumes;
 }
 
 void

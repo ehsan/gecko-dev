@@ -8,7 +8,6 @@
 #ifndef nsDOMCSSAttributeDeclaration_h
 #define nsDOMCSSAttributeDeclaration_h
 
-#include "mozilla/Attributes.h"
 #include "nsDOMCSSDeclaration.h"
 
 #include "nsAutoPtr.h"
@@ -38,14 +37,14 @@ public:
   // If GetCSSDeclaration returns non-null, then the decl it returns
   // is owned by our current style rule.
   virtual mozilla::css::Declaration* GetCSSDeclaration(bool aAllocate);
-  virtual void GetCSSParsingEnvironment(CSSParsingEnvironment& aCSSParseEnv) MOZ_OVERRIDE;
-  NS_IMETHOD GetParentRule(nsIDOMCSSRule **aParent) MOZ_OVERRIDE;
+  virtual void GetCSSParsingEnvironment(CSSParsingEnvironment& aCSSParseEnv);
+  NS_IMETHOD GetParentRule(nsIDOMCSSRule **aParent);
 
-  virtual nsINode* GetParentObject() MOZ_OVERRIDE;
+  virtual nsINode* GetParentObject();
 
 protected:
-  virtual nsresult SetCSSDeclaration(mozilla::css::Declaration* aDecl) MOZ_OVERRIDE;
-  virtual nsIDocument* DocToUpdate() MOZ_OVERRIDE;
+  virtual nsresult SetCSSDeclaration(mozilla::css::Declaration* aDecl);
+  virtual nsIDocument* DocToUpdate();
 
   nsRefPtr<Element> mElement;
 

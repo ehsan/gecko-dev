@@ -14,9 +14,6 @@
 #include "GrRedBlackTree.h"
 #include "GrTDArray.h"
 
-// FIXME: needs to be in a header
-void gr_run_unittests();
-
 // If we aren't inheriting these as #defines from elsewhere,
 // clang demands they be declared before we #include the template
 // that relies on them.
@@ -87,10 +84,10 @@ static void test_binHashKey()
         kDataLenUsedForKey = 8
     };
 
-    GrTBinHashKey<BogusEntry, kDataLenUsedForKey> keyA;
+    GrBinHashKey<BogusEntry, kDataLenUsedForKey> keyA;
     keyA.setKeyData(testStringA);
     // test copy constructor and comparison
-    GrTBinHashKey<BogusEntry, kDataLenUsedForKey> keyA2(keyA);
+    GrBinHashKey<BogusEntry, kDataLenUsedForKey> keyA2(keyA);
     GrAssert(keyA.compare(keyA2) == 0);
     GrAssert(keyA.getHash() == keyA2.getHash());
     // test re-init
@@ -98,10 +95,10 @@ static void test_binHashKey()
     GrAssert(keyA.compare(keyA2) == 0);
     GrAssert(keyA.getHash() == keyA2.getHash());
     // test sorting
-    GrTBinHashKey<BogusEntry, kDataLenUsedForKey> keyB;
+    GrBinHashKey<BogusEntry, kDataLenUsedForKey> keyB;
     keyB.setKeyData(testStringB);
     GrAssert(keyA.compare(keyB) < 0);
-    GrAssert(keyA.getHash() != keyB.getHash());
+    GrAssert(keyA.getHash() != keyB.getHash());    
 }
 
 

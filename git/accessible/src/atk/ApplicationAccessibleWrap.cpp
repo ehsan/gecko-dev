@@ -435,17 +435,16 @@ mai_util_remove_key_event_listener (guint remove_listener)
 AtkObject*
 mai_util_get_root(void)
 {
-  ApplicationAccessible* app = ApplicationAcc();
-  if (app)
-    return app->GetAtkObject();
+  if (nsAccessibilityService::IsShutdown()) {
+    // We've shutdown, try to use gail instead
+    // (to avoid assert in spi_atk_tidy_windows())
+    if (gail_get_root)
+      return gail_get_root();
 
-  // We've shutdown, try to use gail instead
-  // (to avoid assert in spi_atk_tidy_windows())
-  // XXX tbsaunde then why didn't we replace the gail atk_util impl?
-  if (gail_get_root)
-    return gail_get_root();
+    return nullptr;
+  }
 
-  return nullptr;
+  return nsAccessNode::GetApplicationAccessible()->GetAtkObject();
 }
 
 G_CONST_RETURN gchar *
@@ -787,7 +786,7 @@ LoadGtkModule(GnomeAccessibilityModule& aModule)
 
         //try to load the module with "gtk-2.0/modules" appended
         char *curLibPath = PR_GetLibraryPath();
-        nsAutoCString libPath(curLibPath);
+        nsCAutoString libPath(curLibPath);
 #if defined(LINUX) && defined(__x86_64__)
         libPath.Append(":/usr/lib64:/usr/lib");
 #else
@@ -804,7 +803,7 @@ LoadGtkModule(GnomeAccessibilityModule& aModule)
                 subLen = libPath.Length() - loc1;
             else
                 subLen = loc2 - loc1;
-            nsAutoCString sub(Substring(libPath, loc1, subLen));
+            nsCAutoString sub(Substring(libPath, loc1, subLen));
             sub.Append("/gtk-2.0/modules/");
             sub.Append(aModule.libName);
             aModule.lib = PR_LoadLibrary(sub.get());

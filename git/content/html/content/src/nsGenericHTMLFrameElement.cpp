@@ -31,13 +31,8 @@ NS_INTERFACE_TABLE_HEAD(nsGenericHTMLFrameElement)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(nsGenericHTMLFrameElement)
 NS_INTERFACE_MAP_END_INHERITING(nsGenericHTMLElement)
 
+NS_IMPL_INT_ATTR(nsGenericHTMLFrameElement, TabIndex, tabindex)
 NS_IMPL_BOOL_ATTR(nsGenericHTMLFrameElement, Mozbrowser, mozbrowser)
-
-int32_t
-nsGenericHTMLFrameElement::TabIndexDefault()
-{
-  return 0;
-}
 
 nsGenericHTMLFrameElement::~nsGenericHTMLFrameElement()
 {
@@ -278,8 +273,8 @@ nsGenericHTMLFrameElement::IsHTMLFocusable(bool aWithMouse,
  * needs to have the right attributes, and its creator must have the right
  * permissions.)
  */
-/* [infallible] */ nsresult
-nsGenericHTMLFrameElement::GetReallyIsBrowserOrApp(bool *aOut)
+nsresult
+nsGenericHTMLFrameElement::GetReallyIsBrowser(bool *aOut)
 {
   *aOut = false;
 
@@ -289,9 +284,9 @@ nsGenericHTMLFrameElement::GetReallyIsBrowserOrApp(bool *aOut)
   }
 
   // Fail if this frame doesn't have the mozbrowser attribute.
-  bool hasMozbrowser = false;
-  GetMozbrowser(&hasMozbrowser);
-  if (!hasMozbrowser) {
+  bool isBrowser = false;
+  GetMozbrowser(&isBrowser);
+  if (!isBrowser) {
     return NS_OK;
   }
 
@@ -299,7 +294,7 @@ nsGenericHTMLFrameElement::GetReallyIsBrowserOrApp(bool *aOut)
   nsIPrincipal *principal = NodePrincipal();
   nsCOMPtr<nsIPermissionManager> permMgr =
     do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
-  NS_ENSURE_TRUE(permMgr, NS_OK);
+  NS_ENSURE_STATE(permMgr);
 
   uint32_t permission = nsIPermissionManager::DENY_ACTION;
   nsresult rv = permMgr->TestPermissionFromPrincipal(principal, "browser", &permission);
@@ -308,7 +303,7 @@ nsGenericHTMLFrameElement::GetReallyIsBrowserOrApp(bool *aOut)
   return NS_OK;
 }
 
-/* [infallible] */ NS_IMETHODIMP
+NS_IMETHODIMP
 nsGenericHTMLFrameElement::GetReallyIsApp(bool *aOut)
 {
   nsAutoString manifestURL;
@@ -324,24 +319,14 @@ nsGenericHTMLFrameElement::GetAppManifestURL(nsAString& aOut)
   aOut.Truncate();
 
   // At the moment, you can't be an app without being a browser.
-  if (!nsIMozBrowserFrame::GetReallyIsBrowserOrApp()) {
+  bool isBrowser = false;
+  GetReallyIsBrowser(&isBrowser);
+  if (!isBrowser) {
     return NS_OK;
   }
 
-  // Check permission.
-  nsIPrincipal *principal = NodePrincipal();
-  nsCOMPtr<nsIPermissionManager> permMgr =
-    do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
-  NS_ENSURE_TRUE(permMgr, NS_OK);
-
-  uint32_t permission = nsIPermissionManager::DENY_ACTION;
-  nsresult rv = permMgr->TestPermissionFromPrincipal(principal,
-                                                     "embed-apps",
-                                                     &permission);
-  NS_ENSURE_SUCCESS(rv, NS_OK);
-  if (permission != nsIPermissionManager::ALLOW_ACTION) {
-    return NS_OK;
-  }
+  // TODO: We surely need a permissions check here, particularly once we no
+  // longer rely on the mozbrowser permission check.
 
   nsAutoString manifestURL;
   GetAttr(kNameSpaceID_None, nsGkAtoms::mozapp, manifestURL);
@@ -350,10 +335,11 @@ nsGenericHTMLFrameElement::GetAppManifestURL(nsAString& aOut)
   }
 
   nsCOMPtr<nsIAppsService> appsService = do_GetService(APPS_SERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(appsService, NS_OK);
+  NS_ENSURE_STATE(appsService);
 
   nsCOMPtr<mozIDOMApplication> app;
   appsService->GetAppByManifestURL(manifestURL, getter_AddRefs(app));
+
   if (app) {
     aOut.Assign(manifestURL);
   }

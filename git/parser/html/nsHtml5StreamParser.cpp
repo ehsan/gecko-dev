@@ -190,7 +190,7 @@ nsHtml5StreamParser::nsHtml5StreamParser(nsHtml5TreeOpExecutor* aExecutor,
   const nsAdoptingCString& detectorName =
     Preferences::GetLocalizedCString("intl.charset.detector");
   if (!detectorName.IsEmpty()) {
-    nsAutoCString detectorContractID;
+    nsCAutoString detectorContractID;
     detectorContractID.AssignLiteral(NS_CHARSET_DETECTOR_CONTRACTID_BASE);
     detectorContractID += detectorName;
     if ((mChardet = do_CreateInstance(detectorContractID.get()))) {
@@ -244,7 +244,7 @@ nsHtml5StreamParser::Notify(const char* aCharset, nsDetectionConfident aConf)
       } else {
         // We've already committed to a decoder. Request a reload from the
         // docshell.
-        nsAutoCString charset(aCharset);
+        nsCAutoString charset(aCharset);
         mTreeBuilder->NeedsCharsetSwitchTo(charset,
                                            kCharsetFromAutoDetection,
                                            0);
@@ -414,7 +414,7 @@ nsHtml5StreamParser::SetEncodingFromExpat(const PRUnichar* aEncoding)
 {
   if (aEncoding) {
     nsDependentString utf16(aEncoding);
-    nsAutoCString utf8;
+    nsCAutoString utf8;
     CopyUTF16toUTF8(utf16, utf8);
     if (PreferredForInternalEncodingDecl(utf8)) {
       mCharset.Assign(utf8);
@@ -942,7 +942,7 @@ nsHtml5StreamParser::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
 
   nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(mRequest, &rv));
   if (NS_SUCCEEDED(rv)) {
-    nsAutoCString method;
+    nsCAutoString method;
     httpChannel->GetRequestMethod(method);
     // XXX does Necko have a way to renavigate POST, etc. without hitting
     // the network?
@@ -1122,7 +1122,7 @@ nsresult
 nsHtml5StreamParser::OnDataAvailable(nsIRequest* aRequest,
                                nsISupports* aContext,
                                nsIInputStream* aInStream,
-                               uint64_t aSourceOffset,
+                               uint32_t aSourceOffset,
                                uint32_t aLength)
 {
   nsresult rv;
@@ -1153,7 +1153,7 @@ nsHtml5StreamParser::OnDataAvailable(nsIRequest* aRequest,
 bool
 nsHtml5StreamParser::PreferredForInternalEncodingDecl(nsACString& aEncoding)
 {
-  nsAutoCString newEncoding(aEncoding);
+  nsCAutoString newEncoding(aEncoding);
   newEncoding.Trim(" \t\r\n\f");
   if (newEncoding.LowerCaseEqualsLiteral("utf-16") ||
       newEncoding.LowerCaseEqualsLiteral("utf-16be") ||
@@ -1190,25 +1190,17 @@ nsHtml5StreamParser::PreferredForInternalEncodingDecl(nsACString& aEncoding)
     mFeedChardet = false; // don't feed chardet when confident
     return false;
   }
-
+  
   // XXX check HTML5 non-IANA aliases here
-
-  nsAutoCString preferred;
+  
+  nsCAutoString preferred;
+  
   rv = nsCharsetAlias::GetPreferred(newEncoding, preferred);
   if (NS_FAILED(rv)) {
-    // This charset has been blacklisted for permitting XSS smuggling.
-    // EncMetaNonRoughSuperset is a reasonable approximation to the
-    // right error message.
-    mTreeBuilder->MaybeComplainAboutCharset("EncMetaNonRoughSuperset",
-                                            true,
-                                            mTokenizer->getLineNumber());
+    NS_NOTREACHED("Finding the preferred name failed.");
     return false;
   }
-
-  // ??? Explicit further blacklist of character sets that are not
-  // "rough supersets" of ASCII.  Some of these are handled above (utf-16),
-  // some by the XSS smuggling blacklist in charsetData.properties,
-  // maybe all of the remainder should also be blacklisted there.
+  
   if (preferred.LowerCaseEqualsLiteral("utf-16") ||
       preferred.LowerCaseEqualsLiteral("utf-16be") ||
       preferred.LowerCaseEqualsLiteral("utf-16le") ||
@@ -1238,7 +1230,7 @@ nsHtml5StreamParser::internalEncodingDeclaration(nsString* aEncoding)
     return false;
   }
 
-  nsAutoCString newEncoding;
+  nsCAutoString newEncoding;
   CopyUTF16toUTF8(*aEncoding, newEncoding);
 
   if (!PreferredForInternalEncodingDecl(newEncoding)) {

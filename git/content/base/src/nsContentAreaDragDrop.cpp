@@ -130,8 +130,7 @@ NS_IMPL_ISUPPORTS1(nsContentAreaDragDropDataProvider, nsIFlavorDataProvider)
 // into the file system
 nsresult
 nsContentAreaDragDropDataProvider::SaveURIToFile(nsAString& inSourceURIString,
-                                                 nsIFile* inDestFile,
-                                                 bool isPrivate)
+                                                 nsIFile* inDestFile)
 {
   nsCOMPtr<nsIURI> sourceURI;
   nsresult rv = NS_NewURI(getter_AddRefs(sourceURI), inSourceURIString);
@@ -156,8 +155,7 @@ nsContentAreaDragDropDataProvider::SaveURIToFile(nsAString& inSourceURIString,
 
   persist->SetPersistFlags(nsIWebBrowserPersist::PERSIST_FLAGS_AUTODETECT_APPLY_CONVERSION);
 
-  return persist->SavePrivacyAwareURI(sourceURI, nullptr, nullptr, nullptr, nullptr,
-                                      inDestFile, isPrivate);
+  return persist->SaveURI(sourceURI, nullptr, nullptr, nullptr, nullptr, inDestFile);
 }
 
 // This is our nsIFlavorDataProvider callback. There are several
@@ -229,10 +227,7 @@ nsContentAreaDragDropDataProvider::GetFlavorData(nsITransferable *aTransferable,
 
     file->Append(targetFilename);
 
-    bool isPrivate;
-    aTransferable->GetIsPrivateData(&isPrivate);
-
-    rv = SaveURIToFile(sourceURLString, file, isPrivate);
+    rv = SaveURIToFile(sourceURLString, file);
     // send back an nsIFile
     if (NS_SUCCEEDED(rv)) {
       CallQueryInterface(file, aData);
@@ -296,7 +291,7 @@ DragDataProducer::GetAnchorURL(nsIContent* inNode, nsAString& outURL)
     return;
   }
 
-  nsAutoCString spec;
+  nsCAutoString spec;
   linkURI->GetSpec(spec);
   CopyUTF8toUTF16(spec, outURL);
 }
@@ -532,7 +527,7 @@ DragDataProducer::Produce(nsDOMDataTransfer* aDataTransfer,
         nsCOMPtr<nsIURI> imageURI;
         image->GetCurrentURI(getter_AddRefs(imageURI));
         if (imageURI) {
-          nsAutoCString spec;
+          nsCAutoString spec;
           imageURI->GetSpec(spec);
           CopyUTF8toUTF16(spec, mUrlString);
         }
@@ -566,7 +561,7 @@ DragDataProducer::Produce(nsDOMDataTransfer* aDataTransfer,
           nsCOMPtr<nsIURL> imgUrl(do_QueryInterface(imgUri));
 
           if (imgUrl) {
-            nsAutoCString extension;
+            nsCAutoString extension;
             imgUrl->GetFileExtension(extension);
 
             nsXPIDLCString mimeType;
@@ -577,7 +572,7 @@ DragDataProducer::Produce(nsDOMDataTransfer* aDataTransfer,
                                                  getter_AddRefs(mimeInfo));
 
             if (mimeInfo) {
-              nsAutoCString spec;
+              nsCAutoString spec;
               imgUrl->GetSpec(spec);
 
               // pass out the image source string
@@ -594,13 +589,13 @@ DragDataProducer::Produce(nsDOMDataTransfer* aDataTransfer,
 
                 imgUrl = do_QueryInterface(imgUri);
 
-                nsAutoCString primaryExtension;
+                nsCAutoString primaryExtension;
                 mimeInfo->GetPrimaryExtension(primaryExtension);
 
                 imgUrl->SetFileExtension(primaryExtension);
               }
 
-              nsAutoCString fileName;
+              nsCAutoString fileName;
               imgUrl->GetFileName(fileName);
 
               NS_UnescapeURL(fileName);

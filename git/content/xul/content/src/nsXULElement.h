@@ -317,17 +317,10 @@ public:
 
  */
 
-#define XUL_ELEMENT_FLAG_BIT(n_) NODE_FLAG_BIT(ELEMENT_TYPE_SPECIFIC_BITS_OFFSET + (n_))
-
-// XUL element specific bits
-enum {
-  XUL_ELEMENT_TEMPLATE_GENERATED =        XUL_ELEMENT_FLAG_BIT(0)
-};
+#define XUL_ELEMENT_TEMPLATE_GENERATED (1 << ELEMENT_TYPE_SPECIFIC_BITS_OFFSET)
 
 // Make sure we have space for our bit
 PR_STATIC_ASSERT(ELEMENT_TYPE_SPECIFIC_BITS_OFFSET < 32);
-
-#undef XUL_ELEMENT_FLAG_BIT
 
 class nsScriptEventHandlerOwnerTearoff;
 

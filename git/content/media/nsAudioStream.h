@@ -10,10 +10,9 @@
 #include "nsISupportsImpl.h"
 #include "nsIThread.h"
 #include "nsAutoPtr.h"
-#include "AudioChannelCommon.h"
 
-#ifdef MOZ_SAMPLE_TYPE_S16
-#define MOZ_AUDIO_DATA_FORMAT (nsAudioStream::FORMAT_S16)
+#ifdef MOZ_SAMPLE_TYPE_S16LE
+#define MOZ_AUDIO_DATA_FORMAT (nsAudioStream::FORMAT_S16_LE)
 typedef short SampleType;
 #else
 #define MOZ_AUDIO_DATA_FORMAT (nsAudioStream::FORMAT_FLOAT32)
@@ -31,7 +30,7 @@ public:
   enum SampleFormat
   {
     FORMAT_U8,
-    FORMAT_S16,
+    FORMAT_S16_LE,
     FORMAT_FLOAT32
   };
 
@@ -64,8 +63,7 @@ public:
   // (22050Hz, 44100Hz, etc).
   // Unsafe to call with a monitor held due to synchronous event execution
   // on the main thread, which may attempt to acquire any held monitor.
-  virtual nsresult Init(int32_t aNumChannels, int32_t aRate,
-                        const mozilla::dom::AudioChannelType aAudioStreamType) = 0;
+  virtual nsresult Init(int32_t aNumChannels, int32_t aRate) = 0;
 
   // Closes the stream. All future use of the stream is an error.
   // Unsafe to call with a monitor held due to synchronous event execution

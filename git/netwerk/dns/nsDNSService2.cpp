@@ -27,6 +27,7 @@
 #include "nsIOService.h"
 #include "nsCharSeparatedTokenizer.h"
 
+#include "mozilla/FunctionTimer.h"
 #include "mozilla/Attributes.h"
 
 using namespace mozilla;
@@ -349,7 +350,6 @@ nsDNSSyncRequest::EqualsAsyncListener(nsIDNSListener *aListener)
 nsDNSService::nsDNSService()
     : mLock("nsDNSServer.mLock")
     , mFirstTime(true)
-    , mOffline(false)
 {
 }
 
@@ -363,8 +363,8 @@ NS_IMPL_THREADSAFE_ISUPPORTS3(nsDNSService, nsIDNSService, nsPIDNSService,
 NS_IMETHODIMP
 nsDNSService::Init()
 {
-    if (mResolver)
-        return NS_OK;
+    NS_TIME_FUNCTION;
+
     NS_ENSURE_TRUE(!mResolver, NS_ERROR_ALREADY_INITIALIZED);
 
     // prefs
@@ -482,34 +482,6 @@ nsDNSService::Shutdown()
     return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDNSService::GetOffline(bool *offline)
-{
-    *offline = mOffline;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDNSService::SetOffline(bool offline)
-{
-    mOffline = offline;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDNSService::GetPrefetchEnabled(bool *outVal)
-{
-    *outVal = !mDisablePrefetch;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDNSService::SetPrefetchEnabled(bool inVal)
-{
-    mDisablePrefetch = !inVal;
-    return NS_OK;
-}
-
 namespace {
 
 class DNSListenerProxy MOZ_FINAL : public nsIDNSListener
@@ -608,9 +580,6 @@ nsDNSService::AsyncResolve(const nsACString  &hostname,
     if (!res)
         return NS_ERROR_OFFLINE;
 
-    if (mOffline)
-        flags |= RESOLVE_OFFLINE;
-
     const nsACString *hostPtr = &hostname;
 
     if (localDomain) {
@@ -618,7 +587,7 @@ nsDNSService::AsyncResolve(const nsACString  &hostname,
     }
 
     nsresult rv;
-    nsAutoCString hostACE;
+    nsCAutoString hostACE;
     if (idn && !IsASCII(*hostPtr)) {
         if (NS_SUCCEEDED(idn->ConvertUTF8toACE(*hostPtr, hostACE)))
             hostPtr = &hostACE;
@@ -670,7 +639,7 @@ nsDNSService::CancelAsyncResolve(const nsACString  &aHostname,
 
     nsCString hostname(aHostname);
 
-    nsAutoCString hostACE;
+    nsCAutoString hostACE;
     if (idn && !IsASCII(aHostname)) {
         if (NS_SUCCEEDED(idn->ConvertUTF8toACE(aHostname, hostACE)))
             hostname = hostACE;
@@ -700,9 +669,6 @@ nsDNSService::Resolve(const nsACString &hostname,
     }
     NS_ENSURE_TRUE(res, NS_ERROR_OFFLINE);
 
-    if (mOffline)
-        flags |= RESOLVE_OFFLINE;
-
     const nsACString *hostPtr = &hostname;
 
     if (localDomain) {
@@ -710,7 +676,7 @@ nsDNSService::Resolve(const nsACString &hostname,
     }
 
     nsresult rv;
-    nsAutoCString hostACE;
+    nsCAutoString hostACE;
     if (idn && !IsASCII(*hostPtr)) {
         if (NS_SUCCEEDED(idn->ConvertUTF8toACE(*hostPtr, hostACE)))
             hostPtr = &hostACE;

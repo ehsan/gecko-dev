@@ -5,7 +5,6 @@
 #ifndef nsTableCellFrame_h__
 #define nsTableCellFrame_h__
 
-#include "mozilla/Attributes.h"
 #include "nsITableCellLayout.h"
 #include "nscore.h"
 #include "nsContainerFrame.h"
@@ -69,12 +68,12 @@ public:
   // so these functions should never be called. They assert and return
   // NS_ERROR_NOT_IMPLEMENTED
   NS_IMETHOD AppendFrames(ChildListID     aListID,
-                          nsFrameList&    aFrameList) MOZ_OVERRIDE;
+                          nsFrameList&    aFrameList);
   NS_IMETHOD InsertFrames(ChildListID     aListID,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList) MOZ_OVERRIDE;
+                          nsFrameList&    aFrameList);
   NS_IMETHOD RemoveFrame(ChildListID     aListID,
-                         nsIFrame*       aOldFrame) MOZ_OVERRIDE;
+                         nsIFrame*       aOldFrame);
 
   virtual nsIFrame* GetContentInsertionFrame() {
     return GetFirstPrincipalChild()->GetContentInsertionFrame();
@@ -84,7 +83,7 @@ public:
 
   virtual void NotifyPercentHeight(const nsHTMLReflowState& aReflowState);
 
-  virtual bool NeedsToObserve(const nsHTMLReflowState& aReflowState) MOZ_OVERRIDE;
+  virtual bool NeedsToObserve(const nsHTMLReflowState& aReflowState);
 
   /** instantiate a new instance of nsTableRowFrame.
     * @param aPresShell the pres shell for this frame
@@ -95,7 +94,7 @@ public:
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+                              const nsDisplayListSet& aLists);
 
   void PaintCellBackground(nsRenderingContext& aRenderingContext,
                            const nsRect& aDirtyRect, nsPoint aPt,
@@ -165,7 +164,7 @@ public:
   NS_IMETHOD GetCellIndexes(int32_t &aRowIndex, int32_t &aColIndex);
 
   /** return the mapped cell's row index (starting at 0 for the first row) */
-  virtual nsresult GetRowIndex(int32_t &aRowIndex) const MOZ_OVERRIDE;
+  virtual nsresult GetRowIndex(int32_t &aRowIndex) const;
 
   /**
    * return the cell's specified col span. this is what was specified in the
@@ -176,7 +175,7 @@ public:
   virtual int32_t GetColSpan();
 
   /** return the cell's column index (starting at 0 for the first column) */
-  virtual nsresult GetColIndex(int32_t &aColIndex) const MOZ_OVERRIDE;
+  virtual nsresult GetColIndex(int32_t &aColIndex) const;
   void SetColIndex(int32_t aColIndex);
 
   /** return the available width given to this frame during its last reflow */
@@ -210,10 +209,6 @@ public:
                             nsPoint              aPt);
 
   virtual bool UpdateOverflow();
-  
-  virtual void InvalidateFrame(uint32_t aDisplayItemKey = 0) MOZ_OVERRIDE;
-  virtual void InvalidateFrameWithRect(const nsRect& aRect, uint32_t aDisplayItemKey = 0) MOZ_OVERRIDE;
-  virtual void InvalidateFrameForRemoval() MOZ_OVERRIDE { InvalidateFrameSubtree(); }
 
 protected:
   /** implement abstract method on nsContainerFrame */
@@ -291,13 +286,13 @@ public:
 
   ~nsBCTableCellFrame();
 
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
 
   virtual nsMargin GetUsedBorder() const;
   virtual bool GetBorderRadii(nscoord aRadii[8]) const;
 
   // Get the *inner half of the border only*, in twips.
-  virtual nsMargin* GetBorderWidth(nsMargin& aBorder) const MOZ_OVERRIDE;
+  virtual nsMargin* GetBorderWidth(nsMargin& aBorder) const;
 
   // Get the *inner half of the border only*, in pixels.
   BCPixelSize GetBorderWidth(mozilla::css::Side aSide) const;
@@ -305,16 +300,16 @@ public:
   // Set the full (both halves) width of the border
   void SetBorderWidth(mozilla::css::Side aSide, BCPixelSize aPixelValue);
 
-  virtual nsMargin GetBorderOverflow() MOZ_OVERRIDE;
+  virtual nsMargin GetBorderOverflow();
 
 #ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
   virtual void PaintBackground(nsRenderingContext& aRenderingContext,
                                const nsRect&        aDirtyRect,
                                nsPoint              aPt,
-                               uint32_t             aFlags) MOZ_OVERRIDE;
+                               uint32_t             aFlags);
 
 private:
 

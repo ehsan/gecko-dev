@@ -94,6 +94,7 @@ nsWebBrowserContentPolicy::ShouldProcess(uint32_t          contentType,
     }
 
     nsIDocShell *shell = NS_CP_GetDocShellFromContext(requestingContext);
+    bool allowed;
     if (shell && (!shell->PluginsAllowedInCurrentDoc())) {
         *shouldProcess = nsIContentPolicy::REJECT_TYPE;
     }

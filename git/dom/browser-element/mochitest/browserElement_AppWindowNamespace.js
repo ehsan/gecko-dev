@@ -9,8 +9,6 @@ SimpleTest.waitForExplicitFinish();
 function runTest() {
   browserElementTestHelpers.setEnabledPref(true);
   browserElementTestHelpers.addPermission();
-  // Permission to embed an app.
-  SpecialPowers.addPermission("embed-apps", true, document);
 
   var iframe1 = document.createElement('iframe');
   iframe1.mozbrowser = true;
@@ -31,7 +29,6 @@ function runTest() {
 
       iframe2.addEventListener('mozbrowseropenwindow', function(e) {
         ok(true, "Got second mozbrowseropenwindow event.");
-        SpecialPowers.removePermission("embed-apps", document);
         SimpleTest.finish();
       });
 

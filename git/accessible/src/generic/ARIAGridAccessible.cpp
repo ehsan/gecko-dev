@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ARIAGridAccessible-inl.h"
+#include "ARIAGridAccessible.h"
 
 #include "Accessible-inl.h"
 #include "AccIterator.h"
@@ -545,47 +545,166 @@ NS_IMPL_ISUPPORTS_INHERITED1(ARIAGridCellAccessible,
 ////////////////////////////////////////////////////////////////////////////////
 // nsIAccessibleTableCell
 
-TableAccessible*
-ARIAGridCellAccessible::Table() const
+NS_IMETHODIMP
+ARIAGridCellAccessible::GetTable(nsIAccessibleTable** aTable)
 {
-  Accessible* table = TableFor(Row());
-  return table ? table->AsTable() : nullptr;
+  NS_ENSURE_ARG_POINTER(aTable);
+  *aTable = nullptr;
+
+  Accessible* thisRow = Parent();
+  if (!thisRow || thisRow->Role() != roles::ROW)
+    return NS_OK;
+
+  Accessible* table = thisRow->Parent();
+  if (!table)
+    return NS_OK;
+
+  roles::Role tableRole = table->Role();
+  if (tableRole != roles::TABLE && tableRole != roles::TREE_TABLE)
+    return NS_OK;
+
+  CallQueryInterface(table, aTable);
+  return NS_OK;
 }
 
-uint32_t
-ARIAGridCellAccessible::ColIdx() const
+NS_IMETHODIMP
+ARIAGridCellAccessible::GetColumnIndex(int32_t* aColumnIndex)
 {
-  Accessible* row = Row();
+  NS_ENSURE_ARG_POINTER(aColumnIndex);
+  *aColumnIndex = -1;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  Accessible* row = Parent();
   if (!row)
-    return 0;
+    return NS_OK;
+
+  *aColumnIndex = 0;
 
   int32_t indexInRow = IndexInParent();
-  uint32_t colIdx = 0;
   for (int32_t idx = 0; idx < indexInRow; idx++) {
     Accessible* cell = row->GetChildAt(idx);
     roles::Role role = cell->Role();
     if (role == roles::GRID_CELL || role == roles::ROWHEADER ||
         role == roles::COLUMNHEADER)
-      colIdx++;
+      (*aColumnIndex)++;
   }
 
-  return colIdx;
+  return NS_OK;
 }
 
-uint32_t
-ARIAGridCellAccessible::RowIdx() const
+NS_IMETHODIMP
+ARIAGridCellAccessible::GetRowIndex(int32_t* aRowIndex)
 {
-  return RowIndexFor(Row());
-}
+  NS_ENSURE_ARG_POINTER(aRowIndex);
+  *aRowIndex = -1;
 
-bool
-ARIAGridCellAccessible::Selected()
-{
-  Accessible* row = Row();
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  Accessible* row = Parent();
   if (!row)
-    return false;
+    return NS_OK;
 
-  return nsAccUtils::IsARIASelected(row) || nsAccUtils::IsARIASelected(this);
+  Accessible* table = row->Parent();
+  if (!table)
+    return NS_OK;
+
+  *aRowIndex = 0;
+
+  int32_t indexInTable = row->IndexInParent();
+  for (int32_t idx = 0; idx < indexInTable; idx++) {
+    row = table->GetChildAt(idx);
+    if (row->Role() == roles::ROW)
+      (*aRowIndex)++;
+  }
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+ARIAGridCellAccessible::GetColumnExtent(int32_t* aExtentCount)
+{
+  NS_ENSURE_ARG_POINTER(aExtentCount);
+  *aExtentCount = 0;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  *aExtentCount = 1;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+ARIAGridCellAccessible::GetRowExtent(int32_t* aExtentCount)
+{
+  NS_ENSURE_ARG_POINTER(aExtentCount);
+  *aExtentCount = 0;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  *aExtentCount = 1;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+ARIAGridCellAccessible::GetColumnHeaderCells(nsIArray** aHeaderCells)
+{
+  NS_ENSURE_ARG_POINTER(aHeaderCells);
+  *aHeaderCells = nullptr;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsIAccessibleTable> table;
+  GetTable(getter_AddRefs(table));
+  if (!table)
+    return NS_OK;
+
+  return nsAccUtils::GetHeaderCellsFor(table, this,
+                                       nsAccUtils::eColumnHeaderCells,
+                                       aHeaderCells);
+}
+
+NS_IMETHODIMP
+ARIAGridCellAccessible::GetRowHeaderCells(nsIArray** aHeaderCells)
+{
+  NS_ENSURE_ARG_POINTER(aHeaderCells);
+  *aHeaderCells = nullptr;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsIAccessibleTable> table;
+  GetTable(getter_AddRefs(table));
+  if (!table)
+    return NS_OK;
+
+  return nsAccUtils::GetHeaderCellsFor(table, this,
+                                       nsAccUtils::eRowHeaderCells,
+                                       aHeaderCells);
+}
+
+NS_IMETHODIMP
+ARIAGridCellAccessible::IsSelected(bool* aIsSelected)
+{
+  NS_ENSURE_ARG_POINTER(aIsSelected);
+  *aIsSelected = false;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  Accessible* row = Parent();
+  if (!row || row->Role() != roles::ROW)
+    return NS_OK;
+
+  if (!nsAccUtils::IsARIASelected(row) && !nsAccUtils::IsARIASelected(this))
+    return NS_OK;
+
+  *aIsSelected = true;
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -619,13 +738,14 @@ ARIAGridCellAccessible::GetAttributesInternal(nsIPersistentProperties* aAttribut
 {
   if (IsDefunct())
     return NS_ERROR_FAILURE;
-
+  
   nsresult rv = HyperTextAccessibleWrap::GetAttributesInternal(aAttributes);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Expose "table-cell-index" attribute.
-  Accessible* thisRow = Row();
-  if (!thisRow)
+
+  Accessible* thisRow = Parent();
+  if (!thisRow || thisRow->Role() != roles::ROW)
     return NS_OK;
 
   int32_t colIdx = 0, colCount = 0;
@@ -641,10 +761,29 @@ ARIAGridCellAccessible::GetAttributesInternal(nsIPersistentProperties* aAttribut
       colCount++;
   }
 
-  int32_t rowIdx = RowIndexFor(thisRow);
+  Accessible* table = thisRow->Parent();
+  if (!table)
+    return NS_OK;
+
+  roles::Role tableRole = table->Role();
+  if (tableRole != roles::TABLE && tableRole != roles::TREE_TABLE)
+    return NS_OK;
+
+  int32_t rowIdx = 0;
+  childCount = table->ChildCount();
+  for (uint32_t childIdx = 0; childIdx < childCount; childIdx++) {
+    Accessible* child = table->GetChildAt(childIdx);
+    if (child == thisRow)
+      break;
+
+    if (child->Role() == roles::ROW)
+      rowIdx++;
+  }
+
+  int32_t idx = rowIdx * colCount + colIdx;
 
   nsAutoString stringIdx;
-  stringIdx.AppendInt(rowIdx * colCount + colIdx);
+  stringIdx.AppendInt(idx);
   nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::tableCellIndex,
                          stringIdx);
 

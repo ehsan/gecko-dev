@@ -7,6 +7,7 @@
 #include "base/basictypes.h"
 #include "BluetoothDevice.h"
 #include "BluetoothPropertyEvent.h"
+#include "BluetoothTypes.h"
 #include "BluetoothReplyRunnable.h"
 #include "BluetoothService.h"
 #include "BluetoothUtils.h"
@@ -14,8 +15,6 @@
 #include "nsIDOMDOMRequest.h"
 #include "nsDOMClassInfo.h"
 #include "nsContentUtils.h"
-#include "nsTArrayHelpers.h"
-#include "mozilla/dom/bluetooth/BluetoothTypes.h"
 
 USING_BLUETOOTH_NAMESPACE
 
@@ -26,17 +25,22 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(BluetoothDevice)
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(BluetoothDevice,
                                                nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mJsUuids)
-  NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mJsServices)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(BluetoothDevice, 
                                                   nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(propertychanged)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(connected)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(disconnected)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(BluetoothDevice, 
                                                 nsDOMEventTargetHelper)
   tmp->Unroot();
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(propertychanged)
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(connected)
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(disconnected)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(BluetoothDevice)
@@ -52,7 +56,6 @@ BluetoothDevice::BluetoothDevice(nsPIDOMWindow* aOwner,
                                  const BluetoothValue& aValue) :
   BluetoothPropertyContainer(BluetoothObjectType::TYPE_DEVICE),
   mJsUuids(nullptr),
-  mJsServices(nullptr),
   mAdapterPath(aAdapterPath),
   mIsRooted(false)
 {
@@ -69,7 +72,9 @@ BluetoothDevice::~BluetoothDevice()
   BluetoothService* bs = BluetoothService::Get();
   // bs can be null on shutdown, where destruction might happen.
   if (bs) {
-    bs->UnregisterBluetoothSignalHandler(mPath, this);
+    if (NS_FAILED(bs->UnregisterBluetoothSignalHandler(mPath, this))) {
+      NS_WARNING("Failed to unregister object with observer!");
+    }
   }
   Unroot();
 }
@@ -91,7 +96,7 @@ BluetoothDevice::Unroot()
     mIsRooted = false;
   }
 }
-
+  
 void
 BluetoothDevice::SetPropertyByValue(const BluetoothNamedValue& aValue)
 {
@@ -99,15 +104,17 @@ BluetoothDevice::SetPropertyByValue(const BluetoothNamedValue& aValue)
   const BluetoothValue& value = aValue.value();
   if (name.EqualsLiteral("Name")) {
     mName = value.get_nsString();
-  } else if (name.EqualsLiteral("Path")) {
-    MOZ_ASSERT(value.get_nsString().Length() > 0);
-    mPath = value.get_nsString();
   } else if (name.EqualsLiteral("Address")) {
     mAddress = value.get_nsString();
+    BluetoothService* bs = BluetoothService::Get();
+    if (!bs) {
+      NS_WARNING("BluetoothService not available!");
+      return;
+    }
+    // We can't actually set up our path until we know our address
+    bs->GetDevicePath(mAdapterPath, mAddress, mPath);
   } else if (name.EqualsLiteral("Class")) {
     mClass = value.get_uint32_t();
-  } else if (name.EqualsLiteral("Icon")) {
-    mIcon = value.get_nsString();
   } else if (name.EqualsLiteral("Connected")) {
     mConnected = value.get_bool();
   } else if (name.EqualsLiteral("Paired")) {
@@ -118,24 +125,10 @@ BluetoothDevice::SetPropertyByValue(const BluetoothNamedValue& aValue)
     nsIScriptContext* sc = GetContextForEventHandlers(&rv);
     if (sc) {
       rv =
-        nsTArrayToJSArray(sc->GetNativeContext(), mUuids, &mJsUuids);
+        StringArrayToJSArray(sc->GetNativeContext(),
+                             sc->GetNativeGlobal(), mUuids, &mJsUuids);
       if (NS_FAILED(rv)) {
         NS_WARNING("Cannot set JS UUIDs object!");
-        return;
-      }
-      Root();
-    } else {
-      NS_WARNING("Could not get context!");
-    }
-  } else if (name.EqualsLiteral("Services")) {
-    mServices = value.get_ArrayOfnsString();
-    nsresult rv;
-    nsIScriptContext* sc = GetContextForEventHandlers(&rv);
-    if (sc) {
-      rv =
-        nsTArrayToJSArray(sc->GetNativeContext(), mServices, &mJsServices);
-      if (NS_FAILED(rv)) {
-        NS_WARNING("Cannot set JS Services object!");
         return;
       }
       Root();
@@ -167,9 +160,10 @@ BluetoothDevice::Create(nsPIDOMWindow* aOwner,
 
   nsRefPtr<BluetoothDevice> device = new BluetoothDevice(aOwner, aAdapterPath,
                                                          aValue);
-
-  bs->RegisterBluetoothSignalHandler(device->mPath, device);
-
+  if (NS_FAILED(bs->RegisterBluetoothSignalHandler(device->mPath, device))) {
+    NS_WARNING("Failed to register object with observer!");
+    return nullptr;
+  }
   return device.forget();
 }
 
@@ -177,19 +171,29 @@ void
 BluetoothDevice::Notify(const BluetoothSignal& aData)
 {
   if (aData.name().EqualsLiteral("PropertyChanged")) {
-    NS_ASSERTION(aData.value().type() == BluetoothValue::TArrayOfBluetoothNamedValue,
-                 "PropertyChanged: Invalid value type");
-    InfallibleTArray<BluetoothNamedValue> arr = aData.value().get_ArrayOfBluetoothNamedValue();
-
-    NS_ASSERTION(arr.Length() == 1, "Got more than one property in a change message!");
-    BluetoothNamedValue v = arr[0];
+    // Get BluetoothNamedValue, make sure array length is 1
+    BluetoothNamedValue v = aData.value().get_ArrayOfBluetoothNamedValue()[0];
     nsString name = v.name();
 
-    SetPropertyByValue(v);
     if (name.EqualsLiteral("Connected")) {
-      DispatchTrustedEvent(mConnected ? NS_LITERAL_STRING("connected")
-                           : NS_LITERAL_STRING("disconnected"));
+      bool isConnected = v.value();
+      nsRefPtr<nsDOMEvent> event = new nsDOMEvent(nullptr, nullptr);
+      nsresult rv;
+      if (isConnected) {
+        rv = event->InitEvent(NS_LITERAL_STRING("connected"), false, false);
+      } else {
+        rv = event->InitEvent(NS_LITERAL_STRING("disconnected"), false, false);
+      }
+      if (NS_FAILED(rv)) {
+        NS_WARNING("Failed to init the connected/disconnected event!!!");
+        return;
+      }
+
+      event->SetTrusted(true);
+      bool dummy;
+      DispatchEvent(event, &dummy);
     } else {
+      SetPropertyByValue(v);
       nsRefPtr<BluetoothPropertyEvent> e = BluetoothPropertyEvent::Create(name);
       e->Dispatch(ToIDOMEventTarget(), NS_LITERAL_STRING("propertychanged"));
     }
@@ -214,13 +218,6 @@ NS_IMETHODIMP
 BluetoothDevice::GetName(nsAString& aName)
 {
   aName = mName;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-BluetoothDevice::GetIcon(nsAString& aIcon)
-{
-  aIcon = mIcon;
   return NS_OK;
 }
 
@@ -253,18 +250,7 @@ BluetoothDevice::GetUuids(JSContext* aCx, jsval* aUuids)
   } else {
     NS_WARNING("UUIDs not yet set!\n");
     return NS_ERROR_FAILURE;
-  }
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-BluetoothDevice::GetServices(JSContext* aCx, jsval* aServices)
-{
-  if (mJsServices) {
-    aServices->setObject(*mJsServices);
-  } else {
-    NS_WARNING("Services not yet set!\n");
-  }
+  }    
   return NS_OK;
 }
 

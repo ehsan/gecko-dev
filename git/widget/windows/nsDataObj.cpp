@@ -90,12 +90,11 @@ STDMETHODIMP nsDataObj::CStream::QueryInterface(REFIID refiid, void** ppvResult)
 }
 
 // nsIStreamListener implementation
-NS_IMETHODIMP
-nsDataObj::CStream::OnDataAvailable(nsIRequest *aRequest,
-                                    nsISupports *aContext,
-                                    nsIInputStream *aInputStream,
-                                    uint64_t aOffset, // offset within the stream
-                                    uint32_t aCount) // bytes available on this call
+NS_IMETHODIMP nsDataObj::CStream::OnDataAvailable(nsIRequest *aRequest,
+                                                  nsISupports *aContext,
+                                                  nsIInputStream *aInputStream,
+                                                  uint32_t aOffset, // offset within the stream
+                                                  uint32_t aCount) // bytes available on this call
 {
     // Extend the write buffer for the incoming data.
     uint8_t* buffer = mChannelData.AppendElements(aCount);
@@ -249,7 +248,7 @@ STDMETHODIMP nsDataObj::CStream::Stat(STATSTG* statstg, DWORD dwFlags)
       return E_FAIL;
     }
 
-    nsAutoCString strFileName;
+    nsCAutoString strFileName;
     nsCOMPtr<nsIURL> sourceURL = do_QueryInterface(sourceURI);
     sourceURL->GetFileName(strFileName);
 
@@ -1099,7 +1098,7 @@ nsDataObj :: GetFileContentsInternetShortcut ( FORMATETC& aFE, STGMEDIUM& aSTG )
     return E_OUTOFMEMORY;
 
   // will need to change if we ever support iDNS
-  nsAutoCString asciiUrl;
+  nsCAutoString asciiUrl;
   LossyCopyUTF16toASCII(url, asciiUrl);
 
   nsCOMPtr<nsIFile> icoFile;
@@ -1166,7 +1165,7 @@ bool nsDataObj :: IsFlavourPresent(const char *inFlavour)
     flavorList->GetElementAt (i, getter_AddRefs(genericFlavor));
     nsCOMPtr<nsISupportsCString> currentFlavor (do_QueryInterface(genericFlavor));
     if (currentFlavor) {
-      nsAutoCString flavorStr;
+      nsCAutoString flavorStr;
       currentFlavor->GetData(flavorStr);
       if (flavorStr.Equals(inFlavour)) {
         retval = true;         // found it!
@@ -1568,8 +1567,8 @@ HRESULT nsDataObj::DropTempFile(FORMATETC& aFE, STGMEDIUM& aSTG)
     ULONG readCount = 0;
     uint32_t writeCount = 0;
     while (1) {
-      HRESULT hres = pStream->Read(buffer, sizeof(buffer), &readCount);
-      if (FAILED(hres))
+      rv = pStream->Read(buffer, sizeof(buffer), &readCount);
+      if (NS_FAILED(rv))
         return E_FAIL;
       if (readCount == 0)
         break;
@@ -1992,7 +1991,7 @@ nsresult nsDataObj::GetDownloadDetails(nsIURI **aSourceURI,
     if (!sourceURL)
       return NS_ERROR_FAILURE;
     
-    nsAutoCString urlFileName;
+    nsCAutoString urlFileName;
     sourceURL->GetFileName(urlFileName);
     NS_UnescapeURL(urlFileName);
     CopyUTF8toUTF16(urlFileName, srcFileName);
@@ -2030,7 +2029,7 @@ HRESULT nsDataObj::GetFileDescriptor_IStreamA(FORMATETC& aFE, STGMEDIUM& aSTG)
     return E_FAIL;
   }
 
-  nsAutoCString nativeFileName;
+  nsCAutoString nativeFileName;
   NS_UTF16ToCString(wideFileName, NS_CSTRING_ENCODING_NATIVE_FILESYSTEM, nativeFileName);
   
   strncpy(fileGroupDescA->fgd[0].cFileName, nativeFileName.get(), NS_MAX_FILEDESCRIPTOR - 1);

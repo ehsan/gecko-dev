@@ -5,6 +5,7 @@
 
 #include "nsAccessNode.h"
 
+#include "ApplicationAccessibleWrap.h"
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
 #include "nsCoreUtils.h"
@@ -23,14 +24,16 @@
 
 using namespace mozilla::a11y;
 
-/* For documentation of the accessibility architecture,
+/* For documentation of the accessibility architecture, 
  * see http://lxr.mozilla.org/seamonkey/source/accessible/accessible-docs.html
  */
+
+ApplicationAccessible* nsAccessNode::gApplicationAccessible = nullptr;
 
 /*
  * Class nsAccessNode
  */
-
+ 
 ////////////////////////////////////////////////////////////////////////////////
 // AccessNode. nsISupports
 
@@ -79,6 +82,41 @@ nsAccessNode::Shutdown()
   mDoc = nullptr;
 }
 
+ApplicationAccessible*
+nsAccessNode::GetApplicationAccessible()
+{
+  NS_ASSERTION(!nsAccessibilityService::IsShutdown(),
+               "Accessibility wasn't initialized!");
+
+  if (!gApplicationAccessible) {
+    ApplicationAccessibleWrap::PreCreate();
+
+    gApplicationAccessible = new ApplicationAccessibleWrap();
+
+    // Addref on create. Will Release in ShutdownXPAccessibility()
+    NS_ADDREF(gApplicationAccessible);
+
+    gApplicationAccessible->Init();
+  }
+
+  return gApplicationAccessible;
+}
+
+void nsAccessNode::ShutdownXPAccessibility()
+{
+  // Called by nsAccessibilityService::Shutdown()
+  // which happens when xpcom is shutting down
+  // at exit of program
+
+  // Release gApplicationAccessible after everything else is shutdown
+  // so we don't accidently create it again while tearing down root accessibles
+  ApplicationAccessibleWrap::Unload();
+  if (gApplicationAccessible) {
+    gApplicationAccessible->Shutdown();
+    NS_RELEASE(gApplicationAccessible);
+  }
+}
+
 RootAccessible*
 nsAccessNode::RootAccessible() const
 {
@@ -115,6 +153,12 @@ nsIDocument*
 nsAccessNode::GetDocumentNode() const
 {
   return mContent ? mContent->OwnerDoc() : nullptr;
+}
+
+bool
+nsAccessNode::IsPrimaryForNode() const
+{
+  return true;
 }
 
 void

@@ -17,14 +17,14 @@ function test() {
     });
 
     let allCompatible = true;
-    for (let a of aAddons) {
+    aAddons.forEach(function checkCompatibility(a) {
       // Ignore plugins.
       if (a.type == "plugin")
-        continue;
+        return;
 
       ok(a.isCompatible, a.type + " " + a.name + " " + a.version + " should be compatible");
       allCompatible = allCompatible && a.isCompatible;
-    }
+    });
     // Add a reminder.
     if (!allCompatible)
       ok(false, "As this test failed, test browser_bug557956.js should have failed, too.");

@@ -20,7 +20,7 @@ import android.webkit.WebViewClient;
  * @author liuche
  *
  */
-public class WebViewActivity extends SyncActivity {
+public class WebViewActivity extends Activity {
   private final static String LOG_TAG = "WebViewActivity";
 
   @Override

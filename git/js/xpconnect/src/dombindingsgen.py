@@ -206,13 +206,11 @@ class Configuration:
         if 'list_classes' not in config:
             raise UserError(filename + ": `%s` was not defined." % name)
         self.list_classes = {}
-        self.newBindingHeaders = []
         for clazz in config['list_classes']:
             self.list_classes[clazz['name']] = \
                 DOMClass(name = clazz['name'],
                          nativeClass = clazz['nativeClass'],
                          prefable = False)
-            self.newBindingHeaders.append(clazz.get('newBindingHeader', "mozilla/dom/" + clazz['name'] + "Binding.h"))
 
         # optional settings
         if 'prefableClasses' in config:
@@ -331,16 +329,16 @@ listDefinitionTemplate = (
 "class ${name} {\n"
 "public:\n"
 "    template<typename I>\n"
-"    static JSObject *create(JSContext *cx, JSObject *scope, I *list)\n"
+"    static JSObject *create(JSContext *cx, JSObject *scope, I *list, bool *triedToWrap)\n"
 "    {\n"
-"        return create(cx, scope, list, list);\n"
+"        return create(cx, scope, list, list, triedToWrap);\n"
 "    }\n"
 "\n"
 "    static bool objIsWrapper(JSObject *obj);\n"
 "    static ${nativeClass} *getNative(JSObject *obj);\n"
 "\n"
 "private:\n"
-"    static JSObject *create(JSContext *cx, JSObject *scope, ${nativeClass} *list, nsWrapperCache *cache);\n"
+"    static JSObject *create(JSContext *cx, JSObject *scope, ${nativeClass} *list, nsWrapperCache *cache, bool *triedToWrap);\n"
 "};"
 "\n"
 "\n")
@@ -436,19 +434,6 @@ listTemplate = (
 "    interface_hasInstance,\n"
 "    NULL                    /* construct   */\n"
 "};\n"
-"\n"
-"// static\n"
-"template<>\n"
-"bool\n"
-"${name}Wrapper::DefineDOMInterface(JSContext *cx, JSObject *receiver, bool *enabled)\n"
-"{\n"
-"  bool ok = mozilla::dom::${name}Binding::DefineDOMInterface(cx, receiver, enabled);\n"
-"  if (ok || *enabled) {\n"
-"    return ok;\n"
-"  }\n"
-"  *enabled = true;\n"
-"  return getPrototype(cx, receiver);\n"
-"}\n"
 "\n")
 
 derivedClassTemplate = (
@@ -569,9 +554,9 @@ listTemplateFooter = (
 "template class ListBase<${name}Class>;\n"
 "\n"
 "JSObject*\n"
-"${name}::create(JSContext *cx, JSObject *scope, ${nativeClass} *list, nsWrapperCache *cache)\n"
+"${name}::create(JSContext *cx, JSObject *scope, ${nativeClass} *list, nsWrapperCache *cache, bool *triedToWrap)\n"
 "{\n"
-"    return ${name}Wrapper::create(cx, scope, list, cache);\n"
+"    return ${name}Wrapper::create(cx, scope, list, cache, triedToWrap);\n"
 "}\n"
 "\n"
 "bool\n"
@@ -588,7 +573,7 @@ listTemplateFooter = (
 "\n")
 
 def writeBindingStub(f, classname, member, stubName, isSetter=False):
-    def writeThisUnwrapping(f, member, isMethod, isGetter, customMethodCall):
+    def writeThisUnwrapping(f, member, isMethod, isGetter, customMethodCall, haveCcx):
         if isMethod:
             f.write("    JSObject *callee = JSVAL_TO_OBJECT(JS_CALLEE(cx, vp));\n"
                     "    if (!%sWrapper::instanceIsListObject(cx, obj, callee))\n"
@@ -597,7 +582,7 @@ def writeBindingStub(f, classname, member, stubName, isSetter=False):
             f.write("    if (!%sWrapper::instanceIsListObject(cx, obj, NULL))\n"
                     "        return false;\n" % classname)
         return "%sWrapper::getListObject(obj)" % classname
-    def writeCheckForFailure(f, isMethod, isGeter):
+    def writeCheckForFailure(f, isMethod, isGeter, haveCcx):
         f.write("    if (NS_FAILED(rv))\n"
                 "        return xpc_qsThrowMethodFailedWithDetails(cx, rv, \"%s\", \"%s\");\n" % (classname, member.name))
     def writeResultWrapping(f, member, jsvalPtr, jsvalRef):
@@ -649,8 +634,6 @@ def writeStubFile(filename, config, interfaces):
                         addType(types, p.realtype, config.irregularFilenames)
 
         f.write("".join([("#include \"%s.h\"\n" % re.sub(r'(([^:]+::)*)', '', type)) for type in sorted(types)]))
-        for newBindingHeader in config.newBindingHeaders:
-            f.write("#include \"" + newBindingHeader + "\"\n")
         f.write("\n")
 
         f.write("namespace mozilla {\n"
@@ -753,7 +736,7 @@ def writeStubFile(filename, config, interfaces):
                 "Register(nsScriptNameSpaceManager* aNameSpaceManager)\n"
                 "{\n"
                 "#define REGISTER_PROTO(_dom_class) \\\n"
-                "    aNameSpaceManager->RegisterDefineDOMInterface(NS_LITERAL_STRING(#_dom_class), _dom_class##Wrapper::DefineDOMInterface, nullptr);\n\n"""
+                "    aNameSpaceManager->RegisterDefineDOMInterface(NS_LITERAL_STRING(#_dom_class), _dom_class##Wrapper::DefineDOMInterface);\n\n"""
                 "\n")
         for clazz in config.list_classes.itervalues():
             f.write("    REGISTER_PROTO(%s);\n" % clazz.name)

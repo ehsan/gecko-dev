@@ -312,7 +312,7 @@ nsXULContentUtils::MakeElementURI(nsIDocument* aDocument,
     rv = docURI->GetSpec(aURI);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsAutoCString ref;
+    nsCAutoString ref;
     NS_EscapeURL(NS_ConvertUTF16toUTF8(aElementID), esc_FilePath | esc_AlwaysCopy, ref);
 
     aURI.Append('#');
@@ -353,7 +353,7 @@ nsXULContentUtils::MakeElementID(nsIDocument* aDocument,
                             aDocument->GetDocumentCharacterSet().get());
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsAutoCString ref;
+    nsCAutoString ref;
     uri->GetRef(ref);
     CopyUTF8toUTF16(ref, aElementID);
 

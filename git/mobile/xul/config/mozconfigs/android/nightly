@@ -1,13 +1,8 @@
-. "$topsrcdir/mobile/xul/config/mozconfigs/android/common"
-
 # Global options
 mk_add_options MOZ_MAKE_FLAGS="-j4"
 
-# Nightlies only since this has a cost in performance
-ac_add_options --enable-js-diagnostics
-
 # Build Fennec
-ac_add_options --enable-application=mobile
+ac_add_options --enable-application=mobile/xul
 
 # Android
 ac_add_options --target=arm-linux-androideabi
@@ -25,5 +20,3 @@ ac_add_options --with-branding=mobile/xul/branding/beta
 
 # Treat warnings as errors in directories with FAIL_ON_WARNINGS.
 ac_add_options --enable-warnings-as-errors
-
-. "$topsrcdir/mobile/xul/config/mozconfigs/android/common.override"

@@ -18,6 +18,7 @@
 #include "mozilla/dom/BindingUtils.h"
 
 #include "jsapi.h"
+#include "jsatom.h"
 
 using namespace JS;
 
@@ -97,10 +98,7 @@ DOMProxyHandler::getPropertyDescriptor(JSContext* cx, JSObject* proxy, jsid id, 
     return true;
   }
 
-  JSObject* proto;
-  if (!js::GetObjectProto(cx, proxy, &proto)) {
-    return false;
-  }
+  JSObject* proto = js::GetObjectProto(proxy);
   if (!proto) {
     desc->obj = NULL;
     return true;
@@ -154,10 +152,7 @@ DOMProxyHandler::delete_(JSContext* cx, JSObject* proxy, jsid id, bool* bp)
 bool
 DOMProxyHandler::enumerate(JSContext* cx, JSObject* proxy, AutoIdVector& props)
 {
-  JSObject* proto;
-  if (!JS_GetPrototype(cx, proxy, &proto)) {
-    return false;
-  }
+  JSObject* proto = JS_GetPrototype(proxy);
   return getOwnPropertyNames(cx, proxy, props) &&
          (!proto || js::GetPropertyNames(cx, proto, 0, &props));
 }
@@ -183,10 +178,7 @@ DOMProxyHandler::has(JSContext* cx, JSObject* proxy, jsid id, bool* bp)
   }
 
   // OK, now we have to look at the proto
-  JSObject *proto;
-  if (!js::GetObjectProto(cx, proxy, &proto)) {
-    return false;
-  }
+  JSObject *proto = js::GetObjectProto(proxy);
   if (!proto) {
     return true;
   }

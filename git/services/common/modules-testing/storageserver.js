@@ -10,7 +10,7 @@
 
 const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 
-this.EXPORTED_SYMBOLS = [
+const EXPORTED_SYMBOLS = [
   "ServerBSO",
   "StorageServerCallback",
   "StorageServerCollection",
@@ -65,7 +65,7 @@ function sendMozSvcError(request, response, code) {
  *        (number) Milliseconds since UNIX epoch that the BSO was last
  *        modified. If not defined or null, the current time will be used.
  */
-this.ServerBSO = function ServerBSO(id, payload, modified) {
+function ServerBSO(id, payload, modified) {
   if (!id) {
     throw new Error("No ID for ServerBSO!");
   }
@@ -273,8 +273,7 @@ ServerBSO.prototype = {
  *        An optional timestamp value to initialize the modified time of the
  *        collection. This should be in the format returned by new_timestamp().
  */
-this.StorageServerCollection =
- function StorageServerCollection(bsos, acceptNew, timestamp=new_timestamp()) {
+function StorageServerCollection(bsos, acceptNew, timestamp=new_timestamp()) {
   this._bsos = bsos || {};
   this.acceptNew = acceptNew || false;
 
@@ -847,7 +846,7 @@ StorageServerCollection.prototype = {
  * find out what it needs without monkeypatching. Use this object as your
  * prototype, and override as appropriate.
  */
-this.StorageServerCallback = {
+let StorageServerCallback = {
   onCollectionDeleted: function onCollectionDeleted(user, collection) {},
   onItemDeleted: function onItemDeleted(user, collection, bsoID) {},
 
@@ -864,7 +863,7 @@ this.StorageServerCallback = {
  * Construct a new test Storage server. Takes a callback object (e.g.,
  * StorageServerCallback) as input.
  */
-this.StorageServer = function StorageServer(callback) {
+function StorageServer(callback) {
   this.callback     = callback || {__proto__: StorageServerCallback};
   this.server       = new HttpServer();
   this.started      = false;
@@ -1643,8 +1642,7 @@ StorageServer.prototype = {
  *
  * Each user is specified by a map of username to password.
  */
-this.storageServerForUsers =
- function storageServerForUsers(users, contents, callback) {
+function storageServerForUsers(users, contents, callback) {
   let server = new StorageServer(callback);
   for (let [user, pass] in Iterator(users)) {
     server.registerUser(user, pass);

@@ -5,6 +5,7 @@
 
 
 #include "mozilla/Assertions.h"
+#include "mozilla/FunctionTimer.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Selection.h"
 #include "mozilla/dom/Element.h"
@@ -117,14 +118,12 @@ NS_IMETHODIMP nsPlaintextEditor::Init(nsIDOMDocument *aDoc,
                                       nsISelectionController *aSelCon,
                                       uint32_t aFlags)
 {
+  NS_TIME_FUNCTION;
+
   NS_PRECONDITION(aDoc, "bad arg");
   NS_ENSURE_TRUE(aDoc, NS_ERROR_NULL_POINTER);
   
   nsresult res = NS_OK, rulesRes = NS_OK;
-  if (mRules) {
-    mRules->DetachEditor();
-    mRules = nullptr;
-  }
   
   if (1)
   {
@@ -315,7 +314,6 @@ nsPlaintextEditor::UpdateMetaCharset(nsIDOMDocument* aDocument,
 
 NS_IMETHODIMP nsPlaintextEditor::InitRules()
 {
-  MOZ_ASSERT(!mRules);
   // instantiate the rules for this text editor
   mRules = new nsTextEditRules();
   return mRules->Init(this);
@@ -1199,7 +1197,7 @@ nsPlaintextEditor::GetAndInitDocEncoder(const nsAString& aFormatType,
 {
   nsresult rv = NS_OK;
 
-  nsAutoCString formatType(NS_DOC_ENCODER_CONTRACTID_BASE);
+  nsCAutoString formatType(NS_DOC_ENCODER_CONTRACTID_BASE);
   LossyAppendUTF16toASCII(aFormatType, formatType);
   nsCOMPtr<nsIDocumentEncoder> docEncoder (do_CreateInstance(formatType.get(), &rv));
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1272,7 +1270,7 @@ nsPlaintextEditor::OutputToString(const nsAString& aFormatType,
     return rv;
   }
 
-  nsAutoCString charsetStr;
+  nsCAutoString charsetStr;
   rv = GetDocumentCharacterSet(charsetStr);
   if(NS_FAILED(rv) || charsetStr.IsEmpty())
     charsetStr.AssignLiteral("ISO-8859-1");

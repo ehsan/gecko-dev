@@ -1,10 +1,6 @@
-/* (C) COPYRIGHT 1994-2012 IETF Trust, Xiph.Org Foundation. All rights reserved */
+/* (C) COPYRIGHT 1994-2002 Xiph.Org Foundation */
 /* Modified by Jean-Marc Valin */
 /*
-
-   This file is extracted from RFC6716. Please see that RFC for additional
-   information.
-
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions
    are met:
@@ -33,7 +29,7 @@
    NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-/* opus_types.h based on ogg_types.h from libogg */
+/* opus_types.h taken from libogg */
 
 /**
    @file opus_types.h

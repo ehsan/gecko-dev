@@ -620,7 +620,6 @@ nsBidiPresUtils::Resolve(nsBlockFrame* aBlockFrame)
   BidiParagraphData* subParagraph = bpd.GetSubParagraph();
   if (subParagraph->BufferLength()) {
     ResolveParagraph(aBlockFrame, subParagraph);
-    subParagraph->EmptyBuffer();
   }
   return ResolveParagraph(aBlockFrame, &bpd);
 }

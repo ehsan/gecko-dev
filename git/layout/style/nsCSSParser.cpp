@@ -791,8 +791,6 @@ CSSParserImpl::SetStyleSheet(nsCSSStyleSheet* aSheet)
     } else {
       mNameSpaceMap = nullptr;
     }
-  } else if (mSheet) {
-    mNameSpaceMap = mSheet->GetNameSpaceMap();
   }
 
   return NS_OK;
@@ -5245,7 +5243,7 @@ CSSParserImpl::ParseColorStop(nsCSSValueGradient* aGradient)
 
   // Stop positions do not have to fall between the starting-point and
   // ending-point, so we don't use ParseNonNegativeVariant.
-  if (!ParseVariant(stop->mLocation, VARIANT_LP | VARIANT_CALC, nullptr)) {
+  if (!ParseVariant(stop->mLocation, VARIANT_LP, nullptr)) {
     stop->mLocation.SetNoneValue();
   }
   return true;
@@ -6439,7 +6437,7 @@ CSSParserImpl::ParseBackgroundItem(CSSParserImpl::BackgroundParseState& aState)
          haveImage = false,
          haveRepeat = false,
          haveAttach = false,
-         havePositionAndSize = false,
+         havePosition = false,
          haveOrigin = false,
          haveSomething = false;
 
@@ -6491,19 +6489,11 @@ CSSParserImpl::ParseBackgroundItem(CSSParserImpl::BackgroundParseState& aState)
         aState.mRepeat->mYValue = scratch.mYValue;
       } else if (nsCSSProps::FindKeyword(keyword,
                    nsCSSProps::kBackgroundPositionKTable, dummy)) {
-        if (havePositionAndSize)
+        if (havePosition)
           return false;
-        havePositionAndSize = true;
+        havePosition = true;
         if (!ParseBackgroundPositionValues(aState.mPosition->mValue, false)) {
           return false;
-        }
-        if (ExpectSymbol('/', true)) {
-          nsCSSValuePair scratch;
-          if (!ParseBackgroundSizeValues(scratch)) {
-            return false;
-          }
-          aState.mSize->mXValue = scratch.mXValue;
-          aState.mSize->mYValue = scratch.mYValue;
         }
       } else if (nsCSSProps::FindKeyword(keyword,
                    nsCSSProps::kBackgroundOriginKTable, dummy)) {
@@ -6558,19 +6548,11 @@ CSSParserImpl::ParseBackgroundItem(CSSParserImpl::BackgroundParseState& aState)
                (tt == eCSSToken_Function &&
                 (mToken.mIdent.LowerCaseEqualsLiteral("calc") ||
                  mToken.mIdent.LowerCaseEqualsLiteral("-moz-calc")))) {
-      if (havePositionAndSize)
+      if (havePosition)
         return false;
-      havePositionAndSize = true;
+      havePosition = true;
       if (!ParseBackgroundPositionValues(aState.mPosition->mValue, false)) {
         return false;
-      }
-      if (ExpectSymbol('/', true)) {
-        nsCSSValuePair scratch;
-        if (!ParseBackgroundSizeValues(scratch)) {
-          return false;
-        }
-        aState.mSize->mXValue = scratch.mXValue;
-        aState.mSize->mYValue = scratch.mYValue;
       }
     } else {
       if (haveColor)
@@ -8644,9 +8626,8 @@ bool CSSParserImpl::ParseTransformOrigin(bool aPerspective)
       value.SetPairValue(position.mXValue, position.mYValue);
     } else {
       nsCSSValue depth;
-      if (!nsLayoutUtils::Are3DTransformsEnabled() ||
-          // only try parsing if 3-D transforms are enabled
-          !ParseVariant(depth, VARIANT_LENGTH | VARIANT_CALC, nullptr)) {
+      if (!ParseVariant(depth, VARIANT_LENGTH | VARIANT_CALC, nullptr) ||
+          !nsLayoutUtils::Are3DTransformsEnabled()) {
         depth.SetFloatValue(0.0f, eCSSUnit_Pixel);
       }
       value.SetTripletValue(position.mXValue, position.mYValue, depth);
@@ -9849,21 +9830,16 @@ bool
 CSSParserImpl::ParsePaint(nsCSSProperty aPropID)
 {
   nsCSSValue x, y;
-  if (!ParseVariant(x, VARIANT_HCK | VARIANT_NONE | VARIANT_URL,
-                    nsCSSProps::kObjectPatternKTable)) {
+  if (!ParseVariant(x, VARIANT_HC | VARIANT_NONE | VARIANT_URL, nullptr))
     return false;
-  }
-
-  bool canHaveFallback = x.GetUnit() == eCSSUnit_URL ||
-                         x.GetUnit() == eCSSUnit_Enumerated;
-  if (canHaveFallback) {
+  if (x.GetUnit() == eCSSUnit_URL) {
     if (!ParseVariant(y, VARIANT_COLOR | VARIANT_NONE, nullptr))
       y.SetNoneValue();
   }
   if (!ExpectEndProperty())
     return false;
 
-  if (!canHaveFallback) {
+  if (x.GetUnit() != eCSSUnit_URL) {
     AppendValue(aPropID, x);
   } else {
     nsCSSValue val;
@@ -9877,8 +9853,7 @@ bool
 CSSParserImpl::ParseDasharray()
 {
   nsCSSValue value;
-  if (ParseVariant(value, VARIANT_HK | VARIANT_NONE,
-                   nsCSSProps::kStrokeObjectValueKTable)) {
+  if (ParseVariant(value, VARIANT_INHERIT | VARIANT_NONE, nullptr)) {
     // 'inherit', 'initial', and 'none' are only allowed on their own
     if (!ExpectEndProperty()) {
       return false;

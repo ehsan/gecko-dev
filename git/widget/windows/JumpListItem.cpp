@@ -15,6 +15,7 @@
 #include "nsNetCID.h"
 #include "nsCExternalHandlerService.h"
 #include "nsCycleCollectionParticipant.h"
+#include "mozIAsyncFavicons.h"
 #include "mozilla/Preferences.h"
 #include "JumpListBuilder.h"
 #include "WinUtils.h"
@@ -134,7 +135,7 @@ NS_IMETHODIMP JumpListLink::CompareHash(nsIURI *aUri, bool *aResult)
 
   NS_ENSURE_ARG_POINTER(aUri);
 
-  nsAutoCString hash1, hash2;
+  nsCAutoString hash1, hash2;
 
   rv = mozilla::widget::FaviconHelper::HashURI(mCryptoHash, mURI, hash1);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -565,7 +566,7 @@ nsresult JumpListLink::GetShellItem(nsCOMPtr<nsIJumpListItem>& item, nsRefPtr<IS
   rv = link->GetUri(getter_AddRefs(uri));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString spec;
+  nsCAutoString spec;
   rv = uri->GetSpec(spec);
   NS_ENSURE_SUCCESS(rv, rv);
 
