@@ -932,10 +932,6 @@ richlistitem[selected="true"][current="true"] > hbox > .ac-result-type-bookmark,
   height: 16px;
 }
 
-.ac-comment {
-  font-size: 1.1em;
-}
-
 .ac-extra > .ac-comment {
   font-size: inherit;
 }
@@ -943,7 +939,7 @@ richlistitem[selected="true"][current="true"] > hbox > .ac-result-type-bookmark,
 .ac-url-text,
 .ac-action-text {
   color: -moz-nativehyperlinktext;
-  font-size: 0.95em;
+  font: message-box;
 }
 
 richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-icon {
@@ -1331,13 +1327,11 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   @hudButtonPressed@
 }
 
-#editBookmarkPanel .expander-up,
-#editBookmarkPanel .expander-down:hover:active {
+#editBookmarkPanel .expander-up {
   list-style-image: url("chrome://browser/skin/hud-style-expander-open.png");
 }
 
-#editBookmarkPanel .expander-down,
-#editBookmarkPanel .expander-up:hover:active {
+#editBookmarkPanel .expander-down {
   list-style-image: url("chrome://browser/skin/hud-style-expander-closed.png");
 }
 
