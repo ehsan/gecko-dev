@@ -17,15 +17,15 @@
 #include "nsServiceManagerUtils.h"
 #include "DictionaryHelpers.h"
 
-nsCOMArray<nsIDOMMutationObserver>*
+nsCOMArray<nsIDOMMozMutationObserver>*
   nsDOMMutationObserver::sScheduledMutationObservers = nsnull;
 
-nsIDOMMutationObserver* nsDOMMutationObserver::sCurrentObserver = nsnull;
+nsIDOMMozMutationObserver* nsDOMMutationObserver::sCurrentObserver = nsnull;
 
 PRUint32 nsDOMMutationObserver::sMutationLevel = 0;
 PRUint64 nsDOMMutationObserver::sCount = 0;
 
-nsAutoTArray<nsCOMArray<nsIDOMMutationObserver>, 4>*
+nsAutoTArray<nsCOMArray<nsIDOMMozMutationObserver>, 4>*
 nsDOMMutationObserver::sCurrentlyHandlingObservers = nsnull;
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMMutationRecord)
@@ -162,7 +162,7 @@ nsMutationReceiver::Disconnect(bool aRemoveFromObserver)
   mParent = nsnull;
   nsINode* target = mTarget;
   mTarget = nsnull;
-  nsIDOMMutationObserver* observer = mObserver;
+  nsIDOMMozMutationObserver* observer = mObserver;
   mObserver = nsnull;
   RemoveClones();
 
@@ -395,13 +395,13 @@ void nsMutationReceiver::NodeWillBeDestroyed(const nsINode *aNode)
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMMutationObserver)
 
-DOMCI_DATA(MutationObserver, nsDOMMutationObserver)
+DOMCI_DATA(MozMutationObserver, nsDOMMutationObserver)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMMutationObserver)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMMutationObserver)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMMutationObserver)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMMozMutationObserver)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMMozMutationObserver)
   NS_INTERFACE_MAP_ENTRY(nsIJSNativeInitializer)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(MutationObserver)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(MozMutationObserver)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMMutationObserver)
@@ -506,7 +506,7 @@ void
 nsDOMMutationObserver::RescheduleForRun()
 {
   if (!sScheduledMutationObservers) {
-    sScheduledMutationObservers = new nsCOMArray<nsIDOMMutationObserver>;
+    sScheduledMutationObservers = new nsCOMArray<nsIDOMMozMutationObserver>;
   }
 
   bool didInsert = false;
@@ -705,10 +705,10 @@ nsDOMMutationObserver::HandleMutationsInternal()
     return;
   }
 
-  nsCOMArray<nsIDOMMutationObserver>* suppressedObservers = nsnull;
+  nsCOMArray<nsIDOMMozMutationObserver>* suppressedObservers = nsnull;
 
   while (sScheduledMutationObservers) {
-    nsCOMArray<nsIDOMMutationObserver>* observers = sScheduledMutationObservers;
+    nsCOMArray<nsIDOMMozMutationObserver>* observers = sScheduledMutationObservers;
     sScheduledMutationObservers = nsnull;
     for (PRInt32 i = 0; i < observers->Count(); ++i) {
       sCurrentObserver = static_cast<nsDOMMutationObserver*>((*observers)[i]);
@@ -716,7 +716,7 @@ nsDOMMutationObserver::HandleMutationsInternal()
         sCurrentObserver->HandleMutation();
       } else {
         if (!suppressedObservers) {
-          suppressedObservers = new nsCOMArray<nsIDOMMutationObserver>;
+          suppressedObservers = new nsCOMArray<nsIDOMMozMutationObserver>;
         }
         if (suppressedObservers->IndexOf(sCurrentObserver) < 0) {
           suppressedObservers->AppendObject(sCurrentObserver);
@@ -782,7 +782,7 @@ nsDOMMutationObserver::LeaveMutationHandling()
 {
   if (sCurrentlyHandlingObservers &&
       sCurrentlyHandlingObservers->Length() == sMutationLevel) {
-    nsCOMArray<nsIDOMMutationObserver>& obs =
+    nsCOMArray<nsIDOMMozMutationObserver>& obs =
       sCurrentlyHandlingObservers->ElementAt(sMutationLevel - 1);
     for (PRInt32 i = 0; i < obs.Count(); ++i) {
       nsDOMMutationObserver* o =
@@ -804,7 +804,7 @@ nsDOMMutationObserver::AddCurrentlyHandlingObserver(nsDOMMutationObserver* aObse
 
   if (!sCurrentlyHandlingObservers) {
     sCurrentlyHandlingObservers =
-      new nsAutoTArray<nsCOMArray<nsIDOMMutationObserver>, 4>;
+      new nsAutoTArray<nsCOMArray<nsIDOMMozMutationObserver>, 4>;
   }
 
   while (sCurrentlyHandlingObservers->Length() < sMutationLevel) {

@@ -36,15 +36,6 @@ public:
 
   static nsXREDirProvider* GetSingleton();
 
-  nsresult GetUserProfilesRootDir(nsIFile** aResult,
-                                  const nsACString* aProfileName,
-                                  const nsACString* aAppName,
-                                  const nsACString* aVendorName);
-  nsresult GetUserProfilesLocalDir(nsIFile** aResult,
-                                   const nsACString* aProfileName,
-                                   const nsACString* aAppName,
-                                   const nsACString* aVendorName);
-
   // We only set the profile dir, we don't ensure that it exists;
   // that is the responsibility of the toolkit profile service.
   // We also don't fire profile-changed notifications... that is
@@ -56,18 +47,11 @@ public:
   nsresult GetProfileDefaultsDir(nsIFile* *aResult);
 
   static nsresult GetUserAppDataDirectory(nsILocalFile* *aFile) {
-    return GetUserDataDirectory(aFile, false, nsnull, nsnull, nsnull);
+    return GetUserDataDirectory(aFile, false);
   }
   static nsresult GetUserLocalDataDirectory(nsILocalFile* *aFile) {
-    return GetUserDataDirectory(aFile, true, nsnull, nsnull, nsnull);
+    return GetUserDataDirectory(aFile, true);
   }
-
-  // By default GetUserDataDirectory gets profile path from gAppData,
-  // but that can be overridden by using aProfileName/aAppName/aVendorName.
-  static nsresult GetUserDataDirectory(nsILocalFile** aFile, bool aLocal,
-                                       const nsACString* aProfileName,
-                                       const nsACString* aAppName,
-                                       const nsACString* aVendorName);
 
   /* make sure you clone it, if you need to do stuff to it */
   nsIFile* GetGREDir() { return mGREDir; }
@@ -100,6 +84,7 @@ public:
 
 protected:
   nsresult GetFilesInternal(const char* aProperty, nsISimpleEnumerator** aResult);
+  static nsresult GetUserDataDirectory(nsILocalFile* *aFile, bool aLocal);
   static nsresult GetUserDataDirectoryHome(nsILocalFile* *aFile, bool aLocal);
   static nsresult GetSysUserExtensionsDirectory(nsILocalFile* *aFile);
 #if defined(XP_UNIX) || defined(XP_MACOSX)
@@ -110,10 +95,7 @@ protected:
 
   // Determine the profile path within the UAppData directory. This is different
   // on every major platform.
-  static nsresult AppendProfilePath(nsIFile* aFile,
-                                    const nsACString* aProfileName,
-                                    const nsACString* aAppName,
-                                    const nsACString* aVendorName);
+  static nsresult AppendProfilePath(nsIFile* aFile);
 
   static nsresult AppendSysUserExtensionPath(nsIFile* aFile);
 
