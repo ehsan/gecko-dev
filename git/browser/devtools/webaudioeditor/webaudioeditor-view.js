@@ -269,21 +269,12 @@ let WebAudioParamView = {
     let ownerScope = variable.ownerView;
     let node = getViewNodeById(ownerScope.actorID);
     let propName = variable.name;
-    let error;
-
-    // Cast value to proper type
-    try {
-      value = JSON.parse(value);
-      error = yield node.actor.setParam(propName, value);
-    }
-    catch (e) {
-      error = e;
-    }
+    let errorMessage = yield node.actor.setParam(propName, value);
 
     // TODO figure out how to handle and display set param errors
     // and enable `test/brorwser_wa_params_view_edit_error.js`
     // Bug 994258
-    if (!error) {
+    if (!errorMessage) {
       ownerScope.get(propName).setGrip(value);
       window.emit(EVENTS.UI_SET_PARAM, node.id, propName, value);
     } else {

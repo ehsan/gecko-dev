@@ -211,7 +211,7 @@ function waitForGraphRendered (front, nodeCount, edgeCount) {
   return deferred.promise;
 }
 
-function checkVariableView (view, index, hash, description = "") {
+function checkVariableView (view, index, hash) {
   let scope = view.getScopeAtIndex(index);
   let variables = Object.keys(hash);
   variables.forEach(variable => {
@@ -219,7 +219,7 @@ function checkVariableView (view, index, hash, description = "") {
     is(aVar.target.querySelector(".name").getAttribute("value"), variable,
       "Correct property name for " + variable);
     is(aVar.target.querySelector(".value").getAttribute("value"), hash[variable],
-      "Correct property value of " + hash[variable] + " for " + variable + " " + description);
+      "Correct property value of " + hash[variable] + " for " + variable);
   });
 }
 

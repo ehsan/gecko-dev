@@ -3021,11 +3021,7 @@ XREMain::XRE_mainInit(bool* aExitFlag)
   if ((mAppData->flags & NS_XRE_ENABLE_CRASH_REPORTER) &&
       NS_SUCCEEDED(
          CrashReporter::SetExceptionHandler(mAppData->xreDirectory))) {
-    nsCOMPtr<nsIFile> file;
-    rv = mDirProvider.GetUserAppDataDirectory(getter_AddRefs(file));
-    if (NS_SUCCEEDED(rv)) {
-      CrashReporter::SetUserAppDataDirectory(file);
-    }
+    CrashReporter::UpdateCrashEventsDir();
     if (mAppData->crashReporterURL)
       CrashReporter::SetServerURL(nsDependentCString(mAppData->crashReporterURL));
 
@@ -3680,7 +3676,7 @@ XREMain::XRE_mainStartup(bool* aExitFlag)
   if (mAppData->flags & NS_XRE_ENABLE_CRASH_REPORTER)
       MakeOrSetMinidumpPath(mProfD);
 
-  CrashReporter::SetProfileDirectory(mProfD);
+  CrashReporter::UpdateCrashEventsDir();
 #endif
 
   nsAutoCString version;
