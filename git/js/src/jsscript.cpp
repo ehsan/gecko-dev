@@ -380,7 +380,8 @@ FindBlockIndex(JSScript *script, StaticBlockObject &block)
             return i;
     }
 
-    MOZ_ASSUME_UNREACHABLE("Block not found");
+    JS_NOT_REACHED("Block not found");
+    return UINT32_MAX;
 }
 
 template<XDRMode mode>

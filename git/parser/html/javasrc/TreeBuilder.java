@@ -448,8 +448,6 @@ public abstract class TreeBuilder<T> implements TokenHandler,
 
     private boolean quirks = false;
 
-    private boolean isSrcdocDocument = false;
-
     // [NOCPP[
 
     private boolean reportingDoctype = true;
@@ -4160,21 +4158,6 @@ public abstract class TreeBuilder<T> implements TokenHandler,
     private void documentModeInternal(DocumentMode m, String publicIdentifier,
             String systemIdentifier, boolean html4SpecificAdditionalErrorChecks)
             throws SAXException {
-
-        if (isSrcdocDocument) {
-            // Srcdoc documents are always rendered in standards mode.
-            quirks = false;
-            if (documentModeHandler != null) {
-                documentModeHandler.documentMode(
-                        DocumentMode.STANDARDS_MODE
-                        // [NOCPP[
-                        , null, null, false
-                // ]NOCPP]
-                );
-            }
-            return;
-        }
-
         quirks = (m == DocumentMode.QUIRKS_MODE);
         if (documentModeHandler != null) {
             documentModeHandler.documentMode(
@@ -5548,10 +5531,6 @@ public abstract class TreeBuilder<T> implements TokenHandler,
         this.scriptingEnabled = scriptingEnabled;
     }
 
-    public void setIsSrcdocDocument(boolean isSrcdocDocument) {
-        this.isSrcdocDocument = isSrcdocDocument;
-    }
-
     // [NOCPP[
 
     /**
@@ -5972,15 +5951,11 @@ public abstract class TreeBuilder<T> implements TokenHandler,
     }
 
     private void errAlmostStandardsDoctype() throws SAXException {
-        if (!isSrcdocDocument) {
-            err("Almost standards mode doctype. Expected \u201C<!DOCTYPE html>\u201D.");
-        }
+        err("Almost standards mode doctype. Expected \u201C<!DOCTYPE html>\u201D.");
     }
 
     private void errQuirkyDoctype() throws SAXException {
-        if (!isSrcdocDocument) {
-            err("Quirky doctype. Expected \u201C<!DOCTYPE html>\u201D.");
-        }
+        err("Quirky doctype. Expected \u201C<!DOCTYPE html>\u201D.");
     }
 
     private void errNonSpaceInTrailer() throws SAXException {
@@ -6015,9 +5990,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
     }
 
     private void errStartTagWithoutDoctype() throws SAXException {
-        if (!isSrcdocDocument) {
-            err("Start tag seen without seeing a doctype first. Expected \u201C<!DOCTYPE html>\u201D.");
-        }
+        err("Start tag seen without seeing a doctype first. Expected \u201C<!DOCTYPE html>\u201D.");
     }
 
     private void errNoSelectInTableScope() throws SAXException {
@@ -6096,9 +6069,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
     }
 
     private void errEndTagSeenWithoutDoctype() throws SAXException {
-        if (!isSrcdocDocument) {
-            err("End tag seen without seeing a doctype first. Expected \u201C<!DOCTYPE html>\u201D.");
-        }
+        err("End tag seen without seeing a doctype first. Expected \u201C<!DOCTYPE html>\u201D.");
     }
 
     private void errEndTagAfterBody() throws SAXException {

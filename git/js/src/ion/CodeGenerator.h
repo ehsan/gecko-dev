@@ -65,7 +65,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitOsrScopeChain(LOsrScopeChain *lir);
     bool visitStackArgT(LStackArgT *lir);
     bool visitStackArgV(LStackArgV *lir);
-    bool visitMoveGroup(LMoveGroup *group);
     bool visitValueToInt32(LValueToInt32 *lir);
     bool visitValueToDouble(LValueToDouble *lir);
     bool visitInt32ToDouble(LInt32ToDouble *lir);

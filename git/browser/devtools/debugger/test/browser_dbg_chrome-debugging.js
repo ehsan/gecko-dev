@@ -8,7 +8,7 @@
 
 var gClient = null;
 var gTab = null;
-var gMozillaTab = null;
+var gHomeTab = null;
 var gThreadClient = null;
 var gNewGlobal = false;
 var gAttached = false;
@@ -35,7 +35,7 @@ function test()
           gAttached = true;
 
           // Ensure that a new global will be created.
-          gMozillaTab = gBrowser.addTab("about:mozilla");
+          gHomeTab = gBrowser.addTab("about:home");
 
           finish_test();
         });
@@ -57,7 +57,7 @@ function finish_test()
   }
   gClient.removeListener("newSource", onNewSource);
   gThreadClient.resume(function(aResponse) {
-    removeTab(gMozillaTab);
+    removeTab(gHomeTab);
     removeTab(gTab);
     gClient.close(function() {
       ok(gNewGlobal, "Received newGlobal event.");

@@ -587,9 +587,10 @@ nsIMEStateManager::NotifyIME(NotificationToIME aNotification,
       case REQUEST_TO_CANCEL_COMPOSITION:
         return composition ? aWidget->NotifyIME(aNotification) : NS_OK;
       default:
-        MOZ_CRASH("Unsupported notification");
+        MOZ_NOT_REACHED("Unsupported notification");
+        return NS_ERROR_INVALID_ARG;
     }
-    MOZ_CRASH(
+    MOZ_NOT_REACHED(
       "Failed to handle the notification for non-synthesized composition");
   }
 
@@ -1048,7 +1049,8 @@ nsIMEStateManager::IsEditableIMEState(nsIWidget* aWidget)
     case widget::IMEState::DISABLED:
       return false;
     default:
-      MOZ_CRASH("Unknown IME enable state");
+      MOZ_NOT_REACHED("Unknown IME enable state");
+      return false;
   }
 }
 

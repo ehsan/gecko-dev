@@ -57,7 +57,8 @@ FrameSizeClass::ClassLimit()
 uint32_t
 FrameSizeClass::frameSize() const
 {
-    MOZ_ASSUME_UNREACHABLE("x64 does not use frame size classes");
+    JS_NOT_REACHED("x64 does not use frame size classes");
+    return 0;
 }
 
 bool
@@ -117,7 +118,8 @@ CodeGeneratorX64::visitUnbox(LUnbox *unbox)
             cond = masm.testString(Assembler::NotEqual, value);
             break;
           default:
-            MOZ_ASSUME_UNREACHABLE("Given MIRType cannot be unboxed.");
+            JS_NOT_REACHED("Given MIRType cannot be unboxed.");
+            return false;
         }
         if (!bailoutIf(cond, unbox->snapshot()))
             return false;
@@ -137,7 +139,8 @@ CodeGeneratorX64::visitUnbox(LUnbox *unbox)
         masm.unboxString(value, ToRegister(result));
         break;
       default:
-        MOZ_ASSUME_UNREACHABLE("Given MIRType cannot be unboxed.");
+        JS_NOT_REACHED("Given MIRType cannot be unboxed.");
+        break;
     }
 
     return true;
@@ -173,7 +176,7 @@ CodeGeneratorX64::loadUnboxedValue(Operand source, MIRType type, const LDefiniti
         break;
 
       default:
-        MOZ_ASSUME_UNREACHABLE("unexpected type");
+        JS_NOT_REACHED("unexpected type");
     }
 }
 
@@ -386,13 +389,15 @@ CodeGeneratorX64::visitUInt32ToDouble(LUInt32ToDouble *lir)
 bool
 CodeGeneratorX64::visitLoadTypedArrayElementStatic(LLoadTypedArrayElementStatic *ins)
 {
-    MOZ_ASSUME_UNREACHABLE("NYI");
+    JS_NOT_REACHED("NYI");
+    return true;
 }
 
 bool
 CodeGeneratorX64::visitStoreTypedArrayElementStatic(LStoreTypedArrayElementStatic *ins)
 {
-    MOZ_ASSUME_UNREACHABLE("NYI");
+    JS_NOT_REACHED("NYI");
+    return true;
 }
 
 bool
@@ -414,14 +419,14 @@ CodeGeneratorX64::visitAsmJSLoadHeap(LAsmJSLoadHeap *ins)
 
     uint32_t before = masm.size();
     switch (vt) {
-      case ArrayBufferView::TYPE_INT8:    masm.movsbl(srcAddr, ToRegister(ins->output())); break;
+      case ArrayBufferView::TYPE_INT8:    masm.movxbl(srcAddr, ToRegister(ins->output())); break;
       case ArrayBufferView::TYPE_UINT8:   masm.movzbl(srcAddr, ToRegister(ins->output())); break;
-      case ArrayBufferView::TYPE_INT16:   masm.movswl(srcAddr, ToRegister(ins->output())); break;
+      case ArrayBufferView::TYPE_INT16:   masm.movxwl(srcAddr, ToRegister(ins->output())); break;
       case ArrayBufferView::TYPE_UINT16:  masm.movzwl(srcAddr, ToRegister(ins->output())); break;
       case ArrayBufferView::TYPE_INT32:   masm.movl(srcAddr, ToRegister(ins->output())); break;
       case ArrayBufferView::TYPE_UINT32:  masm.movl(srcAddr, ToRegister(ins->output())); break;
       case ArrayBufferView::TYPE_FLOAT64: masm.movsd(srcAddr, ToFloatRegister(ins->output())); break;
-      default: MOZ_ASSUME_UNREACHABLE("unexpected array type");
+      default: JS_NOT_REACHED("unexpected array type");
     }
     uint32_t after = masm.size();
     return gen->noteHeapAccess(AsmJSHeapAccess(before, after, vt, ToAnyRegister(ins->output())));
@@ -452,7 +457,7 @@ CodeGeneratorX64::visitAsmJSStoreHeap(LAsmJSStoreHeap *ins)
           case ArrayBufferView::TYPE_UINT16:  masm.movw(Imm32(ToInt32(ins->value())), dstAddr); break;
           case ArrayBufferView::TYPE_INT32:   masm.movl(Imm32(ToInt32(ins->value())), dstAddr); break;
           case ArrayBufferView::TYPE_UINT32:  masm.movl(Imm32(ToInt32(ins->value())), dstAddr); break;
-          default: MOZ_ASSUME_UNREACHABLE("unexpected array type");
+          default: JS_NOT_REACHED("unexpected array type");
         }
     } else {
         switch (vt) {
@@ -463,7 +468,7 @@ CodeGeneratorX64::visitAsmJSStoreHeap(LAsmJSStoreHeap *ins)
           case ArrayBufferView::TYPE_INT32:   masm.movl(ToRegister(ins->value()), dstAddr); break;
           case ArrayBufferView::TYPE_UINT32:  masm.movl(ToRegister(ins->value()), dstAddr); break;
           case ArrayBufferView::TYPE_FLOAT64: masm.movsd(ToFloatRegister(ins->value()), dstAddr); break;
-          default: MOZ_ASSUME_UNREACHABLE("unexpected array type");
+          default: JS_NOT_REACHED("unexpected array type");
         }
     }
     uint32_t after = masm.size();

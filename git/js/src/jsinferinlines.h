@@ -113,7 +113,8 @@ CompilerOutput::ion() const
       case ParallelIon: return script->parallelIonScript();
     }
 #endif
-    MOZ_ASSUME_UNREACHABLE("Invalid kind of CompilerOutput");
+    JS_NOT_REACHED("Invalid kind of CompilerOutput");
+    return NULL;
 }
 
 inline bool
@@ -222,7 +223,8 @@ PrimitiveTypeFlag(JSValueType type)
       case JSVAL_TYPE_MAGIC:
         return TYPE_FLAG_LAZYARGS;
       default:
-        MOZ_ASSUME_UNREACHABLE("Bad type");
+        JS_NOT_REACHED("Bad type");
+        return 0;
     }
 }
 
@@ -245,7 +247,8 @@ TypeFlagPrimitive(TypeFlags flags)
       case TYPE_FLAG_LAZYARGS:
         return JSVAL_TYPE_MAGIC;
       default:
-        MOZ_ASSUME_UNREACHABLE("Bad type");
+        JS_NOT_REACHED("Bad type");
+        return (JSValueType) 0;
     }
 }
 
@@ -495,7 +498,8 @@ GetClassForProtoKey(JSProtoKey key)
         return &ParallelArrayObject::class_;
 
       default:
-        MOZ_ASSUME_UNREACHABLE("Bad proto key");
+        JS_NOT_REACHED("Bad proto key");
+        return NULL;
     }
 }
 
@@ -1587,7 +1591,8 @@ TypeObject::getProperty(JSContext *cx, jsid id, bool own)
                     return &prop->types;
             }
 
-            MOZ_ASSUME_UNREACHABLE("Missing property");
+            JS_NOT_REACHED("Missing property");
+            return NULL;
         }
     }
 

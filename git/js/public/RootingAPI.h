@@ -888,11 +888,13 @@ template <typename T> class MaybeRooted<T, NoGC>
     typedef FakeMutableHandle<T> MutableHandleType;
 
     static inline JS::Handle<T> toHandle(HandleType v) {
-        MOZ_ASSUME_UNREACHABLE("Bad conversion");
+        JS_NOT_REACHED("Bad conversion");
+        return JS::Handle<T>::fromMarkedLocation(NULL);
     }
 
     static inline JS::MutableHandle<T> toMutableHandle(MutableHandleType v) {
-        MOZ_ASSUME_UNREACHABLE("Bad conversion");
+        JS_NOT_REACHED("Bad conversion");
+        return JS::MutableHandle<T>::fromMarkedLocation(NULL);
     }
 };
 

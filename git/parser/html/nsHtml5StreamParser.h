@@ -198,8 +198,6 @@ class nsHtml5StreamParser : public nsIStreamListener,
      */
     void SetViewSourceTitle(nsIURI* aURL);
 
-    bool IsSrcdocDocument();
-
   private:
 
 #ifdef DEBUG

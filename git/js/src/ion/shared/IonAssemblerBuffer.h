@@ -238,7 +238,8 @@ struct AssemblerBuffer
             return BufferOffset(bufferSize);
     }
     BufferOffset prevOffset() const {
-        MOZ_ASSUME_UNREACHABLE("Don't current record lastInstSize");
+        JS_NOT_REACHED("Don't current record lastInstSize");
+        return BufferOffset(bufferSize + tail->nodeSize - lastInstSize);
     }
 
     // Break the instruction stream so we can go back and edit it at this point

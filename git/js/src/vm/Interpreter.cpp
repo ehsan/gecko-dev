@@ -212,7 +212,9 @@ js::OnUnknownMethod(JSContext *cx, HandleObject obj, Value idval_, MutableHandle
 
     TypeScript::MonitorUnknown(cx);
 
-    if (value.isObject()) {
+    if (value.get().isPrimitive()) {
+        vp.set(value);
+    } else {
         JSObject *obj = NewObjectWithClassProto(cx, &js_NoSuchMethodClass, NULL, NULL);
         if (!obj)
             return false;
@@ -1228,7 +1230,7 @@ Interpret(JSContext *cx, RunState &state)
           case JSTRAP_ERROR:
             goto error;
           default:
-            MOZ_ASSUME_UNREACHABLE("bad ScriptDebugPrologue status");
+            JS_NOT_REACHED("bad ScriptDebugPrologue status");
         }
     }
 
@@ -2360,7 +2362,7 @@ BEGIN_CASE(JSOP_FUNCALL)
           case JSTRAP_ERROR:
             goto error;
           default:
-            MOZ_ASSUME_UNREACHABLE("bad ScriptDebugPrologue status");
+            JS_NOT_REACHED("bad ScriptDebugPrologue status");
         }
     }
 
@@ -3122,7 +3124,7 @@ END_CASE(JSOP_ARRAYPUSH)
                 goto forced_return;
 
               default:
-                MOZ_ASSUME_UNREACHABLE("Invalid trap status");
+                JS_NOT_REACHED("Invalid trap status");
             }
         }
 

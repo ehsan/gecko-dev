@@ -13,7 +13,6 @@
     _(Box)                      \
     _(BoxDouble)                \
     _(DivI)                     \
-    _(SoftDivI)                 \
     _(DivPowTwoI)               \
     _(ModI)                     \
     _(ModPowTwoI)               \

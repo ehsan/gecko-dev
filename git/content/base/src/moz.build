@@ -87,7 +87,6 @@ CPP_SOURCES += [
     'nsCCUncollectableMarker.cpp',
     'nsCSPService.cpp',
     'nsChannelPolicy.cpp',
-    'ChildIterator.cpp',
     'nsContentAreaDragDrop.cpp',
     'nsContentIterator.cpp',
     'nsContentList.cpp',

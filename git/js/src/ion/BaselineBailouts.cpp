@@ -1328,7 +1328,7 @@ ion::FinishBailoutToBaseline(BaselineBailoutInfo *bailoutInfo)
             return false;
         break;
       default:
-        MOZ_ASSUME_UNREACHABLE("Unknown bailout kind!");
+        JS_NOT_REACHED("Unknown bailout kind!");
     }
 
     if (!CheckFrequentBailouts(cx, outerScript))

@@ -220,7 +220,7 @@ ICStub::trace(JSTracer *trc)
           case 2: setElemStub->toImpl<2>()->traceShapes(trc); break;
           case 3: setElemStub->toImpl<3>()->traceShapes(trc); break;
           case 4: setElemStub->toImpl<4>()->traceShapes(trc); break;
-          default: MOZ_ASSUME_UNREACHABLE("Invalid proto stub.");
+          default: JS_NOT_REACHED("Invalid proto stub.");
         }
         break;
       }
@@ -358,7 +358,7 @@ ICStub::trace(JSTracer *trc)
           case 2: propStub->toImpl<2>()->traceShapes(trc); break;
           case 3: propStub->toImpl<3>()->traceShapes(trc); break;
           case 4: propStub->toImpl<4>()->traceShapes(trc); break;
-          default: MOZ_ASSUME_UNREACHABLE("Invalid proto stub.");
+          default: JS_NOT_REACHED("Invalid proto stub.");
         }
         break;
       }
@@ -723,7 +723,7 @@ EnsureCanEnterIon(JSContext *cx, ICUseCount_Fallback *stub, BaselineFrame *frame
     else if (stat == Method_Compiled)
         IonSpew(IonSpew_BaselineOSR, "  Compiled with Ion!");
     else
-        MOZ_ASSUME_UNREACHABLE("Invalid MethodStatus!");
+        JS_NOT_REACHED("Invalid MethodStatus!");
 
     // Failed to compile.  Reset use count and return.
     if (stat != Method_Compiled) {
@@ -1436,7 +1436,8 @@ DoTypeUpdateFallback(JSContext *cx, BaselineFrame *frame, ICUpdatedStub *stub, H
         break;
       }
       default:
-        MOZ_ASSUME_UNREACHABLE("Invalid stub");
+        JS_NOT_REACHED("Invalid stub");
+        return false;
     }
 
     return stub->addUpdateStubForValue(cx, script, obj, id, value);
@@ -2463,7 +2464,8 @@ DoBinaryArithFallback(JSContext *cx, BaselineFrame *frame, ICBinaryArith_Fallbac
         break;
       }
       default:
-        MOZ_ASSUME_UNREACHABLE("Unhandled baseline arith op");
+        JS_NOT_REACHED("Unhandled baseline arith op");
+        return false;
     }
 
     if (ret.isDouble())
@@ -2781,7 +2783,8 @@ ICBinaryArith_Double::Compiler::generateStubCode(MacroAssembler &masm)
         JS_ASSERT(ReturnFloatReg == FloatReg0);
         break;
       default:
-        MOZ_ASSUME_UNREACHABLE("Unexpected op");
+        JS_NOT_REACHED("Unexpected op");
+        return false;
     }
 
     masm.boxDouble(FloatReg0, R0);
@@ -2861,7 +2864,8 @@ ICBinaryArith_BooleanWithInt32::Compiler::generateStubCode(MacroAssembler &masm)
         break;
       }
       default:
-       MOZ_ASSUME_UNREACHABLE("Unhandled op for BinaryArith_BooleanWithInt32.");
+       JS_NOT_REACHED("Unhandled op for BinaryArith_BooleanWithInt32.");
+       return false;
     }
 
     // Failure case - jump to next stub
@@ -2923,7 +2927,8 @@ ICBinaryArith_DoubleWithInt32::Compiler::generateStubCode(MacroAssembler &masm)
         masm.andPtr(intReg, intReg2);
         break;
       default:
-       MOZ_ASSUME_UNREACHABLE("Unhandled op for BinaryArith_DoubleWithInt32.");
+       JS_NOT_REACHED("Unhandled op for BinaryArith_DoubleWithInt32.");
+       return false;
     }
     masm.tagValue(JSVAL_TYPE_INT32, intReg2, R0);
     EmitReturnFromIC(masm);
@@ -2964,7 +2969,8 @@ DoUnaryArithFallback(JSContext *cx, BaselineFrame *frame, ICUnaryArith_Fallback 
             return false;
         break;
       default:
-        MOZ_ASSUME_UNREACHABLE("Unexpected op");
+        JS_NOT_REACHED("Unexpected op");
+        return false;
     }
 
     if (res.isDouble())
@@ -4472,7 +4478,7 @@ ICSetElemDenseAddCompiler::getStub(ICStubSpace *space)
       case 2: stub = getStubSpecific<2>(space, &shapes); break;
       case 3: stub = getStubSpecific<3>(space, &shapes); break;
       case 4: stub = getStubSpecific<4>(space, &shapes); break;
-      default: MOZ_ASSUME_UNREACHABLE("ProtoChainDepth too high.");
+      default: JS_NOT_REACHED("ProtoChainDepth too high.");
     }
     if (!stub || !stub->initUpdatingChain(cx, space))
         return NULL;
@@ -6446,7 +6452,7 @@ ICSetPropNativeAddCompiler::getStub(ICStubSpace *space)
       case 2: stub = getStubSpecific<2>(space, &shapes); break;
       case 3: stub = getStubSpecific<3>(space, &shapes); break;
       case 4: stub = getStubSpecific<4>(space, &shapes); break;
-      default: MOZ_ASSUME_UNREACHABLE("ProtoChainDepth too high.");
+      default: JS_NOT_REACHED("ProtoChainDepth too high.");
     }
     if (!stub || !stub->initUpdatingChain(cx, space))
         return NULL;
@@ -8133,7 +8139,7 @@ ICTypeOf_Typed::Compiler::generateStubCode(MacroAssembler &masm)
         break;
 
       default:
-        MOZ_ASSUME_UNREACHABLE("Unexpected type");
+        JS_NOT_REACHED("Unexpected type");
     }
 
     masm.movePtr(ImmGCPtr(typeString_), R0.scratchReg());

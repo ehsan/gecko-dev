@@ -1954,9 +1954,10 @@ nsXULPopupManager::GetNextMenuItem(nsIFrame* aParent,
                                    nsMenuFrame* aStart,
                                    bool aIsPopup)
 {
+  nsIFrame* immediateParent = nullptr;
   nsPresContext* presContext = aParent->PresContext();
-  nsIFrame* immediateParent = presContext->PresShell()->
-    FrameConstructor()->GetInsertionPoint(aParent->GetContent(), nullptr);
+  presContext->PresShell()->
+    FrameConstructor()->GetInsertionPoint(aParent, nullptr, &immediateParent);
   if (!immediateParent)
     immediateParent = aParent;
 
@@ -1995,9 +1996,10 @@ nsXULPopupManager::GetPreviousMenuItem(nsIFrame* aParent,
                                        nsMenuFrame* aStart,
                                        bool aIsPopup)
 {
+  nsIFrame* immediateParent = nullptr;
   nsPresContext* presContext = aParent->PresContext();
-  nsIFrame* immediateParent = presContext->PresShell()->
-    FrameConstructor()->GetInsertionPoint(aParent->GetContent(), nullptr);
+  presContext->PresShell()->
+    FrameConstructor()->GetInsertionPoint(aParent, nullptr, &immediateParent);
   if (!immediateParent)
     immediateParent = aParent;
 

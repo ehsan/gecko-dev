@@ -63,8 +63,6 @@ static RedirEntry kRedirMap[] = {
     nsIAboutModule::ALLOW_SCRIPT },
   { "sessionrestore", "chrome://browser/content/aboutSessionRestore.xhtml",
     nsIAboutModule::ALLOW_SCRIPT },
-  { "welcomeback", "chrome://browser/content/aboutWelcomeBack.xhtml",
-    nsIAboutModule::ALLOW_SCRIPT },
 #ifdef MOZ_SERVICES_SYNC
   { "sync-progress", "chrome://browser/content/sync/progress.xhtml",
     nsIAboutModule::ALLOW_SCRIPT },

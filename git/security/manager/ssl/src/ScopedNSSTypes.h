@@ -52,7 +52,8 @@ inline nsresult
 PRErrorCode_to_nsresult(PRErrorCode error)
 {
   if (!error) {
-    MOZ_CRASH("Function failed without calling PR_GetError");
+    MOZ_NOT_REACHED("Function failed without calling PR_GetError");
+    return NS_ERROR_UNEXPECTED;
   }
 
   // From NSSErrorsService::GetXPCOMFromNSSError

@@ -78,7 +78,8 @@ GLManager::CreateGLManager(LayerManager* aManager)
     }
   }
 
-  MOZ_CRASH("Cannot create GLManager for non-GL layer manager");
+  MOZ_NOT_REACHED("Cannot create GLManager for non-GL layer manager");
+  return nullptr;
 }
 
 }

@@ -15,7 +15,6 @@
 #include "ion/IonSpewer.h"
 #include "ion/MIRGenerator.h"
 #include "ion/shared/CodeGenerator-shared-inl.h"
-#include "ion/MoveEmitter.h"
 #include "jsnum.h"
 #include "jsmath.h"
 #include "ion/ParallelFunctions.h"
@@ -596,7 +595,7 @@ CodeGenerator::visitIntToString(LIntToString *lir)
                         StoreRegisterTo(output));
         break;
       default:
-        MOZ_ASSUME_UNREACHABLE("No such execution mode");
+        JS_NOT_REACHED("No such execution mode");
     }
     if (!ool)
         return false;
@@ -637,7 +636,7 @@ CodeGenerator::visitDoubleToString(LDoubleToString *lir)
                         StoreRegisterTo(output));
         break;
       default:
-        MOZ_ASSUME_UNREACHABLE("No such execution mode");
+        JS_NOT_REACHED("No such execution mode");
     }
     if (!ool)
         return false;
@@ -946,43 +945,6 @@ CodeGenerator::visitStackArgV(LStackArgV *lir)
 
     masm.storeValue(val, Address(StackPointer, stack_offset));
     return pushedArgumentSlots_.append(StackOffsetToSlot(stack_offset));
-}
-
-bool
-CodeGenerator::visitMoveGroup(LMoveGroup *group)
-{
-    if (!group->numMoves())
-        return true;
-
-    MoveResolver &resolver = masm.moveResolver();
-
-    for (size_t i = 0; i < group->numMoves(); i++) {
-        const LMove &move = group->getMove(i);
-
-        const LAllocation *from = move.from();
-        const LAllocation *to = move.to();
-
-        // No bogus moves.
-        JS_ASSERT(*from != *to);
-        JS_ASSERT(!from->isConstant());
-        JS_ASSERT(from->isDouble() == to->isDouble());
-
-        MoveResolver::Move::Kind kind = from->isDouble()
-                                        ? MoveResolver::Move::DOUBLE
-                                        : MoveResolver::Move::GENERAL;
-
-        if (!resolver.addMove(toMoveOperand(from), toMoveOperand(to), kind))
-            return false;
-    }
-
-    if (!resolver.resolve())
-        return false;
-
-    MoveEmitter emitter(masm);
-    emitter.emit(resolver);
-    emitter.finish();
-
-    return true;
 }
 
 bool
@@ -3526,7 +3488,7 @@ CodeGenerator::visitMathFunctionD(LMathFunctionD *ins)
         funptr = JS_FUNC_TO_DATA_PTR(void *, js::math_acos_impl);
         break;
       default:
-        MOZ_ASSUME_UNREACHABLE("Unknown math function");
+        JS_NOT_REACHED("Unknown math function");
     }
 
     masm.callWithABI(funptr, MacroAssembler::DOUBLE);
@@ -3588,7 +3550,8 @@ CodeGenerator::visitBinaryV(LBinaryV *lir)
         return callVM(UrshInfo, lir);
 
       default:
-        MOZ_ASSUME_UNREACHABLE("Unexpected binary op");
+        JS_NOT_REACHED("Unexpected binary op");
+        return false;
     }
 }
 
@@ -3735,7 +3698,8 @@ CodeGenerator::visitCompareVM(LCompareVM *lir)
             return callVM(GeInfo, lir);
 
           default:
-            MOZ_ASSUME_UNREACHABLE("Unexpected compare op");
+            JS_NOT_REACHED("Unexpected compare op");
+            return false;
         }
 
       case ParallelExecution:
@@ -3765,11 +3729,12 @@ CodeGenerator::visitCompareVM(LCompareVM *lir)
             return callVM(ParGeInfo, lir);
 
           default:
-            MOZ_ASSUME_UNREACHABLE("Unexpected compare op");
+            JS_NOT_REACHED("Unexpected compare op");
+            return false;
         }
     }
 
-    MOZ_ASSUME_UNREACHABLE("Unexpected exec mode");
+    JS_NOT_REACHED("Unexpected exec mode");
 }
 
 bool
@@ -4135,7 +4100,7 @@ IonCompartment::generateStringConcatStub(JSContext *cx, ExecutionMode mode)
         masm.pop(temp1);
         break;
       default:
-        MOZ_ASSUME_UNREACHABLE("No such execution mode");
+        JS_NOT_REACHED("No such execution mode");
     }
 
     // Store lengthAndFlags.
@@ -4180,7 +4145,7 @@ IonCompartment::generateStringConcatStub(JSContext *cx, ExecutionMode mode)
         masm.pop(temp1);
         break;
       default:
-        MOZ_ASSUME_UNREACHABLE("No such execution mode");
+        JS_NOT_REACHED("No such execution mode");
     }
 
     // Set lengthAndFlags.
@@ -5726,7 +5691,7 @@ CodeGenerator::addGetPropertyCache(LInstruction *ins, RegisterSet liveRegs, Regi
         return addCache(ins, allocateCache(cache));
       }
       default:
-        MOZ_ASSUME_UNREACHABLE("Bad execution mode");
+        JS_NOT_REACHED("Bad execution mode");
     }
 }
 
@@ -6069,7 +6034,8 @@ CodeGenerator::visitBitOpV(LBitOpV *lir)
       default:
         break;
     }
-    MOZ_ASSUME_UNREACHABLE("unexpected bitop");
+    JS_NOT_REACHED("unexpected bitop");
+    return false;
 }
 
 class OutOfLineTypeOfV : public OutOfLineCodeBase<CodeGenerator>
@@ -6913,7 +6879,7 @@ CodeGenerator::visitFunctionBoundary(LFunctionBoundary *lir)
             return true;
 
         default:
-            MOZ_ASSUME_UNREACHABLE("invalid LFunctionBoundary type");
+            JS_NOT_REACHED("invalid LFunctionBoundary type");
     }
 }
 

@@ -179,7 +179,7 @@
             if (this._popupOpen)
               return;
 
-            ContextUI.dismissContextAppbar();
+            ContextUI.dismissAppbar();
 
             this._input = aInput;
             this._popupOpen = true;

@@ -394,7 +394,7 @@ HandleException(JSContext *cx, const IonFrameIterator &frame, ResumeFromExceptio
             return;
 
           default:
-            MOZ_ASSUME_UNREACHABLE("Invalid trap status");
+            JS_NOT_REACHED("Invalid trap status");
         }
     }
 
@@ -456,7 +456,7 @@ HandleException(JSContext *cx, const IonFrameIterator &frame, ResumeFromExceptio
             break;
 
           default:
-            MOZ_ASSUME_UNREACHABLE("Invalid try note");
+            JS_NOT_REACHED("Invalid try note");
         }
     }
 
@@ -627,7 +627,7 @@ MarkCalleeToken(JSTracer *trc, CalleeToken token)
         return CalleeToToken(script);
       }
       default:
-        MOZ_ASSUME_UNREACHABLE("unknown callee token type");
+        JS_NOT_REACHED("unknown callee token type");
     }
 }
 
@@ -777,7 +777,8 @@ JitActivationIterator::jitStackRange(uintptr_t *&min, uintptr_t *&end)
         if (exitFrame->isWrapperExit() && f->outParam == Type_Handle) {
             switch (f->outParamRootType) {
               case VMFunction::RootNone:
-                MOZ_ASSUME_UNREACHABLE("Handle outparam must have root type");
+                JS_NOT_REACHED("Handle outparam must have root type");
+                break;
               case VMFunction::RootObject:
               case VMFunction::RootString:
               case VMFunction::RootPropertyName:
@@ -919,7 +920,8 @@ MarkIonExitFrame(JSTracer *trc, const IonFrameIterator &frame)
     if (f->outParam == Type_Handle) {
         switch (f->outParamRootType) {
           case VMFunction::RootNone:
-            MOZ_ASSUME_UNREACHABLE("Handle outparam must have root type");
+            JS_NOT_REACHED("Handle outparam must have root type");
+            break;
           case VMFunction::RootObject:
             gc::MarkObjectRoot(trc, footer->outParam<JSObject *>(), "ion-vm-out");
             break;
@@ -958,7 +960,8 @@ MarkJitActivation(JSTracer *trc, const JitActivationIterator &activations)
             MarkIonJSFrame(trc, frames);
             break;
           case IonFrame_Unwound_OptimizedJS:
-            MOZ_ASSUME_UNREACHABLE("invalid");
+            JS_NOT_REACHED("invalid");
+            break;
           case IonFrame_Rectifier:
           case IonFrame_Unwound_Rectifier:
             break;
@@ -968,7 +971,8 @@ MarkJitActivation(JSTracer *trc, const JitActivationIterator &activations)
             // dead.
             break;
           default:
-            MOZ_ASSUME_UNREACHABLE("unexpected frame type");
+            JS_NOT_REACHED("unexpected frame type");
+            break;
         }
     }
 }
@@ -1110,7 +1114,8 @@ SnapshotIterator::FromTypedPayload(JSValueType type, uintptr_t payload)
       case JSVAL_TYPE_OBJECT:
         return ObjectValue(*reinterpret_cast<JSObject *>(payload));
       default:
-        MOZ_ASSUME_UNREACHABLE("unexpected type - needs payload");
+        JS_NOT_REACHED("unexpected type - needs payload");
+        return UndefinedValue();
     }
 }
 
@@ -1179,7 +1184,8 @@ SnapshotIterator::slotValue(const Slot &slot)
         return ionScript_->getConstant(slot.constantIndex());
 
       default:
-        MOZ_ASSUME_UNREACHABLE("huh?");
+        JS_NOT_REACHED("huh?");
+        return UndefinedValue();
     }
 }
 
@@ -1198,7 +1204,7 @@ IonFrameIterator::ionScript() const
       case CalleeToken_ParallelFunction:
         return script()->parallelIonScript();
       default:
-        MOZ_ASSUME_UNREACHABLE("unknown callee token type");
+        JS_NOT_REACHED("unknown callee token type");
     }
 }
 

@@ -247,18 +247,11 @@ LIRGeneratorARM::lowerDivI(MDiv *div)
         }
     }
 
-    if (hasIDIV()) {
-        LDivI *lir = new LDivI(useRegister(div->lhs()), useRegister(div->rhs()), temp());
-        if (div->fallible() && !assignSnapshot(lir))
-            return false;
-        return define(lir, div);
-    } else {
-        LSoftDivI *lir = new LSoftDivI(useFixed(div->lhs(), r0), use(div->rhs(), r1),
-                                       tempFixed(r2), tempFixed(r3));
-        if (div->fallible() && !assignSnapshot(lir))
-            return false;
-        return defineFixed(lir, div, LAllocation(AnyRegister(r0)));
-    }
+    LDivI *lir = new LDivI(useFixed(div->lhs(), r0), use(div->rhs(), r1),
+                           tempFixed(r2), tempFixed(r3));
+    if (div->fallible() && !assignSnapshot(lir))
+        return false;
+    return defineFixed(lir, div, LAllocation(AnyRegister(r0)));
 }
 
 bool
@@ -464,7 +457,7 @@ LIRGeneratorARM::visitAsmJSStoreHeap(MAsmJSStoreHeap *ins)
         lir = new LAsmJSStoreHeap(useRegisterAtStart(ins->ptr()),
                                   useRegisterAtStart(ins->value()));
         break;
-      default: MOZ_ASSUME_UNREACHABLE("unexpected array type");
+      default: JS_NOT_REACHED("unexpected array type");
     }
 
     return add(lir, ins);
@@ -488,7 +481,8 @@ LIRGeneratorARM::lowerTruncateDToInt32(MTruncateToInt32 *ins)
 bool
 LIRGeneratorARM::visitStoreTypedArrayElementStatic(MStoreTypedArrayElementStatic *ins)
 {
-    MOZ_ASSUME_UNREACHABLE("NYI");
+    JS_NOT_REACHED("NYI");
+    return true;
 }
 
 //__aeabi_uidiv

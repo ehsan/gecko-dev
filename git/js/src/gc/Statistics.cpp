@@ -251,7 +251,8 @@ ExplainReason(JS::gcreason::Reason reason)
         GCREASONS(SWITCH_REASON)
 
         default:
-          MOZ_ASSUME_UNREACHABLE("bad GC reason");
+          JS_NOT_REACHED("bad GC reason");
+          return "?";
 #undef SWITCH_REASON
     }
 }

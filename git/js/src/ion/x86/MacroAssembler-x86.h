@@ -98,7 +98,8 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
                            base.scale(), base.disp() + sizeof(void *));
 
           default:
-            MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
+            JS_NOT_REACHED("unexpected operand kind");
+            return base; // Silence GCC warning.
         }
     }
     void moveValue(const Value &val, Register type, Register data) {

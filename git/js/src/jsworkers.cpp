@@ -444,13 +444,15 @@ WorkerThread::threadLoop()
 bool
 js::StartOffThreadAsmJSCompile(JSContext *cx, AsmJSParallelTask *asmData)
 {
-    MOZ_ASSUME_UNREACHABLE("Off thread compilation not available in non-THREADSAFE builds");
+    JS_NOT_REACHED("Off thread compilation not available in non-THREADSAFE builds");
+    return false;
 }
 
 bool
 js::StartOffThreadIonCompile(JSContext *cx, ion::IonBuilder *builder)
 {
-    MOZ_ASSUME_UNREACHABLE("Off thread compilation not available in non-THREADSAFE builds");
+    JS_NOT_REACHED("Off thread compilation not available in non-THREADSAFE builds");
+    return false;
 }
 
 void

@@ -157,7 +157,7 @@ LIRGeneratorX64::visitAsmJSStoreHeap(MAsmJSStoreHeap *ins)
         lir = new LAsmJSStoreHeap(useRegisterAtStart(ins->ptr()),
                                   useRegisterAtStart(ins->value()));
         break;
-      default: MOZ_ASSUME_UNREACHABLE("unexpected array type");
+      default: JS_NOT_REACHED("unexpected array type");
     }
 
     return add(lir, ins);
@@ -178,5 +178,6 @@ LIRGeneratorX64::newLGetPropertyCacheT(MGetPropertyCache *ins)
 bool
 LIRGeneratorX64::visitStoreTypedArrayElementStatic(MStoreTypedArrayElementStatic *ins)
 {
-    MOZ_ASSUME_UNREACHABLE("NYI");
+    JS_NOT_REACHED("NYI");
+    return true;
 }

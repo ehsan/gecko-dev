@@ -70,7 +70,6 @@ public:
     v = expandoAndGeneration->expando;
     return v.isUndefined() ? nullptr : &v.toObject();
   }
-  /* GetAndClearExpandoObject does not DROP or clear the preserving wrapper flag. */
   static JSObject* GetAndClearExpandoObject(JSObject* obj);
   static JSObject* EnsureExpandoObject(JSContext* cx,
                                        JS::Handle<JSObject*> obj);

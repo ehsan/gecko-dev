@@ -3459,7 +3459,8 @@ class MDiv : public MBinaryArithInstruction
     void analyzeEdgeCasesBackward();
 
     double getIdentity() {
-        MOZ_ASSUME_UNREACHABLE("not used");
+        JS_NOT_REACHED("not used");
+        return 1;
     }
 
     bool canBeNegativeZero() {
@@ -3506,7 +3507,8 @@ class MMod : public MBinaryArithInstruction
     MDefinition *foldsTo(bool useValueNumbers);
 
     double getIdentity() {
-        MOZ_ASSUME_UNREACHABLE("not used");
+        JS_NOT_REACHED("not used");
+        return 1;
     }
 
     bool fallible();
@@ -4890,7 +4892,6 @@ class MArrayConcat
         templateObj_(templateObj)
     {
         setResultType(MIRType_Object);
-        setResultTypeSet(MakeSingletonTypeSet(templateObj));
     }
 
   public:
@@ -5922,7 +5923,7 @@ class MPolyInlineDispatch : public MControlInstruction, public SingleObjectPolic
             if (getFunction(i) == func)
                 return getFunctionBlock(i);
         }
-        MOZ_ASSUME_UNREACHABLE("Bad function lookup!");
+        JS_NOT_REACHED("Bad function lookup!");
     }
 
     InlinePropertyTable *propTable() const {

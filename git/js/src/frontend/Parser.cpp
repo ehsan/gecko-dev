@@ -188,7 +188,8 @@ ParseContext<FullParseHandler>::define(JSContext *cx, HandlePropertyName name,
         break;
 
       default:
-        MOZ_ASSUME_UNREACHABLE("unexpected kind");
+        JS_NOT_REACHED("unexpected kind");
+        break;
     }
 
     return true;
@@ -278,7 +279,7 @@ AppendPackedBindings(const ParseContext<ParseHandler> *pc, const DeclVector &vec
             kind = ARGUMENT;
             break;
           default:
-            MOZ_ASSUME_UNREACHABLE("unexpected dn->kind");
+            JS_NOT_REACHED("unexpected dn->kind");
         }
 
         /*
@@ -3974,7 +3975,8 @@ Parser<FullParseHandler>::forStatement()
 
 #if JS_HAS_DESTRUCTURING
           case PNK_ASSIGN:
-            MOZ_ASSUME_UNREACHABLE("forStatement TOK_ASSIGN");
+            JS_NOT_REACHED("forStatement TOK_ASSIGN");
+            break;
 
           case PNK_ARRAY:
           case PNK_OBJECT:
@@ -6654,7 +6656,8 @@ Parser<ParseHandler>::primaryExpr(TokenKind tt)
             } else if (op == JSOP_INITPROP_SETTER) {
                 assignType = SET;
             } else {
-                MOZ_ASSUME_UNREACHABLE("bad opcode in object initializer");
+                JS_NOT_REACHED("bad opcode in object initializer");
+                assignType = VALUE; /* try to error early */
             }
 
             AtomIndexAddPtr p = seen.lookupForAdd(atom);

@@ -90,7 +90,8 @@ ScriptFromCalleeToken(CalleeToken token)
       case CalleeToken_ParallelFunction:
         return CalleeTokenToParallelFunction(token)->nonLazyScript();
     }
-    MOZ_ASSUME_UNREACHABLE("invalid callee token tag");
+    JS_NOT_REACHED("invalid callee token tag");
+    return NULL;
 }
 
 // In between every two frames lies a small header describing both frames. This

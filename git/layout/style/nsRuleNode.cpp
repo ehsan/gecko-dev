@@ -2547,10 +2547,8 @@ ComputeScriptLevelSize(const nsStyleFont* aFont, const nsStyleFont* aParentFont,
   }
 
   // Compute actual value of minScriptSize
-  nscoord minScriptSize = aParentFont->mScriptMinSize;
-  if (aFont->mAllowZoom) {
-    minScriptSize = nsStyleFont::ZoomText(aPresContext, minScriptSize);
-  }
+  nscoord minScriptSize =
+    nsStyleFont::ZoomText(aPresContext, aParentFont->mScriptMinSize);
 
   double scriptLevelScale =
     pow(aParentFont->mScriptSizeMultiplier, scriptLevelChange);
@@ -2876,7 +2874,7 @@ struct SetFontSizeCalcOps : public css::BasicCoordCalcOps,
                             mParentFont,
                             nullptr, mPresContext, mAtRoot,
                             true, mCanStoreInRuleTree);
-      if (!aValue.IsRelativeLengthUnit() && mParentFont->mAllowZoom) {
+      if (!aValue.IsRelativeLengthUnit()) {
         size = nsStyleFont::ZoomText(mPresContext, size);
       }
     }
@@ -2909,16 +2907,14 @@ nsRuleNode::SetFontSize(nsPresContext* aPresContext,
                         bool aAtRoot,
                         bool& aCanStoreInRuleTree)
 {
-  // If false, means that *aSize has not been zoomed.  If true, means that
-  // *aSize has been zoomed iff aParentFont->mAllowZoom is true.
-  bool sizeIsZoomedAccordingToParent = false;
-
+  bool zoom = false;
   int32_t baseSize = (int32_t) aPresContext->
     GetDefaultFont(aFont->mGenericID, aFont->mLanguage)->size;
   const nsCSSValue* sizeValue = aRuleData->ValueForFontSize();
   if (eCSSUnit_Enumerated == sizeValue->GetUnit()) {
     int32_t value = sizeValue->GetIntValue();
 
+    zoom = true;
     if ((NS_STYLE_FONT_SIZE_XXSMALL <= value) &&
         (value <= NS_STYLE_FONT_SIZE_XXLARGE)) {
       *aSize = CalcFontPointSize(value, baseSize,
@@ -2937,10 +2933,8 @@ nsRuleNode::SetFontSize(nsPresContext* aPresContext,
       // Note that relative units here use the parent's size unadjusted
       // for scriptlevel changes. A scriptlevel change between us and the parent
       // is simply ignored.
-      nscoord parentSize = aParentSize;
-      if (aParentFont->mAllowZoom) {
-        parentSize = nsStyleFont::UnZoomText(aPresContext, parentSize);
-      }
+      nscoord parentSize =
+        nsStyleFont::UnZoomText(aPresContext, aParentSize);
 
       if (NS_STYLE_FONT_SIZE_LARGER == value) {
         *aSize = FindNextLargerFontSize(parentSize,
@@ -2964,8 +2958,7 @@ nsRuleNode::SetFontSize(nsPresContext* aPresContext,
            sizeValue->GetUnit() == eCSSUnit_Percent ||
            sizeValue->IsCalcUnit()) {
     SetFontSizeCalcOps ops(aParentSize, aParentFont,
-                           aPresContext, aAtRoot,
-                           aCanStoreInRuleTree);
+                           aPresContext, aAtRoot, aCanStoreInRuleTree);
     *aSize = css::ComputeCalc(*sizeValue, ops);
     if (*aSize < 0) {
       NS_ABORT_IF_FALSE(sizeValue->IsCalcUnit(),
@@ -2973,13 +2966,13 @@ nsRuleNode::SetFontSize(nsPresContext* aPresContext,
                         "by parser");
       *aSize = 0;
     }
-    // The calc ops will always zoom its result according to the value
-    // of aParentFont->mAllowZoom.
-    sizeIsZoomedAccordingToParent = true;
+    // Zoom is handled inside the calc ops when needed.
+    zoom = false;
   }
   else if (eCSSUnit_System_Font == sizeValue->GetUnit()) {
     // this becomes our cascading size
     *aSize = aSystemFont.size;
+    zoom = true;
   }
   else if (eCSSUnit_Inherit == sizeValue->GetUnit()) {
     aCanStoreInRuleTree = false;
@@ -2987,12 +2980,13 @@ nsRuleNode::SetFontSize(nsPresContext* aPresContext,
     // to inherit and we don't want explicit "inherit" to differ from the
     // default.
     *aSize = aScriptLevelAdjustedParentSize;
-    sizeIsZoomedAccordingToParent = true;
+    zoom = false;
   }
   else if (eCSSUnit_Initial == sizeValue->GetUnit()) {
     // The initial value is 'medium', which has magical sizing based on
     // the generic font family, so do that here too.
     *aSize = baseSize;
+    zoom = true;
   } else {
     NS_ASSERTION(eCSSUnit_Null == sizeValue->GetUnit(),
                  "What kind of font-size value is this?");
@@ -3006,20 +3000,13 @@ nsRuleNode::SetFontSize(nsPresContext* aPresContext,
       // store the data in the rule tree.
       aCanStoreInRuleTree = false;
       *aSize = aScriptLevelAdjustedParentSize;
-      sizeIsZoomedAccordingToParent = true;
-    } else {
-      return;
     }
   }
 
   // We want to zoom the cascaded size so that em-based measurements,
   // line-heights, etc., work.
-  bool currentlyZoomed = sizeIsZoomedAccordingToParent &&
-                         aParentFont->mAllowZoom;
-  if (!currentlyZoomed && aFont->mAllowZoom) {
+  if (zoom) {
     *aSize = nsStyleFont::ZoomText(aPresContext, *aSize);
-  } else if (currentlyZoomed && !aFont->mAllowZoom) {
-    *aSize = nsStyleFont::UnZoomText(aPresContext, *aSize);
   }
 }
 
@@ -3039,21 +3026,6 @@ nsRuleNode::SetFont(nsPresContext* aPresContext, nsStyleContext* aContext,
                     bool& aCanStoreInRuleTree)
 {
   bool atRoot = !aContext->GetParent();
-
-  // -x-text-zoom: none, inherit, initial
-  bool allowZoom;
-  const nsCSSValue* textZoomValue = aRuleData->ValueForTextZoom();
-  if (eCSSUnit_Inherit == textZoomValue->GetUnit()) {
-    allowZoom = aParentFont->mAllowZoom;
-  } else if (eCSSUnit_None == textZoomValue->GetUnit()) {
-    allowZoom = false;
-  } else {
-    MOZ_ASSERT(eCSSUnit_Initial == textZoomValue->GetUnit() ||
-               eCSSUnit_Null == textZoomValue->GetUnit(),
-               "unexpected unit");
-    allowZoom = true;
-  }
-  aFont->EnableZoom(aPresContext, allowZoom);
 
   // mLanguage must be set before before any of the CalcLengthWith calls
   // (direct calls or calls via SetFontSize) for the cases where |aParentFont|

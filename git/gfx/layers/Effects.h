@@ -256,7 +256,7 @@ CreateTexturedEffect(TextureHost *aTextureHost,
     result = new EffectYCbCr(aTextureHost, aFilter);
     break;
   default:
-    MOZ_CRASH("unhandled program type");
+    MOZ_NOT_REACHED("unhandled program type");
   }
 
   return result;
