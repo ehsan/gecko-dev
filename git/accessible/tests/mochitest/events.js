@@ -1,11 +1,13 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Constants
 
+const EVENT_HIDE = nsIAccessibleEvent.EVENT_HIDE;
+const EVENT_SHOW = nsIAccessibleEvent.EVENT_SHOW;
 const EVENT_DOCUMENT_LOAD_COMPLETE =
   nsIAccessibleEvent.EVENT_DOCUMENT_LOAD_COMPLETE;
-const EVENT_DOM_DESTROY = nsIAccessibleEvent.EVENT_DOM_DESTROY;
 const EVENT_FOCUS = nsIAccessibleEvent.EVENT_FOCUS;
 const EVENT_NAME_CHANGE = nsIAccessibleEvent.EVENT_NAME_CHANGE;
+const EVENT_SCROLLING_START = nsIAccessibleEvent.EVENT_SCROLLING_START;
 const EVENT_STATE_CHANGE = nsIAccessibleEvent.EVENT_STATE_CHANGE;
 const EVENT_REORDER = nsIAccessibleEvent.EVENT_REORDER;
 
@@ -122,15 +124,10 @@ function invokerChecker(aEventType, aTarget)
  *     // (used in the case when invoker expects single event).
  *     DOMNode getter: function() {},
  *
- *     // Array of items defining events expected (or not expected, see
- *     // 'doNotExpectEvents' property) on invoker's action.
+ *     // Array of checker objects defining expected events on invoker's action.
  *     //
- *     // Every array item should be either
- *     // 1) an array consisted from two elements, the first element is DOM or
- *     // a11y event type, second element is event target (DOM node or
- *     // accessible).
+ *     // Checker object interface:
  *     //
- *     // 2) object (invoker's checker object) like
  *     // var checker = {
  *     //   type getter: function() {}, // DOM or a11y event type
  *     //   target getter: function() {}, // DOM node or accessible
@@ -140,9 +137,9 @@ function invokerChecker(aEventType, aTarget)
  *     // };
  *     eventSeq getter() {},
  *
- *     // [optional, used together with 'eventSeq'] Boolean indicates if events
- *     // specified by 'eventSeq' property shouldn't be triggerd by invoker.
- *     doNotExpectEvents getter() {},
+ *     // Array of checker objects defining unexpected events on invoker's
+ *     // action.
+ *     unexpectedEventSeq getter() {},
  *
  *     // The ID of invoker.
  *     getID: function(){} // returns invoker ID
@@ -173,8 +170,15 @@ function eventQueue(aEventType)
 
     // XXX: Intermittent test_events_caretmove.html fails withouth timeout,
     // see bug 474952.
-    window.setTimeout(function(aQueue) { aQueue.processNextInvoker(); }, 500,
-                      this);
+    this.processNextInvokerInTimeout(true);
+  }
+
+  /**
+   * This function is called when all events in the queue were handled.
+   * Override it if you need to be notified of this.
+   */
+  this.onFinish = function eventQueue_finish()
+  {
   }
 
   // private
@@ -189,15 +193,20 @@ function eventQueue(aEventType)
 
     var invoker = this.getInvoker();
     if (invoker) {
+      if ("finalCheck" in invoker)
+        invoker.finalCheck();
+
       if (invoker.wasCaught) {
         for (var idx = 0; idx < invoker.wasCaught.length; idx++) {
           var id = this.getEventID(idx);
           var type = this.getEventType(idx);
+          var unexpected = this.mEventSeq[idx].unexpected;
+
           var typeStr = (typeof type == "string") ?
             type : gAccRetrieval.getStringEventType(type);
 
           var msg = "test with ID = '" + id + "' failed. ";
-          if (invoker.doNotExpectEvents) {
+          if (unexpected) {
             var wasCaught = invoker.wasCaught[idx];
             if (!testFailed)
               testFailed = wasCaught;
@@ -231,6 +240,7 @@ function eventQueue(aEventType)
       gA11yEventApplicantsCount--;
       listenA11yEvents(false);
 
+      this.onFinish();
       SimpleTest.finish();
       return;
     }
@@ -246,11 +256,22 @@ function eventQueue(aEventType)
       return;
     }
 
-    if (invoker.doNotExpectEvents) {
-      // Check in timeout invoker didn't fire registered events.
-      window.setTimeout(function(aQueue) { aQueue.processNextInvoker(); }, 500,
-                        this);
+    if (this.areAllEventsUnexpected())
+      this.processNextInvokerInTimeout(true);
+  }
+
+  this.processNextInvokerInTimeout = function eventQueue_processNextInvokerInTimeout(aUncondProcess)
+  {
+    if (!aUncondProcess && this.areAllEventsExpected()) {
+      // We need delay to avoid events coalesce from different invokers.
+      var queue = this;
+      SimpleTest.executeSoon(function() { queue.processNextInvoker(); });
+      return;
     }
+
+    // Check in timeout invoker didn't fire registered events.
+    window.setTimeout(function(aQueue) { aQueue.processNextInvoker(); }, 500,
+                      this);
   }
 
   /**
@@ -272,33 +293,38 @@ function eventQueue(aEventType)
     if ("debugCheck" in invoker)
       invoker.debugCheck(aEvent);
 
-    if (invoker.doNotExpectEvents) {
-      // Search through event sequence to ensure it doesn't contain handled
-      // event.
-      for (var idx = 0; idx < this.mEventSeq.length; idx++) {
-        if (this.compareEvents(idx, aEvent))
-          invoker.wasCaught[idx] = true;
-      }
-    } else {
-      // We wait for events in order specified by eventSeq variable.
-      var idx = this.mEventSeqIdx + 1;
-
-      var matched = this.compareEvents(idx, aEvent);
-      this.dumpEventToDOM(aEvent, idx, matched);
-
-      if (matched) {
-        this.checkEvent(idx, aEvent);
+    // Search through unexpected events to ensure no one of them was handled.
+    for (var idx = 0; idx < this.mEventSeq.length; idx++) {
+      if (this.mEventSeq[idx].unexpected && this.compareEvents(idx, aEvent))
         invoker.wasCaught[idx] = true;
+    }
 
-        if (idx == this.mEventSeq.length - 1) {
-          // We need delay to avoid events coalesce from different invokers.
-          var queue = this;
-          SimpleTest.executeSoon(function() { queue.processNextInvoker(); });
-          return;
-        }
+    // Wait for next expected event in an order specified by event sequence.
 
-        this.mEventSeqIdx = idx;
+    // Compute next expected event index.
+    for (var idx = this.mEventSeqIdx + 1;
+         idx < this.mEventSeq.length && this.mEventSeq[idx].unexpected; idx++);
+
+    if (idx == this.mEventSeq.length) {
+      // There is no expected events in the sequence.
+      this.processNextInvokerInTimeout();
+      return;
+    }
+
+    var matched = this.compareEvents(idx, aEvent);
+    this.dumpEventToDOM(aEvent, idx, matched);
+
+    if (matched) {
+      this.checkEvent(idx, aEvent);
+      invoker.wasCaught[idx] = true;
+
+      // The last event is expected and was handled, proceed next invoker.
+      if (idx == this.mEventSeq.length - 1) {
+        this.processNextInvokerInTimeout();
+        return;
       }
+
+      this.mEventSeqIdx = idx;
     }
   }
 
@@ -315,21 +341,41 @@ function eventQueue(aEventType)
 
   this.setEventHandler = function eventQueue_setEventHandler(aInvoker)
   {
+    // Create unique event sequence concatenating expected and unexpected
+    // events.
     this.mEventSeq = ("eventSeq" in aInvoker) ?
       aInvoker.eventSeq :
       [ new invokerChecker(this.mDefEventType, aInvoker.DOMNode) ];
 
+    for (var idx = 0; idx < this.mEventSeq.length; idx++)
+      this.mEventSeq[idx].unexpected = false;
+
+    var unexpectedSeq = aInvoker.unexpectedEventSeq;
+    if (unexpectedSeq) {
+      for (var idx = 0; idx < unexpectedSeq.length; idx++)
+        unexpectedSeq[idx].unexpected = true;
+
+      this.mEventSeq = this.mEventSeq.concat(unexpectedSeq);
+    }
+
     this.mEventSeqIdx = -1;
 
+    // Register event listeners
     if (this.mEventSeq) {
       aInvoker.wasCaught = new Array(this.mEventSeq.length);
 
       for (var idx = 0; idx < this.mEventSeq.length; idx++) {
         var eventType = this.getEventType(idx);
-        if (typeof eventType == "string") // DOM event
-          document.addEventListener(eventType, this, this.getEventPhase(idx));
-        else // A11y event
+        if (typeof eventType == "string") {
+          // DOM event
+          var target = this.getEventTarget(idx);
+          var phase = this.getEventPhase(idx);
+          target.ownerDocument.addEventListener(eventType, this, phase);
+
+        } else {
+          // A11y event
           addA11yEventListener(eventType, this);
+        }
       }
     }
   }
@@ -339,10 +385,16 @@ function eventQueue(aEventType)
     if (this.mEventSeq) {
       for (var idx = 0; idx < this.mEventSeq.length; idx++) {
         var eventType = this.getEventType(idx);
-        if (typeof eventType == "string") // DOM event
-          document.removeEventListener(eventType, this, this.getEventPhase(idx));
-        else // A11y event
+        if (typeof eventType == "string") {
+          // DOM event
+          var target = this.getEventTarget(idx);
+          var phase = this.getEventPhase(idx);
+          target.ownerDocument.removeEventListener(eventType, this, phase);
+
+        } else {
+          // A11y event
           removeA11yEventListener(eventType, this);
+        }
       }
 
       this.mEventSeq = null;
@@ -366,6 +418,16 @@ function eventQueue(aEventType)
       return eventItem.phase;
 
     return true;
+  }
+
+  this.getEventID = function eventQueue_getEventID(aIdx)
+  {
+    var eventItem = this.mEventSeq[aIdx];
+    if ("getID" in eventItem)
+      return eventItem.getID();
+    
+    var invoker = this.getInvoker();
+    return invoker.getID();
   }
 
   this.compareEvents = function eventQueue_compareEvents(aIdx, aEvent)
@@ -404,14 +466,24 @@ function eventQueue(aEventType)
       invoker.check(aEvent);
   }
 
-  this.getEventID = function eventQueue_getEventID(aIdx)
+  this.areAllEventsExpected = function eventQueue_areAllEventsExpected()
   {
-    var eventItem = this.mEventSeq[aIdx];
-    if ("getID" in eventItem)
-      return eventItem.getID();
+    for (var idx = 0; idx < this.mEventSeq.length; idx++) {
+      if (this.mEventSeq[idx].unexpected)
+        return false;
+    }
 
-    var invoker = this.getInvoker();
-    return invoker.getID();
+    return true;
+  }
+
+  this.areAllEventsUnexpected = function eventQueue_areAllEventsUnxpected()
+  {
+    for (var idx = 0; idx < this.mEventSeq.length; idx++) {
+      if (!this.mEventSeq[idx].unexpected)
+        return false;
+    }
+
+    return true;
   }
 
   this.dumpEventToDOM = function eventQueue_dumpEventToDOM(aOrigEvent,

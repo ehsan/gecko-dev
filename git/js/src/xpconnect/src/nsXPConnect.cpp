@@ -1063,17 +1063,30 @@ nsXPConnect::InitClasses(JSContext * aJSContext, JSObject * aGlobalJSObj)
     if(!nsXPCComponents::AttachNewComponentsObject(ccx, scope, aGlobalJSObj))
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
-#ifdef XPC_IDISPATCH_SUPPORT
-    // Initialize any properties IDispatch needs on the global object
-    XPCIDispatchExtension::Initialize(ccx, aGlobalJSObj);
-#endif
-
     if (!XPCNativeWrapper::AttachNewConstructorObject(ccx, aGlobalJSObj))
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
     if (!XPC_SJOW_AttachNewConstructorObject(ccx, aGlobalJSObj))
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
+    return NS_OK;
+}
+
+/* void initClassesForOuterObject (in JSContextPtr aJSContext, in JSObjectPtr aGlobalJSObj); */
+NS_IMETHODIMP nsXPConnect::InitClassesForOuterObject(JSContext * aJSContext, JSObject * aGlobalJSObj)
+{
+    SaveFrame sf(aJSContext);
+    XPCCallContext ccx(NATIVE_CALLER, aJSContext);
+    if(!ccx.IsValid())
+        return UnexpectedFailure(NS_ERROR_FAILURE);
+
+    XPCWrappedNativeScope* scope =
+        XPCWrappedNativeScope::GetNewOrUsed(ccx, aGlobalJSObj);
+
+    if(!scope)
+        return UnexpectedFailure(NS_ERROR_FAILURE);
+
+    scope->RemoveWrappedNativeProtos();
     return NS_OK;
 }
 
@@ -1197,6 +1210,30 @@ nsXPConnect::InitClassesWithNewWrappedGlobal(JSContext * aJSContext,
     return NS_OK;
 }
 
+static nsresult
+NativeInterface2JSObject(XPCLazyCallContext & lccx,
+                         JSObject * aScope,
+                         nsISupports *aCOMObj,
+                         const nsIID * aIID,
+                         PRBool aAllowWrapping,
+                         jsval *aVal,
+                         nsIXPConnectJSObjectHolder **aHolder)
+{
+    nsresult rv;
+    if(!XPCConvert::NativeInterface2JSObject(lccx, aVal, aHolder, aCOMObj, aIID,
+                                             nsnull, nsnull, aScope,
+                                             aAllowWrapping, OBJ_IS_NOT_GLOBAL,
+                                             &rv))
+        return rv;
+
+#ifdef DEBUG
+    NS_ASSERTION(!XPCNativeWrapper::IsNativeWrapper(JSVAL_TO_OBJECT(*aVal)),
+                 "Shouldn't be returning a native wrapper here");
+#endif
+    
+    return NS_OK;
+}
+
 /* nsIXPConnectJSObjectHolder wrapNative (in JSContextPtr aJSContext, in JSObjectPtr aScope, in nsISupports aCOMObj, in nsIIDRef aIID); */
 NS_IMETHODIMP
 nsXPConnect::WrapNative(JSContext * aJSContext,
@@ -1206,10 +1243,18 @@ nsXPConnect::WrapNative(JSContext * aJSContext,
                         nsIXPConnectJSObjectHolder **aHolder)
 {
     NS_ASSERTION(aHolder, "bad param");
+    NS_ASSERTION(aJSContext, "bad param");
+    NS_ASSERTION(aScope, "bad param");
+    NS_ASSERTION(aCOMObj, "bad param");
+
+    XPCCallContext ccx(NATIVE_CALLER, aJSContext);
+    if(!ccx.IsValid())
+        return UnexpectedFailure(NS_ERROR_FAILURE);
+    XPCLazyCallContext lccx(ccx);
 
     jsval v;
-    return WrapNativeToJSVal(aJSContext, aScope, aCOMObj, &aIID, PR_FALSE,
-                             &v, aHolder);
+    return NativeInterface2JSObject(lccx, aScope, aCOMObj, &aIID, PR_FALSE, &v,
+                                    aHolder);
 }
 
 /* void wrapNativeToJSVal (in JSContextPtr aJSContext, in JSObjectPtr aScope, in nsISupports aCOMObj, in nsIIDPtr aIID, out JSVal aVal, out nsIXPConnectJSObjectHolder aHolder); */
@@ -1229,23 +1274,10 @@ nsXPConnect::WrapNativeToJSVal(JSContext * aJSContext,
     if(aHolder)
         *aHolder = nsnull;
 
-    XPCCallContext ccx(NATIVE_CALLER, aJSContext);
-    if(!ccx.IsValid())
-        return UnexpectedFailure(NS_ERROR_FAILURE);
-    XPCLazyCallContext lccx(ccx);
+    XPCLazyCallContext lccx(NATIVE_CALLER, aJSContext);
 
-    nsresult rv;
-    if(!XPCConvert::NativeInterface2JSObject(ccx, aVal, aHolder, aCOMObj, aIID,
-                                             nsnull, nsnull, aScope, aAllowWrapping,
-                                             OBJ_IS_NOT_GLOBAL, &rv))
-        return rv;
-
-#ifdef DEBUG
-    NS_ASSERTION(!XPCNativeWrapper::IsNativeWrapper(JSVAL_TO_OBJECT(*aVal)),
-                 "Shouldn't be returning a native wrapper here");
-#endif
-    
-    return NS_OK;
+    return NativeInterface2JSObject(lccx, aScope, aCOMObj, aIID, aAllowWrapping,
+                                    aVal, aHolder);
 }
 
 /* void wrapJS (in JSContextPtr aJSContext, in JSObjectPtr aJSObj, in nsIIDRef aIID, [iid_is (aIID), retval] out nsQIResult result); */
@@ -2433,7 +2465,7 @@ nsXPConnect::GetWrapperForObject(JSContext* aJSContext,
     //   - We're not about to force a XOW (e.g. for "window") OR
     //   - We're not actually going to create a XOW (we're wrapping for
     //     chrome).
-    if(STOBJ_IS_SYSTEM(aObject) ||
+    if(aObject->isSystem() ||
        (sameScope &&
         (!forceXOW || (aFilenameFlags & JSFILENAME_SYSTEM))))
         return NS_OK;

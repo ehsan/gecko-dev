@@ -63,12 +63,7 @@ endif
 GRE_MODULE	= 1
 MOZILLA_INTERNAL_API = 1
 
-REQUIRES	= string \
-		  $(NULL)
 
-ifdef NS_TRACE_MALLOC
-REQUIRES += tracemalloc
-endif
 
 CSRCS		= \
 		$(XPCOM_GLUE_SRC_LCSRCS) \
@@ -87,14 +82,6 @@ endif
 
 ifeq ($(OS_ARCH)$(MOZ_ENABLE_LIBXUL),OS2)
 CPPSRCS		+= dlldeps.cpp
-endif
-
-ifdef XPCOM_USE_LEA
-CSRCS += malloc.c
-endif
-
-ifdef GC_LEAK_DETECTOR
-EXTRA_DSO_LIBS = boehm
 endif
 
 SHARED_LIBRARY_LIBS = \
@@ -169,10 +156,6 @@ DEFINES		+= \
 		-DEXPORT_XPTC_API
 
 EXTRA_DSO_LDOPTS += $(NSPR_LIBS)
-
-ifdef GC_LEAK_DETECTOR
-DEFINES += -DGC_LEAK_DETECTOR
-endif
 
 ifdef TARGET_XPCOM_ABI
 DEFINES += -DTARGET_XPCOM_ABI=\"$(TARGET_XPCOM_ABI)\"

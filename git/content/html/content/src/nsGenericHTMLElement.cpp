@@ -652,7 +652,7 @@ nsGenericHTMLElement::GetInnerHTML(nsAString& aInnerHTML)
         nsDependentCString(NS_DOC_ENCODER_CONTRACTID_BASE) +
         NS_ConvertUTF16toUTF8(contentType)
       ).get());
-  if (!docEncoder && doc->IsCaseSensitive()) {
+  if (!(docEncoder || doc->IsHTML())) {
     // This could be some type for which we create a synthetic document.  Try
     // again as XML
     contentType.AssignLiteral("application/xml");
@@ -1174,16 +1174,6 @@ nsGenericHTMLElement::GetBaseURI() const
     nsIURI* uri = static_cast<nsIURI*>(prop);
     NS_ADDREF(uri);
     
-    return uri;
-  }
-
-  // If we are a plain old HTML element (not XHTML), don't bother asking the
-  // base class -- our base URI is determined solely by the document base.
-  if (IsInHTMLDocument()) {
-    // If we got here, GetOwnerDoc() is not null
-    nsIURI *uri = GetOwnerDoc()->GetBaseURI();
-    NS_IF_ADDREF(uri);
-
     return uri;
   }
 

@@ -446,7 +446,7 @@ xpc_qsDefineQuickStubs(JSContext *cx, JSObject *proto, uintN flags,
                         if(!JS_DefineFunction(
                                cx, proto, ts->name, ts->native, ts->arity,
                                flags | JSFUN_FAST_NATIVE | JSFUN_STUB_GSOPS |
-                                       JSFUN_TRACEABLE))
+                                       JSFUN_TRCINFO))
                             return JS_FALSE;
                     }
                 }
@@ -514,7 +514,7 @@ GetMemberInfo(JSObject *obj,
     }
     else
     {
-        XPCWrappedNative *wrapper = (XPCWrappedNative *) obj->getAssignedPrivate();
+        XPCWrappedNative *wrapper = (XPCWrappedNative *) obj->getPrivate();
         proto = wrapper->GetProto();
     }
     if(proto)
@@ -679,16 +679,14 @@ xpc_qsThrowBadSetterValue(JSContext *cx, nsresult rv,
     ThrowBadArg(cx, rv, ifaceName, memberName, 0);
 }
 
-xpc_qsDOMString::xpc_qsDOMString(JSContext *cx, jsval *pval)
+xpc_qsDOMString::xpc_qsDOMString(JSContext *cx, jsval v, jsval *pval)
 {
     // From the T_DOMSTRING case in XPCConvert::JSData2Native.
     typedef implementation_type::char_traits traits;
-    jsval v;
     JSString *s;
     const PRUnichar *chars;
     size_t len;
 
-    v = *pval;
     if(JSVAL_IS_STRING(v))
     {
         s = JSVAL_TO_STRING(v);
@@ -718,16 +716,14 @@ xpc_qsDOMString::xpc_qsDOMString(JSContext *cx, jsval *pval)
     mValid = JS_TRUE;
 }
 
-xpc_qsAString::xpc_qsAString(JSContext *cx, jsval *pval)
+xpc_qsAString::xpc_qsAString(JSContext *cx, jsval v, jsval *pval)
 {
     // From the T_ASTRING case in XPCConvert::JSData2Native.
     typedef implementation_type::char_traits traits;
-    jsval v;
     JSString *s;
     const PRUnichar *chars;
     size_t len;
 
-    v = *pval;
     if(JSVAL_IS_STRING(v))
     {
         s = JSVAL_TO_STRING(v);
@@ -757,13 +753,11 @@ xpc_qsAString::xpc_qsAString(JSContext *cx, jsval *pval)
     mValid = JS_TRUE;
 }
 
-xpc_qsACString::xpc_qsACString(JSContext *cx, jsval *pval)
+xpc_qsACString::xpc_qsACString(JSContext *cx, jsval v, jsval *pval)
 {
     // From the T_CSTRING case in XPCConvert::JSData2Native.
-    jsval v;
     JSString *s;
 
-    v = *pval;
     if(JSVAL_IS_STRING(v))
     {
         s = JSVAL_TO_STRING(v);
@@ -1004,9 +998,8 @@ xpc_qsUnwrapArgImpl(JSContext *cx,
 }
 
 JSBool
-xpc_qsJsvalToCharStr(JSContext *cx, jsval *pval, char **pstr)
+xpc_qsJsvalToCharStr(JSContext *cx, jsval v, jsval *pval, char **pstr)
 {
-    jsval v = *pval;
     JSString *str;
 
     if(JSVAL_IS_STRING(v))
@@ -1030,9 +1023,8 @@ xpc_qsJsvalToCharStr(JSContext *cx, jsval *pval, char **pstr)
 }
 
 JSBool
-xpc_qsJsvalToWcharStr(JSContext *cx, jsval *pval, PRUnichar **pstr)
+xpc_qsJsvalToWcharStr(JSContext *cx, jsval v, jsval *pval, PRUnichar **pstr)
 {
-    jsval v = *pval;
     JSString *str;
 
     if(JSVAL_IS_STRING(v))

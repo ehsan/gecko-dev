@@ -1544,7 +1544,7 @@ nsCSSFrameConstructor::nsCSSFrameConstructor(nsIDocument *aDocument,
   , mRebuildAllExtraHint(nsChangeHint(0))
 {
   // XXXbz this should be in Init() or something!
-  if (!mPendingRestyles.Init()) {
+  if (!mPendingRestyles.Init() || !mPendingAnimationRestyles.Init()) {
     // now what?
   }
 
@@ -6458,11 +6458,8 @@ nsCSSFrameConstructor::ContentAppended(nsIContent*     aContainer,
 
 #ifdef DEBUG
   if (gReallyNoisyContentUpdates) {
-    nsIFrameDebug* fdbg = do_QueryFrame(parentFrame);
-    if (fdbg) {
-      printf("nsCSSFrameConstructor::ContentAppended: resulting frame model:\n");
-      fdbg->List(stdout, 0);
-    }
+    printf("nsCSSFrameConstructor::ContentAppended: resulting frame model:\n");
+    parentFrame->List(stdout, 0);
   }
 #endif
 
@@ -6569,12 +6566,9 @@ nsCSSFrameConstructor::ContentInserted(nsIContent*            aContainer,
       InvalidateCanvasIfNeeded(mPresShell, aChild);
 #ifdef DEBUG
       if (gReallyNoisyContentUpdates) {
-        nsIFrameDebug* fdbg = do_QueryFrame(mFixedContainingBlock);
-        if (fdbg) {
-          printf("nsCSSFrameConstructor::ContentInserted: resulting frame "
-                 "model:\n");
-          fdbg->List(stdout, 0);
-        }
+        printf("nsCSSFrameConstructor::ContentInserted: resulting frame "
+               "model:\n");
+        mFixedContainingBlock->List(stdout, 0);
       }
 #endif
     }
@@ -6883,11 +6877,8 @@ nsCSSFrameConstructor::ContentInserted(nsIContent*            aContainer,
 
 #ifdef DEBUG
   if (gReallyNoisyContentUpdates && parentFrame) {
-    nsIFrameDebug* fdbg = do_QueryFrame(parentFrame);
-    if (fdbg) {
-      printf("nsCSSFrameConstructor::ContentInserted: resulting frame model:\n");
-      fdbg->List(stdout, 0);
-    }
+    printf("nsCSSFrameConstructor::ContentInserted: resulting frame model:\n");
+    parentFrame->List(stdout, 0);
   }
 #endif
 
@@ -7279,11 +7270,8 @@ nsCSSFrameConstructor::ContentRemoved(nsIContent* aContainer,
     if (gReallyNoisyContentUpdates) {
       printf("nsCSSFrameConstructor::ContentRemoved: childFrame=");
       nsFrame::ListTag(stdout, childFrame);
-      printf("\n");
-
-      nsIFrameDebug* fdbg = do_QueryFrame(parentFrame);
-      if (fdbg)
-        fdbg->List(stdout, 0);
+      putchar('\n');
+      parentFrame->List(stdout, 0);
     }
 #endif
 
@@ -7381,11 +7369,8 @@ nsCSSFrameConstructor::ContentRemoved(nsIContent* aContainer,
 
 #ifdef DEBUG
     if (gReallyNoisyContentUpdates && parentFrame) {
-      nsIFrameDebug* fdbg = do_QueryFrame(parentFrame);
-      if (fdbg) {
-        printf("nsCSSFrameConstructor::ContentRemoved: resulting frame model:\n");
-        fdbg->List(stdout, 0);
-      }
+      printf("nsCSSFrameConstructor::ContentRemoved: resulting frame model:\n");
+      parentFrame->List(stdout, 0);
     }
 #endif
   }
@@ -9121,14 +9106,14 @@ nsCSSFrameConstructor::RecreateFramesForContent(nsIContent* aContent,
 
 #ifdef ACCESSIBILITY
   if (mPresShell->IsAccessibilityActive()) {
-    PRUint32 event;
+    PRUint32 changeType;
     if (frame) {
       nsIFrame *newFrame = mPresShell->GetPrimaryFrameFor(aContent);
-      event = newFrame ? PRUint32(nsIAccessibleEvent::EVENT_ASYNCH_SIGNIFICANT_CHANGE) :
-                         PRUint32(nsIAccessibleEvent::EVENT_ASYNCH_HIDE);
+      changeType = newFrame ? nsIAccessibilityService::FRAME_SIGNIFICANT_CHANGE :
+                              nsIAccessibilityService::FRAME_HIDE;
     }
     else {
-      event = nsIAccessibleEvent::EVENT_ASYNCH_SHOW;
+      changeType = nsIAccessibilityService::FRAME_SHOW;
     }
 
     // A significant enough change occured that this part
@@ -9136,7 +9121,7 @@ nsCSSFrameConstructor::RecreateFramesForContent(nsIContent* aContent,
     nsCOMPtr<nsIAccessibilityService> accService = 
       do_GetService("@mozilla.org/accessibilityService;1");
     if (accService) {
-      accService->InvalidateSubtreeFor(mPresShell, aContent, event);
+      accService->InvalidateSubtreeFor(mPresShell, aContent, changeType);
     }
   }
 #endif
@@ -10830,22 +10815,20 @@ nsCSSFrameConstructor::ConstructInline(nsFrameConstructorState& aState,
   MarkIBSpecialPrevSibling(blockFrame, newFrame);
   MarkIBSpecialPrevSibling(inlineFrame, blockFrame);
 
-  #ifdef DEBUG
+#ifdef DEBUG
   if (gNoisyInlineConstruction) {
-    nsIFrameDebug*  frameDebug;
-
     printf("nsCSSFrameConstructor::ConstructInline:\n");
-    if ( (frameDebug = do_QueryFrame(*aNewFrame)) ) {
+    if (*aNewFrame) {
       printf("  ==> leading inline frame:\n");
-      frameDebug->List(stdout, 2);
+      (*aNewFrame)->List(stdout, 2);
     }
-    if ( (frameDebug = do_QueryFrame(blockFrame)) ) {
+    if (blockFrame) {
       printf("  ==> block frame:\n");
-      frameDebug->List(stdout, 2);
+      blockFrame->List(stdout, 2);
     }
-    if ( (frameDebug = do_QueryFrame(inlineFrame)) ) {
+    if (inlineFrame) {
       printf("  ==> trailing inline frame:\n");
-      frameDebug->List(stdout, 2);
+      inlineFrame->List(stdout, 2);
     }
   }
 #endif
@@ -11615,13 +11598,10 @@ nsCSSFrameConstructor::RebuildAllStyleData(nsChangeHint aExtraHint)
 }
 
 void
-nsCSSFrameConstructor::ProcessPendingRestyles()
+nsCSSFrameConstructor::ProcessPendingRestyleTable(
+                   nsDataHashtable<nsISupportsHashKey, RestyleData>& aRestyles)
 {
-  NS_PRECONDITION(mDocument, "No document?  Pshaw!\n");
-  NS_PRECONDITION(!nsContentUtils::IsSafeToRunScript(),
-                  "Missing a script blocker!");
-
-  PRUint32 count = mPendingRestyles.Count();
+  PRUint32 count = aRestyles.Count();
 
   // Make sure to not rebuild quote or counter lists while we're
   // processing restyles
@@ -11638,14 +11618,14 @@ nsCSSFrameConstructor::ProcessPendingRestyles()
     }
 
     RestyleEnumerateData* lastRestyle = restylesToProcess;
-    mPendingRestyles.Enumerate(CollectRestyles, &lastRestyle);
+    aRestyles.Enumerate(CollectRestyles, &lastRestyle);
 
     NS_ASSERTION(lastRestyle - restylesToProcess == PRInt32(count),
                  "Enumeration screwed up somehow");
 
     // Clear the hashtable so we don't end up trying to process a restyle we're
     // already processing, sending us into an infinite loop.
-    mPendingRestyles.Clear();
+    aRestyles.Clear();
 
     for (RestyleEnumerateData* currentRestyle = restylesToProcess;
          currentRestyle != lastRestyle;
@@ -11663,6 +11643,30 @@ nsCSSFrameConstructor::ProcessPendingRestyles()
 #ifdef DEBUG
   mPresShell->VerifyStyleTree();
 #endif
+}
+
+void
+nsCSSFrameConstructor::ProcessPendingRestyles()
+{
+  NS_PRECONDITION(mDocument, "No document?  Pshaw!\n");
+  NS_PRECONDITION(!nsContentUtils::IsSafeToRunScript(),
+                  "Missing a script blocker!");
+
+  // Process non-animation restyles...
+  ProcessPendingRestyleTable(mPendingRestyles);
+
+  // ...and then process animation restyles.  This needs to happen
+  // second because we need to start animations that resulted from the
+  // first set of restyles (e.g., CSS transitions with negative
+  // transition-delay), and because we need to immediately
+  // restyle-with-animation any just-restyled elements that are
+  // mid-transition (since processing the non-animation restyle ignores
+  // the running transition so it can check for a new change on the same
+  // property, and then posts an immediate animation style change).
+  nsPresContext *presContext = mPresShell->GetPresContext();
+  presContext->SetProcessingAnimationStyleChange(PR_TRUE);
+  ProcessPendingRestyleTable(mPendingAnimationRestyles);
+  presContext->SetProcessingAnimationStyleChange(PR_FALSE);
 
   if (mRebuildAllStyleData) {
     // We probably wasted a lot of work up above, but this seems safest
@@ -11672,9 +11676,10 @@ nsCSSFrameConstructor::ProcessPendingRestyles()
 }
 
 void
-nsCSSFrameConstructor::PostRestyleEvent(nsIContent* aContent,
-                                        nsReStyleHint aRestyleHint,
-                                        nsChangeHint aMinChangeHint)
+nsCSSFrameConstructor::PostRestyleEventCommon(nsIContent* aContent,
+                                              nsReStyleHint aRestyleHint,
+                                              nsChangeHint aMinChangeHint,
+                                              PRBool aForAnimation)
 {
   if (NS_UNLIKELY(mPresShell->IsDestroying())) {
     return;
@@ -11692,12 +11697,15 @@ nsCSSFrameConstructor::PostRestyleEvent(nsIContent* aContent,
   existingData.mRestyleHint = nsReStyleHint(0);
   existingData.mChangeHint = NS_STYLE_HINT_NONE;
 
-  mPendingRestyles.Get(aContent, &existingData);
+  nsDataHashtable<nsISupportsHashKey, RestyleData> &restyles =
+    aForAnimation ? mPendingAnimationRestyles : mPendingRestyles;
+
+  restyles.Get(aContent, &existingData);
   existingData.mRestyleHint =
     nsReStyleHint(existingData.mRestyleHint | aRestyleHint);
   NS_UpdateHint(existingData.mChangeHint, aMinChangeHint);
 
-  mPendingRestyles.Put(aContent, existingData);
+  restyles.Put(aContent, existingData);
 
   PostRestyleEventInternal();
 }

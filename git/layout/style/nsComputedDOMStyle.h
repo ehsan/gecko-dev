@@ -86,6 +86,13 @@ public:
   GetStyleContextForContent(nsIContent* aContent, nsIAtom* aPseudo,
                             nsIPresShell* aPresShell);
 
+  static already_AddRefed<nsStyleContext>
+  GetStyleContextForContentNoFlush(nsIContent* aContent, nsIAtom* aPseudo,
+                                   nsIPresShell* aPresShell);
+
+  static nsIPresShell*
+  GetPresShellForContent(nsIContent* aContent);
+
 private:
   void AssertFlushedPendingReflows() {
     NS_ASSERTION(mFlushedPendingReflows,
@@ -137,6 +144,9 @@ private:
 
   nsresult GetCSSGradientString(const nsStyleGradient* aGradient,
                                 nsAString& aString);
+  nsresult GetImageRectString(nsIURI* aURI,
+                              const nsStyleSides& aCropRect,
+                              nsString& aString);
 
   /* Properties Queryable as CSSValues */
 
@@ -281,6 +291,7 @@ private:
 
   /* Visibility properties */
   nsresult GetOpacity(nsIDOMCSSValue** aValue);
+  nsresult GetPointerEvents(nsIDOMCSSValue** aValue);
   nsresult GetVisibility(nsIDOMCSSValue** aValue);
 
   /* Direction properties */
@@ -319,6 +330,12 @@ private:
   nsresult GetColumnRuleStyle(nsIDOMCSSValue** aValue);
   nsresult GetColumnRuleColor(nsIDOMCSSValue** aValue);
 
+  /* CSS Transitions */
+  nsresult GetTransitionProperty(nsIDOMCSSValue** aValue);
+  nsresult GetTransitionDuration(nsIDOMCSSValue** aValue);
+  nsresult GetTransitionDelay(nsIDOMCSSValue** aValue);
+  nsresult GetTransitionTimingFunction(nsIDOMCSSValue** aValue);
+
 #ifdef MOZ_SVG
   /* SVG properties */
   nsresult GetSVGPaintFor(PRBool aFill, nsIDOMCSSValue** aValue);
@@ -349,7 +366,6 @@ private:
   nsresult GetColorInterpolationFilters(nsIDOMCSSValue** aValue);
   nsresult GetDominantBaseline(nsIDOMCSSValue** aValue);
   nsresult GetImageRendering(nsIDOMCSSValue** aValue);
-  nsresult GetPointerEvents(nsIDOMCSSValue** aValue);
   nsresult GetShapeRendering(nsIDOMCSSValue** aValue);
   nsresult GetTextRendering(nsIDOMCSSValue** aValue);
 
@@ -365,6 +381,8 @@ private:
   nsROCSSPrimitiveValue* GetROCSSPrimitiveValue();
   nsDOMCSSValueList* GetROCSSValueList(PRBool aCommaDelimited);
   nsresult SetToRGBAColor(nsROCSSPrimitiveValue* aValue, nscolor aColor);
+  nsresult SetValueToStyleImage(const nsStyleImage& aStyleImage,
+                                nsROCSSPrimitiveValue* aValue);
   
   /**
    * A method to get a percentage base for a percentage value.  Returns PR_TRUE
@@ -380,7 +398,7 @@ private:
    * the percent value of aCoord is set as a percent value on aValue.  aTable,
    * if not null, is the keyword table to handle eStyleUnit_Enumerated.  When
    * calling SetAppUnits on aValue (for coord or percent values), the value
-   * passed in will be PR_MAX of the value in aMinAppUnits and the PR_MIN of
+   * passed in will be NS_MAX of the value in aMinAppUnits and the NS_MIN of
    * the actual value in aCoord and the value in aMaxAppUnits.
    *
    * XXXbz should caller pass in some sort of bitfield indicating which units

@@ -1,25 +1,50 @@
 # trace-test.py -- Python harness for JavaScript trace tests.
 
-import datetime, os, re, sys
+import datetime, os, re, sys, traceback
 import subprocess
 from subprocess import *
 
 JS = None
 
+# Backported from Python 3.1 posixpath.py
+def _relpath(path, start=None):
+    """Return a relative version of a path"""
+
+    if not path:
+        raise ValueError("no path specified")
+
+    if start is None:
+        start = os.curdir
+
+    start_list = os.path.abspath(start).split(os.sep)
+    path_list = os.path.abspath(path).split(os.sep)
+
+    # Work out how much of the filepath is shared by start and path.
+    i = len(os.path.commonprefix([start_list, path_list]))
+
+    rel_list = [os.pardir] * (len(start_list)-i) + path_list[i:]
+    if not rel_list:
+        return os.curdir
+    return os.path.join(*rel_list)
+
+os.path.relpath = _relpath
+
 class Test:
-    def __init__(self, path, slow, allow_oom):
+    def __init__(self, path, slow, allow_oom, tmflags):
         """  path        path to test file
              slow        True means the test is slow-running
              allow_oom   True means OOM should not be considered a failure """
         self.path = path
         self.slow = slow
         self.allow_oom = allow_oom
+        self.tmflags = tmflags
 
     COOKIE = '|trace-test|'
 
     @classmethod
     def from_file(cls, path):
         slow = allow_oom = False
+        tmflags = ''
 
         line = open(path).readline()
         i = line.find(cls.COOKIE)
@@ -30,30 +55,24 @@ class Test:
                 part = part.strip()
                 if not part:
                     continue
-                if part == 'slow':
-                    slow = True
-                elif part == 'allow-oom':
-                    allow_oom = True
+                name, _, value = part.partition(':')
+                if value:
+                    value = value.strip()
+                    if name == 'TMFLAGS':
+                        tmflags = value
+                    else:
+                        print('warning: unrecognized |trace-test| attribute %s'%part)
                 else:
-                    print('warning: unrecognized |trace-test| attribute %s'%part)
+                    if name == 'slow':
+                        slow = True
+                    elif name == 'allow-oom':
+                        allow_oom = True
+                    else:
+                        print('warning: unrecognized |trace-test| attribute %s'%part)
 
-        return cls(path, slow, allow_oom)
+        return cls(path, slow, allow_oom, tmflags)
 
-def find_tests(path):
-    if os.path.isfile(path):
-        if path.endswith('.js'):
-            return [ path ]
-        else:
-            print >> sys.stderr, 'Not a javascript file: %s'%path
-            sys.exit(1)
-
-    if os.path.isdir(path):
-        return find_tests_dir(path)
-
-    print >> sys.stderr, 'Not a file or directory: %s'%path
-    sys.exit(1)
-
-def find_tests_dir(dir):
+def find_tests(dir, substring = None):
     ans = []
     for dirpath, dirnames, filenames in os.walk(dir):
         if dirpath == '.':
@@ -64,7 +83,8 @@ def find_tests_dir(dir):
             if filename in ('shell.js', 'browser.js', 'jsref.js'):
                 continue
             test = os.path.join(dirpath, filename)
-            ans.append(test)
+            if substring is None or substring in os.path.relpath(test, dir):
+                ans.append(test)
     return ans
 
 def get_test_cmd(path, lib_dir):
@@ -76,12 +96,17 @@ def get_test_cmd(path, lib_dir):
              '-f', path ]
 
 def run_test(test, lib_dir):
+    if test.tmflags:
+        env = os.environ.copy()
+        env['TMFLAGS'] = test.tmflags
+    else:
+        env = None
     cmd = get_test_cmd(test.path, lib_dir)
     if OPTIONS.show_cmd:
         print(cmd)
     # close_fds is not supported on Windows and will cause a ValueError.
     close_fds = sys.platform != 'win32'
-    p = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=close_fds)
+    p = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=close_fds, env=env)
     out, err = p.communicate()
     out, err = out.decode(), err.decode()
     if OPTIONS.show_output:
@@ -105,7 +130,7 @@ def check_output(out, err, rc, allow_oom):
 
     return True
 
-def run_tests(tests, lib_dir):
+def run_tests(tests, test_dir, lib_dir):
     pb = None
     if not OPTIONS.hide_progress and not OPTIONS.show_cmd:
         try:
@@ -116,9 +141,13 @@ def run_tests(tests, lib_dir):
 
     failures = []
     complete = False
+    doing = 'before starting'
     try:
         for i, test in enumerate(tests):
+            doing = 'on %s'%test.path
             ok, out, err = run_test(test, lib_dir)
+            doing = 'after %s'%test.path
+
             if not ok:
                 failures.append(test.path)
 
@@ -133,7 +162,7 @@ def run_tests(tests, lib_dir):
                     else:
                         msg = ''
                     print('TEST-UNEXPECTED-FAIL | trace-test.py | %s: %s'%
-                          (test, msg))
+                          (test.path, msg))
 
             n = i + 1
             if pb:
@@ -147,6 +176,18 @@ def run_tests(tests, lib_dir):
         pb.finish()
 
     if failures:
+        if OPTIONS.write_failures:
+            try:
+                out = open(OPTIONS.write_failures, 'w')
+                for test in failures:
+                    out.write(os.path.relpath(test, test_dir) + '\n')
+                out.close()
+            except IOError:
+                sys.stderr.write("Exception thrown trying to write failure file '%s'\n"%
+                                 OPTIONS.write_failures)
+                traceback.print_exc()
+                sys.stderr.write('---\n')
+
         print('FAILURES:')
         for test in failures:
             if OPTIONS.show_failed:
@@ -154,7 +195,7 @@ def run_tests(tests, lib_dir):
             else:
                 print('    ' + test)
     else:
-        print('PASSED ALL' + ('' if complete else ' (partial run -- interrupted by user)'))
+        print('PASSED ALL' + ('' if complete else ' (partial run -- interrupted by user %s)'%doing))
 
 if __name__ == '__main__':
     script_path = os.path.abspath(__file__)
@@ -181,23 +222,55 @@ if __name__ == '__main__':
                   help='hide progress bar')
     op.add_option('--tinderbox', dest='tinderbox', action='store_true',
                   help='Tinderbox-parseable output format')
+    op.add_option('-w', '--write-failures', dest='write_failures', metavar='FILE',
+                  help='Write a list of failed tests to [FILE]')
+    op.add_option('-r', '--read-tests', dest='read_tests', metavar='FILE',
+                  help='Run test files listed in [FILE]')
+    op.add_option('-R', '--retest', dest='retest', metavar='FILE',
+                  help='Retest using test list file [FILE]')
+    op.add_option('-g', '--debug', dest='debug', action='store_true',
+                  help='Run test in gdb')
     (OPTIONS, args) = op.parse_args()
     if len(args) < 1:
         op.error('missing JS_SHELL argument')
     # We need to make sure we are using backslashes on Windows.
     JS, test_args = os.path.normpath(args[0]), args[1:]
 
+    if OPTIONS.retest:
+        OPTIONS.read_tests = OPTIONS.retest
+        OPTIONS.write_failures = OPTIONS.retest
+
+    test_list = []
+    read_all = True
+
     if test_args:
-        test_list = []
+        read_all = False
         for arg in test_args:
-            test_list += find_tests(os.path.normpath(os.path.join(test_dir, arg)))
-    else:
+            test_list += find_tests(test_dir, arg)
+
+    if OPTIONS.read_tests:
+        read_all = False
+        try:
+            f = open(OPTIONS.read_tests)
+            for line in f:
+                test_list.append(os.path.join(test_dir, line.strip('\n')))
+            f.close()
+        except IOError:
+            if OPTIONS.retest:
+                read_all = True
+            else:
+                sys.stderr.write("Exception thrown trying to read test file '%s'\n"%
+                                 OPTIONS.read_tests)
+                traceback.print_exc()
+                sys.stderr.write('---\n')
+
+    if read_all:
         test_list = find_tests(test_dir)
 
     if OPTIONS.exclude:
         exclude_list = []
         for exclude in OPTIONS.exclude:
-            exclude_list += find_tests(os.path.normpath(os.path.join(test_dir, exclude)))
+            exclude_list += find_tests(test_dir, exclude)
         test_list = [ test for test in test_list if test not in set(exclude_list) ]
 
     if not test_list:
@@ -208,4 +281,16 @@ if __name__ == '__main__':
     if not OPTIONS.run_slow:
         test_list = [ _ for _ in test_list if not _.slow ]
 
-    run_tests(test_list, lib_dir)
+    if OPTIONS.debug:
+        if len(test_list) > 1:
+            print('Multiple tests match command line arguments, debugger can only run one')
+            for tc in test_list:
+                print('    %s'%tc.path)
+            sys.exit(1)
+
+        tc = test_list[0]
+        cmd = [ 'gdb', '--args' ] + get_test_cmd(tc.path, lib_dir)
+        call(cmd)
+        sys.exit()
+
+    run_tests(test_list, test_dir, lib_dir)

@@ -340,9 +340,7 @@ ListMathMLTree(nsIFrame* atLeast)
       break;
   }
   if (!f) f = atLeast;
-  nsIFrameDebug* fdbg;
-  CallQueryInterface(f, &fdbg);
-  fdbg->List(stdout, 0);
+  f->List(stdout, 0);
 }
 #endif
 
@@ -358,6 +356,8 @@ NS_NewMathMLmtableOuterFrame (nsIPresShell* aPresShell, nsStyleContext* aContext
 {
   return new (aPresShell) nsMathMLmtableOuterFrame(aContext);
 }
+
+NS_IMPL_FRAMEARENA_HELPERS(nsMathMLmtableOuterFrame)
 
 nsMathMLmtableOuterFrame::~nsMathMLmtableOuterFrame()
 {
@@ -653,6 +653,8 @@ NS_NewMathMLmtableFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsMathMLmtableFrame(aContext);
 }
 
+NS_IMPL_FRAMEARENA_HELPERS(nsMathMLmtableFrame)
+
 nsMathMLmtableFrame::~nsMathMLmtableFrame()
 {
 }
@@ -686,6 +688,8 @@ NS_NewMathMLmtrFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsMathMLmtrFrame(aContext);
 }
+
+NS_IMPL_FRAMEARENA_HELPERS(nsMathMLmtrFrame)
 
 nsMathMLmtrFrame::~nsMathMLmtrFrame()
 {
@@ -744,6 +748,8 @@ NS_NewMathMLmtdFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsMathMLmtdFrame(aContext);
 }
 
+NS_IMPL_FRAMEARENA_HELPERS(nsMathMLmtdFrame)
+
 nsMathMLmtdFrame::~nsMathMLmtdFrame()
 {
 }
@@ -762,7 +768,7 @@ nsMathMLmtdFrame::GetRowSpan()
       rowspan = value.ToInteger(&error);
       if (error || rowspan < 0)
         rowspan = 1;
-      rowspan = PR_MIN(rowspan, MAX_ROWSPAN);
+      rowspan = NS_MIN(rowspan, MAX_ROWSPAN);
     }
   }
   return rowspan;
@@ -829,6 +835,8 @@ NS_NewMathMLmtdInnerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsMathMLmtdInnerFrame(aContext);
 }
+
+NS_IMPL_FRAMEARENA_HELPERS(nsMathMLmtdInnerFrame)
 
 nsMathMLmtdInnerFrame::~nsMathMLmtdInnerFrame()
 {

@@ -207,65 +207,31 @@
 #define NS_CRASHREPORTER_CONTRACTID "@mozilla.org/toolkit/crash-reporter;1"
 #endif
 
-// on x86 linux, the current builds of some popular plugins (notably
-// flashplayer and real) expect a few builtin symbols from libgcc
-// which were available in some older versions of gcc.  However,
-// they're _NOT_ available in newer versions of gcc (eg 3.1), so if
-// we want those plugin to work with a gcc-3.1 built binary, we need
-// to provide these symbols.  MOZ_ENABLE_OLD_ABI_COMPAT_WRAPPERS defaults
-// to true on x86 linux, and false everywhere else.
-//
-// The fact that the new and free operators are mismatched 
-// mirrors the way the original functions in egcs 1.1.2 worked.
-
-#ifdef MOZ_ENABLE_OLD_ABI_COMPAT_WRAPPERS
-
-extern "C" {
-
-# ifndef HAVE___BUILTIN_VEC_NEW
-  void *__builtin_vec_new(size_t aSize, const std::nothrow_t &aNoThrow) throw()
-  {
-    return ::operator new(aSize, aNoThrow);
+#ifdef WINCE
+class WindowsMutex {
+public:
+  WindowsMutex(const wchar_t *name) {
+    mHandle = CreateMutexW(0, FALSE, name);
   }
-# endif
 
-# ifndef HAVE___BUILTIN_VEC_DELETE
-  void __builtin_vec_delete(void *aPtr, const std::nothrow_t &) throw ()
-  {
-    if (aPtr) {
-      free(aPtr);
-    }
+  ~WindowsMutex() {
+    Unlock();
+    CloseHandle(mHandle);
   }
-# endif
 
-# ifndef HAVE___BUILTIN_NEW
-	void *__builtin_new(int aSize)
-  {
-    return malloc(aSize);
+  PRBool Lock(DWORD timeout = INFINITE) {
+    DWORD state = WaitForSingleObject(mHandle, timeout);
+    return state == WAIT_OBJECT_0;
   }
-# endif
-
-# ifndef HAVE___BUILTIN_DELETE
-	void __builtin_delete(void *aPtr)
-  {
-    free(aPtr);
+  
+  void Unlock() {
+    if (mHandle)
+      ReleaseMutex(mHandle);
   }
-# endif
 
-# ifndef HAVE___PURE_VIRTUAL
-  void __pure_virtual(void) {
-#ifdef WRAP_SYSTEM_INCLUDES
-#pragma GCC visibility push(default)
-#endif
-    extern void __cxa_pure_virtual(void);
-#ifdef WRAP_SYSTEM_INCLUDES
-#pragma GCC visibility pop
-#endif
-
-    __cxa_pure_virtual();
-  }
-# endif
-}
+protected:
+  HANDLE mHandle;
+};
 #endif
 
 #if defined(XP_UNIX) || defined(XP_BEOS)
@@ -463,7 +429,7 @@ static void RemoveArg(char **argv)
  *        allocated, but rather a pointer to the argv data.
  */
 static ArgResult
-CheckArg(const char* aArg, PRBool aCheckOSInt = PR_FALSE, const char **aParam = nsnull)
+CheckArg(const char* aArg, PRBool aCheckOSInt = PR_FALSE, const char **aParam = nsnull, PRBool aRemArg = PR_TRUE)
 {
   char **curarg = gArgv + 1; // skip argv[0]
   ArgResult ar = ARG_NONE;
@@ -481,7 +447,8 @@ CheckArg(const char* aArg, PRBool aCheckOSInt = PR_FALSE, const char **aParam = 
         ++arg;
 
       if (strimatch(aArg, arg)) {
-        RemoveArg(curarg);
+        if (aRemArg)
+          RemoveArg(curarg);
         if (!aParam) {
           ar = ARG_FOUND;
           break;
@@ -496,7 +463,8 @@ CheckArg(const char* aArg, PRBool aCheckOSInt = PR_FALSE, const char **aParam = 
             return ARG_BAD;
 
           *aParam = *curarg;
-          RemoveArg(curarg);
+          if (aRemArg)
+            RemoveArg(curarg);
           ar = ARG_FOUND;
           break;
         }
@@ -2562,7 +2530,7 @@ static void MOZ_gdk_display_close(GdkDisplay *display)
  * By defining the symbol here, we can avoid the wasted lookup and hopefully
  * improve startup performance.
  */
-PRBool nspr_use_zone_allocator = PR_FALSE;
+NS_VISIBILITY_DEFAULT PRBool nspr_use_zone_allocator = PR_FALSE;
 
 #ifdef MOZ_SPLASHSCREEN
 #define MOZ_SPLASHSCREEN_UPDATE(_i)  do { if (splashScreen) splashScreen->Update(_i); } while(0)
@@ -2578,10 +2546,7 @@ int
 XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 {
 #ifdef MOZ_SPLASHSCREEN
-  nsSplashScreen *splashScreen =
-    nsSplashScreen::GetOrCreate();
-  if (splashScreen)
-    splashScreen->Open();
+  nsSplashScreen *splashScreen = nsnull;
 #endif
 
 #ifdef XP_WIN
@@ -2702,8 +2667,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     }
   }
 
-  MOZ_SPLASHSCREEN_UPDATE(10);
-
   ScopedAppData appData(aAppData);
   gAppData = &appData;
 
@@ -2717,6 +2680,64 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     Output(PR_TRUE, "Error: App:BuildID not specified in application.ini\n");
     return 1;
   }
+
+#ifdef MOZ_SPLASHSCREEN
+  // check to see if we need to do a splash screen
+  PRBool wantsSplash = PR_TRUE;
+  PRBool isNoSplash = (CheckArg("nosplash", PR_FALSE, NULL, PR_FALSE) == ARG_FOUND);
+  PRBool isNoRemote = (CheckArg("no-remote", PR_FALSE, NULL, PR_FALSE) == ARG_FOUND);
+
+#ifdef WINCE
+  // synchronize startup; if it looks like we're going to have to
+  // wait, then open up a splash screen
+  WindowsMutex winStartupMutex(L"FirefoxStartupMutex");
+
+  // try to lock the mutex, but only wait 100ms to do so
+  PRBool needsMutexLock = ! winStartupMutex.Lock(100);
+
+  // If we failed to lock the mutex quickly, then we'll want
+  // a splash screen for sure.
+  //
+  // If we did manage to lock it, then we'll only want one
+  // a splash screen if there is no existing message window;
+  // that is, if we are the first instance of the app.
+  if (!needsMutexLock && !isNoRemote) {
+    // check to see if there's a remote firefox up
+    static PRUnichar classNameBuffer[128];
+    _snwprintf(classNameBuffer, sizeof(classNameBuffer) / sizeof(PRUnichar),
+               L"%S%s",
+               gAppData->name, L"MessageWindow");
+    HANDLE h = FindWindowW(classNameBuffer, 0);
+    if (h) {
+      // Someone else has the window, and we were able to grab the mutex,
+      // meaning the other instance ahs presumably already finished starting
+      // up by now.  So no need for a splash screen.
+      wantsSplash = PR_FALSE;
+      CloseHandle(h);
+    } else {
+      // We couldn't find another window, and we were able to lock the mutex;
+      // we're likely the first instance starting up, so make sure a splash
+      // screen gets thrown up.
+      wantsSplash = PR_TRUE;
+    }
+  }
+#endif //WINCE
+
+  if (wantsSplash && !isNoSplash)
+    splashScreen = nsSplashScreen::GetOrCreate();
+
+  if (splashScreen)
+    splashScreen->Open();
+
+#ifdef WINCE
+  // Now that the splash screen is open, wait indefinitely
+  // for the startup mutex on this thread if we need to.
+  if (needsMutexLock)
+    winStartupMutex.Lock();
+#endif //WINCE
+
+#endif //MOZ_SPLASHSCREEN
+
 
   ScopedLogging log;
 
@@ -3122,6 +3143,11 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     rv = dirProvider.SetProfile(profD, profLD);
     NS_ENSURE_SUCCESS(rv, 1);
 
+#if defined(WINCE) && defined(MOZ_SPLASHSCREEN)
+    // give up the mutex, let other app startups happen
+    winStartupMutex.Unlock();
+#endif
+
     //////////////////////// NOW WE HAVE A PROFILE ////////////////////////
 
 #ifdef MOZ_CRASHREPORTER
@@ -3279,10 +3305,10 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
           /* Special-case services that need early access to the command
              line. */
-          nsCOMPtr<nsIObserver> chromeObserver
-            (do_GetService("@mozilla.org/chrome/chrome-registry;1"));
-          if (chromeObserver) {
-            chromeObserver->Observe(cmdLine, "command-line-startup", nsnull);
+          nsCOMPtr<nsIObserverService> obsService
+            (do_GetService("@mozilla.org/observer-service;1"));
+          if (obsService) {
+            obsService->NotifyObservers(cmdLine, "command-line-startup", nsnull);
           }
 
           NS_TIMELINE_ENTER("appStartup->CreateHiddenWindow");

@@ -67,6 +67,8 @@ NS_NewPopupSetFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsPopupSetFrame (aPresShell, aContext);
 }
 
+NS_IMPL_FRAMEARENA_HELPERS(nsPopupSetFrame)
+
 NS_IMETHODIMP
 nsPopupSetFrame::Init(nsIContent*      aContent,
                       nsIFrame*        aParent,
@@ -366,10 +368,7 @@ nsPopupSetFrame::List(FILE* out, PRInt32 aIndent) const
         NS_ASSERTION(kid->GetParent() == (nsIFrame*)this, "bad parent frame pointer");
 
         // Have the child frame list
-        nsIFrameDebug*  frameDebug = do_QueryFrame(kid);
-        if (frameDebug) {
-          frameDebug->List(out, aIndent + 1);
-        }
+        kid->List(out, aIndent + 1);
         kid = kid->GetNextSibling();
       }
       IndentBy(out, aIndent);
@@ -393,10 +392,7 @@ nsPopupSetFrame::List(FILE* out, PRInt32 aIndent) const
     fputs(" <\n", out);
     ++aIndent;
     for (nsPopupFrameList* l = mPopupList; l; l = l->mNextPopup) {
-      nsIFrameDebug* frameDebug = do_QueryFrame(l->mPopupFrame);
-      if (frameDebug) {
-        frameDebug->List(out, aIndent);
-      }
+      l->mPopupFrame->List(out, aIndent);
     }
     --aIndent;
     IndentBy(out, aIndent);

@@ -40,10 +40,6 @@
 
 #include "nanojit.h"
 
-#ifdef AVMPLUS_PORTING_API
-#include "portapi_nanojit.h"
-#endif
-
 #ifdef UNDER_CE
 #include <cmnintrin.h>
 #endif
@@ -462,6 +458,11 @@ Assembler::nInit(AvmCore*)
 {
 }
 
+void Assembler::nBeginAssembly()
+{
+    max_out_args = 0;
+}
+
 NIns*
 Assembler::genPrologue()
 {
@@ -471,16 +472,10 @@ Assembler::genPrologue()
 
     // NJ_RESV_OFFSET is space at the top of the stack for us
     // to use for parameter passing (8 bytes at the moment)
-    uint32_t stackNeeded = max_out_args + STACK_GRANULARITY * _activation.highwatermark;
+    uint32_t stackNeeded = max_out_args + STACK_GRANULARITY * _activation.tos;
     uint32_t savingCount = 2;
 
     uint32_t savingMask = rmask(FP) | rmask(LR);
-
-    if (!_thisfrag->lirbuf->explicitSavedRegs) {
-        for (int i = 0; i < NumSavedRegs; ++i)
-            savingMask |= rmask(savedRegs[i]);
-        savingCount += NumSavedRegs;
-    }
 
     // so for alignment purposes we've pushed return addr and fp
     uint32_t stackPushed = STACK_GRANULARITY * savingCount;
@@ -515,20 +510,17 @@ Assembler::nFragExit(LInsp guard)
         // The target doesn't exit yet, so emit a jump to the epilogue. If the
         // target is created later on, the jump will be patched.
 
-        GuardRecord *   gr = guard->record();
+        GuardRecord *gr = guard->record();
+
+        if (!_epilogue)
+            _epilogue = genEpilogue();
 
         // Jump to the epilogue. This may get patched later, but JMP_far always
         // emits two instructions even when only one is required, so patching
         // will work correctly.
         JMP_far(_epilogue);
 
-        // Load the guard record pointer into R2. We want it in R0 but we can't
-        // do this at this stage because R0 is used for something else.
-        // I don't understand why I can't load directly into R0. It works for
-        // the JavaScript JIT but not for the Regular Expression compiler.
-        // However, I haven't pushed this further as it only saves a single MOV
-        // instruction in genEpilogue.
-        asm_ld_imm(R2, int(gr));
+        asm_ld_imm(R0, int(gr));
 
         // Set the jmp pointer to the start of the sequence so that patched
         // branches can skip the LDi sequence.
@@ -556,22 +548,8 @@ Assembler::genEpilogue()
     NanoAssert(AvmCore::config.arch >= 5);
 
     RegisterMask savingMask = rmask(FP) | rmask(PC);
-    if (!_thisfrag->lirbuf->explicitSavedRegs)
-        for (int i = 0; i < NumSavedRegs; ++i)
-            savingMask |= rmask(savedRegs[i]);
 
     POP_mask(savingMask); // regs
-
-    // Pop the stack frame.
-    // As far as I can tell, the generated code doesn't use the stack between
-    // popping the stack frame in nFragExit and getting here and so this MOV
-    // should be redundant. However, removing this seems to break some regular
-    // expression stuff.
-    MOV(SP,FP);
-
-    // nFragExit loads the guard record pointer into R2, but we need it in R0
-    // so it must be moved here.
-    MOV(R0,R2); // return GuardRecord*
 
     return _nIns;
 }
@@ -752,7 +730,7 @@ Assembler::asm_regarg(ArgSize sz, LInsp p, Register r)
                 if (rA->reg == UnknownReg) {
                     // load it into the arg reg
                     int d = findMemFor(p);
-                    if (p->isop(LIR_ialloc)) {
+                    if (p->isop(LIR_alloc)) {
                         asm_add_imm(r, FP, d, 0);
                     } else {
                         LDR(r, FP, d);
@@ -818,7 +796,7 @@ Assembler::asm_stkarg(LInsp arg, int stkd)
         int d = findMemFor(arg);
         if (!isQuad) {
             STR(IP, SP, stkd);
-            if (arg->isop(LIR_ialloc)) {
+            if (arg->isop(LIR_alloc)) {
                 asm_add_imm(IP, FP, d);
             } else {
                 LDR(IP, FP, d);
@@ -863,11 +841,7 @@ Assembler::asm_call(LInsp ins)
 
     // If we aren't using VFP, assert that the LIR operation is an integer
     // function call.
-    // TODO: Check that "icall" actually means "integer call".
-    // TODO: LIR_icall isn't yet defined, but according to the Nanojit merging
-    // wiki page, it will be renamed at some point:
-    // https://developer.mozilla.org/en/NanojitMerge
-    NanoAssert(AvmCore::config.vfp || ins->isop(/*LIR_icall*/LIR_call));
+    NanoAssert(AvmCore::config.vfp || ins->isop(LIR_icall));
 
     // If we're using VFP, and the return type is a double, it'll come back in
     // R0/R1. We need to either place it in the result fp reg, or store it.
@@ -942,7 +916,7 @@ Assembler::asm_call(LInsp ins)
 }
 
 Register
-Assembler::nRegisterAllocFromSet(int set)
+Assembler::nRegisterAllocFromSet(RegisterMask set)
 {
     NanoAssert(set != 0);
 
@@ -963,7 +937,6 @@ Assembler::nRegisterResetAll(RegAlloc& a)
 {
     // add scratch registers to our free list for the allocator
     a.clear();
-    a.used = 0;
     a.free =
         rmask(R0) | rmask(R1) | rmask(R2) | rmask(R3) | rmask(R4) |
         rmask(R5) | rmask(R6) | rmask(R7) | rmask(R8) | rmask(R9) |
@@ -974,7 +947,7 @@ Assembler::nRegisterResetAll(RegAlloc& a)
     debug_only(a.managed = a.free);
 }
 
-NIns*
+void
 Assembler::nPatchBranch(NIns* at, NIns* target)
 {
     // Patch the jump in a loop, as emitted by JMP_far.
@@ -1048,8 +1021,6 @@ Assembler::nPatchBranch(NIns* at, NIns* target)
 #ifdef AVMPLUS_PORTING_API
     NanoJIT_PortAPI_FlushInstructionCache(at, at+3);
 #endif
-
-    return was;
 }
 
 RegisterMask
@@ -1057,14 +1028,14 @@ Assembler::hint(LIns* i, RegisterMask allow /* = ~0 */)
 {
     uint32_t op = i->opcode();
     int prefer = ~0;
-
-    if (op==LIR_call || op==LIR_fcall)
+    if (op==LIR_icall)
         prefer = rmask(R0);
     else if (op == LIR_callh)
         prefer = rmask(R1);
-    else if (op == LIR_iparam)
-        prefer = rmask(imm2register(i->paramArg()));
-
+    else if (op == LIR_param) {
+        if (i->paramArg() < 4)
+            prefer = rmask(argRegs[i->paramArg()]);
+    }
     if (_allocator.free & allow & prefer)
         allow &= prefer;
     return allow;
@@ -1092,7 +1063,7 @@ Assembler::asm_store32(LIns *value, int dr, LIns *base)
 {
     Reservation *rA, *rB;
     Register ra, rb;
-    if (base->isop(LIR_ialloc)) {
+    if (base->isop(LIR_alloc)) {
         rb = FP;
         dr += findMemFor(base);
         ra = findRegFor(value, GpRegs);
@@ -1113,7 +1084,7 @@ Assembler::asm_store32(LIns *value, int dr, LIns *base)
 void
 Assembler::asm_restore(LInsp i, Reservation *resv, Register r)
 {
-    if (i->isop(LIR_ialloc)) {
+    if (i->isop(LIR_alloc)) {
         asm_add_imm(r, FP, disp(resv));
     } else if (IsFpReg(r)) {
         NanoAssert(AvmCore::config.vfp);
@@ -1425,6 +1396,15 @@ Assembler::asm_mmq(Register rd, int dd, Register rs, int ds)
     }
 }
 
+// Increment the 32-bit profiling counter at pCtr, without
+// changing any registers.
+verbose_only(
+void Assembler::asm_inc_m32(uint32_t* pCtr)
+{
+    // todo: implement this
+}
+)
+
 void
 Assembler::nativePageReset()
 {
@@ -1437,9 +1417,9 @@ void
 Assembler::nativePageSetup()
 {
     if (!_nIns)
-        codeAlloc(codeStart, codeEnd, _nIns);
+        codeAlloc(codeStart, codeEnd, _nIns verbose_only(, codeBytes));
     if (!_nExitIns)
-        codeAlloc(exitStart, exitEnd, _nExitIns);
+        codeAlloc(exitStart, exitEnd, _nExitIns verbose_only(, exitBytes));
 
     // constpool starts at top of page and goes down,
     // code starts at bottom of page and moves up
@@ -1462,9 +1442,9 @@ Assembler::underrunProtect(int bytes)
         verbose_only(verbose_outputf("        %p:", _nIns);)
         NIns* target = _nIns;
         if (_inExit)
-            codeAlloc(exitStart, exitEnd, _nIns);
+            codeAlloc(exitStart, exitEnd, _nIns verbose_only(, exitBytes));
         else
-            codeAlloc(codeStart, codeEnd, _nIns);
+            codeAlloc(codeStart, codeEnd, _nIns verbose_only(, codeBytes));
 
         _nSlot = _inExit ? exitStart : codeStart;
 
@@ -1771,9 +1751,9 @@ Assembler::B_cond_chk(ConditionCode _c, NIns* _t, bool _chk)
     //      be patched, so the nPatchBranch function doesn't need to know where
     //      the literal pool is located.
     //          LDRcc   PC, #lit
-    //          ; #lit is in the literal pool at ++_nSlot
+    //          ; #lit is in the literal pool at _nSlot
     //
-    //  --- Long conditional branch (if !samepage(_nIns-1, _nSlot)).
+    //  --- Long conditional branch (if the slot isn't on the same page as the instruction).
     //          LDRcc   PC, #lit
     //          B       skip        ; Jump over the literal data.
     //  lit:    #target
@@ -1786,12 +1766,14 @@ Assembler::B_cond_chk(ConditionCode _c, NIns* _t, bool _chk)
         if(_chk) underrunProtect(8);
         *(--_nIns) = (NIns)(_t);
         *(--_nIns) = (NIns)( COND_AL | (0x51<<20) | (PC<<16) | (PC<<12) | 0x4 );
-    } else if (PC_OFFSET_FROM(_nSlot, _nIns-1) > -0x1000) {
+    } else if (PC_OFFSET_FROM(_nSlot, _nIns-1) > -0x1000 /*~(NJ_PAGE_SIZE-1)*/) {
         if(_chk) underrunProtect(8);
-        *(++_nSlot) = (NIns)(_t);
-        offs = PC_OFFSET_FROM(_nSlot,_nIns-1);
+        *(_nSlot++) = (NIns)(_t);
+        offs = PC_OFFSET_FROM(_nSlot-1,_nIns-1);
         NanoAssert(offs < 0);
-        *(--_nIns) = (NIns)( ((_c)<<28) | (0x51<<20) | (PC<<16) | (PC<<12) | ((-offs) & 0xFFFFFF) );
+        *(--_nIns) = (NIns)( ((_c)<<28) | (0x51<<20) | (PC<<16) | (PC<<12) | ((-offs) & 0xFFF) );
+        asm_output("ldr%s %s, [%s, #-%d]", condNames[_c], gpn(PC), gpn(PC), -offs);
+        NanoAssert(uintptr_t(_nIns)+8+offs == uintptr_t(_nSlot-1));
     } else {
         if(_chk) underrunProtect(12);
         // Emit a pointer to the target as a literal in the instruction stream.
@@ -2050,20 +2032,6 @@ Assembler::asm_cmpi(Register r, int32_t imm)
 }
 
 void
-Assembler::asm_loop(LInsp ins, NInsList& loopJumps)
-{
-    // XXX asm_loop should be in Assembler.cpp!
-
-    JMP_far(0);
-    loopJumps.add(_nIns);
-
-    // If the target we are looping to is in a different fragment, we have to restore
-    // SP since we will target fragEntry and not loopEntry.
-    if (ins->record()->exit->target != _thisfrag)
-        MOV(SP,FP);
-}
-
-void
 Assembler::asm_fcond(LInsp ins)
 {
     // only want certain regs
@@ -2140,7 +2108,7 @@ Assembler::asm_arith(LInsp ins)
     // trace-tests.js so it is very unlikely to be worthwhile implementing it.
     if (rhs->isconst() && op != LIR_mul)
     {
-        if ((op == LIR_add || op == LIR_iaddp) && lhs->isop(LIR_ialloc)) {
+        if ((op == LIR_add || op == LIR_iaddp) && lhs->isop(LIR_alloc)) {
             // Add alloc+const. The result should be the address of the
             // allocated space plus a constant.
             Register    rs = prepResultReg(ins, allow);
@@ -2390,9 +2358,11 @@ Assembler::asm_int(LInsp ins)
 void
 Assembler::asm_ret(LIns *ins)
 {
-    if (_nIns != _epilogue) {
-        B(_epilogue);
-    }
+    genEpilogue();
+
+    // Pop the stack frame.
+    MOV(SP,FP);
+
     assignSavedRegs();
     LIns *value = ins->oprnd1();
     if (ins->isop(LIR_ret)) {

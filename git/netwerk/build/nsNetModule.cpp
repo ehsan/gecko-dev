@@ -178,6 +178,8 @@ NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsCookieService, nsCookieService::GetSi
 #ifdef NECKO_WIFI
 
 #include "nsWifiMonitor.h"
+#undef LOG
+#undef LOG_ENABLED
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsWifiMonitor)
 
 #endif
@@ -223,20 +225,24 @@ NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsFtpProtocolHandler, Init)
 #ifdef NECKO_PROTOCOL_http
 // http/https
 #include "nsHttpHandler.h"
+#undef LOG
+#undef LOG_ENABLED
 #include "nsHttpAuthManager.h"
 #include "nsHttpBasicAuth.h"
 #include "nsHttpDigestAuth.h"
 #include "nsHttpNTLMAuth.h"
+#include "nsHttpActivityDistributor.h"
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsHttpNTLMAuth)
 #undef LOG
 #undef LOG_ENABLED
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsHttpHandler, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsHttpsHandler, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsHttpAuthManager, Init)
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsHttpActivityDistributor, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsHttpBasicAuth)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsHttpDigestAuth)
 #endif // !NECKO_PROTOCOL_http
-  
+
 #ifdef NECKO_PROTOCOL_res
 // resource
 #include "nsResProtocolHandler.h"
@@ -986,6 +992,11 @@ static const nsModuleComponentInfo gNetModuleInfo[] = {
       NS_HTTPAUTHMANAGER_CID,
       NS_HTTPAUTHMANAGER_CONTRACTID,
       nsHttpAuthManagerConstructor },
+
+   { NS_HTTPACTIVITYDISTRIBUTOR_CLASSNAME,
+     NS_HTTPACTIVITYDISTRIBUTOR_CID,
+     NS_HTTPACTIVITYDISTRIBUTOR_CONTRACTID,
+     nsHttpActivityDistributorConstructor },
 #endif // !NECKO_PROTOCOL_http
       
 #ifdef NECKO_PROTOCOL_ftp

@@ -103,12 +103,12 @@ nsHTMLContentSerializer::AppendDocumentStart(nsIDOMDocument *aDocument,
 }
 
 void 
-nsHTMLContentSerializer::SerializeAttributes(nsIContent* aContent,
-                                             nsIDOMElement *aOriginalElement,
-                                             nsAString& aTagPrefix,
-                                             const nsAString& aTagNamespaceURI,
-                                             nsIAtom* aTagName,
-                                             nsAString& aStr)
+nsHTMLContentSerializer::SerializeHTMLAttributes(nsIContent* aContent,
+                                                 nsIDOMElement *aOriginalElement,
+                                                 nsAString& aTagPrefix,
+                                                 const nsAString& aTagNamespaceURI,
+                                                 nsIAtom* aTagName,
+                                                 nsAString& aStr)
 {
   PRInt32 count = aContent->GetAttrCount();
   if (!count)
@@ -121,9 +121,8 @@ nsHTMLContentSerializer::SerializeAttributes(nsIContent* aContent,
   // HTML5 parser stored them in the order they were parsed so we want to
   // loop forward in that case.
   nsIDocument* doc = aContent->GetOwnerDocument();
-  PRBool caseSensitive = doc && doc->IsCaseSensitive();
   PRBool loopForward = PR_FALSE;
-  if (!caseSensitive) {
+  if (!doc || doc->IsHTML()) {
     nsCOMPtr<nsIHTMLDocument> htmlDoc(do_QueryInterface(doc));
     if (htmlDoc) {
       loopForward = nsHtml5Module::sEnabled;
@@ -307,7 +306,7 @@ nsHTMLContentSerializer::AppendElementStart(nsIDOMElement *aElement,
   // Even LI passed above have to go through this 
   // for serializing attributes other than "value".
   nsAutoString dummyPrefix;
-  SerializeAttributes(content, aOriginalElement, dummyPrefix, EmptyString(), name, aStr);
+  SerializeHTMLAttributes(content, aOriginalElement, dummyPrefix, EmptyString(), name, aStr);
 
   AppendToString(kGreaterThan, aStr);
 

@@ -38,12 +38,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#define __STDC_LIMIT_MACROS
+
 /*
  * JS number type and wrapper class.
  */
-#if defined(XP_WIN) || defined(XP_OS2)
-#include <float.h>
-#endif
 #ifdef XP_OS2
 #define _PC_53  PC_53
 #define _MCW_EM MCW_EM
@@ -71,7 +70,36 @@
 #include "jsprf.h"
 #include "jsscope.h"
 #include "jsstr.h"
+#include "jsstrinlines.h"
 #include "jsvector.h"
+
+
+#ifndef JS_HAVE_STDINT_H /* Native support is innocent until proven guilty. */
+
+JS_STATIC_ASSERT(uint8_t(-1) == UINT8_MAX);
+JS_STATIC_ASSERT(uint16_t(-1) == UINT16_MAX);
+JS_STATIC_ASSERT(uint32_t(-1) == UINT32_MAX);
+JS_STATIC_ASSERT(uint64_t(-1) == UINT64_MAX);
+
+JS_STATIC_ASSERT(INT8_MAX > INT8_MIN);
+JS_STATIC_ASSERT(uint8_t(INT8_MAX) + uint8_t(1) == uint8_t(INT8_MIN));
+JS_STATIC_ASSERT(INT16_MAX > INT16_MIN);
+JS_STATIC_ASSERT(uint16_t(INT16_MAX) + uint16_t(1) == uint16_t(INT16_MIN));
+JS_STATIC_ASSERT(INT32_MAX > INT32_MIN);
+JS_STATIC_ASSERT(uint32_t(INT32_MAX) + uint32_t(1) == uint32_t(INT32_MIN));
+JS_STATIC_ASSERT(INT64_MAX > INT64_MIN);
+JS_STATIC_ASSERT(uint64_t(INT64_MAX) + uint64_t(1) == uint64_t(INT64_MIN));
+
+JS_STATIC_ASSERT(INTPTR_MAX > INTPTR_MIN);
+JS_STATIC_ASSERT(uintptr_t(INTPTR_MAX) + uintptr_t(1) == uintptr_t(INTPTR_MIN));
+JS_STATIC_ASSERT(uintptr_t(-1) == UINTPTR_MAX);
+JS_STATIC_ASSERT(size_t(-1) == SIZE_MAX);
+JS_STATIC_ASSERT(PTRDIFF_MAX > PTRDIFF_MIN);
+JS_STATIC_ASSERT(ptrdiff_t(PTRDIFF_MAX) == PTRDIFF_MAX);
+JS_STATIC_ASSERT(ptrdiff_t(PTRDIFF_MIN) == PTRDIFF_MIN);
+JS_STATIC_ASSERT(uintptr_t(PTRDIFF_MAX) + uintptr_t(1) == uintptr_t(PTRDIFF_MIN));
+
+#endif /* JS_HAVE_STDINT_H */
 
 static JSBool
 num_isNaN(JSContext *cx, uintN argc, jsval *vp)
@@ -237,8 +265,8 @@ JS_DEFINE_TRCINFO_1(num_parseFloat,
 static JSFunctionSpec number_functions[] = {
     JS_FN(js_isNaN_str,         num_isNaN,           1,0),
     JS_FN(js_isFinite_str,      num_isFinite,        1,0),
-    JS_TN(js_parseFloat_str,    num_parseFloat,      1,0, num_parseFloat_trcinfo),
-    JS_TN(js_parseInt_str,      num_parseInt,        2,0, num_parseInt_trcinfo),
+    JS_TN(js_parseFloat_str,    num_parseFloat,      1,0, &num_parseFloat_trcinfo),
+    JS_TN(js_parseInt_str,      num_parseInt,        2,0, &num_parseInt_trcinfo),
     JS_FS_END
 };
 
@@ -274,7 +302,7 @@ Number(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     if (!JS_IsConstructing(cx))
         *rval = v;
     else
-        obj->fslots[JSSLOT_PRIVATE] = v;
+        obj->fslots[JSSLOT_PRIMITIVE_THIS] = v;
     return true;
 }
 
@@ -517,7 +545,7 @@ num_valueOf(JSContext *cx, uintN argc, jsval *vp)
     obj = JS_THIS_OBJECT(cx, vp);
     if (!JS_InstanceOf(cx, obj, &js_NumberClass, vp + 2))
         return JS_FALSE;
-    *vp = obj->fslots[JSSLOT_PRIVATE];
+    *vp = obj->fslots[JSSLOT_PRIMITIVE_THIS];
     return JS_TRUE;
 }
 
@@ -601,8 +629,7 @@ num_toPrecision(JSContext *cx, uintN argc, jsval *vp)
 
 #ifdef JS_TRACER
 
-JS_DEFINE_TRCINFO_2(num_toString,
-    (3, (static, STRING, NumberToStringWithBase, CONTEXT, THIS_DOUBLE, INT32, 1, 1)),
+JS_DEFINE_TRCINFO_1(num_toString,
     (2, (extern, STRING, js_NumberToString,      CONTEXT, THIS_DOUBLE,        1, 1)))
 
 #endif /* JS_TRACER */
@@ -611,8 +638,7 @@ static JSFunctionSpec number_methods[] = {
 #if JS_HAS_TOSOURCE
     JS_FN(js_toSource_str,       num_toSource,          0,JSFUN_THISP_NUMBER),
 #endif
-    JS_TN(js_toString_str,       num_toString,          1,JSFUN_THISP_NUMBER,
-          num_toString_trcinfo),
+    JS_TN(js_toString_str,       num_toString,          1,JSFUN_THISP_NUMBER, &num_toString_trcinfo),
     JS_FN(js_toLocaleString_str, num_toLocaleString,    0,JSFUN_THISP_NUMBER),
     JS_FN(js_valueOf_str,        num_valueOf,           0,JSFUN_THISP_NUMBER),
     JS_FN(js_toJSON_str,         num_valueOf,           0,JSFUN_THISP_NUMBER),
@@ -648,18 +674,20 @@ static JSConstDoubleSpec number_constants[] = {
 
 jsdouble js_NaN;
 
-#if (defined XP_WIN || defined XP_OS2) &&                                     \
-    !defined WINCE &&                                                         \
-    !defined __MWERKS__ &&                                                    \
-    (defined _M_IX86 ||                                                       \
-     (defined __GNUC__ && !defined __MINGW32__))
+
+#if (defined __GNUC__ && defined __i386__)
 
 /*
  * Set the exception mask to mask all exceptions and set the FPU precision
- * to 53 bit mantissa.
- * On Alpha platform this is handled via Compiler option.
+ * to 53 bit mantissa (64 bit doubles).
  */
-#define FIX_FPU() _control87(_MCW_EM | _PC_53, _MCW_EM | _MCW_PC)
+inline void FIX_FPU() {
+    short control;
+    asm("fstcw %0" : "=m" (control) : );
+    control &= ~0x300; // Lower bits 8 and 9 (precision control).
+    control |= 0x2f3;  // Raise bits 0-5 (exception masks) and 9 (64-bit precision).
+    asm("fldcw %0" : : "m" (control) );
+}
 
 #else
 
@@ -764,7 +792,7 @@ js_InitNumberClass(JSContext *cx, JSObject *obj)
                          NULL, number_methods, NULL, NULL);
     if (!proto || !(ctor = JS_GetConstructor(cx, proto)))
         return NULL;
-    proto->fslots[JSSLOT_PRIVATE] = JSVAL_ZERO;
+    proto->fslots[JSSLOT_PRIMITIVE_THIS] = JSVAL_ZERO;
     if (!JS_DefineConstDoubles(cx, ctor, number_constants))
         return NULL;
 
@@ -835,7 +863,7 @@ NumberToCString(JSContext *cx, jsdouble d, jsint base, char *buf, size_t bufSize
     return numStr;
 }
 
-static JSString * JS_FASTCALL
+static JSString *
 NumberToStringWithBase(JSContext *cx, jsdouble d, jsint base)
 {
     /*
@@ -862,6 +890,10 @@ NumberToStringWithBase(JSContext *cx, jsdouble d, jsint base)
 JSString * JS_FASTCALL
 js_NumberToString(JSContext *cx, jsdouble d)
 {
+    jsint i;
+
+    if (JSDOUBLE_IS_INT(d, i) && jsuint(i) < INT_STRING_LIMIT)
+        return JSString::intString(i);
     return NumberToStringWithBase(cx, d, 10);
 }
 
@@ -1125,23 +1157,6 @@ js_ValueToUint16(JSContext *cx, jsval *vp)
     return u;
 }
 
-jsdouble
-js_DoubleToInteger(jsdouble d)
-{
-    JSBool neg;
-
-    if (d == 0)
-        return d;
-    if (!JSDOUBLE_IS_FINITE(d)) {
-        if (JSDOUBLE_IS_NaN(d))
-            return 0;
-        return d;
-    }
-    neg = (d < 0);
-    d = floor(neg ? -d : d);
-    return neg ? -d : d;
-}
-
 JSBool
 js_strtod(JSContext *cx, const jschar *s, const jschar *send,
           const jschar **ep, jsdouble *dp)
@@ -1175,7 +1190,7 @@ js_strtod(JSContext *cx, const jschar *s, const jschar *send,
     istr = cstr;
     if ((negative = (*istr == '-')) != 0 || *istr == '+')
         istr++;
-    if (!strncmp(istr, js_Infinity_str, sizeof js_Infinity_str - 1)) {
+    if (*istr == 'I' && !strncmp(istr, js_Infinity_str, sizeof js_Infinity_str - 1)) {
         d = *(negative ? cx->runtime->jsNegativeInfinity : cx->runtime->jsPositiveInfinity);
         estr = istr + 8;
     } else {
@@ -1185,16 +1200,6 @@ js_strtod(JSContext *cx, const jschar *s, const jschar *send,
             d = *cx->runtime->jsPositiveInfinity;
         else if (d == -HUGE_VAL)
             d = *cx->runtime->jsNegativeInfinity;
-#ifdef HPUX
-        if (d == 0.0 && negative) {
-            /*
-             * "-0", "-1e-2000" come out as positive zero
-             * here on HPUX. Force a negative zero instead.
-             */
-            JSDOUBLE_HI32(d) = JSDOUBLE_HI32_SIGNBIT;
-            JSDOUBLE_LO32(d) = 0;
-        }
-#endif
     }
 
     i = estr - cstr;
@@ -1347,6 +1352,7 @@ js_strtointeger(JSContext *cx, const jschar *s, const jschar *send,
             intN j;
 
             bdr.base = base;
+            bdr.digit = 0;      // shut GCC up
             bdr.digitMask = 0;
             bdr.digits = start;
             bdr.end = s1;

@@ -85,6 +85,7 @@
 #include "nsSVGIntegrationUtils.h"
 #include "nsSVGFilterPaintCallback.h"
 #include "nsSVGGeometryFrame.h"
+#include "nsComputedDOMStyle.h"
 
 gfxASurface *nsSVGUtils::mThebesComputationalSurface = nsnull;
 
@@ -228,19 +229,6 @@ NS_SMILEnabled()
 }
 #endif // MOZ_SMIL
 
-static nsIFrame*
-GetFrameForContent(nsIContent* aContent)
-{
-  if (!aContent)
-    return nsnull;
-
-  nsIDocument *doc = aContent->GetCurrentDoc();
-  if (!doc)
-    return nsnull;
-
-  return nsGenericElement::GetPrimaryFrameFor(aContent, doc);
-}
-
 nsIContent*
 nsSVGUtils::GetParentElement(nsIContent *aContent)
 {
@@ -267,39 +255,75 @@ nsSVGUtils::GetParentElement(nsIContent *aContent)
 float
 nsSVGUtils::GetFontSize(nsIContent *aContent)
 {
-  nsIFrame* frame = GetFrameForContent(aContent);
-  if (!frame) {
-    NS_WARNING("no frame in GetFontSize()");
+  if (!aContent)
+    return 1.0f;
+
+  nsRefPtr<nsStyleContext> styleContext = 
+    nsComputedDOMStyle::GetStyleContextForContentNoFlush(aContent, nsnull,
+                                                         nsnull);
+  if (!styleContext) {
+    NS_WARNING("Couldn't get style context for content in GetFontStyle");
     return 1.0f;
   }
 
-  return GetFontSize(frame);
+  return GetFontSize(styleContext);
 }
 
 float
 nsSVGUtils::GetFontSize(nsIFrame *aFrame)
 {
-  return nsPresContext::AppUnitsToFloatCSSPixels(aFrame->GetStyleFont()->mSize) /
-         aFrame->PresContext()->TextZoom();
+  NS_ABORT_IF_FALSE(aFrame, "NULL frame in GetFontSize");
+  return GetFontSize(aFrame->GetStyleContext());
+}
+
+float
+nsSVGUtils::GetFontSize(nsStyleContext *aStyleContext)
+{
+  NS_ABORT_IF_FALSE(aStyleContext, "NULL style context in GetFontSize");
+
+  nsPresContext *presContext = aStyleContext->PresContext();
+  NS_ABORT_IF_FALSE(presContext, "NULL pres context in GetFontSize");
+
+  nscoord fontSize = aStyleContext->GetStyleFont()->mSize;
+  return nsPresContext::AppUnitsToFloatCSSPixels(fontSize) / 
+         presContext->TextZoom();
 }
 
 float
 nsSVGUtils::GetFontXHeight(nsIContent *aContent)
 {
-  nsIFrame* frame = GetFrameForContent(aContent);
-  if (!frame) {
-    NS_WARNING("no frame in GetFontXHeight()");
+  if (!aContent)
+    return 1.0f;
+
+  nsRefPtr<nsStyleContext> styleContext = 
+    nsComputedDOMStyle::GetStyleContextForContentNoFlush(aContent, nsnull,
+                                                         nsnull);
+  if (!styleContext) {
+    NS_WARNING("Couldn't get style context for content in GetFontStyle");
     return 1.0f;
   }
 
-  return GetFontXHeight(frame);
+  return GetFontXHeight(styleContext);
 }
   
 float
 nsSVGUtils::GetFontXHeight(nsIFrame *aFrame)
 {
+  NS_ABORT_IF_FALSE(aFrame, "NULL frame in GetFontXHeight");
+  return GetFontXHeight(aFrame->GetStyleContext());
+}
+
+float
+nsSVGUtils::GetFontXHeight(nsStyleContext *aStyleContext)
+{
+  NS_ABORT_IF_FALSE(aStyleContext, "NULL style context in GetFontXHeight");
+
+  nsPresContext *presContext = aStyleContext->PresContext();
+  NS_ABORT_IF_FALSE(presContext, "NULL pres context in GetFontXHeight");
+
   nsCOMPtr<nsIFontMetrics> fontMetrics;
-  nsLayoutUtils::GetFontMetricsForFrame(aFrame, getter_AddRefs(fontMetrics));
+  nsLayoutUtils::GetFontMetricsForStyleContext(aStyleContext,
+                                               getter_AddRefs(fontMetrics));
 
   if (!fontMetrics) {
     NS_WARNING("no FontMetrics in GetFontXHeight()");
@@ -309,7 +333,7 @@ nsSVGUtils::GetFontXHeight(nsIFrame *aFrame)
   nscoord xHeight;
   fontMetrics->GetXHeight(xHeight);
   return nsPresContext::AppUnitsToFloatCSSPixels(xHeight) /
-         aFrame->PresContext()->TextZoom();
+         presContext->TextZoom();
 }
 
 void
@@ -496,18 +520,21 @@ nsSVGUtils::GetCTM(nsSVGElement *aElement, PRBool aScreenCTM)
 
   while (ancestor && ancestor->GetNameSpaceID() == kNameSpaceID_SVG &&
                      ancestor->Tag() != nsGkAtoms::foreignObject) {
-    element = static_cast<nsSVGElement*>(ancestor);
-    matrix *= element->PrependLocalTransformTo(gfxMatrix()); // i.e. *A*ppend
-    if (!aScreenCTM && EstablishesViewport(element)) {
-      if (!element->NodeInfo()->Equals(nsGkAtoms::svg, kNameSpaceID_SVG) &&
-          !element->NodeInfo()->Equals(nsGkAtoms::symbol, kNameSpaceID_SVG)) {
-        NS_ERROR("New (SVG > 1.1) SVG viewport establishing element?");
-        return gfxMatrix(0.0, 0.0, 0.0, 0.0, 0.0, 0.0); // singular
+    // ignore unknown XML elements in the SVG namespace
+    if (ancestor->IsNodeOfType(nsINode::eSVG)) {
+      element = static_cast<nsSVGElement*>(ancestor);
+      matrix *= element->PrependLocalTransformTo(gfxMatrix()); // i.e. *A*ppend
+      if (!aScreenCTM && EstablishesViewport(element)) {
+        if (!element->NodeInfo()->Equals(nsGkAtoms::svg, kNameSpaceID_SVG) &&
+            !element->NodeInfo()->Equals(nsGkAtoms::symbol, kNameSpaceID_SVG)) {
+          NS_ERROR("New (SVG > 1.1) SVG viewport establishing element?");
+          return gfxMatrix(0.0, 0.0, 0.0, 0.0, 0.0, 0.0); // singular
+        }
+        // XXX spec seems to say x,y translation should be undone for IsInnerSVG
+        return matrix;
       }
-      // XXX spec seems to say x,y translation should be undone for IsInnerSVG
-      return matrix;
     }
-    ancestor = GetParentElement(element);      
+    ancestor = GetParentElement(ancestor);      
   }
   if (!aScreenCTM) {
     // didn't find a nearestViewportElement
@@ -525,9 +552,9 @@ nsSVGUtils::GetCTM(nsSVGElement *aElement, PRBool aScreenCTM)
   // XXX this does not take into account CSS transform, or that the non-SVG
   // content that we've hit may itself be inside an SVG foreignObject higher up
   float x = 0.0f, y = 0.0f;
-  if (element->NodeInfo()->Equals(nsGkAtoms::svg, kNameSpaceID_SVG)) {
+  if (currentDoc && element->NodeInfo()->Equals(nsGkAtoms::svg, kNameSpaceID_SVG)) {
     nsIPresShell *presShell = currentDoc->GetPrimaryShell();
-    if (element && presShell) {
+    if (presShell) {
       nsPresContext *context = presShell->GetPresContext();
       if (context) {
         nsIFrame* frame = presShell->GetPrimaryFrameFor(element);
@@ -1189,9 +1216,9 @@ nsSVGUtils::ConvertToSurfaceSize(const gfxSize& aSize, PRBool *aResultOverflows)
 
   if (*aResultOverflows ||
       !gfxASurface::CheckSurfaceSize(surfaceSize)) {
-    surfaceSize.width = PR_MIN(NS_SVG_OFFSCREEN_MAX_DIMENSION,
+    surfaceSize.width = NS_MIN(NS_SVG_OFFSCREEN_MAX_DIMENSION,
                                surfaceSize.width);
-    surfaceSize.height = PR_MIN(NS_SVG_OFFSCREEN_MAX_DIMENSION,
+    surfaceSize.height = NS_MIN(NS_SVG_OFFSCREEN_MAX_DIMENSION,
                                 surfaceSize.height);
     *aResultOverflows = PR_TRUE;
   }

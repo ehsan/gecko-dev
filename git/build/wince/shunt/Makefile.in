@@ -63,6 +63,7 @@ EXPORTS_mozce_shunt = \
   include/fcntl.h \
   include/io.h \
   include/mbstring.h \
+  include/environment.h \
   include/mozce_shunt.h \
   include/process.h \
   include/signal.h \
@@ -71,7 +72,6 @@ EXPORTS_mozce_shunt = \
 DIRS += include/sys
 
 ifdef MOZ_MEMORY
-REQUIRES = jemalloc 
 CFLAGS += -DMOZ_MEMORY
 CXXFLAGS += -DMOZ_MEMORY
 EXPORTS_mozce_shunt += $(topsrcdir)/memory/jemalloc/jemalloc.h
