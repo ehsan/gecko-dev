@@ -128,8 +128,7 @@ RootActor.prototype = {
     customHighlighters: [
       "BoxModelHighlighter",
       "CssTransformHighlighter",
-      "SelectorHighlighter",
-      "RectHighlighter"
+      "SelectorHighlighter"
     ],
     // Whether the inspector actor implements the getImageDataFromURL
     // method that returns data-uris for image URLs. This is used for image

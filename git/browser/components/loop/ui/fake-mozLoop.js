@@ -49,7 +49,8 @@ var fakeRooms = [
  */
 navigator.mozLoop = {
   ensureRegistered: function() {},
-  getLoopPref: function(pref) {
+  getLoopCharPref: function() {},
+  getLoopBoolPref: function(pref) {
     // Ensure UI for rooms is displayed in the showcase.
     if (pref === "rooms.enabled") {
       return true;

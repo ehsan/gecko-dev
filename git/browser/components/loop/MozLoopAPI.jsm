@@ -368,6 +368,32 @@ function injectLoopAPI(targetWindow) {
     },
 
     /**
+     * Call to ensure that any necessary registrations for the Loop Service
+     * have taken place.
+     *
+     * Callback parameters:
+     * - err null on successful registration, non-null otherwise.
+     *
+     * @param {LOOP_SESSION_TYPE} sessionType
+     * @param {Function} callback Will be called once registration is complete,
+     *                            or straight away if registration has already
+     *                            happened.
+     */
+    ensureRegistered: {
+      enumerable: true,
+      writable: true,
+      value: function(sessionType, callback) {
+        // We translate from a promise to a callback, as we can't pass promises from
+        // Promise.jsm across the priv versus unpriv boundary.
+        MozLoopService.promiseRegisteredWithServers(sessionType).then(() => {
+          callback(null);
+        }, err => {
+          callback(cloneValueInto(err, targetWindow));
+        }).catch(Cu.reportError);
+      }
+    },
+
+    /**
      * Used to note a call url expiry time. If the time is later than the current
      * latest expiry time, then the stored expiry time is increased. For times
      * sooner, this function is a no-op; this ensures we always have the latest
@@ -388,41 +414,78 @@ function injectLoopAPI(targetWindow) {
     },
 
     /**
-     * Set any preference under "loop."
+     * Set any character preference under "loop."
      *
      * @param {String} prefName The name of the pref without the preceding "loop."
-     * @param {*} value The value to set.
-     * @param {Enum} prefType Type of preference, defined at Ci.nsIPrefBranch. Optional.
+     * @param {String} stringValue The value to set.
      *
      * Any errors thrown by the Mozilla pref API are logged to the console
      * and cause false to be returned.
      */
-    setLoopPref: {
+    setLoopCharPref: {
       enumerable: true,
       writable: true,
-      value: function(prefName, value, prefType) {
-        MozLoopService.setLoopPref(prefName, value, prefType);
+      value: function(prefName, value) {
+        MozLoopService.setLoopCharPref(prefName, value);
       }
     },
 
     /**
-     * Return any preference under "loop.".
+     * Return any preference under "loop." that's coercible to a character
+     * preference.
      *
      * @param {String} prefName The name of the pref without the preceding
      * "loop."
-     * @param {Enum} prefType Type of preference, defined at Ci.nsIPrefBranch. Optional.
      *
      * Any errors thrown by the Mozilla pref API are logged to the console
      * and cause null to be returned. This includes the case of the preference
      * not being found.
      *
-     * @return {*} on success, null on error
+     * @return {String} on success, null on error
      */
-    getLoopPref: {
+    getLoopCharPref: {
       enumerable: true,
       writable: true,
-      value: function(prefName, prefType) {
-        return MozLoopService.getLoopPref(prefName);
+      value: function(prefName) {
+        return MozLoopService.getLoopCharPref(prefName);
+      }
+    },
+
+    /**
+     * Set any boolean preference under "loop."
+     *
+     * @param {String} prefName The name of the pref without the preceding "loop."
+     * @param {bool} value The value to set.
+     *
+     * Any errors thrown by the Mozilla pref API are logged to the console
+     * and cause false to be returned.
+     */
+    setLoopBoolPref: {
+      enumerable: true,
+      writable: true,
+      value: function(prefName, value) {
+        MozLoopService.setLoopBoolPref(prefName, value);
+      }
+    },
+
+    /**
+     * Return any preference under "loop." that's coercible to a boolean
+     * preference.
+     *
+     * @param {String} prefName The name of the pref without the preceding
+     * "loop."
+     *
+     * Any errors thrown by the Mozilla pref API are logged to the console
+     * and cause null to be returned. This includes the case of the preference
+     * not being found.
+     *
+     * @return {String} on success, null on error
+     */
+    getLoopBoolPref: {
+      enumerable: true,
+      writable: true,
+      value: function(prefName) {
+        return MozLoopService.getLoopBoolPref(prefName);
       }
     },
 
@@ -552,15 +615,12 @@ function injectLoopAPI(targetWindow) {
 
     /**
      * Opens the Getting Started tour in the browser.
-     *
-     * @param {String} aSrc
-     *   - The UI element that the user used to begin the tour, optional.
      */
     openGettingStartedTour: {
       enumerable: true,
       writable: true,
-      value: function(aSrc) {
-        return MozLoopService.openGettingStartedTour(aSrc);
+      value: function() {
+        return MozLoopService.openGettingStartedTour();
       },
     },
 

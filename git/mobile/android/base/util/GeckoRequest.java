@@ -1,6 +1,3 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 package org.mozilla.gecko.util;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -80,15 +77,15 @@ public abstract class GeckoRequest {
     /**
      * Callback executed when the request fails.
      *
-     * By default, an exception is thrown. This should be overridden if the
-     * GeckoRequest is able to recover from the error.
+     * In general, this should not be overridden since there's no way to differentiate between
+     * expected errors and logic errors in JS. If the Gecko-side request handler wants to send a
+     * recoverable error to Java, it should include any error data in the response object that the
+     * {@link #onResponse(NativeJSObject)} callback can handle as necessary.
      *
      * @throws RuntimeException
      */
     @RobocopTarget
-    public void onError(NativeJSObject error) {
-        final String message = error.optString("message", "<no message>");
-        final String stack = error.optString("stack", "<no stack>");
-        throw new RuntimeException("Unhandled error for GeckoRequest " + name + ": " + message + "\nJS stack:\n" + stack);
+    public void onError() {
+        throw new RuntimeException("Unhandled error for GeckoRequest: " + name);
     }
 }

@@ -419,8 +419,7 @@ let MozLoopServiceInternal = {
   },
 
   /**
-   * Performs a hawk based request to the loop server - there is no pre-registration
-   * for this request, if this is required, use hawkRequest.
+   * Performs a hawk based request to the loop server.
    *
    * @param {LOOP_SESSION_TYPE} sessionType The type of session to use for the request.
    *                                        This is one of the LOOP_SESSION_TYPE members.
@@ -434,7 +433,8 @@ let MozLoopServiceInternal = {
    *        as JSON and contains an 'error' property, the promise will be
    *        rejected with this JSON-parsed response.
    */
-  hawkRequestInternal: function(sessionType, path, method, payloadObj) {
+  hawkRequest: function(sessionType, path, method, payloadObj) {
+    log.debug("hawkRequest: " + path, sessionType);
     if (!gHawkClient) {
       gHawkClient = new HawkClient(this.loopServerUri);
     }
@@ -476,32 +476,6 @@ let MozLoopServiceInternal = {
         }
       }
       throw error;
-    });
-  },
-
-  /**
-   * Performs a hawk based request to the loop server, registering if necessary.
-   *
-   * @param {LOOP_SESSION_TYPE} sessionType The type of session to use for the request.
-   *                                        This is one of the LOOP_SESSION_TYPE members.
-   * @param {String} path The path to make the request to.
-   * @param {String} method The request method, e.g. 'POST', 'GET'.
-   * @param {Object} payloadObj An object which is converted to JSON and
-   *                            transmitted with the request.
-   * @returns {Promise}
-   *        Returns a promise that resolves to the response of the API call,
-   *        or is rejected with an error.  If the server response can be parsed
-   *        as JSON and contains an 'error' property, the promise will be
-   *        rejected with this JSON-parsed response.
-   */
-  hawkRequest: function(sessionType, path, method, payloadObj) {
-    log.debug("hawkRequest: " + path, sessionType);
-    return new Promise((resolve, reject) => {
-      MozLoopService.promiseRegisteredWithServers(sessionType).then(() => {
-        this.hawkRequestInternal(sessionType, path, method, payloadObj).then(resolve, reject);
-      }, err => {
-        reject(err);
-      }).catch(reject);
     });
   },
 
@@ -607,7 +581,7 @@ let MozLoopServiceInternal = {
           rooms: roomsPushURL,
         },
     };
-    return this.hawkRequestInternal(sessionType, "/registration", "POST", msg)
+    return this.hawkRequest(sessionType, "/registration", "POST", msg)
       .then((response) => {
         // If this failed we got an invalid token.
         if (!this.storeSessionToken(sessionType, response.headers)) {
@@ -663,7 +637,7 @@ let MozLoopServiceInternal = {
     }
 
     let unregisterURL = "/registration?simplePushURL=" + encodeURIComponent(pushURL);
-    return this.hawkRequestInternal(sessionType, unregisterURL, "DELETE")
+    return this.hawkRequest(sessionType, unregisterURL, "DELETE")
       .then(() => {
         log.debug("Successfully unregistered from server for sessionType", sessionType);
       },
@@ -852,7 +826,7 @@ let MozLoopServiceInternal = {
    */
   promiseFxAOAuthParameters: function() {
     const SESSION_TYPE = LOOP_SESSION_TYPE.FXA;
-    return this.hawkRequestInternal(SESSION_TYPE, "/fxa-oauth/params", "POST").then(response => {
+    return this.hawkRequest(SESSION_TYPE, "/fxa-oauth/params", "POST").then(response => {
       if (!this.storeSessionToken(SESSION_TYPE, response.headers)) {
         throw new Error("Invalid FxA hawk token returned");
       }
@@ -1052,7 +1026,6 @@ this.MozLoopService = {
     // If expiresTime is not in the future and the user hasn't
     // previously authenticated then skip registration.
     if (!MozLoopServiceInternal.urlExpiryTimeIsInFuture() &&
-        !LoopRooms.getGuestCreatedRoom() &&
         !MozLoopServiceInternal.fxAOAuthTokenData) {
       return Promise.resolve("registration not needed");
     }
@@ -1086,8 +1059,7 @@ this.MozLoopService = {
     });
 
     try {
-      if (MozLoopServiceInternal.urlExpiryTimeIsInFuture() ||
-          LoopRooms.getGuestCreatedRoom()) {
+      if (MozLoopServiceInternal.urlExpiryTimeIsInFuture()) {
         yield this.promiseRegisteredWithServers(LOOP_SESSION_TYPE.GUEST);
       } else {
         log.debug("delayedInitialize: URL expiry time isn't in the future so not registering as a guest");
@@ -1248,75 +1220,80 @@ this.MozLoopService = {
   },
 
   /**
-   * Set any preference under "loop.".
+   * Set any character preference under "loop.".
    *
-   * @param {String} prefSuffix The name of the pref without the preceding "loop."
-   * @param {*} value The value to set.
-   * @param {Enum} prefType Type of preference, defined at Ci.nsIPrefBranch. Optional.
+   * @param {String} prefName The name of the pref without the preceding "loop."
+   * @param {String} value The value to set.
    *
    * Any errors thrown by the Mozilla pref API are logged to the console.
    */
-  setLoopPref: function(prefSuffix, value, prefType) {
-    let prefName = "loop." + prefSuffix;
+  setLoopCharPref: function(prefName, value) {
     try {
-      if (!prefType) {
-        prefType = Services.prefs.getPrefType(prefName);
-      }
-      switch (prefType) {
-        case Ci.nsIPrefBranch.PREF_STRING:
-          Services.prefs.setCharPref(prefName, value);
-          break;
-        case Ci.nsIPrefBranch.PREF_INT:
-          Services.prefs.setIntPref(prefName, value);
-          break;
-        case Ci.nsIPrefBranch.PREF_BOOL:
-          Services.prefs.setBoolPref(prefName, value);
-          break;
-        default:
-          log.error("invalid preference type setting " + prefName);
-          break;
-      }
+      Services.prefs.setCharPref("loop." + prefName, value);
     } catch (ex) {
-      log.error("setLoopPref had trouble setting " + prefName +
+      log.error("setLoopCharPref had trouble setting " + prefName +
         "; exception: " + ex);
     }
   },
 
   /**
-   * Return any preference under "loop.".
+   * Return any preference under "loop." that's coercible to a character
+   * preference.
    *
    * @param {String} prefName The name of the pref without the preceding
    * "loop."
-   * @param {Enum} prefType Type of preference, defined at Ci.nsIPrefBranch. Optional.
    *
    * Any errors thrown by the Mozilla pref API are logged to the console
    * and cause null to be returned. This includes the case of the preference
    * not being found.
    *
-   * @return {*} on success, null on error
+   * @return {String} on success, null on error
    */
-  getLoopPref: function(prefSuffix, prefType) {
-    let prefName = "loop." + prefSuffix;
+  getLoopCharPref: function(prefName) {
     try {
-      if (!prefType) {
-        prefType = Services.prefs.getPrefType(prefName);
-      } else if (prefType != Services.prefs.getPrefType(prefName)) {
-        log.error("invalid type specified for preference");
-        return null;
-      }
-      switch (prefType) {
-        case Ci.nsIPrefBranch.PREF_STRING:
-          return Services.prefs.getCharPref(prefName);
-        case Ci.nsIPrefBranch.PREF_INT:
-          return Services.prefs.getIntPref(prefName);
-        case Ci.nsIPrefBranch.PREF_BOOL:
-          return Services.prefs.getBoolPref(prefName);
-        default:
-          log.error("invalid preference type getting " + prefName);
-          return null;
-      }
+      return Services.prefs.getCharPref("loop." + prefName);
     } catch (ex) {
-      log.error("getLoopPref had trouble getting " + prefName +
+      log.error("getLoopCharPref had trouble getting " + prefName +
+        "; exception: " + ex);
+      return null;
+    }
+  },
+
+  /**
+   * Set any boolean preference under "loop.".
+   *
+   * @param {String} prefName The name of the pref without the preceding "loop."
+   * @param {boolean} value The value to set.
+   *
+   * Any errors thrown by the Mozilla pref API are logged to the console.
+   */
+  setLoopBoolPref: function(prefName, value) {
+    try {
+      Services.prefs.setBoolPref("loop." + prefName, value);
+    } catch (ex) {
+      log.error("setLoopCharPref had trouble setting " + prefName +
+        "; exception: " + ex);
+    }
+  },
+
+  /**
+   * Return any preference under "loop." that's coercible to a character
+   * preference.
+   *
+   * @param {String} prefName The name of the pref without the preceding
+   * "loop."
+   *
+   * Any errors thrown by the Mozilla pref API are logged to the console
+   * and cause null to be returned. This includes the case of the preference
+   * not being found.
+   *
+   * @return {String} on success, null on error
+   */
+  getLoopBoolPref: function(prefName) {
+    try {
+      return Services.prefs.getBoolPref("loop." + prefName);
+    } catch (ex) {
+      log.error("getLoopBoolPref had trouble getting " + prefName +
         "; exception: " + ex);
       return null;
     }
@@ -1429,18 +1406,12 @@ this.MozLoopService = {
 
   /**
    * Opens the Getting Started tour in the browser.
-   *
-   * @param {String} aSrc
-   *   - The UI element that the user used to begin the tour, optional.
    */
-  openGettingStartedTour: Task.async(function(aSrc = null) {
+  openGettingStartedTour: Task.async(function() {
     try {
-      let url = new URL(Services.prefs.getCharPref("loop.gettingStarted.url"));
-      if (aSrc) {
-        url.searchParams.set("source", aSrc);
-      }
+      let url = Services.prefs.getCharPref("loop.gettingStarted.url");
       let win = Services.wm.getMostRecentWindow("navigator:browser");
-      win.switchToTabHavingURI(url, true, {replaceQueryString: true});
+      win.switchToTabHavingURI(url, true);
     } catch (ex) {
       log.error("Error opening Getting Started tour", ex);
     }

@@ -2370,37 +2370,7 @@ PluginModuleChild::ProcessNativeEvents() {
 #endif
 
 bool
-PluginModuleChild::RecvStartProfiler(const uint32_t& aEntries,
-                                     const double& aInterval,
-                                     const nsTArray<nsCString>& aFeatures,
-                                     const nsTArray<nsCString>& aThreadNameFilters)
-{
-    nsTArray<const char*> featureArray;
-    for (size_t i = 0; i < aFeatures.Length(); ++i) {
-        featureArray.AppendElement(aFeatures[i].get());
-    }
-
-    nsTArray<const char*> threadNameFilterArray;
-    for (size_t i = 0; i < aThreadNameFilters.Length(); ++i) {
-        threadNameFilterArray.AppendElement(aThreadNameFilters[i].get());
-    }
-
-    profiler_start(aEntries, aInterval, featureArray.Elements(), featureArray.Length(),
-                   threadNameFilterArray.Elements(), threadNameFilterArray.Length());
-
-    return true;
-}
-
-bool
-PluginModuleChild::RecvStopProfiler()
-{
-    profiler_stop();
-    return true;
-}
-
-bool
-PluginModuleChild::AnswerGetProfile(nsCString* aProfile)
-{
+PluginModuleChild::AnswerGeckoGetProfile(nsCString* aProfile) {
     char* profile = profiler_get_profile();
     if (profile != nullptr) {
         *aProfile = nsCString(profile, strlen(profile));
@@ -2410,3 +2380,4 @@ PluginModuleChild::AnswerGetProfile(nsCString* aProfile)
     }
     return true;
 }
+

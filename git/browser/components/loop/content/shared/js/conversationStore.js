@@ -53,7 +53,6 @@ loop.store.ConversationStore = (function() {
     TERMINATED: "cs-terminated"
   };
 
-  // XXX this needs to migrate to use loop.store.createStore
   var ConversationStore = Backbone.Model.extend({
     defaults: {
       // The id of the window. Currently used for getting the window id.

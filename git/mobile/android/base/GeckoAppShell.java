@@ -228,7 +228,6 @@ public class GeckoAppShell
     private static Sensor gLightSensor;
 
     private static final String GECKOREQUEST_RESPONSE_KEY = "response";
-    private static final String GECKOREQUEST_ERROR_KEY = "error";
 
     /*
      * Keep in sync with constants found here:
@@ -435,7 +434,7 @@ public class GeckoAppShell
             public void handleMessage(String event, NativeJSObject message, EventCallback callback) {
                 EventDispatcher.getInstance().unregisterGeckoThreadListener(this, event);
                 if (!message.has(GECKOREQUEST_RESPONSE_KEY)) {
-                    request.onError(message.getObject(GECKOREQUEST_ERROR_KEY));
+                    request.onError();
                     return;
                 }
                 request.onResponse(message.getObject(GECKOREQUEST_RESPONSE_KEY));

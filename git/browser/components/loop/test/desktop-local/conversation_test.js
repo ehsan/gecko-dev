@@ -38,14 +38,9 @@ describe("loop.conversation", function() {
       get locale() {
         return "en-US";
       },
-      setLoopPref: sinon.stub(),
-      getLoopPref: function(prefName) {
-        if (prefName == "debug.sdk") {
-          return false;
-        }
-
-        return "http://fake";
-      },
+      setLoopCharPref: sinon.stub(),
+      getLoopCharPref: sinon.stub().returns("http://fakeurl"),
+      getLoopBoolPref: sinon.stub(),
       calls: {
         clearCallInProgress: sinon.stub()
       },
@@ -174,8 +169,9 @@ describe("loop.conversation", function() {
         dispatcher: dispatcher,
         sdkDriver: {}
       });
-      roomStore = new loop.store.RoomStore(dispatcher, {
+      roomStore = new loop.store.RoomStore({
         mozLoop: navigator.mozLoop,
+        dispatcher: dispatcher
       });
       conversationAppStore = new loop.store.ConversationAppStore({
         dispatcher: dispatcher,
@@ -551,7 +547,7 @@ describe("loop.conversation", function() {
       });
 
       describe("#blocked", function() {
-        var mozLoop, deleteCallUrlStub;
+        var mozLoop;
 
         beforeEach(function() {
           icView = mountTestComponent();
@@ -568,9 +564,6 @@ describe("loop.conversation", function() {
               FXA: 2
             }
           };
-
-          deleteCallUrlStub = sandbox.stub(loop.Client.prototype,
-                                           "deleteCallUrl");
         });
 
         it("should call mozLoop.stopAlerting", function() {
@@ -585,10 +578,12 @@ describe("loop.conversation", function() {
                                            .withArgs("sessionType")
                                            .returns(mozLoop.LOOP_SESSION_TYPE.FXA);
 
+          var deleteCallUrl = sandbox.stub(loop.Client.prototype,
+                                           "deleteCallUrl");
           icView.declineAndBlock();
 
-          sinon.assert.calledOnce(deleteCallUrlStub);
-          sinon.assert.calledWithExactly(deleteCallUrlStub,
+          sinon.assert.calledOnce(deleteCallUrl);
+          sinon.assert.calledWithExactly(deleteCallUrl,
             "fakeToken", mozLoop.LOOP_SESSION_TYPE.FXA, sinon.match.func);
         });
 
@@ -607,7 +602,9 @@ describe("loop.conversation", function() {
           var fakeError = {
             error: true
           };
-          deleteCallUrlStub.callsArgWith(2, fakeError);
+          sandbox.stub(loop.Client.prototype, "deleteCallUrl", function(_, __, cb) {
+            cb(fakeError);
+          });
           icView.declineAndBlock();
 
           sinon.assert.calledOnce(log);
@@ -650,6 +647,7 @@ describe("loop.conversation", function() {
         icView = mountTestComponent();
 
         conversation.set("loopToken", "fakeToken");
+        navigator.mozLoop.getLoopCharPref.returns("http://fake");
         stubComponent(sharedView, "ConversationView");
       });
 

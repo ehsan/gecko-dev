@@ -19,7 +19,6 @@
 #include "nsIObserverService.h"
 #include "nsDirectoryServiceUtils.h"
 #include "nsDirectoryServiceDefs.h"
-#include "nsProfilerStartParams.h"
 #include "mozilla/Services.h"
 #include "nsThreadUtils.h"
 #include "ProfilerMarkers.h"
@@ -781,24 +780,8 @@ void mozilla_sampler_start(int aProfileEntries, double aInterval,
 
   if (Sampler::CanNotifyObservers()) {
     nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
-    if (os) {
-      nsTArray<nsCString> featuresArray;
-      nsTArray<nsCString> threadNameFiltersArray;
-
-      for (size_t i = 0; i < aFeatureCount; ++i) {
-        featuresArray.AppendElement(aFeatures[i]);
-      }
-
-      for (size_t i = 0; i < aFilterCount; ++i) {
-        threadNameFiltersArray.AppendElement(aThreadNameFilters[i]);
-      }
-
-      nsCOMPtr<nsIProfilerStartParams> params =
-        new nsProfilerStartParams(aProfileEntries, aInterval, featuresArray,
-                                  threadNameFiltersArray);
-
-      os->NotifyObservers(params, "profiler-started", nullptr);
-    }
+    if (os)
+      os->NotifyObservers(nullptr, "profiler-started", nullptr);
   }
 
   LOG("END   mozilla_sampler_start");
