@@ -432,6 +432,16 @@ JSObject::setArgsElement(uint32 i, const js::Value &v)
     getArgsData()->slots[i] = v;
 }
 
+inline bool
+JSObject::callIsForEval() const
+{
+    JS_ASSERT(isCall());
+    JS_ASSERT(getSlot(JSSLOT_CALL_CALLEE).isObjectOrNull());
+    JS_ASSERT_IF(getSlot(JSSLOT_CALL_CALLEE).isObject(),
+                 getSlot(JSSLOT_CALL_CALLEE).toObject().isFunction());
+    return getSlot(JSSLOT_CALL_CALLEE).isNull();
+}
+
 inline JSStackFrame *
 JSObject::maybeCallObjStackFrame() const
 {
@@ -440,18 +450,18 @@ JSObject::maybeCallObjStackFrame() const
 }
 
 inline void
-JSObject::setCallObjCallee(JSObject &callee)
+JSObject::setCallObjCallee(JSObject *callee)
 {
     JS_ASSERT(isCall());
-    JS_ASSERT(callee.isFunction());
-    return getSlotRef(JSSLOT_CALL_CALLEE).setObject(callee);
+    JS_ASSERT_IF(callee, callee->isFunction());
+    return getSlotRef(JSSLOT_CALL_CALLEE).setObjectOrNull(callee);
 }
 
-inline JSObject &
+inline JSObject *
 JSObject::getCallObjCallee() const
 {
     JS_ASSERT(isCall());
-    return getSlot(JSSLOT_CALL_CALLEE).toObject();
+    return getSlot(JSSLOT_CALL_CALLEE).toObjectOrNull();
 }
 
 inline JSFunction *
@@ -465,6 +475,7 @@ inline const js::Value &
 JSObject::getCallObjArguments() const
 {
     JS_ASSERT(isCall());
+    JS_ASSERT(!callIsForEval());
     return getSlot(JSSLOT_CALL_ARGUMENTS);
 }
 
@@ -472,6 +483,7 @@ inline void
 JSObject::setCallObjArguments(const js::Value &v)
 {
     JS_ASSERT(isCall());
+    JS_ASSERT(!callIsForEval());
     setSlot(JSSLOT_CALL_ARGUMENTS, v);
 }
 
@@ -560,8 +572,8 @@ inline bool
 JSObject::hasMethodObj(const JSObject& obj) const
 {
     return JSSLOT_FUN_METHOD_OBJ < numSlots() &&
-        getSlot(JSSLOT_FUN_METHOD_OBJ).isObject() &&
-        &getSlot(JSSLOT_FUN_METHOD_OBJ).toObject() == &obj;
+           getSlot(JSSLOT_FUN_METHOD_OBJ).isObject() &&
+           &getSlot(JSSLOT_FUN_METHOD_OBJ).toObject() == &obj;
 }
 
 inline void

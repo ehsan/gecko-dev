@@ -322,6 +322,15 @@ JSObject::getFunctionPrivate() const
 namespace js {
 
 /*
+ * Construct a call object for the given bindings.  If this is a call object
+ * for a function invocation, callee should be the function being called.
+ * Otherwise it must be a call object for eval of strict mode code, and callee
+ * must be null.
+ */
+extern JSObject *
+NewCallObject(JSContext *cx, js::Bindings *bindings, JSObject &scopeChain, JSObject *callee);
+
+/*
  * NB: jsapi.h and jsobj.h must be included before any call to this macro.
  */
 #define VALUE_IS_FUNCTION(cx, v)                                              \
@@ -458,7 +467,7 @@ CloneFunctionObject(JSContext *cx, JSFunction *fun, JSObject *parent)
 extern JSObject * JS_FASTCALL
 js_AllocFlatClosure(JSContext *cx, JSFunction *fun, JSObject *scopeChain);
 
-extern JS_REQUIRES_STACK JSObject *
+extern JSObject *
 js_NewFlatClosure(JSContext *cx, JSFunction *fun, JSOp op, size_t oplen);
 
 extern JS_REQUIRES_STACK JSObject *
@@ -517,7 +526,7 @@ extern JSBool
 GetCallVarChecked(JSContext *cx, JSObject *obj, jsid id, js::Value *vp);
 
 extern JSBool
-GetFlatUpvar(JSContext *cx, JSObject *obj, jsid id, js::Value *vp);
+GetCallUpvar(JSContext *cx, JSObject *obj, jsid id, js::Value *vp);
 
 extern JSBool
 SetCallArg(JSContext *cx, JSObject *obj, jsid id, js::Value *vp);
@@ -526,7 +535,7 @@ extern JSBool
 SetCallVar(JSContext *cx, JSObject *obj, jsid id, js::Value *vp);
 
 extern JSBool
-SetFlatUpvar(JSContext *cx, JSObject *obj, jsid id, js::Value *vp);
+SetCallUpvar(JSContext *cx, JSObject *obj, jsid id, js::Value *vp);
 
 } // namespace js
 

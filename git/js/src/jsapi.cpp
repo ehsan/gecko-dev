@@ -647,12 +647,6 @@ JSRuntime::init(uint32 maxbytes)
     if (!js_InitGC(this, maxbytes) || !js_InitAtomState(this))
         return false;
 
-#if ENABLE_YARR_JIT
-    regExpAllocator = JSC::ExecutableAllocator::create();
-    if (!regExpAllocator)
-        return false;
-#endif
-
     wrapObjectCallback = js::TransparentObjectWrapper;
 
 #ifdef JS_THREADSAFE
@@ -698,9 +692,6 @@ JSRuntime::~JSRuntime()
     js_FreeRuntimeScriptState(this);
     js_FinishAtomState(this);
 
-#if ENABLE_YARR_JIT
-    delete regExpAllocator;
-#endif
     js_FinishGC(this);
 #ifdef JS_THREADSAFE
     if (gcLock)
@@ -2553,78 +2544,19 @@ JS_GC(JSContext *cx)
     /* Don't nuke active arenas if executing or compiling. */
     if (cx->tempPool.current == &cx->tempPool.first)
         JS_FinishArenaPool(&cx->tempPool);
-    js_GC(cx, GC_NORMAL);
+    js_GC(cx, NULL, GC_NORMAL);
 }
 
 JS_PUBLIC_API(void)
 JS_MaybeGC(JSContext *cx)
 {
-    JSRuntime *rt;
-    uint32 bytes, lastBytes;
+    LeaveTrace(cx);
 
-    rt = cx->runtime;
+    /* Don't nuke active arenas if executing or compiling. */
+    if (cx->tempPool.current == &cx->tempPool.first)
+        JS_FinishArenaPool(&cx->tempPool);
 
-#ifdef JS_GC_ZEAL
-    if (rt->gcZeal > 0) {
-        JS_GC(cx);
-        return;
-    }
-#endif
-
-    bytes = rt->gcBytes;
-    lastBytes = rt->gcLastBytes;
-
-    /*
-     * We run the GC if we used all available free GC cells and had to
-     * allocate extra 1/3 of GC arenas since the last run of GC, or if
-     * we have malloc'd more bytes through JS_malloc than we were told
-     * to allocate by JS_NewRuntime.
-     *
-     * The reason for
-     *   bytes > 4/3 lastBytes
-     * condition is the following. Bug 312238 changed bytes and lastBytes
-     * to mean the total amount of memory that the GC uses now and right
-     * after the last GC.
-     *
-     * Before the bug the variables meant the size of allocated GC things
-     * now and right after the last GC. That size did not include the
-     * memory taken by free GC cells and the condition was
-     *   bytes > 3/2 lastBytes.
-     * That is, we run the GC if we have half again as many bytes of
-     * GC-things as the last time we GC'd. To be compatible we need to
-     * express that condition through the new meaning of bytes and
-     * lastBytes.
-     *
-     * We write the original condition as
-     *   B*(1-F) > 3/2 Bl*(1-Fl)
-     * where B is the total memory size allocated by GC and F is the free
-     * cell density currently and Sl and Fl are the size and the density
-     * right after GC. The density by definition is memory taken by free
-     * cells divided by total amount of memory. In other words, B and Bl
-     * are bytes and lastBytes with the new meaning and B*(1-F) and
-     * Bl*(1-Fl) are bytes and lastBytes with the original meaning.
-     *
-     * Our task is to exclude F and Fl from the last statement. According
-     * to the stats from bug 331966 comment 23, Fl is about 10-25% for a
-     * typical run of the browser. It means that the original condition
-     * implied that we did not run GC unless we exhausted the pool of
-     * free cells. Indeed if we still have free cells, then B == Bl since
-     * we did not yet allocated any new arenas and the condition means
-     *   1 - F > 3/2 (1-Fl) or 3/2Fl > 1/2 + F
-     * That implies 3/2 Fl > 1/2 or Fl > 1/3. That cannot be fulfilled
-     * for the state described by the stats. So we can write the original
-     * condition as:
-     *   F == 0 && B > 3/2 Bl(1-Fl)
-     * Again using the stats we see that Fl is about 11% when the browser
-     * starts up and when we are far from hitting rt->gcMaxBytes. With
-     * this F we have
-     * F == 0 && B > 3/2 Bl(1-0.11)
-     * or approximately F == 0 && B > 4/3 Bl.
-     */
-    if ((bytes > 8192 && bytes > lastBytes + lastBytes / 3) ||
-        rt->isGCMallocLimitReached()) {
-        JS_GC(cx);
-    }
+    MaybeGC(cx);
 }
 
 JS_PUBLIC_API(JSGCCallback)
@@ -2649,7 +2581,7 @@ JS_IsAboutToBeFinalized(JSContext *cx, void *thing)
 {
     JS_ASSERT(thing);
     JS_ASSERT(!cx->runtime->gcMarkingTracer);
-    return IsAboutToBeFinalized(thing);
+    return IsAboutToBeFinalized(cx, thing);
 }
 
 JS_PUBLIC_API(void)
@@ -5182,7 +5114,8 @@ JS_IsRunning(JSContext *cx)
     VOUCH_DOES_NOT_REQUIRE_STACK();
 
 #ifdef JS_TRACER
-    JS_ASSERT_IF(JS_TRACE_MONITOR(cx).tracecx == cx, cx->hasfp());
+    JS_ASSERT_IF(cx->compartment &&
+                 JS_TRACE_MONITOR(cx).tracecx == cx, cx->hasfp());
 #endif
     JSStackFrame *fp = cx->maybefp();
     while (fp && fp->isDummyFrame())
@@ -5562,26 +5495,48 @@ JS_FinishJSONParse(JSContext *cx, JSONParser *jp, jsval reviver)
 }
 
 JS_PUBLIC_API(JSBool)
-JS_ReadStructuredClone(JSContext *cx, const uint64 *buf, size_t nbytes, uint32 version, jsval *vp)
+JS_ReadStructuredClone(JSContext *cx, const uint64 *buf, size_t nbytes,
+                       uint32 version, jsval *vp,
+                       const JSStructuredCloneCallbacks *optionalCallbacks,
+                       void *closure)
 {
     if (version > JS_STRUCTURED_CLONE_VERSION) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_CLONE_VERSION);
         return false;
     }
-    return ReadStructuredClone(cx, buf, nbytes, Valueify(vp));
+    const JSStructuredCloneCallbacks *callbacks =
+        optionalCallbacks ?
+        optionalCallbacks :
+        cx->runtime->structuredCloneCallbacks;
+    return ReadStructuredClone(cx, buf, nbytes, Valueify(vp), callbacks, closure);
 }
 
 JS_PUBLIC_API(JSBool)
-JS_WriteStructuredClone(JSContext *cx, jsval v, uint64 **bufp, size_t *nbytesp)
+JS_WriteStructuredClone(JSContext *cx, jsval v, uint64 **bufp, size_t *nbytesp,
+                        const JSStructuredCloneCallbacks *optionalCallbacks,
+                        void *closure)
 {
-    return WriteStructuredClone(cx, Valueify(v), (uint64_t **) bufp, nbytesp);
+    const JSStructuredCloneCallbacks *callbacks =
+        optionalCallbacks ?
+        optionalCallbacks :
+        cx->runtime->structuredCloneCallbacks;
+    return WriteStructuredClone(cx, Valueify(v), (uint64_t **) bufp, nbytesp,
+                                callbacks, closure);
 }
 
 JS_PUBLIC_API(JSBool)
-JS_StructuredClone(JSContext *cx, jsval v, jsval *vp)
+JS_StructuredClone(JSContext *cx, jsval v, jsval *vp,
+                   ReadStructuredCloneOp optionalReadOp,
+                   const JSStructuredCloneCallbacks *optionalCallbacks,
+                   void *closure)
 {
+    const JSStructuredCloneCallbacks *callbacks =
+        optionalCallbacks ?
+        optionalCallbacks :
+        cx->runtime->structuredCloneCallbacks;
     JSAutoStructuredCloneBuffer buf;
-    return buf.write(cx, v) && buf.read(vp);
+    return buf.write(cx, v, callbacks, closure) &&
+           buf.read(vp, cx, callbacks, closure);
 }
 
 JS_PUBLIC_API(void)
@@ -5855,16 +5810,17 @@ JS_GetLocaleCallbacks(JSContext *cx)
 JS_PUBLIC_API(JSBool)
 JS_IsExceptionPending(JSContext *cx)
 {
-    return (JSBool) cx->throwing;
+    return (JSBool) cx->isExceptionPending();
 }
 
 JS_PUBLIC_API(JSBool)
 JS_GetPendingException(JSContext *cx, jsval *vp)
 {
     CHECK_REQUEST(cx);
-    if (!cx->throwing)
+    if (!cx->isExceptionPending())
         return JS_FALSE;
-    Valueify(*vp) = cx->exception;
+    Valueify(*vp) = cx->getPendingException();
+    assertSameCompartment(cx, *vp);
     return JS_TRUE;
 }
 
@@ -5873,14 +5829,13 @@ JS_SetPendingException(JSContext *cx, jsval v)
 {
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, v);
-    SetPendingException(cx, Valueify(v));
+    cx->setPendingException(Valueify(v));
 }
 
 JS_PUBLIC_API(void)
 JS_ClearPendingException(JSContext *cx)
 {
-    cx->throwing = JS_FALSE;
-    cx->exception.setUndefined();
+    cx->clearPendingException();
 }
 
 JS_PUBLIC_API(JSBool)

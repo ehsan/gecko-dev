@@ -54,6 +54,12 @@
 #pragma warning(disable:4251) /* Silence warning about JS_FRIEND_API and data members. */
 #endif
 
+namespace JSC {
+
+class ExecutableAllocator;
+
+}
+
 namespace js {
 
 /* Holds the number of recording attemps for an address. */
@@ -195,7 +201,7 @@ struct TraceMonitor {
     void flush();
 
     /* Sweep any cache entry pointing to dead GC things. */
-    void sweep();
+    void sweep(JSContext *cx);
 
     bool outOfMemory() const;
 };
@@ -267,6 +273,10 @@ struct JS_FRIEND_API(JSCompartment) {
     js::gc::ArenaList            arenas[js::gc::FINALIZE_LIMIT];
     js::gc::FreeLists            freeLists;
 
+    size_t                       gcBytes;
+    size_t                       gcTriggerBytes;
+    size_t                       gcLastBytes;
+
 #ifdef JS_GCMETER
     js::gc::JSGCArenaStats       compartmentStats[js::gc::FINALIZE_LIMIT];
 #endif
@@ -305,6 +315,8 @@ struct JS_FRIEND_API(JSCompartment) {
     JSObject                     *anynameObject;
     JSObject                     *functionNamespaceObject;
 
+    JSC::ExecutableAllocator     *regExpAllocator;
+
     js::NativeIterCache          nativeIterCache;
 
     JSCompartment(JSRuntime *cx);
@@ -312,6 +324,7 @@ struct JS_FRIEND_API(JSCompartment) {
 
     bool init();
 
+    void mark(JSTracer *trc);
     bool wrap(JSContext *cx, js::Value *vp);
     bool wrap(JSContext *cx, JSString **strp);
     bool wrap(JSContext *cx, JSObject **objp);
@@ -319,12 +332,15 @@ struct JS_FRIEND_API(JSCompartment) {
     bool wrap(JSContext *cx, js::PropertyOp *op);
     bool wrap(JSContext *cx, js::PropertyDescriptor *desc);
     bool wrap(JSContext *cx, js::AutoIdVector &props);
-    bool wrapException(JSContext *cx);
 
     void sweep(JSContext *cx, uint32 releaseInterval);
     void purge(JSContext *cx);
     void finishArenaLists();
+    void finalizeObjectArenaLists(JSContext *cx);
+    void finalizeStringArenaLists(JSContext *cx);
     bool arenaListsAreEmpty();
+
+    void setGCLastBytes(size_t lastBytes);
 
   private:
     js::MathCache                *mathCache;
@@ -385,6 +401,22 @@ class SwitchToCompartment : public PreserveCompartment {
 
     SwitchToCompartment(JSContext *cx, JSObject *target) : PreserveCompartment(cx) {
         cx->compartment = target->getCompartment();
+    }
+};
+
+class AssertCompartmentUnchanged {
+  protected:
+    JSContext * const cx;
+    JSCompartment * const oldCompartment;
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+  public:
+     AssertCompartmentUnchanged(JSContext *cx JS_GUARD_OBJECT_NOTIFIER_PARAM)
+     : cx(cx), oldCompartment(cx->compartment) {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+    }
+
+    ~AssertCompartmentUnchanged() {
+        JS_ASSERT(cx->compartment == oldCompartment);
     }
 };
 

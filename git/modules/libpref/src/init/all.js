@@ -595,8 +595,9 @@ pref("javascript.options.jitprofiling.chrome",  false);
 // This preference limits the memory usage of javascript.
 // If you want to change these values for your device,
 // please find Bug 417052 comment 17 and Bug 456721
-// Comment 32.
-pref("javascript.options.mem.high_water_mark", 32);
+// Comment 32 and Bug 613551.
+pref("javascript.options.mem.high_water_mark", 128);
+pref("javascript.options.mem.max", -1);
 pref("javascript.options.mem.gc_frequency",   300);
 
 // advanced prefs
@@ -734,11 +735,6 @@ pref("network.http.prompt-temp-redirect", true);
 // in a DSCP environment this should be 40 (0x28, or AF11), per RFC-4594,
 // Section 4.8 "High-Throughput Data Service Class"
 pref("network.http.qos", 0);
-
-// The number of milliseconds after sending a SYN for an HTTP connection,
-// to wait before trying a different connection. 0 means do not use a second
-// connection.
-pref("network.http.connection-retry-timeout", 250);
 
 // default values for FTP
 // in a DSCP environment this should be 40 (0x28, or AF11), per RFC-4594,

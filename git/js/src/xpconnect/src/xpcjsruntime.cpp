@@ -555,9 +555,10 @@ static JSDHashOperator
 SweepWaiverWrappers(JSDHashTable *table, JSDHashEntryHdr *hdr,
                     uint32 number, void *arg)
 {
+    JSContext *cx = (JSContext *)arg;
     JSObject *key = ((JSObject2JSObjectMap::Entry *)hdr)->key;
     JSObject *value = ((JSObject2JSObjectMap::Entry *)hdr)->value;
-    if(IsAboutToBeFinalized(key) || IsAboutToBeFinalized(value))
+    if(IsAboutToBeFinalized(cx, key) || IsAboutToBeFinalized(cx, value))
         return JS_DHASH_REMOVE;
     return JS_DHASH_NEXT;
 }
@@ -568,7 +569,7 @@ SweepCompartment(nsCStringHashKey& aKey, JSCompartment *compartment, void *aClos
     xpc::CompartmentPrivate *priv = (xpc::CompartmentPrivate *)
         JS_GetCompartmentPrivate((JSContext *)aClosure, compartment);
     if (priv->waiverWrapperMap)
-        priv->waiverWrapperMap->Enumerate(SweepWaiverWrappers, nsnull);
+        priv->waiverWrapperMap->Enumerate(SweepWaiverWrappers, (JSContext *)aClosure);
     return PL_DHASH_NEXT;
 }
 
@@ -1192,10 +1193,43 @@ protected:
 static XPConnectGCChunkAllocator gXPCJSChunkAllocator;
 
 NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSRuntimeGCChunks,
-                             "xpconnect/js/gcchunks",
-                             "Memory in use by main JS Runtime GC chunks",
+                             "js/gc-heap",
+                             "Main JS GC heap",
                              XPConnectGCChunkAllocator::GetGCChunkBytesInUse,
                              &gXPCJSChunkAllocator)
+
+/* FIXME: use API provided by bug 623271 */
+#include "jscntxt.h"
+
+static PRInt64
+GetJSMethodJitCodeMemoryInUse(void *data)
+{
+    JSRuntime *rt = nsXPConnect::GetRuntimeInstance()->GetJSRuntime();
+#ifdef JS_METHODJIT
+    return rt->mjitMemoryUsed;
+#else
+    return 0;
+#endif
+}
+
+NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSMethodJitCode,
+                             "js/mjit-code",
+                             "Memory in use by method-JIT for compiled code",
+                             GetJSMethodJitCodeMemoryInUse,
+                             NULL)
+
+static PRInt64
+GetJSStringMemoryInUse(void *data)
+{
+    JSRuntime *rt = nsXPConnect::GetRuntimeInstance()->GetJSRuntime();
+    return rt->stringMemoryUsed;
+}
+
+NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSStringMemory,
+                             "js/string-data",
+                             "Memory in use for string data",
+                             GetJSStringMemoryInUse,
+                             NULL)
 
 XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
  : mXPConnect(aXPConnect),
@@ -1259,6 +1293,8 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
         mJSRuntime->setCustomGCChunkAllocator(&gXPCJSChunkAllocator);
 
         NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(XPConnectJSRuntimeGCChunks));
+        NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(XPConnectJSStringMemory));
+        NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(XPConnectJSMethodJitCode));
     }
 
     if(!JS_DHashTableInit(&mJSHolders, JS_DHashGetStubOps(), nsnull,

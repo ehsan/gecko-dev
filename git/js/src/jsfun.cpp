@@ -455,8 +455,6 @@ WrapEscapingClosure(JSContext *cx, JSStackFrame *fp, JSFunction *fun)
          * immediate operand.
          */
         switch (op) {
-          case JSOP_GETUPVAR:       *pc = JSOP_GETUPVAR_DBG; break;
-          case JSOP_CALLUPVAR:      *pc = JSOP_CALLUPVAR_DBG; break;
           case JSOP_GETFCSLOT:      *pc = JSOP_GETUPVAR_DBG; break;
           case JSOP_CALLFCSLOT:     *pc = JSOP_CALLUPVAR_DBG; break;
           case JSOP_DEFFUN_FC:      *pc = JSOP_DEFFUN_DBGFC; break;
@@ -941,12 +939,16 @@ CalleeGetter(JSContext *cx, JSObject *obj, jsid id, Value *vp)
     return CheckForEscapingClosure(cx, obj, vp);
 }
 
-static JSObject *
-NewCallObject(JSContext *cx, JSFunction *fun, JSObject &scopeChain, JSObject &callee)
-{
-    Bindings &bindings = fun->script()->bindings;
+namespace js {
 
-    size_t argsVars = bindings.countArgsAndVars();
+/*
+ * Construct a call object for the given bindings.  The callee is the function
+ * on behalf of which the call object is being created.
+ */
+JSObject *
+NewCallObject(JSContext *cx, Bindings *bindings, JSObject &scopeChain, JSObject *callee)
+{
+    size_t argsVars = bindings->countArgsAndVars();
     size_t slots = JSObject::CALL_RESERVED_SLOTS + argsVars;
     gc::FinalizeKind kind = gc::GetGCObjectKind(slots);
 
@@ -956,7 +958,7 @@ NewCallObject(JSContext *cx, JSFunction *fun, JSObject &scopeChain, JSObject &ca
 
     /* Init immediately to avoid GC seeing a half-init'ed object. */
     callobj->init(cx, &js_CallClass, NULL, &scopeChain, NULL, false);
-    callobj->setMap(bindings.lastShape());
+    callobj->setMap(bindings->lastShape());
 
     /* This must come after callobj->lastProp has been set. */
     if (!callobj->ensureInstanceReservedSlots(cx, argsVars))
@@ -975,6 +977,8 @@ NewCallObject(JSContext *cx, JSFunction *fun, JSObject &scopeChain, JSObject &ca
     callobj->setCallObjCallee(callee);
     return callobj;
 }
+
+} // namespace js
 
 static inline JSObject *
 NewDeclEnvObject(JSContext *cx, JSStackFrame *fp)
@@ -1029,7 +1033,8 @@ js_GetCallObject(JSContext *cx, JSStackFrame *fp)
         }
     }
 
-    JSObject *callobj = NewCallObject(cx, fp->fun(), fp->scopeChain(), fp->callee());
+    JSObject *callobj =
+        NewCallObject(cx, &fp->fun()->script()->bindings, fp->scopeChain(), &fp->callee());
     if (!callobj)
         return NULL;
 
@@ -1049,7 +1054,8 @@ js_CreateCallObjectOnTrace(JSContext *cx, JSFunction *fun, JSObject *callee, JSO
 {
     JS_ASSERT(!js_IsNamedLambda(fun));
     JS_ASSERT(scopeChain);
-    return NewCallObject(cx, fun, *scopeChain, *callee);
+    JS_ASSERT(callee);
+    return NewCallObject(cx, &fun->script()->bindings, *scopeChain, callee);
 }
 
 JS_DEFINE_CALLINFO_4(extern, OBJECT, js_CreateCallObjectOnTrace, CONTEXT, FUNCTION, OBJECT, OBJECT,
@@ -1069,6 +1075,12 @@ js_PutCallObject(JSContext *cx, JSStackFrame *fp)
 {
     JSObject &callobj = fp->callObj();
 
+    /*
+     * Strict mode eval frames have Call objects to put.  Normal eval frames
+     * never put a Call object.
+     */
+    JS_ASSERT(fp->isEvalFrame() == callobj.callIsForEval());
+
     /* Get the arguments object to snapshot fp's actual argument values. */
     if (fp->hasArgsObj()) {
         if (!fp->hasOverriddenArgs())
@@ -1076,53 +1088,62 @@ js_PutCallObject(JSContext *cx, JSStackFrame *fp)
         js_PutArgsObject(cx, fp);
     }
 
-    JSFunction *fun = fp->fun();
-    JS_ASSERT(fun == callobj.getCallObjCalleeFunction());
+    JSScript *script = fp->script();
+    Bindings &bindings = script->bindings;
 
-    Bindings &bindings = fun->script()->bindings;
-    uintN n = bindings.countArgsAndVars();
+    if (callobj.callIsForEval()) {
+        JS_ASSERT(script->strictModeCode);
+        JS_ASSERT(bindings.countArgs() == 0);
 
-    if (n != 0) {
-        JS_ASSERT(JSFunction::CLASS_RESERVED_SLOTS + n <= callobj.numSlots());
+        /* This could be optimized as below, but keep it simple for now. */
+        CopyValuesToCallObject(callobj, 0, NULL, bindings.countVars(), fp->slots());
+    } else {
+        JSFunction *fun = fp->fun();
+        JS_ASSERT(fun == callobj.getCallObjCalleeFunction());
+        JS_ASSERT(script == fun->script());
 
-        uint32 nvars = bindings.countVars();
-        uint32 nargs = bindings.countArgs();
-        JS_ASSERT(fun->nargs == nargs);
-        JS_ASSERT(nvars + nargs == n);
+        if (uintN n = bindings.countArgsAndVars()) {
+            JS_ASSERT(JSObject::CALL_RESERVED_SLOTS + n <= callobj.numSlots());
 
-        JSScript *script = fun->script();
-        if (script->usesEval
+            uint32 nvars = bindings.countVars();
+            uint32 nargs = bindings.countArgs();
+            JS_ASSERT(fun->nargs == nargs);
+            JS_ASSERT(nvars + nargs == n);
+
+            JSScript *script = fun->script();
+            if (script->usesEval
 #ifdef JS_METHODJIT
-            || script->debugMode
+                || script->debugMode
 #endif
-            ) {
-            CopyValuesToCallObject(callobj, nargs, fp->formalArgs(), nvars, fp->slots());
-        } else {
-            /*
-             * For each arg & var that is closed over, copy it from the stack
-             * into the call object.
-             */
-            uint32 nclosed = script->nClosedArgs;
-            for (uint32 i = 0; i < nclosed; i++) {
-                uint32 e = script->getClosedArg(i);
-                callobj.setSlot(JSObject::CALL_RESERVED_SLOTS + e, fp->formalArg(e));
-            }
+                ) {
+                CopyValuesToCallObject(callobj, nargs, fp->formalArgs(), nvars, fp->slots());
+            } else {
+                /*
+                 * For each arg & var that is closed over, copy it from the stack
+                 * into the call object.
+                 */
+                uint32 nclosed = script->nClosedArgs;
+                for (uint32 i = 0; i < nclosed; i++) {
+                    uint32 e = script->getClosedArg(i);
+                    callobj.setSlot(JSObject::CALL_RESERVED_SLOTS + e, fp->formalArg(e));
+                }
 
-            nclosed = script->nClosedVars;
-            for (uint32 i = 0; i < nclosed; i++) {
-                uint32 e = script->getClosedVar(i);
-                callobj.setSlot(JSObject::CALL_RESERVED_SLOTS + nargs + e, fp->slots()[e]);
+                nclosed = script->nClosedVars;
+                for (uint32 i = 0; i < nclosed; i++) {
+                    uint32 e = script->getClosedVar(i);
+                    callobj.setSlot(JSObject::CALL_RESERVED_SLOTS + nargs + e, fp->slots()[e]);
+                }
             }
         }
-    }
 
-    /* Clear private pointers to fp, which is about to go away (js_Invoke). */
-    if (js_IsNamedLambda(fun)) {
-        JSObject *env = callobj.getParent();
+        /* Clear private pointers to fp, which is about to go away (js_Invoke). */
+        if (js_IsNamedLambda(fun)) {
+            JSObject *env = callobj.getParent();
 
-        JS_ASSERT(env->getClass() == &js_DeclEnvClass);
-        JS_ASSERT(env->getPrivate() == fp);
-        env->setPrivate(NULL);
+            JS_ASSERT(env->getClass() == &js_DeclEnvClass);
+            JS_ASSERT(env->getPrivate() == fp);
+            env->setPrivate(NULL);
+        }
     }
 
     callobj.setPrivate(NULL);
@@ -1203,24 +1224,25 @@ SetCallArg(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 }
 
 JSBool
-GetFlatUpvar(JSContext *cx, JSObject *obj, jsid id, Value *vp)
+GetCallUpvar(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 {
     JS_ASSERT((int16) JSID_TO_INT(id) == JSID_TO_INT(id));
     uintN i = (uint16) JSID_TO_INT(id);
 
-    *vp = obj->getCallObjCallee().getFlatClosureUpvar(i);
+    *vp = obj->getCallObjCallee()->getFlatClosureUpvar(i);
     return true;
 }
 
 JSBool
-SetFlatUpvar(JSContext *cx, JSObject *obj, jsid id, Value *vp)
+SetCallUpvar(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 {
     JS_ASSERT((int16) JSID_TO_INT(id) == JSID_TO_INT(id));
     uintN i = (uint16) JSID_TO_INT(id);
 
-    Value *upvarp = &obj->getCallObjCallee().getFlatClosureUpvar(i);
-    GC_POKE(cx, *upvarp);
-    *upvarp = *vp;
+    Value *up = &obj->getCallObjCallee()->getFlatClosureUpvar(i);
+
+    GC_POKE(cx, *up);
+    *up = *vp;
     return true;
 }
 
@@ -1254,6 +1276,19 @@ SetCallVar(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 
     JS_ASSERT((int16) JSID_TO_INT(id) == JSID_TO_INT(id));
     uintN i = (uint16) JSID_TO_INT(id);
+
+    /*
+     * As documented in TraceRecorder::attemptTreeCall(), when recording an
+     * inner tree call, the recorder assumes the inner tree does not mutate
+     * any tracked upvars. The abort here is a pessimistic precaution against
+     * bug 620662, where an inner tree setting a closed stack variable in an
+     * outer tree is illegal, and runtime would fall off trace.
+     */
+#ifdef JS_TRACER
+    TraceMonitor *tm = &JS_TRACE_MONITOR(cx);
+    if (tm->recorder && tm->tracecx)
+        AbortRecording(cx, "upvar write in nested tree");
+#endif
 
     Value *varp;
     if (JSStackFrame *fp = obj->maybeCallObjStackFrame())
@@ -1296,9 +1331,15 @@ call_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
     JS_ASSERT(!obj->getProto());
 
     if (!JSID_IS_ATOM(id))
-        return JS_TRUE;
+        return true;
 
-    JS_ASSERT(!obj->getCallObjCalleeFunction()->script()->bindings.hasBinding(cx, JSID_TO_ATOM(id)));
+    JSObject *callee = obj->getCallObjCallee();
+#ifdef DEBUG
+    if (callee) {
+        JSScript *script = callee->getFunctionPrivate()->script();
+        JS_ASSERT(!script->bindings.hasBinding(cx, JSID_TO_ATOM(id)));
+    }
+#endif
 
     /*
      * Resolve arguments so that we never store a particular Call object's
@@ -1308,27 +1349,26 @@ call_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
      * properties; see js::Bindings::add and js::Interpret's JSOP_DEFFUN
      * rebinding-Call-property logic.
      */
-    if (JSID_IS_ATOM(id, cx->runtime->atomState.argumentsAtom)) {
+    if (callee && id == ATOM_TO_JSID(cx->runtime->atomState.argumentsAtom)) {
         if (!js_DefineNativeProperty(cx, obj, id, UndefinedValue(),
                                      GetCallArguments, SetCallArguments,
                                      JSPROP_PERMANENT | JSPROP_SHARED | JSPROP_ENUMERATE,
                                      0, 0, NULL, JSDNP_DONT_PURGE)) {
-            return JS_FALSE;
+            return false;
         }
         *objp = obj;
-        return JS_TRUE;
+        return true;
     }
 
     /* Control flow reaches here only if id was not resolved. */
-    return JS_TRUE;
+    return true;
 }
 
 static void
 call_trace(JSTracer *trc, JSObject *obj)
 {
     JS_ASSERT(obj->isCall());
-    JSStackFrame *fp = (JSStackFrame *) obj->getPrivate();
-    if (fp) {
+    if (JSStackFrame *fp = obj->maybeCallObjStackFrame()) {
         /*
          * FIXME: Hide copies of stack values rooted by fp from the Cycle
          * Collector, which currently lacks a non-stub Unlink implementation
@@ -1337,7 +1377,7 @@ call_trace(JSTracer *trc, JSObject *obj)
          * hiding hack.
          */
         uintN first = JSObject::CALL_RESERVED_SLOTS;
-        uintN count = fp->fun()->script()->bindings.countArgsAndVars();
+        uintN count = fp->script()->bindings.countArgsAndVars();
 
         JS_ASSERT(obj->numSlots() >= first + count);
         SetValueRangeToUndefined(obj->getSlots() + first, count);
@@ -1406,60 +1446,78 @@ JSStackFrame::getValidCalleeObject(JSContext *cx, Value *vp)
 
         if (&fun->compiledFunObj() == &funobj && fun->methodAtom()) {
             JSObject *thisp = &thisv.toObject();
-            JS_ASSERT(thisp->canHaveMethodBarrier());
+            JSObject *first_barriered_thisp = NULL;
 
-            if (thisp->hasMethodBarrier()) {
-                const Shape *shape = thisp->nativeLookup(ATOM_TO_JSID(fun->methodAtom()));
-
+            do {
                 /*
-                 * The method property might have been deleted while the method
-                 * barrier flag stuck, so we must lookup and test here.
-                 *
-                 * Two cases follow: the method barrier was not crossed yet, so
-                 * we cross it here; the method barrier *was* crossed, in which
-                 * case we must fetch and validate the cloned (unjoined) funobj
-                 * in the method property's slot.
-                 *
-                 * In either case we must allow for the method property to have
-                 * been replaced, or its value to have been overwritten.
+                 * While a non-native object is responsible for handling its
+                 * entire prototype chain, notable non-natives including dense
+                 * and typed arrays have native prototypes, so keep going.
                  */
-                if (shape) {
-                    if (shape->isMethod() && &shape->methodObject() == &funobj) {
-                        if (!thisp->methodReadBarrier(cx, *shape, vp))
-                            return false;
-                        calleeValue().setObject(vp->toObject());
-                        return true;
-                    }
-                    if (shape->hasSlot()) {
-                        Value v = thisp->getSlot(shape->slot);
-                        JSObject *clone;
+                if (!thisp->isNative())
+                    continue;
 
-                        if (IsFunctionObject(v, &clone) &&
-                            GET_FUNCTION_PRIVATE(cx, clone) == fun &&
-                            clone->hasMethodObj(*thisp)) {
-                            JS_ASSERT(clone != &funobj);
-                            *vp = v;
-                            calleeValue().setObject(*clone);
+                if (thisp->hasMethodBarrier()) {
+                    const Shape *shape = thisp->nativeLookup(ATOM_TO_JSID(fun->methodAtom()));
+                    if (shape) {
+                        /*
+                         * Two cases follow: the method barrier was not crossed
+                         * yet, so we cross it here; the method barrier *was*
+                         * crossed but after the call, in which case we fetch
+                         * and validate the cloned (unjoined) funobj from the
+                         * method property's slot.
+                         *
+                         * In either case we must allow for the method property
+                         * to have been replaced, or its value overwritten.
+                         */
+                        if (shape->isMethod() && &shape->methodObject() == &funobj) {
+                            if (!thisp->methodReadBarrier(cx, *shape, vp))
+                                return false;
+                            calleeValue().setObject(vp->toObject());
                             return true;
                         }
-                    }
-                }
 
-                /*
-                 * If control flows here, we can't find an already-existing
-                 * clone (or force to exist a fresh clone) created via thisp's
-                 * method read barrier, so we must clone fun and store it in
-                 * fp's callee to avoid re-cloning upon repeated foo.caller
-                 * access. It seems that there are no longer any properties
-                 * referring to fun.
-                 */
-                JSObject *newfunobj = CloneFunctionObject(cx, fun, fun->getParent());
-                if (!newfunobj)
-                    return false;
-                newfunobj->setMethodObj(*thisp);
-                calleeValue().setObject(*newfunobj);
+                        if (shape->hasSlot()) {
+                            Value v = thisp->getSlot(shape->slot);
+                            JSObject *clone;
+
+                            if (IsFunctionObject(v, &clone) &&
+                                GET_FUNCTION_PRIVATE(cx, clone) == fun &&
+                                clone->hasMethodObj(*thisp)) {
+                                JS_ASSERT(clone != &funobj);
+                                *vp = v;
+                                calleeValue().setObject(*clone);
+                                return true;
+                            }
+                        }
+                    }
+
+                    if (!first_barriered_thisp)
+                        first_barriered_thisp = thisp;
+                }
+            } while ((thisp = thisp->getProto()) != NULL);
+
+            if (!first_barriered_thisp)
                 return true;
-            }
+
+            /*
+             * At this point, we couldn't find an already-existing clone (or
+             * force to exist a fresh clone) created via thisp's method read
+             * barrier, so we must clone fun and store it in fp's callee to
+             * avoid re-cloning upon repeated foo.caller access.
+             *
+             * This must mean the code in js_DeleteProperty could not find this
+             * stack frame on the stack when the method was deleted. We've lost
+             * track of the method, so we associate it with the first barriered
+             * object found starting from thisp on the prototype chain.
+             */
+            JSObject *newfunobj = CloneFunctionObject(cx, fun, fun->getParent());
+            if (!newfunobj)
+                return false;
+            newfunobj->setMethodObj(*first_barriered_thisp);
+            calleeValue().setObject(*newfunobj);
+            vp->setObject(*newfunobj);
+            return true;
         }
     }
 
@@ -2729,16 +2787,20 @@ js_AllocFlatClosure(JSContext *cx, JSFunction *fun, JSObject *scopeChain)
 JS_DEFINE_CALLINFO_3(extern, OBJECT, js_AllocFlatClosure,
                      CONTEXT, FUNCTION, OBJECT, 0, nanojit::ACCSET_STORE_ANY)
 
-JS_REQUIRES_STACK JSObject *
+JSObject *
 js_NewFlatClosure(JSContext *cx, JSFunction *fun, JSOp op, size_t oplen)
 {
     /*
-     * Flat closures can be partial, they may need to search enclosing scope
-     * objects via JSOP_NAME, etc.
+     * Flat closures cannot yet be partial, that is, all upvars must be copied,
+     * or the closure won't be flattened. Therefore they do not need to search
+     * enclosing scope objects via JSOP_NAME, etc.
+     *
+     * FIXME: bug 545759 proposes to enable partial flat closures. Fixing this
+     * bug requires a GetScopeChainFast call here, along with JS_REQUIRES_STACK
+     * annotations on this function's prototype and definition.
      */
-    JSObject *scopeChain = GetScopeChainFast(cx, cx->fp(), op, oplen);
-    if (!scopeChain)
-        return NULL;
+    VOUCH_DOES_NOT_REQUIRE_STACK();
+    JSObject *scopeChain = &cx->fp()->scopeChain();
 
     JSObject *closure = js_AllocFlatClosure(cx, fun, scopeChain);
     if (!closure || !fun->script()->bindings.hasUpvars())

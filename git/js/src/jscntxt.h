@@ -122,10 +122,6 @@ template<typename T> class Seq;
 
 }  /* namespace nanojit */
 
-namespace JSC {
-    class ExecutableAllocator;
-}
-
 namespace js {
 
 /* Tracer constants. */
@@ -892,7 +888,7 @@ private:
  * executing.  cx must be a context on the current thread.
  */
 #ifdef JS_TRACER
-# define JS_ON_TRACE(cx)            (JS_TRACE_MONITOR(cx).ontrace())
+# define JS_ON_TRACE(cx)            (cx->compartment && JS_TRACE_MONITOR(cx).ontrace())
 #else
 # define JS_ON_TRACE(cx)            false
 #endif
@@ -900,7 +896,7 @@ private:
 #ifdef DEBUG
 # define FUNCTION_KIND_METER_LIST(_)                                          \
                         _(allfun), _(heavy), _(nofreeupvar), _(onlyfreevar),  \
-                        _(display), _(flat), _(setupvar), _(badfunarg),       \
+                        _(flat), _(badfunarg),                                \
                         _(joinedsetmethod), _(joinedinitmethod),              \
                         _(joinedreplace), _(joinedsort), _(joinedmodulepat),  \
                         _(mreadbarrier), _(mwritebarrier), _(mwslotbarrier),  \
@@ -1135,7 +1131,16 @@ struct JSRuntime {
     js::GCMarker        *gcMarkingTracer;
     uint32              gcTriggerFactor;
     int64               gcJitReleaseTime;
-    volatile JSBool     gcIsNeeded;
+    volatile bool       gcIsNeeded;
+
+    /*
+     * Compartment that triggered GC. If more than one Compatment need GC,
+     * gcTriggerCompartment is reset to NULL and a global GC is performed. 
+     */
+    JSCompartment       *gcTriggerCompartment;
+
+    /* Compartment that is currently involved in per-compartment GC */
+    JSCompartment       *gcCurrentCompartment;
 
     /*
      * We can pack these flags as only the GC thread writes to them. Atomic
@@ -1439,7 +1444,10 @@ struct JSRuntime {
     JSWrapObjectCallback wrapObjectCallback;
     JSPreWrapCallback    preWrapObjectCallback;
 
-    JSC::ExecutableAllocator *regExpAllocator;
+#ifdef JS_METHODJIT
+    uint32               mjitMemoryUsed;
+#endif
+    uint32               stringMemoryUsed;
 
     JSRuntime();
     ~JSRuntime();
@@ -1706,6 +1714,10 @@ struct JSContext
     JSVersion           versionOverride;     /* supercedes defaultVersion when valid */
     bool                hasVersionOverride;
 
+    /* Exception state -- the exception member is a GC root by definition. */
+    JSBool              throwing;           /* is there a pending exception? */
+    js::Value           exception;          /* most-recently-thrown exception */
+
   public:
     /* Per-context options. */
     uint32              options;            /* see jsapi.h for JSOPTION_* */
@@ -1726,10 +1738,6 @@ struct JSContext
      * NB: generatingError packs with throwing below.
      */
     JSPackedBool        generatingError;
-
-    /* Exception state -- the exception member is a GC root by definition. */
-    JSBool              throwing;           /* is there a pending exception? */
-    js::Value           exception;          /* most-recently-thrown exception */
 
     /* Limit pointer for checking native stack consumption during recursion. */
     jsuword             stackLimit;
@@ -1769,6 +1777,7 @@ struct JSContext
     friend bool js::Interpret(JSContext *, JSStackFrame *, uintN, JSInterpMode);
 
     void resetCompartment();
+    void wrapPendingException();
 
     /* 'regs' must only be changed by calling this function. */
     void setCurrentRegs(JSFrameRegs *regs) {
@@ -1933,7 +1942,7 @@ struct JSContext
      * - The newest scripted frame's version, if there is such a frame. 
      * - The default verion.
      *
-     * @note    If this ever shows up in a profile, just add caching!
+     * Note: if this ever shows up in a profile, just add caching!
      */
     JSVersion findVersion() const {
         if (hasVersionOverride)
@@ -2173,6 +2182,22 @@ struct JSContext
 #else
     void assertValidStackDepth(uintN /*depth*/) {}
 #endif
+
+    bool isExceptionPending() {
+        return throwing;
+    }
+
+    js::Value getPendingException() {
+        JS_ASSERT(throwing);
+        return exception;
+    }
+
+    void setPendingException(js::Value v);
+
+    void clearPendingException() {
+        this->throwing = false;
+        this->exception.setUndefined();
+    }
 
   private:
     /*
@@ -2650,10 +2675,10 @@ class AutoLockDefaultCompartment {
 #endif
     }
     ~AutoLockDefaultCompartment() {
-        JS_UNLOCK(cx, &cx->runtime->atomState.lock);
 #ifdef JS_THREADSAFE
         cx->runtime->defaultCompartmentIsLocked = false;
 #endif
+        JS_UNLOCK(cx, &cx->runtime->atomState.lock);
     }
 };
 
@@ -2662,10 +2687,10 @@ class AutoUnlockDefaultCompartment {
       JSContext *cx;
   public:
     AutoUnlockDefaultCompartment(JSContext *cx) : cx(cx) {
-        JS_UNLOCK(cx, &cx->runtime->atomState.lock);
 #ifdef JS_THREADSAFE
         cx->runtime->defaultCompartmentIsLocked = false;
 #endif
+        JS_UNLOCK(cx, &cx->runtime->atomState.lock);
     }
     ~AutoUnlockDefaultCompartment() {
         JS_LOCK(cx, &cx->runtime->atomState.lock);
@@ -2752,6 +2777,38 @@ class AutoLocalNameArray {
     uint32      count;
 
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+};
+
+template <class RefCountable>
+class AutoRefCount {
+    JSContext       * const cx;
+    RefCountable    *obj;
+
+  public:
+    explicit AutoRefCount(JSContext *cx) : cx(cx), obj(NULL) {}
+
+    AutoRefCount(JSContext *cx, RefCountable *obj) : cx(cx), obj(NULL) {
+        reset(obj);
+    }
+
+    ~AutoRefCount() {
+        if (obj)
+            obj->decref(cx);
+    }
+
+    void reset(RefCountable *aobj) {
+        if (obj)
+            obj->decref(cx);
+
+        obj = aobj;
+
+        if (obj)
+            obj->incref(cx);
+    }
+
+    RefCountable *get() {
+        return obj;
+    }
 };
 
 } /* namespace js */
@@ -3041,9 +3098,6 @@ extern bool
 js_CurrentPCIsInImacro(JSContext *cx);
 
 namespace js {
-
-extern void
-SetPendingException(JSContext *cx, const Value &v);
 
 class RegExpStatics;
 

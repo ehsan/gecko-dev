@@ -57,6 +57,9 @@ using namespace js::gc;
 JSCompartment::JSCompartment(JSRuntime *rt)
   : rt(rt),
     principals(NULL),
+    gcBytes(0),
+    gcTriggerBytes(0),
+    gcLastBytes(0),
     data(NULL),
     marked(false),
     active(false),
@@ -72,6 +75,10 @@ JSCompartment::JSCompartment(JSRuntime *rt)
 
 JSCompartment::~JSCompartment()
 {
+#if ENABLE_YARR_JIT
+    delete regExpAllocator;
+#endif
+
 #if defined JS_TRACER
     FinishJIT(&traceMonitor);
 #endif
@@ -105,6 +112,12 @@ JSCompartment::init()
     if (!InitJIT(&traceMonitor)) {
         return false;
     }
+#endif
+
+#if ENABLE_YARR_JIT
+    regExpAllocator = JSC::ExecutableAllocator::create();
+    if (!regExpAllocator)
+        return false;
 #endif
 
 #ifdef JS_METHODJIT
@@ -198,17 +211,21 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
             if (obj->getCompartment() == this)
                 return true;
 
-            if (cx->runtime->preWrapObjectCallback)
+            if (cx->runtime->preWrapObjectCallback) {
                 obj = cx->runtime->preWrapObjectCallback(cx, global, obj, flags);
-            if (!obj)
-                return false;
+                if (!obj)
+                    return false;
+            }
 
             vp->setObject(*obj);
             if (obj->getCompartment() == this)
                 return true;
         } else {
-            if (cx->runtime->preWrapObjectCallback)
+            if (cx->runtime->preWrapObjectCallback) {
                 obj = cx->runtime->preWrapObjectCallback(cx, global, obj, flags);
+                if (!obj)
+                    return false;
+            }
 
             JS_ASSERT(!obj->isWrapper() || obj->getClass()->ext.innerObject);
             vp->setObject(*obj);
@@ -343,24 +360,7 @@ JSCompartment::wrap(JSContext *cx, AutoIdVector &props)
     return true;
 }
 
-bool
-JSCompartment::wrapException(JSContext *cx)
-{
-    JS_ASSERT(cx->compartment == this);
-
-    if (cx->throwing) {
-        AutoValueRooter tvr(cx, cx->exception);
-        cx->throwing = false;
-        cx->exception.setNull();
-        if (wrap(cx, tvr.addr())) {
-            cx->throwing = true;
-            cx->exception = tvr.value();
-        }
-        return false;
-    }
-    return true;
-}
-
+#if defined JS_METHODJIT && defined JS_MONOIC
 /*
  * Check if the pool containing the code for jit should be destroyed, per the
  * heuristics in JSCompartment::sweep.
@@ -385,6 +385,14 @@ ScriptPoolDestroyed(JSContext *cx, mjit::JITScript *jit,
     }
     return pool->m_destroy;
 }
+#endif
+
+void
+JSCompartment::mark(JSTracer *trc)
+{
+    for (WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront())
+        MarkValue(trc, e.front().key, "cross-compartment wrapper");
+}
 
 void
 JSCompartment::sweep(JSContext *cx, uint32 releaseInterval)
@@ -392,17 +400,17 @@ JSCompartment::sweep(JSContext *cx, uint32 releaseInterval)
     chunk = NULL;
     /* Remove dead wrappers from the table. */
     for (WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront()) {
-        JS_ASSERT_IF(IsAboutToBeFinalized(e.front().key.toGCThing()) &&
-                     !IsAboutToBeFinalized(e.front().value.toGCThing()),
+        JS_ASSERT_IF(IsAboutToBeFinalized(cx, e.front().key.toGCThing()) &&
+                     !IsAboutToBeFinalized(cx, e.front().value.toGCThing()),
                      e.front().key.isString());
-        if (IsAboutToBeFinalized(e.front().key.toGCThing()) ||
-            IsAboutToBeFinalized(e.front().value.toGCThing())) {
+        if (IsAboutToBeFinalized(cx, e.front().key.toGCThing()) ||
+            IsAboutToBeFinalized(cx, e.front().value.toGCThing())) {
             e.removeFront();
         }
     }
 
 #ifdef JS_TRACER
-    traceMonitor.sweep();
+    traceMonitor.sweep(cx);
 #endif
 
 #if defined JS_METHODJIT && defined JS_MONOIC
@@ -420,7 +428,7 @@ JSCompartment::sweep(JSContext *cx, uint32 releaseInterval)
     for (JSCList *cursor = scripts.next; cursor != &scripts; cursor = cursor->next) {
         JSScript *script = reinterpret_cast<JSScript *>(cursor);
         if (script->hasJITCode()) {
-            mjit::ic::SweepCallICs(script, discardScripts);
+            mjit::ic::SweepCallICs(cx, script, discardScripts);
             if (discardScripts) {
                 if (script->jitNormal &&
                     ScriptPoolDestroyed(cx, script->jitNormal, releaseInterval, counter)) {

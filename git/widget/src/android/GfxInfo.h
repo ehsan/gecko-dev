@@ -1,6 +1,7 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
-/* ***** BEGIN LICENSE BLOCK *****
+/* vim: se cin sw=2 ts=2 et : */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+ *
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -13,15 +14,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Indexed Database.
+ * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * The Mozilla Foundation.
+ * Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2010
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Ben Turner <bent.mozilla@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -37,12 +37,40 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsIIDBSuccessEvent.idl"
+#ifndef __mozilla_widget_GfxInfo_h__
+#define __mozilla_widget_GfxInfo_h__
 
-interface nsIIDBTransaction;
+#include <nsIGfxInfo.h>
 
-[scriptable, uuid(cdf58757-78b9-4f5f-8559-1bf96e1cdfba)]
-interface nsIIDBTransactionEvent : nsIIDBSuccessEvent
+#include "nsString.h"
+
+namespace mozilla {
+namespace widget {
+
+class GfxInfo : public nsIGfxInfo
 {
-  readonly attribute nsIIDBTransaction transaction;
+public:
+  GfxInfo() {Init();}
+  virtual ~GfxInfo() {}
+
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIGFXINFO
+private:
+
+  void Init();
+  void AddCrashReportAnnotations();
+  nsString mRendererIDsString;
+  nsString mAdapterRAMString;
+
+  nsString mDeviceID;
+  nsString mDriverVersion;
+  nsString mDriverDate;
+  nsString mDeviceKey;
+
+  PRUint32 mRendererIDs[16];
 };
+
+} // namespace widget
+} // namespace mozilla
+
+#endif /* __mozilla_widget_GfxInfo_h__ */
