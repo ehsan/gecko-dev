@@ -43,7 +43,8 @@
 #include "nsISupports.h"
 
 class nsIStyleSheet;
-class nsCSSStyleSheet;
+class nsICSSStyleSheet;
+class nsPresContext;
 struct nsRuleData;
 class nsICSSGroupRule;
 
@@ -62,16 +63,16 @@ protected:
 public:
 
   NS_IMETHOD GetStyleSheet(nsIStyleSheet*& aSheet) const;
-  NS_IMETHOD SetStyleSheet(nsCSSStyleSheet* aSheet);
+  NS_IMETHOD SetStyleSheet(nsICSSStyleSheet* aSheet);
 
   NS_IMETHOD SetParentRule(nsICSSGroupRule* aRule);
 
   // nsIStyleRule methods
   // The new mapping function.
-  virtual void MapRuleInfoInto(nsRuleData* aRuleData);
+  NS_IMETHOD MapRuleInfoInto(nsRuleData* aRuleData);
 
 protected:
-  nsCSSStyleSheet*    mSheet;
+  nsICSSStyleSheet*   mSheet;                         
   nsICSSGroupRule*    mParentRule;
 #ifdef DEBUG_REFS
   PRInt32 mInstance;

@@ -35,10 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/*
- * This file tests the functionality of mozIStorageConnection::executeAsync for
- * both mozIStorageStatement and mozIStorageAsyncStatement.
- */
+// This file tests the functionality of mozIStorageConnection::executeAsync
 
 const INTEGER = 1;
 const TEXT = "this is test text";
@@ -66,7 +63,7 @@ function test_create_and_add()
   stmts[0].bindDoubleParameter(2, REAL);
   stmts[0].bindNullParameter(3);
   stmts[0].bindBlobParameter(4, BLOB, BLOB.length);
-  stmts[1] = getOpenedDatabase().createAsyncStatement(
+  stmts[1] = getOpenedDatabase().createStatement(
     "INSERT INTO test (string, number, nuller, blober) VALUES (?, ?, ?, ?)"
   );
   stmts[1].bindStringParameter(0, TEXT);
@@ -134,7 +131,7 @@ function test_create_and_add()
 function test_transaction_created()
 {
   let stmts = [];
-  stmts[0] = getOpenedDatabase().createAsyncStatement(
+  stmts[0] = getOpenedDatabase().createStatement(
     "BEGIN"
   );
   stmts[1] = getOpenedDatabase().createStatement(
@@ -172,18 +169,13 @@ function test_multiple_bindings_on_statements()
   const ITERATIONS = 5;
 
   let stmts = [];
-  let db = getOpenedDatabase();
-  let sqlString = "INSERT INTO test (id, string, number, nuller, blober) " +
-                    "VALUES (:int, :text, :real, :null, :blob)";
   // We run the same statement twice, and should insert 2 * AMOUNT_TO_ADD.
   for (let i = 0; i < ITERATIONS; i++) {
-    // alternate the type of statement we create
-    if (i % 2)
-      stmts[i] = db.createStatement(sqlString);
-    else
-      stmts[i] = db.createAsyncStatement(sqlString);
-
-    let params = stmts[i].newBindingParamsArray();
+    stmts[i] = getOpenedDatabase().createStatement(
+      "INSERT INTO test (id, string, number, nuller, blober) " +
+      "VALUES (:int, :text, :real, :null, :blob)"
+    );
+    let params = stmts[i].newBindingParamsArray()
     for (let j = 0; j < AMOUNT_TO_ADD; j++) {
       let bp = params.newBindingParams();
       bp.bindByName("int", INTEGER);

@@ -20,8 +20,6 @@ I. Normal installation and upgrades
     Make for automatic compilation,  since other make tools won't work
     (this includes BSD Make).
 
-    GNU Make VERSION 3.80 OR NEWER IS NEEDED!
-
 
   3. On VMS with the `mms' build tool
 
@@ -78,7 +76,7 @@ II. Custom builds of the library
 
 ----------------------------------------------------------------------
 
-Copyright 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008 by
+Copyright 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007 by
 David Turner, Robert Wilhelm, and Werner Lemberg.
 
 This  file is  part of  the FreeType  project, and  may only  be used,

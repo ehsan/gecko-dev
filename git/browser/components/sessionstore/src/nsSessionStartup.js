@@ -71,14 +71,19 @@ const Ci = Components.interfaces;
 const Cr = Components.results;
 const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
 
 const STATE_RUNNING_STR = "running";
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 megabytes
 
+XPCOMUtils.defineLazyServiceGetter(this, "ConsoleSvc",
+  "@mozilla.org/consoleservice;1", "nsIConsoleService");
+
+XPCOMUtils.defineLazyServiceGetter(this, "ObserverSvc",
+  "@mozilla.org/observer-service;1", "nsIObserverService");
+
 function debug(aMsg) {
   aMsg = ("SessionStartup: " + aMsg).replace(/\S{80}/g, "$&\n");
-  Services.console.logStringMessage(aMsg);
+  ConsoleSvc.logStringMessage(aMsg);
 }
 
 /* :::::::: The Service ::::::::::::::: */
@@ -125,24 +130,14 @@ SessionStartup.prototype = {
     this._iniString = this._readStateFile(sessionFile);
     if (!this._iniString)
       return;
-
-    // parse the session state into a JS object
-    let initialState;
+    
     try {
-      // remove unneeded braces (added for compatibility with Firefox 2.0 and 3.0)
-      if (this._iniString.charAt(0) == '(')
-        this._iniString = this._iniString.slice(1, -1);
-      try {
-        initialState = JSON.parse(this._iniString);
-      }
-      catch (exJSON) {
-        var s = new Cu.Sandbox("about:blank");
-        initialState = Cu.evalInSandbox("(" + this._iniString + ")", s);
-        this._iniString = JSON.stringify(initialState);
-      }
+      // parse the session state into JS objects
+      var s = new Cu.Sandbox("about:blank");
+      var initialState = Cu.evalInSandbox("(" + this._iniString + ")", s);
     }
-    catch (ex) { debug("The session file is invalid: " + ex); }
-
+    catch (ex) { debug("The session file is invalid: " + ex); } 
+    
     let lastSessionCrashed =
       initialState && initialState.session && initialState.session.state &&
       initialState.session.state == STATE_RUNNING_STR;
@@ -157,8 +152,8 @@ SessionStartup.prototype = {
 
     if (this._sessionType != Ci.nsISessionStartup.NO_SESSION) {
       // wait for the first browser window to open
-      Services.obs.addObserver(this, "domwindowopened", true);
-      Services.obs.addObserver(this, "browser:purge-session-history", true);
+      ObserverSvc.addObserver(this, "domwindowopened", true);
+      ObserverSvc.addObserver(this, "browser:purge-session-history", true);
     }
   },
 
@@ -168,18 +163,18 @@ SessionStartup.prototype = {
   observe: function sss_observe(aSubject, aTopic, aData) {
     switch (aTopic) {
     case "app-startup": 
-      Services.obs.addObserver(this, "final-ui-startup", true);
-      Services.obs.addObserver(this, "quit-application", true);
+      ObserverSvc.addObserver(this, "final-ui-startup", true);
+      ObserverSvc.addObserver(this, "quit-application", true);
       break;
     case "final-ui-startup": 
-      Services.obs.removeObserver(this, "final-ui-startup");
-      Services.obs.removeObserver(this, "quit-application");
+      ObserverSvc.removeObserver(this, "final-ui-startup");
+      ObserverSvc.removeObserver(this, "quit-application");
       this.init();
       break;
     case "quit-application":
       // no reason for initializing at this point (cf. bug 409115)
-      Services.obs.removeObserver(this, "final-ui-startup");
-      Services.obs.removeObserver(this, "quit-application");
+      ObserverSvc.removeObserver(this, "final-ui-startup");
+      ObserverSvc.removeObserver(this, "quit-application");
       break;
     case "domwindowopened":
       var window = aSubject;
@@ -194,7 +189,7 @@ SessionStartup.prototype = {
       this._iniString = null;
       this._sessionType = Ci.nsISessionStartup.NO_SESSION;
       // no need in repeating this, since startup state won't change
-      Services.obs.removeObserver(this, "browser:purge-session-history");
+      ObserverSvc.removeObserver(this, "browser:purge-session-history");
       break;
     }
   },
@@ -228,7 +223,7 @@ SessionStartup.prototype = {
         aWindow.arguments[0] == defaultArgs)
       aWindow.arguments[0] = null;
 
-    Services.obs.removeObserver(this, "domwindowopened");
+    ObserverSvc.removeObserver(this, "domwindowopened");
   },
 
 /* ........ Public API ................*/
@@ -269,7 +264,7 @@ SessionStartup.prototype = {
                         createInstance(Ci.nsISupportsString);
     stateString.data = this._readFile(aFile) || "";
 
-    Services.obs.notifyObservers(stateString, "sessionstore-state-read", "");
+    ObserverSvc.notifyObservers(stateString, "sessionstore-state-read", "");
 
     return stateString.data;
   },

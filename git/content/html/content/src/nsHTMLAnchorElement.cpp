@@ -104,7 +104,7 @@ public:
                               PRBool aCompileEventHandlers);
   virtual void UnbindFromTree(PRBool aDeep = PR_TRUE,
                               PRBool aNullParent = PR_TRUE);
-  virtual PRBool IsHTMLFocusable(PRBool aWithMouse, PRBool *aIsFocusable, PRInt32 *aTabIndex);
+  virtual PRBool IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex);
 
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
   virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
@@ -149,8 +149,6 @@ nsHTMLAnchorElement::~nsHTMLAnchorElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLAnchorElement, nsGenericElement) 
 NS_IMPL_RELEASE_INHERITED(nsHTMLAnchorElement, nsGenericElement) 
 
-
-DOMCI_DATA(HTMLAnchorElement, nsHTMLAnchorElement)
 
 // QueryInterface implementation for nsHTMLAnchorElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLAnchorElement)
@@ -208,7 +206,7 @@ nsHTMLAnchorElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aDocument) {
-    RegAccessKey();
+    RegUnRegAccessKey(PR_TRUE);
   }
 
   // Prefetch links
@@ -226,7 +224,7 @@ nsHTMLAnchorElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
   Link::ResetLinkState(false);
 
   if (IsInDoc()) {
-    UnregAccessKey();
+    RegUnRegAccessKey(PR_FALSE);
   }
 
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
@@ -245,17 +243,16 @@ nsHTMLAnchorElement::Focus()
 }
 
 PRBool
-nsHTMLAnchorElement::IsHTMLFocusable(PRBool aWithMouse,
-                                     PRBool *aIsFocusable, PRInt32 *aTabIndex)
+nsHTMLAnchorElement::IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex)
 {
-  if (nsGenericHTMLElement::IsHTMLFocusable(aWithMouse, aIsFocusable, aTabIndex)) {
+  if (nsGenericHTMLElement::IsHTMLFocusable(aIsFocusable, aTabIndex)) {
     return PR_TRUE;
   }
 
   // cannot focus links if there is no link handler
   nsIDocument* doc = GetCurrentDoc();
   if (doc) {
-    nsIPresShell* presShell = doc->GetShell();
+    nsIPresShell* presShell = doc->GetPrimaryShell();
     if (presShell) {
       nsPresContext* presContext = presShell->GetPresContext();
       if (presContext && !presContext->GetLinkHandler()) {
@@ -435,23 +432,15 @@ nsHTMLAnchorElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                              PRBool aNotify)
 {
   if (aName == nsGkAtoms::accesskey && kNameSpaceID_None == aNameSpaceID) {
-    UnregAccessKey();
+    RegUnRegAccessKey(PR_FALSE);
   }
 
   bool reset = false;
   if (aName == nsGkAtoms::href && kNameSpaceID_None == aNameSpaceID) {
-    // If we do not have a cached URI, we have some value here so we must reset
-    // our link state after calling the parent.
-    if (!Link::HasCachedURI()) {
+    nsAutoString val;
+    GetHref(val);
+    if (!val.Equals(aValue)) {
       reset = true;
-    }
-    // However, if we have a cached URI, we'll want to see if the value changed.
-    else {
-      nsAutoString val;
-      GetHref(val);
-      if (!val.Equals(aValue)) {
-        reset = true;
-      }
     }
   }
 
@@ -469,8 +458,7 @@ nsHTMLAnchorElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
   if (aName == nsGkAtoms::accesskey && kNameSpaceID_None == aNameSpaceID &&
       !aValue.IsEmpty()) {
-    SetFlags(NODE_HAS_ACCESSKEY);
-    RegAccessKey();
+    RegUnRegAccessKey(PR_TRUE);
   }
 
   return rv;
@@ -482,9 +470,7 @@ nsHTMLAnchorElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
 {
   if (aAttribute == nsGkAtoms::accesskey &&
       kNameSpaceID_None == aNameSpaceID) {
-    // Have to unregister before clearing flag. See UnregAccessKey
-    UnregAccessKey();
-    UnsetFlags(NODE_HAS_ACCESSKEY);
+    RegUnRegAccessKey(PR_FALSE);
   }
 
   nsresult rv = nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute,

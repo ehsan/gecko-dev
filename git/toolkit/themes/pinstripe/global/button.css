@@ -79,11 +79,6 @@ button[type="menu-button"] {
   border: none;
 }
 
-.button-menubutton-button {
-  -moz-appearance: none;
-  margin: 0;
-}
-
 .button-menu-dropmarker,
 .button-menubutton-dropmarker {
   -moz-appearance: none !important;
@@ -119,7 +114,7 @@ button[dlgtype="help"][disabled] {
   opacity: 0.5;
 }
 
-button[dlgtype="help"]:-moz-focusring {
+button[dlgtype="help"]:focus {
   outline: 2px solid -moz-mac-focusring;
   outline-offset: -2px;
   -moz-outline-radius: 100%;

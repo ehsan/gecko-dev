@@ -21,7 +21,7 @@
  *
  * Contributor(s):
  *   Pierre Phaneuf <pp@ludusdesign.com>
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -338,7 +338,8 @@ void nsListControlFrame::PaintFocus(nsIRenderingContext& aRC, nsPoint aPt)
       // Failing all else, try the first thing we have, but only if
       // it's an element.  Text frames need not apply.
       childframe = containerFrame->GetFirstChild(nsnull);
-      if (childframe && !childframe->GetContent()->IsElement()) {
+      if (childframe &&
+          !childframe->GetContent()->IsNodeOfType(nsINode::eELEMENT)) {
         childframe = nsnull;
       }
       result = NS_OK;
@@ -403,17 +404,17 @@ NS_QUERYFRAME_HEAD(nsListControlFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsHTMLScrollFrame)
 
 #ifdef ACCESSIBILITY
-already_AddRefed<nsAccessible>
-nsListControlFrame::CreateAccessible()
+NS_IMETHODIMP nsListControlFrame::GetAccessible(nsIAccessible** aAccessible)
 {
   nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
 
   if (accService) {
-    return accService->CreateHTMLListboxAccessible(mContent,
-                                                   PresContext()->PresShell());
+    nsCOMPtr<nsIDOMNode> node = do_QueryInterface(mContent);
+    nsCOMPtr<nsIWeakReference> weakShell(do_GetWeakReference(PresContext()->PresShell()));
+    return accService->CreateHTMLListboxAccessible(node, weakShell, aAccessible);
   }
 
-  return nsnull;
+  return NS_ERROR_FAILURE;
 }
 #endif
 
@@ -599,7 +600,7 @@ nsListControlFrame::Reflow(nsPresContext*           aPresContext,
   PRInt32 length = GetNumberOfOptions();  
 
   nscoord oldHeightOfARow = HeightOfARow();
-
+  
   if (!(GetStateBits() & NS_FRAME_FIRST_REFLOW) && autoHeight) {
     // When not doing an initial reflow, and when the height is auto, start off
     // with our computed height set to what we'd expect our height to be.
@@ -615,27 +616,8 @@ nsListControlFrame::Reflow(nsPresContext*           aPresContext,
   if (!mMightNeedSecondPass) {
     NS_ASSERTION(!autoHeight || HeightOfARow() == oldHeightOfARow,
                  "How did our height of a row change if nothing was dirty?");
-    NS_ASSERTION(!autoHeight ||
-                 !(GetStateBits() & NS_FRAME_FIRST_REFLOW),
-                 "How do we not need a second pass during initial reflow at "
-                 "auto height?");
     NS_ASSERTION(!IsScrollbarUpdateSuppressed(),
                  "Shouldn't be suppressing if we don't need a second pass!");
-    if (!autoHeight) {
-      // Update our mNumDisplayRows based on our new row height now that we
-      // know it.  Note that if autoHeight and we landed in this code then we
-      // already set mNumDisplayRows in CalcIntrinsicHeight.  Also note that we
-      // can't use HeightOfARow() here because that just uses a cached value
-      // that we didn't compute.
-      nscoord rowHeight = CalcHeightOfARow();
-      if (rowHeight == 0) {
-        // Just pick something
-        mNumDisplayRows = 1;
-      } else {
-        mNumDisplayRows = NS_MAX(1, state.ComputedHeight() / rowHeight);
-      }
-    }
-
     return rv;
   }
 
@@ -1510,42 +1492,28 @@ nsListControlFrame::AddOption(PRInt32 aIndex)
   return NS_OK;
 }
 
-static PRInt32
-DecrementAndClamp(PRInt32 aSelectionIndex, PRInt32 aLength)
-{
-  return aLength == 0 ? kNothingSelected : NS_MAX(0, aSelectionIndex - 1);
-}
-
 NS_IMETHODIMP
 nsListControlFrame::RemoveOption(PRInt32 aIndex)
 {
-  NS_PRECONDITION(aIndex >= 0, "negative <option> index");
-
   // Need to reset if we're a dropdown
   if (IsInDropDownMode()) {
     mNeedToReset = PR_TRUE;
     mPostChildrenLoadedReset = mIsAllContentHere;
   }
 
-  if (mStartSelectionIndex != kNothingSelected) {
-    NS_ASSERTION(mEndSelectionIndex != kNothingSelected, "");
-    PRInt32 numOptions = GetNumberOfOptions();
-    // NOTE: numOptions is the new number of options whereas aIndex is the
-    // unadjusted index of the removed option (hence the <= below).
-    NS_ASSERTION(aIndex <= numOptions, "out-of-bounds <option> index");
-
-    PRInt32 forward = mEndSelectionIndex - mStartSelectionIndex;
-    PRInt32* low  = forward >= 0 ? &mStartSelectionIndex : &mEndSelectionIndex;
-    PRInt32* high = forward >= 0 ? &mEndSelectionIndex : &mStartSelectionIndex;
-    if (aIndex < *low)
-      *low = ::DecrementAndClamp(*low, numOptions);
-    if (aIndex <= *high)
-      *high = ::DecrementAndClamp(*high, numOptions);
-    if (forward == 0)
-      *low = *high;
+  if (mStartSelectionIndex >= aIndex) {
+    --mStartSelectionIndex;
+    if (mStartSelectionIndex < 0) {
+      mStartSelectionIndex = kNothingSelected;
+    }    
   }
-  else
-    NS_ASSERTION(mEndSelectionIndex == kNothingSelected, "");
+
+  if (mEndSelectionIndex >= aIndex) {
+    --mEndSelectionIndex;
+    if (mEndSelectionIndex < 0) {
+      mEndSelectionIndex = kNothingSelected;
+    }    
+  }
 
   InvalidateFocus();
   return NS_OK;
@@ -1675,6 +1643,14 @@ nsListControlFrame::FireOnChange()
   if (presShell) {
     presShell->HandleEventWithTarget(&event, this, nsnull, &status);
   }
+}
+
+// Determine if the specified item in the listbox is selected.
+NS_IMETHODIMP
+nsListControlFrame::GetOptionSelected(PRInt32 aIndex, PRBool* aValue)
+{
+  *aValue = IsContentSelectedByIndex(aIndex);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -2600,13 +2576,13 @@ nsListControlFrame::KeyPress(nsIDOMEvent* aKeyEvent)
     case nsIDOMKeyEvent::DOM_VK_PAGE_UP: {
       AdjustIndexForDisabledOpt(mEndSelectionIndex, newIndex,
                                 (PRInt32)numOptions,
-                                -NS_MAX(1, mNumDisplayRows-1), -1);
+                                -(mNumDisplayRows-1), -1);
       } break;
 
     case nsIDOMKeyEvent::DOM_VK_PAGE_DOWN: {
       AdjustIndexForDisabledOpt(mEndSelectionIndex, newIndex,
                                 (PRInt32)numOptions,
-                                NS_MAX(1, mNumDisplayRows-1), 1);
+                                (mNumDisplayRows-1), 1);
       } break;
 
     case nsIDOMKeyEvent::DOM_VK_HOME: {

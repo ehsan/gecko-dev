@@ -40,8 +40,10 @@
 #include "nsIDOMEventTarget.h"
 #include "nsGenericHTMLElement.h"
 #include "nsILink.h"
+#include "nsIPresShell.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsIEventStateManager.h"
 #include "nsIURL.h"
 #include "nsNetUtil.h"
@@ -133,8 +135,6 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLAreaElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLAreaElement, nsGenericElement) 
 
 
-DOMCI_DATA(HTMLAreaElement, nsHTMLAreaElement)
-
 // QueryInterface implementation for nsHTMLAreaElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLAreaElement)
   NS_HTML_CONTENT_INTERFACE_TABLE5(nsHTMLAreaElement,
@@ -214,7 +214,7 @@ nsHTMLAreaElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aDocument) {
-    RegAccessKey();
+    RegUnRegAccessKey(PR_TRUE);
   }
 
   return rv;
@@ -228,7 +228,7 @@ nsHTMLAreaElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
   Link::ResetLinkState(false);
 
   if (IsInDoc()) {
-    UnregAccessKey();
+    RegUnRegAccessKey(PR_FALSE);
   }
 
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
@@ -240,7 +240,7 @@ nsHTMLAreaElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            PRBool aNotify)
 {
   if (aName == nsGkAtoms::accesskey && aNameSpaceID == kNameSpaceID_None) {
-    UnregAccessKey();
+    RegUnRegAccessKey(PR_FALSE);
   }
 
   nsresult rv =
@@ -257,8 +257,7 @@ nsHTMLAreaElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
   if (aName == nsGkAtoms::accesskey && aNameSpaceID == kNameSpaceID_None &&
       !aValue.IsEmpty()) {
-    SetFlags(NODE_HAS_ACCESSKEY);
-    RegAccessKey();
+    RegUnRegAccessKey(PR_TRUE);
   }
 
   return rv;
@@ -270,9 +269,7 @@ nsHTMLAreaElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
 {
   if (aAttribute == nsGkAtoms::accesskey &&
       aNameSpaceID == kNameSpaceID_None) {
-    // Have to unregister before clearing flag. See UnregAccessKey
-    UnregAccessKey();
-    UnsetFlags(NODE_HAS_ACCESSKEY);
+    RegUnRegAccessKey(PR_FALSE);
   }
 
   nsresult rv = nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute,

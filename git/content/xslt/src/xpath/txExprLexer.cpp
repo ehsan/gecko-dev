@@ -326,17 +326,17 @@ txExprLexer::parse(const nsASingleFragmentString& aPattern)
         break;
       case L_PAREN:
         if (prevToken->mType == Token::CNAME) {
-          const nsDependentSubstring& val = prevToken->Value();
-          if (val.EqualsLiteral("comment")) {
+          NS_ConvertUTF16toUTF8 utf8Value(prevToken->Value());
+          if (txXPathAtoms::comment->EqualsUTF8(utf8Value)) {
             prevToken->mType = Token::COMMENT_AND_PAREN;
           }
-          else if (val.EqualsLiteral("node")) {
+          else if (txXPathAtoms::node->EqualsUTF8(utf8Value)) {
             prevToken->mType = Token::NODE_AND_PAREN;
           }
-          else if (val.EqualsLiteral("processing-instruction")) {
+          else if (txXPathAtoms::processingInstruction->EqualsUTF8(utf8Value)) {
             prevToken->mType = Token::PROC_INST_AND_PAREN;
           }
-          else if (val.EqualsLiteral("text")) {
+          else if (txXPathAtoms::text->EqualsUTF8(utf8Value)) {
             prevToken->mType = Token::TEXT_AND_PAREN;
           }
           else {

@@ -335,12 +335,6 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
     widgetInitData.mWindowType = eWindowType_sheet;
 #endif
 
-#if defined(XP_WIN)
-  if (widgetInitData.mWindowType == eWindowType_toplevel ||
-      widgetInitData.mWindowType == eWindowType_dialog)
-    widgetInitData.clipChildren = PR_TRUE;
-#endif
-
   widgetInitData.mContentType = eContentTypeUI;                
 
   // note default chrome overrides other OS chrome settings, but
@@ -382,7 +376,7 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
   PRBool center = aChromeMask & nsIWebBrowserChrome::CHROME_CENTER_SCREEN;
 
   nsCOMPtr<nsIXULChromeRegistry> reg =
-    mozilla::services::GetXULChromeRegistryService();
+    do_GetService(NS_CHROMEREGISTRY_CONTRACTID);
   if (reg) {
     nsCAutoString package;
     package.AssignLiteral("global");

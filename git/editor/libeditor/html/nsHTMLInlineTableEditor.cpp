@@ -78,7 +78,7 @@ nsHTMLEditor::ShowInlineTableEditingUI(nsIDOMElement * aCell)
 
   // the resizers and the shadow will be anonymous children of the body
   nsIDOMElement *bodyElement = GetRoot();
-  NS_ENSURE_TRUE(bodyElement, NS_ERROR_NULL_POINTER);
+  if (!bodyElement)   return NS_ERROR_NULL_POINTER;
 
   CreateAnonymousElement(NS_LITERAL_STRING("a"), bodyElement,
                          NS_LITERAL_STRING("mozTableAddColumnBefore"),
@@ -125,16 +125,14 @@ nsHTMLEditor::HideInlineTableEditingUI()
 
   // get the presshell's document observer interface.
   nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
-  // We allow the pres shell to be null; when it is, we presume there
-  // are no document observers to notify, but we still want to
-  // UnbindFromTree.
+  if (!ps) return NS_ERROR_NOT_INITIALIZED;
 
   // get the root content node.
 
   nsIDOMElement *bodyElement = GetRoot();
 
   nsCOMPtr<nsIContent> bodyContent( do_QueryInterface(bodyElement) );
-  NS_ENSURE_TRUE(bodyContent, NS_ERROR_FAILURE);
+  if (!bodyContent) return NS_ERROR_FAILURE;
 
   DeleteRefToAnonymousNode(mAddColumnBeforeButton, bodyContent, ps);
   mAddColumnBeforeButton = nsnull;
@@ -162,7 +160,7 @@ nsHTMLEditor::DoInlineTableEditingAction(nsIDOMElement * aElement)
       anonElement) {
     nsAutoString anonclass;
     nsresult res = aElement->GetAttribute(NS_LITERAL_STRING("_moz_anonclass"), anonclass);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
 
     if (!StringBeginsWith(anonclass, NS_LITERAL_STRING("mozTable")))
       return NS_OK;
@@ -171,7 +169,7 @@ nsHTMLEditor::DoInlineTableEditingAction(nsIDOMElement * aElement)
     nsCOMPtr<nsIDOMElement> tableElement = do_QueryInterface(tableNode);
     PRInt32 rowCount, colCount;
     res = GetTableSize(tableElement, &rowCount, &colCount);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
 
     PRBool hideUI = PR_FALSE;
     PRBool hideResizersWithInlineTableUI = (mResizedObject == tableElement);
@@ -239,9 +237,9 @@ nsHTMLEditor::RefreshInlineTableEditingUI()
   GetElementOrigin(mInlineEditedCell, xCell, yCell);
 
   nsresult res = nsElement->GetOffsetWidth(&wCell);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   res = nsElement->GetOffsetHeight(&hCell);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
 
   PRInt32 xHoriz = xCell + wCell/2;
   PRInt32 yVert  = yCell + hCell/2;
@@ -250,7 +248,7 @@ nsHTMLEditor::RefreshInlineTableEditingUI()
   nsCOMPtr<nsIDOMElement> tableElement = do_QueryInterface(tableNode);
   PRInt32 rowCount, colCount;
   res = GetTableSize(tableElement, &rowCount, &colCount);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
 
   SetAnonymousElementPosition(xHoriz-10, yCell-7,  mAddColumnBeforeButton);
 #ifdef DISABLE_TABLE_DELETION

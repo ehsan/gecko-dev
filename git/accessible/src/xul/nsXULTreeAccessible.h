@@ -64,7 +64,7 @@ const PRUint32 kDefaultTreeCacheSize = 256;
 class nsXULTreeAccessible : public nsXULSelectableAccessible
 {
 public:
-  nsXULTreeAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULTreeAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
 
   // nsISupports and cycle collection
   NS_DECL_ISUPPORTS_INHERITED
@@ -80,7 +80,7 @@ public:
 
   // nsAccessNode
   virtual PRBool IsDefunct();
-  virtual void Shutdown();
+  virtual nsresult Shutdown();
 
   // nsAccessible
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
@@ -163,7 +163,7 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsXULTreeAccessible,
 class nsXULTreeItemAccessibleBase : public nsAccessibleWrap
 {
 public:
-  nsXULTreeItemAccessibleBase(nsIContent *aContent, nsIWeakReference *aShell,
+  nsXULTreeItemAccessibleBase(nsIDOMNode *aDOMNode, nsIWeakReference *aShell,
                               nsAccessible *aParent, nsITreeBoxObject *aTree,
                               nsITreeView *aTreeView, PRInt32 aRow);
 
@@ -195,7 +195,7 @@ public:
 
   // nsAccessNode
   virtual PRBool IsDefunct();
-  virtual void Shutdown();
+  virtual nsresult Shutdown();
 
   // nsAccessible
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
@@ -251,7 +251,7 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsXULTreeItemAccessibleBase,
 class nsXULTreeItemAccessible : public nsXULTreeItemAccessibleBase
 {
 public:
-  nsXULTreeItemAccessible(nsIContent *aContent, nsIWeakReference *aShell,
+  nsXULTreeItemAccessible(nsIDOMNode *aDOMNode, nsIWeakReference *aShell,
                           nsAccessible *aParent, nsITreeBoxObject *aTree,
                           nsITreeView *aTreeView, PRInt32 aRow);
 
@@ -259,8 +259,8 @@ public:
 
   // nsAccessNode
   virtual PRBool IsDefunct();
-  virtual PRBool Init();
-  virtual void Shutdown();
+  virtual nsresult Init();
+  virtual nsresult Shutdown();
 
   // nsAccessible
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
@@ -285,7 +285,7 @@ protected:
 class nsXULTreeColumnsAccessible : public nsXULColumnsAccessible
 {
 public:
-  nsXULTreeColumnsAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULTreeColumnsAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
 
 protected:
 

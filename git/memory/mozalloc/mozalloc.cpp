@@ -47,18 +47,6 @@
 #endif // if defined(MALLOC_H)
 #include <stddef.h>             // for size_t
 #include <stdlib.h>             // for malloc, free
-#if defined(XP_UNIX)
-#  include <unistd.h>           // for valloc on *BSD
-#endif //if defined(XP_UNIX)
-
-#if defined(MOZ_MEMORY)
-// jemalloc.h doesn't redeclare symbols if they're provided by the OS
-#  include "jemalloc.h"
-#endif
-
-#if defined(XP_WIN) || (defined(XP_OS2) && defined(__declspec))
-#  define MOZALLOC_EXPORT __declspec(dllexport)
-#endif
 
 // Make sure that "malloc" et al. resolve to their libc variants.
 #define MOZALLOC_DONT_DEFINE_MACRO_WRAPPERS
@@ -74,17 +62,6 @@
 #define UNLIKELY(x)  (x)
 #endif
 
-#if defined(MOZ_MEMORY_ANDROID) || defined(WRAP_MALLOC_WITH_JEMALLOC)
-#include "jemalloc.h"
-#define malloc(a)     je_malloc(a)
-#define valloc(a)     je_valloc(a)
-#define calloc(a, b)  je_calloc(a, b)
-#define realloc(a, b) je_realloc(a, b)
-#define free(a)       je_free(a)
-#define strdup(a)     je_strdup(a)
-#define strndup(a, b) je_strndup(a, b)
-#define posix_memalign(a, b, c)  je_posix_memalign(a, b, c)
-#endif
 
 void
 moz_free(void* ptr)
@@ -174,7 +151,7 @@ moz_strndup(const char* str, size_t strsize)
 }
 #endif  // if defined(HAVE_STRNDUP)
 
-#if defined(HAVE_POSIX_MEMALIGN) || defined(HAVE_JEMALLOC_POSIX_MEMALIGN)
+#if defined(HAVE_POSIX_MEMALIGN)
 int
 moz_xposix_memalign(void **ptr, size_t alignment, size_t size)
 {
@@ -193,7 +170,7 @@ moz_posix_memalign(void **ptr, size_t alignment, size_t size)
 }
 #endif // if defined(HAVE_POSIX_MEMALIGN)
 
-#if defined(HAVE_MEMALIGN) || defined(HAVE_JEMALLOC_MEMALIGN)
+#if defined(HAVE_MEMALIGN)
 void*
 moz_xmemalign(size_t boundary, size_t size)
 {
@@ -230,22 +207,6 @@ moz_valloc(size_t size)
 }
 #endif // if defined(HAVE_VALLOC)
 
-size_t
-moz_malloc_usable_size(void *ptr)
-{
-    if (!ptr)
-        return 0;
-
-#if defined(MOZ_MEMORY)
-    return malloc_usable_size(ptr);
-#elif defined(XP_MACOSX)
-    return malloc_size(ptr);
-#elif defined(XP_WIN)
-    return _msize(ptr);
-#else
-    return 0;
-#endif
-}
 
 namespace mozilla {
 

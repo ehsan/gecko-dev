@@ -158,7 +158,7 @@ menuitem.bookmark-item {
 }
 
 /* Bookmarks toolbar */
-#PlacesToolbarDropIndicator {
+.toolbar-drop-indicator {
   list-style-image: url(chrome://browser/skin/places/toolbarDropMarker.png);
 }
 
@@ -440,13 +440,8 @@ menuitem:not([type]) {
   -moz-image-region: rect(0px 48px 16px 32px);
 }
 
-#bookmarksToolbarFolderMenu,
-#BMB_bookmarksToolbarFolderMenu {
+#bookmarksToolbarFolderMenu {
   list-style-image: url("chrome://browser/skin/places/bookmarksToolbar.png");  
-}
-
-#unsortedBookmarksFolderMenu {
-  list-style-image: url("chrome://browser/skin/places/unsortedBookmarks.png");  
 }
 
 #menu_openDownloads {
@@ -571,17 +566,8 @@ toolbar[mode="full"] .toolbarbutton-menubutton-button {
   -moz-image-region: rect(0px 48px 24px 24px);
 }
 
-#bookmarks-button,
-#bookmarks-menu-button {
+#bookmarks-button {
   -moz-image-region: rect(0px 72px 24px 48px);
-}
-
-#bookmarks-menu-button.bookmark-item {
-  list-style-image: url("chrome://browser/skin/Toolbar-small.png");
-}
-
-#bookmarks-menu-button.toolbarbutton-1 {
-  -moz-box-orient: horizontal;
 }
 
 #print-button {
@@ -706,9 +692,7 @@ toolbar[iconsize="small"] #history-button {
   -moz-image-region: rect(0px 32px 16px 16px);
 }
 
-toolbar[iconsize="small"] #bookmarks-button,
-toolbar[iconsize="small"] #bookmarks-menu-button,
-#bookmarks-menu-button.bookmark-item {
+toolbar[iconsize="small"] #bookmarks-button {
   -moz-image-region: rect(0px 48px 16px 32px);
 }
 
@@ -814,17 +798,6 @@ toolbar[iconsize="small"] #fullscreen-button {
 
 #wrapper-urlbar-container #urlbar > .autocomplete-history-dropmarker {
   display: none;
-}
-
-#urlbar-display {
-  margin-top: -2px;
-  margin-bottom: -2px;
-  padding-top: 3px;
-  padding-bottom: 2px;
-  -moz-padding-end: 3px;
-  color: GrayText;
-  -moz-border-end: 1px solid #AAA;
-  -moz-margin-end: 3px;
 }
 
 #PopupAutoComplete,
@@ -971,34 +944,6 @@ toolbar[iconsize="small"] #fullscreen-button {
   padding: 10px;
 }
 
-/* Notification popup */
-#notification-popup {
-  margin: 4px 0;
-  min-width: 280px;
-  padding: 10px;
-}
-
-.popup-notification-icon {
-  width: 64px;
-  height: 64px;
-  -moz-margin-end: 10px;
-}
-
-.popup-notification-icon[popupid="geolocation"] {
-  list-style-image: url(chrome://browser/skin/Geo.png);
-}
-
-/* Notification icon box */
-#notification-popup-box {
-  margin: 0 3px;
-}
-
-#geo-notification-icon {
-  list-style-image: url(chrome://browser/skin/Geo.png);
-  width: 16px;
-  height: 16px;
-}
-
 /* Feed icon */
 #feed-button,
 #feed-button > .button-box,
@@ -1051,10 +996,6 @@ toolbar[iconsize="small"] #fullscreen-button {
 
 .ac-url-text {
   color: -moz-nativehyperlinktext;
-}
-
-richlistitem[type="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-icon {
-  list-style-image: url("chrome://browser/skin/actionicon-tab.png");
 }
 
 .autocomplete-treebody::-moz-tree-cell-text(treecolAutoCompleteComment) {
@@ -1171,39 +1112,23 @@ statusbarpanel#statusbar-display {
   -moz-box-shadow: ThreeDShadow 0 -1px inset;
 }
 
-#TabsToolbar > toolbarbutton,
-#TabsToolbar > toolbarpaletteitem > toolbarbutton {
-  margin-bottom: 1px;
-}
-
 .tabbrowser-tab {
-  padding: 0 2px 2px;
+  border: none !important;
+  padding: 0px;
   margin-bottom: 1px;
-  min-height: 25px; /* reserve space for the sometimes hidden close button */
 }
 
 .tabbrowser-tab[selected="true"] {
-  margin-bottom: 0;
-  padding-top: 2px; /* compensates the top margin of background tabs */
-  padding-bottom: 3px; /* compensates the bottom margin of background tabs */
-  min-height: 28px;
-}
-
-.tabbrowser-tab[pinned] + .tabbrowser-tab:not([pinned]) {
-  -moz-margin-start: 0;
+  margin-bottom: 0px;
 }
 
 .tab-icon-image {
   width: 16px;
   height: 16px;
-  -moz-margin-start: 1px;
-  -moz-margin-end: 4px;
+  -moz-margin-start: 4px;
+  -moz-margin-end: 3px;
   list-style-image: url("chrome://global/skin/icons/folder-item.png");
   -moz-image-region: rect(0px, 16px, 16px, 0px);
-}
-
-.tabbrowser-tab[pinned] > .tab-icon-image {
-  margin: 2px 0 0;
 }
 
 .tabbrowser-tab[busy] > .tab-icon-image {
@@ -1276,11 +1201,13 @@ statusbarpanel#statusbar-display {
 .tab-close-button > .toolbarbutton-icon {
   /* XXX Buttons have padding in widget/ that we don't want here but can't override with good CSS, so we must
      use evil CSS to give the impression of smaller content */
-  margin: -4px;
+  margin: -3px !important;
 }
 
 .tab-close-button {
-  padding: 0;
+  -moz-margin-end: 6px;
+  padding: 0px;
+  border: none;
   list-style-image: url("moz-icon://stock/gtk-close?size=menu");
 }
 
@@ -1295,21 +1222,17 @@ statusbarpanel#statusbar-display {
 }
 
 /* Tabstrip new tab button */
-.tabs-newtab-button,
-#TabsToolbar > #new-tab-button ,
-#TabsToolbar > #wrapper-new-tab-button > #new-tab-button {
+.tabs-newtab-button {
   list-style-image: url("moz-icon://stock/gtk-add?size=menu");
-  -moz-image-region: auto;
+  border: none;
   margin-bottom: 1px;
 }
 
-.tabs-newtab-button {
+.tabbrowser-arrowscrollbox > .tabs-newtab-button {
   width: 32px;
 }
 
-.tabs-newtab-button > .toolbarbutton-icon,
-#TabsToolbar > #new-tab-button > .toolbarbutton-icon,
-#TabsToolbar > #wrapper-new-tab-button > #new-tab-button > .toolbarbutton-icon {
+.tabs-newtab-button > .toolbarbutton-icon {
   margin-top: -2px;
   margin-bottom: -2px;
 }
@@ -1317,6 +1240,8 @@ statusbarpanel#statusbar-display {
 /* Tabstrip close button */
 .tabs-closebutton {
   list-style-image: url("moz-icon://stock/gtk-close?size=menu");
+  border: none;
+  margin-bottom: 1px;
 }
 
 .tabs-closebutton > .toolbarbutton-icon {
@@ -1343,16 +1268,20 @@ statusbarpanel#statusbar-display {
   -moz-transition: none;
 }
 
-#alltabs-button > .toolbarbutton-icon {
+.tabs-alltabs-button {
+  margin-bottom: 1px;
+}
+
+.tabs-alltabs-button > .toolbarbutton-icon {
   list-style-image: url("chrome://browser/skin/tabbrowser/alltabs.png");
   margin: 2px 0 1px;
 }
 
-#alltabs-button[type="menu"] > .toolbarbutton-menu-dropmarker {
+.tabs-alltabs-button[type="menu"] > .toolbarbutton-menu-dropmarker {
   margin-bottom: -2px;
 }
 
-#alltabs-button[type="menu"] > .toolbarbutton-icon {
+.tabs-alltabs-button[type="menu"] > .toolbarbutton-icon {
   display: none;
 }
 
@@ -1371,7 +1300,7 @@ statusbarpanel#statusbar-display {
 }
 
 /* Sidebar */
-#sidebar-header > .tabs-closebutton {
+#sidebar-box .tabs-closebutton {
   margin-bottom: 0px !important;
   padding: 0px 2px 0px 2px !important;
 }
@@ -1448,9 +1377,15 @@ toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
 .ctrlTab-favicon[src],
 .allTabs-favicon[src] {
   background-color: white;
+  padding: 2px;
+/* XXX: Upscaling images is ugly on Linux (bug 422179)
+  width: 24px;
+  height: 24px;
+  opacity: .7;
+*/
   width: 20px;
   height: 20px;
-  padding: 2px;
+  opacity: .8;
 }
 
 /* Ctrl-Tab */
@@ -1473,7 +1408,13 @@ toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
 /* All Tabs */
 
 #allTabs-panel {
-  padding-bottom: 10px;
+  /* compensate for the widget border and padding to center the panel correctly */
+  margin-left: -13px;
+}
+
+#allTabs-tab-close-button {
+  /*XXX without this, the closebutton can cause the panel to expand horizontally */
+  margin-right: -16px;
 }
 
 #allTabs-meta {
@@ -1483,6 +1424,10 @@ toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
 #allTabs-filter {
   -moz-margin-start: 36px;
   -moz-margin-end: 0;
+}
+
+#allTabs-stack {
+  margin: 10px;
 }
 
 .allTabs-preview-label {

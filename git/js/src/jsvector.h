@@ -208,7 +208,7 @@ class Vector : AllocPolicy
     /*
      * Since a vector either stores elements inline or in a heap-allocated
      * buffer, reuse the storage. mLengthOrCapacity serves as the union
-     * discriminator. In inline mode (when elements are stored in u.storage),
+     * discriminator. In inline mode (when elements are stored in u.mBuf),
      * mLengthOrCapacity holds the vector's length. In heap mode (when elements
      * are stored in [u.ptrs.mBegin, u.ptrs.mEnd)), mLengthOrCapacity holds the
      * vector's capacity.
@@ -228,7 +228,7 @@ class Vector : AllocPolicy
 
     union {
         BufferPtrs ptrs;
-        AlignedStorage<sInlineBytes> storage;
+        char mBuf[sInlineBytes];
     } u;
 
     /* Only valid when usingInlineStorage() */
@@ -244,12 +244,12 @@ class Vector : AllocPolicy
 
     T *inlineBegin() const {
         JS_ASSERT(usingInlineStorage());
-        return (T *)u.storage.addr();
+        return (T *)u.mBuf;
     }
 
     T *inlineEnd() const {
         JS_ASSERT(usingInlineStorage());
-        return (T *)u.storage.addr() + mLengthOrCapacity;
+        return (T *)u.mBuf + mLengthOrCapacity;
     }
 
     /* Only valid when !usingInlineStorage() */
@@ -365,7 +365,11 @@ class Vector : AllocPolicy
     /* Destroy elements in the range [begin() + incr, end()). */
     void shrinkBy(size_t incr);
 
-    /* Grow the vector by incr elements. */
+    /*
+     * Grow the vector by incr elements.  If T is a POD (as judged by
+     * tl::IsPodType), leave as uninitialized memory.  Otherwise, default
+     * construct each element.
+     */
     bool growBy(size_t incr);
 
     /* Call shrinkBy or growBy based on whether newSize > length(). */
@@ -554,7 +558,8 @@ Vector<T,N,AP>::growBy(size_t incr)
         size_t freespace = sInlineCapacity - inlineLength();
         if (incr <= freespace) {
             T *newend = inlineEnd() + incr;
-            Impl::initialize(inlineEnd(), newend);
+            if (!tl::IsPodType<T>::result)
+                Impl::initialize(inlineEnd(), newend);
             inlineLength() += incr;
             JS_ASSERT(usingInlineStorage());
             return true;
@@ -574,7 +579,8 @@ Vector<T,N,AP>::growBy(size_t incr)
     /* We are !usingInlineStorage(). Initialize new elements. */
     JS_ASSERT(heapCapacity() - heapLength() >= incr);
     T *newend = heapEnd() + incr;
-    Impl::initialize(heapEnd(), newend);
+    if (!tl::IsPodType<T>::result)
+        Impl::initialize(heapEnd(), newend);
     heapEnd() = newend;
     return true;
 }

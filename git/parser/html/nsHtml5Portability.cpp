@@ -179,6 +179,18 @@ nsHtml5Portability::literalEqualsString(const char* literal, nsString* string)
   return string->EqualsASCII(literal);
 }
 
+jArray<PRUnichar,PRInt32>
+nsHtml5Portability::isIndexPrompt()
+{
+  // XXX making this localizable is bug 500631
+  const char* literal = "This is a searchable index. Insert your search keywords here: ";
+  jArray<PRUnichar,PRInt32> arr = jArray<PRUnichar,PRInt32>(62);
+  for (PRInt32 i = 0; i < 62; ++i) {
+    arr[i] = literal[i];
+  }
+  return arr;
+}
+
 void
 nsHtml5Portability::initializeStatics()
 {

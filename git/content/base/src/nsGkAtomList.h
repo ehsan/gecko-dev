@@ -110,9 +110,7 @@ GK_ATOM(applyImports, "apply-imports")
 GK_ATOM(applyTemplates, "apply-templates")
 GK_ATOM(archive, "archive")
 GK_ATOM(area, "area")
-GK_ATOM(article, "article")
 GK_ATOM(ascending, "ascending")
-GK_ATOM(aside, "aside")
 GK_ATOM(aspectRatio, "aspect-ratio")
 GK_ATOM(assign, "assign")
 GK_ATOM(async, "async")
@@ -125,7 +123,6 @@ GK_ATOM(autobuffer, "autobuffer")
 #endif
 GK_ATOM(autocheck, "autocheck")
 GK_ATOM(autocomplete, "autocomplete")
-GK_ATOM(autofocus, "autofocus")
 #ifdef MOZ_MEDIA
 GK_ATOM(autoplay, "autoplay")
 #endif
@@ -135,6 +132,7 @@ GK_ATOM(b, "b")
 GK_ATOM(background, "background")
 GK_ATOM(base, "base")
 GK_ATOM(basefont, "basefont")
+GK_ATOM(baseLevel, "BaseLevel")                            // PRUint8
 GK_ATOM(baseline, "baseline")
 GK_ATOM(bdo, "bdo")
 GK_ATOM(before, "before")
@@ -189,12 +187,12 @@ GK_ATOM(_char, "char")
 GK_ATOM(charcode, "charcode")
 GK_ATOM(charoff, "charoff")
 GK_ATOM(charset, "charset")
+GK_ATOM(charType, "charType")                              // PRUint8
 GK_ATOM(checkbox, "checkbox")
 GK_ATOM(checked, "checked")
 GK_ATOM(child, "child")
 GK_ATOM(children, "children")
 GK_ATOM(choose, "choose")
-GK_ATOM(chromemargin, "chromemargin")
 GK_ATOM(circ, "circ")
 GK_ATOM(circle, "circle")
 GK_ATOM(cite, "cite")
@@ -345,6 +343,7 @@ GK_ATOM(elementAvailable, "element-available")
 GK_ATOM(elements, "elements")
 GK_ATOM(em, "em")
 GK_ATOM(embed, "embed")
+GK_ATOM(embeddingLevel, "EmbeddingLevel")                  // PRUint8
 GK_ATOM(embossed, "embossed")
 GK_ATOM(empty, "empty")
 GK_ATOM(encoding, "encoding")
@@ -352,6 +351,7 @@ GK_ATOM(enctype, "enctype")
 GK_ATOM(end, "end")
 GK_ATOM(end_after, "end_after")
 GK_ATOM(end_before, "end_before")
+GK_ATOM(endsInDiacritic, "EndsInDiacritic")                // PRUint32
 GK_ATOM(equalsize, "equalsize")
 GK_ATOM(error, "error")
 GK_ATOM(even, "even")
@@ -369,8 +369,6 @@ GK_ATOM(_false, "false")
 GK_ATOM(farthest, "farthest")
 GK_ATOM(field, "field")
 GK_ATOM(fieldset, "fieldset")
-GK_ATOM(figcaption, "figcaption")
-GK_ATOM(figure, "figure")
 GK_ATOM(fixed, "fixed")
 GK_ATOM(fixedList, "Fixed-list")
 GK_ATOM(flags, "flags")
@@ -384,7 +382,6 @@ GK_ATOM(followingSibling, "following-sibling")
 GK_ATOM(font, "font")
 GK_ATOM(fontWeight, "font-weight")
 GK_ATOM(fontpicker, "fontpicker")
-GK_ATOM(footer, "footer")
 GK_ATOM(_for, "for")
 GK_ATOM(forEach, "for-each")
 GK_ATOM(form, "form")
@@ -418,10 +415,8 @@ GK_ATOM(HARD, "HARD")
 GK_ATOM(hasSameNode, "has-same-node")
 GK_ATOM(hbox, "hbox")
 GK_ATOM(head, "head")
-GK_ATOM(header, "header")
 GK_ATOM(headers, "headers")
 GK_ATOM(height, "height")
-GK_ATOM(hgroup, "hgroup")
 GK_ATOM(hidden, "hidden")
 GK_ATOM(hidechrome, "hidechrome")
 GK_ATOM(highest, "highest")
@@ -432,6 +427,8 @@ GK_ATOM(href, "href")
 GK_ATOM(hreflang, "hreflang")
 GK_ATOM(hspace, "hspace")
 GK_ATOM(html, "html")
+GK_ATOM(htmlBaseHref, "html-base-href")
+GK_ATOM(htmlBaseTarget, "html-base-target")
 GK_ATOM(httpEquiv, "http-equiv")
 GK_ATOM(i, "i")
 GK_ATOM(id, "id")
@@ -527,7 +524,6 @@ GK_ATOM(map, "map")
 GK_ATOM(manifest, "manifest")
 GK_ATOM(marginheight, "marginheight")
 GK_ATOM(marginwidth, "marginwidth")
-GK_ATOM(mark, "mark")
 GK_ATOM(marquee, "marquee")
 GK_ATOM(match, "match")
 GK_ATOM(max, "max")
@@ -576,7 +572,6 @@ GK_ATOM(_namespace, "namespace")
 GK_ATOM(namespaceAlias, "namespace-alias")
 GK_ATOM(namespaceUri, "namespace-uri")
 GK_ATOM(NaN, "NaN")
-GK_ATOM(nav, "nav")
 GK_ATOM(negate, "negate")
 GK_ATOM(never, "never")
 GK_ATOM(_new, "new")
@@ -663,7 +658,6 @@ GK_ATOM(onmousedown, "onmousedown")
 GK_ATOM(onmousemove, "onmousemove")
 GK_ATOM(onmouseout, "onmouseout")
 GK_ATOM(onmouseover, "onmouseover")
-GK_ATOM(onMozMouseHittest, "onMozMouseHittest")
 GK_ATOM(onmouseup, "onmouseup")
 GK_ATOM(onMozAfterPaint, "onMozAfterPaint")
 GK_ATOM(onMozMousePixelScroll, "onMozMousePixelScroll")
@@ -680,7 +674,6 @@ GK_ATOM(onpopuphidden, "onpopuphidden")
 GK_ATOM(onpopuphiding, "onpopuphiding")
 GK_ATOM(onpopupshowing, "onpopupshowing")
 GK_ATOM(onpopupshown, "onpopupshown")
-GK_ATOM(onreadystatechange, "onreadystatechange")
 GK_ATOM(onRequest, "onRequest")
 GK_ATOM(onreset, "onreset")
 GK_ATOM(onresize, "onresize")
@@ -803,7 +796,6 @@ GK_ATOM(result, "result")
 GK_ATOM(resultPrefix, "result-prefix")
 GK_ATOM(rev, "rev")
 GK_ATOM(reverse, "reverse")
-GK_ATOM(richlistbox, "richlistbox")
 GK_ATOM(right, "right")
 GK_ATOM(rightmargin, "rightmargin")
 GK_ATOM(rightpadding, "rightpadding")
@@ -831,7 +823,6 @@ GK_ATOM(scrollbarbutton, "scrollbarbutton")
 GK_ATOM(scrollbox, "scrollbox")
 GK_ATOM(scrollcorner, "scrollcorner")
 GK_ATOM(scrolling, "scrolling")
-GK_ATOM(section, "section")
 GK_ATOM(select, "select")
 GK_ATOM(selectPopupList, "selectPopupList")
 GK_ATOM(selectable, "selectable")
@@ -858,7 +849,6 @@ GK_ATOM(sort, "sort")
 GK_ATOM(sortActive, "sortActive")
 GK_ATOM(sortDirection, "sortDirection")
 GK_ATOM(sorted, "sorted")
-GK_ATOM(sorthints, "sorthints")
 GK_ATOM(sortLocked, "sortLocked")
 GK_ATOM(sortResource, "sortResource")
 GK_ATOM(sortResource2, "sortResource2")
@@ -920,7 +910,6 @@ GK_ATOM(targets, "targets")
 GK_ATOM(tbody, "tbody")
 GK_ATOM(td, "td")
 GK_ATOM(_template, "template")
-GK_ATOM(text_decoration, "text-decoration")
 GK_ATOM(terminate, "terminate")
 GK_ATOM(test, "test")
 GK_ATOM(text, "text")
@@ -1268,6 +1257,7 @@ GK_ATOM(tableValues, "tableValues")
 GK_ATOM(targetX, "targetX")
 GK_ATOM(targetY, "targetY")
 GK_ATOM(text_anchor, "text-anchor")
+GK_ATOM(text_decoration, "text-decoration")
 GK_ATOM(text_rendering, "text-rendering")
 GK_ATOM(textPath, "textPath")
 GK_ATOM(tref, "tref")
@@ -1296,16 +1286,13 @@ GK_ATOM(accumulate, "accumulate")
 GK_ATOM(additive, "additive")
 GK_ATOM(attributeName, "attributeName")
 GK_ATOM(attributeType, "attributeType")
-GK_ATOM(auto_reverse, "auto-reverse")
 GK_ATOM(begin, "begin")
 GK_ATOM(by, "by")
 GK_ATOM(calcMode, "calcMode")
 GK_ATOM(css, "CSS")
 GK_ATOM(dur, "dur")
-GK_ATOM(keyPoints, "keyPoints")
 GK_ATOM(keySplines, "keySplines")
 GK_ATOM(keyTimes, "keyTimes")
-GK_ATOM(mozAnimateMotionDummyAttr, "_mozAnimateMotionDummyAttr")
 GK_ATOM(repeatCount, "repeatCount")
 GK_ATOM(repeatDur, "repeatDur")
 GK_ATOM(restart, "restart")
@@ -1669,10 +1656,44 @@ GK_ATOM(durationchange, "durationchange")
 GK_ATOM(volumechange, "volumechange")
 #endif
 
-// Content property names
+// Frame property names
+GK_ATOM(boxMetricsProperty, "BoxMetricsProperty") // nsBoxLayoutMetrics*
+GK_ATOM(changeListProperty, "ChangeListProperty") // void*
+GK_ATOM(collapseOffsetProperty, "CollapseOffsetProperty")  // nsPoint*
+GK_ATOM(computedOffsetProperty, "ComputedOffsetProperty")  // nsPoint*
+GK_ATOM(floatContinuationProperty, "FloatContinuationProperty") // nsFrameList*
+GK_ATOM(floatRegionProperty, "FloatRegionProperty") // nsRect*
+GK_ATOM(generatedContent, "GeneratedContentProperty")  // nsCOMArray<nsIContent>*
+#ifdef MOZ_MATHML
+GK_ATOM(HTMLReflowMetricsProperty, "HTMLReflowMetricsProperty") // nsHTMLReflowMetrics*
+#endif
+GK_ATOM(IBSplitSpecialPrevSibling, "IBSplitSpecialPrevSibling")// nsIFrame*
+GK_ATOM(IBSplitSpecialSibling, "IBSplitSpecialSibling")    // nsIFrame*
+GK_ATOM(lineCursorProperty, "LineCursorProperty") // nsLineBox*
+GK_ATOM(rowCursorProperty, "RowCursorProperty") // nsTableRowGroupFrame::FrameCursorData*
+GK_ATOM(maxElementWidthProperty, "MaxElementWidthProperty")  // nscoord*
+GK_ATOM(outlineInnerRectProperty, "OutlineInnerRectProperty") // nsRect*
+GK_ATOM(outOfFlowDirtyRectProperty, "OutOfFlowDirtyRectProperty") // nsRect*
+GK_ATOM(overflowAreaProperty, "OverflowArea")              // nsRect*
+GK_ATOM(overflowProperty, "OverflowProperty")              // nsFrameList*
+GK_ATOM(overflowContainersProperty, "OverflowContainersProperty")             // nsFrameList*
+GK_ATOM(excessOverflowContainersProperty, "ExcessOverflowContainersProperty") // nsFrameList*
+GK_ATOM(overflowLinesProperty, "OverflowLinesProperty")    // list of nsLineBox*
+GK_ATOM(overflowOutOfFlowsProperty, "OverflowOutOfFlowsProperty")      // nsFrameList*
+GK_ATOM(preEffectsBBoxProperty, "PreEffectsBBoxProperty") // nsRect*
+GK_ATOM(preTransformBBoxProperty, "PreTransformBBoxProperty") // nsRect*
+GK_ATOM(rowUnpaginatedHeightProperty, "RowUnpaginatedHeightProperty")  // nscoord*
+GK_ATOM(tabWidthProperty, "TabWidthProperty")              // nsTArray<TabSetting>* array of tab widths
+GK_ATOM(tableBCProperty, "TableBCProperty")                // table border collapsing info (e.g. damage area, table border widths)
 GK_ATOM(transitionsProperty, "TransitionsProperty")        // FrameTransitions*
 GK_ATOM(transitionsOfBeforeProperty, "TransitionsOfBeforeProperty") // FrameTransitions*
 GK_ATOM(transitionsOfAfterProperty, "TransitionsOfAfterProperty") // FrameTransitions*
+GK_ATOM(usedBorderProperty, "UsedBorderProperty") // nsMargin*
+GK_ATOM(usedMarginProperty, "UsedMarginProperty") // nsMargin*
+GK_ATOM(usedPaddingProperty, "UsedPaddingProperty") // nsMargin*
+GK_ATOM(viewProperty, "ViewProperty")                      
+
+// Content property names
 GK_ATOM(genConInitializerProperty, "QuoteNodeProperty")
 GK_ATOM(labelMouseDownPtProperty, "LabelMouseDownPtProperty")
 

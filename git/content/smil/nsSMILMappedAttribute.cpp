@@ -57,26 +57,6 @@ ReleaseStringBufferPropertyValue(void*    aObject,       /* unused */
   buf->Release();
 }
 
-
-nsresult
-nsSMILMappedAttribute::ValueFromString(const nsAString& aStr,
-                                       const nsISMILAnimationElement* aSrcElement,
-                                       nsSMILValue& aValue,
-                                       PRBool& aPreventCachingOfSandwich) const
-{
-  NS_ENSURE_TRUE(IsPropertyAnimatable(mPropID), NS_ERROR_FAILURE);
-
-  nsSMILCSSValueType::ValueFromString(mPropID, mElement, aStr, aValue);
-  if (aValue.IsNull()) {
-    return NS_ERROR_FAILURE;
-  }
-
-  // XXXdholbert: For simplicity, just assume that all CSS values have to
-  // reparsed every sample. See note in nsSMILCSSProperty::ValueFromString.
-  aPreventCachingOfSandwich = PR_TRUE;
-  return NS_OK;
-}
-
 nsSMILValue
 nsSMILMappedAttribute::GetBaseValue() const
 {
@@ -143,7 +123,12 @@ void
 nsSMILMappedAttribute::ClearAnimValue()
 {
   nsRefPtr<nsIAtom> attrName = GetAttrNameAtom();
-  mElement->DeleteProperty(SMIL_MAPPED_ATTR_ANIMVAL, attrName);
+  nsresult rv = mElement->DeleteProperty(SMIL_MAPPED_ATTR_ANIMVAL, attrName);
+  if (NS_FAILED(rv)) {
+    // XXXdholbert Can this ever happen? Leaving this warning for now, to
+    // see if we ever trigger this.
+    NS_WARNING("couldn't clear animated value (perhaps it wasn't set?)");
+  }
   FlushChangesToTargetAttr();
 }
 
@@ -157,7 +142,7 @@ nsSMILMappedAttribute::FlushChangesToTargetAttr() const
 
   // Request animation restyle
   if (doc) {
-    nsIPresShell* shell = doc->GetShell();
+    nsIPresShell* shell = doc->GetPrimaryShell();
     if (shell) {
       shell->RestyleForAnimation(mElement);
     }

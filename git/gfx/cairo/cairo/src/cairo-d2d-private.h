@@ -45,65 +45,52 @@
 
 extern "C" {
 #include "cairoint.h"
-#include "cairo-surface-clipper-private.h"
 }
 
-#include "cairo-win32-refptr.h"
-
 struct _cairo_d2d_surface {
-    _cairo_d2d_surface() : clipRect(NULL), clipping(false), isDrawing(false),
-	textRenderingInit(true)
-    { }
-    ~_cairo_d2d_surface()
-    {
-	delete clipRect;
-    }
-
     cairo_surface_t base;
     /** Render target of the texture we render to */
-    RefPtr<ID2D1RenderTarget> rt;
+    ID2D1RenderTarget *rt;
     /** Surface containing our backstore */
-    RefPtr<ID3D10Resource> surface;
+    ID3D10Resource *surface;
     /** 
      * Surface used to temporarily store our surface if a bitmap isn't available
      * straight from our render target surface.
      */
-    RefPtr<ID3D10Texture2D> bufferTexture;
+    ID3D10Texture2D *bufferTexture;
     /** Backbuffer surface hwndrt renders to (NULL if not a window surface) */
-    RefPtr<IDXGISurface> backBuf;
+    IDXGISurface *backBuf;
     /** Bitmap shared with texture and rendered to by rt */
-    RefPtr<ID2D1Bitmap> surfaceBitmap;
+    ID2D1Bitmap *surfaceBitmap;
     /** Swap chain holding our backbuffer (NULL if not a window surface) */
-    RefPtr<IDXGISwapChain> dxgiChain;
+    IDXGISwapChain *dxgiChain;
     /** Window handle of the window we belong to */
     HWND hwnd;
     /** Format of the surface */
     cairo_format_t format;
     /** Geometry used for clipping when complex clipping is required */
-    RefPtr<ID2D1Geometry> clipMask;
+    ID2D1Geometry *clipMask;
     /** Clip rectangle for axis aligned rectangular clips */
     D2D1_RECT_F *clipRect;
     /** Clip layer used for pushing geometry clip mask */
-    RefPtr<ID2D1Layer> clipLayer;
+    ID2D1Layer *clipLayer;
     /** Mask layer used by surface_mask to push opacity masks */
-    RefPtr<ID2D1Layer> maskLayer;
+    ID2D1Layer *maskLayer;
     /**
      * Layer used for clipping when tiling, and also for clearing out geometries
      * - lazily initialized 
      */
-    RefPtr<ID2D1Layer> helperLayer;
+    ID2D1Layer *helperLayer;
     /** If this layer currently is clipping, used to prevent excessive push/pops */
     bool clipping;
     /** Brush used for bitmaps */
-    RefPtr<ID2D1BitmapBrush> bitmapBrush;
+    ID2D1BitmapBrush *bitmapBrush;
     /** Brush used for solid colors */
-    RefPtr<ID2D1SolidColorBrush> solidColorBrush;
+    ID2D1SolidColorBrush *solidColorBrush;
     /** Indicates if our render target is currently in drawing mode */
     bool isDrawing;
     /** Indicates if text rendering is initialized */
     bool textRenderingInit;
-
-    cairo_surface_clipper_t clipper;
 };
 typedef struct _cairo_d2d_surface cairo_d2d_surface_t;
 
@@ -223,12 +210,12 @@ private:
 };
 
 
-RefPtr<ID2D1Brush>
+ID2D1Brush*
 _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf, 
 			            const cairo_pattern_t *pattern,
+				    unsigned int lastrun,
+				    unsigned int *runs_remaining,
+				    bool *pushed_clip,
 				    bool unique = false);
-void
-_cairo_d2d_begin_draw_state(cairo_d2d_surface_t *d2dsurf);
-
 #endif /* CAIRO_HAS_D2D_SURFACE */
 #endif /* CAIRO_D2D_PRIVATE_H */

@@ -47,7 +47,6 @@
 #include "nsIServiceManager.h"
 #include "nsIPrefService.h"
 #include "nsCRT.h"
-#include "mozilla/Services.h"
 
 #include "nsThebesDeviceContext.h"
 #include "nsThebesRenderingContext.h"
@@ -88,9 +87,6 @@ static nsSystemFontsMac *gSystemFonts = nsnull;
 #elif defined(MOZ_WIDGET_QT)
 #include "nsSystemFontsQt.h"
 static nsSystemFontsQt *gSystemFonts = nsnull;
-#elif defined(ANDROID)
-#include "nsSystemFontsAndroid.h"
-static nsSystemFontsAndroid *gSystemFonts = nsnull;
 #else
 #error Need to declare gSystemFonts!
 #endif
@@ -311,7 +307,7 @@ static PRBool DeleteValue(nsHashKey* aKey, void* aValue, void* closure)
 
 nsThebesDeviceContext::~nsThebesDeviceContext()
 {
-    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+    nsCOMPtr<nsIObserverService> obs(do_GetService("@mozilla.org/observer-service;1"));
     if (obs)
         obs->RemoveObserver(this, "memory-pressure");
 
@@ -713,7 +709,7 @@ nsThebesDeviceContext::Init(nsIWidget *aWidget)
 
     // register as a memory-pressure observer to free font resources
     // in low-memory situations.
-    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+    nsCOMPtr<nsIObserverService> obs(do_GetService("@mozilla.org/observer-service;1"));
     if (obs)
         obs->AddObserver(this, "memory-pressure", PR_TRUE);
 
@@ -832,8 +828,6 @@ nsThebesDeviceContext::GetSystemFont(nsSystemFontID aID, nsFont *aFont) const
         gSystemFonts = new nsSystemFontsMac();
 #elif defined(MOZ_WIDGET_QT)
         gSystemFonts = new nsSystemFontsQt();
-#elif defined(ANDROID)
-        gSystemFonts = new nsSystemFontsAndroid();
 #else
 #error Need to know how to create gSystemFonts, fix me!
 #endif

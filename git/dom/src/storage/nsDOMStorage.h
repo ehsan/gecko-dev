@@ -58,7 +58,6 @@
 #include "nsIDOMStorageEventObsolete.h"
 #include "nsIDOMStorageManager.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsIObserver.h"
 
 #ifdef MOZ_STORAGE
 #include "nsDOMStorageDBWrapper.h"
@@ -456,9 +455,7 @@ public:
 
   nsresult Init();
 
-  NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsDOMStorageEvent, nsDOMEvent)
-
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMSTORAGEEVENT
   NS_FORWARD_NSIDOMEVENT(nsDOMEvent::)
 

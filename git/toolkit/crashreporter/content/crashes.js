@@ -40,7 +40,6 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 
 var reportsDir, pendingDir;
-var reportURL;
 
 Components.utils.import("resource://gre/modules/CrashSubmit.jsm");
 
@@ -77,7 +76,7 @@ function submitError(dumpid) {
 function submitPendingReport(event) {
   var link = event.target;
   var id = link.firstChild.textContent;
-  if (CrashSubmit.submit(id, document.body, submitSuccess, submitError, true))
+  if (CrashSubmit.submit(id, document.body, submitSuccess, submitError))
     link.className = "submitting";
   event.preventDefault();
   return false;

@@ -137,13 +137,14 @@ function (engineURL, iconURL)
 {
   try
   {
-    // Make sure the URLs are HTTP, HTTPS, or FTP.
-    var isWeb = /^(https?|ftp):\/\//i;
-
-    if (!isWeb.test(engineURL))
+    // Make sure we're using HTTP, HTTPS, or FTP.
+    if (! /^(https?|ftp):\/\//i.test(engineURL))
       throw "Unsupported search engine URL";
   
-    if (iconURL && !isWeb.test(iconURL))
+    // Make sure we're using HTTP, HTTPS, or FTP and refering to a
+    // .gif/.jpg/.jpeg/.png/.ico file for the icon.
+    if (iconURL &&
+        ! /^(https?|ftp):\/\/.+\.(gif|jpg|jpeg|png|ico)$/i.test(iconURL))
       throw "Unsupported search icon URL.";
   }
   catch(ex)

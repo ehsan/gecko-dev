@@ -44,7 +44,11 @@ function test() {
     test_privatebrowsing_toggle,
     enter_private_browsing, // once again, test with PB initially enabled
     test_privatebrowsing_toggle,
+    test_privatebrowsing_ui,
+    enter_private_browsing, // once again, test with PB initially enabled
+    test_privatebrowsing_ui,
 
-    // don't reset preferences, will pick up where we left off in browser_privacypane_7.js
+    // reset all preferences to their default values once we're done
+    reset_preferences
   ]);
 }

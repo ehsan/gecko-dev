@@ -38,10 +38,6 @@
 
 #include "imgIEncoder.h"
 
-#include "mozilla/Monitor.h"
-
-#include "nsCOMPtr.h"
-
 // needed for JPEG library
 #include <stdio.h>
 
@@ -62,12 +58,10 @@ extern "C" {
 
 class nsJPEGEncoder : public imgIEncoder
 {
-  typedef mozilla::Monitor Monitor;
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_IMGIENCODER
   NS_DECL_NSIINPUTSTREAM
-  NS_DECL_NSIASYNCINPUTSTREAM
 
   nsJPEGEncoder();
 
@@ -86,26 +80,10 @@ protected:
 
   static void errorExit(jpeg_common_struct* cinfo);
 
-  void NotifyListener();
-
-  PRPackedBool mFinished;
-
   // image buffer
   PRUint8* mImageBuffer;
   PRUint32 mImageBufferSize;
   PRUint32 mImageBufferUsed;
 
   PRUint32 mImageBufferReadPoint;
-
-  nsCOMPtr<nsIInputStreamCallback> mCallback;
-  nsCOMPtr<nsIEventTarget> mCallbackTarget;
-  PRUint32 mNotifyThreshold;
-
-  /*
-    nsJPEGEncoder is designed to allow one thread to pump data into it while another
-    reads from it.  We lock to ensure that the buffer remains append-only while
-    we read from it (that it is not realloced) and to ensure that only one thread
-    dispatches a callback for each call to AsyncWait.
-   */
-  Monitor mMonitor;
 };

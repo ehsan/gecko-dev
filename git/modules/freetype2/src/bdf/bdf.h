@@ -114,8 +114,8 @@ FT_BEGIN_HEADER
     union
     {
       char*          atom;
-      long           l;
-      unsigned long  ul;
+      long           int32;
+      unsigned long  card32;
 
     } value;             /* Value of the property.  */
 
@@ -160,7 +160,7 @@ FT_BEGIN_HEADER
   typedef struct  _hashnode_
   {
     const char*  key;
-    size_t       data;
+    void*        data;
 
   } _hashnode, *hashnode;
 

@@ -42,9 +42,6 @@
 #include "nsAccessible.h"
 #include "nsAccessibilityService.h"
 
-#include "nsINodeList.h"
-#include "nsIPresShell.h"
-
 ////////////////////////////////////////////////////////////////////////////////
 // WalkState
 ////////////////////////////////////////////////////////////////////////////////
@@ -112,8 +109,9 @@ nsAccTreeWalker::GetNextChildInternal(PRBool aNoWalkUp)
     mState->childIdx++;
 
     PRBool isHidden = PR_FALSE;
+    nsCOMPtr<nsIDOMNode> childDOMNode(do_QueryInterface(childNode));
     nsRefPtr<nsAccessible> accessible =
-      GetAccService()->GetAccessible(childNode, presShell, mWeakShell,
+      GetAccService()->GetAccessible(childDOMNode, presShell, mWeakShell,
                                      &isHidden);
 
     if (accessible)

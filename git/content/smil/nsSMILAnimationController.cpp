@@ -43,13 +43,10 @@
 #include "nsComponentManagerUtils.h"
 #include "nsITimer.h"
 #include "nsIContent.h"
-#include "mozilla/dom/Element.h"
 #include "nsIDocument.h"
 #include "nsISMILAnimationElement.h"
 #include "nsIDOMSVGAnimationElement.h"
 #include "nsSMILTimedElement.h"
-
-using namespace mozilla::dom;
 
 //----------------------------------------------------------------------
 // nsSMILAnimationController implementation
@@ -58,7 +55,7 @@ using namespace mozilla::dom;
 static nsRefreshDriver*
 GetRefreshDriverForDoc(nsIDocument* aDoc)
 {
-  nsIPresShell* shell = aDoc->GetShell();
+  nsIPresShell* shell = aDoc->GetPrimaryShell();
   if (!shell) {
     return nsnull;
   }
@@ -73,7 +70,6 @@ GetRefreshDriverForDoc(nsIDocument* aDoc)
 
 nsSMILAnimationController::nsSMILAnimationController()
   : mResampleNeeded(PR_FALSE),
-    mDeferredStartSampling(PR_FALSE),
     mDocument(nsnull)
 {
   mAnimationElementTable.Init();
@@ -138,11 +134,7 @@ nsSMILAnimationController::Resume(PRUint32 aType)
 
   if (wasPaused && !mPauseState && mChildContainerTable.Count()) {
     Sample(); // Run the first sample manually
-    if (mAnimationElementTable.Count()) {
-      StartSampling(GetRefreshDriverForDoc(mDocument));
-    } else {
-      mDeferredStartSampling = PR_TRUE;
-    }
+    StartSampling(GetRefreshDriverForDoc(mDocument));
   }
 }
 
@@ -158,7 +150,6 @@ nsSMILAnimationController::GetParentTime() const
 NS_IMPL_ADDREF(nsSMILAnimationController)
 NS_IMPL_RELEASE(nsSMILAnimationController)
 
-// nsRefreshDriver Callback function
 void
 nsSMILAnimationController::WillRefresh(mozilla::TimeStamp aTime)
 {
@@ -176,14 +167,6 @@ nsSMILAnimationController::RegisterAnimationElement(
                                   nsISMILAnimationElement* aAnimationElement)
 {
   mAnimationElementTable.PutEntry(aAnimationElement);
-  if (mDeferredStartSampling) {
-    // mAnimationElementTable was empty until we just inserted its first element
-    NS_ABORT_IF_FALSE(mAnimationElementTable.Count() == 1,
-                      "we shouldn't have deferred sampling if we already had "
-                      "animations registered");
-    mDeferredStartSampling = PR_FALSE;
-    StartSampling(GetRefreshDriverForDoc(mDocument));
-  }
 }
 
 void
@@ -635,7 +618,7 @@ nsSMILAnimationController::GetTargetIdentifierForAnimation(
     nsISMILAnimationElement* aAnimElem, nsSMILTargetIdentifier& aResult)
 {
   // Look up target (animated) element
-  Element* targetElem = aAnimElem->GetTargetElementContent();
+  nsIContent* targetElem = aAnimElem->GetTargetElementContent();
   if (!targetElem)
     // Animation has no target elem -- skip it.
     return PR_FALSE;
@@ -684,11 +667,7 @@ nsSMILAnimationController::AddChild(nsSMILTimeContainer& aChild)
 
   if (!mPauseState && mChildContainerTable.Count() == 1) {
     Sample(); // Run the first sample manually
-    if (mAnimationElementTable.Count()) {
-      StartSampling(GetRefreshDriverForDoc(mDocument));
-    } else {
-      mDeferredStartSampling = PR_TRUE;
-    }
+    StartSampling(GetRefreshDriverForDoc(mDocument));
   }
 
   return NS_OK;

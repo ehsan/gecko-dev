@@ -117,7 +117,7 @@ nsMenuItemIconX::SetupIcon()
 
   // Still don't have one, then something is wrong, get out of here.
   if (!mNativeMenuItem) {
-    NS_ERROR("No native menu item");
+    NS_ERROR("No native menu item\n");
     return NS_ERROR_FAILURE;
   }
 
@@ -133,7 +133,7 @@ nsMenuItemIconX::SetupIcon()
 
   rv = LoadIcon(iconURI);
   if (NS_FAILED(rv)) {
-    // There is no icon for this menu item, as an error occurred while loading it.
+    // There is no icon for this menu item, as an error occured while loading it.
     // An icon might have been set earlier or the place holder icon may have
     // been set.  Clear it.
     [mNativeMenuItem setImage:nil];
@@ -214,8 +214,8 @@ nsMenuItemIconX::GetIconURI(nsIURI** aIconURI)
     nsCOMPtr<nsIDOMElement> domElement = do_QueryInterface(mContent);
     if (!domElement) return NS_ERROR_FAILURE;
 
-
-    rv = domViewCSS->GetComputedStyle(domElement, EmptyString(),
+    nsAutoString empty;
+    rv = domViewCSS->GetComputedStyle(domElement, empty,
                                       getter_AddRefs(cssStyleDecl));
     if (NS_FAILED(rv)) return rv;
 
@@ -337,10 +337,8 @@ nsMenuItemIconX::LoadIcon(nsIURI* aIconURI)
       [mNativeMenuItem setImage:sPlaceholderIconImage];
   }
 
-  // Passing in null for channelPolicy here since nsMenuItemIconX::LoadIcon is
-  // not exposed to web content
   rv = loader->LoadImage(aIconURI, nsnull, nsnull, loadGroup, this,
-                         nsnull, nsIRequest::LOAD_NORMAL, nsnull, nsnull,
+                         nsnull, nsIRequest::LOAD_NORMAL, nsnull,
                          nsnull, getter_AddRefs(mIconRequest));
   if (NS_FAILED(rv)) return rv;
 
@@ -441,16 +439,10 @@ nsMenuItemIconX::OnStopFrame(imgIRequest*    aRequest,
     mImageRegionRect.SetRect(0, 0, origWidth, origHeight);
   }
   
-  nsRefPtr<gfxImageSurface> frame;
-  nsresult rv = imageContainer->CopyFrame(  imgIContainer::FRAME_CURRENT,
-                                            imgIContainer::FLAG_SYNC_DECODE,
-                                            getter_AddRefs(frame));
-  if (NS_FAILED(rv) || !frame) {
-    [mNativeMenuItem setImage:nil];
-    return NS_ERROR_FAILURE;
-  }      
   CGImageRef origImage = NULL;
-  rv = nsCocoaUtils::CreateCGImageFromSurface(frame, &origImage);
+  nsresult rv = nsCocoaUtils::CreateCGImageFromImageContainer(imageContainer, 
+                                                              imgIContainer::FRAME_CURRENT, 
+                                                              &origImage);
   if (NS_FAILED(rv) || !origImage) {
     [mNativeMenuItem setImage:nil];
     return NS_ERROR_FAILURE;
@@ -495,7 +487,6 @@ nsMenuItemIconX::OnStopFrame(imgIRequest*    aRequest,
     return NS_ERROR_FAILURE;
   }
   CGRect iconRect = ::CGRectMake(0, 0, kIconWidth, kIconHeight);
-  ::CGContextClearRect(bitmapContext, iconRect);
   ::CGContextDrawImage(bitmapContext, iconRect, finalImage);
   
   CGImageRef iconImage = ::CGBitmapContextCreateImage(bitmapContext);

@@ -299,8 +299,6 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsXULTemplateBuilder,
 NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsXULTemplateBuilder,
                                            nsIXULTemplateBuilder)
 
-DOMCI_DATA(XULTemplateBuilder, nsXULTemplateBuilder)
-
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsXULTemplateBuilder)
   NS_INTERFACE_MAP_ENTRY(nsIXULTemplateBuilder)
   NS_INTERFACE_MAP_ENTRY(nsIDocumentObserver)
@@ -1121,7 +1119,8 @@ nsXULTemplateBuilder::AttributeChanged(nsIDocument* aDocument,
         // beneath the element.
         if (aAttribute == nsGkAtoms::ref)
             nsContentUtils::AddScriptRunner(
-                NS_NewRunnableMethod(this, &nsXULTemplateBuilder::RunnableRebuild));
+                NS_NEW_RUNNABLE_METHOD(nsXULTemplateBuilder, this,
+                                       RunnableRebuild));
 
         // Check for a change to the 'datasources' attribute. If so, setup
         // mDB by parsing the new value and rebuild.
@@ -1132,7 +1131,8 @@ nsXULTemplateBuilder::AttributeChanged(nsIDocument* aDocument,
             LoadDataSources(aDocument, &shouldDelay);
             if (!shouldDelay)
                 nsContentUtils::AddScriptRunner(
-                    NS_NewRunnableMethod(this, &nsXULTemplateBuilder::RunnableRebuild));
+                    NS_NEW_RUNNABLE_METHOD(nsXULTemplateBuilder, this,
+                                           RunnableRebuild));
         }
     }
 }

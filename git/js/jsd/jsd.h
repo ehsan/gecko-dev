@@ -51,7 +51,7 @@
 
 /*
 * These can be controled by the makefile, but this allows a place to set
-* the values always used in the mozilla client, but perhaps done differently
+* the values always used in the mozilla client, but perhaps done differnetly
 * in other embeddings.
 */
 #ifdef MOZILLA_CLIENT

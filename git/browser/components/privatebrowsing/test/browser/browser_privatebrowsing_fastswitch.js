@@ -42,6 +42,8 @@ function test() {
   // initialization
   let pb = Cc["@mozilla.org/privatebrowsing;1"].
            getService(Ci.nsIPrivateBrowsingService);
+  let os = Cc["@mozilla.org/observer-service;1"].
+           getService(Ci.nsIObserverService);
   let pbCmd = document.getElementById("Tools:PrivateBrowsing");
   waitForExplicitFinish();
 
@@ -69,16 +71,16 @@ function test() {
             ok(!pbCmd.hasAttribute("disabled"),
                "The private browsing command should be re-enabled after exiting the private browsing mode");
 
-            Services.obs.removeObserver(observer, "private-browsing");
-            Services.obs.removeObserver(observer, "private-browsing-transition-complete");
+            os.removeObserver(observer, "private-browsing");
+            os.removeObserver(observer, "private-browsing-transition-complete");
             finish();
           }, 100);
         }
         break;
     }
   }
-  Services.obs.addObserver(observer, "private-browsing", false);
-  Services.obs.addObserver(observer, "private-browsing-transition-complete", false);
+  os.addObserver(observer, "private-browsing", false);
+  os.addObserver(observer, "private-browsing-transition-complete", false);
 
   pb.privateBrowsingEnabled = true;
 }

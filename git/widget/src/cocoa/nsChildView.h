@@ -42,7 +42,7 @@
 // formal protocols
 #include "mozView.h"
 #ifdef ACCESSIBILITY
-#include "nsAccessible.h"
+#include "nsIAccessible.h"
 #include "mozAccessibleProtocol.h"
 #endif
 
@@ -64,14 +64,12 @@
 
 #import <Carbon/Carbon.h>
 #import <Cocoa/Cocoa.h>
-#import <AppKit/NSOpenGL.h>
 
 class gfxASurface;
 class nsChildView;
 class nsCocoaWindow;
 union nsPluginPort;
 
-#ifndef NP_NO_CARBON
 enum {
   // Currently focused ChildView (while this TSM document is active).
   // Transient (only set while TSMProcessRawKeyEvent() is processing a key
@@ -92,7 +90,6 @@ enum {
 // (PluginKeyEventsHandler()) to catch these events and pass them to Gecko
 // (which in turn passes them to the plugin).
 extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
-#endif // NP_NO_CARBON
 
 @interface NSEvent (Undocumented)
 
@@ -106,8 +103,8 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
 // Support for pixel scroll deltas, not part of NSEvent.h
 // See http://lists.apple.com/archives/cocoa-dev/2007/Feb/msg00050.html
 @interface NSEvent (DeviceDelta)
-  - (CGFloat)deviceDeltaX;
-  - (CGFloat)deviceDeltaY;
+  - (float)deviceDeltaX;
+  - (float)deviceDeltaY;
 @end
 
 @interface ChildView : NSView<
@@ -147,7 +144,6 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
   // rects that were invalidated during a draw, so have pending drawing
   NSMutableArray* mPendingDirtyRects;
   BOOL mPendingFullDisplay;
-  BOOL mPendingDisplay;
 
   // Holds our drag service across multiple drag calls. The reference to the
   // service is obtained when the mouse enters the view and is released when
@@ -155,16 +151,11 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
   // re-establish the connection to the service manager many times per second
   // when handling |draggingUpdated:| messages.
   nsIDragService* mDragService;
-
-#ifndef NP_NO_CARBON
+  
   // For use with plugins, so that we can support IME in them.  We can't use
   // Cocoa TSM documents (those created and managed by the NSTSMInputContext
   // class) -- for some reason TSMProcessRawKeyEvent() doesn't work with them.
   TSMDocumentID mPluginTSMDoc;
-#endif
-  BOOL mPluginComplexTextInputRequested;
-
-  NSOpenGLContext *mGLContext;
 
   // Simple gestures support
   //
@@ -213,11 +204,6 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
 #ifndef NP_NO_CARBON
 - (void) processPluginKeyEvent:(EventRef)aKeyEvent;
 #endif
-- (void)pluginRequestsComplexTextInputForCurrentEvent;
-
-- (void)update;
-- (void)lockFocus;
-- (void) _surfaceNeedsUpdate:(NSNotification*)notification;
 
 // Simple gestures support
 //
@@ -289,8 +275,6 @@ public:
   NS_IMETHOD              SetParent(nsIWidget* aNewParent);
   virtual nsIWidget*      GetParent(void);
 
-  LayerManager*           GetLayerManager();
-
   NS_IMETHOD              ConstrainPosition(PRBool aAllowSlop,
                                             PRInt32 *aX, PRInt32 *aY);
   NS_IMETHOD              Move(PRInt32 aX, PRInt32 aY);
@@ -351,8 +335,6 @@ public:
   NS_IMETHOD        SetPluginEventModel(int inEventModel);
   NS_IMETHOD        GetPluginEventModel(int* outEventModel);
 
-  NS_IMETHOD        StartComplexTextInputForCurrentEvent();
-
   virtual nsTransparencyMode GetTransparencyMode();
   virtual void                SetTransparencyMode(nsTransparencyMode aMode);
 
@@ -371,7 +353,7 @@ public:
   virtual PRBool    DispatchWindowEvent(nsGUIEvent& event);
   
 #ifdef ACCESSIBILITY
-  already_AddRefed<nsAccessible> GetDocumentAccessible();
+  void              GetDocumentAccessible(nsIAccessible** aAccessible);
 #endif
 
   virtual gfxASurface* GetThebesSurface();
@@ -500,9 +482,7 @@ protected:
   PRPackedBool          mPluginIsCG; // true if this is a CoreGraphics plugin
 
   NP_CGContext          mPluginCGContext;
-#ifndef NP_NO_QUICKDRAW
   NP_Port               mPluginQDPort;
-#endif
   nsIPluginInstanceOwner* mPluginInstanceOwner; // [WEAK]
 
   static PRUint32 sLastInputEventCount;

@@ -51,24 +51,9 @@
 // This still allows us to accept a favicon even if we cannot optimize it.
 #define MAX_FAVICON_SIZE 10240
 
-namespace mozilla {
-namespace places {
-
-  enum FaviconStatementId {
-    DB_GET_ICON_INFO_WITH_PAGE = 0
-  , DB_INSERT_ICON = 1
-  , DB_ASSOCIATE_ICONURI_TO_PAGEURI = 2
-  };
-
-} // namespace places
-} // namespace mozilla
-
-// Most icons will be smaller than this rough estimate of the size of an
-// uncompressed 16x16 RGBA image of the same dimensions.
-#define MAX_ICON_FILESIZE(s) ((PRUint32) s*s*4)
-
 // forward class definitions
 class mozIStorageStatementCallback;
+
 // forward definition for friend class
 class FaviconLoadListener;
 
@@ -106,10 +91,8 @@ public:
   }
 
   // internal version called by history when done lazily
-  nsresult DoSetAndLoadFaviconForPage(nsIURI* aPageURI,
-                                      nsIURI* aFaviconURI,
-                                      PRBool aForceReload,
-                                      nsIFaviconDataCallback* aCallback);
+  nsresult DoSetAndLoadFaviconForPage(nsIURI* aPage, nsIURI* aFavicon,
+                                      PRBool aForceReload);
 
   // addition to API for strings to prevent excessive parsing of URIs
   nsresult GetFaviconLinkForIconString(const nsCString& aIcon, nsIURI** aOutput);
@@ -118,7 +101,6 @@ public:
   nsresult OptimizeFaviconImage(const PRUint8* aData, PRUint32 aDataLen,
                                 const nsACString& aMimeType,
                                 nsACString& aNewData, nsACString& aNewMimeType);
-  PRInt32 GetOptimizedIconDimension() { return mOptimizedIconDimension; }
 
   /**
    * Obtains the favicon data asynchronously.
@@ -149,26 +131,6 @@ public:
    */
   nsresult FinalizeStatements();
 
-  mozIStorageStatement* GetStatementById(
-    enum mozilla::places::FaviconStatementId aStatementId
-  )
-  {
-    using namespace mozilla::places;
-    switch(aStatementId) {
-      case DB_GET_ICON_INFO_WITH_PAGE:
-        return GetStatement(mDBGetIconInfoWithPage);
-      case DB_INSERT_ICON:
-        return GetStatement(mDBInsertIcon);
-      case DB_ASSOCIATE_ICONURI_TO_PAGEURI:
-        return GetStatement(mDBAssociateFaviconURIToPageURI);
-    }
-    return nsnull;
-  }
-
-  nsresult UpdateBookmarkRedirectFavicon(nsIURI* aPage, nsIURI* aFavicon);
-
-  void SendFaviconNotifications(nsIURI* aPage, nsIURI* aFaviconURI);
-
   NS_DECL_ISUPPORTS
   NS_DECL_NSIFAVICONSERVICE
 
@@ -184,11 +146,9 @@ private:
   nsCOMPtr<mozIStorageStatement> mDBGetURL; // returns URL, data len given page
   nsCOMPtr<mozIStorageStatement> mDBGetData; // returns actual data given URL
   nsCOMPtr<mozIStorageStatement> mDBGetIconInfo;
-  nsCOMPtr<mozIStorageStatement> mDBGetIconInfoWithPage;
   nsCOMPtr<mozIStorageStatement> mDBInsertIcon;
   nsCOMPtr<mozIStorageStatement> mDBUpdateIcon;
   nsCOMPtr<mozIStorageStatement> mDBSetPageFavicon;
-  nsCOMPtr<mozIStorageStatement> mDBAssociateFaviconURIToPageURI;
   nsCOMPtr<mozIStorageStatement> mDBRemoveOnDiskReferences;
   nsCOMPtr<mozIStorageStatement> mDBRemoveTempReferences;
   nsCOMPtr<mozIStorageStatement> mDBRemoveAllFavicons;
@@ -219,17 +179,14 @@ private:
   nsresult SetFaviconUrlForPageInternal(nsIURI* aURI, nsIURI* aFavicon,
                                         PRBool* aHasData);
 
+  nsresult UpdateBookmarkRedirectFavicon(nsIURI* aPage, nsIURI* aFavicon);
+  void SendFaviconNotifications(nsIURI* aPage, nsIURI* aFaviconURI);
+
   friend class FaviconLoadListener;
 
   bool mShuttingDown;
-
-  // Caches the content of the default favicon if it's not already cached and
-  // copies it into byteStr.
-  nsresult GetDefaultFaviconData(nsCString& byteStr);
-
-  // A string of bytes caching the default favicon's content.  Empty if not yet
-  // cached.  Rather than accessing this directly, use GetDefaultFaviconData.
-  nsCString mDefaultFaviconData;
 };
 
+#define FAVICON_DEFAULT_URL "chrome://mozapps/skin/places/defaultFavicon.png"
+#define FAVICON_ERRORPAGE_URL "chrome://global/skin/icons/warning-16.png"
 #define FAVICON_ANNOTATION_NAME "favicon"

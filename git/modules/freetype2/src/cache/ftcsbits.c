@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    FreeType sbits manager (body).                                       */
 /*                                                                         */
-/*  Copyright 2000-2001, 2002, 2003, 2004, 2005, 2006, 2009 by             */
+/*  Copyright 2000-2001, 2002, 2003, 2004, 2005, 2006 by                   */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -25,9 +25,6 @@
 
 #include "ftccback.h"
 #include "ftcerror.h"
-
-#undef  FT_COMPONENT
-#define FT_COMPONENT  trace_cache
 
 
   /*************************************************************************/
@@ -132,13 +129,13 @@
       FT_Int        temp;
       FT_GlyphSlot  slot   = face->glyph;
       FT_Bitmap*    bitmap = &slot->bitmap;
-      FT_Pos        xadvance, yadvance; /* FT_GlyphSlot->advance.{x|y} */
+      FT_Int        xadvance, yadvance;
 
 
       if ( slot->format != FT_GLYPH_FORMAT_BITMAP )
       {
-        FT_TRACE0(( "ftc_snode_load:"
-                    " glyph loaded didn't return a bitmap\n" ));
+        FT_ERROR(( "%s: glyph loaded didn't return a bitmap!\n",
+                   "ftc_snode_load" ));
         goto BadGlyph;
       }
 
@@ -266,7 +263,7 @@
   }
 
 
-  FT_LOCAL_DEF( FT_Offset )
+  FT_LOCAL_DEF( FT_ULong )
   ftc_snode_weight( FTC_Node   ftcsnode,
                     FTC_Cache  cache )
   {
@@ -274,7 +271,7 @@
     FT_UInt    count = snode->count;
     FTC_SBit   sbit  = snode->sbits;
     FT_Int     pitch;
-    FT_Offset  size;
+    FT_ULong   size;
 
     FT_UNUSED( cache );
 
@@ -303,7 +300,7 @@
 
 #if 0
 
-  FT_LOCAL_DEF( FT_Offset )
+  FT_LOCAL_DEF( FT_ULong )
   FTC_SNode_Weight( FTC_SNode  snode )
   {
     return ftc_snode_weight( FTC_NODE( snode ), NULL );

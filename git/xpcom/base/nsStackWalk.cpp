@@ -50,7 +50,6 @@
 #include <stdio.h>
 #include "plstr.h"
 #include "nsMemory.h" // for NS_ARRAY_LENGTH
-#include "mozilla/FunctionTimer.h"
 
 #include "nspr.h"
 #if defined(_M_IX86) || defined(_M_AMD64)
@@ -602,8 +601,6 @@ WalkStackThread(void* aData)
             DWORD ret;
 
             struct WalkStackData *data = (WalkStackData *)msg.lParam;
-            if (!data)
-              continue;
 
             // Don't suspend the calling thread until it's waiting for
             // us; otherwise the number of frames on the stack could vary.
@@ -948,8 +945,6 @@ EnsureSymInitialized()
     if (gInitialized)
         return gInitialized;
 
-    NS_TIME_FUNCTION;
-
     if (!EnsureImageHlpInitialized())
         return PR_FALSE;
 
@@ -1031,7 +1026,7 @@ NS_DescribeCodeAddress(void *aPC, nsCodeAddressDetails *aDetails)
         // This just makes sure we get good info if available.
         //
 
-        DWORD_PTR addr = (DWORD_PTR)aPC;
+        DWORD addr = (DWORD)aPC;
         IMAGEHLP_MODULE modInfo;
         IMAGEHLP_LINE lineInfo;
         BOOL modInfoRes;

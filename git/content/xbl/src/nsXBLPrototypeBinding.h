@@ -43,6 +43,7 @@
 #include "nsXBLPrototypeResources.h"
 #include "nsXBLPrototypeHandler.h"
 #include "nsXBLProtoImplMethod.h"
+#include "nsICSSStyleSheet.h"
 #include "nsICSSLoaderObserver.h"
 #include "nsWeakReference.h"
 #include "nsIContent.h"
@@ -59,7 +60,6 @@ class nsIXBLService;
 class nsFixedSizeAllocator;
 class nsXBLProtoImplField;
 class nsXBLBinding;
-class nsCSSStyleSheet;
 
 // *********************************************************************/
 // The XBLPrototypeBinding class
@@ -149,12 +149,12 @@ public:
   void SetInitialAttributes(nsIContent* aBoundElement, nsIContent* aAnonymousContent);
 
   nsIStyleRuleProcessor* GetRuleProcessor();
-  nsXBLPrototypeResources::sheet_array_type* GetStyleSheets();
+  nsCOMArray<nsICSSStyleSheet>* GetStyleSheets();
 
   PRBool HasInsertionPoints() { return mInsertionPointTable != nsnull; }
   
   PRBool HasStyleSheets() {
-    return mResources && mResources->mStyleSheetList.Length() > 0;
+    return mResources && mResources->mStyleSheetList.Count() > 0;
   }
 
   nsresult FlushSkinSheets();
@@ -164,8 +164,7 @@ public:
   // XXXbz this aIndex has nothing to do with an index into the child
   // list of the insertion parent or anything.
   nsIContent* GetInsertionPoint(nsIContent* aBoundElement,
-                                nsIContent* aCopyRoot,
-                                const nsIContent *aChild,
+                                nsIContent* aCopyRoot, nsIContent *aChild,
                                 PRUint32* aIndex);
 
   nsIContent* GetSingleInsertionPoint(nsIContent* aBoundElement,

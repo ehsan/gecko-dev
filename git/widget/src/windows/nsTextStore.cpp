@@ -1650,7 +1650,7 @@ nsTextStore::Initialize(void)
   if (sTsfThreadMgr && !sTsfTextStore) {
     sTsfTextStore = new nsTextStore();
     if (!sTsfTextStore)
-      NS_ERROR("failed to create text store");
+      NS_ERROR("failed to create text store\n");
   }
   if (sTsfThreadMgr && !sDisplayAttrMgr) {
     HRESULT hr =

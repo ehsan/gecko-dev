@@ -47,6 +47,8 @@
  * - EXPIRE_MONTHS: annotation would be expired after 180 days
  */
 
+const TOPIC_EXPIRATION_FINISHED = "places-expiration-finished";
+
 let os = Cc["@mozilla.org/observer-service;1"].
          getService(Ci.nsIObserverService);
 let hs = Cc["@mozilla.org/browser/nav-history-service;1"].
@@ -74,6 +76,7 @@ function add_old_anno(aIdentifier, aName, aValue, aExpirePolicy,
   if (aLastModifiedAgeInDays)
     lastModifiedDate = (now - (aLastModifiedAgeInDays * 86400 * 1000)) * 1000;
 
+  let dbConn = DBConn();
   let sql;
   if (typeof(aIdentifier) == "number") {
     // Item annotation.
@@ -97,7 +100,7 @@ function add_old_anno(aIdentifier, aName, aValue, aExpirePolicy,
   else
     do_throw("Wrong identifier type");
 
-  let stmt = DBConn().createStatement(sql);
+  let stmt = dbConn.createStatement(sql);
   stmt.params.id = (typeof(aIdentifier) == "number") ? aIdentifier
                                                      : aIdentifier.spec;
   stmt.params.expire_date = expireDate;
@@ -175,7 +178,7 @@ function run_test() {
   // Observe expirations.
   observer = {
     observe: function(aSubject, aTopic, aData) {
-      os.removeObserver(observer, PlacesUtils.TOPIC_EXPIRATION_FINISHED);
+      os.removeObserver(observer, TOPIC_EXPIRATION_FINISHED);
 
       ["expire_days", "expire_weeks", "expire_months"].forEach(function(aAnno) {
         let pages = as.getPagesWithAnnotation(aAnno);
@@ -202,7 +205,7 @@ function run_test() {
       do_test_finished();
     }
   };
-  os.addObserver(observer, PlacesUtils.TOPIC_EXPIRATION_FINISHED, false);
+  os.addObserver(observer, TOPIC_EXPIRATION_FINISHED, false);
 
   // Expire all visits for the bookmarks.
   force_expiration_step(5);

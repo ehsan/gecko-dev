@@ -49,11 +49,12 @@
 #include "nsChangeHint.h"
 #include "nsIContent.h"
 #include "nsCSSPseudoElements.h"
-#include "nsRuleWalker.h"
 
 class nsIStyleSheet;
+class nsPresContext;
 class nsIAtom;
 class nsICSSPseudoComparator;
+class nsRuleWalker;
 class nsAttrValue;
 
 // The implementation of the constructor and destructor are currently in
@@ -61,7 +62,7 @@ class nsAttrValue;
 
 struct RuleProcessorData {
   RuleProcessorData(nsPresContext* aPresContext,
-                    mozilla::dom::Element* aElement, 
+                    nsIContent* aContent, 
                     nsRuleWalker* aRuleWalker,
                     nsCompatibility* aCompat = nsnull);
   
@@ -70,16 +71,16 @@ struct RuleProcessorData {
 
   // This should be used for all heap-allocation of RuleProcessorData
   static RuleProcessorData* Create(nsPresContext* aPresContext,
-                                   mozilla::dom::Element* aElement, 
+                                   nsIContent* aContent, 
                                    nsRuleWalker* aRuleWalker,
                                    nsCompatibility aCompat)
   {
     if (NS_LIKELY(aPresContext)) {
-      return new (aPresContext) RuleProcessorData(aPresContext, aElement,
+      return new (aPresContext) RuleProcessorData(aPresContext, aContent,
                                                   aRuleWalker, &aCompat);
     }
 
-    return new RuleProcessorData(aPresContext, aElement, aRuleWalker,
+    return new RuleProcessorData(aPresContext, aContent, aRuleWalker,
                                  &aCompat);
   }
   
@@ -110,10 +111,6 @@ public:
   PRUint32 DocumentState();
   PRBool IsLink();
 
-  PRUint32 GetContentStateForVisitedHandling(
-             nsRuleWalker::VisitedHandlingType aVisitedHandling,
-             PRBool aIsRelevantLink);
-
   // Returns a 1-based index of the child in its parent.  If the child
   // is not in its parent's child list (i.e., it is anonymous content),
   // returns 0.
@@ -124,19 +121,19 @@ public:
                       PRBool aCheckEdgeOnly);
 
   nsPresContext*    mPresContext;
-  mozilla::dom::Element* mElement;       // weak ref, must not be null
-  nsIContent*       mParentContent; // mElement->GetParent(); weak ref
+  nsIContent*       mContent;       // weak ref, must not be null
+  nsIContent*       mParentContent; // mContent->GetParent(); weak ref
   nsRuleWalker*     mRuleWalker; // Used to add rules to our results.
   nsIContent*       mScopedRoot;    // Root of scoped stylesheet (set and unset by the supplier of the scoped stylesheet
   
-  nsIAtom*          mContentTag;    // mElement->GetTag()
-  nsIAtom*          mContentID;     // mElement->GetID()
-  PRPackedBool      mIsHTMLContent; // whether mElement is IsHTML()
+  nsIAtom*          mContentTag;    // mContent->GetTag()
+  nsIAtom*          mContentID;     // mContent->GetID()
+  PRPackedBool      mIsHTMLContent; // whether mContent it's IsHTML()
   PRPackedBool      mIsHTML;        // mIsHTMLContent && IsInHTMLDocument()
-  PRPackedBool      mHasAttributes; // mElement->GetAttrCount() > 0
+  PRPackedBool      mHasAttributes; // mContent->GetAttrCount() > 0
   nsCompatibility   mCompatMode;    // Possibly remove use of this in SelectorMatches?
-  PRInt32           mNameSpaceID;   // mElement->GetNameSapce()
-  const nsAttrValue* mClasses;      // mElement->GetClasses()
+  PRInt32           mNameSpaceID;   // mContent->GetNameSapce()
+  const nsAttrValue* mClasses;      // mContent->GetClasses()
   // mPreviousSiblingData and mParentData are always RuleProcessorData
   // and never a derived class.  They are allocated lazily, when
   // selectors require matching of prior siblings or ancestors.
@@ -154,19 +151,17 @@ private:
   // subscript is 0 for nth- and 1 for nth-last-.
   PRInt32 mNthIndices[2][2];
 
-  // mContentState is initialized lazily.
+  // mContentState, mLinkState, mIsLink are initialized lazily.
   PRInt32 mContentState;  // eventStateMgr->GetContentState() or
-                          // mElement->IntrinsicState() if we have no ESM
-                          // adjusted for not supporting :visited (but with
-                          // visitedness information when we support it)
+                          // mContent->IntrinsicState() if we have no ESM
   PRPackedBool mGotContentState;
 };
 
 struct ElementRuleProcessorData : public RuleProcessorData {
   ElementRuleProcessorData(nsPresContext* aPresContext,
-                           mozilla::dom::Element* aElement, 
+                           nsIContent* aContent, 
                            nsRuleWalker* aRuleWalker)
-  : RuleProcessorData(aPresContext, aElement, aRuleWalker)
+  : RuleProcessorData(aPresContext,aContent,aRuleWalker)
   {
     NS_PRECONDITION(aPresContext, "null pointer");
     NS_PRECONDITION(aRuleWalker, "null pointer");
@@ -175,10 +170,10 @@ struct ElementRuleProcessorData : public RuleProcessorData {
 
 struct PseudoElementRuleProcessorData : public RuleProcessorData {
   PseudoElementRuleProcessorData(nsPresContext* aPresContext,
-                                 mozilla::dom::Element* aParentElement,
+                                 nsIContent* aParentContent,
                                  nsRuleWalker* aRuleWalker,
                                  nsCSSPseudoElements::Type aPseudoType)
-    : RuleProcessorData(aPresContext, aParentElement, aRuleWalker),
+    : RuleProcessorData(aPresContext, aParentContent, aRuleWalker),
       mPseudoType(aPseudoType)
   {
     NS_PRECONDITION(aPresContext, "null pointer");
@@ -212,11 +207,11 @@ struct AnonBoxRuleProcessorData {
 #ifdef MOZ_XUL
 struct XULTreeRuleProcessorData : public RuleProcessorData {
   XULTreeRuleProcessorData(nsPresContext* aPresContext,
-                           mozilla::dom::Element* aParentElement,
+                           nsIContent* aParentContent,
                            nsRuleWalker* aRuleWalker,
                            nsIAtom* aPseudoTag,
                            nsICSSPseudoComparator* aComparator)
-    : RuleProcessorData(aPresContext, aParentElement, aRuleWalker),
+    : RuleProcessorData(aPresContext, aParentContent, aRuleWalker),
       mPseudoTag(aPseudoTag),
       mComparator(aComparator)
   {
@@ -233,9 +228,9 @@ struct XULTreeRuleProcessorData : public RuleProcessorData {
 
 struct StateRuleProcessorData : public RuleProcessorData {
   StateRuleProcessorData(nsPresContext* aPresContext,
-                         mozilla::dom::Element* aElement,
+                         nsIContent* aContent,
                          PRInt32 aStateMask)
-    : RuleProcessorData(aPresContext, aElement, nsnull),
+    : RuleProcessorData(aPresContext, aContent, nsnull),
       mStateMask(aStateMask)
   {
     NS_PRECONDITION(aPresContext, "null pointer");
@@ -246,11 +241,11 @@ struct StateRuleProcessorData : public RuleProcessorData {
 
 struct AttributeRuleProcessorData : public RuleProcessorData {
   AttributeRuleProcessorData(nsPresContext* aPresContext,
-                             mozilla::dom::Element* aElement,
+                             nsIContent* aContent,
                              nsIAtom* aAttribute,
                              PRInt32 aModType,
                              PRBool aAttrHasChanged)
-    : RuleProcessorData(aPresContext, aElement, nsnull),
+    : RuleProcessorData(aPresContext, aContent, nsnull),
       mAttribute(aAttribute),
       mModType(aModType),
       mAttrHasChanged(aAttrHasChanged)

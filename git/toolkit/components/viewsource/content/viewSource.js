@@ -93,11 +93,7 @@ function onLoadViewSource()
 {
   viewSource(window.arguments[0]);
   document.commandDispatcher.focusedWindow = content;
-  gBrowser.droppedLinkHandler = function (event, url, name) {
-    viewSource(url)
-    event.preventDefault();
-  }
-
+      
   if (!isHistoryEnabled()) {
     // Disable the BACK and FORWARD commands and hide the related menu items.
     var viewSourceNavigation = document.getElementById("viewSourceNavigation");
@@ -373,6 +369,12 @@ function ViewSourceReload()
 {
   gBrowser.reloadWithFlags(Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_PROXY |
                            Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_CACHE);
+}
+
+// Strips the |view-source:| for editPage()
+function ViewSourceEditPage()
+{
+  editPage(window.content.location.href.substring(12), window, false);
 }
 
 // Strips the |view-source:| for saveURL()

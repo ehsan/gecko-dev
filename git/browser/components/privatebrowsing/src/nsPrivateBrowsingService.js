@@ -467,9 +467,9 @@ PrivateBrowsingService.prototype = {
     }
   },
 
-  get helpInfo() {
-    return "  -private           Enable private browsing mode.\n" +
-           "  -private-toggle    Toggle private browsing mode.\n";
+  get helpInfo PBS_get_helpInfo() {
+    return "  -private            Enable private browsing mode.\n" +
+           "  -private-toggle     Toggle private browsing mode.\n";
   },
 
   // nsIPrivateBrowsingService
@@ -477,14 +477,14 @@ PrivateBrowsingService.prototype = {
   /**
    * Return the current status of private browsing.
    */
-  get privateBrowsingEnabled() {
+  get privateBrowsingEnabled PBS_get_privateBrowsingEnabled() {
     return this._inPrivateBrowsing;
   },
 
   /**
    * Enter or leave private browsing mode.
    */
-  set privateBrowsingEnabled(val) {
+  set privateBrowsingEnabled PBS_set_privateBrowsingEnabled(val) {
     // Allowing observers to set the private browsing status from their
     // notification handlers is not desired, because it will change the
     // status of the service while it's in the process of another transition.
@@ -546,7 +546,7 @@ PrivateBrowsingService.prototype = {
   /**
    * Whether private browsing has been started automatically.
    */
-  get autoStarted() {
+  get autoStarted PBS_get_autoStarted() {
     return this._inPrivateBrowsing && this._autoStarted;
   },
 
@@ -579,11 +579,12 @@ PrivateBrowsingService.prototype = {
 
     // Cookies
     let (cm = Cc["@mozilla.org/cookiemanager;1"].
-              getService(Ci.nsICookieManager2)) {
-      let enumerator = cm.getCookiesFromHost(aDomain);
+              getService(Ci.nsICookieManager)) {
+      let enumerator = cm.enumerator;
       while (enumerator.hasMoreElements()) {
         let cookie = enumerator.getNext().QueryInterface(Ci.nsICookie);
-        cm.remove(cookie.host, cookie.name, cookie.path, false);
+        if (cookie.host.hasRootDomain(aDomain))
+          cm.remove(cookie.host, cookie.name, cookie.path, false);
       }
     }
 

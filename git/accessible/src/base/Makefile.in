@@ -48,10 +48,6 @@ LIBXUL_LIBRARY = 1
 
 
 CPPSRCS = \
-  AccCollector.cpp \
-  AccIterator.cpp \
-  filters.cpp \
-  nsAccDocManager.cpp \
   nsAccessNode.cpp \
   nsAccEvent.cpp \
   nsARIAGridAccessible.cpp \
@@ -78,8 +74,7 @@ CPPSRCS = \
   $(NULL)
 
 EXPORTS = \
-  a11yGeneric.h \
-  nsAccessible.h \
+  nsRootAccessible.h \
   nsAccessNode.h \
   $(NULL)
 

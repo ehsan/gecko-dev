@@ -35,9 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef NS_SVGAELEMENT_H_
-#define NS_SVGAELEMENT_H_
-
 #include "nsSVGGraphicElement.h"
 #include "nsIDOMSVGAElement.h"
 #include "nsIDOMSVGURIReference.h"
@@ -86,8 +83,7 @@ public:
                               PRBool aCompileEventHandlers);
   virtual void UnbindFromTree(PRBool aDeep = PR_TRUE,
                               PRBool aNullParent = PR_TRUE);
-  NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
-  virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull, PRBool aWithMouse = PR_FALSE);
+  virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull);
   virtual PRBool IsLink(nsIURI** aURI) const;
   virtual void GetLinkTarget(nsAString& aTarget);
   virtual nsLinkState GetLinkState() const;
@@ -112,5 +108,3 @@ protected:
   nsSVGString mStringAttributes[2];
   static StringInfo sStringInfo[2];
 };
-
-#endif // NS_SVGAELEMENT_H_

@@ -46,9 +46,6 @@
 #include "nsContentCreatorFunctions.h"
 #include "nsContentPolicyUtils.h"
 #include "nsIPropertyBag2.h"
-#include "mozilla/dom/Element.h"
-
-using namespace mozilla::dom;
 
 class nsPluginDocument : public nsMediaDocument,
                          public nsIPluginDocument
@@ -129,7 +126,7 @@ nsPluginStreamListener::SetupPlugin()
   nsCOMPtr<nsIContent> embed = mPluginDoc->GetPluginContent();
 
   // Now we have a frame for our <embed>, start the load
-  nsCOMPtr<nsIPresShell> shell = mDocument->GetShell();
+  nsCOMPtr<nsIPresShell> shell = mDocument->GetPrimaryShell();
   if (!shell) {
     // Can't instantiate w/o a shell
     mPluginDoc->AllowNormalInstantiation();
@@ -269,7 +266,7 @@ nsPluginDocument::StartDocumentLoad(const char*         aCommand,
 nsresult
 nsPluginDocument::CreateSyntheticPluginDocument()
 {
-  NS_ASSERTION(!GetShell() || !GetShell()->DidInitialReflow(),
+  NS_ASSERTION(!GetPrimaryShell() || !GetPrimaryShell()->DidInitialReflow(),
                "Creating synthetic plugin document content too late");
 
   // make our generic document
@@ -277,7 +274,7 @@ nsPluginDocument::CreateSyntheticPluginDocument()
   NS_ENSURE_SUCCESS(rv, rv);
   // then attach our plugin
 
-  Element* body = GetBodyElement();
+  nsIContent* body = GetBodyContent();
   if (!body) {
     NS_WARNING("no body on plugin document!");
     return NS_ERROR_FAILURE;

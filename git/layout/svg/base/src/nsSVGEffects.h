@@ -90,11 +90,11 @@ protected:
   public:
     SourceReference(nsSVGRenderingObserver* aContainer) : mContainer(aContainer) {}
   protected:
-    virtual void ElementChanged(Element* aFrom, Element* aTo) {
+    virtual void ContentChanged(nsIContent* aFrom, nsIContent* aTo) {
       if (aFrom) {
         aFrom->RemoveMutationObserver(mContainer);
       }
-      nsReferencedElement::ElementChanged(aFrom, aTo);
+      nsReferencedElement::ContentChanged(aFrom, aTo);
       if (aTo) {
         aTo->AddMutationObserver(mContainer);
       }
@@ -216,23 +216,6 @@ private:
 
 class nsSVGEffects {
 public:
-  typedef mozilla::FramePropertyDescriptor FramePropertyDescriptor;
-
-  static void DestroySupports(void* aPropertyValue)
-  {
-    (static_cast<nsISupports*>(aPropertyValue))->Release();
-  }
-
-  NS_DECLARE_FRAME_PROPERTY(FilterProperty, DestroySupports)
-  NS_DECLARE_FRAME_PROPERTY(MaskProperty, DestroySupports)
-  NS_DECLARE_FRAME_PROPERTY(ClipPathProperty, DestroySupports)
-  NS_DECLARE_FRAME_PROPERTY(MarkerBeginProperty, DestroySupports)
-  NS_DECLARE_FRAME_PROPERTY(MarkerMiddleProperty, DestroySupports)
-  NS_DECLARE_FRAME_PROPERTY(MarkerEndProperty, DestroySupports)
-  NS_DECLARE_FRAME_PROPERTY(FillProperty, DestroySupports)
-  NS_DECLARE_FRAME_PROPERTY(StrokeProperty, DestroySupports)
-  NS_DECLARE_FRAME_PROPERTY(HrefProperty, DestroySupports)
-
   struct EffectProperties {
     nsSVGFilterProperty*   mFilter;
     nsSVGPaintingProperty* mMask;
@@ -306,7 +289,7 @@ public:
    * encounters a non-container SVG node) invalidating all mutation observers
    * (not just nsSVGRenderingObservers) on all nodes along the way (not just
    * the first node it finds with observers). In other words, by doing all the
-   * things in parentheses in the preceding sentence, this method uses
+   * things in parentheses in the preceeding sentence, this method uses
    * knowledge about our implementation and what can be affected by SVG effects
    * to make invalidation relatively lightweight when an SVG effect changes.
    */
@@ -321,20 +304,17 @@ public:
    * Get an nsSVGMarkerProperty for the frame, creating a fresh one if necessary
    */
   static nsSVGMarkerProperty *
-  GetMarkerProperty(nsIURI *aURI, nsIFrame *aFrame,
-                    const FramePropertyDescriptor *aProperty);
+  GetMarkerProperty(nsIURI *aURI, nsIFrame *aFrame, nsIAtom *aProp);
   /**
    * Get an nsSVGTextPathProperty for the frame, creating a fresh one if necessary
    */
   static nsSVGTextPathProperty *
-  GetTextPathProperty(nsIURI *aURI, nsIFrame *aFrame,
-                      const FramePropertyDescriptor *aProperty);
+  GetTextPathProperty(nsIURI *aURI, nsIFrame *aFrame, nsIAtom *aProp);
   /**
    * Get an nsSVGPaintingProperty for the frame, creating a fresh one if necessary
    */
   static nsSVGPaintingProperty *
-  GetPaintingProperty(nsIURI *aURI, nsIFrame *aFrame,
-                      const FramePropertyDescriptor *aProperty);
+  GetPaintingProperty(nsIURI *aURI, nsIFrame *aFrame, nsIAtom *aProp);
 };
 
 #endif /*NSSVGEFFECTS_H_*/

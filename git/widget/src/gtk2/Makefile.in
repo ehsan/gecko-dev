@@ -78,7 +78,7 @@ CPPSRCS		= \
 		nsScreenManagerGtk.cpp \
 		nsImageToPixbuf.cpp \
 		nsAccessibilityHelper.cpp \
-		nsGtkIMModule.cpp \
+		nsAccelerometerUnix.cpp \
 		$(NULL)
 
 ifdef MOZ_X11
@@ -91,9 +91,6 @@ CPPSRCS		+= \
 		nsPrintOptionsGTK.cpp \
 		nsPrintDialogGTK.cpp \
 		nsPrintSettingsGTK.cpp \
-		nsCUPSShim.cpp \
-		nsPaperPS.cpp \
-		nsPSPrinters.cpp \
 		$(NULL)
 endif
 
@@ -111,6 +108,7 @@ EXTRA_DSO_LDOPTS += \
 		$(MOZ_COMPONENT_LIBS) \
 		-lgkgfx \
 		-lthebes \
+		-llayers \
 		$(MOZ_CAIRO_LIBS) \
                 $(MOZ_STARTUP_NOTIFICATION_LIBS) \
 		$(XLDFLAGS) \
@@ -154,10 +152,17 @@ CXXFLAGS += $(MOZ_GCONF_CFLAGS)
 endif
 endif
 
+DEFINES         += -DUSE_XIM
 DEFINES		+= -DCAIRO_GFX
 
+ifdef MOZ_ENABLE_POSTSCRIPT
+DEFINES         += -DUSE_POSTSCRIPT
+EXTRA_DSO_LDOPTS += -lgfxpsshar
+endif
+
+
+DEFINES		+=
 INCLUDES	+= \
 		-I$(srcdir)/../xpwidgets \
-		-I$(srcdir)/../shared \
 		-I$(topsrcdir)/other-licenses/atk-1.0 \
 		$(NULL)

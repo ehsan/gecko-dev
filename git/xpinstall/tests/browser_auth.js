@@ -12,7 +12,8 @@ function test() {
   Harness.installsCompletedCallback = finish_test;
   Harness.setup();
 
-  var pm = Services.perms;
+  var pm = Components.classes["@mozilla.org/permissionmanager;1"]
+                     .getService(Components.interfaces.nsIPermissionManager);
   pm.add(makeURI("http://example.com/"), "install", pm.ALLOW_ACTION);
 
   var triggers = encodeURIComponent(JSON.stringify({
@@ -39,9 +40,11 @@ function finish_test() {
                      .getService(Components.interfaces.nsIExtensionManager);
   em.cancelInstallItem("unsigned-xpi@tests.mozilla.org");
 
-
-  Services.perms.remove("example.com", "install");
+  var pm = Components.classes["@mozilla.org/permissionmanager;1"]
+                     .getService(Components.interfaces.nsIPermissionManager);
+  pm.remove("example.com", "install");
 
   gBrowser.removeCurrentTab();
   Harness.finish();
 }
+// ----------------------------------------------------------------------------

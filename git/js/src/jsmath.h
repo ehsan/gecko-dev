@@ -51,7 +51,7 @@ extern JSObject *
 js_InitMathClass(JSContext *cx, JSObject *obj);
 
 extern void
-js_InitRandom(JSContext *cx);
+js_InitRandom(JSThreadData *data);
 
 extern JSBool
 js_math_ceil(JSContext *cx, uintN argc, jsval *vp);

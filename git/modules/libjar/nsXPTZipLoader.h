@@ -42,6 +42,12 @@
 
 #include "nsIZipReader.h"
 
+// {0320E073-79C7-4dae-8055-81BED8B8DB96}
+#define NS_XPTZIPREADER_CID \
+  { 0x320e073, 0x79c7, 0x4dae, \
+      { 0x80, 0x55, 0x81, 0xbe, 0xd8, 0xb8, 0xdb, 0x96 } }
+
+
 class nsXPTZipLoader : public nsIXPTLoader
 {
  public:
@@ -52,6 +58,7 @@ class nsXPTZipLoader : public nsIXPTLoader
     NS_DECL_NSIXPTLOADER
 
  private:
-    already_AddRefed<nsIZipReader> GetZipReader(nsILocalFile* aFile);
+    nsIZipReader* GetZipReader(nsILocalFile* aFile);
+    nsCOMPtr<nsIZipReaderCache> mCache;
 };
 

@@ -103,9 +103,9 @@ class nsAccessibleWrap : public nsAccessible,
                          public IAccessible2,
                          public IEnumVARIANT
 {
-public: // construction, destruction
-  nsAccessibleWrap(nsIContent *aContent, nsIWeakReference *aShell);
-  virtual ~nsAccessibleWrap();
+  public: // construction, destruction
+    nsAccessibleWrap(nsIDOMNode*, nsIWeakReference *aShell);
+    virtual ~nsAccessibleWrap();
 
     // nsISupports
     NS_DECL_ISUPPORTS_INHERITED
@@ -311,7 +311,7 @@ public: // construction, destruction
 
   // Helper methods
   static PRInt32 GetChildIDFor(nsIAccessible* aAccessible);
-  static HWND GetHWNDFor(nsAccessible *aAccessible);
+  static HWND GetHWNDFor(nsIAccessible *aAccessible);
   static HRESULT ConvertToIA2Attributes(nsIPersistentProperties *aAttributes,
                                         BSTR *aIA2Attributes);
 
@@ -324,11 +324,7 @@ public: // construction, destruction
    */
   void UpdateSystemCaret();
 
-  /**
-   * Find an accessible by the given child ID in cached documents.
-   */
-  virtual nsAccessible *GetXPAccessibleFor(const VARIANT& aVarChild);
-
+  virtual void GetXPAccessibleFor(const VARIANT& aVarChild, nsIAccessible **aXPAccessible);
   NS_IMETHOD GetNativeInterface(void **aOutAccessible);
 
   // NT4 does not have the oleacc that defines these methods. So we define copies here that automatically

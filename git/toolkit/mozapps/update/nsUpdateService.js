@@ -44,7 +44,6 @@
 */
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/FileUtils.jsm");
-Components.utils.import("resource://gre/modules/AddonManager.jsm");
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -54,13 +53,13 @@ const PREF_APP_UPDATE_AUTO                = "app.update.auto";
 const PREF_APP_UPDATE_BACKGROUND_INTERVAL = "app.update.download.backgroundInterval";
 const PREF_APP_UPDATE_CHANNEL             = "app.update.channel";
 const PREF_APP_UPDATE_ENABLED             = "app.update.enabled";
+const PREF_APP_UPDATE_EXTRA1              = "app.update.extra1";
 const PREF_APP_UPDATE_IDLETIME            = "app.update.idletime";
 const PREF_APP_UPDATE_INCOMPATIBLE_MODE   = "app.update.incompatible.mode";
 const PREF_APP_UPDATE_INTERVAL            = "app.update.interval";
 const PREF_APP_UPDATE_LOG                 = "app.update.log";
 const PREF_APP_UPDATE_MODE                = "app.update.mode";
 const PREF_APP_UPDATE_NEVER_BRANCH        = "app.update.never.";
-const PREF_APP_UPDATE_POSTUPDATE          = "app.update.postupdate";
 const PREF_APP_UPDATE_PROMPTWAITTIME      = "app.update.promptWaitTime";
 const PREF_APP_UPDATE_SHOW_INSTALLED_UI   = "app.update.showInstalledUI";
 const PREF_APP_UPDATE_SILENT              = "app.update.silent";
@@ -861,57 +860,36 @@ function Update(update) {
     attr.QueryInterface(Ci.nsIDOMAttr);
     if (attr.value == "undefined")
       continue;
-    else if (attr.name == "detailsURL")
-      this._detailsURL = attr.value;
-    else if (attr.name == "extensionVersion") {
-      // Prevent extensionVersion from replacing appVersion if appVersion is
-      // present in the update xml.
-      if (!this.appVersion)
-        this.appVersion = attr.value;
-    }
     else if (attr.name == "installDate" && attr.value)
       this.installDate = parseInt(attr.value);
     else if (attr.name == "isCompleteUpdate")
       this.isCompleteUpdate = attr.value == "true";
     else if (attr.name == "isSecurityUpdate")
       this.isSecurityUpdate = attr.value == "true";
-    else if (attr.name == "showNeverForVersion")
-      this.showNeverForVersion = attr.value == "true";
     else if (attr.name == "showPrompt")
       this.showPrompt = attr.value == "true";
+    else if (attr.name == "showNeverForVersion")
+      this.showNeverForVersion = attr.value == "true";
     else if (attr.name == "showSurvey")
       this.showSurvey = attr.value == "true";
+    else if (attr.name == "detailsURL")
+      this._detailsURL = attr.value;
+    else if (attr.name == "channel")
+      this.channel = attr.value;
+    else if (attr.name == "extensionVersion") {
+      // Prevent extensionVersion from replacing appVersion if appVersion is
+      // present in the update xml.
+      if (!this.appVersion)
+        this.appVersion = attr.value;
+    }
     else if (attr.name == "version") {
       // Prevent version from replacing displayVersion if displayVersion is
       // present in the update xml.
       if (!this.displayVersion)
         this.displayVersion = attr.value;
     }
-    else {
+    else
       this[attr.name] = attr.value;
-
-      switch (attr.name) {
-      case "appVersion":
-      case "billboardURL":
-      case "buildID":
-      case "channel":
-      case "displayVersion":
-      case "licenseURL":
-      case "name":
-      case "platformVersion":
-      case "previousAppVersion":
-      case "serviceURL":
-      case "statusText":
-      case "type":
-        break;
-      default:
-        // Save custom attributes when serializing to the local xml file but
-        // don't use this method for the expected attributes which are already
-        // handled in serialize.
-        this.setProperty(attr.name, attr.value);
-        break;
-      };
-    }
   }
 
   // Set the initial value with the current time when it doesn't already have a
@@ -1009,36 +987,36 @@ Update.prototype = {
    */
   serialize: function Update_serialize(updates) {
     var update = updates.createElementNS(URI_UPDATE_NS, "update");
-    update.setAttribute("appVersion", this.appVersion);
-    update.setAttribute("buildID", this.buildID);
-    update.setAttribute("channel", this.channel);
+    update.setAttribute("type", this.type);
+    update.setAttribute("name", this.name);
     update.setAttribute("displayVersion", this.displayVersion);
     // for backwards compatibility in case the user downgrades
-    update.setAttribute("extensionVersion", this.appVersion);
-    update.setAttribute("installDate", this.installDate);
-    update.setAttribute("isCompleteUpdate", this.isCompleteUpdate);
-    update.setAttribute("name", this.name);
-    update.setAttribute("serviceURL", this.serviceURL);
-    update.setAttribute("showNeverForVersion", this.showNeverForVersion);
-    update.setAttribute("showPrompt", this.showPrompt);
-    update.setAttribute("showSurvey", this.showSurvey);
-    update.setAttribute("type", this.type);
-    // for backwards compatibility in case the user downgrades
-
-    // Optional attributes
     update.setAttribute("version", this.displayVersion);
-    if (this.billboardURL)
-      update.setAttribute("billboardURL", this.billboardURL);
-    if (this.detailsURL)
-      update.setAttribute("detailsURL", this.detailsURL);
-    if (this.licenseURL)
-      update.setAttribute("licenseURL", this.licenseURL);
+    update.setAttribute("appVersion", this.appVersion);
+    update.setAttribute("buildID", this.buildID);
+    // for backwards compatibility in case the user downgrades
+    update.setAttribute("extensionVersion", this.appVersion);
     if (this.platformVersion)
       update.setAttribute("platformVersion", this.platformVersion);
     if (this.previousAppVersion)
       update.setAttribute("previousAppVersion", this.previousAppVersion);
+    if (this.detailsURL)
+      update.setAttribute("detailsURL", this.detailsURL);
+    if (this.billboardURL)
+      update.setAttribute("billboardURL", this.billboardURL);
+    if (this.licenseURL)
+      update.setAttribute("licenseURL", this.licenseURL);
+    update.setAttribute("serviceURL", this.serviceURL);
+    update.setAttribute("installDate", this.installDate);
     if (this.statusText)
       update.setAttribute("statusText", this.statusText);
+    update.setAttribute("isCompleteUpdate", this.isCompleteUpdate);
+    update.setAttribute("channel", this.channel);
+    update.setAttribute("showPrompt", this.showPrompt);
+    update.setAttribute("showSurvey", this.showSurvey);
+    update.setAttribute("showNeverForVersion", this.showNeverForVersion);
+    if (this.extra1)
+      update.setAttribute("extra1", this.extra1);
     updates.documentElement.appendChild(update);
 
     for (var p in this._properties) {
@@ -1178,11 +1156,16 @@ UpdateService.prototype = {
     }
 
     var status = readStatusFile(getUpdatesDir());
-    // STATE_NONE status means that the update.status file is present but a
-    // background download error occurred.
+    /**
+     * STATE_NONE status means the update.status file is not present, because
+     * either:
+     * 1) no update was performed, and so there's no UI to show
+     * 2) an update was attempted but failed during checking, transfer or
+     *    verification, and was cleaned up at that point, and UI notifying of
+     *    that error was shown at that stage.
+     */
     if (status == STATE_NONE) {
       LOG("UpdateService:_postUpdateProcessing - no status, no update");
-      cleanupActiveUpdate();
       return;
     }
 
@@ -1214,7 +1197,8 @@ UpdateService.prototype = {
 
       // Update the patch's metadata.
       um.activeUpdate = update;
-      gPref.setBoolPref(PREF_APP_UPDATE_POSTUPDATE, true);
+      gPref.setCharPref(PREF_APP_UPDATE_EXTRA1,
+                        update.extra1 ? update.extra1 : "undefined");
       prompter.showUpdateInstalled();
 
       // Done with this update. Clean it up.
@@ -1463,29 +1447,33 @@ UpdateService.prototype = {
   },
 
   _checkAddonCompatibility: function AUS__checkAddonCompatibility() {
-    // Get all the installed add-ons
-    var self = this;
-    AddonManager.getAllAddons(function(addons) {
-      self._incompatibleAddons = [];
-      addons.forEach(function(addon) {
-        // If an add-on isn't appDisabled and isn't userDisabled then it is
-        // either active now or the user expects it to be active after the
-        // restart. If that is the case and the add-on is not installed by the
-        // application and is not compatible with the new application version
-        // then the user should be warned that the add-on will become
-        // incompatible. If an addon's type equals plugin it is skipped since
-        // checking plugins compatibility information isn't supported and
-        // getting the scope property of a plugin breaks in some environments
-        // (see bug 566787).
-        if (addon.type != "plugin" &&
-            !addon.appDisabled && !addon.userDisabled &&
-            addon.scope != AddonManager.SCOPE_APPLICATION &&
-            !addon.isCompatibleWith(self._update.appVersion,
-                                    self._update.platformVersion))
-          self._incompatibleAddons.push(addon);
-      });
+    var em = Cc["@mozilla.org/extensions/manager;1"].
+               getService(Ci.nsIExtensionManager);
+    // Get the add-ons that are incompatible with the update's application
+    // version and toolkit version.
+    var currentAddons = em.getIncompatibleItemList(this._update.appVersion,
+                                                   this._update.platformVersion,
+                                                   Ci.nsIUpdateItem.TYPE_ANY,
+                                                   false);
+    if (currentAddons.length > 0) {
+      // Get the add-ons that are incompatible with the current application
+      // version and toolkit version.
+      var previousAddons = em.getIncompatibleItemList(null, null,
+                                                      Ci.nsIUpdateItem.TYPE_ANY,
+                                                      false);
+      // Don't include add-ons that are already incompatible with the current
+      // application version and toolkit version.
+      for (var i = 0; i < previousAddons.length; ++i) {
+        for (var j = 0; j < currentAddons.length; ++j) {
+          if (previousAddons[i].id === currentAddons[j].id) {
+            currentAddons.splice(j, 1);
+            break;
+          }
+        }
+      }
+    }
 
-      if (self._incompatibleAddons.length > 0) {
+    if (currentAddons.length > 0) {
       /**
 #        PREF_APP_UPDATE_INCOMPATIBLE_MODE
 #        Controls the mode in which we check for updates as follows.
@@ -1506,62 +1494,37 @@ UpdateService.prototype = {
 #          required after the update. This is not the default and is supplied
 #          only as a hidden option for those that want it.
        */
-        self._updateCheckCount = self._incompatibleAddons.length;
-        LOG("UpdateService:_checkAddonCompatibility - checking for " +
-            "incompatible add-ons");
-
-        self._incompatibleAddons.forEach(function(addon) {
-          addon.findUpdates(this, AddonManager.UPDATE_WHEN_NEW_APP_DETECTED,
-                            this._update.appVersion, this._update.platformVersion);
-        }, self);
-      }
-      else {
-        LOG("UpdateService:_checkAddonCompatibility - no need to show prompt, " +
-            "just download the update");
-        var status = self.downloadUpdate(self._update, true);
-        if (status == STATE_NONE)
-          cleanupActiveUpdate();
-        self._update = null;
-      }
-    });
-  },
-
-  // AddonUpdateListener
-  onCompatibilityUpdateAvailable: function(addon) {
-    // Remove the add-on from the list of add-ons that will become incompatible
-    // with the new version of the application.
-    for (var i = 0; i < this._incompatibleAddons.length; ++i) {
-      if (this._incompatibleAddons[i].id == addon.id) {
-        LOG("UpdateService:onAddonUpdateEnded - found update for add-on ID: " +
-            addon.id);
-        this._incompatibleAddons.splice(i, 1);
-      }
+      this._incompatAddonsCount = currentAddons.length;
+      LOG("UpdateService:_checkAddonCompatibility - checking for " +
+          "incompatible add-ons");
+      var updateIncompatMode = getPref("getIntPref", PREF_APP_UPDATE_INCOMPATIBLE_MODE, 0);
+      var mode = (updateIncompatMode == 1) ? Ci.nsIExtensionManager.UPDATE_CHECK_COMPATIBILITY :
+                                             Ci.nsIExtensionManager.UPDATE_NOTIFY_NEWVERSION;
+      em.update(currentAddons, currentAddons.length, mode, this,
+                Ci.nsIExtensionManager.UPDATE_WHEN_NEW_APP_DETECTED,
+                this._update.appVersion, this._update.platformVersion);
+    }
+    else {
+      LOG("UpdateService:_checkAddonCompatibility - no need to show prompt, " +
+          "just download the update");
+      var status = this.downloadUpdate(this._update, true);
+      if (status == STATE_NONE)
+        cleanupActiveUpdate();
+      this._update = null;
     }
   },
 
-  onUpdateAvailable: function(addon, install) {
-    if (getPref("getIntPref", PREF_APP_UPDATE_INCOMPATIBLE_MODE, 0) == 1)
-      return;
-
-    // If the new version of this add-on is blocklisted for the new application
-    // then it isn't a valid update and the user should still be warned that
-    // the add-on will become incompatible.
-    let bs = Cc["@mozilla.org/extensions/blocklist;1"].
-             getService(Ci.nsIBlocklistService);
-    if (bs.isAddonBlocklisted(addon.id, install.version,
-                              gUpdates.update.appVersion,
-                              gUpdates.update.platformVersion))
-      return;
-
-    // Compatibility or new version updates mean the same thing here.
-    this.onCompatibilityUpdateAvailable(addon);
+  /**
+   * See nsIExtensionManager.idl
+   */
+  onUpdateStarted: function AUS_onUpdateStarted() {
   },
 
-  onUpdateFinished: function(addon) {
-    if (--this._updateCheckCount > 0)
-      return;
-
-    if (this._incompatibleAddons.length > 0 || !gCanApplyUpdates) {
+  /**
+   * See nsIExtensionManager.idl
+   */
+  onUpdateEnded: function AUS_onUpdateEnded() {
+    if (this._incompatAddonsCount > 0 || !gCanApplyUpdates) {
       LOG("Checker:onUpdateEnded - prompting because there are incompatible " +
           "add-ons");
       this._showPrompt(this._update);
@@ -1574,6 +1537,25 @@ UpdateService.prototype = {
         cleanupActiveUpdate();
     }
     this._update = null;
+  },
+
+  /**
+   * See nsIExtensionManager.idl
+   */
+  onAddonUpdateStarted: function AUS_onAddonUpdateStarted(addon) {
+  },
+
+  /**
+   * See nsIExtensionManager.idl
+   */
+  onAddonUpdateEnded: function AUS_onAddonUpdateEnded(addon, status) {
+    if (status != Ci.nsIAddonUpdateCheckListener.STATUS_UPDATE &&
+        status != Ci.nsIAddonUpdateCheckListener.STATUS_VERSIONINFO)
+      return;
+
+    LOG("UpdateService:onAddonUpdateEnded - found update for add-on ID: " +
+        addon.id);
+    --this._incompatAddonsCount;
   },
 
   /**

@@ -48,6 +48,8 @@
  * the item is removed, thus expiration won't handle this case at all.
  */
 
+const TOPIC_EXPIRATION_FINISHED = "places-expiration-finished";
+
 let os = Cc["@mozilla.org/observer-service;1"].
          getService(Ci.nsIObserverService);
 let hs = Cc["@mozilla.org/browser/nav-history-service;1"].
@@ -111,7 +113,7 @@ function run_test() {
   // Observe expirations.
   observer = {
     observe: function(aSubject, aTopic, aData) {
-      os.removeObserver(observer, PlacesUtils.TOPIC_EXPIRATION_FINISHED);
+      os.removeObserver(observer, TOPIC_EXPIRATION_FINISHED);
 
       let pages = as.getPagesWithAnnotation("page_expire1");
       do_check_eq(pages.length, 0);
@@ -129,7 +131,7 @@ function run_test() {
       do_test_finished();
     }
   };
-  os.addObserver(observer, PlacesUtils.TOPIC_EXPIRATION_FINISHED, false);
+  os.addObserver(observer, TOPIC_EXPIRATION_FINISHED, false);
 
   // Expire all visits for the first 5 pages and the bookmarks.
   force_expiration_step(10);

@@ -73,9 +73,6 @@
 #include "nsIDocShellTreeItem.h"
 #include "nsThreadUtils.h"
 #include "nsIScrollableFrame.h"
-#include "mozilla/dom/Element.h"
-
-using namespace mozilla::dom;
 
 #define AUTOMATIC_IMAGE_RESIZING_PREF "browser.enable_automatic_image_resizing"
 #define CLICK_IMAGE_RESIZING_PREF "browser.enable_click_image_resizing"
@@ -302,8 +299,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_ADDREF_INHERITED(nsImageDocument, nsMediaDocument)
 NS_IMPL_RELEASE_INHERITED(nsImageDocument, nsMediaDocument)
 
-DOMCI_DATA(ImageDocument, nsImageDocument)
-
 NS_INTERFACE_TABLE_HEAD(nsImageDocument)
   NS_HTML_DOCUMENT_INTERFACE_TABLE_BEGIN(nsImageDocument)
     NS_INTERFACE_TABLE_ENTRY(nsImageDocument, nsIImageDocument)
@@ -312,7 +307,7 @@ NS_INTERFACE_TABLE_HEAD(nsImageDocument)
     NS_INTERFACE_TABLE_ENTRY(nsImageDocument, nsIDOMEventListener)
   NS_OFFSET_AND_INTERFACE_TABLE_END
   NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(ImageDocument)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(ImageDocument)
 NS_INTERFACE_MAP_END_INHERITING(nsMediaDocument)
 
 
@@ -403,7 +398,7 @@ nsImageDocument::SetScriptGlobalObject(nsIScriptGlobalObject* aScriptGlobalObjec
   nsHTMLDocument::SetScriptGlobalObject(aScriptGlobalObject);
 
   if (aScriptGlobalObject) {
-    if (!GetRootElement()) {
+    if (!GetRootContent()) {
       // Create synthetic document
 #ifdef DEBUG
       nsresult rv =
@@ -511,7 +506,7 @@ nsImageDocument::ScrollImageTo(PRInt32 aX, PRInt32 aY, PRBool restoreImage)
     FlushPendingNotifications(Flush_Layout);
   }
 
-  nsIPresShell *shell = GetShell();
+  nsIPresShell *shell = GetPrimaryShell();
   if (!shell)
     return NS_OK;
 
@@ -572,7 +567,7 @@ nsImageDocument::OnStartContainer(imgIRequest* aRequest, imgIContainer* aImage)
   aImage->GetWidth(&mImageWidth);
   aImage->GetHeight(&mImageHeight);
   nsCOMPtr<nsIRunnable> runnable =
-    NS_NewRunnableMethod(this, &nsImageDocument::DefaultCheckOverflowing);
+    NS_NEW_RUNNABLE_METHOD(nsImageDocument, this, DefaultCheckOverflowing);
   nsContentUtils::AddScriptRunner(runnable);
   UpdateTitleAndCharset();
 
@@ -646,7 +641,7 @@ nsImageDocument::CreateSyntheticDocument()
   nsresult rv = nsMediaDocument::CreateSyntheticDocument();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  Element* body = GetBodyElement();
+  nsIContent* body = GetBodyContent();
   if (!body) {
     NS_WARNING("no body on image document!");
     return NS_ERROR_FAILURE;
@@ -687,7 +682,7 @@ nsImageDocument::CheckOverflowing(PRBool changeState)
    * presentatation through style resolution is potentially dangerous.
    */
   {
-    nsIPresShell *shell = GetShell();
+    nsIPresShell *shell = GetPrimaryShell();
     if (!shell) {
       return NS_OK;
     }
@@ -695,14 +690,14 @@ nsImageDocument::CheckOverflowing(PRBool changeState)
     nsPresContext *context = shell->GetPresContext();
     nsRect visibleArea = context->GetVisibleArea();
 
-    Element* body = GetBodyElement();
-    if (!body) {
+    nsIContent* content = GetBodyContent();
+    if (!content) {
       NS_WARNING("no body on image document!");
       return NS_ERROR_FAILURE;
     }
 
     nsRefPtr<nsStyleContext> styleContext =
-      context->StyleSet()->ResolveStyleFor(body, nsnull);
+      context->StyleSet()->ResolveStyleFor(content, nsnull);
 
     nsMargin m;
     if (styleContext->GetStyleMargin()->GetMargin(m))

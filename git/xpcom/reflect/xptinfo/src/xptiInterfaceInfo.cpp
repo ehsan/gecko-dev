@@ -69,44 +69,84 @@ static int DEBUG_MonitorEntryCount = 0;
 #define LOG_INFO_MONITOR_ENTRY ((void)0)
 #endif /* SHOW_INFO_COUNT_STATS */
 
-/* static */ xptiInterfaceEntry*
-xptiInterfaceEntry::Create(const char* name, const nsID& iid,
-                           XPTInterfaceDescriptor* aDescriptor,
-                           xptiTypelibGuts* aTypelib)
+#ifdef DEBUG
+// static 
+void xptiInterfaceInfo::DEBUG_ShutdownNotification()
 {
-    int namelen = strlen(name);
-    return new (XPT_MALLOC(gXPTIStructArena,
-                           sizeof(xptiInterfaceEntry) + namelen))
-        xptiInterfaceEntry(name, namelen, iid, aDescriptor, aTypelib);
+#ifdef SHOW_INFO_COUNT_STATS
+    printf("iiii %d total xptiInterfaceInfos created\n", DEBUG_TotalInfos);      
+    printf("iiii %d max xptiInterfaceInfos alive at one time\n", DEBUG_MaxInfos);       
+    printf("iiii %d xptiInterfaceInfos still alive\n", DEBUG_CurrentInfos);       
+    printf("iiii %d times locked\n", DEBUG_MonitorEntryCount);       
+#endif
 }
+#endif /* DEBUG */
+
+/***************************************************************************/
+
+// static 
+xptiInterfaceEntry* 
+xptiInterfaceEntry::NewEntry(const char* name,
+                             int nameLength,
+                             const nsID& iid,
+                             const xptiTypelib& typelib,
+                             xptiWorkingSet* aWorkingSet)
+{
+    void* place = XPT_MALLOC(aWorkingSet->GetStructArena(),
+                             sizeof(xptiInterfaceEntry) + nameLength);
+    if(!place)
+        return nsnull;
+    return new(place) xptiInterfaceEntry(name, nameLength, iid, typelib);
+}
+
+// static 
+xptiInterfaceEntry* 
+xptiInterfaceEntry::NewEntry(const xptiInterfaceEntry& r,
+                             const xptiTypelib& typelib,
+                             xptiWorkingSet* aWorkingSet)
+{
+    size_t nameLength = PL_strlen(r.mName);
+    void* place = XPT_MALLOC(aWorkingSet->GetStructArena(),
+                             sizeof(xptiInterfaceEntry) + nameLength);
+    if(!place)
+        return nsnull;
+    return new(place) xptiInterfaceEntry(r, nameLength, typelib);
+}
+
 
 xptiInterfaceEntry::xptiInterfaceEntry(const char* name,
                                        size_t nameLength,
                                        const nsID& iid,
-                                       XPTInterfaceDescriptor* aDescriptor,
-                                       xptiTypelibGuts* aTypelib)
-    : mIID(iid)
-    , mDescriptor(aDescriptor)
-    , mMethodBaseIndex(0)
-    , mConstantBaseIndex(0)
-    , mTypelib(aTypelib)
-    , mParent(NULL)
-    , mInfo(NULL)
-    , mFlags(0)
+                                       const xptiTypelib& typelib)
+    :   mIID(iid),
+        mTypelib(typelib),
+        mInfo(nsnull),
+        mFlags(uint8(0))
 {
     memcpy(mName, name, nameLength);
-    SetResolvedState(PARTIALLY_RESOLVED);
+}
+
+xptiInterfaceEntry::xptiInterfaceEntry(const xptiInterfaceEntry& r,
+                                       size_t nameLength,
+                                       const xptiTypelib& typelib)
+    :   mIID(r.mIID),
+        mTypelib(typelib),
+        mInfo(nsnull),
+        mFlags(r.mFlags)
+{
+    SetResolvedState(NOT_RESOLVED);
+    memcpy(mName, r.mName, nameLength);
 }
 
 PRBool 
-xptiInterfaceEntry::Resolve()
+xptiInterfaceEntry::Resolve(xptiWorkingSet* aWorkingSet /* = nsnull */)
 {
     nsAutoLock lock(xptiInterfaceInfoManager::GetResolveLock());
-    return ResolveLocked();
+    return ResolveLocked(aWorkingSet);
 }
 
 PRBool 
-xptiInterfaceEntry::ResolveLocked()
+xptiInterfaceEntry::ResolveLocked(xptiWorkingSet* aWorkingSet /* = nsnull */)
 {
     int resolvedState = GetResolveState();
 
@@ -115,41 +155,99 @@ xptiInterfaceEntry::ResolveLocked()
     if(resolvedState == RESOLVE_FAILED)
         return PR_FALSE;
 
-    xptiInterfaceInfoManager* mgr = xptiInterfaceInfoManager::GetSingleton();
-    
+    xptiInterfaceInfoManager* mgr = 
+        xptiInterfaceInfoManager::GetInterfaceInfoManagerNoAddRef();
+
+    if(!mgr)
+        return PR_FALSE;
+
+    if(!aWorkingSet)
+    {
+        aWorkingSet = mgr->GetWorkingSet();
+    }
+
+    if(resolvedState == NOT_RESOLVED)
+    {
+        LOG_RESOLVE(("! begin    resolve of %s\n", mName));
+        // Make a copy of mTypelib because the underlying memory will change!
+        xptiTypelib typelib = mTypelib;
+        
+        // We expect our PartiallyResolveLocked() to get called before 
+        // this returns. 
+        if(!mgr->LoadFile(typelib, aWorkingSet))
+        {
+            SetResolvedState(RESOLVE_FAILED);
+            return PR_FALSE;    
+        }
+        // The state was changed by LoadFile to PARTIALLY_RESOLVED, so this 
+        // ...falls through...
+    }
 
     NS_ASSERTION(GetResolveState() == PARTIALLY_RESOLVED, "bad state!");    
 
     // Finish out resolution by finding parent and Resolving it so
     // we can set the info we get from it.
 
-    PRUint16 parent_index = mDescriptor->parent_interface;
+    PRUint16 parent_index = mInterface->mDescriptor->parent_interface;
 
     if(parent_index)
     {
         xptiInterfaceEntry* parent = 
-            mTypelib->GetEntryAt(parent_index - 1);
+            aWorkingSet->GetTypelibGuts(mInterface->mTypelib)->
+                                GetEntryAt(parent_index - 1);
         
         if(!parent || !parent->EnsureResolvedLocked())
         {
+            xptiTypelib aTypelib = mInterface->mTypelib;
+            mInterface = nsnull;
+            mTypelib = aTypelib;
             SetResolvedState(RESOLVE_FAILED);
             return PR_FALSE;
         }
 
-        mParent = parent;
+        mInterface->mParent = parent;
 
-        mMethodBaseIndex =
-            parent->mMethodBaseIndex + 
-            parent->mDescriptor->num_methods;
+        mInterface->mMethodBaseIndex =
+            parent->mInterface->mMethodBaseIndex + 
+            parent->mInterface->mDescriptor->num_methods;
         
-        mConstantBaseIndex =
-            parent->mConstantBaseIndex + 
-            parent->mDescriptor->num_constants;
+        mInterface->mConstantBaseIndex =
+            parent->mInterface->mConstantBaseIndex + 
+            parent->mInterface->mDescriptor->num_constants;
 
     }
     LOG_RESOLVE(("+ complete resolve of %s\n", mName));
 
     SetResolvedState(FULLY_RESOLVED);
+    return PR_TRUE;
+}        
+
+// This *only* gets called by xptiInterfaceInfoManager::LoadFile (while locked).
+PRBool 
+xptiInterfaceEntry::PartiallyResolveLocked(XPTInterfaceDescriptor*  aDescriptor,
+                                           xptiWorkingSet*          aWorkingSet)
+{
+    NS_ASSERTION(GetResolveState() == NOT_RESOLVED, "bad state");
+
+    LOG_RESOLVE(("~ partial  resolve of %s\n", mName));
+
+    xptiInterfaceGuts* iface = 
+        xptiInterfaceGuts::NewGuts(aDescriptor, mTypelib, aWorkingSet);
+
+    if(!iface)
+        return PR_FALSE;
+
+    mInterface = iface;
+
+#ifdef DEBUG
+    if(!DEBUG_ScriptableFlagIsValid())
+    {
+        NS_ERROR("unexpected scriptable flag!");
+        SetScriptableFlag(XPT_ID_IS_SCRIPTABLE(mInterface->mDescriptor->flags));
+    }
+#endif
+
+    SetResolvedState(PARTIALLY_RESOLVED);
     return PR_TRUE;
 }        
 
@@ -176,6 +274,7 @@ nsresult
 xptiInterfaceEntry::IsScriptable(PRBool* result)
 {
     // It is not necessary to Resolve because this info is read from manifest.
+    NS_ASSERTION(DEBUG_ScriptableFlagIsValid(), "scriptable flag out of sync!");   
     *result = GetScriptableFlag();
     return NS_OK;
 }
@@ -186,7 +285,7 @@ xptiInterfaceEntry::IsFunction(PRBool* result)
     if(!EnsureResolved())
         return NS_ERROR_UNEXPECTED;
 
-    *result = XPT_ID_IS_FUNCTION(mDescriptor->flags);
+    *result = XPT_ID_IS_FUNCTION(GetInterfaceGuts()->mDescriptor->flags);
     return NS_OK;
 }
 
@@ -196,8 +295,8 @@ xptiInterfaceEntry::GetMethodCount(uint16* count)
     if(!EnsureResolved())
         return NS_ERROR_UNEXPECTED;
     
-    *count = mMethodBaseIndex + 
-             mDescriptor->num_methods;
+    *count = mInterface->mMethodBaseIndex + 
+             mInterface->mDescriptor->num_methods;
     return NS_OK;
 }
 
@@ -207,8 +306,8 @@ xptiInterfaceEntry::GetConstantCount(uint16* count)
     if(!EnsureResolved())
         return NS_ERROR_UNEXPECTED;
 
-    *count = mConstantBaseIndex + 
-             mDescriptor->num_constants;
+    *count = mInterface->mConstantBaseIndex + 
+             mInterface->mDescriptor->num_constants;
     return NS_OK;
 }
 
@@ -218,11 +317,11 @@ xptiInterfaceEntry::GetMethodInfo(uint16 index, const nsXPTMethodInfo** info)
     if(!EnsureResolved())
         return NS_ERROR_UNEXPECTED;
 
-    if(index < mMethodBaseIndex)
-        return mParent->GetMethodInfo(index, info);
+    if(index < mInterface->mMethodBaseIndex)
+        return mInterface->mParent->GetMethodInfo(index, info);
 
-    if(index >= mMethodBaseIndex + 
-                mDescriptor->num_methods)
+    if(index >= mInterface->mMethodBaseIndex + 
+                mInterface->mDescriptor->num_methods)
     {
         NS_ERROR("bad param");
         *info = NULL;
@@ -231,7 +330,9 @@ xptiInterfaceEntry::GetMethodInfo(uint16 index, const nsXPTMethodInfo** info)
 
     // else...
     *info = reinterpret_cast<nsXPTMethodInfo*>
-       (&mDescriptor->method_descriptors[index - mMethodBaseIndex]);
+                            (&mInterface->mDescriptor->
+                                    method_descriptors[index - 
+                                        mInterface->mMethodBaseIndex]);
     return NS_OK;
 }
 
@@ -243,21 +344,21 @@ xptiInterfaceEntry::GetMethodInfoForName(const char* methodName, uint16 *index,
         return NS_ERROR_UNEXPECTED;
 
     // This is a slow algorithm, but this is not expected to be called much.
-    for(uint16 i = 0; i < mDescriptor->num_methods; ++i)
+    for(uint16 i = 0; i < mInterface->mDescriptor->num_methods; ++i)
     {
         const nsXPTMethodInfo* info;
         info = reinterpret_cast<nsXPTMethodInfo*>
-                               (&mDescriptor->
+                               (&mInterface->mDescriptor->
                                         method_descriptors[i]);
         if (PL_strcmp(methodName, info->GetName()) == 0) {
-            *index = i + mMethodBaseIndex;
+            *index = i + mInterface->mMethodBaseIndex;
             *result = info;
             return NS_OK;
         }
     }
     
-    if(mParent)
-        return mParent->GetMethodInfoForName(methodName, index, result);
+    if(mInterface->mParent)
+        return mInterface->mParent->GetMethodInfoForName(methodName, index, result);
     else
     {
         *index = 0;
@@ -272,11 +373,11 @@ xptiInterfaceEntry::GetConstant(uint16 index, const nsXPTConstant** constant)
     if(!EnsureResolved())
         return NS_ERROR_UNEXPECTED;
 
-    if(index < mConstantBaseIndex)
-        return mParent->GetConstant(index, constant);
+    if(index < mInterface->mConstantBaseIndex)
+        return mInterface->mParent->GetConstant(index, constant);
 
-    if(index >= mConstantBaseIndex + 
-                mDescriptor->num_constants)
+    if(index >= mInterface->mConstantBaseIndex + 
+                mInterface->mDescriptor->num_constants)
     {
         NS_PRECONDITION(0, "bad param");
         *constant = NULL;
@@ -286,9 +387,9 @@ xptiInterfaceEntry::GetConstant(uint16 index, const nsXPTConstant** constant)
     // else...
     *constant =
         reinterpret_cast<nsXPTConstant*>
-                        (&mDescriptor->
+                        (&mInterface->mDescriptor->
                                 const_descriptors[index -
-                                    mConstantBaseIndex]);
+                                    mInterface->mConstantBaseIndex]);
     return NS_OK;
 }
 
@@ -302,11 +403,11 @@ xptiInterfaceEntry::GetEntryForParam(PRUint16 methodIndex,
     if(!EnsureResolved())
         return NS_ERROR_UNEXPECTED;
 
-    if(methodIndex < mMethodBaseIndex)
-        return mParent->GetEntryForParam(methodIndex, param, entry);
+    if(methodIndex < mInterface->mMethodBaseIndex)
+        return mInterface->mParent->GetEntryForParam(methodIndex, param, entry);
 
-    if(methodIndex >= mMethodBaseIndex + 
-                      mDescriptor->num_methods)
+    if(methodIndex >= mInterface->mMethodBaseIndex + 
+                      mInterface->mDescriptor->num_methods)
     {
         NS_ERROR("bad param");
         return NS_ERROR_INVALID_ARG;
@@ -315,7 +416,7 @@ xptiInterfaceEntry::GetEntryForParam(PRUint16 methodIndex,
     const XPTTypeDescriptor *td = &param->type;
 
     while (XPT_TDP_TAG(td->prefix) == TD_ARRAY) {
-        td = &mDescriptor->additional_types[td->type.additional_type];
+        td = &mInterface->mDescriptor->additional_types[td->type.additional_type];
     }
 
     if(XPT_TDP_TAG(td->prefix) != TD_INTERFACE_TYPE) {
@@ -323,8 +424,9 @@ xptiInterfaceEntry::GetEntryForParam(PRUint16 methodIndex,
         return NS_ERROR_INVALID_ARG;
     }
 
-    xptiInterfaceEntry* theEntry = mTypelib->
-        GetEntryAt(td->type.iface - 1);
+    xptiInterfaceEntry* theEntry = 
+            mInterface->mWorkingSet->GetTypelibGuts(mInterface->mTypelib)->
+                GetEntryAt(td->type.iface - 1);
     
     // This can happen if a declared interface is not available at runtime.
     if(!theEntry)
@@ -391,7 +493,7 @@ xptiInterfaceEntry::GetTypeInArray(const nsXPTParamInfo* param,
 
     const XPTTypeDescriptor *td = &param->type;
     const XPTTypeDescriptor *additional_types =
-                mDescriptor->additional_types;
+                mInterface->mDescriptor->additional_types;
 
     for (uint16 i = 0; i < dimension; i++) {
         if(XPT_TDP_TAG(td->prefix) != TD_ARRAY) {
@@ -414,12 +516,12 @@ xptiInterfaceEntry::GetTypeForParam(uint16 methodIndex,
     if(!EnsureResolved())
         return NS_ERROR_UNEXPECTED;
 
-    if(methodIndex < mMethodBaseIndex)
-        return mParent->
+    if(methodIndex < mInterface->mMethodBaseIndex)
+        return mInterface->mParent->
             GetTypeForParam(methodIndex, param, dimension, type);
 
-    if(methodIndex >= mMethodBaseIndex + 
-                      mDescriptor->num_methods)
+    if(methodIndex >= mInterface->mMethodBaseIndex + 
+                      mInterface->mDescriptor->num_methods)
     {
         NS_ERROR("bad index");
         return NS_ERROR_INVALID_ARG;
@@ -448,12 +550,12 @@ xptiInterfaceEntry::GetSizeIsArgNumberForParam(uint16 methodIndex,
     if(!EnsureResolved())
         return NS_ERROR_UNEXPECTED;
 
-    if(methodIndex < mMethodBaseIndex)
-        return mParent->
+    if(methodIndex < mInterface->mMethodBaseIndex)
+        return mInterface->mParent->
             GetSizeIsArgNumberForParam(methodIndex, param, dimension, argnum);
 
-    if(methodIndex >= mMethodBaseIndex + 
-                      mDescriptor->num_methods)
+    if(methodIndex >= mInterface->mMethodBaseIndex + 
+                      mInterface->mDescriptor->num_methods)
     {
         NS_ERROR("bad index");
         return NS_ERROR_INVALID_ARG;
@@ -493,12 +595,12 @@ xptiInterfaceEntry::GetLengthIsArgNumberForParam(uint16 methodIndex,
     if(!EnsureResolved())
         return NS_ERROR_UNEXPECTED;
 
-    if(methodIndex < mMethodBaseIndex)
-        return mParent->
+    if(methodIndex < mInterface->mMethodBaseIndex)
+        return mInterface->mParent->
             GetLengthIsArgNumberForParam(methodIndex, param, dimension, argnum);
 
-    if(methodIndex >= mMethodBaseIndex + 
-                      mDescriptor->num_methods)
+    if(methodIndex >= mInterface->mMethodBaseIndex + 
+                      mInterface->mDescriptor->num_methods)
     {
         NS_ERROR("bad index");
         return NS_ERROR_INVALID_ARG;
@@ -538,12 +640,12 @@ xptiInterfaceEntry::GetInterfaceIsArgNumberForParam(uint16 methodIndex,
     if(!EnsureResolved())
         return NS_ERROR_UNEXPECTED;
 
-    if(methodIndex < mMethodBaseIndex)
-        return mParent->
+    if(methodIndex < mInterface->mMethodBaseIndex)
+        return mInterface->mParent->
             GetInterfaceIsArgNumberForParam(methodIndex, param, argnum);
 
-    if(methodIndex >= mMethodBaseIndex + 
-                      mDescriptor->num_methods)
+    if(methodIndex >= mInterface->mMethodBaseIndex + 
+                      mInterface->mDescriptor->num_methods)
     {
         NS_ERROR("bad index");
         return NS_ERROR_INVALID_ARG;
@@ -552,7 +654,7 @@ xptiInterfaceEntry::GetInterfaceIsArgNumberForParam(uint16 methodIndex,
     const XPTTypeDescriptor *td = &param->type;
 
     while (XPT_TDP_TAG(td->prefix) == TD_ARRAY) {
-        td = &mDescriptor->
+        td = &mInterface->mDescriptor->
                                 additional_types[td->type.additional_type];
     }
 
@@ -600,7 +702,7 @@ xptiInterfaceEntry::HasAncestor(const nsIID * iid, PRBool *_retval)
 
     for(xptiInterfaceEntry* current = this; 
         current;
-        current = current->mParent)
+        current = current->mInterface->mParent)
     {
         if(current->mIID.Equals(*iid))
         {
@@ -621,6 +723,12 @@ xptiInterfaceEntry::GetInterfaceInfo(xptiInterfaceInfo** info)
 {
     nsAutoMonitor lock(xptiInterfaceInfoManager::GetInfoMonitor());
     LOG_INFO_MONITOR_ENTRY;
+
+#ifdef SHOW_INFO_COUNT_STATS
+    static int callCount = 0;
+    if(!(++callCount%100))
+        printf("iiii %d xptiInterfaceInfos currently alive\n", DEBUG_CurrentInfos);       
+#endif
 
     if(!mInfo)
     {

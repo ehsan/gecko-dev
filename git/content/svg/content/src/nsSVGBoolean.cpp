@@ -47,12 +47,10 @@ NS_SVG_VAL_IMPL_CYCLE_COLLECTION(nsSVGBoolean::DOMAnimatedBoolean, mSVGElement)
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsSVGBoolean::DOMAnimatedBoolean)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGBoolean::DOMAnimatedBoolean)
 
-DOMCI_DATA(SVGAnimatedBoolean, nsSVGBoolean::DOMAnimatedBoolean)
-
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGBoolean::DOMAnimatedBoolean)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedBoolean)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAnimatedBoolean)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGAnimatedBoolean)
 NS_INTERFACE_MAP_END
 
 /* Implementation */
@@ -146,7 +144,7 @@ nsresult
 nsSVGBoolean::SMILBool::ValueFromString(const nsAString& aStr,
                                         const nsISMILAnimationElement* /*aSrcElement*/,
                                         nsSMILValue& aValue,
-                                        PRBool& aPreventCachingOfSandwich) const
+                                        PRBool& aCanCache) const
 {
   nsSMILValue val(&SMILBoolType::sSingleton);
 
@@ -158,7 +156,7 @@ nsSVGBoolean::SMILBool::ValueFromString(const nsAString& aStr,
     return NS_ERROR_FAILURE;
 
   aValue = val;
-  aPreventCachingOfSandwich = PR_FALSE;
+  aCanCache = PR_TRUE;
   return NS_OK;
 }
 

@@ -1879,10 +1879,6 @@ nsNSSComponent::Init()
   PRBool enabled = PR_FALSE;
   mPrefBranch->GetBoolPref("security.ssl.treat_unsafe_negotiation_as_broken", &enabled);
   nsSSLIOLayerHelpers::setTreatUnsafeNegotiationAsBroken(enabled);
-
-  PRInt32 warnLevel = 1;
-  mPrefBranch->GetIntPref("security.ssl.warn_missing_rfc5746", &warnLevel);
-  nsSSLIOLayerHelpers::setWarnLevelMissingRFC5746(warnLevel);
   
   mClientAuthRememberService = new nsClientAuthRememberService;
   if (mClientAuthRememberService)
@@ -2231,10 +2227,6 @@ nsNSSComponent::Observe(nsISupports *aSubject, const char *aTopic,
     } else if (prefName.Equals("security.ssl.treat_unsafe_negotiation_as_broken")) {
       mPrefBranch->GetBoolPref("security.ssl.treat_unsafe_negotiation_as_broken", &enabled);
       nsSSLIOLayerHelpers::setTreatUnsafeNegotiationAsBroken(enabled);
-    } else if (prefName.Equals("security.ssl.warn_missing_rfc5746")) {
-      PRInt32 warnLevel = 1;
-      mPrefBranch->GetIntPref("security.ssl.warn_missing_rfc5746", &warnLevel);
-      nsSSLIOLayerHelpers::setWarnLevelMissingRFC5746(warnLevel);
     } else if (prefName.Equals("security.OCSP.enabled")
                || prefName.Equals("security.OCSP.require")) {
       setOCSPOptions(mPrefBranch);
@@ -2771,7 +2763,7 @@ nsCryptoHash::UpdateFromStream(nsIInputStream *data, PRUint32 len)
   
   while(NS_SUCCEEDED(rv) && len>0)
   {
-    readLimit = NS_MIN(PRUint32(NS_CRYPTO_HASH_BUFFER_SIZE), len);
+    readLimit = PR_MIN(NS_CRYPTO_HASH_BUFFER_SIZE, len);
     
     rv = data->Read(buffer, readLimit, &read);
     
@@ -2963,7 +2955,7 @@ NS_IMETHODIMP nsCryptoHMAC::UpdateFromStream(nsIInputStream *aStream, PRUint32 a
   
   while(NS_SUCCEEDED(rv) && aLen > 0)
   {
-    readLimit = NS_MIN(PRUint32(NS_CRYPTO_HASH_BUFFER_SIZE), aLen);
+    readLimit = PR_MIN(NS_CRYPTO_HASH_BUFFER_SIZE, aLen);
     
     rv = aStream->Read(buffer, readLimit, &read);
     if (read == 0)

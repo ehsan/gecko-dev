@@ -44,6 +44,9 @@ let hs = Cc["@mozilla.org/browser/nav-history-service;1"].
 let bh = hs.QueryInterface(Ci.nsIBrowserHistory);
 let ghist3 = hs.QueryInterface(Ci.nsIGlobalHistory3);
 
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+Components.utils.import("resource://gre/modules/NetUtil.jsm");
+
 const PERMA_REDIR_PATH = "/permaredir";
 const TEMP_REDIR_PATH = "/tempredir";
 const FOUND_PATH = "/found";
@@ -107,7 +110,8 @@ function run_test() {
 }
 
 function continue_test() {
-  let stmt = DBConn().createStatement(
+  let dbConn = DBConn();
+  let stmt = dbConn.createStatement(
     "SELECT v.id, h.url, v.from_visit, v.visit_date, v.visit_type, v.session " +
     "FROM moz_historyvisits_view v " +
     "JOIN moz_places_view h on h.id = v.place_id " +

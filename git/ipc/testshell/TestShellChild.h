@@ -44,11 +44,6 @@
 #include "nsAutoPtr.h"
 
 namespace mozilla {
-
-namespace jsipc {
-class PContextWrapperChild;
-}
-
 namespace ipc {
 
 class XPCShellEnvironment;
@@ -71,9 +66,10 @@ public:
   bool
   DeallocPTestShellCommand(PTestShellCommandChild* aCommand);
 
-  PContextWrapperChild* AllocPContextWrapper();
-  bool DeallocPContextWrapper(PContextWrapperChild* actor);
-  
+  void SetXPCShell(XPCShellEnvironment* aXPCShell) {
+    mXPCShell = aXPCShell;
+  }
+
 private:
   nsAutoPtr<XPCShellEnvironment> mXPCShell;
 };

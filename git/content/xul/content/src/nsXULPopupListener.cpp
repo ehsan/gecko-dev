@@ -164,7 +164,7 @@ nsXULPopupListener::PreLaunchPopup(nsIDOMEvent* aMouseEvent)
 
     nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
     if (doc)
-      targetNode = do_QueryInterface(doc->GetRootElement());
+      targetNode = do_QueryInterface(doc->GetRootContent());
     if (!targetNode) {
       return NS_ERROR_FAILURE;
     }
@@ -269,13 +269,13 @@ nsXULPopupListener::FireFocusOnTargetContent(nsIDOMNode* aTargetNode)
     nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
 
     // Get nsIDOMElement for targetNode
-    nsIPresShell *shell = doc->GetShell();
+    nsIPresShell *shell = doc->GetPrimaryShell();
     if (!shell)
       return NS_ERROR_FAILURE;
 
     // strong reference to keep this from going away between events
     // XXXbz between what events?  We don't use this local at all!
-    nsRefPtr<nsPresContext> context = shell->GetPresContext();
+    nsCOMPtr<nsPresContext> context = shell->GetPresContext();
  
     nsCOMPtr<nsIContent> content = do_QueryInterface(aTargetNode);
     nsIFrame* targetFrame = content->GetPrimaryFrame();

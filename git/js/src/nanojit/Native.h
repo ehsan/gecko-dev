@@ -70,8 +70,8 @@
 #error "unknown nanojit architecture"
 #endif
 
-#ifndef NJ_USES_IMMD_POOL
-#  define NJ_USES_IMMD_POOL 0
+#ifndef NJ_USES_QUAD_CONSTANTS
+#  define NJ_USES_QUAD_CONSTANTS 0
 #endif
 
 #ifndef NJ_JTBL_SUPPORTED
@@ -147,12 +147,13 @@ namespace nanojit {
         #define gpn(r)                    regNames[(r)]
     #elif defined(NJ_VERBOSE)
         // Used for printing native instructions.  Like Assembler::outputf(),
-        // but only outputs if LC_Native is set.  Also prepends the output
+        // but only outputs if LC_Assembly is set.  Also prepends the output
         // with the address of the current native instruction.
         #define asm_output(...) do { \
-            if (_logc->lcbits & LC_Native) { \
+            counter_increment(native); \
+            if (_logc->lcbits & LC_Assembly) { \
                 outline[0]='\0'; \
-               VMPI_sprintf(outline, "%p   ", _nIns); \
+               VMPI_sprintf(outline, "%010lx   ", (unsigned long)_nIns); \
                 sprintf(&outline[13], ##__VA_ARGS__); \
                 output(); \
             } \

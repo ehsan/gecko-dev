@@ -40,7 +40,6 @@
 #include "nsTextAccessibleWrap.h"
 #include "ISimpleDOMText_i.c"
 
-#include "nsCoreUtils.h"
 #include "nsDocAccessible.h"
 
 #include "nsIFontMetrics.h"
@@ -50,14 +49,13 @@
 #include "nsIRenderingContext.h"
 #include "nsIComponentManager.h"
 
-////////////////////////////////////////////////////////////////////////////////
+// --------------------------------------------------------
 // nsTextAccessibleWrap Accessible
-////////////////////////////////////////////////////////////////////////////////
+// --------------------------------------------------------
 
-nsTextAccessibleWrap::
-  nsTextAccessibleWrap(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsTextAccessible(aContent, aShell)
-{
+nsTextAccessibleWrap::nsTextAccessibleWrap(nsIDOMNode* aDOMNode, nsIWeakReference* aShell):
+nsTextAccessible(aDOMNode, aShell)
+{ 
 }
 
 STDMETHODIMP_(ULONG) nsTextAccessibleWrap::AddRef()
@@ -90,13 +88,12 @@ STDMETHODIMP nsTextAccessibleWrap::get_domText(
 __try {
   *aDomText = NULL;
 
-  if (IsDefunct())
-    return E_FAIL;
-
+  if (!mDOMNode) {
+    return E_FAIL; // Node already shut down
+  }
   nsAutoString nodeValue;
 
-  nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(mContent));
-  DOMNode->GetNodeValue(nodeValue);
+  mDOMNode->GetNodeValue(nodeValue);
   if (nodeValue.IsEmpty())
     return S_FALSE;
 
@@ -157,8 +154,9 @@ STDMETHODIMP nsTextAccessibleWrap::get_unclippedSubstringBounds(
 __try {
   *aX = *aY = *aWidth = *aHeight = 0;
 
-  if (IsDefunct())
-    return E_FAIL;
+  if (!mDOMNode) {
+    return E_FAIL; // Node already shut down
+  }
 
   if (NS_FAILED(GetCharacterExtents(aStartIndex, aEndIndex, 
                                     aX, aY, aWidth, aHeight))) {
@@ -175,13 +173,9 @@ STDMETHODIMP nsTextAccessibleWrap::scrollToSubstring(
     /* [in] */ unsigned int aEndIndex)
 {
 __try {
-  if (IsDefunct())
-    return E_FAIL;
-
-  nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(mContent));
   nsresult rv =
-    nsCoreUtils::ScrollSubstringTo(GetFrame(), DOMNode, aStartIndex,
-                                   DOMNode, aEndIndex,
+    nsCoreUtils::ScrollSubstringTo(GetFrame(), mDOMNode, aStartIndex,
+                                   mDOMNode, aEndIndex,
                                    nsIAccessibleScrollType::SCROLL_TYPE_ANYWHERE);
   if (NS_FAILED(rv))
     return E_FAIL;

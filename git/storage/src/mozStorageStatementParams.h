@@ -37,8 +37,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef MOZSTORAGESTATEMENTPARAMS_H
-#define MOZSTORAGESTATEMENTPARAMS_H
+#ifndef _MOZSTORAGESTATEMENTPARAMS_H_
+#define _MOZSTORAGESTATEMENTPARAMS_H_
 
 #include "mozIStorageStatementWrapper.h"
 #include "nsIXPCScriptable.h"
@@ -71,4 +71,4 @@ protected:
 } // namespace storage
 } // namespace mozilla
 
-#endif /* MOZSTORAGESTATEMENTPARAMS_H */
+#endif /* _MOZSTORAGESTATEMENTPARAMS_H_ */

@@ -58,24 +58,16 @@ PARALLEL_DIRS += \
   cookie \
   exthelper \
   filepicker \
-  find \
   microformats \
   parentalcontrols \
   passwordmgr \
   places \
-  prompts \
   startup \
   statusfilter \
   typeaheadfind \
   urlformatter \
   viewconfig \
   $(NULL)
-
-ifdef BUILD_CTYPES
-PARALLEL_DIRS += \
-  ctypes \
-  $(NULL)
-endif
 
 ifneq (,$(filter cocoa, $(MOZ_WIDGET_TOOLKIT)))
 TOOL_DIRS += alerts
@@ -111,10 +103,7 @@ PARALLEL_DIRS += search
 endif
 
 ifdef MOZ_RDF
-PARALLEL_DIRS += \
-  downloads \
-  intl \
-  $(NULL)
+PARALLEL_DIRS += downloads
 endif
 
 ifdef MOZ_URL_CLASSIFIER
@@ -130,5 +119,10 @@ DIRS += \
   $(NULL)
 
 EXTRA_PP_COMPONENTS = nsDefaultCLH.js
+
+ifeq ($(MOZ_BUILD_APP),camino)
+DIRS += autocomplete/public
+DIRS += downloads/public
+endif
 
 include $(topsrcdir)/config/rules.mk

@@ -62,11 +62,9 @@
 #include "mozStorageConnection.h"
 #include "mozStorageService.h"
 #include "mozStorageStatement.h"
-#include "mozStorageAsyncStatement.h"
 #include "mozStorageArgValueArray.h"
 #include "mozStoragePrivateHelpers.h"
 #include "mozStorageStatementData.h"
-#include "StorageBaseStatementInternal.h"
 #include "SQLCollations.h"
 
 #include "prlog.h"
@@ -283,18 +281,6 @@ public:
     if (mCallbackEvent)
       (void)mCallingThread->Dispatch(mCallbackEvent, NS_DISPATCH_NORMAL);
 
-    // Because we have no guarantee that the invocation of this method on the
-    // asynchronous thread has fully completed (including the Release of the
-    // reference to this object held by that event loop), we need to explicitly
-    // null out our pointers here.  It is possible this object will be destroyed
-    // on the asynchronous thread and if the references are still alive we will
-    // release them on that thread. We definitely do not want that for
-    // mConnection and it's nice to avoid for mCallbackEvent too.  We do not
-    // null out mCallingThread because it is conceivable the async thread might
-    // still be 'in' the object.
-    mConnection = nsnull;
-    mCallbackEvent = nsnull;
-
     return NS_OK;
   }
 private:
@@ -310,10 +296,10 @@ private:
 
 Connection::Connection(Service *aService)
 : sharedAsyncExecutionMutex("Connection::sharedAsyncExecutionMutex")
-, sharedDBMutex("Connection::sharedDBMutex")
 , threadOpenedOn(do_GetCurrentThread())
 , mDBConn(nsnull)
 , mAsyncExecutionThreadShuttingDown(false)
+, mDBMutex("Connection::mDBMutex")
 , mTransactionInProgress(PR_FALSE)
 , mProgressHandler(nsnull)
 , mStorageService(aService)
@@ -331,7 +317,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(
   mozIStorageConnection
 )
 
-nsIEventTarget *
+already_AddRefed<nsIEventTarget>
 Connection::getAsyncExecutionTarget()
 {
   MutexAutoLock lockedScope(sharedAsyncExecutionMutex);
@@ -349,7 +335,9 @@ Connection::getAsyncExecutionTarget()
     }
   }
 
-  return mAsyncExecutionThread;
+  nsIEventTarget *eventTarget;
+  NS_ADDREF(eventTarget = mAsyncExecutionThread);
+  return eventTarget;
 }
 
 nsresult
@@ -379,7 +367,7 @@ Connection::initialize(nsIFile *aDatabaseFile)
   }
 
   // Properly wrap the database handle's mutex.
-  sharedDBMutex.initWithMutex(sqlite3_db_mutex(mDBConn));
+  mDBMutex.initWithMutex(sqlite3_db_mutex(mDBConn));
 
 #ifdef PR_LOGGING
   if (!gStorageLog)
@@ -413,10 +401,10 @@ Connection::initialize(nsIFile *aDatabaseFile)
   // Execute a dummy statement to force the db open, and to verify if it is
   // valid or not.
   sqlite3_stmt *stmt;
-  srv = prepareStmt(mDBConn, NS_LITERAL_CSTRING("SELECT * FROM sqlite_master"),
-                    &stmt);
+  srv = ::sqlite3_prepare_v2(mDBConn, "SELECT * FROM sqlite_master", -1, &stmt,
+                             NULL);
   if (srv == SQLITE_OK) {
-    srv = stepStmt(stmt);
+    srv = ::sqlite3_step(stmt);
 
     if (srv == SQLITE_DONE || srv == SQLITE_ROW)
         srv = SQLITE_OK;
@@ -476,11 +464,11 @@ Connection::databaseElementExists(enum DatabaseElementType aElementType,
   query.Append("'");
 
   sqlite3_stmt *stmt;
-  int srv = prepareStmt(mDBConn, query, &stmt);
+  int srv = ::sqlite3_prepare_v2(mDBConn, query.get(), -1, &stmt, NULL);
   if (srv != SQLITE_OK)
     return convertResultCode(srv);
 
-  srv = stepStmt(stmt);
+  srv = ::sqlite3_step(stmt);
   // we just care about the return value from step
   (void)::sqlite3_finalize(stmt);
 
@@ -499,7 +487,7 @@ Connection::databaseElementExists(enum DatabaseElementType aElementType,
 bool
 Connection::findFunctionByInstance(nsISupports *aInstance)
 {
-  sharedDBMutex.assertCurrentThreadOwns();
+  mDBMutex.assertCurrentThreadOwns();
   FFEArguments args = { aInstance, false };
   mFunctions.EnumerateRead(findFunctionEnumerator, &args);
   return args.found;
@@ -515,7 +503,7 @@ Connection::sProgressHelper(void *aArg)
 int
 Connection::progressHandler()
 {
-  sharedDBMutex.assertCurrentThreadOwns();
+  mDBMutex.assertCurrentThreadOwns();
   if (mProgressHandler) {
     PRBool result;
     nsresult rv = mProgressHandler->OnProgress(this, &result);
@@ -596,16 +584,6 @@ Connection::internalClose()
   return convertResultCode(srv);
 }
 
-nsCString
-Connection::getFilename()
-{
-  nsCString leafname(":memory:");
-  if (mDatabaseFile) {
-    (void)mDatabaseFile->GetNativeLeafName(leafname);
-  }
-  return leafname;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 //// mozIStorageConnection
 
@@ -632,7 +610,7 @@ Connection::AsyncClose(mozIStorageCompletionCallback *aCallback)
   if (!mDBConn)
     return NS_ERROR_NOT_INITIALIZED;
 
-  nsIEventTarget *asyncThread = getAsyncExecutionTarget();
+  nsCOMPtr<nsIEventTarget> asyncThread(getAsyncExecutionTarget());
   NS_ENSURE_TRUE(asyncThread, NS_ERROR_UNEXPECTED);
 
   nsresult rv = setClosedState();
@@ -755,25 +733,6 @@ Connection::CreateStatement(const nsACString &aSQLStatement,
 }
 
 NS_IMETHODIMP
-Connection::CreateAsyncStatement(const nsACString &aSQLStatement,
-                                 mozIStorageAsyncStatement **_stmt)
-{
-  NS_ENSURE_ARG_POINTER(_stmt);
-  if (!mDBConn) return NS_ERROR_NOT_INITIALIZED;
-
-  nsRefPtr<AsyncStatement> statement(new AsyncStatement());
-  NS_ENSURE_TRUE(statement, NS_ERROR_OUT_OF_MEMORY);
-
-  nsresult rv = statement->initialize(this, aSQLStatement);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  AsyncStatement *rawPtr;
-  statement.forget(&rawPtr);
-  *_stmt = rawPtr;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 Connection::ExecuteSimpleSQL(const nsACString &aSQLStatement)
 {
   if (!mDBConn) return NS_ERROR_NOT_INITIALIZED;
@@ -783,23 +742,22 @@ Connection::ExecuteSimpleSQL(const nsACString &aSQLStatement)
   return convertResultCode(srv);
 }
 
-NS_IMETHODIMP
-Connection::ExecuteAsync(mozIStorageBaseStatement **aStatements,
+nsresult
+Connection::ExecuteAsync(mozIStorageStatement **aStatements,
                          PRUint32 aNumStatements,
                          mozIStorageStatementCallback *aCallback,
                          mozIStoragePendingStatement **_handle)
 {
   nsTArray<StatementData> stmts(aNumStatements);
   for (PRUint32 i = 0; i < aNumStatements; i++) {
-    nsCOMPtr<StorageBaseStatementInternal> stmt = 
-      do_QueryInterface(aStatements[i]);
+    Statement *stmt = static_cast<Statement *>(aStatements[i]);
 
     // Obtain our StatementData.
     StatementData data;
     nsresult rv = stmt->getAsynchronousStatementData(data);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    NS_ASSERTION(stmt->getOwner() == this,
+    NS_ASSERTION(::sqlite3_db_handle(stmt->nativeStatement()) == mDBConn,
                  "Statement must be from this database connection!");
 
     // Now append it to our array.
@@ -829,7 +787,7 @@ Connection::GetTransactionInProgress(PRBool *_inProgress)
 {
   if (!mDBConn) return NS_ERROR_NOT_INITIALIZED;
 
-  SQLiteMutexAutoLock lockedScope(sharedDBMutex);
+  SQLiteMutexAutoLock lockedScope(mDBMutex);
   *_inProgress = mTransactionInProgress;
   return NS_OK;
 }
@@ -845,7 +803,7 @@ Connection::BeginTransactionAs(PRInt32 aTransactionType)
 {
   if (!mDBConn) return NS_ERROR_NOT_INITIALIZED;
 
-  SQLiteMutexAutoLock lockedScope(sharedDBMutex);
+  SQLiteMutexAutoLock lockedScope(mDBMutex);
   if (mTransactionInProgress)
     return NS_ERROR_FAILURE;
   nsresult rv;
@@ -870,13 +828,11 @@ Connection::BeginTransactionAs(PRInt32 aTransactionType)
 NS_IMETHODIMP
 Connection::CommitTransaction()
 {
-  if (!mDBConn)
-    return NS_ERROR_NOT_INITIALIZED;
+  if (!mDBConn) return NS_ERROR_NOT_INITIALIZED;
 
-  SQLiteMutexAutoLock lockedScope(sharedDBMutex);
+  SQLiteMutexAutoLock lockedScope(mDBMutex);
   if (!mTransactionInProgress)
-    return NS_ERROR_UNEXPECTED;
-
+    return NS_ERROR_FAILURE;
   nsresult rv = ExecuteSimpleSQL(NS_LITERAL_CSTRING("COMMIT TRANSACTION"));
   if (NS_SUCCEEDED(rv))
     mTransactionInProgress = PR_FALSE;
@@ -886,13 +842,11 @@ Connection::CommitTransaction()
 NS_IMETHODIMP
 Connection::RollbackTransaction()
 {
-  if (!mDBConn)
-    return NS_ERROR_NOT_INITIALIZED;
+  if (!mDBConn) return NS_ERROR_NOT_INITIALIZED;
 
-  SQLiteMutexAutoLock lockedScope(sharedDBMutex);
+  SQLiteMutexAutoLock lockedScope(mDBMutex);
   if (!mTransactionInProgress)
-    return NS_ERROR_UNEXPECTED;
-
+    return NS_ERROR_FAILURE;
   nsresult rv = ExecuteSimpleSQL(NS_LITERAL_CSTRING("ROLLBACK TRANSACTION"));
   if (NS_SUCCEEDED(rv))
     mTransactionInProgress = PR_FALSE;
@@ -924,7 +878,7 @@ Connection::CreateFunction(const nsACString &aFunctionName,
 
   // Check to see if this function is already defined.  We only check the name
   // because a function can be defined with the same body but different names.
-  SQLiteMutexAutoLock lockedScope(sharedDBMutex);
+  SQLiteMutexAutoLock lockedScope(mDBMutex);
   NS_ENSURE_FALSE(mFunctions.Get(aFunctionName, NULL), NS_ERROR_FAILURE);
 
   int srv = ::sqlite3_create_function(mDBConn,
@@ -952,7 +906,7 @@ Connection::CreateAggregateFunction(const nsACString &aFunctionName,
   if (!mDBConn) return NS_ERROR_NOT_INITIALIZED;
 
   // Check to see if this function name is already defined.
-  SQLiteMutexAutoLock lockedScope(sharedDBMutex);
+  SQLiteMutexAutoLock lockedScope(mDBMutex);
   NS_ENSURE_FALSE(mFunctions.Get(aFunctionName, NULL), NS_ERROR_FAILURE);
 
   // Because aggregate functions depend on state across calls, you cannot have
@@ -982,7 +936,7 @@ Connection::RemoveFunction(const nsACString &aFunctionName)
 {
   if (!mDBConn) return NS_ERROR_NOT_INITIALIZED;
 
-  SQLiteMutexAutoLock lockedScope(sharedDBMutex);
+  SQLiteMutexAutoLock lockedScope(mDBMutex);
   NS_ENSURE_TRUE(mFunctions.Get(aFunctionName, NULL), NS_ERROR_FAILURE);
 
   int srv = ::sqlite3_create_function(mDBConn,
@@ -1009,7 +963,7 @@ Connection::SetProgressHandler(PRInt32 aGranularity,
   if (!mDBConn) return NS_ERROR_NOT_INITIALIZED;
 
   // Return previous one
-  SQLiteMutexAutoLock lockedScope(sharedDBMutex);
+  SQLiteMutexAutoLock lockedScope(mDBMutex);
   NS_IF_ADDREF(*_oldHandler = mProgressHandler);
 
   if (!aHandler || aGranularity <= 0) {
@@ -1028,7 +982,7 @@ Connection::RemoveProgressHandler(mozIStorageProgressHandler **_oldHandler)
   if (!mDBConn) return NS_ERROR_NOT_INITIALIZED;
 
   // Return previous one
-  SQLiteMutexAutoLock lockedScope(sharedDBMutex);
+  SQLiteMutexAutoLock lockedScope(mDBMutex);
   NS_IF_ADDREF(*_oldHandler = mProgressHandler);
 
   mProgressHandler = nsnull;

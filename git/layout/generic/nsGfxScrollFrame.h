@@ -160,6 +160,8 @@ public:
 
   nsPresState* SaveState(nsIStatefulFrame::SpecialStateID aStateID);
   void RestoreState(nsPresState* aState);
+  void SaveVScrollbarStateToGlobalHistory();
+  nsresult GetVScrollbarHintFromGlobalHistory(PRBool* aVScrollbarNeeded);
 
   nsIFrame* GetScrolledFrame() const { return mScrolledFrame; }
   nsIBox* GetScrollbarBox(PRBool aVertical) const {
@@ -213,15 +215,6 @@ public:
   nsMargin GetDesiredScrollbarSizes(nsBoxLayoutState* aState);
   PRBool IsLTR() const;
   PRBool IsScrollbarOnRight() const;
-  // adjust the scrollbar rectangle aRect to account for any visible resizer.
-  // aHasResizer specifies if there is a content resizer, however this method
-  // will also check if a widget resizer is present as well.
-  void AdjustScrollbarRectForResizer(nsIFrame* aFrame, nsPresContext* aPresContext,
-                                     nsRect& aRect, PRBool aHasResizer, PRBool aVertical);
-  // returns true if a resizer should be visible
-  PRBool HasResizer() {
-      return mScrollCornerContent && mScrollCornerContent->Tag() == nsGkAtoms::resizer;
-  }
   void LayoutScrollbars(nsBoxLayoutState& aState,
                         const nsRect& aContentArea,
                         const nsRect& aOldScrollArea);
@@ -270,7 +263,11 @@ public:
   // it might not strictly be needed next time mSupppressScrollbarUpdate is
   // false.
   PRPackedBool mSkippedScrollbarLayout:1;
-
+  // Did we load a hint from global history
+  // about whether a vertical scrollbar is required?
+  PRPackedBool mDidLoadHistoryVScrollbarHint:1;
+  // The value of the hint loaded
+  PRPackedBool mHistoryVScrollbarHint:1;
   PRPackedBool mHadNonInitialReflow:1;
   // State used only by PostScrollEvents so we know
   // which overflow states have changed.
@@ -467,7 +464,7 @@ public:
   PRBool DidHistoryRestore() { return mInner.mDidHistoryRestore; }
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
 protected:

@@ -39,13 +39,11 @@
 
 #include "History.h"
 #include "nsNavHistory.h"
-#include "Helpers.h"
 
 #include "mozilla/storage.h"
 #include "mozilla/dom/Link.h"
 #include "nsDocShellCID.h"
 #include "nsIEventStateManager.h"
-#include "mozilla/Services.h"
 
 using namespace mozilla::dom;
 
@@ -75,11 +73,16 @@ public:
 
     nsNavHistory* navHist = nsNavHistory::GetHistoryService();
     NS_ENSURE_TRUE(navHist, NS_ERROR_FAILURE);
-    mozIStorageStatement* stmt = navHist->GetStatementById(DB_IS_PAGE_VISITED);
+    mozIStorageStatement* stmt = navHist->DBGetIsVisited();
     NS_ENSURE_STATE(stmt);
 
-    // Bind by index for performance.
-    nsresult rv = URIBinder::Bind(stmt, 0, aURI);
+    // Be sure to reset our statement!
+    mozStorageStatementScoper scoper(stmt);
+    nsCString spec;
+    nsresult rv = aURI->GetSpec(spec);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = stmt->BindUTF8StringParameter(0, spec);
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsRefPtr<VisitedQuery> callback = new VisitedQuery(aURI);
@@ -113,7 +116,7 @@ public:
     // Notify any observers about that we have resolved the visited state of
     // this URI.
     nsCOMPtr<nsIObserverService> observerService =
-      mozilla::services::GetObserverService();
+      do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
     if (observerService) {
       nsAutoString status;
       if (mIsVisited) {

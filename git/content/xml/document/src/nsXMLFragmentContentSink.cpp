@@ -117,7 +117,7 @@ protected:
   virtual nsresult CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
                                  nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
                                  nsIContent** aResult, PRBool* aAppendContent,
-                                 PRUint32 aFromParser);
+                                 PRBool aFromParser);
   virtual nsresult CloseElement(nsIContent* aContent);
 
   virtual void MaybeStartLayout(PRBool aIgnorePendingSheets);
@@ -259,7 +259,7 @@ nsresult
 nsXMLFragmentContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
                                         nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
                                         nsIContent** aResult, PRBool* aAppendContent,
-                                        PRUint32 aFromParser)
+                                        PRBool aFromParser)
 {
   // Claim to not be coming from parser, since we don't do any of the
   // fancy CloseElement stuff.
@@ -486,7 +486,7 @@ nsXMLFragmentContentSink::IgnoreFirstContainer()
 class nsXHTMLParanoidFragmentSink : public nsXMLFragmentContentSink
 {
 public:
-  nsXHTMLParanoidFragmentSink(PRBool aAllContent = PR_FALSE);
+  nsXHTMLParanoidFragmentSink();
 
   static nsresult Init();
   static void Cleanup();
@@ -525,8 +525,8 @@ protected:
 nsTHashtable<nsISupportsHashKey>* nsXHTMLParanoidFragmentSink::sAllowedTags;
 nsTHashtable<nsISupportsHashKey>* nsXHTMLParanoidFragmentSink::sAllowedAttributes;
 
-nsXHTMLParanoidFragmentSink::nsXHTMLParanoidFragmentSink(PRBool aAllContent):
-  nsXMLFragmentContentSink(aAllContent), mSkipLevel(0)
+nsXHTMLParanoidFragmentSink::nsXHTMLParanoidFragmentSink():
+  nsXMLFragmentContentSink(PR_FALSE), mSkipLevel(0)
 {
 }
 
@@ -586,20 +586,6 @@ nsresult
 NS_NewXHTMLParanoidFragmentSink(nsIFragmentContentSink** aResult)
 {
   nsXHTMLParanoidFragmentSink* it = new nsXHTMLParanoidFragmentSink();
-  if (!it) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-  nsresult rv = nsXHTMLParanoidFragmentSink::Init();
-  NS_ENSURE_SUCCESS(rv, rv);
-  NS_ADDREF(*aResult = it);
-  
-  return NS_OK;
-}
-
-nsresult
-NS_NewXHTMLParanoidFragmentSink2(nsIFragmentContentSink** aResult)
-{
-  nsXHTMLParanoidFragmentSink* it = new nsXHTMLParanoidFragmentSink(PR_TRUE);
   if (!it) {
     return NS_ERROR_OUT_OF_MEMORY;
   }

@@ -109,18 +109,7 @@ class mozJSComponentLoader : public nsIModuleLoader,
     nsresult ReallyInit();
     void UnloadModules();
 
-    nsresult FileKey(nsILocalFile* aFile, nsAString &aResult);
-    nsresult JarKey(nsILocalFile* aFile,
-                    const nsACString& aComponentPath,
-                    nsAString &aResult);
-
-    nsresult LoadModuleImpl(nsILocalFile* aSourceFile,
-                            nsAString &aKey,
-                            nsIURI* aComponentURI,
-                            nsIModule* *aResult);
-
-    nsresult GlobalForLocation(nsILocalFile* aComponentFile,
-                               nsIURI *aComponent,
+    nsresult GlobalForLocation(nsILocalFile *aComponent,
                                JSObject **aGlobal,
                                char **location,
                                jsval *exception);
@@ -176,9 +165,9 @@ class mozJSComponentLoader : public nsIModuleLoader,
 
     friend class ModuleEntry;
 
-    nsClassHashtable<nsStringHashKey, ModuleEntry> mModules;
-    nsClassHashtable<nsStringHashKey, ModuleEntry> mImports;
-    nsDataHashtable<nsStringHashKey, ModuleEntry*> mInProgressImports;
+    nsClassHashtable<nsHashableHashKey, ModuleEntry> mModules;
+    nsClassHashtable<nsHashableHashKey, ModuleEntry> mImports;
+    nsDataHashtable<nsHashableHashKey, ModuleEntry*> mInProgressImports;
 
     PRBool mInitialized;
 };

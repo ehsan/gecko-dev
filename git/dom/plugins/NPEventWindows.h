@@ -133,12 +133,8 @@ struct ParamTraits<mozilla::plugins::NPRemoteEvent>
                 if (paramCopy.event.event >= 0xC000 && paramCopy.event.event <= 0xFFFF)
                     break;
 
-                // FIXME/bug 567465: temporarily work around unhandled
-                // events by forwarding a "dummy event".  The eventual
-                // fix will be to stop trying to send these events
-                // entirely.
-                paramCopy.event.event = WM_NULL;
-                break;
+                // ignore any events we don't expect
+                return;
         }
 
         aMsg->WriteBytes(&paramCopy, sizeof(paramType));

@@ -56,7 +56,7 @@ class nsXULButtonAccessible : public nsAccessibleWrap
 {
 public:
   enum { eAction_Click = 0 };
-  nsXULButtonAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULButtonAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -67,7 +67,7 @@ public:
   NS_IMETHOD DoAction(PRUint8 index);
 
   // nsAccessNode
-  virtual PRBool Init();
+  virtual nsresult Init();
 
   // nsAccessible
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
@@ -84,13 +84,13 @@ protected:
 
 
 /**
- * Used for XUL checkbox element.
+ * Used for XUL checkbox.
  */
 class nsXULCheckboxAccessible : public nsFormControlAccessible
 {
 public:
   enum { eAction_Click = 0 };
-  nsXULCheckboxAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULCheckboxAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
 
   // nsIAccessible
   NS_IMETHOD GetNumActions(PRUint8 *_retval);
@@ -102,14 +102,11 @@ public:
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
-/**
- * Used for XUL dropmarker element.
- */
 class nsXULDropmarkerAccessible : public nsFormControlAccessible
 {
 public:
   enum { eAction_Click = 0 };
-  nsXULDropmarkerAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULDropmarkerAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
 
   // nsIAccessible
   NS_IMETHOD GetNumActions(PRUint8 *_retval);
@@ -124,13 +121,10 @@ private:
   PRBool DropmarkerOpen(PRBool aToggleOpen);
 };
 
-/**
- * Used for XUL groupbox element.
- */
 class nsXULGroupboxAccessible : public nsAccessibleWrap
 {
 public:
-  nsXULGroupboxAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULGroupboxAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
 
   // nsIAccessible
   NS_IMETHOD GetRelationByType(PRUint32 aRelationType,
@@ -141,16 +135,13 @@ public:
   virtual nsresult GetNameInternal(nsAString& aName);
 };
 
-/**
- * Used for XUL progressmeter element.
- */
 class nsXULProgressMeterAccessible : public nsFormControlAccessible
 {
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIACCESSIBLEVALUE
 
 public:
-  nsXULProgressMeterAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULProgressMeterAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
   NS_IMETHOD GetValue(nsAString &aValue);
 
   // nsAccessible
@@ -158,13 +149,13 @@ public:
 };
 
 /**
- * Used for XUL radio element (radio button).
+ * Used for XUL radio button (xul:radio).
  */
 class nsXULRadioButtonAccessible : public nsRadioButtonAccessible
 {
 
 public:
-  nsXULRadioButtonAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULRadioButtonAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
 
   // nsAccessible
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
@@ -172,38 +163,29 @@ public:
                                           PRInt32 *aSetSize);
 };
 
-/**
- * Used for XUL radiogroup element.
- */
 class nsXULRadioGroupAccessible : public nsXULSelectableAccessible
 {
 public:
-  nsXULRadioGroupAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULRadioGroupAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
 
   // nsAccessible
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
-/**
- * Used for XUL statusbar element.
- */
 class nsXULStatusBarAccessible : public nsAccessibleWrap
 {
 public:
-  nsXULStatusBarAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULStatusBarAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
 
   // nsAccessible
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
 };
 
-/**
- * Used for XUL toolbarbutton element.
- */
 class nsXULToolbarButtonAccessible : public nsXULButtonAccessible
 {
 public:
-  nsXULToolbarButtonAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULToolbarButtonAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
 
   // nsAccessible
   virtual void GetPositionAndSizeInternal(PRInt32 *aPosInSet,
@@ -213,42 +195,31 @@ public:
   static PRBool IsSeparator(nsAccessible *aAccessible);
 };
 
-/**
- * Used for XUL toolbar element.
- */
 class nsXULToolbarAccessible : public nsAccessibleWrap
 {
 public:
-  nsXULToolbarAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULToolbarAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
 
   // nsAccessible
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
-  virtual nsresult GetNameInternal(nsAString& aName);
 };
 
-/**
- * Used for XUL toolbarseparator element.
- */
 class nsXULToolbarSeparatorAccessible : public nsLeafAccessible
 {
 public:
-  nsXULToolbarSeparatorAccessible(nsIContent* aContent,
-                                  nsIWeakReference *aShell);
+  nsXULToolbarSeparatorAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
 
   // nsAccessible
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
-/**
- * Used for XUL textbox element.
- */
 class nsXULTextFieldAccessible : public nsHyperTextAccessibleWrap
 {
 public:
   enum { eAction_Click = 0 };
 
-  nsXULTextFieldAccessible(nsIContent* aContent, nsIWeakReference *aShell);
+  nsXULTextFieldAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
 
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -272,7 +243,7 @@ protected:
   virtual void CacheChildren();
 
   // nsXULTextFieldAccessible
-  already_AddRefed<nsIContent> GetInputField() const;
+  already_AddRefed<nsIDOMNode> GetInputField();
 };
 
 

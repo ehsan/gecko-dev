@@ -40,7 +40,6 @@
 #include "nsPluginUtilsOSX.h"
 
 #import <Cocoa/Cocoa.h>
-#import <QuartzCore/QuartzCore.h>
 #include "nsObjCExceptions.h"
 
 #ifndef __LP64__
@@ -83,24 +82,8 @@ void NS_NPAPI_CocoaWindowFrame(void* aWindow, nsRect& outRect)
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-PRBool NS_NPAPI_CocoaWindowIsMain(void* aWindow)
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
-
-  if (!aWindow)
-    return PR_TRUE;
-
-  NSWindow* window = (NSWindow*)aWindow;
-
-  return (PRBool)[window isMainWindow];
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(PR_TRUE);
-}
-
 NPError NS_NPAPI_ShowCocoaContextMenu(void* menu, nsIWidget* widget, NPCocoaEvent* event)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
-
   if (!menu || !widget || !event)
     return NPERR_GENERIC_ERROR;
 
@@ -151,8 +134,6 @@ NPError NS_NPAPI_ShowCocoaContextMenu(void* menu, nsIWidget* widget, NPCocoaEven
   [NSMenu popUpContextMenu:cocoaMenu withEvent:cocoaEvent forView:cocoaView];
 
   return NPERR_NO_ERROR;
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NPERR_GENERIC_ERROR);
 }
 
 NPBool NS_NPAPI_ConvertPointCocoa(void* inView,
@@ -234,4 +215,3 @@ NPBool NS_NPAPI_ConvertPointCocoa(void* inView,
 
   return PR_TRUE;
 }
-

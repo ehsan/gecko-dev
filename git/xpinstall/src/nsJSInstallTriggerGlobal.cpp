@@ -420,8 +420,7 @@ InstallTriggerGlobalInstall(JSContext *cx, JSObject *obj, uintN argc, jsval *arg
                 nativeThis->UpdateEnabled(checkuri, XPI_WHITELIST, &enabled);
                 if (!enabled)
                 {
-                    nsCOMPtr<nsIObserverService> os =
-                      mozilla::services::GetObserverService();
+                    nsCOMPtr<nsIObserverService> os(do_GetService("@mozilla.org/observer-service;1"));
                     if (os)
                         os->NotifyObservers(installInfo,
                                             "xpinstall-install-blocked",
@@ -544,8 +543,7 @@ InstallTriggerGlobalInstallChrome(JSContext *cx, JSObject *obj, uintN argc, jsva
                                               &enabled);
                     if (!enabled)
                     {
-                        nsCOMPtr<nsIObserverService> os =
-                          mozilla::services::GetObserverService();
+                        nsCOMPtr<nsIObserverService> os(do_GetService("@mozilla.org/observer-service;1"));
                         if (os)
                             os->NotifyObservers(installInfo,
                                                 "xpinstall-install-blocked",
@@ -649,8 +647,7 @@ InstallTriggerGlobalStartSoftwareUpdate(JSContext *cx, JSObject *obj, uintN argc
                 nativeThis->UpdateEnabled(checkuri, XPI_WHITELIST, &enabled);
                 if (!enabled)
                 {
-                    nsCOMPtr<nsIObserverService> os =
-                      mozilla::services::GetObserverService();
+                    nsCOMPtr<nsIObserverService> os(do_GetService("@mozilla.org/observer-service;1"));
                     if (os)
                         os->NotifyObservers(installInfo,
                                             "xpinstall-install-blocked",

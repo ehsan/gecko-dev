@@ -74,9 +74,6 @@
 #include "nsTArray.h"
 #include "nsIConsoleService.h"
 #include "nsIUploadChannel2.h"
-#include "nsXULAppAPI.h"
-
-#include "mozilla/FunctionTimer.h"
 
 #if defined(XP_WIN) || defined(MOZ_ENABLE_LIBCONIC)
 #include "nsNativeConnectionHelper.h"
@@ -86,9 +83,6 @@
 #define PORT_PREF(x)               PORT_PREF_PREFIX x
 #define AUTODIAL_PREF              "network.autodial-helper.enabled"
 #define MANAGE_OFFLINE_STATUS_PREF "network.manage-offline-status"
-
-#define NECKO_BUFFER_CACHE_COUNT_PREF "network.buffer.cache.count"
-#define NECKO_BUFFER_CACHE_SIZE_PREF  "network.buffer.cache.size"
 
 #define MAX_RECURSION_COUNT 50
 
@@ -168,8 +162,6 @@ static const char kProfileChangeNetRestoreTopic[] = "profile-change-net-restore"
 
 // Necko buffer cache
 nsIMemory* nsIOService::gBufferCache = nsnull;
-PRUint32   nsIOService::gDefaultSegmentSize = 4096;
-PRUint32   nsIOService::gDefaultSegmentCount = 24;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -183,13 +175,28 @@ nsIOService::nsIOService()
     , mChannelEventSinks(NS_CHANNEL_EVENT_SINK_CATEGORY)
     , mContentSniffers(NS_CONTENT_SNIFFER_CATEGORY)
 {
+    // Get the allocator ready
+    if (!gBufferCache)
+    {
+        nsresult rv = NS_OK;
+        nsCOMPtr<nsIRecyclingAllocator> recyclingAllocator =
+            do_CreateInstance(NS_RECYCLINGALLOCATOR_CONTRACTID, &rv);
+        if (NS_FAILED(rv))
+            return;
+        rv = recyclingAllocator->Init(NS_NECKO_BUFFER_CACHE_COUNT,
+                                      NS_NECKO_15_MINS, "necko");
+        if (NS_FAILED(rv))
+            return;
+
+        nsCOMPtr<nsIMemory> eyeMemory = do_QueryInterface(recyclingAllocator);
+        gBufferCache = eyeMemory.get();
+        NS_IF_ADDREF(gBufferCache);
+    }
 }
 
 nsresult
 nsIOService::Init()
 {
-    NS_TIME_FUNCTION;
-
     nsresult rv;
     
     // We need to get references to these services so that we can shut them
@@ -204,15 +211,11 @@ nsIOService::Init()
         return rv;
     }
 
-    NS_TIME_FUNCTION_MARK("got SocketTransportService");
-
     mDNSService = do_GetService(NS_DNSSERVICE_CONTRACTID, &rv);
     if (NS_FAILED(rv)) {
         NS_WARNING("failed to get DNS service");
         return rv;
     }
-
-    NS_TIME_FUNCTION_MARK("got DNS Service");
 
     // XXX hack until xpidl supports error info directly (bug 13423)
     nsCOMPtr<nsIErrorService> errorService = do_GetService(NS_ERRORSERVICE_CONTRACTID);
@@ -222,8 +225,6 @@ nsIOService::Init()
     else
         NS_WARNING("failed to get error service");
     
-    NS_TIME_FUNCTION_MARK("got Error Service");
-
     // setup our bad port list stuff
     for(int i=0; gBadPortList[i]; i++)
         mRestrictedPortList.AppendElement(gBadPortList[i]);
@@ -240,7 +241,7 @@ nsIOService::Init()
     
     // Register for profile change notifications
     nsCOMPtr<nsIObserverService> observerService =
-        mozilla::services::GetObserverService();
+        do_GetService("@mozilla.org/observer-service;1");
     if (observerService) {
         observerService->AddObserver(this, kProfileChangeNetTeardownTopic, PR_TRUE);
         observerService->AddObserver(this, kProfileChangeNetRestoreTopic, PR_TRUE);
@@ -250,26 +251,6 @@ nsIOService::Init()
     else
         NS_WARNING("failed to get observer service");
         
-    NS_TIME_FUNCTION_MARK("Registered observers");
-
-    // Get the allocator ready
-    if (!gBufferCache) {
-        nsresult rv = NS_OK;
-        nsCOMPtr<nsIRecyclingAllocator> recyclingAllocator =
-            do_CreateInstance(NS_RECYCLINGALLOCATOR_CONTRACTID, &rv);
-
-        if (NS_FAILED(rv))
-            return rv;
-        rv = recyclingAllocator->Init(gDefaultSegmentCount,
-                                      (15 * 60), // 15 minutes
-                                      "necko");
-
-        NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Was unable to allocate.  No gBufferCache.");
-        CallQueryInterface(recyclingAllocator, &gBufferCache);
-    }
-
-    NS_TIME_FUNCTION_MARK("Set up the recycling allocator");
-
     gIOService = this;
     
     // go into managed mode if we can
@@ -279,8 +260,6 @@ nsIOService::Init()
 
     if (mManageOfflineStatus)
         TrackNetworkLinkStatusForOffline();
-    
-    NS_TIME_FUNCTION_MARK("Set up network link service");
 
     return NS_OK;
 }
@@ -679,24 +658,10 @@ nsIOService::SetOffline(PRBool offline)
     if (mSettingOffline) {
         return NS_OK;
     }
-
     mSettingOffline = PR_TRUE;
 
     nsCOMPtr<nsIObserverService> observerService =
-        mozilla::services::GetObserverService();
-
-    NS_ASSERTION(observerService, "The observer service should not be null");
-
-#ifdef MOZ_IPC
-    if (XRE_GetProcessType() == GeckoProcessType_Default) {
-        if (observerService) {
-            (void)observerService->NotifyObservers(nsnull,
-                NS_IPC_IOSERVICE_SET_OFFLINE_TOPIC, offline ? 
-                NS_LITERAL_STRING("true").get() :
-                NS_LITERAL_STRING("false").get());
-        }
-    }
-#endif
+        do_GetService("@mozilla.org/observer-service;1");
 
     while (mSetOfflineValue != mOffline) {
         offline = mSetOfflineValue;
@@ -825,29 +790,6 @@ nsIOService::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
         if (NS_SUCCEEDED(prefs->GetBoolPref(MANAGE_OFFLINE_STATUS_PREF,
                                             &manage)))
             SetManageOfflineStatus(manage);
-    }
-
-    if (!pref || strcmp(pref, NECKO_BUFFER_CACHE_COUNT_PREF) == 0) {
-        PRInt32 count;
-        if (NS_SUCCEEDED(prefs->GetIntPref(NECKO_BUFFER_CACHE_COUNT_PREF,
-                                           &count)))
-            /* check for bogus values and default if we find such a value */
-            if (count > 0)
-                gDefaultSegmentCount = count;
-    }
-    
-    if (!pref || strcmp(pref, NECKO_BUFFER_CACHE_SIZE_PREF) == 0) {
-        PRInt32 size;
-        if (NS_SUCCEEDED(prefs->GetIntPref(NECKO_BUFFER_CACHE_SIZE_PREF,
-                                           &size)))
-            /* check for bogus values and default if we find such a value
-             * the upper limit here is arbitrary. having a 1mb segment size
-             * is pretty crazy.  if you remove this, consider adding some
-             * integer rollover test.
-             */
-            if (size > 0 && size < 1024*1024)
-                gDefaultSegmentSize = size;
-        NS_WARN_IF_FALSE( (!(size & (size - 1))) , "network buffer cache size is not a power of 2!");
     }
 }
 

@@ -109,7 +109,9 @@ function browserWindowsCount(expected, msg) {
   if (typeof expected == "number")
     expected = [expected, expected];
   let count = 0;
-  let e = Services.wm.getEnumerator("navigator:browser");
+  let e = Cc["@mozilla.org/appshell/window-mediator;1"]
+            .getService(Ci.nsIWindowMediator)
+            .getEnumerator("navigator:browser");
   while (e.hasMoreElements()) {
     if (!e.getNext().closed)
       ++count;
@@ -170,6 +172,8 @@ function test() {
       aCancel.QueryInterface(Ci.nsISupportsPRBool).data = true;
     }
   }
+  let observerService = Cc["@mozilla.org/observer-service;1"].
+                        getService(Ci.nsIObserverService);
 
   /**
    * Helper: Sets prefs as the testsuite requires
@@ -190,7 +194,7 @@ function test() {
   function setupTestsuite(testFn) {
     // Register our observers
     for (let o in observing)
-      Services.obs.addObserver(observer, o, false);
+      observerService.addObserver(observer, o, false);
 
     // Make the main test window not count as a browser window any longer
     oldWinType = document.documentElement.getAttribute("windowtype");
@@ -203,7 +207,7 @@ function test() {
   function cleanupTestsuite(callback) {
     // Finally remove observers again
     for (let o in observing)
-      Services.obs.removeObserver(observer, o, false);
+      observerService.removeObserver(observer, o, false);
 
     // Reset the prefs we touched
     [

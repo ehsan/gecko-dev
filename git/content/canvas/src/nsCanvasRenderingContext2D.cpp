@@ -47,12 +47,8 @@
 #define _USE_MATH_DEFINES
 #endif
 #include <math.h>
-#if defined(XP_WIN) || defined(XP_OS2)
-#include <float.h>
-#endif
 
 #include "prmem.h"
-#include "prenv.h"
 
 #include "nsIServiceManager.h"
 
@@ -62,11 +58,12 @@
 #include "nsIDocument.h"
 #include "nsIDOMCanvasRenderingContext2D.h"
 #include "nsICanvasRenderingContextInternal.h"
-#include "nsHTMLCanvasElement.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsIVariant.h"
 
+#include "nsIDOMHTMLCanvasElement.h"
+#include "nsICanvasElement.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIFrame.h"
 #include "nsDOMError.h"
@@ -87,6 +84,8 @@
 #include "nsGfxCIID.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIDocShell.h"
+#include "nsPresContext.h"
+#include "nsIPresShell.h"
 #include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDocShell.h"
@@ -94,6 +93,7 @@
 #include "nsIDocShellTreeNode.h"
 #include "nsIXPConnect.h"
 #include "jsapi.h"
+#include "jsnum.h"
 
 #include "nsTArray.h"
 
@@ -102,14 +102,10 @@
 #include "gfxContext.h"
 #include "gfxASurface.h"
 #include "gfxImageSurface.h"
-#ifdef MOZ_IPC
-#include "gfxSharedImageSurface.h"
-#endif
 #include "gfxPlatform.h"
 #include "gfxFont.h"
 #include "gfxTextRunCache.h"
 #include "gfxBlur.h"
-#include "gfxUtils.h"
 
 #include "nsFrameManager.h"
 
@@ -117,37 +113,17 @@
 
 #include "nsBidiPresUtils.h"
 
-#include "Layers.h"
-
 #include "CanvasUtils.h"
 
-#include "nsIMemoryReporter.h"
-
 #ifdef MOZ_IPC
-#  include <algorithm>
-#  include "mozilla/dom/ContentProcessParent.h"
 #  include "mozilla/ipc/PDocumentRendererParent.h"
-#  include "mozilla/ipc/PDocumentRendererShmemParent.h"
-#  include "mozilla/ipc/PDocumentRendererNativeIDParent.h"
 #  include "mozilla/dom/PIFrameEmbeddingParent.h"
 #  include "mozilla/ipc/DocumentRendererParent.h"
-#  include "mozilla/ipc/DocumentRendererShmemParent.h"
-#  include "mozilla/ipc/DocumentRendererNativeIDParent.h"
-#  include "mozilla/ipc/SharedMemorySysV.h"
-
 // windows.h (included by chromium code) defines this, in its infinite wisdom
 #  undef DrawText
-
-using namespace mozilla::ipc;
-#endif
-
-#ifdef MOZ_X11
-#include "gfxXlibSurface.h"
 #endif
 
 using namespace mozilla;
-using namespace mozilla::layers;
-using namespace mozilla::dom;
 
 #ifndef M_PI
 #define M_PI		3.14159265358979323846
@@ -156,18 +132,7 @@ using namespace mozilla::dom;
 
 /* Float validation stuff */
 
-static inline bool
-DoubleIsFinite(double d)
-{
-#ifdef WIN32
-    // NOTE: '!!' casts an int to bool without spamming MSVC warning C4800.
-    return !!_finite(d);
-#else
-    return finite(d);
-#endif
-}
-
-#define VALIDATE(_f)  if (!DoubleIsFinite(_f)) return PR_FALSE
+#define VALIDATE(_f)  if (!JSDOUBLE_IS_FINITE(_f)) return PR_FALSE
 
 /* These must take doubles as args, because JSDOUBLE_IS_FINITE expects
  * to take the address of its argument; we can't cast/convert in the
@@ -205,41 +170,6 @@ static PRBool FloatValidate (double f1, double f2, double f3, double f4, double 
 }
 
 #undef VALIDATE
-
-/* Memory reporter stuff */
-static nsIMemoryReporter *gCanvasMemoryReporter = nsnull;
-static PRInt64 gCanvasMemoryUsed = 0;
-
-static PRInt64 GetCanvasMemoryUsed(void *) {
-    return gCanvasMemoryUsed;
-}
-
-NS_MEMORY_REPORTER_IMPLEMENT(CanvasMemory,
-                             "content/canvas/2d_pixel_bytes",
-                             "Total memory used by 2D canvas (width * height * 4)",
-                             GetCanvasMemoryUsed,
-                             NULL)
-
-static void
-CopyContext(gfxContext* dest, gfxContext* src)
-{
-    dest->Multiply(src->CurrentMatrix());
-
-    nsRefPtr<gfxPath> path = src->CopyPath();
-    dest->NewPath();
-    dest->AppendPath(path);
-
-    nsRefPtr<gfxPattern> pattern = src->GetPattern();
-    dest->SetPattern(pattern);
-
-    dest->SetLineWidth(src->CurrentLineWidth());
-    dest->SetLineCap(src->CurrentLineCap());
-    dest->SetLineJoin(src->CurrentLineJoin());
-    dest->SetMiterLimit(src->CurrentMiterLimit());
-    dest->SetFillRule(src->CurrentFillRule());
-
-    dest->SetAntialiasMode(src->CurrentAntialiasMode());
-}
 
 /**
  ** nsCanvasGradient
@@ -294,12 +224,10 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsCanvasGradient, NS_CANVASGRADIENT_PRIVATE_IID)
 NS_IMPL_ADDREF(nsCanvasGradient)
 NS_IMPL_RELEASE(nsCanvasGradient)
 
-DOMCI_DATA(CanvasGradient, nsCanvasGradient)
-
 NS_INTERFACE_MAP_BEGIN(nsCanvasGradient)
   NS_INTERFACE_MAP_ENTRY(nsCanvasGradient)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCanvasGradient)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CanvasGradient)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(CanvasGradient)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
@@ -342,12 +270,10 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsCanvasPattern, NS_CANVASPATTERN_PRIVATE_IID)
 NS_IMPL_ADDREF(nsCanvasPattern)
 NS_IMPL_RELEASE(nsCanvasPattern)
 
-DOMCI_DATA(CanvasPattern, nsCanvasPattern)
-
 NS_INTERFACE_MAP_BEGIN(nsCanvasPattern)
   NS_INTERFACE_MAP_ENTRY(nsCanvasPattern)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCanvasPattern)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CanvasPattern)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(CanvasPattern)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
@@ -381,12 +307,10 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsTextMetrics, NS_TEXTMETRICS_PRIVATE_IID)
 NS_IMPL_ADDREF(nsTextMetrics)
 NS_IMPL_RELEASE(nsTextMetrics)
 
-DOMCI_DATA(TextMetrics, nsTextMetrics)
-
 NS_INTERFACE_MAP_BEGIN(nsTextMetrics)
   NS_INTERFACE_MAP_ENTRY(nsTextMetrics)
   NS_INTERFACE_MAP_ENTRY(nsIDOMTextMetrics)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(TextMetrics)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(TextMetrics)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
@@ -406,7 +330,7 @@ public:
     nsresult Redraw();
 
     // nsICanvasRenderingContextInternal
-    NS_IMETHOD SetCanvasElement(nsHTMLCanvasElement* aParentCanvas);
+    NS_IMETHOD SetCanvasElement(nsICanvasElement* aParentCanvas);
     NS_IMETHOD SetDimensions(PRInt32 width, PRInt32 height);
     NS_IMETHOD InitializeWithSurface(nsIDocShell *shell, gfxASurface *surface, PRInt32 width, PRInt32 height);
     NS_IMETHOD Render(gfxContext *ctx, gfxPattern::GraphicsFilter aFilter);
@@ -415,23 +339,11 @@ public:
                               nsIInputStream **aStream);
     NS_IMETHOD GetThebesSurface(gfxASurface **surface);
     NS_IMETHOD SetIsOpaque(PRBool isOpaque);
-    already_AddRefed<CanvasLayer> GetCanvasLayer(LayerManager *manager);
-    void MarkContextClean();
-    NS_IMETHOD SetIsIPC(PRBool isIPC);
     // this rect is in CSS pixels
     NS_IMETHOD Redraw(const gfxRect &r);
-    // Swap this back buffer with the front, and copy its contents to the new back.
-    // x, y, w, and h specify the area of |back| that is dirty.
-    NS_IMETHOD Swap(mozilla::ipc::Shmem& back, PRInt32 x, PRInt32 y,
-                    PRInt32 w, PRInt32 h);
-    NS_IMETHOD Swap(PRUint32 nativeID, PRInt32 x, PRInt32 y,
-                    PRInt32 w, PRInt32 h);
- 
 
-    // nsISupports interface + CC
-    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-
-    NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsCanvasRenderingContext2D, nsIDOMCanvasRenderingContext2D)
+    // nsISupports interface
+    NS_DECL_ISUPPORTS
 
     // nsIDOMCanvasRenderingContext2D interface
     NS_DECL_NSIDOMCANVASRENDERINGCONTEXT2D
@@ -488,45 +400,19 @@ protected:
      */
     void EnsurePremultiplyTable();
 
-    /**
-     * Returns the image format this canvas should be allocated using. Takes
-     * into account mOpaque, platform requirements, etc.
-     */
-    gfxASurface::gfxImageFormat GetImageFormat() const;
-
-#ifdef MOZ_IPC
-    /**
-     * Sync data from mBackSurface to mSurface.
-     */
-    nsresult Swap(const gfxRect& aRect);
-#endif
-
     // Member vars
     PRInt32 mWidth, mHeight;
     PRPackedBool mValid;
     PRPackedBool mOpaque;
 
-#ifdef MOZ_IPC
-    PRPackedBool mIPC;
-
-    // We always have a front buffer. We hand the mBackSurface to the other
-    // process to render to,
-    // and then sync data from mBackSurface to mSurface when it finishes.
-    nsRefPtr<gfxASurface> mBackSurface;
-    // for rendering with NativeID protocol, we should track backbuffer ownership
-    PRPackedBool mIsBackSurfaceReadable;
-#endif
-
-    // the canvas element we're a context of
-    nsCOMPtr<nsIDOMHTMLCanvasElement> mCanvasElement;
-    nsHTMLCanvasElement *HTMLCanvasElement() {
-        return static_cast<nsHTMLCanvasElement*>(mCanvasElement.get());
-    }
+    // the canvas element informs us when it's going away,
+    // so these are not nsCOMPtrs
+    nsICanvasElement* mCanvasElement;
 
     // If mCanvasElement is not provided, then a docshell is
     nsCOMPtr<nsIDocShell> mDocShell;
 
-    // our drawing surfaces, contexts, and layers
+    // yay thebes
     nsRefPtr<gfxContext> mThebes;
     nsRefPtr<gfxASurface> mSurface;
 
@@ -621,11 +507,10 @@ protected:
      * Gets the pres shell from either the canvas element or the doc shell
      */
     nsIPresShell *GetPresShell() {
-      nsCOMPtr<nsIContent> content =
-        do_QueryInterface(static_cast<nsIDOMHTMLCanvasElement*>(mCanvasElement));
+      nsCOMPtr<nsIContent> content = do_QueryInterface(mCanvasElement);
       if (content) {
         nsIDocument* ownerDoc = content->GetOwnerDoc();
-        return ownerDoc ? ownerDoc->GetShell() : nsnull;
+        return ownerDoc ? ownerDoc->GetPrimaryShell() : nsnull;
       }
       if (mDocShell) {
         nsCOMPtr<nsIPresShell> shell;
@@ -780,24 +665,14 @@ protected:
     friend struct nsCanvasBidiProcessor;
 };
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsCanvasRenderingContext2D, nsIDOMCanvasRenderingContext2D)
-NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsCanvasRenderingContext2D, nsIDOMCanvasRenderingContext2D)
+NS_IMPL_ADDREF(nsCanvasRenderingContext2D)
+NS_IMPL_RELEASE(nsCanvasRenderingContext2D)
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsCanvasRenderingContext2D)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsCanvasRenderingContext2D)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCanvasElement)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsCanvasRenderingContext2D)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mCanvasElement)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-DOMCI_DATA(CanvasRenderingContext2D, nsCanvasRenderingContext2D)
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsCanvasRenderingContext2D)
+NS_INTERFACE_MAP_BEGIN(nsCanvasRenderingContext2D)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCanvasRenderingContext2D)
   NS_INTERFACE_MAP_ENTRY(nsICanvasRenderingContextInternal)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMCanvasRenderingContext2D)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CanvasRenderingContext2D)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(CanvasRenderingContext2D)
 NS_INTERFACE_MAP_END
 
 /**
@@ -822,13 +697,9 @@ NS_NewCanvasRenderingContext2D(nsIDOMCanvasRenderingContext2D** aResult)
 }
 
 nsCanvasRenderingContext2D::nsCanvasRenderingContext2D()
-    : mValid(PR_FALSE), mOpaque(PR_FALSE)
-#ifdef MOZ_IPC
-    , mIPC(PR_FALSE)
-#endif
-    , mCanvasElement(nsnull)
-    , mSaveCount(0), mIsEntireFrameInvalid(PR_FALSE), mInvalidateCount(0)
-    , mLastStyle(STYLE_MAX), mStyleStack(20)
+    : mValid(PR_FALSE), mOpaque(PR_FALSE), mCanvasElement(nsnull),
+      mSaveCount(0), mIsEntireFrameInvalid(PR_FALSE), mInvalidateCount(0),
+      mLastStyle(STYLE_MAX), mStyleStack(20)
 {
     sNumLivingContexts++;
 }
@@ -837,19 +708,10 @@ nsCanvasRenderingContext2D::~nsCanvasRenderingContext2D()
 {
     Destroy();
 
-#ifdef MOZ_IPC
-    ContentProcessParent* allocator = ContentProcessParent::GetSingleton(PR_FALSE);
-    if (allocator && gfxSharedImageSurface::IsSharedImage(mBackSurface)) {
-        Shmem mem = static_cast<gfxSharedImageSurface*>(mBackSurface.get())->GetShmem();
-        allocator->DeallocShmem(mem);
-    }
-    mBackSurface = nsnull;
-#endif
-
     sNumLivingContexts--;
     if (!sNumLivingContexts) {
-        delete[] sUnpremultiplyTable;
-        delete[] sPremultiplyTable;
+        delete sUnpremultiplyTable;
+        delete sPremultiplyTable;
         sUnpremultiplyTable = nsnull;
         sPremultiplyTable = nsnull;
     }
@@ -858,19 +720,6 @@ nsCanvasRenderingContext2D::~nsCanvasRenderingContext2D()
 void
 nsCanvasRenderingContext2D::Destroy()
 {
-#ifdef MOZ_IPC
-    ContentProcessParent* allocator = ContentProcessParent::GetSingleton(PR_FALSE);
-    if (allocator && gfxSharedImageSurface::IsSharedImage(mSurface)) {
-        Shmem &mem = static_cast<gfxSharedImageSurface*>(mSurface.get())->GetShmem();
-        allocator->DeallocShmem(mem);
-    }
-#endif
-
-    // only do this for non-docshell created contexts,
-    // since those are the ones that we created a surface for
-    if (mValid && !mDocShell)
-        gCanvasMemoryUsed -= mWidth * mHeight * 4;
-
     mSurface = nsnull;
     mThebes = nsnull;
     mValid = PR_FALSE;
@@ -1000,7 +849,7 @@ nsCanvasRenderingContext2D::ApplyStyle(Style aWhichStyle,
     nsCanvasPattern* pattern = CurrentState().patternStyles[aWhichStyle];
     if (pattern) {
         if (mCanvasElement)
-            CanvasUtils::DoDrawImageSecurityCheck(HTMLCanvasElement(),
+            CanvasUtils::DoDrawImageSecurityCheck(mCanvasElement,
                                                   pattern->Principal(),
                                                   pattern->GetForceWriteOnly());
 
@@ -1031,28 +880,21 @@ nsCanvasRenderingContext2D::ApplyStyle(Style aWhichStyle,
 nsresult
 nsCanvasRenderingContext2D::Redraw()
 {
-    if (!mCanvasElement) {
-        NS_ASSERTION(mDocShell, "Redraw with no canvas element or docshell!");
+    if (!mCanvasElement)
         return NS_OK;
-    }
 
     if (mIsEntireFrameInvalid)
         return NS_OK;
 
     mIsEntireFrameInvalid = PR_TRUE;
-
-    HTMLCanvasElement()->InvalidateFrame();
-
-    return NS_OK;
+    return mCanvasElement->InvalidateFrame();
 }
 
 NS_IMETHODIMP
 nsCanvasRenderingContext2D::Redraw(const gfxRect& r)
 {
-    if (!mCanvasElement) {
-        NS_ASSERTION(mDocShell, "Redraw with no canvas element or docshell!");
+    if (!mCanvasElement)
         return NS_OK;
-    }
 
     if (mIsEntireFrameInvalid)
         return NS_OK;
@@ -1060,9 +902,7 @@ nsCanvasRenderingContext2D::Redraw(const gfxRect& r)
     if (++mInvalidateCount > kCanvasMaxInvalidateCount)
         return Redraw();
 
-    HTMLCanvasElement()->InvalidateFrame(&r);
-
-    return NS_OK;
+    return mCanvasElement->InvalidateFrameSubrect(r);
 }
 
 NS_IMETHODIMP
@@ -1073,57 +913,18 @@ nsCanvasRenderingContext2D::SetDimensions(PRInt32 width, PRInt32 height)
     nsRefPtr<gfxASurface> surface;
 
     // Check that the dimensions are sane
-    gfxIntSize size(width, height);
-    if (gfxASurface::CheckSurfaceSize(size, 0xffff)) {
+    if (gfxASurface::CheckSurfaceSize(gfxIntSize(width, height), 0xffff)) {
+        gfxASurface::gfxImageFormat format = gfxASurface::ImageFormatARGB32;
+        if (mOpaque)
+            format = gfxASurface::ImageFormatRGB24;
 
-        gfxASurface::gfxImageFormat format = GetImageFormat();
+        surface = gfxPlatform::GetPlatform()->CreateOffscreenSurface
+            (gfxIntSize(width, height), format);
 
-        if (PR_GetEnv("MOZ_CANVAS_IMAGE_SURFACE")) {
-            surface = new gfxImageSurface(gfxIntSize(width, height), format);
-        } else {
-            surface = gfxPlatform::GetPlatform()->CreateOffscreenSurface
-                (gfxIntSize(width, height), format);
+        if (surface->CairoStatus() != 0) {
+          surface = NULL;
         }
-
-        if (surface && surface->CairoStatus() != 0)
-            surface = NULL;
-
-#ifdef MOZ_IPC
-        if (mIPC && surface) {
-#ifdef MOZ_X11
-            if (surface->GetType() == gfxASurface::SurfaceTypeXlib) {
-                mBackSurface =
-                    gfxPlatform::GetPlatform()->CreateOffscreenSurface(size, format);
-                NS_ABORT_IF_FALSE(mBackSurface->GetType() ==
-                                  gfxASurface::SurfaceTypeXlib, "need xlib surface");
-                mIsBackSurfaceReadable = PR_TRUE;
-                // Make sure that our XSurface created and synced properly
-                XSync(static_cast<gfxXlibSurface*>(mBackSurface.get())->XDisplay(), False);
-            } else
-#endif
-            {
-                if (surface->GetType() == gfxASurface::SurfaceTypeImage)
-                    format = static_cast<gfxImageSurface*>(surface.get())->Format();
-                SharedMemory::SharedMemoryType shmtype = SharedMemory::TYPE_BASIC;
-#ifdef MOZ_HAVE_SHAREDMEMORYSYSV
-                shmtype = SharedMemory::TYPE_SYSV;
-#endif
-                ContentProcessParent* allocator = ContentProcessParent::GetSingleton();
-                mBackSurface = new gfxSharedImageSurface();
-                static_cast<gfxSharedImageSurface*>(mBackSurface.get())->Init(allocator, size, format, shmtype);
-            }
-        }
-#endif
     }
-    if (surface) {
-        if (gCanvasMemoryReporter == nsnull) {
-            gCanvasMemoryReporter = new NS_MEMORY_REPORTER_NAME(CanvasMemory);
-            NS_RegisterMemoryReporter(gCanvasMemoryReporter);
-        }
-
-        gCanvasMemoryUsed += width * height * 4;
-    }
-
     return InitializeWithSurface(NULL, surface, width, height);
 }
 
@@ -1201,106 +1002,6 @@ nsCanvasRenderingContext2D::SetIsOpaque(PRBool isOpaque)
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::SetIsIPC(PRBool isIPC)
-{
-#ifdef MOZ_IPC
-    if (isIPC == mIPC)
-        return NS_OK;
-
-    mIPC = isIPC;
-
-    if (mValid) {
-        /* If we've already been created, let SetDimensions take care of
-         * recreating our surface
-         */
-        return SetDimensions(mWidth, mHeight);
-    }
-
-    return NS_OK;
-#else
-    return NS_ERROR_NOT_IMPLEMENTED;
-#endif
-}
-
-#ifdef MOZ_IPC
-nsresult
-nsCanvasRenderingContext2D::Swap(const gfxRect& aRect)
-{
-    gfxContextPathAutoSaveRestore pathSR(mThebes);
-    gfxContextAutoSaveRestore autoSR(mThebes);
-
-    mThebes->SetOperator(gfxContext::OPERATOR_SOURCE);
-    mThebes->NewPath();
-    mThebes->SetSource(mBackSurface);
-    mThebes->Rectangle(aRect, PR_TRUE);
-    mThebes->Clip();
-    mThebes->Paint();
-
-    Redraw(aRect);
-
-    // Notify listeners that we've finished drawing
-    nsCOMPtr<nsIContent> content =
-      do_QueryInterface(static_cast<nsIDOMHTMLCanvasElement*>(mCanvasElement));
-    nsIDocument* ownerDoc = nsnull;
-    if (content)
-        ownerDoc = content->GetOwnerDoc();
-
-    if (ownerDoc && mCanvasElement) {
-        nsContentUtils::DispatchTrustedEvent(ownerDoc,
-                                             static_cast<nsIDOMHTMLCanvasElement*>(mCanvasElement),
-                                             NS_LITERAL_STRING("MozAsyncCanvasRender"),
-                                             /* aCanBubble = */ PR_TRUE, 
-                                             /* aCancelable = */ PR_TRUE);
-    }
-    return NS_OK;
-}
-#endif
-
-NS_IMETHODIMP
-nsCanvasRenderingContext2D::Swap(mozilla::ipc::Shmem& aBack,
-                                 PRInt32 x, PRInt32 y, PRInt32 w, PRInt32 h)
-{
-#ifdef MOZ_IPC
-    if (!gfxSharedImageSurface::IsSharedImage(mBackSurface))
-        return NS_ERROR_FAILURE;
-
-    nsRefPtr<gfxSharedImageSurface> aBackImage = new gfxSharedImageSurface(aBack);
-    if (aBackImage->Data() != static_cast<gfxImageSurface*>(mBackSurface.get())->Data()) {
-        NS_ERROR("Incoming back surface is not equal to our back surface");
-        // Delete orphaned memory and return
-        ContentProcessParent* allocator = ContentProcessParent::GetSingleton(PR_FALSE);
-        if (allocator)
-            allocator->DeallocShmem(aBack);
-        return NS_ERROR_FAILURE;
-    }
-
-    Shmem& mem = static_cast<gfxSharedImageSurface*>(mBackSurface.get())->GetShmem();
-    if (mem.IsReadable())
-        NS_ERROR("Back surface readable before swap, this must not happen");
-
-    // Take mBackSurface shared memory ownership
-    mem = aBack;
-    return Swap(gfxRect(x, y, w, h));
-#else
-    return NS_ERROR_NOT_IMPLEMENTED;
-#endif
-}
-
-NS_IMETHODIMP
-nsCanvasRenderingContext2D::Swap(PRUint32 nativeID,
-                                 PRInt32 x, PRInt32 y, PRInt32 w, PRInt32 h)
-{
-#ifdef MOZ_IPC
-    if (mIsBackSurfaceReadable)
-        NS_ERROR("Back surface readable before swap, this must not happen");
-    mIsBackSurfaceReadable = PR_TRUE;
-    return Swap(gfxRect(x, y, w, h));
-#else
-    return NS_ERROR_NOT_IMPLEMENTED;
-#endif
-}
-
-NS_IMETHODIMP
 nsCanvasRenderingContext2D::Render(gfxContext *ctx, gfxPattern::GraphicsFilter aFilter)
 {
     nsresult rv = NS_OK;
@@ -1316,7 +1017,6 @@ nsCanvasRenderingContext2D::Render(gfxContext *ctx, gfxPattern::GraphicsFilter a
     nsRefPtr<gfxPattern> pat = new gfxPattern(mSurface);
 
     pat->SetFilter(aFilter);
-    pat->SetExtend(gfxPattern::EXTEND_PAD);
 
     gfxContext::GraphicsOperator op = ctx->CurrentOperator();
     if (mOpaque)
@@ -1391,24 +1091,14 @@ nsCanvasRenderingContext2D::GetInputStream(const char *aMimeType,
     return CallQueryInterface(encoder, aStream);
 }
 
-gfxASurface::gfxImageFormat
-nsCanvasRenderingContext2D::GetImageFormat() const
-{
-    gfxASurface::gfxImageFormat format = gfxASurface::ImageFormatARGB32;
-
-    if (mOpaque)
-        format = gfxASurface::ImageFormatRGB24;
-
-    return format;
-}
-
 //
 // nsCanvasRenderingContext2D impl
 //
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::SetCanvasElement(nsHTMLCanvasElement* aCanvasElement)
+nsCanvasRenderingContext2D::SetCanvasElement(nsICanvasElement* aCanvasElement)
 {
+    // don't hold a ref to this!
     mCanvasElement = aCanvasElement;
 
     return NS_OK;
@@ -1417,9 +1107,12 @@ nsCanvasRenderingContext2D::SetCanvasElement(nsHTMLCanvasElement* aCanvasElement
 NS_IMETHODIMP
 nsCanvasRenderingContext2D::GetCanvas(nsIDOMHTMLCanvasElement **canvas)
 {
-    NS_IF_ADDREF(*canvas = mCanvasElement);
+    if (mCanvasElement == nsnull) {
+        *canvas = nsnull;
+        return NS_OK;
+    }
 
-    return NS_OK;
+    return CallQueryInterface(mCanvasElement, canvas);
 }
 
 //
@@ -1557,8 +1250,6 @@ nsCanvasRenderingContext2D::SetStrokeStyle(nsIVariant *aValue)
         nsCOMPtr<nsISupports> sup;
         rv = aValue->GetAsInterface(&iid, getter_AddRefs(sup));
         NS_ENSURE_SUCCESS(rv, rv);
-        if (iid)
-            NS_Free(iid);
 
         str.SetIsVoid(PR_TRUE);
         return SetStrokeStyle_multi(str, sup);
@@ -1845,6 +1536,27 @@ nsCanvasRenderingContext2D::GetShadowColor(nsAString& color)
     return NS_OK;
 }
 
+static void
+CopyContext(gfxContext* dest, gfxContext* src)
+{
+    dest->Multiply(src->CurrentMatrix());
+
+    nsRefPtr<gfxPath> path = src->CopyPath();
+    dest->NewPath();
+    dest->AppendPath(path);
+
+    nsRefPtr<gfxPattern> pattern = src->GetPattern();
+    dest->SetPattern(pattern);
+
+    dest->SetLineWidth(src->CurrentLineWidth());
+    dest->SetLineCap(src->CurrentLineCap());
+    dest->SetLineJoin(src->CurrentLineJoin());
+    dest->SetMiterLimit(src->CurrentMiterLimit());
+    dest->SetFillRule(src->CurrentFillRule());
+
+    dest->SetAntialiasMode(src->CurrentAntialiasMode());
+}
+
 static const gfxFloat SIGMA_MAX = 25;
 
 gfxContext*
@@ -1872,7 +1584,7 @@ nsCanvasRenderingContext2D::ShadowInitialize(const gfxRect& extents, gfxAlphaBox
                        blurRadius.height, blurRadius.width);
     drawExtents = drawExtents.Intersect(clipExtents - CurrentState().shadowOffset);
 
-    gfxContext* ctx = blur.Init(drawExtents, blurRadius, nsnull, nsnull);
+    gfxContext* ctx = blur.Init(drawExtents, blurRadius, nsnull);
 
     if (!ctx)
         return nsnull;
@@ -2254,7 +1966,7 @@ CreateFontStyleRule(const nsAString& aFont,
     nsIPrincipal* principal = aNode->NodePrincipal();
     nsIDocument* document = aNode->GetOwnerDoc();
     nsIURI* docURL = document->GetDocumentURI();
-    nsIURI* baseURL = document->GetDocBaseURI();
+    nsIURI* baseURL = document->GetBaseURI();
 
     nsresult rv = parser.ParseStyleAttribute(styleAttr, docURL, baseURL,
                                              principal, aResult);
@@ -2306,8 +2018,8 @@ nsCanvasRenderingContext2D::SetFont(const nsAString& font)
 
     if (content && content->IsInDoc()) {
         // inherit from the canvas element
-        parentContext = nsComputedDOMStyle::GetStyleContextForElement(
-                content->AsElement(),
+        parentContext = nsComputedDOMStyle::GetStyleContextForContent(
+                content,
                 nsnull,
                 presShell);
     } else {
@@ -2320,14 +2032,19 @@ nsCanvasRenderingContext2D::SetFont(const nsAString& font)
             return rv;
         nsCOMArray<nsIStyleRule> parentRules;
         parentRules.AppendObject(parentRule);
-        parentContext = styleSet->ResolveStyleForRules(nsnull, parentRules);
+        parentContext =
+            styleSet->ResolveStyleForRules(nsnull, nsnull,
+                                           nsCSSPseudoElements::ePseudo_NotPseudoElement,
+                                           nsnull, parentRules);
     }
 
     if (!parentContext)
         return NS_ERROR_FAILURE;
 
     nsRefPtr<nsStyleContext> sc =
-        styleSet->ResolveStyleForRules(parentContext, rules);
+        styleSet->ResolveStyleForRules(parentContext, nsnull,
+                                       nsCSSPseudoElements::ePseudo_NotPseudoElement,
+                                       nsnull, rules);
     if (!sc)
         return NS_ERROR_FAILURE;
     const nsStyleFont* fontStyle = sc->GetStyleFont();
@@ -2350,7 +2067,7 @@ nsCanvasRenderingContext2D::SetFont(const nsAString& font)
     gfxFontStyle style(fontStyle->mFont.style,
                        fontStyle->mFont.weight,
                        fontStyle->mFont.stretch,
-                       NSAppUnitsToFloatPixels(fontSize, float(aupcp)),
+                       NSAppUnitsToFloatPixels(fontSize, aupcp),
                        language,
                        fontStyle->mFont.sizeAdjust,
                        fontStyle->mFont.systemFont,
@@ -2657,7 +2374,7 @@ nsCanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
     if (content && content->IsInDoc()) {
         // try to find the closest context
         nsRefPtr<nsStyleContext> canvasStyle =
-            nsComputedDOMStyle::GetStyleContextForElement(content->AsElement(),
+            nsComputedDOMStyle::GetStyleContextForContent(content,
                                                           nsnull,
                                                           presShell);
         if (!canvasStyle)
@@ -3331,10 +3048,8 @@ nsCanvasRenderingContext2D::DrawImage(nsIDOMElement *imgElt, float a1,
     PRUint32 sfeFlags = nsLayoutUtils::SFE_WANT_FIRST_FRAME;
     nsLayoutUtils::SurfaceFromElementResult res =
         nsLayoutUtils::SurfaceFromElement(imgElt, sfeFlags);
-    if (!res.mSurface) {
-        // Spec says to silently do nothing if the element is still loading.
-        return res.mIsStillLoading ? NS_OK : NS_ERROR_NOT_AVAILABLE;
-    }
+    if (!res.mSurface)
+        return NS_ERROR_NOT_AVAILABLE;
 
 #ifndef WINCE
     // On non-CE, force a copy if we're using drawImage with our destination
@@ -3353,7 +3068,7 @@ nsCanvasRenderingContext2D::DrawImage(nsIDOMElement *imgElt, float a1,
     PRBool forceWriteOnly = res.mIsWriteOnly;
 
     if (mCanvasElement)
-        CanvasUtils::DoDrawImageSecurityCheck(HTMLCanvasElement(), principal, forceWriteOnly);
+        CanvasUtils::DoDrawImageSecurityCheck(mCanvasElement, principal, forceWriteOnly);
 
     gfxContextPathAutoSaveRestore pathSR(mThebes, PR_FALSE);
 
@@ -3615,8 +3330,7 @@ nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, float aX, float aY
 
     // protect against too-large surfaces that will cause allocation
     // or overflow issues
-    if (!gfxASurface::CheckSurfaceSize(gfxIntSize(PRInt32(aW), PRInt32(aH)),
-                                       0xffff))
+    if (!gfxASurface::CheckSurfaceSize(gfxIntSize(aW, aH), 0xffff))
         return NS_ERROR_FAILURE;
 
     // We can't allow web apps to call this until we fix at least the
@@ -3635,7 +3349,7 @@ nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, float aX, float aY
     if (!(flags & nsIDOMCanvasRenderingContext2D::DRAWWINDOW_DO_NOT_FLUSH))
         FlushLayoutForTree(aWindow);
 
-    nsRefPtr<nsPresContext> presContext;
+    nsCOMPtr<nsPresContext> presContext;
     nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aWindow);
     if (win) {
         nsIDocShell* docshell = win->GetDocShell();
@@ -3716,7 +3430,7 @@ nsCanvasRenderingContext2D::AsyncDrawXULElement(nsIDOMXULElement* aElem, float a
         return NS_ERROR_FAILURE;
 
 #ifdef MOZ_IPC
-    PIFrameEmbeddingParent *child = frameloader->GetChildProcess();
+    mozilla::dom::PIFrameEmbeddingParent *child = frameloader->GetChildProcess();
     if (!child) {
         nsCOMPtr<nsIDOMWindow> window =
             do_GetInterface(frameloader->GetExistingDocShell());
@@ -3747,65 +3461,11 @@ nsCanvasRenderingContext2D::AsyncDrawXULElement(nsIDOMXULElement* aElem, float a
             w = nsPresContext::CSSPixelsToAppUnits(aW),
             h = nsPresContext::CSSPixelsToAppUnits(aH);
 
-    if (mIPC) {
-#ifdef MOZ_X11
-        if (mBackSurface &&
-				    mBackSurface->GetType() == gfxASurface::SurfaceTypeXlib) {
+    mozilla::ipc::PDocumentRendererParent *pdocrender =
+        child->SendPDocumentRendererConstructor(x, y, w, h, nsString(aBGColor), renderDocFlags, flush);
+    mozilla::ipc::DocumentRendererParent *docrender = static_cast<mozilla::ipc::DocumentRendererParent *>(pdocrender);
 
-            if (!mIsBackSurfaceReadable)
-                return NS_ERROR_FAILURE;
-
-            PRInt32 nativeID = static_cast<gfxXlibSurface*>(mBackSurface.get())->XDrawable();
-            mIsBackSurfaceReadable = PR_FALSE;
-            PDocumentRendererNativeIDParent* pdocrender =
-                child->SendPDocumentRendererNativeIDConstructor(x, y, w, h,
-                                                                nsString(aBGColor),
-                                                                renderDocFlags, flush,
-                                                                mThebes->CurrentMatrix(),
-                                                                nativeID);
-            if (!pdocrender)
-                return NS_ERROR_FAILURE;
-
-            DocumentRendererNativeIDParent* docrender =
-                static_cast<DocumentRendererNativeIDParent *>(pdocrender);
-
-            docrender->SetCanvas(this);
-        }
-        else
-#endif
-        if (gfxSharedImageSurface::IsSharedImage(mBackSurface)) {
-            Shmem& backmem = static_cast<gfxSharedImageSurface*>(mBackSurface.get())->GetShmem();
-            if (!backmem.IsWritable())
-                return NS_ERROR_FAILURE;
-            PDocumentRendererShmemParent* pdocrender =
-                child->SendPDocumentRendererShmemConstructor(x, y, w, h,
-                                                             nsString(aBGColor),
-                                                             renderDocFlags, flush,
-                                                             mThebes->CurrentMatrix(),
-                                                             backmem);
-
-            if (!pdocrender)
-                return NS_ERROR_FAILURE;
-
-            DocumentRendererShmemParent* docrender =
-                static_cast<DocumentRendererShmemParent*>(pdocrender);
-
-            docrender->SetCanvas(this);
-        } else
-            return NS_ERROR_FAILURE;
-    } else {
-        PDocumentRendererParent *pdocrender =
-            child->SendPDocumentRendererConstructor(x, y, w, h,
-                                                    nsString(aBGColor),
-                                                    renderDocFlags, flush);
-        if (!pdocrender)
-            return NS_ERROR_FAILURE;
-
-        DocumentRendererParent *docrender =
-            static_cast<DocumentRendererParent *>(pdocrender);
-
-        docrender->SetCanvasContext(this, mThebes);
-    }
+    docrender->SetCanvasContext(this, mThebes);
 
     return NS_OK;
 #else
@@ -3871,17 +3531,7 @@ nsCanvasRenderingContext2D::GetImageData_explicit(PRInt32 x, PRInt32 y, PRUint32
     if (!mValid)
         return NS_ERROR_FAILURE;
 
-    if (!mCanvasElement && !mDocShell) {
-        NS_ERROR("No canvas element and no docshell in GetImageData!!!");
-        return NS_ERROR_DOM_SECURITY_ERR;
-    }
-
-    // Check only if we have a canvas element; if we were created with a docshell,
-    // then it's special internal use.
-    if (mCanvasElement &&
-        HTMLCanvasElement()->IsWriteOnly() &&
-        !nsContentUtils::IsCallerTrustedForRead())
-    {
+    if (mCanvasElement && mCanvasElement->IsWriteOnly() && !nsContentUtils::IsCallerTrustedForRead()) {
         // XXX ERRMSG we need to report an error to developers here! (bug 329026)
         return NS_ERROR_DOM_SECURITY_ERR;
     }
@@ -4072,34 +3722,3 @@ nsCanvasRenderingContext2D::SetMozImageSmoothingEnabled(PRBool val)
 
     return NS_OK;
 }
-
-already_AddRefed<CanvasLayer>
-nsCanvasRenderingContext2D::GetCanvasLayer(LayerManager *manager)
-{
-    if (!mValid)
-        return nsnull;
-
-    nsRefPtr<CanvasLayer> canvasLayer = manager->CreateCanvasLayer();
-    if (!canvasLayer) {
-        NS_WARNING("CreateCanvasLayer returned null!");
-        return nsnull;
-    }
-
-    CanvasLayer::Data data;
-
-    data.mSurface = mSurface.get();
-    data.mSize = nsIntSize(mWidth, mHeight);
-
-    canvasLayer->Initialize(data);
-    canvasLayer->SetIsOpaqueContent(mOpaque);
-    canvasLayer->Updated(nsIntRect(0, 0, mWidth, mHeight));
-
-    return canvasLayer.forget().get();
-}
-
-void
-nsCanvasRenderingContext2D::MarkContextClean()
-{
-    mIsEntireFrameInvalid = PR_FALSE;
-}
-

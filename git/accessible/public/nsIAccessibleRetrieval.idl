@@ -56,14 +56,9 @@ interface nsIDOMDOMStringList;
  *
  * @status UNDER_REVIEW
  */
-[scriptable, uuid(420f0f49-27c1-4ac1-b509-5aba4353909b)]
+[scriptable, uuid(5f5a6f98-835d-4771-8bfe-a0c7cdc85fec)]
 interface nsIAccessibleRetrieval : nsISupports
 {
-  /**
-   * Return application accessible.
-   */
-  nsIAccessible getApplicationAccessible();
-
   /**
    * Return an nsIAccessible for a DOM node in pres shell 0.
    * Create a new accessible of the appropriate type if necessary,
@@ -97,6 +92,16 @@ interface nsIAccessibleRetrieval : nsISupports
    */
   nsIDOMNode getRelevantContentNodeFor(in nsIDOMNode aNode);
 
+  /**
+   * Return an nsIAccessible for a DOM node in the given pres shell.
+   * Create a new accessible of the appropriate type if necessary,
+   * or use one from the accessibility cache if it already exists.
+   * @param aNode      The DOM node to get an accessible for.
+   * @param aPresShell The presentation shell which contains layout info for the DOM node.
+   * @return The nsIAccessible for the given DOM node.
+   */
+  nsIAccessible getAccessibleInShell(in nsIDOMNode aNode, in nsIPresShell aPresShell);
+
    /**
     * Returns accessible role as a string.
     *
@@ -128,16 +133,6 @@ interface nsIAccessibleRetrieval : nsISupports
    * @return - accessible relation type presented as human readable string
    */
   AString getStringRelationType(in unsigned long aRelationType);
-
-  /**
-   * Return an accessible for the given DOM node from the cache.
-   * @note  the method is intended for testing purposes
-   *
-   * @param aNode  [in] the DOM node to get an accessible for
-   *
-   * @return       cached accessible for the given DOM node if any
-   */
-  nsIAccessible getAccessibleFromCache(in nsIDOMNode aNode);
 };
 
 

@@ -49,16 +49,13 @@ EXPORTS_NAMESPACES = mozilla/ipc
 
 EXPORTS		= \
 		nsICanvasRenderingContextInternal.h \
-		nsICanvasElementExternal.h \
+		nsICanvasElement.h \
+		WebGLArray.h \
 		$(NULL)
 
 EXPORTS_mozilla/ipc = \
 		DocumentRendererChild.h \
 		DocumentRendererParent.h \
-		DocumentRendererShmemChild.h \
-		DocumentRendererShmemParent.h \
-		DocumentRendererNativeIDChild.h \
-		DocumentRendererNativeIDParent.h \
 		$(NULL)
 
 XPIDLSRCS	= \

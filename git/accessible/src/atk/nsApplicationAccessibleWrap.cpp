@@ -437,7 +437,7 @@ mai_util_remove_key_event_listener (guint remove_listener)
 AtkObject *
 mai_util_get_root(void)
 {
-    if (nsAccessibilityService::IsShutdown()) {
+    if (nsAccessibilityService::gIsShutdown) {
         // We've shutdown, try to use gail instead
         // (to avoid assert in spi_atk_tidy_windows())
         if (gail_get_root)
@@ -446,11 +446,11 @@ mai_util_get_root(void)
         return nsnull;
     }
 
-    nsApplicationAccessible *applicationAcc =
+    nsRefPtr<nsApplicationAccessibleWrap> root =
         nsAccessNode::GetApplicationAccessible();
 
-    if (applicationAcc)
-        return applicationAcc->GetAtkObject();
+    if (root)
+        return root->GetAtkObject();
 
     return nsnull;
 }
@@ -532,7 +532,7 @@ nsApplicationAccessibleWrap::~nsApplicationAccessibleWrap()
     nsAccessibleWrap::ShutdownAtkObject();
 }
 
-PRBool
+nsresult
 nsApplicationAccessibleWrap::Init()
 {
     // XXX following code is copied from widget/src/gtk2/nsWindow.cpp
@@ -653,13 +653,16 @@ gboolean fireRootAccessibleAddedCB(gpointer data)
     return FALSE;
 }
 
-PRBool
-nsApplicationAccessibleWrap::AppendChild(nsAccessible *aChild)
+nsresult
+nsApplicationAccessibleWrap::AddRootAccessible(nsIAccessible *aRootAccWrap)
 {
-    if (!nsApplicationAccessible::AppendChild(aChild))
-      return PR_FALSE;
+    NS_ENSURE_ARG_POINTER(aRootAccWrap);
 
-    AtkObject *atkAccessible = nsAccessibleWrap::GetAtkObject(aChild);
+    // add by weak reference
+    nsresult rv = nsApplicationAccessible::AddRootAccessible(aRootAccWrap);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    AtkObject *atkAccessible = nsAccessibleWrap::GetAtkObject(aRootAccWrap);
     atk_object_set_parent(atkAccessible, mAtkObject);
 
     PRUint32 count = mChildren.Length();
@@ -677,20 +680,22 @@ nsApplicationAccessibleWrap::AppendChild(nsAccessible *aChild)
       g_timeout_add(0, fireRootAccessibleAddedCB, eventData);
     }
 
-    return PR_TRUE;
+    return NS_OK;
 }
 
-PRBool
-nsApplicationAccessibleWrap::RemoveChild(nsAccessible* aChild)
+nsresult
+nsApplicationAccessibleWrap::RemoveRootAccessible(nsIAccessible *aRootAccWrap)
 {
-    PRInt32 index = aChild->GetIndexInParent();
+    NS_ENSURE_ARG_POINTER(aRootAccWrap);
 
-    AtkObject *atkAccessible = nsAccessibleWrap::GetAtkObject(aChild);
+    PRInt32 index = mChildren.IndexOf(aRootAccWrap);
+
+    AtkObject *atkAccessible = nsAccessibleWrap::GetAtkObject(aRootAccWrap);
     atk_object_set_parent(atkAccessible, NULL);
     g_signal_emit_by_name(mAtkObject, "children_changed::remove", index,
                           atkAccessible, NULL);
 
-    return nsApplicationAccessible::RemoveChild(aChild);
+    return nsApplicationAccessible::RemoveRootAccessible(aRootAccWrap);
 }
 
 void

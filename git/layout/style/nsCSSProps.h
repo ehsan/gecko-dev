@@ -245,6 +245,7 @@ public:
   static const PRInt32 kAppearanceKTable[];
   static const PRInt32 kAzimuthKTable[];
   static const PRInt32 kBackgroundAttachmentKTable[];
+  static const PRInt32 kBackgroundClipKTable[];
   static const PRInt32 kBackgroundInlinePolicyKTable[];
   static const PRInt32 kBackgroundOriginKTable[];
   static const PRInt32 kBackgroundPositionKTable[];
@@ -305,7 +306,6 @@ public:
   static const PRInt32 kPositionKTable[];
   static const PRInt32 kRadialGradientShapeKTable[];
   static const PRInt32 kRadialGradientSizeKTable[];
-  static const PRInt32 kResizeKTable[];
   static const PRInt32 kSpeakKTable[];
   static const PRInt32 kSpeakHeaderKTable[];
   static const PRInt32 kSpeakNumeralKTable[];

@@ -77,34 +77,30 @@ class nsIXULPrototypeScript;
 struct JSObject;
 struct PRLogModuleInfo;
 
-class nsRefMapEntry : public nsStringHashKey
+class nsRefMapEntry : public nsISupportsHashKey
 {
 public:
-  nsRefMapEntry(const nsAString& aKey) :
-    nsStringHashKey(&aKey)
-  {
-  }
-  nsRefMapEntry(const nsAString *aKey) :
-    nsStringHashKey(aKey)
+  nsRefMapEntry(const nsISupports* aKey) :
+    nsISupportsHashKey(aKey)
   {
   }
   nsRefMapEntry(const nsRefMapEntry& aOther) :
-    nsStringHashKey(&aOther.GetKey())
+    nsISupportsHashKey(GetKey())
   {
     NS_ERROR("Should never be called");
   }
 
-  mozilla::dom::Element* GetFirstElement();
+  nsIContent* GetFirstContent();
   void AppendAll(nsCOMArray<nsIContent>* aElements);
   /**
-   * @return true if aElement was added, false if we failed due to OOM
+   * @return true if aContent was added, false if we failed due to OOM
    */
-  PRBool AddElement(mozilla::dom::Element* aElement);
+  PRBool AddContent(nsIContent* aContent);
   /**
-   * @return true if aElement was removed and it was the last content for
+   * @return true if aContent was removed and it was the last content for
    * this ref, so this entry should be removed from the map
    */
-  PRBool RemoveElement(mozilla::dom::Element* aElement);
+  PRBool RemoveContent(nsIContent* aContent);
 
 private:
   nsSmallVoidArray mRefContentList;
@@ -152,12 +148,13 @@ public:
     NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTEWILLCHANGE
 
     // nsIXULDocument interface
-    virtual void GetElementsForID(const nsAString& aID,
-                                  nsCOMArray<nsIContent>& aElements);
+    NS_IMETHOD AddElementForID(nsIContent* aElement);
+    NS_IMETHOD GetElementsForID(const nsAString& aID,
+                                nsCOMArray<nsIContent>& aElements);
 
     NS_IMETHOD GetScriptGlobalObjectOwner(nsIScriptGlobalObjectOwner** aGlobalOwner);
-    NS_IMETHOD AddSubtreeToDocument(nsIContent* aContent);
-    NS_IMETHOD RemoveSubtreeFromDocument(nsIContent* aContent);
+    NS_IMETHOD AddSubtreeToDocument(nsIContent* aElement);
+    NS_IMETHOD RemoveSubtreeFromDocument(nsIContent* aElement);
     NS_IMETHOD SetTemplateBuilderFor(nsIContent* aContent,
                                      nsIXULTemplateBuilder* aBuilder);
     NS_IMETHOD GetTemplateBuilderFor(nsIContent* aContent,
@@ -168,12 +165,9 @@ public:
     // nsIDOMNode interface overrides
     NS_IMETHOD CloneNode(PRBool deep, nsIDOMNode **_retval);
 
-    // nsDocument interface overrides
-    NS_IMETHOD GetElementById(const nsAString& aId, nsIDOMElement** aReturn)
-    {
-        return nsDocument::GetElementById(aId, aReturn);
-    }
-    virtual mozilla::dom::Element* GetElementById(const nsAString & elementId);
+    // nsIDOMDocument interface overrides
+    NS_IMETHOD GetElementById(const nsAString & elementId,
+                              nsIDOMElement **_retval); 
 
     // nsIDOMXULDocument interface
     NS_DECL_NSIDOMXULDOCUMENT
@@ -182,7 +176,7 @@ public:
     NS_IMETHOD GetContentType(nsAString& aContentType);
 
     // nsICSSLoaderObserver
-    NS_IMETHOD StyleSheetLoaded(nsCSSStyleSheet* aSheet,
+    NS_IMETHOD StyleSheetLoaded(nsICSSStyleSheet* aSheet,
                                 PRBool aWasAlternate,
                                 nsresult aStatus);
 
@@ -190,7 +184,7 @@ public:
 
     virtual PRBool IsDocumentRightToLeft();
 
-    virtual void ResetDocumentDirection();
+    virtual void ResetDocumentDirection() { mDocDirection = Direction_Uninitialized; }
 
     virtual int GetDocumentLWTheme();
 
@@ -213,9 +207,9 @@ protected:
     nsresult StartLayout(void);
 
     nsresult
-    AddElementToRefMap(mozilla::dom::Element* aElement);
+    AddElementToRefMap(nsIContent* aElement);
     void
-    RemoveElementFromRefMap(mozilla::dom::Element* aElement);
+    RemoveElementFromRefMap(nsIContent* aElement);
 
     nsresult GetViewportSize(PRInt32* aWidth, PRInt32* aHeight);
 
@@ -241,10 +235,10 @@ protected:
                                                  nsCOMArray<nsIContent>& aElements);
 
     nsresult
-    AddElementToDocumentPre(mozilla::dom::Element* aElement);
+    AddElementToDocumentPre(nsIContent* aElement);
 
     nsresult
-    AddElementToDocumentPost(mozilla::dom::Element* aElement);
+    AddElementToDocumentPost(nsIContent* aElement);
 
     nsresult
     ExecuteOnBroadcastHandlerFor(nsIContent* aBroadcaster,
@@ -310,7 +304,7 @@ protected:
      * An array of style sheets, that will be added (preserving order) to the
      * document after all of them are loaded (in DoneWalking).
      */
-    nsTArray<nsRefPtr<nsCSSStyleSheet> > mOverlaySheets;
+    nsCOMArray<nsICSSStyleSheet> mOverlaySheets;
 
     nsCOMPtr<nsIDOMXULCommandDispatcher>     mCommandDispatcher; // [OWNER] of the focus tracker
 
@@ -334,6 +328,17 @@ protected:
      */
 
     nsCOMPtr<nsIDOMNode>    mTooltipNode;          // [OWNER] element triggering the tooltip
+
+    /**
+     * document direction for use with the -moz-locale-dir property
+     */
+    enum DocumentDirection {
+      Direction_Uninitialized, // not determined yet
+      Direction_LeftToRight,
+      Direction_RightToLeft
+    };
+
+    DocumentDirection               mDocDirection;
 
     /**
      * document lightweight theme for use with :-moz-lwtheme, :-moz-lwtheme-brighttext
@@ -415,14 +420,13 @@ protected:
      * Note that the resulting content node is not bound to any tree
      */
     nsresult CreateElementFromPrototype(nsXULPrototypeElement* aPrototype,
-                                        mozilla::dom::Element** aResult);
+                                        nsIContent** aResult);
 
     /**
      * Create a hook-up element to which content nodes can be attached for
      * later resolution.
      */
-    nsresult CreateOverlayElement(nsXULPrototypeElement* aPrototype,
-                                  mozilla::dom::Element** aResult);
+    nsresult CreateOverlayElement(nsXULPrototypeElement* aPrototype, nsIContent** aResult);
 
     /**
      * Add attributes from the prototype to the element.
@@ -491,12 +495,12 @@ protected:
     {
     protected:
         nsXULDocument* mDocument;              // [WEAK]
-        nsCOMPtr<mozilla::dom::Element> mObservesElement; // [OWNER]
+        nsCOMPtr<nsIContent> mObservesElement; // [OWNER]
         PRBool mResolved;
 
     public:
         BroadcasterHookup(nsXULDocument* aDocument,
-                          mozilla::dom::Element* aObservesElement)
+                          nsIContent* aObservesElement)
             : mDocument(aDocument),
               mObservesElement(aObservesElement),
               mResolved(PR_FALSE)
@@ -556,14 +560,14 @@ protected:
     // values of the out params should not be relied on (though *aListener and
     // *aBroadcaster do need to be released if non-null, of course).
     nsresult
-    FindBroadcaster(mozilla::dom::Element* aElement,
+    FindBroadcaster(nsIContent* aElement,
                     nsIDOMElement** aListener,
                     nsString& aBroadcasterID,
                     nsString& aAttribute,
                     nsIDOMElement** aBroadcaster);
 
     nsresult
-    CheckBroadcasterHookup(mozilla::dom::Element* aElement,
+    CheckBroadcasterHookup(nsIContent* aElement,
                            PRBool* aNeedsHookup,
                            PRBool* aDidResolve);
 

@@ -47,24 +47,16 @@ function test() {
   let tab = gBrowser.addTab(testURL);
   tab.linkedBrowser.addEventListener("load", function(aEvent) {
     this.removeEventListener("load", arguments.callee, true);
-
-    let expectedValue = "try to save me";
-    // Since bug 537289 we only save non-default values, so we need to set each
-    // form field's value after load.
-    let formEls = aEvent.originalTarget.forms[0].elements;
-    for (let i = 0; i < formEls.length; i++)
-      formEls[i].value = expectedValue;
-
     gBrowser.removeTab(tab);
     
     let ss = Cc["@mozilla.org/browser/sessionstore;1"]
                .getService(Ci.nsISessionStore);
-    let undoItems = JSON.parse(ss.getClosedTabData(window));
+    let undoItems = eval("(" + ss.getClosedTabData(window) + ")");
     let savedFormData = undoItems[0].state.entries[0].formdata;
     
     let countGood = 0, countBad = 0;
     for each (let value in savedFormData) {
-      if (value == expectedValue)
+      if (value == "save me")
         countGood++;
       else
         countBad++;

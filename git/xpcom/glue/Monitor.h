@@ -233,7 +233,7 @@ public:
 
     nsresult NotifyAll()
     {
-        return mMonitor->NotifyAll();
+        return mMonitor->Notify();
     }
 
 private:

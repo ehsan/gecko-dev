@@ -53,21 +53,21 @@ public:
   NS_DECL_ISUPPORTS
 
   nsresult Init(nsIURI* aURL, nsIDocument* aDocument);
-  void Reset(nsIURI* aURL);
+  nsresult Reset(nsIURI* aURL);
 
   // nsIStyleSheet
-  virtual nsIURI* GetSheetURI() const;
-  virtual nsIURI* GetBaseURI() const;
-  virtual void GetTitle(nsString& aTitle) const;
-  virtual void GetType(nsString& aType) const;
-  virtual PRBool HasRules() const;
-  virtual PRBool IsApplicable() const;
-  virtual void SetEnabled(PRBool aEnabled);
-  virtual PRBool IsComplete() const;
-  virtual void SetComplete();
-  virtual nsIStyleSheet* GetParentSheet() const;  // will be null
-  virtual nsIDocument* GetOwningDocument() const;
-  virtual void SetOwningDocument(nsIDocument* aDocument);
+  NS_IMETHOD GetSheetURI(nsIURI** aSheetURL) const;
+  NS_IMETHOD GetBaseURI(nsIURI** aBaseURL) const;
+  NS_IMETHOD GetTitle(nsString& aTitle) const;
+  NS_IMETHOD GetType(nsString& aType) const;
+  NS_IMETHOD_(PRBool) HasRules() const;
+  NS_IMETHOD GetApplicable(PRBool& aApplicable) const;
+  NS_IMETHOD SetEnabled(PRBool aEnabled);
+  NS_IMETHOD GetComplete(PRBool& aComplete) const;
+  NS_IMETHOD SetComplete();
+  NS_IMETHOD GetParentSheet(nsIStyleSheet*& aParent) const;  // will be null
+  NS_IMETHOD GetOwningDocument(nsIDocument*& aDocument) const;
+  NS_IMETHOD SetOwningDocument(nsIDocument* aDocument);
 #ifdef DEBUG
   virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
@@ -79,9 +79,9 @@ public:
 #ifdef MOZ_XUL
   NS_IMETHOD RulesMatching(XULTreeRuleProcessorData* aData);
 #endif
-  virtual nsRestyleHint HasStateDependentStyle(StateRuleProcessorData* aData);
+  virtual nsReStyleHint HasStateDependentStyle(StateRuleProcessorData* aData);
   virtual PRBool HasDocumentStateDependentStyle(StateRuleProcessorData* aData);
-  virtual nsRestyleHint
+  virtual nsReStyleHint
     HasAttributeDependentStyle(AttributeRuleProcessorData* aData);
   NS_IMETHOD MediumFeaturesChanged(nsPresContext* aPresContext,
                                   PRBool* aResult);
@@ -92,8 +92,11 @@ private:
   nsHTMLCSSStyleSheet& operator=(const nsHTMLCSSStyleSheet& aCopy); 
 
 protected:
-  nsCOMPtr<nsIURI> mURL;
-  nsIDocument*     mDocument;
+  virtual ~nsHTMLCSSStyleSheet();
+
+protected:
+  nsIURI*         mURL;
+  nsIDocument*    mDocument;
 };
 
 #endif /* !defined(nsHTMLCSSStyleSheet_h_) */

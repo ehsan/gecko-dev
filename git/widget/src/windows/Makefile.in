@@ -64,6 +64,7 @@ CPPSRCS		= \
 	nsSound.cpp \
 	nsIMM32Handler.cpp \
 	WindowHook.cpp \
+	nsAccelerometerWin.cpp \
 	WinTaskbar.cpp \
 	TaskbarPreview.cpp \
 	TaskbarTabPreview.cpp \
@@ -106,10 +107,6 @@ endif
 
 
 DEFINES		+= -D_IMPL_NS_WIDGET -DMOZ_UNICODE 
-
-ifdef MOZ_ENABLE_D3D9_LAYER
-DEFINES		+= -DMOZ_ENABLE_D3D9_LAYER
-endif
 
 ifdef BUILD_STATIC_LIBS
 DEFINES		+= -DMOZ_STATIC_COMPONENT_LIBS

@@ -86,8 +86,6 @@
 #include "nsIDOMSVGTransformList.h"
 #include "nsIDOMSVGAnimTransformList.h"
 #include "nsIDOMSVGAnimatedRect.h"
-#include "nsIDOMSVGGradientElement.h"
-#include "nsIDOMSVGPatternElement.h"
 #include "nsSVGRect.h"
 #include "nsIFrame.h"
 #include "prdtoa.h"
@@ -96,16 +94,8 @@
 #include "nsSMILMappedAttribute.h"
 #include "nsSVGTransformSMILAttr.h"
 #include "nsSVGAnimatedTransformList.h"
-#include "SVGMotionSMILAttr.h"
 #include "nsIDOMSVGTransformable.h"
 #endif // MOZ_SMIL
-
-// This is needed to ensure correct handling of calls to the
-// vararg-list methods in this file:
-//   nsSVGElement::GetAnimated{Length,Number,Integer}Values
-// See bug 547964 for details:
-PR_STATIC_ASSERT(sizeof(void*) == sizeof(nsnull));
-
 
 nsSVGEnumMapping nsSVGElement::sSVGUnitTypesMap[] = {
   {&nsGkAtoms::userSpaceOnUse, nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_USERSPACEONUSE},
@@ -710,7 +700,7 @@ nsSVGElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
 PRBool
 nsSVGElement::IsNodeOfType(PRUint32 aFlags) const
 {
-  return !(aFlags & ~(eCONTENT | eSVG));
+  return !(aFlags & ~(eCONTENT | eELEMENT | eSVG));
 }
 
 already_AddRefed<nsIURI>
@@ -758,7 +748,7 @@ nsSVGElement::WalkContentStyleRules(nsRuleWalker* aRuleWalker)
   nsIDocument* doc = GetOwnerDoc();
   NS_ASSERTION(doc, "SVG element without doc");
   if (doc) {
-    nsIPresShell* shell = doc->GetShell();
+    nsIPresShell* shell = doc->GetPrimaryShell();
     nsPresContext* context = shell ? shell->GetPresContext() : nsnull;
     if (context && context->IsProcessingRestyles() &&
         !context->IsProcessingAnimationStyleChange()) {
@@ -766,7 +756,7 @@ nsSVGElement::WalkContentStyleRules(nsRuleWalker* aRuleWalker)
       // want that to happen from SMIL-animated value of mapped attrs, so
       // ignore animated value for now, and request an animation restyle to
       // get our animated value noticed.
-      shell->RestyleForAnimation(this);
+      context->PresShell()->RestyleForAnimation(this);
     } else {
       // Ok, this is an animation restyle -- go ahead and update/walk the
       // animated content style rule.
@@ -872,6 +862,7 @@ nsSVGElement::sViewportsMap[] = {
 // PresentationAttributes-Makers
 /* static */ const nsGenericElement::MappedAttributeEntry
 nsSVGElement::sMarkersMap[] = {
+  { &nsGkAtoms::marker },
   { &nsGkAtoms::marker_end },
   { &nsGkAtoms::marker_mid },
   { &nsGkAtoms::marker_start },
@@ -1141,7 +1132,7 @@ MappedAttrParser::ParseMappedAttrValue(nsIAtom* aMappedAttrName,
     nsCSSProps::LookupProperty(nsAtomString(aMappedAttrName));
   PRBool changed; // outparam for ParseProperty. (ignored)
   mParser.ParseProperty(propertyID, aMappedAttrValue, mDocURI, mBaseURI,
-                        mNodePrincipal, mDecl, &changed, PR_FALSE);
+                        mNodePrincipal, mDecl, &changed);
 }
 
 already_AddRefed<nsICSSStyleRule>
@@ -1252,8 +1243,9 @@ nsSVGElement::UpdateAnimatedContentStyleRule()
 
   MappedAttrParser mappedAttrParser(doc->CSSLoader(), doc->GetDocumentURI(),
                                     GetBaseURI(), NodePrincipal());
-  doc->PropertyTable(SMIL_MAPPED_ATTR_ANIMVAL)->
-    Enumerate(this, ParseMappedAttrAnimValueCallback, &mappedAttrParser);
+  doc->PropertyTable()->Enumerate(this, SMIL_MAPPED_ATTR_ANIMVAL,
+                                  ParseMappedAttrAnimValueCallback,
+                                  &mappedAttrParser);
  
   nsRefPtr<nsICSSStyleRule>
     animContentStyleRule(mappedAttrParser.CreateStyleRule());
@@ -1941,40 +1933,19 @@ nsISMILAttr*
 nsSVGElement::GetAnimatedAttr(nsIAtom* aName)
 {
   // Transforms:
-  nsCOMPtr<nsIDOMSVGAnimatedTransformList> transformList;
   if (aName == nsGkAtoms::transform) {
     nsCOMPtr<nsIDOMSVGTransformable> transformable(
             do_QueryInterface(static_cast<nsIContent*>(this)));
     if (!transformable)
       return nsnull;
+    nsCOMPtr<nsIDOMSVGAnimatedTransformList> transformList;
     nsresult rv = transformable->GetTransform(getter_AddRefs(transformList));
     NS_ENSURE_SUCCESS(rv, nsnull);
-  }
-  if (aName == nsGkAtoms::gradientTransform) {
-    nsCOMPtr<nsIDOMSVGGradientElement> gradientElement(
-            do_QueryInterface(static_cast<nsIContent*>(this)));
-
-    nsresult rv = gradientElement->GetGradientTransform(getter_AddRefs(transformList));
-    NS_ENSURE_SUCCESS(rv, nsnull);
-  }
-  if (aName == nsGkAtoms::patternTransform) {
-    nsCOMPtr<nsIDOMSVGPatternElement> patternElement(
-            do_QueryInterface(static_cast<nsIContent*>(this)));
-
-    nsresult rv = patternElement->GetPatternTransform(getter_AddRefs(transformList));
-    NS_ENSURE_SUCCESS(rv, nsnull);
-  }
-  if (transformList) {
     nsSVGAnimatedTransformList* list
       = static_cast<nsSVGAnimatedTransformList*>(transformList.get());
     NS_ENSURE_TRUE(list, nsnull);
 
     return new nsSVGTransformSMILAttr(list, this);
-  }
-
-  // Motion (fake 'attribute' for animateMotion)
-  if (aName == nsGkAtoms::mozAnimateMotionDummyAttr) {
-    return new mozilla::SVGMotionSMILAttr(this);
   }
 
   // Lengths:

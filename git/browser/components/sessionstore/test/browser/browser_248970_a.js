@@ -63,11 +63,13 @@ function test() {
       return -1;
   }
 
+  let os = Cc["@mozilla.org/observer-service;1"].
+           getService(Ci.nsIObserverService);
   function waitForFileExistence(aMessage, aDoNext) {
     const TOPIC = "sessionstore-state-write-complete";
-    Services.obs.addObserver(function (aSubject, aTopic, aData) {
+    os.addObserver(function (aSubject, aTopic, aData) {
       // Remove the observer so we do not leak.
-      Services.obs.removeObserver(arguments.callee, TOPIC);
+      os.removeObserver(arguments.callee, TOPIC);
 
       // Check that the file exists.
       ok(getSessionstoreFile().exists(), aMessage);

@@ -55,14 +55,14 @@ public:
     virtual ~nsApplicationAccessibleWrap();
 
     // nsAccessNode
-    virtual PRBool Init();
-
-    // nsAccessible
-    virtual PRBool AppendChild(nsAccessible* aChild);
-    virtual PRBool RemoveChild(nsAccessible* aChild);
+    virtual nsresult Init();
 
     // return the atk object for app root accessible
     NS_IMETHOD GetNativeInterface(void **aOutAccessible);
+
+    // nsApplicationAccessible
+    virtual nsresult AddRootAccessible(nsIAccessible *aRootAccWrap);
+    virtual nsresult RemoveRootAccessible(nsIAccessible *aRootAccWrap);
 };
 
 #endif   /* __NS_APP_ROOT_ACCESSIBLE_H__ */

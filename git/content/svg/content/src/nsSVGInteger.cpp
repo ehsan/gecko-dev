@@ -47,12 +47,10 @@ NS_SVG_VAL_IMPL_CYCLE_COLLECTION(nsSVGInteger::DOMAnimatedInteger, mSVGElement)
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsSVGInteger::DOMAnimatedInteger)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGInteger::DOMAnimatedInteger)
 
-DOMCI_DATA(SVGAnimatedInteger, nsSVGInteger::DOMAnimatedInteger)
-
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGInteger::DOMAnimatedInteger)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedInteger)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAnimatedInteger)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGAnimatedInteger)
 NS_INTERFACE_MAP_END
 
 /* Implementation */
@@ -140,7 +138,7 @@ nsresult
 nsSVGInteger::SMILInteger::ValueFromString(const nsAString& aStr,
                                            const nsISMILAnimationElement* /*aSrcElement*/,
                                            nsSMILValue& aValue,
-                                           PRBool& aPreventCachingOfSandwich) const
+                                           PRBool& aCanCache) const
 {
   NS_ConvertUTF16toUTF8 value(aStr);
   const char *str = value.get();
@@ -157,7 +155,7 @@ nsSVGInteger::SMILInteger::ValueFromString(const nsAString& aStr,
   nsSMILValue smilVal(&SMILIntegerType::sSingleton);
   smilVal.mU.mInt = val;
   aValue = smilVal;
-  aPreventCachingOfSandwich = PR_FALSE;
+  aCanCache = PR_TRUE;
   return NS_OK;
 }
 

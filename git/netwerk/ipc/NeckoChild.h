@@ -59,10 +59,8 @@ public:
   static void DestroyNeckoChild();
 
 protected:
-  virtual PHttpChannelChild* AllocPHttpChannel(PIFrameEmbeddingChild* iframeEmbedding);
+  virtual PHttpChannelChild* AllocPHttpChannel();
   virtual bool DeallocPHttpChannel(PHttpChannelChild*);
-  virtual PCookieServiceChild* AllocPCookieService();
-  virtual bool DeallocPCookieService(PCookieServiceChild*);
 };
 
 /**

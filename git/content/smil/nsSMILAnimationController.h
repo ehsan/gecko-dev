@@ -84,7 +84,7 @@ public:
   NS_IMETHOD_(nsrefcnt) Release();
 
   virtual void WillRefresh(mozilla::TimeStamp aTime);
-
+  
   // Methods for registering and enumerating animation elements
   void RegisterAnimationElement(nsISMILAnimationElement* aAnimationElement);
   void UnregisterAnimationElement(nsISMILAnimationElement* aAnimationElement);
@@ -149,6 +149,9 @@ protected:
   PR_STATIC_CALLBACK(PLDHashOperator) CompositorTableEntryTraverse(
       nsSMILCompositor* aCompositor, void* aArg);
 
+  // Timer-related implementation helpers
+  static void Notify(nsITimer* aTimer, void* aClosure);
+
   // Sample-related callbacks and implementation helpers
   virtual void DoSample();
   void DoSample(PRBool aSkipUnchangedContainers);
@@ -180,7 +183,6 @@ protected:
   AnimationElementHashtable  mAnimationElementTable;
   TimeContainerHashtable     mChildContainerTable;
   PRPackedBool               mResampleNeeded;
-  PRPackedBool               mDeferredStartSampling;
 
   // Store raw ptr to mDocument.  It owns the controller, so controller
   // shouldn't outlive it

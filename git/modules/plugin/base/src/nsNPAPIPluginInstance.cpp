@@ -895,10 +895,10 @@ nsNPAPIPluginInstance::nsNPAPIPluginInstance(NPPluginFuncs* callbacks,
     mDrawingModel(NPDrawingModelQuickDraw),
 #endif
 #endif
-    mRunning(NOT_STARTED),
     mWindowless(PR_FALSE),
     mWindowlessLocal(PR_FALSE),
     mTransparent(PR_FALSE),
+    mRunning(NOT_STARTED),
     mCached(PR_FALSE),
     mWantsAllNetworkStreams(PR_FALSE),
     mInPluginInitCall(PR_FALSE),
@@ -1360,7 +1360,7 @@ NS_IMETHODIMP nsNPAPIPluginInstance::Print(NPPrint* platformPrint)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsNPAPIPluginInstance::HandleEvent(void* event, PRInt16* result)
+NS_IMETHODIMP nsNPAPIPluginInstance::HandleEvent(void* event, PRBool* handled)
 {
   if (RUNNING != mRunning)
     return NS_OK;
@@ -1370,21 +1370,20 @@ NS_IMETHODIMP nsNPAPIPluginInstance::HandleEvent(void* event, PRInt16* result)
 
   PluginDestructionGuard guard(this);
 
-  PRInt16 tmpResult = kNPEventNotHandled;
-
+  PRInt16 result = 0;
+  
   if (mCallbacks->event) {
     mCurrentPluginEvent = event;
 #if defined(XP_WIN) || defined(XP_OS2)
-    NS_TRY_SAFE_CALL_RETURN(tmpResult, (*mCallbacks->event)(&mNPP, event), mLibrary, this);
+    NS_TRY_SAFE_CALL_RETURN(result, (*mCallbacks->event)(&mNPP, event), mLibrary, this);
 #else
-    tmpResult = (*mCallbacks->event)(&mNPP, event);
+    result = (*mCallbacks->event)(&mNPP, event);
 #endif
     NPP_PLUGIN_LOG(PLUGIN_LOG_NOISY,
       ("NPP HandleEvent called: this=%p, npp=%p, event=%p, return=%d\n", 
-      this, &mNPP, event, tmpResult));
+      this, &mNPP, event, result));
 
-    if (result)
-      *result = tmpResult;
+    *handled = result;
     mCurrentPluginEvent = nsnull;
   }
 
@@ -1437,18 +1436,6 @@ nsresult nsNPAPIPluginInstance::GetCallbacks(const NPPluginFuncs ** aCallbacks)
 NPError nsNPAPIPluginInstance::SetWindowless(PRBool aWindowless)
 {
   mWindowless = aWindowless;
-
-  if (mMIMEType) {
-      // bug 558434 - Prior to 3.6.4, we assumed windowless was transparent.
-      // Silverlight apparently relied on this quirk, so we default to
-      // transparent unless they specify otherwise after setting the windowless
-      // property. (Last tested version: sl 3.0). 
-      NS_NAMED_LITERAL_CSTRING(silverlight, "application/x-silverlight");
-      if (!PL_strncasecmp(mMIMEType, silverlight.get(), silverlight.Length())) {
-          mTransparent = PR_TRUE;
-      }
-  }
-
   return NPERR_NO_ERROR;
 }
 
@@ -1750,10 +1737,8 @@ nsNPAPIPluginInstance::ScheduleTimer(uint32_t interval, NPBool repeat, void (*ti
   // create new xpcom timer, scheduled correctly
   nsresult rv;
   nsCOMPtr<nsITimer> xpcomTimer = do_CreateInstance(NS_TIMER_CONTRACTID, &rv);
-  if (NS_FAILED(rv)) {
-    delete newTimer;
+  if (NS_FAILED(rv))
     return 0;
-  }
   const short timerType = (repeat ? (short)nsITimer::TYPE_REPEATING_SLACK : (short)nsITimer::TYPE_ONE_SHOT);
   xpcomTimer->InitWithFuncCallback(PluginTimerCallback, newTimer, interval, timerType);
   newTimer->timer = xpcomTimer;

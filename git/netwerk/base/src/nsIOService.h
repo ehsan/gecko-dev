@@ -60,10 +60,12 @@
 
 #define NS_N(x) (sizeof(x)/sizeof(*x))
 
-// We don't want to expose this observer topic.
-// Intended internal use only for remoting offline/inline events.
-// See Bug 552829
-#define NS_IPC_IOSERVICE_SET_OFFLINE_TOPIC "ipc:network:set-offline"
+#ifdef NECKO_SMALL_BUFFERS
+#define NS_NECKO_BUFFER_CACHE_COUNT (10)  // Max holdings: 10 * 2k = 20k
+#else
+#define NS_NECKO_BUFFER_CACHE_COUNT (24)  // Max holdings: 24 * 4k = 96k
+#endif
+#define NS_NECKO_15_MINS (15 * 60)
 
 static const char gScheme[][sizeof("resource")] =
     {"chrome", "file", "http", "jar", "resource"};
@@ -157,8 +159,6 @@ public:
     // Necko buffer cache. Used for all default buffer sizes that necko
     // allocates.
     static nsIMemory *gBufferCache;
-    static PRUint32   gDefaultSegmentSize;
-    static PRUint32   gDefaultSegmentCount;
 };
 
 /**
