@@ -676,6 +676,16 @@ public:
     mContext->Save();    
   }
 
+  void Reset(gfxContext *aContext) {
+    // Do the equivalent of destroying and re-creating this object.
+    NS_PRECONDITION(aContext, "must provide a context");
+    if (mContext) {
+      mContext->Restore();
+    }
+    mContext = aContext;
+    mContext->Save();
+  }
+
 private:
   gfxContext *mContext;
 };
@@ -738,6 +748,34 @@ private:
     gfxContext *mContext;
 
     nsRefPtr<gfxPath> mPath;
+};
+
+/**
+ * Sentry helper class for functions with multiple return points that need to
+ * back up the current matrix of a context and have it automatically restored
+ * before they return.
+ */
+class THEBES_API gfxContextMatrixAutoSaveRestore
+{
+public:
+    gfxContextMatrixAutoSaveRestore(gfxContext *aContext) :
+        mContext(aContext), mMatrix(aContext->CurrentMatrix())
+    {
+    }
+
+    ~gfxContextMatrixAutoSaveRestore()
+    {
+        mContext->SetMatrix(mMatrix);
+    }
+
+    const gfxMatrix& Matrix()
+    {
+        return mMatrix;
+    }
+
+private:
+    gfxContext *mContext;
+    gfxMatrix   mMatrix;
 };
 
 #endif /* GFX_CONTEXT_H */

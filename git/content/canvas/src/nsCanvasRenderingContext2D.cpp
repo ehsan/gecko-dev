@@ -670,7 +670,8 @@ NS_NewCanvasRenderingContext2D(nsIDOMCanvasRenderingContext2D** aResult)
 
 nsCanvasRenderingContext2D::nsCanvasRenderingContext2D()
     : mValid(PR_FALSE), mOpaque(PR_FALSE), mCanvasElement(nsnull),
-      mSaveCount(0), mIsFrameInvalid(PR_FALSE), mStyleStack(20)
+      mSaveCount(0), mIsFrameInvalid(PR_FALSE), mLastStyle(STYLE_MAX),
+      mStyleStack(20)
 {
 }
 
@@ -1468,7 +1469,7 @@ nsCanvasRenderingContext2D::ShadowInitialize(const gfxRect& extents, gfxAlphaBox
                        blurRadius.height, blurRadius.width);
     drawExtents = drawExtents.Intersect(clipExtents - CurrentState().shadowOffset);
 
-    gfxContext* ctx = blur.Init(drawExtents, blurRadius);
+    gfxContext* ctx = blur.Init(drawExtents, blurRadius, nsnull);
 
     if (!ctx)
         return nsnull;
@@ -1967,13 +1968,18 @@ nsCanvasRenderingContext2D::SetFont(const nsAString& font)
     // un-zoom the font size to avoid being affected by text-only zoom
     const nscoord fontSize = nsStyleFont::UnZoomText(parentContext->PresContext(), fontStyle->mFont.size);
 
+    PRBool printerFont = (presShell->GetPresContext()->Type() == nsPresContext::eContext_PrintPreview ||
+                          presShell->GetPresContext()->Type() == nsPresContext::eContext_Print);
+
     gfxFontStyle style(fontStyle->mFont.style,
                        fontStyle->mFont.weight,
+                       fontStyle->mFont.stretch,
                        NSAppUnitsToFloatPixels(fontSize, aupcp),
                        langGroup,
                        fontStyle->mFont.sizeAdjust,
                        fontStyle->mFont.systemFont,
-                       fontStyle->mFont.familyNameQuirks);
+                       fontStyle->mFont.familyNameQuirks,
+                       printerFont);
 
     CurrentState().fontGroup = gfxPlatform::GetPlatform()->CreateFontGroup(fontStyle->mFont.name, &style, presShell->GetPresContext()->GetUserFontSet());
     NS_ASSERTION(CurrentState().fontGroup, "Could not get font group");
@@ -2156,7 +2162,9 @@ struct NS_STACK_CLASS nsCanvasBidiProcessor : public nsBidiPresUtils::BidiProces
     {
         gfxTextRun::Metrics textRunMetrics = mTextRun->MeasureText(0,
                                                                    mTextRun->GetLength(),
-                                                                   mDoMeasureBoundingBox,
+                                                                   mDoMeasureBoundingBox ?
+                                                                       gfxFont::TIGHT_INK_EXTENTS :
+                                                                       gfxFont::LOOSE_INK_EXTENTS,
                                                                    mThebes,
                                                                    nsnull);
 
@@ -2795,6 +2803,105 @@ nsCanvasRenderingContext2D::IsPointInPath(float x, float y, PRBool *retVal)
     return NS_OK;
 }
 
+#ifdef WINCE
+/* A simple bitblt for self copies that ensures that we don't overwrite any
+ * area before we've read from it. */
+static void
+bitblt(gfxImageSurface *s, int src_x, int src_y, int width, int height,
+                int dest_x, int dest_y) {
+    unsigned char *data = s->Data();
+    int stride = s->Stride()/4;
+    int x, y;
+    unsigned int *dest = (unsigned int *)data;
+    unsigned int *src  = (unsigned int *)data;
+
+    int surface_width  = s->Width();
+    int surface_height = s->Height();
+
+    /* clip to the surface size */
+    if (src_x < 0) {
+        dest_x += -src_x;
+        width  -= -src_x;
+        src_x = 0;
+    }
+    if (src_y < 0) {
+        dest_y += -src_y;
+        height -= -src_y;
+        src_y = 0;
+    }
+    if (dest_x < 0) {
+        src_x += -dest_x;
+        width -= -dest_x;
+        dest_x = 0;
+    }
+    if (dest_y < 0) {
+        src_y += -dest_y;
+        width -= -dest_y;
+        dest_y = 0;
+    }
+
+    /*XXX: we might want to check for overflow? */
+    if (src_x + width > surface_width)
+        width = surface_width - src_x;
+    if (dest_x + width > surface_width)
+        width = surface_width - dest_x;
+    if (src_y + height > surface_height)
+        height = surface_height - src_y;
+    if (dest_y + height > surface_height)
+        height = surface_height - dest_y;
+
+    if (dest_x < src_x) {
+        if (dest_y < src_y) {
+            dest = dest + dest_y*stride + dest_x;
+            src  = src  +  src_y*stride + src_x;
+            /* copy right to left, top to bottom */
+            for (y=0; y<height; y++) {
+                for (x=0; x<width; x++) {
+                    *dest++ = *src++;
+                }
+                dest += stride - width;
+                src  += stride - width;
+            }
+        } else {
+            dest = dest + (dest_y+height-1)*stride + dest_x;
+            src  = src  + (src_y +height-1)*stride + src_x;
+            /* copy right to left, bottom to top */
+            for (y=0; y<height; y++) {
+                for (x=0; x<width; x++) {
+                    *dest++ = *src++;
+                }
+                dest += -stride - width;
+                src  += -stride - width;
+            }
+        }
+    } else {
+        if (dest_y < src_y) {
+            dest = dest + dest_y*stride + (dest_x+width-1);
+            src  = src  +  src_y*stride + (src_x +width-1);
+            /* copy left to right, top to bottom */
+            for (y=0; y<height; y++) {
+                for (x=0; x<width; x++) {
+                    *dest-- = *src--;
+                }
+                dest += stride + width;
+                src  += stride + width;
+            }
+        } else {
+            dest = dest + (dest_y+height-1)*stride + (dest_x+width-1);
+            src  = src  + (src_y +height-1)*stride + (src_x +width-1);
+            /* copy left to right, bottom to top */
+            for (y=0; y<height; y++) {
+                for (x=0; x<width; x++) {
+                    *dest-- = *src--;
+                }
+                dest += -stride + width;
+                src  += -stride + width;
+            }
+        }
+    }
+}
+#endif
+
 //
 // image
 //
@@ -2857,6 +2964,9 @@ nsCanvasRenderingContext2D::DrawImage()
     nsRefPtr<gfxPattern> pattern;
     nsRefPtr<gfxPath> path;
     nsRefPtr<gfxASurface> imgsurf;
+#ifdef WINCE
+    nsRefPtr<gfxASurface> currentSurface;
+#endif
     rv = ThebesSurfaceFromElement(imgElt, PR_FALSE,
                                   getter_AddRefs(imgsurf), &imgWidth, &imgHeight,
                                   getter_AddRefs(principal), &forceWriteOnly);
@@ -2926,6 +3036,34 @@ nsCanvasRenderingContext2D::DrawImage()
     
     matrix.Translate(gfxPoint(sx, sy));
     matrix.Scale(sw/dw, sh/dh);
+#ifdef WINCE
+    currentSurface = getter_AddRefs(mThebes->CurrentSurface());
+
+    /* cairo doesn't have consistent semantics for drawing a surface onto
+     * itself. Specifically, pixman will not preserve the contents when doing
+     * the copy. So to get the desired semantics a temporary copy would be needed.
+     * Instead we optimize opaque self copies here */
+    if (currentSurface == imgsurf) {
+        if (imgsurf->GetType() == gfxASurface::SurfaceTypeImage) {
+            gfxImageSurface *surf = static_cast<gfxImageSurface*>(imgsurf.get());
+            gfxContext::GraphicsOperator op = mThebes->CurrentOperator();
+            PRBool opaque, unscaled;
+
+            opaque  = surf->Format() == gfxASurface::ImageFormatARGB32 &&
+                (op == gfxContext::OPERATOR_SOURCE);
+            opaque |= surf->Format() == gfxASurface::ImageFormatRGB24  &&
+                (op == gfxContext::OPERATOR_SOURCE || op == gfxContext::OPERATOR_OVER);
+
+            unscaled = sw == dw && sh == dh;
+
+            if (opaque && unscaled) {
+                bitblt(surf, sx, sy, sw, sh, dx, dy);
+                rv = NS_OK;
+                goto FINISH;
+            }
+        }
+    }
+#endif
 
     pattern = new gfxPattern(imgsurf);
     pattern->SetMatrix(matrix);
@@ -3146,9 +3284,14 @@ nsCanvasRenderingContext2D::ThebesSurfaceFromElement(nsIDOMElement *imgElt,
         if (!forceCopy && canvas->CountContexts() == 1) {
             nsICanvasRenderingContextInternal *srcCanvas = canvas->GetContextAtIndex(0);
             rv = srcCanvas->GetThebesSurface(getter_AddRefs(sourceSurface));
+#ifndef WINCE
             // force a copy if we couldn't get the surface, or if it's
             // the same as what we have
             if (sourceSurface == mSurface || NS_FAILED(rv))
+#else
+            // force a copy if we couldn't get the surface
+            if (NS_FAILED(rv))
+#endif
                 sourceSurface = nsnull;
         }
 
@@ -3345,8 +3488,8 @@ FlushLayoutForTree(nsIDOMWindow* aWindow)
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, PRInt32 aX, PRInt32 aY,
-                                       PRInt32 aW, PRInt32 aH, 
+nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, float aX, float aY,
+                                       float aW, float aH, 
                                        const nsAString& aBGColor,
                                        PRUint32 flags)
 {
@@ -3396,8 +3539,11 @@ nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, PRInt32 aX, PRInt3
              nsPresContext::CSSPixelsToAppUnits(aY),
              nsPresContext::CSSPixelsToAppUnits(aW),
              nsPresContext::CSSPixelsToAppUnits(aH));
-    presShell->RenderDocument(r, PR_FALSE, PR_TRUE, bgColor,
-                              mThebes);
+    PRUint32 renderDocFlags = nsIPresShell::RENDER_IGNORE_VIEWPORT_SCROLLING;
+    if (flags & nsIDOMCanvasRenderingContext2D::DRAWWINDOW_DRAW_CARET) {
+        renderDocFlags |= nsIPresShell::RENDER_CARET;
+    }
+    presShell->RenderDocument(r, renderDocFlags, bgColor, mThebes);
 
     // get rid of the pattern surface ref, just in case
     mThebes->SetColor(gfxRGBA(1,1,1,1));
@@ -3676,18 +3822,20 @@ nsCanvasRenderingContext2D::PutImageData()
         PRUint8 ir, ig, ib, ia;
         PRUint8 *ptr = imgPtr;
         for (int32 i = 0; i < w*h; i++) {
-#ifdef IS_LITTLE_ENDIAN
             ir = ptr[0];
             ig = ptr[1];
             ib = ptr[2];
             ia = ptr[3];
+
+#ifdef IS_LITTLE_ENDIAN
             ptr[0] = (ib*ia + 254) / 255;
             ptr[1] = (ig*ia + 254) / 255;
             ptr[2] = (ir*ia + 254) / 255;
 #else
-            ptr[0] = (ptr[0]*ptr[3] + 254) / 255;
-            ptr[1] = (ptr[1]*ptr[3] + 254) / 255;
-            ptr[2] = (ptr[2]*ptr[3] + 254) / 255;
+            ptr[0] = ia;
+            ptr[1] = (ir*ia + 254) / 255;
+            ptr[2] = (ig*ia + 254) / 255;
+            ptr[3] = (ib*ia + 254) / 255;
 #endif
             ptr += 4;
         }

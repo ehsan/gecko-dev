@@ -43,7 +43,7 @@
 #include "nsIDeviceContextSpec.h"
 #include "nsCOMPtr.h"
 #include "nsIAtom.h"
-#include "nsVoidArray.h"
+#include "nsTArray.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
 #include "nsWeakReference.h"
@@ -61,7 +61,8 @@ public:
   virtual nsresult Init(nsIDeviceContext* aContext);
   virtual nsresult GetDeviceContext(nsIDeviceContext *&aContext) const;
   virtual nsresult GetMetricsFor(const nsFont& aFont, nsIAtom* aLangGroup,
-                                 nsIFontMetrics *&aMetrics, gfxUserFontSet *aUserFontSet = nsnull);
+                                 gfxUserFontSet* aUserFontSet,
+                                 nsIFontMetrics *&aMetrics);
 
   nsresult   FontMetricsDeleted(const nsIFontMetrics* aFontMetrics);
   nsresult   Compact();
@@ -73,9 +74,9 @@ public:
   virtual nsresult CreateFontMetricsInstance(nsIFontMetrics** fm);
   
 protected:
-  nsVoidArray      mFontMetrics;
-  nsIDeviceContext *mContext; // we do not addref this since
-                              // ownership is implied. MMP.
+  nsTArray<nsIFontMetrics*> mFontMetrics;
+  nsIDeviceContext         *mContext; // we do not addref this since
+                                      // ownership is implied. MMP.
 };
 
 // inherit visibility from the NS_GFX class declaration
@@ -100,9 +101,11 @@ public:
   NS_IMETHOD  CreateRenderingContextInstance(nsIRenderingContext *&aContext);
 
   NS_IMETHOD  GetMetricsFor(const nsFont& aFont, nsIAtom* aLangGroup,
-                            nsIFontMetrics*& aMetrics, gfxUserFontSet *aUserFontSet = nsnull);
-  NS_IMETHOD  GetMetricsFor(const nsFont& aFont, nsIFontMetrics*& aMetrics, 
-                            gfxUserFontSet *aUserFontSet = nsnull);
+                            gfxUserFontSet* aUserFontSet,
+                            nsIFontMetrics*& aMetrics);
+  NS_IMETHOD  GetMetricsFor(const nsFont& aFont,
+                            gfxUserFontSet* aUserFontSet,
+                            nsIFontMetrics*& aMetrics);
 
   NS_IMETHOD FirstExistingFont(const nsFont& aFont, nsString& aFaceName);
 

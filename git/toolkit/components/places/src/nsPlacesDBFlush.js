@@ -46,6 +46,7 @@ Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
+const Cu = Components.utils;
 
 const kQuitApplication = "quit-application";
 const kSyncFinished = "places-sync-finished";
@@ -59,8 +60,8 @@ const kDefaultSyncInterval = 120;
 function nsPlacesDBFlush()
 {
   this._prefs = Cc["@mozilla.org/preferences-service;1"].
-              getService(Ci.nsIPrefService).
-              getBranch("places.");
+                getService(Ci.nsIPrefService).
+                getBranch("places.");
 
   // Get our sync interval
   try {
@@ -89,6 +90,17 @@ function nsPlacesDBFlush()
 
   // Create our timer to update everything
   this._timer = this._newTimer();
+
+  //////////////////////////////////////////////////////////////////////////////
+  //// Smart Getters
+
+  this.__defineGetter__("_db", function() {
+    delete this._db;
+    return this._db = Cc["@mozilla.org/browser/nav-history-service;1"].
+                      getService(Ci.nsPIPlacesDatabase).
+                      DBConnection;
+  });
+
 }
 
 nsPlacesDBFlush.prototype = {
@@ -119,6 +131,7 @@ nsPlacesDBFlush.prototype = {
           // Close the database connection, this was the last sync and we can't
           // ensure database coherence from now on.
           pip.finalizeInternalStatements();
+          this._self._finalizeInternalStatements();
           this._self._db.close();
         }
       }, Ci.nsIThread.DISPATCH_NORMAL);
@@ -163,13 +176,19 @@ nsPlacesDBFlush.prototype = {
     this._syncTables(["places", "historyvisits"]);
   },
 
-  onItemAdded: function() this._syncTables(["places"]),
+  onItemAdded: function(aItemId, aParentId, aIndex)
+  {
+    // Sync only if we added a TYPE_BOOKMARK item
+    if (!this._inBatchMode &&
+        this._bs.getItemType(aItemId) == this._bs.TYPE_BOOKMARK)
+      this._syncTables(["places"]);
+  },
 
   onItemChanged: function DBFlush_onItemChanged(aItemId, aProperty,
                                                          aIsAnnotationProperty,
                                                          aValue)
   {
-    if (aProperty == "uri")
+    if (!this._inBatchMode && aProperty == "uri")
       this._syncTables(["places"]);
   },
 
@@ -187,8 +206,8 @@ nsPlacesDBFlush.prototype = {
 
   handleError: function DBFlush_handleError(aError)
   {
-    Components.utils.reportError("Async statement execution returned with '" +
-                                 aError.result + "', '" + aError.message + "'");
+    Cu.reportError("Async statement execution returned with '" +
+                   aError.result + "', '" + aError.message + "'");
   },
 
   handleCompletion: function DBFlush_handleCompletion(aReason)
@@ -219,27 +238,18 @@ nsPlacesDBFlush.prototype = {
       statements.push(this._getSyncTableStatement(aTableNames[i]));
 
     // Execute sync statements async in a transaction
-    // XXX due to a bug in sqlite, we cannot wrap these in a transaction.  See
-    //     https://bugzilla.mozilla.org/show_bug.cgi?id=462379#c2 for details.
-    //this._db.executeAsync(statements, statements.length, this);
+    this._db.executeAsync(statements, statements.length, this);
+  },
 
-    let self = this;
-    let listener = {
-      // We also need to batch the two handleCompletion objects into one.
-      _count: statements.length,
-      handleError: function(aError) self.handleError(aError),
-      handleCompletion: function(aReason) {
-        this._count--;
-        if (this._count == 0) {
-          // we have gotten all notifications
-          self.handleCompletion(aReason);
-        }
-      }
-    };
-    statements.forEach(function(stmt) stmt.executeAsync(listener));
-
-    // Finalize statements, otherwise we could get in trouble
-    statements.forEach(function(stmt) stmt.finalize());
+  /**
+   * Finalizes all of our mozIStorageStatements so we can properly close the
+   * database.
+   */
+  _finalizeInternalStatements: function DBFlush_finalizeInternalStatements()
+  {
+    for each (let stmt in this._cachedStatements)
+      if (stmt instanceof Ci.mozIStorageStatement)
+        stmt.finalize();
   },
 
   /**
@@ -251,12 +261,39 @@ nsPlacesDBFlush.prototype = {
    * @param aTableName
    *        name of the table to build statement for, as moz_{TableName}_temp.
    */
+  _cachedStatements: {},
   _getSyncTableStatement: function DBFlush_getSyncTableStatement(aTableName)
   {
+    // Statement creating can be expensive, so always cache if we can.
+    if (aTableName in this._cachedStatements)
+      return this._cachedStatements[aTableName];
+
     // Delete all the data in the temp table.
     // We have triggers setup that ensure that the data is transferred over
     // upon deletion.
-    return this._db.createStatement("DELETE FROM moz_" + aTableName + "_temp");
+    let condition = "";
+    switch(aTableName) {
+      case "historyvisits":
+        // For history table we want to leave embed visits in memory, since
+        // those are expired with current session, so we are filtering them out.
+        condition = "WHERE visit_type <> " + Ci.nsINavHistoryService.TRANSITION_EMBED;
+        break;
+      case "places":
+        // For places table we want to leave places associated with embed visits
+        // in memory, they usually have hidden = 1 and at least an embed visit
+        // in historyvisits_temp table.
+        condition = "WHERE id IN (SELECT id FROM moz_places_temp h " +
+                                  "WHERE h.hidden <> 1 OR NOT EXISTS ( " +
+                                    "SELECT id FROM moz_historyvisits_temp " +
+                                    "WHERE place_id = h.id AND visit_type = " +
+                                    Ci.nsINavHistoryService.TRANSITION_EMBED +
+                                    " LIMIT 1) " +
+                                  ")";
+        break;
+    }
+
+    let sql = "DELETE FROM moz_" + aTableName + "_temp " + condition;
+    return this._cachedStatements[aTableName] = this._db.createStatement(sql);
   },
 
   /**
@@ -289,16 +326,6 @@ nsPlacesDBFlush.prototype = {
     Ci.mozIStorageStatementCallback,
   ])
 };
-
-//////////////////////////////////////////////////////////////////////////////
-//// Smart Getters
-
-nsPlacesDBFlush.prototype.__defineGetter__("_db", function() {
-  delete nsPlacesDBFlush._db;
-  return nsPlacesDBFlush._db = Cc["@mozilla.org/browser/nav-history-service;1"].
-                               getService(Ci.nsPIPlacesDatabase).
-                               DBConnection;
-});
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Module Registration

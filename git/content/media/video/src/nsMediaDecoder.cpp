@@ -51,6 +51,13 @@
 #include "gfxImageSurface.h"
 #include "nsPresContext.h"
 #include "nsMediaDecoder.h"
+#include "nsDOMError.h"
+
+// Number of milliseconds between progress events as defined by spec
+#define PROGRESS_MS 350
+
+// Number of milliseconds of no data before a stall event is fired as defined by spec
+#define STALL_MS 3000
 
 #ifdef PR_LOGGING
 // Logging object for decoder
@@ -61,9 +68,13 @@ nsMediaDecoder::nsMediaDecoder() :
   mElement(0),
   mRGBWidth(-1),
   mRGBHeight(-1),
+  mProgressTime(0),
+  mDataTime(0),
   mSizeChanged(PR_FALSE),
   mVideoUpdateLock(nsnull),
-  mFramerate(0.0)
+  mFramerate(0.0),
+  mShuttingDown(PR_FALSE),
+  mStopping(PR_FALSE)
 {
   MOZ_COUNT_CTOR(nsMediaDecoder);
 }
@@ -77,8 +88,9 @@ nsMediaDecoder::~nsMediaDecoder()
   MOZ_COUNT_DTOR(nsMediaDecoder);
 }
 
-PRBool nsMediaDecoder::Init()
+PRBool nsMediaDecoder::Init(nsHTMLMediaElement* aElement)
 {
+  mElement = aElement;
   mVideoUpdateLock = PR_NewLock();
 
   return mVideoUpdateLock != nsnull;
@@ -87,10 +99,13 @@ PRBool nsMediaDecoder::Init()
 void nsMediaDecoder::Shutdown()
 {
   StopProgress();
-  ElementUnavailable();
+  mElement = nsnull;
 }
 
-
+nsHTMLMediaElement* nsMediaDecoder::GetMediaElement()
+{
+  return mElement;
+}
 nsresult nsMediaDecoder::InitLogger() 
 {
 #ifdef PR_LOGGING
@@ -105,60 +120,80 @@ void nsMediaDecoder::Invalidate()
     return;
 
   nsIFrame* frame = mElement->GetPrimaryFrame();
-  if (!frame)
-    return;
   
   {
     nsAutoLock lock(mVideoUpdateLock);
     if (mSizeChanged) {
       mElement->UpdateMediaSize(nsIntSize(mRGBWidth, mRGBHeight));
       mSizeChanged = PR_FALSE;
-      nsPresContext* presContext = frame->PresContext();      
-      nsIPresShell *presShell = presContext->PresShell();
-      presShell->FrameNeedsReflow(frame, 
-                                  nsIPresShell::eStyleChange,
-                                  NS_FRAME_IS_DIRTY);
+      if (frame) {
+        nsPresContext* presContext = frame->PresContext();      
+        nsIPresShell *presShell = presContext->PresShell();
+        presShell->FrameNeedsReflow(frame, 
+                                    nsIPresShell::eStyleChange,
+                                    NS_FRAME_IS_DIRTY);
+      }
     }
   }
-  nsRect r(nsPoint(0,0), frame->GetSize());
-  frame->Invalidate(r);
+
+  if (frame) {
+    nsRect r(nsPoint(0,0), frame->GetSize());
+    frame->Invalidate(r);
+  }
 }
 
 static void ProgressCallback(nsITimer* aTimer, void* aClosure)
 {
   nsMediaDecoder* decoder = static_cast<nsMediaDecoder*>(aClosure);
-  decoder->Progress();
+  decoder->Progress(PR_TRUE);
 }
 
-void nsMediaDecoder::Progress()
+void nsMediaDecoder::Progress(PRBool aTimer)
 {
   if (!mElement)
     return;
 
-  mElement->DispatchProgressEvent(NS_LITERAL_STRING("progress"));
+  PRIntervalTime now = PR_IntervalNow();
+  if (mProgressTime == 0 ||
+      PR_IntervalToMilliseconds(PR_IntervalNow() - mProgressTime) >= PROGRESS_MS) {
+    mElement->DispatchAsyncProgressEvent(NS_LITERAL_STRING("progress"));
+    mProgressTime = now;
+  }
+
+  // The test for aTimer is to ensure that we dispatch 'stalled'
+  // only when we are not receiving data.
+  if (aTimer &&
+      mDataTime != 0 &&
+      PR_IntervalToMilliseconds(now - mDataTime) >= STALL_MS) {
+    mElement->DispatchAsyncProgressEvent(NS_LITERAL_STRING("stalled"));
+    mDataTime = 0;
+  }
+
+  if (!aTimer) {
+    mDataTime = now;
+  }
 }
 
 nsresult nsMediaDecoder::StartProgress()
 {
-  nsresult rv = NS_OK;
+  if (mProgressTimer)
+    return NS_OK;
 
-  if (!mProgressTimer) {
-    mProgressTimer = do_CreateInstance("@mozilla.org/timer;1");
-    rv = mProgressTimer->InitWithFuncCallback(ProgressCallback, 
+  mProgressTimer = do_CreateInstance("@mozilla.org/timer;1");
+  return mProgressTimer->InitWithFuncCallback(ProgressCallback,
                                               this, 
-                                              350, // Number of milliseconds defined in spec
-                                              nsITimer::TYPE_REPEATING_PRECISE);
-  }
-  return rv;
+                                              PROGRESS_MS,
+                                              nsITimer::TYPE_REPEATING_SLACK);
 }
 
 nsresult nsMediaDecoder::StopProgress()
 {
-  nsresult rv = NS_OK;
-  if (mProgressTimer) {
-    rv = mProgressTimer->Cancel();
-    mProgressTimer = nsnull;
-  }
+  if (!mProgressTimer)
+    return NS_OK;
+
+  nsresult rv = mProgressTimer->Cancel();
+  mProgressTimer = nsnull;
+
   return rv;
 }
 
@@ -173,10 +208,15 @@ void nsMediaDecoder::SetRGBData(PRInt32 aWidth, PRInt32 aHeight, float aFramerat
   }
   mFramerate = aFramerate;
 
-  if (!mRGB) 
-    mRGB = new unsigned char[aWidth * aHeight * 4];
-  if (mRGB && aRGBBuffer) {
-    memcpy(mRGB.get(), aRGBBuffer, aWidth*aHeight*4);
+  if (aRGBBuffer) {
+    if (!mRGB) {
+      mRGB = new unsigned char[aWidth * aHeight * 4];
+    }
+    if (mRGB) {
+      memcpy(mRGB.get(), aRGBBuffer, aWidth*aHeight*4);
+    }
+  } else {
+    mRGB = nsnull;
   }
 }
 
@@ -203,6 +243,9 @@ void nsMediaDecoder::Paint(gfxContext* aContext, const gfxRect& aRect)
 
   // Make the source image fill the rectangle completely
   pat->SetMatrix(gfxMatrix().Scale(mRGBWidth/aRect.Width(), mRGBHeight/aRect.Height()));
+  // Set PAD mode so that when the video is being scaled, we do not sample
+  // outside the bounds of the video image.
+  pat->SetExtend(gfxPattern::EXTEND_PAD);
 
   /* Draw RGB surface onto frame */
   aContext->NewPath();
@@ -223,15 +266,5 @@ void nsMediaDecoder::Paint(gfxContext* aContext, const gfxRect& aRect)
     }
   }   
 #endif
-}
-
-void nsMediaDecoder::ElementAvailable(nsHTMLMediaElement* anElement)
-{
-  mElement = anElement;
-}
-
-void nsMediaDecoder::ElementUnavailable()
-{
-  mElement = nsnull;
 }
 

@@ -164,7 +164,7 @@ NS_IMPL_ELEMENT_CLONE(nsHTMLLinkElement)
 NS_IMETHODIMP
 nsHTMLLinkElement::GetDisabled(PRBool* aDisabled)
 {
-  nsCOMPtr<nsIDOMStyleSheet> ss(do_QueryInterface(mStyleSheet));
+  nsCOMPtr<nsIDOMStyleSheet> ss(do_QueryInterface(GetStyleSheet()));
   nsresult result = NS_OK;
 
   if (ss) {
@@ -179,7 +179,7 @@ nsHTMLLinkElement::GetDisabled(PRBool* aDisabled)
 NS_IMETHODIMP 
 nsHTMLLinkElement::SetDisabled(PRBool aDisabled)
 {
-  nsCOMPtr<nsIDOMStyleSheet> ss(do_QueryInterface(mStyleSheet));
+  nsCOMPtr<nsIDOMStyleSheet> ss(do_QueryInterface(GetStyleSheet()));
   nsresult result = NS_OK;
 
   if (ss) {
@@ -257,7 +257,7 @@ nsHTMLLinkElement::CreateAndDispatchEvent(nsIDocument* aDoc,
 
   // In the unlikely case that both rev is specified *and* rel=stylesheet,
   // this code will cause the event to fire, on the principle that maybe the
-  // page really does want to specify that it's author is a stylesheet. Since
+  // page really does want to specify that its author is a stylesheet. Since
   // this should never actually happen and the performance hit is minimal,
   // doing the "right" thing costs virtually nothing here, even if it doesn't
   // make much sense.
@@ -303,10 +303,10 @@ nsHTMLLinkElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
   if (NS_SUCCEEDED(rv)) {
     PRBool dropSheet = PR_FALSE;
     if (aNameSpaceID == kNameSpaceID_None && aName == nsGkAtoms::rel &&
-        mStyleSheet) {
-      nsStringArray linkTypes(4);
+        GetStyleSheet()) {
+      nsAutoTArray<nsString, 4> linkTypes;
       nsStyleLinkElement::ParseLinkTypes(aValue, linkTypes);
-      dropSheet = linkTypes.IndexOf(NS_LITERAL_STRING("stylesheet")) < 0;
+      dropSheet = !linkTypes.Contains(NS_LITERAL_STRING("stylesheet"));
     }
     
     UpdateStyleSheetInternal(nsnull,
@@ -414,11 +414,11 @@ nsHTMLLinkElement::GetStyleSheetInfo(nsAString& aTitle,
   *aIsAlternate = PR_FALSE;
 
   nsAutoString rel;
-  nsStringArray linkTypes(4);
+  nsAutoTArray<nsString, 4> linkTypes;
   GetAttr(kNameSpaceID_None, nsGkAtoms::rel, rel);
   nsStyleLinkElement::ParseLinkTypes(rel, linkTypes);
   // Is it a stylesheet link?
-  if (linkTypes.IndexOf(NS_LITERAL_STRING("stylesheet")) < 0) {
+  if (!linkTypes.Contains(NS_LITERAL_STRING("stylesheet"))) {
     return;
   }
 
@@ -428,7 +428,7 @@ nsHTMLLinkElement::GetStyleSheetInfo(nsAString& aTitle,
   aTitle.Assign(title);
 
   // If alternate, does it have title?
-  if (-1 != linkTypes.IndexOf(NS_LITERAL_STRING("alternate"))) {
+  if (linkTypes.Contains(NS_LITERAL_STRING("alternate"))) {
     if (aTitle.IsEmpty()) { // alternates must have title
       return;
     } else {

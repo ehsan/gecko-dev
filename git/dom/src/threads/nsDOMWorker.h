@@ -42,6 +42,8 @@
 #include "nsIDOMEventTarget.h"
 #include "nsIDOMWorkers.h"
 #include "nsIJSNativeInitializer.h"
+#include "nsIPrincipal.h"
+#include "nsIURI.h"
 #include "nsIXPCScriptable.h"
 
 #include "jsapi.h"
@@ -52,9 +54,11 @@
 
 #include "nsDOMWorkerMessageHandler.h"
 
+class nsDOMWorker;
+class nsDOMWorkerFeature;
 class nsDOMWorkerMessageHandler;
+class nsDOMWorkerNavigator;
 class nsDOMWorkerPool;
-class nsDOMWorkerScope;
 class nsDOMWorkerTimeout;
 class nsICancelable;
 class nsIDOMEventListener;
@@ -62,7 +66,31 @@ class nsIEventTarget;
 class nsIScriptGlobalObject;
 class nsIXPConnectWrappedNative;
 
-class nsDOMWorkerFeature;
+class nsDOMWorkerScope : public nsIWorkerScope,
+                         public nsIDOMEventTarget,
+                         public nsIXPCScriptable,
+                         public nsIClassInfo
+{
+  typedef nsresult (NS_STDCALL nsDOMWorkerScope::*SetListenerFunc)
+    (nsIDOMEventListener*);
+
+public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIWORKERGLOBALSCOPE
+  NS_DECL_NSIWORKERSCOPE
+  NS_DECL_NSIDOMEVENTTARGET
+  NS_DECL_NSIXPCSCRIPTABLE
+  NS_DECL_NSICLASSINFO
+
+  nsDOMWorkerScope(nsDOMWorker* aWorker);
+
+private:
+  nsDOMWorker* mWorker;
+
+  nsRefPtr<nsDOMWorkerNavigator> mNavigator;
+
+  PRPackedBool mHasOnerror;
+};
 
 class nsDOMWorker : public nsIWorker,
                     public nsIJSNativeInitializer,
@@ -75,6 +103,8 @@ class nsDOMWorker : public nsIWorker,
   friend class nsDOMWorkerScriptLoader;
   friend class nsDOMWorkerTimeout;
   friend class nsDOMWorkerXHR;
+  friend class nsDOMWorkerXHRProxy;
+  friend class nsReportErrorRunnable;
 
   friend JSBool DOMWorkerOperationCallback(JSContext* aCx);
   friend void DOMWorkerErrorReporter(JSContext* aCx,
@@ -145,12 +175,14 @@ private:
   ~nsDOMWorker();
 
   nsresult PostMessageInternal(const nsAString& aMessage,
+                               PRBool aIsJSON,
+                               PRBool aIsPrimitive,
                                PRBool aToInner);
 
   PRBool CompileGlobalObject(JSContext* aCx);
 
   PRUint32 NextTimeoutId() {
-    return mNextTimeoutId++;
+    return ++mNextTimeoutId;
   }
 
   nsresult AddFeature(nsDOMWorkerFeature* aFeature,
@@ -162,14 +194,28 @@ private:
   void ResumeFeatures();
   void CancelFeatures();
 
+  nsIPrincipal* GetPrincipal() {
+    return mPrincipal;
+  }
+
+  void SetPrincipal(nsIPrincipal* aPrincipal) {
+    mPrincipal = aPrincipal;
+  }
+
+  nsIURI* GetURI() {
+    return mURI;
+  }
+
+  void SetURI(nsIURI* aURI) {
+    mURI = aURI;
+  }
+
 private:
 
   // mParent will live as long as mParentWN but only mParentWN will keep the JS
   // reflection alive, so we only hold one strong reference to mParentWN.
   nsDOMWorker* mParent;
   nsCOMPtr<nsIXPConnectWrappedNative> mParentWN;
-
-  PRUint32 mCallbackCount;
 
   PRLock* mLock;
 
@@ -190,9 +236,15 @@ private:
 
   nsIXPConnectWrappedNative* mWrappedNative;
 
+  nsCOMPtr<nsIPrincipal> mPrincipal;
+  nsCOMPtr<nsIURI> mURI;
+
+  PRInt32 mErrorHandlerRecursionCount;
+
   PRPackedBool mCanceled;
   PRPackedBool mSuspended;
   PRPackedBool mCompileAttempted;
+  PRPackedBool mTerminated;
 };
 
 /**

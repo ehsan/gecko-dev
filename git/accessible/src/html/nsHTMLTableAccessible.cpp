@@ -95,8 +95,7 @@ nsHTMLTableCellAccessible::GetAttributesInternal(nsIPersistentProperties *aAttri
   NS_ASSERTION(frame, "The frame cannot be obtaied for HTML table cell.");
   NS_ENSURE_STATE(frame);
 
-  nsITableCellLayout *cellLayout = nsnull;
-  CallQueryInterface(frame, &cellLayout);
+  nsITableCellLayout *cellLayout = do_QueryFrame(frame);
   NS_ENSURE_STATE(cellLayout);
 
   PRInt32 rowIdx = -1, cellIdx = -1;
@@ -199,7 +198,7 @@ nsresult
 nsHTMLTableAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
   nsresult rv= nsAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
   *aState |= nsIAccessibleStates::STATE_READONLY;
   return NS_OK;
@@ -242,24 +241,17 @@ nsHTMLTableAccessible::GetAttributesInternal(nsIPersistentProperties *aAttribute
 }
 
 NS_IMETHODIMP
-nsHTMLTableAccessible::GetAccessibleRelated(PRUint32 aRelationType,
-                                            nsIAccessible **aRelated)
+nsHTMLTableAccessible::GetRelationByType(PRUint32 aRelationType,
+                                         nsIAccessibleRelation **aRelation)
 {
-  NS_ENSURE_ARG_POINTER(aRelated);
-  *aRelated = nsnull;
-
-  if (!mDOMNode) {
-    return NS_ERROR_FAILURE;
-  }
-
-  nsresult rv = nsAccessibleWrap::GetAccessibleRelated(aRelationType, aRelated);
-  if (NS_FAILED(rv) || *aRelated) {
-    // Either the node is shut down, or another relation mechanism has been used
-    return rv;
-  }
+  nsresult rv = nsAccessibleWrap::GetRelationByType(aRelationType,
+                                                    aRelation);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (aRelationType == nsIAccessibleRelation::RELATION_DESCRIBED_BY) {
-    return GetCaption(aRelated);
+    nsCOMPtr<nsIAccessible> accCaption;
+    GetCaption(getter_AddRefs(accCaption));
+    return nsRelUtils::AddTarget(aRelationType, aRelation, accCaption);
   }
 
   return NS_OK;
@@ -928,7 +920,11 @@ nsHTMLTableAccessible::GetTableLayout(nsITableLayout **aTableLayout)
   NS_ENSURE_TRUE(shell, NS_ERROR_FAILURE);
 
   nsIFrame *frame = shell->GetPrimaryFrameFor(tableContent);
-  return frame ? CallQueryInterface(frame, aTableLayout) : NS_ERROR_FAILURE;
+  if (!frame)
+    return NS_ERROR_FAILURE;
+
+  *aTableLayout = do_QueryFrame(frame);
+  return (*aTableLayout) ? NS_OK : NS_NOINTERFACE;
 }
 
 nsresult
@@ -971,7 +967,8 @@ NS_IMETHODIMP nsHTMLTableAccessible::GetDescription(nsAString& aDescription)
     captionAccessNode->GetDOMNode(getter_AddRefs(captionNode));
     nsCOMPtr<nsIContent> captionContent = do_QueryInterface(captionNode);
     if (captionContent) {
-      AppendFlatStringFromSubtree(captionContent, &aDescription);
+      nsTextEquivUtils::
+        AppendTextEquivFromContent(this, captionContent, &aDescription);
     }
   }
 #ifdef SHOW_LAYOUT_HEURISTIC
@@ -1251,24 +1248,17 @@ nsHTMLTableHeadAccessible::GetRows(PRInt32 *aRows)
 }
 
 NS_IMETHODIMP
-nsHTMLCaptionAccessible::GetAccessibleRelated(PRUint32 aRelationType,
-                                              nsIAccessible **aRelated)
+nsHTMLCaptionAccessible::GetRelationByType(PRUint32 aRelationType,
+                                           nsIAccessibleRelation **aRelation)
 {
-  NS_ENSURE_ARG_POINTER(aRelated);
-  *aRelated = nsnull;
-
-  if (!mDOMNode) {
-    return NS_ERROR_FAILURE;
-  }
-
-  nsresult rv = nsHyperTextAccessible::GetAccessibleRelated(aRelationType, aRelated);
-  if (NS_FAILED(rv) || *aRelated) {
-    // Either the node is shut down, or another relation mechanism has been used
-    return rv;
-  }
+  nsresult rv = nsHyperTextAccessible::GetRelationByType(aRelationType,
+                                                         aRelation);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (aRelationType == nsIAccessibleRelation::RELATION_DESCRIPTION_FOR) {
-    return GetParent(aRelated);
+    nsCOMPtr<nsIAccessible> accParent;
+    GetParent(getter_AddRefs(accParent));
+    return nsRelUtils::AddTarget(aRelationType, aRelation, accParent);
   }
 
   return NS_OK;

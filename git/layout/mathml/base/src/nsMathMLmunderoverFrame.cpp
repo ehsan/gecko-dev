@@ -75,7 +75,7 @@ nsMathMLmunderoverFrame::AttributeChanged(PRInt32         aNameSpaceID,
       nsGkAtoms::accentunder_ == aAttribute) {
     // When we have automatic data to update within ourselves, we ask our
     // parent to re-layout its children
-    return ReLayoutChildren(mParent, NS_FRAME_IS_DIRTY);
+    return ReLayoutChildren(mParent);
   }
 
   return nsMathMLContainerFrame::
@@ -318,7 +318,8 @@ nsMathMLmunderoverFrame::Place(nsIRenderingContext& aRenderingContext,
   ////////////////////
   // Place Children
 
-  aRenderingContext.SetFont(GetStyleFont()->mFont, nsnull);
+  aRenderingContext.SetFont(GetStyleFont()->mFont, nsnull,
+                            PresContext()->GetUserFontSet());
   nsCOMPtr<nsIFontMetrics> fm;
   aRenderingContext.GetFontMetrics(*getter_AddRefs(fm));
 

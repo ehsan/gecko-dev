@@ -91,7 +91,7 @@
 /*----------------------------------------------------------------------*/
 
 #define NP_VERSION_MAJOR 0
-#define NP_VERSION_MINOR 20
+#define NP_VERSION_MINOR 22
 
 
 /* The OS/2 version of Netscape uses RC_DATA to define the
@@ -273,21 +273,14 @@ typedef enum {
  *   gcc 3.x generated vtables on UNIX and OSX are incompatible with 
  *   previous compilers.
  */
-#if (defined (XP_UNIX) && defined(__GNUC__) && (__GNUC__ >= 3))
+#if (defined(XP_UNIX) && defined(__GNUC__) && (__GNUC__ >= 3))
 #define _NP_ABI_MIXIN_FOR_GCC3 NP_ABI_GCC3_MASK
 #else
 #define _NP_ABI_MIXIN_FOR_GCC3 0
 #endif
 
+#ifdef XP_MACOSX
 #define NP_ABI_MACHO_MASK 0x01000000
-/*
- *   On OSX, the Mach-O executable format is significantly
- *   different than CFM. In addition to having a different
- *   C++ ABI, it also has has different C calling convention.
- *   You must use glue code when calling between CFM and
- *   Mach-O C functions. 
- */
-#if (defined(TARGET_RT_MAC_MACHO))
 #define _NP_ABI_MIXIN_FOR_MACHO NP_ABI_MACHO_MASK
 #else
 #define _NP_ABI_MIXIN_FOR_MACHO 0
@@ -335,6 +328,7 @@ typedef enum {
    * all http requests (including failed ones, http status != 200).
    */
   NPPVpluginWantsAllNetworkStreams = 18
+
 #ifdef XP_MACOSX
   /* Used for negotiating drawing models */
   , NPPVpluginDrawingModel = 1000
@@ -365,7 +359,9 @@ typedef enum {
   /* Get the NPObject wrapper for the plugins DOM element. */
   NPNVPluginElementNPObject = 16,
 
-  NPNVSupportsWindowless = 17
+  NPNVSupportsWindowless = 17,
+
+  NPNVprivateModeBool = 18
 
 #ifdef XP_MACOSX
   /* Used for negotiating drawing models */
@@ -376,6 +372,11 @@ typedef enum {
   , NPNVsupportsCoreGraphicsBool = 2001
 #endif
 } NPNVariable;
+
+typedef enum {
+  NPNURLVCookie = 501,
+  NPNURLVProxy
+} NPNURLVariable;
 
 /*
  * The type of Tookkit the widgets use
@@ -578,6 +579,7 @@ enum NPEventType {
 #define NPVERS_HAS_NPOBJECT_ENUM            18
 #define NPVERS_HAS_PLUGIN_THREAD_ASYNC_CALL 19
 #define NPVERS_HAS_ALL_NETWORK_STREAMS      20
+#define NPVERS_HAS_URL_AND_AUTH_INFO        21
 
 /*----------------------------------------------------------------------*/
 /*                        Function Prototypes                           */
@@ -596,11 +598,11 @@ extern "C" {
 /* NPP_* functions are provided by the plugin and called by the navigator. */
 
 #ifdef XP_UNIX
-char* NPP_GetMIMEDescription(void);
+char* NPP_GetMIMEDescription();
 #endif
 
-NPError NP_LOADDS NPP_Initialize(void);
-void    NP_LOADDS NPP_Shutdown(void);
+NPError NP_LOADDS NPP_Initialize();
+void    NP_LOADDS NPP_Shutdown();
 NPError NP_LOADDS NPP_New(NPMIMEType pluginType, NPP instance,
                           uint16_t mode, int16_t argc, char* argn[],
                           char* argv[], NPSavedData* saved);
@@ -621,7 +623,7 @@ int16_t NP_LOADDS NPP_HandleEvent(NPP instance, void* event);
 void    NP_LOADDS NPP_URLNotify(NPP instance, const char* url,
                                 NPReason reason, void* notifyData);
 #ifdef OJI
-jref    NP_LOADDS NPP_GetJavaClass(void);
+jref    NP_LOADDS NPP_GetJavaClass();
 #endif
 NPError NP_LOADDS NPP_GetValue(NPP instance, NPPVariable variable, void *value);
 NPError NP_LOADDS NPP_SetValue(NPP instance, NPNVariable variable, void *value);
@@ -654,7 +656,7 @@ void        NP_LOADDS NPN_MemFree(void* ptr);
 uint32_t    NP_LOADDS NPN_MemFlush(uint32_t size);
 void        NP_LOADDS NPN_ReloadPlugins(NPBool reloadPages);
 #ifdef OJI
-JRIEnv*     NP_LOADDS NPN_GetJavaEnv(void);
+JRIEnv*     NP_LOADDS NPN_GetJavaEnv();
 jref        NP_LOADDS NPN_GetJavaPeer(NPP instance);
 #endif
 NPError     NP_LOADDS NPN_GetValue(NPP instance, NPNVariable variable,
@@ -668,7 +670,22 @@ void        NP_LOADDS NPN_ForceRedraw(NPP instance);
 void        NP_LOADDS NPN_PushPopupsEnabledState(NPP instance, NPBool enabled);
 void        NP_LOADDS NPN_PopPopupsEnabledState(NPP instance);
 void        NP_LOADDS NPN_PluginThreadAsyncCall(NPP instance,
-                                                void (*func) (void *), void *userData);
+                                                void (*func) (void *),
+                                                void *userData);
+NPError     NP_LOADDS NPN_GetValueForURL(NPP instance, NPNURLVariable variable,
+                                         const char *url, char **value,
+                                         uint32_t *len);
+NPError     NP_LOADDS NPN_SetValueForURL(NPP instance, NPNURLVariable variable,
+                                         const char *url, const char *value,
+                                         uint32_t len);
+NPError     NP_LOADDS NPN_GetAuthenticationInfo(NPP instance,
+                                                const char *protocol,
+                                                const char *host, int32_t port,
+                                                const char *scheme,
+                                                const char *realm,
+                                                char **username, uint32_t *ulen,
+                                                char **password,
+                                                uint32_t *plen);
 
 #ifdef __cplusplus
 }  /* end extern "C" */

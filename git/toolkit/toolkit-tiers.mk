@@ -70,9 +70,7 @@ endif
 tier_external_dirs += modules/libmar
 endif
 
-ifndef MOZ_NATIVE_LCMS
 tier_external_dirs	+= modules/lcms
-endif
 
 #
 # tier "gecko" - core components
@@ -87,10 +85,6 @@ ifdef MOZ_ENABLE_GTK2
 ifdef MOZ_X11
 tier_gecko_dirs     += widget/src/gtkxtbin
 endif
-endif
-
-ifdef MOZ_IPCD
-tier_gecko_dirs += ipc/ipcd
 endif
 
 tier_gecko_dirs	+= \
@@ -275,4 +269,8 @@ endif
 
 ifdef ENABLE_TESTS
 tier_toolkit_dirs	+= testing/mochitest
+endif
+
+ifdef MOZ_TREE_FREETYPE
+tier_external_dirs	+= modules/freetype2
 endif

@@ -53,18 +53,17 @@
 
 nsIFrame*
 NS_NewSVGPathGeometryFrame(nsIPresShell* aPresShell,
-                           nsIContent* aContent,
                            nsStyleContext* aContext)
 {
   return new (aPresShell) nsSVGPathGeometryFrame(aContext);
 }
 
 //----------------------------------------------------------------------
-// nsISupports methods
+// nsQueryFrame methods
 
-NS_INTERFACE_MAP_BEGIN(nsSVGPathGeometryFrame)
-  NS_INTERFACE_MAP_ENTRY(nsISVGChildFrame)
-NS_INTERFACE_MAP_END_INHERITING(nsSVGPathGeometryFrameBase)
+NS_QUERYFRAME_HEAD(nsSVGPathGeometryFrame)
+  NS_QUERYFRAME_ENTRY(nsISVGChildFrame)
+NS_QUERYFRAME_TAIL_INHERITING(nsSVGPathGeometryFrameBase)
 
 //----------------------------------------------------------------------
 // nsIFrame methods
@@ -88,11 +87,7 @@ nsSVGPathGeometryFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 {
   nsSVGPathGeometryFrameBase::DidSetStyleContext(aOldStyleContext);
 
-  nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(this);
-  if (outerSVGFrame) {
-    // invalidate here while we still have the filter information
-    outerSVGFrame->InvalidateCoveredRegion(this);
-  }
+  nsSVGUtils::InvalidateCoveredRegion(this);
 
   // XXX: we'd like to use the style_hint mechanism and the
   // ContentStateChanged/AttributeChanged functions for style changes
@@ -255,14 +250,13 @@ nsSVGPathGeometryFrame::UpdateCoveredRegion()
 
   static_cast<nsSVGPathGeometryElement*>(mContent)->ConstructPath(&context);
 
-  gfxRect extent;
+  gfxRect extent = gfxRect(0, 0, 0, 0);
 
   if (SetupCairoStrokeGeometry(&context)) {
     extent = context.GetUserStrokeExtent();
-  } else if (GetStyleSVG()->mFill.mType != eStyleSVGPaintType_None) {
-    extent = context.GetUserPathExtent();
-  } else {
-    extent = gfxRect(0, 0, 0, 0);
+  }
+  if (GetStyleSVG()->mFill.mType != eStyleSVGPaintType_None) {
+    extent = extent.Union(context.GetUserPathExtent());
   }
 
   if (!extent.IsEmpty()) {

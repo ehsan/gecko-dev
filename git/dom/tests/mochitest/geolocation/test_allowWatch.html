@@ -27,7 +27,7 @@ var watchID = new Array(numCallbacks);
 
 function failureCallback(error)
 {
-  ok(error.code == 2, "Failure was something other than position unavailable");
+  ok(error.code == error.POSITION_UNAVAILABLE, "Failure was something other than position unavailable");
   removePrompt();
   SimpleTest.finish();
 }
@@ -56,8 +56,6 @@ function clearWatches() {
 }
 
 function testAccepted() {
-  if(TEST_PROVIDER)
-    checkFlags(callbackCounter, num_pos_changes, false);
   clearWatches();
   removePrompt();
   SimpleTest.finish();

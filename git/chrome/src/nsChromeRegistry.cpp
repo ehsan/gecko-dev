@@ -69,6 +69,7 @@
 #include "nsString.h"
 #include "nsUnicharUtils.h"
 #include "nsWidgetsCID.h"
+#include "nsXPCOMCIDInternal.h"
 #include "nsXPIDLString.h"
 #include "nsXULAppAPI.h"
 #include "nsTextFormatter.h"
@@ -252,6 +253,16 @@ LanguagesMatch(const nsACString& a, const nsACString& b)
   return PR_FALSE;
 }
 
+static PRBool
+CanLoadResource(nsIURI* aResourceURI)
+{
+  PRBool isLocalResource = PR_FALSE;
+  (void)NS_URIChainHasFlags(aResourceURI,
+                            nsIProtocolHandler::URI_IS_LOCAL_RESOURCE,
+                            &isLocalResource);
+  return isLocalResource;
+}
+
 nsChromeRegistry::ProviderEntry*
 nsChromeRegistry::nsProviderArray::GetProvider(const nsACString& aPreferred, MatchType aType)
 {
@@ -326,12 +337,12 @@ nsChromeRegistry::nsProviderArray::SetBase(const nsACString& aProvider, nsIURI* 
 }
 
 void
-nsChromeRegistry::nsProviderArray::EnumerateToArray(nsCStringArray *a)
+nsChromeRegistry::nsProviderArray::EnumerateToArray(nsTArray<nsCString> *a)
 {
   PRInt32 i = mArray.Count();
   while (i--) {
     ProviderEntry *entry = reinterpret_cast<ProviderEntry*>(mArray[i]);
-    a->AppendCString(entry->provider);
+    a->AppendElement(entry->provider);
   }
 }
 
@@ -815,7 +826,7 @@ NS_IMETHODIMP
 nsChromeRegistry::GetLocalesForPackage(const nsACString& aPackage,
                                        nsIUTF8StringEnumerator* *aResult)
 {
-  nsCStringArray *a = new nsCStringArray;
+  nsTArray<nsCString> *a = new nsTArray<nsCString>;
   if (!a)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -2334,6 +2345,13 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
       if (NS_FAILED(rv))
         continue;
 
+      if (!CanLoadResource(resolved)) {
+        LogMessageWithContext(resolved, line, nsIScriptError::warningFlag,
+                              "Warning: cannot register non-local URI '%s' as content.",
+                              uri);
+        continue;
+      }
+
       PackageEntry* entry =
         static_cast<PackageEntry*>(PL_DHashTableOperate(&mPackagesHash,
                                                             & (const nsACString&) nsDependentCString(package),
@@ -2409,6 +2427,13 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
       if (NS_FAILED(rv))
         continue;
 
+      if (!CanLoadResource(resolved)) {
+        LogMessageWithContext(resolved, line, nsIScriptError::warningFlag,
+                              "Warning: cannot register non-local URI '%s' as a locale.",
+                              uri);
+        continue;
+      }
+
       PackageEntry* entry =
         static_cast<PackageEntry*>(PL_DHashTableOperate(&mPackagesHash,
                                                             & (const nsACString&) nsDependentCString(package),
@@ -2463,6 +2488,13 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
                       getter_AddRefs(resolved));
       if (NS_FAILED(rv))
         continue;
+
+      if (!CanLoadResource(resolved)) {
+        LogMessageWithContext(resolved, line, nsIScriptError::warningFlag,
+                              "Warning: cannot register non-local URI '%s' as a skin.",
+                              uri);
+        continue;
+      }
 
       PackageEntry* entry =
         static_cast<PackageEntry*>(PL_DHashTableOperate(&mPackagesHash,
@@ -2525,6 +2557,13 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
         continue;
       }
 
+      if (!CanLoadResource(overlayuri)) {
+        LogMessageWithContext(overlayuri, line, nsIScriptError::warningFlag,
+                              "Warning: cannot register non-local URI '%s' as an overlay.",
+                              overlay);
+        continue;
+      }
+
       mOverlayHash.Add(baseuri, overlayuri);
     }
     else if (!strcmp(token, "style")) {
@@ -2571,6 +2610,13 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
                        getter_AddRefs(overlayuri));
       if (NS_FAILED(rv))
         continue;
+
+      if (!CanLoadResource(overlayuri)) {
+        LogMessageWithContext(overlayuri, line, nsIScriptError::warningFlag,
+                              "Warning: cannot register non-local URI '%s' as a style overlay.",
+                              overlay);
+        continue;
+      }
 
       mStyleHash.Add(baseuri, overlayuri);
     }
@@ -2624,6 +2670,13 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
                        getter_AddRefs(resolveduri));
       if (NS_FAILED(rv))
         continue;
+
+      if (!CanLoadResource(resolveduri)) {
+        LogMessageWithContext(resolveduri, line, nsIScriptError::warningFlag,
+                              "Warning: cannot register non-local URI '%s' as an override.",
+                              resolved);
+        continue;
+      }
 
       mOverrideTable.Put(chromeuri, resolveduri);
     }
@@ -2689,6 +2742,13 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
                       getter_AddRefs(resolved));
       if (NS_FAILED(rv))
         continue;
+
+      if (!CanLoadResource(resolved)) {
+        LogMessageWithContext(resolved, line, nsIScriptError::warningFlag,
+                              "Warning: cannot register non-local URI '%s' as a resource.",
+                              uri);
+        continue;
+      }
 
       rv = rph->SetSubstitution(host, resolved);
       NS_ENSURE_SUCCESS(rv, rv);

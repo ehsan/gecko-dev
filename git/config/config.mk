@@ -73,6 +73,8 @@ CHECK_VARS := \
  SHORT_LIBNAME \
  XPI_PKGNAME \
  INSTALL_EXTENSION_ID \
+ SHARED_LIBRARY_NAME \
+ STATIC_LIBRARY_NAME \
  $(NULL)
 
 # checks for internal spaces or trailing spaces in the variable
@@ -359,6 +361,18 @@ DSO_PIC_CFLAGS=
 endif
 endif
 
+ifndef SHARED_LIBRARY_NAME
+ifdef LIBRARY_NAME
+SHARED_LIBRARY_NAME=$(LIBRARY_NAME)
+endif
+endif
+
+ifndef STATIC_LIBRARY_NAME
+ifdef LIBRARY_NAME
+STATIC_LIBRARY_NAME=$(LIBRARY_NAME)
+endif
+endif
+
 # This comes from configure
 ifdef MOZ_PROFILE_GUIDED_OPTIMIZE_DISABLE
 NO_PROFILE_GUIDED_OPTIMIZE = 1
@@ -493,33 +507,7 @@ ifndef MOZILLA_INTERNAL_API
 INCLUDES	+= -I$(LIBXUL_DIST)/sdk/include
 endif
 
-# The entire tree should be subject to static analysis using the XPCOM
-# script. Additional scripts may be added by specific subdirectories.
-
-DEHYDRA_SCRIPT = $(topsrcdir)/xpcom/analysis/static-checking.js
-
-DEHYDRA_MODULES = \
-  $(topsrcdir)/xpcom/analysis/final.js \
-  $(NULL)
-
-TREEHYDRA_MODULES = \
-  $(topsrcdir)/xpcom/analysis/outparams.js \
-  $(topsrcdir)/xpcom/analysis/stack.js \
-  $(topsrcdir)/xpcom/analysis/flow.js \
-  $(NULL)
-
-DEHYDRA_ARGS = \
-  --topsrcdir=$(topsrcdir) \
-  --objdir=$(DEPTH) \
-  --dehydra-modules=$(subst $(NULL) ,$(COMMA),$(strip $(DEHYDRA_MODULES))) \
-  --treehydra-modules=$(subst $(NULL) ,$(COMMA),$(strip $(TREEHYDRA_MODULES))) \
-  $(NULL)
-
-DEHYDRA_FLAGS = -fplugin=$(DEHYDRA_PATH) -fplugin-arg='$(DEHYDRA_SCRIPT) $(DEHYDRA_ARGS)'
-
-ifdef DEHYDRA_PATH
-OS_CXXFLAGS += $(DEHYDRA_FLAGS)
-endif
+include $(topsrcdir)/config/static-checking-config.mk
 
 CFLAGS		= $(OS_CFLAGS)
 CXXFLAGS	= $(OS_CXXFLAGS)
@@ -872,6 +860,10 @@ ifeq (,$(filter WINCE WINNT OS2,$(OS_ARCH)))
 RUN_TEST_PROGRAM = $(DIST)/bin/run-mozilla.sh
 endif
 
+ifeq ($(OS_ARCH),OS2)
+RUN_TEST_PROGRAM = $(topsrcdir)/testing/xpcshell/test_os2.cmd "$(DIST)"
+endif
+
 #
 # Java macros
 #
@@ -881,4 +873,9 @@ JAVAC_FLAGS += -source 1.4
 
 ifdef MOZ_DEBUG
 JAVAC_FLAGS += -g
+endif
+
+ifdef TIERS
+DIRS += $(foreach tier,$(TIERS),$(tier_$(tier)_dirs))
+STATIC_DIRS += $(foreach tier,$(TIERS),$(tier_$(tier)_staticdirs))
 endif

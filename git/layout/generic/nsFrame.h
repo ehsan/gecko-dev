@@ -156,8 +156,8 @@ private:
 
 public:
 
-  // nsISupports
-  NS_IMETHOD  QueryInterface(const nsIID& aIID, void** aInstancePtr);
+  // nsQueryFrame
+  NS_DECL_QUERYFRAME
 
   // nsIFrame
   NS_IMETHOD  Init(nsIContent*      aContent,
@@ -234,7 +234,7 @@ public:
   NS_IMETHOD  List(FILE* out, PRInt32 aIndent) const;
   NS_IMETHOD  GetFrameName(nsAString& aResult) const;
   NS_IMETHOD_(nsFrameState) GetDebugStateBits() const;
-  NS_IMETHOD  DumpRegressionData(nsPresContext* aPresContext, FILE* out, PRInt32 aIndent, PRBool aIncludeStyleData);
+  NS_IMETHOD  DumpRegressionData(nsPresContext* aPresContext, FILE* out, PRInt32 aIndent);
   NS_IMETHOD  VerifyTree() const;
 #endif
 
@@ -442,9 +442,8 @@ public:
 
   static void ListTag(FILE* out, nsIFrame* aFrame) {
     nsAutoString tmp;
-    nsIFrameDebug*  frameDebug;
-
-    if (NS_SUCCEEDED(aFrame->QueryInterface(NS_GET_IID(nsIFrameDebug), (void**)&frameDebug))) {
+    nsIFrameDebug*  frameDebug = do_QueryFrame(aFrame);
+    if (frameDebug) {
       frameDebug->GetFrameName(tmp);
     }
     fputs(NS_LossyConvertUTF16toASCII(tmp).get(), out);
@@ -466,7 +465,7 @@ public:
    * some custom behavior that requires changing how the outer "frame"
    * XML container is dumped.
    */
-  virtual void DumpBaseRegressionData(nsPresContext* aPresContext, FILE* out, PRInt32 aIndent, PRBool aIncludeStyleData);
+  virtual void DumpBaseRegressionData(nsPresContext* aPresContext, FILE* out, PRInt32 aIndent);
   
   nsresult MakeFrameName(const nsAString& aKind, nsAString& aResult) const;
 
@@ -622,10 +621,6 @@ private:
   NS_IMETHODIMP RefreshSizeCache(nsBoxLayoutState& aState);
 
   virtual nsILineIterator* GetLineIterator();
-
-protected:
-  NS_IMETHOD_(nsrefcnt) AddRef(void);
-  NS_IMETHOD_(nsrefcnt) Release(void);
 };
 
 // Start Display Reflow Debugging

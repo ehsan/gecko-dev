@@ -57,9 +57,9 @@ class nsScriptObjectHolder;
 typedef void (*nsScriptTerminationFunc)(nsISupports* aRef);
 
 #define NS_ISCRIPTCONTEXT_IID \
-{ /* {e7b9871d-3adc-4bf7-850d-7fb9554886bf} */ \
-  0xe7b9871d, 0x3adc, 0x4bf7, \
- { 0x85, 0x0d, 0x7f, 0xb9, 0x55, 0x48, 0x86, 0xbf } }
+{ /* {09316a0e-8d05-4d26-9efd-8f907a7c79d2} */ \
+  0x09316a0e, 0x8d05, 0x4d26, \
+ { 0x9e, 0xfd, 0x8f, 0x90, 0x7a, 0x7c, 0x79, 0xd2 } }
 
 /* This MUST match JSVERSION_DEFAULT.  This version stuff if we don't
    know what language we have is a little silly... */
@@ -172,6 +172,11 @@ public:
    * hence is compiled without principals.  Never call the returned object
    * directly - it must be bound (and thereby cloned, and therefore have the 
    * correct principals) before use!
+   *
+   * If the compilation sets a pending exception on the native context, it is
+   * this method's responsibility to report said exception immediately, without
+   * relying on callers to do so.
+   *
    *
    * @param aName an nsIAtom pointer naming the function; it must be lowercase
    *        and ASCII, and should not be longer than 63 chars.  This bound on
@@ -451,9 +456,6 @@ public:
    */
   virtual nsresult DropScriptObject(void *object) = 0;
   virtual nsresult HoldScriptObject(void *object) = 0;
-
-  /* Report a pending exception if there is one on the native context */
-  virtual void ReportPendingException() = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIScriptContext, NS_ISCRIPTCONTEXT_IID)

@@ -222,7 +222,14 @@ nsHttpChannel::Init(nsIURI *uri,
     if (strchr(host.get(), ':')) {
         // host is an IPv6 address literal and must be encapsulated in []'s
         hostLine.Assign('[');
-        hostLine.Append(host);
+        // scope id is not needed for Host header.
+        int scopeIdPos = host.FindChar('%');
+        if (scopeIdPos == kNotFound)
+            hostLine.Append(host);
+        else if (scopeIdPos > 0)
+            hostLine.Append(Substring(host, 0, scopeIdPos));
+        else
+          return NS_ERROR_MALFORMED_URI;
         hostLine.Append(']');
     }
     else
@@ -248,11 +255,19 @@ nsHttpChannel::Init(nsIURI *uri,
 //-----------------------------------------------------------------------------
 
 nsresult
-nsHttpChannel::AsyncCall(nsAsyncCallback funcPtr)
+nsHttpChannel::AsyncCall(nsAsyncCallback funcPtr,
+                         nsRunnableMethod<nsHttpChannel> **retval)
 {
-    nsCOMPtr<nsIRunnable> event =
+    nsresult rv;
+
+    nsRefPtr<nsRunnableMethod<nsHttpChannel> > event =
             new nsRunnableMethod<nsHttpChannel>(this, funcPtr);
-    return NS_DispatchToCurrentThread(event);
+    rv = NS_DispatchToCurrentThread(event);
+    if (NS_SUCCEEDED(rv) && retval) {
+        *retval = event;
+    }
+
+    return rv;
 }
 
 PRBool
@@ -334,7 +349,15 @@ nsHttpChannel::Connect(PRBool firstTime)
 
         // read straight from the cache if possible...
         if (mCachedContentIsValid) {
-            return ReadFromCache();
+            nsRunnableMethod<nsHttpChannel> *event = nsnull;
+            if (!mCachedContentIsPartial) {
+                AsyncCall(&nsHttpChannel::AsyncOnExamineCachedResponse, &event);
+            }
+            rv = ReadFromCache();
+            if (NS_FAILED(rv) && event) {
+                event->Revoke();
+            }
+            return rv;
         }
         else if (mLoadFlags & LOAD_ONLY_FROM_CACHE) {
             // the cache contains the requested resource, but it must be 
@@ -649,6 +672,12 @@ nsHttpChannel::SetupTransaction()
     if (!mTransaction)
         return NS_ERROR_OUT_OF_MEMORY;
     NS_ADDREF(mTransaction);
+
+    // See bug #466080. Transfer LOAD_ANONYMOUS flag to socket-layer.
+    if (mLoadFlags & LOAD_ANONYMOUS) {
+        mCaps |= NS_HTTP_LOAD_ANONYMOUS;
+        mConnectionInfo->SetAnonymous();
+    }
 
     nsCOMPtr<nsIAsyncInputStream> responseStream;
     rv = mTransaction->Init(mCaps, mConnectionInfo, &mRequestHead,
@@ -1033,6 +1062,9 @@ nsHttpChannel::ProcessNormal()
 nsresult
 nsHttpChannel::PromptTempRedirect()
 {
+    if (!gHttpHandler->PromptTempRedirect()) {
+        return NS_OK;
+    }
     nsresult rv;
     nsCOMPtr<nsIStringBundleService> bundleService =
             do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
@@ -1132,6 +1164,9 @@ nsHttpChannel::DoReplaceWithProxy(nsIProxyInfo* pi)
     rv = gHttpHandler->OnChannelRedirect(this, newChannel, flags);
     if (NS_FAILED(rv))
         return rv;
+
+    // Make sure to do this _after_ calling OnChannelRedirect
+    newChannel->SetOriginalURI(mOriginalURI);
 
     // open new channel
     rv = newChannel->AsyncOpen(mListener, mListenerContext);
@@ -1463,6 +1498,9 @@ nsHttpChannel::ProcessFallback(PRBool *fallingBack)
     if (NS_FAILED(rv))
         return rv;
 
+    // Make sure to do this _after_ calling OnChannelRedirect
+    newChannel->SetOriginalURI(mOriginalURI);
+    
     rv = newChannel->AsyncOpen(mListener, mListenerContext);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1479,6 +1517,18 @@ nsHttpChannel::ProcessFallback(PRBool *fallingBack)
     *fallingBack = PR_TRUE;
 
     return NS_OK;
+}
+
+// Determines if a request is a byte range request for a subrange,
+// i.e. is a byte range request, but not a 0- byte range request.
+static PRBool
+IsSubRangeRequest(nsHttpRequestHead &aRequestHead)
+{
+    if (!aRequestHead.PeekHeader(nsHttp::Range))
+        return PR_FALSE;
+    nsCAutoString byteRange;
+    aRequestHead.GetHeader(nsHttp::Range, byteRange);
+    return !byteRange.EqualsLiteral("bytes=0-");
 }
 
 nsresult
@@ -1509,13 +1559,16 @@ nsHttpChannel::OpenCacheEntry(PRBool offline, PRBool *delayed)
         return NS_OK;
     }
 
-    if (mRequestHead.PeekHeader(nsHttp::Range) || mResuming) {
-        // we don't support caching for byte range requests initiated
-        // by our clients or via nsIResumableChannel.
-        // XXX perhaps we could munge their byte range into the cache
-        // key to make caching sort'a work.
+    if (mResuming) {
+        // We don't support caching for requests initiated
+        // via nsIResumableChannel.
         return NS_OK;
     }
+
+    // Don't cache byte range requests which are subranges, only cache 0-
+    // byte range requests.
+    if (IsSubRangeRequest(mRequestHead))
+        return NS_OK;
 
     if (RequestIsConditional()) {
         // don't use the cache if our consumer is making a conditional request
@@ -1530,7 +1583,7 @@ nsHttpChannel::OpenCacheEntry(PRBool offline, PRBool *delayed)
 
     // Set the desired cache access mode accordingly...
     nsCacheAccessMode accessRequested;
-    if (mLoadFlags & (LOAD_ONLY_FROM_CACHE | INHIBIT_CACHING)) {
+    if (offline || (mLoadFlags & INHIBIT_CACHING)) {
         // If we have been asked to bypass the cache and not write to the
         // cache, then don't use the cache at all.  Unless we're actually
         // offline, which takes precedence over BYPASS_LOCAL_CACHE.
@@ -1712,11 +1765,10 @@ nsHttpChannel::OpenOfflineCacheEntryForWriting()
         return NS_OK;
     }
 
-    if (mRequestHead.PeekHeader(nsHttp::Range)) {
-        // we don't support caching for byte range requests initiated
-        // by our clients or via nsIResumableChannel.
+    // Don't cache byte range requests which are subranges, only cache 0-
+    // byte range requests.
+    if (IsSubRangeRequest(mRequestHead))
         return NS_OK;
-    }
 
     if (RequestIsConditional()) {
         // don't use the cache if our consumer is making a conditional request
@@ -1901,15 +1953,15 @@ nsHttpChannel::CheckCache()
     NS_ENSURE_SUCCESS(rv, rv);
     buf.Adopt(0);
 
-    // Don't bother to validate LOAD_ONLY_FROM_CACHE items.
     // Don't bother to validate items that are read-only,
     // unless they are read-only because of INHIBIT_CACHING or because
     // we're updating the offline cache.
     // Don't bother to validate if this is a fallback entry.
-    if (mLoadFlags & LOAD_ONLY_FROM_CACHE ||
-        (mCacheAccess == nsICache::ACCESS_READ &&
-         !((mLoadFlags & INHIBIT_CACHING) || mCacheForOfflineUse)) ||
-        mFallbackChannel) {
+    if (!mCacheForOfflineUse &&
+        (mLoadedFromApplicationCache ||
+         (mCacheAccess == nsICache::ACCESS_READ &&
+          !(mLoadFlags & INHIBIT_CACHING)) ||
+         mFallbackChannel)) {
         mCachedContentIsValid = PR_TRUE;
         return NS_OK;
     }
@@ -2582,7 +2634,6 @@ nsHttpChannel::SetupReplacementChannel(nsIURI       *newURI,
     // Do not pass along LOAD_CHECK_OFFLINE_CACHE
     newLoadFlags &= ~LOAD_CHECK_OFFLINE_CACHE;
 
-    newChannel->SetOriginalURI(mOriginalURI);
     newChannel->SetLoadGroup(mLoadGroup); 
     newChannel->SetNotificationCallbacks(mCallbacks);
     newChannel->SetLoadFlags(newLoadFlags);
@@ -2715,6 +2766,21 @@ nsHttpChannel::ProcessRedirection(PRUint32 redirectType)
                            getter_AddRefs(newURI));
     if (NS_FAILED(rv)) return rv;
 
+    if (mApplicationCache) {
+        // if we are redirected to a different origin check if there is a fallback
+        // cache entry to fall back to. we don't care about file strict 
+        // checking, at least mURI is not a file URI.
+        if (!NS_SecurityCompareURIs(mURI, newURI, PR_FALSE)) {
+            PRBool fallingBack;
+            rv = ProcessFallback(&fallingBack);
+            if (NS_SUCCEEDED(rv) && fallingBack) {
+                // do not continue with redirect processing, fallback is in
+                // progress now.
+                return NS_OK;
+            }
+        }
+    }
+
     // Kill the current cache entry if we are redirecting
     // back to ourself.
     PRBool redirectingBackToSameURI = PR_FALSE;
@@ -2762,6 +2828,9 @@ nsHttpChannel::ProcessRedirection(PRUint32 redirectType)
     rv = gHttpHandler->OnChannelRedirect(this, newChannel, redirectFlags);
     if (NS_FAILED(rv))
         return rv;
+
+    // Make sure to do this _after_ calling OnChannelRedirect
+    newChannel->SetOriginalURI(mOriginalURI);    
 
     // And now, the deprecated way
     nsCOMPtr<nsIHttpEventSink> httpEventSink;
@@ -4010,13 +4079,16 @@ nsHttpChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *context)
     if (NS_FAILED(rv))
         return rv;
 
-    // Start a DNS lookup very early in case the real open is queued the DNS can 
-    // happen in parallel.
-    nsRefPtr<nsDNSPrefetch> prefetch = new nsDNSPrefetch(mURI);
-    if (prefetch) {
-        prefetch->PrefetchHigh();
+    if (!(mConnectionInfo && mConnectionInfo->UsingHttpProxy())) {
+        // Start a DNS lookup very early in case the real open is queued the DNS can 
+        // happen in parallel. Do not do so in the presence of an HTTP proxy as 
+        // all lookups other than for the proxy itself are done by the proxy.
+        nsRefPtr<nsDNSPrefetch> prefetch = new nsDNSPrefetch(mURI);
+        if (prefetch) {
+            prefetch->PrefetchHigh();
+        }
     }
-
+    
     // Remember the cookie header that was set, if any
     const char *cookieHeader = mRequestHead.PeekHeader(nsHttp::Cookie);
     if (cookieHeader)
@@ -5118,6 +5190,17 @@ nsHttpChannel::GetEntityID(nsACString& aEntityID)
         return NS_ERROR_NOT_RESUMABLE;
     }
 
+    // Don't return an entity if the server sent the following header:
+    // Accept-Ranges: none
+    // Not sending the Accept-Ranges header means we can still try
+    // sending range requests.
+    const char* acceptRanges =
+        mResponseHead->PeekHeader(nsHttp::Accept_Ranges);
+    if (acceptRanges &&
+        !nsHttp::FindToken(acceptRanges, "bytes", HTTP_HEADER_VALUE_SEPS)) {
+        return NS_ERROR_NOT_RESUMABLE;
+    }
+
     PRUint64 size = LL_MAXUINT;
     nsCAutoString etag, lastmod;
     if (mResponseHead) {
@@ -5548,3 +5631,8 @@ nsHttpChannel::DetermineStoragePolicy()
     return policy;
 }
 
+void
+nsHttpChannel::AsyncOnExamineCachedResponse()
+{
+    gHttpHandler->OnExamineCachedResponse(this);
+}

@@ -119,9 +119,7 @@ nsXULButtonAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
   // get focus and disable status from base class
   nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (!mDOMNode)
-    return NS_OK;
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
   PRBool disabled = PR_FALSE;
   nsCOMPtr<nsIDOMXULControlElement> xulFormElement(do_QueryInterface(mDOMNode));
@@ -296,12 +294,14 @@ nsXULDropmarkerAccessible::GetStateInternal(PRUint32 *aState,
                                             PRUint32 *aExtraState)
 {
   *aState = 0;
-  if (!mDOMNode) {
-    if (aExtraState) {
+
+  if (IsDefunct()) {
+    if (aExtraState)
       *aExtraState = nsIAccessibleStates::EXT_STATE_DEFUNCT;
-    }
-    return NS_OK;
+
+    return NS_OK_DEFUNCT_OBJECT;
   }
+
   if (aExtraState)
     *aExtraState = 0;
 
@@ -382,9 +382,7 @@ nsXULCheckboxAccessible::GetStateInternal(PRUint32 *aState,
 {
   // Get focus and disable status from base class
   nsresult rv = nsFormControlAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (!mDOMNode)
-    return NS_OK;
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
   
   *aState |= nsIAccessibleStates::STATE_CHECKABLE;
   
@@ -423,9 +421,10 @@ NS_IMETHODIMP nsXULGroupboxAccessible::GetRole(PRUint32 *aRole)
 nsresult
 nsXULGroupboxAccessible::GetNameInternal(nsAString& aName)
 {
-  nsCOMPtr<nsIAccessible> label;
-  GetAccessibleRelated(nsIAccessibleRelation::RELATION_LABELLED_BY,
-                       getter_AddRefs(label));
+  // XXX: we use the first related accessible only.
+  nsCOMPtr<nsIAccessible> label =
+    nsRelUtils::GetRelatedAccessible(this, nsIAccessibleRelation::RELATION_LABELLED_BY);
+
   if (label) {
     return label->GetName(aName);
   }
@@ -434,16 +433,11 @@ nsXULGroupboxAccessible::GetNameInternal(nsAString& aName)
 }
 
 NS_IMETHODIMP
-nsXULGroupboxAccessible::GetAccessibleRelated(PRUint32 aRelationType,
-                                              nsIAccessible **aRelated)
+nsXULGroupboxAccessible::GetRelationByType(PRUint32 aRelationType,
+                                           nsIAccessibleRelation **aRelation)
 {
-  *aRelated = nsnull;
-
-  nsresult rv = nsAccessibleWrap::GetAccessibleRelated(aRelationType, aRelated);
-  if (NS_FAILED(rv) || *aRelated) {
-    // Either the node is shut down, or another relation mechanism has been used
-    return rv;
-  }
+  nsresult rv = nsAccessibleWrap::GetRelationByType(aRelationType, aRelation);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (aRelationType == nsIAccessibleRelation::RELATION_LABELLED_BY) {
     // The label for xul:groupbox is generated from xul:label that is
@@ -453,13 +447,16 @@ nsXULGroupboxAccessible::GetAccessibleRelated(PRUint32 aRelationType,
     while (NextChild(testLabelAccessible)) {
       if (nsAccUtils::Role(testLabelAccessible) == nsIAccessibleRole::ROLE_LABEL) {
         // Ensure that it's our label
-        nsCOMPtr<nsIAccessible> testGroupboxAccessible;
-        testLabelAccessible->GetAccessibleRelated(nsIAccessibleRelation::RELATION_LABEL_FOR,
-                                                  getter_AddRefs(testGroupboxAccessible));
+        // XXX: we'll fail if group accessible expose more than one relation
+        // targets.
+        nsCOMPtr<nsIAccessible> testGroupboxAccessible =
+          nsRelUtils::GetRelatedAccessible(testLabelAccessible,
+                                           nsIAccessibleRelation::RELATION_LABEL_FOR);
+
         if (testGroupboxAccessible == this) {
           // The <label> points back to this groupbox
-          NS_ADDREF(*aRelated = testLabelAccessible);
-          return NS_OK;
+          return nsRelUtils::
+            AddTarget(aRelationType, aRelation, testLabelAccessible);
         }
       }
     }
@@ -558,9 +555,7 @@ nsXULRadioButtonAccessible::GetStateInternal(PRUint32 *aState,
                                              PRUint32 *aExtraState)
 {
   nsresult rv = nsFormControlAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (!mDOMNode)
-    return NS_OK;
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
   *aState |= nsIAccessibleStates::STATE_CHECKABLE;
   
@@ -616,15 +611,14 @@ nsresult
 nsXULRadioGroupAccessible::GetStateInternal(PRUint32 *aState,
                                             PRUint32 *aExtraState)
 {
-  // The radio group is not focusable.
-  // Sometimes the focus controller will report that it is focused.
-  // That means that the actual selected radio button should be considered focused
   nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (mDOMNode) {
-    *aState &= ~(nsIAccessibleStates::STATE_FOCUSABLE |
-                 nsIAccessibleStates::STATE_FOCUSED);
-  }
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+
+  // The radio group is not focusable. Sometimes the focus controller will
+  // report that it is focused. That means that the actual selected radio button
+  // should be considered focused.
+  *aState &= ~(nsIAccessibleStates::STATE_FOCUSABLE |
+               nsIAccessibleStates::STATE_FOCUSED);
 
   return NS_OK;
 }
@@ -745,9 +739,17 @@ nsXULToolbarSeparatorAccessible::GetStateInternal(PRUint32 *aState,
                                                   PRUint32 *aExtraState)
 {
   *aState = 0;  // no special state flags for toolbar separator
-  if (aExtraState) {
-    *aExtraState = mDOMNode ? 0 : nsIAccessibleStates::EXT_STATE_DEFUNCT;
+
+  if (IsDefunct()) {
+    if (aExtraState)
+      *aExtraState = nsIAccessibleStates::EXT_STATE_DEFUNCT;
+
+    return NS_OK_DEFUNCT_OBJECT;
   }
+
+  if (aExtraState)
+    *aExtraState = 0;
+
   return NS_OK;
 }
 
@@ -804,9 +806,7 @@ nsXULTextFieldAccessible::GetStateInternal(PRUint32 *aState,
 {
   nsresult rv = nsHyperTextAccessibleWrap::GetStateInternal(aState,
                                                             aExtraState);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (!mDOMNode)
-    return NS_OK;
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIDOMNode> inputField = GetInputField();
   NS_ENSURE_TRUE(inputField, NS_ERROR_FAILURE);

@@ -64,9 +64,15 @@ endif
 # Build MMX code either with VC or with gcc-on-x86
 ifdef _MSC_VER
 ifeq (86,$(findstring 86,$(OS_TEST)))
+ifeq (64,$(findstring 64,$(OS_TEST)))
+else
 USE_MMX=1
-#USE_SSE2=1
+USE_SSE2=1
 MMX_CFLAGS=
+endif
+endif
+ifeq (arm,$(findstring arm,$(OS_TEST)))
+USE_ARM_SIMD_MSVC=1
 endif
 endif
 
@@ -130,6 +136,12 @@ endif
 ifdef USE_ARM_SIMD
 CSRCS += pixman-arm-simd.c
 DEFINES += -DUSE_ARM_SIMD
+endif
+
+ifdef USE_ARM_SIMD_MSVC
+ASFILES += pixman-arm-detect-win32.asm pixman-wce-arm-simd.asm
+DEFINES += -DUSE_ARM_SIMD
+AS_DASH_C_FLAG = 
 endif
 
 EXPORTS		= pixman.h pixman-version.h

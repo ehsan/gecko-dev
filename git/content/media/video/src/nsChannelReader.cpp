@@ -48,21 +48,6 @@ void nsChannelReader::Cancel()
   mStream.Cancel();
 }
 
-PRUint32 nsChannelReader::Available()
-{
-  return mStream.Available();
-}
-
-float nsChannelReader::DownloadRate()
-{
-  return mStream.DownloadRate();
-}
-
-float nsChannelReader::PlaybackRate()
-{
-  return mStream.PlaybackRate();
-}
-
 OggPlayErrorCode nsChannelReader::initialise(int aBlock)
 {
   return E_OGGPLAY_OK;
@@ -74,6 +59,16 @@ OggPlayErrorCode nsChannelReader::destroy()
   return E_OGGPLAY_OK;
 }
 
+void nsChannelReader::Suspend()
+{
+  mStream.Suspend();
+}
+
+void nsChannelReader::Resume()
+{
+  mStream.Resume();
+}
+
 size_t nsChannelReader::io_read(char* aBuffer, size_t aCount)
 {
   PRUint32 bytes = 0;
@@ -81,7 +76,6 @@ size_t nsChannelReader::io_read(char* aBuffer, size_t aCount)
   if (!NS_SUCCEEDED(rv)) {
     return static_cast<size_t>(OGGZ_ERR_SYSTEM);
   }
-  mCurrentPosition += bytes;
   return bytes;
 }
 
@@ -137,7 +131,6 @@ nsresult nsChannelReader::Init(nsMediaDecoder* aDecoder, nsIURI* aURI,
                                nsIChannel* aChannel,
                                nsIStreamListener** aStreamListener)
 {
-  mCurrentPosition = 0;
   return mStream.Open(aDecoder, aURI, aChannel, aStreamListener);
 }
 

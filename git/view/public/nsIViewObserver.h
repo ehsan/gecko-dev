@@ -46,9 +46,10 @@
 class nsIRenderingContext;
 class nsGUIEvent;
 
-#define NS_IVIEWOBSERVER_IID   \
-{ 0x63ae23ee, 0xe251, 0x4005, \
-{ 0xaf, 0xe4, 0x5b, 0x0f, 0xa1, 0x5a, 0xb4, 0x99 } }
+// 52b3b616-23a9-4516-a8d3-452b4126eb2b
+#define NS_IVIEWOBSERVER_IID  \
+{ 0x52b3b616, 0x23a9, 0x4516, \
+  { 0xa8, 0xd3, 0x45, 0x2b, 0x41, 0x26, 0xeb, 0x2b } }
 
 class nsIViewObserver : public nsISupports
 {
@@ -63,12 +64,32 @@ public:
    * of the view is painted at (0,0) in the rendering context's current
    * transform. For best results this should transform to pixel-aligned
    * coordinates.
-   * @param aDirtyRegion the region to be painted, in the coordinates of aRootView
+   * @param aDirtyRegion the region to be painted, in the coordinates of
+   * aRootView
    * @return error status
    */
   NS_IMETHOD Paint(nsIView*             aRootView,
                    nsIRenderingContext* aRenderingContext,
                    const nsRegion&      aDirtyRegion) = 0;
+
+  /* called when the observer needs to paint something, but the view
+   * tree is unstable, so it must *not* paint, or even examine, the
+   * frame subtree rooted at the view.  (It is, however, safe to inspect
+   * the state of the view itself, and any associated widget.)  The name
+   * illustrates the expected behavior, which is to paint some default
+   * background color over the dirty rect.
+   *
+   * @param aRenderingContext rendering context to paint to; the origin
+   * of the view is painted at (0,0) in the rendering context's current
+   * transform. For best results this should transform to pixel-aligned
+   * coordinates.
+   * @param aDirtyRect the rectangle to be painted, in the coordinates
+   * of aRootView
+   * @return error status
+   */
+  NS_IMETHOD PaintDefaultBackground(nsIView*             aRootView,
+                                    nsIRenderingContext* aRenderingContext,
+                                    const nsRect&        aDirtyRect) = 0;
 
   /**
    * @see nsLayoutUtils::ComputeRepaintRegionForCopy
@@ -120,6 +141,14 @@ public:
    * the frame associated with this view.
    */
   NS_IMETHOD_(void) InvalidateFrameForView(nsIView *aView) = 0;
+
+  /**
+   * Dispatch the given synthesized mouse move event, and if
+   * aFlushOnHoverChange is true, flush layout if :hover changes cause
+   * any restyles.
+   */
+  NS_IMETHOD_(void) DispatchSynthMouseMove(nsGUIEvent *aEvent,
+                                           PRBool aFlushOnHoverChange) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIViewObserver, NS_IVIEWOBSERVER_IID)

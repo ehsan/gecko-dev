@@ -43,6 +43,8 @@
 #include "nsIObserver.h"
 #include "nsIURI.h"
 
+#include "nsCycleCollectionParticipant.h"
+
 #include "nsIDOMGeoGeolocation.h"
 #include "nsIDOMGeoPosition.h"
 #include "nsIDOMGeoPositionError.h"
@@ -61,10 +63,12 @@ class nsGeolocation;
 class nsGeolocationRequest : public nsIGeolocationRequest, public nsITimerCallback
 {
  public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_NSIGEOLOCATIONREQUEST
   NS_DECL_NSITIMERCALLBACK
- 
+
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsGeolocationRequest, nsIGeolocationRequest)
+
   nsGeolocationRequest(nsGeolocation* locator,
                        nsIDOMGeoPositionCallback* callback,
                        nsIDOMGeoPositionErrorCallback* errorCallback,
@@ -114,6 +118,9 @@ public:
   void AddLocator(nsGeolocation* locator);
   void RemoveLocator(nsGeolocation* locator);
 
+  void SetCachedPosition(nsIDOMGeoPosition* aPosition);
+  nsIDOMGeoPosition* GetCachedPosition();
+
   // Returns true if there is a geolocation provider registered.
   PRBool   HasGeolocationProvider();
 
@@ -148,6 +155,9 @@ private:
   // addes them to this list, and their destructor removes
   // them from this list.
   nsTArray<nsGeolocation*> mGeolocators;
+
+  // This is the last geo position that we have seen.
+  nsCOMPtr<nsIDOMGeoPosition> mLastPosition;
 };
 
 
@@ -158,8 +168,10 @@ class nsGeolocation : public nsIDOMGeoGeolocation
 {
 public:
 
-  NS_DECL_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_NSIDOMGEOGEOLOCATION
+
+  NS_DECL_CYCLE_COLLECTION_CLASS(nsGeolocation)
 
   nsGeolocation(nsIDOMWindow* contentDom);
 
