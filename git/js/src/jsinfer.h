@@ -1108,7 +1108,7 @@ struct TypeObject : gc::BarrieredCell<TypeObject>
 
     /* Helpers */
 
-    void updateNewPropertyTypes(ExclusiveContext *cx, jsid id, HeapTypeSet *types);
+    bool addProperty(ExclusiveContext *cx, jsid id, Property **pprop);
     bool addDefiniteProperties(ExclusiveContext *cx, JSObject *obj);
     bool matchDefiniteProperties(HandleObject obj);
     void addPrototype(JSContext *cx, TypeObject *proto);

@@ -12,12 +12,13 @@
 #include "nsIDOMNotifyPaintEvent.h"
 #include "nsPresContext.h"
 
+class nsPaintRequestList;
+
 namespace mozilla {
 namespace dom {
 
 class DOMRect;
 class DOMRectList;
-class PaintRequestList;
 
 class NotifyPaintEvent : public Event,
                          public nsIDOMNotifyPaintEvent
@@ -53,7 +54,7 @@ public:
 
   already_AddRefed<DOMRect> BoundingClientRect();
 
-  already_AddRefed<PaintRequestList> PaintRequests();
+  already_AddRefed<nsPaintRequestList> PaintRequests();
 private:
   nsRegion GetRegion();
 

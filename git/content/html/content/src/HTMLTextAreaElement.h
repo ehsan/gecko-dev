@@ -13,6 +13,7 @@
 #include "nsIDOMNSEditableElement.h"
 #include "nsCOMPtr.h"
 #include "nsGenericHTMLElement.h"
+#include "nsEventStates.h"
 #include "nsStubMutationObserver.h"
 #include "nsIConstraintValidation.h"
 #include "mozilla/dom/HTMLFormElement.h"
@@ -31,7 +32,6 @@ namespace mozilla {
 
 class EventChainPostVisitor;
 class EventChainPreVisitor;
-class EventStates;
 
 namespace dom {
 
@@ -73,7 +73,7 @@ public:
 
   virtual void FieldSetDisabledChanged(bool aNotify) MOZ_OVERRIDE;
 
-  virtual EventStates IntrinsicState() const MOZ_OVERRIDE;
+  virtual nsEventStates IntrinsicState() const MOZ_OVERRIDE;
 
   // nsITextControlElemet
   NS_IMETHOD SetValueChanged(bool aValueChanged) MOZ_OVERRIDE;

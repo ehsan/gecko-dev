@@ -62,7 +62,6 @@
 #include "nsIChannelEventSink.h"
 #include "imgIRequest.h"
 #include "mozilla/EventListenerManager.h"
-#include "mozilla/EventStates.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/DOMImplementation.h"
 #include "nsIDOMTouchEvent.h"
@@ -843,10 +842,8 @@ public:
   virtual void SetReadyStateInternal(ReadyState rs) MOZ_OVERRIDE;
 
   virtual void ContentStateChanged(nsIContent* aContent,
-                                   mozilla::EventStates aStateMask)
-                                     MOZ_OVERRIDE;
-  virtual void DocumentStatesChanged(
-                 mozilla::EventStates aStateMask) MOZ_OVERRIDE;
+                                   nsEventStates aStateMask) MOZ_OVERRIDE;
+  virtual void DocumentStatesChanged(nsEventStates aStateMask) MOZ_OVERRIDE;
 
   virtual void StyleRuleChanged(nsIStyleSheet* aStyleSheet,
                                 nsIStyleRule* aOldStyleRule,
@@ -1069,7 +1066,7 @@ public:
 
   virtual nsISupports* GetCurrentContentSink() MOZ_OVERRIDE;
 
-  virtual mozilla::EventStates GetDocumentState() MOZ_OVERRIDE;
+  virtual nsEventStates GetDocumentState() MOZ_OVERRIDE;
 
   virtual void RegisterHostObjectUri(const nsACString& aUri) MOZ_OVERRIDE;
   virtual void UnregisterHostObjectUri(const nsACString& aUri) MOZ_OVERRIDE;
@@ -1109,6 +1106,13 @@ public:
   virtual nsresult SetNavigationTiming(nsDOMNavigationTiming* aTiming) MOZ_OVERRIDE;
 
   virtual Element* FindImageMap(const nsAString& aNormalizedMapName) MOZ_OVERRIDE;
+
+  virtual void NotifyAudioAvailableListener() MOZ_OVERRIDE;
+
+  bool HasAudioAvailableListeners() MOZ_OVERRIDE
+  {
+    return mHasAudioAvailableListener;
+  }
 
   virtual Element* GetFullScreenElement() MOZ_OVERRIDE;
   virtual void AsyncRequestFullScreen(Element* aElement) MOZ_OVERRIDE;
@@ -1467,6 +1471,10 @@ public:
   // Whether we currently require our images to animate
   bool mAnimatingImages:1;
 
+  // Whether some node in this document has a listener for the
+  // "mozaudioavailable" event.
+  bool mHasAudioAvailableListener:1;
+
   // Whether we're currently under a FlushPendingNotifications call to
   // our presshell.  This is used to handle flush reentry correctly.
   bool mInFlush:1;
@@ -1526,8 +1534,8 @@ public:
 
   nsCOMPtr<nsIContent> mFirstBaseNodeWithHref;
 
-  mozilla::EventStates mDocumentState;
-  mozilla::EventStates mGotDocumentState;
+  nsEventStates mDocumentState;
+  nsEventStates mGotDocumentState;
 
   nsRefPtr<nsDOMNavigationTiming> mTiming;
 private:

@@ -38,7 +38,6 @@ namespace jit {
     _(GetArgumentsObjectArg)                                                \
     _(SetArgumentsObjectArg)                                                \
     _(ComputeThis)                                                          \
-    _(LoadArrowThis)                                                        \
     _(Call)                                                                 \
     _(ApplyArgs)                                                            \
     _(Bail)                                                                 \

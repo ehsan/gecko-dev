@@ -51,14 +51,14 @@ namespace mozilla {
         TimedMetadata* metadata = mMetadataQueue.getFirst();
         while (metadata && aCurrentTime >= static_cast<double>(metadata->mPublishTime) / USECS_PER_S) {
           nsCOMPtr<nsIRunnable> metadataUpdatedEvent =
-            new AudioMetadataEventRunner(aDecoder,
-                                         metadata->mChannels,
-                                         metadata->mRate,
-                                         metadata->mHasAudio,
-                                         metadata->mHasVideo,
-                                         metadata->mTags.forget());
+            new mozilla::AudioMetadataEventRunner(aDecoder,
+                                                  metadata->mChannels,
+                                                  metadata->mRate,
+                                                  metadata->mHasAudio,
+                                                  metadata->mHasVideo,
+                                                  metadata->mTags.forget());
           NS_DispatchToMainThread(metadataUpdatedEvent, NS_DISPATCH_NORMAL);
-          delete mMetadataQueue.popFirst();
+          mMetadataQueue.popFirst();
           metadata = mMetadataQueue.getFirst();
         }
       }

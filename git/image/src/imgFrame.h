@@ -112,7 +112,7 @@ public:
     return mSinglePixel;
   }
 
-  gfxASurface* CachedThebesSurface()
+  gfxASurface* ThebesSurface()
   {
     if (mOptSurface)
       return mOptSurface;
@@ -125,30 +125,22 @@ public:
 #endif
     if (mImageSurface)
       return mImageSurface;
-    return nullptr;
-  }
-
-  gfxASurface* ThebesSurface()
-  {
-    gfxASurface *sur = CachedThebesSurface();
-    if (sur)
-      return sur;
     if (mVBuf) {
       mozilla::VolatileBufferPtr<uint8_t> ref(mVBuf);
       if (ref.WasBufferPurged())
         return nullptr;
 
-      gfxImageSurface *imgSur =
+      gfxImageSurface *sur =
         LockedImageSurface::CreateSurface(mVBuf, mSize, mFormat);
 #if defined(XP_MACOSX)
       // Manually addref and release to make sure the cairo surface isn't lost
-      NS_ADDREF(imgSur);
-      gfxQuartzImageSurface *quartzSur = new gfxQuartzImageSurface(imgSur);
+      NS_ADDREF(sur);
+      gfxQuartzImageSurface *quartzSur = new gfxQuartzImageSurface(sur);
       // quartzSur does not hold on to the gfxImageSurface
-      NS_RELEASE(imgSur);
+      NS_RELEASE(sur);
       return quartzSur;
 #else
-      return imgSur;
+      return sur;
 #endif
     }
     // We can return null here if we're single pixel optimized
@@ -201,8 +193,6 @@ private: // data
 #elif defined(XP_MACOSX)
   nsRefPtr<gfxQuartzImageSurface> mQuartzSurface;
 #endif
-
-  nsRefPtr<gfxASurface> mDrawSurface;
 
   nsIntSize    mSize;
   nsIntPoint   mOffset;

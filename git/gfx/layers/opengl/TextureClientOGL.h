@@ -12,7 +12,7 @@
 #include "mozilla/gfx/Point.h"          // for IntSize
 #include "mozilla/layers/CompositorTypes.h"
 #include "mozilla/layers/LayersSurfaces.h"  // for SurfaceDescriptor
-#include "mozilla/layers/TextureClient.h"  // for TextureClient, etc
+#include "mozilla/layers/TextureClient.h"  // for DeprecatedTextureClient, etc
 
 namespace mozilla {
 namespace gfx {

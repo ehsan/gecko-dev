@@ -14,6 +14,7 @@
 #include "mozilla/dom/HTMLSelectElement.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsError.h"
+#include "nsEventStates.h"
 #include "nsFormSubmission.h"
 #include "nsGkAtoms.h"
 #include "nsIComboboxControlFrame.h"

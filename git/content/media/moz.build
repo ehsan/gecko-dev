@@ -54,6 +54,7 @@ TEST_DIRS += [
 
 EXPORTS += [
     'AbstractMediaDecoder.h',
+    'AudioAvailableEventManager.h',
     'AudioChannelFormat.h',
     'AudioCompactor.h',
     'AudioEventTimeline.h',
@@ -110,6 +111,7 @@ EXPORTS.mozilla.dom += [
 ]
 
 UNIFIED_SOURCES += [
+    'AudioAvailableEventManager.cpp',
     'AudioChannelFormat.cpp',
     'AudioCompactor.cpp',
     'AudioNodeEngine.cpp',

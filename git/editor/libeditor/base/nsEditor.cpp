@@ -21,6 +21,7 @@
 #include "JoinElementTxn.h"             // for JoinElementTxn
 #include "PlaceholderTxn.h"             // for PlaceholderTxn
 #include "SplitElementTxn.h"            // for SplitElementTxn
+#include "TextComposition.h"            // for TextComposition
 #include "mozFlushType.h"               // for mozFlushType::Flush_Frames
 #include "mozISpellCheckingEngine.h"
 #include "mozInlineSpellChecker.h"      // for mozInlineSpellChecker
@@ -28,7 +29,6 @@
 #include "mozilla/Preferences.h"        // for Preferences
 #include "mozilla/Selection.h"          // for Selection, etc
 #include "mozilla/Services.h"           // for GetObserverService
-#include "mozilla/TextComposition.h"    // for TextComposition
 #include "mozilla/TextEvents.h"
 #include "mozilla/dom/Element.h"        // for Element, nsINode::AsElement
 #include "mozilla/mozalloc.h"           // for operator new, etc

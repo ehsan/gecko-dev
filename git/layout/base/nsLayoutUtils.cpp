@@ -381,7 +381,7 @@ nsLayoutUtils::ComputeSuitableScaleForAnimation(nsIContent* aContent)
     (aContent, nsGkAtoms::animationsProperty, eCSSProperty_transform);
   if (animations) {
     for (uint32_t animIdx = animations->mAnimations.Length(); animIdx-- != 0; ) {
-      mozilla::StyleAnimation& anim = animations->mAnimations[animIdx];
+      ElementAnimation& anim = animations->mAnimations[animIdx];
       for (uint32_t propIdx = anim.mProperties.Length(); propIdx-- != 0; ) {
         AnimationProperty& prop = anim.mProperties[propIdx];
         if (prop.mProperty == eCSSProperty_transform) {
@@ -414,20 +414,14 @@ nsLayoutUtils::ComputeSuitableScaleForAnimation(nsIContent* aContent)
       if (pt.IsRemovedSentinel()) {
         continue;
       }
-      MOZ_ASSERT(pt.mProperties.Length() == 1,
-        "Should have one animation property for a transition");
-      MOZ_ASSERT(pt.mProperties[0].mSegments.Length() == 1,
-        "Animation property should have one segment for a transition");
-      const AnimationPropertySegment& segment = pt.mProperties[0].mSegments[0];
-
-      if (pt.mProperties[0].mProperty == eCSSProperty_transform) {
-        gfxSize start = GetScaleForValue(segment.mFromValue,
+      if (pt.mProperty == eCSSProperty_transform) {
+        gfxSize start = GetScaleForValue(pt.mStartValue,
                                          aContent->GetPrimaryFrame());
         maxScale.width = std::max<float>(maxScale.width, start.width);
         maxScale.height = std::max<float>(maxScale.height, start.height);
         minScale.width = std::min<float>(minScale.width, start.width);
         minScale.height = std::min<float>(minScale.height, start.height);
-        gfxSize end = GetScaleForValue(segment.mToValue,
+        gfxSize end = GetScaleForValue(pt.mEndValue,
                                        aContent->GetPrimaryFrame());
         maxScale.width = std::max<float>(maxScale.width, end.width);
         maxScale.height = std::max<float>(maxScale.height, end.height);

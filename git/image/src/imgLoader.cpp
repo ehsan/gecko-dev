@@ -401,6 +401,7 @@ static nsresult NewImageChannel(nsIChannel **aResult,
                                 nsIPrincipal *aLoadingPrincipal)
 {
   nsresult rv;
+  nsCOMPtr<nsIChannel> newChannel;
   nsCOMPtr<nsIHttpChannel> newHttpChannel;
 
   nsCOMPtr<nsIInterfaceRequestor> callbacks;
@@ -461,18 +462,6 @@ static nsresult NewImageChannel(nsIChannel **aResult,
   bool setOwner = nsContentUtils::SetUpChannelOwner(aLoadingPrincipal,
                                                       *aResult, aURI, false);
   *aForcePrincipalCheckForCacheEntry = setOwner;
-
-  // Create a new loadgroup for this new channel, using the old group as
-  // the parent. The indirection keeps the channel insulated from cancels,
-  // but does allow a way for this revalidation to be associated with at
-  // least one base load group for scheduling/caching purposes.
-
-  nsCOMPtr<nsILoadGroup> loadGroup = do_CreateInstance(NS_LOADGROUP_CONTRACTID);
-  nsCOMPtr<nsILoadGroupChild> childLoadGroup = do_QueryInterface(loadGroup);
-  if (childLoadGroup) {
-    childLoadGroup->SetParentLoadGroup(aLoadGroup);
-  }
-  (*aResult)->SetLoadGroup(loadGroup);
 
   return NS_OK;
 }
@@ -1690,9 +1679,18 @@ nsresult imgLoader::LoadImage(nsIURI *aURI,
     PR_LOG(GetImgLog(), PR_LOG_DEBUG,
            ("[this=%p] imgLoader::LoadImage -- Created new imgRequest [request=%p]\n", this, request.get()));
 
-    nsCOMPtr<nsILoadGroup> channelLoadGroup;
-    newChannel->GetLoadGroup(getter_AddRefs(channelLoadGroup));
-    request->Init(aURI, aURI, channelLoadGroup, newChannel, entry, aCX,
+    // Create a loadgroup for this new channel.  This way if the channel
+    // is redirected, we'll have a way to cancel the resulting channel.
+    // Inform the new loadgroup of the old one so they can still be correlated
+    // together as a logical group.
+    nsCOMPtr<nsILoadGroup> loadGroup =
+        do_CreateInstance(NS_LOADGROUP_CONTRACTID);
+    nsCOMPtr<nsILoadGroupChild> childLoadGroup = do_QueryInterface(loadGroup);
+    if (childLoadGroup)
+      childLoadGroup->SetParentLoadGroup(aLoadGroup);
+    newChannel->SetLoadGroup(loadGroup);
+
+    request->Init(aURI, aURI, loadGroup, newChannel, entry, aCX,
                   aLoadingPrincipal, corsmode);
 
     // Pass the inner window ID of the loading document, if possible.

@@ -35,7 +35,6 @@
 #include "nsIDocument.h"
 #include "mozilla/EventListenerManager.h"
 #include "mozilla/EventStateManager.h"
-#include "mozilla/EventStates.h"
 #include "nsFocusManager.h"
 #include "nsHTMLStyleSheet.h"
 #include "nsIJSRuntimeService.h"
@@ -1695,10 +1694,10 @@ nsXULElement::AddPopupListener(nsIAtom* aName)
     return NS_OK;
 }
 
-EventStates
+nsEventStates
 nsXULElement::IntrinsicState() const
 {
-    EventStates state = nsStyledElement::IntrinsicState();
+    nsEventStates state = nsStyledElement::IntrinsicState();
 
     if (IsReadWriteTextElement()) {
         state |= NS_EVENT_STATE_MOZ_READWRITE;

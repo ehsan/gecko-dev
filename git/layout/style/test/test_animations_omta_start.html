@@ -10,7 +10,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=975261
     src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="application/javascript"
     src="/tests/SimpleTest/paint_listener.js"></script>
-  <script type="application/javascript" src="animation_utils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
   <style type="text/css">
     @keyframes anim-opacity {
@@ -49,9 +48,15 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=975261
 "use strict";
 
 var gUtils = SpecialPowers.DOMWindowUtils;
+var gOMTAPrefKey = "layers.offmainthreadcomposition.async-animations";
+var gOMTCEnabled = gUtils.layerManagerRemote;
 
-SimpleTest.waitForExplicitFinish();
-runOMTATest(testDelay, SimpleTest.finish);
+if (gOMTCEnabled && SpecialPowers.getBoolPref(gOMTAPrefKey)) {
+  SimpleTest.waitForExplicitFinish();
+  window.addEventListener("load", testDelay);
+} else {
+  ok(true, "OMTA not available");
+}
 
 function newTarget() {
   var target = document.createElement("div");

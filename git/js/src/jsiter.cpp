@@ -33,7 +33,6 @@
 
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
-#include "jsscriptinlines.h"
 
 #include "vm/Stack-inl.h"
 #include "vm/String-inl.h"

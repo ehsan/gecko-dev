@@ -16,7 +16,7 @@
 #include "nsNodeInfoManager.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsContentUtils.h"
-#include "mozilla/EventStates.h"
+#include "nsEventStates.h"
 #include "mozilla/dom/DOMStringList.h"
 #include "nsIDOMDragEvent.h"
 #include "nsIDOMFileList.h"
@@ -246,7 +246,7 @@ nsFileControlFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 void
 nsFileControlFrame::SyncDisabledState()
 {
-  EventStates eventStates = mContent->AsElement()->State();
+  nsEventStates eventStates = mContent->AsElement()->State();
   if (eventStates.HasState(NS_EVENT_STATE_DISABLED)) {
     mBrowse->SetAttr(kNameSpaceID_None, nsGkAtoms::disabled, EmptyString(),
                      true);
@@ -274,7 +274,7 @@ nsFileControlFrame::AttributeChanged(int32_t  aNameSpaceID,
 }
 
 void
-nsFileControlFrame::ContentStatesChanged(EventStates aStates)
+nsFileControlFrame::ContentStatesChanged(nsEventStates aStates)
 {
   if (aStates.HasState(NS_EVENT_STATE_DISABLED)) {
     nsContentUtils::AddScriptRunner(new SyncDisabledStateEvent(this));

@@ -23,7 +23,7 @@
 #include "nsIDOMHTMLSelectElement.h"
 #include "nsNodeInfoManager.h"
 #include "nsCOMPtr.h"
-#include "mozilla/EventStates.h"
+#include "nsEventStates.h"
 #include "nsContentCreatorFunctions.h"
 #include "mozAutoDocUpdate.h"
 #include "nsTextNode.h"
@@ -299,10 +299,10 @@ HTMLOptionElement::UnbindFromTree(bool aDeep, bool aNullParent)
   UpdateState(false);
 }
 
-EventStates
+nsEventStates
 HTMLOptionElement::IntrinsicState() const
 {
-  EventStates state = nsGenericHTMLElement::IntrinsicState();
+  nsEventStates state = nsGenericHTMLElement::IntrinsicState();
   if (Selected()) {
     state |= NS_EVENT_STATE_CHECKED;
   }

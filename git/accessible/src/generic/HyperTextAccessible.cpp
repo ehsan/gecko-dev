@@ -32,7 +32,6 @@
 #include "nsITextControlElement.h"
 #include "nsTextFragment.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/EventStates.h"
 #include "mozilla/Selection.h"
 #include "mozilla/MathAlgorithms.h"
 #include "gfxSkipChars.h"

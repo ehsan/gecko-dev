@@ -26,7 +26,6 @@
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/EventStateManager.h"
-#include "mozilla/EventStates.h"
 #include "mozilla/IMEStateManager.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/TabChild.h"
@@ -4157,7 +4156,7 @@ PresShell::CharacterDataChanged(nsIDocument *aDocument,
 void
 PresShell::ContentStateChanged(nsIDocument* aDocument,
                                nsIContent* aContent,
-                               EventStates aStateMask)
+                               nsEventStates aStateMask)
 {
   NS_PRECONDITION(!mIsDocumentGone, "Unexpected ContentStateChanged");
   NS_PRECONDITION(aDocument == mDocument, "Unexpected aDocument");
@@ -4171,7 +4170,7 @@ PresShell::ContentStateChanged(nsIDocument* aDocument,
 
 void
 PresShell::DocumentStatesChanged(nsIDocument* aDocument,
-                                 EventStates aStateMask)
+                                 nsEventStates aStateMask)
 {
   NS_PRECONDITION(!mIsDocumentGone, "Unexpected DocumentStatesChanged");
   NS_PRECONDITION(aDocument == mDocument, "Unexpected aDocument");
