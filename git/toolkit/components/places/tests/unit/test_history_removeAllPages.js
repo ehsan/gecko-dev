@@ -46,7 +46,7 @@ function run_test() {
   run_next_test();
 }
 
-add_task(function* test_history_clear()
+add_task(function test_history_removeAllPages()
 {
   yield promiseInit;
 
@@ -95,7 +95,7 @@ add_task(function* test_history_clear()
 
   // Clear history and wait for the onClearHistory notification.
   let promiseWaitClearHistory = promiseOnClearHistoryObserved();
-  PlacesUtils.history.clear();
+  PlacesUtils.bhistory.removeAllPages();
   yield promiseWaitClearHistory;
 
   // check browserHistory returns no entries

@@ -32,7 +32,7 @@ function* cleanup() {
     Services.prefs.clearUserPref("browser.urlbar.suggest." + type);
   }
   remove_all_bookmarks();
-  yield PlacesTestUtils.clearHistory();
+  yield promiseClearHistory();
 }
 do_register_cleanup(cleanup);
 

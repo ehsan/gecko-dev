@@ -130,7 +130,7 @@ add_task(function* test_remove_single() {
       }
     }
   } finally {
-    yield PlacesTestUtils.clearHistory();
+    yield promiseClearHistory();
   }
   return;
 });
@@ -268,7 +268,7 @@ add_task(function* test_remove_many() {
   Assert.notEqual(page_in_database(WITNESS_URI), 0, "Witness URI is still here");
 
   do_print("Cleaning up");
-  yield PlacesTestUtils.clearHistory();
+  yield promiseClearHistory();
 
 });
 

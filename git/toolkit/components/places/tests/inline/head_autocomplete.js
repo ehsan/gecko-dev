@@ -181,7 +181,7 @@ function add_autocomplete_test(aTestData) {
 
 function waitForCleanup(aCallback) {
   remove_all_bookmarks();
-  PlacesTestUtils.clearHistory().then(aCallback);
+  promiseClearHistory().then(aCallback);
 }
 
 function addBookmark(aBookmarkObj) {

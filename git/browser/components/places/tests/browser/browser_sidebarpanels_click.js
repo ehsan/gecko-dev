@@ -68,7 +68,7 @@ function test() {
       is(tree.selectedNode.itemId, -1, "The selected node is not bookmarked");
     },
     cleanup: function(aCallback) {
-      PlacesTestUtils.clearHistory().then(aCallback);
+      waitForClearHistory(aCallback);
     },
     sidebarName: HISTORY_SIDEBAR_ID,
     treeName: HISTORY_SIDEBAR_TREE_ID,
@@ -154,5 +154,5 @@ function test() {
   }
 
   // Ensure history is clean before starting the test.
-  PlacesTestUtils.clearHistory().then(runNextTest);
+  waitForClearHistory(runNextTest);
 }

@@ -89,7 +89,7 @@ function run_next_test() {
   }
 
   let test = tests.shift();
-  PlacesTestUtils.clearHistory().then(function() {
+  promiseClearHistory().then(function() {
     remove_all_bookmarks();
     do_execute_soon(test);
   });

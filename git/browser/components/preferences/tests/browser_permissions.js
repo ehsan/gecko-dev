@@ -1,6 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
+Components.utils.import("resource://gre/modules/PlacesUtils.jsm");
 Components.utils.import("resource://gre/modules/NetUtil.jsm");
 
 const ABOUT_PERMISSIONS_SPEC = "about:permissions";
@@ -80,7 +81,7 @@ function cleanUp() {
 
 function runNextTest() {
   if (gTestIndex == tests.length) {
-    PlacesTestUtils.clearHistory().then(finish);
+    waitForClearHistory(finish);
     return;
   }
 
@@ -274,7 +275,7 @@ var tests = [
   function test_forget_site() {
     // click "Forget About This Site" button
     gBrowser.contentDocument.getElementById("forget-site-button").doCommand();
-    PlacesTestUtils.clearHistory().then(() => {
+    waitForClearHistory(function() {
       is(gSiteLabel.value, "", "site label cleared");
 
       let allSitesItem = gBrowser.contentDocument.getElementById("all-sites-item");
@@ -327,4 +328,16 @@ function addWindowListener(aURL, aCallback) {
     onCloseWindow: function(aXULWindow) { },
     onWindowTitleChange: function(aXULWindow, aNewTitle) { }
   });
+}
+
+// copied from toolkit/components/places/tests/head_common.js
+function waitForClearHistory(aCallback) {
+  let observer = {
+    observe: function(aSubject, aTopic, aData) {
+      Services.obs.removeObserver(this, PlacesUtils.TOPIC_EXPIRATION_FINISHED);
+      aCallback();
+    }
+  };
+  Services.obs.addObserver(observer, PlacesUtils.TOPIC_EXPIRATION_FINISHED, false);
+  PlacesUtils.bhistory.removeAllPages();
 }

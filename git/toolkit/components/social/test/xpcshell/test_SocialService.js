@@ -3,9 +3,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 Cu.import("resource://gre/modules/Services.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "PlacesTestUtils",
-  "resource://testing-common/PlacesTestUtils.jsm");
+Cu.import("resource://gre/modules/PlacesUtils.jsm");
 
 function run_test() {
   initApp();
@@ -163,6 +161,6 @@ function testOrderedProviders(manifests, next) {
   do_check_eq(orderedProviders[0], providers[1]);
   do_check_eq(orderedProviders[1], providers[0]);
   do_check_true(orderedProviders[0].frecency > orderedProviders[1].frecency);
-  PlacesTestUtils.clearHistory().then(next);
+  promiseClearHistory().then(next);
   yield;
 }

@@ -577,7 +577,7 @@ function addBookmark(aURI) {
  */
 function task_cleanDatabase(aCallback) {
   remove_all_bookmarks();
-  yield PlacesTestUtils.clearHistory();
+  yield promiseClearHistory();
 }
 
 /**

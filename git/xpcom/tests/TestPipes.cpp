@@ -3,9 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <algorithm>
-#include "nsIAsyncInputStream.h"
-#include "nsIAsyncOutputStream.h"
+#include "TestHarness.h"
+
 #include "nsIThread.h"
 #include "nsIRunnable.h"
 #include "nsThreadUtils.h"
@@ -14,11 +13,76 @@
 #include "nsCRT.h"
 #include "nsIPipe.h"    // new implementation
 
-#include "mozilla/ReentrantMonitor.h"
-
-#include "gtest/gtest.h"
+#include "mozilla/Monitor.h"
 using namespace mozilla;
 
+/** NS_NewPipe2 reimplemented, because it's not exported by XPCOM */
+nsresult TP_NewPipe2(nsIAsyncInputStream** input,
+                     nsIAsyncOutputStream** output,
+                     bool nonBlockingInput,
+                     bool nonBlockingOutput,
+                     uint32_t segmentSize,
+                     uint32_t segmentCount,
+                     nsIMemory* segmentAlloc)
+{
+  nsCOMPtr<nsIPipe> pipe = do_CreateInstance("@mozilla.org/pipe;1");
+  if (!pipe)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  nsresult rv = pipe->Init(nonBlockingInput,
+                           nonBlockingOutput,
+                           segmentSize,
+                           segmentCount,
+                           segmentAlloc);
+
+  if (NS_FAILED(rv))
+    return rv;
+
+  pipe->GetInputStream(input);
+  pipe->GetOutputStream(output);
+  return NS_OK;
+}
+
+/** NS_NewPipe reimplemented, because it's not exported by XPCOM */
+#define TP_DEFAULT_SEGMENT_SIZE  4096
+nsresult TP_NewPipe(nsIInputStream **pipeIn,
+                    nsIOutputStream **pipeOut,
+                    uint32_t segmentSize = 0,
+                    uint32_t maxSize = 0,
+                    bool nonBlockingInput = false,
+                    bool nonBlockingOutput = false,
+                    nsIMemory *segmentAlloc = nullptr);
+nsresult TP_NewPipe(nsIInputStream **pipeIn,
+                    nsIOutputStream **pipeOut,
+                    uint32_t segmentSize,
+                    uint32_t maxSize,
+                    bool nonBlockingInput,
+                    bool nonBlockingOutput,
+                    nsIMemory *segmentAlloc)
+{
+    if (segmentSize == 0)
+        segmentSize = TP_DEFAULT_SEGMENT_SIZE;
+
+    // Handle maxSize of UINT32_MAX as a special case
+    uint32_t segmentCount;
+    if (maxSize == UINT32_MAX)
+        segmentCount = UINT32_MAX;
+    else
+        segmentCount = maxSize / segmentSize;
+
+    nsIAsyncInputStream *in;
+    nsIAsyncOutputStream *out;
+    nsresult rv = TP_NewPipe2(&in, &out, nonBlockingInput, nonBlockingOutput,
+                              segmentSize, segmentCount, segmentAlloc);
+    if (NS_FAILED(rv)) return rv;
+
+    *pipeIn = in;
+    *pipeOut = out;
+    return NS_OK;
+}
+
+
+#define KEY             0xa7
 #define ITERATIONS      33333
 char kTestPattern[] = "My hovercraft is full of eels.\n";
 
@@ -40,11 +104,11 @@ WriteAll(nsIOutputStream *os, const char *buf, uint32_t bufLen, uint32_t *lenWri
     return NS_OK;
 }
 
-class nsReceiver MOZ_FINAL : public nsIRunnable {
+class nsReceiver : public nsIRunnable {
 public:
     NS_DECL_THREADSAFE_ISUPPORTS
 
-    NS_IMETHOD Run() MOZ_OVERRIDE {
+    NS_IMETHOD Run() {
         nsresult rv;
         char buf[101];
         uint32_t count;
@@ -72,13 +136,10 @@ public:
         return rv;
     }
 
-    explicit nsReceiver(nsIInputStream* in) : mIn(in), mCount(0) {
+    nsReceiver(nsIInputStream* in) : mIn(in), mCount(0) {
     }
 
     uint32_t GetBytesRead() { return mCount; }
-
-private:
-    ~nsReceiver() {}
 
 protected:
     nsCOMPtr<nsIInputStream> mIn;
@@ -90,7 +151,7 @@ NS_IMPL_ISUPPORTS(nsReceiver, nsIRunnable)
 nsresult
 TestPipe(nsIInputStream* in, nsIOutputStream* out)
 {
-    nsRefPtr<nsReceiver> receiver = new nsReceiver(in);
+    nsCOMPtr<nsReceiver> receiver = new nsReceiver(in);
     if (!receiver)
         return NS_ERROR_OUT_OF_MEMORY;
 
@@ -127,18 +188,18 @@ TestPipe(nsIInputStream* in, nsIOutputStream* out)
 
     printf("wrote %d bytes, time = %dms\n", total,
            PR_IntervalToMilliseconds(end - start));
-    EXPECT_EQ(receiver->GetBytesRead(), total);
+    NS_ASSERTION(receiver->GetBytesRead() == total, "didn't read everything");
 
     return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class nsShortReader MOZ_FINAL : public nsIRunnable {
+class nsShortReader : public nsIRunnable {
 public:
     NS_DECL_THREADSAFE_ISUPPORTS
 
-    NS_IMETHOD Run() MOZ_OVERRIDE {
+    NS_IMETHOD Run() {
         nsresult rv;
         char buf[101];
         uint32_t count;
@@ -169,24 +230,24 @@ public:
         return rv;
     }
 
-    explicit nsShortReader(nsIInputStream* in) : mIn(in), mReceived(0) {
-        mMon = new ReentrantMonitor("nsShortReader");
+    nsShortReader(nsIInputStream* in) : mIn(in), mReceived(0) {
+        mMon = new Monitor("nsShortReader");
     }
 
     void Received(uint32_t count) {
-        ReentrantMonitorAutoEnter mon(*mMon);
+        MonitorAutoEnter mon(*mMon);
         mReceived += count;
         mon.Notify();
     }
 
     uint32_t WaitForReceipt(const uint32_t aWriteCount) {
-        ReentrantMonitorAutoEnter mon(*mMon);
+        MonitorAutoEnter mon(*mMon);
         uint32_t result = mReceived;
 
         while (result < aWriteCount) {
             mon.Wait();
 
-            EXPECT_TRUE(mReceived > result);
+            NS_ASSERTION(mReceived > result, "failed to receive");
             result = mReceived;
         }
 
@@ -194,13 +255,10 @@ public:
         return result;
     }
 
-private:
-    ~nsShortReader() {}
-
 protected:
     nsCOMPtr<nsIInputStream> mIn;
     uint32_t                 mReceived;
-    ReentrantMonitor*        mMon;
+    Monitor*                 mMon;
 };
 
 NS_IMPL_ISUPPORTS(nsShortReader, nsIRunnable)
@@ -208,7 +266,7 @@ NS_IMPL_ISUPPORTS(nsShortReader, nsIRunnable)
 nsresult
 TestShortWrites(nsIInputStream* in, nsIOutputStream* out)
 {
-    nsRefPtr<nsShortReader> receiver = new nsShortReader(in);
+    nsCOMPtr<nsShortReader> receiver = new nsShortReader(in);
     if (!receiver)
         return NS_ERROR_OUT_OF_MEMORY;
 
@@ -224,10 +282,10 @@ TestShortWrites(nsIInputStream* in, nsIOutputStream* out)
         char* buf = PR_smprintf("%d %s", i, kTestPattern);
         uint32_t len = strlen(buf);
         len = len * rand() / RAND_MAX;
-        len = std::min(1u, len);
+        len = XPCOM_MAX(1, len);
         rv = WriteAll(out, buf, len, &writeCount);
         if (NS_FAILED(rv)) return rv;
-        EXPECT_EQ(writeCount, len);
+        NS_ASSERTION(writeCount == len, "didn't write enough");
         total += writeCount;
 
         if (gTrace)
@@ -239,9 +297,9 @@ TestShortWrites(nsIInputStream* in, nsIOutputStream* out)
 
 #ifdef DEBUG
         const uint32_t received =
-          receiver->WaitForReceipt(writeCount);
-        EXPECT_EQ(received, writeCount);
 #endif
+          receiver->WaitForReceipt(writeCount);
+        NS_ASSERTION(received == writeCount, "received wrong amount");
     }
     rv = out->Close();
     if (NS_FAILED(rv)) return rv;
@@ -255,12 +313,12 @@ TestShortWrites(nsIInputStream* in, nsIOutputStream* out)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class nsPump MOZ_FINAL : public nsIRunnable
+class nsPump : public nsIRunnable
 {
 public:
     NS_DECL_THREADSAFE_ISUPPORTS
 
-    NS_IMETHOD Run() MOZ_OVERRIDE {
+    NS_IMETHOD Run() {
         nsresult rv;
         uint32_t count;
         while (true) {
@@ -288,9 +346,6 @@ public:
         : mIn(in), mOut(out), mCount(0) {
     }
 
-private:
-    ~nsPump() {}
-
 protected:
     nsCOMPtr<nsIInputStream>      mIn;
     nsCOMPtr<nsIOutputStream>     mOut;
@@ -299,36 +354,35 @@ protected:
 
 NS_IMPL_ISUPPORTS(nsPump, nsIRunnable)
 
-TEST(Pipes, ChainedPipes)
+nsresult
+TestChainedPipes()
 {
     nsresult rv;
-    if (gTrace) {
-        printf("TestChainedPipes\n");
-    }
+    printf("TestChainedPipes\n");
 
     nsCOMPtr<nsIInputStream> in1;
     nsCOMPtr<nsIOutputStream> out1;
-    rv = NS_NewPipe(getter_AddRefs(in1), getter_AddRefs(out1), 20, 1999);
-    if (NS_FAILED(rv)) return;
+    rv = TP_NewPipe(getter_AddRefs(in1), getter_AddRefs(out1), 20, 1999);
+    if (NS_FAILED(rv)) return rv;
 
     nsCOMPtr<nsIInputStream> in2;
     nsCOMPtr<nsIOutputStream> out2;
-    rv = NS_NewPipe(getter_AddRefs(in2), getter_AddRefs(out2), 200, 401);
-    if (NS_FAILED(rv)) return;
+    rv = TP_NewPipe(getter_AddRefs(in2), getter_AddRefs(out2), 200, 401);
+    if (NS_FAILED(rv)) return rv;
 
-    nsRefPtr<nsPump> pump = new nsPump(in1, out2);
-    if (pump == nullptr) return;
+    nsCOMPtr<nsPump> pump = new nsPump(in1, out2);
+    if (pump == nullptr) return NS_ERROR_OUT_OF_MEMORY;
 
     nsCOMPtr<nsIThread> thread;
     rv = NS_NewThread(getter_AddRefs(thread), pump);
-    if (NS_FAILED(rv)) return;
+    if (NS_FAILED(rv)) return rv;
 
-    nsRefPtr<nsReceiver> receiver = new nsReceiver(in2);
-    if (receiver == nullptr) return;
+    nsCOMPtr<nsReceiver> receiver = new nsReceiver(in2);
+    if (receiver == nullptr) return NS_ERROR_OUT_OF_MEMORY;
 
     nsCOMPtr<nsIThread> receiverThread;
     rv = NS_NewThread(getter_AddRefs(receiverThread), receiver);
-    if (NS_FAILED(rv)) return;
+    if (NS_FAILED(rv)) return rv;
 
     uint32_t total = 0;
     for (uint32_t i = 0; i < ITERATIONS; i++) {
@@ -336,10 +390,10 @@ TEST(Pipes, ChainedPipes)
         char* buf = PR_smprintf("%d %s", i, kTestPattern);
         uint32_t len = strlen(buf);
         len = len * rand() / RAND_MAX;
-        len = std::max(1u, len);
+        len = XPCOM_MAX(1, len);
         rv = WriteAll(out1, buf, len, &writeCount);
-        if (NS_FAILED(rv)) return;
-        EXPECT_EQ(writeCount, len);
+        if (NS_FAILED(rv)) return rv;
+        NS_ASSERTION(writeCount == len, "didn't write enough");
         total += writeCount;
 
         if (gTrace)
@@ -347,14 +401,14 @@ TEST(Pipes, ChainedPipes)
 
         PR_smprintf_free(buf);
     }
-    if (gTrace) {
-        printf("wrote total of %d bytes\n", total);
-    }
+    printf("wrote total of %d bytes\n", total);
     rv = out1->Close();
-    if (NS_FAILED(rv)) return;
+    if (NS_FAILED(rv)) return rv;
 
     thread->Shutdown();
     receiverThread->Shutdown();
+
+    return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -366,26 +420,50 @@ RunTests(uint32_t segSize, uint32_t segCount)
     nsCOMPtr<nsIInputStream> in;
     nsCOMPtr<nsIOutputStream> out;
     uint32_t bufSize = segSize * segCount;
-    if (gTrace) {
-        printf("Testing New Pipes: segment size %d buffer size %d\n", segSize, bufSize);
-        printf("Testing long writes...\n");
-    }
-    rv = NS_NewPipe(getter_AddRefs(in), getter_AddRefs(out), segSize, bufSize);
-    EXPECT_TRUE(NS_SUCCEEDED(rv));
-    rv = TestPipe(in, out);
-    EXPECT_TRUE(NS_SUCCEEDED(rv));
+    printf("Testing New Pipes: segment size %d buffer size %d\n", segSize, bufSize);
 
-    if (gTrace) {
-        printf("Testing short writes...\n");
-    }
-    rv = NS_NewPipe(getter_AddRefs(in), getter_AddRefs(out), segSize, bufSize);
-    EXPECT_TRUE(NS_SUCCEEDED(rv));
+    printf("Testing long writes...\n");
+    rv = TP_NewPipe(getter_AddRefs(in), getter_AddRefs(out), segSize, bufSize);
+    NS_ASSERTION(NS_SUCCEEDED(rv), "TP_NewPipe failed");
+    rv = TestPipe(in, out);
+    NS_ASSERTION(NS_SUCCEEDED(rv), "TestPipe failed");
+
+    printf("Testing short writes...\n");
+    rv = TP_NewPipe(getter_AddRefs(in), getter_AddRefs(out), segSize, bufSize);
+    NS_ASSERTION(NS_SUCCEEDED(rv), "TP_NewPipe failed");
     rv = TestShortWrites(in, out);
-    EXPECT_TRUE(NS_SUCCEEDED(rv));
+    NS_ASSERTION(NS_SUCCEEDED(rv), "TestPipe failed");
 }
 
-TEST(Pipes, Main)
+////////////////////////////////////////////////////////////////////////////////
+
+#if 0
+extern void
+TestSegmentedBuffer();
+#endif
+
+int
+main(int argc, char* argv[])
 {
+    nsresult rv;
+
+    nsCOMPtr<nsIServiceManager> servMgr;
+    rv = NS_InitXPCOM2(getter_AddRefs(servMgr), nullptr, nullptr);
+    if (NS_FAILED(rv)) return rv;
+
+    if (argc > 1 && nsCRT::strcmp(argv[1], "-trace") == 0)
+        gTrace = true;
+
+    rv = TestChainedPipes();
+    NS_ASSERTION(NS_SUCCEEDED(rv), "TestChainedPipes failed");
     RunTests(16, 1);
     RunTests(4096, 16);
+
+    servMgr = 0;
+    rv = NS_ShutdownXPCOM(nullptr);
+    NS_ASSERTION(NS_SUCCEEDED(rv), "NS_ShutdownXPCOM failed");
+
+    return 0;
 }
+
+////////////////////////////////////////////////////////////////////////////////

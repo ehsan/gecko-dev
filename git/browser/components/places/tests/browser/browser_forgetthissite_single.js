@@ -20,7 +20,7 @@ function test() {
     testForgetThisSiteVisibility(1, function() {
       testForgetThisSiteVisibility(2, function() {
         // Cleanup
-        PlacesTestUtils.clearHistory().then(finish);
+        waitForClearHistory(finish);
       });
     });
   });

@@ -31,7 +31,7 @@ function test() {
   waitForExplicitFinish();
 
   // Cleanup.
-  PlacesTestUtils.clearHistory().then(continue_test);
+  waitForClearHistory(continue_test);
 }
 
 function continue_test() {
@@ -64,7 +64,7 @@ function continue_test() {
 
       // Cleanup.
       toggleSidebar("viewHistorySidebar", false);
-      PlacesTestUtils.clearHistory().then(finish);
+      waitForClearHistory(finish);
     });
   }, true);
 }

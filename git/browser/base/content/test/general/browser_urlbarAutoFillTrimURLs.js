@@ -61,10 +61,18 @@ function continue_test() {
         EventUtils.synthesizeKey("VK_DOWN", {});
         is(gURLBar.textValue, "www.autofilltrimurl.com/whatever", "trim was applied correctly");
         gURLBar.closePopup();
-        PlacesTestUtils.clearHistory().then(finish);
+        waitForClearHistory(finish);
       });
     });
   });
+}
+
+function waitForClearHistory(aCallback) {
+  Services.obs.addObserver(function observeCH(aSubject, aTopic, aData) {
+    Services.obs.removeObserver(observeCH, PlacesUtils.TOPIC_EXPIRATION_FINISHED);
+    aCallback();
+  }, PlacesUtils.TOPIC_EXPIRATION_FINISHED, false);
+  PlacesUtils.bhistory.removeAllPages();
 }
 
 let gOnSearchComplete = null;

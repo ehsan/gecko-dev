@@ -2916,9 +2916,8 @@ void
 SVGTextDrawPathCallbacks::HandleTextGeometry()
 {
   if (IsClipPathChild()) {
-    RefPtr<Path> path = gfx->GetPath();
-    ColorPattern white(Color(1.f, 1.f, 1.f, 1.f)); // for masking, so no ToDeviceColor
-    gfx->GetDrawTarget()->Fill(path, white);
+    gfx->SetColor(gfxRGBA(1.0f, 1.0f, 1.0f, 1.0f));
+    gfx->Fill();
   } else {
     // Normal painting.
     gfxContextMatrixAutoSaveRestore saveMatrix(gfx);
@@ -2985,15 +2984,11 @@ SVGTextDrawPathCallbacks::FillGeometry()
   GeneralPattern fillPattern;
   MakeFillPattern(&fillPattern);
   if (fillPattern.GetPattern()) {
-    RefPtr<Path> path = gfx->GetPath();
-    FillRule fillRule = nsSVGUtils::ToFillRule(IsClipPathChild() ?
-                          mFrame->StyleSVG()->mClipRule :
-                          mFrame->StyleSVG()->mFillRule);
-    if (fillRule != path->GetFillRule()) {
-      RefPtr<PathBuilder> builder = path->CopyToBuilder(fillRule);
-      path = builder->Finish();
-    }
-    gfx->GetDrawTarget()->Fill(path, fillPattern);
+    gfx->SetFillRule(
+      nsSVGUtils::ToFillRule(
+        IsClipPathChild() ?
+          mFrame->StyleSVG()->mClipRule : mFrame->StyleSVG()->mFillRule));
+    gfx->Fill(fillPattern);
   }
 }
 

@@ -45,7 +45,7 @@
 
     function runTest() {
       // The mochitest page is added to history.
-      PlacesTestUtils.clearHistory().then(continue_test);
+      waitForClearHistory(continue_test);
     }
 
     function continue_test() {
@@ -106,7 +106,7 @@
           }
 
           // Cleanup.
-          PlacesTestUtils.clearHistory().then(SimpleTest.finish);
+          waitForClearHistory(SimpleTest.finish);
         });
       });
     }
