@@ -209,7 +209,14 @@ public:
   {
     nsIRenderingContext* ctx = aContext->GetRenderingContext(aTarget);
     nsIRenderingContext::AutoPushTranslation push(ctx, -mOffset.x, -mOffset.y);
-    mInnerList->Paint(mBuilder, ctx);
+    nsRect dirty;
+    if (aDirtyRect) {
+      dirty = aDirtyRect->ToAppUnits(nsIDeviceContext::AppUnitsPerCSSPixel());
+      dirty += mOffset;
+    } else {
+      dirty = mInnerList->GetBounds(mBuilder);
+    }
+    mInnerList->Paint(mBuilder, ctx, dirty);
   }
 
 private:
@@ -302,7 +309,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsIRenderingContext* aCtx,
     filterFrame->FilterPaint(&svgContext, aEffectsFrame, &paint, &r);
   } else {
     gfx->SetMatrix(savedCTM);
-    aInnerList->Paint(aBuilder, aCtx);
+    aInnerList->Paint(aBuilder, aCtx, aDirtyRect);
     aCtx->Translate(userSpaceRect.x, userSpaceRect.y);
   }
 

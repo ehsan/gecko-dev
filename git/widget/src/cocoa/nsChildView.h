@@ -597,6 +597,7 @@ protected:
 
   PRPackedBool          mVisible;
   PRPackedBool          mDrawing;
+  PRPackedBool          mIsPluginView;
   PRPackedBool          mPluginDrawing;
   PRPackedBool          mPluginIsCG; // true if this is a CoreGraphics plugin
 

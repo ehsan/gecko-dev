@@ -257,8 +257,6 @@ when destroying the nsOggDecoder object.
 #if !defined(nsOggDecoder_h_)
 #define nsOggDecoder_h_
 
-#include "nsMediaDecoder.h"
-
 #include "nsISupports.h"
 #include "nsCOMPtr.h"
 #include "nsIThread.h"
@@ -273,6 +271,7 @@ when destroying the nsOggDecoder object.
 #include "gfxContext.h"
 #include "gfxRect.h"
 #include "oggplay/oggplay.h"
+#include "nsMediaDecoder.h"
 
 class nsAudioStream;
 class nsOggDecodeStateMachine;

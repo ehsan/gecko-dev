@@ -1626,36 +1626,6 @@ static PRBool SelectorMatches(RuleProcessorData &data,
         result = PR_FALSE;
       }
     }
-    else if (nsCSSPseudoClasses::mozLWTheme == pseudoClass->mAtom) {
-      nsIDocument* doc = data.mContent ? data.mContent->GetOwnerDoc() : nsnull;
-
-      if (doc) {
-        result = doc->GetDocumentLWTheme() > nsIDocument::Doc_Theme_None;
-      }
-      else {
-        result = PR_FALSE;
-      }
-    }
-    else if (nsCSSPseudoClasses::mozLWThemeBrightText == pseudoClass->mAtom) {
-      nsIDocument* doc = data.mContent ? data.mContent->GetOwnerDoc() : nsnull;
-
-      if (doc) {
-        result = doc->GetDocumentLWTheme() == nsIDocument::Doc_Theme_Bright;
-      }
-      else {
-        result = PR_FALSE;
-      }
-    }
-    else if (nsCSSPseudoClasses::mozLWThemeDarkText == pseudoClass->mAtom) {
-      nsIDocument* doc = data.mContent ? data.mContent->GetOwnerDoc() : nsnull;
-
-      if (doc) {
-        result = doc->GetDocumentLWTheme() == nsIDocument::Doc_Theme_Dark;
-      }
-      else {
-        result = PR_FALSE;
-      }
-    }
 #ifdef MOZ_MATHML
     else if (nsCSSPseudoClasses::mozMathIncrementScriptLevel == pseudoClass->mAtom) {
       stateToCheck = NS_EVENT_STATE_INCREMENT_SCRIPT_LEVEL;
@@ -2176,10 +2146,8 @@ nsCSSRuleProcessor::HasAttributeDependentStyle(AttributeRuleProcessorData* aData
   // XXXbz now that :link and :visited are also states, do we need a
   // similar optimization in HasStateDependentStyle?
 
-  // check for the localedir, lwtheme and lwthemetextcolor attribute on root XUL elements
-  if ((aData->mAttribute == nsGkAtoms::localedir ||
-       aData->mAttribute == nsGkAtoms::lwtheme ||
-       aData->mAttribute == nsGkAtoms::lwthemetextcolor) &&
+  // check for the localedir attribute on root XUL elements
+  if (aData->mAttribute == nsGkAtoms::localedir &&
       aData->mNameSpaceID == kNameSpaceID_XUL &&
       aData->mContent == aData->mContent->GetOwnerDoc()->GetRootContent())
   {

@@ -543,38 +543,47 @@ NS_IMETHODIMP nsScrollPortView::CanScroll(PRBool aHorizontal,
 
 /**
  * Given aBlitRegion in appunits, create and return an nsRegion in
- * device pixels that represents the device pixels whose centers are
- * contained in aBlitRegion. Whatever appunit area was removed from
- * aBlitRegion in that process is added to aRepaintRegion. An appunits
- * version of the result is placed in aAppunitsBlitRegion.
- * 
- * We convert the blit region to pixels this way because in general
- * frames touch the pixels whose centers are contained in the
- * (possibly not pixel-aligned) frame bounds.
+ * device pixels that represents the device pixels that are wholly
+ * contained in aBlitRegion. Whatever appunit area was removed in that
+ * process is added to aRepaintRegion. An appunits version of the result
+ * is placed in aAppunitsBlitRegion.
  */
-static void
-ConvertBlitRegionToPixelRects(const nsRegion& aBlitRegion,
-                              nscoord aAppUnitsPerPixel,
-                              nsTArray<nsIntRect>* aPixelRects,
-                              nsRegion* aRepaintRegion,
-                              nsRegion* aAppunitsBlitRegion)
+static nsRegion
+ConvertToInnerPixelRegion(const nsRegion& aBlitRegion,
+                          nscoord aAppUnitsPerPixel,
+                          nsRegion* aRepaintRegion,
+                          nsRegion* aAppunitsBlitRegion)
 {
-  const nsRect* r;
+  // Basically we compute the inverse of aBlitRegion,
+  // expand each of its rectangles out to device pixel boundaries, then
+  // invert that.
+  nsIntRect boundingBoxPixels =
+    aBlitRegion.GetBounds().ToOutsidePixels(aAppUnitsPerPixel);
+  nsRect boundingBox = boundingBoxPixels.ToAppUnits(aAppUnitsPerPixel);
+  nsRegion outside;
+  outside.Sub(boundingBox, aBlitRegion);
 
-  aPixelRects->Clear();
-  aAppunitsBlitRegion->SetEmpty();
-  // The rectangles in aBlitRegion don't overlap so converting them via
-  // ToNearestPixels also produces a sequence of non-overlapping rectangles
-  for (nsRegionRectIterator iter(aBlitRegion); (r = iter.Next());) {
-    nsIntRect pixRect = r->ToNearestPixels(aAppUnitsPerPixel);
-    aPixelRects->AppendElement(pixRect);
-    aAppunitsBlitRegion->Or(*aAppunitsBlitRegion,
-                            pixRect.ToAppUnits(aAppUnitsPerPixel));
+  nsRegion outsidePixels;
+  nsRegion outsideAppUnits;
+  const nsRect* r;
+  for (nsRegionRectIterator iter(outside); (r = iter.Next());) {
+    nsIntRect pixRect = r->ToOutsidePixels(aAppUnitsPerPixel);
+    outsidePixels.Or(outsidePixels,
+                     nsRect(pixRect.x, pixRect.y, pixRect.width, pixRect.height));
+    outsideAppUnits.Or(outsideAppUnits,
+                       pixRect.ToAppUnits(aAppUnitsPerPixel));
   }
 
   nsRegion repaint;
-  repaint.Sub(aBlitRegion, *aAppunitsBlitRegion);
+  repaint.And(aBlitRegion, outsideAppUnits);
   aRepaintRegion->Or(*aRepaintRegion, repaint);
+
+  nsRegion result;
+  result.Sub(nsRect(boundingBoxPixels.x, boundingBoxPixels.y,
+                    boundingBoxPixels.width, boundingBoxPixels.height),
+             outsidePixels);
+  aAppunitsBlitRegion->Sub(boundingBox, outsideAppUnits);
+  return result;
 }
 
 /**
@@ -610,24 +619,25 @@ FlipRect(const nsIntRect& aRect, nsIntPoint aPixDelta)
   return r;
 }
 
-// Sort aRects so that moving rectangle aRects[i] - aPixDelta to aRects[i]
-// will not cause the rectangle to overlap any rectangles that haven't
-// moved yet.
-// See http://weblogs.mozillazine.org/roc/archives/2009/08/homework_answer.html
+// Extract the rectangles from aInnerPixRegion, and sort them into aRects
+// so that moving rectangle aRects[i] - aPixDelta to aRects[i] will not
+// cause the rectangle to overlap any rectangles that haven't moved yet. See
+// http://weblogs.mozillazine.org/roc/archives/2009/08/homework_answer.html
 static void
-SortBlitRectsForCopy(nsIntPoint aPixDelta, nsTArray<nsIntRect>* aRects)
+SortBlitRectsForCopy(const nsRegion& aInnerPixRegion,
+                     nsIntPoint aPixDelta,
+                     nsTArray<nsIntRect>* aResult)
 {
   nsTArray<nsIntRect> rects;
 
-  for (PRUint32 i = 0; i < aRects->Length(); ++i) {
-    nsIntRect* r = &aRects->ElementAt(i);
+  const nsRect* r;
+  for (nsRegionRectIterator iter(aInnerPixRegion); (r = iter.Next());) {
     nsIntRect rect =
       FlipRect(nsIntRect(r->x, r->y, r->width, r->height), aPixDelta);
     rects.AppendElement(rect);
   }
   rects.Sort(RightEdgeComparator());
 
-  aRects->Clear();
   // This could probably be improved a bit for some worst-case scenarios.
   // But in common cases this should be very fast, and we shouldn't
   // make it more complex unless we really need to.
@@ -657,7 +667,7 @@ SortBlitRectsForCopy(nsIntPoint aPixDelta, nsTArray<nsIntRect>* aRects)
 
     // Rectangle i has no rectangles to the right or below.
     // Flip it back before saving the result.
-    aRects->AppendElement(FlipRect(rects[i], aPixDelta));
+    aResult->AppendElement(FlipRect(rects[i], aPixDelta));
     rects.RemoveElementAt(i);
   }
 }
@@ -704,17 +714,18 @@ void nsScrollPortView::Scroll(nsView *aScrolledView, nsPoint aTwipsDelta,
       mViewManager->WillBitBlit(this, aTwipsDelta);
 
       // innerPixRegion is in device pixels
+      nsRegion innerBlitRegion;
+      nsRegion innerBlitPixRegion =
+        ConvertToInnerPixelRegion(blitRegion, aP2A, &repaintRegion,
+                                  &innerBlitRegion);
       nsTArray<nsIntRect> blitRects;
-      nsRegion blitRectsRegion;
-      ConvertBlitRegionToPixelRects(blitRegion, aP2A, &blitRects, &repaintRegion,
-                                    &blitRectsRegion);
-      SortBlitRectsForCopy(aPixDelta, &blitRects);
+      SortBlitRectsForCopy(innerBlitPixRegion, aPixDelta, &blitRects);
 
       nearestWidget->Scroll(aPixDelta, blitRects, aConfigurations);
       AdjustChildWidgets(aScrolledView, nearestWidgetOffset, aP2A, PR_TRUE);
       repaintRegion.MoveBy(-nearestWidgetOffset);
-      blitRectsRegion.MoveBy(-nearestWidgetOffset);
-      mViewManager->UpdateViewAfterScroll(this, blitRectsRegion, repaintRegion);
+      innerBlitRegion.MoveBy(-nearestWidgetOffset);
+      mViewManager->UpdateViewAfterScroll(this, innerBlitRegion, repaintRegion);
     }
   }
 }
