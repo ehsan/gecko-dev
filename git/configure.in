@@ -1565,6 +1565,9 @@ if test "$GNU_CC"; then
     if test "$GCC_USE_GNU_LD"; then
         # Don't allow undefined symbols in libraries
         DSO_LDOPTS="$DSO_LDOPTS -Wl,-z,defs"
+        LDFLAGS="$LDFLAGS -Wl,--gc-sections"
+        CFLAGS="$CFLAGS -ffunction-sections -fdata-sections"
+        CXXFLAGS="$CXXFLAGS -ffunction-sections -fdata-sections"
     fi
     WARNINGS_AS_ERRORS='-Werror'
     DSO_CFLAGS=''
@@ -6273,7 +6276,7 @@ dnl Remove dupes
 MOZ_EXTENSIONS=`${PERL} ${srcdir}/build/unix/uniq.pl ${MOZ_EXTENSIONS}`
 
 dnl Ensure every extension exists, to avoid mostly-inscrutable error messages
-dnl when trying to build a non-existent extension.
+dnl when trying to build a nonexistent extension.
 for extension in $MOZ_EXTENSIONS; do
     if test ! -d "${srcdir}/extensions/${extension}"; then
         AC_MSG_ERROR([Unrecognized extension provided to --enable-extensions: ${extension}.])
