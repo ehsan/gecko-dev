@@ -4326,8 +4326,9 @@ var TabsProgressListener = {
 
   onStateChange: function (aBrowser, aWebProgress, aRequest, aStateFlags, aStatus) {
 #ifdef MOZ_CRASHREPORTER
-    if (aRequest instanceof Ci.nsIChannel &&
-        aStateFlags & Ci.nsIWebProgressListener.STATE_START &&
+    if (!aRequest.URI)
+      aRequest.QueryInterface(Ci.nsIChannel);
+    if (aStateFlags & Ci.nsIWebProgressListener.STATE_START &&
         aStateFlags & Ci.nsIWebProgressListener.STATE_IS_DOCUMENT) {
       gCrashReporter.annotateCrashReport("URL", aRequest.URI.spec);
     }
@@ -6860,7 +6861,7 @@ let gPrivateBrowsingUI = {
                                    getService(Ci.nsIPrivateBrowsingService);
 
     if (this.privateBrowsingEnabled)
-      this.onEnterPrivateBrowsing(true);
+      this.onEnterPrivateBrowsing();
   },
 
   uninit: function PBUI_unint() {
@@ -6955,7 +6956,7 @@ let gPrivateBrowsingUI = {
     return result;
   },
 
-  onEnterPrivateBrowsing: function PBUI_onEnterPrivateBrowsing(aOnWindowOpen) {
+  onEnterPrivateBrowsing: function PBUI_onEnterPrivateBrowsing() {
     if (BrowserSearch.searchBar)
       this._searchBarValue = BrowserSearch.searchBar.textbox.value;
 
@@ -6992,7 +6993,7 @@ let gPrivateBrowsingUI = {
       DownloadMonitorPanel.updateStatus();
     }, 0);
 
-    if (!aOnWindowOpen && this._disableUIOnToggle)
+    if (this._disableUIOnToggle)
       document.getElementById("Tools:PrivateBrowsing")
               .setAttribute("disabled", "true");
   },

@@ -567,8 +567,6 @@ function flush_main_thread_events()
 // flushes are active, so we turn off syncing for them.
 let randomFailingSyncTests = [
   "test_results-as-visit.js",
-  "test_sorting.js",
-  "test_redirectsMode.js",
 ];
 let currentTestFilename = do_get_file(_TEST_FILE[0], true).leafName;
 if (randomFailingSyncTests.indexOf(currentTestFilename) != -1) {

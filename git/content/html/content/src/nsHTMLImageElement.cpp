@@ -553,14 +553,9 @@ nsHTMLImageElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 
   if (HasAttr(kNameSpaceID_None, nsGkAtoms::src)) {
     ClearBrokenState();
-    // If loading is temporarily disabled, don't even launch MaybeLoadImage.
-    // Otherwise MaybeLoadImage may run later when someone has reenabled
-    // loading.
-    if (LoadingEnabled()) {
-      nsContentUtils::AddScriptRunner(
-        new nsRunnableMethod<nsHTMLImageElement>(this,
-                                                 &nsHTMLImageElement::MaybeLoadImage));
-    }
+    nsContentUtils::AddScriptRunner(
+      new nsRunnableMethod<nsHTMLImageElement>(this,
+                                               &nsHTMLImageElement::MaybeLoadImage));
   }
 
   return rv;

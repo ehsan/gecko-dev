@@ -62,29 +62,19 @@ public:
   NS_DECL_NSIANNOTATIONOBSERVER
 
   nsNavBookmarks();
-
-  /**
-   * Obtains the service's object.
-   */
-  static nsNavBookmarks *GetSingleton();
-
-  /**
-   * Initializes the service's object.  This should only be called once.
-   */
   nsresult Init();
 
   // called by nsNavHistory::Init
   static nsresult InitTables(mozIStorageConnection* aDBConn);
 
-  static nsNavBookmarks * GetBookmarksService() {
-    if (!gBookmarksService) {
-      nsCOMPtr<nsINavBookmarksService> serv =
-        do_GetService(NS_NAVBOOKMARKSSERVICE_CONTRACTID);
-      NS_ENSURE_TRUE(serv, nsnull);
-      NS_ASSERTION(gBookmarksService,
-                   "Should have static instance pointer now");
+  static nsNavBookmarks* GetBookmarksService() {
+    if (!sInstance) {
+      nsresult rv;
+      nsCOMPtr<nsINavBookmarksService> serv(do_GetService(NS_NAVBOOKMARKSSERVICE_CONTRACTID, &rv));
+      NS_ENSURE_SUCCESS(rv, nsnull);
+      NS_ASSERTION(sInstance, "Should have static instance pointer now");
     }
-    return gBookmarksService;
+    return sInstance;
   }
 
   nsresult AddBookmarkToHash(PRInt64 aBookmarkId, PRTime aMinTime);
@@ -129,7 +119,7 @@ public:
   nsresult FinalizeStatements();
 
 private:
-  static nsNavBookmarks *gBookmarksService;
+  static nsNavBookmarks *sInstance;
 
   ~nsNavBookmarks();
 
@@ -160,6 +150,9 @@ private:
   nsresult GetFolderType(PRInt64 aFolder, nsACString &aType);
 
   nsresult GetLastChildId(PRInt64 aFolder, PRInt64* aItemId);
+
+  // remove me when there is better query initialization
+  nsNavHistory* History() { return nsNavHistory::GetHistoryService(); }
 
   nsCOMPtr<mozIStorageConnection> mDBConn;
 
@@ -341,7 +334,7 @@ private:
 
     NS_IMETHOD DoTransaction() {
       nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
-      NS_ENSURE_TRUE(bookmarks, NS_ERROR_OUT_OF_MEMORY);
+
       nsresult rv = bookmarks->GetParentAndIndexOfFolder(mID, &mParent, &mIndex);
       NS_ENSURE_SUCCESS(rv, rv);
 
@@ -358,7 +351,6 @@ private:
 
     NS_IMETHOD UndoTransaction() {
       nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
-      NS_ENSURE_TRUE(bookmarks, NS_ERROR_OUT_OF_MEMORY);
       PRInt64 newFolder;
       return bookmarks->CreateContainerWithID(mID, mParent, mTitle, mType, PR_TRUE,
                                               &mIndex, &newFolder); 
@@ -393,18 +385,8 @@ private:
 
 struct nsBookmarksUpdateBatcher
 {
-  nsBookmarksUpdateBatcher()
-  {
-    nsNavBookmarks *bookmarks = nsNavBookmarks::GetBookmarksService();
-    if (bookmarks)
-      bookmarks->BeginUpdateBatch();
-  }
-  ~nsBookmarksUpdateBatcher()
-  {
-    nsNavBookmarks *bookmarks = nsNavBookmarks::GetBookmarksService();
-    if (bookmarks)
-      bookmarks->EndUpdateBatch();
-  }
+  nsBookmarksUpdateBatcher() { nsNavBookmarks::GetBookmarksService()->BeginUpdateBatch(); }
+  ~nsBookmarksUpdateBatcher() { nsNavBookmarks::GetBookmarksService()->EndUpdateBatch(); }
 };
 
 

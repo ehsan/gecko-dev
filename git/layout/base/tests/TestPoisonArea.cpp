@@ -159,7 +159,6 @@ typedef unsigned int uint32_t;
  */
 
 #if defined __i386__ || defined __x86_64__ ||   \
-  defined __i386 || defined __x86_64 ||         \
   defined _M_IX86 || defined _M_AMD64
 #define RETURN_INSTR 0xC3C3C3C3  /* ret; ret; ret; ret */
 
@@ -170,9 +169,6 @@ typedef unsigned int uint32_t;
 // PPC as far as I know, so no _M_ variant.
 #elif defined _ARCH_PPC || defined _ARCH_PWR || defined _ARCH_PWR2
 #define RETURN_INSTR 0x4E800020 /* blr */
-
-#elif defined __sparc || defined __sparcv9
-#define RETURN_INSTR 0x81c3e008 /* retl */
 
 #else
 #error "Need return instruction for this architecture"
@@ -261,7 +257,7 @@ static unsigned long _pagesize;
 static void *
 ReserveRegion(uintptr_t request, bool accessible)
 {
-  return mmap((caddr_t)request, PAGESIZE,
+  return mmap((void *)request, PAGESIZE,
               accessible ? PROT_READ|PROT_WRITE : PROT_NONE,
               MAP_PRIVATE|MAP_ANON, -1, 0);
 }
@@ -269,13 +265,13 @@ ReserveRegion(uintptr_t request, bool accessible)
 static void
 ReleaseRegion(void *page)
 {
-  munmap((caddr_t)page, PAGESIZE);
+  munmap(page, PAGESIZE);
 }
 
 static bool
 ProbeRegion(uintptr_t page)
 {
-  if (madvise((caddr_t)page, PAGESIZE, MADV_NORMAL)) {
+  if (madvise((void *)page, PAGESIZE, MADV_NORMAL)) {
     return true;
   } else {
     return false;
@@ -285,7 +281,7 @@ ProbeRegion(uintptr_t page)
 static int
 MakeRegionExecutable(void *page)
 {
-  return mprotect((caddr_t)page, PAGESIZE, PROT_READ|PROT_WRITE|PROT_EXEC);
+  return mprotect(page, PAGESIZE, PROT_READ|PROT_WRITE|PROT_EXEC);
 }
 
 #endif
@@ -303,42 +299,35 @@ ReservePoisonArea()
     printf("INFO | poison area assumed at 0x%.*"PRIxPTR"\n", SIZxPTR, result);
     return result;
   } else {
-    // First see if we can allocate the preferred poison address from the OS.
-    uintptr_t candidate = (0xF0DEAFFF & ~(PAGESIZE-1));
-    void *result = ReserveRegion(candidate, false);
-    if (result == (void *)candidate) {
-      // success - inaccessible page allocated
-      printf("INFO | poison area allocated at 0x%.*"PRIxPTR
-             " (preferred addr)\n", SIZxPTR, (uintptr_t)result);
-      return candidate;
-    }
+    // Probe 1024 pages (four megabytes, typically) in both directions from
+    // the baseline address before giving up.
+    uintptr_t candidate = (0xF0DEAFFF & ~(uintptr_t)(PAGESIZE-1));
+    uintptr_t step = PAGESIZE;
+    intptr_t direction = +1;
+    uintptr_t limit = candidate + 1024*PAGESIZE;
+    while (candidate < limit) {
+      void *result = ReserveRegion(candidate, false);
+      if (result == (void *)candidate) {
+        // success - inaccessible page allocated
+        printf("INFO | poison area allocated at 0x%.*"PRIxPTR"\n",
+               SIZxPTR, (uintptr_t)result);
+        return candidate;
 
-    // That didn't work, so see if the preferred address is within a range
-    // of permanently inacessible memory.
-    if (ProbeRegion(candidate)) {
-      // success - selected page cannot be usable memory
-      if (result != MAP_FAILED)
-        ReleaseRegion(result);
-      printf("INFO | poison area assumed at 0x%.*"PRIxPTR
-             " (preferred addr)\n", SIZxPTR, candidate);
-      return candidate;
-    }
+      } else {
+        if (result != MAP_FAILED)
+          ReleaseRegion(result);
 
-    // The preferred address is already in use.  Did the OS give us a
-    // consolation prize?
-    if (result != MAP_FAILED) {
-      printf("INFO | poison area allocated at 0x%.*"PRIxPTR
-             " (consolation prize)\n", SIZxPTR, (uintptr_t)result);
-      return (uintptr_t)result;
-    }
+        if (ProbeRegion(candidate)) {
+          // success - selected page cannot be usable memory
+          printf("INFO | poison area probed at 0x%.*"PRIxPTR" | %s\n",
+                 SIZxPTR, candidate, LastErrMsg());
+          return candidate;
+        }
+      }
 
-    // It didn't, so try to allocate again, without any constraint on
-    // the address.
-    result = ReserveRegion(0, false);
-    if (result != MAP_FAILED) {
-      printf("INFO | poison area allocated at 0x%.*"PRIxPTR
-             " (fallback)\n", SIZxPTR, (uintptr_t)result);
-      return (uintptr_t)result;
+      candidate += step*direction;
+      step = step + PAGESIZE;
+      direction = -direction;
     }
 
     printf("ERROR | no usable poison area found\n");
@@ -448,7 +437,7 @@ TestPage(const char *pagelabel, uintptr_t pageaddr, int should_succeed)
              LastErrMsg());
       exit(2);
     } else if (pid == 0) {
-      volatile unsigned char scratch;
+      unsigned char scratch;
       switch (test) {
       case 0: scratch = *(volatile unsigned char *)opaddr; break;
       case 1: ((void (*)())opaddr)(); break;

@@ -4275,28 +4275,18 @@ function testInterpreterReentry2() {
     var b = {};
     var c = false;
     var d = {};
-    try {
-        this.__defineGetter__('e', function(){});
-        for (let f in this) print(f);
-        [1 for each (g in this) for each (h in [])]
-    }
-    catch(ex) {
-        print('testInterpreterReentry2: ' + ex);
-    }
+    this.__defineGetter__('e', function(){});
+    for (let f in this) print(f);
+    [1 for each (g in this) for each (h in [])]
     return 1;
 }
 testInterpreterReentry2.expected = 1;
 test(testInterpreterReentry2);
 
 function testInterpreterReentry3() {
-    try {
-        for (let i=0;i<5;++i) this["y" + i] = function(){};
-        this.__defineGetter__('e', function (x2) { yield; });
-        [1 for each (a in this) for (b in {})];
-    }
-    catch(ex) {
-        print('testInterpreterReentry3: ' + ex);
-    }
+    for (let i=0;i<5;++i) this["y" + i] = function(){};
+    this.__defineGetter__('e', function (x2) { yield; });
+    [1 for each (a in this) for (b in {})];
     return 1;
 }
 testInterpreterReentry3.expected = 1;

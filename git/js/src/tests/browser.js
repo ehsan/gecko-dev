@@ -595,7 +595,7 @@ function jit(on)
   if (on)
   {
     jitoptions.setBoolPref('content', true);
-    jitoptions.setBoolPref('chrome', true);
+    jitoptions.setBoolPref('chrome', false);
   }
   else
   {
@@ -603,6 +603,8 @@ function jit(on)
     jitoptions.setBoolPref('chrome', false);
   }
 }
+
+var gVersion = 150;
 
 function jsTestDriverBrowserInit()
 {
@@ -655,20 +657,26 @@ function jsTestDriverBrowserInit()
   if (!properties.version && navigator.userAgent.indexOf('Gecko/') != -1)
   {
     // If the version is not specified, and the browser is Gecko,
-    // use the default version corresponding to the shell's version(0).
-    // See https://bugzilla.mozilla.org/show_bug.cgi?id=522760#c11
-    // Otherwise adjust the version to match the suite version for 1.7,
-    // and later due to the use of let, yield, etc.
-    //
-    // Note that js1_8, js1_8_1, and js1_8_5 are treated identically in
-    // the browser.
-    if (properties.test.match(/^js1_7/))
+    // adjust the version to match the suite version.
+    if (properties.test.match(/^js1_6/))
+    {
+      properties.version = '1.6';
+    }
+    else if (properties.test.match(/^js1_7/))
     {
       properties.version = '1.7';
     }
     else if (properties.test.match(/^js1_8/))
     {
       properties.version = '1.8';
+    }
+    else if (properties.test.match(/^js1_8_1/))
+    {
+      properties.version = '1.8';
+    }
+    else
+    {
+      properties.version = '1.5';
     }
   }
 
@@ -681,6 +689,8 @@ function jsTestDriverBrowserInit()
   }
 
   gTestPath = properties.test;
+
+  gVersion = 10*parseInt(properties.version.replace(/\./g, ''));
 
   if (properties.gczeal)
   {

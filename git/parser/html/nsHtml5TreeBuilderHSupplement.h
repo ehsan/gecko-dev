@@ -68,10 +68,6 @@
     void SetOpSink(nsAHtml5TreeOpSink* aOpSink) {
       mOpSink = aOpSink;
     }
-
-    void ClearOps() {
-      mOpQueue.Clear();
-    }
     
     void SetSpeculativeLoaderWithDocument(nsIDocument* aDocument);
 
@@ -87,7 +83,7 @@
 
     void NeedsCharsetSwitchTo(const nsACString& aEncoding);
 
-    void AddSnapshotToScript(nsAHtml5TreeBuilderState* aSnapshot, PRInt32 aLine);
+    void AddSnapshotToScript(nsAHtml5TreeBuilderState* aSnapshot);
 
     inline void Dispatch(nsIRunnable* aEvent) {
       if (NS_FAILED(NS_DispatchToMainThread(aEvent))) {

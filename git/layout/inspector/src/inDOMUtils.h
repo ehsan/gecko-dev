@@ -44,7 +44,6 @@
 #include "nsISupportsArray.h"
 
 class nsRuleNode;
-class nsStyleContext;
 
 class inDOMUtils : public inIDOMUtils
 {
@@ -56,9 +55,7 @@ public:
   virtual ~inDOMUtils();
 
 private:
-  // aStyleContext must be released by the caller once he's done with aRuleNode.
   static nsresult GetRuleNodeForContent(nsIContent* aContent,
-                                        nsStyleContext** aStyleContext,
                                         nsRuleNode** aRuleNode);
 };
 

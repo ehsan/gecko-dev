@@ -50,7 +50,6 @@ _TEST_FILES = 	test_bug360220.xul \
 		test_bug382990.xul \
 		test_bug457632.xul \
 		test_bug460942.xul \
-		test_bug509732.xul \
 		test_button.xul \
 		test_closemenu_attribute.xul \
 		test_colorpicker_popup.xul \
@@ -128,7 +127,8 @@ _TEST_FILES = 	test_bug360220.xul \
 		videocontrols_direction-2e.html \
 		videocontrols_direction_test.js \
 		use_large_cache.js \
-		audio.wav \
+		audio.oga \
+		black.ogv \
 		video.ogg \
 		videomask.css \
 		$(NULL)

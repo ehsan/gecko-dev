@@ -2359,6 +2359,7 @@ NS_IMETHODIMP imgContainer::Draw(gfxContext *aContext, gfxPattern::GraphicsFilte
 
   imgFrame *frame = GetCurrentDrawableImgFrame();
   if (!frame) {
+    NS_ABORT_IF_FALSE(!mDecoded, "Decoded but frame not available?");
     return NS_OK; // Getting the frame (above) touches the image and kicks off decoding
   }
 
