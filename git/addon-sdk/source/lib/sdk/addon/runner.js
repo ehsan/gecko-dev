@@ -6,7 +6,7 @@ module.metadata = {
   "stability": "experimental"
 };
 
-const { Cc, Ci, Cu } = require('chrome');
+const { Cc, Ci } = require('chrome');
 const { isNative } = require('@loader/options');
 const { descriptor, Sandbox, evaluate, main, resolveURI } = require('toolkit/loader');
 const { once } = require('../system/events');
@@ -21,7 +21,24 @@ const appShellService = Cc['@mozilla.org/appshell/appShellService;1'].
                         getService(Ci.nsIAppShellService);
 const { preferences } = metadata;
 
-const Startup = Cu.import("resource://gre/modules/sdk/system/Startup.js", {}).exports;
+const NAME2TOPIC = {
+  'Firefox': 'sessionstore-windows-restored',
+  'Fennec': 'sessionstore-windows-restored',
+  'SeaMonkey': 'sessionstore-windows-restored',
+  'Thunderbird': 'mail-startup-done'
+};
+
+// Set 'final-ui-startup' as default topic for unknown applications
+let appStartup = 'final-ui-startup';
+
+// Gets the topic that fit best as application startup event, in according with
+// the current application (e.g. Firefox, Fennec, Thunderbird...)
+for (let name of Object.keys(NAME2TOPIC)) {
+  if (xulApp.is(name)) {
+    appStartup = NAME2TOPIC[name];
+    break;
+  }
+}
 
 // Initializes default preferences
 function setDefaultPrefs(prefsURI) {
@@ -57,7 +74,26 @@ function definePseudo(loader, id, exports) {
   loader.modules[uri] = { exports: exports };
 }
 
-function startup(reason, options) Startup.onceInitialized.then(() => {
+function wait(reason, options) {
+  once(appStartup, function() {
+    startup(null, options);
+  });
+}
+
+function startup(reason, options) {
+  // Try accessing hidden window to guess if we are running during firefox
+  // startup, so that we should wait for session restore event before
+  // running the addon
+  let initialized = false;
+  try {
+    appShellService.hiddenDOMWindow;
+    initialized = true;
+  }
+  catch(e) {}
+  if (reason === 'startup' || !initialized) {
+    return wait(reason, options);
+  }
+
   // Inject globals ASAP in order to have console API working ASAP
   Object.defineProperties(options.loader.globals, descriptor(globals));
 
@@ -81,7 +117,7 @@ function startup(reason, options) Startup.onceInitialized.then(() => {
       run(options);
     }).then(null, console.exception);
     return void 0; // otherwise we raise a warning, see bug 910304
-});
+}
 
 function run(options) {
   try {
