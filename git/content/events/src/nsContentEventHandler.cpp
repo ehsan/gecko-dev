@@ -86,17 +86,16 @@ nsContentEventHandler::InitCommon()
 
   // If text frame which has overflowing selection underline is dirty,
   // we need to flush the pending reflow here.
-  nsresult rv = mPresShell->FlushPendingNotifications(Flush_Layout);
-  NS_ENSURE_SUCCESS(rv, rv);
+  mPresShell->FlushPendingNotifications(Flush_Layout);
 
-  rv = mPresShell->GetSelectionForCopy(getter_AddRefs(mSelection));
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsCopySupport::GetSelectionForCopy(mPresShell->GetDocument(),
+                                     getter_AddRefs(mSelection));
   NS_ASSERTION(mSelection,
                "GetSelectionForCopy succeeded, but the result is null");
 
 
   nsCOMPtr<nsIDOMRange> firstRange;
-  rv = mSelection->GetRangeAt(0, getter_AddRefs(firstRange));
+  nsresult rv = mSelection->GetRangeAt(0, getter_AddRefs(firstRange));
   // This shell doesn't support selection.
   if (NS_FAILED(rv))
     return NS_ERROR_NOT_AVAILABLE;
