@@ -36,8 +36,8 @@ private:
     nsresult ReadScript(nsIURI *uri, JSContext *cx, JSObject *target_obj,
                         const nsAString &charset, const char *uriStr,
                         nsIIOService *serv, nsIPrincipal *principal,
-                        bool reuseGlobal, JS::MutableHandleScript script,
-                        JS::MutableHandleFunction function);
+                        bool reuseGlobal, JSScript **scriptp,
+                        JSFunction **functionp);
 
     nsresult DoLoadSubScriptWithOptions(const nsAString &url,
                                         LoadSubScriptOptions  &options,

@@ -14,6 +14,8 @@
 
 using namespace js;
 
+using mozilla::Range;
+
 template <typename CharT, class Buffer>
 static CharT *
 ExtractWellSized(ExclusiveContext *cx, Buffer &cb)
@@ -97,15 +99,11 @@ StringBuffer::finishString()
     JS_STATIC_ASSERT(JSFatInlineString::MAX_LENGTH_LATIN1 < Latin1CharBuffer::InlineLength);
 
     if (isLatin1()) {
-        if (JSFatInlineString::latin1LengthFits(len)) {
-            mozilla::Range<const Latin1Char> range(latin1Chars().begin(), len);
-            return NewFatInlineString<CanGC>(cx, range);
-        }
+        if (JSFatInlineString::latin1LengthFits(len))
+            return NewFatInlineString<CanGC>(cx, Range<const Latin1Char>(latin1Chars().begin(), len));
     } else {
-        if (JSFatInlineString::twoByteLengthFits(len)) {
-            mozilla::Range<const jschar> range(twoByteChars().begin(), len);
-            return NewFatInlineString<CanGC>(cx, range);
-        }
+        if (JSFatInlineString::twoByteLengthFits(len))
+            return NewFatInlineString<CanGC>(cx, Range<const jschar>(twoByteChars().begin(), len));
     }
 
     return isLatin1()

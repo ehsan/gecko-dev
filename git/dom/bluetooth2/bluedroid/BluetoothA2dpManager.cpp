@@ -37,9 +37,9 @@ USING_BLUETOOTH_NAMESPACE
 namespace {
   StaticRefPtr<BluetoothA2dpManager> sBluetoothA2dpManager;
   bool sInShutdown = false;
-  static BluetoothA2dpInterface* sBtA2dpInterface;
+  static const btav_interface_t* sBtA2dpInterface;
 #if ANDROID_VERSION > 17
-  static BluetoothAvrcpInterface* sBtAvrcpInterface;
+  static const btrc_interface_t* sBtAvrcpInterface;
 #endif
 } // anonymous namespace
 
@@ -175,7 +175,7 @@ public:
     }
 
     NS_ENSURE_TRUE(sBtAvrcpInterface, NS_OK);
-    sBtAvrcpInterface->GetElementAttrRsp(mNumAttr, attrs);
+    sBtAvrcpInterface->get_element_attr_rsp(mNumAttr, attrs);
 
     return NS_OK;
   }
@@ -508,22 +508,24 @@ static btrc_callbacks_t sBtAvrcpCallbacks = {
 void
 BluetoothA2dpManager::InitA2dpInterface()
 {
-  BluetoothInterface* btInf = BluetoothInterface::GetInstance();
+  const bt_interface_t* btInf = GetBluetoothInterface();
   NS_ENSURE_TRUE_VOID(btInf);
 
-  sBtA2dpInterface = btInf->GetBluetoothA2dpInterface();
+  sBtA2dpInterface = (btav_interface_t *)btInf->
+    get_profile_interface(BT_PROFILE_ADVANCED_AUDIO_ID);
   NS_ENSURE_TRUE_VOID(sBtA2dpInterface);
 
-  int ret = sBtA2dpInterface->Init(&sBtA2dpCallbacks);
+  int ret = sBtA2dpInterface->init(&sBtA2dpCallbacks);
   if (ret != BT_STATUS_SUCCESS) {
     BT_LOGR("Warning: failed to init a2dp module");
   }
 
 #if ANDROID_VERSION > 17
-  sBtAvrcpInterface = btInf->GetBluetoothAvrcpInterface();
+  sBtAvrcpInterface = (btrc_interface_t *)btInf->
+    get_profile_interface(BT_PROFILE_AV_RC_ID);
   NS_ENSURE_TRUE_VOID(sBtAvrcpInterface);
 
-  ret = sBtAvrcpInterface->Init(&sBtAvrcpCallbacks);
+  ret = sBtAvrcpInterface->init(&sBtAvrcpCallbacks);
   if (ret != BT_STATUS_SUCCESS) {
     BT_LOGR("Warning: failed to init avrcp module");
   }
@@ -608,12 +610,12 @@ BluetoothA2dpManager::DeinitA2dpInterface()
   MOZ_ASSERT(NS_IsMainThread());
 
   if (sBtA2dpInterface) {
-    sBtA2dpInterface->Cleanup();
+    sBtA2dpInterface->cleanup();
     sBtA2dpInterface = nullptr;
   }
 #if ANDROID_VERSION > 17
   if (sBtAvrcpInterface) {
-    sBtAvrcpInterface->Cleanup();
+    sBtAvrcpInterface->cleanup();
     sBtAvrcpInterface = nullptr;
   }
 #endif
@@ -659,7 +661,7 @@ BluetoothA2dpManager::Connect(const nsAString& aDeviceAddress,
   bt_bdaddr_t remoteAddress;
   StringToBdAddressType(aDeviceAddress, &remoteAddress);
 
-  bt_status_t result = sBtA2dpInterface->Connect(&remoteAddress);
+  bt_status_t result = sBtA2dpInterface->connect(&remoteAddress);
   if (BT_STATUS_SUCCESS != result) {
     BT_LOGR("Failed to connect: %x", result);
     aController->NotifyCompletion(NS_LITERAL_STRING(ERR_CONNECTION_FAILED));
@@ -701,7 +703,7 @@ BluetoothA2dpManager::Disconnect(BluetoothProfileController* aController)
   bt_bdaddr_t remoteAddress;
   StringToBdAddressType(mDeviceAddress, &remoteAddress);
 
-  bt_status_t result = sBtA2dpInterface->Disconnect(&remoteAddress);
+  bt_status_t result = sBtA2dpInterface->disconnect(&remoteAddress);
   if (BT_STATUS_SUCCESS != result) {
     BT_LOGR("Failed to disconnect: %x", result);
     aController->NotifyCompletion(NS_LITERAL_STRING(ERR_DISCONNECTION_FAILED));
@@ -936,14 +938,14 @@ BluetoothA2dpManager::UpdateMetaData(const nsAString& aTitle,
       param.track[i] = (aMediaNumber >> (56 - 8 * i));
     }
     mTrackChangedNotifyType = BTRC_NOTIFICATION_TYPE_CHANGED;
-    sBtAvrcpInterface->RegisterNotificationRsp(BTRC_EVT_TRACK_CHANGE,
-                                               BTRC_NOTIFICATION_TYPE_CHANGED,
-                                               &param);
+    sBtAvrcpInterface->register_notification_rsp(BTRC_EVT_TRACK_CHANGE,
+                                                 BTRC_NOTIFICATION_TYPE_CHANGED,
+                                                 &param);
     if (mPlayPosChangedNotifyType == BTRC_NOTIFICATION_TYPE_INTERIM) {
       param.song_pos = mPosition;
       // EVENT_PLAYBACK_POS_CHANGED shall be notified if changed current track
       mPlayPosChangedNotifyType = BTRC_NOTIFICATION_TYPE_CHANGED;
-      sBtAvrcpInterface->RegisterNotificationRsp(
+      sBtAvrcpInterface->register_notification_rsp(
         BTRC_EVT_PLAY_POS_CHANGED,
         BTRC_NOTIFICATION_TYPE_CHANGED,
         &param);
@@ -973,17 +975,17 @@ BluetoothA2dpManager::UpdatePlayStatus(uint32_t aDuration,
 #if ANDROID_VERSION > 17
   NS_ENSURE_TRUE_VOID(sBtAvrcpInterface);
   // always update playstatus first
-  sBtAvrcpInterface->GetPlayStatusRsp((btrc_play_status_t)aPlayStatus,
-                                      aDuration, aPosition);
+  sBtAvrcpInterface->get_play_status_rsp((btrc_play_status_t)aPlayStatus,
+                                         aDuration, aPosition);
   // when play status changed, send both play status and position
   if (mPlayStatus != aPlayStatus &&
       mPlayStatusChangedNotifyType == BTRC_NOTIFICATION_TYPE_INTERIM) {
     btrc_register_notification_t param;
     param.play_status = (btrc_play_status_t)aPlayStatus;
     mPlayStatusChangedNotifyType = BTRC_NOTIFICATION_TYPE_CHANGED;
-    sBtAvrcpInterface->RegisterNotificationRsp(BTRC_EVT_PLAY_STATUS_CHANGED,
-                                               BTRC_NOTIFICATION_TYPE_CHANGED,
-                                               &param);
+    sBtAvrcpInterface->register_notification_rsp(BTRC_EVT_PLAY_STATUS_CHANGED,
+                                                 BTRC_NOTIFICATION_TYPE_CHANGED,
+                                                 &param);
   }
 
   if (mPosition != aPosition &&
@@ -991,9 +993,9 @@ BluetoothA2dpManager::UpdatePlayStatus(uint32_t aDuration,
     btrc_register_notification_t param;
     param.song_pos = aPosition;
     mPlayPosChangedNotifyType = BTRC_NOTIFICATION_TYPE_CHANGED;
-    sBtAvrcpInterface->RegisterNotificationRsp(BTRC_EVT_PLAY_POS_CHANGED,
-                                               BTRC_NOTIFICATION_TYPE_CHANGED,
-                                               &param);
+    sBtAvrcpInterface->register_notification_rsp(BTRC_EVT_PLAY_POS_CHANGED,
+                                                 BTRC_NOTIFICATION_TYPE_CHANGED,
+                                                 &param);
   }
 
   mDuration = aDuration;
@@ -1059,9 +1061,9 @@ BluetoothA2dpManager::UpdateRegisterNotification(int aEventId, int aParam)
       break;
   }
 
-  sBtAvrcpInterface->RegisterNotificationRsp((btrc_event_id_t)aEventId,
-                                              BTRC_NOTIFICATION_TYPE_INTERIM,
-                                              &param);
+  sBtAvrcpInterface->register_notification_rsp((btrc_event_id_t)aEventId,
+                                               BTRC_NOTIFICATION_TYPE_INTERIM,
+                                               &param);
 #endif
 }
 

@@ -901,11 +901,12 @@ mozJSComponentLoader::ObjectForLocation(ComponentLoaderInfo &aInfo,
             }
 
             if (!mReuseLoaderGlobal) {
-                Compile(cx, obj, options, buf, fileSize32, &script);
+                script = Compile(cx, obj, options, buf,
+                                     fileSize32);
             } else {
-                CompileFunction(cx, obj, options,
-                                nullptr, 0, nullptr,
-                                buf, fileSize32, &function);
+                function = CompileFunction(cx, obj, options,
+                                               nullptr, 0, nullptr,
+                                               buf, fileSize32);
             }
 
             PR_MemUnmap(buf, fileSize32);
@@ -987,11 +988,11 @@ mozJSComponentLoader::ObjectForLocation(ComponentLoaderInfo &aInfo,
             buf[len] = '\0';
 
             if (!mReuseLoaderGlobal) {
-                Compile(cx, obj, options, buf, bytesRead, &script);
+                script = Compile(cx, obj, options, buf, bytesRead);
             } else {
-                CompileFunction(cx, obj, options,
-                                nullptr, 0, nullptr,
-                                buf, bytesRead, &function);
+                function = CompileFunction(cx, obj, options,
+                                               nullptr, 0, nullptr,
+                                               buf, bytesRead);
             }
         }
         // Propagate the exception, if one exists. Also, don't leave the stale

@@ -526,7 +526,7 @@ bool
 IsInAddonScope(JSObject *obj)
 {
     // We always eagerly create compartment privates for addon scopes.
-    XPCWrappedNativeScope *scope = MaybeGetObjectScope(obj);
+    XPCWrappedNativeScope *scope = GetObjectScope(obj);
     return scope && scope->IsAddonScope();
 }
 

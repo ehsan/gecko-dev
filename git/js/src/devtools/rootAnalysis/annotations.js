@@ -248,12 +248,6 @@ function isOverridableField(initialCSU, csu, field)
         return false;
     if (initialCSU == 'nsIXPConnectJSObjectHolder' && field == 'GetJSObject')
         return false;
-    if (initialCSU == 'nsIXPConnect' && field == 'GetSafeJSContext')
-        return false;
-    if (initialCSU == 'nsIScriptContext') {
-        if (field == 'GetWindowProxy' || field == 'GetWindowProxyPreserveColor')
-            return false;
-    }
 
     return true;
 }

@@ -9,7 +9,6 @@ let url = "http://www.mozilla.org";
 // TODO : Get this from emulator console command.
 const T1T_RE_INDEX = 2;
 const T2T_RE_INDEX = 3;
-const T3T_RE_INDEX = 4;
 
 function testUrlTagDiscover(re) {
   log("Running \'testUrlTagDiscover\'");
@@ -48,14 +47,9 @@ function testUrlT2TDiscover() {
   testUrlTagDiscover(T2T_RE_INDEX);
 }
 
-function testUrlT3TDiscover() {
-  testUrlTagDiscover(T3T_RE_INDEX);
-}
-
 let tests = [
   testUrlT1TDiscover,
-  testUrlT2TDiscover,
-  testUrlT3TDiscover
+  testUrlT2TDiscover
 ];
 
 SpecialPowers.pushPermissions(

@@ -54,6 +54,7 @@ using namespace js::frontend;
 
 using mozilla::ArrayLength;
 using mozilla::PodCopy;
+using mozilla::Range;
 using mozilla::RangedPtr;
 
 static bool
@@ -669,7 +670,7 @@ CreateFunctionPrototype(JSContext *cx, JSProtoKey key)
     CompileOptions options(cx);
     options.setNoScriptRval(true)
            .setVersion(JSVERSION_DEFAULT);
-    RootedScriptSource sourceObject(cx, ScriptSourceObject::create(cx, ss));
+    RootedScriptSource sourceObject(cx, ScriptSourceObject::create(cx, ss, options));
     if (!sourceObject)
         return nullptr;
 
@@ -764,7 +765,7 @@ js::FindBody(JSContext *cx, HandleFunction fun, HandleLinearString src, size_t *
     if (!stableChars.initTwoByte(cx, src))
         return false;
 
-    const mozilla::Range<const jschar> srcChars = stableChars.twoByteRange();
+    const Range<const jschar> srcChars = stableChars.twoByteRange();
     TokenStream ts(cx, options, srcChars.start().get(), srcChars.length(), nullptr);
     int nest = 0;
     bool onward = true;
@@ -1541,7 +1542,7 @@ FunctionConstructor(JSContext *cx, unsigned argc, Value *vp, GeneratorKind gener
     bool isStarGenerator = generatorKind == StarGenerator;
     JS_ASSERT(generatorKind != LegacyGenerator);
 
-    RootedScript maybeScript(cx);
+    JSScript *maybeScript = nullptr;
     const char *filename;
     unsigned lineno;
     JSPrincipals *originPrincipals;
@@ -1740,7 +1741,7 @@ FunctionConstructor(JSContext *cx, unsigned argc, Value *vp, GeneratorKind gener
     if (!stableChars.initTwoByte(cx, str))
         return false;
 
-    mozilla::Range<const jschar> chars = stableChars.twoByteRange();
+    Range<const jschar> chars = stableChars.twoByteRange();
     SourceBufferHolder::Ownership ownership = stableChars.maybeGiveOwnershipToCaller()
                                               ? SourceBufferHolder::GiveOwnership
                                               : SourceBufferHolder::NoOwnership;

@@ -1030,7 +1030,7 @@ GfxInfo::GetFeatureStatusImpl(int32_t aFeature,
         adapterDeviceID.LowerCaseEqualsLiteral("0x0861") && // GeForce 9400
         driverVersion == V(6,14,11,7756))
     {
-      *aStatus = FEATURE_STATUS_OK;
+      *aStatus = FEATURE_NO_INFO;
       return NS_OK;
     }
 

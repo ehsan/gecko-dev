@@ -1669,27 +1669,21 @@ InterfaceToJsval(nsPIDOMWindow* aWindow,
                  nsISupports* aObject,
                  const nsIID* aIID)
 {
+  AutoJSContext cx;
   nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(aWindow);
   if (!sgo) {
-    return JS::NullValue();
+    return JSVAL_NULL;
   }
 
-  JSObject *unrootedScopeObj = sgo->GetGlobalJSObject();
-  NS_ENSURE_TRUE(unrootedScopeObj, JS::NullValue());
-  JSRuntime *runtime = JS_GetObjectRuntime(unrootedScopeObj);
-  JS::Rooted<JS::Value> someJsVal(runtime);
-  nsresult rv;
+  JS::Rooted<JSObject*> scopeObj(cx, sgo->GetGlobalJSObject());
+  NS_ENSURE_TRUE(scopeObj, JSVAL_NULL);
+  JSAutoCompartment ac(cx, scopeObj);
 
-  { // Protect someJsVal from moving GC in ~JSAutoCompartment
-    AutoJSContext cx;
 
-    JS::Rooted<JSObject*> scopeObj(cx, unrootedScopeObj);
-    JSAutoCompartment ac(cx, scopeObj);
-
-    rv = nsContentUtils::WrapNative(cx, aObject, aIID, &someJsVal);
-  }
+  JS::Rooted<JS::Value> someJsVal(cx);
+  nsresult rv = nsContentUtils::WrapNative(cx, aObject, aIID, &someJsVal);
   if (NS_FAILED(rv)) {
-    return JS::NullValue();
+    return JSVAL_NULL;
   }
 
   return someJsVal;
@@ -1726,24 +1720,23 @@ nsIFileToJsval(nsPIDOMWindow* aWindow, DeviceStorageFile* aFile)
   return InterfaceToJsval(aWindow, blob, &NS_GET_IID(nsIDOMBlob));
 }
 
-bool
-StringToJsval(nsPIDOMWindow* aWindow, nsAString& aString,
-              JS::MutableHandle<JS::Value> result)
+JS::Value StringToJsval(nsPIDOMWindow* aWindow, nsAString& aString)
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aWindow);
 
   AutoJSAPI jsapi;
   if (NS_WARN_IF(!jsapi.Init(aWindow))) {
-    return false;
+    return JSVAL_NULL;
   }
   JSContext* cx = jsapi.cx();
 
-  if (!xpc::StringToJsval(cx, aString, result)) {
-    return false;
+  JS::Rooted<JS::Value> result(cx);
+  if (!xpc::StringToJsval(cx, aString, &result)) {
+    return JSVAL_NULL;
   }
 
-  return true;
+  return result;
 }
 
 class DeviceStorageCursorRequest MOZ_FINAL
@@ -2142,8 +2135,8 @@ public:
     }
 
     AutoJSContext cx;
-    JS::Rooted<JS::Value> result(cx);
-    StringToJsval(mRequest->GetOwner(), state, &result);
+    JS::Rooted<JS::Value> result(cx,
+                                 StringToJsval(mRequest->GetOwner(), state));
     mRequest->FireSuccess(result);
     mRequest = nullptr;
     return NS_OK;
@@ -2176,8 +2169,8 @@ public:
     }
 
     AutoJSContext cx;
-    JS::Rooted<JS::Value> result(cx);
-    StringToJsval(mRequest->GetOwner(), state, &result);
+    JS::Rooted<JS::Value> result(cx,
+                                 StringToJsval(mRequest->GetOwner(), state));
     mRequest->FireSuccess(result);
     mRequest = nullptr;
     return NS_OK;
@@ -2210,8 +2203,8 @@ public:
     }
 
     AutoJSContext cx;
-    JS::Rooted<JS::Value> result(cx);
-    StringToJsval(mRequest->GetOwner(), state, &result);
+    JS::Rooted<JS::Value> result(cx,
+                                 StringToJsval(mRequest->GetOwner(), state));
     mRequest->FireSuccess(result);
     mRequest = nullptr;
     return NS_OK;
@@ -2244,8 +2237,8 @@ public:
     }
 
     AutoJSContext cx;
-    JS::Rooted<JS::Value> result(cx);
-    StringToJsval(mRequest->GetOwner(), state, &result);
+    JS::Rooted<JS::Value> result(cx,
+                                 StringToJsval(mRequest->GetOwner(), state));
     mRequest->FireSuccess(result);
     mRequest = nullptr;
     return NS_OK;
@@ -2278,8 +2271,8 @@ public:
     }
 
     AutoJSContext cx;
-    JS::Rooted<JS::Value> result(cx);
-    StringToJsval(mRequest->GetOwner(), state, &result);
+    JS::Rooted<JS::Value> result(cx,
+                                 StringToJsval(mRequest->GetOwner(), state));
     mRequest->FireSuccess(result);
     mRequest = nullptr;
     return NS_OK;
@@ -2330,7 +2323,7 @@ public:
     if (mFile) {
       result = nsIFileToJsval(window, mFile);
     } else if (mPath.Length()) {
-      StringToJsval(window, mPath, &result);
+      result = StringToJsval(window, mPath);
     }
     else {
       result = JS_NumberValue(double(mValue));

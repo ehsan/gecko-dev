@@ -273,15 +273,6 @@ ImportLoader::OnStopRequest(nsIRequest* aRequest,
                             nsISupports* aContext,
                             nsresult aStatus)
 {
-  // OnStartRequest throws a special error code to let us know that we
-  // shouldn't do anything else.
-  if (aStatus == NS_ERROR_DOM_ABORT_ERR) {
-    // We failed in OnStartRequest, nothing more to do (we've already
-    // dispatched an error event) just return here.
-    MOZ_ASSERT(!mChannel);
-    return NS_OK;
-  }
-
   MOZ_ASSERT(aRequest == mChannel,
              "Wrong channel something went horribly wrong");
 
@@ -312,7 +303,7 @@ ImportLoader::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
   mChannel->GetContentType(type);
   if (!type.EqualsLiteral("text/html")) {
     NS_WARNING("ImportLoader wrong content type");
-    return NS_ERROR_DOM_ABORT_ERR;
+    return NS_ERROR_FAILURE;
   }
 
   // The scope object is same for all the imports in an import tree,
@@ -325,7 +316,7 @@ ImportLoader::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
                                   emptyStr, emptyStr, nullptr, mURI,
                                   baseURI, principal, false, global,
                                   DocumentFlavorHTML);
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_ABORT_ERR);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // The imported document must know which master document it belongs to.
   mDocument = do_QueryInterface(importDoc);
@@ -339,12 +330,12 @@ ImportLoader::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
   rv = mDocument->StartDocumentLoad("import", mChannel, loadGroup,
                                     nullptr, getter_AddRefs(listener),
                                     true);
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_ABORT_ERR);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Let's start parser.
   mParserStreamListener = listener;
   rv = listener->OnStartRequest(aRequest, aContext);
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_ABORT_ERR);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   ae.Pass();
   return NS_OK;

@@ -480,7 +480,7 @@ struct ParseTask
     bool init(JSContext *cx, const ReadOnlyCompileOptions &options);
 
     void activate(JSRuntime *rt);
-    bool finish(JSContext *cx);
+    void finish();
 
     bool runtimeMatches(JSRuntime *rt) {
         return exclusiveContextGlobal->runtimeFromAnyThread() == rt;
