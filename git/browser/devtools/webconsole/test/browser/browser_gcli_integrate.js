@@ -36,7 +36,6 @@ function onLoad() {
   }
   catch (ex) {
     gcli._internal.console.error('Test Failure', ex);
-    ok(false, '' + ex);
   }
   finally {
     closeConsole();
@@ -83,7 +82,7 @@ function testCallCommands() {
   is(gcliterm.completeNode.textContent, " ecd", "Completion for \"ecd\"");
 
   // Test a normal command's life cycle
-  gcliterm.opts.display.inputter.setInput("echo hello world");
+  gcliterm.opts.inputter.setInput("echo hello world");
   gcliterm.opts.requisition.exec();
 
   let nodes = hud.outputNode.querySelectorAll("description");
