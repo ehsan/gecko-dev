@@ -205,8 +205,7 @@ let ContactService = {
               requestID: msg.requestID,
               revision: revision
             });
-          },
-          function(aErrorMsg) { mm.sendAsyncMessage("Contacts:GetRevision:Return:KO", { requestID: msg.requestID, errorMsg: aErrorMsg }); }.bind(this)
+          }
         );
         break;
       case "Contacts:GetCount":
@@ -219,8 +218,7 @@ let ContactService = {
               requestID: msg.requestID,
               count: count
             });
-          },
-          function(aErrorMsg) { mm.sendAsyncMessage("Contacts:Count:Return:KO", { requestID: msg.requestID, errorMsg: aErrorMsg }); }.bind(this)
+          }
         );
         break;
       case "Contacts:RegisterForMessages":
