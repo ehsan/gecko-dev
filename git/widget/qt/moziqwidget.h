@@ -42,7 +42,7 @@
 #include <QtGui/QGraphicsWidget>
 #include <QtGui/QGraphicsView>
 
-#include "nsCOMPtr.h"
+#include "nsIWidget.h"
 
 #ifdef MOZ_ENABLE_MEEGOTOUCH
 #include <MSceneWindow>
@@ -61,6 +61,7 @@ public:
      * Mozilla helper.
      */
     virtual void setModal(bool) {}
+    virtual bool SetCursor(nsCursor aCursor) { return false; }
     virtual void dropReceiver() { };
     virtual nsWindow* getReceiver() { return NULL; };
 
