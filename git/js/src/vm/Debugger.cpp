@@ -750,7 +750,7 @@ Debugger::resultToCompletion(JSContext *cx, bool ok, const Value &rv,
 }
 
 bool
-Debugger::newCompletionValue(JSContext *cx, JSTrapStatus status, Value value, Value *result)
+Debugger::newCompletionValue(JSContext *cx, JSTrapStatus status, Value value_, Value *result)
 {
     /*
      * We must be in the debugger's compartment, since that's where we want
@@ -759,7 +759,7 @@ Debugger::newCompletionValue(JSContext *cx, JSTrapStatus status, Value value, Va
     assertSameCompartment(cx, object.get());
 
     RootedVarId key(cx);
-    RootValue valueRoot(cx, &value);
+    RootedVarValue value(cx, value_);
 
     switch (status) {
       case JSTRAP_RETURN:
@@ -781,7 +781,7 @@ Debugger::newCompletionValue(JSContext *cx, JSTrapStatus status, Value value, Va
     /* Common tail for JSTRAP_RETURN and JSTRAP_THROW. */
     RootedVarObject obj(cx, NewBuiltinClassInstance(cx, &ObjectClass));
     if (!obj ||
-        !wrapDebuggeeValue(cx, &value) ||
+        !wrapDebuggeeValue(cx, value.address()) ||
         !DefineNativeProperty(cx, obj, key, value, JS_PropertyStub, JS_StrictPropertyStub,
                               JSPROP_ENUMERATE, 0, 0))
     {
@@ -2070,7 +2070,30 @@ class Debugger::ScriptQuery {
         /* Search each compartment for debuggee scripts. */
         for (CompartmentSet::Range r = compartments.all(); !r.empty(); r.popFront()) {
             for (gc::CellIter i(r.front(), gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
-                if (!consider(i.get<JSScript>(), vector))
+                JSScript *script = i.get<JSScript>();
+                GlobalObject *global = script->getGlobalObjectOrNull();
+                if (global && !consider(script, global, vector))
+                    return false;
+            }
+        }
+
+        /*
+         * Since eval scripts have no global, we need to find them via the call
+         * stack, where frame's scope tells us the global in use.
+         */
+        for (ScriptFrameIter fri(cx); !fri.done(); ++fri) {
+            if (fri.isEvalFrame()) {
+                JSScript *script = fri.script();
+
+                /*
+                 * If eval scripts never have global objects set, then we don't need
+                 * to check the existing script vector for duplicates, since we only
+                 * include scripts with globals above.
+                 */
+                JS_ASSERT(!script->getGlobalObjectOrNull());
+
+                GlobalObject *global = &fri.fp()->global();
+                if (!consider(script, global, vector))
                     return false;
             }
         }
@@ -2190,14 +2213,9 @@ class Debugger::ScriptQuery {
      * |vector| or place it in |innermostForGlobal|, as appropriate. Return true
      * if no error occurs, false if an error occurs.
      */
-    bool consider(JSScript *script, AutoScriptVector *vector) {
-        // Non-compile-and-go scripts aren't associated with any global. In
-        // Gecko, this includes scripts loaded using C.u.import. Rather than
-        // ignore them, we include them all.
-        GlobalObject *global = script->getGlobalObjectOrNull();
-        if (global && !globals.has(global))
+    bool consider(JSScript *script, GlobalObject *global, AutoScriptVector *vector) {
+        if (!globals.has(global))
             return true;
-
         if (urlCString.ptr()) {
             if (!script->filename || strcmp(script->filename, urlCString.ptr()) != 0)
                 return true;
@@ -4421,9 +4439,9 @@ static JSFunctionSpec DebuggerEnv_methods[] = {
 /*** Glue ****************************************************************************************/
 
 extern JS_PUBLIC_API(JSBool)
-JS_DefineDebuggerObject(JSContext *cx, JSObject *obj)
+JS_DefineDebuggerObject(JSContext *cx, JSObject *obj_)
 {
-    RootObject objRoot(cx, &obj);
+    RootedVarObject obj(cx, obj_);
 
     RootedVarObject
         objProto(cx),
@@ -4438,7 +4456,7 @@ JS_DefineDebuggerObject(JSContext *cx, JSObject *obj)
         return false;
 
 
-    debugProto = js_InitClass(cx, objRoot,
+    debugProto = js_InitClass(cx, obj,
                               objProto, &Debugger::jsclass, Debugger::construct,
                               1, Debugger::properties, Debugger::methods, NULL, NULL,
                               debugCtor.address());

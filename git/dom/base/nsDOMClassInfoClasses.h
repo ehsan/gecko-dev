@@ -508,7 +508,7 @@ DOMCI_CLASS(MozCSSKeyframesRule)
 DOMCI_CLASS(MediaQueryList)
 DOMCI_CLASS(CustomEvent)
 
-DOMCI_CLASS(MozMutationObserver)
+DOMCI_CLASS(MutationObserver)
 DOMCI_CLASS(MutationRecord)
 
 DOMCI_CLASS(MozSettingsEvent)
@@ -520,6 +520,7 @@ DOMCI_CLASS(CallEvent)
 #endif
 
 #ifdef MOZ_B2G_BT
+DOMCI_CLASS(BluetoothManager)
 DOMCI_CLASS(BluetoothAdapter)
 #endif
 

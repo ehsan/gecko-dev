@@ -388,7 +388,7 @@ SkipUTF8BOM(FILE* file)
 }
 
 static void
-Process(JSContext *cx, JSObject *obj, const char *filename, bool forceTTY)
+Process(JSContext *cx, JSObject *obj_, const char *filename, bool forceTTY)
 {
     JSBool ok, hitEOF;
     JSScript *script;
@@ -403,7 +403,7 @@ Process(JSContext *cx, JSObject *obj, const char *filename, bool forceTTY)
     FILE *file;
     uint32_t oldopts;
 
-    RootObject root(cx, &obj);
+    RootedVarObject obj(cx, obj_);
 
     if (forceTTY || !filename || strcmp(filename, "-") == 0) {
         file = stdin;
@@ -1731,9 +1731,11 @@ TryNotes(JSContext *cx, JSScript *script, Sprinter *sp)
 }
 
 static bool
-DisassembleScript(JSContext *cx, JSScript *script, JSFunction *fun, bool lines, bool recursive,
+DisassembleScript(JSContext *cx, JSScript *script_, JSFunction *fun, bool lines, bool recursive,
                   Sprinter *sp)
 {
+    RootedVar<JSScript*> script(cx, script_);
+
     if (fun && (fun->flags & ~7U)) {
         uint16_t flags = fun->flags;
         Sprint(sp, "flags:");
@@ -1751,8 +1753,6 @@ DisassembleScript(JSContext *cx, JSScript *script, JSFunction *fun, bool lines, 
 
         Sprint(sp, "\n");
     }
-
-    Root<JSScript*> scriptRoot(cx, &script);
 
     if (!js_Disassemble(cx, script, lines, sp))
         return false;
@@ -3261,7 +3261,7 @@ Compile(JSContext *cx, unsigned argc, jsval *vp)
     unsigned oldopts = JS_GetOptions(cx);
     JS_SetOptions(cx, oldopts | JSOPTION_COMPILE_N_GO | JSOPTION_NO_SCRIPT_RVAL);
     bool ok = JS_CompileUCScript(cx, fakeGlobal, JS_GetStringCharsZ(cx, scriptContents),
-                                 JS_GetStringLength(scriptContents), "<string>", 0);
+                                 JS_GetStringLength(scriptContents), "<string>", 1);
     JS_SetOptions(cx, oldopts);
 
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
@@ -3284,9 +3284,13 @@ Parse(JSContext *cx, unsigned argc, jsval *vp)
     }
 
     JSString *scriptContents = JSVAL_TO_STRING(arg0);
-    js::Parser parser(cx);
-    parser.init(JS_GetStringCharsZ(cx, scriptContents), JS_GetStringLength(scriptContents),
-                "<string>", 0, cx->findVersion());
+    js::Parser parser(cx, /* prin = */ NULL, /* originPrin = */ NULL,
+                      JS_GetStringCharsZ(cx, scriptContents), JS_GetStringLength(scriptContents),
+                      "<string>", /* lineno = */ 1, cx->findVersion(),
+                      /* cfp = */ NULL, /* foldConstants = */ true, /* compileAndGo = */ false);
+    if (!parser.init())
+        return JS_FALSE;
+
     ParseNode *pn = parser.parse(NULL);
     if (!pn)
         return JS_FALSE;
@@ -4656,9 +4660,9 @@ NewGlobalObject(JSContext *cx, CompartmentKind compartment)
 }
 
 static bool
-BindScriptArgs(JSContext *cx, JSObject *obj, OptionParser *op)
+BindScriptArgs(JSContext *cx, JSObject *obj_, OptionParser *op)
 {
-    RootObject root(cx, &obj);
+    RootedVarObject obj(cx, obj_);
 
     MultiStringRange msr = op->getMultiStringArg("scriptArgs");
     RootedVarObject scriptArgs(cx);
@@ -4689,9 +4693,9 @@ BindScriptArgs(JSContext *cx, JSObject *obj, OptionParser *op)
 }
 
 static int
-ProcessArgs(JSContext *cx, JSObject *obj, OptionParser *op)
+ProcessArgs(JSContext *cx, JSObject *obj_, OptionParser *op)
 {
-    RootObject root(cx, &obj);
+    RootedVarObject obj(cx, obj_);
 
     if (op->getBoolOption('a'))
         JS_ToggleOptions(cx, JSOPTION_METHODJIT_ALWAYS);
