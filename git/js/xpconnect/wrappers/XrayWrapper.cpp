@@ -51,9 +51,9 @@
 
 #include "jsapi.h"
 
-#include "mozilla/dom/BindingUtils.h"
+#include "mozilla/dom/bindings/Utils.h"
 
-using namespace mozilla::dom;
+using namespace mozilla::dom::bindings;
 
 namespace xpc {
 

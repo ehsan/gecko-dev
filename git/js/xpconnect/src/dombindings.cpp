@@ -48,13 +48,13 @@
 #include "nsDOMClassInfo.h"
 #include "nsGlobalWindow.h"
 #include "nsWrapperCacheInlines.h"
-#include "mozilla/dom/BindingUtils.h"
+#include "mozilla/dom/bindings/Utils.h"
 
 #include "jsapi.h"
 #include "jsatom.h"
 
 using namespace JS;
-using namespace mozilla::dom;
+using namespace mozilla::dom::bindings;
 
 namespace mozilla {
 namespace dom {

@@ -23,12 +23,10 @@ class ReusableTiledTextureOGL
 {
 public:
   ReusableTiledTextureOGL(TiledTexture aTexture,
-                          const nsIntPoint& aTileOrigin,
                           const nsIntRegion& aTileRegion,
                           uint16_t aTileSize,
                           gfxSize aResolution)
     : mTexture(aTexture)
-    , mTileOrigin(aTileOrigin)
     , mTileRegion(aTileRegion)
     , mTileSize(aTileSize)
     , mResolution(aResolution)
@@ -37,7 +35,6 @@ public:
   ~ReusableTiledTextureOGL() {}
 
   TiledTexture mTexture;
-  const nsIntPoint mTileOrigin;
   const nsIntRegion mTileRegion;
   uint16_t mTileSize;
   gfxSize mResolution;
@@ -64,8 +61,8 @@ public:
   // and resolution of the data currently in aVideoMemoryTiledBuffer, and
   // aNewValidRegion and aNewResolution should be the valid region and
   // resolution of the data that is about to update aVideoMemoryTiledBuffer.
-  void HarvestTiles(TiledThebesLayerOGL* aLayer,
-                    TiledLayerBufferOGL* aVideoMemoryTiledBuffer,
+  void HarvestTiles(TiledLayerBufferOGL* aVideoMemoryTiledBuffer,
+                    const nsIntSize& aContentSize,
                     const nsIntRegion& aOldValidRegion,
                     const nsIntRegion& aNewValidRegion,
                     const gfxSize& aOldResolution,
@@ -75,19 +72,11 @@ public:
   // Differences in resolution will be reconciled via altering the given
   // transformation.
   void DrawTiles(TiledThebesLayerOGL* aLayer,
+                 const nsIntSize& aContentSize,
                  const nsIntRegion& aValidRegion,
                  const gfxSize& aResolution,
                  const gfx3DMatrix& aTransform,
-                 const nsIntPoint& aRenderOffset,
-                 Layer* aMaskLayer);
-
-protected:
-  // Invalidates tiles contained within the valid region, or intersecting with
-  // the currently rendered region (discovered by looking for a display-port,
-  // or failing that, looking at the widget size).
-  void InvalidateTiles(TiledThebesLayerOGL* aLayer,
-                       const nsIntRegion& aValidRegion,
-                       const gfxSize& aResolution);
+                 const nsIntPoint& aRenderOffset);
 
 private:
   // This GLContext should correspond to the one used in any TiledLayerBufferOGL

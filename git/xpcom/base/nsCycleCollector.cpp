@@ -176,6 +176,14 @@ using namespace mozilla;
 
 //#define COLLECT_TIME_DEBUG
 
+#ifdef DEBUG_CC
+#define IF_DEBUG_CC_PARAM(_p) , _p
+#define IF_DEBUG_CC_ONLY_PARAM(_p) _p
+#else
+#define IF_DEBUG_CC_PARAM(_p)
+#define IF_DEBUG_CC_ONLY_PARAM(_p)
+#endif
+
 #define DEFAULT_SHUTDOWN_COLLECTIONS 5
 #ifdef DEBUG_CC
 #define SHUTDOWN_COLLECTIONS(params) params.mShutdownCollections
@@ -512,9 +520,12 @@ public:
 #ifdef DEBUG_CC
     size_t mBytes;
     char *mName;
+    PRUint32 mLangID;
 #endif
 
-    PtrInfo(void *aPointer, nsCycleCollectionParticipant *aParticipant)
+    PtrInfo(void *aPointer, nsCycleCollectionParticipant *aParticipant
+            IF_DEBUG_CC_PARAM(PRUint32 aLangID)
+            )
         : mPointer(aPointer),
           mParticipant(aParticipant),
           mColor(grey),
@@ -523,10 +534,10 @@ public:
           mFirstChild()
 #ifdef DEBUG_CC
         , mBytes(0),
-          mName(nsnull)
+          mName(nsnull),
+          mLangID(aLangID)
 #endif
     {
-        MOZ_ASSERT(aParticipant);
     }
 
 #ifdef DEBUG_CC
@@ -633,7 +644,9 @@ public:
             NS_ASSERTION(aPool.mBlocks == nsnull && aPool.mLast == nsnull,
                          "pool not empty");
         }
-        PtrInfo *Add(void *aPointer, nsCycleCollectionParticipant *aParticipant)
+        PtrInfo *Add(void *aPointer, nsCycleCollectionParticipant *aParticipant
+                     IF_DEBUG_CC_PARAM(PRUint32 aLangID)
+                    )
         {
             if (mNext == mBlockEnd) {
                 Block *block;
@@ -646,7 +659,9 @@ public:
                 mNextBlock = &block->mNext;
                 mNumBlocks++;
             }
-            return new (mNext++) PtrInfo(aPointer, aParticipant);
+            return new (mNext++) PtrInfo(aPointer, aParticipant
+                                         IF_DEBUG_CC_PARAM(aLangID)
+                                        );
         }
     private:
         Block **mNextBlock;
@@ -1031,8 +1046,25 @@ nsPurpleBuffer::SelectPointers(GCGraphBuilder &aBuilder)
 
 
 ////////////////////////////////////////////////////////////////////////
-// Top level structure for the cycle collector.
+// Implement the LanguageRuntime interface for C++/XPCOM 
 ////////////////////////////////////////////////////////////////////////
+
+
+struct nsCycleCollectionXPCOMRuntime : 
+    public nsCycleCollectionLanguageRuntime 
+{
+    nsresult BeginCycleCollection(nsCycleCollectionTraversalCallback &cb)
+    {
+        return NS_OK;
+    }
+
+    nsresult FinishTraverse() 
+    {
+        return NS_OK;
+    }
+
+    inline nsCycleCollectionParticipant *ToParticipant(void *p);
+};
 
 struct nsCycleCollector
 {
@@ -1042,7 +1074,8 @@ struct nsCycleCollector
     nsCycleCollectorResults *mResults;
     TimeStamp mCollectionStart;
 
-    nsCycleCollectionJSRuntime *mJSRuntime;
+    nsCycleCollectionLanguageRuntime *mRuntimes[nsIProgrammingLanguage::MAX+1];
+    nsCycleCollectionXPCOMRuntime mXPCOMRuntime;
 
     GCGraph mGraph;
 
@@ -1060,8 +1093,9 @@ struct nsCycleCollector
 
     nsPurpleBuffer mPurpleBuf;
 
-    void RegisterJSRuntime(nsCycleCollectionJSRuntime *aJSRuntime);
-    void ForgetJSRuntime();
+    void RegisterRuntime(PRUint32 langID, 
+                         nsCycleCollectionLanguageRuntime *rt);
+    void ForgetRuntime(PRUint32 langID);
 
     void SelectPurple(GCGraphBuilder &builder);
     void MarkRoots(GCGraphBuilder &builder);
@@ -1237,6 +1271,15 @@ ToParticipant(nsISupports *s, nsXPCOMCycleCollectionParticipant **cp)
         ++sCollector->mStats.mFailedQI;
 #endif
 }
+
+nsCycleCollectionParticipant *
+nsCycleCollectionXPCOMRuntime::ToParticipant(void *p)
+{
+    nsXPCOMCycleCollectionParticipant *cp;
+    ::ToParticipant(static_cast<nsISupports*>(p), &cp);
+    return cp;
+}
+
 
 template <class Visitor>
 MOZ_NEVER_INLINE void
@@ -1626,23 +1669,36 @@ private:
     nsTArray<WeakMapping> &mWeakMaps;
     PLDHashTable mPtrToNodeMap;
     PtrInfo *mCurrPi;
-    nsCycleCollectionParticipant *mJSParticipant;
+    nsCycleCollectionLanguageRuntime **mRuntimes; // weak, from nsCycleCollector
     nsCString mNextEdgeName;
     nsICycleCollectorListener *mListener;
 
 public:
     GCGraphBuilder(GCGraph &aGraph,
-                   nsCycleCollectionJSRuntime *aJSRuntime,
+                   nsCycleCollectionLanguageRuntime **aRuntimes,
                    nsICycleCollectorListener *aListener);
     ~GCGraphBuilder();
     bool Initialized();
 
     PRUint32 Count() const { return mPtrToNodeMap.entryCount; }
 
+#ifdef DEBUG_CC
+    PtrInfo* AddNode(void *s, nsCycleCollectionParticipant *aParticipant,
+                     PRUint32 aLangID);
+#else
     PtrInfo* AddNode(void *s, nsCycleCollectionParticipant *aParticipant);
+    PtrInfo* AddNode(void *s, nsCycleCollectionParticipant *aParticipant,
+                     PRUint32 aLangID)
+    {
+        return AddNode(s, aParticipant);
+    }
+#endif
     PtrInfo* AddWeakMapNode(void* node);
     void Traverse(PtrInfo* aPtrInfo);
     void SetLastChild();
+
+    // nsCycleCollectionTraversalCallback methods.
+    NS_IMETHOD_(void) NoteXPCOMRoot(nsISupports *root);
 
 private:
     void DescribeNode(PRUint32 refCount,
@@ -1657,41 +1713,23 @@ private:
 #endif
     }
 
-public:
-    // nsCycleCollectionTraversalCallback methods.
     NS_IMETHOD_(void) DescribeRefCountedNode(nsrefcnt refCount, size_t objSz,
                                              const char *objName);
     NS_IMETHOD_(void) DescribeGCedNode(bool isMarked, size_t objSz,
                                        const char *objName);
-
-    NS_IMETHOD_(void) NoteXPCOMRoot(nsISupports *root);
-    NS_IMETHOD_(void) NoteJSRoot(void *root);
-    NS_IMETHOD_(void) NoteNativeRoot(void *root, nsCycleCollectionParticipant *participant);
-
+    NS_IMETHOD_(void) NoteRoot(PRUint32 langID, void *child,
+                               nsCycleCollectionParticipant* participant);
     NS_IMETHOD_(void) NoteXPCOMChild(nsISupports *child);
-    NS_IMETHOD_(void) NoteJSChild(void *child);
     NS_IMETHOD_(void) NoteNativeChild(void *child,
                                       nsCycleCollectionParticipant *participant);
-
+    NS_IMETHOD_(void) NoteScriptChild(PRUint32 langID, void *child);
     NS_IMETHOD_(void) NoteNextEdgeName(const char* name);
     NS_IMETHOD_(void) NoteWeakMapping(void *map, void *key, void *val);
-
 private:
-    NS_IMETHOD_(void) NoteRoot(void *root,
-                               nsCycleCollectionParticipant *participant)
-    {
-        MOZ_ASSERT(root);
-        MOZ_ASSERT(participant);
-
-        if (!participant->CanSkipInCC(root) || NS_UNLIKELY(WantAllTraces())) {
-            AddNode(root, participant);
-        }
-    }
-
     NS_IMETHOD_(void) NoteChild(void *child, nsCycleCollectionParticipant *cp,
-                                nsCString edgeName)
+                                PRUint32 langID, nsCString edgeName)
     {
-        PtrInfo *childPi = AddNode(child, cp);
+        PtrInfo *childPi = AddNode(child, cp, langID);
         if (!childPi)
             return;
         mEdgeBuilder.Add(childPi);
@@ -1703,21 +1741,17 @@ private:
 };
 
 GCGraphBuilder::GCGraphBuilder(GCGraph &aGraph,
-                               nsCycleCollectionJSRuntime *aJSRuntime,
+                               nsCycleCollectionLanguageRuntime **aRuntimes,
                                nsICycleCollectorListener *aListener)
     : mNodeBuilder(aGraph.mNodes),
       mEdgeBuilder(aGraph.mEdges),
       mWeakMaps(aGraph.mWeakMaps),
-      mJSParticipant(nsnull),
+      mRuntimes(aRuntimes),
       mListener(aListener)
 {
     if (!PL_DHashTableInit(&mPtrToNodeMap, &PtrNodeOps, nsnull,
                            sizeof(PtrToNodeEntry), 32768))
         mPtrToNodeMap.ops = nsnull;
-
-    if (aJSRuntime) {
-        mJSParticipant = aJSRuntime->GetParticipant();
-    }
 
     PRUint32 flags = 0;
 #ifdef DEBUG_CC
@@ -1749,7 +1783,9 @@ GCGraphBuilder::Initialized()
 }
 
 PtrInfo*
-GCGraphBuilder::AddNode(void *s, nsCycleCollectionParticipant *aParticipant)
+GCGraphBuilder::AddNode(void *s, nsCycleCollectionParticipant *aParticipant
+                        IF_DEBUG_CC_PARAM(PRUint32 aLangID)
+                       )
 {
     PtrToNodeEntry *e = static_cast<PtrToNodeEntry*>(PL_DHashTableOperate(&mPtrToNodeMap, s, PL_DHASH_ADD));
     if (!e)
@@ -1758,7 +1794,9 @@ GCGraphBuilder::AddNode(void *s, nsCycleCollectionParticipant *aParticipant)
     PtrInfo *result;
     if (!e->mNode) {
         // New entry.
-        result = mNodeBuilder.Add(s, aParticipant);
+        result = mNodeBuilder.Add(s, aParticipant
+                                  IF_DEBUG_CC_PARAM(aLangID)
+                                 );
         if (!result) {
             PL_DHashTableRawRemove(&mPtrToNodeMap, e);
             return nsnull;
@@ -1813,19 +1851,24 @@ GCGraphBuilder::NoteXPCOMRoot(nsISupports *root)
     nsXPCOMCycleCollectionParticipant *cp;
     ToParticipant(root, &cp);
 
-    NoteRoot(root, cp);
+    NoteRoot(nsIProgrammingLanguage::CPLUSPLUS, root, cp);
 }
 
-NS_IMETHODIMP_(void)
-GCGraphBuilder::NoteJSRoot(void *root)
-{
-    NoteRoot(root, mJSParticipant);
-}
 
 NS_IMETHODIMP_(void)
-GCGraphBuilder::NoteNativeRoot(void *root, nsCycleCollectionParticipant *participant)
+GCGraphBuilder::NoteRoot(PRUint32 langID, void *root,
+                         nsCycleCollectionParticipant* participant)
 {
-    NoteRoot(root, participant);
+    NS_ASSERTION(root, "Don't add a null root!");
+
+    if (langID > nsIProgrammingLanguage::MAX || !mRuntimes[langID]) {
+        Fault("adding root for unregistered language", root);
+        return;
+    }
+
+    if (!participant->CanSkipInCC(root) || WantAllTraces()) {
+        AddNode(root, participant, langID);
+    }
 }
 
 NS_IMETHODIMP_(void)
@@ -1880,7 +1923,7 @@ GCGraphBuilder::NoteXPCOMChild(nsISupports *child)
     nsXPCOMCycleCollectionParticipant *cp;
     ToParticipant(child, &cp);
     if (cp && (!cp->CanSkipThis(child) || WantAllTraces())) {
-        NoteChild(child, cp, edgeName);
+        NoteChild(child, cp, nsIProgrammingLanguage::CPLUSPLUS, edgeName);
     }
 }
 
@@ -1897,25 +1940,40 @@ GCGraphBuilder::NoteNativeChild(void *child,
         return;
 
     NS_ASSERTION(participant, "Need a nsCycleCollectionParticipant!");
-    NoteChild(child, participant, edgeName);
+    NoteChild(child, participant, nsIProgrammingLanguage::CPLUSPLUS, edgeName);
 }
 
 NS_IMETHODIMP_(void)
-GCGraphBuilder::NoteJSChild(void *child) 
+GCGraphBuilder::NoteScriptChild(PRUint32 langID, void *child) 
 {
-    if (!child) {
-        return;
-    }
-
     nsCString edgeName;
-    if (NS_UNLIKELY(WantDebugInfo())) {
+    if (WantDebugInfo()) {
         edgeName.Assign(mNextEdgeName);
         mNextEdgeName.Truncate();
     }
+    if (!child)
+        return;
 
-    if (xpc_GCThingIsGrayCCThing(child) || NS_UNLIKELY(WantAllTraces())) {
-        NoteChild(child, mJSParticipant, edgeName);
+    if (langID > nsIProgrammingLanguage::MAX) {
+        Fault("traversing pointer for unknown language", child);
+        return;
     }
+
+    if (!mRuntimes[langID]) {
+        NS_WARNING("Not collecting cycles involving objects for scripting "
+                   "languages that don't participate in cycle collection.");
+        return;
+    }
+
+    // skip over non-grey JS children
+    if (langID == nsIProgrammingLanguage::JAVASCRIPT &&
+        !xpc_GCThingIsGrayCCThing(child) && !WantAllTraces()) {
+        return;
+    }
+
+    nsCycleCollectionParticipant *cp = mRuntimes[langID]->ToParticipant(child);
+    if (cp)
+        NoteChild(child, cp, langID, edgeName);
 }
 
 NS_IMETHODIMP_(void)
@@ -1929,12 +1987,15 @@ GCGraphBuilder::NoteNextEdgeName(const char* name)
 PtrInfo*
 GCGraphBuilder::AddWeakMapNode(void *node)
 {
+    nsCycleCollectionParticipant *cp;
     NS_ASSERTION(node, "Weak map node should be non-null.");
 
     if (!xpc_GCThingIsGrayCCThing(node) && !WantAllTraces())
         return nsnull;
 
-    return AddNode(node, mJSParticipant);
+    cp = mRuntimes[nsIProgrammingLanguage::JAVASCRIPT]->ToParticipant(node);
+    NS_ASSERTION(cp, "Javascript runtime participant should be non-null.");
+    return AddNode(node, cp, nsIProgrammingLanguage::JAVASCRIPT);
 }
 
 NS_IMETHODIMP_(void)
@@ -1963,7 +2024,7 @@ public:
     NS_IMETHOD_(void) NoteXPCOMChild(nsISupports *child);
     NS_IMETHOD_(void) NoteNativeChild(void *child,
                                       nsCycleCollectionParticipant *helper);
-    NS_IMETHOD_(void) NoteJSChild(void *child);
+    NS_IMETHOD_(void) NoteScriptChild(PRUint32 langID, void *child);
 
     NS_IMETHOD_(void) DescribeRefCountedNode(nsrefcnt refcount,
                                              size_t objsz,
@@ -1972,9 +2033,8 @@ public:
                                        size_t objsz,
                                        const char *objname) {};
     NS_IMETHOD_(void) NoteXPCOMRoot(nsISupports *root) {};
-    NS_IMETHOD_(void) NoteJSRoot(void *root) {};
-    NS_IMETHOD_(void) NoteNativeRoot(void *root,
-                                     nsCycleCollectionParticipant *helper) {};
+    NS_IMETHOD_(void) NoteRoot(PRUint32 langID, void *root,
+                               nsCycleCollectionParticipant* helper) {};
     NS_IMETHOD_(void) NoteNextEdgeName(const char* name) {};
     NS_IMETHOD_(void) NoteWeakMapping(void *map, void *key, void *val) {};
     bool MayHaveChild() {
@@ -2004,11 +2064,15 @@ ChildFinder::NoteNativeChild(void *child,
 };
 
 NS_IMETHODIMP_(void)
-ChildFinder::NoteJSChild(void *child)
+ChildFinder::NoteScriptChild(PRUint32 langID, void *child)
 {
-    if (child && xpc_GCThingIsGrayCCThing(child)) {
-        mMayHaveChild = true;
+    if (!child)
+        return;
+    if (langID == nsIProgrammingLanguage::JAVASCRIPT &&
+        !xpc_GCThingIsGrayCCThing(child)) {
+        return;
     }
+    mMayHaveChild = true;
 };
 
 static bool
@@ -2022,7 +2086,8 @@ AddPurpleRoot(GCGraphBuilder &builder, nsISupports *root)
     ToParticipant(root, &cp);
 
     if (builder.WantAllTraces() || !cp->CanSkipInCC(root)) {
-        PtrInfo *pinfo = builder.AddNode(root, cp);
+        PtrInfo *pinfo = builder.AddNode(root, cp,
+                                         nsIProgrammingLanguage::CPLUSPLUS);
         if (!pinfo) {
             return false;
         }
@@ -2542,7 +2607,6 @@ nsCycleCollector::nsCycleCollector() :
     mCollectionInProgress(false),
     mScanInProgress(false),
     mResults(nsnull),
-    mJSRuntime(nsnull),
     mWhiteNodes(nsnull),
     mWhiteNodeCount(0),
     mVisitedRefCounted(0),
@@ -2559,6 +2623,9 @@ nsCycleCollector::nsCycleCollector() :
 #ifdef DEBUG_CC
     mExpectedGarbage.Init();
 #endif
+
+    memset(mRuntimes, 0, sizeof(mRuntimes));
+    mRuntimes[nsIProgrammingLanguage::CPLUSPLUS] = &mXPCOMRuntime;
 }
 
 
@@ -2568,27 +2635,34 @@ nsCycleCollector::~nsCycleCollector()
 
 
 void 
-nsCycleCollector::RegisterJSRuntime(nsCycleCollectionJSRuntime *aJSRuntime)
+nsCycleCollector::RegisterRuntime(PRUint32 langID, 
+                                  nsCycleCollectionLanguageRuntime *rt)
 {
     if (mParams.mDoNothing)
         return;
 
-    if (mJSRuntime)
-        Fault("multiple registrations of cycle collector JS runtime", aJSRuntime);
+    if (langID > nsIProgrammingLanguage::MAX)
+        Fault("unknown language runtime in registration");
 
-    mJSRuntime = aJSRuntime;
+    if (mRuntimes[langID])
+        Fault("multiple registrations of language runtime", rt);
+
+    mRuntimes[langID] = rt;
 }
 
 void 
-nsCycleCollector::ForgetJSRuntime()
+nsCycleCollector::ForgetRuntime(PRUint32 langID)
 {
     if (mParams.mDoNothing)
         return;
 
-    if (!mJSRuntime)
-        Fault("forgetting non-registered cycle collector JS runtime");
+    if (langID > nsIProgrammingLanguage::MAX)
+        Fault("unknown language runtime in deregistration");
 
-    mJSRuntime = nsnull;
+    if (! mRuntimes[langID])
+        Fault("forgetting non-registered language runtime");
+
+    mRuntimes[langID] = nsnull;
 }
 
 #ifdef DEBUG_CC
@@ -2638,12 +2712,11 @@ public:
         mSuppressThisNode = (PL_strstr(sSuppressionList, objName) != nsnull);
     }
 
-    NS_IMETHOD_(void) NoteXPCOMRoot(nsISupports *root) {}
-    NS_IMETHOD_(void) NoteJSRoot(void *root) {}
-    NS_IMETHOD_(void) NoteNativeRoot(void *root,
-                                     nsCycleCollectionParticipant *participant) {}
+    NS_IMETHOD_(void) NoteXPCOMRoot(nsISupports *root) {};
+    NS_IMETHOD_(void) NoteRoot(PRUint32 langID, void *root,
+                               nsCycleCollectionParticipant* participant) {};
     NS_IMETHOD_(void) NoteXPCOMChild(nsISupports *child) {}
-    NS_IMETHOD_(void) NoteJSChild(void *child) {}
+    NS_IMETHOD_(void) NoteScriptChild(PRUint32 langID, void *child) {}
     NS_IMETHOD_(void) NoteNativeChild(void *child,
                                      nsCycleCollectionParticipant *participant) {}
     NS_IMETHOD_(void) NoteNextEdgeName(const char* name) {}
@@ -2883,11 +2956,14 @@ nsCycleCollector::GCIfNeeded(bool aForceGC)
     if (mParams.mDoNothing)
         return;
 
-    if (!mJSRuntime)
+    if (!mRuntimes[nsIProgrammingLanguage::JAVASCRIPT])
         return;
 
+    nsCycleCollectionJSRuntime* rt =
+        static_cast<nsCycleCollectionJSRuntime*>
+            (mRuntimes[nsIProgrammingLanguage::JAVASCRIPT]);
     if (!aForceGC) {
-        bool needGC = mJSRuntime->NeedCollect();
+        bool needGC = rt->NeedCollect();
         // Only do a telemetry ping for non-shutdown CCs.
         Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_NEED_GC, needGC);
         if (!needGC)
@@ -2898,10 +2974,10 @@ nsCycleCollector::GCIfNeeded(bool aForceGC)
 
     TimeLog timeLog;
 
-    // mJSRuntime->Collect() must be called from the main thread,
+    // rt->Collect() must be called from the main thread,
     // because it invokes XPCJSRuntime::GCCallback(cx, JSGC_BEGIN)
     // which returns false if not in the main thread.
-    mJSRuntime->Collect(js::gcreason::CC_FORCED, nsGCNormal);
+    rt->Collect(js::gcreason::CC_FORCED, nsGCNormal);
     timeLog.Checkpoint("GC()");
 }
 
@@ -3013,14 +3089,16 @@ nsCycleCollector::BeginCollection(nsICycleCollectorListener *aListener)
     if (mParams.mDoNothing)
         return false;
 
-    GCGraphBuilder builder(mGraph, mJSRuntime, aListener);
+    GCGraphBuilder builder(mGraph, mRuntimes, aListener);
     if (!builder.Initialized())
         return false;
 
-    if (mJSRuntime) {
-        mJSRuntime->BeginCycleCollection(builder);
-        timeLog.Checkpoint("mJSRuntime->BeginCycleCollection()");
+    for (PRUint32 i = 0; i <= nsIProgrammingLanguage::MAX; ++i) {
+        if (mRuntimes[i])
+            mRuntimes[i]->BeginCycleCollection(builder);
     }
+
+    timeLog.Checkpoint("mRuntimes[*]->BeginCycleCollection()");
 
 #ifdef DEBUG_CC
     PRUint32 purpleStart = builder.Count();
@@ -3098,11 +3176,13 @@ nsCycleCollector::BeginCollection(nsICycleCollectorListener *aListener)
         }
 #endif
 
-        if (mJSRuntime) {
-            mJSRuntime->FinishTraverse();
-            timeLog.Checkpoint("mJSRuntime->FinishTraverse()");
+        for (PRUint32 i = 0; i <= nsIProgrammingLanguage::MAX; ++i) {
+            if (mRuntimes[i])
+                mRuntimes[i]->FinishTraverse();
         }
-    } else {
+        timeLog.Checkpoint("mRuntimes[*]->FinishTraverse()");
+    }
+    else {
         mScanInProgress = false;
     }
 
@@ -3128,7 +3208,8 @@ nsCycleCollector::FinishCollection(nsICycleCollectorListener *aListener)
     PRUint32 i, count = mWhiteNodes->Length();
     for (i = 0; i < count; ++i) {
         PtrInfo *pinfo = mWhiteNodes->ElementAt(i);
-        if (mPurpleBuf.Exists(pinfo->mPointer)) {
+        if (pinfo->mLangID == nsIProgrammingLanguage::CPLUSPLUS &&
+            mPurpleBuf.Exists(pinfo->mPointer)) {
             printf("nsCycleCollector: %s object @%p is still alive after\n"
                    "  calling RootAndUnlinkJSObjects, Unlink, and Unroot on"
                    " it!  This probably\n"
@@ -3166,7 +3247,7 @@ nsCycleCollector::Shutdown()
     Collect(nsnull, SHUTDOWN_COLLECTIONS(mParams), listener);
 
 #ifdef DEBUG_CC
-    GCGraphBuilder builder(mGraph, mJSRuntime, nsnull);
+    GCGraphBuilder builder(mGraph, mRuntimes, nsnull);
     mScanInProgress = true;
     SelectPurple(builder);
     mScanInProgress = false;
@@ -3232,12 +3313,13 @@ NS_MEMORY_REPORTER_IMPLEMENT(CycleCollector,
 // Just functions that redirect into the singleton, once it's built.
 ////////////////////////////////////////////////////////////////////////
 
-void
-nsCycleCollector_registerJSRuntime(nsCycleCollectionJSRuntime *rt)
+void 
+nsCycleCollector_registerRuntime(PRUint32 langID, 
+                                 nsCycleCollectionLanguageRuntime *rt)
 {
     static bool regMemReport = true;
     if (sCollector)
-        sCollector->RegisterJSRuntime(rt);
+        sCollector->RegisterRuntime(langID, rt);
     if (regMemReport) {
         regMemReport = false;
         NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(CycleCollector));
@@ -3245,10 +3327,10 @@ nsCycleCollector_registerJSRuntime(nsCycleCollectionJSRuntime *rt)
 }
 
 void 
-nsCycleCollector_forgetJSRuntime()
+nsCycleCollector_forgetRuntime(PRUint32 langID)
 {
     if (sCollector)
-        sCollector->ForgetJSRuntime();
+        sCollector->ForgetRuntime(langID);
 }
 
 
@@ -3317,6 +3399,12 @@ class nsCycleCollectorRunner : public nsRunnable
     bool mShutdown;
     bool mCollected;
 
+    nsCycleCollectionJSRuntime *GetJSRuntime()
+    {
+        return static_cast<nsCycleCollectionJSRuntime*>
+                 (mCollector->mRuntimes[nsIProgrammingLanguage::JAVASCRIPT]);
+    }
+
 public:
     NS_IMETHOD Run()
     {
@@ -3347,9 +3435,9 @@ public:
                 return NS_OK;
             }
 
-            mCollector->mJSRuntime->NotifyEnterCycleCollectionThread();
+            GetJSRuntime()->NotifyEnterCycleCollectionThread();
             mCollected = mCollector->BeginCollection(mListener);
-            mCollector->mJSRuntime->NotifyLeaveCycleCollectionThread();
+            GetJSRuntime()->NotifyLeaveCycleCollectionThread();
 
             mReply.Notify();
         }
@@ -3397,10 +3485,10 @@ public:
             aListener = nsnull;
         mListener = aListener;
 
-        if (mCollector->mJSRuntime->NotifyLeaveMainThread()) {
+        if (GetJSRuntime()->NotifyLeaveMainThread()) {
             mRequest.Notify();
             mReply.Wait();
-            mCollector->mJSRuntime->NotifyEnterMainThread();
+            GetJSRuntime()->NotifyEnterMainThread();
         } else {
             mCollected = mCollector->BeginCollection(mListener);
         }

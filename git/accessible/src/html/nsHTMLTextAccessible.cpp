@@ -68,12 +68,12 @@ nsHTMLTextAccessible::
 
 NS_IMPL_ISUPPORTS_INHERITED0(nsHTMLTextAccessible, nsTextAccessible)
 
-ENameValueFlag
-nsHTMLTextAccessible::Name(nsString& aName)
+NS_IMETHODIMP
+nsHTMLTextAccessible::GetName(nsAString& aName)
 {
   // Text node, ARIA can't be used.
   aName = mText;
-  return eNameOK;
+  return NS_OK;
 }
 
 role
@@ -348,10 +348,13 @@ nsHTMLListBulletAccessible::IsPrimaryForNode() const
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLListBulletAccessible: nsAccessible
 
-ENameValueFlag
-nsHTMLListBulletAccessible::Name(nsString &aName)
+NS_IMETHODIMP
+nsHTMLListBulletAccessible::GetName(nsAString &aName)
 {
   aName.Truncate();
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
 
   // Native anonymous content, ARIA can't be used. Get list bullet text.
   nsBlockFrame* blockFrame = do_QueryFrame(mContent->GetPrimaryFrame());
@@ -363,7 +366,7 @@ nsHTMLListBulletAccessible::Name(nsString &aName)
     aName.Append(' ');
   }
 
-  return eNameOK;
+  return NS_OK;
 }
 
 role

@@ -73,11 +73,6 @@ class HashableValue {
     bool setValue(JSContext *cx, const Value &v);
     HashNumber hash() const;
     bool equals(const HashableValue &other) const;
-
-    struct StackRoot {
-        StackRoot(JSContext *cx, HashableValue *pv) : valueRoot(cx, (Value*) &pv->value) {}
-        RootValue valueRoot;
-    };
 };
 
 typedef HashMap<HashableValue, HeapValue, HashableValue::Hasher, RuntimeAllocPolicy> ValueMap;

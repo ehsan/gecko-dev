@@ -1176,13 +1176,16 @@ NS_IMPL_RELEASE_INHERITED(nsXULTreeItemAccessible, nsXULTreeItemAccessibleBase)
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeItemAccessible: nsIAccessible implementation
 
-ENameValueFlag
-nsXULTreeItemAccessible::Name(nsString& aName)
+NS_IMETHODIMP
+nsXULTreeItemAccessible::GetName(nsAString& aName)
 {
   aName.Truncate();
 
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   GetCellName(mColumn, aName);
-  return eNameOK;
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1194,7 +1197,7 @@ nsXULTreeItemAccessible::Init()
   if (!nsXULTreeItemAccessibleBase::Init())
     return false;
 
-  Name(mCachedName);
+  GetName(mCachedName);
   return true;
 }
 
@@ -1232,7 +1235,7 @@ nsXULTreeItemAccessible::RowInvalidated(PRInt32 aStartColIdx,
                                         PRInt32 aEndColIdx)
 {
   nsAutoString name;
-  Name(name);
+  GetName(name);
 
   if (name != mCachedName) {
     nsEventShell::FireEvent(nsIAccessibleEvent::EVENT_NAME_CHANGE, this);

@@ -66,9 +66,9 @@
 #include "nsCCUncollectableMarker.h"
 #include "nsDOMJSUtils.h" // for GetScriptContextFromJSContext
 #include "xpcpublic.h"
-#include "mozilla/dom/BindingUtils.h"
+#include "mozilla/dom/bindings/Utils.h"
 
-using mozilla::dom::DestroyProtoOrIfaceCache;
+using mozilla::dom::bindings::DestroyProtoOrIfaceCache;
 
 static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
                      NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
@@ -204,7 +204,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULPrototypeDocument)
     if (nsCCUncollectableMarker::InGeneration(cb, tmp->mCCGeneration)) {
         return NS_SUCCESS_INTERRUPTED_TRAVERSE;
     }
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mRoot)
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mRoot,
+                                                    nsXULPrototypeElement)
     NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mGlobalObject");
     cb.NoteXPCOMChild(static_cast<nsIScriptGlobalObject*>(tmp->mGlobalObject));
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mNodeInfoManager,
@@ -772,7 +773,7 @@ nsXULPDGlobalObject::GetScriptContext()
 JSObject*
 nsXULPDGlobalObject::GetGlobalJSObject()
 {
-  return xpc_UnmarkGrayObject(mJSObject);
+  return mJSObject;
 }
 
 

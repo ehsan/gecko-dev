@@ -112,8 +112,8 @@ DefineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript* script)
         JSScript *outer = worklist.back();
         worklist.popBack();
 
-        if (outer->hasObjects()) {
-            ObjectArray *arr = outer->objects();
+        if (JSScript::isValidOffset(outer->objectsOffset)) {
+            JSObjectArray *arr = outer->objects();
 
             /*
              * If this is an eval script, don't treat the saved caller function
@@ -132,14 +132,16 @@ DefineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript* script)
                     outer->isOuterFunction = true;
                     inner->isInnerFunction = true;
                 }
-                if (!inner->hasGlobals() && !inner->hasObjects())
+                if (!JSScript::isValidOffset(inner->globalsOffset) &&
+                    !JSScript::isValidOffset(inner->objectsOffset)) {
                     continue;
+                }
                 if (!worklist.append(inner))
                     return false;
             }
         }
 
-        if (!outer->hasGlobals())
+        if (!JSScript::isValidOffset(outer->globalsOffset))
             continue;
 
         GlobalSlotArray *globalUses = outer->globals();
@@ -375,12 +377,12 @@ frontend::CompileFunctionBody(JSContext *cx, JSFunction *fun,
              * NB: do not use AutoLocalNameArray because it will release space
              * allocated from cx->tempLifoAlloc by DefineArg.
              */
-            BindingNames names(cx);
+            Vector<JSAtom *> names(cx);
             if (!funbce.bindings.getLocalNameArray(cx, &names)) {
                 fn = NULL;
             } else {
                 for (unsigned i = 0; i < nargs; i++) {
-                    if (!DefineArg(fn, names[i].maybeAtom, i, &funbce)) {
+                    if (!DefineArg(fn, names[i], i, &funbce)) {
                         fn = NULL;
                         break;
                     }

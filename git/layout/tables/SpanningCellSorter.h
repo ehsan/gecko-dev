@@ -42,7 +42,6 @@
 
 #include "pldhash.h"
 #include "nsDebug.h"
-#include "StackArena.h"
 
 class nsIPresShell;
 
@@ -52,7 +51,7 @@ class nsIPresShell;
  * from lowest number of columns spanned to highest.  It does not use a
  * stable sort (in fact, it currently reverses).
  */
-class NS_STACK_CLASS SpanningCellSorter {
+class SpanningCellSorter {
 public:
     SpanningCellSorter(nsIPresShell *aPresShell);
     ~SpanningCellSorter();

@@ -180,7 +180,41 @@ then
 fi
 MOZ_BUILD_ROOT=`pwd`
 
-MOZ_DEFAULT_COMPILER
+dnl Default to MSVC for win32 and gcc for darwin
+dnl ==============================================================
+if test -z "$CROSS_COMPILE"; then
+case "$target" in
+*-mingw*)
+    if test -z "$CC"; then CC=cl; fi
+    if test -z "$CXX"; then CXX=cl; fi
+    if test -z "$CPP"; then CPP="cl -E -nologo"; fi
+    if test -z "$CXXCPP"; then CXXCPP="cl -TP -E -nologo"; ac_cv_prog_CXXCPP="$CXXCPP"; fi
+    if test -z "$LD"; then LD=link; fi
+    if test -z "$AS"; then
+        case "${target_cpu}" in
+        i*86)
+            AS=ml;
+            ;;
+        x86_64)
+            AS=ml64;
+            ;;
+        esac
+    fi
+    if test -z "$MIDL"; then MIDL=midl; fi
+
+    # need override this flag since we don't use $(LDFLAGS) for this.
+    if test -z "$HOST_LDFLAGS" ; then
+        HOST_LDFLAGS=" "
+    fi
+    ;;
+*-darwin*)
+    # we prefer gcc-4.2 over gcc on older darwin, so
+    # use that specific version if it's available.
+    MOZ_PATH_PROGS(CC, $CC gcc-4.2 gcc)
+    MOZ_PATH_PROGS(CXX, $CXX g++-4.2 g++)
+    ;;
+esac
+fi
 
 COMPILE_ENVIRONMENT=1
 MOZ_ARG_DISABLE_BOOL(compile-environment,
@@ -4528,7 +4562,6 @@ MOZ_VORBIS=
 MOZ_TREMOR=
 MOZ_WAVE=1
 MOZ_MEDIA=
-MOZ_OPUS=1
 MOZ_WEBM=1
 MOZ_VP8_ERROR_CONCEALMENT=
 MOZ_VP8_ENCODER=
@@ -5592,14 +5625,6 @@ if test -n "$MOZ_OGG"; then
 fi
 
 dnl ========================================================
-dnl = Disable Opus audio codec support
-dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(opus,
-[  --disable-opus          Disable support for Opus audio],
-    MOZ_OPUS=,
-    MOZ_OPUS=1)
-
-dnl ========================================================
 dnl = Disable VP8 decoder support
 dnl ========================================================
 MOZ_ARG_DISABLE_BOOL(webm,
@@ -5795,10 +5820,6 @@ fi
 
 if test -n "$MOZ_TREMOR"; then
     AC_DEFINE(MOZ_TREMOR)
-fi
-
-if test -n "$MOZ_OPUS"; then
-    AC_DEFINE(MOZ_OPUS)
 fi
 
 dnl ========================================================
@@ -6293,7 +6314,6 @@ if test -n "$MOZ_TREE_FREETYPE"; then
    FT2_CFLAGS='-I$(topsrcdir)/modules/freetype2/include'
    CAIRO_FT_CFLAGS='-I$(topsrcdir)/modules/freetype2/include'
    FT2_LIBS='$(call EXPAND_LIBNAME_PATH,freetype,$(DEPTH)/modules/freetype2/.libs)'
-   CAIRO_FT_OSLIBS=''
    CAIRO_FT_LIBS='$(call EXPAND_LIBNAME_PATH,freetype,$(DEPTH)/modules/freetype2/.libs)'
    AC_DEFINE(HAVE_FT_BITMAP_SIZE_Y_PPEM)
    AC_DEFINE(HAVE_FT_GLYPHSLOT_EMBOLDEN)
@@ -6450,6 +6470,15 @@ MOZ_ARG_ENABLE_BOOL(update-packaging,
     MOZ_UPDATE_PACKAGING=1,
     MOZ_UPDATE_PACKAGING= )
 AC_SUBST(MOZ_UPDATE_PACKAGING)
+
+dnl ========================================================
+dnl leaky
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(leaky,
+[  --enable-leaky          Build leaky memory tool],
+    MOZ_LEAKY=1,
+    MOZ_LEAKY=)
+
 
 dnl ========================================================
 dnl build the tests by default
@@ -7153,13 +7182,7 @@ elif test "${OS_TARGET}" = "WINNT" -o "${OS_TARGET}" = "Darwin" -o "${OS_TARGET}
   fi
 else
   dnl On other Unix systems, we only want to link executables against mozglue
-  MOZ_GLUE_PROGRAM_LDFLAGS='$(MKSHLIB_FORCE_ALL) $(call EXPAND_LIBNAME_PATH,mozglue,$(LIBXUL_DIST)/lib)'
-  dnl On other Unix systems, where mozglue is a static library, jemalloc is
-  dnl separated for the SDK, so we need to add it here.
-  if test "$MOZ_MEMORY" = 1; then
-    MOZ_GLUE_PROGRAM_LDFLAGS="$MOZ_GLUE_PROGRAM_LDFLAGS "'$(call EXPAND_LIBNAME_PATH,jemalloc,$(LIBXUL_DIST)/lib)'
-  fi
-  MOZ_GLUE_PROGRAM_LDFLAGS="$MOZ_GLUE_PROGRAM_LDFLAGS "'$(MKSHLIB_UNFORCE_ALL)'
+  MOZ_GLUE_PROGRAM_LDFLAGS='$(MKSHLIB_FORCE_ALL) $(call EXPAND_LIBNAME_PATH,mozglue,$(LIBXUL_DIST)/lib) $(MKSHLIB_UNFORCE_ALL)'
   if test -n "$GNU_CC"; then
     dnl And we need mozglue symbols to be exported.
     MOZ_GLUE_PROGRAM_LDFLAGS="$MOZ_GLUE_PROGRAM_LDFLAGS -rdynamic"
@@ -8096,8 +8119,7 @@ if test "$MOZ_TREE_CAIRO"; then
         FT_FONT_FEATURE="#define CAIRO_HAS_FT_FONT 1"
         MOZ_ENABLE_CAIRO_FT=1
         CAIRO_FT_CFLAGS="-I${MZFTCFGFT2}/include"
-        CAIRO_FT_OSLIBS="-L${MZFTCFGFT2}/lib -lmozft -lmzfntcfg"
-        CAIRO_FT_LIBS=""
+        CAIRO_FT_LIBS="-L${MZFTCFGFT2}/lib -lmozft -lmzfntcfg"
         ;;
     esac
     if test "$USE_FC_FREETYPE"; then
@@ -8131,7 +8153,6 @@ if test "$MOZ_TREE_CAIRO"; then
     AC_SUBST(TEE_SURFACE_FEATURE)
 
     MOZ_CAIRO_LIBS='$(call EXPAND_LIBNAME_PATH,mozcairo,$(DEPTH)/gfx/cairo/cairo/src)'" $CAIRO_FT_LIBS"
-    MOZ_CAIRO_OSLIBS='${CAIRO_FT_OSLIBS}'
 
     if test "$MOZ_TREE_PIXMAN"; then
         AC_DEFINE(MOZ_TREE_PIXMAN)
@@ -8143,7 +8164,7 @@ if test "$MOZ_TREE_CAIRO"; then
     fi
 
     if test "$MOZ_X11"; then
-        MOZ_CAIRO_OSLIBS="$MOZ_CAIRO_OSLIBS $XLDFLAGS -lXrender -lfreetype -lfontconfig"
+        MOZ_CAIRO_LIBS="$MOZ_CAIRO_LIBS $XLDFLAGS -lXrender -lfreetype -lfontconfig"
     fi
 
     CAIRO_FEATURES_H=gfx/cairo/cairo/src/cairo-features.h
@@ -8164,7 +8185,6 @@ fi
 AC_SUBST(MOZ_TREE_CAIRO)
 AC_SUBST(MOZ_CAIRO_CFLAGS)
 AC_SUBST(MOZ_CAIRO_LIBS)
-AC_SUBST(MOZ_CAIRO_OSLIBS)
 AC_SUBST(MOZ_TREE_PIXMAN)
 
 dnl ========================================================
@@ -8396,6 +8416,7 @@ AC_SUBST(WARNINGS_AS_ERRORS)
 AC_SUBST(MOZ_EXTENSIONS)
 AC_SUBST(MOZ_JSDEBUGGER)
 AC_SUBST(MOZ_LOG_REFCNT)
+AC_SUBST(MOZ_LEAKY)
 AC_SUBST(MOZ_ENABLE_PROFILER_SPS)
 AC_SUBST(MOZ_JPROF)
 AC_SUBST(MOZ_SHARK)
@@ -8466,7 +8487,6 @@ AC_SUBST(MOZ_OS2_TOOLS)
 
 AC_SUBST(MOZ_POST_DSO_LIB_COMMAND)
 AC_SUBST(MOZ_POST_PROGRAM_COMMAND)
-AC_SUBST(MOZ_LINKER_EXTRACT)
 
 dnl ========================================================
 dnl = Mac bundle name prefix
@@ -8699,7 +8719,6 @@ AC_SUBST(MOZ_CUBEB)
 AC_SUBST(MOZ_WAVE)
 AC_SUBST(MOZ_VORBIS)
 AC_SUBST(MOZ_TREMOR)
-AC_SUBST(MOZ_OPUS)
 AC_SUBST(MOZ_WEBM)
 AC_SUBST(MOZ_VP8_ERROR_CONCEALMENT)
 AC_SUBST(MOZ_VP8_ENCODER)

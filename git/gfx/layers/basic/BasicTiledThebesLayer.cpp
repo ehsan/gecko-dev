@@ -95,7 +95,6 @@ BasicTiledLayerBuffer::PaintThebes(BasicTiledThebesLayer* aLayer,
     start = PR_IntervalNow();
 #endif
     SAMPLE_LABEL("BasicTiledLayerBuffer", "PaintThebesSingleBufferDraw");
-
     mCallback(mThebesLayer, ctxt, aPaintRegion, aPaintRegion, mCallbackData);
   }
 
@@ -214,7 +213,6 @@ BasicTiledThebesLayer::FillSpecificAttributes(SpecificLayerAttributes& aAttrs)
 
 void
 BasicTiledThebesLayer::PaintThebes(gfxContext* aContext,
-                                   Layer* aMaskLayer,
                                    LayerManager::DrawThebesLayerCallback aCallback,
                                    void* aCallbackData,
                                    ReadbackProcessor* aReadback)
@@ -237,10 +235,6 @@ BasicTiledThebesLayer::PaintThebes(gfxContext* aContext,
   mTiledBuffer.PaintThebes(this, mVisibleRegion, regionToPaint, aCallback, aCallbackData);
   mTiledBuffer.ReadLock();
   mValidRegion = mVisibleRegion;
-  if (aMaskLayer) {
-    static_cast<BasicImplData*>(aMaskLayer->ImplData())
-      ->Paint(aContext, nsnull);
-  }
 
   BasicManager()->PaintedTiledLayerBuffer(BasicManager()->Hold(this), &mTiledBuffer);
 }

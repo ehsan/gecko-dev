@@ -1238,16 +1238,6 @@ NS_IMETHODIMP nsHTMLMediaElement::SetCurrentTime(double aCurrentTime)
     return NS_ERROR_DOM_INVALID_STATE_ERR;
   }
 
-  if (mCurrentPlayRangeStart != -1.0) {
-    double rangeEndTime = 0;
-    GetCurrentTime(&rangeEndTime);
-    LOG(PR_LOG_DEBUG, ("%p Adding \'played\' a range : [%f, %f]", this, mCurrentPlayRangeStart, rangeEndTime));
-    // Multiple seek without playing, or seek while playing.
-    if (mCurrentPlayRangeStart != rangeEndTime) {
-      mPlayed.Add(mCurrentPlayRangeStart, rangeEndTime);
-    }
-  }
-
   if (!mDecoder) {
     LOG(PR_LOG_DEBUG, ("%p SetCurrentTime(%f) failed: no decoder", this, aCurrentTime));
     return NS_ERROR_DOM_INVALID_STATE_ERR;
@@ -1264,7 +1254,7 @@ NS_IMETHODIMP nsHTMLMediaElement::SetCurrentTime(double aCurrentTime)
     return NS_ERROR_FAILURE;
   }
 
-  // Clamp the time to [0, duration] as required by the spec.
+  // Clamp the time to [0, duration] as required by the spec
   double clampedTime = NS_MAX(0.0, aCurrentTime);
   double duration = mDecoder->GetDuration();
   if (duration >= 0) {
@@ -1276,10 +1266,8 @@ NS_IMETHODIMP nsHTMLMediaElement::SetCurrentTime(double aCurrentTime)
   // event if it changes the playback position as a result of the seek.
   LOG(PR_LOG_DEBUG, ("%p SetCurrentTime(%f) starting seek", this, aCurrentTime));
   nsresult rv = mDecoder->Seek(clampedTime);
-  // Start a new range at position we seeked to.
-  mCurrentPlayRangeStart = clampedTime;
 
-  // We changed whether we're seeking so we need to AddRemoveSelfReference.
+  // We changed whether we're seeking so we need to AddRemoveSelfReference
   AddRemoveSelfReference();
 
   return rv;
@@ -1314,35 +1302,6 @@ NS_IMETHODIMP nsHTMLMediaElement::GetSeekable(nsIDOMTimeRanges** aSeekable)
 NS_IMETHODIMP nsHTMLMediaElement::GetPaused(bool *aPaused)
 {
   *aPaused = mPaused;
-
-  return NS_OK;
-}
-
-/* readonly attribute nsIDOMHTMLTimeRanges played; */
-NS_IMETHODIMP nsHTMLMediaElement::GetPlayed(nsIDOMTimeRanges** aPlayed)
-{
-  nsTimeRanges* ranges = new nsTimeRanges();
-  NS_ADDREF(*aPlayed = ranges);
-
-  PRUint32 timeRangeCount = 0;
-  mPlayed.GetLength(&timeRangeCount);
-  for (PRUint32 i = 0; i < timeRangeCount; i++) {
-    double begin;
-    double end;
-    mPlayed.Start(i, &begin);
-    mPlayed.End(i, &end);
-    ranges->Add(begin, end);
-  }
-
-  if (mCurrentPlayRangeStart != -1.0) {
-    double now = 0.0;
-    GetCurrentTime(&now);
-    if (mCurrentPlayRangeStart != now) {
-      ranges->Add(mCurrentPlayRangeStart, now);
-    }
-  }
-
-  ranges->Normalize();
 
   return NS_OK;
 }
@@ -1637,7 +1596,6 @@ nsHTMLMediaElement::nsHTMLMediaElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     mLastCurrentTime(0.0),
     mFragmentStart(-1.0),
     mFragmentEnd(-1.0),
-    mCurrentPlayRangeStart(-1.0),
     mAllowAudioData(false),
     mBegun(false),
     mLoadedFirstFrame(false),
@@ -1755,10 +1713,6 @@ NS_IMETHODIMP nsHTMLMediaElement::Play()
       nsresult rv = mDecoder->Play();
       NS_ENSURE_SUCCESS(rv, rv);
     }
-  }
-
-  if (mCurrentPlayRangeStart == -1.0) {
-    GetCurrentTime(&mCurrentPlayRangeStart);
   }
 
   // TODO: If the playback has ended, then the user agent must set
@@ -1963,23 +1917,6 @@ char const *const nsHTMLMediaElement::gOggCodecs[3] = {
   nsnull
 };
 
-char const *const nsHTMLMediaElement::gOggCodecsWithOpus[4] = {
-  "vorbis",
-  "opus",
-  "theora",
-  nsnull
-};
-
-bool
-nsHTMLMediaElement::IsOpusEnabled()
-{
-#ifdef MOZ_OPUS
-  return Preferences::GetBool("media.opus.enabled");
-#else
-  return false;
-#endif
-}
-
 bool
 nsHTMLMediaElement::IsOggEnabled()
 {
@@ -2130,7 +2067,7 @@ nsHTMLMediaElement::CanHandleMediaType(const char* aMIMEType,
 #endif
 #ifdef MOZ_OGG
   if (IsOggType(nsDependentCString(aMIMEType))) {
-    *aCodecList = IsOpusEnabled() ? gOggCodecsWithOpus : gOggCodecs;
+    *aCodecList = gOggCodecs;
     return CANPLAY_MAYBE;
   }
 #endif
@@ -2900,9 +2837,6 @@ void nsHTMLMediaElement::NotifyAutoplayDataReady()
 
     if (mDecoder) {
       SetPlayedOrSeeked(true);
-      if (mCurrentPlayRangeStart == -1.0) {
-        GetCurrentTime(&mCurrentPlayRangeStart);
-      }
       mDecoder->Play();
     } else if (mStream) {
       SetPlayedOrSeeked(true);
@@ -3165,7 +3099,7 @@ void nsHTMLMediaElement::NotifyAddedSource()
   }
 
   // A load was paused in the resource selection algorithm, waiting for
-  // a new source child to be added, resume the resource selection algorithm.
+  // a new source child to be added, resume the resource selction algorithm.
   if (mLoadWaitStatus == WAITING_FOR_SOURCE) {
     QueueLoadFromSourceTask();
   }

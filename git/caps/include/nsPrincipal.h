@@ -107,9 +107,6 @@ public:
 #endif 
 
 protected:
-  // Formerly an IDL method. Now just a protected helper.
-  nsresult SetCanEnableCapability(const char *capability, PRInt16 canEnable);
-
   nsTArray< nsAutoPtr<nsHashtable> > mAnnotations;
   nsHashtable* mCapabilities;
   nsCString mPrefName;

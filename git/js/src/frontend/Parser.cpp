@@ -65,6 +65,7 @@
 #include "jsversion.h"
 #include "jsfun.h"
 #include "jsgc.h"
+#include "jsgcmark.h"
 #include "jsinterp.h"
 #include "jsiter.h"
 #include "jslock.h"
@@ -79,7 +80,6 @@
 #include "frontend/FoldConstants.h"
 #include "frontend/ParseMaps.h"
 #include "frontend/TokenStream.h"
-#include "gc/Marking.h"
 
 #if JS_HAS_XML_SUPPORT
 #include "jsxml.h"
@@ -224,6 +224,7 @@ Parser::newFunctionBox(JSObject *obj, ParseNode *fn, TreeContext *tc)
     ++tc->parser->functionCount;
     funbox->kids = NULL;
     funbox->parent = tc->funbox;
+    funbox->methods = NULL;
     new (&funbox->bindings) Bindings(context);
     funbox->queued = false;
     funbox->inLoop = false;
@@ -947,20 +948,19 @@ static JSBool
 BindVarOrConst(JSContext *cx, BindData *data, JSAtom *atom, TreeContext *tc);
 
 struct BindData {
-    BindData(JSContext *cx) : let(cx), fresh(true) {}
+    BindData() : fresh(true) {}
 
     ParseNode       *pn;        /* name node for definition processing and
                                    error source coordinates */
     JSOp            op;         /* prolog bytecode or nop */
     Binder          binder;     /* binder, discriminates u */
-
-    struct LetData {
-        LetData(JSContext *cx) : blockObj(cx) {}
-        VarContext varContext;
-        RootedVar<StaticBlockObject*> blockObj;
-        unsigned   overflow;
-    } let;
-
+    union {
+        struct {
+            VarContext varContext;
+            StaticBlockObject *blockObj;
+            unsigned   overflow;
+        } let;
+    };
     bool fresh;
 
     void initLet(VarContext varContext, StaticBlockObject &blockObj, unsigned overflow) {
@@ -1040,10 +1040,10 @@ Parser::newFunction(TreeContext *tc, JSAtom *atom, FunctionSyntaxKind kind)
     RootedVarObject parent(context);
     parent = tc->inFunction() ? NULL : tc->scopeChain();
 
-    RootedVarFunction fun(context);
-    fun = js_NewFunction(context, NULL, NULL, 0,
-                         JSFUN_INTERPRETED | (kind == Expression ? JSFUN_LAMBDA : 0),
-                         parent, atom);
+    JSFunction *fun =
+        js_NewFunction(context, NULL, NULL, 0,
+                       JSFUN_INTERPRETED | (kind == Expression ? JSFUN_LAMBDA : 0),
+                       parent, atom);
     if (fun && !tc->compileAndGo()) {
         if (!fun->clearParent(context))
             return NULL;
@@ -1268,7 +1268,7 @@ LeaveFunction(ParseNode *fn, TreeContext *funtc, PropertyName *funName = NULL,
 }
 
 static bool
-DefineGlobal(ParseNode *pn, BytecodeEmitter *bce, Handle<PropertyName*> name);
+DefineGlobal(ParseNode *pn, BytecodeEmitter *bce, PropertyName *name);
 
 /*
  * FIXME? this Parser method was factored from Parser::functionDef with minimal
@@ -1308,7 +1308,7 @@ Parser::functionArguments(TreeContext &funtc, FunctionBox *funbox, ParseNode **l
                  * anonymous positional parameter, so here we must tweak our
                  * binder and its data.
                  */
-                BindData data(context);
+                BindData data;
                 data.pn = NULL;
                 data.op = JSOP_DEFVAR;
                 data.binder = BindDestructuringArg;
@@ -2083,7 +2083,7 @@ OuterLet(TreeContext *tc, StmtInfo *stmt, JSAtom *atom)
  * stack frame slots.
  */
 static bool
-DefineGlobal(ParseNode *pn, BytecodeEmitter *bce, Handle<PropertyName*> name)
+DefineGlobal(ParseNode *pn, BytecodeEmitter *bce, PropertyName *name)
 {
     GlobalScope *globalScope = bce->globalScope;
     HandleObject globalObj = globalScope->globalObj;
@@ -2091,6 +2091,7 @@ DefineGlobal(ParseNode *pn, BytecodeEmitter *bce, Handle<PropertyName*> name)
     if (!bce->compileAndGo() || !globalObj || bce->compilingForEval())
         return true;
 
+    JS_ASSERT(!IsPoisonedPtr(name));
     AtomIndexAddPtr p = globalScope->names.lookupForAdd(name);
     if (!p) {
         JSContext *cx = bce->parser->context;
@@ -2127,6 +2128,8 @@ DefineGlobal(ParseNode *pn, BytecodeEmitter *bce, Handle<PropertyName*> name)
 
         if (!globalScope->defs.append(def))
             return false;
+
+        JS_ASSERT(!IsPoisonedPtr(name));
 
         jsatomid index = globalScope->names.count();
         if (!globalScope->names.add(p, name, index))
@@ -2209,8 +2212,7 @@ BindTopLevelVar(JSContext *cx, BindData *data, ParseNode *pn, TreeContext *tc)
      * is present, try to bake in either an already available slot or a
      * predicted slot that will be defined after compiling is completed.
      */
-    return DefineGlobal(pn, tc->asBytecodeEmitter(),
-                        RootedVarPropertyName(cx, pn->pn_atom->asPropertyName()));
+    return DefineGlobal(pn, tc->asBytecodeEmitter(), pn->pn_atom->asPropertyName());
 }
 
 static bool
@@ -2451,44 +2453,6 @@ NoteLValue(JSContext *cx, ParseNode *pn, TreeContext *tc, unsigned dflag = PND_A
         tc->flags |= TCF_FUN_HEAVYWEIGHT;
 }
 
-static bool
-NoteNameUse(ParseNode *pn, TreeContext *tc)
-{
-    PropertyName *name = pn->pn_atom->asPropertyName();
-    StmtInfo *stmt = LexicalLookup(tc, name, NULL);
-
-    MultiDeclRange mdl = tc->decls.lookupMulti(name);
-
-    Definition *dn;
-    if (!mdl.empty()) {
-        dn = mdl.front();
-    } else {
-        if (AtomDefnAddPtr p = tc->lexdeps->lookupForAdd(name)) {
-            dn = p.value();
-        } else {
-            /*
-             * No definition before this use in any lexical scope.
-             * Create a placeholder definition node to either:
-             * - Be adopted when we parse the real defining
-             *   declaration, or
-             * - Be left as a free variable definition if we never
-             *   see the real definition.
-             */
-            dn = MakePlaceholder(pn, tc);
-            if (!dn || !tc->lexdeps->add(p, name, dn))
-                return false;
-        }
-    }
-
-    JS_ASSERT(dn->isDefn());
-    LinkUseToDef(pn, dn, tc);
-
-    if (stmt && stmt->type == STMT_WITH)
-        pn->pn_dflags |= PND_DEOPTIMIZED;
-
-    return true;
-}
-
 #if JS_HAS_DESTRUCTURING
 
 static JSBool
@@ -2632,7 +2596,7 @@ CheckDestructuring(JSContext *cx, BindData *data, ParseNode *left, TreeContext *
     }
 
     RootedVar<StaticBlockObject *> blockObj(cx);
-    blockObj = data && data->binder == BindLet ? data->let.blockObj.reference() : NULL;
+    blockObj = data && data->binder == BindLet ? data->let.blockObj : NULL;
     uint32_t blockCountBefore = blockObj ? blockObj->slotCount() : 0;
 
     if (left->isKind(PNK_RB)) {
@@ -2673,15 +2637,6 @@ CheckDestructuring(JSContext *cx, BindData *data, ParseNode *left, TreeContext *
                 }
                 ok = BindDestructuringVar(cx, data, pn, tc);
             } else {
-                /*
-                 * If right and left point to the same node, then this is
-                 * destructuring shorthand ({x} = ...). In that case,
-                 * identifierName was not used to parse 'x' so 'x' has not been
-                 * officially linked to its def or registered in lexdeps. Do
-                 * that now.
-                 */
-                if (pair->pn_right == pair->pn_left && !NoteNameUse(pn, tc))
-                    return false;
                 ok = BindDestructuringLHS(cx, pn, tc);
             }
             if (!ok)
@@ -2940,7 +2895,7 @@ Parser::letBlock(LetContext letContext)
     if (!pnlet)
         return NULL;
 
-    RootedVar<StaticBlockObject*> blockObj(context, StaticBlockObject::create(context));
+    StaticBlockObject *blockObj = StaticBlockObject::create(context);
     if (!blockObj)
         return NULL;
 
@@ -3230,7 +3185,7 @@ Parser::forStatement()
     bool forDecl = false;
 
     /* Non-null when forDecl is true for a 'for (let ...)' statement. */
-    RootedVar<StaticBlockObject*> blockObj(context);
+    StaticBlockObject *blockObj = NULL;
 
     /* Set to 'x' in 'for (x ;... ;...)' or 'for (x in ...)'. */
     ParseNode *pn1;
@@ -3623,7 +3578,7 @@ Parser::tryStatement()
 
         do {
             ParseNode *pnblock;
-            BindData data(context);
+            BindData data;
 
             /* Check for another catch after unconditional catch. */
             if (lastCatch && !lastCatch->pn_kid2) {
@@ -3967,6 +3922,25 @@ Parser::expressionStatement()
         return NULL;
     pn->pn_pos = pn2->pn_pos;
     pn->pn_kid = pn2;
+
+    if (pn2->getKind() == PNK_ASSIGN) {
+        /*
+         * Keep track of all apparent methods created by assignments such
+         * as this.foo = function (...) {...} in a function that could end
+         * up a constructor function. See Parser::setFunctionKinds.
+         */
+        JS_ASSERT(pn2->isOp(JSOP_NOP));
+        if (tc->funbox &&
+            pn2->pn_left->isOp(JSOP_SETPROP) &&
+            pn2->pn_left->pn_expr->isKind(PNK_THIS) &&
+            pn2->pn_right->isOp(JSOP_LAMBDA))
+        {
+            JS_ASSERT(!pn2->isDefn());
+            JS_ASSERT(!pn2->isUsed());
+            pn2->pn_right->pn_link = tc->funbox->methods;
+            tc->funbox->methods = pn2->pn_right;
+        }
+    }
 
     /* Check termination of this primitive statement. */
     return MatchOrInsertSemicolon(context, &tokenStream) ? pn : NULL;
@@ -4346,7 +4320,7 @@ Parser::variables(ParseNodeKind kind, StaticBlockObject *blockObj, VarContext va
      * var, whereas let is block scoped. ES-Harmony wants block-scoped const so
      * this code will change soon.
      */
-    BindData data(context);
+    BindData data;
     if (blockObj)
         data.initLet(varContext, *blockObj, JSMSG_TOO_MANY_LOCALS);
     else
@@ -5340,7 +5314,7 @@ Parser::comprehensionTail(ParseNode *kid, unsigned blockid, bool isGenexp,
     unsigned adjust;
     ParseNode *pn, *pn2, *pn3, **pnp;
     StmtInfo stmtInfo(context);
-    BindData data(context);
+    BindData data;
     TokenKind tt;
 
     JS_ASSERT(tokenStream.currentToken().type == TOK_FOR);
@@ -5413,7 +5387,7 @@ Parser::comprehensionTail(ParseNode *kid, unsigned blockid, bool isGenexp,
 
         GenexpGuard guard(tc);
 
-        RootedVarPropertyName name(context);
+        PropertyName *name = NULL;
         tt = tokenStream.getToken();
         switch (tt) {
 #if JS_HAS_DESTRUCTURING
@@ -6415,7 +6389,7 @@ Parser::xmlElementOrList(JSBool allowList)
 
     ParseNode *pn, *pn2, *list;
     TokenKind tt;
-    RootedVarAtom startAtom(context), endAtom(context);
+    JSAtom *startAtom, *endAtom;
 
     JS_CHECK_RECURSION(context, return NULL);
 
@@ -6433,7 +6407,7 @@ Parser::xmlElementOrList(JSBool allowList)
         /*
          * XMLElement.  Append the tag and its contents, if any, to pn.
          */
-        pn2 = xmlTagContent(PNK_XMLSTAGO, startAtom.address());
+        pn2 = xmlTagContent(PNK_XMLSTAGO, &startAtom);
         if (!pn2)
             return NULL;
         tokenStream.matchToken(TOK_XMLSPACE);
@@ -6492,7 +6466,7 @@ Parser::xmlElementOrList(JSBool allowList)
             }
 
             /* Parse end tag; check mismatch at compile-time if we can. */
-            pn2 = xmlTagContent(PNK_XMLETAGO, endAtom.address());
+            pn2 = xmlTagContent(PNK_XMLETAGO, &endAtom);
             if (!pn2)
                 return NULL;
             if (pn2->isKind(PNK_XMLETAGO)) {
@@ -6663,8 +6637,36 @@ Parser::identifierName(bool afterDoubleDot)
 #endif
                ) && !(tc->flags & TCF_DECL_DESTRUCTURING))
     {
-        if (!NoteNameUse(node, tc))
-            return NULL;
+        StmtInfo *stmt = LexicalLookup(tc, name, NULL);
+
+        MultiDeclRange mdl = tc->decls.lookupMulti(name);
+
+        Definition *dn;
+        if (!mdl.empty()) {
+            dn = mdl.front();
+        } else {
+            if (AtomDefnAddPtr p = tc->lexdeps->lookupForAdd(name)) {
+                dn = p.value();
+            } else {
+                /*
+                 * No definition before this use in any lexical scope.
+                 * Create a placeholder definition node to either:
+                 * - Be adopted when we parse the real defining
+                 *   declaration, or
+                 * - Be left as a free variable definition if we never
+                 *   see the real definition.
+                 */
+                dn = MakePlaceholder(node, tc);
+                if (!dn || !tc->lexdeps->add(p, name, dn))
+                    return NULL;
+            }
+        }
+
+        JS_ASSERT(dn->isDefn());
+        LinkUseToDef(node, dn, tc);
+
+        if (stmt && stmt->type == STMT_WITH)
+            node->pn_dflags |= PND_DEOPTIMIZED;
     }
 
 #if JS_HAS_XML_SUPPORT

@@ -1019,7 +1019,9 @@ nsWindow::DrawTo(gfxASurface *targetSurface, const nsIntRect &invalidRect)
     // If we have no covering child, then we need to render this.
     if (coveringChildIndex == -1) {
         nsPaintEvent event(true, NS_PAINT, this);
-        event.region = invalidRect;
+
+        nsIntRect tileRect(0, 0, gAndroidBounds.width, gAndroidBounds.height);
+        event.region = boundsRect.Intersect(invalidRect).Intersect(tileRect);
 
         switch (GetLayerManager(nsnull)->GetBackendType()) {
             case LayerManager::LAYERS_BASIC: {
@@ -1124,10 +1126,11 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
     layers::renderTraceEventEnd("Get surface", "424545");
 
     layers::renderTraceEventStart("Widget draw to", "434646");
+    nsIntRect dirtyRect = ae->Rect().Intersect(nsIntRect(0, 0, gAndroidBounds.width, gAndroidBounds.height));
     if (targetSurface->CairoStatus()) {
         ALOG("### Failed to create a valid surface from the bitmap");
     } else {
-        DrawTo(targetSurface, ae->Rect());
+        DrawTo(targetSurface, dirtyRect);
     }
     layers::renderTraceEventEnd("Widget draw to", "434646");
     return;
@@ -1738,7 +1741,6 @@ nsWindow::InitKeyEvent(nsKeyEvent& event, AndroidGeckoEvent& key,
                              key.IsAltPressed(),
                              key.IsShiftPressed(),
                              false);
-    event.location = nsIDOMKeyEvent::DOM_KEY_LOCATION_MOBILE;
     event.time = key.Time();
 
     if (gMenu)

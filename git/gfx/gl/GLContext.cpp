@@ -1748,16 +1748,13 @@ GLContext::MarkDestroyed()
     if (IsDestroyed())
         return;
 
-    if (MakeCurrent()) {
-        DeleteOffscreenFBOs();
+    MakeCurrent();
+    DeleteOffscreenFBOs();
 
-        fDeleteProgram(mBlitProgram);
-        mBlitProgram = 0;
-        fDeleteFramebuffers(1, &mBlitFramebuffer);
-        mBlitFramebuffer = 0;
-    } else {
-        NS_WARNING("MakeCurrent() failed during MarkDestroyed! Skipping GL object teardown.");
-    }
+    fDeleteProgram(mBlitProgram);
+    mBlitProgram = 0;
+    fDeleteFramebuffers(1, &mBlitFramebuffer);
+    mBlitFramebuffer = 0;
 
     mSymbols.Zero();
 }
@@ -2217,12 +2214,11 @@ GLContext::UploadSurfaceToTexture(gfxASurface *aSurface,
                                   GLuint& aTexture,
                                   bool aOverwrite,
                                   const nsIntPoint& aSrcPoint,
-                                  bool aPixelBuffer,
-                                  GLenum aTextureUnit)
+                                  bool aPixelBuffer)
 {
     bool textureInited = aOverwrite ? false : true;
     MakeCurrent();
-    fActiveTexture(aTextureUnit);
+    fActiveTexture(LOCAL_GL_TEXTURE0);
   
     if (!aTexture) {
         fGenTextures(1, &aTexture);

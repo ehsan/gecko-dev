@@ -62,6 +62,9 @@ public:
                    nsIPresShell* aPresShell);
   virtual ~nsRootAccessible();
 
+  // nsIAccessible
+  NS_IMETHOD GetName(nsAString& aName);
+
   // nsIDOMEventListener
   NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent);
 
@@ -69,7 +72,6 @@ public:
   virtual void Shutdown();
 
   // nsAccessible
-  virtual mozilla::a11y::ENameValueFlag Name(nsString& aName);
   virtual Relation RelationByType(PRUint32 aType);
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();

@@ -126,9 +126,7 @@ static const char* const sEventNames[] = {
   "animationend",
   "animationiteration",
   "devicemotion",
-  "deviceorientation",
-  "deviceproximity",
-  "devicelight"
+  "deviceorientation"
 };
 
 static char *sPopupAllowedEvents;
@@ -429,8 +427,7 @@ nsDOMEvent::GetEventPhase(PRUint16* aEventPhase)
 {
   // Note, remember to check that this works also
   // if or when Bug 235441 is fixed.
-  if ((mEvent->currentTarget &&
-       mEvent->currentTarget == mEvent->target) ||
+  if (mEvent->currentTarget == mEvent->target ||
       ((mEvent->flags & NS_EVENT_FLAG_CAPTURE) &&
        (mEvent->flags & NS_EVENT_FLAG_BUBBLE))) {
     *aEventPhase = nsIDOMEvent::AT_TARGET;
@@ -439,7 +436,7 @@ nsDOMEvent::GetEventPhase(PRUint16* aEventPhase)
   } else if (mEvent->flags & NS_EVENT_FLAG_BUBBLE) {
     *aEventPhase = nsIDOMEvent::BUBBLING_PHASE;
   } else {
-    *aEventPhase = nsIDOMEvent::NONE;
+    *aEventPhase = 0;
   }
   return NS_OK;
 }
@@ -682,7 +679,6 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
       isInputEvent = true;
       keyEvent->keyCode = oldKeyEvent->keyCode;
       keyEvent->charCode = oldKeyEvent->charCode;
-      keyEvent->location = oldKeyEvent->location;
       keyEvent->isChar = oldKeyEvent->isChar;
       newEvent = keyEvent;
       break;
@@ -1555,10 +1551,6 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_devicemotion];
   case NS_DEVICE_ORIENTATION:
     return sEventNames[eDOMEvents_deviceorientation];
-  case NS_DEVICE_PROXIMITY:
-    return sEventNames[eDOMEvents_deviceproximity];
-  case NS_DEVICE_LIGHT:
-    return sEventNames[eDOMEvents_devicelight];
   case NS_FULLSCREENCHANGE:
     return sEventNames[eDOMEvents_mozfullscreenchange];
   case NS_FULLSCREENERROR:

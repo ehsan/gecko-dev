@@ -238,7 +238,7 @@ CloneFunctionObjectIfNotSingleton(JSContext *cx, HandleFunction fun, HandleObjec
      * with its type in existence.
      */
     if (fun->hasSingletonType()) {
-        if (!JSObject::setParent(cx, fun, RootedVarObject(cx, SkipScopeParent(parent))))
+        if (!fun->setParent(cx, SkipScopeParent(parent)))
             return NULL;
         fun->setEnvironment(parent);
         return fun;

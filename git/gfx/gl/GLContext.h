@@ -1382,10 +1382,6 @@ public:
      * \param aPixelBuffer Pass true to upload texture data with an
      *  offset from the base data (generally for pixel buffer objects), 
      *  otherwise textures are upload with an absolute pointer to the data.
-     * \param aTextureUnit, the texture unit used temporarily to upload the
-     *  surface. This testure may be overridden, clients should not rely on
-     *  the contents of this texture after this call or even on this
-     *  texture unit being active.
      * \return Shader program needed to render this texture.
      */
     ShaderProgramType UploadSurfaceToTexture(gfxASurface *aSurface, 
@@ -1393,8 +1389,7 @@ public:
                                              GLuint& aTexture,
                                              bool aOverwrite = false,
                                              const nsIntPoint& aSrcPoint = nsIntPoint(0, 0),
-                                             bool aPixelBuffer = false,
-                                             GLenum aTextureUnit = LOCAL_GL_TEXTURE0);
+                                             bool aPixelBuffer = false);
 
     
     void TexImage2D(GLenum target, GLint level, GLint internalformat, 

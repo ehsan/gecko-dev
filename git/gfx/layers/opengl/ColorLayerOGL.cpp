@@ -63,14 +63,12 @@ RenderColorLayer(ColorLayer* aLayer, LayerManagerOGL *aManager,
   color.b *= opacity;
   color.a = opacity;
 
-  ShaderProgramOGL *program = aManager->GetProgram(gl::ColorLayerProgramType,
-                                                   aLayer->GetMaskLayer());
+  SolidColorLayerProgram *program = aManager->GetColorLayerProgram();
   program->Activate();
   program->SetLayerQuadRect(visibleRect);
   program->SetLayerTransform(aLayer->GetEffectiveTransform());
   program->SetRenderOffset(aOffset);
   program->SetRenderColor(color);
-  program->LoadMask(aLayer->GetMaskLayer());
 
   aManager->BindAndDrawQuad(program);
 }

@@ -43,9 +43,9 @@
 #include "XPCWrapper.h"
 #include "jsproxy.h"
 
-#include "mozilla/dom/BindingUtils.h"
+#include "mozilla/dom/bindings/Utils.h"
 
-using namespace mozilla;
+using namespace mozilla::dom;
 
 /***************************************************************************/
 
@@ -158,7 +158,7 @@ XPCWrappedNativeScope::XPCWrappedNativeScope(XPCCallContext& ccx,
 
 #ifdef DEBUG
         for (XPCWrappedNativeScope* cur = gScopes; cur; cur = cur->mNext)
-            MOZ_ASSERT(aGlobal != cur->GetGlobalJSObjectPreserveColor(), "dup object");
+            NS_ASSERTION(aGlobal != cur->GetGlobalJSObject(), "dup object");
 #endif
 
         mNext = gScopes;
@@ -258,8 +258,8 @@ XPCWrappedNativeScope::SetGlobal(XPCCallContext& ccx, JSObject* aGlobal,
             // see whether it's what we want.
             priv = static_cast<nsISupports*>(xpc_GetJSPrivate(aGlobal));
         } else if ((jsClass->flags & JSCLASS_IS_DOMJSCLASS) &&
-                   dom::DOMJSClass::FromJSClass(jsClass)->mDOMObjectIsISupports) {
-            priv = dom::UnwrapDOMObject<nsISupports>(aGlobal, jsClass);
+                   bindings::DOMJSClass::FromJSClass(jsClass)->mDOMObjectIsISupports) {
+            priv = bindings::UnwrapDOMObject<nsISupports>(aGlobal, jsClass);
         } else {
             priv = nsnull;
         }
@@ -773,7 +773,7 @@ XPCWrappedNativeScope::FindInJSObjectScope(JSContext* cx, JSObject* obj,
         DEBUG_TrackScopeTraversal();
 
         for (XPCWrappedNativeScope* cur = gScopes; cur; cur = cur->mNext) {
-            if (obj == cur->GetGlobalJSObjectPreserveColor()) {
+            if (obj == cur->GetGlobalJSObject()) {
                 found = cur;
                 break;
             }

@@ -62,7 +62,6 @@
 #include "nsFrameLoader.h"
 #include "nsGenericElement.h"
 #include "xpcpublic.h"
-#include "nsObserverService.h"
 
 static bool sInited = 0;
 PRUint32 nsCCUncollectableMarker::sGeneration = 0;
@@ -317,7 +316,7 @@ nsCCUncollectableMarker::Observe(nsISupports* aSubject, const char* aTopic,
 
   // JS cleanup can be slow. Do it only if there has been a GC.
   bool cleanupJS =
-    nsJSContext::CleanupsSinceLastGC() == 0 &&
+    !nsJSContext::CleanupSinceLastGC() &&
     !strcmp(aTopic, "cycle-collector-forget-skippable");
 
   bool prepareForCC = !strcmp(aTopic, "cycle-collector-begin");
@@ -374,10 +373,6 @@ nsCCUncollectableMarker::Observe(nsISupports* aSubject, const char* aTopic,
   if (cleanupJS) {
     nsContentUtils::UnmarkGrayJSListenersInCCGenerationDocuments(sGeneration);
     MarkMessageManagers();
-
-    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-    static_cast<nsObserverService *>(obs.get())->UnmarkGrayStrongObservers();
-
     previousWasJSCleanup = true;
   } else if (previousWasJSCleanup) {
     previousWasJSCleanup = false;

@@ -20,11 +20,6 @@
    Bug 307027
      "Going back from secure page to error page does not clear yellow bar"
 
-    And enhancements:
-
-    Bug 478927
-      onLocationChange should notify whether or not loading an error page.
-
  */
 
 const kDNSErrorURI = "https://example/err.html";
@@ -90,10 +85,6 @@ function step1B(aWebProgress, aRequest, aLocation, aFlags) {
                           .LOCATION_CHANGE_SAME_DOCUMENT),
      "DocShell loaded a document (1)");
 
-  ok((aFlags & Components.interfaces.nsIWebProgressListener
-                         .LOCATION_CHANGE_ERROR_PAGE),
-     "This page is an error page.");
-
   ok(!(aWebProgress.QueryInterface(Components.interfaces.nsIDocShell)
                    .securityUI.state &
        Components.interfaces.nsIWebProgressListener.STATE_IS_SECURE),
@@ -118,10 +109,6 @@ function step2B(aWebProgress, aRequest, aLocation, aFlags) {
   ok(!(aFlags & Components.interfaces.nsIWebProgressListener
                           .LOCATION_CHANGE_SAME_DOCUMENT),
      "DocShell loaded a document (2)");
-
-  ok(!(aFlags & Components.interfaces.nsIWebProgressListener
-                          .LOCATION_CHANGE_ERROR_PAGE),
-     "This page is not an error page.");
 
   ok((aWebProgress.QueryInterface(Components.interfaces.nsIDocShell)
                   .securityUI.state &
@@ -149,10 +136,6 @@ function step3B(aWebProgress, aRequest, aLocation, aFlags) {
                          .LOCATION_CHANGE_SAME_DOCUMENT),
      "We are in the same document as before (3)");
 
-  ok(!(aFlags & Components.interfaces.nsIWebProgressListener
-                          .LOCATION_CHANGE_ERROR_PAGE),
-     "This page is not an error page.");
-
   ok((aWebProgress.QueryInterface(Components.interfaces.nsIDocShell)
                   .securityUI.state &
       Components.interfaces.nsIWebProgressListener.STATE_IS_SECURE),
@@ -178,10 +161,6 @@ function step4B(aWebProgress, aRequest, aLocation, aFlags) {
   ok(!(aFlags & Components.interfaces.nsIWebProgressListener
                           .LOCATION_CHANGE_SAME_DOCUMENT),
        "DocShell loaded a document (4)");
-
-  ok((aFlags & Components.interfaces.nsIWebProgressListener
-                         .LOCATION_CHANGE_ERROR_PAGE),
-     "This page is an error page.");
 
   ok(!(aWebProgress.QueryInterface(Components.interfaces.nsIDocShell)
                    .securityUI.state &

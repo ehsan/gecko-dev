@@ -354,10 +354,8 @@ js_DumpPCCounts(JSContext *cx, JSScript *script, js::Sprinter *sp)
  * If counts != NULL, include a counter of the number of times each op was executed.
  */
 JS_FRIEND_API(JSBool)
-js_DisassembleAtPC(JSContext *cx, JSScript *script_, JSBool lines, jsbytecode *pc, Sprinter *sp)
+js_DisassembleAtPC(JSContext *cx, JSScript *script, JSBool lines, jsbytecode *pc, Sprinter *sp)
 {
-    RootedVar<JSScript*> script(cx, script_);
-
     jsbytecode *next, *end;
     unsigned len;
 
@@ -453,13 +451,11 @@ ToDisassemblySource(JSContext *cx, jsval v, JSAutoByteString *bytes)
                 return false;
 
             Shape::Range r = obj->lastProperty()->all();
-            Shape::Range::Root root(cx, &r);
-
             while (!r.empty()) {
-                RootedVar<const Shape*> shape(cx, &r.front());
-                JSAtom *atom = JSID_IS_INT(shape->propid())
+                const Shape &shape = r.front();
+                JSAtom *atom = JSID_IS_INT(shape.propid())
                                ? cx->runtime->atomState.emptyAtom
-                               : JSID_TO_ATOM(shape->propid());
+                               : JSID_TO_ATOM(shape.propid());
 
                 JSAutoByteString bytes;
                 if (!js_AtomToPrintableString(cx, atom, &bytes))
@@ -467,7 +463,7 @@ ToDisassemblySource(JSContext *cx, jsval v, JSAutoByteString *bytes)
 
                 r.popFront();
                 source = JS_sprintf_append(source, "%s: %d%s",
-                                           bytes.ptr(), shape->shortid(),
+                                           bytes.ptr(), shape.shortid(),
                                            !r.empty() ? ", " : "");
                 if (!source)
                     return false;
@@ -526,7 +522,7 @@ js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc,
           // with an offset. This simplifies code coverage analysis
           // based on this disassembled output.
           if (op == JSOP_TRY) {
-              TryNoteArray *trynotes = script->trynotes();
+              JSTryNoteArray *trynotes = script->trynotes();
               uint32_t i;
               for(i = 0; i < trynotes->length; i++) {
                   JSTryNote note = trynotes->vector[i];
@@ -1091,7 +1087,7 @@ struct JSPrinter
     jsbytecode      *dvgfence;      /* DecompileExpression fencepost */
     jsbytecode      **pcstack;      /* DecompileExpression modeled stack */
     JSFunction      *fun;           /* interpreted function */
-    BindingNames    *localNames;    /* argument and variable names */
+    Vector<JSAtom *> *localNames;   /* argument and variable names */
     Vector<DecompiledOpcode> *decompiledOpcodes; /* optional state for decompiled ops */
 
     DecompiledOpcode &decompiled(jsbytecode *pc) {
@@ -1122,7 +1118,7 @@ js_NewPrinter(JSContext *cx, const char *name, JSFunction *fun,
     jp->localNames = NULL;
     jp->decompiledOpcodes = NULL;
     if (fun && fun->isInterpreted() && fun->script()->bindings.count() > 0) {
-        jp->localNames = cx->new_<BindingNames>(cx);
+        jp->localNames = cx->new_<Vector<JSAtom *> >(cx);
         if (!jp->localNames || !fun->script()->bindings.getLocalNameArray(cx, jp->localNames)) {
             js_DestroyPrinter(jp);
             return NULL;
@@ -1771,7 +1767,7 @@ GetArgOrVarAtom(JSPrinter *jp, unsigned slot)
 {
     LOCAL_ASSERT_RV(jp->fun, NULL);
     LOCAL_ASSERT_RV(slot < jp->fun->script()->bindings.count(), NULL);
-    JSAtom *name = (*jp->localNames)[slot].maybeAtom;
+    JSAtom *name = (*jp->localNames)[slot];
 #if !JS_HAS_DESTRUCTURING
     LOCAL_ASSERT_RV(name, NULL);
 #endif
@@ -1822,7 +1818,7 @@ GetLocal(SprintStack *ss, int i)
      * not in a block. In either case, return GetStr(ss, i).
      */
     JSScript *script = ss->printer->script;
-    if (!script->hasObjects())
+    if (!JSScript::isValidOffset(script->objectsOffset))
         return GetStr(ss, i);
 
     // In case of a let variable, the stack points to a JSOP_ENTERBLOCK opcode.
@@ -4667,8 +4663,8 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
 #if JS_HAS_GENERATOR_EXPRS
                 sn = js_GetSrcNote(jp->script, pc);
                 if (sn && SN_TYPE(sn) == SRC_GENEXP) {
-                    BindingNames *innerLocalNames;
-                    BindingNames *outerLocalNames;
+                    Vector<JSAtom *> *innerLocalNames;
+                    Vector<JSAtom *> *outerLocalNames;
                     JSScript *inner, *outer;
                     Vector<DecompiledOpcode> *decompiledOpcodes;
                     SprintStack ss2(cx);
@@ -4684,7 +4680,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
                      */
                     LifoAllocScope las(&cx->tempLifoAlloc());
                     if (fun->script()->bindings.count() > 0) {
-                        innerLocalNames = cx->new_<BindingNames>(cx);
+                        innerLocalNames = cx->new_<Vector<JSAtom *> >(cx);
                         if (!innerLocalNames ||
                             !fun->script()->bindings.getLocalNameArray(cx, innerLocalNames))
                         {
@@ -5511,9 +5507,7 @@ js_DecompileFunctionBody(JSPrinter *jp)
 JSBool
 js_DecompileFunction(JSPrinter *jp)
 {
-    JSContext *cx = jp->sprinter.context;
-
-    RootedVarFunction fun(cx, jp->fun);
+    JSFunction *fun = jp->fun;
     JS_ASSERT(fun);
     JS_ASSERT(!jp->script);
 
@@ -5543,7 +5537,7 @@ js_DecompileFunction(JSPrinter *jp)
     } else {
         JSScript *script = fun->script();
 #if JS_HAS_DESTRUCTURING
-        SprintStack ss(cx);
+        SprintStack ss(jp->sprinter.context);
 #endif
 
         /* Print the parameters. */
@@ -5573,7 +5567,7 @@ js_DecompileFunction(JSPrinter *jp)
                 pc += js_CodeSpec[*pc].length;
                 LOCAL_ASSERT(*pc == JSOP_DUP);
                 if (!ss.printer) {
-                    ok = InitSprintStack(cx, &ss, jp, StackDepth(script));
+                    ok = InitSprintStack(jp->sprinter.context, &ss, jp, StackDepth(script));
                     if (!ok)
                         break;
                 }

@@ -324,7 +324,7 @@ public:
   NS_IMETHOD EndOperation();
 
   /** returns true if aParentTag can contain a child of type aChildTag */
-  virtual bool TagCanContainTag(nsIAtom* aParentTag, nsIAtom* aChildTag);
+  virtual bool TagCanContainTag(const nsAString& aParentTag, const nsAString& aChildTag);
   
   /** returns true if aNode is a container */
   virtual bool IsContainer(nsINode* aNode);
@@ -546,14 +546,16 @@ protected:
     * @param aValue     The value of aAttribute, example: blue in <FONT color="blue">
     *                   May be null.  Ignored if aAttribute is null.
     * @param aIsSet     [OUT] true if <aProperty aAttribute=aValue> effects aNode.
-    * @param outValue   [OUT] the value of the attribute, if aIsSet is true
+    * @param aStyleNode [OUT] set to the node representing <aProperty aAttribute=aValue>, if found.
+    *                   null if aIsSet is returned as false;
     */
-  void IsTextPropertySetByContent(nsIDOMNode*      aNode,
-                                  nsIAtom*         aProperty,
-                                  const nsAString* aAttribute,
-                                  const nsAString* aValue,
-                                  bool&            aIsSet,
-                                  nsAString*       outValue = nsnull);
+  virtual void IsTextPropertySetByContent(nsIDOMNode        *aNode,
+                                          nsIAtom           *aProperty, 
+                                          const nsAString   *aAttribute,
+                                          const nsAString   *aValue,
+                                          bool              &aIsSet,
+                                          nsIDOMNode       **aStyleNode,
+                                          nsAString *outValue = nsnull);
 
   // Methods for handling plaintext quotations
   NS_IMETHOD PasteAsPlaintextQuotation(PRInt32 aSelectionType);

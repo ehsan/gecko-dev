@@ -43,10 +43,10 @@
 #include "builtin/MapObject.h"
 
 #include "jscntxt.h"
+#include "jsgcmark.h"
 #include "jsiter.h"
 #include "jsobj.h"
 
-#include "gc/Marking.h"
 #include "vm/GlobalObject.h"
 #include "vm/MethodGuard.h"
 #include "vm/Stack.h"
@@ -56,16 +56,16 @@
 using namespace js;
 
 static JSObject *
-InitClass(JSContext *cx, Handle<GlobalObject*> global, Class *clasp, JSProtoKey key, Native construct,
+InitClass(JSContext *cx, GlobalObject *global, Class *clasp, JSProtoKey key, Native construct,
           JSFunctionSpec *methods)
 {
-    RootedVarObject proto(cx, global->createBlankPrototype(cx, clasp));
+    JSObject *proto = global->createBlankPrototype(cx, clasp);
     if (!proto)
         return NULL;
     proto->setPrivate(NULL);
 
     JSAtom *atom = cx->runtime->atomState.classAtoms[key];
-    RootedVarFunction ctor(cx, global->createConstructor(cx, construct, atom, 1));
+    JSFunction *ctor = global->createConstructor(cx, construct, atom, 1);
     if (!ctor ||
         !LinkConstructorAndPrototype(cx, ctor, proto) ||
         !DefinePropertiesAndBrand(cx, proto, NULL, methods) ||
@@ -179,8 +179,7 @@ JSFunctionSpec MapObject::methods[] = {
 JSObject *
 MapObject::initClass(JSContext *cx, JSObject *obj)
 {
-    return InitClass(cx, RootedVar<GlobalObject*>(cx, &obj->asGlobal()),
-                     &class_, JSProto_Map, construct, methods);
+    return InitClass(cx, &obj->asGlobal(), &class_, JSProto_Map, construct, methods);
 }
 
 void
@@ -225,8 +224,6 @@ class AddToMap {
         if (!hkey.setValue(cx, key))
             return false;
 
-        HashableValue::StackRoot hkeyRoot(cx, &hkey);
-
         Value val;
         if (!pairobj->getElement(cx, 1, &val))
             return false;
@@ -242,7 +239,7 @@ class AddToMap {
 JSBool
 MapObject::construct(JSContext *cx, unsigned argc, Value *vp)
 {
-    RootedVarObject obj(cx, NewBuiltinClassInstance(cx, &class_));
+    JSObject *obj = NewBuiltinClassInstance(cx, &class_);
     if (!obj)
         return false;
 
@@ -384,8 +381,7 @@ JSFunctionSpec SetObject::methods[] = {
 JSObject *
 SetObject::initClass(JSContext *cx, JSObject *obj)
 {
-    return InitClass(cx, RootedVar<GlobalObject*>(cx, &obj->asGlobal()),
-                     &class_, JSProto_Set, construct, methods);
+    return InitClass(cx, &obj->asGlobal(), &class_, JSProto_Set, construct, methods);
 }
 
 void
@@ -432,7 +428,7 @@ class AddToSet {
 JSBool
 SetObject::construct(JSContext *cx, unsigned argc, Value *vp)
 {
-    RootedVarObject obj(cx, NewBuiltinClassInstance(cx, &class_));
+    JSObject *obj = NewBuiltinClassInstance(cx, &class_);
     if (!obj)
         return false;
 

@@ -211,7 +211,7 @@ private:
     nsAutoString role;                                                         \
     GetAccService()->GetStringRole(aAccessible->Role(), role);                 \
     nsAutoString name;                                                         \
-    aAccessible->Name(name);                                                   \
+    aAccessible->GetName(name);                                                \
     printf(" role: %s, name: %s; ", NS_ConvertUTF16toUTF8(role).get(),         \
            NS_ConvertUTF16toUTF8(name).get());                                 \
     A11YDEBUG_FOCUS_LOG_DOMNODE(aAccessible->GetNode())                        \

@@ -400,23 +400,6 @@ Layer::GetEffectiveOpacity()
 }
 
 void
-Layer::ComputeEffectiveTransformForMaskLayer(const gfx3DMatrix& aTransformToSurface)
-{
-  if (mMaskLayer) {
-    mMaskLayer->mEffectiveTransform = aTransformToSurface;
-
-#ifdef DEBUG
-    gfxMatrix maskTranslation;
-    bool maskIs2D = mMaskLayer->GetTransform().CanDraw2D(&maskTranslation);
-    NS_ASSERTION(maskIs2D, "How did we end up with a 3D transform here?!");
-    NS_ASSERTION(maskTranslation.HasOnlyIntegerTranslation(),
-                 "Mask layer has invalid transform.");
-#endif
-    mMaskLayer->mEffectiveTransform.PreMultiply(mMaskLayer->GetTransform());
-  }
-}
-
-void
 ContainerLayer::FillSpecificAttributes(SpecificLayerAttributes& aAttrs)
 {
   aAttrs = ContainerLayerAttributes(GetFrameMetrics());
@@ -472,35 +455,31 @@ ContainerLayer::DefaultComputeEffectiveTransforms(const gfx3DMatrix& aTransformT
   mEffectiveTransform = SnapTransform(idealTransform, gfxRect(0, 0, 0, 0), &residual);
 
   bool useIntermediateSurface;
-  if (GetMaskLayer()) {
+  float opacity = GetEffectiveOpacity();
+  if (opacity != 1.0f && HasMultipleChildren()) {
     useIntermediateSurface = true;
 #ifdef MOZ_DUMP_PAINTING
   } else if (gfxUtils::sDumpPainting) {
     useIntermediateSurface = true;
 #endif
   } else {
-    float opacity = GetEffectiveOpacity();
-    if (opacity != 1.0f && HasMultipleChildren()) {
-      useIntermediateSurface = true;
-    } else {
-      useIntermediateSurface = false;
-      gfxMatrix contTransform;
-      if (!mEffectiveTransform.Is2D(&contTransform) ||
+    useIntermediateSurface = false;
+    gfxMatrix contTransform;
+    if (!mEffectiveTransform.Is2D(&contTransform) ||
 #ifdef MOZ_GFX_OPTIMIZE_MOBILE
         !contTransform.PreservesAxisAlignedRectangles()) {
 #else
         contTransform.HasNonIntegerTranslation()) {
 #endif
-        for (Layer* child = GetFirstChild(); child; child = child->GetNextSibling()) {
-          const nsIntRect *clipRect = child->GetEffectiveClipRect();
-          /* We can't (easily) forward our transform to children with a non-empty clip
-           * rect since it would need to be adjusted for the transform. See
-           * the calculations performed by CalculateScissorRect above.
-           */
-          if (clipRect && !clipRect->IsEmpty() && !child->GetVisibleRegion().IsEmpty()) {
-            useIntermediateSurface = true;
-            break;
-          }
+      for (Layer* child = GetFirstChild(); child; child = child->GetNextSibling()) {
+        const nsIntRect *clipRect = child->GetEffectiveClipRect();
+        /* We can't (easily) forward our transform to children with a non-empty clip
+         * rect since it would need to be adjusted for the transform. See
+         * the calculations performed by CalculateScissorRect above.
+         */
+        if (clipRect && !clipRect->IsEmpty() && !child->GetVisibleRegion().IsEmpty()) {
+          useIntermediateSurface = true;
+          break;
         }
       }
     }
@@ -511,12 +490,6 @@ ContainerLayer::DefaultComputeEffectiveTransforms(const gfx3DMatrix& aTransformT
     ComputeEffectiveTransformsForChildren(gfx3DMatrix::From2D(residual));
   } else {
     ComputeEffectiveTransformsForChildren(idealTransform);
-  }
-
-  if (idealTransform.CanDraw2D()) {
-    ComputeEffectiveTransformForMaskLayer(aTransformToSurface);
-  } else {
-    ComputeEffectiveTransformForMaskLayer(gfx3DMatrix());
   }
 }
 
@@ -629,12 +602,6 @@ Layer::Dump(FILE* aFile, const char* aPrefix)
   fprintf(aFile, ">");
   DumpSelf(aFile, aPrefix);
   fprintf(aFile, "</a>");
-
-  if (Layer* mask = GetMaskLayer()) {
-    nsCAutoString pfx(aPrefix);
-    pfx += "  Mask layer: ";
-    mask->Dump(aFile, pfx.get());
-  }
 
   if (Layer* kid = GetFirstChild()) {
     nsCAutoString pfx(aPrefix);

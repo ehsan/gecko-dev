@@ -213,26 +213,26 @@ NS_IMPL_RELEASE_INHERITED(nsDocAccessible, nsHyperTextAccessible)
 ////////////////////////////////////////////////////////////////////////////////
 // nsIAccessible
 
-ENameValueFlag
-nsDocAccessible::Name(nsString& aName)
+NS_IMETHODIMP
+nsDocAccessible::GetName(nsAString& aName)
 {
+  nsresult rv = NS_OK;
   aName.Truncate();
-
   if (mParent) {
-    mParent->Name(aName); // Allow owning iframe to override the name
+    rv = mParent->GetName(aName); // Allow owning iframe to override the name
   }
   if (aName.IsEmpty()) {
     // Allow name via aria-labelledby or title attribute
-    nsAccessible::Name(aName);
+    rv = nsAccessible::GetName(aName);
   }
   if (aName.IsEmpty()) {
-    GetTitle(aName);   // Try title element
+    rv = GetTitle(aName);   // Try title element
   }
   if (aName.IsEmpty()) {   // Last resort: use URL
-    GetURL(aName);
+    rv = GetURL(aName);
   }
- 
-  return eNameOK;
+
+  return rv;
 }
 
 // nsAccessible public method
@@ -1767,6 +1767,11 @@ nsDocAccessible::ProcessPendingEvent(AccEvent* aEvent)
     PRInt32 caretOffset;
     if (hyperText &&
         NS_SUCCEEDED(hyperText->GetCaretOffset(&caretOffset))) {
+#ifdef DEBUG_A11Y
+      PRUnichar chAtOffset;
+      hyperText->GetCharacterAtOffset(caretOffset, &chAtOffset);
+      printf("\nCaret moved to %d with char %c", caretOffset, chAtOffset);
+#endif
       nsRefPtr<AccEvent> caretMoveEvent =
         new AccCaretMoveEvent(hyperText, caretOffset);
       nsEventShell::FireEvent(caretMoveEvent);

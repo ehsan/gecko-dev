@@ -50,7 +50,7 @@ public:
    * set up to account for all the properties of the layer (transform,
    * opacity, etc).
    */
-  virtual void Paint(gfxContext* aContext, Layer* aMaskLayer) {}
+  virtual void Paint(gfxContext* aContext) {}
 
   /**
    * Like Paint() but called for ThebesLayers with the additional parameters
@@ -59,10 +59,11 @@ public:
    * effective visible region (snapped or unsnapped, it doesn't matter).
    */
   virtual void PaintThebes(gfxContext* aContext,
-                           Layer* aMasklayer,
                            LayerManager::DrawThebesLayerCallback aCallback,
                            void* aCallbackData,
                            ReadbackProcessor* aReadback) {}
+
+  virtual ShadowableLayer* AsShadowableLayer() { return nsnull; }
 
   /**
    * Implementations return true here if they *must* retain their
@@ -98,14 +99,6 @@ public:
     mOperator = aOperator;
   }
   gfxContext::GraphicsOperator GetOperator() const { return mOperator; }
-
-  /**
-   * Return a surface for this layer. Will use an existing surface, if
-   * possible, or may create a temporary surface.
-   * Implement this method for any layers that might be used as a mask.
-   * Should only return null if a surface cannor be created.
-   */
-  virtual already_AddRefed<gfxASurface> GetAsSurface() { return nsnull; }
 
   bool GetClipToVisibleRegion() { return mClipToVisibleRegion; }
   void SetClipToVisibleRegion(bool aClip) { mClipToVisibleRegion = aClip; }

@@ -713,9 +713,7 @@ endif # WINNT/OS2
 AB_CD = $(MOZ_UI_LOCALE)
 
 ifndef L10NBASEDIR
-  L10NBASEDIR = $(error L10NBASEDIR not defined by configure)
-else
-  IS_LANGUAGE_REPACK = 1
+L10NBASEDIR = $(error L10NBASEDIR not defined by configure)
 endif
 
 EXPAND_LOCALE_SRCDIR = $(if $(filter en-US,$(AB_CD)),$(topsrcdir)/$(1)/en-US,$(call core_realpath,$(L10NBASEDIR))/$(AB_CD)/$(subst /locales,,$(1)))

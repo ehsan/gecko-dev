@@ -96,7 +96,9 @@ function onWindowLoad() {
 
         xhr.withCredentials = test.withCredentials;
 
-        SpecialPowers.wrap(xhr).setRequestHeader("Connection", "Keep-Alive", false);
+        netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+        xhr.setRequestHeader("Connection", "Keep-Alive", false);
+        netscape.security.PrivilegeManager.disablePrivilege("UniversalXPConnect");
 
         try {
             xhr.send();

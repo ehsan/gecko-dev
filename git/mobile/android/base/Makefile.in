@@ -110,7 +110,6 @@ FENNEC_JAVA_FILES = \
   sqlite/SQLiteBridgeException.java \
   RemoteTabs.java \
   SetupScreen.java \
-  SiteIdentityPopup.java \
   SurfaceBits.java \
   Tab.java \
   Tabs.java \
@@ -198,9 +197,7 @@ endif
 
 UA_BUILDID=$(shell $(PYTHON) $(topsrcdir)/toolkit/xre/make-platformini.py --print-buildid | cut -c1-8)
 
-# Mangle our package name to avoid Bug 750548.
 DEFINES += \
-  -DMANGLED_ANDROID_PACKAGE_NAME=$(subst fennec,f3nn3c,$(ANDROID_PACKAGE_NAME)) \
   -DANDROID_PACKAGE_NAME=$(ANDROID_PACKAGE_NAME) \
   -DMOZ_APP_DISPLAYNAME="$(MOZ_APP_DISPLAYNAME)" \
   -DMOZ_APP_NAME=$(MOZ_APP_NAME) \
@@ -212,10 +209,6 @@ DEFINES += \
   -DMOZILLA_OFFICIAL=$(MOZILLA_OFFICIAL) \
   -DUA_BUILDID=$(UA_BUILDID) \
   $(NULL)
-
-ifdef MOZ_LINKER_EXTRACT
-DEFINES += -DMOZ_LINKER_EXTRACT=1
-endif
 
 GARBAGE += \
   AndroidManifest.xml  \
@@ -279,7 +272,6 @@ RES_LAYOUT = \
   res/layout/notification_progress_text.xml \
   res/layout/site_setting_title.xml \
   res/layout/setup_screen.xml \
-  res/layout/site_identity_popup.xml \
   res/layout/remote_tabs.xml \
   res/layout/remote_tabs_child.xml \
   res/layout/remote_tabs_group.xml \
@@ -374,8 +366,6 @@ RES_DRAWABLE_BASE = \
   res/drawable/doorhanger_bg.9.png \
   res/drawable/doorhanger_shadow_bg.9.png \
   res/drawable/doorhanger_popup_bg.9.png \
-  res/drawable/larry_blue.png \
-  res/drawable/larry_green.png \
   res/drawable/site_security_identified.png \
   res/drawable/site_security_verified.png \
   res/drawable/urlbar_stop.png \
@@ -433,8 +423,6 @@ RES_DRAWABLE_HDPI = \
   res/drawable-hdpi/doorhanger_bg.9.png \
   res/drawable-hdpi/doorhanger_shadow_bg.9.png \
   res/drawable-hdpi/doorhanger_popup_bg.9.png \
-  res/drawable-hdpi/larry_blue.png \
-  res/drawable-hdpi/larry_green.png \
   res/drawable-hdpi/site_security_identified.png \
   res/drawable-hdpi/site_security_verified.png \
   res/drawable-hdpi/urlbar_stop.png \
@@ -504,8 +492,6 @@ RES_DRAWABLE_XHDPI_V11 = \
   res/drawable-xhdpi-v11/doorhanger_shadow_bg.9.png \
   res/drawable-xhdpi-v11/doorhanger_popup_bg.9.png \
   res/drawable-xhdpi-v11/urlbar_stop.png \
-  res/drawable-xhdpi-v11/larry_blue.png \
-  res/drawable-xhdpi-v11/larry_green.png \
   res/drawable-xhdpi-v11/site_security_identified.png \
   res/drawable-xhdpi-v11/site_security_verified.png \
   res/drawable-xhdpi-v11/tabs_button_tail.9.png \
@@ -691,20 +677,8 @@ $(PP_RES_XML): $(patsubst res/%,$(srcdir)/resources/%.in,$(PP_RES_XML))
 # AndroidManifest.xml includes these files, so they need to be marked as dependencies.
 SYNC_MANIFEST_FRAGMENTS = $(wildcard $(topsrcdir)/mobile/android/sync/manifests/*.in)
 
-android-tgts = \
-  AndroidManifest.xml \
-  $(FENNEC_PP_JAVA_FILES) \
-  $(SYNC_PP_JAVA_FILES) \
-  package-name.txt \
-  $(NULL)
-
-android-preqs = \
-  Makefile.in \
-  $(call mkdir_deps,db,sync/repositories/android) \
-  $(SYNC_MANIFEST_FRAGMENTS) \
-  $(NULL)
-
-$(android-tgts): % : %.in $(android-preqs)
+AndroidManifest.xml $(FENNEC_PP_JAVA_FILES) $(SYNC_PP_JAVA_FILES) package-name.txt: % : %.in Makefile.in $(SYNC_MANIFEST_FRAGMENTS)
+	mkdir -p db sync/repositories/android
 	$(PYTHON) $(topsrcdir)/config/Preprocessor.py \
              $(AUTOMATION_PPARGS) $(DEFINES) $(ACDEFINES) $< > $@
 

@@ -80,7 +80,6 @@ CPPSRCS = \
   nsDiskCacheMap.cpp \
   nsDiskCacheStreams.cpp \
   nsDeleteDir.cpp \
-  nsApplicationCacheService.cpp \
   $(NULL)
 
 LOCAL_INCLUDES = \

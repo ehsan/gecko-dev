@@ -70,7 +70,7 @@
 #include "XPCQuickStubs.h"
 #include "dombindings.h"
 
-#include "mozilla/dom/BindingUtils.h"
+#include "mozilla/dom/bindings/Utils.h"
 
 #include "nsWrapperCacheInlines.h"
 #include "nsDOMMutationObserver.h"
@@ -118,7 +118,7 @@ nsXPConnect::nsXPConnect()
 {
     mRuntime = XPCJSRuntime::newXPCJSRuntime(this);
 
-    nsCycleCollector_registerJSRuntime(this);
+    nsCycleCollector_registerRuntime(nsIProgrammingLanguage::JAVASCRIPT, this);
 
     char* reportableEnv = PR_GetEnv("MOZ_REPORT_ALL_JS_EXCEPTIONS");
     if (reportableEnv && *reportableEnv)
@@ -127,7 +127,7 @@ nsXPConnect::nsXPConnect()
 
 nsXPConnect::~nsXPConnect()
 {
-    nsCycleCollector_forgetJSRuntime();
+    nsCycleCollector_forgetRuntime(nsIProgrammingLanguage::JAVASCRIPT);
 
     JSContext *cx = nsnull;
     if (mRuntime) {
@@ -579,8 +579,10 @@ nsXPConnect::FinishTraverse()
 }
 
 nsCycleCollectionParticipant *
-nsXPConnect::GetParticipant()
+nsXPConnect::ToParticipant(void *p)
 {
+    if (!AddToCCKind(js_GetGCThingTraceKind(p)))
+        return NULL;
     return this;
 }
 
@@ -686,19 +688,17 @@ UnmarkGrayChildren(JSTracer *trc, void **thingp, JSGCTraceKind kind)
 }
 
 void
-xpc_UnmarkGrayGCThingRecursive(void *thing, JSGCTraceKind kind)
+xpc_UnmarkGrayObjectRecursive(JSObject *obj)
 {
-    MOZ_ASSERT(thing, "Don't pass me null!");
-    MOZ_ASSERT(kind != JSTRACE_SHAPE, "UnmarkGrayGCThingRecursive not intended for Shapes");
+    NS_ASSERTION(obj, "Don't pass me null!");
 
     // Unmark.
-    static_cast<js::gc::Cell *>(thing)->unmark(js::gc::GRAY);
+    js::gc::AsCell(obj)->unmark(js::gc::GRAY);
 
     // Trace children.
     UnmarkGrayTracer trc;
-    JSRuntime *rt = nsXPConnect::GetRuntimeInstance()->GetJSRuntime();
-    JS_TracerInit(&trc, rt, UnmarkGrayChildren);
-    JS_TraceChildren(&trc, thing, kind);
+    JS_TracerInit(&trc, JS_GetObjectRuntime(obj), UnmarkGrayChildren);
+    JS_TraceChildren(&trc, obj, JSTRACE_OBJECT);
 }
 
 struct TraversalTracer : public JSTracer
@@ -746,7 +746,7 @@ NoteJSChild(JSTracer *trc, void **thingp, JSGCTraceKind kind)
             }
         }
 #endif
-        tracer->cb.NoteJSChild(thing);
+        tracer->cb.NoteScriptChild(nsIProgrammingLanguage::JAVASCRIPT, thing);
     } else if (kind == JSTRACE_SHAPE) {
         JS_TraceShapeCycleCollectorChildren(trc, thing);
     } else if (kind != JSTRACE_STRING) {
@@ -908,9 +908,9 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
             static_cast<nsISupports*>(js::GetProxyPrivate(obj).toPrivate());
         cb.NoteXPCOMChild(identity);
     } else if ((clazz->flags & JSCLASS_IS_DOMJSCLASS) &&
-               DOMJSClass::FromJSClass(clazz)->mDOMObjectIsISupports) {
+               bindings::DOMJSClass::FromJSClass(clazz)->mDOMObjectIsISupports) {
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "UnwrapDOMObject(obj)");
-        nsISupports *identity = UnwrapDOMObject<nsISupports>(obj, clazz);
+        nsISupports *identity = bindings::UnwrapDOMObject<nsISupports>(obj, clazz);
         cb.NoteXPCOMChild(identity);
     }
 
@@ -962,7 +962,7 @@ public:
         cb.DescribeRefCountedNode(refCount, js::SizeOfJSContext(), "JSContext");
         if (JSObject *global = JS_GetGlobalObject(cx)) {
             NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "[global object]");
-            cb.NoteJSChild(global);
+            cb.NoteScriptChild(nsIProgrammingLanguage::JAVASCRIPT, global);
         }
 
         return NS_OK;
@@ -1082,8 +1082,6 @@ TraceXPCGlobal(JSTracer *trc, JSObject *obj)
 
     if (XPCWrappedNativeScope *scope = XPCWrappedNativeScope::GetNativeScope(obj))
         scope->TraceDOMPrototypes(trc);
-
-    mozilla::dom::TraceProtoOrIfaceCache(trc, obj);
 }
 
 #ifdef DEBUG
@@ -1137,14 +1135,28 @@ xpc_CreateGlobalObject(JSContext *cx, JSClass *clasp,
     CheckTypeInference(cx, clasp, principal);
 
     NS_ABORT_IF_FALSE(NS_IsMainThread(), "using a principal off the main thread?");
+    NS_ABORT_IF_FALSE(principal, "bad key");
 
-    xpc::CompartmentPrivate *priv = new xpc::CompartmentPrivate(wantXrays);
-    if (!CreateNewCompartment(cx, clasp, principal, priv, global, compartment))
-        return UnexpectedFailure(NS_ERROR_FAILURE);
+    XPCCompartmentMap& map = nsXPConnect::GetRuntimeInstance()->GetCompartmentMap();
+    xpc::PtrAndPrincipalHashKey key(ptr, principal);
+    if (!map.Get(&key, compartment)) {
+        xpc::PtrAndPrincipalHashKey *priv_key =
+            new xpc::PtrAndPrincipalHashKey(ptr, principal);
+        xpc::CompartmentPrivate *priv = new xpc::CompartmentPrivate(priv_key, wantXrays);
+        if (!CreateNewCompartment(cx, clasp, principal, priv,
+                                  global, compartment)) {
+            return UnexpectedFailure(NS_ERROR_FAILURE);
+        }
 
-    XPCCompartmentSet& set = nsXPConnect::GetRuntimeInstance()->GetCompartmentSet();
-    if (!set.put(*compartment))
-        return UnexpectedFailure(NS_ERROR_FAILURE);
+        map.Put(&key, *compartment);
+    } else {
+        js::AutoSwitchCompartment sc(cx, *compartment);
+
+        JSObject *tempGlobal = JS_NewGlobalObject(cx, clasp);
+        if (!tempGlobal)
+            return UnexpectedFailure(NS_ERROR_FAILURE);
+        *global = tempGlobal;
+    }
 
 #ifdef DEBUG
     // Verify that the right trace hook is called. Note that this doesn't
@@ -1162,7 +1174,7 @@ xpc_CreateGlobalObject(JSContext *cx, JSClass *clasp,
 #endif
 
     if (clasp->flags & JSCLASS_DOM_GLOBAL) {
-        AllocateProtoOrIfaceCache(*global);
+        mozilla::dom::bindings::AllocateProtoOrIfaceCache(*global);
     }
 
     return NS_OK;
@@ -2364,7 +2376,7 @@ nsXPConnect::Peek(JSContext * *_retval)
         return NS_ERROR_FAILURE;
     }
 
-    *_retval = xpc_UnmarkGrayContext(data->GetJSContextStack()->Peek());
+    *_retval = data->GetJSContextStack()->Peek();
     return NS_OK;
 }
 
@@ -2469,7 +2481,7 @@ nsXPConnect::Pop(JSContext * *_retval)
 
     JSContext *cx = data->GetJSContextStack()->Pop();
     if (_retval)
-        *_retval = xpc_UnmarkGrayContext(cx);
+        *_retval = cx;
     return NS_OK;
 }
 

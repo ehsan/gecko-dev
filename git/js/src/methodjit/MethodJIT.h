@@ -466,21 +466,30 @@ JaegerStatusToSuccess(JaegerStatus status)
     return status == Jaeger_Returned;
 }
 
-/* Method JIT data associated with the JSRuntime. */
-class JaegerRuntime
-{
+/*
+ * Method JIT compartment data. Currently, there is exactly one per
+ * JS compartment. It would be safe for multiple JS compartments to
+ * share a JaegerCompartment as long as only one thread can enter
+ * the JaegerCompartment at a time.
+ */
+class JaegerCompartment {
+    JSC::ExecutableAllocator *execAlloc_;    // allocator for jit code
     Trampolines              trampolines;    // force-return trampolines
     VMFrame                  *activeFrame_;  // current active VMFrame
     JaegerStatus             lastUnfinished_;// result status of last VM frame,
                                              // if unfinished
 
-    void finish();
+    void Finish();
 
   public:
-    bool init(JSContext *cx);
+    bool Initialize(JSContext *cx);
 
-    JaegerRuntime();
-    ~JaegerRuntime() { finish(); }
+    JaegerCompartment();
+    ~JaegerCompartment() { Finish(); }
+
+    JSC::ExecutableAllocator *execAlloc() {
+        return execAlloc_;
+    }
 
     VMFrame *activeFrame() {
         return activeFrame_;

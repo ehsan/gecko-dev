@@ -703,7 +703,7 @@ jsd_NewScriptHookProc(
 
 void
 jsd_DestroyScriptHookProc( 
-                JSFreeOp    *fop,
+                JSContext   *cx,
                 JSScript    *script,
                 void*       callerdata )
 {
@@ -995,8 +995,8 @@ jsd_ScriptCreated(JSDContext* jsdc,
 
 void
 jsd_ScriptDestroyed(JSDContext* jsdc,
-                    JSFreeOp    *fop,
+                    JSContext   *cx,
                     JSScript    *script)
 {
-    jsd_DestroyScriptHookProc(fop, script, jsdc);
+    jsd_DestroyScriptHookProc(cx, script, jsdc);
 }

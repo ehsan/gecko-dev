@@ -184,7 +184,6 @@ public:
   }
 
   virtual void PaintThebes(gfxContext* aContext,
-                           Layer* aMaskLayer,
                            LayerManager::DrawThebesLayerCallback aCallback,
                            void* aCallbackData,
                            ReadbackProcessor* aReadback);

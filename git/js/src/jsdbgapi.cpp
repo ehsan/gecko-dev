@@ -54,6 +54,7 @@
 #include "jsdbgapi.h"
 #include "jsfun.h"
 #include "jsgc.h"
+#include "jsgcmark.h"
 #include "jsinterp.h"
 #include "jslock.h"
 #include "jsobj.h"
@@ -64,7 +65,6 @@
 #include "jswatchpoint.h"
 #include "jswrapper.h"
 
-#include "gc/Marking.h"
 #include "frontend/BytecodeEmitter.h"
 #include "frontend/Parser.h"
 #include "vm/Debugger.h"
@@ -259,34 +259,33 @@ JS_ClearInterrupt(JSRuntime *rt, JSInterruptHook *hoop, void **closurep)
 /************************************************************************/
 
 JS_PUBLIC_API(JSBool)
-JS_SetWatchPoint(JSContext *cx, JSObject *obj_, jsid id,
-                 JSWatchPointHandler handler, JSObject *closure_)
+JS_SetWatchPoint(JSContext *cx, JSObject *obj, jsid id,
+                 JSWatchPointHandler handler, JSObject *closure)
 {
-    assertSameCompartment(cx, obj_);
+    assertSameCompartment(cx, obj);
     id = js_CheckForStringIndex(id);
-
-    RootedVarObject obj(cx, obj_), closure(cx, closure_);
 
     JSObject *origobj;
     Value v;
     unsigned attrs;
+    jsid propid;
 
     origobj = obj;
-    OBJ_TO_INNER_OBJECT(cx, obj.reference());
+    OBJ_TO_INNER_OBJECT(cx, obj);
     if (!obj)
         return false;
 
-    RootedVarId propid(cx);
-
+    AutoValueRooter idroot(cx);
     if (JSID_IS_INT(id)) {
         propid = id;
     } else if (JSID_IS_OBJECT(id)) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CANT_WATCH_PROP);
         return false;
     } else {
-        if (!js_ValueToStringId(cx, IdToValue(id), propid.address()))
+        if (!js_ValueToStringId(cx, IdToValue(id), &propid))
             return false;
         propid = js_CheckForStringIndex(propid);
+        idroot.set(IdToValue(propid));
     }
 
     /*
@@ -436,7 +435,7 @@ JS_FunctionHasLocalNames(JSContext *cx, JSFunction *fun)
 extern JS_PUBLIC_API(uintptr_t *)
 JS_GetFunctionLocalNameArray(JSContext *cx, JSFunction *fun, void **markp)
 {
-    BindingNames localNames(cx);
+    Vector<JSAtom *> localNames(cx);
     if (!fun->script()->bindings.getLocalNameArray(cx, &localNames))
         return NULL;
 
@@ -449,16 +448,15 @@ JS_GetFunctionLocalNameArray(JSContext *cx, JSFunction *fun, void **markp)
         return NULL;
     }
 
-    for (size_t i = 0; i < localNames.length(); i++)
-        names[i] = reinterpret_cast<uintptr_t>(localNames[i].maybeAtom);
-
+    JS_ASSERT(sizeof(*names) == sizeof(*localNames.begin()));
+    js_memcpy(names, localNames.begin(), localNames.length() * sizeof(*names));
     return names;
 }
 
 extern JS_PUBLIC_API(JSAtom *)
 JS_LocalNameToAtom(uintptr_t w)
 {
-    return reinterpret_cast<JSAtom *>(w);
+    return JS_LOCAL_NAME_TO_ATOM(w);
 }
 
 extern JS_PUBLIC_API(JSString *)
@@ -740,9 +738,7 @@ JS_EvaluateUCInStackFrame(JSContext *cx, JSStackFrame *fpArg,
     if (!CheckDebugMode(cx))
         return false;
 
-    SkipRoot skip(cx, &chars);
-
-    RootedVar<Env*> env(cx, JS_GetFrameScopeChain(cx, fpArg));
+    Env *env = JS_GetFrameScopeChain(cx, fpArg);
     if (!env)
         return false;
 
@@ -782,10 +778,32 @@ JS_EvaluateInStackFrame(JSContext *cx, JSStackFrame *fp,
 
 /* This all should be reworked to avoid requiring JSScopeProperty types. */
 
-static JSBool
-GetPropertyDesc(JSContext *cx, JSObject *obj_, Shape *shape, JSPropertyDesc *pd)
+JS_PUBLIC_API(JSScopeProperty *)
+JS_PropertyIterator(JSObject *obj, JSScopeProperty **iteratorp)
+{
+    const Shape *shape;
+
+    /* The caller passes null in *iteratorp to get things started. */
+    shape = (Shape *) *iteratorp;
+    if (!shape)
+        shape = obj->lastProperty();
+    else
+        shape = shape->previous();
+
+    if (!shape->previous()) {
+        JS_ASSERT(shape->isEmptyShape());
+        shape = NULL;
+    }
+
+    return *iteratorp = reinterpret_cast<JSScopeProperty *>(const_cast<Shape *>(shape));
+}
+
+JS_PUBLIC_API(JSBool)
+JS_GetPropertyDesc(JSContext *cx, JSObject *obj_, JSScopeProperty *sprop,
+                   JSPropertyDesc *pd)
 {
     assertSameCompartment(cx, obj_);
+    Shape *shape = (Shape *) sprop;
     pd->id = IdToJsval(shape->propid());
 
     RootedVarObject obj(cx, obj_);
@@ -833,7 +851,6 @@ JS_PUBLIC_API(JSBool)
 JS_GetPropertyDescArray(JSContext *cx, JSObject *obj, JSPropertyDescArray *pda)
 {
     assertSameCompartment(cx, obj);
-
     Class *clasp = obj->getClass();
     if (!obj->isNative() || (clasp->flags & JSCLASS_NEW_ENUMERATE)) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
@@ -861,7 +878,7 @@ JS_GetPropertyDescArray(JSContext *cx, JSObject *obj, JSPropertyDescArray *pda)
         if (!js_AddRoot(cx, &pd[i].value, NULL))
             goto bad;
         Shape *shape = const_cast<Shape *>(&r.front());
-        if (!GetPropertyDesc(cx, obj, shape, &pd[i]))
+        if (!JS_GetPropertyDesc(cx, obj, reinterpret_cast<JSScopeProperty *>(shape), &pd[i]))
             goto bad;
         if ((pd[i].flags & JSPD_ALIAS) && !js_AddRoot(cx, &pd[i].alias, NULL))
             goto bad;
@@ -980,7 +997,7 @@ JS_GetScriptTotalSize(JSContext *cx, JSScript *script)
 {
     size_t nbytes, pbytes;
     jssrcnote *sn, *notes;
-    ObjectArray *objarray;
+    JSObjectArray *objarray;
     JSPrincipals *principals;
 
     nbytes = sizeof *script;
@@ -997,7 +1014,7 @@ JS_GetScriptTotalSize(JSContext *cx, JSScript *script)
         continue;
     nbytes += (sn - notes + 1) * sizeof *sn;
 
-    if (script->hasObjects()) {
+    if (JSScript::isValidOffset(script->objectsOffset)) {
         objarray = script->objects();
         size_t i = objarray->length;
         nbytes += sizeof *objarray + i * sizeof objarray->vector[0];
@@ -1006,7 +1023,7 @@ JS_GetScriptTotalSize(JSContext *cx, JSScript *script)
         } while (i != 0);
     }
 
-    if (script->hasRegexps()) {
+    if (JSScript::isValidOffset(script->regexpsOffset)) {
         objarray = script->regexps();
         size_t i = objarray->length;
         nbytes += sizeof *objarray + i * sizeof objarray->vector[0];
@@ -1015,8 +1032,10 @@ JS_GetScriptTotalSize(JSContext *cx, JSScript *script)
         } while (i != 0);
     }
 
-    if (script->hasTrynotes())
-        nbytes += sizeof(TryNoteArray) + script->trynotes()->length * sizeof(JSTryNote);
+    if (JSScript::isValidOffset(script->trynotesOffset)) {
+        nbytes += sizeof(JSTryNoteArray) +
+            script->trynotes()->length * sizeof(JSTryNote);
+    }
 
     principals = script->principals;
     if (principals) {

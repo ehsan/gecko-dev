@@ -344,8 +344,8 @@ class GlobalObject : public JSObject {
 
     bool getFunctionNamespace(JSContext *cx, Value *vp);
 
-    static bool initGeneratorClass(JSContext *cx, Handle<GlobalObject*> global);
-    static bool initStandardClasses(JSContext *cx, Handle<GlobalObject*> global);
+    bool initGeneratorClass(JSContext *cx);
+    bool initStandardClasses(JSContext *cx);
 
     typedef js::Vector<js::Debugger *, 0, js::SystemAllocPolicy> DebuggerVector;
 
@@ -359,9 +359,9 @@ class GlobalObject : public JSObject {
      * The same, but create the empty vector if one does not already
      * exist. Returns NULL only on OOM.
      */
-    static DebuggerVector *getOrCreateDebuggers(JSContext *cx, Handle<GlobalObject*> global);
+    DebuggerVector *getOrCreateDebuggers(JSContext *cx);
 
-    static bool addDebugger(JSContext *cx, Handle<GlobalObject*> global, Debugger *dbg);
+    bool addDebugger(JSContext *cx, Debugger *dbg);
 };
 
 /*

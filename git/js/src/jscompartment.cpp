@@ -41,6 +41,7 @@
 #include "jscntxt.h"
 #include "jscompartment.h"
 #include "jsgc.h"
+#include "jsgcmark.h"
 #include "jsiter.h"
 #include "jsmath.h"
 #include "jsproxy.h"
@@ -49,7 +50,6 @@
 #include "jswrapper.h"
 
 #include "assembler/wtf/Platform.h"
-#include "gc/Marking.h"
 #include "js/MemoryMetrics.h"
 #include "methodjit/MethodJIT.h"
 #include "methodjit/PolyIC.h"
@@ -80,6 +80,9 @@ JSCompartment::JSCompartment(JSRuntime *rt)
     typeLifoAlloc(TYPE_LIFO_ALLOC_PRIMARY_CHUNK_SIZE),
     data(NULL),
     active(false),
+#ifdef JS_METHODJIT
+    jaegerCompartment_(NULL),
+#endif
     regExps(rt),
     propertyTree(thisForCtor()),
     emptyTypeObject(NULL),
@@ -87,20 +90,38 @@ JSCompartment::JSCompartment(JSRuntime *rt)
     gcTriggerMallocAndFreeBytes(0),
     gcMallocBytes(0),
     debugModeBits(rt->debugMode ? DebugFromC : 0),
+    mathCache(NULL),
     watchpointMap(NULL),
     scriptCountsMap(NULL),
     sourceMapMap(NULL),
     debugScriptMap(NULL)
 {
+    PodArrayZero(evalCache);
     setGCMaxMallocBytes(rt->gcMaxMallocBytes * 0.9);
 }
 
 JSCompartment::~JSCompartment()
 {
+    /*
+     * Even though all objects in the compartment are dead, we may have keep
+     * some filenames around because of gcKeepAtoms.
+     */
+    FreeScriptFilenames(this);
+
+#ifdef JS_METHODJIT
+    Foreground::delete_(jaegerCompartment_);
+#endif
+
+    Foreground::delete_(mathCache);
     Foreground::delete_(watchpointMap);
     Foreground::delete_(scriptCountsMap);
     Foreground::delete_(sourceMapMap);
     Foreground::delete_(debugScriptMap);
+
+#ifdef DEBUG
+    for (size_t i = 0; i < ArrayLength(evalCache); ++i)
+        JS_ASSERT(!evalCache[i]);
+#endif
 }
 
 bool
@@ -109,14 +130,51 @@ JSCompartment::init(JSContext *cx)
     activeAnalysis = activeInference = false;
     types.init(cx);
 
+    newObjectCache.reset();
+
     if (!crossCompartmentWrappers.init())
         return false;
 
     if (!regExps.init(cx))
         return false;
 
+    if (!scriptFilenameTable.init())
+        return false;
+
     return debuggees.init();
 }
+
+#ifdef JS_METHODJIT
+bool
+JSCompartment::ensureJaegerCompartmentExists(JSContext *cx)
+{
+    if (jaegerCompartment_)
+        return true;
+
+    mjit::JaegerCompartment *jc = cx->new_<mjit::JaegerCompartment>();
+    if (!jc)
+        return false;
+    if (!jc->Initialize(cx)) {
+        cx->delete_(jc);
+        return false;
+    }
+    jaegerCompartment_ = jc;
+    return true;
+}
+
+size_t
+JSCompartment::sizeOfMjitCode() const
+{
+    if (!jaegerCompartment_)
+        return 0;
+
+    size_t method, regexp, unused;
+    jaegerCompartment_->execAlloc()->sizeOfCode(&method, &regexp, &unused);
+    JS_ASSERT(regexp == 0);
+    return method + unused;
+}
+
+#endif
 
 bool
 JSCompartment::wrap(JSContext *cx, Value *vp)
@@ -152,7 +210,7 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
      * we parent all wrappers to the global object in their home compartment.
      * This loses us some transparency, and is generally very cheesy.
      */
-    RootedVarObject global(cx);
+    JSObject *global;
     if (cx->hasfp()) {
         global = &cx->fp()->global();
     } else {
@@ -213,11 +271,11 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
     if (WrapperMap::Ptr p = crossCompartmentWrappers.lookup(*vp)) {
         *vp = p->value;
         if (vp->isObject()) {
-            RootedVarObject obj(cx, &vp->toObject());
+            JSObject *obj = &vp->toObject();
             JS_ASSERT(obj->isCrossCompartmentWrapper());
             if (global->getClass() != &dummy_class && obj->getParent() != global) {
                 do {
-                    if (!JSObject::setParent(cx, obj, global))
+                    if (!obj->setParent(cx, global))
                         return false;
                     obj = obj->getProto();
                 } while (obj && obj->isCrossCompartmentWrapper());
@@ -227,7 +285,7 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
     }
 
     if (vp->isString()) {
-        RootedVarValue orig(cx, *vp);
+        Value orig = *vp;
         JSString *str = vp->toString();
         const jschar *chars = str->getChars(cx);
         if (!chars)
@@ -239,7 +297,7 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
         return crossCompartmentWrappers.put(orig, *vp);
     }
 
-    RootedVarObject obj(cx, &vp->toObject());
+    JSObject *obj = &vp->toObject();
 
     /*
      * Recurse to wrap the prototype. Long prototype chains will run out of
@@ -251,8 +309,8 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
      * here (since Object.prototype->parent->proto leads to Object.prototype
      * itself).
      */
-    RootedVarObject proto(cx, obj->getProto());
-    if (!wrap(cx, proto.address()))
+    JSObject *proto = obj->getProto();
+    if (!wrap(cx, &proto))
         return false;
 
     /*
@@ -260,7 +318,7 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
      * the wrap hook to reason over what wrappers are currently applied
      * to the object.
      */
-    RootedVarObject wrapper(cx, cx->runtime->wrapObjectCallback(cx, obj, proto, global, flags));
+    JSObject *wrapper = cx->runtime->wrapObjectCallback(cx, obj, proto, global, flags);
     if (!wrapper)
         return false;
 
@@ -272,7 +330,7 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
     if (!crossCompartmentWrappers.put(GetProxyPrivate(wrapper), *vp))
         return false;
 
-    if (!JSObject::setParent(cx, wrapper, global))
+    if (!wrapper->setParent(cx, global))
         return false;
     return true;
 }
@@ -280,20 +338,20 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
 bool
 JSCompartment::wrap(JSContext *cx, JSString **strp)
 {
-    RootedVarValue value(cx, StringValue(*strp));
-    if (!wrap(cx, value.address()))
+    AutoValueRooter tvr(cx, StringValue(*strp));
+    if (!wrap(cx, tvr.addr()))
         return false;
-    *strp = value.reference().toString();
+    *strp = tvr.value().toString();
     return true;
 }
 
 bool
 JSCompartment::wrap(JSContext *cx, HeapPtrString *strp)
 {
-    RootedVarValue value(cx, StringValue(*strp));
-    if (!wrap(cx, value.address()))
+    AutoValueRooter tvr(cx, StringValue(*strp));
+    if (!wrap(cx, tvr.addr()))
         return false;
-    *strp = value.reference().toString();
+    *strp = tvr.value().toString();
     return true;
 }
 
@@ -302,10 +360,10 @@ JSCompartment::wrap(JSContext *cx, JSObject **objp)
 {
     if (!*objp)
         return true;
-    RootedVarValue value(cx, ObjectValue(**objp));
-    if (!wrap(cx, value.address()))
+    AutoValueRooter tvr(cx, ObjectValue(**objp));
+    if (!wrap(cx, tvr.addr()))
         return false;
-    *objp = &value.reference().toObject();
+    *objp = &tvr.value().toObject();
     return true;
 }
 
@@ -314,10 +372,10 @@ JSCompartment::wrapId(JSContext *cx, jsid *idp)
 {
     if (JSID_IS_INT(*idp))
         return true;
-    RootedVarValue value(cx, IdToValue(*idp));
-    if (!wrap(cx, value.address()))
+    AutoValueRooter tvr(cx, IdToValue(*idp));
+    if (!wrap(cx, tvr.addr()))
         return false;
-    return ValueToId(cx, value.reference(), idp);
+    return ValueToId(cx, tvr.value(), idp);
 }
 
 bool
@@ -463,6 +521,8 @@ JSCompartment::sweep(FreeOp *fop, bool releaseTypes)
     if (emptyTypeObject && IsAboutToBeFinalized(emptyTypeObject))
         emptyTypeObject = NULL;
 
+    newObjectCache.reset();
+
     sweepBreakpoints(fop);
 
     {
@@ -530,6 +590,24 @@ void
 JSCompartment::purge()
 {
     dtoaCache.purge();
+
+    /*
+     * Clear the hash and reset all evalHashLink to null before the GC. This
+     * way MarkChildren(trc, JSScript *) can assume that JSScript::u.object is
+     * not null when we have script owned by an object and not from the eval
+     * cache.
+     */
+    for (size_t i = 0; i < ArrayLength(evalCache); ++i) {
+        for (JSScript **listHeadp = &evalCache[i]; *listHeadp; ) {
+            JSScript *script = *listHeadp;
+            JS_ASSERT(GetGCThingTraceKind(script) == JSTRACE_SCRIPT);
+            *listHeadp = NULL;
+            listHeadp = &script->evalHashLink();
+        }
+    }
+
+    nativeIterCache.purge();
+    toSourceCache.destroyIfConstructed();
 }
 
 void
@@ -555,6 +633,16 @@ JSCompartment::onTooMuchMalloc()
     TriggerCompartmentGC(this, gcreason::TOO_MUCH_MALLOC);
 }
 
+
+MathCache *
+JSCompartment::allocMathCache(JSContext *cx)
+{
+    JS_ASSERT(!mathCache);
+    mathCache = cx->new_<MathCache>();
+    if (!mathCache)
+        js_ReportOutOfMemory(cx);
+    return mathCache;
+}
 
 bool
 JSCompartment::hasScriptsOnStack()

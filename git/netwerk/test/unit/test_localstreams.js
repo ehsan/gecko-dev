@@ -2,6 +2,12 @@
 
 const PR_RDONLY = 0x1;  // see prio.h
 
+function getDir(key) {
+  var dirSvc = Components.classes["@mozilla.org/file/directory_service;1"]
+                         .getService(Components.interfaces.nsIProperties);
+  return dirSvc.get(key, Components.interfaces.nsILocalFile);
+}
+
 // Does some sanity checks on the stream and returns the number of bytes read
 // when the checks passed.
 function test_stream(stream) {
@@ -73,7 +79,7 @@ function stream_from_channel(file) {
 
 function run_test() {
   // Get a file and a directory in order to do some testing
-  var file = do_get_file("../unit/data/test_readline6.txt");
+  var file = getDir("XpcomLib");
   var len = file.fileSize;
   do_check_eq(test_stream(stream_for_file(file)), len);
   do_check_eq(test_stream(stream_from_channel(file)), len);

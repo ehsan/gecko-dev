@@ -42,11 +42,11 @@
 #include "jsapi.h"
 #include "jsdbgapi.h"
 #include "mozilla/Util.h"
-#include "mozilla/dom/DOMJSClass.h"
-#include "mozilla/dom/EventTargetBinding.h"
-#include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/XMLHttpRequestBinding.h"
-#include "mozilla/dom/XMLHttpRequestUploadBinding.h"
+#include "mozilla/dom/bindings/DOMJSClass.h"
+#include "mozilla/dom/bindings/EventTargetBinding.h"
+#include "mozilla/dom/bindings/Utils.h"
+#include "mozilla/dom/bindings/XMLHttpRequestBinding.h"
+#include "mozilla/dom/bindings/XMLHttpRequestUploadBinding.h"
 #include "nsTraceRefcnt.h"
 #include "xpcpublic.h"
 
@@ -79,6 +79,7 @@
   JSPROP_ENUMERATE
 
 using namespace mozilla;
+using namespace mozilla::dom::bindings;
 USING_WORKERS_NAMESPACE
 
 namespace {
@@ -706,7 +707,7 @@ public:
   {
     JS_ASSERT(JS_GetClass(aObj) == Class());
 
-    dom::AllocateProtoOrIfaceCache(aObj);
+    mozilla::dom::bindings::AllocateProtoOrIfaceCache(aObj);
 
     nsRefPtr<DedicatedWorkerGlobalScope> scope =
       new DedicatedWorkerGlobalScope(aCx, aWorkerPrivate);
@@ -844,7 +845,6 @@ private:
     DedicatedWorkerGlobalScope* scope =
       UnwrapDOMObject<DedicatedWorkerGlobalScope>(aObj, Class());
     if (scope) {
-      mozilla::dom::TraceProtoOrIfaceCache(aTrc, aObj);
       scope->_Trace(aTrc);
     }
   }
@@ -930,7 +930,7 @@ BEGIN_WORKERS_NAMESPACE
 JSObject*
 CreateDedicatedWorkerGlobalScope(JSContext* aCx)
 {
-  using namespace mozilla::dom;
+  using namespace mozilla::dom::bindings::prototypes;
 
   WorkerPrivate* worker = GetWorkerPrivateFromContext(aCx);
   JS_ASSERT(worker);
@@ -959,7 +959,7 @@ CreateDedicatedWorkerGlobalScope(JSContext* aCx)
   //          -> Object
 
   JSObject* eventTargetProto =
-    EventTargetBinding_workers::GetProtoObject(aCx, global, global);
+    EventTarget_workers::GetProtoObject(aCx, global, global);
   if (!eventTargetProto) {
     return NULL;
   }
@@ -1004,10 +1004,9 @@ CreateDedicatedWorkerGlobalScope(JSContext* aCx)
   }
 
   // Init other paris-bindings.
-  if (!XMLHttpRequestBinding_workers::CreateInterfaceObjects(aCx, global,
-                                                             global) ||
-      !XMLHttpRequestUploadBinding_workers::CreateInterfaceObjects(aCx, global,
-                                                                   global)) {
+  if (!XMLHttpRequest_workers::CreateInterfaceObjects(aCx, global, global) ||
+      !XMLHttpRequestUpload_workers::CreateInterfaceObjects(aCx, global,
+                                                            global)) {
     return NULL;
   }
 

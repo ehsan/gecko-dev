@@ -59,7 +59,7 @@
 #include "xpcprivate.h"
 #include "XPCWrapper.h"
 
-#include "mozilla/dom/RegisterBindings.h"
+#include "mozilla/dom/bindings/Common.h"
 
 #include "nscore.h"
 #include "nsDOMClassInfo.h"
@@ -309,9 +309,7 @@
 #include "nsIDOMHTMLSourceElement.h"
 #include "nsIDOMHTMLVideoElement.h"
 #include "nsIDOMHTMLAudioElement.h"
-#if defined (MOZ_MEDIA)
 #include "nsIDOMMediaStream.h"
-#endif
 #include "nsIDOMProgressEvent.h"
 #include "nsIDOMCSS2Properties.h"
 #include "nsIDOMCSSCharsetRule.h"
@@ -325,8 +323,6 @@
 #include "nsIDOMCSSStyleRule.h"
 #include "nsIDOMCSSStyleSheet.h"
 #include "nsDOMCSSValueList.h"
-#include "nsIDOMDeviceProximityEvent.h"
-#include "nsIDOMDeviceLightEvent.h"
 #include "nsIDOMDeviceOrientationEvent.h"
 #include "nsIDOMDeviceMotionEvent.h"
 #include "nsIDOMRange.h"
@@ -534,6 +530,7 @@ using mozilla::dom::indexedDB::IDBWrapperCache;
 
 #ifdef MOZ_B2G_BT
 #include "BluetoothAdapter.h"
+#include "BluetoothDevice.h"
 #endif
 
 #include "DOMError.h"
@@ -814,12 +811,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(CompositionEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(PopupBlockedEvent, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  // Device Light
-  NS_DEFINE_CLASSINFO_DATA(DeviceLightEvent, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  // Device Proximity
-  NS_DEFINE_CLASSINFO_DATA(DeviceProximityEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   // Device Orientation
   NS_DEFINE_CLASSINFO_DATA(DeviceOrientationEvent, nsDOMGenericSH,
@@ -1647,6 +1638,8 @@ static nsDOMClassInfoData sClassInfoData[] = {
 #ifdef MOZ_B2G_BT
   NS_DEFINE_CLASSINFO_DATA(BluetoothAdapter, nsEventTargetSH,
                            EVENTTARGET_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(BluetoothDevice, nsEventTargetSH,
+                           EVENTTARGET_SCRIPTABLE_FLAGS)
 #endif
 
   NS_DEFINE_CLASSINFO_DATA(DOMError, nsDOMGenericSH,
@@ -1700,9 +1693,6 @@ NS_DEFINE_EVENT_CTOR(CloseEvent)
 NS_DEFINE_EVENT_CTOR(MozSettingsEvent)
 NS_DEFINE_EVENT_CTOR(UIEvent)
 NS_DEFINE_EVENT_CTOR(MouseEvent)
-NS_DEFINE_EVENT_CTOR(DeviceLightEvent)
-NS_DEFINE_EVENT_CTOR(DeviceProximityEvent)
-
 nsresult
 NS_DOMStorageEventCtor(nsISupports** aInstancePtrResult)
 {
@@ -1736,8 +1726,6 @@ static const nsConstructorFuncMapData kConstructorFuncMap[] =
   NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(MozSettingsEvent)
   NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(UIEvent)
   NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(MouseEvent)
-  NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(DeviceProximityEvent)
-  NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(DeviceLightEvent)
   NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(StorageEvent)
   NS_DEFINE_CONSTRUCTOR_FUNC_DATA(MozSmsFilter, sms::SmsFilter::NewSmsFilter)
 };
@@ -1789,6 +1777,8 @@ jsid nsDOMClassInfo::sAddEventListener_id= JSID_VOID;
 jsid nsDOMClassInfo::sBaseURIObject_id   = JSID_VOID;
 jsid nsDOMClassInfo::sNodePrincipal_id   = JSID_VOID;
 jsid nsDOMClassInfo::sDocumentURIObject_id=JSID_VOID;
+jsid nsDOMClassInfo::sJava_id            = JSID_VOID;
+jsid nsDOMClassInfo::sPackages_id        = JSID_VOID;
 jsid nsDOMClassInfo::sWrappedJSObject_id = JSID_VOID;
 jsid nsDOMClassInfo::sURL_id             = JSID_VOID;
 jsid nsDOMClassInfo::sKeyPath_id         = JSID_VOID;
@@ -2059,6 +2049,8 @@ nsDOMClassInfo::DefineStaticJSVals(JSContext *cx)
   SET_JSID_TO_STRING(sBaseURIObject_id,   cx, "baseURIObject");
   SET_JSID_TO_STRING(sNodePrincipal_id,   cx, "nodePrincipal");
   SET_JSID_TO_STRING(sDocumentURIObject_id,cx,"documentURIObject");
+  SET_JSID_TO_STRING(sJava_id,            cx, "java");
+  SET_JSID_TO_STRING(sPackages_id,        cx, "Packages");
   SET_JSID_TO_STRING(sWrappedJSObject_id, cx, "wrappedJSObject");
   SET_JSID_TO_STRING(sURL_id,             cx, "URL");
   SET_JSID_TO_STRING(sKeyPath_id,         cx, "keyPath");
@@ -2615,16 +2607,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(PopupBlockedEvent, nsIDOMPopupBlockedEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMPopupBlockedEvent)
-    DOM_CLASSINFO_EVENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(DeviceLightEvent, nsIDOMDeviceLightEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMDeviceLightEvent)
-    DOM_CLASSINFO_EVENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(DeviceProximityEvent, nsIDOMDeviceProximityEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMDeviceProximityEvent)
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
@@ -4437,6 +4419,10 @@ nsDOMClassInfo::Init()
 #ifdef MOZ_B2G_BT
   DOM_CLASSINFO_MAP_BEGIN(BluetoothAdapter, nsIDOMBluetoothAdapter)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMBluetoothAdapter)
+  DOM_CLASSINFO_MAP_END  
+  
+  DOM_CLASSINFO_MAP_BEGIN(BluetoothDevice, nsIDOMBluetoothDevice)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMBluetoothDevice)
   DOM_CLASSINFO_MAP_END
 #endif
 
@@ -4507,7 +4493,7 @@ nsDOMClassInfo::Init()
   mozilla::dom::binding::Register(nameSpaceManager);
 
   // Non-proxy bindings
-  mozilla::dom::Register(nameSpaceManager);
+  mozilla::dom::bindings::Register(nameSpaceManager);
 
   sIsInitialized = true;
 
@@ -5167,6 +5153,8 @@ nsDOMClassInfo::ShutDown()
   sBaseURIObject_id   = JSID_VOID;
   sNodePrincipal_id   = JSID_VOID;
   sDocumentURIObject_id=JSID_VOID;
+  sJava_id            = JSID_VOID;
+  sPackages_id        = JSID_VOID;
   sWrappedJSObject_id = JSID_VOID;
   sKeyPath_id         = JSID_VOID;
   sAutoIncrement_id   = JSID_VOID;
@@ -5497,8 +5485,8 @@ nsWindowSH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
       nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
       jsval v;
-      rv = WrapNative(cx, xpc_UnmarkGrayObject(frameWin->GetGlobalJSObject()),
-                      frame, &NS_GET_IID(nsIDOMWindow), true, &v,
+      rv = WrapNative(cx, frameWin->GetGlobalJSObject(), frame,
+                      &NS_GET_IID(nsIDOMWindow), true, &v,
                       getter_AddRefs(holder));
       NS_ENSURE_SUCCESS(rv, rv);
 
@@ -7304,7 +7292,34 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
       return NS_OK;
     }
 
-    if (id == sDialogArguments_id && win->IsModalContentWindow()) {
+    if (id == sJava_id || id == sPackages_id) {
+      static bool isResolvingJavaProperties;
+
+      if (!isResolvingJavaProperties) {
+        isResolvingJavaProperties = true;
+
+        // Tell the window to initialize the Java properties. The
+        // window needs to do this as we need to do this only once,
+        // and detecting that reliably from here is hard.
+
+        win->InitJavaProperties(); 
+
+        JSBool hasProp;
+        bool ok = ::JS_HasPropertyById(cx, obj, id, &hasProp);
+
+        isResolvingJavaProperties = false;
+
+        if (!ok) {
+          return NS_ERROR_FAILURE;
+        }
+
+        if (hasProp) {
+          *objp = obj;
+
+          return NS_OK;
+        }
+      }
+    } else if (id == sDialogArguments_id && win->IsModalContentWindow()) {
       nsCOMPtr<nsIArray> args;
       ((nsGlobalModalWindow *)win)->GetDialogArguments(getter_AddRefs(args));
 

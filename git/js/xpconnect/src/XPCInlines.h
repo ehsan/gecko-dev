@@ -47,6 +47,22 @@
 #include "jsfriendapi.h"
 
 /***************************************************************************/
+bool
+xpc::PtrAndPrincipalHashKey::KeyEquals(const PtrAndPrincipalHashKey* aKey) const
+{
+    if (aKey->mPtr != mPtr)
+        return false;
+    if (aKey->mPrincipal == mPrincipal)
+        return true;
+
+    bool equals;
+    if (NS_FAILED(mPrincipal->EqualsIgnoringDomain(aKey->mPrincipal, &equals))) {
+        NS_ERROR("we failed, guessing!");
+        return false;
+    }
+
+    return equals;
+}
 
 inline void
 XPCJSRuntime::AddVariantRoot(XPCTraceableVariant* variant)

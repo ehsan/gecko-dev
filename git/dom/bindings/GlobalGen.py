@@ -74,8 +74,8 @@ def main():
     generate_file(config, 'PrototypeList', 'declare')
 
     # Generate the common code.
-    generate_file(config, 'RegisterBindings', 'declare')
-    generate_file(config, 'RegisterBindings', 'define')
+    generate_file(config, 'Common', 'declare')
+    generate_file(config, 'Common', 'define')
 
 if __name__ == '__main__':
     main()

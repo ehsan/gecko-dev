@@ -314,15 +314,7 @@ ContainerLayerD3D10::RenderLayer()
     SetEffectTransformAndOpacity();
 
     ID3D10EffectTechnique *technique;
-    if (LoadMaskTexture()) {
-      if (GetTransform().CanDraw2D()) {
-        technique = SelectShader(SHADER_RGBA | SHADER_PREMUL | SHADER_MASK);
-      } else {
-        technique = SelectShader(SHADER_RGBA | SHADER_PREMUL | SHADER_MASK_3D);
-      }
-    } else {
-        technique = SelectShader(SHADER_RGBA | SHADER_PREMUL | SHADER_NO_MASK);
-    }
+    technique = effect()->GetTechniqueByName("RenderRGBALayerPremul");
 
     effect()->GetVariableByName("vLayerQuad")->AsVector()->SetFloatVector(
       ShaderConstantRectD3D10(

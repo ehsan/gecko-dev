@@ -49,11 +49,7 @@ ifeq (WINNT,$(OS_TARGET))
 FORCE_SHARED_LIB = 1
 endif
 
-SHARED_LIBRARY_LIBS = $(MOZ_OTS_LIBS) $(QCMS_LIBS) $(MOZ_CAIRO_LIBS)
-
-ifdef MOZ_GRAPHITE
-SHARED_LIBRARY_LIBS += $(MOZ_GRAPHITE_LIBS)
-endif
+SHARED_LIBRARY_LIBS = $(MOZ_OTS_LIBS)
 
 ifdef MOZ_VORBIS
 SHARED_LIBRARY_LIBS 	+= \
@@ -73,12 +69,6 @@ ifdef MOZ_OGG
 SHARED_LIBRARY_LIBS 	+= \
 	$(DEPTH)/media/libtheora/lib/$(LIB_PREFIX)theora.$(LIB_SUFFIX) \
 	$(NULL)
-endif
-
-ifdef MOZ_OPUS
-SHARED_LIBRARY_LIBS += \
-  $(DEPTH)/media/libopus/$(LIB_PREFIX)opus.$(LIB_SUFFIX) \
-  $(NULL)
 endif
 
 ifdef MOZ_WEBM
@@ -102,25 +92,8 @@ SHARED_LIBRARY_LIBS 	+= \
 	$(NULL)
 endif
 
-ifndef MOZ_NATIVE_PNG
-SHARED_LIBRARY_LIBS 	+= \
-	$(DEPTH)/media/libpng/$(LIB_PREFIX)mozpng.$(LIB_SUFFIX) \
-	$(NULL)
-endif
-
-ifndef MOZ_NATIVE_JPEG
-SHARED_LIBRARY_LIBS 	+= \
-	$(DEPTH)/media/libjpeg/$(LIB_PREFIX)mozjpeg.$(LIB_SUFFIX) \
-	$(NULL)
-endif
-
 SHARED_LIBRARY_LIBS 	+= \
 	$(DEPTH)/gfx/angle/$(LIB_PREFIX)angle.$(LIB_SUFFIX) \
-	$(DEPTH)/parser/expat/lib/$(LIB_PREFIX)mozexpat_s.$(LIB_SUFFIX) \
-	$(NULL)
-
-SHARED_LIBRARY_LIBS 	+= \
-	$(DEPTH)/gfx/2d/$(LIB_PREFIX)gfx2d.$(LIB_SUFFIX) \
 	$(NULL)
 
 ifeq (WINNT,$(OS_TARGET))
@@ -141,8 +114,6 @@ include $(topsrcdir)/config/rules.mk
 ifeq (WINNT,$(OS_TARGET))
 symbols.def: symbols.def.in
 	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(ACDEFINES) $< > $@
-
-OS_LIBS += $(call EXPAND_LIBNAME, msimg32)
 
 ifdef MOZ_CUBEB
 OS_LIBS += $(call EXPAND_LIBNAME, winmm)

@@ -43,7 +43,6 @@
 #include <errno.h>
 
 #include <qabstracteventdispatcher.h>
-#include <qthread.h>
 
 #include "prenv.h"
 #include "nsQAppInstance.h"
@@ -107,7 +106,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
     if (mayWait)
         flags |= QEventLoop::WaitForMoreEvents;
 
-    QAbstractEventDispatcher *dispatcher =  QAbstractEventDispatcher::instance(QThread::currentThread());
+    QAbstractEventDispatcher *dispatcher =  QAbstractEventDispatcher::instance(qApp->thread());
     if (!dispatcher)
         return false;
 

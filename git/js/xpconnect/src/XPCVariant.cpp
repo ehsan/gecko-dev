@@ -120,7 +120,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(XPCVariant)
     jsval val = tmp->GetJSValPreserveColor();
     if (JSVAL_IS_OBJECT(val)) {
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mJSVal");
-        cb.NoteJSChild(JSVAL_TO_OBJECT(val));
+        cb.NoteScriptChild(nsIProgrammingLanguage::JAVASCRIPT,
+                           JSVAL_TO_OBJECT(val));
     }
 
     nsVariant::Traverse(tmp->mData, cb);

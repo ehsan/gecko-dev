@@ -105,7 +105,7 @@
 #include "mozilla/Telemetry.h"
 #include "jsfriendapi.h"
 #include "sampler.h"
-#include "mozilla/dom/XMLHttpRequestBinding.h"
+#include "mozilla/dom/bindings/XMLHttpRequestBinding.h"
 #include "nsIDOMFormData.h"
 
 #include "nsWrapperCacheInlines.h"
@@ -1033,11 +1033,6 @@ nsXMLHttpRequest::CreatePartialBlob()
     return NS_OK;
   }
 
-  // mBuilder can be null if the request has been canceled
-  if (!mBuilder) {
-    return NS_OK;
-  }
-
   nsCAutoString contentType;
   if (mLoadTotal == mLoadTransferred) {
     mChannel->GetContentType(contentType);
@@ -1091,8 +1086,8 @@ nsXMLHttpRequest::StaticAssertions()
 {
 #define ASSERT_ENUM_EQUAL(_lc, _uc) \
   MOZ_STATIC_ASSERT(\
-    XMLHttpRequestResponseTypeValues::_lc                \
-    == XMLHttpRequestResponseType(XML_HTTP_RESPONSE_TYPE_ ## _uc), \
+    bindings::prototypes::XMLHttpRequestResponseType::_lc \
+      == bindings::prototypes::XMLHttpRequestResponseType::value(XML_HTTP_RESPONSE_TYPE_ ## _uc), \
     #_uc " should match")
 
   ASSERT_ENUM_EQUAL(_empty, DEFAULT);

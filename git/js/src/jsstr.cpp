@@ -402,10 +402,9 @@ JSSubString js_EmptySubString = {0, js_empty_ucstr};
 static const unsigned STRING_ELEMENT_ATTRS = JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT;
 
 static JSBool
-str_enumerate(JSContext *cx, JSObject *obj_)
+str_enumerate(JSContext *cx, JSObject *obj)
 {
-    RootedVarObject obj(cx, obj_);
-    RootedVarString str(cx, obj->asString().unbox());
+    JSString *str = obj->asString().unbox();
     for (size_t i = 0, length = str->length(); i < length; i++) {
         JSString *str1 = js_NewDependentString(cx, str, i, 1);
         if (!str1)
@@ -421,13 +420,11 @@ str_enumerate(JSContext *cx, JSObject *obj_)
 }
 
 static JSBool
-str_resolve(JSContext *cx, JSObject *obj_, jsid id, unsigned flags,
+str_resolve(JSContext *cx, JSObject *obj, jsid id, unsigned flags,
             JSObject **objp)
 {
     if (!JSID_IS_INT(id))
         return JS_TRUE;
-
-    RootedVarObject obj(cx, obj_);
 
     JSString *str = obj->asString().unbox();
 
@@ -1341,7 +1338,7 @@ str_trimRight(JSContext *cx, unsigned argc, Value *vp)
 /* Result of a successfully performed flat match. */
 class FlatMatch
 {
-    RootedVarAtom patstr;
+    JSAtom       *patstr;
     const jschar *pat;
     size_t       patlen;
     int32_t      match_;
@@ -1349,7 +1346,7 @@ class FlatMatch
     friend class StringRegExpGuard;
 
   public:
-    FlatMatch(JSContext *cx) : patstr(cx) {}
+    FlatMatch() : patstr(NULL) {} /* Old GCC wants this initialization. */
     JSLinearString *pattern() const { return patstr; }
     size_t patternLength() const { return patlen; }
 
@@ -1427,7 +1424,7 @@ class StringRegExpGuard
     }
 
   public:
-    StringRegExpGuard(JSContext *cx) : fm(cx) {}
+    StringRegExpGuard() {}
 
     /* init must succeed in order to call tryFlatMatch or normalizeRegExp. */
     bool init(JSContext *cx, CallArgs args, bool convertVoid = false)
@@ -1593,7 +1590,7 @@ DoMatch(JSContext *cx, RegExpStatics *res, JSString *str, RegExpShared &re,
 }
 
 static bool
-BuildFlatMatchArray(JSContext *cx, HandleString textstr, const FlatMatch &fm, CallArgs *args)
+BuildFlatMatchArray(JSContext *cx, JSString *textstr, const FlatMatch &fm, CallArgs *args)
 {
     if (fm.match() < 0) {
         args->rval() = NullValue();
@@ -1601,7 +1598,7 @@ BuildFlatMatchArray(JSContext *cx, HandleString textstr, const FlatMatch &fm, Ca
     }
 
     /* For this non-global match, produce a RegExp.exec-style array. */
-    RootedVarObject obj(cx, NewSlowEmptyArray(cx));
+    JSObject *obj = NewSlowEmptyArray(cx);
     if (!obj)
         return false;
 
@@ -1642,11 +1639,11 @@ JSBool
 js::str_match(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    RootedVarString str(cx, ThisToStringForStringProto(cx, args));
+    JSString *str = ThisToStringForStringProto(cx, args);
     if (!str)
         return false;
 
-    StringRegExpGuard g(cx);
+    StringRegExpGuard g;
     if (!g.init(cx, args, true))
         return false;
 
@@ -1678,11 +1675,11 @@ JSBool
 js::str_search(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    RootedVarString str(cx, ThisToStringForStringProto(cx, args));
+    JSString *str = ThisToStringForStringProto(cx, args);
     if (!str)
         return false;
 
-    StringRegExpGuard g(cx);
+    StringRegExpGuard g;
     if (!g.init(cx, args, true))
         return false;
     if (const FlatMatch *fm = g.tryFlatMatch(cx, str, 1, args.length())) {
@@ -1720,8 +1717,7 @@ js::str_search(JSContext *cx, unsigned argc, Value *vp)
 struct ReplaceData
 {
     ReplaceData(JSContext *cx)
-      : str(cx), g(cx), lambda(cx), elembase(cx), repstr(cx),
-        dollarRoot(cx, &dollar), dollarEndRoot(cx, &dollarEnd), sb(cx)
+      : str(cx), lambda(cx), elembase(cx), repstr(cx), sb(cx)
     {}
 
     RootedVarString    str;            /* 'this' parameter object as a string */
@@ -1731,8 +1727,6 @@ struct ReplaceData
     RootedVar<JSLinearString*> repstr; /* replacement string */
     const jschar       *dollar;        /* null or pointer to first $ in repstr */
     const jschar       *dollarEnd;     /* limit pointer for js_strchr_limit */
-    SkipRoot           dollarRoot;     /* XXX prevent dollar from being relocated */
-    SkipRoot           dollarEndRoot;  /* ditto */
     int                leftIndex;      /* left context index in str->chars */
     JSSubString        dollarStr;      /* for "$$" InterpretDollar result */
     bool               calledBack;     /* record whether callback has been called */
@@ -1850,7 +1844,7 @@ FindReplaceLength(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, size_t 
     }
 
     if (JSObject *lambda = rdata.lambda) {
-        PreserveRegExpStatics staticsGuard(cx, res);
+        PreserveRegExpStatics staticsGuard(res);
         if (!staticsGuard.init(cx))
             return false;
 
@@ -1994,7 +1988,7 @@ BuildFlatReplacement(JSContext *cx, HandleString textstr, HandleString repstr,
             return false;
         size_t pos = 0;
         while (!r.empty()) {
-            RootedVarString str(cx, r.front());
+            JSString *str = r.front();
             size_t len = str->length();
             size_t strEnd = pos + len;
             if (pos < matchEnd && strEnd > match) {
@@ -2067,7 +2061,7 @@ static inline bool
 BuildDollarReplacement(JSContext *cx, JSString *textstrArg, JSLinearString *repstr,
                        const jschar *firstDollar, const FlatMatch &fm, CallArgs *args)
 {
-    RootedVar<JSLinearString*> textstr(cx, textstrArg->ensureLinear(cx));
+    JSLinearString *textstr = textstrArg->ensureLinear(cx);
     if (!textstr)
         return NULL;
 
@@ -2595,7 +2589,7 @@ js::str_split(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     /* Steps 1-2. */
-    RootedVarString str(cx, ThisToStringForStringProto(cx, args));
+    JSString *str = ThisToStringForStringProto(cx, args);
     if (!str)
         return false;
 

@@ -6079,21 +6079,17 @@ public:
                                      const char *objName)
   {
   }
-
   NS_IMETHOD_(void) NoteXPCOMRoot(nsISupports *root)
   {
   }
-  NS_IMETHOD_(void) NoteJSRoot(void* root)
+  NS_IMETHOD_(void) NoteRoot(PRUint32 langID, void* root,
+                             nsCycleCollectionParticipant* helper)
   {
   }
-  NS_IMETHOD_(void) NoteNativeRoot(void* root,
-                                   nsCycleCollectionParticipant* helper)
+  NS_IMETHOD_(void) NoteScriptChild(PRUint32 langID, void* child)
   {
-  }
-
-  NS_IMETHOD_(void) NoteJSChild(void* child)
-  {
-    if (child == mWrapper) {
+    if (langID == nsIProgrammingLanguage::JAVASCRIPT &&
+        child == mWrapper) {
       mFound = true;
     }
   }
@@ -6120,11 +6116,12 @@ private:
 };
 
 static void
-DebugWrapperTraceCallback(void *p, const char *name, void *closure)
+DebugWrapperTraceCallback(PRUint32 langID, void *p, const char *name,
+                          void *closure)
 {
   DebugWrapperTraversalCallback* callback =
     static_cast<DebugWrapperTraversalCallback*>(closure);
-  callback->NoteJSChild(p);
+  callback->NoteScriptChild(langID, p);
 }
 
 // static
@@ -6642,7 +6639,8 @@ nsContentUtils::TraceWrapper(nsWrapperCache* aCache, TraceCallback aCallback,
   if (aCache->PreservingWrapper()) {
     JSObject *wrapper = aCache->GetWrapperPreserveColor();
     if (wrapper) {
-      aCallback(wrapper, "Preserved wrapper", aClosure);
+      aCallback(nsIProgrammingLanguage::JAVASCRIPT, wrapper,
+                "Preserved wrapper", aClosure);
     }
   }
 }

@@ -3529,37 +3529,36 @@ nsEditor::IsBlockNode(nsINode *aNode)
 }
 
 bool
-nsEditor::CanContain(nsIDOMNode* aParent, nsIDOMNode* aChild)
+nsEditor::CanContainTag(nsIDOMNode* aParent, const nsAString &aChildTag)
 {
-  nsCOMPtr<dom::Element> parentElement = do_QueryInterface(aParent);
+  nsCOMPtr<nsIDOMElement> parentElement = do_QueryInterface(aParent);
   NS_ENSURE_TRUE(parentElement, false);
-
-  return TagCanContain(parentElement->Tag(), aChild);
-}
-
-bool
-nsEditor::CanContainTag(nsIDOMNode* aParent, nsIAtom* aChildTag)
-{
-  nsCOMPtr<dom::Element> parentElement = do_QueryInterface(aParent);
-  NS_ENSURE_TRUE(parentElement, false);
-
-  return TagCanContainTag(parentElement->Tag(), aChildTag);
+  
+  nsAutoString parentStringTag;
+  parentElement->GetTagName(parentStringTag);
+  return TagCanContainTag(parentStringTag, aChildTag);
 }
 
 bool 
-nsEditor::TagCanContain(nsIAtom* aParentTag, nsIDOMNode* aChild)
+nsEditor::TagCanContain(const nsAString &aParentTag, nsIDOMNode* aChild)
 {
-  if (IsTextNode(aChild)) {
-    return TagCanContainTag(aParentTag, nsGkAtoms::textTagName);
+  nsAutoString childStringTag;
+  
+  if (IsTextNode(aChild)) 
+  {
+    childStringTag.AssignLiteral("#text");
   }
-
-  nsCOMPtr<dom::Element> element = do_QueryInterface(aChild);
-  NS_ENSURE_TRUE(element, false);
-  return TagCanContainTag(aParentTag, element->Tag());
+  else
+  {
+    nsCOMPtr<nsIDOMElement> childElement = do_QueryInterface(aChild);
+    NS_ENSURE_TRUE(childElement, false);
+    childElement->GetTagName(childStringTag);
+  }
+  return TagCanContainTag(aParentTag, childStringTag);
 }
 
 bool 
-nsEditor::TagCanContainTag(nsIAtom* aParentTag, nsIAtom* aChildTag)
+nsEditor::TagCanContainTag(const nsAString &aParentTag, const nsAString &aChildTag)
 {
   return true;
 }

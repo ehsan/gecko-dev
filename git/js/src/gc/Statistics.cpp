@@ -406,7 +406,6 @@ Statistics::Statistics(JSRuntime *rt)
     startupTime(PRMJ_Now()),
     fp(NULL),
     fullFormat(false),
-    gcDepth(0),
     collectedCount(0),
     compartmentCount(0),
     nonincrementalReason(NULL)
@@ -533,12 +532,9 @@ Statistics::beginSlice(int collectedCount, int compartmentCount, gcreason::Reaso
     if (JSAccumulateTelemetryDataCallback cb = runtime->telemetryCallback)
         (*cb)(JS_TELEMETRY_GC_REASON, reason);
 
-    // Slice callbacks should only fire for the outermost level
-    if (++gcDepth == 1) {
-        bool wasFullGC = collectedCount == compartmentCount;
-        if (GCSliceCallback cb = runtime->gcSliceCallback)
-            (*cb)(runtime, first ? GC_CYCLE_BEGIN : GC_SLICE_BEGIN, GCDescription(!wasFullGC));
-    }
+    bool wasFullGC = collectedCount == compartmentCount;
+    if (GCSliceCallback cb = runtime->gcSliceCallback)
+        (*cb)(runtime, first ? GC_CYCLE_BEGIN : GC_SLICE_BEGIN, GCDescription(!wasFullGC));
 }
 
 void
@@ -555,11 +551,12 @@ Statistics::endSlice()
     if (last)
         endGC();
 
-    // Slice callbacks should only fire for the outermost level
-    if (--gcDepth == 0) {
-        bool wasFullGC = collectedCount == compartmentCount;
-        if (GCSliceCallback cb = runtime->gcSliceCallback)
-            (*cb)(runtime, last ? GC_CYCLE_END : GC_SLICE_END, GCDescription(!wasFullGC));
+    bool wasFullGC = collectedCount == compartmentCount;
+    if (GCSliceCallback cb = runtime->gcSliceCallback) {
+        if (last)
+            (*cb)(runtime, GC_CYCLE_END, GCDescription(!wasFullGC));
+        else
+            (*cb)(runtime, GC_SLICE_END, GCDescription(!wasFullGC));
     }
 
     /* Do this after the slice callback since it uses these values. */

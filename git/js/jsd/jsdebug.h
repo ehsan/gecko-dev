@@ -535,7 +535,7 @@ JSD_ScriptCreated(JSDContext* jsdc,
 */
 extern JSD_PUBLIC_API(void)
 JSD_ScriptDestroyed(JSDContext* jsdc,
-                    JSFreeOp    *fop,
+                    JSContext   *cx,
                     JSScript    *script);
 
 /***************************************************************************/

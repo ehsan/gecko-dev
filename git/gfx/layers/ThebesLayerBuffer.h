@@ -171,18 +171,9 @@ protected:
     TOP, BOTTOM
   };
   nsIntRect GetQuadrantRectangle(XSide aXSide, YSide aYSide);
-  /*
-   * If aMask is non-null, then it is used as an alpha mask for rendering this
-   * buffer. aMaskTransform must be non-null if aMask is non-null, and is used
-   * to adjust the coordinate space of the mask.
-   */
   void DrawBufferQuadrant(gfxContext* aTarget, XSide aXSide, YSide aYSide,
-                          float aOpacity,
-                          gfxASurface* aMask,
-                          const gfxMatrix* aMaskTransform);
-  void DrawBufferWithRotation(gfxContext* aTarget, float aOpacity,
-                              gfxASurface* aMask = nsnull,
-                              const gfxMatrix* aMaskTransform = nsnull);
+                          float aOpacity);
+  void DrawBufferWithRotation(gfxContext* aTarget, float aOpacity);
 
   /**
    * |BufferRect()| is the rect of device pixels that this

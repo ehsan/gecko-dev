@@ -53,7 +53,6 @@
 #include "mozilla/CORSMode.h"
 #include "nsDOMMediaStream.h"
 #include "mozilla/Mutex.h"
-#include "nsTimeRanges.h"
 
 // Define to output information on decoding and painting framerate
 /* #define DEBUG_FRAME_RATE 1 */
@@ -300,8 +299,6 @@ public:
   static bool IsOggType(const nsACString& aType);
   static const char gOggTypes[3][16];
   static char const *const gOggCodecs[3];
-  static bool IsOpusEnabled();
-  static char const *const gOggCodecsWithOpus[4];
 #endif
 
 #ifdef MOZ_WAVE
@@ -764,12 +761,6 @@ protected:
 
   // An audio stream for writing audio directly from JS.
   nsRefPtr<nsAudioStream> mAudioStream;
-
-  // Range of time played.
-  nsTimeRanges mPlayed;
-
-  // Stores the time at the start of the current 'played' range.
-  double mCurrentPlayRangeStart;
 
   // True if MozAudioAvailable events can be safely dispatched, based on
   // a media and element same-origin check.

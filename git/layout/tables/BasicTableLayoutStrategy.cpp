@@ -265,7 +265,6 @@ BasicTableLayoutStrategy::ComputeColumnIntrinsicWidths(nsRenderingContext* aRend
     nsTableFrame *tableFrame = mTableFrame;
     nsTableCellMap *cellMap = tableFrame->GetCellMap();
 
-    mozilla::AutoStackArena arena;
     SpanningCellSorter spanningCells(tableFrame->PresContext()->PresShell());
 
     // Loop over the columns to consider the columns and cells *without*

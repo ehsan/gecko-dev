@@ -118,7 +118,6 @@ struct CommonLayerAttributes {
   bool useClipRect;
   nsIntRect clipRect;
   bool isFixedPosition;
-  nullable PLayer maskLayer;
 };
 
 struct ThebesLayerAttributes {

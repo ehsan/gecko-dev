@@ -289,42 +289,42 @@ GlobalObject::create(JSContext *cx, Class *clasp)
     return obj;
 }
 
-/* static */ bool
-GlobalObject::initStandardClasses(JSContext *cx, Handle<GlobalObject*> global)
+bool
+GlobalObject::initStandardClasses(JSContext *cx)
 {
     JSAtomState &state = cx->runtime->atomState;
 
     /* Define a top-level property 'undefined' with the undefined value. */
-    if (!global->defineProperty(cx, state.typeAtoms[JSTYPE_VOID], UndefinedValue(),
-                                JS_PropertyStub, JS_StrictPropertyStub, JSPROP_PERMANENT | JSPROP_READONLY))
+    if (!defineProperty(cx, state.typeAtoms[JSTYPE_VOID], UndefinedValue(),
+                        JS_PropertyStub, JS_StrictPropertyStub, JSPROP_PERMANENT | JSPROP_READONLY))
     {
         return false;
     }
 
-    if (!global->initFunctionAndObjectClasses(cx))
+    if (!initFunctionAndObjectClasses(cx))
         return false;
 
     /* Initialize the rest of the standard objects and functions. */
-    return js_InitArrayClass(cx, global) &&
-           js_InitBooleanClass(cx, global) &&
-           js_InitExceptionClasses(cx, global) &&
-           js_InitMathClass(cx, global) &&
-           js_InitNumberClass(cx, global) &&
-           js_InitJSONClass(cx, global) &&
-           js_InitRegExpClass(cx, global) &&
-           js_InitStringClass(cx, global) &&
-           js_InitTypedArrayClasses(cx, global) &&
+    return js_InitArrayClass(cx, this) &&
+           js_InitBooleanClass(cx, this) &&
+           js_InitExceptionClasses(cx, this) &&
+           js_InitMathClass(cx, this) &&
+           js_InitNumberClass(cx, this) &&
+           js_InitJSONClass(cx, this) &&
+           js_InitRegExpClass(cx, this) &&
+           js_InitStringClass(cx, this) &&
+           js_InitTypedArrayClasses(cx, this) &&
 #if JS_HAS_XML_SUPPORT
-           js_InitXMLClasses(cx, global) &&
+           js_InitXMLClasses(cx, this) &&
 #endif
 #if JS_HAS_GENERATORS
-           js_InitIteratorClasses(cx, global) &&
+           js_InitIteratorClasses(cx, this) &&
 #endif
-           js_InitDateClass(cx, global) &&
-           js_InitWeakMapClass(cx, global) &&
-           js_InitProxyClass(cx, global) &&
-           js_InitMapClass(cx, global) &&
-           js_InitSetClass(cx, global);
+           js_InitDateClass(cx, this) &&
+           js_InitWeakMapClass(cx, this) &&
+           js_InitProxyClass(cx, this) &&
+           js_InitMapClass(cx, this) &&
+           js_InitSetClass(cx, this);
 }
 
 void
@@ -359,7 +359,7 @@ GlobalObject::clear(JSContext *cx)
      * Reset the new object cache in the compartment, which assumes that
      * prototypes cached on the global object are immutable.
      */
-    cx->runtime->newObjectCache.purge();
+    cx->compartment->newObjectCache.reset();
 
 #ifdef JS_METHODJIT
     /*
@@ -475,39 +475,39 @@ GlobalObject::getDebuggers()
     return (DebuggerVector *) debuggers.toObject().getPrivate();
 }
 
-/* static */ GlobalObject::DebuggerVector *
-GlobalObject::getOrCreateDebuggers(JSContext *cx, Handle<GlobalObject*> global)
+GlobalObject::DebuggerVector *
+GlobalObject::getOrCreateDebuggers(JSContext *cx)
 {
-    assertSameCompartment(cx, global);
-    DebuggerVector *debuggers = global->getDebuggers();
+    assertSameCompartment(cx, this);
+    DebuggerVector *debuggers = getDebuggers();
     if (debuggers)
         return debuggers;
 
-    JSObject *obj = NewObjectWithGivenProto(cx, &GlobalDebuggees_class, NULL, global);
+    JSObject *obj = NewObjectWithGivenProto(cx, &GlobalDebuggees_class, NULL, this);
     if (!obj)
         return NULL;
     debuggers = cx->new_<DebuggerVector>();
     if (!debuggers)
         return NULL;
     obj->setPrivate(debuggers);
-    global->setReservedSlot(DEBUGGERS, ObjectValue(*obj));
+    setReservedSlot(DEBUGGERS, ObjectValue(*obj));
     return debuggers;
 }
 
-/* static */ bool
-GlobalObject::addDebugger(JSContext *cx, Handle<GlobalObject*> global, Debugger *dbg)
+bool
+GlobalObject::addDebugger(JSContext *cx, Debugger *dbg)
 {
-    DebuggerVector *debuggers = getOrCreateDebuggers(cx, global);
+    DebuggerVector *debuggers = getOrCreateDebuggers(cx);
     if (!debuggers)
         return false;
 #ifdef DEBUG
     for (Debugger **p = debuggers->begin(); p != debuggers->end(); p++)
         JS_ASSERT(*p != dbg);
 #endif
-    if (debuggers->empty() && !global->compartment()->addDebuggee(cx, global))
+    if (debuggers->empty() && !compartment()->addDebuggee(cx, this))
         return false;
     if (!debuggers->append(dbg)) {
-        global->compartment()->removeDebuggee(cx->runtime->defaultFreeOp(), global);
+        compartment()->removeDebuggee(cx->runtime->defaultFreeOp(), this);
         return false;
     }
     return true;

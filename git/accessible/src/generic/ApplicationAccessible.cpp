@@ -96,8 +96,8 @@ ApplicationAccessible::GetPreviousSibling(nsIAccessible** aPreviousSibling)
   return NS_OK;
 }
 
-ENameValueFlag
-ApplicationAccessible::Name(nsString& aName)
+NS_IMETHODIMP
+ApplicationAccessible::GetName(nsAString& aName)
 {
   aName.Truncate();
 
@@ -105,14 +105,12 @@ ApplicationAccessible::Name(nsString& aName)
     mozilla::services::GetStringBundleService();
 
   NS_ASSERTION(bundleService, "String bundle service must be present!");
-  if (!bundleService)
-    return eNameOK;
+  NS_ENSURE_STATE(bundleService);
 
   nsCOMPtr<nsIStringBundle> bundle;
   nsresult rv = bundleService->CreateBundle("chrome://branding/locale/brand.properties",
                                             getter_AddRefs(bundle));
-  if (NS_FAILED(rv))
-    return eNameOK;
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsXPIDLString appName;
   rv = bundle->GetStringFromName(NS_LITERAL_STRING("brandShortName").get(),
@@ -123,7 +121,7 @@ ApplicationAccessible::Name(nsString& aName)
   }
 
   aName.Assign(appName);
-  return eNameOK;
+  return NS_OK;
 }
 
 void

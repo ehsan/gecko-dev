@@ -246,9 +246,9 @@ CanvasLayerD3D9::RenderLayer()
   SetShaderTransformAndOpacity();
 
   if (mHasAlpha) {
-    mD3DManager->SetShaderMode(DeviceManagerD3D9::RGBALAYER, GetMaskLayer());
+    mD3DManager->SetShaderMode(DeviceManagerD3D9::RGBALAYER);
   } else {
-    mD3DManager->SetShaderMode(DeviceManagerD3D9::RGBLAYER, GetMaskLayer());
+    mD3DManager->SetShaderMode(DeviceManagerD3D9::RGBLAYER);
   }
 
   if (mFilter == gfxPattern::FILTER_NEAREST) {

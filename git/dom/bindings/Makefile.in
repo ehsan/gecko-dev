@@ -29,20 +29,20 @@ include $(topsrcdir)/dom/dom-config.mk
 
 include $(topsrcdir)/dom/webidl/WebIDL.mk
 
-binding_include_path := mozilla/dom
+binding_include_path := mozilla/dom/bindings
 binding_header_files := $(subst .webidl,Binding.h,$(webidl_files))
 binding_cpp_files := $(subst .webidl,Binding.cpp,$(webidl_files))
 
 globalgen_targets := \
   PrototypeList.h \
-  RegisterBindings.h \
-  RegisterBindings.cpp \
+  Common.h \
+  Common.cpp \
   $(NULL)
 
 CPPSRCS = \
   $(binding_cpp_files) \
   $(filter %.cpp, $(globalgen_targets)) \
-  BindingUtils.cpp \
+  Utils.cpp \
   $(NULL)
 
 EXPORTS_NAMESPACES = $(binding_include_path)
@@ -50,9 +50,9 @@ EXPORTS_NAMESPACES = $(binding_include_path)
 EXPORTS_$(binding_include_path) = \
   DOMJSClass.h \
   PrototypeList.h \
-  RegisterBindings.h \
+  Common.h \
   Nullable.h \
-  BindingUtils.h \
+  Utils.h \
   $(binding_header_files) \
   $(NULL)
 

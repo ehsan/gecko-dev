@@ -70,9 +70,7 @@ ThebesLayerBuffer::GetQuadrantRectangle(XSide aXSide, YSide aYSide)
 void
 ThebesLayerBuffer::DrawBufferQuadrant(gfxContext* aTarget,
                                       XSide aXSide, YSide aYSide,
-                                      float aOpacity,
-                                      gfxASurface* aMask,
-                                      const gfxMatrix* aMaskTransform)
+                                      float aOpacity)
 {
   // The rectangle that we're going to fill. Basically we're going to
   // render the buffer at mBufferRect + quadrantTranslation to get the
@@ -105,41 +103,26 @@ ThebesLayerBuffer::DrawBufferQuadrant(gfxContext* aTarget,
   pattern->SetMatrix(transform);
   aTarget->SetPattern(pattern);
 
-  if (aMask) {
-    if (aOpacity == 1.0) {
-      aTarget->SetMatrix(*aMaskTransform);
-      aTarget->Mask(aMask);
-    } else {
-      aTarget->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
-      aTarget->Paint(aOpacity);
-      aTarget->PopGroupToSource();
-      aTarget->SetMatrix(*aMaskTransform);
-      aTarget->Mask(aMask);
-    }
+  if (aOpacity != 1.0) {
+    aTarget->Save();
+    aTarget->Clip();
+    aTarget->Paint(aOpacity);
+    aTarget->Restore();
   } else {
-    if (aOpacity == 1.0) {
-      aTarget->Fill();
-    } else {
-      aTarget->Save();
-      aTarget->Clip();
-      aTarget->Paint(aOpacity);
-      aTarget->Restore();
-    }
+    aTarget->Fill();
   }
 }
 
 void
-ThebesLayerBuffer::DrawBufferWithRotation(gfxContext* aTarget, float aOpacity,
-                                          gfxASurface* aMask,
-                                          const gfxMatrix* aMaskTransform)
+ThebesLayerBuffer::DrawBufferWithRotation(gfxContext* aTarget, float aOpacity)
 {
   SAMPLE_LABEL("ThebesLayerBuffer", "DrawBufferWithRotation");
   // Draw four quadrants. We could use REPEAT_, but it's probably better
   // not to, to be performance-safe.
-  DrawBufferQuadrant(aTarget, LEFT, TOP, aOpacity, aMask, aMaskTransform);
-  DrawBufferQuadrant(aTarget, RIGHT, TOP, aOpacity, aMask, aMaskTransform);
-  DrawBufferQuadrant(aTarget, LEFT, BOTTOM, aOpacity, aMask, aMaskTransform);
-  DrawBufferQuadrant(aTarget, RIGHT, BOTTOM, aOpacity, aMask, aMaskTransform);
+  DrawBufferQuadrant(aTarget, LEFT, TOP, aOpacity);
+  DrawBufferQuadrant(aTarget, RIGHT, TOP, aOpacity);
+  DrawBufferQuadrant(aTarget, LEFT, BOTTOM, aOpacity);
+  DrawBufferQuadrant(aTarget, RIGHT, BOTTOM, aOpacity);
 }
 
 already_AddRefed<gfxContext>

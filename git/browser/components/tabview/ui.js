@@ -171,8 +171,6 @@ let UI = {
       // ___ search
       Search.init();
 
-      Telemetry.init();
-
       // ___ currentTab
       this._currentTab = gBrowser.selectedTab;
 
@@ -314,7 +312,6 @@ let UI = {
     GroupItems.uninit();
     FavIcons.uninit();
     Storage.uninit();
-    Telemetry.uninit();
 
     this._removeTabActionHandlers();
     this._currentTab = null;

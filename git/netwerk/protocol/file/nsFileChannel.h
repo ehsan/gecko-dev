@@ -53,7 +53,9 @@ public:
   NS_DECL_NSIFILECHANNEL
   NS_DECL_NSIUPLOADCHANNEL
 
-  nsFileChannel(nsIURI *uri);
+  nsFileChannel(nsIURI *uri) {
+    SetURI(uri);
+  }
 
 protected:
   // Called to construct a blocking file input stream for the given file.  This

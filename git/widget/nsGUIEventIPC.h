@@ -193,7 +193,6 @@ struct ParamTraits<nsKeyEvent>
     WriteParam(aMsg, aParam.keyCode);
     WriteParam(aMsg, aParam.charCode);
     WriteParam(aMsg, aParam.isChar);
-    WriteParam(aMsg, aParam.location);
   }
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
@@ -201,8 +200,7 @@ struct ParamTraits<nsKeyEvent>
     return ReadParam(aMsg, aIter, static_cast<nsInputEvent*>(aResult)) &&
            ReadParam(aMsg, aIter, &aResult->keyCode) &&
            ReadParam(aMsg, aIter, &aResult->charCode) &&
-           ReadParam(aMsg, aIter, &aResult->isChar) &&
-           ReadParam(aMsg, aIter, &aResult->location);
+           ReadParam(aMsg, aIter, &aResult->isChar);
   }
 };
 

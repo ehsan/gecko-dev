@@ -1297,7 +1297,9 @@ nsHTMLTableAccessible::Description(nsString& aDescription)
     bool isProbablyForLayout = IsProbablyLayoutTable();
     aDescription = mLayoutHeuristic;
   }
+#ifdef DEBUG_A11Y
   printf("\nTABLE: %s\n", NS_ConvertUTF16toUTF8(mLayoutHeuristic).get());
+#endif
 #endif
 }
 

@@ -77,7 +77,7 @@ public final class Tab {
     private String mTitle;
     private Drawable mFavicon;
     private String mFaviconUrl;
-    private JSONObject mIdentityData;
+    private String mSecurityMode;
     private Drawable mThumbnail;
     private List<HistoryEntry> mHistory;
     private int mHistoryIndex;
@@ -119,7 +119,7 @@ public final class Tab {
         mTitle = title;
         mFavicon = null;
         mFaviconUrl = null;
-        mIdentityData = null;
+        mSecurityMode = "unknown";
         mThumbnail = null;
         mHistory = new ArrayList<HistoryEntry>();
         mHistoryIndex = -1;
@@ -270,16 +270,7 @@ public final class Tab {
     }
 
     public String getSecurityMode() {
-        try {
-            return mIdentityData.getString("mode");
-        } catch (Exception e) {
-            // If mIdentityData is null, or we get a JSONException
-            return SiteIdentityPopup.UNKNOWN;
-        }
-    }
-
-    public JSONObject getIdentityData() {
-        return mIdentityData;
+        return mSecurityMode;
     }
 
     public boolean isBookmark() {
@@ -377,9 +368,8 @@ public final class Tab {
         Log.i(LOGTAG, "Updated favicon URL for tab with id: " + mId);
     }
 
-
-    public void updateIdentityData(JSONObject identityData) {
-        mIdentityData = identityData;
+    public void updateSecurityMode(String mode) {
+        mSecurityMode = mode;
     }
 
     private void updateBookmark() {
@@ -422,6 +412,8 @@ public final class Tab {
     }
 
     public boolean doReload() {
+        if (mHistory.isEmpty())
+            return false;
         GeckoEvent e = GeckoEvent.createBroadcastEvent("Session:Reload", "");
         GeckoAppShell.sendEventToGecko(e);
         return true;

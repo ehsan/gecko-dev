@@ -655,7 +655,7 @@ nsCSSValue::BufferFromString(const nsString& aValue)
     return buffer;
   }
 
-  nsString::size_type length = aValue.Length();
+  PRUnichar length = aValue.Length();
 
   // NOTE: Alloc prouduces a new, already-addref'd (refcnt = 1) buffer.
   // NOTE: String buffer allocation is currently fallible.

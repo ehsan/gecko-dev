@@ -187,14 +187,14 @@ public:
 
  */
 
-class nsXULPrototypeNode : public nsISupports
+class nsXULPrototypeNode
 {
 public:
     enum Type { eType_Element, eType_Script, eType_Text, eType_PI };
 
     Type                     mType;
 
-    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+    nsAutoRefCnt             mRefCnt;
 
     virtual ~nsXULPrototypeNode() {}
     virtual nsresult Serialize(nsIObjectOutputStream* aStream,
@@ -210,6 +210,17 @@ public:
     virtual PRUint32 ClassSize() = 0;
 #endif
 
+    void AddRef() {
+        ++mRefCnt;
+        NS_LOG_ADDREF(this, mRefCnt, ClassName(), ClassSize());
+    }
+    void Release()
+    {
+        --mRefCnt;
+        NS_LOG_RELEASE(this, mRefCnt, ClassName());
+        if (mRefCnt == 0)
+            delete this;
+    }
     /**
      * The prototype document must call ReleaseSubtree when it is going
      * away.  This makes the parents through the tree stop owning their
@@ -220,7 +231,7 @@ public:
      */
     virtual void ReleaseSubtree() { }
 
-    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsXULPrototypeNode)
+    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(nsXULPrototypeNode)
 
 protected:
     nsXULPrototypeNode(Type aType)

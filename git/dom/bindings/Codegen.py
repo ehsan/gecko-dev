@@ -40,9 +40,6 @@ def replaceFileIfChanged(filename, newContents):
 def toStringBool(arg):
     return str(not not arg).lower()
 
-def toBindingNamespace(arg):
-    return re.sub("((_workers)?$)", "Binding\\1", arg);
-
 class CGThing():
     """
     Abstract base class for things that spit out code.
@@ -67,8 +64,7 @@ class CGNativePropertyHooks(CGThing):
         return "  extern const NativePropertyHooks NativeHooks;\n"
     def define(self):
         parent = self.descriptor.interface.parent
-        parentHooks = ("&" + toBindingNamespace(parent.identifier.name) + "::NativeHooks"
-                       if parent else 'NULL')
+        parentHooks = "&" + parent.identifier.name + "::NativeHooks" if parent else 'NULL'
         return """
 const NativePropertyHooks NativeHooks = { ResolveProperty, EnumerateProperties, %s };
 """ % parentHooks
@@ -84,13 +80,13 @@ class CGDOMJSClass(CGThing):
         return "  extern DOMJSClass Class;\n"
     def define(self):
         traceHook = TRACE_HOOK_NAME if self.descriptor.customTrace else 'NULL'
-        protoList = ['prototypes::id::' + proto for proto in self.descriptor.prototypeChain]
+        protoList = ['id::' + proto for proto in self.descriptor.prototypeChain]
         # Pad out the list to the right length with _ID_Count so we
         # guarantee that all the lists are the same length.  _ID_Count
         # is never the ID of any prototype, so it's safe to use as
         # padding.
         while len(protoList) < self.descriptor.config.maxProtoChainLength:
-            protoList.append('prototypes::id::_ID_Count')
+            protoList.append('id::_ID_Count')
         prototypeChainString = ', '.join(protoList)
         return """
 DOMJSClass Class = {
@@ -156,10 +152,8 @@ class CGInterfaceObjectJSClass(CGThing):
         # We're purely for internal consumption
         return ""
     def define(self):
-        if not self.descriptor.hasInstanceInterface:
-            return ""
         ctorname = "NULL" if not self.descriptor.interface.ctor() else CONSTRUCT_HOOK_NAME
-        hasinstance = HASINSTANCE_HOOK_NAME
+        hasinstance = "NULL" if not self.descriptor.hasInstanceInterface else HASINSTANCE_HOOK_NAME
         return """
 static JSClass InterfaceObjectClass = {
   "Function", 0,
@@ -245,7 +239,7 @@ class CGWrapper(CGThing):
     """
     def __init__(self, child, pre="", post="", declarePre=None,
                  declarePost=None, definePre=None, definePost=None,
-                 declareOnly=False, defineOnly=False, reindent=False):
+                 declareOnly=False, reindent=False):
         CGThing.__init__(self)
         self.child = child
         self.declarePre = declarePre or pre
@@ -253,11 +247,8 @@ class CGWrapper(CGThing):
         self.definePre = definePre or pre
         self.definePost = definePost or post
         self.declareOnly = declareOnly
-        self.defineOnly = defineOnly
         self.reindent = reindent
     def declare(self):
-        if self.defineOnly:
-            return ''
         decl = self.child.declare()
         if self.reindent:
             # We don't use lineStartDetector because we don't want to
@@ -299,7 +290,7 @@ class CGIncludeGuard(CGWrapper):
     """
     def __init__(self, prefix, child):
         """|prefix| is the filename without the extension."""
-        define = 'mozilla_dom_%s_h__' % prefix
+        define = 'mozilla_dom_bindings_%s_h__' % prefix
         CGWrapper.__init__(self, child,
                            declarePre='#ifndef %s\n#define %s\n\n' % (define, define),
                            declarePost='\n#endif // %s\n' % define)
@@ -367,7 +358,7 @@ class CGHeaders(CGWrapper):
     @staticmethod
     def getInterfaceFilename(interface):
         basename = os.path.basename(interface.filename())
-        return 'mozilla/dom/' + \
+        return 'mozilla/dom/bindings/' + \
                basename.replace('.webidl', 'Binding.h')
 
 class Argument():
@@ -659,18 +650,18 @@ class PropertyDefiner:
             str += self.generateArray(self.chrome, self.variableName(True))
         return str
 
-# The length of a method is the maximum of the lengths of the
-# argument lists of all its overloads.
-def methodLength(method):
-    signatures = method.signatures()
-    return max([len(arguments) for (retType, arguments) in signatures])
-
 class MethodDefiner(PropertyDefiner):
     """
     A class for defining methods on a prototype object.
     """
     def __init__(self, descriptor, name, static):
         PropertyDefiner.__init__(self, descriptor, name)
+
+        # The length of a method is the maximum of the lengths of the
+        # argument lists of all its overloads.
+        def methodLength(method):
+            signatures = method.signatures()
+            return max([len(arguments) for (retType, arguments) in signatures])
 
         methods = [m for m in descriptor.interface.members if
                    m.isMethod() and m.isStatic() == static]
@@ -820,8 +811,7 @@ class CGCreateInterfaceObjectsMethod(CGAbstractMethod):
             getParentProto = "JS_GetObjectPrototype(aCx, aGlobal)"
         else:
             parentProtoName = self.descriptor.prototypeChain[-2]
-            getParentProto = ("%s::GetProtoObject(aCx, aGlobal, aReceiver)" %
-                              toBindingNamespace(parentProtoName))
+            getParentProto = "%s::GetProtoObject(aCx, aGlobal, aReceiver)" % (parentProtoName)
 
         needInterfaceObject = self.descriptor.interface.hasInterfaceObject()
         needInterfacePrototypeObject = self.descriptor.interface.hasInterfacePrototypeObject()
@@ -860,25 +850,12 @@ class CGCreateInterfaceObjectsMethod(CGAbstractMethod):
                           "  return NULL;\n"
                           "}") % getParentProto
 
-        needInterfaceObjectClass = (needInterfaceObject and
-                                    self.descriptor.hasInstanceInterface)
-        needConstructor = (needInterfaceObject and
-                           not self.descriptor.hasInstanceInterface)
-        if self.descriptor.interface.ctor():
-            constructHook = CONSTRUCT_HOOK_NAME
-            constructArgs = methodLength(self.descriptor.interface.ctor())
-        else:
-            constructHook = "ThrowingConstructorWorkers" if self.descriptor.workers else "ThrowingConstructor"
-            constructArgs = 0
-
-        call = CGGeneric(("return dom::CreateInterfaceObjects(aCx, aGlobal, aReceiver, parentProto,\n"
-                          "                                   %s, %s, %s, %d,\n"
-                          "                                   %%(methods)s, %%(attrs)s, %%(consts)s, %%(staticMethods)s,\n"
-                          "                                   %s);") % (
+        call = CGGeneric(("return bindings::CreateInterfaceObjects(aCx, aGlobal, aReceiver, parentProto,\n"
+                          "                                        %s, %s,\n"
+                          "                                        %%(methods)s, %%(attrs)s, %%(consts)s, %%(staticMethods)s,\n"
+                          "                                        %s);") % (
             "&PrototypeClass" if needInterfacePrototypeObject else "NULL",
-            "&InterfaceObjectClass" if needInterfaceObjectClass else "NULL",
-            constructHook if needConstructor else "NULL",
-            constructArgs,
+            "&InterfaceObjectClass" if needInterfaceObject else "NULL",
             '"' + self.descriptor.interface.identifier.name + '"' if needInterfaceObject else "NULL"))
 
         if self.properties.hasChromeOnly():
@@ -937,8 +914,7 @@ class CGGetProtoObjectMethod(CGGetPerInterfaceObject):
     A method for getting the interface prototype object.
     """
     def __init__(self, descriptor):
-        CGGetPerInterfaceObject.__init__(self, descriptor, "GetProtoObject",
-                                         "prototypes::")
+        CGGetPerInterfaceObject.__init__(self, descriptor, "GetProtoObject")
     def definition_body(self):
         return """
   /* Get the interface prototype object for this class.  This will create the
@@ -949,8 +925,7 @@ class CGGetConstructorObjectMethod(CGGetPerInterfaceObject):
     A method for getting the interface constructor object.
     """
     def __init__(self, descriptor):
-        CGGetPerInterfaceObject.__init__(self, descriptor, "GetConstructorObject",
-                                         "constructors::")
+        CGGetPerInterfaceObject.__init__(self, descriptor, "GetConstructorObject", "constructors::")
     def definition_body(self):
         return """
   /* Get the interface object for this class.  This will create the object as
@@ -1052,7 +1027,7 @@ class CGWrapMethod(CGAbstractMethod):
         return """
   *aTriedToWrap = true;
 
-  JSObject* parent = WrapNativeParent(aCx, aScope, aObject->GetParentObject());
+  JSObject* parent = bindings::WrapNativeParent(aCx, aScope, aObject->GetParentObject());
   if (!parent) {
     return NULL;
   }
@@ -1108,7 +1083,7 @@ class CastableObjectUnwrapper():
     def __init__(self, descriptor, source, target, codeOnFailure):
         assert descriptor.castable
         self.substitution = { "type" : descriptor.nativeType,
-                              "protoID" : "prototypes::id::" + descriptor.name,
+                              "protoID" : "id::" + descriptor.name,
                               "source" : source,
                               "target" : target,
                               "codeOnFailure" : codeOnFailure }
@@ -1305,8 +1280,8 @@ def getArgumentConversionTemplate(type, descriptor):
             "    if (!ok) {\n"
             "      return false;\n"
             "    }\n"
-            "  }" % { "enumtype" : enum,
-                      "values" : enum + "Values::strings" })
+            "  }" % { "enumtype" : enum + "::value",
+                      "values" : enum + "::strings" })
 
     if type.isCallback():
         # XXXbz we're going to assume that callback types are always
@@ -1548,7 +1523,7 @@ def getWrapTemplateForTypeImpl(type, result, descriptorProvider,
   }
   ${jsvalRef} = JS::StringValue(result_str);
   return true;""" % { "result" : result,
-                      "strings" : type.inner.identifier.name + "Values::strings" }
+                      "strings" : type.inner.identifier.name + "::strings" }
 
     if type.isCallback() and not type.isInterface():
         # XXXbz we're going to assume that callback types are always
@@ -1642,7 +1617,7 @@ class CGCallGenerator(CGThing):
         elif returnType.isEnum():
             if returnType.nullable():
                 raise TypeError("We don't support nullable enum return values")
-            result = CGGeneric(returnType.inner.identifier.name)
+            result = CGGeneric(returnType.inner.identifier.name + "::value")
         elif returnType.isInterface() and not returnType.isArrayBuffer():
             result = CGGeneric(descriptorProvider.getDescriptor(
                 returnType.unroll().inner.identifier.name).nativeType)
@@ -2319,7 +2294,7 @@ class CGEnum(CGThing):
 
     def declare(self):
         return """
-  enum valuelist {
+  enum value {
     %s
   };
 
@@ -2809,8 +2784,7 @@ class CGDescriptor(CGThing):
 
         cgThings = CGList(cgThings)
         cgThings = CGWrapper(cgThings, post='\n')
-        self.cgRoot = CGWrapper(CGNamespace(toBindingNamespace(descriptor.name),
-                                            cgThings),
+        self.cgRoot = CGWrapper(CGNamespace(descriptor.name, cgThings),
                                 post='\n')
 
     def declare(self):
@@ -2870,7 +2844,7 @@ class CGRegisterProtos(CGAbstractMethod):
     def _defineMacro(self):
        return """
 #define REGISTER_PROTO(_dom_class) \\
-  aNameSpaceManager->RegisterDefineDOMInterface(NS_LITERAL_STRING(#_dom_class), _dom_class##Binding::DefineDOMInterface);\n\n"""
+  aNameSpaceManager->RegisterDefineDOMInterface(NS_LITERAL_STRING(#_dom_class), prototypes::_dom_class::DefineDOMInterface);\n\n"""
     def _undefineMacro(self):
         return "\n#undef REGISTER_PROTO"
     def _registerProtos(self):
@@ -2917,41 +2891,32 @@ class CGBindingRoot(CGThing):
 
         # Wrap all of that in our namespaces.
         if len(traitsClasses) > 0:
-            traitsClasses = CGNamespace.build(['mozilla', 'dom'],
+            traitsClasses = CGNamespace.build(['mozilla', 'dom', 'bindings'],
                                      CGWrapper(CGList(traitsClasses),
                                                declarePre='\n'),
                                                declareOnly=True)
             traitsClasses = CGWrapper(traitsClasses, declarePost='\n')
         else:
-            traitsClasses = None
+            traitsClasses = CGGeneric()
 
         # Do codegen for all the descriptors and enums.
-        def makeEnum(e):
-            return CGNamespace.build([e.identifier.name + "Values"],
-                                     CGEnum(e))
-        def makeEnumTypedef(e):
-            return CGGeneric(declare=("typedef %sValues::valuelist %s;\n" %
-                                      (e.identifier.name, e.identifier.name)))
-        cgthings = [ fun(e) for e in config.getEnums(webIDLFile)
-                     for fun in [makeEnum, makeEnumTypedef] ]
+        cgthings = [CGWrapper(CGNamespace.build([e.identifier.name],
+                                                CGEnum(e)),
+                              post="\n") for e in config.getEnums(webIDLFile)]
         cgthings.extend([CGDescriptor(x) for x in descriptors])
-        curr = CGList(cgthings, "\n")
+        curr = CGList(cgthings)
 
         # Wrap all of that in our namespaces.
-        curr = CGNamespace.build(['mozilla', 'dom'],
+        curr = CGNamespace.build(['mozilla', 'dom', 'bindings', 'prototypes'],
                                  CGWrapper(curr, pre="\n"))
 
-        curr = CGList([forwardDeclares,
-                       CGWrapper(CGGeneric("using namespace mozilla::dom;"),
-                                 defineOnly=True),
-                       traitsClasses, curr],
-                      "\n")
+        curr = CGList([forwardDeclares, traitsClasses, curr])
 
         # Add header includes.
         curr = CGHeaders(descriptors,
-                         ['mozilla/dom/BindingUtils.h',
-                          'mozilla/dom/DOMJSClass.h'],
-                         ['mozilla/dom/Nullable.h',
+                         ['mozilla/dom/bindings/Utils.h',
+                          'DOMJSClass.h'],
+                         ['mozilla/dom/bindings/Nullable.h',
                           'XPCQuickStubs.h',
                           'AccessCheck.h',
                           'WorkerPrivate.h',
@@ -2992,7 +2957,7 @@ class GlobalGenRoots():
                                 str(config.maxProtoChainLength) + ";\n\n"))
 
         # Wrap all of that in our namespaces.
-        idEnum = CGNamespace.build(['mozilla', 'dom', 'prototypes'],
+        idEnum = CGNamespace.build(['mozilla', 'dom', 'bindings', 'prototypes'],
                                    CGWrapper(idEnum, pre='\n'))
         idEnum = CGWrapper(idEnum, post='\n')
 
@@ -3004,7 +2969,7 @@ class GlobalGenRoots():
         idEnum = CGNamespacedEnum('id', 'ID', constructors, [0])
 
         # Wrap all of that in our namespaces.
-        idEnum = CGNamespace.build(['mozilla', 'dom', 'constructors'],
+        idEnum = CGNamespace.build(['mozilla', 'dom', 'bindings', 'constructors'],
                                    CGWrapper(idEnum, pre='\n'))
         idEnum = CGWrapper(idEnum, post='\n')
 
@@ -3018,7 +2983,7 @@ template <class ConcreteClass>
 struct PrototypeIDMap;
 """)
 
-        traitsDecl = CGNamespace.build(['mozilla', 'dom'],
+        traitsDecl = CGNamespace.build(['mozilla', 'dom', 'bindings'],
                                         CGWrapper(traitsDecl, post='\n'))
 
         curr.append(traitsDecl)
@@ -3033,13 +2998,13 @@ struct PrototypeIDMap;
         return curr
 
     @staticmethod
-    def RegisterBindings(config):
+    def Common(config):
 
         # TODO - Generate the methods we want
         curr = CGRegisterProtos(config)
 
         # Wrap all of that in our namespaces.
-        curr = CGNamespace.build(['mozilla', 'dom'],
+        curr = CGNamespace.build(['mozilla', 'dom', 'bindings'],
                                  CGWrapper(curr, post='\n'))
         curr = CGWrapper(curr, post='\n')
 
@@ -3051,7 +3016,7 @@ struct PrototypeIDMap;
         curr = CGHeaders([], [], defineIncludes, curr)
 
         # Add include guards.
-        curr = CGIncludeGuard('RegisterBindings', curr)
+        curr = CGIncludeGuard('Common', curr)
 
         # Done.
         return curr

@@ -138,7 +138,6 @@ abstract public class GeckoApp
 
     public static BrowserToolbar mBrowserToolbar;
     public static DoorHangerPopup mDoorHangerPopup;
-    public static SiteIdentityPopup mSiteIdentityPopup;
     public static FormAssistPopup mFormAssistPopup;
     public Favicons mFavicons;
 
@@ -211,14 +210,6 @@ abstract public class GeckoApp
     public ArrayList<PackageInfo> mPackageInfoCache = new ArrayList<PackageInfo>();
 
     String[] getPluginDirectories() {
-
-        // An awful hack to detect Tegra devices. Easiest way to do it without spinning up a EGL context
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB) {
-            File tegraDriverPath = new File("/system/lib/hw/gralloc.tegra.so");
-            if (tegraDriverPath.exists())
-                return new String[0];
-        }
-
         // we don't support Honeycomb
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB &&
             Build.VERSION.SDK_INT < 14 /*Build.VERSION_CODES.ICE_CREAM_SANDWICH*/ )
@@ -674,7 +665,7 @@ abstract public class GeckoApp
         tab.setContentType(contentType);
         tab.updateFavicon(null);
         tab.updateFaviconURL(null);
-        tab.updateIdentityData(null);
+        tab.updateSecurityMode("unknown");
         tab.removeTransientDoorHangers();
         tab.setHasTouchListeners(false);
         tab.setCheckerboardColor(Color.WHITE);
@@ -686,7 +677,7 @@ abstract public class GeckoApp
                 if (Tabs.getInstance().isSelectedTab(tab)) {
                     mBrowserToolbar.setTitle(uri);
                     mBrowserToolbar.setFavicon(null);
-                    mBrowserToolbar.setSecurityMode(tab.getSecurityMode());
+                    mBrowserToolbar.setSecurityMode("unknown");
                     mDoorHangerPopup.updatePopup();
                     mBrowserToolbar.setShadowVisibility(!(tab.getURL().startsWith("about:")));
 
@@ -697,17 +688,17 @@ abstract public class GeckoApp
         });
     }
 
-    void handleSecurityChange(final int tabId, final JSONObject identityData) {
+    void handleSecurityChange(final int tabId, final String mode) {
         final Tab tab = Tabs.getInstance().getTab(tabId);
         if (tab == null)
             return;
 
-        tab.updateIdentityData(identityData);
+        tab.updateSecurityMode(mode);
         
         mMainHandler.post(new Runnable() { 
             public void run() {
                 if (Tabs.getInstance().isSelectedTab(tab))
-                    mBrowserToolbar.setSecurityMode(tab.getSecurityMode());
+                    mBrowserToolbar.setSecurityMode(mode);
             }
         });
     }
@@ -726,18 +717,6 @@ abstract public class GeckoApp
                     mBrowserToolbar.setSecurityMode(tab.getSecurityMode());
                     mBrowserToolbar.setProgressVisibility(tab.getState() == Tab.STATE_LOADING);
                 }
-            }
-        });
-    }
-
-    void handlePageShow(final int tabId) {
-        final Tab tab = Tabs.getInstance().getTab(tabId);
-        if (tab == null)
-            return;
-    
-        mMainHandler.post(new Runnable() {
-            public void run() {
-                loadFavicon(tab);
             }
         });
     }
@@ -845,8 +824,10 @@ abstract public class GeckoApp
                 handleShowToast(msg, duration);
             } else if (event.equals("DOMContentLoaded")) {
                 final int tabId = message.getInt("tabID");
+                final String uri = message.getString("uri");
+                final String title = message.getString("title");
                 final String backgroundColor = message.getString("bgColor");
-                handleContentLoaded(tabId);
+                handleContentLoaded(tabId, uri, title);
                 Tab tab = Tabs.getInstance().getTab(tabId);
                 if (backgroundColor != null) {
                     tab.setCheckerboardColor(backgroundColor);
@@ -860,6 +841,8 @@ abstract public class GeckoApp
                 if (getLayerController() != null && Tabs.getInstance().isSelectedTab(tab)) {
                     getLayerController().setCheckerboardColor(tab.getCheckerboardColor());
                 }
+
+                Log.i(LOGTAG, "URI - " + uri + ", title - " + title);
             } else if (event.equals("DOMTitleChanged")) {
                 final int tabId = message.getInt("tabID");
                 final String title = message.getString("title");
@@ -888,9 +871,9 @@ abstract public class GeckoApp
                 handleLocationChange(tabId, uri, documentURI, contentType, sameDocument);
             } else if (event.equals("Content:SecurityChange")) {
                 final int tabId = message.getInt("tabID");
-                final JSONObject identity = message.getJSONObject("identity");
-                Log.i(LOGTAG, "Security Mode - " + identity.getString("mode"));
-                handleSecurityChange(tabId, identity);
+                final String mode = message.getString("mode");
+                Log.i(LOGTAG, "Security Mode - " + mode);
+                handleSecurityChange(tabId, mode);
             } else if (event.equals("Content:StateChange")) {
                 final int tabId = message.getInt("tabID");
                 final String uri = message.getString("uri");
@@ -912,9 +895,6 @@ abstract public class GeckoApp
                 final String uri = message.getString("uri");
                 final String title = message.getString("title");
                 handleLoadError(tabId, uri, title);
-            } else if (event.equals("Content:PageShow")) {
-                final int tabId = message.getInt("tabID");
-                handlePageShow(tabId);
             } else if (event.equals("Doorhanger:Add")) {
                 handleDoorHanger(message);
             } else if (event.equals("Doorhanger:Remove")) {
@@ -1224,7 +1204,7 @@ abstract public class GeckoApp
             return;
 
         tab.setState("about:home".equals(uri) ? Tab.STATE_SUCCESS : Tab.STATE_LOADING);
-        tab.updateIdentityData(null);
+        tab.updateSecurityMode("unknown");
         if (Tabs.getInstance().isSelectedTab(tab))
             getLayerController().getView().getRenderer().resetCheckerboard();
         mMainHandler.post(new Runnable() {
@@ -1278,12 +1258,24 @@ abstract public class GeckoApp
         });
     }
 
-    void handleContentLoaded(int tabId) {
+    void handleContentLoaded(int tabId, String uri, String title) {
         final Tab tab = Tabs.getInstance().getTab(tabId);
         if (tab == null)
             return;
 
-        Tabs.getInstance().notifyListeners(tab, Tabs.TabEvents.LOADED);
+        tab.updateTitle(title);
+
+        // Make the UI changes
+        mMainHandler.post(new Runnable() {
+            public void run() {
+                loadFavicon(tab);
+
+                if (Tabs.getInstance().isSelectedTab(tab))
+                    mBrowserToolbar.setTitle(tab.getDisplayTitle());
+
+                Tabs.getInstance().notifyListeners(tab, Tabs.TabEvents.LOADED);
+            }
+        });
     }
 
     void handleTitleChanged(int tabId, String title) {
@@ -1673,7 +1665,6 @@ abstract public class GeckoApp
         mPluginContainer = (AbsoluteLayout) findViewById(R.id.plugin_container);
 
         mDoorHangerPopup = new DoorHangerPopup(this);
-        mSiteIdentityPopup = new SiteIdentityPopup(this);
         mFormAssistPopup = (FormAssistPopup) findViewById(R.id.form_assist_popup);
 
         Log.w(LOGTAG, "zerdatime " + SystemClock.uptimeMillis() + " - UI almost up");
@@ -1688,7 +1679,6 @@ abstract public class GeckoApp
         GeckoAppShell.registerGeckoEventListener("Content:SecurityChange", GeckoApp.mAppContext);
         GeckoAppShell.registerGeckoEventListener("Content:StateChange", GeckoApp.mAppContext);
         GeckoAppShell.registerGeckoEventListener("Content:LoadError", GeckoApp.mAppContext);
-        GeckoAppShell.registerGeckoEventListener("Content:PageShow", GeckoApp.mAppContext);
         GeckoAppShell.registerGeckoEventListener("onCameraCapture", GeckoApp.mAppContext);
         GeckoAppShell.registerGeckoEventListener("Doorhanger:Add", GeckoApp.mAppContext);
         GeckoAppShell.registerGeckoEventListener("Doorhanger:Remove", GeckoApp.mAppContext);
@@ -1965,9 +1955,6 @@ abstract public class GeckoApp
         // Undo whatever we did in onPause.
         super.onResume();
 
-        if (mSiteIdentityPopup != null)
-            mSiteIdentityPopup.dismiss();
-
         int newOrientation = getResources().getConfiguration().orientation;
 
         if (mOrientation != newOrientation) {
@@ -2039,7 +2026,6 @@ abstract public class GeckoApp
         GeckoAppShell.unregisterGeckoEventListener("Content:SecurityChange", GeckoApp.mAppContext);
         GeckoAppShell.unregisterGeckoEventListener("Content:StateChange", GeckoApp.mAppContext);
         GeckoAppShell.unregisterGeckoEventListener("Content:LoadError", GeckoApp.mAppContext);
-        GeckoAppShell.unregisterGeckoEventListener("Content:PageShow", GeckoApp.mAppContext);
         GeckoAppShell.unregisterGeckoEventListener("onCameraCapture", GeckoApp.mAppContext);
         GeckoAppShell.unregisterGeckoEventListener("Doorhanger:Add", GeckoApp.mAppContext);
         GeckoAppShell.unregisterGeckoEventListener("Menu:Add", GeckoApp.mAppContext);
@@ -2057,8 +2043,7 @@ abstract public class GeckoApp
         GeckoAppShell.unregisterGeckoEventListener("Session:StatePurged", GeckoApp.mAppContext);
         GeckoAppShell.unregisterGeckoEventListener("Bookmark:Insert", GeckoApp.mAppContext);
 
-        if (mFavicons != null)
-            mFavicons.close();
+        mFavicons.close();
 
         if (SmsManager.getInstance() != null) {
             SmsManager.getInstance().stop();
@@ -2068,11 +2053,11 @@ abstract public class GeckoApp
 
         super.onDestroy();
 
-        if (mBatteryReceiver != null)
-            mBatteryReceiver.unregisterFor(mAppContext);
+        mBatteryReceiver.unregisterFor(mAppContext);
 
-        if (mAboutHomeContent != null)
+        if (mAboutHomeContent != null) {
             mAboutHomeContent.onDestroy();
+        }
 
         ((GeckoApplication) getApplication()).removeApplicationLifecycleCallbacks(this);
     }
@@ -2096,8 +2081,6 @@ abstract public class GeckoApp
             mOrientation = newConfig.orientation;
             if (mFormAssistPopup != null)
                 mFormAssistPopup.hide();
-            if (mSiteIdentityPopup != null)
-                mSiteIdentityPopup.dismiss();
             refreshActionBar();
         }
     }
@@ -2568,11 +2551,6 @@ abstract public class GeckoApp
             return;
         }
 
-        if (mSiteIdentityPopup.isShowing()) {
-            mSiteIdentityPopup.dismiss();
-            return;
-        }
-
         if (mDOMFullScreen) {
             GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("FullScreen:Exit", null));
             return;
@@ -2851,9 +2829,5 @@ abstract public class GeckoApp
                 return true;
             }
         });
-    }
-
-    public boolean linkerExtract() {
-        return false;
     }
 }

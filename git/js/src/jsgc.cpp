@@ -91,6 +91,7 @@
 #include "jsexn.h"
 #include "jsfun.h"
 #include "jsgc.h"
+#include "jsgcmark.h"
 #include "jsinterp.h"
 #include "jsiter.h"
 #include "jslock.h"
@@ -107,7 +108,6 @@
 #endif
 
 #include "frontend/Parser.h"
-#include "gc/Marking.h"
 #include "gc/Memory.h"
 #include "methodjit/MethodJIT.h"
 #include "vm/Debugger.h"
@@ -2887,13 +2887,10 @@ PurgeRuntime(JSTracer *trc)
     }
 
     rt->tempLifoAlloc.freeUnused();
-
     rt->gsnCache.purge();
+
+    /* FIXME: bug 506341 */
     rt->propertyCache.purge(rt);
-    rt->newObjectCache.purge();
-    rt->nativeIterCache.purge();
-    rt->toSourceCache.purge();
-    rt->evalCache.purge();
 
     for (ContextIter acx(rt); !acx.done(); acx.next())
         acx->purge();
@@ -3212,8 +3209,8 @@ SweepPhase(JSRuntime *rt, JSGCInvocationKind gckind, bool *startBackgroundSweep)
          * script and calls rt->destroyScriptHook, the hook can still access the
          * script's filename. See bug 323267.
          */
-        if (rt->gcIsFull)
-            SweepScriptFilenames(rt);
+        for (GCCompartmentsIter c(rt); !c.done(); c.next())
+            SweepScriptFilenames(c);
 
         /*
          * This removes compartments from rt->compartment, so we do it last to make
@@ -3945,9 +3942,6 @@ SetDeterministicGC(JSContext *cx, bool enabled)
 #endif
 }
 
-} /* namespace gc */
-} /* namespace js */
-
 #if defined(DEBUG) && defined(JSGC_ROOT_ANALYSIS) && !defined(JS_THREADSAFE)
 
 static void
@@ -3961,6 +3955,7 @@ CheckStackRoot(JSTracer *trc, uintptr_t *w)
     ConservativeGCTest test = MarkIfGCThingWord(trc, *w);
 
     if (test == CGCT_VALID) {
+        JSContext *iter = NULL;
         bool matched = false;
         JSRuntime *rt = trc->runtime;
         for (ContextIter cx(rt); !cx.done(); cx.next()) {
@@ -3999,27 +3994,20 @@ CheckStackRootsRange(JSTracer *trc, uintptr_t *begin, uintptr_t *end)
         CheckStackRoot(trc, i);
 }
 
-static void
-EmptyMarkCallback(JSTracer *jstrc, void **thingp, JSGCTraceKind kind)
-{}
-
 void
-JS::CheckStackRoots(JSContext *cx)
+CheckStackRoots(JSContext *cx)
 {
-    JSRuntime *rt = cx->runtime;
-
-    if (!rt->gcExactScanningEnabled)
-        return;
-
-    AutoCopyFreeListToArenas copy(rt);
+    AutoCopyFreeListToArenas copy(cx->runtime);
 
     JSTracer checker;
-    JS_TracerInit(&checker, rt, EmptyMarkCallback);
+    JS_TracerInit(&checker, cx, EmptyMarkCallback);
 
-    ConservativeGCData *cgcd = &rt->conservativeGC;
-    cgcd->recordStackTop();
+    ThreadData *td = JS_THREAD_DATA(cx);
 
-    JS_ASSERT(cgcd->hasStackToScan());
+    ConservativeGCThreadData *ctd = &td->conservativeGC;
+    ctd->recordStackTop();
+
+    JS_ASSERT(ctd->hasStackToScan());
     uintptr_t *stackMin, *stackEnd;
 #if JS_STACK_GROWTH_DIRECTION > 0
     stackMin = rt->nativeStackBase;
@@ -4027,39 +4015,6 @@ JS::CheckStackRoots(JSContext *cx)
 #else
     stackMin = cgcd->nativeStackTop + 1;
     stackEnd = reinterpret_cast<uintptr_t *>(rt->nativeStackBase);
-
-    uintptr_t *&oldStackMin = cgcd->oldStackMin, *&oldStackEnd = cgcd->oldStackEnd;
-    uintptr_t *&oldStackData = cgcd->oldStackData;
-    uintptr_t &oldStackCapacity = cgcd->oldStackCapacity;
-
-    /*
-     * Adjust the stack to remove regions which have not changed since the
-     * stack was last scanned, and update the last scanned state.
-     */
-    if (stackEnd != oldStackEnd) {
-        rt->free_(oldStackData);
-        oldStackCapacity = rt->nativeStackQuota / sizeof(uintptr_t);
-        oldStackData = (uintptr_t *) rt->malloc_(oldStackCapacity * sizeof(uintptr_t));
-        if (!oldStackData) {
-            oldStackCapacity = 0;
-        } else {
-            uintptr_t *existing = stackEnd - 1, *copy = oldStackData;
-            while (existing >= stackMin && size_t(copy - oldStackData) < oldStackCapacity)
-                *copy++ = *existing--;
-            oldStackEnd = stackEnd;
-            oldStackMin = existing + 1;
-        }
-    } else {
-        uintptr_t *existing = stackEnd - 1, *copy = oldStackData;
-        while (existing >= stackMin && existing >= oldStackMin && *existing == *copy) {
-            copy++;
-            existing--;
-        }
-        stackEnd = existing + 1;
-        while (existing >= stackMin && size_t(copy - oldStackData) < oldStackCapacity)
-            *copy++ = *existing--;
-        oldStackMin = existing + 1;
-    }
 #endif
 
     JS_ASSERT(stackMin <= stackEnd);
@@ -4069,9 +4024,6 @@ JS::CheckStackRoots(JSContext *cx)
 }
 
 #endif /* DEBUG && JSGC_ROOT_ANALYSIS && !JS_THREADSAFE */
-
-namespace js {
-namespace gc {
 
 #ifdef JS_GC_ZEAL
 

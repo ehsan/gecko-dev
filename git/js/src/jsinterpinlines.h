@@ -233,7 +233,8 @@ GetPropertyOperation(JSContext *cx, jsbytecode *pc, const Value &lval, Value *vp
             }
 
             if (obj->isTypedArray()) {
-                *vp = Int32Value(TypedArray::getLength(obj));
+                JSObject *tarray = TypedArray::getTypedArray(obj);
+                *vp = Int32Value(TypedArray::getLength(tarray));
                 return true;
             }
         }
@@ -255,7 +256,8 @@ GetPropertyOperation(JSContext *cx, jsbytecode *pc, const Value &lval, Value *vp
     }
 
     RootObject objRoot(cx, &obj);
-    RootedVarId id(cx, ATOM_TO_JSID(name));
+
+    jsid id = ATOM_TO_JSID(name);
 
     if (obj->getOps()->getProperty) {
         if (!GetPropertyGenericMaybeCallXML(cx, op, objRoot, id, vp))
@@ -608,48 +610,48 @@ AddOperation(JSContext *cx, const Value &lhs, const Value &rhs, Value *res)
 }
 
 static JS_ALWAYS_INLINE bool
-SubOperation(JSContext *cx, HandleValue lhs, HandleValue rhs, Value *res)
+SubOperation(JSContext *cx, const Value &lhs, const Value &rhs, Value *res)
 {
     double d1, d2;
     if (!ToNumber(cx, lhs, &d1) || !ToNumber(cx, rhs, &d2))
         return false;
     double d = d1 - d2;
-    if (!res->setNumber(d) && !(lhs.value().isDouble() || rhs.value().isDouble()))
+    if (!res->setNumber(d) && !(lhs.isDouble() || rhs.isDouble()))
         types::TypeScript::MonitorOverflow(cx);
     return true;
 }
 
 static JS_ALWAYS_INLINE bool
-MulOperation(JSContext *cx, HandleValue lhs, HandleValue rhs, Value *res)
+MulOperation(JSContext *cx, const Value &lhs, const Value &rhs, Value *res)
 {
     double d1, d2;
     if (!ToNumber(cx, lhs, &d1) || !ToNumber(cx, rhs, &d2))
         return false;
     double d = d1 * d2;
-    if (!res->setNumber(d) && !(lhs.value().isDouble() || rhs.value().isDouble()))
+    if (!res->setNumber(d) && !(lhs.isDouble() || rhs.isDouble()))
         types::TypeScript::MonitorOverflow(cx);
     return true;
 }
 
 static JS_ALWAYS_INLINE bool
-DivOperation(JSContext *cx, HandleValue lhs, HandleValue rhs, Value *res)
+DivOperation(JSContext *cx, const Value &lhs, const Value &rhs, Value *res)
 {
     double d1, d2;
     if (!ToNumber(cx, lhs, &d1) || !ToNumber(cx, rhs, &d2))
         return false;
     res->setNumber(NumberDiv(d1, d2));
 
-    if (d2 == 0 || (res->isDouble() && !(lhs.value().isDouble() || rhs.value().isDouble())))
+    if (d2 == 0 || (res->isDouble() && !(lhs.isDouble() || rhs.isDouble())))
         types::TypeScript::MonitorOverflow(cx);
     return true;
 }
 
 static JS_ALWAYS_INLINE bool
-ModOperation(JSContext *cx, HandleValue lhs, HandleValue rhs, Value *res)
+ModOperation(JSContext *cx, const Value &lhs, const Value &rhs, Value *res)
 {
     int32_t l, r;
-    if (lhs.value().isInt32() && rhs.value().isInt32() &&
-        (l = lhs.value().toInt32()) >= 0 && (r = rhs.value().toInt32()) > 0) {
+    if (lhs.isInt32() && rhs.isInt32() &&
+        (l = lhs.toInt32()) >= 0 && (r = rhs.toInt32()) > 0) {
         int32_t mod = l % r;
         res->setInt32(mod);
         return true;
@@ -836,7 +838,6 @@ SetObjectElementOperation(JSContext *cx, JSObject *obj, jsid id, const Value &va
         if (lval.isInt32() && rval.isInt32()) {                               \
             *res = lval.toInt32() OP rval.toInt32();                          \
         } else {                                                              \
-            RootValue lvalRoot(cx, &lval), rvalRoot(cx, &rval);               \
             if (!ToPrimitive(cx, JSTYPE_NUMBER, &lval))                       \
                 return false;                                                 \
             if (!ToPrimitive(cx, JSTYPE_NUMBER, &rval))                       \
@@ -885,7 +886,7 @@ GuardFunApplySpeculation(JSContext *cx, FrameRegs &regs)
     if (regs.sp[-1].isMagic(JS_OPTIMIZED_ARGUMENTS)) {
         CallArgs args = CallArgsFromSp(GET_ARGC(regs.pc), regs.sp);
         if (!IsNativeFunction(args.calleev(), js_fun_apply)) {
-            if (!JSScript::applySpeculationFailed(cx, regs.fp()->script()))
+            if (!regs.fp()->script()->applySpeculationFailed(cx))
                 return false;
             args[1] = ObjectValue(regs.fp()->argsObj());
         }

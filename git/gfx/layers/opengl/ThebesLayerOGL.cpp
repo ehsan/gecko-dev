@@ -165,18 +165,16 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
 
   PRInt32 passes = mTexImageOnWhite ? 2 : 1;
   for (PRInt32 pass = 1; pass <= passes; ++pass) {
-    ShaderProgramOGL *program;
+    LayerProgram *program;
 
     if (passes == 2) {
-      ShaderProgramOGL* alphaProgram;
+      ComponentAlphaTextureLayerProgram *alphaProgram;
       if (pass == 1) {
-        alphaProgram = aManager->GetProgram(gl::ComponentAlphaPass1ProgramType,
-                                            mLayer->GetMaskLayer());
+        alphaProgram = aManager->GetComponentAlphaPass1LayerProgram();
         gl()->fBlendFuncSeparate(LOCAL_GL_ZERO, LOCAL_GL_ONE_MINUS_SRC_COLOR,
                                  LOCAL_GL_ONE, LOCAL_GL_ONE);
       } else {
-        alphaProgram = aManager->GetProgram(gl::ComponentAlphaPass2ProgramType,
-                                            mLayer->GetMaskLayer());
+        alphaProgram = aManager->GetComponentAlphaPass2LayerProgram();
         gl()->fBlendFuncSeparate(LOCAL_GL_ONE, LOCAL_GL_ONE,
                                  LOCAL_GL_ONE, LOCAL_GL_ONE);
       }
@@ -188,9 +186,8 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
     } else {
       // Note BGR: Cairo's image surfaces are always in what
       // OpenGL and our shaders consider BGR format.
-      ShaderProgramOGL* basicProgram =
-        aManager->GetProgram(mTexImage->GetShaderProgramType(),
-                             mLayer->GetMaskLayer());
+      ColorTextureLayerProgram *basicProgram =
+        aManager->GetColorTextureLayerProgram(mTexImage->GetShaderProgramType());
 
       basicProgram->Activate();
       basicProgram->SetTextureUnit(0);
@@ -200,7 +197,6 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
     program->SetLayerOpacity(mLayer->GetEffectiveOpacity());
     program->SetLayerTransform(mLayer->GetEffectiveTransform());
     program->SetRenderOffset(aOffset);
-    program->LoadMask(mLayer->GetMaskLayer());
 
     const nsIntRegion& visibleRegion = mLayer->GetEffectiveVisibleRegion();
     nsIntRegion tmpRegion;

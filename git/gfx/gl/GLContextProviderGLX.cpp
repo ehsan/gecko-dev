@@ -63,10 +63,6 @@
 
 #include "gfxCrashReporterUtils.h"
 
-#ifdef MOZ_WIDGET_GTK2
-#include "gfxPlatformGtk.h"
-#endif
-
 namespace mozilla {
 namespace gl {
 
@@ -255,13 +251,8 @@ GLXLibrary::EnsureInitialized()
         GLLibraryLoader::LoadSymbols(mOGLLibrary, symbols_texturefrompixmap, 
                                          (GLLibraryLoader::PlatformLookupFunction)&xGetProcAddress))
     {
-#ifdef MOZ_WIDGET_GTK2
-        mUseTextureFromPixmap = gfxPlatformGtk::UseXRender();
-#else
-        mUseTextureFromPixmap = true;
-#endif
+        mHasTextureFromPixmap = true;
     } else {
-        mUseTextureFromPixmap = false;
         NS_WARNING("Texture from pixmap disabled");
     }
 
@@ -287,7 +278,7 @@ GLXLibrary::SupportsTextureFromPixmap(gfxASurface* aSurface)
         return false;
     }
     
-    if (aSurface->GetType() != gfxASurface::SurfaceTypeXlib || !mUseTextureFromPixmap) {
+    if (aSurface->GetType() != gfxASurface::SurfaceTypeXlib || !mHasTextureFromPixmap) {
         return false;
     }
 
@@ -337,7 +328,7 @@ GLXLibrary::CreatePixmap(gfxASurface* aSurface)
 void
 GLXLibrary::DestroyPixmap(GLXPixmap aPixmap)
 {
-    if (!mUseTextureFromPixmap) {
+    if (!mHasTextureFromPixmap) {
         return;
     }
 
@@ -348,7 +339,7 @@ GLXLibrary::DestroyPixmap(GLXPixmap aPixmap)
 void
 GLXLibrary::BindTexImage(GLXPixmap aPixmap)
 {    
-    if (!mUseTextureFromPixmap) {
+    if (!mHasTextureFromPixmap) {
         return;
     }
 
@@ -361,7 +352,7 @@ GLXLibrary::BindTexImage(GLXPixmap aPixmap)
 void
 GLXLibrary::ReleaseTexImage(GLXPixmap aPixmap)
 {
-    if (!mUseTextureFromPixmap) {
+    if (!mHasTextureFromPixmap) {
         return;
     }
 
@@ -852,7 +843,7 @@ TRY_AGAIN_NO_SHARING:
 
     bool TextureImageSupportsGetBackingSurface()
     {
-        return sGLXLibrary.UseTextureFromPixmap();
+        return sGLXLibrary.HasTextureFromPixmap();
     }
 
     virtual already_AddRefed<TextureImage>

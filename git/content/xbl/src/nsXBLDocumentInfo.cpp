@@ -59,12 +59,12 @@
 #include "mozilla/scache/StartupCache.h"
 #include "mozilla/scache/StartupCacheUtils.h"
 #include "nsCCUncollectableMarker.h"
-#include "mozilla/dom/BindingUtils.h"
+#include "mozilla/dom/bindings/Utils.h"
 
 using namespace mozilla::scache;
 using namespace mozilla;
 
-using mozilla::dom::DestroyProtoOrIfaceCache;
+using mozilla::dom::bindings::DestroyProtoOrIfaceCache;
 
 static const char kXBLCachePrefix[] = "xblcache";
 
@@ -494,9 +494,11 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsXBLDocumentInfo)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 static void
-UnmarkXBLJSObject(void* aP, const char* aName, void* aClosure)
+UnmarkXBLJSObject(PRUint32 aLangID, void* aP, const char* aName, void* aClosure)
 {
-  xpc_UnmarkGrayObject(static_cast<JSObject*>(aP));
+  if (aLangID == nsIProgrammingLanguage::JAVASCRIPT) {
+    xpc_UnmarkGrayObject(static_cast<JSObject*>(aP));
+  }
 }
 
 static bool

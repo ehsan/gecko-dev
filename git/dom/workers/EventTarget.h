@@ -11,9 +11,9 @@
 // I hate having to export this...
 #include "mozilla/dom/workers/bindings/EventListenerManager.h"
 
-#include "mozilla/dom/Nullable.h"
+#include "mozilla/dom/bindings/Nullable.h"
 
-using namespace mozilla::dom;
+using namespace mozilla::dom::bindings;
 
 BEGIN_WORKERS_NAMESPACE
 

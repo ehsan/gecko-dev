@@ -227,14 +227,8 @@ abstract class Axis {
      * possible and this axis has not been scroll locked while panning. Otherwise, returns false.
      */
     private boolean scrollable() {
-        // If we're scrolling a subdocument, ignore the viewport length restrictions (since those
-        // apply to the top-level document) and only take into account axis locking.
-        if (mSubscroller.scrolling()) {
-            return !mScrollingDisabled;
-        } else {
-            return getViewportLength() <= getPageLength() - MIN_SCROLLABLE_DISTANCE &&
-                   !mScrollingDisabled;
-        }
+        return getViewportLength() <= getPageLength() - MIN_SCROLLABLE_DISTANCE &&
+               !mScrollingDisabled;
     }
 
     /*
@@ -311,9 +305,8 @@ abstract class Axis {
 
     // Performs displacement of the viewport position according to the current velocity.
     void displace() {
-        if (!scrollable()) {
+        if (!mSubscroller.scrolling() && !scrollable())
             return;
-        }
 
         if (mFlingState == FlingStates.PANNING)
             mDisplacement += (mLastTouchPos - mTouchPos) * getEdgeResistance();

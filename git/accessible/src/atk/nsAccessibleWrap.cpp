@@ -678,21 +678,25 @@ finalizeCB(GObject *aObj)
         G_OBJECT_CLASS (parent_class)->finalize(aObj);
 }
 
-const gchar*
-getNameCB(AtkObject* aAtkObj)
+const gchar *
+getNameCB(AtkObject *aAtkObj)
 {
-  nsAccessibleWrap* accWrap = GetAccessibleWrap(aAtkObj);
-  if (!accWrap)
-    return nsnull;
+    nsAccessibleWrap *accWrap = GetAccessibleWrap(aAtkObj);
+    if (!accWrap) {
+        return nsnull;
+    }
 
-  nsAutoString uniName;
-  accWrap->Name(uniName);
+    /* nsIAccessible is responsible for the non-NULL name */
+    nsAutoString uniName;
+    nsresult rv = accWrap->GetName(uniName);
+    NS_ENSURE_SUCCESS(rv, nsnull);
 
-  NS_ConvertUTF8toUTF16 objName(aAtkObj->name);
-  if (!uniName.Equals(objName))
-    atk_object_set_name(aAtkObj, NS_ConvertUTF16toUTF8(uniName).get());
-
-  return aAtkObj->name;
+    NS_ConvertUTF8toUTF16 objName(aAtkObj->name);
+    if (!uniName.Equals(objName)) {
+        atk_object_set_name(aAtkObj,
+                            NS_ConvertUTF16toUTF8(uniName).get());
+    }
+    return aAtkObj->name;
 }
 
 const gchar *
@@ -729,21 +733,8 @@ getRoleCB(AtkObject *aAtkObj)
   if (aAtkObj->role != ATK_ROLE_INVALID)
     return aAtkObj->role;
 
-#define ROLE(geckoRole, stringRole, atkRole, macRole, msaaRole, ia2Role) \
-  case roles::geckoRole: \
-    aAtkObj->role = atkRole; \
-    break;
-
-  switch (accWrap->Role()) {
-#include "RoleMap.h"
-    default:
-      MOZ_NOT_REACHED("Unknown role.");
-      aAtkObj->role = ATK_ROLE_UNKNOWN;
-  };
-
-#undef ROLE
-
-  return aAtkObj->role;
+  return aAtkObj->role =
+    static_cast<AtkRole>(nsAccessibleWrap::AtkRoleFor(accWrap->Role()));
 }
 
 AtkAttributeSet*
@@ -1052,8 +1043,8 @@ nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
 
     case nsIAccessibleEvent::EVENT_NAME_CHANGE:
       {
-        nsAutoString newName;
-        accessible->Name(newName);
+        nsString newName;
+        accessible->GetName(newName);
         NS_ConvertUTF16toUTF8 utf8Name(newName);
         if (!atkObj->name || !utf8Name.Equals(atkObj->name))
           atk_object_set_name(atkObj, utf8Name.get());
@@ -1402,4 +1393,21 @@ nsAccessibleWrap::FireAtkShowHideEvent(AccEvent* aEvent,
     g_free(signal_name);
 
     return NS_OK;
+}
+
+PRUint32
+nsAccessibleWrap::AtkRoleFor(role aRole)
+{
+#define ROLE(geckoRole, stringRole, atkRole, macRole, msaaRole, ia2Role) \
+  case roles::geckoRole: \
+    return atkRole;
+
+  switch (aRole) {
+#include "RoleMap.h"
+    default:
+      MOZ_NOT_REACHED("Unknown role.");
+      return ATK_ROLE_UNKNOWN;
+  }
+
+#undef ROLE
 }

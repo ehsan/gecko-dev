@@ -661,6 +661,19 @@ DumpHeap(JSContext *cx, unsigned argc, jsval *vp)
 #endif /* DEBUG */
 
 static JSBool
+Clear(JSContext *cx, unsigned argc, jsval *vp)
+{
+    if (argc > 0 && !JSVAL_IS_PRIMITIVE(JS_ARGV(cx, vp)[0])) {
+        JS_ClearScope(cx, JSVAL_TO_OBJECT(JS_ARGV(cx, vp)[0]));
+    } else {
+        JS_ReportError(cx, "'clear' requires an object");
+        return false;
+    }
+    JS_SET_RVAL(cx, vp, JSVAL_VOID);
+    return true;
+}
+
+static JSBool
 SendCommand(JSContext* cx,
             unsigned argc,
             jsval* vp)
@@ -830,6 +843,7 @@ static JSFunctionSpec glob_functions[] = {
 #ifdef JS_GC_ZEAL
     {"gczeal",          GCZeal,         1,0},
 #endif
+    {"clear",           Clear,          1,0},
     {"options",         Options,        0,0},
     JS_FN("parent",     Parent,         1,0),
 #ifdef DEBUG
@@ -1491,6 +1505,29 @@ NS_IMETHODIMP
 FullTrustSecMan::EnableCapability(const char *capability)
 {
     return NS_OK;;
+}
+
+/* void revertCapability (in string capability); */
+NS_IMETHODIMP
+FullTrustSecMan::RevertCapability(const char *capability)
+{
+    return NS_OK;
+}
+
+/* void disableCapability (in string capability); */
+NS_IMETHODIMP
+FullTrustSecMan::DisableCapability(const char *capability)
+{
+    return NS_OK;
+}
+
+/* void setCanEnableCapability (in AUTF8String certificateFingerprint, in string capability, in short canEnable); */
+NS_IMETHODIMP
+FullTrustSecMan::SetCanEnableCapability(const nsACString & certificateFingerprint,
+                                        const char *capability,
+                                        PRInt16 canEnable)
+{
+    return NS_OK;
 }
 
 /* [noscript] nsIPrincipal getObjectPrincipal (in JSContextPtr cx, in JSObjectPtr obj); */
