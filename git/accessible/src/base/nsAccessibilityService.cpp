@@ -14,7 +14,6 @@
 #endif
 #include "DocAccessible-inl.h"
 #include "FocusManager.h"
-#include "HTMLElementAccessibles.h"
 #include "HTMLListAccessible.h"
 #include "HyperTextAccessibleWrap.h"
 #include "nsAccessiblePivot.h"
@@ -26,6 +25,7 @@
 #include "nsHTMLLinkAccessible.h"
 #include "nsHTMLSelectAccessible.h"
 #include "nsHTMLTableAccessibleWrap.h"
+#include "nsHTMLTextAccessible.h"
 #include "nsXFormsFormControlsAccessible.h"
 #include "nsXFormsWidgetsAccessible.h"
 #include "OuterDocAccessible.h"
@@ -256,7 +256,7 @@ nsAccessibilityService::CreateHTMLImageAccessible(nsIContent* aContent,
                                                   nsIPresShell* aPresShell)
 {
   Accessible* accessible =
-    new ImageAccessibleWrap(aContent, GetDocAccessible(aPresShell));
+    new nsHTMLImageAccessibleWrap(aContent, GetDocAccessible(aPresShell));
   NS_ADDREF(accessible);
   return accessible;
 }
@@ -435,7 +435,7 @@ nsAccessibilityService::CreateHTMLLabelAccessible(nsIContent* aContent,
                                                   nsIPresShell* aPresShell)
 {
   Accessible* accessible =
-    new HTMLLabelAccessible(aContent, GetDocAccessible(aPresShell));
+    new nsHTMLLabelAccessible(aContent, GetDocAccessible(aPresShell));
   NS_ADDREF(accessible);
   return accessible;
 }
@@ -445,7 +445,7 @@ nsAccessibilityService::CreateHTMLHRAccessible(nsIContent* aContent,
                                                nsIPresShell* aPresShell)
 {
   Accessible* accessible =
-    new HTMLHRAccessible(aContent, GetDocAccessible(aPresShell));
+    new nsHTMLHRAccessible(aContent, GetDocAccessible(aPresShell));
   NS_ADDREF(accessible);
   return accessible;
 }
@@ -455,7 +455,7 @@ nsAccessibilityService::CreateHTMLBRAccessible(nsIContent* aContent,
                                                nsIPresShell* aPresShell)
 {
   Accessible* accessible =
-    new HTMLBRAccessible(aContent, GetDocAccessible(aPresShell));
+    new nsHTMLBRAccessible(aContent, GetDocAccessible(aPresShell));
   NS_ADDREF(accessible);
   return accessible;
 }
@@ -1017,7 +1017,7 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
     // create any accessible for it and don't walk into it. The accessibles for
     // HTML area (nsHTMLAreaAccessible) the map contains are attached as
     // children of the appropriate accessible for HTML image
-    // (ImageAccessible).
+    // (nsHTMLImageAccessible).
     if (nsLayoutUtils::GetAllInFlowRectsUnion(weakFrame,
                                               weakFrame->GetParent()).IsEmpty()) {
       if (aIsSubtreeHidden)
@@ -1361,7 +1361,7 @@ nsAccessibilityService::CreateAccessibleByType(nsIContent* aContent,
                              nsGkAtoms::tooltiptext))
         return nsnull;
 
-      accessible = new ImageAccessibleWrap(aContent, aDoc);
+      accessible = new nsHTMLImageAccessibleWrap(aContent, aDoc);
       break;
 
     }
@@ -1677,7 +1677,7 @@ nsAccessibilityService::CreateHTMLAccessibleByMarkup(nsIFrame* aFrame,
   }
 
   if (tag == nsGkAtoms::output) {
-    Accessible* accessible = new HTMLOutputAccessible(aContent, aDoc);
+    Accessible* accessible = new nsHTMLOutputAccessible(aContent, aDoc);
     NS_IF_ADDREF(accessible);
     return accessible;
   }

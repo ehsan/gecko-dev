@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "HTMLElementAccessibles.h"
+#include "nsHTMLTextAccessible.h"
 
 #include "DocAccessible.h"
 #include "nsAccUtils.h"
@@ -16,52 +16,71 @@
 using namespace mozilla::a11y;
 
 ////////////////////////////////////////////////////////////////////////////////
-// HTMLHRAccessible
+// nsHTMLHRAccessible
 ////////////////////////////////////////////////////////////////////////////////
 
+nsHTMLHRAccessible::
+  nsHTMLHRAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  nsLeafAccessible(aContent, aDoc)
+{
+}
+
 role
-HTMLHRAccessible::NativeRole()
+nsHTMLHRAccessible::NativeRole()
 {
   return roles::SEPARATOR;
 }
 
+
 ////////////////////////////////////////////////////////////////////////////////
-// HTMLBRAccessible
+// nsHTMLBRAccessible
 ////////////////////////////////////////////////////////////////////////////////
 
+nsHTMLBRAccessible::
+  nsHTMLBRAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  nsLeafAccessible(aContent, aDoc)
+{
+}
+
 role
-HTMLBRAccessible::NativeRole()
+nsHTMLBRAccessible::NativeRole()
 {
   return roles::WHITESPACE;
 }
 
 PRUint64
-HTMLBRAccessible::NativeState()
+nsHTMLBRAccessible::NativeState()
 {
   return states::READONLY;
 }
 
 nsresult
-HTMLBRAccessible::GetNameInternal(nsAString& aName)
+nsHTMLBRAccessible::GetNameInternal(nsAString& aName)
 {
   aName = static_cast<PRUnichar>('\n');    // Newline char
   return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// HTMLLabelAccessible
+// nsHTMLLabelAccessible
 ////////////////////////////////////////////////////////////////////////////////
 
-NS_IMPL_ISUPPORTS_INHERITED0(HTMLLabelAccessible, HyperTextAccessible)
+nsHTMLLabelAccessible::
+  nsHTMLLabelAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  HyperTextAccessibleWrap(aContent, aDoc)
+{
+}
+
+NS_IMPL_ISUPPORTS_INHERITED0(nsHTMLLabelAccessible, HyperTextAccessible)
 
 nsresult
-HTMLLabelAccessible::GetNameInternal(nsAString& aName)
+nsHTMLLabelAccessible::GetNameInternal(nsAString& aName)
 {
   return nsTextEquivUtils::GetNameFromSubtree(this, aName);
 }
 
 role
-HTMLLabelAccessible::NativeRole()
+nsHTMLLabelAccessible::NativeRole()
 {
   return roles::LABEL;
 }
@@ -70,10 +89,16 @@ HTMLLabelAccessible::NativeRole()
 // nsHTMLOuputAccessible
 ////////////////////////////////////////////////////////////////////////////////
 
-NS_IMPL_ISUPPORTS_INHERITED0(HTMLOutputAccessible, HyperTextAccessible)
+nsHTMLOutputAccessible::
+  nsHTMLOutputAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  HyperTextAccessibleWrap(aContent, aDoc)
+{
+}
+
+NS_IMPL_ISUPPORTS_INHERITED0(nsHTMLOutputAccessible, HyperTextAccessible)
 
 Relation
-HTMLOutputAccessible::RelationByType(PRUint32 aType)
+nsHTMLOutputAccessible::RelationByType(PRUint32 aType)
 {
   Relation rel = AccessibleWrap::RelationByType(aType);
   if (aType == nsIAccessibleRelation::RELATION_CONTROLLED_BY)
@@ -83,20 +108,20 @@ HTMLOutputAccessible::RelationByType(PRUint32 aType)
 }
 
 role
-HTMLOutputAccessible::NativeRole()
+nsHTMLOutputAccessible::NativeRole()
 {
   return roles::SECTION;
 }
 
 nsresult
-HTMLOutputAccessible::GetAttributesInternal(nsIPersistentProperties* aAttributes)
+nsHTMLOutputAccessible::GetAttributesInternal(nsIPersistentProperties* aAttributes)
 {
   nsresult rv = AccessibleWrap::GetAttributesInternal(aAttributes);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::live,
                          NS_LITERAL_STRING("polite"));
-
+  
   return NS_OK;
 }
 

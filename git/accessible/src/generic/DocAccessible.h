@@ -152,8 +152,7 @@ public:
   /**
    * Return the parent document.
    */
-  DocAccessible* ParentDocument() const
-    { return mParent ? mParent->Document() : nsnull; }
+  DocAccessible* ParentDocument() const;
 
   /**
    * Return the child document count.

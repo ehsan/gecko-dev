@@ -5,18 +5,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_a11y_ImageAccessibleWrap_h__
-#define mozilla_a11y_ImageAccessibleWrap_h__
+#include "nsHTMLImageAccessibleWrap.h"
 
-#include "ImageAccessible.h"
+NS_IMPL_ISUPPORTS_INHERITED0(nsHTMLImageAccessibleWrap,
+                             nsHTMLImageAccessible)
 
-namespace mozilla {
-namespace a11y {
-
-typedef class ImageAccessible ImageAccessibleWrap;
-
-} // namespace a11y
-} // namespace mozilla
-
-#endif
+IMPL_IUNKNOWN_INHERITED1(nsHTMLImageAccessibleWrap,
+                         AccessibleWrap,
+                         ia2AccessibleImage);
 

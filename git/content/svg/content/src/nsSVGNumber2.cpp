@@ -138,9 +138,6 @@ nsSVGNumber2::SetBaseValue(float aValue, nsSVGElement *aSVGElement)
 void
 nsSVGNumber2::SetAnimValue(float aValue, nsSVGElement *aSVGElement)
 {
-  if (mIsAnimated && aValue == mAnimVal) {
-    return;
-  }
   mAnimVal = aValue;
   mIsAnimated = true;
   aSVGElement->DidAnimateNumber(mAttrEnum);

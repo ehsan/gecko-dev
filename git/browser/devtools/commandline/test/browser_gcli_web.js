@@ -3049,38 +3049,39 @@ exports.testPredictions = function(options) {
   }
 
   var resource1 = types.getType('resource');
-  var options1 = resource1.getLookup();
-  test.ok(options1.length > 1, 'have resources');
-  options1.forEach(function(prediction) {
+  var predictions1 = resource1.parseString('').getPredictions();
+  test.ok(predictions1.length > 1, 'have resources');
+  predictions1.forEach(function(prediction) {
     checkPrediction(resource1, prediction);
   });
 
   var resource2 = types.getType({ name: 'resource', include: 'text/javascript' });
-  var options2 = resource2.getLookup();
-  test.ok(options2.length > 1, 'have resources');
-  options2.forEach(function(prediction) {
+  var predictions2 = resource2.parseString('').getPredictions();
+  test.ok(predictions2.length > 1, 'have resources');
+  predictions2.forEach(function(prediction) {
     checkPrediction(resource2, prediction);
   });
 
   var resource3 = types.getType({ name: 'resource', include: 'text/css' });
-  var options3 = resource3.getLookup();
+  var predictions3 = resource3.parseString('').getPredictions();
   // jsdom fails to support digging into stylesheets
   if (!options.isNode) {
-    test.ok(options3.length >= 1, 'have resources');
+    test.ok(predictions3.length >= 1, 'have resources');
   }
   else {
     test.log('Running under Node. ' +
              'Skipping checks due to jsdom document.stylsheets support.');
   }
-  options3.forEach(function(prediction) {
+  predictions3.forEach(function(prediction) {
     checkPrediction(resource3, prediction);
   });
 
   var resource4 = types.getType({ name: 'resource' });
-  var options4 = resource4.getLookup();
+  var predictions4 = resource4.parseString('').getPredictions();
 
-  test.is(options1.length, options4.length, 'type spec');
-  test.is(options2.length + options3.length, options4.length, 'split');
+  test.is(predictions1.length, predictions4.length, 'type spec');
+  // Bug 734045
+  // test.is(predictions2.length + predictions3.length, predictions4.length, 'split');
 };
 
 function checkPrediction(res, prediction) {
@@ -3812,28 +3813,6 @@ exports.setup = function() {
 exports.shutdown = function() {
 };
 
-function forEachType(options, callback) {
-  types.getTypeNames().forEach(function(name) {
-    options.name = name;
-
-    // Provide some basic defaults to help selection/deferred/array work
-    if (name === 'selection') {
-      options.data = [ 'a', 'b' ];
-    }
-    else if (name === 'deferred') {
-      options.defer = function() {
-        return types.getType('string');
-      };
-    }
-    else if (name === 'array') {
-      options.subtype = 'string';
-    }
-
-    var type = types.getType(options);
-    callback(type);
-  });
-}
-
 exports.testDefault = function(options) {
   if (options.isNode) {
     test.log('Running under Node. ' +
@@ -3841,26 +3820,24 @@ exports.testDefault = function(options) {
     return;
   }
 
-  forEachType({}, function(type) {
-    var blank = type.getBlank().value;
-
-    // boolean and array types are exempt from needing undefined blank values
-    if (type.name === 'boolean') {
-      test.is(blank, false, 'blank boolean is false');
+  types.getTypeNames().forEach(function(name) {
+    if (name === 'selection') {
+      name = { name: 'selection', data: [ 'a', 'b' ] };
     }
-    else if (type.name === 'array') {
-      test.ok(Array.isArray(blank), 'blank array is array');
-      test.is(blank.length, 0, 'blank array is empty');
+    if (name === 'deferred') {
+      name = {
+        name: 'deferred',
+        defer: function() { return types.getType('string'); }
+      };
     }
-    else {
-      test.is(blank, undefined, 'default defined for ' + type.name);
+    if (name === 'array') {
+      name = { name: 'array', subtype: 'string' };
     }
-  });
-};
-
-exports.testNullDefault = function(options) {
-  forEachType({ defaultValue: null }, function(type) {
-    test.is(type.stringify(null), '', 'stringify(null) for ' + type.name);
+    var type = types.getType(name);
+    if (type.name !== 'boolean' && type.name !== 'array') {
+      test.ok(type.getBlank().value === undefined,
+              'default defined for ' + type.name);
+    }
   });
 };
 

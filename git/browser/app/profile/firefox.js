@@ -1036,11 +1036,8 @@ pref("devtools.inspector.highlighterShowVeil", true);
 pref("devtools.inspector.highlighterShowInfobar", true);
 
 // Enable the Layout View
-pref("devtools.layoutview.enabled", true);
+pref("devtools.layoutview.enabled", false);
 pref("devtools.layoutview.open", false);
-
-// Enable the Responsive UI tool
-pref("devtools.responsiveUI.enabled", true);
 
 // Enable the Debugger
 pref("devtools.debugger.enabled", true);

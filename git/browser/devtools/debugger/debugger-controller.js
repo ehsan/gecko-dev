@@ -11,7 +11,6 @@ const Cu = Components.utils;
 
 const FRAME_STEP_CACHE_DURATION = 100; // ms
 const DBG_STRINGS_URI = "chrome://browser/locale/devtools/debugger.properties";
-const SYNTAX_HIGHLIGHT_MAX_FILE_SIZE = 1048576; // 1 MB in bytes
 
 Cu.import("resource:///modules/source-editor.jsm");
 Cu.import("resource://gre/modules/devtools/dbg-server.jsm");
@@ -106,9 +105,7 @@ let DebuggerController = {
     if (!Prefs.remoteAutoConnect) {
       let prompt = new RemoteDebuggerPrompt();
       let result = prompt.show(!!this._remoteConnectionTimeout);
-      // If the connection was not established before the user canceled the
-      // prompt, close the remote debugger.
-      if (!result && !DebuggerController.activeThread) {
+      if (!result) {
         this.dispatchEvent("Debugger:Close");
         return false;
       }
@@ -585,7 +582,7 @@ StackFrames.prototype = {
             let variables = env.bindings.arguments;
             for each (let variable in variables) {
               let name = Object.getOwnPropertyNames(variable)[0];
-              let paramVar = scope.addVar(name, variable[name]);
+              let paramVar = scope.addVar(name);
               let paramVal = variable[name].value;
               paramVar.setGrip(paramVal);
               this._addExpander(paramVar, paramVal);
@@ -629,7 +626,7 @@ StackFrames.prototype = {
 
     // Add the sorted variables to the specified scope.
     for (let variable in variables) {
-      let paramVar = aScope.addVar(variable, variables[variable]);
+      let paramVar = aScope.addVar(variable);
       let paramVal = variables[variable].value;
       paramVar.setGrip(paramVal);
       this._addExpander(paramVar, paramVal);
@@ -1012,9 +1009,7 @@ SourceScripts.prototype = {
   _onShowScript: function SS__onShowScript(aScript, aOptions) {
     aOptions = aOptions || {};
 
-    if (aScript.text.length < SYNTAX_HIGHLIGHT_MAX_FILE_SIZE) {
-      this._setEditorMode(aScript.url, aScript.contentType);
-    }
+    this._setEditorMode(aScript.url, aScript.contentType);
 
     let editor = DebuggerView.editor;
     editor.setText(aScript.text);

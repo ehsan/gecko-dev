@@ -18,25 +18,18 @@ function test() {
 function consoleOpened(hud) {
   outputNode = hud.outputNode;
 
-  waitForSuccess({
-    name: "aTimer started",
-    validatorFn: function()
-    {
-      return outputNode.textContent.indexOf("aTimer: timer started") > -1;
-    },
-    successFn: function()
-    {
-      findLogEntry("ms");
-      // The next test makes sure that timers with the same name but in separate
-      // tabs, do not contain the same value.
-      addTab("data:text/html;charset=utf-8,<script type='text/javascript'>" +
-             "console.timeEnd('bTimer');</script>");
-      browser.addEventListener("load", function onLoad() {
-        browser.removeEventListener("load", onLoad, true);
-        openConsole(null, testTimerIndependenceInTabs);
-      }, true);
-    },
-    failureFn: finishTest,
+  executeSoon(function() {
+    findLogEntry("aTimer: timer started");
+    findLogEntry("ms");
+
+    // The next test makes sure that timers with the same name but in separate
+    // tabs, do not contain the same value.
+    addTab("data:text/html;charset=utf-8,<script type='text/javascript'>" +
+           "console.timeEnd('bTimer');</script>");
+    browser.addEventListener("load", function onLoad() {
+      browser.removeEventListener("load", onLoad, true);
+      openConsole(null, testTimerIndependenceInTabs);
+    }, true);
   });
 }
 
@@ -63,30 +56,22 @@ function testTimerIndependenceInSameTab() {
   let hud = HUDService.hudReferences[hudId];
   outputNode = hud.outputNode;
 
-  waitForSuccess({
-    name: "bTimer started",
-    validatorFn: function()
-    {
-      return outputNode.textContent.indexOf("bTimer: timer started") > -1;
-    },
-    successFn: function() {
-      hud.jsterm.clearOutput();
+  executeSoon(function() {
+    findLogEntry("bTimer: timer started");
+    hud.jsterm.clearOutput();
 
-      // Now the following console.timeEnd() call shouldn't display anything,
-      // if the timers in different pages are not related.
-      browser.addEventListener("load", function onLoad() {
-        browser.removeEventListener("load", onLoad, true);
-        executeSoon(testTimerIndependenceInSameTabAgain);
-      }, true);
-      content.location = "data:text/html;charset=utf-8," +
-        "<script type='text/javascript'>" +
-        "console.timeEnd('bTimer');</script>";
-    },
-    failureFn: finishTest,
+    // Now the following console.timeEnd() call shouldn't display anything,
+    // if the timers in different pages are not related.
+    browser.addEventListener("load", function onLoad() {
+      browser.removeEventListener("load", onLoad, true);
+      executeSoon(testTimerIndependenceInSameTabAgain);
+    }, true);
+    content.location = "data:text/html;charset=utf-8,<script type='text/javascript'>" +
+           "console.timeEnd('bTimer');</script>";
   });
 }
 
-function testTimerIndependenceInSameTabAgain() {
+function testTimerIndependenceInSameTabAgain(hud) {
   let hudId = HUDService.getHudIdByWindow(content);
   let hud = HUDService.hudReferences[hudId];
   outputNode = hud.outputNode;

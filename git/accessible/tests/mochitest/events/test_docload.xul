@@ -184,13 +184,10 @@
     // Tests
 
     gA11yEventDumpToConsole = true; // debug
-    gA11yEventDumpFeature = "parentchain:reorder";
 
     var gQueue = null;
     function doTests()
     {
-      enableLogging("events");
-
       gQueue = new eventQueue();
 
       var dataURL =
@@ -206,7 +203,7 @@
       gQueue.push(new loadErrorPageInvoker("https://nocert.example.com:443",
                                           "Untrusted Connection"));
 
-      gQueue.onFinish = function() { closeBrowserWindow(); disableLogging(); }
+      gQueue.onFinish = function() { closeBrowserWindow(); }
       gQueue.invoke();
     }
 
