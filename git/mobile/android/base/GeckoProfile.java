@@ -23,7 +23,6 @@ import org.mozilla.gecko.mozglue.RobocopTarget;
 import org.mozilla.gecko.util.INIParser;
 import org.mozilla.gecko.util.INISection;
 
-import android.app.Activity;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
@@ -91,19 +90,9 @@ public final class GeckoProfile {
             }
         }
 
-        final String args;
-        if (context instanceof Activity) {
-            args = ((Activity) context).getIntent().getStringExtra("args");
-        } else {
-            args = null;
-        }
-
-        if (GuestSession.shouldUse(context, args)) {
-            GeckoProfile p = GeckoProfile.getOrCreateGuestProfile(context);
-            if (isGeckoApp) {
-                ((GeckoApp) context).mProfile = p;
-            }
-            return p;
+        // If the guest profile should be used return it.
+        if (GuestSession.shouldUse(context, "")) {
+            return GeckoProfile.getGuestProfile(context);
         }
 
         if (isGeckoApp) {
@@ -202,8 +191,6 @@ public final class GeckoProfile {
         return success;
     }
 
-    // Only public for access from tests.
-    @RobocopTarget
     public static GeckoProfile createGuestProfile(Context context) {
         try {
             // We need to force the creation of a new guest profile if we want it outside of the normal profile path,
@@ -243,18 +230,6 @@ public final class GeckoProfile {
             sGuestDir = context.getFileStreamPath("guest");
         }
         return sGuestDir;
-    }
-
-    /**
-     * Performs IO. Be careful of using this on the main thread.
-     */
-    public static GeckoProfile getOrCreateGuestProfile(Context context) {
-        GeckoProfile p = getGuestProfile(context);
-        if (p == null) {
-            return createGuestProfile(context);
-        }
-
-        return p;
     }
 
     public static GeckoProfile getGuestProfile(Context context) {

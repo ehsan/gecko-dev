@@ -267,17 +267,16 @@ MozMtpDatabase::FileWatcherUpdate(RefCountedMtpServer* aMtpServer,
 
   MtpObjectHandle entryHandle = FindEntryByPath(filePath);
 
-  if (aEventType.EqualsLiteral("modified")) {
-    // To update the file information to the newest, we remove the entry for
-    // the existing file, then re-add the entry for the file.
+  if (aEventType.EqualsLiteral("created")) {
     if (entryHandle != 0) {
-      MTP_LOG("About to call sendObjectRemoved Handle 0x%08x file %s", entryHandle, filePath.get());
-      aMtpServer->sendObjectRemoved(entryHandle);
-      RemoveEntry(entryHandle);
+      // The entry already exists. This means that we're being notified
+      // about a file added by MTP. So we can ignore it.
+
+      return;
     }
     entryHandle = CreateEntryForFile(filePath, aFile);
     if (entryHandle == 0) {
-      // creating entry for the file failed, don't tell MTP
+      // CreateEntryForFile didn't create a new entry. We can't tell MTP.
       return;
     }
     MTP_LOG("About to call sendObjectAdded Handle 0x%08x file %s", entryHandle, filePath.get());
@@ -290,8 +289,10 @@ MozMtpDatabase::FileWatcherUpdate(RefCountedMtpServer* aMtpServer,
       // The entry has already been removed. We can't tell MTP.
       return;
     }
+
     MTP_LOG("About to call sendObjectRemoved Handle 0x%08x file %s", entryHandle, filePath.get());
     aMtpServer->sendObjectRemoved(entryHandle);
+
     RemoveEntry(entryHandle);
     return;
   }
@@ -615,7 +616,11 @@ MozMtpDatabase::endSendObject(const char* aPath,
   if (aSucceeded) {
     RefPtr<DbEntry> entry = GetEntry(aHandle);
     if (entry) {
-      FileWatcherNotify(entry, "modified");
+      if (mBeginSendObjectCalled) {
+        FileWatcherNotify(entry, "created");
+      } else {
+        FileWatcherNotify(entry, "modified");
+      }
     }
   } else {
     RemoveEntry(aHandle);
