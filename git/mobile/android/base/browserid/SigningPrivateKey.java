@@ -6,8 +6,6 @@ package org.mozilla.gecko.browserid;
 
 import java.security.GeneralSecurityException;
 
-import org.mozilla.gecko.sync.ExtendedJSONObject;
-
 public interface SigningPrivateKey {
   /**
    * Return the JSON Web Token "alg" header corresponding to this private key.
@@ -20,16 +18,16 @@ public interface SigningPrivateKey {
   public String getAlgorithm();
 
   /**
-   * Generate a JSON representation of a private key.
+   * Generate a printable representation of a private key.
    * <p>
    * <b>This should only be used for debugging. No private keys should go over
    * the wire at any time.</b>
    *
    * @param privateKey
    *          to represent.
-   * @return JSON representation.
+   * @return printable representation.
    */
-  public ExtendedJSONObject toJSONObject();
+  public String serialize();
 
   /**
    * Sign a message.

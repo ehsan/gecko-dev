@@ -155,9 +155,9 @@ public class FxAccount {
    */
   public void login(final Context context, final String tokenServerEndpoint,
       final BrowserIDKeyPair keyPair, final Delegate delegate) {
-    ExtendedJSONObject publicKeyObject;
+    ExtendedJSONObject keyPairObject;
     try {
-      publicKeyObject = keyPair.getPublic().toJSONObject();
+      keyPairObject = new ExtendedJSONObject(keyPair.getPublic().serialize());
     } catch (Exception e) {
       delegate.handleError(e);
       return;
@@ -168,7 +168,7 @@ public class FxAccount {
     // inner FxAccountClient delegate, the outer TokenServerClient delegate, and
     // the user supplied delegate.
     FxAccountClient fxAccountClient = new FxAccountClient(idpEndpoint, executor);
-    fxAccountClient.sign(sessionTokenBytes, publicKeyObject,
+    fxAccountClient.sign(sessionTokenBytes, keyPairObject,
         JSONWebTokenUtils.DEFAULT_CERTIFICATE_DURATION_IN_MILLISECONDS,
         new InnerFxAccountClientRequestDelegate(executor, authEndpoint, tokenServerEndpoint, keyPair, delegate));
   }

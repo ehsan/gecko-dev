@@ -39,6 +39,7 @@
 #include "nsINetworkStatsServiceProxy.h"
 #endif
 
+using namespace mozilla;
 
 //-----------------------------------------------------------------------------
 
@@ -54,9 +55,6 @@ static NS_DEFINE_CID(kMultiplexInputStream, NS_MULTIPLEXINPUTSTREAM_CID);
 // Place a limit on how much non-compliant HTTP can be skipped while
 // looking for a response header
 #define MAX_INVALID_RESPONSE_BODY_SIZE (1024 * 128)
-
-namespace mozilla {
-namespace net {
 
 //-----------------------------------------------------------------------------
 // helpers
@@ -1964,6 +1962,3 @@ nsHttpTransaction::RestartVerifier::Set(int64_t contentLength,
         mSetup = true;
     }
 }
-
-} // namespace mozilla::net
-} // namespace mozilla

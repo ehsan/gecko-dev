@@ -24,13 +24,14 @@
 #include "nsISocketTransportService.h"
 #include <algorithm>
 
+using namespace mozilla;
+using namespace mozilla::net;
+
 // defined by the socket transport service while active
 extern PRThread *gSocketThread;
 
-namespace mozilla {
-namespace net {
-
 //-----------------------------------------------------------------------------
+
 
 NS_IMPL_ISUPPORTS1(nsHttpConnectionMgr, nsIObserver)
 
@@ -339,7 +340,7 @@ public: // intentional!
     // As above, added manually so we can use nsRefPtr without inheriting from
     // nsISupports
 protected:
-    ThreadSafeAutoRefCnt mRefCnt;
+    ::mozilla::ThreadSafeAutoRefCnt mRefCnt;
     NS_DECL_OWNINGTHREAD
 };
 
@@ -3465,7 +3466,7 @@ nsHttpConnectionMgr::ReadConnectionEntry(const nsACString &key,
 }
 
 bool
-nsHttpConnectionMgr::GetConnectionData(nsTArray<HttpRetParams> *aArg)
+nsHttpConnectionMgr::GetConnectionData(nsTArray<mozilla::net::HttpRetParams> *aArg)
 {
     mCT.Enumerate(ReadConnectionEntry, aArg);
     return true;
@@ -3527,6 +3528,3 @@ nsConnectionEntry::ResetIPFamilyPreference()
   mPreferIPv4 = false;
   mPreferIPv6 = false;
 }
-
-} // namespace mozilla::net
-} // namespace mozilla

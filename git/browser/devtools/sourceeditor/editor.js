@@ -73,7 +73,6 @@ const CM_MAPPING = [
   "setSelection",
   "getSelection",
   "replaceSelection",
-  "extendSelection",
   "undo",
   "redo",
   "clearHistory",
@@ -365,6 +364,18 @@ Editor.prototype = {
       return;
 
     this.setCursor(this.getCursor());
+  },
+
+  /**
+   * Extends the current selection to the position specified
+   * by the provided {line, ch} object.
+   */
+  extendSelection: function (pos) {
+    let cm = editors.get(this);
+    let cursor = cm.indexFromPos(cm.getCursor());
+    let anchor = cm.posFromIndex(cursor + pos.start);
+    let head   = cm.posFromIndex(cursor + pos.start + pos.length);
+    cm.setSelection(anchor, head);
   },
 
   /**

@@ -15,9 +15,6 @@
 
 class nsCString;
 
-namespace mozilla {
-namespace net {
-
 struct nsHttpAuthPath {
     struct nsHttpAuthPath *mNext;
     char                   mPath[1];
@@ -254,7 +251,5 @@ private:
     PLHashTable *mDB; // "host:port" --> nsHttpAuthNode
     nsRefPtr<AppDataClearObserver> mObserver;
 };
-
-}} // namespace mozilla::net
 
 #endif // nsHttpAuthCache_h__

@@ -397,9 +397,6 @@ nsFrameMessageManager::LoadFrameScript(const nsAString& aURL,
                                        bool aAllowDelayedLoad,
                                        bool aRunInGlobalScope)
 {
-  // FIXME: Bug 673569 is currently disabled.
-  aRunInGlobalScope = true;
-
   if (aAllowDelayedLoad) {
     if (IsGlobal() || IsWindowLevel()) {
       // Cache for future windows or frames

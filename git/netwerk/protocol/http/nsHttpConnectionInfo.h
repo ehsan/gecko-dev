@@ -18,8 +18,6 @@ extern PRLogModuleInfo *gHttpLog;
 // nsHttpConnectionInfo - holds the properties of a connection
 //-----------------------------------------------------------------------------
 
-namespace mozilla { namespace net {
-
 class nsHttpConnectionInfo
 {
 public:
@@ -93,7 +91,5 @@ private:
 // for nsRefPtr
     NS_INLINE_DECL_THREADSAFE_REFCOUNTING(nsHttpConnectionInfo)
 };
-
-}} // namespace mozilla::net
 
 #endif // nsHttpConnectionInfo_h__

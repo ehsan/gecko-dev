@@ -264,6 +264,7 @@ GLContext::GLContext(const SurfaceCaps& caps,
     mGLError(LOCAL_GL_NO_ERROR),
 #endif
     mSharedContext(sharedContext),
+    mFlipped(false),
     mCaps(caps),
     mScreen(nullptr),
     mLockedSurface(nullptr),
@@ -1023,8 +1024,14 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
     }
 
     if (mInitialized) {
-        raw_fGetIntegerv(LOCAL_GL_VIEWPORT, mViewportRect);
-        raw_fGetIntegerv(LOCAL_GL_SCISSOR_BOX, mScissorRect);
+        GLint v[4];
+
+        fGetIntegerv(LOCAL_GL_SCISSOR_BOX, v);
+        mScissorStack.AppendElement(nsIntRect(v[0], v[1], v[2], v[3]));
+
+        fGetIntegerv(LOCAL_GL_VIEWPORT, v);
+        mViewportStack.AppendElement(nsIntRect(v[0], v[1], v[2], v[3]));
+
         raw_fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, &mMaxTextureSize);
         raw_fGetIntegerv(LOCAL_GL_MAX_CUBE_MAP_TEXTURE_SIZE, &mMaxCubeMapTextureSize);
         raw_fGetIntegerv(LOCAL_GL_MAX_RENDERBUFFER_SIZE, &mMaxRenderbufferSize);
@@ -1536,6 +1543,7 @@ GLContext::ClearSafely()
     // prepare GL state for clearing
     fDisable(LOCAL_GL_SCISSOR_TEST);
     fDisable(LOCAL_GL_DITHER);
+    PushViewportRect(nsIntRect(0, 0, OffscreenSize().width, OffscreenSize().height));
 
     fColorMask(1, 1, 1, 1);
     fClearColor(0.f, 0.f, 0.f, 0.f);
@@ -1567,6 +1575,8 @@ GLContext::ClearSafely()
     fStencilMaskSeparate(LOCAL_GL_FRONT, stencilWriteMaskFront);
     fStencilMaskSeparate(LOCAL_GL_BACK, stencilWriteMaskBack);
     fClearStencil(stencilClearValue);
+
+    PopViewportRect();
 
     if (ditherEnabled)
         fEnable(LOCAL_GL_DITHER);

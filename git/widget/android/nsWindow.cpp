@@ -47,8 +47,6 @@ using mozilla::unused;
 #include "mozilla/layers/APZCTreeManager.h"
 #include "GLContext.h"
 #include "GLContextProvider.h"
-#include "ScopedGLHelpers.h"
-#include "mozilla/layers/CompositorOGL.h"
 
 #include "nsTArray.h"
 
@@ -2382,10 +2380,6 @@ nsWindow::DrawWindowUnderlay(LayerManagerComposite* aManager, nsIntRect aRect)
         return;
     }
 
-    gl::GLContext* gl = static_cast<CompositorOGL*>(aManager->GetCompositor())->gl();
-    gl::ScopedGLState scopedScissorTestState(gl, LOCAL_GL_SCISSOR_TEST);
-    gl::ScopedScissorRect scopedScissorRectState(gl);
-
     client->ActivateProgram();
     if (!mLayerRendererFrame.BeginDrawing(&jniFrame)) return;
     if (!mLayerRendererFrame.DrawBackground(&jniFrame)) return;
@@ -2407,10 +2401,6 @@ nsWindow::DrawWindowOverlay(LayerManagerComposite* aManager, nsIntRect aRect)
                       "Frame should have been created in DrawWindowUnderlay()!");
 
     GeckoLayerClient* client = AndroidBridge::Bridge()->GetLayerClient();
-
-    gl::GLContext* gl = static_cast<CompositorOGL*>(aManager->GetCompositor())->gl();
-    gl::ScopedGLState scopedScissorTestState(gl, LOCAL_GL_SCISSOR_TEST);
-    gl::ScopedScissorRect scopedScissorRectState(gl);
 
     client->ActivateProgram();
     if (!mLayerRendererFrame.DrawForeground(&jniFrame)) return;
