@@ -81,7 +81,7 @@ static RedirEntry kRedirMap[] = {
   { "privatebrowsing", "chrome://browser/content/aboutPrivateBrowsing.xhtml",
     nsIAboutModule::ALLOW_SCRIPT },
   { "rights",
-#ifdef MOZ_OFFICIAL_BRANDING
+#ifdef OFFICIAL_BUILD
     "chrome://global/content/aboutRights.xhtml",
 #else
     "chrome://global/content/aboutRights-unbranded.xhtml",

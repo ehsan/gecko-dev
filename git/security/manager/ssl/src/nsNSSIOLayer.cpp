@@ -86,7 +86,6 @@
 #include "nsProxyRelease.h"
 #include "nsIClassInfoImpl.h"
 #include "nsIProgrammingLanguage.h"
-#include "nsIArray.h"
 
 #include "ssl.h"
 #include "secerr.h"
@@ -923,18 +922,8 @@ AppendErrorTextUntrusted(PRErrorCode errTrust,
   if (!errorID) {
     switch (errTrust) {
       case SEC_ERROR_UNKNOWN_ISSUER:
-      {
-        nsCOMPtr<nsIArray> chain;
-        ix509->GetChain(getter_AddRefs(chain));
-        PRUint32 length = 0;
-        if (chain && NS_FAILED(chain->GetLength(&length)))
-          length = 0;
-        if (length == 1)
-          errorID = "certErrorTrust_MissingChain";
-        else
-          errorID = "certErrorTrust_UnknownIssuer";
+        errorID = "certErrorTrust_UnknownIssuer";
         break;
-      }
       case SEC_ERROR_INADEQUATE_KEY_USAGE:
         // Should get an individual string in the future
         // For now, use the same as CaInvalid
