@@ -26,8 +26,8 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
-#ifndef yarr_YarrPattern_h
-#define yarr_YarrPattern_h
+#ifndef YarrPattern_h
+#define YarrPattern_h
 
 #include "wtfbridge.h"
 #include "ASCIICType.h"
@@ -471,4 +471,4 @@ private:
 
 } } // namespace JSC::Yarr
 
-#endif /* yarr_YarrPattern_h */
+#endif // YarrPattern_h

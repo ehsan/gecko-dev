@@ -11,7 +11,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsIDOMHTMLOptionElement.h"
 #include "nsIJSNativeInitializer.h"
-#include "mozilla/dom/HTMLFormElement.h"
+#include "nsHTMLFormElement.h"
 
 namespace mozilla {
 namespace dom {
@@ -91,7 +91,7 @@ public:
     SetHTMLBoolAttr(nsGkAtoms::disabled, aValue, aRv);
   }
 
-  HTMLFormElement* GetForm();
+  nsHTMLFormElement* GetForm();
 
   // The XPCOM GetLabel is OK for us
   void SetLabel(const nsAString& aLabel, ErrorResult& aError)

@@ -8,10 +8,10 @@
  * JS runtime exception classes.
  */
 
-#ifndef jsexn_h
-#define jsexn_h
+#ifndef jsexn_h___
+#define jsexn_h___
 
-#include "jsapi.h"
+#include "jsobj.h"
 
 /*
  * Initialize the exception constructor/prototype hierarchy.
@@ -76,4 +76,4 @@ GetExceptionProtoKey(int exn)
     return JSProtoKey(JSProto_Error + exn);
 }
 
-#endif /* jsexn_h */
+#endif /* jsexn_h___ */

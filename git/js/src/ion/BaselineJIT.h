@@ -4,10 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_BaselineJIT_h
-#define ion_BaselineJIT_h
-
-#ifdef JS_ION
+#if !defined(jsion_baseline_jit_h__) && defined(JS_ION)
+#define jsion_baseline_jit_h__
 
 #include "jscntxt.h"
 #include "jscompartment.h"
@@ -263,13 +261,10 @@ IsBaselineEnabled(JSContext *cx)
 }
 
 MethodStatus
-CanEnterBaselineMethod(JSContext *cx, RunState &state);
-
-MethodStatus
-CanEnterBaselineAtBranch(JSContext *cx, StackFrame *fp, bool newType);
+CanEnterBaselineJIT(JSContext *cx, JSScript *scriptArg, StackFrame *fp, bool newType);
 
 IonExecStatus
-EnterBaselineMethod(JSContext *cx, RunState &state);
+EnterBaselineMethod(JSContext *cx, StackFrame *fp);
 
 IonExecStatus
 EnterBaselineAtBranch(JSContext *cx, StackFrame *fp, jsbytecode *pc);
@@ -335,6 +330,5 @@ MarkActiveBaselineScripts(Zone *zone);
 } // namespace ion
 } // namespace js
 
-#endif // JS_ION
+#endif
 
-#endif /* ion_BaselineJIT_h */

@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_IonCode_h
-#define ion_IonCode_h
+#ifndef jsion_coderef_h__
+#define jsion_coderef_h__
 
 #include "mozilla/PodOperations.h"
 
@@ -724,4 +724,5 @@ IsMarked(const ion::VMFunction *)
 
 } // namespace js
 
-#endif /* ion_IonCode_h */
+#endif // jsion_coderef_h__
+

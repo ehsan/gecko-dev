@@ -58,7 +58,8 @@ IDBRequest::~IDBRequest()
 already_AddRefed<IDBRequest>
 IDBRequest::Create(nsISupports* aSource,
                    IDBWrapperCache* aOwnerCache,
-                   IDBTransaction* aTransaction)
+                   IDBTransaction* aTransaction,
+                   JSContext* aCallingCx)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   nsRefPtr<IDBRequest> request(new IDBRequest());
@@ -67,7 +68,7 @@ IDBRequest::Create(nsISupports* aSource,
   request->mTransaction = aTransaction;
   request->BindToOwner(aOwnerCache);
   request->SetScriptOwner(aOwnerCache->GetScriptOwner());
-  request->CaptureCaller();
+  request->CaptureCaller(aCallingCx);
 
   return request.forget();
 }
@@ -119,15 +120,13 @@ IDBRequest::NotifyHelperCompleted(HelperBase* aHelper)
   JSAutoCompartment ac(cx, global);
   AssertIsRooted();
 
-  JS::Rooted<JS::Value> value(cx);
-  rv = aHelper->GetSuccessResult(cx, &value);
+  rv = aHelper->GetSuccessResult(cx, &mResultVal);
   if (NS_FAILED(rv)) {
     NS_WARNING("GetSuccessResult failed!");
   }
 
   if (NS_SUCCEEDED(rv)) {
     mError = nullptr;
-    mResultVal = value;
   }
   else {
     SetError(rv);
@@ -203,17 +202,17 @@ IDBRequest::GetJSContext()
 }
 
 void
-IDBRequest::CaptureCaller()
+IDBRequest::CaptureCaller(JSContext* aCx)
 {
-  AutoJSContext cx;
+  if (!aCx) {
+    // We may not have a JSContext.  This happens if our caller is in another
+    // process.
+    return;
+  }
 
   const char* filename = nullptr;
   uint32_t lineNo = 0;
-  if (!nsJSUtils::GetCallingLocation(cx, &filename, &lineNo)) {
-    // If our caller is in another process, we won't have a JSContext on the
-    // stack, and AutoJSContext will push the SafeJSContext. But that won't have
-    // any script on it (certainly not after the push), so GetCallingLocation
-    // will fail when it calls JS_DescribeScriptedCaller. That's fine.
+  if (!nsJSUtils::GetCallingLocation(aCx, &filename, &lineNo)) {
     NS_WARNING("Failed to get caller.");
     return;
   }
@@ -353,7 +352,8 @@ IDBOpenDBRequest::~IDBOpenDBRequest()
 already_AddRefed<IDBOpenDBRequest>
 IDBOpenDBRequest::Create(IDBFactory* aFactory,
                          nsPIDOMWindow* aOwner,
-                         JS::Handle<JSObject*> aScriptOwner)
+                         JS::Handle<JSObject*> aScriptOwner,
+                         JSContext* aCallingCx)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(aFactory, "Null pointer!");
@@ -362,7 +362,7 @@ IDBOpenDBRequest::Create(IDBFactory* aFactory,
 
   request->BindToOwner(aOwner);
   request->SetScriptOwner(aScriptOwner);
-  request->CaptureCaller();
+  request->CaptureCaller(aCallingCx);
   request->mFactory = aFactory;
 
   return request.forget();

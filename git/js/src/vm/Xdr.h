@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_Xdr_h
-#define vm_Xdr_h
+#ifndef Xdr_h___
+#define Xdr_h___
 
 #include "mozilla/Endian.h"
 
@@ -26,7 +26,7 @@ namespace js {
  * and saved versions. If deserialization fails, the data should be
  * invalidated if possible.
  */
-static const uint32_t XDR_BYTECODE_VERSION = uint32_t(0xb973c0de - 148);
+static const uint32_t XDR_BYTECODE_VERSION = uint32_t(0xb973c0de - 147);
 
 class XDRBuffer {
   public:
@@ -211,7 +211,20 @@ class XDRState {
     bool codeFunction(JS::MutableHandleObject objp);
     bool codeScript(MutableHandleScript scriptp);
 
-    void initScriptPrincipals(JSScript *script);
+    void initScriptPrincipals(JSScript *script) {
+        JS_ASSERT(mode == XDR_DECODE);
+
+        /* The origin principals must be normalized at this point. */
+        JS_ASSERT_IF(principals, originPrincipals);
+        JS_ASSERT(!script->originPrincipals);
+        if (principals)
+            JS_ASSERT(script->principals() == principals);
+
+        if (originPrincipals) {
+            script->originPrincipals = originPrincipals;
+            JS_HoldPrincipals(originPrincipals);
+        }
+    }
 };
 
 class XDREncoder : public XDRState<XDR_ENCODE> {
@@ -244,4 +257,4 @@ class XDRDecoder : public XDRState<XDR_DECODE> {
 
 } /* namespace js */
 
-#endif /* vm_Xdr_h */
+#endif /* Xdr_h___ */

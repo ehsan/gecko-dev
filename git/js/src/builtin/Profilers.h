@@ -8,10 +8,10 @@
  * Functions for controlling profilers from within JS: Valgrind, Perf,
  * Shark, etc.
  */
-#ifndef builtin_Profilers_h
-#define builtin_Profilers_h
+#ifndef Profilers_h___
+#define Profilers_h___
 
-#include "jstypes.h"
+#include "jsapi.h"
 
 /**
  * Start any profilers that are available and have been configured on for this
@@ -86,4 +86,4 @@ js_StopPerf();
 
 #endif /* __linux__ */
 
-#endif /* builtin_Profilers_h */
+#endif /* Profilers_h___ */

@@ -13,6 +13,7 @@
 #include "jsanalyze.h"
 #include "jsbool.h"
 #include "jsnum.h"
+#include "jsobjinlines.h"
 #include "shared/Lowering-shared-inl.h"
 #include "mozilla/DebugOnly.h"
 
@@ -606,17 +607,17 @@ LIRGenerator::visitTest(MTest *test)
                 return add(lir, comp);
             }
 
-            LDefinition tmp, tmpToUnbox;
+            LDefinition temp0, temp1;
             if (comp->operandMightEmulateUndefined()) {
-                tmp = temp();
-                tmpToUnbox = tempToUnbox();
+                temp0 = temp();
+                temp1 = temp();
             } else {
-                tmp = LDefinition::BogusTemp();
-                tmpToUnbox = LDefinition::BogusTemp();
+                temp0 = LDefinition::BogusTemp();
+                temp1 = LDefinition::BogusTemp();
             }
 
             LIsNullOrLikeUndefinedAndBranch *lir =
-                new LIsNullOrLikeUndefinedAndBranch(ifTrue, ifFalse, tmp, tmpToUnbox);
+                new LIsNullOrLikeUndefinedAndBranch(ifTrue, ifFalse, temp0, temp1);
             if (!useBox(lir, LIsNullOrLikeUndefinedAndBranch::Value, left))
                 return false;
             return add(lir, comp);
@@ -749,7 +750,7 @@ LIRGenerator::visitCompare(MCompare *comp)
         JS_ASSERT(left->type() == MIRType_Value);
         JS_ASSERT(right->type() == MIRType_String);
 
-        LCompareStrictS *lir = new LCompareStrictS(useRegister(right), temp(), tempToUnbox());
+        LCompareStrictS *lir = new LCompareStrictS(useRegister(right), temp(), temp());
         if (!useBox(lir, LCompareStrictS::Lhs, left))
             return false;
         if (!define(lir, comp))
@@ -785,16 +786,16 @@ LIRGenerator::visitCompare(MCompare *comp)
             return define(new LEmulatesUndefined(useRegister(left)), comp);
         }
 
-        LDefinition tmp, tmpToUnbox;
+        LDefinition temp0, temp1;
         if (comp->operandMightEmulateUndefined()) {
-            tmp = temp();
-            tmpToUnbox = tempToUnbox();
+            temp0 = temp();
+            temp1 = temp();
         } else {
-            tmp = LDefinition::BogusTemp();
-            tmpToUnbox = LDefinition::BogusTemp();
+            temp0 = LDefinition::BogusTemp();
+            temp1 = LDefinition::BogusTemp();
         }
 
-        LIsNullOrLikeUndefined *lir = new LIsNullOrLikeUndefined(tmp, tmpToUnbox);
+        LIsNullOrLikeUndefined *lir = new LIsNullOrLikeUndefined(temp0, temp1);
         if (!useBox(lir, LIsNullOrLikeUndefined::Value, left))
             return false;
         return define(lir, comp);
@@ -1395,7 +1396,7 @@ bool
 LIRGenerator::visitToDouble(MToDouble *convert)
 {
     MDefinition *opd = convert->input();
-    mozilla::DebugOnly<MToDouble::ConversionKind> conversion = convert->conversion();
+    MToDouble::ConversionKind conversion = convert->conversion();
 
     switch (opd->type()) {
       case MIRType_Value:
@@ -1732,12 +1733,7 @@ LIRGenerator::visitTypeBarrier(MTypeBarrier *ins)
 {
     // Requesting a non-GC pointer is safe here since we never re-enter C++
     // from inside a type barrier test.
-
-    const types::StackTypeSet *types = ins->resultTypeSet();
-    bool needTemp = !types->unknownObject() && types->getObjectCount() > 0;
-    LDefinition tmp = needTemp ? temp() : tempToUnbox();
-
-    LTypeBarrier *barrier = new LTypeBarrier(tmp);
+    LTypeBarrier *barrier = new LTypeBarrier(temp());
     if (!useBox(barrier, LTypeBarrier::Input, ins->input()))
         return false;
     if (!assignSnapshot(barrier, ins->bailoutKind()))
@@ -1750,12 +1746,7 @@ LIRGenerator::visitMonitorTypes(MMonitorTypes *ins)
 {
     // Requesting a non-GC pointer is safe here since we never re-enter C++
     // from inside a type check.
-
-    const types::StackTypeSet *types = ins->typeSet();
-    bool needTemp = !types->unknownObject() && types->getObjectCount() > 0;
-    LDefinition tmp = needTemp ? temp() : tempToUnbox();
-
-    LMonitorTypes *lir = new LMonitorTypes(tmp);
+    LMonitorTypes *lir = new LMonitorTypes(temp());
     if (!useBox(lir, LMonitorTypes::Input, ins->input()))
         return false;
     return assignSnapshot(lir, Bailout_Normal) && add(lir, ins);
@@ -1773,7 +1764,7 @@ LIRGenerator::visitPostWriteBarrier(MPostWriteBarrier *ins)
       }
       case MIRType_Value: {
         LPostWriteBarrierV *lir =
-            new LPostWriteBarrierV(useRegisterOrConstant(ins->object()), tempToUnbox());
+            new LPostWriteBarrierV(useRegisterOrConstant(ins->object()), temp());
         if (!useBox(lir, LPostWriteBarrierV::Input, ins->value()))
             return false;
         return add(lir, ins) && assignSafepoint(lir, ins);
@@ -2634,18 +2625,6 @@ LIRGenerator::visitIsCallable(MIsCallable *ins)
     JS_ASSERT(ins->object()->type() == MIRType_Object);
     JS_ASSERT(ins->type() == MIRType_Boolean);
     return define(new LIsCallable(useRegister(ins->object())), ins);
-}
-
-bool
-LIRGenerator::visitHaveSameClass(MHaveSameClass *ins)
-{
-    MDefinition *lhs = ins->lhs();
-    MDefinition *rhs = ins->rhs();
-
-    JS_ASSERT(lhs->type() == MIRType_Object);
-    JS_ASSERT(rhs->type() == MIRType_Object);
-
-    return define(new LHaveSameClass(useRegister(lhs), useRegister(rhs), temp()), ins);
 }
 
 bool

@@ -27,8 +27,8 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef yarr_Yarr_h
-#define yarr_Yarr_h
+#ifndef Yarr_h
+#define Yarr_h
 
 #include <limits.h>
 #include "YarrInterpreter.h"
@@ -68,4 +68,5 @@ enum YarrCharSize {
 
 } } // namespace JSC::Yarr
 
-#endif /* yarr_Yarr_h */
+#endif // Yarr_h
+

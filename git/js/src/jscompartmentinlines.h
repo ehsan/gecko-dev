@@ -4,12 +4,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jscompartmentinlines_h
-#define jscompartmentinlines_h
+#ifndef jscompartment_inlines_h___
+#define jscompartment_inlines_h___
 
 #include "jscompartment.h"
-
-#include "jscntxtinlines.h"
 
 inline void
 JSCompartment::initGlobal(js::GlobalObject &global)
@@ -36,6 +34,30 @@ js::AutoCompartment::AutoCompartment(JSContext *cx, JSObject *target)
 js::AutoCompartment::~AutoCompartment()
 {
     cx_->leaveCompartment(origin_);
+}
+
+void *
+js::Allocator::onOutOfMemory(void *p, size_t nbytes)
+{
+    return zone->rt->onOutOfMemory(p, nbytes);
+}
+
+void
+js::Allocator::updateMallocCounter(size_t nbytes)
+{
+    zone->rt->updateMallocCounter(zone, nbytes);
+}
+
+void
+js::Allocator::reportAllocationOverflow()
+{
+    js_ReportAllocationOverflow(NULL);
+}
+
+inline void *
+js::Allocator::parallelNewGCThing(gc::AllocKind thingKind, size_t thingSize)
+{
+    return arenas.parallelAllocate(zone, thingKind, thingSize);
 }
 
 namespace js {
@@ -68,4 +90,4 @@ class AutoEnterAtomsCompartment
 
 } /* namespace js */
 
-#endif /* jscompartmentinlines_h */
+#endif /* jscompartment_inlines_h___ */

@@ -8,5 +8,3 @@ CPP_SOURCES += [
     'vmwarerecordinghelper.cpp',
 ]
 
-LIBRARY_NAME = 'vmwarerecordinghelper'
-

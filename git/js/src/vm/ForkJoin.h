@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_ForkJoin_h
-#define vm_ForkJoin_h
+#ifndef ForkJoin_h__
+#define ForkJoin_h__
 
 #include "jscntxt.h"
 #include "vm/ThreadPool.h"
@@ -290,14 +290,22 @@ struct ParallelBailoutRecord {
 
 struct ForkJoinShared;
 
-struct ForkJoinSlice : ThreadSafeContext
+struct ForkJoinSlice
 {
   public:
+    // PerThreadData corresponding to the current worker thread.
+    PerThreadData *perThreadData;
+
     // Which slice should you process? Ranges from 0 to |numSlices|.
     const uint32_t sliceId;
 
     // How many slices are there in total?
     const uint32_t numSlices;
+
+    // Allocator to use when allocating on this thread.  See
+    // |ion::ParFunctions::ParNewGCThing()|.  This should move into
+    // |perThreadData|.
+    Allocator *const allocator;
 
     // Bailout record used to record the reason this thread stopped executing
     ParallelBailoutRecord *const bailoutRecord;
@@ -308,11 +316,11 @@ struct ForkJoinSlice : ThreadSafeContext
 #endif
 
     ForkJoinSlice(PerThreadData *perThreadData, uint32_t sliceId, uint32_t numSlices,
-                  Allocator *allocator, ForkJoinShared *shared,
+                  Allocator *arenaLists, ForkJoinShared *shared,
                   ParallelBailoutRecord *bailoutRecord);
 
     // True if this is the main thread, false if it is one of the parallel workers.
-    bool isMainThread() const;
+    bool isMainThread();
 
     // When the code would normally trigger a GC, we don't trigger it
     // immediately but instead record that request here.  This will
@@ -346,7 +354,6 @@ struct ForkJoinSlice : ThreadSafeContext
     // Acquire and release the JSContext from the runtime.
     JSContext *acquireContext();
     void releaseContext();
-    bool hasAcquiredContext() const;
 
     // Check the current state of parallel execution.
     static inline ForkJoinSlice *Current();
@@ -365,8 +372,6 @@ struct ForkJoinSlice : ThreadSafeContext
 #endif
 
     ForkJoinShared *const shared;
-
-    bool acquiredContext_;
 };
 
 // Locks a JSContext for its scope. Be very careful, because locking a
@@ -415,8 +420,6 @@ InParallelSection()
     return false;
 #endif
 }
-
-bool InSequentialOrExclusiveParallelSection();
 
 bool ParallelTestsShouldPass(JSContext *cx);
 
@@ -492,4 +495,4 @@ js::ForkJoinSlice::Current()
 #endif
 }
 
-#endif /* vm_ForkJoin_h */
+#endif // ForkJoin_h__

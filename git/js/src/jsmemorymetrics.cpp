@@ -6,6 +6,7 @@
 
 #include "js/MemoryMetrics.h"
 
+#include "mozilla/Assertions.h"
 #include "mozilla/DebugOnly.h"
 
 #include "jsapi.h"
@@ -173,7 +174,7 @@ StatsCellCallback(JSRuntime *rt, void *data, void *thing, JSGCTraceKind traceKin
       case JSTRACE_OBJECT: {
         JSObject *obj = static_cast<JSObject *>(thing);
         CompartmentStats *cStats = GetCompartmentStats(obj->compartment());
-        if (obj->is<JSFunction>())
+        if (obj->isFunction())
             cStats->gcHeapObjectsFunction += thingSize;
         else if (obj->isArray())
             cStats->gcHeapObjectsDenseArray += thingSize;

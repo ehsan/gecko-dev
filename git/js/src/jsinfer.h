@@ -6,8 +6,10 @@
 
 /* Definitions related to javascript type inference. */
 
-#ifndef jsinfer_h
-#define jsinfer_h
+#ifndef jsinfer_h___
+#define jsinfer_h___
+
+#include "mozilla/Attributes.h"
 
 #include "jsalloc.h"
 #include "jsfriendapi.h"
@@ -49,14 +51,14 @@ struct RootKind<TaggedProto>
     static ThingRootKind rootKind() { return THING_ROOT_OBJECT; }
 };
 
-template <> struct GCMethods<const TaggedProto>
+template <> struct RootMethods<const TaggedProto>
 {
     static TaggedProto initial() { return TaggedProto(); }
     static ThingRootKind kind() { return THING_ROOT_OBJECT; }
     static bool poisoned(const TaggedProto &v) { return IsPoisonedPtr(v.raw()); }
 };
 
-template <> struct GCMethods<TaggedProto>
+template <> struct RootMethods<TaggedProto>
 {
     static TaggedProto initial() { return TaggedProto(); }
     static ThingRootKind kind() { return THING_ROOT_OBJECT; }
@@ -1505,4 +1507,4 @@ MOZ_NORETURN void TypeFailure(JSContext *cx, const char *fmt, ...);
 } /* namespace types */
 } /* namespace js */
 
-#endif /* jsinfer_h */
+#endif // jsinfer_h___

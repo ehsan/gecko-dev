@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ds_BitArray_h
-#define ds_BitArray_h
+#ifndef BitArray_h__
+#define BitArray_h__
 
 #include "jstypes.h" 
 
@@ -61,4 +61,4 @@ class BitArray {
 
 } /* namespace js */
 
-#endif /* ds_BitArray_h */
+#endif

@@ -4,18 +4,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_ArgumentsObject_h
-#define vm_ArgumentsObject_h
+#ifndef ArgumentsObject_h___
+#define ArgumentsObject_h___
 
 #include "jsfun.h"
 
 namespace js {
-
-class AbstractFramePtr;
-
-namespace ion {
-class IonJSFrameLayout;
-}
 
 /*
  * ArgumentsData stores the initial indexed arguments provided to the
@@ -226,8 +220,6 @@ class ArgumentsObject : public JSObject
 class NormalArgumentsObject : public ArgumentsObject
 {
   public:
-    static Class class_;
-
     /*
      * Stores arguments.callee, or MagicValue(JS_ARGS_HOLE) if the callee has
      * been cleared.
@@ -239,18 +231,36 @@ class NormalArgumentsObject : public ArgumentsObject
 };
 
 class StrictArgumentsObject : public ArgumentsObject
-{
-  public:
-    static Class class_;
-};
+{};
 
 } // namespace js
 
-template<>
-inline bool
-JSObject::is<js::ArgumentsObject>() const
+js::NormalArgumentsObject &
+JSObject::asNormalArguments()
 {
-    return is<js::NormalArgumentsObject>() || is<js::StrictArgumentsObject>();
+    JS_ASSERT(isNormalArguments());
+    return *static_cast<js::NormalArgumentsObject *>(this);
 }
 
-#endif /* vm_ArgumentsObject_h */
+js::StrictArgumentsObject &
+JSObject::asStrictArguments()
+{
+    JS_ASSERT(isStrictArguments());
+    return *static_cast<js::StrictArgumentsObject *>(this);
+}
+
+js::ArgumentsObject &
+JSObject::asArguments()
+{
+    JS_ASSERT(isArguments());
+    return *static_cast<js::ArgumentsObject *>(this);
+}
+
+const js::ArgumentsObject &
+JSObject::asArguments() const
+{
+    JS_ASSERT(isArguments());
+    return *static_cast<const js::ArgumentsObject *>(this);
+}
+
+#endif /* ArgumentsObject_h___ */

@@ -9,7 +9,7 @@
   <script type="application/javascript"
           src="../common.js"></script>
   <script type="application/javascript"
-          src="output.js"></script>
+          src="utterance.js"></script>
   <script type="application/javascript">
 
     function doTest() {
@@ -87,14 +87,11 @@
           "Plums"]
       }];
 
-      SpecialPowers.setIntPref(PREF_UTTERANCE_ORDER, 0);
-
       // Test various explicit names vs the utterance generated from subtrees.
       tests.forEach(function run(test) {
-        testOutput(test.expected, test.accOrElmOrID, test.oldAccOrElmOrID, 1);
+        testUtterance(test.expected, test.accOrElmOrID, test.oldAccOrElmOrID);
       });
 
-      SpecialPowers.clearUserPref(PREF_UTTERANCE_ORDER);
       SimpleTest.finish();
     }
 

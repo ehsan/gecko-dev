@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsscriptinlines_h
-#define jsscriptinlines_h
+#ifndef jsscriptinlines_h___
+#define jsscriptinlines_h___
 
 #include "jsautooplen.h"
 #include "jscntxt.h"
@@ -17,8 +17,6 @@
 #include "vm/GlobalObject.h"
 #include "vm/RegExpObject.h"
 #include "vm/Shape.h"
-
-#include "jscompartmentinlines.h"
 
 #include "vm/Shape-inl.h"
 
@@ -89,18 +87,18 @@ SetFrameArgumentsObject(JSContext *cx, AbstractFramePtr frame,
 inline void
 JSScript::setFunction(JSFunction *fun)
 {
-    JS_ASSERT(fun->isTenured());
     function_ = fun;
 }
 
 inline JSFunction *
 JSScript::getFunction(size_t index)
 {
-    JSFunction *fun = &getObject(index)->as<JSFunction>();
+    JSObject *funobj = getObject(index);
 #ifdef DEBUG
+    JSFunction *fun = funobj->toFunction();
     JS_ASSERT_IF(fun->isNative(), IsAsmJSModuleNative(fun->native()));
 #endif
-    return fun;
+    return funobj->toFunction();
 }
 
 inline JSFunction *
@@ -126,7 +124,7 @@ JSScript::getRegExp(size_t index)
     js::ObjectArray *arr = regexps();
     JS_ASSERT(uint32_t(index) < arr->length);
     JSObject *obj = arr->vector[index];
-    JS_ASSERT(obj->is<js::RegExpObject>());
+    JS_ASSERT(obj->isRegExp());
     return (js::RegExpObject *) obj;
 }
 
@@ -161,7 +159,7 @@ JSScript::writeBarrierPre(JSScript *script)
 
     JS::Zone *zone = script->zone();
     if (zone->needsBarrier()) {
-        JS_ASSERT(!zone->rt->isHeapMajorCollecting());
+        JS_ASSERT(!zone->rt->isHeapBusy());
         JSScript *tmp = script;
         MarkScriptUnbarriered(zone->barrierTracer(), &tmp, "write barrier");
         JS_ASSERT(tmp == script);
@@ -183,7 +181,7 @@ js::LazyScript::writeBarrierPre(js::LazyScript *lazy)
 
     JS::Zone *zone = lazy->zone();
     if (zone->needsBarrier()) {
-        JS_ASSERT(!zone->rt->isHeapMajorCollecting());
+        JS_ASSERT(!zone->rt->isHeapBusy());
         js::LazyScript *tmp = lazy;
         MarkLazyScriptUnbarriered(zone->barrierTracer(), &tmp, "write barrier");
         JS_ASSERT(tmp == lazy);
@@ -201,14 +199,14 @@ inline JSFunction *
 JSScript::originalFunction() const {
     if (!isCallsiteClone)
         return NULL;
-    return &enclosingScopeOrOriginalFunction_->as<JSFunction>();
+    return enclosingScopeOrOriginalFunction_->toFunction();
 }
 
 inline void
 JSScript::setOriginalFunctionObject(JSObject *fun) {
     JS_ASSERT(isCallsiteClone);
-    JS_ASSERT(fun->is<JSFunction>());
+    JS_ASSERT(fun->isFunction());
     enclosingScopeOrOriginalFunction_ = fun;
 }
 
-#endif /* jsscriptinlines_h */
+#endif /* jsscriptinlines_h___ */

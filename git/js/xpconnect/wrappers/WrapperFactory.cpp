@@ -152,6 +152,11 @@ WrapperFactory::PrepareForWrapping(JSContext *cx, HandleObject scope,
     // We should never get a proxy here (the JS engine unwraps those for us).
     MOZ_ASSERT(!IsWrapper(obj));
 
+    // As soon as an object is wrapped in a security wrapper, it morphs to be
+    // a fat wrapper. (see also: bug XXX).
+    if (IS_SLIM_WRAPPER(obj) && !MorphSlimWrapper(cx, obj))
+        return nullptr;
+
     // If the object being wrapped is a prototype for a standard class and the
     // wrapper does not subsumes the wrappee, use the one from the content
     // compartment. This is generally safer all-around, and in the COW case this
@@ -196,7 +201,7 @@ WrapperFactory::PrepareForWrapping(JSContext *cx, HandleObject scope,
     // those objects in a security wrapper, then we need to hand back the
     // wrapper for the new scope instead. Also, global objects don't move
     // between scopes so for those we also want to return the wrapper. So...
-    if (!IS_WN_REFLECTOR(obj) || !js::GetObjectParent(obj))
+    if (!IS_WN_WRAPPER(obj) || !js::GetObjectParent(obj))
         return DoubleWrap(cx, obj, flags);
 
     XPCWrappedNative *wn = static_cast<XPCWrappedNative *>(xpc_GetJSPrivate(obj));
@@ -295,7 +300,7 @@ WrapperFactory::PrepareForWrapping(JSContext *cx, HandleObject scope,
     NS_ENSURE_SUCCESS(rv, nullptr);
 
     obj = JSVAL_TO_OBJECT(v);
-    NS_ASSERTION(IS_WN_REFLECTOR(obj), "bad object");
+    NS_ASSERTION(IS_WN_WRAPPER(obj), "bad object");
 
     // Because the underlying native didn't have a PreCreate hook, we had
     // to a new (or possibly pre-existing) XPCWN in our compartment.
@@ -517,7 +522,7 @@ WrapperFactory::WrapForSameCompartment(JSContext *cx, HandleObject objArg)
 
     MOZ_ASSERT(!dom::IsDOMObject(obj));
 
-    if (!IS_WN_REFLECTOR(obj))
+    if (!IS_WN_WRAPPER(obj))
         return obj;
 
     // Extract the WN. It should exist.
@@ -673,7 +678,7 @@ FixWaiverAfterTransplant(JSContext *cx, HandleObject oldWaiver, HandleObject new
 }
 
 JSObject *
-TransplantObject(JSContext *cx, JS::HandleObject origobj, JS::HandleObject target)
+TransplantObject(JSContext *cx, JSObject *origobj, JSObject *target)
 {
     RootedObject oldWaiver(cx, WrapperFactory::GetXrayWaiver(origobj));
     RootedObject newIdentity(cx, JS_TransplantObject(cx, origobj, target));
@@ -687,8 +692,8 @@ TransplantObject(JSContext *cx, JS::HandleObject origobj, JS::HandleObject targe
 
 JSObject *
 TransplantObjectWithWrapper(JSContext *cx,
-                            HandleObject origobj, HandleObject origwrapper,
-                            HandleObject targetobj, HandleObject targetwrapper)
+                            JSObject *origobj, JSObject *origwrapper,
+                            JSObject *targetobj, JSObject *targetwrapper)
 {
     RootedObject oldWaiver(cx, WrapperFactory::GetXrayWaiver(origobj));
     RootedObject newSameCompartmentWrapper(cx,

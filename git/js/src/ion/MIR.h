@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_MIR_h
-#define ion_MIR_h
+#ifndef jsion_mir_h__
+#define jsion_mir_h__
 
 // This file declares everything needed to build actual MIR instructions: the
 // actual opcodes and instructions themselves, the instruction interface, and
@@ -54,20 +54,7 @@ MIRType MIRTypeFromValue(const js::Value &vp)
      * points.
      */                                                                         \
     _(Unused)                                                                   \
-    _(DOMFunction)   /* Contains or uses a common DOM method function */        \
-                                                                                \
-    /* Marks if an instruction has fewer uses than the original code.
-     * E.g. UCE can remove code.
-     * Every instruction where an use is/was removed from an instruction and
-     * as a result the number of operands doesn't equal the original code
-     * need to get marked as UseRemoved. This is important for truncation
-     * analysis to know, since if all original uses are still present,
-     * it can ignore resumepoints.
-     * Currently this is done for every pass after IonBuilder and before
-     * Truncate Doubles. So every time removeUse is called, UseRemoved needs
-     * to get set.
-     */                                                                         \
-    _(UseRemoved)
+    _(DOMFunction)   /* Contains or uses a common DOM method function */
 
 class MDefinition;
 class MInstruction;
@@ -1184,13 +1171,10 @@ class MNewArray : public MNullaryInstruction
 class MNewObject : public MNullaryInstruction
 {
     CompilerRootObject templateObject_;
-    bool templateObjectIsClassPrototype_;
 
-    MNewObject(JSObject *templateObject, bool templateObjectIsClassPrototype)
-      : templateObject_(templateObject),
-        templateObjectIsClassPrototype_(templateObjectIsClassPrototype)
+    MNewObject(JSObject *templateObject)
+      : templateObject_(templateObject)
     {
-        JS_ASSERT_IF(templateObjectIsClassPrototype, !shouldUseVM());
         setResultType(MIRType_Object);
         setResultTypeSet(MakeSingletonTypeSet(templateObject));
     }
@@ -1198,17 +1182,13 @@ class MNewObject : public MNullaryInstruction
   public:
     INSTRUCTION_HEADER(NewObject)
 
-    static MNewObject *New(JSObject *templateObject, bool templateObjectIsClassPrototype) {
-        return new MNewObject(templateObject, templateObjectIsClassPrototype);
+    static MNewObject *New(JSObject *templateObject) {
+        return new MNewObject(templateObject);
     }
 
     // Returns true if the code generator should call through to the
     // VM rather than the fast path.
     bool shouldUseVM() const;
-
-    bool templateObjectIsClassPrototype() const {
-        return templateObjectIsClassPrototype_;
-    }
 
     JSObject *templateObject() const {
         return templateObject_;
@@ -2723,7 +2703,7 @@ class MBinaryBitwiseInstruction
     virtual MDefinition *foldIfZero(size_t operand) = 0;
     virtual MDefinition *foldIfNegOne(size_t operand) = 0;
     virtual MDefinition *foldIfEqual()  = 0;
-    virtual void infer(BaselineInspector *inspector, jsbytecode *pc);
+    virtual void infer();
 
     bool congruentTo(MDefinition *const &ins) const {
         return congruentIfOperandsEqual(ins);
@@ -2819,7 +2799,7 @@ class MShiftInstruction
     MDefinition *foldIfEqual() {
         return this;
     }
-    virtual void infer(BaselineInspector *inspector, jsbytecode *pc);
+    virtual void infer();
 };
 
 class MLsh : public MShiftInstruction
@@ -2883,7 +2863,7 @@ class MUrsh : public MShiftInstruction
         return this;
     }
 
-    void infer(BaselineInspector *inspector, jsbytecode *pc);
+    void infer();
 
     bool canOverflow() {
         // solution is only negative when lhs < 0 and rhs & 0x1f == 0
@@ -5863,7 +5843,7 @@ class MPolyInlineDispatch : public MControlInstruction, public SingleObjectPolic
     }
 
     JSFunction *getFunction(size_t i) const {
-        return &getFunctionConstant(i)->value().toObject().as<JSFunction>();
+        return getFunctionConstant(i)->value().toObject().toFunction();
     }
 
     MBasicBlock *getFunctionBlock(size_t i) const {
@@ -6189,7 +6169,6 @@ class MFunctionEnvironment
         : MUnaryInstruction(function)
     {
         setResultType(MIRType_Object);
-        setMovable();
     }
 
     INSTRUCTION_HEADER(FunctionEnvironment)
@@ -6204,11 +6183,6 @@ class MFunctionEnvironment
 
     TypePolicy *typePolicy() {
         return this;
-    }
-
-    // A function's environment is fixed.
-    AliasSet getAliasSet() const {
-        return AliasSet::None();
     }
 };
 
@@ -7860,35 +7834,6 @@ class MIsCallable
     MDefinition *object() const {
         return getOperand(0);
     }
-    AliasSet getAliasSet() const {
-        return AliasSet::None();
-    }
-};
-
-class MHaveSameClass
-  : public MBinaryInstruction,
-    public MixPolicy<ObjectPolicy<0>, ObjectPolicy<1> >
-{
-    MHaveSameClass(MDefinition *left, MDefinition *right)
-      : MBinaryInstruction(left, right)
-    {
-        setResultType(MIRType_Boolean);
-        setMovable();
-    }
-
-  public:
-    INSTRUCTION_HEADER(HaveSameClass);
-
-    static MHaveSameClass *New(MDefinition *left, MDefinition *right) {
-        return new MHaveSameClass(left, right);
-    }
-
-    TypePolicy *typePolicy() {
-        return this;
-    }
-    AliasSet getAliasSet() const {
-        return AliasSet::None();
-    }
 };
 
 class MAsmJSNeg : public MUnaryInstruction
@@ -8296,4 +8241,5 @@ bool PropertyWriteNeedsTypeBarrier(JSContext *cx, MBasicBlock *current, MDefinit
 } // namespace ion
 } // namespace js
 
-#endif /* ion_MIR_h */
+#endif // jsion_mir_h__
+

@@ -18,13 +18,13 @@ function Prompt(aOptions) {
   this.window = "window" in aOptions ? aOptions.window : null;
   this.msg = { type: "Prompt:Show", async: true };
 
-  if ("title" in aOptions && aOptions.title != null)
+  if ("title" in aOptions)
     this.msg.title = aOptions.title;
 
-  if ("message" in aOptions && aOptions.message != null)
+  if ("message" in aOptions)
     this.msg.text = aOptions.message;
 
-  if ("buttons" in aOptions && aOptions.buttons != null)
+  if ("buttons" in aOptions)
     this.msg.buttons = aOptions.buttons;
 
   let idService = Cc["@mozilla.org/uuid-generator;1"].getService(Ci.nsIUUIDGenerator); 

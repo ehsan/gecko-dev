@@ -69,7 +69,7 @@ private:
   ImageData() MOZ_DELETE;
 
   uint32_t mWidth, mHeight;
-  JS::Heap<JSObject*> mData;
+  JSObject* mData;
 };
 
 } // namespace dom

@@ -9,8 +9,6 @@ var gDebuggee = null;
 var gDebugger = null;
 
 function test() {
-  requestLongerTimeout(3);
-
   debug_tab_pane(STACK_URL, function(aTab, aDebuggee, aPane) {
     gTab = aTab;
     gDebuggee = aDebuggee;
@@ -26,7 +24,7 @@ function testSimpleCall() {
     Services.tm.currentThread.dispatch({ run: function() {
 
       let testScope = gDebugger.DebuggerView.Variables.addScope("test");
-      let testVar = testScope.addItem("something");
+      let testVar = testScope.addVar("something");
 
       testVar.setGrip(1.618);
 
@@ -46,32 +44,32 @@ function testSimpleCall() {
         "The information for the variable wasn't set correctly.");
 
 
-      testVar.addItems({ "helloWorld": { "value": "hello world", "enumerable": true } });
+      testVar.addProperties({ "helloWorld": { "value": "hello world", "enumerable": true } });
 
       is(testVar.target.querySelector(".variables-view-element-details").childNodes.length, 1,
         "A new detail node should have been added in the variable tree.");
 
 
-      testVar.addItems({ "helloWorld": { "value": "hello jupiter", "enumerable": true } });
+      testVar.addProperties({ "helloWorld": { "value": "hello jupiter", "enumerable": true } });
 
       is(testVar.target.querySelector(".variables-view-element-details").childNodes.length, 1,
         "Shouldn't be able to duplicate nodes added in the variable tree.");
 
 
-      testVar.addItems({ "someProp0": { "value": "random string", "enumerable": true },
-                         "someProp1": { "value": "another string", "enumerable": true } });
+      testVar.addProperties({ "someProp0": { "value": "random string", "enumerable": true },
+                              "someProp1": { "value": "another string", "enumerable": true } });
 
       is(testVar.target.querySelector(".variables-view-element-details").childNodes.length, 3,
         "Two new detail nodes should have been added in the variable tree.");
 
 
-      testVar.addItems({ "someProp2": { "value": { "type": "null" }, "enumerable": true },
-                         "someProp3": { "value": { "type": "undefined" }, "enumerable": true },
-                         "someProp4": {
-                           "value": { "type": "object", "class": "Object" },
-                           "enumerable": true
-                         }
-                       });
+      testVar.addProperties({ "someProp2": { "value": { "type": "null" }, "enumerable": true },
+                              "someProp3": { "value": { "type": "undefined" }, "enumerable": true },
+                              "someProp4": {
+                                "value": { "type": "object", "class": "Object" },
+                                "enumerable": true
+                              }
+                            });
 
       is(testVar.target.querySelector(".variables-view-element-details").childNodes.length, 6,
         "Three new detail nodes should have been added in the variable tree.");

@@ -13,5 +13,3 @@ CPP_SOURCES += [
     'nsDOMOfflineResourceList.cpp',
 ]
 
-LIBRARY_NAME = 'jsdomoffline_s'
-

@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_StackSlotAllocator_h
-#define ion_StackSlotAllocator_h
+#ifndef jsion_stack_slot_allocator_h_
+#define jsion_stack_slot_allocator_h_
 
 #include "Registers.h"
 
@@ -61,4 +61,5 @@ class StackSlotAllocator
 } // namespace ion
 } // namespace js
 
-#endif /* ion_StackSlotAllocator_h */
+#endif // jsion_stack_slot_allocator_h_
+

@@ -289,23 +289,6 @@ NewInitObject(JSContext *cx, HandleObject templateObject)
     return obj;
 }
 
-JSObject *
-NewInitObjectWithClassPrototype(JSContext *cx, HandleObject templateObject)
-{
-    JS_ASSERT(!templateObject->hasSingletonType());
-
-    JSObject *obj = NewObjectWithGivenProto(cx,
-                                            templateObject->getClass(),
-                                            templateObject->getProto(),
-                                            cx->global());
-    if (!obj)
-        return NULL;
-
-    obj->setType(templateObject->type());
-
-    return obj;
-}
-
 bool
 ArrayPopDense(JSContext *cx, HandleObject obj, MutableHandleValue rval)
 {
@@ -519,8 +502,8 @@ CreateThis(JSContext *cx, HandleObject callee, MutableHandleValue rval)
 {
     rval.set(MagicValue(JS_IS_CONSTRUCTING));
 
-    if (callee->is<JSFunction>()) {
-        JSFunction *fun = &callee->as<JSFunction>();
+    if (callee->isFunction()) {
+        JSFunction *fun = callee->toFunction();
         if (fun->isInterpreted()) {
             JSScript *script = fun->getOrCreateScript(cx);
             if (!script || !script->ensureHasTypes(cx))
@@ -579,7 +562,7 @@ FilterArguments(JSContext *cx, JSString *str)
     if (!chars)
         return false;
 
-    static const jschar arguments[] = {'a', 'r', 'g', 'u', 'm', 'e', 'n', 't', 's'};
+    static jschar arguments[] = {'a', 'r', 'g', 'u', 'm', 'e', 'n', 't', 's'};
     return !StringHasPattern(chars, str->length(), arguments, mozilla::ArrayLength(arguments));
 }
 
@@ -587,8 +570,13 @@ FilterArguments(JSContext *cx, JSString *str)
 void
 PostWriteBarrier(JSRuntime *rt, JSObject *obj)
 {
+#ifdef JS_GC_ZEAL
+    /* The jitcode version of IsInsideNursery does not know about the verifier. */
+    if (rt->gcVerifyPostData && rt->gcVerifierNursery.isInside(obj))
+        return;
+#endif
     JS_ASSERT(!IsInsideNursery(rt, obj));
-    rt->gcStoreBuffer.putWholeCell(obj);
+    rt->gcStoreBuffer.putWholeObject(obj);
 }
 #endif
 
@@ -651,7 +639,7 @@ DebugEpilogue(JSContext *cx, BaselineFrame *frame, JSBool ok)
         JS_ASSERT_IF(ok, frame->hasReturnValue());
         DebugScopes::onPopCall(frame, cx);
     } else if (frame->isStrictEvalFrame()) {
-        JS_ASSERT_IF(frame->hasCallObj(), frame->scopeChain()->as<CallObject>().isForEval());
+        JS_ASSERT_IF(frame->hasCallObj(), frame->scopeChain()->asCall().isForEval());
         DebugScopes::onPopStrictEvalScope(frame);
     }
 

@@ -9,6 +9,8 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+LIBRARY_NAME = browser_feeds_s
+
 FORCE_STATIC_LIB = 1
 USE_STATIC_LIBS = 1
 
@@ -22,6 +24,11 @@ DISABLED_EXTRA_COMPONENTS = \
 	FeedConverter.js \
 	WebContentConverter.js \
   $(NULL)
+
+EXTRA_PP_COMPONENTS = \
+	FeedWriter.js \
+	$(NULL)
+
 
 LOCAL_INCLUDES = -I$(srcdir)/../../build
 

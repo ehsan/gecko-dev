@@ -25,8 +25,8 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
-#ifndef yarr_YarrJIT_h
-#define yarr_YarrJIT_h
+#ifndef YarrJIT_h
+#define YarrJIT_h
 
 #include "assembler/wtf/Platform.h"
 
@@ -196,4 +196,4 @@ void jitCompile(YarrPattern&, YarrCharSize, JSGlobalData*, YarrCodeBlock& jitObj
 
 #endif
 
-#endif /* yarr_YarrJIT_h */
+#endif // YarrJIT_h

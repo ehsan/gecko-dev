@@ -64,7 +64,7 @@
 #include "nsIForm.h"
 #include "nsIFormControl.h"
 #include "nsIDOMHTMLFormElement.h"
-#include "mozilla/dom/HTMLFormElement.h"
+#include "nsHTMLFormElement.h"
 #include "nsFocusManager.h"
 #include "nsAttrValueOrString.h"
 
@@ -517,17 +517,17 @@ nsGenericHTMLElement::Spellcheck()
     }
   }
 
-  // contenteditable/designMode are spellchecked by default
-  if (IsEditable()) {
-    return true;
-  }
-
   // Is this a chrome element?
   if (nsContentUtils::IsChromeDoc(OwnerDoc())) {
     return false;                       // Not spellchecked by default
   }
 
-  // Anything else that's not a form control is not spellchecked by default
+  if (IsCurrentBodyElement()) {
+    nsCOMPtr<nsIHTMLDocument> doc = do_QueryInterface(GetCurrentDoc());
+    return doc && doc->IsEditingOn();
+  }
+
+  // Is this element editable?
   nsCOMPtr<nsIFormControl> formControl = do_QueryInterface(this);
   if (!formControl) {
     return false;                       // Not spellchecked by default
@@ -651,11 +651,10 @@ nsGenericHTMLElement::UnbindFromTree(bool aDeep, bool aNullParent)
   nsStyledElement::UnbindFromTree(aDeep, aNullParent);
 }
 
-HTMLFormElement*
-nsGenericHTMLElement::FindAncestorForm(HTMLFormElement* aCurrentForm)
+nsHTMLFormElement*
+nsGenericHTMLElement::FindAncestorForm(nsHTMLFormElement* aCurrentForm)
 {
-  NS_ASSERTION(!HasAttr(kNameSpaceID_None, nsGkAtoms::form) ||
-               IsHTML(nsGkAtoms::img),
+  NS_ASSERTION(!HasAttr(kNameSpaceID_None, nsGkAtoms::form),
                "FindAncestorForm should not be called if @form is set!");
 
   // Make sure we don't end up finding a form that's anonymous from
@@ -678,7 +677,7 @@ nsGenericHTMLElement::FindAncestorForm(HTMLFormElement* aCurrentForm)
         }
       }
 #endif
-      return static_cast<HTMLFormElement*>(content);
+      return static_cast<nsHTMLFormElement*>(content);
     }
 
     nsIContent *prevContent = content;
@@ -2159,7 +2158,7 @@ nsGenericHTMLFormElement::SetForm(nsIDOMHTMLFormElement* aForm)
                "We don't support switching from one non-null form to another.");
 
   // keep a *weak* ref to the form here
-  mForm = static_cast<HTMLFormElement*>(aForm);
+  mForm = static_cast<nsHTMLFormElement*>(aForm);
 }
 
 void
@@ -2180,13 +2179,11 @@ nsGenericHTMLFormElement::ClearForm(bool aRemoveFromForm)
     mForm->RemoveElement(this, true);
 
     if (!nameVal.IsEmpty()) {
-      mForm->RemoveElementFromTable(this, nameVal,
-                                    HTMLFormElement::ElementRemoved);
+      mForm->RemoveElementFromTable(this, nameVal);
     }
 
     if (!idVal.IsEmpty()) {
-      mForm->RemoveElementFromTable(this, idVal,
-                                    HTMLFormElement::ElementRemoved);
+      mForm->RemoveElementFromTable(this, idVal);
     }
   }
 
@@ -2317,8 +2314,7 @@ nsGenericHTMLFormElement::BeforeSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
       GetAttr(kNameSpaceID_None, aName, tmp);
 
       if (!tmp.IsEmpty()) {
-        mForm->RemoveElementFromTable(this, tmp,
-                                      HTMLFormElement::AttributeUpdated);
+        mForm->RemoveElementFromTable(this, tmp);
       }
     }
 
@@ -2326,15 +2322,13 @@ nsGenericHTMLFormElement::BeforeSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
       GetAttr(kNameSpaceID_None, nsGkAtoms::name, tmp);
 
       if (!tmp.IsEmpty()) {
-        mForm->RemoveElementFromTable(this, tmp,
-                                      HTMLFormElement::AttributeUpdated);
+        mForm->RemoveElementFromTable(this, tmp);
       }
 
       GetAttr(kNameSpaceID_None, nsGkAtoms::id, tmp);
 
       if (!tmp.IsEmpty()) {
-        mForm->RemoveElementFromTable(this, tmp,
-                                      HTMLFormElement::AttributeUpdated);
+        mForm->RemoveElementFromTable(this, tmp);
       }
 
       mForm->RemoveElement(this, false);
@@ -2656,7 +2650,7 @@ nsGenericHTMLFormElement::UpdateFormOwner(bool aBindToTree,
     ClearForm(true);
   }
 
-  HTMLFormElement *oldForm = mForm;
+  nsHTMLFormElement *oldForm = mForm;
 
   if (!mForm) {
     // If @form is set, we have to use that to find the form.
@@ -2679,7 +2673,7 @@ nsGenericHTMLFormElement::UpdateFormOwner(bool aBindToTree,
                      "associated with the id in @form!");
 
         if (element && element->IsHTML(nsGkAtoms::form)) {
-          mForm = static_cast<HTMLFormElement*>(element);
+          mForm = static_cast<nsHTMLFormElement*>(element);
         }
       }
      } else {

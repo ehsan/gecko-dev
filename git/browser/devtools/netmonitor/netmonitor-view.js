@@ -47,13 +47,13 @@ const DEFAULT_EDITOR_CONFIG = {
   showLineNumbers: true
 };
 const GENERIC_VARIABLES_VIEW_SETTINGS = {
-  lazyEmpty: true,
+  lazyEmpty: false,
   lazyEmptyDelay: 10, // ms
   searchEnabled: true,
+  descriptorTooltip: false,
   editableValueTooltip: "",
   editableNameTooltip: "",
   preventDisableOnChage: true,
-  preventDescriptorModifiers: true,
   eval: () => {},
   switch: () => {}
 };
@@ -260,7 +260,9 @@ ToolbarView.prototype = {
 function RequestsMenuView() {
   dumpn("RequestsMenuView was instantiated");
 
+  this._cache = new Map(); // Can't use a WeakMap because keys are strings.
   this._flushRequests = this._flushRequests.bind(this);
+  this._onRequestItemRemoved = this._onRequestItemRemoved.bind(this);
   this._onSelect = this._onSelect.bind(this);
   this._onResize = this._onResize.bind(this);
   this._byFile = this._byFile.bind(this);
@@ -268,20 +270,20 @@ function RequestsMenuView() {
   this._byType = this._byType.bind(this);
 }
 
-RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
+create({ constructor: RequestsMenuView, proto: MenuContainer.prototype }, {
   /**
    * Initialization function, called when the network monitor is started.
    */
   initialize: function() {
     dumpn("Initializing the RequestsMenuView");
 
-    this.widget = new SideMenuWidget($("#requests-menu-contents"), false);
+    this.node = new SideMenuWidget($("#requests-menu-contents"), false);
     this._summary = $("#request-menu-network-summary");
 
-    this.widget.maintainSelectionVisible = false;
-    this.widget.autoscrollWithAppendedItems = true;
+    this.node.maintainSelectionVisible = false;
+    this.node.autoscrollWithAppendedItems = true;
 
-    this.widget.addEventListener("select", this._onSelect, false);
+    this.node.addEventListener("select", this._onSelect, false);
     window.addEventListener("resize", this._onResize, false);
   },
 
@@ -291,7 +293,7 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
   destroy: function() {
     dumpn("Destroying the SourcesView");
 
-    this.widget.removeEventListener("select", this._onSelect, false);
+    this.node.removeEventListener("select", this._onSelect, false);
     window.removeEventListener("resize", this._onResize, false);
   },
 
@@ -336,31 +338,33 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
     this._registerLastRequestEnd(unixTime);
 
     // Append a network request item to this container.
-    let requestItem = this.push([menuView, aId], {
+    let requestItem = this.push(menuView, {
       attachment: {
+        id: aId,
         startedDeltaMillis: unixTime - this._firstRequestStartedMillis,
         startedMillis: unixTime,
         method: aMethod,
         url: aUrl,
         isXHR: aIsXHR
-      }
+      },
+      finalize: this._onRequestItemRemoved
     });
 
     $("#details-pane-toggle").disabled = false;
     $("#requests-menu-empty-notice").hidden = true;
 
     this.refreshSummary();
-    this.refreshZebra();
+    this._cache.set(aId, requestItem);
   },
 
   /**
    * Filters all network requests in this container by a specified type.
    *
    * @param string aType
-   *        Either "all", "html", "css", "js", "xhr", "fonts", "images", "media"
+   *        Either null, "html", "css", "js", "xhr", "fonts", "images", "media"
    *        or "flash".
    */
-  filterOn: function(aType = "all") {
+  filterOn: function(aType) {
     let target = $("#requests-menu-filter-" + aType + "-button");
     let buttons = document.querySelectorAll(".requests-menu-footer-button");
 
@@ -368,15 +372,16 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
       if (button != target) {
         button.removeAttribute("checked");
       } else {
-        button.setAttribute("checked", "true");
+        button.setAttribute("checked", "");
       }
     }
 
+    // Filter on nothing.
+    if (!target) {
+      this.filterContents(() => true);
+    }
     // Filter on whatever was requested.
-    switch (aType) {
-      case "all":
-        this.filterContents(() => true);
-        break;
+    else switch (aType) {
       case "html":
         this.filterContents(this._onHtml);
         break;
@@ -404,15 +409,13 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
     }
 
     this.refreshSummary();
-    this.refreshZebra();
   },
 
   /**
    * Sorts all network requests in this container by a specified detail.
    *
    * @param string aType
-   *        Either "status", "method", "file", "domain", "type", "size" or
-   *        "waterfall".
+   *        Either "status", "method", "file", "domain", "type", "size" or "waterfall".
    */
   sortBy: function(aType = "waterfall") {
     let target = $("#requests-menu-" + aType + "-button");
@@ -488,18 +491,15 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
         }
         break;
     }
-
-    this.refreshSummary();
-    this.refreshZebra();
   },
 
   /**
    * Predicates used when filtering items.
    *
-   * @param object aItem
-   *        The filtered item.
+   * @param MenuItem aItem
+   *        The filtered menu item.
    * @return boolean
-   *         True if the item should be visible, false otherwise.
+   *         True if the menu item should be visible, false otherwise.
    */
   _onHtml: function({ attachment: { mimeType } })
     mimeType && mimeType.contains("/html"),
@@ -544,10 +544,10 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
   /**
    * Predicates used when sorting items.
    *
-   * @param object aFirst
-   *        The first item used in the comparison.
-   * @param object aSecond
-   *        The second item used in the comparison.
+   * @param MenuItem aFirst
+   *        The first menu item used in the comparison.
+   * @param MenuItem aSecond
+   *        The second menu item used in the comparison.
    * @return number
    *         -1 to sort aFirst to a lower index than aSecond
    *          0 to leave aFirst and aSecond unchanged with respect to each other
@@ -604,26 +604,6 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
   },
 
   /**
-   * Adds odd/even attributes to all the visible items in this container.
-   */
-  refreshZebra: function() {
-    let visibleItems = this.orderedVisibleItems;
-
-    for (let i = 0, len = visibleItems.length; i < len; i++) {
-      let requestItem = visibleItems[i];
-      let requestTarget = requestItem.target;
-
-      if (i % 2 == 0) {
-        requestTarget.setAttribute("even", "");
-        requestTarget.removeAttribute("odd");
-      } else {
-        requestTarget.setAttribute("odd", "");
-        requestTarget.removeAttribute("even");
-      }
-    }
-  },
-
-  /**
    * Schedules adding additional information to a network request.
    *
    * @param string aId
@@ -654,7 +634,7 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
     // For each queued additional information packet, get the corresponding
     // request item in the view and update it based on the specified data.
     for (let [id, data] of this._updateQueue) {
-      let requestItem = this.getItemByValue(id);
+      let requestItem = this._cache.get(id);
       if (!requestItem) {
         // Packet corresponds to a dead request item, target navigated.
         continue;
@@ -727,7 +707,7 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
       // This update may have additional information about a request which
       // isn't shown yet in the network details pane.
       let selectedItem = this.selectedItem;
-      if (selectedItem && selectedItem.value == id) {
+      if (selectedItem && selectedItem.attachment.id == id) {
         NetMonitorView.NetworkDetails.populate(selectedItem.attachment);
       }
     }
@@ -743,7 +723,6 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
     this.sortContents();
     this.filterContents();
     this.refreshSummary();
-    this.refreshZebra();
   },
 
   /**
@@ -789,7 +768,7 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
   /**
    * Updates the information displayed in a network request item view.
    *
-   * @param object aItem
+   * @param MenuItem aItem
    *        The network request item in this container.
    * @param string aKey
    *        The type of information that is to be updated.
@@ -838,7 +817,7 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
   /**
    * Creates a waterfall representing timing information in a network request item view.
    *
-   * @param object aItem
+   * @param MenuItem aItem
    *        The network request item in this container.
    * @param object aTimings
    *        An object containing timing information.
@@ -913,7 +892,7 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
 
     // Apply CSS transforms to each waterfall in this container totalTime
     // accurately translate and resize as needed.
-    for (let { target, attachment } in this) {
+    for (let [, { target, attachment }] of this._cache) {
       let timingsNode = $(".requests-menu-timings", target);
       let startCapNode = $(".requests-menu-timings-cap.start", target);
       let endCapNode = $(".requests-menu-timings-cap.end", target);
@@ -1049,7 +1028,7 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
    * Reapplies the current waterfall background on all request items.
    */
   _flushWaterfallBackgrounds: function() {
-    for (let { target } in this) {
+    for (let [, { target }] of this._cache) {
       let waterfallNode = $(".requests-menu-waterfall", target);
       waterfallNode.style.backgroundImage = this._cachedWaterfallBackground;
     }
@@ -1082,6 +1061,17 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
         table.setAttribute(attribute, "");
       }
     });
+  },
+
+  /**
+   * Function called each time a network request item is removed.
+   *
+   * @param MenuItem aItem
+   *        The corresponding menu item.
+   */
+  _onRequestItemRemoved: function(aItem) {
+    dumpn("Finalizing network request item: " + aItem);
+    this._cache.delete(aItem.attachment.id);
   },
 
   /**
@@ -1183,7 +1173,7 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
    * empty set.
    *
    * @param array aItemsArray
-   * @return object
+   * @return MenuItem
    */
   _getOldestRequest: function(aItemsArray) {
     if (!aItemsArray.length) {
@@ -1198,7 +1188,7 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
    * empty set.
    *
    * @param array aItemsArray
-   * @return object
+   * @return MenuItem
    */
   _getNewestRequest: function(aItemsArray) {
     if (!aItemsArray.length) {
@@ -1227,6 +1217,7 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
     return this._cachedWaterfallWidth;
   },
 
+  _cache: null,
   _summary: null,
   _canvas: null,
   _ctx: null,
@@ -1255,26 +1246,26 @@ NetworkDetailsView.prototype = {
   initialize: function() {
     dumpn("Initializing the RequestsMenuView");
 
-    this.widget = $("#details-pane");
+    this.node = $("#details-pane");
 
     this._headers = new VariablesView($("#all-headers"),
-      Heritage.extend(GENERIC_VARIABLES_VIEW_SETTINGS, {
-        emptyText: L10N.getStr("headersEmptyText"),
-        searchPlaceholder: L10N.getStr("headersFilterText")
+      Object.create(GENERIC_VARIABLES_VIEW_SETTINGS, {
+        emptyText: { value: L10N.getStr("headersEmptyText"), enumerable: true },
+        searchPlaceholder: { value: L10N.getStr("headersFilterText"), enumerable: true }
       }));
     this._cookies = new VariablesView($("#all-cookies"),
-      Heritage.extend(GENERIC_VARIABLES_VIEW_SETTINGS, {
-        emptyText: L10N.getStr("cookiesEmptyText"),
-        searchPlaceholder: L10N.getStr("cookiesFilterText")
+      Object.create(GENERIC_VARIABLES_VIEW_SETTINGS, {
+        emptyText: { value: L10N.getStr("cookiesEmptyText"), enumerable: true },
+        searchPlaceholder: { value: L10N.getStr("cookiesFilterText"), enumerable: true }
       }));
     this._params = new VariablesView($("#request-params"),
-      Heritage.extend(GENERIC_VARIABLES_VIEW_SETTINGS, {
-        emptyText: L10N.getStr("paramsEmptyText"),
-        searchPlaceholder: L10N.getStr("paramsFilterText")
+      Object.create(GENERIC_VARIABLES_VIEW_SETTINGS, {
+        emptyText: { value: L10N.getStr("paramsEmptyText"), enumerable: true },
+        searchPlaceholder: { value: L10N.getStr("paramsFilterText"), enumerable: true }
       }));
     this._json = new VariablesView($("#response-content-json"),
-      Heritage.extend(GENERIC_VARIABLES_VIEW_SETTINGS, {
-        searchPlaceholder: L10N.getStr("jsonFilterText")
+      Object.create(GENERIC_VARIABLES_VIEW_SETTINGS, {
+        searchPlaceholder: { value: L10N.getStr("jsonFilterText"), enumerable: true }
       }));
 
     this._paramsQueryString = L10N.getStr("paramsQueryString");
@@ -1285,7 +1276,7 @@ NetworkDetailsView.prototype = {
     this._requestCookies = L10N.getStr("requestCookies");
     this._responseCookies = L10N.getStr("responseCookies");
 
-    $("tabpanels", this.widget).addEventListener("select", this._onTabSelect);
+    $("tabpanels", this.node).addEventListener("select", this._onTabSelect);
   },
 
   /**
@@ -1343,7 +1334,7 @@ NetworkDetailsView.prototype = {
    */
   _onTabSelect: function() {
     let { src, populated } = this._dataSrc || {};
-    let tab = this.widget.selectedIndex;
+    let tab = this.node.selectedIndex;
 
     // Make sure the data source is valid and don't populate the same tab twice.
     if (!src || populated[tab]) {
@@ -1455,7 +1446,7 @@ NetworkDetailsView.prototype = {
     headersScope.expanded = true;
 
     for (let header of aResponse.headers) {
-      let headerVar = headersScope.addItem(header.name, {}, true);
+      let headerVar = headersScope.addVar(header.name, { null: true }, true);
       gNetwork.getString(header.value).then((aString) => headerVar.setGrip(aString));
     }
   },
@@ -1498,7 +1489,7 @@ NetworkDetailsView.prototype = {
     cookiesScope.expanded = true;
 
     for (let cookie of aResponse.cookies) {
-      let cookieVar = cookiesScope.addItem(cookie.name, {}, true);
+      let cookieVar = cookiesScope.addVar(cookie.name, { null: true }, true);
       gNetwork.getString(cookie.value).then((aString) => cookieVar.setGrip(aString));
 
       // By default the cookie name and value are shown. If this is the only
@@ -1600,7 +1591,7 @@ NetworkDetailsView.prototype = {
     paramsScope.expanded = true;
 
     for (let param of paramsArray) {
-      let headerVar = paramsScope.addItem(param.name, {}, true);
+      let headerVar = paramsScope.addVar(param.name, { null: true }, true);
       headerVar.setGrip(param.value);
     }
   },
@@ -1643,7 +1634,7 @@ NetworkDetailsView.prototype = {
             : L10N.getStr("jsonScopeName");
 
           let jsonScope = this._json.addScope(jsonScopeName);
-          jsonScope.addItem().populate(jsonObject, { expanded: true });
+          jsonScope.addVar().populate(jsonObject, { expanded: true });
           jsonScope.expanded = true;
         }
         // Malformed JSON.

@@ -484,9 +484,9 @@ nsScriptSecurityManager::ContentSecurityPolicyPermitsJSAction(JSContext *cx)
 
 
 JSBool
-nsScriptSecurityManager::CheckObjectAccess(JSContext *cx, JS::Handle<JSObject*> obj,
-                                           JS::Handle<jsid> id, JSAccessMode mode,
-                                           JS::MutableHandle<JS::Value> vp)
+nsScriptSecurityManager::CheckObjectAccess(JSContext *cx, JSHandleObject obj,
+                                           JSHandleId id, JSAccessMode mode,
+                                           JSMutableHandleValue vp)
 {
     // Get the security manager
     nsScriptSecurityManager *ssm =
@@ -626,7 +626,7 @@ nsScriptSecurityManager::CheckPropertyAccessImpl(uint32_t aAction,
 
     //-- Look up the security policy for this class and subject domain
     SecurityLevel securityLevel;
-    rv = LookupPolicy(subjectPrincipal, classInfoData, property, aAction,
+    rv = LookupPolicy(cx, subjectPrincipal, classInfoData, property, aAction,
                       (ClassPolicy**)aCachedClassPolicy, &securityLevel);
     if (NS_FAILED(rv))
         return rv;
@@ -969,14 +969,14 @@ nsScriptSecurityManager::CheckSameOriginDOMProp(nsIPrincipal* aSubject,
 }
 
 nsresult
-nsScriptSecurityManager::LookupPolicy(nsIPrincipal* aPrincipal,
+nsScriptSecurityManager::LookupPolicy(JSContext* cx,
+                                      nsIPrincipal* aPrincipal,
                                       ClassInfoData& aClassData,
                                       jsid aProperty,
                                       uint32_t aAction,
                                       ClassPolicy** aCachedClassPolicy,
                                       SecurityLevel* result)
 {
-    AutoJSContext cx;
     nsresult rv;
     JS::RootedId property(cx, aProperty);
     result->level = SCRIPT_SECURITY_UNDEFINED_ACCESS;
@@ -1445,7 +1445,8 @@ nsScriptSecurityManager::CheckLoadURIWithPrincipal(nsIPrincipal* aPrincipal,
         ClassInfoData nameData(nullptr, loadURIPrefGroup);
 
         SecurityLevel secLevel;
-        rv = LookupPolicy(aPrincipal, nameData, sEnabledID,
+        rv = LookupPolicy(GetCurrentJSContext(),
+                          aPrincipal, nameData, sEnabledID,
                           nsIXPCSecurityManager::ACCESS_GET_PROPERTY,
                           nullptr, &secLevel);
         if (NS_SUCCEEDED(rv) && secLevel.level == SCRIPT_SECURITY_ALL_ACCESS)
@@ -1750,7 +1751,7 @@ nsScriptSecurityManager::CanExecuteScripts(JSContext* cx,
     ClassInfoData nameData(nullptr, jsPrefGroupName);
 
     SecurityLevel secLevel;
-    rv = LookupPolicy(aPrincipal, nameData, sEnabledID,
+    rv = LookupPolicy(cx, aPrincipal, nameData, sEnabledID,
                       nsIXPCSecurityManager::ACCESS_GET_PROPERTY,
                       nullptr, &secLevel);
     if (NS_FAILED(rv) || secLevel.level == SCRIPT_SECURITY_NO_ACCESS)
@@ -2058,6 +2059,7 @@ nsScriptSecurityManager::old_doGetObjectPrincipal(JS::Handle<JSObject*> aObj,
     JSContext* cx = nsXPConnect::XPConnect()->GetCurrentJSContext();
     JS::RootedObject obj(cx, aObj);
     JS::RootedObject origObj(cx, obj);
+    js::Class *jsClass = js::GetObjectClass(obj);
 
     // A common case seen in this code is that we enter this function
     // with obj being a Function object, whose parent is a Call
@@ -2066,27 +2068,29 @@ nsScriptSecurityManager::old_doGetObjectPrincipal(JS::Handle<JSObject*> aObj,
     // avoid wasting time checking properties of their classes etc in
     // the loop.
 
-    if (js::IsFunctionObject(obj)) {
+    if (jsClass == &js::FunctionClass) {
         obj = js::GetObjectParent(obj);
 
         if (!obj)
             return nullptr;
 
-        if (js::IsCallObject(obj)) {
+        jsClass = js::GetObjectClass(obj);
+
+        if (jsClass == &js::CallClass) {
             obj = js::GetObjectParentMaybeScope(obj);
 
             if (!obj)
                 return nullptr;
+
+            jsClass = js::GetObjectClass(obj);
         }
     }
-
-    js::Class *jsClass = js::GetObjectClass(obj);
 
     do {
         // Note: jsClass is set before this loop, and also at the
         // *end* of this loop.
-
-        if (IS_WN_CLASS(jsClass)) {
+        
+        if (IS_WRAPPER_CLASS(jsClass)) {
             result = nsXPConnect::XPConnect()->GetPrincipal(obj,
                                                             aAllowShortCircuit);
             if (result) {

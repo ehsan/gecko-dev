@@ -35,6 +35,7 @@
 
 #include "jsfuninlines.h"
 #include "jsinferinlines.h"
+#include "jsobjinlines.h"
 #include "jsscriptinlines.h"
 
 #include "vm/Interpreter-inl.h"
@@ -58,13 +59,13 @@ static JSBool
 fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, MutableHandleValue vp)
 {
     RootedObject obj(cx, obj_);
-    while (!obj->is<JSFunction>()) {
+    while (!obj->isFunction()) {
         if (!JSObject::getProto(cx, obj, &obj))
             return false;
         if (!obj)
             return true;
     }
-    RootedFunction fun(cx, &obj->as<JSFunction>());
+    RootedFunction fun(cx, obj->toFunction());
 
     /* Set to early to null in case of error */
     vp.setNull();
@@ -117,8 +118,8 @@ fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, MutableHandleValu
 
         /* Callsite clones should never escape to script. */
         JSObject &maybeClone = iter.calleev().toObject();
-        if (maybeClone.is<JSFunction>() && maybeClone.as<JSFunction>().nonLazyScript()->isCallsiteClone)
-            vp.setObject(*maybeClone.as<JSFunction>().nonLazyScript()->originalFunction());
+        if (maybeClone.isFunction() && maybeClone.toFunction()->nonLazyScript()->isCallsiteClone)
+            vp.setObject(*maybeClone.toFunction()->nonLazyScript()->originalFunction());
         else
             vp.set(iter.calleev());
 
@@ -131,8 +132,8 @@ fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, MutableHandleValu
         RootedObject caller(cx, &vp.toObject());
         if (caller->isWrapper() && !Wrapper::wrapperHandler(caller)->isSafeToUnwrap()) {
             vp.setNull();
-        } else if (caller->is<JSFunction>()) {
-            JSFunction *callerFun = &caller->as<JSFunction>();
+        } else if (caller->isFunction()) {
+            JSFunction *callerFun = caller->toFunction();
             if (callerFun->isInterpreted() && callerFun->strict()) {
                 JS_ReportErrorFlagsAndNumber(cx, JSREPORT_ERROR, js_GetErrorMessage, NULL,
                                              JSMSG_CALLER_IS_STRICT);
@@ -159,7 +160,7 @@ static const uint16_t poisonPillProps[] = {
 static JSBool
 fun_enumerate(JSContext *cx, HandleObject obj)
 {
-    JS_ASSERT(obj->is<JSFunction>());
+    JS_ASSERT(obj->isFunction());
 
     RootedId id(cx);
     bool found;
@@ -192,7 +193,7 @@ static JSObject *
 ResolveInterpretedFunctionPrototype(JSContext *cx, HandleObject obj)
 {
 #ifdef DEBUG
-    JSFunction *fun = &obj->as<JSFunction>();
+    JSFunction *fun = obj->toFunction();
     JS_ASSERT(fun->isInterpreted());
     JS_ASSERT(!fun->isFunctionPrototype());
 #endif
@@ -243,7 +244,7 @@ fun_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
     if (!JSID_IS_ATOM(id))
         return true;
 
-    RootedFunction fun(cx, &obj->as<JSFunction>());
+    RootedFunction fun(cx, obj->toFunction());
 
     if (JSID_IS_ATOM(id, cx->names().classPrototype)) {
         /*
@@ -328,7 +329,7 @@ bool
 js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enclosingScript,
                            MutableHandleObject objp)
 {
-    /* NB: Keep this in sync with CloneFunctionAndScript. */
+    /* NB: Keep this in sync with CloneInterpretedFunction. */
     RootedAtom atom(xdr->cx());
     uint32_t firstword;           /* flag telling whether fun->atom is non-null,
                                    plus for fun->u.i.skipmin, fun->u.i.wrapper,
@@ -339,7 +340,7 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, Han
     RootedFunction fun(cx);
     RootedScript script(cx);
     if (mode == XDR_ENCODE) {
-        fun = &objp->as<JSFunction>();
+        fun = objp->toFunction();
         if (!fun->isInterpreted()) {
             JSAutoByteString funNameBytes;
             if (const char *name = GetFunctionNameBytes(cx, fun, &funNameBytes)) {
@@ -349,14 +350,11 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, Han
             return false;
         }
         firstword = !!fun->atom();
-        script = fun->getOrCreateScript(cx);
-        if (!script)
-            return false;
-        atom = fun->atom();
         flagsword = (fun->nargs << 16) | fun->flags;
+        atom = fun->atom();
+        script = fun->nonLazyScript();
     } else {
-        fun = NewFunction(cx, NullPtr(), NULL, 0, JSFunction::INTERPRETED, NullPtr(), NullPtr(),
-                          JSFunction::FinalizeKind, TenuredObject);
+        fun = NewFunction(cx, NullPtr(), NULL, 0, JSFunction::INTERPRETED, NullPtr(), NullPtr());
         if (!fun)
             return false;
         atom = NULL;
@@ -397,13 +395,14 @@ template bool
 js::XDRInterpretedFunction(XDRState<XDR_DECODE> *, HandleObject, HandleScript, MutableHandleObject);
 
 JSObject *
-js::CloneFunctionAndScript(JSContext *cx, HandleObject enclosingScope, HandleFunction srcFun)
+js::CloneInterpretedFunction(JSContext *cx, HandleObject enclosingScope, HandleFunction srcFun,
+                             NewObjectKind newKind /* = GenericObject */)
 {
     /* NB: Keep this in sync with XDRInterpretedFunction. */
 
     RootedFunction clone(cx, NewFunction(cx, NullPtr(), NULL, 0,
                                          JSFunction::INTERPRETED, NullPtr(), NullPtr(),
-                                         JSFunction::FinalizeKind, TenuredObject));
+                                         JSFunction::FinalizeKind, newKind));
     if (!clone)
         return NULL;
 
@@ -435,8 +434,8 @@ fun_hasInstance(JSContext *cx, HandleObject objArg, MutableHandleValue v, JSBool
 {
     RootedObject obj(cx, objArg);
 
-    while (obj->is<JSFunction>() && obj->isBoundFunction())
-        obj = obj->as<JSFunction>().getBoundFunctionTarget();
+    while (obj->isFunction() && obj->isBoundFunction())
+        obj = obj->toFunction()->getBoundFunctionTarget();
 
     RootedValue pval(cx);
     if (!JSObject::getProperty(cx, obj, obj, cx->names().classPrototype, &pval))
@@ -487,10 +486,10 @@ JSFunction::trace(JSTracer *trc)
 static void
 fun_trace(JSTracer *trc, JSObject *obj)
 {
-    obj->as<JSFunction>().trace(trc);
+    obj->toFunction()->trace(trc);
 }
 
-Class JSFunction::class_ = {
+JS_FRIEND_DATA(Class) js::FunctionClass = {
     js_Function_str,
     JSCLASS_NEW_RESOLVE | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_CACHED_PROTO(JSProto_Function),
@@ -509,7 +508,6 @@ Class JSFunction::class_ = {
     fun_trace
 };
 
-JS_FRIEND_DATA(Class*) js::FunctionClassPtr = &JSFunction::class_;
 
 /* Find the body of a function (not including braces). */
 static bool
@@ -578,7 +576,7 @@ js::FunctionToString(JSContext *cx, HandleFunction fun, bool bodyOnly, bool lamb
     // of the pre-binding target.
     if (fun->isArrow() && fun->isBoundFunction()) {
         JSObject *target = fun->getBoundFunctionTarget();
-        RootedFunction targetFun(cx, &target->as<JSFunction>());
+        RootedFunction targetFun(cx, target->toFunction());
         JS_ASSERT(targetFun->isArrow());
         return FunctionToString(cx, targetFun, bodyOnly, lambdaParen);
     }
@@ -740,7 +738,7 @@ js::FunctionToString(JSContext *cx, HandleFunction fun, bool bodyOnly, bool lamb
 JSString *
 fun_toStringHelper(JSContext *cx, HandleObject obj, unsigned indent)
 {
-    if (!obj->is<JSFunction>()) {
+    if (!obj->isFunction()) {
         if (IsFunctionProxy(obj))
             return Proxy::fun_toString(cx, obj, indent);
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
@@ -750,7 +748,7 @@ fun_toStringHelper(JSContext *cx, HandleObject obj, unsigned indent)
         return NULL;
     }
 
-    RootedFunction fun(cx, &obj->as<JSFunction>());
+    RootedFunction fun(cx, obj->toFunction());
     return FunctionToString(cx, fun, false, indent != JS_DONT_PRETTY_PRINT);
 }
 
@@ -803,7 +801,7 @@ js_fun_call(JSContext *cx, unsigned argc, Value *vp)
     RootedValue fval(cx, vp[1]);
 
     if (!js_IsCallable(fval)) {
-        ReportIncompatibleMethod(cx, CallReceiverFromVp(vp), &JSFunction::class_);
+        ReportIncompatibleMethod(cx, CallReceiverFromVp(vp), &FunctionClass);
         return false;
     }
 
@@ -817,8 +815,8 @@ js_fun_call(JSContext *cx, unsigned argc, Value *vp)
     }
 
     /* Allocate stack space for fval, obj, and the args. */
-    InvokeArgs args(cx);
-    if (!args.init(argc))
+    InvokeArgsGuard args;
+    if (!cx->stack.pushInvokeArgs(cx, argc, &args))
         return JS_FALSE;
 
     /* Push fval, thisv, and the args. */
@@ -833,13 +831,13 @@ js_fun_call(JSContext *cx, unsigned argc, Value *vp)
 
 #ifdef JS_ION
 static bool
-PushBaselineFunApplyArguments(JSContext *cx, ion::IonFrameIterator &frame, InvokeArgs &args,
+PushBaselineFunApplyArguments(JSContext *cx, ion::IonFrameIterator &frame, InvokeArgsGuard &args,
                               Value *vp)
 {
     unsigned length = frame.numActualArgs();
-    JS_ASSERT(length <= ARGS_LENGTH_MAX);
+    JS_ASSERT(length <= StackSpace::ARGS_LENGTH_MAX);
 
-    if (!args.init(length))
+    if (!cx->stack.pushInvokeArgs(cx, length, &args))
         return false;
 
     /* Push fval, obj, and aobj's elements as args. */
@@ -859,7 +857,7 @@ js_fun_apply(JSContext *cx, unsigned argc, Value *vp)
     /* Step 1. */
     RootedValue fval(cx, vp[1]);
     if (!js_IsCallable(fval)) {
-        ReportIncompatibleMethod(cx, CallReceiverFromVp(vp), &JSFunction::class_);
+        ReportIncompatibleMethod(cx, CallReceiverFromVp(vp), &FunctionClass);
         return false;
     }
 
@@ -867,7 +865,7 @@ js_fun_apply(JSContext *cx, unsigned argc, Value *vp)
     if (argc < 2 || vp[3].isNullOrUndefined())
         return js_fun_call(cx, (argc > 0) ? 1 : 0, vp);
 
-    InvokeArgs args(cx);
+    InvokeArgsGuard args;
 
     /*
      * GuardFunApplyArgumentsOptimization already called IsOptimizedArguments,
@@ -885,7 +883,7 @@ js_fun_apply(JSContext *cx, unsigned argc, Value *vp)
         // We do not want to use ScriptFrameIter to abstract here because this
         // is supposed to be a fast path as opposed to ScriptFrameIter which is
         // doing complex logic to settle on the next frame twice.
-        if (cx->currentlyRunningInJit()) {
+        if (cx->mainThread().currentlyRunningInJit()) {
             ion::JitActivationIterator activations(cx->runtime());
             ion::IonFrameIterator frame(activations);
             if (frame.isNative()) {
@@ -895,9 +893,9 @@ js_fun_apply(JSContext *cx, unsigned argc, Value *vp)
                     ion::InlineFrameIterator iter(cx, &frame);
 
                     unsigned length = iter.numActualArgs();
-                    JS_ASSERT(length <= ARGS_LENGTH_MAX);
+                    JS_ASSERT(length <= StackSpace::ARGS_LENGTH_MAX);
 
-                    if (!args.init(length))
+                    if (!cx->stack.pushInvokeArgs(cx, length, &args))
                         return false;
 
                     /* Push fval, obj, and aobj's elements as args. */
@@ -930,11 +928,11 @@ js_fun_apply(JSContext *cx, unsigned argc, Value *vp)
         } else
 #endif
         {
-            StackFrame *fp = cx->interpreterFrame();
+            StackFrame *fp = cx->fp();
             unsigned length = fp->numActualArgs();
-            JS_ASSERT(length <= ARGS_LENGTH_MAX);
+            JS_ASSERT(length <= StackSpace::ARGS_LENGTH_MAX);
 
-            if (!args.init(length))
+            if (!cx->stack.pushInvokeArgs(cx, length, &args))
                 return false;
 
             /* Push fval, obj, and aobj's elements as args. */
@@ -961,12 +959,12 @@ js_fun_apply(JSContext *cx, unsigned argc, Value *vp)
             return false;
 
         /* Step 6. */
-        if (length > ARGS_LENGTH_MAX) {
+        if (length > StackSpace::ARGS_LENGTH_MAX) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_TOO_MANY_FUN_APPLY_ARGS);
             return false;
         }
 
-        if (!args.init(length))
+        if (!cx->stack.pushInvokeArgs(cx, length, &args))
             return false;
 
         /* Push fval, obj, and aobj's elements as args. */
@@ -995,6 +993,8 @@ inline bool
 JSFunction::initBoundFunction(JSContext *cx, HandleValue thisArg,
                               const Value *args, unsigned argslen)
 {
+    JS_ASSERT(isFunction());
+
     RootedFunction self(cx, this);
 
     /*
@@ -1022,6 +1022,7 @@ JSFunction::initBoundFunction(JSContext *cx, HandleValue thisArg,
 inline const js::Value &
 JSFunction::getBoundFunctionThis() const
 {
+    JS_ASSERT(isFunction());
     JS_ASSERT(isBoundFunction());
 
     return getSlot(JSSLOT_BOUND_FUNCTION_THIS);
@@ -1030,6 +1031,7 @@ JSFunction::getBoundFunctionThis() const
 inline const js::Value &
 JSFunction::getBoundFunctionArgument(unsigned which) const
 {
+    JS_ASSERT(isFunction());
     JS_ASSERT(isBoundFunction());
     JS_ASSERT(which < getBoundFunctionArgumentCount());
 
@@ -1039,6 +1041,7 @@ JSFunction::getBoundFunctionArgument(unsigned which) const
 inline size_t
 JSFunction::getBoundFunctionArgumentCount() const
 {
+    JS_ASSERT(isFunction());
     JS_ASSERT(isBoundFunction());
 
     return getSlot(JSSLOT_BOUND_FUNCTION_ARGS_COUNT).toPrivateUint32();
@@ -1054,17 +1057,25 @@ JSFunction::createScriptForLazilyInterpretedFunction(JSContext *cx, HandleFuncti
         if (cx->zone()->needsBarrier())
             LazyScript::writeBarrierPre(lazy);
 
-        fun->flags &= ~INTERPRETED_LAZY;
-        fun->flags |= INTERPRETED;
-
         if (JSScript *script = lazy->maybeScript()) {
+            fun->flags &= ~INTERPRETED_LAZY;
+            fun->flags |= INTERPRETED;
             fun->initScript(script);
+
+            /*
+             * Set some bits that are normally filled in by the Parser after
+             * the full parse tree has been produced.
+             */
+            if (script->function()->isHeavyweight())
+                fun->setIsHeavyweight();
+            fun->nargs = script->function()->nargs;
             return true;
         }
 
-        fun->initScript(NULL);
-
-        JS_ASSERT(lazy->source()->hasSourceData());
+        /* Lazily parsed script. */
+        const jschar *chars = lazy->source()->chars(cx);
+        if (!chars)
+            return false;
 
         /*
          * GC must be suppressed for the remainder of the lazy parse, as any
@@ -1072,10 +1083,9 @@ JSFunction::createScriptForLazilyInterpretedFunction(JSContext *cx, HandleFuncti
          */
         AutoSuppressGC suppressGC(cx);
 
-        /* Lazily parsed script. */
-        const jschar *chars = lazy->source()->chars(cx);
-        if (!chars)
-            return false;
+        fun->flags &= ~INTERPRETED_LAZY;
+        fun->flags |= INTERPRETED;
+        fun->initScript(NULL);
 
         const jschar *lazyStart = chars + lazy->begin();
         size_t lazyLength = lazy->end() - lazy->begin();
@@ -1102,7 +1112,7 @@ JSFunction::createScriptForLazilyInterpretedFunction(JSContext *cx, HandleFuncti
 JSBool
 js::CallOrConstructBoundFunction(JSContext *cx, unsigned argc, Value *vp)
 {
-    RootedFunction fun(cx, &vp[0].toObject().as<JSFunction>());
+    RootedFunction fun(cx, vp[0].toObject().toFunction());
     JS_ASSERT(fun->isBoundFunction());
 
     bool constructing = IsConstructing(vp);
@@ -1118,7 +1128,7 @@ js::CallOrConstructBoundFunction(JSContext *cx, unsigned argc, Value *vp)
     /* 15.3.4.5.1 step 1, 15.3.4.5.2 step 3. */
     unsigned argslen = fun->getBoundFunctionArgumentCount();
 
-    if (argc + argslen > ARGS_LENGTH_MAX) {
+    if (argc + argslen > StackSpace::ARGS_LENGTH_MAX) {
         js_ReportAllocationOverflow(cx);
         return false;
     }
@@ -1129,8 +1139,8 @@ js::CallOrConstructBoundFunction(JSContext *cx, unsigned argc, Value *vp)
     /* 15.3.4.5.1 step 2. */
     const Value &boundThis = fun->getBoundFunctionThis();
 
-    InvokeArgs args(cx);
-    if (!args.init(argc + argslen))
+    InvokeArgsGuard args;
+    if (!cx->stack.pushInvokeArgs(cx, argc + argslen, &args))
         return false;
 
     /* 15.3.4.5.1, 15.3.4.5.2 step 4. */
@@ -1184,7 +1194,7 @@ fun_bind(JSContext *cx, unsigned argc, Value *vp)
 
     /* Step 2. */
     if (!js_IsCallable(thisv)) {
-        ReportIncompatibleMethod(cx, args, &JSFunction::class_);
+        ReportIncompatibleMethod(cx, args, &FunctionClass);
         return false;
     }
 
@@ -1214,14 +1224,14 @@ js_fun_bind(JSContext *cx, HandleObject target, HandleValue thisArg,
 {
     /* Steps 15-16. */
     unsigned length = 0;
-    if (target->is<JSFunction>()) {
-        unsigned nargs = target->as<JSFunction>().nargs;
+    if (target->isFunction()) {
+        unsigned nargs = target->toFunction()->nargs;
         if (nargs > argslen)
             length = nargs - argslen;
     }
 
     /* Step 4-6, 10-11. */
-    RootedAtom name(cx, target->is<JSFunction>() ? target->as<JSFunction>().atom() : NULL);
+    RootedAtom name(cx, target->isFunction() ? target->toFunction()->atom() : NULL);
 
     RootedObject funobj(cx, NewFunction(cx, NullPtr(), CallOrConstructBoundFunction, length,
                                         JSFunction::NATIVE_CTOR, target, name));
@@ -1232,7 +1242,7 @@ js_fun_bind(JSContext *cx, HandleObject target, HandleValue thisArg,
     if (!JSObject::setParent(cx, funobj, target))
         return NULL;
 
-    if (!funobj->as<JSFunction>().initBoundFunction(cx, thisArg, boundArgs, argslen))
+    if (!funobj->toFunction()->initBoundFunction(cx, thisArg, boundArgs, argslen))
         return NULL;
 
     /* Steps 17, 19-21 are handled by fun_resolve. */
@@ -1452,8 +1462,7 @@ js::Function(JSContext *cx, unsigned argc, Value *vp)
      */
     RootedAtom anonymousAtom(cx, cx->names().anonymous);
     RootedFunction fun(cx, NewFunction(cx, NullPtr(), NULL, 0, JSFunction::INTERPRETED_LAMBDA,
-                                       global, anonymousAtom, JSFunction::FinalizeKind,
-                                       TenuredObject));
+                                       global, anonymousAtom));
     if (!fun)
         return false;
 
@@ -1483,7 +1492,7 @@ js::NewFunction(JSContext *cx, HandleObject funobjArg, Native native, unsigned n
 
     RootedObject funobj(cx, funobjArg);
     if (funobj) {
-        JS_ASSERT(funobj->is<JSFunction>());
+        JS_ASSERT(funobj->isFunction());
         JS_ASSERT(funobj->getParent() == parent);
         JS_ASSERT_IF(native && cx->typeInferenceEnabled(), funobj->hasSingletonType());
     } else {
@@ -1492,12 +1501,11 @@ js::NewFunction(JSContext *cx, HandleObject funobjArg, Native native, unsigned n
         // that hasSingletonType implies isInterpreted.
         if (native && !IsAsmJSModuleNative(native))
             newKind = SingletonObject;
-        funobj = NewObjectWithClassProto(cx, &JSFunction::class_, NULL,
-                                         SkipScopeParent(parent), allocKind, newKind);
+        funobj = NewObjectWithClassProto(cx, &FunctionClass, NULL, SkipScopeParent(parent), allocKind, newKind);
         if (!funobj)
             return NULL;
     }
-    RootedFunction fun(cx, &funobj->as<JSFunction>());
+    RootedFunction fun(cx, funobj->toFunction());
 
     /* Initialize all function members. */
     fun->nargs = uint16_t(nargs);
@@ -1535,11 +1543,11 @@ js::CloneFunctionObject(JSContext *cx, HandleFunction fun, HandleObject parent, 
         return NULL;
 
     NewObjectKind newKind = useSameScript ? newKindArg : SingletonObject;
-    JSObject *cloneobj = NewObjectWithClassProto(cx, &JSFunction::class_, NULL,
-                                                 SkipScopeParent(parent), allocKind, newKind);
+    JSObject *cloneobj = NewObjectWithClassProto(cx, &FunctionClass, NULL, SkipScopeParent(parent),
+                                                 allocKind, newKind);
     if (!cloneobj)
         return NULL;
-    RootedFunction clone(cx, &cloneobj->as<JSFunction>());
+    RootedFunction clone(cx, cloneobj->toFunction());
 
     clone->nargs = fun->nargs;
     clone->flags = fun->flags & ~JSFunction::EXTENDED;
@@ -1643,11 +1651,11 @@ js::ReportIncompatibleMethod(JSContext *cx, CallReceiver call, Class *clasp)
                   !thisv.toObject().getProto() ||
                   thisv.toObject().getProto()->getClass() != clasp);
     } else if (thisv.isString()) {
-        JS_ASSERT(clasp != &StringObject::class_);
+        JS_ASSERT(clasp != &StringClass);
     } else if (thisv.isNumber()) {
-        JS_ASSERT(clasp != &NumberObject::class_);
+        JS_ASSERT(clasp != &NumberClass);
     } else if (thisv.isBoolean()) {
-        JS_ASSERT(clasp != &BooleanObject::class_);
+        JS_ASSERT(clasp != &BooleanClass);
     } else {
         JS_ASSERT(thisv.isUndefined() || thisv.isNull());
     }

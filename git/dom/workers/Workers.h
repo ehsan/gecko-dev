@@ -165,7 +165,7 @@ struct JSSettings
 
 // All of these are implemented in RuntimeService.cpp
 JSBool
-ResolveWorkerClasses(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aId,
+ResolveWorkerClasses(JSContext* aCx, JSHandleObject aObj, JSHandleId aId,
                      unsigned aFlags, JS::MutableHandle<JSObject*> aObjp);
 
 void

@@ -11,6 +11,8 @@
 #include "mozilla/MathAlgorithms.h"
 #include "mozilla/Util.h"
 
+#include <stdlib.h>
+
 #include "jsapi.h"
 #include "jsatom.h"
 #include "jscntxt.h"
@@ -31,6 +33,7 @@
 
 #include "jsatominlines.h"
 #include "jscntxtinlines.h"
+#include "jsobjinlines.h"
 #include "jsstrinlines.h"
 
 #include "vm/ArgumentsObject-inl.h"
@@ -55,8 +58,8 @@ js::GetLengthProperty(JSContext *cx, HandleObject obj, uint32_t *lengthp)
         return true;
     }
 
-    if (obj->is<ArgumentsObject>()) {
-        ArgumentsObject &argsobj = obj->as<ArgumentsObject>();
+    if (obj->isArguments()) {
+        ArgumentsObject &argsobj = obj->asArguments();
         if (!argsobj.hasOverriddenLength()) {
             *lengthp = argsobj.initialLength();
             return true;
@@ -211,8 +214,8 @@ GetElement(JSContext *cx, HandleObject obj, IndexType index, JSBool *hole, Mutab
             return true;
         }
     }
-    if (obj->is<ArgumentsObject>()) {
-        if (obj->as<ArgumentsObject>().maybeGetElement(uint32_t(index), vp)) {
+    if (obj->isArguments()) {
+        if (obj->asArguments().maybeGetElement(uint32_t(index), vp)) {
             *hole = false;
             return true;
         }
@@ -247,8 +250,8 @@ js::GetElements(JSContext *cx, HandleObject aobj, uint32_t length, Value *vp)
         return true;
     }
 
-    if (aobj->is<ArgumentsObject>()) {
-        ArgumentsObject &argsobj = aobj->as<ArgumentsObject>();
+    if (aobj->isArguments()) {
+        ArgumentsObject &argsobj = aobj->asArguments();
         if (!argsobj.hasOverriddenLength()) {
             if (argsobj.maybeGetElements(0, length, vp))
                 return true;
@@ -1009,17 +1012,17 @@ array_toString(JSContext *cx, unsigned argc, Value *vp)
         return true;
     }
 
-    InvokeArgs args2(cx);
-    if (!args2.init(0))
+    InvokeArgsGuard ag;
+    if (!cx->stack.pushInvokeArgs(cx, 0, &ag))
         return false;
 
-    args2.setCallee(join);
-    args2.setThis(ObjectValue(*obj));
+    ag.setCallee(join);
+    ag.setThis(ObjectValue(*obj));
 
     /* Do the call. */
-    if (!Invoke(cx, args2))
+    if (!Invoke(cx, ag))
         return false;
-    args.rval().set(args2.rval());
+    args.rval().set(ag.rval());
     return true;
 }
 
@@ -1421,20 +1424,20 @@ SortComparatorFunction::operator()(const Value &a, const Value &b, bool *lessOrE
     if (!JS_CHECK_OPERATION_LIMIT(cx))
         return false;
 
-    InvokeArgs &args = fig.args();
-    if (!args.init(2))
+    InvokeArgsGuard &ag = fig.args();
+    if (!ag.pushed() && !cx->stack.pushInvokeArgs(cx, 2, &ag))
         return false;
 
-    args.setCallee(fval);
-    args.setThis(UndefinedValue());
-    args[0] = a;
-    args[1] = b;
+    ag.setCallee(fval);
+    ag.setThis(UndefinedValue());
+    ag[0] = a;
+    ag[1] = b;
 
     if (!fig.invoke(cx))
         return false;
 
     double cmp;
-    if (!ToNumber(cx, args.rval(), &cmp))
+    if (!ToNumber(cx, ag.rval(), &cmp))
         return false;
 
     /*
@@ -1473,7 +1476,6 @@ typedef bool (*ComparatorNumeric)(const NumericElement &a, const NumericElement 
 
 ComparatorNumeric SortComparatorNumerics[] = {
     NULL,
-    NULL,
     ComparatorNumericLeftMinusRight,
     ComparatorNumericRightMinusLeft
 };
@@ -1496,16 +1498,12 @@ typedef bool (*ComparatorInt32)(const Value &a, const Value &b, bool *lessOrEqua
 
 ComparatorInt32 SortComparatorInt32s[] = {
     NULL,
-    NULL,
     ComparatorInt32LeftMinusRight,
     ComparatorInt32RightMinusLeft
 };
 
-// Note: Values for this enum must match up with SortComparatorNumerics
-// and SortComparatorInt32s.
 enum ComparatorMatchResult {
-    Match_Failure = 0,
-    Match_None,
+    Match_None = 0,
     Match_LeftMinusRight,
     Match_RightMinusLeft
 };
@@ -1515,23 +1513,20 @@ enum ComparatorMatchResult {
  * patterns: namely, |return x - y| and |return y - x|.
  */
 ComparatorMatchResult
-MatchNumericComparator(JSContext *cx, const Value &v)
+MatchNumericComparator(const Value &v)
 {
     if (!v.isObject())
         return Match_None;
 
     JSObject &obj = v.toObject();
-    if (!obj.is<JSFunction>())
+    if (!obj.isFunction())
         return Match_None;
 
-    JSFunction *fun = &obj.as<JSFunction>();
-    if (!fun->isInterpreted())
+    JSFunction *fun = obj.toFunction();
+    if (!fun->hasScript())
         return Match_None;
 
-    JSScript *script = fun->getOrCreateScript(cx);
-    if (!script)
-        return Match_Failure;
-
+    JSScript *script = fun->nonLazyScript();
     jsbytecode *pc = script->code;
 
     uint16_t arg0, arg1;
@@ -1808,9 +1803,7 @@ js::array_sort(JSContext *cx, unsigned argc, Value *vp)
                     return false;
             }
         } else {
-            ComparatorMatchResult comp = MatchNumericComparator(cx, fval);
-            if (comp == Match_Failure)
-                return false;
+            ComparatorMatchResult comp = MatchNumericComparator(fval);
 
             if (comp != Match_None) {
                 if (allInts) {
@@ -2637,7 +2630,7 @@ array_filter(JSContext *cx, unsigned argc, Value *vp)
     /* Step 9. */
     JS_ASSERT(!InParallelSection());
     FastInvokeGuard fig(cx, ObjectValue(*callable));
-    InvokeArgs &args2 = fig.args();
+    InvokeArgsGuard &ag = fig.args();
     RootedValue kValue(cx);
     while (k < len) {
         if (!JS_CHECK_OPERATION_LIMIT(cx))
@@ -2650,17 +2643,17 @@ array_filter(JSContext *cx, unsigned argc, Value *vp)
 
         /* Step c.ii-iii. */
         if (!kNotPresent) {
-            if (!args2.init(3))
+            if (!ag.pushed() && !cx->stack.pushInvokeArgs(cx, 3, &ag))
                 return false;
-            args2.setCallee(ObjectValue(*callable));
-            args2.setThis(thisv);
-            args2[0] = kValue;
-            args2[1] = NumberValue(k);
-            args2[2] = ObjectValue(*obj);
+            ag.setCallee(ObjectValue(*callable));
+            ag.setThis(thisv);
+            ag[0] = kValue;
+            ag[1] = NumberValue(k);
+            ag[2] = ObjectValue(*obj);
             if (!fig.invoke(cx))
                 return false;
 
-            if (ToBoolean(args2.rval())) {
+            if (ToBoolean(ag.rval())) {
                 if (!SetArrayElement(cx, arr, to, kValue))
                     return false;
                 to++;
@@ -2718,7 +2711,6 @@ static const JSFunctionSpec array_methods[] = {
          {"some",               {NULL, NULL},       1,0, "ArraySome"},
          {"every",              {NULL, NULL},       1,0, "ArrayEvery"},
 
-    JS_FN("iterator",           JS_ArrayIterator,   0,0),
     JS_FS_END
 };
 
@@ -2793,7 +2785,7 @@ js_InitArrayClass(JSContext *cx, HandleObject obj)
 {
     JS_ASSERT(obj->isNative());
 
-    Rooted<GlobalObject*> global(cx, &obj->as<GlobalObject>());
+    Rooted<GlobalObject*> global(cx, &obj->asGlobal());
 
     RootedObject proto(cx, global->getOrCreateObjectPrototype(cx));
     if (!proto)
@@ -2835,6 +2827,14 @@ js_InitArrayClass(JSContext *cx, HandleObject obj)
     }
 
     if (!DefineConstructorAndPrototype(cx, global, JSProto_Array, ctor, arrayProto))
+        return NULL;
+
+    JSFunction *fun = JS_DefineFunction(cx, arrayProto, "values", JS_ArrayIterator, 0, 0);
+    if (!fun)
+        return NULL;
+
+    RootedValue funval(cx, ObjectValue(*fun));
+    if (!JS_DefineProperty(cx, arrayProto, "iterator", funval, NULL, NULL, 0))
         return NULL;
 
     return arrayProto;

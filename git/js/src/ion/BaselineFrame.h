@@ -4,10 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_BaselineFrame_h
-#define ion_BaselineFrame_h
-
-#ifdef JS_ION
+#if !defined(jsion_baseline_frame_h__) && defined(JS_ION)
+#define jsion_baseline_frame_h__
 
 #include "jscntxt.h"
 #include "jscompartment.h"
@@ -150,20 +148,20 @@ class BaselineFrame
         return (Value *)this - (slot + 1);
     }
 
-    Value &unaliasedVar(unsigned i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING) const {
+    Value &unaliasedVar(unsigned i, MaybeCheckAliasing checkAliasing) const {
         JS_ASSERT_IF(checkAliasing, !script()->varIsAliased(i));
         JS_ASSERT(i < script()->nfixed);
         return *valueSlot(i);
     }
 
-    Value &unaliasedFormal(unsigned i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING) const {
+    Value &unaliasedFormal(unsigned i, MaybeCheckAliasing checkAliasing) const {
         JS_ASSERT(i < numFormalArgs());
         JS_ASSERT_IF(checkAliasing, !script()->argsObjAliasesFormals());
         JS_ASSERT_IF(checkAliasing, !script()->formalIsAliased(i));
         return argv()[i];
     }
 
-    Value &unaliasedActual(unsigned i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING) const {
+    Value &unaliasedActual(unsigned i, MaybeCheckAliasing checkAliasing) const {
         JS_ASSERT(i < numActualArgs());
         JS_ASSERT_IF(checkAliasing, !script()->argsObjAliasesFormals());
         JS_ASSERT_IF(checkAliasing && i < numFormalArgs(), !script()->formalIsAliased(i));
@@ -337,9 +335,6 @@ class BaselineFrame
     bool isDebuggerFrame() const {
         return false;
     }
-    bool isGeneratorFrame() const {
-        return false;
-    }
 
     IonJSFrameLayout *framePrefix() const {
         uint8_t *fp = (uint8_t *)this + Size() + FramePointerOffset;
@@ -401,6 +396,5 @@ JS_STATIC_ASSERT(((sizeof(BaselineFrame) + BaselineFrame::FramePointerOffset) % 
 } // namespace ion
 } // namespace js
 
-#endif // JS_ION
+#endif
 
-#endif /* ion_BaselineFrame_h */

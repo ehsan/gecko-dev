@@ -4,14 +4,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsatominlines_h
-#define jsatominlines_h
+#ifndef jsatominlines_h___
+#define jsatominlines_h___
 
 #include "mozilla/PodOperations.h"
 #include "mozilla/RangedPtr.h"
 
 #include "jsatom.h"
-#include "jscntxt.h"
 #include "jsnum.h"
 #include "jsobj.h"
 #include "jsstr.h"
@@ -39,6 +38,26 @@ AtomToId(JSAtom *atom)
         return INT_TO_JSID(int32_t(index));
 
     return JSID_FROM_BITS(size_t(atom));
+}
+
+template <AllowGC allowGC>
+inline JSAtom *
+ToAtom(JSContext *cx, typename MaybeRooted<Value, allowGC>::HandleType v)
+{
+    if (!v.isString()) {
+        JSString *str = js::ToStringSlow<allowGC>(cx, v);
+        if (!str)
+            return NULL;
+        JS::Anchor<JSString *> anchor(str);
+        return AtomizeString<allowGC>(cx, str);
+    }
+
+    JSString *str = v.toString();
+    if (str->isAtom())
+        return &str->asAtom();
+
+    JS::Anchor<JSString *> anchor(str);
+    return AtomizeString<allowGC>(cx, str);
 }
 
 template <AllowGC allowGC>
@@ -181,4 +200,4 @@ ClassName(JSProtoKey key, JSContext *cx)
 
 } // namespace js
 
-#endif /* jsatominlines_h */
+#endif /* jsatominlines_h___ */

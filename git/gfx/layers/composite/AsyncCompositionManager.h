@@ -27,8 +27,8 @@ class AutoResolveRefLayers;
 
 // Represents (affine) transforms that are calculated from a content view.
 struct ViewTransform {
-  ViewTransform(LayerPoint aTranslation = LayerPoint(),
-                LayoutDeviceToScreenScale aScale = LayoutDeviceToScreenScale())
+  ViewTransform(gfxPoint aTranslation = gfxPoint(),
+                gfxSize aScale = gfxSize(1, 1))
     : mTranslation(aTranslation)
     , mScale(aScale)
   {}
@@ -36,12 +36,12 @@ struct ViewTransform {
   operator gfx3DMatrix() const
   {
     return
-      gfx3DMatrix::Translation(mTranslation.x, mTranslation.y, 0) *
-      gfx3DMatrix::ScalingMatrix(mScale.scale, mScale.scale, 1);
+      gfx3DMatrix::ScalingMatrix(mScale.width, mScale.height, 1) *
+      gfx3DMatrix::Translation(mTranslation.x, mTranslation.y, 0);
   }
 
-  LayerPoint mTranslation;
-  LayoutDeviceToScreenScale mScale;
+  gfxPoint mTranslation;
+  gfxSize mScale;
 };
 
 /**
@@ -115,22 +115,22 @@ private:
                                         bool* aWantNextFrame);
 
   void SetFirstPaintViewport(const LayerIntPoint& aOffset,
-                             const CSSToLayerScale& aZoom,
+                             float aZoom,
                              const CSSRect& aCssPageRect);
   void SetPageRect(const CSSRect& aCssPageRect);
   void SyncViewportInfo(const LayerIntRect& aDisplayPort,
-                        const CSSToLayerScale& aDisplayResolution,
+                        float aDisplayResolution,
                         bool aLayersUpdated,
                         ScreenPoint& aScrollOffset,
-                        CSSToScreenScale& aScale,
+                        float& aScaleX, float& aScaleY,
                         gfx::Margin& aFixedLayerMargins,
                         ScreenPoint& aOffset);
-  void SyncFrameMetrics(const ScreenPoint& aScrollOffset,
+  void SyncFrameMetrics(const gfx::Point& aScrollOffset,
                         float aZoom,
                         const CSSRect& aCssPageRect,
                         bool aLayersUpdated,
                         const CSSRect& aDisplayPort,
-                        const CSSToLayerScale& aDisplayResolution,
+                        float aDisplayResolution,
                         bool aIsFirstPaint,
                         gfx::Margin& aFixedLayerMargins,
                         ScreenPoint& aOffset);

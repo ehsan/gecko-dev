@@ -5,6 +5,7 @@
 
 #include "nsIDOMElement.idl"
 
+interface nsIDOMSVGAnimatedString;
 interface nsIDOMCSSStyleDeclaration;
 interface nsIDOMCSSValue;
 
@@ -17,7 +18,7 @@ interface nsIDOMSVGElement : nsIDOMElement
   readonly attribute nsIDOMSVGElement    ownerSVGElement;
   readonly attribute nsIDOMSVGElement    viewportElement;
 
-  readonly attribute nsISupports   className;
+  readonly attribute nsIDOMSVGAnimatedString   className;
   readonly attribute nsIDOMCSSStyleDeclaration style;
 
   // Not implemented

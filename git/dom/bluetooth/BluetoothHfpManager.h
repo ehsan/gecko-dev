@@ -12,10 +12,11 @@
 #include "BluetoothSocketObserver.h"
 #include "BluetoothTelephonyListener.h"
 #include "mozilla/ipc/UnixSocket.h"
-#include "mozilla/Hal.h"
+#include "nsIObserver.h"
 
 BEGIN_BLUETOOTH_NAMESPACE
 
+class BluetoothHfpManagerObserver;
 class BluetoothReplyRunnable;
 class BluetoothSocket;
 class Call;
@@ -52,11 +53,9 @@ enum BluetoothCmeError {
 
 class BluetoothHfpManager : public BluetoothSocketObserver
                           , public BluetoothProfileManagerBase
-                          , public BatteryObserver
 {
 public:
   NS_DECL_ISUPPORTS
-  NS_DECL_NSIOBSERVER
 
   static BluetoothHfpManager* Get();
   ~BluetoothHfpManager();
@@ -103,13 +102,13 @@ private:
   friend class BluetoothHfpManagerObserver;
 
   BluetoothHfpManager();
-  void HandleIccInfoChanged();
-  void HandleShutdown();
-  void HandleVolumeChanged(const nsAString& aData);
-  void HandleVoiceConnectionChanged();
+  nsresult HandleIccInfoChanged();
+  nsresult HandleShutdown();
+  nsresult HandleVolumeChanged(const nsAString& aData);
+  nsresult HandleVoiceConnectionChanged();
 
   bool Init();
-  void Notify(const hal::BatteryInformation& aBatteryInfo);
+  void Cleanup();
   void Reset();
   void ResetCallArray();
   uint32_t FindFirstCall(uint16_t aState);
@@ -121,7 +120,7 @@ private:
 
   bool SendCommand(const char* aCommand, uint32_t aValue = 0);
   bool SendLine(const char* aMessage);
-  void UpdateCIND(uint8_t aType, uint8_t aValue, bool aSend = true);
+  void UpdateCIND(uint8_t aType, uint8_t aValue, bool aSend);
   void OnScoConnectSuccess();
   void OnScoConnectError();
   void OnScoDisconnect();

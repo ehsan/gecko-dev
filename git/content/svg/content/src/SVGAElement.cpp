@@ -50,7 +50,7 @@ SVGAElement::SVGAElement(already_AddRefed<nsINodeInfo> aNodeInfo)
 {
 }
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGAElement::Href()
 {
   return mStringAttributes[HREF].ToDOMAnimatedString(this);
@@ -79,7 +79,7 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGAElement)
 
 //----------------------------------------------------------------------
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGAElement::Target()
 {
   return mStringAttributes[TARGET].ToDOMAnimatedString(this);

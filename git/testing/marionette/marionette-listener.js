@@ -279,36 +279,6 @@ function resetValues() {
   mouseEventsOnly = false;
 }
 
-/**
- * Creates an error message for a JavaScript exception thrown during
- * execute_(async_)script.
- *
- * This will generate a [msg, trace] pair like:
- *
- * ['ReferenceError: foo is not defined',
- *  'execute_script @test_foo.py, line 10
- *   inline javascript, line 2
- *   src: "return foo;"']
- *
- * @param error An Error object passed to a catch() clause.
-          fnName The name of the function to use in the stack trace message
-                 (e.g., 'execute_script').
-          pythonFile The filename of the test file containing the Marionette
-                  command that caused this exception to occur.
-          pythonLine The line number of the above test file.
-          script The JS script being executed in text form.
- */
-function createStackMessage(error, fnName, pythonFile, pythonLine, script) {
-  let python_stack = fnName + " @" + pythonFile + ", line " + pythonLine;
-  let stack = error.stack.split("\n");
-  let line = stack[0].substr(stack[0].lastIndexOf(':') + 1);
-  let msg = error.name + ": " + error.message;
-  let trace = python_stack +
-              "\ninline javascript, line " + line +
-              "\nsrc: \"" + script.split("\n")[line] + "\"";
-  return [msg, trace];
-}
-
 /*
  * Marionette Methods
  */
@@ -414,7 +384,7 @@ function executeScript(msg, directInject) {
         let data = NetUtil.readInputStreamToString(stream, stream.available());
         script = data + script;
       }
-      let res = Cu.evalInSandbox(script, sandbox, "1.8", "dummy file" ,0);
+      let res = Cu.evalInSandbox(script, sandbox, "1.8");
       sendSyncMessage("Marionette:shareData",
                       {log: elementManager.wrapValue(marionetteLogObj.getLogs())});
       marionetteLogObj.clearLogs();
@@ -436,16 +406,16 @@ function executeScript(msg, directInject) {
         return;
       }
 
-      script = "let __marionetteFunc = function(){" + script + "};" +
-                   "__marionetteFunc.apply(null, __marionetteParams);";
+      let scriptSrc = "let __marionetteFunc = function(){" + script + "};" +
+                      "__marionetteFunc.apply(null, __marionetteParams);";
       if (importedScripts.exists()) {
         let stream = Components.classes["@mozilla.org/network/file-input-stream;1"].  
                       createInstance(Components.interfaces.nsIFileInputStream);
         stream.init(importedScripts, -1, 0, 0);
         let data = NetUtil.readInputStreamToString(stream, stream.available());
-        script = data + script;
+        scriptSrc = data + scriptSrc;
       }
-      let res = Cu.evalInSandbox(script, sandbox, "1.8", "dummy file", 0);
+      let res = Cu.evalInSandbox(scriptSrc, sandbox, "1.8");
       sendSyncMessage("Marionette:shareData",
                       {log: elementManager.wrapValue(marionetteLogObj.getLogs())});
       marionetteLogObj.clearLogs();
@@ -454,12 +424,7 @@ function executeScript(msg, directInject) {
   }
   catch (e) {
     // 17 = JavascriptException
-    let error = createStackMessage(e,
-                                   "execute_script",
-                                   msg.json.filename,
-                                   msg.json.line,
-                                   script);
-    sendError(error[0], 17, error[1], asyncTestCommandId);
+    sendError(e.name + ': ' + e.message, 17, e.stack, asyncTestCommandId);
   }
 }
 
@@ -566,15 +531,11 @@ function executeWithCallback(msg, useFinish) {
       let data = NetUtil.readInputStreamToString(stream, stream.available());
       scriptSrc = data + scriptSrc;
     }
-    Cu.evalInSandbox(scriptSrc, sandbox, "1.8", "dummy file", 0);
+    Cu.evalInSandbox(scriptSrc, sandbox, "1.8");
   } catch (e) {
     // 17 = JavascriptException
-    let error = createStackMessage(e,
-                                   "execute_async_script",
-                                   msg.json.filename,
-                                   msg.json.line,
-                                   scriptSrc);
-    sandbox.asyncComplete(error[0], 17, error[1], asyncTestCommandId);
+    sandbox.asyncComplete(e.name + ': ' + e.message, 17,
+                          e.stack, asyncTestCommandId);
   }
 }
 

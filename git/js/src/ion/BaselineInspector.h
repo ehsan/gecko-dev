@@ -4,10 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_BaselineInspector_h
-#define ion_BaselineInspector_h
-
-#ifdef JS_ION
+#if !defined(jsion_baseline_inspector_h__) && defined(JS_ION)
+#define jsion_baseline_inspector_h__
 
 #include "jscntxt.h"
 #include "jscompartment.h"
@@ -108,12 +106,10 @@ class BaselineInspector
 
     bool hasSeenNonNativeGetElement(jsbytecode *pc);
     bool hasSeenAccessedGetter(jsbytecode *pc);
-    bool hasSeenDoubleResult(jsbytecode *pc);
 };
 
 } // namespace ion
 } // namespace js
 
-#endif // JS_ION
+#endif
 
-#endif /* ion_BaselineInspector_h */

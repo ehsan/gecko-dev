@@ -10,5 +10,3 @@ CPP_SOURCES += [
     'OmxPlugin236.cpp',
 ]
 
-LIBRARY_NAME = 'omxplugingb'
-

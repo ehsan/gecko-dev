@@ -4,10 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_CompilerRoot_h
-#define ion_CompilerRoot_h
-
-#ifdef JS_ION
+#if !defined(jsion_ion_gc_h__) && defined(JS_ION)
+#define jsion_ion_gc_h__
 
 #include "jscntxt.h"
 
@@ -63,6 +61,5 @@ typedef CompilerRoot<Value> CompilerRootValue;
 } // namespace ion
 } // namespace js
 
-#endif // JS_ION
+#endif // jsion_ion_gc_h__
 
-#endif /* ion_CompilerRoot_h */

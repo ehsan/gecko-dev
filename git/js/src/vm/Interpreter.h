@@ -4,16 +4,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_Interpreter_h
-#define vm_Interpreter_h
-
+#ifndef Interpreter_h___
+#define Interpreter_h___
 /*
  * JS interpreter interface.
  */
-
-#include "jsiter.h"
 #include "jsprvtd.h"
 #include "jspubtd.h"
+#include "jsopcode.h"
 
 #include "vm/Stack.h"
 
@@ -166,139 +164,33 @@ ExecuteKernel(JSContext *cx, HandleScript script, JSObject &scopeChain, const Va
 extern bool
 Execute(JSContext *cx, HandleScript script, JSObject &scopeChain, Value *rval);
 
-class ExecuteState;
-class InvokeState;
-class GeneratorState;
-
-// RunState is passed to RunScript and RunScript then eiter passes it to the
-// interpreter or to the JITs. RunState contains all information we need to
-// construct an interpreter or JIT frame.
-class RunState
+/* Flags to toggle js::Interpret() execution. */
+enum InterpMode
 {
-  protected:
-    enum Kind { Execute, Invoke, Generator };
-    Kind kind_;
-
-    RootedScript script_;
-
-    explicit RunState(JSContext *cx, Kind kind, JSScript *script)
-      : kind_(kind),
-        script_(cx, script)
-    { }
-
-  public:
-    bool isExecute() const { return kind_ == Execute; }
-    bool isInvoke() const { return kind_ == Invoke; }
-    bool isGenerator() const { return kind_ == Generator; }
-
-    ExecuteState *asExecute() const {
-        JS_ASSERT(isExecute());
-        return (ExecuteState *)this;
-    }
-    InvokeState *asInvoke() const {
-        JS_ASSERT(isInvoke());
-        return (InvokeState *)this;
-    }
-    GeneratorState *asGenerator() const {
-        JS_ASSERT(isGenerator());
-        return (GeneratorState *)this;
-    }
-
-    JSScript *script() const { return script_; }
-
-    virtual StackFrame *pushInterpreterFrame(JSContext *cx, FrameGuard *fg) = 0;
-    virtual void setReturnValue(Value v) = 0;
-
-  private:
-    RunState(const RunState &other) MOZ_DELETE;
-    RunState(const ExecuteState &other) MOZ_DELETE;
-    RunState(const InvokeState &other) MOZ_DELETE;
-    RunState(const GeneratorState &other) MOZ_DELETE;
-    void operator=(const RunState &other) MOZ_DELETE;
+    JSINTERP_NORMAL    = 0, /* interpreter is running normally */
+    JSINTERP_REJOIN    = 1, /* as normal, but the frame has already started */
+    JSINTERP_SKIP_TRAP = 2, /* as REJOIN, but skip trap at first opcode */
+    JSINTERP_BAILOUT   = 3, /* interpreter is running from an Ion bailout */
+    JSINTERP_RETHROW   = 4  /* as BAILOUT, but unwind all frames */
 };
 
-// Eval or global script.
-class ExecuteState : public RunState
+enum InterpretStatus
 {
-    ExecuteType type_;
-
-    RootedValue thisv_;
-    RootedObject scopeChain_;
-
-    AbstractFramePtr evalInFrame_;
-    Value *result_;
-
-  public:
-    ExecuteState(JSContext *cx, JSScript *script, const Value &thisv, JSObject &scopeChain,
-                 ExecuteType type, AbstractFramePtr evalInFrame, Value *result)
-      : RunState(cx, Execute, script),
-        type_(type),
-        thisv_(cx, thisv),
-        scopeChain_(cx, &scopeChain),
-        evalInFrame_(evalInFrame),
-        result_(result)
-    { }
-
-    Value *addressOfThisv() { return thisv_.address(); }
-    JSObject *scopeChain() const { return scopeChain_; }
-    ExecuteType type() const { return type_; }
-
-    virtual StackFrame *pushInterpreterFrame(JSContext *cx, FrameGuard *fg);
-
-    virtual void setReturnValue(Value v) {
-        if (result_)
-            *result_ = v;
-    }
+    Interpret_Error    = 0, /* interpreter had an error */
+    Interpret_Ok       = 1, /* interpreter executed successfully */
+    Interpret_OSR      = 2  /* when mode=BAILOUT and we should OSR into Ion */
 };
 
-// Data to invoke a function.
-class InvokeState : public RunState
-{
-    CallArgs &args_;
-    InitialFrameFlags initial_;
-    bool useNewType_;
-
-  public:
-    InvokeState(JSContext *cx, CallArgs &args, InitialFrameFlags initial)
-      : RunState(cx, Invoke, args.callee().as<JSFunction>().nonLazyScript()),
-        args_(args),
-        initial_(initial),
-        useNewType_(false)
-    { }
-
-    bool useNewType() const { return useNewType_; }
-    void setUseNewType() { useNewType_ = true; }
-
-    bool constructing() const { return InitialFrameFlagsAreConstructing(initial_); }
-    CallArgs &args() const { return args_; }
-
-    virtual StackFrame *pushInterpreterFrame(JSContext *cx, FrameGuard *fg);
-
-    virtual void setReturnValue(Value v) {
-        args_.rval().set(v);
-    }
-};
-
-// Generator script.
-class GeneratorState : public RunState
-{
-    JSContext *cx_;
-    JSGenerator *gen_;
-    JSGeneratorState futureState_;
-    bool entered_;
-
-  public:
-    GeneratorState(JSContext *cx, JSGenerator *gen, JSGeneratorState futureState);
-    ~GeneratorState();
-
-    virtual StackFrame *pushInterpreterFrame(JSContext *cx, FrameGuard *fg);
-    virtual void setReturnValue(Value) { }
-
-    JSGenerator *gen() const { return gen_; }
-};
+/*
+ * Execute the caller-initialized frame for a user-defined script or function
+ * pointed to by cx->fp until completion or error.
+ */
+extern JS_NEVER_INLINE InterpretStatus
+Interpret(JSContext *cx, StackFrame *stopFp, InterpMode mode = JSINTERP_NORMAL,
+          bool useNewType = false);
 
 extern bool
-RunScript(JSContext *cx, RunState &state);
+RunScript(JSContext *cx, StackFrame *fp);
 
 extern bool
 StrictlyEqual(JSContext *cx, const Value &lval, const Value &rval, bool *equal);
@@ -542,4 +434,4 @@ InitGetterSetterOperation(JSContext *cx, jsbytecode *pc, HandleObject obj, Handl
 
 }  /* namespace js */
 
-#endif /* vm_Interpreter_h */
+#endif /* Interpreter_h___ */

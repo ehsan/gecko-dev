@@ -9,7 +9,6 @@
 #endif
 
 #include "gfxPlatformGtk.h"
-#include "prenv.h"
 
 #include "nsUnicharUtils.h"
 #include "nsUnicodeProperties.h"
@@ -497,17 +496,6 @@ gfxPlatformGtk::GetScreenDepth() const
     }
 
     return sDepth;
-}
-
-bool
-gfxPlatformGtk::SupportsOffMainThreadCompositing()
-{
-#ifdef MOZ_X11
-  return (PR_GetEnv("MOZ_USE_OMTC") != nullptr) ||
-         (PR_GetEnv("MOZ_OMTC_ENABLED") != nullptr);
-#else
-  return true;
-#endif
 }
 
 qcms_profile *

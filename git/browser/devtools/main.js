@@ -107,7 +107,7 @@ Tools.inspector = {
 
 Tools.jsdebugger = {
   id: "jsdebugger",
-  key: l10n("debuggerMenu.commandkey", debuggerStrings),
+  key: l10n("open.commandkey", debuggerStrings),
   accesskey: l10n("debuggerMenu.accesskey", debuggerStrings),
   modifiers: osString == "Darwin" ? "accel,alt" : "accel,shift",
   ordinal: 3,
@@ -158,7 +158,7 @@ Tools.jsprofiler = {
   icon: "chrome://browser/skin/devtools/tool-profiler.png",
   url: "chrome://browser/content/devtools/profiler.xul",
   label: l10n("profiler.label", profilerStrings),
-  tooltip: l10n("profiler.tooltip2", profilerStrings),
+  tooltip: l10n("profiler.tooltip", profilerStrings),
 
   isTargetSupported: function (target) {
     return true;

@@ -4,15 +4,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_RegExpStatics_inl_h
-#define vm_RegExpStatics_inl_h
+#ifndef RegExpStatics_inl_h__
+#define RegExpStatics_inl_h__
 
-#include "vm/RegExpStatics.h"
+#include "RegExpStatics.h"
 
 #include "gc/Marking.h"
-
-#include "jsinferinlines.h"
-
 #include "vm/String-inl.h"
 
 namespace js {
@@ -583,4 +580,4 @@ JSContext::regExpStatics()
     return global()->getRegExpStatics();
 }
 
-#endif /* vm_RegExpStatics_inl_h */
+#endif

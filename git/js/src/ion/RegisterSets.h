@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_RegisterSets_h
-#define ion_RegisterSets_h
+#ifndef jsion_cpu_registersets_h__
+#define jsion_cpu_registersets_h__
 
 #include "Registers.h"
 #include "ion/IonAllocPolicy.h"
@@ -92,7 +92,7 @@ class ValueOperand
     Register payload_;
 
   public:
-    MOZ_CONSTEXPR ValueOperand(Register type, Register payload)
+    ValueOperand(Register type, Register payload)
       : type_(type), payload_(payload)
     { }
 
@@ -117,7 +117,7 @@ class ValueOperand
     Register value_;
 
   public:
-    explicit MOZ_CONSTEXPR ValueOperand(Register value)
+    explicit ValueOperand(Register value)
       : value_(value)
     { }
 
@@ -297,13 +297,13 @@ class TypedRegisterSet
     uint32_t bits_;
 
   public:
-    explicit MOZ_CONSTEXPR TypedRegisterSet(uint32_t bits)
+    explicit TypedRegisterSet(uint32_t bits)
       : bits_(bits)
     { }
 
-    MOZ_CONSTEXPR TypedRegisterSet() : bits_(0)
+    TypedRegisterSet() : bits_(0)
     { }
-    MOZ_CONSTEXPR TypedRegisterSet(const TypedRegisterSet<T> &set) : bits_(set.bits_)
+    TypedRegisterSet(const TypedRegisterSet<T> &set) : bits_(set.bits_)
     { }
 
     static inline TypedRegisterSet All() {
@@ -471,7 +471,7 @@ class RegisterSet {
   public:
     RegisterSet()
     { }
-    MOZ_CONSTEXPR RegisterSet(const GeneralRegisterSet &gpr, const FloatRegisterSet &fpu)
+    RegisterSet(const GeneralRegisterSet &gpr, const FloatRegisterSet &fpu)
       : gpr_(gpr),
         fpu_(fpu)
     { }
@@ -579,10 +579,10 @@ class RegisterSet {
         gpr_.clear();
         fpu_.clear();
     }
-    MOZ_CONSTEXPR GeneralRegisterSet gprs() const {
+    GeneralRegisterSet gprs() const {
         return gpr_;
     }
-    MOZ_CONSTEXPR FloatRegisterSet fpus() const {
+    FloatRegisterSet fpus() const {
         return fpu_;
     }
     bool operator ==(const RegisterSet &other) const {
@@ -826,4 +826,4 @@ typedef Vector<AsmJSBoundsCheck, 0, IonAllocPolicy> AsmJSBoundsCheckVector;
 } // namespace ion
 } // namespace js
 
-#endif /* ion_RegisterSets_h */
+#endif // jsion_cpu_registersets_h__

@@ -7,11 +7,9 @@
 #include "jswatchpoint.h"
 
 #include "jsatom.h"
-#include "jscompartment.h"
 
 #include "gc/Marking.h"
 
-#include "jsgcinlines.h"
 #include "jsobjinlines.h"
 
 using namespace js;

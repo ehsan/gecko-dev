@@ -9,6 +9,6 @@
  * @onlyStrict
  * @negative ^((?!NotEarlyError).)*$
  */
-"use strict";
+﻿"use strict";
 throw NotEarlyError;
 function arguments() { };

@@ -109,8 +109,6 @@ let ScriptContexts = {};
   ["OfflineApps", "chrome://browser/content/helperui/OfflineApps.js"],
   ["SelectHelperUI", "chrome://browser/content/helperui/SelectHelperUI.js"],
   ["SelectionHelperUI", "chrome://browser/content/helperui/SelectionHelperUI.js"],
-  ["SelectionPrototype", "chrome://browser/content/library/SelectionPrototype.js"],
-  ["ChromeSelectionHandler", "chrome://browser/content/helperui/ChromeSelectionHandler.js"],
   ["AnimatedZoom", "chrome://browser/content/AnimatedZoom.js"],
   ["CommandUpdater", "chrome://browser/content/commandUtil.js"],
   ["ContextCommands", "chrome://browser/content/ContextCommands.js"],
@@ -135,7 +133,6 @@ let ScriptContexts = {};
   ["SanitizeUI", "chrome://browser/content/sanitizeUI.js"],
   ["SSLExceptions", "chrome://browser/content/exceptions.js"],
   ["ItemPinHelper", "chrome://browser/content/helperui/ItemPinHelper.js"],
-  ["NavButtonSlider", "chrome://browser/content/NavButtonSlider.js"],
 #ifdef MOZ_SERVICES_SYNC
   ["Sync", "chrome://browser/content/sync.js"],
   ["SyncPairDevice", "chrome://browser/content/sync.js"],

@@ -46,7 +46,7 @@ function sanitizeStringArray(aArray) {
 }
 
 const nsIClassInfo            = Ci.nsIClassInfo;
-const CONTACTPROPERTIES_CID   = Components.ID("{35ad8a4e-9486-44b6-883d-550f14635e49}");
+const CONTACTPROPERTIES_CID   = Components.ID("{6cb78b21-4218-414b-8a84-3b7bf0088b34}");
 const nsIContactProperties    = Ci.nsIContactProperties;
 
 // ContactProperties is not directly instantiated. It is used as interface.
@@ -88,8 +88,7 @@ ContactAddress.prototype = {
                       locality: 'rw',
                       region: 'rw',
                       postalCode: 'rw',
-                      countryName: 'rw',
-                      pref: 'rw'
+                      countryName: 'rw'
                      },
 
   classID : CONTACTADDRESS_CID,
@@ -117,8 +116,7 @@ function ContactField(aType, aValue, aPref) {
 ContactField.prototype = {
   __exposedProps__: {
                       type: 'rw',
-                      value: 'rw',
-                      pref: 'rw'
+                      value: 'rw'
                      },
 
   classID : CONTACTFIELD_CID,
@@ -148,8 +146,7 @@ ContactTelField.prototype = {
   __exposedProps__: {
                       type: 'rw',
                       value: 'rw',
-                      carrier: 'rw',
-                      pref: 'rw'
+                      carrier: 'rw'
                      },
 
   classID : CONTACTTELFIELD_CID,
@@ -268,8 +265,7 @@ Contact.prototype = {
                       impp: 'rw',
                       anniversary: 'rw',
                       sex: 'rw',
-                      genderIdentity: 'rw',
-                      key: 'rw',
+                      genderIdentity: 'rw'
                      },
 
   set name(aName) {
@@ -421,7 +417,7 @@ Contact.prototype = {
   },
 
   set bday(aBday) {
-    if (aBday && aBday.constructor.name === "Date") {
+    if (aBday instanceof Date) {
       this._bday = aBday;
     } else if (typeof aBday === "string" || typeof aBday === "number") {
       this._bday = new Date(aBday);
@@ -433,7 +429,7 @@ Contact.prototype = {
   },
 
   set anniversary(aAnniversary) {
-    if (aAnniversary && aAnniversary.constructor.name === "Date") {
+    if (aAnniversary instanceof Date) {
       this._anniversary = aAnniversary;
     } else if (typeof aAnniversary === "string" || typeof aAnniversary === "number") {
       this._anniversary = new Date(aAnniversary);
@@ -468,14 +464,6 @@ Contact.prototype = {
     return this._genderIdentity;
   },
 
-  set key(aKey) {
-    this._key = sanitizeStringArray(aKey);
-  },
-
-  get key() {
-    return this._key;
-  },
-
   init: function init(aProp) {
     this.name =            aProp.name;
     this.honorificPrefix = aProp.honorificPrefix;
@@ -498,7 +486,6 @@ Contact.prototype = {
     this.anniversary =     aProp.anniversary;
     this.sex =             aProp.sex;
     this.genderIdentity =  aProp.genderIdentity;
-    this.key =             aProp.key;
   },
 
   get published () {
@@ -768,8 +755,7 @@ ContactManager.prototype = {
       impp:            [],
       anniversary:     null,
       sex:             null,
-      genderIdentity:  null,
-      key:             [],
+      genderIdentity:  null
     };
     for (let field in newContact.properties) {
       newContact.properties[field] = aContact[field];

@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsproxy_h
-#define jsproxy_h
+#ifndef jsproxy_h___
+#define jsproxy_h___
 
 #include "jsapi.h"
 #include "jsfriendapi.h"
@@ -426,6 +426,6 @@ class JS_FRIEND_API(AutoWaivePolicy) {
 } /* namespace js */
 
 extern JS_FRIEND_API(JSObject *)
-js_InitProxyClass(JSContext *cx, JS::HandleObject obj);
+js_InitProxyClass(JSContext *cx, JSHandleObject obj);
 
-#endif /* jsproxy_h */
+#endif

@@ -33,9 +33,10 @@ class nsDOMEventBase : public nsIDOMEvent
 };
 
 class nsDOMEvent : public nsDOMEventBase,
+                   public nsIJSNativeInitializer,
                    public nsWrapperCache
 {
-public:
+protected:
   nsDOMEvent(mozilla::dom::EventTarget* aOwner, nsPresContext* aPresContext,
              nsEvent* aEvent);
   nsDOMEvent(nsPIDOMWindow* aWindow);
@@ -71,8 +72,17 @@ public:
     return static_cast<nsDOMEvent*>(event);
   }
 
+  static already_AddRefed<nsDOMEvent> CreateEvent(mozilla::dom::EventTarget* aOwner,
+                                                  nsPresContext* aPresContext,
+                                                  nsEvent* aEvent)
+  {
+    nsRefPtr<nsDOMEvent> e = new nsDOMEvent(aOwner, aPresContext, aEvent);
+    e->SetIsDOMBinding();
+    return e.forget();
+  }
+
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsDOMEvent)
+  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsDOMEvent, nsIDOMEvent)
 
   nsISupports* GetParentObject()
   {
@@ -87,6 +97,13 @@ public:
 
   // nsIDOMEvent Interface
   NS_DECL_NSIDOMEVENT
+
+  // nsIJSNativeInitializer
+  NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* aCx, JSObject* aObj,
+                        const JS::CallArgs& aArgs) MOZ_OVERRIDE;
+
+  virtual nsresult InitFromCtor(const nsAString& aType,
+                                JSContext* aCx, JS::Value* aVal);
 
   void InitPresContextData(nsPresContext* aPresContext);
 

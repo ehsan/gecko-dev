@@ -5,6 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "jscntxt.h"
+#include "jscompartment.h"
 #include "FullParseHandler.h"
 #include "SyntaxParseHandler.h"
 
@@ -132,5 +133,5 @@ frontend::InitAtomMap(JSContext *cx, frontend::AtomIndexMap *indices, HeapPtrAto
     }
 }
 
-template class js::frontend::AtomDecls<FullParseHandler>;
-template class js::frontend::AtomDecls<SyntaxParseHandler>;
+template class AtomDecls<FullParseHandler>;
+template class AtomDecls<SyntaxParseHandler>;

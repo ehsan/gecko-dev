@@ -4,16 +4,24 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_RegExpObject_inl_h
-#define vm_RegExpObject_inl_h
+#ifndef RegExpObject_inl_h___
+#define RegExpObject_inl_h___
 
 #include "mozilla/Util.h"
 
 #include "RegExpObject.h"
 
+#include "jsobjinlines.h"
 #include "jsstrinlines.h"
 
 #include "String-inl.h"
+
+inline js::RegExpObject &
+JSObject::asRegExp()
+{
+    JS_ASSERT(isRegExp());
+    return *static_cast<js::RegExpObject *>(this);
+}
 
 namespace js {
 
@@ -107,8 +115,8 @@ RegExpShared::isJITRuntimeEnabled(JSContext *cx)
 inline bool
 RegExpToShared(JSContext *cx, HandleObject obj, RegExpGuard *g)
 {
-    if (obj->is<RegExpObject>())
-        return obj->as<RegExpObject>().getShared(cx, g);
+    if (obj->isRegExp())
+        return obj->asRegExp().getShared(cx, g);
     return Proxy::regexp_toShared(cx, obj, g);
 }
 
@@ -169,4 +177,4 @@ MatchPairs::checkAgainst(size_t inputLength)
 
 } /* namespace js */
 
-#endif /* vm_RegExpObject_inl_h */
+#endif

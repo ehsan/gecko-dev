@@ -21,6 +21,9 @@
 #define NS_AUTOCOMPLETECONTROLLER_CONTRACTID \
   "@mozilla.org/autocomplete/controller;1"
 
+#define NS_AUTOCOMPLETECONTROLLER_CONTRACTID \
+  "@mozilla.org/autocomplete/controller;1"
+
 #define NS_AUTOCOMPLETESIMPLERESULT_CONTRACTID \
   "@mozilla.org/autocomplete/simple-result;1"
 

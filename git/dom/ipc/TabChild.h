@@ -23,7 +23,10 @@
 #include "nsIDOMEventListener.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIWindowProvider.h"
+#include "nsIXPCScriptable.h"
+#include "nsIClassInfo.h"
 #include "jsapi.h"
+#include "nsIXPConnect.h"
 #include "nsIDOMWindow.h"
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
@@ -31,13 +34,17 @@
 #include "nsIDocument.h"
 #include "nsNetUtil.h"
 #include "nsFrameMessageManager.h"
+#include "nsIScriptContext.h"
 #include "nsIWebProgressListener.h"
 #include "nsDOMEventTargetHelper.h"
 #include "nsIDialogCreator.h"
 #include "nsIDialogParamBlock.h"
+#include "nsIDOMWindowUtils.h"
 #include "nsIPresShell.h"
 #include "nsIPrincipal.h"
 #include "nsIScriptObjectPrincipal.h"
+#include "nsIScriptContext.h"
+#include "nsPIDOMWindow.h"
 #include "nsWeakReference.h"
 #include "nsITabChild.h"
 #include "mozilla/Attributes.h"
@@ -47,7 +54,6 @@
 
 struct gfxMatrix;
 class nsICachedFileDescriptorListener;
-class nsIDOMWindowUtils;
 
 namespace mozilla {
 namespace layout {
@@ -290,7 +296,7 @@ public:
     void GetDPI(float* aDPI);
     void GetDefaultScale(double *aScale);
 
-    ScreenToScreenScale GetZoom() { return mLastMetrics.mZoom; }
+    gfxSize GetZoom() { return mLastMetrics.mZoom; }
 
     ScreenOrientation GetOrientation() { return mOrientation; }
 
@@ -416,7 +422,12 @@ private:
                               bool* aWindowIsNew,
                               nsIDOMWindow** aReturn);
 
-    already_AddRefed<nsIDOMWindowUtils> GetDOMWindowUtils();
+    nsIDOMWindowUtils* GetDOMWindowUtils()
+    {
+        nsCOMPtr<nsPIDOMWindow> window = do_GetInterface(mWebNav);
+        nsCOMPtr<nsIDOMWindowUtils> utils = do_GetInterface(window);
+        return utils;
+    }
 
     class CachedFileDescriptorInfo;
     class CachedFileDescriptorCallbackRunnable;
@@ -430,7 +441,7 @@ private:
     nsRefPtr<TabChildGlobal> mTabChildGlobal;
     uint32_t mChromeFlags;
     nsIntRect mOuterRect;
-    ScreenIntSize mInnerSize;
+    nsIntSize mInnerSize;
     // When we're tracking a possible tap gesture, this is the "down"
     // point of the touchstart.
     nsIntPoint mGestureDownPoint;

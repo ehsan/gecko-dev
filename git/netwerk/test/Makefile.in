@@ -53,7 +53,8 @@ CPP_UNIT_TESTS = \
 
 include $(topsrcdir)/config/config.mk
 
-LIBS		= $(XPCOM_LIBS) \
+LIBS		= $(EXTRA_DSO_LIBS) \
+		  $(XPCOM_LIBS) \
 		  $(NSPR_LIBS) \
 		  $(NULL)
 

@@ -53,30 +53,9 @@ ThrowErrorMessage(JSContext* aCx, const ErrNum aErrorNumber, ...)
 {
   va_list ap;
   va_start(ap, aErrorNumber);
-  JS_ReportErrorNumberVA(aCx, GetErrorMessage, nullptr,
+  JS_ReportErrorNumberVA(aCx, GetErrorMessage, NULL,
                          static_cast<const unsigned>(aErrorNumber), ap);
   va_end(ap);
-  return false;
-}
-
-bool
-ThrowInvalidThis(JSContext* aCx, const JS::CallArgs& aArgs,
-                 const ErrNum aErrorNumber,
-                 const char* aInterfaceName)
-{
-  NS_ConvertASCIItoUTF16 ifaceName(aInterfaceName);
-  // This should only be called for DOM methods/getters/setters, which
-  // are JSNative-backed functions, so we can assume that
-  // JS_ValueToFunction and JS_GetFunctionDisplayId will both return
-  // non-null and that JS_GetStringCharsZ returns non-null.
-  JS::Rooted<JSFunction*> func(aCx, JS_ValueToFunction(aCx, aArgs.calleev()));
-  MOZ_ASSERT(func);
-  JS::Rooted<JSString*> funcName(aCx, JS_GetFunctionDisplayId(func));
-  MOZ_ASSERT(funcName);
-  JS_ReportErrorNumberUC(aCx, GetErrorMessage, nullptr,
-                         static_cast<const unsigned>(aErrorNumber),
-                         JS_GetStringCharsZ(aCx, funcName),
-                         ifaceName.get());
   return false;
 }
 
@@ -655,7 +634,7 @@ TryPreserveWrapper(JSObject* obj)
 // Can only be called with the immediate prototype of the instance object. Can
 // only be called on the prototype of an object known to be a DOM instance.
 JSBool
-InstanceClassHasProtoAtDepth(JS::Handle<JSObject*> protoObject, uint32_t protoID,
+InstanceClassHasProtoAtDepth(JSHandleObject protoObject, uint32_t protoID,
                              uint32_t depth)
 {
   const DOMClass* domClass = static_cast<DOMClass*>(
@@ -829,8 +808,8 @@ XrayResolveAttribute(JSContext* cx, JS::Handle<JSObject*> wrapper,
           // They all have getters, so we can just make it.
           JS::Rooted<JSObject*> global(cx, JS_GetGlobalForObject(cx, wrapper));
           JS::Rooted<JSFunction*> fun(cx,
-                                      JS_NewFunctionById(cx, (JSNative)attrSpec.getter.op,
-                                                         0, 0, global, id));
+                                      JS_NewFunction(cx, (JSNative)attrSpec.getter.op,
+                                                     0, 0, global, nullptr));
           if (!fun)
             return false;
           SET_JITINFO(fun, attrSpec.getter.info);
@@ -839,8 +818,8 @@ XrayResolveAttribute(JSContext* cx, JS::Handle<JSObject*> wrapper,
           desc->attrs |= JSPROP_GETTER;
           if (attrSpec.setter.op) {
             // We have a setter! Make it.
-            fun = JS_NewFunctionById(cx, (JSNative)attrSpec.setter.op, 1, 0,
-                                     global, id);
+            fun = JS_NewFunction(cx, (JSNative)attrSpec.setter.op, 1, 0,
+                                 global, nullptr);
             if (!fun)
               return false;
             SET_JITINFO(fun, attrSpec.setter.info);
@@ -1592,8 +1571,8 @@ ReparentWrapper(JSContext* aCx, JS::HandleObject aObjArg)
   if (ww != aObj) {
     MOZ_ASSERT(cache->HasSystemOnlyWrapper());
 
-    JS::RootedObject newwrapper(aCx,
-      xpc::WrapperFactory::WrapSOWObject(aCx, newobj));
+    JSObject *newwrapper =
+      xpc::WrapperFactory::WrapSOWObject(aCx, newobj);
     if (!newwrapper) {
       MOZ_CRASH();
     }
@@ -1755,7 +1734,7 @@ InterfaceHasInstance(JSContext* cx, JS::Handle<JSObject*> obj,
 }
 
 JSBool
-InterfaceHasInstance(JSContext* cx, JS::Handle<JSObject*> obj, JS::MutableHandle<JS::Value> vp,
+InterfaceHasInstance(JSContext* cx, JSHandleObject obj, JSMutableHandleValue vp,
                      JSBool* bp)
 {
   if (!vp.isObject()) {
@@ -1847,7 +1826,7 @@ GetWindowForJSImplementedObject(JSContext* cx, JS::Handle<JSObject*> obj,
   }
 
   if (!domImplVal.isObject()) {
-    ThrowErrorMessage(cx, MSG_NOT_OBJECT, "Value");
+    ThrowErrorMessage(cx, MSG_NOT_OBJECT);
     return false;
   }
 

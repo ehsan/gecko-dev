@@ -17,5 +17,3 @@ CPP_SOURCES += [
     'nsSHistory.cpp',
 ]
 
-LIBRARY_NAME = 'shistory_s'
-

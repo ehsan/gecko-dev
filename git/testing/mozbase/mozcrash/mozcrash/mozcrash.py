@@ -21,8 +21,7 @@ from mozfile import is_url
 def check_for_crashes(dump_directory, symbols_path,
                       stackwalk_binary=None,
                       dump_save_path=None,
-                      test_name=None,
-                      quiet=False):
+                      test_name=None):
     """
     Print a stack trace for minidump files left behind by a crashing program.
 
@@ -44,9 +43,6 @@ def check_for_crashes(dump_directory, symbols_path,
 
     If `test_name` is set it will be used as the test name in log output. If not set the
     filename of the calling function will be used.
-
-    If `quiet` is set, no PROCESS-CRASH message will be printed to stdout if a
-    crash is detected.
 
     Returns True if any minidumps were found, False otherwise.
     """
@@ -124,9 +120,8 @@ def check_for_crashes(dump_directory, symbols_path,
                     stackwalk_output.append("MINIDUMP_STACKWALK binary not found: %s" % stackwalk_binary)
             if not top_frame:
                 top_frame = "Unknown top frame"
-            if not quiet:
-                print "PROCESS-CRASH | %s | application crashed [%s]" % (test_name, top_frame)
-                print '\n'.join(stackwalk_output)
+            print "PROCESS-CRASH | %s | application crashed [%s]" % (test_name, top_frame)
+            print '\n'.join(stackwalk_output)
             if dump_save_path is None:
                 dump_save_path = os.environ.get('MINIDUMP_SAVE_PATH', None)
             if dump_save_path:

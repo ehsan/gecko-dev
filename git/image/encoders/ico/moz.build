@@ -10,5 +10,3 @@ CPP_SOURCES += [
     'nsICOEncoder.cpp',
 ]
 
-LIBRARY_NAME = 'imgicoe_s'
-

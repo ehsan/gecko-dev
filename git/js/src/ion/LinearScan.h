@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_LinearScan_h
-#define ion_LinearScan_h
+#ifndef js_ion_linearscan_h__
+#define js_ion_linearscan_h__
 
 #include "LiveRangeAllocator.h"
 #include "BitSet.h"
@@ -134,4 +134,4 @@ class LinearScanAllocator : public LiveRangeAllocator<LinearScanVirtualRegister>
 } // namespace ion
 } // namespace js
 
-#endif /* ion_LinearScan_h */
+#endif

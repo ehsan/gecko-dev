@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef perf_jsperf_h
-#define perf_jsperf_h
+#ifndef jsperf_h___
+#define jsperf_h___
 
 #include "jsapi.h"
 
@@ -127,4 +127,4 @@ extern JS_FRIEND_API(PerfMeasurement*)
 
 } // namespace JS
 
-#endif /* perf_jsperf_h */
+#endif // jsperf_h___

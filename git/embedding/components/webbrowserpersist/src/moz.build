@@ -10,5 +10,3 @@ CPP_SOURCES += [
     'nsWebBrowserPersist.cpp',
 ]
 
-LIBRARY_NAME = 'webbrowserpersist_s'
-

@@ -7,10 +7,13 @@
 #include "Probes-inl.h"
 
 #include "jscntxt.h"
+#include "jsscript.h"
 
 #ifdef INCLUDE_MOZILLA_DTRACE
 #include "jsscriptinlines.h" 
 #endif
+
+#include "vm/Stack-inl.h"
 
 #define TYPEOF(cx,v)    (JSVAL_IS_NULL(v) ? JSTYPE_NULL : JS_TypeOfValue(cx,v))
 

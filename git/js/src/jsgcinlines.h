@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsgcinlines_h
-#define jsgcinlines_h
+#ifndef jsgcinlines_h___
+#define jsgcinlines_h___
 
 #include "jsgc.h"
 #include "jscntxt.h"
@@ -15,7 +15,6 @@
 #include "js/RootingAPI.h"
 #include "js/TemplateLib.h"
 #include "vm/Shape.h"
-#include "vm/ForkJoin.h"
 
 namespace js {
 
@@ -47,19 +46,12 @@ struct AutoMarkInDeadZone
     bool scheduled;
 };
 
-inline Allocator *const
-ThreadSafeContext::allocator()
-{
-    JS_ASSERT_IF(isJSContext(), &asJSContext()->zone()->allocator == allocator_);
-    return allocator_;
-}
-
 namespace gc {
 
 /* Capacity for slotsToThingKind */
 const size_t SLOTS_TO_THING_KIND_LIMIT = 17;
 
-extern const AllocKind slotsToThingKind[];
+extern AllocKind slotsToThingKind[];
 
 /* Get the best kind to use when making an object with the given slot count. */
 static inline AllocKind
@@ -73,7 +65,7 @@ GetGCObjectKind(size_t numSlots)
 static inline AllocKind
 GetGCObjectKind(Class *clasp)
 {
-    if (clasp == FunctionClassPtr)
+    if (clasp == &FunctionClass)
         return JSFunction::FinalizeKind;
     uint32_t nslots = JSCLASS_RESERVED_SLOTS(clasp);
     if (clasp->flags & JSCLASS_HAS_PRIVATE)
@@ -85,6 +77,8 @@ GetGCObjectKind(Class *clasp)
 static inline AllocKind
 GetGCArrayKind(size_t numSlots)
 {
+    extern AllocKind slotsToThingKind[];
+
     /*
      * Dense arrays can use their fixed slots to hold their elements array
      * (less two Values worth of ObjectElements header), but if more than the
@@ -100,6 +94,8 @@ GetGCArrayKind(size_t numSlots)
 static inline AllocKind
 GetGCObjectFixedSlotsKind(size_t numFixedSlots)
 {
+    extern AllocKind slotsToThingKind[];
+
     JS_ASSERT(numFixedSlots < SLOTS_TO_THING_KIND_LIMIT);
     return slotsToThingKind[numFixedSlots];
 }
@@ -171,15 +167,16 @@ GetGCKindSlots(AllocKind thingKind, Class *clasp)
      * Functions have a larger finalize kind than FINALIZE_OBJECT to reserve
      * space for the extra fields in JSFunction, but have no fixed slots.
      */
-    if (clasp == FunctionClassPtr)
+    if (clasp == &FunctionClass)
         nslots = 0;
 
     return nslots;
 }
 
 #ifdef JSGC_GENERATIONAL
+template <typename NurseryType>
 inline bool
-ShouldNurseryAllocate(const Nursery &nursery, AllocKind kind, InitialHeap heap)
+ShouldNurseryAllocate(const NurseryType &nursery, AllocKind kind, InitialHeap heap)
 {
     return nursery.isEnabled() && IsNurseryAllocable(kind) && heap != TenuredHeap;
 }
@@ -189,6 +186,10 @@ inline bool
 IsInsideNursery(JSRuntime *rt, const void *thing)
 {
 #ifdef JSGC_GENERATIONAL
+#if JS_GC_ZEAL
+    if (rt->gcVerifyPostData)
+        return rt->gcVerifierNursery.isInside(thing);
+#endif
     return rt->gcNursery.isInside(thing);
 #endif
     return false;
@@ -470,11 +471,8 @@ typedef CompartmentsIterT<GCZoneGroupIter> GCCompartmentGroupIter;
  */
 template <typename T, AllowGC allowGC>
 inline T *
-TryNewNurseryGCThing(ThreadSafeContext *tcx, size_t thingSize)
+TryNewNurseryGCThing(JSContext *cx, size_t thingSize)
 {
-    /* TODO: Integrate PJS with generational GC. */
-    JSContext *cx = tcx->asJSContext();
-
     JS_ASSERT(!IsAtomsCompartment(cx->compartment()));
     JSRuntime *rt = cx->runtime();
     Nursery &nursery = rt->gcNursery;
@@ -503,48 +501,49 @@ TryNewNurseryGCThing(ThreadSafeContext *tcx, size_t thingSize)
  */
 template <typename T, AllowGC allowGC>
 inline T *
-NewGCThing(js::ThreadSafeContext *tcx, AllocKind kind, size_t thingSize, InitialHeap heap)
+NewGCThing(JSContext *cx, AllocKind kind, size_t thingSize, InitialHeap heap)
 {
     JS_ASSERT(thingSize == js::gc::Arena::thingSize(kind));
+    JS_ASSERT_IF(cx->compartment() == cx->runtime()->atomsCompartment,
+                 kind == FINALIZE_STRING ||
+                 kind == FINALIZE_SHORT_STRING ||
+                 kind == FINALIZE_IONCODE);
+    JS_ASSERT(!cx->runtime()->isHeapBusy());
+    JS_ASSERT(!cx->runtime()->noGCOrAllocationCheck);
 
-    if (tcx->isJSContext()) {
-        JSContext *cx = tcx->asJSContext();
-        JS_ASSERT_IF(cx->compartment() == cx->runtime()->atomsCompartment,
-                     kind == FINALIZE_STRING ||
-                     kind == FINALIZE_SHORT_STRING ||
-                     kind == FINALIZE_IONCODE);
-        JS_ASSERT(!cx->runtime()->isHeapBusy());
-        JS_ASSERT(!cx->runtime()->noGCOrAllocationCheck);
-
-        /* For testing out of memory conditions */
-        JS_OOM_POSSIBLY_FAIL_REPORT(cx);
+    /* For testing out of memory conditions */
+    JS_OOM_POSSIBLY_FAIL_REPORT(cx);
 
 #ifdef JS_GC_ZEAL
-        if (cx->runtime()->needZealousGC() && allowGC)
-            js::gc::RunDebugGC(cx);
+    if (cx->runtime()->needZealousGC() && allowGC)
+        js::gc::RunDebugGC(cx);
 #endif
 
-        if (allowGC)
-            MaybeCheckStackRoots(cx);
-    }
+    if (allowGC)
+        MaybeCheckStackRoots(cx);
 
 #if defined(JSGC_GENERATIONAL)
-    if (tcx->hasNursery() && ShouldNurseryAllocate(tcx->nursery(), kind, heap)) {
-        T *t = TryNewNurseryGCThing<T, allowGC>(tcx, thingSize);
+    if (ShouldNurseryAllocate(cx->runtime()->gcNursery, kind, heap)) {
+        T *t = TryNewNurseryGCThing<T, allowGC>(cx, thingSize);
         if (t)
             return t;
     }
 #endif
 
-    T *t = static_cast<T *>(tcx->allocator()->arenas.allocateFromFreeList(kind, thingSize));
+    JS::Zone *zone = cx->zone();
+    T *t = static_cast<T *>(zone->allocator.arenas.allocateFromFreeList(kind, thingSize));
     if (!t)
-        t = static_cast<T *>(js::gc::ArenaLists::refillFreeList<allowGC>(tcx, kind));
+        t = static_cast<T *>(js::gc::ArenaLists::refillFreeList<allowGC>(cx, kind));
 
-#ifdef DEBUG
-    if (tcx->isJSContext()) {
-        Zone *zone = tcx->asJSContext()->zone();
-        JS_ASSERT_IF(t && zone->wasGCStarted() && (zone->isGCMarking() || zone->isGCSweeping()),
-                     t->arenaHeader()->allocatedDuringIncremental);
+    JS_ASSERT_IF(t && zone->wasGCStarted() && (zone->isGCMarking() || zone->isGCSweeping()),
+                 t->arenaHeader()->allocatedDuringIncremental);
+
+#if defined(JSGC_GENERATIONAL) && defined(JS_GC_ZEAL)
+    if (cx->runtime()->gcVerifyPostData &&
+        ShouldNurseryAllocate(cx->runtime()->gcVerifierNursery, kind, heap))
+    {
+        JS_ASSERT(!IsAtomsCompartment(cx->compartment()));
+        cx->runtime()->gcVerifierNursery.insertPointer(t);
     }
 #endif
 
@@ -556,62 +555,62 @@ NewGCThing(js::ThreadSafeContext *tcx, AllocKind kind, size_t thingSize, Initial
 
 template <js::AllowGC allowGC>
 inline JSObject *
-js_NewGCObject(js::ThreadSafeContext *tcx, js::gc::AllocKind kind, js::gc::InitialHeap heap)
+js_NewGCObject(JSContext *cx, js::gc::AllocKind kind, js::gc::InitialHeap heap)
 {
     JS_ASSERT(kind >= js::gc::FINALIZE_OBJECT0 && kind <= js::gc::FINALIZE_OBJECT_LAST);
-    return js::gc::NewGCThing<JSObject, allowGC>(tcx, kind, js::gc::Arena::thingSize(kind), heap);
+    return js::gc::NewGCThing<JSObject, allowGC>(cx, kind, js::gc::Arena::thingSize(kind), heap);
 }
 
 template <js::AllowGC allowGC>
 inline JSString *
-js_NewGCString(js::ThreadSafeContext *tcx)
+js_NewGCString(JSContext *cx)
 {
-    return js::gc::NewGCThing<JSString, allowGC>(tcx, js::gc::FINALIZE_STRING,
+    return js::gc::NewGCThing<JSString, allowGC>(cx, js::gc::FINALIZE_STRING,
                                                  sizeof(JSString), js::gc::TenuredHeap);
 }
 
 template <js::AllowGC allowGC>
 inline JSShortString *
-js_NewGCShortString(js::ThreadSafeContext *tcx)
+js_NewGCShortString(JSContext *cx)
 {
-    return js::gc::NewGCThing<JSShortString, allowGC>(tcx, js::gc::FINALIZE_SHORT_STRING,
+    return js::gc::NewGCThing<JSShortString, allowGC>(cx, js::gc::FINALIZE_SHORT_STRING,
                                                       sizeof(JSShortString), js::gc::TenuredHeap);
 }
 
 inline JSExternalString *
-js_NewGCExternalString(js::ThreadSafeContext *tcx)
+js_NewGCExternalString(JSContext *cx)
 {
-    return js::gc::NewGCThing<JSExternalString, js::CanGC>(tcx, js::gc::FINALIZE_EXTERNAL_STRING,
+    return js::gc::NewGCThing<JSExternalString, js::CanGC>(cx, js::gc::FINALIZE_EXTERNAL_STRING,
                                                            sizeof(JSExternalString), js::gc::TenuredHeap);
 }
 
 inline JSScript *
-js_NewGCScript(js::ThreadSafeContext *tcx)
+js_NewGCScript(JSContext *cx)
 {
-    return js::gc::NewGCThing<JSScript, js::CanGC>(tcx, js::gc::FINALIZE_SCRIPT,
+    return js::gc::NewGCThing<JSScript, js::CanGC>(cx, js::gc::FINALIZE_SCRIPT,
                                                    sizeof(JSScript), js::gc::TenuredHeap);
 }
 
 inline js::LazyScript *
-js_NewGCLazyScript(js::ThreadSafeContext *tcx)
+js_NewGCLazyScript(JSContext *cx)
 {
-    return js::gc::NewGCThing<js::LazyScript, js::CanGC>(tcx, js::gc::FINALIZE_LAZY_SCRIPT,
+    return js::gc::NewGCThing<js::LazyScript, js::CanGC>(cx, js::gc::FINALIZE_LAZY_SCRIPT,
                                                          sizeof(js::LazyScript), js::gc::TenuredHeap);
 }
 
 inline js::Shape *
-js_NewGCShape(js::ThreadSafeContext *tcx)
+js_NewGCShape(JSContext *cx)
 {
-    return js::gc::NewGCThing<js::Shape, js::CanGC>(tcx, js::gc::FINALIZE_SHAPE,
+    return js::gc::NewGCThing<js::Shape, js::CanGC>(cx, js::gc::FINALIZE_SHAPE,
                                                     sizeof(js::Shape), js::gc::TenuredHeap);
 }
 
 template <js::AllowGC allowGC>
 inline js::BaseShape *
-js_NewGCBaseShape(js::ThreadSafeContext *tcx)
+js_NewGCBaseShape(JSContext *cx)
 {
-    return js::gc::NewGCThing<js::BaseShape, allowGC>(tcx, js::gc::FINALIZE_BASE_SHAPE,
+    return js::gc::NewGCThing<js::BaseShape, allowGC>(cx, js::gc::FINALIZE_BASE_SHAPE,
                                                       sizeof(js::BaseShape), js::gc::TenuredHeap);
 }
 
-#endif /* jsgcinlines_h */
+#endif /* jsgcinlines_h___ */

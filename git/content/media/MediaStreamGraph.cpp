@@ -889,16 +889,12 @@ MediaStreamGraphImpl::PlayVideo(MediaStream* aStream)
 }
 
 void
-MediaStreamGraphImpl::PrepareUpdatesToMainThreadState(bool aFinalUpdate)
+MediaStreamGraphImpl::PrepareUpdatesToMainThreadState()
 {
   mMonitor.AssertCurrentThreadOwns();
 
-  mStreamUpdates.SetCapacity(mStreamUpdates.Length() + mStreams.Length());
   for (uint32_t i = 0; i < mStreams.Length(); ++i) {
     MediaStream* stream = mStreams[i];
-    if (!stream->MainThreadNeedsUpdates()) {
-      continue;
-    }
     StreamUpdate* update = mStreamUpdates.AppendElement();
     update->mGraphUpdateIndex = stream->mGraphUpdateIndices.GetAt(mCurrentTime);
     update->mStream = stream;
@@ -908,17 +904,9 @@ MediaStreamGraphImpl::PrepareUpdatesToMainThreadState(bool aFinalUpdate)
       stream->mFinished &&
       StreamTimeToGraphTime(stream, stream->GetBufferEnd()) <= mCurrentTime;
   }
-  if (!mPendingUpdateRunnables.IsEmpty()) {
-    mUpdateRunnables.MoveElementsFrom(mPendingUpdateRunnables);
-  }
+  mUpdateRunnables.MoveElementsFrom(mPendingUpdateRunnables);
 
-  // Don't send the message to the main thread if it's not going to have
-  // any work to do.
-  if (aFinalUpdate ||
-      !mUpdateRunnables.IsEmpty() ||
-      !mStreamUpdates.IsEmpty()) {
-    EnsureStableStateEventPosted();
-  }
+  EnsureStableStateEventPosted();
 }
 
 void
@@ -1111,7 +1099,7 @@ MediaStreamGraphImpl::RunThread()
         // Wait indefinitely when we've processed enough non-realtime ticks.
         // We'll be woken up when the graph shuts down.
         MonitorAutoLock lock(mMonitor);
-        PrepareUpdatesToMainThreadState(true);
+        PrepareUpdatesToMainThreadState();
         mWaitState = WAITSTATE_WAITING_INDEFINITELY;
         mMonitor.Wait(PR_INTERVAL_NO_TIMEOUT);
       }
@@ -1124,10 +1112,8 @@ MediaStreamGraphImpl::RunThread()
     // iteration.
     {
       MonitorAutoLock lock(mMonitor);
-      bool finalUpdate = (mForceShutDown ||
-                          (IsEmpty() && mMessageQueue.IsEmpty()));
-      PrepareUpdatesToMainThreadState(finalUpdate);
-      if (finalUpdate) {
+      PrepareUpdatesToMainThreadState();
+      if (mForceShutDown || (IsEmpty() && mMessageQueue.IsEmpty())) {
         // Enter shutdown mode. The stable-state handler will detect this
         // and complete shutdown. Destroy any streams immediately.
         LOG(PR_LOG_DEBUG, ("MediaStreamGraph %p waiting for main thread cleanup", this));
@@ -1537,23 +1523,6 @@ void
 MediaStream::FinishOnGraphThread()
 {
   GraphImpl()->FinishStream(this);
-}
-
-StreamBuffer::Track*
-MediaStream::EnsureTrack(TrackID aTrackId, TrackRate aSampleRate)
-{
-  StreamBuffer::Track* track = mBuffer.FindTrack(aTrackId);
-  if (!track) {
-    nsAutoPtr<MediaSegment> segment(new AudioSegment());
-    for (uint32_t j = 0; j < mListeners.Length(); ++j) {
-      MediaStreamListener* l = mListeners[j];
-      l->NotifyQueuedTrackChanges(Graph(), aTrackId, aSampleRate, 0,
-                                  MediaStreamListener::TRACK_EVENT_CREATED,
-                                  *segment);
-    }
-    track = &mBuffer.AddTrack(aTrackId, aSampleRate, 0, segment.forget());
-  }
-  return track;
 }
 
 void

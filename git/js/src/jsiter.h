@@ -4,13 +4,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsiter_h
-#define jsiter_h
+#ifndef jsiter_h___
+#define jsiter_h___
 
 /*
  * JavaScript iterators.
  */
 #include "jscntxt.h"
+#include "jsprvtd.h"
+#include "jspubtd.h"
+#include "jsversion.h"
 
 #include "gc/Barrier.h"
 #include "vm/Stack.h"
@@ -140,8 +143,6 @@ class PropertyIteratorObject : public JSObject
 class ElementIteratorObject : public JSObject
 {
   public:
-    static Class class_;
-
     static JSObject *create(JSContext *cx, Handle<Value> target);
     static const JSFunctionSpec methods[];
 
@@ -346,7 +347,7 @@ struct JSGenerator
 };
 
 extern JSObject *
-js_NewGenerator(JSContext *cx, const js::FrameRegs &regs);
+js_NewGenerator(JSContext *cx);
 
 namespace js {
 
@@ -359,4 +360,4 @@ GeneratorHasMarkableFrame(JSGenerator *gen);
 extern JSObject *
 js_InitIteratorClasses(JSContext *cx, js::HandleObject obj);
 
-#endif /* jsiter_h */
+#endif /* jsiter_h___ */

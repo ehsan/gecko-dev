@@ -20,8 +20,6 @@ import org.mozilla.gecko.util.UiAsyncTask;
 
 import org.mozilla.gecko.PrefsHelper;
 
-import org.json.JSONObject;
-
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
@@ -293,14 +291,7 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
                 if (mSiteSecurity.getVisibility() != View.VISIBLE)
                     return;
 
-                JSONObject identityData = Tabs.getInstance().getSelectedTab().getIdentityData();
-                if (identityData == null) {
-                    Log.e(LOGTAG, "Selected tab has no identity data");
-                    return;
-                }
-                SiteIdentityPopup siteIdentityPopup = mActivity.getSiteIdentityPopup();
-                siteIdentityPopup.updateIdentity(identityData);
-                siteIdentityPopup.show();
+                SiteIdentityPopup.getInstance().show(mSiteSecurity);
             }
         };
 
@@ -313,7 +304,6 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
         mSiteSecurity = (ImageButton) mLayout.findViewById(R.id.site_security);
         mSiteSecurity.setOnClickListener(faviconListener);
         mSiteSecurityVisible = (mSiteSecurity.getVisibility() == View.VISIBLE);
-        mActivity.getSiteIdentityPopup().setAnchor(mSiteSecurity);
 
         mProgressSpinner = (AnimationDrawable) mActivity.getResources().getDrawable(R.drawable.progress_spinner);
         
@@ -960,9 +950,16 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
     }
     
     private void setSecurityMode(String mode) {
-        int imageLevel = SiteIdentityPopup.getSecurityImageLevel(mode);
-        mSiteSecurity.setImageLevel(imageLevel);
-        mShowSiteSecurity = (imageLevel != SiteIdentityPopup.LEVEL_UKNOWN);
+        mShowSiteSecurity = true;
+
+        if (mode.equals(SiteIdentityPopup.IDENTIFIED)) {
+            mSiteSecurity.setImageLevel(1);
+        } else if (mode.equals(SiteIdentityPopup.VERIFIED)) {
+            mSiteSecurity.setImageLevel(2);
+        } else {
+            mSiteSecurity.setImageLevel(0);
+            mShowSiteSecurity = false;
+        }
 
         setPageActionVisibility(mStop.getVisibility() == View.VISIBLE);
     }

@@ -34,10 +34,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "console",
  */
 function getAllBreakpoints(dbg) {
   let breakpoints = [];
-  let sources = dbg.panelWin.DebuggerView.Sources;
-  let { trimUrlLength: tr } = dbg.panelWin.SourceUtils;
+  let SourceUtils = dbg.panelWin.SourceUtils;
 
-  for (let source in sources) {
+  for (let source in dbg.panelWin.DebuggerView.Sources) {
     for (let { attachment: breakpoint } in source) {
       breakpoints.push({
         id: source.value + ":" + breakpoint.lineNumber,
@@ -45,7 +44,8 @@ function getAllBreakpoints(dbg) {
         url: source.value,
         lineNumber: breakpoint.lineNumber,
         lineText: breakpoint.lineText,
-        truncatedLineText: tr(breakpoint.lineText, MAX_LINE_TEXT_LENGTH, "end")
+        truncatedLineText: SourceUtils.trimUrlLength(breakpoint.lineText,
+                                                  MAX_LINE_TEXT_LENGTH, "end")
       });
     }
   }
@@ -199,9 +199,11 @@ gcli.addCommand({
         name: "selection",
         lookup: function(context) {
           let dbg = getPanel(context, "jsdebugger");
+
           if (dbg == null) {
             return [];
           }
+
           return getAllBreakpoints(dbg).map(breakpoint => {
             return {
               name: breakpoint.label,
@@ -221,8 +223,8 @@ gcli.addCommand({
       return gcli.lookup("debuggerStopped");
     }
 
-    let breakpoint = dbg.getBreakpoint(
-      args.breakpoint.url, args.breakpoint.lineNumber);
+    let breakpoint = dbg.getBreakpoint(args.breakpoint.url,
+                                       args.breakpoint.lineNumber);
 
     if (breakpoint == null) {
       return gcli.lookup("breakNotFound");
@@ -272,9 +274,6 @@ gcli.addCommand({
   description: gcli.lookup("dbgClose"),
   params: [],
   exec: function(args, context) {
-    if (!getPanel(context, "jsdebugger"))
-      return;
-
     return gDevTools.closeToolbox(context.environment.target)
                     .then(() => null);
   }

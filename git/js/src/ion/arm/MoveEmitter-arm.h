@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_arm_MoveEmitter_arm_h
-#define ion_arm_MoveEmitter_arm_h
+#ifndef jsion_move_resolver_arm_shared_h__
+#define jsion_move_resolver_arm_shared_h__
 
 #include "ion/MoveResolver.h"
 #include "ion/IonMacroAssembler.h"
@@ -65,4 +65,5 @@ typedef MoveEmitterARM MoveEmitter;
 } // namespace ion
 } // namespace js
 
-#endif /* ion_arm_MoveEmitter_arm_h */
+#endif // jsion_move_resolver_arm_shared_h__
+

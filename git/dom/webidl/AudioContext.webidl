@@ -35,9 +35,6 @@ interface AudioContext : EventTarget {
     [Creator]
     AudioBufferSourceNode createBufferSource();
 
-    [Creator]
-    MediaStreamAudioDestinationNode createMediaStreamDestination();
-
     [Creator, Throws]
     ScriptProcessorNode createScriptProcessor(optional unsigned long bufferSize = 0,
                                               optional unsigned long numberOfInputChannels = 2,
@@ -67,7 +64,7 @@ interface AudioContext : EventTarget {
     DynamicsCompressorNode createDynamicsCompressor();
 
     [Creator, Throws]
-    PeriodicWave createPeriodicWave(Float32Array real, Float32Array imag);
+    WaveTable createWaveTable(Float32Array real, Float32Array imag);
 
 };
 

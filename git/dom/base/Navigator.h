@@ -29,7 +29,6 @@
 #include "nsIDOMNavigatorTime.h"
 #include "nsWeakReference.h"
 #include "DeviceStorage.h"
-#include "nsWrapperCache.h"
 
 class nsPluginArray;
 class nsMimeTypeArray;
@@ -59,10 +58,6 @@ class nsIDOMTelephony;
 
 #include "nsIDOMNavigatorCamera.h"
 #include "DOMCameraManager.h"
-
-#ifdef MOZ_GAMEPAD
-#include "nsINavigatorGamepads.h"
-#endif
 
 //*****************************************************************************
 // Navigator: Script "navigator" object
@@ -121,9 +116,6 @@ class Navigator : public nsIDOMNavigator
 #ifdef MOZ_B2G_RIL
                 , public nsIDOMNavigatorTelephony
 #endif
-#ifdef MOZ_GAMEPAD
-                , public nsINavigatorGamepads
-#endif
                 , public nsIDOMMozNavigatorNetwork
 #ifdef MOZ_B2G_RIL
                 , public nsIMozNavigatorMobileConnection
@@ -142,15 +134,12 @@ class Navigator : public nsIDOMNavigator
 #ifdef MOZ_AUDIO_CHANNEL_MANAGER
                 , public nsIMozNavigatorAudioChannelManager
 #endif
-                , public nsWrapperCache
 {
 public:
   Navigator(nsPIDOMWindow *aInnerWindow);
   virtual ~Navigator();
 
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(Navigator,
-                                                         nsIDOMNavigator)
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMNAVIGATOR
   NS_DECL_NSIDOMCLIENTINFORMATION
   NS_DECL_NSIDOMNAVIGATORDEVICESTORAGE
@@ -165,9 +154,6 @@ public:
 #endif
 #ifdef MOZ_B2G_RIL
   NS_DECL_NSIDOMNAVIGATORTELEPHONY
-#endif
-#ifdef MOZ_GAMEPAD
-  NS_DECL_NSINAVIGATORGAMEPADS
 #endif
   NS_DECL_NSIDOMMOZNAVIGATORNETWORK
 #ifdef MOZ_B2G_RIL
@@ -191,10 +177,7 @@ public:
   static void Init();
 
   void Invalidate();
-  nsPIDOMWindow *GetWindow()
-  {
-    return mWindow;
-  }
+  nsPIDOMWindow *GetWindow();
 
   void RefreshMIMEArray();
 
@@ -248,7 +231,7 @@ private:
   nsCOMPtr<nsIDOMNavigatorSystemMessages> mMessagesManager;
   nsTArray<nsRefPtr<nsDOMDeviceStorage> > mDeviceStorageStores;
   nsRefPtr<time::TimeManager> mTimeManager;
-  nsCOMPtr<nsPIDOMWindow> mWindow;
+  nsWeakPtr mWindow;
 };
 
 } // namespace dom

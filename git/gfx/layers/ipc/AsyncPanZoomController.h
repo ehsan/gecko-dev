@@ -111,7 +111,7 @@ public:
    * { x = 0, y = 0, width = surface.width, height = surface.height }, however
    * there is no hard requirement for this.
    */
-  void UpdateCompositionBounds(const ScreenIntRect& aCompositionBounds);
+  void UpdateCompositionBounds(const LayerIntRect& aCompositionBounds);
 
   /**
    * We are scrolling a subframe, so disable our machinery until we hit
@@ -178,7 +178,7 @@ public:
   bool SampleContentTransformForFrame(const TimeStamp& aSampleTime,
                                       ContainerLayer* aLayer,
                                       ViewTransform* aNewTransform,
-                                      ScreenPoint& aScrollOffset);
+                                      gfx::Point& aScrollOffset);
 
   /**
    * A shadow layer update has arrived. |aViewportFrame| is the new FrameMetrics
@@ -227,7 +227,7 @@ public:
    * Return the scale factor needed to fit the viewport in |aMetrics|
    * into its composition bounds.
    */
-  static CSSToScreenScale CalculateIntrinsicScale(const FrameMetrics& aMetrics);
+  static gfxSize CalculateIntrinsicScale(const FrameMetrics& aMetrics);
 
   /**
    * Return the resolution that content should be rendered at given
@@ -235,7 +235,7 @@ public:
    * factor, etc.  (The mResolution member of aFrameMetrics is
    * ignored.)
    */
-  static CSSToScreenScale CalculateResolution(const FrameMetrics& aMetrics);
+  static gfxSize CalculateResolution(const FrameMetrics& aMetrics);
 
   static CSSRect CalculateCompositedRectInCssPixels(const FrameMetrics& aMetrics);
 
@@ -456,7 +456,7 @@ protected:
    *
    * *** The monitor must be held while calling this.
    */
-  void SetZoomAndResolution(const ScreenToScreenScale& aZoom);
+  void SetZoomAndResolution(float aScale);
 
   /**
    * Timeout function for mozbrowserasyncscroll event. Because we throttle

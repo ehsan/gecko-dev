@@ -19,18 +19,13 @@
 #include "builtin/ParallelArray.h"
 #include "ion/IonFrames.h"
 #include "js/RootingAPI.h"
-#include "vm/BooleanObject.h"
 #include "vm/GlobalObject.h"
-#include "vm/NumberObject.h"
-#include "vm/StringObject.h"
 
 #include "jsanalyzeinlines.h"
-
-#include "gc/Barrier-inl.h"
 #include "vm/Stack-inl.h"
 
-#ifndef jsinferinlines_h
-#define jsinferinlines_h
+#ifndef jsinferinlines_h___
+#define jsinferinlines_h___
 
 inline bool
 js::TaggedProto::isObject() const
@@ -97,8 +92,7 @@ namespace types {
 inline
 CompilerOutput::CompilerOutput()
   : script(NULL),
-    kindInt(Ion),
-    pendingRecompilation(false)
+    kindInt(Ion)
 {
 }
 
@@ -403,6 +397,13 @@ struct AutoEnterCompilation
         co.script = script;
         co.setKind(kind);
 
+        // This flag is used to prevent adding the current compiled script in
+        // the list of compiler output which should be invalided.  This is
+        // necessary because we can run some analysis might discard the script
+        // it-self, which can happen when the monitored value does not reflect
+        // the types propagated by the type inference.
+        co.pendingRecompilation = true;
+
         JS_ASSERT(!co.isValid());
         TypeCompartment &types = cx->compartment()->types;
         if (!types.constrainedOutputs) {
@@ -440,6 +441,7 @@ struct AutoEnterCompilation
 
         JS_ASSERT(info.outputIndex < cx->compartment()->types.constrainedOutputs->length());
         CompilerOutput *co = info.compilerOutput(cx);
+        co->pendingRecompilation = false;
         if (!co->isValid())
             co->invalidate();
 
@@ -468,13 +470,13 @@ GetClassForProtoKey(JSProtoKey key)
         return &ArrayClass;
 
       case JSProto_Number:
-        return &NumberObject::class_;
+        return &NumberClass;
       case JSProto_Boolean:
-        return &BooleanObject::class_;
+        return &BooleanClass;
       case JSProto_String:
-        return &StringObject::class_;
+        return &StringClass;
       case JSProto_RegExp:
-        return &RegExpObject::class_;
+        return &RegExpClass;
 
       case JSProto_Int8Array:
       case JSProto_Uint8Array:
@@ -488,10 +490,10 @@ GetClassForProtoKey(JSProtoKey key)
         return &TypedArray::classes[key - JSProto_Int8Array];
 
       case JSProto_ArrayBuffer:
-        return &ArrayBufferObject::class_;
+        return &ArrayBufferClass;
 
       case JSProto_DataView:
-        return &DataViewObject::class_;
+        return &DataViewClass;
 
       case JSProto_ParallelArray:
         return &ParallelArrayObject::class_;
@@ -521,7 +523,7 @@ GetTypeCallerInitObject(JSContext *cx, JSProtoKey key)
 {
     if (cx->typeInferenceEnabled()) {
         jsbytecode *pc;
-        RootedScript script(cx, cx->currentScript(&pc));
+        RootedScript script(cx, cx->stack.currentScript(&pc));
         if (script)
             return TypeScript::InitObject(cx, script, pc, key);
     }
@@ -551,8 +553,8 @@ void TypeMonitorCallSlow(JSContext *cx, JSObject *callee, const CallArgs &args,
 inline void
 TypeMonitorCall(JSContext *cx, const js::CallArgs &args, bool constructing)
 {
-    if (args.callee().is<JSFunction>()) {
-        JSFunction *fun = &args.callee().as<JSFunction>();
+    if (args.callee().isFunction()) {
+        JSFunction *fun = args.callee().toFunction();
         if (fun->isInterpreted() && fun->nonLazyScript()->types && cx->typeInferenceEnabled())
             TypeMonitorCallSlow(cx, &args.callee(), args, constructing);
     }
@@ -732,20 +734,28 @@ UseNewTypeForClone(JSFunction *fun)
      * instance a singleton type and clone the underlying script.
      */
 
-    uint32_t begin, end;
-    if (fun->hasScript()) {
-        if (!fun->nonLazyScript()->usesArgumentsAndApply)
-            return false;
-        begin = fun->nonLazyScript()->sourceStart;
-        end = fun->nonLazyScript()->sourceEnd;
-    } else {
-        if (!fun->lazyScript()->usesArgumentsAndApply())
-            return false;
-        begin = fun->lazyScript()->begin();
-        end = fun->lazyScript()->end();
+    JSScript *script = fun->nonLazyScript();
+
+    if (script->length >= 50)
+        return false;
+
+    if (script->hasConsts() || script->hasObjects() || script->hasRegexps() || fun->isHeavyweight())
+        return false;
+
+    bool hasArguments = false;
+    bool hasApply = false;
+
+    for (jsbytecode *pc = script->code;
+         pc != script->code + script->length;
+         pc += GetBytecodeLength(pc))
+    {
+        if (*pc == JSOP_ARGUMENTS)
+            hasArguments = true;
+        if (*pc == JSOP_FUNAPPLY)
+            hasApply = true;
     }
 
-    return end - begin <= 100;
+    return hasArguments && hasApply;
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -961,7 +971,7 @@ TypeScript::MonitorUnknown(JSContext *cx, JSScript *script, jsbytecode *pc)
 /* static */ inline void
 TypeScript::GetPcScript(JSContext *cx, JSScript **script, jsbytecode **pc)
 {
-    *script = cx->currentScript(pc);
+    *script = cx->stack.currentScript(pc);
 }
 
 /* static */ inline void
@@ -1808,7 +1818,7 @@ js::analyze::ScriptAnalysis::addPushedType(JSContext *cx, uint32_t offset, uint3
 namespace js {
 
 template <>
-struct GCMethods<const types::Type>
+struct RootMethods<const types::Type>
 {
     static types::Type initial() { return types::Type::UnknownType(); }
     static ThingRootKind kind() { return THING_ROOT_TYPE; }
@@ -1819,7 +1829,7 @@ struct GCMethods<const types::Type>
 };
 
 template <>
-struct GCMethods<types::Type>
+struct RootMethods<types::Type>
 {
     static types::Type initial() { return types::Type::UnknownType(); }
     static ThingRootKind kind() { return THING_ROOT_TYPE; }
@@ -1835,4 +1845,4 @@ namespace JS {
 template<> class AnchorPermitted<js::types::TypeObject *> { };
 }  // namespace JS
 
-#endif /* jsinferinlines_h */
+#endif // jsinferinlines_h___

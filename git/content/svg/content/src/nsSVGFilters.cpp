@@ -273,7 +273,7 @@ nsSVGFE::Height()
   return mLengthAttributes[ATTR_HEIGHT].ToDOMAnimatedLength(this);
 }
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 nsSVGFE::Result()
 {
   return GetResultImageName().ToDOMAnimatedString(this);

@@ -4,10 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_BaselineFrame_inl_h
-#define ion_BaselineFrame_inl_h
-
-#ifdef JS_ION
+#if !defined(jsion_baseline_frame_inl_h__) && defined(JS_ION)
+#define jsion_baseline_frame_inl_h__
 
 #include "jscntxt.h"
 #include "jscompartment.h"
@@ -22,14 +20,14 @@ inline void
 BaselineFrame::pushOnScopeChain(ScopeObject &scope)
 {
     JS_ASSERT(*scopeChain() == scope.enclosingScope() ||
-              *scopeChain() == scope.as<CallObject>().enclosingScope().as<DeclEnvObject>().enclosingScope());
+              *scopeChain() == scope.asCall().enclosingScope().asDeclEnv().enclosingScope());
     scopeChain_ = &scope;
 }
 
 inline void
 BaselineFrame::popOffScopeChain()
 {
-    scopeChain_ = &scopeChain_->as<ScopeObject>().enclosingScope();
+    scopeChain_ = &scopeChain_->asScope().enclosingScope();
 }
 
 inline bool
@@ -58,7 +56,7 @@ BaselineFrame::popBlock(JSContext *cx)
         DebugScopes::onPopBlock(cx, this);
 
     if (blockChain_->needsClone()) {
-        JS_ASSERT(scopeChain_->as<ClonedBlockObject>().staticBlock() == *blockChain_);
+        JS_ASSERT(scopeChain_->asClonedBlock().staticBlock() == *blockChain_);
         popOffScopeChain();
     }
 
@@ -72,14 +70,13 @@ BaselineFrame::callObj() const
     JS_ASSERT(fun()->isHeavyweight());
 
     JSObject *obj = scopeChain();
-    while (!obj->is<CallObject>())
+    while (!obj->isCall())
         obj = obj->enclosingScope();
-    return obj->as<CallObject>();
+    return obj->asCall();
 }
 
 } // namespace ion
 } // namespace js
 
-#endif // JS_ION
+#endif
 
-#endif /* ion_BaselineFrame_inl_h */

@@ -40,7 +40,6 @@ if CONFIG['MOZ_WEBGL']:
         'WebGLExtensionCompressedTextureS3TC.cpp',
         'WebGLExtensionDebugRendererInfo.cpp',
         'WebGLExtensionDepthTexture.cpp',
-        'WebGLExtensionDrawBuffers.cpp',
         'WebGLExtensionElementIndexUint.cpp',
         'WebGLExtensionLoseContext.cpp',
         'WebGLExtensionStandardDerivatives.cpp',

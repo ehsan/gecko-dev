@@ -14,5 +14,3 @@ CPP_SOURCES += [
     'nsControllerCommandTable.cpp',
 ]
 
-LIBRARY_NAME = 'commandhandler_s'
-

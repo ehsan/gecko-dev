@@ -38,7 +38,8 @@ public:
   static
   already_AddRefed<IDBRequest> Create(nsISupports* aSource,
                                       IDBWrapperCache* aOwnerCache,
-                                      IDBTransaction* aTransaction);
+                                      IDBTransaction* aTransaction,
+                                      JSContext* aCallingCx);
 
   // nsIDOMEventTarget
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
@@ -83,7 +84,7 @@ public:
     return mActorParent;
   }
 
-  void CaptureCaller();
+  void CaptureCaller(JSContext* aCx);
 
   void FillScriptErrorEvent(nsScriptErrorEvent* aEvent) const;
 
@@ -108,7 +109,7 @@ protected:
   nsCOMPtr<nsISupports> mSource;
   nsRefPtr<IDBTransaction> mTransaction;
 
-  JS::Heap<JS::Value> mResultVal;
+  jsval mResultVal;
   nsRefPtr<mozilla::dom::DOMError> mError;
   IndexedDBRequestParentBase* mActorParent;
   nsString mFilename;
@@ -133,7 +134,8 @@ public:
   already_AddRefed<IDBOpenDBRequest>
   Create(IDBFactory* aFactory,
          nsPIDOMWindow* aOwner,
-         JS::Handle<JSObject*> aScriptOwner);
+         JS::Handle<JSObject*> aScriptOwner,
+         JSContext* aCallingCx);
 
   void SetTransaction(IDBTransaction* aTransaction);
 

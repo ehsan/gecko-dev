@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_ThreadPool_h
-#define vm_ThreadPool_h
+#ifndef ThreadPool_h__
+#define ThreadPool_h__
 
 #include <stddef.h>
 #include "mozilla/StandardInteger.h"
@@ -103,4 +103,4 @@ class ThreadPool
 
 } // namespace js
 
-#endif /* vm_ThreadPool_h */
+#endif // ThreadPool_h__

@@ -13,5 +13,3 @@ CPP_SOURCES += [
     'nsWinCharset.cpp',
 ]
 
-LIBRARY_NAME = 'platlocale_s'
-

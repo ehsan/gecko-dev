@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_shared_Lowering_shared_h
-#define ion_shared_Lowering_shared_h
+#ifndef jsion_lowering_shared_h__
+#define jsion_lowering_shared_h__
 
 // This file declares the structures that are used for attaching LIR to a
 // MIRGraph.
@@ -185,4 +185,6 @@ class LIRGeneratorShared : public MInstructionVisitorWithDefaults
 } // namespace ion
 } // namespace js
 
-#endif /* ion_shared_Lowering_shared_h */
+#endif // jsion_lowering_shared_h__
+
+

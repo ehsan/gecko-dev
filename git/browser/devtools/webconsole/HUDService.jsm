@@ -33,7 +33,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "WebConsoleUtils",
 XPCOMUtils.defineLazyModuleGetter(this, "Promise",
     "resource://gre/modules/commonjs/sdk/core/promise.js");
 
-XPCOMUtils.defineLazyModuleGetter(this, "Heritage",
+XPCOMUtils.defineLazyModuleGetter(this, "ViewHelpers",
     "resource:///modules/devtools/ViewHelpers.jsm");
 
 let Telemetry = devtools.require("devtools/shared/telemetry");
@@ -525,7 +525,7 @@ function BrowserConsole()
   this._telemetry = new Telemetry();
 }
 
-BrowserConsole.prototype = Heritage.extend(WebConsole.prototype,
+ViewHelpers.create({ constructor: BrowserConsole, proto: WebConsole.prototype },
 {
   _browserConsole: true,
   _bc_init: null,

@@ -8,8 +8,8 @@
  * PR assertion checker.
  */
 
-#ifndef jsutil_h
-#define jsutil_h
+#ifndef jsutil_h___
+#define jsutil_h___
 
 #include "mozilla/Attributes.h"
 #include "mozilla/Compiler.h"
@@ -204,6 +204,15 @@ UnsignedPtrDiff(const void *bigger, const void *smaller)
     return size_t(bigger) - size_t(smaller);
 }
 
+/*
+ * Ordinarily, a function taking a JSContext* 'cx' parameter reports errors on
+ * the context. In some cases, functions optionally report and indicate this by
+ * taking a nullable 'maybecx' parameter. In some cases, though, a function
+ * always needs a 'cx', but optionally reports. This option is presented by the
+ * MaybeReportError.
+ */
+enum MaybeReportError { REPORT_ERROR = true, DONT_REPORT_ERROR = false };
+
 /*****************************************************************************/
 
 /* A bit array is an array of bits represented by an array of words (size_t). */
@@ -382,4 +391,4 @@ typedef size_t jsbitmap;
     JS_END_MACRO
 #endif
 
-#endif /* jsutil_h */
+#endif /* jsutil_h___ */

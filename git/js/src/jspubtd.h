@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jspubtd_h
-#define jspubtd_h
+#ifndef jspubtd_h___
+#define jspubtd_h___
 
 /*
  * JS public API typedefs.
@@ -226,8 +226,6 @@ struct Runtime
 
 namespace js {
 
-struct ThreadSafeContext;
-
 class Allocator;
 
 class SkipRoot;
@@ -275,7 +273,7 @@ template <> struct RootKind<JS::Value> : SpecificRootKind<JS::Value, THING_ROOT_
 struct ContextFriendFields
 {
   protected:
-    JSRuntime *const     runtime_;
+    JSRuntime *const    runtime_;
 
     /* The current compartment. */
     JSCompartment       *compartment_;
@@ -390,4 +388,4 @@ struct PerThreadDataFriendFields
 
 } /* namespace js */
 
-#endif /* jspubtd_h */
+#endif /* jspubtd_h___ */

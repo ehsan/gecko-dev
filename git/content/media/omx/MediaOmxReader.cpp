@@ -17,8 +17,6 @@
 #include "MPAPI.h"
 
 #define MAX_DROPPED_FRAMES 25
-// Try not to spend more than this much time in a single call to DecodeVideoFrame.
-#define MAX_VIDEO_DECODE_SECONDS 3.0
 
 using namespace android;
 
@@ -47,9 +45,6 @@ nsresult MediaOmxReader::Init(MediaDecoderReader* aCloneDonor)
 
 bool MediaOmxReader::IsWaitingMediaResources()
 {
-  if (!mOmxDecoder.get()) {
-    return false;
-  }
   return mOmxDecoder->IsWaitingMediaResources();
 }
 
@@ -64,9 +59,7 @@ bool MediaOmxReader::IsDormantNeeded()
 void MediaOmxReader::ReleaseMediaResources()
 {
   ResetDecode();
-  if (mOmxDecoder.get()) {
-    mOmxDecoder->ReleaseMediaResources();
-  }
+  mOmxDecoder->ReleaseMediaResources();
 }
 
 nsresult MediaOmxReader::ReadMetadata(VideoInfo* aInfo,
@@ -163,10 +156,8 @@ bool MediaOmxReader::DecodeVideoFrame(bool &aKeyframeSkip,
     aTimeThreshold = mVideoSeekTimeUs;
   }
 
-  TimeStamp start = TimeStamp::Now();
-
-  // Read next frame. Don't let this loop run for too long.
-  while ((TimeStamp::Now() - start) < TimeDuration::FromSeconds(MAX_VIDEO_DECODE_SECONDS)) {
+  // Read next frame
+  while (true) {
     MPAPI::VideoFrame frame;
     frame.mGraphicBuffer = nullptr;
     frame.mShouldSkip = false;
@@ -174,23 +165,22 @@ bool MediaOmxReader::DecodeVideoFrame(bool &aKeyframeSkip,
       mVideoQueue.Finish();
       return false;
     }
-    doSeek = false;
 
     // Ignore empty buffer which stagefright media read will sporadically return
     if (frame.mSize == 0 && !frame.mGraphicBuffer) {
-      continue;
+      return true;
     }
 
     parsed++;
     if (frame.mShouldSkip && mSkipCount < MAX_DROPPED_FRAMES) {
       mSkipCount++;
-      continue;
+      return true;
     }
 
     mSkipCount = 0;
 
     mVideoSeekTimeUs = -1;
-    aKeyframeSkip = false;
+    doSeek = aKeyframeSkip = false;
 
     nsIntRect picture = mPicture;
     if (frame.Y.mWidth != mInitialFrame.width ||

@@ -14,8 +14,6 @@ this.EXPORTED_SYMBOLS = ['TraversalRules'];
 Cu.import('resource://gre/modules/accessibility/Utils.jsm');
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
 
-let gSkipEmptyImages = new PrefCache('accessibility.accessfu.skip_empty_images');
-
 function BaseTraversalRule(aRoles, aMatchFunc) {
   this._matchRoles = aRoles;
   this._matchFunc = aMatchFunc;
@@ -105,8 +103,6 @@ this.TraversalRules = {
 
           return Ci.nsIAccessibleTraversalRule.FILTER_MATCH;
         }
-      case Ci.nsIAccessibleRole.ROLE_GRAPHIC:
-        return TraversalRules._shouldSkipImage(aAccessible);
       default:
         // Ignore the subtree, if there is one. So that we don't land on
         // the same content that was already presented by its parent.
@@ -172,10 +168,7 @@ this.TraversalRules = {
      Ci.nsIAccessibleRole.ROLE_CHECK_MENU_ITEM]),
 
   Graphic: new BaseTraversalRule(
-    [Ci.nsIAccessibleRole.ROLE_GRAPHIC],
-    function Graphic_match(aAccessible) {
-      return TraversalRules._shouldSkipImage(aAccessible);
-    }),
+    [Ci.nsIAccessibleRole.ROLE_GRAPHIC]),
 
   Heading: new BaseTraversalRule(
     [Ci.nsIAccessibleRole.ROLE_HEADING]),
@@ -218,12 +211,5 @@ this.TraversalRules = {
 
   Checkbox: new BaseTraversalRule(
     [Ci.nsIAccessibleRole.ROLE_CHECKBUTTON,
-     Ci.nsIAccessibleRole.ROLE_CHECK_MENU_ITEM]),
-
-  _shouldSkipImage: function _shouldSkipImage(aAccessible) {
-    if (gSkipEmptyImages.value && aAccessible.name === '') {
-      return Ci.nsIAccessibleTraversalRule.FILTER_IGNORE;
-    }
-    return Ci.nsIAccessibleTraversalRule.FILTER_MATCH;
-  }
+     Ci.nsIAccessibleRole.ROLE_CHECK_MENU_ITEM])
 };

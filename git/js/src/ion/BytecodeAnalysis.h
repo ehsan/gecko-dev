@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_BytecodeAnalysis_h
-#define ion_BytecodeAnalysis_h
+#ifndef jsion_bytecodeanalysis_h__
+#define jsion_bytecodeanalysis_h__
 
 #include "jscntxt.h"
 
@@ -60,4 +60,4 @@ class BytecodeAnalysis
 } // namespace ion
 } // namespace js
 
-#endif /* ion_BytecodeAnalysis_h */
+#endif // jsion_bytecodeanalysis_h__

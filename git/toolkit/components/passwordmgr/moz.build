@@ -26,7 +26,3 @@ EXTRA_COMPONENTS += [
     'passwordmgr.manifest',
     'storage-Legacy.js',
 ]
-
-EXTRA_PP_COMPONENTS += [
-    'storage-mozStorage.js',
-]

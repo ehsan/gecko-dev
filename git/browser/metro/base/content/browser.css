@@ -89,8 +89,7 @@ setting[type="menulist"] {
   -moz-binding: url("chrome://mozapps/content/extensions/setting.xml#setting-multi");
 }
 
-#chrome-selection-overlay,
-#content-selection-overlay {
+#selection-overlay {
   -moz-binding: url("chrome://browser/content/bindings/selectionoverlay.xml#selection-binding");
 }
 
@@ -209,7 +208,18 @@ textbox {
   -moz-binding: url("chrome://browser/content/bindings/bindings.xml#textbox");
 }
 
-/* used in about:config */
+textbox[multiline="true"] {
+  -moz-binding: url("chrome://browser/content/bindings/bindings.xml#textarea");
+}
+
+textbox[type="timed"] {
+  -moz-binding: url("chrome://browser/content/bindings/bindings.xml#timed-textbox");
+}
+
 textbox[type="search"] {
   -moz-binding: url("chrome://browser/content/bindings/bindings.xml#search-textbox");
+}
+
+textbox[type="number"] {
+  -moz-binding: url("chrome://browser/content/bindings/bindings.xml#numberbox");
 }

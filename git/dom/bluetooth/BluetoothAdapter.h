@@ -72,8 +72,8 @@ private:
   uint32_t mClass;
   nsTArray<nsString> mDeviceAddresses;
   nsTArray<nsString> mUuids;
-  JS::Heap<JSObject*> mJsUuids;
-  JS::Heap<JSObject*> mJsDeviceAddresses;
+  JSObject* mJsUuids;
+  JSObject* mJsDeviceAddresses;
   bool mIsRooted;
 };
 

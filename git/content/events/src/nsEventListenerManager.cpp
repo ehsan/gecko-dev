@@ -731,7 +731,6 @@ nsEventListenerManager::SetEventHandler(nsIAtom *aName,
   nsIScriptContext* context = global->GetScriptContext();
   NS_ENSURE_TRUE(context, NS_ERROR_FAILURE);
 
-  JSAutoRequest ar(context->GetNativeContext());
   JS::Rooted<JSObject*> scope(context->GetNativeContext(),
                               global->GetGlobalJSObject());
 
@@ -1168,12 +1167,8 @@ nsEventListenerManager::GetListenerInfo(nsCOMArray<nsIEventListenerInfo>* aList)
       CompileEventHandlerInternal(const_cast<nsListenerStruct*>(&ls),
                                   true, nullptr);
     }
-    nsAutoString eventType;
-    if (ls.mAllEvents) {
-      eventType.SetIsVoid(true);
-    } else {
-      eventType.Assign(Substring(nsDependentAtomString(ls.mTypeAtom), 2));
-    }
+    const nsDependentSubstring& eventType =
+      Substring(nsDependentAtomString(ls.mTypeAtom), 2);
     // EventListenerInfo is defined in XPCOM, so we have to go ahead
     // and convert to an XPCOM callback here...
     nsRefPtr<nsEventListenerInfo> info =

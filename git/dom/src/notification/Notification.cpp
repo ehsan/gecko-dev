@@ -382,7 +382,7 @@ Notification::RequestPermission(const GlobalObject& aGlobal,
 
   NotificationPermissionCallback* permissionCallback = nullptr;
   if (aCallback.WasPassed()) {
-    permissionCallback = &aCallback.Value();
+    permissionCallback = aCallback.Value().get();
   }
   nsCOMPtr<nsIRunnable> request =
     new NotificationPermissionRequest(principal, window, permissionCallback);

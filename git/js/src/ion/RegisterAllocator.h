@@ -4,10 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_RegisterAllocator_h
-#define ion_RegisterAllocator_h
-
-#include "mozilla/Attributes.h"
+#ifndef js_ion_registerallocator_h__
+#define js_ion_registerallocator_h__
 
 #include "Ion.h"
 #include "MIR.h"
@@ -65,9 +63,12 @@ struct AllocationIntegrityState
 
         InstructionInfo(const InstructionInfo &o)
         {
-            inputs.append(o.inputs);
-            temps.append(o.temps);
-            outputs.append(o.outputs);
+            for (size_t i = 0; i < o.inputs.length(); i++)
+                inputs.append(o.inputs[i]);
+            for (size_t i = 0; i < o.temps.length(); i++)
+                temps.append(o.temps[i]);
+            for (size_t i = 0; i < o.outputs.length(); i++)
+                outputs.append(o.outputs[i]);
         }
     };
     Vector<InstructionInfo, 0, SystemAllocPolicy> instructions;
@@ -76,7 +77,8 @@ struct AllocationIntegrityState
         Vector<InstructionInfo, 5, SystemAllocPolicy> phis;
         BlockInfo() {}
         BlockInfo(const BlockInfo &o) {
-            phis.append(o.phis);
+            for (size_t i = 0; i < o.phis.length(); i++)
+                phis.append(o.phis[i]);
         }
     };
     Vector<BlockInfo, 0, SystemAllocPolicy> blocks;
@@ -138,7 +140,7 @@ struct AllocationIntegrityState
 class CodePosition
 {
   private:
-    MOZ_CONSTEXPR CodePosition(const uint32_t &bits)
+    CodePosition(const uint32_t &bits)
       : bits_(bits)
     { }
 
@@ -157,7 +159,7 @@ class CodePosition
         OUTPUT
     };
 
-    MOZ_CONSTEXPR CodePosition() : bits_(0)
+    CodePosition() : bits_(0)
     { }
 
     CodePosition(uint32_t instruction, SubPosition where) {
@@ -321,16 +323,16 @@ class RegisterAllocator
   protected:
     bool init();
 
-    CodePosition outputOf(uint32_t pos) const {
+    CodePosition outputOf(uint32_t pos) {
         return CodePosition(pos, CodePosition::OUTPUT);
     }
-    CodePosition outputOf(const LInstruction *ins) const {
+    CodePosition outputOf(LInstruction *ins) {
         return CodePosition(ins->id(), CodePosition::OUTPUT);
     }
-    CodePosition inputOf(uint32_t pos) const {
+    CodePosition inputOf(uint32_t pos) {
         return CodePosition(pos, CodePosition::INPUT);
     }
-    CodePosition inputOf(const LInstruction *ins) const {
+    CodePosition inputOf(LInstruction *ins) {
         return CodePosition(ins->id(), CodePosition::INPUT);
     }
 
@@ -344,11 +346,11 @@ class RegisterAllocator
         return getMoveGroupAfter(pos.ins());
     }
 
-    size_t findFirstNonCallSafepoint(CodePosition from) const
+    size_t findFirstNonCallSafepoint(CodePosition from)
     {
         size_t i = 0;
         for (; i < graph.numNonCallSafepoints(); i++) {
-            const LInstruction *ins = graph.getNonCallSafepoint(i);
+            LInstruction *ins = graph.getNonCallSafepoint(i);
             if (from <= inputOf(ins))
                 break;
         }
@@ -359,4 +361,4 @@ class RegisterAllocator
 } // namespace ion
 } // namespace js
 
-#endif /* ion_RegisterAllocator_h */
+#endif

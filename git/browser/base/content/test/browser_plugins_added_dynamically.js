@@ -111,10 +111,7 @@ function testActivateAddSameTypePart2() {
   popupNotification.reshow();
 }
 
-function testActivateAddSameTypePart3(type) {
-  if (type != "shown") {
-    return;
-  }
+function testActivateAddSameTypePart3() {
   let popupNotification = PopupNotifications.getNotification("click-to-play-plugins", gTestBrowser);
   popupNotification.options.eventCallback = null;
   let centerAction = null;
@@ -192,10 +189,7 @@ function testActivateAddDifferentTypePart2() {
   popupNotification.reshow();
 }
 
-function testActivateAddDifferentTypePart3(type) {
-  if (type != "shown") {
-    return;
-  }
+function testActivateAddDifferentTypePart3() {
   let popupNotification = PopupNotifications.getNotification("click-to-play-plugins", gTestBrowser);
   popupNotification.options.eventCallback = null;
   let centerAction = null;

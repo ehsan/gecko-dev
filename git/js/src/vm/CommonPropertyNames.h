@@ -6,8 +6,8 @@
 
 /* A higher-order macro for enumerating all cached property names. */
 
-#ifndef vm_CommonPropertyNames_h
-#define vm_CommonPropertyNames_h
+#ifndef CommonPropertyNames_h__
+#define CommonPropertyNames_h__
 
 #include "jsprototypes.h"
 #include "jsversion.h"
@@ -159,4 +159,4 @@
     macro(boolean, boolean, "boolean") \
     macro(null, null, "null")
 
-#endif /* vm_CommonPropertyNames_h */
+#endif /* CommonPropertyNames_h__ */

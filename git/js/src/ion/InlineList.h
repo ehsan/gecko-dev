@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_InlineList_h
-#define ion_InlineList_h
+#ifndef js_inline_list_h__
+#define js_inline_list_h__
 
 #include "mozilla/DebugOnly.h"
 
@@ -392,4 +392,4 @@ class InlineListReverseIterator
 
 } // namespace js
 
-#endif /* ion_InlineList_h */
+#endif // js_inline_list_h__

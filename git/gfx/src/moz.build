@@ -55,5 +55,3 @@ CPP_SOURCES += [
     'nsTransform2D.cpp',
 ]
 
-LIBRARY_NAME = 'gkgfx'
-

@@ -6,27 +6,30 @@
 
 #include "jsmath.h"
 #include "jsworkers.h"
-#include "prmjtime.h"
 
 #include "frontend/ParseNode.h"
 #include "ion/AsmJS.h"
 #include "ion/AsmJSModule.h"
 
+#include "jsobjinlines.h"
 #include "frontend/ParseNode-inl.h"
+
+using namespace js;
+using namespace js::frontend;
+using namespace mozilla;
 
 #include "ion/PerfSpewer.h"
 #include "ion/CodeGenerator.h"
 #include "ion/MIR.h"
 #include "ion/MIRGraph.h"
 
+using namespace js::ion;
+
 #ifdef MOZ_VTUNE
 # include "jitprofiling.h"
 #endif
 
-using namespace js;
-using namespace js::frontend;
-using namespace js::ion;
-using namespace mozilla;
+#ifdef JS_ASMJS
 
 /*****************************************************************************/
 // ParseNode utilities
@@ -167,13 +170,15 @@ LoopControlMaybeLabel(ParseNode *pn)
 static inline PropertyName *
 LabeledStatementLabel(ParseNode *pn)
 {
-    return pn->as<LabeledStatement>().label();
+    JS_ASSERT(pn->isKind(PNK_COLON));
+    return pn->pn_atom->asPropertyName();
 }
 
 static inline ParseNode *
 LabeledStatementStatement(ParseNode *pn)
 {
-    return pn->as<LabeledStatement>().statement();
+    JS_ASSERT(pn->isKind(PNK_COLON));
+    return pn->expr();
 }
 
 static double
@@ -587,13 +592,13 @@ operator<=(Type lhs, VarType rhs)
 // only binary +/- nodes so we simulate the n-ary expression by having the
 // outer parent +/- expression pass in Use::AddOrSub so that the inner
 // expression knows to return type Int instead of Intish.
-//
-// TODO: remove the remaining use of Use
 class Use
 {
   public:
     enum Which {
-        Normal,
+        NoCoercion,
+        ToInt32,
+        ToNumber,
         AddOrSub
     };
 
@@ -615,9 +620,60 @@ class Use
         JS_ASSERT(which_ == AddOrSub);
         return *pcount_;
     }
+    Type toReturnType() const {
+        switch (which_) {
+          case NoCoercion: return Type::Void;
+          case ToInt32: return Type::Intish;
+          case ToNumber: return Type::Doublish;
+          case AddOrSub: return Type::Void;
+        }
+        JS_NOT_REACHED("unexpected use type");
+        return Type::Void;
+    }
+    Type toFFIReturnType() const {
+        switch (which_) {
+          case NoCoercion: return Type::Unknown;
+          case ToInt32: return Type::Intish;
+          case ToNumber: return Type::Doublish;
+          case AddOrSub: return Type::Unknown;
+        }
+        JS_NOT_REACHED("unexpected use type");
+        return Type::Unknown;
+    }
+    MIRType toMIRType() const {
+        switch (which_) {
+          case NoCoercion: return MIRType_None;
+          case ToInt32: return MIRType_Int32;
+          case ToNumber: return MIRType_Double;
+          case AddOrSub: return MIRType_None;
+        }
+        JS_NOT_REACHED("unexpected use type");
+        return MIRType_None;
+    }
     bool operator==(Use rhs) const { return which_ == rhs.which_; }
     bool operator!=(Use rhs) const { return which_ != rhs.which_; }
 };
+
+// Implements <: (subtype) operator when the type of the rhs is
+// 'rhs.toReturnType'.
+static inline bool
+operator<=(RetType lhs, Use rhs)
+{
+    switch (rhs.which()) {
+      case Use::NoCoercion:
+      case Use::AddOrSub:
+        JS_ASSERT(rhs.toReturnType() == Type::Void);
+        return true;
+      case Use::ToInt32:
+        JS_ASSERT(rhs.toReturnType() == Type::Intish);
+        return lhs == RetType::Signed;
+      case Use::ToNumber:
+        JS_ASSERT(rhs.toReturnType() == Type::Doublish);
+        return lhs == RetType::Double;
+    }
+    JS_NOT_REACHED("Unexpected use kind");
+    return false;
+}
 
 /*****************************************************************************/
 // Numeric literal utilities
@@ -878,7 +934,6 @@ class MOZ_STACK_CLASS ModuleCompiler
         MIRTypeVector argTypes_;
         RetType returnType_;
         mutable Label code_;
-        unsigned compileTime_;
 
       public:
         Func(ParseNode *fn, ParseNode *body, MoveRef<MIRTypeVector> types, RetType returnType)
@@ -886,8 +941,7 @@ class MOZ_STACK_CLASS ModuleCompiler
             body_(body),
             argTypes_(types),
             returnType_(returnType),
-            code_(),
-            compileTime_(0)
+            code_()
         {}
 
         Func(MoveRef<Func> rhs)
@@ -895,8 +949,7 @@ class MOZ_STACK_CLASS ModuleCompiler
             body_(rhs->body_),
             argTypes_(Move(rhs->argTypes_)),
             returnType_(rhs->returnType_),
-            code_(rhs->code_),
-            compileTime_(rhs->compileTime_)
+            code_(rhs->code_)
         {}
 
         ~Func()
@@ -913,8 +966,6 @@ class MOZ_STACK_CLASS ModuleCompiler
         const MIRTypeVector &argMIRTypes() const { return argTypes_; }
         RetType returnType() const { return returnType_; }
         Label *codeLabel() const { return &code_; }
-        unsigned compileTime() const { return compileTime_; }
-        void accumulateCompileTime(unsigned ms) { compileTime_ += ms; }
     };
 
     class Global
@@ -1005,30 +1056,30 @@ class MOZ_STACK_CLASS ModuleCompiler
     {
         PropertyName *name_;
         MIRTypeVector argTypes_;
-        RetType retType_;
+        Use use_;
 
       public:
-        ExitDescriptor(PropertyName *name, MoveRef<MIRTypeVector> argTypes, RetType retType)
+        ExitDescriptor(PropertyName *name, MoveRef<MIRTypeVector> argTypes, Use use)
           : name_(name),
             argTypes_(argTypes),
-            retType_(retType)
+            use_(use)
         {}
         ExitDescriptor(MoveRef<ExitDescriptor> rhs)
           : name_(rhs->name_),
             argTypes_(Move(rhs->argTypes_)),
-            retType_(rhs->retType_)
+            use_(rhs->use_)
         {}
         const MIRTypeVector &argTypes() const {
             return argTypes_;
         }
-        RetType retType() const {
-            return retType_;
+        Use use() const {
+            return use_;
         }
 
         // ExitDescriptor is a HashPolicy:
         typedef ExitDescriptor Lookup;
         static HashNumber hash(const ExitDescriptor &d) {
-            HashNumber hn = HashGeneric(d.name_, d.retType_.which());
+            HashNumber hn = HashGeneric(d.name_, d.use_.which());
             for (unsigned i = 0; i < d.argTypes_.length(); i++)
                 hn = AddToHash(hn, d.argTypes_[i]);
             return hn;
@@ -1036,7 +1087,7 @@ class MOZ_STACK_CLASS ModuleCompiler
         static bool match(const ExitDescriptor &lhs, const ExitDescriptor &rhs) {
             if (lhs.name_ != rhs.name_ ||
                 lhs.argTypes_.length() != rhs.argTypes_.length() ||
-                lhs.retType_ != rhs.retType_)
+                lhs.use_ != rhs.use_)
             {
                 return false;
             }
@@ -1051,19 +1102,10 @@ class MOZ_STACK_CLASS ModuleCompiler
     typedef HashMap<ExitDescriptor, unsigned, ExitDescriptor, ContextAllocPolicy> ExitMap;
 
   private:
-    struct SlowFunction
-    {
-        PropertyName *name;
-        unsigned ms;
-        unsigned line;
-        unsigned column;
-    };
-
     typedef HashMap<PropertyName*, AsmJSMathBuiltin> MathNameMap;
     typedef HashMap<PropertyName*, Global> GlobalMap;
     typedef Vector<Func> FuncVector;
     typedef Vector<AsmJSGlobalAccess> GlobalAccessVector;
-    typedef Vector<SlowFunction> SlowFunctionVector;
 
     JSContext *                    cx_;
     MacroAssembler                 masm_;
@@ -1083,10 +1125,6 @@ class MOZ_STACK_CLASS ModuleCompiler
 
     char *                         errorString_;
     ParseNode *                    errorNode_;
-
-    int64_t                        usecBefore_;
-    SlowFunctionVector             slowFunctions_;
-
     TokenStream &                  tokenStream_;
 
     DebugOnly<int>                 currentPass_;
@@ -1111,8 +1149,6 @@ class MOZ_STACK_CLASS ModuleCompiler
         globalAccesses_(cx),
         errorString_(NULL),
         errorNode_(NULL),
-        usecBefore_(PRMJ_Now()),
-        slowFunctions_(cx),
         tokenStream_(ts),
         currentPass_(1)
     {}
@@ -1122,7 +1158,7 @@ class MOZ_STACK_CLASS ModuleCompiler
             tokenStream_.reportAsmJSError(errorNode_->pn_pos.begin,
                                           JSMSG_USE_ASM_TYPE_FAIL,
                                           errorString_);
-            js_free(errorString_);
+            JS_smprintf_free(errorString_);
         }
 
         // Avoid spurious Label assertions on compilation failure.
@@ -1199,18 +1235,6 @@ class MOZ_STACK_CLASS ModuleCompiler
         if (bytes.ptr())
             failf(pn, fmt, bytes.ptr());
         return false;
-    }
-
-    static const unsigned SLOW_FUNCTION_THRESHOLD_MS = 250;
-
-    bool maybeReportCompileTime(ParseNode *fn, unsigned ms) {
-        if (ms < SLOW_FUNCTION_THRESHOLD_MS)
-            return true;
-        SlowFunction sf;
-        sf.name = FunctionName(fn);
-        sf.ms = ms;
-        tokenStream_.srcCoords.lineNumAndColumnIndex(fn->pn_pos.begin, &sf.line, &sf.column);
-        return slowFunctions_.append(sf);
     }
 
     /*************************************************** Read-only interface */
@@ -1349,8 +1373,10 @@ class MOZ_STACK_CLASS ModuleCompiler
         if (!module_->addHeapAccesses(gen.heapAccesses()))
             return false;
 #endif
-        if (!globalAccesses_.append(gen.globalAccesses()))
-            return false;
+        for (unsigned i = 0; i < gen.globalAccesses().length(); i++) {
+            if (!globalAccesses_.append(gen.globalAccesses()[i]))
+                return false;
+        }
         return true;
     }
     bool addGlobalAccess(AsmJSGlobalAccess access) {
@@ -1385,11 +1411,11 @@ class MOZ_STACK_CLASS ModuleCompiler
         JS_ASSERT(currentPass_ == 2);
         return functions_[funcIndex];
     }
-    bool addExit(unsigned ffiIndex, PropertyName *name, MoveRef<MIRTypeVector> argTypes,
-                 RetType retType, unsigned *exitIndex)
+    bool addExit(unsigned ffiIndex, PropertyName *name, MoveRef<MIRTypeVector> argTypes, Use use,
+                 unsigned *exitIndex)
     {
         JS_ASSERT(currentPass_ == 2);
-        ExitDescriptor exitDescriptor(name, argTypes, retType);
+        ExitDescriptor exitDescriptor(name, argTypes, use);
         ExitMap::AddPtr p = exits_.lookupForAdd(exitDescriptor);
         if (p) {
             *exitIndex = p->value;
@@ -1405,7 +1431,7 @@ class MOZ_STACK_CLASS ModuleCompiler
 
     void setSecondPassComplete() {
         JS_ASSERT(currentPass_ == 2);
-        masm_.align(AsmJSPageSize);
+        masm_.align(gc::PageSize);
         module_->setFunctionBytes(masm_.size());
         currentPass_ = 3;
     }
@@ -1432,33 +1458,6 @@ class MOZ_STACK_CLASS ModuleCompiler
         module_->exportedFunction(exportIndex).initCodeOffset(masm_.size());
     }
 
-    void buildCompilationTimeReport(ScopedJSFreePtr<char> *out) {
-        int msTotal = 0;
-        ScopedJSFreePtr<char> slowFuns;
-#ifndef JS_MORE_DETERMINISTIC
-        int64_t usecAfter = PRMJ_Now();
-        msTotal = (usecAfter - usecBefore_) / PRMJ_USEC_PER_MSEC;
-        if (!slowFunctions_.empty()) {
-            slowFuns.reset(JS_smprintf("; %d functions compiled slowly: ", slowFunctions_.length()));
-            if (!slowFuns)
-                return;
-            for (unsigned i = 0; i < slowFunctions_.length(); i++) {
-                SlowFunction &func = slowFunctions_[i];
-                JSAutoByteString name;
-                if (!js_AtomToPrintableString(cx_, func.name, &name))
-                    return;
-                slowFuns.reset(JS_smprintf("%s%s:%u:%u (%ums)%s", slowFuns.get(),
-                                           name.ptr(), func.line, func.column, func.ms,
-                                           i+1 < slowFunctions_.length() ? ", " : ""));
-                if (!slowFuns)
-                    return;
-            }
-        }
-#endif
-        out->reset(JS_smprintf("total compilation time %dms%s",
-                               msTotal, slowFuns ? slowFuns.get() : ""));
-    }
-
     bool finish(ScopedJSDeletePtr<AsmJSModule> *module) {
         // After finishing, the only valid operation on an ModuleCompiler is
         // destruction.
@@ -1478,7 +1477,7 @@ class MOZ_STACK_CLASS ModuleCompiler
 
         // The code must be page aligned, so include extra space so that we can
         // AlignBytes the allocation result below.
-        size_t allocedBytes = totalBytes + AsmJSPageSize;
+        size_t allocedBytes = totalBytes + gc::PageSize;
 
         // Allocate the slab of memory.
         JSC::ExecutableAllocator *execAlloc = cx_->compartment()->ionCompartment()->execAlloc();
@@ -1486,7 +1485,7 @@ class MOZ_STACK_CLASS ModuleCompiler
         uint8_t *unalignedBytes = (uint8_t*)execAlloc->alloc(allocedBytes, &pool, JSC::ASMJS_CODE);
         if (!unalignedBytes)
             return false;
-        uint8_t *code = (uint8_t*)AlignBytes((uintptr_t)unalignedBytes, AsmJSPageSize);
+        uint8_t *code = (uint8_t*)AlignBytes((uintptr_t)unalignedBytes, gc::PageSize);
 
         // The ExecutablePool owns the memory and must be released by the AsmJSModule.
         module_->takeOwnership(pool, code, codeBytes, totalBytes);
@@ -3086,12 +3085,8 @@ CheckModuleExports(ModuleCompiler &m, ParseNode *fn, ParseNode **stmtIter)
 {
     ParseNode *returnNode = SkipEmptyStatements(*stmtIter);
 
-    if (!returnNode || !returnNode->isKind(PNK_RETURN)) {
-        if (returnNode && NextNode(returnNode) != NULL)
-            return m.fail(returnNode, "invalid asm.js statement");
-        else
-            return m.fail(fn, "asm.js module must end with a return export statement");
-    }
+    if (!returnNode || !returnNode->isKind(PNK_RETURN))
+        return m.fail(fn, "asm.js module must end with a return export statement");
 
     ParseNode *returnExpr = UnaryKid(returnNode);
 
@@ -3205,7 +3200,7 @@ CheckArrayAccess(FunctionCompiler &f, ParseNode *elem, ArrayBufferView::ViewType
             return f.failf(shiftNode, "shift amount must be %u", requiredShift);
 
         Type pointerType;
-        if (!CheckExpr(f, pointerNode, Use::Normal, &pointerDef, &pointerType))
+        if (!CheckExpr(f, pointerNode, Use::ToInt32, &pointerDef, &pointerType))
             return false;
 
         if (!pointerType.isIntish())
@@ -3215,7 +3210,7 @@ CheckArrayAccess(FunctionCompiler &f, ParseNode *elem, ArrayBufferView::ViewType
             return f.fail(indexExpr, "index expression isn't shifted; must be an Int8/Uint8 access");
 
         Type pointerType;
-        if (!CheckExpr(f, indexExpr, Use::Normal, &pointerDef, &pointerType))
+        if (!CheckExpr(f, indexExpr, Use::ToInt32, &pointerDef, &pointerType))
             return false;
 
         if (!pointerType.isInt())
@@ -3253,7 +3248,7 @@ CheckStoreArray(FunctionCompiler &f, ParseNode *lhs, ParseNode *rhs, MDefinition
 
     MDefinition *rhsDef;
     Type rhsType;
-    if (!CheckExpr(f, rhs, Use::Normal, &rhsDef, &rhsType))
+    if (!CheckExpr(f, rhs, Use::NoCoercion, &rhsDef, &rhsType))
         return false;
 
     switch (TypedArrayStoreType(viewType)) {
@@ -3281,7 +3276,7 @@ CheckAssignName(FunctionCompiler &f, ParseNode *lhs, ParseNode *rhs, MDefinition
 
     MDefinition *rhsDef;
     Type rhsType;
-    if (!CheckExpr(f, rhs, Use::Normal, &rhsDef, &rhsType))
+    if (!CheckExpr(f, rhs, Use::NoCoercion, &rhsDef, &rhsType))
         return false;
 
     if (const FunctionCompiler::Local *lhsVar = f.lookupLocal(name)) {
@@ -3324,7 +3319,7 @@ CheckAssign(FunctionCompiler &f, ParseNode *assign, MDefinition **def, Type *typ
 }
 
 static bool
-CheckMathIMul(FunctionCompiler &f, ParseNode *call, RetType retType, MDefinition **def, Type *type)
+CheckMathIMul(FunctionCompiler &f, ParseNode *call, MDefinition **def, Type *type)
 {
     if (CallArgListLength(call) != 2)
         return f.fail(call, "Math.imul must be passed 2 arguments");
@@ -3334,20 +3329,18 @@ CheckMathIMul(FunctionCompiler &f, ParseNode *call, RetType retType, MDefinition
 
     MDefinition *lhsDef;
     Type lhsType;
-    if (!CheckExpr(f, lhs, Use::Normal, &lhsDef, &lhsType))
+    if (!CheckExpr(f, lhs, Use::ToInt32, &lhsDef, &lhsType))
         return false;
 
     MDefinition *rhsDef;
     Type rhsType;
-    if (!CheckExpr(f, rhs, Use::Normal, &rhsDef, &rhsType))
+    if (!CheckExpr(f, rhs, Use::ToInt32, &rhsDef, &rhsType))
         return false;
 
     if (!lhsType.isIntish())
         return f.failf(lhs, "%s is not a subtype of intish", lhsType.toChars());
     if (!rhsType.isIntish())
         return f.failf(rhs, "%s is not a subtype of intish", rhsType.toChars());
-    if (retType != RetType::Signed)
-        return f.failf(call, "return type is signed, used as %s", retType.toType().toChars());
 
     *def = f.mul(lhsDef, rhsDef, MIRType_Int32, MMul::Integer);
     *type = Type::Signed;
@@ -3355,7 +3348,7 @@ CheckMathIMul(FunctionCompiler &f, ParseNode *call, RetType retType, MDefinition
 }
 
 static bool
-CheckMathAbs(FunctionCompiler &f, ParseNode *call, RetType retType, MDefinition **def, Type *type)
+CheckMathAbs(FunctionCompiler &f, ParseNode *call, MDefinition **def, Type *type)
 {
     if (CallArgListLength(call) != 1)
         return f.fail(call, "Math.abs must be passed 1 argument");
@@ -3364,20 +3357,16 @@ CheckMathAbs(FunctionCompiler &f, ParseNode *call, RetType retType, MDefinition 
 
     MDefinition *argDef;
     Type argType;
-    if (!CheckExpr(f, arg, Use::Normal, &argDef, &argType))
+    if (!CheckExpr(f, arg, Use::ToNumber, &argDef, &argType))
         return false;
 
     if (argType.isSigned()) {
-        if (retType != RetType::Signed)
-            return f.failf(call, "return type is signed, used as %s", retType.toType().toChars());
         *def = f.unary<MAbs>(argDef, MIRType_Int32);
-        *type = Type::Signed;
+        *type = Type::Unsigned;
         return true;
     }
 
     if (argType.isDoublish()) {
-        if (retType != RetType::Double)
-            return f.failf(call, "return type is double, used as %s", retType.toType().toChars());
         *def = f.unary<MAbs>(argDef, MIRType_Double);
         *type = Type::Double;
         return true;
@@ -3387,7 +3376,7 @@ CheckMathAbs(FunctionCompiler &f, ParseNode *call, RetType retType, MDefinition 
 }
 
 static bool
-CheckMathSqrt(FunctionCompiler &f, ParseNode *call, RetType retType, MDefinition **def, Type *type)
+CheckMathSqrt(FunctionCompiler &f, ParseNode *call, MDefinition **def, Type *type)
 {
     if (CallArgListLength(call) != 1)
         return f.fail(call, "Math.sqrt must be passed 1 argument");
@@ -3396,12 +3385,10 @@ CheckMathSqrt(FunctionCompiler &f, ParseNode *call, RetType retType, MDefinition
 
     MDefinition *argDef;
     Type argType;
-    if (!CheckExpr(f, arg, Use::Normal, &argDef, &argType))
+    if (!CheckExpr(f, arg, Use::ToNumber, &argDef, &argType))
         return false;
 
     if (argType.isDoublish()) {
-        if (retType != RetType::Double)
-            return f.failf(call, "return type is double, used as %s", retType.toType().toChars());
         *def = f.unary<MSqrt>(argDef, MIRType_Double);
         *type = Type::Double;
         return true;
@@ -3435,11 +3422,11 @@ CheckCallArgs(FunctionCompiler &f, ParseNode *callNode, Use use, FunctionCompile
 
 static bool
 CheckInternalCall(FunctionCompiler &f, ParseNode *callNode, const ModuleCompiler::Func &callee,
-                  RetType retType, MDefinition **def, Type *type)
+                  Use use, MDefinition **def, Type *type)
 {
     FunctionCompiler::Args args(f);
 
-    if (!CheckCallArgs(f, callNode, Use::Normal, &args))
+    if (!CheckCallArgs(f, callNode, Use::NoCoercion, &args))
         return false;
 
     if (args.length() != callee.numArgs()) {
@@ -3459,17 +3446,35 @@ CheckInternalCall(FunctionCompiler &f, ParseNode *callNode, const ModuleCompiler
     if (!f.internalCall(callee, args, def))
         return false;
 
-    if (callee.returnType() != retType) {
-        return f.failf(callNode, "return type is %s, used as %s",
-                       callee.returnType().toType().toChars(), retType.toType().toChars());
+    // Note: the eventual goal for this code is to perform single-pass type
+    // checking. A single pass means that we may not have seen the callee's definition
+    // when we encounter a callsite. To address this, asm.js requires call
+    // sites to coerce return values before use (unused values require no such
+    // coercion). More specifically, the spec widens the return type of a
+    // function from int to intish and double to doublish (similar to how
+    // asm.js requires coercions on loads). A single-pass implementation of
+    // this typing rule can achieve the same effect by:
+    //  - optimistically giving a call expression use.toReturnType (thus, one
+    //    of 'void', 'intish', 'doublish').
+    //  - later checking that use.toReturnType was conservative, i.e., that the
+    //    declared return type was a subtype of use.toReturnType.
+    // For now, we check both conditions here. With a single-pass type checking
+    // algorithm, we'd accumulate all the uses for a given callee name
+    // (detecting inconsistencies between uses) and check this meet-over-uses
+    // against the declared return type when the definition was encountered.
+
+    RetType declared = callee.returnType();
+    if (!(declared <= use)) {
+        return f.failf(callNode, "%s is not a subtype of %s",
+                       declared.toType().toChars(), use.toReturnType().toChars());
     }
 
-    *type = retType.toType();
+    *type = use.toReturnType();
     return true;
 }
 
 static bool
-CheckFuncPtrCall(FunctionCompiler &f, ParseNode *callNode, RetType retType, MDefinition **def, Type *type)
+CheckFuncPtrCall(FunctionCompiler &f, ParseNode *callNode, Use use, MDefinition **def, Type *type)
 {
     ParseNode *callee = CallCallee(callNode);
     ParseNode *elemBase = ElemBase(callee);
@@ -3494,7 +3499,7 @@ CheckFuncPtrCall(FunctionCompiler &f, ParseNode *callNode, RetType retType, MDef
 
     MDefinition *indexDef;
     Type indexType;
-    if (!CheckExpr(f, indexNode, Use::Normal, &indexDef, &indexType))
+    if (!CheckExpr(f, indexNode, Use::ToInt32, &indexDef, &indexType))
         return false;
 
     if (!indexType.isIntish())
@@ -3502,7 +3507,7 @@ CheckFuncPtrCall(FunctionCompiler &f, ParseNode *callNode, RetType retType, MDef
 
     FunctionCompiler::Args args(f);
 
-    if (!CheckCallArgs(f, callNode, Use::Normal, &args))
+    if (!CheckCallArgs(f, callNode, Use::NoCoercion, &args))
         return false;
 
     if (args.length() != table->sig().numArgs()) {
@@ -3519,25 +3524,26 @@ CheckFuncPtrCall(FunctionCompiler &f, ParseNode *callNode, RetType retType, MDef
         }
     }
 
-    if (table->sig().returnType() != retType) {
-        return f.failf(callNode, "return type is %s, used as %s",
-                       table->sig().returnType().toType().toChars(), retType.toType().toChars());
-    }
-
     if (!f.funcPtrCall(*table, indexDef, args, def))
         return false;
 
-    *type = retType.toType();
+    RetType declared = table->sig().returnType();
+    if (!(declared <= use)) {
+        return f.failf(callNode, "%s is not a subtype of %s",
+                       declared.toType().toChars(), use.toReturnType().toChars());
+    }
+
+    *type = use.toReturnType();
     return true;
 }
 
 static bool
-CheckFFICall(FunctionCompiler &f, ParseNode *callNode, unsigned ffiIndex, RetType retType,
+CheckFFICall(FunctionCompiler &f, ParseNode *callNode, unsigned ffiIndex, Use use,
              MDefinition **def, Type *type)
 {
     FunctionCompiler::Args args(f);
 
-    if (!CheckCallArgs(f, callNode, Use::Normal, &args))
+    if (!CheckCallArgs(f, callNode, Use::NoCoercion, &args))
         return false;
 
     MIRTypeVector argMIRTypes(f.cx());
@@ -3550,13 +3556,13 @@ CheckFFICall(FunctionCompiler &f, ParseNode *callNode, unsigned ffiIndex, RetTyp
     }
 
     unsigned exitIndex;
-    if (!f.m().addExit(ffiIndex, CallCallee(callNode)->name(), Move(argMIRTypes), retType, &exitIndex))
+    if (!f.m().addExit(ffiIndex, CallCallee(callNode)->name(), Move(argMIRTypes), use, &exitIndex))
         return false;
 
-    if (!f.ffiCall(exitIndex, args, retType.toMIRType(), def))
+    if (!f.ffiCall(exitIndex, args, use.toMIRType(), def))
         return false;
 
-    *type = retType.toType();
+    *type = use.toFFIReturnType();
     return true;
 }
 
@@ -3574,13 +3580,13 @@ BinaryMathFunCast(double (*pf)(double, double))
 
 static bool
 CheckMathBuiltinCall(FunctionCompiler &f, ParseNode *callNode, AsmJSMathBuiltin mathBuiltin,
-                     RetType retType, MDefinition **def, Type *type)
+                     MDefinition **def, Type *type)
 {
     unsigned arity = 0;
     void *callee = NULL;
     switch (mathBuiltin) {
-      case AsmJSMathBuiltin_imul:  return CheckMathIMul(f, callNode, retType, def, type);
-      case AsmJSMathBuiltin_abs:   return CheckMathAbs(f, callNode, retType, def, type);
+      case AsmJSMathBuiltin_imul:  return CheckMathIMul(f, callNode, def, type);
+      case AsmJSMathBuiltin_abs:   return CheckMathAbs(f, callNode, def, type);
       case AsmJSMathBuiltin_sin:   arity = 1; callee = UnaryMathFunCast(sin);        break;
       case AsmJSMathBuiltin_cos:   arity = 1; callee = UnaryMathFunCast(cos);        break;
       case AsmJSMathBuiltin_tan:   arity = 1; callee = UnaryMathFunCast(tan);        break;
@@ -3591,14 +3597,14 @@ CheckMathBuiltinCall(FunctionCompiler &f, ParseNode *callNode, AsmJSMathBuiltin 
       case AsmJSMathBuiltin_floor: arity = 1; callee = UnaryMathFunCast(floor);      break;
       case AsmJSMathBuiltin_exp:   arity = 1; callee = UnaryMathFunCast(exp);        break;
       case AsmJSMathBuiltin_log:   arity = 1; callee = UnaryMathFunCast(log);        break;
-      case AsmJSMathBuiltin_sqrt:  return CheckMathSqrt(f, callNode, retType, def, type);
+      case AsmJSMathBuiltin_sqrt:  return CheckMathSqrt(f, callNode, def, type);
       case AsmJSMathBuiltin_pow:   arity = 2; callee = BinaryMathFunCast(ecmaPow);   break;
       case AsmJSMathBuiltin_atan2: arity = 2; callee = BinaryMathFunCast(ecmaAtan2); break;
     }
 
     FunctionCompiler::Args args(f);
 
-    if (!CheckCallArgs(f, callNode, Use::Normal, &args))
+    if (!CheckCallArgs(f, callNode, Use::ToNumber, &args))
         return false;
 
     if (args.length() != arity) {
@@ -3614,20 +3620,17 @@ CheckMathBuiltinCall(FunctionCompiler &f, ParseNode *callNode, AsmJSMathBuiltin 
     if (!f.builtinCall(callee, args, MIRType_Double, def))
         return false;
 
-    if (retType != RetType::Double)
-        return f.failf(callNode, "return type is double, used as %s", retType.toType().toChars());
-
     *type = Type::Double;
     return true;
 }
 
 static bool
-CheckCall(FunctionCompiler &f, ParseNode *call, RetType retType, MDefinition **def, Type *type)
+CheckCall(FunctionCompiler &f, ParseNode *call, Use use, MDefinition **def, Type *type)
 {
     ParseNode *callee = CallCallee(call);
 
     if (callee->isKind(PNK_ELEM))
-        return CheckFuncPtrCall(f, call, retType, def, type);
+        return CheckFuncPtrCall(f, call, use, def, type);
 
     if (!callee->isKind(PNK_NAME))
         return f.fail(callee, "unexpected callee expression type");
@@ -3635,11 +3638,11 @@ CheckCall(FunctionCompiler &f, ParseNode *call, RetType retType, MDefinition **d
     if (const ModuleCompiler::Global *global = f.lookupGlobal(callee->name())) {
         switch (global->which()) {
           case ModuleCompiler::Global::Function:
-            return CheckInternalCall(f, call, f.m().function(global->funcIndex()), retType, def, type);
+            return CheckInternalCall(f, call, f.m().function(global->funcIndex()), use, def, type);
           case ModuleCompiler::Global::FFI:
-            return CheckFFICall(f, call, global->ffiIndex(), retType, def, type);
+            return CheckFFICall(f, call, global->ffiIndex(), use, def, type);
           case ModuleCompiler::Global::MathBuiltin:
-            return CheckMathBuiltinCall(f, call, global->mathBuiltin(), retType, def, type);
+            return CheckMathBuiltinCall(f, call, global->mathBuiltin(), def, type);
           case ModuleCompiler::Global::Constant:
           case ModuleCompiler::Global::Variable:
           case ModuleCompiler::Global::FuncPtrTable:
@@ -3657,12 +3660,9 @@ CheckPos(FunctionCompiler &f, ParseNode *pos, MDefinition **def, Type *type)
     JS_ASSERT(pos->isKind(PNK_POS));
     ParseNode *operand = UnaryKid(pos);
 
-    if (operand->isKind(PNK_CALL))
-        return CheckCall(f, operand, RetType::Double, def, type);
-
     MDefinition *operandDef;
     Type operandType;
-    if (!CheckExpr(f, operand, Use::Normal, &operandDef, &operandType))
+    if (!CheckExpr(f, operand, Use::ToNumber, &operandDef, &operandType))
         return false;
 
     if (operandType.isSigned())
@@ -3686,7 +3686,7 @@ CheckNot(FunctionCompiler &f, ParseNode *expr, MDefinition **def, Type *type)
 
     MDefinition *operandDef;
     Type operandType;
-    if (!CheckExpr(f, operand, Use::Normal, &operandDef, &operandType))
+    if (!CheckExpr(f, operand, Use::NoCoercion, &operandDef, &operandType))
         return false;
 
     if (!operandType.isInt())
@@ -3705,7 +3705,7 @@ CheckNeg(FunctionCompiler &f, ParseNode *expr, MDefinition **def, Type *type)
 
     MDefinition *operandDef;
     Type operandType;
-    if (!CheckExpr(f, operand, Use::Normal, &operandDef, &operandType))
+    if (!CheckExpr(f, operand, Use::ToNumber, &operandDef, &operandType))
         return false;
 
     if (operandType.isInt()) {
@@ -3731,7 +3731,7 @@ CheckCoerceToInt(FunctionCompiler &f, ParseNode *expr, MDefinition **def, Type *
 
     MDefinition *operandDef;
     Type operandType;
-    if (!CheckExpr(f, operand, Use::Normal, &operandDef, &operandType))
+    if (!CheckExpr(f, operand, Use::ToInt32, &operandDef, &operandType))
         return false;
 
     if (operandType.isDouble()) {
@@ -3759,7 +3759,7 @@ CheckBitNot(FunctionCompiler &f, ParseNode *neg, MDefinition **def, Type *type)
 
     MDefinition *operandDef;
     Type operandType;
-    if (!CheckExpr(f, operand, Use::Normal, &operandDef, &operandType))
+    if (!CheckExpr(f, operand, Use::ToInt32, &operandDef, &operandType))
         return false;
 
     if (!operandType.isIntish())
@@ -3778,15 +3778,8 @@ CheckComma(FunctionCompiler &f, ParseNode *comma, Use use, MDefinition **def, Ty
 
     ParseNode *pn = operands;
     for (; NextNode(pn); pn = NextNode(pn)) {
-        MDefinition *_1;
-        Type _2;
-        if (pn->isKind(PNK_CALL)) {
-            if (!CheckCall(f, pn, RetType::Void, &_1, &_2))
-                return false;
-        } else {
-            if (!CheckExpr(f, pn, Use::Normal, &_1, &_2))
-                return false;
-        }
+        if (!CheckExpr(f, pn, Use::NoCoercion, def, type))
+            return false;
     }
 
     if (!CheckExpr(f, pn, use, def, type))
@@ -3805,7 +3798,7 @@ CheckConditional(FunctionCompiler &f, ParseNode *ternary, MDefinition **def, Typ
 
     MDefinition *condDef;
     Type condType;
-    if (!CheckExpr(f, cond, Use::Normal, &condDef, &condType))
+    if (!CheckExpr(f, cond, Use::NoCoercion, &condDef, &condType))
         return false;
 
     if (!condType.isInt())
@@ -3817,7 +3810,7 @@ CheckConditional(FunctionCompiler &f, ParseNode *ternary, MDefinition **def, Typ
 
     MDefinition *thenDef;
     Type thenType;
-    if (!CheckExpr(f, thenExpr, Use::Normal, &thenDef, &thenType))
+    if (!CheckExpr(f, thenExpr, Use::NoCoercion, &thenDef, &thenType))
         return false;
 
     BlockVector thenBlocks(f.cx());
@@ -3829,7 +3822,7 @@ CheckConditional(FunctionCompiler &f, ParseNode *ternary, MDefinition **def, Typ
 
     MDefinition *elseDef;
     Type elseType;
-    if (!CheckExpr(f, elseExpr, Use::Normal, &elseDef, &elseType))
+    if (!CheckExpr(f, elseExpr, Use::NoCoercion, &elseDef, &elseType))
         return false;
 
     f.pushPhiInput(elseDef);
@@ -3881,12 +3874,12 @@ CheckMultiply(FunctionCompiler &f, ParseNode *star, MDefinition **def, Type *typ
 
     MDefinition *lhsDef;
     Type lhsType;
-    if (!CheckExpr(f, lhs, Use::Normal, &lhsDef, &lhsType))
+    if (!CheckExpr(f, lhs, Use::ToNumber, &lhsDef, &lhsType))
         return false;
 
     MDefinition *rhsDef;
     Type rhsType;
-    if (!CheckExpr(f, rhs, Use::Normal, &rhsDef, &rhsType))
+    if (!CheckExpr(f, rhs, Use::ToNumber, &rhsDef, &rhsType))
         return false;
 
     if (lhsType.isInt() && rhsType.isInt()) {
@@ -3963,9 +3956,9 @@ CheckDivOrMod(FunctionCompiler &f, ParseNode *expr, MDefinition **def, Type *typ
 
     MDefinition *lhsDef, *rhsDef;
     Type lhsType, rhsType;
-    if (!CheckExpr(f, lhs, Use::Normal, &lhsDef, &lhsType))
+    if (!CheckExpr(f, lhs, Use::ToNumber, &lhsDef, &lhsType))
         return false;
-    if (!CheckExpr(f, rhs, Use::Normal, &rhsDef, &rhsType))
+    if (!CheckExpr(f, rhs, Use::ToNumber, &rhsDef, &rhsType))
         return false;
 
     if (lhsType.isDoublish() && rhsType.isDoublish()) {
@@ -3977,20 +3970,24 @@ CheckDivOrMod(FunctionCompiler &f, ParseNode *expr, MDefinition **def, Type *typ
     }
 
     if (lhsType.isSigned() && rhsType.isSigned()) {
-        if (expr->isKind(PNK_DIV))
+        if (expr->isKind(PNK_DIV)) {
             *def = f.binary<MDiv>(lhsDef, rhsDef, MIRType_Int32);
-        else
+            *type = Type::Intish;
+        } else {
             *def = f.binary<MMod>(lhsDef, rhsDef, MIRType_Int32);
-        *type = Type::Intish;
+            *type = Type::Int;
+        }
         return true;
     }
 
     if (lhsType.isUnsigned() && rhsType.isUnsigned()) {
-        if (expr->isKind(PNK_DIV))
+        if (expr->isKind(PNK_DIV)) {
             *def = f.binary<MAsmJSUDiv>(lhsDef, rhsDef);
-        else
+            *type = Type::Intish;
+        } else {
             *def = f.binary<MAsmJSUMod>(lhsDef, rhsDef);
-        *type = Type::Intish;
+            *type = Type::Int;
+        }
         return true;
     }
 
@@ -4008,9 +4005,9 @@ CheckComparison(FunctionCompiler &f, ParseNode *comp, MDefinition **def, Type *t
 
     MDefinition *lhsDef, *rhsDef;
     Type lhsType, rhsType;
-    if (!CheckExpr(f, lhs, Use::Normal, &lhsDef, &lhsType))
+    if (!CheckExpr(f, lhs, Use::NoCoercion, &lhsDef, &lhsType))
         return false;
-    if (!CheckExpr(f, rhs, Use::Normal, &rhsDef, &rhsType))
+    if (!CheckExpr(f, rhs, Use::NoCoercion, &rhsDef, &rhsType))
         return false;
 
     if ((lhsType.isSigned() && rhsType.isSigned()) || (lhsType.isUnsigned() && rhsType.isUnsigned())) {
@@ -4052,7 +4049,7 @@ CheckBitwise(FunctionCompiler &f, ParseNode *bitwise, MDefinition **def, Type *t
 
     if (!onlyOnRight && IsBits32(lhs, identityElement)) {
         Type rhsType;
-        if (!CheckExpr(f, rhs, Use::Normal, def, &rhsType))
+        if (!CheckExpr(f, rhs, Use::ToInt32, def, &rhsType))
             return false;
         if (!rhsType.isIntish())
             return f.failf(bitwise, "%s is not a subtype of intish", rhsType.toChars());
@@ -4060,11 +4057,8 @@ CheckBitwise(FunctionCompiler &f, ParseNode *bitwise, MDefinition **def, Type *t
     }
 
     if (IsBits32(rhs, identityElement)) {
-        if (bitwise->isKind(PNK_BITOR) && lhs->isKind(PNK_CALL))
-            return CheckCall(f, lhs, RetType::Signed, def, type);
-
         Type lhsType;
-        if (!CheckExpr(f, lhs, Use::Normal, def, &lhsType))
+        if (!CheckExpr(f, lhs, Use::ToInt32, def, &lhsType))
             return false;
         if (!lhsType.isIntish())
             return f.failf(bitwise, "%s is not a subtype of intish", lhsType.toChars());
@@ -4073,12 +4067,12 @@ CheckBitwise(FunctionCompiler &f, ParseNode *bitwise, MDefinition **def, Type *t
 
     MDefinition *lhsDef;
     Type lhsType;
-    if (!CheckExpr(f, lhs, Use::Normal, &lhsDef, &lhsType))
+    if (!CheckExpr(f, lhs, Use::ToInt32, &lhsDef, &lhsType))
         return false;
 
     MDefinition *rhsDef;
     Type rhsType;
-    if (!CheckExpr(f, rhs, Use::Normal, &rhsDef, &rhsType))
+    if (!CheckExpr(f, rhs, Use::ToInt32, &rhsDef, &rhsType))
         return false;
 
     if (!lhsType.isIntish())
@@ -4114,7 +4108,7 @@ CheckExpr(FunctionCompiler &f, ParseNode *expr, Use use, MDefinition **def, Type
       case PNK_NAME:        return CheckVarRef(f, expr, def, type);
       case PNK_ELEM:        return CheckArrayLoad(f, expr, def, type);
       case PNK_ASSIGN:      return CheckAssign(f, expr, def, type);
-      case PNK_CALL:        return f.fail(expr, "non-expression-statement call must be coerced");
+      case PNK_CALL:        return CheckCall(f, expr, use, def, type);
       case PNK_POS:         return CheckPos(f, expr, def, type);
       case PNK_NOT:         return CheckNot(f, expr, def, type);
       case PNK_NEG:         return CheckNeg(f, expr, def, type);
@@ -4164,11 +4158,10 @@ CheckExprStatement(FunctionCompiler &f, ParseNode *exprStmt)
 
     MDefinition *_1;
     Type _2;
+    if (!CheckExpr(f, UnaryKid(exprStmt), Use::NoCoercion, &_1, &_2))
+        return false;
 
-    if (expr->isKind(PNK_CALL))
-        return CheckCall(f, expr, RetType::Void, &_1, &_2);
-
-    return CheckExpr(f, UnaryKid(exprStmt), Use::Normal, &_1, &_2);
+    return true;
 }
 
 static bool
@@ -4184,7 +4177,7 @@ CheckWhile(FunctionCompiler &f, ParseNode *whileStmt, const LabelVector *maybeLa
 
     MDefinition *condDef;
     Type condType;
-    if (!CheckExpr(f, cond, Use::Normal, &condDef, &condType))
+    if (!CheckExpr(f, cond, Use::NoCoercion, &condDef, &condType))
         return false;
 
     if (!condType.isInt())
@@ -4220,7 +4213,7 @@ CheckFor(FunctionCompiler &f, ParseNode *forStmt, const LabelVector *maybeLabels
     if (maybeInit) {
         MDefinition *_1;
         Type _2;
-        if (!CheckExpr(f, maybeInit, Use::Normal, &_1, &_2))
+        if (!CheckExpr(f, maybeInit, Use::NoCoercion, &_1, &_2))
             return false;
     }
 
@@ -4231,7 +4224,7 @@ CheckFor(FunctionCompiler &f, ParseNode *forStmt, const LabelVector *maybeLabels
     MDefinition *condDef;
     if (maybeCond) {
         Type condType;
-        if (!CheckExpr(f, maybeCond, Use::Normal, &condDef, &condType))
+        if (!CheckExpr(f, maybeCond, Use::NoCoercion, &condDef, &condType))
             return false;
 
         if (!condType.isInt())
@@ -4253,7 +4246,7 @@ CheckFor(FunctionCompiler &f, ParseNode *forStmt, const LabelVector *maybeLabels
     if (maybeInc) {
         MDefinition *_1;
         Type _2;
-        if (!CheckExpr(f, maybeInc, Use::Normal, &_1, &_2))
+        if (!CheckExpr(f, maybeInc, Use::NoCoercion, &_1, &_2))
             return false;
     }
 
@@ -4279,7 +4272,7 @@ CheckDoWhile(FunctionCompiler &f, ParseNode *whileStmt, const LabelVector *maybe
 
     MDefinition *condDef;
     Type condType;
-    if (!CheckExpr(f, cond, Use::Normal, &condDef, &condType))
+    if (!CheckExpr(f, cond, Use::NoCoercion, &condDef, &condType))
         return false;
 
     if (!condType.isInt())
@@ -4291,7 +4284,7 @@ CheckDoWhile(FunctionCompiler &f, ParseNode *whileStmt, const LabelVector *maybe
 static bool
 CheckLabel(FunctionCompiler &f, ParseNode *labeledStmt, LabelVector *maybeLabels)
 {
-    JS_ASSERT(labeledStmt->isKind(PNK_LABEL));
+    JS_ASSERT(labeledStmt->isKind(PNK_COLON));
     PropertyName *label = LabeledStatementLabel(labeledStmt);
     ParseNode *stmt = LabeledStatementStatement(labeledStmt);
 
@@ -4330,7 +4323,7 @@ CheckIf(FunctionCompiler &f, ParseNode *ifStmt)
 
     MDefinition *condDef;
     Type condType;
-    if (!CheckExpr(f, cond, Use::Normal, &condDef, &condType))
+    if (!CheckExpr(f, cond, Use::NoCoercion, &condDef, &condType))
         return false;
 
     if (!condType.isInt())
@@ -4447,7 +4440,7 @@ CheckSwitch(FunctionCompiler &f, ParseNode *switchStmt)
 
     MDefinition *exprDef;
     Type exprType;
-    if (!CheckExpr(f, switchExpr, Use::Normal, &exprDef, &exprType))
+    if (!CheckExpr(f, switchExpr, Use::NoCoercion, &exprDef, &exprType))
         return false;
 
     if (!exprType.isSigned())
@@ -4517,7 +4510,7 @@ CheckReturn(FunctionCompiler &f, ParseNode *returnStmt)
 
     MDefinition *def;
     Type type;
-    if (!CheckExpr(f, expr, Use::Normal, &def, &type))
+    if (!CheckExpr(f, expr, Use::NoCoercion, &def, &type))
         return false;
 
     RetType retType = f.func().returnType();
@@ -4562,7 +4555,7 @@ CheckStatement(FunctionCompiler &f, ParseNode *stmt, LabelVector *maybeLabels)
       case PNK_WHILE:         return CheckWhile(f, stmt, maybeLabels);
       case PNK_FOR:           return CheckFor(f, stmt, maybeLabels);
       case PNK_DOWHILE:       return CheckDoWhile(f, stmt, maybeLabels);
-      case PNK_LABEL:         return CheckLabel(f, stmt, maybeLabels);
+      case PNK_COLON:         return CheckLabel(f, stmt, maybeLabels);
       case PNK_IF:            return CheckIf(f, stmt);
       case PNK_SWITCH:        return CheckSwitch(f, stmt);
       case PNK_RETURN:        return CheckReturn(f, stmt);
@@ -4638,8 +4631,6 @@ CheckVariableDecls(ModuleCompiler &m, FunctionCompiler::LocalMap *locals, ParseN
 static MIRGenerator *
 CheckFunctionBody(ModuleCompiler &m, ModuleCompiler::Func &func, LifoAlloc &lifo)
 {
-    int64_t before = PRMJ_Now();
-
     // CheckFunctionSignature already has already checked the
     // function head as well as argument type declarations. The ParseNode*
     // stored in f.body points to the first non-argument statement.
@@ -4682,8 +4673,6 @@ CheckFunctionBody(ModuleCompiler &m, ModuleCompiler::Func &func, LifoAlloc &lifo
     f.returnVoid();
     JS_ASSERT(!tempAlloc->rootList());
 
-    func.accumulateCompileTime((PRMJ_Now() - before) / PRMJ_USEC_PER_MSEC);
-
     return mirGen;
 }
 
@@ -4691,8 +4680,6 @@ static bool
 GenerateAsmJSCode(ModuleCompiler &m, ModuleCompiler::Func &func,
                   MIRGenerator &mirGen, LIRGraph &lir)
 {
-    int64_t before = PRMJ_Now();
-
     m.masm().bind(func.codeLabel());
 
     ScopedJSDeletePtr<CodeGenerator> codegen(GenerateCode(&mirGen, &lir, &m.masm()));
@@ -4725,10 +4712,6 @@ GenerateAsmJSCode(ModuleCompiler &m, ModuleCompiler::Func &func,
     // Align internal function headers.
     m.masm().align(CodeAlignment);
 
-    func.accumulateCompileTime((PRMJ_Now() - before) / PRMJ_USEC_PER_MSEC);
-    if (!m.maybeReportCompileTime(func.fn(), func.compileTime()))
-        return false;
-
     // Unlike regular IonMonkey which links and generates a new IonCode for
     // every function, we accumulate all the functions in the module in a
     // single MacroAssembler and link at end. Linking asm.js doesn't require a
@@ -4758,16 +4741,12 @@ CheckFunctionBodiesSequential(ModuleCompiler &m)
 
         IonContext icx(m.cx()->compartment(), &mirGen->temp());
 
-        int64_t before = PRMJ_Now();
-
         if (!OptimizeMIR(mirGen))
             return m.fail(func.fn(), "internal compiler failure (probably out of memory)");
 
         LIRGraph *lir = GenerateLIR(mirGen);
         if (!lir)
             return m.fail(func.fn(), "internal compiler failure (probably out of memory)");
-
-        func.accumulateCompileTime((PRMJ_Now() - before) / PRMJ_USEC_PER_MSEC);
 
         if (!GenerateAsmJSCode(m, func, *mirGen, *lir))
             return false;
@@ -4817,12 +4796,8 @@ GenerateCodeForFinishedJob(ModuleCompiler &m, ParallelGroupState &group, AsmJSPa
     if (!task)
         return false;
 
-    ModuleCompiler::Func &func = m.function(task->funcNum);
-
-    func.accumulateCompileTime(task->compileTime);
-
     // Perform code generation on the main thread.
-    if (!GenerateAsmJSCode(m, func, *task->mir, *task->lir))
+    if (!GenerateAsmJSCode(m, m.function(task->funcNum), *task->mir, *task->lir))
         return false;
     group.compiledJobs++;
 
@@ -5256,14 +5231,9 @@ GenerateEntries(ModuleCompiler &m)
 }
 
 static inline bool
-TryEnablingIon(JSContext *cx, AsmJSModule::ExitDatum *exitDatum, int32_t argc, Value *argv)
-{
-    if (!exitDatum->fun->hasScript())
-        return true;
+TryEnablingIon(JSContext *cx, AsmJSModule::ExitDatum *exitDatum, int32_t argc, Value *argv) {
 
     JSScript *script = exitDatum->fun->nonLazyScript();
-    if (!script)
-        return true;
 
     // Test if the function is Ion compiled
     if (!script->hasIonScript())
@@ -5477,21 +5447,23 @@ GenerateFFIInterpreterExit(ModuleCompiler &m, const ModuleCompiler::ExitDescript
 
     // Make the call, test whether it succeeded, and extract the return value.
     AssertStackAlignment(masm);
-    switch (exit.retType().which()) {
-      case RetType::Void:
+    switch (exit.use().which()) {
+      case Use::NoCoercion:
         masm.call(ImmWord(JS_FUNC_TO_DATA_PTR(void*, &InvokeFromAsmJS_Ignore)));
         masm.branchTest32(Assembler::Zero, ReturnReg, ReturnReg, throwLabel);
         break;
-      case RetType::Signed:
+      case Use::ToInt32:
         masm.call(ImmWord(JS_FUNC_TO_DATA_PTR(void*, &InvokeFromAsmJS_ToInt32)));
         masm.branchTest32(Assembler::Zero, ReturnReg, ReturnReg, throwLabel);
         masm.unboxInt32(argv, ReturnReg);
         break;
-      case RetType::Double:
+      case Use::ToNumber:
         masm.call(ImmWord(JS_FUNC_TO_DATA_PTR(void*, &InvokeFromAsmJS_ToNumber)));
         masm.branchTest32(Assembler::Zero, ReturnReg, ReturnReg, throwLabel);
         masm.loadDouble(argv, ReturnFloatReg);
         break;
+      case Use::AddOrSub:
+        JS_NOT_REACHED("Should have been a type error");
     }
 
     // Note: the caller is IonMonkey code which means there are no non-volatile
@@ -5528,17 +5500,17 @@ GenerateFFIInterpreterExit(ModuleCompiler &m, const ModuleCompiler::ExitDescript
     masm.lea(Operand(argv), IntArgReg3);
 
     AssertStackAlignment(masm);
-    switch (exit.retType().which()) {
-      case RetType::Void:
+    switch (exit.use().which()) {
+      case Use::NoCoercion:
         masm.call(ImmWord(JS_FUNC_TO_DATA_PTR(void*, &InvokeFromAsmJS_Ignore)));
         masm.branchTest32(Assembler::Zero, ReturnReg, ReturnReg, throwLabel);
         break;
-      case RetType::Signed:
+      case Use::ToInt32:
         masm.call(ImmWord(JS_FUNC_TO_DATA_PTR(void*, &InvokeFromAsmJS_ToInt32)));
         masm.branchTest32(Assembler::Zero, ReturnReg, ReturnReg, throwLabel);
         masm.unboxInt32(argv, ReturnReg);
         break;
-      case RetType::Double:
+      case Use::ToNumber:
         masm.call(ImmWord(JS_FUNC_TO_DATA_PTR(void*, &InvokeFromAsmJS_ToNumber)));
         masm.branchTest32(Assembler::Zero, ReturnReg, ReturnReg, throwLabel);
 #if defined(JS_CPU_ARM) && !defined(JS_CPU_ARM_HARDFP)
@@ -5547,6 +5519,8 @@ GenerateFFIInterpreterExit(ModuleCompiler &m, const ModuleCompiler::ExitDescript
         masm.loadDouble(argv, ReturnFloatReg);
 #endif
         break;
+      case Use::AddOrSub:
+        JS_NOT_REACHED("Should have been a type error");
     }
 
     masm.freeStack(reserveSize + sizeof(int32_t));
@@ -5577,7 +5551,7 @@ ValueToNumber(JSContext *cx, Value *val)
 }
 
 static void
-GenerateOOLConvert(ModuleCompiler &m, RetType retType, Label *throwLabel)
+GenerateOOLConvert(ModuleCompiler &m, Use::Which type, Label *throwLabel)
 {
     MacroAssembler &masm = m.masm();
 
@@ -5624,13 +5598,13 @@ GenerateOOLConvert(ModuleCompiler &m, RetType retType, Label *throwLabel)
     JS_ASSERT(i.done());
 
     // Call
-    switch (retType.which()) {
-      case RetType::Signed:
+    switch (type) {
+      case Use::ToInt32:
           masm.call(ImmWord(JS_FUNC_TO_DATA_PTR(void *, &ValueToInt32)));
           masm.branchTest32(Assembler::Zero, ReturnReg, ReturnReg, throwLabel);
           masm.unboxInt32(Address(StackPointer, offsetToArgv), ReturnReg);
           break;
-      case RetType::Double:
+      case Use::ToNumber:
           masm.call(ImmWord(JS_FUNC_TO_DATA_PTR(void *, &ValueToNumber)));
           masm.branchTest32(Assembler::Zero, ReturnReg, ReturnReg, throwLabel);
 #if defined(JS_CPU_ARM) && !defined(JS_CPU_ARM_HARDFP)
@@ -5768,25 +5742,20 @@ GenerateFFIIonExit(ModuleCompiler &m, const ModuleCompiler::ExitDescriptor &exit
     masm.pop(JSReturnReg_Data);
     masm.pop(JSReturnReg_Type);
 
-#ifdef DEBUG
-    masm.branchTestMagicValue(Assembler::Equal, JSReturnOperand, JS_ION_ERROR, throwLabel);
-    masm.branchTestMagic(Assembler::Equal, JSReturnOperand, &ionFailed);
-#else
-    masm.branchTestMagic(Assembler::Equal, JSReturnOperand, throwLabel);
-#endif
-
-    switch (exit.retType().which()) {
-      case RetType::Void:
+    switch (exit.use().which()) {
+      case Use::NoCoercion:
         break;
-      case RetType::Signed:
+      case Use::ToInt32:
         masm.convertValueToInt32(JSReturnOperand, ReturnFloatReg, ReturnReg, &oolConvert);
         break;
-      case RetType::Double:
+      case Use::ToNumber:
         masm.convertValueToDouble(JSReturnOperand, ReturnFloatReg, &oolConvert);
 #if defined(JS_CPU_ARM) && !defined(JS_CPU_ARM_HARDFP)
         masm.boxDouble(ReturnFloatReg, softfpReturnOperand);
 #endif
         break;
+      case Use::AddOrSub:
+        JS_NOT_REACHED("Should have been a type error");
     }
 
     masm.bind(&done);
@@ -5796,7 +5765,7 @@ GenerateFFIIonExit(ModuleCompiler &m, const ModuleCompiler::ExitDescriptor &exit
     // oolConvert
     if (oolConvert.used()) {
         masm.bind(&oolConvert);
-        GenerateOOLConvert(m, exit.retType().which(), throwLabel);
+        GenerateOOLConvert(m, exit.use().which(), throwLabel);
         masm.jump(&done);
     }
 
@@ -6023,8 +5992,7 @@ GenerateExits(ModuleCompiler &m)
 }
 
 static bool
-CheckModule(JSContext *cx, TokenStream &ts, ParseNode *fn, ScopedJSDeletePtr<AsmJSModule> *module,
-            ScopedJSFreePtr<char> *compilationTimeReport)
+CheckModule(JSContext *cx, TokenStream &ts, ParseNode *fn, ScopedJSDeletePtr<AsmJSModule> *module)
 {
     ModuleCompiler m(cx, ts);
     if (!m.init())
@@ -6085,15 +6053,13 @@ CheckModule(JSContext *cx, TokenStream &ts, ParseNode *fn, ScopedJSDeletePtr<Asm
     if (!GenerateExits(m))
         return false;
 
-    if (!m.finish(module))
-        return false;
-
-    m.buildCompilationTimeReport(compilationTimeReport);
-    return true;
+    return m.finish(module);
 }
 
+#endif // defined(JS_ASMJS)
+
 static bool
-Warn(JSContext *cx, int code, const char *str)
+Warn(JSContext *cx, int code, const char *str = NULL)
 {
     return JS_ReportErrorFlagsAndNumber(cx, JSREPORT_WARNING, js_GetErrorMessage,
                                         NULL, code, str);
@@ -6110,15 +6076,13 @@ js::CompileAsmJS(JSContext *cx, TokenStream &ts, ParseNode *fn, const CompileOpt
     if (!JSC::MacroAssembler().supportsFloatingPoint())
         return Warn(cx, JSMSG_USE_ASM_TYPE_FAIL, "Disabled by lack of floating point support");
 
-    if (cx->runtime()->gcSystemPageSize != AsmJSPageSize)
-        return Warn(cx, JSMSG_USE_ASM_TYPE_FAIL, "Disabled by non 4KiB system page size");
-
     if (!cx->hasOption(JSOPTION_ASMJS))
         return Warn(cx, JSMSG_USE_ASM_TYPE_FAIL, "Disabled by javascript.options.asmjs in about:config");
 
     if (cx->compartment()->debugMode())
         return Warn(cx, JSMSG_USE_ASM_TYPE_FAIL, "Disabled by debugger");
 
+#ifdef JS_ASMJS
     if (!EnsureAsmJSSignalHandlersInstalled(cx->runtime()))
         return Warn(cx, JSMSG_USE_ASM_TYPE_FAIL, "Platform missing signal handler support");
 
@@ -6129,9 +6093,8 @@ js::CompileAsmJS(JSContext *cx, TokenStream &ts, ParseNode *fn, const CompileOpt
     }
 # endif
 
-    ScopedJSFreePtr<char> compilationTimeReport;
     ScopedJSDeletePtr<AsmJSModule> module;
-    if (!CheckModule(cx, ts, fn, &module, &compilationTimeReport))
+    if (!CheckModule(cx, ts, fn, &module))
         return !cx->isExceptionPending();
 
     module->initPostLinkFailureInfo(options, scriptSource, bufStart, bufEnd);
@@ -6154,7 +6117,10 @@ js::CompileAsmJS(JSContext *cx, TokenStream &ts, ParseNode *fn, const CompileOpt
 
     SetAsmJSModuleObject(moduleFun, moduleObj);
 
-    return Warn(cx, JSMSG_USE_ASM_TYPE_OK, compilationTimeReport);
+    return Warn(cx, JSMSG_USE_ASM_TYPE_OK);
+#else
+    return Warn(cx, JSMSG_USE_ASM_TYPE_FAIL, "Platform not supported (yet)");
+#endif
 }
 
 JSBool
@@ -6162,9 +6128,13 @@ js::IsAsmJSCompilationAvailable(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
+#ifdef JS_ASMJS
     bool available = JSC::MacroAssembler().supportsFloatingPoint() &&
                      !cx->compartment()->debugMode() &&
                      cx->hasOption(JSOPTION_ASMJS);
+#else
+    bool available = false;
+#endif
 
     args.rval().set(BooleanValue(available));
     return true;
@@ -6180,7 +6150,7 @@ IsMaybeWrappedNativeFunction(const Value &v, Native native)
     if (!obj)
         return false;
 
-    return obj->is<JSFunction>() && obj->as<JSFunction>().maybeNative() == native;
+    return obj->isFunction() && obj->toFunction()->maybeNative() == native;
 }
 
 JSBool
@@ -6209,7 +6179,7 @@ AsmJSModule::~AsmJSModule()
             if (!exitDatum.fun)
                 continue;
 
-            if (!exitDatum.fun->hasScript())
+            if (!exitDatum.fun->isInterpreted())
                 continue;
 
             JSScript *script = exitDatum.fun->nonLazyScript();

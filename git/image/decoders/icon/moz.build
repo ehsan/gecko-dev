@@ -16,5 +16,3 @@ CPP_SOURCES += [
     'nsIconURI.cpp',
 ]
 
-LIBRARY_NAME = 'imgicon'
-

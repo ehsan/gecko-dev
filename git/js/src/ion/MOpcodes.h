@@ -4,8 +4,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_MOpcodes_h
-#define ion_MOpcodes_h
+
+#ifndef jsion_mir_opcodes_h__
+#define jsion_mir_opcodes_h__
 
 namespace js {
 namespace ion {
@@ -167,7 +168,6 @@ namespace ion {
     _(GetDOMProperty)                                                       \
     _(SetDOMProperty)                                                       \
     _(IsCallable)                                                           \
-    _(HaveSameClass)                                                        \
     _(AsmJSNeg)                                                             \
     _(AsmJSUDiv)                                                            \
     _(AsmJSUMod)                                                            \
@@ -220,4 +220,5 @@ class MInstructionVisitorWithDefaults : public MInstructionVisitor
 } // namespace ion
 } // namespace js
 
-#endif /* ion_MOpcodes_h */
+#endif // jsion_mir_opcodes_h__
+

@@ -89,15 +89,6 @@ pref("dom.workers.maxPerDomain", 20);
 // Whether nonzero values can be returned from performance.timing.*
 pref("dom.enable_performance", true);
 
-// Whether the Gamepad API is enabled
-#ifdef RELEASE_BUILD
-pref("dom.gamepad.enabled", false);
-pref("dom.gamepad.non_standard_events.enabled", false);
-#else
-pref("dom.gamepad.enabled", true);
-pref("dom.gamepad.non_standard_events.enabled", true);
-#endif
-
 // Fastback caching - if this pref is negative, then we calculate the number
 // of content viewers to cache based on the amount of available memory.
 pref("browser.sessionhistory.max_total_viewers", -1);
@@ -167,7 +158,6 @@ pref("media.wakelock_timeout", 2000);
 #ifdef MOZ_WMF
 pref("media.windows-media-foundation.enabled", true);
 pref("media.windows-media-foundation.use-dxva", true);
-pref("media.windows-media-foundation.play-stand-alone", true);
 #endif
 #ifdef MOZ_RAW
 pref("media.raw.enabled", true);
@@ -188,7 +178,7 @@ pref("media.webm.enabled", true);
 pref("media.dash.enabled", false);
 #endif
 #ifdef MOZ_GSTREAMER
-pref("media.gstreamer.enabled", false);
+pref("media.gstreamer.enabled", true);
 #endif
 #ifdef MOZ_WEBRTC
 pref("media.navigator.enabled", true);
@@ -827,7 +817,6 @@ pref("javascript.options.mem.gc_low_frequency_heap_growth", 150);
 pref("javascript.options.mem.gc_dynamic_heap_growth", true);
 pref("javascript.options.mem.gc_dynamic_mark_slice", true);
 pref("javascript.options.mem.gc_allocation_threshold_mb", 30);
-pref("javascript.options.mem.gc_decommit_threshold_mb", 32);
 
 pref("javascript.options.mem.analysis_purge_mb", 100);
 
@@ -1815,6 +1804,7 @@ pref("capability.policy.default.SOAPCall.invokeVerifySourceHeader", "allAccess")
 
 // if true, allow plug-ins to override internal imglib decoder mime types in full-page mode
 pref("plugin.override_internal_types", false);
+pref("plugin.expose_full_path", false); // if true navigator.plugins reveals full path
 
 // See bug 136985.  Gives embedders a pref to hook into to show
 // a popup blocker if they choose.
@@ -3983,7 +3973,6 @@ pref("webgl.force-layers-readback", false);
 pref("webgl.lose-context-on-heap-minimize", false);
 pref("webgl.can-lose-context-in-foreground", true);
 pref("webgl.max-warnings-per-context", 32);
-pref("webgl.enable-draft-extensions", false);
 #ifdef MOZ_WIDGET_GONK
 pref("gfx.gralloc.fence-with-readpixels", false);
 #endif
@@ -4018,11 +4007,7 @@ pref("layers.acceleration.draw-fps", false);
 
 pref("layers.draw-borders", false);
 
-#ifdef XP_MACOSX
-pref("layers.offmainthreadcomposition.enabled", true);
-#else
 pref("layers.offmainthreadcomposition.enabled", false);
-#endif
 // same effect as layers.offmainthreadcomposition.enabled, but specifically for
 // use with tests.
 pref("layers.offmainthreadcomposition.testing.enabled", false);

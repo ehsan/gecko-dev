@@ -16,5 +16,3 @@ CPP_SOURCES += [
     'nsJSON.cpp',
 ]
 
-LIBRARY_NAME = 'json_s'
-

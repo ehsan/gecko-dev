@@ -14,5 +14,3 @@ CPP_SOURCES += [
     'mozStorageModule.cpp',
 ]
 
-LIBRARY_NAME = 'storagecomps'
-

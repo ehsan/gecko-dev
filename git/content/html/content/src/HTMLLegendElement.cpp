@@ -164,12 +164,12 @@ HTMLLegendElement::PerformAccesskey(bool aKeyCausesActivation,
   Focus(rv);
 }
 
-already_AddRefed<HTMLFormElement>
+already_AddRefed<nsHTMLFormElement>
 HTMLLegendElement::GetForm()
 {
   Element* form = GetFormElement();
   MOZ_ASSERT_IF(form, form->IsHTML(nsGkAtoms::form));
-  nsRefPtr<HTMLFormElement> ret = static_cast<HTMLFormElement*>(form);
+  nsRefPtr<nsHTMLFormElement> ret = static_cast<nsHTMLFormElement*>(form);
   return ret.forget();
 }
 

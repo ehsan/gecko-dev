@@ -4,16 +4,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "vm/String.h"
-
 #include "mozilla/PodOperations.h"
 #include "mozilla/RangedPtr.h"
 
 #include "gc/Marking.h"
 
-#include "jscompartmentinlines.h"
-
+#include "String.h"
 #include "String-inl.h"
+
+#include "jsobjinlines.h"
 
 using namespace js;
 

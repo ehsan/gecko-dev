@@ -19,6 +19,3 @@ if CONFIG['OS_ARCH'] == 'WINNT':
         'nsDebugHelpWin32.cpp',
         'nsWinTraceMalloc.cpp',
     ]
-
-LIBRARY_NAME = 'tracemalloc'
-

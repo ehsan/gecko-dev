@@ -16,6 +16,7 @@ const Ci = Components.interfaces;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/IndexedDBHelper.jsm");
 Cu.import("resource://gre/modules/PhoneNumberUtils.jsm");
+Cu.import("resource://gre/modules/devtools/Console.jsm");
 
 const DB_NAME = "contacts";
 const DB_VERSION = 11;
@@ -437,8 +438,7 @@ ContactDB.prototype = {
       impp:            [],
       anniversary:     null,
       sex:             null,
-      genderIdentity:  null,
-      key:             [],
+      genderIdentity:  null
     };
 
     contact.search = {
@@ -448,7 +448,7 @@ ContactDB.prototype = {
       category:        [],
       tel:             [],
       exactTel:        [],
-      parsedTel:       [],
+      parsedTel:       []
     };
 
     for (let field in aContact.properties) {
@@ -482,11 +482,7 @@ ContactDB.prototype = {
                   matchSearch[parsedNumber.nationalNumber] = 1;
                   matchSearch[parsedNumber.internationalNumber] = 1;
                   matchSearch[PhoneNumberUtils.normalize(parsedNumber.nationalFormat)] = 1;
-                  matchSearch[PhoneNumberUtils.normalize(parsedNumber.internationalFormat)] = 1;
-
-                  if (this.substringMatching && normalized.length > this.substringMatching) {
-                    matchSearch[normalized.slice(-this.substringMatching)] = 1;
-                  }
+                  matchSearch[PhoneNumberUtils.normalize(parsedNumber.internationalFormat)] = 1
                 }
 
                 // containsSearch holds incremental search values for:
@@ -881,35 +877,19 @@ ContactDB.prototype = {
         let index = store.index("telMatch");
         let normalized = PhoneNumberUtils.normalize(options.filterValue,
                                                     /*numbersOnly*/ true);
-
-        // Some countries need special handling for number matching. Bug 877302
-        if (this.substringMatching && normalized.length > this.substringMatching) {
-          normalized = normalized.slice(-this.substringMatching);
-        }
         request = index.mozGetAll(normalized, limit);
       } else {
         // XXX: "contains" should be handled separately, this is "startsWith"
         if (options.filterOp === 'contains' && key !== 'tel') {
-          dump("ContactDB: 'contains' only works for 'tel'. Falling back " +
-               "to 'startsWith'.\n");
+          console.warn("ContactDB: 'contains' only works for 'tel'. " +
+                       "Falling back to 'startsWith'.");
         }
         // not case sensitive
-        let lowerCase = options.filterValue.toString().toLowerCase();
+        let tmp = options.filterValue.toString().toLowerCase();
         if (key === "tel") {
-          let origLength = lowerCase.length;
-          let tmp = PhoneNumberUtils.normalize(lowerCase, /*numbersOnly*/ true);
-          if (tmp.length != origLength) {
-            let NON_SEARCHABLE_CHARS = /[^#+\*\d\s()-]/;
-            // e.g. number "123". find with "(123)" but not with "123a"
-            if (tmp === "" || NON_SEARCHABLE_CHARS.test(lowerCase)) {
-              if (DEBUG) debug("Call continue!");
-              continue;
-            }
-            lowerCase = tmp;
-          }
+          tmp = PhoneNumberUtils.normalize(tmp, /*numbersOnly*/ true);
         }
-        if (DEBUG) debug("lowerCase: " + lowerCase);
-        let range = this._global.IDBKeyRange.bound(lowerCase, lowerCase + "\uFFFF");
+        let range = this._global.IDBKeyRange.bound(tmp, tmp + "\uFFFF");
         let index = store.index(key + "LowerCase");
         request = index.mozGetAll(range, limit);
       }
@@ -940,12 +920,7 @@ ContactDB.prototype = {
     }.bind(this);
   },
 
-  // Enable special phone number substring matching. Does not update existing DB entries.
-  enableSubstringMatching: function enableSubstringMatching(aDigits) {
-    this.substringMatching = aDigits;
-  },
-
   init: function init(aGlobal) {
-    this.initDBHelper(DB_NAME, DB_VERSION, [STORE_NAME, SAVED_GETALL_STORE_NAME, REVISION_STORE], aGlobal);
+      this.initDBHelper(DB_NAME, DB_VERSION, [STORE_NAME, SAVED_GETALL_STORE_NAME, REVISION_STORE], aGlobal);
   }
 };

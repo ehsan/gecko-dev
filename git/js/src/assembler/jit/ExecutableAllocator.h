@@ -23,15 +23,17 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
-#ifndef assembler_jit_ExecutableAllocator_h
-#define assembler_jit_ExecutableAllocator_h
+#ifndef ExecutableAllocator_h
+#define ExecutableAllocator_h
 
 #include <stddef.h> // for ptrdiff_t
 #include <limits>
 
 #include "jsalloc.h"
+#include "jsapi.h"
+#include "jsprvtd.h"
 
-#include "assembler/wtf/Platform.h"
+#include "assembler/wtf/Assertions.h"
 #include "js/HashTable.h"
 #include "js/Vector.h"
 
@@ -505,4 +507,5 @@ private:
 
 #endif // ENABLE(ASSEMBLER)
 
-#endif /* assembler_jit_ExecutableAllocator_h */
+#endif // !defined(ExecutableAllocator)
+

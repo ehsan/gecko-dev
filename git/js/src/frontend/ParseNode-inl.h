@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef frontend_ParseNode_inl_h
-#define frontend_ParseNode_inl_h
+#ifndef ParseNode_inl_h__
+#define ParseNode_inl_h__
 
 #include "frontend/ParseNode.h"
 #include "frontend/SharedContext.h"
@@ -47,4 +47,4 @@ ParseNode::atom() const
 } /* namespace frontend */
 } /* namespace js */
 
-#endif /* frontend_ParseNode_inl_h */
+#endif /* ParseNode_inl_h__ */

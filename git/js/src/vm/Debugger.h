@@ -4,18 +4,22 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_Debugger_h
-#define vm_Debugger_h
+#ifndef Debugger_h__
+#define Debugger_h__
 
+#include "mozilla/Attributes.h"
 #include "mozilla/LinkedList.h"
 
 #include "jsapi.h"
 #include "jsclist.h"
 #include "jscntxt.h"
 #include "jscompartment.h"
+#include "jsgc.h"
 #include "jsweakmap.h"
+#include "jswrapper.h"
 
 #include "gc/Barrier.h"
+#include "gc/FindSCCs.h"
 #include "js/HashTable.h"
 #include "vm/GlobalObject.h"
 
@@ -418,7 +422,7 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     inline bool observesNewScript() const;
     inline bool observesNewGlobalObject() const;
     inline bool observesGlobal(GlobalObject *global) const;
-    bool observesFrame(AbstractFramePtr frame) const;
+    inline bool observesFrame(AbstractFramePtr frame) const;
     bool observesScript(JSScript *script) const;
 
     /*
@@ -696,4 +700,4 @@ EvaluateInEnv(JSContext *cx, Handle<Env*> env, HandleValue thisv, AbstractFrameP
 
 }
 
-#endif /* vm_Debugger_h */
+#endif /* Debugger_h__ */

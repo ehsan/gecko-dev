@@ -62,7 +62,6 @@ if CONFIG['MOZ_DEBUG']:
 EXPORTS.mozilla += [
     'AvailableMemoryTracker.h',
     'ClearOnShutdown.h',
-    'CycleCollectedJSRuntime.h',
     'MapsMemoryReporter.h',
     'StackWalk.h',
     'StaticMutex.h',
@@ -74,7 +73,6 @@ EXPORTS.mozilla += [
 CPP_SOURCES += [
     'AvailableMemoryTracker.cpp',
     'ClearOnShutdown.cpp',
-    'CycleCollectedJSRuntime.cpp',
     'VisualEventTracer.cpp',
     'nsConsoleMessage.cpp',
     'nsConsoleService.cpp',

@@ -4,10 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_x64_BaselineRegisters_x64_h
-#define ion_x64_BaselineRegisters_x64_h
-
-#ifdef JS_ION
+#if !defined(jsion_baseline_registers_x64_h__) && defined(JS_ION)
+#define jsion_baseline_registers_x64_h__
 
 #include "ion/IonMacroAssembler.h"
 
@@ -36,6 +34,5 @@ static const FloatRegister FloatReg1      = xmm1;
 } // namespace ion
 } // namespace js
 
-#endif // JS_ION
+#endif
 
-#endif /* ion_x64_BaselineRegisters_x64_h */

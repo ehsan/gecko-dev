@@ -4,25 +4,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef gc_Barrier_inl_h
-#define gc_Barrier_inl_h
+#ifndef jsgc_barrier_inl_h___
+#define jsgc_barrier_inl_h___
 
 #include "gc/Barrier.h"
 #include "gc/Marking.h"
 #include "gc/StoreBuffer.h"
 
+#include "vm/ObjectImpl-inl.h"
 #include "vm/String-inl.h"
 
 namespace js {
-
-JS_ALWAYS_INLINE JS::Zone *
-ZoneOfValue(const JS::Value &value)
-{
-    JS_ASSERT(value.isMarkable());
-    if (value.isObject())
-        return value.toObject().zone();
-    return static_cast<js::gc::Cell *>(value.toGCThing())->tenuredZone();
-}
 
 template <typename T, typename Unioned>
 void
@@ -420,6 +412,12 @@ class DenseRangeRef : public gc::BufferableRef
         JS_ASSERT(start < end);
     }
 
+    bool match(void *location) {
+        uint32_t len = owner->getDenseInitializedLength();
+        return location >= &owner->getDenseElement(Min(start, len)) &&
+               location <= &owner->getDenseElement(Min(end, len)) - 1;
+    }
+
     void mark(JSTracer *trc) {
         /* Apply forwarding, if we have already visited owner. */
         IsObjectMarked(&owner);
@@ -593,4 +591,4 @@ ReadBarrieredValue::toObject() const
 
 } /* namespace js */
 
-#endif /* gc_Barrier_inl_h */
+#endif /* jsgc_barrier_inl_h___ */

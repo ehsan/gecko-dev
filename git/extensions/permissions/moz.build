@@ -11,5 +11,3 @@ CPP_SOURCES += [
     'nsModuleFactory.cpp',
 ]
 
-LIBRARY_NAME = 'permissions'
-

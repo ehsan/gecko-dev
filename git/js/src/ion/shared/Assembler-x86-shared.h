@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_shared_Assembler_x86_shared_h
-#define ion_shared_Assembler_x86_shared_h
+#ifndef jsion_assembler_x86_shared__
+#define jsion_assembler_x86_shared__
 #include <cstddef>
 #include "assembler/assembler/X86Assembler.h"
 
@@ -35,10 +35,8 @@ class AssemblerX86Shared
     bool enoughMemory_;
 
     void writeDataRelocation(const Value &val) {
-        if (val.isMarkable()) {
-            JS_ASSERT(static_cast<gc::Cell*>(val.toGCThing())->isTenured());
+        if (val.isMarkable())
             dataRelocations_.writeUnsigned(masm.currentOffset());
-        }
     }
     void writeDataRelocation(const ImmGCPtr &ptr) {
         if (ptr.value)
@@ -580,27 +578,25 @@ class AssemblerX86Shared
     void cmpEAX(Label *label) { cmpSrc(label); }
     void bind(Label *label) {
         JSC::MacroAssembler::Label jsclabel;
-        JSC::X86Assembler::JmpDst dst(masm.label());
         if (label->used()) {
             bool more;
             JSC::X86Assembler::JmpSrc jmp(label->offset());
             do {
                 JSC::X86Assembler::JmpSrc next;
                 more = masm.nextJump(jmp, &next);
-                masm.linkJump(jmp, dst);
+                masm.linkJump(jmp, masm.label());
                 jmp = next;
             } while (more);
         }
-        label->bind(dst.offset());
+        label->bind(masm.label().offset());
     }
     void bind(RepatchLabel *label) {
         JSC::MacroAssembler::Label jsclabel;
-        JSC::X86Assembler::JmpDst dst(masm.label());
         if (label->used()) {
             JSC::X86Assembler::JmpSrc jmp(label->offset());
-            masm.linkJump(jmp, dst);
+            masm.linkJump(jmp, masm.label());
         }
-        label->bind(dst.offset());
+        label->bind(masm.label().offset());
     }
     uint32_t currentOffset() {
         return masm.label().offset();
@@ -1358,4 +1354,5 @@ class AssemblerX86Shared
 } // namespace ion
 } // namespace js
 
-#endif /* ion_shared_Assembler_x86_shared_h */
+#endif // jsion_assembler_x86_shared__
+

@@ -9,7 +9,7 @@
 #include "mozilla/Attributes.h"
 #include "nsIDOMHTMLLegendElement.h"
 #include "nsGenericHTMLElement.h"
-#include "mozilla/dom/HTMLFormElement.h"
+#include "nsHTMLFormElement.h"
 
 namespace mozilla {
 namespace dom {
@@ -85,7 +85,7 @@ public:
    * WebIDL Interface
    */
 
-  already_AddRefed<HTMLFormElement> GetForm();
+  already_AddRefed<nsHTMLFormElement> GetForm();
 
   // The XPCOM GetAlign is OK for us
   void SetAlign(const nsAString& aAlign, ErrorResult& aError)

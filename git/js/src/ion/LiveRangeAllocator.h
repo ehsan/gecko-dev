@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_LiveRangeAllocator_h
-#define ion_LiveRangeAllocator_h
+#ifndef js_ion_liverangeallocator_h__
+#define js_ion_liverangeallocator_h__
 
 #include "mozilla/DebugOnly.h"
 
@@ -378,7 +378,7 @@ class VirtualRegister
             return false;
         return intervals_.append(initial);
     }
-    uint32_t id() const {
+    uint32_t id() {
         return id_;
     }
     LBlock *block() {
@@ -634,7 +634,7 @@ class LiveRangeAllocator : public RegisterAllocator
     }
 
     // Finds the first safepoint that is within range of an interval.
-    size_t findFirstSafepoint(const LiveInterval *interval, size_t startFrom) const
+    size_t findFirstSafepoint(LiveInterval *interval, size_t startFrom)
     {
         size_t i = startFrom;
         for (; i < graph.numSafepoints(); i++) {
@@ -649,4 +649,4 @@ class LiveRangeAllocator : public RegisterAllocator
 } // namespace ion
 } // namespace js
 
-#endif /* ion_LiveRangeAllocator_h */
+#endif

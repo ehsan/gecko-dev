@@ -1174,7 +1174,7 @@ let RIL = {
   /**
    * Helper function for fetching the state of ICC locks.
    */
-  iccGetCardLockState: function iccGetCardLockState(options) {
+  iccGetCardLock: function iccGetCardLock(options) {
     switch (options.lockType) {
       case "pin":
         options.facility = ICC_CB_FACILITY_SIM;

@@ -54,8 +54,7 @@ WMFReader::WMFReader(AbstractMediaDecoder* aDecoder)
     mHasVideo(false),
     mUseHwAccel(false),
     mMustRecaptureAudioPosition(true),
-    mIsMP3Enabled(WMFDecoder::IsMP3Supported()),
-    mCOMInitialized(false)
+    mIsMP3Enabled(WMFDecoder::IsMP3Supported())
 {
   NS_ASSERTION(NS_IsMainThread(), "Must be on main thread.");
   MOZ_COUNT_CTOR(WMFReader);
@@ -80,22 +79,15 @@ void
 WMFReader::OnDecodeThreadStart()
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
-
-  // XXX WebAudio will call this on the main thread so CoInit will definitely
-  // fail. You cannot change the concurrency model once already set.
-  // The main thread will continue to be STA, which seems to work, but MSDN
-  // recommends that MTA be used.
-  mCOMInitialized = SUCCEEDED(CoInitializeEx(0, COINIT_MULTITHREADED));
-  NS_ENSURE_TRUE_VOID(mCOMInitialized);
+  HRESULT hr = CoInitializeEx(0, COINIT_MULTITHREADED);
+  NS_ENSURE_TRUE_VOID(SUCCEEDED(hr));
 }
 
 void
 WMFReader::OnDecodeThreadFinish()
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
-  if (mCOMInitialized) {
-    CoUninitialize();
-  }
+  CoUninitialize();
 }
 
 bool
@@ -128,18 +120,9 @@ WMFReader::InitializeDXVA()
   }
 
   mDXVA2Manager = DXVA2Manager::Create();
+  NS_ENSURE_TRUE(mDXVA2Manager, false);
 
-  return mDXVA2Manager != nullptr;
-}
-
-static bool
-IsVideoContentType(const nsCString& aContentType)
-{
-  NS_NAMED_LITERAL_CSTRING(video, "video");
-  if (FindInReadable(video, aContentType)) {
-    return true;
-  }
-  return false;
+  return true;
 }
 
 nsresult
@@ -162,11 +145,7 @@ WMFReader::Init(MediaDecoderReader* aCloneDonor)
   rv = mByteStream->Init();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (IsVideoContentType(mDecoder->GetResource()->GetContentType())) {
-    mUseHwAccel = InitializeDXVA();
-  } else {
-    mUseHwAccel = false;
-  }
+  mUseHwAccel = InitializeDXVA();
 
   return NS_OK;
 }

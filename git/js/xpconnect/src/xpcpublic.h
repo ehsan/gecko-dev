@@ -18,7 +18,6 @@
 #include "js/GCAPI.h"
 
 #include "nsISupports.h"
-#include "nsIURI.h"
 #include "nsIPrincipal.h"
 #include "nsWrapperCache.h"
 #include "nsStringGlue.h"
@@ -40,12 +39,12 @@ class nsIGlobalObject;
 
 namespace xpc {
 JSObject *
-TransplantObject(JSContext *cx, JS::HandleObject origobj, JS::HandleObject target);
+TransplantObject(JSContext *cx, JSObject *origobj, JSObject *target);
 
 JSObject *
 TransplantObjectWithWrapper(JSContext *cx,
-                            JS::HandleObject origobj, JS::HandleObject origwrapper,
-                            JS::HandleObject targetobj, JS::HandleObject targetwrapper);
+                            JSObject *origobj, JSObject *origwrapper,
+                            JSObject *targetobj, JSObject *targetwrapper);
 
 // Return a raw XBL scope object corresponding to contentScope, which must
 // be an object whose global is a DOM window.
@@ -83,16 +82,48 @@ xpc_LocalizeRuntime(JSRuntime *rt);
 NS_EXPORT_(void)
 xpc_DelocalizeRuntime(JSRuntime *rt);
 
-// If IS_WN_CLASS for the JSClass of an object is true, the object is a
-// wrappednative wrapper, holding the XPCWrappedNative in its private slot.
+nsresult
+xpc_MorphSlimWrapper(JSContext *cx, nsISupports *tomorph);
 
-static inline bool IS_WN_CLASS(js::Class* clazz)
+static inline bool IS_WRAPPER_CLASS(js::Class* clazz)
 {
     return clazz->ext.isWrappedNative;
 }
-static inline bool IS_WN_REFLECTOR(JSObject *obj)
+
+// If IS_WRAPPER_CLASS for the JSClass of an object is true, the object can be
+// a slim wrapper, holding a native in its private slot, or a wrappednative
+// wrapper, holding the XPCWrappedNative in its private slot. A slim wrapper
+// also holds a pointer to its XPCWrappedNativeProto in a reserved slot, we can
+// check that slot for a private value (i.e. a double) to distinguish between
+// the two. This allows us to store a JSObject in that slot for non-slim wrappers
+// while still being able to distinguish the two cases.
+
+// NB: This slot isn't actually reserved for us on globals, because SpiderMonkey
+// uses the first N slots on globals internally. The fact that we use it for
+// wrapped global objects is totally broken. But due to a happy coincidence, the
+// JS engine never uses that slot. This still needs fixing though. See bug 760095.
+#define WRAPPER_MULTISLOT 0
+
+static inline bool IS_WN_WRAPPER_OBJECT(JSObject *obj)
 {
-    return IS_WN_CLASS(js::GetObjectClass(obj));
+    MOZ_ASSERT(IS_WRAPPER_CLASS(js::GetObjectClass(obj)));
+    return !js::GetReservedSlot(obj, WRAPPER_MULTISLOT).isDouble();
+}
+static inline bool IS_SLIM_WRAPPER_OBJECT(JSObject *obj)
+{
+    return !IS_WN_WRAPPER_OBJECT(obj);
+}
+
+// Use these functions if IS_WRAPPER_CLASS(GetObjectClass(obj)) might be false.
+// Avoid calling them if IS_WRAPPER_CLASS(GetObjectClass(obj)) can only be
+// true, as we'd do a redundant call to IS_WRAPPER_CLASS.
+static inline bool IS_WN_WRAPPER(JSObject *obj)
+{
+    return IS_WRAPPER_CLASS(js::GetObjectClass(obj)) && IS_WN_WRAPPER_OBJECT(obj);
+}
+static inline bool IS_SLIM_WRAPPER(JSObject *obj)
+{
+    return IS_WRAPPER_CLASS(js::GetObjectClass(obj)) && IS_SLIM_WRAPPER_OBJECT(obj);
 }
 
 extern bool
@@ -103,10 +134,14 @@ xpc_FastGetCachedWrapper(nsWrapperCache *cache, JSObject *scope, jsval *vp)
 {
     if (cache) {
         JSObject* wrapper = cache->GetWrapper();
+        NS_ASSERTION(!wrapper ||
+                     !cache->IsDOMBinding() ||
+                     !IS_SLIM_WRAPPER(wrapper),
+                     "Should never have a slim wrapper when IsDOMBinding()");
         if (wrapper &&
             js::GetObjectCompartment(wrapper) == js::GetObjectCompartment(scope) &&
             (cache->IsDOMBinding() ? !cache->HasSystemOnlyWrapper() :
-                                     xpc_OkToHandOutWrapper(cache))) {
+             (IS_SLIM_WRAPPER(wrapper) || xpc_OkToHandOutWrapper(cache)))) {
             *vp = OBJECT_TO_JSVAL(wrapper);
             return wrapper;
         }
@@ -373,7 +408,6 @@ public:
 
     nsAutoCString jsPathPrefix;
     nsAutoCString domPathPrefix;
-    nsCOMPtr<nsIURI> location;
 
 private:
     CompartmentStatsExtras(const CompartmentStatsExtras &other) MOZ_DELETE;
@@ -416,6 +450,9 @@ GetNativeForGlobal(JSObject *global);
 JSObject *
 GetJunkScope();
 } // namespace xpc
+
+nsCycleCollectionParticipant *
+xpc_JSZoneParticipant();
 
 namespace mozilla {
 namespace dom {

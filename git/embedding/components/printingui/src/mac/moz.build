@@ -11,5 +11,3 @@ CPP_SOURCES += [
     'nsPrintProgressParams.cpp',
 ]
 
-LIBRARY_NAME = 'printingui_s'
-

@@ -4,19 +4,22 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_GlobalObject_h
-#define vm_GlobalObject_h
+#ifndef GlobalObject_h___
+#define GlobalObject_h___
 
+#include "mozilla/Attributes.h"
 #include "mozilla/DebugOnly.h"
 
 #include "jsarray.h"
 #include "jsbool.h"
 #include "jsexn.h"
 #include "jsfun.h"
+#include "jsiter.h"
 #include "jsnum.h"
 
-#include "builtin/RegExp.h"
 #include "js/Vector.h"
+
+#include "builtin/RegExp.h"
 
 extern JSObject *
 js_InitObjectClass(JSContext *cx, js::HandleObject obj);
@@ -66,7 +69,8 @@ class GlobalObject : public JSObject
     static const unsigned STANDARD_CLASS_SLOTS  = JSProto_LIMIT * 3;
 
     /* Various function values needed by the engine. */
-    static const unsigned EVAL                    = STANDARD_CLASS_SLOTS;
+    static const unsigned BOOLEAN_VALUEOF         = STANDARD_CLASS_SLOTS;
+    static const unsigned EVAL                    = BOOLEAN_VALUEOF + 1;
     static const unsigned CREATE_DATAVIEW_FOR_THIS = EVAL + 1;
     static const unsigned THROWTYPEERROR          = CREATE_DATAVIEW_FOR_THIS + 1;
     static const unsigned PROTO_GETTER            = THROWTYPEERROR + 1;
@@ -193,6 +197,7 @@ class GlobalObject : public JSObject
 
   public:
     /* XXX Privatize me! */
+    inline void setBooleanValueOf(Handle<JSFunction*> valueOfFun);
     inline void setCreateDataViewForThis(Handle<JSFunction*> fun);
 
     template<typename T>
@@ -396,6 +401,11 @@ class GlobalObject : public JSObject
         return &getSlot(THROWTYPEERROR).toObject();
     }
 
+    Value booleanValueOf() const {
+        JS_ASSERT(booleanClassInitialized());
+        return getSlot(BOOLEAN_VALUEOF);
+    }
+
     Value createDataViewForThis() const {
         JS_ASSERT(dataViewClassInitialized());
         return getSlot(CREATE_DATAVIEW_FOR_THIS);
@@ -468,11 +478,17 @@ typedef HashSet<GlobalObject *, DefaultHasher<GlobalObject *>, SystemAllocPolicy
 
 } // namespace js
 
-template<>
 inline bool
-JSObject::is<js::GlobalObject>() const
+JSObject::isGlobal() const
 {
     return !!(js::GetObjectClass(const_cast<JSObject*>(this))->flags & JSCLASS_IS_GLOBAL);
 }
 
-#endif /* vm_GlobalObject_h */
+js::GlobalObject &
+JSObject::asGlobal()
+{
+    JS_ASSERT(isGlobal());
+    return *static_cast<js::GlobalObject *>(this);
+}
+
+#endif /* GlobalObject_h___ */

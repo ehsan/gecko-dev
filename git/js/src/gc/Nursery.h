@@ -5,8 +5,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef gc_Nursery_h
-#define gc_Nursery_h
+#ifndef jsgc_nursery_h___
+#define jsgc_nursery_h___
 
 #ifdef JSGC_GENERATIONAL
 
@@ -239,4 +239,4 @@ class Nursery
 } /* namespace js */
 
 #endif /* JSGC_GENERATIONAL */
-#endif /* gc_Nursery_h */
+#endif /* jsgc_nursery_h___ */

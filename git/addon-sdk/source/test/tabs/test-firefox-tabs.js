@@ -1150,7 +1150,3 @@ function closeBrowserWindow(window, callback) {
   }, false);
   window.close();
 }
-
-// Test disabled on Linux because of bug 882867
-if (require("sdk/system/runtime").OS == "Linux")
-  module.exports = {};

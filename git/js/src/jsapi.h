@@ -6,10 +6,12 @@
 
 /* JavaScript API. */
 
-#ifndef jsapi_h
-#define jsapi_h
+#ifndef jsapi_h___
+#define jsapi_h___
 
+#include "mozilla/Attributes.h"
 #include "mozilla/FloatingPoint.h"
+#include "mozilla/GuardObjects.h"
 #include "mozilla/RangedPtr.h"
 #include "mozilla/StandardInteger.h"
 #include "mozilla/ThreadLocal.h"
@@ -21,10 +23,13 @@
 #include "js-config.h"
 #include "jsalloc.h"
 #include "jspubtd.h"
+#include "jsutil.h"
 
+#include "js/Anchor.h"
 #include "js/CallArgs.h"
 #include "js/CharacterEncoding.h"
 #include "js/HashTable.h"
+#include "js/PropertyKey.h"
 #include "js/RootingAPI.h"
 #include "js/Utility.h"
 #include "js/Value.h"
@@ -713,6 +718,15 @@ CallNonGenericMethod(JSContext *cx, IsAcceptableThis Test, NativeImpl Impl, Call
 
 /************************************************************************/
 
+typedef JS::Handle<JSObject*> JSHandleObject;
+typedef JS::Handle<JSString*> JSHandleString;
+typedef JS::Handle<JS::Value> JSHandleValue;
+typedef JS::Handle<jsid> JSHandleId;
+
+typedef JS::MutableHandle<JSFunction*> JSMutableHandleFunction;
+typedef JS::MutableHandle<JSString*>   JSMutableHandleString;
+typedef JS::MutableHandle<JS::Value>   JSMutableHandleValue;
+
 /* JSClass operation signatures. */
 
 /*
@@ -721,7 +735,7 @@ CallNonGenericMethod(JSContext *cx, IsAcceptableThis Test, NativeImpl Impl, Call
  * *vp out parameter, on success, is the new property value after the action.
  */
 typedef JSBool
-(* JSPropertyOp)(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, JS::MutableHandle<JS::Value> vp);
+(* JSPropertyOp)(JSContext *cx, JSHandleObject obj, JSHandleId id, JSMutableHandleValue vp);
 
 /*
  * Set a property named by id in obj, treating the assignment as strict
@@ -731,7 +745,7 @@ typedef JSBool
  * set.
  */
 typedef JSBool
-(* JSStrictPropertyOp)(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, JSBool strict, JS::MutableHandle<JS::Value> vp);
+(* JSStrictPropertyOp)(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict, JSMutableHandleValue vp);
 
 /*
  * Delete a property named by id in obj.
@@ -749,7 +763,7 @@ typedef JSBool
  * set *succeeded to true and return true.
  */
 typedef JSBool
-(* JSDeletePropertyOp)(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, JSBool *succeeded);
+(* JSDeletePropertyOp)(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool *succeeded);
 
 /*
  * This function type is used for callbacks that enumerate the properties of
@@ -784,15 +798,15 @@ typedef JSBool
  * indicating failure.
  */
 typedef JSBool
-(* JSNewEnumerateOp)(JSContext *cx, JS::Handle<JSObject*> obj, JSIterateOp enum_op,
-                     JS::MutableHandle<JS::Value> statep, JS::MutableHandleId idp);
+(* JSNewEnumerateOp)(JSContext *cx, JSHandleObject obj, JSIterateOp enum_op,
+                     JSMutableHandleValue statep, JS::MutableHandleId idp);
 
 /*
  * The old-style JSClass.enumerate op should define all lazy properties not
  * yet reflected in obj.
  */
 typedef JSBool
-(* JSEnumerateOp)(JSContext *cx, JS::Handle<JSObject*> obj);
+(* JSEnumerateOp)(JSContext *cx, JSHandleObject obj);
 
 /*
  * Resolve a lazy property named by id in obj by defining it directly in obj.
@@ -807,7 +821,7 @@ typedef JSBool
  * NB: JSNewResolveOp provides a cheaper way to resolve lazy properties.
  */
 typedef JSBool
-(* JSResolveOp)(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id);
+(* JSResolveOp)(JSContext *cx, JSHandleObject obj, JSHandleId id);
 
 /*
  * Like JSResolveOp, but flags provide contextual information as follows:
@@ -822,7 +836,7 @@ typedef JSBool
  * if JSCLASS_NEW_RESOLVE is set in JSClass.flags.
  */
 typedef JSBool
-(* JSNewResolveOp)(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, unsigned flags,
+(* JSNewResolveOp)(JSContext *cx, JSHandleObject obj, JSHandleId id, unsigned flags,
                    JS::MutableHandleObject objp);
 
 /*
@@ -830,8 +844,7 @@ typedef JSBool
  * *vp on success, and returning false on error or exception.
  */
 typedef JSBool
-(* JSConvertOp)(JSContext *cx, JS::Handle<JSObject*> obj, JSType type,
-                JS::MutableHandle<JS::Value> vp);
+(* JSConvertOp)(JSContext *cx, JSHandleObject obj, JSType type, JSMutableHandleValue vp);
 
 typedef struct JSFreeOp JSFreeOp;
 
@@ -873,8 +886,8 @@ struct JSStringFinalizer {
  * is either a string or an int jsval.
  */
 typedef JSBool
-(* JSCheckAccessOp)(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
-                    JSAccessMode mode, JS::MutableHandle<JS::Value> vp);
+(* JSCheckAccessOp)(JSContext *cx, JSHandleObject obj, JSHandleId id, JSAccessMode mode,
+                    JSMutableHandleValue vp);
 
 /*
  * Check whether v is an instance of obj.  Return false on error or exception,
@@ -882,8 +895,7 @@ typedef JSBool
  * *bp otherwise.
  */
 typedef JSBool
-(* JSHasInstanceOp)(JSContext *cx, JS::Handle<JSObject*> obj, JS::MutableHandle<JS::Value> vp,
-                    JSBool *bp);
+(* JSHasInstanceOp)(JSContext *cx, JSHandleObject obj, JSMutableHandleValue vp, JSBool *bp);
 
 /*
  * Function type for trace operation of the class called to enumerate all
@@ -1023,19 +1035,17 @@ typedef const JSErrorFormatString *
                     const unsigned errorNumber);
 
 typedef JSBool
-(* JSLocaleToUpperCase)(JSContext *cx, JS::Handle<JSString*> src,
-                        JS::MutableHandle<JS::Value> rval);
+(* JSLocaleToUpperCase)(JSContext *cx, JSHandleString src, JSMutableHandleValue rval);
 
 typedef JSBool
-(* JSLocaleToLowerCase)(JSContext *cx, JS::Handle<JSString*> src,
-                        JS::MutableHandle<JS::Value> rval);
+(* JSLocaleToLowerCase)(JSContext *cx, JSHandleString src, JSMutableHandleValue rval);
 
 typedef JSBool
-(* JSLocaleCompare)(JSContext *cx, JS::Handle<JSString*> src1, JS::Handle<JSString*> src2,
-                    JS::MutableHandle<JS::Value> rval);
+(* JSLocaleCompare)(JSContext *cx, JSHandleString src1, JSHandleString src2,
+                    JSMutableHandleValue rval);
 
 typedef JSBool
-(* JSLocaleToUnicode)(JSContext *cx, const char *src, JS::MutableHandle<JS::Value> rval);
+(* JSLocaleToUnicode)(JSContext *cx, const char *src, JSMutableHandleValue rval);
 
 /*
  * Security protocol types.
@@ -1299,8 +1309,8 @@ JSID_IS_EMPTY(const jsid id)
 #undef id
 
 #ifdef JS_USE_JSID_STRUCT_TYPES
-extern JS_PUBLIC_DATA(const jsid) JSID_VOID;
-extern JS_PUBLIC_DATA(const jsid) JSID_EMPTY;
+extern JS_PUBLIC_DATA(jsid) JSID_VOID;
+extern JS_PUBLIC_DATA(jsid) JSID_EMPTY;
 #else
 # define JSID_VOID ((jsid)JSID_TYPE_VOID)
 # define JSID_EMPTY ((jsid)JSID_TYPE_OBJECT)
@@ -1781,7 +1791,7 @@ IsPoisonedId(jsid iden)
 
 namespace js {
 
-template <> struct GCMethods<jsid>
+template <> struct RootMethods<jsid>
 {
     static jsid initial() { return JSID_VOID; }
     static ThingRootKind kind() { return THING_ROOT_ID; }
@@ -1998,14 +2008,14 @@ extern JS_PUBLIC_API(JSBool)
 JS_WrapId(JSContext *cx, jsid *idp);
 
 extern JS_PUBLIC_API(JSObject *)
-JS_TransplantObject(JSContext *cx, JS::HandleObject origobj, JS::HandleObject target);
+JS_TransplantObject(JSContext *cx, JSObject *origobj, JSObject *target);
 
 extern JS_FRIEND_API(JSObject *)
 js_TransplantObjectWithWrapper(JSContext *cx,
-                               JS::HandleObject origobj,
-                               JS::HandleObject origwrapper,
-                               JS::HandleObject targetobj,
-                               JS::HandleObject targetwrapper);
+                               JSObject *origobj,
+                               JSObject *origwrapper,
+                               JSObject *targetobj,
+                               JSObject *targetwrapper);
 
 extern JS_PUBLIC_API(JSBool)
 JS_RefreshCrossCompartmentWrappers(JSContext *cx, JSObject *ob);
@@ -2100,11 +2110,20 @@ JS_InitStandardClasses(JSContext *cx, JSObject *obj);
  * loops any classes not yet resolved lazily.
  */
 extern JS_PUBLIC_API(JSBool)
-JS_ResolveStandardClass(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
+JS_ResolveStandardClass(JSContext *cx, JSObject *obj, jsid id,
                         JSBool *resolved);
 
 extern JS_PUBLIC_API(JSBool)
-JS_EnumerateStandardClasses(JSContext *cx, JS::HandleObject obj);
+JS_EnumerateStandardClasses(JSContext *cx, JSObject *obj);
+
+/*
+ * Enumerate any already-resolved standard class ids into ida, or into a new
+ * JSIdArray if ida is null.  Return the augmented array on success, null on
+ * failure with ida (if it was non-null on entry) destroyed.
+ */
+extern JS_PUBLIC_API(JSIdArray *)
+JS_EnumerateResolvedStandardClasses(JSContext *cx, JSObject *obj,
+                                    JSIdArray *ida);
 
 extern JS_PUBLIC_API(JSBool)
 JS_GetClassObject(JSContext *cx, JSObject *obj, JSProtoKey key, JSObject **objp);
@@ -2698,14 +2717,7 @@ typedef enum JSGCParamKey {
     JSGC_ANALYSIS_PURGE_TRIGGER = 19,
 
     /* Lower limit after which we limit the heap growth. */
-    JSGC_ALLOCATION_THRESHOLD = 20,
-
-    /*
-     * We decommit memory lazily. If more than this number of megabytes is
-     * available to be decommitted, then JS_MaybeGC will trigger a shrinking GC
-     * to decommit it.
-     */
-    JSGC_DECOMMIT_THRESHOLD = 21
+    JSGC_ALLOCATION_THRESHOLD = 20
 } JSGCParamKey;
 
 typedef enum JSGCMode {
@@ -2857,7 +2869,7 @@ struct JSClass {
  * with the following flags. Failure to use JSCLASS_GLOBAL_FLAGS was
  * prevously allowed, but is now an ES5 violation and thus unsupported.
  */
-#define JSCLASS_GLOBAL_SLOT_COUNT      (JSProto_LIMIT * 3 + 25)
+#define JSCLASS_GLOBAL_SLOT_COUNT      (JSProto_LIMIT * 3 + 26)
 #define JSCLASS_GLOBAL_FLAGS_WITH_SLOTS(n)                                    \
     (JSCLASS_IS_GLOBAL | JSCLASS_HAS_RESERVED_SLOTS(JSCLASS_GLOBAL_SLOT_COUNT + (n)))
 #define JSCLASS_GLOBAL_FLAGS                                                  \
@@ -2960,26 +2972,22 @@ extern JS_PUBLIC_API(JSBool)
 JS_DefaultValue(JSContext *cx, JSObject *obj, JSType hint, jsval *vp);
 
 extern JS_PUBLIC_API(JSBool)
-JS_PropertyStub(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
-                JS::MutableHandle<JS::Value> vp);
+JS_PropertyStub(JSContext *cx, JSHandleObject obj, JSHandleId id, JSMutableHandleValue vp);
 
 extern JS_PUBLIC_API(JSBool)
-JS_StrictPropertyStub(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, JSBool strict,
-                      JS::MutableHandle<JS::Value> vp);
+JS_StrictPropertyStub(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict, JSMutableHandleValue vp);
 
 extern JS_PUBLIC_API(JSBool)
-JS_DeletePropertyStub(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
-                      JSBool *succeeded);
+JS_DeletePropertyStub(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool *succeeded);
 
 extern JS_PUBLIC_API(JSBool)
-JS_EnumerateStub(JSContext *cx, JS::Handle<JSObject*> obj);
+JS_EnumerateStub(JSContext *cx, JSHandleObject obj);
 
 extern JS_PUBLIC_API(JSBool)
-JS_ResolveStub(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id);
+JS_ResolveStub(JSContext *cx, JSHandleObject obj, JSHandleId id);
 
 extern JS_PUBLIC_API(JSBool)
-JS_ConvertStub(JSContext *cx, JS::Handle<JSObject*> obj, JSType type,
-               JS::MutableHandle<JS::Value> vp);
+JS_ConvertStub(JSContext *cx, JSHandleObject obj, JSType type, JSMutableHandleValue vp);
 
 struct JSConstDoubleSpec {
     double          dval;
@@ -3185,7 +3193,7 @@ JS_DefineObject(JSContext *cx, JSObject *obj, const char *name, JSClass *clasp,
                 JSObject *proto, unsigned attrs);
 
 extern JS_PUBLIC_API(JSBool)
-JS_DefineConstDoubles(JSContext *cx, JSObject *obj, const JSConstDoubleSpec *cds);
+JS_DefineConstDoubles(JSContext *cx, JSObject *obj, JSConstDoubleSpec *cds);
 
 extern JS_PUBLIC_API(JSBool)
 JS_DefineProperties(JSContext *cx, JSObject *obj, const JSPropertySpec *ps);
@@ -3340,7 +3348,7 @@ class PropertyDescriptorOperations
 namespace js {
 
 template <>
-struct GCMethods<JSPropertyDescriptor> {
+struct RootMethods<JSPropertyDescriptor> {
     static JSPropertyDescriptor initial() { return JSPropertyDescriptor(); }
     static ThingRootKind kind() { return THING_ROOT_PROPERTY_DESCRIPTOR; }
     static bool poisoned(const JSPropertyDescriptor &desc) {
@@ -3899,7 +3907,7 @@ struct JS_PUBLIC_API(CompileOptions) {
         SAVE_SOURCE
     } sourcePolicy;
 
-    explicit CompileOptions(JSContext *cx, JSVersion version = JSVERSION_UNKNOWN);
+    explicit CompileOptions(JSContext *cx);
     CompileOptions &setPrincipals(JSPrincipals *p) { principals = p; return *this; }
     CompileOptions &setOriginPrincipals(JSPrincipals *p) { originPrincipals = p; return *this; }
     CompileOptions &setVersion(JSVersion v) { version = v; versionSet = true; return *this; }
@@ -3918,26 +3926,26 @@ struct JS_PUBLIC_API(CompileOptions) {
 };
 
 extern JS_PUBLIC_API(JSScript *)
-Compile(JSContext *cx, JS::Handle<JSObject*> obj, CompileOptions options,
+Compile(JSContext *cx, JSHandleObject obj, CompileOptions options,
         const char *bytes, size_t length);
 
 extern JS_PUBLIC_API(JSScript *)
-Compile(JSContext *cx, JS::Handle<JSObject*> obj, CompileOptions options,
+Compile(JSContext *cx, JSHandleObject obj, CompileOptions options,
         const jschar *chars, size_t length);
 
 extern JS_PUBLIC_API(JSScript *)
-Compile(JSContext *cx, JS::Handle<JSObject*> obj, CompileOptions options, FILE *file);
+Compile(JSContext *cx, JSHandleObject obj, CompileOptions options, FILE *file);
 
 extern JS_PUBLIC_API(JSScript *)
-Compile(JSContext *cx, JS::Handle<JSObject*> obj, CompileOptions options, const char *filename);
+Compile(JSContext *cx, JSHandleObject obj, CompileOptions options, const char *filename);
 
 extern JS_PUBLIC_API(JSFunction *)
-CompileFunction(JSContext *cx, JS::Handle<JSObject*> obj, CompileOptions options,
+CompileFunction(JSContext *cx, JSHandleObject obj, CompileOptions options,
                 const char *name, unsigned nargs, const char **argnames,
                 const char *bytes, size_t length);
 
 extern JS_PUBLIC_API(JSFunction *)
-CompileFunction(JSContext *cx, JS::Handle<JSObject*> obj, CompileOptions options,
+CompileFunction(JSContext *cx, JSHandleObject obj, CompileOptions options,
                 const char *name, unsigned nargs, const char **argnames,
                 const jschar *chars, size_t length);
 
@@ -4065,15 +4073,15 @@ JS_EvaluateUCScriptForPrincipalsVersionOrigin(JSContext *cx, JSObject *obj,
 namespace JS {
 
 extern JS_PUBLIC_API(bool)
-Evaluate(JSContext *cx, JS::Handle<JSObject*> obj, CompileOptions options,
+Evaluate(JSContext *cx, JSHandleObject obj, CompileOptions options,
          const jschar *chars, size_t length, jsval *rval);
 
 extern JS_PUBLIC_API(bool)
-Evaluate(JSContext *cx, JS::Handle<JSObject*> obj, CompileOptions options,
+Evaluate(JSContext *cx, JSHandleObject obj, CompileOptions options,
          const char *bytes, size_t length, jsval *rval);
 
 extern JS_PUBLIC_API(bool)
-Evaluate(JSContext *cx, JS::Handle<JSObject*> obj, CompileOptions options,
+Evaluate(JSContext *cx, JSHandleObject obj, CompileOptions options,
          const char *filename, jsval *rval);
 
 } /* namespace JS */
@@ -5133,4 +5141,4 @@ using JS::Zone;
 
 } /* namespace js */
 
-#endif /* jsapi_h */
+#endif /* jsapi_h___ */

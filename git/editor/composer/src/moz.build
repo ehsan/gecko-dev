@@ -17,5 +17,3 @@ CPP_SOURCES += [
     'nsEditorSpellCheck.cpp',
 ]
 
-LIBRARY_NAME = 'composer'
-

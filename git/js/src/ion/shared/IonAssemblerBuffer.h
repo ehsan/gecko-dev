@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_shared_IonAssemblerBuffer_h
-#define ion_shared_IonAssemblerBuffer_h
+#ifndef __ion_assembler_buffer_h
+#define __ion_assembler_buffer_h
 // needed for the definition of Label :(
 #include "ion/shared/Assembler-shared.h"
 
@@ -220,4 +220,4 @@ struct AssemblerBuffer
 
 } // ion
 } // js
-#endif /* ion_shared_IonAssemblerBuffer_h */
+#endif // __ion_assembler_buffer_h

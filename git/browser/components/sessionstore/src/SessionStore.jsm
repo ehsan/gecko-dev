@@ -494,16 +494,23 @@ let SessionStoreInternal = {
   },
 
   _initWindow: function ssi_initWindow(aWindow) {
-    if (aWindow) {
-      this.onLoad(aWindow);
-    } else if (this._loadState == STATE_STOPPED) {
+    if (!aWindow || this._loadState == STATE_RUNNING) {
+      // make sure that all browser windows which try to initialize
+      // SessionStore are really tracked by it
+      if (aWindow && (!aWindow.__SSi || !this._windows[aWindow.__SSi]))
+        this.onLoad(aWindow);
       // If init is being called with a null window, it's possible that we
       // just want to tell sessionstore that a session is live (as is the case
       // with starting Firefox with -private, for example; see bug 568816),
       // so we should mark the load state as running to make sure that
       // things like setBrowserState calls will succeed in restoring the session.
-      this._loadState = STATE_RUNNING;
+      if (!aWindow && this._loadState == STATE_STOPPED)
+        this._loadState = STATE_RUNNING;
+      return;
     }
+
+    // As this is called at delayedStartup, restoration must be initiated here
+    this.onLoad(aWindow);
   },
 
   /**
@@ -740,7 +747,7 @@ let SessionStoreInternal = {
       this._deferredInitialState._firstTabs = true;
       this._restoreCount = this._deferredInitialState.windows ?
         this._deferredInitialState.windows.length : 0;
-      this.restoreWindow(aWindow, this._deferredInitialState, false);
+      this.restoreWindow(aWindow, this._deferredInitialState, true);
       this._deferredInitialState = null;
     }
     else if (this._restoreLastWindow && aWindow.toolbar.visible &&
@@ -4052,14 +4059,13 @@ let SessionStoreInternal = {
    * @returns boolean
    */
   _shouldSaveTabState: function ssi_shouldSaveTabState(aTabState) {
-    // If the tab has only a transient about: history entry, no other
+    // If the tab has only the transient about:blank history entry, no other
     // session history, and no userTypedValue, then we don't actually want to
     // store this tab's data.
     return aTabState.entries.length &&
            !(aTabState.entries.length == 1 &&
-                (aTabState.entries[0].url == "about:blank" ||
-                 aTabState.entries[0].url == "about:newtab") &&
-                 !aTabState.userTypedValue);
+             aTabState.entries[0].url == "about:blank" &&
+             !aTabState.userTypedValue);
   },
 
   /**

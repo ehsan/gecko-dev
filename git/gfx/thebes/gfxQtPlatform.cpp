@@ -202,7 +202,7 @@ gfxQtPlatform::GetXScreen(QWidget* aWindow)
 #endif
 #else
   return ScreenOfDisplay(GetXDisplay(aWindow),
-                         (int)(intptr_t)qApp->platformNativeInterface()->
+                         (int)qApp->platformNativeInterface()->
                            nativeResourceForWindow("screen",
                              aWindow ? aWindow->windowHandle() : nullptr));
 #endif

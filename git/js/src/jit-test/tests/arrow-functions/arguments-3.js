@@ -1,13 +1,9 @@
-// the 'arguments' binding in an arrow function is visible in direct eval code
+// 'arguments' in eval
 
 function f() {
-    return s => eval(s);
+    var g = s => eval(s);
+    assertEq(g(arguments), arguments);
 }
 
-var g = f();
-var args = g("arguments");
-assertEq(typeof args, "object");
-assertEq(args !== g("arguments"), true);
-assertEq(args.length, 1);
-assertEq(args[0], "arguments");
-
+f();
+f(0, 1, 2);

@@ -145,7 +145,6 @@ abstract public class GeckoApp
     public static final String ACTION_DEBUG         = "org.mozilla.gecko.DEBUG";
     public static final String ACTION_BOOKMARK      = "org.mozilla.gecko.BOOKMARK";
     public static final String ACTION_LOAD          = "org.mozilla.gecko.LOAD";
-    public static final String ACTION_LAUNCH_SETTINGS = "org.mozilla.gecko.SETTINGS";
     public static final String ACTION_INIT_PW       = "org.mozilla.gecko.INIT_PW";
     public static final String SAVED_STATE_IN_BACKGROUND = "inBackground";
     public static final String SAVED_STATE_PRIVATE_SESSION = "privateSession";
@@ -334,7 +333,7 @@ abstract public class GeckoApp
     @Override
     public MenuInflater getMenuInflater() {
         if (Build.VERSION.SDK_INT >= 11)
-            return new GeckoMenuInflater(this);
+            return new GeckoMenuInflater(sAppContext);
         else
             return super.getMenuInflater();
     }
@@ -607,7 +606,7 @@ abstract public class GeckoApp
                         ThreadUtils.postToBackgroundThread(new Runnable() {
                             @Override
                             public void run() {
-                                BrowserDB.addBookmark(getContentResolver(), title, url);
+                                BrowserDB.addBookmark(GeckoApp.sAppContext.getContentResolver(), title, url);
                             }
                         });
                     }
@@ -795,7 +794,7 @@ abstract public class GeckoApp
         ThreadUtils.postToUiThread(new Runnable() {
             @Override
             public void run() {
-                Toast.makeText(GeckoApp.this, resId, duration).show();
+                Toast.makeText(sAppContext, resId, duration).show();
             }
         });
     }
@@ -806,9 +805,9 @@ abstract public class GeckoApp
             public void run() {
                 Toast toast;
                 if (duration.equals("long"))
-                    toast = Toast.makeText(GeckoApp.this, message, Toast.LENGTH_LONG);
+                    toast = Toast.makeText(sAppContext, message, Toast.LENGTH_LONG);
                 else
-                    toast = Toast.makeText(GeckoApp.this, message, Toast.LENGTH_SHORT);
+                    toast = Toast.makeText(sAppContext, message, Toast.LENGTH_SHORT);
                 toast.show();
             }
         });
@@ -920,21 +919,21 @@ abstract public class GeckoApp
     }
 
     private void setImageAsWallpaper(final String aSrc) {
-        final String progText = getString(R.string.wallpaper_progress);
-        final String successText = getString(R.string.wallpaper_success);
-        final String failureText = getString(R.string.wallpaper_fail);
+        final String progText = sAppContext.getString(R.string.wallpaper_progress);
+        final String successText = sAppContext.getString(R.string.wallpaper_success);
+        final String failureText = sAppContext.getString(R.string.wallpaper_fail);
         final String fileName = aSrc.substring(aSrc.lastIndexOf("/") + 1);
-        final PendingIntent emptyIntent = PendingIntent.getActivity(this, 0, new Intent(), 0);
-        final AlertNotification notification = new AlertNotification(this, fileName.hashCode(),
+        final PendingIntent emptyIntent = PendingIntent.getActivity(sAppContext, 0, new Intent(), 0);
+        final AlertNotification notification = new AlertNotification(sAppContext, fileName.hashCode(), 
                                 R.drawable.alert_download, fileName, progText, System.currentTimeMillis(), null);
-        notification.setLatestEventInfo(this, fileName, progText, emptyIntent );
+        notification.setLatestEventInfo(sAppContext, fileName, progText, emptyIntent );
         notification.flags |= Notification.FLAG_ONGOING_EVENT;
         notification.show();
         new UiAsyncTask<Void, Void, Boolean>(ThreadUtils.getBackgroundHandler()) {
 
             @Override
             protected Boolean doInBackground(Void... params) {
-                WallpaperManager mgr = WallpaperManager.getInstance(GeckoApp.this);
+                WallpaperManager mgr = WallpaperManager.getInstance(sAppContext);
                 if (mgr == null) {
                     return false;
                 }
@@ -1052,10 +1051,10 @@ abstract public class GeckoApp
                 notification.flags |= Notification.FLAG_AUTO_CANCEL;
                 if(!success) {
                     notification.tickerText = failureText;
-                    notification.setLatestEventInfo(GeckoApp.this, fileName, failureText, emptyIntent);
+                    notification.setLatestEventInfo(sAppContext, fileName, failureText, emptyIntent);
                 } else {
                     notification.tickerText = successText;
-                    notification.setLatestEventInfo(GeckoApp.this, fileName, successText, emptyIntent);
+                    notification.setLatestEventInfo(sAppContext, fileName, successText, emptyIntent);
                 }
                 notification.show();
             }
@@ -1291,7 +1290,7 @@ abstract public class GeckoApp
                 final String profilePath = getProfile().getDir().getAbsolutePath();
                 final EventDispatcher dispatcher = GeckoAppShell.getEventDispatcher();
                 Log.i(LOGTAG, "Creating BrowserHealthRecorder.");
-                mHealthRecorder = new BrowserHealthRecorder(GeckoApp.this, profilePath, dispatcher,
+                mHealthRecorder = new BrowserHealthRecorder(sAppContext, profilePath, dispatcher,
                                                             previousSession);
             }
         });
@@ -1435,14 +1434,6 @@ abstract public class GeckoApp
             }, 1000 * 5 /* 5 seconds */);
         }
 
-        // Check if launched from data reporting notification.
-        if (ACTION_LAUNCH_SETTINGS.equals(action)) {
-            Intent settingsIntent = new Intent(GeckoApp.this, GeckoPreferences.class);
-            // Copy extras.
-            settingsIntent.putExtras(intent);
-            startActivity(settingsIntent);
-        }
-
         //app state callbacks
         mAppStateListeners = new LinkedList<GeckoAppShell.AppStateListener>();
 
@@ -1530,7 +1521,7 @@ abstract public class GeckoApp
 
                 // Record our launch time for the announcements service
                 // to use in assessing inactivity.
-                final Context context = GeckoApp.this;
+                final Context context = GeckoApp.sAppContext;
                 AnnouncementsBroadcastService.recordLastLaunch(context);
 
                 // Kick off our background services that fetch product
@@ -1749,11 +1740,6 @@ abstract public class GeckoApp
                 alertCookie = "";
         }
         handleNotification(ACTION_ALERT_CALLBACK, alertName, alertCookie);
-
-        if (intent.hasExtra(NotificationHelper.NOTIFICATION_ID)) {
-            String id = intent.getStringExtra(NotificationHelper.NOTIFICATION_ID);
-            mNotificationHelper.hideNotification(id);
-        }
     }
 
     @Override
@@ -1797,12 +1783,6 @@ abstract public class GeckoApp
             GeckoAppShell.sendEventToGecko(GeckoEvent.createURILoadEvent(uri));
         } else if (ACTION_ALERT_CALLBACK.equals(action)) {
             processAlertCallback(intent);
-        } if (ACTION_LAUNCH_SETTINGS.equals(action)) {
-            // Check if launched from data reporting notification.
-            Intent settingsIntent = new Intent(GeckoApp.this, GeckoPreferences.class);
-            // Copy extras.
-            settingsIntent.putExtras(intent);
-            startActivity(settingsIntent);
         }
     }
 
@@ -1834,6 +1814,8 @@ abstract public class GeckoApp
         // After an onPause, the activity is back in the foreground.
         // Undo whatever we did in onPause.
         super.onResume();
+
+        SiteIdentityPopup.getInstance().dismiss();
 
         int newOrientation = getResources().getConfiguration().orientation;
 
@@ -1993,8 +1975,7 @@ abstract public class GeckoApp
             mPromptService.destroy();
         if (mTextSelection != null)
             mTextSelection.destroy();
-        if (mNotificationHelper != null)
-            mNotificationHelper.destroy();
+        SiteIdentityPopup.clearInstance();
 
         Tabs.getInstance().detachFromActivity(this);
 
@@ -2056,6 +2037,7 @@ abstract public class GeckoApp
             mOrientation = newConfig.orientation;
             if (mFormAssistPopup != null)
                 mFormAssistPopup.hide();
+            SiteIdentityPopup.getInstance().dismiss();
             refreshChrome();
         }
     }
@@ -2237,6 +2219,12 @@ abstract public class GeckoApp
         if (mFullScreenPluginView != null) {
             GeckoAppShell.onFullScreenPluginHidden(mFullScreenPluginView);
             removeFullScreenPluginView(mFullScreenPluginView);
+            return;
+        }
+
+        SiteIdentityPopup identityPopup = SiteIdentityPopup.getInstance();
+        if (identityPopup.isShowing()) {
+            identityPopup.dismiss();
             return;
         }
 

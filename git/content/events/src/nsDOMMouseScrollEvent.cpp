@@ -23,6 +23,7 @@ nsDOMMouseScrollEvent::nsDOMMouseScrollEvent(mozilla::dom::EventTarget* aOwner,
   if(mEvent->eventStructType == NS_MOUSE_SCROLL_EVENT) {
     mDetail = static_cast<nsMouseScrollEvent*>(mEvent)->delta;
   }
+  SetIsDOMBinding();
 }
 
 nsDOMMouseScrollEvent::~nsDOMMouseScrollEvent()

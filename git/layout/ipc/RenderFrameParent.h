@@ -96,7 +96,7 @@ public:
   void NotifyInputEvent(const nsInputEvent& aEvent,
                         nsInputEvent* aOutEvent);
 
-  void NotifyDimensionsChanged(ScreenIntSize size);
+  void NotifyDimensionsChanged(int width, int height);
 
   void ZoomToRect(const gfxRect& aRect);
 

@@ -22,8 +22,6 @@
 
 #include "xpcpublic.h"
 
-using namespace JS;
-
 /**
  * JS locale callbacks implemented by XPCOM modules.  These are theoretically
  * safe for use on multiple threads.  Unfortunately, the intl code underlying
@@ -74,32 +72,32 @@ struct XPCLocaleCallbacks : public JSLocaleCallbacks
   }
 
   static JSBool
-  LocaleToUpperCase(JSContext *cx, HandleString src, MutableHandleValue rval)
+  LocaleToUpperCase(JSContext *cx, JSHandleString src, JSMutableHandleValue rval)
   {
     return ChangeCase(cx, src, rval, ToUpperCase);
   }
 
   static JSBool
-  LocaleToLowerCase(JSContext *cx, HandleString src, MutableHandleValue rval)
+  LocaleToLowerCase(JSContext *cx, JSHandleString src, JSMutableHandleValue rval)
   {
     return ChangeCase(cx, src, rval, ToLowerCase);
   }
 
   static JSBool
-  LocaleToUnicode(JSContext* cx, const char* src, MutableHandleValue rval)
+  LocaleToUnicode(JSContext* cx, const char* src, JSMutableHandleValue rval)
   {
     return This(JS_GetRuntime(cx))->ToUnicode(cx, src, rval);
   }
 
   static JSBool
-  LocaleCompare(JSContext *cx, HandleString src1, HandleString src2, MutableHandleValue rval)
+  LocaleCompare(JSContext *cx, JSHandleString src1, JSHandleString src2, JSMutableHandleValue rval)
   {
     return This(JS_GetRuntime(cx))->Compare(cx, src1, src2, rval);
   }
 
 private:
   static JSBool
-  ChangeCase(JSContext* cx, HandleString src, MutableHandleValue rval,
+  ChangeCase(JSContext* cx, JSHandleString src, JSMutableHandleValue rval,
              void(*changeCaseFnc)(const nsAString&, nsAString&))
   {
     nsDependentJSString depStr;
@@ -121,7 +119,7 @@ private:
   }
 
   JSBool
-  Compare(JSContext *cx, HandleString src1, HandleString src2, MutableHandleValue rval)
+  Compare(JSContext *cx, JSHandleString src1, JSHandleString src2, JSMutableHandleValue rval)
   {
     nsresult rv;
 
@@ -168,7 +166,7 @@ private:
   }
 
   JSBool
-  ToUnicode(JSContext* cx, const char* src, MutableHandleValue rval)
+  ToUnicode(JSContext* cx, const char* src, JSMutableHandleValue rval)
   {
     nsresult rv;
 

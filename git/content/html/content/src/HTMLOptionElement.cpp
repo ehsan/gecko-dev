@@ -32,7 +32,27 @@
  * Implementation of &lt;option&gt;
  */
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Option)
+nsGenericHTMLElement*
+NS_NewHTMLOptionElement(already_AddRefed<nsINodeInfo> aNodeInfo,
+                        mozilla::dom::FromParser aFromParser)
+{
+  /*
+   * HTMLOptionElement's will be created without a nsINodeInfo passed in
+   * if someone says "var opt = new Option();" in JavaScript, in a case like
+   * that we request the nsINodeInfo from the document's nodeinfo list.
+   */
+  nsCOMPtr<nsINodeInfo> nodeInfo(aNodeInfo);
+  if (!nodeInfo) {
+    nsCOMPtr<nsIDocument> doc = nsContentUtils::GetDocumentFromCaller();
+    NS_ENSURE_TRUE(doc, nullptr);
+
+    nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::option, nullptr,
+                                                   kNameSpaceID_XHTML,
+                                                   nsIDOMNode::ELEMENT_NODE);
+  }
+
+  return new mozilla::dom::HTMLOptionElement(nodeInfo.forget());
+}
 
 namespace mozilla {
 namespace dom {
@@ -79,7 +99,7 @@ HTMLOptionElement::GetForm(nsIDOMHTMLFormElement** aForm)
   return NS_OK;
 }
 
-mozilla::dom::HTMLFormElement*
+nsHTMLFormElement*
 HTMLOptionElement::GetForm()
 {
   HTMLSelectElement* selectControl = GetSelect();

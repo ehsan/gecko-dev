@@ -7,27 +7,40 @@
 /*
  * JS lexical scanner.
  */
-
-#include "frontend/TokenStream.h"
+#include <stdio.h>      /* first to avoid trouble on some systems */
+#include <errno.h>
+#include <limits.h>
+#include <math.h>
+#ifdef HAVE_MEMORY_H
+#include <memory.h>
+#endif
+#include <stdarg.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "mozilla/PodOperations.h"
 
-#include <stdio.h>
-#include <stdarg.h>
-#include <string.h>
-
+#include "jstypes.h"
+#include "jsutil.h"
+#include "jsprf.h"
 #include "jsapi.h"
 #include "jsatom.h"
 #include "jscntxt.h"
+#include "jsversion.h"
 #include "jsexn.h"
 #include "jsnum.h"
 #include "jsopcode.h"
 #include "jsscript.h"
 
 #include "frontend/BytecodeCompiler.h"
+#include "frontend/Parser.h"
+#include "frontend/TokenStream.h"
 #include "js/CharacterEncoding.h"
 #include "vm/Keywords.h"
+#include "vm/RegExpObject.h"
 #include "vm/StringBuffer.h"
+
+#include "jsscriptinlines.h"
 
 using namespace js;
 using namespace js::frontend;
@@ -544,7 +557,7 @@ TokenStream::advance(size_t position)
 void
 TokenStream::tell(Position *pos)
 {
-    pos->buf = userbuf.addressOfNextRawChar(/* allowPoisoned = */ true);
+    pos->buf = userbuf.addressOfNextRawChar();
     pos->flags = flags;
     pos->lineno = lineno;
     pos->linebase = linebase;
@@ -558,7 +571,7 @@ TokenStream::tell(Position *pos)
 void
 TokenStream::seek(const Position &pos)
 {
-    userbuf.setAddressOfNextRawChar(pos.buf, /* allowPoisoned = */ true);
+    userbuf.setAddressOfNextRawChar(pos.buf);
     flags = pos.flags;
     lineno = pos.lineno;
     linebase = pos.linebase;
@@ -574,7 +587,6 @@ void
 TokenStream::seek(const Position &pos, const TokenStream &other)
 {
     srcCoords.fill(other.srcCoords);
-    lastFunctionKeyword = other.lastFunctionKeyword;
     seek(pos);
 }
 
@@ -1861,6 +1873,7 @@ TokenKindToString(TokenKind tt)
       case TOK_INSTANCEOF:      return "TOK_INSTANCEOF";
       case TOK_DEBUGGER:        return "TOK_DEBUGGER";
       case TOK_YIELD:           return "TOK_YIELD";
+      case TOK_LEXICALSCOPE:    return "TOK_LEXICALSCOPE";
       case TOK_LET:             return "TOK_LET";
       case TOK_RESERVED:        return "TOK_RESERVED";
       case TOK_STRICT_RESERVED: return "TOK_STRICT_RESERVED";

@@ -4,10 +4,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsalloc_h
-#define jsalloc_h
+#ifndef jsalloc_h_
+#define jsalloc_h_
 
 #include "js/Utility.h"
+#include "jstypes.h"
 
 struct JSContext;
 
@@ -97,4 +98,4 @@ class TempAllocPolicy
 
 } /* namespace js */
 
-#endif /* jsalloc_h */
+#endif /* jsalloc_h_ */

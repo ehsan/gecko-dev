@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsprvtd_h
-#define jsprvtd_h
+#ifndef jsprvtd_h___
+#define jsprvtd_h___
 /*
  * JS private typename definitions.
  *
@@ -91,10 +91,16 @@ enum RegExpFlag
     AllFlags        = 0x0f
 };
 
+class ExecuteArgsGuard;
+class InvokeFrameGuard;
+class InvokeArgsGuard;
 class StringBuffer;
 
 class FrameRegs;
 class StackFrame;
+class StackSegment;
+class StackSpace;
+class ContextStack;
 class ScriptFrameIter;
 
 class Proxy;
@@ -278,18 +284,18 @@ typedef void
  * if an error or exception was thrown on cx.
  */
 typedef JSObject *
-(* JSObjectOp)(JSContext *cx, JS::Handle<JSObject*> obj);
+(* JSObjectOp)(JSContext *cx, JSHandleObject obj);
 
 /* Signature for class initialization ops. */
 typedef JSObject *
-(* JSClassInitializerOp)(JSContext *cx, JS::HandleObject obj);
+(* JSClassInitializerOp)(JSContext *cx, JSHandleObject obj);
 
 /*
  * Hook that creates an iterator object for a given object. Returns the
  * iterator object or null if an error or exception was thrown on cx.
  */
 typedef JSObject *
-(* JSIteratorOp)(JSContext *cx, JS::HandleObject obj, JSBool keysonly);
+(* JSIteratorOp)(JSContext *cx, JSHandleObject obj, JSBool keysonly);
 
 
-#endif /* jsprvtd_h */
+#endif /* jsprvtd_h___ */

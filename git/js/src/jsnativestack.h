@@ -4,10 +4,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsnativestack_h
-#define jsnativestack_h
+#ifndef jsnativestack_h__
+#define jsnativestack_h__
 
-#include "js/Utility.h"
+#include "jspubtd.h"
+#include "jsutil.h"
 
 namespace js {
 
@@ -24,4 +25,4 @@ GetNativeStackBase()
 
 } /* namespace js */
 
-#endif /* jsnativestack_h */
+#endif /* jsnativestack_h__ */

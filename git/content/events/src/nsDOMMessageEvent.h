@@ -65,7 +65,7 @@ public:
   }
 
 private:
-  JS::Heap<JS::Value> mData;
+  JS::Value mData;
   nsString mOrigin;
   nsString mLastEventId;
   nsCOMPtr<nsIDOMWindow> mSource;

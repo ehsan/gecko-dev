@@ -208,14 +208,7 @@ LibHandle::MappableMMap(void *addr, size_t length, off_t offset) const
 {
   MOZ_ASSERT(mappable == NULL, "MappableMMap must be called after"
                                " GetMappableLength");
-  void* mapped = mappable->mmap(addr, length, PROT_READ, MAP_PRIVATE, offset);
-  if (mapped != MAP_FAILED) {
-    /* Ensure the availability of all pages within the mapping */
-    for (size_t off = 0; off < length; off += PAGE_SIZE) {
-      mappable->ensure(reinterpret_cast<char *>(mapped) + off);
-    }
-  }
-  return mapped;
+  return mappable->mmap(addr, length, PROT_READ, MAP_PRIVATE, offset);
 }
 
 void

@@ -276,7 +276,6 @@ class ParallelArrayVisitor : public MInstructionVisitor
     SAFE_OP(FunctionDispatch)
     SAFE_OP(TypeObjectDispatch)
     SAFE_OP(IsCallable)
-    SAFE_OP(HaveSameClass)
     UNSAFE_OP(EffectiveAddress)
     UNSAFE_OP(AsmJSUnsignedToDouble)
     UNSAFE_OP(AsmJSNeg)
@@ -843,8 +842,8 @@ GetPossibleCallees(JSContext *cx,
     RootedScript rootedScript(cx);
     for (unsigned i = 0; i < objCount; i++) {
         JSObject *obj = calleeTypes->getSingleObject(i);
-        if (obj && obj->is<JSFunction>()) {
-            rootedFun = &obj->as<JSFunction>();
+        if (obj && obj->isFunction()) {
+            rootedFun = obj->toFunction();
         } else {
             types::TypeObject *typeObj = calleeTypes->getTypeObject(i);
             if (!typeObj)
@@ -857,18 +856,14 @@ GetPossibleCallees(JSContext *cx,
         if (!rootedFun->isInterpreted())
             continue;
 
-        rootedScript = rootedFun->getOrCreateScript(cx);
-        if (!rootedScript)
-            return false;
-
-        if (rootedScript->shouldCloneAtCallsite) {
+        if (rootedFun->nonLazyScript()->shouldCloneAtCallsite) {
             rootedFun = CloneFunctionAtCallsite(cx, rootedFun, script, pc);
             if (!rootedFun)
                 return false;
-            rootedScript = rootedFun->nonLazyScript();
         }
 
         // check if this call target is already known
+        rootedScript = rootedFun->nonLazyScript();
         if (!AddCallTarget(rootedScript, targets))
             return false;
     }

@@ -46,18 +46,18 @@ function testConsoleProfile(hud) {
 
 function checkProfiles(toolbox) {
   let panel = toolbox.getPanel("jsprofiler");
+  let getTitle = (uid) =>
+    panel.document.querySelector("li#profile-" + uid + " > h1").textContent;
 
-  is(getSidebarItem(1, panel).attachment.state, PROFILE_IDLE);
-  is(getSidebarItem(2, panel).attachment.name, "Second");
-  is(getSidebarItem(2, panel).attachment.state, PROFILE_COMPLETED);
-  is(getSidebarItem(3, panel).attachment.name, "Third");
-  is(getSidebarItem(3, panel).attachment.state, PROFILE_RUNNING);
+  is(getTitle(1), "Profile 1", "Profile 1 doesn't have a star next to it.");
+  is(getTitle(2), "Second", "Second doesn't have a star next to it.");
+  is(getTitle(3), "Third *", "Third does have a star next to it.");
 
   // Make sure we can still stop profiles via the queue pop.
 
   gPanel.profiles.get(3).once("stopped", () => {
     openProfiler(gTab, () => {
-      is(getSidebarItem(3, panel).attachment.state, PROFILE_COMPLETED);
+      is(getTitle(3), "Third", "Third doesn't have a star next to it.");
       tearDown(gTab, () => gTab = gPanel = null);
     });
   });

@@ -8,6 +8,10 @@
 #include "frontend/ParseNode.h"
 #include "frontend/Parser.h"
 
+#include "jsscriptinlines.h"
+
+#include "frontend/ParseMaps-inl.h"
+#include "frontend/ParseNode-inl.h"
 #include "frontend/Parser-inl.h"
 
 using namespace js;
@@ -342,10 +346,35 @@ ParseNode::newBinaryOrAppend(ParseNodeKind kind, JSOp op, ParseNode *left, Parse
     return handler->new_<BinaryNode>(kind, op, left, right);
 }
 
+inline void
+NameNode::initCommon(ParseContext<FullParseHandler> *pc)
+{
+    pn_expr = NULL;
+    pn_cookie.makeFree();
+    pn_dflags = (!pc->topStmt || pc->topStmt->type == STMT_BLOCK)
+                ? PND_BLOCKCHILD
+                : 0;
+    pn_blockid = pc->blockid();
+}
+
+// Note: the parse context passed into this may not equal the associated
+// parser's current context.
+NameNode *
+NameNode::create(ParseNodeKind kind, JSAtom *atom, FullParseHandler *handler,
+                 ParseContext<FullParseHandler> *pc)
+{
+    ParseNode *pn = ParseNode::create(kind, PN_NAME, handler);
+    if (pn) {
+        pn->pn_atom = atom;
+        ((NameNode *)pn)->initCommon(pc);
+    }
+    return (NameNode *)pn;
+}
+
 const char *
 Definition::kindString(Kind kind)
 {
-    static const char * const table[] = {
+    static const char *table[] = {
         "", js_var_str, js_const_str, js_let_str, js_function_str, "argument", "unknown"
     };
 
@@ -501,7 +530,7 @@ Parser<FullParseHandler>::cloneLeftHandSide(ParseNode *opn)
 
                 pn2 = handler.new_<BinaryNode>(PNK_COLON, JSOP_INITPROP, opn2->pn_pos, tag, target);
             } else if (opn2->isArity(PN_NULLARY)) {
-                JS_ASSERT(opn2->isKind(PNK_ELISION));
+                JS_ASSERT(opn2->isKind(PNK_COMMA));
                 pn2 = cloneParseTree(opn2);
             } else {
                 pn2 = cloneLeftHandSide(opn2);
@@ -546,7 +575,7 @@ Parser<FullParseHandler>::cloneLeftHandSide(ParseNode *opn)
 
 #ifdef DEBUG
 
-static const char * const parseNodeNames[] = {
+static const char *parseNodeNames[] = {
 #define STRINGIFY(name) #name,
     FOR_EACH_PARSE_NODE_KIND(STRINGIFY)
 #undef STRINGIFY
@@ -751,7 +780,7 @@ ObjectBox::ObjectBox(JSObject *object, ObjectBox* traceLink)
     traceLink(traceLink),
     emitLink(NULL)
 {
-    JS_ASSERT(!object->is<JSFunction>());
+    JS_ASSERT(!object->isFunction());
 }
 
 ObjectBox::ObjectBox(JSFunction *function, ObjectBox* traceLink)
@@ -759,7 +788,7 @@ ObjectBox::ObjectBox(JSFunction *function, ObjectBox* traceLink)
     traceLink(traceLink),
     emitLink(NULL)
 {
-    JS_ASSERT(object->is<JSFunction>());
+    JS_ASSERT(object->isFunction());
     JS_ASSERT(asFunctionBox()->function() == function);
 }
 
@@ -782,7 +811,7 @@ ObjectBox::ObjectBox(Module *module, ObjectBox* traceLink)
     traceLink(traceLink),
     emitLink(NULL)
 {
-    JS_ASSERT(object->is<Module>());
+    JS_ASSERT(object->isModule());
 }
 
 void

@@ -2112,14 +2112,6 @@ HyperTextAccessible::ScrollSubstringToPoint(int32_t aStartIndex,
 ENameValueFlag
 HyperTextAccessible::NativeName(nsString& aName)
 {
-  // Check @alt attribute for invalid img elements.
-  bool hasImgAlt = false;
-  if (mContent->IsHTML(nsGkAtoms::img)) {
-    hasImgAlt = mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::alt, aName);
-    if (!aName.IsEmpty())
-      return eNameOK;
-  }
-
   ENameValueFlag nameFlag = AccessibleWrap::NativeName(aName);
   if (!aName.IsEmpty())
     return nameFlag;
@@ -2131,7 +2123,7 @@ HyperTextAccessible::NativeName(nsString& aName)
       mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::title, aName))
     aName.CompressWhitespace();
 
-  return hasImgAlt ? eNoNameOnPurpose : eNameOK;
+  return eNameOK;
 }
 
 void

@@ -429,17 +429,6 @@ HandleException(JSContext *cx, const IonFrameIterator &frame, ResumeFromExceptio
             }
             break;
 
-          case JSTRY_FINALLY:
-            if (cx->isExceptionPending()) {
-                rfe->kind = ResumeFromException::RESUME_FINALLY;
-                jsbytecode *finallyPC = script->main() + tn->start + tn->length;
-                rfe->target = script->baselineScript()->nativeCodeForPC(script, finallyPC);
-                rfe->exception = cx->getPendingException();
-                cx->clearPendingException();
-                return;
-            }
-            break;
-
           case JSTRY_ITER: {
             Value iterValue(* (Value *) rfe->stackPointer);
             RootedObject iterObject(cx, &iterValue.toObject());
@@ -1236,11 +1225,6 @@ InlineFrameIteratorMaybeGC<allowGC>::resetOn(const IonFrameIterator *iter)
 template void InlineFrameIteratorMaybeGC<NoGC>::resetOn(const IonFrameIterator *iter);
 template void InlineFrameIteratorMaybeGC<CanGC>::resetOn(const IonFrameIterator *iter);
 
-// Disable PGO.
-#if defined(_MSC_VER)
-# pragma optimize("g", off)
-#endif
-
 template <AllowGC allowGC>
 void
 InlineFrameIteratorMaybeGC<allowGC>::findNextFrame()
@@ -1266,10 +1250,6 @@ InlineFrameIteratorMaybeGC<allowGC>::findNextFrame()
         // Recover the number of actual arguments from the script.
         if (JSOp(*pc_) != JSOP_FUNAPPLY)
             numActualArgs_ = GET_ARGC(pc_);
-        if (JSOp(*pc_) == JSOP_FUNCALL) {
-            JS_ASSERT(GET_ARGC(pc_) > 0);
-            numActualArgs_ = GET_ARGC(pc_) - 1;
-        }
 
         JS_ASSERT(numActualArgs_ != 0xbadbad);
 
@@ -1286,13 +1266,8 @@ InlineFrameIteratorMaybeGC<allowGC>::findNextFrame()
 
         si_.nextFrame();
 
-        callee_ = &funval.toObject().as<JSFunction>();
-
-        // Inlined functions may be clones that still point to the lazy script
-        // for the executed script, if they are clones. The actual script
-        // exists though, just make sure the function points to it.
-        script_ = callee_->existingScript();
-
+        callee_ = funval.toObject().toFunction();
+        script_ = callee_->nonLazyScript();
         pc_ = script_->code + si_.pcOffset();
     }
 
@@ -1300,11 +1275,6 @@ InlineFrameIteratorMaybeGC<allowGC>::findNextFrame()
 }
 template void InlineFrameIteratorMaybeGC<NoGC>::findNextFrame();
 template void InlineFrameIteratorMaybeGC<CanGC>::findNextFrame();
-
-// Reenable default optimization flags.
-#if defined(_MSC_VER)
-# pragma optimize("", on)
-#endif
 
 template <AllowGC allowGC>
 bool

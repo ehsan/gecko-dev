@@ -4,11 +4,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsfuninlines_h
-#define jsfuninlines_h
+#ifndef jsfuninlines_h___
+#define jsfuninlines_h___
 
 #include "jsfun.h"
-
 #include "jsscript.h"
 
 #include "vm/GlobalObject.h"
@@ -119,7 +118,7 @@ SameTraceType(const Value &lhs, const Value &rhs)
 {
     return SameType(lhs, rhs) &&
            (lhs.isPrimitive() ||
-            lhs.toObject().is<JSFunction>() == rhs.toObject().is<JSFunction>());
+            lhs.toObject().isFunction() == rhs.toObject().isFunction());
 }
 
 /* Valueified JS_IsConstructing. */
@@ -128,8 +127,8 @@ IsConstructing(const Value *vp)
 {
 #ifdef DEBUG
     JSObject *callee = &JS_CALLEE(cx, vp).toObject();
-    if (callee->is<JSFunction>()) {
-        JSFunction *fun = &callee->as<JSFunction>();
+    if (callee->isFunction()) {
+        JSFunction *fun = callee->toFunction();
         JS_ASSERT(fun->isNativeConstructor());
     } else {
         JS_ASSERT(callee->getClass()->construct != NULL);
@@ -164,8 +163,8 @@ SkipScopeParent(JSObject *parent)
 {
     if (!parent)
         return NULL;
-    while (parent->is<ScopeObject>())
-        parent = &parent->as<ScopeObject>().enclosingScope();
+    while (parent->isScope())
+        parent = &parent->asScope().enclosingScope();
     return parent;
 }
 
@@ -224,40 +223,6 @@ CloneFunctionObjectIfNotSingleton(JSContext *cx, HandleFunction fun, HandleObjec
 
 } /* namespace js */
 
-inline bool
-JSFunction::isHeavyweight() const
-{
-    JS_ASSERT(!isInterpretedLazy());
-
-    if (isNative())
-        return false;
-
-    // Note: this should be kept in sync with FunctionBox::isHeavyweight().
-    return nonLazyScript()->bindings.hasAnyAliasedBindings() ||
-           nonLazyScript()->funHasExtensibleScope ||
-           nonLazyScript()->funNeedsDeclEnvObject;
-}
-
-inline JSScript *
-JSFunction::existingScript()
-{
-    JS_ASSERT(isInterpreted());
-    if (isInterpretedLazy()) {
-        js::LazyScript *lazy = lazyScript();
-        JSScript *script = lazy->maybeScript();
-        JS_ASSERT(script);
-
-        if (zone()->needsBarrier())
-            js::LazyScript::writeBarrierPre(lazy);
-
-        flags &= ~INTERPRETED_LAZY;
-        flags |= INTERPRETED;
-        initScript(script);
-    }
-    JS_ASSERT(hasScript());
-    return u.i.s.script_;
-}
-
 inline void
 JSFunction::setScript(JSScript *script_)
 {
@@ -286,6 +251,7 @@ JSFunction::initLazyScript(js::LazyScript *lazy)
 inline JSObject *
 JSFunction::getBoundFunctionTarget() const
 {
+    JS_ASSERT(isFunction());
     JS_ASSERT(isBoundFunction());
 
     /* Bound functions abuse |parent| to store their target function. */
@@ -295,7 +261,7 @@ JSFunction::getBoundFunctionTarget() const
 inline bool
 js::Class::isCallable() const
 {
-    return this == &JSFunction::class_ || call;
+    return this == &js::FunctionClass || call;
 }
 
-#endif /* jsfuninlines_h */
+#endif /* jsfuninlines_h___ */

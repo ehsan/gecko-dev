@@ -92,14 +92,7 @@ DebuggerTransport.prototype = {
 
   onOutputStreamReady:
   makeInfallible(function DT_onOutputStreamReady(aStream) {
-    let written = 0;
-    try {
-      written = aStream.write(this._outgoing, this._outgoing.length);
-    } catch(e if e.result == Components.results.NS_BASE_STREAM_CLOSED) {
-      dumpn("Connection closed.");
-      this.close();
-      return;
-    }
+    let written = aStream.write(this._outgoing, this._outgoing.length);
     this._outgoing = this._outgoing.slice(written);
     this._flushOutgoing();
   }, "DebuggerTransport.prototype.onOutputStreamReady"),
@@ -226,17 +219,13 @@ LocalDebuggerTransport.prototype = {
     }
     this._deepFreeze(aPacket);
     let other = this.other;
-    if (other) {
-      Services.tm.currentThread.dispatch(makeInfallible(function() {
-        // Avoid the cost of JSON.stringify() when logging is disabled.
-        if (wantLogging) {
-          dumpn("Received packet " + serial + ": " + JSON.stringify(aPacket, null, 2));
-        }
-        if (other.hooks) {
-          other.hooks.onPacket(aPacket);
-        }
-      }, "LocalDebuggerTransport instance's this.other.hooks.onPacket"), 0);
-    }
+    Services.tm.currentThread.dispatch(makeInfallible(function() {
+      // Avoid the cost of JSON.stringify() when logging is disabled.
+      if (wantLogging) {
+        dumpn("Received packet " + serial + ": " + JSON.stringify(aPacket, null, 2));
+      }
+      other.hooks.onPacket(aPacket);
+    }, "LocalDebuggerTransport instance's this.other.hooks.onPacket"), 0);
   },
 
   /**

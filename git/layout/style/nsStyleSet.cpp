@@ -30,8 +30,6 @@
 #include "nsStyleSheetService.h"
 #include "mozilla/dom/Element.h"
 #include "GeckoProfiler.h"
-#include "nsHTMLCSSStyleSheet.h"
-#include "nsHTMLStyleSheet.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -320,28 +318,19 @@ nsStyleSet::GatherRuleProcessors(sheetType aType)
     // elements later if mAuthorStyleDisabled.
     return NS_OK;
   }
-  switch (aType) {
-    // handle the types for which have a rule processor that does not
-    // implement the style sheet interface.
-    case eAnimationSheet:
-      MOZ_ASSERT(mSheets[aType].Count() == 0);
-      mRuleProcessors[aType] = PresContext()->AnimationManager();
-      return NS_OK;
-    case eTransitionSheet:
-      MOZ_ASSERT(mSheets[aType].Count() == 0);
-      mRuleProcessors[aType] = PresContext()->TransitionManager();
-      return NS_OK;
-    case eStyleAttrSheet:
-      MOZ_ASSERT(mSheets[aType].Count() == 0);
-      mRuleProcessors[aType] = PresContext()->Document()->GetInlineStyleSheet();
-      return NS_OK;
-    case ePresHintSheet:
-      MOZ_ASSERT(mSheets[aType].Count() == 0);
-      mRuleProcessors[aType] = PresContext()->Document()->GetAttributeStyleSheet();
-      return NS_OK;
-    default:
-      // keep going
-      break;
+  if (aType == eAnimationSheet) {
+    // We have no sheet for the animations level; just a rule
+    // processor.  (XXX: We should probably do this for the other
+    // non-CSS levels too!)
+    mRuleProcessors[aType] = PresContext()->AnimationManager();
+    return NS_OK;
+  }
+  if (aType == eTransitionSheet) {
+    // We have no sheet for the transitions level; just a rule
+    // processor.  (XXX: We should probably do this for the other
+    // non-CSS levels too!)
+    mRuleProcessors[aType] = PresContext()->TransitionManager();
+    return NS_OK;
   }
   if (aType == eScopedDocSheet) {
     // Create a rule processor for each scope.
@@ -434,7 +423,11 @@ nsStyleSet::AppendStyleSheet(sheetType aType, nsIStyleSheet *aSheet)
   if (!mSheets[aType].AppendObject(aSheet))
     return NS_ERROR_OUT_OF_MEMORY;
 
-  return DirtyRuleProcessors(aType);
+  if (!mBatching)
+    return GatherRuleProcessors(aType);
+
+  mDirty |= 1 << aType;
+  return NS_OK;
 }
 
 nsresult
@@ -447,7 +440,11 @@ nsStyleSet::PrependStyleSheet(sheetType aType, nsIStyleSheet *aSheet)
   if (!mSheets[aType].InsertObjectAt(aSheet, 0))
     return NS_ERROR_OUT_OF_MEMORY;
 
-  return DirtyRuleProcessors(aType);
+  if (!mBatching)
+    return GatherRuleProcessors(aType);
+
+  mDirty |= 1 << aType;
+  return NS_OK;
 }
 
 nsresult
@@ -457,8 +454,11 @@ nsStyleSet::RemoveStyleSheet(sheetType aType, nsIStyleSheet *aSheet)
   NS_ASSERTION(aSheet->IsComplete(),
                "Incomplete sheet being removed from style set");
   mSheets[aType].RemoveObject(aSheet);
+  if (!mBatching)
+    return GatherRuleProcessors(aType);
 
-  return DirtyRuleProcessors(aType);
+  mDirty |= 1 << aType;
+  return NS_OK;
 }
 
 nsresult
@@ -469,7 +469,11 @@ nsStyleSet::ReplaceSheets(sheetType aType,
   if (!mSheets[aType].AppendObjects(aNewSheets))
     return NS_ERROR_OUT_OF_MEMORY;
 
-  return DirtyRuleProcessors(aType);
+  if (!mBatching)
+    return GatherRuleProcessors(aType);
+
+  mDirty |= 1 << aType;
+  return NS_OK;
 }
 
 nsresult
@@ -484,16 +488,10 @@ nsStyleSet::InsertStyleSheetBefore(sheetType aType, nsIStyleSheet *aNewSheet,
   int32_t idx = mSheets[aType].IndexOf(aReferenceSheet);
   if (idx < 0)
     return NS_ERROR_INVALID_ARG;
-
+  
   if (!mSheets[aType].InsertObjectAt(aNewSheet, idx))
     return NS_ERROR_OUT_OF_MEMORY;
 
-  return DirtyRuleProcessors(aType);
-}
-
-nsresult
-nsStyleSet::DirtyRuleProcessors(sheetType aType)
-{
   if (!mBatching)
     return GatherRuleProcessors(aType);
 
@@ -561,8 +559,11 @@ nsStyleSet::AddDocStyleSheet(nsIStyleSheet* aSheet, nsIDocument* aDocument)
   }
   if (!sheets.InsertObjectAt(aSheet, index))
     return NS_ERROR_OUT_OF_MEMORY;
+  if (!mBatching)
+    return GatherRuleProcessors(type);
 
-  return DirtyRuleProcessors(type);
+  mDirty |= 1 << type;
+  return NS_OK;
 }
 
 nsresult

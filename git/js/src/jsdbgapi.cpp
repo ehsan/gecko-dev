@@ -11,7 +11,6 @@
 #include "jsdbgapi.h"
 
 #include <string.h>
-
 #include "jsprvtd.h"
 #include "jstypes.h"
 #include "jsapi.h"
@@ -23,19 +22,20 @@
 #include "jsscript.h"
 #include "jsstr.h"
 #include "jswatchpoint.h"
+#include "jswrapper.h"
 
 #include "frontend/SourceNotes.h"
-#include "ion/AsmJS.h"
 #include "vm/Debugger.h"
 #include "vm/Interpreter.h"
 #include "vm/Shape.h"
 
-#ifdef JS_ION
+#ifdef JS_ASMJS
 #include "ion/AsmJSModule.h"
 #endif
 
 #include "jsatominlines.h"
 #include "jsinferinlines.h"
+#include "jsobjinlines.h"
 #include "jsscriptinlines.h"
 
 #include "vm/Debugger-inl.h"
@@ -76,7 +76,7 @@ IsTopFrameConstructing(JSContext *cx, AbstractFramePtr frame)
 JSTrapStatus
 js::ScriptDebugPrologue(JSContext *cx, AbstractFramePtr frame)
 {
-    JS_ASSERT_IF(frame.isStackFrame(), frame.asStackFrame() == cx->interpreterFrame());
+    JS_ASSERT_IF(frame.isStackFrame(), frame.asStackFrame() == cx->fp());
 
     if (!frame.script()->selfHosted) {
         if (frame.isFramePushedByExecute()) {
@@ -113,8 +113,7 @@ js::ScriptDebugPrologue(JSContext *cx, AbstractFramePtr frame)
 bool
 js::ScriptDebugEpilogue(JSContext *cx, AbstractFramePtr frame, bool okArg)
 {
-    JS_ASSERT_IF(frame.isStackFrame(), frame.asStackFrame() == cx->interpreterFrame());
-
+    JS_ASSERT_IF(frame.isStackFrame(), frame.asStackFrame() == cx->fp());
     JSBool ok = okArg;
 
     // We don't add hook data for self-hosted scripts, so we don't need to check for them, here.
@@ -563,8 +562,8 @@ JS_GetParentOrScopeChain(JSContext *cx, JSObject *obj)
 JS_PUBLIC_API(const char *)
 JS_GetDebugClassName(JSObject *obj)
 {
-    if (obj->is<DebugScopeObject>())
-        return obj->as<DebugScopeObject>().scope().getClass()->name;
+    if (obj->isDebugScope())
+        return obj->asDebugScope().scope().getClass()->name;
     return obj->getClass()->name;
 }
 
@@ -679,7 +678,7 @@ JS_GetPropertyDescArray(JSContext *cx, JSObject *obj_, JSPropertyDescArray *pda)
     uint32_t i = 0;
     JSPropertyDesc *pd = NULL;
 
-    if (obj->is<DebugScopeObject>()) {
+    if (obj->isDebugScope()) {
         AutoIdVector props(cx);
         if (!Proxy::enumerate(cx, obj, props))
             return false;
@@ -913,7 +912,7 @@ JS_DumpCompartmentPCCounts(JSContext *cx)
             JS_DumpPCCounts(cx, script);
     }
 
-#if defined(JS_ION) && defined(DEBUG)
+#if defined(JS_ASMJS) && defined(DEBUG)
     for (unsigned thingKind = FINALIZE_OBJECT0; thingKind < FINALIZE_OBJECT_LIMIT; thingKind++) {
         for (CellIter i(cx->zone(), (AllocKind) thingKind); !i.done(); i.next()) {
             JSObject *obj = i.get<JSObject>();
@@ -1238,6 +1237,8 @@ JSObject *
 JSAbstractFramePtr::scopeChain(JSContext *cx)
 {
     AbstractFramePtr frame = Valueify(*this);
+    JS_ASSERT_IF(frame.isStackFrame(),
+                 cx->stack.space().containsSlow(frame.asStackFrame()));
     RootedObject scopeChain(cx, frame.scopeChain());
     AutoCompartment ac(cx, scopeChain);
     return GetDebugScopeForFrame(cx, frame);
@@ -1247,6 +1248,9 @@ JSObject *
 JSAbstractFramePtr::callObject(JSContext *cx)
 {
     AbstractFramePtr frame = Valueify(*this);
+    JS_ASSERT_IF(frame.isStackFrame(),
+                 cx->stack.space().containsSlow(frame.asStackFrame()));
+
     if (!frame.isFunctionFrame())
         return NULL;
 
@@ -1261,8 +1265,8 @@ JSAbstractFramePtr::callObject(JSContext *cx)
      *    JS_GetFrameCallObject will return the innermost function's callobj.
      */
     while (o) {
-        ScopeObject &scope = o->as<DebugScopeObject>().scope();
-        if (scope.is<CallObject>())
+        ScopeObject &scope = o->asDebugScope().scope();
+        if (scope.isCall())
             return o;
         o = o->enclosingScope();
     }

@@ -4,10 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_arm_BaselineHelpers_arm_h
-#define ion_arm_BaselineHelpers_arm_h
-
-#ifdef JS_ION
+#if !defined(jsion_baseline_helpers_arm_h__) && defined(JS_ION)
+#define jsion_baseline_helpers_arm_h__
 
 #include "ion/IonMacroAssembler.h"
 #include "ion/BaselineFrame.h"
@@ -305,7 +303,5 @@ EmitStubGuardFailure(MacroAssembler &masm)
 } // namespace ion
 } // namespace js
 
-#endif // JS_ION
-
-#endif /* ion_arm_BaselineHelpers_arm_h */
+#endif
 

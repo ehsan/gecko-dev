@@ -9,8 +9,6 @@
 #include "jsstr.h"
 #include "jsfriendapi.h"
 
-#include "jsscriptinlines.h"
-
 static JSScript *
 CompileScriptForPrincipalsVersionOrigin(JSContext *cx, JS::HandleObject obj,
                                         JSPrincipals *principals, JSPrincipals *originPrincipals,

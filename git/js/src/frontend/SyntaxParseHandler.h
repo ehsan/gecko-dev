@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef frontend_SyntaxParseHandler_h
-#define frontend_SyntaxParseHandler_h
+#ifndef SyntaxParseHandler_h__
+#define SyntaxParseHandler_h__
 
 namespace js {
 namespace frontend {
@@ -32,7 +32,6 @@ class SyntaxParseHandler
         NodeFailure = 0,
         NodeGeneric,
         NodeName,
-        NodeGetProp,
         NodeString,
         NodeStringExprStatement,
         NodeLValue
@@ -49,42 +48,37 @@ class SyntaxParseHandler
 
     void trace(JSTracer *trc) {}
 
-    Node newName(PropertyName *name, InBlockBool inBlock, uint32_t blockid, const TokenPos &pos) {
+    Node newName(PropertyName *name, ParseContext<SyntaxParseHandler> *pc,
+                 ParseNodeKind kind = PNK_NAME) {
         lastAtom = name;
         return NodeName;
     }
-
-    DefinitionNode newPlaceholder(JSAtom *atom, InBlockBool inBlock, uint32_t blockid,
-                                  const TokenPos &pos)
-    {
+    DefinitionNode newPlaceholder(JSAtom *atom, ParseContext<SyntaxParseHandler> *pc) {
         return Definition::PLACEHOLDER;
     }
-
-    Node newIdentifier(JSAtom *atom, const TokenPos &pos) { return NodeString; }
-    Node newNumber(double value, DecimalPoint decimalPoint, const TokenPos &pos) { return NodeGeneric; }
-    Node newBooleanLiteral(bool cond, const TokenPos &pos) { return NodeGeneric; }
-
-    Node newStringLiteral(JSAtom *atom, const TokenPos &pos) {
-        lastAtom = atom;
-        lastStringPos = pos;
+    Node newAtom(ParseNodeKind kind, JSAtom *atom, JSOp op = JSOP_NOP) {
+        if (kind == PNK_STRING) {
+            lastAtom = atom;
+            lastStringPos = tokenStream.currentToken().pos;
+        }
         return NodeString;
     }
-
+    Node newNumber(double value, DecimalPoint decimalPoint = NoDecimal) { return NodeGeneric; }
+    Node newNumber(Token tok) { return NodeGeneric; }
+    Node newBooleanLiteral(bool cond, const TokenPos &pos) { return NodeGeneric; }
     Node newThisLiteral(const TokenPos &pos) { return NodeGeneric; }
     Node newNullLiteral(const TokenPos &pos) { return NodeGeneric; }
-
-    template <class Boxer>
-    Node newRegExp(JSObject *reobj, const TokenPos &pos, Boxer &boxer) { return NodeGeneric; }
-
     Node newConditional(Node cond, Node thenExpr, Node elseExpr) { return NodeGeneric; }
 
-    Node newElision() { return NodeGeneric; }
+    Node newNullary(ParseNodeKind kind) { return NodeGeneric; }
 
-    Node newDelete(uint32_t begin, Node expr) { return NodeGeneric; }
-
-    Node newUnary(ParseNodeKind kind, JSOp op, uint32_t begin, Node kid) {
+    Node newUnary(ParseNodeKind kind, Node kid, JSOp op = JSOP_NOP) {
+        if (kind == PNK_SEMI && kid == NodeString)
+            return NodeStringExprStatement;
         return NodeGeneric;
     }
+    Node newUnary(ParseNodeKind kind, JSOp op = JSOP_NOP) { return NodeGeneric; }
+    void setUnaryKid(Node pn, Node kid) {}
 
     Node newBinary(ParseNodeKind kind, JSOp op = JSOP_NOP) { return NodeGeneric; }
     Node newBinary(ParseNodeKind kind, Node left, JSOp op = JSOP_NOP) { return NodeGeneric; }
@@ -95,48 +89,26 @@ class SyntaxParseHandler
                            ParseContext<SyntaxParseHandler> *pc, JSOp op = JSOP_NOP) {
         return NodeGeneric;
     }
+    void setBinaryRHS(Node pn, Node rhs) {}
 
     Node newTernary(ParseNodeKind kind, Node first, Node second, Node third, JSOp op = JSOP_NOP) {
         return NodeGeneric;
     }
 
-    Node newStatementList(unsigned blockid, const TokenPos &pos) { return NodeGeneric; }
-    void addStatementToList(Node list, Node stmt, ParseContext<SyntaxParseHandler> *pc) {}
-    Node newEmptyStatement(const TokenPos &pos) { return NodeGeneric; }
-
-    Node newExprStatement(Node expr, uint32_t end) {
-        return expr == NodeString ? NodeStringExprStatement : NodeGeneric;
-    }
-
-    Node newIfStatement(uint32_t begin, Node cond, Node then, Node else_) { return NodeGeneric; }
-    Node newDoWhileStatement(Node body, Node cond, const TokenPos &pos) { return NodeGeneric; }
-    Node newWhileStatement(uint32_t begin, Node cond, Node body) { return NodeGeneric; }
-    Node newSwitchStatement(uint32_t begin, Node discriminant, Node caseList) { return NodeGeneric; }
-    Node newCaseOrDefault(uint32_t begin, Node expr, Node body) { return NodeGeneric; }
-    Node newContinueStatement(PropertyName *label, const TokenPos &pos) { return NodeGeneric; }
-    Node newBreakStatement(PropertyName *label, const TokenPos &pos) { return NodeGeneric; }
-    Node newReturnStatement(Node expr, const TokenPos &pos) { return NodeGeneric; }
-
-    Node newLabeledStatement(PropertyName *label, Node stmt, uint32_t begin) {
+    Node newBreak(PropertyName *label, uint32_t begin, uint32_t end) {
         return NodeGeneric;
     }
-
-    Node newThrowStatement(Node expr, const TokenPos &pos) { return NodeGeneric; }
-    Node newTryStatement(uint32_t begin, Node body, Node catchList, Node finallyBlock) {
+    Node newContinue(PropertyName *label, uint32_t begin, uint32_t end) {
         return NodeGeneric;
     }
     Node newDebuggerStatement(const TokenPos &pos) { return NodeGeneric; }
-
-    Node newPropertyAccess(Node pn, PropertyName *name, uint32_t end) {
-        lastAtom = name;
-        return NodeGetProp;
-    }
-
+    Node newPropertyAccess(Node pn, PropertyName *name, uint32_t end) { return NodeLValue; }
     Node newPropertyByValue(Node pn, Node kid, uint32_t end) { return NodeLValue; }
 
     bool addCatchBlock(Node catchList, Node letBlock,
                        Node catchName, Node catchGuard, Node catchBody) { return true; }
 
+    void morphNameIntoLabel(Node name, Node statement) {}
     void setLeaveBlockResult(Node block, Node kid, bool leaveBlockExpr) {}
 
     void setLastFunctionArgumentDefault(Node funcpn, Node pn) {}
@@ -152,6 +124,7 @@ class SyntaxParseHandler
         return false;
     }
 
+    void noteLValue(Node pn) {}
     bool finishInitializerAssignment(Node pn, Node init, JSOp op) { return true; }
 
     void setBeginPosition(Node pn, Node oth) {}
@@ -186,9 +159,7 @@ class SyntaxParseHandler
     PropertyName *isName(Node pn) {
         return (pn == NodeName) ? lastAtom->asPropertyName() : NULL;
     }
-    PropertyName *isGetProp(Node pn) {
-        return (pn == NodeGetProp) ? lastAtom->asPropertyName() : NULL;
-    }
+    PropertyName *isGetProp(Node pn) { return NULL; }
     JSAtom *isStringExprStatement(Node pn, TokenPos *pos) {
         if (pn == NodeStringExprStatement) {
             *pos = lastStringPos;
@@ -196,6 +167,7 @@ class SyntaxParseHandler
         }
         return NULL;
     }
+    bool isEmptySemicolon(Node pn) { return false; }
 
     Node makeAssignment(Node pn, Node rhs) { return NodeGeneric; }
 
@@ -228,4 +200,4 @@ class SyntaxParseHandler
 } // namespace frontend
 } // namespace js
 
-#endif /* frontend_SyntaxParseHandler_h */
+#endif /* SyntaxParseHandler_h__ */

@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_Shape_h
-#define vm_Shape_h
+#ifndef Shape_h___
+#define Shape_h___
 
 #include "mozilla/Attributes.h"
 #include "mozilla/GuardObjects.h"
@@ -96,7 +96,6 @@ namespace js {
 
 class Bindings;
 class Nursery;
-class StaticBlockObject;
 
 /* Limit on the number of slotful properties in an object. */
 static const uint32_t SHAPE_INVALID_SLOT = JS_BIT(24) - 1;
@@ -1136,4 +1135,4 @@ template<> class AnchorPermitted<js::Shape *> { };
 template<> class AnchorPermitted<const js::Shape *> { };
 }
 
-#endif /* vm_Shape_h */
+#endif /* Shape_h___ */

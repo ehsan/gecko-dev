@@ -4,12 +4,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_String_h
-#define vm_String_h
+#ifndef String_h_
+#define String_h_
 
+#include "mozilla/Attributes.h"
+#include "mozilla/GuardObjects.h"
 #include "mozilla/PodOperations.h"
 
 #include "jsapi.h"
+#include "jsatom.h"
 #include "jsfriendapi.h"
 #include "jsstr.h"
 
@@ -619,7 +622,7 @@ class Rooted<JSStableString *>
 
     Rooted & operator =(JSStableString *value)
     {
-        JS_ASSERT(!js::GCMethods<JSStableString *>::poisoned(value));
+        JS_ASSERT(!js::RootMethods<JSStableString *>::poisoned(value));
         rooter.setString(value);
         return *this;
     }
@@ -992,4 +995,4 @@ JSAtom::asPropertyName()
     return static_cast<js::PropertyName *>(this);
 }
 
-#endif /* vm_String_h */
+#endif

@@ -4,11 +4,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef frontend_ParseMaps_inl_h
-#define frontend_ParseMaps_inl_h
+#ifndef ParseMapPool_inl_h__
+#define ParseMapPool_inl_h__
 
 #include "jscntxt.h"
 
+#include "frontend/ParseNode.h" /* Need sizeof(js::Definition). */
 #include "frontend/ParseMaps.h"
 
 namespace js {
@@ -119,4 +120,4 @@ AtomDecls<ParseHandler>::~AtomDecls()
 } /* namespace frontend */
 } /* namespace js */
 
-#endif /* frontend_ParseMaps_inl_h */
+#endif

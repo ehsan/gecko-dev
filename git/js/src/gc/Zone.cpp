@@ -4,10 +4,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "jsapi.h"
 #include "jscntxt.h"
 #include "jsgc.h"
+#include "jsprf.h"
 
 #include "vm/Debugger.h"
+#include "js/HashTable.h"
+#include "gc/GCInternals.h"
 
 #ifdef JS_ION
 #include "ion/BaselineJIT.h"
@@ -15,6 +19,7 @@
 #include "ion/Ion.h"
 #endif
 
+#include "jsobjinlines.h"
 #include "jsgcinlines.h"
 
 using namespace js;
