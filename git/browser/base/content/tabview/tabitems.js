@@ -877,8 +877,8 @@ let TabItems = {
             "<img class='cached-thumb' style='display:none'/><canvas moz-opaque/></div>" +
             "<div class='favicon'><img/></div>" +
             "<span class='tab-title'>&nbsp;</span>" +
-            "<div class='close'></div>" +
-            "<div class='expander'></div>";
+            "<div class='close'/>" +
+            "<div class='expander'/>";
     this._fragment = document.createDocumentFragment();
     this._fragment.appendChild(div);
 
