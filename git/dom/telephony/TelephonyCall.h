@@ -122,7 +122,8 @@ public:
 
   static already_AddRefed<TelephonyCall>
   Create(Telephony* aTelephony, uint32_t aServiceId,
-         const nsAString& aNumber, uint16_t aCallState, uint32_t aCallIndex,
+         const nsAString& aNumber, uint16_t aCallState,
+         uint32_t aCallIndex = telephony::kOutgoingPlaceholderCallIndex,
          bool aEmergency = false, bool aIsConference = false,
          bool aSwitchable = true, bool aMergeable = true);
 
@@ -142,6 +143,14 @@ public:
   CallIndex() const
   {
     return mCallIndex;
+  }
+
+  void
+  UpdateCallIndex(uint32_t aCallIndex)
+  {
+    NS_ASSERTION(mCallIndex == telephony::kOutgoingPlaceholderCallIndex,
+                 "Call index should not be set!");
+    mCallIndex = aCallIndex;
   }
 
   uint16_t

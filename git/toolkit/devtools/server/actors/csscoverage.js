@@ -319,34 +319,24 @@ let UsageReportActor = protocol.ActorClass({
   /**
    * Returns a JSONable structure designed for the page report which shows
    * the recommended changes to a page.
-   *
-   * "preload" means that a rule is used before the load event happens, which
-   * means that the page could by optimized by placing it in a <style> element
-   * at the top of the page, moving the <link> elements to the bottom.
-   *
    * Example:
    *   {
-   *     preload: [
-   *       {
-   *         url: "http://example.org/page1.html",
-   *         shortUrl: "page1.html",
-   *         rules: [
-   *           {
-   *             url: "http://example.org/style1.css",
-   *             shortUrl: "style1.css",
-   *             start: { line: 3, column: 4 },
-   *             selectorText: "p#content",
-   *             formattedCssText: "p#content {\n  color: red;\n }\n"
+   *     pages: [
+   *      {
+   *        url: http://example.org/page1.html,
+   *        preloadRules: [
+   *          {
+   *            url: "http://example.org/style1.css",
+   *            start: { line: 3, column: 4 },
+   *            selectorText: "p#content",
+   *            formattedCssText: "p#content {\n  color: red;\n }\n",
+   *            onclick: function() { // open in style editor }
    *          },
    *          ...
-   *         ]
-   *       }
-   *     ],
-   *     unused: [
-   *       {
-   *         url: "http://example.org/style1.css",
-   *         shortUrl: "style1.css",
-   *         rules: [ ... ]
+   *        ],
+   *        unusedRules: [
+   *          ...
+   *        ]
    *       }
    *     ]
    *   }
@@ -360,76 +350,52 @@ let UsageReportActor = protocol.ActorClass({
       throw new Error(l10n.lookup("csscoverageNotRunError"));
     }
 
-    // Helper function to create a JSONable data structure representing a rule
-    const ruleToRuleReport = function(rule, ruleData) {
+    // Create a JSONable data structure representing a rule
+    const ruleToRuleReport = function(ruleId, ruleData) {
+      let { url, line, column } = deconstructRuleId(ruleId);
       return {
-        url: rule.url,
-        shortUrl: rule.url.split("/").slice(-1),
-        start: { line: rule.line, column: rule.column },
+        url: url,
+        shortHref: url.split("/").slice(-1),
+        start: { line: line, column: column },
         selectorText: ruleData.selectorText,
         formattedCssText: prettifyCSS(ruleData.cssText)
       };
     }
 
-    // A count of each type of rule for the bar chart
-    let summary = { used: 0, unused: 0, preload: 0 };
+    let pages = [];
+    let unusedRules = [];
 
-    // Create the set of the unused rules
-    let unusedMap = new Map();
+    // Create a set of the unused rules
     for (let [ruleId, ruleData] of this._knownRules) {
-      let rule = deconstructRuleId(ruleId);
-      let rules = unusedMap.get(rule.url)
-      if (rules == null) {
-        rules = [];
-        unusedMap.set(rule.url, rules);
-      }
       if (!ruleData.isUsed) {
-        let ruleReport = ruleToRuleReport(rule, ruleData);
-        rules.push(ruleReport);
+        let ruleReport = ruleToRuleReport(ruleId, ruleData);
+        unusedRules.push(ruleReport);
       }
-      else {
-        summary.unused++;
-      }
-    }
-    let unused = [];
-    for (let [url, rules] of unusedMap) {
-      unused.push({
-        url: url,
-        shortUrl: url.split("/").slice(-1),
-        rules: rules
-      });
     }
 
     // Create the set of rules that could be pre-loaded
-    let preload = [];
     for (let url of this._visitedPages) {
       let page = {
         url: url,
-        shortUrl: url.split("/").slice(-1),
-        rules: []
+        shortHref: url.split("/").slice(-1),
+        preloadRules: []
       };
 
       for (let [ruleId, ruleData] of this._knownRules) {
         if (ruleData.preLoadOn.has(url)) {
-          let rule = deconstructRuleId(ruleId);
-          let ruleReport = ruleToRuleReport(rule, ruleData);
-          page.rules.push(ruleReport);
-          summary.preload++;
-        }
-        else {
-          summary.used++;
+          let ruleReport = ruleToRuleReport(ruleId, ruleData);
+          page.preloadRules.push(ruleReport);
         }
       }
 
-      if (page.rules.length > 0) {
-        preload.push(page);
+      if (page.preloadRules.length > 0) {
+        pages.push(page);
       }
     }
 
     return {
-      summary: summary,
-      preload: preload,
-      unused: unused
+      pages: pages,
+      unusedRules: unusedRules
     };
   }, {
     response: RetVal("json")
@@ -692,15 +658,12 @@ const UsageReportFront = protocol.FrontClass(UsageReportActor, {
     this.manage(this);
   },
 
-  /**
-   * Server-side start is above. Client-side start adds a notification box
-   */
   start: custom(function(chromeWindow, target) {
     if (chromeWindow != null) {
       let gnb = chromeWindow.document.getElementById("global-notificationbox");
-      this.notification = gnb.getNotificationWithValue("csscoverage-running");
+      let notification = gnb.getNotificationWithValue("csscoverage-running");
 
-      if (this.notification == null) {
+      if (!notification) {
         let notifyStop = ev => {
           if (ev == "removed") {
             this.stop();
@@ -708,34 +671,19 @@ const UsageReportFront = protocol.FrontClass(UsageReportActor, {
           }
         };
 
-        let msg = l10n.lookup("csscoverageRunningReply");
-        this.notification = gnb.appendNotification(msg,
-                                                   "csscoverage-running",
-                                                   "", // i.e. no image
-                                                   gnb.PRIORITY_INFO_HIGH,
-                                                   null, // i.e. no buttons
-                                                   notifyStop);
+        gnb.appendNotification(l10n.lookup("csscoverageRunningReply"),
+                               "csscoverage-running",
+                               "", // i.e. no image
+                               gnb.PRIORITY_INFO_HIGH,
+                               null, // i.e. no buttons
+                               notifyStop);
       }
     }
 
     return this._start();
   }, {
     impl: "_start"
-  }),
-
-  /**
-   * Client-side stop also removes the notification box
-   */
-  stop: custom(function() {
-    if (this.notification != null) {
-      this.notification.remove();
-      this.notification = undefined;
-    }
-
-    return this._stop();
-  }, {
-    impl: "_stop"
-  }),
+  })
 });
 
 exports.UsageReportFront = UsageReportFront;

@@ -14,7 +14,7 @@ function peerReadyCb(evt) {
 
   // reset callback and NFC Hardware.
   nfc.onpeerready = null;
-  toggleNFC(false).then(runNextTest);
+  toggleNFC(false, runNextTest);
 }
 
 function handleTechnologyDiscoveredRE0(msg) {
@@ -32,7 +32,7 @@ function handleTechnologyDiscoveredRE0(msg) {
 
   request.onerror = function () {
     ok(false, "checkP2PRegistration failed.");
-    toggleNFC(false).then(runNextTest);
+    toggleNFC(false, runNextTest);
   }
 }
 
@@ -48,14 +48,14 @@ function handleTechnologyDiscoveredRE0ForP2PRegFailure(msg) {
     is(request.result, false, "check for P2P registration result");
 
     nfc.onpeerready = null;
-    toggleNFC(false).then(runNextTest);
+    toggleNFC(false, runNextTest);
   }
 
   request.onerror = function () {
     ok(false, "checkP2PRegistration failed.");
 
     nfc.onpeerready = null;
-    toggleNFC(false).then(runNextTest);
+    toggleNFC(false, runNextTest);
   }
 }
 
@@ -75,14 +75,18 @@ function testPeerReady() {
   window.navigator.mozSetMessageHandler(
     "nfc-manager-tech-discovered", handleTechnologyDiscoveredRE0);
 
-  toggleNFC(true).then(() => activateRE(0));
+  toggleNFC(true, function() {
+    activateRE(0);
+  });
 }
 
 function testCheckP2PRegFailure() {
   window.navigator.mozSetMessageHandler(
     "nfc-manager-tech-discovered", handleTechnologyDiscoveredRE0ForP2PRegFailure);
 
-  toggleNFC(true).then(() => activateRE(0));
+  toggleNFC(true, function() {
+    activateRE(0);
+  });
 }
 
 let tests = [

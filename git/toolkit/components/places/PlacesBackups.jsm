@@ -29,7 +29,7 @@ XPCOMUtils.defineLazyGetter(this, "localFileCtor",
                                "nsILocalFile", "initWithPath"));
 
 XPCOMUtils.defineLazyGetter(this, "filenamesRegex",
-  () => new RegExp("^bookmarks-([0-9\-]+)(?:_([0-9]+)){0,1}(?:_([a-z0-9=\+\-]{24})){0,1}\.(json(lz4)?)$", "i")
+  () => new RegExp("^bookmarks-([0-9\-]+)(?:_([0-9]+)){0,1}(?:_([a-z0-9=\+\-]{24})){0,1}\.(json|html)", "i")
 );
 
 /**
@@ -225,17 +225,13 @@ this.PlacesBackups = {
    * @param [optional] aDateObj
    *                   Date object used to build the filename.
    *                   Will use current date if empty.
-   * @param [optional] bool - aCompress
-   *                   Determines if file extension is json or jsonlz4
-                       Default is json
    * @return A bookmarks backup filename.
    */
-  getFilenameForDate: function PB_getFilenameForDate(aDateObj, aCompress) {
+  getFilenameForDate: function PB_getFilenameForDate(aDateObj) {
     let dateObj = aDateObj || new Date();
     // Use YYYY-MM-DD (ISO 8601) as it doesn't contain illegal characters
     // and makes the alphabetical order of multiple backup files more useful.
-      return "bookmarks-" + dateObj.toLocaleFormat("%Y-%m-%d") + ".json" +
-                            (aCompress ? "lz4" : "");
+    return "bookmarks-" + dateObj.toLocaleFormat("%Y-%m-%d") + ".json";
   },
 
   /**
@@ -266,7 +262,7 @@ this.PlacesBackups = {
       "https://bugzilla.mozilla.org/show_bug.cgi?id=859695");
 
     for (let i = 0; i < this._entries.length; i++) {
-      let rx = new RegExp("\.json(lz4)?$");
+      let rx = new RegExp("\.json$");
       if (this._entries[i].leafName.match(rx))
         return this._entries[i];
     }
@@ -283,7 +279,7 @@ this.PlacesBackups = {
      return Task.spawn(function* () {
        let entries = yield this.getBackupFiles();
        for (let entry of entries) {
-         let rx = new RegExp("\.json(lz4)?$");
+         let rx = new RegExp("\.json$");
          if (OS.Path.basename(entry).match(rx)) {
            return entry;
          }
@@ -325,13 +321,13 @@ this.PlacesBackups = {
         this._backupFiles.unshift(aFilePath);
       } else {
         // If we are saving to a folder different than our backups folder, then
-        // we also want to create a new compressed version in it.
+        // we also want to copy this new backup to it.
         // This way we ensure the latest valid backup is the same saved by the
         // user.  See bug 424389.
         let mostRecentBackupFile = yield this.getMostRecentBackup();
         if (!mostRecentBackupFile ||
             hash != getHashFromFilename(OS.Path.basename(mostRecentBackupFile))) {
-          let name = this.getFilenameForDate(undefined, true);
+          let name = this.getFilenameForDate();
           let newFilename = appendMetaDataToFilename(name,
                                                      { count: nodeCount,
                                                        hash: hash });
@@ -352,8 +348,8 @@ this.PlacesBackups = {
               yield this.getBackupFiles();
             this._backupFiles.unshift(newFilePath);
           }
-          let jsonString = yield OS.File.read(aFilePath);
-          yield OS.File.writeAtomic(newFilePath, jsonString, { compression: "lz4" });
+
+          yield OS.File.copy(aFilePath, newFilePath);
         }
       }
 
@@ -363,7 +359,7 @@ this.PlacesBackups = {
 
   /**
    * Creates a dated backup in <profile>/bookmarkbackups.
-   * Stores the bookmarks using a lz4 compressed JSON file.
+   * Stores the bookmarks using JSON.
    * Note: any item that should not be backed up must be annotated with
    *       "places/excludeFromBackup".
    *
@@ -400,7 +396,7 @@ this.PlacesBackups = {
       // Ensure to initialize _backupFiles
       if (!this._backupFiles)
         yield this.getBackupFiles();
-      let newBackupFilename = this.getFilenameForDate(undefined, true);
+      let newBackupFilename = this.getFilenameForDate();
       // If we already have a backup for today we should do nothing, unless we
       // were required to enforce a new backup.
       let backupFile = yield getBackupFileForSameDate(newBackupFilename);
@@ -427,8 +423,7 @@ this.PlacesBackups = {
       try {
         let { count: nodeCount, hash: hash } =
           yield BookmarkJSONUtils.exportToFile(newBackupFile,
-                                               { compress: true,
-                                                 failIfHashIs: mostRecentHash });
+                                               { failIfHashIs: mostRecentHash });
         newFilenameWithMetaData = appendMetaDataToFilename(newBackupFilename,
                                                            { count: nodeCount,
                                                              hash: hash });
