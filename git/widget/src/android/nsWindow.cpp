@@ -795,22 +795,6 @@ nsWindow::GetThebesSurface()
     return new gfxImageSurface(gfxIntSize(5,5), gfxImageSurface::ImageFormatRGB24);
 }
 
-
-class DrawToFileRunnable : public nsRunnable {
-public:
-    DrawToFileRunnable(nsWindow* win, const nsAString &path) {
-       mPath = path;
-       mWindow = win;
-   }
-    NS_IMETHOD Run() {
-        mWindow->DrawToFile(mPath);
-        return NS_OK;
-    }
-private:
-    nsString mPath;
-    nsRefPtr<nsWindow> mWindow;
-};
-
 bool
 nsWindow::DrawToFile(const nsAString &path)
 {
@@ -1024,11 +1008,7 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
             break;
 
         case AndroidGeckoEvent::SAVE_STATE:
-            {
-                nsCOMPtr<nsIThread> thread;
-                nsRefPtr<DrawToFileRunnable> runnable = new DrawToFileRunnable(win, ae->Characters());
-                NS_NewThread(getter_AddRefs(thread), runnable);
-            }
+            win->DrawToFile(ae->Characters());
             break;
 
         default:

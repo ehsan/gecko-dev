@@ -42,6 +42,7 @@
 #include "nsCOMPtr.h"
 #include "nsIWidget.h"
 #include "nsIViewManager.h"
+#include "nsIViewObserver.h"
 #include "nsIPresShell.h"
 #include "nsISupports.h"
 #include "nsPIDOMWindow.h"
@@ -330,9 +331,7 @@ nsIMEStateManager::SetIMEState(PRUint32 aState,
         context.mActionHint.Assign(willSubmit ? control->GetType() == NS_FORM_INPUT_SEARCH
                                                   ? NS_LITERAL_STRING("search")
                                                   : NS_LITERAL_STRING("go")
-                                              : formElement
-                                                  ? NS_LITERAL_STRING("next")
-                                                  : EmptyString());
+                                              : NS_LITERAL_STRING("next"));
       }
     }
 

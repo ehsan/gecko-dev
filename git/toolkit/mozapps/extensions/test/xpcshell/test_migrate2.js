@@ -135,7 +135,7 @@ function run_test() {
   stmt.execute();
   stmt.finalize();
 
-  db.schemaVersion = 10000;
+  db.schemaVersion = 100;
   Services.prefs.setIntPref("extensions.databaseSchema", 100);
   db.close();
 

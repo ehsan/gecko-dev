@@ -68,6 +68,7 @@
 #include "gfxImageSurface.h"
 #include "nsLayoutUtils.h"
 #include "nsComputedDOMStyle.h"
+#include "nsIViewObserver.h"
 #include "nsIPresShell.h"
 #include "nsStyleAnimation.h"
 #include "nsCSSProps.h"
@@ -474,8 +475,11 @@ nsDOMWindowUtils::SendMouseEventCommon(const nsAString& aType,
 
   nsEventStatus status;
   if (aToWindow) {
-    nsCOMPtr<nsIPresShell> presShell = presContext->PresShell();
+    nsIPresShell* presShell = presContext->PresShell();
     if (!presShell)
+      return NS_ERROR_FAILURE;
+    nsCOMPtr<nsIViewObserver> vo = do_QueryInterface(presShell);
+    if (!vo)
       return NS_ERROR_FAILURE;
     nsIViewManager* viewManager = presShell->GetViewManager();
     if (!viewManager)
@@ -485,7 +489,7 @@ nsDOMWindowUtils::SendMouseEventCommon(const nsAString& aType,
       return NS_ERROR_FAILURE;
 
     status = nsEventStatus_eIgnore;
-    return presShell->HandleEvent(view->GetFrame(), &event, false, &status);
+    return vo->HandleEvent(view, &event, false, &status);
   }
   return widget->DispatchEvent(&event, status);
 }

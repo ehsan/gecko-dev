@@ -443,7 +443,6 @@ protected:
                                                LPARAM aLParam,
                                                LRESULT *aRetValue);
   void                    OnWindowPosChanging(LPWINDOWPOS& info);
-  void                    OnSysColorChanged();
 
   /**
    * Function that registers when the user has been active (used for detecting

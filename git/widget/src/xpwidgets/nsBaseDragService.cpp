@@ -62,6 +62,7 @@
 #include "nsIImageLoadingContent.h"
 #include "imgIContainer.h"
 #include "imgIRequest.h"
+#include "nsIViewObserver.h"
 #include "nsRegion.h"
 #include "nsGUIEvent.h"
 #include "nsXULPopupManager.h"
@@ -245,7 +246,13 @@ nsBaseDragService::InvokeDragSession(nsIDOMNode *aDOMNode,
   // capture. However, this gets in the way of determining drag
   // feedback for things like trees because the event coordinates
   // are in the wrong coord system, so turn off mouse capture.
-  nsIPresShell::ClearMouseCapture(nsnull);
+  nsCOMPtr<nsIDocument> doc = do_QueryInterface(mSourceDocument);
+  if (doc) {
+    nsCOMPtr<nsIViewObserver> viewObserver = do_QueryInterface(doc->GetShell());
+    if (viewObserver) {
+      viewObserver->ClearMouseCapture(nsnull);
+    }
+  }
 
   return NS_OK;
 }

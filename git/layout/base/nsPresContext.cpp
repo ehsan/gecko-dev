@@ -2301,7 +2301,7 @@ nsPresContext::IsRootContentDocument()
     return true;
   }
 
-  nsIFrame* f = view->GetFrame();
+  nsIFrame* f = static_cast<nsIFrame*>(view->GetClientData());
   return (f && f->PresContext()->IsChrome());
 }
 

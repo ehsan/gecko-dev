@@ -336,13 +336,14 @@ nsXULPopupManager::AdjustPopupsOnWindowChange(nsPIDOMWindow* aWindow)
 }
 
 static
-nsMenuPopupFrame* GetPopupToMoveOrResize(nsIFrame* aFrame)
+nsMenuPopupFrame* GetPopupToMoveOrResize(nsIView* aView)
 {
-  if (!aFrame || aFrame->GetType() != nsGkAtoms::menuPopupFrame)
+  nsIFrame *frame = static_cast<nsIFrame *>(aView->GetClientData());
+  if (!frame || frame->GetType() != nsGkAtoms::menuPopupFrame)
     return nsnull;
 
   // no point moving or resizing hidden popups
-  nsMenuPopupFrame* menuPopupFrame = static_cast<nsMenuPopupFrame *>(aFrame);
+  nsMenuPopupFrame* menuPopupFrame = static_cast<nsMenuPopupFrame *>(frame);
   if (menuPopupFrame->PopupState() != ePopupOpenAndVisible)
     return nsnull;
 
@@ -350,9 +351,9 @@ nsMenuPopupFrame* GetPopupToMoveOrResize(nsIFrame* aFrame)
 }
 
 void
-nsXULPopupManager::PopupMoved(nsIFrame* aFrame, nsIntPoint aPnt)
+nsXULPopupManager::PopupMoved(nsIView* aView, nsIntPoint aPnt)
 {
-  nsMenuPopupFrame* menuPopupFrame = GetPopupToMoveOrResize(aFrame);
+  nsMenuPopupFrame* menuPopupFrame = GetPopupToMoveOrResize(aView);
   if (!menuPopupFrame)
     return;
 
@@ -375,9 +376,9 @@ nsXULPopupManager::PopupMoved(nsIFrame* aFrame, nsIntPoint aPnt)
 }
 
 void
-nsXULPopupManager::PopupResized(nsIFrame* aFrame, nsIntSize aSize)
+nsXULPopupManager::PopupResized(nsIView* aView, nsIntSize aSize)
 {
-  nsMenuPopupFrame* menuPopupFrame = GetPopupToMoveOrResize(aFrame);
+  nsMenuPopupFrame* menuPopupFrame = GetPopupToMoveOrResize(aView);
   if (!menuPopupFrame)
     return;
 
@@ -997,10 +998,13 @@ nsXULPopupManager::HidePopupCallback(nsIContent* aPopup,
 }
 
 void
-nsXULPopupManager::HidePopup(nsIFrame* aFrame)
+nsXULPopupManager::HidePopup(nsIView* aView)
 {
-  if (aFrame && aFrame->GetType() == nsGkAtoms::menuPopupFrame)
-    HidePopup(aFrame->GetContent(), false, true, false);
+  nsIFrame *frame = static_cast<nsIFrame *>(aView->GetClientData());
+  if (!frame || frame->GetType() != nsGkAtoms::menuPopupFrame)
+    return;
+
+  HidePopup(frame->GetContent(), false, true, false);
 }
 
 void

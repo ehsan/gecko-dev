@@ -267,7 +267,7 @@ XPCNativeInterface::NewInstance(XPCCallContext& ccx,
     PRUint16 totalCount;
     PRUint16 realTotalCount = 0;
     XPCNativeMember* cur;
-    JSString* str = NULL;
+    JSString*  str;
     jsid name;
     jsid interfaceName;
 

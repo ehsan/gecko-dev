@@ -512,10 +512,6 @@ IDBDatabase::CreateObjectStore(const nsAString& aName,
     autoIncrement = !!boolVal;
   }
 
-  if (!IDBObjectStore::IsValidKeyPath(aCx, keyPath)) {
-    return NS_ERROR_DOM_SYNTAX_ERR;
-  }
-
   nsAutoPtr<ObjectStoreInfo> newInfo(new ObjectStoreInfo());
 
   newInfo->name = aName;

@@ -46,10 +46,11 @@ class nsIWidget;
 struct nsRect;
 class nsRegion;
 class nsDeviceContext;
+class nsIViewObserver;
 
 #define NS_IVIEWMANAGER_IID \
-{ 0x1262a33f, 0xc19f, 0x4e5b, \
-  { 0x85, 0x00, 0xab, 0xf3, 0x7d, 0xcf, 0x30, 0x1d } }
+{ 0x144ef328, 0xbece, 0x43d6, \
+  { 0xac, 0xac, 0x1a, 0x90, 0x4b, 0x5c, 0xc1, 0x11 } }
 
 class nsIViewManager : public nsISupports
 {
@@ -58,7 +59,7 @@ public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_IVIEWMANAGER_IID)
   /**
    * Initialize the ViewManager
-   * Note: this instance does not hold a reference to the presshell
+   * Note: this instance does not hold a reference to the viewobserver
    * because it holds a reference to this instance.
    * @result The result of the initialization, NS_OK if no errors
    */
@@ -257,15 +258,15 @@ public:
   NS_IMETHOD  SetViewFloating(nsIView *aView, bool aFloatingView) = 0;
 
   /**
-   * Set the presshell associated with this manager
-   * @param aPresShell - new presshell
+   * Set the view observer associated with this manager
+   * @param aObserver - new observer
    */
-  virtual void SetPresShell(nsIPresShell *aPresShell) = 0;
+  virtual void SetViewObserver(nsIViewObserver *aObserver) = 0;
 
   /**
-   * Get the pres shell associated with this manager
+   * Get the view observer associated with this manager
    */
-  virtual nsIPresShell* GetPresShell() = 0;
+  virtual nsIViewObserver* GetViewObserver() = 0;
 
   /**
    * Get the device context associated with this manager

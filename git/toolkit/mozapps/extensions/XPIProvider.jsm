@@ -159,13 +159,6 @@ const DB_BOOL_METADATA   = ["visible", "active", "userDisabled", "appDisabled",
                             "softDisabled", "foreignInstall",
                             "hasBinaryComponents", "strictCompatibility"];
 
-// Properties that should be migrated where possible from an old database. These
-// shouldn't include properties that can be read directly from install.rdf files
-// or calculated
-const DB_MIGRATE_METADATA= ["installDate", "userDisabled", "softDisabled",
-                            "sourceURI", "applyBackgroundUpdates",
-                            "releaseNotesURI", "foreignInstall", "syncGUID"];
-
 const BOOTSTRAP_REASONS = {
   APP_STARTUP     : 1,
   APP_SHUTDOWN    : 2,
@@ -2650,16 +2643,24 @@ var XPIProvider = {
       // If there is migration data then apply it.
       if (aMigrateData) {
         LOG("Migrating data from old database");
-
-        DB_MIGRATE_METADATA.forEach(function(aProp) {
-          // A theme's disabled state is determined by the selected theme
-          // preference which is read in loadManifestFromRDF
-          if (aProp == "userDisabled" && newAddon.type == "theme")
-            return;
-
-          if (aProp in aMigrateData)
-            newAddon[aProp] = aMigrateData[aProp];
-        });
+        // A theme's disabled state is determined by the selected theme
+        // preference which is read in loadManifestFromRDF
+        if (newAddon.type != "theme")
+          newAddon.userDisabled = aMigrateData.userDisabled;
+        if ("syncGUID" in aMigrateData)
+          newAddon.syncGUID = aMigrateData.syncGUID;
+        if ("installDate" in aMigrateData)
+          newAddon.installDate = aMigrateData.installDate;
+        if ("softDisabled" in aMigrateData)
+          newAddon.softDisabled = aMigrateData.softDisabled;
+        if ("applyBackgroundUpdates" in aMigrateData)
+          newAddon.applyBackgroundUpdates = aMigrateData.applyBackgroundUpdates;
+        if ("sourceURI" in aMigrateData)
+          newAddon.sourceURI = aMigrateData.sourceURI;
+        if ("releaseNotesURI" in aMigrateData)
+          newAddon.releaseNotesURI = aMigrateData.releaseNotesURI;
+        if ("foreignInstall" in aMigrateData)
+          newAddon.foreignInstall = aMigrateData.foreignInstall;
 
         // Some properties should only be migrated if the add-on hasn't changed.
         // The version property isn't a perfect check for this but covers the
@@ -4475,47 +4476,61 @@ var XPIDatabase = {
     // Attempt to migrate data from a different (even future!) version of the
     // database
     try {
-      var stmt = this.connection.createStatement("PRAGMA table_info(addon)");
+      // Build a list of sql statements that might recover useful data from this
+      // and future versions of the schema
+      var sql = [];
+      sql.push("SELECT internal_id, id, syncGUID, location, userDisabled, " +
+               "softDisabled, installDate, version, applyBackgroundUpdates, " +
+               "sourceURI, releaseNotesURI, foreignInstall FROM addon");
+      sql.push("SELECT internal_id, id, location, userDisabled, " +
+               "softDisabled, installDate, version, applyBackgroundUpdates, " +
+               "sourceURI, releaseNotesURI, foreignInstall FROM addon");
+      sql.push("SELECT internal_id, id, location, userDisabled, " +
+               "softDisabled, installDate, version, applyBackgroundUpdates, " +
+               "sourceURI, releaseNotesURI FROM addon");
+      sql.push("SELECT internal_id, id, location, userDisabled, " +
+               "installDate, version, applyBackgroundUpdates, " +
+               "sourceURI, releaseNotesURI FROM addon");
+      sql.push("SELECT internal_id, id, location, userDisabled, installDate, " +
+               "version FROM addon");
 
-      const REQUIRED = ["internal_id", "id", "location", "userDisabled",
-                        "installDate", "version"];
-
-      let reqCount = 0;
-      let props = [];
-      for (let row in resultRows(stmt)) {
-        if (REQUIRED.indexOf(row.name) != -1) {
-          reqCount++;
-          props.push(row.name);
+      var stmt = null;
+      if (!sql.some(function(aSql) {
+        try {
+          stmt = this.connection.createStatement(aSql);
+          return true;
         }
-        else if (DB_METADATA.indexOf(row.name) != -1) {
-          props.push(row.name);
+        catch (e) {
+          return false;
         }
-        else if (DB_BOOL_METADATA.indexOf(row.name) != -1) {
-          props.push(row.name);
-        }
-      }
-
-      if (reqCount < REQUIRED.length) {
+      }, this)) {
         ERROR("Unable to read anything useful from the database");
         return migrateData;
       }
-      stmt.finalize();
 
-      stmt = this.connection.createStatement("SELECT " + props.join(",") + " FROM addon");
       for (let row in resultRows(stmt)) {
         if (!(row.location in migrateData))
           migrateData[row.location] = {};
-        let addonData = {
+        migrateData[row.location][row.id] = {
+          internal_id: row.internal_id,
+          version: row.version,
+          installDate: row.installDate,
+          userDisabled: row.userDisabled == 1,
           targetApplications: []
-        }
-        migrateData[row.location][row.id] = addonData;
+        };
 
-        props.forEach(function(aProp) {
-          if (DB_BOOL_METADATA.indexOf(aProp) != -1)
-            addonData[aProp] = row[aProp] == 1;
-          else
-            addonData[aProp] = row[aProp];
-        })
+        if ("syncGUID" in row)
+          migrateData[row.location][row.id].syncGUID = row.syncGUID;
+        if ("softDisabled" in row)
+          migrateData[row.location][row.id].softDisabled = row.softDisabled == 1;
+        if ("applyBackgroundUpdates" in row)
+          migrateData[row.location][row.id].applyBackgroundUpdates = row.applyBackgroundUpdates == 1;
+        if ("sourceURI" in row)
+          migrateData[row.location][row.id].sourceURI = row.sourceURI;
+        if ("releaseNotesURI" in row)
+          migrateData[row.location][row.id].releaseNotesURI = row.releaseNotesURI;
+        if ("foreignInstall" in row)
+          migrateData[row.location][row.id].foreignInstall = row.foreignInstall;
       }
 
       var taStmt = this.connection.createStatement("SELECT id, minVersion, " +

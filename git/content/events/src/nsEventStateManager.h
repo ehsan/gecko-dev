@@ -106,7 +106,8 @@ public:
   nsresult PreHandleEvent(nsPresContext* aPresContext,
                           nsEvent *aEvent,
                           nsIFrame* aTargetFrame,
-                          nsEventStatus* aStatus);
+                          nsEventStatus* aStatus,
+                          nsIView* aView);
 
   /* The PostHandleEvent method should contain all system processing which
    * should occur conditionally based on DOM or frame processing.  It should
@@ -116,7 +117,8 @@ public:
   nsresult PostHandleEvent(nsPresContext* aPresContext,
                            nsEvent *aEvent,
                            nsIFrame* aTargetFrame,
-                           nsEventStatus* aStatus);
+                           nsEventStatus* aStatus,
+                           nsIView* aView);
 
   void NotifyDestroyPresContext(nsPresContext* aPresContext);
   void SetPresContext(nsPresContext* aPresContext);

@@ -49,7 +49,6 @@
 #include "nsThreadUtils.h"
 #include "nsIDOMGetSVGDocument.h"
 #include "nsIDOMSVGDocument.h"
-#include "nsIScriptError.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -298,12 +297,6 @@ nsHTMLSharedObjectElement::BindToTree(nsIDocument *aDocument,
     // to prevent phishing attacks.
     NS_DispatchToCurrentThread(
       NS_NewRunnableMethod(aDocument, &nsIDocument::CancelFullScreen));
-    nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
-                                    "AddedWindowedPluginWhileFullScreen",
-                                    nsnull, 0, nsnull,
-                                    EmptyString(), 0, 0,
-                                    nsIScriptError::warningFlag,
-                                    "DOM", aDocument);           
   }
 #endif
   return NS_OK;

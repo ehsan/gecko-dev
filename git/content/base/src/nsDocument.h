@@ -978,9 +978,7 @@ protected:
   // doc tree, and if the document is visible, and if the api is not
   // disabled by pref. aIsCallerChrome must contain the return value of
   // nsContentUtils::IsCallerChrome() from the context we're checking.
-  // If aLogFailure is true, an appropriate warning message is logged to the
-  // console, and a "mozfullscreenerror" event is dispatched to this document.
-  bool IsFullScreenEnabled(bool aIsCallerChrome, bool aLogFailure);
+  bool IsFullScreenEnabled(bool aIsCallerChrome);
 
   /**
    * Check that aId is not empty and log a message to the console

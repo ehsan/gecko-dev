@@ -2719,6 +2719,7 @@ nsXPCComponents_Utils::LookupMethod()
         return NS_ERROR_XPC_BAD_CONVERT_JS;
 
     jsval funval;
+    JSFunction *oldfunction;
 
     // get (and perhaps lazily create) the member's cloned function
     if (!member->NewFunctionObject(inner_cc, iface,
@@ -2726,8 +2727,8 @@ nsXPCComponents_Utils::LookupMethod()
                                    &funval))
         return NS_ERROR_XPC_BAD_CONVERT_JS;
 
-    NS_ASSERTION(JS_ValueToFunction(inner_cc, funval),
-                 "Function is not a function");
+    oldfunction = JS_ValueToFunction(inner_cc, funval);
+    NS_ASSERTION(oldfunction, "Function is not a function");
 
     // Stick the function in the return value. This roots it.
     *retval = funval;

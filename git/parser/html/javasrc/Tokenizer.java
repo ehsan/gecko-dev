@@ -1204,10 +1204,8 @@ public class Tokenizer implements Locator {
                         attributes.addAttribute(attributeName, "", xmlnsPolicy);
                     }
                 } else {
-                    if (AttributeName.BORDER != attributeName) {
-                        err("Attribute value omitted for a non-boolean attribute. (HTML4-only error.)");
-                        attributes.addAttribute(attributeName, "", xmlnsPolicy);
-                    }
+                    err("Attribute value omitted for a non-boolean attribute. (HTML4-only error.)");
+                    attributes.addAttribute(attributeName, "", xmlnsPolicy);
                 }
             } else {
                 if (AttributeName.SRC == attributeName
@@ -6760,7 +6758,9 @@ public class Tokenizer implements Locator {
             attributeName = other.attributeName.cloneAttributeName(interner);
         }
 
-        Portability.delete(attributes);
+        if (attributes != null) {
+            Portability.delete(attributes);
+        }
         if (other.attributes == null) {
             attributes = null;
         } else {

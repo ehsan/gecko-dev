@@ -45,7 +45,6 @@
 #include "nsNativeWidget.h"
 #include "nsIWidget.h"
 #include "nsWidgetInitData.h"
-#include "nsIFrame.h"
 
 class nsIViewManager;
 class nsViewManager;
@@ -63,8 +62,8 @@ enum nsViewVisibility {
 };
 
 #define NS_IVIEW_IID    \
-  { 0xda62efbf, 0x0711, 0x4b79, \
-    { 0x87, 0x85, 0x9e, 0xec, 0xed, 0xf5, 0xb0, 0x32 } }
+  { 0x7caf32d2, 0xd82a, 0x4b9f, \
+    { 0x84, 0xc1, 0xbd, 0x20, 0xeb, 0x5c, 0x78, 0x55 } }
 
 // Public view flags
 
@@ -252,14 +251,16 @@ public:
   }
 
   /**
-   * Set the view's frame.
+   * Set the view's link to client owned data.
+   * @param aData - data to associate with view. nsnull to disassociate
    */
-  void SetFrame(nsIFrame* aRootFrame) { mFrame = aRootFrame; }
+  void SetClientData(void *aData) { mClientData = aData; }
 
   /**
-   * Retrieve the view's frame.
+   * Query the view for it's link to client owned data.
+   * @result data associated with view or nsnull if there is none.
    */
-  nsIFrame* GetFrame() const { return mFrame; }
+  void* GetClientData() const { return mClientData; }
 
   /**
    * Get the nearest widget in this view or a parent of this view and
@@ -398,7 +399,7 @@ protected:
   nsIWidget         *mWindow;
   nsView            *mNextSibling;
   nsView            *mFirstChild;
-  nsIFrame          *mFrame;
+  void              *mClientData;
   PRInt32           mZIndex;
   nsViewVisibility  mVis;
   // position relative our parent view origin but in our appunits
