@@ -474,13 +474,6 @@ function injectLoopAPI(targetWindow) {
       }
     },
 
-    fxAEnabled: {
-      enumerable: true,
-      get: function() {
-        return MozLoopService.fxAEnabled;
-      },
-    },
-
     logInToFxA: {
       enumerable: true,
       writable: true,
