@@ -1552,11 +1552,6 @@ MediaCache::ReleaseStream(MediaCacheStream* aStream)
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
   CACHE_LOG(PR_LOG_DEBUG, ("Stream %p closed", aStream));
   mStreams.RemoveElement(aStream);
-
-  // Update MediaCache again for |mStreams| is changed.
-  // We need to re-run Update() to ensure streams reading from the same resource
-  // as the removed stream get a chance to continue reading.
-  gMediaCache->QueueUpdate();
 }
 
 void

@@ -86,13 +86,6 @@ public class ToolbarComponent extends BaseComponent {
         return (ImageButton) getToolbarView().findViewById(R.id.forward);
     }
 
-    /**
-     * Returns the View for the edit cancel button in the browser toolbar.
-     */
-    private ImageButton getEditCancelButton() {
-        return (ImageButton) getToolbarView().findViewById(R.id.edit_cancel);
-    }
-
     private CharSequence getTitle() {
         return getTitleHelper(true);
     }
@@ -152,19 +145,14 @@ public class ToolbarComponent extends BaseComponent {
     public ToolbarComponent dismissEditingMode() {
         assertIsEditing();
 
-        // Cancel Button not implemeneted in tablet.
-        if (DeviceHelper.isTablet()) {
-            if (getUrlEditText().isInputMethodTarget()) {
-                // Drop the soft keyboard.
-                // TODO: Solo.hideSoftKeyboard() does not clear focus, causing unexpected
-                // behavior, but we may want to use it over goBack().
-                mSolo.goBack();
-            }
-
+        if (getUrlEditText().isInputMethodTarget()) {
+            // Drop the soft keyboard.
+            // TODO: Solo.hideSoftKeyboard() does not clear focus, causing unexpected
+            // behavior, but we may want to use it over goBack().
             mSolo.goBack();
-        } else {
-            mSolo.clickOnView(getEditCancelButton());
         }
+
+        mSolo.goBack();
 
         waitForNotEditing();
 

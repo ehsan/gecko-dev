@@ -125,8 +125,7 @@ public class TopSitesGridView extends GridView {
             public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
                 Cursor cursor = (Cursor) parent.getItemAtPosition(position);
 
-                TopSitesGridItemView gridView = (TopSitesGridItemView) view;
-                if (cursor == null || gridView.isEmpty()) {
+                if (cursor == null) {
                     mContextMenuInfo = null;
                     return false;
                 }

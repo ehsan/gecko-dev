@@ -108,13 +108,6 @@ public class TopSitesGridItemView extends RelativeLayout {
     }
 
     /**
-     * @return true, if this view has no content to show.
-     */
-    public boolean isEmpty() {
-        return mIsEmpty;
-    }
-
-    /**
      * @param title The title for this view.
      */
     public void setTitle(String title) {
