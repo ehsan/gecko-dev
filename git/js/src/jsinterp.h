@@ -379,6 +379,7 @@ js_FillPropertyCache(JSContext *cx, JSObject *obj,
             if (JS_LOCK_OBJ_IF_SHAPE(cx, pobj, PCVCAP_SHAPE(entry->vcap))) {  \
                 PCMETER(cache_->pchits++);                                    \
                 PCMETER(!PCVCAP_TAG(entry->vcap) || cache_->protopchits++);   \
+                pobj = OBJ_SCOPE(pobj)->object;                               \
                 atom = NULL;                                                  \
                 break;                                                        \
             }                                                                 \
@@ -450,8 +451,7 @@ extern const uint16 js_PrimitiveTestFlags[];
      JSFUN_THISP_TEST(JSFUN_THISP_FLAGS((fun)->flags),                        \
                       js_PrimitiveTestFlags[JSVAL_TAG(thisv) - 1]))
 
-#ifdef __cplusplus /* Aargh, libgjs, bug 492720. */
-static JS_INLINE JSObject *
+static inline JSObject *
 js_ComputeThisForFrame(JSContext *cx, JSStackFrame *fp)
 {
     if (fp->flags & JSFRAME_COMPUTED_THIS)
@@ -463,7 +463,6 @@ js_ComputeThisForFrame(JSContext *cx, JSStackFrame *fp)
     fp->flags |= JSFRAME_COMPUTED_THIS;
     return obj;
 }
-#endif
 
 /*
  * NB: js_Invoke requires that cx is currently running JS (i.e., that cx->fp

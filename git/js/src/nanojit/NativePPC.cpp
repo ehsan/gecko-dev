@@ -1122,8 +1122,10 @@ namespace nanojit
         NanoAssert(ins->isop(LIR_cmov) || ins->isop(LIR_qcmov));
         LIns* cond = ins->oprnd1();
         NanoAssert(cond->isCmp());
-        LIns* iftrue = ins->oprnd2();
-        LIns* iffalse = ins->oprnd3();
+        LIns* values = ins->oprnd2();
+        NanoAssert(values->opcode() == LIR_2);
+        LIns* iftrue = values->oprnd1();
+        LIns* iffalse = values->oprnd2();
         NanoAssert(iftrue->isQuad() == iffalse->isQuad());
         // fixme: we could handle fpu registers here, too, since we're just branching
         Register rr = prepResultReg(ins, GpRegs);

@@ -83,9 +83,6 @@
 #ifdef XP_WIN
 #include <windows.h>
 #endif
-#ifdef __SYMBIAN32__
-#include <unistd.h>
-#endif
 
 #ifndef XPCONNECT_STANDALONE
 #include "nsIScriptSecurityManager.h"
@@ -538,7 +535,7 @@ GC(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     JS_GC(cx);
     fprintf(gOutFile, "before %lu, after %lu, break %08lx\n",
            (unsigned long)preBytes, (unsigned long)rt->gcBytes,
-#if defined(XP_UNIX) && !defined(__SYMBIAN32__)
+#ifdef XP_UNIX
            (unsigned long)sbrk(0)
 #else
            0
@@ -676,7 +673,7 @@ static JSFunctionSpec glob_functions[] = {
 JSClass global_class = {
     "global", 0,
     JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,
-    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   nsnull
+    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   JS_FinalizeStub
 };
 
 static JSBool
@@ -791,7 +788,7 @@ static JSClass env_class = {
     JS_PropertyStub,  JS_PropertyStub,
     JS_PropertyStub,  env_setProperty,
     env_enumerate, (JSResolveOp) env_resolve,
-    JS_ConvertStub,   nsnull
+    JS_ConvertStub,   JS_FinalizeStub
 };
 
 /***************************************************************************/

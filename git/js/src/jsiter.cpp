@@ -120,7 +120,7 @@ JSClass js_IteratorClass = {
     JSCLASS_HAS_RESERVED_SLOTS(2) | /* slots for state and flags */
     JSCLASS_HAS_CACHED_PROTO(JSProto_Iterator),
     JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,
-    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   NULL,
+    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   JS_FinalizeStub,
     JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
@@ -627,7 +627,7 @@ JSClass js_StopIterationClass = {
     JS_PropertyStub,  JS_PropertyStub,
     JS_PropertyStub,  JS_PropertyStub,
     JS_EnumerateStub, JS_ResolveStub,
-    JS_ConvertStub,   NULL,
+    JS_ConvertStub,   JS_FinalizeStub,
     NULL,             NULL,
     NULL,             NULL,
     NULL,             stopiter_hasInstance,

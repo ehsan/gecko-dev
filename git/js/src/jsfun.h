@@ -162,6 +162,7 @@ struct JSFunction {
     } u;
     JSAtom          *atom;        /* name for diagnostics and decompiling */
 
+#ifdef __cplusplus
     bool optimizedClosure() { return FUN_KIND(this) > JSFUN_INTERPRETED; }
     bool needsWrapper()     { return FUN_NULL_CLOSURE(this) && u.i.skipmin != 0; }
 
@@ -179,8 +180,7 @@ struct JSFunction {
         JS_ASSERT(FUN_INTERPRETED(this));
         return countLocalNames() != 0;
     }
-
-    uint32 countInterpretedReservedSlots() const;
+#endif
 };
 
 /*

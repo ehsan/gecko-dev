@@ -114,9 +114,8 @@ var tabPreviewPanelHelper = {
     host.panel.hidden = false;
 
     var handler = this._generateHandler(host);
-    host.panel.addEventListener("popupshown", handler, false);
     host.panel.addEventListener("popuphiding", handler, false);
-    host.panel.addEventListener("popuphidden", handler, false);
+    host.panel.addEventListener("popupshown", handler, false);
 
     host._prevFocus = document.commandDispatcher.focusedElement;
   },
@@ -137,6 +136,10 @@ var tabPreviewPanelHelper = {
     if ("suspendGUI" in host)
       host.suspendGUI();
 
+    // Destroy the widget in order to prevent outdated content
+    // when re-opening the panel.
+    host.panel.hidden = true;
+
     if (host._prevFocus) {
       Cc["@mozilla.org/focus-manager;1"]
         .getService(Ci.nsIFocusManager)
@@ -149,11 +152,6 @@ var tabPreviewPanelHelper = {
       gBrowser.selectedTab = host.tabToSelect;
       host.tabToSelect = null;
     }
-  },
-  _popuphidden: function (host) {
-    // Destroy the widget in order to prevent outdated content
-    // when re-opening the panel.
-    host.panel.hidden = true;
   }
 };
 
@@ -381,7 +379,7 @@ var ctrlTab = {
     this._timer = setTimeout(function (self) {
       self._timer = null;
       self._openPanel();
-    }, 200, this);
+    }, 100, this);
   },
 
   _openPanel: function ctrlTab_openPanel() {
@@ -803,7 +801,9 @@ var allTabs = {
     {
       let innerWidth = Math.ceil(previewWidth / REL_PREVIEW_THUMBNAIL);
       let innerHeight = Math.ceil(previewHeight / REL_PREVIEW_THUMBNAIL);
-      var canvasStyle = "max-width:" + innerWidth + "px;" +
+      let verticalPadding = innerHeight * (REL_PREVIEW_THUMBNAIL - 1);
+      var canvasStyle = "margin-bottom:" + (verticalPadding * .3) + "px;" +
+                        "max-width:" + innerWidth + "px;" +
                         "min-width:" + innerWidth + "px;" +
                         "max-height:" + innerHeight + "px;" +
                         "min-height:" + innerHeight + "px;";

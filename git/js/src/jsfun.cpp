@@ -786,7 +786,7 @@ JSClass js_ArgumentsClass = {
     JS_PropertyStub,    args_delProperty,
     args_getProperty,   args_setProperty,
     args_enumerate,     (JSResolveOp) args_resolve,
-    JS_ConvertStub,     NULL,
+    JS_ConvertStub,     JS_FinalizeStub,
     NULL,               NULL,
     NULL,               NULL,
     NULL,               NULL,
@@ -805,7 +805,7 @@ JSClass js_DeclEnvClass = {
     js_Object_str,
     JSCLASS_HAS_PRIVATE | JSCLASS_HAS_CACHED_PROTO(JSProto_Object),
     JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,
-    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   NULL,
+    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   JS_FinalizeStub,
     JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
@@ -897,10 +897,8 @@ js_GetCallObject(JSContext *cx, JSStackFrame *fp)
     }
 
     callobj = js_NewObjectWithGivenProto(cx, &js_CallClass, NULL, fp->scopeChain);
-    if (!callobj ||
-        !js_EnsureReservedSlots(cx, callobj, fp->fun->countArgsAndVars())) {
+    if (!callobj)
         return NULL;
-    }
 
     JS_SetPrivate(cx, callobj, fp);
     JS_ASSERT(fp->fun == GET_FUNCTION_PRIVATE(cx, fp->callee));
@@ -938,6 +936,7 @@ js_PutCallObject(JSContext *cx, JSStackFrame *fp)
     JSBool ok;
     JSFunction *fun;
     uintN n;
+    JSScope *scope;
 
     /*
      * Since for a call object all fixed slots happen to be taken, we can copy
@@ -966,15 +965,26 @@ js_PutCallObject(JSContext *cx, JSStackFrame *fp)
     JS_ASSERT(fun == GetCallObjectFunction(callobj));
     n = fun->countArgsAndVars();
     if (n != 0) {
-        n += JS_INITIAL_NSLOTS;
         JS_LOCK_OBJ(cx, callobj);
-        memcpy(callobj->dslots, fp->argv, fun->nargs * sizeof(jsval));
-        memcpy(callobj->dslots + fun->nargs, fp->slots,
-               fun->u.i.nvars * sizeof(jsval));
-        JS_UNLOCK_OBJ(cx, callobj);
+        n += JS_INITIAL_NSLOTS;
+        if (n > STOBJ_NSLOTS(callobj))
+            ok &= js_GrowSlots(cx, callobj, n);
+        scope = OBJ_SCOPE(callobj);
+        if (ok) {
+            memcpy(callobj->dslots, fp->argv, fun->nargs * sizeof(jsval));
+            memcpy(callobj->dslots + fun->nargs, fp->slots,
+                   fun->u.i.nvars * sizeof(jsval));
+            if (scope->object == callobj && n > scope->freeslot)
+                scope->freeslot = n;
+        }
+        JS_UNLOCK_SCOPE(cx, scope);
     }
 
-    /* Clear private pointers to fp, which is about to go away (js_Invoke). */
+    /*
+     * Clear private pointers to fp, which is about to go away (js_Invoke).
+     * Do this last because js_GetProperty calls above need to follow the
+     * call object's private slot to find fp.
+     */
     if ((fun->flags & JSFUN_LAMBDA) && fun->atom) {
         JSObject *env = STOBJ_GET_PARENT(callobj);
 
@@ -1290,7 +1300,7 @@ JS_FRIEND_DATA(JSClass) js_CallClass = {
     JS_PropertyStub,    JS_PropertyStub,
     JS_PropertyStub,    JS_PropertyStub,
     call_enumerate,     (JSResolveOp)call_resolve,
-    call_convert,       NULL,
+    call_convert,       JS_FinalizeStub,
     NULL,               NULL,
     NULL,               NULL,
     NULL,               NULL,
@@ -1837,31 +1847,26 @@ fun_finalize(JSContext *cx, JSObject *obj)
     }
 }
 
-uint32
-JSFunction::countInterpretedReservedSlots() const
-{
-    JS_ASSERT(FUN_INTERPRETED(this));
-
-    uint32 nslots = (u.i.nupvars == 0)
-                    ? 0
-                    : JS_SCRIPT_UPVARS(u.i.script)->length;
-    if (u.i.script->regexpsOffset != 0)
-        nslots += JS_SCRIPT_REGEXPS(u.i.script)->length;
-    return nslots;
-}
-
 static uint32
 fun_reserveSlots(JSContext *cx, JSObject *obj)
 {
+    JSFunction *fun;
+    uint32 nslots;
+
     /*
      * We use JS_GetPrivate and not GET_FUNCTION_PRIVATE because during
      * js_InitFunctionClass invocation the function is called before the
      * private slot of the function object is set.
      */
-    JSFunction *fun = (JSFunction *) JS_GetPrivate(cx, obj);
-    return (fun && FUN_INTERPRETED(fun))
-           ? fun->countInterpretedReservedSlots()
-           : 0;
+    fun = (JSFunction *) JS_GetPrivate(cx, obj);
+    nslots = 0;
+    if (fun && FUN_INTERPRETED(fun) && fun->u.i.script) {
+        if (fun->u.i.nupvars != 0)
+            nslots = JS_SCRIPT_UPVARS(fun->u.i.script)->length;
+        if (fun->u.i.script->regexpsOffset != 0)
+            nslots += JS_SCRIPT_REGEXPS(fun->u.i.script)->length;
+    }
+    return nslots;
 }
 
 /*
@@ -2504,20 +2509,16 @@ js_AllocFlatClosure(JSContext *cx, JSFunction *fun, JSObject *scopeChain)
                ? JS_SCRIPT_UPVARS(fun->u.i.script)->length
                : 0) == fun->u.i.nupvars);
 
-    /*
-     * Assert that fun->countInterpretedReservedSlots returns 0 when
-     * fun->u.i.nupvars is zero.
-     */
-    JS_ASSERT(fun->u.i.script->regexpsOffset == 0);
-
     JSObject *closure = js_CloneFunctionObject(cx, fun, scopeChain);
     if (!closure || fun->u.i.nupvars == 0)
         return closure;
-    if (!js_EnsureReservedSlots(cx, closure,
-                                fun->countInterpretedReservedSlots())) {
+
+    uint32 nslots = JSSLOT_FREE(&js_FunctionClass);
+    JS_ASSERT(nslots == JS_INITIAL_NSLOTS);
+    nslots += fun_reserveSlots(cx, closure);
+    if (!js_GrowSlots(cx, closure, nslots))
         return NULL;
 
-    }
     return closure;
 }
 

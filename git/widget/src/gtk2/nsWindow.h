@@ -43,6 +43,7 @@
 #include "nsAutoPtr.h"
 
 #include "mozcontainer.h"
+#include "mozdrawingarea.h"
 #include "nsWeakReference.h"
 
 #include "nsIDragService.h"
@@ -194,6 +195,8 @@ public:
     NS_IMETHOD         SetIcon(const nsAString& aIconSpec);
     NS_IMETHOD         SetWindowClass(const nsAString& xulWinType);
     virtual nsIntPoint WidgetToScreenOffset();
+    NS_IMETHOD         BeginResizingChildren(void);
+    NS_IMETHOD         EndResizingChildren(void);
     NS_IMETHOD         EnableDragDrop(PRBool aEnable);
     NS_IMETHOD         PreCreateWidget(nsWidgetInitData *aWidgetInitData);
     NS_IMETHOD         CaptureMouse(PRBool aCapture);
@@ -449,8 +452,11 @@ protected:
     // shouldn't be automatically set to 0,0 for first show.
     PRPackedBool        mPlaced;
 
+    // Preferred sizes
+    PRUint32            mPreferredWidth;
+    PRUint32            mPreferredHeight;
+
 private:
-    PRBool             CanBeSeen();
     void               GetToplevelWidget(GtkWidget **aWidget);
     GtkWidget         *GetMozContainerWidget();
     nsWindow          *GetContainerWindow();
@@ -464,7 +470,7 @@ private:
 
     GtkWidget          *mShell;
     MozContainer       *mContainer;
-    GdkWindow          *mGdkWindow;
+    MozDrawingarea     *mDrawingarea;
 
     GtkWindowGroup     *mWindowGroup;
 

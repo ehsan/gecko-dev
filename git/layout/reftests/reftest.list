@@ -123,9 +123,6 @@ include ../../modules/plugin/test/reftest/reftest.list
 include printing/reftest.list
 include pagination/reftest.list
 
-# selection
-include selection/reftest.list
-
 # svg/
 include svg/reftest.list
 

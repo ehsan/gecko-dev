@@ -4,17 +4,13 @@
 
 let testPage1 = "data:text/html,<html id='tab1'><body><button id='button1'>Tab 1</button></body></html>";
 let testPage2 = "data:text/html,<html id='tab2'><body><button id='button2'>Tab 2</button></body></html>";
-let testPage3 = "data:text/html,<html id='tab3'><body><button id='button3'>Tab 3</button></body></html>";
-
-var browser1;
 
 function test() {
   waitForExplicitFinish();
 
   var tab1 = gBrowser.addTab();
-  browser1 = gBrowser.getBrowserForTab(tab1);
-
   var tab2 = gBrowser.addTab();
+  var browser1 = gBrowser.getBrowserForTab(tab1);
   var browser2 = gBrowser.getBrowserForTab(tab2);
 
   gURLBar.focus();
@@ -123,15 +119,10 @@ function test() {
     expectFocusShift(function () gBrowser.selectedTab = tab1,
                      browser1.contentWindow, null, true,
                      "focusedWindow after tab switch from no focus to no focus");
-
-    window.addEventListener("focus", _browser_tabfocus_test_eventOccured, true);
-    window.addEventListener("blur", _browser_tabfocus_test_eventOccured, true);
-
-    // next, check whether navigating forward, focusing the urlbar and then
-    // navigating back maintains the focus in the urlbar.
-    browser1.addEventListener("pageshow", _browser_tabfocus_navigation_test_eventOccured, true);
-    button1.focus();
-    browser1.contentWindow.location = testPage3;
+    
+    gBrowser.removeCurrentTab();
+    gBrowser.removeCurrentTab();
+    finish();
   }
 
   browser1.addEventListener("load", check, true);
@@ -159,24 +150,6 @@ function _browser_tabfocus_test_eventOccured(event)
   if (_browser_tabfocus_test_events)
     _browser_tabfocus_test_events += " ";
   _browser_tabfocus_test_events += event.type + ": " + id;
-}
-
-function _browser_tabfocus_navigation_test_eventOccured(event)
-{
-  if (event.target instanceof Document) {
-    var contentwin = event.target.defaultView;
-    if (contentwin.location.toString().indexOf("3") > 0) {
-      // just moved forward, so focus the urlbar and go back
-      gURLBar.focus();
-      setTimeout(function () contentwin.history.back(), 0);
-    }
-    else if (contentwin.location.toString().indexOf("2") > 0) {
-      is(window.document.activeElement, gURLBar.inputField, "urlbar still focused after navigating back");
-      gBrowser.removeCurrentTab();
-      gBrowser.removeCurrentTab();
-      finish();
-    }
-  }
 }
 
 function getId(element)

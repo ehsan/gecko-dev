@@ -190,10 +190,6 @@ public:
   operator FILE*() {
     return mFile;
   }
-  
-  FILE* get() {
-    return mFile;
-  }
 
 private:
   FILE* mFile;
@@ -413,7 +409,7 @@ static int ensure_remove(const char *path)
   return rv;
 }
 
-static FILE* ensure_open(const char *path, const char* flags, unsigned int options)
+static FILE* ensure_open(const char *path, char* flags, int options)
 {
   ensure_write_permissions(path);
   FILE* f = fopen(path, flags);
@@ -463,7 +459,7 @@ static int copy_file(const char *spath, const char *dpath)
 
   AutoFile sfile = fopen(spath, "rb");
   if (sfile == NULL || fstat(fileno(sfile), &ss)) {
-    LOG(("copy_file: failed to open or stat: %p,%s,%d\n", sfile.get(), spath, errno));
+    LOG(("copy_file: failed to open or stat: %p,%s,%d\n", sfile, spath, errno));
     return READ_ERROR;
   }
 
@@ -1172,12 +1168,11 @@ LaunchWinPostProcess(const WCHAR *appExe)
 static void
 LaunchCallbackApp(const NS_tchar *workingDir, int argc, NS_tchar **argv)
 {
-  putenv(const_cast<char*>("NO_EM_RESTART="));
-  putenv(const_cast<char*>("MOZ_LAUNCHED_CHILD=1"));
+  putenv("NO_EM_RESTART=");
+  putenv("MOZ_LAUNCHED_CHILD=1");
 
   // Run from the specified working directory (see bug 312360).
-  if(NS_tchdir(workingDir) != 0)
-    LOG(("Warning: chdir failed"));
+  NS_tchdir(workingDir);
 
 #if defined(USE_EXECV)
   execv(argv[0], argv);

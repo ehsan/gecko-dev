@@ -132,6 +132,26 @@ nsHTMLButtonControlFrame::GetType() const
   return nsGkAtoms::HTMLButtonControlFrame;
 }
 
+PRBool
+nsHTMLButtonControlFrame::IsReset(PRInt32 type)
+{
+  if (NS_FORM_BUTTON_RESET == type) {
+    return PR_TRUE;
+  } else {
+    return PR_FALSE;
+  }
+}
+
+PRBool
+nsHTMLButtonControlFrame::IsSubmit(PRInt32 type)
+{
+  if (NS_FORM_BUTTON_SUBMIT == type) {
+    return PR_TRUE;
+  } else {
+    return PR_FALSE;
+  }
+}
+
 void 
 nsHTMLButtonControlFrame::SetFocus(PRBool aOn, PRBool aRepaint)
 {
@@ -177,19 +197,19 @@ nsHTMLButtonControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // Put the foreground outline and focus rects on top of the children
   set.Content()->AppendToTop(&onTop);
 
-  // clips to our padding box for <input>s but not <button>s.
-  if (IsInput()) {
-    nsMargin border = GetStyleBorder()->GetActualBorder();
-    nsRect rect(aBuilder->ToReferenceFrame(this), GetSize());
-    rect.Deflate(border);
+    // XXX This is temporary
+  // clips to its size minus the border 
+  // but the real problem is the FirstChild (the AreaFrame)
+  // isn't being constrained properly
+  // Bug #17474
+  nsMargin border = GetStyleBorder()->GetActualBorder();
+  nsRect rect(aBuilder->ToReferenceFrame(this), GetSize());
+  rect.Deflate(border);
   
-    nsresult rv = OverflowClip(aBuilder, set, aLists, rect);
-    NS_ENSURE_SUCCESS(rv, rv);
-  } else {
-    set.MoveTo(aLists);
-  }
+  nsresult rv = OverflowClip(aBuilder, set, aLists, rect);
+  NS_ENSURE_SUCCESS(rv, rv);
   
-  nsresult rv = DisplayOutline(aBuilder, aLists);
+  rv = DisplayOutline(aBuilder, aLists);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // to draw border when selected in editor

@@ -738,11 +738,15 @@ nsViewManager::UpdateWidgetArea(nsView *aWidgetView, nsIWidget* aWidget,
   }
 
   // If the widget is hidden, it don't cover nothing
-  if (aWidget) {
-    PRBool visible;
-    aWidget->IsVisible(visible);
-    if (!visible)
-      return;
+  if (nsViewVisibility_kHide == aWidgetView->GetVisibility()) {
+#ifdef DEBUG
+    if (aWidget) {
+      PRBool visible;
+      aWidget->IsVisible(visible);
+      NS_ASSERTION(!visible, "View is hidden but widget is visible!");
+    }
+#endif
+    return;
   }
 
   if (aWidgetView == aIgnoreWidgetView) {

@@ -251,7 +251,9 @@ nsView::~nsView()
     NS_IF_RELEASE(wrapper);
 
     mWindow->SetClientData(nsnull);
-    mWindow->Destroy();
+    if (!(mVFlags & NS_VIEW_DISOWNS_WIDGET)) {
+      mWindow->Destroy();
+    }
     NS_RELEASE(mWindow);
   }
   delete mDirtyRegion;

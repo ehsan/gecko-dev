@@ -319,6 +319,14 @@ public:
   void PaintBCBorders(nsIRenderingContext& aRenderingContext,
                       const nsRect&        aDirtyRect);
 
+  /** nsIFrame method overridden to handle table specifics
+  */
+  NS_IMETHOD SetSelected(nsPresContext* aPresContext,
+                         nsIDOMRange *aRange,
+                         PRBool aSelected,
+                         nsSpread aSpread,
+                         SelectionType aType);
+
   virtual void MarkIntrinsicWidthsDirty();
   // For border-collapse tables, the caller must not add padding and
   // border to the results of these functions.
@@ -534,7 +542,7 @@ public:
   /**
    * To be called on a frame by its parent after setting its size/position and
    * calling DidReflow (possibly via FinishReflowChild()).  This can also be
-   * used for child frames which are not being reflowed but did have their size
+   * used for child frames which are not being reflown but did have their size
    * or position changed.
    *
    * @param aFrame The frame to invalidate
@@ -562,6 +570,8 @@ protected:
 
   /** implement abstract method on nsHTMLContainerFrame */
   virtual PRIntn GetSkipSides() const;
+
+  virtual PRBool ParentDisablesSelection() const; //override default behavior
 
 public:
   PRBool IsRowInserted() const;

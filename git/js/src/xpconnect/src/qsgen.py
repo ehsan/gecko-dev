@@ -394,7 +394,8 @@ argumentUnboxingTemplates = {
 
     'boolean':
         "    PRBool ${name};\n"
-        "    JS_ValueToBoolean(cx, ${argVal}, &${name});\n",
+        "    if (!JS_ValueToBoolean(cx, ${argVal}, &${name}))\n"
+        "        return JS_FALSE;\n",
 
     '[astring]':
         "    xpc_qsAString ${name}(cx, ${argPtr});\n"

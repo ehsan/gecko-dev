@@ -848,7 +848,7 @@ nsTreeSelection::FireOnSelectHandler()
 void
 nsTreeSelection::SelectCallback(nsITimer *aTimer, void *aClosure)
 {
-  nsRefPtr<nsTreeSelection> self = static_cast<nsTreeSelection*>(aClosure);
+  nsTreeSelection* self = static_cast<nsTreeSelection*>(aClosure);
   if (self) {
     self->FireOnSelectHandler();
     aTimer->Cancel();

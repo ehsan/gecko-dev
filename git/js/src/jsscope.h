@@ -204,7 +204,6 @@ struct JSScope {
     jsrefcount      nrefs;              /* count of all referencing objects */
     uint32          freeslot;           /* index of next free slot in object */
     uint32          shape;              /* property cache shape identifier */
-    JSScope         *emptyScope;        /* cache for getEmptyScope below */
     uint8           flags;              /* flags, see below */
     int8            hashShift;          /* multiplicative hash shift */
 
@@ -219,31 +218,12 @@ struct JSScope {
     bool createTable(JSContext *cx, bool report);
     bool changeTable(JSContext *cx, int change);
     void reportReadOnlyScope(JSContext *cx);
-    void generateOwnShape(JSContext *cx);
     JSScopeProperty **searchTable(jsid id, bool adding);
     inline JSScopeProperty **search(jsid id, bool adding);
-    JSScope *createEmptyScope(JSContext *cx, JSClass *clasp);
 
   public:
-    /* Create a mutable, owned, empty scope. */
     static JSScope *create(JSContext *cx, JSObjectOps *ops, JSClass *clasp, JSObject *obj);
-
     static void destroy(JSContext *cx, JSScope *scope);
-
-    /*
-     * Return an immutable, shareable, empty scope with the same ops as this
-     * and the same freeslot as this had when empty.
-     *
-     * If |this| is the scope of an object |proto|, the resulting scope can be
-     * used the scope of a new object whose prototype is |proto|.
-     */
-    JSScope *getEmptyScope(JSContext *cx, JSClass *clasp) {
-        if (emptyScope) {
-            emptyScope->hold();
-            return emptyScope;
-        }
-        return createEmptyScope(cx, clasp);
-    }
 
     inline void hold();
     inline bool drop(JSContext *cx, JSObject *obj);
@@ -282,13 +262,15 @@ struct JSScope {
         MIDDLE_DELETE           = 0x0001,
         SEALED                  = 0x0002,
         BRANDED                 = 0x0004,
-        INDEXED_PROPERTIES      = 0x0008,
-        OWN_SHAPE               = 0x0010
+        INDEXED_PROPERTIES      = 0x0008
     };
 
     bool hadMiddleDelete()      { return flags & MIDDLE_DELETE; }
     void setMiddleDelete()      { flags |= MIDDLE_DELETE; }
     void clearMiddleDelete()    { flags &= ~MIDDLE_DELETE; }
+
+    bool hadIndexedProperties() { return flags & INDEXED_PROPERTIES; }
+    void setIndexedProperties() { flags |= INDEXED_PROPERTIES; }
 
     /*
      * Don't define clearSealed, as it can't be done safely because JS_LOCK_OBJ
@@ -305,14 +287,7 @@ struct JSScope {
      */
     bool branded()              { return flags & BRANDED; }
     void setBranded()           { flags |= BRANDED; }
-
-    bool hadIndexedProperties() { return flags & INDEXED_PROPERTIES; }
-    void setIndexedProperties() { flags |= INDEXED_PROPERTIES; }
-
-    bool hasOwnShape()          { return flags & OWN_SHAPE; }
-    void setOwnShape()          { flags |= OWN_SHAPE; }
-
-    bool owned()                { return object != NULL; }
+    void clearBranded()         { flags &= ~BRANDED; }
 };
 
 #define JS_IS_SCOPE_LOCKED(cx, scope)   JS_IS_TITLE_LOCKED(cx, &(scope)->title)

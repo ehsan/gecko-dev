@@ -2082,14 +2082,8 @@ class CharSet {
 
     bool full() { return charEnd == charBuf + BufSize; }
 
-    /* Add a single char to the set. */
-    bool addChar(jschar c)
-    {
-        if (full())
-            return false;
-        *charEnd++ = c;
-        return true;
-    }
+    /* Add a single char to the set.  Assumes !full() */
+    void addChar(jschar c) { JS_ASSERT(!full()); *charEnd++ = c; }
 
     enum Class {
         LineTerms  = 1 << 0,  /* Line Terminators (E262 7.3) */
@@ -2255,7 +2249,8 @@ enumerateNextChars(JSContext *cx, RENode *node, CharSet &set)
 
       /* Record as individual characters. */
       case REOP_FLAT:
-        return set.addChar(node->u.flat.chr);
+        set.addChar(node->u.flat.chr);
+        return true;
 
       /* Control structures. */
       case REOP_EMPTY:
@@ -3049,7 +3044,7 @@ class RegExpNativeCompiler {
         exit->re_flags = re->flags;
         exit->re_length = re_length;
         memcpy(exit->re_chars, re_chars, re_length * sizeof(jschar));
-        fragment->lastIns = lir->insGuard(LIR_loop, NULL, skip);
+        fragment->lastIns = lir->insGuard(LIR_loop, lir->insImm(1), skip);
         return guard;
     }
 

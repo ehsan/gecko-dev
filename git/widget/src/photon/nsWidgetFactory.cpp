@@ -79,7 +79,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsFilePicker)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsBidiKeyboard)
 #endif
 
-static const nsModuleComponentInfo components[] =
+static nsModuleComponentInfo components[] =
 {
   { "Ph nsWindow",
     NS_WINDOW_CID,

@@ -1473,6 +1473,11 @@ static void
 CheckLeakedRoots(JSRuntime *rt);
 #endif
 
+#ifdef JS_THREADSAFE
+static void
+TrimGCFreeListsPool(JSRuntime *rt, uintN keepCount);
+#endif
+
 void
 js_FinishGC(JSRuntime *rt)
 {
@@ -1484,6 +1489,10 @@ js_FinishGC(JSRuntime *rt)
 #endif
 
     FreePtrTable(&rt->gcIteratorTable, &iteratorTableInfo);
+#ifdef JS_THREADSAFE
+    TrimGCFreeListsPool(rt, 0);
+    JS_ASSERT(!rt->gcFreeListsPool);
+#endif
     FinishGCArenaLists(rt);
 
     if (rt->gcRootsHash.ops) {
@@ -1723,6 +1732,74 @@ static struct GCHist {
 unsigned gchpos = 0;
 #endif
 
+#ifdef JS_THREADSAFE
+
+const JSGCFreeListSet js_GCEmptyFreeListSet = {
+    { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL }, NULL
+};
+
+static void
+TrimGCFreeListsPool(JSRuntime *rt, uintN keepCount)
+{
+    JSGCFreeListSet **cursor, *freeLists, *link;
+
+    cursor = &rt->gcFreeListsPool;
+    while (keepCount != 0) {
+        --keepCount;
+        freeLists = *cursor;
+        if (!freeLists)
+            return;
+        memset(freeLists->array, 0, sizeof freeLists->array);
+        cursor = &freeLists->link;
+    }
+    freeLists = *cursor;
+    if (freeLists) {
+        *cursor = NULL;
+        do {
+            link = freeLists->link;
+            free(freeLists);
+        } while ((freeLists = link) != NULL);
+    }
+}
+
+void
+js_RevokeGCLocalFreeLists(JSContext *cx)
+{
+    JS_ASSERT(!cx->gcLocalFreeLists->link);
+    if (cx->gcLocalFreeLists != &js_GCEmptyFreeListSet) {
+        cx->gcLocalFreeLists->link = cx->runtime->gcFreeListsPool;
+        cx->runtime->gcFreeListsPool = cx->gcLocalFreeLists;
+        cx->gcLocalFreeLists = (JSGCFreeListSet *) &js_GCEmptyFreeListSet;
+    }
+}
+
+static JSGCFreeListSet *
+EnsureLocalFreeList(JSContext *cx)
+{
+    JSGCFreeListSet *freeLists;
+
+    freeLists = cx->gcLocalFreeLists;
+    if (freeLists != &js_GCEmptyFreeListSet) {
+        JS_ASSERT(freeLists);
+        return freeLists;
+    }
+
+    freeLists = cx->runtime->gcFreeListsPool;
+    if (freeLists) {
+        cx->runtime->gcFreeListsPool = freeLists->link;
+        freeLists->link = NULL;
+    } else {
+        /* JS_malloc is not used as the caller reports out-of-memory itself. */
+        freeLists = (JSGCFreeListSet *) calloc(1, sizeof *freeLists);
+        if (!freeLists)
+            return NULL;
+    }
+    cx->gcLocalFreeLists = freeLists;
+    return freeLists;
+}
+
+#endif
+
 void
 JSRuntime::setGCTriggerFactor(uint32 factor)
 {
@@ -1776,6 +1853,7 @@ NewGCThing(JSContext *cx, uintN flags)
 #ifdef JS_THREADSAFE
     JSBool gcLocked;
     uintN localMallocBytes;
+    JSGCFreeListSet *freeLists;
     JSGCThing **lastptr;
     JSGCThing *tmpthing;
     uint8 *tmpflagp;
@@ -1795,13 +1873,12 @@ NewGCThing(JSContext *cx, uintN flags)
 #ifdef JS_THREADSAFE
     gcLocked = JS_FALSE;
     JS_ASSERT(cx->thread);
-
-    JSGCThing *&freeList = cx->thread->gcFreeLists[flindex];
-    thing = freeList;
+    freeLists = cx->gcLocalFreeLists;
+    thing = freeLists->array[flindex];
     localMallocBytes = JS_THREAD_DATA(cx)->gcMallocBytes;
     if (thing && rt->gcMaxMallocBytes - rt->gcMallocBytes > localMallocBytes) {
         flagp = thing->flagp;
-        freeList = thing->next;
+        freeLists->array[flindex] = thing->next;
         METER(astats->localalloc++);
         goto success;
     }
@@ -1860,13 +1937,19 @@ NewGCThing(JSContext *cx, uintN flags)
 #ifdef JS_THREADSAFE
             /*
              * Refill the local free list by taking several things from the
-             * global free list unless the free list is already populated or
-             * we are still at rt->gcMaxMallocBytes barrier. The former is
-             * caused via allocating new things in gcCallback(cx, JSGC_END).
-             * The latter happens when GC is canceled due to
-             * gcCallback(cx, JSGC_BEGIN) returning false.
+             * global free list unless we are still at rt->gcMaxMallocBytes
+             * barrier or the free list is already populated. The former
+             * happens when GC is canceled due to gcCallback(cx, JSGC_BEGIN)
+             * returning false. The latter is caused via allocating new
+             * things in gcCallback(cx, JSGC_END).
              */
-            if (freeList || rt->gcMallocBytes >= rt->gcMaxMallocBytes)
+            if (rt->gcMallocBytes >= rt->gcMaxMallocBytes)
+                break;
+
+            freeLists = EnsureLocalFreeList(cx);
+            if (!freeLists)
+                goto fail;
+            if (freeLists->array[flindex])
                 break;
 
             tmpthing = arenaList->freeList;
@@ -1878,7 +1961,7 @@ NewGCThing(JSContext *cx, uintN flags)
                     tmpthing = tmpthing->next;
                 } while (--maxFreeThings != 0);
 
-                freeList = arenaList->freeList;
+                freeLists->array[flindex] = arenaList->freeList;
                 arenaList->freeList = tmpthing->next;
                 tmpthing->next = NULL;
             }
@@ -1936,9 +2019,15 @@ testReservedObjects:
          * arena. Prefer to order free things by ascending address in the
          * (unscientific) hope of better cache locality.
          */
-        if (freeList || rt->gcMallocBytes >= rt->gcMaxMallocBytes)
+        if (rt->gcMallocBytes >= rt->gcMaxMallocBytes)
             break;
-        lastptr = &freeList;
+
+        freeLists = EnsureLocalFreeList(cx);
+        if (!freeLists)
+            goto fail;
+        if (freeLists->array[flindex])
+            break;
+        lastptr = &freeLists->array[flindex];
         maxFreeThings = thingsLimit - arenaList->lastCount;
         if (maxFreeThings > MAX_THREAD_LOCAL_THINGS)
             maxFreeThings = MAX_THREAD_LOCAL_THINGS;
@@ -2957,6 +3046,10 @@ js_TraceContext(JSTracer *trc, JSContext *acx)
             }                                                                 \
         JS_END_MACRO
 
+#ifdef JS_THREADSAFE
+        js_RevokeGCLocalFreeLists(acx);
+#endif
+
         /*
          * Release the stackPool's arenas if the stackPool has existed for
          * longer than the limit specified by gcEmptyArenaPoolLifespan.
@@ -3197,7 +3290,7 @@ js_DestroyScriptsToGC(JSContext *cx, JSThreadData *data)
 }
 
 static void
-FinalizeObject(JSContext *cx, JSObject *obj)
+js_FinalizeObject(JSContext *cx, JSObject *obj)
 {
     /* Cope with stillborn objects that have no map. */
     if (!obj->map)
@@ -3209,9 +3302,7 @@ FinalizeObject(JSContext *cx, JSObject *obj)
     }
 
     /* Finalize obj first, in case it needs map and slots. */
-    JSClass *clasp = STOBJ_GET_CLASS(obj);
-    if (clasp->finalize)
-        clasp->finalize(cx, obj);
+    STOBJ_GET_CLASS(obj)->finalize(cx, obj);
 
 #ifdef INCLUDE_MOZILLA_DTRACE
     if (JAVASCRIPT_OBJECT_FINALIZE_ENABLED())
@@ -3506,6 +3597,7 @@ js_GC(JSContext *cx, JSGCInvocationKind gckind)
 #ifdef JS_TRACER
     js_PurgeJITOracle();
 #endif
+    js_PurgeThreads(cx);
 
   restart:
     rt->gcNumber++;
@@ -3517,13 +3609,8 @@ js_GC(JSContext *cx, JSGCInvocationKind gckind)
      * Same for the protoHazardShape proxy-shape standing in for all object
      * prototypes having readonly or setter properties.
      */
-    if (rt->shapeGen & SHAPE_OVERFLOW_BIT) {
-        rt->gcRegenShapes = true;
-        rt->shapeGen = 0;
-        rt->protoHazardShape = 0;
-    }
-
-    js_PurgeThreads(cx);
+    rt->shapeGen = 0;
+    rt->protoHazardShape = 0;
 
     /*
      * Mark phase.
@@ -3628,7 +3715,10 @@ js_GC(JSContext *cx, JSGCInvocationKind gckind)
                         type = flags & GCF_TYPEMASK;
                         switch (type) {
                           case GCX_OBJECT:
-                            FinalizeObject(cx, (JSObject *) thing);
+                            js_FinalizeObject(cx, (JSObject *) thing);
+                            break;
+                          case GCX_DOUBLE:
+                            /* Do nothing. */
                             break;
 #if JS_HAS_XML_SUPPORT
                           case GCX_XML:
@@ -3685,6 +3775,14 @@ js_GC(JSContext *cx, JSGCInvocationKind gckind)
                                                        &rt->gcArenaList[0]],
                                nlivearenas, nkilledarenas, nthings));
     }
+
+#ifdef JS_THREADSAFE
+    /*
+     * Release all but two free list sets to avoid allocating a new set in
+     * js_NewGCThing.
+     */
+    TrimGCFreeListsPool(rt, 2);
+#endif
 
     ap = &rt->gcDoubleArenaList.first;
     METER((nlivearenas = 0, nkilledarenas = 0, nthings = 0));
@@ -3790,7 +3888,7 @@ out:
     rt->setGCLastBytes(rt->gcBytes);
   done_running:
     rt->gcLevel = 0;
-    rt->gcRunning = rt->gcRegenShapes = false;
+    rt->gcRunning = JS_FALSE;
 
 #ifdef JS_THREADSAFE
     rt->gcThread = NULL;

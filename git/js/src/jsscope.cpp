@@ -91,7 +91,7 @@ js_GetMutableScope(JSContext *cx, JSObject *obj)
 
     scope = OBJ_SCOPE(obj);
     JS_ASSERT(JS_IS_SCOPE_LOCKED(cx, scope));
-    if (scope->owned())
+    if (scope->object == obj)
         return scope;
 
     /*
@@ -134,8 +134,8 @@ js_GetMutableScope(JSContext *cx, JSObject *obj)
 void
 JSScope::initMinimal(JSContext *cx)
 {
-    shape = js_GenerateShape(cx, false);
-    emptyScope = NULL;
+    js_LeaveTraceIfGlobalObject(cx, object);
+    shape = 0;
     hashShift = JS_DHASH_BITS - MIN_SCOPE_SIZE_LOG2;
     entryCount = removedCount = 0;
     table = NULL;
@@ -197,7 +197,6 @@ JSScope::create(JSContext *cx, JSObjectOps *ops, JSClass *clasp, JSObject *obj)
     scope->nrefs = 1;
     scope->freeslot = JSSLOT_FREE(clasp);
     scope->flags = 0;
-    js_LeaveTraceIfGlobalObject(cx, obj);
     scope->initMinimal(cx);
 
 #ifdef JS_THREADSAFE
@@ -205,36 +204,6 @@ JSScope::create(JSContext *cx, JSObjectOps *ops, JSClass *clasp, JSObject *obj)
 #endif
     JS_RUNTIME_METER(cx->runtime, liveScopes);
     JS_RUNTIME_METER(cx->runtime, totalScopes);
-    return scope;
-}
-
-JSScope *
-JSScope::createEmptyScope(JSContext *cx, JSClass *clasp)
-{
-    JS_ASSERT(!emptyScope);
-
-    JSScope *scope = (JSScope *) JS_malloc(cx, sizeof(JSScope));
-    if (!scope)
-        return NULL;
-
-    scope->map.ops = map.ops;
-    scope->object = NULL;
-
-    /*
-     * This scope holds a reference to the new empty scope. Our only caller,
-     * getEmptyScope, also promises to incref on behalf of its caller.
-     */
-    scope->nrefs = 2;
-    scope->freeslot = JSSLOT_FREE(clasp);
-    scope->flags = 0;
-    scope->initMinimal(cx);
-
-#ifdef JS_THREADSAFE
-    js_InitTitle(cx, &scope->title);
-#endif
-    JS_RUNTIME_METER(cx->runtime, liveScopes);
-    JS_RUNTIME_METER(cx->runtime, totalScopes);
-    emptyScope = scope;
     return scope;
 }
 
@@ -253,8 +222,6 @@ JSScope::destroy(JSContext *cx, JSScope *scope)
 #endif
     if (scope->table)
         JS_free(cx, scope->table);
-    if (scope->emptyScope)
-        scope->emptyScope->drop(cx, NULL);
 
     LIVE_SCOPE_METER(cx, cx->runtime->liveScopeProps -= scope->entryCount);
     JS_RUNTIME_UNMETER(cx->runtime, liveScopes);
@@ -1032,14 +999,11 @@ JSScope::reportReadOnlyScope(JSContext *cx)
     JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_READ_ONLY, bytes);
 }
 
-void
-JSScope::generateOwnShape(JSContext *cx)
+static inline void
+js_MakeScopeShapeUnique(JSContext *cx, JSScope *scope)
 {
-    if (object)
-        js_LeaveTraceIfGlobalObject(cx, object);
-
-    shape = js_GenerateShape(cx, false);
-    setOwnShape();
+    js_LeaveTraceIfGlobalObject(cx, scope->object);
+    scope->shape = js_GenerateShape(cx, JS_FALSE);
 }
 
 JSScopeProperty *
@@ -1156,6 +1120,7 @@ JSScope::add(JSContext *cx, jsid id,
             }
             setMiddleDelete();
         }
+        js_MakeScopeShapeUnique(cx, this);
 
         /*
          * If we fail later on trying to find or create a new sprop, we will
@@ -1538,7 +1503,7 @@ JSScope::remove(JSContext *cx, jsid id)
     } else if (!hadMiddleDelete()) {
         setMiddleDelete();
     }
-    generateOwnShape(cx);
+    js_MakeScopeShapeUnique(cx, this);
     CHECK_ANCESTOR_LINE(this, true);
 
     /* Last, consider shrinking this->table if its load factor is <= .25. */
@@ -1560,7 +1525,6 @@ JSScope::clear(JSContext *cx)
     if (table)
         free(table);
     clearMiddleDelete();
-    js_LeaveTraceIfGlobalObject(cx, object);
     initMinimal(cx);
     JS_ATOMIC_INCREMENT(&cx->runtime->propertyRemovals);
 }
@@ -1568,25 +1532,25 @@ JSScope::clear(JSContext *cx)
 void
 JSScope::brandingShapeChange(JSContext *cx, uint32 slot, jsval v)
 {
-    generateOwnShape(cx);
+    js_MakeScopeShapeUnique(cx, this);
 }
 
 void
 JSScope::deletingShapeChange(JSContext *cx, JSScopeProperty *sprop)
 {
-    generateOwnShape(cx);
+    js_MakeScopeShapeUnique(cx, this);
 }
 
 void
 JSScope::methodShapeChange(JSContext *cx, uint32 slot, jsval toval)
 {
-    generateOwnShape(cx);
+    js_MakeScopeShapeUnique(cx, this);
 }
 
 void
 JSScope::protoShapeChange(JSContext *cx)
 {
-    generateOwnShape(cx);
+    js_MakeScopeShapeUnique(cx, this);
 }
 
 void
@@ -1595,19 +1559,19 @@ JSScope::replacingShapeChange(JSContext *cx, JSScopeProperty *sprop, JSScopeProp
     if (shape == sprop->shape)
         shape = newsprop->shape;
     else 
-        generateOwnShape(cx);
+        js_MakeScopeShapeUnique(cx, this);
 }
 
 void
 JSScope::sealingShapeChange(JSContext *cx)
 {
-    generateOwnShape(cx);
+    js_MakeScopeShapeUnique(cx, this);
 }
 
 void 
 JSScope::shadowingShapeChange(JSContext *cx, JSScopeProperty *sprop)
 {
-    generateOwnShape(cx);
+    js_MakeScopeShapeUnique(cx, this);
 }
 
 void
@@ -1827,12 +1791,10 @@ js_SweepScopeProperties(JSContext *cx)
              */
             if (sprop->flags & SPROP_MARK) {
                 sprop->flags &= ~SPROP_MARK;
-                if (rt->gcRegenShapes) {
-                    if (sprop->flags & SPROP_FLAG_SHAPE_REGEN)
-                        sprop->flags &= ~SPROP_FLAG_SHAPE_REGEN;
-                    else
-                        sprop->shape = js_RegenerateShapeForGC(cx);
-                }
+                if (sprop->flags & SPROP_FLAG_SHAPE_REGEN)
+                    sprop->flags &= ~SPROP_FLAG_SHAPE_REGEN;
+                else
+                    sprop->shape = js_RegenerateShapeForGC(cx);
                 liveCount++;
                 continue;
             }
@@ -1872,7 +1834,7 @@ js_SweepScopeProperties(JSContext *cx)
                 sprop->kids = NULL;
                 parent = sprop->parent;
 
-                /* The grandparent must have either no kids or chunky kids. */
+                /* Assert that grandparent has no kids or chunky kids. */
                 JS_ASSERT(!parent || !parent->kids ||
                           KIDS_IS_CHUNKY(parent->kids));
                 if (KIDS_IS_CHUNKY(kids)) {
@@ -1891,7 +1853,8 @@ js_SweepScopeProperties(JSContext *cx)
                              * re-use by InsertPropertyTreeChild.
                              */
                             chunk->kids[i] = NULL;
-                            if (!InsertPropertyTreeChild(rt, parent, kid, chunk)) {
+                            if (!InsertPropertyTreeChild(rt, parent, kid,
+                                                         chunk)) {
                                 /*
                                  * This can happen only if we failed to add an
                                  * entry to the root property hash table.
