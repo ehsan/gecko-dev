@@ -23,7 +23,7 @@ namespace mozilla {
 namespace dom {
 
 enum ErrNum {
-#define MSG_DEF(_name, _argc, _exn, _str) \
+#define MSG_DEF(_name, _argc, _str) \
   _name,
 #include "mozilla/dom/Errors.msg"
 #undef MSG_DEF
@@ -51,7 +51,7 @@ public:
 
 #ifdef DEBUG
   ~ErrorResult() {
-    MOZ_ASSERT_IF(IsErrorWithMessage(), !mMessage);
+    MOZ_ASSERT_IF(IsTypeError(), !mMessage);
     MOZ_ASSERT(!mMightHaveUnreportedJSException);
   }
 #endif
@@ -59,8 +59,7 @@ public:
   void Throw(nsresult rv) {
     MOZ_ASSERT(NS_FAILED(rv), "Please don't try throwing success");
     MOZ_ASSERT(rv != NS_ERROR_TYPE_ERR, "Use ThrowTypeError()");
-    MOZ_ASSERT(rv != NS_ERROR_RANGE_ERR, "Use ThrowRangeError()");
-    MOZ_ASSERT(!IsErrorWithMessage(), "Don't overwrite errors with message");
+    MOZ_ASSERT(!IsTypeError(), "Don't overwite TypeError");
     MOZ_ASSERT(rv != NS_ERROR_DOM_JS_EXCEPTION, "Use ThrowJSException()");
     MOZ_ASSERT(!IsJSException(), "Don't overwrite JS exceptions");
     MOZ_ASSERT(rv != NS_ERROR_XPC_NOT_ENOUGH_ARGS, "Use ThrowNotEnoughArgsError()");
@@ -69,10 +68,9 @@ public:
   }
 
   void ThrowTypeError(const dom::ErrNum errorNumber, ...);
-  void ThrowRangeError(const dom::ErrNum errorNumber, ...);
-  void ReportErrorWithMessage(JSContext* cx);
+  void ReportTypeError(JSContext* cx);
   void ClearMessage();
-  bool IsErrorWithMessage() const { return ErrorCode() == NS_ERROR_TYPE_ERR || ErrorCode() == NS_ERROR_RANGE_ERR; }
+  bool IsTypeError() const { return ErrorCode() == NS_ERROR_TYPE_ERR; }
 
   // Facilities for throwing a preexisting JS exception value via this
   // ErrorResult.  The contract is that any code which might end up calling
@@ -125,8 +123,7 @@ public:
   // this.
   void operator=(nsresult rv) {
     MOZ_ASSERT(rv != NS_ERROR_TYPE_ERR, "Use ThrowTypeError()");
-    MOZ_ASSERT(rv != NS_ERROR_RANGE_ERR, "Use ThrowRangeError()");
-    MOZ_ASSERT(!IsErrorWithMessage(), "Don't overwrite errors with message");
+    MOZ_ASSERT(!IsTypeError(), "Don't overwite TypeError");
     MOZ_ASSERT(rv != NS_ERROR_DOM_JS_EXCEPTION, "Use ThrowJSException()");
     MOZ_ASSERT(!IsJSException(), "Don't overwrite JS exceptions");
     MOZ_ASSERT(rv != NS_ERROR_XPC_NOT_ENOUGH_ARGS, "Use ThrowNotEnoughArgsError()");
@@ -145,12 +142,12 @@ public:
 private:
   nsresult mResult;
   struct Message;
-  // mMessage is set by ThrowErrorWithMessage and cleared (and deallocated) by
-  // ReportErrorWithMessage.
+  // mMessage is set by ThrowTypeError and cleared (and deallocatd) by
+  // ReportTypeError.
   // mJSException is set (and rooted) by ThrowJSException and unrooted
   // by ReportJSException.
   union {
-    Message* mMessage; // valid when IsErrorWithMessage()
+    Message* mMessage; // valid when IsTypeError()
     JS::Value mJSException; // valid when IsJSException()
   };
 
@@ -163,8 +160,6 @@ private:
   // Not to be implemented, to make sure people always pass this by
   // reference, not by value.
   ErrorResult(const ErrorResult&) = delete;
-  void ThrowErrorWithMessage(va_list ap, const dom::ErrNum errorNumber,
-                             nsresult errorType);
 };
 
 /******************************************************************************

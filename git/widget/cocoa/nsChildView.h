@@ -355,6 +355,7 @@ public:
   NS_IMETHOD              Create(nsIWidget *aParent,
                                  nsNativeWidget aNativeParent,
                                  const nsIntRect &aRect,
+                                 nsDeviceContext *aContext,
                                  nsWidgetInitData *aInitData = nullptr) MOZ_OVERRIDE;
 
   NS_IMETHOD              Destroy() MOZ_OVERRIDE;

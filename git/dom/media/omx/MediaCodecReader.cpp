@@ -327,6 +327,12 @@ MediaCodecReader::UpdateIsWaitingMediaResources()
                         (!mVideoTrack.mCodec->allocated());
 }
 
+bool
+MediaCodecReader::IsDormantNeeded()
+{
+  return mVideoTrack.mSource != nullptr;
+}
+
 void
 MediaCodecReader::ReleaseMediaResources()
 {
@@ -1257,8 +1263,7 @@ MediaCodecReader::CreateMediaSources()
     mAudioOffloadTrack.mSource = mExtractor->getTrack(audioTrackIndex);
   }
 
-  if (videoTrackIndex != invalidTrackIndex && mVideoTrack.mSource == nullptr &&
-      mDecoder->GetImageContainer()) {
+  if (videoTrackIndex != invalidTrackIndex && mVideoTrack.mSource == nullptr) {
     sp<MediaSource> videoSource = mExtractor->getTrack(videoTrackIndex);
     if (videoSource != nullptr && videoSource->start() == OK) {
       mVideoTrack.mSource = videoSource;

@@ -461,9 +461,10 @@ SelectionCarets::UpdateSelectionCarets()
   nsRefPtr<nsRange> firstRange = selection->GetRangeAt(0);
   nsRefPtr<nsRange> lastRange = selection->GetRangeAt(rangeCount - 1);
 
+  nsIFrame* canvasFrame = mPresShell->GetCanvasFrame();
   nsIFrame* rootFrame = mPresShell->GetRootFrame();
 
-  if (!rootFrame) {
+  if (!canvasFrame || !rootFrame) {
     SetVisibility(false);
     return;
   }
@@ -522,17 +523,22 @@ SelectionCarets::UpdateSelectionCarets()
   bool endFrameVisible =
     nsLayoutUtils::IsRectVisibleInScrollFrames(endFrame, lastRectInEndFrame);
 
-  nsRect firstRectInRootFrame = firstRectInStartFrame;
-  nsRect lastRectInRootFrame = lastRectInEndFrame;
-  nsLayoutUtils::TransformRect(startFrame, rootFrame, firstRectInRootFrame);
-  nsLayoutUtils::TransformRect(endFrame, rootFrame, lastRectInRootFrame);
+  nsRect firstRectInCanvasFrame = firstRectInStartFrame;
+  nsRect lastRectInCanvasFrame = lastRectInEndFrame;
+  nsLayoutUtils::TransformRect(startFrame, canvasFrame, firstRectInCanvasFrame);
+  nsLayoutUtils::TransformRect(endFrame, canvasFrame, lastRectInCanvasFrame);
 
   SetStartFrameVisibility(startFrameVisible);
   SetEndFrameVisibility(endFrameVisible);
 
-  SetStartFramePos(firstRectInRootFrame.BottomLeft());
-  SetEndFramePos(lastRectInRootFrame.BottomRight());
+  SetStartFramePos(firstRectInCanvasFrame.BottomLeft());
+  SetEndFramePos(lastRectInCanvasFrame.BottomRight());
   SetVisibility(true);
+
+  nsRect firstRectInRootFrame = firstRectInStartFrame;
+  nsRect lastRectInRootFrame = lastRectInEndFrame;
+  nsLayoutUtils::TransformRect(startFrame, rootFrame, firstRectInRootFrame);
+  nsLayoutUtils::TransformRect(endFrame, rootFrame, lastRectInRootFrame);
 
   // Use half of the first(last) rect as the dragup(dragdown) boundary
   mDragUpYBoundary =

@@ -51,24 +51,18 @@
 
 /* Overview Panel */
 
-.record-button {
+.notice-container button,
+#record-button {
   list-style-image: url(profiler-stopwatch.svg);
 }
 
-.record-button[checked] {
+.notice-container button[checked],
+#record-button[checked] {
   list-style-image: url(profiler-stopwatch-checked.svg);
 }
 
-.record-button[locked] {
+#record-button[locked] {
   pointer-events: none;
-}
-
-.record-button .button-icon {
-  margin: 0;
-}
-
-.record-button .button-text {
-  display: none;
 }
 
 /* Details Panel */

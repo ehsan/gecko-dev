@@ -253,6 +253,7 @@ static bool UseNativePopupWindows()
 nsresult nsCocoaWindow::Create(nsIWidget *aParent,
                                nsNativeWidget aNativeParent,
                                const nsIntRect &aRect,
+                               nsDeviceContext *aContext,
                                nsWidgetInitData *aInitData)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -275,7 +276,7 @@ nsresult nsCocoaWindow::Create(nsIWidget *aParent,
   // fortunately, BaseCreate doesn't actually use it so we don't
   // need to worry about trying to convert it to device pixels
   // when we don't have a window (or dev context, perhaps) yet
-  Inherited::BaseCreate(aParent, newBounds, aInitData);
+  Inherited::BaseCreate(aParent, newBounds, aContext, aInitData);
 
   mParent = aParent;
 
@@ -299,7 +300,7 @@ nsresult nsCocoaWindow::Create(nsIWidget *aParent,
     newBounds.y *= scale;
     newBounds.width *= scale;
     newBounds.height *= scale;
-    return CreatePopupContentView(newBounds);
+    return CreatePopupContentView(newBounds, aContext);
   }
 
   mIsAnimationSuppressed = aInitData->mIsAnimationSuppressed;
@@ -485,7 +486,8 @@ nsresult nsCocoaWindow::CreateNativeWindow(const NSRect &aRect,
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-NS_IMETHODIMP nsCocoaWindow::CreatePopupContentView(const nsIntRect &aRect)
+NS_IMETHODIMP nsCocoaWindow::CreatePopupContentView(const nsIntRect &aRect,
+                             nsDeviceContext *aContext)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
@@ -497,7 +499,7 @@ NS_IMETHODIMP nsCocoaWindow::CreatePopupContentView(const nsIntRect &aRect)
   NS_ADDREF(mPopupContentView);
 
   nsIWidget* thisAsWidget = static_cast<nsIWidget*>(this);
-  mPopupContentView->Create(thisAsWidget, nullptr, aRect, nullptr);
+  mPopupContentView->Create(thisAsWidget, nullptr, aRect, aContext, nullptr);
 
   ChildView* newContentView = (ChildView*)mPopupContentView->GetNativeData(NS_NATIVE_WIDGET);
   [mWindow setContentView:newContentView];

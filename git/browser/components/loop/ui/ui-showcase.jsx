@@ -497,10 +497,10 @@
 
           <Section name="CallUrlExpiredView">
             <Example summary="Firefox User">
-              <CallUrlExpiredView isFirefox={true} />
+              <CallUrlExpiredView helper={{isFirefox: returnTrue}} />
             </Example>
             <Example summary="Non-Firefox User">
-              <CallUrlExpiredView isFirefox={false} />
+              <CallUrlExpiredView helper={{isFirefox: returnFalse}} />
             </Example>
           </Section>
 
@@ -547,7 +547,7 @@
           <Section name="UnsupportedBrowserView">
             <Example summary="Standalone Unsupported Browser">
               <div className="standalone">
-                <UnsupportedBrowserView isFirefox={false}/>
+                <UnsupportedBrowserView helper={{isFirefox: returnFalse}}/>
               </div>
             </Example>
           </Section>
@@ -555,7 +555,7 @@
           <Section name="UnsupportedDeviceView">
             <Example summary="Standalone Unsupported Device">
               <div className="standalone">
-                <UnsupportedDeviceView platform="ios"/>
+                <UnsupportedDeviceView />
               </div>
             </Example>
           </Section>
@@ -591,7 +591,7 @@
                   dispatcher={dispatcher}
                   activeRoomStore={activeRoomStore}
                   roomState={ROOM_STATES.READY}
-                  isFirefox={true} />
+                  helper={{isFirefox: returnTrue}} />
               </div>
             </Example>
 
@@ -601,7 +601,7 @@
                   dispatcher={dispatcher}
                   activeRoomStore={activeRoomStore}
                   roomState={ROOM_STATES.JOINED}
-                  isFirefox={true} />
+                  helper={{isFirefox: returnTrue}} />
               </div>
             </Example>
 
@@ -611,7 +611,7 @@
                   dispatcher={dispatcher}
                   activeRoomStore={activeRoomStore}
                   roomState={ROOM_STATES.HAS_PARTICIPANTS}
-                  isFirefox={true} />
+                  helper={{isFirefox: returnTrue}} />
               </div>
             </Example>
 
@@ -621,7 +621,7 @@
                   dispatcher={dispatcher}
                   activeRoomStore={activeRoomStore}
                   roomState={ROOM_STATES.FULL}
-                  isFirefox={true} />
+                  helper={{isFirefox: returnTrue}} />
               </div>
             </Example>
 
@@ -631,7 +631,7 @@
                   dispatcher={dispatcher}
                   activeRoomStore={activeRoomStore}
                   roomState={ROOM_STATES.FULL}
-                  isFirefox={false} />
+                  helper={{isFirefox: returnFalse}} />
               </div>
             </Example>
 
@@ -642,7 +642,7 @@
                   activeRoomStore={activeRoomStore}
                   feedbackStore={feedbackStore}
                   roomState={ROOM_STATES.ENDED}
-                  isFirefox={false} />
+                  helper={{isFirefox: returnFalse}} />
               </div>
             </Example>
 
@@ -652,7 +652,7 @@
                   dispatcher={dispatcher}
                   activeRoomStore={activeRoomStore}
                   roomState={ROOM_STATES.FAILED}
-                  isFirefox={false} />
+                  helper={{isFirefox: returnFalse}} />
               </div>
             </Example>
           </Section>

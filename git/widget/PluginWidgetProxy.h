@@ -35,7 +35,7 @@ public:
 
   // nsIWidget
   NS_IMETHOD Create(nsIWidget* aParent, nsNativeWidget aNativeParent,
-                    const nsIntRect& aRect,
+                    const nsIntRect& aRect, nsDeviceContext* aContext,
                     nsWidgetInitData* aInitData = nullptr) MOZ_OVERRIDE;
   NS_IMETHOD Destroy() MOZ_OVERRIDE;
   NS_IMETHOD SetFocus(bool aRaise = false) MOZ_OVERRIDE;

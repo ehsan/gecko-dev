@@ -3788,15 +3788,6 @@ class ICGetName_Fallback : public ICMonitoredFallbackStub
         return space->allocate<ICGetName_Fallback>(code);
     }
 
-    static const size_t UNOPTIMIZABLE_ACCESS_BIT = 0;
-
-    void noteUnoptimizableAccess() {
-        extra_ |= (1u << UNOPTIMIZABLE_ACCESS_BIT);
-    }
-    bool hadUnoptimizableAccess() const {
-        return extra_ & (1u << UNOPTIMIZABLE_ACCESS_BIT);
-    }
-
     class Compiler : public ICStubCompiler {
       protected:
         bool generateStubCode(MacroAssembler &masm);

@@ -27,7 +27,6 @@ function checkElements(expectedPane) {
 }
 
 function runTest(win) {
-  Services.prefs.setBoolPref("browser.eme.ui.enabled", true);
   is(gBrowser.currentURI.spec, "about:preferences", "about:preferences loaded");
 
   let tab = win.document;
@@ -45,6 +44,5 @@ function runTest(win) {
 
   gBrowser.removeCurrentTab();
   win.close();
-  Services.prefs.clearUserPref("browser.eme.ui.enabled");
   finish();
 }

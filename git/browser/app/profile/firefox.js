@@ -1187,15 +1187,15 @@ pref("browser.tabs.remote.desktopbehavior", true);
 // This will require a restart.
 pref("security.sandbox.windows.log", false);
 
-// Controls whether and how the Windows NPAPI plugin process is sandboxed.
+// Controls whether the Windows NPAPI plugin process is sandboxed by default.
 // To get a different setting for a particular plugin replace "default", with
 // the plugin's nice file name, see: nsPluginTag::GetNiceFileName.
-// On windows these levels are:
-// 0 - no sandbox
-// 1 - sandbox with USER_NON_ADMIN access token level
-// 2 - a more strict sandbox, which might cause functionality issues
-pref("dom.ipc.plugins.sandbox-level.default", 0);
-pref("dom.ipc.plugins.sandbox-level.flash", 1);
+pref("dom.ipc.plugins.sandbox.default", false);
+pref("dom.ipc.plugins.sandbox.flash", true);
+
+// This controls whether the Windows NPAPI process sandbox is using a more
+// strict sandboxing policy.  This will require a restart.
+pref("dom.ipc.plugins.moreStrictSandbox", false);
 
 #if defined(MOZ_CONTENT_SANDBOX)
 // This controls whether the Windows content process sandbox is using a more
@@ -1755,12 +1755,6 @@ pref("identity.fxaccounts.remote.signin.uri", "https://accounts.firefox.com/sign
 // Note that this will always need to be in the same TLD as the
 // "identity.fxaccounts.remote.signup.uri" pref.
 pref("identity.fxaccounts.settings.uri", "https://accounts.firefox.com/settings");
-
-// The remote URL of the FxA Profile Server
-pref("identity.fxaccounts.remote.profile.uri", "https://profile.accounts.firefox.com/v1");
-
-// The remote URL of the FxA OAuth Server
-pref("identity.fxaccounts.remote.oauth.uri", "https://oauth.accounts.firefox.com/v1");
 
 // Migrate any existing Firefox Account data from the default profile to the
 // Developer Edition profile.

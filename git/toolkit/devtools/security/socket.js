@@ -707,9 +707,6 @@ ServerSocketConnection.prototype = {
   }),
 
   deny(result) {
-    if (this._destroyed) {
-      return;
-    }
     let errorName = result;
     for (let name in Cr) {
       if (Cr[name] === result) {
@@ -726,16 +723,12 @@ ServerSocketConnection.prototype = {
   },
 
   allow() {
-    if (this._destroyed) {
-      return;
-    }
     dumpn("Debugging connection allowed on " + this.address);
     DebuggerServer._onConnection(this._transport);
     this.destroy();
   },
 
   destroy() {
-    this._destroyed = true;
     clearTimeout(this._handshakeTimeout);
     this._setSecurityObserver(null);
     this._listener = null;

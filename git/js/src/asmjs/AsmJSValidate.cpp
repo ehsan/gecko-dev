@@ -1296,7 +1296,6 @@ class MOZ_STACK_CLASS ModuleCompiler
     NonAssertingLabel              asyncInterruptLabel_;
     NonAssertingLabel              syncInterruptLabel_;
     NonAssertingLabel              onDetachedLabel_;
-    NonAssertingLabel              onOutOfBoundsLabel_;
 
     UniquePtr<char[], JS::FreePolicy> errorString_;
     uint32_t                       errorOffset_;
@@ -1515,7 +1514,6 @@ class MOZ_STACK_CLASS ModuleCompiler
     Label &asyncInterruptLabel() { return asyncInterruptLabel_; }
     Label &syncInterruptLabel() { return syncInterruptLabel_; }
     Label &onDetachedLabel() { return onDetachedLabel_; }
-    Label &onOutOfBoundsLabel() { return onOutOfBoundsLabel_; }
     bool hasError() const { return errorString_ != nullptr; }
     const AsmJSModule &module() const { return *module_.get(); }
     bool usesSignalHandlersForInterrupt() const { return module_->usesSignalHandlersForInterrupt(); }
@@ -1805,7 +1803,7 @@ class MOZ_STACK_CLASS ModuleCompiler
         canValidateChangeHeap_ = false;
         return ret;
     }
-    bool hasChangeHeap() const {
+    bool hasChangeHeap() {
         return hasChangeHeap_;
     }
     bool finishGeneratingFunction(Func &func, CodeGenerator &codegen,
@@ -1962,7 +1960,7 @@ class MOZ_STACK_CLASS ModuleCompiler
         if (masm_.oom())
             return false;
 
-        if (!module_->finish(cx_, tokenStream(), masm_, asyncInterruptLabel_, onOutOfBoundsLabel_))
+        if (!module_->finish(cx_, tokenStream(), masm_, asyncInterruptLabel_))
             return false;
 
         // Finally, convert all the function-pointer table elements into
@@ -2759,55 +2757,24 @@ class FunctionCompiler
         curBlock_->setSlot(info().localSlot(local.slot), def);
     }
 
-    MDefinition *loadHeap(Scalar::Type accessType, MDefinition *ptr, NeedsBoundsCheck chk)
+    MDefinition *loadHeap(Scalar::Type vt, MDefinition *ptr, NeedsBoundsCheck chk)
     {
         if (inDeadCode())
             return nullptr;
 
         bool needsBoundsCheck = chk == NEEDS_BOUNDS_CHECK && !m().usesSignalHandlersForOOB();
-        MOZ_ASSERT(!Scalar::isSimdType(accessType), "SIMD loads should use loadSimdHeap");
-        MAsmJSLoadHeap *load = MAsmJSLoadHeap::New(alloc(), accessType, ptr, needsBoundsCheck);
+        MAsmJSLoadHeap *load = MAsmJSLoadHeap::New(alloc(), vt, ptr, needsBoundsCheck);
         curBlock_->add(load);
         return load;
     }
 
-    MDefinition *loadSimdHeap(Scalar::Type accessType, MDefinition *ptr, NeedsBoundsCheck chk,
-                              unsigned numElems)
-    {
-        if (inDeadCode())
-            return nullptr;
-
-        bool needsBoundsCheck = chk == NEEDS_BOUNDS_CHECK && !m().usesSignalHandlersForOOB();
-        MOZ_ASSERT(Scalar::isSimdType(accessType), "loadSimdHeap can only load from a SIMD view");
-        Label *outOfBoundsLabel = &m().onOutOfBoundsLabel();
-        MAsmJSLoadHeap *load = MAsmJSLoadHeap::New(alloc(), accessType, ptr, needsBoundsCheck,
-                                                   outOfBoundsLabel, numElems);
-        curBlock_->add(load);
-        return load;
-    }
-
-    void storeHeap(Scalar::Type accessType, MDefinition *ptr, MDefinition *v, NeedsBoundsCheck chk)
+    void storeHeap(Scalar::Type vt, MDefinition *ptr, MDefinition *v, NeedsBoundsCheck chk)
     {
         if (inDeadCode())
             return;
 
         bool needsBoundsCheck = chk == NEEDS_BOUNDS_CHECK && !m().usesSignalHandlersForOOB();
-        MOZ_ASSERT(!Scalar::isSimdType(accessType), "SIMD stores should use loadSimdHeap");
-        MAsmJSStoreHeap *store = MAsmJSStoreHeap::New(alloc(), accessType, ptr, v, needsBoundsCheck);
-        curBlock_->add(store);
-    }
-
-    void storeSimdHeap(Scalar::Type accessType, MDefinition *ptr, MDefinition *v,
-                       NeedsBoundsCheck chk, unsigned numElems)
-    {
-        if (inDeadCode())
-            return;
-
-        bool needsBoundsCheck = chk == NEEDS_BOUNDS_CHECK && !m().usesSignalHandlersForOOB();
-        MOZ_ASSERT(Scalar::isSimdType(accessType), "storeSimdHeap can only load from a SIMD view");
-        Label *outOfBoundsLabel = &m().onOutOfBoundsLabel();
-        MAsmJSStoreHeap *store = MAsmJSStoreHeap::New(alloc(), accessType, ptr, v, needsBoundsCheck,
-                                                      outOfBoundsLabel, numElems);
+        MAsmJSStoreHeap *store = MAsmJSStoreHeap::New(alloc(), vt, ptr, v, needsBoundsCheck);
         curBlock_->add(store);
     }
 
@@ -2819,34 +2786,30 @@ class FunctionCompiler
         curBlock_->add(ins);
     }
 
-    MDefinition *atomicLoadHeap(Scalar::Type accessType, MDefinition *ptr, NeedsBoundsCheck chk)
+    MDefinition *atomicLoadHeap(Scalar::Type vt, MDefinition *ptr, NeedsBoundsCheck chk)
     {
         if (inDeadCode())
             return nullptr;
 
         bool needsBoundsCheck = chk == NEEDS_BOUNDS_CHECK && !m().usesSignalHandlersForOOB();
-        MAsmJSLoadHeap *load = MAsmJSLoadHeap::New(alloc(), accessType, ptr, needsBoundsCheck,
-                                                   /* outOfBoundsLabel = */ nullptr,
-                                                   /* numElems */ 0,
+        MAsmJSLoadHeap *load = MAsmJSLoadHeap::New(alloc(), vt, ptr, needsBoundsCheck,
                                                    MembarBeforeLoad, MembarAfterLoad);
         curBlock_->add(load);
         return load;
     }
 
-    void atomicStoreHeap(Scalar::Type accessType, MDefinition *ptr, MDefinition *v, NeedsBoundsCheck chk)
+    void atomicStoreHeap(Scalar::Type vt, MDefinition *ptr, MDefinition *v, NeedsBoundsCheck chk)
     {
         if (inDeadCode())
             return;
 
         bool needsBoundsCheck = chk == NEEDS_BOUNDS_CHECK && !m().usesSignalHandlersForOOB();
-        MAsmJSStoreHeap *store = MAsmJSStoreHeap::New(alloc(), accessType, ptr, v, needsBoundsCheck,
-                                                      /* outOfBoundsLabel = */ nullptr,
-                                                      /* numElems = */ 0,
+        MAsmJSStoreHeap *store = MAsmJSStoreHeap::New(alloc(), vt, ptr, v, needsBoundsCheck,
                                                       MembarBeforeStore, MembarAfterStore);
         curBlock_->add(store);
     }
 
-    MDefinition *atomicCompareExchangeHeap(Scalar::Type accessType, MDefinition *ptr, MDefinition *oldv,
+    MDefinition *atomicCompareExchangeHeap(Scalar::Type vt, MDefinition *ptr, MDefinition *oldv,
                                            MDefinition *newv, NeedsBoundsCheck chk)
     {
         if (inDeadCode())
@@ -2854,12 +2817,12 @@ class FunctionCompiler
 
         bool needsBoundsCheck = chk == NEEDS_BOUNDS_CHECK;
         MAsmJSCompareExchangeHeap *cas =
-            MAsmJSCompareExchangeHeap::New(alloc(), accessType, ptr, oldv, newv, needsBoundsCheck);
+            MAsmJSCompareExchangeHeap::New(alloc(), vt, ptr, oldv, newv, needsBoundsCheck);
         curBlock_->add(cas);
         return cas;
     }
 
-    MDefinition *atomicBinopHeap(js::jit::AtomicOp op, Scalar::Type accessType, MDefinition *ptr,
+    MDefinition *atomicBinopHeap(js::jit::AtomicOp op, Scalar::Type vt, MDefinition *ptr,
                                  MDefinition *v, NeedsBoundsCheck chk)
     {
         if (inDeadCode())
@@ -2867,7 +2830,7 @@ class FunctionCompiler
 
         bool needsBoundsCheck = chk == NEEDS_BOUNDS_CHECK;
         MAsmJSAtomicBinopHeap *binop =
-            MAsmJSAtomicBinopHeap::New(alloc(), op, accessType, ptr, v, needsBoundsCheck);
+            MAsmJSAtomicBinopHeap::New(alloc(), op, vt, ptr, v, needsBoundsCheck);
         curBlock_->add(binop);
         return binop;
     }
@@ -5620,7 +5583,7 @@ CheckSimdShuffle(FunctionCompiler &f, ParseNode *call, AsmJSSimdType opType, MDe
 
 static bool
 CheckSimdLoadStoreArgs(FunctionCompiler &f, ParseNode *call, AsmJSSimdType opType,
-                       unsigned numElems, Scalar::Type *viewType, MDefinition **index,
+                       Scalar::Type *viewType, MDefinition **index,
                        NeedsBoundsCheck *needsBoundsCheck)
 {
     ParseNode *view = CallArgList(call);
@@ -5673,8 +5636,7 @@ CheckSimdLoadStoreArgs(FunctionCompiler &f, ParseNode *call, AsmJSSimdType opTyp
 }
 
 static bool
-CheckSimdLoad(FunctionCompiler &f, ParseNode *call, AsmJSSimdType opType,
-              unsigned numElems, MDefinition **def, Type *type)
+CheckSimdLoad(FunctionCompiler &f, ParseNode *call, AsmJSSimdType opType, MDefinition **def, Type *type)
 {
     unsigned numArgs = CallArgListLength(call);
     if (numArgs != 2)
@@ -5683,17 +5645,16 @@ CheckSimdLoad(FunctionCompiler &f, ParseNode *call, AsmJSSimdType opType,
     Scalar::Type viewType;
     MDefinition *index;
     NeedsBoundsCheck needsBoundsCheck;
-    if (!CheckSimdLoadStoreArgs(f, call, opType, numElems, &viewType, &index, &needsBoundsCheck))
+    if (!CheckSimdLoadStoreArgs(f, call, opType, &viewType, &index, &needsBoundsCheck))
         return false;
 
-    *def = f.loadSimdHeap(viewType, index, needsBoundsCheck, numElems);
+    *def = f.loadHeap(viewType, index, needsBoundsCheck);
     *type = opType;
     return true;
 }
 
 static bool
-CheckSimdStore(FunctionCompiler &f, ParseNode *call, AsmJSSimdType opType,
-               unsigned numElems, MDefinition **def, Type *type)
+CheckSimdStore(FunctionCompiler &f, ParseNode *call, AsmJSSimdType opType, MDefinition **def, Type *type)
 {
     unsigned numArgs = CallArgListLength(call);
     if (numArgs != 3)
@@ -5702,7 +5663,7 @@ CheckSimdStore(FunctionCompiler &f, ParseNode *call, AsmJSSimdType opType,
     Scalar::Type viewType;
     MDefinition *index;
     NeedsBoundsCheck needsBoundsCheck;
-    if (!CheckSimdLoadStoreArgs(f, call, opType, numElems, &viewType, &index, &needsBoundsCheck))
+    if (!CheckSimdLoadStoreArgs(f, call, opType, &viewType, &index, &needsBoundsCheck))
         return false;
 
     Type retType = opType;
@@ -5714,7 +5675,7 @@ CheckSimdStore(FunctionCompiler &f, ParseNode *call, AsmJSSimdType opType,
     if (!(vecType <= retType))
         return f.failf(vecExpr, "%s is not a subtype of %s", vecType.toChars(), retType.toChars());
 
-    f.storeSimdHeap(viewType, index, vec, needsBoundsCheck, numElems);
+    f.storeHeap(viewType, index, vec, needsBoundsCheck);
     *def = vec;
     *type = vecType;
     return true;
@@ -5822,21 +5783,9 @@ CheckSimdOperationCall(FunctionCompiler &f, ParseNode *call, const ModuleCompile
         return CheckSimdShuffle(f, call, opType, def, type);
 
       case AsmJSSimdOperation_load:
-        return CheckSimdLoad(f, call, opType, 4, def, type);
-      case AsmJSSimdOperation_loadX:
-        return CheckSimdLoad(f, call, opType, 1, def, type);
-      case AsmJSSimdOperation_loadXY:
-        return CheckSimdLoad(f, call, opType, 2, def, type);
-      case AsmJSSimdOperation_loadXYZ:
-        return CheckSimdLoad(f, call, opType, 3, def, type);
+        return CheckSimdLoad(f, call, opType, def, type);
       case AsmJSSimdOperation_store:
-        return CheckSimdStore(f, call, opType, 4, def, type);
-      case AsmJSSimdOperation_storeX:
-        return CheckSimdStore(f, call, opType, 1, def, type);
-      case AsmJSSimdOperation_storeXY:
-        return CheckSimdStore(f, call, opType, 2, def, type);
-      case AsmJSSimdOperation_storeXYZ:
-        return CheckSimdStore(f, call, opType, 3, def, type);
+        return CheckSimdStore(f, call, opType, def, type);
 
       case AsmJSSimdOperation_bitselect:
         return CheckSimdSelect(f, call, opType, /*isElementWise */ false, def, type);
@@ -8868,24 +8817,6 @@ GenerateOnDetachedLabelExit(ModuleCompiler &m, Label *throwLabel)
     return m.finishGeneratingInlineStub(&m.onDetachedLabel()) && !masm.oom();
 }
 
-static bool
-GenerateOnOutOfBoundsLabelExit(ModuleCompiler &m, Label *throwLabel)
-{
-    MacroAssembler &masm = m.masm();
-    masm.bind(&m.onOutOfBoundsLabel());
-
-    // sp can be anything at this point, so ensure it is aligned when calling
-    // into C++.  We unconditionally jump to throw so don't worry about restoring sp.
-    masm.andPtr(Imm32(~(ABIStackAlignment - 1)), StackPointer);
-
-    // OnOutOfBounds always throws.
-    masm.assertStackAlignment(ABIStackAlignment);
-    masm.call(AsmJSImmPtr(AsmJSImm_OnOutOfBounds));
-    masm.jump(throwLabel);
-
-    return m.finishGeneratingInlineStub(&m.onOutOfBoundsLabel()) && !masm.oom();
-}
-
 static const RegisterSet AllRegsExceptSP =
     RegisterSet(GeneralRegisterSet(Registers::AllMask &
                                    ~(uint32_t(1) << Registers::StackPointer)),
@@ -9112,9 +9043,6 @@ GenerateStubs(ModuleCompiler &m)
         return false;
 
     if (m.onDetachedLabel().used() && !GenerateOnDetachedLabelExit(m, &throwLabel))
-        return false;
-
-    if (!GenerateOnOutOfBoundsLabelExit(m, &throwLabel))
         return false;
 
     if (!GenerateAsyncInterruptExit(m, &throwLabel))

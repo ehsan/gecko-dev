@@ -405,13 +405,10 @@ protected:
   nsresult DidCauseReflow();
   friend class nsAutoCauseReflowNotifier;
 
-  nsresult DispatchEventToDOM(mozilla::WidgetEvent* aEvent,
-                              nsEventStatus* aStatus,
-                              nsPresShellEventCB* aEventCB);
-  void DispatchTouchEventToDOM(mozilla::WidgetEvent* aEvent,
-                               nsEventStatus* aStatus,
-                               nsPresShellEventCB* aEventCB,
-                               bool aTouchIsNew);
+  void DispatchTouchEvent(mozilla::WidgetEvent* aEvent,
+                          nsEventStatus* aStatus,
+                          nsPresShellEventCB* aEventCB,
+                          bool aTouchIsNew);
 
   void     WillDoReflow();
 

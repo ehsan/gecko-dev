@@ -118,6 +118,7 @@ nsAutoRollup::~nsAutoRollup()
 nsBaseWidget::nsBaseWidget()
 : mWidgetListener(nullptr)
 , mAttachedWidgetListener(nullptr)
+, mContext(nullptr)
 , mCompositorVsyncDispatcher(nullptr)
 , mCursor(eCursor_standard)
 , mUpdateCursor(true)
@@ -126,6 +127,7 @@ nsBaseWidget::nsBaseWidget()
 , mForceLayersAcceleration(false)
 , mTemporarilyUseBasicLayerManager(false)
 , mUseAttachedEvents(false)
+, mContextInitialized(false)
 , mBounds(0,0,0,0)
 , mOriginalBounds(nullptr)
 , mClipRectCount(0)
@@ -245,6 +247,7 @@ nsBaseWidget::~nsBaseWidget()
   printf("WIDGETS- = %d\n", gNumWidgets);
 #endif
 
+  NS_IF_RELEASE(mContext);
   delete mOriginalBounds;
 
   // Can have base widgets that are things like tooltips which don't have CompositorVsyncDispatchers
@@ -260,6 +263,7 @@ nsBaseWidget::~nsBaseWidget()
 //-------------------------------------------------------------------------
 void nsBaseWidget::BaseCreate(nsIWidget *aParent,
                               const nsIntRect &aRect,
+                              nsDeviceContext *aContext,
                               nsWidgetInitData *aInitData)
 {
   static bool gDisableNativeThemeCached = false;
@@ -271,6 +275,16 @@ void nsBaseWidget::BaseCreate(nsIWidget *aParent,
   }
 
   // keep a reference to the device context
+  if (aContext) {
+    mContext = aContext;
+    NS_ADDREF(mContext);
+  }
+  else {
+    mContext = new nsDeviceContext();
+    NS_ADDREF(mContext);
+    mContext->Init(nullptr);
+  }
+
   if (nullptr != aInitData) {
     mWindowType = aInitData->mWindowType;
     mBorderStyle = aInitData->mBorderStyle;
@@ -307,6 +321,7 @@ void nsBaseWidget::SetWidgetListener(nsIWidgetListener* aWidgetListener)
 
 already_AddRefed<nsIWidget>
 nsBaseWidget::CreateChild(const nsIntRect  &aRect,
+                          nsDeviceContext *aContext,
                           nsWidgetInitData *aInitData,
                           bool             aForceUseIWidgetParent)
 {
@@ -319,7 +334,7 @@ nsBaseWidget::CreateChild(const nsIntRect  &aRect,
     // nativeWidget parameter.
     nativeParent = parent ? parent->GetNativeData(NS_NATIVE_WIDGET) : nullptr;
     parent = nativeParent ? nullptr : parent;
-    MOZ_ASSERT(!parent || !nativeParent, "messed up logic");
+    NS_ABORT_IF_FALSE(!parent || !nativeParent, "messed up logic");
   }
 
   nsCOMPtr<nsIWidget> widget;
@@ -331,7 +346,8 @@ nsBaseWidget::CreateChild(const nsIntRect  &aRect,
   }
 
   if (widget &&
-      NS_SUCCEEDED(widget->Create(parent, nativeParent, aRect, aInitData))) {
+      NS_SUCCEEDED(widget->Create(parent, nativeParent, aRect,
+                                  aContext, aInitData))) {
     return widget.forget();
   }
 
@@ -340,7 +356,8 @@ nsBaseWidget::CreateChild(const nsIntRect  &aRect,
 
 // Attach a view to our widget which we'll send events to.
 NS_IMETHODIMP
-nsBaseWidget::AttachViewToTopLevel(bool aUseAttachedEvents)
+nsBaseWidget::AttachViewToTopLevel(bool aUseAttachedEvents,
+                                   nsDeviceContext *aContext)
 {
   NS_ASSERTION((mWindowType == eWindowType_toplevel ||
                 mWindowType == eWindowType_dialog ||
@@ -349,6 +366,14 @@ nsBaseWidget::AttachViewToTopLevel(bool aUseAttachedEvents)
                "Can't attach to window of that type");
 
   mUseAttachedEvents = aUseAttachedEvents;
+
+  if (aContext) {
+    if (mContext) {
+      NS_IF_RELEASE(mContext);
+    }
+    mContext = aContext;
+    NS_ADDREF(mContext);
+  }
 
   return NS_OK;
 }
@@ -1002,8 +1027,7 @@ void nsBaseWidget::CreateCompositor(int aWidth, int aHeight)
   mCompositorChild = new CompositorChild(lm);
   mCompositorChild->Open(parentChannel, childMessageLoop, ipc::ChildSide);
 
-  if (gfxPrefs::AsyncPanZoomEnabled() &&
-      (WindowType() == eWindowType_toplevel || WindowType() == eWindowType_child)) {
+  if (gfxPrefs::AsyncPanZoomEnabled()) {
     ConfigureAPZCTreeManager();
   }
 
@@ -1105,11 +1129,28 @@ TemporaryRef<mozilla::gfx::DrawTarget> nsBaseWidget::StartRemoteDrawing()
 
 //-------------------------------------------------------------------------
 //
+// Return the used device context
+//
+//-------------------------------------------------------------------------
+nsDeviceContext* nsBaseWidget::GetDeviceContext()
+{
+  if (!mContextInitialized) {
+    mContext->Init(this);
+    mContextInitialized = true;
+  }
+  return mContext;
+}
+
+//-------------------------------------------------------------------------
+//
 // Destroy the window
 //
 //-------------------------------------------------------------------------
 void nsBaseWidget::OnDestroy()
 {
+  // release references to device context and app shell
+  NS_IF_RELEASE(mContext);
+
   if (mTextEventDispatcher) {
     mTextEventDispatcher->OnDestroyWidget();
     // Don't release it until this widget actually released because after this

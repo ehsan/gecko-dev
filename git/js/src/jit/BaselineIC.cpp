@@ -5770,10 +5770,9 @@ UpdateExistingSetPropCallStubs(ICSetProp_Fallback* fallbackStub,
 static bool
 TryAttachGlobalNameStub(JSContext *cx, HandleScript script, jsbytecode *pc,
                         ICGetName_Fallback *stub, Handle<GlobalObject*> global,
-                        HandlePropertyName name, bool *attached, bool *isTemporarilyUnoptimizable)
+                        HandlePropertyName name)
 {
     MOZ_ASSERT(global->is<GlobalObject>());
-    MOZ_ASSERT(!*attached);
 
     RootedId id(cx, NameToId(name));
 
@@ -5824,7 +5823,6 @@ TryAttachGlobalNameStub(JSContext *cx, HandleScript script, jsbytecode *pc,
             return false;
 
         stub->addNewStub(newStub);
-        *attached = true;
         return true;
     }
 
@@ -5832,7 +5830,8 @@ TryAttachGlobalNameStub(JSContext *cx, HandleScript script, jsbytecode *pc,
     // changes we need to make sure IonBuilder::getPropTryCommonGetter (which
     // requires a Baseline stub) handles non-outerized this objects correctly.
     bool isScripted;
-    if (IsCacheableGetPropCall(cx, global, current, shape, &isScripted, isTemporarilyUnoptimizable) &&
+    bool isTemporarilyUnoptimizable = false;
+    if (IsCacheableGetPropCall(cx, global, current, shape, &isScripted, &isTemporarilyUnoptimizable) &&
         !isScripted)
     {
         ICStub *monitorStub = stub->fallbackMonitorStub()->firstMonitorStub();
@@ -5866,7 +5865,6 @@ TryAttachGlobalNameStub(JSContext *cx, HandleScript script, jsbytecode *pc,
             return false;
 
         stub->addNewStub(newStub);
-        *attached = true;
         return true;
     }
 
@@ -5875,10 +5873,8 @@ TryAttachGlobalNameStub(JSContext *cx, HandleScript script, jsbytecode *pc,
 
 static bool
 TryAttachScopeNameStub(JSContext *cx, HandleScript script, ICGetName_Fallback *stub,
-                       HandleObject initialScopeChain, HandlePropertyName name, bool *attached)
+                       HandleObject initialScopeChain, HandlePropertyName name)
 {
-    MOZ_ASSERT(!*attached);
-
     AutoShapeVector shapes(cx);
     RootedId id(cx, NameToId(name));
     RootedObject scopeChain(cx, initialScopeChain);
@@ -5967,7 +5963,6 @@ TryAttachScopeNameStub(JSContext *cx, HandleScript script, ICGetName_Fallback *s
         return false;
 
     stub->addNewStub(newStub);
-    *attached = true;
     return true;
 }
 
@@ -6011,22 +6006,17 @@ DoGetNameFallback(JSContext *cx, BaselineFrame *frame, ICGetName_Fallback *stub_
         return true;
     }
 
-    bool attached = false;
-    bool isTemporarilyUnoptimizable = false;
     if (js_CodeSpec[*pc].format & JOF_GNAME) {
-        Handle<GlobalObject*> global = scopeChain.as<GlobalObject>();
-        if (!TryAttachGlobalNameStub(cx, script, pc, stub, global, name, &attached,
-                                     &isTemporarilyUnoptimizable))
-        {
+        if (!TryAttachGlobalNameStub(cx, script, pc, stub, scopeChain.as<GlobalObject>(), name))
             return false;
-        }
     } else {
-        if (!TryAttachScopeNameStub(cx, script, stub, scopeChain, name, &attached))
+        if (!TryAttachScopeNameStub(cx, script, stub, scopeChain, name))
             return false;
     }
 
-    if (!attached && !isTemporarilyUnoptimizable)
-        stub->noteUnoptimizableAccess();
+    // If we ever add a way to note unoptimizable accesses here, propagate the
+    // isTemporarilyUnoptimizable state from TryAttachGlobalNameStub to here.
+
     return true;
 }
 
@@ -9108,14 +9098,12 @@ GetTemplateObjectForNative(JSContext *cx, HandleScript script, jsbytecode *pc,
         return true;
     }
 
-    if (JitSupportsSimd()) {
-        if (native == js::simd_int32x4_add || native == js::simd_int32x4_and) {
-            Rooted<TypeDescr *> descr(cx, &Int32x4::GetTypeDescr(*cx->global()));
-            res.set(TypedObject::createZeroed(cx, descr, 0, gc::TenuredHeap));
-            if (!res)
-                return false;
-            return true;
-        }
+    if (native == js::simd_int32x4_add && JitSupportsSimd()) {
+        Rooted<TypeDescr *> descr(cx, &Int32x4::GetTypeDescr(*cx->global()));
+        res.set(TypedObject::createZeroed(cx, descr, 0, gc::TenuredHeap));
+        if (!res)
+            return false;
+        return true;
     }
 
     return true;

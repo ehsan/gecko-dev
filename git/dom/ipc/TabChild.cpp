@@ -1096,7 +1096,8 @@ TabChild::Init()
   mWidget->Create(
     nullptr, 0,              // no parents
     nsIntRect(nsIntPoint(0, 0), nsIntSize(0, 0)),
-    nullptr                  // HandleWidgetEvent
+    nullptr,                 // HandleWidgetEvent
+    nullptr                  // nsDeviceContext
   );
 
   baseWindow->InitWindow(0, mWidget, 0, 0, 0, 0);
@@ -3172,8 +3173,8 @@ TabChild::InitRenderingState(const ScrollingBehavior& aScrolling,
     ShadowLayerForwarder* lf =
         mWidget->GetLayerManager(shadowManager, mTextureFactoryIdentifier.mParentBackend)
                ->AsShadowForwarder();
-    MOZ_ASSERT(lf && lf->HasShadowManager(),
-               "PuppetWidget should have shadow manager");
+    NS_ABORT_IF_FALSE(lf && lf->HasShadowManager(),
+                      "PuppetWidget should have shadow manager");
     lf->IdentifyTextureHost(mTextureFactoryIdentifier);
     ImageBridgeChild::IdentifyCompositorTextureHost(mTextureFactoryIdentifier);
 
@@ -3480,20 +3481,19 @@ TabChild::DeallocPPluginWidgetChild(mozilla::plugins::PPluginWidgetChild* aActor
     return true;
 }
 
-nsresult
-TabChild::CreatePluginWidget(nsIWidget* aParent, nsIWidget** aOut)
+already_AddRefed<nsIWidget>
+TabChild::CreatePluginWidget(nsIWidget* aParent)
 {
-  *aOut = nullptr;
   mozilla::plugins::PluginWidgetChild* child =
     static_cast<mozilla::plugins::PluginWidgetChild*>(SendPPluginWidgetConstructor());
   if (!child) {
     NS_ERROR("couldn't create PluginWidgetChild");
-    return NS_ERROR_UNEXPECTED;
+    return nullptr;
   }
   nsCOMPtr<nsIWidget> pluginWidget = nsIWidget::CreatePluginProxyWidget(this, child);
   if (!pluginWidget) {
     NS_ERROR("couldn't create PluginWidgetProxy");
-    return NS_ERROR_UNEXPECTED;
+    return nullptr;
   }
 
   nsWidgetInitData initData;
@@ -3502,12 +3502,11 @@ TabChild::CreatePluginWidget(nsIWidget* aParent, nsIWidget** aOut)
   initData.clipChildren = true;
   initData.clipSiblings = true;
   nsresult rv = pluginWidget->Create(aParent, nullptr, nsIntRect(nsIntPoint(0, 0),
-                                     nsIntSize(0, 0)), &initData);
+                                     nsIntSize(0, 0)), nullptr, &initData);
   if (NS_FAILED(rv)) {
     NS_WARNING("Creating native plugin widget on the chrome side failed.");
   }
-  pluginWidget.forget(aOut);
-  return rv;
+  return pluginWidget.forget();
 }
 
 TabChildGlobal::TabChildGlobal(TabChildBase* aTabChild)
