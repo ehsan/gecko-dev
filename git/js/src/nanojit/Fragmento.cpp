@@ -46,8 +46,7 @@ namespace nanojit
 	/**
 	 * This is the main control center for creating and managing fragments.
 	 */
-	Fragmento::Fragmento(AvmCore* core) 
-		: _allocList(core->GetGC())
+	Fragmento::Fragmento(AvmCore* core) : _allocList(core->GetGC())
 	{
 		_core = core;
 		GC *gc = core->GetGC();
@@ -60,13 +59,14 @@ namespace nanojit
 	Fragmento::~Fragmento()
 	{
 		debug_only( clearFrags() );
+		NanoAssert(_stats.freePages == _stats.pages);
+
         _frags->clear();		
 		while( _allocList.size() > 0 )
 		{
 			//fprintf(stderr,"dealloc %x\n", (intptr_t)_allocList.get(_allocList.size()-1));
 			_gcHeap->Free( _allocList.removeLast() );	
 		}
-		NanoAssert(_stats.freePages == _stats.pages );
 	}
 
 	Page* Fragmento::pageAlloc()
@@ -78,10 +78,10 @@ namespace nanojit
 		if (page)
 		{
 			_pageList = page->next;
-			verbose_only(_stats.freePages--;)
+			debug_only(_stats.freePages--;)
 		}
 		//fprintf(stderr, "Fragmento::pageAlloc %X,  %d free pages of %d\n", (int)page, _stats.freePages, _stats.pages);
-		NanoAssert(pageCount()==_stats.freePages);
+		debug_only( NanoAssert(pageCount()==_stats.freePages); )
 		return page;
 	}
 	
@@ -92,8 +92,8 @@ namespace nanojit
 		// link in the page
 		page->next = _pageList;
 		_pageList = page;
-		verbose_only(_stats.freePages++;)
-		NanoAssert(pageCount()==_stats.freePages);
+		debug_only(_stats.freePages++;)
+		debug_only( NanoAssert(pageCount()==_stats.freePages); )
 	}
 
 	void Fragmento::pagesGrow(int32_t count)
@@ -131,7 +131,7 @@ namespace nanojit
 			Page* page = memory;
 			_pageList = page;
 			_stats.pages += count;
-			verbose_only(_stats.freePages += count;)
+			debug_only(_stats.freePages += count;)
 			while(--count > 0)
 			{
 				Page *next = page + 1;
@@ -140,26 +140,26 @@ namespace nanojit
 				page = next; 
 			}
 			page->next = 0;
-			NanoAssert(pageCount()==_stats.freePages);
+			debug_only( NanoAssert(pageCount()==_stats.freePages); )
 			//fprintf(stderr,"Fragmento::pageGrow adding page %x ; %d\n", (intptr_t)page, count);
 		}
 	}
 	
 	void Fragmento::clearFrags()
 	{
-		// reclaim any dangling native pages
-		_assm->pageReset();
+		//fprintf(stderr, "Fragmento::clearFrags()\n");
 
         while (!_frags->isEmpty()) {
             Fragment *f = _frags->removeLast();
-			f->releaseTreeMem(this);
-		}			
+            f->clear();
+        }
+		
+		// reclaim native pages @todo this is to be moved into tree code.
+		_assm->pageReset();
 
 		verbose_only( enterCounts->clear();)
 		verbose_only( mergeCounts->clear();)
-		verbose_only( _stats.flushes++ );
-		verbose_only( _stats.compiles = 0 );
-		//fprintf(stderr, "Fragmento.clearFrags %d free pages of %d\n", _stats.freePages, _stats.pages);
+		verbose_only( _flushes++ );
 	}
 
 	Assembler* Fragmento::assm()
@@ -179,7 +179,6 @@ namespace nanojit
 			f = newFrag(is);
 			_frags->put(is.ip, f);
             f->anchor = f;
-            f->root = f;
 			f->kind = LoopTrace;
 			f->mergeCounts = new (_core->gc) BlockHist(_core->gc);
             verbose_only( addLabel(f, "T", _frags->size()); )
@@ -207,7 +206,6 @@ namespace nanojit
 		}
 
 		Fragment *f = newBranch(anchor, is);
-		f->root = f;
 		f->kind = MergeTrace;
 		f->calldepth = lr->calldepth;
 		verbose_only(addLabel(f, "M", ++anchor->mergeid); )
@@ -220,8 +218,9 @@ namespace nanojit
         Fragment *f = newBranch(from, is);
 		f->kind = BranchTrace;
 		f->calldepth = lr->calldepth;
-		f->treeBranches = f->root->treeBranches;
-		f->root->treeBranches = f;
+		f->treeBranches = f->anchor->treeBranches;
+		f->anchor->treeBranches = f;
+		verbose_only( labels->add(f, sizeof(Fragment), 0, "-"); );
         return f;
     }
 
@@ -287,7 +286,7 @@ namespace nanojit
 			if (x->kind == MergeTrace)
 	            dumpFragStats(x,level+1,size,traceDur,interpDur);
 
-        if (f->isAnchor() && f->branches != 0) {
+        if (f->anchor == f && f->branches != 0) {
             //_assm->outputf("tree size %d ticks %llu",size,dur);
             _assm->output("");
         }
@@ -338,20 +337,17 @@ namespace nanojit
 		int32_t count = _frags->size();
 		int32_t pages =  _stats.pages;
 		int32_t free = _stats.freePages;
-		int32_t flushes = _stats.flushes;
 		if (!count)
 		{
-			_assm->outputf("No fragments in cache, %d flushes", flushes);
+			_assm->outputf("No fragments in cache, %d flushes", _flushes);
     		_assm->_verbose = vsave;
             return;
 		}
 
-        _assm->outputf("\nFragment statistics");
-		_assm->outputf("  loop trees:     %d", count);
-		_assm->outputf("  flushes:        %d", flushes);
-		_assm->outputf("  compiles:       %d / %d", _stats.compiles, _stats.totalCompiles);
-		_assm->outputf("  used:           %dk / %dk", (pages-free)<<(NJ_LOG2_PAGE_SIZE-10), pages<<(NJ_LOG2_PAGE_SIZE-10));
-		_assm->output("\n         location                     calls guards   main native  gen   T-trace  T-interp");
+        _assm->outputf("\nFragment statistics for %d entries after %d cache flushes of %d pages (%dKB) where %d used and %d free", 
+            count, _flushes, pages, pages<<NJ_LOG2_PAGE_SIZE>>10, pages-free,free);
+		_assm->outputf("h=loop header, x=exit trace, L=loop");
+		_assm->output("         location                     calls guards   main native  gen   T-trace  T-interp");
 
 		avmplus::SortedMap<uint64_t, DurData, avmplus::LIST_NonGCObjects> durs(_core->gc);
 		uint64_t totaldur=0;
@@ -418,11 +414,6 @@ namespace nanojit
         // Fragment is a gc object which is zero'd by the GC, no need to clear fields
     }
 
-	Fragment::~Fragment()
-	{
-		NanoAssert(_pages == 0);
-    }
-	
 	void Fragment::addLink(GuardRecord* lnk)
 	{
 		//fprintf(stderr,"addLink %x from %X target %X\n",(int)lnk,(int)lnk->from,(int)lnk->target);
@@ -479,6 +470,7 @@ namespace nanojit
 			GuardRecord* next = lr->outgoing;
 			Fragment* targ = lr->target;
 			if (targ) targ->removeLink(lr);
+			verbose_only( lr->gid = 0; )
 			lr = next;
 		}	
 
@@ -489,11 +481,11 @@ namespace nanojit
 			GuardRecord* next = lr->next;
 			Fragment* from = lr->target;
 			if (from && from->fragEntry) assm->unpatch(lr);
+			verbose_only( lr->gid = 0; )
 			lr = next;
 		}
 	}
 
-#ifdef _DEBUG
 	bool Fragment::hasOnlyTreeLinks()
 	{
 		// check that all incoming links are on the same tree
@@ -503,7 +495,7 @@ namespace nanojit
 		{
 			GuardRecord *next = lr->next;
 			NanoAssert(lr->target == this);  // def'n of GuardRecord
-			if (lr->from->root != root)
+			if (lr->from->anchor != anchor)
 			{
 				isIt = false;
 				break;
@@ -512,18 +504,17 @@ namespace nanojit
 		}	
 		return isIt;		
 	}
-#endif
 
 	void Fragment::removeIntraLinks()
 	{
 		// should only be called on root of tree
-		NanoAssert(isRoot());
+		NanoAssert(this == anchor);
 		GuardRecord *lr = _links;
 		while (lr)
 		{
 			GuardRecord *next = lr->next;
 			NanoAssert(lr->target == this);  // def'n of GuardRecord
-			if (lr->from->root == root)
+			if (lr->from->anchor == anchor && lr->from->kind != MergeTrace)
 				removeLink(lr);
 			lr = next;
 		}	
@@ -532,7 +523,7 @@ namespace nanojit
 	void Fragment::unlinkBranches(Assembler* /*assm*/)
 	{
 		// should only be called on root of tree
-		NanoAssert(isRoot());
+		NanoAssert(this == anchor);
 		Fragment* frag = treeBranches;
 		while(frag)
 		{
@@ -546,7 +537,7 @@ namespace nanojit
 	void Fragment::linkBranches(Assembler* assm)
 	{
 		// should only be called on root of tree
-		NanoAssert(isRoot());
+		NanoAssert(this == anchor);
 		Fragment* frag = treeBranches;
 		while(frag)
 		{
@@ -580,7 +571,6 @@ namespace nanojit
 	{
 		Fragment *f = newFrag(interp);
 		f->anchor = from->anchor;
-		f->root = from->root;
 		f->mergeCounts = from->anchor->mergeCounts;
         f->xjumpCount = from->xjumpCount;
 		/*// prepend
@@ -598,41 +588,15 @@ namespace nanojit
 		return f;
 	}
 
-	void Fragment::releaseLirBuffer()
-	{
+    void Fragment::clear()
+    {
         if (lirbuf) {
             lirbuf->clear();
             lirbuf = 0;
         }
-		lastIns = 0;	
-	}
+		lastIns = 0;
+    }
 
-	void Fragment::releaseCode(Fragmento* frago)
-	{
-		_code = 0;
-		while(_pages)
-		{
-			Page* next = _pages->next;
-			frago->pageFree(_pages);
-			_pages = next;
-		}
-	}
-	
-	void Fragment::releaseTreeMem(Fragmento* frago)
-	{
-		releaseLirBuffer();
-		releaseCode(frago);
-			
-		// now do it for all branches 
-		Fragment* branch = branches;
-		while(branch)
-		{
-			Fragment* next = branch->nextbranch;
-			branch->releaseTreeMem(frago);  // @todo safer here to recurse in case we support nested trees
-			branch = next;
-		}
-	}
-	
     void Fragment::removeExit(Fragment *target)
     {
         if (target && target == branches) {

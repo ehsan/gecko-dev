@@ -78,9 +78,9 @@ namespace nanojit
 		NIns*		 jmp;
 		NIns*        origTarget;
 		int32_t		 calldepth;
-		LInsp		 guard;
+		SideExit*	 exit;
 		GuardRecord* outgoing;			/* list of guards in a fragment */
-		verbose_only( uint32_t sid; )
+		verbose_only( uint32_t gid; )
 		verbose_only( uint32_t compileNbr; )
 	};
 
@@ -173,8 +173,6 @@ namespace nanojit
         ,MaxXJump
         ,UnknownPrim
 	};
-
-	typedef avmplus::List<NIns*, avmplus::LIST_NonGCObjects> NInsList;
 	 
     /**
  	 * Information about the activation record for the method is built up 
@@ -207,9 +205,9 @@ namespace nanojit
 
 			LInsp		begin(LirWriter *writer);	// @todo remove this 
 
-			void		assemble(Fragment* frag, NInsList& loopJumps);
-			void		endAssembly(Fragment* frag, NInsList& loopJumps);
-			void		beginAssembly(RegAllocMap* map);
+			NIns*		assemble(Fragment* frag);
+			NIns*		endAssembly(Fragment* frag, NInsList& loopJumps);
+			NIns*		beginAssembly(Fragment* frag, RegAllocMap* map);
 			void		copyRegisters(RegAlloc* copyTo);
 			void		releaseRegisters();
             void        patch(GuardRecord *lr);
@@ -237,13 +235,13 @@ namespace nanojit
 
 		private:
 			
-			void		gen(LirFilter* toCompile, NInsList& loopJumps);
+			NIns*		gen(LirFilter* toCompile);
 			NIns*		genPrologue(RegisterMask);
 			NIns*		genEpilogue(RegisterMask);
 
 			bool		ignoreInstruction(LInsp ins);
 
-			GuardRecord* placeGuardRecord(LInsp guard);
+			GuardRecord* placeGuardRecord(SideExit *exit);
 
 			uint32_t	arReserve(LIns* l);
 			uint32_t	arFree(uint32_t idx);
@@ -294,6 +292,7 @@ namespace nanojit
 
 			Reservation _resvTable[ NJ_MAX_STACK_ENTRY ]; // table where we house stack and register information
 			uint32_t	_resvFree;
+			verbose_only( uint32_t gid;)
 			bool		_inExit,vpad2[3];
 
 			void		asm_cmp(LIns *cond);
@@ -301,8 +300,8 @@ namespace nanojit
 			void		asm_fcmp(LIns *cond);
 #endif
 			void		asm_mmq(Register rd, int dd, Register rs, int ds);
-            NIns*       asm_exit(LInsp guard);
-			NIns*		asm_leave_trace(LInsp guard);
+            NIns*       asm_exit(SideExit *exit);
+			NIns*		asm_leave_trace(SideExit* exit);
             void        asm_qjoin(LIns *ins);
             void        asm_store32(LIns *val, int d, LIns *base);
             void        asm_store64(LIns *val, int d, LIns *base);
@@ -322,7 +321,7 @@ namespace nanojit
 			void		nArgEmitted(const CallInfo* call, uint32_t stackSlotCount, uint32_t iargs, uint32_t fargs);
 			void		nFrameRestore(RegisterMask rmask);
 			static void	nPatchBranch(NIns* branch, NIns* location);
-			GuardRecord *nFragExit(LInsp guard);
+			GuardRecord *nFragExit(SideExit *exit);
 
 			// platform specific methods
         public:

@@ -127,11 +127,8 @@ namespace nanojit
 	}
 
 	#ifdef  NJ_VERBOSE
-	/* static */ void RegAlloc::formatRegisters(RegAlloc& regs, char* s, Fragment *frag)
+	/* static */ void RegAlloc::formatRegisters(RegAlloc& regs, char* s, LirNameMap *names)
 	{
-		if (!frag || !frag->lirbuf)
-			return;
-		LirNameMap *names = frag->lirbuf->names;
 		for(int i=0; i<NJ_MAX_REGISTERS; i++)
 		{
 			LIns* ins = regs.active[i];

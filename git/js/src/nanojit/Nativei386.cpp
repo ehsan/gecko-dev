@@ -108,9 +108,8 @@ namespace nanojit
 		return patchEntry;
 	}
 
-	GuardRecord * Assembler::nFragExit(LInsp guard)
+	GuardRecord * Assembler::nFragExit(SideExit *exit)
 	{
-		SideExit *exit = guard->exit();
 		bool trees = _frago->core()->config.tree_opt;
         Fragment *frag = exit->target;
         GuardRecord *lr = 0;
@@ -124,7 +123,7 @@ namespace nanojit
 		else
 		{
 			// target doesn't exit yet.  emit jump to epilog, and set up to patch later.
-			lr = placeGuardRecord(guard);
+			lr = placeGuardRecord(exit);
             JMP_long(_epilogue);
 			lr->jmp = _nIns;
 #if 0			

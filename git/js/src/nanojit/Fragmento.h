@@ -110,7 +110,7 @@ namespace nanojit
 			struct 
 			{
 				uint32_t	pages;					// pages consumed
-				uint32_t	flushes, ilsize, abcsize, compiles, totalCompiles, freePages;
+				uint32_t	ilsize, abcsize, compiles, freePages;
 			}
 			_stats;
 
@@ -127,8 +127,10 @@ namespace nanojit
 			Page*			_pageList;
 
 			/* unmanaged mem */
-			AllocList	_allocList;
+			AllocList			_allocList;
 			GCHeap*		_gcHeap;
+			
+			verbose_only( uint32_t _flushes; )
 	};
 
     struct SideExit
@@ -137,10 +139,11 @@ namespace nanojit
         int32_t ip_adj;
 		int32_t sp_adj;
 		int32_t rp_adj;
+		Fragment *from;
         Fragment *target;
 		int32_t calldepth;
+		LInsp	ins;
 		verbose_only( uint32_t sid; )
-		verbose_only(Fragment *from;)
     };
 
 	enum TraceKind {
@@ -156,14 +159,13 @@ namespace nanojit
 	 * It may turn out that that this arrangement causes too much traffic
 	 * between d and i-caches and that we need to carve up the structure differently.
 	 */
-	class Fragment : public GCFinalizedObject
+	class Fragment
 	{
 		public:
 			Fragment(FragID);
-			~Fragment();
 
 			NIns*			code()							{ return _code; }
-			void			setCode(NIns* codee, Page* pages) { _code = codee; _pages = pages; }
+			void			setCode(NIns* codee)			{ _code = codee; }
 			GuardRecord*	links()							{ return _links; }
 			int32_t&		hits()							{ return _hits; }
             void            blacklist();
@@ -175,14 +177,11 @@ namespace nanojit
 			void			linkBranches(Assembler* assm);
 			void			unlink(Assembler* assm);
 			void			unlinkBranches(Assembler* assm);
-			debug_only( bool hasOnlyTreeLinks(); )
+			bool			hasOnlyTreeLinks();
 			void			removeIntraLinks();
             void            removeExit(Fragment *target);
-			void			releaseLirBuffer();
-			void			releaseCode(Fragmento* frago);
-			void			releaseTreeMem(Fragmento* frago);
+            void            clear();
 			bool			isAnchor() { return anchor == this; }
-			bool			isRoot() { return root == this; }
 			
 			verbose_only( uint32_t		_called; )
 			verbose_only( uint32_t		_native; )
@@ -202,11 +201,10 @@ namespace nanojit
             DWB(Fragment*) branches;
             DWB(Fragment*) nextbranch;
             DWB(Fragment*) anchor;
-            DWB(Fragment*) root;
 			DWB(BlockHist*) mergeCounts;
             DWB(LirBuffer*) lirbuf;
 			LIns*			lastIns;
-			LIns*		spawnedFrom;
+			SideExit*		spawnedFrom;
 			GuardRecord*	outbound;
 			
 			TraceKind kind;
@@ -222,7 +220,6 @@ namespace nanojit
 			NIns*			_code;		// ptr to start of code
 			GuardRecord*	_links;		// code which is linked (or pending to be) to this fragment
 			int32_t			_hits;
-			Page*			_pages;		// native code pages 
 	};
 	
 #ifdef NJ_VERBOSE
