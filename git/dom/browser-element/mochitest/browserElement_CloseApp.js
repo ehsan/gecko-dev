@@ -21,11 +21,11 @@ function runTest() {
   // frame.
 
   var appFrame = document.createElement('iframe');
-  appFrame.setAttribute('mozbrowser', 'true');
+  SpecialPowers.wrap(appFrame).mozbrowser = true;
   appFrame.setAttribute('mozapp', 'http://example.org/manifest.webapp');
 
   var browserFrame = document.createElement('iframe');
-  browserFrame.setAttribute('mozbrowser', 'true');
+  SpecialPowers.wrap(browserFrame).mozbrowser = true;
 
   var gotAppFrameClose = false;
   appFrame.addEventListener('mozbrowserclose', function() {
