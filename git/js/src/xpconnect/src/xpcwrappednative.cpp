@@ -846,7 +846,7 @@ XPCWrappedNative::XPCWrappedNative(already_AddRefed<nsISupports> aIdentity,
                                    XPCWrappedNativeProto* aProto)
     : mMaybeProto(aProto),
       mSet(aProto->GetSet()),
-      mFlatJSObject((JSObject*)JSVAL_ONE), // non-null to pass IsValid() test
+      mFlatJSObject(INVALID_OBJECT), // non-null to pass IsValid() test
       mScriptableInfo(nsnull),
       mWrapperWord(0)
 {
@@ -865,7 +865,7 @@ XPCWrappedNative::XPCWrappedNative(already_AddRefed<nsISupports> aIdentity,
 
     : mMaybeScope(TagScope(aScope)),
       mSet(aSet),
-      mFlatJSObject((JSObject*)JSVAL_ONE), // non-null to pass IsValid() test
+      mFlatJSObject(INVALID_OBJECT), // non-null to pass IsValid() test
       mScriptableInfo(nsnull),
       mWrapperWord(0)
 {
@@ -3306,13 +3306,13 @@ XPCWrappedNative::HandlePossibleNameCaseError(XPCCallContext& ccx,
             const char* badName = JS_GetStringBytes(oldJSStr);
             char* locationStr = nsnull;
 
-            nsCOMPtr<nsIException> e;
-            nsXPCException::NewException("", NS_OK, nsnull, nsnull, getter_AddRefs(e));
+            nsIException* e = nsnull;
+            nsXPCException::NewException("", NS_OK, nsnull, nsnull, &e);
 
             if(e)
             {
                 nsresult rv;
-                nsCOMPtr<nsIStackFrame> loc;
+                nsCOMPtr<nsIStackFrame> loc = nsnull;
                 rv = e->GetLocation(getter_AddRefs(loc));
                 if(NS_SUCCEEDED(rv) && loc) {
                     loc->ToString(&locationStr); // failure here leaves it nsnull.

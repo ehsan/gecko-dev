@@ -395,9 +395,6 @@ WrapEscapingClosure(JSContext *cx, JSStackFrame *fp, JSObject *funobj, JSFunctio
                                      : 0,
                                      (script->constOffset != 0)
                                      ? script->consts()->length
-                                     : 0,
-                                     (script->globalsOffset != 0)
-                                     ? script->globals()->length
                                      : 0);
     if (!wscript)
         return NULL;
@@ -419,10 +416,6 @@ WrapEscapingClosure(JSContext *cx, JSStackFrame *fp, JSObject *funobj, JSFunctio
     if (script->trynotesOffset != 0) {
         memcpy(wscript->trynotes()->vector, script->trynotes()->vector,
                wscript->trynotes()->length * sizeof(JSTryNote));
-    }
-    if (script->globalsOffset != 0) {
-        memcpy(wscript->globals()->vector, script->globals()->vector,
-               wscript->globals()->length * sizeof(GlobalSlotArray::Entry));
     }
 
     if (wfun->u.i.nupvars != 0) {
@@ -1141,19 +1134,21 @@ SetCallVar(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 
 #if JS_TRACER
 JSBool JS_FASTCALL
-js_SetCallArg(JSContext *cx, JSObject *obj, size_t slotid, Value *vp)
+js_SetCallArg(JSContext *cx, JSObject *obj, jsid slotid, ValueArgType arg)
 {
-    return CallPropertyOp(cx, obj, JSID_FROM_BITS(slotid), vp, JSCPK_ARG, true);
+    Value argcopy = ValueArgToConstRef(arg);
+    return CallPropertyOp(cx, obj, slotid, &argcopy, JSCPK_ARG, true);
 }
+JS_DEFINE_CALLINFO_4(extern, BOOL, js_SetCallArg, CONTEXT, OBJECT, JSID, VALUE, 0,
+                     nanojit::ACC_STORE_ANY)
 
 JSBool JS_FASTCALL
-js_SetCallVar(JSContext *cx, JSObject *obj, size_t slotid, Value *vp)
+js_SetCallVar(JSContext *cx, JSObject *obj, jsid slotid, ValueArgType arg)
 {
-    return CallPropertyOp(cx, obj, JSID_FROM_BITS(slotid), vp, JSCPK_VAR, true);
+    Value argcopy = ValueArgToConstRef(arg);
+    return CallPropertyOp(cx, obj, slotid, &argcopy, JSCPK_VAR, true);
 }
-JS_DEFINE_CALLINFO_4(extern, BOOL, js_SetCallArg, CONTEXT, OBJECT, SIZET, VALUEPTR, 0,
-                     nanojit::ACC_STORE_ANY)
-JS_DEFINE_CALLINFO_4(extern, BOOL, js_SetCallVar, CONTEXT, OBJECT, SIZET, VALUEPTR, 0,
+JS_DEFINE_CALLINFO_4(extern, BOOL, js_SetCallVar, CONTEXT, OBJECT, JSID, VALUE, 0,
                      nanojit::ACC_STORE_ANY)
 #endif
 
