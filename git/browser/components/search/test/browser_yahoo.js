@@ -29,7 +29,7 @@ function test() {
     name: "Yahoo",
     alias: null,
     description: "Yahoo Search",
-    searchForm: "https://search.yahoo.com/",
+    searchForm: "https://search.yahoo.com/yhs/search?p=&ei=UTF-8&hspart=mozilla&hsimp=yhs-001",
     type: Ci.nsISearchEngine.TYPE_MOZSEARCH,
     hidden: false,
     wrappedJSObject: {
