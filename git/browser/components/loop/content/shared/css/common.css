@@ -135,7 +135,6 @@ p {
   background-color: #f0ad4e;
 }
 
-.btn-cancel,
 .btn-error,
 .btn-hangup,
 .btn-error + .btn-chevron {
@@ -143,7 +142,6 @@ p {
   border: 1px solid #d74345;
 }
 
-  .btn-cancel:hover,
   .btn-error:hover,
   .btn-hangup:hover,
   .btn-error + .btn-chevron:hover {
@@ -151,7 +149,6 @@ p {
     border: 1px solid #c53436;
   }
 
-  .btn-cancel:active,
   .btn-error:active,
   .btn-hangup:active,
   .btn-error + .btn-chevron:active {
@@ -225,7 +222,7 @@ p {
 /* Alerts */
 .alert {
   background: #eee;
-  padding: .4em 1em;
+  padding: .2em 1em;
   margin-bottom: 1em;
   border-bottom: 2px solid #E9E9E9;
 }
@@ -235,12 +232,17 @@ p {
   margin: 0;
 }
 
-.alert-error {
+.alert.alert-error {
+  display: flex;
+  align-content: center;
+  padding: 5px;
+  font-size: 10px;
+  justify-content: center;
+  color: #FFF;
   background: repeating-linear-gradient(-45deg, #D74345, #D74345 10px, #D94B4D 10px, #D94B4D 20px) repeat scroll 0% 0% transparent;
-  color: #fff;
 }
 
-.alert-warning {
+.alert.alert-warning {
   background: #fcf8e3;
   border: 1px solid #fbeed5;
 }

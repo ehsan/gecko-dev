@@ -42,28 +42,6 @@ const cloneErrorObject = function(error, targetWindow) {
 };
 
 /**
- * Makes an object or value available to an unprivileged target window.
- *
- * Primitives are returned as they are, while objects are cloned into the
- * specified target.  Error objects are also handled correctly.
- *
- * @param {any}          value        Value or object to copy
- * @param {nsIDOMWindow} targetWindow The content window to copy to
- */
-const cloneValueInto = function(value, targetWindow) {
-  if (!value || typeof value != "object") {
-    return value;
-  }
-
-  // Inspect for an error this way, because the Error object is special.
-  if (value.constructor.name == "Error") {
-    return cloneErrorObject(value, targetWindow);
-  }
-
-  return Cu.cloneInto(value, targetWindow);
-};
-
-/**
  * Inject any API containing _only_ function properties into the given window.
  *
  * @param {Object}       api          Object containing functions that need to
@@ -78,7 +56,17 @@ const injectObjectAPI = function(api, targetWindow) {
     injectedAPI[func] = function(...params) {
       let callback = params.pop();
       api[func](...params, function(...results) {
-        callback(...[cloneValueInto(r, targetWindow) for (r of results)]);
+        results = results.map(result => {
+          if (result && typeof result == "object") {
+            // Inspect for an error this way, because the Error object is special.
+            if (result.constructor.name == "Error") {
+              return cloneErrorObject(result.message)
+            }
+            return Cu.cloneInto(result, targetWindow);
+          }
+          return result;
+        });
+        callback(...results);
       });
     };
   });
@@ -215,11 +203,11 @@ function injectLoopAPI(targetWindow) {
       value: function(callback) {
         // We translate from a promise to a callback, as we can't pass promises from
         // Promise.jsm across the priv versus unpriv boundary.
-        MozLoopService.register().then(() => {
+        return MozLoopService.register().then(() => {
           callback(null);
         }, err => {
-          callback(cloneValueInto(err, targetWindow));
-        }).catch(Cu.reportError);
+          callback(err);
+        });
       }
     },
 
@@ -369,20 +357,11 @@ function injectLoopAPI(targetWindow) {
       value: function(path, method, payloadObj, callback) {
         // XXX: Bug 1065153 - Should take a sessionType parameter instead of hard-coding GUEST
         // XXX Should really return a DOM promise here.
-        MozLoopService.hawkRequest(LOOP_SESSION_TYPE.GUEST, path, method, payloadObj).then((response) => {
+        return MozLoopService.hawkRequest(LOOP_SESSION_TYPE.GUEST, path, method, payloadObj).then((response) => {
           callback(null, response.body);
-        }, hawkError => {
-          // The hawkError.error property, while usually a string representing
-          // an HTTP response status message, may also incorrectly be a native
-          // error object that will cause the cloning function to fail.
-          callback(Cu.cloneInto({
-            error: (hawkError.error && typeof hawkError.error == "string")
-                   ? hawkError.error : "Unexpected exception",
-            message: hawkError.message,
-            code: hawkError.code,
-            errno: hawkError.errno,
-          }, targetWindow));
-        }).catch(Cu.reportError);
+        }, (error) => {
+          callback(Cu.cloneInto(error, targetWindow));
+        });
       }
     },
 

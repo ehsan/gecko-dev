@@ -132,11 +132,10 @@ let UI = {
         break;
       case "project":
         this.updateTitle();
-        this.destroyToolbox();
+        this.closeToolbox();
         this.updateCommands();
         this.updateProjectButton();
         this.openProject();
-        this.autoStartProject();
         break;
       case "project-is-not-running":
       case "project-is-running":
@@ -482,26 +481,6 @@ let UI = {
     }, console.error);
   },
 
-  autoStartProject: function() {
-    let project = AppManager.selectedProject;
-
-    if (!project) {
-      return;
-    }
-    if (!(project.type == "runtimeApp" ||
-          project.type == "mainProcess" ||
-          project.type == "tab")) {
-      return; // For something that is not an editable app, we're done.
-    }
-
-    Task.spawn(function() {
-      if (project.type == "runtimeApp") {
-        yield UI.busyUntil(AppManager.runRuntimeApp(), "running app");
-      }
-      yield UI.createToolbox();
-    });
-  },
-
   /********** DECK **********/
 
   setupDeck: function() {
@@ -650,20 +629,13 @@ let UI = {
     } catch(e) { console.error(e); }
   },
 
-  destroyToolbox: function() {
+  closeToolbox: function() {
     if (this.toolboxPromise) {
       this.toolboxPromise.then(toolbox => {
         toolbox.destroy();
         this.toolboxPromise = null;
       }, console.error);
     }
-  },
-
-  createToolbox: function() {
-    this.toolboxPromise = AppManager.getTarget().then((target) => {
-      return this.showToolbox(target);
-    }, console.error);
-    return this.busyUntil(this.toolboxPromise, "opening toolbox");
   },
 
   showToolbox: function(target) {
@@ -1027,10 +999,14 @@ let Cmds = {
 
   toggleToolbox: function() {
     if (UI.toolboxIframe) {
-      UI.destroyToolbox();
+      UI.closeToolbox();
       return promise.resolve();
     } else {
-      return UI.createToolbox();
+      UI.toolboxPromise = AppManager.getTarget().then((target) => {
+        return UI.showToolbox(target);
+      }, console.error);
+      UI.busyUntil(UI.toolboxPromise, "opening toolbox");
+      return UI.toolboxPromise;
     }
   },
 

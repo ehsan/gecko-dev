@@ -151,7 +151,7 @@ this.FxAccountsProfileClient.prototype = {
  *          Error message
  * @constructor
  */
-this.FxAccountsProfileClientError = function(details) {
+var FxAccountsProfileClientError = function (details) {
   details = details || {};
 
   this.name = "FxAccountsProfileClientError";
