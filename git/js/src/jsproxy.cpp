@@ -12,6 +12,7 @@
 #include "jscntxt.h"
 #include "jsfun.h"
 #include "jsgc.h"
+#include "jsprvtd.h"
 #include "jswrapper.h"
 
 #include "gc/Marking.h"

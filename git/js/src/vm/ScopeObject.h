@@ -16,8 +16,6 @@
 
 namespace js {
 
-namespace frontend { struct Definition; }
-
 /*****************************************************************************/
 
 /*

@@ -24,9 +24,6 @@
 namespace js {
 namespace frontend {
 
-template <typename ParseHandler>
-class Parser;
-
 struct CGTryNoteList {
     Vector<JSTryNote> list;
     CGTryNoteList(ExclusiveContext *cx) : list(cx) {}

@@ -498,7 +498,7 @@ struct nsRadioGroupStruct
   /**
    * A strong pointer to the currently selected radio button.
    */
-  nsRefPtr<HTMLInputElement> mSelectedRadioButton;
+  nsCOMPtr<nsIDOMHTMLInputElement> mSelectedRadioButton;
   nsCOMArray<nsIFormControl> mRadioButtons;
   uint32_t mRequiredRadioCount;
   bool mGroupSuffersFromValueMissing;
@@ -1670,7 +1670,7 @@ RadioGroupsTraverser(const nsAString& aKey, nsRadioGroupStruct* aData,
 
   NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb,
                                    "mRadioGroups entry->mSelectedRadioButton");
-  cb->NoteXPCOMChild(ToSupports(aData->mSelectedRadioButton));
+  cb->NoteXPCOMChild(aData->mSelectedRadioButton);
 
   uint32_t i, count = aData->mRadioButtons.Count();
   for (i = 0; i < count; ++i) {
@@ -7272,13 +7272,13 @@ nsDocument::GetOrCreateRadioGroup(const nsAString& aName)
 
 void
 nsDocument::SetCurrentRadioButton(const nsAString& aName,
-                                  HTMLInputElement* aRadio)
+                                  nsIDOMHTMLInputElement* aRadio)
 {
   nsRadioGroupStruct* radioGroup = GetOrCreateRadioGroup(aName);
   radioGroup->mSelectedRadioButton = aRadio;
 }
 
-HTMLInputElement*
+nsIDOMHTMLInputElement*
 nsDocument::GetCurrentRadioButton(const nsAString& aName)
 {
   return GetOrCreateRadioGroup(aName)->mSelectedRadioButton;
@@ -7287,8 +7287,8 @@ nsDocument::GetCurrentRadioButton(const nsAString& aName)
 NS_IMETHODIMP
 nsDocument::GetNextRadioButton(const nsAString& aName,
                                const bool aPrevious,
-                               HTMLInputElement* aFocusedRadio,
-                               HTMLInputElement** aRadioOut)
+                               nsIDOMHTMLInputElement*  aFocusedRadio,
+                               nsIDOMHTMLInputElement** aRadioOut)
 {
   // XXX Can we combine the HTML radio button method impls of
   //     nsDocument and nsHTMLFormControl?
@@ -7300,7 +7300,7 @@ nsDocument::GetNextRadioButton(const nsAString& aName,
 
   // Return the radio button relative to the focused radio button.
   // If no radio is focused, get the radio relative to the selected one.
-  nsRefPtr<HTMLInputElement> currentRadio;
+  nsCOMPtr<nsIDOMHTMLInputElement> currentRadio;
   if (aFocusedRadio) {
     currentRadio = aFocusedRadio;
   }
@@ -7310,13 +7310,15 @@ nsDocument::GetNextRadioButton(const nsAString& aName,
       return NS_ERROR_FAILURE;
     }
   }
-  int32_t index = radioGroup->mRadioButtons.IndexOf(currentRadio);
+  nsCOMPtr<nsIFormControl> radioControl(do_QueryInterface(currentRadio));
+  int32_t index = radioGroup->mRadioButtons.IndexOf(radioControl);
   if (index < 0) {
     return NS_ERROR_FAILURE;
   }
 
   int32_t numRadios = radioGroup->mRadioButtons.Count();
-  nsRefPtr<HTMLInputElement> radio;
+  bool disabled;
+  nsCOMPtr<nsIDOMHTMLInputElement> radio;
   do {
     if (aPrevious) {
       if (--index < 0) {
@@ -7326,12 +7328,12 @@ nsDocument::GetNextRadioButton(const nsAString& aName,
     else if (++index >= numRadios) {
       index = 0;
     }
-    NS_ASSERTION(static_cast<nsGenericHTMLFormElement*>(radioGroup->mRadioButtons[index])->IsHTML(nsGkAtoms::input),
-                 "mRadioButtons holding a non-radio button");
-    radio = static_cast<HTMLInputElement*>(radioGroup->mRadioButtons[index]);
-  } while (radio->Disabled() && radio != currentRadio);
+    radio = do_QueryInterface(radioGroup->mRadioButtons[index]);
+    NS_ASSERTION(radio, "mRadioButtons holding a non-radio button");
+    radio->GetDisabled(&disabled);
+  } while (disabled && radio != currentRadio);
 
-  radio.forget(aRadioOut);
+  NS_IF_ADDREF(*aRadioOut = radio);
   return NS_OK;
 }
 

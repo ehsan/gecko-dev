@@ -10,7 +10,7 @@
 #include "mozilla/MemoryReporting.h"
 
 #include "jsclass.h"
-#include "jsbytecode.h"
+#include "jsprvtd.h"
 #include "jspubtd.h"
 
 #include "js/CallArgs.h"
@@ -29,9 +29,6 @@
 #endif
 
 #define JS_CHECK_STACK_SIZE(limit, lval) JS_CHECK_STACK_SIZE_WITH_TOLERANCE(limit, lval, 0)
-
-class JSAtom;
-class JSLinearString;
 
 namespace JS {
 template <class T>
@@ -173,7 +170,7 @@ extern JS_FRIEND_API(bool)
 JS_CopyPropertiesFrom(JSContext *cx, JSObject *target, JSObject *obj);
 
 extern JS_FRIEND_API(bool)
-JS_WrapPropertyDescriptor(JSContext *cx, JSPropertyDescriptor *desc);
+JS_WrapPropertyDescriptor(JSContext *cx, js::PropertyDescriptor *desc);
 
 extern JS_FRIEND_API(bool)
 JS_WrapAutoIdVector(JSContext *cx, JS::AutoIdVector &props);
@@ -368,7 +365,7 @@ struct Function {
     uint16_t nargs;
     uint16_t flags;
     /* Used only for natives */
-    JSNative native;
+    Native native;
     const JSJitInfo *jitinfo;
     void *_1;
 };
@@ -573,16 +570,16 @@ AtomToLinearString(JSAtom *atom)
     return reinterpret_cast<JSLinearString *>(atom);
 }
 
-static inline JSPropertyOp
+static inline js::PropertyOp
 CastAsJSPropertyOp(JSObject *object)
 {
-    return JS_DATA_TO_FUNC_PTR(JSPropertyOp, object);
+    return JS_DATA_TO_FUNC_PTR(js::PropertyOp, object);
 }
 
-static inline JSStrictPropertyOp
+static inline js::StrictPropertyOp
 CastAsJSStrictPropertyOp(JSObject *object)
 {
-    return JS_DATA_TO_FUNC_PTR(JSStrictPropertyOp, object);
+    return JS_DATA_TO_FUNC_PTR(js::StrictPropertyOp, object);
 }
 
 JS_FRIEND_API(bool)
@@ -778,6 +775,12 @@ SetActivityCallback(JSRuntime *rt, ActivityCallback cb, void *arg);
 
 extern JS_FRIEND_API(const JSStructuredCloneCallbacks *)
 GetContextStructuredCloneCallbacks(JSContext *cx);
+
+extern JS_FRIEND_API(bool)
+CanCallContextDebugHandler(JSContext *cx);
+
+extern JS_FRIEND_API(JSTrapStatus)
+CallContextDebugHandler(JSContext *cx, JSScript *script, jsbytecode *bc, Value *rval);
 
 extern JS_FRIEND_API(bool)
 IsContextRunningJS(JSContext *cx);
@@ -1783,7 +1786,7 @@ DefaultValue(JSContext *cx, JS::HandleObject obj, JSType hint, MutableHandleValu
  */
 extern JS_FRIEND_API(bool)
 CheckDefineProperty(JSContext *cx, HandleObject obj, HandleId id, HandleValue value,
-                    JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs);
+                    PropertyOp getter, StrictPropertyOp setter, unsigned attrs);
 
 class ScriptSource;
 
@@ -1814,7 +1817,7 @@ class AsmJSModuleSourceDesc
 
 extern JS_FRIEND_API(bool)
 js_DefineOwnProperty(JSContext *cx, JSObject *objArg, jsid idArg,
-                     const JSPropertyDescriptor& descriptor, bool *bp);
+                     const js::PropertyDescriptor& descriptor, bool *bp);
 
 extern JS_FRIEND_API(bool)
 js_ReportIsNotFunction(JSContext *cx, const JS::Value& v);

@@ -14,10 +14,8 @@
 
 #include <stdlib.h>
 #include <string.h>
-
 #include "jstypes.h"
-
-#include "js/Utility.h"
+#include "jsutil.h"
 
 using namespace js;
 

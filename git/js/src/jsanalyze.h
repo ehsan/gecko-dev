@@ -22,11 +22,6 @@ class JSScript;
 namespace js {
 namespace analyze {
 
-class LoopAnalysis;
-class SlotValue;
-class SSAValue;
-class SSAUseChain;
-
 /*
  * There are three analyses we can perform on a JSScript, outlined below.
  * The results of all three are stored in ScriptAnalysis, but the analyses

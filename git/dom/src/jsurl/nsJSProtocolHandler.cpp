@@ -197,6 +197,8 @@ nsresult nsJSThunk::EvaluateScript(nsIChannel *aChannel,
         return NS_ERROR_FAILURE;
     }
 
+    nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(global));
+
     // Sandboxed document check: javascript: URI's are disabled
     // in a sandboxed document unless 'allow-scripts' was specified.
     nsIDocument* doc = aOriginalInnerWindow->GetExtantDoc();
@@ -205,10 +207,9 @@ nsresult nsJSThunk::EvaluateScript(nsIChannel *aChannel,
     }
 
     // Push our popup control state
-    nsAutoPopupStatePusher popupStatePusher(aPopupState);
+    nsAutoPopupStatePusher popupStatePusher(win, aPopupState);
 
     // Make sure we still have the same inner window as we used to.
-    nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(global);
     nsPIDOMWindow *innerWin = win->GetCurrentInnerWindow();
 
     if (innerWin != aOriginalInnerWindow) {

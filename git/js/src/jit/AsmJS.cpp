@@ -1528,10 +1528,11 @@ class MOZ_STACK_CLASS ModuleCompiler
     }
 
     void buildCompilationTimeReport(ScopedJSFreePtr<char> *out) {
+        int msTotal = 0;
         ScopedJSFreePtr<char> slowFuns;
 #ifndef JS_MORE_DETERMINISTIC
         int64_t usecAfter = PRMJ_Now();
-        int msTotal = (usecAfter - usecBefore_) / PRMJ_USEC_PER_MSEC;
+        msTotal = (usecAfter - usecBefore_) / PRMJ_USEC_PER_MSEC;
         if (!slowFunctions_.empty()) {
             slowFuns.reset(JS_smprintf("; %d functions compiled slowly: ", slowFunctions_.length()));
             if (!slowFuns)

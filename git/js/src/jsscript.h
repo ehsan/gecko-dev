@@ -34,19 +34,12 @@ namespace ion {
 
 # define BASELINE_DISABLED_SCRIPT ((js::ion::BaselineScript *)0x1)
 
-class BreakpointSite;
-class BindingIter;
-class RegExpObject;
-struct SourceCompressionToken;
 class Shape;
-class WatchpointMap;
+
+class BindingIter;
 
 namespace analyze {
     class ScriptAnalysis;
-}
-
-namespace frontend {
-    class BytecodeEmitter;
 }
 
 }

@@ -16,6 +16,7 @@
 
 #include "jsapi.h"
 #include "jsfriendapi.h"
+#include "jsprvtd.h"
 
 #include "js/HashTable.h"
 #include "js/Vector.h"
@@ -106,11 +107,10 @@ extern void
 TraceCycleDetectionSet(JSTracer *trc, ObjectSet &set);
 
 struct AutoResolving;
-class DtoaCache;
+
 class ForkJoinSlice;
 class RegExpCompartment;
-class RegExpStatics;
-class ForkJoinSlice;
+class DtoaCache;
 
 /*
  * Execution Context Overview:

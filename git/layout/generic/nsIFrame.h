@@ -792,7 +792,7 @@ public:
   #include "nsStyleStructList.h"
   #undef STYLE_STRUCT
 
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
   /** Also forward GetVisitedDependentColor to the style context */
   nscolor GetVisitedDependentColor(nsCSSProperty aProperty)
     { return mStyleContext->GetVisitedDependentColor(aProperty); }
@@ -3259,7 +3259,7 @@ private:
   }
 
   void Init(nsIFrame* aFrame) {
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
     InitInternal(aFrame);
 #else
     InitExternal(aFrame);

@@ -303,7 +303,7 @@ public:
   }
 #endif
 
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
   nsStyleSet* StyleSet() const { return mStyleSet; }
 
   nsCSSFrameConstructor* FrameConstructor() const { return mFrameConstructor; }
@@ -337,7 +337,7 @@ public:
    */
   virtual NS_HIDDEN_(void) ReconstructStyleDataExternal();
   NS_HIDDEN_(void) ReconstructStyleDataInternal();
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
   void ReconstructStyleData() { ReconstructStyleDataInternal(); }
 #else
   void ReconstructStyleData() { ReconstructStyleDataExternal(); }
@@ -418,7 +418,7 @@ public:
    */
   virtual NS_HIDDEN_(nsIFrame*) GetRootFrameExternal() const;
   nsIFrame* GetRootFrame() const {
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
     return mFrameManager->GetRootFrame();
 #else
     return GetRootFrameExternal();
@@ -1026,7 +1026,7 @@ public:
 
   void AddWeakFrame(nsWeakFrame* aWeakFrame)
   {
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
     AddWeakFrameInternal(aWeakFrame);
 #else
     AddWeakFrameExternal(aWeakFrame);
@@ -1038,7 +1038,7 @@ public:
 
   void RemoveWeakFrame(nsWeakFrame* aWeakFrame)
   {
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
     RemoveWeakFrameInternal(aWeakFrame);
 #else
     RemoveWeakFrameExternal(aWeakFrame);
@@ -1379,7 +1379,7 @@ protected:
 public:
   bool AddRefreshObserver(nsARefreshObserver* aObserver,
                             mozFlushType aFlushType) {
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
     return AddRefreshObserverInternal(aObserver, aFlushType);
 #else
     return AddRefreshObserverExternal(aObserver, aFlushType);
@@ -1388,7 +1388,7 @@ public:
 
   bool RemoveRefreshObserver(nsARefreshObserver* aObserver,
                                mozFlushType aFlushType) {
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
     return RemoveRefreshObserverInternal(aObserver, aFlushType);
 #else
     return RemoveRefreshObserverExternal(aObserver, aFlushType);

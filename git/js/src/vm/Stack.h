@@ -17,7 +17,6 @@
 
 struct JSContext;
 struct JSCompartment;
-struct JSGenerator;
 
 namespace js {
 

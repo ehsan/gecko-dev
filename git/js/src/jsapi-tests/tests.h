@@ -18,6 +18,7 @@
 #include "jsapi.h"
 #include "jscntxt.h"
 #include "jsgc.h"
+#include "jsprvtd.h"
 
 #include "js/Vector.h"
 
