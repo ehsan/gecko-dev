@@ -44,12 +44,7 @@ typedef struct PLArenaPool      PLArenaPool;
 
 /*
 ** Initialize an arena pool with the given name for debugging and metering,
-** with a minimum gross size per arena of size bytes.  The net size per arena
-** is smaller than the gross size by a header of four pointers plus any
-** necessary padding for alignment.
-**
-** Note: choose a gross size that's a power of two to avoid the heap allocator
-** rounding the size up.
+** with a minimum size per arena of size bytes.
 **/
 PR_EXTERN(void) PL_InitArenaPool(
     PLArenaPool *pool, const char *name, PRUint32 size, PRUint32 align);

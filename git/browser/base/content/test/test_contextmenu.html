@@ -49,10 +49,9 @@ function executeCopyCommand(command, expectedValue)
   is(input.value, expectedValue, "paste for command " + command);
 }
 
-function invokeItemAction(generatedItemId)
+function invokeItemAction(ident)
 {
-  var item = contextMenu.getElementsByAttribute("generateditemid",
-                                                generatedItemId)[0];
+  var item = contextMenu.getElementsByAttribute("ident", ident)[0];
   ok(item, "Got generated XUL menu item");
   item.doCommand();
   is(pagemenu.hasAttribute("hopeless"), false, "attribute got removed");
@@ -70,7 +69,7 @@ function getVisibleMenuItems(aMenu, aData) {
         if (key)
             key = key.toLowerCase();
 
-        var isGenerated = item.hasAttribute("generateditemid");
+        var isGenerated = item.hasAttribute("generated");
 
         if (item.nodeName == "menuitem") {
             var isSpellSuggestion = item.className == "spell-suggestion";
