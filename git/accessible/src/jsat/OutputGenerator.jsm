@@ -220,12 +220,7 @@ this.OutputGenerator = {
     if (!typeName || typeName === 'text') {
       return;
     }
-    typeName = 'textInputType_' + typeName;
-    try {
-      aDesc.push(gStringBundle.GetStringFromName(typeName));
-    } catch (x) {
-      Logger.warning('Failed to get a string from a bundle for', typeName);
-    }
+    aDesc.push(gStringBundle.GetStringFromName('textInputType_' + typeName));
   },
 
   get outputOrder() {

@@ -185,7 +185,8 @@ Editor.prototype = {
   appendTo: function (el) {
     let def = promise.defer();
     let cm  = editors.get(this);
-    let env = el.ownerDocument.createElement("iframe");
+    let doc = el.ownerDocument;
+    let env = doc.createElement("iframe");
     env.flex = 1;
 
     if (cm)
@@ -222,7 +223,7 @@ Editor.prototype = {
       cm = win.CodeMirror(win.document.body, this.config);
       cm.getWrapperElement().addEventListener("contextmenu", (ev) => {
         ev.preventDefault();
-        this.showContextMenu(el.ownerDocument, ev.screenX, ev.screenY);
+        this.showContextMenu(doc, ev.screenX, ev.screenY);
       }, false);
 
       cm.on("focus", () => this.emit("focus"));
@@ -234,7 +235,7 @@ Editor.prototype = {
         return L10N.GetStringFromName(name);
       });
 
-      cm.getInputField().controllers.insertControllerAt(0, controller(this));
+      doc.defaultView.controllers.insertControllerAt(0, controller(this, doc.defaultView));
 
       this.container = env;
       editors.set(this, cm);
@@ -702,7 +703,7 @@ function getCSSKeywords() {
  * editor-specific commands such as find, jump to line,
  * copy/paste, etc.
  */
-function controller(ed) {
+function controller(ed, view) {
   return {
     supportsCommand: function (cmd) {
       switch (cmd) {
@@ -712,6 +713,8 @@ function controller(ed) {
         case "cmd_gotoLine":
         case "cmd_undo":
         case "cmd_redo":
+        case "cmd_cut":
+        case "cmd_paste":
         case "cmd_delete":
         case "cmd_selectAll":
           return true;
@@ -734,8 +737,12 @@ function controller(ed) {
           return ed.canUndo();
         case "cmd_redo":
           return ed.canRedo();
+        case "cmd_cut":
+          return cm.getOption("readOnly") !== true && ed.somethingSelected();
         case "cmd_delete":
           return ed.somethingSelected();
+        case "cmd_paste":
+          return cm.getOption("readOnly") !== true;
       }
 
       return false;
@@ -754,6 +761,12 @@ function controller(ed) {
 
       if (map[cmd])
         return void cm.execCommand(map[cmd]);
+
+      if (cmd === "cmd_cut")
+        return void view.goDoCommand("cmd_cut");
+
+      if (cmd === "cmdste")
+        return void view.goDoCommand("cmd_paste");
 
       if (cmd == "cmd_gotoLine")
         ed.jumpToLine(cm);

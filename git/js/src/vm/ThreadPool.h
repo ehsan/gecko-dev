@@ -11,8 +11,11 @@
 #include <stdint.h>
 
 #include "jsalloc.h"
-#include "jslock.h"
 #include "jspubtd.h"
+#ifdef JS_THREADSAFE
+# include "prcvar.h"
+# include "prlock.h"
+#endif
 
 #include "js/Vector.h"
 

@@ -153,16 +153,6 @@ nsSimpleContentList::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
 // Hashtable for storing nsContentLists
 static PLDHashTable gContentListHashTable;
 
-#define RECENTLY_USED_CONTENT_LIST_CACHE_SIZE 31
-static nsContentList*
-  sRecentlyUsedContentLists[RECENTLY_USED_CONTENT_LIST_CACHE_SIZE] = {};
-
-static MOZ_ALWAYS_INLINE uint32_t
-RecentlyUsedCacheIndex(const nsContentListKey& aKey)
-{
-  return aKey.GetHash() % RECENTLY_USED_CONTENT_LIST_CACHE_SIZE;
-}
-
 struct ContentListHashEntry : public PLDHashEntryHdr
 {
   nsContentList* mContentList;
@@ -197,13 +187,6 @@ NS_GetContentList(nsINode* aRootNode,
   NS_ASSERTION(aRootNode, "content list has to have a root");
 
   nsRefPtr<nsContentList> list;
-  nsContentListKey hashKey(aRootNode, aMatchNameSpaceId, aTagname);
-  uint32_t recentlyUsedCacheIndex = RecentlyUsedCacheIndex(hashKey);
-  nsContentList* cachedList = sRecentlyUsedContentLists[recentlyUsedCacheIndex];
-  if (cachedList && cachedList->MatchesKey(hashKey)) {
-    list = cachedList;
-    return list.forget();
-  }
 
   static PLDHashTableOps hash_table_ops =
   {
@@ -231,6 +214,7 @@ NS_GetContentList(nsINode* aRootNode,
   ContentListHashEntry *entry = nullptr;
   // First we look in our hashtable.  Then we create a content list if needed
   if (gContentListHashTable.ops) {
+    nsContentListKey hashKey(aRootNode, aMatchNameSpaceId, aTagname);
     
     // A PL_DHASH_ADD is equivalent to a PL_DHASH_LOOKUP for cases
     // when the entry is already in the hashtable.
@@ -261,7 +245,6 @@ NS_GetContentList(nsINode* aRootNode,
     }
   }
 
-  sRecentlyUsedContentLists[recentlyUsedCacheIndex] = list;
   return list.forget();
 }
 
@@ -987,16 +970,11 @@ nsContentList::RemoveFromHashtable()
     return;
   }
   
-  nsDependentAtomString str(mXMLMatchAtom);
-  nsContentListKey key(mRootNode, mMatchNameSpaceId, str);
-  uint32_t recentlyUsedCacheIndex = RecentlyUsedCacheIndex(key);
-  if (sRecentlyUsedContentLists[recentlyUsedCacheIndex] == this) {
-    sRecentlyUsedContentLists[recentlyUsedCacheIndex] = nullptr;
-  }
-
   if (!gContentListHashTable.ops)
     return;
 
+  nsDependentAtomString str(mXMLMatchAtom);
+  nsContentListKey key(mRootNode, mMatchNameSpaceId, str);
   PL_DHashTableOperate(&gContentListHashTable,
                        &key,
                        PL_DHASH_REMOVE);

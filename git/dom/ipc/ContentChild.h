@@ -111,14 +111,13 @@ public:
     virtual bool DeallocPIndexedDBChild(PIndexedDBChild* aActor);
 
     virtual PMemoryReportRequestChild*
-    AllocPMemoryReportRequestChild(const uint32_t& generation);
+    AllocPMemoryReportRequestChild();
 
     virtual bool
     DeallocPMemoryReportRequestChild(PMemoryReportRequestChild* actor);
 
     virtual bool
-    RecvPMemoryReportRequestConstructor(PMemoryReportRequestChild* child,
-                                        const uint32_t& generation);
+    RecvPMemoryReportRequestConstructor(PMemoryReportRequestChild* child);
 
     virtual bool
     RecvAudioChannelNotify();

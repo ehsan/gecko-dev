@@ -236,9 +236,7 @@ function edgeCanGC(edge)
         var field = callee.Exp[0].Field;
         var csuName = field.FieldCSU.Type.Name;
         var fullFieldName = csuName + "." + field.Name[0];
-        if (fieldCallCannotGC(csuName, fullFieldName))
-            return null;
-        return (fullFieldName in suppressedFunctions) ? null : fullFieldName;
+        return fieldCallCannotGC(csuName, fullFieldName) ? null : fullFieldName;
     }
     assert(callee.Exp[0].Kind == "Var");
     var calleeName = callee.Exp[0].Variable.Name[0];

@@ -21,7 +21,6 @@ class DebianBootstrapper(BaseBootstrapper):
         'libgtk2.0-dev',
         'libiw-dev',
         'libnotify-dev',
-        'libpulse-dev',
         'libxt-dev',
         'mercurial',
         'mesa-common-dev',

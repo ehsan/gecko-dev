@@ -128,6 +128,7 @@ JOBS = { 'dbs':
 
          'explain':
              (('python', '%(analysis_scriptdir)s/explain.py',
+               '--expect-file=%(expect_file)s',
                '%(hazards)s', '%(gcFunctions)s',
                '[explained_hazards]', '[unnecessary]', '[refs]'),
               ('hazards.txt', 'unnecessary.txt', 'refs.txt'))
@@ -210,7 +211,7 @@ parser.add_argument('--buildcommand', '--build', '-b', type=str, nargs='?',
 parser.add_argument('--tag', '-t', type=str, nargs='?',
                     help='name of job, also sets build command to "build.<tag>"')
 parser.add_argument('--expect-file', type=str, nargs='?',
-                    help='deprecated option, temporarily still present for backwards compatibility')
+                    help='file containing expected number of hazards/refs')
 
 args = parser.parse_args()
 for k,v in vars(args).items():
@@ -226,6 +227,11 @@ elif 'BUILD' in os.environ:
     data['buildcommand'] = os.environ['BUILD']
 else:
     data['buildcommand'] = 'make -j4 -s'
+
+if args.expect_file:
+    data['expect_file'] = args.expect_file
+else:
+    data['expect_file'] = '%(analysis_scriptdir)s/expect.json'
 
 if 'ANALYZED_OBJDIR' in os.environ:
     data['objdir'] = os.environ['ANALYZED_OBJDIR']

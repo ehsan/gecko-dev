@@ -3,11 +3,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
-XPCOMUtils.defineLazyModuleGetter(this, "Notifications", "resource://gre/modules/Notifications.jsm");
-
 var WebrtcUI = {
-  _notificationId: null,
-
   observe: function(aSubject, aTopic, aData) {
     if (aTopic === "getUserMedia:request") {
       this.handleRequest(aSubject, aTopic, aData);
@@ -21,17 +17,24 @@ var WebrtcUI = {
     }
   },
 
+  get notificationId() {
+    delete this.notificationId;
+    return this.notificationId = uuidgen.generateUUID().toString();
+  },
+
   notify: function() {
     let windows = MediaManagerService.activeMediaCaptureWindows;
     let count = windows.Count();
     let msg = {};
     if (count == 0) {
-      if (this._notificationId) {
-        Notifications.cancel(this._notificationId);
-        this._notificationId = null;
+      msg = {
+        type: "Notification:Hide",
+        id: this.notificationId
       }
     } else {
-      let notificationOptions = {
+      msg = {
+        type: "Notification:Show",
+        id: this.notificationId,
         title: Strings.brand.GetStringFromName("brandShortName"),
         when: null, // hide the date row
         light: [0xFF9500FF, 1000, 1000],
@@ -50,26 +53,24 @@ var WebrtcUI = {
       }
 
       if (cameraActive && audioActive) {
-        notificationOptions.message = Strings.browser.GetStringFromName("getUserMedia.sharingCameraAndMicrophone.message2");
-        notificationOptions.icon = "drawable:alert_mic_camera";
+        msg.text = Strings.browser.GetStringFromName("getUserMedia.sharingCameraAndMicrophone.message2");
+        msg.smallicon = "drawable:alert_mic_camera";
       } else if (cameraActive) {
-        notificationOptions.message = Strings.browser.GetStringFromName("getUserMedia.sharingCamera.message2");
-        notificationOptions.icon = "drawable:alert_camera";
+        msg.text = Strings.browser.GetStringFromName("getUserMedia.sharingCamera.message2");
+        msg.smallicon = "drawable:alert_camera";
       } else if (audioActive) {
-        notificationOptions.message = Strings.browser.GetStringFromName("getUserMedia.sharingMicrophone.message2");
-        notificationOptions.icon = "drawable:alert_mic";
+        msg.text = Strings.browser.GetStringFromName("getUserMedia.sharingMicrophone.message2");
+        msg.smallicon = "drawable:alert_mic";
       } else {
         // somethings wrong. lets throw
         throw "Couldn't find any cameras or microphones being used"
       }
 
-      if (this._notificationId)
-          Notifications.update(this._notificationId, notificationOptions);
-      else
-        this._notificationId = Notifications.create(notificationOptions);
       if (count > 1)
         msg.count = count;
     }
+
+    sendMessageToJava(msg);
   },
 
   handleRequest: function handleRequest(aSubject, aTopic, aData) {

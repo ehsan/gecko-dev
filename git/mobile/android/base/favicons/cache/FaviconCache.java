@@ -433,8 +433,7 @@ public class FaviconCache {
 
         try {
             if (!mBackingMap.containsKey(key)) {
-                Log.w(LOGTAG, "Cannot compute dominant color of non-cached favicon. Cache fullness " +
-                              mCurrentSize.get() + '/' + mMaxSizeBytes);
+                Log.w(LOGTAG, "Cannot compute dominant color of non-cached favicon " + key);
                 finishRead();
                 return 0xFFFFFF;
             }

@@ -39,8 +39,6 @@ var functionNames = [""];
 
 function loadCallgraph(file)
 {
-    var suppressedFieldCalls = {};
-
     var textLines = snarf(file).split('\n');
     for (var line of textLines) {
         var match;
@@ -64,9 +62,7 @@ function loadCallgraph(file)
             var caller = functionNames[match[1]];
             var csu = match[2];
             var fullfield = csu + "." + match[3];
-            if (suppressed)
-                suppressedFieldCalls[fullfield] = true;
-            else if (!fieldCallCannotGC(csu, fullfield))
+            if (!fieldCallCannotGC(csu, fullfield) && !suppressed)
                 addGCFunction(caller, "FieldCall: " + fullfield);
         } else if (match = /^D (\d+) (\d+)/.exec(line)) {
             var caller = functionNames[match[1]];
@@ -102,10 +98,6 @@ function loadCallgraph(file)
     for (var name in gcFunctions) {
         if (name in suppressedFunctions)
             delete gcFunctions[name];
-    }
-
-    for (var name in suppressedFieldCalls) {
-        suppressedFunctions[name] = true;
     }
 
     for (var gcName of [ 'jsgc.cpp:void Collect(JSRuntime*, uint8, int64, uint32, uint32)',

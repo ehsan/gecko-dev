@@ -1195,12 +1195,14 @@ IonBuilder::inlineNewParallelArray(CallInfo &callInfo)
 
     types::TemporaryTypeSet *ctorTypes = callInfo.getArg(0)->resultTypeSet();
     JSObject *targetObj = ctorTypes ? ctorTypes->getSingleton() : nullptr;
-    JSFunction *target = nullptr;
+    RootedFunction target(cx);
     if (targetObj && targetObj->is<JSFunction>())
         target = &targetObj->as<JSFunction>();
     if (target && target->isInterpreted() && target->nonLazyScript()->shouldCloneAtCallsite) {
-        if (JSFunction *clone = ExistingCloneFunctionAtCallsite(compartment, target, script(), pc))
-            target = clone;
+        RootedScript scriptRoot(cx, script());
+        target = CloneFunctionAtCallsite(cx, target, scriptRoot, pc);
+        if (!target)
+            return InliningStatus_Error;
     }
     MDefinition *ctor = makeCallsiteClone(
         target,
@@ -1218,13 +1220,15 @@ IonBuilder::inlineParallelArray(CallInfo &callInfo)
         return InliningStatus_NotInlined;
 
     uint32_t argc = callInfo.argc();
-    JSFunction *target = ParallelArrayObject::getConstructor(cx, argc);
+    RootedFunction target(cx, ParallelArrayObject::getConstructor(cx, argc));
     if (!target)
         return InliningStatus_Error;
 
     JS_ASSERT(target->nonLazyScript()->shouldCloneAtCallsite);
-    if (JSFunction *clone = ExistingCloneFunctionAtCallsite(compartment, target, script(), pc))
-        target = clone;
+    RootedScript script(cx, script_);
+    target = CloneFunctionAtCallsite(cx, target, script, pc);
+    if (!target)
+        return InliningStatus_Error;
 
     MConstant *ctor = MConstant::New(ObjectValue(*target));
     current->add(ctor);
@@ -1234,7 +1238,7 @@ IonBuilder::inlineParallelArray(CallInfo &callInfo)
 
 IonBuilder::InliningStatus
 IonBuilder::inlineParallelArrayTail(CallInfo &callInfo,
-                                    JSFunction *target,
+                                    HandleFunction target,
                                     MDefinition *ctor,
                                     types::TemporaryTypeSet *ctorTypes,
                                     uint32_t discards)

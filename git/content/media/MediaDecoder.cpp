@@ -1763,12 +1763,16 @@ MediaDecoder::IsAppleMP3Enabled()
 }
 #endif
 
-class MediaReporter MOZ_FINAL : public MemoryMultiReporter
+class MediaReporter MOZ_FINAL : public nsIMemoryReporter
 {
 public:
-  MediaReporter()
-    : MemoryMultiReporter("media")
-  {}
+  NS_DECL_ISUPPORTS
+
+  NS_IMETHOD GetName(nsACString& aName)
+  {
+    aName.AssignLiteral("media");
+    return NS_OK;
+  }
 
   NS_IMETHOD CollectReports(nsIMemoryReporterCallback* aCb,
                             nsISupports* aClosure)
@@ -1795,6 +1799,8 @@ public:
     return NS_OK;
   }
 };
+
+NS_IMPL_ISUPPORTS1(MediaReporter, nsIMemoryReporter)
 
 MediaDecoderOwner*
 MediaDecoder::GetOwner()

@@ -90,12 +90,8 @@ endif
 
 mochitest-remote: DM_TRANS?=adb
 mochitest-remote:
-	@if [ "${MOZ_HOST_BIN}" = "" ]; then \
-        echo "environment variable MOZ_HOST_BIN must be set to a directory containing host xpcshell"; \
-    elif [ ! -d ${MOZ_HOST_BIN} ]; then \
-        echo "MOZ_HOST_BIN does not specify a directory"; \
-    elif [ ! -f ${MOZ_HOST_BIN}/xpcshell ]; then \
-        echo "xpcshell not found in MOZ_HOST_BIN"; \
+	@if [ ! -f ${MOZ_HOST_BIN}/xpcshell ]; then \
+        echo "please prepare your host with the environment variable MOZ_HOST_BIN"; \
     elif [ "${TEST_DEVICE}" = "" -a "$(DM_TRANS)" != "adb" ]; then \
         echo "please prepare your host with the environment variable TEST_DEVICE"; \
     else \
@@ -107,12 +103,8 @@ mochitest-robotium: mochitest-robocop
 
 mochitest-robocop: DM_TRANS?=adb
 mochitest-robocop:
-	@if [ "${MOZ_HOST_BIN}" = "" ]; then \
-        echo "environment variable MOZ_HOST_BIN must be set to a directory containing host xpcshell"; \
-    elif [ ! -d ${MOZ_HOST_BIN} ]; then \
-        echo "MOZ_HOST_BIN does not specify a directory"; \
-    elif [ ! -f ${MOZ_HOST_BIN}/xpcshell ]; then \
-        echo "xpcshell not found in MOZ_HOST_BIN"; \
+	@if [ ! -f ${MOZ_HOST_BIN}/xpcshell ]; then \
+        echo "please prepare your host with the environment variable MOZ_HOST_BIN"; \
     elif [ "${TEST_DEVICE}" = "" -a "$(DM_TRANS)" != "adb" ]; then \
         echo "please prepare your host with the environment variable TEST_DEVICE"; \
     else \
@@ -220,12 +212,8 @@ reftest:
 reftest-remote: TEST_PATH?=layout/reftests/reftest.list
 reftest-remote: DM_TRANS?=adb
 reftest-remote:
-	@if [ "${MOZ_HOST_BIN}" = "" ]; then \
-        echo "environment variable MOZ_HOST_BIN must be set to a directory containing host xpcshell"; \
-    elif [ ! -d ${MOZ_HOST_BIN} ]; then \
-        echo "MOZ_HOST_BIN does not specify a directory"; \
-    elif [ ! -f ${MOZ_HOST_BIN}/xpcshell ]; then \
-        echo "xpcshell not found in MOZ_HOST_BIN"; \
+	@if [ ! -f ${MOZ_HOST_BIN}/xpcshell ]; then \
+        echo "please prepare your host with the environment variable MOZ_HOST_BIN"; \
     elif [ "${TEST_DEVICE}" = "" -a "$(DM_TRANS)" != "adb" ]; then \
         echo "please prepare your host with the environment variable TEST_DEVICE"; \
     else \
@@ -236,12 +224,8 @@ reftest-remote:
 
 reftest-b2g: TEST_PATH?=layout/reftests/reftest.list
 reftest-b2g:
-	@if [ "${MOZ_HOST_BIN}" = "" ]; then \
-		echo "environment variable MOZ_HOST_BIN must be set to a directory containing host xpcshell"; \
-	elif [ ! -d ${MOZ_HOST_BIN} ]; then \
-		echo "MOZ_HOST_BIN does not specify a directory"; \
-	elif [ ! -f ${MOZ_HOST_BIN}/xpcshell ]; then \
-		echo "xpcshell not found in MOZ_HOST_BIN"; \
+	@if [ ! -f ${MOZ_HOST_BIN}/xpcshell ]; then \
+        echo "please set the MOZ_HOST_BIN environment variable"; \
 	elif [ "${B2G_PATH}" = "" -o "${ADB_PATH}" = "" ]; then \
 		echo "please set the B2G_PATH and ADB_PATH environment variables"; \
 	else \
