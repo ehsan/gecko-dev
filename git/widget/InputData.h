@@ -9,7 +9,6 @@
 #include "nsDebug.h"
 #include "nsPoint.h"
 #include "nsTArray.h"
-#include "Units.h"
 
 class nsTouchEvent;
 class nsMouseEvent;
@@ -86,8 +85,8 @@ class SingleTouchData
 {
 public:
   SingleTouchData(int32_t aIdentifier,
-                  ScreenIntPoint aScreenPoint,
-                  ScreenSize aRadius,
+                  nsIntPoint aScreenPoint,
+                  nsIntPoint aRadius,
                   float aRotationAngle,
                   float aForce)
     : mIdentifier(aIdentifier),
@@ -110,14 +109,14 @@ public:
 
   // Point on the screen that the touch hit, in device pixels. They are
   // coordinates on the screen.
-  ScreenIntPoint mScreenPoint;
+  nsIntPoint mScreenPoint;
 
   // Radius that the touch covers, i.e. if you're using your thumb it will
   // probably be larger than using your pinky, even with the same force.
   // Radius can be different along x and y. For example, if you press down with
   // your entire finger vertically, the y radius will be much larger than the x
   // radius.
-  ScreenSize mRadius;
+  nsIntPoint mRadius;
 
   float mRotationAngle;
 
@@ -190,7 +189,7 @@ public:
 
   PinchGestureInput(PinchGestureType aType,
                     uint32_t aTime,
-                    const ScreenPoint& aFocusPoint,
+                    const nsIntPoint& aFocusPoint,
                     float aCurrentSpan,
                     float aPreviousSpan)
     : InputData(PINCHGESTURE_INPUT, aTime),
@@ -210,7 +209,7 @@ public:
   // point is implementation-specific, but can for example be the midpoint
   // between the very first and very last touch. This is in device pixels and
   // are the coordinates on the screen of this midpoint.
-  ScreenPoint mFocusPoint;
+  nsIntPoint mFocusPoint;
 
   // The distance in device pixels (though as a float for increased precision
   // and because it is the distance along both the x and y axis) between the
@@ -240,7 +239,7 @@ public:
     TAPGESTURE_CANCEL
   };
 
-  TapGestureInput(TapGestureType aType, uint32_t aTime, const ScreenIntPoint& aPoint)
+  TapGestureInput(TapGestureType aType, uint32_t aTime, const nsIntPoint& aPoint)
     : InputData(TAPGESTURE_INPUT, aTime),
       mType(aType),
       mPoint(aPoint)
@@ -250,7 +249,7 @@ public:
   }
 
   TapGestureType mType;
-  ScreenIntPoint mPoint;
+  nsIntPoint mPoint;
 };
 
 }

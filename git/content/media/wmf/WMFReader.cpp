@@ -52,6 +52,7 @@ WMFReader::WMFReader(AbstractMediaDecoder* aDecoder)
     mAudioFrameOffset(0),
     mHasAudio(false),
     mHasVideo(false),
+    mCanSeek(false),
     mUseHwAccel(false),
     mMustRecaptureAudioPosition(true),
     mIsMP3Enabled(WMFDecoder::IsMP3Supported())
@@ -582,21 +583,14 @@ WMFReader::ReadMetadata(VideoInfo* aInfo,
   // Abort if both video and audio failed to initialize.
   NS_ENSURE_TRUE(mInfo.mHasAudio || mInfo.mHasVideo, NS_ERROR_FAILURE);
 
-  // Get the duration, and report it to the decoder if we have it.
   int64_t duration = 0;
-  hr = GetSourceReaderDuration(mSourceReader, duration);
-  if (SUCCEEDED(hr)) {
+  if (SUCCEEDED(GetSourceReaderDuration(mSourceReader, duration))) {
     ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
     mDecoder->SetMediaDuration(duration);
   }
-  // We can seek if we get a duration *and* the reader reports that it's
-  // seekable.
-  bool canSeek = false;
-  if (FAILED(hr) ||
-      FAILED(GetSourceReaderCanSeek(mSourceReader, canSeek)) ||
-      !canSeek) {
-    mDecoder->SetMediaSeekable(false);
-  }
+
+  hr = GetSourceReaderCanSeek(mSourceReader, mCanSeek);
+  NS_ASSERTION(SUCCEEDED(hr), "Can't determine if resource is seekable");
 
   *aInfo = mInfo;
   *aTags = nullptr;
@@ -992,11 +986,9 @@ WMFReader::Seek(int64_t aTargetUs,
   LOG("WMFReader::Seek() %lld", aTargetUs);
 
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
-#ifdef DEBUG
-  bool canSeek = false;
-  GetSourceReaderCanSeek(mSourceReader, canSeek);
-  NS_ASSERTION(canSeek, "WMFReader::Seek() should only be called if we can seek!");
-#endif
+  if (!mCanSeek) {
+    return NS_ERROR_FAILURE;
+  }
 
   nsresult rv = ResetDecode();
   NS_ENSURE_SUCCESS(rv, rv);

@@ -1995,23 +1995,17 @@ BaselineCompiler::emitInitPropGetterSetter()
     JS_ASSERT(JSOp(*pc) == JSOP_INITPROP_GETTER ||
               JSOp(*pc) == JSOP_INITPROP_SETTER);
 
-    // Load value in R0 but keep it on the stack for the decompiler.
-    frame.syncStack(0);
-    masm.loadValue(frame.addressOfStackValue(frame.peek(-1)), R0);
-
+    // Load value in R0, keep object on the stack.
+    frame.popRegsAndSync(1);
     prepareVMCall();
 
     pushArg(R0);
     pushArg(ImmGCPtr(script->getName(pc)));
-    masm.extractObject(frame.addressOfStackValue(frame.peek(-2)), R0.scratchReg());
+    masm.extractObject(frame.addressOfStackValue(frame.peek(-1)), R0.scratchReg());
     pushArg(R0.scratchReg());
     pushArg(ImmWord(pc));
 
-    if (!callVM(InitPropGetterSetterInfo))
-        return false;
-
-    frame.pop();
-    return true;
+    return callVM(InitPropGetterSetterInfo);
 }
 
 bool
@@ -2037,25 +2031,17 @@ BaselineCompiler::emitInitElemGetterSetter()
     JS_ASSERT(JSOp(*pc) == JSOP_INITELEM_GETTER ||
               JSOp(*pc) == JSOP_INITELEM_SETTER);
 
-    // Load index and value in R0 and R1, but keep values on the stack for the
-    // decompiler.
-    frame.syncStack(0);
-    masm.loadValue(frame.addressOfStackValue(frame.peek(-2)), R0);
-    masm.loadValue(frame.addressOfStackValue(frame.peek(-1)), R1);
-
+    // Load index and value in R0 and R1, keep object on the stack.
+    frame.popRegsAndSync(2);
     prepareVMCall();
 
     pushArg(R1);
     pushArg(R0);
-    masm.extractObject(frame.addressOfStackValue(frame.peek(-3)), R0.scratchReg());
+    masm.extractObject(frame.addressOfStackValue(frame.peek(-1)), R0.scratchReg());
     pushArg(R0.scratchReg());
     pushArg(ImmWord(pc));
 
-    if (!callVM(InitElemGetterSetterInfo))
-        return false;
-
-    frame.popn(2);
-    return true;
+    return callVM(InitElemGetterSetterInfo);
 }
 
 bool

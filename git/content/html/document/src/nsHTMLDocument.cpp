@@ -2724,10 +2724,8 @@ JSObject*
 nsHTMLDocument::GetAll(JSContext* aCx, ErrorResult& aRv)
 {
   if (!mAll) {
-    JS::Rooted<JSObject*> wrapper(aCx, GetWrapper());
-    JSAutoCompartment ac(aCx, wrapper);
     mAll = JS_NewObject(aCx, &sHTMLDocumentAllClass, nullptr,
-                        JS_GetGlobalForObject(aCx, wrapper));
+                        JS_GetGlobalForObject(aCx, GetWrapper()));
     if (!mAll) {
       aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
       return nullptr;

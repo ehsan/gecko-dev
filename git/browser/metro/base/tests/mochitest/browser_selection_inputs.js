@@ -9,8 +9,8 @@ let gWindow = null;
 var gInput = null;
 
 const kMarkerOffsetY = 12;
-const kCommonWaitMs = 7000;
-const kCommonPollMs = 200;
+const kCommonWaitMs = 5000;
+const kCommonPollMs = 100;
 
 ///////////////////////////////////////////////////
 // form input tests
@@ -43,7 +43,7 @@ gTests.push({
 
     yield waitForCondition(function () {
       return !StartUI.isStartPageVisible;
-      });
+      }, 10000, 100);
 
     yield hideContextUI();
 
@@ -119,7 +119,7 @@ gTests.push({
     yield waitForCondition(function () {
       return getTrimmedSelection(gInput).toString() == 
         "The rabbit-hole went straight on like a tunnel for some way";
-    }, kCommonWaitMs, kCommonPollMs);
+    }, 6000, 2000);
     touchdrag.end();
 
     yield waitForCondition(function () {
@@ -157,16 +157,15 @@ gTests.push({
     // check text selection
     is(getTrimmedSelection(gInput).toString(), "straight", "selection test");
 
-    // to the right with scroll
+    // to the right
     let xpos = SelectionHelperUI.endMark.xPos;
-    let ystartpos = SelectionHelperUI.endMark.yPos + 10;
+    let ypos = SelectionHelperUI.endMark.yPos + 10;
     var touchdrag = new TouchDragAndHold();
-    yield touchdrag.start(gWindow, xpos, ystartpos, 510, ystartpos);
-    // hold the monocle in position outside the edit to trigger drag
+    yield touchdrag.start(gWindow, xpos, ypos, 510, ypos);
     yield waitForCondition(function () {
       return getTrimmedSelection(gInput).toString() == 
         "straight on like a tunnel for some way and then dipped suddenly down";
-    }, kCommonWaitMs, kCommonPollMs);
+    }, 6000, 2000);
     touchdrag.end();
 
     yield waitForCondition(function () {
@@ -174,21 +173,24 @@ gTests.push({
       }, kCommonWaitMs, kCommonPollMs);
     yield SelectionHelperUI.pingSelectionHandler();
 
-    // straight down - selection shouldn't change
+    // down - selection shouldn't change
     let xpos = SelectionHelperUI.endMark.xPos;
     let ypos = SelectionHelperUI.endMark.yPos + 10;
     yield touchdrag.start(gWindow, xpos, ypos, xpos, ypos + 150);
-    // no touchend here, we want to continue the drag below
-
-    yield SelectionHelperUI.pingSelectionHandler();
-    is(getTrimmedSelection(gInput).toString(), "straight on like a tunnel for some way and then dipped suddenly down", "selection test");
-
-    // left and up with no scrolling - selection should shrink
-    yield touchdrag.move(130, ystartpos);
+    yield waitForMs(2000);
     touchdrag.end();
 
-    yield SelectionHelperUI.pingSelectionHandler();
-    is(getTrimmedSelection(gInput).toString(), "straight on like a tunnel for", "selection test");
+    is(getTrimmedSelection(gInput).toString(), "straight on like a tunnel for some way and then dipped suddenly down", "selection test");
+
+    // left and up - selection should shrink
+    let xpos = SelectionHelperUI.endMark.xPos;
+    let ypos = SelectionHelperUI.endMark.yPos + 10;
+    yield touchdrag.start(gWindow, xpos, ypos, 110, 25);
+    yield waitForCondition(function () {
+      return getTrimmedSelection(gInput).toString() == 
+        "straight on like a tunnel for";
+    }, 6000, 2000);
+    touchdrag.end();
   },
 });
 

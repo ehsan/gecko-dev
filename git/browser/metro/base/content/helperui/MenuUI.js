@@ -352,7 +352,6 @@ MenuPopup.prototype = {
     window.addEventListener("keypress", this, true);
     window.addEventListener("mousedown", this, true);
     Elements.stack.addEventListener("PopupChanged", this, false);
-    Elements.browsers.addEventListener("PanBegin", this, false);
 
     this._panel.hidden = false;
     this._position(aPositionOptions || {});
@@ -383,7 +382,6 @@ MenuPopup.prototype = {
     window.removeEventListener("keypress", this, true);
     window.removeEventListener("mousedown", this, true);
     Elements.stack.removeEventListener("PopupChanged", this, false);
-    Elements.browsers.removeEventListener("PanBegin", this, false);
 
     let self = this;
     this._panel.addEventListener("transitionend", function () {
@@ -498,9 +496,6 @@ MenuPopup.prototype = {
         } else {
           this.hide();
         }
-        break;
-      case "PanBegin":
-        this.hide();
         break;
     }
   }

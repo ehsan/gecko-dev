@@ -115,11 +115,13 @@ exports["test disposables are GC-able"] = function(assert, done) {
   let foo1 = null
   let foo2 = null
 
-  Cu.schedulePreciseGC(function() {
+  Cu.forceGC();
+  setTimeout(function() {
+    Cu.forceGC();
     loader.unload();
     assert.equal(disposals, 0, "GC removed dispose listeners");
     done();
-  });
+  }, 300);
 }
 
 

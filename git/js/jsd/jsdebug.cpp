@@ -60,6 +60,13 @@ JSD_GetMinorVersion(void)
     return JSD_MINOR_VERSION;
 }
 
+JSD_PUBLIC_API(JSContext*)
+JSD_GetDefaultJSContext(JSDContext* jsdc)
+{
+    JSD_ASSERT_VALID_CONTEXT(jsdc);
+    return jsdc->dumbContext;
+}
+
 JSD_PUBLIC_API(JSObject*)
 JSD_GetDefaultGlobal(JSDContext* jsdc)
 {

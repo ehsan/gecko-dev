@@ -10,7 +10,7 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-DISABLED_SIMPLE_PROGRAMS = stub_test
+SIMPLE_PROGRAMS	= stub_test
 
 include $(topsrcdir)/config/rules.mk
 

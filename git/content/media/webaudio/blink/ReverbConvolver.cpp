@@ -60,7 +60,7 @@ ReverbConvolver::ReverbConvolver(const float* impulseResponseData, size_t impuls
     , m_minFFTSize(MinFFTSize) // First stage will have this size - successive stages will double in size each time
     , m_maxFFTSize(maxFFTSize) // until we hit m_maxFFTSize
     , m_backgroundThread("ConvolverWorker")
-    , m_backgroundThreadCondition(&m_backgroundThreadLock)
+    , m_backgroundThreadMonitor("ConvolverMonitor")
     , m_useBackgroundThreads(useBackgroundThreads)
     , m_wantsToExit(false)
     , m_moreInputBuffered(false)
@@ -138,9 +138,9 @@ ReverbConvolver::~ReverbConvolver()
 
         // Wake up thread so it can return
         {
-            AutoLock locker(m_backgroundThreadLock);
+            MonitorAutoLock locker(m_backgroundThreadMonitor);
             m_moreInputBuffered = true;
-            m_backgroundThreadCondition.Signal();
+            locker.Notify();
         }
 
         m_backgroundThread.Stop();
@@ -153,9 +153,9 @@ void ReverbConvolver::backgroundThreadEntry()
         // Wait for realtime thread to give us more input
         m_moreInputBuffered = false;
         {
-            AutoLock locker(m_backgroundThreadLock);
+            MonitorAutoLock locker(m_backgroundThreadMonitor);
             while (!m_moreInputBuffered && !m_wantsToExit)
-                m_backgroundThreadCondition.Wait();
+                locker.Wait();
         }
 
         // Process all of the stages until their read indices reach the input buffer's write index
@@ -209,11 +209,9 @@ void ReverbConvolver::process(const float* sourceChannelData, size_t sourceChann
     // signal from time to time, since we'll get to it the next time we're called.  We're called repeatedly
     // and frequently (around every 3ms).  The background thread is processing well into the future and has a considerable amount of 
     // leeway here...
-    if (m_backgroundThreadLock.Try()) {
-        m_moreInputBuffered = true;
-        m_backgroundThreadCondition.Signal();
-        m_backgroundThreadLock.Release();
-    }
+    MonitorAutoLock locker(m_backgroundThreadMonitor);
+    m_moreInputBuffered = true;
+    locker.Notify();
 }
 
 void ReverbConvolver::reset()

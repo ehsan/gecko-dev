@@ -6,9 +6,3 @@
 
 MODULE = 'xpcom'
 
-bin_suffix = CONFIG['BIN_SUFFIX']
-SIMPLE_PROGRAMS += [
-    "PrimitiveTest%s" % (bin_suffix),
-    "SimpleTypeLib%s" % (bin_suffix),
-]
-

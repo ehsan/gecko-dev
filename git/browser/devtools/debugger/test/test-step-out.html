@@ -18,15 +18,10 @@
         return r;
       }
       function error(aArg) {
-        function inner(aArg) {
-          debugger;
-          var r = 10;
-          throw "boom";
-          return r;
-        }
-        try {
-          inner(aArg);
-        } catch (e) {}
+        debugger;
+        var r = 10;
+        throw "boom";
+        return r;
       }
       var button = document.getElementById("return");
       button.addEventListener("click", normal, false);

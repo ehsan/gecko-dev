@@ -234,9 +234,6 @@ interface TestExampleInterface {
   sequence<DOMString> receiveStringSequence();
   void passStringSequence(sequence<DOMString> arg);
 
-  sequence<ByteString> receiveByteStringSequence();
-  void passByteStringSequence(sequence<ByteString> arg);
-
   sequence<any> receiveAnySequence();
   sequence<any>? receiveNullableAnySequence();
   //XXXbz No support for sequence of sequence return values yet.
@@ -267,7 +264,7 @@ interface TestExampleInterface {
   void passFloat64Array(Float64Array arg);
   Uint8Array receiveUint8Array();
 
-  // DOMString types
+  // String types
   void passString(DOMString arg);
   void passNullableString(DOMString? arg);
   void passOptionalString(optional DOMString arg);
@@ -277,13 +274,6 @@ interface TestExampleInterface {
   void passOptionalNullableString(optional DOMString? arg);
   void passOptionalNullableStringWithDefaultValue(optional DOMString? arg = null);
   void passVariadicString(DOMString... arg);
-
-  // ByteString types
-  void passByteString(ByteString arg);
-  void passNullableByteString(ByteString? arg);
-  void passOptionalByteString(optional ByteString arg);
-  void passOptionalNullableByteString(optional ByteString? arg);
-  void passVariadicByteString(ByteString... arg);
 
   // Enumerated types
   void passEnum(TestEnum arg);

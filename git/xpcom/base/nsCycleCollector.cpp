@@ -374,6 +374,11 @@ public:
         void Add(PtrInfo* aEdge) {
             if (mCurrent == mBlockEnd) {
                 Block *b = new Block();
+                if (!b) {
+                    // This means we just won't collect (some) cycles.
+                    NS_NOTREACHED("out of memory, ignoring edges");
+                    return;
+                }
                 *mNextBlockPtr = b;
                 mCurrent = b->Start();
                 mBlockEnd = b->End();
@@ -635,6 +640,10 @@ struct GCGraph
     }
 };
 
+// XXX Would be nice to have an nsHashSet<KeyType> API that has
+// Add/Remove/Has rather than PutEntry/RemoveEntry/GetEntry.
+typedef nsTHashtable<nsPtrHashKey<const void> > PointerSet;
+
 static nsISupports *
 CanonicalizeXPCOMParticipant(nsISupports *in)
 {
@@ -796,6 +805,9 @@ public:
     {
         if (!mFreeList) {
             Block *b = new Block;
+            if (!b) {
+                return nullptr;
+            }
             StartBlock(b);
 
             // Add the new block as the second block in the list.
@@ -812,6 +824,9 @@ public:
     nsPurpleBufferEntry* Put(void *p, nsCycleCollectionParticipant *cp)
     {
         nsPurpleBufferEntry *e = NewEntry();
+        if (!e) {
+            return nullptr;
+        }
 
         ++mCount;
 
@@ -1471,6 +1486,7 @@ public:
         }
         if (mWantAfterProcessing) {
             CCGraphDescriber* d = mDescribers.AppendElement();
+            NS_ENSURE_TRUE(d, NS_ERROR_OUT_OF_MEMORY);
             mCurrentAddress.AssignLiteral("0x");
             mCurrentAddress.AppendInt(aAddress, 16);
             d->mType = CCGraphDescriber::eRefCountedObject;
@@ -1489,6 +1505,7 @@ public:
         }
         if (mWantAfterProcessing) {
             CCGraphDescriber* d = mDescribers.AppendElement();
+            NS_ENSURE_TRUE(d, NS_ERROR_OUT_OF_MEMORY);
             mCurrentAddress.AssignLiteral("0x");
             mCurrentAddress.AppendInt(aAddress, 16);
             d->mType = aMarked ? CCGraphDescriber::eGCMarkedObject :
@@ -1505,6 +1522,7 @@ public:
         }
         if (mWantAfterProcessing) {
             CCGraphDescriber* d = mDescribers.AppendElement();
+            NS_ENSURE_TRUE(d, NS_ERROR_OUT_OF_MEMORY);
             d->mType = CCGraphDescriber::eEdge;
             d->mAddress = mCurrentAddress;
             d->mToAddress.AppendInt(aToAddress, 16);
@@ -1526,6 +1544,7 @@ public:
         }
         if (mWantAfterProcessing) {
             CCGraphDescriber* d = mDescribers.AppendElement();
+            NS_ENSURE_TRUE(d, NS_ERROR_OUT_OF_MEMORY);
             d->mType = CCGraphDescriber::eRoot;
             d->mAddress.AppendInt(aAddress, 16);
             d->mCnt = aKnownEdges;
@@ -1539,6 +1558,7 @@ public:
         }
         if (mWantAfterProcessing) {
             CCGraphDescriber* d = mDescribers.AppendElement();
+            NS_ENSURE_TRUE(d, NS_ERROR_OUT_OF_MEMORY);
             d->mType = CCGraphDescriber::eGarbage;
             d->mAddress.AppendInt(aAddress, 16);
         }
@@ -1729,7 +1749,6 @@ private:
     nsCString mNextEdgeName;
     nsICycleCollectorListener *mListener;
     bool mMergeZones;
-    bool mRanOutOfMemory;
 
 public:
     GCGraphBuilder(nsCycleCollector *aCollector,
@@ -1751,8 +1770,6 @@ public:
     PtrInfo* AddWeakMapNode(void* node);
     void Traverse(PtrInfo* aPtrInfo);
     void SetLastChild();
-
-    bool RanOutOfMemory() const { return mRanOutOfMemory; }
 
 private:
     void DescribeNode(uint32_t refCount, const char *objName)
@@ -1827,14 +1844,11 @@ GCGraphBuilder::GCGraphBuilder(nsCycleCollector *aCollector,
       mJSParticipant(nullptr),
       mJSZoneParticipant(xpc_JSZoneParticipant()),
       mListener(aListener),
-      mMergeZones(aMergeZones),
-      mRanOutOfMemory(false)
+      mMergeZones(aMergeZones)
 {
     if (!PL_DHashTableInit(&mPtrToNodeMap, &PtrNodeOps, nullptr,
-                           sizeof(PtrToNodeEntry), 32768)) {
+                           sizeof(PtrToNodeEntry), 32768))
         mPtrToNodeMap.ops = nullptr;
-        mRanOutOfMemory = true;
-    }
 
     if (aJSRuntime) {
         mJSParticipant = aJSRuntime->GetParticipant();
@@ -1876,7 +1890,6 @@ GCGraphBuilder::AddNode(void *s, nsCycleCollectionParticipant *aParticipant)
 {
     PtrToNodeEntry *e = static_cast<PtrToNodeEntry*>(PL_DHashTableOperate(&mPtrToNodeMap, s, PL_DHASH_ADD));
     if (!e) {
-        mRanOutOfMemory = true;
         return nullptr;
     }
 
@@ -2072,6 +2085,7 @@ AddPurpleRoot(GCGraphBuilder &builder, void *root, nsCycleCollectionParticipant 
     if (builder.WantAllTraces() || !cp->CanSkipInCC(root)) {
         PtrInfo *pinfo = builder.AddNode(root, cp);
         if (!pinfo) {
+            NS_WARNING("builder.AddNode returned null");
             return false;
         }
     }
@@ -2211,12 +2225,6 @@ nsCycleCollector::MarkRoots(GCGraphBuilder &builder)
     }
     if (mGraph.mRootCount > 0)
         builder.SetLastChild();
-
-    if (builder.RanOutOfMemory()) {
-        NS_ASSERTION(false,
-                     "Ran out of memory while building cycle collector graph");
-        Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_OOM, true);
-    }
 }
 
 
@@ -2364,8 +2372,7 @@ nsCycleCollector::CollectWhite(nsICycleCollectorListener *aListener)
     while (!etor.IsDone())
     {
         PtrInfo *pinfo = etor.GetNext();
-        if (pinfo->mColor == white) {
-            mWhiteNodes->AppendElement(pinfo);
+        if (pinfo->mColor == white && mWhiteNodes->AppendElement(pinfo)) {
             rv = pinfo->mParticipant->Root(pinfo->mPointer);
             if (NS_FAILED(rv)) {
                 Fault("Failed root call while unlinking", pinfo);
@@ -2824,11 +2831,8 @@ nsCycleCollector::BeginCollection(ccType aCCType,
 
     GCGraphBuilder builder(this, mGraph, mJSRuntime, aListener,
                            mergeZones);
-    if (!builder.Initialized()) {
-        NS_ASSERTION(false, "Failed to initialize GCGraphBuilder, will probably leak.");
-        Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_OOM, true);
+    if (!builder.Initialized())
         return false;
-    }
 
     if (mJSRuntime) {
         mJSRuntime->BeginCycleCollection(builder);

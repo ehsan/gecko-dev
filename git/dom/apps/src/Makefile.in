@@ -24,4 +24,13 @@ EXTRA_PP_JS_MODULES += \
   AppsUtils.jsm \
   $(NULL)
 
+EXTRA_JS_MODULES += \
+  AppsServiceChild.jsm \
+  OfflineCacheInstaller.jsm \
+  PermissionsInstaller.jsm \
+  PermissionsTable.jsm \
+  FreeSpaceWatcher.jsm \
+  AppDownloadManager.jsm \
+  $(NULL)
+
 include $(topsrcdir)/config/rules.mk

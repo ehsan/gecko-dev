@@ -384,7 +384,7 @@ class IDLObjectWithIdentifier(IDLObject):
             identifier = attr.identifier()
             value = attr.value()
             if identifier == "TreatNullAs":
-                if not self.type.isDOMString() or self.type.nullable():
+                if not self.type.isString() or self.type.nullable():
                     raise WebIDLError("[TreatNullAs] is only allowed on "
                                       "arguments or attributes whose type is "
                                       "DOMString",
@@ -407,7 +407,7 @@ class IDLObjectWithIdentifier(IDLObject):
                                           "allowed on optional arguments",
                                           [self.location])
                 elif value == 'Null':
-                    if not self.type.isDOMString():
+                    if not self.type.isString():
                         raise WebIDLError("[TreatUndefinedAs=Null] is only "
                                           "allowed on arguments or "
                                           "attributes whose type is "
@@ -418,7 +418,7 @@ class IDLObjectWithIdentifier(IDLObject):
                                           "allowed on arguments whose type "
                                           "is DOMString?", [self.location])
                 elif value == 'EmptyString':
-                    if not self.type.isDOMString():
+                    if not self.type.isString():
                         raise WebIDLError("[TreatUndefinedAs=EmptyString] "
                                           "is only allowed on arguments or "
                                           "attributes whose type is "
@@ -508,10 +508,7 @@ class IDLInterface(IDLObjectWithScope):
         self._callback = False
         self._finished = False
         self.members = []
-        # namedConstructors needs deterministic ordering because bindings code
-        # outputs the constructs in the order that namedConstructors enumerates
-        # them.
-        self.namedConstructors = list()
+        self.namedConstructors = set()
         self.implementedInterfaces = set()
         self._consequential = False
         self._isPartial = True
@@ -906,7 +903,7 @@ class IDLInterface(IDLObjectWithScope):
                     # NamedConstructors.
                     newMethod = self.parentScope.lookupIdentifier(method.identifier)
                     if newMethod == method:
-                        self.namedConstructors.append(method)
+                        self.namedConstructors.add(method)
                     elif not newMethod in self.namedConstructors:
                         raise WebIDLError("NamedConstructor conflicts with a NamedConstructor of a different interface",
                                           [method.location, newMethod.location])
@@ -916,8 +913,7 @@ class IDLInterface(IDLObjectWithScope):
                   identifier == "JSImplementation" or
                   identifier == "HeaderFile" or
                   identifier == "NavigatorProperty" or
-                  identifier == "OverrideBuiltins" or
-                  identifier == "ChromeOnly"):
+                  identifier == "OverrideBuiltins"):
                 # Known attributes that we don't need to do anything with here
                 pass
             else:
@@ -1217,7 +1213,6 @@ class IDLType(IDLObject):
         # Other types
         'any',
         'domstring',
-        'bytestring',
         'object',
         'date',
         'void',
@@ -1255,12 +1250,6 @@ class IDLType(IDLObject):
         return False
 
     def isString(self):
-        return False
-
-    def isByteString(self):
-        return False
-
-    def isDOMString(self):
         return False
 
     def isVoid(self):
@@ -1411,12 +1400,6 @@ class IDLNullableType(IDLType):
     def isString(self):
         return self.inner.isString()
 
-    def isByteString(self):
-        return self.inner.isByteString()
-
-    def isDOMString(self):
-        return self.inner.isDOMString()
-
     def isFloat(self):
         return self.inner.isFloat()
 
@@ -1525,12 +1508,6 @@ class IDLSequenceType(IDLType):
 
     def isString(self):
         return False;
-
-    def isByteString(self):
-        return False
-
-    def isDOMString(self):
-        return False
 
     def isVoid(self):
         return False
@@ -1716,12 +1693,6 @@ class IDLArrayType(IDLType):
     def isString(self):
         return False
 
-    def isByteString(self):
-        return False
-
-    def isDOMString(self):
-        return False
-
     def isVoid(self):
         return False
 
@@ -1804,12 +1775,6 @@ class IDLTypedefType(IDLType, IDLObjectWithIdentifier):
 
     def isString(self):
         return self.inner.isString()
-
-    def isByteString(self):
-        return self.inner.isByteString()
-
-    def isDOMString(self):
-        return self.inner.isDOMString()
 
     def isVoid(self):
         return self.inner.isVoid()
@@ -1896,12 +1861,6 @@ class IDLWrapperType(IDLType):
         return False
 
     def isString(self):
-        return False
-
-    def isByteString(self):
-        return False
-
-    def isDOMString(self):
         return False
 
     def isVoid(self):
@@ -2022,7 +1981,6 @@ class IDLBuiltinType(IDLType):
         # Other types
         'any',
         'domstring',
-        'bytestring',
         'object',
         'date',
         'void',
@@ -2056,7 +2014,6 @@ class IDLBuiltinType(IDLType):
             Types.double: IDLType.Tags.double,
             Types.any: IDLType.Tags.any,
             Types.domstring: IDLType.Tags.domstring,
-            Types.bytestring: IDLType.Tags.bytestring,
             Types.object: IDLType.Tags.object,
             Types.date: IDLType.Tags.date,
             Types.void: IDLType.Tags.void,
@@ -2082,13 +2039,6 @@ class IDLBuiltinType(IDLType):
         return self._typeTag <= IDLBuiltinType.Types.double
 
     def isString(self):
-        return self._typeTag == IDLBuiltinType.Types.domstring or \
-               self._typeTag == IDLBuiltinType.Types.bytestring
-
-    def isByteString(self):
-        return self._typeTag == IDLBuiltinType.Types.bytestring
-
-    def isDOMString(self):
         return self._typeTag == IDLBuiltinType.Types.domstring
 
     def isInteger(self):
@@ -2223,9 +2173,6 @@ BuiltinTypes = {
       IDLBuiltinType.Types.domstring:
           IDLBuiltinType(BuiltinLocation("<builtin type>"), "String",
                          IDLBuiltinType.Types.domstring),
-      IDLBuiltinType.Types.bytestring:
-          IDLBuiltinType(BuiltinLocation("<builtin type>"), "ByteString",
-                         IDLBuiltinType.Types.bytestring),
       IDLBuiltinType.Types.object:
           IDLBuiltinType(BuiltinLocation("<builtin type>"), "Object",
                          IDLBuiltinType.Types.object),
@@ -3309,7 +3256,6 @@ class Tokenizer(object):
         "::": "SCOPE",
         "Date": "DATE",
         "DOMString": "DOMSTRING",
-        "ByteString": "BYTESTRING",
         "any": "ANY",
         "boolean": "BOOLEAN",
         "byte": "BYTE",
@@ -3867,8 +3813,8 @@ class Parser(Tokenizer):
             if len(arguments) != 0:
                 raise WebIDLError("stringifier has wrong number of arguments",
                                   [self.getLocation(p, 2)])
-            if not returnType.isDOMString():
-                raise WebIDLError("stringifier must have DOMString return type",
+            if not returnType.isString():
+                raise WebIDLError("stringifier must have string return type",
                                   [self.getLocation(p, 2)])
 
         inOptionalArguments = False
@@ -4177,7 +4123,6 @@ class Parser(Tokenizer):
                   | QUESTIONMARK
                   | DATE
                   | DOMSTRING
-                  | BYTESTRING
                   | ANY
                   | ATTRIBUTE
                   | BOOLEAN
@@ -4412,12 +4357,6 @@ class Parser(Tokenizer):
             PrimitiveOrStringType : DOMSTRING
         """
         p[0] = IDLBuiltinType.Types.domstring
-
-    def p_PrimitiveOrStringTypeBytestring(self, p):
-        """
-            PrimitiveOrStringType : BYTESTRING
-        """
-        p[0] = IDLBuiltinType.Types.bytestring
 
     def p_UnsignedIntegerTypeUnsigned(self, p):
         """

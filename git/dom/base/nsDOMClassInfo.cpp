@@ -3934,8 +3934,7 @@ ResolvePrototype(nsIXPConnect *aXPConnect, nsGlobalWindow *aWin, JSContext *cx,
 }
 
 static bool
-OldBindingConstructorEnabled(const nsGlobalNameStruct *aStruct,
-                             nsGlobalWindow *aWin)
+ConstructorEnabled(const nsGlobalNameStruct *aStruct, nsGlobalWindow *aWin)
 {
   MOZ_ASSERT(aStruct->mType == nsGlobalNameStruct::eTypeClassConstructor ||
              aStruct->mType == nsGlobalNameStruct::eTypeExternalClassInfo);
@@ -3999,7 +3998,11 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
       name_struct->mDefineDOMInterface;
     if (define) {
       if (name_struct->mType == nsGlobalNameStruct::eTypeClassConstructor &&
-          !OldBindingConstructorEnabled(name_struct, aWin)) {
+          !ConstructorEnabled(name_struct, aWin)) {
+        return NS_OK;
+      }
+
+      if (name_struct->mPrefEnabled && !(*name_struct->mPrefEnabled)()) {
         return NS_OK;
       }
 
@@ -4014,14 +4017,6 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
         ac.construct(cx, global);
       } else {
         global = obj;
-      }
-
-      // Check whether our constructor is enabled after we unwrap Xrays, since
-      // we don't want to define an interface on the Xray if it's disabled in
-      // the target global, even if it's enabled in the Xray's global.
-      if (name_struct->mConstructorEnabled &&
-          !(*name_struct->mConstructorEnabled)(cx, global)) {
-        return NS_OK;
       }
 
       bool enabled;
@@ -4086,7 +4081,7 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
 
   if (name_struct->mType == nsGlobalNameStruct::eTypeClassConstructor ||
       name_struct->mType == nsGlobalNameStruct::eTypeExternalClassInfo) {
-    if (!OldBindingConstructorEnabled(name_struct, aWin)) {
+    if (!ConstructorEnabled(name_struct, aWin)) {
       return NS_OK;
     }
 
@@ -4893,21 +4888,16 @@ nsNavigatorSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     mozilla::dom::ConstructNavigatorProperty construct = name_struct->mConstructNavigatorProperty;
     MOZ_ASSERT(construct);
 
+    if (name_struct->mPrefEnabled && !(*name_struct->mPrefEnabled)()) {
+      return NS_OK;
+    }
+
     JS::Rooted<JSObject*> naviObj(cx, js::CheckedUnwrap(obj, /* stopAtOuter = */ false));
     NS_ENSURE_TRUE(naviObj, NS_ERROR_DOM_SECURITY_ERR);
 
     JS::Rooted<JSObject*> domObject(cx);
     {
       JSAutoCompartment ac(cx, naviObj);
-
-      // Check whether our constructor is enabled after we unwrap Xrays, since
-      // we don't want to define an interface on the Xray if it's disabled in
-      // the target global, even if it's enabled in the Xray's global.
-      if (name_struct->mConstructorEnabled &&
-          !(*name_struct->mConstructorEnabled)(cx, naviObj)) {
-        return NS_OK;
-      }
-
       domObject = construct(cx, naviObj);
       if (!domObject) {
         return NS_ERROR_FAILURE;

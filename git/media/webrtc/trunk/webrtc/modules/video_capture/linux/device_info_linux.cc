@@ -19,13 +19,7 @@
 #include <stdlib.h>
 
 //v4l includes
-#if defined(__DragonFly__) || defined(__NetBSD__) || defined(__OpenBSD__)
-#include <sys/videoio.h>
-#elif defined(__sun)
-#include <sys/videodev2.h>
-#else
 #include <linux/videodev2.h>
-#endif
 
 #include "ref_count.h"
 #include "trace.h"

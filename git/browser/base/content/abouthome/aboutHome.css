@@ -63,10 +63,6 @@ a {
   -moz-padding-end: 8px;
 }
 
-#searchLogoContainer[hidden] {
-  display: none;
-}
-
 #searchEngineLogo {
   display: inline-block;
   height: 28px;

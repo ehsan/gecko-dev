@@ -19,6 +19,7 @@ function test()
     gPane = aPane;
     gDebugger = gPane.panelWin;
 
+    expectUncaughtException();
     testNormalReturn();
   });
 }

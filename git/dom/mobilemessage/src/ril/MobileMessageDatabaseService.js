@@ -1479,7 +1479,6 @@ MobileMessageDatabaseService.prototype = {
           threadRecord.lastMessageId = nextMsg.id;
           threadRecord.lastTimestamp = nextMsg.timestamp;
           threadRecord.subject = nextMsg.body;
-          threadRecord.lastMessageType = nextMsg.type;
           if (DEBUG) {
             debug("Updating mru entry: " +
                   JSON.stringify(threadRecord));

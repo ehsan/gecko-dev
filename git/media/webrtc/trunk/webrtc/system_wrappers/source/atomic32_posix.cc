@@ -12,6 +12,7 @@
 
 #include <assert.h>
 #include <inttypes.h>
+#include <malloc.h>
 
 #include "common_types.h"
 

@@ -308,7 +308,6 @@ nsUserFontSet::Destroy()
 {
   mPresContext = nullptr;
   mLoaders.EnumerateEntries(DestroyIterator, nullptr);
-  mRules.Clear();
 }
 
 void

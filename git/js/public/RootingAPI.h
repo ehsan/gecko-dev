@@ -506,8 +506,9 @@ class MOZ_STACK_CLASS Rooted : public js::RootedBase<T>
 #endif
     }
 
-    void init(js::PerThreadDataFriendFields *pt) {
+    void init(js::PerThreadData *ptArg) {
 #if defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING)
+        js::PerThreadDataFriendFields *pt = js::PerThreadDataFriendFields::get(ptArg);
         commonInit(pt->thingGCRooters);
 #endif
     }
@@ -534,7 +535,7 @@ class MOZ_STACK_CLASS Rooted : public js::RootedBase<T>
       : ptr(js::RootMethods<T>::initial())
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        init(js::PerThreadDataFriendFields::get(pt));
+        init(pt);
     }
 
     Rooted(js::PerThreadData *pt, T initial
@@ -542,23 +543,7 @@ class MOZ_STACK_CLASS Rooted : public js::RootedBase<T>
       : ptr(initial)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        init(js::PerThreadDataFriendFields::get(pt));
-    }
-
-    Rooted(JSRuntime *rt
-           MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : ptr(js::RootMethods<T>::initial())
-    {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        init(js::PerThreadDataFriendFields::getMainThread(rt));
-    }
-
-    Rooted(JSRuntime *rt, T initial
-           MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : ptr(initial)
-    {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        init(js::PerThreadDataFriendFields::getMainThread(rt));
+        init(pt);
     }
 
     ~Rooted() {

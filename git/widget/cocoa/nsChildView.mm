@@ -3695,10 +3695,10 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
 #ifdef __LP64__
 - (bool)sendSwipeEvent:(NSEvent*)aEvent
-                withKind:(uint32_t)aMsg
-       allowedDirections:(uint32_t*)aAllowedDirections
-               direction:(uint32_t)aDirection
-                   delta:(double)aDelta
+                withKind:(PRUint32)aMsg
+       allowedDirections:(PRUint32*)aAllowedDirections
+               direction:(PRUint32)aDirection
+                   delta:(PRFloat64)aDelta
 {
   if (!mGeckoChild)
     return false;
@@ -3712,10 +3712,10 @@ NSEvent* gLastDragMouseDownEvent = nil;
 }
 
 - (void)sendSwipeEndEvent:(NSEvent *)anEvent
-        allowedDirections:(uint32_t)aAllowedDirections
+        allowedDirections:(PRUint32)aAllowedDirections
 {
     // Tear down animation overlay by sending a swipe end event.
-    uint32_t allowedDirectionsCopy = aAllowedDirections;
+    PRUint32 allowedDirectionsCopy = aAllowedDirections;
     [self sendSwipeEvent:anEvent
                 withKind:NS_SIMPLE_GESTURE_SWIPE_END
        allowedDirections:&allowedDirectionsCopy
@@ -3773,9 +3773,9 @@ NSEvent* gLastDragMouseDownEvent = nil;
     return;
   }
 
-  uint32_t vDirs = (uint32_t)nsIDOMSimpleGestureEvent::DIRECTION_DOWN |
-                   (uint32_t)nsIDOMSimpleGestureEvent::DIRECTION_UP;
-  uint32_t direction = 0;
+  PRUint32 vDirs = (PRUint32)nsIDOMSimpleGestureEvent::DIRECTION_DOWN |
+                   (PRUint32)nsIDOMSimpleGestureEvent::DIRECTION_UP;
+  PRUint32 direction = 0;
   // Only initiate horizontal tracking for events whose horizontal element is
   // at least eight times larger than its vertical element. This minimizes
   // performance problems with vertical scrolls (by minimizing the possibility
@@ -3791,9 +3791,9 @@ NSEvent* gLastDragMouseDownEvent = nil;
       return;
 
     if (deltaX < 0.0)
-      direction = (uint32_t)nsIDOMSimpleGestureEvent::DIRECTION_RIGHT;
+      direction = (PRUint32)nsIDOMSimpleGestureEvent::DIRECTION_RIGHT;
     else
-      direction = (uint32_t)nsIDOMSimpleGestureEvent::DIRECTION_LEFT;
+      direction = (PRUint32)nsIDOMSimpleGestureEvent::DIRECTION_LEFT;
   }
   // Only initiate vertical tracking for events whose vertical element is
   // at least two times larger than its horizontal element. This minimizes
@@ -3801,9 +3801,9 @@ NSEvent* gLastDragMouseDownEvent = nil;
   else if (overflowY != 0.0 && deltaY != 0.0 &&
            fabsf(deltaY) > fabsf(deltaX) * 2) {
     if (deltaY < 0.0)
-      direction = (uint32_t)nsIDOMSimpleGestureEvent::DIRECTION_DOWN;
+      direction = (PRUint32)nsIDOMSimpleGestureEvent::DIRECTION_DOWN;
     else
-      direction = (uint32_t)nsIDOMSimpleGestureEvent::DIRECTION_UP;
+      direction = (PRUint32)nsIDOMSimpleGestureEvent::DIRECTION_UP;
 
     if ((mCurrentSwipeDir & vDirs) && (mCurrentSwipeDir != direction)) {
       // If a swipe is currently being tracked kill it -- it's been interrupted
@@ -3830,7 +3830,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
     mCancelSwipeAnimation = nil;
   }
 
-  uint32_t allowedDirections = 0;
+  PRUint32 allowedDirections = 0;
   // We're ready to start the animation. Tell Gecko about it, and at the same
   // time ask it if it really wants to start an animation for this event.
   // This event also reports back the directions that we can swipe in.
@@ -3878,7 +3878,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
                                         NSEventPhase phase,
                                         BOOL isComplete,
                                         BOOL *stop) {
-    uint32_t allowedDirectionsCopy = allowedDirections;
+    PRUint32 allowedDirectionsCopy = allowedDirections;
     // Since this tracking handler can be called asynchronously, mGeckoChild
     // might have become NULL here (our child widget might have been
     // destroyed).
@@ -3913,7 +3913,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
       // The animation might continue even after this event was sent, so
       // don't tear down the animation overlay yet.
 
-      uint32_t directionCopy = direction;
+      PRUint32 directionCopy = direction;
 
       // gestureAmount is documented to be '-1', '0' or '1' when isComplete
       // is TRUE, but the docs don't say anything about its value at other

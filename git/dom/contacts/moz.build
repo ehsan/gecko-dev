@@ -10,8 +10,3 @@ EXTRA_COMPONENTS += [
     'ContactManager.js',
     'ContactManager.manifest',
 ]
-
-EXTRA_JS_MODULES += [
-    'ContactDB.jsm',
-    'ContactService.jsm',
-]

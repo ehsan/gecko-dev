@@ -29,7 +29,7 @@ public:
   {
     nsString mResponseText;
     uint32_t mStatus;
-    nsCString mStatusText;
+    nsString mStatusText;
     uint16_t mReadyState;
     jsval mResponse;
     nsresult mResponseTextResult;
@@ -122,12 +122,12 @@ public:
   }
 
   void
-  Open(const nsACString& aMethod, const nsAString& aUrl, bool aAsync,
+  Open(const nsAString& aMethod, const nsAString& aUrl, bool aAsync,
        const Optional<nsAString>& aUser, const Optional<nsAString>& aPassword,
        ErrorResult& aRv);
 
   void
-  SetRequestHeader(const nsACString& aHeader, const nsACString& aValue,
+  SetRequestHeader(const nsAString& aHeader, const nsAString& aValue,
                    ErrorResult& aRv);
 
   uint32_t
@@ -199,17 +199,17 @@ public:
   }
 
   void
-  GetStatusText(nsACString& aStatusText) const
+  GetStatusText(nsAString& aStatusText) const
   {
     aStatusText = mStateData.mStatusText;
   }
 
   void
-  GetResponseHeader(const nsACString& aHeader, nsACString& aResponseHeader,
+  GetResponseHeader(const nsAString& aHeader, nsAString& aResponseHeader,
                     ErrorResult& aRv);
 
   void
-  GetAllResponseHeaders(nsACString& aResponseHeaders, ErrorResult& aRv);
+  GetAllResponseHeaders(nsAString& aResponseHeaders, ErrorResult& aRv);
 
   void
   OverrideMimeType(const nsAString& aMimeType, ErrorResult& aRv);

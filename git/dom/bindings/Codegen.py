@@ -1978,11 +1978,7 @@ class CGPrefEnabledNative(CGAbstractMethod):
     if the method returns true.
     """
     def __init__(self, descriptor):
-        CGAbstractMethod.__init__(self, descriptor,
-                                  'ConstructorEnabled', 'bool',
-                                  [Argument("JSContext*", "/* unused */"),
-                                   Argument("JS::Handle<JSObject*>",
-                                            "/* unused */")])
+        CGAbstractMethod.__init__(self, descriptor, 'PrefEnabled', 'bool', [])
 
     def definition_body(self):
         return "  return %s::PrefEnabled();" % self.descriptor.nativeType
@@ -1995,32 +1991,12 @@ class CGPrefEnabled(CGAbstractMethod):
     on the global if the pref is true.
     """
     def __init__(self, descriptor):
-        CGAbstractMethod.__init__(self, descriptor,
-                                  'ConstructorEnabled', 'bool',
-                                  [Argument("JSContext*", "/* unused */"),
-                                   Argument("JS::Handle<JSObject*>",
-                                            "/* unused */")])
+        CGAbstractMethod.__init__(self, descriptor, 'PrefEnabled', 'bool', [])
 
     def definition_body(self):
         pref = self.descriptor.interface.getExtendedAttribute("Pref")
         assert isinstance(pref, list) and len(pref) == 1
         return "  return Preferences::GetBool(\"%s\");" % pref[0]
-
-class CGConstructorEnabledChromeOnly(CGAbstractMethod):
-    """
-    A method for testing whether the object we're going to be defined
-    on is chrome so we can decide whether our constructor should be
-    enabled.
-    """
-    def __init__(self, descriptor):
-        assert descriptor.interface.getExtendedAttribute("ChromeOnly")
-        CGAbstractMethod.__init__(self, descriptor,
-                                  'ConstructorEnabled', 'bool',
-                                  [Argument("JSContext*", "aCx"),
-                                   Argument("JS::Handle<JSObject*>", "aObj")])
-
-    def definition_body(self):
-        return "  return %s;" % GetAccessCheck(self.descriptor, "aObj")
 
 class CGIsMethod(CGAbstractMethod):
     def __init__(self, descriptor):
@@ -3213,7 +3189,7 @@ for (uint32_t i = 0; i < length; ++i) {
                                         declType=CGGeneric(declType),
                                         holderType=holderType)
 
-    if type.isDOMString():
+    if type.isString():
         assert not isEnforceRange and not isClamp
 
         treatAs = {
@@ -3278,24 +3254,6 @@ for (uint32_t i = 0; i < length; ++i) {
             getConversionCode("${holderName}"),
             declType=CGGeneric(declType),
             holderType=CGGeneric("FakeDependentString"))
-
-    if type.isByteString():
-        assert not isEnforceRange and not isClamp
-
-        nullable = toStringBool(type.nullable())
-
-        conversionCode = (
-            "if (!ConvertJSValueToByteString(cx, ${val}, ${mutableVal},"
-            " %s, ${declName})) {\n"
-            "%s\n"
-            "}" % (nullable, exceptionCodeIndented.define()))
-        # ByteString arguments cannot have a default value.
-        assert defaultValue is None
-
-        return JSToNativeConversionInfo(
-            conversionCode,
-            declType=CGGeneric("nsCString"),
-            dealWithOptional=isOptional)
 
     if type.isEnum():
         assert not isEnforceRange and not isClamp
@@ -4000,17 +3958,11 @@ if (!returnArray) {
         wrappingCode += wrapAndSetPtr(wrap, failed)
         return (wrappingCode, False)
 
-    if type.isDOMString():
+    if type.isString():
         if type.nullable():
             return (wrapAndSetPtr("xpc::StringToJsval(cx, %s, ${jsvalRef}.address())" % result), False)
         else:
             return (wrapAndSetPtr("xpc::NonVoidStringToJsval(cx, %s, ${jsvalRef}.address())" % result), False)
-
-    if type.isByteString():
-        if type.nullable():
-            return (wrapAndSetPtr("ByteStringToJsval(cx, %s, ${jsvalHandle})" % result), False)
-        else:
-            return (wrapAndSetPtr("NonVoidByteStringToJsval(cx, %s, ${jsvalHandle})" % result), False)
 
     if type.isEnum():
         if type.nullable():
@@ -4227,12 +4179,10 @@ def getRetvalDeclarationForType(returnType, descriptorProvider,
         if returnType.nullable():
             result = CGTemplatedType("Nullable", result)
         return result, False, None, None
-    if returnType.isDOMString():
+    if returnType.isString():
         if isMember:
             return CGGeneric("nsString"), True, None, None
         return CGGeneric("DOMString"), True, None, None
-    if returnType.isByteString():
-        return CGGeneric("nsCString"), True, None, None
     if returnType.isEnum():
         result = CGGeneric(returnType.unroll().inner.identifier.name)
         if returnType.nullable():
@@ -5705,11 +5655,8 @@ def getUnionAccessorSignatureType(type, descriptorProvider):
             typeName = CGWrapper(typeName, post="&")
         return typeName
 
-    if type.isDOMString():
+    if type.isString():
         return CGGeneric("const nsAString&")
-
-    if type.isByteString():
-        return CGGeneric("const nsCString&")
 
     if type.isEnum():
         if type.nullable():
@@ -7563,20 +7510,10 @@ class CGDescriptor(CGThing):
             not descriptor.interface.isExternal() and
             # Workers stuff is never pref-controlled
             not descriptor.workers):
-            prefControlled = descriptor.interface.getExtendedAttribute("PrefControlled")
-            havePref = descriptor.interface.getExtendedAttribute("Pref")
-            haveChromeOnly = descriptor.interface.getExtendedAttribute("ChromeOnly")
-            # Make sure at most one of those is set
-            if bool(prefControlled) + bool(havePref) + bool(haveChromeOnly) > 1:
-                raise TypeError("Interface %s has more than one of "
-                                "'PrefControlled', 'Pref', and 'ChomeOnly' "
-                                "specified", descriptor.name)
-            if prefControlled is not None:
+            if descriptor.interface.getExtendedAttribute("PrefControlled") is not None:
                 cgThings.append(CGPrefEnabledNative(descriptor))
-            elif havePref is not None:
+            elif descriptor.interface.getExtendedAttribute("Pref") is not None:
                 cgThings.append(CGPrefEnabled(descriptor))
-            elif haveChromeOnly is not None:
-                cgThings.append(CGConstructorEnabledChromeOnly(descriptor))
 
         if descriptor.concrete:
             if descriptor.proxy:
@@ -8090,12 +8027,12 @@ class CGRegisterProtos(CGAbstractMethod):
 
     def _defineMacro(self):
        return """
-#define REGISTER_PROTO(_dom_class, _ctor_check) \\
-  aNameSpaceManager->RegisterDefineDOMInterface(NS_LITERAL_STRING(#_dom_class), _dom_class##Binding::DefineDOMInterface, _ctor_check);
-#define REGISTER_CONSTRUCTOR(_dom_constructor, _dom_class, _ctor_check) \\
-  aNameSpaceManager->RegisterDefineDOMInterface(NS_LITERAL_STRING(#_dom_constructor), _dom_class##Binding::DefineDOMInterface, _ctor_check);
-#define REGISTER_NAVIGATOR_CONSTRUCTOR(_prop, _dom_class, _ctor_check) \\
-  aNameSpaceManager->RegisterNavigatorDOMConstructor(NS_LITERAL_STRING(_prop), _dom_class##Binding::ConstructNavigatorObject, _ctor_check);
+#define REGISTER_PROTO(_dom_class, _pref_check) \\
+  aNameSpaceManager->RegisterDefineDOMInterface(NS_LITERAL_STRING(#_dom_class), _dom_class##Binding::DefineDOMInterface, _pref_check);
+#define REGISTER_CONSTRUCTOR(_dom_constructor, _dom_class, _pref_check) \\
+  aNameSpaceManager->RegisterDefineDOMInterface(NS_LITERAL_STRING(#_dom_constructor), _dom_class##Binding::DefineDOMInterface, _pref_check);
+#define REGISTER_NAVIGATOR_CONSTRUCTOR(_prop, _dom_class, _pref_check) \\
+  aNameSpaceManager->RegisterNavigatorDOMConstructor(NS_LITERAL_STRING(_prop), _dom_class##Binding::ConstructNavigatorObject, _pref_check);
 
 """
     def _undefineMacro(self):
@@ -8104,24 +8041,23 @@ class CGRegisterProtos(CGAbstractMethod):
 #undef REGISTER_PROTO
 #undef REGISTER_NAVIGATOR_CONSTRUCTOR"""
     def _registerProtos(self):
-        def getCheck(desc):
+        def getPrefCheck(desc):
             if (desc.interface.getExtendedAttribute("PrefControlled") is None and
-                desc.interface.getExtendedAttribute("Pref") is None and
-                desc.interface.getExtendedAttribute("ChromeOnly") is None):
+                desc.interface.getExtendedAttribute("Pref") is None):
                 return "nullptr"
-            return "%sBinding::ConstructorEnabled" % desc.name
+            return "%sBinding::PrefEnabled" % desc.name
         lines = []
         for desc in self.config.getDescriptors(hasInterfaceObject=True,
                                                isExternal=False,
                                                workers=False,
                                                register=True):
-            lines.append("REGISTER_PROTO(%s, %s);" % (desc.name, getCheck(desc)))
-            lines.extend("REGISTER_CONSTRUCTOR(%s, %s, %s);" % (n.identifier.name, desc.name, getCheck(desc))
+            lines.append("REGISTER_PROTO(%s, %s);" % (desc.name, getPrefCheck(desc)))
+            lines.extend("REGISTER_CONSTRUCTOR(%s, %s, %s);" % (n.identifier.name, desc.name, getPrefCheck(desc))
                          for n in desc.interface.namedConstructors)
         for desc in self.config.getDescriptors(isNavigatorProperty=True, register=True):
             propName = desc.interface.getNavigatorProperty()
             assert propName
-            lines.append('REGISTER_NAVIGATOR_CONSTRUCTOR("%s", %s, %s);' % (propName, desc.name, getCheck(desc)))
+            lines.append('REGISTER_NAVIGATOR_CONSTRUCTOR("%s", %s, %s);' % (propName, desc.name, getPrefCheck(desc)))
         return '\n'.join(lines) + '\n'
     def definition_body(self):
         return self._defineMacro() + self._registerProtos() + self._undefineMacro()
@@ -8512,16 +8448,10 @@ class CGNativeMember(ClassMethod):
             return (result.define(),
                     "%s(%s)" % (result.define(), defaultReturnArg),
                     "return ${declName};")
-        if type.isDOMString():
+        if type.isString():
             if isMember:
                 # No need for a third element in the isMember case
                 return "nsString", None, None
-            # Outparam
-            return "void", "", "retval = ${declName};"
-        if type.isByteString():
-            if isMember:
-                # No need for a third element in the isMember case
-                return "nsCString", None, None
             # Outparam
             return "void", "", "retval = ${declName};"
         if type.isEnum():
@@ -8602,10 +8532,8 @@ class CGNativeMember(ClassMethod):
     def getArgs(self, returnType, argList):
         args = [self.getArg(arg) for arg in argList]
         # Now the outparams
-        if returnType.isDOMString():
+        if returnType.isString():
             args.append(Argument("nsString&", "retval"))
-        if returnType.isByteString():
-            args.append(Argument("nsCString&", "retval"))
         elif returnType.isSequence():
             nullable = returnType.nullable()
             if nullable:
@@ -8699,15 +8627,11 @@ class CGNativeMember(ClassMethod):
                 typeDecl = typeDecl % type.name
             return typeDecl, False, False
 
-        if type.isDOMString():
+        if type.isString():
             if isMember:
                 declType = "nsString"
             else:
                 declType = "nsAString"
-            return declType, True, False
-
-        if type.isByteString():
-            declType = "nsCString"
             return declType, True, False
 
         if type.isEnum():
@@ -9576,7 +9500,7 @@ class CallbackMember(CGNativeMember):
             jsvalIndex = "%d" % i
             if arg.optional and not arg.defaultValue:
                 argval += ".Value()"
-        if arg.type.isDOMString():
+        if arg.type.isString():
             # XPConnect string-to-JS conversion wants to mutate the string.  So
             # let's give it a string it can mutate
             # XXXbz if we try to do a sequence of strings, this will kinda fail.
