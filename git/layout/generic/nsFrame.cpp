@@ -3752,18 +3752,12 @@ nsIFrame::GetOverflowRect() const
 }
   
 void
-nsFrame::CheckInvalidateSizeChange(nsHTMLReflowMetrics& aNewDesiredSize)
+nsFrame::CheckInvalidateSizeChange(nsPresContext* aPresContext,
+                                   nsHTMLReflowMetrics& aDesiredSize,
+                                   const nsHTMLReflowState& aReflowState)
 {
-  nsIFrame::CheckInvalidateSizeChange(mRect, GetOverflowRect(), aNewDesiredSize);
-}
-
-void
-nsIFrame::CheckInvalidateSizeChange(const nsRect& aOldRect,
-                                   const nsRect& aOldOverflowRect,
-                                   nsHTMLReflowMetrics& aNewDesiredSize)
-{
-  if (aNewDesiredSize.width == aOldRect.width &&
-      aNewDesiredSize.height == aOldRect.height)
+  if (aDesiredSize.width == mRect.width
+      && aDesiredSize.height == mRect.height)
     return;
 
   // Below, we invalidate the old frame area (or, in the case of
@@ -3779,9 +3773,9 @@ nsIFrame::CheckInvalidateSizeChange(const nsRect& aOldRect,
   // Invalidate the entire old frame+outline if the frame has an outline
   PRBool anyOutline;
   nsRect r = ComputeOutlineRect(this, &anyOutline,
-                                aNewDesiredSize.mOverflowArea);
+                                aDesiredSize.mOverflowArea);
   if (anyOutline) {
-    r.UnionRect(aOldOverflowRect, r);
+    r.UnionRect(GetOverflowRect(), r);
     Invalidate(r);
     return;
   }
@@ -3791,7 +3785,7 @@ nsIFrame::CheckInvalidateSizeChange(const nsRect& aOldRect,
   const nsStyleBorder* border = GetStyleBorder();
   NS_FOR_CSS_SIDES(side) {
     if (border->GetActualBorderWidth(side) != 0) {
-      Invalidate(nsRect(0, 0, aOldRect.width, aOldRect.height));
+      Invalidate(nsRect(0, 0, mRect.width, mRect.height));
       return;
     }
   }
@@ -3801,7 +3795,7 @@ nsIFrame::CheckInvalidateSizeChange(const nsRect& aOldRect,
   const nsStyleBackground* background = GetStyleBackground();
   if (background->mBackgroundFlags &
       (NS_STYLE_BG_X_POSITION_PERCENT | NS_STYLE_BG_Y_POSITION_PERCENT)) {
-    Invalidate(nsRect(0, 0, aOldRect.width, aOldRect.height));
+    Invalidate(nsRect(0, 0, mRect.width, mRect.height));
     return;
   }
 }
