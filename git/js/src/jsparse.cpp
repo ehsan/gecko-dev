@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set ts=8 sw=4 et tw=99:
  *
  * ***** BEGIN LICENSE BLOCK *****
@@ -1542,8 +1542,6 @@ typedef JSBool
 (*Binder)(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc);
 
 struct BindData {
-    BindData() : fresh(true) {}
-
     JSParseNode     *pn;        /* name node for definition processing and
                                    error source coordinates */
     JSOp            op;         /* prolog bytecode or nop */
@@ -1553,7 +1551,6 @@ struct BindData {
             uintN   overflow;
         } let;
     };
-    bool fresh;
 };
 
 static JSBool
@@ -3121,7 +3118,6 @@ BindVarOrConst(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
 
     if (stmt && stmt->type == STMT_WITH) {
         pn->pn_op = JSOP_NAME;
-        data->fresh = false;
         return JS_TRUE;
     }
 
@@ -3189,8 +3185,6 @@ BindVarOrConst(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
          * the block-local binding of x.
          */
         JSDefinition *dn = ALE_DEFN(ale);
-
-        data->fresh = false;
 
         if (!pn->pn_used) {
             /* Make pnu be a fresh name node that uses dn. */
@@ -3509,7 +3503,7 @@ typedef struct FindPropValEntry {
                ((pnkey)->pn_type == TOK_NUMBER ||                             \
                 (pnkey)->pn_type == TOK_STRING ||                             \
                 (pnkey)->pn_type == TOK_NAME)) ||                             \
-               ((pnkey)->pn_arity == PN_NAME && (pnkey)->pn_type == TOK_NAME))
+               (pnkey)->pn_arity == PN_NAME && (pnkey)->pn_type == TOK_NAME)
 
 static JSDHashNumber
 HashFindPropValKey(JSDHashTable *table, const void *key)
@@ -4334,7 +4328,7 @@ RebindLets(JSParseNode *pn, JSTreeContext *tc)
                     JSDefinition *dn = ALE_DEFN(ale);
                     dn->pn_type = TOK_NAME;
                     dn->pn_op = JSOP_NOP;
-                    dn->pn_dflags |= pn->pn_dflags & (PND_ASSIGNED | PND_FUNARG);
+                    dn->pn_dflags |= pn->pn_dflags & PND_FUNARG;
                 }
                 LinkUseToDef(pn, ALE_DEFN(ale), tc);
             }
@@ -5676,7 +5670,7 @@ Variables(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc, bool inLetHead)
                          ? JSOP_SETCONST
                          : JSOP_SETNAME;
 
-            NoteLValue(cx, pn2, tc, data.fresh ? PND_INITIALIZED : PND_ASSIGNED);
+            NoteLValue(cx, pn2, tc, PND_INITIALIZED);
 
             /* The declarator's position must include the initializer. */
             pn2->pn_pos.end = init->pn_pos.end;
@@ -7578,7 +7572,7 @@ XMLElementOrList(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
                 js_ReportCompileErrorNumber(cx, ts, pn2,
                                             JSREPORT_UC | JSREPORT_ERROR,
                                             JSMSG_XML_TAG_NAME_MISMATCH,
-                                            str->chars());
+                                            JSSTRING_CHARS(str));
                 return NULL;
             }
 
@@ -8243,7 +8237,7 @@ PrimaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
                  * . or .. is not treated as a property name.
                  */
                 str = ATOM_TO_STRING(pn->pn_atom);
-                tt = js_CheckKeyword(str->chars(), str->length());
+                tt = js_CheckKeyword(JSSTRING_CHARS(str), JSSTRING_LENGTH(str));
                 if (tt == TOK_FUNCTION) {
                     pn->pn_arity = PN_NULLARY;
                     pn->pn_type = TOK_FUNCTION;
@@ -8608,7 +8602,7 @@ FoldXMLConstants(JSContext *cx, JSParseNode *pn, JSTreeContext *tc)
 #ifdef DEBUG_brendanXXX
             printf("2: %d, %d => ", i, j);
             js_FileEscapedString(stdout, str, 0);
-            printf(" (%u)\n", str->length());
+            printf(" (%u)\n", JSSTRING_LENGTH(str));
 #endif
             ++j;
         }
@@ -8714,7 +8708,7 @@ Boolish(JSParseNode *pn)
         return pn->pn_dval != 0 && !JSDOUBLE_IS_NaN(pn->pn_dval);
 
       case JSOP_STRING:
-        return ATOM_TO_STRING(pn->pn_atom)->length() != 0;
+        return JSSTRING_LENGTH(ATOM_TO_STRING(pn->pn_atom)) != 0;
 
 #if JS_HAS_GENERATOR_EXPRS
       case JSOP_CALL:
@@ -8878,7 +8872,7 @@ js_FoldConstants(JSContext *cx, JSParseNode *pn, JSTreeContext *tc, bool inCond)
                 pn2 = pn3;
             break;
           case TOK_STRING:
-            if (ATOM_TO_STRING(pn1->pn_atom)->length() == 0)
+            if (JSSTRING_LENGTH(ATOM_TO_STRING(pn1->pn_atom)) == 0)
                 pn2 = pn3;
             break;
           case TOK_PRIMARY:
@@ -9029,7 +9023,7 @@ js_FoldConstants(JSContext *cx, JSParseNode *pn, JSTreeContext *tc, bool inCond)
                 /* XXX fold only if all operands convert to string */
                 if (pn2->pn_type != TOK_STRING)
                     return JS_TRUE;
-                length += ATOM_TO_STRING(pn2->pn_atom)->flatLength();
+                length += JSFLATSTR_LENGTH(ATOM_TO_STRING(pn2->pn_atom));
             }
 
             /* Allocate a new buffer and string descriptor for the result. */
@@ -9045,8 +9039,8 @@ js_FoldConstants(JSContext *cx, JSParseNode *pn, JSTreeContext *tc, bool inCond)
             /* Fill the buffer, advancing chars and recycling kids as we go. */
             for (pn2 = pn1; pn2; pn2 = RecycleTree(pn2, tc)) {
                 str2 = ATOM_TO_STRING(pn2->pn_atom);
-                length2 = str2->flatLength();
-                js_strncpy(chars, str2->flatChars(), length2);
+                length2 = JSFLATSTR_LENGTH(str2);
+                js_strncpy(chars, JSFLATSTR_CHARS(str2), length2);
                 chars += length2;
             }
             *chars = 0;

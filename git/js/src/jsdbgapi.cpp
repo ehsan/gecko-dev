@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set ts=8 sw=4 et tw=78:
  *
  * ***** BEGIN LICENSE BLOCK *****
@@ -1589,7 +1589,7 @@ GetAtomTotalSize(JSContext *cx, JSAtom *atom)
     nbytes = sizeof(JSAtom *) + sizeof(JSDHashEntryStub);
     if (ATOM_IS_STRING(atom)) {
         nbytes += sizeof(JSString);
-        nbytes += (ATOM_TO_STRING(atom)->flatLength() + 1) * sizeof(jschar);
+        nbytes += (JSFLATSTR_LENGTH(ATOM_TO_STRING(atom)) + 1) * sizeof(jschar);
     } else if (ATOM_IS_DOUBLE(atom)) {
         nbytes += sizeof(jsdouble);
     }
@@ -1867,7 +1867,7 @@ js_DumpCallgrind(JSContext *cx, JSObject *obj,
 
     if (argc > 0 && JSVAL_IS_STRING(argv[0])) {
         str = JSVAL_TO_STRING(argv[0]);
-        cstr = js_DeflateString(cx, str->chars(), str->length());
+        cstr = js_DeflateString(cx, JSSTRING_CHARS(str), JSSTRING_LENGTH(str));
         if (cstr) {
             CALLGRIND_DUMP_STATS_AT(cstr);
             JS_free(cx, cstr);
@@ -1942,7 +1942,9 @@ js_StartVtune(JSContext *cx, JSObject *obj,
 
     if (argc > 0 && JSVAL_IS_STRING(argv[0])) {
         str = JSVAL_TO_STRING(argv[0]);
-        params.tb5Filename = js_DeflateString(cx, str->chars(), str->length());
+        params.tb5Filename = js_DeflateString(cx,
+                                              JSSTRING_CHARS(str),
+                                              JSSTRING_LENGTH(str));
     }
 
     status = VTStartSampling(&params);

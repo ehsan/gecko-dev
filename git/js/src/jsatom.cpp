@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -690,8 +690,8 @@ js_AtomizeString(JSContext *cx, JSString *str, uintN flags)
          * trigger GC which may rehash the table and make the entry invalid.
          */
         ++table->generation;
-        if (!(flags & ATOM_TMPSTR) && str->isFlat()) {
-            str->flatClearMutable();
+        if (!(flags & ATOM_TMPSTR) && JSSTRING_IS_FLAT(str)) {
+            JSFLATSTR_CLEAR_MUTABLE(str);
             key = str;
         } else {
             gen = table->generation;
@@ -699,19 +699,21 @@ js_AtomizeString(JSContext *cx, JSString *str, uintN flags)
 
             if (flags & ATOM_TMPSTR) {
                 if (flags & ATOM_NOCOPY) {
-                    key = js_NewString(cx, str->flatChars(), str->flatLength());
+                    key = js_NewString(cx, JSFLATSTR_CHARS(str),
+                                       JSFLATSTR_LENGTH(str));
                     if (!key)
                         return NULL;
 
                     /* Finish handing off chars to the GC'ed key string. */
-                    str->mChars = NULL;
+                    str->u.chars = NULL;
                 } else {
-                    key = js_NewStringCopyN(cx, str->flatChars(), str->flatLength());
+                    key = js_NewStringCopyN(cx, JSFLATSTR_CHARS(str),
+                                            JSFLATSTR_LENGTH(str));
                     if (!key)
                         return NULL;
                 }
            } else {
-                JS_ASSERT(str->isDependent());
+                JS_ASSERT(JSSTRING_IS_DEPENDENT(str));
                 if (!js_UndependString(cx, str))
                     return NULL;
                 key = str;
@@ -733,12 +735,12 @@ js_AtomizeString(JSContext *cx, JSString *str, uintN flags)
             }
         }
         INIT_ATOM_ENTRY(entry, key);
-        key->flatSetAtomized();
+        JSFLATSTR_SET_ATOMIZED(key);
     }
 
   finish:
     ADD_ATOM_ENTRY_FLAGS(entry, flags & (ATOM_PINNED | ATOM_INTERNED));
-    JS_ASSERT(key->isAtomized());
+    JS_ASSERT(JSSTRING_IS_ATOMIZED(key));
     v = STRING_TO_JSVAL(key);
     cx->weakRoots.lastAtom = v;
     JS_UNLOCK(cx, &state->lock);
@@ -780,9 +782,9 @@ js_Atomize(JSContext *cx, const char *bytes, size_t length, uintN flags)
         flags |= ATOM_NOCOPY;
     }
 
-    str.initFlat(chars, inflatedLength);
+    JSFLATSTR_INIT(&str, (jschar *)chars, inflatedLength);
     atom = js_AtomizeString(cx, &str, ATOM_TMPSTR | flags);
-    if (chars != inflated && str.flatChars())
+    if (chars != inflated && str.u.chars)
         JS_free(cx, chars);
     return atom;
 }
@@ -792,7 +794,7 @@ js_AtomizeChars(JSContext *cx, const jschar *chars, size_t length, uintN flags)
 {
     JSString str;
 
-    str.initFlat((jschar *)chars, length);
+    JSFLATSTR_INIT(&str, (jschar *)chars, length);
     return js_AtomizeString(cx, &str, ATOM_TMPSTR | flags);
 }
 
@@ -803,7 +805,7 @@ js_GetExistingStringAtom(JSContext *cx, const jschar *chars, size_t length)
     JSAtomState *state;
     JSDHashEntryHdr *hdr;
 
-    str.initFlat((jschar *)chars, length);
+    JSFLATSTR_INIT(&str, (jschar *)chars, length);
     state = &cx->runtime->atomState;
 
     JS_LOCK(cx, &state->lock);
@@ -846,14 +848,14 @@ js_ValueToStringId(JSContext *cx, jsval v, jsid *idp)
 
     /*
      * Optimize for the common case where v is an already-atomized string. The
-     * comment in jsstr.h before JSString::flatSetAtomized explains why this is
-     * thread-safe. The extra rooting via lastAtom (which would otherwise be
-     * done in js_js_AtomizeString) ensures the caller that the resulting id at
-     * is least weakly rooted.
+     * comment in jsstr.h before the JSSTRING_SET_ATOMIZED macro's definition
+     * explains why this is thread-safe. The extra rooting via lastAtom (which
+     * would otherwise be done in js_js_AtomizeString) ensures the caller that
+     * the resulting id at is least weakly rooted.
      */
     if (JSVAL_IS_STRING(v)) {
         str = JSVAL_TO_STRING(v);
-        if (str->isAtomized()) {
+        if (JSSTRING_IS_ATOMIZED(str)) {
             cx->weakRoots.lastAtom = v;
             *idp = ATOM_TO_JSID((JSAtom *) v);
             return JS_TRUE;

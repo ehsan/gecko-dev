@@ -142,8 +142,7 @@ Are you executing $objdir/_tests/reftest/runreftest.py?""" \
     # Don't care about this |status|: |runApp()| reporting it should be enough.
     status = automation.runApp(None, browserEnv, options.app, profileDir,
                                extraArgs = ["-silent"],
-                               symbolsPath=options.symbolsPath,
-                               xrePath=options.xrePath)
+                               symbolsPath=options.symbolsPath)
     # We don't care to call |automation.processLeakLog()| for this step.
     automation.log.info("\nREFTEST INFO | runreftest.py | Performing extension manager registration: end.")
 
@@ -156,9 +155,7 @@ Are you executing $objdir/_tests/reftest/runreftest.py?""" \
     automation.log.info("REFTEST INFO | runreftest.py | Running tests: start.\n")
     reftestlist = getFullPath(args[0])
     status = automation.runApp(None, browserEnv, options.app, profileDir,
-                               extraArgs = ["-reftest", reftestlist],
-                               symbolsPath=options.symbolsPath,
-                               xrePath=options.xrePath)
+                               extraArgs = ["-reftest", reftestlist])
     automation.processLeakLog(leakLogFile, options.leakThreshold)
     automation.log.info("\nREFTEST INFO | runreftest.py | Running tests: end.")
   finally:
