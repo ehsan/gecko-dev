@@ -707,6 +707,7 @@ IDBObjectStore::UpdateIndexes(IDBTransaction* aTransaction,
 #endif
 
   PRUint32 indexCount = aUpdateInfoArray.Length();
+  NS_ASSERTION(indexCount, "Don't call me!");
 
   nsCOMPtr<mozIStorageStatement> stmt;
   nsresult rv;
@@ -754,54 +755,27 @@ IDBObjectStore::UpdateIndexes(IDBTransaction* aTransaction,
 
   NS_ASSERTION(aObjectDataId != LL_MININT, "Bad objectData id!");
 
-  NS_NAMED_LITERAL_CSTRING(indexId, "index_id");
-  NS_NAMED_LITERAL_CSTRING(objectDataId, "object_data_id");
-  NS_NAMED_LITERAL_CSTRING(objectDataKey, "object_data_key");
-  NS_NAMED_LITERAL_CSTRING(value, "value");
+  for (PRUint32 indexIndex = 0; indexIndex < indexCount; indexIndex++) {
+    const IndexUpdateInfo& updateInfo = aUpdateInfoArray[indexIndex];
 
-  if (aOverwrite) {
-    stmt = aTransaction->IndexDataDeleteStatement(aAutoIncrement, false);
+    stmt = aTransaction->IndexUpdateStatement(updateInfo.info.autoIncrement,
+                                              updateInfo.info.unique,
+                                              aOverwrite);
     NS_ENSURE_TRUE(stmt, NS_ERROR_FAILURE);
 
     mozStorageStatementScoper scoper2(stmt);
 
-    rv = stmt->BindInt64ByName(objectDataId, aObjectDataId);
+    rv = stmt->BindInt64ByName(NS_LITERAL_CSTRING("index_id"),
+                               updateInfo.info.id);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = stmt->Execute();
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    stmt = aTransaction->IndexDataDeleteStatement(aAutoIncrement, true);
-    NS_ENSURE_TRUE(stmt, NS_ERROR_FAILURE);
-
-    mozStorageStatementScoper scoper3(stmt);
-
-    rv = stmt->BindInt64ByName(objectDataId, aObjectDataId);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = stmt->Execute();
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  for (PRUint32 indexIndex = 0; indexIndex < indexCount; indexIndex++) {
-    const IndexUpdateInfo& updateInfo = aUpdateInfoArray[indexIndex];
-
-    NS_ASSERTION(updateInfo.info.autoIncrement == aAutoIncrement, "Huh?!");
-
-    // Insert new values.
-    stmt = aTransaction->IndexDataInsertStatement(aAutoIncrement,
-                                                  updateInfo.info.unique);
-    NS_ENSURE_TRUE(stmt, NS_ERROR_FAILURE);
-
-    mozStorageStatementScoper scoper4(stmt);
-
-    rv = stmt->BindInt64ByName(indexId, updateInfo.info.id);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = stmt->BindInt64ByName(objectDataId, aObjectDataId);
+    rv = stmt->BindInt64ByName(NS_LITERAL_CSTRING("object_data_id"),
+                               aObjectDataId);
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (!updateInfo.info.autoIncrement) {
+      NS_NAMED_LITERAL_CSTRING(objectDataKey, "object_data_key");
+
       if (aObjectStoreKey.IsInt()) {
         rv = stmt->BindInt64ByName(objectDataKey, aObjectStoreKey.IntValue());
       }
@@ -814,6 +788,8 @@ IDBObjectStore::UpdateIndexes(IDBTransaction* aTransaction,
       }
       NS_ENSURE_SUCCESS(rv, rv);
     }
+
+    NS_NAMED_LITERAL_CSTRING(value, "value");
 
     if (updateInfo.value.IsInt()) {
       rv = stmt->BindInt64ByName(value, updateInfo.value.IntValue());
@@ -1879,7 +1855,7 @@ AddHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   }
 
   // Update our indexes if needed.
-  if (mOverwrite || !mIndexUpdateInfo.IsEmpty()) {
+  if (!mIndexUpdateInfo.IsEmpty()) {
     PRInt64 objectDataId = autoIncrement ? mKey.IntValue() : LL_MININT;
     rv = IDBObjectStore::UpdateIndexes(mTransaction, osid, mKey,
                                        autoIncrement, mOverwrite,
@@ -2399,8 +2375,8 @@ CreateIndexHelper::InsertDataFromObjectStore(mozIStorageConnection* aConnection)
   PRBool hasResult;
   while (NS_SUCCEEDED(stmt->ExecuteStep(&hasResult)) && hasResult) {
     nsCOMPtr<mozIStorageStatement> insertStmt =
-      mTransaction->IndexDataInsertStatement(mIndex->IsAutoIncrement(),
-                                             mIndex->IsUnique());
+      mTransaction->IndexUpdateStatement(mIndex->IsAutoIncrement(),
+                                         mIndex->IsUnique(), false);
     NS_ENSURE_TRUE(insertStmt, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
     mozStorageStatementScoper scoper2(insertStmt);
