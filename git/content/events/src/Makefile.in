@@ -63,8 +63,7 @@ CPPSRCS		= \
 		nsDOMDragEvent.cpp \
 		nsDOMMutationEvent.cpp \
 		nsDOMPopupBlockedEvent.cpp \
-		nsDOMDeviceOrientationEvent.cpp \
-		nsDOMDeviceMotionEvent.cpp \
+		nsDOMOrientationEvent.cpp \
 		nsDOMBeforeUnloadEvent.cpp \
 		nsDOMPageTransitionEvent.cpp \
 		nsDOMXULCommandEvent.cpp \

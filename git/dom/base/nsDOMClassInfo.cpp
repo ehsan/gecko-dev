@@ -128,6 +128,7 @@
 #include "nsDOMError.h"
 #include "nsIDOMDOMException.h"
 #include "nsIDOMNode.h"
+#include "nsIDOM3Node.h"
 #include "nsIDOM3Attr.h"
 #include "nsIDOMNodeList.h"
 #include "nsIDOMNamedNodeMap.h"
@@ -332,7 +333,6 @@
 #include "nsIDOMCSSStyleSheet.h"
 #include "nsDOMCSSValueList.h"
 #include "nsIDOMDeviceOrientationEvent.h"
-#include "nsIDOMDeviceMotionEvent.h"
 #include "nsIDOMRange.h"
 #include "nsIDOMNSRange.h"
 #include "nsIDOMRangeException.h"
@@ -751,14 +751,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(PopupBlockedEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  // Device Orientation
   NS_DEFINE_CLASSINFO_DATA(DeviceOrientationEvent, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(DeviceMotionEvent, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(DeviceAcceleration, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(DeviceRotationRate, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   // Misc HTML classes
@@ -2322,6 +2315,7 @@ nsDOMClassInfo::RegisterExternalClasses()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMDocumentXBL)                                \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)                              \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)                                \
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Node)                                      \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMXPathEvaluator)                             \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)
 
@@ -2331,6 +2325,7 @@ nsDOMClassInfo::RegisterExternalClasses()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMElementCSSInlineStyle)                      \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)                              \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)                                \
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Node)                                      \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSElement)                                  \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)
 
@@ -2485,6 +2480,7 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMDocumentType)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Node)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(DOMImplementation, nsIDOMDOMImplementation)
@@ -2506,6 +2502,7 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(DocumentFragment, nsIDOMDocumentFragment)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMDocumentFragment)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Node)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
@@ -2516,11 +2513,13 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Node)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(Attr, nsIDOMAttr)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMAttr)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Node)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Attr)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
@@ -2530,24 +2529,28 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMText)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Node)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(Comment, nsIDOMComment)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMComment)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Node)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(CDATASection, nsIDOMCDATASection)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMCDATASection)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Node)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(ProcessingInstruction, nsIDOMProcessingInstruction)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMProcessingInstruction)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Node)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(NodeList, nsIDOMNodeList)
@@ -2569,21 +2572,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(DeviceOrientationEvent, nsIDOMDeviceOrientationEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMDeviceOrientationEvent)
-    DOM_CLASSINFO_EVENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(DeviceMotionEvent, nsIDOMDeviceMotionEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMDeviceMotionEvent)
-    DOM_CLASSINFO_EVENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(DeviceAcceleration, nsIDOMDeviceAcceleration)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMDeviceAcceleration)
-    DOM_CLASSINFO_EVENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(DeviceRotationRate, nsIDOMDeviceRotationRate)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMDeviceRotationRate)
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
@@ -3070,6 +3058,7 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMXULElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Node)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMElementCSSInlineStyle)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)
@@ -3112,6 +3101,7 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMLinkStyle)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Node)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(ChromeWindow, nsIDOMWindow)
@@ -3184,6 +3174,7 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)   \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGElement)    \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSElement)     \
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Node)         \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)
 
 #define DOM_CLASSINFO_SVG_GRAPHIC_ELEMENT_MAP_ENTRIES \
@@ -4141,6 +4132,7 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Node)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)
   DOM_CLASSINFO_MAP_END
 
@@ -6311,6 +6303,14 @@ ResolvePrototype(nsIXPConnect *aXPConnect, nsGlobalWindow *aWin, JSContext *cx,
 
     rv = DefineInterfaceConstants(cx, class_obj, primary_iid);
     NS_ENSURE_SUCCESS(rv, rv);
+
+    // Special case for |Node|, which needs constants from Node3
+    // too for forwards compatibility.
+    if (primary_iid->Equals(NS_GET_IID(nsIDOMNode))) {
+      rv = DefineInterfaceConstants(cx, class_obj,
+                                    &NS_GET_IID(nsIDOM3Node));
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
 
     // Special case for |Event|, Event needs constants from NSEvent
     // too for backwards compatibility.

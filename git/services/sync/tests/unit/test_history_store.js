@@ -35,7 +35,7 @@ function onNextTitleChanged(callback) {
     onPageChanged: function onPageChanged() {},
     onTitleChanged: function onTitleChanged() {
       PlacesUtils.history.removeObserver(this);
-      Utils.nextTick(callback);
+      Utils.delay(callback, 0, this);
     },
     onVisit: function onVisit() {},
     onDeleteVisits: function onDeleteVisits() {},

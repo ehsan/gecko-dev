@@ -571,10 +571,10 @@ public:
 
 private:
   // Enable updates for the accelerometer.
-  void EnableDeviceMotionUpdates();
+  void EnableAccelerationUpdates();
 
   // Disables updates for the accelerometer.
-  void DisableDeviceMotionUpdates();
+  void DisableAccelerationUpdates();
 
 protected:
   friend class HashchangeCallback;
@@ -889,8 +889,8 @@ protected:
   // should be displayed.
   PRPackedBool           mFocusByKeyOccurred : 1;
 
-  // Indicates whether this window is getting device motion change events
-  PRPackedBool           mHasDeviceMotion : 1;
+  // Indicates whether this window is getting acceleration change events
+  PRPackedBool           mHasAcceleration : 1;
 
   // whether we've sent the destroy notification for our window id
   PRPackedBool           mNotifiedIDDestroyed : 1;

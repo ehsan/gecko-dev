@@ -489,21 +489,6 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
 
   nsCOMPtr<nsPIDOMEventTarget> target = do_QueryInterface(aTarget);
 
-  PRBool retargeted = PR_FALSE;
-
-  if (aEvent->flags & NS_EVENT_RETARGET_TO_NON_NATIVE_ANONYMOUS) {
-    nsCOMPtr<nsIContent> content = do_QueryInterface(target);
-    if (content && content->IsInNativeAnonymousSubtree()) {
-      nsCOMPtr<nsPIDOMEventTarget> newTarget =
-        do_QueryInterface(content->FindFirstNonNativeAnonymous());
-      NS_ENSURE_STATE(newTarget);
-
-      aEvent->originalTarget = target;
-      target = newTarget;
-      retargeted = PR_TRUE;
-    }
-  }
-
   if (aEvent->flags & NS_EVENT_FLAG_ONLY_CHROME_DISPATCH) {
     nsCOMPtr<nsINode> node = do_QueryInterface(aTarget);
     if (!node) {
@@ -594,16 +579,7 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
     aEvent->target = aEvent->target->GetTargetForEventTargetChain();
     NS_ENSURE_STATE(aEvent->target);
   }
-
-  if (retargeted) {
-    aEvent->originalTarget =
-      aEvent->originalTarget->GetTargetForEventTargetChain();
-    NS_ENSURE_STATE(aEvent->originalTarget);
-  }
-  else {
-    aEvent->originalTarget = aEvent->target;
-  }
-
+  aEvent->originalTarget = aEvent->target;
   nsCOMPtr<nsIContent> content = do_QueryInterface(aEvent->originalTarget);
   PRBool isInAnon = (content && content->IsInAnonymousSubtree());
 
@@ -837,8 +813,6 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
     return NS_NewDOMPopupBlockedEvent(aDOMEvent, aPresContext, nsnull);
   if (aEventType.LowerCaseEqualsLiteral("deviceorientationevent"))
     return NS_NewDOMDeviceOrientationEvent(aDOMEvent, aPresContext, nsnull);
-  if (aEventType.LowerCaseEqualsLiteral("devicemotionevent"))
-    return NS_NewDOMDeviceMotionEvent(aDOMEvent, aPresContext, nsnull);
   if (aEventType.LowerCaseEqualsLiteral("uievent") ||
       aEventType.LowerCaseEqualsLiteral("uievents"))
     return NS_NewDOMUIEvent(aDOMEvent, aPresContext, nsnull);

@@ -2904,7 +2904,7 @@ SessionStoreService.prototype = {
         // instead of gotoIndex. See bug 597315.
         browser.webNavigation.sessionHistory.getEntryAtIndex(activeIndex, true);
         browser.webNavigation.sessionHistory.
-          QueryInterface(Ci.nsISHistory).reloadCurrentEntry();
+          QueryInterface(Ci.nsISHistory_2_0_BRANCH).reloadCurrentEntry();
       }
       catch (ex) {
         // ignore page load errors

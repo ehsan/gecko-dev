@@ -50,7 +50,6 @@ function run_test()
   test_isEqualNode_normalization();
   test_isEqualNode_whitespace();
   test_isEqualNode_namespaces();
-  test_isEqualNode_wholeDoc();
 
   // XXX should Node.isEqualNode(null) throw or return false?
   //test_isEqualNode_null();
@@ -401,25 +400,11 @@ function test_isEqualNode_null()
   }
 }
 
-function test_isEqualNode_wholeDoc()
-{
-  doc = ParseFile("isequalnode_data.xml");
-  var doc2 = ParseFile("isequalnode_data.xml");
-  var tw1 =
-    doc.createTreeWalker(doc, Components.interfaces.nsIDOMNodeFilter.SHOW_ALL,
-                         null, false);
-  var tw2 =
-    doc2.createTreeWalker(doc2, Components.interfaces.nsIDOMNodeFilter.SHOW_ALL,
-                          null, false);
-  do {
-    check_eq_nodes(tw1.currentNode, tw2.currentNode);
-    tw1.nextNode();
-  } while(tw2.nextNode());
-}
 
 // UTILITY FUNCTIONS
 
 function n(node)  { return node ? node.QueryInterface(nsIDOMNode) : null; }
+function n3(node) { return node ? node.QueryInterface(nsIDOM3Node) : null; }
 function el(node) { return node ? node.QueryInterface(nsIDOMElement) : null; }
 function at(node) { return node ? node.QueryInterface(nsIDOMAttr) : null; }
 
@@ -449,6 +434,9 @@ function equality_check_kids(parentId, areEqual)
 
 function check_eq_nodes(n1, n2)
 {
+  n1 = n3(n1);
+  n2 = n3(n2);
+
   if (n1 && !n1.isEqualNode(n2))
     do_throw(n1 + " should be equal to " + n2);
   if (n2 && !n2.isEqualNode(n1))
@@ -459,6 +447,9 @@ function check_eq_nodes(n1, n2)
 
 function check_neq_nodes(n1, n2)
 {
+  n1 = n3(n1);
+  n2 = n3(n2);
+
   if (n1 && n1.isEqualNode(n2))
     do_throw(n1 + " should not be equal to " + n2);
   if (n2 && n2.isEqualNode(n1))

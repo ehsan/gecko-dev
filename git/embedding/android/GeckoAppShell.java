@@ -579,29 +579,18 @@ public class GeckoAppShell
             tmp.countDown();
     }
 
-    static Sensor gAccelerometerSensor = null;
-    static Sensor gOrientationSensor = null;
-
-    public static void enableDeviceMotion(boolean enable) {
-
+    public static void enableAccelerometer(boolean enable) {
         SensorManager sm = (SensorManager)
             GeckoApp.surfaceView.getContext().getSystemService(Context.SENSOR_SERVICE);
 
-        if (gAccelerometerSensor == null || gOrientationSensor == null) {
-            gAccelerometerSensor = sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-            gOrientationSensor   = sm.getDefaultSensor(Sensor.TYPE_ORIENTATION);
-        }
-
         if (enable) {
-            if (gAccelerometerSensor != null)
-                sm.registerListener(GeckoApp.surfaceView, gAccelerometerSensor, SensorManager.SENSOR_DELAY_GAME);
-            if (gOrientationSensor != null)
-                sm.registerListener(GeckoApp.surfaceView, gOrientationSensor,   SensorManager.SENSOR_DELAY_GAME);
+            Sensor accelSensor = sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+            if (accelSensor == null)
+                return;
+
+            sm.registerListener(GeckoApp.surfaceView, accelSensor, SensorManager.SENSOR_DELAY_GAME);
         } else {
-            if (gAccelerometerSensor != null)
-                sm.unregisterListener(GeckoApp.surfaceView, gAccelerometerSensor);
-            if (gOrientationSensor != null)
-                sm.unregisterListener(GeckoApp.surfaceView, gOrientationSensor);
+            sm.unregisterListener(GeckoApp.surfaceView);
         }
     }
 
