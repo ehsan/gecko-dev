@@ -23,25 +23,20 @@ let state = {entries:[
 
 function test()
 {
-  waitForExplicitFinish();
-
   registerCleanupFunction(function () {
     ss.setBrowserState(stateBackup);
   });
 
   let tab = gBrowser.addTab("about:blank");
-  waitForTabState(tab, state, function () {
-    let history = tab.linkedBrowser.webNavigation.sessionHistory;
+  ss.setTabState(tab, JSON.stringify(state));
+  let history = tab.linkedBrowser.webNavigation.sessionHistory;
 
-    is(history.count, 2, "history.count");
-    for (let i = 0; i < history.count; i++) {
-      for (let j = 0; j < history.count; j++) {
-        compareEntries(i, j, history);
-      }
+  is(history.count, 2, "history.count");
+  for (let i = 0; i < history.count; i++) {
+    for (let j = 0; j < history.count; j++) {
+      compareEntries(i, j, history);
     }
-
-    finish();
-  });
+  }
 }
 
 function compareEntries(i, j, history)

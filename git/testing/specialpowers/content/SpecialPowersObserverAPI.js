@@ -69,17 +69,17 @@ function parseKeyValuePairsFromFile(file) {
 SpecialPowersObserverAPI.prototype = {
 
   _observe: function(aSubject, aTopic, aData) {
-    function addDumpIDToMessage(propertyName) {
-      var id = aSubject.getPropertyAsAString(propertyName);
-      if (id) {
-        message.dumpIDs.push({id: id, extension: "dmp"});
-        message.dumpIDs.push({id: id, extension: "extra"});
-      }
-    }
-
     switch(aTopic) {
       case "plugin-crashed":
       case "ipc:content-shutdown":
+        function addDumpIDToMessage(propertyName) {
+          var id = aSubject.getPropertyAsAString(propertyName);
+          if (id) {
+            message.dumpIDs.push({id: id, extension: "dmp"});
+            message.dumpIDs.push({id: id, extension: "extra"});
+          }
+        }
+
         var message = { type: "crash-observed", dumpIDs: [] };
         aSubject = aSubject.QueryInterface(Ci.nsIPropertyBag2);
         if (aTopic == "plugin-crashed") {
@@ -165,9 +165,6 @@ SpecialPowersObserverAPI.prototype = {
    * This will get requests from our API in the window and process them in chrome for it
    **/
   _receiveMessageAPI: function(aMessage) {
-    // We explicitly return values in the below code so that this function
-    // doesn't trigger a flurry of warnings about "does not always return
-    // a value".
     switch(aMessage.name) {
       case "SPPrefService":
         var prefs = Services.prefs;
@@ -181,7 +178,7 @@ SpecialPowersObserverAPI.prototype = {
 
           // return null if the pref doesn't exist
           if (prefs.getPrefType(prefName) == prefs.PREF_INVALID)
-            return null;
+            return;
         } else if (aMessage.json.op == "set") {
           if (!prefName || !prefType  || prefValue === null)
             throw new SpecialPowersException("Invalid parameters for set in SPPrefService");
@@ -217,10 +214,10 @@ SpecialPowersObserverAPI.prototype = {
           case "":
             if (aMessage.json.op == "clear") {
               prefs.clearUserPref(prefName);
-              return undefined;
+              return;
             }
         }
-        return undefined;	// See comment at the beginning of this function.
+        break;
 
       case "SPProcessCrashService":
         switch (aMessage.json.op) {
@@ -237,7 +234,7 @@ SpecialPowersObserverAPI.prototype = {
           default:
             throw new SpecialPowersException("Invalid operation for SPProcessCrashService");
         }
-        return undefined;	// See comment at the beginning of this function.
+        break;
 
       case "SPPermissionManager":
         let msg = aMessage.json;
@@ -269,7 +266,7 @@ SpecialPowersObserverAPI.prototype = {
             throw new SpecialPowersException("Invalid operation for " +
                                              "SPPermissionManager");
         }
-        return undefined;	// See comment at the beginning of this function.
+        break;
 
       case "SPWebAppService":
         let Webapps = {};
@@ -282,7 +279,7 @@ SpecialPowersObserverAPI.prototype = {
           default:
             throw new SpecialPowersException("Invalid operation for SPWebAppsService");
         }
-        return undefined;	// See comment at the beginning of this function.
+        break;
 
       case "SPObserverService":
         switch (aMessage.json.op) {
@@ -294,7 +291,7 @@ SpecialPowersObserverAPI.prototype = {
           default:
             throw new SpecialPowersException("Invalid operation for SPObserverervice");
         }
-        return undefined;	// See comment at the beginning of this function.
+        break;
 
       case "SPLoadChromeScript":
         var url = aMessage.json.url;
@@ -334,7 +331,7 @@ SpecialPowersObserverAPI.prototype = {
           throw new SpecialPowersException("Error while executing chrome " +
                                            "script '" + url + "':\n" + e);
         }
-        return undefined;	// See comment at the beginning of this function.
+        break;
 
       case "SPChromeScriptMessage":
         var id = aMessage.json.id;
@@ -343,16 +340,11 @@ SpecialPowersObserverAPI.prototype = {
         this._chromeScriptListeners
             .filter(o => (o.name == name && o.id == id))
             .forEach(o => o.listener(message));
-        return undefined;	// See comment at the beginning of this function.
+        break;
 
       default:
         throw new SpecialPowersException("Unrecognized Special Powers API");
     }
-
-    // We throw an exception before reaching this explicit return because
-    // we should never be arriving here anyway.
-    throw new SpecialPowersException("Unreached code");
-    return undefined;
   }
 };
 

@@ -368,7 +368,7 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
     else  
       aDesiredSize.mBoundingMetrics += bm;
 
-    FinishReflowChild(childFrame, aPresContext, childSize, nullptr,
+    FinishReflowChild(childFrame, aPresContext, nullptr, childSize, 
                       dx, ascent - childSize.TopAscent(), 0);
     dx += childSize.Width();
 

@@ -113,7 +113,7 @@ function reloadAllTabs(aState, aCallback) {
   };
 
   let loadCount = 0;
-  gWebProgressListener.setCallback(function (aBrowser) {
+  gProgressListener.setCallback(function (aBrowser, aNeedRestore, aRestoring, aRestored) {
     if (++loadCount <= aState.windows[0].tabs.length) {
       // double check that this tab was the right one
       let expectedData = aState.windows[0].tabs[loadCount - 1].extData.uniq;
@@ -126,7 +126,7 @@ function reloadAllTabs(aState, aCallback) {
          "load " + loadCount + " - correct tab was reloaded");
 
       if (loadCount == aState.windows[0].tabs.length) {
-        gWebProgressListener.unsetCallback();
+        gProgressListener.unsetCallback();
         executeSoon(aCallback);
       } else {
         // reload the next tab
@@ -134,7 +134,7 @@ function reloadAllTabs(aState, aCallback) {
         BrowserReloadOrDuplicate(fakeEvent);
       }
     }
-  });
+  }, false);
 
   BrowserReloadOrDuplicate(fakeEvent);
 }

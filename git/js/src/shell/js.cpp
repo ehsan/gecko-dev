@@ -2342,7 +2342,7 @@ GetPDA(JSContext *cx, unsigned argc, jsval *vp)
     RootedValue alias(cx);
 
     for (uint32_t i = 0; i < pda.length; i++, pd++) {
-        pdobj = JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr());
+        pdobj = JS_NewObject(cx, nullptr, nullptr, nullptr);
         if (!pdobj) {
             ok = false;
             break;
@@ -3087,20 +3087,20 @@ Parent(JSContext *cx, unsigned argc, jsval *vp)
 static bool
 Compile(JSContext *cx, unsigned argc, jsval *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    if (args.length() < 1) {
+    if (argc < 1) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_MORE_ARGS_NEEDED,
                              "compile", "0", "s");
         return false;
     }
-    if (!args[0].isString()) {
-        const char *typeName = JS_GetTypeName(cx, JS_TypeOfValue(cx, args[0]));
+    jsval arg0 = JS_ARGV(cx, vp)[0];
+    if (!JSVAL_IS_STRING(arg0)) {
+        const char *typeName = JS_GetTypeName(cx, JS_TypeOfValue(cx, arg0));
         JS_ReportError(cx, "expected string to compile, got %s", typeName);
         return false;
     }
 
     RootedObject global(cx, JS::CurrentGlobalOrNull(cx));
-    JSString *scriptContents = args[0].toString();
+    JSString *scriptContents = JSVAL_TO_STRING(arg0);
     JS::AutoSaveContextOptions asco(cx);
     JS::ContextOptionsRef(cx).setNoScriptRval(true);
     JS::CompileOptions options(cx);
@@ -3108,7 +3108,7 @@ Compile(JSContext *cx, unsigned argc, jsval *vp)
            .setCompileAndGo(true);
     bool ok = JS_CompileUCScript(cx, global, JS_GetStringCharsZ(cx, scriptContents),
                                  JS_GetStringLength(scriptContents), options);
-    args.rval().setUndefined();
+    JS_SET_RVAL(cx, vp, UndefinedValue());
     return ok;
 }
 
@@ -3884,7 +3884,7 @@ ObjectEmulatingUndefined(JSContext *cx, unsigned argc, jsval *vp)
         JS_ConvertStub
     };
 
-    RootedObject obj(cx, JS_NewObject(cx, &cls, JS::NullPtr(), JS::NullPtr()));
+    RootedObject obj(cx, JS_NewObject(cx, &cls, nullptr, nullptr));
     if (!obj)
         return false;
     JS_SET_RVAL(cx, vp, ObjectValue(*obj));
@@ -4834,13 +4834,14 @@ static const JSJitInfo dom_x_getterinfo = {
     0,        /* protoID */
     0,        /* depth */
     JSJitInfo::Getter,
-    JSVAL_TYPE_UNKNOWN, /* returnType */
     true,     /* isInfallible. False in setters. */
     true,     /* isMovable */
+    JSJitInfo::AliasNone, /* aliasSet */
     false,    /* isInSlot */
-    false,    /* isTypedMethod */
     0,        /* slotIndex */
-    JSJitInfo::AliasNone /* aliasSet */
+    JSVAL_TYPE_UNKNOWN, /* returnType */
+    nullptr,  /* argTypes */
+    nullptr   /* parallelNative */
 };
 
 static const JSJitInfo dom_x_setterinfo = {
@@ -4848,13 +4849,14 @@ static const JSJitInfo dom_x_setterinfo = {
     0,        /* protoID */
     0,        /* depth */
     JSJitInfo::Setter,
-    JSVAL_TYPE_UNKNOWN, /* returnType */
     false,    /* isInfallible. False in setters. */
     false,    /* isMovable. */
+    JSJitInfo::AliasEverything, /* aliasSet */
     false,    /* isInSlot */
-    false,    /* isTypedMethod */
     0,        /* slotIndex */
-    JSJitInfo::AliasEverything /* aliasSet */
+    JSVAL_TYPE_UNKNOWN, /* returnType */
+    nullptr,  /* argTypes */
+    nullptr   /* parallelNative */
 };
 
 static const JSJitInfo doFoo_methodinfo = {
@@ -4862,13 +4864,14 @@ static const JSJitInfo doFoo_methodinfo = {
     0,        /* protoID */
     0,        /* depth */
     JSJitInfo::Method,
-    JSVAL_TYPE_UNKNOWN, /* returnType */
     false,    /* isInfallible. False in setters. */
     false,    /* isMovable */
+    JSJitInfo::AliasEverything, /* aliasSet */
     false,    /* isInSlot */
-    false,    /* isTypedMethod */
     0,        /* slotIndex */
-    JSJitInfo::AliasEverything /* aliasSet */
+    JSVAL_TYPE_UNKNOWN, /* returnType */
+    nullptr,  /* argTypes */
+    nullptr   /* parallelNative */
 };
 
 static const JSPropertySpec dom_props[] = {
@@ -4999,8 +5002,7 @@ dom_constructor(JSContext* cx, unsigned argc, JS::Value *vp)
         return false;
     }
 
-    RootedObject proto(cx, &protov.toObject());
-    RootedObject domObj(cx, JS_NewObject(cx, &dom_class, proto, JS::NullPtr()));
+    RootedObject domObj(cx, JS_NewObject(cx, &dom_class, &protov.toObject(), nullptr));
     if (!domObj)
         return false;
 

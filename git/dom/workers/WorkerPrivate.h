@@ -385,6 +385,9 @@ public:
 #endif
 
   void
+  UpdateJITHardening(JSContext* aCx, bool aJITHardening);
+
+  void
   GarbageCollect(JSContext* aCx, bool aShrinking);
 
   void
@@ -893,6 +896,9 @@ public:
   void
   UpdateGCZealInternal(JSContext* aCx, uint8_t aGCZeal, uint32_t aFrequency);
 #endif
+
+  void
+  UpdateJITHardeningInternal(JSContext* aCx, bool aJITHardening);
 
   void
   GarbageCollectInternal(JSContext* aCx, bool aShrinking,

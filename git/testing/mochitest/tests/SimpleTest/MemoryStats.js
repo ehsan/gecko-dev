@@ -35,24 +35,6 @@ MemoryStats._getService = function (className, interfaceName) {
     return service;
 }
 
-MemoryStats._nsIFile = function (pathname) {
-    var f;
-    var contractID = "@mozilla.org/file/local;1";
-    try {
-        f = Cc[contractID].createInstance(Ci.nsIFile);
-    } catch(e) {
-        f = SpecialPowers.Cc[contractID].createInstance(SpecialPowers.Ci.nsIFile);
-    }
-    f.initWithPath(pathname);
-    return f;
-}
-
-MemoryStats.constructPathname = function (directory, basename) {
-    var d = MemoryStats._nsIFile(directory);
-    d.append(basename);
-    return d.path;
-}
-
 MemoryStats.dump = function (dumpFn,
                              testNumber,
                              testURL,
@@ -82,9 +64,7 @@ MemoryStats.dump = function (dumpFn,
     }
 
     if (dumpAboutMemory) {
-        var basename = "about-memory-" + testNumber + ".json.gz";
-        var dumpfile = MemoryStats.constructPathname(dumpOutputDirectory,
-                                                     basename);
+        var dumpfile = dumpOutputDirectory + "/about-memory-" + testNumber + ".json.gz";
         dumpFn("TEST-INFO | " + testURL + " | MEMDUMP-START " + dumpfile);
         var md = MemoryStats._getService("@mozilla.org/memory-info-dumper;1",
                                          "nsIMemoryInfoDumper");
@@ -95,9 +75,7 @@ MemoryStats.dump = function (dumpFn,
     }
 
     if (dumpDMD && typeof(DMDReportAndDump) != undefined) {
-        var basename = "dmd-" + testNumber + ".txt";
-        var dumpfile = MemoryStats.constructPathname(dumpOutputDirectory,
-                                                     basename);
+        var dumpfile = dumpOutputDirectory + "/dmd-" + testNumber + ".txt";
         dumpFn("TEST-INFO | " + testURL + " | DMD-DUMP " + dumpfile);
         DMDReportAndDump(dumpfile);
     }

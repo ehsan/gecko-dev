@@ -862,9 +862,9 @@ XPCWrappedNative::Init(HandleObject parent,
                jsclazz->convert &&
                jsclazz->finalize, "bad class");
 
-    RootedObject protoJSObject(cx, HasProto() ?
-                                   GetProto()->GetJSProtoObject() :
-                                   JS_GetObjectPrototype(cx, parent));
+    JSObject* protoJSObject = HasProto() ?
+                                GetProto()->GetJSProtoObject() :
+                                JS_GetObjectPrototype(cx, parent);
     if (!protoJSObject) {
         return false;
     }
@@ -1212,7 +1212,7 @@ XPCWrappedNative::ReparentWrapperIfFound(XPCWrappedNativeScope* aOldScope,
         {
             AutoClonePrivateGuard cloneGuard(cx, flat, newobj);
 
-            propertyHolder = JS_NewObjectWithGivenProto(cx, nullptr, JS::NullPtr(),
+            propertyHolder = JS_NewObjectWithGivenProto(cx, nullptr, nullptr,
                                                         aNewParent);
             if (!propertyHolder)
                 return NS_ERROR_OUT_OF_MEMORY;
@@ -1669,10 +1669,9 @@ XPCWrappedNative::InitTearOffJSObject(XPCWrappedNativeTearOff* to)
 {
     AutoJSContext cx;
 
-    RootedObject proto(cx, JS_GetObjectPrototype(cx, mFlatJSObject));
-    RootedObject parent(cx, mFlatJSObject);
     JSObject* obj = JS_NewObject(cx, Jsvalify(&XPC_WN_Tearoff_JSClass),
-                                 proto, parent);
+                                 JS_GetObjectPrototype(cx, mFlatJSObject),
+                                 mFlatJSObject);
     if (!obj)
         return false;
 

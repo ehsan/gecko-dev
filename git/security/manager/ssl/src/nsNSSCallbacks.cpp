@@ -892,8 +892,7 @@ PreliminaryHandshakeDone(PRFileDesc* fd)
   unsigned int npnlen;
 
   if (SSL_GetNextProto(fd, &state, npnbuf, &npnlen, 256) == SECSuccess) {
-    if (state == SSL_NEXT_PROTO_NEGOTIATED ||
-        state == SSL_NEXT_PROTO_SELECTED) {
+    if (state == SSL_NEXT_PROTO_NEGOTIATED) {
       infoObject->SetNegotiatedNPN(reinterpret_cast<char *>(npnbuf), npnlen);
     }
     else {

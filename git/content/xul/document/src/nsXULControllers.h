@@ -16,6 +16,7 @@
 #include "nsTArray.h"
 #include "nsWeakPtr.h"
 #include "nsIControllers.h"
+#include "nsISecurityCheckedComponent.h"
 #include "nsCycleCollectionParticipant.h"
 
 /* non-XPCOM class for holding controllers and their IDs */
@@ -45,7 +46,8 @@ public:
 
 nsresult NS_NewXULControllers(nsISupports* aOuter, REFNSIID aIID, void** aResult);
 
-class nsXULControllers : public nsIControllers
+class nsXULControllers : public nsIControllers,
+                         public nsISecurityCheckedComponent
 {
 public:
     friend nsresult
@@ -54,6 +56,7 @@ public:
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
     NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsXULControllers, nsIControllers)
     NS_DECL_NSICONTROLLERS
+    NS_DECL_NSISECURITYCHECKEDCOMPONENT
   
 protected:
     nsXULControllers();
