@@ -10,13 +10,13 @@
 
 const TEST_URL = "data:text/html,<div id='parent'><div id='first'></div><div id='second'></div><div id='third'></div></div>";
 
-function* checkDeleteAndSelection(inspector, key, nodeSelector, focusedNodeSelector) {
+function* checkDeleteAndSelection(inspector, nodeSelector, focusedNodeSelector) {
   yield selectNode(nodeSelector, inspector);
   yield clickContainer(nodeSelector, inspector);
 
-  info(`Deleting the element "${nodeSelector}" using the ${key} key`);
+  info("Deleting the element \"" + nodeSelector + "\" with the keyboard");
   let mutated = inspector.once("markupmutation");
-  EventUtils.sendKey(key, inspector.panelWin);
+  EventUtils.sendKey("delete", inspector.panelWin);
 
   yield Promise.all([mutated, inspector.once("inspector-updated")]);
 
@@ -36,24 +36,9 @@ let test = asyncTest(function*() {
 
   info("Selecting the test node by clicking on it to make sure it receives focus");
 
-  yield checkDeleteAndSelection(inspector, "delete", "#first", "#second");
-  yield checkDeleteAndSelection(inspector, "delete", "#second", "#third");
-  yield checkDeleteAndSelection(inspector, "delete", "#third", "#second");
-
-  yield checkDeleteAndSelection(inspector, "back_space", "#first", "#second");
-  yield checkDeleteAndSelection(inspector, "back_space", "#second", "#first");
-  yield checkDeleteAndSelection(inspector, "back_space", "#third", "#second");
-
-  // Removing the siblings of #first.
-  let mutated = inspector.once("markupmutation");
-  for (let node of content.document.querySelectorAll("#second, #third")) {
-    node.remove();
-  }
-  yield mutated;
-  // Testing with an only child.
-  info("testing with an only child");
-  yield checkDeleteAndSelection(inspector, "delete", "#first", "#parent");
-  yield checkDeleteAndSelection(inspector, "back_space", "#first", "#parent");
+  yield checkDeleteAndSelection(inspector, "#first", "#parent");
+  yield checkDeleteAndSelection(inspector, "#second", "#first");
+  yield checkDeleteAndSelection(inspector, "#third", "#second");
 
   yield inspector.once("inspector-updated");
 });

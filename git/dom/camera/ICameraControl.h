@@ -55,7 +55,6 @@ enum {
   CAMERA_PARAM_SCENEMODE_HDR_RETURNNORMALPICTURE,
   CAMERA_PARAM_RECORDINGHINT,
   CAMERA_PARAM_PREFERRED_PREVIEWSIZE_FOR_VIDEO,
-  CAMERA_PARAM_METERINGMODE,
 
   // supported features
   CAMERA_PARAM_SUPPORTED_PREVIEWSIZES,
@@ -76,8 +75,7 @@ enum {
   CAMERA_PARAM_SUPPORTED_ZOOMRATIOS,
   CAMERA_PARAM_SUPPORTED_MAXDETECTEDFACES,
   CAMERA_PARAM_SUPPORTED_JPEG_THUMBNAIL_SIZES,
-  CAMERA_PARAM_SUPPORTED_ISOMODES,
-  CAMERA_PARAM_SUPPORTED_METERINGMODES
+  CAMERA_PARAM_SUPPORTED_ISOMODES
 };
 
 class ICameraControl
@@ -253,7 +251,7 @@ public:
   virtual nsresult StopPreview() = 0;
   virtual nsresult AutoFocus() = 0;
   virtual nsresult TakePicture() = 0;
-  virtual nsresult StartRecording(DeviceStorageFileDescriptor* aFileDescriptor,
+  virtual nsresult StartRecording(DeviceStorageFileDescriptor *aFileDescriptor,
                                   const StartRecordingOptions* aOptions = nullptr) = 0;
   virtual nsresult StopRecording() = 0;
   virtual nsresult StartFaceDetection() = 0;
@@ -294,6 +292,10 @@ public:
 
   virtual nsresult GetRecorderProfiles(nsTArray<nsString>& aProfiles) = 0;
   virtual RecorderProfile* GetProfileInfo(const nsAString& aProfile) = 0;
+
+  virtual uint32_t GetCameraId() = 0;
+
+  virtual void Shutdown() = 0;
 
 protected:
   virtual ~ICameraControl() { }

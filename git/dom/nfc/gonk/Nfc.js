@@ -397,7 +397,7 @@ Nfc.prototype = {
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver, Ci.nsINfcGonkEventListener]),
 
-  rfState: NFC.NFC_RF_STATE_IDLE,
+  rfState: null,
 
   nfcService: null,
 
@@ -476,10 +476,7 @@ Nfc.prototype = {
           gMessageManager.onTagFound(message);
         }
 
-        let sysMsg = new NfcTechDiscoveredSysMsg(message.sessionToken,
-                                                 message.isP2P,
-                                                 message.records);
-        gSystemMessenger.broadcastMessage("nfc-manager-tech-discovered", sysMsg);
+        gSystemMessenger.broadcastMessage("nfc-manager-tech-discovered", message);
         break;
       case "TechLostNotification":
         message.type = "techLost";
@@ -584,11 +581,8 @@ Nfc.prototype = {
         // the data to alternate carrier's (BT / WiFi) 'sendFile' interface.
 
         // Notify system app to initiate BT send file operation
-        let sysMsg = new NfcSendFileSysMsg(message.data.requestId,
-                                           message.data.sessionToken,
-                                           message.data.blob);
         gSystemMessenger.broadcastMessage("nfc-manager-send-file",
-                                          sysMsg);
+                                           message.data);
         break;
       case "NFC:QueryInfo":
         return {rfState: this.rfState};
@@ -634,32 +628,6 @@ Nfc.prototype = {
     this.nfcService.shutdown();
     this.nfcService = null;
   }
-};
-
-function NfcTechDiscoveredSysMsg(sessionToken, isP2P, records) {
-  this.sessionToken = sessionToken;
-  this.isP2P = isP2P;
-  this.records = records;
-}
-NfcTechDiscoveredSysMsg.prototype = {
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsINfcTechDiscoveredSysMsg]),
-
-  sessionToken: null,
-  isP2P: null,
-  records: null
-};
-
-function NfcSendFileSysMsg(requestId, sessionToken, blob) {
-  this.requestId = requestId;
-  this.sessionToken = sessionToken;
-  this.blob = blob;
-}
-NfcSendFileSysMsg.prototype = {
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsINfcSendFileSysMsg]),
-
-  requestId: null,
-  sessionToken: null,
-  blob: null
 };
 
 if (NFC_ENABLED) {

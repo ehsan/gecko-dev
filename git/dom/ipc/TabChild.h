@@ -659,8 +659,6 @@ private:
     // Position of tab, relative to parent widget (typically the window)
     nsIntPoint mChromeDisp;
     TabId mUniqueId;
-    float mDPI;
-    double mDefaultScale;
 
     DISALLOW_EVIL_CONSTRUCTORS(TabChild);
 };

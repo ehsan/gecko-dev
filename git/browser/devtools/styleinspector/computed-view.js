@@ -555,7 +555,6 @@ CssHtmlTree.prototype = {
     for (let propView of this.propertyViews) {
       propView.updateSourceLinks();
     }
-    this.inspector.emit("computed-view-sourcelinks-updated");
   },
 
   /**
@@ -1379,7 +1378,7 @@ SelectorView.prototype = {
    */
   updateSourceLink: function()
   {
-    return this.updateSource().then((oldSource) => {
+    this.updateSource().then((oldSource) => {
       if (oldSource != this.source && this.tree.element) {
         let selector = '[sourcelocation="' + oldSource + '"]';
         let link = this.tree.element.querySelector(selector);

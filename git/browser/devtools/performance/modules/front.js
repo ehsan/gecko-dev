@@ -19,6 +19,8 @@ loader.lazyRequireGetter(this, "DevToolsUtils",
 loader.lazyImporter(this, "gDevTools",
   "resource:///modules/devtools/gDevTools.jsm");
 
+let showTimelineMemory = () => Services.prefs.getBoolPref("devtools.performance.ui.show-timeline-memory");
+
 /**
  * A cache of all PerformanceActorsConnection instances. The keys are Target objects.
  */
@@ -210,13 +212,10 @@ PerformanceFront.prototype = {
   /**
    * Manually begins a recording session.
    *
-   * @param object options
-   *        An options object to pass to the timeline front. Supported
-   *        properties are `withTicks` and `withMemory`.
    * @return object
    *         A promise that is resolved once recording has started.
    */
-  startRecording: Task.async(function*(options = {}) {
+  startRecording: Task.async(function*() {
     let { isActive, currentTime } = yield this._request("profiler", "isActive");
 
     // Start the profiler only if it wasn't already active. The built-in
@@ -237,9 +236,12 @@ PerformanceFront.prototype = {
 
     // The timeline actor is target-dependent, so just make sure
     // it's recording.
+    let withMemory = showTimelineMemory();
 
     // Return start time from timeline actor
-    let startTime = yield this._request("timeline", "start", options);
+    let startTime = yield this._request("timeline", "start", { withTicks: true, withMemory: withMemory });
+    this._startTime = startTime;
+
     return { startTime };
   }),
 
@@ -257,7 +259,7 @@ PerformanceFront.prototype = {
     filterSamples(profilerData, this._profilingStartTime);
     offsetSampleTimes(profilerData, this._profilingStartTime);
 
-    let endTime = yield this._request("timeline", "stop");
+    let endTime = this._endTime = yield this._request("timeline", "stop");
 
     // Join all the acquired data and return it for outside consumers.
     return {

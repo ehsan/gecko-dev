@@ -53,7 +53,6 @@ const WATERFALL_ROWCOUNT_ONPAGEUPDOWN = 10;
  */
 function Waterfall(parent, container) {
   EventEmitter.decorate(this);
-
   this._parent = parent;
   this._document = parent.ownerDocument;
   this._container = container;
@@ -88,13 +87,9 @@ function Waterfall(parent, container) {
 }
 
 Waterfall.prototype = {
-  /**
-   * Removes any node references from this view.
-   */
   destroy: function() {
     this._parent = this._document = this._container = null;
   },
-
   /**
    * Populates this view with the provided data source.
    *

@@ -77,6 +77,8 @@ abstract class BaseTest extends BaseRobocopTest {
     protected Solo mSolo;
     protected Driver mDriver;
     protected Actions mActions;
+    protected String mBaseUrl;
+    protected String mRawBaseUrl;
     protected String mProfile;
     public Device mDevice;
     protected DatabaseHelper mDatabaseHelper;
@@ -111,6 +113,8 @@ abstract class BaseTest extends BaseRobocopTest {
         super.setUp();
 
         // Create the intent to be used with all the important arguments.
+        mBaseUrl = mConfig.get("host").replaceAll("(/$)", "");
+        mRawBaseUrl = mConfig.get("rawhost").replaceAll("(/$)", "");
         Intent i = new Intent(Intent.ACTION_MAIN);
         mProfile = mConfig.get("profile");
         i.putExtra("args", "-no-remote -profile " + mProfile);
@@ -307,11 +311,11 @@ abstract class BaseTest extends BaseRobocopTest {
     }
 
     protected final String getAbsoluteUrl(String url) {
-        return mBaseHostnameUrl + "/" + url.replaceAll("(^/)", "");
+        return mBaseUrl + "/" + url.replaceAll("(^/)", "");
     }
 
     protected final String getAbsoluteRawUrl(String url) {
-        return mBaseIpUrl + "/" + url.replaceAll("(^/)", "");
+        return mRawBaseUrl + "/" + url.replaceAll("(^/)", "");
     }
 
     /*
