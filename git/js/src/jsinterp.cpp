@@ -739,7 +739,15 @@ InternalInvoke(JSContext *cx, const Value &thisv, const Value &fval, uintN flags
     if (!Invoke(cx, args, flags))
         return JS_FALSE;
 
+    /*
+     * Store *rval in the lastInternalResult pigeon-hole GC root, solely
+     * so users of js_InternalInvoke and its direct and indirect
+     * (js_ValueToString for example) callers do not need to manage roots
+     * for local, temporary references to such results.
+     */
     *rval = args.rval();
+    if (rval->isMarkable())
+        cx->weakRoots.lastInternalResult = rval->asGCThing();
 
     return JS_TRUE;
 }
@@ -5939,9 +5947,11 @@ END_CASE(JSOP_NEWINIT)
 
 BEGIN_CASE(JSOP_ENDINIT)
 {
-    /* FIXME remove JSOP_ENDINIT bug 588522 */
+    /* Re-set the newborn root to the top of this object tree. */
     JS_ASSERT(regs.sp - fp->base() >= 1);
-    JS_ASSERT(regs.sp[-1].isObject());
+    const Value &lref = regs.sp[-1];
+    JS_ASSERT(lref.isObject());
+    cx->weakRoots.finalizableNewborns[FINALIZE_OBJECT] = &lref.toObject();
 }
 END_CASE(JSOP_ENDINIT)
 
