@@ -18,6 +18,7 @@
 #include "AccessCheck.h"
 #include "nsJSUtils.h"
 
+#include "dombindings.h"
 #include "nsWrapperCacheInlines.h"
 
 #include "jsapi.h"

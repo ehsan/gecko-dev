@@ -32,7 +32,6 @@ let FormAssistant = {
     addEventListener("resize", this, true, false);
     addMessageListener("Forms:Select:Choice", this);
     addMessageListener("Forms:Input:Value", this);
-    addMessageListener("Forms:Select:Blur", this);
     Services.obs.addObserver(this, "ime-enabled-state-changed", false);
     Services.obs.addObserver(this, "xpcom-shutdown", false);
   },
@@ -49,9 +48,6 @@ let FormAssistant = {
     if (this.focusedElement) {
       this.focusedElement.removeEventListener('mousedown', this);
       this.focusedElement.removeEventListener('mouseup', this);
-      if (!element) {
-        this.focusedElement.blur();
-      }
     }
 
     if (element) {
@@ -190,11 +186,6 @@ let FormAssistant = {
           target.dispatchEvent(event);
         }
         break;
-
-      case "Forms:Select:Blur": {
-        this.setFocusedElement(null);
-        break;
-      }
     }
   },
 

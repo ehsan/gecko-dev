@@ -1186,7 +1186,8 @@ nsresult nsCharsetMenu::AddCharsetToItemArray(nsTArray<nsMenuEntry*> *aArray,
 
   item->mCharset = aCharset;
 
-  if (NS_FAILED(mCCManager->GetCharsetTitle(aCharset.get(), item->mTitle))) {
+  res = mCCManager->GetCharsetTitle(aCharset.get(), item->mTitle);
+  if (NS_FAILED(res)) {
     item->mTitle.AssignWithConversion(aCharset.get());
   }
 

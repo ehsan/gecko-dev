@@ -5,6 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "HTMLPropertiesCollection.h"
+#include "dombindings.h"
 #include "nsIDocument.h"
 #include "nsContentUtils.h"
 #include "nsGenericHTMLElement.h"
@@ -109,7 +110,14 @@ JSObject*
 HTMLPropertiesCollection::WrapObject(JSContext* cx, JSObject* scope,
                                      bool* triedToWrap)
 {
-  return HTMLPropertiesCollectionBinding::Wrap(cx, scope, this, triedToWrap);
+  JSObject* obj = HTMLPropertiesCollectionBinding::Wrap(cx, scope, this,
+                                                        triedToWrap);
+  if (obj || *triedToWrap) {
+    return obj;
+  }
+
+  *triedToWrap = true;
+  return oldproxybindings::HTMLPropertiesCollection::create(cx, scope, this);
 }
 
 NS_IMETHODIMP
@@ -148,6 +156,24 @@ HTMLPropertiesCollection::NamedItem(JSContext* cx, const nsAString& name,
   // that returns a PropertyNodeList, calling HTMLCollection.namedItem doesn't
   // make sense so this returns null.
   return nullptr;
+}
+
+nsISupports*
+HTMLPropertiesCollection::GetNamedItem(const nsAString& aName,
+                                       nsWrapperCache **aCache)
+{
+  if (!IsSupportedNamedProperty(aName)) {
+    *aCache = NULL;
+    return NULL;
+  }
+
+  nsRefPtr<PropertyNodeList> propertyList;
+  if (!mNamedItemEntries.Get(aName, getter_AddRefs(propertyList))) {
+    propertyList = new PropertyNodeList(this, mRoot, aName);
+    mNamedItemEntries.Put(aName, propertyList);
+  }
+  *aCache = propertyList;
+  return static_cast<nsIDOMPropertyNodeList*>(propertyList);
 }
 
 nsGenericElement*
@@ -403,7 +429,7 @@ PropertyNodeList::Item(uint32_t aIndex, nsIDOMNode** aReturn)
 }
 
 nsIContent*
-PropertyNodeList::Item(uint32_t aIndex)
+PropertyNodeList::GetNodeAt(uint32_t aIndex)
 {
   EnsureFresh();
   return mElements.SafeElementAt(aIndex);
@@ -423,9 +449,16 @@ PropertyNodeList::GetParentObject()
 }
 
 JSObject*
-PropertyNodeList::WrapObject(JSContext *cx, JSObject *scope, bool *triedToWrap)
+PropertyNodeList::WrapObject(JSContext *cx, JSObject *scope,
+                             bool *triedToWrap)
 {
-  return PropertyNodeListBinding::Wrap(cx, scope, this, triedToWrap);
+  JSObject* obj = PropertyNodeListBinding::Wrap(cx, scope, this, triedToWrap);
+  if (obj || *triedToWrap) {
+    return obj;
+  }
+
+  *triedToWrap = true;
+  return oldproxybindings::PropertyNodeList::create(cx, scope, this);
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(PropertyNodeList)

@@ -100,7 +100,10 @@ UnwrapDOMObject(JSObject* obj, DOMObjectSlot slot)
   if (IsDOMClass(js::GetObjectClass(obj))) {
     MOZ_ASSERT(slot == eRegularDOMObject);
   } else {
-    MOZ_ASSERT(IsDOMProxy(obj));
+    MOZ_ASSERT(js::IsObjectProxyClass(js::GetObjectClass(obj)) ||
+               js::IsFunctionProxyClass(js::GetObjectClass(obj)));
+    MOZ_ASSERT(js::GetProxyHandler(obj)->family() == ProxyFamily());
+    MOZ_ASSERT(IsNewProxyBinding(js::GetProxyHandler(obj)));
     MOZ_ASSERT(slot == eProxyDOMObject);
   }
 #endif
@@ -126,8 +129,9 @@ GetDOMClass(JSObject* obj)
     return &DOMJSClass::FromJSClass(clasp)->mClass;
   }
 
-  MOZ_ASSERT(IsDOMProxy(obj));
   js::BaseProxyHandler* handler = js::GetProxyHandler(obj);
+  MOZ_ASSERT(handler->family() == ProxyFamily());
+  MOZ_ASSERT(IsNewProxyBinding(handler));
   return &static_cast<DOMProxyHandler*>(handler)->mClass;
 }
 
@@ -142,7 +146,7 @@ GetDOMClass(JSObject* obj, const DOMClass*& result)
 
   if (js::IsObjectProxyClass(clasp) || js::IsFunctionProxyClass(clasp)) {
     js::BaseProxyHandler* handler = js::GetProxyHandler(obj);
-    if (handler->family() == ProxyFamily()) {
+    if (handler->family() == ProxyFamily() && IsNewProxyBinding(handler)) {
       result = &static_cast<DOMProxyHandler*>(handler)->mClass;
       return eProxyDOMObject;
     }
@@ -170,7 +174,8 @@ IsDOMObject(JSObject* obj)
   js::Class* clasp = js::GetObjectClass(obj);
   return IsDOMClass(clasp) ||
          ((js::IsObjectProxyClass(clasp) || js::IsFunctionProxyClass(clasp)) &&
-          js::GetProxyHandler(obj)->family() == ProxyFamily());
+          (js::GetProxyHandler(obj)->family() == ProxyFamily() &&
+           IsNewProxyBinding(js::GetProxyHandler(obj))));
 }
 
 // Some callers don't want to set an exception when unwrapping fails

@@ -26,6 +26,7 @@
 #include "nsIHTMLCollection.h"
 #include "nsHTMLStyleSheet.h"
 #include "mozilla/dom/HTMLCollectionBinding.h"
+#include "dombindings.h"
 
 using namespace mozilla;
 
@@ -44,7 +45,6 @@ public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_NSIDOMHTMLCOLLECTION
 
-  virtual nsGenericElement* GetElementAt(uint32_t aIndex);
   virtual nsINode* GetParentObject()
   {
     return mParent;
@@ -61,8 +61,15 @@ public:
   virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
                                bool *triedToWrap)
   {
-    return mozilla::dom::HTMLCollectionBinding::Wrap(cx, scope, this,
-                                                     triedToWrap);
+    JSObject* obj = mozilla::dom::HTMLCollectionBinding::Wrap(cx, scope, this,
+                                                              triedToWrap);
+    if (obj || *triedToWrap) {
+      return obj;
+    }
+
+    *triedToWrap = true;
+    return mozilla::dom::oldproxybindings::HTMLCollection::create(cx, scope,
+                                                                  this);
   }
 
 protected:
@@ -138,7 +145,7 @@ NS_INTERFACE_MAP_END
       nsContentList *_tbodies = mParent->TBodies();                  \
       nsINode * _node;                                               \
       uint32_t _tbodyIndex = 0;                                      \
-      _node = _tbodies->Item(_tbodyIndex);                           \
+      _node = _tbodies->GetNodeAt(_tbodyIndex);                      \
       while (_node) {                                                \
         rowGroup = do_QueryInterface(_node);                         \
         if (rowGroup) {                                              \
@@ -147,7 +154,7 @@ NS_INTERFACE_MAP_END
             _code                                                    \
           } while (0);                                               \
         }                                                            \
-        _node = _tbodies->Item(++_tbodyIndex);                       \
+        _node = _tbodies->GetNodeAt(++_tbodyIndex);                  \
       }                                                              \
       /* orphan rows */                                              \
       rows = mOrphanRows;                                            \
@@ -243,31 +250,48 @@ TableRowsCollection::Item(uint32_t aIndex, nsIDOMNode** aReturn)
   return CallQueryInterface(node, aReturn);
 }
 
+static nsISupports*
+GetNamedItemInRowGroup(nsIDOMHTMLCollection* aRows, const nsAString& aName,
+                       nsWrapperCache** aCache)
+{
+  nsCOMPtr<nsIHTMLCollection> rows = do_QueryInterface(aRows);
+  if (rows) {
+    return rows->GetNamedItem(aName, aCache);
+  }
+
+  return nullptr;
+}
+
+nsISupports* 
+TableRowsCollection::GetNamedItem(const nsAString& aName,
+                                  nsWrapperCache** aCache)
+{
+  DO_FOR_EACH_ROWGROUP(
+    nsISupports* item = GetNamedItemInRowGroup(rows, aName, aCache);
+    if (item) {
+      return item;
+    }
+  );
+  *aCache = nullptr;
+  return nullptr;
+}
+
 JSObject*
 TableRowsCollection::NamedItem(JSContext* cx, const nsAString& name,
                                ErrorResult& error)
 {
+  nsWrapperCache* cache;
   DO_FOR_EACH_ROWGROUP(
-    nsCOMPtr<nsIHTMLCollection> collection = do_QueryInterface(rows);
-    if (collection) {
-      // We'd like to call the nsIHTMLCollection::NamedItem that returns a
-      // JSObject*, but that relies on collection having a cached wrapper, which
-      // we can't guarantee here.
-      nsCOMPtr<nsIDOMNode> item;
-      error = collection->NamedItem(name, getter_AddRefs(item));
-      if (error.Failed()) {
+    nsISupports* item = GetNamedItemInRowGroup(rows, name, &cache);
+    if (item) {
+      JSObject* wrapper = GetWrapper();
+      JSAutoCompartment ac(cx, wrapper);
+      JS::Value v;
+      if (!mozilla::dom::WrapObject(cx, wrapper, item, cache, nullptr, &v)) {
+        error.Throw(NS_ERROR_FAILURE);
         return nullptr;
       }
-      if (item) {
-        JSObject* wrapper = GetWrapper();
-        JSAutoCompartment ac(cx, wrapper);
-        JS::Value v;
-        if (!mozilla::dom::WrapObject(cx, wrapper, item, &v)) {
-          error.Throw(NS_ERROR_FAILURE);
-          return nullptr;
-        }
-        return &v.toObject();
-      }
+      return &v.toObject();
     }
   );
   return nullptr;
@@ -277,18 +301,15 @@ NS_IMETHODIMP
 TableRowsCollection::NamedItem(const nsAString& aName,
                                nsIDOMNode** aReturn)
 {
-  DO_FOR_EACH_ROWGROUP(
-    nsCOMPtr<nsIHTMLCollection> collection = do_QueryInterface(rows);
-    if (collection) {
-      nsresult rv = collection->NamedItem(aName, aReturn);
-      if (NS_FAILED(rv) || *aReturn) {
-        return rv;
-      }
-    }
-  );
+  nsWrapperCache *cache;
+  nsISupports* item = GetNamedItem(aName, &cache);
+  if (!item) {
+    *aReturn = nullptr;
 
-  *aReturn = nullptr;
-  return NS_OK;
+    return NS_OK;
+  }
+
+  return CallQueryInterface(item, aReturn);
 }
 
 NS_IMETHODIMP

@@ -101,20 +101,24 @@ Image::DecrementAnimationConsumers()
   EvaluateAnimation();
 }
 
-nsresult
-Image::GetAnimationModeInternal(uint16_t* aAnimationMode)
+//******************************************************************************
+/* attribute unsigned short animationMode; */
+NS_IMETHODIMP
+Image::GetAnimationMode(uint16_t* aAnimationMode)
 {
   if (mError)
     return NS_ERROR_FAILURE;
 
   NS_ENSURE_ARG_POINTER(aAnimationMode);
-
+  
   *aAnimationMode = mAnimationMode;
   return NS_OK;
 }
 
-nsresult
-Image::SetAnimationModeInternal(uint16_t aAnimationMode)
+//******************************************************************************
+/* attribute unsigned short animationMode; */
+NS_IMETHODIMP
+Image::SetAnimationMode(uint16_t aAnimationMode)
 {
   if (mError)
     return NS_ERROR_FAILURE;
@@ -123,7 +127,7 @@ Image::SetAnimationModeInternal(uint16_t aAnimationMode)
                aAnimationMode == kDontAnimMode ||
                aAnimationMode == kLoopOnceAnimMode,
                "Wrong Animation Mode is being set!");
-
+  
   mAnimationMode = aAnimationMode;
 
   EvaluateAnimation();

@@ -12,8 +12,9 @@ function run_test() {
   logTestInfo("testing removing an active update for a channel that is not" +
               "valid due to switching channels (bug 486275)");
   removeUpdateDirsAndFiles();
+  setUpdateChannel("original_channel");
 
-  var patches, updates, update;
+  var patches, update, update;
 
   patches = getLocalPatchString(null, null, null, null, null, null,
                                 STATE_DOWNLOADING);
@@ -27,8 +28,6 @@ function run_test() {
                                  "3.0", "3.0", null, null, null, null, null,
                                  getString("patchApplyFailure"));
   writeUpdatesToXMLFile(getLocalUpdatesXMLString(updates), false);
-
-  setUpdateChannel("original_channel");
 
   standardInit();
 

@@ -281,15 +281,13 @@ let Activities = {
     let caller;
     let obsData;
 
-    if (aMessage.name == "Activity:PostResult" ||
-        aMessage.name == "Activity:PostError") {
+    if (aMessage.name == "Activity:FireSuccess" ||
+        aMessage.name == "Activity:FireError") {
       caller = this.callers[msg.id];
       if (caller) {
         obsData = JSON.stringify({ manifestURL: caller.manifestURL,
                                    pageURL: caller.pageURL,
-                                   success: aMessage.name == "Activity:PostResult" });
-      } else {
-        debug("!! caller is null for msg.id=" + msg.id);
+                                   success: aMessage.name == "Activity:FireSuccess" });
       }
     }
 

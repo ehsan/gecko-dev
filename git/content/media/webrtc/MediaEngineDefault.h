@@ -95,18 +95,13 @@ protected:
 class MediaEngineDefault : public MediaEngine
 {
 public:
-  MediaEngineDefault()
-  : mMutex("mozilla::MediaEngineDefault")
-  {}
+  MediaEngineDefault() {}
   ~MediaEngineDefault() {}
 
   virtual void EnumerateVideoDevices(nsTArray<nsRefPtr<MediaEngineVideoSource> >*);
   virtual void EnumerateAudioDevices(nsTArray<nsRefPtr<MediaEngineAudioSource> >*);
 
 private:
-  Mutex mMutex;
-  // protected with mMutex:
-
   nsTArray<nsRefPtr<MediaEngineVideoSource> > mVSources;
   nsTArray<nsRefPtr<MediaEngineAudioSource> > mASources;
 };

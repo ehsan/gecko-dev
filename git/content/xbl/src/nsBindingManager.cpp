@@ -44,6 +44,7 @@
 
 #include "nsThreadUtils.h"
 #include "mozilla/dom/NodeListBinding.h"
+#include "dombindings.h"
 
 // ==================================================================
 // = nsAnonymousContentList 
@@ -70,7 +71,6 @@ public:
   {
     return mContent;
   }
-  virtual nsIContent* Item(uint32_t aIndex);
 
   int32_t GetInsertionPointCount() { return mElements->Length(); }
 
@@ -80,7 +80,14 @@ public:
   virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
                                bool *triedToWrap)
   {
-    return mozilla::dom::NodeListBinding::Wrap(cx, scope, this, triedToWrap);
+    JSObject* obj = mozilla::dom::NodeListBinding::Wrap(cx, scope, this,
+                                                        triedToWrap);
+    if (obj || *triedToWrap) {
+      return obj;
+    }
+
+    *triedToWrap = true;
+    return mozilla::dom::oldproxybindings::NodeList::create(cx, scope, this);
   }
 
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ANONYMOUS_CONTENT_LIST_IID)
@@ -167,7 +174,7 @@ nsAnonymousContentList::GetLength(uint32_t* aLength)
 NS_IMETHODIMP    
 nsAnonymousContentList::Item(uint32_t aIndex, nsIDOMNode** aReturn)
 {
-  nsINode* item = Item(aIndex);
+  nsINode* item = GetNodeAt(aIndex);
   if (!item)
     return NS_ERROR_FAILURE;
 
@@ -175,7 +182,7 @@ nsAnonymousContentList::Item(uint32_t aIndex, nsIDOMNode** aReturn)
 }
 
 nsIContent*
-nsAnonymousContentList::Item(uint32_t aIndex)
+nsAnonymousContentList::GetNodeAt(uint32_t aIndex)
 {
   int32_t cnt = mElements->Length();
   uint32_t pointCount = 0;
