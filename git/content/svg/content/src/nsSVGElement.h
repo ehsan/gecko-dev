@@ -116,6 +116,8 @@ public:
 
   virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
 
+  virtual already_AddRefed<nsIURI> GetBaseURI() const;
+
   NS_IMETHOD WalkContentStyleRules(nsRuleWalker* aRuleWalker);
 
   static const MappedAttributeEntry sFillStrokeMap[];

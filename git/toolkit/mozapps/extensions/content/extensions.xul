@@ -577,6 +577,7 @@
                        <column flex="2"/>
                     </columns>
                     <rows>
+                      <row class="detail-row" id="detail-dateUpdated" label="&detail.lastupdated.label;"/>
                       <row class="detail-row-complex" id="detail-updates-row">
                         <label class="detail-row-label" value="&detail.updateType;"/>
                         <hbox align="center">
@@ -600,7 +601,6 @@
                                   command="cmd_findItemUpdates"/>
                         </hbox>
                       </row>
-                      <row class="detail-row" id="detail-dateUpdated" label="&detail.lastupdated.label;"/>
                       <row class="detail-row-complex" id="detail-homepage-row" label="&detail.home;">
                         <label class="detail-row-label" value="&detail.home;"/>
                         <label id="detail-homepage" class="detail-row-value text-link" crop="end"/>

@@ -47,7 +47,6 @@
 #include "nsServiceManagerUtils.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch2.h"
-#include "gfxFailure.h"
 
 namespace mozilla {
 namespace layers {
@@ -173,20 +172,17 @@ LayerManagerD3D9::EndTransaction(DrawThebesLayerCallback aCallback,
 {
   mDeviceResetCount = mDeviceManager->GetDeviceResetCount();
 
-  if (mRoot) {
-    mCurrentCallbackInfo.Callback = aCallback;
-    mCurrentCallbackInfo.CallbackData = aCallbackData;
+  mCurrentCallbackInfo.Callback = aCallback;
+  mCurrentCallbackInfo.CallbackData = aCallbackData;
 
-    // The results of our drawing always go directly into a pixel buffer,
-    // so we don't need to pass any global transform here.
-    mRoot->ComputeEffectiveTransforms(gfx3DMatrix());
+  // The results of our drawing always go directly into a pixel buffer,
+  // so we don't need to pass any global transform here.
+  mRoot->ComputeEffectiveTransforms(gfx3DMatrix());
 
-    Render();
-    /* Clean this out for sanity */
-    mCurrentCallbackInfo.Callback = NULL;
-    mCurrentCallbackInfo.CallbackData = NULL;
-  }
-
+  Render();
+  /* Clean this out for sanity */
+  mCurrentCallbackInfo.Callback = NULL;
+  mCurrentCallbackInfo.CallbackData = NULL;
   // Clear mTarget, next transaction could have no target
   mTarget = NULL;
 }
@@ -253,8 +249,6 @@ LayerManagerD3D9::ReportFailure(const nsACString &aMsg, HRESULT aCode)
   msg.AppendLiteral(" Error code: ");
   msg.AppendInt(PRUint32(aCode));
   NS_WARNING(msg.BeginReading());
-
-  gfx::LogFailure(msg);
 }
 
 void
@@ -273,21 +267,23 @@ LayerManagerD3D9::Render()
 
   device()->BeginScene();
 
-  const nsIntRect *clipRect = mRoot->GetClipRect();
-  RECT r;
-  if (clipRect) {
-    r.left = (LONG)clipRect->x;
-    r.top = (LONG)clipRect->y;
-    r.right = (LONG)(clipRect->x + clipRect->width);
-    r.bottom = (LONG)(clipRect->y + clipRect->height);
-  } else {
-    r.left = r.top = 0;
-    r.right = rect.width;
-    r.bottom = rect.height;
-  }
-  device()->SetScissorRect(&r);
+  if (mRoot) {
+    const nsIntRect *clipRect = mRoot->GetClipRect();
+    RECT r;
+    if (clipRect) {
+      r.left = (LONG)clipRect->x;
+      r.top = (LONG)clipRect->y;
+      r.right = (LONG)(clipRect->x + clipRect->width);
+      r.bottom = (LONG)(clipRect->y + clipRect->height);
+    } else {
+      r.left = r.top = 0;
+      r.right = rect.width;
+      r.bottom = rect.height;
+    }
+    device()->SetScissorRect(&r);
 
-  static_cast<LayerD3D9*>(mRoot->ImplData())->RenderLayer();
+    static_cast<LayerD3D9*>(mRoot->ImplData())->RenderLayer();
+  }
 
   device()->EndScene();
 

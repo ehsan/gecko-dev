@@ -1759,11 +1759,7 @@ static nsresult LaunchChild(nsINativeAppSupport* aNative,
 #else
 #if defined(XP_MACOSX)
   CommandLineServiceMac::SetupMacCommandLine(gRestartArgc, gRestartArgv, PR_TRUE);
-  PRUint32 restartMode = 0;
-#if defined(MOZ_ENABLE_LIBXUL)
-  restartMode = gRestartMode;
-#endif
-  LaunchChildMac(gRestartArgc, gRestartArgv, restartMode);
+  LaunchChildMac(gRestartArgc, gRestartArgv, gRestartMode);
 #else
   nsCOMPtr<nsILocalFile> lf;
   nsresult rv = XRE_GetBinaryPath(gArgv[0], getter_AddRefs(lf));

@@ -233,7 +233,7 @@ private:
 
   ~nsGeolocation();
 
-  bool RegisterRequestWithPrompt(nsGeolocationRequest* request);
+  void RegisterRequestWithPrompt(nsGeolocationRequest* request);
 
   // Two callback arrays.  The first |mPendingCallbacks| holds objects for only
   // one callback and then they are released/removed from the array.  The second

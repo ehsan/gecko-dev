@@ -2857,12 +2857,8 @@ nsHTMLInputElement::SetSelectionRange(PRInt32 aSelectionStart,
 
   if (formControlFrame) {
     nsITextControlFrame* textControlFrame = do_QueryFrame(formControlFrame);
-    if (textControlFrame) {
+    if (textControlFrame)
       rv = textControlFrame->SetSelectionRange(aSelectionStart, aSelectionEnd);
-      if (NS_SUCCEEDED(rv)) {
-        rv = textControlFrame->ScrollSelectionIntoView();
-      }
-    }
   }
 
   return rv;
@@ -2885,12 +2881,8 @@ nsHTMLInputElement::SetSelectionStart(PRInt32 aSelectionStart)
 
   if (formControlFrame) {
     nsITextControlFrame* textControlFrame = do_QueryFrame(formControlFrame);
-    if (textControlFrame) {
+    if (textControlFrame)
       rv = textControlFrame->SetSelectionStart(aSelectionStart);
-      if (NS_SUCCEEDED(rv)) {
-        rv = textControlFrame->ScrollSelectionIntoView();
-      }
-    }
   }
 
   return rv;
@@ -2914,12 +2906,8 @@ nsHTMLInputElement::SetSelectionEnd(PRInt32 aSelectionEnd)
 
   if (formControlFrame) {
     nsITextControlFrame* textControlFrame = do_QueryFrame(formControlFrame);
-    if (textControlFrame) {
+    if (textControlFrame)
       rv = textControlFrame->SetSelectionEnd(aSelectionEnd);
-      if (NS_SUCCEEDED(rv)) {
-        rv = textControlFrame->ScrollSelectionIntoView();
-      }
-    }
   }
 
   return rv;

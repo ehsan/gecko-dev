@@ -76,12 +76,6 @@ DOMSVGNumberList::InternalListLengthWillChange(PRUint32 aNewLength)
 {
   PRUint32 oldLength = mItems.Length();
 
-  if (aNewLength > DOMSVGNumber::MaxListIndex()) {
-    // It's safe to get out of sync with our internal list as long as we have
-    // FEWER items than it does.
-    aNewLength = DOMSVGNumber::MaxListIndex();
-  }
-
   // If our length will decrease, notify the items that will be removed:
   for (PRUint32 i = aNewLength; i < oldLength; ++i) {
     if (mItems[i]) {
@@ -206,11 +200,6 @@ DOMSVGNumberList::InsertItemBefore(nsIDOMSVGNumber *newItem,
     return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR;
   }
 
-  index = NS_MIN(index, Length());
-  if (index >= DOMSVGNumber::MaxListIndex()) {
-    return NS_ERROR_DOM_INDEX_SIZE_ERR;
-  }
-
   nsCOMPtr<DOMSVGNumber> domItem = do_QueryInterface(newItem);
   if (!domItem) {
     return NS_ERROR_DOM_SVG_WRONG_TYPE_ERR;
@@ -218,6 +207,7 @@ DOMSVGNumberList::InsertItemBefore(nsIDOMSVGNumber *newItem,
   if (domItem->HasOwner()) {
     domItem = domItem->Clone(); // must do this before changing anything!
   }
+  index = NS_MIN(index, Length());
 
   // Ensure we have enough memory so we can avoid complex error handling below:
   if (!mItems.SetCapacity(mItems.Length() + 1) ||

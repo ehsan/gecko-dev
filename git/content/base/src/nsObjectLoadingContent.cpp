@@ -87,7 +87,6 @@
 #include "nsMimeTypes.h"
 #include "nsStyleUtil.h"
 #include "nsGUIEvent.h"
-#include "nsUnicharUtils.h"
 
 // Concrete classes
 #include "nsFrameLoader.h"
@@ -1732,7 +1731,7 @@ nsObjectLoadingContent::TypeForClassID(const nsAString& aClassID,
   }
 
   // If it starts with "clsid:", this is ActiveX content
-  if (StringBeginsWith(aClassID, NS_LITERAL_STRING("clsid:"), nsCaseInsensitiveStringComparator())) {
+  if (StringBeginsWith(aClassID, NS_LITERAL_STRING("clsid:"))) {
     // Check if we have a plugin for that
 
     if (NS_SUCCEEDED(pluginHost->IsPluginEnabledForType("application/x-oleobject"))) {

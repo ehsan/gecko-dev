@@ -225,8 +225,6 @@
 #define NS_TIME_FUNCTION_WITH_DOCURL do{} while(0)
 #endif
 
-#define ANCHOR_SCROLL_FLAGS (SCROLL_OVERFLOW_HIDDEN | SCROLL_NO_PARENT_FRAMES)
-
 #include "nsContentCID.h"
 static NS_DEFINE_IID(kRangeCID,     NS_RANGE_CID);
 
@@ -1199,7 +1197,6 @@ protected:
   nsCOMPtr<nsIContent> mContentToScrollTo;
   PRIntn mContentScrollVPosition;
   PRIntn mContentScrollHPosition;
-  PRUint32 mContentToScrollToFlags;
 
   class nsDelayedEvent
   {
@@ -3947,7 +3944,7 @@ PresShell::GoToAnchor(const nsAString& aAnchorName, PRBool aScroll)
     if (aScroll) {
       rv = ScrollContentIntoView(content, NS_PRESSHELL_SCROLL_TOP,
                                  NS_PRESSHELL_SCROLL_ANYWHERE,
-                                 ANCHOR_SCROLL_FLAGS);
+                                 SCROLL_OVERFLOW_HIDDEN);
       NS_ENSURE_SUCCESS(rv, rv);
 
       nsIScrollableFrame* rootScroll = GetRootScrollFrameAsScrollable();
@@ -4054,7 +4051,7 @@ PresShell::ScrollToAnchor()
 
   nsresult rv = ScrollContentIntoView(mLastAnchorScrolledTo, NS_PRESSHELL_SCROLL_TOP,
                                       NS_PRESSHELL_SCROLL_ANYWHERE,
-                                      ANCHOR_SCROLL_FLAGS);
+                                      SCROLL_OVERFLOW_HIDDEN);
   mLastAnchorScrolledTo = nsnull;
   return rv;
 }
@@ -4250,7 +4247,6 @@ PresShell::ScrollContentIntoView(nsIContent* aContent,
   mContentToScrollTo = aContent;
   mContentScrollVPosition = aVPercent;
   mContentScrollHPosition = aHPercent;
-  mContentToScrollToFlags = aFlags;
 
   // Flush layout and attempt to scroll in the process.
   currentDoc->FlushPendingNotifications(Flush_InterruptibleLayout);
@@ -4354,7 +4350,7 @@ PresShell::ScrollFrameRectIntoView(nsIFrame*     aFrame,
     }
     rect += container->GetPosition();
     nsIFrame* parent = container->GetParent();
-    if (!parent && !(aFlags & nsIPresShell::SCROLL_NO_PARENT_FRAMES)) {
+    if (!parent) {
       nsPoint extraOffset(0,0);
       parent = nsLayoutUtils::GetCrossDocParentFrame(container, &extraOffset);
       if (parent) {
@@ -4902,7 +4898,7 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
         // We didn't get interrupted.  Go ahead and scroll to our content
         DoScrollContentIntoView(mContentToScrollTo, mContentScrollVPosition,
                                 mContentScrollHPosition,
-                                mContentToScrollToFlags);
+                                SCROLL_OVERFLOW_HIDDEN);
         mContentToScrollTo = nsnull;
       }
     }
@@ -4915,16 +4911,6 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
       if (rootPresContext) {
         rootPresContext->UpdatePluginGeometry();
       }
-#ifdef DEBUG
-      if (!mIsDestroying) {
-        nsIView* rootView;
-        if (NS_SUCCEEDED(mViewManager->GetRootView(rootView)) && rootView) {
-          nsRect bounds = rootView->GetBounds();
-          NS_ASSERTION(bounds.Size() == mPresContext->GetVisibleArea().Size(),
-                       "root view / pres context visible size mismatch");
-        }
-      }
-#endif
     }
 
     PRUint32 updateFlags = NS_VMREFRESH_NO_SYNC;
@@ -8182,7 +8168,6 @@ PresShell::Observe(nsISupports* aSubject,
 #ifdef ACCESSIBILITY
   if (!nsCRT::strcmp(aTopic, "a11y-init-or-shutdown")) {
     gIsAccessibilityActive = aData && *aData == '1';
-    return NS_OK;
   }
 #endif
   NS_WARNING("unrecognized topic in PresShell::Observe");

@@ -2395,45 +2395,10 @@ nsXMLHttpRequest::Send(nsIVariant *aBody)
     httpChannel->GetRequestMethod(method); // If GET, method name will be uppercase
 
     if (!nsContentUtils::IsSystemPrincipal(mPrincipal)) {
-      // Get the referrer for the request.
-      //
-      // If it weren't for history.push/replaceState, we could just use the
-      // principal's URI here.  But since we want changes to the URI effected
-      // by push/replaceState to be reflected in the XHR referrer, we have to
-      // be more clever.
-      //
-      // If the document's original URI (before any push/replaceStates) matches
-      // our principal, then we use the document's current URI (after
-      // push/replaceStates).  Otherwise (if the document is, say, a data:
-      // URI), we just use the principal's URI.
+      nsCOMPtr<nsIURI> codebase;
+      mPrincipal->GetURI(getter_AddRefs(codebase));
 
-      nsCOMPtr<nsIURI> principalURI;
-      mPrincipal->GetURI(getter_AddRefs(principalURI));
-
-      nsCOMPtr<nsIDocument> doc =
-        nsContentUtils::GetDocumentFromScriptContext(mScriptContext);
-
-      nsCOMPtr<nsIURI> docCurURI;
-      nsCOMPtr<nsIURI> docOrigURI;
-      if (doc) {
-        docCurURI = doc->GetDocumentURI();
-        docOrigURI = doc->GetOriginalURI();
-      }
-
-      nsCOMPtr<nsIURI> referrerURI;
-
-      if (principalURI && docCurURI && docOrigURI) {
-        PRBool equal = PR_FALSE;
-        principalURI->Equals(docOrigURI, &equal);
-        if (equal) {
-          referrerURI = docCurURI;
-        }
-      }
-
-      if (!referrerURI)
-        referrerURI = principalURI;
-
-      httpChannel->SetReferrer(referrerURI);
+      httpChannel->SetReferrer(codebase);
     }
 
     // Some extensions override the http protocol handler and provide their own

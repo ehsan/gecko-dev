@@ -318,8 +318,8 @@ void nsCaret::SetCaretVisible(PRBool inMakeVisible)
 {
   mVisible = inMakeVisible;
   if (mVisible) {
-    SetIgnoreUserModify(PR_TRUE);
     StartBlinking();
+    SetIgnoreUserModify(PR_TRUE);
   } else {
     StopBlinking();
     SetIgnoreUserModify(PR_FALSE);

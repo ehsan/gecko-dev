@@ -1,24 +1,12 @@
 var topElements = document.getElementsByClassName("scrollTop");
 if (!topElements.length) {
-  topElements = [document.documentElement];
+  topElements = [document.body];
 }
-
-var failed = false;
 
 function doScroll(d)
 {
-  if (failed)
-    return;
   for (var i = 0; i < topElements.length; ++i) {
-    var e = topElements[i];
-    e.scrollTop = d;
-    if (e.scrollTop != d) {
-      document.documentElement.textContent =
-          "Scrolling failed on " + e.tagName + " element, " +
-          "tried to scroll to " + d + ", got " + e.scrollTop +
-          " (Random number: " + Math.random() + ")";
-      failed = true;
-    }
+    topElements[i].scrollTop = d;
   }
 }
 

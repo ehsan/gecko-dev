@@ -117,11 +117,6 @@ public:
      * set aOut to that rectangle, otherwise return failure.
     */
     static PRBool GfxRectToIntRect(const gfxRect& aIn, nsIntRect* aOut);
-
-    /**
-     * Clamp aVal to a power of kScaleResolution.
-     */
-    static gfxFloat ClampToScaleFactor(gfxFloat aVal);
 };
 
 #endif

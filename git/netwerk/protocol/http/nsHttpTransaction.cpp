@@ -687,9 +687,6 @@ nsHttpTransaction::LocateHttpStart(char *buf, PRUint32 len,
 
     static const char HTTPHeader[] = "HTTP/1.";
     static const PRInt32 HTTPHeaderLen = sizeof(HTTPHeader) - 1;
-    
-    if (aAllowPartialMatch && (len < HTTPHeaderLen))
-        return (PL_strncasecmp(buf, HTTPHeader, len) == 0) ? buf : nsnull;
 
     // mLineBuf can contain partial match from previous search
     if (!mLineBuf.IsEmpty()) {
@@ -717,9 +714,13 @@ nsHttpTransaction::LocateHttpStart(char *buf, PRUint32 len,
         if (PL_strncasecmp(buf, HTTPHeader, PR_MIN(len, HTTPHeaderLen)) == 0) {
             if (len < HTTPHeaderLen) {
                 // partial HTTPHeader sequence found
-                // save partial match to mLineBuf
-                mLineBuf.Assign(buf, len);
-                return 0;
+                if (aAllowPartialMatch) {
+                    return buf;
+                } else {
+                    // save partial match to mLineBuf
+                    mLineBuf.Assign(buf, len);
+                    return 0;
+                }
             }
 
             // whole HTTPHeader sequence found
@@ -827,7 +828,7 @@ nsHttpTransaction::ParseHead(char *buf,
         if (!mConnection || !mConnection->LastTransactionExpectedNoContent()) {
             // tolerate only minor junk before the status line
             mHttpResponseMatched = PR_TRUE;
-            char *p = LocateHttpStart(buf, PR_MIN(count, 11), PR_TRUE);
+            char *p = LocateHttpStart(buf, PR_MIN(count, 8), PR_TRUE);
             if (!p) {
                 // Treat any 0.9 style response of a put as a failure.
                 if (mRequestHead->Method() == nsHttp::Put)

@@ -129,8 +129,6 @@ TabParent::Destroy()
 void
 TabParent::ActorDestroy(ActorDestroyReason why)
 {
-  if (mIMETabParent == this)
-    mIMETabParent = nsnull;
   nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
   if (frameLoader) {
     frameLoader->DestroyChild();
