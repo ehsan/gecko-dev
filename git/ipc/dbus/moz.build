@@ -5,11 +5,13 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 EXPORTS.mozilla.ipc += [
+    'DBusThread.h',
     'DBusUtils.h',
     'RawDBusConnection.h',
 ]
 
 SOURCES += [
+    'DBusThread.cpp',
     'DBusUtils.cpp',
     'RawDBusConnection.cpp',
 ]

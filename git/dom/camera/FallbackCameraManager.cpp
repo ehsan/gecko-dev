@@ -26,7 +26,7 @@ ICameraControl::GetListOfCameras(nsTArray<nsString>& aList)
 }
 
 already_AddRefed<ICameraControl>
-ICameraControl::Create(uint32_t aCameraId)
+ICameraControl::Create(uint32_t aCameraId, const Configuration* aInitialConfig)
 {
   return nullptr;
 }

@@ -195,7 +195,7 @@ var CastingApps = {
       }
 
       app.stop(function() {
-        app.start(function() {
+        app.start("", function() {
           app.remoteMedia(function(aRemoteMedia) {
             this.session = {
               service: aService,
@@ -211,16 +211,6 @@ var CastingApps = {
         }.bind(this));
       }.bind(this));
     }.bind(this));
-  },
-
-  closeExternal: function() {
-    if (!this.session) {
-      return;
-    }
-
-    this.session.remoteMedia.shutdown();
-    this.session.app.stop();
-    delete this.session;
   },
 
   // RemoteMedia callback API methods
@@ -244,7 +234,9 @@ var CastingApps = {
 
     let status = aRemoteMedia.status;
     if (status == "completed") {
-      this.closeExternal();
+      aRemoteMedia.shutdown();
+      this.session.app.stop();
+      delete this.session;
     }
   }
 };

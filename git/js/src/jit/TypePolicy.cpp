@@ -235,16 +235,15 @@ ComparePolicy::adjustInputs(TempAllocator &alloc, MInstruction *def)
                 (compare->compareType() == MCompare::Compare_Int32MaybeCoerceLHS && i == 0) ||
                 (compare->compareType() == MCompare::Compare_Int32MaybeCoerceRHS && i == 1))
             {
-                convert = MacroAssembler::IntConversion_NumbersOrBoolsOnly;
+                convert = MacroAssembler::IntConversion_Any;
             }
             if (convert == MacroAssembler::IntConversion_NumbersOnly) {
                 if (in->type() != MIRType_Int32 && in->type() != MIRType_Value)
                     in = boxAt(alloc, def, in);
             } else {
-                MOZ_ASSERT(convert == MacroAssembler::IntConversion_NumbersOrBoolsOnly);
-                if (in->type() != MIRType_Int32 &&
-                    in->type() != MIRType_Boolean &&
-                    in->type() != MIRType_Value)
+                if (in->type() == MIRType_Undefined ||
+                    in->type() == MIRType_String ||
+                    in->type() == MIRType_Object)
                 {
                     in = boxAt(alloc, def, in);
                 }

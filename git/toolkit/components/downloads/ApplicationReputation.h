@@ -16,7 +16,8 @@
 #include "nsString.h"
 
 class nsIRequest;
-class PendingDBLookup;
+class nsIUrlClassifierDBService;
+class nsIScriptSecurityManager;
 class PendingLookup;
 class PRLogModuleInfo;
 
@@ -31,7 +32,6 @@ public:
 
 private:
   friend class PendingLookup;
-  friend class PendingDBLookup;
   /**
    * Global singleton object for holding this factory service.
    */
@@ -40,6 +40,11 @@ private:
    * NSPR_LOG_MODULES=ApplicationReputation:5
    */
   static PRLogModuleInfo* prlog;
+  /**
+   * Keeps track of services used to query the local database of URLs.
+   */
+  nsCOMPtr<nsIUrlClassifierDBService> mDBService;
+  nsCOMPtr<nsIScriptSecurityManager> mSecurityManager;
   /**
    * This is a singleton, so disallow construction.
    */

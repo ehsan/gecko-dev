@@ -5477,8 +5477,6 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
       if (item->mValue.UnitHasStringValue()) {
         nsAutoString buffer;
         item->mValue.GetStringValue(buffer);
-        display->mWillChange.AppendElement(buffer);
-
         if (buffer.EqualsLiteral("transform")) {
           display->mWillChangeBitField |= NS_STYLE_WILL_CHANGE_TRANSFORM;
         }
@@ -5488,13 +5486,7 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
         if (buffer.EqualsLiteral("scroll-position")) {
           display->mWillChangeBitField |= NS_STYLE_WILL_CHANGE_SCROLL;
         }
-
-        nsCSSProperty prop =
-          nsCSSProps::LookupProperty(buffer, nsCSSProps::eEnabled);
-        if (nsCSSProps::PropHasFlags(prop,
-                                     CSS_PROPERTY_CREATES_STACKING_CONTEXT)) {
-          display->mWillChangeBitField |= NS_STYLE_WILL_CHANGE_STACKING_CONTEXT;
-        }
+        display->mWillChange.AppendElement(buffer);
       }
     }
     break;
