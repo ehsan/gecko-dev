@@ -133,10 +133,6 @@ protected:
   virtual void codecReserved(Track& aTrack);
   virtual void codecCanceled(Track& aTrack);
 
-  virtual bool CreateExtractor();
-
-  android::sp<android::MediaExtractor> mExtractor;
-
 private:
   // An intermediary class that can be managed by android::sp<T>.
   // Redirect onMessageReceived() to MediaCodecReader.
@@ -228,6 +224,7 @@ private:
   bool CreateLooper();
   void DestroyLooper();
 
+  bool CreateExtractor();
   void DestroyExtractor();
 
   bool CreateMediaSources();
@@ -279,6 +276,7 @@ private:
   android::sp<VideoResourceListener> mVideoListener;
 
   android::sp<android::ALooper> mLooper;
+  android::sp<android::MediaExtractor> mExtractor;
 
   // media tracks
   AudioTrack mAudioTrack;

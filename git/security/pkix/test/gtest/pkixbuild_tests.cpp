@@ -22,7 +22,6 @@
  * limitations under the License.
  */
 
-#include "cert.h"
 #include "nssgtest.h"
 #include "pkix/pkix.h"
 #include "pkix/pkixnss.h"
@@ -33,10 +32,6 @@
 
 using namespace mozilla::pkix;
 using namespace mozilla::pkix::test;
-
-typedef ScopedPtr<CERTCertificate, CERT_DestroyCertificate>
-          ScopedCERTCertificate;
-typedef ScopedPtr<CERTCertList, CERT_DestroyCertList> ScopedCERTCertList;
 
 // The result is owned by the arena
 static Input
@@ -66,7 +61,8 @@ CreateCert(PLArenaPool* arena, const char* issuerStr,
 
   SECItem* certDER(CreateEncodedCertificate(
                      arena, v3, SEC_OID_PKCS1_SHA256_WITH_RSA_ENCRYPTION,
-                     serialNumber, issuerDER, oneDayBeforeNow, oneDayAfterNow,
+                     serialNumber, issuerDER,
+                     PR_Now() - ONE_DAY, PR_Now() + ONE_DAY,
                      subjectDER, extensions, issuerKey, SEC_OID_SHA256,
                      subjectKey));
   EXPECT_TRUE(certDER);
@@ -232,7 +228,7 @@ TEST_F(pkixbuild, MaxAcceptableCertChainLength)
     ASSERT_EQ(Success, certDER.Init(trustDomain.GetLeafCACert()->derCert.data,
                                     trustDomain.GetLeafCACert()->derCert.len));
     ASSERT_EQ(Success,
-              BuildCertChain(trustDomain, certDER, Now(),
+              BuildCertChain(trustDomain, certDER, now,
                              EndEntityOrCA::MustBeCA,
                              KeyUsage::noParticularKeyUsageRequired,
                              KeyPurposeId::id_kp_serverAuth,
@@ -249,7 +245,7 @@ TEST_F(pkixbuild, MaxAcceptableCertChainLength)
                              EndEntityOrCA::MustBeEndEntity,
                              trustDomain.leafCAKey.get(), privateKey));
     ASSERT_EQ(Success,
-              BuildCertChain(trustDomain, certDER, Now(),
+              BuildCertChain(trustDomain, certDER, now,
                              EndEntityOrCA::MustBeEndEntity,
                              KeyUsage::noParticularKeyUsageRequired,
                              KeyPurposeId::id_kp_serverAuth,
@@ -274,7 +270,7 @@ TEST_F(pkixbuild, BeyondMaxAcceptableCertChainLength)
                           trustDomain.leafCAKey.get(), caPrivateKey,
                           &caCert));
     ASSERT_EQ(Result::ERROR_UNKNOWN_ISSUER,
-              BuildCertChain(trustDomain, cert, Now(),
+              BuildCertChain(trustDomain, cert, now,
                              EndEntityOrCA::MustBeCA,
                              KeyUsage::noParticularKeyUsageRequired,
                              KeyPurposeId::id_kp_serverAuth,
@@ -289,7 +285,7 @@ TEST_F(pkixbuild, BeyondMaxAcceptableCertChainLength)
                           EndEntityOrCA::MustBeEndEntity,
                           caPrivateKey.get(), privateKey));
     ASSERT_EQ(Result::ERROR_UNKNOWN_ISSUER,
-              BuildCertChain(trustDomain, cert, Now(),
+              BuildCertChain(trustDomain, cert, now,
                              EndEntityOrCA::MustBeEndEntity,
                              KeyUsage::noParticularKeyUsageRequired,
                              KeyPurposeId::id_kp_serverAuth,

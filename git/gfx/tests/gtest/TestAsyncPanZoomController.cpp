@@ -160,11 +160,11 @@ public:
 
   bool SampleContentTransformForFrame(const TimeStamp& aSampleTime,
                                       ViewTransform* aOutTransform,
-                                      ScreenPoint& aScrollOffset) {
-    Matrix4x4 aOverscrollTransform;  // ignored
+                                      ScreenPoint& aScrollOffset,
+                                      ViewTransform* aOutOverscrollTransform = nullptr) {
     bool ret = AdvanceAnimations(aSampleTime);
     AsyncPanZoomController::SampleContentTransformForFrame(
-      aOutTransform, aScrollOffset, &aOverscrollTransform);
+      aOutTransform, aScrollOffset, aOutOverscrollTransform);
     return ret;
   }
 };

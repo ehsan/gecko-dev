@@ -267,11 +267,6 @@ this.DOMApplicationRegistry = {
           app.widgetPages = [];
         }
 
-        if (!AppsUtils.checkAppRole(app.role, app.appStatus)) {
-          delete this.webapps[id];
-          continue;
-        }
-
         // At startup we can't be downloading, and the $TMP directory
         // will be empty so we can't just apply a staged update.
         app.downloading = false;
@@ -2074,27 +2069,10 @@ this.DOMApplicationRegistry = {
 
     aApp.manifest = aNewManifest || aOldManifest;
 
-    let manifest =
-      new ManifestHelper(aApp.manifest, aApp.origin, aApp.manifestURL);
-    aApp.role = manifest.role || "";
-
-    if (!AppsUtils.checkAppRole(aApp.role, aApp.appStatus)) {
-      this.broadcastMessage("Webapps:UpdateState", {
-        app: aApp,
-        manifest: aApp.manifest,
-        id: aApp.id
-      });
-      this.broadcastMessage("Webapps:FireEvent", {
-        eventType: "downloadapplied",
-        manifestURL: aApp.manifestURL,
-        requestID: aData.requestID
-      });
-      delete aApp.manifest;
-      return;
-    }
-
+    let manifest;
     if (aNewManifest) {
       this.updateAppHandlers(aOldManifest, aNewManifest, aApp);
+
       this.notifyUpdateHandlers(AppsUtils.cloneAppObject(aApp), aNewManifest);
 
       // Store the new manifest.
@@ -2119,8 +2097,12 @@ this.DOMApplicationRegistry = {
 
       aApp.name = aNewManifest.name;
       aApp.csp = manifest.csp || "";
+      aApp.role = manifest.role || "";
       this._saveWidgetsFullPath(manifest, aApp);
       aApp.updateTime = Date.now();
+    } else {
+      manifest =
+        new ManifestHelper(aOldManifest, aApp.origin, aApp.manifestURL);
     }
 
     // Update the registry.
@@ -2233,12 +2215,6 @@ this.DOMApplicationRegistry = {
 
       if (!checkAppStatus(app.manifest)) {
         sendError("INVALID_SECURITY_LEVEL");
-        return false;
-      }
-
-      app.role = app.manifest.role || "";
-      if (!AppsUtils.checkAppRole(app.role, app.appStatus)) {
-        sendError("INVALID_ROLE");
         return false;
       }
 
@@ -2594,9 +2570,6 @@ this.DOMApplicationRegistry = {
     app.packageHash = yield this._computeFileHash(zipFile);
 
     app.role = aManifest.role || "";
-    if (!AppsUtils.checkAppRole(app.role, app.appStatus)) {
-      return;
-    }
 
     app.redirects = this.sanitizeRedirects(aManifest.redirects);
 
@@ -3468,15 +3441,11 @@ this.DOMApplicationRegistry = {
                     ? Ci.nsIPrincipal.APP_STATUS_PRIVILEGED
                     : Ci.nsIPrincipal.APP_STATUS_INSTALLED;
 
-    let status = AppsUtils.getAppManifestStatus(newManifest);
-    if (status > maxStatus) {
+    if (AppsUtils.getAppManifestStatus(newManifest) > maxStatus) {
       throw "INVALID_SECURITY_LEVEL";
     }
 
-    // Check if the role is allowed for this app.
-    if (!AppsUtils.checkAppRole(newManifest.role, status)) {
-      throw "INVALID_ROLE";
-    }
+    aOldApp.appStatus = AppsUtils.getAppManifestStatus(newManifest);
 
     this._saveEtag(aIsUpdate, aOldApp, aRequestChannel, aHash, newManifest);
     this._checkOrigin(aIsSigned || aIsLocalFileInstall, aOldApp, newManifest,

@@ -794,16 +794,7 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
       MOZ_CRASH("Bad process type in GeckoChildProcessHost");
       break;
   };
-
-  if (shouldSandboxCurrentProcess) {
-    for (auto it = mAllowedFilesRead.begin();
-         it != mAllowedFilesRead.end();
-         ++it) {
-      mSandboxBroker.AllowReadFile(it->c_str());
-    }
-  }
-
-#endif // XP_WIN
+#endif
 
   // Add the application directory path (-appdir path)
   AddAppDirToCommandLine(cmdLine);

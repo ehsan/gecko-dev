@@ -24,7 +24,6 @@
 #include "RuntimeService.h"
 #include "ScriptLoader.h"
 #include "WorkerPrivate.h"
-#include "Performance.h"
 
 #define UNWRAP_WORKER_OBJECT(Interface, obj, value)                           \
   UnwrapObject<prototypes::id::Interface##_workers,                           \
@@ -55,16 +54,12 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(WorkerGlobalScope,
                                                   DOMEventTargetHelper)
   tmp->mWorkerPrivate->AssertIsOnWorkerThread();
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mConsole)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPerformance)
-  // XXXbz what about mLocation and mNavigator?
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(WorkerGlobalScope,
                                                 DOMEventTargetHelper)
   tmp->mWorkerPrivate->AssertIsOnWorkerThread();
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mConsole)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mPerformance)
-  // XXXbz what about mLocation and mNavigator?
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(WorkerGlobalScope,
@@ -280,18 +275,6 @@ WorkerGlobalScope::Dump(const Optional<nsAString>& aString) const
 #endif
   fputs(str.get(), stdout);
   fflush(stdout);
-}
-
-Performance*
-WorkerGlobalScope::GetPerformance()
-{
-  mWorkerPrivate->AssertIsOnWorkerThread();
-
-  if (!mPerformance) {
-    mPerformance = new Performance(mWorkerPrivate);
-  }
-
-  return mPerformance;
 }
 
 DedicatedWorkerGlobalScope::DedicatedWorkerGlobalScope(WorkerPrivate* aWorkerPrivate)

@@ -168,7 +168,6 @@ protected:
 
 #ifdef MOZ_SANDBOX
   SandboxBroker mSandboxBroker;
-  std::vector<std::wstring> mAllowedFilesRead;
 #endif
 #endif // XP_WIN
 

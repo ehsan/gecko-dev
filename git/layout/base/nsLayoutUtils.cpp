@@ -43,6 +43,7 @@
 #include "nsIDocShell.h"
 #include "nsIWidget.h"
 #include "gfxMatrix.h"
+#include "gfxPoint3D.h"
 #include "gfxPrefs.h"
 #include "gfxTypes.h"
 #include "nsTArray.h"
@@ -3705,6 +3706,8 @@ GetIntrinsicCoord(const nsStyleCoord& aStyle,
 static int32_t gNoiseIndent = 0;
 #endif
 
+#define MULDIV(a,b,c) (nscoord(int64_t(a) * int64_t(b) / int64_t(c)))
+
 /* static */ nscoord
 nsLayoutUtils::IntrinsicForContainer(nsRenderingContext *aRenderingContext,
                                      nsIFrame *aFrame,
@@ -3844,13 +3847,13 @@ nsLayoutUtils::IntrinsicForContainer(nsRenderingContext *aRenderingContext,
         if (GetAbsoluteCoord(styleHeight, h) ||
             GetPercentHeight(styleHeight, aFrame, h)) {
           h = std::max(0, h - heightTakenByBoxSizing);
-          result = NSCoordMulDiv(h, ratio.width, ratio.height);
+          result = MULDIV(h, ratio.width, ratio.height);
         }
 
         if (GetAbsoluteCoord(styleMaxHeight, h) ||
             GetPercentHeight(styleMaxHeight, aFrame, h)) {
           h = std::max(0, h - heightTakenByBoxSizing);
-          nscoord maxWidth = NSCoordMulDiv(h, ratio.width, ratio.height);
+          nscoord maxWidth = MULDIV(h, ratio.width, ratio.height);
           if (maxWidth < result)
             result = maxWidth;
         }
@@ -3858,7 +3861,7 @@ nsLayoutUtils::IntrinsicForContainer(nsRenderingContext *aRenderingContext,
         if (GetAbsoluteCoord(styleMinHeight, h) ||
             GetPercentHeight(styleMinHeight, aFrame, h)) {
           h = std::max(0, h - heightTakenByBoxSizing);
-          nscoord minWidth = NSCoordMulDiv(h, ratio.width, ratio.height);
+          nscoord minWidth = MULDIV(h, ratio.width, ratio.height);
           if (minWidth > result)
             result = minWidth;
         }
@@ -4315,7 +4318,7 @@ nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(WritingMode aWM,
       if (hasIntrinsicISize) {
         tentISize = intrinsicISize;
       } else if (hasIntrinsicBSize && logicalRatio.BSize(aWM) > 0) {
-        tentISize = NSCoordMulDiv(intrinsicBSize, logicalRatio.ISize(aWM), logicalRatio.BSize(aWM));
+        tentISize = MULDIV(intrinsicBSize, logicalRatio.ISize(aWM), logicalRatio.BSize(aWM));
       } else if (logicalRatio.ISize(aWM) > 0) {
         tentISize = aCBSize.ISize(aWM) - boxSizingToMarginEdgeISize; // XXX scrollbar?
         if (tentISize < 0) tentISize = 0;
@@ -4326,7 +4329,7 @@ nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(WritingMode aWM,
       if (hasIntrinsicBSize) {
         tentBSize = intrinsicBSize;
       } else if (logicalRatio.ISize(aWM) > 0) {
-        tentBSize = NSCoordMulDiv(tentISize, logicalRatio.BSize(aWM), logicalRatio.ISize(aWM));
+        tentBSize = MULDIV(tentISize, logicalRatio.BSize(aWM), logicalRatio.ISize(aWM));
       } else {
         tentBSize = nsPresContext::CSSPixelsToAppUnits(150);
       }
@@ -4345,7 +4348,7 @@ nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(WritingMode aWM,
       // 'auto' iSize, non-'auto' bSize
       bSize = NS_CSS_MINMAX(bSize, minBSize, maxBSize);
       if (logicalRatio.BSize(aWM) > 0) {
-        iSize = NSCoordMulDiv(bSize, logicalRatio.ISize(aWM), logicalRatio.BSize(aWM));
+        iSize = MULDIV(bSize, logicalRatio.ISize(aWM), logicalRatio.BSize(aWM));
       } else if (hasIntrinsicISize) {
         iSize = intrinsicISize;
       } else {
@@ -4360,7 +4363,7 @@ nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(WritingMode aWM,
       // non-'auto' iSize, 'auto' bSize
       iSize = NS_CSS_MINMAX(iSize, minISize, maxISize);
       if (logicalRatio.ISize(aWM) > 0) {
-        bSize = NSCoordMulDiv(iSize, logicalRatio.BSize(aWM), logicalRatio.ISize(aWM));
+        bSize = MULDIV(iSize, logicalRatio.BSize(aWM), logicalRatio.ISize(aWM));
       } else if (hasIntrinsicBSize) {
         bSize = intrinsicBSize;
       } else {
@@ -4396,10 +4399,10 @@ nsLayoutUtils::ComputeAutoSizeWithIntrinsicDimensions(nscoord minWidth, nscoord 
           widthAtMaxHeight, widthAtMinHeight;
 
   if (tentWidth > 0) {
-    heightAtMaxWidth = NSCoordMulDiv(maxWidth, tentHeight, tentWidth);
+    heightAtMaxWidth = MULDIV(maxWidth, tentHeight, tentWidth);
     if (heightAtMaxWidth < minHeight)
       heightAtMaxWidth = minHeight;
-    heightAtMinWidth = NSCoordMulDiv(minWidth, tentHeight, tentWidth);
+    heightAtMinWidth = MULDIV(minWidth, tentHeight, tentWidth);
     if (heightAtMinWidth > maxHeight)
       heightAtMinWidth = maxHeight;
   } else {
@@ -4407,10 +4410,10 @@ nsLayoutUtils::ComputeAutoSizeWithIntrinsicDimensions(nscoord minWidth, nscoord 
   }
 
   if (tentHeight > 0) {
-    widthAtMaxHeight = NSCoordMulDiv(maxHeight, tentWidth, tentHeight);
+    widthAtMaxHeight = MULDIV(maxHeight, tentWidth, tentHeight);
     if (widthAtMaxHeight < minWidth)
       widthAtMaxHeight = minWidth;
-    widthAtMinHeight = NSCoordMulDiv(minHeight, tentWidth, tentHeight);
+    widthAtMinHeight = MULDIV(minHeight, tentWidth, tentHeight);
     if (widthAtMinHeight > maxWidth)
       widthAtMinHeight = maxWidth;
   } else {

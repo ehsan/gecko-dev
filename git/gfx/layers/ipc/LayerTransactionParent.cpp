@@ -11,6 +11,7 @@
 #include "ImageLayers.h"                // for ImageLayer
 #include "Layers.h"                     // for Layer, ContainerLayer, etc
 #include "ShadowLayerParent.h"          // for ShadowLayerParent
+#include "gfxPoint3D.h"                 // for gfxPoint3D
 #include "CompositableTransactionParent.h"  // for EditReplyVector
 #include "ShadowLayersManager.h"        // for ShadowLayersManager
 #include "mozilla/gfx/BasePoint3D.h"    // for BasePoint3D
@@ -650,16 +651,16 @@ LayerTransactionParent::RecvGetAnimationTransform(PLayerParent* aParent,
                         1.0f);
   }
   float scale = 1;
-  Point3D scaledOrigin;
-  Point3D transformOrigin;
+  gfxPoint3D scaledOrigin;
+  gfxPoint3D transformOrigin;
   for (uint32_t i=0; i < layer->GetAnimations().Length(); i++) {
     if (layer->GetAnimations()[i].data().type() == AnimationData::TTransformData) {
       const TransformData& data = layer->GetAnimations()[i].data().get_TransformData();
       scale = data.appUnitsPerDevPixel();
       scaledOrigin =
-        Point3D(NS_round(NSAppUnitsToFloatPixels(data.origin().x, scale)),
-                NS_round(NSAppUnitsToFloatPixels(data.origin().y, scale)),
-                0.0f);
+        gfxPoint3D(NS_round(NSAppUnitsToFloatPixels(data.origin().x, scale)),
+                   NS_round(NSAppUnitsToFloatPixels(data.origin().y, scale)),
+                   0.0f);
       double cssPerDev =
         double(nsDeviceContext::AppUnitsPerCSSPixel()) / double(scale);
       transformOrigin = data.transformOrigin() * cssPerDev;
@@ -673,7 +674,7 @@ LayerTransactionParent::RecvGetAnimationTransform(PLayerParent* aParent,
 
   // Undo the rebasing applied by
   // nsDisplayTransform::GetResultingTransformMatrixInternal
-  Point3D basis = -scaledOrigin - transformOrigin;
+  gfxPoint3D basis = -scaledOrigin - transformOrigin;
   transform.ChangeBasis(basis.x, basis.y, basis.z);
 
   // Convert to CSS pixels (this undoes the operations performed by

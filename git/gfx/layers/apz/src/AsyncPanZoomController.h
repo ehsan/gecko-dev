@@ -175,7 +175,7 @@ public:
    */
   void SampleContentTransformForFrame(ViewTransform* aOutTransform,
                                       ScreenPoint& aScrollOffset,
-                                      Matrix4x4* aOutOverscrollTransform);
+                                      ViewTransform* aOutOverscrollTransform);
 
   /**
    * A shadow layer update has arrived. |aLayerMetrics| is the new FrameMetrics
@@ -576,7 +576,7 @@ private:
    * Return in |aTransform| a visual effect that reflects this apzc's
    * overscrolled state, if any.
    */
-  void GetOverscrollTransform(Matrix4x4* aTransform) const;
+  void GetOverscrollTransform(ViewTransform* aTransform) const;
 
   enum AxisLockMode {
     FREE,     /* No locking at all */
@@ -916,9 +916,7 @@ public:
    * to; this function increments the chain and the index and passes it on to
    * APZCTreeManager::DispatchScroll() in the event of overscroll.
    * Returns true iff. this APZC, or an APZC further down the
-   * handoff chain, accepted the scroll (possibly entering an overscrolled
-   * state). If this returns false, the caller APZC knows that it should enter
-   * an overscrolled state itself if it can.
+   * handoff chain, accepted the scroll.
    */
   bool AttemptScroll(const ScreenPoint& aStartPoint, const ScreenPoint& aEndPoint,
                      const OverscrollHandoffChain& aOverscrollHandoffChain,

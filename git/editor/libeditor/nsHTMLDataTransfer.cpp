@@ -22,6 +22,7 @@
 #include "nsContentUtils.h"
 #include "nsDebug.h"
 #include "nsDependentSubstring.h"
+#include "nsEditProperty.h"
 #include "nsEditRules.h"
 #include "nsEditor.h"
 #include "nsEditorUtils.h"
@@ -1935,7 +1936,9 @@ void RemoveBodyAndHead(nsIDOMNode *aNode)
     if (nsTextEditUtils::IsBody(child))
     {
       body = child;
-    } else if (nsEditor::NodeIsType(child, nsGkAtoms::head)) {
+    }
+    else if (nsEditor::NodeIsType(child, nsEditProperty::head))
+    {
       head = child;
     }
     child->GetNextSibling(getter_AddRefs(tmp));

@@ -3797,8 +3797,10 @@ void
 nsPIDOMWindow::RefreshMediaElements()
 {
   nsRefPtr<AudioChannelService> service =
-    AudioChannelService::GetOrCreateAudioChannelService();
-  service->RefreshAgentsVolume(this);
+    AudioChannelService::GetAudioChannelService();
+  if (service) {
+    service->RefreshAgentsVolume(this);
+  }
 }
 
 void

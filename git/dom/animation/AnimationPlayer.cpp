@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "AnimationPlayer.h"
-#include "AnimationUtils.h"
 #include "mozilla/dom/AnimationPlayerBinding.h"
 
 namespace mozilla {
@@ -21,16 +20,34 @@ AnimationPlayer::WrapObject(JSContext* aCx)
   return dom::AnimationPlayerBinding::Wrap(aCx, this);
 }
 
-Nullable<double>
-AnimationPlayer::GetStartTime() const
+double
+AnimationPlayer::StartTime() const
 {
-  return AnimationUtils::TimeDurationToDouble(mStartTime);
+  Nullable<double> startTime = mTimeline->ToTimelineTime(mStartTime);
+  return startTime.IsNull() ? 0.0 : startTime.Value();
 }
 
-Nullable<double>
-AnimationPlayer::GetCurrentTime() const
+double
+AnimationPlayer::CurrentTime() const
 {
-  return AnimationUtils::TimeDurationToDouble(GetCurrentTimeDuration());
+  Nullable<TimeDuration> currentTime = GetCurrentTimeDuration();
+
+  // The current time is currently only going to be null when don't have a
+  // refresh driver (e.g. because we are in a display:none iframe).
+  //
+  // Web Animations says that in this case we should use a timeline time of
+  // 0 (the "effective timeline time") and calculate the current time from that.
+  // Doing that, however, requires storing the start time as an offset rather
+  // than a timestamp so for now we just return 0.
+  //
+  // FIXME: Store player start time and pause start as offsets rather than
+  // timestamps and return the appropriate current time when the timeline time
+  // is null.
+  if (currentTime.IsNull()) {
+    return 0.0;
+  }
+
+  return currentTime.Value().ToMilliseconds();
 }
 
 void
@@ -68,21 +85,6 @@ bool
 AnimationPlayer::IsCurrent() const
 {
   return GetSource() && GetSource()->IsCurrent();
-}
-
-Nullable<TimeDuration>
-AnimationPlayer::GetCurrentTimeDuration() const
-{
-  Nullable<TimeDuration> result;
-  if (!mHoldTime.IsNull()) {
-    result = mHoldTime;
-  } else {
-    Nullable<TimeDuration> timelineTime = mTimeline->GetCurrentTimeDuration();
-    if (!timelineTime.IsNull() && !mStartTime.IsNull()) {
-      result.SetValue(timelineTime.Value() - mStartTime.Value());
-    }
-  }
-  return result;
 }
 
 } // namespace dom

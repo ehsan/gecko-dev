@@ -29,7 +29,6 @@
 #include <limits>
 #include <new>
 
-#include "cert.h"
 #include "cryptohi.h"
 #include "hasht.h"
 #include "pk11pub.h"
@@ -44,6 +43,8 @@
 using namespace std;
 
 namespace mozilla { namespace pkix { namespace test {
+
+const PRTime ONE_DAY = PRTime(24) * PRTime(60) * PRTime(60) * PR_USEC_PER_SEC;
 
 namespace {
 
@@ -235,7 +236,7 @@ private:
 };
 
 OCSPResponseContext::OCSPResponseContext(PLArenaPool* arena,
-                                         const CertID& certID, time_t time)
+                                         const CertID& certID, PRTime time)
   : arena(arena)
   , certID(certID)
   , responseStatus(successful)
@@ -251,7 +252,7 @@ OCSPResponseContext::OCSPResponseContext(PLArenaPool* arena,
   , certStatus(good)
   , revocationTime(0)
   , thisUpdate(time)
-  , nextUpdate(time + 10)
+  , nextUpdate(time + 10 * PR_USEC_PER_SEC)
   , includeNextUpdate(true)
 {
 }
@@ -408,43 +409,23 @@ OID(PLArenaPool* arena, SECOidTag tag)
 
 enum TimeEncoding { UTCTime = 0, GeneralizedTime = 1 };
 
-// Windows doesn't provide gmtime_r, but it provides something very similar.
-#ifdef WIN32
-static tm*
-gmtime_r(const time_t* t, /*out*/ tm* exploded)
-{
-  if (gmtime_s(exploded, t) != 0) {
-    return nullptr;
-  }
-  return exploded;
-}
-#endif
-
 // http://tools.ietf.org/html/rfc5280#section-4.1.2.5
 // UTCTime:           YYMMDDHHMMSSZ (years 1950-2049 only)
 // GeneralizedTime: YYYYMMDDHHMMSSZ
-//
-// This assumes that time/time_t are POSIX-compliant in that time() returns
-// the number of seconds since the Unix epoch.
 static SECItem*
-TimeToEncodedTime(PLArenaPool* arena, time_t time, TimeEncoding encoding)
+PRTimeToEncodedTime(PLArenaPool* arena, PRTime time, TimeEncoding encoding)
 {
   assert(encoding == UTCTime || encoding == GeneralizedTime);
 
-  tm exploded;
-  if (!gmtime_r(&time, &exploded)) {
-    return nullptr;
-  }
-
+  PRExplodedTime exploded;
+  PR_ExplodeTime(time, PR_GMTParameters, &exploded);
   if (exploded.tm_sec >= 60) {
     // round down for leap seconds
     exploded.tm_sec = 59;
   }
 
-  // exploded.tm_year is the year offset by 1900.
-  int year = exploded.tm_year + 1900;
-
-  if (encoding == UTCTime && (year < 1950 || year >= 2050)) {
+  if (encoding == UTCTime &&
+      (exploded.tm_year < 1950 || exploded.tm_year >= 2050)) {
     return nullptr;
   }
 
@@ -460,14 +441,14 @@ TimeToEncodedTime(PLArenaPool* arena, time_t time, TimeEncoding encoding)
   derTime->data[i++] = static_cast<uint8_t>(derTime->len - 2); // length
 
   if (encoding == GeneralizedTime) {
-    derTime->data[i++] = '0' + (year / 1000);
-    derTime->data[i++] = '0' + ((year % 1000) / 100);
+    derTime->data[i++] = '0' + (exploded.tm_year / 1000);
+    derTime->data[i++] = '0' + ((exploded.tm_year % 1000) / 100);
   }
 
-  derTime->data[i++] = '0' + ((year % 100) / 10);
-  derTime->data[i++] = '0' + (year % 10);
-  derTime->data[i++] = '0' + ((exploded.tm_mon + 1) / 10);
-  derTime->data[i++] = '0' + ((exploded.tm_mon + 1) % 10);
+  derTime->data[i++] = '0' + ((exploded.tm_year % 100) / 10);
+  derTime->data[i++] = '0' + (exploded.tm_year % 10);
+  derTime->data[i++] = '0' + ((exploded.tm_month + 1) / 10);
+  derTime->data[i++] = '0' + ((exploded.tm_month + 1) % 10);
   derTime->data[i++] = '0' + (exploded.tm_mday / 10);
   derTime->data[i++] = '0' + (exploded.tm_mday % 10);
   derTime->data[i++] = '0' + (exploded.tm_hour / 10);
@@ -482,9 +463,9 @@ TimeToEncodedTime(PLArenaPool* arena, time_t time, TimeEncoding encoding)
 }
 
 static SECItem*
-TimeToGeneralizedTime(PLArenaPool* arena, time_t time)
+PRTimeToGeneralizedTime(PLArenaPool* arena, PRTime time)
 {
-  return TimeToEncodedTime(arena, time, GeneralizedTime);
+  return PRTimeToEncodedTime(arena, time, GeneralizedTime);
 }
 
 // http://tools.ietf.org/html/rfc5280#section-4.1.2.5: "CAs conforming to this
@@ -493,66 +474,33 @@ TimeToGeneralizedTime(PLArenaPool* arena, time_t time)
 // GeneralizedTime." (This is a special case of the rule that we must always
 // use the shortest possible encoding.)
 static SECItem*
-TimeToTimeChoice(PLArenaPool* arena, time_t time)
+PRTimeToTimeChoice(PLArenaPool* arena, PRTime time)
 {
-  tm exploded;
-  if (!gmtime_r(&time, &exploded)) {
-    return nullptr;
-  }
-  TimeEncoding encoding = (exploded.tm_year + 1900 >= 1950 &&
-                           exploded.tm_year + 1900 < 2050)
-                        ? UTCTime
-                        : GeneralizedTime;
-
-  return TimeToEncodedTime(arena, time, encoding);
+  PRExplodedTime exploded;
+  PR_ExplodeTime(time, PR_GMTParameters, &exploded);
+  return PRTimeToEncodedTime(arena, time,
+    (exploded.tm_year >= 1950 && exploded.tm_year < 2050) ? UTCTime
+                                                          : GeneralizedTime);
 }
 
 Time
 YMDHMS(int16_t year, int16_t month, int16_t day,
        int16_t hour, int16_t minutes, int16_t seconds)
 {
-  assert(year <= 9999);
-  assert(month >= 1);
-  assert(month <= 12);
-  assert(day >= 1);
-  assert(hour >= 0);
-  assert(hour < 24);
-  assert(minutes >= 0);
-  assert(minutes < 60);
-  assert(seconds >= 0);
-  assert(seconds < 60);
-
-  uint64_t days = DaysBeforeYear(year);
-
-  {
-    static const int16_t DAYS_IN_MONTH[] = {
-      31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
-    };
-
-    int16_t i = 1;
-    for (;;) {
-      int16_t daysInMonth = DAYS_IN_MONTH[i - 1];
-      if (i == 2 &&
-          ((year % 4 == 0) && ((year % 100 != 0) || (year % 400 == 0)))) {
-        // Add leap day
-        ++daysInMonth;
-      }
-      if (i == month) {
-        assert(day <= daysInMonth);
-        break;
-      }
-      days += daysInMonth;
-      ++i;
-    }
-  }
-
-  days += (day - 1);
-
-  uint64_t totalSeconds = days * Time::ONE_DAY_IN_SECONDS;
-  totalSeconds += hour * 60 * 60;
-  totalSeconds += minutes * 60;
-  totalSeconds += seconds;
-  return TimeFromElapsedSecondsAD(totalSeconds);
+  PRExplodedTime tm;
+  tm.tm_usec = 0;
+  tm.tm_sec = seconds;
+  tm.tm_min = minutes;
+  tm.tm_hour = hour;
+  tm.tm_mday = day;
+  tm.tm_month = month - 1; // tm_month is zero-based
+  tm.tm_year = year;
+  tm.tm_params.tp_gmt_offset = 0;
+  tm.tm_params.tp_dst_offset = 0;
+  PRTime time = PR_ImplodeTime(&tm);
+  return TimeFromElapsedSecondsAD((time / PR_USEC_PER_SEC) +
+                                  (DaysBeforeYear(1970) *
+                                   Time::ONE_DAY_IN_SECONDS));
 }
 
 static SECItem*
@@ -743,12 +691,8 @@ GenerateKeyPair(/*out*/ ScopedSECKEYPublicKey& publicKey,
       break;
     }
 
-    // Since these keys are only for testing, we don't need them to be good,
-    // random keys.
-    // https://xkcd.com/221/
-    static const uint8_t RANDOM_NUMBER[] = { 4, 4, 4, 4, 4, 4, 4, 4 };
-    if (PK11_RandomUpdate((void*) &RANDOM_NUMBER,
-                          sizeof(RANDOM_NUMBER)) != SECSuccess) {
+    PRTime now = PR_Now();
+    if (PK11_RandomUpdate(&now, sizeof(PRTime)) != SECSuccess) {
       break;
     }
   }
@@ -762,8 +706,8 @@ GenerateKeyPair(/*out*/ ScopedSECKEYPublicKey& publicKey,
 
 static SECItem* TBSCertificate(PLArenaPool* arena, long version,
                                const SECItem* serialNumber, SECOidTag signature,
-                               const SECItem* issuer, time_t notBefore,
-                               time_t notAfter, const SECItem* subject,
+                               const SECItem* issuer, PRTime notBefore,
+                               PRTime notAfter, const SECItem* subject,
                                const SECKEYPublicKey* subjectPublicKey,
                                /*optional*/ SECItem const* const* extensions);
 
@@ -774,8 +718,8 @@ static SECItem* TBSCertificate(PLArenaPool* arena, long version,
 SECItem*
 CreateEncodedCertificate(PLArenaPool* arena, long version,
                          SECOidTag signature, const SECItem* serialNumber,
-                         const SECItem* issuerNameDER, time_t notBefore,
-                         time_t notAfter, const SECItem* subjectNameDER,
+                         const SECItem* issuerNameDER, PRTime notBefore,
+                         PRTime notAfter, const SECItem* subjectNameDER,
                          /*optional*/ SECItem const* const* extensions,
                          /*optional*/ SECKEYPrivateKey* issuerPrivateKey,
                          SECOidTag signatureHashAlg,
@@ -835,8 +779,8 @@ CreateEncodedCertificate(PLArenaPool* arena, long version,
 static SECItem*
 TBSCertificate(PLArenaPool* arena, long versionValue,
                const SECItem* serialNumber, SECOidTag signatureOidTag,
-               const SECItem* issuer, time_t notBeforeTime,
-               time_t notAfterTime, const SECItem* subject,
+               const SECItem* issuer, PRTime notBeforeTime,
+               PRTime notAfterTime, const SECItem* subject,
                const SECKEYPublicKey* subjectPublicKey,
                /*optional*/ SECItem const* const* extensions)
 {
@@ -887,11 +831,11 @@ TBSCertificate(PLArenaPool* arena, long versionValue,
   //       notAfter       Time }
   SECItem* validity;
   {
-    SECItem* notBefore(TimeToTimeChoice(arena, notBeforeTime));
+    SECItem* notBefore(PRTimeToTimeChoice(arena, notBeforeTime));
     if (!notBefore) {
       return nullptr;
     }
-    SECItem* notAfter(TimeToTimeChoice(arena, notAfterTime));
+    SECItem* notAfter(PRTimeToTimeChoice(arena, notAfterTime));
     if (!notAfter) {
       return nullptr;
     }
@@ -1224,8 +1168,8 @@ ResponseData(OCSPResponseContext& context)
   if (!responderID) {
     return nullptr;
   }
-  SECItem* producedAtEncoded = TimeToGeneralizedTime(context.arena,
-                                                     context.producedAt);
+  SECItem* producedAtEncoded = PRTimeToGeneralizedTime(context.arena,
+                                                       context.producedAt);
   if (!producedAtEncoded) {
     return nullptr;
   }
@@ -1326,15 +1270,15 @@ SingleResponse(OCSPResponseContext& context)
   if (!certStatus) {
     return nullptr;
   }
-  SECItem* thisUpdateEncoded = TimeToGeneralizedTime(context.arena,
-                                                     context.thisUpdate);
+  SECItem* thisUpdateEncoded = PRTimeToGeneralizedTime(context.arena,
+                                                       context.thisUpdate);
   if (!thisUpdateEncoded) {
     return nullptr;
   }
   SECItem* nextUpdateEncodedNested = nullptr;
   if (context.includeNextUpdate) {
-    SECItem* nextUpdateEncoded = TimeToGeneralizedTime(context.arena,
-                                                       context.nextUpdate);
+    SECItem* nextUpdateEncoded = PRTimeToGeneralizedTime(context.arena,
+                                                         context.nextUpdate);
     if (!nextUpdateEncoded) {
       return nullptr;
     }
@@ -1458,8 +1402,8 @@ CertStatus(OCSPResponseContext& context)
     }
     case 1:
     {
-      SECItem* revocationTime = TimeToGeneralizedTime(context.arena,
-                                                      context.revocationTime);
+      SECItem* revocationTime = PRTimeToGeneralizedTime(context.arena,
+                                                        context.revocationTime);
       if (!revocationTime) {
         return nullptr;
       }

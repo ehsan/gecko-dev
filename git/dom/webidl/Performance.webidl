@@ -13,13 +13,9 @@
 typedef double DOMHighResTimeStamp;
 typedef sequence <PerformanceEntry> PerformanceEntryList;
 
-[Exposed=(Window,Worker)]
 interface Performance {
   DOMHighResTimeStamp now();
-};
 
-[Exposed=Window]
-partial interface Performance {
   [Constant]
   readonly attribute PerformanceTiming timing;
   [Constant]
@@ -29,7 +25,6 @@ partial interface Performance {
 };
 
 // http://www.w3.org/TR/performance-timeline/#sec-window.performance-attribute
-[Exposed=Window]
 partial interface Performance {
   [Pref="dom.enable_resource_timing"]
   PerformanceEntryList getEntries();
@@ -41,7 +36,6 @@ partial interface Performance {
 };
 
 // http://www.w3.org/TR/resource-timing/#extensions-performance-interface
-[Exposed=Window]
 partial interface Performance {
   [Pref="dom.enable_resource_timing"]
   void clearResourceTimings();

@@ -758,18 +758,18 @@ ArrayBufferObject::ensureNonInline(JSContext *cx, Handle<ArrayBufferObject*> buf
     return true;
 }
 
-/* static */ ArrayBufferObject::BufferContents
+/* static */ void *
 ArrayBufferObject::stealContents(JSContext *cx, Handle<ArrayBufferObject*> buffer)
 {
     if (!buffer->canNeuter(cx)) {
         js_ReportOverRecursed(cx);
-        return BufferContents::createUnowned(nullptr);
+        return nullptr;
     }
 
     BufferContents oldContents(buffer->dataPointer(), buffer->bufferKind());
     BufferContents newContents = AllocateArrayBufferContents(cx, buffer->byteLength());
     if (!newContents)
-        return BufferContents::createUnowned(nullptr);
+        return nullptr;
 
     if (buffer->hasStealableContents()) {
         // Return the old contents and give the neutered buffer a pointer to
@@ -777,14 +777,14 @@ ArrayBufferObject::stealContents(JSContext *cx, Handle<ArrayBufferObject*> buffe
         // never get committed.
         buffer->setOwnsData(DoesntOwnData);
         ArrayBufferObject::neuter(cx, buffer, newContents);
-        return oldContents;
+        return oldContents.data();
+    } else {
+        // Create a new chunk of memory to return since we cannot steal the
+        // existing contents away from the buffer.
+        memcpy(newContents.data(), oldContents.data(), buffer->byteLength());
+        ArrayBufferObject::neuter(cx, buffer, oldContents);
+        return newContents.data();
     }
-
-    // Create a new chunk of memory to return since we cannot steal the
-    // existing contents away from the buffer.
-    memcpy(newContents.data(), oldContents.data(), buffer->byteLength());
-    ArrayBufferObject::neuter(cx, buffer, oldContents);
-    return newContents;
 }
 
 /* static */ void
@@ -1170,7 +1170,7 @@ JS_StealArrayBufferContents(JSContext *cx, HandleObject objArg)
     }
 
     Rooted<ArrayBufferObject*> buffer(cx, &obj->as<ArrayBufferObject>());
-    return ArrayBufferObject::stealContents(cx, buffer).data();
+    return ArrayBufferObject::stealContents(cx, buffer);
 }
 
 JS_PUBLIC_API(JSObject *)

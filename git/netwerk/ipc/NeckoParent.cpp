@@ -36,7 +36,6 @@
 #include "SerializedLoadContext.h"
 #include "nsAuthInformationHolder.h"
 #include "nsIAuthPromptCallback.h"
-#include "nsPrincipal.h"
 
 using mozilla::dom::ContentParent;
 using mozilla::dom::TabParent;
@@ -557,25 +556,7 @@ NeckoParent::AllocPRemoteOpenFileParent(const SerializedLoadContext& aSerialized
       }
     }
 
-    // Check if we load a resource from the shared theme url space.
-    // If we try to load the theme but have no permission, refuse to load.
-    bool themeWhitelist = false;
-    if (Preferences::GetBool("dom.mozApps.themable") && appUri) {
-      nsAutoCString origin;
-      nsPrincipal::GetOriginForURI(appUri, getter_Copies(origin));
-      nsAutoCString themeOrigin;
-      themeOrigin = Preferences::GetCString("b2g.theme.origin");
-      themeWhitelist = origin.Equals(themeOrigin);
-      if (themeWhitelist) {
-        bool hasThemePerm = false;
-        mozApp->HasPermission("themeable", &hasThemePerm);
-        if (!hasThemePerm) {
-          return nullptr;
-        }
-      }
-    }
-
-    if (hasManage || netErrorWhiteList || themeWhitelist) {
+    if (hasManage || netErrorWhiteList) {
       // webapps-manage permission means allow reading any application.zip file
       // in either the regular webapps directory, or the core apps directory (if
       // we're using one).

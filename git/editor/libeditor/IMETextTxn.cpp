@@ -4,111 +4,149 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "IMETextTxn.h"
-
-#include "mozilla/dom/Selection.h"      // local var
-#include "mozilla/dom/Text.h"           // mTextNode
-#include "nsAString.h"                  // params
+#include "mozilla/DebugOnly.h"          // for DebugOnly
+#include "mozilla/mozalloc.h"           // for operator new
+#include "mozilla/TextEvents.h"         // for TextRangeStyle
+#include "nsAString.h"                  // for nsAString_internal::Length, etc
+#include "nsAutoPtr.h"                  // for nsRefPtr
 #include "nsDebug.h"                    // for NS_ASSERTION, etc
-#include "nsEditor.h"                   // mEditor
 #include "nsError.h"                    // for NS_SUCCEEDED, NS_FAILED, etc
-#include "nsIPresShell.h"               // nsISelectionController constants
-#include "nsRange.h"                    // local var
+#include "nsIDOMCharacterData.h"        // for nsIDOMCharacterData
+#include "nsIDOMRange.h"                // for nsRange::SetEnd, etc
+#include "nsIContent.h"                 // for nsIContent
+#include "nsIEditor.h"                  // for nsIEditor
+#include "nsIPresShell.h"               // for SelectionType
+#include "nsISelection.h"               // for nsISelection
+#include "nsISelectionController.h"     // for nsISelectionController, etc
+#include "nsISelectionPrivate.h"        // for nsISelectionPrivate
+#include "nsISupportsImpl.h"            // for nsRange::AddRef, etc
+#include "nsISupportsUtils.h"           // for NS_ADDREF_THIS, NS_RELEASE
+#include "nsITransaction.h"             // for nsITransaction
+#include "nsRange.h"                    // for nsRange
+#include "nsString.h"                   // for nsString
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
-IMETextTxn::IMETextTxn(Text& aTextNode, uint32_t aOffset,
-                       uint32_t aReplaceLength,
-                       TextRangeArray* aTextRangeArray,
-                       const nsAString& aStringToInsert,
-                       nsEditor& aEditor)
+// #define DEBUG_IMETXN
+
+IMETextTxn::IMETextTxn()
   : EditTxn()
-  , mTextNode(&aTextNode)
-  , mOffset(aOffset)
-  , mReplaceLength(aReplaceLength)
-  , mRanges(aTextRangeArray)
-  , mStringToInsert(aStringToInsert)
-  , mEditor(aEditor)
-  , mFixed(false)
-{
-}
-
-IMETextTxn::~IMETextTxn()
 {
 }
 
 NS_IMPL_CYCLE_COLLECTION_INHERITED(IMETextTxn, EditTxn,
-                                   mTextNode)
+                                   mElement)
 // mRangeList can't lead to cycles
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(IMETextTxn)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsITransaction, IMETextTxn)
+  if (aIID.Equals(IMETextTxn::GetCID())) {
+    *aInstancePtr = (void*)(IMETextTxn*)this;
+    NS_ADDREF_THIS();
+    return NS_OK;
+  } else
 NS_INTERFACE_MAP_END_INHERITING(EditTxn)
 
-NS_IMPL_ADDREF_INHERITED(IMETextTxn, EditTxn)
-NS_IMPL_RELEASE_INHERITED(IMETextTxn, EditTxn)
-
-NS_IMETHODIMP
-IMETextTxn::DoTransaction()
+NS_IMETHODIMP IMETextTxn::Init(nsIDOMCharacterData     *aElement,
+                               uint32_t                 aOffset,
+                               uint32_t                 aReplaceLength,
+                               TextRangeArray          *aTextRangeArray,
+                               const nsAString         &aStringToInsert,
+                               nsIEditor               *aEditor)
 {
-  // Fail before making any changes if there's no selection controller
+  NS_ENSURE_ARG_POINTER(aElement);
+  mElement = aElement;
+  mOffset = aOffset;
+  mReplaceLength = aReplaceLength;
+  mStringToInsert = aStringToInsert;
+  mEditor = aEditor;
+  mRanges = aTextRangeArray;
+  mFixed = false;
+  return NS_OK;
+}
+
+NS_IMETHODIMP IMETextTxn::DoTransaction(void)
+{
+
+#ifdef DEBUG_IMETXN
+  printf("Do IME Text element = %p replace = %d len = %d\n", mElement.get(), mReplaceLength, mStringToInsert.Length());
+#endif
+
   nsCOMPtr<nsISelectionController> selCon;
-  mEditor.GetSelectionController(getter_AddRefs(selCon));
+  mEditor->GetSelectionController(getter_AddRefs(selCon));
   NS_ENSURE_TRUE(selCon, NS_ERROR_NOT_INITIALIZED);
 
-  // Advance caret: This requires the presentation shell to get the selection.
-  nsresult res;
+  // advance caret: This requires the presentation shell to get the selection.
+  nsresult result;
   if (mReplaceLength == 0) {
-    res = mTextNode->InsertData(mOffset, mStringToInsert);
+    result = mElement->InsertData(mOffset, mStringToInsert);
   } else {
-    res = mTextNode->ReplaceData(mOffset, mReplaceLength, mStringToInsert);
+    result = mElement->ReplaceData(mOffset, mReplaceLength, mStringToInsert);
   }
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_SUCCEEDED(result)) {
+    result = SetSelectionForRanges();
+  }
 
-  res = SetSelectionForRanges();
-  NS_ENSURE_SUCCESS(res, res);
-
-  return NS_OK;
+  return result;
 }
 
-NS_IMETHODIMP
-IMETextTxn::UndoTransaction()
+NS_IMETHODIMP IMETextTxn::UndoTransaction(void)
 {
-  // Get the selection first so we'll fail before making any changes if we
-  // can't get it
-  nsRefPtr<Selection> selection = mEditor.GetSelection();
-  NS_ENSURE_TRUE(selection, NS_ERROR_NOT_INITIALIZED);
+#ifdef DEBUG_IMETXN
+  printf("Undo IME Text element = %p\n", mElement.get());
+#endif
 
-  nsresult res = mTextNode->DeleteData(mOffset, mStringToInsert.Length());
-  NS_ENSURE_SUCCESS(res, res);
+  nsCOMPtr<nsISelectionController> selCon;
+  mEditor->GetSelectionController(getter_AddRefs(selCon));
+  NS_ENSURE_TRUE(selCon, NS_ERROR_NOT_INITIALIZED);
 
-  // set the selection to the insertion point where the string was removed
-  res = selection->Collapse(mTextNode, mOffset);
-  NS_ASSERTION(NS_SUCCEEDED(res),
-               "Selection could not be collapsed after undo of IME insert.");
-  NS_ENSURE_SUCCESS(res, res);
-
-  return NS_OK;
+  nsresult result = mElement->DeleteData(mOffset, mStringToInsert.Length());
+  if (NS_SUCCEEDED(result))
+  { // set the selection to the insertion point where the string was removed
+    nsCOMPtr<nsISelection> selection;
+    result = selCon->GetSelection(nsISelectionController::SELECTION_NORMAL, getter_AddRefs(selection));
+    if (NS_SUCCEEDED(result) && selection) {
+      result = selection->Collapse(mElement, mOffset);
+      NS_ASSERTION((NS_SUCCEEDED(result)), "selection could not be collapsed after undo of IME insert.");
+    }
+  }
+  return result;
 }
 
-NS_IMETHODIMP
-IMETextTxn::Merge(nsITransaction* aTransaction, bool* aDidMerge)
+NS_IMETHODIMP IMETextTxn::Merge(nsITransaction *aTransaction, bool *aDidMerge)
 {
-  NS_ENSURE_ARG_POINTER(aTransaction && aDidMerge);
+  NS_ASSERTION(aDidMerge, "illegal vaule- null ptr- aDidMerge");
+  NS_ASSERTION(aTransaction, "illegal vaule- null ptr- aTransaction");
+  NS_ENSURE_TRUE(aDidMerge && aTransaction, NS_ERROR_NULL_POINTER);
+    
+#ifdef DEBUG_IMETXN
+  printf("Merge IME Text element = %p\n", mElement.get());
+#endif
 
-  // Check to make sure we aren't fixed, if we are then nothing gets absorbed
+  // 
+  // check to make sure we aren't fixed, if we are then nothing get's absorbed
+  //
   if (mFixed) {
     *aDidMerge = false;
     return NS_OK;
   }
 
-  // If aTransaction is another IMETextTxn then absorb it
-  nsRefPtr<IMETextTxn> otherTxn = do_QueryObject(aTransaction);
-  if (otherTxn) {
-    // We absorb the next IME transaction by adopting its insert string
+  //
+  // if aTransaction is another IMETextTxn then absorb it
+  //
+  IMETextTxn*  otherTxn = nullptr;
+  nsresult result = aTransaction->QueryInterface(IMETextTxn::GetCID(),(void**)&otherTxn);
+  if (otherTxn && NS_SUCCEEDED(result))
+  {
+    //
+    //  we absorb the next IME transaction by adopting its insert string as our own
+    //
     mStringToInsert = otherTxn->mStringToInsert;
     mRanges = otherTxn->mRanges;
     *aDidMerge = true;
+#ifdef DEBUG_IMETXN
+    printf("IMETextTxn assimilated IMETextTxn:%p\n", aTransaction);
+#endif
+    NS_RELEASE(otherTxn);
     return NS_OK;
   }
 
@@ -116,21 +154,20 @@ IMETextTxn::Merge(nsITransaction* aTransaction, bool* aDidMerge)
   return NS_OK;
 }
 
-void
-IMETextTxn::MarkFixed()
+NS_IMETHODIMP IMETextTxn::MarkFixed(void)
 {
   mFixed = true;
+  return NS_OK;
 }
 
-NS_IMETHODIMP
-IMETextTxn::GetTxnDescription(nsAString& aString)
+NS_IMETHODIMP IMETextTxn::GetTxnDescription(nsAString& aString)
 {
   aString.AssignLiteral("IMETextTxn: ");
   aString += mStringToInsert;
   return NS_OK;
 }
 
-/* ============ private methods ================== */
+/* ============ protected methods ================== */
 static SelectionType
 ToSelectionType(uint32_t aTextRangeType)
 {
@@ -152,10 +189,18 @@ ToSelectionType(uint32_t aTextRangeType)
 nsresult
 IMETextTxn::SetSelectionForRanges()
 {
-  nsRefPtr<Selection> selection = mEditor.GetSelection();
-  NS_ENSURE_TRUE(selection, NS_ERROR_NOT_INITIALIZED);
+  nsCOMPtr<nsISelectionController> selCon;
+  mEditor->GetSelectionController(getter_AddRefs(selCon));
+  NS_ENSURE_TRUE(selCon, NS_ERROR_NOT_INITIALIZED);
 
-  nsresult rv = selection->StartBatchChanges();
+  nsCOMPtr<nsISelection> selection;
+  nsresult rv =
+    selCon->GetSelection(nsISelectionController::SELECTION_NORMAL,
+                         getter_AddRefs(selection));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsISelectionPrivate> selPriv(do_QueryInterface(selection));
+  rv = selPriv->StartBatchChanges();
   NS_ENSURE_SUCCESS(rv, rv);
 
   // First, remove all selections of IME composition.
@@ -165,18 +210,13 @@ IMETextTxn::SetSelectionForRanges()
     nsISelectionController::SELECTION_IME_CONVERTEDTEXT,
     nsISelectionController::SELECTION_IME_SELECTEDCONVERTEDTEXT
   };
-
-  nsCOMPtr<nsISelectionController> selCon;
-  mEditor.GetSelectionController(getter_AddRefs(selCon));
-  NS_ENSURE_TRUE(selCon, NS_ERROR_NOT_INITIALIZED);
-
   for (uint32_t i = 0; i < ArrayLength(kIMESelections); ++i) {
     nsCOMPtr<nsISelection> selectionOfIME;
     if (NS_FAILED(selCon->GetSelection(kIMESelections[i],
                                        getter_AddRefs(selectionOfIME)))) {
       continue;
     }
-    rv = selectionOfIME->RemoveAllRanges();
+    DebugOnly<nsresult> rv = selectionOfIME->RemoveAllRanges();
     NS_ASSERTION(NS_SUCCEEDED(rv),
                  "Failed to remove all ranges of IME selection");
   }
@@ -184,14 +224,15 @@ IMETextTxn::SetSelectionForRanges()
   // Set caret position and selection of IME composition with TextRangeArray.
   bool setCaret = false;
   uint32_t countOfRanges = mRanges ? mRanges->Length() : 0;
-
 #ifdef DEBUG
-  // Bounds-checking on debug builds
-  uint32_t maxOffset = mTextNode->Length();
+  // When this sets selection (caret) offset to out of the content of
+  // the editor, let's crash the process only on debug build.  That makes such
+  // bugs detectable with automated tests.
+  uint32_t maxOffset = UINT32_MAX;
+  mElement->GetLength(&maxOffset);
 #endif
-
   // The mStringToInsert may be truncated if maxlength attribute value doesn't
-  // allow input of all text of this composition. So, we can get actual length
+  // allow to input all text of this composition. So, we can get actual length
   // of the inserted string from it.
   uint32_t insertedLength = mStringToInsert.Length();
   for (uint32_t i = 0; i < countOfRanges; ++i) {
@@ -206,13 +247,13 @@ IMETextTxn::SetSelectionForRanges()
         mOffset + std::min(textRange.mStartOffset, insertedLength));
       MOZ_ASSERT(caretOffset >= 0 &&
                  static_cast<uint32_t>(caretOffset) <= maxOffset);
-      rv = selection->Collapse(mTextNode, caretOffset);
+      rv = selection->Collapse(mElement, caretOffset);
       setCaret = setCaret || NS_SUCCEEDED(rv);
       NS_ASSERTION(setCaret, "Failed to collapse normal selection");
       continue;
     }
 
-    // If the clause length is 0, it should be a bug.
+    // If the clause length is 0, it's should be a bug.
     if (!textRange.Length()) {
       NS_WARNING("Any clauses must not be empty");
       continue;
@@ -227,8 +268,8 @@ IMETextTxn::SetSelectionForRanges()
       mOffset + std::min(textRange.mEndOffset, insertedLength));
     MOZ_ASSERT(endOffset >= startOffset &&
                static_cast<uint32_t>(endOffset) <= maxOffset);
-    rv = nsRange::CreateRange(mTextNode, startOffset,
-                              mTextNode, endOffset,
+    rv = nsRange::CreateRange(mElement, startOffset,
+                              mElement, endOffset,
                               getter_AddRefs(clauseRange));
     if (NS_FAILED(rv)) {
       NS_WARNING("Failed to create a DOM range for a clause of composition");
@@ -271,13 +312,14 @@ IMETextTxn::SetSelectionForRanges()
     int32_t caretOffset = static_cast<int32_t>(mOffset + insertedLength);
     MOZ_ASSERT(caretOffset >= 0 &&
                static_cast<uint32_t>(caretOffset) <= maxOffset);
-    rv = selection->Collapse(mTextNode, caretOffset);
+    rv = selection->Collapse(mElement, caretOffset);
     NS_ASSERTION(NS_SUCCEEDED(rv),
                  "Failed to set caret at the end of composition string");
   }
 
-  rv = selection->EndBatchChanges();
+  rv = selPriv->EndBatchChanges();
   NS_ASSERTION(NS_SUCCEEDED(rv), "Failed to end batch changes");
 
   return rv;
 }
+
