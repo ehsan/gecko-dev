@@ -95,7 +95,7 @@ public:
   // (assuming the candidate cert is not actively distrusted).
   virtual SECStatus GetCertTrust(EndEntityOrCA endEntityOrCA,
                                  const CertPolicyId& policy,
-                                 const SECItem& candidateCertDER,
+                                 const CERTCertificate* candidateCert,
                          /*out*/ TrustLevel* trustLevel) = 0;
 
   // Find all certificates (intermediate and/or root) in the certificate

@@ -18,7 +18,6 @@ EXTRA_COMPONENTS += [
     'PaymentGlue.js',
     'ProcessGlobal.js',
     'SmsProtocolHandler.js',
-    'SystemMessageGlue.js',
     'TelProtocolHandler.js',
     'WebappsUpdateTimer.js',
     'YoutubeProtocolHandler.js',

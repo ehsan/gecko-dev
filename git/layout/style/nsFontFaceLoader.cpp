@@ -30,7 +30,7 @@
 #include "nsIDocShell.h"
 #include "nsIWebNavigation.h"
 #include "nsISupportsPriority.h"
-#include "nsINetworkPredictor.h"
+#include "nsINetworkSeer.h"
 
 #include "nsIConsoleService.h"
 
@@ -383,9 +383,8 @@ nsUserFontSet::StartLoad(gfxMixedFontFamily* aFamily,
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsIDocument *document = ps->GetDocument();
-  mozilla::net::PredictorLearn(aFontFaceSrc->mURI, document->GetDocumentURI(),
-                               nsINetworkPredictor::LEARN_LOAD_SUBRESOURCE,
-                               loadGroup);
+  mozilla::net::SeerLearn(aFontFaceSrc->mURI, document->GetDocumentURI(),
+                          nsINetworkSeer::LEARN_LOAD_SUBRESOURCE, loadGroup);
 
   bool inherits = false;
   rv = NS_URIChainHasFlags(aFontFaceSrc->mURI,

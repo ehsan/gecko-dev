@@ -27,6 +27,7 @@
 #include "mozilla/gfx/2D.h"
 #include "Units.h"
 #include "mozilla/ToString.h"
+#include "gfxPrefs.h"
 
 #include <limits>
 #include <algorithm>
@@ -2201,7 +2202,7 @@ public:
                                   ViewID aScrollId,
                                   const std::string& aKey,
                                   const std::string& aValue) {
-    if (IsAPZTestLoggingEnabled()) {
+    if (gfxPrefs::APZTestLoggingEnabled()) {
       DoLogTestDataForPaint(aPresShell, aScrollId, aKey, aValue);
     }
   }
@@ -2216,7 +2217,7 @@ public:
                                   ViewID aScrollId,
                                   const std::string& aKey,
                                   const Value& aValue) {
-    if (IsAPZTestLoggingEnabled()) {
+    if (gfxPrefs::APZTestLoggingEnabled()) {
       DoLogTestDataForPaint(aPresShell, aScrollId, aKey,
           mozilla::ToString(aValue));
     }
@@ -2261,8 +2262,6 @@ private:
                                     ViewID aScrollId,
                                     const std::string& aKey,
                                     const std::string& aValue);
-
-  static bool IsAPZTestLoggingEnabled();
 };
 
 MOZ_FINISH_NESTED_ENUM_CLASS(nsLayoutUtils::RepaintMode)

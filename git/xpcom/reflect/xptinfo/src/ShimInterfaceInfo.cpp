@@ -139,6 +139,7 @@
 #include "nsIDOMPopStateEvent.h"
 #include "nsIDOMPopupBlockedEvent.h"
 #include "nsIDOMProcessingInstruction.h"
+#include "nsIDOMProgressEvent.h"
 #include "nsIDOMRange.h"
 #include "nsIDOMRecordErrorEvent.h"
 #include "nsIDOMRect.h"
@@ -308,6 +309,7 @@
 #include "mozilla/dom/PopupBlockedEventBinding.h"
 #include "mozilla/dom/PositionErrorBinding.h"
 #include "mozilla/dom/ProcessingInstructionBinding.h"
+#include "mozilla/dom/ProgressEventBinding.h"
 #include "mozilla/dom/RangeBinding.h"
 #include "mozilla/dom/RecordErrorEventBinding.h"
 #include "mozilla/dom/RectBinding.h"
@@ -528,6 +530,7 @@ const ComponentsInterfaceShimEntry kComponentsInterfaceShimMap[] =
   DEFINE_SHIM(PopStateEvent),
   DEFINE_SHIM(PopupBlockedEvent),
   DEFINE_SHIM(ProcessingInstruction),
+  DEFINE_SHIM(ProgressEvent),
   DEFINE_SHIM(Range),
   DEFINE_SHIM(RecordErrorEvent),
   DEFINE_SHIM(Rect),
