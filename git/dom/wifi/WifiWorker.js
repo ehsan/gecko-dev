@@ -1859,7 +1859,7 @@ function WifiWorker() {
     var pub = new Network(ssid, security, password);
     if (net.identity)
       pub.identity = dequote(net.identity);
-    if ("netId" in net)
+    if (net.netId)
       pub.known = true;
     if (net.scan_ssid === 1)
       pub.hidden = true;

@@ -117,7 +117,8 @@ loop.webapp = (function($, _, OT, mozL10n) {
     render: function() {
       return (
         React.DOM.h1({className: "standalone-header-title"}, 
-          React.DOM.strong(null, mozL10n.get("clientShortname2"))
+          React.DOM.strong(null, mozL10n.get("brandShortname")), 
+          mozL10n.get("clientShortname2")
         )
       );
     }
@@ -283,11 +284,7 @@ loop.webapp = (function($, _, OT, mozL10n) {
     },
 
     render: function() {
-      var callStateStringEntityName = "call_progress_" + this.state.callState + "_description";
-      var callState = mozL10n.get(callStateStringEntityName);
-      document.title = mozL10n.get("standalone_title_with_status",
-                                   {clientShortname: mozL10n.get("clientShortname2"),
-                                    currentStatus: mozL10n.get(callStateStringEntityName)});
+      var callState = mozL10n.get("call_progress_" + this.state.callState + "_description");
       return (
         React.DOM.div({className: "container"}, 
           React.DOM.div({className: "container-box"}, 
@@ -460,7 +457,6 @@ loop.webapp = (function($, _, OT, mozL10n) {
       var privacyNoticeName = mozL10n.get("privacy_notice_link_text");
 
       var tosHTML = mozL10n.get("legal_text_and_links", {
-        "clientShortname": mozL10n.get("clientShortname2"),
         "terms_of_use_url": "<a target=_blank href='" +
           mozL10n.get("legal_website") + "'>" +
           tosLinkName + "</a>",
@@ -523,9 +519,6 @@ loop.webapp = (function($, _, OT, mozL10n) {
     },
 
     render: function() {
-      document.title = mozL10n.get("standalone_title_with_status",
-                                   {clientShortname: mozL10n.get("clientShortname2"),
-                                    currentStatus: mozL10n.get("status_conversation_ended")});
       return (
         React.DOM.div({className: "ended-conversation"}, 
           sharedViews.FeedbackView({
@@ -546,7 +539,6 @@ loop.webapp = (function($, _, OT, mozL10n) {
 
   var StartConversationView = React.createClass({displayName: 'StartConversationView',
     render: function() {
-      document.title = mozL10n.get("clientShortname2");
       return this.transferPropsTo(
         InitiateConversationView({
           title: mozL10n.get("initiate_call_button_label2"), 
@@ -557,9 +549,6 @@ loop.webapp = (function($, _, OT, mozL10n) {
 
   var FailedConversationView = React.createClass({displayName: 'FailedConversationView',
     render: function() {
-      document.title = mozL10n.get("standalone_title_with_status",
-                                   {clientShortname: mozL10n.get("clientShortname2"),
-                                    currentStatus: mozL10n.get("status_error")});
       return this.transferPropsTo(
         InitiateConversationView({
           title: mozL10n.get("call_failed_title"), 
@@ -647,9 +636,6 @@ loop.webapp = (function($, _, OT, mozL10n) {
           return PendingConversationView({websocket: this._websocket});
         }
         case "connected": {
-          document.title = mozL10n.get("standalone_title_with_status",
-                                       {clientShortname: mozL10n.get("clientShortname2"),
-                                        currentStatus: mozL10n.get("status_in_conversation")});
           return (
             sharedViews.ConversationView({
               initiate: true, 
