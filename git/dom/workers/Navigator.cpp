@@ -206,18 +206,15 @@ class NavigatorGetDataStoresRunnable MOZ_FINAL : public WorkerMainThreadRunnable
 {
   nsRefPtr<PromiseWorkerProxy> mPromiseWorkerProxy;
   const nsString mName;
-  const nsString mOwner;
   ErrorResult& mRv;
 
 public:
   NavigatorGetDataStoresRunnable(WorkerPrivate* aWorkerPrivate,
                                  Promise* aWorkerPromise,
                                  const nsAString& aName,
-                                 const nsAString& aOwner,
                                  ErrorResult& aRv)
     : WorkerMainThreadRunnable(aWorkerPrivate)
     , mName(aName)
-    , mOwner(aOwner)
     , mRv(aRv)
   {
     MOZ_ASSERT(aWorkerPrivate);
@@ -249,8 +246,7 @@ protected:
       return false;
     }
 
-    nsRefPtr<Promise> promise =
-      Navigator::GetDataStores(window, mName, mOwner, mRv);
+    nsRefPtr<Promise> promise = Navigator::GetDataStores(window, mName, mRv);
     promise->AppendNativeHandler(mPromiseWorkerProxy);
     return true;
   }
@@ -259,7 +255,6 @@ protected:
 already_AddRefed<Promise>
 WorkerNavigator::GetDataStores(JSContext* aCx,
                                const nsAString& aName,
-                               const nsAString& aOwner,
                                ErrorResult& aRv)
 {
   WorkerPrivate* workerPrivate = GetWorkerPrivateFromContext(aCx);
@@ -272,7 +267,7 @@ WorkerNavigator::GetDataStores(JSContext* aCx,
   }
 
   nsRefPtr<NavigatorGetDataStoresRunnable> runnable =
-    new NavigatorGetDataStoresRunnable(workerPrivate, promise, aName, aOwner, aRv);
+    new NavigatorGetDataStoresRunnable(workerPrivate, promise, aName, aRv);
   runnable->Dispatch(aCx);
 
   return promise.forget();

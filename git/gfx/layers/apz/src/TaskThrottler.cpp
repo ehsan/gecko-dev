@@ -9,11 +9,10 @@
 namespace mozilla {
 namespace layers {
 
-TaskThrottler::TaskThrottler(const TimeStamp& aTimeStamp, const TimeDuration& aMaxWait)
+TaskThrottler::TaskThrottler(const TimeStamp& aTimeStamp)
   : mOutstanding(false)
   , mQueuedTask(nullptr)
   , mStartTime(aTimeStamp)
-  , mMaxWait(aMaxWait)
   , mMean(1)
 { }
 
@@ -26,19 +25,13 @@ TaskThrottler::PostTask(const tracked_objects::Location& aLocation,
   if (mOutstanding) {
     if (mQueuedTask) {
       mQueuedTask->Cancel();
-      mQueuedTask = nullptr;
     }
-    if (TimeSinceLastRequest(aTimeStamp) < mMaxWait) {
-      mQueuedTask = Move(aTask);
-      return;
-    }
-    // we've been waiting for more than the max-wait limit, so just fall through
-    // and send the new task already.
+    mQueuedTask = Move(aTask);
+  } else {
+    mStartTime = aTimeStamp;
+    aTask->Run();
+    mOutstanding = true;
   }
-
-  mStartTime = aTimeStamp;
-  aTask->Run();
-  mOutstanding = true;
 }
 
 void

@@ -239,16 +239,11 @@ WifiProxyService::Shutdown()
       mEventThreadList[i].mThread = nullptr;
     }
   }
-
   mEventThreadList.Clear();
-
   if (mControlThread) {
     mControlThread->Shutdown();
     mControlThread = nullptr;
   }
-
-  mListener = nullptr;
-
   return NS_OK;
 }
 

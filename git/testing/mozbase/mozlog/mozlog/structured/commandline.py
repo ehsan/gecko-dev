@@ -14,7 +14,8 @@ log_formatters = {
     'unittest': (formatters.UnittestFormatter, "Unittest style output"),
     'xunit': (formatters.XUnitFormatter, "xUnit compatible XML"),
     'html': (formatters.HTMLFormatter, "HTML report"),
-    'mach': (formatters.MachFormatter, "Human-readable output"),
+    'mach': (formatters.MachFormatter, "Uncolored mach-like output"),
+    'mach_terminal': (formatters.MachTerminalFormatter, "Colored mach-like output for use in a tty"),
     'tbpl': (formatters.TbplFormatter, "TBPL style log format"),
 }
 
@@ -60,7 +61,7 @@ def add_logging_group(parser):
                                help=help_str)
 
 
-def setup_logging(suite, args, defaults=None):
+def setup_logging(suite, args, defaults):
     """
     Configure a structuredlogger based on command line arguments.
 
@@ -71,10 +72,7 @@ def setup_logging(suite, args, defaults=None):
     :param args: A dictionary of {argument_name:value} produced from
                  parsing the command line arguments for the application
     :param defaults: A dictionary of {formatter name: output stream} to apply
-                     when there is no logging supplied on the command line. If
-                     this isn't supplied, reasonable defaults are chosen
-                     (coloured mach formatting if stdout is a terminal, or raw
-                     logs otherwise).
+                     when there is no logging supplied on the command line.
 
     :rtype: StructuredLogger
     """
@@ -84,13 +82,6 @@ def setup_logging(suite, args, defaults=None):
     found_stdout_logger = False
     if not hasattr(args, 'iteritems'):
         args = vars(args)
-
-    if defaults is None:
-        if sys.__stdout__.isatty():
-            defaults = {"mach": sys.stdout}
-        else:
-            defaults = {"raw": sys.stdout}
-
     for name, values in args.iteritems():
         if name.startswith(prefix) and values is not None:
             for value in values:

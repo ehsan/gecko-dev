@@ -930,18 +930,6 @@ nsTextInputListener::EditAction()
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsTextInputListener::BeforeEditAction()
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsTextInputListener::CancelEditAction()
-{
-  return NS_OK;
-}
-
 // END nsIEditorObserver
 
 
@@ -1054,7 +1042,7 @@ public:
   PrepareEditorEvent(nsTextEditorState &aState,
                      nsIContent *aOwnerContent,
                      const nsAString &aCurrentValue)
-    : mState(&aState)
+    : mState(aState.asWeakPtr())
     , mOwnerContent(aOwnerContent)
     , mCurrentValue(aCurrentValue)
   {

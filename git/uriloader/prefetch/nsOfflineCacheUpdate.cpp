@@ -1985,7 +1985,7 @@ void
 nsOfflineCacheUpdate::SetOwner(nsOfflineCacheUpdateOwner *aOwner)
 {
     NS_ASSERTION(!mOwner, "Tried to set cache update owner twice.");
-    mOwner = aOwner;
+    mOwner = aOwner->asWeakPtr();
 }
 
 bool

@@ -19,6 +19,3 @@ USE_LIBS += [
     'xpcomglue_s',
     'xul',
 ]
-
-CXXFLAGS += CONFIG['TK_CFLAGS']
-CXXFLAGS += CONFIG['MOZ_DBUS_GLIB_CFLAGS']

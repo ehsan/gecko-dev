@@ -10,3 +10,5 @@ EXTRA_LIBS += \
   $(NSPR_LIBS) \
   $(NSS_LIBS) \
   $(NULL)
+
+DEFINES += $(TK_CFLAGS)

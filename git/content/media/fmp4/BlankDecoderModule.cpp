@@ -211,34 +211,27 @@ public:
   }
 
   // Decode thread.
-  virtual already_AddRefed<MediaDataDecoder>
-  CreateH264Decoder(const mp4_demuxer::VideoDecoderConfig& aConfig,
-                    layers::LayersBackend aLayersBackend,
-                    layers::ImageContainer* aImageContainer,
-                    MediaTaskQueue* aVideoTaskQueue,
-                    MediaDataDecoderCallback* aCallback) MOZ_OVERRIDE {
-    BlankVideoDataCreator* creator = new BlankVideoDataCreator(
+  virtual MediaDataDecoder* CreateH264Decoder(const mp4_demuxer::VideoDecoderConfig& aConfig,
+                                              layers::LayersBackend aLayersBackend,
+                                              layers::ImageContainer* aImageContainer,
+                                              MediaTaskQueue* aVideoTaskQueue,
+                                              MediaDataDecoderCallback* aCallback) MOZ_OVERRIDE {
+    BlankVideoDataCreator* decoder = new BlankVideoDataCreator(
       aConfig.display_width, aConfig.display_height, aImageContainer);
-    nsRefPtr<MediaDataDecoder> decoder =
-      new BlankMediaDataDecoder<BlankVideoDataCreator>(creator,
-                                                       aVideoTaskQueue,
-                                                       aCallback);
-    return decoder.forget();
+    return new BlankMediaDataDecoder<BlankVideoDataCreator>(decoder,
+                                                            aVideoTaskQueue,
+                                                            aCallback);
   }
 
   // Decode thread.
-  virtual already_AddRefed<MediaDataDecoder>
-  CreateAACDecoder(const mp4_demuxer::AudioDecoderConfig& aConfig,
-                   MediaTaskQueue* aAudioTaskQueue,
-                   MediaDataDecoderCallback* aCallback) MOZ_OVERRIDE {
-    BlankAudioDataCreator* creator = new BlankAudioDataCreator(
+  virtual MediaDataDecoder* CreateAACDecoder(const mp4_demuxer::AudioDecoderConfig& aConfig,
+                                             MediaTaskQueue* aAudioTaskQueue,
+                                             MediaDataDecoderCallback* aCallback) MOZ_OVERRIDE {
+    BlankAudioDataCreator* decoder = new BlankAudioDataCreator(
       aConfig.channel_count, aConfig.samples_per_second);
-
-    nsRefPtr<MediaDataDecoder> decoder =
-      new BlankMediaDataDecoder<BlankAudioDataCreator>(creator,
-                                                       aAudioTaskQueue,
-                                                       aCallback);
-    return decoder.forget();
+    return new BlankMediaDataDecoder<BlankAudioDataCreator>(decoder,
+                                                            aAudioTaskQueue,
+                                                            aCallback);
   }
 };
 

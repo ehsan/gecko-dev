@@ -1026,9 +1026,7 @@ APZCTreeManager::GetTargetAPZC(const ScreenPoint& aPoint, bool* aOutInOverscroll
   bool inOverscrolledApzc = false;
   for (AsyncPanZoomController* apzc = mRootApzc; apzc; apzc = apzc->GetPrevSibling()) {
     target = GetAPZCAtPoint(apzc, point, &inOverscrolledApzc);
-    // If we hit an overscrolled APZC, 'target' will be nullptr but it's still
-    // a hit so we don't search further siblings.
-    if (target || inOverscrolledApzc) {
+    if (target) {
       break;
     }
   }

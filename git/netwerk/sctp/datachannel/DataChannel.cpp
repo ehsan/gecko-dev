@@ -200,7 +200,7 @@ DataChannelConnection::DataChannelConnection(DataConnectionListener *listener) :
   mState = CLOSED;
   mSocket = nullptr;
   mMasterSocket = nullptr;
-  mListener = listener;
+  mListener = listener->asWeakPtr();
   mLocalPort = 0;
   mRemotePort = 0;
   mDeferTimeout = 10;

@@ -142,10 +142,10 @@ GetFreeBytes(const nsAString& aStorageName)
   // This function makes the assumption that the various types
   // are all stored on the same filesystem. So we use pictures.
 
-  nsRefPtr<DeviceStorageFile> dsf(new DeviceStorageFile(NS_LITERAL_STRING(DEVICESTORAGE_PICTURES),
-                                                        aStorageName));
+  DeviceStorageFile dsf(NS_LITERAL_STRING(DEVICESTORAGE_PICTURES),
+                        aStorageName);
   int64_t freeBytes = 0;
-  dsf->GetDiskFreeSpace(&freeBytes);
+  dsf.GetDiskFreeSpace(&freeBytes);
   return freeBytes;
 }
 
@@ -3574,8 +3574,8 @@ nsDOMDeviceStorage::GetDefaultStorageName(const nsAString& aStorageType,
 bool
 nsDOMDeviceStorage::IsAvailable()
 {
-  nsRefPtr<DeviceStorageFile> dsf(new DeviceStorageFile(mStorageType, mStorageName));
-  return dsf->IsAvailable();
+  DeviceStorageFile dsf(mStorageType, mStorageName);
+  return dsf.IsAvailable();
 }
 
 NS_IMETHODIMP
@@ -4365,15 +4365,15 @@ nsDOMDeviceStorage::Observe(nsISupports *aSubject,
       return NS_OK;
     }
 
-    nsRefPtr<DeviceStorageFile> dsf(new DeviceStorageFile(mStorageType, mStorageName));
+    DeviceStorageFile dsf(mStorageType, mStorageName);
     nsString status, storageStatus;
 
     // Get Status (one of "available, unavailable, shared")
-    dsf->GetStatus(status);
+    dsf.GetStatus(status);
     DispatchStatusChangeEvent(status);
 
     // Get real volume status (defined in dom/system/gonk/nsIVolume.idl)
-    dsf->GetStorageStatus(storageStatus);
+    dsf.GetStorageStatus(storageStatus);
     DispatchStorageStatusChangeEvent(storageStatus);
     return NS_OK;
   }

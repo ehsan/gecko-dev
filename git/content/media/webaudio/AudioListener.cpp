@@ -72,7 +72,7 @@ AudioListener::SetOrientation(double aX, double aY, double aZ,
 void
 AudioListener::RegisterPannerNode(PannerNode* aPannerNode)
 {
-  mPanners.AppendElement(aPannerNode);
+  mPanners.AppendElement(aPannerNode->asWeakPtr());
 
   // Let the panner node know about our parameters
   aPannerNode->SendThreeDPointParameterToStream(PannerNode::LISTENER_POSITION, mPosition);

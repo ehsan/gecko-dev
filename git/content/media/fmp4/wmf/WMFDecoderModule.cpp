@@ -63,33 +63,29 @@ WMFDecoderModule::Shutdown()
   return NS_OK;
 }
 
-already_AddRefed<MediaDataDecoder>
+MediaDataDecoder*
 WMFDecoderModule::CreateH264Decoder(const mp4_demuxer::VideoDecoderConfig& aConfig,
-                                    layers::LayersBackend aLayersBackend,
-                                    layers::ImageContainer* aImageContainer,
+                                    mozilla::layers::LayersBackend aLayersBackend,
+                                    mozilla::layers::ImageContainer* aImageContainer,
                                     MediaTaskQueue* aVideoTaskQueue,
                                     MediaDataDecoderCallback* aCallback)
 {
-  nsRefPtr<MediaDataDecoder> decoder =
-    new WMFMediaDataDecoder(new WMFVideoMFTManager(aConfig,
-                                                   aLayersBackend,
-                                                   aImageContainer,
-                                                   sDXVAEnabled),
-                            aVideoTaskQueue,
-                            aCallback);
-  return decoder.forget();
+  return new WMFMediaDataDecoder(new WMFVideoMFTManager(aConfig,
+                                                        aLayersBackend,
+                                                        aImageContainer,
+                                                        sDXVAEnabled),
+                                 aVideoTaskQueue,
+                                 aCallback);
 }
 
-already_AddRefed<MediaDataDecoder>
+MediaDataDecoder*
 WMFDecoderModule::CreateAACDecoder(const mp4_demuxer::AudioDecoderConfig& aConfig,
                                    MediaTaskQueue* aAudioTaskQueue,
                                    MediaDataDecoderCallback* aCallback)
 {
-  nsRefPtr<MediaDataDecoder> decoder =
-    new WMFMediaDataDecoder(new WMFAudioMFTManager(aConfig),
-                            aAudioTaskQueue,
-                            aCallback);
-  return decoder.forget();
+  return new WMFMediaDataDecoder(new WMFAudioMFTManager(aConfig),
+                                 aAudioTaskQueue,
+                                 aCallback);
 }
 
 } // namespace mozilla

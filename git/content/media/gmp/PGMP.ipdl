@@ -27,8 +27,6 @@ child:
   async PGMPDecryptor();
   async PGMPVideoDecoder();
   async PGMPVideoEncoder();
-
-  async CrashPluginNow();
 };
 
 } // namespace gmp

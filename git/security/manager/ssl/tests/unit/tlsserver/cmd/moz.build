@@ -26,5 +26,3 @@ USE_LIBS += [
     'pkixtestutil',
     'tlsserver',
 ]
-
-CXXFLAGS += CONFIG['TK_CFLAGS']

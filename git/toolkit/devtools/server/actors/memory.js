@@ -4,37 +4,9 @@
 
 "use strict";
 
-const { Cc, Ci, Cu } = require("chrome");
+const {Cc, Ci, Cu} = require("chrome");
 let protocol = require("devtools/server/protocol");
-let { method, RetVal } = protocol;
-const { reportException } = require("devtools/toolkit/DevToolsUtils");
-
-/**
- * A method decorator that ensures the actor is in the expected state before
- * proceeding. If the actor is not in the expected state, the decorated method
- * returns a rejected promise.
- *
- * @param String expectedState
- *        The expected state.
- *
- * @param Function method
- *        The actor method to proceed with when the actor is in the expected
- *        state.
- *
- * @returns Function
- *          The decorated method.
- */
-function expectState(expectedState, method) {
-  return function(...args) {
-    if (this.state !== expectedState) {
-      const msg = "Wrong State: Expected '" + expectedState + "', but current "
-                + "state is '" + this.state + "'";
-      return Promise.reject(new Error(msg));
-    }
-
-    return method.apply(this, args);
-  };
-}
+let {method, RetVal} = protocol;
 
 /**
  * An actor that returns memory usage data for its parent actor's window.
@@ -45,58 +17,17 @@ function expectState(expectedState, method) {
 let MemoryActor = protocol.ActorClass({
   typeName: "memory",
 
-  get dbg() {
-    if (!this._dbg) {
-      this._dbg = this.parent.makeDebugger();
-    }
-    return this._dbg;
-  },
-
-  initialize: function(conn, parent) {
+  initialize: function(conn, tabActor) {
     protocol.Actor.prototype.initialize.call(this, conn);
-    this.parent = parent;
+    this.tabActor = tabActor;
     this._mgr = Cc["@mozilla.org/memory-reporter-manager;1"]
                   .getService(Ci.nsIMemoryReporterManager);
-    this.state = "detached";
-    this._dbg = null;
   },
 
   destroy: function() {
     this._mgr = null;
-    if (this.state === "attached") {
-      this.detach();
-    }
     protocol.Actor.prototype.destroy.call(this);
   },
-
-  /**
-   * Attach to this MemoryActor.
-   */
-  attach: method(expectState("detached", function() {
-    this.dbg.addDebuggees();
-    this.dbg.enabled = true;
-    this.state = "attached";
-  }), {
-    request: {},
-    response: {
-      type: "attached"
-    }
-  }),
-
-  /**
-   * Detach from this MemoryActor.
-   */
-  detach: method(expectState("attached", function() {
-    this.dbg.removeAllDebuggees();
-    this.dbg.enabled = false;
-    this._dbg = null;
-    this.state = "detached";
-  }), {
-    request: {},
-    response: {
-      type: "detached"
-    }
-  }),
 
   /**
    * A method that returns a detailed breakdown of the memory consumption of the
@@ -118,7 +49,7 @@ let MemoryActor = protocol.ActorClass({
     let nonJSMilliseconds = {};
 
     try {
-      this._mgr.sizeOfTab(this.parent.window, jsObjectsSize, jsStringsSize, jsOtherSize,
+      this._mgr.sizeOfTab(this.tabActor.window, jsObjectsSize, jsStringsSize, jsOtherSize,
                           domSize, styleSize, otherSize, totalSize, jsMilliseconds, nonJSMilliseconds);
       result.total = totalSize.value;
       result.domSize = domSize.value;
@@ -130,7 +61,9 @@ let MemoryActor = protocol.ActorClass({
       result.jsMilliseconds = jsMilliseconds.value.toFixed(1);
       result.nonJSMilliseconds = nonJSMilliseconds.value.toFixed(1);
     } catch (e) {
-      reportException("MemoryActor.prototype.measure", e);
+      console.error(e);
+      let url = this.tabActor.url;
+      console.error("Error getting size of " + url);
     }
 
     return result;

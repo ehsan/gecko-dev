@@ -71,4 +71,3 @@ LOCAL_INCLUDES += [
     '/ipc/chromium/src',
 ]
 
-CXXFLAGS += CONFIG['SQLITE_CFLAGS']

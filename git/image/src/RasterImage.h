@@ -329,9 +329,6 @@ public:
   // Decode strategy
 
 private:
-  // Initiates an HQ scale for the given frame, if possible.
-  void RequestScale(imgFrame* aFrame, gfxSize aScale);
-
   already_AddRefed<imgStatusTracker> CurrentStatusTracker()
   {
     mDecodingMonitor.AssertCurrentThreadIn();
@@ -816,7 +813,7 @@ class imgDecodeRequestor : public nsRunnable
 {
   public:
     imgDecodeRequestor(RasterImage &aContainer) {
-      mContainer = &aContainer;
+      mContainer = aContainer.asWeakPtr();
     }
     NS_IMETHOD Run() {
       if (mContainer)

@@ -26,11 +26,8 @@ class WebGLFramebuffer MOZ_FINAL
     , public WebGLRefCountedObject<WebGLFramebuffer>
     , public LinkedListElement<WebGLFramebuffer>
     , public WebGLContextBoundObject
-    , public SupportsWeakPtr<WebGLFramebuffer>
 {
 public:
-    MOZ_DECLARE_REFCOUNTED_TYPENAME(WebGLFramebuffer)
-
     WebGLFramebuffer(WebGLContext* context);
 
     struct Attachment
@@ -43,8 +40,10 @@ public:
         GLint mTexImageLevel;
         mutable bool mNeedsFinalize;
 
-        Attachment(GLenum aAttachmentPoint = LOCAL_GL_COLOR_ATTACHMENT0);
-        ~Attachment();
+        Attachment(GLenum aAttachmentPoint = LOCAL_GL_COLOR_ATTACHMENT0)
+            : mAttachmentPoint(aAttachmentPoint)
+            , mNeedsFinalize(false)
+        {}
 
         bool IsDefined() const {
             return Texture() || Renderbuffer();
@@ -80,7 +79,10 @@ public:
         bool HasUninitializedImageData() const;
         void SetImageDataStatus(WebGLImageDataStatus x);
 
-        void Reset();
+        void Reset() {
+            mTexturePtr = nullptr;
+            mRenderbufferPtr = nullptr;
+        }
 
         const WebGLRectangleObject& RectangleObject() const;
 

@@ -821,26 +821,26 @@ pref("plugin.state.f5 sam inspection host plugin", 2);
 pref("plugin.state.nprobloxproxy", 2);
 #endif
 #ifdef XP_MACOSX
-pref("plugin.state.nproblox", 2);
+pref("plugins.state.nproblox", 2);
 #endif
 
 // Box Edit, bug 1029654
 #ifdef XP_WIN
-pref("plugin.state.npboxedit", 2);
+pref("plugins.state.npboxedit", 2);
 #endif
 #ifdef XP_MACOSX
-pref("plugin.state.box edit", 2);
+pref("plugins.state.box edit", 2);
 #endif
 
 // Nexus Personal, bug 1024965
 #ifdef XP_WIN
-pref("plugin.state.np_prsnl", 2);
+pref("plugins.state.np_prsnl", 2);
 #endif
 #ifdef XP_MACOSX
-pref("plugin.state.personalplugin", 2);
+pref("plugins.state.personalplugin", 2);
 #endif
 #ifdef UNIX_BUT_NOT_MAC
-pref("plugin.state.libplugins", 2);
+pref("plugins.state.libplugins", 2);
 #endif
 
 // display door hanger if flash not installed

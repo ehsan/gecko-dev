@@ -600,7 +600,7 @@ nsDocumentViewer::SyncParentSubDocMap()
 NS_IMETHODIMP
 nsDocumentViewer::SetContainer(nsIDocShell* aContainer)
 {
-  mContainer = static_cast<nsDocShell*>(aContainer);
+  mContainer = static_cast<nsDocShell*>(aContainer)->asWeakPtr();
   if (mPresContext) {
     mPresContext->SetContainer(mContainer);
   }
@@ -1537,7 +1537,7 @@ DetachContainerRecurse(nsIDocShell *aShell)
     nsCOMPtr<nsIPresShell> presShell;
     viewer->GetPresShell(getter_AddRefs(presShell));
     if (presShell) {
-      auto weakShell = static_cast<nsDocShell*>(aShell);
+      auto weakShell = static_cast<nsDocShell*>(aShell)->asWeakPtr();
       presShell->SetForwardingContainer(weakShell);
     }
   }
