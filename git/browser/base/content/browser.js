@@ -519,13 +519,6 @@ var gPopupBlockerObserver = {
     else
       blockedPopupAllowSite.removeAttribute("disabled");
 
-    var item = aEvent.target.lastChild;
-    while (item && item.getAttribute("observes") != "blockedPopupsSeparator") {
-      var next = item.previousSibling;
-      item.parentNode.removeChild(item);
-      item = next;
-    }
-
     var foundUsablePopupURI = false;
     var pageReport = gBrowser.pageReport;
     if (pageReport) {
@@ -588,6 +581,13 @@ var gPopupBlockerObserver = {
   onPopupHiding: function (aEvent) {
     if (aEvent.target.anchorNode.id == "page-report-button")
       aEvent.target.anchorNode.removeAttribute("open");
+
+    let item = aEvent.target.lastChild;
+    while (item && item.getAttribute("observes") != "blockedPopupsSeparator") {
+      let next = item.previousSibling;
+      item.parentNode.removeChild(item);
+      item = next;
+    }
   },
 
   showBlockedPopup: function (aEvent)
@@ -2617,24 +2617,6 @@ function PageProxyClickHandler(aEvent)
     middleMousePaste(aEvent);
 }
 
-function BrowserImport()
-{
-#ifdef XP_MACOSX
-  var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
-                     .getService(Components.interfaces.nsIWindowMediator);
-  var win = wm.getMostRecentWindow("Browser:MigrationWizard");
-  if (win)
-    win.focus();
-  else {
-    window.openDialog("chrome://browser/content/migration/migration.xul",
-                      "migration", "centerscreen,chrome,resizable=no");
-  }
-#else
-  window.openDialog("chrome://browser/content/migration/migration.xul",
-                    "migration", "modal,centerscreen,chrome,resizable=no");
-#endif
-}
-
 /**
  *  Handle load of some pages (about:*) so that we can make modifications
  *  to the DOM for unprivileged pages.
@@ -2999,9 +2981,8 @@ function FillInHTMLTooltip(tipElement)
         XLinkTitleText = tipElement.getAttributeNS(XLinkNS, "title");
       }
       if (lookingForSVGTitle &&
-          !(tipElement instanceof SVGElement &&
-            tipElement.parentNode instanceof SVGElement &&
-            !(tipElement.parentNode instanceof SVGForeignObjectElement))) {
+          (!(tipElement instanceof SVGElement) ||
+           tipElement.parentNode.nodeType == Node.DOCUMENT_NODE)) {
         lookingForSVGTitle = false;
       }
       if (lookingForSVGTitle) {
@@ -4366,10 +4347,6 @@ var XULBrowserWindow = {
     }
   },
 
-  onLocationChange2: function (aWebProgress, aRequest, aLocationURI, aFlags) {
-    onLocationChange(aWebProgress, aRequest, aLocationURI);
-  },
-
   onLocationChange: function (aWebProgress, aRequest, aLocationURI) {
     var location = aLocationURI ? aLocationURI.spec : "";
     this._hostChanged = true;
@@ -5097,6 +5074,10 @@ var TabsInTitlebar = {
 #endif
   },
 
+  get enabled() {
+    return document.documentElement.getAttribute("tabsintitlebar") == "true";
+  },
+
 #ifdef CAN_DRAW_IN_TITLEBAR
   observe: function (subject, topic, data) {
     if (topic == "nsPref:changed")
@@ -5122,8 +5103,7 @@ var TabsInTitlebar = {
       break;
     }
 
-    let docElement = document.documentElement;
-    if (allowed == (docElement.getAttribute("tabsintitlebar") == "true"))
+    if (allowed == this.enabled)
       return;
 
     function $(id) document.getElementById(id);
@@ -5144,20 +5124,18 @@ var TabsInTitlebar = {
       titlebar.style.marginBottom = - Math.min(tabsToolbarRect.top - titlebarTop,
                                                tabsToolbarRect.height) + "px";
 
-      docElement.setAttribute("tabsintitlebar", "true");
+      document.documentElement.setAttribute("tabsintitlebar", "true");
 
       if (!this._draghandle) {
         let tmp = {};
         Components.utils.import("resource://gre/modules/WindowDraggingUtils.jsm", tmp);
         this._draghandle = new tmp.WindowDraggingElement(tabsToolbar, window);
         this._draghandle.mouseDownCheck = function () {
-          return !this._dragBindingAlive &&
-                 this.ownerDocument.documentElement
-                     .getAttribute("tabsintitlebar") == "true";
+          return !this._dragBindingAlive && TabsInTitlebar.enabled;
         };
       }
     } else {
-      docElement.removeAttribute("tabsintitlebar");
+      document.documentElement.removeAttribute("tabsintitlebar");
 
       titlebar.style.marginBottom = "";
     }
@@ -5484,7 +5462,7 @@ function hrefAndLinkNodeForClickEvent(event)
   // If there is no linkNode, try simple XLink.
   let href, baseURI;
   node = event.target;
-  while (node) {
+  while (node && !href) {
     if (node.nodeType == Node.ELEMENT_NODE) {
       href = node.getAttributeNS("http://www.w3.org/1999/xlink", "href");
       if (href)
@@ -5922,10 +5900,6 @@ var BrowserOffline = {
     }
 
     ioService.offline = !ioService.offline;
-
-    // Save the current state for later use as the initial state
-    // (if there is no netLinkService)
-    gPrefService.setBoolPref("browser.offline", ioService.offline);
   },
 
   /////////////////////////////////////////////////////////////////////////////
@@ -8142,8 +8116,6 @@ let gPrivateBrowsingUI = {
 
     this._setPBMenuTitle("stop");
 
-    document.getElementById("menu_import").setAttribute("disabled", "true");
-
     // Disable the Clear Recent History... menu item when in PB mode
     // temporary fix until bug 463607 is fixed
     document.getElementById("Tools:Sanitize").setAttribute("disabled", "true");
@@ -8190,8 +8162,6 @@ let gPrivateBrowsingUI = {
     if (gURLBar) {
       gURLBar.editor.transactionManager.clear();
     }
-
-    document.getElementById("menu_import").removeAttribute("disabled");
 
     // Re-enable the Clear Recent History... menu item on exit of PB mode
     // temporary fix until bug 463607 is fixed

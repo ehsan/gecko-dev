@@ -50,7 +50,7 @@ Cu.import("resource://gre/modules/AddonRepository.jsm");
 
 const PREF_DISCOVERURL = "extensions.webservice.discoverURL";
 const PREF_MAXRESULTS = "extensions.getAddons.maxResults";
-const PREF_CHECK_COMPATIBILITY_BASE = "extensions.checkCompatibility";
+const PREF_CHECK_COMPATIBILITY = "extensions.checkCompatibility";
 const PREF_CHECK_UPDATE_SECURITY = "extensions.checkUpdateSecurity";
 const PREF_AUTOUPDATE_DEFAULT = "extensions.update.autoUpdateDefault";
 const PREF_GETADDONS_CACHE_ENABLED = "extensions.getAddons.cache.enabled";
@@ -59,14 +59,6 @@ const PREF_UI_TYPE_HIDDEN = "extensions.ui.%TYPE%.hidden";
 const PREF_UI_LASTCATEGORY = "extensions.ui.lastCategory";
 
 const BRANCH_REGEXP = /^([^\.]+\.[0-9]+[a-z]*).*/gi;
-
-#ifdef MOZ_COMPATABILITY_NIGHTLY
-const PREF_CHECK_COMPATIBILITY = PREF_CHECK_COMPATIBILITY_BASE +
-                                 ".nightly";
-#else
-const PREF_CHECK_COMPATIBILITY = PREF_CHECK_COMPATIBILITY_BASE + "." +
-                                 Services.appinfo.version.replace(BRANCH_REGEXP, "$1");
-#endif
 
 const LOADING_MSG_DELAY = 100;
 
@@ -314,6 +306,7 @@ else {
 var gEventManager = {
   _listeners: {},
   _installListeners: [],
+  checkCompatibilityPref: "",
 
   initialize: function() {
     var self = this;
@@ -336,8 +329,11 @@ var gEventManager = {
     });
     AddonManager.addInstallListener(this);
     AddonManager.addAddonListener(this);
+    
+    var version = Services.appinfo.version.replace(BRANCH_REGEXP, "$1");
+    this.checkCompatibilityPref = PREF_CHECK_COMPATIBILITY + "." + version;
 
-    Services.prefs.addObserver(PREF_CHECK_COMPATIBILITY, this, false);
+    Services.prefs.addObserver(this.checkCompatibilityPref, this, false);
     Services.prefs.addObserver(PREF_CHECK_UPDATE_SECURITY, this, false);
     Services.prefs.addObserver(PREF_AUTOUPDATE_DEFAULT, this, false);
 
@@ -365,7 +361,7 @@ var gEventManager = {
   },
 
   shutdown: function() {
-    Services.prefs.removeObserver(PREF_CHECK_COMPATIBILITY, this);
+    Services.prefs.removeObserver(this.checkCompatibilityPref, this);
     Services.prefs.removeObserver(PREF_CHECK_UPDATE_SECURITY, this);
     Services.prefs.removeObserver(PREF_AUTOUPDATE_DEFAULT, this, false);
 
@@ -466,7 +462,7 @@ var gEventManager = {
 
     var checkCompatibility = true;
     try {
-      checkCompatibility = Services.prefs.getBoolPref(PREF_CHECK_COMPATIBILITY);
+      checkCompatibility = Services.prefs.getBoolPref(this.checkCompatibilityPref);
     } catch(e) { }
     if (!checkCompatibility) {
       page.setAttribute("warning", "checkcompatibility");
@@ -489,7 +485,7 @@ var gEventManager = {
   
   observe: function(aSubject, aTopic, aData) {
     switch (aData) {
-    case PREF_CHECK_COMPATIBILITY:
+    case this.checkCompatibilityPref:
     case PREF_CHECK_UPDATE_SECURITY:
       this.refreshGlobalWarning();
       break;
@@ -724,7 +720,7 @@ var gViewController = {
     cmd_enableCheckCompatibility: {
       isEnabled: function() true,
       doCommand: function() {
-        Services.prefs.clearUserPref(PREF_CHECK_COMPATIBILITY);
+        Services.prefs.clearUserPref(gEventManager.checkCompatibilityPref);
       }
     },
 
@@ -939,6 +935,10 @@ var gViewController = {
           return;
         }
         var optionsURL = aAddon.optionsURL;
+        if (aAddon.optionsType == AddonManager.OPTIONS_TYPE_TAB &&
+            openOptionsInTab(optionsURL)) {
+          return;
+        }
         var windows = Services.wm.getEnumerator(null);
         while (windows.hasMoreElements()) {
           var win = windows.getNext();
@@ -1198,6 +1198,18 @@ var gViewController = {
   onEvent: function() {}
 };
 
+function openOptionsInTab(optionsURL) {
+  var mainWindow = window.QueryInterface(Ci.nsIInterfaceRequestor)
+                         .getInterface(Ci.nsIWebNavigation)
+                         .QueryInterface(Ci.nsIDocShellTreeItem)
+                         .rootTreeItem.QueryInterface(Ci.nsIInterfaceRequestor)
+                         .getInterface(Ci.nsIDOMWindow); 
+  if ("switchToTabHavingURI" in mainWindow) {
+    mainWindow.switchToTabHavingURI(optionsURL, true);
+    return true;
+  }
+  return false;
+}
 
 function formatDate(aDate) {
   return Cc["@mozilla.org/intl/scriptabledateformat;1"]
@@ -2821,6 +2833,22 @@ var gDetailView = {
     if (this._addon.optionsType != AddonManager.OPTIONS_TYPE_INLINE)
       return;
 
+    // This function removes and returns the text content of aNode without
+    // removing any child elements. Removing the text nodes ensures any XBL
+    // bindings apply properly.
+    function stripTextNodes(aNode) {
+      var text = '';
+      for (var i = 0; i < aNode.childNodes.length; i++) {
+        if (aNode.childNodes[i].nodeType != document.ELEMENT_NODE) {
+          text += aNode.childNodes[i].textContent;
+          aNode.removeChild(aNode.childNodes[i--]);
+        } else {
+          text += stripTextNodes(aNode.childNodes[i]);
+        }
+      }
+      return text;
+    }
+
     var rows = document.getElementById("detail-downloads").parentNode;
 
     var xhr = new XMLHttpRequest();
@@ -2830,41 +2858,33 @@ var gDetailView = {
     var xml = xhr.responseXML;
     var settings = xml.querySelectorAll(":root > setting");
 
-    // This horrible piece of code fixes two problems. 1) The menulist binding doesn't apply
-    // correctly when it's moved from one document to another (bug 659163), which is solved 
-    // by manually cloning the menulist. 2) Labels and controls aligned to the top of a row 
-    // looks really bad, so the description is put on a new row to preserve alignment.
-    for (var i = 0; i < settings.length; i++) {
+    for (var i = 0, first = true; i < settings.length; i++) {
       var setting = settings[i];
-      if (i == 0)
-        setting.setAttribute("first-row", true);
 
-      // remove menulist controls for replacement later
-      var control = setting.firstElementChild;
-      if (setting.getAttribute("type") == "control" && control && control.localName == "menulist") {
-        setting.removeChild(control);
-        var consoleMessage = Cc["@mozilla.org/scripterror;1"].
-                             createInstance(Ci.nsIScriptError);
-        consoleMessage.init("Menulist is not available in the addons-manager yet, due to bug 659163",
-                            this._addon.optionsURL, null, null, 0, Ci.nsIScriptError.warningFlag, null);
-        Services.console.logMessage(consoleMessage);
-        continue;
-      }
-
-      // remove setting description, for replacement later
-      var desc = setting.textContent.trim();
-      if (desc)
-        setting.textContent = "";
+      // Remove setting description, for replacement later
+      var desc = stripTextNodes(setting).trim();
       if (setting.hasAttribute("desc")) {
-        desc = setting.getAttribute("desc");
+        desc = setting.getAttribute("desc").trim();
         setting.removeAttribute("desc");
       }
 
-      rows.appendChild(setting);
+      var type = setting.getAttribute("type");
+      if (type == "file" || type == "directory")
+        setting.setAttribute("fullpath", "true");
 
-      // add a new row containing the description
+      rows.appendChild(setting);
+      var visible = window.getComputedStyle(setting, null).getPropertyValue("display") != "none";
+      if (first && visible) {
+        setting.setAttribute("first-row", true);
+        first = false;
+      }
+
+      // Add a new row containing the description
       if (desc) {
         var row = document.createElement("row");
+        if (!visible) {
+          row.setAttribute("unsupported", "true");
+        }
         var label = document.createElement("label");
         label.className = "preferences-description";
         label.textContent = desc;
@@ -2872,6 +2892,8 @@ var gDetailView = {
         rows.appendChild(row);
       }
     }
+
+    Services.obs.notifyObservers(document, "addon-options-displayed", this._addon.id);
   },
 
   getSelectedAddon: function() {

@@ -118,6 +118,7 @@ nsOggReader::nsOggReader(nsBuiltinDecoder* aDecoder)
     mPageOffset(0)
 {
   MOZ_COUNT_CTOR(nsOggReader);
+  memset(&mTheoraInfo, 0, sizeof(mTheoraInfo));
 }
 
 nsOggReader::~nsOggReader()
@@ -197,14 +198,17 @@ nsresult nsOggReader::ReadMetadata(nsVideoInfo* aInfo)
     int serial = ogg_page_serialno(&page);
     nsOggCodecState* codecState = 0;
 
-    if (ogg_page_bos(&page)) {
-      NS_ASSERTION(!readAllBOS, "We shouldn't encounter another BOS page");
+    if (!ogg_page_bos(&page)) {
+      // We've encountered a non Beginning Of Stream page. No more BOS pages
+      // can follow in this Ogg segment, so there will be no other bitstreams
+      // in the Ogg (unless it's invalid).
+      readAllBOS = PR_TRUE;
+    } else if (!mCodecStates.Get(serial, nsnull)) {
+      // We've not encountered a stream with this serial number before. Create
+      // an nsOggCodecState to demux it, and map that to the nsOggCodecState
+      // in mCodecStates.
       codecState = nsOggCodecState::Create(&page);
-
-#ifdef DEBUG
-      PRBool r =
-#endif
-      mCodecStates.Put(serial, codecState);
+      DebugOnly<PRBool> r = mCodecStates.Put(serial, codecState);
       NS_ASSERTION(r, "Failed to insert into mCodecStates");
       bitstreams.AppendElement(codecState);
       mKnownStreams.AppendElement(serial);
@@ -230,11 +234,6 @@ nsresult nsOggReader::ReadMetadata(nsVideoInfo* aInfo)
       {
         mSkeletonState = static_cast<nsSkeletonState*>(codecState);
       }
-    } else {
-      // We've encountered the a non Beginning Of Stream page. No more
-      // BOS pages can follow in this Ogg segment, so there will be no other
-      // bitstreams in the Ogg (unless it's invalid).
-      readAllBOS = PR_TRUE;
     }
 
     mCodecStates.Get(serial, &codecState);
@@ -258,27 +257,34 @@ nsresult nsOggReader::ReadMetadata(nsVideoInfo* aInfo)
   }
 
   if (mTheoraState && ReadHeaders(mTheoraState)) {
-    mInfo.mHasVideo = PR_TRUE;
-    mInfo.mPixelAspectRatio = mTheoraState->mPixelAspectRatio;
-    mInfo.mPicture = nsIntRect(mTheoraState->mInfo.pic_x,
-                               mTheoraState->mInfo.pic_y,
-                               mTheoraState->mInfo.pic_width,
-                               mTheoraState->mInfo.pic_height);
-    mInfo.mFrame = nsIntSize(mTheoraState->mInfo.frame_width,
-                              mTheoraState->mInfo.frame_height);
-    mInfo.mDisplay = nsIntSize(mInfo.mPicture.width,
-                               mInfo.mPicture.height);
-    gfxIntSize sz(mTheoraState->mInfo.pic_width,
-                  mTheoraState->mInfo.pic_height);
-    mDecoder->SetVideoData(sz,
-                           mTheoraState->mPixelAspectRatio,
-                           nsnull,
-                           TimeStamp::Now());
-    // Copy Theora info data for time computations on other threads.
-    memcpy(&mTheoraInfo, &mTheoraState->mInfo, sizeof(mTheoraInfo));
-    mTheoraSerial = mTheoraState->mSerial;
-  } else {
-    memset(&mTheoraInfo, 0, sizeof(mTheoraInfo));
+    nsIntRect picture = nsIntRect(mTheoraState->mInfo.pic_x,
+                                  mTheoraState->mInfo.pic_y,
+                                  mTheoraState->mInfo.pic_width,
+                                  mTheoraState->mInfo.pic_height);
+
+    nsIntSize displaySize = nsIntSize(mTheoraState->mInfo.pic_width,
+                                      mTheoraState->mInfo.pic_height);
+
+    // Apply the aspect ratio to produce the intrinsic display size we report
+    // to the element.
+    ScaleDisplayByAspectRatio(displaySize, mTheoraState->mPixelAspectRatio);
+
+    nsIntSize frameSize(mTheoraState->mInfo.frame_width,
+                        mTheoraState->mInfo.frame_height);
+    if (nsVideoInfo::ValidateVideoRegion(frameSize, picture, displaySize)) {
+      // Video track's frame sizes will not overflow. Activate the video track.
+      mInfo.mHasVideo = PR_TRUE;
+      mInfo.mDisplay = displaySize;
+      mPicture = picture;
+
+      mDecoder->SetVideoData(gfxIntSize(displaySize.width, displaySize.height),
+                             nsnull,
+                             TimeStamp::Now());
+
+      // Copy Theora info data for time computations on other threads.
+      memcpy(&mTheoraInfo, &mTheoraState->mInfo, sizeof(mTheoraInfo));
+      mTheoraSerial = mTheoraState->mSerial;
+    }
   }
 
   if (mVorbisState && ReadHeaders(mVorbisState)) {
@@ -427,7 +433,7 @@ PRBool nsOggReader::DecodeAudioData()
   return PR_TRUE;
 }
 
-nsresult nsOggReader::DecodeTheora(ogg_packet* aPacket)
+nsresult nsOggReader::DecodeTheora(ogg_packet* aPacket, PRInt64 aTimeThreshold)
 {
   NS_ASSERTION(aPacket->granulepos >= TheoraVersion(&mTheoraState->mInfo,3,2,1),
     "Packets must have valid granulepos and packetno");
@@ -447,6 +453,12 @@ nsresult nsOggReader::DecodeTheora(ogg_packet* aPacket)
   }
 
   PRInt64 endTime = mTheoraState->Time(aPacket->granulepos);
+  if (endTime < aTimeThreshold) {
+    // The end time of this frame is already before the current playback
+    // position. It will never be displayed, don't bother enqueing it.
+    return NS_OK;
+  }
+
   if (ret == TH_DUPFRAME) {
     VideoData* v = VideoData::CreateDuplicate(mPageOffset,
                                               time,
@@ -476,7 +488,8 @@ nsresult nsOggReader::DecodeTheora(ogg_packet* aPacket)
                                      endTime,
                                      b,
                                      isKeyframe,
-                                     aPacket->granulepos);
+                                     aPacket->granulepos,
+                                     mPicture);
     if (!v) {
       // There may be other reasons for this error, but for
       // simplicity just assume the worst case: out of memory.
@@ -523,7 +536,7 @@ PRBool nsOggReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
      (th_packet_iskeyframe(packet) && frameEndTime >= aTimeThreshold))
   {
     aKeyframeSkip = PR_FALSE;
-    nsresult res = DecodeTheora(packet);
+    nsresult res = DecodeTheora(packet, aTimeThreshold);
     decoded++;
     if (NS_FAILED(res)) {
       return PR_FALSE;
@@ -845,7 +858,10 @@ nsOggReader::SelectSeekRange(const nsTArray<SeekRange>& ranges,
       return ranges[i];
     }
   }
-  return aExact ? SeekRange() : SeekRange(so, eo, st, et);
+  if (aExact || eo == -1) {
+    return SeekRange();
+  }
+  return SeekRange(so, eo, st, et);
 }
 
 nsOggReader::IndexedSeekResult nsOggReader::RollbackIndexedSeek(PRInt64 aOffset)
@@ -1121,17 +1137,18 @@ PageSync(nsMediaStream* aStream,
       NS_ASSERTION(buffer, "Must have a buffer");
 
       // Read from the file into the buffer
-      PRUint32 bytesToRead =
-        static_cast<PRUint32>(NS_MIN(static_cast<PRInt64>(PAGE_STEP),
-                                     aEndOffset - readHead));
+      PRInt64 bytesToRead = NS_MIN(static_cast<PRInt64>(PAGE_STEP),
+                                   aEndOffset - readHead);
+      NS_ASSERTION(bytesToRead <= PR_UINT32_MAX, "bytesToRead range check");
       if (bytesToRead <= 0) {
         return PAGE_SYNC_END_OF_RANGE;
       }
       nsresult rv = NS_OK;
       if (aCachedDataOnly) {
-        rv = aStream->ReadFromCache(buffer, readHead, bytesToRead);
+        rv = aStream->ReadFromCache(buffer, readHead,
+                                    static_cast<PRUint32>(bytesToRead));
         NS_ENSURE_SUCCESS(rv,PAGE_SYNC_ERROR);
-        bytesRead = bytesToRead;
+        bytesRead = static_cast<PRUint32>(bytesToRead);
       } else {
         rv = aStream->Seek(nsISeekableStream::NS_SEEK_SET, readHead);
         NS_ENSURE_SUCCESS(rv,PAGE_SYNC_ERROR);
@@ -1265,7 +1282,7 @@ nsresult nsOggReader::SeekBisection(PRInt64 aTarget,
 
       NS_ASSERTION(guess >= startOffset + startLength, "Guess must be after range start");
       NS_ASSERTION(guess < endOffset, "Guess must be before range end");
-      NS_ASSERTION(guess != previousGuess, "Guess should be differnt to previous");
+      NS_ASSERTION(guess != previousGuess, "Guess should be different to previous");
       previousGuess = guess;
 
       hops++;
@@ -1481,11 +1498,11 @@ nsresult nsOggReader::GetBuffered(nsTimeRanges* aBuffered, PRInt64 aStartTime)
 
       PRUint32 serial = ogg_page_serialno(&page);
       if (mVorbisState && serial == mVorbisSerial) {
-        startTime = nsVorbisState::Time(&mVorbisInfo, granulepos) - aStartTime;
+        startTime = nsVorbisState::Time(&mVorbisInfo, granulepos);
         NS_ASSERTION(startTime > 0, "Must have positive start time");
       }
       else if (mTheoraState && serial == mTheoraSerial) {
-        startTime = nsTheoraState::Time(&mTheoraInfo, granulepos) - aStartTime;
+        startTime = nsTheoraState::Time(&mTheoraInfo, granulepos);
         NS_ASSERTION(startTime > 0, "Must have positive start time");
       }
       else if (IsKnownStream(serial)) {
@@ -1506,7 +1523,7 @@ nsresult nsOggReader::GetBuffered(nsTimeRanges* aBuffered, PRInt64 aStartTime)
       // find an end time.
       PRInt64 endTime = RangeEndTime(startOffset, endOffset, PR_TRUE);
       if (endTime != -1) {
-        aBuffered->Add(startTime / static_cast<double>(USECS_PER_S),
+        aBuffered->Add((startTime - aStartTime) / static_cast<double>(USECS_PER_S),
                        (endTime - aStartTime) / static_cast<double>(USECS_PER_S));
       }
     }
