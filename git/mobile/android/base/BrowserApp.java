@@ -57,6 +57,7 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.view.InputDevice;
 import android.view.KeyEvent;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -596,7 +597,7 @@ abstract public class BrowserApp extends GeckoApp
                     String title = tab.getDisplayTitle();
                     Bitmap favicon = tab.getFavicon();
                     if (url != null && title != null) {
-                        GeckoAppShell.createShortcut(title, url, url, favicon, "");
+                        GeckoAppShell.createShortcut(title, url, url, favicon == null ? null : favicon, "");
                     }
                 }
             }
@@ -709,11 +710,11 @@ abstract public class BrowserApp extends GeckoApp
                     return true;
                 }
 
-                Favicons.getFaviconForSize(url, tab.getFaviconURL(), Integer.MAX_VALUE, LoadFaviconTask.FLAG_PERSIST,
+                Favicons.loadFavicon(url, tab.getFaviconURL(), 0,
                 new OnFaviconLoadedListener() {
                     @Override
-                    public void onFaviconLoaded(String pageUrl, String faviconURL, Bitmap favicon) {
-                        GeckoAppShell.createShortcut(title, url, url, favicon, "");
+                    public void onFaviconLoaded(String url, Bitmap favicon) {
+                        GeckoAppShell.createShortcut(title, url, url, favicon == null ? null : favicon, "");
                     }
                 });
             }
@@ -1279,7 +1280,7 @@ abstract public class BrowserApp extends GeckoApp
         }
 
         // If this tab is already selected, just hide the home pager.
-        if (tabs.isSelectedTabId(tabId)) {
+        if (tabs.isSelectedTab(tabs.getTab(tabId))) {
             hideHomePager();
         } else {
             tabs.selectTab(tabId);
@@ -1329,36 +1330,37 @@ abstract public class BrowserApp extends GeckoApp
     private void loadFavicon(final Tab tab) {
         maybeCancelFaviconLoad(tab);
 
-        final int tabFaviconSize = getResources().getDimensionPixelSize(R.dimen.browser_toolbar_favicon_size);
+        int flags = LoadFaviconTask.FLAG_SCALE | ( (tab.isPrivate() || tab.getErrorType() != Tab.ErrorType.NONE) ? 0 : LoadFaviconTask.FLAG_PERSIST);
+        int id = Favicons.loadFavicon(tab.getURL(), tab.getFaviconURL(), flags,
+                        new OnFaviconLoadedListener() {
 
-        int flags = (tab.isPrivate() || tab.getErrorType() != Tab.ErrorType.NONE) ? 0 : LoadFaviconTask.FLAG_PERSIST;
-        int id = Favicons.getFaviconForSize(tab.getURL(), tab.getFaviconURL(), tabFaviconSize, flags,
-            new OnFaviconLoadedListener() {
-                @Override
-                public void onFaviconLoaded(String pageUrl, String faviconURL, Bitmap favicon) {
-                    // If we failed to load a favicon, we use the default favicon instead.
-                    if (favicon == null) {
-                        favicon = Favicons.sDefaultFavicon;
-                    }
+            @Override
+            public void onFaviconLoaded(String pageUrl, Bitmap favicon) {
+                // Leave favicon UI untouched if we failed to load the image
+                // for some reason.
+                if (favicon == null)
+                    return;
 
-                    // The tab might be pointing to another URL by the time the
-                    // favicon is finally loaded, in which case we simply ignore it.
-                    // See also: Bug 920331.
-                    if (!tab.getURL().equals(pageUrl)) {
-                        return;
-                    }
+                // The tab might be pointing to another URL by the time the
+                // favicon is finally loaded, in which case we simply ignore it.
+                if (!tab.getURL().equals(pageUrl))
+                    return;
 
-                    tab.updateFavicon(favicon);
-                    tab.setFaviconLoadId(Favicons.NOT_LOADING);
-                    Tabs.getInstance().notifyListeners(tab, Tabs.TabEvents.FAVICON);
-                }
-            });
+                tab.updateFavicon(favicon);
+                tab.setFaviconLoadId(Favicons.NOT_LOADING);
+
+                Tabs.getInstance().notifyListeners(tab, Tabs.TabEvents.FAVICON);
+            }
+        });
 
         tab.setFaviconLoadId(id);
     }
 
     private void maybeCancelFaviconLoad(Tab tab) {
         int faviconLoadId = tab.getFaviconLoadId();
+
+        if (faviconLoadId == Favicons.NOT_LOADING)
+            return;
 
         // Cancel pending favicon load task
         Favicons.cancelFaviconLoad(faviconLoadId);

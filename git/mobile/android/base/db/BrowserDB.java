@@ -88,6 +88,10 @@ public class BrowserDB {
 
         public Bitmap getFaviconForUrl(ContentResolver cr, String uri);
 
+        public byte[] getFaviconBytesForUrl(ContentResolver cr, String uri);
+
+        public Cursor getFaviconsForUrls(ContentResolver cr, List<String> urls);
+
         public String getFaviconUrlForHistoryUrl(ContentResolver cr, String url);
 
         public void updateFaviconForUrl(ContentResolver cr, String pageUri, Bitmap favicon, String faviconUri);
@@ -238,8 +242,16 @@ public class BrowserDB {
         sDb.removeReadingListItemWithURL(cr, uri);
     }
 
-    public static Bitmap getFaviconForFaviconUrl(ContentResolver cr, String faviconURL) {
-        return sDb.getFaviconForUrl(cr, faviconURL);
+    public static Bitmap getFaviconForUrl(ContentResolver cr, String uri) {
+        return sDb.getFaviconForUrl(cr, uri);
+    }
+
+    public static byte[] getFaviconBytesForUrl(ContentResolver cr, String uri) {
+        return sDb.getFaviconBytesForUrl(cr, uri);
+    }
+
+    public static Cursor getFaviconsForUrls(ContentResolver cr, List<String> urls) {
+        return sDb.getFaviconsForUrls(cr, urls);
     }
 
     public static String getFaviconUrlForHistoryUrl(ContentResolver cr, String url) {

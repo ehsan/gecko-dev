@@ -291,11 +291,9 @@ TaskImpl.prototype = {
       // they will either treat the error or log them somewhere.
 
       let stack = ("stack" in aException) ? aException.stack : "not available";
-      dump("*************************\n");
-      dump("A coding exception was thrown and uncaught in a Task.\n\n");
+      dump("A coding exception was thrown and uncaught in a Task.\n");
       dump("Full message: " + aException + "\n");
       dump("Full stack: " + stack + "\n");
-      dump("*************************\n");
     }
 
     this.deferred.reject(aException);

@@ -19,9 +19,6 @@ function test() {
     gEditor = gDebugger.DebuggerView.editor;
     gSources = gDebugger.DebuggerView.Sources;
 
-    ok(gDebugger.document.title.endsWith(EXAMPLE_URL + gLabel1),
-      "Title with first source is correct.");
-
     waitForSourceAndCaretAndScopes(gPanel, "-02.js", 6)
       .then(testSourcesDisplay)
       .then(testSwitchPaused1)
@@ -66,9 +63,6 @@ function testSourcesDisplay() {
     "The first source is not displayed.");
   is(gEditor.getText().search(/debugger/), 172,
     "The second source is displayed.");
-
-  ok(gDebugger.document.title.endsWith(EXAMPLE_URL + gLabel2),
-    "Title with second source is correct.");
 
   ok(isCaretPos(gPanel, 6),
     "Editor caret location is correct.");

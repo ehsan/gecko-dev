@@ -400,8 +400,7 @@ const sdp_namearray_t sdp_fmtp_codec_param[SDP_MAX_FMTP_PARAM] =
     {"stereo",                          sizeof("stereo")}, /* 45 */
     {"useinbandfec",                    sizeof("useinbandfec")}, /* 46 */
     {"maxcodedaudiobandwidth",          sizeof("maxcodedaudiobandwidth")}, /* 47 */
-    {"cbr",                             sizeof("cbr")}, /* 48 */
-    {"max-fr",                          sizeof("max-fr")} /* 49 */
+    {"cbr",                             sizeof("cbr")} /* 48 */
 } ;
 
 /* Note: These *must* be in the same order as the enum type. */

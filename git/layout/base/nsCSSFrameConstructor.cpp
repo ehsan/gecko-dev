@@ -4647,12 +4647,11 @@ nsCSSFrameConstructor::ConstructFrameWithAnonymousChild(
   // Create the outer frame:
   nsIFrame* newFrame = aConstructor(mPresShell, styleContext);
 
-  InitAndRestoreFrame(aState, content,
-                      aCandidateRootFrame ?
-                        aState.GetGeometricParent(styleContext->StyleDisplay(),
-                                                  aParentFrame) :
-                        aParentFrame,
-                      newFrame);
+  nsIFrame* geometricParent =
+    aState.GetGeometricParent(styleContext->StyleDisplay(),
+                              aParentFrame);
+
+  InitAndRestoreFrame(aState, content, geometricParent, newFrame);
 
   // Create the pseudo SC for the anonymous wrapper child as a child of the SC:
   nsRefPtr<nsStyleContext> scForAnon;
@@ -4667,8 +4666,7 @@ nsCSSFrameConstructor::ConstructFrameWithAnonymousChild(
   // Put the newly created frames into the right child list
   SetInitialSingleChild(newFrame, innerFrame);
 
-  aState.AddChild(newFrame, aFrameItems, content, styleContext, aParentFrame,
-                  aCandidateRootFrame, aCandidateRootFrame);
+  aState.AddChild(newFrame, aFrameItems, content, styleContext, aParentFrame);
 
   if (!mRootElementFrame && aCandidateRootFrame) {
     // The frame we're constructing will be the root element frame.

@@ -1,6 +1,3 @@
-if (typeof ParallelArray === "undefined")
-  quit();
-
 ParallelArray(11701, function() {
     return /x/
 }).reduce(function(a) {
