@@ -72,7 +72,7 @@ public:
   }
 
   ~AutoTimer() {
-    Accumulate(id, static_cast<PRUint32>((TimeStamp::Now() - start).ToMilliseconds()));
+    Accumulate(id, (TimeStamp::Now() - start).ToMilliseconds());
   }
 
 private:

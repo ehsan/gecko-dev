@@ -68,7 +68,6 @@
 #include "nsLWBrkCIID.h"
 #include "nsIScriptElement.h"
 #include "nsAttrName.h"
-#include "nsParserConstants.h"
 
 static const char kMozStr[] = "moz";
 

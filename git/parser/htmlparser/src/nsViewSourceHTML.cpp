@@ -60,7 +60,6 @@
 #include "nsPrintfCString.h"
 #include "nsNetUtil.h"
 #include "nsHTMLEntities.h"
-#include "nsParserConstants.h"
 
 #include "nsIServiceManager.h"
 

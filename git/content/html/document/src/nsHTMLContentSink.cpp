@@ -2632,10 +2632,8 @@ HTMLContentSink::ProcessLINKTag(const nsIParserNode& aNode)
       ssle->SetEnableUpdates(PR_TRUE);
       PRBool willNotify;
       PRBool isAlternate;
-      result = ssle->UpdateStyleSheet(mFragmentMode ? nsnull : this,
-                                      &willNotify,
-                                      &isAlternate);
-      if (NS_SUCCEEDED(result) && willNotify && !isAlternate && !mFragmentMode) {
+      result = ssle->UpdateStyleSheet(this, &willNotify, &isAlternate);
+      if (NS_SUCCEEDED(result) && willNotify && !isAlternate) {
         ++mPendingSheetCount;
         mScriptLoader->AddExecuteBlocker();
       }
@@ -2847,10 +2845,8 @@ HTMLContentSink::ProcessSTYLEEndTag(nsGenericHTMLElement* content)
     ssle->SetEnableUpdates(PR_TRUE);
     PRBool willNotify;
     PRBool isAlternate;
-    rv = ssle->UpdateStyleSheet(mFragmentMode ? nsnull : this,
-                                &willNotify,
-                                &isAlternate);
-    if (NS_SUCCEEDED(rv) && willNotify && !isAlternate && !mFragmentMode) {
+    rv = ssle->UpdateStyleSheet(this, &willNotify, &isAlternate);
+    if (NS_SUCCEEDED(rv) && willNotify && !isAlternate) {
       ++mPendingSheetCount;
       mScriptLoader->AddExecuteBlocker();
     }

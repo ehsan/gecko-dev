@@ -78,7 +78,6 @@
 #endif
 
 namespace dom = mozilla::dom;
-using namespace mozilla::a11y;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Static member initialization
@@ -350,15 +349,18 @@ nsDocAccessible::GetAttributes(nsIPersistentProperties **aAttributes)
   return NS_OK;
 }
 
-nsAccessible*
-nsDocAccessible::FocusedChild()
+NS_IMETHODIMP nsDocAccessible::GetFocusedChild(nsIAccessible **aFocusedChild)
 {
   // XXXndeakin P3 accessibility shouldn't be caching the focus
+  if (!gLastFocusedNode) {
+    *aFocusedChild = nsnull;
+    return NS_OK;
+  }
 
   // Return an accessible for the current global focus, which does not have to
   // be contained within the current document.
-  return gLastFocusedNode ? GetAccService()->GetAccessible(gLastFocusedNode) :
-    nsnull;
+  NS_IF_ADDREF(*aFocusedChild = GetAccService()->GetAccessible(gLastFocusedNode));
+  return NS_OK;
 }
 
 NS_IMETHODIMP nsDocAccessible::TakeFocus()

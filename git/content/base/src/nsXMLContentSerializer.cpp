@@ -65,7 +65,6 @@
 #include "nsAttrName.h"
 #include "nsILineBreaker.h"
 #include "mozilla/dom/Element.h"
-#include "nsParserConstants.h"
 
 using namespace mozilla::dom;
 

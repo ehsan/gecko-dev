@@ -52,8 +52,6 @@
 #include "nsIMutableArray.h"
 #include "nsComponentManagerUtils.h"
 
-using namespace mozilla::a11y;
-
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeAccessible
 ////////////////////////////////////////////////////////////////////////////////
@@ -202,11 +200,17 @@ nsXULTreeAccessible::NativeRole()
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeAccessible: nsIAccessible implementation
 
-nsAccessible*
-nsXULTreeAccessible::FocusedChild()
+NS_IMETHODIMP
+nsXULTreeAccessible::GetFocusedChild(nsIAccessible **aFocusedChild) 
 {
+  NS_ENSURE_ARG_POINTER(aFocusedChild);
+  *aFocusedChild = nsnull;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   if (gLastFocusedNode != mContent)
-    return nsnull;
+    return NS_OK;
 
   nsCOMPtr<nsIDOMXULMultiSelectControlElement> multiSelect =
     do_QueryInterface(mContent);
@@ -214,10 +218,10 @@ nsXULTreeAccessible::FocusedChild()
     PRInt32 row = -1;
     multiSelect->GetCurrentIndex(&row);
     if (row >= 0)
-      return GetTreeItemAccessible(row);
+      NS_IF_ADDREF(*aFocusedChild = GetTreeItemAccessible(row));
   }
 
-  return nsnull;
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -657,11 +661,17 @@ NS_IMPL_RELEASE_INHERITED(nsXULTreeItemAccessibleBase, nsAccessible)
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeItemAccessibleBase: nsIAccessible implementation
 
-nsAccessible*
-nsXULTreeItemAccessibleBase::FocusedChild()
+NS_IMETHODIMP
+nsXULTreeItemAccessibleBase::GetFocusedChild(nsIAccessible **aFocusedChild) 
 {
+  NS_ENSURE_ARG_POINTER(aFocusedChild);
+  *aFocusedChild = nsnull;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   if (gLastFocusedNode != mContent)
-    return nsnull;
+    return NS_OK;
 
   nsCOMPtr<nsIDOMXULMultiSelectControlElement> multiSelect =
     do_QueryInterface(mContent);
@@ -670,10 +680,10 @@ nsXULTreeItemAccessibleBase::FocusedChild()
     PRInt32 row = -1;
     multiSelect->GetCurrentIndex(&row);
     if (row == mRow)
-      return this;
+      NS_ADDREF(*aFocusedChild = this);
   }
 
-  return nsnull;
+  return NS_OK;
 }
 
 NS_IMETHODIMP

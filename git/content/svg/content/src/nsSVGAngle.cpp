@@ -39,7 +39,6 @@
 #include "nsTextFormatter.h"
 #include "nsSVGUtils.h"
 #include "nsSVGMarkerElement.h"
-#include "nsMathUtils.h"
 #ifdef MOZ_SMIL
 #include "nsSMILValue.h"
 #include "SVGOrientSMILType.h"
@@ -226,7 +225,7 @@ GetValueFromString(const nsAString &aValueAsString,
   
   char *rest;
   *aValue = float(PR_strtod(str, &rest));
-  if (rest != str && NS_finite(*aValue)) {
+  if (rest != str && NS_FloatIsFinite(*aValue)) {
     *aUnitType = GetUnitTypeForString(rest);
     if (IsValidUnitType(*aUnitType)) {
       return NS_OK;

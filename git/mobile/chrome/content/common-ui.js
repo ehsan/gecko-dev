@@ -1274,7 +1274,10 @@ var SelectionHelper = {
       dragMove: function dragMove(dx, dy, scroller) { return false; }
     };
 
+    this._start.addEventListener("TapDown", this, true);
     this._start.addEventListener("TapUp", this, true);
+
+    this._end.addEventListener("TapDown", this, true);
     this._end.addEventListener("TapUp", this, true);
 
     messageManager.addMessageListener("Browser:SelectionRange", this);
@@ -1282,8 +1285,9 @@ var SelectionHelper = {
 
     this.popupState.target.messageManager.sendAsyncMessage("Browser:SelectionStart", { x: this.popupState.x, y: this.popupState.y });
 
+    BrowserUI.pushPopup(this, [this._start, this._end]);
+
     // Hide the selection handles
-    window.addEventListener("TapDown", this, true);
     window.addEventListener("resize", this, true);
     window.addEventListener("keypress", this, true);
     Elements.browsers.addEventListener("URLChanged", this, true);
@@ -1297,18 +1301,12 @@ var SelectionHelper = {
     return true;
   },
 
-  hide: function sh_hide(aEvent) {
+  hide: function sh_hide() {
     if (this._start.hidden)
       return;
 
-    let pos = this.popupState.target.transformClientToBrowser(aEvent.clientX || 0, aEvent.clientY || 0);
-    let json = {
-      x: pos.x,
-      y: pos.y
-    };
-
     try {
-      this.popupState.target.messageManager.sendAsyncMessage("Browser:SelectionEnd", json);
+      this.popupState.target.messageManager.sendAsyncMessage("Browser:SelectionEnd", {});
     } catch (e) {
       Cu.reportError(e);
     }
@@ -1318,30 +1316,30 @@ var SelectionHelper = {
     this._start.hidden = true;
     this._end.hidden = true;
 
+    this._start.removeEventListener("TapDown", this, true);
     this._start.removeEventListener("TapUp", this, true);
+
+    this._end.removeEventListener("TapDown", this, true);
     this._end.removeEventListener("TapUp", this, true);
 
     messageManager.removeMessageListener("Browser:SelectionRange", this);
 
-    window.removeEventListener("TapDown", this, true);
     window.removeEventListener("resize", this, true);
     window.removeEventListener("keypress", this, true);
     Elements.browsers.removeEventListener("URLChanged", this, true);
     Elements.browsers.removeEventListener("SizeChanged", this, true);
     Elements.browsers.removeEventListener("ZoomChanged", this, true);
+
+    BrowserUI.popPopup(this);
   },
 
   handleEvent: function handleEvent(aEvent) {
     switch (aEvent.type) {
       case "TapDown":
-        if (aEvent.target == this._start || aEvent.target == this._end) {
-          this.target = aEvent.target;
-          this.deltaX = (aEvent.clientX - this.target.left);
-          this.deltaY = (aEvent.clientY - this.target.top);
-          window.addEventListener("TapMove", this, true);
-        } else {
-          this.hide(aEvent);
-        }
+        this.target = aEvent.target;
+        this.deltaX = (aEvent.clientX - this.target.left);
+        this.deltaY = (aEvent.clientY - this.target.top);
+        window.addEventListener("TapMove", this, true);
         break;
       case "TapUp":
         window.removeEventListener("TapMove", this, true);
@@ -1369,7 +1367,7 @@ var SelectionHelper = {
       case "URLChanged":
       case "SizeChanged":
       case "ZoomChanged":
-        this.hide(aEvent);
+        this.hide();
         break;
     }
   },

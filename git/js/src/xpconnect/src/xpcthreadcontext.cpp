@@ -300,13 +300,33 @@ XPCJSContextStack::GetSafeJSContext(JSContext * *aSafeJSContext)
                 JS_DestroyContext(mSafeJSContext);
                 mSafeJSContext = nsnull;
             }
-            // Save it off so we can destroy it later.
+            // Save it off so we can destroy it later, even if
+            // mSafeJSContext has been set to another context
+            // via SetSafeJSContext.  If we don't get here,
+            // then mSafeJSContext must have been set via
+            // SetSafeJSContext, and we're not responsible for
+            // destroying the passed-in context.
             mOwnSafeJSContext = mSafeJSContext;
         }
     }
 
     *aSafeJSContext = mSafeJSContext;
     return mSafeJSContext ? NS_OK : NS_ERROR_UNEXPECTED;
+}
+
+NS_IMETHODIMP
+XPCJSContextStack::SetSafeJSContext(JSContext * aSafeJSContext)
+{
+    if(mOwnSafeJSContext &&
+       mOwnSafeJSContext == mSafeJSContext &&
+       mOwnSafeJSContext != aSafeJSContext)
+    {
+        JS_DestroyContextNoGC(mOwnSafeJSContext);
+        mOwnSafeJSContext = nsnull;
+    }
+
+    mSafeJSContext = aSafeJSContext;
+    return NS_OK;
 }
 
 /***************************************************************************/

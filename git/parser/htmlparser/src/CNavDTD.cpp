@@ -59,7 +59,6 @@
 #include "nsUnicharUtils.h"
 #include "prmem.h"
 #include "nsIServiceManager.h"
-#include "nsParserConstants.h"
 
 #ifdef NS_DEBUG
 #include "nsLoggingSink.h"

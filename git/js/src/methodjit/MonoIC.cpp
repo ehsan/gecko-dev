@@ -1097,13 +1097,8 @@ ic::SplatApplyArgs(VMFrame &f)
                     THROWV(false);
 
                 /* Step 6. */
-                if (length > StackSpace::ARGS_LENGTH_MAX) {
-                    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
-                                         JSMSG_TOO_MANY_FUN_APPLY_ARGS);
-                    THROWV(false);
-                }
+                n = Min(length, StackSpace::ARGS_LENGTH_MAX);
 
-                n = length;
                 if (!BumpStack(f, n))
                     THROWV(false);
 
@@ -1157,22 +1152,18 @@ ic::SplatApplyArgs(VMFrame &f)
     JS_ASSERT(!JS_ON_TRACE(cx));
 
     /* Step 6. */
-    if (length > StackSpace::ARGS_LENGTH_MAX) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
-                             JSMSG_TOO_MANY_FUN_APPLY_ARGS);
-        THROWV(false);
-    }
+    uintN n = uintN(JS_MIN(length, StackSpace::ARGS_LENGTH_MAX));
 
-    intN delta = length - 1;
+    intN delta = n - 1;
     if (delta > 0 && !BumpStack(f, delta))
         THROWV(false);
     f.regs.sp += delta;
 
     /* Steps 7-8. */
-    if (!GetElements(cx, aobj, length, f.regs.sp - length))
+    if (!GetElements(cx, aobj, n, f.regs.sp - n))
         THROWV(false);
 
-    f.u.call.dynamicArgc = length;
+    f.u.call.dynamicArgc = n;
     return true;
 }
 

@@ -92,7 +92,6 @@ richlistitem .prefvalue {
 
 #editor-container > hbox > label {
   pointer-events: none;
-  color: black;
 }
 
 #editor + richlistitem {

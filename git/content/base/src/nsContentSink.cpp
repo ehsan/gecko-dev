@@ -103,7 +103,6 @@
 #include "nsHTMLDNSPrefetch.h"
 #include "nsISupportsPrimitives.h"
 #include "mozilla/Preferences.h"
-#include "nsParserConstants.h"
 
 using namespace mozilla;
 
@@ -336,7 +335,6 @@ nsContentSink::StyleSheetLoaded(nsCSSStyleSheet* aSheet,
                                 PRBool aWasAlternate,
                                 nsresult aStatus)
 {
-  NS_ASSERTION(!mFragmentMode, "How come a fragment parser observed sheets?");
   if (!aWasAlternate) {
     NS_ASSERTION(mPendingSheetCount > 0, "How'd that happen?");
     --mPendingSheetCount;
@@ -643,7 +641,7 @@ nsContentSink::ProcessLinkHeader(nsIContent* aElement,
     while (*end != kNullCh && *end != kSemicolon && *end != kComma) {
       PRUnichar ch = *end;
 
-      if (ch == kQuote || ch == kLessThan) {
+      if (ch == kApostrophe || ch == kQuote || ch == kLessThan) {
         // quoted string
 
         PRUnichar quote = ch;
@@ -725,7 +723,8 @@ nsContentSink::ProcessLinkHeader(nsIContent* aElement,
             value++;
           }
 
-          if ((*value == kQuote) && (*value == *last)) {
+          if (((*value == kApostrophe) || (*value == kQuote)) &&
+              (*value == *last)) {
             *last = kNullCh;
             value++;
           }
@@ -875,13 +874,12 @@ nsContentSink::ProcessStyleLink(nsIContent* aElement,
     return NS_OK;
   }
 
-  // If this is a fragment parser, we don't want to observe.
   PRBool isAlternate;
   rv = mCSSLoader->LoadStyleLink(aElement, url, aTitle, aMedia, aAlternate,
-                                 mFragmentMode ? nsnull : this, &isAlternate);
+                                 this, &isAlternate);
   NS_ENSURE_SUCCESS(rv, rv);
   
-  if (!isAlternate && !mFragmentMode) {
+  if (!isAlternate) {
     ++mPendingSheetCount;
     mScriptLoader->AddExecuteBlocker();
   }

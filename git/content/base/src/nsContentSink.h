@@ -349,8 +349,6 @@ protected:
   PRUint8 mIsDocumentObserver : 1;
   // True if this is a fragment parser
   PRUint8 mFragmentMode : 1;
-  // True to call prevent script execution in the fragment mode.
-  PRUint8 mPreventScriptExecution : 1;
   
   //
   // -- Can interrupt parsing members --

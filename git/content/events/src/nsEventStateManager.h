@@ -160,8 +160,6 @@ public:
    */
   PRUint32 GetRegisteredAccessKey(nsIContent* aContent);
 
-  PRBool GetAccessKeyLabelPrefix(nsAString& aPrefix);
-
   nsresult SetCursor(PRInt32 aCursor, imgIContainer* aContainer,
                      PRBool aHaveHotspot, float aHotspotX, float aHotspotY,
                      nsIWidget* aWidget, PRBool aLockCursor); 

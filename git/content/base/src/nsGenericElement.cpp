@@ -4313,15 +4313,20 @@ nsGenericElement::AddScriptEventListener(nsIAtom* aEventName,
   }
 
   NS_PRECONDITION(aEventName, "Must have event name!");
+  nsCOMPtr<nsISupports> target;
   PRBool defer = PR_TRUE;
-  nsEventListenerManager* manager = GetEventListenerManagerForAttr(&defer);
+  nsRefPtr<nsEventListenerManager> manager;
+
+  GetEventListenerManagerForAttr(getter_AddRefs(manager),
+                                 getter_AddRefs(target),
+                                 &defer);
   if (!manager) {
     return NS_OK;
   }
 
   defer = defer && aDefer; // only defer if everyone agrees...
   PRUint32 lang = GetScriptTypeID();
-  manager->AddScriptEventListener(aEventName, aValue, lang, defer,
+  manager->AddScriptEventListener(target, aEventName, aValue, lang, defer,
                                   !nsContentUtils::IsChromeDoc(ownerDoc));
   return NS_OK;
 }
@@ -4590,11 +4595,17 @@ nsGenericElement::SetMappedAttribute(nsIDocument* aDocument,
   return PR_FALSE;
 }
 
-nsEventListenerManager*
-nsGenericElement::GetEventListenerManagerForAttr(PRBool* aDefer)
+nsresult
+nsGenericElement::GetEventListenerManagerForAttr(nsEventListenerManager** aManager,
+                                                 nsISupports** aTarget,
+                                                 PRBool* aDefer)
 {
+  *aManager = GetListenerManager(PR_TRUE);
   *aDefer = PR_TRUE;
-  return GetListenerManager(PR_TRUE);
+  NS_ENSURE_STATE(*aManager);
+  NS_ADDREF(*aManager);
+  NS_ADDREF(*aTarget = static_cast<nsIContent*>(this));
+  return NS_OK;
 }
 
 nsGenericElement::nsAttrInfo
