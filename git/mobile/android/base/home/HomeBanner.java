@@ -5,17 +5,19 @@
 
 package org.mozilla.gecko.home;
 
-import org.json.JSONException;
-import org.json.JSONObject;
+import org.mozilla.gecko.animation.PropertyAnimator;
+import org.mozilla.gecko.animation.PropertyAnimator.Property;
+import org.mozilla.gecko.animation.PropertyAnimator.PropertyAnimationListener;
+import org.mozilla.gecko.animation.ViewHelper;
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoEvent;
 import org.mozilla.gecko.R;
-import org.mozilla.gecko.animation.PropertyAnimator;
-import org.mozilla.gecko.animation.PropertyAnimator.Property;
-import org.mozilla.gecko.animation.ViewHelper;
 import org.mozilla.gecko.gfx.BitmapUtils;
 import org.mozilla.gecko.util.GeckoEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import android.content.Context;
 import android.graphics.drawable.Drawable;
@@ -52,9 +54,6 @@ public class HomeBanner extends LinearLayout
     // switches back to the default page.
     private boolean mUserSwipedDown = false;
 
-    private final TextView mTextView;
-    private final ImageView mIconView;
-
     public HomeBanner(Context context) {
         this(context, null);
     }
@@ -63,9 +62,6 @@ public class HomeBanner extends LinearLayout
         super(context, attrs);
 
         LayoutInflater.from(context).inflate(R.layout.home_banner, this);
-
-        mTextView = (TextView) findViewById(R.id.text);
-        mIconView = (ImageView) findViewById(R.id.icon);
     }
 
     @Override
@@ -119,12 +115,13 @@ public class HomeBanner extends LinearLayout
 
             // Display styled text from an HTML string.
             final Spanned text = Html.fromHtml(message.getString("text"));
+            final TextView textView = (TextView) findViewById(R.id.text);
 
             // Update the banner message on the UI thread.
             ThreadUtils.postToUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    mTextView.setText(text);
+                    textView.setText(text);
                     setVisibility(VISIBLE);
                     animateUp();
                 }
@@ -135,16 +132,30 @@ public class HomeBanner extends LinearLayout
         }
 
         final String iconURI = message.optString("iconURI");
+        final ImageView iconView = (ImageView) findViewById(R.id.icon);
+
+        if (TextUtils.isEmpty(iconURI)) {
+            // Hide the image view if we don't have an icon to show.
+            iconView.setVisibility(View.GONE);
+            return;
+        }
 
         BitmapUtils.getDrawable(getContext(), iconURI, new BitmapUtils.BitmapLoader() {
             @Override
             public void onBitmapFound(final Drawable d) {
-                // Hide the image view if we don't have an icon to show.
+                // Bail if getDrawable doesn't find anything.
                 if (d == null) {
-                    mIconView.setVisibility(View.GONE);
-                } else {
-                    mIconView.setImageDrawable(d);
+                    iconView.setVisibility(View.GONE);
+                    return;
                 }
+
+                // Update the banner icon on the UI thread.
+                ThreadUtils.postToUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        iconView.setImageDrawable(d);
+                    }
+                });
             }
         });
     }
@@ -166,7 +177,8 @@ public class HomeBanner extends LinearLayout
     private void animateUp() {
         // Check to make sure that message has been received and the banner has been enabled.
         // Necessary to avoid race conditions between show() and handleMessage() calls.
-        if (!mEnabled || TextUtils.isEmpty(mTextView.getText()) || mUserSwipedDown) {
+        TextView textView = (TextView) findViewById(R.id.text);
+        if (!mEnabled || TextUtils.isEmpty(textView.getText()) || mUserSwipedDown) {
             return;
         }
 

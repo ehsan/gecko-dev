@@ -5,8 +5,6 @@
 
 package org.mozilla.gecko.home;
 
-import java.util.EnumSet;
-
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.ThumbnailHelper;
 import org.mozilla.gecko.db.BrowserDB.TopSitesCursorWrapper;
@@ -20,11 +18,14 @@ import android.database.Cursor;
 import android.graphics.Rect;
 import android.text.TextUtils;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.ContextMenu.ContextMenuInfo;
 import android.view.View;
 import android.widget.AbsListView;
 import android.widget.AdapterView;
 import android.widget.GridView;
+
+import java.util.EnumSet;
 
 /**
  * A grid view of top and pinned sites.

@@ -194,13 +194,6 @@ static_assert((CSS_PROPERTY_PARSE_PROPERTY_MASK &
 // This property requires a stacking context.
 #define CSS_PROPERTY_CREATES_STACKING_CONTEXT     (1<<21)
 
-// This property is always enabled in UA sheets.  This is meant to be used
-// together with a pref that enables the property for non-UA sheets.
-// Note that if such a property has an alias, then any use of that alias
-// in an UA sheet will still be ignored unless the pref is enabled.
-// In other words, this bit has no effect on the use of aliases.
-#define CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS  (1<<22)
-
 /**
  * Types of animatable values.
  */
@@ -261,7 +254,6 @@ public:
   // Given a property string, return the enum value
   enum EnabledState {
     eEnabled,
-    eEnabledInUASheets,
     eAny
   };
   // Looks up the property with name aProperty and returns its corresponding
@@ -447,13 +439,6 @@ public:
     return gPropertyEnabled[aProperty];
   }
 
-  static bool IsEnabled(nsCSSProperty aProperty, EnabledState aEnabled) {
-    return IsEnabled(aProperty) ||
-      (aEnabled == eEnabledInUASheets &&
-       PropHasFlags(aProperty, CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS)) ||
-      aEnabled == eAny;
-  }
-
 public:
 
 #define CSSPROPS_FOR_SHORTHAND_SUBPROPERTIES(iter_, prop_)                    \
@@ -555,7 +540,6 @@ public:
   static const KTableValue kOutlineColorKTable[];
   static const KTableValue kOverflowKTable[];
   static const KTableValue kOverflowSubKTable[];
-  static const KTableValue kOverflowClipBoxKTable[];
   static const KTableValue kPageBreakKTable[];
   static const KTableValue kPageBreakInsideKTable[];
   static const KTableValue kPageMarksKTable[];

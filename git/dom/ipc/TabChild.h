@@ -278,11 +278,6 @@ public:
                                                   const bool& flushLayout,
                                                   const nsIntSize& renderSize) MOZ_OVERRIDE;
 
-    virtual PColorPickerChild*
-    AllocPColorPickerChild(const nsString& title, const nsString& initialColor) MOZ_OVERRIDE;
-    virtual bool DeallocPColorPickerChild(PColorPickerChild* actor) MOZ_OVERRIDE;
-
-
     virtual PContentDialogChild* AllocPContentDialogChild(const uint32_t&,
                                                           const nsCString&,
                                                           const nsCString&,
@@ -290,7 +285,6 @@ public:
                                                           const InfallibleTArray<nsString>&)
                                                           MOZ_OVERRIDE;
     virtual bool DeallocPContentDialogChild(PContentDialogChild* aDialog) MOZ_OVERRIDE;
-
     static void ParamsToArrays(nsIDialogParamBlock* aParams,
                                InfallibleTArray<int>& aIntParams,
                                InfallibleTArray<nsString>& aStringParams);
@@ -416,9 +410,6 @@ private:
     TabChild(ContentChild* aManager, const TabContext& aContext, uint32_t aChromeFlags);
 
     nsresult Init();
-
-    void InitializeRootMetrics();
-    bool HasValidInnerSize();
 
     // Notify others that our TabContext has been updated.  (At the moment, this
     // sets the appropriate app-id and is-browser flags on our docshell.)

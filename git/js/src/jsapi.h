@@ -1770,23 +1770,8 @@ JS_GetClassObject(JSContext *cx, JSProtoKey key, JS::MutableHandle<JSObject*> ob
 extern JS_PUBLIC_API(bool)
 JS_GetClassPrototype(JSContext *cx, JSProtoKey key, JS::MutableHandle<JSObject*> objp);
 
-namespace JS {
-
-/*
- * Determine if the given object is an instance or prototype for a standard
- * class. If so, return the associated JSProtoKey. If not, return JSProto_Null.
- */
-
 extern JS_PUBLIC_API(JSProtoKey)
-IdentifyStandardInstance(JSObject *obj);
-
-extern JS_PUBLIC_API(JSProtoKey)
-IdentifyStandardPrototype(JSObject *obj);
-
-extern JS_PUBLIC_API(JSProtoKey)
-IdentifyStandardInstanceOrPrototype(JSObject *obj);
-
-} /* namespace JS */
+JS_IdentifyClassPrototype(JSObject *obj);
 
 extern JS_PUBLIC_API(JSProtoKey)
 JS_IdToProtoKey(JSContext *cx, JS::HandleId id);
@@ -2570,7 +2555,7 @@ JS_GetConstructor(JSContext *cx, JS::Handle<JSObject*> proto);
  * and true with *idp containing the unique id on success.
  */
 extern JS_PUBLIC_API(bool)
-JS_GetObjectId(JSContext *cx, JS::HandleObject obj, JS::MutableHandleId idp);
+JS_GetObjectId(JSContext *cx, JSObject *obj, jsid *idp);
 
 namespace JS {
 

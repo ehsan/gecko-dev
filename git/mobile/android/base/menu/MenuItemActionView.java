@@ -5,19 +5,20 @@
 
 package org.mozilla.gecko.menu;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.mozilla.gecko.R;
 
 import android.annotation.TargetApi;
 import android.content.Context;
+import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.widget.ImageButton;
 import android.widget.LinearLayout;
+import android.widget.ImageButton;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class MenuItemActionView extends LinearLayout
                                 implements GeckoMenuItem.Layout {

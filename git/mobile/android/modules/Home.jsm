@@ -136,10 +136,6 @@ let HomeBanner = (function () {
      * @param id The id of the message to remove.
      */
     remove: function(id) {
-      if (!(id in _messages)) {
-        throw "Home.banner: Can't remove message that doesn't exist: id = " + id;
-      }
-
       delete _messages[id];
 
       // Remove the message from the queue.

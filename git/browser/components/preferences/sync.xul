@@ -209,16 +209,13 @@
               <!-- logged in and verified and all is good -->
               <hbox>
                 <label id="fxaEmailAddress1"/>
-                <vbox>
-                  <label class="text-link"
-                         onclick="gSyncPane.manageFirefoxAccount();"
-                         value="&manage.label;"/>
-                </vbox>
+                <label class="text-link"
+                       onclick="gSyncPane.manageFirefoxAccount();"
+                       value="&manage.label;"/>
                 <spacer flex="1"/>
-                <vbox>
-                  <button id="fxaUnlinkButton"
-                          oncommand="gSyncPane.unlinkFirefoxAccount(true);"
-                          label="&disconnect.label;"/>
+                <vbox align="end">
+                  <button oncommand="gSyncPane.unlinkFirefoxAccount(true);"
+                          label="&disconnect.label;" />
                 </vbox>
               </hbox>
 

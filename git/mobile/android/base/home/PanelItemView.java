@@ -9,16 +9,20 @@ import org.mozilla.gecko.R;
 import org.mozilla.gecko.db.BrowserContract.HomeItems;
 import org.mozilla.gecko.home.HomeConfig.ItemType;
 
+import com.squareup.picasso.Picasso;
+
 import android.content.Context;
 import android.database.Cursor;
 import android.text.TextUtils;
+import android.util.AttributeSet;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-import com.squareup.picasso.Picasso;
+import java.lang.ref.WeakReference;
 
 class PanelItemView extends LinearLayout {
     private final TextView mTitle;

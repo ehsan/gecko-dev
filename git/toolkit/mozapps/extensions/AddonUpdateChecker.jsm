@@ -32,7 +32,7 @@ Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "AddonManager",
                                   "resource://gre/modules/AddonManager.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "AddonRepository",
-                                  "resource://gre/modules/addons/AddonRepository.jsm");
+                                  "resource://gre/modules/AddonRepository.jsm");
 
 // Shared code for suppressing bad cert dialogs.
 XPCOMUtils.defineLazyGetter(this, "CertUtils", function certUtilsLazyGetter() {
@@ -44,12 +44,15 @@ XPCOMUtils.defineLazyGetter(this, "CertUtils", function certUtilsLazyGetter() {
 var gRDF = Cc["@mozilla.org/rdf/rdf-service;1"].
            getService(Ci.nsIRDFService);
 
-Cu.import("resource://gre/modules/Log.jsm");
-const LOGGER_ID = "addons.updates";
+["LOG", "WARN", "ERROR"].forEach(function(aName) {
+  this.__defineGetter__(aName, function logFuncGetter() {
+    Components.utils.import("resource://gre/modules/AddonLogging.jsm");
 
-// Create a new logger for use by the Addons Update Checker
-// (Requires AddonManager.jsm)
-let logger = Log.repository.getLogger(LOGGER_ID);
+    LogManager.getLogger("addons.updates", this);
+    return this[aName];
+  });
+}, this);
+
 
 /**
  * A serialisation method for RDF data that produces an identical string
@@ -306,7 +309,7 @@ function parseRDFManifest(aId, aUpdateKey, aRequest) {
   // A missing updates property doesn't count as a failure, just as no avialable
   // update information
   if (!updates) {
-    logger.warn("Update manifest for " + aId + " did not contain an updates property");
+    WARN("Update manifest for " + aId + " did not contain an updates property");
     return [];
   }
 
@@ -327,11 +330,11 @@ function parseRDFManifest(aId, aUpdateKey, aRequest) {
     let item = items.getNext().QueryInterface(Ci.nsIRDFResource);
     let version = getProperty(ds, item, "version");
     if (!version) {
-      logger.warn("Update manifest is missing a required version property.");
+      WARN("Update manifest is missing a required version property.");
       continue;
     }
 
-    logger.debug("Found an update entry for " + aId + " version " + version);
+    LOG("Found an update entry for " + aId + " version " + version);
 
     let targetApps = ds.GetTargets(item, EM_R("targetApplication"), true);
     while (targetApps.hasMoreElements()) {
@@ -344,7 +347,7 @@ function parseRDFManifest(aId, aUpdateKey, aRequest) {
         appEntry.maxVersion = getRequiredProperty(ds, targetApp, "maxVersion");
       }
       catch (e) {
-        logger.warn(e);
+        WARN(e);
         continue;
       }
 
@@ -361,7 +364,7 @@ function parseRDFManifest(aId, aUpdateKey, aRequest) {
       if (result.updateURL && AddonManager.checkUpdateSecurity &&
           result.updateURL.substring(0, 6) != "https:" &&
           (!result.updateHash || result.updateHash.substring(0, 3) != "sha")) {
-        logger.warn("updateLink " + result.updateURL + " is not secure and is not verified" +
+        WARN("updateLink " + result.updateURL + " is not secure and is not verified" +
              " by a strong enough hash (needs to be sha1 or stronger).");
         delete result.updateURL;
         delete result.updateHash;
@@ -398,7 +401,7 @@ function UpdateParser(aId, aUpdateKey, aUrl, aObserver) {
   catch (e) {
   }
 
-  logger.debug("Requesting " + aUrl);
+  LOG("Requesting " + aUrl);
   try {
     this.request = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].
                    createInstance(Ci.nsIXMLHttpRequest);
@@ -416,7 +419,7 @@ function UpdateParser(aId, aUpdateKey, aUrl, aObserver) {
     this.request.send(null);
   }
   catch (e) {
-    logger.error("Failed to request update manifest", e);
+    ERROR("Failed to request update manifest", e);
   }
 }
 
@@ -450,14 +453,14 @@ UpdateParser.prototype = {
     }
 
     if (!Components.isSuccessCode(request.status)) {
-      logger.warn("Request failed: " + this.url + " - " + request.status);
+      WARN("Request failed: " + this.url + " - " + request.status);
       this.notifyError(AddonUpdateChecker.ERROR_DOWNLOAD_ERROR);
       return;
     }
 
     let channel = request.channel;
     if (channel instanceof Ci.nsIHttpChannel && !channel.requestSucceeded) {
-      logger.warn("Request failed: " + this.url + " - " + channel.responseStatus +
+      WARN("Request failed: " + this.url + " - " + channel.responseStatus +
            ": " + channel.responseStatusText);
       this.notifyError(AddonUpdateChecker.ERROR_DOWNLOAD_ERROR);
       return;
@@ -465,7 +468,7 @@ UpdateParser.prototype = {
 
     let xml = request.responseXML;
     if (!xml || xml.documentElement.namespaceURI == XMLURI_PARSE_ERROR) {
-      logger.warn("Update manifest was not valid XML");
+      WARN("Update manifest was not valid XML");
       this.notifyError(AddonUpdateChecker.ERROR_PARSE_ERROR);
       return;
     }
@@ -478,7 +481,7 @@ UpdateParser.prototype = {
         results = parseRDFManifest(this.id, this.updateKey, request);
       }
       catch (e) {
-        logger.warn(e);
+        WARN(e);
         this.notifyError(AddonUpdateChecker.ERROR_PARSE_ERROR);
         return;
       }
@@ -487,13 +490,13 @@ UpdateParser.prototype = {
           this.observer.onUpdateCheckComplete(results);
         }
         catch (e) {
-          logger.warn("onUpdateCheckComplete notification failed", e);
+          WARN("onUpdateCheckComplete notification failed", e);
         }
       }
       return;
     }
 
-    logger.warn("Update manifest had an unrecognised namespace: " + xml.documentElement.namespaceURI);
+    WARN("Update manifest had an unrecognised namespace: " + xml.documentElement.namespaceURI);
     this.notifyError(AddonUpdateChecker.ERROR_UNKNOWN_FORMAT);
   },
 
@@ -502,7 +505,7 @@ UpdateParser.prototype = {
    */
   onTimeout: function() {
     this.request = null;
-    logger.warn("Request for " + this.url + " timed out");
+    WARN("Request for " + this.url + " timed out");
     this.notifyError(AddonUpdateChecker.ERROR_TIMEOUT);
   },
 
@@ -511,22 +514,22 @@ UpdateParser.prototype = {
    */
   onError: function UP_onError() {
     if (!Components.isSuccessCode(this.request.status)) {
-      logger.warn("Request failed: " + this.url + " - " + this.request.status);
+      WARN("Request failed: " + this.url + " - " + this.request.status);
     }
     else if (this.request.channel instanceof Ci.nsIHttpChannel) {
       try {
         if (this.request.channel.requestSucceeded) {
-          logger.warn("Request failed: " + this.url + " - " +
+          WARN("Request failed: " + this.url + " - " +
                this.request.channel.responseStatus + ": " +
                this.request.channel.responseStatusText);
         }
       }
       catch (e) {
-        logger.warn("HTTP Request failed for an unknown reason");
+        WARN("HTTP Request failed for an unknown reason");
       }
     }
     else {
-      logger.warn("Request failed for an unknown reason");
+      WARN("Request failed for an unknown reason");
     }
 
     this.request = null;
@@ -543,7 +546,7 @@ UpdateParser.prototype = {
         this.observer.onUpdateCheckError(aStatus);
       }
       catch (e) {
-        logger.warn("onUpdateCheckError notification failed", e);
+        WARN("onUpdateCheckError notification failed", e);
       }
     }
   },

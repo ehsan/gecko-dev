@@ -340,16 +340,11 @@ function loadSyncPromoBanner() {
       let text = stringBundle.GetStringFromName("promoBanner.message.text");
       let link = stringBundle.GetStringFromName("promoBanner.message.link");
 
-      let id = Home.banner.add({
+      Home.banner.add({
         text: text + "<a href=\"#\">" + link + "</a>",
         icon: "drawable://sync_promo",
         onclick: function() {
           Accounts.launchSetup();
-        },
-        ondismiss: function() {
-          // Remove the sync promo message from the banner and never try to show it again.
-          Home.banner.remove(id);
-          Services.prefs.setBoolPref("browser.snippets.syncPromo.enabled", false);
         }
       });
     },

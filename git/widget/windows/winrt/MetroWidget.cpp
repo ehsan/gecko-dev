@@ -82,7 +82,6 @@ UINT sDefaultBrowserMsgId = RegisterWindowMessageW(L"DefaultBrowserClosing");
 namespace mozilla {
 namespace widget {
 namespace winrt {
-extern ComPtr<MetroApp> sMetroApp;
 extern ComPtr<IUIABridge> gProviderRoot;
 } } }
 
@@ -254,7 +253,7 @@ MetroWidget::Create(nsIWidget *aParent,
 
   // the main widget gets created first
   gTopLevelAssigned = true;
-  sMetroApp->SetWidget(this);
+  MetroApp::SetBaseWidget(this);
   WinUtils::SetNSWindowBasePtr(mWnd, this);
 
   if (mWidgetListener) {

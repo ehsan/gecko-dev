@@ -16,17 +16,24 @@
 
 package org.mozilla.gecko.widget;
 
-import java.util.LinkedList;
-
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.animation.PropertyAnimator;
-
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.os.Handler;
+import android.text.TextUtils;
+import android.view.animation.Animation;
+import android.view.animation.AlphaAnimation;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
+
+import java.util.LinkedList;
+
+import org.mozilla.gecko.animation.PropertyAnimator;
+import org.mozilla.gecko.R;
+import org.mozilla.gecko.gfx.BitmapUtils;
 
 public class ButtonToast {
     private final static String LOGTAG = "GeckoButtonToast";

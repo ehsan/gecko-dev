@@ -164,28 +164,25 @@ frontend::MaybeCallSourceHandler(JSContext *cx, const ReadOnlyCompileOptions &op
     }
 }
 
-ScriptSourceObject *
-frontend::CreateScriptSourceObject(ExclusiveContext *cx, const ReadOnlyCompileOptions &options)
+static bool
+SetScriptSourceFilename(ExclusiveContext *cx, ScriptSource *ss,
+                        const ReadOnlyCompileOptions &options)
 {
-    ScriptSource *ss = cx->new_<ScriptSource>(options.originPrincipals());
-    if (!ss)
-        return nullptr;
-
     if (options.hasIntroductionInfo) {
         const char *filename = options.filename() ? options.filename() : "<unknown>";
         JS_ASSERT(options.introductionType != nullptr);
 
         if (!ss->setIntroducedFilename(cx, filename, options.introductionLineno,
                                        options.introductionType, options.introducerFilename()))
-            return nullptr;
+            return false;
 
         ss->setIntroductionOffset(options.introductionOffset);
     } else {
         if (options.filename() && !ss->setFilename(cx, options.filename()))
-            return nullptr;
+            return false;
     }
 
-    return ScriptSourceObject::create(cx, ss, options);
+    return true;
 }
 
 JSScript *
@@ -221,12 +218,16 @@ frontend::CompileScript(ExclusiveContext *cx, LifoAlloc *alloc, HandleObject sco
     if (!CheckLength(cx, length))
         return nullptr;
     JS_ASSERT_IF(staticLevel != 0, options.sourcePolicy != CompileOptions::LAZY_SOURCE);
-
-    RootedScriptSource sourceObject(cx, CreateScriptSourceObject(cx, options));
-    if (!sourceObject)
+    ScriptSource *ss = cx->new_<ScriptSource>(options.originPrincipals());
+    if (!ss)
         return nullptr;
 
-    ScriptSource *ss = sourceObject->source();
+    if (!SetScriptSourceFilename(cx, ss, options))
+        return nullptr;
+
+    RootedScriptSource sourceObject(cx, ScriptSourceObject::create(cx, ss, options));
+    if (!sourceObject)
+        return nullptr;
 
     SourceCompressionTask mysct(cx);
     SourceCompressionTask *sct = extraSct ? extraSct : &mysct;
@@ -513,12 +514,14 @@ CompileFunctionBody(JSContext *cx, MutableHandleFunction fun, const ReadOnlyComp
 
     if (!CheckLength(cx, length))
         return false;
-
-    RootedScriptSource sourceObject(cx, CreateScriptSourceObject(cx, options));
+    ScriptSource *ss = cx->new_<ScriptSource>(options.originPrincipals());
+    if (!ss)
+        return false;
+    if (!SetScriptSourceFilename(cx, ss, options))
+        return false;
+    RootedScriptSource sourceObject(cx, ScriptSourceObject::create(cx, ss, options));
     if (!sourceObject)
-        return nullptr;
-    ScriptSource *ss = sourceObject->source();
-
+        return false;
     SourceCompressionTask sct(cx);
     JS_ASSERT(options.sourcePolicy != CompileOptions::LAZY_SOURCE);
     if (options.sourcePolicy == CompileOptions::SAVE_SOURCE) {

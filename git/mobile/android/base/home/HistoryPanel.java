@@ -7,13 +7,17 @@ package org.mozilla.gecko.home;
 
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.widget.IconTabWidget;
-
-import android.content.res.Configuration;
-import android.os.Bundle;
 import android.support.v4.app.Fragment;
+import android.content.Context;
+import android.content.res.Configuration;
+import android.content.res.Resources;
+import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.LayoutInflater;
+
+import android.widget.ImageButton;
 
 public class HistoryPanel extends HomeFragment
                           implements IconTabWidget.OnTabChangedListener {

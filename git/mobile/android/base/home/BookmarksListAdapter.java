@@ -5,10 +5,6 @@
 
 package org.mozilla.gecko.home;
 
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.List;
-
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.db.BrowserContract.Bookmarks;
 
@@ -18,6 +14,10 @@ import android.database.Cursor;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.view.View;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.LinkedList;
 
 /**
  * Adapter to back the BookmarksListView with a list of bookmarks.

@@ -603,6 +603,8 @@ public:
      */
     static PRLogModuleInfo* GetLog(eGfxLog aWhichLog);
 
+    bool WorkAroundDriverBugs() const { return mWorkAroundDriverBugs; }
+
     virtual int GetScreenDepth() const;
 
     bool WidgetUpdateFlashing() const { return mWidgetUpdateFlashing; }
@@ -740,6 +742,7 @@ private:
     uint32_t mContentBackendBitmask;
 
     mozilla::widget::GfxInfoCollector<gfxPlatform> mAzureCanvasBackendCollector;
+    bool mWorkAroundDriverBugs;
 
     mozilla::RefPtr<mozilla::gfx::DrawEventRecorder> mRecorder;
     bool mWidgetUpdateFlashing;

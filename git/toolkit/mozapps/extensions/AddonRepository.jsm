@@ -22,7 +22,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "OS",
 XPCOMUtils.defineLazyModuleGetter(this, "DeferredSave",
                                   "resource://gre/modules/DeferredSave.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "AddonRepository_SQLiteMigrator",
-                                  "resource://gre/modules/addons/AddonRepository_SQLiteMigrator.jsm");
+                                  "resource://gre/modules/AddonRepository_SQLiteMigrator.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Promise",
                                   "resource://gre/modules/Promise.jsm");
 
@@ -61,12 +61,14 @@ const BLANK_DB = function() {
 
 const TOOLKIT_ID     = "toolkit@mozilla.org";
 
-Cu.import("resource://gre/modules/Log.jsm");
-const LOGGER_ID = "addons.repository";
+["LOG", "WARN", "ERROR"].forEach(function(aName) {
+  this.__defineGetter__(aName, function logFuncGetter() {
+    Components.utils.import("resource://gre/modules/AddonLogging.jsm");
 
-// Create a new logger for use by the Addons Repository
-// (Requires AddonManager.jsm)
-let logger = Log.repository.getLogger(LOGGER_ID);
+    LogManager.getLogger("addons.repository", this);
+    return this[aName];
+  });
+}, this);
 
 // A map between XML keys to AddonSearchResult keys for string values
 // that require no extra parsing from XML
@@ -443,7 +445,7 @@ AddonSearchResult.prototype = {
             json[property] = value;
         }
       } catch (ex) {
-        logger.warn("Error writing property value for " + property);
+        WARN("Error writing property value for " + property);
       }
     }
 
@@ -482,7 +484,7 @@ this.AddonRepository = {
     try {
       enabled = Services.prefs.getBoolPref(preference);
     } catch(e) {
-      logger.warn("cacheEnabled: Couldn't get pref: " + preference);
+      WARN("cacheEnabled: Couldn't get pref: " + preference);
     }
 
     return enabled;
@@ -637,7 +639,7 @@ this.AddonRepository = {
           AddonDatabase.repopulate(aAddons, aCallback);
         },
         searchFailed: function repopulateCacheInternal_searchFailed() {
-          logger.warn("Search failed when repopulating cache");
+          WARN("Search failed when repopulating cache");
           if (aCallback)
             aCallback();
         }
@@ -677,7 +679,7 @@ this.AddonRepository = {
           AddonDatabase.insertAddons(aAddons, aCallback);
         },
         searchFailed: function cacheAddons_searchFailed() {
-          logger.warn("Search failed when adding add-ons to cache");
+          WARN("Search failed when adding add-ons to cache");
           if (aCallback)
             aCallback();
         }
@@ -1065,7 +1067,7 @@ this.AddonRepository = {
               addon.type = "dictionary";
               break;
             default:
-              logger.warn("Unknown type id when parsing addon: " + id);
+              WARN("Unknown type id when parsing addon: " + id);
           }
           break;
         case "authors":
@@ -1310,7 +1312,7 @@ this.AddonRepository = {
   _parseAddonCompatElement: function AddonRepo_parseAddonCompatElement(aResultObj, aElement) {
     let guid = this._getDescendantTextContent(aElement, "guid");
     if (!guid) {
-        logger.debug("Compatibility override is missing guid.");
+        LOG("Compatibility override is missing guid.");
       return;
     }
 
@@ -1346,7 +1348,7 @@ this.AddonRepository = {
       let type = aNode.getAttribute("type");
       // Only "incompatible" (blacklisting) is supported for now.
       if (type != "incompatible") {
-        logger.debug("Compatibility override of unsupported type found.");
+        LOG("Compatibility override of unsupported type found.");
         return null;
       }
 
@@ -1356,18 +1358,18 @@ this.AddonRepository = {
       override.maxVersion = this._getDirectDescendantTextContent(aNode, "max_version");
 
       if (!override.minVersion) {
-        logger.debug("Compatibility override is missing min_version.");
+        LOG("Compatibility override is missing min_version.");
         return null;
       }
       if (!override.maxVersion) {
-        logger.debug("Compatibility override is missing max_version.");
+        LOG("Compatibility override is missing max_version.");
         return null;
       }
 
       let appRanges = aNode.querySelectorAll("compatible_applications > application");
       let appRange = findMatchingAppRange.bind(this)(appRanges);
       if (!appRange) {
-        logger.debug("Compatibility override is missing a valid application range.");
+        LOG("Compatibility override is missing a valid application range.");
         return null;
       }
 
@@ -1405,7 +1407,7 @@ this.AddonRepository = {
     this._callback = aCallback;
     this._maxResults = aMaxResults;
 
-    logger.debug("Requesting " + aURI);
+    LOG("Requesting " + aURI);
 
     this._request = new XHRequest();
     this._request.mozBackgroundRequest = true;
@@ -1473,7 +1475,7 @@ this.AddonRepository = {
     try {
       url = Services.prefs.getCharPref(aPreference);
     } catch(e) {
-      logger.warn("_formatURLPref: Couldn't get pref: " + aPreference);
+      WARN("_formatURLPref: Couldn't get pref: " + aPreference);
       return null;
     }
 
@@ -1573,7 +1575,7 @@ var AddonDatabase = {
      }
 
     } catch (e if e.result == Cr.NS_ERROR_FILE_NOT_FOUND) {
-      logger.debug("No " + FILE_DATABASE + " found.");
+      LOG("No " + FILE_DATABASE + " found.");
 
       // Create a blank addons.json file
       this._saveDBToDisk();
@@ -1602,7 +1604,7 @@ var AddonDatabase = {
       return;
 
     } catch (e) {
-      logger.error("Malformed " + FILE_DATABASE + ": " + e);
+      ERROR("Malformed " + FILE_DATABASE + ": " + e);
       this.databaseOk = false;
       return;
 
@@ -1673,7 +1675,7 @@ var AddonDatabase = {
       // shutdown(true) never rejects
       .then(() => this.shutdown(true))
       .then(() => OS.File.remove(this.jsonFile.path, {}))
-      .then(null, error => logger.error("Unable to delete Addon Repository file " +
+      .then(null, error => ERROR("Unable to delete Addon Repository file " +
                                  this.jsonFile.path, error))
       .then(aCallback);
   },
@@ -1864,7 +1866,7 @@ var AddonDatabase = {
             addon[expectedProperty] = value;
         }
       } catch (ex) {
-        logger.warn("Error in parsing property value for " + expectedProperty + " | " + ex);
+        WARN("Error in parsing property value for " + expectedProperty + " | " + ex);
       }
 
       // delete property from obj to indicate we've already
@@ -1908,7 +1910,7 @@ var AddonDatabase = {
   _saveDBToDisk: function() {
     return this.Writer.saveChanges().then(
       function() Services.obs.notifyObservers(null, DB_DATA_WRITTEN_TOPIC, null),
-      logger.error);
+      ERROR);
   },
 
   /**
