@@ -237,6 +237,7 @@ private:
 };
 
 class nsNSSShutDownList;
+class nsSSLThread;
 class nsCertVerificationThread;
 
 // Implementation of the PSM component interface.
@@ -356,6 +357,7 @@ private:
 
   void deleteBackgroundThreads();
   void createBackgroundThreads();
+  nsSSLThread *mSSLThread;
   nsCertVerificationThread *mCertVerificationThread;
 
   nsNSSHttpInterface mHttpForNSS;
