@@ -49,7 +49,7 @@ JSD_DebuggerOnForUser(JSRuntime*         jsrt,
                       JSD_UserCallbacks* callbacks,
                       void*              user)
 {
-    return jsd_DebuggerOnForUser(jsrt, callbacks, user, NULL);
+    return jsd_DebuggerOnForUser(jsrt, callbacks, user);
 }
 
 JSD_PUBLIC_API(JSDContext*)

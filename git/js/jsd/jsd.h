@@ -340,9 +340,7 @@ extern void JSD_ASSERT_VALID_OBJECT(JSDObject* jsdobj);
 extern JSDContext*
 jsd_DebuggerOnForUser(JSRuntime*         jsrt,
                       JSD_UserCallbacks* callbacks,
-                      void*              user,
-                      JSObject*          scopeobj);
-
+                      void*              user);
 extern JSDContext*
 jsd_DebuggerOn(void);
 

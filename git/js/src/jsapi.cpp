@@ -1185,20 +1185,22 @@ JSAutoCrossCompartmentCall::enter(JSContext *cx, JSObject *target)
     return call != NULL;
 }
 
-JS_FRIEND_API(JSCompartment *)
-js_SwitchToCompartment(JSContext *cx, JSCompartment *compartment)
+JSAutoEnterCompartment::JSAutoEnterCompartment(JSContext *cx,
+                                               JSCompartment *newCompartment)
+  : cx(cx), compartment(cx->compartment)
 {
-    JSCompartment *c = cx->compartment;
-    cx->compartment = compartment;
-    return c;
+    cx->compartment = newCompartment;
 }
 
-JS_FRIEND_API(JSCompartment *)
-js_SwitchToObjectCompartment(JSContext *cx, JSObject *obj)
+JSAutoEnterCompartment::JSAutoEnterCompartment(JSContext *cx, JSObject *target)
+  : cx(cx), compartment(cx->compartment)
 {
-    JSCompartment *c = cx->compartment;
-    cx->compartment = obj->getCompartment(cx);
-    return c;
+    cx->compartment = target->getCompartment(cx);
+}
+
+JSAutoEnterCompartment::~JSAutoEnterCompartment()
+{
+    cx->compartment = compartment;
 }
 
 JS_PUBLIC_API(void *)
@@ -1243,8 +1245,7 @@ JS_SetGlobalObject(JSContext *cx, JSObject *obj)
     CHECK_REQUEST(cx);
 
     cx->globalObject = obj;
-    if (!cx->maybefp())
-        cx->compartment = obj ? obj->getCompartment(cx) : cx->runtime->defaultCompartment;
+    cx->compartment = obj ? obj->getCompartment(cx) : cx->runtime->defaultCompartment;
 }
 
 class AutoResolvingEntry {
@@ -1333,14 +1334,10 @@ JS_InitStandardClasses(JSContext *cx, JSObject *obj)
 {
     CHECK_REQUEST(cx);
 
-    /*
-     * JS_SetGlobalObject might or might not change cx's compartment, so call
-     * it before assertSameCompartment. (The API contract is that *after* this,
-     * cx and obj must be in the same compartment.)
-     */
-    if (!cx->globalObject)
+    if (cx->globalObject)
+        assertSameCompartment(cx, obj);
+    else
         JS_SetGlobalObject(cx, obj);
-    assertSameCompartment(cx, obj);
 
     /* Define a top-level property 'undefined' with the undefined value. */
     JSAtom *atom = cx->runtime->atomState.typeAtoms[JSTYPE_VOID];
