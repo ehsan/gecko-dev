@@ -393,9 +393,6 @@ WrapEscapingClosure(JSContext *cx, JSStackFrame *fp, JSObject *funobj, JSFunctio
                                      : 0,
                                      (script->constOffset != 0)
                                      ? script->consts()->length
-                                     : 0,
-                                     (script->globalsOffset != 0)
-                                     ? script->globals()->length
                                      : 0);
     if (!wscript)
         return NULL;
@@ -417,10 +414,6 @@ WrapEscapingClosure(JSContext *cx, JSStackFrame *fp, JSObject *funobj, JSFunctio
     if (script->trynotesOffset != 0) {
         memcpy(wscript->trynotes()->vector, script->trynotes()->vector,
                wscript->trynotes()->length * sizeof(JSTryNote));
-    }
-    if (script->globalsOffset != 0) {
-        memcpy(wscript->globals()->vector, script->globals()->vector,
-               wscript->globals()->length * sizeof(GlobalSlotArray::Entry));
     }
 
     if (wfun->u.i.nupvars != 0) {
@@ -2502,9 +2495,9 @@ js_NewFlatClosure(JSContext *cx, JSFunction *fun)
     JSUpvarArray *uva = fun->u.i.script->upvars();
     JS_ASSERT(uva->length <= closure->dslots[-1].toPrivateUint32());
 
-    uint16 level = fun->u.i.script->staticLevel;
+    uintN level = fun->u.i.script->staticLevel;
     for (uint32 i = 0, n = uva->length; i < n; i++)
-        closure->dslots[i] = GetUpvar(cx, level, uva->vector[i]);
+        closure->dslots[i] = js_GetUpvar(cx, level, uva->vector[i]);
 
     return closure;
 }
