@@ -1426,7 +1426,7 @@ public:
     // create artificial (i.e. deterministic) reporters -- which allows us
     // to precisely test nsMemoryReporterManager.explicit -- but we can't
     // do that for distinguished amounts.
-    if (aPath.EqualsLiteral("heap-allocated") ||
+    if (aPath.Equals("heap-allocated") ||
         (aKind == nsIMemoryReporter::KIND_NONHEAP &&
          PromiseFlatCString(aPath).Find("explicit") == 0)) {
       Int64Wrapper* wrappedInt64 = static_cast<Int64Wrapper*>(aWrappedExplicit);

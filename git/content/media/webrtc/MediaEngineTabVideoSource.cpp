@@ -109,13 +109,13 @@ MediaEngineTabVideoSource::InitRunnable::Run()
 void
 MediaEngineTabVideoSource::GetName(nsAString_internal& aName)
 {
-  aName.AssignLiteral("&getUserMedia.videoDevice.tabShare;");
+  aName.Assign(NS_LITERAL_STRING("&getUserMedia.videoDevice.tabShare;"));
 }
 
 void
 MediaEngineTabVideoSource::GetUUID(nsAString_internal& aUuid)
 {
-  aUuid.AssignLiteral("uuid");
+  aUuid.Assign(NS_LITERAL_STRING("uuid"));
 }
 
 nsresult

@@ -1125,7 +1125,7 @@ nsresult FaviconHelper::GetOutputIconPath(nsCOMPtr<nsIURI> aFaviconPageURI,
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Append the icon extension
-  inputURIHash.AppendLiteral(".ico");
+  inputURIHash.Append(".ico");
   rv = aICOFile->AppendNative(inputURIHash);
 
   return rv;

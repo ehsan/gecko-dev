@@ -466,7 +466,7 @@ nsFormFillController::GetSearchCount(uint32_t *aSearchCount)
 NS_IMETHODIMP
 nsFormFillController::GetSearchAt(uint32_t index, nsACString & _retval)
 {
-  _retval.AssignLiteral("form-history");
+  _retval.Assign("form-history");
   return NS_OK;
 }
 

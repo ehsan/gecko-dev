@@ -25,13 +25,13 @@
 #include <ctype.h>
 
 /*
- * Functions outside android is below the namespace stagefright, since they use
+ * Functions outside android is below the namespace android, since they use
  * functions and constants in android namespace.
  */
 
 // ---------------------------------------------------------------------------
 
-namespace stagefright {
+namespace android {
 
 // Separator used by resource paths. This is not platform dependent contrary
 // to OS_PATH_SEPARATOR.
@@ -138,8 +138,17 @@ static char* allocFromUTF32(const char32_t* in, size_t len)
 // ---------------------------------------------------------------------------
 
 String8::String8()
+    : mString(getEmptyString())
+{
+}
+
+String8::String8(StaticLinkage)
     : mString(0)
 {
+    // this constructor is used when we can't rely on the static-initializers
+    // having run. In this case we always allocate an empty string. It's less
+    // efficient than using getEmptyString(), but we assume it's uncommon.
+
     char* data = static_cast<char*>(
             SharedBuffer::alloc(sizeof(char))->data());
     data[0] = 0;
@@ -315,27 +324,16 @@ status_t String8::appendFormat(const char* fmt, ...)
 status_t String8::appendFormatV(const char* fmt, va_list args)
 {
     int result = NO_ERROR;
-#ifndef _MSC_VER
-    va_list o;
-    va_copy(o, args);
-#endif
     int n = vsnprintf(NULL, 0, fmt, args);
     if (n != 0) {
         size_t oldLength = length();
         char* buf = lockBuffer(oldLength + n);
         if (buf) {
-#ifdef _MSC_VER
             vsnprintf(buf + oldLength, n + 1, fmt, args);
-#else
-            vsnprintf(buf + oldLength, n + 1, fmt, o);
-#endif
         } else {
             result = NO_MEMORY;
         }
     }
-#ifndef _MSC_VER
-    va_end(o);
-#endif
     return result;
 }
 
@@ -466,8 +464,6 @@ void String8::getUtf32(char32_t* dst) const
 
 // ---------------------------------------------------------------------------
 // Path functions
-
-#if 0
 
 void String8::setPathName(const char* name)
 {
@@ -641,6 +637,4 @@ String8& String8::convertToResPath()
     return *this;
 }
 
-#endif
-
-}; // namespace stagefright
+}; // namespace android

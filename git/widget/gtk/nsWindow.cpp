@@ -3289,7 +3289,7 @@ GetBrandName(nsXPIDLString& brandName)
             getter_Copies(brandName));
 
     if (brandName.IsEmpty())
-        brandName.AssignLiteral("Mozilla");
+        brandName.Assign(NS_LITERAL_STRING("Mozilla"));
 }
 
 static GdkWindow *

@@ -28,7 +28,7 @@
 #include <utils/ThreadDefs.h>
 
 // ---------------------------------------------------------------------------
-namespace stagefright {
+namespace android {
 // ---------------------------------------------------------------------------
 
 #if defined(HAVE_PTHREADS)
@@ -120,7 +120,7 @@ inline void RWLock::unlock() {
 #endif // HAVE_PTHREADS
 
 // ---------------------------------------------------------------------------
-}; // namespace stagefright
+}; // namespace android
 // ---------------------------------------------------------------------------
 
 #endif // _LIBS_UTILS_RWLOCK_H

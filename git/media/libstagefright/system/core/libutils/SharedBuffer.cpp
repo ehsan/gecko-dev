@@ -22,7 +22,7 @@
 
 // ---------------------------------------------------------------------------
 
-namespace stagefright {
+namespace android {
 
 SharedBuffer* SharedBuffer::alloc(size_t size)
 {
@@ -110,4 +110,4 @@ int32_t SharedBuffer::release(uint32_t flags) const
 }
 
 
-}; // namespace stagefright
+}; // namespace android

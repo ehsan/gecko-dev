@@ -26,7 +26,7 @@
 // No user serviceable parts in here...
 // ---------------------------------------------------------------------------
 
-namespace stagefright {
+namespace android {
 
 /*!
  * Implementation of the guts of the vector<> class
@@ -175,7 +175,7 @@ private:
             ssize_t         replaceAt(const void* item, size_t index);
 };
 
-}; // namespace stagefright
+}; // namespace android
 
 
 // ---------------------------------------------------------------------------

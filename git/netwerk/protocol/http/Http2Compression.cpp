@@ -383,13 +383,13 @@ nsresult
 Http2Decompressor::OutputHeader(const nsACString &name, const nsACString &value)
 {
     // exclusions
-  if (name.EqualsLiteral("connection") ||
-      name.EqualsLiteral("host") ||
-      name.EqualsLiteral("keep-alive") ||
-      name.EqualsLiteral("proxy-connection") ||
-      name.EqualsLiteral("te") ||
-      name.EqualsLiteral("transfer-encoding") ||
-      name.EqualsLiteral("upgrade") ||
+  if (name.Equals(NS_LITERAL_CSTRING("connection")) ||
+      name.Equals(NS_LITERAL_CSTRING("host")) ||
+      name.Equals(NS_LITERAL_CSTRING("keep-alive")) ||
+      name.Equals(NS_LITERAL_CSTRING("proxy-connection")) ||
+      name.Equals(NS_LITERAL_CSTRING("te")) ||
+      name.Equals(NS_LITERAL_CSTRING("transfer-encoding")) ||
+      name.Equals(NS_LITERAL_CSTRING("upgrade")) ||
       name.Equals(("accept-encoding"))) {
     nsCString toLog(name);
     LOG3(("HTTP Decompressor illegal response header found : %s",
@@ -421,19 +421,19 @@ Http2Decompressor::OutputHeader(const nsACString &name, const nsACString &value)
   }
 
   // Status comes first
-  if (name.EqualsLiteral(":status")) {
+  if (name.Equals(NS_LITERAL_CSTRING(":status"))) {
     nsAutoCString status(NS_LITERAL_CSTRING("HTTP/2.0 "));
     status.Append(value);
-    status.AppendLiteral("\r\n");
+    status.Append(NS_LITERAL_CSTRING("\r\n"));
     mOutput->Insert(status, 0);
     mHeaderStatus = value;
-  } else if (name.EqualsLiteral(":authority")) {
+  } else if (name.Equals(NS_LITERAL_CSTRING(":authority"))) {
     mHeaderHost = value;
-  } else if (name.EqualsLiteral(":scheme")) {
+  } else if (name.Equals(NS_LITERAL_CSTRING(":scheme"))) {
     mHeaderScheme = value;
-  } else if (name.EqualsLiteral(":path")) {
+  } else if (name.Equals(NS_LITERAL_CSTRING(":path"))) {
     mHeaderPath = value;
-  } else if (name.EqualsLiteral(":method")) {
+  } else if (name.Equals(NS_LITERAL_CSTRING(":method"))) {
     mHeaderMethod = value;
   }
 
@@ -445,24 +445,24 @@ Http2Decompressor::OutputHeader(const nsACString &name, const nsACString &value)
   }
 
   mOutput->Append(name);
-  mOutput->AppendLiteral(": ");
+  mOutput->Append(NS_LITERAL_CSTRING(": "));
   // Special handling for set-cookie according to the spec
-  bool isSetCookie = name.EqualsLiteral("set-cookie");
+  bool isSetCookie = name.Equals(NS_LITERAL_CSTRING("set-cookie"));
   int32_t valueLen = value.Length();
   for (int32_t i = 0; i < valueLen; ++i) {
     if (value[i] == '\0') {
       if (isSetCookie) {
-        mOutput->AppendLiteral("\r\n");
+        mOutput->Append(NS_LITERAL_CSTRING("\r\n"));
         mOutput->Append(name);
-        mOutput->AppendLiteral(": ");
+        mOutput->Append(NS_LITERAL_CSTRING(": "));
       } else {
-        mOutput->AppendLiteral(", ");
+        mOutput->Append(NS_LITERAL_CSTRING(", "));
       }
     } else {
       mOutput->Append(value[i]);
     }
   }
-  mOutput->AppendLiteral("\r\n");
+  mOutput->Append(NS_LITERAL_CSTRING("\r\n"));
   return NS_OK;
 }
 
@@ -950,14 +950,14 @@ Http2Compressor::EncodeHeaderBlock(const nsCString &nvInput,
     ToLowerCase(name);
 
     // exclusions
-    if (name.EqualsLiteral("connection") ||
-        name.EqualsLiteral("host") ||
-        name.EqualsLiteral("keep-alive") ||
-        name.EqualsLiteral("proxy-connection") ||
-        name.EqualsLiteral("te") ||
-        name.EqualsLiteral("transfer-encoding") ||
-        name.EqualsLiteral("upgrade") ||
-        name.EqualsLiteral("accept-encoding")) {
+    if (name.Equals("connection") ||
+        name.Equals("host") ||
+        name.Equals("keep-alive") ||
+        name.Equals("proxy-connection") ||
+        name.Equals("te") ||
+        name.Equals("transfer-encoding") ||
+        name.Equals("upgrade") ||
+        name.Equals("accept-encoding")) {
       continue;
     }
 
@@ -972,7 +972,7 @@ Http2Compressor::EncodeHeaderBlock(const nsCString &nvInput,
     // if we have Expect: *100-continue,*" redact the 100-continue
     // as we don't have a good mechanism for clients to make use of it
     // anyhow
-    if (name.EqualsLiteral("expect")) {
+    if (name.Equals("expect")) {
       const char *continueHeader =
         nsHttp::FindToken(beginBuffer + valueIndex, "100-continue",
                           HTTP_HEADER_VALUE_SEPS);
@@ -995,14 +995,14 @@ Http2Compressor::EncodeHeaderBlock(const nsCString &nvInput,
     nsDependentCSubstring value = Substring(beginBuffer + valueIndex,
                                             beginBuffer + crlfIndex);
 
-    if (name.EqualsLiteral("content-length")) {
+    if (name.Equals("content-length")) {
       int64_t len;
       nsCString tmp(value);
       if (nsHttp::ParseInt64(tmp.get(), nullptr, &len))
         mParsedContentLength = len;
     }
 
-    if (name.EqualsLiteral("cookie")) {
+    if (name.Equals("cookie")) {
       // cookie crumbling
       bool haveMoreCookies = true;
       int32_t nextCookie = valueIndex;
@@ -1019,7 +1019,7 @@ Http2Compressor::EncodeHeaderBlock(const nsCString &nvInput,
         nextCookie = semiSpaceIndex + 2;
       }
     } else {
-      ProcessHeader(nvPair(name, value), name.EqualsLiteral("authorization"));
+      ProcessHeader(nvPair(name, value), name.Equals("authorization") ? true : false);
     }
   }
 

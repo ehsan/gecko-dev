@@ -289,8 +289,10 @@ AboutReader.prototype = {
     this._isReadingListItem = (this._isReadingListItem == 1) ? 0 : 1;
     this._updateToggleButton();
 
+    // Create a relative timestamp for telemetry
+    let uptime = Date.now() - Services.startup.getStartupInfo().linkerInitialized;
+
     if (this._isReadingListItem == 1) {
-      let uptime = UITelemetry.uptimeMillis();
       gChromeWin.Reader.storeArticleInCache(this._article, function(success) {
         dump("Reader:Add (in reader) success=" + success);
 
@@ -318,7 +320,7 @@ AboutReader.prototype = {
       // updated (handled in this file).
       Services.obs.notifyObservers(null, "Reader:Remove", this._article.url);
 
-      UITelemetry.addEvent("unsave.1", "button", null, "reader");
+      UITelemetry.addEvent("unsave.1", "button", uptime, "reader");
     }
   },
 
@@ -332,7 +334,9 @@ AboutReader.prototype = {
       title: this._article.title
     });
 
-    UITelemetry.addEvent("share.1", "list", null);
+    // Create a relative timestamp for telemetry
+    let uptime = Date.now() - Services.startup.getStartupInfo().linkerInitialized;
+    UITelemetry.addEvent("share.1", "list", uptime);
   },
 
   _setFontSize: function Reader_setFontSize(newFontSize) {
@@ -700,9 +704,11 @@ AboutReader.prototype = {
 
         aEvent.stopPropagation();
 
+        // Create a relative timestamp for telemetry
+        let uptime = Date.now() - Services.startup.getStartupInfo().linkerInitialized;
         // Just pass the ID of the button as an extra and hope the ID doesn't change
         // unless the context changes
-        UITelemetry.addEvent("action.1", "button", null, id);
+        UITelemetry.addEvent("action.1", "button", uptime, id);
 
         let items = segmentedButton.children;
         for (let j = items.length - 1; j >= 0; j--) {

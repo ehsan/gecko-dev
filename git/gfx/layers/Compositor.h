@@ -308,10 +308,19 @@ public:
                         const EffectChain& aEffectChain,
                         gfx::Float aOpacity, const gfx::Matrix4x4 &aTransform) = 0;
 
+  /**
+   * Tell the compositor to draw lines connecting the points. Behaves like
+   * DrawQuad.
+   */
+  virtual void DrawLines(const std::vector<gfx::Point>& aLines, const gfx::Rect& aClipRect,
+                         const gfx::Color& aColor,
+                         gfx::Float aOpacity, const gfx::Matrix4x4 &aTransform)
+  { /* Should turn into pure virtual once implemented in D3D */ }
+
   /*
    * Clear aRect on current render target.
    */
-  virtual void ClearRect(const gfx::Rect& aRect) = 0;
+  virtual void ClearRect(const gfx::Rect& aRect) { }
 
   /**
    * Start a new frame.

@@ -113,9 +113,6 @@ public:
   static ShadowRoot* FromNode(nsINode* aNode);
   static bool IsShadowInsertionPoint(nsIContent* aContent);
 
-  static void RemoveDestInsertionPoint(nsIContent* aInsertionPoint,
-                                       nsTArray<nsIContent*>& aDestInsertionPoints);
-
   // WebIDL methods.
   Element* GetElementById(const nsAString& aElementId);
   already_AddRefed<nsContentList>

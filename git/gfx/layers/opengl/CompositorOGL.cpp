@@ -419,7 +419,6 @@ CompositorOGL::Initialize()
 // larger than the rectangle given by |aTexCoordRect|.
 void
 CompositorOGL::BindAndDrawQuadWithTextureRect(ShaderProgramOGL *aProg,
-                                              const Rect& aRect,
                                               const gfx3DMatrix& aTextureTransform,
                                               const Rect& aTexCoordRect,
                                               TextureSource *aTexture)
@@ -482,12 +481,11 @@ CompositorOGL::BindAndDrawQuadWithTextureRect(ShaderProgramOGL *aProg,
     Matrix4x4 transform;
     ToMatrix4x4(aTextureTransform * textureTransform, transform);
     aProg->SetTextureTransform(transform);
-    BindAndDrawQuad(aProg, aRect);
+    BindAndDrawQuad(aProg);
   } else {
     Matrix4x4 transform;
     ToMatrix4x4(aTextureTransform, transform);
     aProg->SetTextureTransform(transform);
-    aProg->SetLayerQuadRect(aRect);
     DrawQuads(mGLContext, mVBOs, aProg, LOCAL_GL_TRIANGLES, rects);
   }
 }
@@ -877,6 +875,25 @@ CompositorOGL::GetShaderProgramFor(const ShaderConfigOGL &aConfig)
   return shader;
 }
 
+void
+CompositorOGL::DrawLines(const std::vector<gfx::Point>& aLines, const gfx::Rect& aClipRect,
+                         const gfx::Color& aColor,
+                         gfx::Float aOpacity, const gfx::Matrix4x4 &aTransform)
+{
+  mGLContext->fLineWidth(2.0);
+
+  EffectChain effects;
+  effects.mPrimaryEffect = new EffectSolidColor(aColor);
+
+  for (int32_t i = 0; i < (int32_t)aLines.size() - 1; i++) {
+    const gfx::Point& p1 = aLines[i];
+    const gfx::Point& p2 = aLines[i+1];
+    DrawQuadInternal(Rect(p1.x, p2.y, p2.x - p1.x, p1.y - p2.y),
+                     aClipRect, effects, aOpacity, aTransform,
+                     LOCAL_GL_LINE_STRIP);
+  }
+}
+
 static bool SetBlendMode(GLContext* aGL, gfx::CompositionOp aBlendMode, bool aIsPremultiplied = true)
 {
   if (aBlendMode == gfx::CompositionOp::OP_OVER && aIsPremultiplied) {
@@ -913,11 +930,12 @@ static bool SetBlendMode(GLContext* aGL, gfx::CompositionOp aBlendMode, bool aIs
 }
 
 void
-CompositorOGL::DrawQuad(const Rect& aRect,
-                        const Rect& aClipRect,
-                        const EffectChain &aEffectChain,
-                        Float aOpacity,
-                        const gfx::Matrix4x4 &aTransform)
+CompositorOGL::DrawQuadInternal(const Rect& aRect,
+                                const Rect& aClipRect,
+                                const EffectChain &aEffectChain,
+                                Float aOpacity,
+                                const gfx::Matrix4x4 &aTransform,
+                                GLuint aDrawMode)
 {
   PROFILER_LABEL("CompositorOGL", "DrawQuad");
   MOZ_ASSERT(mFrameInProgress, "frame not started");
@@ -1000,6 +1018,7 @@ CompositorOGL::DrawQuad(const Rect& aRect,
   ShaderProgramOGL *program = GetShaderProgramFor(config);
   program->Activate();
   program->SetProjectionMatrix(mProjMatrix);
+  program->SetLayerQuadRect(aRect);
   program->SetLayerTransform(aTransform);
   IntPoint offset = mCurrentRenderTarget->GetOrigin();
   program->SetRenderOffset(offset.x, offset.y);
@@ -1025,7 +1044,7 @@ CompositorOGL::DrawQuad(const Rect& aRect,
 
       didSetBlendMode = SetBlendMode(gl(), blendMode);
 
-      BindAndDrawQuad(program, aRect);
+      BindAndDrawQuad(program, aDrawMode);
     }
     break;
 
@@ -1060,7 +1079,7 @@ CompositorOGL::DrawQuad(const Rect& aRect,
         BindMaskForProgram(program, sourceMask, LOCAL_GL_TEXTURE1, maskQuadTransform);
       }
 
-      BindAndDrawQuadWithTextureRect(program, aRect, textureTransform,
+      BindAndDrawQuadWithTextureRect(program, textureTransform,
                                      texturedEffect->mTextureCoords, source);
     }
     break;
@@ -1089,7 +1108,6 @@ CompositorOGL::DrawQuad(const Rect& aRect,
       }
       didSetBlendMode = SetBlendMode(gl(), blendMode);
       BindAndDrawQuadWithTextureRect(program,
-                                     aRect,
                                      gfx3DMatrix(),
                                      effectYCbCr->mTextureCoords,
                                      sourceYCbCr->GetSubSource(Y));
@@ -1126,7 +1144,7 @@ CompositorOGL::DrawQuad(const Rect& aRect,
       // this. Pass true for the flip parameter to introduce a second flip
       // that cancels the other one out.
       didSetBlendMode = SetBlendMode(gl(), blendMode);
-      BindAndDrawQuad(program, aRect);
+      BindAndDrawQuad(program);
     }
     break;
   case EffectTypes::COMPONENT_ALPHA: {
@@ -1158,7 +1176,6 @@ CompositorOGL::DrawQuad(const Rect& aRect,
                                LOCAL_GL_ONE, LOCAL_GL_ONE);
       program->SetTexturePass2(false);
       BindAndDrawQuadWithTextureRect(program,
-                                     aRect,
                                      gfx3DMatrix(),
                                      effectComponentAlpha->mTextureCoords,
                                      effectComponentAlpha->mOnBlack);
@@ -1168,7 +1185,6 @@ CompositorOGL::DrawQuad(const Rect& aRect,
                                LOCAL_GL_ONE, LOCAL_GL_ONE);
       program->SetTexturePass2(true);
       BindAndDrawQuadWithTextureRect(program,
-                                     aRect,
                                      gfx3DMatrix(),
                                      effectComponentAlpha->mTextureCoords,
                                      effectComponentAlpha->mOnBlack);
@@ -1466,25 +1482,34 @@ CompositorOGL::QuadVBOTexCoordsAttrib(GLuint aAttribIndex) {
 }
 
 void
-CompositorOGL::BindAndDrawQuad(ShaderProgramOGL *aProg, const Rect& aRect)
+CompositorOGL::BindAndDrawQuad(GLuint aVertAttribIndex,
+                               GLuint aTexCoordAttribIndex,
+                               GLuint aDrawMode)
 {
-  NS_ASSERTION(aProg->HasInitialized(), "Shader program not correctly initialized");
-
-  aProg->SetLayerQuadRect(aRect);
-
-  GLuint vertAttribIndex = aProg->AttribLocation(ShaderProgramOGL::VertexCoordAttrib);
-  GLuint texCoordAttribIndex = aProg->AttribLocation(ShaderProgramOGL::TexCoordAttrib);
-
   BindQuadVBO();
-  QuadVBOVerticesAttrib(vertAttribIndex);
+  QuadVBOVerticesAttrib(aVertAttribIndex);
 
-  if (texCoordAttribIndex != GLuint(-1)) {
-    QuadVBOTexCoordsAttrib(texCoordAttribIndex);
-    mGLContext->fEnableVertexAttribArray(texCoordAttribIndex);
+  if (aTexCoordAttribIndex != GLuint(-1)) {
+    QuadVBOTexCoordsAttrib(aTexCoordAttribIndex);
+    mGLContext->fEnableVertexAttribArray(aTexCoordAttribIndex);
   }
 
-  mGLContext->fEnableVertexAttribArray(vertAttribIndex);
-  mGLContext->fDrawArrays(LOCAL_GL_TRIANGLE_STRIP, 0, 4);
+  mGLContext->fEnableVertexAttribArray(aVertAttribIndex);
+  if (aDrawMode == LOCAL_GL_LINE_STRIP) {
+    mGLContext->fDrawArrays(aDrawMode, 1, 2);
+  } else {
+    mGLContext->fDrawArrays(aDrawMode, 0, 4);
+  }
+}
+
+void
+CompositorOGL::BindAndDrawQuad(ShaderProgramOGL *aProg,
+                               GLuint aDrawMode)
+{
+  NS_ASSERTION(aProg->HasInitialized(), "Shader program not correctly initialized");
+  BindAndDrawQuad(aProg->AttribLocation(ShaderProgramOGL::VertexCoordAttrib),
+                  aProg->AttribLocation(ShaderProgramOGL::TexCoordAttrib),
+                  aDrawMode);
 }
 
 GLuint

@@ -26,7 +26,7 @@
 #include <utils/Vector.h>
 #include <utils/threads.h>
 
-namespace stagefright {
+namespace android {
 
 struct AAtomizer {
     static const char *Atomize(const char *name);
@@ -46,6 +46,6 @@ private:
     DISALLOW_EVIL_CONSTRUCTORS(AAtomizer);
 };
 
-}  // namespace stagefright
+}  // namespace android
 
 #endif  // A_ATOMIZER_H_
